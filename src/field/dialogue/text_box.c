@@ -79,7 +79,19 @@ void func_8009BF8C(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 6;
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/dialogue/text_box", func_8009C01C);
+void func_8009C01C(void) {
+    u32 nActorIndex;
+
+    if (FieldScriptVMGetActorIndex(1) != ACTOR_ID_INVALID) {
+        nActorIndex = FieldScriptVMGetActorIndex(1);
+        g_FieldScriptVMCurActor->scriptInstructionPointer++;
+        if (func_8009C5A8(nActorIndex, 0) == -1) {
+            g_FieldScriptVMCurActor->scriptInstructionPointer--;
+        }
+        return;
+    }
+    g_FieldScriptVMCurActor->scriptInstructionPointer += 6;
+}
 
 void func_8009C0B4(void) {
     func_8009C5A8(D_800AFD1C, 0);

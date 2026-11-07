@@ -57,8 +57,17 @@ void FieldScriptVMHandlerDecreasePartyHp(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 4;
 }
 
+// The four shorts at 0x800B2340 are one object, not four separate s16: only then
+// does gcc keep the original store-then-load order.
+extern s16 D_800B2340[];
 
-INCLUDE_ASM("asm/field/nonmatchings/party/stats", func_80096AF4);
+void func_80096AF4(void) {
+    D_800B2340[2] = FieldScriptVMGetArgument(1);
+    D_800B2340[3] = FieldScriptVMGetArgument(3);
+    D_800B2340[0] = FieldScriptVMGetArgument(5);
+    D_800B2340[1] = 0;
+    g_FieldScriptVMCurActor->scriptInstructionPointer += 7;
+}
 
 void FieldScriptVMHandlerWritePartyMemberHp(void) {
     if (g_GamePartyMembers[SCRIPT_READ_U8_REL(ARG(2))] != CHARACTER_ID_NONE) {
@@ -146,7 +155,24 @@ void FieldScriptVMHandlerDecreasePartyMp(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 4;
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/party/stats", func_80097108);
+// Byte-identical to FieldScriptVMHandlerIncreasePartyMp; the script VM table
+// gives it its own opcode entry
+void FieldScriptVMHandlerIncreasePartyMp2(void) {
+    int mask;
+    int amount;
+    int i;
+
+    amount = FieldScriptArgument1(1, SCRIPT_READ_U8_REL(3));
+    mask = g_FieldNumPartyMembersMasks[SCRIPT_READ_U8_REL(3) & 0x3];
+
+    for (i = 0; i < MAX_PARTY_MEMBERS; i++) {
+        if ((g_GamePartyMembers[i] != CHARACTER_ID_NONE) && (mask & 1)) {
+            FieldPartyMemberIncreaseMp(i, amount);
+        }
+        mask >>= 1;
+    }
+    g_FieldScriptVMCurActor->scriptInstructionPointer += 4;
+}
 
 void FieldScriptVMHandlerRestoreCharacterHpAndMp(void) {
     int id = FieldScriptVMGetArgument(1);

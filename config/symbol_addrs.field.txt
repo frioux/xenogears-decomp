@@ -122,6 +122,7 @@ FieldScriptVMHandlerSetPartyMemberHp = 0x80096D28;
 FieldScriptVMHandlerSetPartyMemberMp = 0x80096E20;
 FieldScriptVMHandlerIncreasePartyMp = 0x80096F18;
 FieldScriptVMHandlerDecreasePartyMp = 0x80097010;
+FieldScriptVMHandlerIncreasePartyMp2 = 0x80097108;
 FieldScriptVMHandlerRestoreCharacterHpAndMp = 0x80097200;
 FieldScriptVMHandlerRestoreHp = 0x80097264;
 FieldScriptVMHandlerRestoreMp = 0x800972AC;

@@ -8,16 +8,6 @@ extern int g_FrameDeltaTime;
 
 
 INCLUDE_ASM("asm/field/nonmatchings/main/main", FieldInitializeControllers);
-/*
-void FieldInitializeControllers(void) {
-    FieldSetControllerBuffers(&g_C1Buffer, &g_C2Buffer);
-    FieldSetMouseSpeed(3, 4);
-    func_8007ADA4(0, 0x140, 0, 0xE0); // SetMouseArea?
-    FieldSetMousePosition(0, 0x50, 100);
-    FieldSetMousePosition(1, 0xFA, 100);
-    func_8007ADA4(0, 300, 10, 0xDC); // SetMouseArea?
-}
-*/
 
 void FieldRenderSync(void) {
     DrawSync(0);
