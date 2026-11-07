@@ -1,8 +1,6 @@
 # Xenogears Decompilation
-[![Build Status]][actions] [![Progress]][progress site]
+[![Progress]][progress site]
 
-[Build Status]: https://github.com/frioux/xenogears-decomp/actions/workflows/build.yaml/badge.svg
-[actions]: https://github.com/frioux/xenogears-decomp/actions/workflows/build.yaml
 [Progress]: https://frioux.github.io/xenogears-decomp/badge.svg
 [progress site]: https://frioux.github.io/xenogears-decomp/
 
