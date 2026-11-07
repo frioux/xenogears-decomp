@@ -1,0 +1,39 @@
+name: Progress site
+
+# Republish https://frioux.github.io/xenogears-decomp/ from the report snapshot
+# committed at reports/progress.json. This runs without the game binaries (which
+# are not in the repo), so it works on a plain GitHub runner; regenerate the
+# snapshot with `make snapshot` (or `make progress-publish`) on a machine that
+# has disc/.
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - reports/progress.json
+      - tools/progress/**
+      - .github/workflows/progress.yaml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Publish
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ ! -f reports/progress.json ]; then
+            echo "No reports/progress.json yet; nothing to publish."
+            exit 0
+          fi
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config --global url."https://x-access-token:${GITHUB_TOKEN}@github.com/".insteadOf "https://github.com/"
+          tools/progress/publish.sh reports/progress.json

@@ -120,8 +120,16 @@ progress: report
 	@echo "progress site: $(BUILD_DIR)/progress-site/index.html"
 
 # Render and push the progress site (with history) to the gh-pages branch.
-progress-publish: report
+# Also refreshes reports/progress.json, which CI publishes on every push (CI
+# cannot build: the game binaries are not in the repo).
+progress-publish: report snapshot
 	tools/progress/publish.sh $(BUILD_DIR)/progress.json
+
+# Committed copy of the report, the input to the CI publisher.
+snapshot: report
+	@mkdir -p reports
+	@cp $(BUILD_DIR)/progress.json reports/progress.json
+	@echo "report snapshot: reports/progress.json"
 
 clean:
 	@$(GEARS) clean; \
@@ -139,5 +147,5 @@ extract:
 
 ### Settings
 .SECONDARY:
-.PHONY: all clean default extract docker shell build check objdiff-config report progress progress-publish
+.PHONY: all clean default extract docker shell build check objdiff-config report snapshot progress progress-publish
 SHELL = /bin/bash -e -o pipefail

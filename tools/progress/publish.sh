@@ -28,6 +28,10 @@ touch "$tmp/.nojekyll"
 pct="$(python3 -c 'import json,sys; print("%.1f%%" % float(json.load(open(sys.argv[1]))["measures"]["matched_code_percent"]))' "$report")"
 
 git -C "$tmp" add -A
+if git -C "$tmp" diff --cached --quiet; then
+    echo "Nothing new to publish ($short already rendered)."
+    exit 0
+fi
 git -C "$tmp" commit --quiet -m "progress: $short $pct"
 git -C "$tmp" push origin gh-pages
 

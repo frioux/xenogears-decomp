@@ -1,14 +1,14 @@
-
 name: Build
 
+# Build + checksum check in CI. Needs the game binaries, which are not in the
+# repo: set the FILE_URL* / OVL_* secrets to download them, otherwise the
+# build steps are skipped (the progress site is published by progress.yaml,
+# which needs no binaries).
 on:
   push:
     branches:
       - main
   workflow_dispatch:
-
-permissions:
-  contents: write
 
 jobs:
   build:
@@ -24,11 +24,13 @@ jobs:
           submodules: recursive
 
       - name: Set up Python
+        if: ${{ secrets.FILE_URL != '' }}
         uses: actions/setup-python@v4
         with:
           python-version: "3.x"
 
       - name: Install dependencies
+        if: ${{ secrets.FILE_URL != '' }}
         run: |
           python3 -m pip install --upgrade pip
           python3 -m pip install -U -r requirements.txt
@@ -36,7 +38,9 @@ jobs:
           sudo apt-get install make binutils-mips-linux-gnu cpp-mips-linux-gnu
 
       - name: Setup build environment
+        if: ${{ secrets.FILE_URL != '' }}
         run: |
+          mkdir -p disc
           curl -L -o disc/SLUS_006.64 "${{ secrets.FILE_URL }}"
           curl -L -o disc/movie.bin "${{ secrets.FILE_URL_2 }}"
           curl -L -o disc/field.bin "${{ secrets.FILE_URL_3 }}"
@@ -44,27 +48,21 @@ jobs:
           curl -L -o disc/shop_menu.bin "${{ secrets.FILE_URL_5 }}"
           curl -L -o disc/gear_shop_menu.bin "${{ secrets.OVL_GEAR_SHOP_URL }}"
           curl -L -o disc/lib_gear.bin "${{ secrets.OVL_GEAR_SHOP_HELPER_URL }}"
-      
+
       - name: Build
-        run: |
-          make build
+        if: ${{ secrets.FILE_URL != '' }}
+        run: make build
 
       - name: Check match
+        if: ${{ secrets.FILE_URL != '' }}
         run: make check
 
       - name: Generate Progress Report
+        if: ${{ secrets.FILE_URL != '' }}
         run: make report
 
-      - name: Publish progress site
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git config --global url."https://x-access-token:${GITHUB_TOKEN}@github.com/".insteadOf "https://github.com/"
-          tools/progress/publish.sh build/progress.json
-
       - name: Upload Progress Report
+        if: ${{ secrets.FILE_URL != '' }}
         uses: actions/upload-artifact@v4
         with:
             name: ${{ matrix.game_id }}_report
