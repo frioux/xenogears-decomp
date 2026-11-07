@@ -26,8 +26,11 @@ If `disc/SLUS_006.64` is missing, the disc archives are on the Desktop
 
 ## Orchestration
 
-Fan work out by unit (one `.c` file per worker) with Sonnet or Haiku; workers only
-run `ninja` and `diff_func.sh`, never `make build|check|objdiff-config`. The
+Fan work out by unit (one `.c` file per worker) on
+`lunaroute/deepseek-4.1-flash-background`, which is the pi-subagents
+`subagents.defaultModel` (never name an `anthropic/*` or other non-lunaroute model:
+those route through OpenRouter and fail with a 402). Workers only run `ninja` and
+`diff_func.sh`, never `make build|check|objdiff-config`. The
 orchestrator integrates, runs `make check`, commits, and runs
 `make progress-publish`. Do not use git worktrees in this repo; the build writes
 to fixed paths (`build/`, `asm/`, `expected/`) and `gears` locates the project by

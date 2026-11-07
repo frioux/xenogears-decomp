@@ -266,6 +266,13 @@ Cheap models do well on small, named functions in nearly finished units and on
 symbol recovery. Reserve expensive models for units that are stuck across many
 functions, which usually means a wrong struct layout or wrong preset.
 
+**Models.** Workers run on `lunaroute/deepseek-4.1-flash-background` (the
+`-background` lunaroute model). It is the pi-subagents `subagents.defaultModel`,
+so an unqualified launch already picks it; there is no reason to name a
+per-provider model such as `anthropic/claude-sonnet-4-*` — that routes through
+OpenRouter, which is out of credits and fails every worker with a 402 before it
+writes anything. Pass `model` explicitly only to override this.
+
 ## 8. Where the work is
 
 Remaining `INCLUDE_ASM` stubs by area at the time of writing (November 2026):
