@@ -1,0 +1,34 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(make)",
+      "Bash(make *)",
+      "Bash(ninja *)",
+      "Bash(docker run *)",
+      "Bash(docker build *)",
+      "Bash(docker images*)",
+      "Bash(docker info*)",
+      "Bash(colima status*)",
+      "Bash(colima start*)",
+      "Bash(colima list*)",
+      "Bash(python3 tools/*)",
+      "Bash(.venv/bin/python tools/*)",
+      "Bash(.venv/bin/python3 tools/*)",
+      "Bash(tools/scripts/*)",
+      "Bash(tools/progress/*)",
+      "Bash(tools/objdiff/objdiff-cli *)",
+      "Bash(shasum *)",
+      "Bash(sha256sum *)",
+      "Bash(mips-linux-gnu-objdump *)",
+      "Bash(git status*)",
+      "Bash(git diff*)",
+      "Bash(git log*)",
+      "Bash(git show*)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git push origin HEAD*)",
+      "Bash(git push origin main*)",
+      "Bash(git push origin gh-pages*)"
+    ]
+  }
+}
