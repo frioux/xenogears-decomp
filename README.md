@@ -1,32 +1,65 @@
 # Xenogears Decompilation
-[![Build Status]][actions]
+[![Build Status]][actions] [![Progress]][progress site]
 
-[Build Status]: https://github.com/ladysilverberg/xenogears-decomp/actions/workflows/build.yaml/badge.svg
-[actions]: https://github.com/ladysilverberg/xenogears-decomp/actions/workflows/build.yaml
+[Build Status]: https://github.com/frioux/xenogears-decomp/actions/workflows/build.yaml/badge.svg
+[actions]: https://github.com/frioux/xenogears-decomp/actions/workflows/build.yaml
+[Progress]: https://frioux.github.io/xenogears-decomp/badge.svg
+[progress site]: https://frioux.github.io/xenogears-decomp/
 
-This project is an in-progress matching decompilation of Xenogears for Playstation 1. The project currently targets the US release (SLUS 006.64), with the intention to target other releases as well down the road.
+An in-progress matching decompilation of Xenogears for the PlayStation. The
+project targets the US release (SLUS 006.64) and its code overlays, with the
+intention to target other releases later.
+
+Progress is tracked per binary, unit and function at
+<https://frioux.github.io/xenogears-decomp/>.
 
 <img src="https://i.imgur.com/FfAa7QA.png" />
 
+## Contributing
 
+Read [AGENTS.md](AGENTS.md). It is the runbook for both people and LLM agents:
+environment, the build modes, the match-diff-verify loop, conventions, compiler
+presets, and where the remaining work is. Agent-assisted contributions are
+welcome and expected; the bar is the same for everyone: `make check` passes and
+the C looks like something the original developers wrote.
+
+## Quick start
+
+You need a disc 1 image of Xenogears (USA) as a raw `.bin` (`MODE2/2352`).
+
+```sh
+git clone --recursive https://github.com/frioux/xenogears-decomp
+cd xenogears-decomp
+make extract DISC="/path/to/Xenogears (USA) (Disc 1).bin"   # extracts SLUS_006.64 + overlays into disc/
+make check                                                   # builds everything and verifies the checksums
+```
+
+**Linux x86_64** builds natively: install `make binutils-mips-linux-gnu
+cpp-mips-linux-gnu python3 python3-venv`, create a venv and
+`pip install -r requirements.txt`.
+
+**macOS and everything else** builds in Docker (`make` does this for you). On
+Apple Silicon use a Rosetta-enabled VM, for example `colima start --vz-rosetta`;
+plain qemu emulation is unreliable for the assembler. You also need `cargo` to
+build the `gears` metabuild tool natively, and Python 3.10+ with
+`requirements.txt` installed for the host-side scripts.
+
+## Progress page
+
+```sh
+make progress          # render build/progress-site/index.html locally
+make progress-publish  # render with history and push to the gh-pages branch
+```
+
+The report comes from `objdiff`; the page shows overall, per-binary, per-unit and
+per-function match state plus a history chart.
 
 ## Thanks
 This project leans on a lot of work done by others before.
--  [splat](https://github.com/ethteck/splat) - For splitting the binaries
--  [spimdiasm](https://github.com/Decompollaborate/spimdisasm) - For disassembling the binaries
--  [The silent hill decompilation](https://github.com/Vatuu/silent-hill-decomp/tree/master) - As a project structure template this project could be adapted from.
--  [MASPSX](https://github.com/mkst/maspsx) - For making parts of building less painful
--  [objdiff](https://github.com/encounter/objdiff) - For diffing
--  [decomp.me](https://decomp.me/) - For decompiling in collaboration
-
-## Important notice
-This project has a strict stance against LLMs. Ideally as a project, we would like to stay public and open. 
-Unfortunately, there's been an influx of LLM usage in matching decompilation, and our experience with being public and open has been that LLM users have forked or made use of efforts with LLMs despite our wishes.
-
-As a result, this repository is currently archived, and the project has been moved to a private repository on Codeberg. If you are interesting in becoming a contributor, please read the wiki here and get in touch with us on Discord.
-
-***
-
-<a href="https://github.com/ladysilverberg/xenogears-decomp/wiki"><img src="https://i.imgur.com/0tvDzYB.png" /></a>
-
-For a lot more information on how you can help and get started, please have a look at the [wiki](https://github.com/ladysilverberg/xenogears-decomp/wiki).
+- [ladysilverberg/xenogears-decomp](https://github.com/ladysilverberg/xenogears-decomp) - the upstream project this fork continues from
+- [splat](https://github.com/ethteck/splat) - For splitting the binaries
+- [spimdisasm](https://github.com/Decompollaborate/spimdisasm) - For disassembling the binaries
+- [The silent hill decompilation](https://github.com/Vatuu/silent-hill-decomp/tree/master) - As a project structure template this project could be adapted from.
+- [MASPSX](https://github.com/mkst/maspsx) - For making parts of building less painful
+- [objdiff](https://github.com/encounter/objdiff) - For diffing
+- [decomp.me](https://decomp.me/) - For decompiling in collaboration

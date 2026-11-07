@@ -19,6 +19,14 @@ categories:
     name: Shop Menu Overlay
     paths:
       - shop_menu
+  - id: gear_shop_menu
+    name: Gear Shop Menu Overlay
+    paths:
+      - gear_shop_menu
+  - id: lib_gear
+    name: Gear Library Overlay
+    paths:
+      - lib_gear
 
 expected_paths:
   asm: expected/asm

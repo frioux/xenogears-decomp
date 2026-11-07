@@ -13,3 +13,5 @@ notes/
 objdiff.json
 build.ninja
 .ninja_log
+core
+tools/objdiff/objdiff-cli*
