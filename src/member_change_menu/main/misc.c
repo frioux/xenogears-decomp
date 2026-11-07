@@ -8,9 +8,12 @@
 
 // tmp
 u_char MemberChangeMenuSwapCharacters(u_char, s32, s32, u_char, s32, s32);
+void func_801C59E0(MenuString* pStrings, u_char* pStringIDs, s32 arg2, s32 count);
 
 // Bit masks
 extern u_short D_801CB57C[];
+extern u_short D_8006F94C;
+extern u_char D_801CB400[];
 
 extern int D_801CB180[]; // X positions for cursor?
 // = { 0, 0, 180, 276 }
@@ -311,7 +314,12 @@ void func_801C57A0(MenuString* pString, int index, s32 arg2, u32 attributes) {
 
 INCLUDE_ASM("asm/member_change_menu/nonmatchings/main/misc", func_801C59E0);
 
-INCLUDE_ASM("asm/member_change_menu/nonmatchings/main/misc", func_801C5B90);
+void func_801C5B90(void) {
+    SystemTransferPaletteToVRAM(0, 0x1D1);
+    g_Menu->unk4E0[0].pVramBuffer = HeapAlloc(0x38E, 0);
+    func_801C59E0(&g_Menu->unk4E0[0], D_801CB400, 0, 4);
+    func_801C5724();
+}
 
 void MemberChangeMenuInitializeWindowBorders(void) {
     POLY_FT4 _unusued;
@@ -1494,7 +1502,26 @@ void MemberChangeMenuUpdateAndRender(void) {
     DrawOTag(&g_Menu->pGfxEnv->ot[0xF]);
 }
 
-INCLUDE_ASM("asm/member_change_menu/nonmatchings/main/misc", func_801C95A0);
+void func_801C95A0(u_char characterIndex, u_char texIndex) {
+    RECT rect;
+    u_char* pBuffer;
+    u_char uvIndex;
+
+    pBuffer = HeapAlloc(0x3F6, 0);
+    bzero(pBuffer, 0x3F6);
+    uvIndex = characterIndex / 2;
+    SystemRenderStringEntry(&g_GameState.strings[uvIndex * 2], pBuffer, 0x24, 0);
+    SystemRenderStringEntry(&g_GameState.strings[uvIndex * 2 + 1], pBuffer, 0x24, 1);
+
+    // The texcoord tables are 16-bit and hold one entry per character pair
+    rect.x = ((u_short*)g_MemberChangeMenuCharTexcoordsU)[texIndex >> 1 << 1] + 0x180;
+    rect.y = ((u_short*)g_MemberChangeMenuCharTexcoordsV)[texIndex >> 1 << 1];
+    rect.w = 0x28;
+    rect.h = 0xD;
+    LoadImage(&rect, pBuffer);
+    DrawSync(0);
+    HeapFree(pBuffer);
+}
 
 void MemberChangeMenuParseNumberToString(unsigned int number) {
     int i;
