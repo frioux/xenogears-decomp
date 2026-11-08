@@ -133,7 +133,9 @@ typedef struct {
     struct LinkedListEntry* pNext;
 } LinkedListEntry;
 
-extern LinkedListEntry* D_80059300[2];
+// include/system/animation.h already types D_80059300 as a scalar; the real
+// object is the two per-context list heads, so address it through a cast.
+#define g_GfxSpriteTileLists ((LinkedListEntry**)&D_80059300)
 
 // GfxQueueSpriteTileData
 void func_80025180(void* pData) {
@@ -143,8 +145,8 @@ void func_80025180(void* pData) {
     g_GfxCurWorkBuffer = pNewEntry + 1;
     if (pNewEntry) {
         pNewEntry->pData = pData;
-        pNewEntry->pNext = D_80059300[g_GfxCurContext];
-        D_80059300[g_GfxCurContext] = pNewEntry;
+        pNewEntry->pNext = g_GfxSpriteTileLists[g_GfxCurContext];
+        g_GfxSpriteTileLists[g_GfxCurContext] = pNewEntry;
     }
 }
 

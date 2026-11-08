@@ -316,6 +316,7 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_8008399C);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80084158);
 
+extern s32 D_800ADB98;
 extern s32 D_800ADC0C;
 
    int func_8008492C(ActorData* pActor) {

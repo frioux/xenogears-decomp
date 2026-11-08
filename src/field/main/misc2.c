@@ -516,33 +516,13 @@ void func_80075910(void) {
 }
 
 
-// .rodata
-// This unit owns 0x8006FB04..0x8006FB80 of .rodata (0x7C bytes, per field.yaml) and
-// none of it is defined in C yet; D_8006FB70 is its last 0x10 bytes.
-extern const VECTOR D_8006FB70;
-
-// Builds the sprite rotation matrix rows for a billboard from the up vector
-void func_800759E4(s16* pOut, VECTOR* pUp) {
-    VECTOR zAxis;
-    VECTOR xAxis;
-    VECTOR vecWork;
-
-    zAxis = D_8006FB70;
-    OuterProduct12(&zAxis, pUp, &vecWork);
-    VectorNormal(&vecWork, &xAxis);
-    OuterProduct12(&xAxis, pUp, &vecWork);
-    VectorNormal(&vecWork, &zAxis);
-
-    pOut[0] = xAxis.vx;
-    pOut[1] = xAxis.vy;
-    pOut[2] = xAxis.vz;
-    pOut[3] = pUp->vx;
-    pOut[4] = pUp->vy;
-    pOut[5] = pUp->vz;
-    pOut[6] = zAxis.vx;
-    pOut[7] = zAxis.vy;
-    pOut[8] = zAxis.vz;
-}
+// This unit owns 0x8006FB04..0x8006FB80 of .rodata (0x7C bytes, per field.yaml):
+// nine 0xC-byte strings plus D_8006FB70 = VECTOR {0, 0, 0x1000, 0}. The strings
+// still come from asm/field/data/main/misc2.rodata.s, and C .rodata is linked
+// *before* it, so defining only the VECTOR here shifts the whole overlay by 0x10.
+// To put func_800759E4 in C, move the entire 0x7C region into C (in order, with
+// the D_8006FB04.. names kept) and drop the rodata range from config/field.yaml.
+INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_800759E4);
 
 void func_80075B08(SpriteData* pSpriteData, u_char* pColor) {
     if (D_800B218E == 0) {

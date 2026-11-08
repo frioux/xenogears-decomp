@@ -302,51 +302,12 @@ void func_80037F88(void) {
 
 
 
-// SoundHeapAllocate variant, defined further down.
-void* func_80039024(unsigned int allocSize);
-
-int SoundSpuMemoryAllocateWDS(SoundWDSEntry* pWdsFile, int mode);
-int SoundSpuMemoryAllocateBlock(int size, int unk1);
-int SoundSpuMemoryAllocateBlockAtAddress(int size, int address, int unk1);
-
-int SoundLoadWdsFile(SoundWDSEntry* pWdsFile, int mode) {
-    SoundWDSEntry* pEntry;
-    SoundWDSEntry** pList;
-    int spuAddress;
-
-    spuAddress = SoundSpuMemoryAllocateWDS(pWdsFile, mode);
-    if (spuAddress == 0) {
-        SoundHandleError(0x1F);
-        return 0;
-    }
-
-    SoundQueueSpuWriteCommand(spuAddress, (u8*)pWdsFile + pWdsFile->adpcmDataOffset, pWdsFile->adpcmDataSize, NULL);
-    pEntry = func_80039024(pWdsFile->headerSizeMby);
-    if (pEntry == 0) {
-        SoundSpuMemoryFreeBlock(spuAddress);
-        SoundHandleError(0x1E);
-        return 0;
-    }
-
-    SoundHeapSetBlockMemory(pEntry, pWdsFile, pWdsFile->headerSizeMby);
-    pEntry->spuMemoryAddress = spuAddress;
-
-    DisableEvent(g_unk_SoundEvent);
-    pList = &g_SoundWdsLinkedList;
-    while (*pList != NULL) {
-        pList = &(*pList)->pNext;
-    }
-    *pList = pEntry;
-    pEntry->pNext = NULL;
-    EnableEvent(g_unk_SoundEvent);
-
-    return (int)pEntry;
-}
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", SoundLoadWdsFile);
 
 // Loads part of a WDS file, basically a sized SoundLoadWdsFile?
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_800380D0);
 
-int SoundSpuMemoryAllocateWDS(SoundWDSEntry* pWdsFile, int mode) {
+void SoundSpuMemoryAllocateWDS(SoundWDSEntry* pWdsFile, int mode) {
     if (mode == SOUND_WDS_ALLOCATE_AT_ADDRESS) {
         mode = pWdsFile->spuMemoryAddress;
     } else if (mode == SOUND_WDS_ALLOCATE_AUTOMATIC) {
@@ -354,10 +315,11 @@ int SoundSpuMemoryAllocateWDS(SoundWDSEntry* pWdsFile, int mode) {
     }
     
     if (mode == 0) {
-        return SoundSpuMemoryAllocateBlock(pWdsFile->adpcmDataSize, pWdsFile->unk1E);
+        SoundSpuMemoryAllocateBlock(pWdsFile->adpcmDataSize, pWdsFile->unk1E);
+        return;
     }
     
-    return SoundSpuMemoryAllocateBlockAtAddress(pWdsFile->adpcmDataSize, pWdsFile->spuMemoryAddress, pWdsFile->unk1E);
+    SoundSpuMemoryAllocateBlockAtAddress(pWdsFile->adpcmDataSize, pWdsFile->spuMemoryAddress, pWdsFile->unk1E);
 }
 
 void SoundWdsSetTransferParamters(int transferAddress, int numBytesToTransfer) {
@@ -365,29 +327,7 @@ void SoundWdsSetTransferParamters(int transferAddress, int numBytesToTransfer) {
     g_SoundWdsRemainingBytes = numBytesToTransfer;
 }
 
-int SoundTransferWdsPart(void* pBuffer, int numBytes) {
-    int nSize;
-    int nRemaining;
-    int spuAddress;
-
-    nRemaining = g_SoundWdsRemainingBytes;
-    if (nRemaining == 0) {
-        return 0;
-    }
-
-    nSize = nRemaining;
-    if (numBytes < nRemaining) {
-        nSize = numBytes;
-    }
-
-    spuAddress = g_SoundWdsCurSpuAddress;
-    SoundQueueSpuWriteCommand(spuAddress, pBuffer, nSize, NULL);
-    g_SoundWdsCurSpuAddress = spuAddress + nSize;
-    nRemaining -= nSize;
-    g_SoundWdsRemainingBytes = nRemaining;
-
-    return nRemaining;
-}
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", SoundTransferWdsPart);
 
 void SoundFreeWdsEntry(SoundWDSEntry* pTargetEntry) {
     SoundWDSEntry* pPrev;

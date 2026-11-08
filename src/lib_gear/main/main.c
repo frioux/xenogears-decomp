@@ -1355,6 +1355,11 @@ void func_801E6E48(void* pAnimFile, s32 animIndex, s32 arg2, s16 direction, s16 
     }
 }
 
+// objdiff 99.21%: everything matches except one word. maspsx does not translate
+// cop2 macros, so gte_mvmva(1,0,0,0,0) emits the aspsx-style 0x020013BF where the
+// original has MVMVA 1,0,0,0,0 = 0x4A481200. Unreachable from C without inline asm.
+INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E6F64);
+/*
 void func_801E6F64(void* pTaskRaw) {
     AnimTask* pTask = pTaskRaw;
     LibGearJointTask* pJointTask;
@@ -1391,6 +1396,7 @@ void func_801E6F64(void* pTaskRaw) {
 
     pJointTask->pChainCallback(pTask);
 }
+*/
 
 void func_801E7094(Model* pModel, ModelJoint* pJoint, u8 flags, s16 x, s16 y, s16 z) {
     ModelJoint* pChild;

@@ -206,8 +206,8 @@ void func_8001F6B0(SpriteData* pSpriteData) {
         pFrameData[i].colorAndCode = color;
         pFrameData[i].texPage = (texPage & 0xFF9F) | (texPageBits << 5);
     }
-*/
 }
+*/
 /* Best attempt: 96.50%, instruction stream identical, only the register
    allocation differs (the original gets the sprite data into t1, freeing a0 for
    the frame pointer; this keeps the sprite in a3 and puts the counter in a0).
