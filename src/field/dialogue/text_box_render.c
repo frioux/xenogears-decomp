@@ -22,7 +22,26 @@ void func_8007E114(int index, int arg1, int arg2, int arg3, s32 arg4) {
     g_FieldTextBoxes[index]._pad[0x4D] = arg4;
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/dialogue/text_box_render", func_8007E16C);
+// Place a portrait quad: x - 1 and x + width when facing right, mirrored when
+// flipped.
+void func_8007E16C(POLY_FT4* pPoly, int x, int y, int width, int height, int flip) {
+    if (!flip) {
+        x--;
+        pPoly->x0 = x;
+        pPoly->x1 = x + width;
+        pPoly->x2 = x;
+        pPoly->x3 = x + width;
+    } else {
+        pPoly->x1 = x;
+        pPoly->x0 = x + width;
+        pPoly->x3 = x;
+        pPoly->x2 = x + width;
+    }
+    pPoly->y0 = y;
+    pPoly->y1 = y;
+    pPoly->y2 = y + height;
+    pPoly->y3 = y + height;
+}
 
 INCLUDE_ASM("asm/field/nonmatchings/dialogue/text_box_render", func_8007E1C0);
 
@@ -146,12 +165,89 @@ void FieldTextBoxInitializePrimitives(int index) {
 }
 */
 
-INCLUDE_ASM("asm/field/nonmatchings/dialogue/text_box_render", func_8007F5AC);
+// Each portrait is a 0x40 x 0x40 tile of the portrait texture; D_800ADF34 holds
+// the top left U and V of each of the four portraits.
+extern u_char D_800ADF34[];
 
-INCLUDE_ASM("asm/field/nonmatchings/dialogue/text_box_render", func_8007F6F8);
+// 98.61%: pUVTable is what makes gcc emit `la D_800ADF34` before the `sll` of
+// portraitID * 4, but it costs a register: the table base ends up in a2 and the
+// scaled index in v1, where the original uses v0 and a0. Writing pU/pV straight
+// as &D_800ADF34[portraitID * 4] / [+2] gets the original's registers (97.59%)
+// but emits the `sll` one instruction earlier. Needs the table hidden behind a
+// construct that keeps v0 as the base.
+INCLUDE_ASM("asm/field/nonmatchings/dialogue/text_box_render", func_8007F5AC);
+/*
+void func_8007F5AC(int index, int portraitID) {
+    FieldTextBox* pBox = &g_FieldTextBoxes[index];
+    u_char* pUVTable = D_800ADF34;
+    u_char* pU = &pUVTable[portraitID * 4];
+    u_char* pV = &pUVTable[portraitID * 4 + 2];
+    u_short clut;
+
+    g_FieldTextBoxes[index].portrait.polys[1].u0 = pBox->portrait.polys[0].u0 = *pU;
+    g_FieldTextBoxes[index].portrait.polys[1].v0 = pBox->portrait.polys[0].v0 = *pV;
+    g_FieldTextBoxes[index].portrait.polys[1].u1 = pBox->portrait.polys[0].u1 = *pU + 0x40;
+    g_FieldTextBoxes[index].portrait.polys[1].v1 = pBox->portrait.polys[0].v1 = *pV;
+    g_FieldTextBoxes[index].portrait.polys[1].u2 = pBox->portrait.polys[0].u2 = *pU;
+    g_FieldTextBoxes[index].portrait.polys[1].v2 = pBox->portrait.polys[0].v2 = *pV + 0x40;
+    g_FieldTextBoxes[index].portrait.polys[1].u3 = pBox->portrait.polys[0].u3 = *pU + 0x40;
+    g_FieldTextBoxes[index].portrait.polys[1].v3 = pBox->portrait.polys[0].v3 = *pV + 0x40;
+
+    clut = GetClut(0, portraitID + 0xE0);
+    pBox->portrait.polys[0].clut = clut;
+    g_FieldTextBoxes[index].portrait.polys[1].clut = clut;
+}
+*/
+
+extern u16 D_800B2174[];
+extern int D_800B068C[4];
+
+// The string state helpers take a SystemString, which only system.c names; the
+// text box keeps one at _pad[0].
+extern void func_800345E0(void* pString);
+extern void func_80034614(void* pString);
+extern void func_800346D4(void* pString);
+
+// Bit per text box index, set while the box is in use.
+int func_8007F6F8(short index) {
+    if (g_FieldTextBoxes[index].visibility == 0) {
+        func_80034614(&g_FieldTextBoxes[index]._pad[0]);
+        func_800345E0(&g_FieldTextBoxes[index]._pad[0]);
+        func_800346D4(&g_FieldTextBoxes[index]._pad[0]);
+
+        g_FieldTextBoxes[index].cursor.visibility = -1;
+        g_FieldTextBoxes[index].visibility = -1;
+        g_FieldTextBoxes[index].status = -1;
+        g_FieldTextBoxes[index].order = TEXT_BOX_UNINITIALIZED;
+        D_800B068C[index] = -1;
+        D_800B2174[0] &= (1 << index) ^ 0xFF;
+        g_FieldTextBoxes[index].ownerActorID = 0xFF;
+        g_FieldTextBoxes[index].unk412 = 0;
+
+        return 0;
+    }
+
+    return -1;
+}
 
 // Project (0, Y, 0) from actor's model/local space to screen
-INCLUDE_ASM("asm/field/nonmatchings/dialogue/text_box_render", func_8007F814);
+void func_8007F814(int actorIndex, int* pScreenX, int* pScreenY, int height) {
+    SVECTOR vertex;
+    MATRIX transformMatrix;
+    long sxy;
+    long p;
+    long flag;
+
+    CompMatrix(&g_Scene.worldToScreenMatrix, &g_FieldActors[actorIndex].transformMatrix, &transformMatrix);
+    SetRotMatrix(&transformMatrix);
+    SetTransMatrix(&transformMatrix);
+    vertex.vx = 0;
+    vertex.vy = height;
+    vertex.vz = 0;
+    RotTransPers(&vertex, &sxy, &p, &flag);
+    *pScreenY = ((short*) &sxy)[1];
+    *pScreenX = ((short*) &sxy)[0];
+}
 
 INCLUDE_ASM("asm/field/nonmatchings/dialogue/text_box_render", func_8007F8DC);
 
