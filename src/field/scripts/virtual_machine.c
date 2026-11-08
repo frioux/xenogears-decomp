@@ -257,6 +257,95 @@ void FieldScriptVMRun(int maxInstructionCount) {
 
 }
 
+// Best attempt: 74.04% measured before the last round of edits, which made the prologue and the
+// guard clauses identical; what is left is register allocation ($a0 vs $a1 for pFieldActor) and
+// how many times g_FieldScriptVMCurActor / pActorData are reloaded, i.e. whether the original
+// used a local for them or spelled the dereference out every time.
+/*
+extern s32 D_800ADBFC;
+extern s32 D_800ADB1C;
+extern s32 D_800ADB74;
+extern FieldActor* D_800B06B8;
+extern s32 D_800ADB68;
+extern s32 D_800C4268;
+extern u_char D_800B21CC;
+extern s32 D_8005A444[3];
+
+// Runs the field script VM for every actor that has a script pending
+void func_800A2030(void) {
+    int i;
+    int j;
+    int nActorCount;
+    int nMinPriority;
+    u_short nInstructionPointer;
+    FieldActor* pFieldActor;
+    ActorData* pActor;
+
+    if (D_800ADB74 == 1) {
+        nActorCount = 1;
+    } else {
+        nActorCount = D_800ADBFC;
+    }
+    D_800ADB68 = 0;
+    D_800C4268 = 0;
+
+    for (i = 0; i < nActorCount; i++) {
+        pFieldActor = &g_FieldActors[i];
+        if (!(pFieldActor->status & 0xF00)) {
+            continue;
+        }
+
+        pActor = pFieldActor->pActorData;
+        if (pActor->flags & 0x100000) {
+            continue;
+        }
+
+        if (D_800ADB1C != 0 && (D_800ADBE0 == 0 || D_800ADBE4 == 0 || D_800ADBEC == 0)) {
+            return;
+        }
+
+        pActor->scriptFlags.flags &= ~0x1000000;
+
+        D_800B06B8 = pFieldActor;
+        D_800AFD1C = i;
+        g_FieldScriptVMCurActor = pActor;
+
+        if (D_800B21CC != 0) {
+            for (j = 0; j < 3; j++) {
+                if (D_8005A444[j] != ACTOR_ID_INVALID && D_8005A444[j] == i) {
+                    goto next_actor;
+                }
+            }
+        }
+
+        // Pick the script slot with the lowest priority
+        nMinPriority = 0xF;
+        for (j = 0; j < ACTOR_MAX_NUM_SCRIPTS; j++) {
+            if (g_FieldScriptVMCurActor->scripts[j].flags_0x12 <= nMinPriority) {
+                nMinPriority = g_FieldScriptVMCurActor->scripts[j].flags_0x12;
+                g_FieldScriptVMCurActor->curScriptIndex = j;
+            }
+        }
+
+        if (nMinPriority != 0xF) {
+            g_FieldScriptVMCurActor->scripts[0].currentIP = FieldScriptGetBytecodeOffset(i, 1);
+            g_FieldScriptVMCurActor->curScriptIndex = 0;
+            g_FieldScriptVMCurActor->scripts[0].flags_0x12 = 7;
+        }
+
+        nInstructionPointer = g_FieldScriptVMCurActor->scripts[g_FieldScriptVMCurActor->curScriptIndex].currentIP;
+        D_800AFFEC = 1;
+        g_FieldScriptVMCurActor->scriptInstructionPointer = nInstructionPointer;
+        if (!(g_FieldScriptVMCurActor->scriptFlags.flags & 1)) {
+            FieldScriptVMRun(8);
+        }
+        g_FieldScriptVMCurActor->scripts[g_FieldScriptVMCurActor->curScriptIndex].currentIP = g_FieldScriptVMCurActor->scriptInstructionPointer;
+
+    next_actor:
+        ;
+    }
+}
+*/
 INCLUDE_ASM("asm/field/nonmatchings/scripts/virtual_machine", func_800A2030);
 
 // Changes current actor to the top of the field actor array and runs a script routine on it
@@ -383,6 +472,15 @@ int FieldScriptVMGetVariableValue(int index) {
 /*
 void FieldScriptMemoryWriteU16(int index, u_short value) {
     ((u_short*)&g_FieldScriptMemory)[index >> 1] = value;
+}
+
+void FieldScriptMemoryWriteU16(int index, u_short value) {
+    int i;
+    u_short* pMemory;
+
+    i = index >> 1;
+    pMemory = (u_short*)&g_FieldScriptMemory;
+    pMemory[i] = value;
 }
 */
 INCLUDE_ASM("asm/field/nonmatchings/scripts/virtual_machine", FieldScriptMemoryWriteU16);
