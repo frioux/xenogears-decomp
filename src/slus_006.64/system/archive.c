@@ -12,10 +12,11 @@
 
 extern s8* D_8004FE08;
 extern s32 D_8004FE0C;
+extern s32 D_8004FE00;
 extern s32 D_8004FE10;
 extern s16 D_8004FE24;
 extern s16 D_8004FE26;
-extern s16 D_8004FE28;
+extern u16 D_8004FE28;
 extern void* g_ArchiveCurStreamFile; // Current stream file struct
 extern s32 D_80059F00;
 extern u32 D_80059F0C;
@@ -543,9 +544,37 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002B5D0);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002B8B0);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002BA40);
+void func_8002BA40(void) {
+    D_8004FDFC = D_8004FE00;
+}
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002BA58);
+void func_8002BA58(void) {
+    ArchiveStreamFileSectionHeader* pSection;
+    int nSections;
+    s16 i;
+
+    pSection = D_8004FE2C;
+    for (i = 0; i < D_8004FE40; i++, pSection++) {
+        if (pSection->state == 1 && pSection->id == D_8004FE28)
+            break;
+    }
+
+    if (i == D_8004FE40)
+        return;
+
+    pSection->state = 3;
+    D_8004FE28 += 1;
+    if (g_ArchiveCurFileSize > 0)
+        return;
+
+    if (D_8004FDFC >= 2)
+        return;
+
+    g_ArchiveCurFileSize = 0;
+    CdDataCallback(NULL);
+    ArchiveCdSeekToFile(D_8004FE38);
+    D_8004FDFC = 0;
+}
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002BB50);
 
@@ -553,4 +582,6 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002BF38);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002C310);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", ArchiveGetDebugTable);
+u32 ArchiveGetDebugTable(void) {
+    return g_ArchiveDebugTable;
+}
