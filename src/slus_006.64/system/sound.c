@@ -475,8 +475,8 @@ void SoundSetupCdMix(s32 vol) {
     }
     g_SoundCdRomAttenuation.val2 = pan;
     g_SoundCdRomAttenuation.val0 = pan;
-    g_SoundCdRomAttenuation.val3 = vol;
-    g_SoundCdRomAttenuation.val1 = vol;
+    // chained: reproduces the original's store order
+    g_SoundCdRomAttenuation.val1 = g_SoundCdRomAttenuation.val3 = vol;
 
     CdMix(&g_SoundCdRomAttenuation);
 }
