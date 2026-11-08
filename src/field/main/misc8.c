@@ -95,6 +95,7 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80080A74);
    worse (gcc then reloads the counter). The frame (0x88) needs the unused 0x60
    local; reg assignment wants `int numWords` declared before the pointers and
    the unused array last.
+*/
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80080F44);
 /* 71.39%: correct size (468 bytes) and frame (0x88, which needs the unused
    local to fill 0x78 bytes). Residual is address materialisation: the
@@ -139,7 +140,6 @@ void func_80080F44(int actorIndex) {
         func_8007AA44((Quad*)g_FieldActors[actorIndex].pShadow);
     }
 }
-*/
 
 extern int D_800B2180;
 void func_80080A74(int actorIndex);
