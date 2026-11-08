@@ -259,10 +259,40 @@ void func_80085634(int arg0, int arg1) {
     }
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80085678);
-
+extern u_short D_800C3A2C;
+extern s32 D_800C3A64;
+extern s32 D_800B06A0;
 extern s16 D_800C3A38;
-extern void* D_800B235C;
+extern SoundFile* D_800B235C;
+void func_80039EC4(s32 arg0, s32 arg1);
+
+typedef struct {
+    /* 0x0 */ u_short unk0;
+    /* 0x2 */ u_short unk2;
+} FieldUnk800AE060; // Size: 0x4
+
+extern FieldUnk800AE060 D_800AE060[];
+
+void func_80085678(void) {
+    u_short* pDuration;
+    u_short* pValue;
+    u_short value;
+    u_short sedId;
+
+    if (D_800C3A38 == 0xFF) {
+        return;
+    }
+    pDuration = &D_800AE060[0].unk0;
+    pValue = &D_800AE060[0].unk2;
+loop:
+    if (D_800B06A0 < pDuration[D_800C3A64 * 2] + D_800C3A2C) {
+        return;
+    }
+    value = pValue[D_800C3A64 * 2];
+    func_80039EC4((value & 0xFF) | (D_800B235C->sedId << 16), (value >> 7) & 0xE);
+    D_800C3A64++;
+    goto loop;
+}
 
 void func_80085738(void) {
     if (D_800C3A38 != 0xFF) {
@@ -428,7 +458,25 @@ void func_800864B4(void) {
     }
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800864F0);
+extern u_short D_800B233C;
+
+void func_800864F0(void) {
+    u_short* pFlags;
+    int i;
+
+    for (i = 0; i < 3; i++) {
+        D_800AFE8A[i].unk0 = 0xFFFF;
+        D_800AFE88[i].unk0 = 0xFFFF;
+    }
+    i = 0;
+    pFlags = &D_800B233C;
+    for (; i < 4; i++) {
+        if (!(*pFlags & 1)) {
+            func_8003A20C(i * 2);
+        }
+        *pFlags >>= 1;
+    }
+}
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80086590);
 
