@@ -449,13 +449,40 @@ void func_8008861C(void) {
 }
 */
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_80088674);
-
 extern s32 D_800B2374;
 extern s32 D_800B2378;
 extern s32 D_800B237C;
 extern s32 D_800B2380;
 extern void FieldInitializeDefaultParticleBanks(int);
+
+void func_80088674(void) {
+    int actorIndex = FieldScriptVMGetArgument(1);
+
+    if (actorIndex == ACTOR_ID_INVALID) {
+        actorIndex = 0;
+    }
+    D_800B2374 = FieldScriptVMGetArgument(1);
+    D_800B2378 = FieldScriptVMGetArgument(3);
+    D_800B237C = FieldScriptVMGetArgument(5);
+    ((FieldScriptGlobalS32*)&D_800B2380)->value = FieldScriptVMGetArgument(7);
+    g_FieldScriptVMCurActor->scriptInstructionPointer += 9;
+    FieldInitializeDefaultParticleBanks(actorIndex);
+    switch (D_800B2378) {
+        case 0:
+            D_800B2378 = 0;
+            break;
+        case 1:
+            D_800B2378 = 0x10;
+            break;
+        case 2:
+            D_800B2378 = 0x20;
+            break;
+        case 3:
+            D_800B2378 = 0x30;
+            break;
+    }
+    g_FieldScriptMaxInstructionCount += 4;
+}
 
 void func_80088790(void) {
     int actorIndex = FieldScriptVMGetActorIndex(1);
