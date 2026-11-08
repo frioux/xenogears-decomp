@@ -3,6 +3,11 @@
 #include "system/memory.h"
 
 extern void func_800234AC(SpriteData* pSpriteData);
+extern void func_8001E148(SpriteData* pSpriteData);
+extern void func_8001E3D8(SpriteData* pSpriteData, void* pArg);
+extern void func_8001EE88(SpriteData* pSpriteData, void* pArg1, void* pArg2);
+extern void func_8001F1D4(SpriteData* pSpriteData, void* pArg1, void* pArg2);
+extern void func_8001E9BC(SpriteData* pSpriteData, void* pArg);
 
 // Rendering-related stuff
 
@@ -66,11 +71,32 @@ void func_8001E148(SpriteData* pSpriteData) {
 }
 */
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001E298);
+void func_8001E298(SpriteData* pSpriteData, void* pArg) {
+    func_8001E148(pSpriteData);
+    func_8001E3D8(pSpriteData, pArg);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001E2F8);
+    if ((pSpriteData->field_0x3C_0 >> 2) & 1) {
+        func_8001E9BC(pSpriteData, pArg);
+    }
+}
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001E368);
+void func_8001E2F8(SpriteData* pSpriteData, void* pArg1, void* pArg2) {
+    func_8001E148(pSpriteData);
+    func_8001EE88(pSpriteData, pArg1, pArg2);
+
+    if ((pSpriteData->field_0x3C_0 >> 2) & 1) {
+        func_8001E9BC(pSpriteData, pArg1);
+    }
+}
+
+void func_8001E368(SpriteData* pSpriteData, void* pArg1, void* pArg2) {
+    func_8001E148(pSpriteData);
+    func_8001F1D4(pSpriteData, pArg1, pArg2);
+
+    if ((pSpriteData->field_0x3C_0 >> 2) & 1) {
+        func_8001E9BC(pSpriteData, pArg1);
+    }
+}
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001E3D8);
 
