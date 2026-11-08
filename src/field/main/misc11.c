@@ -322,17 +322,12 @@ extern s16 D_800C3A6A;
 extern int rcos(int);
 extern int rsin(int);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc11", func_80092808);
-
-/* best 82.57%: instructions all match; gcc schedules the vz negate and the flags
-   load one slot later than the original.
 void func_80092808(void) {
     g_FieldScriptVMCurActor->unk60.vx = ((u_int)rsin(D_800B06B8->rotation.y) * 9) >> 10;
     g_FieldScriptVMCurActor->unk60.vz = -(rcos(D_800B06B8->rotation.y) * 36) >> 12;
     g_FieldScriptVMCurActor->flags |= 0x800;
-    g_FieldScriptVMCurActor->scriptInstructionPointer += 1;
+    g_FieldScriptVMCurActor->scriptInstructionPointer++;
 }
-*/
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc11", func_80092894);
 
@@ -1492,25 +1487,26 @@ void FieldScriptCheckActorOnScreen(void) {
 }
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc11", func_80095CC4);
-/* best 92.50%: structure (incl. cross-jumped else block) matches; gcc hoists
-   `li a0,2` out of the jal delay slot and puts `ip` in v1 instead of v0.
+/* best 96.19%: only difference is that gcc schedules `li a0,2` at the top of the
+   block instead of in the jal delay slot (everything else, including the
+   cross-jumped else block, matches).
 void func_80095CC4(void) {
     ActorData* pActor;
+    int index;
     int arg;
-    int ip;
 
     if (FieldScriptVMGetActorIndex(1) != ACTOR_ID_INVALID) {
-        pActor = g_FieldActors[FieldScriptVMGetActorIndex(1)].pActorData;
+        index = FieldScriptVMGetActorIndex(1);
+        pActor = g_FieldActors[index].pActorData;
         arg = FieldScriptVMGetArgument(2);
         if (arg == pActor->walkmeshId) {
-            ip = g_FieldScriptVMCurActor->scriptInstructionPointer + 6;
+            g_FieldScriptVMCurActor->scriptInstructionPointer += 6;
         } else {
-            ip = FieldScriptVMGetInstructionArgument(4);
+            g_FieldScriptVMCurActor->scriptInstructionPointer = FieldScriptVMGetInstructionArgument(4);
         }
     } else {
-        ip = FieldScriptVMGetInstructionArgument(4);
+        g_FieldScriptVMCurActor->scriptInstructionPointer = FieldScriptVMGetInstructionArgument(4);
     }
-    g_FieldScriptVMCurActor->scriptInstructionPointer = ip;
 }
 */
 
