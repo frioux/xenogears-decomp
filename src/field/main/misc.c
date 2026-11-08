@@ -328,7 +328,17 @@ void func_8008825C(void) {
     D_800B00C0 = 1;
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_800882B8);
+void func_800882B8(void) {
+    int partyId = func_8008CF3C(FieldScriptVMGetArgument(1));
+
+    if (partyId != CHARACTER_ID_NONE) {
+        FieldScriptMemoryWriteU16(
+            FieldScriptVMGetInstructionArgument(3) & 0xFFFF, g_pGameState->characters[partyId].gearId);
+    } else {
+        FieldScriptMemoryWriteU16(FieldScriptVMGetInstructionArgument(3) & 0xFFFF, 0xFF);
+    }
+    g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
+}
 
 void FieldScriptSetCharacterGear(void) {
     int characterId = FieldScriptVMGetArgument(1);
@@ -714,7 +724,18 @@ void func_8008A640(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008A6E0);
+void func_8008A6E0(void) {
+    int partyId = func_8008CF3C(FieldScriptVMGetArgument(3));
+
+    if (partyId != CHARACTER_ID_NONE) {
+        int value = g_pGameState->characters[partyId].unk77 + g_pGameState->characters[partyId].unk78;
+
+        FieldScriptMemoryWriteU16(FieldScriptVMGetInstructionArgument(1) & 0xFFFF, value);
+    } else {
+        FieldScriptMemoryWriteU16(FieldScriptVMGetInstructionArgument(1) & 0xFFFF, 0);
+    }
+    g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
+}
 
 int func_8008A790(int characterId, int* pPartyIndex) {
     int i;
