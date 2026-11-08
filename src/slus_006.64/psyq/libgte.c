@@ -237,6 +237,35 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", RotAverage4);
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", RotAverageNclip4);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", TransposeMatrix);
+/* best attempt 65.00%. Structure and store order match: word stores q[1]=p[0],
+   q[0]=p[1] patched with the low half of p[0], then q[3],q[2] patched from
+   p[1].lo/p[2].lo/p[3].lo and the halfword at 0x10. What is left: gcc folds the
+   `addu v0,a1,zero` return copy into every store (`sw ..,0(v0)`) where the
+   original keeps storing through a1, allocates the temps as v1/a2 instead of
+   t1/t2 (t1 reused for p[3]), and turns the 0x10 `lh` into `lhu`.
+MATRIX *TransposeMatrix(MATRIX *m0, MATRIX *m1) {
+    MATRIX *ret = m1;
+    long *p = (long *)m0;
+    long *q = (long *)m1;
+    short *s = (short *)m1;
+    long t0, t1, t2, t3;
+
+    t0 = p[0];
+    t1 = p[1];
+    q[1] = t0;
+    q[0] = t1;
+    s[0] = t0;
+    t2 = p[2];
+    t3 = p[3];
+    q[3] = t2;
+    q[2] = t3;
+    s[6] = t1;
+    s[4] = t2;
+    s[8] = ((short *)m0)[8];
+    s[2] = t3;
+    return ret;
+}
+*/
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", RotMatrixYXZ);
 
