@@ -791,12 +791,12 @@ void func_800A0C4C(void) {
 // FieldResetActorPosition: copies the current actor's scripted position into the
 // field actor's transform/child matrices and into its sprite.
 INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_800A0C94);
-// 99.40%: only the third block's `addu` destination differs. The original
-// coalesces base+offset into the index register (`addu v1,v1,v0`, then the two
-// stores off $v1); gcc always picks the base register (`addu v0,v0,v1`). Same
-// size. NB the index+base operand order (see the casts below) is required for
-// the first two blocks to match - `&g_FieldActors[D_800AFD1C]` gives the wrong
-// `addu` operand order in all three.
+// 99.64%: every instruction matches except the destination register of the third
+// block's `addu`: the original coalesces base+offset into the index register
+// (`addu v1,v1,v0`, then the two stores off $v1); gcc 2.7.2 always coalesces it
+// into the freshly loaded base register (`addu v0,v1,v0`). Same size and operand
+// order; -O2/-O3 both do this. index+base operand order is required (base-first
+// gives `addu v0,v0,v1`).
 /*
 void func_800A0C94(void) {
     FieldActor* pFieldActor;
@@ -806,10 +806,12 @@ void func_800A0C94(void) {
     s32 x;
     s32 y;
     s32 z;
+    s32 offset;
     u16 curY;
 
     pActor = g_FieldScriptVMCurActor;
-    pFieldActor = (FieldActor*)(D_800AFD1C * sizeof(FieldActor) + (s32)g_FieldActors);
+    offset = D_800AFD1C * sizeof(FieldActor);
+    pFieldActor = (FieldActor*)(offset + (s32)g_FieldActors);
     pPosition = (s16*)&pActor->position;
 
     x = pPosition[1];
@@ -818,12 +820,12 @@ void func_800A0C94(void) {
     pFieldActor->childMatrix.t[0] = x;
 
     y = pPosition[3];
-    pFieldActor = (FieldActor*)(D_800AFD1C * sizeof(FieldActor) + (s32)g_FieldActors);
+    pFieldActor = (FieldActor*)(offset + (s32)g_FieldActors);
     pFieldActor->transformMatrix.t[1] = y;
     pFieldActor->childMatrix.t[1] = y;
 
+    pFieldActor = (FieldActor*)(offset + (s32)g_FieldActors);
     z = pPosition[5];
-    pFieldActor = (FieldActor*)((s32)g_FieldActors + D_800AFD1C * sizeof(FieldActor));
     pFieldActor->transformMatrix.t[2] = z;
     pFieldActor->childMatrix.t[2] = z;
 
