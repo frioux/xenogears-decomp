@@ -511,8 +511,9 @@ void func_80075910(void) {
     DrawOTag(&g_FieldCurRenderContext->ot3[7]);
 }
 
-const VECTOR D_8006FB70 = { 0, 0, 0x1000, 0 };
 
+INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_800759E4);
+/*
 void func_800759E4(s16* pOut, VECTOR* pUp) {
     VECTOR zAxis;
     VECTOR xAxis;
@@ -534,6 +535,7 @@ void func_800759E4(s16* pOut, VECTOR* pUp) {
     pOut[7] = zAxis.vy;
     pOut[8] = zAxis.vz;
 }
+*/
 
 void func_80075B08(SpriteData* pSpriteData, u_char* pColor) {
     if (D_800B218E == 0) {

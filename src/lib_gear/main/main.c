@@ -756,6 +756,8 @@ void func_801E17B8(Temp8* pTexture, s16 scale) {
 }
 
 // Rotates each entry's source position by the model's joint matrix
+INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E1880);
+/*
 void func_801E1880(Model** pModels) {
     MATRIX* pMatrix = (MATRIX*)PSX_SCRATCH;
     Model* pModel;
@@ -788,6 +790,7 @@ void func_801E1880(Model** pModels) {
         }
     }
 }
+*/
 
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E1A14);
 
