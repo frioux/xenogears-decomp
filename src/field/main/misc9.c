@@ -10,38 +10,34 @@
 #include "field/particles.h"
 
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc9", func_800AA9DC);
-// 98.16%: instruction for instruction identical to the original, but gcc hands the
-// pModel copy and the deltaX copy the opposite registers (a3/a2 instead of a2/a3).
-// s32 func_800AA9DC(FieldActorModelData* pModel) {
-//     s32 minX;
-//     s32 minY;
-//     s32 minZ;
-//     FieldActorModelBounds* pBounds;
-//     s32 deltaX;
-//     s32 deltaY;
-//     s32 deltaZ;
-//     s32 maxDelta;
-//
-//     pBounds = pModel->pBounds;
-//     deltaX = pBounds->max.vx - (minX = pBounds->min.vx);
-//     deltaY = pBounds->max.vy - (minY = pBounds->min.vy);
-//     deltaZ = pBounds->max.vz - (minZ = pBounds->min.vz);
-//
-//     maxDelta = deltaX;
-//     if (deltaY > maxDelta) {
-//         maxDelta = deltaY;
-//     }
-//     if (deltaZ > maxDelta) {
-//         maxDelta = deltaZ;
-//     }
-//
-//     pModel->centerX = deltaX / 2 + minX;
-//     pModel->centerY = deltaY / 2 + minY;
-//     pModel->centerZ = deltaZ / 2 + minZ;
-//     pModel->size = maxDelta * 2 + 1;
-//     return maxDelta * 2 + 1;
-// }
+s32 func_800AA9DC(FieldActorModelData* pModel) {
+    s32 minX;
+    s32 minY;
+    s32 minZ;
+    FieldActorModelBounds* pBounds;
+    s32 deltaX;
+    s32 deltaY;
+    s32 deltaZ;
+    s32 maxDelta;
+
+    pBounds = pModel->pBounds;
+    maxDelta = pBounds->max.vx - (minX = pBounds->min.vx);
+    deltaX = maxDelta;
+    deltaY = pBounds->max.vy - (minY = pBounds->min.vy);
+    deltaZ = pBounds->max.vz - (minZ = pBounds->min.vz);
+    if (deltaY > maxDelta) {
+        maxDelta = deltaY;
+    }
+    if (deltaZ > maxDelta) {
+        maxDelta = deltaZ;
+    }
+
+    pModel->centerX = deltaX / 2 + minX;
+    pModel->centerY = deltaY / 2 + minY;
+    pModel->centerZ = deltaZ / 2 + minZ;
+    pModel->size = maxDelta * 2 + 1;
+    return maxDelta * 2 + 1;
+}
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc9", func_800AAA74);
 
