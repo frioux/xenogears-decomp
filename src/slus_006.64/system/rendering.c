@@ -7,6 +7,7 @@ extern void func_8001E3D8(SpriteData* pSpriteData, void* pArg);
 extern void func_8001E9BC(SpriteData* pSpriteData, void* pArg);
 extern void func_8001EE88(SpriteData* pSpriteData, void* pArg1, void* pArg2);
 extern void func_8001F1D4(SpriteData* pSpriteData, void* pArg1, void* pArg2);
+extern void func_8001F750(SpriteData* pSpriteData, s32 index, SpriteAnimPackage* pAnimPackage);
 extern void func_800234AC(SpriteData* pSpriteData);
 extern void* LZSSHeapDecompress(void* pCompressedData, int flags);
 extern void func_8002DDE4(void* pImg, int arg1, int x, int y, int arg4, int arg5, int arg6);
@@ -178,7 +179,9 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001F6B0);
 /* Best attempt: 96.50%. Instruction stream is identical; only the temp
    assignment differs (original: pSpriteData->t1, texPageBits->a3, color->a1,
    pFrameData->a0, i->t0; this C: a3, t0, a2, v1, a0). Reordering the locals has
-   no effect at all.
+   no effect at all (re-confirmed). The sprite reaching t1 rather than a3 is the
+   whole difference: a0 goes to the flags word, so the parameter has to be copied
+   out of its incoming register.
 
 void func_8001F6B0(SpriteData* pSpriteData) {
     SpriteFrameData* pFrameData;
@@ -320,20 +323,103 @@ void func_8001F750(SpriteData* pSpriteData, s32 index, SpriteAnimPackage* pAnimP
 
 // Animation frame and tile data stuff
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001F8E8);
+/* Best attempt: 88.26%. Byte-stream parser; every branch, delay slot and store
+   matches. Only difference: `dir` lands in s3 (callee-saved) here but in a1 in
+   the original, which pushes i/count/unkFlag up one register and grows the frame
+   to 64 bytes (plus one duplicated `andi v0,s1,0x10`).
 
+void func_8001F8E8(SpriteData* pSpriteData, s32 index, SpriteAnimPackage* pAnimPackage) {
+    u8* pFrames;
+    u8* pBlock;
+    u8* pEntry;
+    u16 header;
+    u8 flags;
+    u32 unkFlag;
+    u32 count;
+    u8 entryFlags;
+    s32 dir;
+    s32 i;
 
+    pFrames = pAnimPackage->pFrames;
+    header = *(u16*)pFrames;
+    if (index < (header & 0x1FF) + 1) {
+        if (header & 0x8000) {
+            func_8001F750(pSpriteData, index, pAnimPackage);
+            return;
+        }
+        pBlock = pFrames + ((u16*)pFrames)[index];
+        flags = *pBlock;
+        i = 0;
+        unkFlag = flags & 0x80;
+        count = flags & 0x3F;
+        pEntry = pBlock + (count * 4 + 6);
+        if (count != 0) {
+            for (;;) {
+                entryFlags = *pEntry;
+                if (entryFlags & 0x80) {
+                    if (entryFlags & 0x40) {
+                        pEntry++;
+                        if (pSpriteData->pBase->pDirTransforms == 0) {
+                            pSpriteData->pBase->pDirTransforms = HeapAlloc(sizeof(SpriteDirectionTransforms), 0);
+                            func_800234AC(pSpriteData);
+                        }
+                        if (entryFlags & 0x20) {
+                            dir = entryFlags & 7;
+                            *(u8*)((mem_addr)pSpriteData->pBase->pDirTransforms + dir * 8) = *pEntry++;
+                            *(u8*)((mem_addr)pSpriteData->pBase->pDirTransforms + (dir * 8 + 1)) = *pEntry++;
+                        }
+                        if (entryFlags & 0x10) {
+                            *(s16*)((mem_addr)pSpriteData->pBase->pDirTransforms + (dir * 8 + 6)) = *pEntry++ << 4;
+                        } else {
+                            *(s16*)((mem_addr)pSpriteData->pBase->pDirTransforms + (dir * 8 + 6)) = 0;
+                        }
+                    } else {
+                        if (entryFlags & 1) {
+                            pEntry++;
+                        }
+                        if (entryFlags & 2) {
+                            pEntry++;
+                        }
+                    }
+                } else {
+                    if (unkFlag != 0) {
+                        pEntry += 2;
+                    }
+                    i++;
+                    if (i == count) {
+                        break;
+                    }
+                    pEntry += 3;
+                }
+            }
+        }
+    }
+}
+*/
 
 // .rodata
 extern u8 g_GfxPauseLettersCompressed[];
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", GraphicsDrawPauseLetters);
-/* Best attempt: 98.81%. Instruction stream is identical; only the callee-saved
+/* Attempt: 98.81%. Identical instruction stream; the original allocates s1 to x,
+   s2 to y, s0 to pImg (as if pImg were allocated first), this C gives x->s0,
+   pImg->s1. Initialising pImg = NULL to force an early pseudo has no effect.
+
+void GraphicsDrawPauseLetters(int x, int y) {
+    void* pImg;
+
+    pImg = LZSSHeapDecompress(g_GfxPauseLettersCompressed, 0);
+    func_8002DDE4(pImg, 1, x, y, 0, 0, 0);
+    DrawSync(0);
+    HeapFree(pImg);
+}
+*//* Best attempt: 98.81%. Instruction stream is identical; only the callee-saved
    assignment differs. Original: x -> s1, y -> s2, pImg -> s0 (allocation order
    pImg, x, y). This C: x -> s0, y -> s2, pImg -> s1 (allocation order x, pImg,
    y). Declaration order, extra locals and folded copies for x/y do not move it.
 
 void GraphicsDrawPauseLetters(int x, int y) {
-    void* pImg;
+    void* pImg = NULL;
 
     pImg = LZSSHeapDecompress(g_GfxPauseLettersCompressed, 0);
     func_8002DDE4(pImg, 1, x, y, 0, 0, 0);
