@@ -23,6 +23,7 @@ Stubs by area at session start: `slus_006.64` 419 (psyq 174, system 245),
 | — | baseline | — | 1632 | session start |
 | 1 | `field/main/{misc,misc2,misc8}`, `system/sound`, `shop_menu/main/misc` | +14 | 1646 | 26 claimed; 12 rejected by `make check` (9 wrong size, 3 wrong registers) |
 | 2 | `system/temp1`, `system/model` | +17 | 1663 | temp1 12 (gcc 2.7.2-cdk), model 5; 4 more units came back unverified from timed-out workers and were dropped |
+| 3 | `system/{sound,rendering}`, `field/main/{misc2,misc11,misc8,misc}` | +21 | 1684 | sound 6, rendering 6 (needed a `XenoRendering` maspsx preset: no li expansion), misc2 6, misc11 2, misc8 1, misc 0; every claim survived `make check` |
 
 ## Queue
 
@@ -58,3 +59,16 @@ Known blocked / low-yield:
   between C and `INCLUDE_ASM` without re-running gears (`make build`) silently
   yields "success" with no object. Always rebuild through `make`.
 - `make check` is the only gate that matters; it caught every false match.
+
+## Round 3 notes
+
+- `system/rendering` does not use `ori $r,$zero,imm` at all (33 `addiu` instead),
+  so maspsx must not expand `li` there; `gears.toml` now has a `XenoRendering`
+  preset for it. `system/sound` is the opposite (64 `ori`), so this is per-unit.
+- The four `FieldScriptWriteActorFlagsN` handlers in `field/main/misc.c` all miss
+  by one instruction (`li a0,1` hoisted instead of sitting in the jal delay slot),
+  and the cause is the `volatile` on `g_FieldActors` in `include/field/actor.h`
+  (105 uses). Someone should test removing it with a full `make check`.
+- Clone trees need `expected/` and `objdiff.json`: run `make objdiff-config` in
+  the main tree *before* `cp -ac`, or the workers burn their budget rebuilding
+  report mode by hand.
