@@ -66,6 +66,7 @@ for running splat and the scripts on the host; the container has its own.
 | `make report` | `objdiff-config` + `build/progress.json` |
 | `make progress` | `report` + render `build/progress-site/index.html` |
 | `make progress-publish` | `report` + render with history + push to `gh-pages` |
+| `tools/scripts/lint_sources.py` | scan `src/` for the two source mistakes that only surface as a confusing link error: a function that is both `INCLUDE_ASM`'d and defined in C, and an unclosed block comment. Run it before committing. |
 | `tools/scripts/check_bin.sh <bin>` | rebuild in matching mode and byte-check one output (~35 s). Use it when objdiff refuses to reach 100% for a function whose only difference is a relocation the linker resolves identically (a section-relative `.rodata` jump table against a named `jtbl_`). Leaves the tree in matching mode. |
 | `make shell` | bash inside the build container with the repo mounted |
 | `make extract DISC=...` | pull binaries out of a disc image |

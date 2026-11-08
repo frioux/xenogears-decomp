@@ -70,9 +70,12 @@ score() {
     python3 -c 'import json,sys
 try:
     d = json.load(open("build/.try_flags.json"))
-    print(next((round(s.get("match_percent", 0.0), 2)
-                for s in d.get("right", {}).get("symbols", [])
-                if s.get("name") == sys.argv[1]), "absent"))
+    syms = [s for s in d.get("right", {}).get("symbols", []) if s.get("name") == sys.argv[1]]
+    # "no C body" shows up as a right-side symbol with no size/match_percent
+    if not syms or "match_percent" not in syms[0] or not syms[0].get("size"):
+        print("not-in-C (still INCLUDE_ASM?)")
+    else:
+        print(round(syms[0]["match_percent"], 2))
 except Exception:
     print("absent")' "$func"
 }
