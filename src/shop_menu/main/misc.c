@@ -2726,7 +2726,59 @@ void func_801CCE1C(MenuDressingRoom* pDressingRoom, u8 characterIndex) {
 }
 
 // Render Shop Stuff
-INCLUDE_ASM("asm/shop_menu/nonmatchings/main/misc", func_801CCFF4);
+void func_801CCFF4(void) {
+    int i;
+
+    if (g_Menu->pManager->unk5A) {
+        for (i = 0; i < 9; i++) {
+            if (g_Menu->pShop->unk469C[i]) {
+                AddPrim(&g_Menu->pGfxEnv->ot[4], &g_Menu->pShop->linesPortraitHighlight1[(i * 2) + g_Menu->renderContext]);
+                AddPrim(&g_Menu->pGfxEnv->ot[4], &g_Menu->pShop->linesPortraitHighlight2[(i * 2) + g_Menu->renderContext]);
+            }
+        }
+
+        ShopMenuRenderString(g_Menu->pShop->explanationsLen, g_Menu->pShop->polysExplanations, g_Menu->pShop->explanationsRenderCtx);
+        ShopMenuRenderString(g_Menu->pShop->unk46A9, g_Menu->pShop->polys2D0, g_Menu->pShop->unk46A8);
+        ShopMenuRenderString(g_Menu->pShop->numPortraits, g_Menu->pShop->polysCharacterPortraits, g_Menu->pShop->portraitsRenderCtx);
+        for (i = 0; i < 8; i++) {
+            if (g_Menu->pShop->unk4684[i]) {
+                ShopMenuRenderPolygons(1, g_Menu->pShop->unk3C30[i].vertices, g_Menu->pShop->unk3C30[i].polys, g_Menu->pShop->unk3C30[i].renderContext);
+                ShopMenuRenderPolygons(1, g_Menu->pShop->unk4030[i].vertices, g_Menu->pShop->unk4030[i].polys, g_Menu->pShop->unk4030[i].renderContext);
+            }
+        }
+
+        if (g_Menu->pShop->unk46A7) {
+            ShopMenuRenderPolygons(1, g_Menu->pShop->strItemDesc.vertices, g_Menu->pShop->strItemDesc.polys, g_Menu->pShop->strItemDesc.renderContext);
+        }
+
+        if (g_Menu->pShop->unk46B5) {
+            ShopMenuRenderPolygons(1, g_Menu->pShop->str44B0.vertices, g_Menu->pShop->str44B0.polys, g_Menu->pShop->str44B0.renderContext);
+        }
+
+        if (g_Menu->pShop->unk4785) {
+            ShopMenuRenderPolygons(1, g_Menu->pShop->str45B0.vertices, g_Menu->pShop->str45B0.polys, g_Menu->pShop->str45B0.renderContext);
+        }
+
+        if (g_Menu->pShop->unk46B2) {
+            AddPrim(&g_Menu->pGfxEnv->ot[4], &g_Menu->pShop->lines3BF0[g_Menu->renderContext]);
+            ShopMenuRenderString(g_Menu->pShop->goldBeforeStrLen, g_Menu->pShop->polysGoldBefore, g_Menu->pShop->goldBeforeRenderCtx);
+            ShopMenuRenderString(g_Menu->pShop->totalPriceStrLen, g_Menu->pShop->polysTotalPrice, g_Menu->pShop->totalPriceRenderCtx);
+            ShopMenuRenderString(g_Menu->pShop->goldAfterStrLen, g_Menu->pShop->polysGoldAfter, g_Menu->pShop->goldAfterRenderCtx);
+        }
+
+        for (i = 0; i < 8; i++) {
+            ShopMenuRenderString(g_Menu->pShop->unk468C[i], g_Menu->pShop->polysShopInventory[i * 4], g_Menu->pShop->unk4694[i]);
+        }
+
+        for (i = 0; i < 9; i++) {
+            ShopMenuRenderString(g_Menu->pShop->unk46BC[i], g_Menu->pShop->polys27B0[i], g_Menu->pShop->unk46CE[i]);
+            ShopMenuRenderString(g_Menu->pShop->unk46C5[i], g_Menu->pShop->polys3020[i], g_Menu->pShop->unk46D7[i]);
+        }
+    }
+    if (g_Menu->pManager->unk5B == 1) {
+        ShopMenuRenderString(g_Menu->pShop->finalPriceStrLen, g_Menu->pShop->polysFinalPrice, g_Menu->pShop->finalPriceRenderCtx);
+    }
+}
 
 // Set the color for the stat change a piece of gear provides
 void ShopMenuSetStatChangeColor(int numPolygons, POLY_FT4* pPolys, u_char mode) {
