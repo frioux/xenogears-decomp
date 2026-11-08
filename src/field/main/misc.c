@@ -215,7 +215,14 @@ void func_80087A7C(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_80087AB8);
+void func_80087AB8(void) {
+    g_pGameState->unk184E = FieldScriptArgument1(1, SCRIPT_READ_U8_REL(9));
+    g_pGameState->unk1852 = FieldScriptArgument2(3, SCRIPT_READ_U8_REL(9));
+    g_pGameState->unk1854 = 0;
+    g_pGameState->unk1850 = 0;
+    g_pGameState->unk1856 = 1;
+    g_FieldScriptVMCurActor->scriptInstructionPointer += 6;
+}
 
 void func_80087B5C(void) {
     FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(1), *(u_short*)&g_pGameState->unk17FC[0x30]);
@@ -321,7 +328,17 @@ void func_8008825C(void) {
     D_800B00C0 = 1;
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_800882B8);
+void func_800882B8(void) {
+    int partyId = func_8008CF3C(FieldScriptVMGetArgument(1));
+
+    if (partyId != CHARACTER_ID_NONE) {
+        FieldScriptMemoryWriteU16(
+            FieldScriptVMGetInstructionArgument(3) & 0xFFFF, g_pGameState->characters[partyId].gearId);
+    } else {
+        FieldScriptMemoryWriteU16(FieldScriptVMGetInstructionArgument(3) & 0xFFFF, 0xFF);
+    }
+    g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
+}
 
 void FieldScriptSetCharacterGear(void) {
     int characterId = FieldScriptVMGetArgument(1);
@@ -547,7 +564,19 @@ void FieldScriptStopParticleActor(void) {
 }
 // End of particle handlers
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_80089B54);
+void func_80089B54(void) {
+    int i;
+
+    for (i = 0; i < 3; i++) {
+        if (D_8005A444[i] == D_800AFD1C) {
+            FieldScriptMemoryWriteU16(FieldScriptVMGetInstructionArgument(1) & 0xFFFF, i);
+            g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
+            return;
+        }
+    }
+    FieldScriptMemoryWriteU16(FieldScriptVMGetInstructionArgument(1) & 0xFFFF, 0xFF);
+    g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
+}
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_80089BF0);
 
@@ -681,9 +710,32 @@ void func_8008A604(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008A640);
+void func_8008A640(void) {
+    int partyId = func_8008CF3C(FieldScriptVMGetArgument(3));
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008A6E0);
+    if (partyId != CHARACTER_ID_NONE) {
+        int value = FieldScriptVMGetArgument(1) - g_pGameState->characters[partyId].unk77;
+
+        if (value < 0) {
+            value = 0;
+        }
+        g_pGameState->characters[partyId].unk78 = value;
+    }
+    g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
+}
+
+void func_8008A6E0(void) {
+    int partyId = func_8008CF3C(FieldScriptVMGetArgument(3));
+
+    if (partyId != CHARACTER_ID_NONE) {
+        int value = g_pGameState->characters[partyId].unk77 + g_pGameState->characters[partyId].unk78;
+
+        FieldScriptMemoryWriteU16(FieldScriptVMGetInstructionArgument(1) & 0xFFFF, value);
+    } else {
+        FieldScriptMemoryWriteU16(FieldScriptVMGetInstructionArgument(1) & 0xFFFF, 0);
+    }
+    g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
+}
 
 int func_8008A790(int characterId, int* pPartyIndex) {
     int i;
@@ -826,7 +878,28 @@ void func_8008B518(void) {
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008B5D4);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008B894);
+extern void* g_PartyDataBuffers[];
+extern void* D_800ADBC0;
+extern s32 D_800ADBC4;
+extern void* D_800ADBC8;
+extern s32 D_800ADBCC;
+extern void LZSSDecompress(void*, void*);
+extern void func_8008B978(void*);
+
+void func_8008B894(void) {
+    if (D_800ADBC4 != 0xFF && ArchiveDataSync() == 0) {
+        ArchiveCdDataSync(0);
+        LZSSDecompress(D_800ADBC0, g_PartyDataBuffers[D_800ADBCC]);
+        HeapFree(D_800ADBC0);
+        func_8008B978(D_800ADBC8);
+        D_800ADBC4 = 0xFF;
+        D_800B00C0 = 1;
+        g_FieldScriptVMCurActor->scriptInstructionPointer += 1;
+    } else {
+        D_800B00C0 = 1;
+        g_FieldScriptVMCurActor->scriptInstructionPointer -= 1;
+    }
+}
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008B978);
 
@@ -848,7 +921,24 @@ void func_8008C7D8(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 1;
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008C84C);
+extern void func_8003A89C(s32, int, int);
+extern s32 D_8004F36C;
+extern s32 D_8004F324;
+extern s32 D_80062528;
+
+void func_8008C84C(void) {
+    if (D_8004F36C != 0) {
+        func_8003A89C(D_80062528, FieldScriptVMGetArgument(1), FieldScriptVMGetArgument(3));
+        g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
+    } else if (D_8004F324 == CHARACTER_ID_NONE) {
+        g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
+    } else if (D_800ADB1C == 0) {
+        g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
+    } else {
+        g_FieldScriptVMCurActor->scriptInstructionPointer -= 1;
+    }
+    D_800B00C0 = 1;
+}
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008C938);
 
@@ -856,9 +946,6 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008CA60);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008CB4C);
 
-extern s32 D_8004F36C;
-extern s32 D_8004F324;
-extern s32 D_80062528;
 extern void func_8003AAC4(int, int);
 
 void func_8008CC74(void) {
@@ -888,7 +975,16 @@ void func_8008CD48(void) {
     }
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008CDD4);
+void func_8008CDD4(void) {
+    g_FieldScriptVMCurActor->unk10A = FieldScriptVMGetArgument(1);
+    g_FieldScriptVMCurActor->unk10D = 0x80;
+    g_FieldScriptVMCurActor->unk10C = FieldScriptVMGetArgument(3);
+    g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
+    func_800863E8(D_800AFD1C);
+    if (g_FieldScriptVMCurActor->unk10A == 0) {
+        g_FieldScriptVMCurActor->unk10D = 0xFF;
+    }
+}
 
 void func_8008CE64(void) {
     int partyId = func_8008CF3C(FieldScriptVMGetArgument(1));
@@ -1318,35 +1414,28 @@ void FieldScriptVMConditionalJump5(unsigned short flag) {
     }
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", FieldScriptWriteActorDistance);
-/*
-Matches as long as g_FieldActors is NOT volatile.
-
 void FieldScriptWriteActorDistance(void) {
-    ActorData* pActorA;
-    ActorData* pActorB;
     int actorIndexA;
     int actorIndexB;
+    ActorData* pActorA;
+    ActorData* pActorB;
     int distance;
 
     distance = 0;
     actorIndexA = FieldScriptVMGetActorIndex(3);
     actorIndexB = FieldScriptVMGetActorIndex(4);
     if ((actorIndexA != ACTOR_ID_INVALID) && (actorIndexB != ACTOR_ID_INVALID)) {
-        pActorA = g_FieldActors[actorIndexA].pActorData;
-        pActorB = g_FieldActors[actorIndexB].pActorData;
+        FieldActor* pActors = g_FieldActors;
+
+        pActorA = pActors[actorIndexA].pActorData;
+        pActorB = pActors[actorIndexB].pActorData;
         distance = FieldGetVec2Magnitude(
-            CONV_TO_GTE(pActorA->position.vx) - CONV_TO_GTE(pActorB->position.vx), 
-            CONV_TO_GTE(pActorA->position.vz) - CONV_TO_GTE(pActorB->position.vz)
-        );
+            CONV_TO_GTE(pActorA->position.vx) - CONV_TO_GTE(pActorB->position.vx),
+            CONV_TO_GTE(pActorA->position.vz) - CONV_TO_GTE(pActorB->position.vz));
     }
-    FieldScriptMemoryWriteU16(
-        SCRIPT_IMM_ARG(1), 
-        distance
-    );
+    FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(1), distance);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
 }
-*/
 
 // The four halves of an actor's scriptFlags and flags words are tested by the script VM.
 void func_8008E298(void) {

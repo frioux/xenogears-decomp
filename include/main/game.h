@@ -42,8 +42,9 @@ typedef struct {
     /* 0x6A */ undefined8 unk6A[0x5]; // Equipped weapons?
     /* 0x6F */ undefined8 unk6F[0x5]; // Equipped weapons?    
     /* 0x74 */ undefined8 unk74[0x3]; // Equipped accessories?
-    /* 0x77 */ undefined8 unk77;    
-    /* 0x78 */ undefined8 unk78[0x28];
+    /* 0x77 */ u8 unk77;
+    /* 0x78 */ u8 unk78;
+    /* 0x79 */ undefined8 unk79[0x27];
     /* 0xA0 */ u_char gearId;
     /* 0xA1 */ undefined8 field_0xA1[0x3];
 } GameCharacter; // size: 0xA4
@@ -164,9 +165,11 @@ typedef struct {
     /* 0x16BC */ UnkGearState unk16BC[10];
     /* 0x17FC */ undefined8 unk17FC[0x52];
     /* 0x184E */ undefined16 unk184E;
-    /* 0x1850 */ undefined8 unk1850[0x2];
+    /* 0x1850 */ undefined16 unk1850;
     /* 0x1852 */ undefined16 unk1852;
-    /* 0x1854 */ undefined8 unk1854[0xD0];
+    /* 0x1854 */ undefined16 unk1854;
+    /* 0x1856 */ undefined16 unk1856;
+    /* 0x1858 */ undefined8 unk1858[0xCC];
     /* 0x1924 */ u_int gold;
     /* 0x1928 */ undefined8 unk1928[0x408];
     /* 0x1D30 */ undefined16 unk1D30;
