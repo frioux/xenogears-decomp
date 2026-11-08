@@ -516,13 +516,15 @@ void func_80088790(void) {
 }
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_800888A4);
-// 82.97%: the only misses are (a) the same `li a0,1` hoist as func_80088508 -
-// the g_FieldActors[D_800AFD1C] address computation gives gcc the slack to lift
-// the constant out of the first FieldScriptVMGetArgument delay slot - and (b) the
-// 0x12C update. The original's mask 0xF003FFFF (bits 18-27) with the value
-// shifted by 24 means the bitfield it writes is 10 bits at bit 18 holding
-// `type << 6`, not a 4-bit field at bit 24; with that split gcc instead CSEs
-// `type << 6` with the sprite store below and chains `<< 6` then `<< 18`.
+// 81.13%: the struct fields are now right (ActorData flags12C_0x12 is the 10-bit
+// field at bit 18, so the mask is the original's 0xF003FFFF), but two misses
+// remain. (1) The original keeps `type` in $s1 and shifts it by 6 into a temp for
+// the sprite store, then by 24 for the bitfield (`sll s1,s1,0x18`); gcc 2.7.2 here
+// CSEs `type << 6` into $s1 first and emits `sll s1,s1,0x12` after it. The
+// original's single `<< 24` looks like source-level `(flags & 0xF003FFFF) |
+// (type << 24)` rather than a `type << 6` bitfield store. (2) `li a0,1` for the
+// first FieldScriptVMGetArgument is hoisted above the frame setup instead of
+// sitting in the jal delay slot.
 /*
 extern void func_8002303C(SpriteData*, int, int);
 

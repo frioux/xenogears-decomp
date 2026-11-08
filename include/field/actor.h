@@ -320,7 +320,10 @@ typedef struct {
     u_int flags12C_0x6: 3; // Keeps track of recursion level in scripts - inc on call, dec on ret
     /* flags12C_0x9 */ u_int direction: 3;
     u_int flags12C_0xD: 1;
-    u_int flags12C_0xE: 19; // Tentative
+    u_int flags12C_0xE: 3;
+    u_int flags12C_0x10: 2;
+    u_int flags12C_0x12: 10; // Model type << 6
+    u_int flags12C_0x1C: 4;
 
 
     int flags130;
