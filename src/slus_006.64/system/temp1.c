@@ -74,8 +74,9 @@ void func_800230A8(SpriteData* pSpriteData) {
 }
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80023124);
-/* Best attempt: 79.47%. The original homes both by-value params to 0x28/0x2C and keeps the two
-   differences in int locals, which gcc only does here for the 8-byte struct form.
+/* Best attempt: 79.47%. Param is an 8-byte struct of two s16 pairs (x1,y1,x2,y2). The original's
+   frame is 0x10 bigger: it also spills both differences to 0x10/0x18 (dead stores) around the
+   ratan2 call, which this C does not reproduce.
 typedef struct {
     0x0 s16 x1;
     0x2 s16 y1;
@@ -172,6 +173,37 @@ s32 func_80023440(u16* pFlags) {
 }
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80023468);
+/* Best attempt: 99.41%. Code and jump-table contents agree with the original; diff_func.sh and
+   objdiff stop at the .L case labels of the original, so 100.00% is not reachable through them.
+s32 func_80023468(u_int index, s32 value) {
+    s32 result = value;
+
+    switch (index) {
+    case 0:
+    case 5:
+    case 6:
+    case 10:
+    case 11:
+    case 12:
+    case 13:
+    case 14:
+        result = 1;
+        break;
+    case 1:
+    case 4:
+    case 8:
+    case 9:
+        result = 0;
+        break;
+    case 2:
+    case 7:
+    case 15:
+        result = 2;
+        break;
+    }
+    return result;
+}
+*/
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_800234AC);
 /* Best attempt: 98.29%, only the last store's address add has swapped v0/v1.
