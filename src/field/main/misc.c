@@ -239,18 +239,24 @@ void func_80087C0C(void) {
     D_8004F300 = 1;
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_80087C34);
-// 70.95%: identical instructions, but the original loads the actor pointer for
-// the next statement before each store; gcc here stores first.
-/*
 void func_80087C34(void) {
-    *(u_short*)&g_pGameState->unk17FC[0x30] = FieldScriptArgument1(1, SCRIPT_READ_U8_REL(9));
-    *(u_short*)&g_pGameState->unk17FC[0x32] = FieldScriptArgument2(3, SCRIPT_READ_U8_REL(9));
-    *(u_short*)&g_pGameState->unk17FC[0x34] = FieldScriptArgument3(5, SCRIPT_READ_U8_REL(9));
-    *(u_short*)&g_pGameState->unk17FC[0x36] = FieldScriptArgument4(7, SCRIPT_READ_U8_REL(9));
-    g_FieldScriptVMCurActor->scriptInstructionPointer += 0xA;
+    ActorData* pActor;
+    s16 value;
+
+    value = FieldScriptArgument1(1, SCRIPT_READ_U8_REL(9));
+    pActor = g_FieldScriptVMCurActor;
+    *(u_short*)&g_pGameState->unk17FC[0x30] = value;
+    value = FieldScriptArgument2(3, SCRIPT_READ_U8(pActor->scriptInstructionPointer + 9));
+    pActor = g_FieldScriptVMCurActor;
+    *(u_short*)&g_pGameState->unk17FC[0x32] = value;
+    value = FieldScriptArgument3(5, SCRIPT_READ_U8(pActor->scriptInstructionPointer + 9));
+    pActor = g_FieldScriptVMCurActor;
+    *(u_short*)&g_pGameState->unk17FC[0x34] = value;
+    value = FieldScriptArgument4(7, SCRIPT_READ_U8(pActor->scriptInstructionPointer + 9));
+    pActor = g_FieldScriptVMCurActor;
+    *(u_short*)&g_pGameState->unk17FC[0x36] = value;
+    pActor->scriptInstructionPointer += 0xA;
 }
-*/
 
 void func_80087D30(void) {
     FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(1), *(u_short*)&g_pGameState->unk17FC[0x38]);
