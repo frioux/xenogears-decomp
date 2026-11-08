@@ -324,6 +324,30 @@ commit. Rules that make that work:
   ordering cannot be expressed, leave the function as `INCLUDE_ASM` and say so in
   a comment; a wrong layout costs a whole overlay.
 
+
+### The GTE macros had the wrong DMPSX revision (fixed)
+
+`include/psyq/inline_c.h` used to say "DMPSX version 3" and emit **two** `nop`s
+plus a raw `.word` per Type-2 GTE command. The retail Psy-Q 4.x libraries were
+built with the one-`nop` spelling and the canonical COP2 encodings, so every
+GTE-macro function in the repo was stuck at 60-99% (and `gte_mvmva(1,0,0,0,0)`
+emitted `0x020013BF` where retail has `0x4A480012`). The header now emits the
+retail words, which immediately matched `NormalColor`, `NormalLightCol`,
+`ColorCol` and `LocalLight` in `psyq/libgte.c`.
+
+Consequences worth knowing:
+
+- Functions that use GTE macros are now ordinary matching work again -- see
+  `psyq/libgte.c` (`NormalColor3`, `NormalColorCol3`, `NormalColorDpq3`,
+  `Square0`, `Square12`, `SetRGBfifo`, `VectorNormal*`), `lib_gear/main/main.c`
+  (`func_801E6F64` and friends) and `system/temp2.c` (`func_80026F44`,
+  `func_80026FE8`, `func_80025C04`).
+- The ground truth for any command's encoding is in this repo: the target
+  disassembly prints the instruction word, e.g.
+  `grep -h "4A" asm/slus_006.64/nonmatchings/psyq/libgte/NormalColor.s`.
+- A function whose `.s` is a `/* Handwritten function */` of raw `mtc2`/`mfc2`
+  with no macro equivalent is still out of reach; do not force it.
+
 ## 6. Hard rules
 
 - Matching means `make check` passes. Never edit `config/checksum.sha`,
