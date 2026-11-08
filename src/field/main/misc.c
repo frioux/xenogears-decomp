@@ -1030,7 +1030,42 @@ readFile:
     }
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008ACE8);
+extern void ArchiveCdDataSync(int mode);
+
+void func_8008ACE8(void) {
+    int scriptArgument;
+    int archiveIndex;
+    int bufferSize;
+    void* pBuffer;
+
+    if (D_800ADB90 == 0 && D_800ADB2C == 0) {
+        if (func_8008A558() != 0) {
+            D_800B00C0 = 1;
+            g_FieldScriptVMCurActor->scriptInstructionPointer -= 1;
+            return;
+        }
+        if (g_FieldScriptVMCurActor->unk124 != -1) {
+            HeapFree(g_FieldScriptVMCurActor->unk120);
+            g_FieldScriptVMCurActor->unk124 = -1;
+        }
+        scriptArgument = FieldScriptVMGetArgument(1);
+        ArchiveSetIndex(4, 0);
+        archiveIndex = scriptArgument + 0x77A;
+        bufferSize = ArchiveDecodeAlignedSize(archiveIndex) + 8;
+        g_FieldScriptVMCurActor->unk124 = archiveIndex;
+        pBuffer = HeapAlloc(bufferSize, 0);
+        g_FieldScriptVMCurActor->unk120 = pBuffer;
+        ArchiveReadFileToBuffer(archiveIndex, pBuffer, 0, 0x80);
+        if (D_800ADB1C == 0) {
+            ArchiveCdDataSync(0);
+        }
+        D_800ADB90 = 1;
+        g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
+    } else {
+        g_FieldScriptVMCurActor->scriptInstructionPointer -= 1;
+    }
+    D_800B00C0 = 1;
+}
 
 void func_8008AE5C(void) {
     if (SCRIPT_READ_U8_REL(1) == 0) {
