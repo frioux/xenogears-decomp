@@ -279,26 +279,19 @@ void FieldClampPolyFT4UVs(POLY_FT4* poly, short u0, short v0, short u1, short v1
 }
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007A5C4);
-/* Best attempt: 75.64% (568 vs 560 bytes). Indexing the tables by symbol from the
-   flat 1D arrays reproduces the original's `sll i,4; addu base,idx; lhu k(v0)`
-   form for the six middle entries and its two extra per-table pointers for the
-   first/last entry, but gcc spends one register more than the original: it keeps
-   pQuad, &pQuad->polys[0] and &pQuad->polys[1] live (spilling the uv[7] pointer)
-   and stores the vertices off the polys pointer with negative offsets instead of
-   off pQuad with positive ones. Same score with pointer locals instead of the
-   symbols; the remaining gap is register allocation / CSE of pQuad vs pPoly.
-   Reached ~61% with 2D `D_800ADE30[i][k]` and struct-array `D_800ADE30[i].x0`
-   forms (both lose the base+i*16 addressing entirely).
-extern u_short D_800ADE30[];     // X0,Z0 -> X3,Z3 positions per direction
-extern u_char D_800ADE70[];      // U0,V0 -> U3,V3s per direction
+/* Best attempt: 77.28% (568 vs 560 bytes): vx/vz interleave reproduced, but gcc
+   strength-reduces &polys[1] (the copy at the end of the body) into an induction
+   register and addresses polys[0] off it with negative offsets, spilling the
+   uv[7] pointer to the stack: 10 callee-saved slots vs the original 9.
+extern u_short D_800ADE30[]; // X0,Z0 -> X3,Z3 positions per direction
+extern u_char D_800ADE70[];  // U0,V0 -> U3,V3s per direction
 extern Quad D_800B0FEC[];
 
 void func_8007A5C4(void) {
     int i;
     Quad* pQuad;
 
-    pQuad = D_800B0FEC;
-    for (i = 0; i < 4; i++) {
+    for (i = 0, pQuad = D_800B0FEC; i < 4; i++, pQuad++) {
         SetPolyFT4(&pQuad->polys[0]);
 
         pQuad->vertices[0].vx = D_800ADE30[i * 8 + 0];
@@ -327,10 +320,12 @@ void func_8007A5C4(void) {
         pQuad->polys[0].clut = GetClut(0x100, 0xF2);
 
         pQuad->polys[1] = pQuad->polys[0];
-        pQuad++;
     }
 }
+   Previous note: 75.64% (568 vs 560 bytes). Indexing the flat arrays by symbol
+   reproduces the six middle entries and the first/last pointers correctly.
 */
+
 
 extern SVec4 D_800ADCE0[]; // X0 -> X3 positions
 extern SVec4 D_800ADD28[]; // Y0 -> Y3 positions
