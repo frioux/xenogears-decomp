@@ -317,6 +317,41 @@ void func_800A83B4(void) {
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A8408);
 
+/* Best attempt, 71.78%: only instruction scheduling differs.
+   The original frame has 0x18 unused bytes, hence `unk`.
+extern u_short D_800AEB68[]; // 8 byte entries: 0x0 -> x
+extern u_short D_800AEB6A[]; //              0x2 -> y
+extern u_short D_800AEB6C[]; //              0x4 -> w
+extern u_short D_800AEB6E[]; //              0x6 -> h
+extern u_short D_800AEF14[]; // 4 shorts per entry, entry 0 is the sprite index
+
+void func_800A8408(int nQuad, int x, int y) {
+    POLY_FT4* pPoly;
+    int nRect;
+    int nX;
+    int nY;
+    int nW;
+    int nH;
+    int u0;
+    int v0;
+    int u1;
+    int v1;
+    u_long unk[6];
+
+    nRect = D_800AEF14[nQuad * 4] * 4;
+    nY = D_800AEB6A[nRect];
+    nW = D_800AEB6C[nRect];
+    nX = D_800AEB68[nRect];
+    pPoly = &D_800AFC60[g_FieldCurRenderContextIndex][nQuad];
+    u0 = nX + x;
+    u1 = u0 + nW;
+    nH = D_800AEB6E[nRect];
+    v0 = nY + y - 1;
+    v1 = nY + y + nH - 1;
+    FieldClampPolyFT4UVs(pPoly, u0, v0, u1, v1, u0, v0, u1, v0);
+}
+*/
+
 INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A84C0);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A8BA4);
