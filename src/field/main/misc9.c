@@ -1,4 +1,5 @@
 #include "common.h"
+#include "main/game.h"
 #include "psyq/libgpu.h"
 #include "system/memory.h"
 #include "system/math.h"
@@ -139,7 +140,17 @@ void func_800AAF80(void) {
     }
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc9", func_800AB328);
+// Check whether the inventory holds at least one of the given item
+s32 func_800AB328(int itemId) {
+    int i;
+
+    for (i = 0; i < MAX_INVENTORY_ITEMS; i++) {
+        if (g_pGameState->itemIDs[i] == itemId && g_pGameState->itemQuantities[i] != 0) {
+            return 0;
+        }
+    }
+    return -1;
+}
 
 extern SpriteList2* D_800B1DF0;
 extern PolyList2* D_800C3A3C;
@@ -227,6 +238,17 @@ void func_800ABEC8(void) {
 }
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc9", func_800ABFDC);
+// 94.58%: identical except that gcc fuses the `or` into a0 (2 instrs here, 3 in the original)
+// s32 func_800ABFDC(u_char* pData, s32* pIsGlyph) {
+//     s32 code;
+//     code = (pData[0] << 8) | pData[1];
+//     if ((u_short)(code - 0x8540) < 0x340) {
+//         *pIsGlyph = 1;
+//         return code - 0x8540;
+//     }
+//     *pIsGlyph = 0;
+//     return Krom2RawAdd(code);
+// }
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc9", func_800AC03C);
 
@@ -240,9 +262,35 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc9", func_800AC99C);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc9", func_800ACB90);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc9", func_800ACC58);
+extern s32 D_8004F300;
+extern void* D_800AF76C;
+extern void* D_800AF774;
+extern s32 D_800AF778;
+extern s32 D_800AF77C;
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc9", func_800ACCB0);
+extern void func_800AC308();
+extern void func_800AC3AC();
+
+void func_800ACC58(void) {
+    RECT rect; // unused, but the original frame has this 8-byte slot
+
+    if (D_8004F300) {
+        func_800AC308();
+        func_800AC3AC();
+        D_800AF77C = 0;
+        D_800AF778 = 0xF;
+        D_800AF774 = D_800AF76C;
+    }
+}
+
+extern s32 D_800AF770;
+
+void func_800ACCB0(void) {
+    if (D_8004F300) {
+        HeapFree(D_800AF76C);
+        HeapFree(D_800AF770);
+    }
+}
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc9", func_800ACCF4);
 
