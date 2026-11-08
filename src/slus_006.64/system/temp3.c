@@ -65,7 +65,94 @@ void func_8001A684(s32 arg0, s32 arg1) {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp3", func_8001A6E8);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp3", func_8001AADC);
+extern s32 D_8004F364;
+extern s32 D_8004F36C;
+extern s32 D_8004F33C;
+extern s32 D_8004F338;
+extern s32 D_8004F328;
+extern s32 D_8004F324;
+extern s32 D_8004F2FC;
+extern s32 D_8004F2F8;
+extern s32 D_8004F314;
+extern s32 D_8004F310;
+extern s32 D_8004F370;
+extern s32 D_8004F35C;
+extern s32 g_GameHasLoadedWDS;
+extern s32 D_8004F358;
+extern s32 D_8004F354;
+extern s32 D_8004F350;
+extern s32 D_8004F2F4;
+extern s32 D_8004F348;
+extern s32 D_8004F304;
+extern s32 D_8004F368;
+extern s32 D_8004F300;
+extern s32 D_8004F380;
+extern s32 D_8004F37C;
+extern s32 D_8004F378;
+extern u8 D_8005942C;
+extern u8 D_800594D0;
+extern s16 D_8004F384;
+extern s32 D_8004F318;
+extern s32 D_8004F340;
+extern s32 D_8004F308;
+extern s32 D_8006F990[3];
+extern s32 D_8005A444[3];
+extern s32 D_80062524[1];
+
+void func_8001AADC(void) {
+    int i;
+
+    D_8004F364 = 1;
+    D_8004F328 = 0xFF;
+    D_8004F324 = 0xFF;
+    D_8004F2FC = 0;
+    D_8004F36C = 0;
+    D_8004F2F8 = 0;
+    D_8004F31C = 0;
+    D_8004F320 = 0;
+    D_8004F314 = 0;
+    D_8004F310 = 0;
+    g_GamePartySkinsInitialized = 0;
+    D_8004F370 = 0;
+    D_8004F35C = 0;
+    g_GameHasLoadedWDS = 0;
+    g_PartyIsWaitingForStreamData = 0;
+    D_8004F358 = 0;
+    D_8004F354 = 0;
+    D_8004F350 = 0;
+    D_8004F2F4 = 0;
+    D_8004F344 = 0;
+    D_8004F348 = 0;
+    D_8004F304 = 0;
+    D_8004F368 = 0;
+    D_8004F300 = 0;
+    D_8004F380 = 0;
+    D_8004F37C = 0;
+    D_8004F378 = 0;
+    D_8005942C = 0;
+    D_800594D0 = 0;
+    D_8004F384 = 0;
+    D_8004F318 = 0;
+    D_8004F334 = -1;
+    g_GameSceneMapNum = -1;
+    D_8004F33C = -1;
+    D_8004F338 = -1;
+    D_8004F330 = -1;
+    D_8004F32C = -1;
+    D_8004F340 = -1;
+    D_8004F308 = -1;
+
+    for (i = 0; i < MAX_PARTY_MEMBERS; i++) {
+        g_GamePartyMemberSkins[i] = 0;
+        D_8006F990[i] = 0;
+        D_8005A444[i] = 0;
+        g_GamePartyMembers[i] = 0;
+    }
+
+    for (i = 3; i >= 0; i--) {
+        D_80062524[i - 3] = 0;
+    }
+}
 
 void GamePartySignalReinitialize(void) {
     g_GamePartySkinsInitialized = 0;
@@ -337,8 +424,6 @@ void func_8001B5E8(void) {
 
 extern s32 D_8004F36C;
 extern s32 D_8004F33C;
-extern s32 D_8004F338;
-
 void func_8001B5E8(void);
 
 void func_8001B66C(void) {
@@ -389,6 +474,59 @@ void func_8001B94C(DRAWENV* pDrawEnv) {
 }
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp3", func_8001B970);
+/*
+Best: 85.15%. The tail only matches with D_8005947C/D_800594CC defined in this
+unit (gp_rel), which is the same unit-level conflict as func_8001BB50. The
+remaining diff is the inner loop: the original keeps the even byte on an
+advancing pointer and recomputes the odd byte as (i + j) + (g_GameState + 1),
+gcc merges the two into one base with 0/1 offsets.
+void func_8001B970(void) {
+    u8 inBuf[0x14];
+    u8 outBuf[0x14];
+    u8* pSrc;
+    u8* pEven;
+    u8* pOdd;
+    u8* pDst;
+    u8* pOut;
+    void* pBuffer;
+    int i;
+    int j;
+
+    ArchiveSetIndex(ARCHIVE_DIR_MENUS, 0);
+    HeapChangeCurrentUser(HEAP_USER_HIG, 0);
+    pBuffer = HeapAlloc(ArchiveDecodeAlignedSize(3), 1);
+    ArchiveReadFileToBuffer(3, pBuffer, 0, 0x80);
+    ArchiveCdDataSync(0);
+    memmove(&g_GameState, pBuffer, 0x2358);
+    HeapFree(pBuffer);
+
+    pSrc = (u8*)&g_GameState;
+    for (i = 0; i < 0x26C; i += 0x14) {
+        pEven = inBuf;
+        pOdd = inBuf + 1;
+        for (j = 0; j < 0x14; j += 2) {
+            *pEven = pSrc[i + j];
+            *pOdd = pSrc[i + j + 1];
+            if (pSrc[i + j] == 0xF && pSrc[i + j + 1] == 0) {
+                break;
+            }
+            pEven += 2;
+            pOdd += 2;
+        }
+        func_80033B34((u16*)inBuf, outBuf, j / 2);
+        pOut = outBuf;
+        pDst = pSrc + i;
+        while (pDst < pSrc + i + 0x14) {
+            *pDst++ = *pOut++;
+        }
+    }
+
+    for (i = 19; i >= 0; i--) {
+        ((s16*)&g_SoundVolumeController)[i - 16] = 0;
+    }
+    D_800594CC = 6;
+    D_8005947C = 0;
+} */
 
 extern u8 D_8006F9DE;
 extern s32 D_80059470;
@@ -489,6 +627,36 @@ void func_8001BBAC(void) {
 extern int rand(void);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp3", func_8001BD40);
+/*
+Best: 90.64%. Only the then-branch is short one `andi v0, v1, 0xff`: with a single
+`return result` gcc keeps the if/else block order of the original but drops that
+mask, and with two returns it reorders the two blocks.
+u8 func_8001BD40(u32 arg0, u32 arg1) {
+    u32 arg0Byte;
+    u32 arg1Byte;
+    s32 range;
+    u8 result;
+
+    arg0Byte = arg0 & 0xFF;
+    if (arg0Byte == 0xFF) {
+        return 0xFF;
+    }
+    arg1Byte = arg1 & 0xFF;
+    if (arg1Byte == 0) {
+        return 0;
+    }
+    if (arg0Byte == arg1Byte) {
+        return arg0Byte;
+    }
+    range = arg1Byte - arg0Byte;
+    if (range < 0xFF) {
+        result = (arg0 + rand() % (range + 1)) & 0xFF;
+    } else {
+        result = rand() & 0xFF;
+    }
+    return result;
+} */
+
 /*
 Best: 89.10%. Structure and branch polarity match; what is left is gcc reusing
 the incoming argument register a1 as a temporary for the masked arg0 (the
