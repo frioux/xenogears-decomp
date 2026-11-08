@@ -632,7 +632,21 @@ void func_8009FD10(int partyMemberIndex) {
     }
 }
 
+extern void func_800AD4D4(void);
+
 INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_8009FDD4);
+// 99.50%: gcc puts the index in $v1, the original uses $a0 (`move a0,v0`).
+/*
+void func_8009FDD4(void) {
+    int partyMemberIndex;
+
+    partyMemberIndex = func_8009FC10(D_800AFD1C);
+    if (partyMemberIndex != 0xFF && g_pGameState->gearRide[partyMemberIndex] == 0) {
+        func_800AD4D4();
+    }
+    g_FieldScriptVMCurActor->scriptInstructionPointer++;
+}
+*/
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_8009FE4C);
 
@@ -702,7 +716,16 @@ void func_800A0DFC(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_800A0E54);
+extern int D_800ADB74;
+
+void func_800A0E54(void) {
+    if (D_800ADB74 == 0) {
+        g_FieldScriptVMCurActor->scriptInstructionPointer++;
+    } else {
+        g_FieldScriptVMCurActor->scriptInstructionPointer--;
+    }
+    D_800B00C0 = 1;
+}
 
 extern int D_800ADB84;
 
