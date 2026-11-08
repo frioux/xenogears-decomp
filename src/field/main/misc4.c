@@ -125,7 +125,21 @@ void func_80079784(int color) {
 }
 
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_800798BC);
+extern s32 D_800B2268;
+extern u_char D_80059179;
+extern s16 D_800B234C;
+extern s32 g_PlayerActorIndex;
+
+void func_800798BC(void) {
+    if (D_800B2268 != 0 && (g_FieldActors[g_PlayerActorIndex].pActorData->curWalkmeshTriMaterial & 0xC0) == 0) {
+        D_80059179 = 0;
+    } else {
+        D_80059179 = 1;
+    }
+    if (D_800B234C != 0xFF) {
+        D_80059179 = D_800B234C;
+    }
+}
 
 void func_8007995C(short w, short h, short x, short y, int destX, int destY) {
     RECT rect;
@@ -387,9 +401,43 @@ void FieldSetMousePosition(int mouseIndex, int xMovement, int yMovement) {
     g_FieldMousePositionsY[mouseIndex] = yMovement * g_FieldMouseSpeedY;
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007AE78);
+void func_8007AF74(int controllerIndex);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007AF74);
+INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007AE78);
+/* Best attempt: 93.65%. Only difference is scheduling around the byte-1 test:
+   the original emits nop; lb v1,1(s0); li v0,0x12 and this puts li in the
+   branch delay slot instead. Repeating the array expression per use is
+   required: it reproduces the three reloads of the buffer pointer.
+void func_8007AE78(int controllerIndex, int* pOut) {
+    func_8007AF74(controllerIndex);
+    pOut[0] = g_FieldMousePositionsX[controllerIndex] / g_FieldMouseSpeedX;
+    pOut[1] = g_FieldMousePositionsY[controllerIndex] / g_FieldMouseSpeedY;
+    pOut[2] = -0x100;
+    pOut[3] = ((s8**)&g_pFieldControllerBuffer1)[controllerIndex][4];
+    pOut[4] = ((s8**)&g_pFieldControllerBuffer1)[controllerIndex][5];
+    if (!((s8**)&g_pFieldControllerBuffer1)[controllerIndex][0] && ((s8**)&g_pFieldControllerBuffer1)[controllerIndex][1] == 0x12) {
+        pOut[2] = ~((s8**)&g_pFieldControllerBuffer1)[controllerIndex][3] & 0xC;
+    }
+}
+*/
+
+void func_8007AF74(int controllerIndex) {
+    if (((s8**)&g_pFieldControllerBuffer1)[controllerIndex][0] == 0
+        && ((s8**)&g_pFieldControllerBuffer1)[controllerIndex][1] == 0x12) {
+        g_FieldMousePositionsX[controllerIndex] += ((s8**)&g_pFieldControllerBuffer1)[controllerIndex][4];
+        g_FieldMousePositionsY[controllerIndex] += ((s8**)&g_pFieldControllerBuffer1)[controllerIndex][5];
+        if (g_FieldMousePositionsX[controllerIndex] > D_800C3A50) {
+            g_FieldMousePositionsX[controllerIndex] = D_800C3A50;
+        } else if (g_FieldMousePositionsX[controllerIndex] < D_800C3A44) {
+            g_FieldMousePositionsX[controllerIndex] = D_800C3A44;
+        }
+        if (g_FieldMousePositionsY[controllerIndex] > D_800C3A54) {
+            g_FieldMousePositionsY[controllerIndex] = D_800C3A54;
+        } else if (g_FieldMousePositionsY[controllerIndex] < D_800C3A4C) {
+            g_FieldMousePositionsY[controllerIndex] = D_800C3A4C;
+        }
+    }
+}
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007B07C);
 
@@ -459,9 +507,50 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007CD80);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007D3D4);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007D818);
+int func_8007D8B4(int x, int y, int z);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007D8B4);
+void func_8007D818(VECTOR* pVec, VECTOR* pOut) {
+    int nDominantAxis;
+
+    nDominantAxis = func_8007D8B4(pVec->vx, pVec->vy, pVec->vz);
+    pVec->vx >>= 12;
+    pVec->vy >>= 12;
+    pVec->vz >>= 12;
+    if (nDominantAxis < 0) {
+        pVec->vx = -pVec->vx;
+        pVec->vy = -pVec->vy;
+        pVec->vz = -pVec->vz;
+    }
+    VectorNormal(pVec, pOut);
+}
+
+// Returns whichever component has the largest absolute value
+int func_8007D8B4(int x, int y, int z) {
+    int nAbsX = x;
+    int nAbsY = y;
+    int nAbsZ = z;
+
+    if (nAbsX < 0) {
+        nAbsX = -nAbsX;
+    }
+    if (nAbsY < 0) {
+        nAbsY = -nAbsY;
+    }
+    if (nAbsZ < 0) {
+        nAbsZ = -nAbsZ;
+    }
+
+    if (nAbsX >= nAbsY && nAbsX >= nAbsZ) {
+        return x;
+    }
+    if (nAbsY >= nAbsX && nAbsY >= nAbsZ) {
+        return y;
+    }
+    if (nAbsZ >= nAbsX && nAbsZ >= nAbsY) {
+        return z;
+    }
+    return 0;
+}
 
 
 
