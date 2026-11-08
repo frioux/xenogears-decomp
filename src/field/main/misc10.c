@@ -35,7 +35,49 @@ void func_8009631C(void) {
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc10", func_8009635C);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc10", func_8009640C);
+/* Best attempt (96.70%, 176 bytes vs the original's 172): the original has a
+   single `sb` at the end of both branches (path 1 jumps into the tail of the
+   else body), sharing one `pQuantities + nIndex` address. Here gcc emits one
+   store per branch plus an extra `nop` in the beqz delay slot.
+void func_8009635C(int nItemId) {
+    int nIndex;
+    u_char* pQuantities;
+    u_char* pItems;
+
+    nIndex = func_80095124(nItemId);
+    pQuantities = (u_char*)func_800950A0(nItemId);
+    pItems = (u_char*)func_8009501C(nItemId);
+    if (nIndex != -1) {
+        if (pQuantities[nIndex] < 0x63) {
+            pQuantities[nIndex] = pQuantities[nIndex] + 1;
+        }
+    } else {
+        nIndex = func_800951B8(nItemId);
+        if (nIndex != -1) {
+            pItems[nIndex] = nItemId;
+            pQuantities[nIndex] = 1;
+        }
+    }
+}
+*/
+
+void func_8009640C(void) {
+    int nItemId;
+    int nIndex;
+    u_char* pItems;
+    u_char* pQuantities;
+
+    nItemId = FieldScriptVMGetArgument(1);
+    nIndex = func_80095124(nItemId);
+    if (nIndex != -1) {
+        pItems = (u_char*)func_8009501C(nItemId);
+        pQuantities = (u_char*)func_800950A0(nItemId);
+        if (--pQuantities[nIndex] == 0) {
+            pItems[nIndex] = 0xFF;
+        }
+    }
+    g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
+}
 
 // Check if certain member is in current party
 void FieldScriptCheckPartyMember(void) {
