@@ -22,7 +22,7 @@ extern s32 D_80059F00;
 extern u32 D_80059F0C;
 extern s16 D_80059F60;
 extern s32 D_8005A4DC;
-extern void func_8002B084();
+extern void func_8002B084(u_char status);
 extern void func_8002B2F0();
 extern void func_8002BA58();
 extern s32 g_ArchiveCurFileSector;
@@ -33,6 +33,9 @@ extern char D_80018974[];
 extern void func_800379C8(char*, ...);
 extern s32 D_80059F3C;
 extern int D_80059F04;
+extern CdlLOC D_80059EF8;
+extern u8 D_800596F8[];
+extern s32 D_8004FDE4;
 extern s16 D_80059F40;
 extern s16 D_80059F44;
 extern s16 D_80059F48;
@@ -549,6 +552,68 @@ void ArchiveCdDriveCommandHandler(u_char status, u_char* pResult) {
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002AC24);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002B084);
+/* Best attempt: objdiff 98.97%. Sole difference is where gcc materialises the
+ * 0x200 constant for the last CdGetSector: the original hoists it into the delay
+ * slot of the `bgez` that starts the (size + 3) / 4 division, this emits it after
+ * the sra. Status is CdlDataReady (0x1) and the final command is CdlNop, not
+ * CdlComplete/CdlPause.
+ * void func_8002B084(u_char status) {
+ *     s32 i;
+ *     s32 j;
+ *
+ *     if (status != CdlDataReady)
+ *         goto error;
+ *
+ *     if (D_8004FE34 > 0)
+ *         goto halt;
+ *
+ *     if (g_ArchiveCurFileSize >= CD_SECTOR_SIZE) {
+ *         CdGetSector(&D_80059EF8, 3);
+ *         CdGetSector(D_8004FE08, CD_SECTOR_SIZE / 4);
+ *     } else if (g_ArchiveCurFileSize > 0) {
+ *         CdGetSector(&D_80059EF8, 3);
+ *         CdGetSector(D_8004FE08, (g_ArchiveCurFileSize + 3) / 4);
+ *         CdGetSector(D_800596F8, 512 - (g_ArchiveCurFileSize + 3) / 4);
+ *     }
+ *
+ *     if (CdPosToInt(&D_80059EF8) != g_ArchiveCurFileSector) {
+ *         D_8004FDE4 += 1;
+ *         goto error;
+ *     }
+ *
+ *     g_ArchiveCurFileSector += 1;
+ *     D_8004FE08 += CD_SECTOR_SIZE;
+ *     g_ArchiveCurFileSize -= CD_SECTOR_SIZE;
+ *     if (g_ArchiveCurFileSize > 0)
+ *         return;
+ *
+ * halt:
+ *     CdReadyCallback(NULL);
+ *     g_ArchiveCurFileSize = 0;
+ *     ArchiveCdSeekToFile(D_8004FE38);
+ *     D_8004FDFC = 0;
+ *     return;
+ *
+ * error:
+ *     D_8005A4DC += 1;
+ *     D_80059F08 = CdReadyCallback(NULL);
+ *     CdIntToPos(g_ArchiveCurFileSector, &g_ArchiveCdCurLocation);
+ *     if (D_8005A4DC < 3) {
+ *         g_ArchiveCdDriveError = ARCHIVE_CD_DRIVE_ERR_READ;
+ *     } else {
+ *         for (i = 9999; i >= 0; i--) {
+ *             for (j = 1999; j >= 0; j--) {
+ *             }
+ *         }
+ *         D_8005A4DC = 0;
+ *         g_ArchiveCdDriveError = ARCHIVE_CD_DRIVE_ERR_HALT;
+ *         D_8005A4A4 += 1;
+ *     }
+ *     g_ArchiveCdDriveState = ARCHIVE_CD_DRIVE_ERROR;
+ *     CdSyncCallback(&ArchiveCdDriveCommandHandler);
+ *     CdControlF(CdlNop, NULL);
+ * }
+ */
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002B2F0);
 
