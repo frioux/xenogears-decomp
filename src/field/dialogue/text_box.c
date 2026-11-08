@@ -43,53 +43,6 @@ void func_8009BB0C(void) {
 
 INCLUDE_ASM("asm/field/nonmatchings/dialogue/text_box", func_8009BC98);
 
-// Best attempt: 71.87%. Everything up to the func_80033CD0 result test matches, and all
-// data references are right (the embedded SystemString at 0x18, the cursor fields at
-// 0x37C/0x37E/0x380/0x382 and func_80034800(pString, 0xEF, 0x1E, 0xF0) -- 0x1E in $a2
-// and 0xF0 in $a3 are that call's green/blue, loaded early and surviving to the call).
-// What is left is block layout: the original keeps the "D_800B00C0 = 1 and return" exit
-// at the end of the function, sharing the tail store with the normal path, while gcc
-// puts it inline after the two tests and inverts the second branch.
-/*
-// The SystemString embedded at 0x18 in FieldTextBox (see SystemString in system.c).
-// Only the two fields this unit reads are named.
-typedef struct {
-    /* 0x00 */ undefined8 pad0[0x6C];
-    /* 0x6C */ u_char unk6C;
-    /* 0x6D */ undefined8 pad6D[0x17];
-    /* 0x84 */ s16 unk84;
-} FieldTextBoxString; // Size: 0x86
-
-extern int func_80033CD0(FieldTextBoxString* pString);
-extern void func_80034800(FieldTextBoxString* pString, u_char red, u_char green, u_char blue);
-
-void func_8009BC98(void) {
-    int nTextBoxIndex;
-    int nStart;
-
-    if (func_8009CD18(&nTextBoxIndex) == 0) {
-        g_FieldScriptMaxInstructionCount += 8;
-
-        if (func_80033CD0((FieldTextBoxString*)g_FieldTextBoxes[nTextBoxIndex]._pad) != 1 &&
-            (((FieldTextBoxString*)g_FieldTextBoxes[nTextBoxIndex]._pad)->unk84 == 0 ||
-             ((FieldTextBoxString*)g_FieldTextBoxes[nTextBoxIndex]._pad)->unk6C == 0)) {
-            D_800B00C0 = 1;
-            return;
-        }
-
-        g_FieldTextBoxes[nTextBoxIndex].cursor.visibility = 0;
-        g_FieldScriptVMCurActor->unk81 = 0xFF;
-        nStart = SCRIPT_READ_U8_REL(1) >> 4;
-        g_FieldTextBoxes[nTextBoxIndex].cursor.startPosition = nStart;
-        g_FieldTextBoxes[nTextBoxIndex].cursor.curPosition = 0;
-        g_FieldTextBoxes[nTextBoxIndex].cursor.maxPosition = (SCRIPT_READ_U8_REL(1) & 0xF) - nStart + 1;
-        func_80034800((FieldTextBoxString*)g_FieldTextBoxes[nTextBoxIndex]._pad, 0xEF, 0x1E, 0xF0);
-    }
-    g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
-    D_800B00C0 = 1;
-}
-
-*/
 s32 func_8009BE58(void) {
     return ((g_FieldScriptVMCurActor->direction - (FieldGetCameraDirection() & 0xffff)) & MASK_8DIR_MOVEMENT_NUM_DIRECTIONS) < 5;
 }
