@@ -178,6 +178,13 @@ void func_8003A20C(int);
 void func_80039F9C(void*, int, int, int);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800855C8);
+/* 85.56%: gcc hoists `(arg3 & 7) * 2` into s0 and copies it (move a0,s0 /
+   move a1,s0); the original keeps `arg3 & 7` in s0 and shifts at each use.
+void func_800855C8(int arg0, int arg1, int arg2, int arg3) {
+    func_8003A20C((arg3 & 7) * 2);
+    func_80039F9C(arg0, (arg3 & 7) * 2, (s16)arg1, (s16)arg2);
+}
+*/
 
 extern s32 D_800B21B8;
 
