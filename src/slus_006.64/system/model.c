@@ -877,11 +877,77 @@ void func_80030228(ModelVertex* pDest, ModelVertexDelta* pDeltas, int count, int
     }
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/model", func_800302D4);
+void func_800302D4(ModelVertex* pDest, ModelVertexDelta* pDeltas, int count, int scale) {
+    ModelVertex* pVertex;
+
+    if (scale == 0) {
+        return;
+    }
+    while (--count != -1) {
+        pVertex = (ModelVertex*)((pDeltas->index << 3) + (mem_addr)pDest);
+        pVertex->x += (pDeltas->x * scale) >> 12;
+        pVertex->y += (pDeltas->y * scale) >> 12;
+        pVertex->z += (pDeltas->z * scale) >> 12;
+        VectorNormalSS((SVECTOR*)pVertex, (SVECTOR*)pVertex);
+        pDeltas++;
+    }
+}
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/model", func_800303C8);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/model", func_800305D8);
+// Per-LOD vertex sources for a model part: the vertex count, then the delta
+// arrays applied to the part's vertices at each level of detail.
+typedef struct {
+    /* 0x0 */ s32 count;
+    /* 0x4 */ ModelVertexDelta* pDeltas;
+    /* 0x8 */ ModelVertexDelta* pDeltasHigh;
+} ModelLodDeltas; // Size: 0xC
+
+// One level of detail: a callback yielding this frame's blend weight, followed
+// by whatever state that callback keeps.
+typedef struct ModelLodWeight {
+    /* 0x0  */ s32 (*pGetWeight)(struct ModelLodWeight* pWeight);
+    /* 0x4  */ u32 unk4[7];
+} ModelLodWeight; // Size: 0x20
+
+// A model part to re-pose this frame, its base vertex source, and the weights
+// blending the per-LOD deltas into it.
+typedef struct {
+    /* 0x0  */ ModelPart* pModelPart;
+    /* 0x4  */ ModelVertex* pBaseVertices;
+    /* 0x8  */ u32 unk8;
+    /* 0xC  */ s32 numLods;
+    /* 0x10 */ ModelLodWeight* pLodWeights;
+} ModelPoseState; // Size: 0x14
+
+void func_800305D8(ModelPoseState* pPose) {
+    ModelPart* pModelPart;
+    ModelLodDeltas* pDeltas;
+    ModelLodWeight* pWeight;
+    int count;
+    int i;
+    int scale;
+
+    if (pPose == NULL) {
+        return;
+    }
+    pModelPart = pPose->pModelPart;
+    count = pPose->numLods;
+    pDeltas = (ModelLodDeltas*)(pModelPart->unk1C + 1);
+    pWeight = pPose->pLodWeights;
+    func_800301C8((ModelVertex*)pModelPart->pVertices, pPose->pBaseVertices,
+                  pDeltas[count].count, (short*)pDeltas[count].pDeltas);
+    for (i = 0; i < count; i++) {
+        scale = pWeight->pGetWeight(pWeight);
+        func_80030228((ModelVertex*)pModelPart->pVertices, pDeltas[i].pDeltas,
+                      pDeltas[i].count, scale);
+        if (pModelPart->flags & 0x10) {
+            func_800302D4((ModelVertex*)pModelPart->unkC, pDeltas[i].pDeltasHigh,
+                          pDeltas[i].count, scale);
+        }
+        pWeight++;
+    }
+}
 
 // Saved state of a model part's vertex data, so that a part can have its
 // vertices replaced and later restored.
