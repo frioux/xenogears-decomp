@@ -1812,10 +1812,11 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003D070);
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003D0E8);
 /*
 Attempt (94.00%, same size): the only difference is the original's redundant
-`andi v0,v0,0xff` between the `lbu` and the `mult`; gcc 2.6 folds the mask away for
-every form tried (`u8`, `u16`, `*pScript & 0xFF`, `u8`->`u16` copy).
+`andi v0,v0,0xff` where gcc 2.6 emits `nop` (it fills the `lh` load delay slot);
+gcc 2.6 folds the mask away for every form tried (`u8`, `u16`, `*pScript & 0xFF`,
+`u8`->`u16` copy).
 u8* func_8003D0E8(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
-    u16 value = *pScript;
+    u8 value = *pScript;
 
     pAudioManager->unk_0x58 = value << 16;
     pAudioManager->unk_0x54 = value * (pAudioManager->unk_Interpolator_0x64.currentValue >> 16);
@@ -1823,7 +1824,14 @@ u8* func_8003D0E8(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
 }
 */
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003D110);
+u8* func_8003D110(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
+    s32 pad[2]; // unused: reproduces the original's 0x8-byte frame
+    s8 value = *pScript;
+
+    pAudioManager->unk_0x58 += value << 16;
+    pAudioManager->unk_0x54 = 0;
+    return pScript + 1;
+}
 /*
 Attempt (67.27%): the original has an unused 0x8-byte stack frame
 (`addiu sp,sp,-0x8` ... `addiu sp,sp,0x8`) and computes the return value before the
