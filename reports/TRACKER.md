@@ -29,6 +29,9 @@ Stubs by area at session start: `slus_006.64` 419 (psyq 174, system 245),
 | 6 | 10 units | +32 | 1756 | `field/main/misc` 9/9, `system/sound` 5/5; `text_box_render` handed back a file that did not compile (INCLUDE_ASM expanded inside a body) and was reverted |
 | 7 | 10 units | +25 | 1780 | crossed 70% of functions; `shop_menu` revert for a 2-byte jump-table data difference |
 | 8 | 10 units | +21 | 1801 | reverted a C-side `.rodata` constant in `misc2` (moves the unit's rodata) and a 99.31% `lib_gear` claim whose reloc named another symbol |
+| 9 | 10 units | +9 | 1810 | crossed half the code; fixed an INCLUDE_ASM path missing `nonmatchings/` (silent maspsx failure, surfaced only at link) |
+| 10 | `field/main/{misc2,misc9,misc12}`, `system/{temp3,archive,system,libarchive}`, `camera_movement`, `text_box{,_render}` | +7 | 1816 | the misc2 `.rodata` VECTOR came back a second time and was reverted again; `text_box.c` broke the compile again and was reverted |
+| 11 | 10 units | +7 | 1823 | every worker reported "one register / one delay slot away"; yield has flattened to ~1 per worker |
 
 ## Queue
 
@@ -123,3 +126,27 @@ the same six things. Putting these in every brief raised the yield from ~15% to
 - `make check` is the gate and it catches roughly one bad claim per round. To find
   the culprit: `cmp build/out/<bin>.bin disc/<bin>.bin`, map the differing offsets
   to text symbols, then revert just those functions.
+
+## Session result
+
+Start: 1632/2528 functions (64.56%), 45.90% of code, 761 `INCLUDE_ASM` stubs.
+End:   1824/2528 functions (72.15%), 50.66% of code, 569 stubs.
+
+That is +191 functions and +4.4 points of code, in 11 rounds of ten parallel
+workers (110 worker-runs), with every batch gated by `make check`.
+
+## Where the next session should start
+
+1. The single biggest blocker in `field/`: gcc 2.7.2 will not emit
+   `addiu dreg, sreg, -K` from a register holding another symbol's address, and it
+   hoists `li a0,N` out of a `jal` delay slot when the argument follows a computed
+   `g_FieldActors[...]` address. One C idiom that fixes either unlocks dozens of
+   parked attempts (many are 95-99% and identical apart from that instruction).
+2. Jump-table functions cannot reach objdiff 100% by construction (section-relative
+   `.rodata` vs a named `jtbl_`); several are parked at ~99.7% and need a byte-level
+   check instead of objdiff.
+3. `slus_006.64/system/model` is almost entirely hand-written assembly; do not
+   spend worker time there. `psyq/libgte` likewise (`mtc2`/`ctc2`).
+4. Untouched and tractable: `system/sound` 60 stubs, `field/main/misc` 37,
+   `field/main/misc8` 27, `lib_gear/main/main` 27, `field/main/misc4` 16,
+   `misc6` 16, `misc5` 14, `temp1` 13.
