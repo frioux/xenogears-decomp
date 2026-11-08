@@ -194,20 +194,29 @@ int func_80081F5C(ActorData* pActor) {
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80081F80);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800821F4);
-/* 95.50%: everything matches except how the model-id table base is formed. The
-   original keeps `&D_800B2346` in s2 and derives the table (`&D_800B2346 - 0xB1`
-   shorts) with a separate `addiu a0, s2, -354`; gcc here folds the -354 into the
-   %lo of the symbol, which also makes it rematerialise the compare load instead
-   of reusing s2.
 extern s16 D_800B2344;
 extern s16 D_800B2346;
 extern u8 D_800ADFB8[];
 void func_800245D8(int, int);
 void func_801E8330(u16, u16, s32);
 
+// This unit reads the 0x12C word whole; the ActorData bitfields there make gcc
+// narrow the load to a byte.
+typedef struct {
+    /* 0x0   */ u8 unk0[0x12C];
+    /* 0x12C */ u_int flags12C;
+} ActorFlags12CView; // Size: 0x130
+
+INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800821F4);
+/* 95.91%, same size, register base only. Two findings. (1) The 0x12C word must
+   be read whole - the ActorData bitfields there make gcc narrow it to
+   `lbu 0x12D; srl 5`, so this unit reads it through ActorFlags12CView.
+   (2) The model-id base: the original does `la s2, D_800B2346` for the compare
+   and derives the table with a per-branch `addiu a0, s2, -0x162`; gcc here
+   rematerialises the compare inline and keeps the -0x162 address (used in both
+   branches) in s2 instead. Computing pTable after the compare is what gets
+   gcc to share one base at all; who owns the register is the remaining gap.
 void func_800821F4(int arg0, int actorId, FieldActor* pActor) {
-    s16* pModelIds;
     s16* pTable;
 
     if (!(pActor->status & 0x40)) {
@@ -221,10 +230,10 @@ void func_800821F4(int arg0, int actorId, FieldActor* pActor) {
     }
     // The model-id table ends right before D_800B2346; the original derives its
     // base from that symbol, so index from the last entry.
-    pModelIds = &D_800B2346;
-    if (actorId != pModelIds[0]) {
+    if (actorId != (&D_800B2346)[0]) {
         pActor->pActorData->scriptFlags.flags &= ~0x800;
     }
+    pTable = &D_800B2346 - 0xB1;
     if (!(pActor->pActorData->flags & 0x2000)) {
         if (pActor->pActorData->flags & 0x1000000) {
             return;
@@ -232,14 +241,13 @@ void func_800821F4(int arg0, int actorId, FieldActor* pActor) {
         func_800245D8(arg0, actorId);
         return;
     }
-    pTable = pModelIds - 0xB1;
     if (actorId < 0x10) {
-        func_801E8330(pActor->pActorData->flags12C_0xE & 7, 0, D_800ADFB8[actorId]);
-        pTable[pActor->pActorData->flags12C_0xE & 7] = D_800ADFB8[actorId];
+        func_801E8330((((ActorFlags12CView*)pActor->pActorData)->flags12C >> 13) & 7, 0, D_800ADFB8[actorId]);
+        pTable[(((ActorFlags12CView*)pActor->pActorData)->flags12C >> 13) & 7] = D_800ADFB8[actorId];
     } else {
         actorId -= 0x10;
-        func_801E8330(pActor->pActorData->flags12C_0xE & 7, 0, actorId);
-        pTable[pActor->pActorData->flags12C_0xE & 7] = actorId;
+        func_801E8330((((ActorFlags12CView*)pActor->pActorData)->flags12C >> 13) & 7, 0, actorId);
+        pTable[(((ActorFlags12CView*)pActor->pActorData)->flags12C >> 13) & 7] = actorId;
     }
 }
 */
@@ -470,15 +478,12 @@ extern void* D_800ADBB8;
 extern void* D_800AFEA4;
 int func_80028B14(void);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800854D0);
-/* 96.94%: only the call result's register differs (original copies it to a0
-   with `move a0,v0` and stores/tests a0; gcc here keeps it in v0).
 int func_800854D0(void) {
     int result = func_80028B14();
 
     D_800ADBBC = result;
     if (result != 0) {
-        ((void (*)(void))D_800AFEA4)();
+        ((void (*)(int))D_800AFEA4)(result);
         return 0;
     }
     if (ArchiveDataSync() != 0) {
@@ -491,7 +496,6 @@ int func_800854D0(void) {
     D_800ADB2C = 0;
     return -1;
 }
-*/
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80085560);
 /* 81.88%: only the prologue schedule and the temp register differ (gcc stores
@@ -697,13 +701,13 @@ void func_800859DC(FieldWdsBlock* pBlock) {
 }
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80085B20);
-/* 95.92%: only the block index computation differs. The original computes
-   `2 * streamId + 0x13` into v0 before the D_8004F33C check and copies it to a0
-   at the call (`addiu v0,v0,0x13` / `move a0,v0`); gcc here computes it straight
-   into a0 inside the branch body, which also leaves gcc's two delay slots empty
-   and gives D_8004F33C the v0 register.
+/* 97.82%: one instruction (4 bytes) short. The original keeps the stream id byte
+   in a0 across the D_8004F33C compare, so the `* 2 + 0x13` index is forced into
+   v0 and copied at the call with `move a0,v0`; gcc here puts the byte in v1 and
+   computes the index straight into a0, dropping the copy.
 void func_80085B20(int arg0) {
     u_short streamId;
+    int index;
 
     ArchiveCdDataSync(0);
     func_8001B66C();
@@ -716,9 +720,10 @@ void func_80085B20(int arg0) {
         func_80086024();
     }
     streamId = D_800ADFCD[arg0 * 2 - 1];
+    index = streamId * 2;
     if (streamId != 0xFF) {
         if (D_8004F33C != streamId) {
-            func_80085560(streamId * 2 + 0x13, 1, (void*)func_800859DC);
+            func_80085560(index + 0x13, 1, (void*)func_800859DC);
             D_8004F354 = 1;
             D_800B2370 = 0;
             D_800C3A1C = HeapAlloc(0x2000, 1);
