@@ -175,27 +175,31 @@ void func_8009E094(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_8009E10C);
-/*
-Matches when scriptFlags is a u32, not bitfields.
-
 void func_8009E10C(void) {
     int nValue;
-    int nUnkFlags;
+    int nFlags;
 
     nValue = FieldScriptVMGetArgument(1);
-    nUnkFlags = (nValue & 0x1) << 7; // if (nValue & 0x1) nUnkFlags |= 0x80;
-    if (nValue & 0x4) nUnkFlags |= 0x20;
-    if (nValue & 0x8) nUnkFlags |= 0x10;
-    if (nValue & 0x10) nUnkFlags |= 8;
-    if (nValue & 0x20) nUnkFlags |= 4;
-    if (nValue & 0x40) nUnkFlags |= 0x08000000;
-    
-    g_FieldScriptVMCurActor->scriptFlags &= 0xF7FFFF43;
-    g_FieldScriptVMCurActor->scriptFlags |= nUnkFlags;
+    nFlags = (nValue & 0x1) << 7;
+    if (nValue & 0x4) {
+        nFlags |= 0x20;
+    }
+    if (nValue & 0x8) {
+        nFlags |= 0x10;
+    }
+    if (nValue & 0x10) {
+        nFlags |= 0x8;
+    }
+    if (nValue & 0x20) {
+        nFlags |= 0x4;
+    }
+    if (nValue & 0x40) {
+        nFlags |= 0x8000000;
+    }
+    g_FieldScriptVMCurActor->scriptFlags.flags &= 0xF7FFFF43;
+    g_FieldScriptVMCurActor->scriptFlags.flags |= nFlags;
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
-*/
 
 void func_8009E1A0(void) {
     u32 nValue;
@@ -621,10 +625,10 @@ s32 func_8009FA54(s32 nInstructionOffset) {
 }
 */
 INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_8009FB98);
-// 63.17%: the C is exactly right (D_800B2268 is a plain s32), but gcc schedules
-// `scriptInstructionPointer += 2` before the D_800B2268 store, which forces the ip
-// pseudo into the other register; the original keeps the store first and reuses $v0
-// for both ip loads. Same instruction count, just reordered.
+// 63.17%: C is right, but gcc's post-reload scheduler emits the ip store before
+// the D_800B2268 store; the original keeps the source order. Making the ip store
+// volatile restores the order (88.00%) but blocks reorg's delay-slot fill, adding
+// a nop (124 vs 120 bytes), so it cannot link.
 /*
 void func_8009FB98(void) {
     g_GameSceneMapNum |= 0xC000;
@@ -751,13 +755,6 @@ void func_800A0C4C(void) {
 }
 
 // FieldResetActorPosition, set translation and sprite position of actor based on current actor data position
-INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_800A0C94);
-// 99.64%: only diff is the last `addu` destination - gcc puts the pointer in $v0, the
-// original coalesces it into the offset register $v1 (`addu v1,v1,v0` then both
-// stores off v1). Using `&g_FieldActors[D_800AFD1C]` instead of the explicit
-// pointer arithmetic flips the operand order of the other two addus (99.17%), and
-// a separate pointer local for the third block regresses to 82%.
-/*
 void func_800A0C94(void) {
     FieldActor* pFieldActor;
     SpriteData* pSpriteData;
@@ -782,7 +779,7 @@ void func_800A0C94(void) {
     pFieldActor->transformMatrix.t[1] = y;
     pFieldActor->childMatrix.t[1] = y;
 
-    pFieldActor = (FieldActor*)(D_800AFD1C * sizeof(FieldActor) + (s32)g_FieldActors);
+    pFieldActor = &g_FieldActors[D_800AFD1C];
     z = pPosition[5];
     pFieldActor->transformMatrix.t[2] = z;
     pFieldActor->childMatrix.t[2] = z;
@@ -796,7 +793,6 @@ void func_800A0C94(void) {
     pSpriteData->field_0x84 = curY;
     pActor->curYPos = curY;
 }
-*/
 
 void func_800A0D3C(void) {
     func_80076AC0(D_800AFD1C, 0, (void*)((*(s32*)(g_FieldSpriteData + 4)) + (s32)g_FieldSpriteData), 0, 0, 0x80, 1);
