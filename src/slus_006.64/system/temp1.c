@@ -77,7 +77,7 @@ void func_80022CDC(SpriteData* pSpriteData) {
     func_80022B2C(pSpriteData);
 }
 
-// non-prototype on purpose: func_80023170 below calls it without the frame index
+// non-prototype on purpose: the second argument is a frame index, not in the header's prototype
 extern void func_8001D2B0();
 
 void func_80022D44(SpriteData* pSpriteData) {
@@ -217,11 +217,6 @@ s32 func_80023124(SVEC2Pair line) {
 }
 */
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80023170);
-/* Best attempt: 98.57%. Only the register holding the 0xFFF1FFFF mask differs - the original
-   keeps both masks in t1/t0 (a1 unavailable), this C lets the allocator use a1 for the second.
-   Swapping the two `&=` statements makes the li order follow source, so the allocation order is
-   source-driven; gcc picks t0 then a1/t1 here, never t1 then t0, whatever the statement order.
 void func_80023170(SpriteData* pSpriteData, s32 arg1, s32 arg2, s32 arg3) {
     u32 flags = *(u32*)((u8*)pSpriteData + 0x3C);
 
@@ -233,10 +228,9 @@ void func_80023170(SpriteData* pSpriteData, s32 arg1, s32 arg2, s32 arg3) {
     pSpriteData->animScriptWaitTimer = 0;
     pSpriteData->flags_0xA8 &= ~0x300000;
     pSpriteData->flags_0xA8 &= ~0xE0000;
-    func_8001D2B0(pSpriteData);
+    // arg1 is passed through in a1, which is what keeps a1 out of the mask allocation above
+    func_8001D2B0(pSpriteData, arg1);
 }
-*/
-
 // Blocks whose data table sits at a self-relative byte offset stored at 0xC
 typedef struct {
     /* 0x0 */ u32 unk0;
@@ -384,8 +378,9 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80023538);
 // SpriteData stuff
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80023804);
 /* Best attempt: 99.10%. Everything matches except a v0/v1 swap: the original keeps the
-   flags_0xAC value in v1 and its 0xFFF8007F mask in v0, this C does the opposite (and
-   so the flags_0xA8 value lands in v1 instead of v0). Function is 78 instructions.
+   flags_0xAC value in v1 and its 0xFFF8007F mask in v0 (so the following flags_0xA8 load lands
+   in v0), this C does the opposite. Tried: swapping the two statements, constant-first operand
+   order, and going through the pFlagsA8 pointer (67.63%).
 void func_80023804(SpriteData* pSpriteData) {
     u32* pFlagsA8;
     s32 cycles;
@@ -465,9 +460,10 @@ void func_800239F4(SpriteData* pSpriteData) {
 }
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80023A48);
-/* Best attempt: 97.22%. diff_func.sh needs 100.00%; the only differences are registers picked
-   for the &D_8006BE10 / &D_8005A474 address loads in case 1 (the original materializes the
-   %hi half in v0 and adds into s2, this C lets gcc load straight into s2, one insn shorter).
+/* Best attempt: 97.22%. The original forms the two package addresses as `lui v0,%hi` +
+   `addiu s2,v0,%lo` (a temp for the high half, which also forces it to rematerialize `li v0,6`
+   inside the first if body, and lets reorg drop the second `lui` into the bne delay slot);
+   this C lets gcc merge the pair into `lui s2`/`addiu s2,s2` and is one instruction shorter.
 extern u8 D_8006BE10;
 extern u8 D_8005A474;
 extern s32 func_8001EE74(u16* pFlags);
