@@ -51,6 +51,13 @@ void func_8007DCF8(int index) {
 // (D_800AFC80 + i * 8) three ways: a strength reduced pointer for x, a
 // recomputed symbol + i * 8 for y/h (also the SetDrawMode rect argument), and
 // D_800AFC84 + i * 8 for w, plus it writes each rect twice.
+// Postscript: declaring D_800AFC84 as `short[]` and writing D_800AFC84[i * 4]
+// (w) / D_800AFC84[i * 4 - 2] (x) does reproduce the original's shared base
+// (`la D_800AFC84-4` / `addiu s3, s2, -4`) and scopes the double store right,
+// but gcc then strength reduces the D_800AFC80 writes instead of the AFC84 ones
+// and re-forms the AFC80 address in the loop body -- 80.22%, worse than the
+// 82.32% below. Also note D_800B068C/D_800B2174 must be declared above this
+// function if it becomes C.
 INCLUDE_ASM("asm/field/nonmatchings/dialogue/text_box_render", FieldTextBoxInitialize);
 /*
 extern DR_MODE D_800B1DF4[];
