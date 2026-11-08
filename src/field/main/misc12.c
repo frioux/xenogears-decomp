@@ -29,6 +29,15 @@ void FieldScriptVMWriteCurCharacterID(void) {
 }
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc12", FieldScriptVMWritePartyLeaderCharacterID);
+/* 94.84%: identical instructions, but gcc hoists the `li a0,1` for
+   FieldScriptVMGetInstructionArgument above the prologue instead of leaving it
+   in the jal delay slot.
+void FieldScriptVMWritePartyLeaderCharacterID(void) {
+    ActorData* pActor = g_FieldActors[g_PlayerActorIndex].pActorData;
+
+    FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(1), pActor->characterId);
+    g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
+} */
 
 void FieldScriptVMHandlerGetActorDirection(void) {
     int delta = PSX_DEGREES(22.5);
@@ -270,6 +279,32 @@ void FieldScriptSetActorRotation(int angle) {
 
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc12", func_8009AA00);
+/* 97.58%: one extra `li a0,1`, same cause as FieldScriptVMWritePartyLeaderCharacterID.
+void func_8009AA00(void) {
+    ActorData* pTargetActor;
+    ActorData* pActor;
+    short rotation;
+
+    if (FieldScriptVMGetActorIndex(1) != ACTOR_ID_INVALID) {
+        if (FieldScriptVMGetActorIndex(2) != ACTOR_ID_INVALID) {
+            pTargetActor = g_FieldActors[FieldScriptVMGetActorIndex(2)].pActorData;
+            pActor = g_FieldActors[FieldScriptVMGetActorIndex(1)].pActorData;
+            rotation = -ratan2(
+                pTargetActor->position.vz - pActor->position.vz,
+                pTargetActor->position.vx - pActor->position.vx
+            ) | 0x8000;
+
+            if (D_800ADB1C == 0) {
+                pActor->rotation.vx = rotation;
+                pActor->rotation.vy = rotation;
+                pActor->rotation.vz = rotation;
+            }
+            pActor->rotation.vx = rotation;
+            pActor->rotation.vy = rotation;
+        }
+    }
+    g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
+} */
 
 void func_8009AB08(int rotation) {
     short rotationValue;
@@ -484,6 +519,26 @@ void func_8009B884(void) {
 }
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc12", func_8009B8E4);
+/* 89.26%: the 2D branch computes `(direction + 4 & 7) << 9` twice in the
+   original (the g_FieldScriptVMCurActor load clobbers v1 between the two
+   stores); here gcc keeps the shifted value in one register and schedules the
+   actor load above both stores.
+void func_8009B8E4(void) {
+    int direction = FieldScriptVMGetArgument(1);
+    int duration = FieldScriptVMGetArgument(3);
+
+    if (D_800ADB1C == 0) {
+        s32 angle = (direction + 4 & 7) << 9;
+
+        g_Scene.sceneAngle.vy = angle;
+        g_Scene.unk7C = angle;
+        g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
+    } else if (g_Scene.unk66 == 0) {
+        func_8009B708(direction, duration);
+        g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
+    }
+    D_800B00C0 = 1;
+} */
 
 void func_8009B9A0(void) {
     if (g_Scene.unk66 == 0) {
@@ -504,3 +559,17 @@ void func_8009BA0C(void) {
 }
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc12", func_8009BA7C);
+/* 96.94%: same statements and store order; the original reaches unk60 with
+   `sll 9` then `sll 16` on the same register, gcc folds them into `sll 25`.
+void func_8009BA7C(void) {
+    int direction;
+
+    g_Scene.sceneDIP = FieldScriptVMGetArgument(3);
+    direction = (FieldScriptVMGetArgument(1) + 4) & 7;
+    g_Scene.unk7C = direction << 9;
+    g_Scene.sceneAngle.vy = direction << 9;
+    g_Scene.unk60 = g_Scene.unk7C << 16;
+    g_Scene.sceneScrZ = FieldScriptVMGetArgument(5);
+    SetGeomScreen(g_Scene.sceneScrZ);
+    g_FieldScriptVMCurActor->scriptInstructionPointer += 7;
+} */
