@@ -260,6 +260,7 @@ void func_80073E38(void) {
     FieldActorModelData* pModel;
 
     for (i = 0; i < g_FieldNumActors; i++) {
+        pActor = &g_FieldActors[i];
         if (pActor->status & 0x40) {
             continue;
         }
