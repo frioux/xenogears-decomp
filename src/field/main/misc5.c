@@ -169,9 +169,62 @@ void func_800A708C(void) {
     HeapChangeCurrentUser(HEAP_USER_YOSI, NULL);
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A7120);
+extern s32 D_800ADB78;
+extern s32 D_800AFE74;
+extern s32 D_800B00E4;
+extern s32 D_800B06A0;
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A7218);
+typedef void (*FieldRenderContextCallback)(u_short, int, u_short);
+
+void func_800A7120(u_short arg0, int arg1, u_short arg2) {
+    D_800B06A0 = arg0;
+    D_800B00E4 = 0;
+    if (arg2 == 0) {
+        D_800ADB78 = 1;
+    } else {
+        D_800ADB78 = 0;
+    }
+
+    if (D_800ADB74 == 0 && D_800AFE74 == 0) {
+        DrawSync(0);
+        g_FieldCurRenderContext = &g_FieldRenderContexts[D_800ADB78];
+        // Read as signed here, unsigned in func_800A708C, matching the original loads
+        if (*(s16*)&D_800C3A36 == 1) {
+            g_FieldRenderContexts[D_800ADB78 & 1].dispEnv.isrgb24 = 1;
+        }
+    }
+}
+
+extern s32 D_800ADB80;
+extern s16 D_800C3A20;
+extern u16 D_800C3A22;
+extern u16 D_800C3A24;
+extern u16 D_800C3A26;
+extern u16 D_800C3A28;
+extern u16 D_800C3A2A;
+extern u16 D_800C3A2C;
+extern u16 D_800C3A2E;
+extern u16 D_800C3A3A;
+extern s16 D_800C3A38;
+extern void func_801D37CC(int, int, int, int, int, int, int, int, int, int, int, int, FieldRenderContextCallback);
+
+void func_800A7218(void) {
+    int nMode;
+
+    D_800B06A0 = 0;
+    HeapChangeCurrentUser(HEAP_USER_MASA, NULL);
+    if (D_800ADB6C == 0) {
+        ArchiveSetIndex(0x18, 1);
+        nMode = 1;
+        if (D_800C3A38 != 0xFF || (D_800ADB80 & 0x40)) {
+            nMode = 3;
+        }
+        func_801D37CC(D_800C3A20 + 2, D_800C3A2A, D_800C3A2C, D_800C3A2E, 1, nMode,
+            D_800C3A3A, D_800C3A22, D_800C3A24, D_800C3A26, D_800C3A28, 0xE0, func_800A7120);
+        ArchiveSetIndex(4, 0);
+    }
+    HeapChangeCurrentUser(HEAP_USER_YOSI, NULL);
+}
 
 extern int D_800ADB6C;
 extern void func_801D3F7C(void);
