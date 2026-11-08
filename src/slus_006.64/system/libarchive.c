@@ -8,6 +8,13 @@ extern int func_800286CC(void);
 
 extern s32 g_ArchiveCurFileSector;
 
+extern s32 D_8004FE0C;
+extern s32 D_8004FE10;
+extern u16 D_8004FE24;
+extern u32 D_80059F0C;
+extern void func_8002804C(int, int, int, int);
+extern int ArchiveDecodeSizeAligned(int entryIndex);
+
 void ArchiveInit(u32 pArchiveTable, u32 pHeaderTable, u32 pDebugTable) {
     D_8005A488 = 0;
     D_8005A48C = 0;
@@ -375,6 +382,130 @@ int ArchiveClearStreamFileSections(void) {
 }
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/libarchive", func_80028B14);
+
+/* Best: 93.87%. Remaining diff is register allocation and scheduling, not
+ * structure: the original loads g_ArchiveCurStreamFile into v0 before the
+ * frame setup and copies it to s2 after the NULL test, and its debug loop
+ * keeps the section count in a1, D_8004FE10 in v1, the header base in a3
+ * and an extra copy of the old entry index in a2.
+ * u_char* func_80028B14(void) {
+ *     u_char* pData;
+ *     ArchiveStreamFileSectionHeader* pHeader;
+ *     ArchiveStreamFileSectionHeader* pHeaders;
+ *     StreamDataQueueEntry* pEntry;
+ *     u_char* pPath;
+ *     int nSections;
+ *     int nLimit;
+ *     int nIndex;
+ *     int nId;
+ *     int i;
+ *
+ *     pData = g_ArchiveCurStreamFile;
+ *     if (pData == NULL) {
+ *         return NULL;
+ *     }
+ *
+ *     pHeader = (ArchiveStreamFileSectionHeader*)(pData + 4);
+ *     nSections = *(s32*)pData;
+ *     pData = pData + nSections * sizeof(ArchiveStreamFileSectionHeader) + STREAM_FILE_HEADER_SIZE;
+ *
+ *     if (g_ArchiveDebugTable != 0) {
+ *         if (D_8004FE4C == -1) {
+ *             return NULL;
+ *         }
+ *
+ *         if (g_ArchiveCurFileSize <= 0) {
+ *             return NULL;
+ *         }
+ *
+ *         pHeaders = D_8004FE2C;
+ *         nLimit = D_8004FE40;
+ *
+ *         for (i = 0; i < nLimit; i++) {
+ *             nIndex = D_8004FE10;
+ *             pHeader = &pHeaders[nIndex];
+ *             D_8004FE10 = nIndex + 1;
+ *             if (D_8004FE10 >= nLimit) {
+ *                 D_8004FE10 = 0;
+ *             }
+ *             if (pHeader->state == ARCHIVE_STREAM_FILE_NOT_LOADED) {
+ *                 break;
+ *             }
+ *         }
+ *
+ *         if (pHeader->state != ARCHIVE_STREAM_FILE_NOT_LOADED) {
+ *             return NULL;
+ *         }
+ *
+ *         pHeader->state = 3;
+ *         pData += nIndex * CD_SECTOR_SIZE;
+ *
+ *         for (i = 0; i < RETRY_COUNT; i++) {
+ *             if (PCread(D_8004FE4C, pData, CD_SECTOR_SIZE) != 0) {
+ *                 goto readDone;
+ *             }
+ *             func_8002804C(i, 0, 0xFF, 0);
+ *         }
+ *         return NULL;
+ *
+ *     readDone:
+ *
+ *         g_ArchiveCurFileSize -= CD_SECTOR_SIZE;
+ *         if (g_ArchiveCurFileSize > 0) {
+ *             return pData;
+ *         }
+ *
+ *         g_ArchiveCurFileSize = 0;
+ *         for (i = 0; i < RETRY_COUNT; i++) {
+ *             if (PCclose(D_8004FE4C) == 0) {
+ *                 break;
+ *             }
+ *             func_8002804C(i, 0, 0, 0xFF);
+ *         }
+ *
+ *         D_8004FE4C = -1;
+ *         if (D_8004FE0C != 0) {
+ *             nIndex = D_8004FE10 + 1;
+ *             pEntry = ((StreamDataQueueEntry*)D_8004FE0C) + nIndex;
+ *             nId = *(u_short*)pEntry;
+ *             D_8004FE10 = nIndex;
+ *             D_80059F0C = nId;
+ *
+ *             if (nId > 0 && pEntry->pData != NULL) {
+ *                 pPath = ArchiveGetFilePath(nId);
+ *                 for (i = 0; i < RETRY_COUNT; i++) {
+ *                     D_8004FE4C = PCopen(pPath, 0, 0);
+ *                     if (D_8004FE4C != -1) {
+ *                         break;
+ *                     }
+ *                     func_8002804C(i, 0xFF, 0, 0);
+ *                 }
+ *                 g_ArchiveCurFileSize = ArchiveDecodeSizeAligned(nId);
+ *                 D_8004FDFC -= 1;
+ *                 return pData;
+ *             }
+ *
+ *             g_ArchiveCurFileSize = 0;
+ *         }
+ *
+ *         D_8004FDFC = 0;
+ *         return pData;
+ *     }
+ *
+ *     for (i = 0; i < nSections; i++, pHeader++) {
+ *         if (pHeader->state == 3 && pHeader->id == D_8004FE24) {
+ *             break;
+ *         }
+ *     }
+ *
+ *     if (i == D_8004FE40) {
+ *         return NULL;
+ *     }
+ *
+ *     D_8004FE24 += 1;
+ *     return pData + i * CD_SECTOR_SIZE;
+ * }
+ */
 
 int func_80028E60(int sectionIndex, int maxEntries, int targetState) {
     int i;
