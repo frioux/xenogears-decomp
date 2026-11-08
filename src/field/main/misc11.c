@@ -8,6 +8,7 @@
 #include "field/text_box.h"
 #include "field/particles.h"
 #include "system/graphics.h"
+#include "system/memory.h"
 
 extern s32 D_800AFD1C;
 extern s32 g_PlayerActorIndex;
@@ -139,10 +140,12 @@ void func_80092044(void) {
 void GfxLineScrollUpdate(LineScroll*);
 
 typedef struct {
-    /* 0x0 */ s16 numLineScrolls;
-    /* 0x2 */ s16 unk2;
-    /* 0x4 */ LineScroll* pLineScrolls[8];
-} LineScrollTable;
+    /* 0x0   */ s16 numLineScrolls;
+    /* 0x2   */ s16 unk2;
+    /* 0x4   */ LineScroll* pLineScrolls[32];
+    /* 0x84  */ u8* pDatas[32];
+    /* 0x104 */ s16 lengths[32];
+} LineScrollTable; // Size: 0x144
 
 extern LineScrollTable D_800AFEA8;
 
@@ -173,7 +176,40 @@ void func_80092148(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 7;
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc11", func_800921E8);
+extern s32 D_800ADB8C;
+
+void GfxLineScrollInitialize(LineScroll*, s16, s16, s16, s16, s16, s16, s16, u8*);
+
+void func_800921E8(void) {
+    int count;
+    int value;
+    int arg1;
+    int arg3;
+    int arg5;
+    int arg7;
+    int argB;
+    int i;
+
+    if (D_800ADB8C == 0 && D_800AFEA8.numLineScrolls < 0x20) {
+        count = FieldScriptVMGetInstructionArgument(9) & 0xFFFF;
+        D_800AFEA8.lengths[D_800AFEA8.numLineScrolls] = count;
+        D_800AFEA8.pDatas[D_800AFEA8.numLineScrolls] = HeapAlloc(count + 1, 0);
+        D_800AFEA8.pLineScrolls[D_800AFEA8.numLineScrolls] = HeapAlloc(sizeof(LineScroll), 0);
+        value = FieldScriptVMGetInstructionArgument(0xF) & 0xFFFF;
+        for (i = 0; i < count; i++) {
+            D_800AFEA8.pDatas[D_800AFEA8.numLineScrolls][i] = value;
+        }
+        arg1 = (s16)FieldScriptVMGetInstructionArgument(1);
+        arg3 = (s16)FieldScriptVMGetInstructionArgument(3);
+        arg5 = (s16)FieldScriptVMGetInstructionArgument(5);
+        arg7 = (s16)FieldScriptVMGetInstructionArgument(7);
+        argB = (s16)FieldScriptVMGetInstructionArgument(0xB);
+        GfxLineScrollInitialize(D_800AFEA8.pLineScrolls[D_800AFEA8.numLineScrolls], arg1, arg3, arg5, arg7, count, argB, (s16)FieldScriptVMGetInstructionArgument(0xD),
+                                D_800AFEA8.pDatas[D_800AFEA8.numLineScrolls]);
+        D_800AFEA8.numLineScrolls++;
+    }
+    g_FieldScriptVMCurActor->scriptInstructionPointer += 0x11;
+}
 
 int func_800923E4(void) {
     int ip = g_FieldScriptVMCurActor->scriptInstructionPointer + 1;
@@ -377,7 +413,33 @@ void func_80092FB4(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc11", func_80093014);
+extern u8 D_800B02C8;
+
+void func_80093014(void) {
+    int value;
+
+    if (D_800ADBDC == 0 || D_800ADBE4 == 0 || D_800ADB2C != 0 || D_8004F308 == -1 || D_800ADB90 != 0) {
+        D_800B00C0 = 1;
+        return;
+    }
+
+    func_800A31E8();
+    g_FieldControl.isRandomEncountersEnabled = -1;
+    D_800ADBE4 = 0;
+    g_pGameState->unk231A = FieldScriptArgument1(1, SCRIPT_READ_U8_REL(9));
+    g_pGameState->unk231E = FieldScriptArgument2(3, SCRIPT_READ_U8_REL(9));
+    value = FieldScriptArgument3(5, SCRIPT_READ_U8_REL(9));
+    if (((u_short)value == 0xFFFF) | (value == -1)) {
+        g_pGameState->unk231C = (g_Scene.sceneAngle.vy + 0x800) & 0xFFF;
+    } else {
+        g_pGameState->unk231C = (value + 0x800) & 0xFFF;
+    }
+    g_pGameState->unk2320 = FieldScriptArgument4(7, SCRIPT_READ_U8_REL(9));
+    func_800931F8();
+    D_800B02C8 = 1;
+    D_800B00C0 = 1;
+    g_FieldScriptVMCurActor->scriptInstructionPointer += 0xA;
+}
 
 void func_800931F8(void) {
 }
