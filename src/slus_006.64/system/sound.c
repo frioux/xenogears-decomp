@@ -1622,7 +1622,20 @@ void func_8003AD98(AudioManager* pManager) {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003ADCC);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003AE84);
+void func_8003AE84(AudioManager* pManager) {
+    s32 savedValue;
+
+    if (pManager->unk_Manager_0x4 != NULL && (pManager->unk_Flags & 0x10)) {
+        DisableEvent(g_unk_SoundEvent);
+        SoundReleaseAllVoices(pManager);
+        savedValue = pManager->unk_0x24;
+        SoundCopyAudioManagerData(pManager, pManager->unk_Manager_0x4);
+        pManager->unk_0x2c = savedValue;
+        SoundSetFlagsOnActiveVoices(pManager, 0xFFFF);
+        func_8003AFA0(pManager);
+        EnableEvent(g_unk_SoundEvent);
+    }
+}
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003AF24);
 /*
