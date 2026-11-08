@@ -303,4 +303,5 @@ g_Field24BitImageData = 0x800C3904;
 g_Field15BitImageData = 0x800C390C;
 g_FieldParticleBanks = 0x800C3918;
 g_FieldScriptMemory = 0x800C3A68;
+D_800C3A6A = 0x800C3A6A; // type:s16 size:2
 g_FieldCurRenderContext = 0x800C426C;

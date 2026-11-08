@@ -238,6 +238,7 @@ void func_80092768(void) {
 }
 
 extern FieldActor* D_800B06B8;
+extern s16 D_800C3A6A;
 extern int rcos(int);
 extern int rsin(int);
 
@@ -496,16 +497,18 @@ void func_80093888(void) {
 }
 
 void func_80093930(void) {
+    ActorData* pActor;
     int value;
 
     value = FieldScriptVMGetArgument(1);
     D_800ADB64 = 1;
     D_800B00C0 = 1;
+    pActor = g_FieldScriptVMCurActor;
     *(s16*)&g_pGameState->unk1928[0xA] = value;
     *(s16*)((u8*)g_pGameState + 0x2320) = value;
-    ((s16*)g_FieldScriptMemory)[1] = value;
+    D_800C3A6A = value;
     D_8004F350++;
-    g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
+    pActor->scriptInstructionPointer += 3;
 }
 
 void func_800939A0(void) {
