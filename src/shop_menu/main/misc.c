@@ -52,6 +52,13 @@ extern s32 D_801D1F54[];
 extern s32 D_801D1FCC[];
 extern s32 D_801D1FD8[];
 
+extern u16 g_SystemPalette1;
+extern u16 g_SystemPalette2;
+
+extern u_char D_801D2018[]; // String IDs of the shop menu strings
+extern int D_801D1F6C[]; // Cursor textures, 4 per submenu
+extern int D_801D1F70[]; // Text textures, 4 per submenu
+
 extern u_short D_801D21F0[];
 
 extern s32 D_801D1FCC[];
@@ -262,13 +269,96 @@ void ShopMenuResetRenderContext(void) {
     g_Menu->renderContext = 0;
 }
 
-INCLUDE_ASM("asm/shop_menu/nonmatchings/main/misc", func_801C5A7C);
+static inline void MenuSetSystemPalette(void* pPrim, u8 flag) {
+    POLY_FT4* pPoly = pPrim;
+    pPoly->clut = flag ? g_SystemPalette2 : g_SystemPalette1;
+}
+
+void func_801C5A7C(MenuString* pString, int index, s32 arg2, u32 attributes) {
+    s32 var_s1;
+    int i;
+    POLY_FT4* pPoly;
+    u32 attr = attributes;
+
+    for (i = 0; i < 2; i++) {
+        pPoly = &pString->polys[i];
+        var_s1 = 0;
+
+        SetPolyFT4(pPoly);
+        SetSemiTrans(pPoly, 0);
+        SetShadeTex(pPoly, 0);
+        setRGB0(pPoly, 128, 128, 128);
+
+        if (!(attr & 0xFF)) {
+            pString->unk7C = (index & 1);
+            setTPage(pPoly, 0, 0, 320, 0);
+
+            #define texCoordV  (((index + arg2) / 4) * FONT_LETTER_HEIGHT)
+            #define texCoordU  (((index / 2) & 1) << 7)
+            setUV4(
+                pPoly,
+                texCoordU,                          texCoordV,
+                texCoordU + pString->width,         texCoordV,
+                texCoordU,                          texCoordV + FONT_LETTER_HEIGHT,
+                texCoordU + pString->width,         texCoordV + FONT_LETTER_HEIGHT
+            );
+            #undef texCoordV
+            #undef texCoordU
+        } else {
+            if (!(attr & 0x80)) {
+                var_s1 = 0x20;
+                SetSemiTrans(pPoly, 1);
+                setRGB0(pPoly, var_s1, var_s1, var_s1);
+            }
+
+            pString->unk7C = (attr & 0x7F) + 0xFF;
+            setTPage(pPoly, 0, 0, 0x180, 0x80);
+            pPoly->tpage = var_s1 | pPoly->tpage;
+
+            #define texCoordU ((index & 1) * 0x60)
+            #define texCoordV (((index / 2) * FONT_LETTER_HEIGHT) + arg2)
+            setUV4(
+                pPoly,
+                texCoordU,                          texCoordV,
+                texCoordU + pString->width,         texCoordV,
+                texCoordU,                          texCoordV + FONT_LETTER_HEIGHT,
+                texCoordU + pString->width,         texCoordV + FONT_LETTER_HEIGHT
+            );
+            #undef texCoordV
+            #undef texCoordU
+        }
+
+        MenuSetSystemPalette(pPoly, pString->unk7C);
+    }
+
+    pString->unk7F = 0;
+}
 
 INCLUDE_ASM("asm/shop_menu/nonmatchings/main/misc", func_801C5CBC);
 
-INCLUDE_ASM("asm/shop_menu/nonmatchings/main/misc", func_801C5E6C);
+void func_801C5E6C(void) {
+    RECT rect;
+    u_short* pVramData;
+    u8 _unused[0x8];
 
-INCLUDE_ASM("asm/shop_menu/nonmatchings/main/misc", func_801C5EE8);
+    pVramData = HeapAlloc(0x20, 0);
+    bzero(pVramData, 0x20);
+    pVramData[1] = 0x7FFF;
+    rect.y = 448;
+    rect.w = 16;
+    rect.x = 0;
+    rect.h = 1;
+    LoadImage(&rect, pVramData);
+    DrawSync(0);
+    HeapFree(pVramData);
+}
+
+void func_801C5EE8(void) {
+    SystemTransferPaletteToVRAM(0, 0x1D1);
+    g_Menu->unk4E0[0].pVramBuffer = HeapAlloc(0x38E, 0);
+    func_801C5CBC(g_Menu->unk4E0, D_801D2018, 0, 4);
+    func_801C5E6C();
+}
 
 void ShopMenuInitializeWindowBorders(void) {
     POLY_FT4 _unusued;
@@ -2097,7 +2187,18 @@ void ShopMenuFree(void) {
     HeapFree(g_Menu);
 }
 
-INCLUDE_ASM("asm/shop_menu/nonmatchings/main/misc", func_801CBC88);
+void func_801CBC88(u_char mode, u_char numStrings, MenuString* pStrings, u_char* pStringIDs, u_char* pShouldRenderFlags) {
+    int i;
+
+    if (mode) {
+        func_801C5CBC(pStrings, pStringIDs, 2, numStrings);
+        return;
+    }
+
+    for (i = 0; i < numStrings; i++) {
+        pShouldRenderFlags[i] = 0;
+    }
+}
 
 INCLUDE_ASM("asm/shop_menu/nonmatchings/main/misc", func_801CBCF0);
 
@@ -2195,7 +2296,45 @@ void ShopMenuUpdateShopModeSelectionMenu(u_char numOptions, u_char selectedIndex
     g_Menu->pManager->unk4 = TRUE;
 }
 
-INCLUDE_ASM("asm/shop_menu/nonmatchings/main/misc", func_801CC720);
+void func_801CC720(u_char menuOffset) {
+    int i;
+    int textureID;
+
+    g_Menu->unk354->unk1400 = 0;
+    g_Menu->unk354->unk1404 = 0;
+
+    for (i = 0; i < g_Menu->subMenuNumChoices; i++) {
+        // The active option uses a different cursor texture
+        if (i == g_Menu->subMenuChoice) {
+            textureID = D_801D1F6C[(menuOffset + g_Menu->mainMenuChoice) * 8 + i * 2] + 0xD;
+        } else {
+            textureID = D_801D1F6C[(menuOffset + g_Menu->mainMenuChoice) * 8 + i * 2];
+        }
+
+        g_Menu->unk354->unk1400 += func_8002675C(
+            g_Menu->resources, textureID,
+            &g_Menu->unk354->polys0[g_Menu->unk354->unk1400 * 2],
+            g_Menu->renderContext,
+            160, 150,
+            0x1000
+        );
+
+        g_Menu->unk354->unk1404 += func_8002675C(
+            g_Menu->resources, D_801D1F70[(menuOffset + g_Menu->mainMenuChoice) * 8 + i * 2],
+            &g_Menu->unk354->polys500[g_Menu->unk354->unk1404 * 2],
+            g_Menu->renderContext,
+            160, 150,
+            0x1000
+        );
+    }
+
+    g_Menu->unk354->unk1408 = g_Menu->renderContext;
+    g_Menu->unk354->unk1409 = g_Menu->renderContext;
+
+    ShopMenuMovePointerCursor(g_Menu->subMenuChoice + 3, 1);
+
+    g_Menu->pManager->unk4 = TRUE;
+}
 
 u_char ShopMenuShopModeMenuHandleSelectedOption() {
     u_char isRunning;
@@ -2520,9 +2659,76 @@ INCLUDE_ASM("asm/shop_menu/nonmatchings/main/misc", func_801CDD14);
 
 INCLUDE_ASM("asm/shop_menu/nonmatchings/main/misc", func_801CE480);
 
-INCLUDE_ASM("asm/shop_menu/nonmatchings/main/misc", func_801CE8D8);
+u_short func_801CE8D8(u_char* pIDs, u_char* pValues, int numIDs, u_char id) {
+    int i;
+    u_char value;
 
-INCLUDE_ASM("asm/shop_menu/nonmatchings/main/misc", func_801CE91C);
+    value = 0;
+    for (i = 0; i < numIDs; i++) {
+        if (pIDs[i] == id) {
+            value = pValues[i];
+            break;
+        }
+    }
+    return value;
+}
+
+void func_801CE91C(u_char itemType, u_char itemID) {
+    RECT rect;
+    u_char digitBuffer[4];
+    u_char stringBuffer[4];
+    u_char* pIDList;
+    u_char* pQuantityList;
+    int listSize;
+    u_int* pWorkspace;
+    u_short quantityHeld;
+
+    switch (itemType) {
+        case ITEM_TYPE_WEAPON:
+            pIDList = g_GameState.weaponIDs;
+            pQuantityList = g_GameState.weaponQuantities;
+            listSize = MAX_INVENTORY_WEAPONS;
+            break;
+
+        case ITEM_TYPE_ACCESSORY:
+            pIDList = g_GameState.accessoryIDs;
+            pQuantityList = g_GameState.accessoryQuantities;
+            listSize = MAX_INVENTORY_ACCESSORIES;
+            break;
+
+        case ITEM_TYPE_ITEM:
+            pIDList = g_GameState.itemIDs;
+            pQuantityList = g_GameState.itemQuantities;
+            listSize = MAX_INVENTORY_ITEMS;
+            break;
+    }
+
+    quantityHeld = func_801CE8D8(pIDList, pQuantityList, listSize, itemID);
+    D_801D2260 = quantityHeld;
+
+    pWorkspace = HeapAlloc(0x3F6, 0);
+    digitBuffer[1] = 0;
+    digitBuffer[3] = 0;
+    digitBuffer[0] = ((quantityHeld / 10) == 0) ? 0xC3 : (quantityHeld / 10) + 0x10;
+    digitBuffer[2] = (quantityHeld % 10) + 0x10;
+
+    func_80033B34((u16*)digitBuffer, stringBuffer, 2);
+    g_Menu->pShop->str45B0.width = SystemRenderStringEntry(stringBuffer, pWorkspace, 0x24, 1);
+    setRECT(&rect, 0x198, 0xB4, 0x28, FONT_LETTER_HEIGHT);
+    LoadImage(&rect, pWorkspace);
+    DrawSync(0);
+
+    func_801C5A7C(&g_Menu->pShop->str45B0, 9, 0x80, 0x82);
+    ShopMenuSetVertices(
+        g_Menu->pShop->str45B0.vertices,
+        0xF8, 0x8E,
+        g_Menu->pShop->str45B0.width,
+        FONT_LETTER_HEIGHT
+    );
+    g_Menu->pShop->str45B0.renderContext = g_Menu->renderContext;
+    g_Menu->pShop->unk4785 = 1;
+    HeapFree(pWorkspace);
+}
 
 INCLUDE_ASM("asm/shop_menu/nonmatchings/main/misc", func_801CEB3C);
 
@@ -3013,4 +3219,13 @@ int ShopMenuSellModeMenu() {
     return TRUE;
 }
 
-INCLUDE_ASM("asm/shop_menu/nonmatchings/main/misc", func_801D1F10);
+void func_801D1F10(void) {
+    switch (g_Menu->mainMenuChoice) {
+        case MENU_CHOICE_SELL:
+            break;
+
+        case MENU_CHOICE_BUY:
+            func_801D1968(1, 1);
+            break;
+    }
+}
