@@ -453,7 +453,7 @@ typedef struct {
 } ScriptsFile;
 
 extern int g_FieldNumActors;
-extern FieldActor* volatile g_FieldActors;
+extern FieldActor* g_FieldActors;
 
 extern ActorData* g_FieldScriptVMCurActor;
 extern void* g_FieldScriptVMCurScriptData;
