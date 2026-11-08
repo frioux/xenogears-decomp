@@ -1208,7 +1208,27 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_80039850);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_80039910);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_800399D4);
+void func_800399D4(AudioManager* pManager) {
+    if (pManager->unk_Flags & 0x8000) {
+        func_80039C4C(pManager);
+    }
+
+    if ((s16)SoundUnkDebug0(pManager->unk_0x8) != 0) {
+        SoundHandleError(0xA);
+        return;
+    }
+
+    if (SoundRemoveAudioManagerFromList(pManager) != 0) {
+        SoundHandleError(0x5);
+        return;
+    }
+
+    func_8003B930(pManager);
+
+    if (!(pManager->unk_Flags & 0x4000)) {
+        SoundHeapFree(pManager);
+    }
+}
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_80039A80);
 
@@ -1561,7 +1581,28 @@ void func_8003A838(AudioManager* pManager, s32 volume, s32 frames) {
     }
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003A89C);
+void func_8003A89C(AudioManager* pManager, s32 volume, s32 frames) {
+    s32 delta;
+
+    pManager->unk_Interpolator_0x70.targetValue = volume << 8;
+
+    if (frames == 0) {
+        pManager->unk_Interpolator_0x70.currentValue = volume << 24;
+        pManager->unk_Interpolator_0x70.counter = 0;
+        unk_SoundSetFlagsOnActiveVoices(0x100, pManager);
+    } else {
+        delta = (volume << 16) - (pManager->unk_Interpolator_0x70.currentValue >> 8);
+        if (delta == 0) {
+            return;
+        }
+        pManager->unk_Interpolator_0x70.counter = frames;
+        pManager->unk_Interpolator_0x70.stepIncrement = (delta / frames) << 8;
+    }
+
+    if ((pManager->unk_Flags & 0x100) && volume != 0) {
+        func_8003AA30(pManager);
+    }
+}
 
 void func_8003A948(AudioManager* pManager, s16 volume, s32 frames) {
     s32 delta;
