@@ -355,6 +355,7 @@ extern void NormalColor3(SVECTOR *v0,SVECTOR *v1,SVECTOR *v2,
 extern void NormalColorDpq(SVECTOR *v0,CVECTOR *v1,long p,CVECTOR *v2);
 extern void NormalColorDpq3(SVECTOR *v0,SVECTOR *v1,SVECTOR *v2,CVECTOR *v3,
 			long p,CVECTOR *v4,CVECTOR *v5,CVECTOR *v6);
+extern void NormalLightCol(SVECTOR *v0,CVECTOR *v1,CVECTOR *v2);
 extern void NormalColorCol(SVECTOR *v0,CVECTOR *v1,CVECTOR *v2);
 extern void NormalColorCol3(SVECTOR *v0,SVECTOR *v1,SVECTOR *v2,CVECTOR *v3,
 			CVECTOR *v4,CVECTOR *v5,CVECTOR *v6);
