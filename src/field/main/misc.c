@@ -215,7 +215,14 @@ void func_80087A7C(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_80087AB8);
+void func_80087AB8(void) {
+    g_pGameState->unk184E = FieldScriptArgument1(1, SCRIPT_READ_U8_REL(9));
+    g_pGameState->unk1852 = FieldScriptArgument2(3, SCRIPT_READ_U8_REL(9));
+    g_pGameState->unk1854 = 0;
+    g_pGameState->unk1850 = 0;
+    g_pGameState->unk1856 = 1;
+    g_FieldScriptVMCurActor->scriptInstructionPointer += 6;
+}
 
 void func_80087B5C(void) {
     FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(1), *(u_short*)&g_pGameState->unk17FC[0x30]);
@@ -547,7 +554,19 @@ void FieldScriptStopParticleActor(void) {
 }
 // End of particle handlers
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_80089B54);
+void func_80089B54(void) {
+    int i;
+
+    for (i = 0; i < 3; i++) {
+        if (D_8005A444[i] == D_800AFD1C) {
+            FieldScriptMemoryWriteU16(FieldScriptVMGetInstructionArgument(1) & 0xFFFF, i);
+            g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
+            return;
+        }
+    }
+    FieldScriptMemoryWriteU16(FieldScriptVMGetInstructionArgument(1) & 0xFFFF, 0xFF);
+    g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
+}
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_80089BF0);
 
@@ -888,7 +907,16 @@ void func_8008CD48(void) {
     }
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008CDD4);
+void func_8008CDD4(void) {
+    g_FieldScriptVMCurActor->unk10A = FieldScriptVMGetArgument(1);
+    g_FieldScriptVMCurActor->unk10D = 0x80;
+    g_FieldScriptVMCurActor->unk10C = FieldScriptVMGetArgument(3);
+    g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
+    func_800863E8(D_800AFD1C);
+    if (g_FieldScriptVMCurActor->unk10A == 0) {
+        g_FieldScriptVMCurActor->unk10D = 0xFF;
+    }
+}
 
 void func_8008CE64(void) {
     int partyId = func_8008CF3C(FieldScriptVMGetArgument(1));
