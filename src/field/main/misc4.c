@@ -9,9 +9,42 @@
 #include "psyq/libetc.h"
 #include "psyq/libcd.h"
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_80078B5C);
+extern int rand(void);
+extern s32 D_8004F308;
+extern s32 D_8004F324;
+extern s32 D_800ADC18;
+extern int func_80085C90(int arg0);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_80078BC8);
+void func_80078B5C(void) {
+    rand();
+    if (D_8004F308 == -1) {
+        D_8004F308 = func_80085C90(D_8004F324);
+    }
+    if (D_800ADC18 != 0) {
+        D_800ADC18 -= 1;
+    }
+}
+
+extern s32 D_800ADB2C;
+extern s32 D_800ADB90;
+extern s32 D_800ADB34;
+extern s32 D_800ADBC4;
+extern int ArchiveDataSync(void);
+
+int func_80078BC8(void) {
+    if (D_800ADB2C == 0) {
+        if (ArchiveDataSync() == 0) {
+            if (D_8004F308 == 0) {
+                if (D_800ADB90 == 0) {
+                    if (D_800ADB34 == 0) {
+                        return -(D_800ADBC4 != 0xFF);
+                    }
+                }
+            }
+        }
+    }
+    return -1;
+}
 
 extern s16 D_800B2344;
 void func_80078C5C(void) {
@@ -78,7 +111,25 @@ void func_80079784(int color) {
 }
 
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_800798BC);
+extern s32 D_800B2268;
+extern u8 D_80059179;
+extern s16 D_800B234C;
+extern int g_PlayerActorIndex;
+
+void func_800798BC(void) {
+    if (D_800B2268 != 0) {
+        if ((g_FieldActors[g_PlayerActorIndex].pActorData->curWalkmeshTriMaterial & 0xC0) != 0) {
+            D_80059179 = 1;
+        } else {
+            D_80059179 = 0;
+        }
+    } else {
+        D_80059179 = 1;
+    }
+    if (D_800B234C != 0xFF) {
+        D_80059179 = D_800B234C;
+    }
+}
 
 void func_8007995C(short w, short h, short x, short y, int destX, int destY) {
     RECT rect;
@@ -340,9 +391,50 @@ void FieldSetMousePosition(int mouseIndex, int xMovement, int yMovement) {
     g_FieldMousePositionsY[mouseIndex] = yMovement * g_FieldMouseSpeedY;
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007AE78);
+typedef struct {
+    /* 0x0  */ int x;
+    /* 0x4  */ int y;
+    /* 0x8  */ int flags;
+    /* 0xC  */ int stickX;
+    /* 0x10 */ int stickY;
+} FieldMouseState; // Size: 0x14
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007AF74);
+void func_8007AF74(int mouseIndex);
+
+void func_8007AE78(int mouseIndex, FieldMouseState* pState) {
+    s8* pPad;
+
+    func_8007AF74(mouseIndex);
+
+    pState->x = g_FieldMousePositionsX[mouseIndex] / g_FieldMouseSpeedX;
+    pState->y = g_FieldMousePositionsY[mouseIndex] / g_FieldMouseSpeedY;
+    pState->flags = -0x100;
+    pState->stickX = ((s8*)(&g_pFieldControllerBuffer1)[mouseIndex])[4];
+    pState->stickY = ((s8*)(&g_pFieldControllerBuffer1)[mouseIndex])[5];
+
+    pPad = (s8*)(&g_pFieldControllerBuffer1)[mouseIndex];
+    if (pPad[0] == 0 && pPad[1] == 0x12) {
+        pState->flags = ~pPad[3] & 0xC;
+    }
+}
+
+void func_8007AF74(int mouseIndex) {
+    if (((s8*)(&g_pFieldControllerBuffer1)[mouseIndex])[0] == 0 &&
+        ((s8*)(&g_pFieldControllerBuffer1)[mouseIndex])[1] == 0x12) {
+        g_FieldMousePositionsX[mouseIndex] += ((s8*)(&g_pFieldControllerBuffer1)[mouseIndex])[4];
+        g_FieldMousePositionsY[mouseIndex] += ((s8*)(&g_pFieldControllerBuffer1)[mouseIndex])[5];
+        if (g_FieldMousePositionsX[mouseIndex] > D_800C3A50) {
+            g_FieldMousePositionsX[mouseIndex] = D_800C3A50;
+        } else if (g_FieldMousePositionsX[mouseIndex] < D_800C3A44) {
+            g_FieldMousePositionsX[mouseIndex] = D_800C3A44;
+        }
+        if (g_FieldMousePositionsY[mouseIndex] > D_800C3A54) {
+            g_FieldMousePositionsY[mouseIndex] = D_800C3A54;
+        } else if (g_FieldMousePositionsY[mouseIndex] < D_800C3A4C) {
+            g_FieldMousePositionsY[mouseIndex] = D_800C3A4C;
+        }
+    }
+}
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007B07C);
 
@@ -350,9 +442,23 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007B1C4);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007B478);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007B614);
+extern s16 D_800B218C;
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007B694);
+void func_8007B614(IVEC3* pStep, int nSpeed, int nAngle) {
+    int nSpeed4 = nSpeed << 4;
+    int nScale = (nSpeed4 * D_800B218C) >> 12;
+    int nAngleMasked = nAngle & 0xFFF;
+
+    pStep->x = rsin(nAngleMasked) * nScale;
+    pStep->z = -(rcos(nAngleMasked) * nScale);
+    pStep->y = 0;
+}
+
+extern long ratan2(long y, long x);
+
+int func_8007B694(IVEC3* pVec) {
+    return (-ratan2(pVec->z, pVec->x)) & 0xFFF;
+}
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007B6C4);
 
@@ -362,21 +468,71 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007BAC0);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007BEF4);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007C670);
+void func_8007C670(int* pValue, int* pResult, int nDelta) {
+    int value = *pValue;
+
+    if (nDelta >= 0) {
+        *pValue = value;
+        value += nDelta;
+    } else {
+        *pValue = value;
+    }
+    *pResult = value;
+}
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007C694);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007CD3C);
+extern s32 D_800ADC10;
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007CD60);
+void* func_8007CD3C(int arg0) {
+    s32 offset = D_800ADC10;
+
+    D_800ADC10 = offset + arg0;
+    return (void*)(0x1F800000 + offset * 4);
+}
+
+void func_8007CD60(int arg0) {
+    D_800ADC10 -= arg0;
+}
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007CD80);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007D3D4);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007D818);
+int func_8007D8B4(int x, int y, int z) {
+    int ax = x;
+    int ay = y;
+    int az = z;
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007D8B4);
+    if (ax < 0) ax = -ax;
+    if (ay < 0) ay = -ay;
+    if (az < 0) az = -az;
+    if (ax >= ay && ax >= az) {
+        return x;
+    }
+    if (ay >= ax && ay >= az) {
+        return y;
+    }
+    if (az >= ax && az >= ay) {
+        return z;
+    }
+    return 0;
+}
+
+void func_8007D818(IVEC3* pVec, IVEC3* pResult) {
+    int axis = func_8007D8B4(pVec->x, pVec->y, pVec->z);
+
+    pVec->x = pVec->x >> 12;
+    pVec->y = pVec->y >> 12;
+    pVec->z = pVec->z >> 12;
+    if (axis < 0) {
+        pVec->x = -pVec->x;
+        pVec->y = -pVec->y;
+        pVec->z = -pVec->z;
+    }
+    VectorNormal((VECTOR*)pVec, (VECTOR*)pResult);
+}
+
 
 
 
