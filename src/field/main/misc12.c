@@ -853,6 +853,7 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc12", func_8009BA7C);
    single `sll 25`; gcc 2.7.2 CSEs the two shifts and combine folds
    (x<<9)<<16 -> sll 25. Tried: both statement orders, `* 0x200` / `* 0x10000`,
    a u_long temp for unk7C - all fold. */
+/*
 void func_8009BA7C(void) {
     int direction;
 
@@ -865,4 +866,5 @@ void func_8009BA7C(void) {
     SetGeomScreen(g_Scene.sceneScrZ);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 7;
 }
+*/
 
