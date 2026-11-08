@@ -165,7 +165,39 @@ void FieldTextBoxInitializePrimitives(int index) {
 }
 */
 
+// Each portrait is a 0x40 x 0x40 tile of the portrait texture; D_800ADF34 holds
+// the top left U and V of each of the four portraits.
+extern u_char D_800ADF34[];
+
+// 98.61%: pUVTable is what makes gcc emit `la D_800ADF34` before the `sll` of
+// portraitID * 4, but it costs a register: the table base ends up in a2 and the
+// scaled index in v1, where the original uses v0 and a0. Writing pU/pV straight
+// as &D_800ADF34[portraitID * 4] / [+2] gets the original's registers (97.59%)
+// but emits the `sll` one instruction earlier. Needs the table hidden behind a
+// construct that keeps v0 as the base.
 INCLUDE_ASM("asm/field/nonmatchings/dialogue/text_box_render", func_8007F5AC);
+/*
+void func_8007F5AC(int index, int portraitID) {
+    FieldTextBox* pBox = &g_FieldTextBoxes[index];
+    u_char* pUVTable = D_800ADF34;
+    u_char* pU = &pUVTable[portraitID * 4];
+    u_char* pV = &pUVTable[portraitID * 4 + 2];
+    u_short clut;
+
+    g_FieldTextBoxes[index].portrait.polys[1].u0 = pBox->portrait.polys[0].u0 = *pU;
+    g_FieldTextBoxes[index].portrait.polys[1].v0 = pBox->portrait.polys[0].v0 = *pV;
+    g_FieldTextBoxes[index].portrait.polys[1].u1 = pBox->portrait.polys[0].u1 = *pU + 0x40;
+    g_FieldTextBoxes[index].portrait.polys[1].v1 = pBox->portrait.polys[0].v1 = *pV;
+    g_FieldTextBoxes[index].portrait.polys[1].u2 = pBox->portrait.polys[0].u2 = *pU;
+    g_FieldTextBoxes[index].portrait.polys[1].v2 = pBox->portrait.polys[0].v2 = *pV + 0x40;
+    g_FieldTextBoxes[index].portrait.polys[1].u3 = pBox->portrait.polys[0].u3 = *pU + 0x40;
+    g_FieldTextBoxes[index].portrait.polys[1].v3 = pBox->portrait.polys[0].v3 = *pV + 0x40;
+
+    clut = GetClut(0, portraitID + 0xE0);
+    pBox->portrait.polys[0].clut = clut;
+    g_FieldTextBoxes[index].portrait.polys[1].clut = clut;
+}
+*/
 
 extern u16 D_800B2174[];
 extern int D_800B068C[4];
