@@ -144,7 +144,31 @@ differ:
   global is in `.sdata`/`.sbss`. Check `gears.toml` and how the symbol is declared.
 - division or modulus expanded inline: `--expand-div` is a per-preset maspsx flag.
 - a different compiler is in use for the unit. `gears.toml` presets select gcc
-  2.6.0, 2.7.2 or 2.7.2-cdk per path prefix.
+  2.6.0, 2.7.2 or 2.7.2-cdk per path prefix; `try_flags.sh` (below) settles it in
+  a second.
+
+**Idioms this codebase has taught us** (each one was worth several functions):
+
+- A constant the original loads **once** into a call-clobbered register before a
+  `switch` (`li v1,0xA0`, `li a2,0x70`) will not come from a literal in each
+  branch. Assign it to a source local before the `switch`: gcc does not fold a
+  local back into a per-block constant.
+- A divisor or argument that the original passes with a plain `move`/`div` and no
+  `andi`/`sll`-`sra` pair wants the narrow **signed** type (`s16`), so gcc knows
+  the value is non-negative after the `lbu`.
+- Whole-word read-modify-write of a script flag: go through the union's scalar
+  member (`actor->scriptFlags.flags`) and not the bitfields, or the branch and
+  delay-slot chain comes out different.
+- `addu` operand order follows the C expression order: `(i + p->array)->field`
+  emits `addu $v0,$v1,$v0` (index first), `p->array[i].field` does not.
+- `long tmp[3]` passed as `(VECTOR*)` gives the original's 32-bit `sw`/`lw`; a
+  `VECTOR` local gives `sh`.
+- Repeated `&g_Symbol[index]` that the original re-forms with a fresh
+  `lui`/`addiu` each iteration: gcc CSEs it. Keeping a pointer local makes it
+  worse (gcc hoists the loads); this one is still unsolved.
+- A parked attempt left in a `/* ... */` block must not contain `*/` or `/*` in
+  its text (`Normal*/Color` has cost three broken builds this session), and two
+  attempt blocks must never nest.
 
 ### 3.5 Verify the whole build
 
