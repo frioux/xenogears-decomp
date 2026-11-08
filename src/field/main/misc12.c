@@ -8,6 +8,7 @@
 #include "field/text_box.h"
 
 extern s32 D_800ADB1C; // Is current actor a 2D actor (0) maybe?
+extern s32 D_800AFD1C;
 extern s8 D_800B21CE;
 extern s8 D_800B21CF[];
 extern s32 D_800B21D8[];
@@ -22,6 +23,112 @@ extern s32 g_PlayerActorIndex;
 extern s32 D_8005A444[];
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc12", func_80099AC0);
+/* 96.22% (1088 bytes, original is 1080). Below reproduces the original
+   instruction for instruction except the arrival arm's two rotation stores: gcc
+   keeps the temp in a1 and reloads g_FieldScriptVMCurActor for the `sh`s, where
+   the original stores straight from v0 and reuses the pointer it already has in
+   a2. Spelling those two stores out as duplicated `... | 0x8000` expressions
+   reaches 96.43% (1084 bytes, pointer reused) but then gcc stops CSE-ing the
+   field load. Block layout notes, all of which are load bearing: cases are
+   written 1, 2, 3, then 0/4; the arrival test is the inverted
+   `flags_0 == 0 || magnitude + radius >= distance`; the unk11C test is the
+   inverted `!(flags & 0x8000)`; and both field reads need the (u_short) cast to
+   get `lhu` + `ori` rather than `lh`.
+int func_80099AC0(int arg0) {
+    FieldActor* pFieldActor;
+    ActorData* pActorData;
+    SpriteData* pSpriteData;
+    ActorData* pTargetActor;
+    IVEC3 delta;
+    int magnitude;
+    int distance;
+    int rotation;
+    int angle;
+    int curX;
+    int curZ;
+    int radius = 0;
+    int z = 0;
+    int x = 0;
+
+    pFieldActor = g_FieldActors;
+    pActorData = pFieldActor[D_800AFD1C].pActorData;
+    pSpriteData = pFieldActor[D_800AFD1C].pSpriteData;
+    if (pActorData->flags & 0x2000) {
+        pSpriteData->moveSpeed = 0x8000000 / g_FieldScriptVMCurActor->moveSpeed;
+    } else if (pSpriteData->moveSpeed == 0) {
+        pSpriteData->moveSpeed = 0x4000000 / g_FieldScriptVMCurActor->moveSpeed;
+    }
+    magnitude = FieldGetVec1Magnitude(pSpriteData->moveSpeed >> 15) + 1;
+    curX = CONV_TO_GTE(g_FieldScriptVMCurActor->position.vx);
+    curZ = CONV_TO_GTE(g_FieldScriptVMCurActor->position.vz);
+
+    switch (g_FieldScriptVMCurActor->scripts[g_FieldScriptVMCurActor->curScriptIndex].flags_0x17) {
+    case 1:
+        x = FieldScriptArgument1(1, SCRIPT_READ_U8_REL(5)) + g_FieldScriptVMCurActor->unkD0.vx;
+        z = FieldScriptArgument2(3, SCRIPT_READ_U8_REL(5)) + g_FieldScriptVMCurActor->unkD0.vz;
+        break;
+
+    case 2:
+        if (FieldScriptVMGetActorIndex(1) == ACTOR_ID_INVALID) {
+            return 0;
+        }
+        pTargetActor = g_FieldActors[FieldScriptVMGetActorIndex(1)].pActorData;
+        radius = FieldGetVec1Magnitude(pTargetActor->solidRange + g_FieldScriptVMCurActor->solidRange);
+        x = CONV_TO_GTE(pTargetActor->position.vx);
+        z = CONV_TO_GTE(pTargetActor->position.vz);
+        if (SCRIPT_READ_U8_REL(1) == g_PlayerActorIndex) {
+            g_FieldScriptVMCurActor->scriptFlags.flags |= 0x200000;
+        }
+        break;
+
+    case 3:
+        angle = FieldScriptVMGetArgument(1) & 0xFFF;
+        x = g_FieldScriptVMCurActor->unkD0.vx + ((rsin(angle) * 0x1000) >> 12);
+        z = g_FieldScriptVMCurActor->unkD0.vz + (-(rcos(angle) * 0x1000) >> 12);
+        break;
+
+    case 0:
+    case 4:
+        x = FieldScriptArgument1(1, SCRIPT_READ_U8_REL(5));
+        z = FieldScriptArgument2(3, SCRIPT_READ_U8_REL(5));
+        break;
+    }
+
+    delta.x = x - curX;
+    delta.y = 0;
+    delta.z = z - curZ;
+    distance = FieldGetVec2Magnitude(delta.x, delta.z);
+    g_FieldScriptVMCurActor->scriptFlags.flags |= 0x400000;
+
+    if (g_FieldScriptVMCurActor->scripts[g_FieldScriptVMCurActor->curScriptIndex].flags_0 == 0
+        || magnitude + radius >= distance) {
+        if (arg0 != 0) {
+            if (!(g_FieldScriptVMCurActor->scriptFlags.flags & 0x8000)) {
+                rotation = (u_short)g_FieldScriptVMCurActor->rotation.vy | 0x8000;
+            } else {
+                rotation = (u_short)g_FieldScriptVMCurActor->unk11C | 0x8000;
+            }
+            g_FieldScriptVMCurActor->rotation.vx = rotation;
+            g_FieldScriptVMCurActor->rotation.vy = rotation;
+        } else {
+            rotation = func_8007B694(&delta);
+            g_FieldScriptVMCurActor->rotation.vx = rotation;
+            g_FieldScriptVMCurActor->rotation.vy = rotation;
+        }
+
+        g_FieldScriptVMCurActor->scripts[g_FieldScriptVMCurActor->curScriptIndex].flags_0 = 0xFFFF;
+        g_FieldScriptVMCurActor->scripts[g_FieldScriptVMCurActor->curScriptIndex].flags_0x17 = 0;
+        g_FieldScriptVMCurActor->scriptFlags.flags &= ~0x02200800;
+        return 0;
+    }
+
+    g_FieldScriptVMCurActor->scripts[g_FieldScriptVMCurActor->curScriptIndex].flags_0--;
+    rotation = func_8007B694(&delta);
+    D_800B00C0 = 1;
+    g_FieldScriptVMCurActor->rotation.vx = rotation;
+    g_FieldScriptVMCurActor->rotation.vy = rotation;
+    return -1;
+} */
 
 void FieldScriptVMWriteCurCharacterID(void) {
     FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(1), g_FieldScriptVMCurActor->characterId);
@@ -450,6 +557,7 @@ int func_8009AEE0(int actorSlotId, int x, int z, int direction) {
     int prevActorIndex;
     int actorIndex;
     int rotation;
+    int newRotation;
     int distance;
     int magnitude;
 
