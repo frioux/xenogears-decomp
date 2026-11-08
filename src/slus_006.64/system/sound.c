@@ -1738,10 +1738,11 @@ u8* func_8003D17C(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
 u8* func_8003D1BC(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     u8 step = pScript[0];
     u8 target = pScript[1];
+    u16 counter = step << 5;
     s32 delta = (target << 24) - pAudioManager->unk_Interpolator_0x70.currentValue;
 
     if ((step << 5) != 0 && delta != 0) {
-        pAudioManager->unk_Interpolator_0x70.counter = step << 5;
+        pAudioManager->unk_Interpolator_0x70.counter = counter;
         pAudioManager->unk_Interpolator_0x70.targetValue = target << 8;
         pAudioManager->unk_Interpolator_0x70.stepIncrement = delta / (step << 5);
     }
