@@ -102,6 +102,54 @@ int func_80081F5C(ActorData* pActor) {
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80081F80);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800821F4);
+/* 95.50%: everything matches except how the model-id table base is formed. The
+   original keeps `&D_800B2346` in s2 and derives the table (`&D_800B2346 - 0xB1`
+   shorts) with a separate `addiu a0, s2, -354`; gcc here folds the -354 into the
+   %lo of the symbol, which also makes it rematerialise the compare load instead
+   of reusing s2.
+extern s16 D_800B2344;
+extern s16 D_800B2346;
+extern u8 D_800ADFB8[];
+void func_800245D8(int, int);
+void func_801E8330(u16, u16, s32);
+
+void func_800821F4(int arg0, int actorId, FieldActor* pActor) {
+    s16* pModelIds;
+    s16* pTable;
+
+    if (!(pActor->status & 0x40)) {
+        return;
+    }
+    if (actorId != 3 && D_800B2344 == 0) {
+        pActor->pActorData->scriptFlags.flags &= ~0x800;
+    }
+    if (actorId == 0xFF) {
+        actorId = 0;
+    }
+    // The model-id table ends right before D_800B2346; the original derives its
+    // base from that symbol, so index from the last entry.
+    pModelIds = &D_800B2346;
+    if (actorId != pModelIds[0]) {
+        pActor->pActorData->scriptFlags.flags &= ~0x800;
+    }
+    if (!(pActor->pActorData->flags & 0x2000)) {
+        if (pActor->pActorData->flags & 0x1000000) {
+            return;
+        }
+        func_800245D8(arg0, actorId);
+        return;
+    }
+    pTable = pModelIds - 0xB1;
+    if (actorId < 0x10) {
+        func_801E8330(pActor->pActorData->flags12C_0xE & 7, 0, D_800ADFB8[actorId]);
+        pTable[pActor->pActorData->flags12C_0xE & 7] = D_800ADFB8[actorId];
+    } else {
+        actorId -= 0x10;
+        func_801E8330(pActor->pActorData->flags12C_0xE & 7, 0, actorId);
+        pTable[pActor->pActorData->flags12C_0xE & 7] = actorId;
+    }
+}
+*/
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_8008237C);
 
