@@ -85,6 +85,55 @@ u_int func_80080A18(void) {
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80080A74);
 
+/* 71.39%: identical size (468 bytes) and every block is the right shape; the
+   residual is register allocation. gcc here keeps `actorIndex * 0x5C` in one
+   pseudo across all four `g_FieldActors[actorIndex]` accesses and reuses
+   `&g_FieldActors[actorIndex]`, where the original recomputes it once after the
+   first HeapAlloc and once more after the loop. `D_800B2180++` is also emitted
+   as `lui at; sw %lo(at)` instead of addressing the counter through one
+   register (`lui v1,%hi; addiu v1,v1,%lo; lw/sw 0(v1)`); `volatile` makes it
+   worse (gcc then reloads the counter). The frame (0x88) needs the unused 0x60
+   local; reg assignment wants `int numWords` declared before the pointers and
+   the unused array last.
+extern int D_800B2180;
+void func_80080A74(int actorIndex);
+void func_8007AA44(Quad* pQuad);
+
+void func_80080F44(int actorIndex) {
+    int numWords = sizeof(ActorData) / sizeof(u_int);
+    int i;
+    u_int* pData;
+    ActorData* pActor;
+    FieldActorModelData* pModelData;
+    u8 unused[0x60]; // original has an unused stack slot; reproduces the frame
+
+    if (actorIndex < D_800ADBFC) {
+        D_800B2180++;
+        pActor = HeapAlloc(0x138, 0);
+        g_FieldActors[actorIndex].pActorData = pActor;
+        pActor = g_FieldActors[actorIndex].pActorData;
+        pData = (u_int*)pActor;
+        for (i = 0; i < numWords; i++) {
+            *pData++ = 0;
+        }
+        g_FieldActors[actorIndex].unk5A = 0;
+        if (g_FieldActors[actorIndex].status & 0x2000) {
+            pModelData = g_FieldActors[actorIndex].pModelData;
+            pActor->unk118 = HeapAlloc(0x80, 0);
+            if (pModelData->pScripts != NULL) {
+                for (i = 0; i < pModelData->pScripts->numScripts; i++) {
+                    pModelData->pScripts->pScripts[i].pCallback = func_80080A18;
+                    ((u_int*)pActor->unk118)[i] = 0;
+                }
+            }
+        }
+        func_80080A74(actorIndex);
+        g_FieldActors[actorIndex].pShadow = HeapAlloc(0x70, 0);
+        func_8007AA44((Quad*)g_FieldActors[actorIndex].pShadow);
+    }
+}
+*/
+
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80080F44);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_8008110C);

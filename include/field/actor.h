@@ -340,6 +340,7 @@ typedef struct {
     /* 0x50 */ SVEC rotation;
     /* 0x56 */ short flags;
     /* 0x58 */ short status;
+    /* 0x5A */ u_short unk5A;
 } FieldActor;
 
 // Model space bounding box the actor's model data keeps a pointer to
@@ -349,6 +350,19 @@ typedef struct {
     /* 0x28 */ SVECTOR max;
 } FieldActorModelBounds; // Size: 0x30
 
+// One entry of FieldActorModelScriptTable; pCallback's return value is read
+// through ActorData::unk118 by func_80080A18
+typedef struct {
+    /* 0x0  */ u_int (*pCallback)(void);
+    /* 0x4  */ undefined8 unk4[0x1C];
+} FieldActorModelScript; // Size: 0x20
+
+typedef struct {
+    /* 0x0  */ undefined8 unk0[0xC];
+    /* 0xC  */ s32 numScripts;
+    /* 0x10 */ FieldActorModelScript* pScripts;
+} FieldActorModelScriptTable;
+
 // FieldActor::pModelData
 typedef struct {
     /* 0x00 */ undefined8 unk0[0x4];
@@ -356,7 +370,7 @@ typedef struct {
     /* 0x08 */ undefined8 unk8[8];
     /* 0x10 */ undefined8 unk10[2];
     /* 0x12 */ s16 renderMode; // Passed to ModelRenderPacket as its 4th argument
-    /* 0x14 */ undefined8 unk14[4];
+    /* 0x14 */ FieldActorModelScriptTable* pScripts;
     /* 0x18 */ s16 centerX;
     /* 0x1A */ s16 centerY;
     /* 0x1C */ s16 centerZ;
