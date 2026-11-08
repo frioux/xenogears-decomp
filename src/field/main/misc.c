@@ -1701,75 +1701,57 @@ void FieldScriptSetParentActor(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", FieldScriptWriteActorFlags1);
-// 95.29%: needs g_FieldActors non-volatile for the last call to keep `li a0,1`
-// in the delay slot, but removing the qualifier breaks another field function.
-/*
+// g_FieldActors is volatile, which stops gcc from filling the delay slot of the
+// call below; read the pointer through a non-volatile lvalue to get it back.
+#define FIELD_ACTORS (*((FieldActor**)(void*)&g_FieldActors))
+
 void FieldScriptWriteActorFlags1(void) {
     ActorData* pActorData;
     int actorIndex;
-    u_int scriptFlags;
-    u_int address;
 
     actorIndex = FieldScriptVMGetActorIndex(1);
     if (actorIndex != ACTOR_ID_INVALID) {
-        pActorData = g_FieldActors[actorIndex].pActorData;
-        scriptFlags = pActorData->scriptFlags.flags;
-        address = SCRIPT_IMM_ARG(1);
-        FieldScriptMemoryWriteU16(address, scriptFlags);
+        pActorData = FIELD_ACTORS[actorIndex].pActorData;
+        FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(1), pActorData->scriptFlags.flags);
     }
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
-*/
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", FieldScriptWriteActorFlags2);
-// 95.29% (same miss as Flags1): gcc hoists the `li a0,1` for the
-// FieldScriptVMGetInstructionArgument call above the actor address computation;
-// the original leaves it in the jal delay slot. Everything else is identical, so
-// all four FlagsN handlers share this one blocker.
-/*
 void FieldScriptWriteActorFlags2(void) {
-    volatile int actorIndex;
     ActorData* pActorData;
+    int actorIndex;
 
     actorIndex = FieldScriptVMGetActorIndex(1);
     if (actorIndex != ACTOR_ID_INVALID) {
-        pActorData = g_FieldActors[actorIndex].pActorData;
+        pActorData = FIELD_ACTORS[actorIndex].pActorData;
         FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(1), ((u_short*)&pActorData->scriptFlags)[1]);
     }
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
-*/
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", FieldScriptWriteActorFlags3);
-/*
 void FieldScriptWriteActorFlags3(void) {
     ActorData* pActorData;
     int actorIndex;
 
     actorIndex = FieldScriptVMGetActorIndex(1);
     if (actorIndex != ACTOR_ID_INVALID) {
-        pActorData = g_FieldActors[actorIndex].pActorData;
+        pActorData = FIELD_ACTORS[actorIndex].pActorData;
         FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(1), pActorData->flags);
     }
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
-*/
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", FieldScriptWriteActorFlags4);
-/*
 void FieldScriptWriteActorFlags4(void) {
     ActorData* pActorData;
     int actorIndex;
 
     actorIndex = FieldScriptVMGetActorIndex(1);
     if (actorIndex != ACTOR_ID_INVALID) {
-        pActorData = g_FieldActors[actorIndex].pActorData;
+        pActorData = FIELD_ACTORS[actorIndex].pActorData;
         FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(1), ((u_short*)&pActorData->flags)[1]);
     }
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
-*/
 
 // TODO: These two handlers could use more semantic names since they're likely used
 // in certain situations.
