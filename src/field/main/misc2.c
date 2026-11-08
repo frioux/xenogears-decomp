@@ -517,8 +517,8 @@ void func_80075910(void) {
 
 
 // .rodata
-// Owned by this unit's .rodata, which is not yet defined in C (see notes):
-// 0x8006FB70 is the last 0x10 bytes of the 0x7C-byte block starting at 0x8006FB10.
+// This unit owns 0x8006FB04..0x8006FB80 of .rodata (0x7C bytes, per field.yaml) and
+// none of it is defined in C yet; D_8006FB70 is its last 0x10 bytes.
 extern const VECTOR D_8006FB70;
 
 // Builds the sprite rotation matrix rows for a billboard from the up vector
