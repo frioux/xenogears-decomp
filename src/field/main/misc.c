@@ -393,6 +393,33 @@ void func_800884CC(void) {
 }
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_80088508);
+// 97.68%: instruction for instruction identical except that gcc hoists the
+// `li a0,1` for the first FieldScriptVMGetInstructionArgument call out of the
+// jal delay slot (and fills the slot with a nop). The index arithmetic of
+// g_FieldActors[partyMemberId] gives the scheduler the slack to do it.
+/*
+void func_80088508(void) {
+    SpriteData* pSpriteData;
+    int partyMemberId;
+    int address;
+
+    partyMemberId = D_8005A444[FieldScriptVMGetArgument(5)];
+    g_FieldScriptMaxInstructionCount += 4;
+    if (partyMemberId != ACTOR_ID_INVALID) {
+        pSpriteData = g_FieldActors[partyMemberId].pSpriteData;
+        address = FieldScriptVMGetInstructionArgument(1);
+        FieldScriptMemoryWriteU16(address & 0xFFFF, *(u_short*)&((SpriteDataI3*)pSpriteData->field_0x7C)->field_0xC);
+        FieldScriptMemoryWriteU16(FieldScriptVMGetInstructionArgument(3) & 0xFFFF, partyMemberId);
+        if (*(u_short*)&((SpriteDataI3*)pSpriteData->field_0x7C)->field_0xC != 1) {
+            ((SpriteDataI3*)pSpriteData->field_0x7C)->field_0xC = 0;
+        }
+    } else {
+        FieldScriptMemoryWriteU16(FieldScriptVMGetInstructionArgument(1) & 0xFFFF, 0);
+        FieldScriptMemoryWriteU16(FieldScriptVMGetInstructionArgument(3) & 0xFFFF, 0);
+    }
+    g_FieldScriptVMCurActor->scriptInstructionPointer += 7;
+}
+*/
 
 typedef struct {
     /* 0x0 */ int bankIndex;
@@ -427,6 +454,33 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_80088674);
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_80088790);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_800888A4);
+// 82.97%: the only misses are (a) the same `li a0,1` hoist as func_80088508 -
+// the g_FieldActors[D_800AFD1C] address computation gives gcc the slack to lift
+// the constant out of the first FieldScriptVMGetArgument delay slot - and (b) the
+// 0x12C update. The original's mask 0xF003FFFF (bits 18-27) with the value
+// shifted by 24 means the bitfield it writes is 10 bits at bit 18 holding
+// `type << 6`, not a 4-bit field at bit 24; with that split gcc instead CSEs
+// `type << 6` with the sprite store below and chains `<< 6` then `<< 18`.
+/*
+extern void func_8002303C(SpriteData*, int, int);
+
+void func_800888A4(void) {
+    SpriteData* pSpriteData;
+    int type;
+    int value;
+
+    pSpriteData = g_FieldActors[D_800AFD1C].pSpriteData;
+    type = FieldScriptVMGetArgument(1) & 0xF;
+    value = ((FieldScriptVMGetArgument(1) >> 4) << 8) + FieldScriptVMGetArgument(3);
+    func_8002303C(pSpriteData, 2, 0);
+    ((u_short*)((SpriteDataI3*)pSpriteData->field_0x7C)->field_0x18)[2] = type << 6;
+    g_FieldScriptVMCurActor->flags12C_0x12 = type << 6;
+    ((u_short*)((SpriteDataI3*)pSpriteData->field_0x7C)->field_0x18)[3] = value;
+    g_FieldScriptVMCurActor->flags130 = (g_FieldScriptVMCurActor->flags130 & ~0x1FF) | (value & 0x1FF);
+    g_FieldScriptVMCurActor->flags12C_0x10 = 1;
+    g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
+}
+*/
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_800889BC);
 
