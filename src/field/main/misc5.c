@@ -5,9 +5,14 @@
 #include "psyq/libgpu.h"
 #include "field/effects.h"
 #include "field/graphics.h"
+#include "field/particles.h"
 
 //
-INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A55B8);
+void func_800A55B8(u_char* pArg0, int arg1, int arg2, int arg3) {
+    *(int*)(pArg0 + 0x14) = arg1;
+    *(int*)(pArg0 + 0x18) = arg2;
+    *(int*)(pArg0 + 0x1C) = arg3;
+}
 
 extern void* D_800AFE80;
 extern void* D_800B069C;
@@ -147,13 +152,30 @@ void func_800A7064(void) {
     HeapFree(D_800B00C4);
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A708C);
+extern int D_800ADB6C;
+extern int D_800ADB74;
+extern int D_800ADB34;
+extern u_long* D_800AFC70;
+extern int D_801D68B4;
+extern u_short D_800C3A36;
+extern void func_801D3538(int arg0, int arg1, int arg2, int arg3, int arg4, int arg5, int arg6);
+
+void func_800A708C(void) {
+    HeapChangeCurrentUser(4, NULL);
+    if (D_800ADB74 == 2) {
+        D_801D68B4 = 1;
+    } else {
+        D_801D68B4 = 0;
+    }
+    func_801D3538(0x140, 0xE0, 0x80, 0x10, 0x20, 0x800, D_800C3A36);
+    D_800ADB6C = 0;
+    HeapChangeCurrentUser(8, NULL);
+}
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A7120);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A7218);
 
-extern int D_800ADB6C;
 extern void func_801D3F7C(void);
 extern void func_80085678(void);
 
@@ -264,7 +286,21 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A7948);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A7C58);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A8314);
+extern void ArchiveCdDataSync(int mode);
+extern void FieldLoadTIMWithClut(u_long* pTimData, short x, short y, short clutX, short clutY, short clutWidth, short clutHeight);
+
+void func_800A8314(void) {
+    void* pBuffer;
+
+    HeapChangeCurrentUser(8, NULL);
+    ArchiveSetIndex(4, 0);
+    pBuffer = HeapAlloc(ArchiveDecodeAlignedSize(0xAA), 0x1);
+    ArchiveReadFileToBuffer(0xAA, pBuffer, 0, 0x80);
+    ArchiveCdDataSync(0);
+    FieldLoadTIMWithClut(pBuffer, 0x380, 0x0, 0x0, 0xE8, 0x0, 0x0);
+    DrawSync(0);
+    HeapFree(pBuffer);
+}
 
 extern int D_800AF278;
 extern void* D_800AFC60;
@@ -285,14 +321,91 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A84C0);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A8BA4);
 
-// https://decomp.me/scratch/3xYjM
-INCLUDE_ASM("asm/field/nonmatchings/main/misc5", FieldInitializeParticlePrimitive);
+extern ParticleShape D_800AF27C[];
+extern void FieldClampPolyFT4UVs(POLY_FT4* poly, short u0, short v0, short u1, short v1, short u2, short v2, short u3, short v3);
+
+void FieldInitializeParticlePrimitive(ParticlePrimitive* pPrim, int shape, int abr) {
+    POLY_FT4* pPoly;
+    ParticleShape* pShape;
+    int nWidth;
+    int nHeight;
+    int nXSum;
+    int nYSum;
+
+    pPoly = &pPrim->poly[0];
+    SetPolyFT4(pPoly);
+    pShape = &D_800AF27C[shape];
+
+    pPrim->vertices[0].vz = 0;
+    pPrim->vertices[1].vz = 0;
+    pPrim->vertices[2].vz = 0;
+    pPrim->vertices[3].vz = 0;
+
+    pPoly->r0 = 0x80;
+    pPoly->g0 = 0x80;
+    pPoly->b0 = 0x80;
+
+    nWidth = (pShape->x1 - pShape->x0) << 4;
+    nHeight = (pShape->y1 - pShape->y0) << 4;
+    nXSum = (pShape->x0 + pShape->x1) << 4;
+    nYSum = (pShape->y0 + pShape->y1) << 4;
+
+    pPrim->vertices[0].vx = nWidth;
+    pPrim->vertices[0].vy = nHeight;
+    pPrim->vertices[1].vx = nXSum;
+    pPrim->vertices[1].vy = nHeight;
+    pPrim->vertices[2].vx = nWidth;
+    pPrim->vertices[2].vy = nYSum;
+    pPrim->vertices[3].vx = nXSum;
+    pPrim->vertices[3].vy = nYSum;
+
+    FieldClampPolyFT4UVs(pPoly,
+        pShape->u0,     pShape->v0 + 0x40,
+        pShape->u1 - 1, pShape->v1 + 0x40,
+        pShape->u2,     pShape->v2 + 0x3F,
+        pShape->u3 - 1, pShape->v3 + 0x3F);
+
+    SetSemiTrans(pPoly, 1);
+    pPoly->tpage = GetTPage(0, abr, 0x3C0, 0x140);
+    pPoly->clut = GetClut(0x100, 0xF7);
+    pPrim->poly[1] = pPrim->poly[0];
+}
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A90B4);
 
-extern int D_800ADB34;
+/* Best attempt: 98.69%, instructions identical but the two loop pointers land in
+   the other registers (original: destination $t0 / end $a3, gcc: $a3 / $t0).
+typedef struct {
+    u_long w0;
+    u_long w1;
+    u_long w2;
+    u_long w3;
+} ImageCopyQuad; // Size: 0x10
+
+void func_800A90B4(u_int allocFlags) {
+    void* pNew;
+    ImageCopyQuad* pSrc;
+    ImageCopyQuad* pDst;
+    ImageCopyQuad* pEnd;
+
+    if (D_800ADB34 == 1) {
+        HeapChangeCurrentUser(8, NULL);
+        pNew = HeapAlloc(0x8000, allocFlags);
+        pDst = pNew;
+        pSrc = (ImageCopyQuad*)D_800AFC70;
+        pEnd = (ImageCopyQuad*)D_800AFC70 + 0x800;
+        do {
+            *pDst = *pSrc;
+            pDst++;
+            pSrc++;
+        } while (pSrc != pEnd);
+        HeapFree(D_800AFC70);
+        D_800AFC70 = pNew;
+    }
+}
+*/
+
 extern RECT g_FieldStoredImageDest[];
-extern u_long* D_800AFC70;
 
 void func_800A915C(void) {
     if (D_800ADB34 != 1) {
