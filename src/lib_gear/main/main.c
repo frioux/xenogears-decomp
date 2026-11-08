@@ -1161,33 +1161,35 @@ INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E63A8);
 // likewise i in s0 vs pJoint in s1); declaration order, loop form (for/while),
 // pointer vs index and type tweaks do not move the pair
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E6578);
-/* void func_801E6578(Temp4* pList, s32 jointIndex, ModelJoint* pSkeleton, ModelJoint* pTargetSkeleton) {
-    ModelJoint* pJoint = &pSkeleton[jointIndex];
-    ModelJoint* pTarget = &pTargetSkeleton[jointIndex];
-    ModelJoint* pChild;
-    int i;
-    int numChildren;
+/*
+    void func_801E6578(Temp4* pList, s32 jointIndex, ModelJoint* pSkeleton, ModelJoint* pTargetSkeleton) {
+        ModelJoint* pTarget = &pTargetSkeleton[jointIndex];
+        ModelJoint* pJoint = &pSkeleton[jointIndex];
+        ModelJoint* pChild;
+        int numChildren;
+        int i;
 
-    numChildren = pSkeleton->numChildren;
-    pJoint->unk7 = 0;
-    pTarget->unk7 = 1;
+        numChildren = pSkeleton->numChildren;
+        pJoint->unk7 = 0;
+        pTarget->unk7 = 1;
 
-    func_801DF7A8(pList, (s8*)pJoint->unk70);
-    pJoint->unk70 = 0;
-    func_801DF7A8(pList, (s8*)pJoint->unk74);
-    pJoint->unk74 = 0;
-    func_801DF7A8(pList, (s8*)pJoint->unk78);
-    pJoint->unk78 = 0;
+        func_801DF7A8(pList, (s8*)pJoint->unk70);
+        pJoint->unk70 = 0;
+        func_801DF7A8(pList, (s8*)pJoint->unk74);
+        pJoint->unk74 = 0;
+        func_801DF7A8(pList, (s8*)pJoint->unk78);
+        pJoint->unk78 = 0;
 
-    pChild = pSkeleton;
-    for (i = 1; i < numChildren; i++) {
-        pChild++;
+        pChild = pSkeleton;
+        for (i = 1; i < numChildren; i++) {
+            pChild++;
 
-        if (pChild->pParent == pJoint) {
-            func_801E6578(pList, pChild->numChildren, pSkeleton, pTargetSkeleton);
+            if (pChild->pParent == pJoint) {
+                func_801E6578(pList, pChild->numChildren, pSkeleton, pTargetSkeleton);
+            }
         }
     }
-} */
+*/
 
 void func_801E6668(ModelJoint* pSkeleton, ModelJoint* pTargetSkeleton) {
     int i;
@@ -1353,46 +1355,42 @@ void func_801E6E48(void* pAnimFile, s32 animIndex, s32 arg2, s16 direction, s16 
     }
 }
 
-// objdiff 99.21%: everything matches except the GTE command word - the original
-// assembles `MVMVA 1,0,0,0,0` to 0x4A480012, while both gte_ApplyRotMatrix
-// (gte_rtv0) and gte_mvmva() emit a different word (.word 0x13f / 0x20013bf)
-INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E6F64);
-/*
-// void func_801E6F64(void* pTaskRaw) {
-//     AnimTask* pTask = pTaskRaw;
-//     LibGearJointTask* pJointTask;
-//     LVEC3 vec;
-//     MATRIX* pMatrix;
-//
-//     pJointTask = (LibGearJointTask*)((u8*)pTask + pTask->spriteData.allocatedDataSize);
-//     pMatrix = (MATRIX*)0x1F800000;
-//
-//     if (pJointTask->jointIndex != 0) {
-//         CompMatrix(
-//             &pJointTask->pModel->pSkeleton[0].localTransform,
-//             &pJointTask->pModel->pSkeleton[pJointTask->jointIndex].globalTransform,
-//             pMatrix
-//         );
-//     } else {
-//         pMatrix = &pJointTask->pModel->pSkeleton[0].localTransform;
-//     }
-//
-//     SetRotMatrix(pMatrix);
-//     SetTransMatrix(pMatrix);
-//
-//     gte_ApplyRotMatrix(&pJointTask->offset, &vec);
-//
-//     if (pJointTask->unkE != 0) {
-//         vec.y = pJointTask->pModel->ground;
-//     }
-//
-//     pTask->spriteData.position.x = CONV_FROM_GTE(vec.x);
-//     pTask->spriteData.position.y = CONV_FROM_GTE(vec.y);
-//     pTask->spriteData.position.z = CONV_FROM_GTE(vec.z);
-//
-//     pJointTask->pChainCallback(pTask);
-// }
-*/
+void func_801E6F64(void* pTaskRaw) {
+    AnimTask* pTask = pTaskRaw;
+    LibGearJointTask* pJointTask;
+    LVEC3 vec;
+    MATRIX* pMatrix;
+
+    pJointTask = (LibGearJointTask*)((u8*)pTask + pTask->spriteData.allocatedDataSize);
+    pMatrix = (MATRIX*)0x1F800000;
+
+    if (pJointTask->jointIndex != 0) {
+        CompMatrix(
+            &pJointTask->pModel->pSkeleton[0].localTransform,
+            &pJointTask->pModel->pSkeleton[pJointTask->jointIndex].globalTransform,
+            pMatrix
+        );
+    } else {
+        pMatrix = &pJointTask->pModel->pSkeleton[0].localTransform;
+    }
+
+    SetRotMatrix(pMatrix);
+    SetTransMatrix(pMatrix);
+
+    gte_ldv0(&pJointTask->offset);
+    gte_mvmva(1, 0, 0, 0, 0);
+    gte_stlvnl(&vec);
+
+    if (pJointTask->unkE != 0) {
+        vec.y = pJointTask->pModel->ground;
+    }
+
+    pTask->spriteData.position.x = CONV_FROM_GTE(vec.x);
+    pTask->spriteData.position.y = CONV_FROM_GTE(vec.y);
+    pTask->spriteData.position.z = CONV_FROM_GTE(vec.z);
+
+    pJointTask->pChainCallback(pTask);
+}
 
 void func_801E7094(Model* pModel, ModelJoint* pJoint, u8 flags, s16 x, s16 y, s16 z) {
     ModelJoint* pChild;
