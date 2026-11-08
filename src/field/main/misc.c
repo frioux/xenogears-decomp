@@ -240,6 +240,17 @@ void func_80087C0C(void) {
 }
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_80087C34);
+// 70.95%: identical instructions, but the original loads the actor pointer for
+// the next statement before each store; gcc here stores first.
+/*
+void func_80087C34(void) {
+    *(u_short*)&g_pGameState->unk17FC[0x30] = FieldScriptArgument1(1, SCRIPT_READ_U8_REL(9));
+    *(u_short*)&g_pGameState->unk17FC[0x32] = FieldScriptArgument2(3, SCRIPT_READ_U8_REL(9));
+    *(u_short*)&g_pGameState->unk17FC[0x34] = FieldScriptArgument3(5, SCRIPT_READ_U8_REL(9));
+    *(u_short*)&g_pGameState->unk17FC[0x36] = FieldScriptArgument4(7, SCRIPT_READ_U8_REL(9));
+    g_FieldScriptVMCurActor->scriptInstructionPointer += 0xA;
+}
+*/
 
 void func_80087D30(void) {
     FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(1), *(u_short*)&g_pGameState->unk17FC[0x38]);
@@ -641,7 +652,36 @@ void func_8008A08C(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 8;
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008A148);
+extern FieldScriptGlobalU8 D_800B00A0;
+extern FieldScriptGlobalU8 D_800B00A1;
+extern FieldScriptGlobalU8 D_800B00A2;
+extern FieldScriptGlobalU8 D_800B00A4;
+extern FieldScriptGlobalU8 D_800B00A5;
+extern FieldScriptGlobalU8 D_800B00A6;
+extern FieldScriptGlobalU8 D_800B00A8;
+extern FieldScriptGlobalU8 D_800B00A9;
+extern FieldScriptGlobalU8 D_800B00AA;
+extern FieldScriptGlobalS16 D_800B00AC;
+extern FieldScriptGlobalS16 D_800B00AE;
+extern FieldScriptGlobalS16 D_800B00B0;
+extern FieldScriptGlobalS16 D_800B00B2;
+
+void func_8008A148(void) {
+    D_800B00A0.value = FieldScriptVMGetArgument(1);
+    D_800B00A1.value = FieldScriptVMGetArgument(3);
+    D_800B00A2.value = FieldScriptVMGetArgument(5);
+    D_800B00A4.value = FieldScriptVMGetArgument(7);
+    D_800B00A5.value = FieldScriptVMGetArgument(9);
+    D_800B00A6.value = FieldScriptVMGetArgument(0xB);
+    D_800B00A8.value = FieldScriptVMGetArgument(0xD);
+    D_800B00A9.value = FieldScriptVMGetArgument(0xF);
+    D_800B00AA.value = FieldScriptVMGetArgument(0x11);
+    D_800B00AC.value = FieldScriptVMGetArgument(0x13);
+    D_800B00AE.value = FieldScriptVMGetArgument(0x15);
+    D_800B00B0.value = FieldScriptVMGetArgument(0x17);
+    g_FieldScriptVMCurActor->scriptInstructionPointer += 0x19;
+    D_800B00B2.value = 1;
+}
 
 extern s32 D_800ADB88;
 
@@ -799,7 +839,18 @@ void func_8008AE5C(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008AEC8);
+extern s16 D_800B221C[];
+extern s16 D_800B221E[];
+extern s16 D_800B2220[];
+
+void func_8008AEC8(void) {
+    int index = FieldScriptArgument1(1, SCRIPT_READ_U8_REL(9));
+
+    D_800B221C[index * 3] = FieldScriptArgument2(3, SCRIPT_READ_U8_REL(9));
+    D_800B221E[index * 3] = FieldScriptArgument3(5, SCRIPT_READ_U8_REL(9));
+    D_800B2220[index * 3] = FieldScriptArgument4(7, SCRIPT_READ_U8_REL(9));
+    g_FieldScriptVMCurActor->scriptInstructionPointer += 0xA;
+}
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008AFD8);
 
