@@ -277,7 +277,6 @@ void func_80085678(void) {
     u_short* pDuration;
     u_short* pValue;
     u_short value;
-    u_short sedId;
 
     if (D_800C3A38 == 0xFF) {
         return;
@@ -430,6 +429,15 @@ void func_80086078(int arg0, int* pOut, int arg2) {
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800860F0);
 
+INCLUDE_ASM("asm/field/nonmatchings/main/misc8", FieldActorWorldToScreenPosition);
+/* 80.00%: everything but the first CompMatrix argument matches. The original
+   builds the world-to-screen matrix address as `&g_FieldActors - 0xAC` (lui +
+   addiu of g_FieldActors, then a separate `addiu a0, v1, -0xAC`, the same v1 it
+   reloads the volatile actor pointer from), i.e. the matrix and the actor list
+   were members of one global struct in the original source. Writing
+   `&g_Scene.worldToScreenMatrix` gives the two-instruction %hi/%lo form instead.
+   A `(MATRIX*)((u_char*)&g_FieldActors - 0xAC)` hack reaches 95.25% but gcc
+   rematerialises the address twice. Matching needs the shared parent struct.
 void FieldActorWorldToScreenPosition(int actorIndex, int* pScreenX, int* pScreenY) {
     SVECTOR vertex;
     MATRIX transformMatrix;
@@ -448,6 +456,7 @@ void FieldActorWorldToScreenPosition(int actorIndex, int* pScreenX, int* pScreen
     *pScreenY = ((short*)&sxy)[1];
     *pScreenX = ((short*)&sxy)[0];
 }
+*/
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800862CC);
 
