@@ -21,6 +21,8 @@ Stubs by area at session start: `slus_006.64` 419 (psyq 174, system 245),
 | # | Batch | Functions | Total | Notes |
 |---|---|---|---|---|
 | — | baseline | — | 1632 | session start |
+| 1 | `field/main/{misc,misc2,misc8}`, `system/sound`, `shop_menu/main/misc` | +14 | 1646 | 26 claimed; 12 rejected by `make check` (9 wrong size, 3 wrong registers) |
+| 2 | `system/temp1`, `system/model` | +17 | 1663 | temp1 12 (gcc 2.7.2-cdk), model 5; 4 more units came back unverified from timed-out workers and were dropped |
 
 ## Queue
 
@@ -40,3 +42,19 @@ Known blocked / low-yield:
 - `field/main/misc.c FieldScriptWriteActorFlags1` reaches 95.29% only because
   `g_FieldActors` is declared `volatile`; dropping the qualifier makes the
   function match but breaks the `field` binary elsewhere.
+
+## What the first two rounds taught
+
+- A worker's `MATCH` was not trustworthy until `diff_func.sh` normalised branch
+  targets: `j 73a0 <Func+0x50>` and `beq v1,v0,7188 <Func+0x58>` are just
+  relocated targets, but the old script printed them as differences, so a
+  function could look matched while its C was a different size. Require
+  `objdiff: 100.00%`, not the `MATCH` line alone.
+- Worker turns are slow (5+ min of thinking per edit) and children time out at
+  30 minutes, so a batch of 12 functions is roughly 3x more than one worker can
+  finish. Keep batches at 6-8 and have them commit after every few matches.
+- `ninja` permanently deletes `build/src/<unit>.c.{i,s,o}` when a build fails,
+  and the maspsx edge sends stderr to `/dev/null`, so switching a function
+  between C and `INCLUDE_ASM` without re-running gears (`make build`) silently
+  yields "success" with no object. Always rebuild through `make`.
+- `make check` is the only gate that matters; it caught every false match.
