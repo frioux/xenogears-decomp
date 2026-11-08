@@ -194,20 +194,29 @@ int func_80081F5C(ActorData* pActor) {
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80081F80);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800821F4);
-/* 95.50%: everything matches except how the model-id table base is formed. The
-   original keeps `&D_800B2346` in s2 and derives the table (`&D_800B2346 - 0xB1`
-   shorts) with a separate `addiu a0, s2, -354`; gcc here folds the -354 into the
-   %lo of the symbol, which also makes it rematerialise the compare load instead
-   of reusing s2.
 extern s16 D_800B2344;
 extern s16 D_800B2346;
 extern u8 D_800ADFB8[];
 void func_800245D8(int, int);
 void func_801E8330(u16, u16, s32);
 
+// This unit reads the 0x12C word whole; the ActorData bitfields there make gcc
+// narrow the load to a byte.
+typedef struct {
+    /* 0x0   */ u8 unk0[0x12C];
+    /* 0x12C */ u_int flags12C;
+} ActorFlags12CView; // Size: 0x130
+
+INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800821F4);
+/* 95.91%, same size, register base only. Two findings. (1) The 0x12C word must
+   be read whole - the ActorData bitfields there make gcc narrow it to
+   `lbu 0x12D; srl 5`, so this unit reads it through ActorFlags12CView.
+   (2) The model-id base: the original does `la s2, D_800B2346` for the compare
+   and derives the table with a per-branch `addiu a0, s2, -0x162`; gcc here
+   rematerialises the compare inline and keeps the -0x162 address (used in both
+   branches) in s2 instead. Computing pTable after the compare is what gets
+   gcc to share one base at all; who owns the register is the remaining gap.
 void func_800821F4(int arg0, int actorId, FieldActor* pActor) {
-    s16* pModelIds;
     s16* pTable;
 
     if (!(pActor->status & 0x40)) {
@@ -221,10 +230,10 @@ void func_800821F4(int arg0, int actorId, FieldActor* pActor) {
     }
     // The model-id table ends right before D_800B2346; the original derives its
     // base from that symbol, so index from the last entry.
-    pModelIds = &D_800B2346;
-    if (actorId != pModelIds[0]) {
+    if (actorId != (&D_800B2346)[0]) {
         pActor->pActorData->scriptFlags.flags &= ~0x800;
     }
+    pTable = &D_800B2346 - 0xB1;
     if (!(pActor->pActorData->flags & 0x2000)) {
         if (pActor->pActorData->flags & 0x1000000) {
             return;
@@ -232,14 +241,13 @@ void func_800821F4(int arg0, int actorId, FieldActor* pActor) {
         func_800245D8(arg0, actorId);
         return;
     }
-    pTable = pModelIds - 0xB1;
     if (actorId < 0x10) {
-        func_801E8330(pActor->pActorData->flags12C_0xE & 7, 0, D_800ADFB8[actorId]);
-        pTable[pActor->pActorData->flags12C_0xE & 7] = D_800ADFB8[actorId];
+        func_801E8330((((ActorFlags12CView*)pActor->pActorData)->flags12C >> 13) & 7, 0, D_800ADFB8[actorId]);
+        pTable[(((ActorFlags12CView*)pActor->pActorData)->flags12C >> 13) & 7] = D_800ADFB8[actorId];
     } else {
         actorId -= 0x10;
-        func_801E8330(pActor->pActorData->flags12C_0xE & 7, 0, actorId);
-        pTable[pActor->pActorData->flags12C_0xE & 7] = actorId;
+        func_801E8330((((ActorFlags12CView*)pActor->pActorData)->flags12C >> 13) & 7, 0, actorId);
+        pTable[(((ActorFlags12CView*)pActor->pActorData)->flags12C >> 13) & 7] = actorId;
     }
 }
 */
