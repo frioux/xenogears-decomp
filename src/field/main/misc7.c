@@ -222,6 +222,17 @@ void func_80098430(void) {
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc7", func_800984EC);
 
+/* Best attempt (78.46%, 196 bytes, same instruction count): only the scheduling
+   of the byte-load chain versus the `sh` to the globals differs.
+void func_800984EC(void) {
+    D_800B21AE = FieldScriptArgument1(1, SCRIPT_READ_U8_REL(7));
+    D_800B21B0 = FieldScriptArgument2(3, SCRIPT_READ_U8_REL(7));
+    D_800B21B2 = FieldScriptArgument3(5, SCRIPT_READ_U8_REL(7));
+    D_800B21D2 |= 0x80;
+    g_FieldScriptVMCurActor->scriptInstructionPointer += 8;
+}
+*/
+
 void func_800985BC(void) {
     if (g_FieldSystemMode == 0) {
         int nValue = FieldScriptVMGetVariableValue(FieldScriptVMGetInstructionArgument(1) & 0xFFFF);
@@ -267,7 +278,19 @@ void func_80098738(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 0x10;
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc7", func_800988B8);
+void func_800988B8(void) {
+    s32 angle0;
+    s32 angle1;
+    s32 angle2;
+    s32 value;
+
+    angle0 = FieldScriptArgument2(3, SCRIPT_READ_U8_REL(9));
+    angle1 = FieldScriptArgument3(5, SCRIPT_READ_U8_REL(9));
+    angle2 = FieldScriptArgument4(7, SCRIPT_READ_U8_REL(9));
+    value = FieldMathInterpolateAngle(angle0, angle1, angle2);
+    FieldScriptMemoryWriteU16(FieldScriptVMGetInstructionArgument(1) & 0xFFFF, value);
+    g_FieldScriptVMCurActor->scriptInstructionPointer += 0xA;
+}
 
 void func_8009899C(void) {
     FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(1), g_FieldScriptVMCurActor->rotation.vy & 0xFFF);
@@ -275,6 +298,25 @@ void func_8009899C(void) {
 }
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc7", func_800989F0);
+
+/* Best attempt (95.43%, 144 bytes): gcc schedules the `li a0,2` for
+   FieldScriptVMGetInstructionArgument into the beq delay slot; the original has
+   it in the jal delay slot (and sll in the beq slot). Everything else matches.
+void func_800989F0(void) {
+    ActorData* pActorData;
+    int actorIndex;
+
+    actorIndex = FieldScriptVMGetActorIndex(1);
+    if (actorIndex != ACTOR_ID_INVALID) {
+        pActorData = g_FieldActors[actorIndex].pActorData;
+        FieldScriptMemoryWriteU16(
+            FieldScriptVMGetInstructionArgument(2) & 0xFFFF,
+            pActorData->rotation.vy & 0xFFF
+        );
+    }
+    g_FieldScriptVMCurActor->scriptInstructionPointer += 4;
+}
+*/
 
 void func_80098A7C(void) {
     SpriteData* pSpriteData;
