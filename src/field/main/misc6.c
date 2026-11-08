@@ -175,27 +175,31 @@ void func_8009E094(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_8009E10C);
-/*
-Matches when scriptFlags is a u32, not bitfields.
-
 void func_8009E10C(void) {
     int nValue;
-    int nUnkFlags;
+    int nFlags;
 
     nValue = FieldScriptVMGetArgument(1);
-    nUnkFlags = (nValue & 0x1) << 7; // if (nValue & 0x1) nUnkFlags |= 0x80;
-    if (nValue & 0x4) nUnkFlags |= 0x20;
-    if (nValue & 0x8) nUnkFlags |= 0x10;
-    if (nValue & 0x10) nUnkFlags |= 8;
-    if (nValue & 0x20) nUnkFlags |= 4;
-    if (nValue & 0x40) nUnkFlags |= 0x08000000;
-    
-    g_FieldScriptVMCurActor->scriptFlags &= 0xF7FFFF43;
-    g_FieldScriptVMCurActor->scriptFlags |= nUnkFlags;
+    nFlags = (nValue & 0x1) << 7;
+    if (nValue & 0x4) {
+        nFlags |= 0x20;
+    }
+    if (nValue & 0x8) {
+        nFlags |= 0x10;
+    }
+    if (nValue & 0x10) {
+        nFlags |= 0x8;
+    }
+    if (nValue & 0x20) {
+        nFlags |= 0x4;
+    }
+    if (nValue & 0x40) {
+        nFlags |= 0x8000000;
+    }
+    g_FieldScriptVMCurActor->scriptFlags.flags &= 0xF7FFFF43;
+    g_FieldScriptVMCurActor->scriptFlags.flags |= nFlags;
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
-*/
 
 void func_8009E1A0(void) {
     u32 nValue;
@@ -621,10 +625,10 @@ s32 func_8009FA54(s32 nInstructionOffset) {
 }
 */
 INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_8009FB98);
-// 63.17%: the C is exactly right (D_800B2268 is a plain s32), but gcc schedules
-// `scriptInstructionPointer += 2` before the D_800B2268 store, which forces the ip
-// pseudo into the other register; the original keeps the store first and reuses $v0
-// for both ip loads. Same instruction count, just reordered.
+// 63.17%: C is right, but gcc's post-reload scheduler emits the ip store before
+// the D_800B2268 store; the original keeps the source order. Making the ip store
+// volatile restores the order (88.00%) but blocks reorg's delay-slot fill, adding
+// a nop (124 vs 120 bytes), so it cannot link.
 /*
 void func_8009FB98(void) {
     g_GameSceneMapNum |= 0xC000;
@@ -750,13 +754,12 @@ void func_800A0C4C(void) {
     g_FieldActors[g_PlayerActorIndex].pActorData->scriptFlags.flags |= 0x80;
 }
 
-// FieldResetActorPosition, set translation and sprite position of actor based on current actor data position
+// FieldResetActorPosition: copies the current actor's scripted position into the
+// field actor's transform/child matrices and into its sprite.
 INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_800A0C94);
-// 99.64%: only diff is the last `addu` destination - gcc puts the pointer in $v0, the
-// original coalesces it into the offset register $v1 (`addu v1,v1,v0` then both
-// stores off v1). Using `&g_FieldActors[D_800AFD1C]` instead of the explicit
-// pointer arithmetic flips the operand order of the other two addus (99.17%), and
-// a separate pointer local for the third block regresses to 82%.
+// 99.64%: identical except the third block's `addu` destination. The original
+// coalesces base+offset into the offset register ($v1, dead from there on); gcc
+// picks the base register ($v0). Same size, only the register number differs.
 /*
 void func_800A0C94(void) {
     FieldActor* pFieldActor;
@@ -842,23 +845,28 @@ void func_800A0EB0(void) {
 }
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_800A0EE8);
-// 76.20%: both cases and the dispatch come out right, but the original hoists the
-// `(flags12C >> 13) & 7` index above the switch (keeping the actor in $a2) and forms
-// &D_800B2264 with lui/addiu into a register instead of %hi/%lo at each access.
+// 90.55%: dispatch and case 0 match exactly. Only case 1 differs - the original
+// materialises &D_800B2264 into a register (lui+addiu, then lw/sw off it), gcc
+// emits %hi/%lo per access and reloads the actor first. Pointer (`s32* p =
+// &D_800B2264; (*p)--;`) and array (`D_800B2264[0]--`) forms both produce the same
+// %hi/%lo code. Result is one insn short (236 vs 240 bytes).
 /*
 extern s32 D_800B2264;
 extern void* D_801E8670[];
 extern void func_801E8030(int modelIndex);
 
 void func_800A0EE8(void) {
+    int nModelIndex;
+
+    nModelIndex = g_FieldScriptVMCurActor->flags12C_0xE;
     g_FieldScriptVMCurActor->flags &= ~0x2000;
     switch (SCRIPT_READ_U8_REL(1)) {
         case 0:
-            ((u8*)D_801E8670[g_FieldScriptVMCurActor->flags12C_0xE & 7])[0x34] = 0;
+            ((u8*)D_801E8670[nModelIndex])[0x34] = 0;
             g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
             break;
         case 1:
-            func_801E8030(g_FieldScriptVMCurActor->flags12C_0xE & 7);
+            func_801E8030(g_FieldScriptVMCurActor->flags12C_0xE);
             D_800B2264--;
             g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
             break;
