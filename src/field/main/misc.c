@@ -338,7 +338,38 @@ void func_80087FD4(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 1;
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008800C);
+extern void func_801E72CC(MATRIX*, MATRIX*, int, int);
+extern void SetRotMatrix(MATRIX*);
+extern void SetTransMatrix(MATRIX*);
+
+// Rotates the actor's model by the script angles and writes the position back.
+void func_8008800C(void) {
+    MATRIX matrix;
+    MATRIX transformMatrix;
+    SVECTOR rotation;
+    SVECTOR result;
+    long flag;
+
+    matrix.t[2] = 0;
+    matrix.t[1] = 0;
+    matrix.t[0] = 0;
+    func_801E72CC(
+        &matrix,
+        &transformMatrix,
+        FieldScriptArgument1(1, SCRIPT_READ_U8_REL(0xB)),
+        FieldScriptArgument2(3, SCRIPT_READ_U8_REL(0xB))
+    );
+    SetRotMatrix(&matrix);
+    SetTransMatrix(&matrix);
+    rotation.vx = FieldScriptArgument3(5, SCRIPT_READ_U8_REL(0xB));
+    rotation.vy = FieldScriptArgument4(7, SCRIPT_READ_U8_REL(0xB));
+    rotation.vz = FieldScriptArgument5(9, SCRIPT_READ_U8_REL(0xB));
+    RotTransSV(&rotation, &result, &flag);
+    FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG_ALIGNED(6), result.vx);
+    FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG_ALIGNED(7), result.vy);
+    FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG_ALIGNED(8), result.vz);
+    g_FieldScriptVMCurActor->scriptInstructionPointer += 0x12;
+}
 
 void func_80088198(void) {
     int i;
@@ -1856,7 +1887,38 @@ void func_8008E570(void) {
     func_8008E498(((u_short*)g_FieldScriptVMCurActor)[3]);
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008E59C);
+// Sets or clears a 16-bit half of the current actor's flags from a script argument.
+void func_8008E59C(void) {
+    int argument = SCRIPT_IMM_ARG_ALIGNED(1);
+
+    switch (SCRIPT_READ_U8_REL(1)) {
+        case 0:
+            g_FieldScriptVMCurActor->scriptFlags.flags |= argument;
+            break;
+        case 1:
+            g_FieldScriptVMCurActor->scriptFlags.flags |= argument << 16;
+            break;
+        case 2:
+            g_FieldScriptVMCurActor->flags |= argument;
+            break;
+        case 3:
+            g_FieldScriptVMCurActor->flags |= argument << 16;
+            break;
+        case 4:
+            g_FieldScriptVMCurActor->scriptFlags.flags &= ~argument;
+            break;
+        case 5:
+            g_FieldScriptVMCurActor->scriptFlags.flags &= ~(argument << 16);
+            break;
+        case 6:
+            g_FieldScriptVMCurActor->flags &= ~argument;
+            break;
+        case 7:
+            g_FieldScriptVMCurActor->flags &= ~(argument << 16);
+            break;
+    }
+    g_FieldScriptVMCurActor->scriptInstructionPointer += 4;
+}
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008E718);
 
