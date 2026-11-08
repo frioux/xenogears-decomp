@@ -532,9 +532,11 @@ void func_8007AF74(int controllerIndex);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007AE78);
 /* Best attempt: 93.65%. Only difference is scheduling around the byte-1 test:
-   the original emits nop; lb v1,1(s0); li v0,0x12 and this puts li in the
-   branch delay slot instead. Repeating the array expression per use is
-   required: it reproduces the three reloads of the buffer pointer.
+   the original emits nop; lb v1,1(s0); li v0,0x12 and this puts li,lb before
+   the branch (plus a nop for the load delay). Repeating the array expression
+   per use is required: it reproduces the three reloads of the buffer pointer.
+   A version that loaded both bytes into locals (95.87%) gets li after lb but
+   hoists both loads above the bnez.
 void func_8007AE78(int controllerIndex, int* pOut) {
     func_8007AF74(controllerIndex);
     pOut[0] = g_FieldMousePositionsX[controllerIndex] / g_FieldMouseSpeedX;
@@ -542,7 +544,8 @@ void func_8007AE78(int controllerIndex, int* pOut) {
     pOut[2] = -0x100;
     pOut[3] = ((s8**)&g_pFieldControllerBuffer1)[controllerIndex][4];
     pOut[4] = ((s8**)&g_pFieldControllerBuffer1)[controllerIndex][5];
-    if (!((s8**)&g_pFieldControllerBuffer1)[controllerIndex][0] && ((s8**)&g_pFieldControllerBuffer1)[controllerIndex][1] == 0x12) {
+    if (!((s8**)&g_pFieldControllerBuffer1)[controllerIndex][0]
+        && ((s8**)&g_pFieldControllerBuffer1)[controllerIndex][1] == 0x12) {
         pOut[2] = ~((s8**)&g_pFieldControllerBuffer1)[controllerIndex][3] & 0xC;
     }
 }
@@ -630,9 +633,11 @@ int func_8007B478(SVECTOR* pA, SVECTOR* pB, SVECTOR* pC, SVECTOR* pRef) {
 }
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007B614);
-/* Best attempt: 91.78%. Remaining differences are register assignment (the original
-   keeps pVec in s2, the angle in s1, the scale in s0) and the position of the
-   pVec->y store, which gcc hoists above the rcos call here.
+/* Best attempt: 97.88%. Everything matches except a rotation of the call-saved
+   registers: the original has pVec=s2, nAngle=s1, nScale=s0, gcc gives
+   pVec=s1, nAngle=s0, nScale=s2. Reordering declarations, extra temporaries and
+   -- for the store order -- writing z before y makes no difference; the y store
+   must come after the rcos multiply, so x;z;y is required.
 extern s16 D_800B218C;
 
 void func_8007B614(IVEC3* pVec, int scale, int angle) {
@@ -640,8 +645,8 @@ void func_8007B614(IVEC3* pVec, int scale, int angle) {
     int nScale = (scale << 4) * D_800B218C >> 12;
 
     pVec->x = rsin(nAngle) * nScale;
-    pVec->y = 0;
     pVec->z = -(rcos(nAngle) * nScale);
+    pVec->y = 0;
 }
 */
 
