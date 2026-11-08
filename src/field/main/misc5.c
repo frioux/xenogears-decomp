@@ -554,12 +554,20 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A84C0);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A8BA4);
 
-/* Best attempt, 97.42%: the vertex math allocates registers differently (the
-   original recomputes x0*16 and y0*16 instead of keeping them live), 2 insns.
+INCLUDE_ASM("asm/field/nonmatchings/main/misc5", FieldInitializeParticlePrimitive);
+
+/* Best attempt, 97.54%: everything matches but the vertex math, which is 8 bytes
+   short (2 insns). The original recomputes x0*16 and y0*16, so its x1*16/y1*16
+   stay live in a3/t0 while x0*16/y0*16 get re-materialized (6 sll for four
+   values); gcc CSEs ours to 4 sll. The four shape loads must land in
+   a1(x0), a2(y0), a3(x1), t0(y1) - we get a1(x0), a0(y0), a2(x1), a3(y1).
+   Tried and all give 97.54% / 512 bytes: direct stores, nLeft/nTop/nRight/
+   nBottom locals, << 4 vs * 16 mixes, and every declaration order of the four.
    ParticlePrimitive (Size 0xC0: POLY_FT4 poly[2] at 0x50, SVECTOR vertices[4]
-   at 0xA0) is in field/particles.h. The shape table is D_800AF27C, one
-   ParticleShape (0x18) per index, declared as one extern u_short[] per field so
-   the relocations come out as %hi/%lo of D_800AF27C + 2*k like the original.
+   at 0xA0) is in field/particles.h; `char _pad[0x58]` reproduces the 0x98
+   frame (unused). The shape table is D_800AF27C, one ParticleShape (0x18) per
+   index, declared as one extern u_short[] per field so the relocations come out
+   as %hi/%lo of D_800AF27C + 2*k like the original.
 extern u_short D_800AF27C[]; // x0
 extern u_short D_800AF27E[]; // y0
 extern u_short D_800AF280[]; // x1
@@ -573,10 +581,6 @@ extern u_short D_800AF28E[]; // v2
 extern u_short D_800AF290[]; // u3
 extern u_short D_800AF292[]; // v3
 
-   My build at this percentage: only the vertex math differs - the four
-   loaded shape values land in a0-a3 instead of a1-t0 and gcc CSEs
-   x0*16 / y0*16 where the original recomputes them (6 sll against 4), so
-   this version is 8 bytes short.
     void FieldInitializeParticlePrimitive(ParticlePrimitive* pParticle, int shapeIndex, int nTextureMode) {
         POLY_FT4* pPoly;
         POLY_FT4* pPoly2;
@@ -585,10 +589,6 @@ extern u_short D_800AF292[]; // v3
         int y0;
         int x1;
         int y1;
-        int nLeft;
-        int nTop;
-        int nRight;
-        int nBottom;
         char _pad[0x58];
 
         pPoly = &pParticle->poly[0];
@@ -608,19 +608,14 @@ extern u_short D_800AF292[]; // v3
 
         setRGB0(pPoly, 0x80, 0x80, 0x80);
 
-        nLeft = (x1 << 4) - (x0 << 4);
-        nTop = (y1 << 4) - (y0 << 4);
-        nRight = (x0 << 4) + (x1 << 4);
-        nBottom = (y0 << 4) + (y1 << 4);
-
-        pParticle->vertices[0].vx = nLeft;
-        pParticle->vertices[0].vy = nTop;
-        pParticle->vertices[1].vx = nRight;
-        pParticle->vertices[1].vy = nTop;
-        pParticle->vertices[2].vx = nLeft;
-        pParticle->vertices[2].vy = nBottom;
-        pParticle->vertices[3].vx = nRight;
-        pParticle->vertices[3].vy = nBottom;
+        pParticle->vertices[0].vx = (x1 << 4) - (x0 << 4);
+        pParticle->vertices[0].vy = (y1 << 4) - (y0 << 4);
+        pParticle->vertices[1].vx = (x0 << 4) + (x1 << 4);
+        pParticle->vertices[1].vy = (y0 << 4) + (y1 << 4);
+        pParticle->vertices[2].vx = (x1 << 4) - (x0 << 4);
+        pParticle->vertices[2].vy = (y0 << 4) + (y1 << 4);
+        pParticle->vertices[3].vx = (x0 << 4) + (x1 << 4);
+        pParticle->vertices[3].vy = (y0 << 4) + (y1 << 4);
 
         FieldClampPolyFT4UVs(pPoly,
             D_800AF284[nIndex], D_800AF286[nIndex] + 0x40,
@@ -635,69 +630,6 @@ extern u_short D_800AF292[]; // v3
         *pPoly2 = *pPoly;
     }
 */
-
-extern u_short D_800AF27C[]; // x0
-extern u_short D_800AF27E[]; // y0
-extern u_short D_800AF280[]; // x1
-extern u_short D_800AF282[]; // y1
-extern u_short D_800AF284[]; // u0
-extern u_short D_800AF286[]; // v0
-extern u_short D_800AF288[]; // u1
-extern u_short D_800AF28A[]; // v1
-extern u_short D_800AF28C[]; // u2
-extern u_short D_800AF28E[]; // v2
-extern u_short D_800AF290[]; // u3
-extern u_short D_800AF292[]; // v3
-
-void FieldInitializeParticlePrimitive(ParticlePrimitive* pParticle, int shapeIndex, int nTextureMode) {
-    POLY_FT4* pPoly;
-    POLY_FT4* pPoly2;
-    int nIndex;
-    int x0;
-    int y0;
-    int x1;
-    int y1;
-    char _pad[0x58];
-
-    pPoly = &pParticle->poly[0];
-    pPoly2 = &pParticle->poly[1];
-    SetPolyFT4(pPoly);
-
-    nIndex = shapeIndex * 0xC;
-    x0 = D_800AF27C[nIndex];
-    y0 = D_800AF27E[nIndex];
-    x1 = D_800AF280[nIndex];
-    y1 = D_800AF282[nIndex];
-
-    pParticle->vertices[0].vz = 0;
-    pParticle->vertices[1].vz = 0;
-    pParticle->vertices[2].vz = 0;
-    pParticle->vertices[3].vz = 0;
-
-    setRGB0(pPoly, 0x80, 0x80, 0x80);
-
-    pParticle->vertices[0].vx = (x1 << 4) - (x0 << 4);
-    pParticle->vertices[0].vy = (y1 << 4) - (y0 << 4);
-    pParticle->vertices[1].vx = (x0 << 4) + (x1 << 4);
-    pParticle->vertices[1].vy = (y0 << 4) + (y1 << 4);
-    pParticle->vertices[2].vx = (x1 << 4) - (x0 << 4);
-    pParticle->vertices[2].vy = (y0 << 4) + (y1 << 4);
-    pParticle->vertices[3].vx = (x0 << 4) + (x1 << 4);
-    pParticle->vertices[3].vy = (y0 << 4) + (y1 << 4);
-
-    FieldClampPolyFT4UVs(pPoly,
-        D_800AF284[nIndex], D_800AF286[nIndex] + 0x40,
-        D_800AF288[nIndex] - 1, D_800AF28A[nIndex] + 0x40,
-        D_800AF28C[nIndex], D_800AF28E[nIndex] + 0x3F,
-        D_800AF290[nIndex] - 1, D_800AF292[nIndex] + 0x3F);
-
-    SetSemiTrans(pPoly, 0x1);
-    pPoly->tpage = GetTPage(0x0, nTextureMode, 0x3C0, 0x140);
-    pPoly->clut = GetClut(0x100, 0xF7);
-
-    *pPoly2 = *pPoly;
-}
-
 
 extern int D_800ADB34;
 extern u_long* D_800AFC70;
