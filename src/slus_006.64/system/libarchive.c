@@ -428,7 +428,66 @@ void ArchiveConsolidateStreamFileEntry(int sectionIndex) {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/libarchive", func_80028F30);
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/libarchive", func_8002945C);
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/libarchive", func_800294B4);
+
+/* Best: 90.68% - base offset add lands on the pSection side (addiu v1,a0,-36)
+   instead of on the stream side, and the section header pointer gets a2 not v0.
+u_short func_8002945C(u_char* pSection) {
+    u_char* pStream;
+    ArchiveStreamFileSectionHeader* pSectionHeader;
+    u32 nIndex;
+    u16 nState;
+
+    pStream = g_ArchiveCurStreamFile;
+    if (pStream == NULL) {
+        return -1;
+    }
+
+    pSectionHeader = (ArchiveStreamFileSectionHeader*)(pStream + 4);
+
+    if (pSection == NULL) {
+        return 0;
+    }
+
+    nIndex = (u32)(pSection - (pStream + *(s32*)pStream * 8 + 0x24)) >> 11;
+    nState = pSectionHeader[nIndex].state;
+    pSectionHeader[nIndex].state = 0;
+
+    return nState;
+}
+*/
+
+u_short func_800294B4(u_char* pSection) {
+    u_char* pStream;
+    u_char* pStreamEnd;
+    ArchiveStreamFileSectionHeader* pSectionHeader;
+    u32 nIndex;
+    u16 nState;
+    s32 nCount;
+
+    pStream = g_ArchiveCurStreamFile;
+    if (pStream == NULL) {
+        return -1;
+    }
+
+    if (pSection == NULL) {
+        return 0;
+    }
+
+    nCount = *(u16*)(pSection + 6);
+    pSectionHeader = (ArchiveStreamFileSectionHeader*)(pStream + 4);
+    pStreamEnd = pStream + *(s32*)pStream * 8 + 0x24;
+    nIndex = (u32)(pSection - pStreamEnd) >> 11;
+    nState = pSectionHeader[nIndex].state;
+
+    while (nCount > 0) {
+        pSectionHeader[nIndex + nCount - 1].state = 0;
+        nCount--;
+    }
+
+    ArchiveConsolidateStreamFileEntry(nIndex);
+
+    return nState;
+}
 
 s32 ArchiveReadFileFromCdSector(s32 sector, void* pDestBuffer, s32 fileSize, s32 arg3, u32 flags) {
     if (g_ArchiveDebugTable) {
