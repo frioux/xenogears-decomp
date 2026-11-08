@@ -40,6 +40,8 @@ void FieldComputeSceneMatrices(void) {
 }
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80072254);
+// 72.62%: the code is right, but gcc keeps &g_FieldActors in s1 for the two
+// loads after the scale reads, where this version rematerialises lui/%lo each time
 /*
 void func_80072254(int actorIndex) {
     VECTOR scale;
@@ -349,4 +351,10 @@ void FieldLoadTIM(u_long* pTimData) {
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80077268);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80077544);
+void func_80077544(void) {
+    if (g_FieldSystemMode == 0) {
+        func_8003747C((void*)0x80270000);
+        FontLoadFont(0x10, 0x10, 0x130, 0xE0, 0x400, 4, 0x3C0, 0x100, 0x100, 0x1FF, 0);
+    }
+    SystemTransferPaletteToVRAM(0x100, 0xF0);
+}
