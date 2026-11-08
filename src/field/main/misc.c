@@ -239,18 +239,24 @@ void func_80087C0C(void) {
     D_8004F300 = 1;
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_80087C34);
-// 70.95%: identical instructions, but the original loads the actor pointer for
-// the next statement before each store; gcc here stores first.
-/*
 void func_80087C34(void) {
-    *(u_short*)&g_pGameState->unk17FC[0x30] = FieldScriptArgument1(1, SCRIPT_READ_U8_REL(9));
-    *(u_short*)&g_pGameState->unk17FC[0x32] = FieldScriptArgument2(3, SCRIPT_READ_U8_REL(9));
-    *(u_short*)&g_pGameState->unk17FC[0x34] = FieldScriptArgument3(5, SCRIPT_READ_U8_REL(9));
-    *(u_short*)&g_pGameState->unk17FC[0x36] = FieldScriptArgument4(7, SCRIPT_READ_U8_REL(9));
-    g_FieldScriptVMCurActor->scriptInstructionPointer += 0xA;
+    ActorData* pActor;
+    s16 value;
+
+    value = FieldScriptArgument1(1, SCRIPT_READ_U8_REL(9));
+    pActor = g_FieldScriptVMCurActor;
+    *(u_short*)&g_pGameState->unk17FC[0x30] = value;
+    value = FieldScriptArgument2(3, SCRIPT_READ_U8(pActor->scriptInstructionPointer + 9));
+    pActor = g_FieldScriptVMCurActor;
+    *(u_short*)&g_pGameState->unk17FC[0x32] = value;
+    value = FieldScriptArgument3(5, SCRIPT_READ_U8(pActor->scriptInstructionPointer + 9));
+    pActor = g_FieldScriptVMCurActor;
+    *(u_short*)&g_pGameState->unk17FC[0x34] = value;
+    value = FieldScriptArgument4(7, SCRIPT_READ_U8(pActor->scriptInstructionPointer + 9));
+    pActor = g_FieldScriptVMCurActor;
+    *(u_short*)&g_pGameState->unk17FC[0x36] = value;
+    pActor->scriptInstructionPointer += 0xA;
 }
-*/
 
 void func_80087D30(void) {
     FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(1), *(u_short*)&g_pGameState->unk17FC[0x38]);
@@ -332,7 +338,38 @@ void func_80087FD4(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 1;
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008800C);
+extern void func_801E72CC(MATRIX*, MATRIX*, int, int);
+extern void SetRotMatrix(MATRIX*);
+extern void SetTransMatrix(MATRIX*);
+
+// Rotates the actor's model by the script angles and writes the position back.
+void func_8008800C(void) {
+    MATRIX matrix;
+    MATRIX transformMatrix;
+    SVECTOR rotation;
+    SVECTOR result;
+    long flag;
+
+    matrix.t[2] = 0;
+    matrix.t[1] = 0;
+    matrix.t[0] = 0;
+    func_801E72CC(
+        &matrix,
+        &transformMatrix,
+        FieldScriptArgument1(1, SCRIPT_READ_U8_REL(0xB)),
+        FieldScriptArgument2(3, SCRIPT_READ_U8_REL(0xB))
+    );
+    SetRotMatrix(&matrix);
+    SetTransMatrix(&matrix);
+    rotation.vx = FieldScriptArgument3(5, SCRIPT_READ_U8_REL(0xB));
+    rotation.vy = FieldScriptArgument4(7, SCRIPT_READ_U8_REL(0xB));
+    rotation.vz = FieldScriptArgument5(9, SCRIPT_READ_U8_REL(0xB));
+    RotTransSV(&rotation, &result, &flag);
+    FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG_ALIGNED(6), result.vx);
+    FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG_ALIGNED(7), result.vy);
+    FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG_ALIGNED(8), result.vz);
+    g_FieldScriptVMCurActor->scriptInstructionPointer += 0x12;
+}
 
 void func_80088198(void) {
     int i;
@@ -1850,7 +1887,38 @@ void func_8008E570(void) {
     func_8008E498(((u_short*)g_FieldScriptVMCurActor)[3]);
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008E59C);
+// Sets or clears a 16-bit half of the current actor's flags from a script argument.
+void func_8008E59C(void) {
+    int argument = SCRIPT_IMM_ARG_ALIGNED(1);
+
+    switch (SCRIPT_READ_U8_REL(1)) {
+        case 0:
+            g_FieldScriptVMCurActor->scriptFlags.flags |= argument;
+            break;
+        case 1:
+            g_FieldScriptVMCurActor->scriptFlags.flags |= argument << 16;
+            break;
+        case 2:
+            g_FieldScriptVMCurActor->flags |= argument;
+            break;
+        case 3:
+            g_FieldScriptVMCurActor->flags |= argument << 16;
+            break;
+        case 4:
+            g_FieldScriptVMCurActor->scriptFlags.flags &= ~argument;
+            break;
+        case 5:
+            g_FieldScriptVMCurActor->scriptFlags.flags &= ~(argument << 16);
+            break;
+        case 6:
+            g_FieldScriptVMCurActor->flags &= ~argument;
+            break;
+        case 7:
+            g_FieldScriptVMCurActor->flags &= ~(argument << 16);
+            break;
+    }
+    g_FieldScriptVMCurActor->scriptInstructionPointer += 4;
+}
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008E718);
 
@@ -2089,11 +2157,11 @@ void func_8008F76C(void) {
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008F7B8);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008F90C);
-// 48.80%: arithmetic and stores are right, but gcc hoists every g_Scene load
-// and the three divisions above the `scriptInstructionPointer += 9` store. The
-// original keeps that store first and the divisions after it, which is also what
-// pins the frame count in $a2 there (ours lands in $a3). Moving the divisions
-// before/after the store in the C does not change the schedule.
+// 90.60%: with `scriptInstructionPointer += 9` written before the `frames == 0`
+// clamp, every instruction after the branch matches the original exactly; only
+// the branch and the store are swapped (the original clamps first, then stores).
+// Writing the clamp first instead makes cse hoist the two g_Scene s16 stores
+// above the store and drop to 48.80%.
 /*
 // Starts an interpolation of the camera position from the current g_Scene
 // position to the one passed in the script arguments.
@@ -2102,22 +2170,16 @@ void func_8008F90C(void) {
     int y = FieldScriptVMGetArgument(3);
     int z = FieldScriptVMGetArgument(5);
     int frames = FieldScriptVMGetArgument(7);
-    int dx;
-    int dz;
-    int dy;
 
+    g_FieldScriptVMCurActor->scriptInstructionPointer += 9;
     if (frames == 0) {
         frames = 1;
     }
-    g_FieldScriptVMCurActor->scriptInstructionPointer += 9;
-    dx = ((x << 16) - *(s32*)&g_Scene.unk98[0x8]) / frames;
-    dz = ((z << 16) - *(s32*)&g_Scene.unk98[0xC]) / frames;
-    dy = ((y << 16) - *(s32*)&g_Scene.unk98[0xC]) / frames;
+    *(s32*)&g_Scene.unk98[0x14] = ((x << 16) - *(s32*)&g_Scene.unk98[0x8]) / frames;
+    *(s32*)&g_Scene.unk98[0x18] = ((z << 16) - *(s32*)&g_Scene.unk98[0xC]) / frames;
+    *(s32*)&g_Scene.unk98[0x1C] = ((y << 16) - *(s32*)&g_Scene.unk98[0xC]) / frames;
     *(s16*)&g_Scene.unk98[0x2] = frames;
     *(s16*)&g_Scene.unk98[0x0] = 1;
-    *(s32*)&g_Scene.unk98[0x14] = dx;
-    *(s32*)&g_Scene.unk98[0x18] = dz;
-    *(s32*)&g_Scene.unk98[0x1C] = dy;
     if (x == 0 && z == 0 && y == 0) {
         *(s16*)&g_Scene.unk98[0x2] = frames + 2;
         *(s16*)&g_Scene.unk98[0x4] = 1;
