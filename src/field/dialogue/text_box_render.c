@@ -22,7 +22,25 @@ void func_8007E114(int index, int arg1, int arg2, int arg3, s32 arg4) {
     g_FieldTextBoxes[index]._pad[0x4D] = arg4;
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/dialogue/text_box_render", func_8007E16C);
+// Set the four vertices of a portrait quad; flip mirrors it horizontally
+void func_8007E16C(POLY_FT4* pPoly, int x, int y, int w, int h, int flip) {
+    if (!flip) {
+        x--;
+        pPoly->x0 = x;
+        pPoly->x1 = x + w;
+        pPoly->x2 = x;
+        pPoly->x3 = x + w;
+    } else {
+        pPoly->x1 = x;
+        pPoly->x0 = x + w;
+        pPoly->x3 = x;
+        pPoly->x2 = x + w;
+    }
+    pPoly->y0 = y;
+    pPoly->y1 = y;
+    pPoly->y2 = y + h;
+    pPoly->y3 = y + h;
+}
 
 INCLUDE_ASM("asm/field/nonmatchings/dialogue/text_box_render", func_8007E1C0);
 
@@ -150,8 +168,58 @@ INCLUDE_ASM("asm/field/nonmatchings/dialogue/text_box_render", func_8007F5AC);
 
 INCLUDE_ASM("asm/field/nonmatchings/dialogue/text_box_render", func_8007F6F8);
 
+/* Best so far: 97.18%. Only diff: the original materializes `v0 = 0` right after
+   the three calls instead of just before the epilogue.
+extern s32 D_800B068C[];
+extern u16 D_800B2174[];
+
+// Hide a textbox and release its string
+int func_8007F6F8(short index) {
+    if (g_FieldTextBoxes[index].visibility) {
+        return -1;
+    }
+
+    func_80034614(&g_FieldTextBoxes[index]._pad[0]);
+    func_800345E0(&g_FieldTextBoxes[index]._pad[0]);
+    func_800346D4(&g_FieldTextBoxes[index]._pad[0]);
+
+    g_FieldTextBoxes[index].cursor.visibility = -1;
+    g_FieldTextBoxes[index].visibility = -1;
+    g_FieldTextBoxes[index].status = -1;
+    g_FieldTextBoxes[index].order = TEXT_BOX_UNINITIALIZED;
+    D_800B068C[index] = -1;
+    D_800B2174[0] &= 0xFF ^ (1 << index);
+    g_FieldTextBoxes[index].ownerActorID = 0xFF;
+    g_FieldTextBoxes[index].unk412 = 0;
+    return 0;
+}
+*/
+
+    return nResult;
+}
+
 // Project (0, Y, 0) from actor's model/local space to screen
-INCLUDE_ASM("asm/field/nonmatchings/dialogue/text_box_render", func_8007F814);
+void func_8007F814(int actorIndex, int* pX, int* pY, int y) {
+    SVECTOR vec;
+    MATRIX matrix;
+    struct {
+        short sxy[2];
+        long interp;
+        long flag;
+    } out;
+
+    CompMatrix(&g_Scene.worldToScreenMatrix, &g_FieldActors[actorIndex].transformMatrix, &matrix);
+    SetRotMatrix(&matrix);
+    SetTransMatrix(&matrix);
+
+    vec.vx = 0;
+    vec.vy = y;
+    vec.vz = 0;
+    RotTransPers(&vec, (long*) out.sxy, &out.interp, &out.flag);
+
+    *pY = out.sxy[1];
+    *pX = out.sxy[0];
+}
 
 INCLUDE_ASM("asm/field/nonmatchings/dialogue/text_box_render", func_8007F8DC);
 
