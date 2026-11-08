@@ -40,8 +40,10 @@ void FieldComputeSceneMatrices(void) {
 }
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80072254);
-// 72.62%: the code is right, but gcc keeps &g_FieldActors in s1 for the two
-// loads after the scale reads, where this version rematerialises lui/%lo each time
+// 72.70%: everything matches except that the original keeps &g_FieldActors in $s1
+// across the RotMatrix call (lui/addiu, then `lw $a1, 0($s1)` twice) where gcc
+// rematerialises %hi/%lo for the second use, so the frame is 0x28 instead of 0x30.
+// Pointer locals (plain and volatile FieldActor** forms) make it worse, not better.
 /*
 void func_80072254(int actorIndex) {
     VECTOR scale;
@@ -51,8 +53,8 @@ void func_80072254(int actorIndex) {
     scale.vx = *(s16*)&pActor->pActorData->scaleX;
     scale.vy = *(s16*)&pActor->pActorData->scaleY;
     scale.vz = *(s16*)&pActor->pActorData->scaleZ;
-    pActor = &g_FieldActors[actorIndex];
-    RotMatrix((SVECTOR*)&pActor->rotation, &pActor->transformMatrix);
+    RotMatrix(&g_FieldActors[actorIndex].rotation,
+        &g_FieldActors[actorIndex].transformMatrix);
     ScaleMatrix(&g_FieldActors[actorIndex].transformMatrix, &scale);
 }
 */
@@ -91,7 +93,32 @@ int func_80072398(u_int mask, int dir) {
     return 0;
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_800723E4);
+void func_800723E4(SVec4* pA, SVec4* pB, SVec4* pOut) {
+    VECTOR nA;
+    VECTOR nB;
+    VECTOR v;
+    int denom;
+    int t;
+
+    v.vx = pA->z - pA->x;
+    v.vy = 0;
+    v.vz = pA->w - pA->y;
+    VectorNormal(&v, &nA);
+
+    v.vx = pB->z - pB->x;
+    v.vy = 0;
+    v.vz = pB->w - pB->y;
+    VectorNormal(&v, &nB);
+
+    denom = (nB.vx * nA.vz - nB.vz * nA.vx) >> 12;
+    if (denom == 0) {
+        t = 0;
+    } else {
+        t = ((pB->y - pA->y) * nA.vx - (pB->x - pA->x) * nA.vz) / denom;
+    }
+    pOut->x = pB->x + ((t * nB.vx) >> 12);
+    pOut->y = pB->y + ((t * nB.vz) >> 12);
+}
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_8007254C);
 
@@ -321,24 +348,26 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc2", FieldPollControllers);
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", FieldRenderModels);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_8007520C);
-// 91.00%: the sequence is right, but the original forms the address of D_800B2264
-// into a register (lui/addiu, then lw 0($s0)) and passes the 0x800B221C argument as
-// $s0 - 0x48. Naming both symbols in C puts its own relocation in each place.
+// 91.00%: the original materialises &D_800B2264 into $s0, loads 0($s0) and passes
+// $s0 - 0x48 as the second argument. Every C form tried (pointer local, s32 local,
+// negative array index) makes gcc rematerialise a second %hi/%lo pair instead.
 /*
 extern s32 D_8004F380;
 extern s32 D_800B2264;
-extern u8 D_800B221C[];
 extern u8 D_800B225C;
 extern u8 D_800B225D;
 extern u8 D_800B225E;
 const char D_8006FB1C[0xC] = "GEAR      ";
 
 void func_8007520C(void) {
+    s32* pGear;
+
     if (D_8004F380 == 0) {
-        if (D_800B2264 != 0) {
+        pGear = &D_800B2264;
+        if (*pGear != 0) {
             func_80086BA8();
             SetBackColor(D_800B225C, D_800B225D, D_800B225E);
-            func_801E7D14(&g_Scene.worldToScreenMatrix, D_800B221C,
+            func_801E7D14(&g_Scene.worldToScreenMatrix, (u8*)(pGear - 18),
                 &g_FieldCurRenderContext->ot1, g_FieldCurRenderContextIndex, 1);
         }
         if (g_FieldSystemMode == SYSTEM_MODE_PC_HDD) {
@@ -355,11 +384,11 @@ void FieldAddPrimitives(u_long* ot, u_long* pPrimList, int size) {
 }
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80075484);
-// 48.84%: the eye/at copies land at the right stack slots (SVec4 is the 8-byte
-// padded triple), but gcc rematerialises %hi/%lo of g_CameraEye for each load with
-// lhu instead of caching the base in $a3 and reusing it for the 0x1E4 matrix
-// argument, which is what the original does (lui/addiu of g_CameraEye, three
-// lh 2/6/A($a3), then addiu $a3,$a3,0x1E4).
+// 54.92%: the six reads are halfwords at g_CameraEye/g_CameraAt +2/+6/+A held in
+// int temporaries (that is what makes gcc emit `lh` and keep all six live at once,
+// so the SVec4 stores come out with `sh`), and the fourth argument is g_CameraEye +
+// 0x1E4. The original materialises &g_CameraEye into $a3 with addend 0 and reads
+// 2($a3); every C form tried folds the offset into the lui/%lo pair instead.
 /*
 extern VECTOR g_CameraEye;
 extern VECTOR g_CameraAt;
@@ -371,8 +400,9 @@ extern s16 D_800B21D4;
 void func_80075484(void) {
     SVec4 eye;
     SVec4 at;
-    short* pCameraEye;
-    short* pCameraAt;
+    short* pEye;
+    short* pAt;
+    int eyeX, eyeY, eyeZ, atX, atY, atZ;
 
     if (D_800B00B2 == 0) {
         return;
@@ -381,16 +411,22 @@ void func_80075484(void) {
         return;
     }
 
-    pCameraEye = (short*)&g_CameraEye;
-    pCameraAt = (short*)&g_CameraAt;
-    eye.x = pCameraEye[1];
-    eye.y = pCameraEye[3];
-    eye.z = pCameraEye[5];
-    at.x = pCameraAt[1];
-    at.y = pCameraAt[3];
-    at.z = pCameraAt[5];
+    pEye = (short*)&g_CameraEye;
+    pAt = (short*)&g_CameraAt;
+    eyeX = pEye[1];
+    eyeY = pEye[3];
+    eyeZ = pEye[5];
+    atX = pAt[1];
+    atY = pAt[3];
+    atZ = pAt[5];
+    eye.x = eyeX;
+    eye.y = eyeY;
+    eye.z = eyeZ;
+    at.x = atX;
+    at.y = atY;
+    at.z = atZ;
 
-    func_800273C4(D_800B007C, &eye, &at, (u8*)pCameraEye + 0x1E4,
+    func_800273C4(D_800B007C, &eye, &at, (u8*)pEye + 0x1E4,
         &g_FieldCurRenderContext->unk1 + D_800B21D4, g_FieldCurRenderContextIndex);
 }
 */
