@@ -470,9 +470,12 @@ void func_80038624(void) {
 //----------------------------------------------------------------------------------------------------------------------
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003864C);
 /*
-Attempt (99.50%, same size): only difference is that gcc keeps the raw sedId in v0
-where the original used a1.
-SoundFile* func_8003864C(SoundFile* pSoundFile) {
+Attempt (99.50%, same size): the only remaining difference is that gcc coalesces the
+lhu destination with the sll source (lhu v0 / sll v0,v0,16) where the original keeps
+them apart (lhu a1 / sll v0,a1,16). Tried: u16+(s16) cast, s16 local, s32+(s16) cast,
+two u16 locals, reversed comparison operands, declaration order, for-loop form.
+*/
+/* SoundFile* func_8003864C(SoundFile* pSoundFile) {
     SoundFile* pEntry;
     u16 sedId;
 
@@ -486,8 +489,7 @@ SoundFile* func_8003864C(SoundFile* pSoundFile) {
     }
 
     return pEntry;
-}
-*/
+} */
 
 //----------------------------------------------------------------------------------------------------------------------
 void func_8003869C(void) {
@@ -886,8 +888,9 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", SoundHeapFree);
 /*
 Attempt (96.62%, same size): every instruction is right and pBlock=s1 / pCurrent=s0
 match; the original copies the loop variable to v0 (`move v0,s0`) and iterates on v0,
-gcc keeps iterating on s0. Adding a separate loop variable coalesces back to s0.
-A guarded do/while version scores 94.79% (it leaves pBlock in s0 / pCurrent in s1).
+gcc keeps iterating on s0. Adding a separate loop variable or an explicit
+`if (pCurrent != pBlock) { do ... } while (pEntry != pBlock)` guard coalesces back to
+s0 (96.62%), while(1)/break drops to 91.26%, reversed compare operands to 96.18%.
 void SoundHeapFree(void* pMemory) {
     SoundHeapBlockHeader* pBlock;
     SoundHeapBlockHeader* pCurrent = g_SoundHeapHead;
@@ -2228,12 +2231,8 @@ u8* func_8003D110(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
 }
 */
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003D13C);
-/*
-Attempt (96.25%, correct size): original has `move a2,a3` where gcc emits
-`andi a2,a3,0xff`; with an `s32` local gcc drops the copy altogether (93.12%).
 u8* func_8003D13C(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
-    u8 unk0 = pScript[0];
+    s16 unk0 = pScript[0];
     u8 unk1 = pScript[1];
     s32 delta;
 
@@ -2245,7 +2244,6 @@ u8* func_8003D13C(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
     }
     return pScript + 2;
 }
-*/
 
 u8* func_8003D17C(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     pAudioManager->unk_Interpolator_0x70.currentValue = *pScript++ << 24;
@@ -2389,9 +2387,9 @@ u8* func_8003D4E4(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003D53C);
 /*
-Attempt (95.83%, same size): the first two tests must fall through to a shared
-`return pScript`, which is why the original has `move v0,a0` in all three branch
-delay slots; gcc also emits a fourth copy at the top of the body block.
+Attempt (95.83%): gcc emits a fourth `move v0,a0` at the top of the body block
+(104 bytes vs the original's 100) where the original only has the three copies in
+the branch delay slots. Rewriting the last two tests as if/else changes nothing.
 u8* func_8003D53C(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     if (pAudioManager->unk_Flags & 0x6) {
         if ((g_SoundControlFlags & 0x2000) == 0) {
@@ -2627,16 +2625,10 @@ u8* func_8003DB98(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
     return pScript + 2;
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003DBE4);
-/*
-Attempt (97.78%, correct size): the only difference is the original's
-`move a1,t0` copy of the frame count, where gcc 2.6 emits `andi a1,t0,0xff`
-(`s32 frames` instead makes gcc fold the copy away entirely, 97.41%).
-Same gcc 2.6 byte->int copy quirk as func_8003D0E8 and func_8003D13C.
 u8* func_8003DBE4(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     s32 start = pScript[0] << 24;
     s32 target = pScript[2] << 24;
-    u8 frames = pScript[1];
+    s16 frames = pScript[1];
     s32 delta = target - start;
 
     if (delta != 0 && frames != 0) {
@@ -2650,7 +2642,6 @@ u8* func_8003DBE4(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
 
     return pScript + 3;
 }
-*/
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003DC50);
 
