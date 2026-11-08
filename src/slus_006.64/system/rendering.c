@@ -141,7 +141,9 @@ SVEC2* func_8001F530(SVEC2* pDest, s32 amount) {
 }
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001F5BC);
-/* Best attempt: 95.16%. The instruction stream (including the multiply/divide
+/* Best attempt: 95.16%. UPDATE: this C scores 98.52% under gcc-2.7.2-cdk-psx
+   too, so the preset is not the answer here; the miss is the allocator.
+   The instruction stream (including the multiply/divide
    sequences) is identical; only the register allocation differs. The original
    keeps the sprite data in a1 and loads its 5th argument lazily inside the
    second division, this version hoists that pointer to t1 and keeps the sprite
@@ -176,7 +178,9 @@ void func_8001F5BC(SpriteData* pSpriteData, s32 unusedIndex, s32* pOutX, s32* pO
 */
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001F6B0);
-/* Best attempt: 96.50%. Instruction stream is identical; only the temp
+/* Best attempt: 96.50%. UPDATE: this C scores 97.12% under gcc-2.7.2-cdk-psx,
+   so the preset is not the answer; the miss is the allocator.
+   Instruction stream is identical; only the temp
    assignment differs (original: pSpriteData->t1, texPageBits->a3, color->a1,
    pFrameData->a0, i->t0; this C: a3, t0, a2, v1, a0). Reordering the locals has
    no effect at all (re-confirmed). The sprite reaching t1 rather than a3 is the
@@ -401,9 +405,16 @@ void func_8001F8E8(SpriteData* pSpriteData, s32 index, SpriteAnimPackage* pAnimP
 extern u8 g_GfxPauseLettersCompressed[];
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", GraphicsDrawPauseLetters);
-/* Attempt: 98.81%. Identical instruction stream; the original allocates s1 to x,
-   s2 to y, s0 to pImg (as if pImg were allocated first), this C gives x->s0,
-   pImg->s1. Initialising pImg = NULL to force an early pseudo has no effect.
+/* Attempt: 98.81% under this unit's compiler. Solved cause: with gcc-2.7.2-cdk-psx
+   (XenoGraphics) this exact C compiles to a byte-identical object, objdiff 100.00%
+   (124 bytes) -- the only difference under gcc-2.7.2-psx is that the original puts
+   x in s1 and pImg in s0 and ours swaps them. So this function came from a TU built
+   with the cdk compiler; it can only match if it moves to its own unit carrying the
+   XenoGraphics preset (the rest of this unit is 100% under 2.7.2-psx and drops to
+   86-88% under cdk, so the unit preset cannot change). Source-shape variations tried
+   under 2.7.2-psx, all identical code: declaration order, initialiser form, u8
+   pointer vs mem_addr vs void pointer, extra s32 one/zero locals passed as the
+   constant args, and a second pointer alias for pImg.
 
 void GraphicsDrawPauseLetters(int x, int y) {
     void* pImg;
