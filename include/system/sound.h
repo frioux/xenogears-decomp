@@ -169,6 +169,13 @@ typedef struct {
 
 #define NUM_VOICE_ENVELOPES 4
 
+// Per-voice linear ramp state: current step, frames remaining, final target.
+typedef struct {
+    /* 0x0 */ s32 step;
+    /* 0x4 */ u16 counter;
+    /* 0x6 */ u16 target;
+} AudioElementRamp; // Size: 0x8
+
 typedef struct {
     /* 0x0   */ u16 active_flag;
     /* 0x2   */ u16 status_flags;
@@ -206,7 +213,7 @@ typedef struct {
     /* 0x74  */ u16 unk_0x74; // Pan?
     /* 0x76  */ u16 unk_0x76;
     /* 0x78  */ u32 unk_0x78;
-    /* 0x7C  */ u8 unk_0x7C[0x08];
+    /* 0x7C  */ AudioElementRamp ramp;
     /* 0x84  */ s32 unk_0x84;
     /* 0x88  */ s32 unk_0x88;
     /* 0x8C  */ u8 unk_0x8C[0x04];
