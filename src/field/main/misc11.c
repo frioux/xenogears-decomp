@@ -1487,17 +1487,19 @@ void FieldScriptCheckActorOnScreen(void) {
 }
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc11", func_80095CC4);
-/* best 96.19%: only difference is that gcc schedules `li a0,2` at the top of the
-   block instead of in the jal delay slot (everything else, including the
-   cross-jumped else block, matches).
+/* best 96.19%: everything matches except where gcc puts `li a0,2` for the
+   second call. The original has it in the jal delay slot (cc1 emitted it
+   directly before the call, so reorg stole it); here gcc emits the call's
+   constant argument setup before the actor-pointer address computation, so
+   the delay slot gets a nop. Declaring the field as its own local moves the
+   `li` into the slot but then the `lh` of walkmeshId comes before the call
+   instead of after it (95%). Structure below is otherwise exact.
 void func_80095CC4(void) {
     ActorData* pActor;
-    int index;
     int arg;
 
     if (FieldScriptVMGetActorIndex(1) != ACTOR_ID_INVALID) {
-        index = FieldScriptVMGetActorIndex(1);
-        pActor = g_FieldActors[index].pActorData;
+        pActor = g_FieldActors[FieldScriptVMGetActorIndex(1)].pActorData;
         arg = FieldScriptVMGetArgument(2);
         if (arg == pActor->walkmeshId) {
             g_FieldScriptVMCurActor->scriptInstructionPointer += 6;
