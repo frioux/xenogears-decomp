@@ -128,6 +128,52 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A5924);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A5C40);
 
+extern SVECTOR D_800B00B8;
+extern int D_800C2684;
+
+/* Best attempt, 80.05%: prologue (RotMatrix/matrix.t/ScaleMatrix/SetRotMatrix/
+   SetTransMatrix) is exact, and so is the addPrim chain, but gcc forms one
+   integer biv (i*2, +2/iter) and scales it, while the original keeps i (slti),
+   a polygon byte offset (+0x50) and a drawMode byte offset (+0x18) as three
+   separate counters, adds g_FieldCurRenderContextIndex*0x28/0xC to a *symbol*
+   constant each iteration, and uses the fourth vector arg's element as the
+   vector biv (s4 = &vectors[0], +0x20) where gcc picks &vectors[i*4+3].
+   Tried: inline indices everywhere, pPoly/pPix pointer locals (61%), pointer
+   locals for polygons+ctx and drawModes+ctx (hoisted out of the loop, 61%).
+    void FieldZoomFadeEffectUpdate(void) {
+        MATRIX matrix;
+        VECTOR scale;
+        long proj;
+        long flag;
+        int i;
+        u_long* pPoly;
+
+        RotMatrix(&D_800B00B8, &matrix);
+        matrix.t[0] = 0;
+        matrix.t[1] = 0;
+        matrix.t[2] = 0;
+        scale.vx = D_800C2684;
+        scale.vy = D_800C2684;
+        scale.vz = D_800C2684;
+        ScaleMatrix(&matrix, &scale);
+        SetRotMatrix(&matrix);
+        SetTransMatrix(&matrix);
+
+        for (i = 0; i < 5; i++) {
+            if (D_800C2684 != 0x1000) {
+                pPoly = (u_long*)&g_FieldZoomFadeEffect.polygons[i * 2 + g_FieldCurRenderContextIndex];
+                RotAverage4(&g_FieldZoomFadeEffect.vectors[i * 4], &g_FieldZoomFadeEffect.vectors[i * 4 + 1],
+                    &g_FieldZoomFadeEffect.vectors[i * 4 + 2], &g_FieldZoomFadeEffect.vectors[i * 4 + 3],
+                    pPoly + 2, pPoly + 4, pPoly + 6, pPoly + 8, &proj, &flag);
+            }
+            addPrim(&g_FieldCurRenderContext->ot3[0],
+                &g_FieldZoomFadeEffect.polygons[i * 2 + g_FieldCurRenderContextIndex]);
+            addPrim(&g_FieldCurRenderContext->ot3[0],
+                &g_FieldZoomFadeEffect.drawModes[i * 2 + g_FieldCurRenderContextIndex]);
+        }
+    }
+*/
+
 // Or Draw?
 INCLUDE_ASM("asm/field/nonmatchings/main/misc5", FieldZoomFadeEffectUpdate);
 
