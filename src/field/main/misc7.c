@@ -16,12 +16,10 @@ extern s32 g_PlayerActorIndex;
 // starts at 0x240.
 const char D_8006FD1C[0x14] = "DEB=%xh %d \n";
 
-typedef struct { s16 value; } FieldScriptGlobalS16;
-typedef struct { u8 value; } FieldScriptGlobalU8;
-extern FieldScriptGlobalS16 D_800B21AE;
-extern FieldScriptGlobalS16 D_800B21B0;
-extern FieldScriptGlobalS16 D_800B21B2;
-extern FieldScriptGlobalU8 D_800B21D2;
+extern s16 D_800B21AE;
+extern s16 D_800B21B0;
+extern s16 D_800B21B2;
+extern u8 D_800B21D2;
 
 
 void func_800972F4(void) {
@@ -222,13 +220,18 @@ void func_80098430(void) {
     }
 }
 
+INCLUDE_ASM("asm/field/nonmatchings/main/misc7", func_800984EC);
+
+/* Best attempt (78.46%, 196 bytes, same instruction count): only the scheduling
+   of the byte-load chain versus the `sh` to the globals differs.
 void func_800984EC(void) {
-    D_800B21AE.value = FieldScriptArgument1(1, SCRIPT_READ_U8_REL(7));
-    D_800B21B0.value = FieldScriptArgument2(3, SCRIPT_READ_U8_REL(7));
-    D_800B21B2.value = FieldScriptArgument3(5, SCRIPT_READ_U8_REL(7));
-    D_800B21D2.value |= 0x80;
+    D_800B21AE = FieldScriptArgument1(1, SCRIPT_READ_U8_REL(7));
+    D_800B21B0 = FieldScriptArgument2(3, SCRIPT_READ_U8_REL(7));
+    D_800B21B2 = FieldScriptArgument3(5, SCRIPT_READ_U8_REL(7));
+    D_800B21D2 |= 0x80;
     g_FieldScriptVMCurActor->scriptInstructionPointer += 8;
 }
+*/
 
 void func_800985BC(void) {
     if (g_FieldSystemMode == 0) {
@@ -294,6 +297,11 @@ void func_8009899C(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
 
+INCLUDE_ASM("asm/field/nonmatchings/main/misc7", func_800989F0);
+
+/* Best attempt (95.43%, 144 bytes): gcc schedules the `li a0,2` for
+   FieldScriptVMGetInstructionArgument into the beq delay slot; the original has
+   it in the jal delay slot (and sll in the beq slot). Everything else matches.
 void func_800989F0(void) {
     ActorData* pActorData;
     int actorIndex;
@@ -308,21 +316,20 @@ void func_800989F0(void) {
     }
     g_FieldScriptVMCurActor->scriptInstructionPointer += 4;
 }
-
-#define FIELD_ACTORS (*((FieldActor* volatile*)(void*)&g_FieldActors))
+*/
 
 void func_80098A7C(void) {
     SpriteData* pSpriteData;
 
-    pSpriteData = FIELD_ACTORS[D_800AFD1C].pSpriteData;
+    pSpriteData = g_FieldActors[D_800AFD1C].pSpriteData;
     g_FieldScriptVMCurActor->scriptFlags.flags |= 0x10000;
     g_FieldScriptVMCurActor->flags |= 0x200000;
     g_FieldScriptVMCurActor->position.vx = CONV_FROM_GTE(FieldScriptArgument1(1, SCRIPT_READ_U8_REL(7)));
     g_FieldScriptVMCurActor->position.vz = CONV_FROM_GTE(FieldScriptArgument2(3, SCRIPT_READ_U8_REL(7)));
     g_FieldScriptVMCurActor->position.vy = CONV_FROM_GTE(FieldScriptArgument3(5, SCRIPT_READ_U8_REL(7)));
-    FIELD_ACTORS[D_800AFD1C].transformMatrix.t[0] = CONV_TO_GTE(g_FieldScriptVMCurActor->position.vx);
-    FIELD_ACTORS[D_800AFD1C].transformMatrix.t[1] = CONV_TO_GTE(g_FieldScriptVMCurActor->position.vy);
-    FIELD_ACTORS[D_800AFD1C].transformMatrix.t[2] = CONV_TO_GTE(g_FieldScriptVMCurActor->position.vz);
+    g_FieldActors[D_800AFD1C].transformMatrix.t[0] = CONV_TO_GTE(g_FieldScriptVMCurActor->position.vx);
+    g_FieldActors[D_800AFD1C].transformMatrix.t[1] = CONV_TO_GTE(g_FieldScriptVMCurActor->position.vy);
+    g_FieldActors[D_800AFD1C].transformMatrix.t[2] = CONV_TO_GTE(g_FieldScriptVMCurActor->position.vz);
     pSpriteData->position.x = g_FieldScriptVMCurActor->position.vx;
     pSpriteData->position.y = g_FieldScriptVMCurActor->position.vy;
     pSpriteData->position.z = g_FieldScriptVMCurActor->position.vz;
