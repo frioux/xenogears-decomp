@@ -42,7 +42,7 @@ extern s32* D_8005917C;
 
 extern u32* D_8005945C; // Pointer to the overlay's resources file
 extern u8 D_801C5000[]; // "BISLPS-00800"
- extern SoundFile* D_8006259C; // SEDS file pointer
+extern SoundFile* D_8006259C; // SEDS file pointer
 
 extern int D_801D1F50; // Number of items
 extern s32 D_801D1FD0[];
