@@ -774,7 +774,30 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_80039024);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", SoundHeapFree);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_800391CC);
+u32 func_800391CC(void) {
+    SoundHeapBlockHeader* pHeapBlock;
+    s32 nMaxSize;
+    s32 nSize;
+
+    pHeapBlock = g_SoundHeapHead;
+    nMaxSize = 0;
+    if (pHeapBlock->pNext != NULL) {
+        do {
+            nSize = (u32)pHeapBlock->pNext - (u32)pHeapBlock->pPrev;
+            if (nMaxSize < nSize) {
+                nMaxSize = nSize;
+            }
+            pHeapBlock = pHeapBlock->pNext;
+        } while (pHeapBlock->pNext != NULL);
+    }
+
+    nSize = g_SoundHeapEnd - (u32)pHeapBlock->pPrev;
+    if (nMaxSize < nSize) {
+        nMaxSize = nSize;
+    }
+
+    return nMaxSize & ~0xF;
+}
 
 void SoundHeapSetBlockMemory(void* pBlockMemory, void* pSrc, int size) {
     u32* pCurSrc;
@@ -1717,7 +1740,21 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003C4C4);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003C6E8);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003CC84);
+void func_8003CC84(AudioManager* pAudioManager, AudioElement* pElement, u8 percussionIndex) {
+    u8* pPercussionData;
+    s32 note;
+    u16 statusFlags;
+
+    pPercussionData = (u8*)pAudioManager->unk_0xc + (percussionIndex * 4);
+
+    func_8003E5BC(pPercussionData[0], pElement);
+
+    note = (pPercussionData[1] << 8) + pElement->unk_0x6E + pElement->unk_0x6C;
+    pElement->unk68 = note << 16;
+    statusFlags = pElement->status_flags;
+    pElement->unk_0x74 = pPercussionData[3] << 8;
+    pElement->status_flags = statusFlags | SOUND_STATUS_VOLUME_CHANGE;
+}
 
 u8* SoundScriptDefaultHandler(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     return pScript;
@@ -1982,7 +2019,18 @@ u8* SoundScriptSetUnk62(u8* pScript, AudioManager* pAudioManager, AudioElement* 
     return pScript + 1;
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003D21C);
+u8* func_8003D21C(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
+    s32 note;
+
+    note = *pScript++;
+
+    if (note < 0x19) {
+        SoundReleaseVoiceFromChannel(&pAudioElements->voice_data, pAudioElements->voice_number);
+        SoundAssignVoiceToChannelAndStop(&pAudioElements->voice_data, pAudioElements->voice_number = note);
+    }
+
+    return pScript;
+}
 
 u8* func_8003D298(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     func_8003E5BC(*pScript++, pAudioElements);

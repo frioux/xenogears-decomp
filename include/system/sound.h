@@ -207,7 +207,7 @@ typedef struct {
     /* 0x64  */ u8 unk_0x64[0x02];
     /* 0x66  */ u16 octave;
     /* 0x68  */ u32 unk68; // Final note to play?
-    /* 0x6C  */ u16 unk_0x6C;
+    /* 0x6C  */ s16 unk_0x6C;
     /* 0x6E  */ s16 unk_0x6E;
     /* 0x70  */ u16 unk_0x70;
     /* 0x72  */ u16 unk_0x72;
