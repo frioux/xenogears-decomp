@@ -164,7 +164,9 @@ typedef struct {
 typedef struct {
     /* 0x0   */ ModelMesh* pMesh;
     /* 0x4   */ ModelJoint* pSkeleton; // Array of joints
-    /* 0x8   */ u8 unk8[0xC];
+    /* 0x8   */ u32 unk8;
+    /* 0xC   */ u32 unkC;
+    /* 0x10  */ u32 unk10;
     /* 0x14  */ Temp7** unk14;
     /* 0x18  */ Temp7** unk18;
     /* 0x1C  */ s16 scale;
@@ -176,19 +178,26 @@ typedef struct {
     /* 0x26  */ s16 unk26;
     /* 0x28  */ s16 unk28;
     /* 0x2A  */ u8 unk2A;
-    /* 0x2B  */ u8 unk2B[0x9];
+    /* 0x2B  */ u8 unk2B;
+    /* 0x2C  */ u8 unk2C[0x8];
     /* 0x34  */ u8 unk34;
     /* 0x35  */ u8 unk35;
     /* 0x36  */ u8 unk36;
     /* 0x37  */ u8 unk37;
-    /* 0x38  */ u8 unk38[0x4];
+    /* 0x38  */ u8 unk38;
+    /* 0x39  */ u8 unk39;
+    /* 0x3A  */ s16 unk3A;
     /* 0x3C  */ u16 unk3C;
     /* 0x3E  */ u16 unk3E;
     /* 0x40  */ s16 unk40;
     /* 0x42  */ s16 unk42;
     /* 0x44  */ u8 unk44[0x6];
     /* 0x4A  */ u16 unk4A;
-    /* 0x4C  */ u8 unk4C[0x14];
+    /* 0x4C  */ u8 unk4C[0xC];
+    /* 0x58  */ s16 unk58;
+    /* 0x5A  */ u8 unk5A[0x2];
+    /* 0x5C  */ u8 unk5C;
+    /* 0x5D  */ u8 unk5D[0x3];
     /* 0x60  */ s16 ground; // seems to be some kind of offset? maybe "below this point model will clip through the ground"?
     /* 0x62  */ u8 unk62[0xE];
     /* 0x70  */ s16 unk70[0x10];
