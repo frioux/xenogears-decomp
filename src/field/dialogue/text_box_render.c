@@ -8,11 +8,98 @@
 #include "system/sound.h"
 #include "psyq/libetc.h"
 #include "psyq/libcd.h"
+#include "system/controller.h"
 
-INCLUDE_ASM("asm/field/nonmatchings/dialogue/text_box_render", func_8007DCF8);
+// Same SystemString helpers as the group further down; the text box keeps its
+// string at _pad[0].
+extern void func_80034874(void* pString, int value);
+extern void func_8003487C(void* pString);
+
+// Field's own pad button state, filled by FieldPollControllers.
+extern u_short D_800C3900;
+
+// Cursor up/down input for the text box holding the top message; moves the
+// cursor within maxPosition and forwards the line offset to the string.
+void func_8007DCF8(int index) {
+    if (g_FieldTextBoxes[index].cursor.visibility == 0) {
+        if (g_FieldTextBoxes[index].windowOpenTimer == 0) {
+            if (g_FieldTextBoxes[index].order == 0) {
+                if (D_800C3900 & CTRL_BTN_DOWN) {
+                    g_FieldTextBoxes[index].cursor.curPosition++;
+                    if (g_FieldTextBoxes[index].cursor.curPosition > g_FieldTextBoxes[index].cursor.maxPosition - 1) {
+                        g_FieldTextBoxes[index].cursor.curPosition = 0;
+                    }
+                }
+                if (D_800C3900 & CTRL_BTN_UP) {
+                    g_FieldTextBoxes[index].cursor.curPosition--;
+                    if (g_FieldTextBoxes[index].cursor.curPosition < 0) {
+                        g_FieldTextBoxes[index].cursor.curPosition = g_FieldTextBoxes[index].cursor.maxPosition - 1;
+                    }
+                }
+                func_80034874(&g_FieldTextBoxes[index]._pad[0],
+                    g_FieldTextBoxes[index].cursor.curPosition + g_FieldTextBoxes[index].cursor.startPosition);
+            } else {
+                func_8003487C(&g_FieldTextBoxes[index]._pad[0]);
+            }
+        }
+    }
+}
 
 // https://decomp.me/scratch/NE0tE
+// 82.32%: the two 16 entry loops look right but gcc picks different induction
+// variables for the rect stores. The original addresses the same 8-byte rect
+// (D_800AFC80 + i * 8) three ways: a strength reduced pointer for x, a
+// recomputed symbol + i * 8 for y/h (also the SetDrawMode rect argument), and
+// D_800AFC84 + i * 8 for w, plus it writes each rect twice.
 INCLUDE_ASM("asm/field/nonmatchings/dialogue/text_box_render", FieldTextBoxInitialize);
+/*
+extern DR_MODE D_800B1DF4[];
+extern DR_MODE D_800B1E00[];
+extern RECT D_800AFC80[];
+extern RECT D_800AFC84[];
+
+extern void FieldTextBoxInitializePrimitives(int index);
+
+void FieldTextBoxInitialize(void) {
+    int i;
+    RECT rect;
+
+    rect.y = 0;
+    rect.x = 0;
+    rect.h = 0xFF;
+    rect.w = 0xFF;
+
+    for (i = 0; i < 16; i++) {
+        D_800AFC80[i].y = 0;
+        D_800AFC80[i].x = 0;
+        D_800AFC80[i].h = 0xFF;
+        D_800AFC84[i].x = 0xFF;
+        D_800AFC80[i].y = 0;
+        D_800AFC80[i].x = 0;
+        D_800AFC80[i].h = 0xFF;
+        D_800AFC84[i].x = 0xFF;
+        SetDrawMode(&D_800B1DF4[i], NULL, 0, GetTPage(0, 2, 0x380, 0x100), &D_800AFC80[i]);
+        SetDrawMode(&D_800B1E00[i], NULL, 0, GetTPage(0, 2, 0x380, 0x100), &D_800AFC80[i]);
+    }
+
+    for (i = 0; i < 4; i++) {
+        g_FieldTextBoxes[i].ownerActorID = 0xFF;
+        g_FieldTextBoxes[i].talkingActorID = 0xFF;
+        g_FieldTextBoxes[i].cursor.visibility = -1;
+        g_FieldTextBoxes[i].continueArrow.visibility = -1;
+        g_FieldTextBoxes[i].visibility = -1;
+        g_FieldTextBoxes[i].status = -1;
+        g_FieldTextBoxes[i].order = TEXT_BOX_UNINITIALIZED;
+        g_FieldTextBoxes[i].ownerActorID = 0xFF;
+        g_FieldTextBoxes[i].unk412 = 0;
+
+        FieldTextBoxInitializePrimitives(i);
+        D_800B068C[i] = -1;
+        SetDrawMode(&g_FieldTextBoxes[i].drawModes[0], NULL, 0, GetTPage(0, 0, 0x300, 0x100), &rect);
+        SetDrawMode(&g_FieldTextBoxes[i].drawModes[1], NULL, 0, GetTPage(0, 0, 0x300, 0x100), &rect);
+    }
+}
+*/
 
 // _pad[0x4A] is possibly a RECT?
 void func_8007E114(int index, int arg1, int arg2, int arg3, s32 arg4) {
