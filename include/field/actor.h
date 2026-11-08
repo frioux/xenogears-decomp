@@ -409,7 +409,6 @@ typedef struct {
 
 extern int g_FieldNumActors;
 extern FieldActor* volatile g_FieldActors;
-extern int g_PlayerActorIndex;
 
 extern ActorData* g_FieldScriptVMCurActor;
 extern void* g_FieldScriptVMCurScriptData;

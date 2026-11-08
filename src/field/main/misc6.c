@@ -164,22 +164,27 @@ void func_8009E094(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
 
+INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_8009E10C);
+/*
+Matches when scriptFlags is a u32, not bitfields.
+
 void func_8009E10C(void) {
     int nValue;
     int nUnkFlags;
 
     nValue = FieldScriptVMGetArgument(1);
-    nUnkFlags = (nValue & 0x1) << 7;
+    nUnkFlags = (nValue & 0x1) << 7; // if (nValue & 0x1) nUnkFlags |= 0x80;
     if (nValue & 0x4) nUnkFlags |= 0x20;
     if (nValue & 0x8) nUnkFlags |= 0x10;
     if (nValue & 0x10) nUnkFlags |= 8;
     if (nValue & 0x20) nUnkFlags |= 4;
     if (nValue & 0x40) nUnkFlags |= 0x08000000;
-
-    g_FieldScriptVMCurActor->scriptFlags.flags &= 0xF7FFFF43;
-    g_FieldScriptVMCurActor->scriptFlags.flags |= nUnkFlags;
+    
+    g_FieldScriptVMCurActor->scriptFlags &= 0xF7FFFF43;
+    g_FieldScriptVMCurActor->scriptFlags |= nUnkFlags;
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
+*/
 
 void func_8009E1A0(void) {
     u32 nValue;
@@ -261,16 +266,6 @@ void func_8009E4BC(void) {
 INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_8009E574);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_8009E810);
-/*
-67.27% - everything matches except gcc emits an empty 0x18 stack frame in the
-original, which no source form of these three stores reproduces.
-
-void func_8009E810(short nHeight) {
-    g_FieldScriptVMCurActor->position.vy = CONV_FROM_GTE(nHeight);
-    g_FieldScriptVMCurActor->unkEC = nHeight;
-    g_FieldScriptVMCurActor->curYPos = nHeight;
-}
-*/
 
 void func_8009E83C(void) {
     unsigned char width;
@@ -562,8 +557,9 @@ int FieldCharacterIdToPartyId(int characterId) {
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_8009FA54);
 
-extern s32 g_GameSceneMapNum;
-extern s32 D_800B2268[];
+INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_8009FB98);
+/*
+Matches, but the struct D_800B2268 is part of needs recovery first.
 
 void func_8009FB98(void) {
     g_GameSceneMapNum |= 0xC000;
@@ -573,6 +569,7 @@ void func_8009FB98(void) {
     D_800B2268[0] = SCRIPT_READ_U8_REL(1);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
 }
+*/
 
 extern s32 D_8006F990[];
 int func_8009FC10(int actorIndex) {
@@ -607,6 +604,7 @@ void FieldScriptPartyMemberDisembarkGear(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
 
+extern int g_GameSceneMapNum;
 void func_8009FD10(int partyMemberIndex) {
     switch (partyMemberIndex) { 
         case 0:
@@ -627,23 +625,9 @@ void func_8009FD10(int partyMemberIndex) {
     }
 }
 
-void func_8009FDD4(void) {
-    int index = func_8009FC10(D_800AFD1C);
+INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_8009FDD4);
 
-    if (index != 0xFF && !g_pGameState->gearRide[index]) {
-        func_800AD4D4();
-    }
-    g_FieldScriptVMCurActor->scriptInstructionPointer += 1;
-}
-
-void func_8009FE4C(void) {
-    int index = SCRIPT_READ_U8_REL(1);
-
-    if (g_GamePartyMembers[index] != CHARACTER_ID_NONE && g_pGameState->gearRide[index]) {
-        func_800ACFD0();
-    }
-    g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
-}
+INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_8009FE4C);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_8009FEE4);
 
@@ -675,9 +659,7 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_800A06E8);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_800A08B8);
 
-void func_800A0C4C(void) {
-    g_FieldActors[g_PlayerActorIndex].pActorData->scriptFlags.flags |= 0x80;
-}
+INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_800A0C4C);
 
 // FieldResetActorPosition, set translation and sprite position of actor based on current actor data position
 INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_800A0C94);
@@ -690,35 +672,11 @@ void func_800A0D3C(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer++;
 }
 
-extern s16 D_800B234A;
-
 INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_800A0DC0);
-/*
-75.67% - the original keeps the scriptInstructionPointer `lhu` below the
-D_800B234A store; gcc hoists it into the load-delay slot of the actor pointer
-load and picks a0 instead of v1 for the pointer.
 
-void func_800A0DC0(void) {
-    D_800B234A = FieldScriptVMGetArgument(1);
-    g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
-}
-*/
+INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_800A0DFC);
 
-void func_800A0DFC(void) {
-    FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(1), ArchiveGetDiscNumber());
-    g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
-}
-
-extern s32 D_800ADB74;
-
-void func_800A0E54(void) {
-    if (D_800ADB74 == 0) {
-        g_FieldScriptVMCurActor->scriptInstructionPointer++;
-    } else {
-        g_FieldScriptVMCurActor->scriptInstructionPointer--;
-    }
-    D_800B00C0 = 1;
-}
+INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_800A0E54);
 
 extern int D_800ADB84;
 
@@ -728,31 +686,7 @@ void func_800A0EB0(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer++;
 }
 
-// D_801E8670 is lib_gear's g_LibGearModels; only valid while that overlay is loaded
-extern u8* D_801E8670[];
-extern s32 D_800B2264;
-
-void func_800A0EE8(void) {
-    ActorData* pActor = g_FieldScriptVMCurActor;
-    int nSlot;
-    u8 nState;
-
-    nSlot = pActor->flags12C_0xE & 7;
-    nState = SCRIPT_READ_U8_REL(1);
-    pActor->flags &= ~0x2000;
-    switch (nState) {
-    case 0:
-        D_801E8670[nSlot][0x34] = 0;
-        g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
-        break;
-    case 1:
-        func_801E8030(pActor->flags12C_0xE & 7);
-        D_800B2264--;
-        g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
-        break;
-    }
-    D_800B00C0 = 1;
-}
+INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_800A0EE8);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_800A0FD8);
 
