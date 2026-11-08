@@ -1182,7 +1182,16 @@ void func_8003ABE8(AudioManager* pManager, u8 value) {
     pManager->unk_0x1b = value;
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003ABF0);
+void func_8003ABF0(AudioManager* pManager, u16* pOut) {
+    u32 total = (u32)pManager->unk_0x28 >> 8;
+    u32 field = total / 240;
+    u32 index = field / 60;
+
+    *(u32*)pOut = pManager->unk_0x24;
+    pOut[2] = total - field * 240;
+    pOut[3] = field - index * 60;
+    pOut[4] = index;
+}
 
 u16* func_8003AC58(AudioManager* pManager) {
     AudioElement* pElement = pManager->elements;
@@ -1555,7 +1564,20 @@ int SoundTransferQueueSync() {
 
 void func_8003BDF4(void) {}
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003BDFC);
+// Waits for the transfer queue to finish (arg & 0x10) and returns the mode of the
+// command at the read index, or 0 when the queue is idle.
+s32 func_8003BDFC(u32 flags) {
+    if (flags & 0x10) {
+        while (*(volatile u16*)&g_SoundControlFlags & 0x10) {
+        }
+    }
+
+    if (!(g_SoundControlFlags & 0x10)) {
+        return 0;
+    }
+
+    return *(s16*)&g_SoundTransferQueue[g_SoundTransferQueueReadIndex];
+}
 
 //----------------------------------------------------------------------------------------------------------------------
 void SoundProcessTransferCommand(void) {
@@ -1790,10 +1812,11 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003D070);
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003D0E8);
 /*
 Attempt (94.00%, same size): the only difference is the original's redundant
-`andi v0,v0,0xff` between the `lbu` and the `mult`; gcc 2.6 folds the mask away for
-every form tried (`u8`, `u16`, `*pScript & 0xFF`, `u8`->`u16` copy).
+`andi v0,v0,0xff` where gcc 2.6 emits `nop` (it fills the `lh` load delay slot);
+gcc 2.6 folds the mask away for every form tried (`u8`, `u16`, `*pScript & 0xFF`,
+`u8`->`u16` copy).
 u8* func_8003D0E8(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
-    u16 value = *pScript;
+    u8 value = *pScript;
 
     pAudioManager->unk_0x58 = value << 16;
     pAudioManager->unk_0x54 = value * (pAudioManager->unk_Interpolator_0x64.currentValue >> 16);
@@ -1801,7 +1824,14 @@ u8* func_8003D0E8(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
 }
 */
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003D110);
+u8* func_8003D110(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
+    s32 pad[2]; // unused: reproduces the original's 0x8-byte frame
+    s8 value = *pScript;
+
+    pAudioManager->unk_0x58 += value << 16;
+    pAudioManager->unk_0x54 = 0;
+    return pScript + 1;
+}
 /*
 Attempt (67.27%): the original has an unused 0x8-byte stack frame
 (`addiu sp,sp,-0x8` ... `addiu sp,sp,0x8`) and computes the return value before the
@@ -2532,7 +2562,22 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003EB5C);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003EBF0);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003EEA0);
+// .sdata tables used by the sample-rate helper below (splat data segment).
+extern u8 D_80050B78[];
+extern s16 D_80050BF0[];
+
+s16 func_8003EEA0(u32 tone) {
+    s32 entry = D_80050B78[(tone & 0x7FFF) >> 8];
+    s32 shift = 6 - (entry >> 4);
+    s32 value = D_80050BF0[(tone & 0xFF) + ((entry & 0xF) << 8)];
+
+    if (shift < 0) {
+        value <<= -shift;
+    } else {
+        value >>= shift;
+    }
+    return value;
+}
 
 //----------------------------------------------------------------------------------------------------------------------
 void SoundAssignVoiceToChannelAndPlay(SoundVoiceData* voiceData, u32 channelIndex)
@@ -2618,7 +2663,31 @@ s32 func_8003F240(AudioEnvelope* pEnvelope) {
     return pEnvelope->value;
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003F2A0);
+s32 func_8003F2A0(AudioEnvelope* pEnvelope) {
+    s32 count = pEnvelope->count;
+
+    count--;
+    if (count == 0) {
+        u16 flags = pEnvelope->flags;
+        s32 delta;
+
+        count = pEnvelope->reload;
+        if (flags & 0x4) {
+            count <<= 1;
+        }
+        delta = pEnvelope->delta;
+        pEnvelope->unk_0x8 = delta;
+        if (flags & 0x8) {
+            pEnvelope->unk_0x8 = -delta;
+        }
+        flags = (flags | 0x4) ^ 0x8;
+        pEnvelope->flags = flags;
+    }
+
+    pEnvelope->count = count;
+    pEnvelope->value += pEnvelope->unk_0x8;
+    return pEnvelope->value;
+}
 
 s32 func_8003F308(AudioEnvelope* pEnvelope) {
     if (--pEnvelope->count == 0) {
