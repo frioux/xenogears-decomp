@@ -393,6 +393,33 @@ void func_800884CC(void) {
 }
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_80088508);
+// 97.68%: instruction for instruction identical except that gcc hoists the
+// `li a0,1` for the first FieldScriptVMGetInstructionArgument call out of the
+// jal delay slot (and fills the slot with a nop). The index arithmetic of
+// g_FieldActors[partyMemberId] gives the scheduler the slack to do it.
+/*
+void func_80088508(void) {
+    SpriteData* pSpriteData;
+    int partyMemberId;
+    int address;
+
+    partyMemberId = D_8005A444[FieldScriptVMGetArgument(5)];
+    g_FieldScriptMaxInstructionCount += 4;
+    if (partyMemberId != ACTOR_ID_INVALID) {
+        pSpriteData = g_FieldActors[partyMemberId].pSpriteData;
+        address = FieldScriptVMGetInstructionArgument(1);
+        FieldScriptMemoryWriteU16(address & 0xFFFF, *(u_short*)&((SpriteDataI3*)pSpriteData->field_0x7C)->field_0xC);
+        FieldScriptMemoryWriteU16(FieldScriptVMGetInstructionArgument(3) & 0xFFFF, partyMemberId);
+        if (*(u_short*)&((SpriteDataI3*)pSpriteData->field_0x7C)->field_0xC != 1) {
+            ((SpriteDataI3*)pSpriteData->field_0x7C)->field_0xC = 0;
+        }
+    } else {
+        FieldScriptMemoryWriteU16(FieldScriptVMGetInstructionArgument(1) & 0xFFFF, 0);
+        FieldScriptMemoryWriteU16(FieldScriptVMGetInstructionArgument(3) & 0xFFFF, 0);
+    }
+    g_FieldScriptVMCurActor->scriptInstructionPointer += 7;
+}
+*/
 
 typedef struct {
     /* 0x0 */ int bankIndex;
@@ -422,21 +449,106 @@ void func_8008861C(void) {
 }
 */
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_80088674);
+extern s32 D_800B2374;
+extern s32 D_800B2378;
+extern s32 D_800B237C;
+extern s32 D_800B2380;
+extern void FieldInitializeDefaultParticleBanks(int);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_80088790);
+void func_80088674(void) {
+    int actorIndex = FieldScriptVMGetArgument(1);
+
+    if (actorIndex == ACTOR_ID_INVALID) {
+        actorIndex = 0;
+    }
+    D_800B2374 = FieldScriptVMGetArgument(1);
+    D_800B2378 = FieldScriptVMGetArgument(3);
+    D_800B237C = FieldScriptVMGetArgument(5);
+    ((FieldScriptGlobalS32*)&D_800B2380)->value = FieldScriptVMGetArgument(7);
+    g_FieldScriptVMCurActor->scriptInstructionPointer += 9;
+    FieldInitializeDefaultParticleBanks(actorIndex);
+    switch (D_800B2378) {
+        case 0:
+            D_800B2378 = 0;
+            break;
+        case 1:
+            D_800B2378 = 0x10;
+            break;
+        case 2:
+            D_800B2378 = 0x20;
+            break;
+        case 3:
+            D_800B2378 = 0x30;
+            break;
+    }
+    g_FieldScriptMaxInstructionCount += 4;
+}
+
+void func_80088790(void) {
+    int actorIndex = FieldScriptVMGetActorIndex(1);
+
+    if (actorIndex == ACTOR_ID_INVALID) {
+        actorIndex = 0;
+    }
+    D_800B2374 = actorIndex;
+    D_800B2378 = FieldScriptVMGetArgument(2);
+    D_800B237C = FieldScriptVMGetArgument(4);
+    // Store through FieldScriptGlobalS32: a bare s32 store lets gcc hoist the
+    // instruction pointer load above it (see the note above FieldScriptGlobalS32).
+    ((FieldScriptGlobalS32*)&D_800B2380)->value = FieldScriptVMGetArgument(6);
+    g_FieldScriptVMCurActor->scriptInstructionPointer += 8;
+    FieldInitializeDefaultParticleBanks(actorIndex);
+    switch (D_800B2378) {
+        case 0:
+            D_800B2378 = 0;
+            break;
+        case 1:
+            D_800B2378 = 0x10;
+            break;
+        case 2:
+            D_800B2378 = 0x20;
+            break;
+        case 3:
+            D_800B2378 = 0x30;
+            break;
+    }
+    g_FieldScriptMaxInstructionCount += 4;
+}
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_800888A4);
+// 82.97%: the only misses are (a) the same `li a0,1` hoist as func_80088508 -
+// the g_FieldActors[D_800AFD1C] address computation gives gcc the slack to lift
+// the constant out of the first FieldScriptVMGetArgument delay slot - and (b) the
+// 0x12C update. The original's mask 0xF003FFFF (bits 18-27) with the value
+// shifted by 24 means the bitfield it writes is 10 bits at bit 18 holding
+// `type << 6`, not a 4-bit field at bit 24; with that split gcc instead CSEs
+// `type << 6` with the sprite store below and chains `<< 6` then `<< 18`.
+/*
+extern void func_8002303C(SpriteData*, int, int);
+
+void func_800888A4(void) {
+    SpriteData* pSpriteData;
+    int type;
+    int value;
+
+    pSpriteData = g_FieldActors[D_800AFD1C].pSpriteData;
+    type = FieldScriptVMGetArgument(1) & 0xF;
+    value = ((FieldScriptVMGetArgument(1) >> 4) << 8) + FieldScriptVMGetArgument(3);
+    func_8002303C(pSpriteData, 2, 0);
+    ((u_short*)((SpriteDataI3*)pSpriteData->field_0x7C)->field_0x18)[2] = type << 6;
+    g_FieldScriptVMCurActor->flags12C_0x12 = type << 6;
+    ((u_short*)((SpriteDataI3*)pSpriteData->field_0x7C)->field_0x18)[3] = value;
+    g_FieldScriptVMCurActor->flags130 = (g_FieldScriptVMCurActor->flags130 & ~0x1FF) | (value & 0x1FF);
+    g_FieldScriptVMCurActor->flags12C_0x10 = 1;
+    g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
+}
+*/
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_800889BC);
 
 // Start of particle handlers
 extern s32 D_800ADB40;
 extern s32 D_800ADB8C;
-extern s32 D_800B2374;
-extern s32 D_800B2378;
-extern s32 D_800B237C;
-extern s32 D_800B2380;
 
 extern s32 g_FieldScriptMaxInstructionCount;
 
@@ -1659,9 +1771,39 @@ void func_8008F070(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008F0B4);
+void func_8008F0B4(void) {
+    ActorData* pActorData;
+    int actorIndex = FieldScriptVMGetActorIndex(2);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008F1C8);
+    if (actorIndex != ACTOR_ID_INVALID) {
+        pActorData = g_FieldActors[actorIndex].pActorData;
+        if (SCRIPT_READ_U8_REL(1) & 1) {
+            pActorData->unkFC = FieldScriptVMGetArgument(3);
+            pActorData->unkFD = FieldScriptVMGetArgument(5);
+            pActorData->unkFE = FieldScriptVMGetArgument(7);
+        }
+        if (SCRIPT_READ_U8_REL(1) & 2) {
+            pActorData->unkFF = FieldScriptVMGetArgument(3);
+            pActorData->unk100 = FieldScriptVMGetArgument(5);
+            pActorData->unk101 = FieldScriptVMGetArgument(7);
+        }
+    }
+    g_FieldScriptVMCurActor->scriptInstructionPointer += 9;
+}
+
+void func_8008F1C8(void) {
+    if (SCRIPT_READ_U8_REL(1) & 1) {
+        g_FieldScriptVMCurActor->unkFC = FieldScriptVMGetArgument(2);
+        g_FieldScriptVMCurActor->unkFD = FieldScriptVMGetArgument(4);
+        g_FieldScriptVMCurActor->unkFE = FieldScriptVMGetArgument(6);
+    }
+    if (SCRIPT_READ_U8_REL(1) & 2) {
+        g_FieldScriptVMCurActor->unkFF = FieldScriptVMGetArgument(2);
+        g_FieldScriptVMCurActor->unk100 = FieldScriptVMGetArgument(4);
+        g_FieldScriptVMCurActor->unk101 = FieldScriptVMGetArgument(6);
+    }
+    g_FieldScriptVMCurActor->scriptInstructionPointer += 8;
+}
 
 extern void func_80023290(void*, int);
 
