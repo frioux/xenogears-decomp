@@ -107,6 +107,10 @@ extern void ChangeClearPAD( long );
 
 /* prototypes added by shino 96/05/22 */
 extern void InitCARD(long val);
+extern void InitCARD2(long val);
+extern void func_8004E8D8(void);
+extern void func_8004E990(void);
+extern void func_8004EA20(void);
 extern void StartCARD(void);
 extern long StopCARD(void);
 extern void _bu_init(void);
