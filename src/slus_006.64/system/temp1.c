@@ -9,6 +9,55 @@ s32 D_800591B8;
 s32 D_800592EC;
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80022B2C);
+/* Best attempt: 96.30% (376 bytes; the original is 380). Instruction stream and control flow
+   agree; the only difference is a `move a0,s0` that the original repeats at the head of the
+   last block and this C omits because gcc carries a0 across the blez delay slot. Local `speed`
+   must not be reused for the bounce term below or gcc keeps it in a callee-saved register.
+extern s32 func_80022CAC(SpriteData* pSpriteData, s32 value);
+extern void func_800BA8F4(void);
+
+void func_80022B2C(SpriteData* pSpriteData) {
+    s32 speed;
+    s32 gravity;
+
+    if (((*(u32*)((u8*)pSpriteData + 0x3C) >> 26) & 1) == 0) {
+        func_800BA8F4();
+        speed = pSpriteData->step.y;
+        if (speed > 0 && (s32)pSpriteData->gravity > 0) {
+            if (*(s16*)((u8*)pSpriteData + 0x6) != pSpriteData->field_0x84) {
+                pSpriteData->position.y += func_80022CAC(pSpriteData, speed >> 4) << 4;
+                if ((pSpriteData->position.y >> 16) < pSpriteData->field_0x84) {
+                    pSpriteData->step.y += pSpriteData->gravity;
+                    return;
+                }
+                pSpriteData->position.y = pSpriteData->field_0x84 << 16;
+                speed = -pSpriteData->step.y * (s32)(((u32)pSpriteData->flags_0xA8 >> 1) & 0x3FF) / 256;
+                pSpriteData->step.y = speed;
+                gravity = (s32)pSpriteData->gravity;
+                if (speed < 0) {
+                    speed = -speed;
+                }
+                if (gravity < 0) {
+                    gravity = -gravity;
+                }
+                if (speed < gravity) {
+                    pSpriteData->step.y = 0;
+                }
+                return;
+            }
+            return;
+        }
+        pSpriteData->position.y += func_80022CAC(pSpriteData, speed >> 4) << 4;
+        if ((pSpriteData->position.y >> 16) >= pSpriteData->field_0x84) {
+            pSpriteData->position.y = pSpriteData->field_0x84 << 16;
+        }
+        pSpriteData->step.y += pSpriteData->gravity;
+    } else {
+        pSpriteData->position.y += func_80022CAC(pSpriteData, pSpriteData->step.y >> 4) << 4;
+        pSpriteData->step.y += pSpriteData->gravity;
+    }
+}
+*/
 
 s32 func_80022CAC(SpriteData* pSpriteData, s32 value) {
     s32 scale = pSpriteData->field_0x3A;
@@ -485,6 +534,63 @@ void func_800242F4(SpriteData* pSpriteData, void* pAnimFile, s16 arg2, s16 arg3,
 }
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_8002435C);
+/* Best attempt: 89.07%. Every operation, load, store and call is in place and in order; what is
+   left is register allocation only. The original keeps pAnimFile in s6 for the tail (the 0x48
+   store and the func_800222BC call) and a second copy in s1 for the 0x8 offset load, so it saves
+   seven callee-saved registers; this C uses one register throughout. The 0x3C/0x40 flag block
+   also lands in the wrong registers (mask in a0, D_800591AD in v1 instead of the reverse).
+   Returns pSpriteData in v0, so the prototype above should be SpriteData* once defined.
+extern void SpriteSetScale(SpriteData* pSpriteData, s16 scale);
+extern s32 func_8001EE74(u16* pFlags);
+
+SpriteData* func_8002435C(SpriteData* pSpriteData, void* pAnimFile, s16 arg2, s16 arg3, s16 arg4,
+                          s16 arg5, s16 arg6) {
+    SpriteDataI1* pBase;
+    void* pFramesData;
+    u8* pAnimations;
+    u8* pAnimFileData;
+    mem_addr pAnimHeader;
+    u32 flags;
+
+    func_80023804(pSpriteData);
+    func_800239A0(pSpriteData);
+    SpriteSetScale(pSpriteData, 0x1000);
+    *(u32*)((u8*)pSpriteData + 0x3C) = (*(u32*)((u8*)pSpriteData + 0x3C) & ~3) | 1;
+    pSpriteData->field_0x40 &= 0xFFFE1FFF;
+    if (D_800591AD) {
+        pSpriteData->flags_0xA8 &= ~1;
+        ((SpriteDataI3*)pSpriteData->field_0x7C)->field_0x8 = 0;
+        ((SpriteDataI3*)pSpriteData->field_0x7C)->field_0xC = 0;
+    } else {
+        pSpriteData->flags_0xA8 |= 1;
+        ((SpriteDataI3*)pSpriteData->field_0x7C)->field_0x18 = NULL;
+    }
+    flags = *(u32*)((u8*)pSpriteData + 0x3C);
+    pSpriteData->field_0x6C = pSpriteData;
+    flags &= 0xFF0FFFFF;
+    flags |= (D_800591B8 & 0xF) << 20;
+    flags &= 0xFFF0FFFF;
+    flags |= (D_800591B8 & 0xF) << 16;
+    *(u32*)((u8*)pSpriteData + 0x3C) = flags;
+    pAnimFileData = pAnimFile;
+    pAnimHeader = *(u32*)(pAnimFileData + 8);
+    pFramesData =
+        HeapAlloc(func_8001EE74((u16*)(pAnimHeader + (mem_addr)pAnimFileData)) * sizeof(SpriteFrameData), 0);
+    pBase = pSpriteData->pBase;
+    pBase->pFramesData = pFramesData;
+    pBase->pCurRenderFramesData = pFramesData;
+    ((SpriteAnimPackage*)pSpriteData->pVramData)->tex.x = arg4;
+    ((SpriteAnimPackage*)pSpriteData->pVramData)->tex.y = arg5;
+    ((SpriteAnimPackage*)pSpriteData->pVramData)->clut.x = arg2;
+    ((SpriteAnimPackage*)pSpriteData->pVramData)->clut.y = arg3;
+    pSpriteData->pDefaultAnimFile = pAnimFile;
+    func_800222BC(pSpriteData, pAnimFile);
+    pAnimations = ((SpriteAnimPackage*)pSpriteData->pVramData)->pAnimations;
+    pSpriteData->field_0x60 = (u32)pAnimations + ((*(u16*)pAnimations & 0x3F) + 1) * 2;
+    func_800245D8(pSpriteData, 0);
+    return pSpriteData;
+}
+*/
 
 void func_80024524(s32 arg0, s16 arg1, s16 arg2, s16 arg3, s16 arg4, s16 arg5) {
     SpriteData* pSpriteData;
@@ -494,6 +600,47 @@ void func_80024524(s32 arg0, s16 arg1, s16 arg2, s16 arg3, s16 arg4, s16 arg5) {
     func_8002435C(pSpriteData, (void*)arg0, arg1, arg2, arg3, arg4, arg5);
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_800245D8);
+extern void func_800222BC(SpriteData* pSpriteData, void* pAnimFile);
+extern s32 func_8001EE68(void* pFrames);
+extern void func_800223B0(SpriteData* pSpriteData, s16 arg1);
+extern void func_80023538(SpriteData* pSpriteData, void* pAnimEntry);
+extern u8 D_800591AD;
+
+void func_800245D8(SpriteData* pSpriteData, s32 animId) {
+    u8* pAnimations;
+    u16 animOffset;
+
+    if (pSpriteData->pDefaultAnimFile == NULL) {
+        pSpriteData->pSpriteBytecode = NULL;
+        return;
+    }
+    if (pSpriteData->pCurAnimFile == pSpriteData->pDefaultAnimFile) {
+        pSpriteData->flags_0xB0 &= ~0x400;
+    } else {
+        pSpriteData->flags_0xB0 |= 0x400;
+    }
+    if (animId < 0) {
+        func_800222BC(pSpriteData, pSpriteData->pSpecialAnimFile);
+        if (D_800591AD && func_8001EE68(((SpriteAnimPackage*)pSpriteData->pVramData)->pFrames) == 0) {
+            ((SpriteAnimPackage*)pSpriteData->pVramData)->tex.y = 0x100;
+            ((SpriteAnimPackage*)pSpriteData->pVramData)->tex.x = 0x300;
+        }
+    } else {
+        func_800222BC(pSpriteData, pSpriteData->pDefaultAnimFile);
+        if (D_800591AD) {
+            ((SpriteAnimPackage*)pSpriteData->pVramData)->tex = *(SVEC2*)((u8*)pSpriteData->field_0x7C + 0xE);
+        }
+    }
+    *(u8*)((u8*)pSpriteData + 0xAF) = animId;
+    if (animId < 0) {
+        animId = ~animId;
+    }
+    pAnimations = ((SpriteAnimPackage*)pSpriteData->pVramData)->pAnimations;
+    animOffset = *(u16*)(pAnimations + animId * 2 + 2);
+    pSpriteData->field_0x40 |= 0x100000;
+    pSpriteData->pCurAnimation = pAnimations + animOffset;
+    func_80023538(pSpriteData, pSpriteData->pCurAnimation);
+    func_800223B0(pSpriteData, pSpriteData->field_0x80);
+}
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80024730);
