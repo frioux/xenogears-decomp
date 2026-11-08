@@ -5,6 +5,7 @@
 #include "psyq/inline_c.h"
 #include "system/memory.h"
 #include "libgear/main.h"
+#include "system/animation.h"
 
 extern s32 D_80050100;
 
@@ -997,38 +998,38 @@ int func_801E6338(Model* pModel) {
 
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E63A8);
 
-// objdiff 97.43%: body and prologue are instruction-for-instruction identical, but
-// gcc assigns pList to s4/pSkeleton to s3 (saved order s4,s3,...) where the original
-// saves s3 (pList) first, so every use of the two pointers has the register swapped;
-// declaration order, loop shape and the pChild pattern do not flip it
+// objdiff 97.43%: instruction-for-instruction identical, but gcc assigns s3 to
+// pSkeleton and s4 to pList where the original has s3=pList, s4=pSkeleton (and
+// likewise i in s0 vs pJoint in s1); declaration order, loop form (for/while),
+// pointer vs index and type tweaks do not move the pair
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E6578);
-// void func_801E6578(Temp4* pList, s32 jointIndex, ModelJoint* pSkeleton, ModelJoint* pTargetSkeleton) {
-//     ModelJoint* pJoint = &pSkeleton[jointIndex];
-//     ModelJoint* pTarget = &pTargetSkeleton[jointIndex];
-//     ModelJoint* pChild;
-//     int i;
-//     int numChildren;
-//
-//     numChildren = pSkeleton->numChildren;
-//     pJoint->unk7 = 0;
-//     pTarget->unk7 = 1;
-//
-//     func_801DF7A8(pList, (s8*)pJoint->unk70);
-//     pJoint->unk70 = 0;
-//     func_801DF7A8(pList, (s8*)pJoint->unk74);
-//     pJoint->unk74 = 0;
-//     func_801DF7A8(pList, (s8*)pJoint->unk78);
-//     pJoint->unk78 = 0;
-//
-//     pChild = pSkeleton;
-//     for (i = 1; i < numChildren; i++) {
-//         pChild++;
-//
-//         if (pChild->pParent == pJoint) {
-//             func_801E6578(pList, pChild->numChildren, pSkeleton, pTargetSkeleton);
-//         }
-//     }
-// }
+/* void func_801E6578(Temp4* pList, s32 jointIndex, ModelJoint* pSkeleton, ModelJoint* pTargetSkeleton) {
+    ModelJoint* pJoint = &pSkeleton[jointIndex];
+    ModelJoint* pTarget = &pTargetSkeleton[jointIndex];
+    ModelJoint* pChild;
+    int i;
+    int numChildren;
+
+    numChildren = pSkeleton->numChildren;
+    pJoint->unk7 = 0;
+    pTarget->unk7 = 1;
+
+    func_801DF7A8(pList, (s8*)pJoint->unk70);
+    pJoint->unk70 = 0;
+    func_801DF7A8(pList, (s8*)pJoint->unk74);
+    pJoint->unk74 = 0;
+    func_801DF7A8(pList, (s8*)pJoint->unk78);
+    pJoint->unk78 = 0;
+
+    pChild = pSkeleton;
+    for (i = 1; i < numChildren; i++) {
+        pChild++;
+
+        if (pChild->pParent == pJoint) {
+            func_801E6578(pList, pChild->numChildren, pSkeleton, pTargetSkeleton);
+        }
+    }
+} */
 
 void func_801E6668(ModelJoint* pSkeleton, ModelJoint* pTargetSkeleton) {
     int i;
@@ -1137,7 +1138,62 @@ void func_801E6D94(Model* pModel, ModelJoint* pJoint, s32 flags) {
     }
 }
 
-INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E6E48);
+// Appended block of the per-joint task func_80023FD8 allocates. Its byte offset
+// is the s16 at 0xBE of the task (spriteData.allocatedDataSize).
+typedef struct {
+    /* 0x0  */ u8 unk0[0x4];
+    /* 0x4  */ WorkListCallback_t pChainCallback; // replaced by func_801E6F64
+    /* 0x8  */ Model* pModel;
+    /* 0xC  */ s16 jointIndex;
+    /* 0xE  */ s16 unkE; // non-zero: snap the rotated offset to the model's ground
+    /* 0x10 */ SVECTOR offset;
+} LibGearJointTask; // Size: 0x18
+
+// Per-joint data func_801E6E48 copies into the LibGearJointTask
+typedef struct {
+    /* 0x0  */ u8 unk0[0x5];
+    /* 0x5  */ u8 jointIndex;
+    /* 0x6  */ u16 offsetX;
+    /* 0x8  */ u16 offsetY;
+    /* 0xA  */ u16 offsetZ;
+    /* 0xC  */ u8 unkC;
+    /* 0xD  */ u8 padD[0x6];
+    /* 0x13 */ u8 unk13; // non-zero: install func_801E6F64 as the task callback
+} LibGearJointInfo; // Size: 0x14
+
+// Allocates a work list task plus a LibGearJointTask; returns the task
+extern void* func_80023FD8(s32 index, void* pAnimFile, s32 arg2, s32 jointTaskSize);
+extern void func_80021FE0(SpriteData* pSpriteData, s16 direction);
+extern void func_800223B0(SpriteData* pSpriteData, s16 direction);
+extern void SpriteSetScale(SpriteData* pSpriteData, s16 scale);
+extern WorkListCallback_t WorkListTaskGetTaskCallback(WorkListEntry* pTask);
+extern void TimerWorkListSetTaskCallback(WorkListEntry* pTask, WorkListCallback_t callback);
+extern void func_801E6F64(void* pTask);
+
+void func_801E6E48(void* pAnimFile, s32 animIndex, s32 arg2, s16 direction, s16 scale, LibGearJointInfo* pInfo, Model* pModel) {
+    AnimTask* pTask;
+    SpriteData* pSpriteData;
+    LibGearJointTask* pJointTask;
+
+    pTask = func_80023FD8(animIndex, pAnimFile, arg2, 0x18);
+    pSpriteData = &pTask->spriteData;
+    func_80021FE0(pSpriteData, direction);
+    func_800223B0(pSpriteData, direction);
+    SpriteSetScale(pSpriteData, scale);
+
+    pJointTask = (LibGearJointTask*)((u8*)pTask + pSpriteData->allocatedDataSize);
+    pJointTask->pModel = pModel;
+    pJointTask->jointIndex = pInfo->jointIndex;
+
+    if (pInfo->unk13 != 0) {
+        pJointTask->pChainCallback = WorkListTaskGetTaskCallback(&pTask->task1);
+        TimerWorkListSetTaskCallback(&pTask->task1, &func_801E6F64);
+        pJointTask->offset.vx = pInfo->offsetX;
+        pJointTask->offset.vy = pInfo->offsetY;
+        pJointTask->offset.vz = pInfo->offsetZ;
+        pJointTask->unkE = pInfo->unkC;
+    }
+}
 
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E6F64);
 
