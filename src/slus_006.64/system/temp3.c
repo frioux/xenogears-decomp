@@ -435,7 +435,7 @@ u8 D_8005954C;
 SoundFile* D_800595D0;
 void* D_800595A8;
 
-extern StreamDataQueueEntry D_8006F9BC;
+extern StreamDataQueueEntry D_8006F9BC[];
 extern void* D_8006F9C0;
 extern u16 D_8006F9C4;
 extern void* D_8006F9C8;
@@ -450,35 +450,35 @@ extern void func_80039DB8(s32 arg0);
 void func_8001BBAC(void) {
     int i;
     u8 soundEffectId;
-    void* pEndAddress = (void*)0x801E4000;
-    StreamDataQueueEntry* pQueue;
+    void* pEndAddress;
 
     HeapChangeCurrentUser(HEAP_USER_HIG, 0);
     ArchiveSetIndex(0xC, 0);
 
     D_80059480 = HeapAlloc(4, 1);
     D_800594AC = HeapAlloc(D_80059480 + 0x7FE1C000, 1);
+    pEndAddress = (void*)0x801E4000;
     D_800595D0 = HeapAlloc(ArchiveDecodeAlignedSize(2), 1);
     D_800595A8 = HeapAlloc(ArchiveDecodeAlignedSize(3), 1);
 
-    pQueue = &D_8006F9BC;
-    pQueue->archiveIndex = 2;
-    D_8006F9C0 = D_800595D0;
+    D_8006F9BC[0].archiveIndex = 2;
     D_8006F9C4 = 3;
     D_8006F9C8 = D_800595A8;
     D_8006F9CC = 4;
     D_8006F9D0 = pEndAddress;
     D_8006F9D4 = 0;
     D_8006F9D8 = NULL;
-    func_80029AFC(pQueue, 0, 0x80);
+    D_8006F9C0 = D_800595D0;
+    func_80029AFC(D_8006F9BC, 0, 0x80);
 
     while (ArchiveDataSync() == 3) {}
 
     SoundAddSedsEntry(D_800595D0);
 
     if (D_8005954C != 4) {
-        for (i = 0; i < 3; i++) {
+        for (i = 0; i < 3;) {
             soundEffectId = D_8004F388[D_8005954C * 3 + i];
+            i++;
             if (soundEffectId != 0xFF) {
                 func_80039DB8((D_800595D0->sedId << 16) | soundEffectId);
             }
