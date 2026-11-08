@@ -396,7 +396,49 @@ void func_8001D2A4(void) {
 }
 
 // Change Sprite Animation Frame maybe?
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/work_list", func_8001D2B0);
+void func_8001D2B0(SpriteData* pSpriteData, short animFrame) {
+    SpriteData* pCurSpriteData;
+
+    if ((pSpriteData->field_0x3C_0 & 3) != 1) {
+        pSpriteData->curSpriteFrame = 0;
+        return;
+    }
+
+    if ((pSpriteData->field_0x40 >> 20) & 1) {
+        pSpriteData->field_0x40 &= ~0x100000;
+        if (pSpriteData->pBase->pDirTransforms != NULL) {
+            func_800234AC(pSpriteData);
+        }
+    }
+
+    if ((pSpriteData->field_0x40 >> 17) & 1) {
+        pCurSpriteData = D_80059190;
+        while (pCurSpriteData != NULL) {
+            if (pCurSpriteData == pSpriteData) {
+                break;
+            }
+            pCurSpriteData = pCurSpriteData->pBase->pNextSpriteData;
+        }
+
+        if (pCurSpriteData == pSpriteData) {
+            if (
+                pSpriteData->pVramData != (void*)&D_8005A474 &&
+                pSpriteData->pVramData != (void*)&D_8006BE10 &&
+                ((pSpriteData->field_0x40 >> 19) & 1) == 0
+            ) {
+                func_8001F8E8(pSpriteData, *(u16*)&pSpriteData->curSpriteFrame);
+            }
+
+            pSpriteData->curSpriteFrame = animFrame;
+            return;
+        }
+
+        pSpriteData->curSpriteFrame = animFrame;
+        D_80059190 = pSpriteData;
+        pSpriteData->field_0x40 |= 0x20000;
+        pSpriteData->pBase->pNextSpriteData = pCurSpriteData;
+    }
+}
 
 // Unlink SpriteData entry from list
 void func_8001D3F4(SpriteData* pSpriteData) {
