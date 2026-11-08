@@ -352,7 +352,9 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007B478);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007B614);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007B694);
+int func_8007B694(IVEC3* pVec) {
+    return -ratan2(pVec->z, pVec->x) & 0xFFF;
+}
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007B6C4);
 
@@ -362,13 +364,35 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007BAC0);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007BEF4);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007C670);
+int func_8007C670(int* pCur, int* pNext, int n) {
+    int value = *pCur;
+
+    if (n < 0) {
+        *pCur = value;
+        *pNext = value;
+        return value;
+    }
+    *pCur = value;
+    value += n;
+    *pNext = value;
+    return value;
+}
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007C694);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007CD3C);
+extern int D_800ADC10;
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007CD60);
+// Pointer into the scratchpad area for the script VM
+int func_8007CD3C(int size) {
+    int offset = D_800ADC10;
+
+    D_800ADC10 = offset + size;
+    return 0x1F800000 + offset * 4;
+}
+
+void func_8007CD60(int size) {
+    D_800ADC10 -= size;
+}
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007CD80);
 

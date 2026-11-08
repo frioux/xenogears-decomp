@@ -238,6 +238,7 @@ g_FrameDeltaTime = 0x800ADBA4;
 g_pFieldTriggerZones = 0x800ADBF4;
 g_FieldCurScriptFile = 0x800ADBF8;
 g_FieldScriptVMCurScriptData = 0x800ADC00;
+D_800ADC10 = 0x800ADC10; // size:0x4
 D_800ADCE0 = 0x800ADCE0; // size:0x8
 D_800ADD28 = 0x800ADD28; // size:0x8
 D_800ADD70 = 0x800ADD70; // size:0x8
