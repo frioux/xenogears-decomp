@@ -28,7 +28,8 @@ void func_80022CDC(SpriteData* pSpriteData) {
     func_80022B2C(pSpriteData);
 }
 
-extern void func_8001D2B0(SpriteData* pSpriteData, s32 frameIndex);
+// non-prototype on purpose: func_80023170 below calls it without the frame index
+extern void func_8001D2B0();
 
 void func_80022D44(SpriteData* pSpriteData) {
     s32 animIndex;
@@ -136,6 +137,22 @@ s32 func_80023124(SVEC2Pair line) {
 */
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80023170);
+/* Best attempt: 98.57%. Only the register holding the 0xFFF1FFFF mask differs - the original
+   keeps both masks in t1/t0 (a1 unavailable), this C lets the allocator use a1 for the second.
+void func_80023170(SpriteData* pSpriteData, s32 arg1, s32 arg2, s32 arg3) {
+    u32 flags = *(u32*)((u8*)pSpriteData + 0x3C);
+
+    flags &= ~0x10;
+    flags |= (arg3 & 1) << 4;
+    flags &= ~8;
+    flags |= (arg2 & 1) << 3;
+    *(u32*)((u8*)pSpriteData + 0x3C) = flags;
+    pSpriteData->animScriptWaitTimer = 0;
+    pSpriteData->flags_0xA8 &= ~0x300000;
+    pSpriteData->flags_0xA8 &= ~0xE0000;
+    func_8001D2B0(pSpriteData);
+}
+*/
 
 // Blocks whose data table sits at a self-relative byte offset stored at 0xC
 typedef struct {
@@ -270,7 +287,9 @@ s32 func_80023468(u_int index, s32 value) {
 */
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_800234AC);
-/* Best attempt: 98.29%, only the last store's address add has swapped v0/v1.
+/* Best attempt: 98.29%. All five stores differ only in the address add's operand order: the
+   original computes %hi/%lo address as `addu idx*8, base` (index first), this C gives
+   `addu base, idx*8`; the last store also ties the sum to the index register.
 void func_800234AC(SpriteData* pSpriteData) {
     s32 i;
 
