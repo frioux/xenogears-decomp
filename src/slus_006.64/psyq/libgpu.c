@@ -24,7 +24,7 @@ typedef struct {
     /* 0x1C */ u_long unk1C;
     /* 0x20 */ u_long unk20;
     /* 0x24 */ void (*unk24)();
-    /* 0x28 */ void (*unk28)(int mode);
+    /* 0x28 */ u_long (*unk28)(int mode);
     /* 0x2C */ void (*unk2C)(u_long *ot, int n);
     /* 0x30 */ void (*unk30)();
     /* 0x34 */ void (*unk34)(int mode);
@@ -33,15 +33,22 @@ typedef struct {
 } GpuSysFuncs; // Size: 0x40
 
 extern char D_800190D8[]; // "SetGraphDebug:level:%d,type:%d reverse:%d\n"
+extern char D_800190C0[]; // "SetGraphReverse(%d)...\n"
 extern char D_80019104[]; // "SetGrapQue(%d)...\n"
 extern char D_80019134[]; // "SetDispMask(%d)...\n"
 extern char D_80019148[]; // "DrawSync(%d)...\n"
 extern char D_80019180[]; // "ClearImage"
+extern char D_8001915C[]; // "%s:bad RECT"
+extern char D_80019168[]; // "(%d,%d)-(%d,%d)\n"
+extern char D_8001917C[]; // "%s:"
 extern char D_8001918C[]; // "LoadImage"
 extern char D_80019198[]; // "StoreImage"
+extern char D_800191A4[]; // "MoveImage"
 extern char D_800191B0[]; // "ClearOTag(%08x,%d)...\n"
 extern char D_800191C8[]; // "ClearOTagR(%08x,%d)...\n"
 extern char D_800191E0[]; // "DrawOTag(%08x)...\n"
+extern char D_800191F4[]; // "PutDrawEnv(%08x)...\n"
+extern char D_8001920C[]; // "DrawOTagEnv(%08x,%08x)...\n"
 
 extern GpuSysFuncs *D_800568C8;
 extern u_char D_800568D0;
@@ -49,7 +56,17 @@ extern u_char D_800568D1;
 extern u_char D_800568D3;
 extern char D_8005698C;
 
+extern short D_800568D4;
+extern short D_800568D6;
+
+// MoveImage's DR_MOVE packet: tag/0x80000000 at D_80056964+0x14, then the fields
+// filled in below, ending with the 0x04FFFFFF end marker at D_8005698C
+extern u_long D_80056980;
+extern u_long D_80056984;
+extern u_long D_80056988;
+
 extern void func_8004463C(char *name, RECT *rect);
+extern void func_8004574C(DR_ENV *pDrEnv, DRAWENV *pEnv);
 extern void func_80047178(void *p, int value, int n);
 extern int DMACallback(int id, void (*pCallbackFn)());
 
@@ -318,6 +335,34 @@ void DumpDispEnv(DISPENV *env) {
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu", ResetGraph);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu", SetGraphReverse);
+/* Best: 90.84% - only the s0/s1 assignment for `mode` and the D_800568D3
+   pointer differs; everything else is identical.
+int SetGraphReverse(int mode) {
+    u_char *pReverse = &D_800568D3;
+    int nPrev = *pReverse;
+    u_long nStatus;
+
+    if (g_GraphDebugLevel >= 2)
+        g_GpuPrintf(D_800190C0, mode);
+
+    *pReverse = mode;
+    nStatus = D_800568C8->unk28(8);
+    if (*pReverse)
+        nStatus |= 0x08000080;
+    else
+        nStatus |= 0x08000000;
+    D_800568C8->unk10(nStatus);
+
+    if (D_800568D0 == 2) {
+        u_long nMode = 0x20000504;
+
+        if (*pReverse)
+            nMode = 0x20000501;
+        D_800568C8->unk10(nMode);
+    }
+    return nPrev;
+}
+*/
 
 int SetGraphDebug(int level) {
     u_char *pLevel = &g_GraphDebugLevel;
@@ -385,7 +430,22 @@ int DrawSync(int mode) {
     return D_800568C8->unk3C(mode);
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu", func_8004463C);
+void func_8004463C(char *name, RECT *rect) {
+    switch (g_GraphDebugLevel) {
+    case 1:
+        if (rect->w > D_800568D4 || rect->w + rect->x > D_800568D4 ||
+            rect->y > D_800568D6 || rect->y + rect->h > D_800568D6 ||
+            rect->w <= 0 || rect->x < 0 || rect->y < 0 || rect->h <= 0) {
+            g_GpuPrintf(D_8001915C, name);
+            g_GpuPrintf(D_80019168, rect->x, rect->y, rect->w, rect->h);
+        }
+        break;
+    case 2:
+        g_GpuPrintf(D_8001917C, name);
+        g_GpuPrintf(D_80019168, rect->x, rect->y, rect->w, rect->h);
+        break;
+    }
+}
 
 int ClearImage(RECT *rect, u_char r, u_char g, u_char b) {
     func_8004463C(D_80019180, rect);
@@ -408,6 +468,25 @@ int StoreImage(RECT *rect, u_long *p) {
 }
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu", MoveImage);
+/* Best: 82.73% - identical instruction set, aspsx appears to have hoisted
+   `lw a0,0(rect)` above the first store and sunk `lw a0,24(pSys)` below the
+   second, which gcc's own order cannot reproduce.
+int MoveImage(RECT *rect, int x, int y) {
+    u_long *pPacket;
+
+    func_8004463C(D_800191A4, rect);
+
+    if (rect->w == 0 || rect->h == 0)
+        return -1;
+
+    pPacket = &D_80056980;
+    D_80056984 = (y << 16) | (x & 0xFFFF);
+    *pPacket = *(u_long*)&rect->x;
+    D_80056988 = *(u_long*)&rect->w;
+    pPacket -= 2;
+    return D_800568C8->unk08(D_800568C8->unk18, pPacket, 0x14, 0);
+}
+*/
 
 u_long* ClearOTag(u_long *ot, int n) {
     if (g_GraphDebugLevel >= 2)
@@ -448,9 +527,32 @@ void DrawOTag(u_long *p) {
     D_800568C8->unk08(D_800568C8->unk18, p, 0, 0);
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu", PutDrawEnv);
+DRAWENV* PutDrawEnv(DRAWENV *env) {
+    char *pLevel = &g_GraphDebugLevel;
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu", DrawOTagEnv);
+    if (*pLevel >= 2)
+        g_GpuPrintf(D_800191F4, env);
+
+    func_8004574C(&env->dr_env, env);
+    env->dr_env.tag |= 0xFFFFFF;
+    D_800568C8->unk08(D_800568C8->unk18, &env->dr_env, sizeof(DR_ENV), 0);
+    // 0xE past the debug level is g_GpuDrawEnv; the original reaches it from here
+    *(DRAWENV*)(pLevel + 0xE) = *env;
+    return env;
+}
+
+void DrawOTagEnv(u_long *ot, DRAWENV *env) {
+    char *pLevel = &g_GraphDebugLevel;
+
+    if (*pLevel >= 2)
+        g_GpuPrintf(D_8001920C, ot, env);
+
+    func_8004574C(&env->dr_env, env);
+    env->dr_env.tag = (env->dr_env.tag & 0xFF000000) | ((u_long)ot & 0xFFFFFF);
+    D_800568C8->unk08(D_800568C8->unk18, &env->dr_env, sizeof(DR_ENV), 0);
+    // 0xE past the debug level is g_GpuDrawEnv; the original reaches it from here
+    *(DRAWENV*)(pLevel + 0xE) = *env;
+}
 
 DRAWENV* GetDrawEnv(DRAWENV* env) {
     memcpy(env, &g_GpuDrawEnv, sizeof(DRAWENV));
