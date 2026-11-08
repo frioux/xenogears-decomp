@@ -26,49 +26,56 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001D53C);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001DAE8);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001E148);
-/*
-Matches on  GCC 2.7.2-970404, ASPSX 2.67
-
 extern MATRIX D_8004FBB8;
 extern u8 D_800591AD;
 extern u8 D_800591AE;
 
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001E148);
+/* Best attempt: 90.89% (332 bytes, the original is 336). Every field, cast and
+   instruction shape in the body matches -- the `lb` (not lbu) loads want the
+   (s8) offsets, the flags read wants the (u32) cast to stay srl, and the
+   `pMat = &D_8004FBB8` local is required or gcc re-forms lui/addiu for each
+   t[] access after the ApplyMatrix call. What is left is callee-saved
+   allocation: the original holds the matrix address in s1, yOffset in s3 and
+   xOffset in s2 with pSpriteData in s0; this C always gives the address the
+   lowest-priority register (s3) because it has the fewest references, and
+   moving its declaration to the top of the list just moves pSpriteData out of
+   s0 instead. Also 86.76% under gcc-2.7.2-cdk-psx, so it is not the preset.
+
 void func_8001E148(SpriteData* pSpriteData) {
+    MATRIX* pMat = &D_8004FBB8;
     SVECTOR position;
     VECTOR vec;
     MATRIX* pMatrix;
-    s32 var_n;
-    s32 var_v0;
-    int xOffset;
-    int yOffset;
-    
+    s32 n;
+    s32 yOffset;
+    s32 xOffset;
+
     if ((D_800591AD != 0) || (D_800591AE != 0)) {
         func_80022038(pSpriteData);
     }
 
-    var_n = pSpriteData->field_0x40_0x8 & 0x1F;
-    yOffset = pSpriteData->pBase->offsetY;
-    yOffset <<= var_n;
-    xOffset = pSpriteData->pBase->offsetX;
-    xOffset <<= var_n;
+    n = (pSpriteData->field_0x40 >> 8) & 0x1F;
+    yOffset = (s8)pSpriteData->pBase->offsetY;
+    yOffset <<= n;
+    xOffset = (s8)pSpriteData->pBase->offsetX;
+    xOffset <<= n;
 
-    // Flip X?
-    if (pSpriteData->flags_0xAC_0x2) {
+    if (((u32)pSpriteData->flags_0xAC >> 2) & 1) {
         xOffset = -xOffset;
     }
-    
+
     yOffset = yOffset * pSpriteData->scale / 0x1000;
     xOffset = xOffset * pSpriteData->scale / 0x1000;
-    
+
     position.vx = pSpriteData->position.x >> 0x10;
     position.vy = pSpriteData->position.y >> 0x10;
     position.vz = pSpriteData->position.z >> 0x10;
-    ApplyMatrix(&D_8004FBB8, &position, &vec);
+    ApplyMatrix(pMat, &position, &vec);
     pMatrix = &pSpriteData->pBase->transformMatrix;
-    pMatrix->t[0] = D_8004FBB8.t[0] + vec.vx + xOffset;
-    pMatrix->t[1] = D_8004FBB8.t[1] + vec.vy + yOffset;
-    pMatrix->t[2] = D_8004FBB8.t[2] + vec.vz;
+    pMatrix->t[0] = pMat->t[0] + vec.vx + xOffset;
+    pMatrix->t[1] = pMat->t[1] + vec.vy + yOffset;
+    pMatrix->t[2] = pMat->t[2] + vec.vz;
     SetRotMatrix(pMatrix);
     SetTransMatrix(pMatrix);
 }
