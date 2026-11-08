@@ -52,6 +52,9 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80072254);
 // slot (frame 0x30, ours 0x28); gcc rematerialises the constant address for
 // each load instead; the only other difference is the operand order of the
 // first block's `addu` (original `s0 + v1`, ours `v1 + s0`).
+// A third form, `(FieldActor*)(actorIndex * 0x5C + (int)g_FieldActors)` in all three
+// blocks, does fix the `addu` operand order but merges the 2nd and 3rd pointer loads
+// (84.62%): two loads instead of the original's three.
 /*
 void func_80072254(int actorIndex) {
     VECTOR scale;
@@ -395,14 +398,13 @@ extern u_char D_800ADB05;
 extern s32 D_800ADBFC;
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_800752C8);
-// 99.60%: only the $a1/$a2 choice is wrong. The original has $a1 = FieldActor and
-// $a2 = ActorData; gcc always gives the ActorData pseudo $a1 however it is written
-// (CSE'd, function-scope local, block-scope local, declaration order). The other
-// difference, the `addu $a1, $s1, $v0` operand order, IS fixable: the address has to
-// be written as integer arithmetic with the offset first (see below); a pointer
-// expression `&g_FieldActors[i]` produces `addu $a1, $v0, $s1` in the wrong order.
-// The status halfword at 0x58 is read as a 32-bit word, hence the cast. Re-add the
-// rodata constant below with the function.
+// CARRIED FORWARD: 99.60%, code matches except $a1/$a2 (original: $a1 = FieldActor,
+// $a2 = ActorData; gcc gives ActorData $a1). Converting this function is blocked by
+// the unit's .rodata: D_8006FB28 ("CHAR      ") is the 4th of the nine strings in
+// asm/field/data/main/misc2.rodata.s... and C .rodata is linked before asm .rodata,
+// so this function can only become C after func_800739C0 (D_8006FB04),
+// FieldRenderModels (D_8006FB10) and func_8007520C (D_8006FB1C) are converted, in that
+// order. The constant below is the one the object needs.
 /*
 // .rodata
 const char D_8006FB28[0xC] = "CHAR      ";
