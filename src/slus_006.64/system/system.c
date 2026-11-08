@@ -11,6 +11,27 @@ extern u8 g_SystemPaletteData[];
 extern s16 g_SystemPalette1;
 extern s16 g_SystemPalette2;
 
+// One global text object (a SystemString at 0x80059FD8) and its char buffer;
+// the fields are split out because each field address is its own symbol.
+extern s16 D_80059FD8;
+extern s16 D_80059FDA;
+extern s16 D_80059FE0;
+extern s16 D_80059FE2;
+extern s16 D_80059FE4;
+extern s16 D_80059FE8;
+extern s16 D_80059FEA;
+extern void* D_80059FF4;
+extern void* D_8005A000;
+extern void* D_8005A004;
+extern u8 D_8005A040;
+extern u8 D_8005A041;
+extern u8 D_8005A042;
+extern u8 D_8005A044;
+extern s16 D_8005A05C;
+extern u8 D_8005A068[];
+extern s16 D_8005A0C0;
+extern u8 D_8005A0C2;
+
 // Font file metrics, filled in by SystemInitializeFont
 extern void* D_8005935C;
 extern int D_8005934C;
@@ -550,6 +571,35 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/system", func_80034888);
 
 // Render string entry to a buffer
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/system", SystemRenderStringEntry);
+
+/* Best attempt, 30.00%: every instruction and data reference is right, but gcc
+   schedules the stores in a different order (it emits D_8005A040/D_8005A041 and
+   the D_8005A068 address ahead of the D_80059FF4 store).
+int SystemRenderStringEntry(void* pCur, void* pCharBuffer, int mode, int flag) {
+    D_80059FE2 = mode;
+    D_80059FE4 = 1;
+    D_80059FE2 = mode | 1;
+    D_80059FE0 = (s16)(mode | 1) * 4;
+    D_80059FF4 = pCur;
+    D_8005A040 = 1;
+    D_80059FEA = (mode | 1) + 3;
+    D_8005A05C = 0;
+    D_8005A044 = 0;
+    D_8005A042 = 0;
+    D_8005A004 = pCharBuffer;
+    D_80059FE8 = 0;
+    D_80059FDA = 0;
+    D_80059FD8 = 0;
+    D_8005A041 = 0x64;
+    D_8005A000 = D_8005A068;
+    D_8005A0C0 = 0;
+    D_8005A0C2 = flag & 1;
+
+    func_80033DF0(&D_80059FD8);
+
+    return *(s16*)((u8*)D_8005A000 + 0x58) * 4;
+}
+*/
 
 int func_80034F98(u16 first, u16 second) {
     if (first == 0) {
