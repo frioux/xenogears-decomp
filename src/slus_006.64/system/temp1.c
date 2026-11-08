@@ -22,22 +22,23 @@ void func_80022B2C(SpriteData* pSpriteData) {
 
     if (((*(u32*)((u8*)pSpriteData + 0x3C) >> 26) & 1) == 0) {
         func_800BA8F4();
-        if (pSpriteData->step.y > 0 && (s32)pSpriteData->gravity > 0) {
+        speed = pSpriteData->step.y;
+        if (speed > 0 && (s32)pSpriteData->gravity > 0) {
             if (*(s16*)((u8*)pSpriteData + 0x6) != pSpriteData->field_0x84) {
-                pSpriteData->position.y += func_80022CAC(pSpriteData, pSpriteData->step.y >> 4) << 4;
+                pSpriteData->position.y += func_80022CAC(pSpriteData, speed >> 4) << 4;
                 if ((pSpriteData->position.y >> 16) < pSpriteData->field_0x84) {
                     pSpriteData->step.y += pSpriteData->gravity;
                     return;
                 }
                 pSpriteData->position.y = pSpriteData->field_0x84 << 16;
                 speed = -pSpriteData->step.y * (s32)(((u32)pSpriteData->flags_0xA8 >> 1) & 0x3FF) / 256;
-                gravity = (s32)pSpriteData->gravity;
-                if (gravity < 0) {
-                    gravity = -gravity;
-                }
                 pSpriteData->step.y = speed;
+                gravity = (s32)pSpriteData->gravity;
                 if (speed < 0) {
                     speed = -speed;
+                }
+                if (gravity < 0) {
+                    gravity = -gravity;
                 }
                 if (speed < gravity) {
                     pSpriteData->step.y = 0;
@@ -46,7 +47,7 @@ void func_80022B2C(SpriteData* pSpriteData) {
             }
             return;
         }
-        pSpriteData->position.y += func_80022CAC(pSpriteData, pSpriteData->step.y >> 4) << 4;
+        pSpriteData->position.y += func_80022CAC(pSpriteData, speed >> 4) << 4;
         if ((pSpriteData->position.y >> 16) >= pSpriteData->field_0x84) {
             pSpriteData->position.y = pSpriteData->field_0x84 << 16;
         }
@@ -522,14 +523,8 @@ void func_80024294(s32 arg0, s16 arg1, s16 arg2, s16 arg3, s16 arg4, s16 arg5, s
     D_800591B8 = 0;
 }
 
-extern INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_8002435C);
-/* Best attempt: 89.07%. Every operation, load, store and call is in place and in order; what is
-   left is register allocation only. The original keeps pAnimFile in s6 for the tail (the 0x48
-   store and the func_800222BC call) and a second copy in s1 for the 0x8 offset load, so it saves
-   seven callee-saved registers; this C uses one register throughout. The 0x3C/0x40 flag block
-   also lands in the other registers (mask in a0, D_800591AD in v1 instead of the reverse).
-SpriteData* func_8002435C(SpriteData* pSpriteData, void* pAnimFile, s16 arg2, s16 arg3, s16 arg4,
-                                 s16 arg5, s16 arg6);
+extern void func_8002435C(SpriteData* pSpriteData, void* pAnimFile, s16 arg2, s16 arg3, s16 arg4, s16 arg5,
+                          s16 arg6);
 
 void func_800242F4(SpriteData* pSpriteData, void* pAnimFile, s16 arg2, s16 arg3, s16 arg4, s16 arg5,
                    s16 arg6, s32 arg7) {
@@ -538,12 +533,18 @@ void func_800242F4(SpriteData* pSpriteData, void* pAnimFile, s16 arg2, s16 arg3,
     D_800591B8 = 0;
 }
 
-extern u8 D_800591AD;
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_8002435C);
+/* Best attempt: 89.07%. Every operation, load, store and call is in place and in order; what is
+   left is register allocation only. The original keeps pAnimFile in s6 for the tail (the 0x48
+   store and the func_800222BC call) and a second copy in s1 for the 0x8 offset load, so it saves
+   seven callee-saved registers; this C uses one register throughout. The 0x3C/0x40 flag block
+   also lands in the wrong registers (mask in a0, D_800591AD in v1 instead of the reverse).
+   Returns pSpriteData in v0, so the prototype above should be SpriteData* once defined.
 extern void SpriteSetScale(SpriteData* pSpriteData, s16 scale);
 extern s32 func_8001EE74(u16* pFlags);
 
-SpriteData* func_8002435C(SpriteData* pSpriteData, void* pAnimFile, s16 arg2, s16 arg3, s16 arg4, s16 arg5,
-                          s16 arg6) {
+SpriteData* func_8002435C(SpriteData* pSpriteData, void* pAnimFile, s16 arg2, s16 arg3, s16 arg4,
+                          s16 arg5, s16 arg6) {
     SpriteDataI1* pBase;
     void* pFramesData;
     u8* pAnimations;
@@ -573,7 +574,8 @@ SpriteData* func_8002435C(SpriteData* pSpriteData, void* pAnimFile, s16 arg2, s1
     *(u32*)((u8*)pSpriteData + 0x3C) = flags;
     pAnimFileData = pAnimFile;
     pAnimHeader = *(u32*)(pAnimFileData + 8);
-    pFramesData = HeapAlloc(func_8001EE74((u16*)(pAnimHeader + (mem_addr)pAnimFileData)) * sizeof(SpriteFrameData), 0);
+    pFramesData =
+        HeapAlloc(func_8001EE74((u16*)(pAnimHeader + (mem_addr)pAnimFileData)) * sizeof(SpriteFrameData), 0);
     pBase = pSpriteData->pBase;
     pBase->pFramesData = pFramesData;
     pBase->pCurRenderFramesData = pFramesData;
@@ -588,6 +590,7 @@ SpriteData* func_8002435C(SpriteData* pSpriteData, void* pAnimFile, s16 arg2, s1
     func_800245D8(pSpriteData, 0);
     return pSpriteData;
 }
+*/
 
 void func_80024524(s32 arg0, s16 arg1, s16 arg2, s16 arg3, s16 arg4, s16 arg5) {
     SpriteData* pSpriteData;
@@ -596,12 +599,12 @@ void func_80024524(s32 arg0, s16 arg1, s16 arg2, s16 arg3, s16 arg4, s16 arg5) {
     pSpriteData->allocatedDataSize = sizeof(SpriteData);
     func_8002435C(pSpriteData, (void*)arg0, arg1, arg2, arg3, arg4, arg5);
 }
-*/
 
 extern void func_800222BC(SpriteData* pSpriteData, void* pAnimFile);
 extern s32 func_8001EE68(void* pFrames);
 extern void func_800223B0(SpriteData* pSpriteData, s16 arg1);
 extern void func_80023538(SpriteData* pSpriteData, void* pAnimEntry);
+extern u8 D_800591AD;
 
 void func_800245D8(SpriteData* pSpriteData, s32 animId) {
     u8* pAnimations;
