@@ -1,4 +1,5 @@
 #include "common.h"
+#include "main/game.h"
 #include "psyq/libgpu.h"
 #include "system/memory.h"
 #include "system/math.h"
@@ -10,6 +11,37 @@
 
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc9", func_800AA9DC);
+// 98.16%: instruction for instruction identical to the original, but gcc hands the
+// pModel copy and the deltaX copy the opposite registers (a3/a2 instead of a2/a3).
+// s32 func_800AA9DC(FieldActorModelData* pModel) {
+//     s32 minX;
+//     s32 minY;
+//     s32 minZ;
+//     FieldActorModelBounds* pBounds;
+//     s32 deltaX;
+//     s32 deltaY;
+//     s32 deltaZ;
+//     s32 maxDelta;
+//
+//     pBounds = pModel->pBounds;
+//     deltaX = pBounds->max.vx - (minX = pBounds->min.vx);
+//     deltaY = pBounds->max.vy - (minY = pBounds->min.vy);
+//     deltaZ = pBounds->max.vz - (minZ = pBounds->min.vz);
+//
+//     maxDelta = deltaX;
+//     if (deltaY > maxDelta) {
+//         maxDelta = deltaY;
+//     }
+//     if (deltaZ > maxDelta) {
+//         maxDelta = deltaZ;
+//     }
+//
+//     pModel->centerX = deltaX / 2 + minX;
+//     pModel->centerY = deltaY / 2 + minY;
+//     pModel->centerZ = deltaZ / 2 + minZ;
+//     pModel->size = maxDelta * 2 + 1;
+//     return maxDelta * 2 + 1;
+// }
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc9", func_800AAA74);
 
@@ -139,7 +171,17 @@ void func_800AAF80(void) {
     }
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc9", func_800AB328);
+// Check whether the inventory holds at least one of the given item
+s32 func_800AB328(int itemId) {
+    int i;
+
+    for (i = 0; i < MAX_INVENTORY_ITEMS; i++) {
+        if (g_pGameState->itemIDs[i] == itemId && g_pGameState->itemQuantities[i] != 0) {
+            return 0;
+        }
+    }
+    return -1;
+}
 
 extern SpriteList2* D_800B1DF0;
 extern PolyList2* D_800C3A3C;
@@ -227,12 +269,45 @@ void func_800ABEC8(void) {
 }
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc9", func_800ABFDC);
+// 94.58%: identical except that gcc fuses the `or` into a0 (2 instrs here, 3 in the original)
+// s32 func_800ABFDC(u_char* pData, s32* pIsGlyph) {
+//     s32 code;
+//     code = (pData[0] << 8) | pData[1];
+//     if ((u_short)(code - 0x8540) < 0x340) {
+//         *pIsGlyph = 1;
+//         return code - 0x8540;
+//     }
+//     *pIsGlyph = 0;
+//     return Krom2RawAdd(code);
+// }
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc9", func_800AC03C);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc9", func_800AC0F0);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc9", func_800AC308);
+extern int ArchiveDecodeAlignedSize(unsigned int entryIndex);
+extern void ArchiveReadFileToBuffer(s32 index, void* pBuffer, u32 arg2, u32 flags);
+extern void ArchiveCdDataSync(int mode);
+
+extern s32 D_8004F300;
+extern void* D_800AF76C;
+extern void* D_800AF774;
+extern s32 D_800AF778;
+extern s32 D_800AF77C;
+extern s32 D_800AF780;
+extern s32 D_800AF784;
+
+// Load the two archive files this effect needs
+void func_800AC308(void) {
+    ArchiveSetIndex(4, 0);
+    D_800AF780 = ArchiveDecodeSize(0xAB);
+    D_800AF76C = HeapAlloc(ArchiveDecodeAlignedSize(0xAB), 1);
+    ArchiveReadFileToBuffer(0xAB, D_800AF76C, 0, 0x80);
+    ArchiveCdDataSync(0);
+    D_800AF784 = HeapAlloc(ArchiveDecodeAlignedSize(0xAC), 1);
+    ArchiveReadFileToBuffer(0xAC, D_800AF784, 0, 0x80);
+    ArchiveCdDataSync(0);
+}
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc9", func_800AC3AC);
 
@@ -240,11 +315,41 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc9", func_800AC99C);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc9", func_800ACB90);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc9", func_800ACC58);
+extern void func_800AC308();
+extern void func_800AC3AC();
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc9", func_800ACCB0);
+void func_800ACC58(void) {
+    RECT rect; // unused, but the original frame has this 8-byte slot
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc9", func_800ACCF4);
+    if (D_8004F300) {
+        func_800AC308();
+        func_800AC3AC();
+        D_800AF77C = 0;
+        D_800AF778 = 0xF;
+        D_800AF774 = D_800AF76C;
+    }
+}
+
+extern s32 D_800AF770;
+
+void func_800ACCB0(void) {
+    if (D_8004F300) {
+        HeapFree(D_800AF76C);
+        HeapFree(D_800AF770);
+    }
+}
+
+void* func_800AC0F0(void* pData, s32 offset, s32 frame);
+
+void func_800ACCF4(void) {
+    if (D_8004F300) {
+        if ((D_800AF77C & 0xF) == 0) {
+            D_800AF774 = func_800AC0F0(D_800AF774, 0x300, D_800AF778 & 0xF);
+            D_800AF778++;
+        }
+        D_800AF77C++;
+    }
+}
 
 short FieldScriptVMGetInstructionArgumentS16(int offset) {
     u_char* pData;
