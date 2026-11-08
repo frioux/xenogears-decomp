@@ -809,12 +809,10 @@
 #define gte_mvmva_core( r0 ) __asm__ volatile (			\
 	"nop;"							\
 	"nop;"							\
-	".word %0"						\
-	:							\
-	: "g"( r0 ) )
+	".word " #r0 )
 
-#define gte_mvmva(sf,mx,v,cv,lm) gte_mvmva_core( 0x000013bf |	\
-	((sf)<<25) | ((mx)<<23) | ((v)<<21) | ((cv)<<19) | ((lm)<<18))
+#define gte_mvmva(sf,mx,v,cv,lm) gte_mvmva_core( 0x4a400012 |	\
+	((sf)<<19) | ((mx)<<17) | ((v)<<15) | ((cv)<<13) | ((lm)<<10))
 
 
 /*
@@ -823,7 +821,7 @@
 
 #define gte_rtps_b()		__asm__ volatile ( ".word 0x0000007f" )
 #define gte_rtpt_b()		__asm__ volatile ( ".word 0x000000bf" )
-#define gte_rt_b()		__asm__ volatile ( ".word 0x000000ff" )
+#define gte_rt_b()		__asm__ volatile ( ".word 0x4a480012" )
 #define gte_rtv0_b()		__asm__ volatile ( ".word 0x0000013f" )
 #define gte_rtv1_b()		__asm__ volatile ( ".word 0x0000017f" )
 #define gte_rtv2_b()		__asm__ volatile ( ".word 0x000001bf" )
@@ -837,7 +835,7 @@
 #define gte_rtv1bk_b()		__asm__ volatile ( ".word 0x000003bf" )
 #define gte_rtv2bk_b()		__asm__ volatile ( ".word 0x000003ff" )
 #define gte_rtirbk_b()		__asm__ volatile ( ".word 0x0000043f" )
-#define gte_ll_b()		__asm__ volatile ( ".word 0x0000057f" )
+#define gte_ll_b()		__asm__ volatile ( ".word 0x4a4a6412" )
 #define gte_llv0_b()		__asm__ volatile ( ".word 0x000005bf" )
 #define gte_llv1_b()		__asm__ volatile ( ".word 0x000005ff" )
 #define gte_llv2_b()		__asm__ volatile ( ".word 0x0000063f" )
@@ -850,7 +848,7 @@
 #define gte_llv1bk_b()		__asm__ volatile ( ".word 0x000007ff" )
 #define gte_llv2bk_b()		__asm__ volatile ( ".word 0x0000083f" )
 #define gte_llirbk_b()		__asm__ volatile ( ".word 0x0000087f" )
-#define gte_lc_b()		__asm__ volatile ( ".word 0x000009bf" )
+#define gte_lc_b()		__asm__ volatile ( ".word 0x4a4da412" )
 #define gte_lcv0_b()		__asm__ volatile ( ".word 0x000009ff" )
 #define gte_lcv1_b()		__asm__ volatile ( ".word 0x00000a3f" )
 #define gte_lcv2_b()		__asm__ volatile ( ".word 0x00000a7f" )
@@ -863,35 +861,33 @@
 #define gte_lcv1bk_b()		__asm__ volatile ( ".word 0x00000c3f" )
 #define gte_lcv2bk_b()		__asm__ volatile ( ".word 0x00000c7f" )
 #define gte_lcirbk_b()		__asm__ volatile ( ".word 0x00000cbf" )
-#define gte_dpcl_b()		__asm__ volatile ( ".word 0x00000dff" )
-#define gte_dpcs_b()		__asm__ volatile ( ".word 0x00000e3f" )
-#define gte_dpct_b()		__asm__ volatile ( ".word 0x00000e7f" )
-#define gte_intpl_b()		__asm__ volatile ( ".word 0x00000ebf" )
-#define gte_sqr12_b()		__asm__ volatile ( ".word 0x00000eff" )
-#define gte_sqr0_b()		__asm__ volatile ( ".word 0x00000f3f" )
-#define gte_ncs_b()		__asm__ volatile ( ".word 0x00000f7f" )
-#define gte_nct_b()		__asm__ volatile ( ".word 0x00000fbf" )
-#define gte_ncds_b()		__asm__ volatile ( ".word 0x00000fff" )
-#define gte_ncdt_b()		__asm__ volatile ( ".word 0x0000103f" )
-#define gte_nccs_b()		__asm__ volatile ( ".word 0x0000107f" )
-#define gte_ncct_b()		__asm__ volatile ( ".word 0x000010bf" )
-#define gte_cdp_b()		__asm__ volatile ( ".word 0x000010ff" )
-#define gte_cc_b()		__asm__ volatile ( ".word 0x0000113f" )
-#define gte_nclip_b()		__asm__ volatile ( ".word 0x0000117f" )
-#define gte_avsz3_b()		__asm__ volatile ( ".word 0x000011bf" )
-#define gte_avsz4_b()		__asm__ volatile ( ".word 0x000011ff" )
-#define gte_op12_b()		__asm__ volatile ( ".word 0x0000123f" )
-#define gte_op0_b()		__asm__ volatile ( ".word 0x0000127f" )
-#define gte_gpf12_b()		__asm__ volatile ( ".word 0x000012bf" )
-#define gte_gpf0_b()		__asm__ volatile ( ".word 0x000012ff" )
-#define gte_gpl12_b()		__asm__ volatile ( ".word 0x0000133f" )
-#define gte_gpl0_b()		__asm__ volatile ( ".word 0x0000137f" )
+#define gte_dpcl_b()		__asm__ volatile ( ".word 0x4a680029" )
+#define gte_dpcs_b()		__asm__ volatile ( ".word 0x4a780010" )
+#define gte_dpct_b()		__asm__ volatile ( ".word 0x4af8002a" )
+#define gte_intpl_b()		__asm__ volatile ( ".word 0x4a980011" )
+#define gte_sqr12_b()		__asm__ volatile ( ".word 0x4aa80428" )
+#define gte_sqr0_b()		__asm__ volatile ( ".word 0x4aa00428" )
+#define gte_ncs_b()		__asm__ volatile ( ".word 0x4ac8041e" )
+#define gte_nct_b()		__asm__ volatile ( ".word 0x4ad80420" )
+#define gte_ncds_b()		__asm__ volatile ( ".word 0x4ae80413" )
+#define gte_ncdt_b()		__asm__ volatile ( ".word 0x4af80416" )
+#define gte_nccs_b()		__asm__ volatile ( ".word 0x4b08041b" )
+#define gte_ncct_b()		__asm__ volatile ( ".word 0x4b18043f" )
+#define gte_cdp_b()		__asm__ volatile ( ".word 0x4b280414" )
+#define gte_cc_b()		__asm__ volatile ( ".word 0x4b38041c" )
+#define gte_nclip_b()		__asm__ volatile ( ".word 0x4b400006" )
+#define gte_avsz3_b()		__asm__ volatile ( ".word 0x4b58002d" )
+#define gte_avsz4_b()		__asm__ volatile ( ".word 0x4b68002e" )
+#define gte_op12_b()		__asm__ volatile ( ".word 0x4b78000c" )
+#define gte_op0_b()		__asm__ volatile ( ".word 0x4b70000c" )
+#define gte_gpf12_b()		__asm__ volatile ( ".word 0x4b98003d" )
+#define gte_gpf0_b()		__asm__ volatile ( ".word 0x4b90003d" )
+#define gte_gpl12_b()		__asm__ volatile ( ".word 0x4ba8003e" )
+#define gte_gpl0_b()		__asm__ volatile ( ".word 0x4ba0003e" )
 #define gte_mvmva_core_b( r0 )	__asm__ volatile (		\
-	".word %0"						\
-	:							\
-	: "g"( r0 ) )
-#define gte_mvmva_b(sf,mx,v,cv,lm) gte_mvmva_core_b( 0x000013bf |\
-	((sf)<<25) | ((mx)<<23) | ((v)<<21) | ((cv)<<19) | ((lm)<<18))
+	".word " #r0 )
+#define gte_mvmva_b(sf,mx,v,cv,lm) gte_mvmva_core_b( 0x4a400012 |\
+	((sf)<<19) | ((mx)<<17) | ((v)<<15) | ((cv)<<13) | ((lm)<<10))
 
 /*
  * Type 3 functions

@@ -156,20 +156,24 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", SetGeomOffset);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", SetGeomScreen);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", LocalLight);
+// The libgte object in this binary was built with the one-nop INLINE_C.H
+// revision; include/psyq/inline_c.h is 4.3's two-nop one, so the _b form plus
+// an explicit gte_nop() is what the original emitted.
+void LocalLight(SVECTOR *v0, VECTOR *v1) {
+    gte_ldv0(v0);
+    gte_nop();
+    gte_ll_b();
+    gte_stlvl(v1);
+}
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", DpqColor);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", NormalColor);
-/* best attempt 77.14%. The original has one nop between the load and the COP2
-   command and a real command encoding; gte_NormalColor() in
-   include/psyq/{gtemac,inline_c}.h emits two nops and a raw .word, so this
-   header version is not the one libgte was built with. Applies to the whole
-   NormalColor, LocalLight, LightColor and Square families.
 void NormalColor(SVECTOR *v0, CVECTOR *v1) {
-    gte_NormalColor(v0, v1);
+    gte_ldv0(v0);
+    gte_nop();
+    gte_ncs_b();
+    gte_strgb(v1);
 }
-*/
 
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", NormalColor3);
@@ -178,19 +182,36 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", NormalColorDpq);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", NormalColorDpq3);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", NormalLightCol);
+void NormalLightCol(SVECTOR *v0, CVECTOR *v1, CVECTOR *v2) {
+    gte_ldv0(v0);
+    gte_ldrgb(v1);
+    gte_nop();
+    gte_nccs_b();
+    gte_strgb(v2);
+}
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", NormalColorCol3);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", ColorDpq);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", ColorCol);
+void ColorCol(VECTOR *v0, CVECTOR *v1, CVECTOR *v2) {
+    gte_ldlvl(v0);
+    gte_ldrgb(v1);
+    gte_nop();
+    gte_cc_b();
+    gte_strgb(v2);
+}
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", AverageSZ3);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", AverageSZ4);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", LightColor);
+void LightColor(VECTOR *v0, VECTOR *v1) {
+    gte_ldlvl(v0);
+    gte_nop();
+    gte_lc_b();
+    gte_stlvl(v1);
+}
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", DpqColorLight);
 
