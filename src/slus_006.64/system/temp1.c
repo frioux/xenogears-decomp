@@ -245,7 +245,15 @@ void func_80024294(s32 arg0, s16 arg1, s16 arg2, s16 arg3, s16 arg4, s16 arg5, s
     D_800591B8 = 0;
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_800242F4);
+extern void func_8002435C(SpriteData* pSpriteData, void* pAnimFile, s16 arg2, s16 arg3, s16 arg4, s16 arg5,
+                          s16 arg6);
+
+void func_800242F4(SpriteData* pSpriteData, void* pAnimFile, s16 arg2, s16 arg3, s16 arg4, s16 arg5,
+                   s16 arg6, s32 arg7) {
+    D_800591B8 = arg7;
+    func_8002435C(pSpriteData, pAnimFile, arg2, arg3, arg4, arg5, arg6);
+    D_800591B8 = 0;
+}
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_8002435C);
 
