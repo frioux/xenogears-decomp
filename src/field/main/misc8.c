@@ -851,6 +851,19 @@ void func_800860F0(int arg0, int arg1, int arg2, int arg3, int actorIndex) {
     }
 }
 
+INCLUDE_ASM("asm/field/nonmatchings/main/misc8", FieldActorWorldToScreenPosition);
+/* 95.25%: everything matches but the base address (204 bytes, same size).
+   The original materialises `&g_FieldActors` into v1 (`lui v1,%hi;
+   addiu v1,v1,%lo`, offset 0, after the FieldScriptVMGetActorIndex call),
+   takes the matrix from it with `addiu a0,v1,-0xAC` and loads the actor
+   pointer with `lw a1,0(v1)`; gcc folds -0xAC into one %lo and emits a
+   separate lui/lw for the pointer. The -0xAC is exact and identifies the
+   original layout: &g_FieldActors (0x800AFB10) - 0xAC ==
+   g_Scene.worldToScreenMatrix (0x800AF990 + 0xD4), so the matrix and the
+   actor pointer were members of one struct in the original source. The anchor
+   must stay the g_FieldActors symbol, so the fix is a parent struct that the
+   symbol file can express without overlapping g_Scene. Holding the base in a
+   local pointer does not help: gcc const-propagates the symbol address.
 void FieldActorWorldToScreenPosition(int actorIndex, int* pScreenX, int* pScreenY) {
     SVECTOR vertex;
     MATRIX transformMatrix;
@@ -870,6 +883,7 @@ void FieldActorWorldToScreenPosition(int actorIndex, int* pScreenX, int* pScreen
     *pScreenY = ((short*)&sxy)[1];
     *pScreenX = ((short*)&sxy)[0];
 }
+*/
 
 void func_800862CC(int arg0, int arg1, int arg2, int arg3, int actorIndex) {
     short value;
