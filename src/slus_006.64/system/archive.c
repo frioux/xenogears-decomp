@@ -26,6 +26,17 @@ extern void func_8002B084();
 extern void func_8002B2F0();
 extern void func_8002BA58();
 extern s32 g_ArchiveCurFileSector;
+extern char D_80018944[];
+extern char D_80018954[];
+extern char D_80018964[];
+extern char D_80018974[];
+extern void func_800379C8(char*, ...);
+extern s32 D_80059F3C;
+extern s16 D_80059F40;
+extern s16 D_80059F44;
+extern s16 D_80059F48;
+extern u16* D_80059F4C;
+extern s32 D_80059F50;
 
 // Only matches on GCC 2.7.2
 int ArchiveReadFile(u32 dbgEntryIndex, u8* pDestBuffer, s32 arg2, s32 flags) {
@@ -580,7 +591,12 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002BB50);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002BF38);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002C310);
+void func_8002C310(void) {
+    func_800379C8(D_80018944, g_ArchiveTable, D_8004FE08, D_8004FE2C);
+    func_800379C8(D_80018954, D_8004FE40, D_8004FE10, D_80059F3C, D_80059F50);
+    func_800379C8(D_80018964, D_80059F40, D_80059F44, D_80059F48, D_80059F4C);
+    func_800379C8(D_80018974, D_80059F4C[0], D_80059F4C[1], D_80059F4C[2]);
+}
 
 u32 ArchiveGetDebugTable(void) {
     return g_ArchiveDebugTable;
