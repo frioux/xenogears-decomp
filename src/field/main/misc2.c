@@ -381,12 +381,14 @@ extern u_char D_800ADB05;
 extern s32 D_800ADBFC;
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_800752C8);
-// 99.50%: the instruction stream is identical, but gcc gives $a1 to the actor's
-// ActorData and $a2 to the FieldActor where the original has $a1 = FieldActor and
-// $a2 = ActorData (the AnimScriptTick argument is $a0 in both). Declaration order,
-// a pActorData local, an index/offset loop and a pActors array-pointer local all
-// leave the swap in place. The original also reads the status halfword at 0x58 as a
-// 32-bit word, hence the cast. Re-add the rodata constant with the function.
+// 99.60%: only the $a1/$a2 choice is wrong. The original has $a1 = FieldActor and
+// $a2 = ActorData; gcc always gives the ActorData pseudo $a1 however it is written
+// (CSE'd, function-scope local, block-scope local, declaration order). The other
+// difference, the `addu $a1, $s1, $v0` operand order, IS fixable: the address has to
+// be written as integer arithmetic with the offset first (see below); a pointer
+// expression `&g_FieldActors[i]` produces `addu $a1, $v0, $s1` in the wrong order.
+// The status halfword at 0x58 is read as a 32-bit word, hence the cast. Re-add the
+// rodata constant below with the function.
 /*
 // .rodata
 const char D_8006FB28[0xC] = "CHAR      ";
@@ -408,7 +410,8 @@ void func_800752C8(void) {
     func_80075B44(g_FieldCurRenderContext->ot1, g_FieldCurRenderContextIndex);
 
     for (i = 0; i < D_800ADBFC; i++) {
-        pActor = &g_FieldActors[i];
+        // Offset-first integer arithmetic: matches the original's addu operand order
+        pActor = (FieldActor*)(i * 0x5C + (int)g_FieldActors);
         // The original reads status as a 32-bit word
         if ((*(u_int*)&pActor->status & 0x60) == 0x40) {
             if ((pActor->pActorData->flags & 0x600) == 0x200) {
@@ -512,8 +515,10 @@ void func_80075910(void) {
 }
 
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_800759E4);
-/*
+// .rodata
+const VECTOR D_8006FB70 = { 0, 0, 0x1000, 0 };
+
+// Builds the sprite rotation matrix rows for a billboard from the up vector
 void func_800759E4(s16* pOut, VECTOR* pUp) {
     VECTOR zAxis;
     VECTOR xAxis;
@@ -535,7 +540,6 @@ void func_800759E4(s16* pOut, VECTOR* pUp) {
     pOut[7] = zAxis.vy;
     pOut[8] = zAxis.vz;
 }
-*/
 
 void func_80075B08(SpriteData* pSpriteData, u_char* pColor) {
     if (D_800B218E == 0) {
