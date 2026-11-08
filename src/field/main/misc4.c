@@ -398,6 +398,20 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007B1C4);
 INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007B478);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007B614);
+/* Best attempt: 91.78%. Remaining differences are register assignment (the original
+   keeps pVec in s2, the angle in s1, the scale in s0) and the position of the
+   pVec->y store, which gcc hoists above the rcos call here.
+extern s16 D_800B218C;
+
+void func_8007B614(IVEC3* pVec, int scale, int angle) {
+    int nAngle = angle & 0xFFF;
+    int nScale = (scale << 4) * D_800B218C >> 12;
+
+    pVec->x = rsin(nAngle) * nScale;
+    pVec->y = 0;
+    pVec->z = -(rcos(nAngle) * nScale);
+}
+*/
 
 int func_8007B694(IVEC3* pVec) {
     return -ratan2(pVec->z, pVec->x) & 0xFFF;
