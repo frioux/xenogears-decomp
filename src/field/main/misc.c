@@ -286,7 +286,32 @@ void func_80087E5C(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_80087E98);
+extern s32 D_800ADBFC;
+extern s32 g_PlayerActorIndex;
+extern FieldScriptGlobalU16 D_800B234E;
+extern FieldScriptGlobalS16 D_800B233E;
+
+// Switch the actor controlled by the player
+void func_80087E98(void) {
+    int actorIndex = FieldScriptVMGetActorIndex(1);
+
+    if (actorIndex != ACTOR_ID_INVALID) {
+        int i;
+
+        if (actorIndex == D_8005A444[0]) {
+            D_800B234E.value = 0;
+        } else {
+            D_800B234E.value = 1;
+        }
+        g_PlayerActorIndex = actorIndex;
+        D_800B233E.value = actorIndex;
+        for (i = 0; i < D_800ADBFC; i++) {
+            g_FieldActors[i].pActorData->scriptFlags.flags &= ~0x01004000;
+        }
+        g_FieldActors[actorIndex].pActorData->scriptFlags.flags |= 0x4000;
+    }
+    g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
+}
 
 extern FieldScriptGlobalU16 D_800B2348;
 
@@ -1847,7 +1872,31 @@ void func_8008E85C(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008E8C8);
+void func_8008E8C8(void) {
+    switch (SCRIPT_READ_U8_REL(1)) {
+        case 0:
+            if (g_FieldScriptVMCurActor->scriptFlags.flags & 0x8000) {
+                g_FieldScriptVMCurActor->scriptFlags.flags &= ~0x8000;
+            }
+            if (g_FieldScriptVMCurActor->flags & 0x80000) {
+                SpriteData* pSpriteData = g_FieldActors[D_800AFD1C].pSpriteData;
+
+                pSpriteData->moveSpeed = 0;
+                pSpriteData->step.z = 0;
+                pSpriteData->step.x = 0;
+                g_FieldScriptVMCurActor->flags &= ~0x80000;
+            }
+            break;
+        case 1:
+            g_FieldScriptVMCurActor->scriptFlags.flags |= 0x8000;
+            g_FieldScriptVMCurActor->unk11C = *(u_short*)&g_FieldScriptVMCurActor->rotation.vy;
+            break;
+        case 2:
+            g_FieldScriptVMCurActor->flags |= 0x80000;
+            break;
+    }
+    g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
+}
 
 extern s32 D_800ADB7C;
 
