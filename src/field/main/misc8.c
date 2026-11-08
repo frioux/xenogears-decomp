@@ -381,7 +381,8 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800831F4);
    `sh 0x106` into the call delay slot, where the original loads into v0 and
    copies to v1 (`move v1,v0`, one more insn: 144 vs 140 bytes) and keeps both
    stores before the reload of rotation.vx. `u_short value` for the second half
-   is required: it is what makes the second half a single `lhu`.
+   is required: it is what makes the second half a single `lhu`. `int vy` in
+   place of `short vy` also keeps `lh v1` and shrinks the frame to 0x18.
 void func_800831F4(int arg0, ActorData* pActor, int arg2, int arg3) {
     short vy;
     int rotation;
@@ -512,8 +513,10 @@ void func_80039F9C(void*, int, int, int);
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800855C8);
 /* 85.56%: the original keeps `arg3 & 7` in s0 and shifts at each use
    (`andi s0,a3,7`, `sll a0,s0,1`, `sll a1,s0,1`); gcc CSEs the doubled value
-   into s0 and copies it (`move a0,s0` / `move a1,s0`). Same size and registers,
-   so it links, but objdiff never reaches 100%.
+   into s0 and copies it (`move a0,s0` / `move a1,s0`), which also keeps it out
+   of the first jal's delay slot. Same size and registers, so it links, but
+   objdiff never reaches 100%. Writing `offset + offset` for one use does not
+   help: gcc still folds both uses into one product.
 void func_800855C8(int arg0, int arg1, int arg2, int arg3) {
     int offset = arg3 & 7;
 
@@ -863,7 +866,9 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc8", FieldActorWorldToScreenPosition
    actor pointer were members of one struct in the original source. The anchor
    must stay the g_FieldActors symbol, so the fix is a parent struct that the
    symbol file can express without overlapping g_Scene. Holding the base in a
-   local pointer does not help: gcc const-propagates the symbol address.
+   local pointer, in a `u_int` local, or writing `&g_FieldActors - 0xAC`
+   directly all give 95.25%: gcc const-propagates and never reuses the base
+   register for both addresses.
 void FieldActorWorldToScreenPosition(int actorIndex, int* pScreenX, int* pScreenY) {
     SVECTOR vertex;
     MATRIX transformMatrix;
