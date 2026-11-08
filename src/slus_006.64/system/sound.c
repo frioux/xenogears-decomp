@@ -302,7 +302,40 @@ void func_80037F88(void) {
 
 
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", SoundLoadWdsFile);
+SoundWDSEntry* SoundLoadWdsFile(SoundWDSEntry* pWdsFile, void* pUnk) {
+    SoundWDSEntry* pEntry;
+    SoundWDSEntry** ppLink;
+    int spuAddress;
+
+    spuAddress = SoundSpuMemoryAllocateWDS(pWdsFile);
+    if (spuAddress == 0) {
+        SoundHandleError(0x1F);
+        return NULL;
+    }
+
+    SoundQueueSpuWriteCommand(spuAddress, (u8*)pWdsFile + pWdsFile->adpcmDataOffset, pWdsFile->adpcmDataSize, NULL);
+
+    pEntry = (SoundWDSEntry*)func_80039024(pWdsFile->headerSizeMby);
+    if (pEntry == NULL) {
+        SoundSpuMemoryFreeBlock(spuAddress);
+        SoundHandleError(0x1E);
+        return NULL;
+    }
+
+    SoundHeapSetBlockMemory(pEntry, pWdsFile, pWdsFile->headerSizeMby);
+    pEntry->spuMemoryAddress = spuAddress;
+
+    DisableEvent(g_unk_SoundEvent);
+    ppLink = &g_SoundWdsLinkedList;
+    while (*ppLink != NULL) {
+        ppLink = &(*ppLink)->pNext;
+    }
+    *ppLink = pEntry;
+    pEntry->pNext = NULL;
+    EnableEvent(g_unk_SoundEvent);
+
+    return pEntry;
+}
 
 // Loads part of a WDS file, basically a sized SoundLoadWdsFile?
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_800380D0);
