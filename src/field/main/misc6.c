@@ -278,6 +278,17 @@ void func_8009E4BC(void) {
 }
 
 
+typedef struct {
+    /* 0x0 */ u16 f0;
+    /* 0x2 */ u16 f1;
+    /* 0x4 */ u16 f2;
+    /* 0x6 */ u16 f3;
+    /* 0x8 */ u16 f4;
+    /* 0xA */ u16 f5;
+    /* 0xC */ u16 f6;
+    /* 0xE */ u16 f7;
+} FieldScriptArgs; // Size: 0x10
+
 INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_8009E574);
 
 // Writes the actor's Y position (fixed point) and the cached short copies
@@ -318,32 +329,21 @@ void func_8009E83C(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_8009E91C);
-/*
-Matches, but awaits being compiled in until unk114 struct has been better recovered.
-
-
-typedef struct {
-    u16 f0, f1, f2, f3, f4, f5, f6, f7;
-} Tmp;
-
 void func_8009E91C(void) {
-    if (!(g_FieldScriptVMCurActor->flags12C & 0x1000)) {
+    if (!g_FieldScriptVMCurActor->flags12C_0xD) {
         g_FieldScriptVMCurActor->unk114 = HeapAlloc(0x10, 0x0);
     }
-    g_FieldScriptVMCurActor->flags12C |= 0x1000;
-    ((Tmp*)g_FieldScriptVMCurActor->unk114)->f0 = FieldScriptArgument1(0x1, SCRIPT_READ_U8_REL(0x11));
-    ((Tmp*)g_FieldScriptVMCurActor->unk114)->f1 = FieldScriptArgument2(0x3, SCRIPT_READ_U8_REL(0x11));
-    ((Tmp*)g_FieldScriptVMCurActor->unk114)->f2 = FieldScriptArgument3(0x5, SCRIPT_READ_U8_REL(0x11));
-    ((Tmp*)g_FieldScriptVMCurActor->unk114)->f3 = FieldScriptArgument4(0x7, SCRIPT_READ_U8_REL(0x11));
-    ((Tmp*)g_FieldScriptVMCurActor->unk114)->f4 = FieldScriptArgument5(0x9, SCRIPT_READ_U8_REL(0x11));
-    ((Tmp*)g_FieldScriptVMCurActor->unk114)->f5 = FieldScriptArgument6(0xB, SCRIPT_READ_U8_REL(0x11));
-    ((Tmp*)g_FieldScriptVMCurActor->unk114)->f6 = FieldScriptArgument7(0xD, SCRIPT_READ_U8_REL(0x11));
-    ((Tmp*)g_FieldScriptVMCurActor->unk114)->f7 = FieldScriptArgument8(0xF, SCRIPT_READ_U8_REL(0x11));
-    
+    g_FieldScriptVMCurActor->flags12C_0xD = 1;
+    ((FieldScriptArgs*)g_FieldScriptVMCurActor->unk114)->f0 = FieldScriptArgument1(1, SCRIPT_READ_U8_REL(0x11));
+    ((FieldScriptArgs*)g_FieldScriptVMCurActor->unk114)->f1 = FieldScriptArgument2(3, SCRIPT_READ_U8_REL(0x11));
+    ((FieldScriptArgs*)g_FieldScriptVMCurActor->unk114)->f2 = FieldScriptArgument3(5, SCRIPT_READ_U8_REL(0x11));
+    ((FieldScriptArgs*)g_FieldScriptVMCurActor->unk114)->f3 = FieldScriptArgument4(7, SCRIPT_READ_U8_REL(0x11));
+    ((FieldScriptArgs*)g_FieldScriptVMCurActor->unk114)->f4 = FieldScriptArgument5(9, SCRIPT_READ_U8_REL(0x11));
+    ((FieldScriptArgs*)g_FieldScriptVMCurActor->unk114)->f5 = FieldScriptArgument6(0xB, SCRIPT_READ_U8_REL(0x11));
+    ((FieldScriptArgs*)g_FieldScriptVMCurActor->unk114)->f6 = FieldScriptArgument7(0xD, SCRIPT_READ_U8_REL(0x11));
+    ((FieldScriptArgs*)g_FieldScriptVMCurActor->unk114)->f7 = FieldScriptArgument8(0xF, SCRIPT_READ_U8_REL(0x11));
     g_FieldScriptVMCurActor->scriptInstructionPointer += 0x12;
 }
-*/
 
 // -1: Actor has a script slot occupied w/ target ID
 //  0: Actor has no script slot w/ target ID
@@ -625,10 +625,10 @@ s32 func_8009FA54(s32 nInstructionOffset) {
 }
 */
 INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_8009FB98);
-// 63.17%: C is right, but gcc's post-reload scheduler emits the ip store before
-// the D_800B2268 store; the original keeps the source order. Making the ip store
-// volatile restores the order (88.00%) but blocks reorg's delay-slot fill, adding
-// a nop (124 vs 120 bytes), so it cannot link.
+// 66.50%: only the ordering differs - the original stores D_800B2268 before it
+// reloads scriptInstructionPointer (+2) and stores it; every source order I tried
+// (and a volatile store) lets gcc's scheduler hoist the ip update above the
+// global store. 116-120 bytes, so it cannot be committed.
 /*
 void func_8009FB98(void) {
     g_GameSceneMapNum |= 0xC000;
