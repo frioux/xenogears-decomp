@@ -39,6 +39,8 @@
 
 // Debug-related?
 extern s32* D_8005917C;
+extern u32* D_8005945C; // file handle used to retrieve the overlay's resources
+extern SoundFile* D_8006259C;
 
 extern int D_801D1F50; // Number of items
 extern s32 D_801D1FD0[];
@@ -236,7 +238,100 @@ void ShopMenuShopManager(u_char isInitialization) {
     HeapFree(g_Menu->pShop);
 }
 
-INCLUDE_ASM("asm/shop_menu/nonmatchings/main/misc", ShopMenuLoadResources);
+const u8 D_801C5000[16] = {
+    'B', 'I', 'S', 'L', 'P', 'S', '-', '0', '0', '8', '0', '0', 0, 3, 0, 0
+};
+
+#define FIELD_TEX_COUNT(_i) ((_i) * 6) + 0
+#define FIELD_TEX_PAGE(_i)  ((_i) * 6) + 1
+#define FIELD_CLUT_X(_i)    ((_i) * 6) + 2
+#define FIELD_CLUT_Y(_i)    ((_i) * 6) + 3
+#define FIELD_TPAGE_X(_i)   ((_i) * 6) + 4
+#define FIELD_TPAGE_Y(_i)   ((_i) * 6) + 5
+
+void ShopMenuLoadResources(void) {
+    TIM_IMAGE tim;
+    int metadata[18];
+    SoundFile* pSoundFile;
+
+    u32* pFileHandle;
+    int i;
+    u8 *pData;
+
+    pFileHandle = D_8005945C;
+    ResolveArchiveEntryPointers(pFileHandle);
+    pData = LZSSHeapDecompress((void *)pFileHandle[1], 1);
+    OpenTIM((void *)pData);
+    ReadTIM(&g_Menu->menuUnk2->tim);
+    memcpy(&g_Menu->menuUnk2->unk4FCE, D_801C5000, 0xD);
+    g_Menu->menuUnk2->unk4B94 = 0x53;
+    g_Menu->menuUnk2->unk4B95 = 0x43;
+    g_Menu->menuUnk2->unk4B96 = 0x11;
+    g_Menu->menuUnk2->unk4B97 = 1;
+    bzero(g_Menu->menuUnk2->unk4B98, 0x5C);
+
+    memmove(g_Menu->menuUnk2->unk4BF4, (u8* ) g_Menu->menuUnk2->tim.caddr, 0x20);
+    memmove(g_Menu->menuUnk2->unk4C14, (u8* ) g_Menu->menuUnk2->tim.paddr, 0x80);
+    HeapFree(pData);
+    pData = LZSSHeapDecompress((void *)pFileHandle[2], 1);
+    func_8002DD20(pData);
+    HeapFree(pData);
+    g_Menu->resources = LZSSHeapDecompress((void *)pFileHandle[3], 0);
+    g_Menu->unk2E0 = LZSSHeapDecompress((void *)pFileHandle[4], 0);
+
+    ResourceHelperGetTexCoords(g_Menu->resources, MENU_TEX_PORTRAIT_PARTY_MEMBER_1,
+                               &metadata[FIELD_TEX_COUNT(0)],
+                               &metadata[FIELD_TEX_PAGE(0)],
+                               &metadata[FIELD_CLUT_X(0)],
+                               &metadata[FIELD_CLUT_Y(0)],
+                               &metadata[FIELD_TPAGE_X(0)],
+                               &metadata[FIELD_TPAGE_Y(0)]);
+    ResourceHelperGetTexCoords(g_Menu->resources, MENU_TEX_PORTRAIT_PARTY_MEMBER_2,
+                               &metadata[FIELD_TEX_COUNT(1)],
+                               &metadata[FIELD_TEX_PAGE(1)],
+                               &metadata[FIELD_CLUT_X(1)],
+                               &metadata[FIELD_CLUT_Y(1)],
+                               &metadata[FIELD_TPAGE_X(1)],
+                               &metadata[FIELD_TPAGE_Y(1)]);
+    ResourceHelperGetTexCoords(g_Menu->resources, MENU_TEX_PORTRAIT_PARTY_MEMBER_3,
+                               &metadata[FIELD_TEX_COUNT(2)],
+                               &metadata[FIELD_TEX_PAGE(2)],
+                               &metadata[FIELD_CLUT_X(2)],
+                               &metadata[FIELD_CLUT_Y(2)],
+                               &metadata[FIELD_TPAGE_X(2)],
+                               &metadata[FIELD_TPAGE_Y(2)]);
+
+    metadata[FIELD_TPAGE_X(1)] += 0xC;
+    pData = LZSSHeapDecompress((void *)pFileHandle[5], 1);
+
+    for(i = 0; i < 3; i++) {
+        if(g_Menu->pManager->currentCharacterIDs[i] != CHARACTER_ID_NONE) {
+            OpenTIM((void *)&pData[(g_Menu->pManager->currentCharacterIDs[i] * 0xB20)]);
+            ReadTIM(&tim);
+            tim.crect->x = metadata[FIELD_CLUT_X(i)];
+            tim.crect->y = metadata[FIELD_CLUT_Y(i)];
+            tim.prect->x = metadata[FIELD_TPAGE_X(i)];
+            tim.prect->y = metadata[FIELD_TPAGE_Y(i)];
+            LoadImage(tim.crect, tim.caddr);
+            LoadImage(tim.prect, tim.paddr);
+        }
+    }
+
+    DrawSync(0);
+    HeapFree(pData);
+    if (g_MenuDebugEnabled) {
+        ArchiveSetIndex(0x10, 2);
+        pSoundFile = HeapAlloc(ArchiveDecodeAlignedSize(5U), 0U);
+        D_8006259C = pSoundFile;
+        ArchiveReadFileToBuffer(5, (s32) pSoundFile, 0U, 0x80U);
+        ArchiveCdDataSync(0);
+        ArchiveSetIndex(0x10, 0);
+        SoundAddSedsEntry(D_8006259C);
+    }
+    g_Menu->unk2E4 = D_8006259C;
+    g_Menu->pShopEntries = LZSSHeapDecompress((void *)pFileHandle[7], 0);
+    HeapFree(pFileHandle);
+}
 
 void ShopMenuInitialize(void) {
     int flags;
@@ -2633,7 +2728,132 @@ void func_801CCE1C(MenuDressingRoom* pDressingRoom, u8 characterIndex) {
 }
 
 // Render Shop Stuff
-INCLUDE_ASM("asm/shop_menu/nonmatchings/main/misc", func_801CCFF4);
+void func_801CCFF4(void) {
+    int i;
+
+    if (g_Menu->pManager->unk5A) {
+        for (i = 0; i < 9; i++) {
+            if (g_Menu->pShop->unk469C[i]) {
+                AddPrim(
+                    &g_Menu->pGfxEnv->ot[4],
+                    &g_Menu->pShop->linesPortraitHighlight1[i * 2 + g_Menu->renderContext]
+                );
+                AddPrim(
+                    &g_Menu->pGfxEnv->ot[4],
+                    &g_Menu->pShop->linesPortraitHighlight2[i * 2 + g_Menu->renderContext]
+                );
+            }
+        }
+
+        ShopMenuRenderString(
+            g_Menu->pShop->explanationsLen,
+            g_Menu->pShop->polysExplanations,
+            g_Menu->pShop->explanationsRenderCtx
+        );
+        ShopMenuRenderString(
+            g_Menu->pShop->unk46A9,
+            g_Menu->pShop->polys2D0,
+            g_Menu->pShop->unk46A8
+        );
+        ShopMenuRenderString(
+            g_Menu->pShop->numPortraits,
+            g_Menu->pShop->polysCharacterPortraits,
+            g_Menu->pShop->portraitsRenderCtx
+        );
+
+        for (i = 0; i < 8; i++) {
+            if (g_Menu->pShop->unk4684[i]) {
+                ShopMenuRenderPolygons(
+                    1,
+                    g_Menu->pShop->unk3C30[i].vertices,
+                    g_Menu->pShop->unk3C30[i].polys,
+                    g_Menu->pShop->unk3C30[i].renderContext
+                );
+                ShopMenuRenderPolygons(
+                    1,
+                    g_Menu->pShop->unk4030[i].vertices,
+                    g_Menu->pShop->unk4030[i].polys,
+                    g_Menu->pShop->unk4030[i].renderContext
+                );
+            }
+        }
+
+        if (g_Menu->pShop->unk46A7) {
+            ShopMenuRenderPolygons(
+                1,
+                g_Menu->pShop->strItemDesc.vertices,
+                g_Menu->pShop->strItemDesc.polys,
+                g_Menu->pShop->strItemDesc.renderContext
+            );
+        }
+        if (g_Menu->pShop->unk46B5) {
+            ShopMenuRenderPolygons(
+                1,
+                g_Menu->pShop->str44B0.vertices,
+                g_Menu->pShop->str44B0.polys,
+                g_Menu->pShop->str44B0.renderContext
+            );
+        }
+        if (g_Menu->pShop->unk4785) {
+            ShopMenuRenderPolygons(
+                1,
+                g_Menu->pShop->str45B0.vertices,
+                g_Menu->pShop->str45B0.polys,
+                g_Menu->pShop->str45B0.renderContext
+            );
+        }
+        if (g_Menu->pShop->unk46B2) {
+            AddPrim(
+                &g_Menu->pGfxEnv->ot[4],
+                &g_Menu->pShop->lines3BF0[g_Menu->renderContext]
+            );
+            ShopMenuRenderString(
+                g_Menu->pShop->goldBeforeStrLen,
+                g_Menu->pShop->polysGoldBefore,
+                g_Menu->pShop->goldBeforeRenderCtx
+            );
+            ShopMenuRenderString(
+                g_Menu->pShop->totalPriceStrLen,
+                g_Menu->pShop->polysTotalPrice,
+                g_Menu->pShop->totalPriceRenderCtx
+            );
+            ShopMenuRenderString(
+                g_Menu->pShop->goldAfterStrLen,
+                g_Menu->pShop->polysGoldAfter,
+                g_Menu->pShop->goldAfterRenderCtx
+            );
+        }
+
+        for (i = 0; i < 8; i++) {
+            ShopMenuRenderString(
+                g_Menu->pShop->unk468C[i],
+                g_Menu->pShop->polysShopInventory[i * 4],
+                g_Menu->pShop->unk4694[i]
+            );
+        }
+
+        for (i = 0; i < 9; i++) {
+            ShopMenuRenderString(
+                g_Menu->pShop->unk46BC[i],
+                g_Menu->pShop->polys27B0[i],
+                g_Menu->pShop->unk46CE[i]
+            );
+            ShopMenuRenderString(
+                g_Menu->pShop->unk46C5[i],
+                g_Menu->pShop->polys3020[i],
+                g_Menu->pShop->unk46D7[i]
+            );
+        }
+    }
+
+    if (g_Menu->pManager->unk5B == 1) {
+        ShopMenuRenderString(
+            g_Menu->pShop->finalPriceStrLen,
+            g_Menu->pShop->polysFinalPrice,
+            g_Menu->pShop->finalPriceRenderCtx
+        );
+    }
+}
 
 // Set the color for the stat change a piece of gear provides
 void ShopMenuSetStatChangeColor(int numPolygons, POLY_FT4* pPolys, u_char mode) {
