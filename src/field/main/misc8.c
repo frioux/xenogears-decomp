@@ -104,7 +104,44 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800821F4);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_8008237C);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80082494);
+// Four 2D trigger-zone corners packed one per short pair as (z << 16) + x.
+typedef struct {
+    /* 0x0 */ s16 z0;
+    /* 0x2 */ s16 x0;
+    /* 0x4 */ s16 z1;
+    /* 0x6 */ s16 x1;
+    /* 0x8 */ s16 z2;
+    /* 0xA */ s16 x2;
+    /* 0xC */ s16 z3;
+    /* 0xE */ s16 x3;
+} FieldZone2D; // Size: 0x10
+
+int func_80082494(IVEC3* pOffset, ActorData* pActor) {
+    long actorPosition2D;
+    long triggerPos1;
+    long triggerPos2;
+    long triggerPos3;
+    long triggerPos4;
+    FieldZone2D* pZone;
+
+    if (!pActor->flags12C_0xD) {
+        return 0;
+    }
+    actorPosition2D = (CONV_TO_GTE(pActor->position.vx + pOffset->x) << 0x10) + CONV_TO_GTE(pActor->position.vz + pOffset->z);
+    pZone = pActor->unk114;
+    triggerPos1 = (pZone->z0 << 0x10) + pZone->x0;
+    triggerPos2 = (pZone->z1 << 0x10) + pZone->x1;
+    triggerPos3 = (pZone->z2 << 0x10) + pZone->x2;
+    triggerPos4 = (pZone->z3 << 0x10) + pZone->x3;
+    if (NormalClip(triggerPos1, triggerPos2, actorPosition2D) < 0 ||
+        NormalClip(triggerPos2, triggerPos3, actorPosition2D) < 0) {
+        return -1;
+    }
+    if (NormalClip(triggerPos3, triggerPos4, actorPosition2D) >= 0) {
+        return NormalClip(triggerPos4, triggerPos1, actorPosition2D) >> 31;
+    }
+    return -1;
+}
 
 long FieldGetVec2Magnitude(long, long);
 
@@ -188,6 +225,54 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_8008399C);
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80084158);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_8008492C);
+/* 91.16%: the whole chain of early rejections matches; the tail differs only in
+   block placement (gcc merges this `return -1` into the epilogue with a
+   `li v0,-1` delay slot, the original keeps it as its own block, which in turn
+   lets the final `return 0` merge into the epilogue).
+   extern s32 D_800ADB98;
+   extern s32 D_800ADC0C;
+
+   int func_8008492C(ActorData* pActor) {
+       if (pActor->curWalkmeshTriMaterial & 0x420000) {
+           return -1;
+       }
+       if (D_800ADB98 != 0) {
+           return -1;
+       }
+       if (pActor->moveModified.vx != 0) {
+           return -1;
+       }
+       if (pActor->moveModified.vy != 0) {
+           return -1;
+       }
+       if (pActor->moveModified.vz != 0) {
+           return -1;
+       }
+       if (D_800ADC0C != 1) {
+           return -1;
+       }
+       if (pActor->canInteract != 0xFF) {
+           return -1;
+       }
+       if (pActor->scriptFlags.flags & 0x401800) {
+           return -1;
+       }
+       if (pActor->flags & 1) {
+           if (pActor->walkmeshId == 0) {
+               return -1;
+           }
+       }
+       if (pActor->flags & 2) {
+           if (pActor->walkmeshId == 1) {
+               return -1;
+           }
+       }
+       if (pActor->flags & 4) {
+           return -(pActor->walkmeshId == 2);
+       }
+       return 0;
+   }
+*/
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80084A40);
 
@@ -302,6 +387,41 @@ void func_80085738(void) {
 }
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80085788);
+/* 85.42%: the inner scan matches (pointer + index incremented together) but
+   gcc inverts the inner loop (test at both ends, `bne` back edge) where the
+   original keeps the test at the top and a `j` back edge; that also makes gcc
+   hoist `streamId + 1` out of the outer loop into s0 and shuffle the base
+   pointer/0xFFFF into t0/a3 instead of a3/a2.
+void func_80085788(void) {
+    int count;
+    int i;
+    int streamId;
+    FieldUnk800AE060* pEntry;
+
+    streamId = D_800C3A38;
+    if (streamId == 0xFF) {
+        return;
+    }
+    func_80039FF8();
+    ArchiveSetIndex(0x1C, 0);
+    D_800B235C = HeapAlloc(ArchiveDecodeAlignedSize(streamId + 0x115), 1);
+    ArchiveReadFileToBuffer(streamId + 0x115, D_800B235C, 0, 0x80);
+    ArchiveCdDataSync(0);
+    SoundAddSedsEntry(D_800B235C);
+    func_8003BDFC(0x10);
+    ArchiveSetIndex(4, 0);
+    i = 0;
+    for (count = 0; count < streamId + 1; count++) {
+        pEntry = &D_800AE060[i];
+        while (pEntry->unk0 != 0xFFFF) {
+            pEntry++;
+            i++;
+        }
+        i++;
+        D_800C3A64 = i;
+    }
+}
+*/
 
 extern void* D_8006259C;
 extern s32 D_8004F32C;
@@ -410,6 +530,16 @@ void func_80086024(void) {
 }
 
 
+// Three 6-byte entries; splat names the second field's address D_800AFE8A.
+typedef struct {
+    /* 0x0 */ u_short unk0;
+    /* 0x2 */ u_short unk2;
+    /* 0x4 */ u_short unk4;
+} FieldUnk800AFE88; // Size: 0x6
+
+extern FieldUnk800AFE88 D_800AFE88[3];
+extern FieldUnk800AFE88 D_800AFE8A[3];
+
 extern s16 D_800B21AC;
 
 void func_80086078(int arg0, int* pOut, int arg2) {
@@ -427,7 +557,33 @@ void func_80086078(int arg0, int* pOut, int arg2) {
     *pOut = (u_int)(scaled * arg2) >> 16;
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800860F0);
+extern void func_8003A344(int, int);
+extern void func_8003A55C(int, int);
+void FieldActorWorldToScreenPosition(int, int*, int*);
+
+void func_800860F0(int arg0, int arg1, int arg2, int arg3, int actorIndex) {
+    int i;
+    int value;
+    int screenX;
+    int screenY;
+    int scaled;
+
+    for (i = 0; i < 3; i++) {
+        if (D_800AFE88[i].unk0 == actorIndex) {
+            func_80086078(arg3, &value, arg1);
+            FieldActorWorldToScreenPosition(actorIndex, &screenX, &screenY);
+            if (screenX >= 0x141) {
+                screenX = 0x13F;
+            }
+            if (screenX < 0) {
+                screenX = 0;
+            }
+            scaled = screenX * 0x6666 >> 16;
+            func_8003A344(i * 2, value);
+            func_8003A55C(i * 2, scaled);
+        }
+    }
+}
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", FieldActorWorldToScreenPosition);
 /* 80.00%: everything but the first CompMatrix argument matches. The original
@@ -459,16 +615,6 @@ void FieldActorWorldToScreenPosition(int actorIndex, int* pScreenX, int* pScreen
 */
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800862CC);
-
-// Three 6-byte entries; splat names the second field's address D_800AFE8A.
-typedef struct {
-    /* 0x0 */ u_short unk0;
-    /* 0x2 */ u_short unk2;
-    /* 0x4 */ u_short unk4;
-} FieldUnk800AFE88; // Size: 0x6
-
-extern FieldUnk800AFE88 D_800AFE88[3];
-extern FieldUnk800AFE88 D_800AFE8A[3];
 
 void func_800863E8(u_int arg0) {
     int i;
