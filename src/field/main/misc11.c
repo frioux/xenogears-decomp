@@ -242,12 +242,17 @@ extern s16 D_800C3A6A;
 extern int rcos(int);
 extern int rsin(int);
 
+INCLUDE_ASM("asm/field/nonmatchings/main/misc11", func_80092808);
+
+/* best 82.57%: instructions all match; gcc schedules the vz negate and the flags
+   load one slot later than the original.
 void func_80092808(void) {
     g_FieldScriptVMCurActor->unk60.vx = ((u_int)rsin(D_800B06B8->rotation.y) * 9) >> 10;
-    g_FieldScriptVMCurActor->unk60.vz = (rcos(D_800B06B8->rotation.y) * -36) >> 12;
+    g_FieldScriptVMCurActor->unk60.vz = -(rcos(D_800B06B8->rotation.y) * 36) >> 12;
     g_FieldScriptVMCurActor->flags |= 0x800;
     g_FieldScriptVMCurActor->scriptInstructionPointer += 1;
 }
+*/
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc11", func_80092894);
 
