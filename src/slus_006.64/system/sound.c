@@ -1184,7 +1184,25 @@ void func_8003ABE8(AudioManager* pManager, u8 value) {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003ABF0);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003AC58);
+u16* func_8003AC58(AudioManager* pManager) {
+    AudioElement* pElement = pManager->elements;
+    u16 count = pManager->elementCount;
+    u16* pResult = (u16*)&pManager->unk_0x30;
+    u16 best = 0xFFFF;
+
+    do {
+        if (pElement->active_flag != 0 && pElement->unk_0x20 < best) {
+            best = pElement->unk_0x20;
+        }
+        pElement++;
+    } while (--count);
+
+    if (best == 0xFFFF) {
+        best = 0;
+    }
+    *pResult = best;
+    return pResult;
+}
 
 s32 func_8003ACC8(AudioManager* pManager) {
     AudioManager* pCurrent = g_SoundAudioManagerListHead;
