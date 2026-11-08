@@ -754,7 +754,13 @@ void func_800A0C4C(void) {
     g_FieldActors[g_PlayerActorIndex].pActorData->scriptFlags.flags |= 0x80;
 }
 
-// FieldResetActorPosition, set translation and sprite position of actor based on current actor data position
+// FieldResetActorPosition: copies the current actor's scripted position into the
+// field actor's transform/child matrices and into its sprite.
+INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_800A0C94);
+// 99.64%: identical except the third block's `addu` destination. The original
+// coalesces base+offset into the offset register ($v1, dead from there on); gcc
+// picks the base register ($v0). Same size, only the register number differs.
+/*
 void func_800A0C94(void) {
     FieldActor* pFieldActor;
     SpriteData* pSpriteData;
@@ -779,7 +785,7 @@ void func_800A0C94(void) {
     pFieldActor->transformMatrix.t[1] = y;
     pFieldActor->childMatrix.t[1] = y;
 
-    pFieldActor = &g_FieldActors[D_800AFD1C];
+    pFieldActor = (FieldActor*)(D_800AFD1C * sizeof(FieldActor) + (s32)g_FieldActors);
     z = pPosition[5];
     pFieldActor->transformMatrix.t[2] = z;
     pFieldActor->childMatrix.t[2] = z;
@@ -793,6 +799,7 @@ void func_800A0C94(void) {
     pSpriteData->field_0x84 = curY;
     pActor->curYPos = curY;
 }
+*/
 
 void func_800A0D3C(void) {
     func_80076AC0(D_800AFD1C, 0, (void*)((*(s32*)(g_FieldSpriteData + 4)) + (s32)g_FieldSpriteData), 0, 0, 0x80, 1);
@@ -838,23 +845,28 @@ void func_800A0EB0(void) {
 }
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_800A0EE8);
-// 76.20%: both cases and the dispatch come out right, but the original hoists the
-// `(flags12C >> 13) & 7` index above the switch (keeping the actor in $a2) and forms
-// &D_800B2264 with lui/addiu into a register instead of %hi/%lo at each access.
+// 90.55%: dispatch and case 0 match exactly. Only case 1 differs - the original
+// materialises &D_800B2264 into a register (lui+addiu, then lw/sw off it), gcc
+// emits %hi/%lo per access and reloads the actor first. Pointer (`s32* p =
+// &D_800B2264; (*p)--;`) and array (`D_800B2264[0]--`) forms both produce the same
+// %hi/%lo code. Result is one insn short (236 vs 240 bytes).
 /*
 extern s32 D_800B2264;
 extern void* D_801E8670[];
 extern void func_801E8030(int modelIndex);
 
 void func_800A0EE8(void) {
+    int nModelIndex;
+
+    nModelIndex = g_FieldScriptVMCurActor->flags12C_0xE;
     g_FieldScriptVMCurActor->flags &= ~0x2000;
     switch (SCRIPT_READ_U8_REL(1)) {
         case 0:
-            ((u8*)D_801E8670[g_FieldScriptVMCurActor->flags12C_0xE & 7])[0x34] = 0;
+            ((u8*)D_801E8670[nModelIndex])[0x34] = 0;
             g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
             break;
         case 1:
-            func_801E8030(g_FieldScriptVMCurActor->flags12C_0xE & 7);
+            func_801E8030(g_FieldScriptVMCurActor->flags12C_0xE);
             D_800B2264--;
             g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
             break;
