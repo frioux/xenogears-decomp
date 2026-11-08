@@ -212,6 +212,39 @@ directly below an `INCLUDE_ASM` it has not yet replaced.
 asm (`include/include_asm.h`). `INCLUDE_RODATA` exists but is unused. Both expand
 to nothing under `SKIP_ASM`, `M2CTX` and `PERMUTER`.
 
+
+### Is the preset wrong? (`tools/scripts/try_flags.sh`)
+
+Before suspecting a struct layout, check the compiler. `try_flags.sh` recompiles
+one unit under another gcc / `-O` level / `-G` / `-mcpu` in about a second per
+variant, parsing the real flags out of `build.ninja`, and scores the result with
+objdiff:
+
+```sh
+tools/scripts/try_flags.sh slus_006.64/system/sound SoundSpuMemoryAllocateBlock \
+    --gcc gcc-2.7.2-psx --opt -O3 --gp -G0
+```
+
+Pick a *discriminating* function — one that already matches 100% — and see whether
+the candidate reproduces it. This is how the scene establishes a toolchain
+(Crash 2's `docs/COMPILER.md` states the method; a version counts only when a
+function matches under it and nothing else).
+
+Already settled this way, do not redo:
+
+| Candidate | Result |
+|---|---|
+| `-mcpu=r8000` (which fixed Crash 2's delay-slot scheduling) | **No.** `slus_006.64` and `field` fail `make check`; gcc 2.6.0's `cc1` rejects the flag outright. |
+| gcc 2.8.1 (Psy-Q 4.4, used by Vagrant Story / Chrono Cross / FF8's `snd_*`) | **No.** Switching `Default` to `tools/gcc-2.8.1-psx` fails `make check`; `SoundReset` drops to 96.76%. |
+| gcc 2.7.2-cdk + ASPSX 2.67 (Psy-Q 4.1) | In use: `XenoGraphics`. |
+| gcc 2.6.0 (Psy-Q 3.3/3.5) | In use: `XenoLibrary`. |
+
+To re-test 2.8.1 (or add 2.8.0 for Psy-Q 4.3), the prebuilt PS1 compilers are
+release assets of <https://github.com/decompals/old-gcc> (tag `0.17`,
+`gcc-2.8.1-psx.tar.gz`, sha256 `f6f6e883942d4d3289d048236c672e71ed410e546aaae8ff655952f1567e1be0`,
+Linux i386 static). Untar into `tools/gcc-2.8.1-psx/` and either use `try_flags.sh
+--gcc gcc-2.8.1-psx` or add a preset; pair it with `--aspsx-version=2.79`.
+
 ## 5. Compiler presets (`gears.toml`)
 
 | Preset | gcc | Flags that differ | Applies to |

@@ -237,10 +237,21 @@ Stubs by area at session start: `psyq` 150 (96 libgte, 12 libapi, 8 libapi_2,
   `PutDispEnv`, `DrawOTagEnv`, `ResetGraph`, `PCread` -- whose C is published in
   the Psy-Q SDK, so they are the highest-yield remaining pool.
 
-New tools (both in `tools/scripts/`, both documented):
+- **gcc 2.8.1 is not this project's compiler either.** Swapping the `Default`
+  preset to a freshly downloaded `gcc-2.8.1-psx` (Psy-Q 4.4 -- the compiler
+  Vagrant Story, Chrono Cross and FF8's `snd_*` used) fails `make check` on
+  `slus_006.64` and `field`, and `SoundReset` drops from 100% to 96.76% while
+  2.6.0 and 2.7.2 both reproduce it. The existing presets are the right ones; a
+  compiler switch is not the answer to the remaining tail.
+
+New tools (all in `tools/scripts/`, all documented):
 
 - `check_bin.sh <bin>` -- matching-mode rebuild + byte check of one output (~35 s).
 - `try_flags.sh <unit> <Func> [--gcc g] [--opt -O2] [--gp -G8] [--cpu r3000|r8000]
   [--sweep]` -- score one function under alternative compiler/flag combinations in
   ~1 s per variant by parsing the flags out of `build.ninja` and running cc1 +
   maspsx directly, instead of ~35 s of gears per candidate.
+- `culprit.sh <bin>` -- when `make check` fails, turn the differing byte offsets
+  into the functions that own them, using the load address in `linker/<bin>.ld`
+  and `config/symbol_addrs.<bin>.txt`. Turns "make check failed" into a list of
+  suspects instead of a bisect.
