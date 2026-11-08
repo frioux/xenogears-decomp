@@ -903,51 +903,55 @@ s16 (*func_801E34BC(s32 type))(s16, s16, s16) {
 }
 
 // objdiff 74.36%: all 39 instructions match in value and order; the only
-// difference is where gcc materialises the shared -1 for unk98/unk3A/unk1E:
-// the original hoists `li v1,-1` to the top of the function, ours emits it
-// just before its first use. Moving the -1 store earlier in the source makes
-// the constant hoist but drags the store with it.
+// difference is where gcc materialises the shared -1 for unk98/unk3A/unk1E.
+// The original hoists `li v1,-1` to the top of the function; holding -1 in a
+// local initialized first moves ours up to insn 6, not to the top.
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E3534);
-/* void func_801E3534(Model* pModel, s32 arg1, u32 arg2, u32 arg3) {
-    pModel->unk3C = 0xFFFF;
-    pModel->unk5C = 0xFF;
-    pModel->unk39 = 0x6B;
+/*
+    void func_801E3534(Model* pModel, s32 arg1, u32 arg2, u32 arg3) {
+        s32 negOne;
 
-    pModel->unk8 = arg2;
-    pModel->unkC = 0;
-    pModel->unk10 = 0;
-    pModel->unk14 = (Temp7**)arg3;
-    pModel->unk18 = NULL;
+        negOne = -1;
+        pModel->unk3C = 0xFFFF;
+        pModel->unk5C = 0xFF;
+        pModel->unk39 = 0x6B;
 
-    pModel->unk2B = 0;
-    pModel->unk98 = -1;
-    pModel->unk58 = 0;
+        pModel->unk8 = arg2;
+        pModel->unkC = 0;
+        pModel->unk10 = 0;
+        pModel->unk14 = (Temp7**)arg3;
+        pModel->unk18 = NULL;
 
-    pModel->unk35 = 0;
-    pModel->unk37 = 0;
-    pModel->unk38 = 0;
-    pModel->unk3A = -1;
+        pModel->unk2B = 0;
+        pModel->unk98 = negOne;
+        pModel->unk58 = 0;
 
-    pModel->unk70[0] = 0;
-    pModel->unk70[1] = 0;
-    pModel->unk70[2] = 0;
-    pModel->unk70[3] = 0;
-    pModel->unk70[4] = 0;
-    pModel->unk70[5] = 0;
-    pModel->unk70[6] = 0;
-    pModel->unk70[7] = 0;
-    pModel->unk70[8] = 0;
-    pModel->unk70[9] = 0;
-    pModel->unk70[10] = 0;
-    pModel->unk70[11] = 0;
-    pModel->unk70[12] = 0;
-    pModel->unk70[13] = 0;
-    pModel->unk70[14] = 0;
-    pModel->unk70[15] = 1;
+        pModel->unk35 = 0;
+        pModel->unk37 = 0;
+        pModel->unk38 = 0;
+        pModel->unk3A = negOne;
 
-    pModel->unk36 = 0;
-    pModel->unk1E = -1;
-} */
+        pModel->unk70[0] = 0;
+        pModel->unk70[1] = 0;
+        pModel->unk70[2] = 0;
+        pModel->unk70[3] = 0;
+        pModel->unk70[4] = 0;
+        pModel->unk70[5] = 0;
+        pModel->unk70[6] = 0;
+        pModel->unk70[7] = 0;
+        pModel->unk70[8] = 0;
+        pModel->unk70[9] = 0;
+        pModel->unk70[10] = 0;
+        pModel->unk70[11] = 0;
+        pModel->unk70[12] = 0;
+        pModel->unk70[13] = 0;
+        pModel->unk70[14] = 0;
+        pModel->unk70[15] = 1;
+
+        pModel->unk36 = 0;
+        pModel->unk1E = negOne;
+    }
+*/
 
 void func_801E35D0(Model* pModel, Model* pSource, s32 arg2, s32 arg3) {
     if ((pModel != NULL) && (pSource != NULL)) {
@@ -1157,33 +1161,35 @@ INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E63A8);
 // likewise i in s0 vs pJoint in s1); declaration order, loop form (for/while),
 // pointer vs index and type tweaks do not move the pair
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E6578);
-/* void func_801E6578(Temp4* pList, s32 jointIndex, ModelJoint* pSkeleton, ModelJoint* pTargetSkeleton) {
-    ModelJoint* pJoint = &pSkeleton[jointIndex];
-    ModelJoint* pTarget = &pTargetSkeleton[jointIndex];
-    ModelJoint* pChild;
-    int i;
-    int numChildren;
+/*
+    void func_801E6578(Temp4* pList, s32 jointIndex, ModelJoint* pSkeleton, ModelJoint* pTargetSkeleton) {
+        ModelJoint* pTarget = &pTargetSkeleton[jointIndex];
+        ModelJoint* pJoint = &pSkeleton[jointIndex];
+        ModelJoint* pChild;
+        int numChildren;
+        int i;
 
-    numChildren = pSkeleton->numChildren;
-    pJoint->unk7 = 0;
-    pTarget->unk7 = 1;
+        numChildren = pSkeleton->numChildren;
+        pJoint->unk7 = 0;
+        pTarget->unk7 = 1;
 
-    func_801DF7A8(pList, (s8*)pJoint->unk70);
-    pJoint->unk70 = 0;
-    func_801DF7A8(pList, (s8*)pJoint->unk74);
-    pJoint->unk74 = 0;
-    func_801DF7A8(pList, (s8*)pJoint->unk78);
-    pJoint->unk78 = 0;
+        func_801DF7A8(pList, (s8*)pJoint->unk70);
+        pJoint->unk70 = 0;
+        func_801DF7A8(pList, (s8*)pJoint->unk74);
+        pJoint->unk74 = 0;
+        func_801DF7A8(pList, (s8*)pJoint->unk78);
+        pJoint->unk78 = 0;
 
-    pChild = pSkeleton;
-    for (i = 1; i < numChildren; i++) {
-        pChild++;
+        pChild = pSkeleton;
+        for (i = 1; i < numChildren; i++) {
+            pChild++;
 
-        if (pChild->pParent == pJoint) {
-            func_801E6578(pList, pChild->numChildren, pSkeleton, pTargetSkeleton);
+            if (pChild->pParent == pJoint) {
+                func_801E6578(pList, pChild->numChildren, pSkeleton, pTargetSkeleton);
+            }
         }
     }
-} */
+*/
 
 void func_801E6668(ModelJoint* pSkeleton, ModelJoint* pTargetSkeleton) {
     int i;
@@ -1349,46 +1355,42 @@ void func_801E6E48(void* pAnimFile, s32 animIndex, s32 arg2, s16 direction, s16 
     }
 }
 
-// objdiff 99.21%: everything matches except the GTE command word - the original
-// assembles `MVMVA 1,0,0,0,0` to 0x4A480012, while both gte_ApplyRotMatrix
-// (gte_rtv0) and gte_mvmva() emit a different word (.word 0x13f / 0x20013bf)
-INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E6F64);
-/*
-// void func_801E6F64(void* pTaskRaw) {
-//     AnimTask* pTask = pTaskRaw;
-//     LibGearJointTask* pJointTask;
-//     LVEC3 vec;
-//     MATRIX* pMatrix;
-//
-//     pJointTask = (LibGearJointTask*)((u8*)pTask + pTask->spriteData.allocatedDataSize);
-//     pMatrix = (MATRIX*)0x1F800000;
-//
-//     if (pJointTask->jointIndex != 0) {
-//         CompMatrix(
-//             &pJointTask->pModel->pSkeleton[0].localTransform,
-//             &pJointTask->pModel->pSkeleton[pJointTask->jointIndex].globalTransform,
-//             pMatrix
-//         );
-//     } else {
-//         pMatrix = &pJointTask->pModel->pSkeleton[0].localTransform;
-//     }
-//
-//     SetRotMatrix(pMatrix);
-//     SetTransMatrix(pMatrix);
-//
-//     gte_ApplyRotMatrix(&pJointTask->offset, &vec);
-//
-//     if (pJointTask->unkE != 0) {
-//         vec.y = pJointTask->pModel->ground;
-//     }
-//
-//     pTask->spriteData.position.x = CONV_FROM_GTE(vec.x);
-//     pTask->spriteData.position.y = CONV_FROM_GTE(vec.y);
-//     pTask->spriteData.position.z = CONV_FROM_GTE(vec.z);
-//
-//     pJointTask->pChainCallback(pTask);
-// }
-*/
+void func_801E6F64(void* pTaskRaw) {
+    AnimTask* pTask = pTaskRaw;
+    LibGearJointTask* pJointTask;
+    LVEC3 vec;
+    MATRIX* pMatrix;
+
+    pJointTask = (LibGearJointTask*)((u8*)pTask + pTask->spriteData.allocatedDataSize);
+    pMatrix = (MATRIX*)0x1F800000;
+
+    if (pJointTask->jointIndex != 0) {
+        CompMatrix(
+            &pJointTask->pModel->pSkeleton[0].localTransform,
+            &pJointTask->pModel->pSkeleton[pJointTask->jointIndex].globalTransform,
+            pMatrix
+        );
+    } else {
+        pMatrix = &pJointTask->pModel->pSkeleton[0].localTransform;
+    }
+
+    SetRotMatrix(pMatrix);
+    SetTransMatrix(pMatrix);
+
+    gte_ldv0(&pJointTask->offset);
+    gte_mvmva(1, 0, 0, 0, 0);
+    gte_stlvnl(&vec);
+
+    if (pJointTask->unkE != 0) {
+        vec.y = pJointTask->pModel->ground;
+    }
+
+    pTask->spriteData.position.x = CONV_FROM_GTE(vec.x);
+    pTask->spriteData.position.y = CONV_FROM_GTE(vec.y);
+    pTask->spriteData.position.z = CONV_FROM_GTE(vec.z);
+
+    pJointTask->pChainCallback(pTask);
+}
 
 void func_801E7094(Model* pModel, ModelJoint* pJoint, u8 flags, s16 x, s16 y, s16 z) {
     ModelJoint* pChild;
@@ -1440,17 +1442,15 @@ void func_801E7094(Model* pModel, ModelJoint* pJoint, u8 flags, s16 x, s16 y, s1
     }
 }
 
-// objdiff 99.77%: only the frame differs; the original reserves 16 bytes below the
-// local (SVECTOR at sp+0x10 in a 0x18 frame), ours puts it at sp+0 in an 0x8 frame
-INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E7298);
-/* void func_801E7298(Model* pModel) {
+void func_801E7298(Model* pModel) {
+    VECTOR unk;
     SVECTOR offset;
 
     offset.vy = pModel->ground;
     if (pModel->unk36 == 0) {
         pModel->pSkeleton->translation.y = offset.vy;
     }
-} */
+}
 
 // Computes the global transform matrix for a certain joint?
 void func_801E72CC(MATRIX* pMatrix, void* _unk, int index, int jointIndex) {
