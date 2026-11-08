@@ -59,13 +59,18 @@ void func_8008FABC(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 4;
 }
 
+INCLUDE_ASM("asm/field/nonmatchings/camera/camera_movement", func_8008FB28);
+
+/* Best: 66.43% (112 bytes, only the trailing scriptInstructionPointer update is
+   scheduled differently: gcc hoists the actor load and the lhu above the stores).
 void func_8008FB28(void) {
     D_800AF93A[0] = 0x1000;
+    D_800AF930 = ((s32)g_Scene.sceneScrZ * g_Scene.sceneScale) >> 12;
     D_800AF936 = g_Scene.sceneDIP;
     D_800AF938 = g_Scene.sceneAngle.vy;
-    D_800AF930 = ((s32)g_Scene.sceneScrZ * g_Scene.sceneScale) >> 12;
     g_FieldScriptVMCurActor->scriptInstructionPointer += 1;
 }
+*/
 
 void func_8008FB98(void) {
     g_FieldCameraMode = 1;
@@ -81,6 +86,35 @@ void func_8008FB98(void) {
 }
 
 INCLUDE_ASM("asm/field/nonmatchings/camera/camera_movement", func_8008FC4C);
+
+/* Best: 63.33% (224 bytes, right size and block layout; gcc keeps the address of
+   g_FieldCameraMode in %hi/%lo instead of s0 and builds a different case order).
+void func_8008FC4C(void) {
+    s32 value;
+
+    switch (g_FieldCameraMode) {
+    case 0:
+        g_Scene.unk48 &= 0x7FFF;
+        break;
+    case 1:
+        value = FieldScriptVMGetArgument(1);
+        if (value == 0) {
+            g_FieldCameraMode = 0;
+            g_Scene.unk48 &= 0x7FFF;
+            g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
+            D_800B21D8[0] = 2;
+        } else {
+            g_FieldCameraMode = 2;
+            g_CamInterpolation.atStepDistance = value;
+            g_CamInterpolation.eyeStepDistance = value;
+        }
+        break;
+    default:
+        return;
+    }
+    g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
+}
+*/
 
 void FieldScriptSetCameraInterpolationStep(void) {
     g_CamInterpolation.atStepDistance = FieldScriptVMGetArgument(1);
