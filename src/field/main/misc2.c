@@ -55,6 +55,12 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80072254);
 // A third form, `(FieldActor*)(actorIndex * 0x5C + (int)g_FieldActors)` in all three
 // blocks, does fix the `addu` operand order but merges the 2nd and 3rd pointer loads
 // (84.62%): two loads instead of the original's three.
+// A fourth form - offset-first cast in block 1, `&g_FieldActors[actorIndex]` in blocks
+// 2 and 3 (with the two `addu`s then coming out base-first, as the original has them) -
+// is 84.38% and differs in nothing but $s1: `lui/lw g_FieldActors` twice where the
+// original keeps &g_FieldActors in one callee-saved register across the RotMatrix call
+// (frame 0x30 vs our 0x28). gcc rematerialises the symbol address instead of saving it,
+// so the whole function hinges on defeating that rematerialisation.
 /*
 void func_80072254(int actorIndex) {
     VECTOR scale;
