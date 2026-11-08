@@ -14,6 +14,11 @@ extern s32 D_800AFD1C; // Current actor index
 extern s32 D_800B2264;
 extern u8 D_800B225F[];
 extern s16 D_800B21DC[];
+extern s32 D_800B2268;
+extern int g_GameSceneMapNum;
+extern void GameWaitForCdData(void);
+extern void GamePartySyncSkinData(void);
+extern void GamePartySyncStreamedData(void);
 
 void FieldScriptVMHandlerDisableDialogActivation(void) {
     g_FieldScriptVMCurActor->scriptFlags.fields.scriptFlags_0xA = 0x1;
@@ -616,15 +621,17 @@ s32 func_8009FA54(s32 nInstructionOffset) {
 }
 */
 INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_8009FB98);
+// 63.17%: the C is exactly right (D_800B2268 is a plain s32), but gcc schedules
+// `scriptInstructionPointer += 2` before the D_800B2268 store, which forces the ip
+// pseudo into the other register; the original keeps the store first and reuses $v0
+// for both ip loads. Same instruction count, just reordered.
 /*
-Matches, but the struct D_800B2268 is part of needs recovery first.
-
 void func_8009FB98(void) {
     g_GameSceneMapNum |= 0xC000;
     GameWaitForCdData();
     GamePartySyncSkinData();
     GamePartySyncStreamedData();
-    D_800B2268[0] = SCRIPT_READ_U8_REL(1);
+    D_800B2268 = SCRIPT_READ_U8_REL(1);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
 }
 */
@@ -662,7 +669,6 @@ void FieldScriptPartyMemberDisembarkGear(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
 
-extern int g_GameSceneMapNum;
 void func_8009FD10(int partyMemberIndex) {
     switch (partyMemberIndex) { 
         case 0:
