@@ -1080,6 +1080,28 @@ void func_8003A2E4(s32 id, s32 value) {
 }
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003A344);
+/*
+Attempt (79.31%, correct size and registers): the only difference is that gcc
+schedules the `andi a0,0xfe` / `xori a0,0x8` pair after the loop-preheader
+constants (`li a2,2`, `sll a1,a1,8`, `li a3,0x100`) while the original emits
+them first. Everything else - including the second pointer to status_flags -
+matches. Stable against declaration order and against a statement-per-line form.
+void func_8003A344(s32 elementIndex, s32 value) {
+    s32 index = (elementIndex & 0xFE) ^ 8;
+    AudioElement* pElement = &D_800595D8->elements[index];
+    s32 volume = value << 8;
+    u32 cnt = 2;
+
+    do {
+        if (pElement->active_flag & 0x1) {
+            pElement->unk_0x76 = volume;
+            pElement->status_flags = 0x100;
+        }
+        pElement++;
+        cnt--;
+    } while (cnt);
+}
+*/
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003A3B8);
 
@@ -1103,6 +1125,28 @@ void func_8003A4FC(s32 id, s32 value) {
 }
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003A55C);
+/*
+Attempt (79.31%, correct size and registers): the only difference is that gcc
+schedules the `andi a0,0xfe` / `xori a0,0x8` pair after the loop-preheader
+constants (`li a2,2`, `sll a1,a1,8`, `li a3,0x100`) while the original emits
+them first. Everything else - including the second pointer to status_flags -
+matches. Stable against declaration order and against a statement-per-line form.
+void func_8003A55C(s32 elementIndex, s32 value) {
+    s32 index = (elementIndex & 0xFE) ^ 8;
+    AudioElement* pElement = &D_800595D8->elements[index];
+    s32 volume = value << 8;
+    u32 cnt = 2;
+
+    do {
+        if (pElement->active_flag & 0x1) {
+            pElement->unk_0x74 = volume;
+            pElement->status_flags = 0x100;
+        }
+        pElement++;
+        cnt--;
+    } while (cnt);
+}
+*/
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003A5D0);
 
@@ -1781,7 +1825,21 @@ u8* func_8003CEF0(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
 }
 
 // Loop end handler?
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003CF38);
+u8* func_8003CF38(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
+    AudioLoop* pLoop = &pAudioElements->loops[pAudioElements->unk_0x72];
+    u8* pResult = pScript;
+
+    if (--pLoop->count != 0xFF) {
+        pLoop->end = pScript;
+        pLoop->unk3 = pAudioElements->octave;
+        pResult = pLoop->start;
+        pAudioElements->octave = pLoop->savedOctave;
+    } else {
+        pAudioElements->unk_0x72--;
+    }
+
+    return pResult;
+}
 
 u8* func_8003CFA4(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     AudioLoop* pLoop = &pAudioElements->loops[pAudioElements->unk_0x72];
@@ -2228,6 +2286,29 @@ u8* func_8003DB98(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
 }
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003DBE4);
+/*
+Attempt (97.78%, correct size): the only difference is the original's
+`move a1,t0` copy of the frame count, where gcc 2.6 emits `andi a1,t0,0xff`
+(`s32 frames` instead makes gcc fold the copy away entirely, 97.41%).
+Same gcc 2.6 byte->int copy quirk as func_8003D0E8 and func_8003D13C.
+u8* func_8003DBE4(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
+    s32 start = pScript[0] << 24;
+    s32 target = pScript[2] << 24;
+    u8 frames = pScript[1];
+    s32 delta = target - start;
+
+    if (delta != 0 && frames != 0) {
+        pAudioElements->ramp.step = delta / frames;
+        pAudioElements->ramp.target = start >> 16;
+        pAudioElements->ramp.counter = frames;
+        pAudioElements->unk_0x04 = (pAudioElements->unk_0x04 | 0x100) & ~0x8;
+    } else {
+        pAudioElements->unk_0x04 &= ~0x100;
+    }
+
+    return pScript + 3;
+}
+*/
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003DC50);
 
