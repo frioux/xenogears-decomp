@@ -144,36 +144,21 @@ void func_80025180(void* pData) {
 // Add Image to current g_GfxImageList[g_GfxCurContext] linked list
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_800251C8);
 /*
-Matches, but uses variable in COMMON so can't compile in yet.
-
-struct ImageEntry {
-    RECT rect;
-    u_long* addr;
-    struct ImageEntry* pNext;
-};
-
-typedef struct ImageEntry ImageEntry;
-
-extern ImageEntry* g_GfxImageList[];
-int g_GfxCurContext; // Cur index?
-void* g_GfxCurWorkBufferEnd;
-ImageEntry* g_GfxCurWorkBuffer;
-
-// GfxQueueShapeTransfer
+Best 86.30%: identical instructions, but gcc inlines the height argument load
+(lw v1, 0x10($sp)) inside the branch instead of hoisting it above it.
 void func_800251C8(u_long* addr, int x, int y, int width, int height) {
-    ImageEntry* pCurrent;
-    ImageEntry* pNext;
+    Image* pCurrent;
+    Image* pNext;
 
-    pCurrent = (ImageEntry*) g_GfxCurWorkBuffer;
+    pCurrent = g_GfxCurWorkBuffer;
     pNext = pCurrent + 1;
-    if (pNext < g_GfxCurWorkBufferEnd) {
+    if (pNext < (Image*) g_GfxCurWorkBufferEnd) {
         pCurrent->rect.h = height;
         pCurrent->rect.x = x;
         pCurrent->rect.y = y;
         pCurrent->rect.w = width;
         pCurrent->addr = addr;
-        g_GfxCurWorkBuffer = (void*) pNext;
-
+        g_GfxCurWorkBuffer = pNext;
         pCurrent->pNext = g_GfxImageList[g_GfxCurContext];
         g_GfxImageList[g_GfxCurContext] = pCurrent;
     }
@@ -320,4 +305,8 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_800273C4);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_800278F8);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_80027D40);
+void func_80027D40(void* pData) {
+    if (pData) {
+        HeapFree(pData);
+    }
+}
