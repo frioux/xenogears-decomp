@@ -2,9 +2,33 @@
 
 extern u_long g_RandomSeed;
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libc", bzero);
+void* bzero(u_char* pDst, int size) {
+    void* pRet;
+
+    if (pDst == NULL)
+        return NULL;
+    if (size <= 0)
+        return NULL;
+    pRet = pDst;
+    for (; size > 0; size--) {
+        *pDst++ = 0;
+    }
+    return pRet;
+}
+
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libc", memchr);
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libc", memcpy);
+
+void* memcpy(u_char* pDst, u_char* pSrc, int size) {
+    void* pRet;
+
+    if (pDst == NULL)
+        return NULL;
+    pRet = pDst;
+    for (; size > 0; size--) {
+        *pDst++ = *pSrc++;
+    }
+    return pRet;
+}
 
 void* memmove(u_char* pDst, u_char* pSrc, int size) {
     if (pDst >= pSrc) {
@@ -20,7 +44,19 @@ void* memmove(u_char* pDst, u_char* pSrc, int size) {
     return pDst;
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libc", memset);
+void* memset(u_char* pDst, int ch, int size) {
+    void* pRet;
+
+    if (pDst == NULL)
+        return NULL;
+    if (size <= 0)
+        return NULL;
+    pRet = pDst;
+    for (; size > 0; size--) {
+        *pDst++ = ch;
+    }
+    return pRet;
+}
 
 int rand(void) {
     u_long nNext;
@@ -38,7 +74,19 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libc", strcat);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libc", strcmp);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libc", strcpy);
+void* strcpy(u_char* pDst, u_char* pSrc) {
+    void* pRet;
+
+    if (pDst == NULL)
+        return NULL;
+    if (pSrc == NULL)
+        return NULL;
+    pRet = pDst;
+    while ((*pDst++ = *pSrc++) != 0) {
+        ;
+    }
+    return pRet;
+}
 
 int strlen(char* pString) {
     int nLen;
