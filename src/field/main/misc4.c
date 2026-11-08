@@ -421,7 +421,23 @@ void func_8007AE78(int controllerIndex, int* pOut) {
 }
 */
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007AF74);
+void func_8007AF74(int controllerIndex) {
+    if (((s8**)&g_pFieldControllerBuffer1)[controllerIndex][0] == 0
+        && ((s8**)&g_pFieldControllerBuffer1)[controllerIndex][1] == 0x12) {
+        g_FieldMousePositionsX[controllerIndex] += ((s8**)&g_pFieldControllerBuffer1)[controllerIndex][4];
+        g_FieldMousePositionsY[controllerIndex] += ((s8**)&g_pFieldControllerBuffer1)[controllerIndex][5];
+        if (g_FieldMousePositionsX[controllerIndex] > D_800C3A50) {
+            g_FieldMousePositionsX[controllerIndex] = D_800C3A50;
+        } else if (g_FieldMousePositionsX[controllerIndex] < D_800C3A44) {
+            g_FieldMousePositionsX[controllerIndex] = D_800C3A44;
+        }
+        if (g_FieldMousePositionsY[controllerIndex] > D_800C3A54) {
+            g_FieldMousePositionsY[controllerIndex] = D_800C3A54;
+        } else if (g_FieldMousePositionsY[controllerIndex] < D_800C3A4C) {
+            g_FieldMousePositionsY[controllerIndex] = D_800C3A4C;
+        }
+    }
+}
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007B07C);
 
