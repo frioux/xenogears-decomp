@@ -573,6 +573,66 @@ void func_8009B338(void) {
 }
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc12", func_8009B398);
+/* 95.05%, same instruction count (179). Only the 2D-actor arm differs: gcc
+   schedules the `D_800B21CE = 1` store before the scriptInstructionPointer
+   update (taking a0, which pushes the D_8005A444 pointer and loop counter into
+   a1/a2); the original emits `sh 204(v0)` first and materialises the 1 into v0
+   after it. Everything from the else arm onwards matches instruction for
+   instruction. Bit idiom `| ~0x7FFF` is the house spelling (see func_8009F4CC
+   in misc6.c): `| 0x8000` on the short field gives lh/ori instead of lhu/or.
+void func_8009B398(void) {
+    ActorData* pActor;
+    short rotation;
+    int i;
+    int mask;
+
+    if (FieldScriptArgument1(1, SCRIPT_READ_U8_REL(0xD)) == 0x7FFF) {
+        g_FieldScriptVMCurActor->scriptInstructionPointer += 0x14;
+        D_800B21CE = 1;
+
+        for (i = 0; i < 3; i++) {
+            if (D_8005A444[i] != 0xFF) {
+                pActor = g_FieldActors[D_8005A444[i]].pActorData;
+                rotation = pActor->rotation.vy | ~0x7FFF;
+                pActor->rotation.vx = rotation;
+                pActor->rotation.vy = rotation;
+            }
+        }
+    } else {
+        mask = func_8009AEE0(
+                   0,
+                   FieldScriptArgument1(1, SCRIPT_READ_U8_REL(0xD)),
+                   FieldScriptArgument2(3, SCRIPT_READ_U8_REL(0xD)),
+                   FieldScriptVMGetArgument(0xE)
+               ) == 0;
+        if (func_8009AEE0(
+                1,
+                FieldScriptArgument3(5, SCRIPT_READ_U8_REL(0xD)),
+                FieldScriptArgument4(7, SCRIPT_READ_U8_REL(0xD)),
+                FieldScriptVMGetArgument(0x10)
+            ) == 0) {
+            mask |= 2;
+        }
+        if (func_8009AEE0(
+                2,
+                FieldScriptArgument5(9, SCRIPT_READ_U8_REL(0xD)),
+                FieldScriptArgument6(0xB, SCRIPT_READ_U8_REL(0xD)),
+                FieldScriptVMGetArgument(0x12)
+            ) == 0) {
+            mask |= 4;
+        }
+        D_800B00C0 = 1;
+        if (mask == 7) {
+            D_800B2348.value = 0;
+            g_FieldScriptVMCurActor->scriptInstructionPointer += 0x14;
+            D_800B21CC[0] = 0;
+        } else {
+            D_800B21CC[0] = 1;
+            g_FieldScriptVMCurActor->scriptInstructionPointer--;
+        }
+        D_800B21CE = 1;
+    }
+} */
 
 void func_8009B664(void) {
     FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(1), g_Scene.sceneScrZ);
