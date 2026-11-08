@@ -851,15 +851,6 @@ void func_800860F0(int arg0, int arg1, int arg2, int arg3, int actorIndex) {
     }
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc8", FieldActorWorldToScreenPosition);
-/* 95.25%: everything matches but the base address. The original materialises
-   `&g_FieldActors` into v1 (`lui v1,%hi; addiu v1,v1,%lo`, offset 0), takes
-   the matrix from it with `addiu a0,v1,-0xAC` and loads the actor pointer
-   with `lw a1,0(v1)`; gcc folds the -0xAC into the %lo of one reference and
-   emits a second lui/lw for the pointer. The -0xAC is exact: &g_FieldActors
-   (0x800AFB10) - 0xAC == g_Scene.worldToScreenMatrix (0x800AF990 + 0xD4), so
-   the matrix and the actor pointer were members of one original struct; the
-   anchor has to stay the g_FieldActors symbol for the link to resolve.
 void FieldActorWorldToScreenPosition(int actorIndex, int* pScreenX, int* pScreenY) {
     SVECTOR vertex;
     MATRIX transformMatrix;
@@ -868,8 +859,8 @@ void FieldActorWorldToScreenPosition(int actorIndex, int* pScreenX, int* pScreen
     long flag;
     FieldActor** pActorSlot = &g_FieldActors;
 
-    FieldScriptVMGetActorIndex(1);
     CompMatrix((MATRIX*)((u_char*)pActorSlot - 0xAC), &(*pActorSlot)[actorIndex].transformMatrix, &transformMatrix);
+    FieldScriptVMGetActorIndex(1);
     vertex.vx = 0;
     vertex.vy = 0;
     vertex.vz = 0;
@@ -879,7 +870,6 @@ void FieldActorWorldToScreenPosition(int actorIndex, int* pScreenX, int* pScreen
     *pScreenY = ((short*)&sxy)[1];
     *pScreenX = ((short*)&sxy)[0];
 }
-*/
 
 void func_800862CC(int arg0, int arg1, int arg2, int arg3, int actorIndex) {
     short value;
