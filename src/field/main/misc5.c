@@ -143,9 +143,83 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A6998);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A6C40);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A6E70);
-
 extern void* D_800B00C4;
+
+/* Best attempt, 97.96%: only a v0/v1 swap of the two UV temps differs.
+   0x7A80 byte heap block: two arrays of 280 POLY_GT4 (0x34 bytes each), then
+   four arrays of 280 u_short; entry i*0x14+j of the second array is a copy of
+   the first. Every poly is a 16x16 tile: x0/x2 = j*16, y0/y1 = i*16,
+   x1/x3 = j*16+16, y2/y3 = i*16+16, u0/u2 = (j*16)&0x3F, u1/u3 = u+16,
+   v0/v1 = i*16, v2/v3 = i*16+16, tpage from GetTPage(2, 1, j/4*64+0x2C0, 0x100).
+typedef struct {
+    // 0x0000 POLY_GT4 polygons[280];
+    // 0x38E0 POLY_GT4 polygonsNext[280];
+    // 0x71C0 u_short unk71C0[280];
+    // 0x73F0 u_short unk73F0[280];
+    // 0x7620 u_short unk7620[280];
+    // 0x7850 u_short unk7850[280];
+} FieldParticlePrimitiveSet; // Size: 0x7A80
+
+void func_800A6E70(void) {
+    FieldParticlePrimitiveSet* pPrims;
+    POLY_GT4* pPoly;
+    POLY_GT4* pPolyNext;
+    int i;
+    int j;
+    int nIndex;
+    int nY;
+
+    D_800B00C4 = HeapAlloc(0x7A80, 0x1);
+    for (i = 0; i < 0xE; i++) {
+        nY = i * 0x10;
+        for (j = 0; j < 0x14; j++) {
+            pPrims = D_800B00C4;
+            nIndex = i * 0x14 + j;
+            pPoly = pPrims->polygons + nIndex;
+            pPolyNext = pPrims->polygonsNext + nIndex;
+            pPrims->unk71C0[nIndex] = 0x80;
+            pPrims->unk73F0[nIndex] = 0x80;
+            pPrims->unk7620[nIndex] = 0x80;
+            pPrims->unk7850[nIndex] = 0x80;
+            SetPolyGT4(pPoly);
+
+            pPoly->x0 = j * 0x10;
+            pPoly->x2 = j * 0x10;
+            pPoly->r0 = 0x80;
+            pPoly->g0 = 0x80;
+            pPoly->b0 = 0x80;
+            pPoly->r1 = 0x80;
+            pPoly->g1 = 0x80;
+            pPoly->b1 = 0x80;
+            pPoly->r2 = 0x80;
+            pPoly->g2 = 0x80;
+            pPoly->b2 = 0x80;
+            pPoly->r3 = 0x80;
+            pPoly->g3 = 0x80;
+            pPoly->b3 = 0x80;
+            pPoly->y0 = nY;
+            pPoly->x1 = j * 0x10 + 0x10;
+            pPoly->y1 = nY;
+            pPoly->y2 = nY + 0x10;
+            pPoly->x3 = j * 0x10 + 0x10;
+            pPoly->y3 = nY + 0x10;
+            pPoly->u0 = (j * 0x10) & 0x3F;
+            pPoly->v0 = nY;
+            pPoly->u1 = ((j * 0x10) & 0x3F) + 0x10;
+            pPoly->v1 = nY;
+            pPoly->u2 = (j * 0x10) & 0x3F;
+            pPoly->v2 = nY + 0x10;
+            pPoly->u3 = ((j * 0x10) & 0x3F) + 0x10;
+            pPoly->v3 = nY + 0x10;
+            pPoly->tpage = GetTPage(0x2, 0x1, j / 4 * 0x40 + 0x2C0, 0x100);
+            SetSemiTrans(pPoly, 0x1);
+            *pPolyNext = *pPoly;
+        }
+    }
+}
+*/
+
+INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A6E70);
 
 void func_800A7064(void) {
     HeapFree(D_800B00C4);
@@ -439,6 +513,85 @@ void func_800A8408(int nQuad, int x, int y) {
 INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A84C0);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A8BA4);
+
+/* Best attempt, 97.42%: the vertex math allocates registers differently (the
+   original recomputes x0*16 and y0*16 instead of keeping them live), 2 insns.
+   Needs "field/particles.h" for ParticlePrimitive (Size 0xC0: POLY_FT4 poly[2]
+   at 0x50, SVECTOR vertices[4] at 0xA0) and a 0x58 byte dummy local for the
+   0x98 frame. The shape table is D_800AF27C, one ParticleShape (0xC) per index,
+   declared as one extern u_short[] per field so the relocations come out as
+   %hi/%lo of D_800AF27C + 2*k like the original.
+extern u_short D_800AF27C[]; // x0
+extern u_short D_800AF27E[]; // y0
+extern u_short D_800AF280[]; // x1
+extern u_short D_800AF282[]; // y1
+extern u_short D_800AF284[]; // u0
+extern u_short D_800AF286[]; // v0
+extern u_short D_800AF288[]; // u1
+extern u_short D_800AF28A[]; // v1
+extern u_short D_800AF28C[]; // u2
+extern u_short D_800AF28E[]; // v2
+extern u_short D_800AF290[]; // u3
+extern u_short D_800AF292[]; // v3
+
+void FieldInitializeParticlePrimitive(ParticlePrimitive* pParticle, int shapeIndex, int nTextureMode) {
+    POLY_FT4* pPoly;
+    POLY_FT4* pPoly2;
+    int nIndex;
+    int x0;
+    int y0;
+    int x1;
+    int y1;
+    int nLeft;
+    int nTop;
+    int nRight;
+    int nBottom;
+    char _pad[0x58];
+
+    pPoly = &pParticle->poly[0];
+    pPoly2 = &pParticle->poly[1];
+    SetPolyFT4(pPoly);
+
+    nIndex = shapeIndex * 0xC;
+    x0 = D_800AF27C[nIndex];
+    y0 = D_800AF27E[nIndex];
+    x1 = D_800AF280[nIndex];
+    y1 = D_800AF282[nIndex];
+
+    pParticle->vertices[0].vz = 0;
+    pParticle->vertices[1].vz = 0;
+    pParticle->vertices[2].vz = 0;
+    pParticle->vertices[3].vz = 0;
+
+    setRGB0(pPoly, 0x80, 0x80, 0x80);
+
+    nLeft = (x1 << 4) - (x0 << 4);
+    nTop = (y1 << 4) - (y0 << 4);
+    nRight = (x0 << 4) + (x1 << 4);
+    nBottom = (y0 << 4) + (y1 << 4);
+
+    pParticle->vertices[0].vx = nLeft;
+    pParticle->vertices[0].vy = nTop;
+    pParticle->vertices[1].vx = nRight;
+    pParticle->vertices[1].vy = nTop;
+    pParticle->vertices[2].vx = nLeft;
+    pParticle->vertices[2].vy = nBottom;
+    pParticle->vertices[3].vx = nRight;
+    pParticle->vertices[3].vy = nBottom;
+
+    FieldClampPolyFT4UVs(pPoly,
+        D_800AF284[nIndex], D_800AF286[nIndex] + 0x40,
+        D_800AF288[nIndex] - 1, D_800AF28A[nIndex] + 0x40,
+        D_800AF28C[nIndex], D_800AF28E[nIndex] + 0x3F,
+        D_800AF290[nIndex] - 1, D_800AF292[nIndex] + 0x3F);
+
+    SetSemiTrans(pPoly, 0x1);
+    pPoly->tpage = GetTPage(0x0, nTextureMode, 0x3C0, 0x140);
+    pPoly->clut = GetClut(0x100, 0xF7);
+
+    *pPoly2 = *pPoly;
+}
+*/
 
 // https://decomp.me/scratch/3xYjM
 INCLUDE_ASM("asm/field/nonmatchings/main/misc5", FieldInitializeParticlePrimitive);
