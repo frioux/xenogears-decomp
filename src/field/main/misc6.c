@@ -569,52 +569,52 @@ int FieldCharacterIdToPartyId(int characterId) {
 }
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_8009FA54);
-// 93.09%: instruction sequence and registers match; only the store order of the
-// three g_Scene fields differs. The original shifts `angle << 16` before the
-// sceneAngle.vy store and emits the stores as 0x56, 0x7C, 0x60, which needs the
-// source to compute the unk60 value before the vy assignment while still storing
-// it last.
-/*s32 func_8009FA54(s32 nInstructionOffset) {
-    u8 nMode;
+// 90.74%: the `if (== 0xFF) { body } return 0;` form reproduces the single
+// `bne s2,v0,<epilogue>` with `move v0,zero` in the delay slot (an early
+// `return 0;` instead gives beq+j).
+// Remaining: (1) the original sign-extends the angle for g_Scene.unk7C with
+// `sll a0,a1,16; sra v0,a0,16` reusing the unk60 shift; gcc 2.7 folds any
+// `(short)`/`>>16` of this value away because both branches of the 0xFF test
+// produce `(x & 7) << 9`. (2) The frame is 0x28 here vs 0x20, and the tail
+// rotation stores put the actor in $v0 instead of $a0 with `move v0,zero`
+// scheduled last instead of before the actor load.
+/*
+s32 func_8009FA54(s32 nInstructionOffset) {
     u8 nByte;
     s32 nOffset;
     s32 nAngle;
+    s32 nRotation;
     s32 nX;
     s32 nY;
 
-    nMode = SCRIPT_READ_U8(0);
-    if (nMode != 0xFF) {
-        return 0;
-    }
+    if (SCRIPT_READ_U8(0) == 0xFF) {
+        nOffset = nInstructionOffset * 7;
+        g_FieldScriptVMCurActor->walkmeshId = SCRIPT_READ_U8(nOffset + 5);
+        nX = func_8009E330(nOffset + 1);
+        nY = func_8009E330(nOffset + 3);
+        func_8009E574(nX, nY);
 
-    nOffset = nInstructionOffset * 7;
-    g_FieldScriptVMCurActor->walkmeshId = SCRIPT_READ_U8(nOffset + 5);
-    nX = func_8009E330(nOffset + 1);
-    nY = func_8009E330(nOffset + 3);
-    func_8009E574(nX, nY);
+        nByte = SCRIPT_READ_U8(nOffset + 6);
+        nAngle = ((nByte + 4) & 7) << 9;
+        if (nByte == 0xFF) {
+            nAngle = ((FieldScriptVMGetVariableValue(8) + 4) & 7) << 9;
+        }
+        g_Scene.unk7C = (short)nAngle;
+        g_Scene.unk60 = nAngle << 16;
+        g_Scene.sceneAngle.vy = nAngle;
 
-    nByte = SCRIPT_READ_U8(nOffset + 6);
-    nAngle = ((nByte + 4) & 7) << 9;
-    if (nByte == 0xFF) {
-        nAngle = ((FieldScriptVMGetVariableValue(8) + 4) & 7) << 9;
+        nByte = SCRIPT_READ_U8(nOffset + 7);
+        nRotation = ((nByte - 2) & 7) << 9 | 0x8000;
+        if (nByte == 0xFF) {
+            nRotation = ((FieldScriptVMGetVariableValue(6) - 2) & 7) << 9 | 0x8000;
+        }
+        g_FieldScriptVMCurActor->rotation.vx = nRotation;
+        g_FieldScriptVMCurActor->rotation.vy = nRotation;
+        g_FieldScriptVMCurActor->rotation.vz = nRotation;
     }
-    g_Scene.unk7C = (short)nAngle;
-    g_Scene.unk60 = nAngle << 16;
-    g_Scene.sceneAngle.vy = nAngle;
-
-    nByte = SCRIPT_READ_U8(nOffset + 7);
-    nAngle = ((nByte - 2) & 7) << 9 | 0x8000;
-    if (nByte == 0xFF) {
-        nAngle = ((FieldScriptVMGetVariableValue(6) - 2) & 7) << 9 | 0x8000;
-    }
-    g_FieldScriptVMCurActor->rotation.vx = nAngle;
-    g_FieldScriptVMCurActor->rotation.vy = nAngle;
-    g_FieldScriptVMCurActor->rotation.vz = nAngle;
     return 0;
 }
-
 */
-
 INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_8009FB98);
 /*
 Matches, but the struct D_800B2268 is part of needs recovery first.
