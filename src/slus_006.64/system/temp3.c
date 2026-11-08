@@ -553,7 +553,14 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp3", func_8001BB50);
 Best: 80.87%. The original writes these globals through %gp_rel, which maspsx only
 emits for symbols the unit defines itself (a file-scope definition here turns each
 reference into %gp_rel). This file also contains functions that use %lo for the same
-symbols (e.g. func_8001B6C4 on D_800594F8/D_8005947C), so the unit cannot have both;
+symbols (e.g. func_8001B6C4 on D_800594F8/D_8005947C), so the unit cannot have both.
+The mechanism is visible in the original asm: maspsx only rewrites the `lui $at`
+form to gp_rel, and func_8001B6C4 reaches those two symbols through a pointer
+held in $v0 (`lui $v0,%hi; lbu %lo($v0)`), so it keeps %hi/%lo while the same
+symbols are gp_rel elsewhere. That means the unit does define them; the reference
+form is source-level and the two can coexist. Worth retrying with declarations
+for D_800594F8/D_8005946C/D_800594D4/D_800595A0 in this unit and
+D_8005947C/D_800594F8 read through a pointer local inside func_8001B6C4;
 deciding who owns this .bss data is a unit-level call.
 void func_8001BB50(void) {
     D_800594F8 = 1;
@@ -662,6 +669,11 @@ Best: 89.10%. Structure and branch polarity match; what is left is gcc reusing
 the incoming argument register a1 as a temporary for the masked arg0 (the
 original keeps masked arg0 in v1) and merging the trailing `& 0xFF` so the
 epilogue is shared instead of ending each block with `j ... ; andi v0,v1,0xff`.
+Measured cause of the merge: our compile masks the sum in place in v0 and the
+else path masks rand() in place in v0 too, so gcc 2.7 cross-jumps them onto one
+shared `andi v0,v0,0xff`. The original sums into v1 (`addu v1,s1,v1; j Lx;
+andi v0,v1,0xff`), a different insn, so its tails stay separate. A u8 result
+local, an explicit trailing `& 0xFF`, and an `s32` return type all still merge.
 u8 func_8001BD40(u8 arg0, u8 arg1) {
     s32 diff;
 
