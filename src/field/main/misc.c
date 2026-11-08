@@ -273,9 +273,13 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_80087E98);
 extern FieldScriptGlobalU16 D_800B2348;
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_80087FA4);
+// 79.83%: gcc folds the symbol into both accesses (`lui/lhu` then `lui at/sh`),
+// the original materialises &D_800B2348 once in $v1 and uses 0($v1) twice. A
+// local pointer to the global (`p->value++`, also `+= 1`, `volatile` variants)
+// is folded back to the same immediate form.
 /*
 void func_80087FA4(void) {
-    D_800B2348.value = D_800B2348.value + 1;
+    D_800B2348.value++;
     g_FieldScriptVMCurActor->scriptInstructionPointer += 1;
 }
 */
@@ -370,6 +374,9 @@ typedef struct {
 extern ParticleBankHandle D_800B2384;
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008861C);
+// 56.59%: z-then-x store order is right; the original stores x through
+// %lo(g_FieldDefaultParticleBanks + 0x30)($at) with the bank offset in the
+// register, ours keeps a pointer in a temp instead.
 /*
 void func_8008861C(void) {
     int i;
@@ -1226,6 +1233,10 @@ void FieldScriptWriteActorFlags1(void) {
 */
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", FieldScriptWriteActorFlags2);
+// 95.29% (same miss as Flags1): gcc hoists the `li a0,1` for the
+// FieldScriptVMGetInstructionArgument call above the actor address computation;
+// the original leaves it in the jal delay slot. Everything else is identical, so
+// all four FlagsN handlers share this one blocker.
 /*
 void FieldScriptWriteActorFlags2(void) {
     volatile int actorIndex;
