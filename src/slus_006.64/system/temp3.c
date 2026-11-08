@@ -166,7 +166,7 @@ void func_8001ACA4(void) {
     GamePartyStreamLoadSkinData(1);
 }
 
-u8 GameCharacterGetGearID(int characterIndex) {
+int GameCharacterGetGearID(int characterIndex) {
     return g_pGameState->characters[characterIndex].gearId;
 }
 
@@ -211,10 +211,6 @@ void GamePartyCharactersInitializeSkins(void) {
 
 // Set GameState pointer to g_GameState, set party members accordingly 
 // to it and stream load gear skins for them.
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp3", GamePartyGearsInitializeSkins);
-/*
-Matches on https://decomp.me/scratch/AmSUB, but not when compiled in, need to find reason for the diff
-
 void GamePartyGearsInitializeSkins(void) {
     int i;
     int curPartyMemberIndex;
@@ -234,13 +230,13 @@ void GamePartyGearsInitializeSkins(void) {
     for (i = 0, entryCount = 0; i < MAX_PARTY_MEMBERS; i++) {
         if (g_GamePartyMembers[i] != CHARACTER_ID_NONE) {
             gearId = GameCharacterGetGearID(g_GamePartyMembers[i]);
-            if (gearId == 0xFF) {
-                gearId = 0x0;
+            if (gearId == GEAR_ID_NONE) {
+                gearId = 0;
             }
             gearId += 0x10;
             g_PartyStreamDataQueue[entryCount].archiveIndex = gearId + 5;
             g_GamePartyMemberSkins[i] = gearId;
-            pBuffer = HeapAlloc(ArchiveDecodeAlignedSize(gearId + 5), 0x0);
+            pBuffer = HeapAlloc(ArchiveDecodeAlignedSize(gearId + 5), 0);
             g_PartyStreamDataPointers[entryCount] = pBuffer;
             g_PartyStreamDataQueue[entryCount].pData = pBuffer;
             HeapPinBlock(g_PartyStreamDataPointers[entryCount]);
@@ -252,7 +248,6 @@ void GamePartyGearsInitializeSkins(void) {
     func_80029AFC(g_PartyStreamDataQueue, 0, 0);
     D_8004F31C = 2;
 }
-*/
 
 void GamePartySyncSkinData(void) {
     GameWaitForCdData();
@@ -438,7 +433,65 @@ void func_8001B66C(void) {
 
 void func_8001B6BC(void) {}
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp3", func_8001B6C4);
+extern u8 D_8005959C;
+extern s32* D_8005917C;
+extern u8 D_800C48EA;
+extern u8 D_800D3338;
+extern u8 D_8005947C;
+extern u8 D_800594F8;
+extern u16 D_8006F94E;
+extern s16 D_8006F950;
+extern s16 D_8006F952;
+extern s16 D_8006F954;
+extern void func_80070F40(void);
+extern void ChangeGameState(unsigned int state);
+extern void MainLoop(s32 arg0);
+extern void* FontLoadFont(s32 startX, s32 startY, s32 width, s32 height, s32 maxLetters, u32 flags, s32 texpageX, s32 texpageY, s32 clutX, s32 clutY, void* pCompressedFontFile);
+extern void func_8001B844(void);
+
+void func_8001B6C4(void) {
+    int gameState;
+
+    D_8005959C = 1;
+    ArchiveCdDataSync(0);
+    ArchiveSetIndex(0xC, 0);
+
+    if (*D_8005917C != -1) {
+        func_8003747C((void*)0x80200000);
+        FontLoadFont(0x10, 0x10, 0x140, 0x100, 0x3E8, 0, 0x340, 0, 0x340, 0x20, 0);
+    }
+
+    func_8001B844();
+    func_80070F40();
+
+    if (D_800C48EA == 1 || D_800C48EA == 0x40 || D_800C48EA == 0x21) {
+        if (D_800D3338 != 0) {
+            gameState = 6;
+        } else if (D_8005947C == 0) {
+            if ((D_8006F94E & 0x7FF) < 0x400) {
+                gameState = 1;
+            } else {
+                gameState = 3;
+            }
+        } else {
+            gameState = 2;
+        }
+        ChangeGameState(gameState);
+    } else if (D_800C48EA == 0x81) {
+        GamePartySignalReinitialize();
+        D_8006F94E = 0x1EA;
+        D_8006F950 = 0;
+        D_8006F952 = 0;
+        D_8006F954 = 0;
+        ChangeGameState(1);
+    }
+
+    if (D_8005947C == 0) {
+        D_800594F8 = 1;
+    }
+
+    MainLoop(0);
+}
 
 extern DISPENV D_800C4A7C;
 extern s32 func_800379D0();
@@ -577,6 +630,7 @@ void func_8001BB50(void) {
 u32 D_80059480;
 u32 D_800594AC;
 u8 D_8005954C;
+u8 D_8005959C;
 SoundFile* D_800595D0;
 void* D_800595A8;
 
