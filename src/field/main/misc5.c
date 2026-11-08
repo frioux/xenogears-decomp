@@ -385,14 +385,14 @@ void func_800A8314(void) {
 }
 
 extern int D_800AF278;
-extern void* D_800AFC60;
+extern POLY_FT4* D_800AFC60[];
 extern void* D_800AFC64;
 
 void func_800A83B4(void) {
     if (D_800AF278 != 0) {
         D_800AF278 = 0;
         DrawSync(0);
-        HeapFree(D_800AFC60);
+        HeapFree(D_800AFC60[0]);
         HeapFree(D_800AFC64);
     }
 }
@@ -400,12 +400,14 @@ void func_800A83B4(void) {
 INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A8408);
 
 /* Best attempt, 71.78%: only instruction scheduling differs.
-   The original frame has 0x18 unused bytes, hence `unk`.
+   The original frame has 0x18 unused bytes, hence `unk`. Two facts learned: the
+   original passes the UVs untruncated, so its prototype here took ints, not
+   shorts, and the arguments are (pPoly, x, y+h-1, x+w, y+h-1, x, y-1, x+w, y-1).
 extern u_short D_800AEB68[]; // 8 byte entries: 0x0 -> x
 extern u_short D_800AEB6A[]; //              0x2 -> y
 extern u_short D_800AEB6C[]; //              0x4 -> w
 extern u_short D_800AEB6E[]; //              0x6 -> h
-extern u_short D_800AEF14[]; // 4 shorts per entry, entry 0 is the sprite index
+extern u_short D_800AEF14[]; // 8 byte entries, entry 0 is the sprite rect index
 
 void func_800A8408(int nQuad, int x, int y) {
     POLY_FT4* pPoly;
