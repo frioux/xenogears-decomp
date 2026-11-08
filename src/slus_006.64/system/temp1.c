@@ -522,8 +522,14 @@ void func_80024294(s32 arg0, s16 arg1, s16 arg2, s16 arg3, s16 arg4, s16 arg5, s
     D_800591B8 = 0;
 }
 
-extern void func_8002435C(SpriteData* pSpriteData, void* pAnimFile, s16 arg2, s16 arg3, s16 arg4, s16 arg5,
-                          s16 arg6);
+extern INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_8002435C);
+/* Best attempt: 89.07%. Every operation, load, store and call is in place and in order; what is
+   left is register allocation only. The original keeps pAnimFile in s6 for the tail (the 0x48
+   store and the func_800222BC call) and a second copy in s1 for the 0x8 offset load, so it saves
+   seven callee-saved registers; this C uses one register throughout. The 0x3C/0x40 flag block
+   also lands in the other registers (mask in a0, D_800591AD in v1 instead of the reverse).
+SpriteData* func_8002435C(SpriteData* pSpriteData, void* pAnimFile, s16 arg2, s16 arg3, s16 arg4,
+                                 s16 arg5, s16 arg6);
 
 void func_800242F4(SpriteData* pSpriteData, void* pAnimFile, s16 arg2, s16 arg3, s16 arg4, s16 arg5,
                    s16 arg6, s32 arg7) {
@@ -532,7 +538,56 @@ void func_800242F4(SpriteData* pSpriteData, void* pAnimFile, s16 arg2, s16 arg3,
     D_800591B8 = 0;
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_8002435C);
+extern u8 D_800591AD;
+extern void SpriteSetScale(SpriteData* pSpriteData, s16 scale);
+extern s32 func_8001EE74(u16* pFlags);
+
+SpriteData* func_8002435C(SpriteData* pSpriteData, void* pAnimFile, s16 arg2, s16 arg3, s16 arg4, s16 arg5,
+                          s16 arg6) {
+    SpriteDataI1* pBase;
+    void* pFramesData;
+    u8* pAnimations;
+    u8* pAnimFileData;
+    mem_addr pAnimHeader;
+    u32 flags;
+
+    func_80023804(pSpriteData);
+    func_800239A0(pSpriteData);
+    SpriteSetScale(pSpriteData, 0x1000);
+    *(u32*)((u8*)pSpriteData + 0x3C) = (*(u32*)((u8*)pSpriteData + 0x3C) & ~3) | 1;
+    pSpriteData->field_0x40 &= 0xFFFE1FFF;
+    if (D_800591AD) {
+        pSpriteData->flags_0xA8 &= ~1;
+        ((SpriteDataI3*)pSpriteData->field_0x7C)->field_0x8 = 0;
+        ((SpriteDataI3*)pSpriteData->field_0x7C)->field_0xC = 0;
+    } else {
+        pSpriteData->flags_0xA8 |= 1;
+        ((SpriteDataI3*)pSpriteData->field_0x7C)->field_0x18 = NULL;
+    }
+    flags = *(u32*)((u8*)pSpriteData + 0x3C);
+    pSpriteData->field_0x6C = pSpriteData;
+    flags &= 0xFF0FFFFF;
+    flags |= (D_800591B8 & 0xF) << 20;
+    flags &= 0xFFF0FFFF;
+    flags |= (D_800591B8 & 0xF) << 16;
+    *(u32*)((u8*)pSpriteData + 0x3C) = flags;
+    pAnimFileData = pAnimFile;
+    pAnimHeader = *(u32*)(pAnimFileData + 8);
+    pFramesData = HeapAlloc(func_8001EE74((u16*)(pAnimHeader + (mem_addr)pAnimFileData)) * sizeof(SpriteFrameData), 0);
+    pBase = pSpriteData->pBase;
+    pBase->pFramesData = pFramesData;
+    pBase->pCurRenderFramesData = pFramesData;
+    ((SpriteAnimPackage*)pSpriteData->pVramData)->tex.x = arg4;
+    ((SpriteAnimPackage*)pSpriteData->pVramData)->tex.y = arg5;
+    ((SpriteAnimPackage*)pSpriteData->pVramData)->clut.x = arg2;
+    ((SpriteAnimPackage*)pSpriteData->pVramData)->clut.y = arg3;
+    pSpriteData->pDefaultAnimFile = pAnimFile;
+    func_800222BC(pSpriteData, pAnimFile);
+    pAnimations = ((SpriteAnimPackage*)pSpriteData->pVramData)->pAnimations;
+    pSpriteData->field_0x60 = (u32)pAnimations + ((*(u16*)pAnimations & 0x3F) + 1) * 2;
+    func_800245D8(pSpriteData, 0);
+    return pSpriteData;
+}
 
 void func_80024524(s32 arg0, s16 arg1, s16 arg2, s16 arg3, s16 arg4, s16 arg5) {
     SpriteData* pSpriteData;
@@ -541,12 +596,12 @@ void func_80024524(s32 arg0, s16 arg1, s16 arg2, s16 arg3, s16 arg4, s16 arg5) {
     pSpriteData->allocatedDataSize = sizeof(SpriteData);
     func_8002435C(pSpriteData, (void*)arg0, arg1, arg2, arg3, arg4, arg5);
 }
+*/
 
 extern void func_800222BC(SpriteData* pSpriteData, void* pAnimFile);
 extern s32 func_8001EE68(void* pFrames);
 extern void func_800223B0(SpriteData* pSpriteData, s16 arg1);
 extern void func_80023538(SpriteData* pSpriteData, void* pAnimEntry);
-extern u8 D_800591AD;
 
 void func_800245D8(SpriteData* pSpriteData, s32 animId) {
     u8* pAnimations;
