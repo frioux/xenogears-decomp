@@ -1659,9 +1659,39 @@ void func_8008F070(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008F0B4);
+void func_8008F0B4(void) {
+    ActorData* pActorData;
+    int actorIndex = FieldScriptVMGetActorIndex(2);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008F1C8);
+    if (actorIndex != ACTOR_ID_INVALID) {
+        pActorData = g_FieldActors[actorIndex].pActorData;
+        if (SCRIPT_READ_U8_REL(1) & 1) {
+            pActorData->unkFC = FieldScriptVMGetArgument(3);
+            pActorData->unkFD = FieldScriptVMGetArgument(5);
+            pActorData->unkFE = FieldScriptVMGetArgument(7);
+        }
+        if (SCRIPT_READ_U8_REL(1) & 2) {
+            pActorData->unkFF = FieldScriptVMGetArgument(3);
+            pActorData->unk100 = FieldScriptVMGetArgument(5);
+            pActorData->unk101 = FieldScriptVMGetArgument(7);
+        }
+    }
+    g_FieldScriptVMCurActor->scriptInstructionPointer += 9;
+}
+
+void func_8008F1C8(void) {
+    if (SCRIPT_READ_U8_REL(1) & 1) {
+        g_FieldScriptVMCurActor->unkFC = FieldScriptVMGetArgument(2);
+        g_FieldScriptVMCurActor->unkFD = FieldScriptVMGetArgument(4);
+        g_FieldScriptVMCurActor->unkFE = FieldScriptVMGetArgument(6);
+    }
+    if (SCRIPT_READ_U8_REL(1) & 2) {
+        g_FieldScriptVMCurActor->unkFF = FieldScriptVMGetArgument(2);
+        g_FieldScriptVMCurActor->unk100 = FieldScriptVMGetArgument(4);
+        g_FieldScriptVMCurActor->unk101 = FieldScriptVMGetArgument(6);
+    }
+    g_FieldScriptVMCurActor->scriptInstructionPointer += 8;
+}
 
 extern void func_80023290(void*, int);
 
