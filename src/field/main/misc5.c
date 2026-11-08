@@ -165,6 +165,11 @@ typedef struct {
    v0/v1 = i*16, v2/v3 = i*16 + 0x10 (gcc hoists i*16 itself), x1/x3 =
    nX + 0x10 (strength-reduced to a counter), 20x14 grid of 16x16 tiles,
    tpage = GetTPage(2, 1, j / 4 * 0x40 + 0x2C0, 0x100).
+   Also tried (still 99.5x%): nU0/nU1 locals in three declaration orders, no UV
+   locals at all (inline `nX & 0x3F` at all four UV stores), and swapping the
+   u0/u2 and u1/u3 store statements. POLY_GT4 here is the 0x34-byte libgpu
+   layout (clut at 0xE, tpage at 0x1A) and polygonsNext is at +0x38E0, so the
+   four u_short attribute arrays are at 0x71C0/0x73F0/0x7620/0x7850.
     void func_800A6E70(void) {
         FieldParticlePrimitiveSet* pPrims;
         POLY_GT4* pPoly;
@@ -480,7 +485,38 @@ void func_800A83B4(void) {
     }
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A8408);
+extern u_short D_800AEF14[];
+extern u_short D_800AEB68[];
+extern u_short D_800AEB6A[];
+extern u_short D_800AEB6C[];
+extern u_short D_800AEB6E[];
+
+void func_800A8408(int nQuad, int x, int y) {
+    u_long unk[6];
+    POLY_FT4* pPoly;
+    int nRect;
+    int nY;
+    int nW;
+    int nX;
+    int nH;
+    int u0;
+    int u1;
+    int v0;
+    int v1;
+
+    nRect = D_800AEF14[nQuad * 4] * 4;
+    nY = D_800AEB6A[nRect];
+    nW = D_800AEB6C[nRect];
+    nX = D_800AEB68[nRect];
+    pPoly = &D_800AFC60[g_FieldCurRenderContextIndex][nQuad];
+    nH = D_800AEB6E[nRect];
+    nY += y;
+    u0 = nX + x;
+    u1 = u0 + nW;
+    v1 = nY + nH - 1;
+    v0 = nY - 1;
+    FieldClampPolyFT4UVs(pPoly, u0, v1, u1, v1, u0, v0, u1, v0);
+}
 
 /* Best attempt, 71.78%: only instruction scheduling differs.
    The original frame has 0x18 unused bytes, hence `unk`. Two facts learned: the
@@ -523,12 +559,20 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A84C0);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A8BA4);
 
-/* Best attempt, 97.42%: the vertex math allocates registers differently (the
-   original recomputes x0*16 and y0*16 instead of keeping them live), 2 insns.
+INCLUDE_ASM("asm/field/nonmatchings/main/misc5", FieldInitializeParticlePrimitive);
+
+/* Best attempt, 97.54%: everything matches but the vertex math, which is 8 bytes
+   short (2 insns). The original recomputes x0*16 and y0*16, so its x1*16/y1*16
+   stay live in a3/t0 while x0*16/y0*16 get re-materialized (6 sll for four
+   values); gcc CSEs ours to 4 sll. The four shape loads must land in
+   a1(x0), a2(y0), a3(x1), t0(y1) - we get a1(x0), a0(y0), a2(x1), a3(y1).
+   Tried and all give 97.54% / 512 bytes: direct stores, nLeft/nTop/nRight/
+   nBottom locals, << 4 vs * 16 mixes, and every declaration order of the four.
    ParticlePrimitive (Size 0xC0: POLY_FT4 poly[2] at 0x50, SVECTOR vertices[4]
-   at 0xA0) is in field/particles.h. The shape table is D_800AF27C, one
-   ParticleShape (0x18) per index, declared as one extern u_short[] per field so
-   the relocations come out as %hi/%lo of D_800AF27C + 2*k like the original.
+   at 0xA0) is in field/particles.h; `char _pad[0x58]` reproduces the 0x98
+   frame (unused). The shape table is D_800AF27C, one ParticleShape (0x18) per
+   index, declared as one extern u_short[] per field so the relocations come out
+   as %hi/%lo of D_800AF27C + 2*k like the original.
 extern u_short D_800AF27C[]; // x0
 extern u_short D_800AF27E[]; // y0
 extern u_short D_800AF280[]; // x1
@@ -542,10 +586,6 @@ extern u_short D_800AF28E[]; // v2
 extern u_short D_800AF290[]; // u3
 extern u_short D_800AF292[]; // v3
 
-   My build at this percentage: only the vertex math differs - the four
-   loaded shape values land in a0-a3 instead of a1-t0 and gcc CSEs
-   x0*16 / y0*16 where the original recomputes them (6 sll against 4), so
-   this version is 8 bytes short.
     void FieldInitializeParticlePrimitive(ParticlePrimitive* pParticle, int shapeIndex, int nTextureMode) {
         POLY_FT4* pPoly;
         POLY_FT4* pPoly2;
@@ -554,10 +594,6 @@ extern u_short D_800AF292[]; // v3
         int y0;
         int x1;
         int y1;
-        int nLeft;
-        int nTop;
-        int nRight;
-        int nBottom;
         char _pad[0x58];
 
         pPoly = &pParticle->poly[0];
@@ -577,19 +613,14 @@ extern u_short D_800AF292[]; // v3
 
         setRGB0(pPoly, 0x80, 0x80, 0x80);
 
-        nLeft = (x1 << 4) - (x0 << 4);
-        nTop = (y1 << 4) - (y0 << 4);
-        nRight = (x0 << 4) + (x1 << 4);
-        nBottom = (y0 << 4) + (y1 << 4);
-
-        pParticle->vertices[0].vx = nLeft;
-        pParticle->vertices[0].vy = nTop;
-        pParticle->vertices[1].vx = nRight;
-        pParticle->vertices[1].vy = nTop;
-        pParticle->vertices[2].vx = nLeft;
-        pParticle->vertices[2].vy = nBottom;
-        pParticle->vertices[3].vx = nRight;
-        pParticle->vertices[3].vy = nBottom;
+        pParticle->vertices[0].vx = (x1 << 4) - (x0 << 4);
+        pParticle->vertices[0].vy = (y1 << 4) - (y0 << 4);
+        pParticle->vertices[1].vx = (x0 << 4) + (x1 << 4);
+        pParticle->vertices[1].vy = (y0 << 4) + (y1 << 4);
+        pParticle->vertices[2].vx = (x1 << 4) - (x0 << 4);
+        pParticle->vertices[2].vy = (y0 << 4) + (y1 << 4);
+        pParticle->vertices[3].vx = (x0 << 4) + (x1 << 4);
+        pParticle->vertices[3].vy = (y0 << 4) + (y1 << 4);
 
         FieldClampPolyFT4UVs(pPoly,
             D_800AF284[nIndex], D_800AF286[nIndex] + 0x40,
@@ -604,8 +635,6 @@ extern u_short D_800AF292[]; // v3
         *pPoly2 = *pPoly;
     }
 */
-
-INCLUDE_ASM("asm/field/nonmatchings/main/misc5", FieldInitializeParticlePrimitive);
 
 extern int D_800ADB34;
 extern u_long* D_800AFC70;
