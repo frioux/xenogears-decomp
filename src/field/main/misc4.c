@@ -1,4 +1,5 @@
 #include "common.h"
+#include "main/game.h"
 #include "field/actor.h"
 #include "field/main.h"
 #include "field/text_box.h"
@@ -97,7 +98,81 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_80078D44);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_80079288);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007954C);
+extern u_char D_8005942C;
+extern s32 D_800AFC78;
+extern s32 D_8004F324;
+extern s32 D_8004F370;
+extern s16 D_8004F384;
+extern s32 D_8004F310;
+extern s32 g_GamePartySkinsInitialized;
+extern s32 D_800B0064;
+extern void func_800A30FC(void);
+extern void func_8001B66C(void);
+extern void func_80085FB8(void);
+extern void func_80085F30(void);
+extern void func_8001BB50(void);
+extern void ArchiveCdDataSync(int);
+extern void ChangeGameState(int);
+
+// Field game state machine: one case per transition
+void func_8007954C(int state) {
+    D_8005942C = 0;
+    switch (state) {
+    case 0: {
+        u16 nSaved;
+
+        func_800A30FC();
+        nSaved = g_pGameState->unk1930[1];
+        D_8004F324 = D_800AFC78;
+        g_pGameState->unk2322 = D_800AFC78;
+        g_pGameState->unk2320 = nSaved;
+        if (D_8004F370 != 0) {
+            return;
+        }
+        ChangeGameState(2);
+        break;
+    }
+    case 1:
+        if (D_8004F384 == state) {
+            func_8001B66C();
+            func_80085FB8();
+            ArchiveCdDataSync(0);
+            func_80085F30();
+            func_8001B66C();
+        }
+        if (D_8004F370 != 0) {
+            return;
+        }
+        ChangeGameState(3);
+        break;
+    case 2: {
+        u16 nSaved;
+
+        nSaved = g_pGameState->unk1930[1];
+        g_pGameState->unk2322 = D_8004F324;
+        g_pGameState->unk2320 = nSaved;
+        if (D_8004F370 != 0) {
+            return;
+        }
+        ChangeGameState(4);
+        g_GamePartySkinsInitialized++;
+        break;
+    }
+    case 3:
+        D_8004F310 = 0;
+        g_GamePartySkinsInitialized = 0;
+        if (D_8004F370 != 0) {
+            return;
+        }
+        if (D_800B0064 & 0x80) {
+            func_8001BB50();
+        }
+        ChangeGameState(D_800B0064 & 0x7F);
+        break;
+    }
+
+    MainLoop(0);
+}
 
 void func_800796F4(void) {}
 
