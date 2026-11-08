@@ -321,6 +321,8 @@ INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801DDBF8);
 // Declaring pKeyframe last, assigning it after the flag loads, and reading
 // pBlock->unk6 into a local first were all tried; gcc 2.6 hoists the address
 // computation regardless, so this is an allocator limit, not a source shape.
+// Reading numTransFrames before flags matches the original's load order
+// (0x6, 0xC, 0xE, 0x4) but then flags reuses a1 and pKeyframe takes a2: 94.95%.
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801DEF10);
 /*
 void func_801DEF10(ModelJoint* pSkeleton, KeyframeBlock* pBlock) {
@@ -1272,11 +1274,10 @@ INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E63A8);
 // objdiff 98.63%: byte-identical except that gcc 2.6 puts pJoint in s1 and the
 // loop counter i in s0; the original has pJoint in s0, i in s1 (the other five
 // callee-saved assignments -- pList s3, pSkeleton s4, pChild s2, pTargetSkeleton
-// s5, numChildren s6 -- do match). Declaring pChild first with its initializer,
-// and forming pJoint/pTarget as `jointIndex * sizeof(ModelJoint) + (s32)base` so
-// the addu keeps the index-first operand order, is what fixed the rest. Further
-// orders of locals, for/while, u_short numChildren and moving pChild++ to the
-// loop tail all score lower or leave the s0/s1 pair alone.
+// s5, numChildren s6 -- do match). Declaration orders, for/while, u_short
+// numChildren, moving pChild++ to the loop tail, an explicit `s32 offset` local,
+// `u_short i` (adds 8 bytes, order becomes pJoint/pChild/i) and hoisting `i = 1`
+// into the declarations (same) all leave the pair alone or score lower.
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E6578);
 /*
 void func_801E6578(Temp4* pList, s32 jointIndex, ModelJoint* pSkeleton, ModelJoint* pTargetSkeleton) {
@@ -1473,11 +1474,6 @@ void func_801E6E48(void* pAnimFile, s32 animIndex, s32 arg2, s16 direction, s16 
     }
 }
 
-// objdiff 99.21%: everything matches except one word. maspsx does not translate
-// cop2 macros, so gte_mvmva(1,0,0,0,0) emits the aspsx-style 0x020013BF where the
-// original has MVMVA 1,0,0,0,0 = 0x4A481200. Unreachable from C without inline asm.
-INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E6F64);
-/*
 void func_801E6F64(void* pTaskRaw) {
     AnimTask* pTask = pTaskRaw;
     LibGearJointTask* pJointTask;
@@ -1514,7 +1510,6 @@ void func_801E6F64(void* pTaskRaw) {
 
     pJointTask->pChainCallback(pTask);
 }
-*/
 
 void func_801E7094(Model* pModel, ModelJoint* pJoint, u8 flags, s16 x, s16 y, s16 z) {
     ModelJoint* pChild;
