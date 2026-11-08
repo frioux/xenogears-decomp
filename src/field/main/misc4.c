@@ -125,7 +125,21 @@ void func_80079784(int color) {
 }
 
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_800798BC);
+extern s32 D_800B2268;
+extern u_char D_80059179;
+extern s16 D_800B234C;
+extern s32 g_PlayerActorIndex;
+
+void func_800798BC(void) {
+    if (D_800B2268 != 0 && (g_FieldActors[g_PlayerActorIndex].pActorData->curWalkmeshTriMaterial & 0xC0) == 0) {
+        D_80059179 = 0;
+    } else {
+        D_80059179 = 1;
+    }
+    if (D_800B234C != 0xFF) {
+        D_80059179 = D_800B234C;
+    }
+}
 
 void func_8007995C(short w, short h, short x, short y, int destX, int destY) {
     RECT rect;
@@ -459,9 +473,50 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007CD80);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007D3D4);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007D818);
+int func_8007D8B4(int x, int y, int z);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007D8B4);
+void func_8007D818(VECTOR* pVec, VECTOR* pOut) {
+    int nDominantAxis;
+
+    nDominantAxis = func_8007D8B4(pVec->vx, pVec->vy, pVec->vz);
+    pVec->vx >>= 12;
+    pVec->vy >>= 12;
+    pVec->vz >>= 12;
+    if (nDominantAxis < 0) {
+        pVec->vx = -pVec->vx;
+        pVec->vy = -pVec->vy;
+        pVec->vz = -pVec->vz;
+    }
+    VectorNormal(pVec, pOut);
+}
+
+// Returns whichever component has the largest absolute value
+int func_8007D8B4(int x, int y, int z) {
+    int nAbsX = x;
+    int nAbsY = y;
+    int nAbsZ = z;
+
+    if (nAbsX < 0) {
+        nAbsX = -nAbsX;
+    }
+    if (nAbsY < 0) {
+        nAbsY = -nAbsY;
+    }
+    if (nAbsZ < 0) {
+        nAbsZ = -nAbsZ;
+    }
+
+    if (nAbsX >= nAbsY && nAbsX >= nAbsZ) {
+        return x;
+    }
+    if (nAbsY >= nAbsX && nAbsY >= nAbsZ) {
+        return y;
+    }
+    if (nAbsZ >= nAbsX && nAbsZ >= nAbsY) {
+        return z;
+    }
+    return 0;
+}
 
 
 
