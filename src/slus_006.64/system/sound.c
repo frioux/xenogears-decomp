@@ -327,7 +327,28 @@ void SoundWdsSetTransferParamters(int transferAddress, int numBytesToTransfer) {
     g_SoundWdsRemainingBytes = numBytesToTransfer;
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", SoundTransferWdsPart);
+int SoundTransferWdsPart(void* pBuffer, int size) {
+    int nRemaining;
+    int nBytes;
+    u32 spuAddress;
+
+    nRemaining = g_SoundWdsRemainingBytes;
+    if (nRemaining == 0) {
+        return 0;
+    }
+
+    nBytes = nRemaining;
+    if (size < nRemaining) {
+        nBytes = size;
+    }
+    size = nBytes;
+    spuAddress = g_SoundWdsCurSpuAddress;
+    SoundQueueSpuWriteCommand(spuAddress, pBuffer, size, NULL);
+    g_SoundWdsCurSpuAddress = spuAddress + size;
+    g_SoundWdsRemainingBytes = nRemaining - size;
+
+    return nRemaining - size;
+}
 
 void SoundFreeWdsEntry(SoundWDSEntry* pTargetEntry) {
     SoundWDSEntry* pPrev;
@@ -897,10 +918,118 @@ void SoundSpuMemoryInitialize(void) {
 
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", SoundSpuMemoryAllocateBlock);
+/*
+Attempt (94.58%, same size): every instruction matches except the two callee-saved pointers:
+the original keeps the free address in s0 and the loop-carried block in s1, gcc 2.6 picks the
+reverse (pPrevBlock s0, address s1) whatever the declaration order.
+    // Allocates a block of SPU memory of the given size, returns the SPU address or 0 on failure.
+    int SoundSpuMemoryAllocateBlock(int size, int unkArg) {
+        int address;
+        SoundSpuMemoryBlock* pPrevBlock;
+        SoundSpuMemoryBlock* pBlock;
+        int index;
+
+        pPrevBlock = &g_SoundSpuMemoryBlocks[0];
+        address = pPrevBlock->spuAddress + pPrevBlock->size;
+
+        while (pPrevBlock->nextBlockIndex != 0) {
+            pBlock = &g_SoundSpuMemoryBlocks[pPrevBlock->nextBlockIndex];
+            if (pBlock->spuAddress - address >= size) {
+                goto allocate;
+            }
+            pPrevBlock = pBlock;
+            address = pBlock->spuAddress + pBlock->size;
+        }
+
+        if (0x80000 - address < size) {
+            return 0;
+        }
+
+    allocate:
+        index = SoundSpuMemoryGetFreeBlock();
+        if (index < 0) {
+            return 0;
+        }
+
+        pBlock = &g_SoundSpuMemoryBlocks[index];
+        pBlock->flags = SPU_MEMORY_IN_USE;
+        pBlock->unk1 = 0;
+        pBlock->spuAddress = address;
+        pBlock->size = size;
+        pBlock->nextBlockIndex = pPrevBlock->nextBlockIndex;
+        pPrevBlock->nextBlockIndex = index;
+
+        return address;
+    }
+*/
+
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_800394B8);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", SoundSpuMemoryAllocateBlockAtAddress);
+/*
+Attempt (87.00%): the control flow matches; gcc 2.6 puts `address` in s0 and the loop-carried block
+pointer in s1, the original has them the other way round (address s1, pPrevBlock s0 - descending
+register order by reference count).
+    // Allocates SPU memory at a specific address, returns the address or 0 on failure.
+    int SoundSpuMemoryAllocateBlockAtAddress(int size, int address, int unkArg) {
+        SoundSpuMemoryBlock* pBlock;
+        SoundSpuMemoryBlock* pPrevBlock;
+        int freeAddress;
+        int endAddress;
+        int nSpace;
+        int index;
+
+        pPrevBlock = &g_SoundSpuMemoryBlocks[0];
+        nSpace = 0;
+        freeAddress = g_SoundSpuMemoryBlocks[0].spuAddress + g_SoundSpuMemoryBlocks[0].size;
+        endAddress = address + size;
+
+        if (g_SoundSpuMemoryBlocks[0].spuAddress < address) {
+            while (1) {
+                if (pPrevBlock->nextBlockIndex == 0) {
+                    nSpace = 0x80000 - freeAddress;
+                    break;
+                }
+                pBlock = &g_SoundSpuMemoryBlocks[pPrevBlock->nextBlockIndex];
+                if (pBlock->spuAddress >= endAddress) {
+                    nSpace = pBlock->spuAddress - freeAddress;
+                    break;
+                }
+                freeAddress = pBlock->spuAddress + pBlock->size;
+                if (pBlock->spuAddress < address) {
+                    pPrevBlock = pBlock;
+                    continue;
+                }
+                break;
+            }
+        }
+
+    have_space:
+        if (nSpace < size) {
+            return 0;
+        }
+        if (address < freeAddress) {
+            return 0;
+        }
+
+        index = SoundSpuMemoryGetFreeBlock();
+        if (index < 0) {
+            return 0;
+        }
+
+        pBlock = &g_SoundSpuMemoryBlocks[index];
+        pBlock->flags = SPU_MEMORY_IN_USE;
+        pBlock->unk1 = 0;
+        pBlock->spuAddress = address;
+        pBlock->size = size;
+        pBlock->nextBlockIndex = pPrevBlock->nextBlockIndex;
+        pPrevBlock->nextBlockIndex = index;
+
+        return address;
+    }
+*/
+
 
 int SoundSpuMemoryFreeBlock(int targetAddress) {
     SoundSpuMemoryBlock* pCurBlock;
