@@ -888,7 +888,35 @@ void func_80094764(void) {
 
 extern void func_80072254(int);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc11", func_800947B0);
+// Set/Increase/Decrease the X, Y or Z rotation of the actor named by the instruction
+void func_800947B0(void) {
+    if (FieldScriptVMGetActorIndex(2) != ACTOR_ID_INVALID) {
+        FieldActor* pActor = &g_FieldActors[FieldScriptVMGetActorIndex(2)];
+
+        switch (SCRIPT_READ_U8_REL(1)) {
+            case 0:
+                pActor->rotation.x += FieldScriptVMGetArgument(3);
+                break;
+            case 1:
+                pActor->rotation.x -= FieldScriptVMGetArgument(3);
+                break;
+            case 2:
+                pActor->rotation.y += FieldScriptVMGetArgument(3);
+                break;
+            case 3:
+                pActor->rotation.y -= FieldScriptVMGetArgument(3);
+                break;
+            case 4:
+                pActor->rotation.z += FieldScriptVMGetArgument(3);
+                break;
+            case 5:
+                pActor->rotation.z -= FieldScriptVMGetArgument(3);
+                break;
+        }
+        func_80072254(FieldScriptVMGetActorIndex(2));
+    }
+    g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
+}
 
 // Set X, Y or Z rotaiton of Actor D_800AFD1C
 void func_80094918(void) {
