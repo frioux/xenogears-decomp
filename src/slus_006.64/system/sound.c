@@ -403,6 +403,25 @@ void func_80038624(void) {
 
 //----------------------------------------------------------------------------------------------------------------------
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003864C);
+/*
+Attempt (99.50%, same size): only difference is that gcc keeps the raw sedId in v0
+where the original used a1.
+SoundFile* func_8003864C(SoundFile* pSoundFile) {
+    SoundFile* pEntry;
+    u16 sedId;
+
+    if (pSoundFile != NULL) {
+        sedId = pSoundFile->sedId;
+    }
+    pEntry = g_SoundSedsLinkedList;
+
+    while (pEntry != NULL && (s16)sedId != pEntry->sedId) {
+        pEntry = pEntry->pNext;
+    }
+
+    return pEntry;
+}
+*/
 
 //----------------------------------------------------------------------------------------------------------------------
 void func_8003869C(void) {
@@ -1295,6 +1314,26 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003B424);
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003B644);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003B930);
+/*
+Attempt (79.63%, same size): gcc keeps pManager in v0 (dies before the call) where the
+original gave it s0, and puts the loop-variable copy before `bnez` instead of in its
+delay slot.
+void func_8003B930(AudioManager* pManager) {
+    AudioManager* pEntry = pManager->unk_Manager_0x4;
+
+    if (pEntry == NULL) {
+        return;
+    }
+
+    pManager->unk_Manager_0x4 = NULL;
+    while (pEntry != NULL) {
+        AudioManager* pNext = pEntry->unk_Manager_0x4;
+
+        SoundHeapFree(pEntry);
+        pEntry = pNext;
+    }
+}
+*/
 
 //----------------------------------------------------------------------------------------------------------------------
 void SoundCopyAudioManagerData(AudioManager* pDest, AudioManager* pSrc) {
@@ -1696,21 +1735,23 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003D070);
 // Set tempo handler?
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003D0E8);
 /*
-Attempt (94.00%): only difference is the original's redundant `andi v0,v0,0xff` between
-the `lbu` and the `mult`; gcc 2.6 proves the byte load's range and drops the mask.
+Attempt (94.00%, same size): the only difference is the original's redundant
+`andi v0,v0,0xff` between the `lbu` and the `mult`; gcc 2.6 folds the mask away for
+every form tried (`u8`, `u16`, `*pScript & 0xFF`, `u8`->`u16` copy).
 u8* func_8003D0E8(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
-    u8 value = *pScript;
-    s16 step = pAudioManager->unk_Interpolator_0x64.currentValue >> 16;
-    s32 product = value * step;
+    u16 value = *pScript;
 
     pAudioManager->unk_0x58 = value << 16;
-    pAudioManager->unk_0x54 = product;
+    pAudioManager->unk_0x54 = value * (pAudioManager->unk_Interpolator_0x64.currentValue >> 16);
     return pScript + 1;
 }
 */
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003D110);
 /*
+Attempt (67.27%): the original has an unused 0x8-byte stack frame
+(`addiu sp,sp,-0x8` ... `addiu sp,sp,0x8`) and computes the return value before the
+epilogue, so its source had something that forces a frame this form does not.
 u8* func_8003D110(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     s8 value = *pScript;
 
@@ -1721,6 +1762,23 @@ u8* func_8003D110(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
 */
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003D13C);
+/*
+Attempt (96.25%, correct size): original has `addu a2,a3,zero` where gcc emits
+`andi a2,a3,0xff`; with `s32 unk0` gcc drops the copy altogether.
+u8* func_8003D13C(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
+    u8 unk0 = pScript[0];
+    u8 unk1 = pScript[1];
+    s32 delta;
+
+    pAudioManager->unk_0x62 = unk1;
+    delta = (unk1 << 16) - pAudioManager->unk_0x58;
+    if (unk0 != 0 && delta != 0) {
+        pAudioManager->unk_0x60 = unk0;
+        pAudioManager->unk_0x5c = delta / unk0;
+    }
+    return pScript + 2;
+}
+*/
 
 u8* func_8003D17C(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     pAudioManager->unk_Interpolator_0x70.currentValue = *pScript++ << 24;
@@ -1728,7 +1786,19 @@ u8* func_8003D17C(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
     return pScript;
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003D1BC);
+u8* func_8003D1BC(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
+    u8 step = pScript[0];
+    u8 target = pScript[1];
+    u16 counter = step << 5;
+    s32 delta = (target << 24) - pAudioManager->unk_Interpolator_0x70.currentValue;
+
+    if ((step << 5) != 0 && delta != 0) {
+        pAudioManager->unk_Interpolator_0x70.counter = counter;
+        pAudioManager->unk_Interpolator_0x70.targetValue = target << 8;
+        pAudioManager->unk_Interpolator_0x70.stepIncrement = delta / (step << 5);
+    }
+    return pScript + 2;
+}
 
 u8* SoundScriptSetUnk62(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     pAudioElements->unk_0x62 = *pScript;
@@ -1827,6 +1897,19 @@ u8* SoundScriptSetVoiceFlags2000ClearMode(u8* pScript, AudioManager* pAudioManag
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003D4E4);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003D53C);
+/*
+Attempt (88.33%): same instruction count; the original has pScript copied into v0
+before the tests (so a0 is free for the modeFlags OR) and gcc duplicated that copy
+into each branch delay slot. Does not reproduce from the plain `||` form.
+u8* func_8003D53C(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
+    if (!(pAudioManager->unk_Flags & 0x6)
+        || ((g_SoundControlFlags & 0x2000) && !(pAudioElements->active_flag & 0x2))) {
+        pAudioElements->voice_data.flags |= 0x4000;
+        pAudioElements->voice_data.modeFlags |= 0x40;
+    }
+    return pScript;
+}
+*/
 
 u8* SoundScriptSetVoiceFlags4000ClearMode(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     pAudioElements->voice_data.flags |= 0x4000;
@@ -1852,7 +1935,13 @@ u8* SoundScriptCallE5BC(u8* pScript, AudioManager* pAudioManager, AudioElement* 
     return pScript;
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003D60C);
+u8* func_8003D60C(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
+    pAudioElements->voice_data.unkAdsr1 = pScript[0];
+    pAudioElements->voice_data.unkAdsr2 = pScript[1];
+    pAudioElements->voice_data.unkAdsr3 = pScript[2];
+    pAudioElements->voice_data.flags |= 0x1F0;
+    return pScript + 3;
+}
 
 u8* SoundScriptSetAttackTime(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     u8 attackTime = *pScript;
@@ -1938,9 +2027,25 @@ u8* func_8003D79C(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
     return pScript + 1;
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003D7C8);
+u8* func_8003D7C8(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
+    pAudioElements->unk_0x6E += pScript[1] + ((s8)pScript[0] << 8);
+    pAudioElements->status_flags |= SOUND_STATUS_PLAYING_NTOE;
+    return pScript + 2;
+}
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003D7FC);
+u8* func_8003D7FC(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
+    u16 value = pScript[0];
+    s32 delta = (s8)pScript[1] << 24;
+
+    if (value != 0 && delta != 0) {
+        pAudioElements->unk_0x94 = value;
+        pAudioElements->unk_0x04 |= 0x1;
+        pAudioElements->unk_0x84 = delta / value;
+    } else {
+        pAudioElements->unk_0x04 &= ~0x1;
+    }
+    return pScript + 2;
+}
 
 u8* SoundScriptToggleUnk04Bit2(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     pAudioElements->unk_0x04 ^= 0x2;
@@ -2142,7 +2247,13 @@ void func_8003E3E0(AudioEnvelope* pEnvelope) {
     pEnvelope->unk_0x18 = pEnvelope->unk_0x1A;
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003E40C);
+u8* func_8003E40C(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
+    u8 index = *pScript;
+
+    pAudioElements->envelopes[index].flags &= ~0x1;
+    pAudioElements->unk_0xCE &= ~(1 << index);
+    return pScript + 1;
+}
 
 u8* func_8003E44C(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     u8 instrument = *pScript;
@@ -2159,7 +2270,15 @@ u8* func_8003E44C(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
     return pScript + 2;
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003E4BC);
+u8* func_8003E4BC(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
+    s32 value = *pScript++;
+
+    if (value != 0) {
+        pAudioManager->unk_Interpolator_0x64.currentValue = value << 24;
+        pAudioManager->unk_0x54 = (pAudioManager->unk_0x58 >> 16) * (value << 8);
+    }
+    return pScript;
+}
 
 u8* func_8003E4F0(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     u8 instrument = *pScript++;
