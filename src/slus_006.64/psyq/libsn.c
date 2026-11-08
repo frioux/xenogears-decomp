@@ -1,23 +1,75 @@
 #include "common.h"
 
+/* The file-server entry points are `break` calls into the dev-kit debug stub:
+   the stub takes its arguments in a1..a3 (a0 unused) and answers with a status
+   in v0 and the result in v1, which is why each wrapper shifts its arguments
+   down one register and turns a non-zero status into -1. */
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libsn", PCopen);
+/* 84.38%: everything matches except the failure path, which gcc emits as
+   `li v1,-1; jr ra; move v0,v1` instead of the original's
+   `beqz v0,L; move v0,v1; li v0,-1; L: jr ra` (the -1 has to land in the
+   return register, not in the `value` asm output's register).
+int PCopen(char *name, int flags, int perms) {
+    int status;
+    int value;
+    int result;
+
+    __asm__ volatile("move $6, %3\n\tmove $5, %2\n\tbreak 259"
+                     : "=r"(status), "=r"(value) : "r"(name), "r"(flags));
+    result = value;
+    if (status != 0)
+        result = -1;
+    return result;
+}
+*/
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libsn", PCclose);
+/* 87.50%, same failure path as PCopen.
+int PCclose(int fd) {
+    __asm__ volatile("move $5, %0\n\tbreak 260" : : "r"(fd));
+}
+*/
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libsn", PClseek);
+/* Same shape as PCopen but with three shifted arguments (84.38%).
+int PClseek(int fd, int offset, int mode) {
+    int status;
+    int value;
+
+    __asm__ volatile("move $5, %2\n\tmove $6, %3\n\tmove $7, %4\n\tbreak 263"
+                     : "=r"(status), "=r"(value) : "r"(fd), "r"(offset), "r"(mode));
+    if (status != 0)
+        value = -1;
+    return value;
+}
+*/
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libsn", PCcreate);
+/* Same shape as PCopen, second argument passed as zero (84.38%).
+int PCcreate(char *pathname, int mode) {
+    int status;
+    int value;
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libsn", PCinit);
+    __asm__ volatile("move $5, %2\n\tmove $6, $zero\n\tbreak 258"
+                     : "=r"(status), "=r"(value) : "r"(pathname));
+    if (status != 0)
+        value = -1;
+    return value;
+}
+*/
+
+int PCinit(void) {
+    __asm__ volatile("break 257");
+}
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libsn", PCread);
-/*
+/* 98.92%: only the register assignment of `nTotal` and `buff` is swapped
+   (original keeps nTotal in s2 and buff in s3).
 int PCread(int fd, char *buff, int len) {
+    int nTotal = 0;
     int nChunk;
     int nRead;
-    int nTotal;
 
-    nTotal = 0;
     while (len != 0) {
         nChunk = len;
         if ((u_int)len > 0x8000)
