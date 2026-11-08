@@ -58,9 +58,12 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", ApplyMatrix);
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", ApplyMatrixSV);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", TransMatrix);
-/* best attempt 0.00%: the original copies v->vx/vy/vz into three separate
-   registers (t0-t2) before the stores and sets v0 = m afterwards; gcc 2.7.2
-   reuses one temp and hoists `move v0,a0`:
+/* best attempt 0.00%. The original keeps m in a0 (stores at 0x14/0x18/0x1c off
+   a0), loads v->vx/vy/vz into t0-t2 before any store, and copies a0 into v0
+   after the last store. Every C form tried (three separate temps, temps in
+   declaration order, m copied to a local pointer, `return (MATRIX *)m`) makes
+   gcc 2.7.2 coalesce the return value into v0 at entry and reuse $3-$5 as the
+   temps:
 MATRIX *TransMatrix(MATRIX *m, VECTOR *v) {
     long t0, t1, t2;
 
@@ -234,12 +237,76 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", RotAverage4);
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", RotAverageNclip4);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", TransposeMatrix);
+/* best attempt 65.00%. Structure and store order match: word stores q[1]=p[0],
+   q[0]=p[1] patched with the low half of p[0], then q[3],q[2] patched from
+   p[1].lo/p[2].lo/p[3].lo and the halfword at 0x10. What is left: gcc folds the
+   `addu v0,a1,zero` return copy into every store (`sw ..,0(v0)`) where the
+   original keeps storing through a1, allocates the temps as v1/a2 instead of
+   t1/t2 (t1 reused for p[3]), and turns the 0x10 `lh` into `lhu`.
+MATRIX *TransposeMatrix(MATRIX *m0, MATRIX *m1) {
+    MATRIX *ret = m1;
+    long *p = (long *)m0;
+    long *q = (long *)m1;
+    short *s = (short *)m1;
+    long t0, t1, t2, t3;
+
+    t0 = p[0];
+    t1 = p[1];
+    q[1] = t0;
+    q[0] = t1;
+    s[0] = t0;
+    t2 = p[2];
+    t3 = p[3];
+    q[3] = t2;
+    q[2] = t3;
+    s[6] = t1;
+    s[4] = t2;
+    s[8] = ((short *)m0)[8];
+    s[2] = t3;
+    return ret;
+}
+*/
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", RotMatrixYXZ);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", RotMatrixZYX);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", RotMatrixX);
+/* best attempt 15.53%. The control flow below reproduces the original exactly
+   (abs on r, the table lookup duplicated in both branches, s/c pulled out of one
+   lw, the six 16-bit products) but gcc 2.7.2 allocates the table/dest registers
+   as v0/at/v1/a3 instead of the original's t9/t8/t1/t0 and emits `mult` where the
+   original has `multu`. Casting the products to u_int gives multu but spills 16
+   bytes of frame, and no preset in a try_flags sweep beats 18.85%.
+extern long D_800523F0[]; // one entry per 1/4096 turn, (cos << 16) | sin
+
+MATRIX *RotMatrixX(long r, MATRIX *m) {
+    long s, c;
+    long i0, i1, i2, i3, i4, i5;
+
+    if (r < 0) {
+        r = -r;
+        s = -(short)D_800523F0[r & 0xfff];
+        c = D_800523F0[r & 0xfff] >> 16;
+    } else {
+        s = (short)D_800523F0[r & 0xfff];
+        c = D_800523F0[r & 0xfff] >> 16;
+    }
+    i0 = m->m[1][0];
+    i1 = m->m[1][1];
+    i2 = m->m[1][2];
+    i3 = m->m[2][0];
+    i4 = m->m[2][1];
+    i5 = m->m[2][2];
+    m->m[1][0] = (i0 * c - i3 * s) >> 12;
+    m->m[1][1] = (i1 * c - i4 * s) >> 12;
+    m->m[1][2] = (i2 * c - i5 * s) >> 12;
+    m->m[2][0] = (i0 * s + i3 * c) >> 12;
+    m->m[2][1] = (i1 * s + i4 * c) >> 12;
+    m->m[2][2] = (i2 * s + i5 * c) >> 12;
+    return m;
+}
+*/
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", RotMatrixY);
 
