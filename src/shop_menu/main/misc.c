@@ -41,7 +41,10 @@
 extern s32* D_8005917C;
 
 extern u32* D_8005945C; // Pointer to the overlay's resources file
-extern u8 D_801C5000[]; // "BISLPS-00800", still supplied by the function's asm
+// .rodata: `const` matters - a non-const array lands in .data and leaves the
+// switch jump tables as the only .rodata, which shifts the whole unit.
+const u8 D_801C5000[0x10] = {0x42, 0x49, 0x53, 0x4C, 0x50, 0x53, 0x2D, 0x30,
+                             0x30, 0x38, 0x30, 0x30, 0x00, 0x00, 0x03, 0x00};
 extern SoundFile* D_8006259C; // SEDS file pointer
 
 extern int D_801D1F50; // Number of items
@@ -252,8 +255,6 @@ void ShopMenuShopManager(u_char isInitialization) {
 // to come from this function's own asm, and cc1 emits the switch jump tables
 // before a named C array, so every table lands 0x10 early and the overlay
 // shifts. Needs the whole unit rodata moved to C in original order.
-INCLUDE_ASM("asm/shop_menu/nonmatchings/main/misc", ShopMenuLoadResources);
-/*
 void ShopMenuLoadResources(void) {
     TIM_IMAGE tim;
     int metadata[18];
@@ -337,7 +338,6 @@ void ShopMenuLoadResources(void) {
     g_Menu->pShopEntries = LZSSHeapDecompress((void *)pFileHandle[7], 0);
     HeapFree(pFileHandle);
 }
-*/
 
 void ShopMenuInitialize(void) {
     int flags;
