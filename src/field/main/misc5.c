@@ -592,30 +592,37 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A8BA4);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc5", FieldInitializeParticlePrimitive);
 
-/* Best attempt, 97.54%: everything matches but the vertex math, which is 8 bytes
-   short (2 insns). The original recomputes x0*16 and y0*16, so its x1*16/y1*16
-   stay live in a3/t0 while x0*16/y0*16 get re-materialized (6 sll for four
-   values); gcc CSEs ours to 4 sll. The four shape loads must land in
-   a1(x0), a2(y0), a3(x1), t0(y1) - we get a1(x0), a0(y0), a2(x1), a3(y1).
-   Tried and all give 97.54% / 512 bytes: direct stores, nLeft/nTop/nRight/
-   nBottom locals, << 4 vs * 16 mixes, and every declaration order of the four.
-   ParticlePrimitive (Size 0xC0: POLY_FT4 poly[2] at 0x50, SVECTOR vertices[4]
-   at 0xA0) is in field/particles.h; `char _pad[0x58]` reproduces the 0x98
-   frame (unused). The shape table is D_800AF27C, one ParticleShape (0x18) per
-   index, declared as one extern u_short[] per field so the relocations come out
-   as %hi/%lo of D_800AF27C + 2*k like the original.
-extern u_short D_800AF27C[]; // x0
-extern u_short D_800AF27E[]; // y0
-extern u_short D_800AF280[]; // x1
-extern u_short D_800AF282[]; // y1
-extern u_short D_800AF284[]; // u0
-extern u_short D_800AF286[]; // v0
-extern u_short D_800AF288[]; // u1
-extern u_short D_800AF28A[]; // v1
-extern u_short D_800AF28C[]; // u2
-extern u_short D_800AF28E[]; // v2
-extern u_short D_800AF290[]; // u3
-extern u_short D_800AF292[]; // v3
+/* Best attempt, 97.42% / 512 bytes: the original is 520, so it is 8 bytes (2
+   insns) short. Everything matches except the vertex math: the original
+   re-materializes x0*16 and y0*16 (6 sll for four products; x1*16 stays in a3
+   and y1*16 in t0, which are the values it does NOT recompute), while gcc CSEs
+   all four products (4 sll) however they are spelled. Its four shape loads also
+   land in a1(x0), a2(y0), a3(x1), t0(y1); ours get a0..a3, i.e. a0 is free in
+   ours where the original used it as the x-minus scratch. Same 97.42 with -O3,
+   gcc-2.6.0-psx, product locals, s16 casts, <<4/mult mixes and every
+   declaration order. Vertex pairing below is the one in the disassembly
+   (0xAA = y1*16 - y0*16, 0xB2/0xBA = y0*16 + y1*16); pairing vertices[1].vy to
+   the sum scores 97.54 but contradicts it - operand-register noise, same 512
+   bytes. ParticlePrimitive (0xC0: POLY_FT4 poly[2] at 0x50, SVECTOR vertices[4]
+   at 0xA0) is in field/particles.h; `char _pad[0x58]` reproduces the 0x98 frame.
+   D_800AF27C is the shape table, one ParticleShape (0x18) per index, declared as
+   one extern u_short[] per field so each load relocates as %hi/%lo of
+   D_800AF27C + 2*k like the original; nIndex is in u_short units (shape*0xC).
+    // The shape table D_800AF27C holds one ParticleShape (0x18) per index; one extern
+    // u_short[] per field so each load relocates as %hi/%lo of D_800AF27C + 2*k, and
+    // nIndex is the index in u_short units (shape * 0xC).
+    extern u_short D_800AF27C[]; // x0
+    extern u_short D_800AF27E[]; // y0
+    extern u_short D_800AF280[]; // x1
+    extern u_short D_800AF282[]; // y1
+    extern u_short D_800AF284[]; // u0
+    extern u_short D_800AF286[]; // v0
+    extern u_short D_800AF288[]; // u1
+    extern u_short D_800AF28A[]; // v1
+    extern u_short D_800AF28C[]; // u2
+    extern u_short D_800AF28E[]; // v2
+    extern u_short D_800AF290[]; // u3
+    extern u_short D_800AF292[]; // v3
 
     void FieldInitializeParticlePrimitive(ParticlePrimitive* pParticle, int shapeIndex, int nTextureMode) {
         POLY_FT4* pPoly;
@@ -625,7 +632,7 @@ extern u_short D_800AF292[]; // v3
         int y0;
         int x1;
         int y1;
-        char _pad[0x58];
+        char _pad[0x58]; // unused, reproduces the 0x98 frame
 
         pPoly = &pParticle->poly[0];
         pPoly2 = &pParticle->poly[1];
@@ -647,7 +654,7 @@ extern u_short D_800AF292[]; // v3
         pParticle->vertices[0].vx = (x1 << 4) - (x0 << 4);
         pParticle->vertices[0].vy = (y1 << 4) - (y0 << 4);
         pParticle->vertices[1].vx = (x0 << 4) + (x1 << 4);
-        pParticle->vertices[1].vy = (y0 << 4) + (y1 << 4);
+        pParticle->vertices[1].vy = (y1 << 4) - (y0 << 4);
         pParticle->vertices[2].vx = (x1 << 4) - (x0 << 4);
         pParticle->vertices[2].vy = (y0 << 4) + (y1 << 4);
         pParticle->vertices[3].vx = (x0 << 4) + (x1 << 4);
@@ -664,8 +671,7 @@ extern u_short D_800AF292[]; // v3
         pPoly->clut = GetClut(0x100, 0xF7);
 
         *pPoly2 = *pPoly;
-    }
-*/
+    }*/
 
 extern int D_800ADB34;
 extern u_long* D_800AFC70;
