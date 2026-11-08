@@ -174,7 +174,8 @@ Stubs by area at session start: `psyq` 150 (96 libgte, 12 libapi, 8 libapi_2,
 | — | `shop_menu ShopMenuLoadResources` (1088 insns) | +1 | 1860 | found and fixed the unit-rodata blocking bug: a missing `const` |
 | 15 | 13 units | +9 | 1869 | sound 3, field/main/misc 3 (one via the jump-table byte check), temp2 2, misc6 1 |
 | 16 | near-miss round: 13 units, 42 parked attempts at >=95% | +5 | 1874 | timeboxed on the last instruction/register of already-written C |
-| 17 | 23 workers in two concurrent workflows | — | — | fresh functions in the big units + two special projects: the GTE header revision, and misc2's rodata family |
+| 17 | 23 workers in two concurrent workflows | +15 | 1889 | 15 of 19 changed files survived the link check; 4 shifted an overlay and were reverted |
+| 18 | GTE-header exploit + retries | — | — | after the header fix, the whole GTE-macro family is ordinary work again |
 
 ### Round 12-13 notes
 
@@ -243,6 +244,29 @@ Stubs by area at session start: `psyq` 150 (96 libgte, 12 libapi, 8 libapi_2,
   were both `INCLUDE_ASM`'d and defined in C. That mistake is invisible otherwise
   (maspsx's stderr goes to /dev/null) and it happened three times in three rounds.
   Workers should run it before committing; it is now in `AGENTS.md`.
+
+### The GTE header was the wrong DMPSX revision (session 2's biggest unlock)
+
+`include/psyq/inline_c.h` said "DMPSX version 3" and emitted **two** `nop`s plus a
+raw `.word` for every Type-2 GTE command. The retail libraries use the one-`nop`
+spelling with the canonical COP2 encodings. A worker read the ground truth out of
+our own target assembly (the instruction words are printed there), rewrote the
+macro bodies, and `NormalColor`, `NormalLightCol`, `ColorCol` and `LocalLight`
+went to 100% immediately; `libgte` went from 4 to 9 matched functions and
+`slus_006.64` still links byte-identically. Everything that touches a GTE macro
+was previously parked as "blocked": the `NormalColor3`/`ColorCol3`/`Dpq3` family,
+`Square0`/`Square12`, `VectorNormal*`, `lib_gear`'s `gte_mvmva` case
+(`0x020013BF` vs the retail `0x4A480012`) and `system/temp2`'s `GPF`/`mtc2`
+functions. That is roughly 40-60 functions of new work that did not exist before.
+
+### Process fix: workers now gate their own overlay
+
+Four rounds in a row lost work at integration because a converted function changed
+a unit's `.rodata` or its own size and shifted a whole overlay -- invisible to
+`objdiff`, fatal to the link. The worker brief now ends with a mandatory
+`tools/scripts/lint_sources.py -q` plus `tools/scripts/check_bin.sh <overlay>`,
+and tells them to use `culprit.sh` on failure. That moves a 20-minute bisect from
+the orchestrator into the worker's own 35-second check.
 
 ## Findings
 
