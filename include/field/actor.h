@@ -334,6 +334,26 @@ typedef struct {
     /* 0x58 */ short status;
 } FieldActor;
 
+// Model space bounding box the actor's model data keeps a pointer to
+typedef struct {
+    /* 0x00 */ undefined8 unk0[0x20];
+    /* 0x20 */ SVECTOR min;
+    /* 0x28 */ SVECTOR max;
+} FieldActorModelBounds; // Size: 0x30
+
+// FieldActor::pModelData
+typedef struct {
+    /* 0x00 */ undefined8 unk0[0x4];
+    /* 0x04 */ FieldActorModelBounds* pBounds;
+    /* 0x08 */ undefined8 unk8[0x10];
+    /* 0x18 */ s16 centerX;
+    /* 0x1A */ s16 centerY;
+    /* 0x1C */ s16 centerZ;
+    /* 0x1E */ s16 unk1E;
+    /* 0x20 */ s16 size;
+    /* 0x22 */ undefined16 unk22;
+} FieldActorModelData; // Size: 0x24
+
 typedef struct {
     short L11;
     short L12;
