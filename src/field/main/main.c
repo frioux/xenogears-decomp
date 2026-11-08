@@ -106,19 +106,22 @@ void func_80077DAC(void) {
     func_800A31E8();
 }
 
+// FieldMain-related predicate used by callers in misc6; returns -1 while the
+// player actor's script flags have 0x800 set and the field is idle.
 INCLUDE_ASM("asm/field/nonmatchings/main/main", func_80077E10);
-// 96.00%: only register allocation differs. The original keeps the result in $v0
-// (initialised unconditionally in the first branch's delay slot) and uses $a0/$v1
-// for the two comparison temporaries; gcc gives the result $a0 here and the
-// temporaries $v1/$v0. Same size (120 bytes) and same instruction sequence.
+// 96.33%: the early-return shape below is right (the original's `move v0,zero`
+// in the first bne delay slot and the `negu v0,v0` fall-through both come out),
+// but gcc gives the two condition temporaries $v1/$v0 instead of the original's
+// $a0/$v1, so v0 is clobbered by the second test and the bnez delay slot gets an
+// extra `move v0,zero` (the original has a `nop` there). Same size, 120 bytes.
+// The `s32 result = 0; ... return result;` version is 96.00% and needs a
+// `move v0,a0`; `if (cond) return -(...); return 0;` is 91.50% (extra `j`).
 /*
 s32 func_80077E10(void) {
-    s32 result = 0;
-
-    if (D_800ADBD0 == 1 && D_800B2344 == 0) {
-        result = -((FIELD_ACTORS[g_PlayerActorIndex].pActorData->scriptFlags.flags & 0x800) != 0);
+    if (D_800ADBD0 != 1 || D_800B2344 != 0) {
+        return 0;
     }
-    return result;
+    return -((FIELD_ACTORS[g_PlayerActorIndex].pActorData->scriptFlags.flags & 0x800) != 0);
 }
 */
 
