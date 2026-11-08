@@ -990,8 +990,9 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/model", func_80030EE8);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/model", func_8003101C);
 
-// Handwritten assembly: the code word is materialised with `li $at`, which no
-// C expression reproduces (gcc 2.7.2 never allocates $at for a value temp).
+// The 21 functions from here to func_80031870 are the same handwritten packet
+// builder with a different command code: both constants are materialised with
+// `li $at`, and gcc never allocates $at for a value temp, so no C reproduces it.
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/model", func_800315A0);
 /* Best C match, 72.78%: differs only in $at/$t0 vs $v0/$v1.
 void func_800315A0(u32* pLink, u32 addr) {
