@@ -23,9 +23,27 @@ extern int g_PartyIsWaitingForStreamData;
 extern void* g_PartyDataBuffers[];
 extern void* g_PartyStreamDataPointers[];
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp3", func_8001A5CC);
-
+extern u8* D_800592D4;
 extern u8* D_800592D8;
+extern void* D_800592DC;
+extern void* D_800592E0;
+
+void func_8001A5CC(void) {
+    int i;
+    int j;
+
+    D_800592DC = HeapAlloc(0x3480, 1);
+    D_800592E0 = HeapAlloc(0x3480, 1);
+    D_800592D4 = HeapAlloc(0x460, 1);
+    D_800592D8 = HeapAlloc(0x460, 1);
+
+    for (i = 0; i < 0x1C; i++) {
+        for (j = 0; j < 0x28; j++) {
+            D_800592D4[i * 0x28 + j] = 0;
+            D_800592D8[i * 0x28 + j] = 0;
+        }
+    }
+}
 
 void func_8001A684(s32 arg0, s32 arg1) {
     if (arg0 < 0) {
@@ -337,7 +355,30 @@ void func_8001B6BC(void) {}
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp3", func_8001B6C4);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp3", func_8001B844);
+extern DISPENV D_800C4A7C;
+extern s32 func_800379D0();
+
+void func_8001B844(void) {
+    u8* pEnv;
+    DRAWENV* pDrawEnv;
+
+    ResetGraph(1);
+    func_800379D0(0x300, 0);
+    func_800379D0(func_800379D0(8, 0x10, 0x140, 0xF0, 0, 0x1000));
+    InitGeom();
+    SetGeomOffset(0xA0, 0xB4);
+    SetGeomScreen(0x200);
+
+    pEnv = (u8*)&D_800C4A7C;
+    SetDefDispEnv((DISPENV*)pEnv, 0, 0xE0, 0x140, 0xE0);
+    pDrawEnv = (DRAWENV*)pEnv - 1;
+    SetDefDrawEnv(pDrawEnv, 0, 0, 0x140, 0xE0);
+    SetDefDispEnv((DISPENV*)(pEnv + 0x4070), 0, 0, 0x140, 0xE0);
+    pEnv += 0x4014;
+    SetDefDrawEnv((DRAWENV*)pEnv, 0, 0xE0, 0x140, 0xE0);
+    func_8001B94C(pDrawEnv);
+    func_8001B94C((DRAWENV*)pEnv);
+}
 
 void func_8001B94C(DRAWENV* pDrawEnv) {
     pDrawEnv->isbg = 1;
@@ -387,26 +428,88 @@ void func_8001BB50(void) {
     D_800595A0 = 2;
 } */
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp3", func_8001BBAC);
+// .bss
+u32 D_80059480;
+u32 D_800594AC;
+u8 D_8005954C;
+SoundFile* D_800595D0;
+void* D_800595A8;
+
+extern StreamDataQueueEntry D_8006F9BC[];
+extern void* D_8006F9C0;
+extern u16 D_8006F9C4;
+extern void* D_8006F9C8;
+extern u16 D_8006F9CC;
+extern void* D_8006F9D0;
+extern u16 D_8006F9D4;
+extern void* D_8006F9D8;
+extern u8 D_8004F388[];
+extern void SoundAddSedsEntry(SoundFile* pSoundFile);
+extern void func_80039DB8(s32 arg0);
+
+void func_8001BBAC(void) {
+    int i;
+    u8 soundEffectId;
+    void* pEndAddress;
+
+    HeapChangeCurrentUser(HEAP_USER_HIG, 0);
+    ArchiveSetIndex(0xC, 0);
+
+    D_80059480 = HeapAlloc(4, 1);
+    D_800594AC = HeapAlloc(D_80059480 + 0x7FE1C000, 1);
+    pEndAddress = (void*)0x801E4000;
+    D_800595D0 = HeapAlloc(ArchiveDecodeAlignedSize(2), 1);
+    D_800595A8 = HeapAlloc(ArchiveDecodeAlignedSize(3), 1);
+
+    D_8006F9BC[0].archiveIndex = 2;
+    D_8006F9C4 = 3;
+    D_8006F9C8 = D_800595A8;
+    D_8006F9CC = 4;
+    D_8006F9D0 = pEndAddress;
+    D_8006F9D4 = 0;
+    D_8006F9D8 = NULL;
+    D_8006F9C0 = D_800595D0;
+    func_80029AFC(D_8006F9BC, 0, 0x80);
+
+    while (ArchiveDataSync() == 3) {}
+
+    SoundAddSedsEntry(D_800595D0);
+
+    if (D_8005954C != 4) {
+        for (i = 0; i < 3;) {
+            soundEffectId = D_8004F388[D_8005954C * 3 + i];
+            i++;
+            if (soundEffectId != 0xFF) {
+                func_80039DB8((D_800595D0->sedId << 16) | soundEffectId);
+            }
+        }
+    }
+}
 
 extern int rand(void);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp3", func_8001BD40);
 /*
-Best: 85.77%. Control flow and constants all line up; gcc 2.7.2 here merges the
-`arg0 == arg1` test into a branch to the epilogue and inverts the rand()/diff
-branches where the original keeps `bne ... ; j epilogue ; move v0,v1`.
+Best: 89.10%. Structure and branch polarity match; what is left is gcc reusing
+the incoming argument register a1 as a temporary for the masked arg0 (the
+original keeps masked arg0 in v1) and merging the trailing `& 0xFF` so the
+epilogue is shared instead of ending each block with `j ... ; andi v0,v1,0xff`.
 u8 func_8001BD40(u8 arg0, u8 arg1) {
     s32 diff;
 
-    if (arg0 == 0xFF) return 0xFF;
-    if (arg1 == 0) return 0;
+    if (arg0 == 0xFF) {
+        return 0xFF;
+    }
+    if (arg1 == 0) {
+        return 0;
+    }
+    if (arg0 == arg1) {
+        return arg0;
+    }
     diff = arg1 - arg0;
-    if (arg0 != arg1) {
-        if (diff < 0xFF) {
-            return arg0 + (rand() & 0xFF) % (diff + 1);
-        }
+    if (diff >= 0xFF) {
         return rand() & 0xFF;
     }
-    return arg0;
-} */
+    return arg0 + (rand() & 0xFF) % (diff + 1);
+}
+*/
