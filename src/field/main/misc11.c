@@ -1290,6 +1290,32 @@ void FieldScriptCheckTriggerZone(void) {
 }
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc11", FieldProjectActorOriginToScreen);
+/* 95.06%: everything but the first CompMatrix argument matches. The original
+   builds the world-to-screen matrix address from the actor list:
+   `lui/addiu %hi/%lo(g_FieldActors)` followed by `addiu a0, a1, -0xAC`, reusing
+   a1 for the volatile actor pointer load. Writing the real symbol
+   (`&g_Scene.worldToScreenMatrix`) gives two independent %hi/%lo pairs instead,
+   three instructions longer. Same blocker as FieldActorWorldToScreenPosition in
+   misc8.c: the matrix and the actor list were members of one global struct in
+   the original source, so only that shared parent struct makes this match.
+void FieldProjectActorOriginToScreen(int* pScreenX, int* pScreenY) {
+    SVECTOR origin;
+    MATRIX transformMatrix;
+    long sxy;
+    long p;
+    long flag;
+
+    CompMatrix(&g_Scene.worldToScreenMatrix, &g_FieldActors[func_8009CD7C(1)].childMatrix, &transformMatrix);
+    origin.vx = 0;
+    origin.vy = 0;
+    origin.vz = 0;
+    SetRotMatrix(&transformMatrix);
+    SetTransMatrix(&transformMatrix);
+    RotTransPers(&origin, &sxy, &p, &flag);
+    *pScreenY = ((short*)&sxy)[1];
+    *pScreenX = ((short*)&sxy)[0];
+}
+*/
 
 extern s32 D_800ADC18;
 
