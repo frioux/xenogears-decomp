@@ -236,7 +236,41 @@ INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801DC848);
 void func_801DCC34(void) {}
 
 // https://decomp.me/scratch/y7Bpn
+// objdiff 98.68%: identical except that the `arg4` load (0x48(sp)) is
+// scheduled right after `lw v1,0(s7)` instead of just before the call
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", LibGearRenderModel);
+// void LibGearRenderModel(Model* pModel, ModelJoint* pSkeleton, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32 arg4, s32 arg5, s32 packetIndex) {
+//     MATRIX* pRotMatrix = (MATRIX*)((u8*)PSX_SCRATCH + 0x20);
+//     MATRIX* pTransMatrix = (MATRIX*)((u8*)PSX_SCRATCH + 0x40);
+//     MATRIX* pMatrix = (MATRIX*)PSX_SCRATCH;
+//     u_int numChildren;
+//     u_int i;
+//
+//     MulMatrix0(pViewMatrix, &pSkeleton->globalTransform, pRotMatrix);
+//     CompMatrix(pLightMatrix, &pSkeleton->localTransform, pTransMatrix);
+//
+//     numChildren = pSkeleton->numChildren;
+//     pSkeleton++;
+//
+//     for (i = 1; i < numChildren; i++) {
+//         if (pSkeleton->jointIndex != 0xFFFF) {
+//             ModelPart* pPart;
+//             void* pPacket;
+//
+//             MulMatrix0(pRotMatrix, &pSkeleton->globalTransform, pMatrix);
+//             SetLightMatrix(pMatrix);
+//             CompMatrix(pTransMatrix, &pSkeleton->globalTransform, pMatrix);
+//             SetRotMatrix(pMatrix);
+//             SetTransMatrix(pMatrix);
+//
+//             pPart = pModel->pMesh->pParts[pSkeleton->jointIndex];
+//             pPacket = ((void**)&pSkeleton->pModelPacketBuffer)[packetIndex];
+//             ModelRenderPacket(pPart, pPacket, arg5, arg4);
+//         }
+//
+//         pSkeleton++;
+//     }
+// }
 
 void LibGearFreeModelSkeleton(ModelJoint* pSkeleton) {
     int i;
@@ -752,7 +786,60 @@ INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E37D0);
 
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E39F0);
 
-INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E59D4);
+void func_801E59D4(Temp4* pList, ModelJoint* pJoint, s32 numFrames, s32 x, s32 y, s32 z) {
+    Temp3* pObject;
+
+    if (numFrames < 2) {
+        pJoint->rotation.vx = x;
+        pJoint->rotation.vy = y;
+        pJoint->rotation.vz = z;
+        pJoint->doRotate = TRUE;
+        return;
+    }
+
+    if (pJoint->rotation.vx == x && pJoint->rotation.vy == y && pJoint->rotation.vz == z) {
+        return;
+    }
+
+    if (pJoint->unk70 == NULL) {
+        pObject = func_801DF6F0(pList);
+    } else {
+        pObject = (Temp3*)pJoint->unk70;
+    }
+
+    if (pObject != NULL) {
+        pObject->unk0 = 1;
+        pObject->unk1 = 0;
+        pObject->unk2 = 3;
+        pObject->unk3 = 0xFE;
+
+        pObject->unk4 = pJoint->rotation.vx;
+        pObject->unk6 = pJoint->rotation.vy;
+        pObject->unk8 = pJoint->rotation.vz;
+
+        x = (x - pJoint->rotation.vx) & 0xFFF;
+        if (x >= 0x800) {
+            x -= 0x1000;
+        }
+        pObject->unkA = x;
+
+        y = (y - pJoint->rotation.vy) & 0xFFF;
+        if (y >= 0x800) {
+            y -= 0x1000;
+        }
+        pObject->unkC = y;
+
+        z = (z - pJoint->rotation.vz) & 0xFFF;
+        if (z >= 0x800) {
+            z -= 0x1000;
+        }
+        pObject->unkE = z;
+
+        pObject->unk10 = 0;
+        pObject->unk12 = numFrames;
+        pJoint->unk70 = (u32)pObject;
+    }
+}
 
 void func_801E5B50(Temp4* pList, ModelJoint* pJoint, s32 arg2, s32 arg3, s32 arg4, s32 arg5, s32 x, s32 y, s32 z) {
     Temp3* pObject;
@@ -806,7 +893,20 @@ void func_801E5C74(Model* pModel, Temp7* pEntry, s32 arg2) {
     }
 }
 
+// objdiff 64.59%: original keeps a separate copy of the `lhu 0x14 / sll 16`
+// tail for the type==1 case; gcc cross-jumps all three here
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E5CD8);
+// s32 func_801E5CD8(Model* pModel, s32 type) {
+//     if (type == 0) {
+//         return ((Temp8*)D_8005919C)->unk14 << 16;
+//     } else if (type == 1) {
+//         return ((Temp8*)((Temp8*)pModel->unkB0)->pUnk8)->unk14 << 16;
+//     } else if (type == 2) {
+//         return ((Temp8*)((Temp8*)pModel->unkB4)->pUnk8)->unk14 << 16;
+//     }
+//
+//     return 2;
+// }
 
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E5D44);
 
@@ -824,8 +924,8 @@ int func_801E6338(Model* pModel) {
 
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E63A8);
 
-// objdiff 97.43%: pList/pSkeleton and i/pJoint are allocated to the other
-// callee-saved registers (s3/s4 and s0/s1)
+// objdiff 97.43%: body is identical, but pList/pSkeleton land in s4/s3 and
+// i/pJoint in s0/s1 instead of s3/s4 and s1/s0; declaration order has no effect
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E6578);
 // void func_801E6578(Temp4* pList, s32 jointIndex, ModelJoint* pSkeleton, ModelJoint* pTargetSkeleton) {
 //     ModelJoint* pJoint = &pSkeleton[jointIndex];
@@ -870,7 +970,16 @@ void func_801E6668(ModelJoint* pSkeleton, ModelJoint* pTargetSkeleton) {
     }
 }
 
-INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E66BC);
+s16 func_801E66BC(VECTOR* pNormal, VECTOR* pVec0, VECTOR* pVec1, s32 divisor) {
+    VECTOR outer;
+    s32 dot;
+    s32 length;
+
+    OuterProduct12(pVec0, pVec1, &outer);
+    dot = outer.vx * pNormal->vx + outer.vy * pNormal->vy + outer.vz * pNormal->vz;
+    length = SquareRoot0(outer.vx * outer.vx + outer.vy * outer.vy + outer.vz * outer.vz) + 1;
+    return ((dot << 4) / length << 8) / divisor;
+}
 
 int func_801E67F8(void) {
     u_short bits = D_801E863C;
@@ -885,8 +994,8 @@ int func_801E67F8(void) {
     return i;
 }
 
-// objdiff 92.95%: the trailing `1 << index` shift is duplicated into each
-// branch instead of sharing one tail
+// objdiff 92.95%: the u8 conversion of `index` is emitted once at the shared
+// tail instead of being duplicated into each branch's delay slot
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E6830);
 // void func_801E6830(Model* pModel, u8 type, s16* pMask) {
 //     u8 index;
@@ -955,10 +1064,58 @@ INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E6E48);
 
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E6F64);
 
-INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E7094);
+void func_801E7094(Model* pModel, ModelJoint* pJoint, u8 flags, s16 x, s16 y, s16 z) {
+    ModelJoint* pChild;
+    int i;
 
-// objdiff 99.77%: stack frame is 0x8 instead of 0x18 (the local sits 0x10
-// lower in the original frame)
+    if ((flags & 0x7) == 0) {
+        if (flags & 0x20) {
+            pJoint->rotation.vx += x;
+            pJoint->rotation.vy += y;
+            pJoint->rotation.vz += z;
+        } else {
+            pJoint->rotation.vx = x;
+            pJoint->rotation.vy = y;
+            pJoint->rotation.vz = z;
+        }
+    } else if ((flags & 0x7) == 1) {
+        if (flags & 0x20) {
+            pJoint->translation.x += x;
+            pJoint->translation.y += y;
+            pJoint->translation.z += z;
+        } else {
+            pJoint->translation.x = x;
+            pJoint->translation.y = y;
+            pJoint->translation.z = z;
+        }
+    } else {
+        if (flags & 0x20) {
+            pJoint->scale.vx += x;
+            pJoint->scale.vy += y;
+            pJoint->scale.vz += z;
+        } else {
+            pJoint->scale.vx = x;
+            pJoint->scale.vy = y;
+            pJoint->scale.vz = z;
+        }
+    }
+
+    pJoint->doTransform = TRUE;
+    pJoint->doRotate = TRUE;
+
+    if (flags & 0x80) {
+        pChild = pModel->pSkeleton;
+        for (i = 1; i < pModel->pSkeleton->numChildren; i++) {
+            pChild++;
+            if (pChild->pParent == pJoint) {
+                func_801E7094(pModel, pChild, flags, x, y, z);
+            }
+        }
+    }
+}
+
+// objdiff 99.77%: the local sits at sp+0x10 in a 0x18 frame (as if the
+// out-arg area were reserved); ours is sp+0x2 in an 0x8 frame
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E7298);
 // void func_801E7298(Model* pModel) {
 //     SVECTOR offset;
