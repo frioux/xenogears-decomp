@@ -7,6 +7,7 @@
 #include "libgear/main.h"
 
 extern s32 D_80050100;
+extern Temp8* D_8005919C;
 
 // Interpolation helpers; func_801E34BC picks one for a type
 s16 func_801E0850(s16 angle, s16 divisor, s16 offset);
@@ -746,50 +747,49 @@ s16 (*func_801E34BC(s32 type))(s16, s16, s16) {
     }
 }
 
-// objdiff 94.87%: all 40 stores match in value and order; only the `li v1,-1` for
-// the three -1 fields sits at the top of the original instead of just before its
-// first use (hoisting the -1 store moves the store along with the constant)
-INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E3534);
-// void func_801E3534(Model* pModel, s32 arg1, u32 arg2, u32 arg3) {
-//     pModel->unk3C = 0xFFFF;
-//     pModel->unk5C = 0xFF;
-//     pModel->unk39 = 0x6B;
-//
-//     pModel->unk8 = arg2;
-//     pModel->unkC = 0;
-//     pModel->unk10 = 0;
-//     pModel->unk14 = (Temp7**)arg3;
-//     pModel->unk18 = NULL;
-//
-//     pModel->unk2B[0] = 0;
-//     pModel->unk98 = -1;
-//     pModel->unk58 = 0;
-//
-//     pModel->unk35 = 0;
-//     pModel->unk37 = 0;
-//     pModel->unk38 = 0;
-//     pModel->unk3A = -1;
-//
-//     pModel->unk70[0] = 0;
-//     pModel->unk70[1] = 0;
-//     pModel->unk70[2] = 0;
-//     pModel->unk70[3] = 0;
-//     pModel->unk70[4] = 0;
-//     pModel->unk70[5] = 0;
-//     pModel->unk70[6] = 0;
-//     pModel->unk70[7] = 0;
-//     pModel->unk70[8] = 0;
-//     pModel->unk70[9] = 0;
-//     pModel->unk70[10] = 0;
-//     pModel->unk70[11] = 0;
-//     pModel->unk70[12] = 0;
-//     pModel->unk70[13] = 0;
-//     pModel->unk70[14] = 0;
-//     pModel->unk70[15] = 1;
-//
-//     pModel->unk36 = 0;
-//     pModel->unk1E = -1;
-// }
+void func_801E3534(Model* pModel, s32 arg1, u32 arg2, u32 arg3) {
+    s16 minusOne = -1;
+    s16 one = 1;
+
+    pModel->unk3C = 0xFFFF;
+    pModel->unk5C = 0xFF;
+    pModel->unk39 = 0x6B;
+
+    pModel->unk8 = arg2;
+    pModel->unkC = 0;
+    pModel->unk10 = 0;
+    pModel->unk14 = (Temp7**)arg3;
+    pModel->unk18 = NULL;
+
+    pModel->unk2B[0] = 0;
+    pModel->unk98 = minusOne;
+    pModel->unk58 = 0;
+
+    pModel->unk35 = 0;
+    pModel->unk37 = 0;
+    pModel->unk38 = 0;
+    pModel->unk3A = minusOne;
+
+    pModel->unk70[0] = 0;
+    pModel->unk70[1] = 0;
+    pModel->unk70[2] = 0;
+    pModel->unk70[3] = 0;
+    pModel->unk70[4] = 0;
+    pModel->unk70[5] = 0;
+    pModel->unk70[6] = 0;
+    pModel->unk70[7] = 0;
+    pModel->unk70[8] = 0;
+    pModel->unk70[9] = 0;
+    pModel->unk70[10] = 0;
+    pModel->unk70[11] = 0;
+    pModel->unk70[12] = 0;
+    pModel->unk70[13] = 0;
+    pModel->unk70[14] = 0;
+    pModel->unk70[15] = one;
+
+    pModel->unk36 = 0;
+    pModel->unk1E = minusOne;
+}
 
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E35D0);
 
@@ -932,21 +932,22 @@ void func_801E5C74(Model* pModel, Temp7* pEntry, s32 arg2) {
     }
 }
 
-// objdiff 71.67%: original keeps a second copy of the `lhu 0x14 / sll 16` tail
-// for the type==1 case (layout case0, tests, case2+shared tail, case1); gcc always
-// merges all three tails here (`if (type != 1) ... else ...` gets the branch order
-// and the regalloc right, but still one tail)
+// objdiff 71.67%: layout and regalloc match the original (case0, `beq` to the
+// out-of-line case1 block, case2 falling into a shared tail), but the original also
+// keeps a second copy of the `lhu 0x14 / sll 16` tail for case1; gcc 2.6 cross-jumps
+// every formulation tried (case1 as a return, as the else, separated `!= 1` tests)
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E5CD8);
 // s32 func_801E5CD8(Model* pModel, s32 type) {
 //     Temp8* pTexture;
 //
 //     if (type == 0) {
-//         pTexture = (Temp8*)D_8005919C;
+//         pTexture = D_8005919C;
 //     } else if (type != 1) {
-//         if (type != 2) {
+//         if (type == 2) {
+//             pTexture = ((Temp8*)pModel->unkB4)->pUnk8;
+//         } else {
 //             return 2;
 //         }
-//         pTexture = ((Temp8*)pModel->unkB4)->pUnk8;
 //     } else {
 //         pTexture = ((Temp8*)pModel->unkB0)->pUnk8;
 //     }
@@ -1043,33 +1044,29 @@ int func_801E67F8(void) {
     return i;
 }
 
-// objdiff 89.11%: the original truncates the index (andi 0xff) at the head of the
-// shared tail block and keeps pModel in a0; with a u8 index the regalloc matches but
-// gcc drops the andi, with a s32 index the andi survives but pModel is copied to v1
-INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E6830);
-// void func_801E6830(Model* pModel, u8 type, s16* pMask) {
-//     u8 index;
-//
-//     if (type == 0xFF) {
-//         index = func_801E67F8();
-//     } else if (type == 0xFE) {
-//         index = D_801E86B0;
-//     } else if (type == 0xFD || type == 0xF9) {
-//         index = pModel->unk20;
-//     } else if (type == 0xFC) {
-//         index = pModel->unk21;
-//     } else if (type == 0xFA) {
-//         index = 0xA;
-//     } else if (type == 0xF8) {
-//         index = pModel->unk20 * 2 + 8;
-//     } else if (type == 0xF7) {
-//         index = pModel->unk20 * 2 + 9;
-//     } else {
-//         index = type;
-//     }
-//
-//     *pMask = 1 << index;
-// }
+void func_801E6830(Model* pModel, u8 type, s16* pMask) {
+    s32 index;
+
+    if (type == 0xFF) {
+        index = func_801E67F8();
+    } else if (type == 0xFE) {
+        index = *(u8*)&D_801E86B0;
+    } else if (type == 0xFD || type == 0xF9) {
+        index = pModel->unk20;
+    } else if (type == 0xFC) {
+        index = pModel->unk21;
+    } else if (type == 0xFA) {
+        index = 0xA;
+    } else if (type == 0xF8) {
+        index = pModel->unk20 * 2 + 8;
+    } else if (type == 0xF7) {
+        index = pModel->unk20 * 2 + 9;
+    } else {
+        index = type;
+    }
+
+    *pMask = 1 << (index & 0xFF);
+}
 
 void* func_801E6910(Model* pModel, u8 index, s32* pFlags) {
     void* pResult;
@@ -1164,17 +1161,14 @@ void func_801E7094(Model* pModel, ModelJoint* pJoint, u8 flags, s16 x, s16 y, s1
     }
 }
 
-// objdiff 99.77%: only the frame differs; the original keeps the 8-byte local at
-// sp+0x10 in a 0x18 frame (16 bytes reserved below it), ours at sp+0 in an 0x8 frame
-INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E7298);
-// void func_801E7298(Model* pModel) {
-//     SVECTOR offset;
-//
-//     offset.vy = pModel->ground;
-//     if (pModel->unk36 == 0) {
-//         pModel->pSkeleton->translation.y = offset.vy;
-//     }
-// }
+void func_801E7298(Model* pModel) {
+    Temp7 offset;
+
+    offset.unk12 = pModel->ground;
+    if (pModel->unk36 == 0) {
+        pModel->pSkeleton->translation.y = (s16)offset.unk12;
+    }
+}
 
 // Computes the global transform matrix for a certain joint?
 void func_801E72CC(MATRIX* pMatrix, void* _unk, int index, int jointIndex) {
