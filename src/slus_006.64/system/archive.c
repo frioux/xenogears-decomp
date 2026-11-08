@@ -15,7 +15,7 @@ extern s32 D_8004FE0C;
 extern s32 D_8004FE00;
 extern s32 D_8004FE10;
 extern s16 D_8004FE24;
-extern s16 D_8004FE26;
+extern u16 D_8004FE26;
 extern u16 D_8004FE28;
 extern void* g_ArchiveCurStreamFile; // Current stream file struct
 extern s32 D_80059F00;
@@ -32,6 +32,7 @@ extern char D_80018964[];
 extern char D_80018974[];
 extern void func_800379C8(char*, ...);
 extern s32 D_80059F3C;
+extern int D_80059F04;
 extern s16 D_80059F40;
 extern s16 D_80059F44;
 extern s16 D_80059F48;
@@ -554,6 +555,54 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002B2F0);
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002B5D0);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002B8B0);
+/* Best attempt: objdiff 83.60%. Only the loop registers differ (gcc puts the
+ * section count in v1 and the current entry in a0; the original uses a0 for the
+ * count, a1 for the entry index and a2 for the pointer).
+ * void func_8002B8B0(void) {
+ *     ArchiveStreamFileSectionHeader* pSection;
+ *     ArchiveStreamFileSectionHeader* pCurrent;
+ *     s16 i;
+ *     int entryIndex;
+ *
+ *     if (g_ArchiveCurFileSize <= 0) {
+ *         g_ArchiveCurFileSize = 0;
+ *         return;
+ *     }
+ *
+ *     pSection = D_8004FE2C;
+ *     for (i = 0; i < D_8004FE40; i++) {
+ *         entryIndex = D_8004FE10;
+ *         D_8004FE10 = entryIndex + 1;
+ *         if (D_8004FE10 >= D_8004FE40) {
+ *             D_8004FE10 = 0;
+ *         }
+ *         pCurrent = &pSection[entryIndex];
+ *         if (pCurrent->state == 0) {
+ *             break;
+ *         }
+ *     }
+ *
+ *     if (pCurrent->state == 0) {
+ *         pCurrent->state = 1;
+ *         pCurrent->id = D_8004FE26;
+ *         D_8004FE26 += 1;
+ *         for (i = 0; i < RETRY_COUNT; i++) {
+ *             if (PCread(D_80059F04, D_8004FE08 + entryIndex * CD_SECTOR_SIZE, CD_SECTOR_SIZE) != 0)
+ *                 break;
+ *             func_8002804C(i, 0, 0xFF, 0);
+ *         }
+ *         g_ArchiveCurFileSize -= CD_SECTOR_SIZE;
+ *         g_ArchiveCurFileSector += 1;
+ *     } else {
+ *         g_ArchiveCurFileSize = 0;
+ *     }
+ *
+ *     if (g_ArchiveCurFileSize <= 0) {
+ *         g_ArchiveCurFileSize = 0;
+ *     }
+ * }
+
+ */
 
 void func_8002BA40(void) {
     D_8004FDFC = D_8004FE00;
@@ -561,7 +610,7 @@ void func_8002BA40(void) {
 
 void func_8002BA58(void) {
     ArchiveStreamFileSectionHeader* pSection;
-    int nSections;
+    ArchiveStreamFileSectionHeader* pCurrent;
     s16 i;
 
     pSection = D_8004FE2C;
