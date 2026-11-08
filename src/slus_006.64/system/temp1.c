@@ -336,7 +336,8 @@ s32 func_80023440(u16* pFlags) {
     return numDirections;
 }
 
-// One of the few switch tables in the unit: index -> 1/0/2/default
+// objdiff stops at 99.41% because its table reference is `jtbl_80018664` and ours is `.rodata`;
+// `tools/scripts/check_bin.sh slus_006.64` prints OK, so this definition is byte-identical.
 s32 func_80023468(u_int index, s32 value) {
     s32 result = value;
 
