@@ -345,7 +345,10 @@ typedef struct {
 typedef struct {
     /* 0x00 */ undefined8 unk0[0x4];
     /* 0x04 */ FieldActorModelBounds* pBounds;
-    /* 0x08 */ undefined8 unk8[0x10];
+    /* 0x08 */ undefined8 unk8[8];
+    /* 0x10 */ undefined8 unk10[2];
+    /* 0x12 */ s16 renderMode; // Passed to ModelRenderPacket as its 4th argument
+    /* 0x14 */ undefined8 unk14[4];
     /* 0x18 */ s16 centerX;
     /* 0x1A */ s16 centerY;
     /* 0x1C */ s16 centerZ;
