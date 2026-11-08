@@ -162,7 +162,7 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", NormalColor);
    command and a real command encoding; gte_NormalColor() in
    include/psyq/{gtemac,inline_c}.h emits two nops and a raw .word, so this
    header version is not the one libgte was built with. Applies to the whole
-   Normal*/Color*/LocalLight/LightColor/Square family.
+   NormalColor, LocalLight, LightColor and Square families.
 void NormalColor(SVECTOR *v0, CVECTOR *v1) {
     gte_NormalColor(v0, v1);
 }

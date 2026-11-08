@@ -289,14 +289,19 @@ void func_800831D0(SVECTOR* pDst, IVEC3* pSrc) {
 
 void func_80081F80(int, int);
 
+INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800831F4);
+/* 92.68%: an unused 8-byte local (`RECT rect;`) reproduces the 0x20 frame, but
+   gcc keeps the loaded rotation in v1 (original loads v0 and copies to v1) and
+   sinks the second `sh 0x106` into the call delay slot.
 void func_800831F4(int arg0, ActorData* pActor, int arg2, int arg3) {
     short rotation;
     RECT rect;
 
     if (pActor->moveModified.vx != 0 || pActor->moveModified.vz != 0) {
-        rotation = pActor->rotation.vy;
-        if (!(rotation & 0x8000)) {
-            rotation = (rotation + ((arg3 & 1) ? -0x400 : 0x400)) & 0xFFF;
+        if (!(pActor->rotation.vy & 0x8000)) {
+            rotation = pActor->rotation.vy;
+            rotation += (arg3 & 1) ? -0x400 : 0x400;
+            rotation &= 0xFFF;
             pActor->rotation.vx = rotation;
             pActor->rotation.vy = rotation;
             func_80081F80(arg0, pActor->rotation.vx);
@@ -306,6 +311,7 @@ void func_800831F4(int arg0, ActorData* pActor, int arg2, int arg3) {
         }
     }
 }
+*/
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80083288);
 
@@ -316,8 +322,13 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_8008399C);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80084158);
 
-extern s32 D_800ADB98;
-extern s32 D_800ADC0C;
+INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_8008492C);
+/* 91.16%: the whole chain of early rejections matches; the tail differs only in
+   block placement (gcc merges this `return -1` into the epilogue with a
+   `li v0,-1` delay slot, the original keeps it as its own block, which in turn
+   lets the final `return 0` merge into the epilogue).
+   extern s32 D_800ADB98;
+   extern s32 D_800ADC0C;
 
    int func_8008492C(ActorData* pActor) {
        if (pActor->curWalkmeshTriMaterial & 0x420000) {
@@ -359,7 +370,7 @@ extern s32 D_800ADC0C;
        }
        return 0;
    }
-
+*/
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80084A40);
 
@@ -407,19 +418,14 @@ void func_80085560(int archiveIndex, int unused, void* pCallback) {
 */
 
 void func_8003A20C(int);
-void func_80039F9C(void*, int, s16, s16);
+void func_80039F9C(void*, int, int, int);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800855C8);
-/* 85.56%: everything below the prologue matches. gcc CSEs `(arg3 & 7) * 2`
-   into s0 (`sll s0,s0,1` before `sw ra`, then two `move`s); the original keeps
-   `arg3 & 7` in s0 and shifts at each use, filling the jal delay slot with
-   `sll a0,s0,1`. Declaring the s16 params of func_80039F9C in the prototype
-   (instead of casting at the call) reproduces the sll/sra pair.
+/* 85.56%: gcc hoists `(arg3 & 7) * 2` into s0 and copies it (move a0,s0 /
+   move a1,s0); the original keeps `arg3 & 7` in s0 and shifts at each use.
 void func_800855C8(int arg0, int arg1, int arg2, int arg3) {
-    int ch = arg3 & 7;
-
-    func_8003A20C(ch * 2);
-    func_80039F9C((void*)arg0, ch * 2, arg1, arg2);
+    func_8003A20C((arg3 & 7) * 2);
+    func_80039F9C(arg0, (arg3 & 7) * 2, (s16)arg1, (s16)arg2);
 }
 */
 
@@ -866,6 +872,8 @@ void func_800864F0(void) {
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80086590);
 
+INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80086908);
+/*
 extern VECTOR g_CameraEye;
 extern VECTOR g_CameraAt;
 extern s16 D_800B22E0;
@@ -884,7 +892,7 @@ void func_80086908(void) {
             return;
     }
 }
-
+*/
 
 void FieldScriptVM2Run(void) {
     char *script = (char *)g_FieldScriptVMCurScriptData;

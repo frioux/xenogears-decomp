@@ -309,52 +309,7 @@ void func_800A2488(void) {
     D_800ADB8C = 0;
 }
 
-extern s32 g_GamePartySkinsInitialized;
-extern s32 g_PlayerActorIndex;
-extern s32 D_800ADBFC;
-extern s16 D_800B2264[];
-extern u_char D_800B21D2[];
-extern void func_800AD898();
-void func_801E8330(u16, u16, s32);
-
-void func_800A24C4(void) {
-    int i;
-    ActorData* pActor;
-    u_char unused[0x10]; // original has an unused stack slot; reproduces the frame
-
-    if (!g_GamePartySkinsInitialized) {
-        return;
-    }
-
-    func_800A22AC(2);
-    func_800AD898();
-
-    for (i = 0; i < *(s32*)&D_800B2264[0]; i++) {
-        func_801E8330(i, 0, D_800B2264[i - 0x40]);
-    }
-
-    pActor = g_FieldActors[g_PlayerActorIndex].pActorData;
-    if (pActor->canInteract != 0xFF) {
-        pActor->position.vy -= 8;
-    }
-
-    for (i = 0; i < g_FieldNumActors; i++) {
-        if (i < D_800ADBFC) {
-            if (g_FieldActors[i].pActorData->flags12C_0 != 0) {
-                continue;
-            }
-        } else if ((D_800B21D2[0] & 0x7F) == 0) {
-            g_FieldActors[i].transformMatrix.t[0] += *(s32*)&D_800B21D2[-0x16];
-            g_FieldActors[i].transformMatrix.t[1] += *(s32*)&D_800B21D2[-0x12];
-            g_FieldActors[i].transformMatrix.t[2] += *(s32*)&D_800B21D2[-0xE];
-        }
-        if ((D_800B21D2[0] & 0x7F) == 1) {
-            g_FieldActors[i].transformMatrix.t[0] += *(s32*)&D_800B21D2[-0x16];
-            g_FieldActors[i].transformMatrix.t[1] += *(s32*)&D_800B21D2[-0x12];
-            g_FieldActors[i].transformMatrix.t[2] += *(s32*)&D_800B21D2[-0xE];
-        }
-    }
-}
+INCLUDE_ASM("asm/field/nonmatchings/scripts/virtual_machine", func_800A24C4);
 
 extern s32 g_GamePartySkinsInitialized;
 extern s32 D_800ADBFC;
