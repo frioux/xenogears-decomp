@@ -227,7 +227,37 @@ int FieldMathUpdateAngle(int curAngle, int targetAngle, int delta) {
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_800739C0);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80073E38);
+void func_80073E38(void) {
+    int i;
+    FieldActor* pActor;
+    FieldActorModelData* pModel;
+
+    for (i = 0; i < g_FieldNumActors; i++) {
+        pActor = &g_FieldActors[i];
+        if (pActor->status & 0x40) {
+            continue;
+        }
+
+        pModel = pActor->pModelData;
+        func_800AA9DC(pModel);
+
+        if (D_800B218E != 0) {
+            if (pActor->status & 0x10) {
+                pModel->renderMode = 5;
+            } else {
+                pModel->renderMode = 4;
+            }
+        } else if (pActor->status & 0xC) {
+            pModel->renderMode = 1;
+        } else if (pActor->status & 0x4000) {
+            pModel->renderMode = 3;
+        } else if (pActor->status & 0x10) {
+            pModel->renderMode = 2;
+        } else {
+            pModel->renderMode = 0;
+        }
+    }
+}
 
 void FieldClearAndSwapOTagInternal(void) {
     if (g_FieldSystemMode == SYSTEM_MODE_PC_HDD)
@@ -291,6 +321,32 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc2", FieldPollControllers);
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", FieldRenderModels);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_8007520C);
+// 91.00%: the sequence is right, but the original forms the address of D_800B2264
+// into a register (lui/addiu, then lw 0($s0)) and passes the 0x800B221C argument as
+// $s0 - 0x48. Naming both symbols in C puts its own relocation in each place.
+/*
+extern s32 D_8004F380;
+extern s32 D_800B2264;
+extern u8 D_800B221C[];
+extern u8 D_800B225C;
+extern u8 D_800B225D;
+extern u8 D_800B225E;
+const char D_8006FB1C[0xC] = "GEAR      ";
+
+void func_8007520C(void) {
+    if (D_8004F380 == 0) {
+        if (D_800B2264 != 0) {
+            func_80086BA8();
+            SetBackColor(D_800B225C, D_800B225D, D_800B225E);
+            func_801E7D14(&g_Scene.worldToScreenMatrix, D_800B221C,
+                &g_FieldCurRenderContext->ot1, g_FieldCurRenderContextIndex, 1);
+        }
+        if (g_FieldSystemMode == SYSTEM_MODE_PC_HDD) {
+            func_80281B00(D_8006FB1C);
+        }
+    }
+}
+*/
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_800752C8);
 
@@ -299,10 +355,70 @@ void FieldAddPrimitives(u_long* ot, u_long* pPrimList, int size) {
 }
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80075484);
+// 48.84%: the eye/at copies land at the right stack slots (SVec4 is the 8-byte
+// padded triple), but gcc rematerialises %hi/%lo of g_CameraEye for each load with
+// lhu instead of caching the base in $a3 and reusing it for the 0x1E4 matrix
+// argument, which is what the original does (lui/addiu of g_CameraEye, three
+// lh 2/6/A($a3), then addiu $a3,$a3,0x1E4).
+/*
+extern VECTOR g_CameraEye;
+extern VECTOR g_CameraAt;
+extern s16 D_800B00B2;
+extern s32 D_800ADB50;
+extern s32 D_800B007C;
+extern s16 D_800B21D4;
+
+void func_80075484(void) {
+    SVec4 eye;
+    SVec4 at;
+    short* pCameraEye;
+    short* pCameraAt;
+
+    if (D_800B00B2 == 0) {
+        return;
+    }
+    if (D_800ADB50 != 0) {
+        return;
+    }
+
+    pCameraEye = (short*)&g_CameraEye;
+    pCameraAt = (short*)&g_CameraAt;
+    eye.x = pCameraEye[1];
+    eye.y = pCameraEye[3];
+    eye.z = pCameraEye[5];
+    at.x = pCameraAt[1];
+    at.y = pCameraAt[3];
+    at.z = pCameraAt[5];
+
+    func_800273C4(D_800B007C, &eye, &at, (u8*)pCameraEye + 0x1E4,
+        &g_FieldCurRenderContext->unk1 + D_800B21D4, g_FieldCurRenderContextIndex);
+}
+*/
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_8007554C);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80075910);
+extern s32 D_800ADB78;
+
+void func_80075910(void) {
+    RECT rect;
+
+    FieldPollControllers();
+    func_800A2030();
+    func_800805F4();
+    func_8008004C(g_FieldCurRenderContext->ot3, g_FieldCurRenderContextIndex);
+    DrawSync(0);
+    Vsync(0);
+
+    rect.x = SCREEN_WIDTH;
+    rect.w = SCREEN_WIDTH;
+    rect.h = SCREEN_HEIGHT;
+    rect.y = ((D_800ADB78 + 1) & 1) << 8;
+    MoveImage(&rect, 0, g_FieldCurRenderContextIndex << 8);
+
+    PutDispEnv(&g_FieldCurRenderContext->dispEnv);
+    PutDrawEnv(g_FieldCurRenderContext);
+    DrawOTag(&g_FieldCurRenderContext->ot3[7]);
+}
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_800759E4);
 
