@@ -21,7 +21,7 @@ typedef struct {
     /* 0x20  */ MATRIX camRotationMatrix;
     /* 0x40  */ SVECTOR camRotation;
     /* 0x48  */ s32 unk48; // Flags related to random encounters?
-    /* 0x4C  */ undefined8 unk4C[0x8];
+    /* 0x4C  */ s16 unk4C[4];
     /* 0x54  */ SVECTOR sceneAngle;
     /* 0x5C  */ s32 unk5C; // Scene angle interpolation step
     /* 0x60  */ s32 unk60;

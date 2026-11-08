@@ -44,15 +44,13 @@ extern FieldScriptGlobalU8 D_800B219C;
 extern FieldScriptGlobalU8 D_800B219D;
 extern FieldScriptGlobalU8 D_800B219E;
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc11", func_80091A08);
-
-// void func_80091A08(void) {
-//     *(s16*)&g_Scene.unk4C[0] = FieldScriptVMGetInstructionArgumentS16(1);
-//     *(s16*)&g_Scene.unk4C[2] = FieldScriptVMGetInstructionArgumentS16(3);
-//     *(s16*)&g_Scene.unk4C[4] = FieldScriptVMGetInstructionArgumentS16(5);
-//     *(s16*)&g_Scene.unk4C[6] = -FieldScriptVMGetInstructionArgumentS16(7);
-//     g_FieldScriptVMCurActor->scriptInstructionPointer += 9;
-// }
+void func_80091A08(void) {
+    g_Scene.unk4C[0] = FieldScriptVMGetInstructionArgumentS16(1);
+    g_Scene.unk4C[1] = FieldScriptVMGetInstructionArgumentS16(3);
+    g_Scene.unk4C[2] = FieldScriptVMGetInstructionArgumentS16(5);
+    g_Scene.unk4C[3] = -FieldScriptVMGetInstructionArgumentS16(7);
+    g_FieldScriptVMCurActor->scriptInstructionPointer += 9;
+}
 
 void func_80091A78(void) {
     D_800B219C.value = FieldScriptVMGetArgument(1);
@@ -243,14 +241,12 @@ extern FieldActor* D_800B06B8;
 extern int rcos(int);
 extern int rsin(int);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc11", func_80092808);
-
-// void func_80092808(void) {
-//     g_FieldScriptVMCurActor->unk60.vx = ((u_int)rsin(D_800B06B8->rotation.y) * 9) >> 10;
-//     g_FieldScriptVMCurActor->unk60.vz = -(rcos(D_800B06B8->rotation.y) * 36) >> 12;
-//     g_FieldScriptVMCurActor->flags |= 0x800;
-//     g_FieldScriptVMCurActor->scriptInstructionPointer += 1;
-// }
+void func_80092808(void) {
+    g_FieldScriptVMCurActor->unk60.vx = ((u_int)rsin(D_800B06B8->rotation.y) * 9) >> 10;
+    g_FieldScriptVMCurActor->unk60.vz = (rcos(D_800B06B8->rotation.y) * -36) >> 12;
+    g_FieldScriptVMCurActor->flags |= 0x800;
+    g_FieldScriptVMCurActor->scriptInstructionPointer += 1;
+}
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc11", func_80092894);
 
@@ -499,7 +495,18 @@ void func_80093888(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc11", func_80093930);
+void func_80093930(void) {
+    int value;
+
+    value = FieldScriptVMGetArgument(1);
+    D_800ADB64 = 1;
+    D_800B00C0 = 1;
+    *(s16*)&g_pGameState->unk1928[0xA] = value;
+    *(s16*)((u8*)g_pGameState + 0x2320) = value;
+    ((s16*)g_FieldScriptMemory)[1] = value;
+    D_8004F350++;
+    g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
+}
 
 void func_800939A0(void) {
     D_80059171 = FieldScriptVMGetArgument(1);
@@ -1019,10 +1026,38 @@ s32 func_80094FCC(int gearPartId) {
 
 // Inventory slot kind is encoded in the high byte of the script argument
 // Get the array of inventory entry IDs for the given inventory kind
-INCLUDE_ASM("asm/field/nonmatchings/main/misc11", func_8009501C);
+u_char* func_8009501C(int itemId) {
+    switch (itemId >> 8) {
+        case 0:
+            return g_pGameState->itemIDs;
+        case 1:
+            return g_pGameState->weaponIDs;
+        case 2:
+            return g_pGameState->accessoryIDs;
+        case 3:
+            return g_pGameState->gearWeaponsIds;
+        case 4:
+            return g_pGameState->gearPartsIds;
+    }
+    return 0;
+}
 
 // Get the array of inventory entry quantities for the given inventory kind
-INCLUDE_ASM("asm/field/nonmatchings/main/misc11", func_800950A0);
+u_char* func_800950A0(int itemId) {
+    switch (itemId >> 8) {
+        case 0:
+            return g_pGameState->itemQuantities;
+        case 1:
+            return g_pGameState->weaponQuantities;
+        case 2:
+            return g_pGameState->accessoryQuantities;
+        case 3:
+            return g_pGameState->gearWeaponsQty;
+        case 4:
+            return g_pGameState->gearPartsQty;
+    }
+    return 0;
+}
 
 // Find the inventory slot of the given kind holding the given ID
 INCLUDE_ASM("asm/field/nonmatchings/main/misc11", func_80095124);
