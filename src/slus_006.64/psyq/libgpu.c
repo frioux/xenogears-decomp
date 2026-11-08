@@ -39,9 +39,12 @@ extern char D_80019148[]; // "DrawSync(%d)...\n"
 extern char D_80019180[]; // "ClearImage"
 extern char D_8001918C[]; // "LoadImage"
 extern char D_80019198[]; // "StoreImage"
+extern char D_800191A4[]; // "MoveImage"
 extern char D_800191B0[]; // "ClearOTag(%08x,%d)...\n"
 extern char D_800191C8[]; // "ClearOTagR(%08x,%d)...\n"
 extern char D_800191E0[]; // "DrawOTag(%08x)...\n"
+extern char D_800191F4[]; // "PutDrawEnv(%08x)...\n"
+extern char D_8001920C[]; // "DrawOTagEnv(%08x,%08x)...\n"
 
 extern GpuSysFuncs *D_800568C8;
 extern u_char D_800568D0;
@@ -49,7 +52,14 @@ extern u_char D_800568D1;
 extern u_char D_800568D3;
 extern char D_8005698C;
 
+// MoveImage's DR_MOVE packet: tag/0x80000000 at D_80056964+0x14, then the fields
+// filled in below, ending with the 0x04FFFFFF end marker at D_8005698C
+extern u_long D_80056980;
+extern u_long D_80056984;
+extern u_long D_80056988;
+
 extern void func_8004463C(char *name, RECT *rect);
+extern void func_8004574C(DR_ENV *pDrEnv, DRAWENV *pEnv);
 extern void func_80047178(void *p, int value, int n);
 extern int DMACallback(int id, void (*pCallbackFn)());
 
@@ -408,6 +418,25 @@ int StoreImage(RECT *rect, u_long *p) {
 }
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu", MoveImage);
+/* Best: 82.73% - identical instruction set, aspsx appears to have hoisted
+   `lw a0,0(rect)` above the first store and sunk `lw a0,24(pSys)` below the
+   second, which gcc's own order cannot reproduce.
+int MoveImage(RECT *rect, int x, int y) {
+    u_long *pPacket;
+
+    func_8004463C(D_800191A4, rect);
+
+    if (rect->w == 0 || rect->h == 0)
+        return -1;
+
+    pPacket = &D_80056980;
+    D_80056984 = (y << 16) | (x & 0xFFFF);
+    *pPacket = *(u_long*)&rect->x;
+    D_80056988 = *(u_long*)&rect->w;
+    pPacket -= 2;
+    return D_800568C8->unk08(D_800568C8->unk18, pPacket, 0x14, 0);
+}
+*/
 
 u_long* ClearOTag(u_long *ot, int n) {
     if (g_GraphDebugLevel >= 2)
@@ -448,7 +477,19 @@ void DrawOTag(u_long *p) {
     D_800568C8->unk08(D_800568C8->unk18, p, 0, 0);
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu", PutDrawEnv);
+DRAWENV* PutDrawEnv(DRAWENV *env) {
+    char *pLevel = &g_GraphDebugLevel;
+
+    if (*pLevel >= 2)
+        g_GpuPrintf(D_800191F4, env);
+
+    func_8004574C(&env->dr_env, env);
+    env->dr_env.tag |= 0xFFFFFF;
+    D_800568C8->unk08(D_800568C8->unk18, &env->dr_env, sizeof(DR_ENV), 0);
+    // 0xE past the debug level is g_GpuDrawEnv; the original reaches it from here
+    *(DRAWENV*)(pLevel + 0xE) = *env;
+    return env;
+}
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu", DrawOTagEnv);
 
