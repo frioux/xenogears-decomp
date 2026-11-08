@@ -114,11 +114,99 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001EE88);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001F1D4);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001F530);
+// .sdata
+s16 D_80059194;
+s16 D_80059196;
+
+SVEC2* func_8001F530(SVEC2* pDest, s32 amount) {
+    SVEC2 pos;
+    u16 offset;
+
+    if (D_80059196 + amount >= 0x41) {
+        D_80059196 = 0;
+        D_80059194++;
+        if (D_80059194 >= 3) {
+            D_80059194 = 0;
+        }
+    }
+    offset = D_80059196;
+    pos.x = offset + 0x300;
+    pos.y = D_80059194 * 0x40 + 0x140;
+    *pDest = pos;
+    D_80059196 = offset + amount;
+    return pDest;
+}
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001F5BC);
+/* Best attempt: 95.16%. The instruction stream (including the multiply/divide
+   sequences) is identical; only the register allocation differs. The original
+   keeps the sprite data in a1 and loads its 5th argument lazily inside the
+   second division, this version hoists that pointer to t1 and keeps the sprite
+   in t0.
+
+void func_8001F5BC(SpriteData* pSpriteData, s32 unusedIndex, s32* pOutX, s32* pOutY, s32* pOutZ) {
+    s32 index;
+    SpriteAnimPackage* pPackage;
+    u8* pAnimations;
+    u16* pFrames;
+    u8* pFrame;
+
+    pPackage = pSpriteData->pVramData;
+    pFrames = pPackage->pFrames;
+    pAnimations = pPackage->pAnimations;
+    pAnimations += *(u16*)(pAnimations + 2);
+    pFrame = pAnimations + *(u16*)(pAnimations + 4);
+
+    index = pFrame[4];
+    if (index != 0) {
+        index--;
+    }
+    if (pFrames[index] < index) {
+        index = 0;
+    }
+    pFrame = (u8*)pFrames + ((u16*)((u8*)pFrames + 2))[index];
+
+    *pOutY = pFrame[3] * pSpriteData->scale / 0x1000;
+    *pOutZ = pFrame[1] * pSpriteData->scale / 0x1000;
+    *pOutX = pFrame[2] * pSpriteData->scale / 0x1000;
+}
+*/
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001F6B0);
+/* Best attempt: 96.50%, instruction stream identical, only the register
+   allocation differs (the original gets the sprite data into t1, freeing a0 for
+   the frame pointer; this keeps the sprite in a3 and puts the counter in a0).
+   The 4-byte copy of ((SpriteAnimPackage*)pVramData)->tex into a local is dead
+   code that the original object really contains.
+
+void func_8001F6B0(SpriteData* pSpriteData) {
+    SpriteFrameData* pFrameData;
+    u32 flags;
+    u32 color;
+    u32 texPageBits;
+    u16 texPage;
+    s32 i;
+    SVEC2 tex;
+
+    flags = *(u32*)((u8*)pSpriteData + 0x3C);
+    if ((flags & 3) != 1) {
+        return;
+    }
+
+    texPageBits = (flags >> 5) & 7;
+    if (texPageBits != 0) {
+        texPageBits--;
+    }
+    tex = ((SpriteAnimPackage*)pSpriteData->pVramData)->tex;
+    color = *(u32*)&pSpriteData->red;
+    pFrameData = pSpriteData->pBase->pCurRenderFramesData;
+    for (i = 0; i != (*(u8*)((u8*)pSpriteData + 0x40) >> 2); i++) {
+        texPage = pFrameData[i].texPage;
+        pFrameData[i].colorAndCode = color;
+        pFrameData[i].texPage = (texPage & 0xFF9F) | (texPageBits << 5);
+    }
+}
+*/
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001F750);
 
