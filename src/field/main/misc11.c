@@ -1492,6 +1492,27 @@ void FieldScriptCheckActorOnScreen(void) {
 }
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc11", func_80095CC4);
+/* best 92.50%: structure (incl. cross-jumped else block) matches; gcc hoists
+   `li a0,2` out of the jal delay slot and puts `ip` in v1 instead of v0.
+void func_80095CC4(void) {
+    ActorData* pActor;
+    int arg;
+    int ip;
+
+    if (FieldScriptVMGetActorIndex(1) != ACTOR_ID_INVALID) {
+        pActor = g_FieldActors[FieldScriptVMGetActorIndex(1)].pActorData;
+        arg = FieldScriptVMGetArgument(2);
+        if (arg == pActor->walkmeshId) {
+            ip = g_FieldScriptVMCurActor->scriptInstructionPointer + 6;
+        } else {
+            ip = FieldScriptVMGetInstructionArgument(4);
+        }
+    } else {
+        ip = FieldScriptVMGetInstructionArgument(4);
+    }
+    g_FieldScriptVMCurActor->scriptInstructionPointer = ip;
+}
+*/
 
 typedef struct {
     /* 0x0 */ undefined8 unk0[0xC];
