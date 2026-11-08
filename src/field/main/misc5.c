@@ -7,7 +7,11 @@
 #include "field/graphics.h"
 
 //
-INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A55B8);
+void func_800A55B8(int* pData, int a, int b, int c) {
+    pData[5] = a;
+    pData[6] = b;
+    pData[7] = c;
+}
 
 extern void* D_800AFE80;
 extern void* D_800B069C;
@@ -147,7 +151,23 @@ void func_800A7064(void) {
     HeapFree(D_800B00C4);
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A708C);
+extern int D_800ADB6C;
+extern int D_800ADB74;
+extern u_short D_800C3A36;
+extern int D_801D68B4;
+extern void func_801D3538(int, int, int, int, int, int, int);
+
+void func_800A708C(void) {
+    HeapChangeCurrentUser(HEAP_USER_MASA, NULL);
+    if (D_800ADB74 == 2) {
+        D_801D68B4 = 1;
+    } else {
+        D_801D68B4 = 0;
+    }
+    func_801D3538(0x140, 0xE0, 0x80, 0x10, 0x20, 0x800, D_800C3A36);
+    D_800ADB6C = 0;
+    HeapChangeCurrentUser(HEAP_USER_YOSI, NULL);
+}
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A7120);
 
@@ -264,7 +284,23 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A7948);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A7C58);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A8314);
+extern int ArchiveDecodeAlignedSize(int entryIndex);
+extern void ArchiveCdDataSync(int mode);
+extern void ArchiveReadFileToBuffer(s32 index, void* pBuffer, u32 arg2, u32 flags);
+extern void FieldLoadTIMWithClut(u_long* pTimData, short x, short y, short clutX, short clutY, short clutWidth, short clutHeight);
+
+void func_800A8314(void) {
+    u_long* pTimData;
+
+    HeapChangeCurrentUser(HEAP_USER_YOSI, NULL);
+    ArchiveSetIndex(4, 0);
+    pTimData = HeapAlloc(ArchiveDecodeAlignedSize(0xAA), 0x1);
+    ArchiveReadFileToBuffer(0xAA, pTimData, 0, 0x80);
+    ArchiveCdDataSync(0);
+    FieldLoadTIMWithClut(pTimData, 0x380, 0x0, 0x0, 0xE8, 0x0, 0x0);
+    DrawSync(0);
+    HeapFree(pTimData);
+}
 
 extern int D_800AF278;
 extern void* D_800AFC60;
@@ -288,11 +324,26 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A8BA4);
 // https://decomp.me/scratch/3xYjM
 INCLUDE_ASM("asm/field/nonmatchings/main/misc5", FieldInitializeParticlePrimitive);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A90B4);
-
 extern int D_800ADB34;
-extern RECT g_FieldStoredImageDest[];
 extern u_long* D_800AFC70;
+
+typedef struct {
+    /* 0x0 */ u_long unk0[0x2000];
+} FieldStoredImage; // Size: 0x8000
+
+void func_800A90B4(int nHeapType) {
+    u_long* pImage;
+
+    if (D_800ADB34 == 1) {
+        HeapChangeCurrentUser(HEAP_USER_YOSI, NULL);
+        pImage = HeapAlloc(0x8000, nHeapType);
+        *(FieldStoredImage*)pImage = *(FieldStoredImage*)D_800AFC70;
+        HeapFree(D_800AFC70);
+        D_800AFC70 = pImage;
+    }
+}
+
+extern RECT g_FieldStoredImageDest[];
 
 void func_800A915C(void) {
     if (D_800ADB34 != 1) {
