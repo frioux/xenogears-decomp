@@ -53,10 +53,11 @@ u_int func_80080968(ActorData* pActor) {
 extern u_short D_800B14AC;
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800809D0);
-/*
+/* 85.00%: pre-loop `acc = 0; acc += value` is folded by gcc into a copy of the
+   constant (no `addu a0,zero,zero`), so acc lands in a1 instead of a0.
 int func_800809D0(s32* pData) {
-    int step = pData[7];
     int value = -0x14D000;
+    int step = pData[7];
     int acc = 0;
 
     D_800B14AC = 0;
@@ -160,11 +161,15 @@ extern void* D_800ADBB8;
 extern void* D_800AFEA4;
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80085560);
-/*
+/* 81.88%: only the prologue schedule and the temp register differ (gcc stores
+   the stream file from a1 in the original, from v0 here).
 void func_80085560(int archiveIndex, int unused, void* pCallback) {
+    void* pStreamFile;
+
     D_800ADB2C = 1;
-    D_800ADBB8 = ArchiveAllocStreamFile(8);
-    ArchiveReadFileToBuffer(archiveIndex, D_800ADBB8, 0, 0x100);
+    pStreamFile = ArchiveAllocStreamFile(8);
+    D_800ADBB8 = pStreamFile;
+    ArchiveReadFileToBuffer(archiveIndex, pStreamFile, 0, 0x100);
     D_800AFEA4 = pCallback;
 }
 */
@@ -173,22 +178,26 @@ void func_8003A20C(int);
 void func_80039F9C(void*, int, int, int);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800855C8);
+/* 85.56%: gcc hoists `(arg3 & 7) * 2` into s0 and copies it (move a0,s0 /
+   move a1,s0); the original keeps `arg3 & 7` in s0 and shifts at each use.
+void func_800855C8(int arg0, int arg1, int arg2, int arg3) {
+    func_8003A20C((arg3 & 7) * 2);
+    func_80039F9C(arg0, (arg3 & 7) * 2, (s16)arg1, (s16)arg2);
+}
+*/
 
 extern s32 D_800B21B8;
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80085634);
-/*
 void func_80085634(int arg0, int arg1) {
-    u_int offset = arg1 & 7;
+    int offset = arg1 & 7;
 
     if (arg0 == 0) {
         func_8003A20C(offset * 2);
     } else {
         D_800B21B8 = arg0;
-        func_800855C8(arg0, 0x7F, 0x40);
+        func_800855C8(arg0, 0x7F, 0x40, offset);
     }
 }
-*/
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80085678);
 
