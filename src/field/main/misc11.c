@@ -62,7 +62,30 @@ void func_80091A78(void) {
 void func_80091AD4(void) {
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc11", func_80091ADC);
+extern RECT D_800AF5E8[32];
+extern s16 D_800AF5EA[]; // Part of D_800AF5E8[]: the y of each RECT
+extern s16 D_800AF5EC[]; // Part of D_800AF5E8[]: the w of each RECT
+extern s16 D_800AF5EE[]; // Part of D_800AF5E8[]: the h of each RECT
+extern s16 D_800AF6E8[32];
+extern s16 D_800AF728[32];
+extern u_short D_800AF768;
+
+void func_80091ADC(s16 x, s16 y, s16 w, s16 h, int texX, s16 texY, int clear) {
+    int index = D_800AF768 & 0x1F;
+
+    D_800AF5E8[index].x = x;
+    D_800AF5EA[index * 4] = y;
+    D_800AF5EC[index * 4] = w;
+    D_800AF5EE[index * 4] = h;
+    D_800AF6E8[index] = texX;
+    D_800AF728[index] = texY;
+    if (!clear) {
+        MoveImage(&D_800AF5E8[index], D_800AF6E8[index], texY);
+    } else {
+        ClearImage(&D_800AF5E8[index], 0, 0, 0);
+    }
+    D_800AF768++;
+}
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc11", func_80091BBC);
 
@@ -185,8 +208,29 @@ int func_80092424(int index, int byteIndex) {
 }
 
 // Write one byte of the 4-byte record at the given index of D_800AFB20
-// Write one byte of the 4-byte record at the given index of D_800AFB20
 INCLUDE_ASM("asm/field/nonmatchings/main/misc11", func_800924D4);
+
+/* Best attempt: 69.47%. Same instruction count and the correct masks
+   (case 1's mask really is 0xFFFF00FF; splat's comment is right), but gcc keeps
+   the record offset in a0 instead of the original's v1 and merges the tail of
+   case 0 with cases 1-3, which the original does not.
+void func_800924D4(int index, int byteIndex, int value) {
+    switch (byteIndex) {
+        case 0:
+            D_800AFB20[index] = (D_800AFB20[index] & ~0xFF) | value;
+            break;
+        case 1:
+            D_800AFB20[index] = (value << 8) | (D_800AFB20[index] & ~0xFF00);
+            break;
+        case 2:
+            D_800AFB20[index] = (value << 16) | (D_800AFB20[index] & ~0xFF0000);
+            break;
+        case 3:
+            D_800AFB20[index] = (value << 24) | (D_800AFB20[index] & ~0xFF000000);
+            break;
+    }
+}
+*/
 
 extern s32 D_800B217C;
 extern s16 D_800B21D6;
@@ -851,7 +895,35 @@ void func_80094764(void) {
 
 extern void func_80072254(int);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc11", func_800947B0);
+// Set/Increase/Decrease the X, Y or Z rotation of the actor named by the instruction
+void func_800947B0(void) {
+    if (FieldScriptVMGetActorIndex(2) != ACTOR_ID_INVALID) {
+        FieldActor* pActor = &g_FieldActors[FieldScriptVMGetActorIndex(2)];
+
+        switch (SCRIPT_READ_U8_REL(1)) {
+            case 0:
+                pActor->rotation.x += FieldScriptVMGetArgument(3);
+                break;
+            case 1:
+                pActor->rotation.x -= FieldScriptVMGetArgument(3);
+                break;
+            case 2:
+                pActor->rotation.y += FieldScriptVMGetArgument(3);
+                break;
+            case 3:
+                pActor->rotation.y -= FieldScriptVMGetArgument(3);
+                break;
+            case 4:
+                pActor->rotation.z += FieldScriptVMGetArgument(3);
+                break;
+            case 5:
+                pActor->rotation.z -= FieldScriptVMGetArgument(3);
+                break;
+        }
+        func_80072254(FieldScriptVMGetActorIndex(2));
+    }
+    g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
+}
 
 // Set X, Y or Z rotaiton of Actor D_800AFD1C
 void func_80094918(void) {
