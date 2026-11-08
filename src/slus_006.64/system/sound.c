@@ -461,7 +461,25 @@ s32 func_80038824(void) {
 }
 
 //----------------------------------------------------------------------------------------------------------------------
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", SoundSetupCdMix);
+void SoundSetupCdMix(s32 vol) {
+    s32 pan;
+
+    g_SoundVolumeController.unk_field2 = vol;
+
+    if (g_SoundControlFlags & 0x700) {
+        pan = vol;
+        vol = 0;
+    } else {
+        vol >>= 1;
+        pan = vol;
+    }
+    g_SoundCdRomAttenuation.val2 = pan;
+    g_SoundCdRomAttenuation.val0 = pan;
+    g_SoundCdRomAttenuation.val3 = vol;
+    g_SoundCdRomAttenuation.val1 = vol;
+
+    CdMix(&g_SoundCdRomAttenuation);
+}
 
 //----------------------------------------------------------------------------------------------------------------------
 void func_800388D4(s32 arg0) {
@@ -1864,7 +1882,24 @@ u8* func_8003D034(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
     return pScript + 2;
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003D070);
+u8* func_8003D070(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
+    SoundFile* pSoundFile = g_SoundSedsLinkedList;
+    s16 sedId = *(s16*)((u8*)pAudioElements + 0xA);
+    s16 instrument = pScript[0] | (pScript[1] << 8);
+    u8 channel = pScript[2];
+
+    if (sedId != 0) {
+        while (pSoundFile->sedId != sedId) {
+            pSoundFile = pSoundFile->pNext;
+            if (pSoundFile == NULL) {
+                return pScript;
+            }
+        }
+    }
+
+    pScript = (u8*)pSoundFile + pSoundFile->scriptOffsets[instrument * 2 + channel];
+    return pScript + 3;
+}
 
 // Set tempo handler?
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003D0E8);
@@ -2409,11 +2444,49 @@ u8* func_8003E160(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
     return pScript;
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003E180);
+u8* func_8003E180(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
+    AudioEnvelope* pEnvelope;
+    u8 value;
+    u8 last;
+
+    pAudioElements->unk_0xCC = pScript[0];
+    pEnvelope = &pAudioElements->envelopes[pAudioElements->unk_0xCC];
+    value = pScript[1];
+    pEnvelope->unk_0x1D = value & 0xF;
+    pEnvelope->unk_0x0 = D_800508A4[pEnvelope->unk_0x1D];
+
+    if ((value & 0x10) == 0) {
+        pEnvelope->flags = 2;
+    } else {
+        pEnvelope->flags = 0;
+    }
+
+    last = pScript[2];
+    pEnvelope->unk_0x1A = 0x400;
+    pEnvelope->unk_0x16 = 0;
+    pEnvelope->unk_0x1C = last;
+    return pScript + 3;
+}
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003E1F8);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003E290);
+s32 func_8003E290(s32 value, s16 divisor, s16 mode) {
+    if (value != 0 && divisor != 0) {
+        switch (mode) {
+            case 2:
+            case 3:
+                value /= divisor;
+                break;
+            case 4:
+                if (divisor != 1) {
+                    value /= divisor - 1;
+                }
+                break;
+        }
+    }
+
+    return value;
+}
 
 u8* func_8003E308(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     u8 divisor = pScript[1] + 1;
