@@ -114,11 +114,83 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001EE88);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001F1D4);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001F530);
+// .sdata
+s16 D_80059194;
+s16 D_80059196;
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001F5BC);
+SVEC2* func_8001F530(SVEC2* pDest, s32 amount) {
+    SVEC2 pos;
+    u16 offset;
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001F6B0);
+    if (D_80059196 + amount >= 0x41) {
+        D_80059196 = 0;
+        D_80059194++;
+        if (D_80059194 >= 3) {
+            D_80059194 = 0;
+        }
+    }
+    offset = D_80059196;
+    pos.x = offset + 0x300;
+    pos.y = D_80059194 * 0x40 + 0x140;
+    *pDest = pos;
+    D_80059196 = offset + amount;
+    return pDest;
+}
+
+void func_8001F5BC(SpriteData* pSpriteData, s32 unusedIndex, s32* pOutX, s32* pOutY, s32* pOutZ) {
+    SpriteAnimPackage* pPackage;
+    u8* pAnimations;
+    u16* pFrames;
+    u8* pFrame;
+    s32 index;
+
+    pPackage = pSpriteData->pVramData;
+    pFrames = pPackage->pFrames;
+    pAnimations = pPackage->pAnimations;
+    pAnimations += *(u16*)(pAnimations + 2);
+    pFrame = pAnimations + *(u16*)(pAnimations + 4);
+
+    index = pFrame[4];
+    if (index != 0) {
+        index--;
+    }
+    if (pFrames[index] < index) {
+        index = 0;
+    }
+    pFrame = (u8*)pFrames + ((u16*)((u8*)pFrames + 2))[index];
+
+    *pOutY = pFrame[3] * pSpriteData->scale / 0x1000;
+    *pOutZ = pFrame[1] * pSpriteData->scale / 0x1000;
+    *pOutX = pFrame[2] * pSpriteData->scale / 0x1000;
+}
+
+void func_8001F6B0(SpriteData* pSpriteData) {
+    s32 i;
+    SpriteFrameData* pFrameData;
+    u32 flags;
+    u32 color;
+    u32 texPageBits;
+    u16 texPage;
+    SVEC2 tex;
+
+    flags = *(u32*)((u8*)pSpriteData + 0x3C);
+    if ((flags & 3) != 1) {
+        return;
+    }
+
+    texPageBits = (flags >> 5) & 7;
+    if (texPageBits != 0) {
+        texPageBits--;
+    }
+    tex = ((SpriteAnimPackage*)pSpriteData->pVramData)->tex;
+    color = *(u32*)&pSpriteData->red;
+    pFrameData = pSpriteData->pBase->pCurRenderFramesData;
+    for (i = 0; i != (*(u8*)((u8*)pSpriteData + 0x40) >> 2); i++) {
+        texPage = pFrameData[i].texPage;
+        pFrameData[i].colorAndCode = color;
+        pFrameData[i].texPage = (texPage & 0xFF9F) | (texPageBits << 5);
+    }
+}
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001F750);
 
