@@ -7,6 +7,8 @@
 
 extern void func_80076AC0(s32, s32, void*, s32, s32, s32, s32);
 extern void func_800A0C94();
+extern int ArchiveGetDiscNumber(void);
+extern void FieldScriptMemoryWriteU16(int, int);
 extern s32 D_800AFD1C; // Current actor index
 
 void FieldScriptVMHandlerDisableDialogActivation(void) {
@@ -704,9 +706,6 @@ void func_800A0DC0(void) {
     D_800B234A.value = FieldScriptVMGetArgument(1);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
-
-extern int ArchiveGetDiscNumber(void);
-extern void FieldScriptMemoryWriteU16(int, int);
 
 void func_800A0DFC(void) {
     int nAddress;
