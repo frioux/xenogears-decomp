@@ -419,6 +419,48 @@ void func_800239F4(SpriteData* pSpriteData) {
 }
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80023A48);
+/* Best attempt: 97.22%. diff_func.sh needs 100.00%; the only differences are registers picked
+   for the &D_8006BE10 / &D_8005A474 address loads in case 1 (the original materializes the
+   %hi half in v0 and adds into s2, this C lets gcc load straight into s2, one insn shorter).
+extern u8 D_8006BE10;
+extern u8 D_8005A474;
+extern s32 func_8001EE74(u16* pFlags);
+
+AnimTask* func_80023A48(s32 arg0, s32 type, void* pAnimPackage, s32 size, void* pData) {
+    AnimTask* pEntry;
+    SpriteData* pSpriteData;
+    s32 dataSize;
+
+    switch (type) {
+    case 0:
+        dataSize = 0;
+        pEntry = func_800233A4(pData, dataSize + size);
+        func_80023950(&pEntry->spriteData);
+        break;
+    case 1:
+        if (arg0 == 5) {
+            pAnimPackage = &D_8006BE10;
+        }
+        if (arg0 == 6) {
+            pAnimPackage = &D_8005A474;
+        }
+        dataSize = (func_8001EE74(*(u16**)pAnimPackage) - 1) * 24 + 0x58;
+        pEntry = func_800233A4(pData, dataSize + size);
+        func_800239F4(&pEntry->spriteData);
+        break;
+    case 2:
+        dataSize = 0x54;
+        pEntry = func_800233A4(pData, dataSize + size);
+        func_80023958(&pEntry->spriteData);
+        break;
+    }
+    pSpriteData = &pEntry->spriteData;
+    pSpriteData->field_0x6C = pEntry;
+    pSpriteData->allocatedDataSize = dataSize + 0xEC;
+    pSpriteData->pVramData = pAnimPackage;
+    return pEntry;
+}
+*/
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80023B84);
 
