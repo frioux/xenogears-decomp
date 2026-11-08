@@ -11,6 +11,27 @@ extern u8 g_SystemPaletteData[];
 extern s16 g_SystemPalette1;
 extern s16 g_SystemPalette2;
 
+// One global text object (a SystemString at 0x80059FD8) and its char buffer;
+// the fields are split out because each field address is its own symbol.
+extern s16 D_80059FD8;
+extern s16 D_80059FDA;
+extern s16 D_80059FE0;
+extern s16 D_80059FE2;
+extern s16 D_80059FE4;
+extern s16 D_80059FE8;
+extern s16 D_80059FEA;
+extern void* D_80059FF4;
+extern void* D_8005A000;
+extern void* D_8005A004;
+extern u8 D_8005A040;
+extern u8 D_8005A041;
+extern u8 D_8005A042;
+extern u8 D_8005A044;
+extern s16 D_8005A05C;
+extern u8 D_8005A068[];
+extern s16 D_8005A0C0;
+extern u8 D_8005A0C2;
+
 // Font file metrics, filled in by SystemInitializeFont
 extern void* D_8005935C;
 extern int D_8005934C;
@@ -21,6 +42,10 @@ extern int D_80059364;
 
 // Scratch buffer the number/glyph converters write to
 extern u8 D_8005A0E4[];
+
+// Digit buffer: digits at D_8005A0CA, terminator slot at D_8005A0DE
+extern u16 D_8005A0CA[];
+extern u16 D_8005A0DE[];
 
 
 // A rendered string: glyph buffer, palette and the stack of data buffers that
@@ -360,6 +385,60 @@ int func_80033CD0(SystemString* pString) {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/system", func_80033CF0);
 
+/* Best attempt, 87.37%: matches the digit loop and all data references, but the
+   scan loop is rotated (gcc duplicates the exit test) and the end pointer is
+   folded to D_8005A0DE-2 instead of computed as pScan+10.
+void func_80033CF0(int value, int glyphOffset, int flag) {
+    u32 divisor = 1000000000;
+    u16* pDigit = D_8005A0CA;
+    u16* pEnd;
+    u16* pScan;
+    u16* pScanEnd;
+    int i;
+    int sign = 0;
+
+    glyphOffset *= 16;
+
+    if (flag != 0) {
+        if (value >= 0) {
+            sign = 11;
+        } else {
+            value = -value;
+            sign = 10;
+        }
+    }
+
+    for (i = 0; i < 10; i++) {
+        pDigit[i] = value / divisor + glyphOffset;
+        value %= divisor;
+        divisor /= 10;
+    }
+
+    pEnd = D_8005A0DE;
+    pScan = pEnd - 11;
+    pEnd[0] = 0xFFFF;
+    pEnd[-11] = glyphOffset;
+
+    pScanEnd = pScan + 10;
+
+    if ((glyphOffset & 0xFFF0) == glyphOffset) {
+        while (pScan != pScanEnd) {
+            pScan++;
+
+            if (*pScan != glyphOffset) {
+                break;
+            }
+        }
+    }
+
+    if (sign != 0) {
+        *--pScan = sign + glyphOffset;
+    }
+
+    func_80033ABC(pScan);
+}
+*/
+
 void func_80033DD4(SystemString* pString, void* pData) {
     void* pOld = pString->pCur;
 
@@ -492,6 +571,35 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/system", func_80034888);
 
 // Render string entry to a buffer
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/system", SystemRenderStringEntry);
+
+/* Best attempt, 30.00%: every instruction and data reference is right, but gcc
+   schedules the stores in a different order (it emits D_8005A040/D_8005A041 and
+   the D_8005A068 address ahead of the D_80059FF4 store).
+int SystemRenderStringEntry(void* pCur, void* pCharBuffer, int mode, int flag) {
+    D_80059FE2 = mode;
+    D_80059FE4 = 1;
+    D_80059FE2 = mode | 1;
+    D_80059FE0 = (s16)(mode | 1) * 4;
+    D_80059FF4 = pCur;
+    D_8005A040 = 1;
+    D_80059FEA = (mode | 1) + 3;
+    D_8005A05C = 0;
+    D_8005A044 = 0;
+    D_8005A042 = 0;
+    D_8005A004 = pCharBuffer;
+    D_80059FE8 = 0;
+    D_80059FDA = 0;
+    D_80059FD8 = 0;
+    D_8005A041 = 0x64;
+    D_8005A000 = D_8005A068;
+    D_8005A0C0 = 0;
+    D_8005A0C2 = flag & 1;
+
+    func_80033DF0(&D_80059FD8);
+
+    return *(s16*)((u8*)D_8005A000 + 0x58) * 4;
+}
+*/
 
 int func_80034F98(u16 first, u16 second) {
     if (first == 0) {
