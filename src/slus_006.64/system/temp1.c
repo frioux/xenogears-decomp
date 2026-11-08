@@ -336,7 +336,7 @@ void func_800234AC(SpriteData* pSpriteData) {
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80023538);
 
 // SpriteData stuff
-INCLUDE_ASM("asm/slus_006.64/system/temp1", func_80023804);
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80023804);
 /* Best attempt: 99.10%. Everything matches except a v0/v1 swap: the original keeps the
    flags_0xAC value in v1 and its 0xFFF8007F mask in v0, this C does the opposite (and
    so the flags_0xA8 value lands in v1 instead of v0). Function is 78 instructions.
