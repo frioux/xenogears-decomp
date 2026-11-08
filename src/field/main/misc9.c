@@ -223,7 +223,36 @@ void func_800AB378(s8 color) {
     }
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc9", func_800AB748);
+s32 func_800AB748(s32 index) {
+    switch (index) {
+        case 0:
+            if (g_pGameState->unk1930[0x73] & 0x8) {
+                return 0;
+            }
+            break;
+        case 1:
+            if (g_pGameState->unk1930[0x73] & 0x10) {
+                return 0;
+            }
+            break;
+        case 2:
+            if (g_pGameState->unk1930[0x73] & 0x20) {
+                return 0;
+            }
+            break;
+        case 3:
+            if (g_pGameState->unk1930[0x73] & 0x40) {
+                return 0;
+            }
+            break;
+        case 4:
+            if (!(g_pGameState->unk1930[0x73] & 0x80)) {
+                return 0;
+            }
+            break;
+    }
+    return -1;
+}
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc9", func_800AB808);
 
