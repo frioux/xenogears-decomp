@@ -309,32 +309,33 @@ s32 func_800ABFDC(u_char* pData, s32* pIsGlyph) {
     return Krom2RawAdd(code);
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc9", func_800AC03C);
-// 77.29%: the two bit loops keep the byte pointer one ahead of pDst in the
-// original (a2 = pDst + 1, `sb v0, -1(a2)`); gcc emits the store against pDst itself.
-// void func_800AC03C(u_char* pDst, u_short* pSrc) {
-//     int i;
-//     int bit;
-//
-//     if (pSrc == (u_short*)-1) {
-//         for (i = 0x11F; i >= 0; i--) {
-//             *pDst++ = 0xFF;
-//         }
-//         return;
-//     }
-//
-//     for (i = 0; i < 0xF; i++) {
-//         for (bit = 7; bit >= 0; bit--) {
-//             *pDst++ = -((*pSrc >> bit) & 1);
-//         }
-//         for (bit = 0xF; bit >= 8; bit--) {
-//             *pDst++ = -((*pSrc >> bit) & 1);
-//         }
-//         *pDst++ = 0;
-//         *pDst++ = 0;
-//         pSrc++;
-//     }
-// }
+// Expand the 15 16-bit rows of a 16x16 glyph bitmap into 18-byte rows of
+// 0x00/0xFF mask bytes. A -1 source address means "blank glyph".
+void func_800AC03C(u_char* pDst, u_short* pSrc) {
+    int i = 0;
+    int bit;
+
+    if (pSrc == (u_short*)-1) {
+        u_char c = 0xFF;
+
+        for (i = 0x11F; i >= 0; i--) {
+            *pDst++ = c;
+        }
+        return;
+    }
+
+    for (i = 0; i < 0xF; i++) {
+        for (bit = 7; bit >= 0; bit--) {
+            *pDst++ = (u_char)((*pSrc & (1 << bit)) ? 0xFF : 0);
+        }
+        for (bit = 0xF; bit >= 8; bit--) {
+            *pDst++ = (u_char)((*pSrc & (1 << bit)) ? 0xFF : 0);
+        }
+        *pDst++ = 0;
+        *pDst++ = 0;
+        pSrc++;
+    }
+}
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc9", func_800AC0F0);
 
