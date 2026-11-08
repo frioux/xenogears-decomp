@@ -345,9 +345,9 @@ void func_800883D4(void) {
 extern FieldScriptGlobalS16 D_800B236C;
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008848C);
-// 78.75%: same instructions in the same order but gcc keeps the instruction
-// pointer in a register across both uses and reuses $v0 for the script data
-// base where the original reloads the pointer into the killed $v1.
+// 78.75%: same instructions, same order; the original's second `lhu 0xCC($a0)`
+// is a rematerialisation after `addu` reused the register holding the
+// instruction pointer, ours keeps it live in $v1 instead.
 /*
 void func_8008848C(void) {
     int value = SCRIPT_READ_U8_REL(1) ^ 1;
@@ -374,16 +374,22 @@ typedef struct {
 extern ParticleBankHandle D_800B2384;
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008861C);
-// 56.59%: z-then-x store order is right; the original stores x through
-// %lo(g_FieldDefaultParticleBanks + 0x30)($at) with the bank offset in the
-// register, ours keeps a pointer in a temp instead.
+// 92.50%: the single bankIndex load, &g_FieldDefaultParticleBanks materialised
+// in $a2 and the .x store through %hi/%lo(g_FieldDefaultParticleBanks + 0x30)
+// all match. Ours spends one extra `addu`: gcc builds
+// (&banks + 0x78*bankIndex) as an intermediate and then adds 4*i, where the
+// original shares the 4*i + 0x78*bankIndex sum with the .x store.
 /*
 void func_8008861C(void) {
+    ParticleBank* pBank;
     int i;
 
     for (i = 0; i < NUM_PARTICLE_BANKS; i++) {
-        g_FieldDefaultParticleBanks[D_800B2384.bankIndex].directions[i].z = 0;
-        g_FieldDefaultParticleBanks[D_800B2384.bankIndex].directions[i].x = 0;
+        int bankIndex = D_800B2384.bankIndex;
+
+        pBank = &g_FieldDefaultParticleBanks[bankIndex];
+        pBank->directions[i].z = 0;
+        g_FieldDefaultParticleBanks[bankIndex].directions[i].x = 0;
     }
 }
 */
@@ -869,7 +875,18 @@ void func_8008CC74(void) {
     D_800B00C0 = 1;
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008CD48);
+extern void func_800863E8(s32);
+
+void func_8008CD48(void) {
+    g_FieldScriptVMCurActor->unk10A = FieldScriptVMGetArgument(1);
+    g_FieldScriptVMCurActor->unk10D = 0;
+    g_FieldScriptVMCurActor->unk10C = FieldScriptVMGetArgument(3);
+    g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
+    func_800863E8(D_800AFD1C);
+    if (g_FieldScriptVMCurActor->unk10A == 0) {
+        g_FieldScriptVMCurActor->unk10D = 0xFF;
+    }
+}
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008CDD4);
 

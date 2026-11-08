@@ -98,6 +98,11 @@ typedef struct {
     /* 0x0 */ SpriteDirectionTransform dirTransforms[8];
 } SpriteDirectionTransforms;
 
+// Three angles with no pad byte: the script VM keeps a u16 right after it (0x10A).
+typedef struct {
+    short vx, vy, vz;
+} ActorRotation;
+
 typedef struct {
     /* 0x0  */ SVEC rotation;
     /* 0x6  */ SVEC scale;
@@ -291,8 +296,8 @@ typedef struct {
     /* 0x100 */ u_char unk100;
     /* 0x101 */ u_char unk101;
     /* 0x102 */ short unk102;
-    /* 0x104 */ SVECTOR rotation; // 0xFFF mask: rotation
-    /* 0x10A */ short unk10A;
+    /* 0x104 */ ActorRotation rotation; // 0xFFF mask: rotation
+    /* 0x10A */ u_short unk10A;
     /* 0x10C */ u_char unk10C;
     /* 0x10D */ u_char unk10D;
     /* 0x110 */ void* unk110;
