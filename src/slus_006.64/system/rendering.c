@@ -127,12 +127,13 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001F8E8);
 
 
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", GraphicsDrawPauseLetters);
-/*
-Matches on  GCC 2.7.2-970404, ASPSX 2.67
-
+extern void func_8002DDE4(void* pImgData, int arg1, int x, int y, int arg4, int arg5, int arg6);
+extern void* LZSSHeapDecompress(void* pCompressedData, int flags);
 extern void* g_GfxPauseLettersCompressed[];
 
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", GraphicsDrawPauseLetters);
+/* Best attempt: 98.81%, only the callee-saved registers differ (original keeps
+   x in s1 and the image pointer in s0, this keeps them in s0 and s1).
 void GraphicsDrawPauseLetters(int x, int y) {
     void* pPauseImgData = LZSSHeapDecompress(&g_GfxPauseLettersCompressed, 0x0);
     func_8002DDE4(pPauseImgData, 1, x, y, 0, 0, 0);
