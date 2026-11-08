@@ -701,7 +701,28 @@ void func_80089B54(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_80089BF0);
+// One u16 field each of two 8-byte-stride records, so every reference is a
+// separate symbol with no addend.
+extern u16 D_800B22E8[];
+extern u16 D_800B22EA[];
+extern u16 D_800B22EC[];
+extern u16 D_800B2300[];
+extern u16 D_800B2302[];
+extern u16 D_800B2304[];
+extern s32 D_800B2318[];
+
+void func_80089BF0(void) {
+    int index = FieldScriptArgument1(1, SCRIPT_READ_U8_REL(0x11));
+
+    D_800B22E8[index * 4] = FieldScriptArgument2(3, SCRIPT_READ_U8_REL(0x11));
+    D_800B22EA[index * 4] = FieldScriptArgument3(5, SCRIPT_READ_U8_REL(0x11));
+    D_800B22EC[index * 4] = FieldScriptArgument4(7, SCRIPT_READ_U8_REL(0x11));
+    D_800B2300[index * 4] = FieldScriptArgument5(9, SCRIPT_READ_U8_REL(0x11));
+    D_800B2302[index * 4] = FieldScriptArgument6(0xB, SCRIPT_READ_U8_REL(0x11));
+    D_800B2304[index * 4] = FieldScriptArgument7(0xD, SCRIPT_READ_U8_REL(0x11));
+    D_800B2318[index] = FieldScriptArgument8(0xF, SCRIPT_READ_U8_REL(0x11));
+    g_FieldScriptVMCurActor->scriptInstructionPointer += 0x12;
+}
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_80089DCC);
 
@@ -938,7 +959,76 @@ void func_8008AA60(void) {
     D_800B00C0 = 1;
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008AACC);
+extern void* D_800AFD08; // WDS file buffer
+
+extern s32 D_800AFD0C;
+
+extern s32 D_800AFD18;
+
+extern void* D_80062518[];
+
+extern s32 D_80062524;
+
+extern s32 D_800595AC;
+
+extern s32 D_8004F370;
+
+extern void func_8003BDFC(int);
+
+extern void* HeapAlloc(u_int allocSize, u_int allocFlags);
+extern u_int HeapFree(void* pMem);
+extern int ArchiveSetIndex(int directoryIndex, int entryIndex);
+extern int ArchiveDecodeAlignedSize(unsigned int entryIndex);
+extern void ArchiveReadFileToBuffer(s32 index, void* pBuffer, u32 arg2, u32 flags);
+
+void func_8008AACC(void) {
+    int flags;
+    int wdsIndex;
+    void* pWdsEntry;
+    void* pWdsFileBuffer;
+
+    if (func_8008A558() == 0) {
+        if (SCRIPT_READ_U8_REL(1) == 1) {
+            D_80062518[D_800AFD18] = SoundLoadWdsFile(D_800AFD08, 0);
+            func_8003BDFC(0x10);
+            HeapFree(D_800AFD08);
+            if (D_800AFD18 == 3) {
+                D_800595AC = D_80062524;
+            }
+            D_800B00C0 = 1;
+            g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
+        } else {
+            wdsIndex = FieldScriptVMGetArgument(2);
+            pWdsEntry = D_80062518[wdsIndex];
+            D_800AFD18 = wdsIndex;
+            SoundFreeWdsEntry(pWdsEntry);
+            flags = FieldScriptVMGetArgument(4);
+            D_800AFD0C = flags;
+            if (!(flags & 0x80)) {
+setIndex1C:
+                ArchiveSetIndex(0x1C, 0);
+                D_800AFD0C += 2;
+                goto readFile;
+            }
+            if (D_8004F370 != 1) {
+                D_800AFD0C = (flags & 0x7F) + 0x1F;
+                ArchiveSetIndex(0x2C, 1);
+                goto readFile;
+            }
+            D_800AFD0C = 4;
+            goto setIndex1C;
+readFile:
+            pWdsFileBuffer = HeapAlloc(ArchiveDecodeAlignedSize(D_800AFD0C), 0);
+            D_800AFD08 = pWdsFileBuffer;
+            ArchiveReadFileToBuffer(D_800AFD0C, pWdsFileBuffer, 0, 0x80);
+            ArchiveSetIndex(4, 0);
+            g_FieldScriptVMCurActor->scriptInstructionPointer += 6;
+        }
+    } else {
+        D_800B00C0 = 1;
+        g_FieldScriptVMCurActor->scriptInstructionPointer -= 1;
+    }
+}
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008ACE8);
 
