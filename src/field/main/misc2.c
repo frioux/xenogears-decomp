@@ -517,10 +517,11 @@ void func_80075910(void) {
 
 
 // .rodata
+// This unit owns 0x8006FB04..0x8006FB80 of .rodata (0x7C bytes, per field.yaml) and
+// none of it is defined in C yet; D_8006FB70 is its last 0x10 bytes.
+extern const VECTOR D_8006FB70;
 
 // Builds the sprite rotation matrix rows for a billboard from the up vector
-INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_800759E4);
-/*
 void func_800759E4(s16* pOut, VECTOR* pUp) {
     VECTOR zAxis;
     VECTOR xAxis;
@@ -542,7 +543,6 @@ void func_800759E4(s16* pOut, VECTOR* pUp) {
     pOut[7] = zAxis.vy;
     pOut[8] = zAxis.vz;
 }
-*/
 
 void func_80075B08(SpriteData* pSpriteData, u_char* pColor) {
     if (D_800B218E == 0) {
