@@ -742,7 +742,29 @@ long MathGetLargestVectorComponent(long x, long y, long z) {
     return result;
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/model", func_8002DD20);
+// A block of TIM images: the image count followed by the byte offset of each
+// image from the start of the block. The low two bits of an offset are reserved.
+typedef struct {
+    /* 0x0 */ s32 count;
+    /* 0x4 */ u32 offsets[1]; // count entries
+} ModelTextureBlock;
+
+void func_8002DD20(ModelTextureBlock* pBlock) {
+    TIM_IMAGE tim;
+    int i;
+
+    i = pBlock->count;
+    while (--i != -1) {
+        OpenTIM((u_long*)((u8*)pBlock + ((pBlock->offsets[i] >> 2) << 2)));
+        ReadTIM(&tim);
+        if (tim.caddr != NULL) {
+            DrawSync(0);
+            LoadImage(tim.crect, tim.caddr);
+        }
+        DrawSync(0);
+        LoadImage(tim.prect, tim.paddr);
+    }
+}
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/model", func_8002DDE4);
 
