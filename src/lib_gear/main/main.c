@@ -311,7 +311,78 @@ INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801DCEC8);
 
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801DDBF8);
 
-INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801DEF10);
+// Keyframe block consumed by the joint update loops: a 0x18 byte header
+// followed by per-frame (rotation, translation) s16 triples.
+typedef struct {
+    /* 0x0  */ u16 unk0;
+    /* 0x2  */ u16 unk2;
+    /* 0x4  */ u16 unk4; // bit 0 skips the rotation channel, bit 1 the translation channel
+    /* 0x6  */ s16 unk6;
+    /* 0x8  */ u16 unk8;
+    /* 0xA  */ u16 unkA;
+    /* 0xC  */ u16 unkC;
+    /* 0xE  */ u16 unkE;
+    /* 0x10 */ u16 unk10;
+    /* 0x12 */ u16 unk12;
+    /* 0x14 */ u16 unk14;
+    /* 0x16 */ u16 unk16;
+    /* 0x18 */ s16 keyframes[0];
+} KeyframeBlock; // Size: 0x18
+
+void func_801DEF10(ModelJoint* pSkeleton, KeyframeBlock* pBlock) {
+    s16* pKeyframe = pBlock->keyframes;
+    u16 rotFrame = 0;
+    u16 transFrame = 0;
+    u16 unk6 = pBlock->unk6;
+    u16 numRotFrames = pBlock->unkC;
+    u16 numTransFrames = pBlock->unkE;
+    u16 flags = pBlock->unk4;
+    u16 count;
+    int i;
+    int x;
+    int y;
+    int z;
+    ModelJoint* pJoint = pSkeleton;
+    if (unk6 == 0) {
+        pKeyframe += (numRotFrames + 1) * 3;
+    }
+
+    count = pSkeleton->numChildren - 1;
+    for (i = 0; i < count; i++) {
+        pJoint++;
+
+        if (!(flags & 0x1) && rotFrame < numRotFrames) {
+            x = *pKeyframe++;
+            y = *pKeyframe++;
+            z = *pKeyframe++;
+            rotFrame++;
+            if (pJoint->rotation.vx != x || pJoint->rotation.vy != y || pJoint->rotation.vz != z) {
+                if (pJoint->pCurModelPacket == NULL || ((Temp3*)pJoint->pCurModelPacket)->unk3 != 0xFF) {
+                    pJoint->rotation.vx = x;
+                    pJoint->rotation.vy = y;
+                    pJoint->rotation.vz = z;
+                    pJoint->doTransform = 1;
+                    pJoint->doRotate = 1;
+                }
+            }
+        }
+
+        if (!(flags & 0x2) && transFrame < numTransFrames) {
+            x = *pKeyframe++;
+            y = *pKeyframe++;
+            z = *pKeyframe++;
+            transFrame++;
+            if (pJoint->translation.x != x || pJoint->translation.y != y || pJoint->translation.z != z) {
+                if (pJoint->unk70 == 0 || ((Temp3*)pJoint->unk70)->unk3 != 0xFF) {
+                    pJoint->translation.x = x;
+                    pJoint->translation.y = y;
+                    pJoint->translation.z = z;
+                    pJoint->doTransform = 1;
+                }
+            }
+        }
+    }
+}
 
 // Best attempt: objdiff 95.96%. Only the register holding the keyframe pointer
 // (a2 here, a1 in the original), the flags register (a3 vs a2) and two prologue
@@ -906,7 +977,50 @@ s16 (*func_801E34BC(s32 type))(s16, s16, s16) {
 // difference is where gcc materialises the shared -1 for unk98/unk3A/unk1E.
 // The original hoists `li v1,-1` to the top of the function; holding -1 in a
 // local initialized first moves ours up to insn 6, not to the top.
-INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E3534);
+void func_801E3534(Model* pModel, s32 arg1, u32 arg2, u32 arg3) {
+    s16 negOne;
+
+    negOne = -1;
+
+    pModel->unk3C = 0xFFFF;
+    pModel->unk5C = 0xFF;
+    pModel->unk39 = 0x6B;
+
+    pModel->unk8 = arg2;
+    pModel->unkC = 0;
+    pModel->unk10 = 0;
+    pModel->unk14 = (Temp7**)arg3;
+    pModel->unk18 = NULL;
+
+    pModel->unk2B = 0;
+    pModel->unk98 = negOne;
+    pModel->unk58 = 0;
+
+    pModel->unk35 = 0;
+    pModel->unk37 = 0;
+    pModel->unk38 = 0;
+    pModel->unk3A = negOne;
+
+    pModel->unk70[0] = 0;
+    pModel->unk70[1] = 0;
+    pModel->unk70[2] = 0;
+    pModel->unk70[3] = 0;
+    pModel->unk70[4] = 0;
+    pModel->unk70[5] = 0;
+    pModel->unk70[6] = 0;
+    pModel->unk70[7] = 0;
+    pModel->unk70[8] = 0;
+    pModel->unk70[9] = 0;
+    pModel->unk70[10] = 0;
+    pModel->unk70[11] = 0;
+    pModel->unk70[12] = 0;
+    pModel->unk70[13] = 0;
+    pModel->unk70[14] = 0;
+    pModel->unk70[15] = 1;
+
+    pModel->unk36 = 0;
+    pModel->unk1E = negOne;
+}
 /*
     void func_801E3534(Model* pModel, s32 arg1, u32 arg2, u32 arg3) {
         s32 negOne;
@@ -1234,7 +1348,29 @@ int func_801E67F8(void) {
 // narrowing (`andi v0,a1,0xff`) of the merged index before `li v1,1; sllv`,
 // with a u8 index and with `s32 index; 1 << (index & 0xFF)` gcc 2.6 drops the
 // mask (a shift count only needs its low 5 bits)
-INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E6830);
+void func_801E6830(Model* pModel, u8 type, s16* pMask) {
+    s32 index;
+
+    if (type == 0xFF) {
+        index = func_801E67F8();
+    } else if (type == 0xFE) {
+        index = *(u8*)&D_801E86B0;
+    } else if (type == 0xFD || type == 0xF9) {
+        index = pModel->unk20;
+    } else if (type == 0xFC) {
+        index = pModel->unk21;
+    } else if (type == 0xFA) {
+        index = 0xA;
+    } else if (type == 0xF8) {
+        index = pModel->unk20 * 2 + 8;
+    } else if (type == 0xF7) {
+        index = pModel->unk20 * 2 + 9;
+    } else {
+        index = type;
+    }
+
+    *pMask = 1 << (u8)index;
+}
 /* void func_801E6830(Model* pModel, u8 type, s16* pMask) {
     u8 index;
 
