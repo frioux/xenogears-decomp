@@ -40,8 +40,10 @@ void FieldComputeSceneMatrices(void) {
 }
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80072254);
-// 72.62%: the code is right, but gcc keeps &g_FieldActors in s1 for the two
-// loads after the scale reads, where this version rematerialises lui/%lo each time
+// 72.70%: everything matches except that the original keeps &g_FieldActors in $s1
+// across the RotMatrix call (lui/addiu, then `lw $a1, 0($s1)` twice) where gcc
+// rematerialises %hi/%lo for the second use, so the frame is 0x28 instead of 0x30.
+// Pointer locals (plain and volatile FieldActor** forms) make it worse, not better.
 /*
 void func_80072254(int actorIndex) {
     VECTOR scale;
@@ -51,8 +53,8 @@ void func_80072254(int actorIndex) {
     scale.vx = *(s16*)&pActor->pActorData->scaleX;
     scale.vy = *(s16*)&pActor->pActorData->scaleY;
     scale.vz = *(s16*)&pActor->pActorData->scaleZ;
-    pActor = &g_FieldActors[actorIndex];
-    RotMatrix((SVECTOR*)&pActor->rotation, &pActor->transformMatrix);
+    RotMatrix(&g_FieldActors[actorIndex].rotation,
+        &g_FieldActors[actorIndex].transformMatrix);
     ScaleMatrix(&g_FieldActors[actorIndex].transformMatrix, &scale);
 }
 */
