@@ -2510,6 +2510,20 @@ u8* SoundScriptNop5(u8* pScript, AudioManager* pAudioManager, AudioElement* pAud
 }
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003E360);
+/*
+Attempt (93.38%, same size): only the s-register assignment is swapped (original
+keeps pScript in s1 / pAudioElements in s2, gcc 2.6 picks the opposite) and the
+original returns pScript+1 from s1 in v0 instead of computing it early.
+u8* func_8003E360(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
+    u8 index = pScript[0];
+    AudioEnvelope* pEnvelope = &pAudioElements->envelopes[index];
+
+    func_8003E3E0(pEnvelope);
+    pEnvelope->flags |= 0x1;
+    pAudioElements->unk_0xCE |= 1 << index;
+    return pScript + 1;
+}
+*/
 
 void func_8003E3E0(AudioEnvelope* pEnvelope) {
     pEnvelope->count = 1;
