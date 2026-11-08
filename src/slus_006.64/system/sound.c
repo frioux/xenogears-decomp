@@ -887,6 +887,7 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", SoundHeapFree);
 Attempt (96.62%, same size): every instruction is right and pBlock=s1 / pCurrent=s0
 match; the original copies the loop variable to v0 (`move v0,s0`) and iterates on v0,
 gcc keeps iterating on s0. Adding a separate loop variable coalesces back to s0.
+A guarded do/while version scores 94.79% (it leaves pBlock in s0 / pCurrent in s1).
 void SoundHeapFree(void* pMemory) {
     SoundHeapBlockHeader* pBlock;
     SoundHeapBlockHeader* pCurrent = g_SoundHeapHead;
