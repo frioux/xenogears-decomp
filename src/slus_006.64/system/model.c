@@ -742,7 +742,29 @@ long MathGetLargestVectorComponent(long x, long y, long z) {
     return result;
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/model", func_8002DD20);
+// A block of TIM images: the image count followed by the byte offset of each
+// image from the start of the block. The low two bits of an offset are reserved.
+typedef struct {
+    /* 0x0 */ s32 count;
+    /* 0x4 */ u32 offsets[1]; // count entries
+} ModelTextureBlock;
+
+void func_8002DD20(ModelTextureBlock* pBlock) {
+    TIM_IMAGE tim;
+    int i;
+
+    i = pBlock->count;
+    while (--i != -1) {
+        OpenTIM((u_long*)((u8*)pBlock + ((pBlock->offsets[i] >> 2) << 2)));
+        ReadTIM(&tim);
+        if (tim.caddr != NULL) {
+            DrawSync(0);
+            LoadImage(tim.crect, tim.caddr);
+        }
+        DrawSync(0);
+        LoadImage(tim.prect, tim.paddr);
+    }
+}
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/model", func_8002DDE4);
 
@@ -785,7 +807,30 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/model", func_8002FCFC);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/model", func_8002FF0C);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/model", func_8003014C);
+// A value that eases toward unk4 by unkC per call, clamped so that it never
+// overshoots it.
+typedef struct {
+    /* 0x0 */ u32 unk0;
+    /* 0x4 */ s32 unk4;
+    /* 0x8 */ s32 unk8;
+    /* 0xC */ s32 unkC;
+} ModelRampValue; // Size: 0x10
+
+s32 func_8003014C(ModelRampValue* pRamp) {
+    if (pRamp->unk8 > pRamp->unk4) {
+        pRamp->unk8 -= pRamp->unkC;
+        if (pRamp->unk8 < pRamp->unk4) {
+            pRamp->unk8 = pRamp->unk4;
+        }
+    }
+    if (pRamp->unk8 < pRamp->unk4) {
+        pRamp->unk8 += pRamp->unkC;
+        if (pRamp->unk4 < pRamp->unk8) {
+            pRamp->unk8 = pRamp->unk4;
+        }
+    }
+    return pRamp->unk8;
+}
 
 // Vertex data as the packet renderer touches it: three unsigned 16-bit
 // components followed by padding.
@@ -808,13 +853,101 @@ void func_800301C8(ModelVertex* pDest, ModelVertex* pSrc, int count, short* pInd
     }
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/model", func_80030228);
+// A per-vertex offset: the fourth component names the destination vertex the
+// first three are added to.
+typedef struct {
+    /* 0x0 */ s16 x;
+    /* 0x2 */ s16 y;
+    /* 0x4 */ s16 z;
+    /* 0x6 */ s16 index;
+} ModelVertexDelta; // Size: 0x8
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/model", func_800302D4);
+void func_80030228(ModelVertex* pDest, ModelVertexDelta* pDeltas, int count, int scale) {
+    ModelVertex* pVertex;
+
+    if (scale == 0) {
+        return;
+    }
+    while (--count != -1) {
+        pVertex = (ModelVertex*)((pDeltas->index << 3) + (mem_addr)pDest);
+        pVertex->x += (pDeltas->x * scale) >> 12;
+        pVertex->y += (pDeltas->y * scale) >> 12;
+        pVertex->z += (pDeltas->z * scale) >> 12;
+        pDeltas++;
+    }
+}
+
+void func_800302D4(ModelVertex* pDest, ModelVertexDelta* pDeltas, int count, int scale) {
+    ModelVertex* pVertex;
+
+    if (scale == 0) {
+        return;
+    }
+    while (--count != -1) {
+        pVertex = (ModelVertex*)((pDeltas->index << 3) + (mem_addr)pDest);
+        pVertex->x += (pDeltas->x * scale) >> 12;
+        pVertex->y += (pDeltas->y * scale) >> 12;
+        pVertex->z += (pDeltas->z * scale) >> 12;
+        VectorNormalSS((SVECTOR*)pVertex, (SVECTOR*)pVertex);
+        pDeltas++;
+    }
+}
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/model", func_800303C8);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/model", func_800305D8);
+// Per-LOD vertex sources for a model part: the vertex count, then the delta
+// arrays applied to the part's vertices at each level of detail.
+typedef struct {
+    /* 0x0 */ s32 count;
+    /* 0x4 */ ModelVertexDelta* pDeltas;
+    /* 0x8 */ ModelVertexDelta* pDeltasHigh;
+} ModelLodDeltas; // Size: 0xC
+
+// One level of detail: a callback yielding this frame's blend weight, followed
+// by whatever state that callback keeps.
+typedef struct ModelLodWeight {
+    /* 0x0  */ s32 (*pGetWeight)(struct ModelLodWeight* pWeight);
+    /* 0x4  */ u32 unk4[7];
+} ModelLodWeight; // Size: 0x20
+
+// A model part to re-pose this frame, its base vertex source, and the weights
+// blending the per-LOD deltas into it.
+typedef struct {
+    /* 0x0  */ ModelPart* pModelPart;
+    /* 0x4  */ ModelVertex* pBaseVertices;
+    /* 0x8  */ u32 unk8;
+    /* 0xC  */ s32 numLods;
+    /* 0x10 */ ModelLodWeight* pLodWeights;
+} ModelPoseState; // Size: 0x14
+
+void func_800305D8(ModelPoseState* pPose) {
+    ModelPart* pModelPart;
+    ModelLodDeltas* pDeltas;
+    ModelLodWeight* pWeight;
+    int count;
+    int i;
+    int scale;
+
+    if (pPose == NULL) {
+        return;
+    }
+    pModelPart = pPose->pModelPart;
+    count = pPose->numLods;
+    pDeltas = (ModelLodDeltas*)(pModelPart->unk1C + 1);
+    pWeight = pPose->pLodWeights;
+    func_800301C8((ModelVertex*)pModelPart->pVertices, pPose->pBaseVertices,
+                  pDeltas[count].count, (short*)pDeltas[count].pDeltas);
+    for (i = 0; i < count; i++) {
+        scale = pWeight->pGetWeight(pWeight);
+        func_80030228((ModelVertex*)pModelPart->pVertices, pDeltas[i].pDeltas,
+                      pDeltas[i].count, scale);
+        if (pModelPart->flags & 0x10) {
+            func_800302D4((ModelVertex*)pModelPart->unkC, pDeltas[i].pDeltasHigh,
+                          pDeltas[i].count, scale);
+        }
+        pWeight++;
+    }
+}
 
 // Saved state of a model part's vertex data, so that a part can have its
 // vertices replaced and later restored.
@@ -857,7 +990,17 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/model", func_80030EE8);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/model", func_8003101C);
 
+// The 21 functions from here to func_80031870 are the same handwritten packet
+// builder with a different command code: both constants are materialised with
+// `li $at`, and gcc never allocates $at for a value temp, so no C reproduces it.
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/model", func_800315A0);
+/* Best C match, 72.78%: differs only in $at/$t0 vs $v0/$v1.
+void func_800315A0(u32* pLink, u32 addr) {
+    u32 link = *pLink;
+    *pLink = addr & 0xFFFFFF;
+    *(u32*)(addr & 0xFFFFFF) = link | 0x4000000;
+}
+*/
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/model", func_800315C4);
 
