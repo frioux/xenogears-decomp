@@ -551,69 +551,65 @@ void ArchiveCdDriveCommandHandler(u_char status, u_char* pResult) {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002AC24);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002B084);
-/* Best attempt: objdiff 98.97%. Sole difference is where gcc materialises the
- * 0x200 constant for the last CdGetSector: the original hoists it into the delay
- * slot of the `bgez` that starts the (size + 3) / 4 division, this emits it after
- * the sra. Status is CdlDataReady (0x1) and the final command is CdlNop, not
- * CdlComplete/CdlPause.
- * void func_8002B084(u_char status) {
- *     s32 i;
- *     s32 j;
- *
- *     if (status != CdlDataReady)
- *         goto error;
- *
- *     if (D_8004FE34 > 0)
- *         goto halt;
- *
- *     if (g_ArchiveCurFileSize >= CD_SECTOR_SIZE) {
- *         CdGetSector(&D_80059EF8, 3);
- *         CdGetSector(D_8004FE08, CD_SECTOR_SIZE / 4);
- *     } else if (g_ArchiveCurFileSize > 0) {
- *         CdGetSector(&D_80059EF8, 3);
- *         CdGetSector(D_8004FE08, (g_ArchiveCurFileSize + 3) / 4);
- *         CdGetSector(D_800596F8, 512 - (g_ArchiveCurFileSize + 3) / 4);
- *     }
- *
- *     if (CdPosToInt(&D_80059EF8) != g_ArchiveCurFileSector) {
- *         D_8004FDE4 += 1;
- *         goto error;
- *     }
- *
- *     g_ArchiveCurFileSector += 1;
- *     D_8004FE08 += CD_SECTOR_SIZE;
- *     g_ArchiveCurFileSize -= CD_SECTOR_SIZE;
- *     if (g_ArchiveCurFileSize > 0)
- *         return;
- *
- * halt:
- *     CdReadyCallback(NULL);
- *     g_ArchiveCurFileSize = 0;
- *     ArchiveCdSeekToFile(D_8004FE38);
- *     D_8004FDFC = 0;
- *     return;
- *
- * error:
- *     D_8005A4DC += 1;
- *     D_80059F08 = CdReadyCallback(NULL);
- *     CdIntToPos(g_ArchiveCurFileSector, &g_ArchiveCdCurLocation);
- *     if (D_8005A4DC < 3) {
- *         g_ArchiveCdDriveError = ARCHIVE_CD_DRIVE_ERR_READ;
- *     } else {
- *         for (i = 9999; i >= 0; i--) {
- *             for (j = 1999; j >= 0; j--) {
- *             }
- *         }
- *         D_8005A4DC = 0;
- *         g_ArchiveCdDriveError = ARCHIVE_CD_DRIVE_ERR_HALT;
- *         D_8005A4A4 += 1;
- *     }
- *     g_ArchiveCdDriveState = ARCHIVE_CD_DRIVE_ERROR;
- *     CdSyncCallback(&ArchiveCdDriveCommandHandler);
- *     CdControlF(CdlNop, NULL);
- * }
- */
+void func_8002B084(u_char status) {
+    s32 nHalfSector;
+    s32 i;
+    s32 j;
+
+    if (status != CdlDataReady)
+        goto error;
+
+    if (D_8004FE34 > 0)
+        goto halt;
+
+    if (g_ArchiveCurFileSize >= CD_SECTOR_SIZE) {
+        CdGetSector(&D_80059EF8, 3);
+        CdGetSector(D_8004FE08, CD_SECTOR_SIZE / 4);
+    } else if (g_ArchiveCurFileSize > 0) {
+        CdGetSector(&D_80059EF8, 3);
+        CdGetSector(D_8004FE08, (g_ArchiveCurFileSize + 3) / 4);
+        nHalfSector = CD_SECTOR_SIZE / 4;
+        nHalfSector -= (g_ArchiveCurFileSize + 3) / 4;
+        CdGetSector(D_800596F8, nHalfSector);
+    }
+
+    if (CdPosToInt(&D_80059EF8) != g_ArchiveCurFileSector) {
+        D_8004FDE4 += 1;
+        goto error;
+    }
+
+    g_ArchiveCurFileSector += 1;
+    D_8004FE08 += CD_SECTOR_SIZE;
+    g_ArchiveCurFileSize -= CD_SECTOR_SIZE;
+    if (g_ArchiveCurFileSize > 0)
+        return;
+
+halt:
+    CdReadyCallback(NULL);
+    g_ArchiveCurFileSize = 0;
+    ArchiveCdSeekToFile(D_8004FE38);
+    D_8004FDFC = 0;
+    return;
+
+error:
+    D_8005A4DC += 1;
+    D_80059F08 = CdReadyCallback(NULL);
+    CdIntToPos(g_ArchiveCurFileSector, &g_ArchiveCdCurLocation);
+    if (D_8005A4DC < 3) {
+        g_ArchiveCdDriveError = ARCHIVE_CD_DRIVE_ERR_READ;
+    } else {
+        for (i = 9999; i >= 0; i--) {
+            for (j = 1999; j >= 0; j--) {
+            }
+        }
+        D_8005A4DC = 0;
+        g_ArchiveCdDriveError = ARCHIVE_CD_DRIVE_ERR_HALT;
+        D_8005A4A4 += 1;
+    }
+    g_ArchiveCdDriveState = ARCHIVE_CD_DRIVE_ERROR;
+    CdSyncCallback(&ArchiveCdDriveCommandHandler);
+    CdControlF(CdlNop, NULL);
+}
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002B2F0);
 /* Best attempt: objdiff 94.80%. Register allocation and the section-search loop
@@ -706,55 +702,52 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002B2F0);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002B5D0);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002B8B0);
-/* Best attempt: objdiff 83.60%. Only the loop registers differ (gcc puts the
- * section count in v1 and the current entry in a0; the original uses a0 for the
- * count, a1 for the entry index and a2 for the pointer).
- * void func_8002B8B0(void) {
- *     ArchiveStreamFileSectionHeader* pSection;
- *     ArchiveStreamFileSectionHeader* pCurrent;
- *     s16 i;
- *     int entryIndex;
- *
- *     if (g_ArchiveCurFileSize <= 0) {
- *         g_ArchiveCurFileSize = 0;
- *         return;
- *     }
- *
- *     pSection = D_8004FE2C;
- *     for (i = 0; i < D_8004FE40; i++) {
- *         entryIndex = D_8004FE10;
- *         D_8004FE10 = entryIndex + 1;
- *         if (D_8004FE10 >= D_8004FE40) {
- *             D_8004FE10 = 0;
- *         }
- *         pCurrent = &pSection[entryIndex];
- *         if (pCurrent->state == 0) {
- *             break;
- *         }
- *     }
- *
- *     if (pCurrent->state == 0) {
- *         pCurrent->state = 1;
- *         pCurrent->id = D_8004FE26;
- *         D_8004FE26 += 1;
- *         for (i = 0; i < RETRY_COUNT; i++) {
- *             if (PCread(D_80059F04, D_8004FE08 + entryIndex * CD_SECTOR_SIZE, CD_SECTOR_SIZE) != 0)
- *                 break;
- *             func_8002804C(i, 0, 0xFF, 0);
- *         }
- *         g_ArchiveCurFileSize -= CD_SECTOR_SIZE;
- *         g_ArchiveCurFileSector += 1;
- *     } else {
- *         g_ArchiveCurFileSize = 0;
- *     }
- *
- *     if (g_ArchiveCurFileSize <= 0) {
- *         g_ArchiveCurFileSize = 0;
- *     }
- * }
+void func_8002B8B0(void) {
+    ArchiveStreamFileSectionHeader* pSection;
+    s16 i;
+    int entryIndex;
+    int numSections;
+    ArchiveStreamFileSectionHeader* pCurrent;
 
- */
+    if (g_ArchiveCurFileSize <= 0) {
+        g_ArchiveCurFileSize = 0;
+        return;
+    }
+
+    pSection = D_8004FE2C;
+    numSections = D_8004FE40;
+    for (i = 0; i < numSections; i++) {
+        entryIndex = D_8004FE10;
+        pCurrent = &pSection[entryIndex];
+        D_8004FE10 = entryIndex + 1;
+        if (D_8004FE10 >= numSections) {
+            D_8004FE10 = 0;
+        }
+        if (pCurrent->state == 0) {
+            break;
+        }
+    }
+
+    if (pCurrent->state == 0) {
+        pCurrent->state = 1;
+        pCurrent->id = D_8004FE26;
+        D_8004FE26 += 1;
+        for (i = 0; i < RETRY_COUNT; i++) {
+            if (PCread(D_80059F04, D_8004FE08 + entryIndex * CD_SECTOR_SIZE, CD_SECTOR_SIZE) != 0) {
+                break;
+            }
+            func_8002804C(i, 0, 0xFF, 0);
+        }
+        g_ArchiveCurFileSize -= CD_SECTOR_SIZE;
+        g_ArchiveCurFileSector += 1;
+    } else {
+        g_ArchiveCurFileSize = 0;
+    }
+
+    if (g_ArchiveCurFileSize <= 0) {
+        g_ArchiveCurFileSize = 0;
+    }
+}
 
 void func_8002BA40(void) {
     D_8004FDFC = D_8004FE00;
