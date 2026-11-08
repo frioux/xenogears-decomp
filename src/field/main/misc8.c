@@ -10,6 +10,7 @@
 #include "system/sound.h"
 #include "psyq/libetc.h"
 #include "psyq/libcd.h"
+#include "field/particles.h"
 
 extern int D_800ADBFC;
 void func_8008083C(int actorIndex) {
@@ -457,9 +458,84 @@ void func_80085988(void) {
     D_8004F32C = -1;
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800859DC);
+// WDS files are streamed in 0x800-byte blocks; the header occupies the first four.
+typedef struct {
+    /* 0x0 */ u_long unk0[0x200];
+} FieldWdsBlock; // Size: 0x800
+
+extern FieldWdsBlock* D_800C3A1C;
+extern s32 D_800B2370;
+extern SoundWDSEntry* g_GameCurLoadedWDS;
+extern s32 D_8004F308;
+extern s32 D_8004F33C;
+extern s32 D_8004F354;
+extern s32 D_800AFC54;
+extern u8 D_800ADFCD[];
+extern void ArchiveCdDataSync(int mode);
+extern void func_8001B66C(void);
+void func_8002945C(void* pData);
+void func_8003BDFC(int arg0);
+void SoundTransferWdsPart(void* pBuffer, int size);
+SoundWDSEntry* func_800380D0(void* pBuffer, int size, int arg2);
+void func_80085560(int archiveIndex, int unused, void* pCallback);
+
+void func_800859DC(FieldWdsBlock* pBlock) {
+    int bankIndex = D_800B2370;
+
+    switch (bankIndex) {
+        case 0:
+        case 1:
+        case 2:
+        case 3:
+            D_800C3A1C[bankIndex] = *pBlock;
+            D_800B2370++;
+            func_8002945C(pBlock);
+            if (D_800B2370 == 4) {
+                g_GameCurLoadedWDS = func_800380D0(D_800C3A1C, 0x2000, 0);
+            }
+            break;
+        case 4:
+            func_8003BDFC(0x10);
+            D_800C3A1C[0] = *pBlock;
+            SoundTransferWdsPart(D_800C3A1C, 0x800);
+            func_8002945C(pBlock);
+            break;
+    }
+}
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80085B20);
+/* 95.92%: only the block index computation differs. The original computes
+   `2 * streamId + 0x13` into v0 before the D_8004F33C check and copies it to a0
+   at the call (`addiu v0,v0,0x13` / `move a0,v0`); gcc here computes it straight
+   into a0 inside the branch body, which also leaves gcc's two delay slots empty
+   and gives D_8004F33C the v0 register.
+void func_80085B20(int arg0) {
+    u_short streamId;
+
+    ArchiveCdDataSync(0);
+    func_8001B66C();
+    if (arg0 == 0xFF) {
+        D_8004F308 = 0;
+        return;
+    }
+    ArchiveSetIndex(0x1C, 0);
+    if (D_800ADFCD[arg0 * 2] == 1) {
+        func_80086024();
+    }
+    streamId = D_800ADFCD[arg0 * 2 - 1];
+    if (streamId != 0xFF) {
+        if (D_8004F33C != streamId) {
+            func_80085560(streamId * 2 + 0x13, 1, (void*)func_800859DC);
+            D_8004F354 = 1;
+            D_800B2370 = 0;
+            D_800C3A1C = HeapAlloc(0x2000, 1);
+        }
+    }
+    ArchiveSetIndex(4, 0);
+    D_8004F308 = -1;
+    D_800AFC54 = 1;
+}
+*/
 
 int func_80085C3C(void) {
     int i;
@@ -614,7 +690,32 @@ void FieldActorWorldToScreenPosition(int actorIndex, int* pScreenX, int* pScreen
 }
 */
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800862CC);
+void func_800862CC(int arg0, int arg1, int arg2, int arg3, int actorIndex) {
+    short value;
+    int screenX;
+    int screenY;
+    int i;
+    int scaled;
+
+    for (i = 0; i < 3; i++) {
+        if (D_800AFE8A[i].unk0 == 0xFFFF) {
+            D_800AFE8A[i].unk0 = arg0;
+            D_800AFE88[i].unk0 = actorIndex;
+            func_80086078(arg3, (int*)&value, arg1);
+            FieldActorWorldToScreenPosition(actorIndex, &screenX, &screenY);
+            if (screenX >= 0x141) {
+                screenX = 0x13F;
+            }
+            if (screenX < 0) {
+                screenX = 0;
+            }
+            scaled = screenX * 0x6666 >> 16;
+            func_8003A20C(i * 2);
+            func_80039F9C((void*)arg0, (short)(i * 2), value, scaled);
+            break;
+        }
+    }
+}
 
 void func_800863E8(u_int arg0) {
     int i;
@@ -720,7 +821,36 @@ void func_80086BA8(void) {
     }
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80086C34);
+extern s32 D_800AFD1C;
+void FieldInitializeDefaultParticleBanks(int targetActorID);
+int FieldInitializeParticleBanks(int actorIndex);
+
+void func_80086C34(void) {
+    int arg0;
+    int arg1;
+    int arg2;
+
+    switch (SCRIPT_READ_U8_REL(1)) {
+        case 0:
+            g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
+            break;
+        case 1:
+            arg0 = FieldScriptVMGetArgument(2);
+            arg1 = FieldScriptVMGetArgument(4);
+            arg2 = FieldScriptVMGetArgument(6);
+            FieldInitializeDefaultParticleBanks(D_800AFD1C);
+            g_FieldDefaultParticleBanks[0].flags = 0x14;
+            g_FieldDefaultParticleBanks[0].unk0 = 0x1;
+            g_FieldDefaultParticleBanks[0].max = 0x10;
+            g_FieldDefaultParticleBanks[0].unk72 = 0x0;
+            g_FieldDefaultParticleBanks[0].unk74 = arg1;
+            g_FieldDefaultParticleBanks[0].unk74 = (arg1 == 0x27) ? 0x20 : 0x22;
+            g_FieldDefaultParticleBanks[0].ewait = 0x1000;
+            FieldInitializeParticleBanks(D_800AFD1C);
+            g_FieldScriptVMCurActor->scriptInstructionPointer += 8;
+            break;
+    }
+}
 
 void GameSoftReset(void);
 
