@@ -395,7 +395,7 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc12", func_8009AA00);
    leaving it in that call's jal delay slot. Same hoist as
    FieldScriptVMWritePartyLeaderCharacterID. Tried: naming the pTargetActor
    index in a local (no change); swapping the two assignments changes the
-   s0/s1 allocation so it is not the same code.
+   s0/s1 allocation so it is not the same code. */
 void func_8009AA00(void) {
     ActorData* pTargetActor;
     ActorData* pActor;
@@ -421,7 +421,7 @@ void func_8009AA00(void) {
     }
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
- */
+
 void func_8009AB08(int rotation) {
     short rotationValue;
 
@@ -696,7 +696,7 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc12", func_8009B398);
    a1/a2); the original emits `sh 204(v0)` first and materialises the 1 into v0
    after it. Everything from the else arm onwards matches instruction for
    instruction. Bit idiom `| ~0x7FFF` is the house spelling (see func_8009F4CC
-   in misc6.c): `| 0x8000` on the short field gives lh/ori instead of lhu/or.
+   in misc6.c): `| 0x8000` on the short field gives lh/ori instead of lhu/or. */
 void func_8009B398(void) {
     ActorData* pActor;
     short rotation;
@@ -749,7 +749,7 @@ void func_8009B398(void) {
         }
         D_800B21CE = 1;
     }
-} */
+}
 
 void func_8009B664(void) {
     FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(1), g_Scene.sceneScrZ);
@@ -853,7 +853,6 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc12", func_8009BA7C);
    single `sll 25`; gcc 2.7.2 CSEs the two shifts and combine folds
    (x<<9)<<16 -> sll 25. Tried: both statement orders, `* 0x200` / `* 0x10000`,
    a u_long temp for unk7C - all fold. */
-/*
 void func_8009BA7C(void) {
     int direction;
 
@@ -866,5 +865,4 @@ void func_8009BA7C(void) {
     SetGeomScreen(g_Scene.sceneScrZ);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 7;
 }
-*/
 
