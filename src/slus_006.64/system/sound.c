@@ -1939,20 +1939,13 @@ u8* func_8003D070(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
 }
 
 // Set tempo handler?
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003D0E8);
-/*
-Attempt (94.00%, same size): the only difference is the original's redundant
-`andi v0,v0,0xff` where gcc 2.6 emits `nop` (it fills the `lh` load delay slot);
-gcc 2.6 folds the mask away for every form tried (`u8`, `u16`, `*pScript & 0xFF`,
-`u8`->`u16` copy).
 u8* func_8003D0E8(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
-    u8 value = *pScript;
+    u8 value = *pScript++;
 
     pAudioManager->unk_0x58 = value << 16;
-    pAudioManager->unk_0x54 = value * (pAudioManager->unk_Interpolator_0x64.currentValue >> 16);
-    return pScript + 1;
+    pAudioManager->unk_0x54 = (value & 0xFF) * (s16)(pAudioManager->unk_Interpolator_0x64.currentValue >> 16);
+    return pScript;
 }
-*/
 
 u8* func_8003D110(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     s32 pad[2]; // unused: reproduces the original's 0x8-byte frame
@@ -1977,8 +1970,8 @@ u8* func_8003D110(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003D13C);
 /*
-Attempt (96.25%, correct size): original has `addu a2,a3,zero` where gcc emits
-`andi a2,a3,0xff`; with `s32 unk0` gcc drops the copy altogether.
+Attempt (96.25%, correct size): original has `move a2,a3` where gcc emits
+`andi a2,a3,0xff`; with an `s32` local gcc drops the copy altogether (93.12%).
 u8* func_8003D13C(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     u8 unk0 = pScript[0];
     u8 unk1 = pScript[1];
