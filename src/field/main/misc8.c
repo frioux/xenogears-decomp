@@ -200,7 +200,50 @@ void func_800821F4(int arg0, int actorId, FieldActor* pActor) {
 }
 */
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_8008237C);
+// Rectangular trigger zone given as a centre and per-axis half-extents, unlike
+// the quad-corner FieldTriggerZone. Centred on 0x22 (z) / 0x2A (x).
+typedef struct {
+    /* 0x0  */ u8 unk0[0x18];
+    /* 0x18 */ u_short unk18;
+    /* 0x1A */ u16 unk1A;
+    /* 0x1C */ u_short unk1C;
+    /* 0x1E */ u8 unk1E[0x4];
+    /* 0x22 */ s16 unk22;
+    /* 0x24 */ u8 unk24[0x6];
+    /* 0x2A */ s16 unk2A;
+} FieldExtentZone; // Size: 0x2C
+
+void func_80281678(FieldExtentZone* pZone);
+
+int func_8008237C(int z, int x, FieldExtentZone* pZone, int radius) {
+    long actorPosition2D;
+    long triggerPos1;
+    long triggerPos2;
+    long triggerPos3;
+    long triggerPos4;
+
+    actorPosition2D = (z << 0x10) + x;
+    triggerPos1 = ((pZone->unk22 - pZone->unk18 - radius) << 0x10) + (pZone->unk2A + pZone->unk1C + radius);
+    triggerPos2 = ((pZone->unk22 + pZone->unk18 + radius) << 0x10) + (pZone->unk2A + pZone->unk1C + radius);
+    triggerPos3 = ((pZone->unk22 + pZone->unk18 + radius) << 0x10) + (pZone->unk2A - pZone->unk1C - radius);
+    triggerPos4 = ((pZone->unk22 - pZone->unk18 - radius) << 0x10) + (pZone->unk2A - pZone->unk1C - radius);
+    if (NormalClip(triggerPos1, triggerPos2, actorPosition2D) < 0) {
+        return -1;
+    }
+    if (NormalClip(triggerPos2, triggerPos3, actorPosition2D) < 0) {
+        return -1;
+    }
+    if (NormalClip(triggerPos3, triggerPos4, actorPosition2D) < 0) {
+        return -1;
+    }
+    if (NormalClip(triggerPos4, triggerPos1, actorPosition2D) < 0) {
+        return -1;
+    }
+    if (g_FieldSystemMode == 0) {
+        func_80281678(pZone);
+    }
+    return 0;
+}
 
 // Four 2D trigger-zone corners packed one per short pair as (z << 16) + x.
 typedef struct {
@@ -290,24 +333,28 @@ void func_800831D0(SVECTOR* pDst, IVEC3* pSrc) {
 void func_80081F80(int, int);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800831F4);
-/* 92.68%: an unused 8-byte local (`RECT rect;`) reproduces the 0x20 frame, but
-   gcc keeps the loaded rotation in v1 (original loads v0 and copies to v1) and
-   sinks the second `sh 0x106` into the call delay slot.
+/* 92.68%: the whole chain matches; gcc loads vy straight into v1 and stores
+   `sh 0x106` into the call delay slot, where the original loads into v0 and
+   copies to v1 (`move v1,v0`, one more insn: 144 vs 140 bytes) and keeps both
+   stores before the reload of rotation.vx. `u_short value` for the second half
+   is required: it is what makes the second half a single `lhu`.
 void func_800831F4(int arg0, ActorData* pActor, int arg2, int arg3) {
-    short rotation;
+    short vy;
+    int rotation;
+    u_short value;
     RECT rect;
 
     if (pActor->moveModified.vx != 0 || pActor->moveModified.vz != 0) {
-        if (!(pActor->rotation.vy & 0x8000)) {
-            rotation = pActor->rotation.vy;
-            rotation += (arg3 & 1) ? -0x400 : 0x400;
+        vy = pActor->rotation.vy;
+        if (!(vy & 0x8000)) {
+            rotation = vy + ((arg3 & 1) ? -0x400 : 0x400);
             rotation &= 0xFFF;
             pActor->rotation.vx = rotation;
             pActor->rotation.vy = rotation;
             func_80081F80(arg0, pActor->rotation.vx);
-            rotation = pActor->rotation.vy | 0x8000;
-            pActor->rotation.vx = rotation;
-            pActor->rotation.vy = rotation;
+            value = pActor->rotation.vy | 0x8000;
+            pActor->rotation.vx = value;
+            pActor->rotation.vy = value;
         }
     }
 }
@@ -323,53 +370,51 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_8008399C);
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80084158);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_8008492C);
-/* 91.16%: the whole chain of early rejections matches; the tail differs only in
-   block placement (gcc merges this `return -1` into the epilogue with a
-   `li v0,-1` delay slot, the original keeps it as its own block, which in turn
-   lets the final `return 0` merge into the epilogue).
-   extern s32 D_800ADB98;
-   extern s32 D_800ADC0C;
+/* 91.16%: every check matches; the only residual is the `flags & 2` early
+   return. The original keeps it as its own `li v0,-1` block after the
+   `bltz`-style tail (280 bytes), so the `beqz` above it keeps a nop delay slot
+   and the later `beqz flags&4` gets `move v0,zero` from its target; gcc here
+   cross-jumps that return into the shared epilogue and fills the delay slots
+   itself (276 bytes).
+extern s32 D_800ADB98;
+extern s32 D_800ADC0C;
 
-   int func_8008492C(ActorData* pActor) {
-       if (pActor->curWalkmeshTriMaterial & 0x420000) {
-           return -1;
-       }
-       if (D_800ADB98 != 0) {
-           return -1;
-       }
-       if (pActor->moveModified.vx != 0) {
-           return -1;
-       }
-       if (pActor->moveModified.vy != 0) {
-           return -1;
-       }
-       if (pActor->moveModified.vz != 0) {
-           return -1;
-       }
-       if (D_800ADC0C != 1) {
-           return -1;
-       }
-       if (pActor->canInteract != 0xFF) {
-           return -1;
-       }
-       if (pActor->scriptFlags.flags & 0x401800) {
-           return -1;
-       }
-       if (pActor->flags & 1) {
-           if (pActor->walkmeshId == 0) {
-               return -1;
-           }
-       }
-       if (pActor->flags & 2) {
-           if (pActor->walkmeshId == 1) {
-               return -1;
-           }
-       }
-       if (pActor->flags & 4) {
-           return -(pActor->walkmeshId == 2);
-       }
-       return 0;
-   }
+int func_8008492C(ActorData* pActor) {
+    if (pActor->curWalkmeshTriMaterial & 0x420000) {
+        return -1;
+    }
+    if (D_800ADB98 != 0) {
+        return -1;
+    }
+    if (pActor->moveModified.vx != 0) {
+        return -1;
+    }
+    if (pActor->moveModified.vy != 0) {
+        return -1;
+    }
+    if (pActor->moveModified.vz != 0) {
+        return -1;
+    }
+    if (D_800ADC0C != 1) {
+        return -1;
+    }
+    if (pActor->canInteract != 0xFF) {
+        return -1;
+    }
+    if (pActor->scriptFlags.flags & 0x401800) {
+        return -1;
+    }
+    if (pActor->flags & 1 && pActor->walkmeshId == 0) {
+        return -1;
+    }
+    if (pActor->flags & 2 && pActor->walkmeshId == 1) {
+        return -1;
+    }
+    if (pActor->flags & 4) {
+        return -(pActor->walkmeshId == 2);
+    }
+    return 0;
+}
 */
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80084A40);
@@ -421,11 +466,15 @@ void func_8003A20C(int);
 void func_80039F9C(void*, int, int, int);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800855C8);
-/* 85.56%: gcc hoists `(arg3 & 7) * 2` into s0 and copies it (move a0,s0 /
-   move a1,s0); the original keeps `arg3 & 7` in s0 and shifts at each use.
+/* 85.56%: the original keeps `arg3 & 7` in s0 and shifts at each use
+   (`andi s0,a3,7`, `sll a0,s0,1`, `sll a1,s0,1`); gcc CSEs the doubled value
+   into s0 and copies it (`move a0,s0` / `move a1,s0`). Same size and registers,
+   so it links, but objdiff never reaches 100%.
 void func_800855C8(int arg0, int arg1, int arg2, int arg3) {
-    func_8003A20C((arg3 & 7) * 2);
-    func_80039F9C(arg0, (arg3 & 7) * 2, (s16)arg1, (s16)arg2);
+    int offset = arg3 & 7;
+
+    func_8003A20C(offset * 2);
+    func_80039F9C(arg0, offset * 2, (s16)arg1, (s16)arg2);
 }
 */
 
