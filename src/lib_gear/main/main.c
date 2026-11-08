@@ -311,85 +311,74 @@ INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801DCEC8);
 
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801DDBF8);
 
+// objdiff 95.98%. The whole loop body matches: the rotation channel tests
+// pJoint->unk70 (0x70) and the translation channel pJoint->unk74 (0x74) -- the
+// earlier attempt had those one field low (pCurModelPacket / unk70), which cost
+// the two `lw 108(a0)` / `lw 112(a0)` loads. Only the 0x18 prologue differs:
+// gcc emits the `addiu pKeyframe` first and parks the flags value one register
+// high (a3 vs a2) instead of keeping pKeyframe in a1 (pBlock's incoming
+// register, as the original's `addiu a1,a1,0x18` in the branch delay slot shows).
+// Declaring pKeyframe last, assigning it after the flag loads, and reading
+// pBlock->unk6 into a local first were all tried; gcc 2.6 hoists the address
+// computation regardless, so this is an allocator limit, not a source shape.
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801DEF10);
+/*
+void func_801DEF10(ModelJoint* pSkeleton, KeyframeBlock* pBlock) {
+    u16 rotFrame = 0;
+    u16 transFrame = 0;
+    s16 blockType = pBlock->unk6;
+    u16 numRotFrames = pBlock->unkC;
+    u16 flags = pBlock->unk4;
+    u16 numTransFrames = pBlock->unkE;
+    s16* pKeyframe = (s16*)(pBlock + 1);
+    u16 count;
+    int i;
+    int x;
+    int y;
+    int z;
+    ModelJoint* pJoint = pSkeleton;
 
-// Best attempt: objdiff 95.96%. Only the register holding the keyframe pointer
-// (a2 here, a1 in the original), the flags register (a3 vs a2) and two prologue
-// load slots differ; the loop body is identical. All six declaration orders of the
-// three header-field locals and four placements of the pKeyframe assignment were
-// tried, as were an if/else pair and an inline-index form; gcc always assigns the
-// same registers, so the difference is allocator behaviour, not source shape.
-// // Keyframe block consumed by the joint update loops: a 0x18 byte header
-// // followed by per-frame (rotation, translation) s16 triples.
-// typedef struct {
-//     /* 0x0  */ u16 unk0;
-//     /* 0x2  */ u16 unk2;
-//     /* 0x4  */ u16 unk4; // bit 0 skips the rotation channel, bit 1 the translation channel
-//     /* 0x6  */ s16 unk6;
-//     /* 0x8  */ u16 unk8;
-//     /* 0xA  */ u16 unkA;
-//     /* 0xC  */ u16 unkC;
-//     /* 0xE  */ u16 unkE;
-//     /* 0x10 */ u16 unk10;
-//     /* 0x12 */ u16 unk12;
-//     /* 0x14 */ u16 unk14;
-//     /* 0x16 */ u16 unk16;
-//     /* 0x18 */ s16 keyframes[0];
-// } KeyframeBlock; // Size: 0x18
-//
-// void func_801DEF10(ModelJoint* pSkeleton, KeyframeBlock* pBlock) {
-//     u16 rotFrame = 0;
-//     u16 transFrame = 0;
-//     u16 numRotFrames = pBlock->unkC;
-//     u16 flags = pBlock->unk4;
-//     u16 numTransFrames = pBlock->unkE;
-//     s16* pKeyframe = pBlock->keyframes;
-//     u16 count;
-//     int i;
-//     int x;
-//     int y;
-//     int z;
-//     ModelJoint* pJoint = pSkeleton;
-//     if (pBlock->unk6 == 0) {
-//         pKeyframe += (numRotFrames + 1) * 3;
-//     }
-//
-//     count = pSkeleton->numChildren - 1;
-//     for (i = 0; i < count; i++) {
-//         pJoint++;
-//
-//         if (!(flags & 0x1) && rotFrame < numRotFrames) {
-//             x = *pKeyframe++;
-//             y = *pKeyframe++;
-//             z = *pKeyframe++;
-//             rotFrame++;
-//             if (pJoint->rotation.vx != x || pJoint->rotation.vy != y || pJoint->rotation.vz != z) {
-//                 if (pJoint->pCurModelPacket == NULL || ((Temp3*)pJoint->pCurModelPacket)->unk3 != 0xFF) {
-//                     pJoint->rotation.vx = x;
-//                     pJoint->rotation.vy = y;
-//                     pJoint->rotation.vz = z;
-//                     pJoint->doTransform = 1;
-//                     pJoint->doRotate = 1;
-//                 }
-//             }
-//         }
-//
-//         if (!(flags & 0x2) && transFrame < numTransFrames) {
-//             x = *pKeyframe++;
-//             y = *pKeyframe++;
-//             z = *pKeyframe++;
-//             transFrame++;
-//             if (pJoint->translation.x != x || pJoint->translation.y != y || pJoint->translation.z != z) {
-//                 if (pJoint->unk70 == 0 || ((Temp3*)pJoint->unk70)->unk3 != 0xFF) {
-//                     pJoint->translation.x = x;
-//                     pJoint->translation.y = y;
-//                     pJoint->translation.z = z;
-//                     pJoint->doTransform = 1;
-//                 }
-//             }
-//         }
-//     }
-// } */
+    if (blockType == 0) {
+        pKeyframe += (numRotFrames + 1) * 3;
+    }
+
+    count = pSkeleton->numChildren - 1;
+    for (i = 0; i < count; i++) {
+        pJoint++;
+
+        if (!(flags & 0x1) && rotFrame < numRotFrames) {
+            x = *pKeyframe++;
+            y = *pKeyframe++;
+            z = *pKeyframe++;
+            rotFrame++;
+            if (pJoint->rotation.vx != x || pJoint->rotation.vy != y || pJoint->rotation.vz != z) {
+                if (pJoint->unk70 == 0 || ((Temp3*)pJoint->unk70)->unk3 != 0xFF) {
+                    pJoint->rotation.vx = x;
+                    pJoint->rotation.vy = y;
+                    pJoint->rotation.vz = z;
+                    pJoint->doTransform = 1;
+                    pJoint->doRotate = 1;
+                }
+            }
+        }
+
+        if (!(flags & 0x2) && transFrame < numTransFrames) {
+            x = *pKeyframe++;
+            y = *pKeyframe++;
+            z = *pKeyframe++;
+            transFrame++;
+            if (pJoint->translation.x != x || pJoint->translation.y != y || pJoint->translation.z != z) {
+                if (pJoint->unk74 == 0 || ((Temp3*)pJoint->unk74)->unk3 != 0xFF) {
+                    pJoint->translation.x = x;
+                    pJoint->translation.y = y;
+                    pJoint->translation.z = z;
+                    pJoint->doTransform = 1;
+                }
+            }
+        }
+    }
+}
+*/
 
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801DF0B4);
 
@@ -1280,39 +1269,42 @@ int func_801E6338(Model* pModel) {
 
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E63A8);
 
-// objdiff 97.43%: instruction-for-instruction identical, but gcc assigns s3 to
-// pSkeleton and s4 to pList where the original has s3=pList, s4=pSkeleton (and
-// likewise i in s0 vs pJoint in s1); declaration order, loop form (for/while),
-// pointer vs index and type tweaks do not move the pair
+// objdiff 98.63%: byte-identical except that gcc 2.6 puts pJoint in s1 and the
+// loop counter i in s0; the original has pJoint in s0, i in s1 (the other five
+// callee-saved assignments -- pList s3, pSkeleton s4, pChild s2, pTargetSkeleton
+// s5, numChildren s6 -- do match). Declaring pChild first with its initializer,
+// and forming pJoint/pTarget as `jointIndex * sizeof(ModelJoint) + (s32)base` so
+// the addu keeps the index-first operand order, is what fixed the rest. Further
+// orders of locals, for/while, u_short numChildren and moving pChild++ to the
+// loop tail all score lower or leave the s0/s1 pair alone.
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E6578);
 /*
-    void func_801E6578(Temp4* pList, s32 jointIndex, ModelJoint* pSkeleton, ModelJoint* pTargetSkeleton) {
-        ModelJoint* pTarget = &pTargetSkeleton[jointIndex];
-        ModelJoint* pJoint = &pSkeleton[jointIndex];
-        ModelJoint* pChild;
-        int numChildren;
-        int i;
+void func_801E6578(Temp4* pList, s32 jointIndex, ModelJoint* pSkeleton, ModelJoint* pTargetSkeleton) {
+    ModelJoint* pChild = pSkeleton;
+    ModelJoint* pJoint = (ModelJoint*)(jointIndex * sizeof(ModelJoint) + (s32)pSkeleton);
+    ModelJoint* pTarget = (ModelJoint*)(jointIndex * sizeof(ModelJoint) + (s32)pTargetSkeleton);
+    int numChildren;
+    int i;
 
-        numChildren = pSkeleton->numChildren;
-        pJoint->unk7 = 0;
-        pTarget->unk7 = 1;
+    numChildren = pChild->numChildren;
+    pJoint->unk7 = 0;
+    pTarget->unk7 = 1;
 
-        func_801DF7A8(pList, (s8*)pJoint->unk70);
-        pJoint->unk70 = 0;
-        func_801DF7A8(pList, (s8*)pJoint->unk74);
-        pJoint->unk74 = 0;
-        func_801DF7A8(pList, (s8*)pJoint->unk78);
-        pJoint->unk78 = 0;
+    func_801DF7A8(pList, (s8*)pJoint->unk70);
+    pJoint->unk70 = 0;
+    func_801DF7A8(pList, (s8*)pJoint->unk74);
+    pJoint->unk74 = 0;
+    func_801DF7A8(pList, (s8*)pJoint->unk78);
+    pJoint->unk78 = 0;
 
-        pChild = pSkeleton;
-        for (i = 1; i < numChildren; i++) {
-            pChild++;
+    for (i = 1; i < numChildren; i++) {
+        pChild++;
 
-            if (pChild->pParent == pJoint) {
-                func_801E6578(pList, pChild->numChildren, pSkeleton, pTargetSkeleton);
-            }
+        if (pChild->pParent == pJoint) {
+            func_801E6578(pList, pChild->numChildren, pSkeleton, pTargetSkeleton);
         }
     }
+}
 */
 
 void func_801E6668(ModelJoint* pSkeleton, ModelJoint* pTargetSkeleton) {

@@ -254,6 +254,24 @@ typedef struct {
     /* 0x11C */ u8 unk11C[0x18];
 } Model; // Size: 0x134
 
+// Keyframe block consumed by the joint update loops: a 0x18 byte header
+// followed by per-frame (rotation, translation) s16 triples.
+typedef struct {
+    /* 0x0  */ u16 unk0;
+    /* 0x2  */ u16 unk2;
+    /* 0x4  */ u16 unk4; // bit 0 skips the rotation channel, bit 1 the translation channel
+    /* 0x6  */ s16 unk6;
+    /* 0x8  */ u16 unk8;
+    /* 0xA  */ u16 unkA;
+    /* 0xC  */ u16 unkC;
+    /* 0xE  */ u16 unkE;
+    /* 0x10 */ u16 unk10;
+    /* 0x12 */ u16 unk12;
+    /* 0x14 */ u16 unk14;
+    /* 0x16 */ u16 unk16;
+    /* 0x18 */ s16 keyframes[0];
+} KeyframeBlock; // Size: 0x18
+
 #define MAX_MODEL_MESHES 8
 #define MAX_MODELS 10
 
