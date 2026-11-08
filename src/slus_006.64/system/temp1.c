@@ -458,6 +458,11 @@ void func_800239F4(SpriteData* pSpriteData) {
     pSpriteData->pBase->pNextSpriteData = NULL;
 }
 
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80023A48);
+/* Best attempt: 97.22%. The original forms the two package addresses as `lui v0,%hi` +
+   `addiu s2,v0,%lo` (a temp for the high half, which also forces it to rematerialize `li v0,6`
+   inside the first if body, and lets reorg drop the second `lui` into the bne delay slot);
+   this C lets gcc merge the pair into `lui s2`/`addiu s2,s2` and is one instruction shorter.
 extern u8 D_8006BE10;
 extern u8 D_8005A474;
 extern s32 func_8001EE74(u16* pFlags);
@@ -496,6 +501,8 @@ AnimTask* func_80023A48(s32 arg0, s32 type, void* pAnimPackage, s32 size, void* 
     pSpriteData->pVramData = pAnimPackage;
     return pEntry;
 }
+*/
+
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80023B84);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80023FD8);
