@@ -2236,7 +2236,33 @@ void func_801CBC88(u_char mode, u_char numStrings, MenuString* pStrings, u_char*
     }
 }
 
-INCLUDE_ASM("asm/shop_menu/nonmatchings/main/misc", func_801CBCF0);
+void func_801CBCF0(u_char numStrings, MenuString* pStrings, u_char* pStringIDs, int* pXOffsets, u_char* pShouldRenderFlags, u_char index, u_char cursorOffset, u_char mode) {
+    switch (mode) {
+        case 0:
+            func_801CBC88(0, numStrings, pStrings, pStringIDs, pShouldRenderFlags);
+            setXYWH(
+                &pStrings[index].polys[g_Menu->renderContext],
+                D_801D2194[index + cursorOffset] + 0x16 + pXOffsets[index],
+                D_801D21B0[index + cursorOffset] - 0x22,
+                pStrings[index].width,
+                0xD
+            );
+            break;
+
+        case 1:
+            setXYWH(
+                &pStrings[index].polys[g_Menu->renderContext],
+                0xEC,
+                0x7E,
+                pStrings->width,
+                0xD
+            );
+            break;
+    }
+
+    pStrings[index].renderContext = g_Menu->renderContext;
+    pShouldRenderFlags[index] = TRUE;
+}
 
 void ShopMenuInitializeShopModeSelectionMenu(int numTextures, int* pTextureIDs) {
     int i;

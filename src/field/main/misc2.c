@@ -1,8 +1,11 @@
 #include "common.h"
 #include "field/main.h"
+#include "field/actor.h"
 #include "system/math.h"
 #include "psyq/libgpu.h"
 #include "psyq/libgte.h"
+
+extern s16 D_800B218E;
 
 void FieldMatrixResetTranslation(MATRIX *matrix) {
     matrix->t[2] = 0;
@@ -36,6 +39,20 @@ void FieldComputeSceneMatrices(void) {
 }
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80072254);
+/*
+void func_80072254(int actorIndex) {
+    VECTOR scale;
+    FieldActor* pActor;
+
+    pActor = &g_FieldActors[actorIndex];
+    scale.vx = *(s16*)&pActor->pActorData->scaleX;
+    scale.vy = *(s16*)&pActor->pActorData->scaleY;
+    scale.vz = *(s16*)&pActor->pActorData->scaleZ;
+    pActor = &g_FieldActors[actorIndex];
+    RotMatrix((SVECTOR*)&pActor->rotation, &pActor->transformMatrix);
+    ScaleMatrix(&g_FieldActors[actorIndex].transformMatrix, &scale);
+}
+*/
 
 void FieldMatrixCreateWorldToScreen(void) {
     FieldComputeSceneMatrices();
@@ -79,7 +96,16 @@ void func_80073684(VECTOR* pEye, VECTOR* pAt) {
     PopMatrix();
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80073734);
+// Widens the high half of each of the three words into the word itself
+void func_80073734(long* pValues) {
+    int value0 = ((s16*)pValues)[1];
+    int value1 = ((s16*)pValues)[3];
+    int value2 = ((s16*)pValues)[5];
+
+    pValues[0] = value0;
+    pValues[1] = value1;
+    pValues[2] = value2;
+}
 
 // Computes a LookAt / View Matrix
 // Eye: The position of the camera
@@ -222,7 +248,20 @@ void FieldMatrixCopyTransform(MATRIX* dest, MATRIX* source) {
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80074108);
 
+// Returns 1 if an actor wants its position reported to the script VM
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_8007469C);
+/*
+int func_8007469C(void) {
+    int i;
+
+    for (i = 0; i < g_FieldNumActors; i++) {
+        if (!(g_FieldActors[i].status & 0x40) && (g_FieldActors[i].status & 0x8000)) {
+            return 1;
+        }
+    }
+    return 0;
+}
+*/
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", FieldPollControllers);
 
@@ -244,7 +283,11 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80075910);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_800759E4);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80075B08);
+void func_80075B08(SpriteData* pSpriteData, u_char* pColor) {
+    if (D_800B218E == 0) {
+        SpriteSetColor(pSpriteData, pColor[0], pColor[1], pColor[2]);
+    }
+}
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80075B44);
 
@@ -255,6 +298,15 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80076A74);
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80076AC0);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_800771B0);
+/*
+void func_800771B0(u_long* pPrim, int size) {
+    int i;
+
+    for (i = size / 2 - 1; i >= 0; i--) {
+        *pPrim++ |= 0x80008000;
+    }
+}
+*/
 
 void FieldLoadTIM(u_long* pTimData) {
     TIM_IMAGE timImage;

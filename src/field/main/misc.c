@@ -197,6 +197,7 @@ void func_800879D0(void) {
 // members (rather than bare scalars) keeps gcc from hoisting the actor's
 // instruction pointer load above the store.
 typedef struct { s16 value; } FieldScriptGlobalS16;
+typedef struct { u16 value; } FieldScriptGlobalU16;
 typedef struct { s32 value; } FieldScriptGlobalS32;
 typedef struct { u8 value; } FieldScriptGlobalU8;
 
@@ -238,7 +239,13 @@ void func_80087D30(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_80087D80);
+void func_80087D80(void) {
+    int value = FieldScriptArgument1(1, SCRIPT_READ_U8_REL(3));
+    ActorData* pActor = g_FieldScriptVMCurActor;
+
+    *(u_short*)&g_pGameState->unk17FC[0x38] = value;
+    pActor->scriptInstructionPointer += 4;
+}
 
 extern FieldScriptGlobalU8 D_800B2355;
 extern FieldScriptGlobalU8 D_800B2356;
@@ -263,7 +270,15 @@ void func_80087E5C(void) {
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_80087E98);
 
+extern FieldScriptGlobalU16 D_800B2348;
+
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_80087FA4);
+/*
+void func_80087FA4(void) {
+    D_800B2348.value = D_800B2348.value + 1;
+    g_FieldScriptVMCurActor->scriptInstructionPointer += 1;
+}
+*/
 
 void func_80087FD4(void) {
     func_800A8BA4();
@@ -326,6 +341,17 @@ void func_800883D4(void) {
 extern FieldScriptGlobalS16 D_800B236C;
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008848C);
+// 78.75%: same instructions in the same order but gcc keeps the instruction
+// pointer in a register across both uses and reuses $v0 for the script data
+// base where the original reloads the pointer into the killed $v1.
+/*
+void func_8008848C(void) {
+    int value = SCRIPT_READ_U8_REL(1) ^ 1;
+
+    g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
+    D_800B236C.value = value;
+}
+*/
 
 extern FieldScriptGlobalS16 D_800B21AC;
 
@@ -344,6 +370,16 @@ typedef struct {
 extern ParticleBankHandle D_800B2384;
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008861C);
+/*
+void func_8008861C(void) {
+    int i;
+
+    for (i = 0; i < NUM_PARTICLE_BANKS; i++) {
+        g_FieldDefaultParticleBanks[D_800B2384.bankIndex].directions[i].z = 0;
+        g_FieldDefaultParticleBanks[D_800B2384.bankIndex].directions[i].x = 0;
+    }
+}
+*/
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_80088674);
 
@@ -1190,10 +1226,49 @@ void FieldScriptWriteActorFlags1(void) {
 */
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", FieldScriptWriteActorFlags2);
+/*
+void FieldScriptWriteActorFlags2(void) {
+    volatile int actorIndex;
+    ActorData* pActorData;
+
+    actorIndex = FieldScriptVMGetActorIndex(1);
+    if (actorIndex != ACTOR_ID_INVALID) {
+        pActorData = g_FieldActors[actorIndex].pActorData;
+        FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(1), ((u_short*)&pActorData->scriptFlags)[1]);
+    }
+    g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
+}
+*/
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", FieldScriptWriteActorFlags3);
+/*
+void FieldScriptWriteActorFlags3(void) {
+    ActorData* pActorData;
+    int actorIndex;
+
+    actorIndex = FieldScriptVMGetActorIndex(1);
+    if (actorIndex != ACTOR_ID_INVALID) {
+        pActorData = g_FieldActors[actorIndex].pActorData;
+        FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(1), pActorData->flags);
+    }
+    g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
+}
+*/
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", FieldScriptWriteActorFlags4);
+/*
+void FieldScriptWriteActorFlags4(void) {
+    ActorData* pActorData;
+    int actorIndex;
+
+    actorIndex = FieldScriptVMGetActorIndex(1);
+    if (actorIndex != ACTOR_ID_INVALID) {
+        pActorData = g_FieldActors[actorIndex].pActorData;
+        FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(1), ((u_short*)&pActorData->flags)[1]);
+    }
+    g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
+}
+*/
 
 // TODO: These two handlers could use more semantic names since they're likely used
 // in certain situations.

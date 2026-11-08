@@ -1636,17 +1636,12 @@ u8* func_8003CE68(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
     return pScript + 2;
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003CE9C);
-/*
-Attempt (14.22%): the instruction set matches but gcc 2.7.2 hoists the two byte loads
-above the stores; the original keeps store/load interleaved.
 u8* func_8003CE9C(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
-    pAudioManager->unk_0x32 = *pScript++;
+    pAudioManager->unk_0x32 = pScript[0];
+    pAudioManager->unk_0x34 = pScript[1];
     pAudioManager->unk_0x36 = pAudioManager->unk_0x3a;
-    pAudioManager->unk_0x34 = *pScript++;
-    return pScript;
+    return pScript + 2;
 }
-*/
 
 u8* SoundScriptSetManagerUnk1a(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     pAudioManager->unk_0x1a = *pScript;
@@ -1701,11 +1696,12 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003D070);
 // Set tempo handler?
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003D0E8);
 /*
-Attempt (94.00%): only difference is the original's redundant `andi v0,v0,0xff` on the
-script byte (both multiply and shifted store use it).
+Attempt (94.00%): only difference is the original's redundant `andi v0,v0,0xff` between
+the `lbu` and the `mult`; gcc 2.6 proves the byte load's range and drops the mask.
 u8* func_8003D0E8(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     u8 value = *pScript;
-    s32 product = value * (s16)(pAudioManager->unk_Interpolator_0x64.currentValue >> 16);
+    s16 step = pAudioManager->unk_Interpolator_0x64.currentValue >> 16;
+    s32 product = value * step;
 
     pAudioManager->unk_0x58 = value << 16;
     pAudioManager->unk_0x54 = product;
@@ -1715,10 +1711,10 @@ u8* func_8003D0E8(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003D110);
 /*
-Attempt (67.27%): body matches instruction for instruction, but the original opens an
-8-byte stack frame it never uses.
 u8* func_8003D110(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
-    pAudioManager->unk_0x58 += (s8)*pScript << 16;
+    s8 value = *pScript;
+
+    pAudioManager->unk_0x58 += value << 16;
     pAudioManager->unk_0x54 = 0;
     return pScript + 1;
 }

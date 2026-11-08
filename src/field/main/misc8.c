@@ -34,11 +34,51 @@ void func_8008083C(int actorIndex) {
     }
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80080968);
+typedef struct {
+    /* 0x0 */ undefined8 unk0[0xC];
+    /* 0xC */ u8 material;
+    /* 0xD */ undefined8 padD;
+} FieldWalkmeshTriangle; // Size: 0xE
+
+extern FieldWalkmeshTriangle* D_800AFB24[];
+extern u_int* D_800AFB20;
+
+u_int func_80080968(ActorData* pActor) {
+    if ((pActor->flags >> (pActor->walkmeshId + 3)) & 1) {
+        return 0;
+    }
+    return D_800AFB20[D_800AFB24[pActor->walkmeshId][pActor->walkmeshTriIds[pActor->walkmeshId]].material];
+}
+
+extern u_short D_800B14AC;
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800809D0);
+/*
+int func_800809D0(s32* pData) {
+    int step = pData[7];
+    int value = -0x14D000;
+    int acc = 0;
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80080A18);
+    D_800B14AC = 0;
+    acc += value;
+    do {
+        D_800B14AC += 2;
+        value += step;
+        acc += value;
+    } while (value <= 0);
+    acc -= value;
+    return acc >> 16;
+}
+*/
+
+extern s32 D_800ADB58;
+extern s32 D_800ADB5C;
+
+u_int func_80080A18(void) {
+    ActorData* pActor = g_FieldActors[D_800ADB58].pActorData;
+
+    return ((u_int*)pActor->unk118)[D_800ADB5C++];
+}
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80080A74);
 
@@ -92,7 +132,11 @@ int func_80083178(int angle, int limit) {
     return angle;
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800831D0);
+void func_800831D0(SVECTOR* pDst, IVEC3* pSrc) {
+    pDst->vx = pSrc->x >> 0x10;
+    pDst->vy = pSrc->y >> 0x10;
+    pDst->vz = pSrc->z >> 0x10;
+}
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800831F4);
 
@@ -111,7 +155,19 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80084A40);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800854D0);
 
+extern s32 D_800ADB2C;
+extern void* D_800ADBB8;
+extern void* D_800AFEA4;
+
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80085560);
+/*
+void func_80085560(int archiveIndex, int unused, void* pCallback) {
+    D_800ADB2C = 1;
+    D_800ADBB8 = ArchiveAllocStreamFile(8);
+    ArchiveReadFileToBuffer(archiveIndex, D_800ADBB8, 0, 0x100);
+    D_800AFEA4 = pCallback;
+}
+*/
 
 void func_8003A20C(int);
 void func_80039F9C(void*, int, int, int);
@@ -121,26 +177,72 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800855C8);
 extern s32 D_800B21B8;
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80085634);
+/*
+void func_80085634(int arg0, int arg1) {
+    u_int offset = arg1 & 7;
+
+    if (arg0 == 0) {
+        func_8003A20C(offset * 2);
+    } else {
+        D_800B21B8 = arg0;
+        func_800855C8(arg0, 0x7F, 0x40);
+    }
+}
+*/
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80085678);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80085738);
+extern s16 D_800C3A38;
+extern void* D_800B235C;
+
+void func_80085738(void) {
+    if (D_800C3A38 != 0xFF) {
+        func_80039FF8();
+        func_8003852C(D_800B235C);
+        HeapFree(D_800B235C);
+    }
+}
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80085788);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80085890);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80085988);
+extern void* D_8006259C;
+extern s32 D_8004F32C;
+
+void func_80085988(void) {
+    func_8003852C(D_8006259C);
+    HeapUnpinBlock(D_8006259C);
+    HeapFree(D_8006259C);
+    D_8004F32C = -1;
+}
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800859DC);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80085B20);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80085C3C);
+int func_80085C3C(void) {
+    int i;
+
+    for (i = 0; i < 5; i++) {
+        if (func_800854D0() == -1) {
+            return 0;
+        }
+    }
+    return -1;
+}
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80085C90);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80085EEC);
+extern AudioManager* D_8004F2FC;
+
+void func_80085EEC(void) {
+    if (D_8004F2FC != NULL) {
+        func_80039C4C(D_8004F2FC);
+        func_800399D4(D_8004F2FC);
+        D_8004F2FC = NULL;
+    }
+}
 
 extern s32 D_8004F364;
 extern s32 D_8004F368;
@@ -198,9 +300,38 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800862CC);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800863E8);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80086470);
+// Three 6-byte entries; splat names the second field's address D_800AFE8A.
+typedef struct {
+    /* 0x0 */ u_short unk0;
+    /* 0x2 */ u_short unk2;
+    /* 0x4 */ u_short unk4;
+} FieldUnk800AFE88; // Size: 0x6
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800864B4);
+extern FieldUnk800AFE88 D_800AFE88[3];
+extern FieldUnk800AFE88 D_800AFE8A[3];
+
+int func_80086470(int arg0, u_int arg1) {
+    int i;
+
+    if (arg0 == -1) {
+        return -1;
+    }
+    for (i = 0; i < 3; i++) {
+        if (D_800AFE88[i].unk0 == arg1) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+void func_800864B4(void) {
+    int i;
+
+    for (i = 0; i < 3; i++) {
+        D_800AFE88[i].unk0 = 0xFFFF;
+        D_800AFE8A[i].unk0 = 0xFFFF;
+    }
+}
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800864F0);
 
