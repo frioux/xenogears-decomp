@@ -355,6 +355,45 @@ void FieldAddPrimitives(u_long* ot, u_long* pPrimList, int size) {
 }
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80075484);
+// 48.84%: the eye/at copies land at the right stack slots (SVec4 is the 8-byte
+// padded triple), but gcc rematerialises %hi/%lo of g_CameraEye for each load with
+// lhu instead of caching the base in $a3 and reusing it for the 0x1E4 matrix
+// argument, which is what the original does (lui/addiu of g_CameraEye, three
+// lh 2/6/A($a3), then addiu $a3,$a3,0x1E4).
+/*
+extern VECTOR g_CameraEye;
+extern VECTOR g_CameraAt;
+extern s16 D_800B00B2;
+extern s32 D_800ADB50;
+extern s32 D_800B007C;
+extern s16 D_800B21D4;
+
+void func_80075484(void) {
+    SVec4 eye;
+    SVec4 at;
+    short* pCameraEye;
+    short* pCameraAt;
+
+    if (D_800B00B2 == 0) {
+        return;
+    }
+    if (D_800ADB50 != 0) {
+        return;
+    }
+
+    pCameraEye = (short*)&g_CameraEye;
+    pCameraAt = (short*)&g_CameraAt;
+    eye.x = pCameraEye[1];
+    eye.y = pCameraEye[3];
+    eye.z = pCameraEye[5];
+    at.x = pCameraAt[1];
+    at.y = pCameraAt[3];
+    at.z = pCameraAt[5];
+
+    func_800273C4(D_800B007C, &eye, &at, (u8*)pCameraEye + 0x1E4,
+        &g_FieldCurRenderContext->unk1 + D_800B21D4, g_FieldCurRenderContextIndex);
+}
+*/
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_8007554C);
 
