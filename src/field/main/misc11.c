@@ -62,7 +62,30 @@ void func_80091A78(void) {
 void func_80091AD4(void) {
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc11", func_80091ADC);
+extern RECT D_800AF5E8[32];
+extern s16 D_800AF5EA[]; // Part of D_800AF5E8[]: the y of each RECT
+extern s16 D_800AF5EC[]; // Part of D_800AF5E8[]: the w of each RECT
+extern s16 D_800AF5EE[]; // Part of D_800AF5E8[]: the h of each RECT
+extern s16 D_800AF6E8[32];
+extern s16 D_800AF728[32];
+extern u_short D_800AF768;
+
+void func_80091ADC(s16 x, s16 y, s16 w, s16 h, int texX, s16 texY, int clear) {
+    int index = D_800AF768 & 0x1F;
+
+    D_800AF5E8[index].x = x;
+    D_800AF5EA[index * 4] = y;
+    D_800AF5EC[index * 4] = w;
+    D_800AF5EE[index * 4] = h;
+    D_800AF6E8[index] = texX;
+    D_800AF728[index] = texY;
+    if (!clear) {
+        MoveImage(&D_800AF5E8[index], D_800AF6E8[index], texY);
+    } else {
+        ClearImage(&D_800AF5E8[index], 0, 0, 0);
+    }
+    D_800AF768++;
+}
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc11", func_80091BBC);
 
@@ -185,8 +208,22 @@ int func_80092424(int index, int byteIndex) {
 }
 
 // Write one byte of the 4-byte record at the given index of D_800AFB20
-// Write one byte of the 4-byte record at the given index of D_800AFB20
-INCLUDE_ASM("asm/field/nonmatchings/main/misc11", func_800924D4);
+void func_800924D4(int index, int byteIndex, int value) {
+    switch (byteIndex) {
+        case 0:
+            D_800AFB20[index] = (D_800AFB20[index] & 0xFFFFFF00) | value;
+            break;
+        case 1:
+            D_800AFB20[index] = (D_800AFB20[index] & 0xFFFFFF00) | (value << 8);
+            break;
+        case 2:
+            D_800AFB20[index] = (D_800AFB20[index] & 0xFF00FFFF) | (value << 16);
+            break;
+        case 3:
+            D_800AFB20[index] = (D_800AFB20[index] & 0xFFFFFF) | (value << 24);
+            break;
+    }
+}
 
 extern s32 D_800B217C;
 extern s16 D_800B21D6;
