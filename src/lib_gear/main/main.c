@@ -621,6 +621,47 @@ void func_801E0398(VertexBuffer* pVertexBuffer, MATRIX* pMatrix, s32 arg2, s32* 
 }
 
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E0698);
+// Best attempt: 87.57%. Only the scheduling of the unk68 store vs its reload differs.
+/* s32 func_801E0698(UnkInner1* pEntry, u32 arg1, u16 arg2, u8 arg3, s16 numFrames, s16 divisor, u8 arg6, u8 arg7, u8 arg8, u8 arg9, u8 arg10, u8 arg11, u16 arg12, u16 arg13, u16 arg14, u16 arg15, u16 arg16, u16 arg17, u16 arg18) {
+    s16 deltaX;
+    s16 deltaY;
+    s16 deltaZ;
+
+    if (pEntry != NULL) {
+        pEntry->unk3 = arg18;
+        pEntry->unk5E = -1;
+        pEntry->unk0 = arg2;
+        pEntry->unk2 = arg3;
+        pEntry->unk4 = arg1;
+        pEntry->unkC = arg12;
+        pEntry->unkE = arg13;
+        pEntry->unk10 = arg14;
+        pEntry->unk14 = arg15;
+        pEntry->unk16 = arg16;
+        pEntry->unk18 = arg17;
+        pEntry->unk5C = 0;
+        if (numFrames < 7) {
+            pEntry->unk60 = numFrames;
+        } else {
+            pEntry->unk60 = 7;
+        }
+
+        pEntry->unk64 = arg6 << 6;
+        pEntry->unk66 = arg7 << 6;
+        pEntry->unk68 = arg8 << 6;
+        deltaX = (pEntry->unk64 - (arg9 << 6)) / divisor;
+        deltaY = (pEntry->unk66 - (arg10 << 6)) / divisor;
+        deltaZ = (pEntry->unk68 - (arg11 << 6)) / divisor;
+
+        pEntry->unk62 = divisor;
+        pEntry->unk8 = 0;
+        pEntry->unk6A = deltaX;
+        pEntry->unk6C = deltaY;
+        pEntry->unk6E = deltaZ;
+
+        return 0;
+    }
+} */
 
 void func_801E0844(short* pValue) {
     *pValue = -1;

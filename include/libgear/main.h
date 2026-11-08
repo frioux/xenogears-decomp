@@ -154,10 +154,29 @@ typedef struct {
 } Temp9; // Size: 0x24
 
 typedef struct {
-    /* 0x0 */ s16 unk0;
-    /* 0x2 */ u8 unk2[0x6];
-    /* 0x8 */ u32 unk8;
-    /* 0xC */ u8 unkC[0x64];
+    /* 0x0  */ s16 unk0;
+    /* 0x2  */ u8 unk2;
+    /* 0x3  */ u8 unk3;
+    /* 0x4  */ u32 unk4;
+    /* 0x8  */ u32 unk8;
+    /* 0xC  */ s16 unkC;
+    /* 0xE  */ s16 unkE;
+    /* 0x10 */ s16 unk10;
+    /* 0x12 */ s16 unk12;
+    /* 0x14 */ s16 unk14;
+    /* 0x16 */ s16 unk16;
+    /* 0x18 */ s16 unk18;
+    /* 0x1A */ u8 unk1A[0x42];
+    /* 0x5C */ s16 unk5C;
+    /* 0x5E */ s16 unk5E;
+    /* 0x60 */ s16 unk60;
+    /* 0x62 */ s16 unk62;
+    /* 0x64 */ s16 unk64;
+    /* 0x66 */ s16 unk66;
+    /* 0x68 */ s16 unk68;
+    /* 0x6A */ s16 unk6A;
+    /* 0x6C */ s16 unk6C;
+    /* 0x6E */ s16 unk6E;
 } UnkInner1; // Size: 0x70
 
 // Entry of a per-model pointer list (Model::unk14 / Model::unk18)
