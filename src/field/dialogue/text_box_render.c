@@ -8,8 +8,42 @@
 #include "system/sound.h"
 #include "psyq/libetc.h"
 #include "psyq/libcd.h"
+#include "system/controller.h"
 
-INCLUDE_ASM("asm/field/nonmatchings/dialogue/text_box_render", func_8007DCF8);
+// Same SystemString helpers as the group further down; the text box keeps its
+// string at _pad[0].
+extern void func_80034874(void* pString, int value);
+extern void func_8003487C(void* pString);
+
+// Field's own pad button state, filled by FieldPollControllers.
+extern u_short D_800C3900;
+
+// Cursor up/down input for the text box holding the top message; moves the
+// cursor within maxPosition and forwards the line offset to the string.
+void func_8007DCF8(int index) {
+    if (g_FieldTextBoxes[index].cursor.visibility == 0) {
+        if (g_FieldTextBoxes[index].windowOpenTimer == 0) {
+            if (g_FieldTextBoxes[index].order == 0) {
+                if (D_800C3900 & CTRL_BTN_DOWN) {
+                    g_FieldTextBoxes[index].cursor.curPosition++;
+                    if (g_FieldTextBoxes[index].cursor.curPosition > g_FieldTextBoxes[index].cursor.maxPosition - 1) {
+                        g_FieldTextBoxes[index].cursor.curPosition = 0;
+                    }
+                }
+                if (D_800C3900 & CTRL_BTN_UP) {
+                    g_FieldTextBoxes[index].cursor.curPosition--;
+                    if (g_FieldTextBoxes[index].cursor.curPosition < 0) {
+                        g_FieldTextBoxes[index].cursor.curPosition = g_FieldTextBoxes[index].cursor.maxPosition - 1;
+                    }
+                }
+                func_80034874(&g_FieldTextBoxes[index]._pad[0],
+                    g_FieldTextBoxes[index].cursor.curPosition + g_FieldTextBoxes[index].cursor.startPosition);
+            } else {
+                func_8003487C(&g_FieldTextBoxes[index]._pad[0]);
+            }
+        }
+    }
+}
 
 // https://decomp.me/scratch/NE0tE
 INCLUDE_ASM("asm/field/nonmatchings/dialogue/text_box_render", FieldTextBoxInitialize);
