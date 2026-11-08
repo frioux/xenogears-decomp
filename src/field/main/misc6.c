@@ -683,21 +683,18 @@ void func_8009FD10(int partyMemberIndex) {
     }
 }
 
-extern void func_800AD4D4(void);
+extern void func_800AD4D4(int partyMemberIndex);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_8009FDD4);
 // 99.50%: gcc puts the index in $v1, the original uses $a0 (`move a0,v0`).
-/*
 void func_8009FDD4(void) {
     int partyMemberIndex;
 
     partyMemberIndex = func_8009FC10(D_800AFD1C);
     if (partyMemberIndex != 0xFF && g_pGameState->gearRide[partyMemberIndex] == 0) {
-        func_800AD4D4();
+        func_800AD4D4(partyMemberIndex);
     }
     g_FieldScriptVMCurActor->scriptInstructionPointer++;
 }
-*/
 
 extern void func_800ACFD0(void);
 
@@ -750,7 +747,10 @@ void func_800A0C4C(void) {
 // FieldResetActorPosition, set translation and sprite position of actor based on current actor data position
 INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_800A0C94);
 // 99.64%: only diff is the last `addu` destination - gcc puts the pointer in $v0, the
-// original coalesces it into the offset register $v1.
+// original coalesces it into the offset register $v1 (`addu v1,v1,v0` then both
+// stores off v1). Using `&g_FieldActors[D_800AFD1C]` instead of the explicit
+// pointer arithmetic flips the operand order of the other two addus (99.17%), and
+// a separate pointer local for the third block regresses to 82%.
 /*
 void func_800A0C94(void) {
     FieldActor* pFieldActor;
@@ -790,7 +790,6 @@ void func_800A0C94(void) {
     pSpriteData->field_0x84 = curY;
     pActor->curYPos = curY;
 }
-
 */
 
 void func_800A0D3C(void) {
@@ -865,15 +864,17 @@ void func_800A0EE8(void) {
 INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_800A0FD8);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_800A1364);
-// 84.13%: the body and the three D_800B2264-indexed stores are right; two known
-// gaps. (1) The original clears only bits 13-15 when writing the actor's flags12C
-// index, so the field there is 3 bits wide, but ActorData declares
-// flags12C_0xE: 19 (splitting it into 3 + 16 bits reproduces the `and 0xFFFF1FFF`).
-// (2) The original frame is 0x30 with ra/s0 at 0x2C/0x28 (an 8-byte gap above the
-// three stack arguments); this version gets 0x28.
-/*void func_800A1364(void) {
+// 84.19%: frame is exactly right now (u8 unused[8] reproduces the 0x30 frame with
+// ra/s0 at 0x2C/0x28). Only gap left: gcc merges the last two loads of
+// D_800B2264 (one load, `addiu` for the ++) and puts `sw D_800B2264` before
+// `sw 0x12C(g_FieldScriptVMCurActor)`; the original reloads D_800B2264 after the
+// flags12C store and keeps the ++ store last, i.e. its alias analysis treats the
+// bitfield RMW as aliasing D_800B2264.
+/*
+void func_800A1364(void) {
     int arg;
     FieldActor* pFieldActor;
+    u8 unused[8]; // original has an unused stack slot; reproduces the frame
 
     pFieldActor = &g_FieldActors[D_800AFD1C];
     pFieldActor->status = (pFieldActor->status & 0xF07F) | 0x200;
@@ -888,9 +889,10 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_800A1364);
     g_FieldScriptVMCurActor->flags &= ~0x800;
     D_800B21DC[D_800B2264] = arg;
     D_800B225F[D_800B2264] = 0;
-    g_FieldScriptVMCurActor->flags12C_0xE = (g_FieldScriptVMCurActor->flags12C_0xE & ~7) | (D_800B2264 & 7);
+    g_FieldScriptVMCurActor->flags12C_0xE = D_800B2264 & 7;
     D_800B2264++;
-}*/
+}
+*/
 
 void func_800A14F0(void) {
     int arg;
