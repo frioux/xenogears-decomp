@@ -77,7 +77,7 @@ void func_80022CDC(SpriteData* pSpriteData) {
     func_80022B2C(pSpriteData);
 }
 
-// non-prototype on purpose: func_80023170 below calls it without the frame index
+// non-prototype on purpose: the second argument is a frame index, not in the header's prototype
 extern void func_8001D2B0();
 
 void func_80022D44(SpriteData* pSpriteData) {
@@ -228,6 +228,7 @@ void func_80023170(SpriteData* pSpriteData, s32 arg1, s32 arg2, s32 arg3) {
     pSpriteData->animScriptWaitTimer = 0;
     pSpriteData->flags_0xA8 &= ~0x300000;
     pSpriteData->flags_0xA8 &= ~0xE0000;
+    // arg1 is passed through in a1, which is what keeps a1 out of the mask allocation above
     func_8001D2B0(pSpriteData, arg1);
 }
 // Blocks whose data table sits at a self-relative byte offset stored at 0xC
