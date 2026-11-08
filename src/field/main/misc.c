@@ -1379,35 +1379,28 @@ void FieldScriptVMConditionalJump5(unsigned short flag) {
     }
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", FieldScriptWriteActorDistance);
-/*
-Matches as long as g_FieldActors is NOT volatile.
-
 void FieldScriptWriteActorDistance(void) {
-    ActorData* pActorA;
-    ActorData* pActorB;
     int actorIndexA;
     int actorIndexB;
+    ActorData* pActorA;
+    ActorData* pActorB;
     int distance;
 
     distance = 0;
     actorIndexA = FieldScriptVMGetActorIndex(3);
     actorIndexB = FieldScriptVMGetActorIndex(4);
     if ((actorIndexA != ACTOR_ID_INVALID) && (actorIndexB != ACTOR_ID_INVALID)) {
-        pActorA = g_FieldActors[actorIndexA].pActorData;
-        pActorB = g_FieldActors[actorIndexB].pActorData;
+        FieldActor* pActors = g_FieldActors;
+
+        pActorA = pActors[actorIndexA].pActorData;
+        pActorB = pActors[actorIndexB].pActorData;
         distance = FieldGetVec2Magnitude(
-            CONV_TO_GTE(pActorA->position.vx) - CONV_TO_GTE(pActorB->position.vx), 
-            CONV_TO_GTE(pActorA->position.vz) - CONV_TO_GTE(pActorB->position.vz)
-        );
+            CONV_TO_GTE(pActorA->position.vx) - CONV_TO_GTE(pActorB->position.vx),
+            CONV_TO_GTE(pActorA->position.vz) - CONV_TO_GTE(pActorB->position.vz));
     }
-    FieldScriptMemoryWriteU16(
-        SCRIPT_IMM_ARG(1), 
-        distance
-    );
+    FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(1), distance);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
 }
-*/
 
 // The four halves of an actor's scriptFlags and flags words are tested by the script VM.
 void func_8008E298(void) {
