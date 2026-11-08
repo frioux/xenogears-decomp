@@ -2091,3 +2091,40 @@ void func_8008F76C(void) {
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008F7B8);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008F90C);
+// 48.80%: arithmetic and stores are right, but gcc hoists every g_Scene load
+// and the three divisions above the `scriptInstructionPointer += 9` store. The
+// original keeps that store first and the divisions after it, which is also what
+// pins the frame count in $a2 there (ours lands in $a3). Moving the divisions
+// before/after the store in the C does not change the schedule.
+/*
+// Starts an interpolation of the camera position from the current g_Scene
+// position to the one passed in the script arguments.
+void func_8008F90C(void) {
+    int x = FieldScriptVMGetArgument(1);
+    int y = FieldScriptVMGetArgument(3);
+    int z = FieldScriptVMGetArgument(5);
+    int frames = FieldScriptVMGetArgument(7);
+    int dx;
+    int dz;
+    int dy;
+
+    if (frames == 0) {
+        frames = 1;
+    }
+    g_FieldScriptVMCurActor->scriptInstructionPointer += 9;
+    dx = ((x << 16) - *(s32*)&g_Scene.unk98[0x8]) / frames;
+    dz = ((z << 16) - *(s32*)&g_Scene.unk98[0xC]) / frames;
+    dy = ((y << 16) - *(s32*)&g_Scene.unk98[0xC]) / frames;
+    *(s16*)&g_Scene.unk98[0x2] = frames;
+    *(s16*)&g_Scene.unk98[0x0] = 1;
+    *(s32*)&g_Scene.unk98[0x14] = dx;
+    *(s32*)&g_Scene.unk98[0x18] = dz;
+    *(s32*)&g_Scene.unk98[0x1C] = dy;
+    if (x == 0 && z == 0 && y == 0) {
+        *(s16*)&g_Scene.unk98[0x2] = frames + 2;
+        *(s16*)&g_Scene.unk98[0x4] = 1;
+    } else {
+        *(s16*)&g_Scene.unk98[0x4] = 0;
+    }
+}
+*/
