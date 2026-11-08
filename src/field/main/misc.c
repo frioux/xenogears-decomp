@@ -1169,20 +1169,21 @@ void FieldScriptSetParentActor(void) {
 }
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", FieldScriptWriteActorFlags1);
+// 95.29%: needs g_FieldActors non-volatile for the last call to keep `li a0,1`
+// in the delay slot, but removing the qualifier breaks another field function.
 /*
-Matches as long as g_FieldActors is NOT volatile.
-
 void FieldScriptWriteActorFlags1(void) {
     ActorData* pActorData;
     int actorIndex;
+    u_int scriptFlags;
+    u_int address;
 
     actorIndex = FieldScriptVMGetActorIndex(1);
     if (actorIndex != ACTOR_ID_INVALID) {
         pActorData = g_FieldActors[actorIndex].pActorData;
-        FieldScriptMemoryWriteU16(
-            SCRIPT_IMM_ARG(1), 
-            pActorData->scriptFlags
-        );
+        scriptFlags = pActorData->scriptFlags.flags;
+        address = SCRIPT_IMM_ARG(1);
+        FieldScriptMemoryWriteU16(address, scriptFlags);
     }
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }

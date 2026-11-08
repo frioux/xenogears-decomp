@@ -29,7 +29,7 @@ base=build/src/$unit.c.o
 dump() {
     mips-linux-gnu-objdump -d -r --no-show-raw-insn "$1" \
         | awk -v f="<$2>:" '$0 ~ f {p=1; next} p && /^[0-9a-f]+ <.*>:$/ {exit} p' \
-        | sed -E 's/^ *[0-9a-f]+:\t//; s/^\t+//; s/^[0-9a-f]+: (R_MIPS)/\1/; s/\b0 <[^>]+>$//; s/ [0-9a-f]+ <([^>]+)>/ <\1>/g' || true
+        | sed -E 's/^ *[0-9a-f]+:\t//; s/^\t+//; s/^[0-9a-f]+: (R_MIPS)/\1/; s/\b0 <[^>]+>$//; s/ [0-9a-f]+ <([^>]+)>/ <\1>/g; s/,[0-9a-f]+ </,</g' || true
 }
 
 # Inside the container (or on linux/x86_64): build the unit and emit the diff.
