@@ -163,7 +163,8 @@ typedef struct {
     /* 0x16 */ u16 unk_0x16;
     /* 0x18 */ u16 unk_0x18;
     /* 0x1A */ u16 unk_0x1A;
-    /* 0x1C */ u16 unk_0x1C;
+    /* 0x1C */ u8 unk_0x1C;
+    /* 0x1D */ u8 unk_0x1D;
     /* 0x1E */ u16 flags;
 } AudioEnvelope; // Size: 0x20
 
@@ -324,6 +325,7 @@ extern s32 g_SoundUploadBytesRemaining;
 extern u_long g_unk_SoundEvent; // Event Descriptor
 
 extern SoundFile* g_SoundSedsLinkedList;
+extern s32 D_800508A4[]; // AudioEnvelope step handler table
 extern SoundWDSEntry* g_SoundWdsLinkedList;
 
 extern int g_SoundWdsCurSpuAddress;
