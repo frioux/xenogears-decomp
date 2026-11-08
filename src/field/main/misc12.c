@@ -136,9 +136,13 @@ void FieldScriptVMWriteCurCharacterID(void) {
 }
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc12", FieldScriptVMWritePartyLeaderCharacterID);
-/* 94.84%: identical instructions, but gcc hoists the `li a0,1` for
-   FieldScriptVMGetInstructionArgument above the prologue instead of leaving it
-   in the jal delay slot.
+/* 94.84%: identical instructions except that gcc emits `li a0,1` for
+   FieldScriptVMGetInstructionArgument early (after the prologue / before the
+   g_FieldActors loads) instead of leaving it in that call's jal delay slot.
+   Tried: `int nArgument = 1;` local, separating the pActor statement (same
+   hoist, pct unchanged), the whole call as one expression (4.19%), and
+   `int`/`short characterId` locals - those do put the li in the delay slot but
+   turn the `lh a1,228(s0)` after the call into a `move a1,s0` (74%).
 void FieldScriptVMWritePartyLeaderCharacterID(void) {
     ActorData* pActor = g_FieldActors[g_PlayerActorIndex].pActorData;
 
@@ -386,7 +390,12 @@ void FieldScriptSetActorRotation(int angle) {
 
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc12", func_8009AA00);
-/* 97.58%: one extra `li a0,1`, same cause as FieldScriptVMWritePartyLeaderCharacterID.
+/* 97.58%: two instructions differ - gcc emits an extra `li a0,1` for the
+   pActor GetActorIndex call right after the pTargetActor call instead of
+   leaving it in that call's jal delay slot. Same hoist as
+   FieldScriptVMWritePartyLeaderCharacterID. Tried: naming the pTargetActor
+   index in a local (no change); swapping the two assignments changes the
+   s0/s1 allocation so it is not the same code.
 void func_8009AA00(void) {
     ActorData* pTargetActor;
     ActorData* pActor;
@@ -411,8 +420,8 @@ void func_8009AA00(void) {
         }
     }
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
-} */
-
+}
+ */
 void func_8009AB08(int rotation) {
     short rotationValue;
 
@@ -839,17 +848,21 @@ void func_8009BA0C(void) {
 }
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc12", func_8009BA7C);
-/* 96.94%: same statements and store order; the original reaches unk60 with
-   `sll 9` then `sll 16` on the same register, gcc folds them into `sll 25`.
+/* 96.94%: store order matches (unk7C, then unk60, then sceneAngle.vy). The
+   original computes `angle << 9` twice and does not fold the unk60 chain into a
+   single `sll 25`; gcc 2.7.2 CSEs the two shifts and combine folds
+   (x<<9)<<16 -> sll 25. Tried: both statement orders, `* 0x200` / `* 0x10000`,
+   a u_long temp for unk7C - all fold. */
 void func_8009BA7C(void) {
     int direction;
 
     g_Scene.sceneDIP = FieldScriptVMGetArgument(3);
     direction = (FieldScriptVMGetArgument(1) + 4) & 7;
-    g_Scene.unk7C = direction << 9;
+    g_Scene.unk7C = direction * 0x200;
     g_Scene.sceneAngle.vy = direction << 9;
-    g_Scene.unk60 = g_Scene.unk7C << 16;
+    g_Scene.unk60 = g_Scene.unk7C * 0x10000;
     g_Scene.sceneScrZ = FieldScriptVMGetArgument(5);
     SetGeomScreen(g_Scene.sceneScrZ);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 7;
-} */
+}
+
