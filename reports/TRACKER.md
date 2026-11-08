@@ -1,6 +1,6 @@
 # Decompilation tracker
 
-Live log of an autonomous 12-hour work session. One row per landed batch.
+Live log of autonomous 12-hour work sessions. One row per landed batch.
 `make check` must pass for a row to land (all six outputs `OK`).
 
 Baseline at session start (2026-11-08):
@@ -150,3 +150,35 @@ workers (110 worker-runs), with every batch gated by `make check`.
 4. Untouched and tractable: `system/sound` 60 stubs, `field/main/misc` 37,
    `field/main/misc8` 27, `lib_gear/main/main` 27, `field/main/misc4` 16,
    `misc6` 16, `misc5` 14, `temp1` 13.
+
+
+# Session 2 (2026-11-08)
+
+Baseline at session start: 1824 / 2528 functions (72.15%), 50.66% of code,
+569 `INCLUDE_ASM` stubs. This section logs the second 12-hour session.
+
+Stubs by area at session start: `psyq` 150 (96 libgte, 12 libapi, 8 libapi_2,
+8 libsn, 8 libc, 7 libgpu, 6 libcard, 4 libetc), `system` 245 (`sound` 59,
+`model` 49, `temp2` 25, `rendering` 13, `temp1` 12, `archive` 9), `field` 301
+(`main/misc` 34, `misc8` 27, `misc2` 19, `misc4` 16, `misc6` 15, `misc5` 14,
+`main` 10, `scripts/virtual_machine` 8, ...), `lib_gear` 27, `shop_menu` 8.
+
+## Log
+
+| # | Batch | Functions | Total | Notes |
+|---|---|---|---|---|
+| — | baseline | — | 1824 | session start |
+
+## Findings
+
+- `tools/scripts/check_bin.sh <bin>` (new): matching-mode rebuild of one output
+  and byte comparison against `config/checksum.sha`, ~35 s. The link is the real
+  gate, so a function whose only objdiff difference is a relocation the linker
+  resolves identically (section-relative `.rodata` jump table vs a named `jtbl_`)
+  can now be *proved* matched instead of being parked at 99.7% forever.
+- 150 psyq stubs, classified by their original assembly: 68 contain cop2
+  (`mtc2`/`ctc2`) instructions and are handwritten GTE code, 17 are BIOS syscall
+  trampolines (`addiu $t2; jr $t2`), and **65 are ordinary C** -- `RotMatrixX`,
+  `ScaleMatrix`, `DrawOTagEnv`, `PutDispEnv`, `Sprintf`, `PCopen` and friends.
+  That 65 is the largest untouched tractable pool in the repo and was written
+  from known Psy-Q library sources.
