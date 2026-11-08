@@ -942,9 +942,38 @@ void func_8008C84C(void) {
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008C938);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008CA60);
+extern void func_8003A838(int, int, int);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008CB4C);
+void func_8008CA60(void) {
+    if (D_8004F36C != 0) {
+        func_8003A838(D_80062528, FieldScriptVMGetArgument(1), FieldScriptVMGetArgument(3));
+        g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
+    } else if (D_8004F324 == CHARACTER_ID_NONE) {
+        g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
+    } else if (D_800ADB1C == 0) {
+        g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
+    } else {
+        g_FieldScriptVMCurActor->scriptInstructionPointer -= 1;
+    }
+    D_800B00C0 = 1;
+}
+
+extern void func_8003A9BC(int, int, int);
+
+void func_8008CB4C(void) {
+    if (D_8004F36C != 0) {
+        func_8003A9BC(D_80062528, FieldScriptArgument1(1, SCRIPT_READ_U8_REL(5)),
+                      FieldScriptArgument2(3, SCRIPT_READ_U8_REL(5)));
+        g_FieldScriptVMCurActor->scriptInstructionPointer += 6;
+    } else if (D_8004F324 == CHARACTER_ID_NONE) {
+        g_FieldScriptVMCurActor->scriptInstructionPointer += 6;
+    } else if (D_800ADB1C == 0) {
+        g_FieldScriptVMCurActor->scriptInstructionPointer += 6;
+    } else {
+        g_FieldScriptVMCurActor->scriptInstructionPointer -= 1;
+    }
+    D_800B00C0 = 1;
+}
 
 extern void func_8003AAC4(int, int);
 
@@ -1235,7 +1264,15 @@ void func_8008D780(void) {
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008D808);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008DA04);
+void func_8008DA04(int value1, int value2) {
+    SCRIPT_READ_U8_REL(0xC) = 0x4B;
+    func_8008D2E0(value1, g_FieldScriptVMCurActor->scriptInstructionPointer + 0xD);
+    func_8008D2E0(value2, g_FieldScriptVMCurActor->scriptInstructionPointer + 0xF);
+    SCRIPT_READ_U8_REL(0x11) = 0xFF;
+    SCRIPT_READ_U8_REL(0x12) = 0xFF;
+    SCRIPT_READ_U8_REL(0x13) = 0x80;
+    g_FieldScriptVMCurActor->scriptInstructionPointer += 0xC;
+}
 
 void func_8008DAFC(void) {
     g_FieldScriptVMCurActor->parentActorId = ACTOR_ID_INVALID;
