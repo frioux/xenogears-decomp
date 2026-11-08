@@ -25,7 +25,25 @@ extern void* g_PartyStreamDataPointers[];
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp3", func_8001A5CC);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp3", func_8001A684);
+extern u8* D_800592D8;
+
+void func_8001A684(s32 arg0, s32 arg1) {
+    if (arg0 < 0) {
+        arg0 = 0x1C;
+    }
+    if (arg0 > 0x1C) {
+        arg0 = 0;
+    }
+
+    if (arg1 < 0) {
+        arg1 = 0x28;
+    }
+    if (arg1 > 0x28) {
+        arg1 = 0;
+    }
+
+    D_800592D8[arg0 * 0x28 + arg1] += 1;
+}
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp3", func_8001A6E8);
 
@@ -278,9 +296,42 @@ void func_8001B5A8(void) {
     }
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp3", func_8001B5E8);
+extern s32 D_8004F35C;
+extern s32 D_80062528;
+extern s32 D_8004F348;
+extern s32 D_8004F2FC;
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp3", func_8001B66C);
+extern void func_80039C4C(s32);
+extern void func_800399D4(s32);
+
+void func_8001B5E8(void) {
+    if (D_8004F35C == 1) {
+        func_80039C4C(D_80062528);
+        if (D_8004F348 == 0) {
+            func_800399D4(D_80062528);
+        } else {
+            D_8004F2FC = D_80062528;
+        }
+        D_8004F35C = 0;
+        D_8004F348 = 0;
+    }
+}
+
+extern s32 D_8004F36C;
+extern s32 D_8004F33C;
+extern s32 D_8004F338;
+
+void func_8001B5E8(void);
+
+void func_8001B66C(void) {
+    if (D_8004F36C != 0) {
+        func_8001B5E8();
+        func_8001B5A8();
+    }
+    D_8004F33C = -1;
+    D_8004F338 = -1;
+    D_8004F36C = 0;
+}
 
 void func_8001B6BC(void) {}
 
@@ -298,11 +349,64 @@ void func_8001B94C(DRAWENV* pDrawEnv) {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp3", func_8001B970);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp3", func_8001BB0C);
+extern u8 D_8006F9DE;
+extern s32 D_80059470;
+extern s32 D_80059520;
+extern s32 D_8005949C;
+
+extern s32 func_800379D8(s32, s32, s32*, s32*, s32*);
+
+void func_8001BB0C(void) {
+    func_800379D8(D_8006F9DE, 0, &D_80059470, &D_80059520, &D_8005949C);
+}
+
+extern u8 D_800594F8;
+extern u8 D_8005946C;
+extern u8 D_800594D4;
+extern u8 D_800594D5;
+extern u8 D_800594D6;
+extern s32 D_800595A0;
+
+void func_8001B970(void);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp3", func_8001BB50);
+/*
+Best: 80.87%. The original writes these globals through %gp_rel, which maspsx only
+emits for symbols the unit defines itself (a file-scope definition here turns each
+reference into %gp_rel). This file also contains functions that use %lo for the same
+symbols (e.g. func_8001B6C4 on D_800594F8/D_8005947C), so the unit cannot have both;
+deciding who owns this .bss data is a unit-level call.
+void func_8001BB50(void) {
+    D_800594F8 = 1;
+    D_8005946C = 0;
+    func_8001B970();
+    ArchiveCdDataSync(0);
+    D_800594D4 = 0x88;
+    D_800594D5 = 0x76;
+    D_800594D6 = 0x54;
+    D_800595A0 = 2;
+} */
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp3", func_8001BBAC);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp3", func_8001BD40);
+extern int rand(void);
 
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp3", func_8001BD40);
+/*
+Best: 85.77%. Control flow and constants all line up; gcc 2.7.2 here merges the
+`arg0 == arg1` test into a branch to the epilogue and inverts the rand()/diff
+branches where the original keeps `bne ... ; j epilogue ; move v0,v1`.
+u8 func_8001BD40(u8 arg0, u8 arg1) {
+    s32 diff;
+
+    if (arg0 == 0xFF) return 0xFF;
+    if (arg1 == 0) return 0;
+    diff = arg1 - arg0;
+    if (arg0 != arg1) {
+        if (diff < 0xFF) {
+            return arg0 + (rand() & 0xFF) % (diff + 1);
+        }
+        return rand() & 0xFF;
+    }
+    return arg0;
+} */
