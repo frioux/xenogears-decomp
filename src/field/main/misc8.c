@@ -746,9 +746,87 @@ int func_80085C3C(void) {
     return -1;
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80085C90);
-
+extern s32 D_8004F364;
+extern s32 D_8004F338;
+extern s32 D_8004F340;
+extern s32 D_8004F348;
+extern s32 D_8004F358;
+extern s32 D_8004F35C;
+extern s32 D_8004F36C;
+extern s32 g_GameHasLoadedWDS;
+extern u8 D_800ADFCC[];
+extern u8 D_80062648[];
+extern AudioManager* D_80062528;
 extern AudioManager* D_8004F2FC;
+void func_80085FB8(void);
+int func_80085F30(void);
+int ArchiveDataSync(void);
+void ArchiveReadFileToBuffer(int fileIndex, void* pBuffer, int arg2, int size);
+AudioManager* func_80039850(void* pData);
+void func_80039A80(AudioManager* pManager, s32 arg1, s32 arg2);
+void func_8003A89C(AudioManager* pManager, s32 arg1, s32 arg2);
+void func_80039B68(AudioManager* pManager, s32 arg1, s32 arg2);
+
+int func_80085C90(s32 arg0) {
+    s32 state = D_8004F354;
+
+    if (state == 1) {
+        if (func_80085C3C() == -1) {
+            return -1;
+        }
+        func_8003BDFC(0x10);
+        HeapFree(D_800C3A1C);
+        D_8004F354 = 0;
+        g_GameHasLoadedWDS = state;
+        D_8004F33C = D_800ADFCC[arg0 * 2];
+    }
+    if (D_800ADFCD[arg0 * 2] == 0) {
+        if (D_8004F364 == 0) {
+            func_80085FB8();
+            return -1;
+        }
+        if (D_8004F364 & 0x80) {
+            if (func_80085F30() == -1) {
+                return -1;
+            }
+        }
+    }
+    if (D_800AFC54 == 1) {
+        if (D_8004F338 != arg0) {
+            ArchiveSetIndex(0x1C, 0);
+            ArchiveReadFileToBuffer(arg0 * 2 + 0x14, D_80062648, 0, 0x80);
+            D_8004F358 = 1;
+            ArchiveSetIndex(4, 0);
+        }
+        D_800AFC54 = 0;
+        return -1;
+    }
+    if (ArchiveDataSync() != 0) {
+        return -1;
+    }
+    if (D_8004F358 == 1) {
+        if (D_8004F348 == 0) {
+            D_80062528 = func_80039850(D_80062648);
+            if (D_8004F340 == -1) {
+                func_80039A80(D_80062528, 0x7F, 0);
+            } else {
+                func_80039A80(D_80062528, 0, 0);
+                func_8003A89C(D_80062528, 0, 0);
+            }
+        } else {
+            D_80062528 = D_8004F2FC;
+            func_80039B68(D_8004F2FC, 0x7F, 0xF0);
+            D_8004F348 = 0;
+            D_8004F2FC = NULL;
+        }
+        D_8004F358 = 0;
+        D_8004F35C = 1;
+        D_8004F338 = arg0;
+    }
+    D_8004F340 = -1;
+    D_8004F36C = 1;
+    return 0;
+}
 
 void func_80085EEC(void) {
     if (D_8004F2FC != NULL) {
@@ -1010,11 +1088,36 @@ void FieldScriptVM2Run(void) {
     (*handler)();
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80086A1C);
-
 extern s16 D_800B22E2[];
 
-void func_80086A1C(int, VECTOR*);
+extern s16 D_800B22E8[];
+extern s16 D_800B22EA[];
+extern s16 D_800B22EC[];
+extern s16 D_800B2300[];
+extern s16 D_800B2302[];
+extern s16 D_800B2304[];
+extern s32 D_800B2318[];
+extern s16 D_800B2324[];
+extern s16 D_800B2326[];
+extern s16 D_800B2328[];
+long FieldGetVec3Magnitude(long x, long y, long z);
+
+void func_80086A1C(int index, VECTOR* pPosition) {
+    s16* pPos = (s16*)pPosition;
+    s32 stepX = ((D_800B22E8[index * 4] - D_800B2300[index * 4]) << 16) / D_800B2318[index];
+    s32 stepY = ((D_800B22EA[index * 4] - D_800B2302[index * 4]) << 16) / D_800B2318[index];
+    s32 stepZ = ((D_800B22EC[index * 4] - D_800B2304[index * 4]) << 16) / D_800B2318[index];
+    s32 remaining;
+
+    remaining = D_800B2318[index] - FieldGetVec3Magnitude(
+        D_800B2324[index * 4] - pPos[1],
+        D_800B2326[index * 4] - pPos[3],
+        D_800B2328[index * 4] - pPos[5]);
+
+    ((s16*)D_800B2318)[index - 0x6E] = (stepX * remaining) >> 16;
+    ((s16*)D_800B2318)[index - 0x6B] = (stepY * remaining) >> 16;
+    ((s16*)D_800B2318)[index - 0x68] = (stepZ * remaining) >> 16;
+}
 
 void func_80086BA8(void) {
     int i;
