@@ -1195,7 +1195,46 @@ void func_801E6E48(void* pAnimFile, s32 animIndex, s32 arg2, s16 direction, s16 
     }
 }
 
+// objdiff 99.21%: everything matches except the GTE command word - the original
+// assembles `MVMVA 1,0,0,0,0` to 0x4A480012, while both gte_ApplyRotMatrix
+// (gte_rtv0) and gte_mvmva() emit a different word (.word 0x13f / 0x20013bf)
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E6F64);
+/*
+// void func_801E6F64(void* pTaskRaw) {
+//     AnimTask* pTask = pTaskRaw;
+//     LibGearJointTask* pJointTask;
+//     LVEC3 vec;
+//     MATRIX* pMatrix;
+//
+//     pJointTask = (LibGearJointTask*)((u8*)pTask + pTask->spriteData.allocatedDataSize);
+//     pMatrix = (MATRIX*)0x1F800000;
+//
+//     if (pJointTask->jointIndex != 0) {
+//         CompMatrix(
+//             &pJointTask->pModel->pSkeleton[0].localTransform,
+//             &pJointTask->pModel->pSkeleton[pJointTask->jointIndex].globalTransform,
+//             pMatrix
+//         );
+//     } else {
+//         pMatrix = &pJointTask->pModel->pSkeleton[0].localTransform;
+//     }
+//
+//     SetRotMatrix(pMatrix);
+//     SetTransMatrix(pMatrix);
+//
+//     gte_ApplyRotMatrix(&pJointTask->offset, &vec);
+//
+//     if (pJointTask->unkE != 0) {
+//         vec.y = pJointTask->pModel->ground;
+//     }
+//
+//     pTask->spriteData.position.x = CONV_FROM_GTE(vec.x);
+//     pTask->spriteData.position.y = CONV_FROM_GTE(vec.y);
+//     pTask->spriteData.position.z = CONV_FROM_GTE(vec.z);
+//
+//     pJointTask->pChainCallback(pTask);
+// }
+*/
 
 void func_801E7094(Model* pModel, ModelJoint* pJoint, u8 flags, s16 x, s16 y, s16 z) {
     ModelJoint* pChild;
