@@ -53,10 +53,11 @@ u_int func_80080968(ActorData* pActor) {
 extern u_short D_800B14AC;
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800809D0);
-/*
+/* 85.00%: pre-loop `acc = 0; acc += value` is folded by gcc into a copy of the
+   constant (no `addu a0,zero,zero`), so acc lands in a1 instead of a0.
 int func_800809D0(s32* pData) {
-    int step = pData[7];
     int value = -0x14D000;
+    int step = pData[7];
     int acc = 0;
 
     D_800B14AC = 0;
@@ -176,19 +177,16 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800855C8);
 
 extern s32 D_800B21B8;
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80085634);
-/*
 void func_80085634(int arg0, int arg1) {
-    u_int offset = arg1 & 7;
+    int offset = arg1 & 7;
 
     if (arg0 == 0) {
         func_8003A20C(offset * 2);
     } else {
         D_800B21B8 = arg0;
-        func_800855C8(arg0, 0x7F, 0x40);
+        func_800855C8(arg0, 0x7F, 0x40, offset);
     }
 }
-*/
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80085678);
 
