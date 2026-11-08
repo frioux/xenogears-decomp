@@ -8,7 +8,6 @@
 
 // tmp
 u_char MemberChangeMenuSwapCharacters(u_char, s32, s32, u_char, s32, s32);
-void func_801C59E0(MenuString* pStrings, u_char* pStringIDs, s32 arg2, s32 count);
 
 // Bit masks
 extern u_short D_801CB57C[];
@@ -312,7 +311,38 @@ void func_801C57A0(MenuString* pString, int index, s32 arg2, u32 attributes) {
     pString->unk7F = 0;
 }
 
-INCLUDE_ASM("asm/member_change_menu/nonmatchings/main/misc", func_801C59E0);
+void func_801C59E0(MenuString* pStringList, u_char* pStringIdList, s32 arg2, s32 count) {
+    s32 i;
+    RECT *pRect;
+    MenuString *pString;
+
+    for (i = 0; i < count; i += 2) {
+        pStringList[i].width = SystemRenderStringEntry(
+            GetStringEntry(g_Menu->unk2E0, pStringIdList[i]),
+            (u32*) g_Menu->unk4E0[0].pVramBuffer, 0x18, 0
+        );
+        pStringList[i + 1].width = SystemRenderStringEntry(
+            GetStringEntry(g_Menu->unk2E0, pStringIdList[i + 1]),
+            (u32*) g_Menu->unk4E0[0].pVramBuffer, 0x18, 1
+        );
+
+        pString = &pStringList[i];
+        pRect = &pString->vramDest;
+        setRECT(pRect,
+                ((u32)(i / 2) % 2 * 32) + 0x140,
+                ((i+arg2) / 4) * FONT_LETTER_HEIGHT,
+                28,
+                FONT_LETTER_HEIGHT
+        );
+        memcpy(&pString[1].vramDest, pRect, sizeof(RECT));
+
+        func_801C57A0(&pStringList[i], i, arg2, 0);
+        func_801C57A0(&pStringList[i + 1], i + 1, arg2, 0);
+
+        LoadImage(pRect, g_Menu->unk4E0[0].pVramBuffer);
+        DrawSync(0);
+    }
+}
 
 void func_801C5B90(void) {
     SystemTransferPaletteToVRAM(0, 0x1D1);
@@ -1934,6 +1964,62 @@ void MemberChangeMenuFreeCursors(void) {
 }
 
 INCLUDE_ASM("asm/member_change_menu/nonmatchings/main/misc", MemberChangeMenuSwapCharacters);
+// 98.22%: instruction sequence is identical, only the s0-s4 allocation differs.
+// u_char MemberChangeMenuSwapCharacters(u_char isBenchedWindowActive, s32 curCharIndex, s32 curCharOffset, u_char isSelectedCharOnBenchedWindow, s32 selectedCharIndex, s32 selectedCharOffset) {
+//     u_char srcIndex;
+//     u_char dstIndex;
+//     u_char result;
+//     u_char canSwapSrc;
+//     u_char canSwapDst;
+//     u_char numPartyCharacters;
+//     u_char tmp;
+//     s32 i;
+//
+//     result = FALSE;
+//     canSwapSrc = TRUE;
+//     canSwapDst = TRUE;
+//
+//     if (!isBenchedWindowActive) {
+//         srcIndex = curCharIndex;
+//         dstIndex = selectedCharIndex + selectedCharOffset;
+//     } else {
+//         srcIndex = selectedCharIndex;
+//         dstIndex = curCharIndex + curCharOffset;
+//     }
+//
+//     if (g_Menu->pManager->currentCharacterIDs[srcIndex] == 0xFF ||
+//         MemberChangeMenuIsCharacterFlagSet(D_8006F94C, g_Menu->pManager->currentCharacterIDs[srcIndex])) {
+//         canSwapSrc = FALSE;
+//     }
+//
+//     if (g_Menu->unk1E14[dstIndex] == 0xFF ||
+//         MemberChangeMenuIsCharacterFlagSet(D_8006F94C, g_Menu->unk1E14[dstIndex])) {
+//         canSwapDst = FALSE;
+//     }
+//
+//     if (canSwapSrc && canSwapDst) {
+//         tmp = g_Menu->pManager->currentCharacterIDs[srcIndex];
+//         g_Menu->pManager->currentCharacterIDs[srcIndex] = g_Menu->unk1E14[dstIndex];
+//         g_Menu->unk1E14[dstIndex] = tmp;
+//
+//         numPartyCharacters = 0;
+//         for (i = 0; i < MAX_PARTY_MEMBERS; i++) {
+//             if (g_Menu->pManager->currentCharacterIDs[i] != 0xFF) {
+//                 numPartyCharacters++;
+//             }
+//         }
+//
+//         result = TRUE;
+//         if (numPartyCharacters == 0) {
+//             tmp = g_Menu->pManager->currentCharacterIDs[srcIndex];
+//             g_Menu->pManager->currentCharacterIDs[srcIndex] = g_Menu->unk1E14[dstIndex];
+//             g_Menu->unk1E14[dstIndex] = tmp;
+//             result = FALSE;
+//         }
+//     }
+//
+//     return result;
+// }
 
 void MemberChangeMenuMainLoop(void) {
     int i;

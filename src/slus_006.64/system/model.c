@@ -3,6 +3,12 @@
 #include "system/model.h"
 #include "system/debug.h"
 
+extern u8 D_80059598;
+extern u8 D_80059599;
+extern u8 D_8005959A;
+extern u32 D_800500F8;
+extern u32 D_800500FC;
+extern u8 D_8006FAF0;
 extern s32 g_ModelTextureMode;
 extern s32 g_ModelClutMode;
 extern u16 g_ModelTexPage;
@@ -52,15 +58,96 @@ int ModelResolvePointers(ModelFileHeader* pModelFile) {
     return numParts;
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/model", func_8002C4BC);
+int func_8002C4BC(ModelFileHeader* pModelFile) {
+    int numParts;
+    int i;
+    int j;
+    ModelPart* pCurPart;
+    ModelPacketInfo* pPacketInfo;
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/model", func_8002C59C);
+    i = pModelFile->flags;
+    numParts = pModelFile->numModelParts;
+    if ((i & 1) == 0) {
+        return numParts;
+    }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/model", func_8002C644);
+    pModelFile->flags = i & ~1;
+    pCurPart = pModelFile->modelParts;
+    for (i = 0; i < numParts; i++) {
+        pCurPart->pVertices = (mem_addr)pCurPart->pVertices - (mem_addr)pModelFile;
+        pCurPart->unkC = (mem_addr)pCurPart->unkC - (mem_addr)pModelFile;
+        pCurPart->unk10 = (mem_addr)pCurPart->unk10 - (mem_addr)pModelFile;
+        pCurPart->pColors = (mem_addr)pCurPart->pColors - (mem_addr)pModelFile;
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/model", func_8002C68C);
+        if (pCurPart->unk1C != NULL) {
+            pPacketInfo = pCurPart->unk1C + 1;
+            for (j = *pCurPart->unk1C; j != -1; j--) {
+                pPacketInfo[j].lightDataSize -= (mem_addr)pModelFile;
+                pPacketInfo[j].modelPacketSize -= (mem_addr)pModelFile;
+            }
+            pCurPart->unk1C = (mem_addr)pCurPart->unk1C - (mem_addr)pModelFile;
+        }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/model", SetNearColor);
+        pCurPart++;
+    }
+
+    return numParts;
+}
+
+void func_8002C59C(ModelPart* pModelPart) {
+    u_short flags;
+    ModelPacketInfo* pPacketInfo;
+    int j;
+
+    flags = pModelPart->flags;
+    if (flags & 0x20) {
+        return;
+    }
+    pModelPart->flags = flags | 0x20;
+    pModelPart->pVertices = (mem_addr)pModelPart->pVertices + (mem_addr)pModelPart;
+    pModelPart->unkC = (mem_addr)pModelPart->unkC + (mem_addr)pModelPart;
+    pModelPart->unk10 = (mem_addr)pModelPart->unk10 + (mem_addr)pModelPart;
+    pModelPart->pColors = (mem_addr)pModelPart->pColors + (mem_addr)pModelPart;
+    if (pModelPart->unk1C != NULL) {
+        pModelPart->unk1C = (mem_addr)pModelPart->unk1C + (mem_addr)pModelPart;
+        pPacketInfo = pModelPart->unk1C + 1;
+        for (j = *pModelPart->unk1C; j != -1; j--) {
+            pPacketInfo[j].lightDataSize += (mem_addr)pModelPart;
+            pPacketInfo[j].modelPacketSize += (mem_addr)pModelPart;
+        }
+    }
+}
+
+int func_8002C644(ModelFileHeader* pModelFile) {
+    u_int flags;
+
+    flags = pModelFile->flags;
+    if (flags & 0x2) {
+        return 1;
+    }
+    pModelFile->flags = flags | 0x2;
+    HeapInsertAlloc((HeapBlock*)pModelFile, (mem_addr)pModelFile->modelParts[0].pColors - (mem_addr)pModelFile);
+    return 0;
+}
+
+int func_8002C68C(ModelPart* pModelPart) {
+    u_short flags;
+
+    flags = pModelPart->flags;
+    if (flags & 0x40) {
+        return 1;
+    }
+    pModelPart->flags = flags | 0x40;
+    HeapInsertAlloc((HeapBlock*)pModelPart, (mem_addr)pModelPart->pColors - (mem_addr)pModelPart);
+    pModelPart->pColors = NULL;
+    return 0;
+}
+
+void SetNearColor(u_char r, u_char g, u_char b) {
+    D_80059598 = r;
+    D_80059599 = g;
+    D_8005959A = b;
+}
 
 // Render a model part's packet.
 // This usually calls into a handler for the chosen render path, where
@@ -142,7 +229,6 @@ u_int ModelPacketSetTextureData(PrimitiveHeader* pPrim) {
     }
     return PRIM_NO_TEX_DATA;
 }
-
 
 // ---------------------------------------------
 // This block of functions are initializer handlers which initializes
@@ -588,7 +674,6 @@ u_int ModelPacketInitPolyFT3_2(TexturedTrianglePrimitive* pPrim, short* pIndices
 }
 // -------------------------------------
 
-
 void MathTriangleNormal(SVECTOR* pVertex1, SVECTOR* pVertex2, SVECTOR* pVertex3, SVECTOR* pNormal) {
     VECTOR edge1;
     VECTOR edge2;
@@ -661,9 +746,14 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/model", func_8002DD20);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/model", func_8002DDE4);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/model", func_8002DFE0);
+void* func_8002DFE0(void) {
+    return &D_8006FAF0;
+}
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/model", func_8002DFF0);
+void func_8002DFF0(u32 arg0, u32 arg1) {
+    D_800500FC = (arg1 - 1) << 0x10;
+    D_800500F8 = arg0;
+}
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/model", func_8002E010);
 
@@ -697,7 +787,26 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/model", func_8002FF0C);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/model", func_8003014C);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/model", func_800301C8);
+// Vertex data as the packet renderer touches it: three unsigned 16-bit
+// components followed by padding.
+typedef struct {
+    /* 0x0 */ u16 x;
+    /* 0x2 */ u16 y;
+    /* 0x4 */ u16 z;
+    /* 0x6 */ u16 pad6;
+} ModelVertex; // Size: 0x8
+
+void func_800301C8(ModelVertex* pDest, ModelVertex* pSrc, int count, short* pIndices) {
+    int i;
+    int index;
+
+    for (i = count - 1; i != -1; i--) {
+        index = pIndices[i];
+        pDest[index].x = pSrc[index].x;
+        pDest[index].y = pSrc[index].y;
+        pDest[index].z = pSrc[index].z;
+    }
+}
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/model", func_80030228);
 
@@ -707,7 +816,28 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/model", func_800303C8);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/model", func_800305D8);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/model", func_800306D0);
+// Saved state of a model part's vertex data, so that a part can have its
+// vertices replaced and later restored.
+typedef struct {
+    /* 0x0 */ ModelPart* pModelPart;
+    /* 0x4 */ SVECTOR* pVertices;
+    /* 0x8 */ u32 unkC;
+} ModelPartVertexBackup;
+
+void func_800306D0(ModelPartVertexBackup* pBackup) {
+    ModelPart* pModelPart;
+
+    if (pBackup != NULL) {
+        pModelPart = pBackup->pModelPart;
+        HeapFree(pModelPart->pVertices);
+        if (pModelPart->flags & 0x10) {
+            HeapFree(pModelPart->unkC);
+        }
+        pModelPart->pVertices = pBackup->pVertices;
+        pModelPart->unkC = pBackup->unkC;
+        HeapFree(pBackup);
+    }
+}
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/model", func_80030750);
 

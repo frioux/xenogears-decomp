@@ -234,7 +234,7 @@ typedef struct {
     // MFlag2
     u_int flags;
 
-    /* 0x8  */ u_short walkmeshTriIds[4]; // Pri 0 - 3
+    /* 0x8  */ short walkmeshTriIds[4]; // Pri 0 - 3
     /* 0x10 */ short walkmeshId; // pol
     /* 0x12 */ short pad_0x12;
     /* 0x14 */ u_int curWalkmeshTriMaterial; // ID

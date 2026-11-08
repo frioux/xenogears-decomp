@@ -339,7 +339,38 @@ void func_801C5A7C(MenuString* pString, int index, s32 arg2, u32 attributes) {
     pString->unk7F = 0;
 }
 
-INCLUDE_ASM("asm/shop_menu/nonmatchings/main/misc", func_801C5CBC);
+void func_801C5CBC(MenuString* pStringList, u8* pStringIdList, s32 yOffset, s32 count) {
+    s32 i;
+    RECT *pRect;
+    MenuString *pString;
+
+    for (i = 0; i < count; i += 2) {
+        pStringList[i].width = SystemRenderStringEntry(
+            GetStringEntry(g_Menu->unk2E0, pStringIdList[i]),
+            (u32*) g_Menu->unk4E0[0].pVramBuffer, 0x18, 0
+        );
+        pStringList[i + 1].width = SystemRenderStringEntry(
+            GetStringEntry(g_Menu->unk2E0, pStringIdList[i + 1]),
+            (u32*) g_Menu->unk4E0[0].pVramBuffer, 0x18, 1
+        );
+
+        pString = &pStringList[i];
+        pRect = &pString->vramDest;
+        setRECT(pRect,
+                ((u32)(i / 2) % 2 * 32) + 0x140,
+                ((i+yOffset) / 4) * FONT_LETTER_HEIGHT,
+                28,
+                FONT_LETTER_HEIGHT
+        );
+        memcpy(&pString[1].vramDest, pRect, sizeof(RECT));
+
+        func_801C5A7C(&pStringList[i], i, yOffset, 0);
+        func_801C5A7C(&pStringList[i + 1], i + 1, yOffset, 0);
+
+        LoadImage(pRect, g_Menu->unk4E0[0].pVramBuffer);
+        DrawSync(0);
+    }
+}
 
 void func_801C5E6C(void) {
     RECT rect;
