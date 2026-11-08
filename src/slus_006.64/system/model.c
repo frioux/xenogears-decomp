@@ -974,6 +974,12 @@ void func_800306D0(ModelPartVertexBackup* pBackup) {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/model", func_80030750);
 
+// Handwritten assembly like the rest of 0x80030988..0x80030C98. The original
+// masks a 16-bit field at D_800308D0 + {0x30,0x5C,0x7C} (a0) and + {0x3C,0x68,0x88}
+// (a1) with `lh` + `andi 0xF83F` and writes a2/a3 to +{0x34,0x60,0x80}/+{0x40,0x6C,0x8C}.
+// Best C match, 0.00%: every such expression compiles to `lhu` + `and` with the
+// mask in a register, and gcc never keeps the block address in one base register
+// the way the original does with $t0, so the instruction sequence cannot be produced.
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/model", func_80030988);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/model", func_80030A30);
