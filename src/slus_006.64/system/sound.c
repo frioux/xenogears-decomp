@@ -1918,7 +1918,20 @@ u8* SoundScriptSetVoiceFlags2000ClearMode(u8* pScript, AudioManager* pAudioManag
     return pScript;
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003D4E4);
+u8* func_8003D4E4(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
+    s16 depth;
+    s32 delay;
+    s32 feedback;
+
+    depth = pScript[0] << 8;
+    pAudioManager->reverbDepth = depth;
+    delay = (s8)pScript[1];
+    pAudioManager->reverbDelay = delay;
+    feedback = (s8)pScript[2];
+    pAudioManager->reverbFeedback = feedback;
+    SoundSetReverbModeWithAllocation(SPU_REV_MODE_CHECK, depth, delay, feedback);
+    return pScript + 3;
+}
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003D53C);
 /*
@@ -2202,6 +2215,27 @@ u8* func_8003DEB4(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
 }
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003DEE4);
+
+/* Best attempt (76.59%): every instruction matches except the entry `move a1, a0`
+   (the original keeps the script base in a1) and the `subu` computing delta, which
+   the original places in the delay slot of the frames test instead of before it.
+u8* func_8003DEE4(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
+    s32 target = (s8)pScript[1];
+    s32 current = (s8)(pAudioElements->unk_0x74 >> 8);
+    u16 frames = pScript[0];
+    s32 delta;
+
+    if (frames && (delta = target - current)) {
+        delta <<= 8;
+        pAudioElements->unk_0x92 = delta;
+        pAudioElements->unk_0x98 = frames;
+        pAudioElements->unk_0x04 |= 0x10;
+        pAudioElements->unk_0x90 = delta / frames;
+    }
+
+    return pScript + 2;
+}
+*/
 
 u8* func_8003DF3C(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     s32 divisor = (u8)(*pScript + 1);
