@@ -456,7 +456,29 @@ void func_80075910(void) {
     DrawOTag(&g_FieldCurRenderContext->ot3[7]);
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_800759E4);
+const VECTOR D_8006FB70 = { 0, 0, 0x1000, 0 };
+
+void func_800759E4(s16* pOut, VECTOR* pUp) {
+    VECTOR zAxis;
+    VECTOR xAxis;
+    VECTOR vecWork;
+
+    zAxis = D_8006FB70;
+    OuterProduct12(&zAxis, pUp, &vecWork);
+    VectorNormal(&vecWork, &xAxis);
+    OuterProduct12(&xAxis, pUp, &vecWork);
+    VectorNormal(&vecWork, &zAxis);
+
+    pOut[0] = xAxis.vx;
+    pOut[1] = xAxis.vy;
+    pOut[2] = xAxis.vz;
+    pOut[3] = pUp->vx;
+    pOut[4] = pUp->vy;
+    pOut[5] = pUp->vz;
+    pOut[6] = zAxis.vx;
+    pOut[7] = zAxis.vy;
+    pOut[8] = zAxis.vz;
+}
 
 void func_80075B08(SpriteData* pSpriteData, u_char* pColor) {
     if (D_800B218E == 0) {
