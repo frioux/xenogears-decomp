@@ -109,10 +109,18 @@ typedef struct {
 
 
 
+// Per-model transformed position; x1/y1/z1 is rotated into x0/y0/z0
 typedef struct {
-    /* 0x0 */ u8 unk0[0x6];
-    /* 0x6 */ s16 unk6;
-    /* 0x8 */ u8 unk8[0xC];
+    /* 0x0  */ u_short x0;
+    /* 0x2  */ u_short y0;
+    /* 0x4  */ u_short z0;
+    /* 0x6  */ s16 unk6;
+    /* 0x8  */ u_short x1;
+    /* 0xA  */ u_short y1;
+    /* 0xC  */ u_short z1;
+    /* 0xE  */ s16 unkE;
+    /* 0x10 */ s16 modelIndex;
+    /* 0x12 */ s16 jointIndex;
 } Temp6; // Size: 0x14
 
 // Per-model texture upload state, Model::unk118 entries

@@ -714,7 +714,39 @@ void func_801E17B8(Temp8* pTexture, s16 scale) {
     }
 }
 
-INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E1880);
+// Rotates each entry's source position by the model's joint matrix
+void func_801E1880(Model** pModels) {
+    MATRIX* pMatrix = (MATRIX*)PSX_SCRATCH;
+    Model* pModel;
+    u_short value[6];
+    int i;
+
+    for (i = 0; i < 2; i++) {
+        if (D_801E8648[i].unk6 != 0) {
+            if (D_801E8648[i].modelIndex >= 0 && (pModel = pModels[D_801E8648[i].modelIndex]) != NULL) {
+                CompMatrix(
+                    &pModel->pSkeleton[0].localTransform,
+                    &pModel->pSkeleton[D_801E8648[i].jointIndex + 1].globalTransform,
+                    pMatrix
+                );
+                SetRotMatrix(pMatrix);
+                SetTransMatrix(pMatrix);
+
+                gte_ldv0((SVECTOR*)&D_801E8648[i].x1);
+                gte_rt();
+                gte_stlvnl(value);
+
+                D_801E8648[i].x0 = value[0];
+                D_801E8648[i].y0 = value[2];
+                D_801E8648[i].z0 = value[4];
+            } else {
+                D_801E8648[i].x0 = D_801E8648[i].x1;
+                D_801E8648[i].y0 = D_801E8648[i].y1;
+                D_801E8648[i].z0 = D_801E8648[i].z1;
+            }
+        }
+    }
+}
 
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E1A14);
 
