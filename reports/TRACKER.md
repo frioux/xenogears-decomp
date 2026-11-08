@@ -168,6 +168,37 @@ Stubs by area at session start: `psyq` 150 (96 libgte, 12 libapi, 8 libapi_2,
 | # | Batch | Functions | Total | Notes |
 |---|---|---|---|---|
 | — | baseline | — | 1824 | session start |
+| 12 | 12 units (misc, sound, misc8, libgear, temp2, misc2/4/5/6, rendering, vm, misc11) | +13 | 1837 | `FieldScriptWriteActorFlags1..4` all matched; sound/temp2/misc6/vm timed out |
+| 13 | psyq libgte/libc/libapi/libsn/libgpu, shop_menu, archive, temp3, tbr, misc12 | +12 | 1849 | psyq pool is live: 12 of the 14 landed matches are stock library routines |
+
+### Round 12-13 notes
+
+- **`FieldScriptWriteActorFlags1..4` are matched.** The blocker really was the
+  `volatile` on `g_FieldActors`. Dropping the qualifier globally matches all four
+  immediately and changes exactly one other object: `func_80098A7C` in
+  `field/main/misc7.c` stops matching. The worker used a file-local
+  `#define FIELD_ACTORS (*((FieldActor**)(void*)&g_FieldActors))` in `misc.c`
+  instead of touching the header; the clean fix is still to drop the qualifier in
+  `include/field/actor.h` and re-solve `func_80098A7C`.
+- **A psyq stub can be 100% in objdiff and still be wrong.** `func_8004BEC0`
+  matches as an empty function, but its `.s` owns two trailing nops after `.size`
+  that no C definition emits, so the unit's text comes up 8 bytes short. Always
+  check a stub's `.s` for bytes past `.size` before trusting objdiff in `psyq/`.
+- **The GTE macro headers in this repo are the wrong SDK version.** `gte_NormalColor`
+  and friends emit two nops and a raw `.word`, where the original has one nop and
+  a real COP2 encoding; `gte_mvmva(1,0,0,0,0)` emits 0x020013BF where the original
+  has 0x4A481200. That blocks the whole `Normal*`/`Color*`/`LocalLight`/
+  `Square`/`MVMVA` family (libgte and lib_gear) until a v2-style `inline_c.h`
+  is added to `include/psyq/`.
+- **Unit rodata is the single biggest integration hazard.** Converting the last
+  function that owns a unit's `.rodata` deletes those bytes, because the data came
+  from that function's own asm file. `misc8` and `virtual_machine` each lose 8
+  bytes this way and shift the whole `field` overlay; `shop_menu`'s
+  `ShopMenuLoadResources` and `misc2`'s `func_800759E4` lose a 16-byte blob and
+  0x10 of a VECTOR. Note that cc1 emits switch jump tables *before* a named C
+  array, so redefining the data in C in file order does not reproduce the layout.
+  The fix is one job per unit: move the unit's whole rodata region to C in
+  original order and drop the range from `config/<bin>.yaml`.
 
 ## Findings
 
