@@ -303,7 +303,58 @@ void func_80026B9C(void) {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_80026BA4);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_80026DCC);
+// One sprite of a menu resource dirent, converted to screen space with its
+// tpage/clut resolved. x/y stay unsigned: they are added to a screen offset.
+typedef struct {
+    /* 0x00 */ u16 x;
+    /* 0x02 */ u16 y;
+    /* 0x04 */ u8 u;
+    /* 0x05 */ u8 v;
+    /* 0x06 */ u8 width;
+    /* 0x07 */ u8 height;
+    /* 0x08 */ u16 unk8;
+    /* 0x0A */ u16 tpage;
+    /* 0x0C */ u16 clut;
+    /* 0x0E */ u8 unkE[0xA];
+} MenuResourceSprite; // Size: 0x18
+
+// Converts the sprites of one dirent into out[]; returns the sprite count.
+s32 func_80026DCC(MenuResourceDirectory* dir, u32 index, MenuResourceSprite* out,
+                  u16 x, u16 y) {
+    MenuResourceDirentTextureMetadata* pDirent;
+    MenuResourceTextureMetadata* pData;
+    u32 count;
+    u32 i;
+    s32 u_shifted;
+    s32 texPageX_lsb;
+    s32 texPageId;
+    s32 texPageX;
+    s32 texPageY;
+
+    pDirent = (MenuResourceDirentTextureMetadata*)(dir->offsets[index] + (unsigned)dir);
+    pData = &pDirent->data[0];
+    count = pDirent->count;
+    for (i = 0; i != count; i++, pData++, out++) {
+        u_shifted = pData->u << 0x10;
+        if (pData->texPageId != 0) {
+            texPageX_lsb = u_shifted >> 0x12;
+        } else {
+            texPageX_lsb = u_shifted >> 0x14;
+        }
+        texPageX = (s16)(pData->texPageX & 0xFFC0) + texPageX_lsb;
+        texPageY = (s16)(pData->texPageY & 0xFF00) + pData->v;
+        texPageId = pData->texPageId;
+        out->clut = GetClut(pData->clutX, pData->clutY);
+        out->tpage = GetTPage(texPageId, 1, texPageX, texPageY);
+        out->u = pData->u;
+        out->v = pData->v;
+        out->width = pData->width;
+        out->height = pData->height;
+        out->x = pData->x + x;
+        out->y = pData->y + y;
+    }
+    return count;
+}
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_80026F44);
 
