@@ -170,6 +170,8 @@ Stubs by area at session start: `psyq` 150 (96 libgte, 12 libapi, 8 libapi_2,
 | — | baseline | — | 1824 | session start |
 | 12 | 12 units (misc, sound, misc8, libgear, temp2, misc2/4/5/6, rendering, vm, misc11) | +13 | 1837 | `FieldScriptWriteActorFlags1..4` all matched; sound/temp2/misc6/vm timed out |
 | 13 | psyq libgte/libc/libapi/libsn/libgpu, shop_menu, archive, temp3, tbr, misc12 | +12 | 1849 | psyq pool is live: 12 of the 14 landed matches are stock library routines |
+| 14 | 13 units | +10 | 1859 | `sound`, `temp1`, `field/main`, `misc`, `misc4/5/6`, `misc7`, `misc8`, `gte`; the `g_FieldActors` volatile removal landed |
+| — | `shop_menu ShopMenuLoadResources` (1088 insns) | +1 | 1860 | found and fixed the unit-rodata blocking bug: a missing `const` |
 
 ### Round 12-13 notes
 
@@ -199,6 +201,29 @@ Stubs by area at session start: `psyq` 150 (96 libgte, 12 libapi, 8 libapi_2,
   array, so redefining the data in C in file order does not reproduce the layout.
   The fix is one job per unit: move the unit's whole rodata region to C in
   original order and drop the range from `config/<bin>.yaml`.
+
+### Round 14 notes
+
+- **The unit-rodata blocker has one root cause: a missing `const`.**
+  `u8 D_x[0x10] = {...}` lands in `.data`; `const u8 D_x[0x10] = {...}` lands in
+  `.rodata`, which cc1 emits *before* the jump tables it generates for switches.
+  `shop_menu`'s `ShopMenuLoadResources` was stuck at "converting it shifts the
+  whole overlay" for two sessions; declaring its `"BISLPS-00800"` blob `const`
+  made `shop_menu.bin` byte-identical with the 1088-instruction function in C.
+  See the new "Unit rodata" section in `AGENTS.md`.
+- **`g_FieldActors` is no longer `volatile`.** Dropping the qualifier in
+  `include/field/actor.h` (round 14, misc7) matches the four
+  `FieldScriptWriteActorFlagsN` handlers *and* re-matches `func_80098A7C`, which
+  was the only object in the build that depended on the volatile reload.
+- **Parked attempt comments are a build hazard.** Two separate merges this session
+  failed to compile because the text inside a `/* ... */` attempt contained `*/`
+  (`Normal*/Color`, `Color*/LocalLight`) or because two attempt blocks were
+  nested, leaving a stray `*/` inside a function body. `misc8` cost four rounds of
+  integration. When parking an attempt, do not write `*/` or `/*` in its text.
+- **A worker's "wip leftovers" commit can contain non-matches.** lib_gear's last
+  round left three functions (74-87%) in C, which cost `lib_gear.bin` 229 bytes.
+  The integration step is now: `make check`, then `culprit.sh <bin>` to name the
+  offending functions, then revert just those.
 
 ## Findings
 
