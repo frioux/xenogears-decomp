@@ -528,9 +528,11 @@ void func_8001B94C(DRAWENV* pDrawEnv) {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp3", func_8001B970);
 /*
-Best: 85.15%. The tail only matches with D_8005947C/D_800594CC defined in this
-unit (gp_rel), which is the same unit-level conflict as func_8001BB50. The
-remaining diff is the inner loop: the original keeps the even byte on an
+Best: 85.15%. The tail needs D_8005947C/D_800594CC defined in this unit to get
+%gp_rel. That is safe now: maspsx only relaxes the `lui $at` form, and
+func_8001B6C4 reads D_8005947C through `lui $v0`, so it keeps %hi/%lo (verified
+by func_8001B6C4 matching 100% while D_8005959C is defined here). The remaining
+diff is the inner loop: the original keeps the even byte on an
 advancing pointer and recomputes the odd byte as (i + j) + (g_GameState + 1),
 gcc merges the two into one base with 0/1 offsets.
 void func_8001B970(void) {
