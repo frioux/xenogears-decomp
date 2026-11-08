@@ -10,9 +10,19 @@
 #include "psyq/libetc.h"
 #include "psyq/libcd.h"
 
+extern int func_80085C90(s32 arg0);
+extern s32 D_8004F308;
+extern s32 D_8004F324;
+extern s32 D_800ADC18;
+
 INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_80078B5C);
-/* Best attempt: 96.30%. Only difference is the nop in the delay slot of the
-   beqz that guards D_800ADC18: gcc fills it with the addiu v0,v0,-1.
+/* Best attempt: 96.30%, but 104 bytes against the original's 108: gcc steals the
+   decrement into the beqz delay slot, where the original has a real nop, so this
+   unit can never link until that nop appears. The nop means the value the branch
+   tests is live at the epilogue, but v0 already carries the decremented result
+   there, and `return D_800ADC18;` only adds a reload (88.70%, 112 bytes). Tried
+   and identical: volatile, a count local decremented then stored, an explicit
+   goto, unsigned, and the plain form below.
 extern int func_80085C90(s32 arg0);
 extern s32 D_8004F308;
 extern s32 D_8004F324;
@@ -633,11 +643,12 @@ int func_8007B478(SVECTOR* pA, SVECTOR* pB, SVECTOR* pC, SVECTOR* pRef) {
 }
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007B614);
-/* Best attempt: 97.88%. Everything matches except a rotation of the call-saved
-   registers: the original has pVec=s2, nAngle=s1, nScale=s0, gcc gives
-   pVec=s1, nAngle=s0, nScale=s2. Reordering declarations, extra temporaries and
-   -- for the store order -- writing z before y makes no difference; the y store
-   must come after the rcos multiply, so x;z;y is required.
+/* Best attempt: 97.88%. Only a rotation of the call-saved registers differs: the
+   original has pVec=s2, nAngle=s1, nScale=s0, gcc gives pVec=s1, nAngle=s0,
+   nScale=s2 (same instruction order). Declaration and statement order, commuted
+   multiplies, split temporaries, split shift, s16/u16 angle and x/z temps all
+   reproduce exactly this allocation; the y store must come last in the source so
+   it lands after the rcos multiply.
 extern s16 D_800B218C;
 
 void func_8007B614(IVEC3* pVec, int scale, int angle) {
@@ -710,10 +721,15 @@ extern s32 D_800ADB98;
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007B814);
 /* Best attempt: 96.33% (684 bytes, same size as the original). Two differences:
-   gcc hoists the first `lw v0,0(pVec)` into the stub block that computes a0 for
-   the shared func_8007B6C4 tail, and it materialises (angle -/+ 0x100) in v0
-   where the original keeps the temp in s0. Prototypes above are the ones that
-   attempt needs; D_800ADB98 = 0x800ADB98 is declared in symbol_addrs.field.txt.
+   1. gcc hoists the tail's first `lw v0,0(pVec)` out of the shared func_8007B6C4
+      block into the block that jumps there, so its `j` target is 4 bytes later.
+   2. the probe angles: the original computes (angle -/+ 0x100) into s0 itself
+      (`addiu s0,s2,-0x100` / `andi s0,s0,0xfff`), gcc computes the subtraction
+      into v0 and only the mask into s0. Note the `sra s2,v0,16` at the top of the
+      else branch is not an assignment from the probe result: the bne delay slot
+      is `sll v0,s2,16`, so it is the sign extension of `angle` for `angle-0x100`,
+      and both objects agree on it. Prototypes below are the ones this attempt
+      needs; D_800ADB98 = 0x800ADB98 is in symbol_addrs.field.txt.
 // Probes the walkmesh around `angle` and drops pVec onto the floor it finds there
 int func_8007B814(VECTOR* pVec, ActorData* pActor, SVECTOR* pPoints, s16 angle) {
     VECTOR v;
@@ -769,6 +785,7 @@ int func_8007B814(VECTOR* pVec, ActorData* pActor, SVECTOR* pPoints, s16 angle) 
     pVec->vz = v.vz;
     pActor->curYPos = (pActor->position.vy + pVec->vy) >> 16;
     return 0;
+}
 */
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007BAC0);
