@@ -465,7 +465,42 @@ void func_8007B07C(SVECTOR* pA, SVECTOR* pB, SVECTOR* pC, SVECTOR* pOut, VECTOR*
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007B1C4);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007B478);
+// 1 when the triangle pA/pB/pC winds consistently seen from pRef, -1 when it folds back
+int func_8007B478(SVECTOR* pA, SVECTOR* pB, SVECTOR* pC, SVECTOR* pRef) {
+    VECTOR v;
+    VECTOR edge;
+    VECTOR cross;
+
+    v.vx = pB->vx - pA->vx;
+    v.vy = 0;
+    v.vz = pB->vz - pA->vz;
+    edge.vx = pRef->vx - pA->vx;
+    edge.vy = 0;
+    edge.vz = pRef->vz - pA->vz;
+    OuterProduct0(&v, &edge, &cross);
+    if (cross.vy < 0) {
+        return -1;
+    }
+
+    v.vx = pC->vx - pB->vx;
+    v.vy = 0;
+    v.vz = pC->vz - pB->vz;
+    edge.vx = pRef->vx - pB->vx;
+    edge.vy = 0;
+    edge.vz = pRef->vz - pB->vz;
+    OuterProduct0(&v, &edge, &cross);
+    if (cross.vy >= 0) {
+        v.vx = pA->vx - pC->vx;
+        v.vy = 0;
+        v.vz = pA->vz - pC->vz;
+        edge.vx = pRef->vx - pC->vx;
+        edge.vy = 0;
+        edge.vz = pRef->vz - pC->vz;
+        OuterProduct0(&v, &edge, &cross);
+        return cross.vy >> 31;
+    }
+    return -1;
+}
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007B614);
 /* Best attempt: 91.78%. Remaining differences are register assignment (the original
