@@ -997,11 +997,10 @@ int func_801E6338(Model* pModel) {
 
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E63A8);
 
-// objdiff 97.43%: body is identical, but pList/pSkeleton land in s4/s3 and
-// i/pJoint in s0/s1 instead of s3/s4 and s1/s0; declaration order has no effect
 // objdiff 97.43%: body and prologue are instruction-for-instruction identical, but
-// pList/pSkeleton land in s4/s3 and pJoint/i in s1/s0 instead of s3/s4 and s0/s1;
-// declaration order, loop shape and ref counts do not flip the saved-reg order
+// gcc assigns pList to s4/pSkeleton to s3 (saved order s4,s3,...) where the original
+// saves s3 (pList) first, so every use of the two pointers has the register swapped;
+// declaration order, loop shape and the pChild pattern do not flip it
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E6578);
 // void func_801E6578(Temp4* pList, s32 jointIndex, ModelJoint* pSkeleton, ModelJoint* pTargetSkeleton) {
 //     ModelJoint* pJoint = &pSkeleton[jointIndex];
