@@ -439,7 +439,29 @@ void func_8007AF74(int controllerIndex) {
     }
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007B07C);
+// Returns the Y of the point on the plane spanned by pA/pB/pC whose X/Z is pOut's
+void func_8007B07C(SVECTOR* pA, SVECTOR* pB, SVECTOR* pC, SVECTOR* pOut, VECTOR* pNormal) {
+    VECTOR nB;
+    VECTOR nC;
+    VECTOR v;
+
+    v.vx = pB->vx - pA->vx;
+    v.vy = pB->vy - pA->vy;
+    v.vz = pB->vz - pA->vz;
+    VectorNormal(&v, &nB);
+
+    v.vx = pC->vx - pA->vx;
+    v.vy = pC->vy - pA->vy;
+    v.vz = pC->vz - pA->vz;
+    VectorNormal(&v, &nC);
+
+    OuterProduct12(&nB, &nC, pNormal);
+    if (pNormal->vy == 0) {
+        pOut->vy = 0;
+    } else {
+        pOut->vy = pA->vy + (-(pNormal->vx * (pOut->vx - pA->vx)) - pNormal->vz * (pOut->vz - pA->vz)) / pNormal->vy;
+    }
+}
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007B1C4);
 
@@ -465,7 +487,54 @@ int func_8007B694(IVEC3* pVec) {
     return -ratan2(pVec->z, pVec->x) & 0xFFF;
 }
 
+long FieldGetVec2Magnitude(long, long);
+
 INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007B6C4);
+/* Best attempt: 95.18% (336 vs 332 bytes). The original keeps nWallAngle in a0
+   and copies it to v1 for the sum, and computes (nWallAngle + 0x800) & 0xFFF
+   between the inner `nAngle < 0x800` test and the first arm; this emits the sum
+   and the mask one instruction later, before the test.
+long FieldGetVec2Magnitude(long, long);
+
+// Slides along a wall segment facing `angle`: pPoints holds its two XZ endpoints
+int func_8007B6C4(s16 angle, SVECTOR* pPoints, VECTOR* pOut) {
+    VECTOR v;
+    VECTOR normal;
+    int nAngle;
+    int nWallAngle;
+    int nResult;
+    long nMagnitude;
+
+    nAngle = (0xC00 - angle) & 0xFFF;
+    nWallAngle = -ratan2(pPoints[1].vz - pPoints[0].vz, pPoints[1].vx - pPoints[0].vx) & 0xFFF;
+    nAngle = (nAngle + nWallAngle) & 0xFFF;
+    if ((u_int)(nAngle - 0x80) >= 0xF01) {
+        pOut->vx = 0;
+        pOut->vy = 0;
+        pOut->vz = 0;
+        return nWallAngle;
+    }
+
+    nResult = (nWallAngle + 0x800) & 0xFFF;
+    if (nAngle < 0x800) {
+        v.vx = pPoints[0].vx - pPoints[1].vx;
+        v.vy = 0;
+        v.vz = pPoints[0].vz - pPoints[1].vz;
+    } else {
+        v.vx = pPoints[1].vx - pPoints[0].vx;
+        v.vy = 0;
+        v.vz = pPoints[1].vz - pPoints[0].vz;
+    }
+    VectorNormal(&v, &normal);
+
+    nMagnitude = FieldGetVec2Magnitude(pOut->vx >> 12, pOut->vz >> 12);
+    pOut->vx = normal.vx * nMagnitude;
+    pOut->vy = 0;
+    pOut->vz = normal.vz * nMagnitude;
+
+    return nResult;
+}
+*/
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007B814);
 
