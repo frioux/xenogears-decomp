@@ -774,7 +774,30 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_80039024);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", SoundHeapFree);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_800391CC);
+u32 func_800391CC(void) {
+    SoundHeapBlockHeader* pHeapBlock;
+    s32 nMaxSize;
+    s32 nSize;
+
+    pHeapBlock = g_SoundHeapHead;
+    nMaxSize = 0;
+    if (pHeapBlock->pNext != NULL) {
+        do {
+            nSize = (u32)pHeapBlock->pNext - (u32)pHeapBlock->pPrev;
+            if (nMaxSize < nSize) {
+                nMaxSize = nSize;
+            }
+            pHeapBlock = pHeapBlock->pNext;
+        } while (pHeapBlock->pNext != NULL);
+    }
+
+    nSize = g_SoundHeapEnd - (u32)pHeapBlock->pPrev;
+    if (nMaxSize < nSize) {
+        nMaxSize = nSize;
+    }
+
+    return nMaxSize & ~0xF;
+}
 
 void SoundHeapSetBlockMemory(void* pBlockMemory, void* pSrc, int size) {
     u32* pCurSrc;
@@ -1717,7 +1740,21 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003C4C4);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003C6E8);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003CC84);
+void func_8003CC84(AudioManager* pAudioManager, AudioElement* pElement, u8 percussionIndex) {
+    u8* pPercussionData;
+    s32 note;
+    u16 statusFlags;
+
+    pPercussionData = (u8*)pAudioManager->unk_0xc + (percussionIndex * 4);
+
+    func_8003E5BC(pPercussionData[0], pElement);
+
+    note = (pPercussionData[1] << 8) + pElement->unk_0x6E + pElement->unk_0x6C;
+    pElement->unk68 = note << 16;
+    statusFlags = pElement->status_flags;
+    pElement->unk_0x74 = pPercussionData[3] << 8;
+    pElement->status_flags = statusFlags | SOUND_STATUS_VOLUME_CHANGE;
+}
 
 u8* SoundScriptDefaultHandler(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     return pScript;
@@ -1902,20 +1939,13 @@ u8* func_8003D070(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
 }
 
 // Set tempo handler?
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003D0E8);
-/*
-Attempt (94.00%, same size): the only difference is the original's redundant
-`andi v0,v0,0xff` where gcc 2.6 emits `nop` (it fills the `lh` load delay slot);
-gcc 2.6 folds the mask away for every form tried (`u8`, `u16`, `*pScript & 0xFF`,
-`u8`->`u16` copy).
 u8* func_8003D0E8(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
-    u8 value = *pScript;
+    u8 value = *pScript++;
 
     pAudioManager->unk_0x58 = value << 16;
-    pAudioManager->unk_0x54 = value * (pAudioManager->unk_Interpolator_0x64.currentValue >> 16);
-    return pScript + 1;
+    pAudioManager->unk_0x54 = (value & 0xFF) * (s16)(pAudioManager->unk_Interpolator_0x64.currentValue >> 16);
+    return pScript;
 }
-*/
 
 u8* func_8003D110(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     s32 pad[2]; // unused: reproduces the original's 0x8-byte frame
@@ -1940,8 +1970,8 @@ u8* func_8003D110(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003D13C);
 /*
-Attempt (96.25%, correct size): original has `addu a2,a3,zero` where gcc emits
-`andi a2,a3,0xff`; with `s32 unk0` gcc drops the copy altogether.
+Attempt (96.25%, correct size): original has `move a2,a3` where gcc emits
+`andi a2,a3,0xff`; with an `s32` local gcc drops the copy altogether (93.12%).
 u8* func_8003D13C(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     u8 unk0 = pScript[0];
     u8 unk1 = pScript[1];
@@ -1982,7 +2012,18 @@ u8* SoundScriptSetUnk62(u8* pScript, AudioManager* pAudioManager, AudioElement* 
     return pScript + 1;
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003D21C);
+u8* func_8003D21C(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
+    s32 note;
+
+    note = *pScript++;
+
+    if (note < 0x19) {
+        SoundReleaseVoiceFromChannel(&pAudioElements->voice_data, pAudioElements->voice_number);
+        SoundAssignVoiceToChannelAndStop(&pAudioElements->voice_data, pAudioElements->voice_number = note);
+    }
+
+    return pScript;
+}
 
 u8* func_8003D298(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     func_8003E5BC(*pScript++, pAudioElements);
@@ -2088,15 +2129,21 @@ u8* func_8003D4E4(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003D53C);
 /*
-Attempt (88.33%): same instruction count; the original has pScript copied into v0
-before the tests (so a0 is free for the modeFlags OR) and gcc duplicated that copy
-into each branch delay slot. Does not reproduce from the plain `||` form.
+Attempt (95.83%, same size): the first two tests must fall through to a shared
+`return pScript`, which is why the original has `move v0,a0` in all three branch
+delay slots; gcc also emits a fourth copy at the top of the body block.
 u8* func_8003D53C(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
-    if (!(pAudioManager->unk_Flags & 0x6)
-        || ((g_SoundControlFlags & 0x2000) && !(pAudioElements->active_flag & 0x2))) {
-        pAudioElements->voice_data.flags |= 0x4000;
-        pAudioElements->voice_data.modeFlags |= 0x40;
+    if (pAudioManager->unk_Flags & 0x6) {
+        if ((g_SoundControlFlags & 0x2000) == 0) {
+            return pScript;
+        }
+        if (pAudioElements->active_flag & 0x2) {
+            return pScript;
+        }
     }
+
+    pAudioElements->voice_data.flags |= 0x4000;
+    pAudioElements->voice_data.modeFlags |= 0x40;
     return pScript;
 }
 */
