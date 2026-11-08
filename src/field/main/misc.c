@@ -451,7 +451,42 @@ void func_8008861C(void) {
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_80088674);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_80088790);
+extern s32 D_800B2374;
+extern s32 D_800B2378;
+extern s32 D_800B237C;
+extern s32 D_800B2380;
+extern void FieldInitializeDefaultParticleBanks(int);
+
+void func_80088790(void) {
+    int actorIndex = FieldScriptVMGetActorIndex(1);
+
+    if (actorIndex == ACTOR_ID_INVALID) {
+        actorIndex = 0;
+    }
+    D_800B2374 = actorIndex;
+    D_800B2378 = FieldScriptVMGetArgument(2);
+    D_800B237C = FieldScriptVMGetArgument(4);
+    // Store through FieldScriptGlobalS32: a bare s32 store lets gcc hoist the
+    // instruction pointer load above it (see the note above FieldScriptGlobalS32).
+    ((FieldScriptGlobalS32*)&D_800B2380)->value = FieldScriptVMGetArgument(6);
+    g_FieldScriptVMCurActor->scriptInstructionPointer += 8;
+    FieldInitializeDefaultParticleBanks(actorIndex);
+    switch (D_800B2378) {
+        case 0:
+            D_800B2378 = 0;
+            break;
+        case 1:
+            D_800B2378 = 0x10;
+            break;
+        case 2:
+            D_800B2378 = 0x20;
+            break;
+        case 3:
+            D_800B2378 = 0x30;
+            break;
+    }
+    g_FieldScriptMaxInstructionCount += 4;
+}
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_800888A4);
 // 82.97%: the only misses are (a) the same `li a0,1` hoist as func_80088508 -
@@ -487,10 +522,6 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_800889BC);
 // Start of particle handlers
 extern s32 D_800ADB40;
 extern s32 D_800ADB8C;
-extern s32 D_800B2374;
-extern s32 D_800B2378;
-extern s32 D_800B237C;
-extern s32 D_800B2380;
 
 extern s32 g_FieldScriptMaxInstructionCount;
 
