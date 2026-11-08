@@ -315,7 +315,10 @@ INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801DEF10);
 
 // Best attempt: objdiff 95.96%. Only the register holding the keyframe pointer
 // (a2 here, a1 in the original), the flags register (a3 vs a2) and two prologue
-// load slots differ; the loop body is identical.
+// load slots differ; the loop body is identical. All six declaration orders of the
+// three header-field locals and four placements of the pKeyframe assignment were
+// tried, as were an if/else pair and an inline-index form; gcc always assigns the
+// same registers, so the difference is allocator behaviour, not source shape.
 // // Keyframe block consumed by the joint update loops: a 0x18 byte header
 // // followed by per-frame (rotation, translation) s16 triples.
 // typedef struct {
