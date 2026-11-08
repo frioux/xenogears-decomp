@@ -43,38 +43,6 @@ void func_8009BB0C(void) {
 
 INCLUDE_ASM("asm/field/nonmatchings/dialogue/text_box", func_8009BC98);
 
-/* Best attempt: 81.73%
-// The dialog string laid over _pad: unk6C/unk84 are SystemString fields
-typedef struct {
-    /* 0x00 */ undefined8 unk0[0x6C];
-    /* 0x6C */ u_char unk6C;
-    /* 0x6D */ undefined8 unk6D[0x17];
-    /* 0x84 */ short unk84;
-} FieldTextBoxScriptString;
-
-void func_8009BC98(void) {
-    int textBoxIndex;
-
-    if (func_8009CD18(&textBoxIndex) == 0) {
-        g_FieldScriptMaxInstructionCount += 8;
-
-        if (func_80033CD0((FieldTextBoxScriptString*)&g_FieldTextBoxes[textBoxIndex]._pad[0]) == 1 ||
-            (((FieldTextBoxScriptString*)&g_FieldTextBoxes[textBoxIndex]._pad[0])->unk84 != 0 &&
-             ((FieldTextBoxScriptString*)&g_FieldTextBoxes[textBoxIndex]._pad[0])->unk6C != 0)) {
-            g_FieldTextBoxes[textBoxIndex].cursor.visibility = 0;
-            g_FieldScriptVMCurActor->unk81 = 0xFF;
-            g_FieldTextBoxes[textBoxIndex].cursor.startPosition = SCRIPT_READ_U8_REL(1) >> 4;
-            g_FieldTextBoxes[textBoxIndex].cursor.curPosition = 0;
-            g_FieldTextBoxes[textBoxIndex].cursor.maxPosition = (SCRIPT_READ_U8_REL(1) & 0xF) - (SCRIPT_READ_U8_REL(1) >> 4) + 1;
-            func_80034800((FieldTextBoxScriptString*)&g_FieldTextBoxes[textBoxIndex]._pad[0], 0xEF, 0x1E, 0xF0);
-        }
-    } else {
-        g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
-    }
-    D_800B00C0 = 1;
-}
-*/
-
 s32 func_8009BE58(void) {
     return ((g_FieldScriptVMCurActor->direction - (FieldGetCameraDirection() & 0xffff)) & MASK_8DIR_MOVEMENT_NUM_DIRECTIONS) < 5;
 }

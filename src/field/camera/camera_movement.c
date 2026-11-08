@@ -61,62 +61,9 @@ void func_8008FABC(void) {
 
 INCLUDE_ASM("asm/field/nonmatchings/camera/camera_movement", func_8008FB28);
 
-/* Best attempt: 66.43%
-void func_8008FB28(void) {
-    D_800AF93A[0] = 0x1000;
-    D_800AF936 = g_Scene.sceneDIP;
-    D_800AF938 = g_Scene.sceneAngle.vy;
-    D_800AF930 = (s32)(g_Scene.sceneScrZ * g_Scene.sceneScale) >> 12;
-    g_FieldScriptVMCurActor->scriptInstructionPointer++;
-}
-*/
-
 INCLUDE_ASM("asm/field/nonmatchings/camera/camera_movement", func_8008FB98);
 
-/* Best attempt: 90.56%
-void func_8008FB98(void) {
-    g_FieldCameraMode = 1;
-    g_FieldScriptMaxInstructionCount += 4;
-    g_FieldScriptVMCurActor->scriptInstructionPointer++;
-    D_800AF93A[0] = 0x1000;
-    g_CamInterpolation.atStepDistance = 0xC;
-    g_CamInterpolation.eyeStepDistance = 0xC;
-    D_800AF938 = g_Scene.sceneAngle.vy;
-    g_Scene.unk48 |= 0x8000;
-    D_800AF936 = g_Scene.sceneDIP;
-    D_800AF930 = (s32)(g_Scene.sceneScrZ * g_Scene.sceneScale) >> 12;
-}
-*/
-
 INCLUDE_ASM("asm/field/nonmatchings/camera/camera_movement", func_8008FC4C);
-
-/* Best attempt: 63.33%
-void func_8008FC4C(void) {
-    int step;
-
-    switch (g_FieldCameraMode) {
-    case 0:
-        g_Scene.unk48 &= 0x7FFF;
-        break;
-    case 1:
-        step = FieldScriptVMGetArgument(1);
-        if (step == 0) {
-            g_FieldCameraMode = 0;
-            g_Scene.unk48 &= 0x7FFF;
-            g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
-            D_800B21D8[0] = 2;
-        } else {
-            g_FieldCameraMode = 2;
-            g_CamInterpolation.atStepDistance = step;
-            g_CamInterpolation.eyeStepDistance = step;
-        }
-        break;
-    default:
-        return;
-    }
-    g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
-}
-*/
 
 void FieldScriptSetCameraInterpolationStep(void) {
     g_CamInterpolation.atStepDistance = FieldScriptVMGetArgument(1);
