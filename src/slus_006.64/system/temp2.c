@@ -4,7 +4,19 @@
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_800248D4);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_80024F20);
+// Work list and image-list setup; D_800591A8 is the work list entry budget.
+extern u32 D_800591A8;
+extern u8 D_800591AD;
+extern u8 D_800591AE;
+extern void WorkListsReset(void);
+
+void func_80024F20(void) {
+    D_800591AD = 0;
+    D_800591AE = 0;
+    D_800591A8 = 0x2000;
+    WorkListsReset();
+    func_8001D298();
+}
 
 
 
@@ -116,21 +128,18 @@ void func_800250E0(int context) {
 */
 
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_80025180);
-/*
 typedef struct {
     void* pData; // Sprite Tile data stuff
     struct LinkedListEntry* pNext;
 } LinkedListEntry;
 
 extern LinkedListEntry* D_80059300[2];
-int g_GfxCurContext;
-void* g_GfxCurWorkBuffer;
 
+// GfxQueueSpriteTileData
 void func_80025180(void* pData) {
     LinkedListEntry* pNewEntry;
 
-    pNewEntry = (LinkedListEntry*) g_GfxCurWorkBuffer;
+    pNewEntry = g_GfxCurWorkBuffer;
     g_GfxCurWorkBuffer = pNewEntry + 1;
     if (pNewEntry) {
         pNewEntry->pData = pData;
@@ -138,42 +147,26 @@ void func_80025180(void* pData) {
         D_80059300[g_GfxCurContext] = pNewEntry;
     }
 }
-*/
 
 // GfxQueueShapeTransfer
 // Add Image to current g_GfxImageList[g_GfxCurContext] linked list
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_800251C8);
 /*
-Matches, but uses variable in COMMON so can't compile in yet.
-
-struct ImageEntry {
-    RECT rect;
-    u_long* addr;
-    struct ImageEntry* pNext;
-};
-
-typedef struct ImageEntry ImageEntry;
-
-extern ImageEntry* g_GfxImageList[];
-int g_GfxCurContext; // Cur index?
-void* g_GfxCurWorkBufferEnd;
-ImageEntry* g_GfxCurWorkBuffer;
-
-// GfxQueueShapeTransfer
+Best 86.30%: identical instructions, but gcc inlines the height argument load
+(lw v1, 0x10($sp)) inside the branch instead of hoisting it above it.
 void func_800251C8(u_long* addr, int x, int y, int width, int height) {
-    ImageEntry* pCurrent;
-    ImageEntry* pNext;
+    Image* pCurrent;
+    Image* pNext;
 
-    pCurrent = (ImageEntry*) g_GfxCurWorkBuffer;
+    pCurrent = g_GfxCurWorkBuffer;
     pNext = pCurrent + 1;
-    if (pNext < g_GfxCurWorkBufferEnd) {
+    if (pNext < (Image*) g_GfxCurWorkBufferEnd) {
         pCurrent->rect.h = height;
         pCurrent->rect.x = x;
         pCurrent->rect.y = y;
         pCurrent->rect.w = width;
         pCurrent->addr = addr;
-        g_GfxCurWorkBuffer = (void*) pNext;
-
+        g_GfxCurWorkBuffer = pNext;
         pCurrent->pNext = g_GfxImageList[g_GfxCurContext];
         g_GfxImageList[g_GfxCurContext] = pCurrent;
     }
@@ -320,4 +313,8 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_800273C4);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_800278F8);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_80027D40);
+void func_80027D40(void* pData) {
+    if (pData) {
+        HeapFree(pData);
+    }
+}
