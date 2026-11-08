@@ -61,11 +61,14 @@ void func_8008FABC(void) {
 
 INCLUDE_ASM("asm/field/nonmatchings/camera/camera_movement", func_8008FB28);
 
-/* Best: 66.43% (112 bytes, only the trailing scriptInstructionPointer update is
-   scheduled differently: gcc hoists the actor load and the lhu above the stores).
+/* Best: 66.43% (112 bytes). The original expands the multiply first, then fills
+   the mult/mflo gap with the scene loads and the three D_800AF stores, and only
+   then loads the actor; gcc hoists the actor load and the scriptInstructionPointer
+   read-modify-write above the stores and leaves a nop in the jr delay slot. Both
+   the assignment order above and putting the multiply first give the same 66.43%.
 void func_8008FB28(void) {
-    D_800AF93A[0] = 0x1000;
     D_800AF930 = ((s32)g_Scene.sceneScrZ * g_Scene.sceneScale) >> 12;
+    D_800AF93A[0] = 0x1000;
     D_800AF936 = g_Scene.sceneDIP;
     D_800AF938 = g_Scene.sceneAngle.vy;
     g_FieldScriptVMCurActor->scriptInstructionPointer += 1;
