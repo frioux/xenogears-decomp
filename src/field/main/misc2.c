@@ -40,19 +40,20 @@ void FieldComputeSceneMatrices(void) {
 }
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80072254);
-// 72.70%: everything matches except that the original keeps &g_FieldActors in $s1
-// across the RotMatrix call (lui/addiu, then `lw $a1, 0($s1)` twice) where gcc
-// rematerialises %hi/%lo for the second use, so the frame is 0x28 instead of 0x30.
-// Pointer locals (plain and volatile FieldActor** forms) make it worse, not better.
+// 76.00%: everything matches except that the original caches &g_FieldActors in $s1
+// across the RotMatrix call (`lui/addiu` once, then `lw $a1, 0($s1)` and, after the
+// call, `lw $a0, 0($s1)`), so its frame is 0x30; gcc rematerialises the %hi/%lo pair
+// for the second use and the frame is 0x28. Dropping `volatile` from g_FieldActors
+// in actor.h gets 76% (the three scale reads then share one load, as in the
+// original) but does not produce the $s1 caching, so it is not the whole story.
+// Pointer locals (plain and volatile FieldActor** forms) make it worse.
 /*
 void func_80072254(int actorIndex) {
     VECTOR scale;
-    FieldActor* pActor;
 
-    pActor = &g_FieldActors[actorIndex];
-    scale.vx = *(s16*)&pActor->pActorData->scaleX;
-    scale.vy = *(s16*)&pActor->pActorData->scaleY;
-    scale.vz = *(s16*)&pActor->pActorData->scaleZ;
+    scale.vx = g_FieldActors[actorIndex].pActorData->scaleX;
+    scale.vy = g_FieldActors[actorIndex].pActorData->scaleY;
+    scale.vz = g_FieldActors[actorIndex].pActorData->scaleZ;
     RotMatrix(&g_FieldActors[actorIndex].rotation,
         &g_FieldActors[actorIndex].transformMatrix);
     ScaleMatrix(&g_FieldActors[actorIndex].transformMatrix, &scale);
