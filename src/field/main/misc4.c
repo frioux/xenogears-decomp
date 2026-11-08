@@ -656,14 +656,15 @@ int func_8007B694(IVEC3* pVec) {
 
 long FieldGetVec2Magnitude(long, long);
 
-/* Best attempt: 84.11% but the exact 332-byte size (previous attempts were
-   336 bytes, which can never link). nResult has to be seeded with nWallAngle
-   before the range test: that is the only form that puts `move s3,a0` in the
-   bnez delay slot and `addiu a0,a0,0x800` in the beqz delay slot like the
-   original. The remaining delta is that gcc also keeps the seed copy early, so
-   arm 1 masks `s3` and the fall-through arm keeps the unseeded value; the
-   original instead has one extra `move v1,a0` copy of nWallAngle feeding both
-   the angle sum and the early `return nWallAngle`. */
+INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007B6C4);
+/* Best attempt: 84.11% but the exact 332-byte size (earlier attempts were 336
+   bytes, which can never link). Seeding nResult with nWallAngle before the range
+   test is the only form that puts `move s3,a0` in the bnez delay slot and
+   `addiu a0,a0,0x800` in the beqz delay slot like the original; the remaining
+   delta is one extra copy of nWallAngle (the original has `move v1,a0` feeding
+   both the angle sum and the early `return nWallAngle`).
+long FieldGetVec2Magnitude(long, long);
+
 int func_8007B6C4(s16 angle, SVECTOR* pPoints, VECTOR* pOut) {
     VECTOR v;
     VECTOR normal;
@@ -701,6 +702,7 @@ int func_8007B6C4(s16 angle, SVECTOR* pPoints, VECTOR* pOut) {
 
     return nResult;
 }
+*/
 
 int func_8007C694(VECTOR* pVec, VECTOR* pPos, ActorData* pActor, SVECTOR* pPoints, SVECTOR* pOut, int nMode);
 int func_8007B6C4(s16 angle, SVECTOR* pPoints, VECTOR* pOut);
