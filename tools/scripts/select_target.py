@@ -17,20 +17,25 @@ JAL_RE = re.compile(r'\bjal\s+([A-Za-z_]\w*)')
 
 
 def has_attempt(lines, i):
-    """Commented-out C or '#if 0' shortly after the stub at lines[i]."""
-    seen = 0
+    """A commented-out C attempt parked directly under the stub at lines[i].
+
+    It is a comment block whose text contains a function body. Scanning a fixed
+    window instead made 112 of 569 stubs look like they had an attempt, because
+    the next real function's brace falls inside the window.
+    """
+    body = []
     for ln in lines[i + 1:]:
         s = ln.strip()
         if not s:
             continue
         if s.startswith("INCLUDE_ASM"):
             return False
-        if s.startswith("#if 0") or "/*" in s:
-            return True
-        seen += 1
-        if seen >= 3:
-            return False
-    return False
+        if s.startswith(("/*", "*", "//", "#if 0")):
+            body.append(s)
+            continue
+        break
+    text = "\n".join(body)
+    return "#if 0" in text or "{" in text
 
 
 def analyze_asm(path):
