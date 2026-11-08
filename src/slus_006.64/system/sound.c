@@ -1503,7 +1503,18 @@ void func_8003A9BC(AudioManager* pManager, s16 volume, s32 frames) {
     }
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003AA30);
+void func_8003AA30(AudioManager* pManager) {
+    DisableEvent(g_unk_SoundEvent);
+
+    if (g_SoundControlFlags & 0x1000) {
+        SoundSetReverbModeWithAllocation(pManager->unk_0x40[1], pManager->reverbDepth, pManager->reverbDelay, pManager->reverbFeedback);
+    }
+
+    SoundSetFlagsOnActiveVoices(pManager, 0xFFFF);
+    func_8003AFA0(pManager);
+    pManager->unk_Flags = (pManager->unk_Flags & ~0x100) | 0x8000;
+    EnableEvent(g_unk_SoundEvent);
+}
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003AAC4);
 
@@ -2767,6 +2778,24 @@ u8* func_8003E180(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
 }
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003E1F8);
+/*
+Attempt (82.97%, same size): every instruction is right except that gcc gives
+pScript s2 and the AudioEnvelope s1 (original: pScript s1, envelope s2) and re-uses
+the pScript[0] load for the sum where the original reloads it into a1 and copies the
+result to s0. Swapping the two declarations, splitting the divide into its own
+temporary, duplicating the value expression and u16/s32 variants of `value` all
+leave the same 82.97%.
+u8* func_8003E1F8(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
+    AudioEnvelope* pEnvelope;
+    s32 value;
+
+    pEnvelope = &pAudioElements->envelopes[pAudioElements->unk_0xCC];
+    value = pScript[0] + (pScript[0] * pScript[0]) / 64;
+    pEnvelope->delta = func_8003E290(((s8)pScript[1] << 24) | (pScript[2] << 16), value, pEnvelope->unk_0x1D);
+    pEnvelope->reload = value;
+    return pScript + 3;
+}
+*/
 
 s32 func_8003E290(s32 value, s16 divisor, s16 mode) {
     if (value != 0 && divisor != 0) {

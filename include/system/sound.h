@@ -259,9 +259,9 @@ typedef struct AudioManager {
     /* 0x3C */ s16 unk_0x3c;
     /* 0x3E */ s16 unk_0x3e;
     /* 0x40 */ u8 unk_0x40[0x02];
-    /* 0x42 */ s8 reverbDelay;
-    /* 0x43 */ s8 reverbFeedback;
-    /* 0x44 */ u16 reverbDepth;
+    /* 0x42 */ u8 reverbDelay;
+    /* 0x43 */ u8 reverbFeedback;
+    /* 0x44 */ s16 reverbDepth;
     /* 0x46 */ u8 unk_0x46[0x02];
     /* 0x48 */ s32 unk_0x48;
     /* 0x4C */ u8 unk_0x4c[4];
