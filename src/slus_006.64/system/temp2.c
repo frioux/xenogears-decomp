@@ -8,19 +8,11 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_80024F20);
 
 
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", GfxAllocateWorkBuffers);
-/*
-Matches on  GCC 2.7.2-970404, ASPSX 2.67 and GCC 2.7.2
+extern void func_8001D298(void);
+extern void func_8001D2A4(void);
 
-extern void* g_GfxWorkBuffer2;
-
-int g_GfxWorkBufferSize;
-s32 D_80059300; // LinkedLists of SpriteTileData pointers
-s32 D_80059304;
-void* g_GfxWorkBuffers;
-s32 g_GfxImageList;
-
-#define NUM_RENDER_CONTEXTS 2
+// Defined here so that the compiler places it in .sbss (%gp_rel)
+Image* g_GfxImageList[2];
 
 void GfxAllocateWorkBuffers(int workBufferSize, unsigned int allocFlag) {
     void* pWorkBuffers;
@@ -34,21 +26,15 @@ void GfxAllocateWorkBuffers(int workBufferSize, unsigned int allocFlag) {
     g_GfxImageList[0] = NULL;
     func_8001D298();
 }
-*/
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", GfxFreeWorkBuffers);
-/*
 void GfxFreeWorkBuffers(void) {
     HeapFree(g_GfxWorkBuffers);
     func_8001D2A4();
 }
-*/
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", GfxSetCurrentOT);
-/*void GfxSetCurrentOT(u_long* ot) {
+void GfxSetCurrentOT(u_long* ot) {
     g_GfxCurOT = ot;
 }
-*/
 
 
 
@@ -62,16 +48,9 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", GfxSetCurrentOT);
 
 
 // Set D_8004FBB8 matrix
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_80024FF4);
-/*
-Matches on GCC 2.8.0 and GCC 2.7.2-970404, ASPSX 2.67
-Co-Authored-By: dezgeg <dezgeg@users.noreply.github.com>
-
-extern MATRIX D_8004FBB8;
 void func_80024FF4(MATRIX* matrix) {
     D_8004FBB8 = *matrix;
 }
-*/
 
 
 

@@ -45,6 +45,12 @@ the directory name `xenogears-decomp`.
   Direct use: `tools/objdiff/objdiff-cli diff -1 expected/asm/<unit>.s.o -2 build/src/<unit>.c.o -o - --format json <Func>`.
 - Under qemu (colima without Rosetta) `mips-linux-gnu-as` segfaults randomly
   with `-j6`. Rosetta fixes it.
+- `ninja` does not rebuild `build/src/<unit>.c.{i,s,o}` when a *header* changes, so
+  delete those three files (or run `make objdiff-config`) after editing a header or
+  you will diff a stale object.
+- Object layout follows the C file: `INCLUDE_ASM` lines must stay in address order,
+  and converting a tiny function whose original has trailing padding shifts every
+  later symbol. Both cases link fine but fail `make check`.
 - `make build` and `make objdiff-config` each start with a clean and take ~30 s.
   Everything incremental goes through `ninja` inside the container
   (`make shell`, or `diff_func.sh` which does it for you).

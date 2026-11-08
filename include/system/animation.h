@@ -48,6 +48,7 @@ extern WorkListCallback_t func_80022EB8[];
 extern void* g_GfxWorkBuffer2;
 extern MATRIX D_8004FBB8;
 extern Image* g_GfxImageList[2];
+extern u_long* g_GfxCurOT;
 
 
 int g_GfxWorkBufferSize;

@@ -361,9 +361,8 @@ typedef struct {
     /* 0xB5 */ u8 unkB5;
     /* 0xB6 */ u8 unkB6;
     /* 0xB7 */ u8 unkB7;
-    /* 0xB8 */ s32 unkB8;
-    /* 0xBC */ s32 unkBC;
-    /* 0xC0 */ u8 unkC0[0xC];
+    /* 0xB8 */ u16 unkB8[9];
+    /* 0xCA */ u16 unkCA;
 } MenuDressingRoom; // Size: 0xCC
 
 typedef struct {
@@ -393,14 +392,12 @@ typedef struct {
     /* 0x1ED9 */ u8 unk1ED9[2];
     /* 0x1EDB */ u8 unk1EDB;
     /* 0x1EDC */ u8 unk1EDC;
-    /* 0x1EDD */ u8 unk1EDD;
-    /* 0x1EDE */ u8 unk1EDE;
+    /* 0x1EDD */ u8 unk1EDD[2];
     /* 0x1EDF */ u8 unk1EDF;
     /* 0x1EE0 */ u8 unk1EE0;
     /* 0x1EE1 */ u8 unk1EE1;
     /* 0x1EE2 */ s16 unk1EE2;
-    /* 0x1EE4 */ s16 unk1EE4;
-    /* 0x1EE6 */ s16 unk1EE6;
+    /* 0x1EE4 */ s16 unk1EE4[2];
     /* 0x1EE8 */ u8 unk1EE8; // Gear HP digits string length
     /* 0x1EE9 */ u8 unk1EE9; // Gear Max HP digits string length
     /* 0x1EEA */ u8 unk1EEA; // Gear Fuel digits string length
@@ -411,10 +408,8 @@ typedef struct {
     /* 0x1EEF */ u8 unk1EEF;
     /* 0x1EF0 */ u16 unk1EF0;
     /* 0x1EF2 */ u16 unk1EF2;
-    /* 0x1EF4 */ u16 unk1EF4;
-    /* 0x1EF6 */ u16 unk1EF6;
-    /* 0x1EF8 */ u16 unk1EF8;
-    /* 0x1EFA */ u16 unk1EFA;
+    /* 0x1EF4 */ u16 unk1EF4[2];
+    /* 0x1EF8 */ u16 unk1EF8[2];
     /* 0x1EFC */ u16 unk1EFC;
     /* 0x1EFE */ u16 unk1EFE;
 } MenuUnk8; /* size: 1F00 */

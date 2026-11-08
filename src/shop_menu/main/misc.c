@@ -2557,9 +2557,54 @@ void ShopMenuMain(void) {
     ShopMenuFree();
 }
 
-// tmp
-void func_801CCE1C(void*, u8);
-INCLUDE_ASM("asm/shop_menu/nonmatchings/main/misc", func_801CCE1C);
+void func_801CCE1C(MenuDressingRoom* pDressingRoom, u8 characterIndex) {
+    GameCharacter* pCharacter;
+
+    pCharacter = &g_GameState.characters[characterIndex];
+
+    if (pCharacter->unk56 == 4) {
+        pDressingRoom->unkB8[0] = pCharacter->unk0[4] + pCharacter->unk0[0x1C];
+    } else {
+        pDressingRoom->unkB8[0] = pCharacter->unk0[4] + (pCharacter->attack + pCharacter->unk0[0x28]);
+    }
+    pDressingRoom->unkB8[0] = pCharacter->unk0[4] + (pCharacter->attack + pCharacter->unk0[0x28]);
+    pDressingRoom->unkB8[1] = pCharacter->hitPercentage + pCharacter->unk2D[1];
+    pDressingRoom->unkB8[2] = pCharacter->unk2D[0] + (pCharacter->defense + pCharacter->unk0[0x29]);
+    pDressingRoom->unkB8[3] = pCharacter->evadePercentage + pCharacter->unk2D[2];
+    pDressingRoom->unkB8[4] = pCharacter->ether + pCharacter->unk0[0x2B];
+    pDressingRoom->unkB8[5] = 0x63;
+    pDressingRoom->unkB8[6] = pCharacter->etherDefense + pCharacter->etherDefenseFromEquipment;
+    pDressingRoom->unkB8[7] = 0xA;
+    pDressingRoom->unkB8[8] = pCharacter->agility + pCharacter->unk0[0x2A];
+
+    if (pDressingRoom->unkB8[0] >= 1000) {
+        pDressingRoom->unkB8[0] = 999;
+    }
+    if (pDressingRoom->unkB8[1] >= 100) {
+        pDressingRoom->unkB8[1] = 99;
+    }
+    if (pDressingRoom->unkB8[2] >= 1000) {
+        pDressingRoom->unkB8[2] = 999;
+    }
+    if (pDressingRoom->unkB8[3] >= 100) {
+        pDressingRoom->unkB8[3] = 99;
+    }
+    if (pDressingRoom->unkB8[4] >= 1000) {
+        pDressingRoom->unkB8[4] = 999;
+    }
+    if (pDressingRoom->unkB8[5] >= 100) {
+        pDressingRoom->unkB8[5] = 99;
+    }
+    if (pDressingRoom->unkB8[6] >= 1000) {
+        pDressingRoom->unkB8[6] = 999;
+    }
+    if (pDressingRoom->unkB8[7] >= 100) {
+        pDressingRoom->unkB8[7] = 99;
+    }
+    if (pDressingRoom->unkB8[8] >= 100) {
+        pDressingRoom->unkB8[8] = 99;
+    }
+}
 
 // Render Shop Stuff
 INCLUDE_ASM("asm/shop_menu/nonmatchings/main/misc", func_801CCFF4);
@@ -2982,8 +3027,8 @@ u_char ShopMenuBuyMenu(void) {
 
     for (i = 0; i < MAX_GAME_CHARACTERS; i++) {
         func_801CCE1C(g_Menu->pDressingRoom, i);
-        g_Menu->pShop->unk46E0[i] = g_Menu->pDressingRoom->unkB8;
-        g_Menu->pShop->unk4700[i] = g_Menu->pDressingRoom->unkBC;
+        g_Menu->pShop->unk46E0[i] = g_Menu->pDressingRoom->unkB8[0];
+        g_Menu->pShop->unk4700[i] = g_Menu->pDressingRoom->unkB8[2];
     }
 
     bzero(g_Menu->pShop->curItemQuantities, MAX_SHOP_ITEMS);

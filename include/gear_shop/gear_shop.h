@@ -99,7 +99,10 @@ extern s16 D_801D6E18[204];
 extern s16 D_801D6FB0[0x10];
 extern s32 D_801D6FD0[2];
 
+extern u16 D_801D6FE0[40];
 extern u8 D_801D7030[16];
+extern u16 D_801D7040[2];
+extern u16 D_801D7044[12];
 extern u16 D_801D705C[6];
 extern u16 D_801D7068[6];
 extern u16 D_801D7074[6];

@@ -24,7 +24,9 @@ typedef struct {
     /* 0x4E */ u_short maxHp;
     /* 0x50 */ u_short mp;
     /* 0x52 */ u_short maxMp;
-    /* 0x54 */ undefined32 field_0x54;
+    /* 0x54 */ u8 unk54[2];
+    /* 0x56 */ u8 unk56;
+    /* 0x57 */ u8 unk57;
     /* 0x58 */ u_char attack;
     /* 0x59 */ u_char defense;
     /* 0x5A */ u_char agility;
