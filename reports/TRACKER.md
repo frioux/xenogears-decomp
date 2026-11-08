@@ -182,3 +182,34 @@ Stubs by area at session start: `psyq` 150 (96 libgte, 12 libapi, 8 libapi_2,
   `ScaleMatrix`, `DrawOTagEnv`, `PutDispEnv`, `Sprintf`, `PCopen` and friends.
   That 65 is the largest untouched tractable pool in the repo and was written
   from known Psy-Q library sources.
+
+### Compiler findings (session 2, before the first round landed)
+
+- **`-mcpu=r8000` is wrong for this project.** Crash Bandicoot 2's decomp documents
+  that at `-mcpu=r3000` gcc schedules argument setup into the save block where
+  retail keeps it in a delay slot, and that `r8000` fixed their whole build. Tested
+  here: switching the `Default` preset to `-mcpu=r8000` makes `slus_006.64` and
+  `field.bin` fail `make check` while the four 2.6.0-built overlays still pass
+  (gcc 2.6.0's `cc1` rejects `-mcpu=r8000` outright, so those units cannot even
+  try). r3000 is right; the delay-slot differences are source shape, not `-mcpu`.
+- **No SDK version banner in the game binary.** `strings disc/SLUS_006.64` has no
+  `PSY-Q`/`SN32`/`cygnus` build string, so the toolchain cannot be read off the
+  executable. The existing presets match the published mapping anyway: PSY-Q 4.0
+  ships `GNU C 2.7.2.SN32.3.7.0002` + ASPSX 2.56 (= our `PSY-Q` preset) and
+  PSY-Q 4.1 ships `cygnus-2.7.2-970404` + ASPSX 2.67 (= our `XenoGraphics`
+  preset), with 2.6.0 for prebuilt library code -- the same 2.7.2/2.6.0/ASPSX-split
+  structure Tomba's and Crash 2's decomps use.
+- **65 of the 150 psyq stubs are ordinary C**, not handwritten asm: 68 contain
+  `mtc2`/`ctc2` (GTE, unreachable from C) and 17 are BIOS syscall trampolines
+  (`addiu $t2; jr $t2`). The plain ones are stock library routines --
+  `RotMatrixX`, `ScaleMatrix`, `TransMatrix`, `memcpy`, `strcmp`, `Sprintf`,
+  `PutDispEnv`, `DrawOTagEnv`, `ResetGraph`, `PCread` -- whose C is published in
+  the Psy-Q SDK, so they are the highest-yield remaining pool.
+
+New tools (both in `tools/scripts/`, both documented):
+
+- `check_bin.sh <bin>` -- matching-mode rebuild + byte check of one output (~35 s).
+- `try_flags.sh <unit> <Func> [--gcc g] [--opt -O2] [--gp -G8] [--cpu r3000|r8000]
+  [--sweep]` -- score one function under alternative compiler/flag combinations in
+  ~1 s per variant by parsing the flags out of `build.ninja` and running cc1 +
+  maspsx directly, instead of ~35 s of gears per candidate.
