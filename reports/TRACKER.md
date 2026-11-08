@@ -173,6 +173,8 @@ Stubs by area at session start: `psyq` 150 (96 libgte, 12 libapi, 8 libapi_2,
 | 14 | 13 units | +10 | 1859 | `sound`, `temp1`, `field/main`, `misc`, `misc4/5/6`, `misc7`, `misc8`, `gte`; the `g_FieldActors` volatile removal landed |
 | — | `shop_menu ShopMenuLoadResources` (1088 insns) | +1 | 1860 | found and fixed the unit-rodata blocking bug: a missing `const` |
 | 15 | 13 units | +9 | 1869 | sound 3, field/main/misc 3 (one via the jump-table byte check), temp2 2, misc6 1 |
+| 16 | near-miss round: 13 units, 42 parked attempts at >=95% | +5 | 1874 | timeboxed on the last instruction/register of already-written C |
+| 17 | 23 workers in two concurrent workflows | — | — | fresh functions in the big units + two special projects: the GTE header revision, and misc2's rodata family |
 
 ### Round 12-13 notes
 
@@ -225,6 +227,22 @@ Stubs by area at session start: `psyq` 150 (96 libgte, 12 libapi, 8 libapi_2,
   round left three functions (74-87%) in C, which cost `lib_gear.bin` 229 bytes.
   The integration step is now: `make check`, then `culprit.sh <bin>` to name the
   offending functions, then revert just those.
+
+### What the near-miss round learned (round 16)
+
+- 42 of the 533 remaining stubs already have C that objdiff scores 95-100%. They
+  are a *different* kind of work: the instruction stream is right and only the
+  register allocation or one delay slot differs, so a worker who rewrites from the
+  assembly throws away the answer. Round 16's brief pointed at the parked attempt
+  and the record of what had already been tried; 5 of the 42 closed.
+- `objdiff 100%` was not achievable for some: `func_8004BEC0` (psyq/libapi_2) is
+  100% as an empty function but its stub `.s` owns two nops after `.size`, so the
+  link is 8 bytes short. Same class as the jump table: the object can be perfect
+  and the binary wrong.
+- `tools/scripts/lint_sources.py` (new) caught three functions in `misc12` that
+  were both `INCLUDE_ASM`'d and defined in C. That mistake is invisible otherwise
+  (maspsx's stderr goes to /dev/null) and it happened three times in three rounds.
+  Workers should run it before committing; it is now in `AGENTS.md`.
 
 ## Findings
 
