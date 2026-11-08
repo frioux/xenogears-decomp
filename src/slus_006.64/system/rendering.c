@@ -1,20 +1,18 @@
 #include "common.h"
 #include "field/actor.h"
+#include "system/memory.h"
+
+extern void func_800234AC(SpriteData* pSpriteData);
 
 // Rendering-related stuff
 
 // Allocate directions array
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001D4E8);
-/*
-Matches on decomp.me
-
 void func_8001D4E8(SpriteData* pSpriteData) {
     if (pSpriteData->pBase->pDirTransforms == 0) {
         pSpriteData->pBase->pDirTransforms = HeapAlloc(sizeof(SpriteDirectionTransforms), 0);
         func_800234AC(pSpriteData);
     }
 }
-*/
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001D53C);
 
@@ -78,9 +76,13 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001E3D8);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001E9BC);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001EE68);
+s32 func_8001EE68(u8* pFlags) {
+    return pFlags[1] >> 7;
+}
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001EE74);
+s32 func_8001EE74(u16* pFlags) {
+    return (*pFlags >> 9) & 0x3F;
+}
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001EE88);
 

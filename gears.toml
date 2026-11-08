@@ -87,3 +87,12 @@ build_variables = {
     maspsx_flags = "--expand-div --use-comm-section --run-assembler"
 }
 paths = [ "lib_gear/main/main." ]
+
+# system/rendering's original object expands small positive `li` constants with
+# addiu, not maspsx's ori, so let the assembler do the expansion.
+[[build_preset]]
+name = "XenoRendering"
+build_variables = {
+    maspsx_flags = "--dont-expand-li --use-comm-section --run-assembler"
+}
+paths = [ "{binary}/system/rendering." ]
