@@ -4,6 +4,7 @@
 #include "field/text_box.h"
 #include "field/effects.h"
 #include "field/script_vm.h"
+#include "system/math.h"
 #include "system/memory.h"
 #include "system/archive.h"
 #include "system/sound.h"
@@ -105,7 +106,19 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_8008237C);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80082494);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800825AC);
+long FieldGetVec2Magnitude(long, long);
+
+int func_800825AC(int actorIndexA, int actorIndexB) {
+    FieldActor* pActors = g_FieldActors;
+    ActorData* pActorB = pActors[actorIndexB].pActorData;
+    ActorData* pActorA = pActors[actorIndexA].pActorData;
+    int posXB = CONV_TO_GTE(pActorB->position.vx);
+    int posZB = CONV_TO_GTE(pActorB->position.vz);
+    int posXA = CONV_TO_GTE(pActorA->position.vx);
+    int posZA = CONV_TO_GTE(pActorA->position.vz);
+
+    return FieldGetVec2Magnitude(posXB - posXA, posZB - posZA);
+}
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80082620);
 
@@ -139,7 +152,31 @@ void func_800831D0(SVECTOR* pDst, IVEC3* pSrc) {
     pDst->vz = pSrc->z >> 0x10;
 }
 
+void func_80081F80(int, int);
+
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800831F4);
+/* 92.68%: an unused 8-byte local (`RECT rect;`) reproduces the 0x20 frame, but
+   gcc keeps the loaded rotation in v1 (original loads v0 and copies to v1) and
+   sinks the second `sh 0x106` into the call delay slot.
+void func_800831F4(int arg0, ActorData* pActor, int arg2, int arg3) {
+    short rotation;
+    RECT rect;
+
+    if (pActor->moveModified.vx != 0 || pActor->moveModified.vz != 0) {
+        if (!(pActor->rotation.vy & 0x8000)) {
+            rotation = pActor->rotation.vy;
+            rotation += (arg3 & 1) ? -0x400 : 0x400;
+            rotation &= 0xFFF;
+            pActor->rotation.vx = rotation;
+            pActor->rotation.vy = rotation;
+            func_80081F80(arg0, pActor->rotation.vx);
+            rotation = pActor->rotation.vy | 0x8000;
+            pActor->rotation.vx = rotation;
+            pActor->rotation.vy = rotation;
+        }
+    }
+}
+*/
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80083288);
 
@@ -154,11 +191,34 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_8008492C);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80084A40);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800854D0);
-
+extern s32 D_800ADBBC;
 extern s32 D_800ADB2C;
 extern void* D_800ADBB8;
 extern void* D_800AFEA4;
+int func_80028B14(void);
+
+INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800854D0);
+/* 96.94%: only the call result's register differs (original copies it to a0
+   with `move a0,v0` and stores/tests a0; gcc here keeps it in v0).
+int func_800854D0(void) {
+    int result = func_80028B14();
+
+    D_800ADBBC = result;
+    if (result != 0) {
+        ((void (*)(void))D_800AFEA4)();
+        return 0;
+    }
+    if (ArchiveDataSync() != 0) {
+        return 0;
+    }
+    if (D_800ADBBC != 0) {
+        return 0;
+    }
+    HeapFree(D_800ADBB8);
+    D_800ADB2C = 0;
+    return -1;
+}
+*/
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80085560);
 /* 81.88%: only the prologue schedule and the temp register differ (gcc stores
@@ -299,15 +359,28 @@ void func_80086024(void) {
 }
 
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80086078);
+extern s16 D_800B21AC;
+
+void func_80086078(int arg0, int* pOut, int arg2) {
+    int limit = D_800B21AC;
+    int factor;
+    u_int diff;
+    int scaled;
+
+    if (limit < arg0) {
+        arg0 = limit;
+    }
+    factor = (0x7F0000 / limit * arg0) >> 16;
+    diff = (0x80 - factor) << 16;
+    scaled = diff / 127;
+    *pOut = (u_int)(scaled * arg2) >> 16;
+}
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800860F0);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", FieldActorWorldToScreenPosition);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800862CC);
-
-INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800863E8);
 
 // Three 6-byte entries; splat names the second field's address D_800AFE8A.
 typedef struct {
@@ -318,6 +391,19 @@ typedef struct {
 
 extern FieldUnk800AFE88 D_800AFE88[3];
 extern FieldUnk800AFE88 D_800AFE8A[3];
+
+void func_800863E8(u_int arg0) {
+    int i;
+
+    for (i = 0; i < 3; i++) {
+        if (D_800AFE88[i].unk0 == arg0) {
+            func_8003A20C(i * 2);
+            D_800AFE8A[i].unk0 = 0xFFFF;
+            D_800AFE88[i].unk0 = 0xFFFF;
+            break;
+        }
+    }
+}
 
 int func_80086470(int arg0, u_int arg1) {
     int i;
@@ -378,7 +464,19 @@ void FieldScriptVM2Run(void) {
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80086A1C);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80086BA8);
+extern s16 D_800B22E2[];
+
+void func_80086A1C(int, VECTOR*);
+
+void func_80086BA8(void) {
+    int i;
+
+    for (i = 0; i < 3; i++) {
+        if (D_800B22E2[i] != -1) {
+            func_80086A1C(i, &g_FieldActors[D_800B22E2[i]].pActorData->position);
+        }
+    }
+}
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80086C34);
 
