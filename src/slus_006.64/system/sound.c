@@ -272,7 +272,19 @@ void SoundEnableAllSpuChannels(void) {
     g_SoundControlFlags &= ~0x40;
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", SoundMuteAllSpuChannels);
+void SoundMuteAllSpuChannels(void) {
+    SPU_VOICE_REG* pVoice = g_pSoundSpuRegisters->_rxx.voice;
+    s32 i;
+
+    g_SoundControlFlags |= 0x40;
+    for (i = 0; i < NUM_VOICES; pVoice++, i++) {
+        pVoice->volume.left = 0;
+        pVoice->volume.right = 0;
+        pVoice->pitch = 0;
+        pVoice->adsr[0] = (pVoice->adsr[0] & 0xFF) + 0x7F00;
+        pVoice->adsr[1] = 0x1FDF;
+    }
+}
 
 void func_80037F44(void) {
     if (!(g_SoundControlFlags & 1)) {
@@ -900,7 +912,12 @@ SoundSpuMemoryBlock* SoundSpuMemoryFindBlock(int targetAddress) {
     }
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_800397FC);
+AudioManager* func_800397FC(SoundFile* pFile, s32 arg1, s32 arg2) {
+    AudioManager* pManager = func_80039850(pFile);
+
+    func_80039A80(pManager, arg1, arg2);
+    return pManager;
+}
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_80039850);
 
@@ -1167,9 +1184,46 @@ void func_8003ABE8(AudioManager* pManager, u8 value) {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003ABF0);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003AC58);
+u16* func_8003AC58(AudioManager* pManager) {
+    AudioElement* pElement = pManager->elements;
+    u16 count = pManager->elementCount;
+    u16* pResult = (u16*)&pManager->unk_0x30;
+    u16 best = 0xFFFF;
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003ACC8);
+    do {
+        if (pElement->active_flag != 0 && pElement->unk_0x20 < best) {
+            best = pElement->unk_0x20;
+        }
+        pElement++;
+    } while (--count);
+
+    if (best == 0xFFFF) {
+        best = 0;
+    }
+    *pResult = best;
+    return pResult;
+}
+
+s32 func_8003ACC8(AudioManager* pManager) {
+    AudioManager* pCurrent = g_SoundAudioManagerListHead;
+    s32 result;
+
+    if (pManager != NULL) {
+        while (pCurrent != NULL && pCurrent != pManager) {
+            pCurrent = pCurrent->next;
+        }
+    }
+
+    if (pCurrent != NULL) {
+        u8* pBase = (u8*)pCurrent->unk_0x8;
+
+        result = *(u16*)(pBase + 0x1E) + (s32)pBase;
+    } else {
+        result = 0;
+    }
+
+    return result;
+}
 
 void func_8003AD20(AudioManager* pManager, s32 mode) {
     switch (mode) {
@@ -1894,7 +1948,20 @@ u8* SoundScriptSetVoiceFlags2000ClearMode(u8* pScript, AudioManager* pAudioManag
     return pScript;
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003D4E4);
+u8* func_8003D4E4(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
+    s16 depth;
+    s32 delay;
+    s32 feedback;
+
+    depth = pScript[0] << 8;
+    pAudioManager->reverbDepth = depth;
+    delay = (s8)pScript[1];
+    pAudioManager->reverbDelay = delay;
+    feedback = (s8)pScript[2];
+    pAudioManager->reverbFeedback = feedback;
+    SoundSetReverbModeWithAllocation(SPU_REV_MODE_CHECK, depth, delay, feedback);
+    return pScript + 3;
+}
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003D53C);
 /*
@@ -2178,6 +2245,27 @@ u8* func_8003DEB4(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
 }
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003DEE4);
+
+/* Best attempt (76.59%): every instruction matches except the entry `move a1, a0`
+   (the original keeps the script base in a1) and the `subu` computing delta, which
+   the original places in the delay slot of the frames test instead of before it.
+u8* func_8003DEE4(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
+    s32 target = (s8)pScript[1];
+    s32 current = (s8)(pAudioElements->unk_0x74 >> 8);
+    u16 frames = pScript[0];
+    s32 delta;
+
+    if (frames && (delta = target - current)) {
+        delta <<= 8;
+        pAudioElements->unk_0x92 = delta;
+        pAudioElements->unk_0x98 = frames;
+        pAudioElements->unk_0x04 |= 0x10;
+        pAudioElements->unk_0x90 = delta / frames;
+    }
+
+    return pScript + 2;
+}
+*/
 
 u8* func_8003DF3C(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     s32 divisor = (u8)(*pScript + 1);
