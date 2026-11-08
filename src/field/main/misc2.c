@@ -6,6 +6,7 @@
 #include "psyq/libgte.h"
 
 extern s16 D_800B218E;
+extern u_char D_800ADC1C[]; // Bit mask of each of the eight movement directions
 
 void FieldMatrixResetTranslation(MATRIX *matrix) {
     matrix->t[2] = 0;
@@ -64,9 +65,29 @@ void FieldMatrixCreateWorldToScreen(void) {
     }
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_8007234C);
+int func_8007234C(u_int mask, int dir) {
+    int i;
+    int offset;
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80072398);
+    for (i = 0, offset = 0; i < 8; i++, offset++) {
+        if (!(mask & D_800ADC1C[dir++ & 7])) {
+            return offset;
+        }
+    }
+    return 0;
+}
+
+int func_80072398(u_int mask, int dir) {
+    int i;
+    int offset;
+
+    for (i = 0, offset = 0; i < 8; i++, offset++) {
+        if (!(mask & D_800ADC1C[dir-- & 7])) {
+            return offset;
+        }
+    }
+    return 0;
+}
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_800723E4);
 
@@ -297,16 +318,13 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80076A74);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80076AC0);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_800771B0);
-/*
-void func_800771B0(u_long* pPrim, int size) {
-    int i;
+void func_800771B0(u_int* pPrim, int size) {
+    int i = size / 2;
 
-    for (i = size / 2 - 1; i >= 0; i--) {
+    while (i--) {
         *pPrim++ |= 0x80008000;
     }
 }
-*/
 
 void FieldLoadTIM(u_long* pTimData) {
     TIM_IMAGE timImage;
