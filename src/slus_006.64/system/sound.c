@@ -773,6 +773,28 @@ void* SoundHeapAllocate(unsigned int allocSize) {
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_80039024);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", SoundHeapFree);
+/*
+Attempt (96.62%, same size): every instruction is right and pBlock=s1 / pCurrent=s0
+match; the original copies the loop variable to v0 (`move v0,s0`) and iterates on v0,
+gcc keeps iterating on s0. Adding a separate loop variable coalesces back to s0.
+void SoundHeapFree(void* pMemory) {
+    SoundHeapBlockHeader* pBlock;
+    SoundHeapBlockHeader* pCurrent = g_SoundHeapHead;
+    SoundHeapBlockHeader* pPrev;
+    SoundHeapBlockHeader* pEntry;
+
+    DisableEvent(g_unk_SoundEvent);
+    pBlock = (SoundHeapBlockHeader*)pMemory - 1;
+    pPrev = NULL;
+    for (pEntry = pCurrent; pEntry != pBlock; pEntry = pEntry->pNext) {
+        pPrev = pEntry;
+    }
+    if (pPrev != NULL) {
+        pPrev->pNext = pBlock->pNext;
+    }
+    EnableEvent(g_unk_SoundEvent);
+}
+*/
 
 u32 func_800391CC(void) {
     SoundHeapBlockHeader* pHeapBlock;
@@ -1345,6 +1367,25 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003ADCC);
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003AE84);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003AF24);
+/*
+Attempt (87.10%, same size): every instruction is right; only the first eight are
+ordered differently. The original schedules `lui/lw a0` (DisableEvent's argument)
+before `sw ra`/`lhu`/`sh a1,30(pManager)`, gcc puts them after. Statement order of the
+two field updates does not change it.
+void func_8003AF24(AudioManager* pManager, u16 volume) {
+    s32 newVolume = 0x7F00;
+
+    pManager->unk_Flags |= 0x20;
+    *(u16*)pManager->unk_0x1e = volume;
+    DisableEvent(g_unk_SoundEvent);
+    SoundReleaseAllVoices(pManager);
+    EnableEvent(g_unk_SoundEvent);
+    pManager->unk_Interpolator_0x64.targetValue = newVolume;
+    pManager->unk_Interpolator_0x64.counter = 0;
+    pManager->unk_Interpolator_0x64.currentValue = newVolume << 16;
+    pManager->unk_0x54 = (pManager->unk_0x58 >> 16) * newVolume;
+}
+*/
 
 //----------------------------------------------------------------------------------------------------------------------
 void func_8003AFA0(AudioManager* manager) {
