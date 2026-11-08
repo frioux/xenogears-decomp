@@ -650,7 +650,17 @@ void func_8009FDD4(void) {
 }
 */
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_8009FE4C);
+extern void func_800ACFD0(void);
+
+void func_8009FE4C(void) {
+    u8 index;
+
+    index = SCRIPT_READ_U8_REL(1);
+    if (g_GamePartyMembers[index] != CHARACTER_ID_NONE && g_pGameState->gearRide[index]) {
+        func_800ACFD0();
+    }
+    g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
+}
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_8009FEE4);
 
@@ -690,6 +700,49 @@ void func_800A0C4C(void) {
 
 // FieldResetActorPosition, set translation and sprite position of actor based on current actor data position
 INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_800A0C94);
+// 99.64%: only diff is the last `addu` destination - gcc puts the pointer in $v0, the
+// original coalesces it into the offset register $v1.
+/*
+void func_800A0C94(void) {
+    FieldActor* pFieldActor;
+    SpriteData* pSpriteData;
+    ActorData* pActor;
+    s16* pPosition;
+    s32 x;
+    s32 y;
+    s32 z;
+    u16 curY;
+
+    pActor = g_FieldScriptVMCurActor;
+    pFieldActor = (FieldActor*)(D_800AFD1C * sizeof(FieldActor) + (s32)g_FieldActors);
+    pPosition = (s16*)&pActor->position;
+
+    x = pPosition[1];
+    pFieldActor->transformMatrix.t[0] = x;
+    pFieldActor->childMatrix.t[0] = x;
+    pSpriteData = pFieldActor->pSpriteData;
+
+    pFieldActor = (FieldActor*)(D_800AFD1C * sizeof(FieldActor) + (s32)g_FieldActors);
+    y = pPosition[3];
+    pFieldActor->transformMatrix.t[1] = y;
+    pFieldActor->childMatrix.t[1] = y;
+
+    pFieldActor = (FieldActor*)(D_800AFD1C * sizeof(FieldActor) + (s32)g_FieldActors);
+    z = pPosition[5];
+    pFieldActor->transformMatrix.t[2] = z;
+    pFieldActor->childMatrix.t[2] = z;
+
+    pSpriteData->position.x = pActor->position.vx;
+    pSpriteData->position.y = pActor->position.vy;
+    pSpriteData->position.z = pActor->position.vz;
+    pSpriteData->step.y = 0;
+
+    curY = ((u16*)pPosition)[3];
+    pSpriteData->field_0x84 = curY;
+    pActor->curYPos = curY;
+}
+
+*/
 
 void func_800A0D3C(void) {
     func_80076AC0(D_800AFD1C, 0, (void*)((*(s32*)(g_FieldSpriteData + 4)) + (s32)g_FieldSpriteData), 0, 0, 0x80, 1);
@@ -735,6 +788,30 @@ void func_800A0EB0(void) {
 }
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_800A0EE8);
+// 76.20%: both cases and the dispatch come out right, but the original hoists the
+// `(flags12C >> 13) & 7` index above the switch (keeping the actor in $a2) and forms
+// &D_800B2264 with lui/addiu into a register instead of %hi/%lo at each access.
+/*
+extern s32 D_800B2264;
+extern void* D_801E8670[];
+extern void func_801E8030(int modelIndex);
+
+void func_800A0EE8(void) {
+    g_FieldScriptVMCurActor->flags &= ~0x2000;
+    switch (SCRIPT_READ_U8_REL(1)) {
+        case 0:
+            ((u8*)D_801E8670[g_FieldScriptVMCurActor->flags12C_0xE & 7])[0x34] = 0;
+            g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
+            break;
+        case 1:
+            func_801E8030(g_FieldScriptVMCurActor->flags12C_0xE & 7);
+            D_800B2264--;
+            g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
+            break;
+    }
+    D_800B00C0 = 1;
+}
+*/
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_800A0FD8);
 
