@@ -11,7 +11,47 @@ extern int (*g_GpuPrintf)(char*, ...);
 extern DRAWENV g_GpuDrawEnv;
 extern DISPENV g_GpuDispEnv;
 
-// D_800568C8 : Sys func ptrs
+// GPU driver vtable, selected by the video mode
+// (0x80056888, one entry per function; entries 3/6/7/8 hold addresses)
+typedef struct {
+    /* 0x00 */ char *version;
+    /* 0x04 */ void (*unk04)();
+    /* 0x08 */ int (*unk08)(u_long madr, void *p, int n, u_long param);
+    /* 0x0C */ u_long unk0C;
+    /* 0x10 */ void (*unk10)(u_long value);
+    /* 0x14 */ void (*unk14)(void *p, int n);
+    /* 0x18 */ u_long unk18;
+    /* 0x1C */ u_long unk1C;
+    /* 0x20 */ u_long unk20;
+    /* 0x24 */ void (*unk24)();
+    /* 0x28 */ void (*unk28)(int mode);
+    /* 0x2C */ void (*unk2C)(u_long *ot, int n);
+    /* 0x30 */ void (*unk30)();
+    /* 0x34 */ void (*unk34)(int mode);
+    /* 0x38 */ void (*unk38)();
+    /* 0x3C */ int (*unk3C)(int mode);
+} GpuSysFuncs; // Size: 0x40
+
+extern char D_800190D8[]; // "SetGraphDebug:level:%d,type:%d reverse:%d\n"
+extern char D_80019104[]; // "SetGrapQue(%d)...\n"
+extern char D_80019134[]; // "SetDispMask(%d)...\n"
+extern char D_80019148[]; // "DrawSync(%d)...\n"
+extern char D_80019180[]; // "ClearImage"
+extern char D_8001918C[]; // "LoadImage"
+extern char D_80019198[]; // "StoreImage"
+extern char D_800191B0[]; // "ClearOTag(%08x,%d)...\n"
+extern char D_800191C8[]; // "ClearOTagR(%08x,%d)...\n"
+extern char D_800191E0[]; // "DrawOTag(%08x)...\n"
+
+extern GpuSysFuncs *D_800568C8;
+extern u_char D_800568D0;
+extern u_char D_800568D1;
+extern u_char D_800568D3;
+extern char D_8005698C;
+
+extern void func_8004463C(char *name, RECT *rect);
+extern void func_80047178(void *p, int value, int n);
+extern int DMACallback(int id, void (*pCallbackFn)());
 
 DRAWENV* SetDefDrawEnv(DRAWENV* env, int x, int y, int w, int h) {
     int nVideoMode;
@@ -220,11 +260,44 @@ void SetDrawTPage(DR_TPAGE *p, int dfe, int dtd, int tpage) {
     ((u_long *)(p))[1] = _get_mode(dfe, dtd, tpage);
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu", SetDrawMove);
+void SetDrawMove(DR_MOVE *p, RECT *rect, int x, int y) {
+    int len = 5;
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu", func_80043EAC);
+    if (rect->w == 0 || rect->h == 0)
+        len = 0;
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu", func_80043F18);
+    setlen(p, len);
+    p->code[0] = 0x01000000;
+    p->code[1] = 0x80000000;
+    *(u_long*)&p->code[2] = *(u_long*)&rect->x;
+    *(u_long*)&p->code[3] = (y << 16) | (x & 0xFFFF);
+    *(u_long*)&p->code[4] = *(u_long*)&rect->w;
+}
+
+void func_80043EAC(DR_LOAD *p, RECT *rect) {
+    u_int len = (rect->w * rect->h + 1) / 2;
+    u_int nLen = len + 4;
+
+    if (len >= 13)
+        nLen = 0;
+
+    setlen(p, nLen);
+    p->code[0] = 0xA0000000;
+    *(u_long*)&p->code[1] = *(u_long*)&rect->x;
+    *(u_long*)&p->code[2] = *(u_long*)&rect->w;
+    p->p[nLen - 4] = 0x01000000;
+}
+
+int func_80043F18(u_char *p0, u_char *p1) {
+    int len = p0[3] + p1[3] + 1;
+
+    if (len >= 0x11)
+        return -1;
+
+    p0[3] = len;
+    *(u_long*)p1 = 0;
+    return 0;
+}
 
 void DumpDrawEnv(DRAWENV *env) {
     g_GpuPrintf("clip (%3d,%3d)-(%d,%d)\n", env->clip.x, env->clip.y, env->clip.w, env->clip.h);
@@ -246,24 +319,35 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu", ResetGraph);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu", SetGraphReverse);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu", SetGraphDebug);
-/*
 int SetGraphDebug(int level) {
-    int nPrev = g_GraphDebugLevel;
+    u_char *pLevel = &g_GraphDebugLevel;
+    int nPrev = *pLevel;
+    u_char nLevel = level;
 
-    g_GraphDebugLevel = level;
-    if (level) {
-        g_GpuPrintf("SetGraphDebug:level:%d,type:%d reverse:%d\n", level, DAT_800568d0, DAT_800568d3);
-    }
-
+    *pLevel = level;
+    if (nLevel)
+        g_GpuPrintf(&D_800190D8, nLevel, D_800568D0, D_800568D3);
     return nPrev;
 }
-*/
 
-// SetGrapQue ?
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu", func_8004440C);
+int func_8004440C(int que) {
+    u_char *pQue = &D_800568D1;
+    int nPrev = *pQue;
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu", func_800444B8);
+    if (g_GraphDebugLevel >= 2)
+        g_GpuPrintf(&D_80019104, que);
+
+    if (que != *pQue) {
+        D_800568C8->unk34(1);
+        *pQue = que;
+        DMACallback(2, 0);
+    }
+    return nPrev;
+}
+
+int func_800444B8(void) {
+    return D_800568D0;
+}
 
 int GetGraphDebug(void) {
     return g_GraphDebugLevel;
@@ -281,37 +365,88 @@ u_long DrawSyncCallback(void (*pCallbackFn)()) {
     return (u_long) pPrevCallbackFn;
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu", SetDispMask);
+void SetDispMask(int mask) {
+    u_char *pLevel = &g_GraphDebugLevel;
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu", DrawSync);
-/*
+    if (*pLevel >= 2)
+        g_GpuPrintf(&D_80019134, mask);
+
+    // 0x6A past the debug level is g_GpuDispEnv; the original reaches it from here
+    if (mask == 0)
+        func_80047178(pLevel + 0x6A, -1, sizeof(DISPENV));
+
+    D_800568C8->unk10(mask ? 0x03000000 : 0x03000001);
+}
+
 int DrawSync(int mode) {
     if (g_GraphDebugLevel >= 2)
-        g_GpuPrintf("DrawSync(%d)...\n", mode);
+        g_GpuPrintf(&D_80019148, mode);
 
-    return func_80046DB4(mode);
+    return D_800568C8->unk3C(mode);
 }
-*/
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu", func_8004463C);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu", ClearImage);
+int ClearImage(RECT *rect, u_char r, u_char g, u_char b) {
+    func_8004463C(D_80019180, rect);
+    return D_800568C8->unk08(D_800568C8->unk0C, rect, 8, (b << 16) | (g << 8) | r);
+}
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu", ClearImage2);
+int ClearImage2(RECT *rect, u_char r, u_char g, u_char b) {
+    func_8004463C(D_80019180, rect);
+    return D_800568C8->unk08(D_800568C8->unk0C, rect, 8, 0x80000000 | (b << 16) | (g << 8) | r);
+}
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu", LoadImage);
+int LoadImage(RECT *rect, u_long *p) {
+    func_8004463C(D_8001918C, rect);
+    return D_800568C8->unk08(D_800568C8->unk20, rect, 8, (u_long)p);
+}
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu", StoreImage);
+int StoreImage(RECT *rect, u_long *p) {
+    func_8004463C(D_80019198, rect);
+    return D_800568C8->unk08(D_800568C8->unk1C, rect, 8, (u_long)p);
+}
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu", MoveImage);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu", ClearOTag);
+u_long* ClearOTag(u_long *ot, int n) {
+    if (g_GraphDebugLevel >= 2)
+        g_GpuPrintf(D_800191B0, ot, n);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu", ClearOTagR);
+    if (--n != 0) {
+        do {
+            n--;
+            *(u_char*)((u_char*)ot + 3) = 0;
+            setaddr(ot, ot + 1);
+            ot++;
+        } while (n != 0);
+    }
+    *(u_long*)ot = (u_long)&D_8005698C & 0xFFFFFF;
+    return ot;
+}
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu", DrawPrim);
+u_long* ClearOTagR(u_long *ot, int n) {
+    if (g_GraphDebugLevel >= 2)
+        g_GpuPrintf(D_800191C8, ot, n);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu", DrawOTag);
+    D_800568C8->unk2C(ot, n);
+    *(u_long*)ot = (u_long)&D_8005698C & 0xFFFFFF;
+    return ot;
+}
+
+void DrawPrim(void *p) {
+    u_char len = *(u_char*)((u_char*)p + 3);
+
+    D_800568C8->unk3C(0);
+    D_800568C8->unk14((u_char*)p + 4, len);
+}
+
+void DrawOTag(u_long *p) {
+    if (g_GraphDebugLevel >= 2)
+        g_GpuPrintf(D_800191E0, p);
+
+    D_800568C8->unk08(D_800568C8->unk18, p, 0, 0);
+}
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu", PutDrawEnv);
 

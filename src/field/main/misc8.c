@@ -50,7 +50,11 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800815F0);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80081C54);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80081F5C);
+int func_80081F5C(ActorData* pActor) {
+    u_int actorType = (pActor->scriptFlags.flags >> 9) & 3;
+
+    return -((actorType & (pActor->curWalkmeshTriMaterial >> 3)) != 0);
+}
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80081F80);
 
@@ -66,7 +70,27 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80082620);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80082BB8);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80083178);
+int func_80083178(int angle, int limit) {
+    if (angle < 0) {
+        angle += 0x4000;
+        limit = -limit;
+        if (angle < limit) {
+            angle = limit;
+        }
+        if (angle > 0) {
+            angle = 0;
+        }
+    } else {
+        angle -= 0x4000;
+        if (limit < angle) {
+            angle = limit;
+        }
+        if (angle < 0) {
+            angle = 0;
+        }
+    }
+    return angle;
+}
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800831D0);
 
@@ -89,7 +113,12 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800854D0);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80085560);
 
+void func_8003A20C(int);
+void func_80039F9C(void*, int, int, int);
+
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800855C8);
+
+extern s32 D_800B21B8;
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80085634);
 
@@ -213,4 +242,10 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80086BA8);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80086C34);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80086D4C);
+void GameSoftReset(void);
+
+void func_80086D4C(void) {
+    GameSoftReset();
+    D_800B00C0 = 1;
+    g_FieldScriptVMCurActor->scriptInstructionPointer += 1;
+}
