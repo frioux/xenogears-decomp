@@ -263,6 +263,42 @@ the preset before suspecting your C, and add a preset entry rather than hacks.
 The decomp.me preset "Xenogears" (<https://decomp.me/preset/171>) mirrors Default
 and is handy for sharing a scratch, but the local `diff_func.sh` loop is faster.
 
+
+### Unit rodata: the most common way a 100% match breaks the link
+
+`objdiff` compares objects; the linker is the real gate. The trap that has cost
+this repo the most time: **a unit's `.rodata` often lives in the asm of the very
+function you are converting.** When you turn that function into C, those bytes
+disappear, the overlay shifts, and `make check` fails while objdiff says 100%.
+
+Check before converting:
+
+```sh
+grep dlabel asm/<bin>/matchings/<unit>/<Func>.s   # or nonmatchings/
+```
+
+If the stub's `.s` defines data labels, the data has to move to C in the same
+commit. Rules that make that work:
+
+- **`const` is mandatory.** `u8 D_x[0x10] = {...}` lands in `.data`; `const u8
+  D_x[0x10] = {...}` lands in `.rodata`. Getting this wrong is not subtle-looking
+  but it is exactly the difference between linking and not: with a non-const
+  array, a unit's switch jump tables become its only `.rodata`, they move to the
+  start of the unit, and everything shifts (`shop_menu`, 0x10 bytes).
+- **cc1 emits named `.rodata` objects before the jump tables it generates for
+  `switch`es**, in declaration order. So if the original layout is
+  `[named data][jump tables]`, plain C in file order reproduces it.
+- **C `.rodata` lands before asm `.rodata`** in the same object, because the asm
+  is `.include`d at each function's wrapper in `.text` and its `.section .rodata`
+  switches section at that point. So if the original layout is
+  `[asm-owned data][C data]`, you cannot reproduce it by defining only the C
+  part: every asm owner in the unit has to move to C in the same change (this is
+  why `field/main/misc2`'s `VECTOR D_8006FB70` cannot be converted until the five
+  stubs that own the strings before it are converted too).
+- Do not reach for section attributes, `#pragma` or per-object hacks. If the
+  ordering cannot be expressed, leave the function as `INCLUDE_ASM` and say so in
+  a comment; a wrong layout costs a whole overlay.
+
 ## 6. Hard rules
 
 - Matching means `make check` passes. Never edit `config/checksum.sha`,
