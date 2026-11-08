@@ -794,7 +794,33 @@ INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E3534);
     pModel->unk1E = -1;
 } */
 
-INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E35D0);
+void func_801E35D0(Model* pModel, Model* pSource, s32 arg2, s32 arg3) {
+    if ((pModel != NULL) && (pSource != NULL)) {
+        if (pModel->unk2B != 0) {
+            if (pModel->unk2B < 5) {
+                pModel->unk2B++;
+            }
+
+            *(u8*)((u32)pModel + pModel->unk2B + 0x2A) = pSource->unk20;
+            *(u8*)((u32)pModel + pModel->unk2B + 0x2E) = arg3;
+        } else {
+            if (arg3 < 0x50) {
+                pModel->unk10 = ((u32*)pSource->unk8)[arg3];
+            } else {
+                pModel->unk10 = ((u32*)((Temp8*)pSource->unkC)->pUnk4)[arg3 - 0x4E];
+            }
+
+            pModel->unk42 = 0;
+            pModel->unk40 = 0;
+            pModel->unk50 = 0;
+            pModel->unk54 = 0;
+            pModel->unk4C = 0;
+            pModel->unk10A = D_801E863C;
+            pModel->unk23 = 0;
+            func_801E39F0(pModel, arg2, -1, 1, 0);
+        }
+    }
+}
 
 s32 func_801E36BC(Model* pModel, s32 arg1, s32 count, s32 arg3, s32 arg4) {
     int i;
@@ -971,11 +997,10 @@ int func_801E6338(Model* pModel) {
 
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E63A8);
 
-// objdiff 97.43%: body is identical, but pList/pSkeleton land in s4/s3 and
-// i/pJoint in s0/s1 instead of s3/s4 and s1/s0; declaration order has no effect
 // objdiff 97.43%: body and prologue are instruction-for-instruction identical, but
-// pList/pSkeleton land in s4/s3 and pJoint/i in s1/s0 instead of s3/s4 and s0/s1;
-// declaration order, loop shape and ref counts do not flip the saved-reg order
+// gcc assigns pList to s4/pSkeleton to s3 (saved order s4,s3,...) where the original
+// saves s3 (pList) first, so every use of the two pointers has the register swapped;
+// declaration order, loop shape and the pChild pattern do not flip it
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E6578);
 // void func_801E6578(Temp4* pList, s32 jointIndex, ModelJoint* pSkeleton, ModelJoint* pTargetSkeleton) {
 //     ModelJoint* pJoint = &pSkeleton[jointIndex];
@@ -1044,33 +1069,34 @@ int func_801E67F8(void) {
     return i;
 }
 
-// objdiff 89.11%: the original truncates the index (andi 0xff) at the head of the
-// shared tail block and keeps pModel in a0; with a u8 index the regalloc matches but
-// gcc drops the andi, with a s32 index the andi survives but pModel is copied to v1
+// objdiff 92.95%: identical except the tail — the original keeps the byte
+// narrowing (`andi v0,a1,0xff`) of the merged index before `li v1,1; sllv`,
+// with a u8 index and with `s32 index; 1 << (index & 0xFF)` gcc 2.6 drops the
+// mask (a shift count only needs its low 5 bits)
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E6830);
-// void func_801E6830(Model* pModel, u8 type, s16* pMask) {
-//     u8 index;
-//
-//     if (type == 0xFF) {
-//         index = func_801E67F8();
-//     } else if (type == 0xFE) {
-//         index = D_801E86B0;
-//     } else if (type == 0xFD || type == 0xF9) {
-//         index = pModel->unk20;
-//     } else if (type == 0xFC) {
-//         index = pModel->unk21;
-//     } else if (type == 0xFA) {
-//         index = 0xA;
-//     } else if (type == 0xF8) {
-//         index = pModel->unk20 * 2 + 8;
-//     } else if (type == 0xF7) {
-//         index = pModel->unk20 * 2 + 9;
-//     } else {
-//         index = type;
-//     }
-//
-//     *pMask = 1 << index;
-// }
+/* void func_801E6830(Model* pModel, u8 type, s16* pMask) {
+    u8 index;
+
+    if (type == 0xFF) {
+        index = func_801E67F8();
+    } else if (type == 0xFE) {
+        index = *(u8*)&D_801E86B0;
+    } else if (type == 0xFD || type == 0xF9) {
+        index = pModel->unk20;
+    } else if (type == 0xFC) {
+        index = pModel->unk21;
+    } else if (type == 0xFA) {
+        index = 0xA;
+    } else if (type == 0xF8) {
+        index = pModel->unk20 * 2 + 8;
+    } else if (type == 0xF7) {
+        index = pModel->unk20 * 2 + 9;
+    } else {
+        index = type;
+    }
+
+    *pMask = 1 << index;
+} */
 
 void* func_801E6910(Model* pModel, u8 index, s32* pFlags) {
     void* pResult;

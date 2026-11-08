@@ -173,7 +173,8 @@ typedef struct {
     /* 0x1E  */ s16 unk1E;
     /* 0x20  */ u8 unk20;
     /* 0x21  */ u8 unk21;
-    /* 0x22  */ u8 unk22[0x2];
+    /* 0x22  */ u8 unk22[0x1];
+    /* 0x23  */ u8 unk23;
     /* 0x24  */ s16 unk24;
     /* 0x26  */ s16 unk26;
     /* 0x28  */ s16 unk28;
@@ -193,7 +194,9 @@ typedef struct {
     /* 0x42  */ s16 unk42;
     /* 0x44  */ u8 unk44[0x6];
     /* 0x4A  */ u16 unk4A;
-    /* 0x4C  */ u8 unk4C[0xC];
+    /* 0x4C  */ u32 unk4C;
+    /* 0x50  */ u32 unk50;
+    /* 0x54  */ u32 unk54;
     /* 0x58  */ s16 unk58;
     /* 0x5A  */ u8 unk5A[0x2];
     /* 0x5C  */ u8 unk5C;
@@ -212,7 +215,8 @@ typedef struct {
     /* 0xB0  */ void* unkB0;
     /* 0xB4  */ void* unkB4;
     /* 0xB8  */ POLY_FT4 polys[2];
-    /* 0x108 */ u8 unk108[0x4];
+    /* 0x108 */ u8 unk108[0x2];
+    /* 0x10A */ u16 unk10A;
     /* 0x10C */ u8 unk10C;
     /* 0x10D */ u8 unk10D;
     /* 0x10E */ u8 unk10E;
