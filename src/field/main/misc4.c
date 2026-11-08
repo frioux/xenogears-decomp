@@ -656,37 +656,37 @@ int func_8007B694(IVEC3* pVec) {
 
 long FieldGetVec2Magnitude(long, long);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007B6C4);
-/* Best attempt: 95.18% (336 vs 332 bytes). The original keeps nWallAngle in a0
-   and copies it to v1 for the sum, and computes (nWallAngle + 0x800) & 0xFFF
-   between the inner `nAngle < 0x800` test and the first arm; this emits the sum
-   and the mask one instruction later, before the test.
-long FieldGetVec2Magnitude(long, long);
-
-// Slides along a wall segment facing `angle`: pPoints holds its two XZ endpoints
+/* Best attempt: 84.11% but the exact 332-byte size (previous attempts were
+   336 bytes, which can never link). nResult has to be seeded with nWallAngle
+   before the range test: that is the only form that puts `move s3,a0` in the
+   bnez delay slot and `addiu a0,a0,0x800` in the beqz delay slot like the
+   original. The remaining delta is that gcc also keeps the seed copy early, so
+   arm 1 masks `s3` and the fall-through arm keeps the unseeded value; the
+   original instead has one extra `move v1,a0` copy of nWallAngle feeding both
+   the angle sum and the early `return nWallAngle`. */
 int func_8007B6C4(s16 angle, SVECTOR* pPoints, VECTOR* pOut) {
     VECTOR v;
     VECTOR normal;
     int nAngle;
     int nWallAngle;
-    int nResult;
+    long nResult;
     long nMagnitude;
 
     nAngle = (0xC00 - angle) & 0xFFF;
     nWallAngle = -ratan2(pPoints[1].vz - pPoints[0].vz, pPoints[1].vx - pPoints[0].vx) & 0xFFF;
     nAngle = (nAngle + nWallAngle) & 0xFFF;
+    nResult = nWallAngle;
     if ((u_int)(nAngle - 0x80) >= 0xF01) {
         pOut->vx = 0;
         pOut->vy = 0;
         pOut->vz = 0;
         return nWallAngle;
     }
-
-    nResult = (nWallAngle + 0x800) & 0xFFF;
     if (nAngle < 0x800) {
         v.vx = pPoints[0].vx - pPoints[1].vx;
         v.vy = 0;
         v.vz = pPoints[0].vz - pPoints[1].vz;
+        nResult = (nWallAngle + 0x800) & 0xFFF;
     } else {
         v.vx = pPoints[1].vx - pPoints[0].vx;
         v.vy = 0;
@@ -701,7 +701,6 @@ int func_8007B6C4(s16 angle, SVECTOR* pPoints, VECTOR* pOut) {
 
     return nResult;
 }
-*/
 
 int func_8007C694(VECTOR* pVec, VECTOR* pPos, ActorData* pActor, SVECTOR* pPoints, SVECTOR* pOut, int nMode);
 int func_8007B6C4(s16 angle, SVECTOR* pPoints, VECTOR* pOut);
