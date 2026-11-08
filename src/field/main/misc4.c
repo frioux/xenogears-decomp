@@ -269,6 +269,59 @@ void FieldClampPolyFT4UVs(POLY_FT4* poly, short u0, short v0, short u1, short v1
 }
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007A5C4);
+/* Best attempt: 75.79% (456 vs 560 bytes). gcc strength-reduces the table bases
+   into bumping pointers (s2 += 16, s3 += 8) and keeps a separate counter, while
+   the original keeps the bases cold and re-does `sll i,4; addu base,idx` for the
+   six middle table entries, using fresh registers only for the first and last
+   entry of each table.
+extern u_short D_800ADE30[];     // X0,Z0 -> X3,Z3 positions per direction
+extern u_char D_800ADE70[];      // U0,V0 -> U3,V3s per direction
+extern Quad D_800B0FEC[];
+
+void func_8007A5C4(void) {
+    int i;
+    Quad* pQuad;
+    POLY_FT4* pPoly;
+    u_short* pPos;
+    u_char* pUV;
+
+    pQuad = D_800B0FEC;
+    pPos = D_800ADE30;
+    pUV = D_800ADE70;
+    for (i = 0; i < 4; i++) {
+        pPoly = &pQuad->polys[0];
+        SetPolyFT4(pPoly);
+
+        pQuad->vertices[0].vx = pPos[i * 8 + 0];
+        pQuad->vertices[0].vy = 0;
+        pQuad->vertices[0].vz = pPos[i * 8 + 1];
+        pQuad->vertices[1].vx = pPos[i * 8 + 2];
+        pQuad->vertices[1].vy = 0;
+        pQuad->vertices[1].vz = pPos[i * 8 + 3];
+        pQuad->vertices[2].vx = pPos[i * 8 + 4];
+        pQuad->vertices[2].vy = 0;
+        pQuad->vertices[2].vz = pPos[i * 8 + 5];
+        pQuad->vertices[3].vx = pPos[i * 8 + 6];
+        pQuad->vertices[3].vy = 0;
+        pQuad->vertices[3].vz = pPos[i * 8 + 7];
+
+        setRGB0(pPoly, 0x80, 0x80, 0x80);
+
+        FieldClampPolyFT4UVs(pPoly,
+            pUV[i * 8 + 0], pUV[i * 8 + 1] + 0xC0,
+            pUV[i * 8 + 2], pUV[i * 8 + 3] + 0xC0,
+            pUV[i * 8 + 4], pUV[i * 8 + 5] + 0xC0,
+            pUV[i * 8 + 6], pUV[i * 8 + 7] + 0xC0);
+
+        SetSemiTrans(pPoly, 1);
+        pPoly->tpage = GetTPage(0, 2, 0x280, 0x1C0);
+        pPoly->clut = GetClut(0x100, 0xF2);
+
+        pQuad->polys[1] = *pPoly;
+        pQuad++;
+    }
+}
+*/
 
 extern SVec4 D_800ADCE0[]; // X0 -> X3 positions
 extern SVec4 D_800ADD28[]; // Y0 -> Y3 positions
