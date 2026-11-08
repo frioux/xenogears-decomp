@@ -1,4 +1,5 @@
 #include "common.h"
+#include "main/game.h"
 #include "field/actor.h"
 #include "field/main.h"
 #include "field/text_box.h"
@@ -97,7 +98,81 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_80078D44);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_80079288);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007954C);
+extern u_char D_8005942C;
+extern s32 D_800AFC78;
+extern s32 D_8004F324;
+extern s32 D_8004F370;
+extern s16 D_8004F384;
+extern s32 D_8004F310;
+extern s32 g_GamePartySkinsInitialized;
+extern s32 D_800B0064;
+extern void func_800A30FC(void);
+extern void func_8001B66C(void);
+extern void func_80085FB8(void);
+extern void func_80085F30(void);
+extern void func_8001BB50(void);
+extern void ArchiveCdDataSync(int);
+extern void ChangeGameState(int);
+
+// Field game state machine: one case per transition
+void func_8007954C(int state) {
+    D_8005942C = 0;
+    switch (state) {
+    case 0: {
+        u16 nSaved;
+
+        func_800A30FC();
+        nSaved = g_pGameState->unk1930[1];
+        D_8004F324 = D_800AFC78;
+        g_pGameState->unk2322 = D_800AFC78;
+        g_pGameState->unk2320 = nSaved;
+        if (D_8004F370 != 0) {
+            return;
+        }
+        ChangeGameState(2);
+        break;
+    }
+    case 1:
+        if (D_8004F384 == state) {
+            func_8001B66C();
+            func_80085FB8();
+            ArchiveCdDataSync(0);
+            func_80085F30();
+            func_8001B66C();
+        }
+        if (D_8004F370 != 0) {
+            return;
+        }
+        ChangeGameState(3);
+        break;
+    case 2: {
+        u16 nSaved;
+
+        nSaved = g_pGameState->unk1930[1];
+        g_pGameState->unk2322 = D_8004F324;
+        g_pGameState->unk2320 = nSaved;
+        if (D_8004F370 != 0) {
+            return;
+        }
+        ChangeGameState(4);
+        g_GamePartySkinsInitialized++;
+        break;
+    }
+    case 3:
+        D_8004F310 = 0;
+        g_GamePartySkinsInitialized = 0;
+        if (D_8004F370 != 0) {
+            return;
+        }
+        if (D_800B0064 & 0x80) {
+            func_8001BB50();
+        }
+        ChangeGameState(D_800B0064 & 0x7F);
+        break;
+    }
+
+    MainLoop(0);
+}
 
 void func_800796F4(void) {}
 
@@ -439,11 +514,68 @@ void func_8007AF74(int controllerIndex) {
     }
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007B07C);
+// Returns the Y of the point on the plane spanned by pA/pB/pC whose X/Z is pOut's
+void func_8007B07C(SVECTOR* pA, SVECTOR* pB, SVECTOR* pC, SVECTOR* pOut, VECTOR* pNormal) {
+    VECTOR nB;
+    VECTOR nC;
+    VECTOR v;
+
+    v.vx = pB->vx - pA->vx;
+    v.vy = pB->vy - pA->vy;
+    v.vz = pB->vz - pA->vz;
+    VectorNormal(&v, &nB);
+
+    v.vx = pC->vx - pA->vx;
+    v.vy = pC->vy - pA->vy;
+    v.vz = pC->vz - pA->vz;
+    VectorNormal(&v, &nC);
+
+    OuterProduct12(&nB, &nC, pNormal);
+    if (pNormal->vy == 0) {
+        pOut->vy = 0;
+    } else {
+        pOut->vy = pA->vy + (-(pNormal->vx * (pOut->vx - pA->vx)) - pNormal->vz * (pOut->vz - pA->vz)) / pNormal->vy;
+    }
+}
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007B1C4);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007B478);
+// 1 when the triangle pA/pB/pC winds consistently seen from pRef, -1 when it folds back
+int func_8007B478(SVECTOR* pA, SVECTOR* pB, SVECTOR* pC, SVECTOR* pRef) {
+    VECTOR v;
+    VECTOR edge;
+    VECTOR cross;
+
+    v.vx = pB->vx - pA->vx;
+    v.vy = 0;
+    v.vz = pB->vz - pA->vz;
+    edge.vx = pRef->vx - pA->vx;
+    edge.vy = 0;
+    edge.vz = pRef->vz - pA->vz;
+    OuterProduct0(&v, &edge, &cross);
+    if (cross.vy < 0) {
+        return -1;
+    }
+
+    v.vx = pC->vx - pB->vx;
+    v.vy = 0;
+    v.vz = pC->vz - pB->vz;
+    edge.vx = pRef->vx - pB->vx;
+    edge.vy = 0;
+    edge.vz = pRef->vz - pB->vz;
+    OuterProduct0(&v, &edge, &cross);
+    if (cross.vy >= 0) {
+        v.vx = pA->vx - pC->vx;
+        v.vy = 0;
+        v.vz = pA->vz - pC->vz;
+        edge.vx = pRef->vx - pC->vx;
+        edge.vy = 0;
+        edge.vz = pRef->vz - pC->vz;
+        OuterProduct0(&v, &edge, &cross);
+        return cross.vy >> 31;
+    }
+    return -1;
+}
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007B614);
 /* Best attempt: 91.78%. Remaining differences are register assignment (the original
@@ -465,7 +597,54 @@ int func_8007B694(IVEC3* pVec) {
     return -ratan2(pVec->z, pVec->x) & 0xFFF;
 }
 
+long FieldGetVec2Magnitude(long, long);
+
 INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007B6C4);
+/* Best attempt: 95.18% (336 vs 332 bytes). The original keeps nWallAngle in a0
+   and copies it to v1 for the sum, and computes (nWallAngle + 0x800) & 0xFFF
+   between the inner `nAngle < 0x800` test and the first arm; this emits the sum
+   and the mask one instruction later, before the test.
+long FieldGetVec2Magnitude(long, long);
+
+// Slides along a wall segment facing `angle`: pPoints holds its two XZ endpoints
+int func_8007B6C4(s16 angle, SVECTOR* pPoints, VECTOR* pOut) {
+    VECTOR v;
+    VECTOR normal;
+    int nAngle;
+    int nWallAngle;
+    int nResult;
+    long nMagnitude;
+
+    nAngle = (0xC00 - angle) & 0xFFF;
+    nWallAngle = -ratan2(pPoints[1].vz - pPoints[0].vz, pPoints[1].vx - pPoints[0].vx) & 0xFFF;
+    nAngle = (nAngle + nWallAngle) & 0xFFF;
+    if ((u_int)(nAngle - 0x80) >= 0xF01) {
+        pOut->vx = 0;
+        pOut->vy = 0;
+        pOut->vz = 0;
+        return nWallAngle;
+    }
+
+    nResult = (nWallAngle + 0x800) & 0xFFF;
+    if (nAngle < 0x800) {
+        v.vx = pPoints[0].vx - pPoints[1].vx;
+        v.vy = 0;
+        v.vz = pPoints[0].vz - pPoints[1].vz;
+    } else {
+        v.vx = pPoints[1].vx - pPoints[0].vx;
+        v.vy = 0;
+        v.vz = pPoints[1].vz - pPoints[0].vz;
+    }
+    VectorNormal(&v, &normal);
+
+    nMagnitude = FieldGetVec2Magnitude(pOut->vx >> 12, pOut->vz >> 12);
+    pOut->vx = normal.vx * nMagnitude;
+    pOut->vy = 0;
+    pOut->vz = normal.vz * nMagnitude;
+
+    return nResult;
+}
+*/
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007B814);
 
