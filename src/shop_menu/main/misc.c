@@ -40,6 +40,10 @@
 // Debug-related?
 extern s32* D_8005917C;
 
+extern u32* D_8005945C; // Pointer to the overlay's resources file
+extern u8 D_801C5000[]; // "BISLPS-00800"
+ extern SoundFile* D_8006259C; // SEDS file pointer
+
 extern int D_801D1F50; // Number of items
 extern s32 D_801D1FD0[];
 extern s32 D_801D1FD4[];
@@ -236,7 +240,96 @@ void ShopMenuShopManager(u_char isInitialization) {
     HeapFree(g_Menu->pShop);
 }
 
-INCLUDE_ASM("asm/shop_menu/nonmatchings/main/misc", ShopMenuLoadResources);
+#define FIELD_TEX_COUNT(_i) ((_i) * 6) + 0
+#define FIELD_TEX_PAGE(_i)  ((_i) * 6) + 1
+#define FIELD_CLUT_X(_i)    ((_i) * 6) + 2
+#define FIELD_CLUT_Y(_i)    ((_i) * 6) + 3
+#define FIELD_TPAGE_X(_i)   ((_i) * 6) + 4
+#define FIELD_TPAGE_Y(_i)   ((_i) * 6) + 5
+
+void ShopMenuLoadResources(void) {
+    TIM_IMAGE tim;
+    int metadata[18];
+    SoundFile* pSoundFile;
+
+    u32* pFileHandle;
+    int i;
+    u8 *pData;
+
+    pFileHandle = D_8005945C;
+    ResolveArchiveEntryPointers(pFileHandle);
+    pData = LZSSHeapDecompress((void *)pFileHandle[1], 1);
+    OpenTIM((void *)pData);
+    ReadTIM(&g_Menu->menuUnk2->tim);
+    memcpy(&g_Menu->menuUnk2->unk4FCE, D_801C5000, 0xD);
+    g_Menu->menuUnk2->unk4B94 = 0x53;
+    g_Menu->menuUnk2->unk4B95 = 0x43;
+    g_Menu->menuUnk2->unk4B96 = 0x11;
+    g_Menu->menuUnk2->unk4B97 = 1;
+    bzero(g_Menu->menuUnk2->unk4B98, 0x5C);
+
+    memmove(g_Menu->menuUnk2->unk4BF4, (u8* ) g_Menu->menuUnk2->tim.caddr, 0x20);
+    memmove(g_Menu->menuUnk2->unk4C14, (u8* ) g_Menu->menuUnk2->tim.paddr, 0x80);
+    HeapFree(pData);
+    pData = LZSSHeapDecompress((void *)pFileHandle[2], 1);
+    func_8002DD20(pData);
+    HeapFree(pData);
+    g_Menu->resources = LZSSHeapDecompress((void *)pFileHandle[3], 0);
+    g_Menu->unk2E0 = LZSSHeapDecompress((void *)pFileHandle[4], 0);
+
+    ResourceHelperGetTexCoords(g_Menu->resources, MENU_TEX_PORTRAIT_PARTY_MEMBER_1,
+                               &metadata[FIELD_TEX_COUNT(0)],
+                               &metadata[FIELD_TEX_PAGE(0)],
+                               &metadata[FIELD_CLUT_X(0)],
+                               &metadata[FIELD_CLUT_Y(0)],
+                               &metadata[FIELD_TPAGE_X(0)],
+                               &metadata[FIELD_TPAGE_Y(0)]);
+    ResourceHelperGetTexCoords(g_Menu->resources, MENU_TEX_PORTRAIT_PARTY_MEMBER_2,
+                               &metadata[FIELD_TEX_COUNT(1)],
+                               &metadata[FIELD_TEX_PAGE(1)],
+                               &metadata[FIELD_CLUT_X(1)],
+                               &metadata[FIELD_CLUT_Y(1)],
+                               &metadata[FIELD_TPAGE_X(1)],
+                               &metadata[FIELD_TPAGE_Y(1)]);
+    ResourceHelperGetTexCoords(g_Menu->resources, MENU_TEX_PORTRAIT_PARTY_MEMBER_3,
+                               &metadata[FIELD_TEX_COUNT(2)],
+                               &metadata[FIELD_TEX_PAGE(2)],
+                               &metadata[FIELD_CLUT_X(2)],
+                               &metadata[FIELD_CLUT_Y(2)],
+                               &metadata[FIELD_TPAGE_X(2)],
+                               &metadata[FIELD_TPAGE_Y(2)]);
+
+    metadata[FIELD_TPAGE_X(1)] += 0xC;
+    pData = LZSSHeapDecompress((void *)pFileHandle[5], 1);
+
+    for(i = 0; i < 3; i++) {
+        if(g_Menu->pManager->currentCharacterIDs[i] != CHARACTER_ID_NONE) {
+            OpenTIM((void *)&pData[(g_Menu->pManager->currentCharacterIDs[i] * 0xB20)]);
+            ReadTIM(&tim);
+            tim.crect->x = metadata[FIELD_CLUT_X(i)];
+            tim.crect->y = metadata[FIELD_CLUT_Y(i)];
+            tim.prect->x = metadata[FIELD_TPAGE_X(i)];
+            tim.prect->y = metadata[FIELD_TPAGE_Y(i)];
+            LoadImage(tim.crect, tim.caddr);
+            LoadImage(tim.prect, tim.paddr);
+        }
+    }
+
+    DrawSync(0);
+    HeapFree(pData);
+    if (g_MenuDebugEnabled) {
+        ArchiveSetIndex(0x10, 2);
+        pSoundFile = HeapAlloc(ArchiveDecodeAlignedSize(5U), 0U);
+        D_8006259C = pSoundFile;
+        ArchiveReadFileToBuffer(5, (s32) pSoundFile, 0U, 0x80U);
+        ArchiveCdDataSync(0);
+        ArchiveSetIndex(0x10, 0);
+        SoundAddSedsEntry(D_8006259C);
+    }
+    g_Menu->unk2E4 = D_8006259C;
+    g_Menu->pShopEntries = LZSSHeapDecompress((void *)pFileHandle[7], 0);
+    HeapFree(pFileHandle);
+}
 
 void ShopMenuInitialize(void) {
     int flags;
