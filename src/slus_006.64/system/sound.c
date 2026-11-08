@@ -403,6 +403,25 @@ void func_80038624(void) {
 
 //----------------------------------------------------------------------------------------------------------------------
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003864C);
+/*
+Attempt (99.50%, same size): only difference is that gcc keeps the raw sedId in v0
+where the original used a1.
+SoundFile* func_8003864C(SoundFile* pSoundFile) {
+    SoundFile* pEntry;
+    u16 sedId;
+
+    if (pSoundFile != NULL) {
+        sedId = pSoundFile->sedId;
+    }
+    pEntry = g_SoundSedsLinkedList;
+
+    while (pEntry != NULL && (s16)sedId != pEntry->sedId) {
+        pEntry = pEntry->pNext;
+    }
+
+    return pEntry;
+}
+*/
 
 //----------------------------------------------------------------------------------------------------------------------
 void func_8003869C(void) {
@@ -1295,6 +1314,26 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003B424);
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003B644);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003B930);
+/*
+Attempt (79.63%, same size): gcc keeps pManager in v0 (dies before the call) where the
+original gave it s0, and puts the loop-variable copy before `bnez` instead of in its
+delay slot.
+void func_8003B930(AudioManager* pManager) {
+    AudioManager* pEntry = pManager->unk_Manager_0x4;
+
+    if (pEntry == NULL) {
+        return;
+    }
+
+    pManager->unk_Manager_0x4 = NULL;
+    while (pEntry != NULL) {
+        AudioManager* pNext = pEntry->unk_Manager_0x4;
+
+        SoundHeapFree(pEntry);
+        pEntry = pNext;
+    }
+}
+*/
 
 //----------------------------------------------------------------------------------------------------------------------
 void SoundCopyAudioManagerData(AudioManager* pDest, AudioManager* pSrc) {
@@ -1846,6 +1885,19 @@ u8* SoundScriptSetVoiceFlags2000ClearMode(u8* pScript, AudioManager* pAudioManag
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003D4E4);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003D53C);
+/*
+Attempt (88.33%): same instruction count; the original has pScript copied into v0
+before the tests (so a0 is free for the modeFlags OR) and gcc duplicated that copy
+into each branch delay slot. Does not reproduce from the plain `||` form.
+u8* func_8003D53C(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
+    if (!(pAudioManager->unk_Flags & 0x6)
+        || ((g_SoundControlFlags & 0x2000) && !(pAudioElements->active_flag & 0x2))) {
+        pAudioElements->voice_data.flags |= 0x4000;
+        pAudioElements->voice_data.modeFlags |= 0x40;
+    }
+    return pScript;
+}
+*/
 
 u8* SoundScriptSetVoiceFlags4000ClearMode(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     pAudioElements->voice_data.flags |= 0x4000;
