@@ -197,9 +197,11 @@ void func_800230A8(SpriteData* pSpriteData) {
 }
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80023124);
-/* Best attempt: 79.47%. Param is an 8-byte struct of two s16 pairs (x1,y1,x2,y2). The original's
-   frame is 0x10 bigger: it also spills both differences to 0x10/0x18 (dead stores) around the
-   ratan2 call, which this C does not reproduce.
+/* Best attempt: 79.47%. Param is an 8-byte struct of two s16 pairs (x1,y1,x2,y2); ratan2 is
+   already declared long/long in psyq/libgte.h, so do not redeclare it (conflicting types).
+   Code and registers agree; the original's frame is 0x10 bigger because it also stores both
+   differences to dead stack slots at 0x10 and 0x18 (8 bytes apart) around the ratan2 call.
+   Same result under gcc-2.6.0 (67.95) and gcc-2.7.2 (79.47), so it is source-level, not preset.
 typedef struct {
     0x0 s16 x1;
     0x2 s16 y1;
@@ -218,6 +220,8 @@ s32 func_80023124(SVEC2Pair line) {
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80023170);
 /* Best attempt: 98.57%. Only the register holding the 0xFFF1FFFF mask differs - the original
    keeps both masks in t1/t0 (a1 unavailable), this C lets the allocator use a1 for the second.
+   Swapping the two `&=` statements makes the li order follow source, so the allocation order is
+   source-driven; gcc picks t0 then a1/t1 here, never t1 then t0, whatever the statement order.
 void func_80023170(SpriteData* pSpriteData, s32 arg1, s32 arg2, s32 arg3) {
     u32 flags = *(u32*)((u8*)pSpriteData + 0x3C);
 
@@ -332,9 +336,7 @@ s32 func_80023440(u16* pFlags) {
     return numDirections;
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80023468);
-/* Best attempt: 99.41%. Code and jump-table contents agree with the original; diff_func.sh and
-   objdiff stop at the .L case labels of the original, so 100.00% is not reachable through them.
+// One of the few switch tables in the unit: index -> 1/0/2/default
 s32 func_80023468(u_int index, s32 value) {
     s32 result = value;
 
@@ -363,24 +365,18 @@ s32 func_80023468(u_int index, s32 value) {
     }
     return result;
 }
-*/
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_800234AC);
-/* Best attempt: 98.29%. All five stores differ only in the address add's operand order: the
-   original computes %hi/%lo address as `addu idx*8, base` (index first), this C gives
-   `addu base, idx*8`; the last store also ties the sum to the index register.
 void func_800234AC(SpriteData* pSpriteData) {
     s32 i;
 
     for (i = 0; i != NUM_8DIR_MOVEMENT_DIRECTIONS; i++) {
-        pSpriteData->pBase->pDirTransforms->dirTransforms[i].translationX = 0;
-        pSpriteData->pBase->pDirTransforms->dirTransforms[i].translationY = 0;
-        pSpriteData->pBase->pDirTransforms->dirTransforms[i].rotationX = 0;
-        pSpriteData->pBase->pDirTransforms->dirTransforms[i].rotationY = 0;
-        pSpriteData->pBase->pDirTransforms->dirTransforms[i].rotationZ = 0;
+        (i + pSpriteData->pBase->pDirTransforms->dirTransforms)->translationX = 0;
+        (i + pSpriteData->pBase->pDirTransforms->dirTransforms)->translationY = 0;
+        (i + pSpriteData->pBase->pDirTransforms->dirTransforms)->rotationX = 0;
+        (i + pSpriteData->pBase->pDirTransforms->dirTransforms)->rotationY = 0;
+        (i + pSpriteData->pBase->pDirTransforms->dirTransforms)->rotationZ = 0;
     }
 }
-*/
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80023538);
 
