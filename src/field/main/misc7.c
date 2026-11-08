@@ -298,10 +298,12 @@ void func_8009899C(void) {
 }
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc7", func_800989F0);
-
-/* Best attempt (95.43%, 144 bytes): gcc schedules the `li a0,2` for
-   FieldScriptVMGetInstructionArgument into the beq delay slot; the original has
-   it in the jal delay slot (and sll in the beq slot). Everything else matches.
+// 95.43% (144 bytes): everything matches except that gcc already has the
+// `li a0,2` for FieldScriptVMGetInstructionArgument at the top of the then-block
+// in the RTL (verified with a -fno-delayed-branch cc1 dump, so this is not a
+// reorg problem), which leaves a nop in the jal delay slot and lets reorg take
+// the sll into the beq slot. Passing the index from a local int changes nothing.
+/*
 void func_800989F0(void) {
     ActorData* pActorData;
     int actorIndex;

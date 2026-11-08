@@ -455,10 +455,10 @@ void func_800884CC(void) {
 }
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_80088508);
-// 97.68%: instruction for instruction identical except that gcc hoists the
-// `li a0,1` for the first FieldScriptVMGetInstructionArgument call out of the
-// jal delay slot (and fills the slot with a nop). The index arithmetic of
-// g_FieldActors[partyMemberId] gives the scheduler the slack to do it.
+// 97.68%: instruction for instruction identical except that gcc's allocator puts
+// the `li a0,1` for the first FieldScriptVMGetInstructionArgument call at the top
+// of the then-block instead of just before the jal, so reorg leaves a nop in the
+// delay slot. Inline vs. `address` local makes no difference.
 /*
 void func_80088508(void) {
     SpriteData* pSpriteData;
