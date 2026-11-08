@@ -259,10 +259,39 @@ void func_80085634(int arg0, int arg1) {
     }
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80085678);
-
+extern u_short D_800C3A2C;
+extern s32 D_800C3A64;
+extern s32 D_800B06A0;
 extern s16 D_800C3A38;
-extern void* D_800B235C;
+extern SoundFile* D_800B235C;
+void func_80039EC4(s32 arg0, s32 arg1);
+
+typedef struct {
+    /* 0x0 */ u_short unk0;
+    /* 0x2 */ u_short unk2;
+} FieldUnk800AE060; // Size: 0x4
+
+extern FieldUnk800AE060 D_800AE060[];
+
+void func_80085678(void) {
+    u_short* pDuration;
+    u_short* pValue;
+    u_short value;
+
+    if (D_800C3A38 == 0xFF) {
+        return;
+    }
+    pDuration = &D_800AE060[0].unk0;
+    pValue = &D_800AE060[0].unk2;
+loop:
+    if (D_800B06A0 < pDuration[D_800C3A64 * 2] + D_800C3A2C) {
+        return;
+    }
+    value = pValue[D_800C3A64 * 2];
+    func_80039EC4((value & 0xFF) | (D_800B235C->sedId << 16), (value >> 7) & 0xE);
+    D_800C3A64++;
+    goto loop;
+}
 
 void func_80085738(void) {
     if (D_800C3A38 != 0xFF) {
@@ -274,10 +303,32 @@ void func_80085738(void) {
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80085788);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80085890);
-
 extern void* D_8006259C;
 extern s32 D_8004F32C;
+extern void* D_8005A4BC;
+void func_8003BDFC(int arg0);
+void SoundAddSedsEntry(SoundFile* pSoundFile);
+
+void func_80085890(void) {
+    int size;
+
+    ArchiveSetIndex(4, 0);
+    size = ArchiveDecodeAlignedSize(0xA8);
+    D_8006259C = HeapAlloc(size, 0);
+    HeapPinBlock(D_8006259C);
+    if (D_8004F32C == -1) {
+        ArchiveReadFileToBuffer(0xA8, D_8006259C, 0, 0x80);
+        ArchiveCdDataSync(0);
+    } else {
+        memcpy(D_8006259C, D_8005A4BC, size);
+        HeapUnpinBlock(D_8005A4BC);
+        HeapFree(D_8005A4BC);
+    }
+    SoundAddSedsEntry(D_8006259C);
+    func_8003BDFC(0x10);
+    ArchiveSetIndex(4, 0);
+    D_8004F32C = -1;
+}
 
 void func_80085988(void) {
     func_8003852C(D_8006259C);
@@ -379,6 +430,33 @@ void func_80086078(int arg0, int* pOut, int arg2) {
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800860F0);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", FieldActorWorldToScreenPosition);
+/* 80.00%: everything but the first CompMatrix argument matches. The original
+   builds the world-to-screen matrix address as `&g_FieldActors - 0xAC` (lui +
+   addiu of g_FieldActors, then a separate `addiu a0, v1, -0xAC`, the same v1 it
+   reloads the volatile actor pointer from), i.e. the matrix and the actor list
+   were members of one global struct in the original source. Writing
+   `&g_Scene.worldToScreenMatrix` gives the two-instruction %hi/%lo form instead.
+   A `(MATRIX*)((u_char*)&g_FieldActors - 0xAC)` hack reaches 95.25% but gcc
+   rematerialises the address twice. Matching needs the shared parent struct.
+void FieldActorWorldToScreenPosition(int actorIndex, int* pScreenX, int* pScreenY) {
+    SVECTOR vertex;
+    MATRIX transformMatrix;
+    long sxy;
+    long p;
+    long flag;
+
+    FieldScriptVMGetActorIndex(1);
+    CompMatrix(&g_Scene.worldToScreenMatrix, &g_FieldActors[actorIndex].transformMatrix, &transformMatrix);
+    vertex.vx = 0;
+    vertex.vy = 0;
+    vertex.vz = 0;
+    SetRotMatrix(&transformMatrix);
+    SetTransMatrix(&transformMatrix);
+    RotTransPers(&vertex, &sxy, &p, &flag);
+    *pScreenY = ((short*)&sxy)[1];
+    *pScreenX = ((short*)&sxy)[0];
+}
+*/
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800862CC);
 
@@ -428,7 +506,25 @@ void func_800864B4(void) {
     }
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800864F0);
+extern u_short D_800B233C;
+
+void func_800864F0(void) {
+    u_short* pFlags;
+    int i;
+
+    for (i = 0; i < 3; i++) {
+        D_800AFE8A[i].unk0 = 0xFFFF;
+        D_800AFE88[i].unk0 = 0xFFFF;
+    }
+    i = 0;
+    pFlags = &D_800B233C;
+    for (; i < 4; i++) {
+        if (!(*pFlags & 1)) {
+            func_8003A20C(i * 2);
+        }
+        *pFlags >>= 1;
+    }
+}
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80086590);
 
