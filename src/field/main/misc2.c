@@ -6,6 +6,7 @@
 #include "psyq/libgte.h"
 
 extern s16 D_800B218E;
+extern u_char D_800ADC1C[]; // Bit mask of each of the eight movement directions
 
 void FieldMatrixResetTranslation(MATRIX *matrix) {
     matrix->t[2] = 0;
@@ -39,6 +40,8 @@ void FieldComputeSceneMatrices(void) {
 }
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80072254);
+// 72.62%: the code is right, but gcc keeps &g_FieldActors in s1 for the two
+// loads after the scale reads, where this version rematerialises lui/%lo each time
 /*
 void func_80072254(int actorIndex) {
     VECTOR scale;
@@ -64,9 +67,29 @@ void FieldMatrixCreateWorldToScreen(void) {
     }
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_8007234C);
+int func_8007234C(u_int mask, int dir) {
+    int i;
+    int offset;
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80072398);
+    for (i = 0, offset = 0; i < 8; i++, offset++) {
+        if (!(mask & D_800ADC1C[dir++ & 7])) {
+            return offset;
+        }
+    }
+    return 0;
+}
+
+int func_80072398(u_int mask, int dir) {
+    int i;
+    int offset;
+
+    for (i = 0, offset = 0; i < 8; i++, offset++) {
+        if (!(mask & D_800ADC1C[dir-- & 7])) {
+            return offset;
+        }
+    }
+    return 0;
+}
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_800723E4);
 
@@ -249,19 +272,19 @@ void FieldMatrixCopyTransform(MATRIX* dest, MATRIX* source) {
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80074108);
 
 // Returns 1 if an actor wants its position reported to the script VM
-INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_8007469C);
-/*
 int func_8007469C(void) {
     int i;
+    FieldActor* pActors;
 
     for (i = 0; i < g_FieldNumActors; i++) {
-        if (!(g_FieldActors[i].status & 0x40) && (g_FieldActors[i].status & 0x8000)) {
+        // The actor array is read once, not per iteration
+        pActors = *(FieldActor**)&g_FieldActors;
+        if (!(pActors[i].status & 0x40) && (pActors[i].status & 0x8000)) {
             return 1;
         }
     }
     return 0;
 }
-*/
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", FieldPollControllers);
 
@@ -293,20 +316,23 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80075B44);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_800764B4);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80076A74);
+u_int func_80076A74(SpriteData* pSpriteData) {
+    ActorData* pActorData;
+
+    pActorData = g_FieldActors[((SpriteDataI3*)pSpriteData->field_0x7C)->entityId].pActorData;
+    pActorData->flags |= 0x10000;
+    return pActorData->flags;
+}
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80076AC0);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_800771B0);
-/*
-void func_800771B0(u_long* pPrim, int size) {
-    int i;
+void func_800771B0(u_int* pPrim, int size) {
+    int i = size / 2;
 
-    for (i = size / 2 - 1; i >= 0; i--) {
+    while (i--) {
         *pPrim++ |= 0x80008000;
     }
 }
-*/
 
 void FieldLoadTIM(u_long* pTimData) {
     TIM_IMAGE timImage;
@@ -325,4 +351,10 @@ void FieldLoadTIM(u_long* pTimData) {
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80077268);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80077544);
+void func_80077544(void) {
+    if (g_FieldSystemMode == 0) {
+        func_8003747C((void*)0x80270000);
+        FontLoadFont(0x10, 0x10, 0x130, 0xE0, 0x400, 4, 0x3C0, 0x100, 0x100, 0x1FF, 0);
+    }
+    SystemTransferPaletteToVRAM(0x100, 0xF0);
+}
