@@ -490,20 +490,26 @@ extern int rand(void);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp3", func_8001BD40);
 /*
-Best: 85.77%. Control flow and constants all line up; gcc 2.7.2 here merges the
-`arg0 == arg1` test into a branch to the epilogue and inverts the rand()/diff
-branches where the original keeps `bne ... ; j epilogue ; move v0,v1`.
+Best: 89.10%. Structure and branch polarity match; what is left is gcc reusing
+the incoming argument register a1 as a temporary for the masked arg0 (the
+original keeps masked arg0 in v1) and merging the trailing `& 0xFF` so the
+epilogue is shared instead of ending each block with `j ... ; andi v0,v1,0xff`.
 u8 func_8001BD40(u8 arg0, u8 arg1) {
     s32 diff;
 
-    if (arg0 == 0xFF) return 0xFF;
-    if (arg1 == 0) return 0;
+    if (arg0 == 0xFF) {
+        return 0xFF;
+    }
+    if (arg1 == 0) {
+        return 0;
+    }
+    if (arg0 == arg1) {
+        return arg0;
+    }
     diff = arg1 - arg0;
-    if (arg0 != arg1) {
-        if (diff < 0xFF) {
-            return arg0 + (rand() & 0xFF) % (diff + 1);
-        }
+    if (diff >= 0xFF) {
         return rand() & 0xFF;
     }
-    return arg0;
-} */
+    return arg0 + (rand() & 0xFF) % (diff + 1);
+}
+*/
