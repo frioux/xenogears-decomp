@@ -900,7 +900,12 @@ SoundSpuMemoryBlock* SoundSpuMemoryFindBlock(int targetAddress) {
     }
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_800397FC);
+AudioManager* func_800397FC(SoundFile* pFile, s32 arg1, s32 arg2) {
+    AudioManager* pManager = func_80039850(pFile);
+
+    func_80039A80(pManager, arg1, arg2);
+    return pManager;
+}
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_80039850);
 
@@ -1169,7 +1174,26 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003ABF0);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003AC58);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003ACC8);
+s32 func_8003ACC8(AudioManager* pManager) {
+    AudioManager* pCurrent = g_SoundAudioManagerListHead;
+    s32 result;
+
+    if (pManager != NULL) {
+        while (pCurrent != NULL && pCurrent != pManager) {
+            pCurrent = pCurrent->next;
+        }
+    }
+
+    if (pCurrent != NULL) {
+        u8* pBase = (u8*)pCurrent->unk_0x8;
+
+        result = *(u16*)(pBase + 0x1E) + (s32)pBase;
+    } else {
+        result = 0;
+    }
+
+    return result;
+}
 
 void func_8003AD20(AudioManager* pManager, s32 mode) {
     switch (mode) {
