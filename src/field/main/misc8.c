@@ -173,9 +173,14 @@ extern void* D_800ADBB8;
 extern void* D_800AFEA4;
 int func_80028B14(void);
 
+INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800854D0);
+/* 96.94%: only the call result's register differs (original copies it to a0
+   with `move a0,v0` and stores/tests a0; gcc here keeps it in v0).
 int func_800854D0(void) {
-    D_800ADBBC = func_80028B14();
-    if (D_800ADBBC != 0) {
+    int result = func_80028B14();
+
+    D_800ADBBC = result;
+    if (result != 0) {
         ((void (*)(void))D_800AFEA4)();
         return 0;
     }
@@ -189,6 +194,7 @@ int func_800854D0(void) {
     D_800ADB2C = 0;
     return -1;
 }
+*/
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80085560);
 /* 81.88%: only the prologue schedule and the temp register differ (gcc stores
@@ -329,7 +335,22 @@ void func_80086024(void) {
 }
 
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80086078);
+extern s16 D_800B21AC;
+
+void func_80086078(int arg0, int* pOut, int arg2) {
+    int limit = D_800B21AC;
+    int factor;
+    u_int diff;
+    int scaled;
+
+    if (limit < arg0) {
+        arg0 = limit;
+    }
+    factor = (0x7F0000 / limit * arg0) >> 16;
+    diff = (0x80 - factor) << 16;
+    scaled = diff / 127;
+    *pOut = (u_int)(scaled * arg2) >> 16;
+}
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800860F0);
 
