@@ -165,6 +165,11 @@ typedef struct {
    v0/v1 = i*16, v2/v3 = i*16 + 0x10 (gcc hoists i*16 itself), x1/x3 =
    nX + 0x10 (strength-reduced to a counter), 20x14 grid of 16x16 tiles,
    tpage = GetTPage(2, 1, j / 4 * 0x40 + 0x2C0, 0x100).
+   Also tried (still 99.5x%): nU0/nU1 locals in three declaration orders, no UV
+   locals at all (inline `nX & 0x3F` at all four UV stores), and swapping the
+   u0/u2 and u1/u3 store statements. POLY_GT4 here is the 0x34-byte libgpu
+   layout (clut at 0xE, tpage at 0x1A) and polygonsNext is at +0x38E0, so the
+   four u_short attribute arrays are at 0x71C0/0x73F0/0x7620/0x7850.
     void func_800A6E70(void) {
         FieldParticlePrimitiveSet* pPrims;
         POLY_GT4* pPoly;
