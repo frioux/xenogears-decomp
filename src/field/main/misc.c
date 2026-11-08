@@ -700,7 +700,19 @@ void func_8008A604(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008A640);
+void func_8008A640(void) {
+    int partyId = func_8008CF3C(FieldScriptVMGetArgument(3));
+
+    if (partyId != CHARACTER_ID_NONE) {
+        int value = FieldScriptVMGetArgument(1) - g_pGameState->characters[partyId].unk77;
+
+        if (value < 0) {
+            value = 0;
+        }
+        g_pGameState->characters[partyId].unk78 = value;
+    }
+    g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
+}
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008A6E0);
 
