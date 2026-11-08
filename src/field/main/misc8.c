@@ -4,6 +4,7 @@
 #include "field/text_box.h"
 #include "field/effects.h"
 #include "field/script_vm.h"
+#include "system/math.h"
 #include "system/memory.h"
 #include "system/archive.h"
 #include "system/sound.h"
@@ -105,7 +106,19 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_8008237C);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80082494);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800825AC);
+long FieldGetVec2Magnitude(long, long);
+
+int func_800825AC(int actorIndexA, int actorIndexB) {
+    FieldActor* pActors = g_FieldActors;
+    ActorData* pActorB = pActors[actorIndexB].pActorData;
+    ActorData* pActorA = pActors[actorIndexA].pActorData;
+    int posXB = CONV_TO_GTE(pActorB->position.vx);
+    int posZB = CONV_TO_GTE(pActorB->position.vz);
+    int posXA = CONV_TO_GTE(pActorA->position.vx);
+    int posZA = CONV_TO_GTE(pActorA->position.vz);
+
+    return FieldGetVec2Magnitude(posXB - posXA, posZB - posZA);
+}
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80082620);
 
@@ -154,11 +167,28 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_8008492C);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80084A40);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800854D0);
-
+extern s32 D_800ADBBC;
 extern s32 D_800ADB2C;
 extern void* D_800ADBB8;
 extern void* D_800AFEA4;
+int func_80028B14(void);
+
+int func_800854D0(void) {
+    D_800ADBBC = func_80028B14();
+    if (D_800ADBBC != 0) {
+        ((void (*)(void))D_800AFEA4)();
+        return 0;
+    }
+    if (ArchiveDataSync() != 0) {
+        return 0;
+    }
+    if (D_800ADBBC != 0) {
+        return 0;
+    }
+    HeapFree(D_800ADBB8);
+    D_800ADB2C = 0;
+    return -1;
+}
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80085560);
 /* 81.88%: only the prologue schedule and the temp register differ (gcc stores
@@ -378,7 +408,19 @@ void FieldScriptVM2Run(void) {
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80086A1C);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80086BA8);
+extern s16 D_800B22E2[];
+
+void func_80086A1C(int, VECTOR*);
+
+void func_80086BA8(void) {
+    int i;
+
+    for (i = 0; i < 3; i++) {
+        if (D_800B22E2[i] != -1) {
+            func_80086A1C(i, &g_FieldActors[D_800B22E2[i]].pActorData->position);
+        }
+    }
+}
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80086C34);
 
