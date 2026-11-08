@@ -1695,8 +1695,7 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003D070);
 
 // Set tempo handler?
 u8* func_8003D0E8(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
-    u8 byte = *pScript;
-    u16 value = byte;
+    u16 value = *pScript & 0xFF;
 
     pAudioManager->unk_0x58 = value << 16;
     pAudioManager->unk_0x54 = value * (pAudioManager->unk_Interpolator_0x64.currentValue >> 16);
@@ -1736,7 +1735,18 @@ u8* func_8003D17C(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
     return pScript;
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003D1BC);
+u8* func_8003D1BC(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
+    u8 step = pScript[0];
+    u8 target = pScript[1];
+    s32 delta = (target << 24) - pAudioManager->unk_Interpolator_0x70.currentValue;
+
+    if ((step << 5) != 0 && delta != 0) {
+        pAudioManager->unk_Interpolator_0x70.counter = step << 5;
+        pAudioManager->unk_Interpolator_0x70.targetValue = target << 8;
+        pAudioManager->unk_Interpolator_0x70.stepIncrement = delta / (step << 5);
+    }
+    return pScript + 2;
+}
 
 u8* SoundScriptSetUnk62(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     pAudioElements->unk_0x62 = *pScript;
@@ -1958,7 +1968,19 @@ u8* func_8003D7C8(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
     return pScript + 2;
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003D7FC);
+u8* func_8003D7FC(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
+    u16 value = pScript[0];
+    s32 delta = (s8)pScript[1] << 24;
+
+    if (value != 0 && delta != 0) {
+        pAudioElements->unk_0x94 = value;
+        pAudioElements->unk_0x04 |= 0x1;
+        pAudioElements->unk_0x84 = delta / value;
+    } else {
+        pAudioElements->unk_0x04 &= ~0x1;
+    }
+    return pScript + 2;
+}
 
 u8* SoundScriptToggleUnk04Bit2(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     pAudioElements->unk_0x04 ^= 0x2;
@@ -2160,7 +2182,13 @@ void func_8003E3E0(AudioEnvelope* pEnvelope) {
     pEnvelope->unk_0x18 = pEnvelope->unk_0x1A;
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003E40C);
+u8* func_8003E40C(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
+    u8 index = *pScript;
+
+    pAudioElements->envelopes[index].flags &= ~0x1;
+    pAudioElements->unk_0xCE &= ~(1 << index);
+    return pScript + 1;
+}
 
 u8* func_8003E44C(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     u8 instrument = *pScript;
