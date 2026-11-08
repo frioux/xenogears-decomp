@@ -169,9 +169,62 @@ void func_800A708C(void) {
     HeapChangeCurrentUser(HEAP_USER_YOSI, NULL);
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A7120);
+extern s32 D_800ADB78;
+extern s32 D_800AFE74;
+extern s32 D_800B00E4;
+extern s32 D_800B06A0;
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A7218);
+typedef void (*FieldRenderContextCallback)(u_short, int, u_short);
+
+void func_800A7120(u_short arg0, int arg1, u_short arg2) {
+    D_800B06A0 = arg0;
+    D_800B00E4 = 0;
+    if (arg2 == 0) {
+        D_800ADB78 = 1;
+    } else {
+        D_800ADB78 = 0;
+    }
+
+    if (D_800ADB74 == 0 && D_800AFE74 == 0) {
+        DrawSync(0);
+        g_FieldCurRenderContext = &g_FieldRenderContexts[D_800ADB78];
+        // Read as signed here, unsigned in func_800A708C, matching the original loads
+        if (*(s16*)&D_800C3A36 == 1) {
+            g_FieldRenderContexts[D_800ADB78 & 1].dispEnv.isrgb24 = 1;
+        }
+    }
+}
+
+extern s32 D_800ADB80;
+extern s16 D_800C3A20;
+extern u16 D_800C3A22;
+extern u16 D_800C3A24;
+extern u16 D_800C3A26;
+extern u16 D_800C3A28;
+extern u16 D_800C3A2A;
+extern u16 D_800C3A2C;
+extern u16 D_800C3A2E;
+extern u16 D_800C3A3A;
+extern s16 D_800C3A38;
+extern void func_801D37CC(int, int, int, int, int, int, int, int, int, int, int, int, FieldRenderContextCallback);
+
+void func_800A7218(void) {
+    int nMode;
+
+    D_800B06A0 = 0;
+    HeapChangeCurrentUser(HEAP_USER_MASA, NULL);
+    if (D_800ADB6C == 0) {
+        ArchiveSetIndex(0x18, 1);
+        nMode = 1;
+        if (D_800C3A38 != 0xFF || (D_800ADB80 & 0x40)) {
+            nMode = 3;
+        }
+        func_801D37CC(D_800C3A20 + 2, D_800C3A2A, D_800C3A2C, D_800C3A2E, 1, nMode,
+            D_800C3A3A, D_800C3A22, D_800C3A24, D_800C3A26, D_800C3A28, 0xE0, func_800A7120);
+        ArchiveSetIndex(4, 0);
+    }
+    HeapChangeCurrentUser(HEAP_USER_YOSI, NULL);
+}
 
 extern int D_800ADB6C;
 extern void func_801D3F7C(void);
@@ -201,7 +254,36 @@ void func_800A7394(void) {
     CdDataSync(0);
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A73E8);
+extern void* D_8005A418[];
+extern void* D_8005A41C;
+
+void func_800A73E8(void) {
+    RECT rect;
+
+    if (D_800ADB74 == 2) {
+        HeapUnpinBlock(D_8005A418[0]);
+        HeapUnpinBlock(D_8005A41C);
+        HeapFree(D_8005A418[0]);
+        HeapFree(D_8005A41C);
+    } else {
+        rect.x = 0x200;
+        rect.y = 0;
+        rect.w = 0x140;
+        rect.h = 0x80;
+        LoadImage(&rect, D_8005A418[0]);
+        DrawSync(0);
+        rect.x = 0x200;
+        rect.y = 0x80;
+        rect.w = 0x140;
+        rect.h = 0x80;
+        LoadImage(&rect, D_8005A41C);
+        DrawSync(0);
+        HeapUnpinBlock(D_8005A418[0]);
+        HeapUnpinBlock(D_8005A41C);
+        HeapFree(D_8005A418[0]);
+        HeapFree(D_8005A41C);
+    }
+}
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A74F8);
 
@@ -303,14 +385,14 @@ void func_800A8314(void) {
 }
 
 extern int D_800AF278;
-extern void* D_800AFC60;
+extern POLY_FT4* D_800AFC60[];
 extern void* D_800AFC64;
 
 void func_800A83B4(void) {
     if (D_800AF278 != 0) {
         D_800AF278 = 0;
         DrawSync(0);
-        HeapFree(D_800AFC60);
+        HeapFree(D_800AFC60[0]);
         HeapFree(D_800AFC64);
     }
 }
@@ -318,12 +400,14 @@ void func_800A83B4(void) {
 INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A8408);
 
 /* Best attempt, 71.78%: only instruction scheduling differs.
-   The original frame has 0x18 unused bytes, hence `unk`.
+   The original frame has 0x18 unused bytes, hence `unk`. Two facts learned: the
+   original passes the UVs untruncated, so its prototype here took ints, not
+   shorts, and the arguments are (pPoly, x, y+h-1, x+w, y+h-1, x, y-1, x+w, y-1).
 extern u_short D_800AEB68[]; // 8 byte entries: 0x0 -> x
 extern u_short D_800AEB6A[]; //              0x2 -> y
 extern u_short D_800AEB6C[]; //              0x4 -> w
 extern u_short D_800AEB6E[]; //              0x6 -> h
-extern u_short D_800AEF14[]; // 4 shorts per entry, entry 0 is the sprite index
+extern u_short D_800AEF14[]; // 8 byte entries, entry 0 is the sprite rect index
 
 void func_800A8408(int nQuad, int x, int y) {
     POLY_FT4* pPoly;
