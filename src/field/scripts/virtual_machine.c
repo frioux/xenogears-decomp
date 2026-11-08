@@ -378,6 +378,13 @@ int FieldScriptVMGetVariableValue(int index) {
     }
 }
 
+// Best attempt: 97.14% - the original shifts the index into a second register ($a2) before scaling
+// it ($v0); gcc 2.7.2 always reuses $a0 for both shifts with every form tried.
+/*
+void FieldScriptMemoryWriteU16(int index, u_short value) {
+    ((u_short*)&g_FieldScriptMemory)[index >> 1] = value;
+}
+*/
 INCLUDE_ASM("asm/field/nonmatchings/scripts/virtual_machine", FieldScriptMemoryWriteU16);
 
 // scriptIndex here refers to the index of the script, which will (always?) correspond to an entity index
@@ -397,7 +404,31 @@ void FieldScriptWritePartyMemberIDs(void) {
     FieldScriptMemoryWriteU16(0x42, g_GamePartyMembers[2]);
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/scripts/virtual_machine", func_800A30FC);
+extern u16 D_8005941C;
+extern u_char D_800594D0;
+extern s32 D_8004F324;
+extern s32 g_GameSceneMapNum;
+extern int FieldGetPlayerActorDirection(void);
+extern int FieldGetCameraDirection(void);
+void func_800A30FC(void) {
+    int i;
+
+    g_pGameState->unk231A = g_GameSceneMapNum;
+    g_pGameState->unk2322 = D_8004F324;
+    g_pGameState->unk2320 = g_pGameState->unk1930[1];
+    g_pGameState->unk231C = g_pGameState->unk1930[4] << 9;
+    FieldScriptMemoryWriteU16(0x44, D_8005941C);
+    FieldScriptMemoryWriteU16(0x46, D_800594D0);
+    FieldScriptMemoryWriteU16(6, FieldGetPlayerActorDirection() & 0xFFFF);
+    FieldScriptMemoryWriteU16(8, FieldGetCameraDirection() & 0xFFFF);
+    FieldScriptMemoryWriteU16(0x24, g_Scene.sceneDIP);
+    FieldScriptMemoryWriteU16(0x3C, g_GameSceneMapNum);
+    FieldScriptWritePartyMemberIDs();
+
+    for (i = 0; i < 0x200; i++) {
+        g_pGameState->unk1930[i] = ((u_short*)&g_FieldScriptMemory)[i];
+    }
+}
 
 INCLUDE_ASM("asm/field/nonmatchings/scripts/virtual_machine", func_800A31E8);
 
