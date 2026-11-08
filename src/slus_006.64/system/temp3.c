@@ -628,6 +628,36 @@ extern int rand(void);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp3", func_8001BD40);
 /*
+Best: 90.64%. Only the then-branch is short one `andi v0, v1, 0xff`: with a single
+`return result` gcc keeps the if/else block order of the original but drops that
+mask, and with two returns it reorders the two blocks.
+u8 func_8001BD40(u32 arg0, u32 arg1) {
+    u32 arg0Byte;
+    u32 arg1Byte;
+    s32 range;
+    u8 result;
+
+    arg0Byte = arg0 & 0xFF;
+    if (arg0Byte == 0xFF) {
+        return 0xFF;
+    }
+    arg1Byte = arg1 & 0xFF;
+    if (arg1Byte == 0) {
+        return 0;
+    }
+    if (arg0Byte == arg1Byte) {
+        return arg0Byte;
+    }
+    range = arg1Byte - arg0Byte;
+    if (range < 0xFF) {
+        result = (arg0 + rand() % (range + 1)) & 0xFF;
+    } else {
+        result = rand() & 0xFF;
+    }
+    return result;
+} */
+
+/*
 Best: 89.10%. Structure and branch polarity match; what is left is gcc reusing
 the incoming argument register a1 as a temporary for the masked arg0 (the
 original keeps masked arg0 in v1) and merging the trailing `& 0xFF` so the
