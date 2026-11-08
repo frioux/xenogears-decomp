@@ -254,19 +254,35 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc9", func_800AC03C);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc9", func_800AC0F0);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc9", func_800AC308);
-
-INCLUDE_ASM("asm/field/nonmatchings/main/misc9", func_800AC3AC);
-
-INCLUDE_ASM("asm/field/nonmatchings/main/misc9", func_800AC99C);
-
-INCLUDE_ASM("asm/field/nonmatchings/main/misc9", func_800ACB90);
+extern int ArchiveDecodeAlignedSize(unsigned int entryIndex);
+extern void ArchiveReadFileToBuffer(s32 index, void* pBuffer, u32 arg2, u32 flags);
+extern void ArchiveCdDataSync(int mode);
 
 extern s32 D_8004F300;
 extern void* D_800AF76C;
 extern void* D_800AF774;
 extern s32 D_800AF778;
 extern s32 D_800AF77C;
+extern s32 D_800AF780;
+extern s32 D_800AF784;
+
+// Load the two archive files this effect needs
+void func_800AC308(void) {
+    ArchiveSetIndex(4, 0);
+    D_800AF780 = ArchiveDecodeSize(0xAB);
+    D_800AF76C = HeapAlloc(ArchiveDecodeAlignedSize(0xAB), 1);
+    ArchiveReadFileToBuffer(0xAB, D_800AF76C, 0, 0x80);
+    ArchiveCdDataSync(0);
+    D_800AF784 = HeapAlloc(ArchiveDecodeAlignedSize(0xAC), 1);
+    ArchiveReadFileToBuffer(0xAC, D_800AF784, 0, 0x80);
+    ArchiveCdDataSync(0);
+}
+
+INCLUDE_ASM("asm/field/nonmatchings/main/misc9", func_800AC3AC);
+
+INCLUDE_ASM("asm/field/nonmatchings/main/misc9", func_800AC99C);
+
+INCLUDE_ASM("asm/field/nonmatchings/main/misc9", func_800ACB90);
 
 extern void func_800AC308();
 extern void func_800AC3AC();
@@ -292,7 +308,17 @@ void func_800ACCB0(void) {
     }
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc9", func_800ACCF4);
+void* func_800AC0F0(void* pData, s32 offset, s32 frame);
+
+void func_800ACCF4(void) {
+    if (D_8004F300) {
+        if ((D_800AF77C & 0xF) == 0) {
+            D_800AF774 = func_800AC0F0(D_800AF774, 0x300, D_800AF778 & 0xF);
+            D_800AF778++;
+        }
+        D_800AF77C++;
+    }
+}
 
 short FieldScriptVMGetInstructionArgumentS16(int offset) {
     u_char* pData;
