@@ -59,9 +59,26 @@ void func_8008FABC(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 4;
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/camera/camera_movement", func_8008FB28);
+void func_8008FB28(void) {
+    D_800AF93A[0] = 0x1000;
+    D_800AF936 = g_Scene.sceneDIP;
+    D_800AF938 = g_Scene.sceneAngle.vy;
+    D_800AF930 = ((s32)g_Scene.sceneScrZ * g_Scene.sceneScale) >> 12;
+    g_FieldScriptVMCurActor->scriptInstructionPointer += 1;
+}
 
-INCLUDE_ASM("asm/field/nonmatchings/camera/camera_movement", func_8008FB98);
+void func_8008FB98(void) {
+    g_FieldCameraMode = 1;
+    g_FieldScriptMaxInstructionCount += 4;
+    g_FieldScriptVMCurActor->scriptInstructionPointer += 1;
+    D_800AF93A[0] = 0x1000;
+    g_CamInterpolation.atStepDistance = 0xC;
+    g_CamInterpolation.eyeStepDistance = 0xC;
+    D_800AF930 = ((s32)g_Scene.sceneScrZ * g_Scene.sceneScale) >> 12;
+    g_Scene.unk48 |= 0x8000;
+    D_800AF938 = g_Scene.sceneAngle.vy;
+    D_800AF936 = g_Scene.sceneDIP;
+}
 
 INCLUDE_ASM("asm/field/nonmatchings/camera/camera_movement", func_8008FC4C);
 
