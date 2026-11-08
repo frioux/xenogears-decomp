@@ -40,6 +40,66 @@ s32 func_800AA9DC(FieldActorModelData* pModel) {
 }
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc9", func_800AAA74);
+/* 64.08% first attempt; the structure and the four bound tests below are
+   decoded and right, the frame is not. Original frame is 0x58 and keeps the
+   RotTransPers sxy word in a register for both halves (`sra` high, `sll`/`sra`
+   low), while this C makes gcc keep sxy on the stack and re-load the low half
+   with `lhu`. Remaining gaps: 8 bytes of unused frame (0x34..0x37) and the
+   second RotTransPers reading sxy back from memory. Local order here is
+   VECTOR, SVECTOR, flag, sxy, p, y1, x1, y2, x2.
+extern MATRIX D_800B00E8;
+extern s32 D_800C3A5C;
+extern s32 D_800C3A60;
+
+// Project the two silhouette points of a model and check they are on screen
+s32 func_800AAA74(FieldActorModelData* pModel) {
+    VECTOR vec;
+    SVECTOR point;
+    long flag;
+    long sxy;
+    long p;
+    s16 y1;
+    s16 x1;
+    s16 y2;
+    s16 x2;
+
+    RotTrans((SVECTOR*)&pModel->centerX, &vec, &flag);
+    D_800B00E8.t[0] = vec.vx;
+    D_800B00E8.t[1] = vec.vy;
+    D_800B00E8.t[2] = vec.vz;
+    SetRotMatrix(&D_800B00E8);
+    SetTransMatrix(&D_800B00E8);
+
+    point.vx = -pModel->size;
+    point.vy = -pModel->size;
+    point.vz = 0;
+    RotTransPers(&point, &sxy, &p, &flag);
+    y1 = ((s16*)&sxy)[1];
+    x1 = ((s16*)&sxy)[0];
+
+    point.vx = pModel->size;
+    point.vy = pModel->size;
+    point.vz = 0;
+    RotTransPers(&point, &sxy, &p, &flag);
+    y2 = ((s16*)&sxy)[1];
+    x2 = ((s16*)&sxy)[0];
+
+    if (y1 >= D_800C3A60 + 0xE0) {
+        return -1;
+    }
+    if (-D_800C3A60 >= y2) {
+        return -1;
+    }
+    if (x1 >= D_800C3A5C + 0x140) {
+        return -1;
+    }
+    if (-D_800C3A5C >= x2) {
+        return -1;
+    }
+    return 0;
+}
+
+*/
 
 extern SpriteList* D_800AFC68;
 
