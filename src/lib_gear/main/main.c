@@ -313,6 +313,81 @@ INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801DDBF8);
 
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801DEF10);
 
+// Best attempt: objdiff 95.96%. Only the register holding the keyframe pointer
+// (a2 here, a1 in the original), the flags register (a3 vs a2) and two prologue
+// load slots differ; the loop body is identical.
+// // Keyframe block consumed by the joint update loops: a 0x18 byte header
+// // followed by per-frame (rotation, translation) s16 triples.
+// typedef struct {
+//     /* 0x0  */ u16 unk0;
+//     /* 0x2  */ u16 unk2;
+//     /* 0x4  */ u16 unk4; // bit 0 skips the rotation channel, bit 1 the translation channel
+//     /* 0x6  */ s16 unk6;
+//     /* 0x8  */ u16 unk8;
+//     /* 0xA  */ u16 unkA;
+//     /* 0xC  */ u16 unkC;
+//     /* 0xE  */ u16 unkE;
+//     /* 0x10 */ u16 unk10;
+//     /* 0x12 */ u16 unk12;
+//     /* 0x14 */ u16 unk14;
+//     /* 0x16 */ u16 unk16;
+//     /* 0x18 */ s16 keyframes[0];
+// } KeyframeBlock; // Size: 0x18
+//
+// void func_801DEF10(ModelJoint* pSkeleton, KeyframeBlock* pBlock) {
+//     u16 rotFrame = 0;
+//     u16 transFrame = 0;
+//     u16 numRotFrames = pBlock->unkC;
+//     u16 flags = pBlock->unk4;
+//     u16 numTransFrames = pBlock->unkE;
+//     s16* pKeyframe = pBlock->keyframes;
+//     u16 count;
+//     int i;
+//     int x;
+//     int y;
+//     int z;
+//     ModelJoint* pJoint = pSkeleton;
+//     if (pBlock->unk6 == 0) {
+//         pKeyframe += (numRotFrames + 1) * 3;
+//     }
+//
+//     count = pSkeleton->numChildren - 1;
+//     for (i = 0; i < count; i++) {
+//         pJoint++;
+//
+//         if (!(flags & 0x1) && rotFrame < numRotFrames) {
+//             x = *pKeyframe++;
+//             y = *pKeyframe++;
+//             z = *pKeyframe++;
+//             rotFrame++;
+//             if (pJoint->rotation.vx != x || pJoint->rotation.vy != y || pJoint->rotation.vz != z) {
+//                 if (pJoint->pCurModelPacket == NULL || ((Temp3*)pJoint->pCurModelPacket)->unk3 != 0xFF) {
+//                     pJoint->rotation.vx = x;
+//                     pJoint->rotation.vy = y;
+//                     pJoint->rotation.vz = z;
+//                     pJoint->doTransform = 1;
+//                     pJoint->doRotate = 1;
+//                 }
+//             }
+//         }
+//
+//         if (!(flags & 0x2) && transFrame < numTransFrames) {
+//             x = *pKeyframe++;
+//             y = *pKeyframe++;
+//             z = *pKeyframe++;
+//             transFrame++;
+//             if (pJoint->translation.x != x || pJoint->translation.y != y || pJoint->translation.z != z) {
+//                 if (pJoint->unk70 == 0 || ((Temp3*)pJoint->unk70)->unk3 != 0xFF) {
+//                     pJoint->translation.x = x;
+//                     pJoint->translation.y = y;
+//                     pJoint->translation.z = z;
+//                     pJoint->doTransform = 1;
+//                 }
+//             }
+//         }
+//     }
+// } */
+
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801DF0B4);
 
 void func_801DF52C(Temp4* pList, ModelJoint* pSkeleton, s32 index, s32 flags) {
