@@ -824,7 +824,63 @@ void* SoundHeapAllocate(unsigned int allocSize) {
 }
 
 // SoundHeapAllocate, but slightly different
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_80039024);
+// SoundHeapAllocate, but slightly different
+void* func_80039024(int size) {
+    SoundHeapBlockHeader* pHeapBlock;
+    SoundHeapBlockHeader* pTargetBlock;
+    SoundHeapBlockHeader* pNewBlock;
+    SoundHeapBlockHeader* pNext;
+    void* pMemory;
+    int nAvailable;
+    int nTotalSize;
+    int nSize;
+
+    DisableEvent(g_unk_SoundEvent);
+    nTotalSize = ((size + 0xF) & ~0xF) + sizeof(SoundHeapBlockHeader);
+    pTargetBlock = NULL;
+    nAvailable = 0;
+    pHeapBlock = g_SoundHeapHead;
+
+    while (1) {
+        if (pHeapBlock->pNext == NULL) {
+            nSize = g_SoundHeapEnd - (u32)pHeapBlock->pPrev;
+            if (nSize < nTotalSize) {
+                break;
+            }
+            pTargetBlock = pHeapBlock;
+            nAvailable = g_SoundHeapEnd;
+            break;
+        }
+
+        pNext = pHeapBlock->pNext;
+        nSize = (u32)pHeapBlock->pNext - (u32)pHeapBlock->pPrev;
+        if (nSize >= nTotalSize) {
+            pTargetBlock = pHeapBlock;
+            nAvailable = (u32)pNext;
+        }
+
+        pHeapBlock = pHeapBlock->pNext;
+    }
+
+    if (pTargetBlock == NULL) {
+        return NULL;
+    }
+
+    nAvailable -= nTotalSize;
+    pNewBlock = (SoundHeapBlockHeader*)((nAvailable + 0xF) & ~0xF);
+    pMemory = pNewBlock + 1;
+    pNewBlock->pPrev = (SoundHeapBlockHeader*)((u32)pMemory + size);
+    pNewBlock->pNext = NULL;
+    pNewBlock->unk4 = 0;
+    pNewBlock->unk0 = 2;
+    pNewBlock->unk2 = 0;
+    pNewBlock->pNext = pTargetBlock->pNext;
+    pTargetBlock->pNext = pNewBlock;
+    EnableEvent(g_unk_SoundEvent);
+    SoundHeapClearBlockMemory(pMemory, size);
+
+    return pMemory;
+}
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", SoundHeapFree);
 /*
