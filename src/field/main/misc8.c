@@ -95,6 +95,13 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80080A74);
    worse (gcc then reloads the counter). The frame (0x88) needs the unused 0x60
    local; reg assignment wants `int numWords` declared before the pointers and
    the unused array last.
+INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80080F44);
+/* 71.39%: correct size (468 bytes) and frame (0x88, which needs the unused
+   local to fill 0x78 bytes). Residual is address materialisation: the
+   original recomputes `actorIndex * 0x5C` and reloads g_FieldActors for
+   every `g_FieldActors[actorIndex].` access and addresses D_800B2180 through
+   a register (`lui v1,%hi; addiu v1,v1,%lo; lw 0(v1); addiu; sw 0(v1)`),
+   where gcc CSEs the index scaling and emits `lui at; sw %lo(at)`.
 extern int D_800B2180;
 void func_80080A74(int actorIndex);
 void func_8007AA44(Quad* pQuad);
@@ -134,7 +141,44 @@ void func_80080F44(int actorIndex) {
 }
 */
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80080F44);
+extern int D_800B2180;
+void func_80080A74(int actorIndex);
+void func_8007AA44(Quad* pQuad);
+
+void func_80080F44(int actorIndex) {
+    int numWords = sizeof(ActorData) / sizeof(u_int);
+    int i;
+    u_int* pData;
+    ActorData* pActor;
+    FieldActorModelData* pModelData;
+    u8 unused[0x60];
+
+    if (actorIndex < D_800ADBFC) {
+        D_800B2180++;
+        pActor = HeapAlloc(0x138, 0);
+        g_FieldActors[actorIndex].pActorData = pActor;
+        pActor = g_FieldActors[actorIndex].pActorData;
+        pData = (u_int*)pActor;
+        for (i = 0; i < numWords; i++) {
+            *pData++ = 0;
+        }
+        g_FieldActors[actorIndex].unk5A = 0;
+        if (g_FieldActors[actorIndex].status & 0x2000) {
+            pModelData = g_FieldActors[actorIndex].pModelData;
+            pActor->unk118 = HeapAlloc(0x80, 0);
+            if (pModelData->pScripts != NULL) {
+                for (i = 0; i < pModelData->pScripts->numScripts; i++) {
+                    pModelData->pScripts->pScripts[i].pCallback = func_80080A18;
+                    ((u_int*)pActor->unk118)[i] = 0;
+                }
+            }
+        }
+        func_80080A74(actorIndex);
+        g_FieldActors[actorIndex].pShadow = HeapAlloc(0x70, 0);
+        func_8007AA44((Quad*)g_FieldActors[actorIndex].pShadow);
+    }
+}
+*/
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_8008110C);
 
@@ -200,7 +244,50 @@ void func_800821F4(int arg0, int actorId, FieldActor* pActor) {
 }
 */
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_8008237C);
+// Rectangular trigger zone given as a centre and per-axis half-extents, unlike
+// the quad-corner FieldTriggerZone. Centred on 0x22 (z) / 0x2A (x).
+typedef struct {
+    /* 0x0  */ u8 unk0[0x18];
+    /* 0x18 */ u_short unk18;
+    /* 0x1A */ u16 unk1A;
+    /* 0x1C */ u_short unk1C;
+    /* 0x1E */ u8 unk1E[0x4];
+    /* 0x22 */ s16 unk22;
+    /* 0x24 */ u8 unk24[0x6];
+    /* 0x2A */ s16 unk2A;
+} FieldExtentZone; // Size: 0x2C
+
+void func_80281678(FieldExtentZone* pZone);
+
+int func_8008237C(int z, int x, FieldExtentZone* pZone, int radius) {
+    long actorPosition2D;
+    long triggerPos1;
+    long triggerPos2;
+    long triggerPos3;
+    long triggerPos4;
+
+    actorPosition2D = (z << 0x10) + x;
+    triggerPos1 = ((pZone->unk22 - pZone->unk18 - radius) << 0x10) + (pZone->unk2A + pZone->unk1C + radius);
+    triggerPos2 = ((pZone->unk22 + pZone->unk18 + radius) << 0x10) + (pZone->unk2A + pZone->unk1C + radius);
+    triggerPos3 = ((pZone->unk22 + pZone->unk18 + radius) << 0x10) + (pZone->unk2A - pZone->unk1C - radius);
+    triggerPos4 = ((pZone->unk22 - pZone->unk18 - radius) << 0x10) + (pZone->unk2A - pZone->unk1C - radius);
+    if (NormalClip(triggerPos1, triggerPos2, actorPosition2D) < 0) {
+        return -1;
+    }
+    if (NormalClip(triggerPos2, triggerPos3, actorPosition2D) < 0) {
+        return -1;
+    }
+    if (NormalClip(triggerPos3, triggerPos4, actorPosition2D) < 0) {
+        return -1;
+    }
+    if (NormalClip(triggerPos4, triggerPos1, actorPosition2D) < 0) {
+        return -1;
+    }
+    if (g_FieldSystemMode == 0) {
+        func_80281678(pZone);
+    }
+    return 0;
+}
 
 // Four 2D trigger-zone corners packed one per short pair as (z << 16) + x.
 typedef struct {
@@ -290,24 +377,28 @@ void func_800831D0(SVECTOR* pDst, IVEC3* pSrc) {
 void func_80081F80(int, int);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800831F4);
-/* 92.68%: an unused 8-byte local (`RECT rect;`) reproduces the 0x20 frame, but
-   gcc keeps the loaded rotation in v1 (original loads v0 and copies to v1) and
-   sinks the second `sh 0x106` into the call delay slot.
+/* 92.68%: the whole chain matches; gcc loads vy straight into v1 and stores
+   `sh 0x106` into the call delay slot, where the original loads into v0 and
+   copies to v1 (`move v1,v0`, one more insn: 144 vs 140 bytes) and keeps both
+   stores before the reload of rotation.vx. `u_short value` for the second half
+   is required: it is what makes the second half a single `lhu`.
 void func_800831F4(int arg0, ActorData* pActor, int arg2, int arg3) {
-    short rotation;
+    short vy;
+    int rotation;
+    u_short value;
     RECT rect;
 
     if (pActor->moveModified.vx != 0 || pActor->moveModified.vz != 0) {
-        if (!(pActor->rotation.vy & 0x8000)) {
-            rotation = pActor->rotation.vy;
-            rotation += (arg3 & 1) ? -0x400 : 0x400;
+        vy = pActor->rotation.vy;
+        if (!(vy & 0x8000)) {
+            rotation = vy + ((arg3 & 1) ? -0x400 : 0x400);
             rotation &= 0xFFF;
             pActor->rotation.vx = rotation;
             pActor->rotation.vy = rotation;
             func_80081F80(arg0, pActor->rotation.vx);
-            rotation = pActor->rotation.vy | 0x8000;
-            pActor->rotation.vx = rotation;
-            pActor->rotation.vy = rotation;
+            value = pActor->rotation.vy | 0x8000;
+            pActor->rotation.vx = value;
+            pActor->rotation.vy = value;
         }
     }
 }
@@ -323,53 +414,51 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_8008399C);
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80084158);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_8008492C);
-/* 91.16%: the whole chain of early rejections matches; the tail differs only in
-   block placement (gcc merges this `return -1` into the epilogue with a
-   `li v0,-1` delay slot, the original keeps it as its own block, which in turn
-   lets the final `return 0` merge into the epilogue).
-   extern s32 D_800ADB98;
-   extern s32 D_800ADC0C;
+/* 91.16%: every check matches; the only residual is the `flags & 2` early
+   return. The original keeps it as its own `li v0,-1` block after the
+   `bltz`-style tail (280 bytes), so the `beqz` above it keeps a nop delay slot
+   and the later `beqz flags&4` gets `move v0,zero` from its target; gcc here
+   cross-jumps that return into the shared epilogue and fills the delay slots
+   itself (276 bytes).
+extern s32 D_800ADB98;
+extern s32 D_800ADC0C;
 
-   int func_8008492C(ActorData* pActor) {
-       if (pActor->curWalkmeshTriMaterial & 0x420000) {
-           return -1;
-       }
-       if (D_800ADB98 != 0) {
-           return -1;
-       }
-       if (pActor->moveModified.vx != 0) {
-           return -1;
-       }
-       if (pActor->moveModified.vy != 0) {
-           return -1;
-       }
-       if (pActor->moveModified.vz != 0) {
-           return -1;
-       }
-       if (D_800ADC0C != 1) {
-           return -1;
-       }
-       if (pActor->canInteract != 0xFF) {
-           return -1;
-       }
-       if (pActor->scriptFlags.flags & 0x401800) {
-           return -1;
-       }
-       if (pActor->flags & 1) {
-           if (pActor->walkmeshId == 0) {
-               return -1;
-           }
-       }
-       if (pActor->flags & 2) {
-           if (pActor->walkmeshId == 1) {
-               return -1;
-           }
-       }
-       if (pActor->flags & 4) {
-           return -(pActor->walkmeshId == 2);
-       }
-       return 0;
-   }
+int func_8008492C(ActorData* pActor) {
+    if (pActor->curWalkmeshTriMaterial & 0x420000) {
+        return -1;
+    }
+    if (D_800ADB98 != 0) {
+        return -1;
+    }
+    if (pActor->moveModified.vx != 0) {
+        return -1;
+    }
+    if (pActor->moveModified.vy != 0) {
+        return -1;
+    }
+    if (pActor->moveModified.vz != 0) {
+        return -1;
+    }
+    if (D_800ADC0C != 1) {
+        return -1;
+    }
+    if (pActor->canInteract != 0xFF) {
+        return -1;
+    }
+    if (pActor->scriptFlags.flags & 0x401800) {
+        return -1;
+    }
+    if (pActor->flags & 1 && pActor->walkmeshId == 0) {
+        return -1;
+    }
+    if (pActor->flags & 2 && pActor->walkmeshId == 1) {
+        return -1;
+    }
+    if (pActor->flags & 4) {
+        return -(pActor->walkmeshId == 2);
+    }
+    return 0;
+}
 */
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80084A40);
@@ -421,11 +510,15 @@ void func_8003A20C(int);
 void func_80039F9C(void*, int, int, int);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800855C8);
-/* 85.56%: gcc hoists `(arg3 & 7) * 2` into s0 and copies it (move a0,s0 /
-   move a1,s0); the original keeps `arg3 & 7` in s0 and shifts at each use.
+/* 85.56%: the original keeps `arg3 & 7` in s0 and shifts at each use
+   (`andi s0,a3,7`, `sll a0,s0,1`, `sll a1,s0,1`); gcc CSEs the doubled value
+   into s0 and copies it (`move a0,s0` / `move a1,s0`). Same size and registers,
+   so it links, but objdiff never reaches 100%.
 void func_800855C8(int arg0, int arg1, int arg2, int arg3) {
-    func_8003A20C((arg3 & 7) * 2);
-    func_80039F9C(arg0, (arg3 & 7) * 2, (s16)arg1, (s16)arg2);
+    int offset = arg3 & 7;
+
+    func_8003A20C(offset * 2);
+    func_80039F9C(arg0, offset * 2, (s16)arg1, (s16)arg2);
 }
 */
 
@@ -759,23 +852,28 @@ void func_800860F0(int arg0, int arg1, int arg2, int arg3, int actorIndex) {
 }
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", FieldActorWorldToScreenPosition);
-/* 80.00%: everything but the first CompMatrix argument matches. The original
-   builds the world-to-screen matrix address as `&g_FieldActors - 0xAC` (lui +
-   addiu of g_FieldActors, then a separate `addiu a0, v1, -0xAC`, the same v1 it
-   reloads the volatile actor pointer from), i.e. the matrix and the actor list
-   were members of one global struct in the original source. Writing
-   `&g_Scene.worldToScreenMatrix` gives the two-instruction %hi/%lo form instead.
-   A `(MATRIX*)((u_char*)&g_FieldActors - 0xAC)` hack reaches 95.25% but gcc
-   rematerialises the address twice. Matching needs the shared parent struct.
+/* 95.25%: everything matches but the base address (204 bytes, same size).
+   The original materialises `&g_FieldActors` into v1 (`lui v1,%hi;
+   addiu v1,v1,%lo`, offset 0, after the FieldScriptVMGetActorIndex call),
+   takes the matrix from it with `addiu a0,v1,-0xAC` and loads the actor
+   pointer with `lw a1,0(v1)`; gcc folds -0xAC into one %lo and emits a
+   separate lui/lw for the pointer. The -0xAC is exact and identifies the
+   original layout: &g_FieldActors (0x800AFB10) - 0xAC ==
+   g_Scene.worldToScreenMatrix (0x800AF990 + 0xD4), so the matrix and the
+   actor pointer were members of one struct in the original source. The anchor
+   must stay the g_FieldActors symbol, so the fix is a parent struct that the
+   symbol file can express without overlapping g_Scene. Holding the base in a
+   local pointer does not help: gcc const-propagates the symbol address.
 void FieldActorWorldToScreenPosition(int actorIndex, int* pScreenX, int* pScreenY) {
     SVECTOR vertex;
     MATRIX transformMatrix;
     long sxy;
     long p;
     long flag;
+    FieldActor** pActorSlot = &g_FieldActors;
 
+    CompMatrix((MATRIX*)((u_char*)pActorSlot - 0xAC), &(*pActorSlot)[actorIndex].transformMatrix, &transformMatrix);
     FieldScriptVMGetActorIndex(1);
-    CompMatrix(&g_Scene.worldToScreenMatrix, &g_FieldActors[actorIndex].transformMatrix, &transformMatrix);
     vertex.vx = 0;
     vertex.vy = 0;
     vertex.vz = 0;
