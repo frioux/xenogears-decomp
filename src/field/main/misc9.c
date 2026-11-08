@@ -268,20 +268,44 @@ void func_800ABEC8(void) {
     }
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc9", func_800ABFDC);
-// 94.58%: identical except that gcc fuses the `or` into a0 (2 instrs here, 3 in the original)
-// s32 func_800ABFDC(u_char* pData, s32* pIsGlyph) {
-//     s32 code;
-//     code = (pData[0] << 8) | pData[1];
-//     if ((u_short)(code - 0x8540) < 0x340) {
-//         *pIsGlyph = 1;
-//         return code - 0x8540;
-//     }
-//     *pIsGlyph = 0;
-//     return Krom2RawAdd(code);
-// }
+s32 func_800ABFDC(u_char* pData, s32* pIsGlyph) {
+    u_short code;
+
+    code = (pData[0] << 8) | pData[1];
+    if ((u_short)(code - 0x8540) < 0x340) {
+        *pIsGlyph = 1;
+        return code - 0x8540;
+    }
+    *pIsGlyph = 0;
+    return Krom2RawAdd(code);
+}
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc9", func_800AC03C);
+// 77.29%: the two bit loops keep the byte pointer one ahead of pDst in the
+// original (a2 = pDst + 1, `sb v0, -1(a2)`); gcc emits the store against pDst itself.
+// void func_800AC03C(u_char* pDst, u_short* pSrc) {
+//     int i;
+//     int bit;
+//
+//     if (pSrc == (u_short*)-1) {
+//         for (i = 0x11F; i >= 0; i--) {
+//             *pDst++ = 0xFF;
+//         }
+//         return;
+//     }
+//
+//     for (i = 0; i < 0xF; i++) {
+//         for (bit = 7; bit >= 0; bit--) {
+//             *pDst++ = -((*pSrc >> bit) & 1);
+//         }
+//         for (bit = 0xF; bit >= 8; bit--) {
+//             *pDst++ = -((*pSrc >> bit) & 1);
+//         }
+//         *pDst++ = 0;
+//         *pDst++ = 0;
+//         pSrc++;
+//     }
+// }
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc9", func_800AC0F0);
 
@@ -313,7 +337,30 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc9", func_800AC3AC);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc9", func_800AC99C);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc9", func_800ACB90);
+void func_800ACB90(void) {
+    RECT rect;
+    s32* pBuffer;
+    s32 empty;
+    int i;
+
+    FieldLoadTIMWithClut((u_long*)D_800AF784, 0x380, 0x100, 0, 0x1FF, 0, 0);
+    DrawSync(0);
+    HeapFree(D_800AF784);
+
+    pBuffer = HeapAlloc(0x200, 1);
+    empty = -1;
+    for (i = 0x7F; i >= 0; i--) {
+        pBuffer[i] = empty;
+    }
+
+    rect.x = 0x3C0;
+    rect.y = 0x100;
+    rect.w = 0x40;
+    rect.h = 4;
+    LoadImage(&rect, pBuffer);
+    DrawSync(0);
+    HeapFree(pBuffer);
+}
 
 extern void func_800AC308();
 extern void func_800AC3AC();
