@@ -163,20 +163,21 @@ int func_800409AC(void) {
     return 1;
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libapi", func_800409E4);
-/*
 int func_800409E4(void) {
     volatile int nDelay;
+    s32 pad[2]; // unused: reproduces the original's 0x8-byte frame
 
     *(u_short*)(D_80056418 + 0xA) = 0;
-    for (nDelay = 10; --nDelay != -1; )
+    for (nDelay = 10; --nDelay != -1;)
         ;
     return 0;
 }
-*/
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libapi", func_80040A4C);
 /*
+81.25%: gcc folds `if (c) return 1; return 0;` into `return c`, so the original's
+literal `li v0,1` (bnez to the epilogue, dead `move v0,zero` after it) cannot be
+produced from any if/else, switch, bitfield or goto spelling tried.
 int func_80040A4C(void) {
     u_long *pEntry = D_8005641C;
 
