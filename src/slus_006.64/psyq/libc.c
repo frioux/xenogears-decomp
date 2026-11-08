@@ -16,7 +16,17 @@ void* bzero(u_char* pDst, int size) {
     return pRet;
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libc", memchr);
+void* memchr(u_char* pSrc, u_char ch, int size) {
+    if (pSrc == NULL)
+        return NULL;
+    if (size <= 0)
+        return NULL;
+    while (--size >= 0) {
+        if (*pSrc++ == ch)
+            return pSrc - 1;
+    }
+    return NULL;
+}
 
 void* memcpy(u_char* pDst, u_char* pSrc, int size) {
     void* pRet;
@@ -73,6 +83,28 @@ void srand(u_long seed) {
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libc", strcat);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libc", strcmp);
+
+/* best: 56.12% -- loop body and block layout differ (original keeps the loaded
+   byte in a2 and zero-extends it with andi for the compare; the mismatch path
+   reloads *(p2 - 1) because p2++ lands in the beq delay slot)
+int strcmp(u_char* pString1, u_char* pString2) {
+    if (pString1 == NULL || pString2 == NULL) {
+        if (pString1 != pString2) {
+            if (pString1 != NULL)
+                return 1;
+            return -1;
+        }
+        return 0;
+    }
+    while (*pString1 == *pString2) {
+        if (*pString1 == 0)
+            return 0;
+        pString1++;
+        pString2++;
+    }
+    return *pString1 - *pString2;
+}
+*/
 
 void* strcpy(u_char* pDst, u_char* pSrc) {
     void* pRet;
