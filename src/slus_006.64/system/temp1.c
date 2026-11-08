@@ -81,7 +81,37 @@ void func_80022E8C(void) {
     func_80022DF4();
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80022EB8);
+extern void func_80025180(void* pData);
+extern void func_8001CE74(WorkListEntry* pTask);
+extern void func_8001D034(WorkListEntry* pTask);
+
+void func_80022EB8(AnimTask* pAnimTask) {
+    WorkListEntry* pTask = &pAnimTask->task1;
+    SpriteData* pSpriteData = pTask->unk4;
+
+    if (pSpriteData->pBase) {
+        if (pSpriteData->pBase->pFramesData) {
+            func_80025180(pSpriteData->pBase->pFramesData);
+        }
+    }
+    if ((*(u32*)((u8*)pSpriteData + 0x3C) & 3) == 1) {
+        if (pSpriteData->pBase->pDirTransforms) {
+            HeapFree(pSpriteData->pBase->pDirTransforms);
+        }
+    }
+    if (((u32)pSpriteData->flags_0xAC >> 5) & 1) {
+        func_8001CE74(pTask);
+    }
+    if (((u32)pSpriteData->flags_0xB0 >> 11) & 1) {
+        func_8001D034(pTask);
+    }
+    if ((*(u32*)((u8*)pSpriteData + 0x3C) & 3) == 1) {
+        func_8001D3F4(pSpriteData);
+    }
+    TimerWorkListRemoveTask(pTask);
+    WorkListRemoveTask(pTask + 1);
+    HeapFree(pAnimTask);
+}
 
 void func_80022FC4(SpriteData* pSpriteData, s32 count, u_int allocFlags) {
     SpriteDataI1* pBase;
@@ -306,9 +336,51 @@ void func_800234AC(SpriteData* pSpriteData) {
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80023538);
 
 // SpriteData stuff
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80023804);
+INCLUDE_ASM("asm/slus_006.64/system/temp1", func_80023804);
+/* Best attempt: 99.10%. Everything matches except a v0/v1 swap: the original keeps the
+   flags_0xAC value in v1 and its 0xFFF8007F mask in v0, this C does the opposite (and
+   so the flags_0xA8 value lands in v1 instead of v0). Function is 78 instructions.
+void func_80023804(SpriteData* pSpriteData) {
+    u32* pFlagsA8;
+    s32 cycles;
 
-
+    *(u32*)((u8*)pSpriteData + 0x3C) = 0;
+    pSpriteData->prim = 0x2D;
+    pSpriteData->field_0x40 = 0;
+    pSpriteData->field_0x3A = 0;
+    pSpriteData->field_0x30 = 0;
+    pSpriteData->direction = 0;
+    pSpriteData->curSpriteFrame = 0;
+    pSpriteData->flags_0xA8 = 0;
+    *(u32*)((u8*)pSpriteData + 0x3C) &= ~4;
+    *(u32*)((u8*)pSpriteData + 0x3C) &= ~8;
+    *(u32*)((u8*)pSpriteData + 0x3C) &= ~0x10;
+    *(u32*)((u8*)pSpriteData + 0x3C) &= 0xFF0FFFFF;
+    *(u32*)((u8*)pSpriteData + 0x3C) &= 0xFEFFFFFF;
+    *(u32*)((u8*)pSpriteData + 0x3C) &= 0xFFF0FFFF;
+    *(u32*)((u8*)pSpriteData + 0x40) &= ~0xFC;
+    *(u32*)((u8*)pSpriteData + 0x40) &= ~0x1F00;
+    *(u32*)((u8*)pSpriteData + 0x40) &= 0xFFFE1FFF;
+    pFlagsA8 = (u32*)&pSpriteData->flags_0xA8;
+    pFlagsA8[1] = 0;
+    pFlagsA8[2] = 0;
+    *(u8*)((u8*)pSpriteData + 0xB0) = 0;
+    *(u8*)((u8*)pSpriteData + 0xAF) = 0;
+    pSpriteData->flags_0xAC = (pSpriteData->flags_0xAC & 0xFFF8007F) | 0x8000;
+    pSpriteData->flags_0xA8 &= 0xFFF1FFFF;
+    cycles = D_80059198 + 1;
+    pSpriteData->gravity = (cycles * 0x4000) * cycles * pSpriteData->field_0x82 / 4096;
+    pSpriteData->pSpriteBytecode = NULL;
+    pSpriteData->field_0x70 = NULL;
+    pSpriteData->pCurAnimFile = NULL;
+    pSpriteData->field_0x68 = NULL;
+    pSpriteData->field_0x80 = 0;
+    pSpriteData->stackIndex = 0x10;
+    pSpriteData->field_0x84 = 0;
+    pSpriteData->field_0x6C = NULL;
+    pSpriteData->field_0x50 = 0;
+}
+*/
 
 void func_8002393C(SpriteDataI1* pBase) {
     pBase->rotation.x = 0;
