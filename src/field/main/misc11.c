@@ -71,7 +71,7 @@ extern s16 D_800AF6E8[32];
 extern s16 D_800AF728[32];
 extern u_short D_800AF768;
 
-void func_80091ADC(s16 x, s16 y, s16 w, s16 h, int texX, s16 texY, int clear) {
+void func_80091ADC(int x, int y, int w, int h, int texX, int texY, int clear) {
     int index = D_800AF768 & 0x1F;
 
     D_800AF5E8[index].x = x;
@@ -81,14 +81,37 @@ void func_80091ADC(s16 x, s16 y, s16 w, s16 h, int texX, s16 texY, int clear) {
     D_800AF6E8[index] = texX;
     D_800AF728[index] = texY;
     if (!clear) {
-        MoveImage(&D_800AF5E8[index], D_800AF6E8[index], texY);
+        MoveImage(&D_800AF5E8[index], D_800AF6E8[index], (s16)texY);
     } else {
         ClearImage(&D_800AF5E8[index], 0, 0, 0);
     }
     D_800AF768++;
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc11", func_80091BBC);
+void func_80091BBC(void) {
+    RECT rect; // unused, but the original frame has this 8-byte slot
+    int x;
+    int y;
+
+    x = FieldScriptArgument1(1, SCRIPT_READ_U8_REL(0xD));
+    y = FieldScriptArgument2(3, SCRIPT_READ_U8_REL(0xD));
+    if (x == 0 && y == 0) {
+        func_80091ADC(
+            FieldScriptArgument3(5, SCRIPT_READ_U8_REL(0xD)),
+            FieldScriptArgument4(7, SCRIPT_READ_U8_REL(0xD)),
+            FieldScriptArgument5(9, SCRIPT_READ_U8_REL(0xD)),
+            FieldScriptArgument6(0xB, SCRIPT_READ_U8_REL(0xD)),
+            0, 0, 1);
+    } else {
+        func_80091ADC(x, y,
+            FieldScriptArgument3(5, SCRIPT_READ_U8_REL(0xD)),
+            FieldScriptArgument4(7, SCRIPT_READ_U8_REL(0xD)),
+            FieldScriptArgument5(9, SCRIPT_READ_U8_REL(0xD)),
+            FieldScriptArgument6(0xB, SCRIPT_READ_U8_REL(0xD)),
+            0);
+    }
+    g_FieldScriptVMCurActor->scriptInstructionPointer += 0xE;
+}
 
 void func_80091E00(void) {
     int value;
