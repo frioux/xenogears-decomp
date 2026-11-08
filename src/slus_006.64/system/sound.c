@@ -1433,7 +1433,32 @@ void func_8003A55C(s32 elementIndex, s32 value) {
 }
 */
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003A5D0);
+s32 func_8003A5D0(s32 id) {
+    AudioElement* pElement = &D_800595D8->elements[0];
+    u32 bit = 1;
+    s32 count = D_80059478;
+    s32 result = 0;
+
+    if (id == -1) {
+        do {
+            if (pElement->active_flag & 0x1) {
+                result |= bit;
+            }
+            pElement++;
+            bit <<= 1;
+        } while (--count);
+    } else {
+        do {
+            if ((pElement->active_flag & 0x1) && pElement->unk_0x8 == id) {
+                result |= bit;
+            }
+            pElement++;
+            bit <<= 1;
+        } while (--count);
+    }
+
+    return result;
+}
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003A65C);
 
@@ -1503,7 +1528,18 @@ void func_8003A9BC(AudioManager* pManager, s16 volume, s32 frames) {
     }
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003AA30);
+void func_8003AA30(AudioManager* pManager) {
+    DisableEvent(g_unk_SoundEvent);
+
+    if (g_SoundControlFlags & 0x1000) {
+        SoundSetReverbModeWithAllocation(pManager->unk_0x40[1], pManager->reverbDepth, pManager->reverbDelay, pManager->reverbFeedback);
+    }
+
+    SoundSetFlagsOnActiveVoices(pManager, 0xFFFF);
+    func_8003AFA0(pManager);
+    pManager->unk_Flags = (pManager->unk_Flags & ~0x100) | 0x8000;
+    EnableEvent(g_unk_SoundEvent);
+}
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003AAC4);
 
@@ -1586,7 +1622,20 @@ void func_8003AD98(AudioManager* pManager) {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003ADCC);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003AE84);
+void func_8003AE84(AudioManager* pManager) {
+    s32 savedValue;
+
+    if (pManager->unk_Manager_0x4 != NULL && (pManager->unk_Flags & 0x10)) {
+        DisableEvent(g_unk_SoundEvent);
+        SoundReleaseAllVoices(pManager);
+        savedValue = pManager->unk_0x24;
+        SoundCopyAudioManagerData(pManager, pManager->unk_Manager_0x4);
+        pManager->unk_0x2c = savedValue;
+        SoundSetFlagsOnActiveVoices(pManager, 0xFFFF);
+        func_8003AFA0(pManager);
+        EnableEvent(g_unk_SoundEvent);
+    }
+}
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003AF24);
 /*
@@ -1663,7 +1712,25 @@ void SoundReleaseAllVoices(AudioManager* manager) {
     } while (cnt);
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003B0AC);
+void func_8003B0AC(AudioManager* pManager, AudioManager* pSrc) {
+    u32* pTable;
+    u8* pData;
+    u32 cnt;
+
+    pTable = (u32*)((u8*)pManager + SoundCalculateAudioManagerSize(pSrc->elementCount));
+    pManager->unk_0xc = (s32)pTable;
+    // the sequence header stores the percussion table offset as a 16-bit field
+    pData = (u8*)pSrc + *(u16*)((u8*)pSrc + 0x20);
+    cnt = pSrc->unk_0x15;
+
+    do {
+        u32 value = pData[1] | (pData[2] << 8) | (pData[3] << 16) | (pData[4] << 24);
+
+        *(u32*)((u8*)pTable + (pData[0] << 2)) = value;
+        pData += 5;
+        cnt--;
+    } while (cnt);
+}
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003B148);
 
@@ -2767,6 +2834,24 @@ u8* func_8003E180(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
 }
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003E1F8);
+/*
+Attempt (82.97%, same size): every instruction is right except that gcc gives
+pScript s2 and the AudioEnvelope s1 (original: pScript s1, envelope s2) and re-uses
+the pScript[0] load for the sum where the original reloads it into a1 and copies the
+result to s0. Swapping the two declarations, splitting the divide into its own
+temporary, duplicating the value expression and u16/s32 variants of `value` all
+leave the same 82.97%.
+u8* func_8003E1F8(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
+    AudioEnvelope* pEnvelope;
+    s32 value;
+
+    pEnvelope = &pAudioElements->envelopes[pAudioElements->unk_0xCC];
+    value = pScript[0] + (pScript[0] * pScript[0]) / 64;
+    pEnvelope->delta = func_8003E290(((s8)pScript[1] << 24) | (pScript[2] << 16), value, pEnvelope->unk_0x1D);
+    pEnvelope->reload = value;
+    return pScript + 3;
+}
+*/
 
 s32 func_8003E290(s32 value, s16 divisor, s16 mode) {
     if (value != 0 && divisor != 0) {
