@@ -92,6 +92,9 @@ INCLUDE_ASM("asm/field/nonmatchings/camera/camera_movement", func_8008FC4C);
 
 /* Best: 63.33% (224 bytes, right size and block layout; gcc keeps the address of
    g_FieldCameraMode in %hi/%lo instead of s0 and builds a different case order).
+   Also tried a `s16* pMode = &g_FieldCameraMode;` local with the == 0 branch
+   first (42.34%: gcc folds the pointer back to the symbol and, with case 0
+   listed first, emits a jump table instead of the beq/slti/bnez chain).
 void func_8008FC4C(void) {
     s32 value;
 
