@@ -255,7 +255,32 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_80025544);
 
 void func_80025710(void) {}
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_80025718);
+extern void func_80022038(SpriteData* pSpriteData);
+extern void ModelRenderPacket(void* pDirTransforms, void* pFramesData, u_long* pOT, int flags);
+
+// Draws the sprite through its transform matrix, then its model parts.
+void func_80025718(WorkListEntry* pTask) {
+    MATRIX matrix;
+    VECTOR vec;
+    SpriteData* pSpriteData;
+
+    pSpriteData = pTask->unk4;
+    func_80022038(pSpriteData);
+    if (pSpriteData->pBase->pDirTransforms) {
+        vec.vx = pSpriteData->position.x >> 16;
+        vec.vy = pSpriteData->position.y >> 16;
+        vec.vz = pSpriteData->position.z >> 16;
+        TransMatrix(&pSpriteData->pBase->transformMatrix, &vec);
+        if (!(*(u8*)((u8*)pSpriteData + 0x3F) & 1)) {
+            CompMatrix(&D_8004FBB8, &pSpriteData->pBase->transformMatrix, &matrix);
+        }
+        SetRotMatrix(&matrix);
+        SetTransMatrix(&matrix);
+        ModelRenderPacket(pSpriteData->pBase->pDirTransforms,
+                          ((void**)&pSpriteData->pBase->pFramesData)[g_GfxCurContext],
+                          g_GfxCurOT, *(u16*)((u8*)pSpriteData + 0x42) & 4);
+    }
+}
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_800257F0);
 
