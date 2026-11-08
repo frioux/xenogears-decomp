@@ -3120,4 +3120,18 @@ int SoundFileComputeChecksum(SoundFile* pSoundFile) {
 }
 
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", SoundHandleError);
+extern u8 D_80050910[];
+extern u16 D_80050924;
+extern u8 D_80050940[];
+
+void SoundHandleError(s16 errorId) {
+    if (!(g_SoundControlFlags & 0x88)) {
+        g_SoundControlFlags |= 0x8;
+        g_SoundSpuErrorId = errorId;
+        SoundSpuMemoryFreeBlock(0x10000);
+        SoundLoadWdsFile(D_80050940, NULL);
+        SoundAddSedsEntry((SoundFile*)D_80050910);
+        func_8003BDFC(0x10);
+        func_80039E60(((u32)D_80050924 << 16) | 1);
+    }
+}
