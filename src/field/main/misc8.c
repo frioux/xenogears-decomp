@@ -152,7 +152,31 @@ void func_800831D0(SVECTOR* pDst, IVEC3* pSrc) {
     pDst->vz = pSrc->z >> 0x10;
 }
 
+void func_80081F80(int, int);
+
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800831F4);
+/* 92.68%: an unused 8-byte local (`RECT rect;`) reproduces the 0x20 frame, but
+   gcc keeps the loaded rotation in v1 (original loads v0 and copies to v1) and
+   sinks the second `sh 0x106` into the call delay slot.
+void func_800831F4(int arg0, ActorData* pActor, int arg2, int arg3) {
+    short rotation;
+    RECT rect;
+
+    if (pActor->moveModified.vx != 0 || pActor->moveModified.vz != 0) {
+        if (!(pActor->rotation.vy & 0x8000)) {
+            rotation = pActor->rotation.vy;
+            rotation += (arg3 & 1) ? -0x400 : 0x400;
+            rotation &= 0xFFF;
+            pActor->rotation.vx = rotation;
+            pActor->rotation.vy = rotation;
+            func_80081F80(arg0, pActor->rotation.vx);
+            rotation = pActor->rotation.vy | 0x8000;
+            pActor->rotation.vx = rotation;
+            pActor->rotation.vy = rotation;
+        }
+    }
+}
+*/
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80083288);
 
@@ -358,8 +382,6 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc8", FieldActorWorldToScreenPosition
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800862CC);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800863E8);
-
 // Three 6-byte entries; splat names the second field's address D_800AFE8A.
 typedef struct {
     /* 0x0 */ u_short unk0;
@@ -369,6 +391,19 @@ typedef struct {
 
 extern FieldUnk800AFE88 D_800AFE88[3];
 extern FieldUnk800AFE88 D_800AFE8A[3];
+
+void func_800863E8(u_int arg0) {
+    int i;
+
+    for (i = 0; i < 3; i++) {
+        if (D_800AFE88[i].unk0 == arg0) {
+            func_8003A20C(i * 2);
+            D_800AFE8A[i].unk0 = 0xFFFF;
+            D_800AFE88[i].unk0 = 0xFFFF;
+            break;
+        }
+    }
+}
 
 int func_80086470(int arg0, u_int arg1) {
     int i;
