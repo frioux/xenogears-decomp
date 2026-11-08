@@ -377,7 +377,62 @@ void func_8007520C(void) {
 }
 */
 
+extern u_char D_800ADB05;
+extern s32 D_800ADBFC;
+
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_800752C8);
+// 99.50%: the instruction stream is identical, but gcc gives $a1 to the actor's
+// ActorData and $a2 to the FieldActor where the original has $a1 = FieldActor and
+// $a2 = ActorData (the AnimScriptTick argument is $a0 in both). Declaration order,
+// a pActorData local, an index/offset loop and a pActors array-pointer local all
+// leave the swap in place. The original also reads the status halfword at 0x58 as a
+// 32-bit word, hence the cast. Re-add the rodata constant with the function.
+/*
+// .rodata
+const char D_8006FB28[0xC] = "CHAR      ";
+
+void func_800752C8(void) {
+    FieldActor* pActor;
+    int i;
+
+    if (D_800ADB05 == 1) {
+        return;
+    }
+
+    func_800250E0(g_FieldCurRenderContextIndex);
+    GfxSetCurrentOT(g_FieldCurRenderContext->ot1);
+    func_80024FF4(&g_Scene.worldToScreenMatrix);
+    func_8001D468();
+    WorkListUpdate();
+    TimerWorkListUpdate();
+    func_80075B44(g_FieldCurRenderContext->ot1, g_FieldCurRenderContextIndex);
+
+    for (i = 0; i < D_800ADBFC; i++) {
+        pActor = &g_FieldActors[i];
+        // The original reads status as a 32-bit word
+        if ((*(u_int*)&pActor->status & 0x60) == 0x40) {
+            if ((pActor->pActorData->flags & 0x600) == 0x200) {
+                continue;
+            }
+            if (pActor->pActorData->flags & 0x1000) {
+                continue;
+            }
+            if (pActor->pActorData->scriptFlags.fields.scriptFlags_0x0) {
+                continue;
+            }
+        } else if (!(pActor->pActorData->flags & 0x1000000)) {
+            continue;
+        }
+        AnimScriptTick((SpriteData*)pActor->pSpriteData);
+    }
+
+    func_800764B4(g_FieldCurRenderContext->ot1, g_FieldCurRenderContextIndex);
+
+    if (g_FieldSystemMode == SYSTEM_MODE_PC_HDD) {
+        func_80281B00(D_8006FB28);
+    }
+}
+*/
 
 void FieldAddPrimitives(u_long* ot, u_long* pPrimList, int size) {
     AddPrims(ot, pPrimList + size, pPrimList);
@@ -456,7 +511,29 @@ void func_80075910(void) {
     DrawOTag(&g_FieldCurRenderContext->ot3[7]);
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_800759E4);
+const VECTOR D_8006FB70 = { 0, 0, 0x1000, 0 };
+
+void func_800759E4(s16* pOut, VECTOR* pUp) {
+    VECTOR zAxis;
+    VECTOR xAxis;
+    VECTOR vecWork;
+
+    zAxis = D_8006FB70;
+    OuterProduct12(&zAxis, pUp, &vecWork);
+    VectorNormal(&vecWork, &xAxis);
+    OuterProduct12(&xAxis, pUp, &vecWork);
+    VectorNormal(&vecWork, &zAxis);
+
+    pOut[0] = xAxis.vx;
+    pOut[1] = xAxis.vy;
+    pOut[2] = xAxis.vz;
+    pOut[3] = pUp->vx;
+    pOut[4] = pUp->vy;
+    pOut[5] = pUp->vz;
+    pOut[6] = zAxis.vx;
+    pOut[7] = zAxis.vy;
+    pOut[8] = zAxis.vz;
+}
 
 void func_80075B08(SpriteData* pSpriteData, u_char* pColor) {
     if (D_800B218E == 0) {
