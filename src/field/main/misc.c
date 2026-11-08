@@ -878,7 +878,28 @@ void func_8008B518(void) {
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008B5D4);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008B894);
+extern void* g_PartyDataBuffers[];
+extern void* D_800ADBC0;
+extern s32 D_800ADBC4;
+extern void* D_800ADBC8;
+extern s32 D_800ADBCC;
+extern void LZSSDecompress(void*, void*);
+extern void func_8008B978(void*);
+
+void func_8008B894(void) {
+    if (D_800ADBC4 != 0xFF && ArchiveDataSync() == 0) {
+        ArchiveCdDataSync(0);
+        LZSSDecompress(D_800ADBC0, g_PartyDataBuffers[D_800ADBCC]);
+        HeapFree(D_800ADBC0);
+        func_8008B978(D_800ADBC8);
+        D_800ADBC4 = 0xFF;
+        D_800B00C0 = 1;
+        g_FieldScriptVMCurActor->scriptInstructionPointer += 1;
+    } else {
+        D_800B00C0 = 1;
+        g_FieldScriptVMCurActor->scriptInstructionPointer -= 1;
+    }
+}
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008B978);
 
