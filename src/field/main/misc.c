@@ -1264,7 +1264,22 @@ void func_8008C84C(void) {
     D_800B00C0 = 1;
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008C938);
+extern void func_8003A948(s32, int, int);
+
+void func_8008C938(void) {
+    if (D_8004F36C != 0) {
+        func_8003A948(D_80062528, FieldScriptArgument1(1, SCRIPT_READ_U8_REL(5)),
+                      FieldScriptArgument2(3, SCRIPT_READ_U8_REL(5)));
+        g_FieldScriptVMCurActor->scriptInstructionPointer += 6;
+    } else if (D_8004F324 == CHARACTER_ID_NONE) {
+        g_FieldScriptVMCurActor->scriptInstructionPointer += 6;
+    } else if (D_800ADB1C == 0) {
+        g_FieldScriptVMCurActor->scriptInstructionPointer += 6;
+    } else {
+        g_FieldScriptVMCurActor->scriptInstructionPointer -= 1;
+    }
+    D_800B00C0 = 1;
+}
 
 extern void func_8003A838(int, int, int);
 
