@@ -56,6 +56,8 @@ s32 D_80059300; // LinkedLists of SpriteTileData pointers
 s32 D_80059304;
 void* g_GfxWorkBuffers;
 int g_GfxCurContext;
+void* g_GfxCurWorkBufferEnd;
+void* g_GfxCurWorkBuffer;
 
 
 #endif

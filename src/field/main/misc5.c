@@ -9,7 +9,13 @@
 //
 INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A55B8);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A55C8);
+extern void* D_800AFE80;
+extern void* D_800B069C;
+
+void func_800A55C8(void) {
+    HeapFree(D_800AFE80);
+    HeapFree(D_800B069C);
+}
 
 // Set PolyFT4 color for PolyFT4s of next swap chain
 void func_800A5600(u_char color) {
@@ -135,7 +141,11 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A6C40);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A6E70);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A7064);
+extern void* D_800B00C4;
+
+void func_800A7064(void) {
+    HeapFree(D_800B00C4);
+}
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A708C);
 
@@ -143,9 +153,33 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A7120);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A7218);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A732C);
+extern int D_800ADB6C;
+extern void func_801D3F7C(void);
+extern void func_80085678(void);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A7394);
+void func_800A732C(int nFrames) {
+    int i;
+
+    GameCheckAndHandleSoftReset();
+    if (D_800ADB6C == 0) {
+        for (i = 0; i < nFrames; i++) {
+            func_801D3F7C();
+            func_80085678();
+        }
+    }
+}
+
+extern void func_80077DAC(void);
+extern void func_8007554C(void);
+extern int ArchiveDataSync(void);
+
+void func_800A7394(void) {
+    do {
+        func_80077DAC();
+        func_8007554C();
+    } while (ArchiveDataSync() != 0 || g_FieldCurRenderContextIndex != 0);
+    CdDataSync(0);
+}
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A73E8);
 
@@ -232,7 +266,18 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A7C58);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A8314);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A83B4);
+extern int D_800AF278;
+extern void* D_800AFC60;
+extern void* D_800AFC64;
+
+void func_800A83B4(void) {
+    if (D_800AF278 != 0) {
+        D_800AF278 = 0;
+        DrawSync(0);
+        HeapFree(D_800AFC60);
+        HeapFree(D_800AFC64);
+    }
+}
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A8408);
 
@@ -244,11 +289,6 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A8BA4);
 INCLUDE_ASM("asm/field/nonmatchings/main/misc5", FieldInitializeParticlePrimitive);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A90B4);
-
-INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A915C);
-
-/*
-Matches, but g_FieldStoredImageDest seems to be part of some struct which needs recovery first.
 
 extern int D_800ADB34;
 extern RECT g_FieldStoredImageDest[];
@@ -264,7 +304,13 @@ void func_800A915C(void) {
         DrawSync(0);
     }
 }
-*/
 
-
-INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A91F0);
+void func_800A91F0(void) {
+    if (D_800ADB34 != 0) {
+        D_800ADB34 = 0;
+        setRECT(&g_FieldStoredImageDest[0], 0x3C0, 0x100, 0x40, 0x100);
+        LoadImage(&g_FieldStoredImageDest[0], D_800AFC70);
+        DrawSync(0);
+        HeapFree(D_800AFC70);
+    }
+}

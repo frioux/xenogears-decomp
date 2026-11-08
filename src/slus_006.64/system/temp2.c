@@ -61,20 +61,6 @@ void func_80024FF4(MATRIX* matrix) {
 // Loops over the linked list given by g_GfxImageList[g_GfxCurContext].
 // LoadImage on entries with an address, ClearImage otherwise.
 // Set the list to NULL afterwards.
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_80025044);
-/*
-Matches on GCC 2.7.2-970404, ASPSX 2.67
-Co-Authored-By: dezgeg <dezgeg@users.noreply.github.com>
-
-typedef struct {
-    RECT rect;
-    u_long* addr;
-    struct Image* pNext;
-} Image;
-
-int g_GfxCurContext;
-extern Image* g_GfxImageList[2];
-
 // GfxShapeTransfer
 void func_80025044(void) {
     Image* pListHead;
@@ -91,7 +77,6 @@ void func_80025044(void) {
 
     g_GfxImageList[g_GfxCurContext] = NULL;
 }
-*/
 
 // This function is in another TU than func_80024F64 due to GP Rel variables
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_800250E0);
@@ -223,17 +208,7 @@ void func_80025224(WorkListEntry* pTask, int handlerIndex) {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_80025258);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_8002541C);
-/*
-Matches on GCC 2.7.2-970404, ASPSX 2.67
-Co-Authored-By: dezgeg <dezgeg@users.noreply.github.com>
-Co-Authored-By: Mc-muffin <Mc-muffin@users.noreply.github.com>
-
-extern MATRIX D_8004FBB8;
 extern s32 D_80050100;
-void* g_GfxCurWorkBufferEnd; // End of Prim buffer
-extern u_long* g_GfxCurOT;
-void* g_GfxCurWorkBuffer; // Prim buffer
 
 void func_8002541C(WorkListEntry* pTask) {
     SVECTOR vec;
@@ -247,24 +222,25 @@ void func_8002541C(WorkListEntry* pTask) {
     MATRIX* pMatrix;
 
     pSpriteData = pTask->unk4;
-    if (pSpriteData->frameIdToRender == 0) {
+    // Read as unsigned: curSpriteFrame is s16 in the struct but -1 is a valid frame
+    if (*(u16*)&pSpriteData->curSpriteFrame == 0) {
         pPrim = g_GfxCurWorkBuffer;
         pNewBufferHead = pPrim + 1;
         if (pNewBufferHead < g_GfxCurWorkBufferEnd) {
             pMatrix = &D_8004FBB8;
-            vec.vx = pSpriteData->unkX >> 16;
-            vec.vy = pSpriteData->unkY >> 16;
-            vec.vz = pSpriteData->unkZ >> 16;
+            vec.vx = pSpriteData->position.x >> 16;
+            vec.vy = pSpriteData->position.y >> 16;
+            vec.vz = pSpriteData->position.z >> 16;
             g_GfxCurWorkBuffer = pNewBufferHead;
             SetRotMatrix(pMatrix);
             SetTransMatrix(pMatrix);
             nOTOffset = RotTransPers(&vec, &pPrim->x0, &nFlag, &nFlag) >> D_80050100;
-            pSpriteData->unk2E = nOTOffset;
+            pSpriteData->field_0x2e = nOTOffset;
 
-            // SetTile1 / 8 / 16
+            // SetTile1
             setlen(pPrim, 2);
-            *((u32*)&pPrim->r0) =  *((u32*)&pSpriteData->primR);
-            
+            *((u32*)&pPrim->r0) = *((u32*)&pSpriteData->red);
+
             AddPrim(&g_GfxCurOT[nOTOffset], pPrim);
 
             pPrimTPage = g_GfxCurWorkBuffer;
@@ -272,17 +248,13 @@ void func_8002541C(WorkListEntry* pTask) {
             if (pNewBufferHead_2 < g_GfxCurWorkBufferEnd) {
                 g_GfxCurWorkBuffer = pNewBufferHead_2;
 
-                // SpriteData->flags3C & 0x60 => tpage
-                // setDrawTPage does ((u_long *)(p))[1] = _get_mode(dfe, dtd, tpage)
-                // _get_mode(dfe, dtd, tpage) would OR in 0x200 and 0x400 if dfe or dtd was not 0,
-                // so we're only left with the tpage as a possibility
-                setDrawTPage(pPrimTPage, 0, 0, pSpriteData->flags3C & 0x60);
+                // Only the tpage bits of flags_0x3C make it into the primitive.
+                setDrawTPage(pPrimTPage, 0, 0, pSpriteData->field_0x3C_0 & 0x60);
                 AddPrim(&g_GfxCurOT[nOTOffset], pPrimTPage);
             }
         }
     }
 }
-*/
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_80025544);
 
