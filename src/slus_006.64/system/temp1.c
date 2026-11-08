@@ -4,33 +4,97 @@
 
 // Sprite / Animation functions
 
+// .sbss
+s32 D_800591B8;
+s32 D_800592EC;
+
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80022B2C);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80022CAC);
+s32 func_80022CAC(SpriteData* pSpriteData, s32 value) {
+    s32 scale = pSpriteData->field_0x3A;
+    s32 result = value;
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80022CDC);
+    if (scale) {
+        // split so gcc keeps the sign-correction temp of the signed / 1024
+        result = result * scale;
+        result = result / 1024;
+    }
+    return result;
+}
+
+void func_80022CDC(SpriteData* pSpriteData) {
+    pSpriteData->position.x += func_80022CAC(pSpriteData, pSpriteData->step.x >> 4) << 4;
+    pSpriteData->position.z += func_80022CAC(pSpriteData, pSpriteData->step.z >> 4) << 4;
+    func_80022B2C(pSpriteData);
+}
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80022D44);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80022DF4);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80022E8C);
+void func_80022E8C(void) {
+    D_800592EC++;
+    func_80022DF4();
+}
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80022EB8);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80022FC4);
+void func_80022FC4(SpriteData* pSpriteData, s32 count, u_int allocFlags) {
+    SpriteDataI1* pBase;
+    void* pFramesData;
+
+    if (pSpriteData->pBase->pFramesData) {
+        HeapFree(pSpriteData->pBase->pFramesData);
+    }
+    pFramesData = HeapAlloc(count * sizeof(SpriteFrameData), allocFlags);
+    pBase = pSpriteData->pBase;
+    pBase->pFramesData = pFramesData;
+    pBase->pCurRenderFramesData = pFramesData;
+}
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_8002303C);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_800230A8);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80023124);
+/* Best attempt: 79.47%. The original homes both by-value params to 0x28/0x2C and keeps the two
+   differences in int locals, which gcc only does here for the 8-byte struct form.
+typedef struct {
+    0x0 s16 x1;
+    0x2 s16 y1;
+    0x4 s16 x2;
+    0x6 s16 y2;
+} SVEC2Pair;
+
+s32 func_80023124(SVEC2Pair line) {
+    s32 dx = line.x1 - line.x2;
+    s32 dy = line.y1 - line.y2;
+
+    return -ratan2(dy, dx) & 0xFFF;
+}
+*/
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80023170);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_800231E0);
+// Blocks whose data table sits at a self-relative byte offset stored at 0xC
+typedef struct {
+    /* 0x0 */ u32 unk0;
+    /* 0x4 */ u32 unk4;
+    /* 0x8 */ u32 unk8;
+    /* 0xC */ u32 dataOffset;
+} AnimScriptLoopBlock;
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_800231F8);
+u32 func_800231E0(AnimScriptLoopBlock* pBlock) {
+    mem_addr offset = pBlock->dataOffset;
+
+    return *(u32*)(offset + (mem_addr)pBlock);
+}
+
+u32 func_800231F8(AnimScriptLoopBlock* pBlock) {
+    mem_addr offset = pBlock->dataOffset;
+
+    return *(u32*)(offset + (mem_addr)pBlock + 4) + 1;
+}
 
 extern int D_80059198;
 extern void func_800248D4(SpriteData* pSpriteData);
@@ -50,7 +114,16 @@ void AnimScriptTick(SpriteData* pSpriteData) {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80023290);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80023340);
+void func_80023340(SpriteData* pSpriteData, s32 count) {
+    SpriteDataI1* pBase;
+    void* pFramesData;
+
+    HeapFree(pSpriteData->pBase->pFramesData);
+    pFramesData = HeapAlloc(count * sizeof(SpriteFrameData), 0);
+    pBase = pSpriteData->pBase;
+    pBase->pCurRenderFramesData = pFramesData;
+    pBase->pFramesData = pFramesData;
+}
 
 // Allocate struct stuff
 AnimTask* func_800233A4(void* pData, int dataSize) {
@@ -71,11 +144,32 @@ AnimTask* func_800233A4(void* pData, int dataSize) {
     return pEntry;
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80023440);
+s32 func_80023440(u16* pFlags) {
+    u32 flags = *pFlags;
+    s32 numDirections = (flags >> 8) & 0x7;
+
+    if ((flags >> 14) & 0x1) {
+        numDirections += 8;
+    }
+    return numDirections;
+}
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80023468);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_800234AC);
+/* Best attempt: 98.29%, only the last store's address add has swapped v0/v1.
+void func_800234AC(SpriteData* pSpriteData) {
+    s32 i;
+
+    for (i = 0; i != NUM_8DIR_MOVEMENT_DIRECTIONS; i++) {
+        pSpriteData->pBase->pDirTransforms->dirTransforms[i].translationX = 0;
+        pSpriteData->pBase->pDirTransforms->dirTransforms[i].translationY = 0;
+        pSpriteData->pBase->pDirTransforms->dirTransforms[i].rotationX = 0;
+        pSpriteData->pBase->pDirTransforms->dirTransforms[i].rotationY = 0;
+        pSpriteData->pBase->pDirTransforms->dirTransforms[i].rotationZ = 0;
+    }
+}
+*/
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80023538);
 
@@ -91,13 +185,28 @@ void func_8002393C(SpriteDataI1* pBase) {
     pBase->pFramesData = NULL;
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80023950);
+void func_80023950(SpriteData* pSpriteData) {
+    pSpriteData->pBase = NULL;
+}
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80023958);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_800239A0);
+void func_800239A0(SpriteData* pSpriteData) {
+    pSpriteData->pBase = &pSpriteData->inner1;
+    func_8002393C(&pSpriteData->inner1);
+    pSpriteData->field_0x7C = &pSpriteData->inner3;
+    pSpriteData->pBase->pDirTransforms = &pSpriteData->directionTransforms;
+    pSpriteData->pVramData = &pSpriteData->i2CurPackage;
+    pSpriteData->pBase->pNextSpriteData = NULL;
+}
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_800239F4);
+void func_800239F4(SpriteData* pSpriteData) {
+    pSpriteData->pBase = &pSpriteData->inner1;
+    func_8002393C(&pSpriteData->inner1);
+    pSpriteData->pBase->pCurRenderFramesData = &pSpriteData->inner3;
+    pSpriteData->pBase->pDirTransforms = NULL;
+    pSpriteData->pBase->pNextSpriteData = NULL;
+}
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80023A48);
 
@@ -105,7 +214,13 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80023B84);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80023FD8);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80024294);
+extern void func_80024524(s32 arg0, s16 arg1, s16 arg2, s16 arg3, s16 arg4, s16 arg5);
+
+void func_80024294(s32 arg0, s16 arg1, s16 arg2, s16 arg3, s16 arg4, s16 arg5, s32 arg6) {
+    D_800591B8 = arg6;
+    func_80024524(arg0, arg1, arg2, arg3, arg4, arg5);
+    D_800591B8 = 0;
+}
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_800242F4);
 
