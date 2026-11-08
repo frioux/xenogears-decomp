@@ -480,7 +480,38 @@ void func_800A83B4(void) {
     }
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A8408);
+extern u_short D_800AEF14[];
+extern u_short D_800AEB68[];
+extern u_short D_800AEB6A[];
+extern u_short D_800AEB6C[];
+extern u_short D_800AEB6E[];
+
+void func_800A8408(int nQuad, int x, int y) {
+    u_long unk[6];
+    POLY_FT4* pPoly;
+    int nRect;
+    int nY;
+    int nW;
+    int nX;
+    int nH;
+    int u0;
+    int u1;
+    int v0;
+    int v1;
+
+    nRect = D_800AEF14[nQuad * 4] * 4;
+    nY = D_800AEB6A[nRect];
+    nW = D_800AEB6C[nRect];
+    nX = D_800AEB68[nRect];
+    pPoly = &D_800AFC60[g_FieldCurRenderContextIndex][nQuad];
+    nH = D_800AEB6E[nRect];
+    nY += y;
+    u0 = nX + x;
+    u1 = u0 + nW;
+    v1 = nY + nH - 1;
+    v0 = nY - 1;
+    FieldClampPolyFT4UVs(pPoly, u0, v1, u1, v1, u0, v0, u1, v0);
+}
 
 /* Best attempt, 71.78%: only instruction scheduling differs.
    The original frame has 0x18 unused bytes, hence `unk`. Two facts learned: the
@@ -605,7 +636,68 @@ extern u_short D_800AF292[]; // v3
     }
 */
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc5", FieldInitializeParticlePrimitive);
+extern u_short D_800AF27C[]; // x0
+extern u_short D_800AF27E[]; // y0
+extern u_short D_800AF280[]; // x1
+extern u_short D_800AF282[]; // y1
+extern u_short D_800AF284[]; // u0
+extern u_short D_800AF286[]; // v0
+extern u_short D_800AF288[]; // u1
+extern u_short D_800AF28A[]; // v1
+extern u_short D_800AF28C[]; // u2
+extern u_short D_800AF28E[]; // v2
+extern u_short D_800AF290[]; // u3
+extern u_short D_800AF292[]; // v3
+
+void FieldInitializeParticlePrimitive(ParticlePrimitive* pParticle, int shapeIndex, int nTextureMode) {
+    POLY_FT4* pPoly;
+    POLY_FT4* pPoly2;
+    int nIndex;
+    int x0;
+    int y0;
+    int x1;
+    int y1;
+    char _pad[0x58];
+
+    pPoly = &pParticle->poly[0];
+    pPoly2 = &pParticle->poly[1];
+    SetPolyFT4(pPoly);
+
+    nIndex = shapeIndex * 0xC;
+    x0 = D_800AF27C[nIndex];
+    y0 = D_800AF27E[nIndex];
+    x1 = D_800AF280[nIndex];
+    y1 = D_800AF282[nIndex];
+
+    pParticle->vertices[0].vz = 0;
+    pParticle->vertices[1].vz = 0;
+    pParticle->vertices[2].vz = 0;
+    pParticle->vertices[3].vz = 0;
+
+    setRGB0(pPoly, 0x80, 0x80, 0x80);
+
+    pParticle->vertices[0].vx = (x1 << 4) - (x0 << 4);
+    pParticle->vertices[0].vy = (y1 << 4) - (y0 << 4);
+    pParticle->vertices[1].vx = (x0 << 4) + (x1 << 4);
+    pParticle->vertices[1].vy = (y0 << 4) + (y1 << 4);
+    pParticle->vertices[2].vx = (x1 << 4) - (x0 << 4);
+    pParticle->vertices[2].vy = (y0 << 4) + (y1 << 4);
+    pParticle->vertices[3].vx = (x0 << 4) + (x1 << 4);
+    pParticle->vertices[3].vy = (y0 << 4) + (y1 << 4);
+
+    FieldClampPolyFT4UVs(pPoly,
+        D_800AF284[nIndex], D_800AF286[nIndex] + 0x40,
+        D_800AF288[nIndex] - 1, D_800AF28A[nIndex] + 0x40,
+        D_800AF28C[nIndex], D_800AF28E[nIndex] + 0x3F,
+        D_800AF290[nIndex] - 1, D_800AF292[nIndex] + 0x3F);
+
+    SetSemiTrans(pPoly, 0x1);
+    pPoly->tpage = GetTPage(0x0, nTextureMode, 0x3C0, 0x140);
+    pPoly->clut = GetClut(0x100, 0xF7);
+
+    *pPoly2 = *pPoly;
+}
+
 
 extern int D_800ADB34;
 extern u_long* D_800AFC70;
