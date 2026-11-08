@@ -236,6 +236,7 @@ g_FieldParticleCurActor = 0x800ADB44;
 g_FieldRenderContextUseOT2 = 0x800ADB4C;
 D_800ADB6C = 0x800ADB6C; // type:s32 size:4
 D_800ADB74 = 0x800ADB74; // type:s32 size:4
+D_800ADB98 = 0x800ADB98; // type:s32 size:4
 g_FrameDeltaTime = 0x800ADBA4;
 g_pFieldTriggerZones = 0x800ADBF4;
 g_FieldCurScriptFile = 0x800ADBF8;

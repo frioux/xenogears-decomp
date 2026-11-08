@@ -698,7 +698,72 @@ int func_8007B6C4(s16 angle, SVECTOR* pPoints, VECTOR* pOut) {
 }
 */
 
+int func_8007C694(VECTOR* pVec, VECTOR* pPos, ActorData* pActor, SVECTOR* pPoints, SVECTOR* pOut, int nMode);
+int func_8007B6C4(s16 angle, SVECTOR* pPoints, VECTOR* pOut);
+extern s32 D_800ADB98;
+
 INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007B814);
+/* Best attempt: 96.33% (684 bytes, same size as the original). Two differences:
+   gcc hoists the first `lw v0,0(pVec)` into the stub block that computes a0 for
+   the shared func_8007B6C4 tail, and it materialises (angle -/+ 0x100) in v0
+   where the original keeps the temp in s0. Prototypes above are the ones that
+   attempt needs; D_800ADB98 = 0x800ADB98 is declared in symbol_addrs.field.txt.
+// Probes the walkmesh around `angle` and drops pVec onto the floor it finds there
+int func_8007B814(VECTOR* pVec, ActorData* pActor, SVECTOR* pPoints, s16 angle) {
+    VECTOR v;
+    SVECTOR out;
+    VECTOR pad[2];
+    int nAngle;
+
+    nAngle = angle & 0xFFF;
+    v.vx = pVec->vx + rsin(nAngle) * 64;
+    v.vz = pVec->vz - rcos(nAngle) * 64;
+    if (func_8007C694(&v, &pActor->position, pActor, pPoints, &out, -1) == -1) {
+        v.vx = pVec->vx;
+        v.vy = pVec->vy;
+        v.vz = pVec->vz;
+        func_8007B6C4(angle, pPoints, &v);
+    } else {
+        nAngle = (angle - 0x100) & 0xFFF;
+        v.vx = pVec->vx + rsin(nAngle) * 64;
+        v.vz = pVec->vz - rcos(nAngle) * 64;
+        if (func_8007C694(&v, &pActor->position, pActor, pPoints, &out, -1) == -1) {
+            v.vx = pVec->vx;
+            v.vy = pVec->vy;
+            v.vz = pVec->vz;
+            func_8007B6C4(angle, pPoints, &v);
+        } else {
+            nAngle = (angle + 0x100) & 0xFFF;
+            v.vx = pVec->vx + rsin(nAngle) * 64;
+            v.vz = pVec->vz - rcos(nAngle) * 64;
+            if (func_8007C694(&v, &pActor->position, pActor, pPoints, &out, -1) == -1) {
+                v.vx = pVec->vx;
+                v.vy = pVec->vy;
+                v.vz = pVec->vz;
+                func_8007B6C4(angle, pPoints, &v);
+            } else {
+                v.vx = pVec->vx;
+                v.vy = pVec->vy;
+                v.vz = pVec->vz;
+            }
+        }
+    }
+
+    if (func_8007C694(&v, &pActor->position, pActor, pPoints, &out, 0) == -1) {
+        return -1;
+    }
+    if (pActor->scriptFlags.flags & 0x40000) {
+        out.vy = *(u_short*)&pActor->unkEC;
+    } else if ((out.vy << 16) < pActor->position.vy && D_800ADB98 == 0) {
+        return -1;
+    }
+    v.vy = (out.vy << 16) - pActor->position.vy;
+    pVec->vx = v.vx;
+    pVec->vy = v.vy;
+    pVec->vz = v.vz;
+    pActor->curYPos = (pActor->position.vy + pVec->vy) >> 16;
+    return 0;
+*/
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007BAC0);
 
