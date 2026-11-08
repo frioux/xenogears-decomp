@@ -28,9 +28,52 @@ void func_80022CDC(SpriteData* pSpriteData) {
     func_80022B2C(pSpriteData);
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80022D44);
+extern void func_8001D2B0(SpriteData* pSpriteData, s32 frameIndex);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80022DF4);
+void func_80022D44(SpriteData* pSpriteData) {
+    s32 animIndex;
+    u16 animFlags;
+    s32 frameIndex;
+
+    // split so gcc keeps the shift result in the register of the masked index
+    animIndex = (u32)pSpriteData->flags_0xA8 >> 11;
+    animIndex &= 0x3F;
+    if (animIndex < 0) {
+        animIndex = 0;
+    }
+    animFlags = ((u16*)pSpriteData->field_0x54)[animIndex];
+    frameIndex = animFlags & 0x1FF;
+    if (animFlags & 0x200) {
+        pSpriteData->flags_0xAC |= 8;
+    } else {
+        pSpriteData->flags_0xAC &= ~8;
+    }
+    *(u32*)((u8*)pSpriteData + 0x3C) = (*(u32*)((u8*)pSpriteData + 0x3C) & ~8) |
+                                       (((((u32)pSpriteData->flags_0xAC >> 3) & 1) ^
+                                         (((u32)pSpriteData->flags_0xAC >> 2) & 1))
+                                        << 3);
+    func_8001D2B0(pSpriteData, frameIndex);
+}
+
+extern void AnimScriptTick(SpriteData* pSpriteData);
+
+// K&R definition: func_80022E8C below calls it with no arguments, as the original does.
+void func_80022DF4(pEntry) WorkListEntry* pEntry;
+{
+    SpriteData* pSpriteData = pEntry->unk4;
+
+    AnimScriptTick(pSpriteData);
+    func_80022CDC(pSpriteData);
+    if (pSpriteData->pSpriteBytecode == NULL) {
+        pEntry->onFreeCallback(pEntry);
+    } else if (((u32)pSpriteData->flags_0xAC >> 6) & 1) {
+        AnimScriptTick(pSpriteData);
+        func_80022CDC(pSpriteData);
+        if (pSpriteData->pSpriteBytecode == NULL) {
+            pEntry->onFreeCallback(pEntry);
+        }
+    }
+}
 
 void func_80022E8C(void) {
     D_800592EC++;
@@ -130,7 +173,28 @@ void AnimScriptTick(SpriteData* pSpriteData) {
     }
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80023290);
+void func_80023290(SpriteData* pSpriteData, s32 direction) {
+    s32 animType;
+    s32 dir;
+
+    *(u32*)((u8*)pSpriteData + 0x3C) =
+        (*(u32*)((u8*)pSpriteData + 0x3C) & ~0xE0) | ((direction & 7) << 5);
+    if (direction & 7) {
+        pSpriteData->prim |= 2;
+    } else {
+        pSpriteData->prim &= ~2;
+    }
+    animType = (pSpriteData->field_0x40 >> 13) & 0xF;
+    if (animType == 8 || animType == 9) {
+        dir = (*(u32*)((u8*)pSpriteData + 0x3C) >> 5) & 7;
+        if (dir) {
+            *(u32*)((u8*)pSpriteData + 0x3C) =
+                (*(u32*)((u8*)pSpriteData + 0x3C) & ~0xE0) | (((dir - 1) & 7) << 5);
+        }
+    } else {
+        func_8001F6B0(pSpriteData);
+    }
+}
 
 void func_80023340(SpriteData* pSpriteData, s32 count) {
     SpriteDataI1* pBase;
@@ -289,7 +353,13 @@ void func_800242F4(SpriteData* pSpriteData, void* pAnimFile, s16 arg2, s16 arg3,
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_8002435C);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80024524);
+void func_80024524(s32 arg0, s16 arg1, s16 arg2, s16 arg3, s16 arg4, s16 arg5) {
+    SpriteData* pSpriteData;
+
+    pSpriteData = HeapAlloc(sizeof(SpriteData), 0);
+    pSpriteData->allocatedDataSize = sizeof(SpriteData);
+    func_8002435C(pSpriteData, (void*)arg0, arg1, arg2, arg3, arg4, arg5);
+}
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_800245D8);
 
