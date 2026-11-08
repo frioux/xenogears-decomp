@@ -785,7 +785,30 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/model", func_8002FCFC);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/model", func_8002FF0C);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/model", func_8003014C);
+// A value that eases toward unk4 by unkC per call, clamped so that it never
+// overshoots it.
+typedef struct {
+    /* 0x0 */ u32 unk0;
+    /* 0x4 */ s32 unk4;
+    /* 0x8 */ s32 unk8;
+    /* 0xC */ s32 unkC;
+} ModelRampValue; // Size: 0x10
+
+s32 func_8003014C(ModelRampValue* pRamp) {
+    if (pRamp->unk8 > pRamp->unk4) {
+        pRamp->unk8 -= pRamp->unkC;
+        if (pRamp->unk8 < pRamp->unk4) {
+            pRamp->unk8 = pRamp->unk4;
+        }
+    }
+    if (pRamp->unk8 < pRamp->unk4) {
+        pRamp->unk8 += pRamp->unkC;
+        if (pRamp->unk4 < pRamp->unk8) {
+            pRamp->unk8 = pRamp->unk4;
+        }
+    }
+    return pRamp->unk8;
+}
 
 // Vertex data as the packet renderer touches it: three unsigned 16-bit
 // components followed by padding.
@@ -808,7 +831,29 @@ void func_800301C8(ModelVertex* pDest, ModelVertex* pSrc, int count, short* pInd
     }
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/model", func_80030228);
+// A per-vertex offset: the fourth component names the destination vertex the
+// first three are added to.
+typedef struct {
+    /* 0x0 */ s16 x;
+    /* 0x2 */ s16 y;
+    /* 0x4 */ s16 z;
+    /* 0x6 */ s16 index;
+} ModelVertexDelta; // Size: 0x8
+
+void func_80030228(ModelVertex* pDest, ModelVertexDelta* pDeltas, int count, int scale) {
+    ModelVertex* pVertex;
+
+    if (scale == 0) {
+        return;
+    }
+    while (--count != -1) {
+        pVertex = (ModelVertex*)((pDeltas->index << 3) + (mem_addr)pDest);
+        pVertex->x += (pDeltas->x * scale) >> 12;
+        pVertex->y += (pDeltas->y * scale) >> 12;
+        pVertex->z += (pDeltas->z * scale) >> 12;
+        pDeltas++;
+    }
+}
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/model", func_800302D4);
 
@@ -857,7 +902,16 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/model", func_80030EE8);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/model", func_8003101C);
 
+// Handwritten assembly: the code word is materialised with `li $at`, which no
+// C expression reproduces (gcc 2.7.2 never allocates $at for a value temp).
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/model", func_800315A0);
+/* Best C match, 72.78%: differs only in $at/$t0 vs $v0/$v1.
+void func_800315A0(u32* pLink, u32 addr) {
+    u32 link = *pLink;
+    *pLink = addr & 0xFFFFFF;
+    *(u32*)(addr & 0xFFFFFF) = link | 0x4000000;
+}
+*/
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/model", func_800315C4);
 
