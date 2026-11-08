@@ -76,3 +76,14 @@ build_variables = {
 paths = [
     "{binary}/graphics/line_scroll.",
 ]
+
+# lib_gear/main/main was built with div expansion (the original object is full of
+# 'break' sequences around its divisions). Must stay after XenoLibrary: presets
+# later in the file overwrite an earlier preset that lists the same path.
+[[build_preset]]
+name = "XenoLibraryDiv"
+build_variables = {
+    gcc = "gcc-2.6.0-psx",
+    maspsx_flags = "--expand-div --use-comm-section --run-assembler"
+}
+paths = [ "lib_gear/main/main." ]

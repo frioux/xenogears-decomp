@@ -1,20 +1,18 @@
 #include "common.h"
 #include "field/actor.h"
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/animation_scripts", func_8001FBA4);
 /*
 Matches on GCC 2.7.2-970404, ASPSX 2.67
 Co-Authored-By: eagleflo <eagleflo@users.noreply.github.com>
-
+*/
 void* func_8001FBA4(SpriteData* pSpriteData, u8* pIndex) {
     u8 index = *pIndex;
     if (!(index & 0x80)) {
         s32 signedIndex = (s8)index;
-        return &pSpriteData->stack[pSpriteData->stackIndex + signedIndex];
+        return &pSpriteData->stack[(s8)pSpriteData->stackIndex + signedIndex];
     }
     return &pSpriteData->field_0x88[index & 0x7F];
 }
-*/
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/animation_scripts", func_8001FBE4);
 
@@ -28,13 +26,29 @@ s32 func_80021AD8(s32 color, s32 value) {
     return color;
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/animation_scripts", func_80021B04);
+void func_80021B04(SVEC* pVector, s16 x, s16 y, s16 z) {
+    pVector->x = x;
+    pVector->y = y;
+    pVector->z = z;
+}
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/animation_scripts", func_80021B14);
+void func_80021B14(IVEC3* pVector, s32 x, s32 y, s32 z) {
+    pVector->x = x;
+    pVector->y = y;
+    pVector->z = z;
+}
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/animation_scripts", func_80021B24);
+void func_80021B24(SVEC* pDest, SVEC* pSrc) {
+    pDest->x = pSrc->x;
+    pDest->y = pSrc->y;
+    pDest->z = pSrc->z;
+}
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/animation_scripts", func_80021B48);
+void func_80021B48(IVEC3* pDest, IVEC3* pSrc) {
+    pDest->x = pSrc->x;
+    pDest->y = pSrc->y;
+    pDest->z = pSrc->z;
+}
 
 void func_80021B6C(SpriteData* pSpriteData) {
     pSpriteData->prim |= 1;
@@ -49,41 +63,75 @@ void SpriteSetColor(SpriteData *pSpriteData, u8 red, u8 green, u8 blue) {
     func_8001F6B0(pSpriteData);
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/animation_scripts", func_80021BCC);
+void func_80021BCC(SpriteData* pSpriteData, u32 animIndex) {
+    pSpriteData->flags_0xAC = (pSpriteData->flags_0xAC & 0xFFF8007F) | ((animIndex & 0xFFF) << 7);
+}
 
 void SpriteSetSpecialAnimFile(SpriteData* pSpriteData, void* pAnimFile) {
     pSpriteData->pSpecialAnimFile = pAnimFile;
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/animation_scripts", func_80021BF8);
+void func_80021BF8(SpriteData* pSpriteData, void* pCallback) {
+    pSpriteData->field_0x68 = pCallback;
+}
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/animation_scripts", func_80021C00);
+void func_80021C00(SpriteData* pSpriteData, u32 value) {
+    pSpriteData->field_0x40 = (pSpriteData->field_0x40 & 0xFFFFE0FF) | ((value & 0x1F) << 8);
+}
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/animation_scripts", AnimScriptStackPopU8);
+// stackIndex is a signed offset into stack[] (pushes move it below zero), even
+// though the field itself is a u8.
 /*
 Matches on GCC 2.7.2-970404, ASPSX 2.67
 Co-Authored-By: Mc-muffin <Mc-muffin@users.noreply.github.com>
-
+*/
 u_char AnimScriptStackPopU8(SpriteData* pSpriteData) {
     u_char nStackValue;
 
-    nStackValue = pSpriteData->stack[pSpriteData->stackIndex];
+    nStackValue = pSpriteData->stack[(s8)pSpriteData->stackIndex];
     pSpriteData->stackIndex++;
     return nStackValue;
 }
-*/
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/animation_scripts", AnimScriptStackPopU16);
+s16 AnimScriptStackPopU16(SpriteData* pSpriteData) {
+    s8 stackIndex = (s8)pSpriteData->stackIndex;
+    s16 value = pSpriteData->stack[stackIndex] + (pSpriteData->stack[stackIndex + 1] << 8);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/animation_scripts", AnimScriptStackPopU24);
+    pSpriteData->stackIndex += 2;
+    return value;
+}
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/animation_scripts", AnimScriptStackPushU8);
+s32 AnimScriptStackPopU24(SpriteData* pSpriteData) {
+    s8 stackIndex = (s8)pSpriteData->stackIndex;
+    s32 value = pSpriteData->stack[stackIndex] + (pSpriteData->stack[stackIndex + 1] << 8) +
+                (pSpriteData->stack[stackIndex + 2] << 16);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/animation_scripts", AnimScriptStackPushU16);
+    pSpriteData->stackIndex += 3;
+    return value;
+}
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/animation_scripts", AnimScriptStackPushU24);
+void AnimScriptStackPushU8(SpriteData* pSpriteData, u8 value) {
+    pSpriteData->stackIndex -= 1;
+    pSpriteData->stack[(s8)pSpriteData->stackIndex] = value;
+}
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/animation_scripts", func_80021D3C);
+void AnimScriptStackPushU16(SpriteData* pSpriteData, u16 value) {
+    pSpriteData->stackIndex -= 2;
+    pSpriteData->stack[(s8)pSpriteData->stackIndex] = value;
+    pSpriteData->stack[(s8)pSpriteData->stackIndex + 1] = value >> 8;
+}
+
+void AnimScriptStackPushU24(SpriteData* pSpriteData, s32 value) {
+    pSpriteData->stackIndex -= 3;
+    pSpriteData->stack[(s8)pSpriteData->stackIndex] = value;
+    pSpriteData->stack[(s8)pSpriteData->stackIndex + 1] = value >> 8;
+    pSpriteData->stack[(s8)pSpriteData->stackIndex + 2] = value >> 16;
+}
+
+void func_80021D3C(SpriteData* pSpriteData, s32 x, s32 z) {
+    pSpriteData->position.z = z << 16;
+    pSpriteData->position.x = x << 16;
+}
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/animation_scripts", func_80021D50);
 
@@ -91,9 +139,15 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/animation_scripts", func_80021E
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/animation_scripts", func_80021FB8);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/animation_scripts", func_80021FC0);
+void func_80021FC0(SpriteData* pSpriteData, s32 moveSpeed) {
+    pSpriteData->moveSpeed = moveSpeed;
+    func_80022974(pSpriteData);
+}
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/animation_scripts", func_80021FE0);
+void func_80021FE0(SpriteData* pSpriteData, s16 direction) {
+    pSpriteData->direction = direction;
+    func_80022974(pSpriteData);
+}
 
 void SpriteSetScale(SpriteData* pSpriteData, short scale) {
     SpriteDataI1* pBase = pSpriteData->pBase;
@@ -147,11 +201,32 @@ void SpriteComputeTransformMatrix(SpriteData* pSpriteData) {
 }
 
 // Set animation package
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/animation_scripts", func_80022224);
+extern u8 D_800591AD;
+extern u8 D_800591B0;
+extern u8 D_800591B3;
+
+void func_80022224(SpriteAnimPackage* pAnimPackage, SpriteAnimPackageFileHeader* pAnimPackageFile, SVEC2 tex,
+                   SVEC2 clut, u32 field_0x3C_1) {
+    s32 numAnimations;
+
+    pAnimPackage->tex = tex;
+    pAnimPackage->clut = clut;
+    pAnimPackage->pPalette = (void*)(pAnimPackageFile->paletteOffset + (mem_addr)pAnimPackageFile);
+    pAnimPackage->pFrames = (void*)(pAnimPackageFile->framesOffset + (mem_addr)pAnimPackageFile);
+    pAnimPackage->pAnimations = (void*)(pAnimPackageFile->animationsOffset + (mem_addr)pAnimPackageFile);
+    D_800591B0 = 0;
+
+    if (D_800591AD) {
+        numAnimations = (*(u16*)pAnimPackage->pAnimations >> 6) & 0x3F;
+
+        if (numAnimations != 0) {
+            D_800591B3 = numAnimations;
+        }
+    }
+}
 
 extern s32 func_8001EE68(void*);
-extern void func_80022224(SpriteAnimPackage*, void*, SVEC2, SVEC2, u32);
-extern u8 D_800591AD;
+extern void func_80022224(SpriteAnimPackage*, SpriteAnimPackageFileHeader*, SVEC2, SVEC2, u32);
 
 void func_800222BC(SpriteData* pSprite, SpriteAnimPackageFileHeader* pAnimPackageFile) {
     SpriteAnimPackage* pAnimPackage;
@@ -184,6 +259,16 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/animation_scripts", func_800223
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/animation_scripts", func_80022660);
 
 // Recompute animation speed
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/animation_scripts", func_80022974);
+void func_80022974(SpriteData* pSpriteData) {
+    s32 speed;
+    s32 scale;
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/animation_scripts", func_80022A00);
+    speed = (pSpriteData->moveSpeed >> 4) << 8;
+    scale = speed / (s32)(((u32)pSpriteData->flags_0xAC >> 7) & 0xFFF);
+    pSpriteData->step.x = ((rsin(pSpriteData->direction) >> 2) * scale) >> 6;
+    pSpriteData->step.z = -((rcos(pSpriteData->direction) >> 2) * scale) >> 6;
+}
+
+s32 func_80022A00(SpriteData* pSpriteData) {
+    return pSpriteData->position.x;
+}

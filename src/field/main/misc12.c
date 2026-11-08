@@ -373,7 +373,19 @@ void func_8009AE0C(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer++;
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc12", func_8009AE3C);
+void func_8009AE3C(s32 start, s32 duration) {
+    if (duration != 0) {
+        g_Scene.unk48 |= FIELD_SCENE_INTERPOLATING_SCREEN_Z;
+        g_Scene.unk88 = -(s32)((g_Scene.sceneScrZ - start) << 16) / duration;
+        g_Scene.unk80 = duration;
+        g_Scene.unk84 = g_Scene.sceneScrZ << 16;
+    } else {
+        D_800B21D8[0] += 2;
+        g_Scene.sceneScrZ = start;
+        g_Scene.unk80 = 0;
+    }
+    g_Scene.unk48 &= 0xDFFF;
+}
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc12", func_8009AEE0);
 

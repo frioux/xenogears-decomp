@@ -418,7 +418,23 @@ void func_8001D3F4(SpriteData* pSpriteData) {
     }
 }
 
-// 61.88%: reads SpriteData->curSpriteFrame as unsigned (`lhu`), which needs the
-// field typed u16 in field/actor.h.
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/work_list", func_8001D468);
+void func_8001DAE8(SpriteData* pSpriteData, u16 animFrame, void* pVramData);
+
+void func_8001D468(void) {
+    SpriteData* pSpriteData;
+
+    pSpriteData = D_80059190;
+    while (pSpriteData != NULL) {
+        // Read as unsigned: curSpriteFrame is s16 in the struct but -1 is a valid frame
+        if (*(u16*)&pSpriteData->curSpriteFrame == 0) {
+            pSpriteData->field_0x40 &= ~0xFC;
+        } else {
+            func_8001DAE8(pSpriteData, *(u16*)&pSpriteData->curSpriteFrame, pSpriteData->pVramData);
+        }
+
+        pSpriteData = pSpriteData->pBase->pNextSpriteData;
+    }
+
+    D_80059190 = NULL;
+}
 

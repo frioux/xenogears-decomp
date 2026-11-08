@@ -81,10 +81,18 @@ typedef struct {
 
 /* Unknown list */
 typedef struct {
-    /* 0x0 */ u8 unk0;
-    /* 0x1 */ u8 unk1[0x3];
-    /* 0x4 */ s16 unk4;
-    /* 0x6 */ u8 unk6[0xE];
+    /* 0x0  */ u8 unk0;
+    /* 0x1  */ u8 unk1;
+    /* 0x2  */ u8 unk2;
+    /* 0x3  */ u8 unk3;
+    /* 0x4  */ s16 unk4;
+    /* 0x6  */ s16 unk6;
+    /* 0x8  */ s16 unk8;
+    /* 0xA  */ s16 unkA;
+    /* 0xC  */ s16 unkC;
+    /* 0xE  */ s16 unkE;
+    /* 0x10 */ s16 unk10;
+    /* 0x12 */ s16 unk12;
 } Temp3; // Size: 0x14
 
 typedef struct {
@@ -173,7 +181,12 @@ typedef struct {
     /* 0x35  */ u8 unk35;
     /* 0x36  */ u8 unk36;
     /* 0x37  */ u8 unk37;
-    /* 0x38  */ u8 unk38[0x12];
+    /* 0x38  */ u8 unk38[0x4];
+    /* 0x3C  */ u16 unk3C;
+    /* 0x3E  */ u16 unk3E;
+    /* 0x40  */ s16 unk40;
+    /* 0x42  */ s16 unk42;
+    /* 0x44  */ u8 unk44[0x6];
     /* 0x4A  */ u16 unk4A;
     /* 0x4C  */ u8 unk4C[0x14];
     /* 0x60  */ s16 ground; // seems to be some kind of offset? maybe "below this point model will clip through the ground"?

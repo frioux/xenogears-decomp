@@ -8,7 +8,13 @@
 
 extern s16 g_CamEyeMovementDuration;
 extern s16 g_CamAtMovementDuration;
+extern s16 g_FieldCameraMode;
+extern s32 D_800AF930;
+extern s16 D_800AF936;
+extern s16 D_800AF938;
+extern s32 D_800B21D8[];
 extern VECTOR g_CamAtMovementFrom;
+extern s16 D_800AF93A[]; // Part of a struct
 extern VECTOR g_CamAtMovementTo;
 extern VECTOR g_CamEyeMovementFrom;
 extern VECTOR g_CamEyeMovementTo;
@@ -201,15 +207,43 @@ void FieldScriptWriteCameraTweenPosition(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 7;
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/camera/camera_movement", func_80090C20);
+void func_80090C20(void) {
+    if (SCRIPT_READ_U8_REL(3) == 0) {
+        FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(1), D_800AF938);
+    } else {
+        D_800AF938 = FieldScriptVMGetInstructionArgument(1);
+    }
+    g_FieldScriptMaxInstructionCount += 1;
+    g_FieldScriptVMCurActor->scriptInstructionPointer += 4;
+}
 
-INCLUDE_ASM("asm/field/nonmatchings/camera/camera_movement", func_80090CB8);
+void func_80090CB8(void) {
+    if (SCRIPT_READ_U8_REL(3) == 0) {
+        FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(1), D_800AF936);
+    } else {
+        D_800AF936 = FieldScriptVMGetInstructionArgument(1);
+    }
+    g_FieldScriptMaxInstructionCount += 1;
+    g_FieldScriptVMCurActor->scriptInstructionPointer += 4;
+}
 
-INCLUDE_ASM("asm/field/nonmatchings/camera/camera_movement", func_80090D50);
+void func_80090D50(void) {
+    if (SCRIPT_READ_U8_REL(3) == 0) {
+        FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(1), D_800AF930);
+    } else {
+        D_800AF930 = SCRIPT_IMM_ARG(1);
+    }
+    g_FieldScriptMaxInstructionCount += 1;
+    g_FieldScriptVMCurActor->scriptInstructionPointer += 4;
+}
 
-INCLUDE_ASM("asm/field/nonmatchings/camera/camera_movement", func_80090DEC);
-
-extern s16 D_800AF93A[]; // Part of a struct
+void func_80090DEC(void) {
+    FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(1), D_800AF938);
+    FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(2), D_800AF936);
+    FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(3), D_800AF930);
+    g_FieldScriptMaxInstructionCount += 1;
+    g_FieldScriptVMCurActor->scriptInstructionPointer += 7;
+}
 
 void func_80090E70(void) {
     VECTOR camAtDest;
@@ -260,9 +294,58 @@ void func_80090E70(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 7;
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/camera/camera_movement", func_80091008);
+void func_80091008(VECTOR* pTarget, VECTOR* pParameter, s32 angle) {
+    MATRIX matrix;
+    VECTOR difference;
+    VECTOR vecResult;
+    SVECTOR rot;
 
-INCLUDE_ASM("asm/field/nonmatchings/camera/camera_movement", func_800910C0);
+    rot.vx = 0;
+    rot.vy = angle;
+    rot.vz = 0;
+    PushMatrix();
+    RotMatrix(&rot, &matrix);
+    difference.vx = pParameter->vx - pTarget->vx;
+    difference.vy = pParameter->vy - pTarget->vy;
+    difference.vz = pParameter->vz - pTarget->vz;
+    ApplyMatrixLV(&matrix, &difference, &vecResult);
+    pTarget->vx = vecResult.vx + pParameter->vx;
+    pTarget->vz = vecResult.vz + pParameter->vz;
+    PopMatrix();
+}
+
+void func_800910C0(void) {
+    VECTOR parameter;
+    VECTOR vecResult;
+    s32 angle;
+    s32 temp;
+    s32 factor;
+    s32 yAngle;
+
+    parameter.vx = CONV_FROM_GTE(FieldScriptArgument1(1, SCRIPT_READ_U8_REL(0xD)));
+    parameter.vz = CONV_FROM_GTE(FieldScriptArgument2(3, SCRIPT_READ_U8_REL(0xD)));
+    parameter.vy = CONV_FROM_GTE(FieldScriptArgument3(5, SCRIPT_READ_U8_REL(0xD)));
+    yAngle = FieldScriptArgument4(7, SCRIPT_READ_U8_REL(0xD));
+    temp = FieldScriptArgument5(9, SCRIPT_READ_U8_REL(0xD));
+    factor = FieldScriptArgument6(0xB, SCRIPT_READ_U8_REL(0xD));
+
+    // 0xC00 = 270 degrees
+    angle = ((temp * 0xB60) >> 8) + 0xC00;
+
+    // (number << 5) >> 0x10 is division by 0x800 = 180 degrees
+    vecResult.vy = ((-((rsin(angle) * factor) << 5) >> 0x10) * D_800AF93A[0] * 0x10) + parameter.vy;
+    vecResult.vz = ((((rcos(angle) * factor) << 5) >> 0x10) * D_800AF93A[0] * 0x10) + parameter.vz;
+    vecResult.vx = parameter.vx;
+
+    func_80091008(&vecResult, &parameter, yAngle);
+
+    FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG_ALIGNED(7), vecResult.vx >> 0x10);
+    FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG_ALIGNED(8), vecResult.vz >> 0x10);
+    FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG_ALIGNED(9), vecResult.vy >> 0x10);
+
+    g_FieldScriptMaxInstructionCount += 1;
+    g_FieldScriptVMCurActor->scriptInstructionPointer += 0x14;
+}
 
 void func_80091318(void) {
     VECTOR parameter;

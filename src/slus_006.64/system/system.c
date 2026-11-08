@@ -11,6 +11,81 @@ extern u8 g_SystemPaletteData[];
 extern s16 g_SystemPalette1;
 extern s16 g_SystemPalette2;
 
+// Font file metrics, filled in by SystemInitializeFont
+extern void* D_8005935C;
+extern int D_8005934C;
+extern int D_80059350;
+extern int D_80059354;
+extern int D_80059358;
+extern int D_80059364;
+
+// Scratch buffer the number/glyph converters write to
+extern u8 D_8005A0E4[];
+
+
+// A rendered string: glyph buffer, palette and the stack of data buffers that
+// SystemRenderStringEntry walks.
+typedef struct {
+    /* 0x0 */ u8 red;
+    /* 0x1 */ u8 green;
+    /* 0x2 */ u8 blue;
+    /* 0x3 */ undefined8 unk3;
+    /* 0x4 */ undefined8 unk4[0x10];
+} SystemStringLine; // Size: 0x14
+
+typedef struct {
+    /* 0x0  */ undefined8 unk0[0x4];
+    /* 0x4  */ SystemStringLine lines[4];
+    /* 0x54 */ undefined8 unk54[0x4];
+    /* 0x58 */ s16 unk58;
+    /* 0x5A */ undefined8 unk5A[2];
+    /* 0x5C */ u8 unk5C;
+    /* 0x5D */ undefined8 unk5D;
+    /* 0x5E */ s16 unk5E;
+} SystemStringChar; // Size: 0x60
+
+typedef struct SystemStringNode {
+    /* 0x0 */ struct SystemStringNode* pNext;
+    /* 0x4 */ void* pData;
+} SystemStringNode; // Size: 0x8
+
+typedef struct {
+    /* 0x00 */ s16 unk0;
+    /* 0x02 */ s16 unk2;
+    /* 0x04 */ s16 unk4;
+    /* 0x06 */ s16 unk6;
+    /* 0x08 */ undefined8 unk8[4];
+    /* 0x0C */ s16 maxChars;
+    /* 0x0E */ s16 unkE;
+    /* 0x10 */ u16 flags;
+    /* 0x12 */ undefined8 unk12[2];
+    /* 0x14 */ s16 unk14;
+    /* 0x16 */ s16 unk16;
+    /* 0x18 */ s16 unk18;
+    /* 0x1A */ undefined8 unk1A[2];
+    /* 0x1C */ void* pCur;
+    /* 0x20 */ void* pPrev;
+    /* 0x24 */ undefined8 unk24[4];
+    /* 0x28 */ SystemStringChar* pChars;
+    /* 0x2C */ void* pCharBuffer;
+    /* 0x30 */ undefined8 unk30[0x38];
+    /* 0x68 */ u8 unk68;
+    /* 0x69 */ u8 unk69;
+    /* 0x6A */ u8 unk6A;
+    /* 0x6B */ u8 unk6B;
+    /* 0x6C */ u8 unk6C;
+    /* 0x6D */ undefined8 unk6D;
+    /* 0x6E */ u8 unk6E;
+    /* 0x6F */ undefined8 unk6F;
+    /* 0x70 */ u32 unk70;
+    /* 0x74 */ undefined8 unk74[0xE];
+    /* 0x82 */ s16 unk82;
+    /* 0x84 */ s16 unk84;
+    /* 0x86 */ s16 unk86;
+    /* 0x88 */ s16 unk88;
+    /* 0x8A */ undefined8 unk8A[2];
+    /* 0x8C */ SystemStringNode* pBufferStack;
+} SystemString; // Size: 0x90
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/system", func_80032F54);
 
@@ -58,7 +133,25 @@ void SystemFreeData(void) {
 }
 
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/system", SystemInitializeFont);
+void SystemInitializeFont(void* pFontFile) {
+    int dataOffset;
+
+    if (pFontFile == 0) {
+        HeapSetCurrentContentType(HEAP_CONTENT_NONE);
+        return;
+    }
+
+    HeapPinBlock(pFontFile);
+    g_SystemFontFile = pFontFile;
+    D_8005935C = pFontFile;
+    dataOffset = *(u16*)((u8*)pFontFile + 0x2);
+    D_8005934C = *(u16*)((u8*)pFontFile + 0x4);
+    D_80059350 = *(u16*)((u8*)pFontFile + 0x6);
+    D_80059354 = *(u16*)((u8*)pFontFile + 0x8);
+    D_80059358 = *(u16*)((u8*)pFontFile + 0xA);
+    D_80059364 = *(u16*)((u8*)pFontFile + 0xC);
+    D_8005935C = (u8*)pFontFile + dataOffset;
+}
 
 void SystemInitializeData(void* pSystemData) {
     if (pSystemData == 0) {
@@ -106,44 +199,94 @@ u8 DialogGetHeight(u16* pDialogData, int dialogIndex) {
     return pDialog[1];
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/system", func_80033784);
+void* func_80033784(int groupIndex, int entryId) {
+    return GetStringEntry(g_SystemDataEntries->entries[groupIndex], entryId);
+}
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/system", func_800337B8);
+void* func_800337B8(int entryId) {
+    return GetStringEntry(g_SystemDataEntries->entries[0x10], entryId);
+}
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/system", GetAccessoryName);
+void* GetAccessoryName(int entryId) {
+    return GetStringEntry(g_SystemDataEntries->entries[0x11], entryId);
+}
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/system", GetItemName);
+void* GetItemName(int entryId) {
+    return GetStringEntry(g_SystemDataEntries->entries[0x16], entryId);
+}
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/system", GetWeaponName);
+void* GetWeaponName(int entryId) {
+    return GetStringEntry(g_SystemDataEntries->entries[0x17], entryId);
+}
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/system", func_80033878);
+void* func_80033878(int entryId) {
+    return GetStringEntry(g_SystemDataEntries->entries[0x18], entryId);
+}
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/system", func_800338A8);
+void* func_800338A8(int entryId) {
+    return GetStringEntry(g_SystemDataEntries->entries[0x19], entryId);
+}
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/system", func_800338D8);
+void* func_800338D8(int entryId) {
+    return GetStringEntry(g_SystemDataEntries->entries[0x12], entryId);
+}
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/system", func_80033908);
+void* func_80033908(int entryId) {
+    return GetStringEntry(g_SystemDataEntries->entries[0x14], entryId);
+}
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/system", func_80033938);
+void* func_80033938(int entryId) {
+    return GetStringEntry(g_SystemDataEntries->entries[0x13], entryId);
+}
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/system", func_80033968);
+void* func_80033968(int entryId) {
+    return GetStringEntry(g_SystemDataEntries->entries[0x15], entryId);
+}
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/system", func_80033998);
+void* func_80033998(int entryId) {
+    return GetStringEntry(g_SystemDataEntries->entries[0x1B], entryId);
+}
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/system", func_800339C8);
+void* func_800339C8(int groupIndex, int entryId) {
+    return GetStringEntry(g_SystemDataEntries->entries[0x1C + groupIndex], entryId);
+}
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/system", func_800339FC);
+void* func_800339FC(int entryId) {
+    return GetStringEntry(g_SystemDataEntries->entries[0x30], entryId);
+}
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/system", func_80033A2C);
+void* func_80033A2C(int entryId) {
+    return GetStringEntry(g_SystemDataEntries->entries[0x32], entryId);
+}
 
 // TODO: determine what strings are in bank 51 and give this function a better name
 void *func_80033A5C(s32 entryId) {
     return GetStringEntry(g_SystemDataEntries->entries[51], entryId);
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/system", func_80033A8C);
+void* func_80033A8C(int entryId) {
+    return GetStringEntry(g_SystemDataEntries->entries[0x34], entryId);
+}
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/system", func_80033ABC);
+void func_80033ABC(u16* pInput) {
+    u8* pEntry = g_SystemDataEntries->entries[0x1B];
+    u8* pOutput = D_8005A0E4;
+    u8* pPos;
+
+    while (*pInput != 0xFFFF) {
+        pPos = (u8*)((*pInput) * 2) + (int)pEntry;
+        pInput++;
+
+        if (pPos[0]) {
+            *pOutput++ = pPos[0];
+            *pOutput++ = pPos[1];
+        } else {
+            *pOutput++ = pPos[1];
+        }
+    }
+
+    *pOutput = 0;
+}
 
 void func_80033B34(u16* pInput, u8* pOutput, int count) {
     int i;
@@ -167,45 +310,205 @@ void func_80033B34(u16* pInput, u8* pOutput, int count) {
     *pOutput = 0;
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/system", func_80033BAC);
+int func_80033BAC(u8 firstByte, u8 secondByte) {
+    s16 i;
+    u8* pGlyph = g_SystemDataEntries->entries[0x1B];
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/system", func_80033C20);
+    for (i = 0; i < 0x144; i++) {
+        if (pGlyph[i * 2] == firstByte && pGlyph[i * 2 + 1] == secondByte) {
+            return i;
+        }
+    }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/system", func_80033CD0);
+    return 0x8000;
+}
+
+int func_80033C20(u8* pInput, u16* pOutput) {
+    int c = *pInput++;
+    int glyph;
+    u8 arg0;
+    u8 arg1;
+
+    while (c != 0) {
+        if (c < D_8005934C) {
+            arg0 = 0;
+            arg1 = c;
+        } else {
+            arg0 = c;
+            arg1 = *pInput++;
+        }
+        glyph = func_80033BAC(arg0, arg1);
+        *pOutput++ = glyph;
+
+        if ((u16)glyph == 0x8000) {
+            return -1;
+        }
+
+        c = *pInput++;
+    }
+
+    return 0;
+}
+
+int func_80033CD0(SystemString* pString) {
+    if (pString->flags & 0x8) {
+        return pString->unk6B;
+    }
+
+    return 0;
+}
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/system", func_80033CF0);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/system", func_80033DD4);
+void func_80033DD4(SystemString* pString, void* pData) {
+    void* pOld = pString->pCur;
+
+    pString->pCur = pData;
+    pString->pPrev = pOld;
+    pString->flags |= 0x80;
+}
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/system", func_80033DF0);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/system", func_800345E0);
+void func_800345E0(SystemString* pString) {
+    pString->flags &= ~0x8;
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/system", func_80034614);
+    if (pString->flags & 0x200) {
+        pString->unk84 = 0;
+        pString->unk6C = 0;
+        pString->flags &= ~0x200;
+    }
+}
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/system", func_8003463C);
+void func_80034614(SystemString* pString) {
+    if (pString->unk84 == 0) {
+        pString->unk6C = 0;
+        pString->flags &= 0x2;
+    }
+}
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/system", func_800346A4);
+void func_8003463C(SystemString* pString) {
+    SystemStringNode* pNode;
+    SystemStringNode* pOld;
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/system", func_800346D4);
+    if (pString->unk84 != 0) {
+        return;
+    }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/system", func_80034714);
+    pNode = pString->pBufferStack;
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/system", func_800347AC);
+    while (pNode != NULL) {
+        pOld = pNode;
+        pNode = pNode->pNext;
+        HeapFree(pOld);
+    }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/system", func_800347C0);
+    pString->pBufferStack = NULL;
+    pString->unk82 = 0;
+}
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/system", func_80034800);
+void func_800346A4(SystemString* pString) {
+    pString->unk6C = 0;
+    pString->unk84 = 0;
+    pString->flags &= 0x2;
+    func_8003463C(pString);
+}
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/system", func_80034874);
+void func_800346D4(SystemString* pString) {
+    func_800346A4(pString);
+    HeapFree(pString->pChars);
+    HeapFree(pString->pCharBuffer);
+}
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/system", func_8003487C);
+int func_80034714(SystemString* pString, void* pData) {
+    SystemStringNode* pCur = pString->pBufferStack;
+    SystemStringNode* pNode;
+
+    pString->unk82++;
+    HeapSetCurrentContentType(HEAP_CONTENT_MES_CUE);
+    pNode = HeapAlloc(0x8, 0x2);
+    pNode->pData = pData;
+    pNode->pNext = NULL;
+
+    if (pCur == NULL) {
+        pString->pBufferStack = pNode;
+        return pString->unk82;
+    }
+
+    while (pCur->pNext != NULL) {
+        pCur = pCur->pNext;
+    }
+
+    pCur->pNext = pNode;
+
+    return pString->unk82;
+}
+
+int func_800347AC(SystemString* pString) {
+    return pString->unk4 + pString->unk0 * 4;
+}
+
+int func_800347C0(SystemString* pString) {
+    int row = pString->unk2 - pString->unk16;
+
+    if (row < 0) {
+        row = pString->maxChars - 1;
+    }
+
+    return pString->unk6 + row * pString->unk14;
+}
+
+void func_80034800(SystemString* pString, u8 red, u8 green, u8 blue) {
+    SystemStringChar* pChar;
+    int i;
+
+    for (i = 0; i < pString->maxChars; i++) {
+        pChar = &pString->pChars[i];
+
+        pChar->lines[3].red = red;
+        pChar->lines[2].red = red;
+        pChar->lines[1].red = red;
+        pChar->lines[0].red = red;
+        pChar->lines[3].green = green;
+        pChar->lines[2].green = green;
+        pChar->lines[1].green = green;
+        pChar->lines[0].green = green;
+        pChar->lines[3].blue = blue;
+        pChar->lines[2].blue = blue;
+        pChar->lines[1].blue = blue;
+        pChar->lines[0].blue = blue;
+    }
+}
+
+void func_80034874(SystemString* pString, u8 value) {
+    pString->unk6E = value;
+}
+
+void func_8003487C(SystemString* pString) {
+    pString->unk6E = 0xFF;
+}
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/system", func_80034888);
 
 // Render string entry to a buffer
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/system", SystemRenderStringEntry);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/system", func_80034F98);
+int func_80034F98(u16 first, u16 second) {
+    if (first == 0) {
+        if (second - D_80059364 < D_80059354) {
+            return 2;
+        }
+
+        return 3;
+    }
+
+    if (first == D_8005934C) {
+        if (second < D_80059358) {
+            return 2;
+        }
+    }
+
+    return 3;
+}
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/system", func_80034FFC);

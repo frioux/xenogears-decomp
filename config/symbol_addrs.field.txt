@@ -1,3 +1,7 @@
+// Format string "DEB=%xh %d \n" at the start of the overlay's rodata; it used to
+// be labelled by the splat output for func_800985BC, which is now C.
+D_8006FD1C = 0x8006FD1C; // type:asciz
+
 FieldLZSSDecompress = 0x8007008C;
 FieldFree = 0x800700B0;
 FieldLoadTIMWithClut = 0x80070340;
@@ -251,7 +255,11 @@ g_CamAtMovementFrom = 0x800AF8F0; // type:VECTOR size:0x10
 g_CamAtMovementTo = 0x800AF900; // type:VECTOR size:0x10
 g_CamEyeMovementFrom = 0x800AF910; // type:VECTOR size:0x10
 g_CamEyeMovementTo = 0x800AF920; // type:VECTOR size:0x10
-g_FieldCameraMode = 0x800AF934;
+D_800AF930 = 0x800AF930; // type:s32 size:0x4
+g_FieldCameraMode = 0x800AF934; // type:s16 size:0x2
+D_800AF936 = 0x800AF936; // type:s16 size:0x2
+D_800AF938 = 0x800AF938; // type:s16 size:0x2
+D_800AF93A = 0x800AF93A; // type:s16 size:0x2
 g_CamMovementFlags = 0x800AF93C;
 g_CamAtMovementDuration = 0x800AF93E;
 g_CamAtMovementCurrent = 0x800AF940; // type:VECTOR size:0x10

@@ -32,6 +32,11 @@
 #define MENU_AUTO_ADVANCE 0
 #define MENU_MANUAL_CHOICE 0xFF
 
+// ShopMenuSellEquipmentMenu exit codes
+#define MENU_SELL_EQUIPMENT_CANCEL 0x0
+#define MENU_SELL_EQUIPMENT_CONFIRM 0x1
+#define MENU_SELL_EQUIPMENT_CONTINUE 0x2
+
 // Debug-related?
 extern s32* D_8005917C;
 
@@ -2253,7 +2258,70 @@ void ShopMenuInitializeShopModeSelectionMenu(int numTextures, int* pTextureIDs) 
     }
 }
 
-INCLUDE_ASM("asm/shop_menu/nonmatchings/main/misc", func_801CC278);
+void func_801CC278(u_char arg0) {
+    int isValid;
+    int i;
+    int j;
+
+    g_Menu->pSelectionMenu->unk1192 = 0;
+    g_Menu->pSelectionMenu->unk1193 = 0;
+    g_Menu->unk354->unk1400 = 0;
+    g_Menu->unk354->unk1404 = 0;
+    g_Menu->pManager->unkA = 1;
+
+    isValid = TRUE;
+    for (i = 1; i < 5; i++) {
+        g_Menu->unk354->unk1400 = 0;
+        g_Menu->subMenuNumChoices = 0;
+
+        for (j = 0; j < i; j++) {
+            if (D_801D1F6C[(arg0 + g_Menu->mainMenuChoice) * 8 + j * 2] != 0xFFFF) {
+                g_Menu->unk354->unk1400 += func_8002675C(
+                    g_Menu->resources,
+                    D_801D1F6C[(arg0 + g_Menu->mainMenuChoice) * 8 + j * 2],
+                    &g_Menu->unk354->polys0[g_Menu->unk354->unk1400 * 2],
+                    g_Menu->renderContext,
+                    0xA0, 0x96,
+                    0x1000
+                );
+                g_Menu->subMenuNumChoices++;
+            } else {
+                isValid = FALSE;
+            }
+        }
+
+        g_Menu->unk354->unk1408 = g_Menu->renderContext;
+
+        if (isValid) {
+            for (j = 0; j < 2; j++) {
+                ShopMenuUpdateAndRender();
+            }
+        }
+
+        g_Menu->unk354->unk1404 = 0;
+
+        for (j = 0; j < i; j++) {
+            if (D_801D1F6C[(arg0 + g_Menu->mainMenuChoice) * 8 + j * 2] != 0xFFFF) {
+                g_Menu->unk354->unk1404 += func_8002675C(
+                    g_Menu->resources,
+                    D_801D1F6C[(arg0 + g_Menu->mainMenuChoice) * 8 + j * 2 + 1],
+                    &g_Menu->unk354->polys500[g_Menu->unk354->unk1404 * 2],
+                    g_Menu->renderContext,
+                    0xA0, 0x96,
+                    0x1000
+                );
+            }
+        }
+
+        g_Menu->unk354->unk1409 = g_Menu->renderContext;
+
+        if (isValid) {
+            for (j = 0; j < 2; j++) {
+                ShopMenuUpdateAndRender();
+            }
+        }
+    }
+}
 
 void ShopMenuUpdateShopModeSelectionMenu(u_char numOptions, u_char selectedIndex, int* pTextureIDs) {
     int cursorTextureID;
@@ -3051,11 +3119,153 @@ INCLUDE_ASM("asm/shop_menu/nonmatchings/main/misc", func_801CFF58);
 
 INCLUDE_ASM("asm/shop_menu/nonmatchings/main/misc", func_801D05BC);
 
-INCLUDE_ASM("asm/shop_menu/nonmatchings/main/misc", ShopMenuHandleSoldItems);
+void ShopMenuHandleSoldItems(u_int newGoldAmount, u_char* pItemIds, u_char* pItemSellQtys, int listLength,
+    u_char* pInventoryItemIds, u_char* pInventoryQtys, u_char* pItemTypes, u_char isBulkSale, u_char characterIndex) {
+    int i;
+    int j;
+    u_char itemID;
+
+    ShopMenuPlaySoundEffect(0xD1);
+
+    g_GameState.gold = newGoldAmount;
+    if (newGoldAmount > MAX_GOLD_AMOUNT) {
+        g_GameState.gold = MAX_GOLD_AMOUNT;
+    }
+
+    if (isBulkSale) {
+        for (i = 0; i < listLength; i++) {
+            if (pItemIds[i]) {
+                for (j = 0; j < listLength; j++) {
+                    if (pItemIds[i] == pInventoryItemIds[j]) {
+                        pInventoryQtys[j] -= pItemSellQtys[i];
+                        if (pInventoryQtys[j] == 0) {
+                            pInventoryItemIds[j] = 0;
+                        }
+                    }
+                }
+            }
+        }
+    } else {
+        for (i = 0; i < listLength; i++) {
+            itemID = pItemIds[i];
+            if (itemID && pItemSellQtys[i]) {
+                switch (pItemTypes[i]) {
+                    case ITEM_TYPE_WEAPON:
+                        if (itemID < 50) {
+                            g_GameState.characters[characterIndex].unk6A[0] = 0;
+                        } else {
+                            for (j = 0; j < 4; j++) {
+                                if (itemID == g_GameState.characters[characterIndex].unk6F[j]) {
+                                    g_GameState.characters[characterIndex].unk6F[j] = 0;
+                                    break;
+                                }
+                            }
+                        }
+                        break;
+
+                    case ITEM_TYPE_ACCESSORY:
+                        for (j = 0; j < 3; j++) {
+                            if (pItemIds[i] == g_GameState.characters[characterIndex].unk74[j]) {
+                                g_GameState.characters[characterIndex].unk74[j] = 0;
+                                break;
+                            }
+                        }
+                        break;
+                }
+            }
+        }
+    }
+}
 
 INCLUDE_ASM("asm/shop_menu/nonmatchings/main/misc", ShopMenuSellMenu);
 
-INCLUDE_ASM("asm/shop_menu/nonmatchings/main/misc", ShopMenuSellEquipmentMenu);
+int ShopMenuSellEquipmentMenu(void) {
+    u_char itemIDs[8];
+    u_char itemQuantities[8];
+    u_char itemFlags[8];
+    u_char shouldExit;
+    int curChoice;
+    int prevChoice;
+    int i;
+    int j;
+    int k;
+
+    curChoice = 0;
+    prevChoice = 1;
+    shouldExit = MENU_SELL_EQUIPMENT_CONTINUE;
+
+    ShopMenuUpdateCharacterPortraits();
+    ShopMenuConfirmationWindowInitialize(0x98);
+
+    while (shouldExit == MENU_SELL_EQUIPMENT_CONTINUE) {
+        ShopMenuUpdateAndRender();
+
+        switch (g_Menu->input) {
+            case MENU_INPUT_BACK:
+                shouldExit = MENU_SELL_EQUIPMENT_CANCEL;
+                break;
+
+            case MENU_INPUT_CONFIRM:
+                ShopMenuPlaySoundEffect(2);
+                shouldExit = MENU_SELL_EQUIPMENT_CONFIRM;
+                break;
+
+            case MENU_INPUT_LEFT:
+                curChoice--;
+                if (curChoice < 0) {
+                    curChoice = g_Menu->pShop->numPortraits - 1;
+                }
+                break;
+
+            case MENU_INPUT_RIGHT:
+                curChoice++;
+                if (curChoice >= g_Menu->pShop->numPortraits) {
+                    curChoice = 0;
+                }
+                break;
+        }
+
+        if (curChoice != prevChoice) {
+            g_Menu->pShop->unk469C[curChoice] = 1;
+            g_Menu->pShop->unk469C[prevChoice] = 0;
+            prevChoice = curChoice;
+        }
+    }
+
+    ShopMenuConfirmationWindowFree();
+
+    if (shouldExit) {
+        // Find the character index of the selected portrait
+        i = 0;
+        if (curChoice) {
+            do {
+                i++;
+                if (g_Menu->availableCharacters[i]) {
+                    curChoice--;
+                }
+            } while (curChoice != 0);
+        }
+
+        for (j = 0; j < 8; j++) {
+            itemIDs[j] = 0;
+            itemQuantities[j] = 1;
+        }
+
+        // Only the accessories the character has equipped can be sold here
+        j = 0;
+        for (k = 0; k < 3; k++) {
+            if (g_GameState.characters[i].unk74[k]) {
+                itemIDs[j] = g_GameState.characters[i].unk74[k];
+                itemFlags[j] = 1;
+                j++;
+            }
+        }
+
+        ShopMenuSellMenu(8, itemIDs, itemQuantities, ITEM_TYPE_ACCESSORY, 0, itemFlags, (u_char) i);
+    }
+
+    return shouldExit;
+}
 
 void ShopMenuSellAccessoriesMenu(void) {
     ShopMenuSellMenu(
