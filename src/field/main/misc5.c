@@ -6,6 +6,8 @@
 #include "field/effects.h"
 #include "field/graphics.h"
 #include "field/particles.h"
+#include "system/archive.h"
+#include "main/game.h"
 
 //
 void func_800A55B8(int* pData, int a, int b, int c) {
@@ -373,7 +375,72 @@ void func_800A73E8(void) {
     }
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A74F8);
+extern void* D_80065B00[];
+extern int g_GamePartyMemberSkins[3];
+extern void* g_PartyStreamDataPointers[];
+extern int ArchiveDecodeAlignedSize(int entryIndex);
+extern void ArchiveCdDataSync(int mode);
+extern void LZSSDecompress(void*, void*);
+extern void func_80029AFC(StreamDataQueueEntry*, int, int);
+
+void func_800A74F8(void) {
+    int i;
+    int entryIndex;
+    RECT rect;
+    StreamDataQueueEntry queue[MAX_PARTY_MEMBERS + 1];
+    void* pBuffer;
+
+    if (D_800ADB74 == 2) {
+        D_8005A418[0] = HeapAlloc(0x14000, 0);
+        D_8005A41C = HeapAlloc(0x14000, 0);
+        HeapPinBlock(D_8005A418[0]);
+        HeapPinBlock(D_8005A41C);
+        ArchiveSetIndex(4, 0);
+
+        entryIndex = 0;
+        for (i = 1; i < 3; i++) {
+            if (g_GamePartyMemberSkins[i] == CHARACTER_ID_NONE) {
+                continue;
+            }
+            queue[entryIndex].archiveIndex = g_GamePartyMemberSkins[i] + 5;
+            pBuffer = HeapAlloc(ArchiveDecodeAlignedSize(g_GamePartyMemberSkins[i] + 5), 1);
+            g_PartyStreamDataPointers[i] = pBuffer;
+            queue[entryIndex].pData = pBuffer;
+            entryIndex++;
+        }
+
+        queue[entryIndex].pData = 0;
+        queue[entryIndex].archiveIndex = 0;
+        func_80029AFC(queue, 0, 0);
+        ArchiveCdDataSync(0);
+
+        for (i = 1; i < 3; i++) {
+            if (g_GamePartyMembers[i] != CHARACTER_ID_NONE) {
+                LZSSDecompress(D_80065B00[i - 1], D_8005A418[i - 1]);
+                HeapFree(D_80065B00[i - 1]);
+            }
+        }
+    } else {
+        D_8005A418[0] = HeapAlloc(0x14000, 0);
+        D_8005A41C = HeapAlloc(0x14000, 0);
+        HeapPinBlock(D_8005A418[0]);
+        HeapPinBlock(D_8005A41C);
+
+        rect.x = 0x200;
+        rect.y = 0;
+        rect.w = 0x140;
+        rect.h = 0x80;
+        StoreImage(&rect, D_8005A418[0]);
+        DrawSync(0);
+
+        rect.x = 0x200;
+        rect.y = 0x80;
+        rect.w = 0x140;
+        rect.h = 0x80;
+        StoreImage(&rect, D_8005A41C);
+        DrawSync(0);
+    }
+}
 
 extern int g_FieldPixelIndex;
 extern u_long g_FieldCurPixel;
@@ -518,42 +585,6 @@ void func_800A8408(int nQuad, int x, int y) {
     FieldClampPolyFT4UVs(pPoly, u0, v1, u1, v1, u0, v0, u1, v0);
 }
 
-/* Best attempt, 71.78%: only instruction scheduling differs.
-   The original frame has 0x18 unused bytes, hence `unk`. Two facts learned: the
-   original passes the UVs untruncated, so its prototype here took ints, not
-   shorts, and the arguments are (pPoly, x, y+h-1, x+w, y+h-1, x, y-1, x+w, y-1).
-extern u_short D_800AEB68[]; // 8 byte entries: 0x0 -> x
-extern u_short D_800AEB6A[]; //              0x2 -> y
-extern u_short D_800AEB6C[]; //              0x4 -> w
-extern u_short D_800AEB6E[]; //              0x6 -> h
-extern u_short D_800AEF14[]; // 8 byte entries, entry 0 is the sprite rect index
-
-void func_800A8408(int nQuad, int x, int y) {
-    POLY_FT4* pPoly;
-    int nRect;
-    int nX;
-    int nY;
-    int nW;
-    int nH;
-    int u0;
-    int v0;
-    int u1;
-    int v1;
-    u_long unk[6];
-
-    nRect = D_800AEF14[nQuad * 4] * 4;
-    nY = D_800AEB6A[nRect];
-    nW = D_800AEB6C[nRect];
-    nX = D_800AEB68[nRect];
-    pPoly = &D_800AFC60[g_FieldCurRenderContextIndex][nQuad];
-    u0 = nX + x;
-    u1 = u0 + nW;
-    nH = D_800AEB6E[nRect];
-    v0 = nY + y - 1;
-    v1 = nY + y + nH - 1;
-    FieldClampPolyFT4UVs(pPoly, u0, v0, u1, v1, u0, v0, u1, v0);
-}
-*/
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A84C0);
 
