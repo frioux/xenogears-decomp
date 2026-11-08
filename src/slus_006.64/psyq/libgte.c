@@ -1,4 +1,7 @@
 #include "common.h"
+#include "psyq/libgte.h"
+#include "psyq/gtemac.h"
+#include "psyq/inline_c.h"
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", InitGeom);
 
@@ -55,8 +58,42 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", ApplyMatrix);
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", ApplyMatrixSV);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", TransMatrix);
+/* best attempt 0.00%: the original copies v->vx/vy/vz into three separate
+   registers (t0-t2) before the stores and sets v0 = m afterwards; gcc 2.7.2
+   reuses one temp and hoists `move v0,a0`:
+MATRIX *TransMatrix(MATRIX *m, VECTOR *v) {
+    long t0, t1, t2;
+
+    t0 = v->vx;
+    t1 = v->vy;
+    t2 = v->vz;
+    m->t[0] = t0;
+    m->t[1] = t1;
+    m->t[2] = t2;
+    return m;
+}
+*/
+
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", ScaleMatrix);
+/* best attempt 2.37% (with `>> 12`; `/ ONE` rounds and is worse). The original
+   reads two adjacent shorts with one `lw` and merges the pair of stores into one
+   `sw` (andi 0xffff / sll 16 / or), and multiplies with `multu`; the naive
+   element-wise version gives lh/sh and `mult`:
+MATRIX *ScaleMatrix(MATRIX *m, VECTOR *v) {
+    m->m[0][0] = (m->m[0][0] * v->vx) >> 12;
+    m->m[0][1] = (m->m[0][1] * v->vy) >> 12;
+    m->m[0][2] = (m->m[0][2] * v->vz) >> 12;
+    m->m[1][0] = (m->m[1][0] * v->vx) >> 12;
+    m->m[1][1] = (m->m[1][1] * v->vy) >> 12;
+    m->m[1][2] = (m->m[1][2] * v->vz) >> 12;
+    m->m[2][0] = (m->m[2][0] * v->vx) >> 12;
+    m->m[2][1] = (m->m[2][1] * v->vy) >> 12;
+    m->m[2][2] = (m->m[2][2] * v->vz) >> 12;
+    return m;
+}
+*/
+
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", SetRotMatrix);
 
@@ -66,13 +103,21 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", SetColorMatrix);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", SetTransMatrix);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", SetVertex0);
+void SetVertex0(SVECTOR *v0) {
+    gte_ldv0(v0);
+}
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", SetVertex1);
+void SetVertex1(SVECTOR *v0) {
+    gte_ldv1(v0);
+}
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", SetVertex2);
+void SetVertex2(SVECTOR *v0) {
+    gte_ldv2(v0);
+}
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", SetVertexTri);
+void SetVertexTri(SVECTOR *v0, SVECTOR *v1, SVECTOR *v2) {
+    gte_ldv3(v0, v1, v2);
+}
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", SetRGBfifo);
 
@@ -113,6 +158,16 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", LocalLight);
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", DpqColor);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", NormalColor);
+/* best attempt 77.14%. The original has one nop between the load and the COP2
+   command and a real command encoding; gte_NormalColor() in
+   include/psyq/{gtemac,inline_c}.h emits two nops and a raw .word, so this
+   header version is not the one libgte was built with. Applies to the whole
+   Normal*/Color*/LocalLight/LightColor/Square family.
+void NormalColor(SVECTOR *v0, CVECTOR *v1) {
+    gte_NormalColor(v0, v1);
+}
+*/
+
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", NormalColor3);
 
