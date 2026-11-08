@@ -40,23 +40,36 @@ void FieldComputeSceneMatrices(void) {
 }
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80072254);
-// 76.00%: everything matches except that the original caches &g_FieldActors in $s1
-// across the RotMatrix call (`lui/addiu` once, then `lw $a1, 0($s1)` and, after the
-// call, `lw $a0, 0($s1)`), so its frame is 0x30; gcc rematerialises the %hi/%lo pair
-// for the second use and the frame is 0x28. Dropping `volatile` from g_FieldActors
-// in actor.h gets 76% (the three scale reads then share one load, as in the
-// original) but does not produce the $s1 caching, so it is not the whole story.
-// Pointer locals (plain and volatile FieldActor** forms) make it worse.
+// 85.25%: two findings. (1) The three pointer loads the original does into
+// $v1/$a1/$a0 come out of *block-scoped* pointer locals - one declaration
+// assigned once in each of the three statements. A single function-scope local
+// makes gcc reuse one base pseudo (71%). (2) The scale reads are signed: `lh`,
+// not `lhu`, so the u_short ActorData::scaleX is read through a (s16) cast
+// here; FieldParticleUpdateAndRender's `lhu` shows the field itself stays
+// unsigned.
+// What is missing is the original's $s1: it holds &g_FieldActors (lui/addiu
+// then `lw 0($s1)`) for the second and third loads, costing one callee-saved
+// slot (frame 0x30, ours 0x28); gcc rematerialises the constant address for
+// each load instead; the only other difference is the operand order of the
+// first block's `addu` (original `s0 + v1`, ours `v1 + s0`).
 /*
 void func_80072254(int actorIndex) {
     VECTOR scale;
 
-    scale.vx = g_FieldActors[actorIndex].pActorData->scaleX;
-    scale.vy = g_FieldActors[actorIndex].pActorData->scaleY;
-    scale.vz = g_FieldActors[actorIndex].pActorData->scaleZ;
-    RotMatrix(&g_FieldActors[actorIndex].rotation,
-        &g_FieldActors[actorIndex].transformMatrix);
-    ScaleMatrix(&g_FieldActors[actorIndex].transformMatrix, &scale);
+    {
+        FieldActor* pActor = &g_FieldActors[actorIndex];
+        scale.vx = (s16)pActor->pActorData->scaleX;
+        scale.vy = (s16)pActor->pActorData->scaleY;
+        scale.vz = (s16)pActor->pActorData->scaleZ;
+    }
+    {
+        FieldActor* pActor = &g_FieldActors[actorIndex];
+        RotMatrix(&pActor->rotation, &pActor->transformMatrix);
+    }
+    {
+        FieldActor* pActor = &g_FieldActors[actorIndex];
+        ScaleMatrix(&pActor->transformMatrix, &scale);
+    }
 }
 */
 
