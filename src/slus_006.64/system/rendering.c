@@ -8,6 +8,8 @@ extern void func_8001E9BC(SpriteData* pSpriteData, void* pArg);
 extern void func_8001EE88(SpriteData* pSpriteData, void* pArg1, void* pArg2);
 extern void func_8001F1D4(SpriteData* pSpriteData, void* pArg1, void* pArg2);
 extern void func_800234AC(SpriteData* pSpriteData);
+extern void* LZSSHeapDecompress(void* pCompressedData, int flags);
+extern void func_8002DDE4(void* pImg, int arg1, int x, int y, int arg4, int arg5, int arg6);
 
 // Rendering-related stuff
 
@@ -173,6 +175,39 @@ void func_8001F5BC(SpriteData* pSpriteData, s32 unusedIndex, s32* pOutX, s32* pO
 */
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001F6B0);
+/* Best attempt: 96.50%. Instruction stream is identical; only the temp
+   assignment differs (original: pSpriteData->t1, texPageBits->a3, color->a1,
+   pFrameData->a0, i->t0; this C: a3, t0, a2, v1, a0). Reordering the locals has
+   no effect at all.
+
+void func_8001F6B0(SpriteData* pSpriteData) {
+    SpriteFrameData* pFrameData;
+    u32 flags;
+    u32 color;
+    u32 texPageBits;
+    u16 texPage;
+    s32 i;
+    SVEC2 tex;
+
+    flags = *(u32*)((u8*)pSpriteData + 0x3C);
+    if ((flags & 3) != 1) {
+        return;
+    }
+
+    texPageBits = (flags >> 5) & 7;
+    if (texPageBits != 0) {
+        texPageBits--;
+    }
+    tex = ((SpriteAnimPackage*)pSpriteData->pVramData)->tex;
+    color = *(u32*)&pSpriteData->red;
+    pFrameData = pSpriteData->pBase->pCurRenderFramesData;
+    for (i = 0; i != (*(u8*)((u8*)pSpriteData + 0x40) >> 2); i++) {
+        texPage = pFrameData[i].texPage;
+        pFrameData[i].colorAndCode = color;
+        pFrameData[i].texPage = (texPage & 0xFF9F) | (texPageBits << 5);
+    }
+*/
+}
 /* Best attempt: 96.50%, instruction stream identical, only the register
    allocation differs (the original gets the sprite data into t1, freeing a0 for
    the frame pointer; this keeps the sprite in a3 and puts the counter in a0).
@@ -288,19 +323,22 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001F8E8);
 
 
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", GraphicsDrawPauseLetters);
-/* Best attempt: 98.81%, only the callee-saved registers differ (original keeps
-   x in s1 and the image pointer in s0, this keeps them in s0 and s1).
+// .rodata
+extern u8 g_GfxPauseLettersCompressed[];
 
-extern void func_8002DDE4(void* pImgData, int arg1, int x, int y, int arg4, int arg5, int arg6);
-extern void* LZSSHeapDecompress(void* pCompressedData, int flags);
-extern void* g_GfxPauseLettersCompressed[];
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", GraphicsDrawPauseLetters);
+/* Best attempt: 98.81%. Instruction stream is identical; only the callee-saved
+   assignment differs. Original: x -> s1, y -> s2, pImg -> s0 (allocation order
+   pImg, x, y). This C: x -> s0, y -> s2, pImg -> s1 (allocation order x, pImg,
+   y). Declaration order, extra locals and folded copies for x/y do not move it.
 
 void GraphicsDrawPauseLetters(int x, int y) {
-    void* pPauseImgData = LZSSHeapDecompress(&g_GfxPauseLettersCompressed, 0x0);
-    func_8002DDE4(pPauseImgData, 1, x, y, 0, 0, 0);
+    void* pImg;
+
+    pImg = LZSSHeapDecompress(g_GfxPauseLettersCompressed, 0);
+    func_8002DDE4(pImg, 1, x, y, 0, 0, 0);
     DrawSync(0);
-    HeapFree(pPauseImgData);
+    HeapFree(pImg);
 }
 */
 
