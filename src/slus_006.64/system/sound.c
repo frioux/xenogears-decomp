@@ -1564,7 +1564,20 @@ int SoundTransferQueueSync() {
 
 void func_8003BDF4(void) {}
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003BDFC);
+// Waits for the transfer queue to finish (arg & 0x10) and returns the mode of the
+// command at the read index, or 0 when the queue is idle.
+s32 func_8003BDFC(u32 flags) {
+    if (flags & 0x10) {
+        while (*(volatile u16*)&g_SoundControlFlags & 0x10) {
+        }
+    }
+
+    if (!(g_SoundControlFlags & 0x10)) {
+        return 0;
+    }
+
+    return *(s16*)&g_SoundTransferQueue[g_SoundTransferQueueReadIndex];
+}
 
 //----------------------------------------------------------------------------------------------------------------------
 void SoundProcessTransferCommand(void) {
