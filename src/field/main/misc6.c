@@ -19,6 +19,10 @@ extern int g_GameSceneMapNum;
 extern void GameWaitForCdData(void);
 extern void GamePartySyncSkinData(void);
 extern void GamePartySyncStreamedData(void);
+extern int func_8008CF3C(int);
+extern void* g_PartyDataBuffers[];
+extern s32 D_800AFFEC;
+extern s16 D_800AFD20;
 
 void FieldScriptVMHandlerDisableDialogActivation(void) {
     g_FieldScriptVMCurActor->scriptFlags.fields.scriptFlags_0xA = 0x1;
@@ -745,6 +749,36 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_800A0228);
 INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_800A0524);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_800A06E8);
+// 94.95%: structure right (branches, calls, frame, 464 bytes). gcc CSEs the
+// `~ACTOR_STATUS_INVISIBLE` constant into a callee-saved register across the
+// func_800A0C94 call (`li s0,-33; and v1,v1,s0`) where the original uses
+// `andi 0xffdf` twice, which then drags the D_800AFD20 store earlier.
+/*
+void func_800A06E8(void) {
+    FieldActor* pFieldActor;
+    int partyId;
+
+    pFieldActor = &g_FieldActors[D_800AFD1C];
+    partyId = FieldCharacterIdToPartyId(func_8008CF3C(FieldScriptVMGetArgument(1)));
+    pFieldActor->status = (pFieldActor->status & 0xF07F) | 0x200;
+    if (partyId != -1) {
+        func_80076AC0(D_800AFD1C, partyId, g_PartyDataBuffers[partyId], 2, 0, partyId, 1);
+        D_800AFD20 = -0xC0;
+        g_FieldActors[D_800AFD1C].status &= ~ACTOR_STATUS_INVISIBLE;
+        func_800A0C94();
+        g_FieldScriptVMCurActor->scriptFlags.flags |= 0x100;
+        g_FieldScriptVMCurActor->scriptFlags.flags &= ~0x80;
+        g_FieldActors[D_800AFD1C].status &= ~ACTOR_STATUS_INVISIBLE;
+    } else {
+        func_80076AC0(D_800AFD1C, 0, g_PartyDataBuffers[0], 1, 0, 0, 1);
+        g_FieldScriptVMCurActor->scriptFlags.fields.scriptFlags_0x0 = 1;
+        D_800AFFEC = 1;
+        D_800B00C0 = 1;
+        g_FieldScriptVMCurActor->flags |= 0x100000;
+    }
+    g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
+}
+*/
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_800A08B8);
 
@@ -757,9 +791,12 @@ void func_800A0C4C(void) {
 // FieldResetActorPosition: copies the current actor's scripted position into the
 // field actor's transform/child matrices and into its sprite.
 INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_800A0C94);
-// 99.64%: identical except the third block's `addu` destination. The original
-// coalesces base+offset into the offset register ($v1, dead from there on); gcc
-// picks the base register ($v0). Same size, only the register number differs.
+// 99.40%: only the third block's `addu` destination differs. The original
+// coalesces base+offset into the index register (`addu v1,v1,v0`, then the two
+// stores off $v1); gcc always picks the base register (`addu v0,v0,v1`). Same
+// size. NB the index+base operand order (see the casts below) is required for
+// the first two blocks to match - `&g_FieldActors[D_800AFD1C]` gives the wrong
+// `addu` operand order in all three.
 /*
 void func_800A0C94(void) {
     FieldActor* pFieldActor;
@@ -776,17 +813,17 @@ void func_800A0C94(void) {
     pPosition = (s16*)&pActor->position;
 
     x = pPosition[1];
+    pSpriteData = pFieldActor->pSpriteData;
     pFieldActor->transformMatrix.t[0] = x;
     pFieldActor->childMatrix.t[0] = x;
-    pSpriteData = pFieldActor->pSpriteData;
 
-    pFieldActor = (FieldActor*)(D_800AFD1C * sizeof(FieldActor) + (s32)g_FieldActors);
     y = pPosition[3];
+    pFieldActor = (FieldActor*)(D_800AFD1C * sizeof(FieldActor) + (s32)g_FieldActors);
     pFieldActor->transformMatrix.t[1] = y;
     pFieldActor->childMatrix.t[1] = y;
 
-    pFieldActor = (FieldActor*)(D_800AFD1C * sizeof(FieldActor) + (s32)g_FieldActors);
     z = pPosition[5];
+    pFieldActor = (FieldActor*)((s32)g_FieldActors + D_800AFD1C * sizeof(FieldActor));
     pFieldActor->transformMatrix.t[2] = z;
     pFieldActor->childMatrix.t[2] = z;
 
@@ -800,7 +837,6 @@ void func_800A0C94(void) {
     pActor->curYPos = curY;
 }
 */
-
 void func_800A0D3C(void) {
     func_80076AC0(D_800AFD1C, 0, (void*)((*(s32*)(g_FieldSpriteData + 4)) + (s32)g_FieldSpriteData), 0, 0, 0x80, 1);
     func_800A0C94();
