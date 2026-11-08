@@ -8,10 +8,18 @@
 
 extern s32 D_80050100;
 
+// Interpolation helpers; func_801E34BC picks one for a type
+s16 func_801E0850(s16 angle, s16 divisor, s16 offset);
+s16 func_801E08D4(s16 a, s16 b, s16 c);
+s16 func_801E0938(s16 a, s16 b, s16 c);
+s16 func_801E0988(s16 a, s16 b, s16 c);
+
+extern u32 D_801E85CC;
+extern u16 D_801E863C;
+extern u16 D_801E86B0;
 extern s32 D_801E8640;
 extern s16 D_801E869C;
 extern VertexBuffer g_LibGearVertexBuffer;
-extern Temp4 D_801E86A8;
 
 ModelMesh* LibGearInitializeMesh(ModelFileHeader* pModelFile, ModelMesh* pModel) {
     u_int numParts;
@@ -318,7 +326,27 @@ void func_801DF6A8(Temp4* pUnk) {
     }
 }
 
-INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801DF6F0);
+Temp3* func_801DF6F0(Temp4* pList) {
+    Temp3* pObject;
+
+    if (pList->unk4 < pList->numObjects) {
+        pObject = &pList->pObjects[pList->unk4];
+        if (pObject->unk0 == 0) {
+            for (
+                pList->unk4++;
+                pList->unk4 < pList->numObjects;
+                pList->unk4++
+            ) {
+                if (pList->pObjects[pList->unk4].unk0 == 0) {
+                    break;
+                }
+            }
+            return pObject;
+        }
+    }
+
+    return NULL;
+}
 
 int func_801DF7A8(Temp4* pUnk, s8* arg1) {
     int index;
@@ -499,7 +527,9 @@ void func_801E0398(VertexBuffer* pVertexBuffer, MATRIX* pMatrix, s32 arg2, s32* 
 
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E0698);
 
-INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E0844);
+void func_801E0844(short* pValue) {
+    *pValue = -1;
+}
 
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E0850);
 
@@ -513,9 +543,44 @@ INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E0A00);
 
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E1258);
 
-INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E165C);
+void func_801E165C(Temp8* pTexture) {
+    if (pTexture->unk1A != 0) {
+        if (pTexture->pUnk4 != NULL) {
+            if (pTexture->unk10 < 4) {
+                LoadImage(&pTexture->rect, (u_long*)pTexture->pUnk4);
+            }
+            HeapFree(pTexture->pUnk4);
+            pTexture->pUnk4 = NULL;
+        }
 
-INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E1708);
+        if (pTexture->pUnk8 != NULL) {
+            HeapFree(pTexture->pUnk8);
+            pTexture->pUnk8 = NULL;
+        }
+
+        if (pTexture->pUnkC != NULL) {
+            HeapFree(pTexture->pUnkC);
+            pTexture->pUnkC = NULL;
+        }
+
+        pTexture->unk1A = 0;
+    }
+}
+
+void func_801E1708(Temp8* pTexture, s16 scale) {
+    u16* pSrc = pTexture->pUnk4;
+    s16* pDst;
+    int y;
+    int x;
+
+    for (y = 0; y < pTexture->rect.h; y++) {
+        for (x = 0; x < pTexture->rect.w; x++) {
+            pDst = (s16*)pTexture->pUnk1C + 3 * (pTexture->rect.y + y);
+            pDst[pTexture->rect.x + x] = (*pSrc * scale) / 0x20;
+            pSrc++;
+        }
+    }
+}
 
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E17B8);
 
@@ -525,9 +590,33 @@ INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E1A14);
 
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E22F8);
 
-INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E3438);
+void func_801E3438(Temp9* pEntry) {
+    if (pEntry->unk14 != NULL) {
+        HeapFree(pEntry->unk14);
+        HeapFree(pEntry->unk1C[0]);
+        HeapFree(pEntry->unk1C);
+        HeapFree(pEntry->unk20);
 
-INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E34BC);
+        if (pEntry->unk18 != NULL) {
+            HeapFree(pEntry->unk18);
+        }
+
+        pEntry->unk14 = NULL;
+    }
+}
+
+s16 (*func_801E34BC(s32 type))(s16, s16, s16) {
+    switch (type) {
+        case 1:
+            return func_801E08D4;
+        case 2:
+            return func_801E0938;
+        case 3:
+            return func_801E0988;
+        default:
+            return func_801E0850;
+    }
+}
 
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E3534);
 
@@ -543,15 +632,38 @@ INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E59D4);
 
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E5B50);
 
-INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E5C74);
+void func_801E5C74(Model* pModel, Temp7* pEntry, s32 arg2) {
+    if (pEntry->unk12 != 0) {
+        pModel->unk98 = 0;
+        if (arg2 != 0) {
+            pModel->unk9A = pEntry->unk2;
+        } else {
+            pModel->unk9A = -1;
+        }
+        pModel->unk9C = 0;
+        pModel->unk9E = pEntry->unk12;
+        pModel->unkA0 = (u8*)pEntry + pEntry->unk14;
+        pModel->unkA4 = pModel->unkA0;
+    } else {
+        pModel->unk98 = -1;
+    }
+}
 
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E5CD8);
 
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E5D44);
 
-INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E632C);
+void func_801E632C(Model* pModel) {
+    pModel->unk98 = -1;
+}
 
-INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E6338);
+int func_801E6338(Model* pModel) {
+    int dx = pModel->unk70[0xC] - pModel->pSkeleton->translation.x;
+    int dy = pModel->unk70[0xD] - pModel->pSkeleton->translation.y;
+    int dz = pModel->unk70[0xE] - pModel->pSkeleton->translation.z;
+
+    return SquareRoot0(dx * dx + dy * dy + dz * dz);
+}
 
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E63A8);
 
@@ -561,15 +673,59 @@ INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E6668);
 
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E66BC);
 
-INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E67F8);
+int func_801E67F8(void) {
+    u_short bits = D_801E863C;
+    int i;
+
+    for (i = 0; i < 8; i++) {
+        if ((bits >> i) & 0x1) {
+            break;
+        }
+    }
+
+    return i;
+}
 
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E6830);
 
-INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E6910);
+void* func_801E6910(Model* pModel, u8 index, s32* pFlags) {
+    void* pResult;
+
+    *pFlags = 0;
+    if (index >= 0xFE) {
+        u8 entry = pModel->unk2A;
+
+        index = entry & 0x7F;
+        *pFlags = entry & 0x80;
+    }
+
+    if (index >= 0x40) {
+        pResult = pModel->unk18[index - 0x3F];
+    } else {
+        pResult = pModel->unk14[index + 1];
+    }
+
+    return pResult;
+}
 
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E6974);
 
-INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E6D94);
+void func_801E6D94(Model* pModel, ModelJoint* pJoint, s32 flags) {
+    ModelJoint* pChild;
+    int i;
+
+    pJoint->unk7 = flags & 0x1;
+
+    if (flags & 0x80) {
+        pChild = pModel->pSkeleton;
+        for (i = 1; i < pModel->pSkeleton->numChildren; i++) {
+            pChild++;
+            if (pChild->pParent == pJoint) {
+                func_801E6D94(pModel, pChild, flags);
+            }
+        }
+    }
+}
 
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E6E48);
 
@@ -601,7 +757,9 @@ void func_801E72CC(MATRIX* pMatrix, void* _unk, int index, int jointIndex) {
     *pMatrix = pModel->pSkeleton[0].localTransform;
 }
 
-INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E7378);
+void func_801E7378(u32 shouldRender) {
+    D_801E85CC = shouldRender & 0x1;
+}
 
 void LibGearInitialize(int capacity) {
     int i;
@@ -629,17 +787,73 @@ INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E742C);
 
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E7D14);
 
-INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E7FD4);
+void func_801E7FD4(void) {
+    int i;
+
+    for (i = 0; i < MAX_MODELS; i++) {
+        func_801E8030(i);
+    }
+
+    func_801DF668(&D_801E86A8);
+    LibGearFreeVertexBuffer(&g_LibGearVertexBuffer);
+}
 
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E8030);
 
-INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E8330);
+void func_801E8330(u16 modelIndex, u16 bits, s32 arg2) {
+    Model* pModel = g_LibGearModels[modelIndex];
 
-INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E8394);
+    D_801E86B0 = modelIndex;
+    D_801E863C = bits;
+    pModel->unk35 = 0;
 
-INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E8430);
+    if (g_LibGearModels[modelIndex] != NULL) {
+        func_801E35D0(g_LibGearModels[modelIndex], g_LibGearModels[modelIndex], &D_801E86A8, arg2);
+    }
+}
 
-INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E8480);
+void func_801E8394(s32 arg0, u16 modelIndex, u16 arg2, s32 arg3) {
+    D_801E86B0 = modelIndex;
+    D_801E863C = arg2;
+    g_LibGearModels[modelIndex]->unk35 = 0;
+
+    if (g_LibGearModels[modelIndex] != NULL) {
+        if (modelIndex != func_801E67F8()) {
+            func_801E35D0(g_LibGearModels[modelIndex], arg0, &D_801E86A8, arg3);
+        }
+    }
+}
+
+int func_801E8430(int modelIndex) {
+    Model* pModel = g_LibGearModels[modelIndex];
+    int result = 0;
+
+    if (pModel != NULL) {
+        result = (pModel->unk24 * ((pModel->scale * pModel->pSkeleton->scale.vy) >> 0xC)) >> 0xC;
+    }
+
+    return result;
+}
+
+int func_801E8480(int modelIndex) {
+    int factor;
+    int jointScale;
+    int result = 0;
+
+    if (g_LibGearModels[modelIndex] != NULL) {
+        if (g_LibGearModels[modelIndex]->unk4A & 0x8) {
+            jointScale = g_LibGearModels[modelIndex]->pSkeleton->scale.vx;
+            factor = g_LibGearModels[modelIndex]->unk26;
+        } else {
+            jointScale = g_LibGearModels[modelIndex]->pSkeleton->scale.vz;
+            factor = g_LibGearModels[modelIndex]->unk28;
+        }
+
+        result = factor * ((g_LibGearModels[modelIndex]->scale * jointScale) >> 0xC) >> 0xC;
+    }
+
+    return result;
+}
 
 void func_801E8510(Model* pModel) {
     int i;

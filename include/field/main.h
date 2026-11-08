@@ -23,16 +23,33 @@ typedef struct {
     /* 0x48  */ s32 unk48; // Flags related to random encounters?
     /* 0x4C  */ undefined8 unk4C[0x8];
     /* 0x54  */ SVECTOR sceneAngle;
-    /* 0x5C  */ undefined8 unk5C[0x8];
+    /* 0x5C  */ s32 unk5C; // Scene angle interpolation step
+    /* 0x60  */ s32 unk60;
     /* 0x64  */ u_char dollySet;
     /* 0x65  */ u_char dollyStop;
-    /* 0x66  */ undefined16 _pad66;
+    /* 0x66  */ s16 unk66; // Scene angle interpolation frames left
     /* 0x68  */ u_int sceneScrZ;
-    /* 0x6C  */ u_short sceneDIP;
-    /* 0x6E  */ u_short sceneScale;
-    /* 0x70  */ undefined8 unk70[0xC];
+    /* 0x6C  */ s16 sceneDIP;
+    /* 0x6E  */ s16 sceneScale;
+    /* 0x70  */ s16 unk70; // Scene DIP interpolation duration
+    /* 0x72  */ undefined16 unk72;
+    /* 0x74  */ s32 unk74; // Scene DIP interpolation start, fixed point
+    /* 0x78  */ s32 unk78; // Scene DIP interpolation delta per frame
     /* 0x7C  */ u_long unk7C;
-    /* 0x80  */ undefined8 unk71[0x44];
+    /* 0x80  */ s16 unk80; // Scene Z interpolation duration
+    /* 0x82  */ undefined16 unk82;
+    /* 0x84  */ s32 unk84; // Scene Z interpolation start, fixed point
+    /* 0x88  */ s32 unk88; // Scene Z interpolation delta per frame
+    /* 0x8C  */ s16 unk8C; // Scene scale interpolation duration
+    /* 0x8E  */ undefined16 unk8E;
+    /* 0x90  */ s32 unk90; // Scene scale interpolation start, fixed point
+    /* 0x94  */ s32 unk94; // Scene scale interpolation delta per frame
+    /* 0x98  */ undefined8 unk98[0x20];
+    /* 0xB8  */ s16 unkB8; // Camera direction when the interpolation started
+    /* 0xBA  */ undefined16 unkBA;
+    /* 0xBC  */ s32 unkBC; // sceneScrZ when the interpolation started
+    /* 0xC0  */ s16 unkC0; // sceneDIP when the interpolation started
+    /* 0xC2  */ undefined16 unkC2;
     /* 0xC4  */ SVECTOR worldRotation;
     /* 0xCC  */ SVECTOR worldTranslation;
     /* 0xD4  */ MATRIX worldToScreenMatrix;
