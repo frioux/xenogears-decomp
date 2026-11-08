@@ -7,7 +7,6 @@
 #include "field/script_vm.h"
 #include "field/text_box.h"
 #include "field/particles.h"
-#include "field/effects.h"
 
 void FieldScriptMemoryWriteU16(int, int);
 
@@ -1182,7 +1181,6 @@ void func_8008B2F0(void) {
 }
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008B328);
-/* NO MATCH ATTEMPTED YET */
 
 
 extern FieldScriptGlobalS16 D_800B2184;
