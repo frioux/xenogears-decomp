@@ -1433,7 +1433,32 @@ void func_8003A55C(s32 elementIndex, s32 value) {
 }
 */
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003A5D0);
+s32 func_8003A5D0(s32 id) {
+    AudioElement* pElement = &D_800595D8->elements[0];
+    u32 bit = 1;
+    s32 count = D_80059478;
+    s32 result = 0;
+
+    if (id == -1) {
+        do {
+            if (pElement->active_flag & 0x1) {
+                result |= bit;
+            }
+            pElement++;
+            bit <<= 1;
+        } while (--count);
+    } else {
+        do {
+            if ((pElement->active_flag & 0x1) && pElement->unk_0x8 == id) {
+                result |= bit;
+            }
+            pElement++;
+            bit <<= 1;
+        } while (--count);
+    }
+
+    return result;
+}
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003A65C);
 
@@ -1674,7 +1699,25 @@ void SoundReleaseAllVoices(AudioManager* manager) {
     } while (cnt);
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003B0AC);
+void func_8003B0AC(AudioManager* pManager, AudioManager* pSrc) {
+    u32* pTable;
+    u8* pData;
+    u32 cnt;
+
+    pTable = (u32*)((u8*)pManager + SoundCalculateAudioManagerSize(pSrc->elementCount));
+    pManager->unk_0xc = (s32)pTable;
+    // the sequence header stores the percussion table offset as a 16-bit field
+    pData = (u8*)pSrc + *(u16*)((u8*)pSrc + 0x20);
+    cnt = pSrc->unk_0x15;
+
+    do {
+        u32 value = pData[1] | (pData[2] << 8) | (pData[3] << 16) | (pData[4] << 24);
+
+        *(u32*)((u8*)pTable + (pData[0] << 2)) = value;
+        pData += 5;
+        cnt--;
+    } while (cnt);
+}
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003B148);
 
