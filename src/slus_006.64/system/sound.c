@@ -1335,7 +1335,23 @@ void func_80039F9C(s32 arg0, s32 arg1, s32 arg2, s32 arg3) {
     }
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_80039FF8);
+void func_80039FF8(void) {
+    AudioManager* pManager = D_800595D8;
+    AudioElement* pElement = &pManager->elements[0];
+    u32 cnt = D_80059478;
+
+    DisableEvent(g_unk_SoundEvent);
+    do {
+        if (pElement->active_flag & 0x1) {
+            pElement->active_flag = 0;
+            SoundReleaseVoiceFromChannel(&pElement->voice_data, pElement->voice_number);
+        }
+        pElement++;
+        cnt--;
+    } while (cnt);
+    pManager->unk_0x48 = 0;
+    EnableEvent(g_unk_SoundEvent);
+}
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003A094);
 
@@ -1388,9 +1404,64 @@ void func_8003A344(s32 elementIndex, s32 value) {
 }
 */
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003A3B8);
+void func_8003A3B8(s32 id, s32 value, s32 frames) {
+    AudioManager* pManager = D_800595D8;
+    AudioElement* pElement = &pManager->elements[0];
+    u32 cnt = D_80059478;
+    s32 volume = value << 8;
+    s32 delta;
+
+    do {
+        if (pElement->active_flag & 0x1) {
+            if (pElement->unk_0x8 == id) {
+                delta = volume - pElement->unk_0x76;
+                if (delta) {
+                    if (frames == 0) {
+                        frames = 1;
+                    }
+                    pElement->unk_0x8C = delta / frames;
+                    pElement->unk_0x8E = volume;
+                    pElement->unk_0x9A = frames;
+                    pElement->unk_0x04 |= 0x20;
+                }
+            }
+        }
+        pElement++;
+        cnt--;
+    } while (cnt);
+}
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003A450);
+/*
+Attempt (90.70%, correct size): identical to func_8003A3B8 except that gcc hoists
+the `andi a0,0xFE` / `xori a0,0x8` index pair into the loop preheader (after
+`li t0,2` / `sll a1,8`) while the original keeps them in the entry block. Same
+blocker as func_8003A344 and func_8003A55C; u8/u16 index types and declaration
+order do not move it.
+void func_8003A450(s32 elementIndex, s32 value, s32 frames) {
+    s32 index = (elementIndex & 0xFE) ^ 8;
+    u32 cnt = 2;
+    s32 volume = value << 8;
+    AudioElement* pElement = &D_800595D8->elements[index];
+    s32 delta;
+
+    do {
+        if (pElement->active_flag & 0x1) {
+            delta = volume - pElement->unk_0x76;
+            if (delta) {
+                if (frames == 0) {
+                    frames = 1;
+                }
+                pElement->unk_0x8C = delta / frames;
+                pElement->unk_0x8E = volume;
+                pElement->unk_0x9A = frames;
+                pElement->unk_0x04 |= 0x20;
+            }
+        }
+        pElement++;
+        cnt--;
+    } while (cnt);
+} */
 
 void func_8003A4FC(s32 id, s32 value) {
     AudioManager* pManager = D_800595D8;
