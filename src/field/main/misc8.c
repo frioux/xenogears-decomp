@@ -470,15 +470,12 @@ extern void* D_800ADBB8;
 extern void* D_800AFEA4;
 int func_80028B14(void);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800854D0);
-/* 96.94%: only the call result's register differs (original copies it to a0
-   with `move a0,v0` and stores/tests a0; gcc here keeps it in v0).
 int func_800854D0(void) {
     int result = func_80028B14();
 
     D_800ADBBC = result;
     if (result != 0) {
-        ((void (*)(void))D_800AFEA4)();
+        ((void (*)(int))D_800AFEA4)(result);
         return 0;
     }
     if (ArchiveDataSync() != 0) {
@@ -491,7 +488,6 @@ int func_800854D0(void) {
     D_800ADB2C = 0;
     return -1;
 }
-*/
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80085560);
 /* 81.88%: only the prologue schedule and the temp register differ (gcc stores
@@ -697,13 +693,13 @@ void func_800859DC(FieldWdsBlock* pBlock) {
 }
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80085B20);
-/* 95.92%: only the block index computation differs. The original computes
-   `2 * streamId + 0x13` into v0 before the D_8004F33C check and copies it to a0
-   at the call (`addiu v0,v0,0x13` / `move a0,v0`); gcc here computes it straight
-   into a0 inside the branch body, which also leaves gcc's two delay slots empty
-   and gives D_8004F33C the v0 register.
+/* 97.82%: one instruction (4 bytes) short. The original keeps the stream id byte
+   in a0 across the D_8004F33C compare, so the `* 2 + 0x13` index is forced into
+   v0 and copied at the call with `move a0,v0`; gcc here puts the byte in v1 and
+   computes the index straight into a0, dropping the copy.
 void func_80085B20(int arg0) {
     u_short streamId;
+    int index;
 
     ArchiveCdDataSync(0);
     func_8001B66C();
@@ -716,9 +712,10 @@ void func_80085B20(int arg0) {
         func_80086024();
     }
     streamId = D_800ADFCD[arg0 * 2 - 1];
+    index = streamId * 2;
     if (streamId != 0xFF) {
         if (D_8004F33C != streamId) {
-            func_80085560(streamId * 2 + 0x13, 1, (void*)func_800859DC);
+            func_80085560(index + 0x13, 1, (void*)func_800859DC);
             D_8004F354 = 1;
             D_800B2370 = 0;
             D_800C3A1C = HeapAlloc(0x2000, 1);
