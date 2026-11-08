@@ -7,6 +7,8 @@
 
 extern void func_80076AC0(s32, s32, void*, s32, s32, s32, s32);
 extern void func_800A0C94();
+extern int ArchiveGetDiscNumber(void);
+extern void FieldScriptMemoryWriteU16(int, int);
 extern s32 D_800AFD1C; // Current actor index
 
 void FieldScriptVMHandlerDisableDialogActivation(void) {
@@ -265,7 +267,14 @@ void func_8009E4BC(void) {
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_8009E574);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_8009E810);
+// Writes the actor's Y position (fixed point) and the cached short copies
+void func_8009E810(short nY) {
+    u8 unused[0x18]; // original has an unused stack slot; reproduces the frame
+
+    g_FieldScriptVMCurActor->position.vy = nY * 0x10000;
+    g_FieldScriptVMCurActor->unkEC = nY;
+    g_FieldScriptVMCurActor->curYPos = nY;
+}
 
 void func_8009E83C(void) {
     unsigned char width;
@@ -625,7 +634,21 @@ void func_8009FD10(int partyMemberIndex) {
     }
 }
 
+extern void func_800AD4D4(void);
+
 INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_8009FDD4);
+// 99.50%: gcc puts the index in $v1, the original uses $a0 (`move a0,v0`).
+/*
+void func_8009FDD4(void) {
+    int partyMemberIndex;
+
+    partyMemberIndex = func_8009FC10(D_800AFD1C);
+    if (partyMemberIndex != 0xFF && g_pGameState->gearRide[partyMemberIndex] == 0) {
+        func_800AD4D4();
+    }
+    g_FieldScriptVMCurActor->scriptInstructionPointer++;
+}
+*/
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_8009FE4C);
 
@@ -659,7 +682,11 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_800A06E8);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_800A08B8);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_800A0C4C);
+extern s32 g_PlayerActorIndex;
+
+void func_800A0C4C(void) {
+    g_FieldActors[g_PlayerActorIndex].pActorData->scriptFlags.flags |= 0x80;
+}
 
 // FieldResetActorPosition, set translation and sprite position of actor based on current actor data position
 INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_800A0C94);
@@ -672,11 +699,32 @@ void func_800A0D3C(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer++;
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_800A0DC0);
+typedef struct { s16 value; } FieldScriptGlobalS16;
+extern FieldScriptGlobalS16 D_800B234A;
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_800A0DFC);
+void func_800A0DC0(void) {
+    D_800B234A.value = FieldScriptVMGetArgument(1);
+    g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
+}
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_800A0E54);
+void func_800A0DFC(void) {
+    int nAddress;
+
+    nAddress = FieldScriptVMGetInstructionArgument(1) & 0xFFFF;
+    FieldScriptMemoryWriteU16(nAddress, ArchiveGetDiscNumber());
+    g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
+}
+
+extern int D_800ADB74;
+
+void func_800A0E54(void) {
+    if (D_800ADB74 == 0) {
+        g_FieldScriptVMCurActor->scriptInstructionPointer++;
+    } else {
+        g_FieldScriptVMCurActor->scriptInstructionPointer--;
+    }
+    D_800B00C0 = 1;
+}
 
 extern int D_800ADB84;
 
