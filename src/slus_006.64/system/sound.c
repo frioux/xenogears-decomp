@@ -272,7 +272,19 @@ void SoundEnableAllSpuChannels(void) {
     g_SoundControlFlags &= ~0x40;
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", SoundMuteAllSpuChannels);
+void SoundMuteAllSpuChannels(void) {
+    SPU_VOICE_REG* pVoice = g_pSoundSpuRegisters->_rxx.voice;
+    s32 i;
+
+    g_SoundControlFlags |= 0x40;
+    for (i = 0; i < NUM_VOICES; pVoice++, i++) {
+        pVoice->volume.left = 0;
+        pVoice->volume.right = 0;
+        pVoice->pitch = 0;
+        pVoice->adsr[0] = (pVoice->adsr[0] & 0xFF) + 0x7F00;
+        pVoice->adsr[1] = 0x1FDF;
+    }
+}
 
 void func_80037F44(void) {
     if (!(g_SoundControlFlags & 1)) {
