@@ -286,7 +286,32 @@ void func_80087E5C(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_80087E98);
+extern s32 D_800ADBFC;
+extern s32 g_PlayerActorIndex;
+extern FieldScriptGlobalU16 D_800B234E;
+extern FieldScriptGlobalS16 D_800B233E;
+
+// Switch the actor controlled by the player
+void func_80087E98(void) {
+    int actorIndex = FieldScriptVMGetActorIndex(1);
+
+    if (actorIndex != ACTOR_ID_INVALID) {
+        int i;
+
+        if (actorIndex == D_8005A444[0]) {
+            D_800B234E.value = 0;
+        } else {
+            D_800B234E.value = 1;
+        }
+        g_PlayerActorIndex = actorIndex;
+        D_800B233E.value = actorIndex;
+        for (i = 0; i < D_800ADBFC; i++) {
+            g_FieldActors[i].pActorData->scriptFlags.flags &= ~0x01004000;
+        }
+        g_FieldActors[actorIndex].pActorData->scriptFlags.flags |= 0x4000;
+    }
+    g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
+}
 
 extern FieldScriptGlobalU16 D_800B2348;
 
@@ -1157,6 +1182,7 @@ void func_8008B2F0(void) {
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008B328);
 
+
 extern FieldScriptGlobalS16 D_800B2184;
 extern FieldScriptGlobalS16 D_800B2186;
 extern FieldScriptGlobalS16 D_800B2188;
@@ -1239,7 +1265,22 @@ void func_8008C84C(void) {
     D_800B00C0 = 1;
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008C938);
+extern void func_8003A948(s32, int, int);
+
+void func_8008C938(void) {
+    if (D_8004F36C != 0) {
+        func_8003A948(D_80062528, FieldScriptArgument1(1, SCRIPT_READ_U8_REL(5)),
+                      FieldScriptArgument2(3, SCRIPT_READ_U8_REL(5)));
+        g_FieldScriptVMCurActor->scriptInstructionPointer += 6;
+    } else if (D_8004F324 == CHARACTER_ID_NONE) {
+        g_FieldScriptVMCurActor->scriptInstructionPointer += 6;
+    } else if (D_800ADB1C == 0) {
+        g_FieldScriptVMCurActor->scriptInstructionPointer += 6;
+    } else {
+        g_FieldScriptVMCurActor->scriptInstructionPointer -= 1;
+    }
+    D_800B00C0 = 1;
+}
 
 extern void func_8003A838(int, int, int);
 
@@ -1847,7 +1888,31 @@ void func_8008E85C(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008E8C8);
+void func_8008E8C8(void) {
+    switch (SCRIPT_READ_U8_REL(1)) {
+        case 0:
+            if (g_FieldScriptVMCurActor->scriptFlags.flags & 0x8000) {
+                g_FieldScriptVMCurActor->scriptFlags.flags &= ~0x8000;
+            }
+            if (g_FieldScriptVMCurActor->flags & 0x80000) {
+                SpriteData* pSpriteData = g_FieldActors[D_800AFD1C].pSpriteData;
+
+                pSpriteData->moveSpeed = 0;
+                pSpriteData->step.z = 0;
+                pSpriteData->step.x = 0;
+                g_FieldScriptVMCurActor->flags &= ~0x80000;
+            }
+            break;
+        case 1:
+            g_FieldScriptVMCurActor->scriptFlags.flags |= 0x8000;
+            g_FieldScriptVMCurActor->unk11C = *(u_short*)&g_FieldScriptVMCurActor->rotation.vy;
+            break;
+        case 2:
+            g_FieldScriptVMCurActor->flags |= 0x80000;
+            break;
+    }
+    g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
+}
 
 extern s32 D_800ADB7C;
 
@@ -2042,3 +2107,40 @@ void func_8008F76C(void) {
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008F7B8);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008F90C);
+// 48.80%: arithmetic and stores are right, but gcc hoists every g_Scene load
+// and the three divisions above the `scriptInstructionPointer += 9` store. The
+// original keeps that store first and the divisions after it, which is also what
+// pins the frame count in $a2 there (ours lands in $a3). Moving the divisions
+// before/after the store in the C does not change the schedule.
+/*
+// Starts an interpolation of the camera position from the current g_Scene
+// position to the one passed in the script arguments.
+void func_8008F90C(void) {
+    int x = FieldScriptVMGetArgument(1);
+    int y = FieldScriptVMGetArgument(3);
+    int z = FieldScriptVMGetArgument(5);
+    int frames = FieldScriptVMGetArgument(7);
+    int dx;
+    int dz;
+    int dy;
+
+    if (frames == 0) {
+        frames = 1;
+    }
+    g_FieldScriptVMCurActor->scriptInstructionPointer += 9;
+    dx = ((x << 16) - *(s32*)&g_Scene.unk98[0x8]) / frames;
+    dz = ((z << 16) - *(s32*)&g_Scene.unk98[0xC]) / frames;
+    dy = ((y << 16) - *(s32*)&g_Scene.unk98[0xC]) / frames;
+    *(s16*)&g_Scene.unk98[0x2] = frames;
+    *(s16*)&g_Scene.unk98[0x0] = 1;
+    *(s32*)&g_Scene.unk98[0x14] = dx;
+    *(s32*)&g_Scene.unk98[0x18] = dz;
+    *(s32*)&g_Scene.unk98[0x1C] = dy;
+    if (x == 0 && z == 0 && y == 0) {
+        *(s16*)&g_Scene.unk98[0x2] = frames + 2;
+        *(s16*)&g_Scene.unk98[0x4] = 1;
+    } else {
+        *(s16*)&g_Scene.unk98[0x4] = 0;
+    }
+}
+*/
