@@ -161,11 +161,15 @@ extern void* D_800ADBB8;
 extern void* D_800AFEA4;
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80085560);
-/*
+/* 81.88%: only the prologue schedule and the temp register differ (gcc stores
+   the stream file from a1 in the original, from v0 here).
 void func_80085560(int archiveIndex, int unused, void* pCallback) {
+    void* pStreamFile;
+
     D_800ADB2C = 1;
-    D_800ADBB8 = ArchiveAllocStreamFile(8);
-    ArchiveReadFileToBuffer(archiveIndex, D_800ADBB8, 0, 0x100);
+    pStreamFile = ArchiveAllocStreamFile(8);
+    D_800ADBB8 = pStreamFile;
+    ArchiveReadFileToBuffer(archiveIndex, pStreamFile, 0, 0x100);
     D_800AFEA4 = pCallback;
 }
 */
