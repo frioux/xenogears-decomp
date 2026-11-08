@@ -819,4 +819,18 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_800A1364);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_800A14F0);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_800A1624);
+void func_800A1624(void) {
+    int arg;
+    FieldActor* pFieldActor;
+
+    pFieldActor = &g_FieldActors[D_800AFD1C];
+    pFieldActor->status = (pFieldActor->status & 0xF07F) | 0x200;
+    arg = FieldScriptVMGetArgument(1);
+    func_80076AC0(D_800AFD1C, arg, (void*)((*(s32*)(g_FieldSpriteData + arg * 4 + 4)) + (s32)g_FieldSpriteData), 0, 0, arg | 0x80, 0);
+    func_800A0C94();
+    g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
+    g_FieldScriptVMCurActor->scriptFlags.flags |= 0x100;
+    g_FieldScriptVMCurActor->scriptFlags.flags &= ~0x80;
+    g_FieldScriptVMCurActor->flags &= ~0x800;
+    g_FieldActors[D_800AFD1C].status &= ~ACTOR_STATUS_INVISIBLE;
+}
