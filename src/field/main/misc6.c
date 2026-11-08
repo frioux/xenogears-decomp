@@ -11,6 +11,9 @@ extern void func_800A0C94();
 extern int ArchiveGetDiscNumber(void);
 extern void FieldScriptMemoryWriteU16(int, int);
 extern s32 D_800AFD1C; // Current actor index
+extern s32 D_800B2264;
+extern u8 D_800B225F[];
+extern s16 D_800B21DC[];
 
 void FieldScriptVMHandlerDisableDialogActivation(void) {
     g_FieldScriptVMCurActor->scriptFlags.fields.scriptFlags_0xA = 0x1;
@@ -862,6 +865,32 @@ void func_800A0EE8(void) {
 INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_800A0FD8);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_800A1364);
+// 84.13%: the body and the three D_800B2264-indexed stores are right; two known
+// gaps. (1) The original clears only bits 13-15 when writing the actor's flags12C
+// index, so the field there is 3 bits wide, but ActorData declares
+// flags12C_0xE: 19 (splitting it into 3 + 16 bits reproduces the `and 0xFFFF1FFF`).
+// (2) The original frame is 0x30 with ra/s0 at 0x2C/0x28 (an 8-byte gap above the
+// three stack arguments); this version gets 0x28.
+/*void func_800A1364(void) {
+    int arg;
+    FieldActor* pFieldActor;
+
+    pFieldActor = &g_FieldActors[D_800AFD1C];
+    pFieldActor->status = (pFieldActor->status & 0xF07F) | 0x200;
+    arg = FieldScriptVMGetArgument(1);
+    func_80076AC0(D_800AFD1C, 0, (void*)((*(s32*)(g_FieldSpriteData + 4)) + (s32)g_FieldSpriteData), 0, 0, 0x80, 1);
+    arg *= 2;
+    func_800A0C94();
+    g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
+    g_FieldScriptVMCurActor->scriptFlags.flags |= 0x100;
+    g_FieldActors[D_800AFD1C].status &= ~ACTOR_STATUS_INVISIBLE;
+    g_FieldScriptVMCurActor->flags |= 0x2000;
+    g_FieldScriptVMCurActor->flags &= ~0x800;
+    D_800B21DC[D_800B2264] = arg;
+    D_800B225F[D_800B2264] = 0;
+    g_FieldScriptVMCurActor->flags12C_0xE = (g_FieldScriptVMCurActor->flags12C_0xE & ~7) | (D_800B2264 & 7);
+    D_800B2264++;
+}*/
 
 void func_800A14F0(void) {
     int arg;
