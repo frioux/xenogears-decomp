@@ -304,10 +304,32 @@ void func_80085738(void) {
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80085788);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80085890);
-
 extern void* D_8006259C;
 extern s32 D_8004F32C;
+extern void* D_8005A4BC;
+void func_8003BDFC(int arg0);
+void SoundAddSedsEntry(SoundFile* pSoundFile);
+
+void func_80085890(void) {
+    int size;
+
+    ArchiveSetIndex(4, 0);
+    size = ArchiveDecodeAlignedSize(0xA8);
+    D_8006259C = HeapAlloc(size, 0);
+    HeapPinBlock(D_8006259C);
+    if (D_8004F32C == -1) {
+        ArchiveReadFileToBuffer(0xA8, D_8006259C, 0, 0x80);
+        ArchiveCdDataSync(0);
+    } else {
+        memcpy(D_8006259C, D_8005A4BC, size);
+        HeapUnpinBlock(D_8005A4BC);
+        HeapFree(D_8005A4BC);
+    }
+    SoundAddSedsEntry(D_8006259C);
+    func_8003BDFC(0x10);
+    ArchiveSetIndex(4, 0);
+    D_8004F32C = -1;
+}
 
 void func_80085988(void) {
     func_8003852C(D_8006259C);
@@ -408,7 +430,24 @@ void func_80086078(int arg0, int* pOut, int arg2) {
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800860F0);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc8", FieldActorWorldToScreenPosition);
+void FieldActorWorldToScreenPosition(int actorIndex, int* pScreenX, int* pScreenY) {
+    SVECTOR vertex;
+    MATRIX transformMatrix;
+    long sxy;
+    long p;
+    long flag;
+
+    FieldScriptVMGetActorIndex(1);
+    CompMatrix(&g_Scene.worldToScreenMatrix, &g_FieldActors[actorIndex].transformMatrix, &transformMatrix);
+    vertex.vx = 0;
+    vertex.vy = 0;
+    vertex.vz = 0;
+    SetRotMatrix(&transformMatrix);
+    SetTransMatrix(&transformMatrix);
+    RotTransPers(&vertex, &sxy, &p, &flag);
+    *pScreenY = ((short*)&sxy)[1];
+    *pScreenX = ((short*)&sxy)[0];
+}
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800862CC);
 
