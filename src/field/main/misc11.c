@@ -208,22 +208,29 @@ int func_80092424(int index, int byteIndex) {
 }
 
 // Write one byte of the 4-byte record at the given index of D_800AFB20
+INCLUDE_ASM("asm/field/nonmatchings/main/misc11", func_800924D4);
+
+/* Best attempt: 69.47%. Same instruction count and the correct masks
+   (case 1's mask really is 0xFFFF00FF; splat's comment is right), but gcc keeps
+   the record offset in a0 instead of the original's v1 and merges the tail of
+   case 0 with cases 1-3, which the original does not.
 void func_800924D4(int index, int byteIndex, int value) {
     switch (byteIndex) {
         case 0:
-            D_800AFB20[index] = (D_800AFB20[index] & 0xFFFFFF00) | value;
+            D_800AFB20[index] = (D_800AFB20[index] & ~0xFF) | value;
             break;
         case 1:
-            D_800AFB20[index] = (D_800AFB20[index] & 0xFFFFFF00) | (value << 8);
+            D_800AFB20[index] = (value << 8) | (D_800AFB20[index] & ~0xFF00);
             break;
         case 2:
-            D_800AFB20[index] = (D_800AFB20[index] & 0xFF00FFFF) | (value << 16);
+            D_800AFB20[index] = (value << 16) | (D_800AFB20[index] & ~0xFF0000);
             break;
         case 3:
-            D_800AFB20[index] = (D_800AFB20[index] & 0xFFFFFF) | (value << 24);
+            D_800AFB20[index] = (value << 24) | (D_800AFB20[index] & ~0xFF000000);
             break;
     }
 }
+*/
 
 extern s32 D_800B217C;
 extern s16 D_800B21D6;
