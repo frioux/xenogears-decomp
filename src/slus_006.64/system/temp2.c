@@ -4,7 +4,19 @@
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_800248D4);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_80024F20);
+// Work list and image-list setup; D_800591A8 is the work list entry budget.
+extern u32 D_800591A8;
+extern u8 D_800591AD;
+extern u8 D_800591AE;
+extern void WorkListsReset(void);
+
+void func_80024F20(void) {
+    D_800591AD = 0;
+    D_800591AE = 0;
+    D_800591A8 = 0x2000;
+    WorkListsReset();
+    func_8001D298();
+}
 
 
 
@@ -116,21 +128,18 @@ void func_800250E0(int context) {
 */
 
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_80025180);
-/*
 typedef struct {
     void* pData; // Sprite Tile data stuff
     struct LinkedListEntry* pNext;
 } LinkedListEntry;
 
 extern LinkedListEntry* D_80059300[2];
-int g_GfxCurContext;
-void* g_GfxCurWorkBuffer;
 
+// GfxQueueSpriteTileData
 void func_80025180(void* pData) {
     LinkedListEntry* pNewEntry;
 
-    pNewEntry = (LinkedListEntry*) g_GfxCurWorkBuffer;
+    pNewEntry = g_GfxCurWorkBuffer;
     g_GfxCurWorkBuffer = pNewEntry + 1;
     if (pNewEntry) {
         pNewEntry->pData = pData;
@@ -138,7 +147,6 @@ void func_80025180(void* pData) {
         D_80059300[g_GfxCurContext] = pNewEntry;
     }
 }
-*/
 
 // GfxQueueShapeTransfer
 // Add Image to current g_GfxImageList[g_GfxCurContext] linked list
