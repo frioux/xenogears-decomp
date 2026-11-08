@@ -52,13 +52,31 @@ void func_80022FC4(SpriteData* pSpriteData, s32 count, u_int allocFlags) {
     pBase->pCurRenderFramesData = pFramesData;
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_8002303C);
+void func_8002303C(SpriteData* pSpriteData, s32 count, u_int allocFlags) {
+    ((SpriteDataI3*)pSpriteData->field_0x7C)->field_0x18 = HeapAlloc(count * 4, allocFlags);
+    ((RECT*)((SpriteDataI3*)pSpriteData->field_0x7C)->field_0x18)->y = ((RECT*)pSpriteData->pVramData)->h;
+    ((RECT*)((SpriteDataI3*)pSpriteData->field_0x7C)->field_0x18)->x = ((RECT*)pSpriteData->pVramData)->w;
+}
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_800230A8);
+extern void func_8001D3F4(SpriteData* pSpriteData);
+
+void func_800230A8(SpriteData* pSpriteData) {
+    switch (pSpriteData->flags_0xA8 & 1) {
+    case 1:
+        if (((SpriteDataI3*)pSpriteData->field_0x7C)->field_0x18) {
+            HeapFree(((SpriteDataI3*)pSpriteData->field_0x7C)->field_0x18);
+        }
+        break;
+    }
+    func_8001D3F4(pSpriteData);
+    HeapFree(pSpriteData->pBase->pFramesData);
+    HeapFree(pSpriteData);
+}
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80023124);
-/* Best attempt: 79.47%. The original homes both by-value params to 0x28/0x2C and keeps the two
-   differences in int locals, which gcc only does here for the 8-byte struct form.
+/* Best attempt: 79.47%. Param is an 8-byte struct of two s16 pairs (x1,y1,x2,y2). The original's
+   frame is 0x10 bigger: it also spills both differences to 0x10/0x18 (dead stores) around the
+   ratan2 call, which this C does not reproduce.
 typedef struct {
     0x0 s16 x1;
     0x2 s16 y1;
@@ -155,6 +173,37 @@ s32 func_80023440(u16* pFlags) {
 }
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80023468);
+/* Best attempt: 99.41%. Code and jump-table contents agree with the original; diff_func.sh and
+   objdiff stop at the .L case labels of the original, so 100.00% is not reachable through them.
+s32 func_80023468(u_int index, s32 value) {
+    s32 result = value;
+
+    switch (index) {
+    case 0:
+    case 5:
+    case 6:
+    case 10:
+    case 11:
+    case 12:
+    case 13:
+    case 14:
+        result = 1;
+        break;
+    case 1:
+    case 4:
+    case 8:
+    case 9:
+        result = 0;
+        break;
+    case 2:
+    case 7:
+    case 15:
+        result = 2;
+        break;
+    }
+    return result;
+}
+*/
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_800234AC);
 /* Best attempt: 98.29%, only the last store's address add has swapped v0/v1.
@@ -189,7 +238,13 @@ void func_80023950(SpriteData* pSpriteData) {
     pSpriteData->pBase = NULL;
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80023958);
+void func_80023958(SpriteData* pSpriteData) {
+    pSpriteData->pBase = &pSpriteData->inner1;
+    func_8002393C(&pSpriteData->inner1);
+    pSpriteData->pBase->pDirTransforms = NULL;
+    // the store 0x40 into pBase lands on the first word of inner3
+    *(u32*)((u8*)pSpriteData->pBase + 0x40) = 0;
+}
 
 void func_800239A0(SpriteData* pSpriteData) {
     pSpriteData->pBase = &pSpriteData->inner1;
@@ -222,7 +277,15 @@ void func_80024294(s32 arg0, s16 arg1, s16 arg2, s16 arg3, s16 arg4, s16 arg5, s
     D_800591B8 = 0;
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_800242F4);
+extern void func_8002435C(SpriteData* pSpriteData, void* pAnimFile, s16 arg2, s16 arg3, s16 arg4, s16 arg5,
+                          s16 arg6);
+
+void func_800242F4(SpriteData* pSpriteData, void* pAnimFile, s16 arg2, s16 arg3, s16 arg4, s16 arg5,
+                   s16 arg6, s32 arg7) {
+    D_800591B8 = arg7;
+    func_8002435C(pSpriteData, pAnimFile, arg2, arg3, arg4, arg5, arg6);
+    D_800591B8 = 0;
+}
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_8002435C);
 
