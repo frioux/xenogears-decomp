@@ -270,19 +270,19 @@ void FieldMatrixCopyTransform(MATRIX* dest, MATRIX* source) {
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80074108);
 
 // Returns 1 if an actor wants its position reported to the script VM
-INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_8007469C);
-/*
 int func_8007469C(void) {
     int i;
+    FieldActor* pActors;
 
     for (i = 0; i < g_FieldNumActors; i++) {
-        if (!(g_FieldActors[i].status & 0x40) && (g_FieldActors[i].status & 0x8000)) {
+        // The actor array is read once, not per iteration
+        pActors = *(FieldActor**)&g_FieldActors;
+        if (!(pActors[i].status & 0x40) && (pActors[i].status & 0x8000)) {
             return 1;
         }
     }
     return 0;
 }
-*/
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", FieldPollControllers);
 
@@ -314,7 +314,13 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80075B44);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_800764B4);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80076A74);
+u_int func_80076A74(SpriteData* pSpriteData) {
+    ActorData* pActorData;
+
+    pActorData = g_FieldActors[((SpriteDataI3*)pSpriteData->field_0x7C)->entityId].pActorData;
+    pActorData->flags |= 0x10000;
+    return pActorData->flags;
+}
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80076AC0);
 
