@@ -422,7 +422,93 @@ void func_8009AE3C(s32 start, s32 duration) {
     g_Scene.unk48 &= 0xDFFF;
 }
 
+typedef struct { s16 value; } FieldScriptGlobalS16;
+extern FieldScriptGlobalS16 D_800B2348;
+
+long FieldGetVec1Magnitude(long);
+long FieldGetVec2Magnitude(long, long);
+int func_8007B694(IVEC3*);
+void func_8009E574(int, int);
+extern s32 D_800AFD1C;
 INCLUDE_ASM("asm/field/nonmatchings/main/misc12", func_8009AEE0);
+/* 19.71% (636 vs 632 bytes): the C below is semantically right and matches
+   instruction for instruction except for block layout. The original emits the
+   shared tail (directional rotation + position snap + flag clear) *before* the
+   `magnitude < distance` body, i.e. on the close-enough fall-through path, and
+   the far body jumps back to it (`j .L8009AFDC`). gcc only lays blocks out in
+   source order, so the source must have the tail written in both arms (an
+   `if (magnitude >= distance) { tail } else { far + tail }`); both forms tried
+   here moved `magnitude`/`distance` out of s0/v0 into s6/s7 and grew the frame,
+   so the register allocation of the original must be reproduced some other way.
+   Also still open: `pActor->rotation.vx = rotation` emits an extra `move a0,v0`.
+int func_8009AEE0(int actorSlotId, int x, int z, int direction) {
+    FieldActor* pFieldActor;
+    ActorData* pActor;
+    SpriteData* pSpriteData;
+    ActorData* pCurActor;
+    IVEC3 delta;
+    int prevActorIndex;
+    int actorIndex;
+    int rotation;
+    int distance;
+    int magnitude;
+
+    actorIndex = D_8005A444[actorSlotId];
+    if (actorIndex == ACTOR_ID_INVALID) {
+        return 0;
+    }
+    pFieldActor = &g_FieldActors[actorIndex];
+    if (pFieldActor->status & ACTOR_STATUS_INVISIBLE) {
+        return 0;
+    }
+    pSpriteData = pFieldActor->pSpriteData;
+    pActor = pFieldActor->pActorData;
+    if (pSpriteData->moveSpeed == 0) {
+        pSpriteData->moveSpeed = 0x4000000 / pActor->moveSpeed;
+    }
+    magnitude = FieldGetVec1Magnitude(pSpriteData->moveSpeed >> 15) + 1;
+    delta.x = x - CONV_TO_GTE(pActor->position.vx);
+    delta.y = 0;
+    delta.z = z - CONV_TO_GTE(pActor->position.vz);
+    distance = FieldGetVec2Magnitude(delta.x, delta.z);
+    pActor->scriptFlags.flags |= 0x400000;
+    if (magnitude < distance) {
+        if (pActor->prevPosition.x == CONV_TO_GTE(pActor->position.vx)
+            && pActor->prevPosition.y == CONV_TO_GTE(pActor->position.vy)
+            && pActor->prevPosition.z == CONV_TO_GTE(pActor->position.vz)) {
+            pActor->unk6E++;
+        } else {
+            pActor->unk6E = 0;
+        }
+        rotation = func_8007B694(&delta);
+        pActor->rotation.vx = rotation;
+        pActor->rotation.vy = rotation;
+        if ((short)pActor->unk6E < 0x41 && D_800B2348.value == 0) {
+            return -1;
+        }
+        pCurActor = g_FieldScriptVMCurActor;
+        prevActorIndex = D_800AFD1C;
+        g_FieldScriptVMCurActor = pActor;
+        D_800AFD1C = D_8005A444[actorSlotId];
+        func_8009E574(x, z);
+        g_FieldScriptVMCurActor = pCurActor;
+        D_800AFD1C = prevActorIndex;
+    }
+    if (pActor->scriptFlags.flags & 0x8000) {
+        rotation = pActor->unk11C | 0x8000;
+    } else if (direction == 0xFF) {
+        rotation = pActor->rotation.vy | 0x8000;
+    } else {
+        rotation = g_FieldAngleToDirectionLUT[direction] | 0x8000;
+    }
+    pActor->rotation.vx = rotation;
+    pActor->rotation.vy = rotation;
+    pActor->position.vx = x << 16;
+    pActor->position.vz = z << 16;
+    pActor->unk6E = 0;
+    pActor->scriptFlags.flags &= ~0x02200800;
+    return 0;
+} */
 
 void func_8009B15C(void) {
     D_800B21CF[0] = 1;
@@ -445,7 +531,33 @@ void func_8009B184(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer++;
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc12", func_8009B210);
+void func_8009B210(void) {
+    ActorData* pActor;
+    int x;
+    int z;
+    int mask;
+
+    pActor = g_FieldActors[D_8005A444[0]].pActorData;
+    x = CONV_TO_GTE(pActor->position.vx);
+    z = CONV_TO_GTE(pActor->position.vz);
+    mask = func_8009AEE0(0, x, z, 0xFF) == 0;
+    if (func_8009AEE0(1, x, z, 0xFF) == 0) {
+        mask |= 2;
+    }
+    if (func_8009AEE0(2, x, z, 0xFF) == 0) {
+        mask |= 4;
+    }
+    D_800B00C0 = 1;
+    if (mask == 7) {
+        g_FieldScriptVMCurActor->scriptInstructionPointer++;
+        D_800B21CC[0] = 0;
+        D_800B2348.value = 0;
+        func_8009B338();
+    } else {
+        D_800B21CC[0] = 1;
+        g_FieldScriptVMCurActor->scriptInstructionPointer--;
+    }
+}
 
 void func_8009B338(void) {
     int i;
