@@ -52,9 +52,26 @@ void func_80022FC4(SpriteData* pSpriteData, s32 count, u_int allocFlags) {
     pBase->pCurRenderFramesData = pFramesData;
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_8002303C);
+void func_8002303C(SpriteData* pSpriteData, s32 count, u_int allocFlags) {
+    ((SpriteDataI3*)pSpriteData->field_0x7C)->field_0x18 = HeapAlloc(count * 4, allocFlags);
+    ((RECT*)((SpriteDataI3*)pSpriteData->field_0x7C)->field_0x18)->y = ((RECT*)pSpriteData->pVramData)->h;
+    ((RECT*)((SpriteDataI3*)pSpriteData->field_0x7C)->field_0x18)->x = ((RECT*)pSpriteData->pVramData)->w;
+}
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_800230A8);
+extern void func_8001D3F4(SpriteData* pSpriteData);
+
+void func_800230A8(SpriteData* pSpriteData) {
+    switch (pSpriteData->flags_0xA8 & 1) {
+    case 1:
+        if (((SpriteDataI3*)pSpriteData->field_0x7C)->field_0x18) {
+            HeapFree(((SpriteDataI3*)pSpriteData->field_0x7C)->field_0x18);
+        }
+        break;
+    }
+    func_8001D3F4(pSpriteData);
+    HeapFree(pSpriteData->pBase->pFramesData);
+    HeapFree(pSpriteData);
+}
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80023124);
 /* Best attempt: 79.47%. The original homes both by-value params to 0x28/0x2C and keeps the two
@@ -189,7 +206,13 @@ void func_80023950(SpriteData* pSpriteData) {
     pSpriteData->pBase = NULL;
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80023958);
+void func_80023958(SpriteData* pSpriteData) {
+    pSpriteData->pBase = &pSpriteData->inner1;
+    func_8002393C(&pSpriteData->inner1);
+    pSpriteData->pBase->pDirTransforms = NULL;
+    // the store 0x40 into pBase lands on the first word of inner3
+    *(u32*)((u8*)pSpriteData->pBase + 0x40) = 0;
+}
 
 void func_800239A0(SpriteData* pSpriteData) {
     pSpriteData->pBase = &pSpriteData->inner1;
