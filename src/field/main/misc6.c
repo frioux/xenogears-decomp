@@ -8,6 +8,8 @@
 
 extern void func_80076AC0(s32, s32, void*, s32, s32, s32, s32);
 extern void func_800A0C94();
+extern void FieldMatrixCopyTransform(MATRIX*, MATRIX*);
+extern void FieldMatrixCopyTranslation(MATRIX*, MATRIX*);
 extern int ArchiveGetDiscNumber(void);
 extern void FieldScriptMemoryWriteU16(int, int);
 extern s32 D_800AFD1C; // Current actor index
@@ -582,15 +584,13 @@ int FieldCharacterIdToPartyId(int characterId) {
 }
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_8009FA54);
-// 90.74%: the `if (== 0xFF) { body } return 0;` form reproduces the single
-// `bne s2,v0,<epilogue>` with `move v0,zero` in the delay slot (an early
-// `return 0;` instead gives beq+j).
-// Remaining: (1) the original sign-extends the angle for g_Scene.unk7C with
-// `sll a0,a1,16; sra v0,a0,16` reusing the unk60 shift; gcc 2.7 folds any
-// `(short)`/`>>16` of this value away because both branches of the 0xFF test
-// produce `(x & 7) << 9`. (2) The frame is 0x28 here vs 0x20, and the tail
-// rotation stores put the actor in $v0 instead of $a0 with `move v0,zero`
-// scheduled last instead of before the actor load.
+// 90.74%: structure and store order match. Remaining: the original sign-extends
+// the angle for g_Scene.unk7C with `sll a0,a1,16; sra v0,a0,16` (extendhisi2 on
+// a value gcc cannot prove non-negative) and reuses that sll for unk60. gcc 2.7.2
+// proves the range from `(x & 7) << 9` in both arms of the 0xFF test, so every
+// spelling ((short), <<16>>16, an s16 local, an s32 fixed-point temp) folds the
+// pair away; the missing two insns also stop the scheduler from hoisting the
+// scriptData reload and push the tail's `move v0,zero` after the actor stores.
 /*
 s32 func_8009FA54(s32 nInstructionOffset) {
     u8 nByte;
@@ -612,9 +612,9 @@ s32 func_8009FA54(s32 nInstructionOffset) {
         if (nByte == 0xFF) {
             nAngle = ((FieldScriptVMGetVariableValue(8) + 4) & 7) << 9;
         }
+        g_Scene.sceneAngle.vy = nAngle;
         g_Scene.unk7C = (short)nAngle;
         g_Scene.unk60 = nAngle << 16;
-        g_Scene.sceneAngle.vy = nAngle;
 
         nByte = SCRIPT_READ_U8(nOffset + 7);
         nRotation = ((nByte - 2) & 7) << 9 | 0x8000;
@@ -746,7 +746,36 @@ void func_800A0158(s32 arg0, s32* arg1, s32* arg2, s32* arg3) {
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_800A0228);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_800A0524);
+void func_800A0524(int dstActorId, int srcActorId) {
+    ActorData* pDstActor;
+    ActorData* pSrcActor;
+    int i;
+
+    pSrcActor = g_FieldActors[srcActorId].pActorData;
+    pDstActor = g_FieldActors[dstActorId].pActorData;
+
+    for (i = 0; i < 4; i++) {
+        pDstActor->walkmeshTriIds[i] = pSrcActor->walkmeshTriIds[i];
+    }
+    pDstActor->walkmeshId = pSrcActor->walkmeshId;
+    pDstActor->unkEC = pSrcActor->unkEC;
+    pDstActor->curYPos = pSrcActor->curYPos;
+    pDstActor->curTriNormal.vx = pSrcActor->curTriNormal.vx;
+    pDstActor->curTriNormal.vy = pSrcActor->curTriNormal.vy;
+    pDstActor->curTriNormal.vz = pSrcActor->curTriNormal.vz;
+    pDstActor->position.vx = pSrcActor->position.vx;
+    pDstActor->position.vy = pSrcActor->position.vy;
+    pDstActor->position.vz = pSrcActor->position.vz;
+    FieldMatrixCopyTransform(
+        &g_FieldActors[dstActorId].transformMatrix,
+        &g_FieldActors[srcActorId].transformMatrix);
+    FieldMatrixCopyTranslation(
+        &g_FieldActors[dstActorId].transformMatrix,
+        &g_FieldActors[srcActorId].transformMatrix);
+    ((SpriteData*)g_FieldActors[dstActorId].pSpriteData)->position.x = g_FieldActors[srcActorId].pActorData->position.vx;
+    ((SpriteData*)g_FieldActors[dstActorId].pSpriteData)->position.y = g_FieldActors[srcActorId].pActorData->position.vy;
+    ((SpriteData*)g_FieldActors[dstActorId].pSpriteData)->position.z = g_FieldActors[srcActorId].pActorData->position.vz;
+}
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_800A06E8);
 // 94.95%: structure right (branches, calls, frame, 464 bytes). gcc CSEs the
