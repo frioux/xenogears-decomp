@@ -95,6 +95,13 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80080A74);
    worse (gcc then reloads the counter). The frame (0x88) needs the unused 0x60
    local; reg assignment wants `int numWords` declared before the pointers and
    the unused array last.
+INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80080F44);
+/* 71.39%: correct size (468 bytes) and frame (0x88, which needs the unused
+   local to fill 0x78 bytes). Residual is address materialisation: the
+   original recomputes `actorIndex * 0x5C` and reloads g_FieldActors for
+   every `g_FieldActors[actorIndex].` access and addresses D_800B2180 through
+   a register (`lui v1,%hi; addiu v1,v1,%lo; lw 0(v1); addiu; sw 0(v1)`),
+   where gcc CSEs the index scaling and emits `lui at; sw %lo(at)`.
 extern int D_800B2180;
 void func_80080A74(int actorIndex);
 void func_8007AA44(Quad* pQuad);
@@ -134,7 +141,44 @@ void func_80080F44(int actorIndex) {
 }
 */
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80080F44);
+extern int D_800B2180;
+void func_80080A74(int actorIndex);
+void func_8007AA44(Quad* pQuad);
+
+void func_80080F44(int actorIndex) {
+    int numWords = sizeof(ActorData) / sizeof(u_int);
+    int i;
+    u_int* pData;
+    ActorData* pActor;
+    FieldActorModelData* pModelData;
+    u8 unused[0x60];
+
+    if (actorIndex < D_800ADBFC) {
+        D_800B2180++;
+        pActor = HeapAlloc(0x138, 0);
+        g_FieldActors[actorIndex].pActorData = pActor;
+        pActor = g_FieldActors[actorIndex].pActorData;
+        pData = (u_int*)pActor;
+        for (i = 0; i < numWords; i++) {
+            *pData++ = 0;
+        }
+        g_FieldActors[actorIndex].unk5A = 0;
+        if (g_FieldActors[actorIndex].status & 0x2000) {
+            pModelData = g_FieldActors[actorIndex].pModelData;
+            pActor->unk118 = HeapAlloc(0x80, 0);
+            if (pModelData->pScripts != NULL) {
+                for (i = 0; i < pModelData->pScripts->numScripts; i++) {
+                    pModelData->pScripts->pScripts[i].pCallback = func_80080A18;
+                    ((u_int*)pActor->unk118)[i] = 0;
+                }
+            }
+        }
+        func_80080A74(actorIndex);
+        g_FieldActors[actorIndex].pShadow = HeapAlloc(0x70, 0);
+        func_8007AA44((Quad*)g_FieldActors[actorIndex].pShadow);
+    }
+}
+*/
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_8008110C);
 
@@ -808,23 +852,24 @@ void func_800860F0(int arg0, int arg1, int arg2, int arg3, int actorIndex) {
 }
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", FieldActorWorldToScreenPosition);
-/* 80.00%: everything but the first CompMatrix argument matches. The original
-   builds the world-to-screen matrix address as `&g_FieldActors - 0xAC` (lui +
-   addiu of g_FieldActors, then a separate `addiu a0, v1, -0xAC`, the same v1 it
-   reloads the volatile actor pointer from), i.e. the matrix and the actor list
-   were members of one global struct in the original source. Writing
-   `&g_Scene.worldToScreenMatrix` gives the two-instruction %hi/%lo form instead.
-   A `(MATRIX*)((u_char*)&g_FieldActors - 0xAC)` hack reaches 95.25% but gcc
-   rematerialises the address twice. Matching needs the shared parent struct.
+/* 95.25%: everything matches but the base address. The original materialises
+   `&g_FieldActors` into v1 (`lui v1,%hi; addiu v1,v1,%lo`, offset 0), takes
+   the matrix from it with `addiu a0,v1,-0xAC` and loads the actor pointer
+   with `lw a1,0(v1)`; gcc folds the -0xAC into the %lo of one reference and
+   emits a second lui/lw for the pointer. The -0xAC is exact: &g_FieldActors
+   (0x800AFB10) - 0xAC == g_Scene.worldToScreenMatrix (0x800AF990 + 0xD4), so
+   the matrix and the actor pointer were members of one original struct; the
+   anchor has to stay the g_FieldActors symbol for the link to resolve.
 void FieldActorWorldToScreenPosition(int actorIndex, int* pScreenX, int* pScreenY) {
     SVECTOR vertex;
     MATRIX transformMatrix;
     long sxy;
     long p;
     long flag;
+    FieldActor** pActorSlot = &g_FieldActors;
 
     FieldScriptVMGetActorIndex(1);
-    CompMatrix(&g_Scene.worldToScreenMatrix, &g_FieldActors[actorIndex].transformMatrix, &transformMatrix);
+    CompMatrix((MATRIX*)((u_char*)pActorSlot - 0xAC), &(*pActorSlot)[actorIndex].transformMatrix, &transformMatrix);
     vertex.vx = 0;
     vertex.vy = 0;
     vertex.vz = 0;
