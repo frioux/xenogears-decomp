@@ -10,8 +10,55 @@
 #include "psyq/libcd.h"
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_80078B5C);
+/* Best attempt: 96.30%. Only difference is the nop in the delay slot of the
+   beqz that guards D_800ADC18: gcc fills it with the addiu v0,v0,-1.
+extern int func_80085C90(s32 arg0);
+extern s32 D_8004F308;
+extern s32 D_8004F324;
+extern s32 D_800ADC18;
+
+void func_80078B5C(void) {
+    rand();
+    if (D_8004F308 == -1) {
+        D_8004F308 = func_80085C90(D_8004F324);
+    }
+    if (D_800ADC18 != 0) {
+        D_800ADC18--;
+    }
+}
+*/
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_80078BC8);
+/* Best attempt: 90.68%. The original keeps -1 in v0 across the whole guard chain
+   (loads go to v1) and copies ArchiveDataSync's result to v1 before testing it.
+extern int ArchiveDataSync(void);
+extern s32 D_800ADB2C;
+extern s32 D_800ADB34;
+extern s32 D_800ADB90;
+extern s32 D_800ADBC4;
+
+int func_80078BC8(void) {
+    int nSyncStatus;
+    int nResult;
+
+    if (D_800ADB2C != 0) {
+        return -1;
+    }
+    nSyncStatus = ArchiveDataSync();
+    if (nSyncStatus != 0) {
+        nResult = -1;
+    } else if (D_8004F308 != 0) {
+        nResult = -1;
+    } else if (D_800ADB90 != 0) {
+        nResult = -1;
+    } else if (D_800ADB34 != 0) {
+        nResult = -1;
+    } else {
+        nResult = -(D_800ADBC4 != 0xFF);
+    }
+    return nResult;
+}
+*/
 
 extern s16 D_800B2344;
 void func_80078C5C(void) {
@@ -351,8 +398,24 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007B1C4);
 INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007B478);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007B614);
+/* Best attempt: 91.78%. Remaining differences are register assignment (the original
+   keeps pVec in s2, the angle in s1, the scale in s0) and the position of the
+   pVec->y store, which gcc hoists above the rcos call here.
+extern s16 D_800B218C;
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007B694);
+void func_8007B614(IVEC3* pVec, int scale, int angle) {
+    int nAngle = angle & 0xFFF;
+    int nScale = (scale << 4) * D_800B218C >> 12;
+
+    pVec->x = rsin(nAngle) * nScale;
+    pVec->y = 0;
+    pVec->z = -(rcos(nAngle) * nScale);
+}
+*/
+
+int func_8007B694(IVEC3* pVec) {
+    return -ratan2(pVec->z, pVec->x) & 0xFFF;
+}
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007B6C4);
 
@@ -362,13 +425,35 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007BAC0);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007BEF4);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007C670);
+int func_8007C670(int* pCur, int* pNext, int n) {
+    int value = *pCur;
+
+    if (n < 0) {
+        *pCur = value;
+        *pNext = value;
+        return value;
+    }
+    *pCur = value;
+    value += n;
+    *pNext = value;
+    return value;
+}
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007C694);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007CD3C);
+extern int D_800ADC10;
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007CD60);
+// Pointer into the scratchpad area for the script VM
+int func_8007CD3C(int size) {
+    int offset = D_800ADC10;
+
+    D_800ADC10 = offset + size;
+    return 0x1F800000 + offset * 4;
+}
+
+void func_8007CD60(int size) {
+    D_800ADC10 -= size;
+}
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007CD80);
 
