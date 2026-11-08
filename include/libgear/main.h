@@ -109,10 +109,18 @@ typedef struct {
 
 
 
+// Per-model transformed position; x1/y1/z1 is rotated into x0/y0/z0
 typedef struct {
-    /* 0x0 */ u8 unk0[0x6];
-    /* 0x6 */ s16 unk6;
-    /* 0x8 */ u8 unk8[0xC];
+    /* 0x0  */ u_short x0;
+    /* 0x2  */ u_short y0;
+    /* 0x4  */ u_short z0;
+    /* 0x6  */ s16 unk6;
+    /* 0x8  */ u_short x1;
+    /* 0xA  */ u_short y1;
+    /* 0xC  */ u_short z1;
+    /* 0xE  */ s16 unkE;
+    /* 0x10 */ s16 modelIndex;
+    /* 0x12 */ s16 jointIndex;
 } Temp6; // Size: 0x14
 
 // Per-model texture upload state, Model::unk118 entries
@@ -146,10 +154,29 @@ typedef struct {
 } Temp9; // Size: 0x24
 
 typedef struct {
-    /* 0x0 */ s16 unk0;
-    /* 0x2 */ u8 unk2[0x6];
-    /* 0x8 */ u32 unk8;
-    /* 0xC */ u8 unkC[0x64];
+    /* 0x0  */ s16 unk0;
+    /* 0x2  */ u8 unk2;
+    /* 0x3  */ u8 unk3;
+    /* 0x4  */ u32 unk4;
+    /* 0x8  */ u32 unk8;
+    /* 0xC  */ s16 unkC;
+    /* 0xE  */ s16 unkE;
+    /* 0x10 */ s16 unk10;
+    /* 0x12 */ s16 unk12;
+    /* 0x14 */ s16 unk14;
+    /* 0x16 */ s16 unk16;
+    /* 0x18 */ s16 unk18;
+    /* 0x1A */ u8 unk1A[0x42];
+    /* 0x5C */ s16 unk5C;
+    /* 0x5E */ s16 unk5E;
+    /* 0x60 */ s16 unk60;
+    /* 0x62 */ s16 unk62;
+    /* 0x64 */ s16 unk64;
+    /* 0x66 */ s16 unk66;
+    /* 0x68 */ s16 unk68;
+    /* 0x6A */ s16 unk6A;
+    /* 0x6C */ s16 unk6C;
+    /* 0x6E */ s16 unk6E;
 } UnkInner1; // Size: 0x70
 
 // Entry of a per-model pointer list (Model::unk14 / Model::unk18)
