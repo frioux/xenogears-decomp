@@ -1068,17 +1068,63 @@ u_char* func_800950A0(int itemId) {
 }
 
 // Find the inventory slot of the given kind holding the given ID
-INCLUDE_ASM("asm/field/nonmatchings/main/misc11", func_80095124);
+s32 func_80095124(s32 itemId) {
+    switch (itemId >> 8) {
+        case 0:
+            return func_80094E8C(itemId);
+        case 1:
+            return func_80094F2C(itemId - 0x100);
+        case 2:
+            return func_80094EDC(itemId - 0x200);
+        case 3:
+            return func_80094F7C(itemId - 0x300);
+        case 4:
+            return func_80094FCC(itemId - 0x400);
+    }
+    return 0;
+}
 
 // Find the first unused inventory slot of the given kind
-INCLUDE_ASM("asm/field/nonmatchings/main/misc11", func_800951B8);
+s32 func_800951B8(s32 itemId) {
+    switch (itemId >> 8) {
+        case 0:
+            return func_80094CFC();
+        case 1:
+            return func_80094D4C();
+        case 2:
+            return func_80094D9C();
+        case 3:
+            return func_80094DEC();
+        case 4:
+            return func_80094E3C();
+    }
+    return 0;
+}
 
 void func_8009524C(void) {
     func_80095284();
     g_FieldScriptVMCurActor->scriptInstructionPointer += 1;
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc11", func_80095284);
+// Reset the movement of the actor the script VM is running on
+void func_80095284(void) {
+    SpriteData* pSpriteData = g_FieldActors[D_800AFD1C].pSpriteData;
+    ActorData* pActor = g_FieldScriptVMCurActor;
+    u_short rotation = pActor->rotation.vx | 0x8000;
+
+    D_800B00C0 = 1;
+    pActor->moveModified.vx = 0;
+    pActor->moveModified.vy = 0;
+    pActor->moveModified.vz = 0;
+    pActor->move.vx = 0;
+    pActor->move.vy = 0;
+    pActor->move.vz = 0;
+    pActor->rotation.vy = rotation;
+    pActor->rotation.vx = rotation;
+    pSpriteData->step.x = 0;
+    pSpriteData->step.z = 0;
+    pSpriteData->moveSpeed = 0;
+}
 
 void func_80095300(void) {
     g_FieldControl.unkAngle = FieldScriptVMGetArgument(1);
@@ -1244,6 +1290,32 @@ void FieldScriptCheckTriggerZone(void) {
 }
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc11", FieldProjectActorOriginToScreen);
+/* 95.06%: everything but the first CompMatrix argument matches. The original
+   builds the world-to-screen matrix address from the actor list:
+   `lui/addiu %hi/%lo(g_FieldActors)` followed by `addiu a0, a1, -0xAC`, reusing
+   a1 for the volatile actor pointer load. Writing the real symbol
+   (`&g_Scene.worldToScreenMatrix`) gives two independent %hi/%lo pairs instead,
+   three instructions longer. Same blocker as FieldActorWorldToScreenPosition in
+   misc8.c: the matrix and the actor list were members of one global struct in
+   the original source, so only that shared parent struct makes this match.
+void FieldProjectActorOriginToScreen(int* pScreenX, int* pScreenY) {
+    SVECTOR origin;
+    MATRIX transformMatrix;
+    long sxy;
+    long p;
+    long flag;
+
+    CompMatrix(&g_Scene.worldToScreenMatrix, &g_FieldActors[func_8009CD7C(1)].childMatrix, &transformMatrix);
+    origin.vx = 0;
+    origin.vy = 0;
+    origin.vz = 0;
+    SetRotMatrix(&transformMatrix);
+    SetTransMatrix(&transformMatrix);
+    RotTransPers(&origin, &sxy, &p, &flag);
+    *pScreenY = ((short*)&sxy)[1];
+    *pScreenX = ((short*)&sxy)[0];
+}
+*/
 
 extern s32 D_800ADC18;
 
