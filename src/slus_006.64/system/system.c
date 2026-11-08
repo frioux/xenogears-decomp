@@ -22,6 +22,10 @@ extern int D_80059364;
 // Scratch buffer the number/glyph converters write to
 extern u8 D_8005A0E4[];
 
+// Digit buffer: digits at D_8005A0CA, terminator slot at D_8005A0DE
+extern u16 D_8005A0CA[];
+extern u16 D_8005A0DE[];
+
 
 // A rendered string: glyph buffer, palette and the stack of data buffers that
 // SystemRenderStringEntry walks.
@@ -359,6 +363,60 @@ int func_80033CD0(SystemString* pString) {
 }
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/system", func_80033CF0);
+
+/* Best attempt, 87.37%: matches the digit loop and all data references, but the
+   scan loop is rotated (gcc duplicates the exit test) and the end pointer is
+   folded to D_8005A0DE-2 instead of computed as pScan+10.
+void func_80033CF0(int value, int glyphOffset, int flag) {
+    u32 divisor = 1000000000;
+    u16* pDigit = D_8005A0CA;
+    u16* pEnd;
+    u16* pScan;
+    u16* pScanEnd;
+    int i;
+    int sign = 0;
+
+    glyphOffset *= 16;
+
+    if (flag != 0) {
+        if (value >= 0) {
+            sign = 11;
+        } else {
+            value = -value;
+            sign = 10;
+        }
+    }
+
+    for (i = 0; i < 10; i++) {
+        pDigit[i] = value / divisor + glyphOffset;
+        value %= divisor;
+        divisor /= 10;
+    }
+
+    pEnd = D_8005A0DE;
+    pScan = pEnd - 11;
+    pEnd[0] = 0xFFFF;
+    pEnd[-11] = glyphOffset;
+
+    pScanEnd = pScan + 10;
+
+    if ((glyphOffset & 0xFFF0) == glyphOffset) {
+        while (pScan != pScanEnd) {
+            pScan++;
+
+            if (*pScan != glyphOffset) {
+                break;
+            }
+        }
+    }
+
+    if (sign != 0) {
+        *--pScan = sign + glyphOffset;
+    }
+
+    func_80033ABC(pScan);
+}
+*/
 
 void func_80033DD4(SystemString* pString, void* pData) {
     void* pOld = pString->pCur;
