@@ -4,12 +4,16 @@
 #include "field/script_vm.h"
 #include "field/actor.h"
 #include "field/text_box.h"
+#include "field/main.h"
 
 extern void func_80076AC0(s32, s32, void*, s32, s32, s32, s32);
 extern void func_800A0C94();
 extern int ArchiveGetDiscNumber(void);
 extern void FieldScriptMemoryWriteU16(int, int);
 extern s32 D_800AFD1C; // Current actor index
+extern s32 D_800B2264;
+extern u8 D_800B225F[];
+extern s16 D_800B21DC[];
 
 void FieldScriptVMHandlerDisableDialogActivation(void) {
     g_FieldScriptVMCurActor->scriptFlags.fields.scriptFlags_0xA = 0x1;
@@ -565,6 +569,51 @@ int FieldCharacterIdToPartyId(int characterId) {
 }
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_8009FA54);
+// 93.09%: instruction sequence and registers match; only the store order of the
+// three g_Scene fields differs. The original shifts `angle << 16` before the
+// sceneAngle.vy store and emits the stores as 0x56, 0x7C, 0x60, which needs the
+// source to compute the unk60 value before the vy assignment while still storing
+// it last.
+/*s32 func_8009FA54(s32 nInstructionOffset) {
+    u8 nMode;
+    u8 nByte;
+    s32 nOffset;
+    s32 nAngle;
+    s32 nX;
+    s32 nY;
+
+    nMode = SCRIPT_READ_U8(0);
+    if (nMode != 0xFF) {
+        return 0;
+    }
+
+    nOffset = nInstructionOffset * 7;
+    g_FieldScriptVMCurActor->walkmeshId = SCRIPT_READ_U8(nOffset + 5);
+    nX = func_8009E330(nOffset + 1);
+    nY = func_8009E330(nOffset + 3);
+    func_8009E574(nX, nY);
+
+    nByte = SCRIPT_READ_U8(nOffset + 6);
+    nAngle = ((nByte + 4) & 7) << 9;
+    if (nByte == 0xFF) {
+        nAngle = ((FieldScriptVMGetVariableValue(8) + 4) & 7) << 9;
+    }
+    g_Scene.unk7C = (short)nAngle;
+    g_Scene.unk60 = nAngle << 16;
+    g_Scene.sceneAngle.vy = nAngle;
+
+    nByte = SCRIPT_READ_U8(nOffset + 7);
+    nAngle = ((nByte - 2) & 7) << 9 | 0x8000;
+    if (nByte == 0xFF) {
+        nAngle = ((FieldScriptVMGetVariableValue(6) - 2) & 7) << 9 | 0x8000;
+    }
+    g_FieldScriptVMCurActor->rotation.vx = nAngle;
+    g_FieldScriptVMCurActor->rotation.vy = nAngle;
+    g_FieldScriptVMCurActor->rotation.vz = nAngle;
+    return 0;
+}
+
+*/
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_8009FB98);
 /*
@@ -816,8 +865,52 @@ void func_800A0EE8(void) {
 INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_800A0FD8);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_800A1364);
+// 84.13%: the body and the three D_800B2264-indexed stores are right; two known
+// gaps. (1) The original clears only bits 13-15 when writing the actor's flags12C
+// index, so the field there is 3 bits wide, but ActorData declares
+// flags12C_0xE: 19 (splitting it into 3 + 16 bits reproduces the `and 0xFFFF1FFF`).
+// (2) The original frame is 0x30 with ra/s0 at 0x2C/0x28 (an 8-byte gap above the
+// three stack arguments); this version gets 0x28.
+/*void func_800A1364(void) {
+    int arg;
+    FieldActor* pFieldActor;
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_800A14F0);
+    pFieldActor = &g_FieldActors[D_800AFD1C];
+    pFieldActor->status = (pFieldActor->status & 0xF07F) | 0x200;
+    arg = FieldScriptVMGetArgument(1);
+    func_80076AC0(D_800AFD1C, 0, (void*)((*(s32*)(g_FieldSpriteData + 4)) + (s32)g_FieldSpriteData), 0, 0, 0x80, 1);
+    arg *= 2;
+    func_800A0C94();
+    g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
+    g_FieldScriptVMCurActor->scriptFlags.flags |= 0x100;
+    g_FieldActors[D_800AFD1C].status &= ~ACTOR_STATUS_INVISIBLE;
+    g_FieldScriptVMCurActor->flags |= 0x2000;
+    g_FieldScriptVMCurActor->flags &= ~0x800;
+    D_800B21DC[D_800B2264] = arg;
+    D_800B225F[D_800B2264] = 0;
+    g_FieldScriptVMCurActor->flags12C_0xE = (g_FieldScriptVMCurActor->flags12C_0xE & ~7) | (D_800B2264 & 7);
+    D_800B2264++;
+}*/
+
+void func_800A14F0(void) {
+    int arg;
+    int arg3;
+    FieldActor* pFieldActor;
+    void* pSprite;
+
+    pFieldActor = &g_FieldActors[D_800AFD1C];
+    pFieldActor->status = (pFieldActor->status & 0xF07F) | 0x200;
+    arg = FieldScriptVMGetArgument(1);
+    pSprite = (void*)((*(s32*)(g_FieldSpriteData + arg * 4 + 4)) + (s32)g_FieldSpriteData);
+    arg3 = FieldScriptVMGetArgument(3);
+    func_80076AC0(D_800AFD1C, arg, pSprite, 0, arg3, arg | 0x80, 1);
+    func_800A0C94();
+    g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
+    g_FieldScriptVMCurActor->scriptFlags.flags |= 0x100;
+    g_FieldScriptVMCurActor->scriptFlags.flags &= ~0x80;
+    g_FieldScriptVMCurActor->flags &= ~0x800;
+    g_FieldActors[D_800AFD1C].status &= ~ACTOR_STATUS_INVISIBLE;
+}
 
 void func_800A1624(void) {
     int arg;
