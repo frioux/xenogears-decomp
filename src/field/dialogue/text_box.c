@@ -43,6 +43,50 @@ void func_8009BB0C(void) {
 
 INCLUDE_ASM("asm/field/nonmatchings/dialogue/text_box", func_8009BC98);
 
+/*
+ * Best attempt: 84.89%. Control flow, struct offsets and the arguments of
+ * func_80034800 all match; the only differences are register allocation and
+ * scheduling inside the text box block (gcc reorders the curPosition store
+ * ahead of the startPosition store and loads the 0xF0 color argument late),
+ * which shifts the rest of the block by one instruction.
+ *
+ * The text box keeps its text engine state (a SystemString, see system.c) at
+ * offset 0x18; only the fields this dialogue opcode touches are named here.
+typedef struct {
+    /* 0x00 */ undefined8 unk0[0x6C];
+    /* 0x6C */ u8 unk6C;
+    /* 0x6D */ undefined8 unk6D[0x17];
+    /* 0x84 */ s16 unk84;
+} FieldTextBoxTextState; // Size: 0x86
+
+extern int func_80033CD0(void* pString);
+extern void func_80034800(void* pString, u8 red, u8 green, u8 blue);
+
+void func_8009BC98(void) {
+    int nTextBoxIndex;
+    s16 startPosition;
+
+    if (func_8009CD18(&nTextBoxIndex) == 0) {
+        g_FieldScriptMaxInstructionCount += 8;
+        if (func_80033CD0((FieldTextBoxTextState*)g_FieldTextBoxes[nTextBoxIndex]._pad) == 1 ||
+            (((FieldTextBoxTextState*)g_FieldTextBoxes[nTextBoxIndex]._pad)->unk84 != 0 &&
+             ((FieldTextBoxTextState*)g_FieldTextBoxes[nTextBoxIndex]._pad)->unk6C != 0)) {
+            g_FieldTextBoxes[nTextBoxIndex].cursor.visibility = 0;
+            g_FieldScriptVMCurActor->unk81 = 0xFF;
+            startPosition = SCRIPT_READ_U8_REL(1) >> 4;
+            g_FieldTextBoxes[nTextBoxIndex].cursor.startPosition = startPosition;
+            g_FieldTextBoxes[nTextBoxIndex].cursor.curPosition = 0;
+            g_FieldTextBoxes[nTextBoxIndex].cursor.maxPosition = (SCRIPT_READ_U8_REL(1) & 0xF) - startPosition + 1;
+            func_80034800((FieldTextBoxTextState*)g_FieldTextBoxes[nTextBoxIndex]._pad, 0xEF, 0x1E, 0xF0);
+            g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
+        }
+    } else {
+        g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
+    }
+    D_800B00C0 = 1;
+}
+*/
+
 s32 func_8009BE58(void) {
     return ((g_FieldScriptVMCurActor->direction - (FieldGetCameraDirection() & 0xffff)) & MASK_8DIR_MOVEMENT_NUM_DIRECTIONS) < 5;
 }
