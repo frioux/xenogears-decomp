@@ -2129,15 +2129,21 @@ u8* func_8003D4E4(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003D53C);
 /*
-Attempt (88.33%): same instruction count; the original has pScript copied into v0
-before the tests (so a0 is free for the modeFlags OR) and gcc duplicated that copy
-into each branch delay slot. Does not reproduce from the plain `||` form.
+Attempt (95.83%, same size): the first two tests must fall through to a shared
+`return pScript`, which is why the original has `move v0,a0` in all three branch
+delay slots; gcc also emits a fourth copy at the top of the body block.
 u8* func_8003D53C(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
-    if (!(pAudioManager->unk_Flags & 0x6)
-        || ((g_SoundControlFlags & 0x2000) && !(pAudioElements->active_flag & 0x2))) {
-        pAudioElements->voice_data.flags |= 0x4000;
-        pAudioElements->voice_data.modeFlags |= 0x40;
+    if (pAudioManager->unk_Flags & 0x6) {
+        if ((g_SoundControlFlags & 0x2000) == 0) {
+            return pScript;
+        }
+        if (pAudioElements->active_flag & 0x2) {
+            return pScript;
+        }
     }
+
+    pAudioElements->voice_data.flags |= 0x4000;
+    pAudioElements->voice_data.modeFlags |= 0x40;
     return pScript;
 }
 */
