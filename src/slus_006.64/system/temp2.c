@@ -147,14 +147,9 @@ void func_80025180(void* pData) {
 // GfxQueueShapeTransfer
 // Add Image to current g_GfxImageList[g_GfxCurContext] linked list
 //
-// The C below is byte-identical (100.00%) under gcc-2.7.2-psx and 86.30% under
-// this unit's XenoGraphics preset, where the only difference is that cdk's gcc
-// loads the stack argument height (lw v1,0x10(sp)) inside the branch instead of
-// before the sltu. The function therefore came from a 2.7.2-psx TU that sits
-// inside this splat range; it cannot match until that range is split.
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_800251C8);
-/*
-void func_800251C8(u_long* addr, int x, int y, int width, int height) {
+// height is declared s16 so that cdk's gcc loads the incoming stack word
+// (lw v1,0x10(sp)) before the sltu instead of inside the branch.
+void func_800251C8(u_long* addr, int x, int y, int width, s16 height) {
     Image* pCurrent;
     Image* pNext;
 
@@ -171,7 +166,6 @@ void func_800251C8(u_long* addr, int x, int y, int width, int height) {
         g_GfxImageList[g_GfxCurContext] = pCurrent;
     }
 }
-*/
 
 // Handler table of the sprite work task, indexed by its handler id:
 // func_80025258, func_80025710, func_80025718, NULL, NULL, func_80025258,
