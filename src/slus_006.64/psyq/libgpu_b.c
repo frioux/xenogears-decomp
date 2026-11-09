@@ -42,10 +42,74 @@ extern u_char D_8005A27C[]; // one byte per GP0 command
 extern void func_8004668C(u_long *p, int x, int y, int w);
 extern void func_80046EFC(void);
 extern int func_80046F30(void);
-extern /* best: 70.27% (176 bytes, same size) -- the ternary form fixes the branch
-   polarity and the block order; gcc keeps the raw x in $a0 and truncates into
-   $a2 where retail copies the raw x to $a3 first and truncates $a0 in place, and
-   gcc CSEs the two "D_800568D4 - 1" that retail computes twice.
+extern u_long func_80045A34(int x, int y);
+extern u_long func_80045B00(int x, int y);
+extern u_long func_800459DC(int dfe, int dtd, u_short tpage);
+extern u_long func_80045BCC(int x, int y);
+extern u_long func_80045C10(RECT *tw);
+
+int func_8004537C(void) {
+    return (u_int)D_800568C8->unk38() >> 31;
+}
+
+void func_800453AC(DR_MODE *p, RECT *tw) {
+    setlen(p, 2);
+    *(u_long*)&p->code[0] = func_80045C10(tw);
+    *(u_long*)&p->code[1] = 0;
+}
+
+void func_800453E8(DR_MODE *p, RECT *pt) {
+    setlen(p, 2);
+    *(u_long*)&p->code[0] = func_80045A34(pt->x, pt->y);
+    *(u_long*)&p->code[1] = func_80045B00((s16)(pt->x + pt->w - 1), (s16)(pt->y + pt->h - 1));
+}
+
+void func_8004546C(DR_MODE *p, RECT *pt) {
+    setlen(p, 2);
+    *(u_long*)&p->code[0] = func_80045BCC(pt->x, pt->y);
+    *(u_long*)&p->code[1] = 0;
+}
+
+void SetPriority(DR_MODE *p, int dfe, int dtd) {
+    setlen(p, 2);
+    *(u_long*)&p->code[0] = 0xE6000000 | (dfe ? 0x2 : 0) | (dtd ? 0x1 : 0);
+    *(u_long*)&p->code[1] = 0;
+}
+
+void SetDrawMode(DR_MODE *p, int dfe, int dtd, int tpage, RECT *tw) {
+    setlen(p, 2);
+    *(u_long*)&p->code[0] = func_800459DC(dfe, dtd, tpage);
+    *(u_long*)&p->code[1] = func_80045C10(tw);
+}
+
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_b", func_80045534);
+
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_b", func_8004574C);
+
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_b", func_800459DC);
+
+/* best: 58.61% -- the (s16) casts reproduce retail's clamp tests, but gcc keeps
+   the incoming x in $a0 and puts the truncated temp in $a3 (retail the reverse),
+   then allocates the E3 words from different registers as a consequence.
+u_long func_80045A34(int x, int y) {
+    if ((s16)x < 0)
+        x = 0;
+    else if ((s16)x > D_800568D4 - 1)
+        x = D_800568D4 - 1;
+    if ((s16)y < 0)
+        y = 0;
+    else if ((s16)y > D_800568D6 - 1)
+        y = D_800568D6 - 1;
+    if (D_800568D0 == 1 || D_800568D0 == 2)
+        return 0xE3000000 | (x & 0xFFF) | ((y & 0xFFF) << 12);
+    return 0xE3000000 | (x & 0x3FF) | ((y & 0x3FF) << 10);
+}
+*/
+
+/* best: 70.27% (176 bytes, same size) -- the ternary form fixes the branch
+   polarity and block order; gcc keeps the raw x in $a0 and truncates into $a2
+   where retail copies the raw x to $a3 and truncates $a0 in place, and gcc CSEs
+   the two "D_800568D4 - 1" that retail computes twice.
 u_long func_80045A34(int x, int y) {
     x = ((s16)x < 0) ? 0 : (((s16)x > D_800568D4 - 1) ? D_800568D4 - 1 : x);
     y = ((s16)y < 0) ? 0 : (((s16)y > D_800568D6 - 1) ? D_800568D6 - 1 : y);
@@ -57,7 +121,8 @@ u_long func_80045A34(int x, int y) {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_b", func_80045A34);
 
-/* best: 70.27% -- same shape as func_80045A34 (identical clamp, E4 word).
+
+/* best: 70.27% -- same clamp as func_80045A34, E4 word.
 u_long func_80045B00(int x, int y) {
     x = ((s16)x < 0) ? 0 : (((s16)x > D_800568D4 - 1) ? D_800568D4 - 1 : x);
     y = ((s16)y < 0) ? 0 : (((s16)y > D_800568D6 - 1) ? D_800568D6 - 1 : y);
