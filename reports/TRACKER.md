@@ -899,3 +899,22 @@ Tooling fixed this round: `check_bin.sh` now knows `battling` (`tools/scripts/ch
 battling` works), and the `rounds/brief.js` template literal is valid JS again (a
 backtick in a hint had broken it and every workflow launch failed with a JSON error
 for three rounds -- the tell is "Unexpected token" from the tool, not from your args).
+| — | `battling` carved further: `main/misc7`..`misc12`, 150 more stubs | — | — | byte-identical; the asm segment is now 0x1A26C..? (157 functions left of the 456) |
+
+### Carving an overlay asm segment, the three-step recipe
+
+1. `make build` with the overlay's whole span as `[0x0, rodata]` (anything before the
+   first code byte) + `[<first code>, asm]` + `[<data tail>, data]` and the bss
+   subsegment REMOVED, then `grep -c '^glabel' asm/<bin>/<seg>.s` for the function
+   map and `grep -E '^\.size'` for the sizes.
+2. Pick N contiguous 25-function ranges, append those symbols to
+   `config/symbol_addrs.<bin>.txt`, write `src/<bin>/main/miscN.c` with one
+   `INCLUDE_ASM` per symbol in address order, and replace the `<first code>, asm`
+   line with those `c` ranges plus a new `asm` line at the 26th function's offset.
+3. `make build` must stay byte-identical (it does: an `asm` range and a `c` unit of
+   the same range reassemble to the same bytes), then `make check`.
+
+Two asks that came back from every worker on this overlay: `check_bin.sh` needed a
+`battling` case (added), and `linker/undefined_syms_auto.battling.txt` is where the
+`D_` globals come from -- they are absolute symbols, so spelling the exact address
+(`D_800926AA`) rather than `D_800926A8[1]` is what makes halfword stores reach 100%.
