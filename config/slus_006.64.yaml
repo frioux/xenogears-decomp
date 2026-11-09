@@ -117,11 +117,12 @@ segments:
       - [0x23688, hasm, util/lzss]
       - [0x23754, c, system/system]
       - [0x25E9C, c, system/controller]
-      - [0x26644, asm]
+      - [0x26644, c, system/controller_b]
+      - [0x26C20, c, system/controller_c]
       - [0x274D8, c, system/font]
-      - [0x28078, asm]
+      - [0x28078, c, system/archive_b]
       - [0x28388, c, system/sound]
-      - [0x2FF38, asm]
+      - [0x2FF38, c, psyq/libgte_c]
       - [0x300E8, c, psyq/libc]
       - [0x30C54, hasm, psyq/libapi/FlushCache]
       - [0x30C64, hasm, psyq/libapi/_bu_init]
@@ -145,16 +146,17 @@ segments:
       - [0x30DB4, hasm, psyq/libapi/erase]
       - [0x30DC4, hasm, psyq/libapi/Krom2RawAdd]
       - [0x30DD4, c, psyq/libapi]
-      - [0x3137C, asm] # Likely part of libapi
+      - [0x3137C, c, psyq/libapi_b] # Likely part of libapi
       - [0x31508, c, psyq/libcd/event]
       - [0x31618, hasm, psyq/libapi/DeliverEvent]
       - [0x31628, c, psyq/libcd/sys]
       - [0x31DB4, c, psyq/libcd/bios]
       - [0x3358C, c, psyq/libc2/puts]
       - [0x336F0, c, psyq/libcd/cdread]
-      - [0x33F6C, asm] # Likely part of libgpu
+      - [0x33F6C, c, psyq/libgpu_tex] # Likely part of libgpu
       - [0x34128, c, psyq/libgpu]
-      - [0x35B7C, asm]
+      - [0x35B7C, c, psyq/libgpu_b]
+      - [0x36E8C, c, psyq/libgpu_c]
       - [0x393C4, c, psyq/libgte]
       - [0x3A8DC, c, psyq/libgte_b]
       - [0x3BCAC, asm] # Part of libetc
@@ -196,7 +198,7 @@ segments:
       - [0x3EEB8, c, psyq/libspu/SpuSetReverbModeFeedback] # S_SRMFB
       - [0x3EF74, c, psyq/libspu/SpuGetReverbModeType] # S_GRMT
       - [0x3EF84, c, psyq/libcard]
-      - [0x3F080, asm] # Likely part of libcard
+      - [0x3F080, c, psyq/libcard_b] # Likely part of libcard
       - [0x3F290, sdata]
       #- [0x480A4, .sdata, psyq/libetc]
       #- [0x49140, sdata]
