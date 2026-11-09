@@ -380,10 +380,11 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80023538);
 
 // SpriteData stuff
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80023804);
-/* Best attempt: 99.10%. Everything matches except a v0/v1 swap: the original keeps the
-   flags_0xAC value in v1 and its 0xFFF8007F mask in v0 (so the following flags_0xA8 load lands
-   in v0), this C does the opposite. Tried: swapping the two statements, constant-first operand
-   order, and going through the pFlagsA8 pointer (67.63%).
+/* Best attempt: 99.10%. Everything matches except a v0/v1 swap: the original has the
+   flags_0xAC mask in v0 and the flags_0xAC value in v1 (so its load's target is v1 and the
+   following flags_0xA8 load reuses v0), this C allocates the pair the other way round.
+   Tried: swapping the two flags statements (93.37%), which flips the AC value into v1
+   -- correct -- but moves the flags_0xA8 load first and the mask into a1.
 void func_80023804(SpriteData* pSpriteData) {
     u32* pFlagsA8;
     s32 cycles;

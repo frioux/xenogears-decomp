@@ -63,7 +63,93 @@ void func_8001A684(s32 arg0, s32 arg1) {
     D_800592D8[arg0 * 0x28 + arg1] += 1;
 }
 
+extern int D_800592C8;
+
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp3", func_8001A6E8);
+/* Best attempt: 89.90%. Control flow, calls, constants and store offsets all line up; the
+   differences are allocation only: gcc spills the prim count (0x18(sp)) instead of keeping
+   it in fp, which shifts i/j into s3/s2 instead of s4/s3 and grows the frame by 8 bytes.
+void func_8001A6E8(u_long* pOt) {
+       s32 i;
+       s32 j;
+       s32 k;
+       s32 count;
+       s32 gridOffset;
+       s32 rowOffset;
+       s32 x;
+       s32 y;
+       u8* pPrim;
+       u8* pField;
+   
+       pPrim = (u8*)(&D_800592DC)[D_800592C8];
+       count = 0;
+       for (i = 0, gridOffset = 0; i < 0x1C; i++, gridOffset += 0x28) {
+           rowOffset = gridOffset;
+           pField = pPrim + 8;
+           for (j = 0; j < 0x28; j++) {
+               if (D_800592D4[rowOffset + j] != 0) {
+                   *(u8*)(pField - 5) = 2;
+                   *(u32*)(pField - 4) = 0x70280000;
+                   *(u32*)pField = (j << 3) | (i << 19);
+                   AddPrim(pOt, pPrim);
+                   pField += 0xC;
+                   pPrim += 0xC;
+                   count++;
+                   func_8001A684(i - 1, j - 1);
+                   func_8001A684(i - 1, j);
+                   func_8001A684(i - 1, j + 1);
+                   func_8001A684(i, j - 1);
+                   func_8001A684(i, j + 1);
+                   func_8001A684(i + 1, j - 1);
+                   func_8001A684(i + 1, j);
+                   func_8001A684(i + 1, j + 1);
+               }
+           }
+       }
+   
+       for (k = 0; k < 0x460; k++) {
+           if (D_800592D8[k] != 2) {
+               D_800592D4[k] = D_800592D8[k] == 3;
+           }
+           D_800592D8[k] = 0;
+       }
+   
+       if (count < 0x14) {
+           count = 0;
+           x = rand() % 0x1C;
+           y = rand() % 0x28;
+           do {
+               x = x - 1 + rand() % 3;
+               y = y - 1 + rand() % 3;
+               if (x < 0) {
+                   x = 0x1C;
+               }
+               if (x > 0x1C) {
+                   x = 0;
+               }
+               if (y < 0) {
+                   y = 0x28;
+               }
+               if (y > 0x28) {
+                   y = 0;
+               }
+               D_800592D4[x * 0x28 + y] = 1;
+               count++;
+           } while (count < 0x14);
+       }
+   
+       x = rand() % 0x1C;
+       y = rand() % 0x28;
+       func_8001A684(x - 1, y - 1);
+       func_8001A684(x - 1, y);
+       func_8001A684(x - 1, y + 1);
+       func_8001A684(x, y - 1);
+       func_8001A684(x, y + 1);
+       func_8001A684(x + 1, y - 1);
+       func_8001A684(x + 1, y);
+       func_8001A684(x + 1, y + 1);
+   }
+*/
 
 extern s32 D_8004F364;
 extern s32 D_8004F36C;
