@@ -25,7 +25,7 @@ void func_800A55C8(void) {
 }
 
 // Set PolyFT4 color for PolyFT4s of next swap chain
-void func_800A5600(u_char color) {
+void func_800A5600(int color) {
     int i;
     POLY_FT4* pPoly;
     int nOffset;
@@ -124,7 +124,135 @@ void func_800A5884(void) {
     }
 }
 
+extern s32 D_800ADB38;
+extern s32 D_800ADB3C;
+extern s16 D_800ADC08;
+extern int D_800C3A40;
+extern void FontFree(void);
+extern void func_80070C84(void);
+extern void func_800A4748(void);
+extern void FieldClearAndSwapOTag(void);
+extern void FieldRenderSync(void);
+extern void FieldFadeToBlack(int duration);
+extern void FieldFadeToWhite(int duration);
+extern void func_80077DAC(void);
+extern void func_8007554C(void);
+extern void func_80078B5C(void);
+extern void func_80077544(void);
+extern void func_800A6E70(void);
+extern void func_800A7064(void);
+extern void func_800A915C(void);
+extern void func_800A91F0(void);
+extern void FieldZoomFadeEffectInitialize(int nSemiTrans, int nABR);
+
 INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A5924);
+
+/* Best attempt, 49.06%. The whole body decompiles cleanly - every call, both
+   16.16 fixed-point fade loops (the color starts at 0x800000 and moves by
+   0x800000 / D_800ADB3C per frame), the func_800A5774 tile loop and the
+   "wait until D_800ADB38 leaves 3" loop - but gcc lays the four switch case
+   bodies out in a different order, which costs ~1500 of the 1600 bytes of
+   branches. Body order in the original is [case 4][case 1,2][case 3]
+   (0x59D8 / 0x5A7C / 0x5B20); with the source order below gcc emits
+   [case 3][case 4][case 1,2], and writing the cases in that order in the
+   source moves case 3 to the front instead, so it is not source order. The
+   dispatch tree itself (== 3, then < 4, then == 4, then <= 0) is identical.
+   Worth trying: a case label order or a switch spelling that reproduces the
+   original layout, or a jump-table-looking enum range.
+   Side fact recovered from the original call sites: func_800A5600 takes an
+   int (its u_char parameter used to force an `andi 0xff` on the argument),
+   and both func_800A5884 call sites pass (1, 1).
+    void func_800A5924(void) {
+        int i;
+        int nColor;
+
+        if (D_800ADB38 == 0) {
+            return;
+        }
+        FontFree();
+        func_80070C84();
+        func_800A915C();
+        if (D_800ADB38 == 1 || D_800ADB38 == 4) {
+            func_800A4748();
+            DrawSync(0);
+            FieldClearAndSwapOTag();
+            FieldRenderSync();
+        }
+        FieldRenderSync();
+
+        for (;;) {
+            switch (D_800ADB38) {
+            case 3:
+                FieldZoomFadeEffectInitialize(1, 1);
+                nColor = 0x2C0;
+                for (i = 0; i < 5; i++) {
+                    func_800A5774(nColor, 0x100, 0xE0);
+                    nColor += 0x40;
+                }
+                FieldFadeToWhite(D_800ADB3C);
+                func_800A5600(0);
+                nColor = 0;
+                for (i = 0; i < D_800ADB3C; i++) {
+                    func_80077DAC();
+                    FieldZoomFadeEffectUpdate();
+                    func_8007554C();
+                    func_80078B5C();
+                    func_800A5600(nColor >> 16);
+                    nColor += 0x800000 / D_800ADB3C;
+                }
+                break;
+            case 4:
+                ((void (*)(int, int))func_800A5884)(1, 1);
+                func_800A6E70();
+                D_800ADC08 = 1;
+                FieldFadeToBlack(D_800ADB3C);
+                D_800C3A40 = 0;
+                for (i = 0; i < D_800ADB3C; i++) {
+                    func_80077DAC();
+                    func_800A6C40();
+                    func_8007554C();
+                    func_80078B5C();
+                    D_800C3A40 += 6;
+                }
+                DrawSync(0);
+                func_800A7064();
+                goto end;
+            case 1:
+            case 2:
+                ((void (*)(int, int))func_800A5884)(1, 1);
+                D_800ADC08 = 1;
+                FieldFadeToBlack(D_800ADB3C);
+                nColor = 0x800000;
+                for (i = 0; i < D_800ADB3C; i++) {
+                    func_80077DAC();
+                    FieldZoomFadeEffectUpdate();
+                    func_8007554C();
+                    func_80078B5C();
+                    func_800A5600(nColor >> 16);
+                    nColor -= 0x800000 / D_800ADB3C;
+                    if (nColor < 0) {
+                        nColor = 0;
+                    }
+                }
+                break;
+            default:
+                goto end;
+            }
+
+            while (D_800ADB38 == 3) {
+                func_80077DAC();
+                FieldZoomFadeEffectUpdate();
+                func_8007554C();
+                func_80078B5C();
+            }
+        }
+
+    end:
+        D_800ADB38 = 0;
+        func_800A91F0();
+        func_80077544();
+    }
+*/
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A5C40);
 
@@ -329,7 +457,6 @@ typedef struct {
     /* 0x7850 */ u_short unk7850[280];
 } FieldParticlePrimitiveSet; // Size: 0x7A80
 
-extern int D_800C3A40;
 extern u_char D_800B1E24[];
 
 void func_800A6C40(void) {
