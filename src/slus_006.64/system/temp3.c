@@ -621,6 +621,12 @@ form is source-level and the two can coexist. Worth retrying with declarations
 for D_800594F8/D_8005946C/D_800594D4/D_800595A0 in this unit and
 D_8005947C/D_800594F8 read through a pointer local inside func_8001B6C4;
 deciding who owns this .bss data is a unit-level call.
+Confirmed in maspsx (__init__.py, store/load gp-rel branch): a symbol is relaxed to
+%gp_rel only when it is in sbss_entries AND not in comm_symbols, i.e. only a file-local
+(.lcomm) definition does it; a plain definition here becomes .comm (fcommon) and is never
+relaxed. So making func_8001BB50 match would turn func_8001B6C4's store to D_800594F8
+(gp_rel here impossible - retail has lui $at %hi there) into gp_rel and break that
+function's verified 100%, which is the unit-level conflict.
 void func_8001BB50(void) {
     D_800594F8 = 1;
     D_8005946C = 0;
@@ -693,16 +699,11 @@ void func_8001BBAC(void) {
 
 extern int rand(void);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp3", func_8001BD40);
-/*
-Best: 90.64%. Only the then-branch is short one `andi v0, v1, 0xff`: with a single
-`return result` gcc keeps the if/else block order of the original but drops that
-mask, and with two returns it reorders the two blocks.
-u8 func_8001BD40(u32 arg0, u32 arg1) {
+s32 func_8001BD40(u32 arg0, u32 arg1) {
     u32 arg0Byte;
     u32 arg1Byte;
     s32 range;
-    u8 result;
+    s32 result;
 
     arg0Byte = arg0 & 0xFF;
     if (arg0Byte == 0xFF) {
@@ -717,39 +718,9 @@ u8 func_8001BD40(u32 arg0, u32 arg1) {
     }
     range = arg1Byte - arg0Byte;
     if (range < 0xFF) {
-        result = (arg0 + rand() % (range + 1)) & 0xFF;
+        result = (arg0 + (rand() & 0xFF) % (range + 1)) & 0xFF;
     } else {
         result = rand() & 0xFF;
     }
     return result;
-} */
-
-/*
-Best: 89.10%. Structure and branch polarity match; what is left is gcc reusing
-the incoming argument register a1 as a temporary for the masked arg0 (the
-original keeps masked arg0 in v1) and merging the trailing `& 0xFF` so the
-epilogue is shared instead of ending each block with `j ... ; andi v0,v1,0xff`.
-Measured cause of the merge: our compile masks the sum in place in v0 and the
-else path masks rand() in place in v0 too, so gcc 2.7 cross-jumps them onto one
-shared `andi v0,v0,0xff`. The original sums into v1 (`addu v1,s1,v1; j Lx;
-andi v0,v1,0xff`), a different insn, so its tails stay separate. A u8 result
-local, an explicit trailing `& 0xFF`, and an `s32` return type all still merge.
-u8 func_8001BD40(u8 arg0, u8 arg1) {
-    s32 diff;
-
-    if (arg0 == 0xFF) {
-        return 0xFF;
-    }
-    if (arg1 == 0) {
-        return 0;
-    }
-    if (arg0 == arg1) {
-        return arg0;
-    }
-    diff = arg1 - arg0;
-    if (diff >= 0xFF) {
-        return rand() & 0xFF;
-    }
-    return arg0 + (rand() & 0xFF) % (diff + 1);
 }
-*/
