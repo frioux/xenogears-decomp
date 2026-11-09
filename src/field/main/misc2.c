@@ -180,30 +180,32 @@ void func_800723E4(SVec4* pA, SVec4* pB, SVec4* pOut) {
     pOut->y = pB->y + ((t * nB.vz) >> 12);
 }
 
-// 58.55%: a plain list of assignments per store in the original order matches the
-// stores themselves, but gcc here re-materialises a lui/%lo pair for every symbol,
-// where the original bases all of them off $s0 = &g_CamInterpolation (including
-// `addiu $a0,$s0,0x2C` for the func_80070594 argument). Getting gcc to take that
-// base is the whole problem; the store set and order below are otherwise right.
+// 62.01% (520 bytes vs the original's 524): the store set and order are right, and
+// every g_Scene/g_CameraEye-vy-vz store already comes out as the original's
+// lui-at/%lo pair. The original additionally keeps $s0 = &g_CamInterpolation live
+// across the func_80070594 call and does the whole post-call reset block with
+// negative displacements off it (-0x104 = g_CameraEye.vx, -0xF4..-0xEC = g_CameraAt,
+// -0xD4..-0xCC = g_CameraEye2, +0x74/+0x78 = g_Scene.sceneScrZ/sceneDIP,
+// +0x7A = sceneScale, -0x50 = g_FieldCameraMode, ...). Spelling those as offsets
+// from a u_char* base gets the pre-call part exactly (register difference only) but
+// gcc rematerialises the constant address after the call instead of saving it, so
+// the post-call block is one lui-at/%lo pair per store. Defeating that
+// rematerialisation is the whole remaining problem (same wall as func_80072254).
 /*
-extern CameraInterpolation g_CamInterpolation;
 extern VECTOR g_CameraEye;
-extern VECTOR g_CameraAt;
-extern VECTOR g_CameraUp;
-extern VECTOR g_CameraEye2;
-extern VECTOR g_CameraAt2;
-extern VECTOR D_800AF8D0;
-extern s32 D_800AF8E0;
-extern s32 D_800AF8E4;
-extern s32 D_800AF8E8;
-extern s16 g_FieldCameraMode;
-extern s16 g_CamMovementFlags;
-extern s16 g_CamAtMovementDuration;
-extern s16 g_CamEyeMovementDuration;
-extern void func_80070594(MATRIX* dest);
+extern void func_80070594(MATRIX* pMatrix);
 
+// The original keeps &g_CamInterpolation in $s0 for the whole function and reaches
+// the camera block that sits below it (g_CameraEye..g_CameraUp at 0x800AF880) with
+// negative displacements, so those stores are spelled as offsets from that base. The
+// g_Scene fields it also resets are outside that block and keep their own %hi/%lo.
+// Both spellings are load-bearing: g_CameraEye.vx comes out of the base register,
+// g_CameraEye.vy/vz out of the symbol.
 void func_8007254C(void) {
-    g_CamInterpolation.atStepDistance = 8;
+    u_char* pCam;
+
+    pCam = (u_char*)&g_CamInterpolation;
+    *(s32*)pCam = 8;
     g_CamInterpolation.eyeStepDistance = 8;
     g_Scene.unk5C = 0x400000;
     g_Scene.unk60 = 0x8000000;
@@ -228,41 +230,41 @@ void func_8007254C(void) {
     g_Scene.camRotation.vx = 0;
     g_Scene.camRotation.vy = 0;
     g_Scene.camRotation.vz = 0;
-    func_80070594(&g_Scene.camRotationMatrix);
-    g_CameraEye.vx = 0;
+    func_80070594((MATRIX*)(pCam + 0x2C));
+
+    *(s32*)(pCam - 0x104) = 0;
     g_CameraEye.vy = 0;
     g_CameraEye.vz = 0;
-    g_CameraUp.vy = 0x10000000;
-    D_800AF8D0.vy = 0x10000000;
-    g_Scene.sceneDIP = 0x1E;
-    g_Scene.sceneScrZ = 0x200;
-    g_CameraAt.vx = 0;
-    g_CameraAt.vy = 0;
-    g_CameraAt.vz = 0;
-    g_CameraUp.vx = 0;
-    g_CameraUp.vz = 0;
-    D_800AF8E0 = 0;
-    D_800AF8E4 = 0;
-    D_800AF8E8 = 0;
-    g_CameraEye2.vx = 0;
-    g_CameraEye2.vy = 0;
-    g_CameraEye2.vz = 0;
-    g_CameraAt2.vx = 0;
-    g_CameraAt2.vy = 0;
-    g_CameraAt2.vz = 0;
-    D_800AF8D0.vx = 0;
-    D_800AF8D0.vz = 0;
-    g_Scene.unk70 = 0;
-    g_Scene.unk80 = 0;
-    g_Scene.unk8C = 0;
-    g_Scene.sceneScale = 0x1000;
-    g_FieldCameraMode = 0;
-    g_CamMovementFlags = 0;
-    g_CamAtMovementDuration = 0;
-    g_CamEyeMovementDuration = 0;
+    *(s32*)(pCam - 0xE0) = 0x10000000;
+    *(s32*)(pCam - 0xB0) = 0x10000000;
+    *(s16*)(pCam + 0x78) = 0x1E;
+    *(s32*)(pCam + 0x74) = 0x200;
+    *(s32*)(pCam - 0xF4) = 0;
+    *(s32*)(pCam - 0xF0) = 0;
+    *(s32*)(pCam - 0xEC) = 0;
+    *(s32*)(pCam - 0xE4) = 0;
+    *(s32*)(pCam - 0xDC) = 0;
+    *(s32*)(pCam - 0xA4) = 0;
+    *(s32*)(pCam - 0xA0) = 0;
+    *(s32*)(pCam - 0x9C) = 0;
+    *(s32*)(pCam - 0xD4) = 0;
+    *(s32*)(pCam - 0xD0) = 0;
+    *(s32*)(pCam - 0xCC) = 0;
+    *(s32*)(pCam - 0xC4) = 0;
+    *(s32*)(pCam - 0xC0) = 0;
+    *(s32*)(pCam - 0xBC) = 0;
+    *(s32*)(pCam - 0xB4) = 0;
+    *(s32*)(pCam - 0xAC) = 0;
+    *(s16*)(pCam + 0x7C) = 0;
+    *(s16*)(pCam + 0x8C) = 0;
+    *(s16*)(pCam + 0x98) = 0;
+    *(s16*)(pCam + 0x7A) = 0x1000;
+    *(s16*)(pCam - 0x50) = 0;
+    *(s16*)(pCam - 0x48) = 0;
+    *(s16*)(pCam - 0x46) = 0;
+    *(s16*)(pCam - 0x24) = 0;
 }
 */
-
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_8007254C);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_800726E8);
@@ -472,6 +474,16 @@ int FieldMathUpdateAngle(int curAngle, int targetAngle, int delta) {
     return result;
 }
 
+// Blocked in C without inline asm: this function switches the stack into the
+// scratchpad three times (`lui/ori $t1,0x1F8003FC; sw $sp,0($t1); addiu $t1,-4;
+// addu $sp,$t1` before the jal, `addiu $sp,4; lw $sp,0($sp)` after). No C
+// construct makes gcc store $sp into memory, so this and func_8007554C (which has
+// the same four-insn pair around its FieldRenderModels call) need an `asm`
+// statement or stay INCLUDE_ASM. It is also the FIRST owner of the unit's .rodata
+// (D_8006FB04 "MATRIX    "), so the five stubs below it cannot be converted
+// before it: cc1 emits C .rdata at the top of the object, ahead of every
+// asm-included .section .rodata, so only a prefix of D_8006FB04..D_8006FB70 can
+// move into C.
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_800739C0);
 
 void func_80073E38(void) {
@@ -741,6 +753,8 @@ void func_80075484(void) {
         g_FieldCurRenderContextIndex);
 }
 
+// Also switches the stack into the scratchpad (0x1F8003FC) around its
+// FieldRenderModels call; see the note above func_800739C0.
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_8007554C);
 
 extern s32 D_800ADB78;
