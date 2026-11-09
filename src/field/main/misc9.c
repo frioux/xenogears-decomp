@@ -346,7 +346,107 @@ void func_800AB808(void) {
 */
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc9", func_800ABA98);
+/* 82.61% (624 bytes, original is 668). Shape is right (table walk, item check,
+   StoreImage/archive read/FieldLoadTIMWithClut, the three render loops, the
+   LoadImage restore) but gcc keeps the table base D_800AF47C in a call-clobbered
+   register and re-forms `lui/addiu` after every call, where the original keeps
+   it in s2 for the whole function and does five separate `addu v0,s2,s1` for
+   the entry fields. Also undefined-1 sentinel was 0xFFFF (fixed) and the frame
+   is 0x38 vs the original 0x40 (no s3). Tried: index loop / pointer loop /
+   both a base and a walker pointer, and -1 vs 0xFFFF for the sentinel.
+typedef struct {
+    s32 mapNum;
+    s32 unk4;
+    s32 unk8;
+    s32 archiveIndex;
+    s32 itemId;
+    s32 unk14;
+    s32 unk18;
+    s32 unk1C;
+} FieldMapSpriteEntry; // Size: 0x20
 
+extern FieldMapSpriteEntry D_800AF47C[];
+
+extern s32 g_GameSceneMapNum;
+extern u16 D_800C3900;
+extern void func_800AB808();
+
+void func_800ABA98(void) {
+    RECT rect;
+    FieldMapSpriteEntry* pTable;
+    void* pImage;
+    void* pFile;
+    s32 mapNum;
+    s32 archiveIndex;
+    s32 index;
+
+    mapNum = g_GameSceneMapNum & 0x3FFF;
+    pTable = D_800AF47C;
+    for (index = 0;; index++) {
+        if (pTable[index].mapNum == 0xFFFF) {
+            return;
+        }
+        if (pTable[index].mapNum == mapNum) {
+            break;
+        }
+    }
+
+    if (func_800AB328(pTable[index].itemId) != -1) {
+        rect.x = 0x300;
+        rect.y = 0x100;
+        rect.w = 0xA0;
+        rect.h = 0x100;
+        D_800C3914 = pTable[index].unk4;
+        D_800C3A18 = pTable[index].unk8;
+        D_800AFE78 = pTable[index].unk14;
+        D_800AFE7C = pTable[index].unk18;
+
+        pImage = HeapAlloc(0x14000, 0);
+        StoreImage(&rect, pImage);
+        DrawSync(0);
+
+        ArchiveCdDataSync(0);
+        ArchiveSetIndex(4, 0);
+        archiveIndex = pTable[index].archiveIndex + 0x7FB;
+        pFile = HeapAlloc(ArchiveDecodeAlignedSize(archiveIndex), 0);
+        ArchiveReadFileToBuffer(archiveIndex, pFile, 0, 0x80);
+        ArchiveCdDataSync(0);
+        FieldLoadTIMWithClut((u_long*)pFile, 0x300, 0x100, 0, 0xF6, 0, 0);
+        HeapFree(pFile);
+
+        if (pTable[index].unk1C == 1) {
+            func_800AB808();
+        }
+        func_800AAF80();
+
+        for (index = 0; index < 0x10; index++) {
+            FieldClearAndSwapOTag();
+            func_800AB378(index << 3);
+            FieldDisplay();
+        }
+
+        while (!(D_800C3900 & 0x100)) {
+            FieldClearAndSwapOTag();
+            func_800AB378(0x80);
+            FieldDisplay();
+            FieldPollControllers();
+        }
+
+        for (index = 0x10; index > 0; index--) {
+            FieldClearAndSwapOTag();
+            func_800AB378(index << 3);
+            FieldDisplay();
+        }
+
+        DrawSync(0);
+        HeapFree(D_800C3A3C);
+        HeapFree(D_800B1DF0);
+        LoadImage(&rect, pImage);
+        DrawSync(0);
+        HeapFree(pImage);
+    }
+}
+*/
 
 extern SpriteList3 D_800B0188;
 
