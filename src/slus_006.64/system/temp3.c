@@ -535,6 +535,10 @@ by func_8001B6C4 matching 100% while D_8005959C is defined here). The remaining
 diff is the inner loop: the original keeps the even byte on an
 advancing pointer and recomputes the odd byte as (i + j) + (g_GameState + 1),
 gcc merges the two into one base with 0/1 offsets.
+A restructured attempt (gp_rel tail confirmed OK by defining D_8005947C/D_800594CC here)
+left three gaps: gcc hoists the 0xF literal and the odd base out of the outer loop into
+s4/s5 (the original reloads both per row into t1/t2 and saves only s0-s3), and the copy-back
+loop comes out `sltu` where the original has `slt`, so the source compared something signed.
 void func_8001B970(void) {
     u8 inBuf[0x14];
     u8 outBuf[0x14];
