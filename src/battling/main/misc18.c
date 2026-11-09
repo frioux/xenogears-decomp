@@ -1,8 +1,27 @@
 #include "common.h"
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc18", func_8008F530);
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc18", func_8008F570);
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc18", func_8008F580);
+extern s32 func_80073DE4(u8* p, s32 arg1);
+
+s32 func_8008F530(u8* pArg0, s32 arg1) {
+    if (arg1 != 0) {
+        return func_80073DE4(pArg0, *(s16*)(pArg0 + 0xBE));
+    }
+    return *(s16*)(pArg0 + 0xB6) < 0x1000 - *(s16*)(pArg0 + 0xBE);
+}
+
+s32 func_8008F570(u8* pArg0) {
+    return 0x1000 - *(s16*)(pArg0 + 0xBE);
+}
+
+s32 func_8008F580(u8* pArg0) {
+    s32 v1;
+    s32 v0;
+
+    v1 = *(s16*)(pArg0 + 0xB6);
+    v0 = *(s32*)(*(u8**)(pArg0 + 0x15FC) + 0x24);
+    return (v0 - 0x200 < v1) ? !(v0 < v1) : 2;
+}
+
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc18", func_8008F5B4);
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc18", func_8008F720);
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc18", func_8008F7B8);
@@ -23,6 +42,15 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc18", func_80090504);
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc18", func_80090580);
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc18", func_80090894);
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc18", func_80090990);
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc18", func_80090C88);
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc18", func_80090CC0);
+void func_80090C88(u8* pArg0) {
+    u8* p1;
+    u8* p0;
+
+    p1 = *(u8**)(pArg0 + 0x1600);
+    p0 = *(u8**)(pArg0 + 0x15FC);
+    *(s32*)(p0 + 0x10) = *(u8*)(p1 + 0x6);
+    *(s32*)(p0 + 0x14) = *(u8*)(p1 + 0x7);
+    *(s32*)(p0 + 0x18) = *(u8*)(p1 + 0x8);
+    *(s32*)(p0 + 0x1C) = *(u8*)(p1 + 0x9);
+}INCLUDE_ASM("asm/battling/nonmatchings/main/misc18", func_80090CC0);
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc18", func_80090E10);
