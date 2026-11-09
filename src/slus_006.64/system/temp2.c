@@ -180,9 +180,67 @@ void func_80025224(WorkListEntry* pTask, int handlerIndex) {
     WorkListSetTaskCallback(pTask, D_8004FD40[handlerIndex]);
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_80025258);
-
 extern s32 D_80050100;
+extern u8 D_800C3664;
+extern void func_8001E3D8(SpriteData* pSpriteData, void* pArg);
+extern void func_8001E298(SpriteData* pSpriteData, void* pArg);
+
+// Projects the sprite's position and queues it into the OT at its own depth
+// offset, either straight (bit 24) or through the model transform (bit 29).
+void func_80025258(WorkListEntry* pTask) {
+    SVECTOR vec;
+    long vecTrans[3];
+    long sxy;
+    long flag;
+    SpriteData* pSpriteData;
+    MATRIX* pMatrix;
+    s32 nOTOffset;
+    u32 flags;
+
+    pSpriteData = pTask->unk4;
+    if ((((u32)pSpriteData->flags_0xB0 >> 8) & 1) && D_800C3664) {
+        return;
+    }
+
+    vec.vx = pSpriteData->position.x >> 16;
+    vec.vy = pSpriteData->position.y >> 16;
+    vec.vz = pSpriteData->position.z >> 16;
+    pMatrix = &D_8004FBB8;
+    SetRotMatrix(pMatrix);
+    SetTransMatrix(pMatrix);
+    nOTOffset = (RotTransPers(&vec, &sxy, (u_long*)&sxy, &flag) >> D_80050100) +
+               pSpriteData->field_0x30;
+    if (flag & 0x8000) {
+        nOTOffset = 0;
+    }
+    pSpriteData->field_0x2e = nOTOffset;
+
+    flags = *(u32*)((u8*)pSpriteData + 0x3C);
+    if ((flags >> 24) & 1) {
+        func_80022038(pSpriteData);
+        vecTrans[0] = pSpriteData->position.x >> 16;
+        vecTrans[1] = pSpriteData->position.y >> 16;
+        vecTrans[2] = pSpriteData->position.z >> 16;
+        TransMatrix(&pSpriteData->pBase->transformMatrix, (VECTOR*)vecTrans);
+        SetRotMatrix(&pSpriteData->pBase->transformMatrix);
+        SetTransMatrix(&pSpriteData->pBase->transformMatrix);
+        if ((*(u32*)((u8*)pSpriteData + 0x3C) >> 25) & 1) {
+            nOTOffset = 0xFFF;
+        } else {
+            nOTOffset = pSpriteData->field_0x30;
+        }
+        if ((u32)(nOTOffset - 1) < 0xFFF) {
+            func_8001E3D8(pSpriteData, &g_GfxCurOT[nOTOffset]);
+        }
+    } else {
+        if ((flags >> 29) & 1) {
+            nOTOffset = ((SpriteData*)pSpriteData->field_0x70)->field_0x2e;
+        }
+        if ((u32)(nOTOffset - 1) < 0xFFF) {
+            func_8001E298(pSpriteData, &g_GfxCurOT[nOTOffset]);
+        }
+    }
+}
 
 void func_8002541C(WorkListEntry* pTask) {
     SVECTOR vec;
@@ -231,6 +289,79 @@ void func_8002541C(WorkListEntry* pTask) {
 }
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_80025544);
+/*
+Best 89.57% (464 bytes against 460): same instruction set and order, but gcc
+sinks the `lhu` of pPrim->x0 below the `subu` that computes nWidth, where the
+original has it in the load-delay slot of the `lh`, so one nop stays unfilled
+and xOffset/prim end up in s3/s1 instead of s1/s3. Both x0 reads (signed for
+the width, unsigned for the centre) have to stay in the source.
+void func_80025544(WorkListEntry* pTask) {
+    SpriteData* pSpriteData;
+    MATRIX* pMatrix;
+    TILE* pPrim;
+    DR_TPAGE* pPrimTPage;
+    SVECTOR vec;
+    SVECTOR vecOffset;
+    SVECTOR sxy1;
+    long sxy2;
+    long flag;
+    u16 xOffset;
+    u16 x0;
+    s32 nWidth;
+    s32 nHalf;
+    s32 nOTOffset;
+
+    pSpriteData = pTask->unk4;
+    if (*(u16*)&pSpriteData->curSpriteFrame != 0) {
+        return;
+    }
+    xOffset = *(u16*)((u8*)pSpriteData + 0x36);
+    pPrim = g_GfxCurWorkBuffer;
+    if (!((u8*)(pPrim + 1) < (u8*)g_GfxCurWorkBufferEnd)) {
+        return;
+    }
+
+    vec.vx = pSpriteData->position.x >> 16;
+    vec.vy = pSpriteData->position.y >> 16;
+    vec.vz = pSpriteData->position.z >> 16;
+    pMatrix = &D_8004FBB8;
+    g_GfxCurWorkBuffer = pPrim + 1;
+    SetRotMatrix(pMatrix);
+    SetTransMatrix(pMatrix);
+
+    vecOffset = vec;
+    *(u16*)&vecOffset.vx += xOffset;
+    nOTOffset = RotTransPers3(&vec, &vecOffset, &vec, (long*)&pPrim->x0,
+                              (long*)&sxy1, &sxy2, &flag, &flag) >> D_80050100;
+    pSpriteData->field_0x2e = nOTOffset;
+
+    nWidth = sxy1.vx - pPrim->x0;
+    x0 = *(u16*)&pPrim->x0;
+    if (nWidth == 0) {
+        nWidth = 1;
+    }
+    if (nWidth < 0) {
+        nWidth = -nWidth;
+    }
+    nHalf = nWidth / 2;
+    pPrim->x0 = x0 - nHalf;
+    pPrim->y0 = *(u16*)&pPrim->y0 - nHalf;
+
+    setlen(pPrim, 3);
+    *((u32*)&pPrim->r0) = *((u32*)&pSpriteData->red);
+    pPrim->h = nWidth;
+    pPrim->w = nWidth;
+    AddPrim(&g_GfxCurOT[nOTOffset], pPrim);
+
+    pPrimTPage = g_GfxCurWorkBuffer;
+    if (!((u8*)(pPrimTPage + 1) < (u8*)g_GfxCurWorkBufferEnd)) {
+        return;
+    }
+    g_GfxCurWorkBuffer = pPrimTPage + 1;
+    setDrawTPage(pPrimTPage, 0, 0, pSpriteData->field_0x3C_0 & 0x60);
+    AddPrim(&g_GfxCurOT[nOTOffset], pPrimTPage);
+}
+*/
 
 void func_80025710(void) {}
 
