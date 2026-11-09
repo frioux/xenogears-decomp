@@ -28,24 +28,39 @@ extern u32 D_8009B234[];
 extern u32 D_8009B23C[];
 
 typedef struct {
-    /* 0x00 */ u8 unk0[0x20];
-    /* 0x20 */ u16 unk20;
+    /* 0x00 */ u8 unk0[0x4];
+    /* 0x04 */ s16 unk4;
+    /* 0x06 */ u8 unk6[0x1A];
+    /* 0x20 */ s16 unk20;
     /* 0x22 */ u8 unk22[0x6];
     /* 0x28 */ u32 unk28;
     /* 0x2C */ u32 unk2C;
     /* 0x30 */ u32 unk30;
     /* 0x34 */ u32 unk34;
-    /* 0x38 */ u8 unk38[0x18];
-    /* 0x50 */ u32 unk50;
-    /* 0x54 */ u8 unk54[0x4];
+    /* 0x38 */ u32 unk38;
+    /* 0x3C */ u32 unk3C;
+    /* 0x40 */ u32 unk40;
+    /* 0x44 */ u32 unk44;
+    /* 0x48 */ u8 unk48[0x8];
+    /* 0x50 */ s32 unk50;
+    /* 0x54 */ u32 unk54;
     /* 0x58 */ u32 unk58;
-    /* 0x5C */ u8 unk5C[0x8];
+    /* 0x5C */ u32 unk5C;
+    /* 0x60 */ u8 unk60[0x4];
     /* 0x64 */ void *unk64;
     /* 0x68 */ void *unk68;
     /* 0x6C */ u8 unk6C[0x14];
 } WorldMapPlayer; // Size: 0x80
 
+typedef struct {
+    /* 0x000 */ u8 unk0[0xB0];
+    /* 0x0B0 */ u32 unk0B0[4];
+    /* 0x0C0 */ u8 unk0C0[0x44];
+    /* 0x104 */ u32 unk104[4];
+} WorldMapSource; // Size: 0x114
+
 extern WorldMapPlayer *D_8009BE24;
+extern WorldMapSource *D_8009C620;
 
 typedef struct {
     /* 0x0 */ u32 w[4];
@@ -90,7 +105,28 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_8008E190);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_8008E4F4);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_8008E680);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_8008E76C);
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_800906E0);
+s32 func_800906E0(s32 idx) {
+    WorldMapPlayer *pPlayer;
+    s32 nMode;
+
+    func_800848B4(0, 2);
+    func_800848B4(0, 3);
+    pPlayer = D_8009BE24 + idx;
+    pPlayer->unk20 = 0;
+    *(Quad *)&pPlayer->unk28 = *(Quad *)D_8009C620->unk0B0;
+    *(Quad *)&pPlayer->unk38 = *(Quad *)D_8009C620->unk104;
+    nMode = D_8009BE10;
+    pPlayer->unk50 = 0;
+    pPlayer->unk54 = 0x40;
+    if (nMode < 8) {
+        if (nMode >= 4) {
+            pPlayer->unk20 = 3;
+            pPlayer->unk5C = 0x80;
+            pPlayer->unk58 = 0x80;
+        }
+    }
+    return 1;
+}
 
 int func_800907C4(void) {
     func_800848B4(0, 2);
@@ -192,6 +228,43 @@ s32 func_80092234(s32 idx) {
     pPlayer->unk50 = D_8009BE0C << 12;
     return 1;
 }
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_800922AC);
+s32 func_800922AC(s32 idx) {
+    WorldMapPlayer *pPlayer;
+    s32 nRet;
+
+    pPlayer = D_8009BE24 + idx;
+    nRet = 1;
+    if (pPlayer->unk4 == 9) {
+        pPlayer->unk4 = 0;
+        pPlayer->unk20 = 1;
+    } else if (pPlayer->unk4 == 0xA) {
+        pPlayer->unk4 = 0;
+        pPlayer->unk20 = 2;
+    }
+    switch (pPlayer->unk20) {
+    case 0:
+        nRet = 3;
+        break;
+    case 1:
+        pPlayer->unk50 -= 0x1000;
+        D_8009BE0C = pPlayer->unk50 >> 12;
+        if (D_8009BE0C < 0x78) {
+            D_8009BE0C = 0x78;
+            pPlayer->unk50 = 0x78000;
+            pPlayer->unk20 = 0;
+        }
+        break;
+    case 2:
+        pPlayer->unk50 += 0x1000;
+        D_8009BE0C = pPlayer->unk50 >> 12;
+        if (D_8009BE0C >= 0x8C) {
+            D_8009BE0C = 0x8C;
+            pPlayer->unk50 = 0x8C000;
+            pPlayer->unk20 = 0;
+        }
+        break;
+    }
+    return nRet;
+}
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_800923A8);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_800925A0);
