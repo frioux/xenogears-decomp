@@ -1,5 +1,6 @@
 #include "common.h"
 
+extern u8 *D_800D2D28;
 extern u8 D_800D366C;
 extern int ArchiveDataSync(void);
 extern void func_8008AA40(u8 arg0);
@@ -35,12 +36,26 @@ void func_8008AC50(void) {
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008AC88);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008ADD0);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008B108);
+void func_8008B108(u8 arg0) {
+    D_800D2D28[0x9C] = D_800D2D28[0x9D] = D_800D2D28[0x9E] = 0;
+    D_800D2D28[0xB0] = D_800D2D28[0xB1] = D_800D2D28[0xB2] = D_800D2D28[0xB3] = 0;
+    D_800D2D28[0xB7] = 0;
+    if (arg0 == 0) {
+        D_800D2D28[0xCB] = 1;
+    }
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008B168);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008B224);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008B478);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008B908);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008BC40);
+void func_8008BC40(u8 arg0) {
+    D_800D2D28[0x9C] = D_800D2D28[0x9D] = D_800D2D28[0x9E] = 0;
+    D_800D2D28[0xB0] = D_800D2D28[0xB1] = 0;
+    D_800D2D28[0xB7] = 0;
+    if (arg0 == 0) {
+        D_800D2D28[0xCB] = 1;
+    }
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008BC98);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008BD50);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008BED8);
@@ -48,5 +63,12 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008C360);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008C3F0);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008C4A8);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008C81C);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008CCCC);
+void func_8008CCCC(u8 arg0) {
+    D_800D2D28[0x9C] = D_800D2D28[0x9D] = D_800D2D28[0x9E] = 0;
+    D_800D2D28[0xB0] = D_800D2D28[0xB1] = D_800D2D28[0xB2] = 0;
+    D_800D2D28[0xB7] = 0;
+    if (arg0 == 0) {
+        D_800D2D28[0xCB] = 1;
+    }
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008CD28);
