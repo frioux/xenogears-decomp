@@ -1,5 +1,9 @@
 #include "common.h"
 
+extern u16 D_801E96A8[]; // Bit masks, LSB first
+extern u16 D_801E96C8[]; // Bit masks, MSB first
+extern u32 D_801E96E8[];
+
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc2", func_801C7B0C);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc2", func_801C7BF4);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc2", func_801C7D78);
@@ -10,13 +14,27 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc2", func_801C81E0);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc2", func_801C8324);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc2", func_801C851C);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc2", func_801C8574);
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc2", func_801C85C0);
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc2", func_801C85DC);
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc2", func_801C85F8);
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc2", func_801C861C);
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc2", func_801C8640);
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc2", func_801C865C);
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc2", func_801C8678);
+u16 func_801C85C0(u8 index) {
+    return D_801E96C8[index];
+}
+u16 func_801C85DC(u8 index) {
+    return D_801E96A8[index];
+}
+u16 func_801C85F8(u8 index) {
+    return ~D_801E96C8[index];
+}
+u16 func_801C861C(u8 index) {
+    return ~D_801E96A8[index];
+}
+u32 func_801C8640(u32 mask, u8 index) {
+    return D_801E96C8[index] & mask;
+}
+u32 func_801C865C(u32 mask, u8 index) {
+    return D_801E96A8[index] & mask;
+}
+u32 func_801C8678(u32 mask, u8 index) {
+    return mask & D_801E96E8[index];
+}
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc2", func_801C8694);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc2", func_801C87C4);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc2", func_801C881C);
