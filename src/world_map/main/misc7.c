@@ -24,12 +24,25 @@ typedef struct {
 
 extern WorldMapSlot *D_8009BE24;
 extern u8 D_8009A758[];
+// externs used by the parked attempts below
+extern Vec3 D_8009C5AC;
+extern s16 D_1F8000A0[];
+extern void func_80089160(s32, s16 *, s32);
+extern u16 D_8009A6C0;
+extern u16 D_8009A70C[];
+extern s32 D_8009D144;
+extern s32 D_8009BE0C;
+extern s32 D_8009BE28;
+extern s32 D_8009BE2C;
+extern s32 D_8009BE30;
+extern s32 D_8009D55C;
+extern s32 D_8009D560;
+extern s32 D_8009D564;
 
 // Best: 98.82%. Byte-identical to the original except that the 2nd and 3rd
 // stores relocate against D_8009C5AC+4/+8 where the original names D_8009C5B0
 // and D_8009C5B4; the linker resolves both to the same address, so this is
-// worth a check_bin.sh test. Needs a local Vec3 extern:
-//   extern Vec3 D_8009C5AC;
+// only provable with check_bin.sh, not objdiff.
 /*
 s32 func_80080900(s32 index) {
     WorldMapSlot *pSlot = &D_8009BE24[index];
@@ -41,30 +54,91 @@ s32 func_80080900(s32 index) {
 }
 */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_80080900);
+// Best: 76.71%. Structure is right (the branch, the three >>12 halfword
+// stores and the three func_80089160 calls); the original addresses the
+// scratchpad with raw absolute immediates (lui $a1,0x1F80 / ori ...0xA0, and
+// `sh $v0,0xA0($at)` with no relocation), while naming D_1F8000A0 in C emits
+// %hi/%lo relocations and makes gcc keep the base in a saved register.
+// Reaching 100% therefore needs the literal 0x1F8000A0 in the source.
+/*
+s32 func_80080944(s32 index) {
+    WorldMapSlot *pSlot = &D_8009BE24[index];
+
+    if (pSlot->unk4 != 1) {
+        return 1;
+    }
+    pSlot->unk4 = 0;
+    D_1F8000A0[0] = pSlot->pos.x >> 12;
+    D_1F8000A0[1] = pSlot->pos.y >> 12;
+    D_1F8000A0[2] = pSlot->pos.z >> 12;
+    func_80089160(0x28, (u8 *)D_1F8000A0, 0);
+    func_80089160(0x29, (u8 *)D_1F8000A0, 0);
+    func_80089160(0x2A, (u8 *)D_1F8000A0, 0);
+    return 1;
+}
+*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_80080944);
 
-// Best: 66.40%. The 5th argument is word-sized (lw from 0x18(sp)) and the
-// counter is incremented at the top of the loop body in the original; this
-// shape gets the increment into the right place but turns slt into slt+beqz.
-/*
 void func_800809EC(u8 *p, s32 count, s32 a, s32 b, s32 c) {
     s32 i;
 
-    for (i = 1; i <= count; i++) {
+    for (i = 0; i < count; i++, p += 0x28) {
         p[4] = a;
         p[5] = b;
         p[6] = c;
-        p += 0x28;
     }
 }
-*/
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_800809EC);
+
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_80080A28);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_80080AC4);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_80080D00);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_8008106C);
+// Best: 65.26%. Instruction multiset identical; the original forms the slot
+// address (sll/addu/sw/lw) before loading D_8009A6C0, gcc hoists the global
+// load above the pointer arithmetic. Decl order, an s32 index temp and an
+// explicit `i + 1` store were all tried.
+/*
+s32 func_80081174(s32 index) {
+    WorldMapSlot *pSlot = &D_8009BE24[index];
+
+    pSlot->unk50 = 0;
+    pSlot->unk20 = D_8009A6C0;
+    pSlot->unk22 = D_8009A70C[pSlot->unk50];
+    pSlot->unk50++;
+    return 1;
+}
+*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_80081174);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_800811C0);
+// Best: 77.76%. All instructions present and the six global stores match
+// exactly (relocations included); the original keeps the two trailing
+// `sh` stores to the slot (unk4, unk20) after them, gcc's scheduler groups
+// them with the `unk7C` store. Writing them first in the source raises the
+// score to this shape but does not move them.
+/*
+s32 func_800813E8(s32 index) {
+    WorldMapSlot *pSlot = &D_8009BE24[index];
+    s32 x;
+    s32 y;
+    s32 z;
+
+    pSlot->unk4 = 1;
+    pSlot->unk20 = 0;
+    D_8009D144 = 0;
+    pSlot->unk7C = 0x1000;
+    x = D_8009C5AC.x;
+    y = D_8009C5AC.y;
+    z = D_8009C5AC.z;
+    D_8009BE0C = 0x78;
+    D_8009BE28 = x;
+    D_8009D55C = x;
+    D_8009BE2C = y;
+    D_8009D560 = y;
+    D_8009BE30 = z;
+    D_8009D564 = z;
+    return 1;
+}
+*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_800813E8);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_80081470);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_800816DC);
@@ -87,14 +161,16 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_80081FD8);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_80082324);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_800826B4);
 
-// Best: 46.11%. Instruction multiset is identical; the original computes the
+// Best: 51.67%. Instruction multiset is identical; the original computes the
 // slot pointer (sll/addu) before forming the address of D_8009A758, gcc forms
-// the address first. Decl/locals order, a u8 *pData temp and an explicit
-// (u8 *)D_8009BE24 + index * 0x80 all give the same 46.11%.
+// the address first. 46.11% for the slot-pointer-first order; declaring pData
+// before pSlot puts the symbol address first and reaches 51.67%. Also tried:
+// two separate statements, a s32 value temp, `D_8009BE24 + index`, and an
+// explicit offset local.
 /*
 s32 func_800827C8(s32 index) {
-    WorldMapSlot *pSlot = &D_8009BE24[index];
     u8 *pData = D_8009A758;
+    WorldMapSlot *pSlot = &D_8009BE24[index];
 
     pSlot->unk50 = (s32)pData;
     return 1;
