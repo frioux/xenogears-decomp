@@ -167,7 +167,10 @@ typedef struct {
     /* 0x1820 */ u16 unk1820;
     /* 0x1822 */ u16 unk1822;
     /* 0x1824 */ u16 unk1824;
-    /* 0x1826 */ undefined8 unk1826[0xC];
+    /* 0x1826 */ undefined8 unk1826[0x6];
+    /* 0x182C */ s16 unk182C;
+    /* 0x182E */ s16 unk182E;
+    /* 0x1830 */ s16 unk1830;
     /* 0x1832 */ u16 unk1832;
     /* 0x1834 */ u16 unk1834;
     /* 0x1836 */ u16 unk1836;
