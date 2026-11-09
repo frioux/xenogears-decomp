@@ -19,6 +19,13 @@ extern void *func_8008AC00(s32);
 extern void bzero(void *p, s32 n);
 extern u8 *GetStringEntry(u8 *, s32);
 extern s32 SystemRenderStringEntry(u8 *, void *, s32, s32);
+extern u8 D_800C3D70[];
+extern void *func_8008ABB8(s32, s32);
+extern void func_80077454(s32);
+extern void func_8008F6E4(s32, s32, s32, s32, s32);
+extern void func_80090310(s32, s32);
+extern void func_800904A0(s32, s32);
+extern void func_8009070C(s32, s32);
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008CDE4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008CFB8);
@@ -30,6 +37,52 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008E430);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008EA70);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008F0A8);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008F6E4);
+/* 96.44%: whole body matches; only the prologue save/copy order differs (gcc
+   gives s4 to arg5 and s5 to arg1 and copies arg0 last; the original has
+   s4=arg1, s5=arg5 and copies arg0 first). Tried: separate pointer temps per
+   block, a pFlags temp for D_800D2D28 (that load has to sit before the sh
+   stores or gcc moves it after them), `*(base + index + K)` instead of
+   `base[index + K]` (only the former gives the base-first addu), inverted
+   if/else, and two declaration orders. Worth one more try by someone who can
+   read gcc's allocno order.
+
+void func_8008F8F4(s32 arg0, u16 arg1, u16 arg2, u16 arg3, u16 arg4, u8 arg5, u8 arg6) {
+    u8 *pFlags;
+    u8 index;
+    u8 *p;
+    u8 *q;
+
+    index = arg0;
+    if (*(D_800D2D28 + index + 0xB0) == 0) {
+        q = func_8008ABB8(0x5A8, 0);
+        D_800D2E38[index] = q;
+        bzero(q, 0x5A8);
+        q = func_8008ABB8(0xE, 0);
+        D_800D2D90[index] = q;
+        bzero(q, 0xE);
+        func_80077454(index);
+    }
+    if (arg5 != 0) {
+        p = D_800D2D90[index];
+        p[0xC] = arg0;
+        pFlags = D_800D2D28;
+        ((u16 *)p)[0] = arg1;
+        ((u16 *)p)[1] = arg2;
+        ((u16 *)p)[2] = arg3;
+        ((u16 *)p)[3] = arg4;
+        ((u16 *)p)[4] = 0;
+        ((u16 *)p)[5] = 0;
+        *(pFlags + index + 0xBF) = 0;
+        pFlags = D_800D2D28;
+        *(pFlags + index + 0xB8) = 1;
+    } else {
+        func_8008F6E4(index, arg1, arg2, arg3, arg4);
+        if (arg6 != 0) {
+            func_800716D8();
+        }
+    }
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008F8F4);
 void func_8008FA60(u8 arg0) {
     u8 *p;
@@ -42,6 +95,52 @@ void func_8008FA60(u8 arg0) {
     HeapFree(D_800D2E38[arg0]);
     HeapFree(D_800D2D90[arg0]);
 }
+/* 87.51%: the four halfword fields, the clamping, the count==2 flag and the
+   func_8008F6E4 call are identified; gcc lays the clamp arms out the other way
+   round (it emits beqz with the then-arm inline where the original has bnez
+   with the else-arm inline) and folds the size temp away. Tried: a u16 size
+   temp per axis, both condition polarities, `+=` vs store-at-join, and
+   `*(base + i + K)` for the 0xBF flag store.
+
+void func_8008FAD8(void) {
+    s32 i;
+    u8 *p;
+    u8 *pFlags;
+    u8 count;
+    u16 x;
+    u16 y;
+
+    for (i = 0; i < 7; i++) {
+        p = D_800D2D90[i];
+        pFlags = D_800D2D28 + i;
+        if (pFlags[0xB8] == 0) {
+            continue;
+        }
+        if (pFlags[0xBF] != 0) {
+            continue;
+        }
+        count = 0;
+        if (((u16 *)p)[4] + 0x20 < ((u16 *)p)[2]) {
+            ((u16 *)p)[4] += 0x20;
+        } else {
+            ((u16 *)p)[4] = ((u16 *)p)[2];
+            count++;
+        }
+        if (((u16 *)p)[5] + 0x20 < ((u16 *)p)[3]) {
+            ((u16 *)p)[5] += 0x20;
+        } else {
+            ((u16 *)p)[5] = ((u16 *)p)[3];
+            count++;
+        }
+        if (count == 2) {
+            D_800D2D28[i + 0xBF] = 1;
+        }
+        x = ((u16 *)p)[0] + (((u16 *)p)[2] >> 1) - (((u16 *)p)[4] >> 1);
+        y = ((u16 *)p)[1] + (((u16 *)p)[3] >> 1) - (((u16 *)p)[5] >> 1);
+        func_8008F6E4(p[0xC], x, y, ((u16 *)p)[4], ((u16 *)p)[5]);
+    }
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008FAD8);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008FC1C);
 void func_8008FDE4(void) {
@@ -100,6 +199,35 @@ void func_8009070C(s32 arg0, s32 arg1) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8009070C);
+/* 99.87%: one register. The 0x66D store loads its pointer into v1 where the
+   original uses v0; everything else matches. Tried: p/flag declaration order.
+   NOTE arg0..arg2 are u8: that is what produces the per-branch andi of
+   arg0/arg1 for the table index and the andi of arg2 twice.
+
+void func_8009080C(u8 arg0, u8 arg1, u8 arg2) {
+    u8 flag;
+    u8 *p;
+
+    if (arg2 == 0) {
+        flag = D_800D2CE0[arg1 * 2 + arg0];
+    } else {
+        flag = D_800C3D70[arg1 * 2 + arg0];
+    }
+    p = *(u8 **)(D_800C3EA4 + 0xA230);
+    p[0x66D] = 0;
+    func_80090310(arg0, arg1);
+    if (flag != 0 && arg2 == 0) {
+        func_8009070C(arg0, arg1);
+        func_800904A0(arg0, arg1);
+        p = *(u8 **)(D_800C3EA4 + 0xA230);
+        p[0x66D] = 1;
+    }
+    p = *(u8 **)(D_800C3EA4 + 0xA230);
+    p[0x66A] = *(u8 *)&D_800CCB34;
+    p = *(u8 **)(D_800C3EA4 + 0xA230);
+    p[0x66B] = 1;
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8009080C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8009093C);
 /* 95.11%: identical instruction multiset; the only difference is that gcc sinks
