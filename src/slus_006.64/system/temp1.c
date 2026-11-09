@@ -380,11 +380,13 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80023538);
 
 // SpriteData stuff
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80023804);
-/* Best attempt: 99.10%. Everything matches except a v0/v1 swap: the original has the
-   flags_0xAC mask in v0 and the flags_0xAC value in v1 (so its load's target is v1 and the
-   following flags_0xA8 load reuses v0), this C allocates the pair the other way round.
-   Tried: swapping the two flags statements (93.37%), which flips the AC value into v1
-   -- correct -- but moves the flags_0xA8 load first and the mask into a1.
+/* Best attempt: 99.10%. Everything matches except v0/v1: the original keeps the flags_0xAC mask in v0 and its
+   value in v1 (its AC load is into v1 and the following flags_0xA8 load reuses v0); gcc
+   allocates the pair the other way round. Tried: swapping the two flags statements
+   (93.37%, moves the A8 load first), constant-first operand order, a mask local, explicit
+   assignment instead of &=, and writing the AC update through the pFlagsA8 pointer (81.19%,
+   gcc propagates the earlier zero store). All are 99.10 or worse.
+
 void func_80023804(SpriteData* pSpriteData) {
     u32* pFlagsA8;
     s32 cycles;
@@ -427,6 +429,7 @@ void func_80023804(SpriteData* pSpriteData) {
 }
 */
 
+
 void func_8002393C(SpriteDataI1* pBase) {
     pBase->rotation.x = 0;
     pBase->rotation.y = 0;
@@ -463,14 +466,19 @@ void func_800239F4(SpriteData* pSpriteData) {
     pSpriteData->pBase->pNextSpriteData = NULL;
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80023A48);
-/* Best attempt: 97.22%. The original forms the two package addresses as `lui v0,%hi` +
-   `addiu s2,v0,%lo` (a temp for the high half, which also forces it to rematerialize `li v0,6`
-   inside the first if body, and lets reorg drop the second `lui` into the bne delay slot);
-   this C lets gcc merge the pair into `lui s2`/`addiu s2,s2` and is one instruction shorter.
 extern u8 D_8006BE10;
 extern u8 D_8005A474;
 extern s32 func_8001EE74(u16* pFlags);
+
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80023A48);
+/* Best attempt: 97.22%. The original forms the two package addresses as `lui v0,%hi` + `addiu s2,v0,%lo` (a temp
+   for the high half, which also forces it to rematerialize `li v0,6` in the first if body
+   and lets reorg drop the second `lui` into the bne delay slot); gcc merges the pair into
+   `lui s2`/`addiu s2,s2`, which also keeps the hoisted 6 in v0, so this C is one
+   instruction shorter and every branch offset differs. The source shape (two independent
+   ifs assigning the parameter) is confirmed by the two `bne a0,v0`: a switch would emit
+   `beq`. Tried: assigning through a separate pointer local, and reusing pAnimPackage for
+   the func_8001EE74 argument (the original clearly assigns the parameter directly).
 
 AnimTask* func_80023A48(s32 arg0, s32 type, void* pAnimPackage, s32 size, void* pData) {
     AnimTask* pEntry;
@@ -507,6 +515,7 @@ AnimTask* func_80023A48(s32 arg0, s32 type, void* pAnimPackage, s32 size, void* 
     return pEntry;
 }
 */
+
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80023B84);
 
