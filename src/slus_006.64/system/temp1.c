@@ -379,13 +379,15 @@ void func_800234AC(SpriteData* pSpriteData) {
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80023538);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80023804);
-/* Best attempt: 99.10%. Only the AC flag word differs: the original keeps the 0xFFF8007F
-   mask in v0 and the value in v1, gcc allocates the pair the other way round. Tried:
-   swapping the statements (93.37%), constant-first operand order, a mask local, a temp for
-   the loaded word (96.67%), an intermediate `ac = v | 0x8000` (93.78%), and the
-   pointer/address-cast forms of the flag accesses (70.23% / 67.63%, both also move the base
-   pointer out of t0). The AC mask pseudo always loses v0 to the AC value's longer ref chain,
-   so the register choice is not source-order driven.
+/* Best attempt: 99.10% (312 bytes, every instruction identical except one register pair).
+   Only the AC flag word differs: the original keeps the 0xFFF8007F mask in v0 and the loaded
+   value in v1, gcc allocates the pair the other way round (and mirrors the 0xA8 word with it).
+   The 0x8000 is anim index 0x100 in the bitfield at bit 7 (see func_80021BCC in
+   animation_scripts.c), so the original is probably a bitfield store, not this and/or.
+   Tried: statement swap (93.37%), constant-first operand order, mask local, loaded-word temp
+   (96.67%), intermediate `ac = v | 0x8000` (93.78%), the `((0x100 & 0xFFF) << 7)` spelling,
+   pFlagsA8[1] indexing and the (u8*)pSpriteData casts (70-67%). All of them leave the mask in
+   v1, so the choice is not source-order driven.
 void func_80023804(SpriteData* pSpriteData) {
     u32* pFlagsA8;
     s32 cycles;
@@ -412,7 +414,7 @@ void func_80023804(SpriteData* pSpriteData) {
     pFlagsA8[2] = 0;
     *(u8*)((u8*)pSpriteData + 0xB0) = 0;
     *(u8*)((u8*)pSpriteData + 0xAF) = 0;
-    pSpriteData->flags_0xAC = (pSpriteData->flags_0xAC & 0xFFF8007F) | 0x8000;
+    pSpriteData->flags_0xAC = (pSpriteData->flags_0xAC & 0xFFF8007F) | ((0x100 & 0xFFF) << 7);
     pSpriteData->flags_0xA8 &= 0xFFF1FFFF;
     cycles = D_80059198 + 1;
     pSpriteData->gravity = (cycles * 0x4000) * cycles * pSpriteData->field_0x82 / 4096;
