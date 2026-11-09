@@ -5,7 +5,7 @@ const HEADER = (w) => `You are a worker on a PS1 matching decompilation (Xenogea
 
 YOU OWN EXACTLY ONE FILE: ${w.file} (unit path for diffing: ${w.unit}). ${w.ownNote || "Do not edit any other .c file."}
 
-INNER LOOP, from the root of your tree: run \`tools/scripts/diff_func.sh ${w.unit} <Func> || true\`. The trailing \`|| true\` matters - the script exits 1 on a mismatch and that is not a failure. One command per tool call, and never paste diff output back into bash. It compiles only your unit inside the build container (~5 s) and prints MATCH or a side-by-side diff (left = original, right = yours) plus an \`objdiff: NN.NN%\` score.
+INNER LOOP, from the root of your tree: run \`tools/scripts/diff_func.sh ${w.unit} <Func> || true\`. Note the unit path always carries the binary prefix for main-exe units (\`slus_006.64/system/sound\`, not \`system/sound\`); `tools/scripts/lst`-style mistakes here cost a round, so if the script says 'missing expected/asm/...' your path is wrong, not your tree. The trailing \`|| true\` matters - the script exits 1 on a mismatch and that is not a failure. One command per tool call, and never paste diff output back into bash. It compiles only your unit inside the build container (~5 s) and prints MATCH or a side-by-side diff (left = original, right = yours) plus an \`objdiff: NN.NN%\` score.
 
 A function counts as matched when the output has BOTH a line starting \`MATCH:\` AND \`objdiff: 100.00%\` for that function. MATCH alone is not enough: functions have looked matched while their C was a different size or used different registers, and that breaks the link.
 
