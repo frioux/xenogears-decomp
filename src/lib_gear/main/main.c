@@ -1028,6 +1028,14 @@ s16 (*func_801E34BC(s32 type))(s16, s16, s16) {
 // place the store is right and the load sits at insn 5 (74.36%). s16/u32 local,
 // separate `negOne = -1;` statement and bare `-1` literals all give the same
 // 74.36%; the only lever found on the load position is moving the store.
+// Later finding: the `ori v0,zero,0x1` the original materialises at insn 8 (used
+// only by the unk70[15] store at insn 36) is a local `s32 one = 1;` stored as
+// `pModel->unk70[15] = one;` - that reproduces the load position exactly, so the
+// original did hoist initialised locals to their repeated constants. With it,
+// `negOne` lands at insn 6 (right after `li v0,0x6B`, inside the unk39 statement)
+// instead of insn 0, and swapping the two declarations does not move it; so the
+// remaining delta is only where gcc parks the -1 load, and the `one` local is the
+// shape to build a next attempt on.
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E3534);
 /*
     void func_801E3534(Model* pModel, s32 arg1, u32 arg2, u32 arg3) {
