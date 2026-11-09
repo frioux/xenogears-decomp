@@ -810,7 +810,20 @@ void func_801E0398(VertexBuffer* pVertexBuffer, MATRIX* pMatrix, s32 arg2, s32* 
 }
 
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E0698);
-// Best attempt: 87.57%. Only the scheduling of the unk68 store vs its reload differs.
+// Best attempt: 87.57%. Three residual deltas, all scheduling/regalloc:
+//  - prologue: original keeps arg8 (stack 0x30) in s2 and arg11 (0x3C) in s3, gcc
+//    gives us the swap; that is what the size of the diff is.
+//  - original sign-extends the divisor (lhu t9 then sll/sra) once, into v1, and
+//    reuses v1 for all three `div`s; we rematerialise it later into v0.
+//    Untried idea: make it a `s16` local assigned before the `if` so its
+//    conversion is hoisted out of the three delta statements.
+//  - we sink `entry->unk68 = arg8 << 6` past the dividends and fold the third
+//    numerator to `(arg8 - arg11) << 6`; the original keeps store + `lh` reload.
+// Types confirmed against the .s: pEntry, u32 arg1 (sw), s16 arg2 (sh 0x0),
+// u8 arg3 (sb 0x2), s16 numFrames (lw + sll/sra, < 7), s16 divisor (lhu +
+// sll/sra, then signed `div`), u8 arg6..arg11 (lbu, << 6), u16 arg12..arg18 (lhu).
+// Fields 0x62..0x6E are all `sh`: include/libgear/main.h still calls that range
+// `/* 0x62 */ u8 unk62[0xE]`; modelling them as s16 did not move the match.
 /* s32 func_801E0698(UnkInner1* pEntry, u32 arg1, u16 arg2, u8 arg3, s16 numFrames, s16 divisor, u8 arg6, u8 arg7, u8 arg8, u8 arg9, u8 arg10, u8 arg11, u16 arg12, u16 arg13, u16 arg14, u16 arg15, u16 arg16, u16 arg17, u16 arg18) {
     s16 deltaX;
     s16 deltaY;
@@ -1024,6 +1037,11 @@ s16 (*func_801E34BC(s32 type))(s16, s16, s16) {
 // 94.87% shape, for the next attempt: it is this body with
 // `s32 negOne = -1;` first, then `pModel->unk98 = negOne;` as the first
 // statement, and no unk98 assignment later.
+// Re-measured: that shape is exactly 94.87% - `li v1,-1` lands at insn 0 (good)
+// but the `sh v1,152` follows at insn 8 instead of 15. With unk98 in its right
+// place the store is right and the load sits at insn 5 (74.36%). s16/u32 local,
+// separate `negOne = -1;` statement and bare `-1` literals all give the same
+// 74.36%; the only lever found on the load position is moving the store.
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E3534);
 /*
     void func_801E3534(Model* pModel, s32 arg1, u32 arg2, u32 arg3) {
