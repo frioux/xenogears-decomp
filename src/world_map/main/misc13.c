@@ -10,6 +10,10 @@ typedef struct {
 extern void func_800346D4(void* pString);
 extern s16 func_80093E8C(WorldMapPos* p);
 extern u8* func_80093660(s32 x, s32 z);
+extern long SquareRoot0(long a);
+extern long ratan2(long y, long x);
+extern int rcos(int a);
+extern int rsin(int a);
 
 extern u8 D_8009D498[];
 extern u8 D_8009BD64[];
@@ -60,4 +64,40 @@ s16 func_80094060(s16 row, s16 col) {
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_80094088);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_80094154);
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_800941C4);
+/* best: 91.07%. Instruction sequence and mult/mflo placement identical; the
+   only delta is that gcc copies p0 from a0 into a2 at entry (and permutes the
+   temps) where the original keeps p0 in a0 and uses v0/v1. Tried the squares
+   in the final expression and ternary negation: both worse.
+
+s32 func_80094154(WorldMapPos* p0, WorldMapPos* p1) {
+    s32 dx;
+    s32 dz;
+    s32 dx2;
+    s32 dz2;
+
+    dx = p0->x - p1->x;
+    if (dx < 0) {
+        dx = -dx;
+    }
+    dx = dx >> 12;
+    dx2 = dx * dx;
+    dz = p0->z - p1->z;
+    if (dz < 0) {
+        dz = -dz;
+    }
+    dz = dz >> 12;
+    dz2 = dz * dz;
+    return SquareRoot0(dx2 + dz2);
+}
+*/
+
+void func_800941C4(WorldMapPos* p0, WorldMapPos* p1, s32* pVector, s16* pAngle) {
+    s32 dx;
+    s32 dz;
+
+    dx = p1->x - p0->x;
+    dz = p1->z - p0->z;
+    *pAngle = (ratan2(dz, dx) + 0x400) & 0xFFF;
+    pVector[0] = rcos(*pAngle);
+    pVector[2] = -rsin(*pAngle);
+}
