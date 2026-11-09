@@ -143,6 +143,89 @@ void func_800723E4(SVec4* pA, SVec4* pB, SVec4* pOut) {
     pOut->y = pB->y + ((t * nB.vz) >> 12);
 }
 
+// 58.55%: a plain list of assignments per store in the original order matches the
+// stores themselves, but gcc here re-materialises a lui/%lo pair for every symbol,
+// where the original bases all of them off $s0 = &g_CamInterpolation (including
+// `addiu $a0,$s0,0x2C` for the func_80070594 argument). Getting gcc to take that
+// base is the whole problem; the store set and order below are otherwise right.
+/*
+extern CameraInterpolation g_CamInterpolation;
+extern VECTOR g_CameraEye;
+extern VECTOR g_CameraAt;
+extern VECTOR g_CameraUp;
+extern VECTOR g_CameraEye2;
+extern VECTOR g_CameraAt2;
+extern VECTOR D_800AF8D0;
+extern s32 D_800AF8E0;
+extern s32 D_800AF8E4;
+extern s32 D_800AF8E8;
+extern s16 g_FieldCameraMode;
+extern s16 g_CamMovementFlags;
+extern s16 g_CamAtMovementDuration;
+extern s16 g_CamEyeMovementDuration;
+extern void func_80070594(MATRIX* dest);
+
+void func_8007254C(void) {
+    g_CamInterpolation.atStepDistance = 8;
+    g_CamInterpolation.eyeStepDistance = 8;
+    g_Scene.unk5C = 0x400000;
+    g_Scene.unk60 = 0x8000000;
+    g_Scene.sceneAngle.vy = 0x800;
+    *(s32*)((u_char*)&g_Scene + 0xA8) = 0;
+    *(s32*)((u_char*)&g_Scene + 0xA4) = 0;
+    *(s32*)((u_char*)&g_Scene + 0xA0) = 0;
+    *(s32*)((u_char*)&g_Scene + 0xB4) = 0;
+    *(s32*)((u_char*)&g_Scene + 0xB0) = 0;
+    *(s32*)((u_char*)&g_Scene + 0xAC) = 0;
+    *(s16*)((u_char*)&g_Scene + 0x98) = 0;
+    *(s16*)((u_char*)&g_Scene + 0x9C) = 0;
+    g_Scene.unk48 = 0;
+    g_CamInterpolation.curAngleY = 0;
+    g_CamInterpolation.targetAngleY = 0;
+    g_Scene.dollySet = 0;
+    g_Scene.dollyStop = 0;
+    g_Scene.unk66 = 0;
+    g_Scene.sceneAngle.vx = 0;
+    g_Scene.sceneAngle.vz = 0;
+    g_Scene.unk7C = 0x800;
+    g_Scene.camRotation.vx = 0;
+    g_Scene.camRotation.vy = 0;
+    g_Scene.camRotation.vz = 0;
+    func_80070594(&g_Scene.camRotationMatrix);
+    g_CameraEye.vx = 0;
+    g_CameraEye.vy = 0;
+    g_CameraEye.vz = 0;
+    g_CameraUp.vy = 0x10000000;
+    D_800AF8D0.vy = 0x10000000;
+    g_Scene.sceneDIP = 0x1E;
+    g_Scene.sceneScrZ = 0x200;
+    g_CameraAt.vx = 0;
+    g_CameraAt.vy = 0;
+    g_CameraAt.vz = 0;
+    g_CameraUp.vx = 0;
+    g_CameraUp.vz = 0;
+    D_800AF8E0 = 0;
+    D_800AF8E4 = 0;
+    D_800AF8E8 = 0;
+    g_CameraEye2.vx = 0;
+    g_CameraEye2.vy = 0;
+    g_CameraEye2.vz = 0;
+    g_CameraAt2.vx = 0;
+    g_CameraAt2.vy = 0;
+    g_CameraAt2.vz = 0;
+    D_800AF8D0.vx = 0;
+    D_800AF8D0.vz = 0;
+    g_Scene.unk70 = 0;
+    g_Scene.unk80 = 0;
+    g_Scene.unk8C = 0;
+    g_Scene.sceneScale = 0x1000;
+    g_FieldCameraMode = 0;
+    g_CamMovementFlags = 0;
+    g_CamAtMovementDuration = 0;
+    g_CamEyeMovementDuration = 0;
+}
+*/
+
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_8007254C);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_800726E8);
@@ -463,13 +546,6 @@ void FieldAddPrimitives(u_long* ot, u_long* pPrimList, int size) {
     AddPrims(ot, pPrimList + size, pPrimList);
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80075484);
-// 54.92%: the six reads are halfwords at g_CameraEye/g_CameraAt +2/+6/+A held in
-// int temporaries (that is what makes gcc emit `lh` and keep all six live at once,
-// so the SVec4 stores come out with `sh`), and the fourth argument is g_CameraEye +
-// 0x1E4. The original materialises &g_CameraEye into $a3 with addend 0 and reads
-// 2($a3); every C form tried folds the offset into the lui/%lo pair instead.
-/*
 extern VECTOR g_CameraEye;
 extern VECTOR g_CameraAt;
 extern s16 D_800B00B2;
@@ -480,9 +556,6 @@ extern s16 D_800B21D4;
 void func_80075484(void) {
     SVec4 eye;
     SVec4 at;
-    short* pEye;
-    short* pAt;
-    int eyeX, eyeY, eyeZ, atX, atY, atZ;
 
     if (D_800B00B2 == 0) {
         return;
@@ -491,25 +564,17 @@ void func_80075484(void) {
         return;
     }
 
-    pEye = (short*)&g_CameraEye;
-    pAt = (short*)&g_CameraAt;
-    eyeX = pEye[1];
-    eyeY = pEye[3];
-    eyeZ = pEye[5];
-    atX = pAt[1];
-    atY = pAt[3];
-    atZ = pAt[5];
-    eye.x = eyeX;
-    eye.y = eyeY;
-    eye.z = eyeZ;
-    at.x = atX;
-    at.y = atY;
-    at.z = atZ;
+    eye.x = CONV_TO_GTE(g_CameraEye.vx);
+    eye.y = CONV_TO_GTE(g_CameraEye.vy);
+    eye.z = CONV_TO_GTE(g_CameraEye.vz);
+    at.x = CONV_TO_GTE(g_CameraAt.vx);
+    at.y = CONV_TO_GTE(g_CameraAt.vy);
+    at.z = CONV_TO_GTE(g_CameraAt.vz);
 
-    func_800273C4(D_800B007C, &eye, &at, (u8*)pEye + 0x1E4,
-        &g_FieldCurRenderContext->unk1 + D_800B21D4, g_FieldCurRenderContextIndex);
+    func_800273C4(D_800B007C, &eye, &at, (MATRIX*)((u_char*)&g_CameraEye + 0x1E4),
+        (int*)(D_800B21D4 * 4 + (int)g_FieldCurRenderContext + 0x40CC),
+        g_FieldCurRenderContextIndex);
 }
-*/
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_8007554C);
 
