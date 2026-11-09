@@ -38,6 +38,22 @@ extern s32 D_8005A444[];
    rotation variables per arm - a single shared `rotation` keeps the value in a1
    and forces an extra move. */
 INCLUDE_ASM("asm/field/nonmatchings/main/misc12", func_80099AC0);
+/* 97.72% (1076 bytes, original 1080). Parked attempt. The switch dispatch is
+   NOT the residual: gcc already emits the same three-insn form as retail,
+   `lui at,%hi(tbl); addu at,at,v0; lw v0,%lo(tbl)(at)`; ours differs only in the
+   table symbol (`%hi(.rodata)` vs retail's `%hi(jtbl_8006FD30)`), which is the
+   objdiff jump-table exception. The real residual is 4 bytes in the case 2 arm:
+   retail loads the g_FieldScriptVMCurActor pointer into its own register before
+   the `addu` that forms the target actor address, so its `lw s0,0x4C(v1)` is
+   followed by a `nop` (load delay), while ours reuses v0 for that pointer after
+   the `lw s0` and needs no nop. Attempts made: a block-scoped cur-actor pointer
+   local hoists the load to the top of the arm (before the index chain, into s1 -
+   worse); swapping the add operands does not move it. What got it this far: a
+   local pointer for the shared tail (the original keeps it in call-clobbered a2
+   and reloads the global after func_8007B694 and in the block after the arrival
+   arm, so those statements must name g_FieldScriptVMCurActor directly, not the
+   local), plus separate block-scoped rotation variables per arm - a single
+   shared `rotation` keeps the value in a1 and forces an extra move. */
 /* int func_80099AC0(int arg0) {
     FieldActor* pFieldActor;
     ActorData* pActorData;
