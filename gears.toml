@@ -7,7 +7,7 @@ build = 'build'
 
 [compilation]
 binary = "slus_006.64"
-overlays = ["field", "battling", "member_change_menu", "shop_menu", "gear_shop_menu", "lib_gear"]
+overlays = ["field", "battling", "battle", "member_change_menu", "shop_menu", "gear_shop_menu", "lib_gear"]
 target = 'mips-linux-gnu'
 
 [[build_preset]]

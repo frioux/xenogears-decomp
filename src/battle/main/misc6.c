@@ -1,0 +1,27 @@
+#include "common.h"
+
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc6", func_8007AC30);
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc6", func_8007AC80);
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc6", func_8007ACDC);
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc6", func_8007AD24);
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc6", func_8007AD6C);
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc6", func_8007ADB0);
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc6", func_8007ADF4);
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc6", func_8007AE38);
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc6", func_8007AE98);
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc6", func_8007AEF0);
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc6", func_8007AF5C);
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc6", func_8007AFAC);
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc6", func_8007AFFC);
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc6", func_8007B040);
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc6", func_8007B084);
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc6", func_8007B0C8);
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc6", func_8007B134);
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc6", func_8007B198);
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc6", func_8007B208);
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc6", func_8007B264);
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc6", func_8007B2C0);
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc6", func_8007B310);
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc6", func_8007B360);
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc6", func_8007B3B0);
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc6", func_8007B3E4);
