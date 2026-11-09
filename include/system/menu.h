@@ -270,7 +270,8 @@ typedef struct {
     /* 0x54 */ u8 unk54[0x6];
     /* 0x5A */ u8 unk5A;
     /* 0x5B */ u8 unk5B;
-    /* 0x5C */ u8 unk5C[0x10];
+    /* 0x5C */ u8 unk5C[0x4];
+    /* 0x60 */ u8 unk60[0xC];
 } MenuManager; // Size: 0x6C
 
 // A menu with N options, each having a cursor and some text/content

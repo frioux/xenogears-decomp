@@ -14,8 +14,20 @@ void func_801D3674(void);
 void func_801D4EA0(u8);
 void func_801C7BF4(void);
 void func_801E8044(u8, u8*);
+void func_801D249C(u8);
+void func_801D3488(u8, u8);
+void func_801E05D0(u8, u8, u8);
 
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E0F78);
+int func_801E0F78(u8 arg0, u8 arg1) {
+    g_Menu->unk35C = HeapAlloc(0x32F4, 0);
+    bzero(g_Menu->unk35C, 0x32F4);
+    g_Menu->unk360 = HeapAlloc(0x2AC, 0);
+    bzero(g_Menu->unk360, 0x2AC);
+    func_801C72BC(3);
+    func_801E05D0(arg0, arg1, 0);
+    func_801C72BC(0x13);
+    return 1;
+}
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E1014);
 void func_801E1398(void) {
     func_801D3674();
@@ -30,7 +42,26 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E1418);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E1544);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E1AC8);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E20C8);
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E2250);
+u8 func_801E2250(void) {
+    u32 i;
+
+    g_Menu->unk358 = HeapAlloc(0x2AF0, 0);
+    bzero(g_Menu->unk358, 0x2AF0);
+    g_Menu->unk35C = HeapAlloc(0x32F4, 0);
+    bzero(g_Menu->unk35C, 0x32F4);
+    g_Menu->unk360 = HeapAlloc(0x2AC, 0);
+    bzero(g_Menu->unk360, 0x2AC);
+    func_801C72BC(3);
+    i = 0;
+    while (1) {
+        if (g_Menu->pManager->unk60[i] != 0) {
+            break;
+        }
+        i++;
+    }
+    func_801D3488(0, 1);
+    return i;
+}
 void func_801E2324(u8 arg0) {
     func_801E8018(6, (u8*)g_Menu + 0x18E0, D_801EA568 + arg0, (u8*)g_Menu->pManager + 0x54);
 }
@@ -41,7 +72,17 @@ void func_801E2368(void) {
     func_801C72BC(0x13);
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E23CC);
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E2AE0);
+void func_801E2AE0(void) {
+    func_801D249C(1);
+    g_Menu->unk358 = HeapAlloc(0x2AF0, 0);
+    bzero(g_Menu->unk358, 0x2AF0);
+    g_Menu->unk35C = HeapAlloc(0x32F4, 0);
+    bzero(g_Menu->unk35C, 0x32F4);
+    g_Menu->unk360 = HeapAlloc(0x2AC, 0);
+    bzero(g_Menu->unk360, 0x2AC);
+    func_801C72BC(3);
+    func_801D3488(0, 0);
+}
 void func_801E2B80(void) {
     HeapFree(g_Menu->unk358);
     HeapFree(g_Menu->unk35C);
