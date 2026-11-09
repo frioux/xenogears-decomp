@@ -294,6 +294,56 @@ s32 func_800AB748(s32 index) {
 }
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc9", func_800AB808);
+/* 68.25%: shape is right (archive read, OpenTIM/ReadTIM, per-slot copy loop,
+   rect fill, LoadImage) but the original's frame is 0x80 and it keeps pFile in
+   its 0x28 stack slot across every use, while gcc keeps it in s8 for me; the
+   original also spills a temp at 0x50. The extra frame bytes suggest two more
+   live locals in the original source than I have recovered.
+extern RECT D_800AF5C0[5];
+
+// Upload the five inventory-slot TIM pages for the slots that are enabled
+void func_800AB808(void) {
+    TIM_IMAGE tim;
+    void* pFile;
+    void* pImage;
+    s32 i;
+    s32 j;
+    u_char* pDst;
+
+    pFile = HeapAlloc(ArchiveDecodeAlignedSize(0x802), 0);
+    ArchiveReadFileToBuffer(0x802, pFile, 0, 0x80);
+    ArchiveCdDataSync(0);
+    pImage = HeapAlloc(0xF20, 0);
+    OpenTIM(pFile);
+    if (ReadTIM(&tim) != 0) {
+        for (i = 0; i < 5; i++) {
+            if (func_800AB748(i) != -1) {
+                continue;
+            }
+            if (tim.paddr == 0) {
+                continue;
+            }
+
+            pDst = pImage;
+            for (j = 0; j < D_800AF5C0[i].h; j++) {
+                memcpy(pDst, (u_char*)tim.paddr + (j + D_800AF5C0[i].y) * 0x140 + D_800AF5C0[i].x / 4 * 4,
+                    D_800AF5C0[i].w);
+                pDst += D_800AF5C0[i].w / 4 * 4;
+            }
+
+            tim.prect->x = D_800AF5C0[i].x / 2 + 0x300;
+            tim.prect->y = D_800AF5C0[i].y + 0x100;
+            tim.prect->w = D_800AF5C0[i].w / 2;
+            tim.prect->h = D_800AF5C0[i].h;
+            LoadImage(tim.prect, pImage);
+            DrawSync(0);
+        }
+    }
+
+    HeapFree(pFile);
+    HeapFree(pImage);
+}
+*/
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc9", func_800ABA98);
 
