@@ -1199,4 +1199,21 @@ stay `INCLUDE_ASM` until the operator extends it. If that ever changes, they are
 the second site to attack - and note that the `world_map`/`battle` scratchpad
 idiom uses `$t0` where field's uses `$t1`, and maspsx rejects hex offsets inside
 inline asm (`0($t0)`, never `0x0($t0)`).
+### `battle` misc6 / misc26-35: the retail objects contain no `$at` at all
+
+Round 43's misc29 worker found the sharper version of the addiu/ori split: in
+`asm/battle/nonmatchings/main/misc6` and `misc26..misc35` the retail object uses
+**zero `$at`** - the compiler materialised every absolute symbol address into an
+allocated register. Our gcc emits the absolute form and GNU `as` expands the
+one-shot use with `$at` (`lui $at; sb 0($at)`), so **a function whose symbol
+address is used only once cannot be matched by any preset**. Verified across
+gcc 2.6.0, 2.7.2-cdk, `-O1/-O2/-O3`, `-G0/-G8` and `-mcpu=r8000`: all 45%.
+Only functions that reuse an address (so gcc allocates a register) are viable.
+That is a fixed ceiling on that unit family, not a source-shape puzzle - do not
+brief workers on the single-use-address stubs there.
+
+Related: `battle/misc29`'s `func_800B73EC` is complete in its parked block and
+scores 100% by hand under `--aspsx-version=2.56` / `XenoBattleTail`; it only
+needs a re-diff in a tree with the preset, so it is the cheapest open match left
+in that overlay.
 
