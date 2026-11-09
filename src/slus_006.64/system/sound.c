@@ -1844,7 +1844,39 @@ void func_8003B0AC(AudioManager* pManager, AudioManager* pSrc) {
     } while (cnt);
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003B148);
+AudioManager* func_8003B148(s32 elementCount) {
+    s32 count = elementCount & ~1;
+    AudioManager* pManager;
+    AudioElement* pElement;
+    s32 i;
+    s32 voiceNumber;
+    s32 nRemaining;
+
+    D_80059478 = count;
+    pManager = SoundHeapAllocate(SoundCalculateAudioManagerSize(count));
+    if (pManager == NULL) {
+        SoundHandleError(0x1E);
+        return NULL;
+    }
+
+    func_8003B32C(pManager);
+
+    pElement = &pManager->elements[0];
+    voiceNumber = NUM_VOICES - count;
+    nRemaining = count;
+    i = 0;
+    do {
+        pElement->active_flag = 0;
+        pElement->unk_0x06[0] = i++;
+        pElement->voice_number = voiceNumber;
+        pElement++;
+        voiceNumber++;
+        nRemaining--;
+    } while (nRemaining);
+
+    SoundAddAudioManagerToList(pManager);
+    return pManager;
+}
 
 void func_8003B1FC(AudioManager* pManager) {
     SoundRemoveAudioManagerFromList(pManager);
