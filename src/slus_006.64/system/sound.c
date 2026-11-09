@@ -2780,11 +2780,16 @@ u8* func_8003D4E4(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003D53C);
 /*
-Attempt (95.83%, 100 bytes - same size as the original): gcc emits two adjacent
-`move v0,a0` where the original has one, shared by both edges of the third test -
-one in that branch's delay slot plus one at the top of the stores block. The nested
-if with early returns below is the first two tests of the original exactly; writing
-the last two tests as if/else changes nothing.
+Attempt (95.83%, 100 bytes; the original is 96): gcc-2.6.0 emits four `move v0,a0`
+where the original has three - one in each of the three branch delay slots plus one
+at the top of the stores block; the original's store block relies on the copies its
+callers' delay slots already made. The nested if with early returns below is the
+first two tests of the original exactly; writing the last two tests as if/else
+changes nothing.
+THE SAME C IS 100.00% / 96 BYTES UNDER gcc-2.7.2 (and 2.7.2-cdk): this is the only
+function in the unit that wants 2.7.2, and its neighbours - func_8003D2D0 (99.17%),
+func_8003D3D8 (84.79%), func_8003D438 (82.89%) - are all 2.6.0-only, so the unit
+cannot be carved at a compiler boundary here.
 u8* func_8003D53C(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     if (pAudioManager->unk_Flags & 0x6) {
         if ((g_SoundControlFlags & 0x2000) == 0) {
