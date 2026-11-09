@@ -5,6 +5,11 @@
 extern u8 D_800D3420[];
 extern u8 D_800D3430[];
 
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc6", func_8007AC30);
+/* best: 97.00%. Identical instruction multiset; only the register holding
+   the D_800D34x0 base address differs (original keeps it in v0/a2, gcc
+   hands it to v1). Same allocator tie as the other D_800D34x0 ops.
+
 void func_8007AC30(u8 **p, u8 index) {
     u16 *pField = (u16 *)(D_800D3420 + index * 0x40);
     u8 *pArgs = *p;
@@ -15,6 +20,12 @@ void func_8007AC30(u8 **p, u8 index) {
     }
     pField[pArgs[1]] = value;
 }
+*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc6", func_8007AC80);
+/* best: 96.52%. Identical instruction multiset; only the register holding
+   the D_800D34x0 base address differs (original keeps it in v0/a2, gcc
+   hands it to v1). Same allocator tie as the other D_800D34x0 ops.
+
 void func_8007AC80(u8 **p, u8 index) {
     u16 *pField = (u16 *)(D_800D3420 + index * 0x40);
     u8 *pArgs = *p;
@@ -25,36 +36,72 @@ void func_8007AC80(u8 **p, u8 index) {
     }
     pField[pArgs[1]] = value;
 }
+*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc6", func_8007ACDC);
+/* best: 81.94%. Identical instruction multiset; only the register holding
+   the D_800D34x0 base address differs (original keeps it in v0/a2, gcc
+   hands it to v1). Same allocator tie as the other D_800D34x0 ops.
+
 void func_8007ACDC(u8 **p, u8 index) {
     u16 *pField = (u16 *)(D_800D3420 + index * 0x40);
     u8 *pArgs = *p;
 
     pField[pArgs[1]] /= pArgs[2] + (pArgs[3] << 8);
 }
+*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc6", func_8007AD24);
+/* best: 81.94%. Identical instruction multiset; only the register holding
+   the D_800D34x0 base address differs (original keeps it in v0/a2, gcc
+   hands it to v1). Same allocator tie as the other D_800D34x0 ops.
+
 void func_8007AD24(u8 **p, u8 index) {
     u16 *pField = (u16 *)(D_800D3420 + index * 0x40);
     u8 *pArgs = *p;
 
     pField[pArgs[1]] %= pArgs[2] + (pArgs[3] << 8);
 }
+*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc6", func_8007AD6C);
+/* best: 97.65%. Identical instruction multiset; only the register holding
+   the D_800D34x0 base address differs (original keeps it in v0/a2, gcc
+   hands it to v1). Same allocator tie as the other D_800D34x0 ops.
+
 void func_8007AD6C(u8 **p, u8 index) {
     u16 *pField = (u16 *)(D_800D3420 + index * 0x40);
     u8 *pArgs = *p;
 
     pField[pArgs[1]] &= pArgs[2] + (pArgs[3] << 8);
 }
+*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc6", func_8007ADB0);
+/* best: 97.65%. Identical instruction multiset; only the register holding
+   the D_800D34x0 base address differs (original keeps it in v0/a2, gcc
+   hands it to v1). Same allocator tie as the other D_800D34x0 ops.
+
 void func_8007ADB0(u8 **p, u8 index) {
     u16 *pField = (u16 *)(D_800D3420 + index * 0x40);
     u8 *pArgs = *p;
 
     pField[pArgs[1]] |= pArgs[2] + (pArgs[3] << 8);
 }
+*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc6", func_8007ADF4);
+/* best: 97.65%. Identical instruction multiset; only the register holding
+   the D_800D34x0 base address differs (original keeps it in v0/a2, gcc
+   hands it to v1). Same allocator tie as the other D_800D34x0 ops.
+
 void func_8007ADF4(u8 **p, u8 index) {
     u16 *pField = (u16 *)(D_800D3420 + index * 0x40);
     u8 *pArgs = *p;
 
     pField[pArgs[1]] ^= pArgs[2] + (pArgs[3] << 8);
 }
+*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc6", func_8007AE38);
+/* best: 93.33%. Identical instruction multiset; only the register holding
+   the D_800D34x0 base address differs (original keeps it in v0/a2, gcc
+   hands it to v1). Same allocator tie as the other D_800D34x0 ops.
+
 void func_8007AE38(u8 **p, u8 index) {
     u8 *pTable = D_800D3430 + index * 0x40;
     u8 *pArgs = *p;
@@ -65,6 +112,12 @@ void func_8007AE38(u8 **p, u8 index) {
     }
     pTable[pArgs[3]] = value;
 }
+*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc6", func_8007AE98);
+/* best: 94.55%. Identical instruction multiset; only the register holding
+   the D_800D34x0 base address differs (original keeps it in v0/a2, gcc
+   hands it to v1). Same allocator tie as the other D_800D34x0 ops.
+
 void func_8007AE98(u8 **p, u8 index) {
     u8 *pTable = D_800D3430 + index * 0x40;
     u8 *pArgs = *p;
@@ -75,6 +128,12 @@ void func_8007AE98(u8 **p, u8 index) {
     }
     pTable[pArgs[3]] = value;
 }
+*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc6", func_8007AEF0);
+/* best: 98.52%. Identical instruction multiset; only the register holding
+   the D_800D34x0 base address differs (original keeps it in v0/a2, gcc
+   hands it to v1). Same allocator tie as the other D_800D34x0 ops.
+
 void func_8007AEF0(u8 **p, u8 index) {
     u8 *pTable = D_800D3430 + index * 0x40;
     u8 *pArgs = *p;
@@ -85,6 +144,7 @@ void func_8007AEF0(u8 **p, u8 index) {
     }
     pTable[pArgs[3]] = value;
 }
+*/
 void func_8007AF5C(u8 **p, u8 index) {
     u8 *pTable = D_800D3430 + index * 0x40;
     u8 *pArgs = *p;
@@ -157,24 +217,42 @@ void func_8007B264(u8 **p, u8 index) {
 
     pField[pArgs[3]] = pField[pArgs[1]] % pField[pArgs[2]];
 }
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc6", func_8007B2C0);
+/* best: 99.00%. Identical instruction multiset; only the register holding
+   the D_800D34x0 base address differs (original keeps it in v0/a2, gcc
+   hands it to v1). Same allocator tie as the other D_800D34x0 ops.
+
 void func_8007B2C0(u8 **p, u8 index) {
     u16 *pField = (u16 *)(D_800D3420 + index * 0x40);
     u8 *pArgs = *p;
 
     pField[pArgs[3]] = pField[pArgs[1]] & pField[pArgs[2]];
 }
+*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc6", func_8007B310);
+/* best: 99.00%. Identical instruction multiset; only the register holding
+   the D_800D34x0 base address differs (original keeps it in v0/a2, gcc
+   hands it to v1). Same allocator tie as the other D_800D34x0 ops.
+
 void func_8007B310(u8 **p, u8 index) {
     u16 *pField = (u16 *)(D_800D3420 + index * 0x40);
     u8 *pArgs = *p;
 
     pField[pArgs[3]] = pField[pArgs[1]] | pField[pArgs[2]];
 }
+*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc6", func_8007B360);
+/* best: 99.00%. Identical instruction multiset; only the register holding
+   the D_800D34x0 base address differs (original keeps it in v0/a2, gcc
+   hands it to v1). Same allocator tie as the other D_800D34x0 ops.
+
 void func_8007B360(u8 **p, u8 index) {
     u16 *pField = (u16 *)(D_800D3420 + index * 0x40);
     u8 *pArgs = *p;
 
     pField[pArgs[3]] = pField[pArgs[1]] ^ pField[pArgs[2]];
 }
+*/
 void func_8007B3B0(u8 **p, u8 index) {
     u8 *pArgs = *p;
 
