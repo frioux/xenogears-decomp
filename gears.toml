@@ -113,3 +113,12 @@ build_variables = {
     maspsx_flags = "--aspsx-version=2.67 --use-comm-section --run-assembler"
 }
 paths = [ "{binary}/system/rendering_pause_text." ]
+
+# asm/world_map is addiu-dominant (2483 `addiu $r,$zero,imm` vs 23 `ori`): it was
+# assembled by ASPSX >= 2.50, which expands `li` itself, so maspsx must not.
+[[build_preset]]
+name = "XenoWorldMap"
+build_variables = {
+    maspsx_flags = "--dont-expand-li --use-comm-section --run-assembler"
+}
+paths = [ "world_map/" ]
