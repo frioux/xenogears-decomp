@@ -1,4 +1,5 @@
 #include "common.h"
+#include "psyq/libgte.h"
 
 typedef struct {
     /* 0x0 */ u8 r;
@@ -35,18 +36,30 @@ extern Color4 D_800926B8;
 extern u32 D_800926A4;
 extern u32 D_800926B0;
 extern u32 D_800926B4;
-extern u16 D_800926A8;
+extern u16 D_800926A8[];
 extern u16 D_800926AA;
 extern u16 D_800926AC;
 extern u16 D_800926AE;
 extern u16 D_800926A0;
 extern s16 D_80092698;
 extern s16 D_8009269C;
+extern VECTOR D_80096FA8;
 
+extern int rand(void);
+
+extern void func_8007E3CC(void);
+extern void func_8007D334(s32, s32, s32);
+
+INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007B270);
+
+/* Best attempt: objdiff 95.11%. Only the load order of the first three bytes
+   differs (the original computes b = p[2] - 0x80 between the two loads); the
+   instruction multiset and registers are identical. */
+/*
 void func_8007B270(u8 *p0, u8 *p1) {
     s32 r;
-    s32 g;
     s32 b;
+    s32 g;
 
     r = p0[0] - 0x80;
     b = p0[2] - 0x80;
@@ -60,7 +73,7 @@ void func_8007B270(u8 *p0, u8 *p1) {
     if (b < 0) {
         b = 0;
     }
-    D_800926A8 = ((r >> 2) & 0x1F) + ((g << 3) & 0x3E0) + ((b << 8) & 0x7C00) | -0x8000;
+    D_800926A8[0] = ((r >> 2) & 0x1F) + ((g << 3) & 0x3E0) + ((b << 8) & 0x7C00) | -0x8000;
 
     r = p1[0] - 0x80;
     b = p1[2] - 0x80;
@@ -78,8 +91,9 @@ void func_8007B270(u8 *p0, u8 *p1) {
 
     D_800926AC = 0;
     D_800926AE = 0x1111;
-    D_800926A0 = LoadClut2((u_long *)&D_800926A8, D_80092698, D_8009269C);
+    D_800926A0 = LoadClut2((u_long *)D_800926A8, D_80092698, D_8009269C);
 }
+*/
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007B388);
 
@@ -144,6 +158,18 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007CF78);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007D068);
 
+/* Best attempt: objdiff 96.84%. 16-byte VECTOR copy from D_80096FA8 to the
+   scratchpad is right but reload puts the two addresses in a0/a1 where the
+   original uses a1/a2. */
+/*
+void func_8007D068(void) {
+    VECTOR *pScratch = (VECTOR *)PSX_SCRATCH;
+
+    *pScratch = D_80096FA8;
+    func_8007E3CC();
+}
+*/
+
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007D0B4);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007D190);
@@ -155,11 +181,27 @@ s32 func_8007D25C(s32 arg0) {
     return arg0 < 0x20;
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007D274);
+void func_8007D274(VECTOR *pSrc, VECTOR *pDst) {
+    pDst->vx = pSrc->vx + rand() % 64 - 32;
+    pDst->vy = pSrc->vy + rand() % 64 - 32;
+    pDst->vz = pSrc->vz + rand() % 64 - 32;
+}
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007D334);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007D65C);
+void func_8007D65C(s32 arg0, s32 arg1, s32 arg2) {
+    switch (arg2) {
+    case 0x11:
+        func_8007D334(arg0, arg1, 0);
+        break;
+    case 0x12:
+        func_8007D334(arg0, arg1, 1);
+        break;
+    case 0x13:
+        func_8007D334(arg0, arg1, 2);
+        break;
+    }
+}
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007D6B8);
 
