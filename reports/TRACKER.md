@@ -649,3 +649,55 @@ already in `asm/slus_006.64/data/49AC0.sbss.s` and maspsx only emits `%gp_rel` f
 symbols the unit itself defines, so this one needs a data-ownership change).
 `func_801E6578` 98.63% (one callee-saved pair, allocnos identical, so global.c's
 tie order). `FieldFree` 97.34% (652 vs 656 bytes, two combine decisions).
+| 33 | 11 workers on the closest open items (99.6% down to 90%): archive, misc6, temp1, lib_gear, rendering, system, libarchive, libgpu+libc, misc12, sound, libgte_b | +1 | 1997 | `SetGraphReverse` (a two-session 90.84% flip); everything else moved up but not to 100% |
+
+## Round 33: the tail is allocator tie-breaks, and it says so
+
+Nine workers spent a full 30 minutes each on the *closest* remaining stubs and
+moved most of them up (96.40 -> 96.81, 91.88 -> 95.23, 93.87 -> 97.87, 92.98 ->
+96.49) without closing them. Every one of them reported the same shape: the
+instruction multiset is identical to retail and one register or one delay slot
+differs. That is the residual, and it is now measured, not assumed:
+
+- `func_801E6578` (98.63%): the two allocnos have identical def/use counts and
+  live ranges; 20+ source shapes leave global.c's tie untouched. Not reachable
+  from C.
+- `func_800A0C94` (99.64%): `addu` destination only; 24 declaration orders are
+  byte-identical, and any shape that stops gcc CSE-ing the `*0x5C` rematerialises
+  the multiply per block (82%).
+- `func_80023804` (99.10%): mask/value register pair; a sibling function
+  (`func_80021BCC`) compiles the identical expression the other way round, so it is
+  context-driven allocation.
+- `GfxLoadClutsAccelerated` (99.11%) and `func_8003D53C` (95.62%): one swapped
+  pair / one extra `move` respectively.
+
+**Recommendation for the next session:** stop spending workers on the 95-99.6%
+class. The productive work left is *new* function pools, not the last instruction:
+(a) split the remaining `asm` yaml segments (`[0x33F6C, asm]`, `[0x35B7C, asm]`,
+`[0x3BCAC, asm]` in `slus_006.64`) into `c` units - the libgte split shows this is a
+one-line change plus a directory rename, and it is the largest untouched pool;
+(b) the unsplit overlays (`battling`, `world_map`, `battle`, `menu`); (c) symbol
+and struct recovery in the units that are already complete.
+
+Useful facts banked this round, all written into the parked comments:
+- `D_8004FE26 = *(volatile u16*)&D_8004FE26 + 1;` makes gcc keep retail's two
+  `lhu` of an id counter when an intervening store through a pointer does not
+  otherwise alias it (`func_8002B2F0`, 96.40 -> 96.81).
+- Making the first parameter a *statement copy* (`s32 v; v = value;`) moves gcc's
+  parameter copy after the entry-block constant load (`func_80033CF0`, 92.98 ->
+  96.49).
+- Referencing a global **twice** (`if (g == NULL) return NULL; p = g;`) produces
+  the load-before-prologue shape; `p = g; if (!p)` does not.
+- `XenoGraphics`/gcc-2.7.2-cdk rejects mixed declarations outright: every local
+  must be at the top of its block or cc1 exits 33, and `diff_func.sh` then prints
+  a **stale** objdiff score with no MATCH/MISMATCH line. Check for the line, never
+  the percentage alone.
+
+## Session 3 final numbers
+
+**1997 / 2528 functions (79.00%)**, 373272 / 670864 bytes (55.64%), fuzzy 56.15%,
+396 countable `INCLUDE_ASM` stubs. Session start was 1967 (77.81%), 54.67% of code.
+That is **+30 functions and +0.97 points of code** in 9 rounds (~100 worker-runs),
+six of which closed real functions and three of which produced only evidence that
+the residual is not reachable from C. `make check` was green for every batch and
+the public page is published at 55.6%.
