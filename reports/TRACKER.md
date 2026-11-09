@@ -1186,4 +1186,17 @@ grew by 1583: `world_map`, `battle`, `menu` and `movie` were added to the report
 3. **A shared header is a merge conflict waiting to happen.** Four compiles broke
    across rounds 40-41 because two units in one overlay each re-split the same
    `SystemMenu` tail array differently. `tools/rounds/brief.js` now forbids it.
+### The "alternate stack" idiom is in `battle` too
+
+Round 43's `battle/main/misc27` worker hit `func_800B626C`, which has the same
+shape as `field/main/misc2`'s scratchpad functions: `HeapAlloc(0x4000,1)`, then
+`sw $sp,0(t0); addiu t0,t0,-4; sp=t0` ... `addiu sp,sp,4; lw sp,0(sp)`. No C
+statement emits it. The same idiom is in `func_800B3CD4` (misc26) and probably
+`func_800B51B0`.
+
+**The inline-asm authorisation covers `field/main/misc2.c` only**, so these three
+stay `INCLUDE_ASM` until the operator extends it. If that ever changes, they are
+the second site to attack - and note that the `world_map`/`battle` scratchpad
+idiom uses `$t0` where field's uses `$t1`, and maspsx rejects hex offsets inside
+inline asm (`0($t0)`, never `0x0($t0)`).
 
