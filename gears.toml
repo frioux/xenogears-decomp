@@ -116,9 +116,9 @@ paths = [ "{binary}/system/rendering_pause_text." ]
 
 # The whole world_map overlay was assembled with ASPSX >= 2.50 semantics: it leaves
 # `li` to the assembler, which expands a small positive constant to addiu, not to
-# maspsx's ori. Evidence: asm/world_map/nonmatchings has 1647 `addiu $r,$zero,imm`
-# (651x 1, 214x 2, 209x 3 -- exactly gcc's `li` shapes) against 21 `ori $r,$zero,imm`,
-# and those 21 are 0x8000/0xFFFF/0xFF80 values that GNU as emits as ori anyway.
+# maspsx's ori. Evidence: asm/world_map/nonmatchings has 2471 `addiu $r,$zero,imm`
+# (644x 1, 214x 2, 208x 3 -- exactly gcc's `li` shapes) against 23 `ori $r,$zero,imm`,
+# and those 23 are 0x8000/0xFFFF/0xFF80/0x8 values that GNU as emits as ori anyway.
 # field/battling/menu/movie are the opposite (ori-dominant) and keep Default.
 [[build_preset]]
 name = "XenoWorldMap"
