@@ -61,6 +61,21 @@ void func_8008FABC(void) {
 
 INCLUDE_ASM("asm/field/nonmatchings/camera/camera_movement", func_8008FB28);
 
+/* Best: 66.43% (112 bytes, right size). gcc 2.7.2 always defers the multiply's
+   mflo/sra/store to the last insn of the block, so the D_800AF930 store lands
+   after the scriptInstructionPointer read-modify-write instead of before it (and
+   the RMW's `sh` therefore misses the jr delay slot). Reordering the source
+   statements, storing through a local, or computing the mult into a local first
+   all give the same 66.43%.
+void func_8008FB28(void) {
+    D_800AF93A[0] = 0x1000;
+    D_800AF936 = g_Scene.sceneDIP;
+    D_800AF938 = g_Scene.sceneAngle.vy;
+    D_800AF930 = ((s32)g_Scene.sceneScrZ * g_Scene.sceneScale) >> 12;
+    g_FieldScriptVMCurActor->scriptInstructionPointer += 1;
+}
+*/
+
 /* Best: 66.43% (112 bytes). The original expands the multiply first, then fills
    the mult/mflo gap with the scene loads and the three D_800AF stores, and only
    then loads the actor; gcc hoists the actor load and the scriptInstructionPointer
