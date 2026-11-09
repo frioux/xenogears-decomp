@@ -435,15 +435,18 @@ void func_800883D4(void) {
 extern FieldScriptGlobalS16 D_800B236C;
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008848C);
-// 78.75%: same instructions, same order; the original's second `lhu 0xCC($a0)`
-// is a rematerialisation after `addu` reused the register holding the
-// instruction pointer, ours keeps it live in $v1 instead.
+// 78.75%: the original clobbers $v1 with `ip + g_FieldScriptVMCurScriptData`,
+// then RELOADS `lhu $v0,0xCC($a0)` for the `+= 2` and XORs at the store site
+// (`...; sh $v0,0xCC($a0); xori $v1,$v1,1; sh $v1,D_800B236C`). Ours keeps the
+// instruction pointer live in $v1 and reuses it, and hoists the xori.
+// `int value = SCRIPT_READ_U8_REL(1);` + `= value ^ 1` at the store does not
+// force the reload (gcc CSEs the two loads into the live register).
 /*
 void func_8008848C(void) {
-    int value = SCRIPT_READ_U8_REL(1) ^ 1;
+    int value = SCRIPT_READ_U8_REL(1);
 
     g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
-    D_800B236C.value = value;
+    D_800B236C.value = value ^ 1;
 }
 */
 
@@ -2157,11 +2160,11 @@ void func_8008F76C(void) {
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008F7B8);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008F90C);
-// 90.60%: with `scriptInstructionPointer += 9` written before the `frames == 0`
-// clamp, every instruction after the branch matches the original exactly; only
-// the branch and the store are swapped (the original clamps first, then stores).
-// Writing the clamp first instead makes cse hoist the two g_Scene s16 stores
-// above the store and drop to 48.80%.
+// 90.60%: everything matches except that gcc's post-reload scheduler moves the
+// `scriptInstructionPointer += 9` load/addiu/store below the three divisions and
+// the two g_Scene s16 stores (the original has it right after the frames clamp).
+// Writing the clamp first in the source makes it worse: the divs and the s16
+// stores are then all emitted before the pointer store (48.80%).
 /*
 // Starts an interpolation of the camera position from the current g_Scene
 // position to the one passed in the script arguments.
