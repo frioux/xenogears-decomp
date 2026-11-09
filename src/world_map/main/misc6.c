@@ -168,6 +168,10 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007D7FC);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007D918);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007DCE0);
 
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007DE14);
+/* 82.21%: only difference is that the original keeps an 8-byte stack frame
+   (addiu sp,sp,-8 mid-body) and stores unk50 before unk58; everything else,
+   including the two loads off D_8009A65C and the reloads, is identical.
 int func_8007DE14(int index) {
     WorldMapActor *pActor = &D_8009BE24[index];
 
@@ -179,33 +183,40 @@ int func_8007DE14(int index) {
     pActor->unk50++;
     return 1;
 }
+*/
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007DE98);
 
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007E450);
+/* 24.00%
 int func_8007E450(int index) {
     WorldMapActor *pActor = &D_8009BE24[index];
+    int nScale = 0x1000;
     u32 unkAc;
     u32 unkB0;
     u32 unkB4;
+    int nOne;
 
     D_8009D144 = 0;
-    pActor->unk7C = 0x1000;
+    pActor->unk7C = nScale;
     unkAc = D_8009C5AC;
     unkB0 = D_8009C5B0;
     unkB4 = D_8009C5B4;
     D_8009BE0C = 0x78;
+    nOne = 1;
     D_8009BE28 = unkAc;
     D_8009D55C = unkAc;
     D_8009BE2C = unkB0;
     D_8009D560 = unkB0;
     D_8009BE30 = unkB4;
     D_8009D564 = unkB4;
-    pActor->unk04 = 1;
+    pActor->unk04 = nOne;
     pActor->unk58 = 0x40;
     pActor->unk20 = 0;
     pActor->unk50 = 0;
     return 1;
 }
+*/
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007E4E4);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007EBBC);
@@ -214,6 +225,10 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007EE34);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007F8AC);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007F968);
 
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007FC8C);
+/* 88.66%: the two func_8007A06C calls and the store order match; the original
+   materialises 0x1498000, 0x4AF2000 and the 3 into v1/a0/v0 before the first
+   store, so those three come from locals, not literals.
 int func_8007FC8C(int index) {
     WorldMapRoot *pRoot = D_8009C620;
     WorldMapActor *pActor = &D_8009BE24[index];
@@ -229,6 +244,7 @@ int func_8007FC8C(int index) {
     pActor->unk58 = (void *)0x80;
     return 3;
 }
+*/
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007FD30);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007FF70);
@@ -245,27 +261,37 @@ int func_8008032C(int index) {
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_80080370);
 
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_80080578);
+/* 34.97%: same body as func_8007E450 minus the last three stores. The
+   original emits everything in strict source order (sll, lw D_8009BE24,
+   li 0x1000, sw D_8009D144, addu, sw 0x7C, then the three D_8009C5xx loads,
+   li 0x78, sw D_8009BE0C, li 1, the six paired stores); gcc 2.7.2 reorders
+   the loads here, so the shape is not reproducible from this source order.
 int func_80080578(int index) {
     WorldMapActor *pActor = &D_8009BE24[index];
+    int nScale = 0x1000;
     u32 unkAc;
     u32 unkB0;
     u32 unkB4;
+    int nOne;
 
     D_8009D144 = 0;
-    pActor->unk7C = 0x1000;
+    pActor->unk7C = nScale;
     unkAc = D_8009C5AC;
     unkB0 = D_8009C5B0;
     unkB4 = D_8009C5B4;
     D_8009BE0C = 0x78;
+    nOne = 1;
     D_8009BE28 = unkAc;
     D_8009D55C = unkAc;
     D_8009BE2C = unkB0;
     D_8009D560 = unkB0;
     D_8009BE30 = unkB4;
     D_8009D564 = unkB4;
-    pActor->unk04 = 1;
+    pActor->unk04 = nOne;
     pActor->unk20 = 0;
     return 1;
 }
+*/
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_80080600);
