@@ -317,34 +317,57 @@ void func_800A6998(POLY_GT4* pPoly, int nCorner, int nDistance, u_short* pTimer)
     }
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A6C40);
-
 extern void* D_800B00C4;
 
 // 280 particle primitives in two copies (current/next) plus four u_short
 // attribute arrays indexed in parallel.
 typedef struct {
-    /* 0x0000 */ POLY_GT4 polygons[280];
-    /* 0x38E0 */ POLY_GT4 polygonsNext[280];
+    /* 0x0000 */ POLY_GT4 polygons[560];
     /* 0x71C0 */ u_short unk71C0[280];
     /* 0x73F0 */ u_short unk73F0[280];
     /* 0x7620 */ u_short unk7620[280];
     /* 0x7850 */ u_short unk7850[280];
 } FieldParticlePrimitiveSet; // Size: 0x7A80
 
-/* Best attempt, 99.56%: only the two UV temporaries land in the opposite
-   registers (v0/v1 swapped on the andi/addiu pair and their four
-   stores); every other instruction matches. Tried: inline vs named UV
-   locals, int vs u_char locals, declaration order, separate nX/nU/nU1.
-   x0/x2 use nX, u0/u2 use nX & 0x3F, u1/u3 use that + 0x10,
-   v0/v1 = i*16, v2/v3 = i*16 + 0x10 (gcc hoists i*16 itself), x1/x3 =
-   nX + 0x10 (strength-reduced to a counter), 20x14 grid of 16x16 tiles,
-   tpage = GetTPage(2, 1, j / 4 * 0x40 + 0x2C0, 0x100).
-   Also tried (still 99.5x%): nU0/nU1 locals in three declaration orders, no UV
-   locals at all (inline `nX & 0x3F` at all four UV stores), and swapping the
-   u0/u2 and u1/u3 store statements. POLY_GT4 here is the 0x34-byte libgpu
-   layout (clut at 0xE, tpage at 0x1A) and polygonsNext is at +0x38E0, so the
-   four u_short attribute arrays are at 0x71C0/0x73F0/0x7620/0x7850.
+extern int D_800C3A40;
+extern u_char D_800B1E24[];
+
+void func_800A6C40(void) {
+    POLY_GT4* pPoly;
+    int i;
+    int j;
+
+    for (i = 0; i < 0xE; i++) {
+        for (j = 0; j < 0x14; j++) {
+            pPoly = (POLY_GT4*)((u_char*)D_800B00C4 + g_FieldCurRenderContextIndex * 0x38E0) + (i * 0x14 + j);
+            func_800A6998(pPoly, 0, D_800C3A40, ((FieldParticlePrimitiveSet*)D_800B00C4)->unk71C0 + (i * 0x14 + j));
+            func_800A6998(pPoly, 1, D_800C3A40, ((FieldParticlePrimitiveSet*)D_800B00C4)->unk73F0 + (i * 0x14 + j));
+            func_800A6998(pPoly, 2, D_800C3A40, ((FieldParticlePrimitiveSet*)D_800B00C4)->unk7620 + (i * 0x14 + j));
+            func_800A6998(pPoly, 3, D_800C3A40, ((FieldParticlePrimitiveSet*)D_800B00C4)->unk7850 + (i * 0x14 + j));
+            addPrim(&g_FieldCurRenderContext->ot3[0],
+                (POLY_GT4*)((u_char*)D_800B00C4 + g_FieldCurRenderContextIndex * 0x38E0) + (i * 0x14 + j));
+        }
+    }
+    addPrim(&g_FieldCurRenderContext->ot3[0],
+        &D_800B1E24[g_FieldCurRenderContextIndex * 0xC0]);
+}
+
+INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A6E70);
+
+/* Best attempt, 99.56% / 500 bytes (the original is 500 too): everything but
+   the two UV temporaries matches, and those only land in swapped registers -
+   the original keeps (j*16) with its `& 0x3F` in v0 and the `+ 0x10` in v1,
+   we get v0 and v1 the other way round (the whole instruction sequence, the
+   store order and every offset are identical). Tried and no help: inline vs
+   named UV locals, int vs u_char locals, three declaration orders, no UV
+   locals at all, swapping the u0/u2 and u1/u3 stores, a separate nU1 local.
+   Settled facts: x0/x2 = nX, u0/u2 = nX & 0x3F, u1/u3 = that + 0x10,
+   v0/v1 = i*16, v2/v3 = i*16 + 0x10 (gcc strength-reduces both to the s3/s4
+   counters), x1/x3 = nX + 0x10, 0xE x 0x14 grid of 16x16 tiles,
+   tpage = GetTPage(2, 1, j / 4 * 0x40 + 0x2C0, 0x100), and
+   *pPolyNext = *pPoly copies 0x34 bytes. polygons is 560 POLY_GT4 (two
+   copies of 280), so polygonsNext is at +0x38E0 and the four u_short
+   attribute arrays start at 0x71C0.
     void func_800A6E70(void) {
         FieldParticlePrimitiveSet* pPrims;
         POLY_GT4* pPoly;
@@ -352,7 +375,6 @@ typedef struct {
         int i;
         int j;
         int nIndex;
-        int nU1;
         int nU;
         int nX;
 
@@ -362,7 +384,7 @@ typedef struct {
                 pPrims = D_800B00C4;
                 nIndex = i * 0x14 + j;
                 pPoly = pPrims->polygons + nIndex;
-                pPolyNext = pPrims->polygonsNext + nIndex;
+                pPolyNext = pPrims->polygons + 280 + nIndex;
                 pPrims->unk71C0[nIndex] = 0x80;
                 pPrims->unk73F0[nIndex] = 0x80;
                 pPrims->unk7620[nIndex] = 0x80;
@@ -373,7 +395,6 @@ typedef struct {
                 pPoly->x0 = nX;
                 pPoly->x2 = nX;
                 nU = nX & 0x3F;
-                nU1 = nU + 0x10;
                 pPoly->r0 = 0x80;
                 pPoly->g0 = 0x80;
                 pPoly->b0 = 0x80;
@@ -394,21 +415,18 @@ typedef struct {
                 pPoly->y3 = i * 0x10 + 0x10;
                 pPoly->u0 = nU;
                 pPoly->v0 = i * 0x10;
-                pPoly->u1 = nU1;
+                pPoly->u1 = nU + 0x10;
                 pPoly->v1 = i * 0x10;
                 pPoly->u2 = nU;
                 pPoly->v2 = i * 0x10 + 0x10;
-                pPoly->u3 = nU1;
+                pPoly->u3 = nU + 0x10;
                 pPoly->v3 = i * 0x10 + 0x10;
                 pPoly->tpage = GetTPage(0x2, 0x1, j / 4 * 0x40 + 0x2C0, 0x100);
                 SetSemiTrans(pPoly, 0x1);
                 *pPolyNext = *pPoly;
             }
         }
-    }
-*/
-
-INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A6E70);
+    }*/
 
 void func_800A7064(void) {
     HeapFree(D_800B00C4);
