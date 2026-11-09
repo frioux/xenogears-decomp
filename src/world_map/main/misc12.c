@@ -32,28 +32,37 @@ typedef struct {
     /* 0x04 */ s16 unk4;
     /* 0x06 */ u8 unk6[0x1A];
     /* 0x20 */ s16 unk20;
-    /* 0x22 */ u8 unk22[0x6];
-    /* 0x28 */ u32 unk28;
-    /* 0x2C */ u32 unk2C;
-    /* 0x30 */ u32 unk30;
-    /* 0x34 */ u32 unk34;
+    /* 0x22 */ u8 unk22[0x2];
+    /* 0x24 */ u16 unk24;
+    /* 0x26 */ u8 unk26[0x2];
+    /* 0x28 */ s32 unk28;
+    /* 0x2C */ s32 unk2C;
+    /* 0x30 */ s32 unk30;
+    /* 0x34 */ s32 unk34;
     /* 0x38 */ u32 unk38;
     /* 0x3C */ u32 unk3C;
     /* 0x40 */ u32 unk40;
     /* 0x44 */ u32 unk44;
-    /* 0x48 */ u8 unk48[0x8];
+    /* 0x48 */ u16 unk48;
+    /* 0x4A */ u16 unk4A;
+    /* 0x4C */ u8 unk4C[0x4];
     /* 0x50 */ s32 unk50;
     /* 0x54 */ u32 unk54;
     /* 0x58 */ u32 unk58;
     /* 0x5C */ u32 unk5C;
-    /* 0x60 */ u8 unk60[0x4];
+    /* 0x60 */ u32 unk60;
     /* 0x64 */ void *unk64;
     /* 0x68 */ void *unk68;
-    /* 0x6C */ u8 unk6C[0x14];
+    /* 0x6C */ u32 unk6C;
+    /* 0x70 */ u8 unk70[0x4];
+    /* 0x74 */ u32 unk74;
+    /* 0x78 */ u8 unk78[0x8];
 } WorldMapPlayer; // Size: 0x80
 
 typedef struct {
-    /* 0x000 */ u8 unk0[0xB0];
+    /* 0x000 */ u8 unk0[0x8];
+    /* 0x008 */ u32 unk8[4];
+    /* 0x018 */ u8 unk18[0x98];
     /* 0x0B0 */ u32 unk0B0[4];
     /* 0x0C0 */ u8 unk0C0[0x44];
     /* 0x104 */ u32 unk104[4];
@@ -103,7 +112,31 @@ void func_8008E078(void) {
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_8008E0F0);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_8008E190);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_8008E4F4);
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_8008E680);
+s32 func_8008E680(s32 idx) {
+    WorldMapPlayer *pPlayer;
+    u16 nAngle;
+
+    pPlayer = D_8009BE24 + idx;
+    func_8008DFF4(&pPlayer->unk28);
+    pPlayer->unk2C = 0x80000;
+    nAngle = g_GameState.unk1832;
+    pPlayer->unk4A = 0x20;
+    pPlayer->unk74 = 3;
+    pPlayer->unk68 = (void *)0xFFD80000;
+    pPlayer->unk40 = 0;
+    pPlayer->unk3C = 0;
+    pPlayer->unk38 = 0;
+    pPlayer->unk24 = 0;
+    pPlayer->unk60 = 0;
+    pPlayer->unk64 = 0;
+    pPlayer->unk6C = 0;
+    pPlayer->unk20 = 8;
+    pPlayer->unk48 = nAngle;
+    *(Quad *)D_8009D55C = *(Quad *)&pPlayer->unk28;
+    D_8009D52C = pPlayer->unk48;
+    *(Quad *)D_8009C620->unk8 = *(Quad *)&pPlayer->unk28;
+    return 1;
+}
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_8008E76C);
 s32 func_800906E0(s32 idx) {
     WorldMapPlayer *pPlayer;
