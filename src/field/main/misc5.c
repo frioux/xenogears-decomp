@@ -840,15 +840,20 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A84C0);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A8BA4);
 
-/* Best attempt, 83.02% / 796 bytes. Structure (SetPolyFT4 per tile, clut =
-   GetClut(0,0xE8), nABR switch on the high nibble of the tile attribute word,
-   tpage = GetTPage(0,nABR,0x380,0), SetSemiTrans(p,1), 0x6D iterations) is right;
-   what does not come out is (a) the original folds D_800AEB68/6C/6E into one
-   base register (s5 = &D_800AEB6C, loads at 0/+2/-4) with only D_800AEB6A on its
-   own base, which no C spelling of four separate extern u_short[] can express;
-   (b) it keeps two identical loop counters (s3 for slti, s2 for the *8 index);
-   (c) the tile record is reached as D_800AEF16[i*4-3..i*4] (single symbol, base
-   folded to %lo(D_800AEF16)-6).
+/* Best attempt, 83.87% / 800 bytes (original is 772). Everything up to the
+   per-tile UV switch matches; the delta is pure loop strength reduction and
+   register shuffling. What is settled: the five palette/rect loads
+   (nW/nH/nSrcX/nSrcY and the shape table) each go through ONE base symbol with
+   constant offsets, so write nW/nH/nSrcX as D_800AEB6C[nRect], [nRect + 1],
+   [nRect - 2] and nSrcY as D_800AEB6A[nRect] (that is the s5 = &D_800AEB6C /
+   t3 = &D_800AEB6A split the original has), and reach the tile record as
+   D_800AEF16[i*4-3..i*4]. The remaining difference: gcc strength-reduces the
+   two tile bases to loop-carried `addu $p,$p,8` pointers (plus two `move`s in
+   the prologue) where the original keeps one invariant base and re-forms
+   `sll/addu` per access; the original also keeps three counters (i for the
+   loop bound, i for the *8 index, i*0x28 for the polygons) exactly as this
+   source does. Tried: pointer locals, splitting nAttr into a local, use of
+   D_800AEF14 as the record base, -O3/gcc-2.6.0.
    extern u_short D_800AEF16[];
    extern int D_800AEB64;
 
@@ -897,8 +902,8 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A8BA4);
            nY = D_800AEF16[i * 4 - 2];
            nRect = D_800AEF16[i * 4 - 1] * 4;
            nW = D_800AEB6C[nRect];
-           nH = D_800AEB6E[nRect];
-           nSrcX = D_800AEB68[nRect];
+           nH = D_800AEB6C[nRect + 1];
+           nSrcX = D_800AEB6C[nRect - 2];
            nSrcY = D_800AEB6A[nRect];
 
            pPoly->x0 = nX;
