@@ -557,11 +557,20 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002B084);
  * the third CdGetSector's size argument, where the constant 0x200 (CD_SECTOR_SIZE
  * / 4) and the quotient of (g_ArchiveCurFileSize + 3) / 4 land in each other's
  * registers: the original keeps the constant in a1 and does `subu a1,a1,v0`,
- * this gets the constant in v0 and `subu a1,v0,a1`. Writing the literal
- * `CD_SECTOR_SIZE / 4 - (g_ArchiveCurFileSize + 3) / 4` instead of the
- * nHalfSector accumulation gets the registers right (98.97%) but emits the
- * `li` after the division instead of in the bgez delay slot. Status is
- * CdlDataReady (0x1) and the final command is CdlNop, not CdlComplete/CdlPause.
+ * this gets the constant in v0 and `subu a1,v0,a1`. Status is CdlDataReady (0x1)
+ * and the final command is CdlNop, not CdlComplete/CdlPause.
+ *
+ * Three variants were measured; the two halves of the original's shape conflict:
+ *  a) nHalfSector = CD_SECTOR_SIZE / 4; nHalfSector -= (...) / 4; then pass it:
+ *     99.74%, constant in v0, quotient in a1, li is in the bgez delay slot.
+ *  b) two locals (half = 0x200, words = quotient) and pass half - words:
+ *     99.58%, constant in v1, quotient in a1, li in the bgez delay slot.
+ *  c) the literal CD_SECTOR_SIZE / 4 - (...) / 4 inline in the call:
+ *     98.97% but the register pair is right (li a1,0x200, sra v0, subu a1,a1,v0);
+ *     its only flaw is that gcc emits the li after the sra (one insn longer).
+ * The original is c) with the constant load hoisted to the block head so reorg
+ * steals it into the div's bgez delay slot. Only gcc's choice of which operand
+ * gets the call register separates a) from c).
  * void func_8002B084(u_char status) {
  *     s32 nHalfSector;
  *     s32 i;
@@ -624,92 +633,107 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002B084);
  */
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002B2F0);
-/* Best attempt: objdiff 96.29%. Search loop and epilogue are right; `entryIndex =
- * D_8004FE10++` (not a load plus a separate increment) reproduces the original's
- * load-then-copy into s2 and is worth about 2% on its own - the same idiom applies to
- * func_8002B8B0 below. Remaining deltas, all in the found-block: (1) the original
- * stores the id before the state (so the second lhu of D_8004FE26 is a real reload
- * after the state store, which gcc cannot CSE across the pointer store), and the
- * `li` of 1 for the state fills the CdPosToInt beq delay slot where this puts the
- * 0x200 sector constant there instead; (2) `addiu v1,s2,1` vs `addiu v1,v0,1`.
- * func_8002B5D0 is instruction-identical apart from branch targets.
+/* Best attempt: objdiff 96.29%. func_8002B5D0 is instruction-identical to this
+ * function (verified by diffing the two .s files), so one body matches both.
+ * The search loop must read the globals directly - `for (i = 0; i < D_8004FE40; i++)`
+ * with `entryIndex = D_8004FE10++` and D_8004FE2C in the body - so that gcc hoists
+ * loop-invariant copies (`lw v0, D_8004FE40` + `blez v0` for the entry test, then
+ * `move a1,v0`; the same `move s2,v0` for D_8004FE10). With a `numSections` local
+ * the whole header compiles to single-register loads and mismatches. The delay
+ * loops are identity-verified with i/j in func_8002B084 but need their own
+ * variables here (reusing the search loop's `i` puts the outer 9999 counter in a0
+ * instead of v1).
+ *
+ * Remaining deltas, all in the found-block after CdPosToInt:
+ *  - the original has TWO lhu of D_8004FE26: the id value (a2) is loaded before
+ *    the `sh v0,0(s1)` state store and a fresh one (v0) is loaded after it for the
+ *    += 1. Every source order tried so far (separate statements, a captured u16
+ *    local declared before the state store) lets gcc CSE them into one load;
+ *  - the original's CdPosToInt beq delay slot holds `ori v0,zero,0x1` (the state
+ *    value, stolen from the taken thread) and `ori a1,zero,0x200` is the first
+ *    insn of the merged block; the builds so far steal the 0x200 from the
+ *    fall-through (mismatch) thread instead;
+ *  - the sector offset keeps the shifted index in a0 and the D_8004FE08 value in
+ *    v1 (`sll a0,s2,0xb` ... `addu a0,a0,v1`, index first); the builds so far
+ *    swap them.
  * void func_8002B2F0(u_char status) {
-    ArchiveStreamFileSectionHeader* pCurrent;
-    CdlLOC* pLoc;
-    u8* pBuf;
-    int entryIndex;
-    int i;
-    int j;
-
-    if (status != CdlDataReady)
-        goto error;
-
-    if (D_8004FE34 > 0) {
-        CdReadyCallback(NULL);
-        CdDataCallback(NULL);
-        g_ArchiveCurFileSize = 0;
-        ArchiveCdSeekToFile(D_8004FE38);
-        D_8004FDFC = 0;
-        return;
-    }
-
-    if (g_ArchiveCurFileSize > 0) {
-        for (i = 0; i < D_8004FE40; i++) {
-            entryIndex = D_8004FE10++;
-            pCurrent = (ArchiveStreamFileSectionHeader*)(entryIndex * sizeof(ArchiveStreamFileSectionHeader) + (mem_addr)D_8004FE2C);
-            if (D_8004FE10 >= D_8004FE40)
-                D_8004FE10 = 0;
-            if (pCurrent->state == 0)
-                break;
-        }
-
-        if (pCurrent->state != 0)
-            goto errorNoInc;
-
-        pLoc = &D_80059EF8;
-        CdGetSector(pLoc, 3);
-        if (CdPosToInt(pLoc) == g_ArchiveCurFileSector) {
-            pCurrent->id = D_8004FE26;
-            pCurrent->state = 1;
-            D_8004FE26 += 1;
-            CdGetSector((u8*)(entryIndex * CD_SECTOR_SIZE + (mem_addr)D_8004FE08), CD_SECTOR_SIZE / 4);
-            g_ArchiveCurFileSize -= CD_SECTOR_SIZE;
-            g_ArchiveCurFileSector += 1;
-            if (g_ArchiveCurFileSize > 0)
-                return;
-        } else {
-            D_8004FDEC += 1;
-            pBuf = D_800596F8;
-            CdGetSector(pBuf, CD_SECTOR_SIZE / 4);
-            goto error;
-        }
-    }
-
-    CdReadyCallback(NULL);
-    g_ArchiveCurFileSize = 0;
-    return;
-
-error:
-    D_8005A4DC += 1;
-errorNoInc:
-    D_80059F08 = CdReadyCallback(NULL);
-    CdIntToPos(g_ArchiveCurFileSector, &g_ArchiveCdCurLocation);
-    if (D_8005A4DC < 3) {
-        g_ArchiveCdDriveError = ARCHIVE_CD_DRIVE_ERR_READ;
-    } else {
-        for (i = 9999; i >= 0; i--) {
-            for (j = 1999; j >= 0; j--) {
-            }
-        }
-        D_8005A4DC = 0;
-        g_ArchiveCdDriveError = ARCHIVE_CD_DRIVE_ERR_HALT;
-        D_8005A4A4 += 1;
-    }
-    g_ArchiveCdDriveState = ARCHIVE_CD_DRIVE_ERROR;
-    CdSyncCallback(&ArchiveCdDriveCommandHandler);
-    CdControlF(CdlNop, NULL);
-}
+ *     ArchiveStreamFileSectionHeader* pCurrent;
+ *     CdlLOC* pLoc;
+ *     u8* pBuf;
+ *     int entryIndex;
+ *     int i;
+ *     int j;
+ *
+ *     if (status != CdlDataReady)
+ *         goto error;
+ *
+ *     if (D_8004FE34 > 0) {
+ *         CdReadyCallback(NULL);
+ *         CdDataCallback(NULL);
+ *         g_ArchiveCurFileSize = 0;
+ *         ArchiveCdSeekToFile(D_8004FE38);
+ *         D_8004FDFC = 0;
+ *         return;
+ *     }
+ *
+ *     if (g_ArchiveCurFileSize > 0) {
+ *         for (i = 0; i < D_8004FE40; i++) {
+ *             entryIndex = D_8004FE10++;
+ *             pCurrent = (ArchiveStreamFileSectionHeader*)(entryIndex * sizeof(ArchiveStreamFileSectionHeader) + (mem_addr)D_8004FE2C);
+ *             if (D_8004FE10 >= D_8004FE40)
+ *                 D_8004FE10 = 0;
+ *             if (pCurrent->state == 0)
+ *                 break;
+ *         }
+ *
+ *         if (pCurrent->state != 0)
+ *             goto errorNoInc;
+ *
+ *         pLoc = &D_80059EF8;
+ *         CdGetSector(pLoc, 3);
+ *         if (CdPosToInt(pLoc) == g_ArchiveCurFileSector) {
+ *             pCurrent->state = 1;
+ *             pCurrent->id = D_8004FE26;
+ *             D_8004FE26 += 1;
+ *             CdGetSector((u8*)(entryIndex * CD_SECTOR_SIZE + (mem_addr)D_8004FE08), CD_SECTOR_SIZE / 4);
+ *             g_ArchiveCurFileSize -= CD_SECTOR_SIZE;
+ *             g_ArchiveCurFileSector += 1;
+ *             if (g_ArchiveCurFileSize > 0)
+ *                 return;
+ *         } else {
+ *             D_8004FDEC += 1;
+ *             pBuf = D_800596F8;
+ *             CdGetSector(pBuf, CD_SECTOR_SIZE / 4);
+ *             goto error;
+ *         }
+ *     }
+ *
+ *     CdReadyCallback(NULL);
+ *     g_ArchiveCurFileSize = 0;
+ *     return;
+ *
+ * error:
+ *     D_8005A4DC += 1;
+ * errorNoInc:
+ *     D_80059F08 = CdReadyCallback(NULL);
+ *     CdIntToPos(g_ArchiveCurFileSector, &g_ArchiveCdCurLocation);
+ *     if (D_8005A4DC < 3) {
+ *         g_ArchiveCdDriveError = ARCHIVE_CD_DRIVE_ERR_READ;
+ *     } else {
+ *         for (i = 9999; i >= 0; i--) {
+ *             for (j = 1999; j >= 0; j--) {
+ *             }
+ *         }
+ *         D_8005A4DC = 0;
+ *         g_ArchiveCdDriveError = ARCHIVE_CD_DRIVE_ERR_HALT;
+ *         D_8005A4A4 += 1;
+ *     }
+ *     g_ArchiveCdDriveState = ARCHIVE_CD_DRIVE_ERROR;
+ *     CdSyncCallback(&ArchiveCdDriveCommandHandler);
+ *     CdControlF(CdlNop, NULL);
+ * }
  */
+
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002B5D0);
 
