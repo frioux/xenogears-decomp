@@ -135,9 +135,47 @@ void func_80021D3C(SpriteData* pSpriteData, s32 x, s32 z) {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/animation_scripts", func_80021D50);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/animation_scripts", func_80021EBC);
+// Animation state copied in and out of a script suspension record (see func_80021D50).
+typedef struct {
+    /* 0x0  */ s32 positionX;
+    /* 0x4  */ s32 positionY;
+    /* 0x8  */ s32 positionZ;
+    /* 0xC  */ s32 padC;
+    /* 0x10 */ u16 field_0x80;
+    /* 0x12 */ u16 animIndex;
+    /* 0x14 */ s16 animId;
+    /* 0x16 */ s16 field_0xB0;
+    /* 0x18 */ s16 scriptIndex;
+    /* 0x1C */ s32 field_0x1C;
+    /* 0x20 */ s32 field_0x20;
+    /* 0x24 */ u16 scaleX;
+    /* 0x26 */ u16 scaleY;
+    /* 0x28 */ u16 scaleZ;
+    /* 0x2A */ u16 field_0x2C;
+    /* 0x2C */ u16 field_0x82;
+} SpriteAnimState; // Size: 0x30
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/animation_scripts", func_80021FB8);
+void func_80021EBC(SpriteData* pSpriteData, SpriteAnimState* pState) {
+    pState->positionX = pSpriteData->position.x;
+    pState->positionY = pSpriteData->position.y;
+    pState->positionZ = pSpriteData->position.z;
+    pState->field_0x80 = (u16)pSpriteData->field_0x80;
+    pState->animIndex = (u32)pSpriteData->flags_0xA8 >> 11 & 0x3F;
+    pState->animId = (s8)*(u8*)((u8*)pSpriteData + 0xAF);
+    pState->field_0xB0 = (s8)*(u8*)((u8*)pSpriteData + 0xB0);
+    pState->scriptIndex = (u32)pSpriteData->flags_0xA8 >> 22 & 0x3F;
+    pState->field_0x1C = ((SpriteDataI3*)pSpriteData->field_0x7C)->field_0x0;
+    pState->field_0x20 = ((SpriteDataI3*)pSpriteData->field_0x7C)->field_0x4;
+    pState->scaleX = (u16)pSpriteData->pBase->scale.x;
+    pState->scaleY = (u16)pSpriteData->pBase->scale.y;
+    pState->scaleZ = (u16)pSpriteData->pBase->scale.z;
+    pState->field_0x82 = (u16)pSpriteData->field_0x82;
+    pState->field_0x2C = (u16)pSpriteData->scale;
+}
+
+void func_80021FB8(SpriteData* pSpriteData, u8 value) {
+    *(u8*)((u8*)pSpriteData + 0xB0) = value;
+}
 
 void func_80021FC0(SpriteData* pSpriteData, s32 moveSpeed) {
     pSpriteData->moveSpeed = moveSpeed;
