@@ -176,6 +176,10 @@ Stubs by area at session start: `psyq` 150 (96 libgte, 12 libapi, 8 libapi_2,
 | 16 | near-miss round: 13 units, 42 parked attempts at >=95% | +5 | 1874 | timeboxed on the last instruction/register of already-written C |
 | 17 | 23 workers in two concurrent workflows | +15 | 1889 | 15 of 19 changed files survived the link check; 4 shifted an overlay and were reverted |
 | 18 | 14 workers: GTE-family exploit, retries, one TU split | +23 | 1912 | first round where every worker gated its own overlay: integrated with zero reverts |
+| 19 | 13 workers | +9 | 1921 | libgte colour family, sound, temp2, misc8 |
+| 20 | 14 workers | +10 | 1931 | |
+| 21 | 13 workers | +5 | 1936 | |
+| 22 | 13 workers | +3 | 1939 | Psy-Q 3.x GTE macro revision found; six conversions held back for a 4-byte link delta |
 | — | `GraphicsDrawPauseLetters` split into its own TU (`rendering_pause_text.c`) | — | — | the per-file compiler split works: that function only matches under gcc-2.7.2-cdk |
 
 ### Round 12-13 notes
@@ -268,6 +272,29 @@ a unit's `.rodata` or its own size and shifted a whole overlay -- invisible to
 `tools/scripts/lint_sources.py -q` plus `tools/scripts/check_bin.sh <overlay>`,
 and tells them to use `culprit.sh` on failure. That moves a 20-minute bisect from
 the orchestrator into the worker's own 35-second check.
+
+### The GTE header is Psy-Q 3.x, not 4.3 (round 22's correction)
+
+After the first header fix (the retail COP2 words), a second class of GTE
+functions stayed blocked: the ones that read a GTE register straight into a
+general register (`mfc2 $2,$9`, `cfc2 $8,$24`). `include/psyq/inline_c.h` is the
+4.3 revision, which only has `swc2`-to-memory stores; the retail library was
+built with the 3.x header, where reads come back in GPRs. Adding
+`gte_stotz_val` and rewriting `gte_SetRotMatrix`/`SetLightMatrix`/`SetColorMatrix`
+to the 3.x shape (five `lw` into `$8`-`$12`, then five `ctc2`) matched
+`SetRotMatrix`, `SetLightMatrix`, `SetColorMatrix`, `AverageSZ3`, `AverageZ3` and
+`AverageZ4` -- but the six together make `slus_006.64` four bytes *longer* at link
+time even though every function's instruction count matches the original, so they
+are back to stubs pending that bisect. The header fix itself links.
+
+### A stub can be perfectly matched and still unconvertible
+
+`tools/scripts/convertible.py` exists because of this: a stub whose `.s` has
+instructions after `.size` (assembler padding) or owns `dlabel` data cannot be
+converted -- the C reproduces the body, not the padding, so the unit shrinks and
+every later symbol moves. In `psyq/libgte` about 25 of 71 stubs are unlinkable for
+that reason, and `objdiff` cannot see it. Two workers burned their whole budget
+discovering this before the tool existed.
 
 ## Findings
 
