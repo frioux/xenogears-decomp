@@ -556,6 +556,141 @@ void ResourceHelperGetTexCoords(MenuResourceDirectory *dir, u32 index,
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_800263E4);
 
+// Parked: best 82.30% (816 bytes against 888). The corner fills, both clamps,
+// the uv stores and the negation blocks already come out instruction for
+// instruction; what does not match is register pressure. The original spills
+// four more loop-carried values than this shape does (scale at 0x38, the x
+// quotient at 0x3C, the record offset at 0x40 and pPrims at 0x44, plus
+// `addu s3,s6,zero`-style eager copies before each conditional negation), so
+// its source holds about four more long-lived variables than this one. What
+// this attempt does reproduce: the 0x70 frame with localX at 0x10, localY at
+// 0x18, u8 copies of the two mirror flags at 0x20/0x28, pDirent at 0x30 and i
+// at 0x34. Adding a masked scaleVal local or (u16) truncations of the
+// quotients did not move it.
+// Signature is fixed by the three callers (shop_menu, member_change_menu,
+// gear_shop_menu): (dir, index, pPrims, context, x, y, scale, mirrorX,
+// mirrorY), mirrorY=1 for the bottom scroll-bar ornament.
+/*
+// Builds one textured quad per record of the dirent, scaled by `scale` and
+// mirrored on either axis when asked to; u/v shrink by one texel when the quad
+// comes out flipped so the last column/row is not sampled.
+s32 func_800263E4(MenuResourceDirectory* dir, u32 index, POLY_FT4* pPrims,
+                  s32 context, u16 x, u16 y, u16 scale, u8 mirrorX, u8 mirrorY) {
+    u16 localX = x;
+    u16 localY = y;
+    u8 mirrorLocalX = mirrorX;
+    u8 mirrorLocalY = mirrorY;
+    s32 scaleVal = scale & 0xFFFF;
+    MenuResourceDirentTextureMetadata* pDirent;
+    MenuResourceTextureMetadata* pData;
+    POLY_FT4* pPrim;
+    s32 nX;
+    s32 nY;
+    s32 nWidth;
+    s32 nHeight;
+    u16 u;
+    u16 v;
+    u16 width;
+    u16 height;
+    u16 x0;
+    u16 x1;
+    u16 y0;
+    u16 y1;
+    s32 i = 0;
+
+    pDirent = (MenuResourceDirentTextureMetadata*)(dir->offsets[index] + (unsigned)dir);
+    if (pDirent->count != 0) {
+        for (; i != pDirent->count; i++) {
+            pData = &pDirent->data[i];
+            pPrim = pPrims + i * 2 + context;
+
+            nX = (s16)pData->x * scaleVal / 4096;
+            nY = (s16)pData->y * scaleVal / 4096;
+            nWidth = (s16)pData->width * scaleVal / 4096;
+            nHeight = (s16)pData->height * scaleVal / 4096;
+
+            SetPolyFT4(pPrim);
+            SetSemiTrans(pPrim, 0);
+            SetShadeTex(pPrim, 1);
+            pPrim->tpage = GetTPage(pData->texPageId, 0, (s16)pData->texPageX,
+                                    pData->texPageY);
+            pPrim->clut = GetClut(pData->clutX, pData->clutY);
+
+            if (mirrorLocalX) {
+                nWidth = -nWidth;
+                nX = -nX;
+            }
+            if (mirrorLocalY) {
+                nY = -nY;
+                nHeight = -nHeight;
+            }
+
+            u = pData->u;
+            v = pData->v;
+            width = pData->width;
+            height = pData->height;
+
+            if (!pData->flipX) {
+                x0 = localX + nX;
+                x1 = x0 + nWidth;
+                pPrim->x0 = x0;
+                pPrim->x1 = x1;
+                pPrim->x2 = x0;
+                pPrim->x3 = x1;
+            } else {
+                x1 = localX + nX;
+                x0 = x1 + nWidth;
+                pPrim->x0 = x0;
+                pPrim->x1 = x1;
+                pPrim->x2 = x0;
+                pPrim->x3 = x1;
+            }
+
+            if (!pData->flipY) {
+                y0 = localY + nY;
+                y1 = y0 + nHeight;
+                pPrim->y0 = y0;
+                pPrim->y1 = y0;
+                pPrim->y2 = y1;
+                pPrim->y3 = y1;
+            } else {
+                y1 = localY + nY;
+                y0 = y1 + nHeight;
+                pPrim->y0 = y0;
+                pPrim->y1 = y0;
+                pPrim->y2 = y1;
+                pPrim->y3 = y1;
+            }
+
+            if (pPrim->x3 < pPrim->x0) {
+                u = u - 1;
+                if ((s16)u < 0) {
+                    u = 0;
+                    width = width - 1;
+                }
+            }
+            if (pPrim->y3 < pPrim->y0) {
+                v = v - 1;
+                if ((s16)v < 0) {
+                    v = 0;
+                    height = height - 1;
+                }
+            }
+
+            pPrim->u0 = u;
+            pPrim->v0 = v;
+            pPrim->u1 = u + width;
+            pPrim->v1 = v;
+            pPrim->u2 = u;
+            pPrim->v2 = v + height;
+            pPrim->u3 = u + width;
+            pPrim->v3 = v + height;
+        }
+    }
+    return pDirent->count;
+}
+*/
+
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_8002675C);
 /*
 Best 92.96% (696 bytes, same size as the original). Remaining gaps are
