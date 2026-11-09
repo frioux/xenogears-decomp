@@ -193,6 +193,60 @@ int func_80081F5C(ActorData* pActor) {
 }
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80081F80);
+/* 58.17% (644 bytes vs 644): the structure is right - status & 0x40 selects the
+   two halves, the scale is `(N / pActorData->moveSpeed >> 8) << 5` with
+   N = 0x40000 (status bit clear, and the 0x20000-set path stores
+   moveSpeed = 0x4000000 / moveSpeed) or 0x80000 (flags & 0x2000, 0x20000 clear),
+   and the shared step.x/step.z computation is duplicated in the original: one
+   copy inline after the 0x40000 case, one at 0x800820FC that the 0x40000-free
+   paths jump into. arg0 is SpriteData* (step at 0xC/0x14, moveSpeed at 0x18),
+   arg2 is FieldActor*, and scaleX/scaleZ must be read signed (`lh`, so cast the
+   header's u_short to s16); the 0x12C word is read whole through
+   ActorFlags12CView. Residual: gcc lays the `flags & 0x2000` then-block out as
+   fall-through where the original jumps forward over the 0x80000 block, uses
+   `at` to form `D_801E8670 + ((flags12C >> 11) & 0x1C)` where the original keeps
+   it in v1 via `lui/addiu`, and spills one extra register (frame 0x38 vs 0x28).
+   `else if (!(flags & 0x2000))` first gives 55.87%.
+void func_80081F80(SpriteData* pSprite, s16 angle, FieldActor* pActor) {
+    int scale;
+    int a;
+
+    if (!(pActor->status & 0x40)) {
+        scale = (0x40000 / pActor->pActorData->moveSpeed >> 8) << 5;
+        if (angle & 0x8000) {
+            pSprite->step.x = 0;
+            pSprite->step.z = 0;
+        } else {
+            a = angle & 0xFFF;
+            pSprite->step.x = (rsin(a) * scale >> 12) * (s16)pActor->pActorData->scaleX;
+            pSprite->step.z = (-(rcos(a) * scale) >> 12) * (s16)pActor->pActorData->scaleZ;
+        }
+    } else if (angle & 0x8000) {
+        pSprite->step.x = 0;
+        pSprite->step.z = 0;
+    } else if (pActor->pActorData->flags & 0x2000) {
+        if (pActor->pActorData->flags & 0x20000) {
+            pSprite->step.x = -((s32*)D_801E8670[(((ActorFlags12CView*)pActor->pActorData)->flags12C >> 13) & 7])[0x128 / 4] << 16;
+            pSprite->step.z = -((s32*)D_801E8670[(((ActorFlags12CView*)pActor->pActorData)->flags12C >> 13) & 7])[0x130 / 4] << 16;
+        } else {
+            scale = (0x80000 / pActor->pActorData->moveSpeed >> 8) << 5;
+            a = angle & 0xFFF;
+            pSprite->step.x = (rsin(a) * scale >> 12) * (s16)pActor->pActorData->scaleX;
+            pSprite->step.z = (-(rcos(a) * scale) >> 12) * (s16)pActor->pActorData->scaleZ;
+        }
+    } else if (pActor->pActorData->flags & 0x80000) {
+        scale = (0x40000 / pActor->pActorData->moveSpeed >> 8) << 5;
+        a = angle & 0xFFF;
+        pSprite->step.x = (rsin(a) * scale >> 12) * (s16)pActor->pActorData->scaleX;
+        pSprite->step.z = (-(rcos(a) * scale) >> 12) * (s16)pActor->pActorData->scaleZ;
+        pSprite->moveSpeed = 0x4000000 / pActor->pActorData->moveSpeed;
+    } else {
+        func_80021FE0(pSprite, angle);
+    }
+    pSprite->step.x &= -0x1000;
+    pSprite->step.z &= -0x1000;
+}
+*/
 
 extern s16 D_800B2344;
 extern s16 D_800B2346;
@@ -382,7 +436,8 @@ void func_800831D0(SVECTOR* pDst, IVEC3* pSrc) {
     pDst->vz = pSrc->z >> 0x10;
 }
 
-void func_80081F80(int, int);
+extern void* D_801E8670[];
+void func_80021FE0(SpriteData*, s16);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800831F4);
 /* 92.68%: the whole chain matches; gcc loads vy straight into v1 and stores
@@ -404,7 +459,7 @@ void func_800831F4(int arg0, ActorData* pActor, int arg2, int arg3) {
             rotation &= 0xFFF;
             pActor->rotation.vx = rotation;
             pActor->rotation.vy = rotation;
-            func_80081F80(arg0, pActor->rotation.vx);
+            func_80081F80(arg0, pActor->rotation.vx, arg2);
             value = pActor->rotation.vy | 0x8000;
             pActor->rotation.vx = value;
             pActor->rotation.vy = value;
