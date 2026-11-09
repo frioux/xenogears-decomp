@@ -54,17 +54,16 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", MulMatrix);
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", MulMatrix2);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", ApplyMatrix);
-/* best attempt 89.25%. Everything matches except the return-value copy: the
-   original returns v1's register ($a2) through $v0 after the stores, gcc
-   coalesces v1 into $v0 at entry and stores through it. Same blocker as
-   Square0/Square12/TransMatrix: gte_stlvnl clobbers no GPR, so gcc is free to
-   make v0 the home of v1.
+/* best attempt 92.00%. gte_stlvnl_gpr (which lists $2 as a clobber) fixes the
+   store register; one difference is left: the original ends
+   `addu $v0,$a2,$zero; jr $ra; nop` and gcc's reorg steals the return-value
+   copy into the jr delay slot.
 VECTOR *ApplyMatrix(MATRIX *m, SVECTOR *v0, VECTOR *v1) {
     gte_SetRotMatrix(m);
     gte_ldv0(v0);
     gte_nop();
     gte_mvmva_b(1, 0, 0, 3, 0);
-    gte_stlvnl(v1);
+    gte_stlvnl_gpr(v1);
     return v1;
 }
 */
@@ -377,30 +376,22 @@ void Intpl(VECTOR *v0, long p, CVECTOR *v1) {
     gte_strgb(v1);
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", Square12);
-/* best attempt 82.50%. Same return-value coalescing as Square0.
 VECTOR *Square12(VECTOR *v0, VECTOR *v1) {
     gte_ldlvl(v0);
     gte_nop();
     gte_sqr12_b();
-    gte_stlvnl(v1);
+    gte_stlvnl_gpr(v1);
     return v1;
 }
-*/
 
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", Square0);
-/* best attempt 82.50%. gcc copies v1 into v0 at entry (return-value
-   coalescing) and stores through v0; the original stores through a1 and copies
-   to v0 in the jr delay slot. Same blocker as TransMatrix/TransposeMatrix.
 VECTOR *Square0(VECTOR *v0, VECTOR *v1) {
     gte_ldlvl(v0);
     gte_nop();
     gte_sqr0_b();
-    gte_stlvnl(v1);
+    gte_stlvnl_gpr(v1);
     return v1;
 }
-*/
 
 
 long AverageZ3(long sz0, long sz1, long sz2) {

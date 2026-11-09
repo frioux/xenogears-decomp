@@ -1154,6 +1154,10 @@
 	: "r"( r0 )						\
 	: "memory" )
 
+/* $2 as a clobber keeps the destination out of $v0, so `return dest` does not
+   degenerate into stores through the return register. */
+#define gte_stlvnl_gpr( r0 ) __asm__ volatile ( "swc2\t$25, 0( %0 );" "swc2\t$26, 4( %0 );" "swc2\t$27, 8( %0 )" : : "r"( r0 ) : "$2", "memory" )
+
 #define gte_stlvnl0( r0 ) __asm__ volatile (			\
 	"swc2	$25, 0( %0 )"					\
 	:							\
