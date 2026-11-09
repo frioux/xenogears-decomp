@@ -324,11 +324,17 @@ void func_80077DAC(void) {
 INCLUDE_ASM("asm/field/nonmatchings/main/main", func_80077E10);
 // 96.33%: the early-return shape below is right (the original's `move v0,zero`
 // in the first bne delay slot and the `negu v0,v0` fall-through both come out),
-// but gcc gives the two condition temporaries $v1/$v0 instead of the original's
-// $a0/$v1, so v0 is clobbered by the second test and the bnez delay slot gets an
-// extra `move v0,zero` (the original has a `nop` there). Same size, 120 bytes.
-// The `s32 result = 0; ... return result;` version is 96.00% and needs a
-// `move v0,a0`; `if (cond) return -(...); return 0;` is 91.50% (extra `j`).
+// but gcc gives the condition temporaries $v1/$v0 instead of the original's
+// $a0/$v1, so the delay slot of the second bnez gets an extra `move v0,zero`
+// (the original has a `nop` there). Same size, 120 bytes. The original's first
+// value load lands in $a0 and its `1` in $v1, i.e. $v0 looks reserved at that
+// point; nothing in the shape below reserves it.
+// Tried and all <= this (13 attempts): `s32 result = 0; if (a && b) result =
+// ...; return result;` (96.00%, leaves `negu a0,v0; move v0,a0`), two separate
+// `return 0;` early exits, nested ifs (91.50%, extra j), a flags local, a mode
+// local, `goto out` with a result local (95.33%), `(u32)` and `1 != x` operand
+// forms, and a helper function (44.30%). Not a preset problem: gcc 2.6.0 gives
+// the identical 96.33 shape and 2.7.2-cdk 85.67.
 /*
 s32 func_80077E10(void) {
     if (D_800ADBD0 != 1 || D_800B2344 != 0) {
