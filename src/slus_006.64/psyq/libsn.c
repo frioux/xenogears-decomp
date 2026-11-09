@@ -5,17 +5,19 @@
    in v0 and the result in v1, which is why each wrapper shifts its arguments
    down one register and turns a non-zero status into -1. */
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libsn", PCopen);
-/* 84.38%: everything matches except the failure path, which gcc emits as
-   `li v1,-1; jr ra; move v0,v1` instead of the original's
-   `beqz v0,L; move v0,v1; li v0,-1; L: jr ra` (the -1 has to land in the
-   return register, not in the `value` asm output's register).
+/* 83.12%: the branch shape matches (beqz v0 to the merge point), but gcc puts
+   the -1 in the `value` register and copies at the return
+   (`li v1,-1; jr ra; move v0,v1`) instead of the original
+   `move v0,v1; li v0,-1`, and it mis-assigns the two shifted operands.
 int PCopen(char *name, int flags, int perms) {
-    int status;
-    int value;
+    register char *pName asm("$4") = name;
+    register int nFlags asm("$5") = flags;
+    register int status asm("$2");
+    register int value asm("$3");
     int result;
 
-    __asm__ volatile("move $6, %3\n\tmove $5, %2\n\tbreak 259"
-                     : "=r"(status), "=r"(value) : "r"(name), "r"(flags));
+    __asm__ volatile("move $6, %2\n\tmove $5, %1\n\tbreak 259"
+                     : "=r"(status), "=r"(value) : "r"(pName), "r"(nFlags));
     result = value;
     if (status != 0)
         result = -1;
@@ -23,12 +25,9 @@ int PCopen(char *name, int flags, int perms) {
 }
 */
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libsn", PCclose);
-/* 87.50%, same failure path as PCopen.
-int PCclose(int fd) {
+void PCclose(int fd) {
     __asm__ volatile("move $5, %0\n\tbreak 260" : : "r"(fd));
 }
-*/
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libsn", PClseek);
 /* Same shape as PCopen but with three shifted arguments (84.38%).
@@ -64,29 +63,8 @@ int PCinit(void) {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libsn", PCread);
 /* 98.92%: only the register assignment of `nTotal` and `buff` is swapped
-   (original keeps nTotal in s2 and buff in s3).
-int PCread(int fd, char *buff, int len) {
-    int nTotal = 0;
-    int nChunk;
-    int nRead;
-
-    while (len != 0) {
-        nChunk = len;
-        if ((u_int)len > 0x8000)
-            nChunk = 0x8000;
-        nRead = func_8004C458(0, fd, nChunk, buff);
-        nTotal += nRead;
-        if (nRead == -1)
-            return -1;
-        buff += nRead;
-        len -= nRead;
-        if (nRead < nChunk)
-            break;
-    }
-    return nTotal;
-}
-*/
-
+   (original keeps nTotal in s2 and buff in s3; every local order and a
+   pBuff copy tried gives the swap). */
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libsn", func_8004C458);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libsn", PCwrite);
