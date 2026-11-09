@@ -2,7 +2,7 @@
 #include "psyq/libgpu.h"
 
 extern u8 D_8005959C;
-extern u8 *D_800C3EA4;
+extern s32 D_800C3EA4;
 extern s32 D_800CCB34;
 extern void *D_800D2F5C;
 extern u8 *D_800D2D28;
@@ -13,7 +13,25 @@ extern void func_800728B8(u8 *pDst, s32 arg1, s32 arg2);
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_80073B64);
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_80073E88);
+void func_80073E88(void) {
+    s32 i;
+    s32 offset;
+    u8 *p;
+
+    if (D_800D2D28[0xCB] == 0) {
+        return;
+    }
+
+    i = 0;
+    offset = 0x641C;
+    do {
+        p = D_800D2D28;
+        func_800728B8((u8 *)(offset + D_800C3EA4), *(s32 *)(p + i * 4 + 0xD0), p[0xA3]);
+        offset += 0xFA0;
+        i++;
+    } while (i < 2);
+}
+
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_80073F08);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_80073FB8);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_800742A0);
