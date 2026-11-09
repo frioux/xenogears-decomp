@@ -14,9 +14,11 @@ extern u8 D_800D366C;
 extern u8 D_800D32A1[];
 extern u8 D_800D2DD7[];
 extern u8 D_800D2DD8[];
+extern u8 D_800C204C;
 
 extern s32 func_8008ABB8(s32, s32);
 extern void func_8008AB94(void);
+extern void func_8007FB70(u8);
 extern void func_8008AC50(void);
 extern int ArchiveDecodeAlignedSize(unsigned int entryIndex);
 extern void ArchiveReadFileToBuffer(s32 index, void *pBuffer, u32 arg2, u32 flags);
@@ -32,7 +34,24 @@ void func_8007FCE8(void) {
     }
 }
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_8007FD38);
+void func_8007FD38(u8 arg0) {
+    s32 type;
+
+    if (D_800D2D28[0xAE] != 0) {
+        return;
+    }
+    func_8008AC50();
+    if (D_800D32A1[arg0 * 8] == 0) {
+        type = 1;
+    } else {
+        type = 2;
+    }
+    func_8008AB94();
+    D_800D367C = (void *)func_8008ABB8(ArchiveDecodeAlignedSize(type), 0);
+    ArchiveReadFileToBuffer(type, D_800D367C, 0, 0x80);
+    func_8008AC50();
+    D_800D2D28[0xAE] = 1;
+}
 
 void func_8007FDEC(void) {
     if (D_800D2D28[0x96] != 0) {
@@ -119,7 +138,15 @@ void func_80080B64(u8 color) {
     D_800D366C = 0;
 }
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_80080BD0);
+void func_80080BD0(void) {
+    D_800C3EAC[0x2DB] = 1;
+    if (D_800C3EAC[0x2D3] < 3 && D_800C204C == 0) {
+        func_8007FCE8();
+        func_8007FDEC();
+        func_800800E8(D_800C3EAC[0x2D3]);
+        func_8007FB70(D_800C3EAC[0x2D3]);
+    }
+}
 
 void func_80080C6C(u8 index) {
     u8 *pEntry = D_800D3278 + index * 0x38;
