@@ -1062,9 +1062,9 @@ u32 func_801D1304(u8 arg0, u8 itemType) {
 }
 
 INCLUDE_ASM("asm/gear_shop_menu/nonmatchings/main/render", func_801D18F8);
-// 92.03%: frame size, instruction count of every block and the spill set are right;
-// the only remaining delta is which of two loop values gcc keeps in $fp: the original
-// keeps &sp20 there and spills 0x3C30 + i*0x80 to 0x90($sp), this version does the
+// 92.05%: frame size, instruction count of every block and the spill set are right;
+// the only remaining delta is which of two loop values gcc keeps in $fp/$s8: the original
+// keeps &sp20 there and spills (0x3C30 + i*0x80) to 0x90($sp), this version does the
 // reverse (and so puts i in $s2 instead of $s3). Everything else is identical.
 /*
 void func_801D18F8(s32 scrollOffset, u8* pItemIds, u8* pItemTypes, u8* pItemSellQtys, u8* pItemQtys) {
@@ -1133,10 +1133,10 @@ void func_801D18F8(s32 scrollOffset, u8* pItemIds, u8* pItemTypes, u8* pItemSell
                 g_Menu->pShop->unk468C[i] += func_8002675C(g_Menu->resources, 0xE5, g_Menu->pShop->polysShopInventory[i * 4], g_Menu->renderContext, 0xB4, 0x36 + FONT_LETTER_HEIGHT * i, 0x1000U);
                 tensDigit = pItemSellQtys[scrollOffset + i] / 10;
                 if (tensDigit) {
-                    g_Menu->pShop->unk468C[i] += func_8002675C(g_Menu->resources, tensDigit, &g_Menu->pShop->polysShopInventory[i * 4][g_Menu->pShop->unk468C[i]], g_Menu->renderContext, 0xBC, 0x36 + FONT_LETTER_HEIGHT * i, 0x1000U);
+                    g_Menu->pShop->unk468C[i] += func_8002675C(g_Menu->resources, tensDigit, &g_Menu->pShop->polysShopInventory[i * 4][g_Menu->pShop->unk468C[i] * 2], g_Menu->renderContext, 0xBC, 0x36 + FONT_LETTER_HEIGHT * i, 0x1000U);
                 }
                 onesDigit = pItemSellQtys[scrollOffset + i] % 10;
-                g_Menu->pShop->unk468C[i] += func_8002675C(g_Menu->resources, onesDigit, &g_Menu->pShop->polysShopInventory[i * 4][g_Menu->pShop->unk468C[i]], g_Menu->renderContext, 0xC4, 0x36 + FONT_LETTER_HEIGHT * i, 0x1000U);
+                g_Menu->pShop->unk468C[i] += func_8002675C(g_Menu->resources, onesDigit, &g_Menu->pShop->polysShopInventory[i * 4][g_Menu->pShop->unk468C[i] * 2], g_Menu->renderContext, 0xC4, 0x36 + FONT_LETTER_HEIGHT * i, 0x1000U);
                 g_Menu->pShop->unk4694[i] = g_Menu->renderContext;
             }
         } else {
