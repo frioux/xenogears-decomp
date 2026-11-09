@@ -706,14 +706,14 @@ typedef struct {
     /* 0x340  */ void* unk340;
     /* 0x344  */ void* unk344;
     /* 0x348  */ MenuUnk1* unk348;
-    /* 0x34C  */ u8 unk34C[0x4];
+    /* 0x34C  */ void* unk34C;
     /* 0x350  */ MenuSelectionMenu* pSelectionMenu;
     /* 0x354  */ MenuUnk5* unk354;
     /* 0x358  */ u8 unk358[0xC];
     /* 0x364  */ MenuWindow* windows[MENU_MAX_NUM_WINDOWS];
     /* 0x380  */ MenuWindowParameters* windowParameters[MENU_MAX_NUM_WINDOWS];
     /* 0x39C  */ void* unk39C[3];
-    /* 0x3A8  */ u8 unk3A8[0x80];
+    /* 0x3A8  */ void* unk3A8[32];
     /* 0x428  */ MenuPointerCursors* pCursors;
     /* 0x42C  */ u8 unk42C[0x10];
     /* 0x43C  */ MenuScrollBarHandle* pScrollHandle;
