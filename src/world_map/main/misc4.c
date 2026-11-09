@@ -23,7 +23,12 @@ typedef struct {
 } WorldMapActor; // Size: 0x80
 
 typedef struct {
-    /* 0x000 */ u8 pad0[0x498];
+    /* 0x00 */ s32 unk0;
+    /* 0x04 */ s32 unk4;
+    /* 0x08 */ s32 unk8;
+    /* 0x0C */ s32 unkC;
+    /* 0x10 */ s32 unk10;
+    /* 0x14 */ u8 pad14[0x484];
     /* 0x498 */ u8 unk498[0x40];
     /* 0x4D8 */ u32 *unk4D8;
     /* 0x4DC */ u32 unk4DC;
@@ -43,6 +48,7 @@ extern WorldMapActor *D_8009BE24;
 extern u16 D_8009A450;
 extern u16 D_8009A46C[];
 extern WorldMapState *D_8009C620;
+extern void func_80089160(s32, s32, s32);
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_80077CC0);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_80077DC8);
@@ -99,6 +105,27 @@ s32 func_8007A568(void) {
 }
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_8007A570);
+/* 67.74%: the whole shape is right (scratchpad halfword stores off
+   PSX_SCRATCH + 0xA0/0xA2/0xA4, then func_80089160(0xA, 0x1F8000A0, 0)), but the
+   original splits the `li a1,0x1F8000A0` into lui a1,0x1F80 ... ori a1,a1,0xA0
+   around the s->unk8 load and interleaves each s->unk8/0xC/0x10 load with its
+   store; gcc here hoists the loads and keeps lui/ori adjacent.
+s32 func_8007A570(s32 index) {
+    WorldMapActor *p;
+    WorldMapState *s;
+
+    index *= 0x80;
+    p = D_8009BE24;
+    s = D_8009C620;
+    p = (WorldMapActor *)((u8 *)p + index);
+    p->unk4 = 0;
+    *(s16 *)((u8 *)PSX_SCRATCH + 0xA0) = s->unk8;
+    *(s16 *)((u8 *)PSX_SCRATCH + 0xA2) = s->unkC;
+    *(s16 *)((u8 *)PSX_SCRATCH + 0xA4) = s->unk10;
+    func_80089160(0xA, (s32)PSX_SCRATCH + 0xA0, 0);
+    return 3;
+}
+*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_8007A5DC);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_8007A8AC);
 s32 func_8007A9B4(s32 index) {
