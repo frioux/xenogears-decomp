@@ -8,7 +8,9 @@ typedef struct {
     /* 0x06 */ u8 unk6[0x12];
     /* 0x18 */ s32 unk18;
     /* 0x1C */ s32 unk1C;
-    /* 0x20 */ u8 unk20[0x2C];
+    /* 0x20 */ u16 unk20;
+    /* 0x22 */ u16 unk22;
+    /* 0x24 */ u8 unk24[0x28];
     /* 0x4C */ s32 unk4C;
     /* 0x50 */ u8 unk50[0x30];
 } Misc15Slot; // Size: 0x80
@@ -51,7 +53,22 @@ void func_800976FC(s32 value, s32 index) {
     D_8009BE24[index].unk18 = value;
 }
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_80097718);
+void func_80097718(s32 value18, s32 value1C) {
+    s32 i;
+
+    for (i = 0; i < 0x40; i++) {
+        if (D_8009BE24[i].unk1C == 0) {
+            D_8009BE24[i].unk0 = 0;
+            D_8009BE24[i].unk2 = 0;
+            D_8009BE24[i].unk4 = 0;
+            D_8009BE24[i].unk18 = value18;
+            D_8009BE24[i].unk1C = value1C;
+            D_8009BE24[i].unk20 = 0;
+            D_8009BE24[i].unk22 = 0;
+            break;
+        }
+    }
+}
 
 s32 func_80097770(s32 index, s16 value) {
     Misc15Slot *pSlot = &D_8009BE24[index];
