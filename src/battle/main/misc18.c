@@ -6,11 +6,31 @@ extern u8 *D_800C3E00;
 extern u8 D_800C3E50;
 extern u8 D_800D2DC4;
 
+extern u8 D_800D220E[];
+extern u16 D_800D2C98;
+extern u16 D_800D2C9E;
+
 extern s32 rand(void);
 extern s8 func_80097964(u8, u8, u16);
 extern void func_800995A0(u8, u8, u16, s32);
+extern void func_80098D2C(u8, u8);
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80095A78);
+void func_80095A78(void) {
+    s8 ret = func_80097964(D_800C3DFC[0x1C], D_800C3DFC[0x1D],
+                           *(u16 *)(D_800C3DFC + 0x1E));
+
+    if (*(u16 *)(D_800C3DFC + 0xA) & 0x4000) {
+        func_800995A0(D_800C3E50, D_800C3DFC[0x1D], *(u16 *)(D_800C3DFC + 0x1E), 5);
+    } else {
+        func_800995A0(D_800C3E50, D_800C3DFC[0x1D], *(u16 *)(D_800C3DFC + 0x1E),
+                      D_800C3DFC[0x11]);
+        if (ret != 1) {
+            u8 *p = D_800C34B0;
+
+            *(u8 *)(p + D_800C3E50 + 0x5FA0) = 6;
+        }
+    }
+}
 void func_80095B44(void) {
     u8 *p = D_800C3E00;
 
@@ -59,6 +79,33 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80097D5C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_8009892C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80098AF8);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80098C6C);
+/* best: 95.83%. Same instruction multiset; only the mask shift sits one slot
+   later than in the original (it fills the back edge's delay slot instead of
+   the `beqz`'s, i.e. gcc puts `mask <<= 1` after the loop test). The 8-bit
+   loop counter, the `mask = 1` after the first call and everything else line
+   up byte for byte.
+
+void func_80098C6C(u8 sel) {
+    u8 i;
+    u16 mask;
+
+    func_80097D08();
+
+    mask = 1;
+    for (i = 0; i < 11; i++) {
+        if (*(u16 *)(D_800C34B0 + 0x5FAC) & mask) {
+            func_80098D2C(i, sel);
+        }
+        mask <<= 1;
+    }
+
+    *(u16 *)(D_800C34B0 + 0x5FB0) = *(u16 *)(D_800D220E + sel * 0x10);
+
+    if (D_800D2C9E & 0x8000) {
+        D_800D2C98 = 0xC2;
+    }
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80098D2C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80099498);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_800995A0);
