@@ -267,7 +267,9 @@ void FieldScriptVMRun(int maxInstructionCount) {
 // $a1 / pActorData in $a0; gcc here CSEs the 0x4C load across the two-pred join and lands on
 // `addu $a0,$v0,$s1` with the roles swapped, which is 100% of what is left. Tried without change:
 // explicit (u_char*)g_FieldActors + i*sizeof(FieldActor) byte arithmetic; a local pActor assigned
-// twice; -G0/-O3 and gcc-2.7.2-cdk presets.
+// twice; -G0/-O3 and gcc-2.7.2-cdk presets. Round 36 also: all 7 locals in 12 different declaration
+// orders (90.49% every time) and gcc-2.6.0-psx (89.86%), so the temp-register split is a
+// global.c allocno tie, not a source shape.
 /*
 extern s32 D_800ADBFC;
 extern s32 D_800ADB1C;
