@@ -315,70 +315,48 @@ long RotAverageNclip4(SVECTOR *v0, SVECTOR *v1, SVECTOR *v2, SVECTOR *v3,
 */
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte_b", TransposeMatrix);
-/* best attempt 65.00%. Word-wise transpose (below) reproduces the original's
-   store sequence exactly, byte for byte in the right ORDER with the right
-   values; what is left is allocation. The original ends `lh t2,0x10(a0)`, keeps
-   the store base in a1 (`move v0,a1` at entry, stores through a1, last store in
-   the jr delay slot) and uses t1/t2/t3 for the words, reusing t1 for p[3].
-   gcc 2.7.2 stores through v0 (the return copy), picks v1/a2 for the words and
-   reuses a1 for p[3], and emits `lhu` for m22. a2/a3 look reserved in retail's
-   allocation, which is the same oddity as ApplyRotMatrix returning an unused
-   third argument -- worth checking whether these two stubs want the 2.6.0
-   preset or a 3-arg-ish prototype before more C surgery. Both pointer locals
-   and direct casts give the same 65.00%.
-   Preset sweep (try_flags.sh, this file's C as it stands): -O2 and -O3
-   give 65.00% on gcc 2.6.0, 2.7.2 and 2.7.2-cdk alike, but -O1 gives
-   83.00%. -O1 still stores through v0, so the copy is not a preset
-   problem: at every level gcc coalesces the store base with the
-   returned parameter. The original needs the store base and the
-   returned pointer live in two registers at once.
+/* best attempt 92.81%. Every instruction, its ORDER, the lh rather than
+   lhu on the 0x10 halfword and the reuse of the p[0] temp for p[3] and of the
+   p[1] temp for the 0x10 load all match the original; the only difference is
+   which register each live value sits in, so nothing at 100% is reachable
+   without retail's allocation:
+     original: v0 = return copy, a1 = store base, t1/t2/t3 = the three temps
+     gcc:      v0 = return copy AND store base, a1/a2/v1 = the temps
+   gcc 2.7.2 copies a1 into v0 at entry (that part is right) and then folds
+   every store onto v0, freeing a1 for the first temp. Keeping a1 live as the
+   store base needs four more simultaneously live values in v1/a2/a3/t0, and no
+   source shape tried produces them: pointer locals for the word stores, a
+   separate short pointer for the halfword stores, a ret local, direct casts and
+   2/3/4 temp variables all give the same 92.81%. A try_flags sweep over gcc
+   2.6.0 / 2.7.2 / 2.7.2-cdk x -O1..-O3 x -G4/-G8 x mcpu 3000/r8000 also gives
+   92.81% on every one of the 30 combinations, so the preset is not the issue.
+   The 3-temp ordering below is the one that reaches 92.81%. The earlier 65.00%
+   attempts used 4 temp variables; with 3, gcc reuses the p[0] temp for p[3] and
+   the p[1] temp for the 0x10 halfword exactly like the original.
 MATRIX *TransposeMatrix(MATRIX *m0, MATRIX *m1) {
-    long t0, t1, t2, t3;
-
-    t0 = ((long *)m0)[0];
-    t1 = ((long *)m0)[1];
-    ((long *)m1)[1] = t0;
-    ((long *)m1)[0] = t1;
-    ((short *)m1)[0] = t0;
-    t2 = ((long *)m0)[2];
-    t3 = ((long *)m0)[3];
-    ((long *)m1)[3] = t2;
-    ((long *)m1)[2] = t3;
-    ((short *)m1)[6] = t1;
-    ((short *)m1)[4] = t2;
-    ((short *)m1)[8] = ((short *)m0)[8];
-    ((short *)m1)[2] = t3;
-    return m1;
-}
-/* best attempt 65.00%. Structure and store order match: word stores q[1]=p[0],
-   q[0]=p[1] patched with the low half of p[0], then q[3],q[2] patched from
-   p[1].lo/p[2].lo/p[3].lo and the halfword at 0x10. What is left: gcc folds the
-   `addu v0,a1,zero` return copy into every store (`sw ..,0(v0)`) where the
-   original keeps storing through a1, allocates the temps as v1/a2 instead of
-   t1/t2 (t1 reused for p[3]), and turns the 0x10 `lh` into `lhu`.
-MATRIX *TransposeMatrix(MATRIX *m0, MATRIX *m1) {
-    MATRIX *ret = m1;
-    long *p = (long *)m0;
+    MATRIX *r = m1;
     long *q = (long *)m1;
-    short *s = (short *)m1;
-    long t0, t1, t2, t3;
+    short *qs = (short *)m1;
+    long a, b, c;
 
-    t0 = p[0];
-    t1 = p[1];
-    q[1] = t0;
-    q[0] = t1;
-    s[0] = t0;
-    t2 = p[2];
-    t3 = p[3];
-    q[3] = t2;
-    q[2] = t3;
-    s[6] = t1;
-    s[4] = t2;
-    s[8] = ((short *)m0)[8];
-    s[2] = t3;
-    return ret;
+    a = ((long *)m0)[0];
+    b = ((long *)m0)[1];
+    q[1] = a;
+    q[0] = b;
+    qs[0] = a;
+    c = ((long *)m0)[2];
+    a = ((long *)m0)[3];
+    q[3] = c;
+    q[2] = a;
+    qs[6] = b;
+    qs[4] = c;
+    b = ((short *)m0)[8];
+    qs[2] = a;
+    qs[8] = b;
+    return r;
 }
 */
+
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte_b", RotMatrixYXZ);
 
