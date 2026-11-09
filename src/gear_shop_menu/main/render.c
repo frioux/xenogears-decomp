@@ -1074,6 +1074,12 @@ INCLUDE_ASM("asm/gear_shop_menu/nonmatchings/main/render", func_801D18F8);
 // Re-confirmed by pulling the attempt below back in verbatim: still 92.05%, and the whole delta
 // is that gcc keeps the 0x4030+i*0x80 string-struct accumulator in $s8 here while the original
 // spills it to 0x90($sp) and puts &sp20 (the RECT) in $fp, which shifts i from $s2 to $s3.
+// Later re-derivation: that register is only part of it. The original addresses sp28[k*2] (8($fp)),
+// sp28[8] (0x10($fp)) and places[4] (0x28 off $fp+0x10) relative to the RECT base, i.e. gcc saw
+// sp20/sp28/places as ONE base there, yet kept setRECT's four stores sp-relative (0x20..0x26($sp)).
+// So the tie-break comes from the stack objects being related in the source, not from register
+// priority alone; making them one aggregate turns the setRECT stores into 0($fp)-style, so it needs
+// a source shape that the allocator splits exactly this way.
 /*
 void func_801D18F8(s32 scrollOffset, u8* pItemIds, u8* pItemTypes, u8* pItemSellQtys, u8* pItemQtys) {
     RECT sp20;
