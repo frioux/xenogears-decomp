@@ -551,13 +551,9 @@ int FieldScriptVMGetVariableValue(int index) {
 // fixup) and a volatile cast 52.86%. A two-step `nOffset = index >> 1` plus a byte-offset add
 // `(u_char*)&g_FieldScriptMemory + (nOffset << 1)` is also 97.14%. gcc-2.6.0, gcc-2.7.2-cdk and
 // -O3 all give the same 97.14%. Only the shift's destination register differs from the original.
-// Best attempt: 97.14% - the original shifts the index into a second register ($a2) before scaling
-// it ($v0); gcc 2.7.2 always reuses $a0 for both shifts with every form tried. Also tried, all
-// 97.14%: a local pointer with p[i] / *(p + (i >> 1)), an int param with a (u_short) cast on the
-// value, and &g_FieldScriptMemory + (index >> 1). index / 2 gives 69.29% (36 bytes, rounding
-// fixup) and a volatile cast 52.86%. A two-step `nOffset = index >> 1` plus a byte-offset add
-// `(u_char*)&g_FieldScriptMemory + (nOffset << 1)` is also 97.14%. gcc-2.6.0, gcc-2.7.2-cdk and
-// -O3 all give the same 97.14%. Only the shift's destination register differs from the original.
+// Round 37: the two-step form `int nOffset = index >> 1; p[nOffset] = value;` compiles to
+// `sra a0 / sll a0` too, so gcc coalesces the shift temp with the dead $a0: a global.c allocno tie,
+// not a source shape. Not worth more attempts.
 /*
 void FieldScriptMemoryWriteU16(int index, u_short value) {
     ((u_short*)&g_FieldScriptMemory)[index >> 1] = value;
