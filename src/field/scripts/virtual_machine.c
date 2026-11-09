@@ -549,6 +549,13 @@ int FieldScriptVMGetVariableValue(int index) {
 // fixup) and a volatile cast 52.86%. A two-step `nOffset = index >> 1` plus a byte-offset add
 // `(u_char*)&g_FieldScriptMemory + (nOffset << 1)` is also 97.14%. gcc-2.6.0, gcc-2.7.2-cdk and
 // -O3 all give the same 97.14%. Only the shift's destination register differs from the original.
+// Best attempt: 97.14% - the original shifts the index into a second register ($a2) before scaling
+// it ($v0); gcc 2.7.2 always reuses $a0 for both shifts with every form tried. Also tried, all
+// 97.14%: a local pointer with p[i] / *(p + (i >> 1)), an int param with a (u_short) cast on the
+// value, and &g_FieldScriptMemory + (index >> 1). index / 2 gives 69.29% (36 bytes, rounding
+// fixup) and a volatile cast 52.86%. A two-step `nOffset = index >> 1` plus a byte-offset add
+// `(u_char*)&g_FieldScriptMemory + (nOffset << 1)` is also 97.14%. gcc-2.6.0, gcc-2.7.2-cdk and
+// -O3 all give the same 97.14%. Only the shift's destination register differs from the original.
 /*
 void FieldScriptMemoryWriteU16(int index, u_short value) {
     ((u_short*)&g_FieldScriptMemory)[index >> 1] = value;
@@ -679,6 +686,73 @@ void func_800A31E8(void) {
 
 INCLUDE_ASM("asm/field/nonmatchings/scripts/virtual_machine", func_800A3474);
 
+// Best attempt: 86.75% (692 bytes vs 696). Everything structural already matches: the 0x74-byte
+// memcpy through `(u8*)&g_FieldNumActors - 0xB8` reproduces the original's two-loop
+// mips_expand_block_move verbatim (the (src|dst)&3 alignment test, the lwl/lwr loop, the lw loop and
+// the 4-byte tail), and both loops plus the func_80021D50 guard chain match instruction for
+// instruction. What is left is register roles and one missing reload:
+//  1. the original keeps &g_FieldNumActors in $a0 and derives $a3 = $a0 - 0xB8, and keeps
+//     &D_8005A4E4 in $a1 (addiu $v0,$a1,0x3C / move $a2,$v0); gcc here folds the -0xB8 into the
+//     symbol (lui $a3 / addiu $a3,-184) and puts &D_8005A4E4 in a temp. Tried inline expressions and
+//     an explicit pSrc local, no change.
+//  2. the original reloads pActorData from the FieldActor in the last block (lw $v0,0x4C($a1)) and
+//     tests flags12C with `andi $v0,$v0,0x1000`; gcc keeps pActorData in $a0 across the jal and
+//     reports the flags12C read as a plain word test here (it needs the u_int cast to avoid a
+//     srl/andi pair, that part is now right).
+/*
+extern u8 D_8005A4E4;
+extern u8* D_800AFC50;
+extern s32 D_8005A408[3];
+extern s32 D_800ADBFC;
+extern s32 D_800B2268;
+extern void func_80021D50(void*, u8*);
+void func_800A3C8C(void) {
+    int i;
+    int nDiff;
+    ActorData* pActorData;
+    u8* pCursor;
+    u8* pSrc;
+
+    pSrc = &D_8005A4E4;
+    memcpy((u8*)&g_FieldNumActors - 0xB8, pSrc, 0x74);
+    g_FieldNumActors = *pSrc;
+    D_800AFC50 = pSrc;
+    D_800AFC50 = &D_8005A4E4 + 0x3C;
+    D_800AFC50 += 0x920;
+
+    nDiff = 0;
+    for (i = 0; i < 3; i++) {
+        if (D_8005A408[i] != g_pGameState->gearRide[i]) {
+            nDiff++;
+        }
+    }
+
+    for (i = 0; i < D_800ADBFC; i++) {
+        pActorData = g_FieldActors[i].pActorData;
+        pCursor = D_800AFC50;
+        D_800AFC50 = pCursor + 0xC;
+        if (pActorData->unk124 != -1 && pActorData->unkAnimationId != 0xFF) {
+            *(u_short*)(pCursor + 0x20) = pActorData->unkAnimationId;
+        }
+
+        pActorData = g_FieldActors[i].pActorData;
+        if (!(pActorData->flags & 0x1000000) &&
+            (D_800B2268 == 0 || !(pActorData->scriptFlags.flags & 0x600) || nDiff == 0)) {
+            func_80021D50(g_FieldActors[i].pSpriteData, D_800AFC50);
+        }
+
+        pActorData = g_FieldActors[i].pActorData;
+        pCursor = D_800AFC50;
+        D_800AFC50 = pCursor + 0x168;
+        if (pActorData->flags134 & 0x80) {
+            D_800AFC50 = pCursor + 0x174;
+        }
+        if (*(u_int*)((u_char*)pActorData + 0x12C) & 0x1000) {
+            D_800AFC50 += 0x10;
+        }
+    }
+}
+*/
 INCLUDE_ASM("asm/field/nonmatchings/scripts/virtual_machine", func_800A3C8C);
 
 INCLUDE_ASM("asm/field/nonmatchings/scripts/virtual_machine", func_800A3F4C);
