@@ -66,6 +66,7 @@ for running splat and the scripts on the host; the container has its own.
 | `make report` | `objdiff-config` + `build/progress.json` |
 | `make progress` | `report` + render `build/progress-site/index.html` |
 | `make progress-publish` | `report` + render with history + push to `gh-pages` |
+| `tools/scripts/convertible.py <bin/unit>` | list the stubs of a unit that are safe to convert: it flags stubs whose `.s` has instructions after `.size` (padding that no C definition reproduces) or owns `dlabel` data. In `psyq/libgte` about 25 of 71 stubs are unlinkable for that reason, and they are invisible to objdiff. |
 | `tools/scripts/lint_sources.py` | scan `src/` for the two source mistakes that only surface as a confusing link error: a function that is both `INCLUDE_ASM`'d and defined in C, and an unclosed block comment. Run it before committing. |
 | `tools/scripts/check_bin.sh <bin>` | rebuild in matching mode and byte-check one output (~35 s). Use it when objdiff refuses to reach 100% for a function whose only difference is a relocation the linker resolves identically (a section-relative `.rodata` jump table against a named `jtbl_`). Leaves the tree in matching mode. |
 | `make shell` | bash inside the build container with the repo mounted |
@@ -320,6 +321,10 @@ commit. Rules that make that work:
   part: every asm owner in the unit has to move to C in the same change (this is
   why `field/main/misc2`'s `VECTOR D_8006FB70` cannot be converted until the five
   stubs that own the strings before it are converted too).
+- **Only `misc2`'s yaml range is a lie.** `linker/<bin>.ld` places
+  `build/src/<unit>.c.o(.rodata)` at the unit's rodata address, so converting the
+  whole family in address order with the constants as `const` needs no
+  `config/*.yaml` edit at all, and partial in-order progress is layout-safe.
 - Do not reach for section attributes, `#pragma` or per-object hacks. If the
   ordering cannot be expressed, leave the function as `INCLUDE_ASM` and say so in
   a comment; a wrong layout costs a whole overlay.
