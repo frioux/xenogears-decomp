@@ -50,6 +50,11 @@ typedef struct {
     /* 0x20 */ void *unk20;
 } Misc23Block;
 
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A5914);
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A5A48);
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A5BE8);
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A5D54);
+
 void func_800A5E9C(s32 arg0, s32 arg1) {
     D_800D2D40 = arg0;
     D_800D2D48 = arg1;
