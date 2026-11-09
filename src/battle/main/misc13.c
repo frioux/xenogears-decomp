@@ -8,10 +8,14 @@ extern u16 D_800D39DC;
 extern u16 D_800C48E8;
 extern u16 D_800D2C94;
 extern u16 D_800D2C96;
+extern u16 D_800D2C98;
+extern u8 D_800D2CA9;
+extern u8 D_800D2CAA;
 
 extern void func_80085454(u8);
 extern void func_80085618(u8);
 extern void func_80098C6C(u16);
+extern void func_800941A4(void);
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80085618);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80085AC4);
@@ -31,7 +35,20 @@ void func_80085C88(u8 arg0) {
     func_80085618(v);
     D_800D2D28[0xAD] = 0;
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80085CCC);
+void func_80085CCC(u8 arg0, u16 arg1, u16 arg2) {
+    u8 *p = D_800C3EAC;
+    u16 v = D_800D39DC;
+    u8 c;
+
+    D_800C48E8 = 0;
+    D_800D2CA9 = arg0;
+    c = p[0x2DC];
+    D_800D2C94 = arg1;
+    D_800D2C98 = arg2;
+    D_800D2C96 = v;
+    D_800D2CAA = c + 0xFF;
+    func_800941A4();
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80085D34);
 void func_80085E78(void) {
     s32 i;
