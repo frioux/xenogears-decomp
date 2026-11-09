@@ -858,6 +858,17 @@ void func_800A0C4C(void) {
 // Also tried: `offset += (s32)g_FieldActors` in the third block (mutating the index
 // variable moves the whole allocation, 82.38%), `u_int offset` (same 99.64%) and
 // computing the pointer after `z = pPosition[5]` (same 99.64%).
+// Re-tried with a variant harness (each of these confirmed against the object):
+// all 24 declaration orders of x/y/z/offset (identical code, so the choice is not
+// pseudo numbering); a second pointer local `pFieldActor2` for the third block and
+// an `s32 addr = offset; addr += (s32)g_FieldActors;` copy (both stop gcc from
+// CSE-ing the x0x5C, which is then rematerialised per block, 82.38%); storing
+// through `((s32*)pFieldActor)[10]/[18]` (same 99.64%); and reading `pPosition[5]`
+// twice instead of a `z` temp (the sum then goes to a fresh $a3 in all three
+// blocks, 75.00%). The whole function is a single basic block, so the sum, the
+// reloaded base and the offset are all local-alloc quantities and gcc 2.7.2 always
+// takes the first free $v0; retail's $v1 dest needs the offset quantity to be
+// preferred, which no source shape reached.
 INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_800A0C94);
 /*
 void func_800A0C94(void) {
