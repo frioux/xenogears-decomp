@@ -233,7 +233,9 @@ typedef struct {
     /* 0x4FCE */ u8 unk4FCE[0xC];
     /* 0x4FDA */ u8 unk4FDA;
     /* 0x4FDB */ u8 unk4FDB;
-    /* 0x4FDC */ u8 unk4FDC[0xA];
+    /* 0x4FDC */ u8 unk4FDC[0x8];
+    /* 0x4FE4 */ u8 unk4FE4;
+    /* 0x4FE5 */ u8 unk4FE5;
     /* 0x4FE6 */ u8 unk4FE6;
     /* 0x4FE7 */ u8 unk4FE7[0x4D];
 } MenuUnk2; // Size: 0x5034
