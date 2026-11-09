@@ -385,7 +385,9 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80023804);
    allocates the pair the other way round. Tried: swapping the two flags statements
    (93.37%, moves the A8 load first), constant-first operand order, a mask local, explicit
    assignment instead of &=, and writing the AC update through the pFlagsA8 pointer (81.19%,
-   gcc propagates the earlier zero store). All are 99.10 or worse.
+   gcc propagates the earlier zero store). All are 99.10 or worse. Later round: reading both flags
+   words into locals before masking drops to 96.67% (the A8 load moves ahead of the AC mask), and a
+   function-scope mask local is still 99.10% -- which reg the mask pseudo gets is not source-order driven.
 
 void func_80023804(SpriteData* pSpriteData) {
     u32* pFlagsA8;
