@@ -16,6 +16,7 @@ typedef struct {
 } Misc15Slot; // Size: 0x80
 
 extern Misc15Slot *D_8009BE24;
+extern void *D_8009C184[];
 
 extern void func_800976C8(void);
 
@@ -101,5 +102,13 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_800978FC);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_800979C8);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_80097BC0);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_80097CB8);
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_80097D64);
+void func_80097D64(void) {
+    s32 i;
+
+    for (i = 0; i < 0x100; i++) {
+        if (D_8009C184[i] != NULL) {
+            HeapFree(D_8009C184[i]);
+        }
+    }
+}
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_80097DC0);
