@@ -30,6 +30,10 @@ extern s32 D_800D39C0[];
 extern u8 D_800D39C6;
 extern u8 *GetStringEntry(u8 *);
 extern u8 D_800D3014;
+extern u8 D_800D2DE4[];
+extern u16 D_800D2DF0[];
+extern u16 D_800D2E06[];
+extern u16 func_80098AF8(s32, s32);
 extern void func_80079E18(s32);
 extern void func_80079E4C(s32);
 extern s32 SystemRenderStringEntry(u8 *, s32, s32, s32);
@@ -85,6 +89,20 @@ s32 func_800716D8(void) {
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_8007171C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_800718BC);
+/* 87.57% - original derives the second table (0x800D2DF0) as &D_800D2E06 - 0x16
+   with addiu off the live base register; gcc re-forms its lui/addiu, or folds
+   the -0x16 into the sh immediate (84%) when the pointer is a local.
+void func_800718BC(void) {
+    u8 index;
+
+    index = D_800C3EAC[0x2D3];
+    if (D_800D2DE4[index] != 0xFF) {
+        D_800D2DE4[index] = 0;
+    }
+    D_800D2E06[D_800C3EAC[0x2D3]] = func_80098AF8(D_800C3EAC[0x2D3], 0);
+    D_800D2DF0[D_800C3EAC[0x2D3]] = D_800D2E06[D_800C3EAC[0x2D3]];
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80071964);
 /* 98.78% - only the register for the leading lbu differs (original a1, gcc v0,
    forcing the two lhu temps to swap v0/v1). Tried: two early-return ifs, one
