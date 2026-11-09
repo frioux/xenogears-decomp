@@ -200,9 +200,22 @@ typedef struct {
 } MenuUnk1; // Size: 0x15C
 
 typedef struct {
-    /* 0x0   */ u8 unk0[0xB80];
+    /* 0x00 */ u8 unk0[0x18];
+    /* 0x18 */ u8 ids[0xC];
+    /* 0x24 */ u8 unk24[0x38];
+} MenuUnk2Record; // Size: 0x5C
+
+typedef struct {
+    /* 0x000 */ u8 pad0[0x100];
+    /* 0x100 */ u8 data[0x23];
+    /* 0x123 */ u8 index;
+    /* 0x124 */ u8 pad124[0xDC];
+} MenuUnk2ImageChunk; // Size: 0x200
+
+typedef struct {
+    /* 0x0   */ MenuUnk2Record records[0x20];
     /* 0xB80 */ TIM_IMAGE tim;
-    /* 0xB94 */ u8 unkB94[0x4000];
+    /* 0xB94 */ MenuUnk2ImageChunk chunks[0x20];
     /* 0x4B94 */ u8 unk4B94;
     /* 0x4B95 */ u8 unk4B95;
     /* 0x4B96 */ u8 unk4B96;
@@ -213,13 +226,10 @@ typedef struct {
     /* 0x4C94 */ u8 unk4C94[0x2E8];
     /* 0x4F7C */ s32 unk4F7C;
     /* 0x4F80 */ s32 unk4F80;
-    /* 0x4F84 */ u8 unk4F84[0x4A];
-    /* 0x4FCE */ u16 unk4FCE;
-    /* 0x4FD0 */ u16 unk4FD0;
-    /* 0x4FD2 */ u16 unk4FD2;
-    /* 0x4FD4 */ u16 unk4FD4;
-    /* 0x4FD6 */ u16 unk4FD6;
-    /* 0x4FD8 */ u16 unk4FD8;
+    /* 0x4F84 */ u8 unk4F84[0xA];
+    /* 0x4F8E */ u8 unk4F8E[0x20];
+    /* 0x4FAE */ u8 unk4FAE[0x20];
+    /* 0x4FCE */ u8 unk4FCE[0xC];
     /* 0x4FDA */ u8 unk4FDA;
     /* 0x4FDB */ u8 unk4FDB;
     /* 0x4FDC */ u8 unk4FDC[0x8];

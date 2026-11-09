@@ -4,6 +4,7 @@
 #include "psyq/libapi.h"
 
 extern u8 D_801EA6D0[][0x10];
+extern u8* D_801EA6F4;
 extern u16 D_8005A3A0[0x10];
 extern u16 D_8006F958[0x10];
 extern int D_80059488;
@@ -33,6 +34,38 @@ int func_801C9038(u8* pPath, u8* pBuffer) {
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801C90B0);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801C9270);
+
+/* Best attempt: 97.56%. Only the record-base register (a3 vs a2) and the
+   chunk-pointer register pair differ; the instruction multiset is identical. */
+/*
+void func_801C9270(int a0) {
+    MenuUnk2Record* pRecord;
+    MenuUnk2ImageChunk* pChunk;
+    int i;
+    int j;
+    int matched;
+
+    for (i = 0; i < 0x10; i++) {
+        g_Menu->menuUnk2->unk4F8E[a0 * 0x10 + i] = 0;
+    }
+    for (j = 0; j < 0xF; j++) {
+        matched = 1;
+        pRecord = &g_Menu->menuUnk2->records[g_Menu->menuUnk2->unk4FAE[a0 * 0x10 + j]];
+        for (i = 0; i < 0xC; i++) {
+            if (pRecord->ids[i] != g_Menu->menuUnk2->unk4FCE[i]) {
+                matched = 0;
+                break;
+            }
+        }
+        if (matched) {
+            g_Menu->menuUnk2->unk4F8E[a0 * 0x10 + j] = 1;
+            pChunk = &g_Menu->menuUnk2->chunks[g_Menu->menuUnk2->unk4FAE[a0 * 0x10 + j]];
+            D_801EA6F4 = pChunk->data;
+            D_801EA6D0[a0][pChunk->index] = 1;
+        }
+    }
+}
+*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801C93A8);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801C9BCC);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801C9D34);
