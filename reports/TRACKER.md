@@ -918,3 +918,43 @@ Two asks that came back from every worker on this overlay: `check_bin.sh` needed
 `battling` case (added), and `linker/undefined_syms_auto.battling.txt` is where the
 `D_` globals come from -- they are absolute symbols, so spelling the exact address
 (`D_800926AA`) rather than `D_800926A8[1]` is what makes halfword stores reach 100%.
+| 37 | 14 workers: 8 on battling slices, 6 on the old pools | +59 | 2145 | `battling` misc8 15, misc10 15, misc9 10, misc11 10, misc12 8, misc6 6, misc1 4, misc2/3/4/5 unchanged; `shop_menu` 1 (re-landed after the round-36 revert, 1636 bytes = retail); sound/lib_gear/temp2/rendering/vm only parked |
+
+## Session 4 result
+
+Start: **1997 / 2528 (79.00%)**, 373272 / 670864 bytes (55.64%), 396 countable stubs.
+End:   **2145 / 2985 (71.86%)**, 388872 / 670864 bytes (48.34%), ~560 stubs
+(`grep -c '^\s*INCLUDE_ASM(' src/`).
+
+**+148 functions and +15600 bytes** in 4 rounds of 14 workers, every batch gated by
+`make check` on all seven outputs. The percentage *fell* because the denominator
+grew by 457: `battling.bin` was split this session and its functions were invisible
+before. On the old denominator the end state is 2145/2528 = 84.9%.
+
+### What produced the work
+
+| source of matches | functions |
+|---|---|
+| the 89 stubs split out of the seven slus `asm` segments | +48 |
+| the 456 functions in the newly split `battling` overlay | +86 |
+| naming 16 psyq symbols from the Psy-Q 4.0 SDK objects | 0 directly, but it is what made `libgpu_tex` 3/3 and several `libgpu_*` matches feasible |
+| the pools that were already known (sound, lib_gear, libgte, temp2, rendering, field, shop_menu) | +14 |
+
+**The lesson, stated three different ways this session:** every saturated pool stayed
+saturated (round 35 gave +7 with 14 workers on them, round 36 gave +2, round 37 gave
++3), and every new pool paid immediately (+41, then +59). The remaining work is not
+in the 95-99% class and not in `system/model` or `psyq/libgte` (both dead: Sony's
+hand-written `vector.s` and BIOS thunks, and `convertible.py` says 16 of 18 libgte_b
+stubs cannot link). It is in **more overlays**: `battle.bin` (86k words),
+`world_map.bin` (45k), `menu.bin` (38k), `movie.bin` (7k), each needing only the
+three-step carve above, and then in the 157 `battling` functions still sitting in
+`asm/battling/1A26C.s`.
+
+### The one process rule to carry forward
+
+`objdiff: 100.00%` + `MATCH:` is not proof. Three separate conversions this session
+(five in round 36) were 100% in objdiff and wrong in the object; the tell is
+`make check` or `check_bin.sh <overlay>`, and the cause is almost always a body that
+is a few bytes longer or shorter than retail (objdiff compares the function's own
+range, so a longer body hides its tail). Workers who ran `check_bin.sh` before their
+last commit never produced one of these.
