@@ -1208,7 +1208,27 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_80039850);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_80039910);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_800399D4);
+void func_800399D4(AudioManager* pManager) {
+    if (pManager->unk_Flags & 0x8000) {
+        func_80039C4C(pManager);
+    }
+
+    if ((s16)SoundUnkDebug0(pManager->unk_0x8) != 0) {
+        SoundHandleError(0xA);
+        return;
+    }
+
+    if (SoundRemoveAudioManagerFromList(pManager) != 0) {
+        SoundHandleError(0x5);
+        return;
+    }
+
+    func_8003B930(pManager);
+
+    if (!(pManager->unk_Flags & 0x4000)) {
+        SoundHeapFree(pManager);
+    }
+}
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_80039A80);
 
@@ -1335,7 +1355,23 @@ void func_80039F9C(s32 arg0, s32 arg1, s32 arg2, s32 arg3) {
     }
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_80039FF8);
+void func_80039FF8(void) {
+    AudioManager* pManager = D_800595D8;
+    AudioElement* pElement = &pManager->elements[0];
+    u32 cnt = D_80059478;
+
+    DisableEvent(g_unk_SoundEvent);
+    do {
+        if (pElement->active_flag & 0x1) {
+            pElement->active_flag = 0;
+            SoundReleaseVoiceFromChannel(&pElement->voice_data, pElement->voice_number);
+        }
+        pElement++;
+        cnt--;
+    } while (cnt);
+    pManager->unk_0x48 = 0;
+    EnableEvent(g_unk_SoundEvent);
+}
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003A094);
 
@@ -1388,9 +1424,64 @@ void func_8003A344(s32 elementIndex, s32 value) {
 }
 */
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003A3B8);
+void func_8003A3B8(s32 id, s32 value, s32 frames) {
+    AudioManager* pManager = D_800595D8;
+    AudioElement* pElement = &pManager->elements[0];
+    u32 cnt = D_80059478;
+    s32 volume = value << 8;
+    s32 delta;
+
+    do {
+        if (pElement->active_flag & 0x1) {
+            if (pElement->unk_0x8 == id) {
+                delta = volume - pElement->unk_0x76;
+                if (delta) {
+                    if (frames == 0) {
+                        frames = 1;
+                    }
+                    pElement->unk_0x8C = delta / frames;
+                    pElement->unk_0x8E = volume;
+                    pElement->unk_0x9A = frames;
+                    pElement->unk_0x04 |= 0x20;
+                }
+            }
+        }
+        pElement++;
+        cnt--;
+    } while (cnt);
+}
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003A450);
+/*
+Attempt (90.70%, correct size): identical to func_8003A3B8 except that gcc hoists
+the `andi a0,0xFE` / `xori a0,0x8` index pair into the loop preheader (after
+`li t0,2` / `sll a1,8`) while the original keeps them in the entry block. Same
+blocker as func_8003A344 and func_8003A55C; u8/u16 index types and declaration
+order do not move it.
+void func_8003A450(s32 elementIndex, s32 value, s32 frames) {
+    s32 index = (elementIndex & 0xFE) ^ 8;
+    u32 cnt = 2;
+    s32 volume = value << 8;
+    AudioElement* pElement = &D_800595D8->elements[index];
+    s32 delta;
+
+    do {
+        if (pElement->active_flag & 0x1) {
+            delta = volume - pElement->unk_0x76;
+            if (delta) {
+                if (frames == 0) {
+                    frames = 1;
+                }
+                pElement->unk_0x8C = delta / frames;
+                pElement->unk_0x8E = volume;
+                pElement->unk_0x9A = frames;
+                pElement->unk_0x04 |= 0x20;
+            }
+        }
+        pElement++;
+        cnt--;
+    } while (cnt);
+} */
 
 void func_8003A4FC(s32 id, s32 value) {
     AudioManager* pManager = D_800595D8;
@@ -1490,7 +1581,28 @@ void func_8003A838(AudioManager* pManager, s32 volume, s32 frames) {
     }
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003A89C);
+void func_8003A89C(AudioManager* pManager, s32 volume, s32 frames) {
+    s32 delta;
+
+    pManager->unk_Interpolator_0x70.targetValue = volume << 8;
+
+    if (frames == 0) {
+        pManager->unk_Interpolator_0x70.currentValue = volume << 24;
+        pManager->unk_Interpolator_0x70.counter = 0;
+        unk_SoundSetFlagsOnActiveVoices(0x100, pManager);
+    } else {
+        delta = (volume << 16) - (pManager->unk_Interpolator_0x70.currentValue >> 8);
+        if (delta == 0) {
+            return;
+        }
+        pManager->unk_Interpolator_0x70.counter = frames;
+        pManager->unk_Interpolator_0x70.stepIncrement = (delta / frames) << 8;
+    }
+
+    if ((pManager->unk_Flags & 0x100) && volume != 0) {
+        func_8003AA30(pManager);
+    }
+}
 
 void func_8003A948(AudioManager* pManager, s16 volume, s32 frames) {
     s32 delta;
@@ -1732,7 +1844,39 @@ void func_8003B0AC(AudioManager* pManager, AudioManager* pSrc) {
     } while (cnt);
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003B148);
+AudioManager* func_8003B148(s32 elementCount) {
+    s32 count = elementCount & ~1;
+    AudioManager* pManager;
+    AudioElement* pElement;
+    s32 i;
+    s32 voiceNumber;
+    s32 nRemaining;
+
+    D_80059478 = count;
+    pManager = SoundHeapAllocate(SoundCalculateAudioManagerSize(count));
+    if (pManager == NULL) {
+        SoundHandleError(0x1E);
+        return NULL;
+    }
+
+    func_8003B32C(pManager);
+
+    pElement = &pManager->elements[0];
+    voiceNumber = NUM_VOICES - count;
+    nRemaining = count;
+    i = 0;
+    do {
+        pElement->active_flag = 0;
+        pElement->unk_0x06[0] = i++;
+        pElement->voice_number = voiceNumber;
+        pElement++;
+        voiceNumber++;
+        nRemaining--;
+    } while (nRemaining);
+
+    SoundAddAudioManagerToList(pManager);
+    return pManager;
+}
 
 void func_8003B1FC(AudioManager* pManager) {
     SoundRemoveAudioManagerFromList(pManager);
