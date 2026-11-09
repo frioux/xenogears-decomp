@@ -1,6 +1,7 @@
 #include "common.h"
 #include "system/memory.h"
 #include "field/main.h"
+#include "field/actor.h"
 #include "field/camera.h"
 #include "psyq/libgpu.h"
 #include "psyq/libgte.h"
@@ -125,6 +126,130 @@ void FieldLZSSDecompress(void* _unused, void* pCompressed, void* pDecompressed) 
 }
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc3", FieldFree);
+
+// Best attempt, 97.34%: the body is structurally right (ResetGraph,
+// WorkListsFreeAllEntries, the two-pass render context loop, the actor loop with
+// status & 0x40 / 0x2000 and its four frees, the eight HeapFrees, the line scroll
+// loop and the sound list teardown) and only two spots differ.
+//  1. The render context loop counter: the original emits `addiu $v0,$s1,1` and
+//     then a `move $s1,$v0` copy after the g_FieldCurRenderContextIndex load;
+//     every spelling tried here (separate `i++`, `i += 1`, `++i` inside the
+//     argument, `context = ++i`, assigning through a temp) gives a single
+//     `addiu $s1,$s1,1` that gcc's scheduler then hoists into the earlier call's
+//     delay slot, so this is a combine/scheduling choice, not the expression.
+//  2. D_800B2264: the original materialises `&D_800B2264` into $s0 with
+//     lui+addiu once and reuses it across func_801E7FD4/HeapFree/
+//     FieldRenderSyncAndFlush, gcc rematerialises `lui` + `lw %lo` for the read
+//     and `lui at` + `sw %lo` for the store instead. An explicit pointer local,
+//     hoisting that local above FontFree, and plain symbol read/write all give
+//     the same rematerialised form.
+// Facts recovered for whoever retries: the unit needs field/actor.h for
+// g_FieldActors/g_FieldNumActors/g_FieldCurScriptFile/g_FieldSpriteData; the
+// actor loop must index as `(i * sizeof(FieldActor) + (int)g_FieldActors)` to get
+// the original's index-first `addu`, with one status read feeding both masks; the
+// line scroll table at D_800AFEA8 (0x144 bytes, same layout as misc11.c) and the
+// `lh -0x4` count loop match byte for byte.
+/*
+extern s32 D_800B2264;
+extern void* D_800ADB20;
+extern s32 D_800ADBF0;
+extern s32 D_800AFB18;
+extern s32 D_800AFB14;
+extern s16 D_800B00B2;
+extern s32 D_800B007C;
+
+extern void WorkListsFreeAllEntries(void);
+extern void func_80025044(void);
+extern void func_800250E0(int context);
+extern void GfxFreeWorkBuffers(void);
+extern void func_8008083C(int actorIndex);
+extern void func_800306D0(void* pBackup);
+extern void ModelPartFreeLightData(void* pModelPart);
+extern void FieldDistortionFree(void);
+extern void GfxLineScrollFree(void* pLineScroll);
+extern void FontFree(void);
+extern void func_801E7FD4(void);
+extern void FieldRenderSyncAndFlush(void);
+extern void func_800A83B4(void);
+extern void func_80027D40(void* pData);
+
+typedef struct {
+    s16 numLineScrolls;
+    s16 unk2;
+    void* pLineScrolls[32]; // 0x4
+    u8* pDatas[32];         // 0x84
+    s16 lengths[32];        // 0x104
+} LineScrollTable; // Size: 0x144
+
+extern LineScrollTable D_800AFEA8;
+
+void FieldFree(void) {
+    FieldActor* pActor;
+    s32* pCount;
+    void* pModelData;
+    u_short status;
+    int i;
+
+    ResetGraph(1);
+    WorkListsFreeAllEntries();
+
+    i = 0;
+    do {
+        func_80025044();
+        DrawSync(0);
+        func_800250E0((g_FieldCurRenderContextIndex + ++i) & 1);
+        func_80025044();
+        DrawSync(0);
+        GfxFreeWorkBuffers();
+    } while (i < 2);
+
+    for (i = 0; i < g_FieldNumActors; i++) {
+        func_8008083C(i);
+        pActor = (FieldActor*)(i * sizeof(FieldActor) + (int)g_FieldActors);
+        status = *(u_short*)&pActor->status;
+        if (!(status & 0x40)) {
+            pModelData = pActor->pModelData;
+            if (status & 0x2000) {
+                func_800306D0(*(void**)((u8*)pModelData + 0x14));
+            }
+            ModelPartFreeLightData(*(void**)((u8*)pModelData + 0x4));
+            HeapFree(*(void**)((u8*)pModelData + 0x8));
+            HeapFree(g_FieldActors[i].pModelData);
+        }
+    }
+
+    FieldDistortionFree();
+    HeapFree(g_FieldActors);
+    HeapFree(g_pFieldTriggerZones);
+    HeapFree(D_800ADBF0);
+    HeapFree(g_FieldCurScriptFile);
+    HeapFree(D_800AFB18);
+    HeapFree(D_800AFB14);
+    HeapFree(g_FieldSpriteData);
+
+    if (D_800B00B2 != 0) {
+        func_80027D40(D_800B007C);
+    }
+
+    for (i = 0; i < D_800AFEA8.numLineScrolls; i++) {
+        GfxLineScrollFree(D_800AFEA8.pLineScrolls[i]);
+        HeapFree(D_800AFEA8.pDatas[i]);
+        HeapFree(D_800AFEA8.pLineScrolls[i]);
+    }
+
+    FontFree();
+    pCount = &D_800B2264;
+    D_800AFEA8.numLineScrolls = 0;
+    if (*pCount != 0) {
+        func_801E7FD4();
+        HeapFree(D_800ADB20);
+        FieldRenderSyncAndFlush();
+    }
+    *pCount = 0;
+    HeapFreeBlocksWithFlag(3);
+    func_800A83B4();
+}
+*/
 
 void FieldLoadTIMWithClut(u_long *pTimData, short x, short y, short clutX, short clutY, short clutWidth, short clutHeight) {
     TIM_IMAGE* pTIM;
