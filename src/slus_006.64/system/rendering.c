@@ -341,10 +341,17 @@ void func_8001F750(SpriteData* pSpriteData, s32 index, SpriteAnimPackage* pAnimP
 
 // Animation frame and tile data stuff
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001F8E8);
-/* Best attempt: 88.26%. Byte-stream parser; every branch, delay slot and store
-   matches. Only difference: `dir` lands in s3 (callee-saved) here but in a1 in
-   the original, which pushes i/count/unkFlag up one register and grows the frame
-   to 64 bytes (plus one duplicated `andi v0,s1,0x10`).
+/* Best attempt: 91.88% (456 bytes, the original's size). The `dir` puzzle below
+   is solved: the original computes `dir = entryFlags & 7` in the block shared by
+   the 0x20 and 0x10 tests (`andi a1,s1,0x7` sits in the delay slot of the
+   `beqz (entryFlags & 0x20)`), so the assignment belongs BEFORE that test and
+   not inside it -- that alone takes the frame back to 60 bytes and dir to a1.
+   What is left is the loop entry: the original builds `pEntry = pBlock +
+   count*4 + 6` as a separate `addu` before the loop and the counter test that
+   feeds `beqz count` comes from a distinct `andi`; this C lets gcc fold the
+   block-header address into the first `lbu` and re-merge `andi s5`/`andi s4`,
+   which shifts every later offset by 4. Earlier 88.26% attempt (dir computed
+   inside the 0x20 arm, dir in s3, 64-byte frame):
 
 void func_8001F8E8(SpriteData* pSpriteData, s32 index, SpriteAnimPackage* pAnimPackage) {
     u8* pFrames;
