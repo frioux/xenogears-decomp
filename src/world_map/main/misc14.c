@@ -23,7 +23,9 @@ extern SVec* D_8009BE08;
 extern SVec4* D_8009D3C0;
 extern void* D_8009D7D4;
 extern void* D_8009D788[16];
+extern void* D_8009C624[16];
 extern void func_800963E4(SVec* pRecord);
+extern void func_800964B0(SVec4* pRecord);
 extern void func_800967E4(void);
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc14", func_80094238);
@@ -128,7 +130,20 @@ s32 func_80096328(void) {
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc14", func_800963E4);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc14", func_800964B0);
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc14", func_800965A4);
+s32 func_800965A4(void) {
+    s32 index = D_8009BE44;
+    SVec4* p = &D_8009D3C0[index * 0x58];
+
+    if (p->x != 0 && D_8009C624[index] == NULL) {
+        func_800964B0(p);
+        D_8009D808 = 0;
+        D_8009C624[D_8009BE44] = p;
+        D_8009BE44 = (D_8009BE44 + 1) & 0xF;
+        return 0;
+    }
+    D_8009D808 = 0;
+    return -1;
+}
 
 s32 func_80096668(void) {
     s32 diff = D_8009BE44 - D_8009BCB8;
