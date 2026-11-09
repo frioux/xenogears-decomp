@@ -175,9 +175,13 @@ int func_800409E4(void) {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libapi", func_80040A4C);
 /*
-81.25%: gcc folds `if (c) return 1; return 0;` into `return c`, so the original's
-literal `li v0,1` (bnez to the epilogue, dead `move v0,zero` after it) cannot be
-produced from any if/else, switch, bitfield or goto spelling tried.
+81.25%: the first test already matches (beqz to the epilogue with `move v0,zero`
+in its delay slot). Only the tail differs: the original materialises the 0/1 by
+branch (bnez past `li v0,1`, then a dead `move v0,zero`), while gcc returns the
+masked value itself (`andi v0,v0,1`), because the condition is known to be 0..1.
+Tried, all identical: nested if, if/else-if/else, goto, %2, `int ret` plus one
+return, do/while, `&&` bare and via a local, bitfield struct, inverted (two
+`return 0` then `return 1`), long/1L return type; also gcc-2.6.0 and -O2.
 int func_80040A4C(void) {
     u_long *pEntry = D_8005641C;
 
@@ -209,5 +213,7 @@ function pointer -- every C spelling tested gives a full frame plus jalr.
 */
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libapi", func_80040B00);
+/* Same blocker as EnablePAD: hand-written tail jump through D_800593B0; gcc makes
+   a 24-byte frame plus jalr (0%). */
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libapi", _patch_pad);
