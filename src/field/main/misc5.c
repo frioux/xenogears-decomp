@@ -129,55 +129,112 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A5924);
 INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A5C40);
 
 extern SVECTOR D_800B00B8;
+extern u_short D_800B00BA;
+extern u_short D_800B00BC;
 extern int D_800C2684;
 
-/* Best attempt, 80.05%: prologue (RotMatrix/matrix.t/ScaleMatrix/SetRotMatrix/
-   SetTransMatrix) is exact, and so is the addPrim chain, but gcc forms one
-   integer biv (i*2, +2/iter) and scales it, while the original keeps i (slti),
-   a polygon byte offset (+0x50) and a drawMode byte offset (+0x18) as three
-   separate counters, adds g_FieldCurRenderContextIndex*0x28/0xC to a *symbol*
-   constant each iteration, and uses the fourth vector arg's element as the
-   vector biv (s4 = &vectors[0], +0x20) where gcc picks &vectors[i*4+3].
-   Tried: inline indices everywhere, pPoly/pPix pointer locals (61%), pointer
-   locals for polygons+ctx and drawModes+ctx (hoisted out of the loop, 61%).
-    void FieldZoomFadeEffectUpdate(void) {
-        MATRIX matrix;
-        VECTOR scale;
-        long proj;
-        long flag;
-        int i;
-        u_long* pPoly;
+void FieldZoomFadeEffectUpdate(void) {
+    MATRIX matrix;
+    VECTOR scale;
+    long proj;
+    long flag;
+    int i;
+    int nOffset;
 
-        RotMatrix(&D_800B00B8, &matrix);
-        matrix.t[0] = 0;
-        matrix.t[1] = 0;
-        matrix.t[2] = 0;
-        scale.vx = D_800C2684;
-        scale.vy = D_800C2684;
-        scale.vz = D_800C2684;
-        ScaleMatrix(&matrix, &scale);
-        SetRotMatrix(&matrix);
-        SetTransMatrix(&matrix);
+    RotMatrix(&D_800B00B8, &matrix);
+    matrix.t[2] = 0;
+    matrix.t[1] = 0;
+    matrix.t[0] = 0;
+    scale.vx = D_800C2684;
+    scale.vy = D_800C2684;
+    scale.vz = D_800C2684;
+    ScaleMatrix(&matrix, &scale);
+    SetRotMatrix(&matrix);
+    SetTransMatrix(&matrix);
 
-        for (i = 0; i < 5; i++) {
-            if (D_800C2684 != 0x1000) {
-                pPoly = (u_long*)&g_FieldZoomFadeEffect.polygons[i * 2 + g_FieldCurRenderContextIndex];
-                RotAverage4(&g_FieldZoomFadeEffect.vectors[i * 4], &g_FieldZoomFadeEffect.vectors[i * 4 + 1],
-                    &g_FieldZoomFadeEffect.vectors[i * 4 + 2], &g_FieldZoomFadeEffect.vectors[i * 4 + 3],
-                    pPoly + 2, pPoly + 4, pPoly + 6, pPoly + 8, &proj, &flag);
-            }
-            addPrim(&g_FieldCurRenderContext->ot3[0],
-                &g_FieldZoomFadeEffect.polygons[i * 2 + g_FieldCurRenderContextIndex]);
-            addPrim(&g_FieldCurRenderContext->ot3[0],
-                &g_FieldZoomFadeEffect.drawModes[i * 2 + g_FieldCurRenderContextIndex]);
+    for (i = 0; i < 5; i++) {
+        nOffset = i * 2;
+        if (D_800C2684 != 0x1000) {
+            RotAverage4(&g_FieldZoomFadeEffect.vectors[i * 4], &g_FieldZoomFadeEffect.vectors[i * 4 + 1],
+                &g_FieldZoomFadeEffect.vectors[i * 4 + 2], &g_FieldZoomFadeEffect.vectors[i * 4 + 3],
+                (long*)(g_FieldZoomFadeEffect.polygons + nOffset + g_FieldCurRenderContextIndex) + 2,
+                (long*)(g_FieldZoomFadeEffect.polygons + nOffset + g_FieldCurRenderContextIndex) + 4,
+                (long*)(g_FieldZoomFadeEffect.polygons + nOffset + g_FieldCurRenderContextIndex) + 6,
+                (long*)(g_FieldZoomFadeEffect.polygons + nOffset + g_FieldCurRenderContextIndex) + 8,
+                &proj, &flag);
         }
+        addPrim(&g_FieldCurRenderContext->ot3[0],
+            g_FieldZoomFadeEffect.polygons + nOffset + g_FieldCurRenderContextIndex);
+        addPrim(&g_FieldCurRenderContext->ot3[0],
+            g_FieldZoomFadeEffect.drawModes + nOffset + g_FieldCurRenderContextIndex);
     }
-*/
+}
 
-// Or Draw?
-INCLUDE_ASM("asm/field/nonmatchings/main/misc5", FieldZoomFadeEffectUpdate);
+void FieldZoomFadeEffectInitialize(int nSemiTrans, int nABR) {
+    POLY_FT4* pPoly;
+    POLY_FT4* pPolyNext;
+    SVECTOR* pVector;
+    int i;
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc5", FieldZoomFadeEffectInitialize);
+    D_800C2684 = 0x1000;
+    D_800B00B8.vx = 0;
+    D_800B00BA = 0;
+    D_800B00BC = 0;
+
+    for (i = 0; i < 5; i++) {
+        pPoly = &g_FieldZoomFadeEffect.polygons[i * 2];
+        pPolyNext = &g_FieldZoomFadeEffect.polygons[i * 2 + 1];
+        pVector = &g_FieldZoomFadeEffect.vectors[i * 4];
+        SetPolyFT4(pPoly);
+
+        pVector[0].vx = -0x50 + i * 0x20;
+        pVector[0].vy = -0x38;
+        pVector[0].vz = 0;
+        pVector[1].vx = -0x30 + i * 0x20;
+        pVector[1].vy = -0x38;
+        pVector[1].vz = 0;
+        pVector[2].vx = -0x50 + i * 0x20;
+        pVector[2].vy = 0x38;
+        pVector[2].vz = 0;
+        pVector[3].vx = -0x30 + i * 0x20;
+        pVector[3].vy = 0x38;
+        pVector[3].vz = 0;
+
+        pPoly->x0 = i * 0x40;
+        pPoly->y0 = 0;
+        pPoly->x1 = 0x40 + i * 0x40;
+        pPoly->y1 = 0;
+        pPoly->x2 = i * 0x40;
+        pPoly->y2 = 0xDF;
+        pPoly->x3 = 0x40 + i * 0x40;
+        pPoly->y3 = 0xDF;
+
+        setRECT(&g_FieldZoomFadeEffect.rects[i * 2], 0, 0, 0xFF, 0xFF);
+        setRECT(&g_FieldZoomFadeEffect.rects[i * 2 + 1], 0, 0, 0xFF, 0xFF);
+
+        SetDrawMode(&g_FieldZoomFadeEffect.drawModes[i * 2], 0, 0,
+            GetTPage(0x2, nABR, 0x2C0 + i * 0x40, 0x100), &g_FieldZoomFadeEffect.rects[i * 2]);
+        SetDrawMode(&g_FieldZoomFadeEffect.drawModes[i * 2 + 1], 0, 0,
+            GetTPage(0x2, nABR, 0x2C0 + i * 0x40, 0x100), &g_FieldZoomFadeEffect.rects[i * 2 + 1]);
+
+        pPoly->r0 = 0x80;
+        pPoly->g0 = 0x80;
+        pPoly->b0 = 0x80;
+        SetSemiTrans(pPoly, nSemiTrans);
+
+        pPoly->u0 = 0;
+        pPoly->v0 = 0;
+        pPoly->u1 = 0x40;
+        pPoly->v1 = 0;
+        pPoly->u2 = 0;
+        pPoly->v2 = 0xDF;
+        pPoly->u3 = 0x40;
+        pPoly->v3 = 0xDF;
+        pPoly->tpage = GetTPage(0x2, nABR, 0x2C0 + i * 0x40, 0x100);
+        *pPolyNext = *pPoly;
+    }
+}
+
 
 void FieldDisplay(void) {
     DrawSync(0);
@@ -782,6 +839,99 @@ void func_800A8408(int nQuad, int x, int y) {
 INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A84C0);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A8BA4);
+
+/* Best attempt, 83.02% / 796 bytes. Structure (SetPolyFT4 per tile, clut =
+   GetClut(0,0xE8), nABR switch on the high nibble of the tile attribute word,
+   tpage = GetTPage(0,nABR,0x380,0), SetSemiTrans(p,1), 0x6D iterations) is right;
+   what does not come out is (a) the original folds D_800AEB68/6C/6E into one
+   base register (s5 = &D_800AEB6C, loads at 0/+2/-4) with only D_800AEB6A on its
+   own base, which no C spelling of four separate extern u_short[] can express;
+   (b) it keeps two identical loop counters (s3 for slti, s2 for the *8 index);
+   (c) the tile record is reached as D_800AEF16[i*4-3..i*4] (single symbol, base
+   folded to %lo(D_800AEF16)-6).
+   extern u_short D_800AEF16[];
+   extern int D_800AEB64;
+
+   void func_800A8BA4(void) {
+       POLY_FT4* pPoly;
+       POLY_FT4* pPolyNext;
+       int i;
+       int nRect;
+       int nX;
+       int nY;
+       int nW;
+       int nH;
+       int nSrcX;
+       int nSrcY;
+       int nABR;
+
+       func_800A8314();
+       D_800AEB64 = 0;
+       HeapChangeCurrentUser(HEAP_USER_YOSI, NULL);
+       D_800AFC60[0] = HeapAlloc(0x1108, 0);
+       D_800AFC64 = HeapAlloc(0x1108, 0);
+
+       nABR = 0;
+       for (i = 0; i < 0x6D; i++) {
+           pPoly = &D_800AFC60[0][i];
+           pPolyNext = (POLY_FT4*)D_800AFC64 + i;
+           SetPolyFT4(pPoly);
+
+           pPoly->r0 = 0x80;
+           pPoly->g0 = 0x80;
+           pPoly->b0 = 0x80;
+           pPoly->clut = GetClut(0, 0xE8);
+
+           switch ((D_800AEF16[i * 4] >> 4) & 0xF) {
+           case 0:
+               nABR = 1;
+               break;
+           case 1:
+               nABR = 2;
+               break;
+           }
+           pPoly->tpage = GetTPage(0, nABR, 0x380, 0);
+           SetSemiTrans(pPoly, 1);
+
+           nX = D_800AEF16[i * 4 - 3];
+           nY = D_800AEF16[i * 4 - 2];
+           nRect = D_800AEF16[i * 4 - 1] * 4;
+           nW = D_800AEB6C[nRect];
+           nH = D_800AEB6E[nRect];
+           nSrcX = D_800AEB68[nRect];
+           nSrcY = D_800AEB6A[nRect];
+
+           pPoly->x0 = nX;
+           pPoly->y0 = nY;
+           pPoly->x1 = nX + nW;
+           pPoly->y1 = nY;
+           pPoly->x2 = nX;
+           pPoly->y2 = nY + nH;
+           pPoly->x3 = nX + nW;
+           pPoly->y3 = nY + nH;
+
+           switch (D_800AEF16[i * 4] & 0xF) {
+           case 0:
+               FieldClampPolyFT4UVs(pPoly, nSrcX, nSrcY, nSrcX + nW, nSrcY,
+                   nSrcX, nSrcY + nH, nSrcX + nW, nSrcY + nH);
+               break;
+           case 1:
+               FieldClampPolyFT4UVs(pPoly, nSrcX + nW - 1, nSrcY, nSrcX - 1, nSrcY,
+                   nSrcX + nW - 1, nSrcY + nH, nSrcX - 1, nSrcY + nH);
+               break;
+           case 2:
+               FieldClampPolyFT4UVs(pPoly, nSrcX, nSrcY + nH - 1, nSrcX + nW, nSrcY - 1,
+                   nSrcX, nSrcY + nH - 1, nSrcX + nW, nSrcY - 1);
+               break;
+           case 3:
+               FieldClampPolyFT4UVs(pPoly, nSrcX + nW - 1, nSrcY + nH - 1, nSrcX - 1, nSrcY - 1,
+                   nSrcX + nW - 1, nSrcY + nH - 1, nSrcX - 1, nSrcY - 1);
+               break;
+           }
+           *pPolyNext = *pPoly;
+       }
+       D_800AF278 = 1;
+   } */
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc5", FieldInitializeParticlePrimitive);
 
