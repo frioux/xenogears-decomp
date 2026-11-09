@@ -59,14 +59,13 @@ void func_8007DCF8(int index) {
 // 82.32% below. Also note D_800B068C/D_800B2174 must be declared above this
 // function if it becomes C.
 INCLUDE_ASM("asm/field/nonmatchings/dialogue/text_box_render", FieldTextBoxInitialize);
+// 85.16%: D_800B1DF4/D_800B1E00 are 16 DR_MODEs at 0xC each (SetDrawMode takes
+// &D_800B1DF4[i]); GetTPage's abr argument is 0, not 2. Best shape so far: y, x,
+// h, w in the order the original stores them, with x/w reached through a short
+// view of D_800AFC84 (D_800AFC84[i*4-2] = x, [+i*4] = w) -- that reproduces the
+// original's `la D_800AFC84-4` / shared biv, but gcc then strength reduces the
+// D_800AFC80 pointer and re-forms the D_800AFC84 one, the reverse of retail.
 /*
-extern DR_MODE D_800B1DF4[];
-extern DR_MODE D_800B1E00[];
-extern RECT D_800AFC80[];
-extern RECT D_800AFC84[];
-
-extern void FieldTextBoxInitializePrimitives(int index);
-
 void FieldTextBoxInitialize(void) {
     int i;
     RECT rect;
@@ -78,15 +77,15 @@ void FieldTextBoxInitialize(void) {
 
     for (i = 0; i < 16; i++) {
         D_800AFC80[i].y = 0;
-        D_800AFC80[i].x = 0;
+        D_800AFC84[i * 4 - 2] = 0;
         D_800AFC80[i].h = 0xFF;
-        D_800AFC84[i].x = 0xFF;
+        D_800AFC84[i * 4] = 0xFF;
         D_800AFC80[i].y = 0;
-        D_800AFC80[i].x = 0;
+        D_800AFC84[i * 4 - 2] = 0;
         D_800AFC80[i].h = 0xFF;
-        D_800AFC84[i].x = 0xFF;
-        SetDrawMode(&D_800B1DF4[i], NULL, 0, GetTPage(0, 2, 0x380, 0x100), &D_800AFC80[i]);
-        SetDrawMode(&D_800B1E00[i], NULL, 0, GetTPage(0, 2, 0x380, 0x100), &D_800AFC80[i]);
+        D_800AFC84[i * 4] = 0xFF;
+        SetDrawMode(&D_800B1DF4[i], NULL, 0, GetTPage(0, 0, 0x380, 0x100), &D_800AFC80[i]);
+        SetDrawMode(&D_800B1E00[i], NULL, 0, GetTPage(0, 0, 0x380, 0x100), &D_800AFC80[i]);
     }
 
     for (i = 0; i < 4; i++) {
