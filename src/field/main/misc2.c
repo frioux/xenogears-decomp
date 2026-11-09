@@ -2,6 +2,7 @@
 #include "field/main.h"
 #include "field/actor.h"
 #include "system/math.h"
+#include "system/controller.h"
 #include "psyq/libgpu.h"
 #include "psyq/libgte.h"
 
@@ -449,7 +450,56 @@ int func_8007469C(void) {
     return 0;
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc2", FieldPollControllers);
+extern u16 D_800AFE9C; // Buttons pressed this frame (player 1)
+extern u16 D_800AFEA0; // Buttons pressed this frame (player 2)
+extern u16 D_800C2694; // Buttons released this frame (player 1)
+extern u16 D_800C38F8; // Buttons released this frame (player 2)
+extern u16 D_800C3900; // Buttons pressed this frame, first press only (player 1)
+extern u16 D_800C3908; // Buttons pressed this frame, first press only (player 2)
+extern u16 D_800ADB00; // Mask of buttons polled by the field
+extern s32 D_800ADBDC;
+extern int D_80065848[];
+extern int ControllerPopState(void);
+extern void ControllerResetState(void);
+extern void func_8007AE78(int controllerIndex, int* pOut);
+
+void FieldPollControllers(void) {
+    D_800AFE9C = 0;
+    D_800AFEA0 = 0;
+    D_800C2694 = 0;
+    D_800C38F8 = 0;
+    D_800C3900 = 0;
+    D_800C3908 = 0;
+
+    while (ControllerPopState()) {
+        D_800AFE9C |= g_C1ButtonState & g_FieldControl.controllerBtnMask;
+        D_800AFEA0 |= g_C2ButtonState;
+        D_800C2694 |= g_C1ButtonStateReleased & g_FieldControl.controllerBtnMask;
+        D_800C38F8 |= g_C2ButtonStateReleased;
+        D_800C3900 |= g_C1ButtonStatePressedOnce & g_FieldControl.controllerBtnMask;
+        D_800C3908 |= g_C2ButtonStatePressedOnce;
+    }
+
+    D_800AFE9C &= D_800ADB00;
+    D_800C2694 &= D_800ADB00;
+    D_800C3900 &= D_800ADB00;
+
+    ControllerResetState();
+    func_8007AE78(1, D_80065848);
+
+    if (D_800ADC18 != 0) {
+        D_800AFE9C = 0;
+        D_800AFEA0 = 0;
+        D_800C2694 = 0;
+        D_800C38F8 = 0;
+        D_800C3900 = 0;
+        D_800C3908 = 0;
+    }
+
+    if (D_800ADBDC == 0) {
+        D_800C2694 &= 0xFF7F;
+    }
+}
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", FieldRenderModels);
 
