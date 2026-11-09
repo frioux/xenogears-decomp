@@ -10,9 +10,13 @@ s32 D_800592EC;
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80022B2C);
 /* Best attempt: 96.30% (376 bytes; the original is 380). Instruction stream and control flow
-   agree; the only difference is a `move a0,s0` that the original repeats at the head of the
-   last block and this C omits because gcc carries a0 across the blez delay slot. Local `speed`
-   must not be reused for the bounce term below or gcc keeps it in a callee-saved register.
+   agree. Two related deltas: (1) reorg steals the `move a0,s0` from the head of the else block
+   (.L80022C68) into the `bnez` delay slot, so this C is one instruction short -- the original
+   emits `lw a1,16(s0)` first in that block and keeps the move second; (2) in the bounce block the
+   original keeps |step.y| in v1 and stores before the `bgez`, this C uses a1 and the store lands
+   in the `bgez` delay slot. Tried: gcc 2.6.0/2.7.2/-O1..-O3/-G4..-G8 (try_flags sweep, best is the
+   current preset at 96.30). Local `speed` must not be reused for the bounce term below or gcc
+   keeps it in a callee-saved register.
 extern s32 func_80022CAC(SpriteData* pSpriteData, s32 value);
 extern void func_800BA8F4(void);
 
