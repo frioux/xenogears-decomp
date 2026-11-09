@@ -394,6 +394,75 @@ void func_800AC03C(u_char* pDst, u_short* pSrc) {
 }
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc9", func_800AC0F0);
+/* 93.13% (528 bytes, same size as the original). Everything from the first
+   func_800ABFDC call to the epilogue is instruction-identical; only the block
+   layout around the `if (D_800AF780 > 0)` differs. The original branches
+   `bgtz` into the loop body (leaving the exit `j` and the `break` block
+   between the test and the body) and my C makes gcc lay the body out as the
+   fall-through with an inverted `blez`. Tried: `for` vs `while`, `line = 0`
+   before the guard, and a duplicated `line = 0` in an else arm (that one
+   flips the branch direction but adds 8 bytes).
+void* func_800AC0F0(void* pData, s32 x, s32 frameIndex) {
+    u_char glyph[0x120];
+    RECT rect;
+    RECT srcRect;
+    u_char text[0x40];
+    s32 isGlyph;
+    s32 glyphCode;
+    int i;
+    int index;
+    int line;
+
+    rect.w = 9;
+    rect.h = 0x10;
+    rect.y = frameIndex << 4;
+
+    for (i = 0; i < 0x40; i++) {
+        text[i] = ((u_char*)pData)[i];
+    }
+    for (i = 0x11F; i >= 0; i--) {
+        glyph[i] = 0;
+    }
+
+    index = 0;
+    line = 0;
+    if (D_800AF780 > 0) {
+        while (line < 0x1C) {
+            if (text[index] == 0xD) {
+                index++;
+                break;
+            }
+            glyphCode = func_800ABFDC(&text[index], &isGlyph);
+            index += 2;
+            if (isGlyph == 1) {
+                srcRect.w = 9;
+                srcRect.h = 0x10;
+                srcRect.x = glyphCode % 7 * 9 + 0x380;
+                srcRect.y = glyphCode / 7 * 0x10 + 0x100;
+                MoveImage(&srcRect, x + line * 9, frameIndex << 4);
+            } else {
+                func_800AC03C(glyph, glyphCode);
+                rect.x = x + line * 9;
+                LoadImage(&rect, glyph);
+            }
+            DrawSync(0);
+            line++;
+        }
+    }
+
+    for (i = 0x11F; i >= 0; i--) {
+        glyph[i] = 0;
+    }
+    for (; line < 0x1C; line++) {
+        rect.x = x + line * 9;
+        LoadImage(&rect, glyph);
+        DrawSync(0);
+    }
+
+    D_800AF780 -= index;
+    return (u_char*)pData + index;
+}
+*/
 
 extern int ArchiveDecodeAlignedSize(unsigned int entryIndex);
 extern void ArchiveReadFileToBuffer(s32 index, void* pBuffer, u32 arg2, u32 flags);
