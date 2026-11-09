@@ -114,7 +114,6 @@ void func_80080F44(int actorIndex) {
     int numWords = sizeof(ActorData) / sizeof(u_int);
     int i;
     u_int* pData;
-    ActorData* pActor;
     FieldActorModelData* pModelData;
     u8 unused[0x60]; // original has an unused stack slot; reproduces the frame
 
@@ -152,7 +151,6 @@ void func_80080F44(int actorIndex) {
     int numWords = sizeof(ActorData) / sizeof(u_int);
     int i;
     u_int* pData;
-    ActorData* pActor;
     FieldActorModelData* pModelData;
     u8 unused[0x60];
 
@@ -1109,6 +1107,104 @@ void func_800864F0(void) {
 }
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80086590);
+/* 85.77%: right frame (0xB0) and instruction count, every loop matched
+   (init, actor scan, slot->pane map, pane release, and the two output calls).
+   Three residuals, all address materialisation:
+   1. `lh 34(a2)` etc. in the magnitude call: the original loads pActorData once
+      into a2 for both the unk10D test and the three position reads, which needs
+      a pActor local -- but declaring that local (or a `s16* pDelta` pointer for
+      the last loop) makes gcc keep the post-call pActorData reload in a register
+      across the delta stores, so the three `lw 76(v0)` reloads collapse into one
+      and combine turns the `lh`+`subu`+`sh` pairs into `lhu`.
+   2. the last loop reads the s16 deltas through a pointer based at slots+0x60
+      advancing by 8 (`lh a2,0(s0)`); slots.delta[i][0] gives `lh a2,96(s2)`.
+      Forcing it with a pointer local costs (1) above, net -0.2%.
+   3. two sw's before the g_FieldActors reload in the delta block.
+typedef struct {
+    s32 distance[4]; // 0x00
+    s32 unk10[4]; // 0x10
+    s32 unk20[4]; // 0x20
+    s32 inUse[4]; // 0x30
+    s32 unk40[4]; // 0x40
+    s32 actorIndex[4]; // 0x50
+    s16 delta[3][4]; // 0x60
+} FieldActorProximitySlots; // Size: 0x78
+
+void func_80086590(VECTOR* pPosition) {
+    FieldActorProximitySlots slots;
+    s16* pPos = (s16*)pPosition;
+    s16* pActorPos;
+    s32 distance;
+    s32 slot;
+    int i;
+
+    for (i = 0; i < 3; i++) {
+        slots.distance[i] = 0xFFFF;
+        slots.unk10[i] = -1;
+        slots.unk40[i] = 0;
+        slots.inUse[i] = 0;
+        slots.actorIndex[i] = 0;
+        slots.unk20[i] = 0;
+    }
+
+    for (i = 0; i < D_800ADBFC; i++) {
+        if (g_FieldActors[i].pActorData->unk10D != 0xFF) {
+            pActorPos = (s16*)&g_FieldActors[i].pActorData->position;
+            distance = FieldGetVec3Magnitude(
+                pPos[1] - pActorPos[1],
+                pPos[3] - pActorPos[3],
+                pPos[5] - pActorPos[5]);
+            if (slots.distance[0] < slots.distance[1]) {
+                slot = (slots.distance[1] < slots.distance[2]) ? 2 : 1;
+            } else {
+                slot = (slots.distance[0] < slots.distance[2]) ? 2 : 0;
+            }
+            if (distance < slots.distance[slot]) {
+                slots.actorIndex[slot] = i;
+                slots.distance[slot] = distance;
+                slots.unk10[slot] = g_FieldActors[i].pActorData->unk10A;
+                slots.unk20[slot] = g_FieldActors[i].pActorData->unk10C;
+                pActorPos = (s16*)&g_FieldActors[i].pActorData->position;
+                slots.delta[slot][0] = pPos[1] - pActorPos[1];
+                slots.delta[slot][1] = pPos[3] - pActorPos[3];
+                slots.delta[slot][2] = pPos[5] - pActorPos[5];
+            }
+        } else {
+            g_FieldActors[i].pActorData->unk10D = 0xFF;
+        }
+    }
+
+    for (i = 0; i < 3; i++) {
+        slot = func_80086470(slots.unk10[i], slots.actorIndex[i]);
+        if (slot != -1) {
+            slots.inUse[slot] = 1;
+            slots.unk40[i] = 1;
+        }
+    }
+
+    for (i = 0; i < 3; i++) {
+        if (slots.inUse[i] == 0) {
+            if (D_800AFE8A[i].unk0 != 0xFFFF) {
+                func_8003A20C(i * 2);
+                D_800AFE8A[i].unk0 = 0xFFFF;
+                D_800AFE88[i].unk0 = 0xFFFF;
+            }
+        }
+    }
+
+    for (i = 0; i < 3; i++) {
+        if (slots.unk10[i] != -1) {
+            if (slots.unk40[i] == 1) {
+                func_800860F0(slots.unk10[i], slots.unk20[i], slots.delta[i][0], slots.distance[i],
+                    slots.actorIndex[i]);
+            } else {
+                func_800862CC(slots.unk10[i], slots.unk20[i], slots.delta[i][0], slots.distance[i],
+                    slots.actorIndex[i]);
+            }
+        }
+    }
+}
+*/
 
 extern VECTOR g_CameraEye;
 extern VECTOR g_CameraAt;
