@@ -10,12 +10,18 @@ typedef struct {
     /* 0x1 */ u_char unk1;
     /* 0x2 */ u_char unk2;
     /* 0x3 */ u_char unk3;
-    /* 0x4 */ u_short unk4;
+    /* 0x4 */ short unk4;
     /* 0x6 */ u_char unk6;
     /* 0x7 */ u_char unk7;
 } ControllerBState; // Size: 0x8
 
 extern ControllerBState D_8005A1BC[];
+// D_8005A1C0/D_8005A1C3 are the record array's unk4/unk7 seen through their own
+// symbol, which is how splat split the .bss labels; element stride stays 0x8.
+extern u_short D_8005A1C0[];
+extern u_char D_8005A1C3[];
+
+extern void func_80036188(ControllerBState* pState);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/controller_b", func_80035E44);
 
@@ -25,16 +31,42 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/controller_b", func_80035FF8);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/controller_b", func_8003611C);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/controller_b", func_80036188);
+void func_80036188(ControllerBState* pState) {
+    if (pState->unk7) {
+        return;
+    }
+    if (pState->unk4) {
+        pState->unk0 = 1;
+        pState->unk1 = 0x40;
+        pState->unk2 = 1;
+        pState->unk3 = 0;
+        pState->unk6 = 1;
+        pState->unk4 -= 1;
+    } else if (pState->unk6 == 1) {
+        pState->unk0 = 1;
+        pState->unk1 = 0x40;
+        pState->unk2 = 0;
+        pState->unk3 = 0;
+        pState->unk6 = 2;
+    } else if (pState->unk6 == 2) {
+        pState->unk0 = 0;
+        pState->unk6 = 0;
+    }
+}
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/controller_b", func_80036220);
+void func_80036220(void) {
+    ControllerBState* pState = D_8005A1BC;
+
+    func_80036188(&pState[0]);
+    func_80036188(&pState[1]);
+}
 
 void func_80036258(int index, u_short value) {
-    *(u_short*)((u_char*)D_8005A1BC + index * 8 + 4) = value;
+    D_8005A1C0[index * 4] = value;
 }
 
 void func_80036270(int index, u_char value) {
-    D_8005A1BC[index].unk7 = value;
+    D_8005A1C3[index * 8] = value;
 }
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/controller_b", ControllerInit);
