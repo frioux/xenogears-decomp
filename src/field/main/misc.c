@@ -1344,12 +1344,8 @@ void func_8008B894(void) {
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008B978);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008BC80);
-// 99.13%: byte-identical but for the store of the new party member, where the
-// original copies the id into $a0 (`move a0,s0`) and stores that. Ours stores
-// $s0 directly; a source-level copy (`int memberId = characterId`) is
-// coalesced away, and a pointer/pointer-arith spelling is worse (92.78%).
-/*
+extern void func_8008A7DC(int characterId, int partyIndex);
+
 void func_8008BC80(void) {
     int characterId;
     int partyIndex;
@@ -1361,7 +1357,7 @@ void func_8008BC80(void) {
             if (func_8008A790(characterId, &partyIndex) == 0) {
                 g_pGameState->gearRide[partyIndex] = 0;
                 g_GamePartyMembers[partyIndex] = characterId;
-                func_8008A7DC();
+                func_8008A7DC(characterId, partyIndex);
                 g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
             } else {
                 g_pGameState->unk1D30 |= 1 << characterId;
@@ -1375,7 +1371,6 @@ void func_8008BC80(void) {
         g_FieldScriptVMCurActor->scriptInstructionPointer -= 1;
     }
 }
-*/
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008BDD8);
 // 94.32%: structure and every store match; only the second SCRIPT_READ_U8_REL(1)
