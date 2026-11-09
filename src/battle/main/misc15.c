@@ -83,6 +83,22 @@ void func_8008B108(u8 arg0) {
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008B168);
+/* Best: 99.36%. Same tail as func_8008BC98: the two `D_800C3EAC + arg0*0x40`
+   base adds come out index-first (`addu v1,s1,v1`, `addu s1,s1,v0`) where the
+   original has base-first (`addu v1,v1,s1`, `addu v0,v0,s1`). Both operands die
+   at each add, so it is a global.c tie-break. Tried: subscript vs pointer
+   arithmetic for the entry address. Everything else is identical.
+void func_8008B168(u8 arg0) {
+    u16 value;
+
+    D_800D2D28[0x9C] = D_800D2D28[0x9D] = D_800D2D28[0x9E] = 1;
+    D_800D2D28[0xB0] = D_800D2D28[0xB1] = D_800D2D28[0xB2] = D_800D2D28[0xB3] = 1;
+    D_800D2D28[0xB7] = 1;
+    value = func_80089C08(arg0) | func_80089C08((D_800C3EAC + arg0 * 0x40)[0x3C]);
+    func_800BC404(value);
+    func_800BCD98(func_80089C08((D_800C3EAC + arg0 * 0x40)[0x3C]));
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008B224);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008B478);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008B908);
@@ -105,7 +121,7 @@ void func_8008BC98(u8 arg0) {
     D_800D2D28[0x9C] = D_800D2D28[0x9D] = D_800D2D28[0x9E] = 1;
     D_800D2D28[0xB0] = D_800D2D28[0xB1] = 1;
     D_800D2D28[0xB7] = 2;
-    value = func_80089C08(arg0) | func_80089C08(D_800C3EAC[arg0 * 0x40 + 0x3C]);
+    value = func_80089C08(arg0) | func_80089C08((D_800C3EAC + arg0 * 0x40)[0x3C]);
     func_800BC404(value);
     func_800BCD98(func_80089C08((D_800C3EAC + arg0 * 0x40)[0x3C]));
 }
@@ -127,6 +143,22 @@ void func_8008C360(u8 arg0) {
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008C3F0);
+/* Best: 99.36%. Same tail as func_8008BC98: the two `D_800C3EAC + arg0*0x40`
+   base adds come out index-first (`addu v1,s1,v1`, `addu s1,s1,v0`) where the
+   original has base-first (`addu v1,v1,s1`, `addu v0,v0,s1`). Both operands die
+   at each add, so it is a global.c tie-break. Tried: subscript vs pointer
+   arithmetic for the entry address. Everything else is identical.
+void func_8008C3F0(u8 arg0) {
+    u16 value;
+
+    D_800D2D28[0x9C] = D_800D2D28[0x9D] = D_800D2D28[0x9E] = 1;
+    D_800D2D28[0xB7] = 3;
+    D_800D2D28[0xB0] = D_800D2D28[0xB1] = 1;
+    value = func_80089C08(arg0) | func_80089C08((D_800C3EAC + arg0 * 0x40)[0x3C]);
+    func_800BC404(value);
+    func_800BCD98(func_80089C08((D_800C3EAC + arg0 * 0x40)[0x3C]));
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008C4A8);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008C81C);
 void func_8008CCCC(u8 arg0) {
@@ -138,3 +170,19 @@ void func_8008CCCC(u8 arg0) {
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008CD28);
+/* Best: 99.36%. Same tail as func_8008BC98: the two `D_800C3EAC + arg0*0x40`
+   base adds come out index-first (`addu v1,s1,v1`, `addu s1,s1,v0`) where the
+   original has base-first (`addu v1,v1,s1`, `addu v0,v0,s1`). Both operands die
+   at each add, so it is a global.c tie-break. Tried: subscript vs pointer
+   arithmetic for the entry address. Everything else is identical.
+void func_8008CD28(u8 arg0) {
+    u16 value;
+
+    D_800D2D28[0x9C] = D_800D2D28[0x9D] = D_800D2D28[0x9E] = 1;
+    D_800D2D28[0xB0] = D_800D2D28[0xB1] = D_800D2D28[0xB2] = 1;
+    D_800D2D28[0xB7] = 4;
+    value = func_80089C08(arg0) | func_80089C08((D_800C3EAC + arg0 * 0x40)[0x3C]);
+    func_800BC404(value);
+    func_800BCD98(func_80089C08((D_800C3EAC + arg0 * 0x40)[0x3C]));
+}
+*/
