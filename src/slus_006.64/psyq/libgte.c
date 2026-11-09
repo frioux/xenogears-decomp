@@ -98,11 +98,17 @@ MATRIX *ScaleMatrix(MATRIX *m, VECTOR *v) {
 */
 
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", SetRotMatrix);
+void SetRotMatrix(MATRIX *m) {
+    gte_SetRotMatrix(m);
+}
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", SetLightMatrix);
+void SetLightMatrix(MATRIX *m) {
+    gte_SetLightMatrix(m);
+}
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", SetColorMatrix);
+void SetColorMatrix(MATRIX *m) {
+    gte_SetColorMatrix(m);
+}
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", SetTransMatrix);
 /* best attempt 96.25%. The original loads into t0/t1/t2, gcc into
@@ -316,7 +322,13 @@ void ColorCol(VECTOR *v0, CVECTOR *v1, CVECTOR *v2) {
     gte_strgb(v2);
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", AverageSZ3);
+long AverageSZ3(void) {
+    long otz;
+
+    gte_avsz3_b();
+    gte_stotz_val(otz);
+    return otz;
+}
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", AverageSZ4);
 
@@ -377,9 +389,25 @@ VECTOR *Square0(VECTOR *v0, VECTOR *v1) {
 */
 
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", AverageZ3);
+long AverageZ3(long sz0, long sz1, long sz2) {
+    long otz;
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", AverageZ4);
+    gte_ldsz3(sz0, sz1, sz2);
+    gte_nop();
+    gte_avsz3_b();
+    gte_stotz_val(otz);
+    return otz;
+}
+
+long AverageZ4(long sz0, long sz1, long sz2, long sz3) {
+    long otz;
+
+    gte_ldsz4(sz0, sz1, sz2, sz3);
+    gte_nop();
+    gte_avsz4_b();
+    gte_stotz_val(otz);
+    return otz;
+}
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", OuterProduct12);
 
