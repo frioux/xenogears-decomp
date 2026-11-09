@@ -33,6 +33,11 @@ build_variables = {
 }
 paths = [ "{binary}/psyq" ]
 
+# system/sound is 2.6.0 for its WHOLE length: of the 235 functions defined in C,
+# 45 are 100% under 2.6.0 and 70-99.6% under 2.7.2 (they are spread over the whole
+# range, 0x37E8C..0x3F5EC), while ZERO functions are 2.7.2-only. func_8003D53C is
+# the one function whose C is 100% under 2.7.2 and 95.83% under 2.6.0, and its
+# neighbours are 2.6.0-only, so the unit cannot be carved at a compiler boundary.
 [[build_preset]]
 name = "XenoLibrary"
 build_variables = {
