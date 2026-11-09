@@ -447,3 +447,34 @@ Beyond matching: split the remaining overlays (`battling`, `world_map`, `battle`
 3. Add `config/symbol_addrs.<name>.txt`, `src/<name>/`, the overlay to
    `overlays` in `gears.toml`, a category in `tools/objdiff/config.yaml`, and its
    expected sha256 to `config/checksum.sha` once it links byte-identical.
+
+### The overlay recipe that actually works (world_map, one sitting)
+
+`config/world_map.yaml` is the reference; copy it rather than the template.
+
+1. `shasum disc/<name>.bin` for the sha1; the load address is in the table in
+   `reports/TRACKER.md` ("Overlay load addresses") and `0x80059170` is the `gp`.
+2. Start with the whole code span as ONE `asm` subsegment plus
+   `[<size-3>, databin]` and `[<size>]`. This *links* but fails with
+   `undefined reference to D_XXXX` — that error is splat telling you the tail of
+   the "code" is data.
+3. Split the head and tail: `[0x0, rodata]` (splat auto-detects the length; the
+   first `glabel` in the disassembly is usually a `D_` at offset 0, so code starts
+   at the first `func_` glabel), `[<first func>, asm]`, `[<just past the last
+   function>, data]`. A `data` subsegment auto-detects a length that ends on a
+   4-byte boundary, so set the `databin` start to that aligned end, not to the
+   "real" data end — otherwise the output comes up 1-6 bytes short and `cmp`
+   reports EOF (this was the last bug in world_map).
+4. Verify with `cmp build/out/<name>.bin disc/<name>.bin` (silent = good) and add
+   the sha256 to `config/checksum.sha` so `make check` gates it from then on.
+5. Carve: append every `glabel` symbol from `asm/<name>/<offset>.s` to
+   `config/symbol_addrs.<name>.txt`, write `src/<name>/main/miscN.c` with one
+   `INCLUDE_ASM("asm/<name>/nonmatchings/main/miscN", Func);` per function in
+   address order (25 per unit), and replace the `asm` subsegment with one `c`
+   range per unit at the function's **file offset** (the first hex field in the
+   disassembly comment, not the vram). Rebuild: bytes must still be identical.
+6. `overlays = [...]` in `gears.toml`, a category in `tools/objdiff/config.yaml`,
+   and add `<name>` to the `case` in `tools/scripts/check_bin.sh` and to
+   `BINARIES` in `tools/scripts/select_target.py`.
+
+`tools/rounds/overlay-brief.js` is the worker brief for steps 2-5.
