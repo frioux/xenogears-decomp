@@ -225,7 +225,7 @@ typedef struct {
     /* 0x50  */ u32 unk50;
     /* 0x54  */ u32 unk54;
     /* 0x58  */ s16 unk58;
-    /* 0x5A  */ u8 unk5A[0x2];
+    /* 0x5A  */ s16 unk5A;
     /* 0x5C  */ u8 unk5C;
     /* 0x5D  */ u8 unk5D[0x3];
     /* 0x60  */ s16 ground; // seems to be some kind of offset? maybe "below this point model will clip through the ground"?
