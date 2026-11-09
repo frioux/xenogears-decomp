@@ -7,6 +7,7 @@
 extern u8 D_800928A0;
 extern u32 D_80092818[];
 extern s32 D_80092810;
+extern s32 D_80092820;
 extern u32 D_800928E4;
 extern s32 D_80050100;
 extern s32 D_80050104;
@@ -17,6 +18,12 @@ extern s32 D_80096D8C;
 extern void func_80030A30(s32 index, void *pLight);
 extern void func_8008AF6C(void *pData);
 extern void func_8008B730(void *pA, s32 arg1, s32 arg2);
+
+typedef struct {
+    /* 0x0 */ u32 unk0;
+    /* 0x4 */ u32 unk4;
+    /* 0x8 */ u8 unk8[0xC];
+} Misc14Entry; // Size: 0x14
 
 void func_8008A618(void) {
     D_80092810 = 1;
@@ -34,14 +41,13 @@ void func_8008A78C(u8 *pActor) {
     s32 index = D_800928A0;
     u8 *pModel = *(u8 **)(pActor + 4);
     u8 *pData = *(u8 **)(pModel + 0xC);
-    s32 count = *(s16 *)(pData + 2) - 1;
-    u32 *pList = *(u32 **)(pData + index * 4 + 0x10);
+    s32 count = *(s16 *)(pData + 2);
+    Misc14Entry *pEntry = *(Misc14Entry **)(pData + index * 4 + 0x10);
     u32 value = D_80092818[index];
 
-    while (count != -1) {
-        pList[1] = value;
-        count--;
-        pList = (u32 *)((u8 *)pList + 0x14);
+    while (--count != -1) {
+        pEntry->unk4 = value;
+        pEntry++;
     }
 }
 
@@ -66,7 +72,7 @@ void func_8008AC7C(s32 arg0) {
 }
 
 void func_8008AC8C(void) {
-    D_80091C30 = GetRCnt(0xF2000001);
+    D_80092820 = GetRCnt(0xF2000001);
 }
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc14", func_8008ACB8);
@@ -95,6 +101,14 @@ void func_8008B5DC(void *pA, s32 arg1) {
     func_8008B730(pA, arg1, 1);
 }
 
+INCLUDE_ASM("asm/battling/nonmatchings/main/misc14", func_8008B5FC);
+
+/* Best attempt: objdiff 96.19% and 88 bytes against the original's 84, so it is
+   not linkable either. Identical apart from which pseudo holds `value`: the
+   original keeps it in $v0 (`move v0,a0` in the beqz delay slot, `mflo v0`,
+   `subu v0,a0,v0`), gcc in $a0, which dies at the same point. `return value;`
+   at the end and three early `return`s both give the $a0 form. */
+/*
 s16 func_8008B5FC(s32 arg0, s32 arg1, s32 arg2) {
     s32 value;
     s32 diff;
@@ -111,6 +125,7 @@ s16 func_8008B5FC(s32 arg0, s32 arg1, s32 arg2) {
     }
     return value;
 }
+*/
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc14", func_8008B650);
 
@@ -122,17 +137,29 @@ void func_8008BAE0(void *pMem) {
     HeapFree(pMem);
 }
 
-void func_8008BB00(s32 *pDst) {
-    s32 a = D_80096D88;
-    s32 b = D_80096D8C;
+INCLUDE_ASM("asm/battling/nonmatchings/main/misc14", func_8008BB00);
 
-    pDst[0] = a;
-    pDst[1] = b;
+/* Best attempt: objdiff 94.29%. Only the temporaries differ: the original loads
+   into $t0/$t1, gcc into $v0/$v1; the instruction sequence and both symbols are
+   identical. Two locals, direct field stores and a struct pointer all give
+   $v0/$v1. */
+/*
+void func_8008BB00(Misc14Entry *pDst) {
+    pDst->unk0 = D_80096D88;
+    pDst->unk4 = D_80096D8C;
 }
+*/
 
-void func_8008BB1C(s32 *pSrc) {
-    D_80096D88 = pSrc[0];
-    D_80096D8C = pSrc[1];
+INCLUDE_ASM("asm/battling/nonmatchings/main/misc14", func_8008BB1C);
+
+/* Best attempt: objdiff 73.12%. The original stores each field before loading
+   the next (`lw t0 / sw t0 / lw t0 / sw t0`, one temporary); gcc hoists the
+   second load above the first store (`lw v0 / lw v1 / sw / sw`). */
+/*
+void func_8008BB1C(Misc14Entry *pSrc) {
+    D_80096D88 = pSrc->unk0;
+    D_80096D8C = pSrc->unk4;
 }
+*/
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc14", func_8008BB3C);
