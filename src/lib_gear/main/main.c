@@ -612,6 +612,22 @@ s32 func_801DF7F4(Temp4* pList, ModelJoint* pSkeleton, KeyframeBlock* pBlock, s3
 }
 */
 
+// objdiff 75.14%. The instruction shapes of the whole 242-insn body are right:
+// the two 6-byte-stride channels, the 0xFFFF merge into the else arm (the
+// unk3==0xFF goto lands on the same code), blockFlags&1 / i!=0 / rotFrame<
+// numRotFrames guards, pObject fill order (unk0,unk1,unk3,unk2,unk10,unk12,
+// unk4=unk8=pVertexBase+pKeyframe[0]) and the 6-byte pKeyframe stride.
+// Remaining delta is allocation only: the original keeps flag1 in $fp and the
+// constant 1 in $a1 (spilled to 0x48(sp) around the two func_801DF6F0 calls),
+// and reads the u8 `type` argument straight from its home slot 0x88(sp) each
+// use; gcc here spills flag1 to a slot and copies `type` into a slot at entry,
+// which costs the register that the other value needs. Also unmatched: the
+// original spills `(u8*)&pKeyframe[2]` (addiu t0,s2,4 at the loop top, reloaded
+// for both channels) where gcc uses 4(s2)/5(s2) immediates; and it allocates
+// pSkeleton to s1 and pBlock to s2, ours is swapped. Declaration reordering
+// (flag1 first) dropped the score to 75.10%.
+INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801DFAC4);
+/*
 s32 func_801DFAC4(Temp4* pList, ModelJoint* pSkeleton, KeyframeBlock* pBlock, s32 flags, u8 type) {
     u16 numRotFrames;
     u16 numTransFrames;
@@ -743,6 +759,7 @@ s32 func_801DFAC4(Temp4* pList, ModelJoint* pSkeleton, KeyframeBlock* pBlock, s3
 
     return 0;
 }
+*/
 
 void func_801DFE8C(Temp4* pList, ModelJoint* pSkeleton) {
     int i;
