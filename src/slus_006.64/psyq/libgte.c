@@ -105,6 +105,14 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", SetLightMatrix);
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", SetColorMatrix);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", SetTransMatrix);
+/* best attempt 96.25%. The original loads into t0/t1/t2, gcc into
+   v0/v1/a1 (it prefers the lowest call-clobbered registers). Byte-for-byte
+   identical apart from those three register numbers.
+void SetTransMatrix(MATRIX *m) {
+    gte_ldtr(m->t[0], m->t[1], m->t[2]);
+}
+*/
+
 
 void SetVertex0(SVECTOR *v0) {
     gte_ldv0(v0);
@@ -126,19 +134,31 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", SetRGBfifo);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", SetIR123);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", SetIR0);
+void SetIR0(long p) {
+    gte_lddp(p);
+}
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", SetSZfifo3);
+void SetSZfifo3(long sz1, long sz2, long sz3) {
+    gte_ldsz3(sz1, sz2, sz3);
+}
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", SetSZfifo4);
+void SetSZfifo4(long sz0, long sz1, long sz2, long sz3) {
+    gte_ldsz4(sz0, sz1, sz2, sz3);
+}
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", SetSXSYfifo);
+void SetSXSYfifo(long sxy0, long sxy1, long sxy2) {
+    gte_ldsxy0(sxy0);
+    gte_ldsxy1(sxy1);
+    gte_ldsxy2(sxy2);
+}
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", SetRii);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", SetMAC123);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", SetData32);
+void SetData32(long data) {
+    gte_ldlzc(data);
+}
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", SetDQA);
 
@@ -148,9 +168,13 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", ReadGeomOffset);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", ReadGeomScreen);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", SetBackColor);
+void SetBackColor(long rbk, long gbk, long bbk) {
+    gte_ldbkdir(rbk << 4, gbk << 4, bbk << 4);
+}
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", SetFarColor);
+void SetFarColor(long rfc, long gfc, long bfc) {
+    gte_ldfcdir(rfc << 4, gfc << 4, bfc << 4);
+}
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", SetGeomOffset);
 
@@ -166,7 +190,13 @@ void LocalLight(SVECTOR *v0, VECTOR *v1) {
     gte_stlvl(v1);
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", DpqColor);
+void DpqColor(CVECTOR *v0, long p, CVECTOR *v1) {
+    gte_ldrgb(v0);
+    gte_lddp(p);
+    gte_nop();
+    gte_dpcs_b();
+    gte_strgb(v1);
+}
 
 void NormalColor(SVECTOR *v0, CVECTOR *v1) {
     gte_ldv0(v0);
@@ -177,10 +207,57 @@ void NormalColor(SVECTOR *v0, CVECTOR *v1) {
 
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", NormalColor3);
+/* best attempt 72.67%. Only difference: gcc copies the two stack arguments
+   (v4 at 0x10(sp), v5 at 0x14(sp)) into v-registers at function entry; the
+   original loads them into t0/t1 after the NCT. cc1 2.7.2 (and 2.6.0) always
+   materializes incoming stack arguments in the entry block, so this cannot be
+   expressed in C. Needs the 6-argument form; blocked by the compiler.
+void NormalColor3(SVECTOR *v0, SVECTOR *v1, SVECTOR *v2, CVECTOR *v3, CVECTOR *v4,
+                  CVECTOR *v5) {
+    CVECTOR *p4 = v4;
+    CVECTOR *p5 = v5;
+
+    gte_ldv3(v0, v1, v2);
+    gte_nop();
+    gte_nct_b();
+    gte_strgb3(v3, p4, p5);
+}
+*/
+
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", NormalColorDpq);
+/* best attempt 88.89% (this form 77.78%). With gte_ldrgb before gte_lddp
+   every instruction matches except one extra nop maspsx inserts between
+   `lwc2 $6, 0($5)` and `mtc2 $6, $8`: it mistakes the GTE register number in
+   the lwc2 for the general register read by the mtc2 (the depth argument is in
+   $6 here). Same cause as ColorDpq/DpqColorLight below.
+void NormalColorDpq(SVECTOR *v0, CVECTOR *v1, long p, CVECTOR *v2) {
+    gte_ldv0(v0);
+    gte_lddp(p);
+    gte_ldrgb(v1);
+    gte_nop();
+    gte_ncds_b();
+    gte_strgb(v2);
+}
+*/
+
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", NormalColorDpq3);
+/* best attempt 53.50%. Same entry-block stack-argument copy as NormalColor3.
+   Also note the original loads p straight into the GTE with
+   `lwc2 $8, 0x10(sp)` where gte_lddp emits `mtc2 p, $8`, i.e. the original
+   header's gte_lddp took a pointer.
+void NormalColorDpq3(SVECTOR *v0, SVECTOR *v1, SVECTOR *v2, CVECTOR *v3, long p,
+                     CVECTOR *v4, CVECTOR *v5, CVECTOR *v6) {
+    gte_ldv3(v0, v1, v2);
+    gte_ldrgb(v3);
+    gte_lddp(p);
+    gte_nop();
+    gte_ncdt_b();
+    gte_strgb3(v4, v5, v6);
+}
+*/
+
 
 void NormalLightCol(SVECTOR *v0, CVECTOR *v1, CVECTOR *v2) {
     gte_ldv0(v0);
@@ -191,8 +268,33 @@ void NormalLightCol(SVECTOR *v0, CVECTOR *v1, CVECTOR *v2) {
 }
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", NormalColorCol3);
+/* best attempt 64.12%. Same entry-block stack-argument copy as NormalColor3.
+void NormalColorCol3(SVECTOR *v0, SVECTOR *v1, SVECTOR *v2, CVECTOR *v3, CVECTOR *v4,
+                     CVECTOR *v5, CVECTOR *v6) {
+    gte_ldv3(v0, v1, v2);
+    gte_ldrgb(v3);
+    gte_nop();
+    gte_ncct_b();
+    gte_strgb3(v4, v5, v6);
+}
+*/
+
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", ColorDpq);
+/* best attempt 90.00%. Everything matches except one extra nop that maspsx
+   inserts between `lwc2 $6, 0($5)` and `mtc2 $6, $8` (its load-reuse check
+   compares the lwc2 COP2 register number with the GPR the mtc2 reads; here the
+   depth argument arrives in $6).
+void ColorDpq(VECTOR *v0, CVECTOR *v1, long p, CVECTOR *v2) {
+    gte_ldlvl(v0);
+    gte_ldrgb(v1);
+    gte_lddp(p);
+    gte_nop();
+    gte_cdp_b();
+    gte_strgb(v2);
+}
+*/
+
 
 void ColorCol(VECTOR *v0, CVECTOR *v1, CVECTOR *v2) {
     gte_ldlvl(v0);
@@ -214,14 +316,54 @@ void LightColor(VECTOR *v0, VECTOR *v1) {
 }
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", DpqColorLight);
+/* best attempt 90.00%. Same maspsx nop between `lwc2 $6, 0($5)` and
+   `mtc2 $6, $8` as ColorDpq.
+void DpqColorLight(VECTOR *v0, CVECTOR *v1, long p, CVECTOR *v2) {
+    gte_ldlvl(v0);
+    gte_ldrgb(v1);
+    gte_lddp(p);
+    gte_nop();
+    gte_dpcl_b();
+    gte_strgb(v2);
+}
+*/
+
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", DpqColor3);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", Intpl);
+void Intpl(VECTOR *v0, long p, CVECTOR *v1) {
+    gte_ldlvl(v0);
+    gte_lddp(p);
+    gte_nop();
+    gte_intpl_b();
+    gte_strgb(v1);
+}
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", Square12);
+/* best attempt 82.50%. Same return-value coalescing as Square0.
+VECTOR *Square12(VECTOR *v0, VECTOR *v1) {
+    gte_ldlvl(v0);
+    gte_nop();
+    gte_sqr12_b();
+    gte_stlvnl(v1);
+    return v1;
+}
+*/
+
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", Square0);
+/* best attempt 82.50%. gcc copies v1 into v0 at entry (return-value
+   coalescing) and stores through v0; the original stores through a1 and copies
+   to v0 in the jr delay slot. Same blocker as TransMatrix/TransposeMatrix.
+VECTOR *Square0(VECTOR *v0, VECTOR *v1) {
+    gte_ldlvl(v0);
+    gte_nop();
+    gte_sqr0_b();
+    gte_stlvnl(v1);
+    return v1;
+}
+*/
+
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", AverageZ3);
 
