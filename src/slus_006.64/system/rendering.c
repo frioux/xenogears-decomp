@@ -191,6 +191,13 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001F6B0);
    no effect at all (re-confirmed). The sprite reaching t1 rather than a3 is the
    whole difference: a0 goes to the flags word, so the parameter has to be copied
    out of its incoming register.
+   Round 3 (session 4) tried 18 more source shapes and every preset: gcc-2.6.0
+   -O2 95.00, -O3 95.00 (2.7.2 and cdk), -G0 does not build; the shapes
+   (pre-shifted texPageBits, tied srl/andi, pointer-increment loop, pPackage and
+   pBase temps, u16/s32 types, an extra `type` temp, no texPage local) all land
+   79-96.5. Clue for the next attempt: a2 is NEVER used in the original, so its
+   block 1 held one more block-local pseudo than any shape tried here -- that is
+   what would push the parameter out to t1.
 
 void func_8001F6B0(SpriteData* pSpriteData) {
     SpriteFrameData* pFrameData;
