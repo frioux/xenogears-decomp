@@ -186,7 +186,7 @@ void func_801DA4A8(void) {
     MenuUnk9* pMenu;
 
     func_801D22F4(2);
-    func_801E8018(8, g_Menu->unk0x10E0, D_801EA548, g_Menu->pManager->unk38);
+    func_801E8018(8, g_Menu->unk10E0, D_801EA548, g_Menu->pManager->unk38);
     pMenu = HeapAlloc(0x1198, 0);
     g_Menu->unk42C = pMenu;
     bzero(pMenu, 0x1198);
