@@ -111,13 +111,16 @@ s32 func_801E65E4(u8* p) {
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc11", func_801E6668);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc11", func_801E68AC);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc11", func_801E6AE8);
-/* Best: 56.47%
+/* Best: 99.71%
 void func_801E6AE8(u8 arg0, u8* pArg1) {
     u8* pPrims;
+    u32 offset;
 
-    pPrims = (u8*)g_Menu->unk34C + arg0 * 0x87C + 0xA98;
-    func_8002675C(g_Menu->resources, pArg1[0x1C + arg0] + 0x14E, pPrims,
+    offset = 0xA98 + arg0 * 0x87C;
+    pPrims = (u8*)(offset + (u32)g_Menu->unk34C);
+    func_8002675C(g_Menu->resources, pArg1[arg0 + 0x1C] + 0x14E, pPrims,
                   g_Menu->renderContext, D_801EA004[arg0], D_801EA010[arg0], 0x1000);
 }
 */
+
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc11", func_801E6B70);
