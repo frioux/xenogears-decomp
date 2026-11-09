@@ -142,8 +142,10 @@ void SetColorMatrix(MATRIX *m) {
     gte_SetColorMatrix(m);
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", SetTransMatrix);
-/* best attempt 96.25%. The original loads into t0/t1/t2, gcc into
+void SetTransMatrix(MATRIX *m) {
+    gte_SetTransMatrix(m);
+}
+/* 96.25%. The original loads into t0/t1/t2, gcc into
    v0/v1/a1 (it prefers the lowest call-clobbered registers). Byte-for-byte
    identical apart from those three register numbers.
 void SetTransMatrix(MATRIX *m) {
