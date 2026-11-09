@@ -90,44 +90,6 @@ void func_80025044(void) {
     g_GfxImageList[g_GfxCurContext] = NULL;
 }
 
-// This function is in another TU than func_80024F64 due to GP Rel variables
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_800250E0);
-/*
-Matches on GCC 2.7.2-970404, ASPSX 2.67
-
-typedef struct {
-    void* pData;
-    struct LinkedListEntry* pNext;
-} LinkedListEntry;
-
-s32 g_GfxCurContext;
-int g_GfxWorkBufferSize;
-extern LinkedListEntry* D_80059300[2];
-extern int g_GfxWorkBuffers[];
-s32 D_80059524;
-void* g_GfxCurWorkBufferEnd;
-void* g_GfxCurWorkBuffer;
-
-void func_800250E0(int context) {
-    void* pPrimBuffer;
-    LinkedListEntry* pCurEntry;
-
-    pPrimBuffer = g_GfxWorkBuffers[context];
-    pCurEntry = D_80059300[context];
-    g_GfxCurContext = context;
-    g_GfxCurWorkBuffer = pPrimBuffer;
-    D_80059524 = pPrimBuffer;
-    g_GfxCurWorkBufferEnd = pPrimBuffer + g_GfxWorkBufferSize;
-    while (pCurEntry != NULL) {
-        HeapFree(pCurEntry->pData);
-        pCurEntry = pCurEntry->pNext;
-    }
-    
-    D_80059300[context] = NULL;
-}
-*/
-
-
 typedef struct {
     void* pData; // Sprite Tile data stuff
     struct LinkedListEntry* pNext;
@@ -136,6 +98,38 @@ typedef struct {
 // include/system/animation.h already types D_80059300 as a scalar; the real
 // object is the two per-context list heads, so address it through a cast.
 #define g_GfxSpriteTileLists ((LinkedListEntry**)&D_80059300)
+
+// This function is in another TU than func_80024F64 due to GP Rel variables
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_800250E0);
+/*
+Best 87.38%: blocked on the GP-rel split. The original object reads
+
+g_GfxWorkBuffers through %hi/%lo here (it was an extern in this function's
+original TU) but through %gp_rel in GfxAllocateWorkBuffers, which defines it.
+maspsx decides per symbol, so one temp2.c cannot produce both spellings; the
+only diff is `lw a0,0(gp); addu v1,v1,a0` vs `lui v0,%hi; addiu v0,v0,%lo;
+addu v1,v1,v0; lw v0,0(v1)`.
+Declare D_80059524 as a tentative definition (not extern) so maspsx emits
+%gp_rel for it.
+s32 D_80059524;
+void func_800250E0(int context) {
+    void* pPrimBuffer;
+    LinkedListEntry* pCurEntry;
+
+    pCurEntry = g_GfxSpriteTileLists[context];
+    pPrimBuffer = ((void**)g_GfxWorkBuffers)[context];
+    g_GfxCurContext = context;
+    g_GfxCurWorkBuffer = pPrimBuffer;
+    D_80059524 = pPrimBuffer;
+    g_GfxCurWorkBufferEnd = pPrimBuffer + g_GfxWorkBufferSize;
+    while (pCurEntry != NULL) {
+        HeapFree(pCurEntry->pData);
+        pCurEntry = pCurEntry->pNext;
+    }
+
+    g_GfxSpriteTileLists[context] = NULL;
+}
+*/
 
 // GfxQueueSpriteTileData
 void func_80025180(void* pData) {
@@ -175,31 +169,16 @@ void func_800251C8(u_long* addr, int x, int y, int width, int height) {
 }
 */
 
-// Sets pStruct->unk8 callback
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_80025224);
-/*
-CALLBACK_TABLE
-8004fd40 func_80025258
-8004fd44 func_80025710 => Dummy function
-8004fd48 func_80025718
-8004fd4c NULL
-8004fd50 NULL
-8004fd54 func_80025258
-8004fd58 func_80025258
-8004fd5c func_80025718
-8004fd60 func_8002541c
-8004fd64 func_80025544
-8004fd68 NULL
-8004fd6c NULL
-8004fd70 NULL
-8004fd74 NULL
-8004fd78 func_80025258
-8004fd7c func_800257f0
+// Handler table of the sprite work task, indexed by its handler id:
+// func_80025258, func_80025710, func_80025718, NULL, NULL, func_80025258,
+// func_80025258, func_80025718, func_8002541C, func_80025544, NULL, NULL,
+// NULL, NULL, func_80025258, func_800257F0.
+extern WorkListCallback_t D_8004FD40[];
 
+// Sets pStruct->unk8 callback
 void func_80025224(WorkListEntry* pTask, int handlerIndex) {
-    WorkListSetTaskCallback(pTask, &CALLBACK_TABLE[handlerIndex]);
+    WorkListSetTaskCallback(pTask, D_8004FD40[handlerIndex]);
 }
-*/
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_80025258);
 
