@@ -378,7 +378,14 @@ void func_800234AC(SpriteData* pSpriteData) {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80023538);
 
-// SpriteData stuff
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80023804);
+/* Best attempt: 99.10%. Only the AC flag word differs: the original keeps the 0xFFF8007F
+   mask in v0 and the value in v1, gcc allocates the pair the other way round. Tried:
+   swapping the statements (93.37%), constant-first operand order, a mask local, a temp for
+   the loaded word (96.67%), an intermediate `ac = v | 0x8000` (93.78%), and the
+   pointer/address-cast forms of the flag accesses (70.23% / 67.63%, both also move the base
+   pointer out of t0). The AC mask pseudo always loses v0 to the AC value's longer ref chain,
+   so the register choice is not source-order driven.
 void func_80023804(SpriteData* pSpriteData) {
     u32* pFlagsA8;
     s32 cycles;
@@ -419,7 +426,7 @@ void func_80023804(SpriteData* pSpriteData) {
     pSpriteData->field_0x6C = NULL;
     pSpriteData->field_0x50 = 0;
 }
-
+*/
 
 void func_8002393C(SpriteDataI1* pBase) {
     pBase->rotation.x = 0;
