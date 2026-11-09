@@ -53,9 +53,12 @@ segments:
     align: 4
     subalign: 4
     subsegments:
-      # rodata head: strings + two jump tables (0x204, 0x7DC), code from 0x9F8.
+      # The head is rodata: the debug strings, then two jump tables (0x204, 0x7DC).
       - [0x0, rodata]
-      - [0x9F8, asm]
+      # 34 functions, ~17 per unit. spimdisasm finds no code after 0x7358; the
+      # tail (0xFFFFFFFF sentinels, the 0x80076ED0/0x80076EE0 pointer table) is data.
+      - [0x9F8, c, main/misc1]
+      - [0x5068, c, main/misc2]
       - [0x7358, data]
   - [0x7450, databin]
   - [0x7453]
