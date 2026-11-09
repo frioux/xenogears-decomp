@@ -66,6 +66,28 @@ void func_800A22E8(BattleBlockPool* pPool) {
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_800A2330);
+/* 73.89% (168 vs 164 bytes): retail reloads usedCount from memory after each
+   increment (lhu with no andi mask) and keeps pBlocks[index] in a3; gcc keeps
+   the incremented value in a register, masks it, and re-hoists the loop.
+BattleBlock* func_800A2330(BattleBlockPool* pPool) {
+    BattleBlock* pBlock;
+    BattleBlock* pBlocks;
+
+    if (pPool->usedCount < pPool->capacity) {
+        pBlock = &((BattleBlock*)pPool->pBlocks)[pPool->usedCount];
+        if (pBlock->flag == 0) {
+            pPool->usedCount++;
+            pBlocks = (BattleBlock*)pPool->pBlocks;
+            while (pPool->usedCount < pPool->capacity && pBlocks[pPool->usedCount].flag != 0) {
+                pPool->usedCount++;
+            }
+            return pBlock;
+        }
+        return NULL;
+    }
+    return NULL;
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_800A23E8);
 /* 80.53% (72 bytes): same insns, but gcc lays out the return -1 block last
    (beqz to the end) where retail branches to the body and puts the return -1
