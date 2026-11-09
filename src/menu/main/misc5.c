@@ -3,6 +3,7 @@
 #include "system/menu.h"
 
 extern void func_801CE198(s32 count, SVECTOR* pVertices, POLY_FT4* pPolys, u_char renderContext);
+extern void func_801D12D4(MenuCharacter* pCharacter, s32 arg1);
 
 extern void func_801CF308(void);
 extern void func_801D01D0(void);
@@ -35,7 +36,18 @@ void func_801D0E20(void) {
     }
 }
 
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc5", func_801D0E38);
+void func_801D0E38(void) {
+    s32 i;
+    u32 offset;
+
+    for (i = 0; i < 6; i++) {
+        if (g_Menu->pManager->unk14[i] && g_Menu->unkAE0[i].unk7F) {
+            offset = i * sizeof(MenuString) + 0xAE0;
+            func_801CE198(1, (SVECTOR*)(offset + (u32)g_Menu + 0x50),
+                          (POLY_FT4*)(offset + (u32)g_Menu), g_Menu->unkAE0[i].renderContext);
+        }
+    }
+}
 
 void func_801D0EBC(void) {
     s32 i;
@@ -75,7 +87,15 @@ void func_801D11F0(void) {
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc5", func_801D1258);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc5", func_801D12D4);
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc5", func_801D13F8);
+void func_801D13F8(void) {
+    s32 i;
+
+    if (g_Menu->pManager->unk46) {
+        for (i = 0; i < 3; i++) {
+            func_801D12D4(g_Menu->currentCharacters[i], 1);
+        }
+    }
+}
 
 void func_801D1464(void) {
     if (g_Menu->pManager->scrollHandleActive) {
@@ -95,7 +115,16 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc5", func_801D14FC);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc5", func_801D1640);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc5", func_801D17C4);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc5", func_801D1914);
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc5", func_801D1AAC);
+void func_801D1AAC(void) {
+    s32 i;
+
+    for (i = 0; i < 2; i++) {
+        if (g_Menu->pManager->shouldRenderArrowCursor[i]) {
+            func_801CE198(1, g_Menu->arrowCursors[i]->vertices, g_Menu->arrowCursors[i]->polys,
+                          g_Menu->arrowCursors[i]->renderContext);
+        }
+    }
+}
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc5", func_801D1B20);
 
 void func_801D1BE8(void) {
