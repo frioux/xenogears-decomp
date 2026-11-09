@@ -11,6 +11,9 @@ extern u_char ArchiveCdSetMode(u_char mode);
 extern u32 ArchiveGetDebugTable(void);
 extern void func_8002A498(int mode);
 
+void func_801E64E0(void);
+void func_801E6668(s32 arg0);
+void func_801E76EC(s32 arg0);
 void func_801E7E68(MenuString* pStringList, u_char* pStringIdList, s32 yOffset, s32 count);
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E6CFC);
@@ -18,7 +21,20 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E6F5C);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E71B4);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E733C);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E76EC);
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E781C);
+void func_801E781C(s32 arg0, u_char arg1) {
+    func_801E64E0();
+    if (arg0 != 0xFF) {
+        if (arg1 != 0) {
+            func_801E76EC(arg0);
+            func_801E6668(arg0);
+            ((u8*)g_Menu->unk34C)[0x2DBC] = 1;
+        } else {
+            func_801E6668(arg0);
+            ((u8*)g_Menu->unk34C)[0x2DBC] = 0;
+        }
+        g_Menu->pManager->unkB = 1;
+    }
+}
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E78C8);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E7C50);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E7E68);
@@ -43,6 +59,28 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E8978);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E8B4C);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E8DA8);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E8EAC);
+/* Best: 92.44%. Switch tree and every store match; gcc emits three copies of
+   `a0 = pPoly` where retail keeps exactly one, stolen into the `beq s0,1` delay
+   slot, and reuses a0 for the case-1 tpage load. One extra insn in the frame.
+void func_801E8EAC(POLY_FT4* pPoly, u_char mode) {
+    SetShadeTex(pPoly, 0);
+    switch (mode) {
+    case 1:
+        pPoly->tpage |= 0x20;
+        SetSemiTrans(pPoly, 1);
+        break;
+    case 0:
+        SetSemiTrans(pPoly, 0);
+        // fallthrough
+    case 2:
+        setRGB0(pPoly, 128, 128, 128);
+        break;
+    case 3:
+        setRGB0(pPoly, 33, 33, 33);
+        break;
+    }
+}
+*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E8F60);
 void func_801E91C4(P_TAG* pTag) {
     SetSemiTrans(pTag, 1);
