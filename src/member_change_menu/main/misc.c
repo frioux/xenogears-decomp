@@ -1976,6 +1976,13 @@ INCLUDE_ASM("asm/member_change_menu/nonmatchings/main/misc", MemberChangeMenuSwa
 // the src test (96.48), nested ifs (91.81), deferred TRUE inits (91.81),
 // declaration/initialisation order, int/u_char types, `== TRUE` tests,
 // gcc 2.7.2 (97.22) and 2.7.2-cdk (93.03), -O3 variants (63-71).
+// The n_refs theory above is falsified: giving ONE flag a 4th use
+// (`result = canSwapSrc & canSwapDst`) only moved that flag from s3/s4 to
+// s4/s3 - both flags still sat below result/srcIndex/dstIndex, and giving both
+// flags three extra uses scattered the whole set (result s0, src s2, dst s3,
+// canSwapDst s1, canSwapSrc s4). So the allocation is not a monotone function
+// of n_refs; the original order (flags first, result third) is not reachable by
+// ref-count or declaration-order tweaks.
 // u_char MemberChangeMenuSwapCharacters(u_char isBenchedWindowActive, s32 curCharIndex, s32 curCharOffset, u_char isSelectedCharOnBenchedWindow, s32 selectedCharIndex, s32 selectedCharOffset) {
 //     u_char srcIndex;
 //     u_char dstIndex;
