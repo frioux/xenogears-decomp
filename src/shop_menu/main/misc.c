@@ -2981,42 +2981,54 @@ u_short ShopMenuGetCharacterEquippedItemFlags(u_char itemID, u_char itemType) {
 INCLUDE_ASM("asm/shop_menu/nonmatchings/main/misc", func_801CDD14);
 
 INCLUDE_ASM("asm/shop_menu/nonmatchings/main/misc", func_801CE480);
-// 59.74%: shop twin of gear_shop_menu/main/render.c func_801D3558 (same signature and tail loop),
-// but it computes the two preview stat pairs inline instead of calling the DressingRoom helpers.
-// Decoded (characterId is the 5th, stack argument; itemType 0 = weapon, 1 = accessory):
-//   weapon:  newValue[0] = characters[characterId].attack + pWeaponsData[equipped].attack; the
-//            equipped slot is characters[characterId].unk6A[0], except characterId == 4 (Billy)
-//            where it sums characters[4].unk6F[0..3]; oldValue[0] uses the candidate itemId.
-//   accessory: newValue[1] = characters[c].defense + sum of the three equipped unk74[] slots'
-//            defense; oldValue[1] = defense + sum of unk74[] except the slot whose unkE group
-//            matches the candidate's (or, if no group match, the lowest-defense slot is replaced).
-//   tail: for i < 2, oldValue[i] >= newValue[i] -> pDelta = old-new, pIsImprovement = FALSE.
-// Remaining delta: the two s16[2] pairs are zero-initialised with four `sh zero` stores in the
-// original (10(sp), 8(sp), 2(sp), 0(sp)) while gcc emits an 8-byte copy from a .sdata zero, the
-// Billy loop is strength-reduced to a pointer off %hi(g_GameState+0x2DB) + addiu 0x290 in the
-// original, and the argument temporaries land in t5/t6/t2 instead of t6/t5/t1 here.
+// 76.39%: shop twin of gear_shop_menu/main/render.c func_801D3558 (same signature and tail loop), but
+// it computes the two preview stat pairs inline instead of calling the DressingRoom helpers.
+// characterId is the 5th, stack argument; itemType 0 = weapon, 1 = accessory. The two s16[2] pairs are
+// zeroed with four sh stores in the order 10(sp), 8(sp), 2(sp), 0(sp), which four explicit stores below
+// reproduce exactly. Remaining delta: the original's four `for (i = 0; i < N; i++)` loops over
+// characters[].unk6F/unk74 use pointer induction (lbu/addiu/slt against base+N); gcc folds the constant
+// index into g_GameState (lbu g_GameState+0x56B($i)) here and keeps an slti trip count, and the
+// pWeaponsData[itemId] entry is a hoisted pointer in the original but a hoisted byte offset here.
+// Struct fields it needs (already added to include/system/menu.h): MenuShopWeapon.unk6 (group, 0x6) and
+// .attack (0xC); MenuShopAccessory.defense (0x8) and .unkE (group).
 /*
 void func_801CE480(s32* pDelta, s8* pIsImprovement, u8 itemId, u8 itemType, u8 characterId) {
-    s16 oldValue[2] = { 0, 0 };
-    s16 newValue[2] = { 0, 0 };
+    s16 oldValue[2];
+    s16 newValue[2];
     u8 changeDetected;
     u8 leastDefense;
-    u8 smallest;
+    int smallest;
     int i;
+
+    newValue[1] = 0;
+    newValue[0] = 0;
+    oldValue[1] = 0;
+    oldValue[0] = 0;
 
     switch (itemType) {
         case ITEM_TYPE_WEAPON:
-            if (characterId == 4) {
-                for (i = 0; i < 4; i++) {
-                    newValue[0] += g_Menu->pDressingRoom->pWeaponsData[g_GameState.characters[4].unk6F[i]].attack;
-                }
-            } else {
+            // Billy has four equipped guns, so both the current and the new value are sums
+            if (characterId != 4) {
                 newValue[0] = g_Menu->pDressingRoom->pWeaponsData[g_GameState.characters[characterId].unk6A[0]].attack
                     + g_GameState.characters[characterId].attack;
                 oldValue[0] = g_Menu->pDressingRoom->pWeaponsData[itemId].attack
                     + g_GameState.characters[characterId].attack;
+            } else {
+                for (i = 0; i < 4; i++) {
+                    newValue[0] += g_Menu->pDressingRoom->pWeaponsData[g_GameState.characters[4].unk6F[i]].attack;
+                }
+                for (i = 0; i < 4; i++) {
+                    if (g_Menu->pDressingRoom->pWeaponsData[g_GameState.characters[characterId].unk6F[i]].unk6
+                        == g_Menu->pDressingRoom->pWeaponsData[itemId].unk6
+                        && g_Menu->pDressingRoom->pWeaponsData[g_GameState.characters[characterId].unk6F[i]].unk6 != 5) {
+                        oldValue[0] += g_Menu->pDressingRoom->pWeaponsData[itemId].attack;
+                    } else {
+                        oldValue[0] += g_Menu->pDressingRoom->pWeaponsData[g_GameState.characters[characterId].unk6F[i]].attack;
+                    }
+                }
             }
             break;
+
         case ITEM_TYPE_ACCESSORY:
             changeDetected = TRUE;
             oldValue[1] = g_GameState.characters[characterId].defense;
@@ -3026,10 +3038,11 @@ void func_801CE480(s32* pDelta, s8* pIsImprovement, u8 itemId, u8 itemType, u8 c
                 newValue[1] += g_Menu->pDressingRoom->pAccessoriesData[g_GameState.characters[characterId].unk74[i]].defense;
             }
 
+            // The candidate only replaces an accessory of the same group
             for (i = 0; i < 3; i++) {
-                u16 group = g_Menu->pDressingRoom->pAccessoriesData[g_GameState.characters[characterId].unk74[i]].unkE;
-
-                if (group != 0 && group == g_Menu->pDressingRoom->pAccessoriesData[itemId].unkE) {
+                if (g_Menu->pDressingRoom->pAccessoriesData[g_GameState.characters[characterId].unk74[i]].unkE != 0
+                    && g_Menu->pDressingRoom->pAccessoriesData[g_GameState.characters[characterId].unk74[i]].unkE
+                        == g_Menu->pDressingRoom->pAccessoriesData[itemId].unkE) {
                     changeDetected = FALSE;
                     oldValue[1] += g_Menu->pDressingRoom->pAccessoriesData[itemId].defense;
                 } else {
@@ -3039,6 +3052,7 @@ void func_801CE480(s32* pDelta, s8* pIsImprovement, u8 itemId, u8 itemType, u8 c
 
             leastDefense = 0xFF;
             if (changeDetected) {
+                // No group match: the candidate replaces the accessory with the lowest defense
                 for (i = 0; i < 3; i++) {
                     if (leastDefense >= g_Menu->pDressingRoom->pAccessoriesData[g_GameState.characters[characterId].unk74[i]].defense) {
                         leastDefense = g_Menu->pDressingRoom->pAccessoriesData[g_GameState.characters[characterId].unk74[i]].defense;
@@ -3046,7 +3060,8 @@ void func_801CE480(s32* pDelta, s8* pIsImprovement, u8 itemId, u8 itemType, u8 c
                     }
                 }
 
-                oldValue[1] = g_GameState.characters[characterId].defense + g_Menu->pDressingRoom->pAccessoriesData[itemId].defense;
+                oldValue[1] = g_GameState.characters[characterId].defense
+                    + g_Menu->pDressingRoom->pAccessoriesData[itemId].defense;
                 for (i = 0; i < 3; i++) {
                     if (i != smallest) {
                         oldValue[1] += g_Menu->pDressingRoom->pAccessoriesData[g_GameState.characters[characterId].unk74[i]].defense;

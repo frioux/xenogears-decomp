@@ -163,13 +163,19 @@ typedef struct {
     /* 0x0 */ u_short equipFlags; // Which characters can use this item?
     /* 0x2 */ u16 unk2;
     /* 0x4 */ u_short price;
-    /* 0x6 */ u8 unk6[0xA];
+    /* 0x6 */ u8 unk6; // group id
+    /* 0x7 */ u8 unk7[5];
+    /* 0xC */ u8 attack;
+    /* 0xD */ u8 unkD[3];
 } MenuShopWeapon; // Size: 0x10
 
 typedef struct {
     /* 0x0 */ u_short equipFlags; // Which characters can use this item?
     /* 0x2 */ u_short price;
-    /* 0x4 */ u8 unk4[0xC];
+    /* 0x4 */ u8 unk4[4];
+    /* 0x8 */ u8 defense;
+    /* 0x9 */ u8 unk9[5];
+    /* 0xE */ u16 unkE; // group id
 } MenuShopAccessory; // Size: 0x10
 
 typedef struct {
