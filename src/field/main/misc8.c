@@ -434,17 +434,38 @@ extern void* D_801E8670[];
 void func_80021FE0(SpriteData*, s16);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800831F4);
-/* 92.68%: frame and size now right (0x20 with the unused RECT local -- an
-   aggregate local is the only thing that reproduces the 8-byte frame gap), but
-   two instructions still differ. (1) The original loads vy into v0, copies it
-   (`move v1,v0`) and tests in place (`andi v0,v0,0x8000`), so vy lives in v1
-   for the `addiu`; gcc loads straight into v1 (`lh v1`; `andi v0,v1,0x8000`)
-   and is 4 bytes short. Reading the field twice, assigning in the condition
-   (`(rotation = ...) & 0x8000`) and a `short vy` local all give `lh v1`; the
-   copy wants two pseudos for one load, which no spelling here produced.
-   (2) gcc sinks the second store (`sh v0,0x106(s0)`) into the `jal
-   func_80081F80` delay slot, because the reload `lh a1,0x104(s0)` is scheduled
-   before it; the original emits both stores, then the reload, and a nop.
+/* 92.68% (140 bytes vs 144): frame and every other insn match, two residuals.
+   The branch shape only comes out right when the ternary sits *inside* the
+   arithmetic: `angle = (rotation.vy + ((direction & 1) ? -0x400 : 0x400)) &
+   0xFFF` gives the original's `bnez $v0,.L; addu $v0,$v1,-0x400` cond-add with
+   the delay slot filled (an if/else or a ternary split from the `& 0xFFF`
+   gives `beqz` + `j` instead). The 0x20 frame needs the unused RECT local.
+   Residuals: (1) the original loads vy into v0, copies it (`move $v1,$v0`) and
+   tests in place (`andi $v0,$v0,0x8000`) so vy lives in v1 for the addu; gcc
+   loads straight into v1 (`lh $v1`; `andi $v0,$v1,0x8000`) and is 4 bytes
+   short. Reading the field twice, a second local, an int local and assigning
+   in the condition all give `lh $v1`. (2) gcc sinks the second store
+   (`sh $v0,0x106($s0)`) into the `jal func_80081F80` delay slot because the
+   reload `lh $a1,0x104($s0)` is moved before it; the original stores both
+   halves, reloads, and keeps a nop in the slot.
+void func_80081F80(SpriteData*, s16, FieldActor*);
+
+void func_800831F4(SpriteData* pSprite, ActorData* pActorData, FieldActor* pActor, int direction) {
+    RECT rect;
+    s16 angle;
+
+    if (pActorData->moveModified.vx != 0 || pActorData->moveModified.vz != 0) {
+        if (!(pActorData->rotation.vy & 0x8000)) {
+            angle = (pActorData->rotation.vy + ((direction & 1) ? -0x400 : 0x400)) & 0xFFF;
+            pActorData->rotation.vx = angle;
+            pActorData->rotation.vy = angle;
+            func_80081F80(pSprite, pActorData->rotation.vx, pActor);
+            angle = pActorData->rotation.vy | 0x8000;
+            pActorData->rotation.vx = angle;
+            pActorData->rotation.vy = angle;
+        }
+    }
+}
 */
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80083288);
 
@@ -1084,17 +1105,22 @@ void func_800864F0(void) {
 }
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80086590);
-/* 85.77%: right frame (0xB0), right size (872) and every loop matched; the
-   residuals are all pActorData address materialisation.
-   1. the magnitude call: the original loads pActorData once into a2 and reuses
-      it for the unk10D test and the three position reads. A `pActor` local
-      fixes that but makes gcc keep the post-call pActorData reload in a
-      register across the delta stores, collapsing the three `lw 76(v0)`
-      reloads into one and turning the `lh`+`subu`+`sh` triples into `lhu`.
-   2. the last loop reads the s16 deltas through a pointer based at slots+0x60
-      advancing by 8 (`lh a2,0(s0)`); slots.delta[i][0] gives `lh a2,96(s2)`.
-      Forcing the pointer local costs (1), net -0.2%.
-   3. two sw's are ordered before the g_FieldActors reload in the delta block.
+/* 85.55% (864 bytes vs 872): the struct and all five loops are right, and the
+   whole first block (0x10D test, the three magnitude args, the slot pick and
+   the distance compare) is instruction-for-instruction. What got it there:
+   g_FieldActors is volatile, so the one pActorData load the original shares
+   between the 0x10D test and the three position reads needs a loop-body local
+   (ActorData* pActor = g_FieldActors[i].pActorData), while every access after
+   the magnitude call must spell the global out inline to reproduce the
+   original's per-store reloads. gcc then keeps pActor in a2, as retail does.
+   Residuals: (1) the delta stores come out lhu+subu+sh, the original
+   lh+subu+sh (gcc narrows the loads once only the low halfword is live).
+   (2) gcc hoists the g_FieldActors reload above the actorIndex/distance
+   stores; retail stores first. (3) the slot*8 and distance-slot base land in
+   a1/a0 the other way round. (4) the last loop: retail duplicates the
+   increments after the func_800860F0 call (addiu s0,s0,8 in the jal delay
+   slot, addiu s1,s1,1 in the j delay slot) and keeps them again at the shared
+   continue block; gcc merges them into one copy, 8 bytes short.
 typedef struct {
     s32 distance[4]; // 0x00
     s32 unk10[4]; // 0x10
@@ -1107,6 +1133,7 @@ typedef struct {
 
 void func_80086590(VECTOR* pPosition) {
     FieldActorProximitySlots slots;
+    s16* pDelta;
     s16* pPos = (s16*)pPosition;
     s16* pActorPos;
     s32 distance;
@@ -1123,8 +1150,10 @@ void func_80086590(VECTOR* pPosition) {
     }
 
     for (i = 0; i < D_800ADBFC; i++) {
-        if (g_FieldActors[i].pActorData->unk10D != 0xFF) {
-            pActorPos = (s16*)&g_FieldActors[i].pActorData->position;
+        ActorData* pActor = g_FieldActors[i].pActorData;
+
+        if (pActor->unk10D != 0xFF) {
+            pActorPos = (s16*)&pActor->position;
             distance = FieldGetVec3Magnitude(
                 pPos[1] - pActorPos[1],
                 pPos[3] - pActorPos[3],
@@ -1139,13 +1168,12 @@ void func_80086590(VECTOR* pPosition) {
                 slots.distance[slot] = distance;
                 slots.unk10[slot] = g_FieldActors[i].pActorData->unk10A;
                 slots.unk20[slot] = g_FieldActors[i].pActorData->unk10C;
-                pActorPos = (s16*)&g_FieldActors[i].pActorData->position;
-                slots.delta[slot][0] = pPos[1] - pActorPos[1];
-                slots.delta[slot][1] = pPos[3] - pActorPos[3];
-                slots.delta[slot][2] = pPos[5] - pActorPos[5];
+                slots.delta[slot][0] = pPos[1] - ((s16*)&g_FieldActors[i].pActorData->position)[1];
+                slots.delta[slot][1] = pPos[3] - ((s16*)&g_FieldActors[i].pActorData->position)[3];
+                slots.delta[slot][2] = pPos[5] - ((s16*)&g_FieldActors[i].pActorData->position)[5];
             }
         } else {
-            g_FieldActors[i].pActorData->unk10D = 0xFF;
+            pActor->unk10D = 0xFF;
         }
     }
 
@@ -1167,15 +1195,17 @@ void func_80086590(VECTOR* pPosition) {
         }
     }
 
-    for (i = 0; i < 3; i++) {
-        if (slots.unk10[i] != -1) {
-            if (slots.unk40[i] == 1) {
-                func_800860F0(slots.unk10[i], slots.unk20[i], slots.delta[i][0], slots.distance[i],
-                    slots.actorIndex[i]);
-            } else {
-                func_800862CC(slots.unk10[i], slots.unk20[i], slots.delta[i][0], slots.distance[i],
-                    slots.actorIndex[i]);
-            }
+    pDelta = slots.delta[0];
+    for (i = 0; i < 3; i++, pDelta += 4) {
+        if (slots.unk10[i] == -1) {
+            continue;
+        }
+        if (slots.unk40[i] == 1) {
+            func_800860F0(slots.unk10[i], slots.unk20[i], pDelta[0], slots.distance[i],
+                slots.actorIndex[i]);
+        } else {
+            func_800862CC(slots.unk10[i], slots.unk20[i], pDelta[0], slots.distance[i],
+                slots.actorIndex[i]);
         }
     }
 }
