@@ -1,28 +1,179 @@
 #include "common.h"
 
+#include "system/menu.h"
+
+extern void func_801CE198(s32 count, SVECTOR* pVertices, POLY_FT4* pPolys, u_char renderContext);
+extern void func_801D12D4(MenuCharacter* pCharacter, s32 arg1);
+
+extern void func_801CF308(void);
+extern void func_801D01D0(void);
+extern void func_801D02D8(void);
+extern void func_801D0C78(void);
+extern void func_801D0D90(void);
+extern void func_801D0E20(void);
+extern void func_801D0E38(void);
+extern void func_801D0EBC(void);
+extern void func_801D0ED4(void);
+extern void func_801D0F54(void);
+extern void func_801D0FD4(void);
+extern void func_801D1030(void);
+extern void func_801D10DC(void);
+extern void func_801D1160(void);
+extern void func_801D11F0(void);
+extern void func_801CE338(void);
+extern void func_801CE3C8(void);
+extern void func_801CEC40(void);
+extern void func_801D3B00(void);
+
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc5", func_801D09F0);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc5", func_801D0C78);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc5", func_801D0D90);
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc5", func_801D0E20);
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc5", func_801D0E38);
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc5", func_801D0EBC);
+
+void func_801D0E20(void) {
+    s32 i;
+
+    for (i = 7; i >= 0; i--) {
+    }
+}
+
+void func_801D0E38(void) {
+    s32 i;
+    u32 offset;
+
+    for (i = 0; i < 6; i++) {
+        if (g_Menu->pManager->unk14[i] && g_Menu->unkAE0[i].unk7F) {
+            offset = i * sizeof(MenuString) + 0xAE0;
+            func_801CE198(1, (SVECTOR*)(offset + (u32)g_Menu + 0x50),
+                          (POLY_FT4*)(offset + (u32)g_Menu), g_Menu->unkAE0[i].renderContext);
+        }
+    }
+}
+
+void func_801D0EBC(void) {
+    s32 i;
+
+    for (i = 5; i >= 0; i--) {
+    }
+}
+
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc5", func_801D0ED4);
+/* Best attempt: 99.69%. Only the base/index order of the address addiu differs
+   (addu a2,v1,s1 vs the original addu a2,s1,v1); everything else, including the
+   strength-reduced 0x10E0 loop offset, is identical.
+void func_801D0ED4(void) {
+    s32 i;
+
+    for (i = 0; i < 8; i++) {
+        if (g_Menu->pManager->unk38[i]) {
+            func_801CE198(1, g_Menu->unk10E0[i].vertices, g_Menu->unk10E0[i].polys,
+                          g_Menu->unk10E0[i].renderContext);
+        }
+    }
+}
+*/
+
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc5", func_801D0F54);
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc5", func_801D0FD4);
+/* Best attempt: 93.28%. The instruction multiset is identical; only the
+   sll/addiu scheduling order of the address and index chains differs.
+void func_801D0F54(void) {
+    s32 i;
+
+    for (i = 0; i < 6; i++) {
+        if (g_Menu->pManager->unk40[i]) {
+            func_801CE198(1, g_Menu->unk14E0[i].vertices, g_Menu->unk14E0[i].polys,
+                          g_Menu->unk14E0[i].renderContext);
+        }
+    }
+}
+*/
+
+void func_801D0FD4(void) {
+    u32 offset;
+
+    if (g_Menu->pManager->unk4E) {
+        offset = g_Menu->unk17E0[0].renderContext * 40 + 0x17E0;
+        AddPrim(&g_Menu->pGfxEnv->ot[4], (void*)(offset + (u32)g_Menu));
+    }
+}
+
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc5", func_801D1030);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc5", func_801D10DC);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc5", func_801D1160);
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc5", func_801D11F0);
+
+void func_801D11F0(void) {
+    func_801D0D90();
+    func_801D0E20();
+    func_801D0E38();
+    func_801D0EBC();
+    func_801D10DC();
+    func_801D1160();
+    func_801D0ED4();
+    func_801D0F54();
+    func_801D0FD4();
+    func_801D1030();
+}
+
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc5", func_801D1258);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc5", func_801D12D4);
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc5", func_801D13F8);
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc5", func_801D1464);
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc5", func_801D14B0);
+void func_801D13F8(void) {
+    s32 i;
+
+    if (g_Menu->pManager->unk46) {
+        for (i = 0; i < 3; i++) {
+            func_801D12D4(g_Menu->currentCharacters[i], 1);
+        }
+    }
+}
+
+void func_801D1464(void) {
+    if (g_Menu->pManager->scrollHandleActive) {
+        func_801CE198(1, g_Menu->pScrollHandle->vertices, g_Menu->pScrollHandle->polys,
+                      g_Menu->pScrollHandle->renderContext);
+    }
+}
+
+void func_801D14B0(void) {
+    if (g_Menu->pManager->shoulderButtonUiActive) {
+        func_801CE198(4, g_Menu->pShoulderButtonUi->vertices, g_Menu->pShoulderButtonUi->polys,
+                      g_Menu->pShoulderButtonUi->renderContext);
+    }
+}
+
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc5", func_801D14FC);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc5", func_801D1640);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc5", func_801D17C4);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc5", func_801D1914);
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc5", func_801D1AAC);
+void func_801D1AAC(void) {
+    s32 i;
+
+    for (i = 0; i < 2; i++) {
+        if (g_Menu->pManager->shouldRenderArrowCursor[i]) {
+            func_801CE198(1, g_Menu->arrowCursors[i]->vertices, g_Menu->arrowCursors[i]->polys,
+                          g_Menu->arrowCursors[i]->renderContext);
+        }
+    }
+}
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc5", func_801D1B20);
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc5", func_801D1BE8);
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc5", func_801D1C48);
+
+void func_801D1BE8(void) {
+    func_801D3B00();
+    func_801D11F0();
+    func_801CE3C8();
+    func_801CE338();
+    func_801D02D8();
+    func_801D01D0();
+    func_801CEC40();
+    func_801CF308();
+    func_801D0C78();
+}
+
+void func_801D1C48(void) {
+    func_801D3B00();
+    func_801CE3C8();
+    func_801D11F0();
+    func_801CE338();
+    func_801D02D8();
+    func_801D01D0();
+    func_801D0C78();
+    func_801CF308();
+}

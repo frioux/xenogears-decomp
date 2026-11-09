@@ -258,12 +258,15 @@ typedef struct {
     /* 0x30 */ u8 currentCharacterIDs[0x3];
     /* 0x33 */ u8 _pad33;
     /* 0x34 */ u8 unk34[0x4];
-    /* 0x38 */ u8 unk38[0xE];
+    /* 0x38 */ u8 unk38[0x8];
+    /* 0x40 */ u8 unk40[0x6];
     /* 0x46 */ u8 unk46; // Should render characters?
     /* 0x47 */ u8 unk47;
     /* 0x48 */ u8 unk48;
     /* 0x49 */ u_char scrollHandleActive;
-    /* 0x4A */ u8 unk4A[0x6];
+    /* 0x4A */ u8 unk4A[0x4];
+    /* 0x4E */ u8 unk4E;
+    /* 0x4F */ u8 unk4F;
     /* 0x50 */ u8 shouldRenderArrowCursor[MENU_MAX_NUM_ARROW_CURSORS]; // Should render arrow cursor (array, size 3?)
     /* 0x52 */ u8 unk52;
     /* 0x53 */ u_char shoulderButtonUiActive;
@@ -765,7 +768,10 @@ typedef struct {
     /* 0x6E0  */ MenuString unk6E0[8];
     /* 0xAE0  */ MenuString unkAE0[6];
     /* 0xDE0  */ MenuString unkDE0[6];
-    /* 0x10E0 */ u8 unk0x10E0[0xD00];
+    // Three arrays of MenuString-shaped sprite records (0x80 each)
+    /* 0x10E0 */ MenuString unk10E0[8];
+    /* 0x14E0 */ MenuString unk14E0[6];
+    /* 0x17E0 */ MenuString unk17E0[12];
     /* 0x1DE0 */ MenuString* unk1DE0[4];
     /* 0x1DF0 */ MenuCharacter* benchedCharacters[MAX_BENCHED_PARTY_MEMBERS];
     /* 0x1E08 */ MenuCharacter* currentCharacters[MAX_PARTY_MEMBERS];
