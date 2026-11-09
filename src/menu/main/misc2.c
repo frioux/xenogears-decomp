@@ -1,6 +1,7 @@
 #include "common.h"
 
 #include "psyq/libapi.h"
+#include "system/menu.h"
 
 extern u16 D_801E96A8[]; // Bit masks, LSB first
 extern u16 D_801E96C8[]; // Bit masks, MSB first
@@ -8,6 +9,7 @@ extern u32 D_801E96E8[];
 extern s32 D_801E9768[]; // Card result to error code
 
 s32 func_801C881C(void);
+extern void func_80039DB8(s32 arg0);
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc2", func_801C7B0C);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc2", func_801C7BF4);
@@ -18,7 +20,11 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc2", func_801C8164);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc2", func_801C81E0);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc2", func_801C8324);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc2", func_801C851C);
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc2", func_801C8574);
+void func_801C8574(u_char soundEffectId) {
+    if (g_Menu->unk32A) {
+        func_80039DB8((g_Menu->unk2E4->sedId << 16) | soundEffectId);
+    }
+}
 u16 func_801C85C0(u8 index) {
     return D_801E96C8[index];
 }
