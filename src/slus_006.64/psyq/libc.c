@@ -82,6 +82,26 @@ void srand(u_long seed) {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libc", strcat);
 
+/* best: 85.90% -- only difference is one swapped callee-saved pair: the original
+   keeps pDst in s1 and the scan pointer coalesced with it (copy to v1 for the
+   return); gcc here gives pDst s2 and the scan pointer v1.
+char* strcat(char* pDst, char* pSrc) {
+    char* p;
+
+    if (pDst == NULL || pSrc == NULL)
+        return NULL;
+    if (pDst + strlen(pDst) == pSrc + strlen(pSrc))
+        return NULL;
+    p = pDst;
+    while (*p++)
+        ;
+    p--;
+    while ((*p++ = *pSrc++))
+        ;
+    return pDst;
+}
+*/
+
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libc", strcmp);
 
 /* best: 56.12% -- loop body and block layout differ (original keeps the loaded
