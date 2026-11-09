@@ -11,6 +11,8 @@ void func_801D22F4(s32 arg0);
 void func_801D3444(void);
 void func_801D4EA0(s32 arg0);
 void func_801C72BC(s32 arg0);
+void func_801D7F50(s32 arg0, s32 arg1, u_char arg2);
+void func_801D8644(u_char arg0, s32 arg1, s32 arg2, u_char arg3, u_char arg4);
 void func_801E8018(s32 count, void* pStrings, void* pStringIds, void* pFlags);
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801D7CFC);
@@ -46,7 +48,21 @@ s32 func_801D85DC(s32 unusedArg, volatile u16* p0, volatile u16* p1) {
 */
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801D8644);
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801D8DE4);
+void func_801D8DE4(s32 arg0, u_char arg1, s32 arg2, s32 arg3) {
+    s32 width = 0x98;
+    s32 height = 0x26;
+    u_char value;
+
+    if (arg1 != 0) {
+        width = 0x80;
+        height = 0x90;
+    }
+    value = arg3;
+    func_801D7F50(width, height, value);
+    func_801D8644(arg0, width, height, arg2, value);
+    g_Menu->pManager->unk8 = 1;
+    g_Menu->unk35C->unk32F1 = *(u_char*)&g_Menu->renderContext;
+}
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801D8EA4);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801D9704);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801D9808);

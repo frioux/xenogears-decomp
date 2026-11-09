@@ -244,7 +244,8 @@ typedef struct {
     /* 0x0  */ u8 unk0[0x3];
     /* 0x3  */ u8 unk3;
     /* 0x4  */ u8 unk4; // Should we draw the pointer cursor on ball selection windows?
-    /* 0x5  */ u8 unk5[0x4];
+    /* 0x5  */ u8 unk5[0x3];
+    /* 0x8  */ u8 unk8;
     /* 0x9  */ u8 shouldRenderSelectionMenu;
     /* 0xA  */ u8 unkA; // Should we draw MenuUnk5 strings?
     /* 0xB  */ u8 unkB;
@@ -435,6 +436,11 @@ typedef struct {
     /* 0x1EFC */ u16 unk1EFC;
     /* 0x1EFE */ u16 unk1EFE;
 } MenuUnk8; /* size: 1F00 */
+
+typedef struct {
+    /* 0x0000 */ u8 unk0[0x32F1];
+    /* 0x32F1 */ u8 unk32F1; // Copy of SystemMenu::renderContext
+} MenuUnk10; // Size: 0x32F2
 
 // Second selection-menu-like object (0x1198 bytes, freed on menu exit)
 typedef struct {
@@ -716,7 +722,9 @@ typedef struct {
     /* 0x34C  */ u8 unk34C[0x4];
     /* 0x350  */ MenuSelectionMenu* pSelectionMenu;
     /* 0x354  */ MenuUnk5* unk354;
-    /* 0x358  */ u8 unk358[0xC];
+    /* 0x358  */ u8 unk358[0x4];
+    /* 0x35C  */ MenuUnk10* unk35C;
+    /* 0x360  */ u8 unk360[0x4];
     /* 0x364  */ MenuWindow* windows[MENU_MAX_NUM_WINDOWS];
     /* 0x380  */ MenuWindowParameters* windowParameters[MENU_MAX_NUM_WINDOWS];
     /* 0x39C  */ void* unk39C[3];
