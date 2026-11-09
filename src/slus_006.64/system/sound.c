@@ -2690,6 +2690,10 @@ u8* func_8003D53C(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
     pAudioElements->voice_data.modeFlags |= 0x40;
     return pScript;
 }
+(Also tried: the single combined condition (the `||`/`&&` form of this test) and the
+same with `goto done` plus one trailing `return pScript`; both compile to 88.33%, 96
+bytes, with nop in the branch delay slots and a `move v0,a0` in the `jr ra` slot
+instead, and the two flag stores landing in v0/v1 rather than v1/a0.)
 */
 
 u8* SoundScriptSetVoiceFlags4000ClearMode(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
@@ -2965,6 +2969,14 @@ u8* func_8003DC50(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
 
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003DD24);
+/*
+Attempt (71.39%, same size as the original's 236 bytes): the tail is present in the
+original's order (delta, 0x400, reload, 0, step-handler table, unk_0x1C, unk_0x1D,
+flags, unk_0xCE, call), but gcc loads the table entry into a1 instead of v1, drops the
+`lhu v0,0xCE` / `ori` from before the table load, and forms the envelope call base a0
+much earlier. `flags = ((value & 0x10) == 0) * 2 + 1` does produce the original's
+branchless sltiu/sll/addiu, and `(s16)volume` the sll/sra pair.
+*/
 
 u8* func_8003DE18(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     s32 divisor = (u8)(*pScript + 1);
