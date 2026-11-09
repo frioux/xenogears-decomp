@@ -34,6 +34,8 @@ s32 func_80088D00(s32 arg0) {
 }
 */
 
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc10", func_80088D64);
+
 s32 func_80088DE4(s32 arg0) {
     func_8008BFD4(arg0, (u32*)(D_8009BE24 + (arg0 << 7) + 0x28), 0x68, 0x60);
     return 1;
