@@ -202,7 +202,9 @@ typedef struct {
 typedef struct {
     /* 0x00 */ u8 unk0[0x18];
     /* 0x18 */ u8 ids[0xC];
-    /* 0x24 */ u8 unk24[0x38];
+    /* 0x24 */ u8 unk24[0x34];
+    /* 0x58 */ u8 unk58;
+    /* 0x59 */ u8 unk59[0x3];
 } MenuUnk2Record; // Size: 0x5C
 
 typedef struct {
@@ -227,7 +229,9 @@ typedef struct {
     /* 0x4F74 */ s32 unk4F74[2];
     /* 0x4F7C */ s32 unk4F7C;
     /* 0x4F80 */ s32 unk4F80;
-    /* 0x4F84 */ u8 unk4F84[0xA];
+    /* 0x4F84 */ u8 unk4F84[0x8];
+    /* 0x4F8C */ u8 unk4F8C;
+    /* 0x4F8D */ u8 unk4F8D;
     /* 0x4F8E */ u8 unk4F8E[0x20];
     /* 0x4FAE */ u8 unk4FAE[0x20];
     /* 0x4FCE */ u8 unk4FCE[0xC];
@@ -244,7 +248,8 @@ typedef struct {
     /* 0x0  */ u8 unk0[0x3];
     /* 0x3  */ u8 unk3;
     /* 0x4  */ u8 unk4; // Should we draw the pointer cursor on ball selection windows?
-    /* 0x5  */ u8 unk5[0x4];
+    /* 0x5  */ u8 unk5[0x3];
+    /* 0x8  */ u8 unk8;
     /* 0x9  */ u8 shouldRenderSelectionMenu;
     /* 0xA  */ u8 unkA; // Should we draw MenuUnk5 strings?
     /* 0xB  */ u8 unkB;
@@ -273,7 +278,9 @@ typedef struct {
     /* 0x54 */ u8 unk54[0x6];
     /* 0x5A */ u8 unk5A;
     /* 0x5B */ u8 unk5B;
-    /* 0x5C */ u8 unk5C[0x10];
+    /* 0x5C */ u8 unk5C[0x4];
+    /* 0x60 */ u8 unk60[0x3];
+    /* 0x63 */ u8 unk63[0x9];
 } MenuManager; // Size: 0x6C
 
 // A menu with N options, each having a cursor and some text/content
@@ -438,6 +445,18 @@ typedef struct {
     /* 0x1EFC */ u16 unk1EFC;
     /* 0x1EFE */ u16 unk1EFE;
 } MenuUnk8; /* size: 1F00 */
+
+typedef struct {
+    /* 0x0000 */ u8 unk0[0x32F1];
+    /* 0x32F1 */ u8 unk32F1; // Copy of SystemMenu::renderContext
+} MenuUnk10; // Size: 0x32F2
+
+// Second selection-menu-like object (0x1198 bytes, freed on menu exit)
+typedef struct {
+    /* 0x0000 */ u8 unk0[0x1180];
+    /* 0x1180 */ void* pVramBuffer;
+    /* 0x1184 */ u8 unk1184[0x14];
+} MenuUnk9; // Size: 0x1198
 
 // Character Info
 typedef struct {
@@ -712,13 +731,16 @@ typedef struct {
     /* 0x34C  */ u8 unk34C[0x4];
     /* 0x350  */ MenuSelectionMenu* pSelectionMenu;
     /* 0x354  */ MenuUnk5* unk354;
-    /* 0x358  */ u8 unk358[0xC];
+    /* 0x358  */ u8 unk358[0x4];
+    /* 0x35C  */ MenuUnk10* unk35C;
+    /* 0x360  */ u8 unk360[0x4];
     /* 0x364  */ MenuWindow* windows[MENU_MAX_NUM_WINDOWS];
     /* 0x380  */ MenuWindowParameters* windowParameters[MENU_MAX_NUM_WINDOWS];
     /* 0x39C  */ void* unk39C[3];
     /* 0x3A8  */ u8 unk3A8[0x80];
     /* 0x428  */ MenuPointerCursors* pCursors;
-    /* 0x42C  */ u8 unk42C[0x10];
+    /* 0x42C  */ MenuUnk9* unk42C;
+    /* 0x430  */ u8 unk430[0xC];
     /* 0x43C  */ MenuScrollBarHandle* pScrollHandle;
     /* 0x440  */ MenuShoulderButtonUi* pShoulderButtonUi;
     /* 0x444  */ MenuArrowCursor* arrowCursors[MENU_MAX_NUM_ARROW_CURSORS];
