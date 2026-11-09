@@ -128,6 +128,12 @@ void LoadAverageByte(u_char *v0, u_char *v1, long p0, long p1, u_char *v2) {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", LoadAverageCol);
 
+// MulMatrix0/MulMatrix/MulMatrix2/ScaleMatrixL/ApplyRotMatrixLV/LoadAverageCol/
+// SquareRoot0 own instructions after `.size` (trailing nops no C definition
+// emits), so they are not linkable from C: see tools/scripts/convertible.py.
+// ApplyMatrixLV/CompMatrix/SetMulMatrix are linkable but their .s holds
+// unreachable instructions (e.g. the `sra $t3,$t0,15` at 0x800494D0 in
+// ApplyMatrixLV's 16-bit packing), which a C compiler cannot produce.
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", MulMatrix0);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", CompMatrix);
