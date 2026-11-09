@@ -105,7 +105,17 @@ int func_8008BD1C(int index) {
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008BDD0);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008BEC8);
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008BFD4);
+void func_8008BFD4(s16 arg0, s32 *pArray, s16 arg2, s16 arg3) {
+    WorldMapEntry *pEntry = &D_8009BE6C[D_8009BD04];
+
+    pEntry->unk00 = arg0;
+    pEntry->unk04 = pArray[0];
+    pEntry->unk08 = pArray[1];
+    pEntry->unk0C = pArray[2];
+    pEntry->unk10 = arg3;
+    pEntry->unk14 = arg2;
+    D_8009BD04 = (D_8009BD04 + 1) & 0x1F;
+}
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008C040);
 void func_8008C1DC(s32 arg0, WorldMapActor *pActor, WorldMapScreenPos *pPos) {
     if (func_80093F18(&pActor->unk28) == 3) {
