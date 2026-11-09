@@ -342,7 +342,46 @@ SoundWDSEntry* SoundLoadWdsFile(SoundWDSEntry* pWdsFile, void* pUnk) {
 }
 
 // Loads part of a WDS file, basically a sized SoundLoadWdsFile?
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_800380D0);
+SoundWDSEntry* func_800380D0(SoundWDSEntry* pWdsFile, int size, int mode) {
+    SoundWDSEntry* pEntry;
+    SoundWDSEntry** ppLink;
+    int spuAddress;
+
+    if (SoundFindWdsEntry(pWdsFile->id) != 0) {
+        SoundHandleError(0x16);
+        return NULL;
+    }
+
+    spuAddress = SoundSpuMemoryAllocateWDS(pWdsFile, mode);
+    if (spuAddress == 0) {
+        SoundHandleError(0x1F);
+        return NULL;
+    }
+
+    SoundWdsSetTransferParamters(spuAddress, pWdsFile->adpcmDataSize);
+    SoundTransferWdsPart((u8*)pWdsFile + pWdsFile->adpcmDataOffset, size - pWdsFile->headerSizeMby);
+
+    pEntry = (SoundWDSEntry*)func_80039024(pWdsFile->headerSizeMby);
+    if (pEntry == NULL) {
+        SoundSpuMemoryFreeBlock(spuAddress);
+        SoundHandleError(0x1E);
+        return NULL;
+    }
+
+    SoundHeapSetBlockMemory(pEntry, pWdsFile, pWdsFile->headerSizeMby);
+    pEntry->spuMemoryAddress = spuAddress;
+
+    DisableEvent(g_unk_SoundEvent);
+    ppLink = &g_SoundWdsLinkedList;
+    while (*ppLink != NULL) {
+        ppLink = &(*ppLink)->pNext;
+    }
+    *ppLink = pEntry;
+    pEntry->pNext = NULL;
+    EnableEvent(g_unk_SoundEvent);
+
+    return pEntry;
+}
 
 void SoundSpuMemoryAllocateWDS(SoundWDSEntry* pWdsFile, int mode) {
     if (mode == SOUND_WDS_ALLOCATE_AT_ADDRESS) {
@@ -1915,7 +1954,42 @@ void func_8003AA30(AudioManager* pManager) {
     EnableEvent(g_unk_SoundEvent);
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003AAC4);
+// Mutes or unmutes the voices selected by `flags`, one bit per element.
+void func_8003AAC4(AudioManager* pManager, u32 flags) {
+    AudioElement* pElement;
+    s32 count;
+
+    if (pManager == NULL) {
+        return;
+    }
+
+    pManager->unk_0x4c = flags;
+    pElement = pManager->elements;
+    count = pManager->elementCount;
+    do {
+        if (pElement->active_flag != 0) {
+            if (flags & 1) {
+                if (!(pElement->active_flag & 0x20)) {
+                    pElement->active_flag |= 0x20;
+                    if (pManager->unk_Flags & 0x8000) {
+                        SoundStopVoiceOnChannel(&pElement->voice_data, pElement->voice_number);
+                    }
+                }
+            } else {
+                if (pElement->active_flag & 0x20) {
+                    pElement->active_flag &= ~0x20;
+                    if ((*(u32*)&pElement->active_flag & 0x110) == 0x100) {
+                        if (pManager->unk_Flags & 0x8000) {
+                            SoundAssignVoiceToChannelAndPlay(&pElement->voice_data, pElement->voice_number);
+                        }
+                    }
+                }
+            }
+        }
+        pElement++;
+        flags >>= 1;
+    } while (--count != 0);
+}
 
 void func_8003ABE8(AudioManager* pManager, u8 value) {
     pManager->unk_0x1b = value;
