@@ -1,0 +1,27 @@
+#include "common.h"
+
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007A9F8);
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007AD34);
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007ADD4);
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007B200);
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007B394);
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007B604);
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007B798);
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007BA08);
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007BA10);
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007BB60);
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007BBEC);
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007BF50);
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007C260);
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007C36C);
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007C3B8);
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007C724);
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007C7D8);
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007CC6C);
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007CD20);
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007CE84);
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007CF18);
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007D078);
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007D110);
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007D228);
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007D2B8);
