@@ -286,7 +286,6 @@ void func_8002541C(WorkListEntry* pTask) {
     }
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_80025544);
 /*
 Best 89.57% (464 bytes against 460). cdk is the right compiler here: the same C
 scores 87.24% under gcc-2.7.2-psx, so this one is source-level. Two gaps: gcc
@@ -300,6 +299,13 @@ a u16 pointer, and folding nHalf into the field updates. gcc coalesces every
 copy; the s1/s3 swap and the missing move-a1-tail copy must come from elsewhere
 in the source (prim is the higher-priority pseudo here, lower there). Both x0 reads (signed for the width, unsigned for the centre) have to
 stay in the source.
+Also tried and byte-identical: a u32 pNewBufferHead local with the neighbour's
+`pNewBufferHead < g_GfxCurWorkBufferEnd` idiom, and reading x0 (u16) before
+nWidth. The reorder is gcc moving the xOffset lhu two insns down, after the two
+gp loads; that reorder is what puts pPrim in s1 instead of s3.
+*/
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_80025544);
+/*
 void func_80025544(WorkListEntry* pTask) {
     SpriteData* pSpriteData;
     MATRIX* pMatrix;
@@ -315,6 +321,7 @@ void func_80025544(WorkListEntry* pTask) {
     s32 nWidth;
     s32 nHalf;
     s32 nOTOffset;
+    u32 pNewBufferHead;
 
     pSpriteData = pTask->unk4;
     if (*(u16*)&pSpriteData->curSpriteFrame != 0) {
@@ -322,7 +329,8 @@ void func_80025544(WorkListEntry* pTask) {
     }
     xOffset = *(u16*)((u8*)pSpriteData + 0x36);
     pPrim = g_GfxCurWorkBuffer;
-    if (!((u8*)(pPrim + 1) < (u8*)g_GfxCurWorkBufferEnd)) {
+    pNewBufferHead = pPrim + 1;
+    if (!(pNewBufferHead < g_GfxCurWorkBufferEnd)) {
         return;
     }
 
@@ -340,8 +348,8 @@ void func_80025544(WorkListEntry* pTask) {
                               (long*)&sxy1, &sxy2, &flag, &flag) >> D_80050100;
     pSpriteData->field_0x2e = nOTOffset;
 
-    nWidth = sxy1.vx - pPrim->x0;
     x0 = *(u16*)&pPrim->x0;
+    nWidth = sxy1.vx - pPrim->x0;
     if (nWidth == 0) {
         nWidth = 1;
     }
