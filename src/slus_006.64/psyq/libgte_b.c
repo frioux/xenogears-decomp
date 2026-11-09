@@ -43,23 +43,13 @@ void NormalColor(SVECTOR *v0, CVECTOR *v1) {
 }
 
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte_b", NormalColor3);
-/* best attempt 72.67%. Only difference: gcc copies the two stack arguments
-   (v4 at 0x10(sp), v5 at 0x14(sp)) into v-registers at function entry; the
-   original loads them into t0/t1 after the NCT. cc1 2.7.2 (and 2.6.0) always
-   materializes incoming stack arguments in the entry block, so this cannot be
-   expressed in C. Needs the 6-argument form; blocked by the compiler.
 void NormalColor3(SVECTOR *v0, SVECTOR *v1, SVECTOR *v2, CVECTOR *v3, CVECTOR *v4,
                   CVECTOR *v5) {
-    CVECTOR *p4 = v4;
-    CVECTOR *p5 = v5;
-
     gte_ldv3(v0, v1, v2);
     gte_nop();
     gte_nct_b();
-    gte_strgb3(v3, p4, p5);
+    gte_strgb3_gpr_stack(v3, v4, v5);
 }
-*/
 
 
 void NormalColorDpq(SVECTOR *v0, CVECTOR *v1, long p, CVECTOR *v2) {
@@ -72,21 +62,15 @@ void NormalColorDpq(SVECTOR *v0, CVECTOR *v1, long p, CVECTOR *v2) {
 }
 
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte_b", NormalColorDpq3);
-/* best attempt 53.50%. Same entry-block stack-argument copy as NormalColor3.
-   Also note the original loads p straight into the GTE with
-   `lwc2 $8, 0x10(sp)` where gte_lddp emits `mtc2 p, $8`, i.e. the original
-   header's gte_lddp took a pointer.
 void NormalColorDpq3(SVECTOR *v0, SVECTOR *v1, SVECTOR *v2, CVECTOR *v3, long p,
                      CVECTOR *v4, CVECTOR *v5, CVECTOR *v6) {
     gte_ldv3(v0, v1, v2);
     gte_ldrgb(v3);
-    gte_lddp(p);
+    gte_lddp_stack(p);
     gte_nop();
     gte_ncdt_b();
-    gte_strgb3(v4, v5, v6);
+    gte_strgb3_stack(v4, v5, v6);
 }
-*/
 
 
 void NormalLightCol(SVECTOR *v0, CVECTOR *v1, CVECTOR *v2) {
@@ -97,17 +81,14 @@ void NormalLightCol(SVECTOR *v0, CVECTOR *v1, CVECTOR *v2) {
     gte_strgb(v2);
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte_b", NormalColorCol3);
-/* best attempt 64.12%. Same entry-block stack-argument copy as NormalColor3.
 void NormalColorCol3(SVECTOR *v0, SVECTOR *v1, SVECTOR *v2, CVECTOR *v3, CVECTOR *v4,
                      CVECTOR *v5, CVECTOR *v6) {
     gte_ldv3(v0, v1, v2);
     gte_ldrgb(v3);
     gte_nop();
     gte_ncct_b();
-    gte_strgb3(v4, v5, v6);
+    gte_strgb3_stack(v4, v5, v6);
 }
-*/
 
 
 void ColorDpq(VECTOR *v0, CVECTOR *v1, long p, CVECTOR *v2) {
@@ -155,21 +136,14 @@ void DpqColorLight(VECTOR *v0, CVECTOR *v1, long p, CVECTOR *v2) {
 }
 
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte_b", DpqColor3);
-/* best attempt 59.33% (identical under gcc 2.6.0/2.7.2, -O1/-O2/-O3). Same
-   entry-block stack-argument copy as NormalColor3: gcc loads v3/v4/v5 (at
-   0x10/0x14/0x18(sp)) into registers in the entry block, the original loads
-   them after the DPCT. A `"memory"` clobber between DPCT and gte_strgb3 does
-   not move the loads either, so it is a compiler invariant, not scheduling.
 void DpqColor3(CVECTOR *v0, CVECTOR *v1, CVECTOR *v2, long p, CVECTOR *v3,
                CVECTOR *v4, CVECTOR *v5) {
     gte_ldrgb3(v0, v1, v2);
     gte_lddp(p);
     gte_nop();
     gte_dpct_b();
-    gte_strgb3(v3, v4, v5);
+    gte_strgb3_stack(v3, v4, v5);
 }
-*/
 
 void Intpl(VECTOR *v0, long p, CVECTOR *v1) {
     gte_ldlvl(v0);
