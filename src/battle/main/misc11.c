@@ -15,6 +15,9 @@ extern u8 D_800D32A1[];
 extern u8 D_800D2DD7[];
 extern u8 D_800D2DD8[];
 extern u8 D_800C204C;
+extern u8 D_800C3202[];
+extern u8 *D_800C3EA4;
+extern s32 D_800CCB34;
 
 extern s32 func_8008ABB8(s32, s32);
 extern void func_8008AB94(void);
@@ -25,6 +28,33 @@ extern void ArchiveReadFileToBuffer(s32 index, void *pBuffer, u32 arg2, u32 flag
 extern void HeapFree(void *pMem);
 extern void bzero(void *p, s32 n);
 
+/* 46.02%: gcc CSEs the entry address pBase+(D_800CCB34+i*2)*16 and stores the
+   four halfwords through one register, while the original recomputes it (and
+   reloads D_800CCB34) for each of the four stores. Tried: hoisting
+   D_800C3EA4 into a local, inlining it, s32/u8 loop counter. */
+/*
+void func_8007FBE0(u8 arg0, u8 arg1) {
+    s32 count;
+    u8 *pBase;
+    u8 *pSrc;
+    s32 i;
+
+    count = arg1;
+    if (arg0 == arg1) {
+        count = arg1 - 1;
+    }
+    pBase = D_800C3EA4;
+    pSrc = D_800C3202 + arg0 * 6;
+    for (i = 0; i < arg0 - 1; i++) {
+        *(u16 *)(D_800C3EA4 + (D_800CCB34 + i * 2) * 0x10 + 0x910) = 0xC;
+        *(u16 *)(D_800C3EA4 + (D_800CCB34 + i * 2) * 0x10 + 0x912) = pSrc[i] + 0x5E;
+        *(u16 *)(D_800C3EA4 + (D_800CCB34 + i * 2) * 0x10 + 0x914) = 0x12;
+        *(u16 *)(D_800C3EA4 + (D_800CCB34 + i * 2) * 0x10 + 0x916) = pSrc[i] + 0x5E;
+    }
+    D_800D2D28[0x97] = count;
+    D_800D2D28[0x98] = *(u8 *)&D_800CCB34;
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_8007FBE0);
 
 void func_8007FCE8(void) {
