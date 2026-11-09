@@ -26,23 +26,24 @@ extern s32 D_8005A444[];
 // that follows an index through it; read the pointer through a plain lvalue instead.
 #define FIELD_ACTORS (*((FieldActor**)(void*)&g_FieldActors))
 
+/* 97.72% (1076 bytes, original 1080). Everything matches instruction for
+   instruction except the switch dispatch: gcc emits `lui v0,%hi(Ltab);
+   lw v0,off(v0)` (two insns, section-relative) where the original emits
+   `lui at,%hi(jtbl); addu at,at,v0; lw v0,%lo(jtbl)(at)`. That is why the
+   function is 4 bytes short, so the jtbl-symbol exception does not apply.
+   What got it this far: a local pointer for the shared tail (the original keeps
+   it in call-clobbered a2 and reloads the global after func_8007B694 and in the
+   block after the arrival arm, so those statements must name
+   g_FieldScriptVMCurActor directly, not the local), plus separate block-scoped
+   rotation variables per arm - a single shared `rotation` keeps the value in a1
+   and forces an extra move. */
 INCLUDE_ASM("asm/field/nonmatchings/main/misc12", func_80099AC0);
-/* 96.22% (1088 bytes, original is 1080). Below reproduces the original
-   instruction for instruction except the arrival arm's two rotation stores: gcc
-   keeps the temp in a1 and reloads g_FieldScriptVMCurActor for the `sh`s, where
-   the original stores straight from v0 and reuses the pointer it already has in
-   a2. Spelling those two stores out as duplicated `... | 0x8000` expressions
-   reaches 96.43% (1084 bytes, pointer reused) but then gcc stops CSE-ing the
-   field load. Block layout notes, all of which are load bearing: cases are
-   written 1, 2, 3, then 0/4; the arrival test is the inverted
-   `flags_0 == 0 || magnitude + radius >= distance`; the unk11C test is the
-   inverted `!(flags & 0x8000)`; and both field reads need the (u_short) cast to
-   get `lhu` + `ori` rather than `lh`.
-int func_80099AC0(int arg0) {
+/* int func_80099AC0(int arg0) {
     FieldActor* pFieldActor;
     ActorData* pActorData;
     SpriteData* pSpriteData;
     ActorData* pTargetActor;
+    ActorData* pTailActor;
     IVEC3 delta;
     int magnitude;
     int distance;
@@ -102,22 +103,27 @@ int func_80099AC0(int arg0) {
     delta.y = 0;
     delta.z = z - curZ;
     distance = FieldGetVec2Magnitude(delta.x, delta.z);
-    g_FieldScriptVMCurActor->scriptFlags.flags |= 0x400000;
+    pTailActor = g_FieldScriptVMCurActor;
+    pTailActor->scriptFlags.flags |= 0x400000;
 
-    if (g_FieldScriptVMCurActor->scripts[g_FieldScriptVMCurActor->curScriptIndex].flags_0 == 0
+    if (pTailActor->scripts[pTailActor->curScriptIndex].flags_0 == 0
         || magnitude + radius >= distance) {
         if (arg0 != 0) {
-            if (!(g_FieldScriptVMCurActor->scriptFlags.flags & 0x8000)) {
-                rotation = (u_short)g_FieldScriptVMCurActor->rotation.vy | 0x8000;
+            u_short angle;
+
+            if (!(pTailActor->scriptFlags.flags & 0x8000)) {
+                angle = (u_short)pTailActor->rotation.vy | 0x8000;
             } else {
-                rotation = (u_short)g_FieldScriptVMCurActor->unk11C | 0x8000;
+                angle = (u_short)pTailActor->unk11C | 0x8000;
             }
-            g_FieldScriptVMCurActor->rotation.vx = rotation;
-            g_FieldScriptVMCurActor->rotation.vy = rotation;
+            pTailActor->rotation.vx = angle;
+            pTailActor->rotation.vy = angle;
         } else {
-            rotation = func_8007B694(&delta);
-            g_FieldScriptVMCurActor->rotation.vx = rotation;
-            g_FieldScriptVMCurActor->rotation.vy = rotation;
+            int angle;
+
+            angle = func_8007B694(&delta);
+            g_FieldScriptVMCurActor->rotation.vx = angle;
+            g_FieldScriptVMCurActor->rotation.vy = angle;
         }
 
         g_FieldScriptVMCurActor->scripts[g_FieldScriptVMCurActor->curScriptIndex].flags_0 = 0xFFFF;
@@ -126,13 +132,14 @@ int func_80099AC0(int arg0) {
         return 0;
     }
 
-    g_FieldScriptVMCurActor->scripts[g_FieldScriptVMCurActor->curScriptIndex].flags_0--;
+    pTailActor->scripts[pTailActor->curScriptIndex].flags_0--;
     rotation = func_8007B694(&delta);
     D_800B00C0 = 1;
     g_FieldScriptVMCurActor->rotation.vx = rotation;
     g_FieldScriptVMCurActor->rotation.vy = rotation;
     return -1;
-} */
+}
+ */
 
 void FieldScriptVMWriteCurCharacterID(void) {
     FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(1), g_FieldScriptVMCurActor->characterId);
