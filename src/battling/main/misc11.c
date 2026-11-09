@@ -17,6 +17,17 @@ typedef struct {
 
 extern BattlingWork D_8009A2F8[2];
 
+extern s32 D_800928F8;
+
+typedef struct {
+    /* 0x00 */ s16 unk0;
+    /* 0x02 */ s16 unk2;
+    /* 0x04 */ s16 unk4;
+    /* 0x06 */ u8 pad6[0x62];
+} BattlingEntry68; // Size: 0x68
+
+extern BattlingEntry68 D_8009A988[];
+
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc11", func_80087068);
 
 void func_800875EC(void) {
@@ -46,6 +57,22 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc11", func_80087AB0);
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc11", func_80087B74);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc11", func_80087E38);
+/* Best 84.04%: only the base register differs (original keeps the base in a0 and
+   sums into v0; gcc reuses the dead base register for the sum).
+void func_80087E38(s32 *arg0) {
+    s32 i = D_800928F8;
+
+    if (i < 0x1F) {
+        BattlingEntry68 *p = D_8009A988;
+
+        p += i;
+        p->unk0 = arg0[0];
+        p->unk2 = arg0[1];
+        p->unk4 = arg0[2];
+        D_800928F8 = i + 1;
+    }
+}
+*/
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc11", func_80087EA0);
 
@@ -99,7 +126,18 @@ s32 func_80088754(s32 *arg0) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc11", func_800887A4);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc11", func_80088838);
+s32 func_80088838(s32 *arg0, s32 *arg1) {
+    long out[3];
+
+    out[0] = arg1[0] - arg0[0];
+    out[2] = arg1[2] - arg0[2];
+    gte_ldlvl(out);
+    gte_nop();
+    gte_nop();
+    gte_sqr0_b();
+    gte_stlvnl(out);
+    return SquareRoot0(out[0] + out[2]);
+}
 
 void func_800888B0(s32 arg0) {
     s32 bit = 1;
