@@ -196,7 +196,9 @@ void SetDQB(long dqb) {
     gte_lddqb(dqb);
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", ReadGeomOffset);
+void ReadGeomOffset(long *pOfsX, long *pOfsY) {
+    gte_ReadGeomOffset_gpr(pOfsX, pOfsY);
+}
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", ReadGeomScreen);
 
@@ -423,9 +425,25 @@ long AverageZ4(long sz0, long sz1, long sz2, long sz3) {
     return otz;
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", OuterProduct12);
+void OuterProduct12(VECTOR *v0, VECTOR *v1, VECTOR *v2) {
+    gte_stR11R22R33();
+    gte_ldopv1(v0);
+    gte_ldopv2(v1);
+    gte_nop();
+    gte_op12_b();
+    gte_stlvnl(v2);
+    gte_ldR11R22R33();
+}
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", OuterProduct0);
+void OuterProduct0(VECTOR *v0, VECTOR *v1, VECTOR *v2) {
+    gte_stR11R22R33();
+    gte_ldopv1(v0);
+    gte_ldopv2(v1);
+    gte_nop();
+    gte_op0_b();
+    gte_stlvnl(v2);
+    gte_ldR11R22R33();
+}
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", Lzc);
 
