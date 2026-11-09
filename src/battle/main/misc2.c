@@ -3,9 +3,12 @@
 
 extern u8 D_8005959C;
 extern u8 *D_800C3EA4;
+extern s32 D_800CCB34;
+extern void *D_800D2F5C;
 extern u8 *D_800D2D28;
 extern u8 *D_800D2DB4;
 
+extern s32 func_8002675C(void *pDir, s32 index, void *pPrims, s32 context, s16 x, s16 y, s16 scale);
 extern void func_800728B8(u8 *pDst, s32 arg1, s32 arg2);
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_80073B64);
@@ -54,5 +57,11 @@ void func_800769E8(RECT *pRect, u_long *pData) {
     DrawSync(0);
 }
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_80076A10);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_80076A6C);
+void func_80076A10(s32 arg0, s32 arg1, s16 arg2, s16 arg3) {
+    func_8002675C(D_800D2F5C, arg0, arg1, D_800CCB34, arg2, arg3, 0x1000);
+}
+
+void func_80076A6C(s32 arg0, s32 arg1, s16 arg2, s16 arg3) {
+    func_8002675C(D_800D2F5C, arg0, arg1, D_800CCB34, arg2, arg3, 0x800);
+}
+
