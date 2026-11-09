@@ -405,10 +405,81 @@ void func_80025718(WorkListEntry* pTask) {
     }
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_800257F0);
-
 extern void func_800B1F6C(void* pDirTransforms, void* pFramesData, u_long* pOT,
                           int flags, s32 arg4, s32 arg5);
+extern MATRIX D_8004FD80;
+extern MATRIX D_8004FDA0;
+
+// Builds the sprite's color and light matrices from its base scale/rotation,
+// then draws its model parts; a negative flag word saves and restores the
+// geometry offset around the draw.
+void func_800257F0(WorkListEntry* pTask) {
+    MATRIX matrix;
+    VECTOR vec;
+    MATRIX colorMatrix;
+    MATRIX lightMatrix;
+    long geomOffsetX;
+    long geomOffsetY;
+    SpriteData* pSpriteData;
+    s32 oldShift;
+
+    pSpriteData = pTask->unk4;
+    func_80022038(pSpriteData);
+    if (pSpriteData->pBase->pDirTransforms) {
+        if ((*(u32*)((u8*)pSpriteData + 0x40) >> 1) & 1) {
+            PushMatrix();
+            // The scale values go in the m[i][0] slots (bytes 0, 6, 0xC), which
+            // is where the static initialiser keeps its 0xC00 identity values.
+            D_8004FD80.m[0][0] = *(u16*)((u8*)pSpriteData->pBase + 0x4C);
+            D_8004FD80.m[1][0] = *(u16*)((u8*)pSpriteData->pBase + 0x4E);
+            D_8004FD80.m[2][0] = *(u16*)((u8*)pSpriteData->pBase + 0x50);
+            RotMatrix((SVECTOR*)((u8*)pSpriteData->pBase + 0x44), &colorMatrix);
+            MulMatrix0(&colorMatrix, &pSpriteData->pBase->transformMatrix,
+                       &colorMatrix);
+            MulMatrix0(&D_8004FDA0, &colorMatrix, &lightMatrix);
+            SetBackColor(0x20, 0x20, 0x20);
+            SetColorMatrix(&D_8004FD80);
+            SetLightMatrix(&lightMatrix);
+            PopMatrix();
+        }
+
+        vec.vx = pSpriteData->position.x >> 16;
+        vec.vy = pSpriteData->position.y >> 16;
+        vec.vz = pSpriteData->position.z >> 16;
+        TransMatrix(&pSpriteData->pBase->transformMatrix, &vec);
+        if (!(*(u8*)((u8*)pSpriteData + 0x3F) & 1)) {
+            CompMatrix(&D_8004FBB8, &pSpriteData->pBase->transformMatrix,
+                       &matrix);
+            SetRotMatrix(&matrix);
+            SetTransMatrix(&matrix);
+        } else {
+            SetRotMatrix(&pSpriteData->pBase->transformMatrix);
+            SetTransMatrix(&pSpriteData->pBase->transformMatrix);
+        }
+
+        if (*(s32*)((u8*)pSpriteData + 0x3C) < 0) {
+            ReadGeomOffset(&geomOffsetX, &geomOffsetY);
+            SetGeomOffset(0xA0, 0x70);
+        }
+        if ((*(u32*)((u8*)pSpriteData + 0x3C) >> 25) & 1) {
+            oldShift = D_80050100;
+            D_80050100 = 0x10;
+            func_800B1F6C(pSpriteData->pBase->pDirTransforms,
+                          ((void**)&pSpriteData->pBase->pFramesData)[g_GfxCurContext],
+                          g_GfxCurOT, 0, 0xFEC,
+                          *(u8*)((u8*)pSpriteData + 0x3C) >> 5);
+            D_80050100 = oldShift;
+        } else {
+            func_800B1F6C(pSpriteData->pBase->pDirTransforms,
+                          ((void**)&pSpriteData->pBase->pFramesData)[g_GfxCurContext],
+                          g_GfxCurOT, 0, pSpriteData->field_0x30,
+                          *(u8*)((u8*)pSpriteData + 0x3C) >> 5);
+        }
+        if (*(s32*)((u8*)pSpriteData + 0x3C) < 0) {
+            SetGeomOffset(geomOffsetX, geomOffsetY);
+        }
+    }
+}
 
 // Draws the sprite through the matrix D_8004FBB8 composed with its own, then
 // hands the model parts to func_800B1F6C.
