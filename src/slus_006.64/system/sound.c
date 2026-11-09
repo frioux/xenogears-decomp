@@ -5,6 +5,7 @@
 
 s32 func_8003E290(s32 value, s16 divisor, s16 mode);
 s32 func_8003F240(AudioEnvelope* pEnvelope);
+s32 func_8003F2A0(AudioEnvelope* pEnvelope);
 
 //----------------------------------------------------------------------------------------------------------------------
 // SPU DECLARATIONS
@@ -1293,9 +1294,65 @@ void func_800399D4(AudioManager* pManager) {
     }
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_80039A80);
+void func_80039A80(AudioManager* pManager, s32 volume, s32 frames) {
+    s16 status;
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_80039B68);
+    if (pManager == NULL) {
+        SoundHandleError(0x5);
+        return;
+    }
+
+    pManager->unk_Flags &= ~0x8000;
+    status = (s16)SoundUnkDebug0(pManager->unk_0x8);
+    if (status != 0) {
+        SoundHandleError(0xA);
+        return;
+    }
+
+    if (pManager->unk_Flags & 0x8000) {
+        func_80039C4C(pManager);
+    }
+
+    DisableEvent(g_unk_SoundEvent);
+    func_8003B22C(pManager);
+    func_8003B424(pManager);
+    pManager->unk_Interpolator_0x70.currentValue = 0;
+    func_8003A89C(pManager, volume, frames);
+
+    pManager->unk_Flags |= 0x8000;
+    EnableEvent(g_unk_SoundEvent);
+}
+
+void func_80039B68(AudioManager* pManager, s32 volume, s32 frames) {
+    AudioElement* pElement;
+    SoundWDSEntry* pWds;
+    SoundWdsTone* pTone;
+    u32 sampleStart;
+    s32 cnt;
+
+    if (pManager == NULL) {
+        SoundHandleError(0x5);
+        return;
+    }
+
+    pElement = &pManager->elements[0];
+    cnt = pManager->elementCount;
+    do {
+        cnt--;
+        pWds = SoundFindWdsEntry(pElement->unk_0x25);
+        pElement->unk2C = (u32)pWds;
+        pTone = (SoundWdsTone*)((u8*)pWds + 0x30) + pElement->unk_0x26;
+        sampleStart = pTone->sampleOffset << 3;
+        pElement->voice_data.startAddress = sampleStart + pWds->spuMemoryAddress;
+        pElement->voice_data.loopAddress = sampleStart + (pTone->loopOffset << 3);
+        pElement->voice_data.flags = 0xFFFF;
+        pElement++;
+    } while (cnt);
+
+    pManager->unk_Interpolator_0x70.currentValue = 0;
+    pManager->unk_Flags |= 0x100;
+    func_8003A89C(pManager, volume, frames);
+}
 
 //----------------------------------------------------------------------------------------------------------------------
 void func_80039C4C(AudioManager* manager) {
@@ -1436,11 +1493,66 @@ void func_80039FF8(void) {
     EnableEvent(g_unk_SoundEvent);
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003A094);
+void func_8003A094(SoundFile* pSoundFile) {
+    AudioManager* pManager = D_800595D8;
+    AudioElement* pElement = &pManager->elements[0];
+    u32 cnt = D_80059478;
+    s16 sedId = *(s16*)((u8*)pSoundFile + 0x14);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003A14C);
+    do {
+        if (pElement->active_flag & 0x1) {
+            if (*(s16*)((u8*)pElement + 0xA) == sedId) {
+                pElement->active_flag = 0;
+                pManager->unk_0x48 &= ~(1 << (u8)pElement->unk_0x06[0]);
+                SoundReleaseVoiceFromChannel(&pElement->voice_data, pElement->voice_number);
+            }
+        }
+        pElement++;
+        cnt--;
+    } while (cnt);
+}
+
+void func_8003A14C(s32 sedId) {
+    AudioManager* pManager = D_800595D8;
+    AudioElement* pElement = &pManager->elements[0];
+    u32 cnt = D_80059478;
+
+    do {
+        if (pElement->active_flag & 0x1) {
+            if (pElement->unk_0x8 == sedId) {
+                pElement->active_flag = 0;
+                pManager->unk_0x48 &= ~(1 << (u8)pElement->unk_0x06[0]);
+                SoundReleaseVoiceFromChannel(&pElement->voice_data, pElement->voice_number);
+            }
+        }
+        pElement++;
+        cnt--;
+    } while (cnt);
+}
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003A20C);
+/*
+Attempt (84.00%, correct size and registers): same blocker as func_8003A344 - the
+only difference is that gcc emits the `andi a0,0xfe` / `xori a0,0x8` mask after
+the loop-preheader constants (`li s2,2`, `li s4,1`) while the original emits it
+first. Stable against the mask in a local of its own, and against the mask inline
+in the address expression.
+void func_8003A20C(s32 index) {
+    AudioManager* pManager = D_800595D8;
+    AudioElement* pElement = &pManager->elements[(index & 0xFE) ^ 8];
+    u32 cnt = 2;
+
+    do {
+        if (pElement->active_flag & 0x1) {
+            pElement->active_flag = 0;
+            pManager->unk_0x48 &= ~(1 << (u8)pElement->unk_0x06[0]);
+            SoundReleaseVoiceFromChannel(&pElement->voice_data, pElement->voice_number);
+        }
+        pElement++;
+        cnt--;
+    } while (cnt);
+}
+*/
 
 void func_8003A2D4(void) {}
 
@@ -2859,6 +2971,46 @@ u8* func_8003D884(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
 }
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003D8B8);
+/*
+Attempt (92.34%, same size, all instructions in the original's order except two missing
+int-to-s16 conversions): gcc elides the `sll 16`/`sra 16` pair before the velocity square
+and the one converting the divisor argument, because it can prove the sum non-negative and
+in range (`u8` velocity, `s16` velocity, an explicit `(s16)` cast and `s32 volume` all give
+the same elision). The register allocation also comes out mirrored: gcc puts the volume
+total in s0 and pAudioElements in s1, the original the other way round (the prologue save
+order follows). The note curve `note * abs(note)` does match with the if/else below.
+u8* func_8003D8B8(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
+    s8 note = pScript[1];
+    s16 velocity = pScript[0];
+    s32 volume;
+    s32 pitch;
+    s32 unk16;
+
+    if (note != 0) {
+        if (velocity != 0) {
+            if (note < 0) {
+                pitch = note * -note;
+            } else {
+                pitch = note * note;
+            }
+            volume = velocity + (velocity * velocity) / 64;
+            pAudioElements->envelopes[0].delta = func_8003E290(pitch << 14, volume, 3);
+            pAudioElements->envelopes[0].reload = volume;
+            unk16 = pScript[2] << 2;
+            pAudioElements->envelopes[0].unk_0x1A = 0x400;
+            pAudioElements->envelopes[0].unk_0x0 = (undefined32)func_8003F2A0;
+            pAudioElements->envelopes[0].unk_0x1D = 3;
+            pAudioElements->envelopes[0].flags = 3;
+            pAudioElements->envelopes[0].unk_0x1C = 0;
+            pAudioElements->envelopes[0].unk_0x16 = unk16;
+            pAudioElements->unk_0xCE |= 0x1;
+            func_8003E3E0(&pAudioElements->envelopes[0]);
+        }
+    }
+
+    return pScript + 3;
+}
+*/
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003D9A4);
 
