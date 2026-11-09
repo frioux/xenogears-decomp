@@ -23,7 +23,7 @@ typedef struct {
     /* 0x4C */ void *unk4C;
     /* 0x50 */ s32 unk50;
     /* 0x54 */ void *unk54;
-    /* 0x58 */ void *unk58;
+    /* 0x58 */ s32 unk58;
     /* 0x5C */ s32 unk5C;
     /* 0x60 */ undefined32 unk60[8]; // 0x60..0x7F
 } WorldMapActor; // Size: 0x80
@@ -91,6 +91,34 @@ int func_8008B498(int index) {
     return result;
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008B54C);
+/* 93.37%:  Everything from the func_80093978 call to the tail is byte-identical;
+   the only difference is the prologue, where gcc materialises index*128 in v0 and
+   then has to spill the 0x40 stack argument early, while the original keeps it in
+   v0 and scales into v1.
+int func_8008B54C(int index) {
+    WorldMapActor *pActor = &D_8009BE24[index];
+
+    pActor->unk4C = func_80024524(D_8009CD38, 0x110, 0x1E0, 0x150, 0x100, 0x40);
+    func_800245D8(pActor->unk4C, 0);
+    SpriteSetScale(pActor->unk4C, 0x1800);
+    *(u32 *)((u8 *)pActor->unk4C + 0x3C) &= ~4;
+    pActor->unk28 = g_GameState.unk1820 << 12;
+    pActor->unk30 = g_GameState.unk1822 << 12;
+    pActor->unk2C = func_80093978(pActor->unk28, pActor->unk30);
+    {
+        u16 unk48 = g_GameState.unk1824;
+        pActor->unk24 = 1;
+        pActor->unk4A = 8;
+        pActor->unk20 = 2;
+        pActor->unk40 = 0;
+        pActor->unk3C = 0;
+        pActor->unk38 = 0;
+        pActor->unk58 = 0xF;
+        pActor->unk48 = unk48;
+    }
+    return 1;
+}
+*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008B644);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008BB40);
 int func_8008BD1C(int index) {
@@ -107,7 +135,42 @@ int func_8008BD1C(int index) {
     }
     return result;
 }
+   func_80093978 call; the prologue scales index in v0 instead of v1 (which forces
+   the 0x40 stack argument to be spilled early) and the tail puts the constants in
+   v0 where the original uses v1. func_8008B54C, which differs only in two
+   constants, reaches 93.37% with the same body; this is the allocator tie-break
+   class, four source shapes did not move it.
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008BDD0);
+/* 83.03%: the body is instruction-for-instruction identical up to the func_80093978
+   call; the prologue scales index in v0 where the original uses v1 (which also
+   forces the 0x40 stack argument to be spilled early) and the tail puts the
+   constants in v0 where the original uses v1. func_8008B54C, same shape with two
+   different constants, reaches 93.37%; four source shapes did not close either,
+   so this is the allocator tie-break class.
+int func_8008BDD0(int index) {
+    WorldMapActor *pActor = &D_8009BE24[index];
+
+    pActor->unk4C = func_80024524(D_8009CD3C, 0x120, 0x1E0, 0x160, 0x100, 0x40);
+    func_800245D8(pActor->unk4C, 0);
+    SpriteSetScale(pActor->unk4C, 0x1800);
+    *(u32 *)((u8 *)pActor->unk4C + 0x3C) &= ~4;
+    pActor->unk28 = g_GameState.unk1820 << 12;
+    pActor->unk30 = g_GameState.unk1822 << 12;
+    pActor->unk2C = func_80093978(pActor->unk28, pActor->unk30);
+    {
+        u16 unk48 = g_GameState.unk1824;
+        pActor->unk24 = 1;
+        pActor->unk4A = 8;
+        pActor->unk20 = 2;
+        pActor->unk40 = 0;
+        pActor->unk3C = 0;
+        pActor->unk38 = 0;
+        pActor->unk58 = 0x1E;
+        pActor->unk48 = unk48;
+    }
+    return 1;
+}
+*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008BEC8);
 void func_8008BFD4(s16 arg0, s32 *pArray, s16 arg2, s16 arg3) {
     WorldMapEntry *pEntry = &D_8009BE6C[D_8009BD04];
