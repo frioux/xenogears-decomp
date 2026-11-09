@@ -263,7 +263,9 @@ typedef struct {
     /* 0x47 */ u8 unk47;
     /* 0x48 */ u8 unk48;
     /* 0x49 */ u_char scrollHandleActive;
-    /* 0x4A */ u8 unk4A[0x6];
+    /* 0x4A */ u8 unk4A[0x4];
+    /* 0x4E */ u8 unk4E;
+    /* 0x4F */ u8 unk4F;
     /* 0x50 */ u8 shouldRenderArrowCursor[MENU_MAX_NUM_ARROW_CURSORS]; // Should render arrow cursor (array, size 3?)
     /* 0x52 */ u8 unk52;
     /* 0x53 */ u_char shoulderButtonUiActive;
