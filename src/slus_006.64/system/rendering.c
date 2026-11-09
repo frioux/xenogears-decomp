@@ -148,6 +148,8 @@ SVEC2* func_8001F530(SVEC2* pDest, s32 amount) {
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001F5BC);
 /* Best attempt: 95.16%. UPDATE: this C scores 98.52% under gcc-2.7.2-cdk-psx
    too, so the preset is not the answer here; the miss is the allocator.
+   Also tried: loading pPackage->pFrames after the `index = pFrame[4]` byte (the
+   original's load order) -- 91.38%, so the hoisted pFrames load is correct.
    The instruction stream (including the multiply/divide
    sequences) is identical; only the register allocation differs. The original
    keeps the sprite data in a1 and loads its 5th argument lazily inside the
