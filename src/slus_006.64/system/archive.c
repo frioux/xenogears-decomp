@@ -616,42 +616,57 @@ error:
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002B2F0);
 
-/* Best attempt: objdiff 96.40%. func_8002B5D0 is instruction-identical to this
- * function (verified by diffing the two .s files modulo addresses), so one body
- * matches both. Everything outside the found-block after CdPosToInt matches.
+/* Best attempt: objdiff 96.81% (this was 96.40% before). func_8002B5D0 is
+ * instruction-identical to this function (verified by diffing both .s files modulo
+ * addresses), so one body matches both. Everything outside the found-block after
+ * CdPosToInt matches byte for byte.
  *
  * What this attempt got right:
  *  - the search loop reads the globals directly (`for (i = 0; i < D_8004FE40; i++)`
- *    with `entryIndex = D_8004FE10++` and D_8004FE2C in the body) so gcc hoists
- *    the loop-invariant copies (`lw v0,D_8004FE40` + `blez v0`, `move a1,v0`);
- *  - the two delay loops need their OWN counters (k/l). Reusing the search loop's
- *    `i` puts the outer 9999 counter in a0 instead of v1 (96.29%);
- *  - the delay-slot / error-path tail of the function then matches exactly.
+ *    with `entryIndex = D_8004FE10++` and D_8004FE2C in the body) so gcc hoists the
+ *    loop-invariant copies (`lw v0,D_8004FE40` + `blez v0`, `move a1,v0`);
+ *  - the two delay loops need their OWN counters (k/l); reusing the search loop's
+ *    `i` puts the outer 9999 counter in a0 instead of v1;
+ *  - `D_8004FE26 = *(volatile u16*)&D_8004FE26 + 1;` is the spelling that keeps
+ *    retail's TWO lhu of the id counter. gcc's cse merges a plain second read with
+ *    the `pCurrent->id = D_8004FE26` read (the store through s1 in between is not
+ *    treated as aliasing), so the increment read has to be volatile to survive.
  *
- * Remaining delta (4 bytes: one extra insn), all inside the found block. Retail's
- * order there is (<- = reorg-stolen into the preceding beq delay slot):
- *   li v0,0x1 <- ; li a1,0x200 ; lhu a2,D_8004FE26 ; sll a0,s2,0xb ;
- *   sh v0,0(s1) ; lhu v0,D_8004FE26 ; lw v1,D_8004FE08 ; addiu v0,v0,1 ;
- *   sh a2,2(s1) ; sh v0,D_8004FE26 ; jal CdGetSector ; addu a0,a0,v1
- * so retail (a) keeps TWO loads of D_8004FE26, the id value loaded before the
- * state store and stored after the lw of D_8004FE08, and (b) lets reorg steal the
- * state constant, not the call's size constant, into the beq delay slot.
- * Our builds merge the two D_8004FE26 reads into one (gcc's cse considers a store
- * through s1 non-aliasing with the global), emit the call's `li a1,0x200` first
- * (so reorg steals that instead), and hoist `lw a0,D_8004FE08` to the block head.
- * Measured variants: state/id/inc/call 96.29%; `id = D_8004FE26;` first with a u16
- * local 96.40%; state/id-local/inc/id-store 94.45%; id/state/call/id-store/inc
- * 91.48%. Next idea: only a call or an unknown-base store between the two reads
- * survives gcc's cse here, so the source may compute the id through something
- * that defeats cse, and needs the state constant emitted before the call's size
- * constant.
+ * Remaining delta: same instruction set, same size, three ordering differences,
+ * all inside the found block. Retail:
+ *   li v0,0x1 <- (reorg steals it into the beq delay slot) ; li a1,0x200 ;
+ *   lhu a2,D_8004FE26 ; sll a0,s2,0xb ; sh v0,0(s1) ; lhu v0,D_8004FE26 ;
+ *   lui/lw v1,D_8004FE08 ; addiu v0,v0,1 ; sh a2,2(s1) ; sh v0,D_8004FE26 ;
+ *   jal CdGetSector ; addu a0,a0,v1
+ * Ours:
+ *   li a1,0x200 <- ; li v0,0x1 ; lhu a2,D_8004FE26 ; lui/lw a0,D_8004FE08 ;
+ *   sll v1,s2,0xb ; sh v0,0(s1) ; lhu v0,D_8004FE26 ; nop ; addiu v0,v0,1 ;
+ *   sh a2,2(s1) ; sh v0,D_8004FE26 ; jal CdGetSector ; addu a0,v1,a0
+ * All three are sched2's choice of insn order, not the C:
+ *  1. the state constant is emitted after the call's 0x200 constant, so reorg steals
+ *     the wrong one into the beq delay slot;
+ *  2. `lw D_8004FE08` is scheduled before `sll`, which also hands a0 to the load and
+ *     v1 to the shift (retail: sll into a0, load into v1, `addu a0,a0,v1`);
+ *  3. with the load no longer sitting between the two id reads, MASPSX has to insert
+ *     a load-delay nop after the volatile `lhu v0` (see
+ *     `_handle_nop_before_next_instruction`: any `lhu $r,sym` whose very next insn
+ *     reads $r gets a nop), which is why the size ends up equal while everything
+ *     after the block sits 4 bytes early.
+ * Measured and rejected: state-first WITHOUT volatile is 97.46% but has only one
+ * lhu and is 728 bytes (one insn short - there is no way to make the second plain
+ * read survive cse); both id reads volatile 96.81% (same block as here); volatile
+ * read into a u16 local then `D_8004FE26 = nId + 1` 96.81%; volatile increment read
+ * first and plain read second 96.48%; `nOffset = entryIndex * CD_SECTOR_SIZE;` as
+ * its own statement before the call 96.81% (gcc folds the local back). Next idea:
+ * make sched2 emit the shift before the load - that is the insn that decides the
+ * register allocation and the nop - or find a non-volatile spelling of the second
+ * read that cse cannot merge.
  *
  * void func_8002B2F0(u_char status) {
  *     ArchiveStreamFileSectionHeader* pCurrent;
  *     CdlLOC* pLoc;
  *     u8* pBuf;
  *     int entryIndex;
- *     u16 id;
  *     int i;
  *     int k;
  *     int l;
@@ -684,10 +699,9 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002B2F0);
  *         pLoc = &D_80059EF8;
  *         CdGetSector(pLoc, 3);
  *         if (CdPosToInt(pLoc) == g_ArchiveCurFileSector) {
- *             id = D_8004FE26;
  *             pCurrent->state = 1;
- *             pCurrent->id = id;
- *             D_8004FE26 += 1;
+ *             pCurrent->id = D_8004FE26;
+ *             D_8004FE26 = *(volatile u16*)&D_8004FE26 + 1;
  *             CdGetSector((u8*)(entryIndex * CD_SECTOR_SIZE + (mem_addr)D_8004FE08), CD_SECTOR_SIZE / 4);
  *             g_ArchiveCurFileSize -= CD_SECTOR_SIZE;
  *             g_ArchiveCurFileSector += 1;
