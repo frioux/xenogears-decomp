@@ -7,7 +7,7 @@ typedef struct {
     /* 0x01 */ u8 unk1;
     /* 0x02 */ u8 unk2;
     /* 0x03 */ u8 unk3;
-    /* 0x04 */ s16 unk4;
+    /* 0x04 */ u16 unk4;
     /* 0x06 */ u16 pad6;
     /* 0x08 */ u32 unk8;
     /* 0x0C */ u32 unkC;
@@ -17,16 +17,25 @@ typedef struct {
 
 extern BattleSlot D_80096EA0[];
 
+extern u16 D_80096EA4;
+extern u16 D_80096EC8;
+extern u16 D_80096EEC;
+extern u16 D_80096F10;
+
 extern void func_8007639C(u8*, u8);
 extern void func_800767C8(u8*, u8*);
 extern void func_8008E78C(u8*, u32, u8*, u32);
 extern void func_80039FF8(void);
+extern u32 func_8003A5D0(u32);
+extern void func_8003A20C(u8);
 extern void func_8008FE80(u8*, u8*, s32);
 extern void func_80090E10(u8*);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008E120);
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008E2B8);
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008E3CC);
+INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008E620);
+/* best: objdiff 99.39% - only difference: gcc folds the address of the loop body's last store into the induction pointer (base = &unk2, offsets 10/-1/2/0) instead of using &unk0 with 12/1/4/2. Statement order does not change the choice; the base always follows the last store.
 void func_8008E620(void) {
     BattleSlot* pSlot;
     s32 timer;
@@ -43,17 +52,51 @@ void func_8008E620(void) {
         pSlot->unk2 = i * 2;
         pSlot++;
     }
-}
+}*/
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008E67C);
+/* best: objdiff 93.00%. Writing the four timers as D_80096EA0[0..3].unk4 scores 97.74% with a shape-identical body (only the %hi/%lo symbol differs, and the linker resolves both to the same address), but the first block then re-materialises the address instead of keeping it in a base register. No shape reproduces block 1 plus blocks 2-4 at once.
+void func_8008E67C(void) {
+    u16* pTimer;
+
+    pTimer = &D_80096EA4;
+    if (*pTimer != 0xFFFF) {
+        (*pTimer)++;
+    }
+    if (D_80096EC8 != 0xFFFF) {
+        D_80096EC8++;
+    }
+    if (D_80096EEC != 0xFFFF) {
+        D_80096EEC++;
+    }
+    if (D_80096F10 != 0xFFFF) {
+        D_80096F10++;
+    }
+}*/
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008E6F8);
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008E78C);
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008E8B0);
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008EADC);
+/* best: objdiff 99.54% - same induction-pointer fold as func_8008E620: base is &unk1 (offsets 7/11/0) instead of &unk0 (8/12/1).
+void func_8008EADC(void) {
+    BattleSlot* pSlot;
+    s32 i;
+
+    pSlot = D_80096EA0;
+    for (i = 0; i < 4; i++) {
+        if ((func_8003A5D0(pSlot->unk8) & pSlot->unkC) == 0) {
+            pSlot->unk1 = 0;
+        }
+        pSlot++;
+    }
+    func_8008E67C();
+}*/
+INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008EB4C);
+/* best: objdiff 73.33% - identical instructions, but gcc emits the lui of 0x60000, then the addu, then the arg-4 load; retail emits the arg-4 load between the lui and the addu. Instruction multiset matches, order of two independent insns does not.
 void func_8008EB4C(u8* p) {
     if (p != NULL) {
         func_8008E78C(p + 0x60000, 0, NULL, D_80059488);
     }
-}
+}*/
 void func_8008EB88(u8* p, s32 idx, u8* pData, s32 flags) {
     if (idx != 0) {
         func_8008E78C((u8*)(idx + 0x60000), flags, pData,
@@ -62,6 +105,20 @@ void func_8008EB88(u8* p, s32 idx, u8* pData, s32 flags) {
 }
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008EBD0);
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008ECEC);
+/* best: objdiff 99.56% - same induction-pointer fold: base is &unk1 (offsets 0/2/0 instead of 1/3/1).
+void func_8008ECEC(u8 kind) {
+    BattleSlot* pSlot;
+    s32 i;
+
+    pSlot = D_80096EA0;
+    for (i = 0; i < 4; i++) {
+        if (pSlot->unk1 != 0 && pSlot->unk3 == kind) {
+            func_8003A20C(pSlot->unk2);
+            pSlot->unk1 = 0;
+        }
+        pSlot++;
+    }
+}*/
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008ED6C);
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008EE1C);
 void func_8008EF00(u8* p0, u8* p1) {
@@ -76,6 +133,8 @@ void func_8008EF74(u8* p0, u8* p1) {
     func_8007639C(p0, 3);
     *(u16*)(p1 + 4) = 0x3C;
 }
+INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008EFA8);
+/* best: objdiff 75.85% - the flag toggle and the test reproduce instruction for instruction; cross-jumping then merges the identical trailing store of the two branches into one at the join and the timer local lands in a2 instead of v0. A bitfield write for bit 13 plus a re-read for the test gave the same result.
 void func_8008EFA8(u8* p0, u8* p1) {
     u32 flags;
     u32 timer;
@@ -91,7 +150,7 @@ void func_8008EFA8(u8* p0, u8* p1) {
         timer = 0x1E;
     }
     *(u16*)(p1 + 4) = timer;
-}
+}*/
 void func_8008F014(u8* p0, u8* p1) {
     func_8007639C(p0, 4);
     func_8007639C(p0, 3);
