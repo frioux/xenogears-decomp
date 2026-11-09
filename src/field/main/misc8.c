@@ -445,6 +445,7 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800831F4);
    (2) gcc sinks the second store (`sh v0,0x106(s0)`) into the `jal
    func_80081F80` delay slot, because the reload `lh a1,0x104(s0)` is scheduled
    before it; the original emits both stores, then the reload, and a nop.
+*/
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80083288);
 
 void func_80083994(void) {
