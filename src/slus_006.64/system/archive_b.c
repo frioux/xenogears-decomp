@@ -64,3 +64,67 @@ void func_800379D0(void) {
 }
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive_b", func_800379D8);
+/* 97.82%: every instruction matches but one register permutation. The
+   original puts the first parameter (the archive index) in $s0 and shifts
+   pFirst/pSecond down one ($s3/$s2/$s1); gcc puts the first-allocated pointer
+   in $s0 and the index in $s3. Ten declaration/expression orders give the same
+   97.82% (pointer decls first, inline initializer, s32 instead of int, `nIndex
+   + 6` recomputed instead of a local, locals scoped to the else block), so this
+   is global.c's allocno-order tie, not the source. Second difference: the
+   original stores to D_8005A1DC through the $a0 that also carries the queue
+   address into func_80029AFC (one lui/addiu pair for both), gcc materialises
+   the store separately with $at (2 extra insns, 436 vs 440 bytes).
+   Needs include/system/archive.h for StreamDataQueueEntry and
+   ARCHIVE_CD_DRIVE_SET_ADPCM_PLAY_CHANNEL.
+extern int ArchiveDecodeAlignedSize(unsigned int entryIndex);
+extern int ArchiveDecodeSizeAbsolute(int entryIndex);
+extern void func_80029AFC(StreamDataQueueEntry* pQueue, int arg1, int arg2);
+
+extern u16 D_8005A1DC;
+extern void* D_8005A1E0;
+extern u16 D_8005A1E4;
+extern void* D_8005A1E8;
+extern u16 D_8005A1EC;
+extern void* D_8005A1F0;
+extern void* D_800658C8;
+
+int func_800379D8(int nIndex, int nBaseIndex, int* pOut1, int* pOut2, int* pOut3) {
+    void* pFirst;
+    void* pSecond;
+    int nSectionIndex;
+    int nEntryIndex;
+    int nResult;
+    short nCount;
+
+    nResult = 0;
+    ArchiveGetArchiveOffsetIndices(&nSectionIndex, &nEntryIndex);
+    ArchiveSetIndex(ARCHIVE_CD_DRIVE_SET_ADPCM_PLAY_CHANNEL, 3);
+    HeapChangeCurrentUser(HEAP_USER_MASA, NULL);
+    nCount = ArchiveDecodeSizeAbsolute(5);
+    if (nIndex >= nCount / 2) {
+        nResult = -1;
+        *pOut1 = 0;
+        *pOut2 = 0;
+        *pOut3 = 0;
+    } else {
+        nIndex *= 2;
+        pFirst = HeapAlloc(ArchiveDecodeAlignedSize(nIndex + 7 + nBaseIndex), 1);
+        HeapPinBlock(pFirst);
+        pSecond = HeapAlloc(ArchiveDecodeAlignedSize(nIndex + 6), 1);
+        HeapPinBlock(pSecond);
+        D_8005A1DC = nIndex + 6;
+        D_8005A1E0 = pSecond;
+        D_8005A1E4 = nIndex + 7 + nBaseIndex;
+        D_8005A1E8 = pFirst;
+        D_8005A1EC = 0;
+        D_8005A1F0 = NULL;
+        func_80029AFC((StreamDataQueueEntry*)&D_8005A1DC, 0, 0);
+        *pOut1 = pSecond;
+        *pOut2 = 0;
+        *pOut3 = (int)D_8005A1E8 + 4;
+        D_800658C8 = (int)D_8005A1E8 + 4;
+    }
+    ArchiveSetIndex(nSectionIndex, nEntryIndex);
+    return nResult;
+}
+*/
