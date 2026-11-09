@@ -23,6 +23,9 @@ typedef struct {
 
 extern GpuSysFuncs *D_800568C8;
 extern u_char D_800568D0;
+extern s16 D_800568D4;
+extern s16 D_800568D6;
+extern u_char D_800568D3;
 
 extern u_long *D_800569A0; // GPU status register
 extern u_long *D_800569A4; // GPU data register (GP0)
@@ -37,6 +40,8 @@ extern u_long *D_800569C0;
 extern u_char D_8005A27C[]; // one byte per GP0 command
 
 extern void func_8004668C(u_long *p, int x, int y, int w);
+extern u_long func_80045A34(int x, int y);
+extern u_long func_80045B00(int x, int y);
 extern u_long func_800459DC(int dfe, int dtd, u_short tpage);
 extern u_long func_80045BCC(int x, int y);
 extern u_long func_80045C10(RECT *tw);
@@ -51,7 +56,11 @@ void func_800453AC(DR_MODE *p, RECT *tw) {
     *(u_long*)&p->code[1] = 0;
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_b", func_800453E8);
+void func_800453E8(DR_MODE *p, RECT *pt) {
+    setlen(p, 2);
+    *(u_long*)&p->code[0] = func_80045A34(pt->x, pt->y);
+    *(u_long*)&p->code[1] = func_80045B00((s16)(pt->x + pt->w - 1), (s16)(pt->y + pt->h - 1));
+}
 
 void func_8004546C(DR_MODE *p, RECT *pt) {
     setlen(p, 2);
@@ -77,7 +86,26 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_b", func_8004574C);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_b", func_800459DC);
 
+/* best: 58.61% -- the (s16) casts reproduce retail's clamp tests, but gcc keeps
+   the incoming x in $a0 and puts the truncated temp in $a3 (retail the reverse),
+   then allocates the E3 words from different registers as a consequence.
+u_long func_80045A34(int x, int y) {
+    if ((s16)x < 0)
+        x = 0;
+    else if ((s16)x > D_800568D4 - 1)
+        x = D_800568D4 - 1;
+    if ((s16)y < 0)
+        y = 0;
+    else if ((s16)y > D_800568D6 - 1)
+        y = D_800568D6 - 1;
+    if (D_800568D0 == 1 || D_800568D0 == 2)
+        return 0xE3000000 | (x & 0xFFF) | ((y & 0xFFF) << 12);
+    return 0xE3000000 | (x & 0x3FF) | ((y & 0x3FF) << 10);
+}
+*/
+
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_b", func_80045A34);
+
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_b", func_80045B00);
 
@@ -103,7 +131,26 @@ u_long func_80045C10(RECT *tw) {
 }
 */
 
+/* best: 68.48% -- retail merges the two `return p->x` blocks and shares the
+   `0x400 - w - p->x` tail between the mode 1 and mode 2 arms (case 2 jumps into
+   case 1's tail); gcc keeps p in $a1 and emits every arm separately. A shared
+   `offs` local with one trailing return scores worse (53.43%).
+u_long func_80045C94(RECT *p) {
+    if (D_800568D0 == 1) {
+        if (D_800568D3)
+            return 0x400 - p->w - p->x;
+        return p->x;
+    } else if (D_800568D0 == 2) {
+        if (D_800568D3)
+            return 0x400 - p->w / 2 - p->x;
+        return p->x / 2;
+    }
+    return p->x;
+}
+*/
+
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_b", func_80045C94);
+
 
 u_long func_80045D44(void) {
     return *D_800569A4;
