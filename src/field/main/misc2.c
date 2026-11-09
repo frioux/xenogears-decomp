@@ -463,13 +463,6 @@ void FieldAddPrimitives(u_long* ot, u_long* pPrimList, int size) {
     AddPrims(ot, pPrimList + size, pPrimList);
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80075484);
-// 54.92%: the six reads are halfwords at g_CameraEye/g_CameraAt +2/+6/+A held in
-// int temporaries (that is what makes gcc emit `lh` and keep all six live at once,
-// so the SVec4 stores come out with `sh`), and the fourth argument is g_CameraEye +
-// 0x1E4. The original materialises &g_CameraEye into $a3 with addend 0 and reads
-// 2($a3); every C form tried folds the offset into the lui/%lo pair instead.
-/*
 extern VECTOR g_CameraEye;
 extern VECTOR g_CameraAt;
 extern s16 D_800B00B2;
@@ -480,9 +473,6 @@ extern s16 D_800B21D4;
 void func_80075484(void) {
     SVec4 eye;
     SVec4 at;
-    short* pEye;
-    short* pAt;
-    int eyeX, eyeY, eyeZ, atX, atY, atZ;
 
     if (D_800B00B2 == 0) {
         return;
@@ -491,25 +481,17 @@ void func_80075484(void) {
         return;
     }
 
-    pEye = (short*)&g_CameraEye;
-    pAt = (short*)&g_CameraAt;
-    eyeX = pEye[1];
-    eyeY = pEye[3];
-    eyeZ = pEye[5];
-    atX = pAt[1];
-    atY = pAt[3];
-    atZ = pAt[5];
-    eye.x = eyeX;
-    eye.y = eyeY;
-    eye.z = eyeZ;
-    at.x = atX;
-    at.y = atY;
-    at.z = atZ;
+    eye.x = CONV_TO_GTE(g_CameraEye.vx);
+    eye.y = CONV_TO_GTE(g_CameraEye.vy);
+    eye.z = CONV_TO_GTE(g_CameraEye.vz);
+    at.x = CONV_TO_GTE(g_CameraAt.vx);
+    at.y = CONV_TO_GTE(g_CameraAt.vy);
+    at.z = CONV_TO_GTE(g_CameraAt.vz);
 
-    func_800273C4(D_800B007C, &eye, &at, (u8*)pEye + 0x1E4,
-        &g_FieldCurRenderContext->unk1 + D_800B21D4, g_FieldCurRenderContextIndex);
+    func_800273C4(D_800B007C, &eye, &at, (MATRIX*)((u_char*)&g_CameraEye + 0x1E4),
+        (int*)(D_800B21D4 * 4 + (int)g_FieldCurRenderContext + 0x40CC),
+        g_FieldCurRenderContextIndex);
 }
-*/
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_8007554C);
 
