@@ -42,6 +42,10 @@ void func_80078B5C(void) {
 INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_80078BC8);
 /* Best attempt: 90.68%. The original keeps -1 in v0 across the whole guard chain
    (loads go to v1) and copies ArchiveDataSync's result to v1 before testing it.
+   Five separate early `return -1`s, one `||` chain, and the nResult form all
+   compile to 144 bytes with `li v0,-1` re-materialised in every branch delay slot
+   (78.38% for the first two), so the shape below is the closest; also 90.68%
+   under every gcc-2.6.0/2.7.2/2.7.2-cdk -O1..-O3 -G4/-G8 combination.
 extern int ArchiveDataSync(void);
 extern s32 D_800ADB2C;
 extern s32 D_800ADB34;
