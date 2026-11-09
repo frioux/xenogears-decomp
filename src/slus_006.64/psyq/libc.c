@@ -80,41 +80,35 @@ void srand(u_long seed) {
     g_RandomSeed = seed;
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libc", strcat);
-
-/* best: 85.90% -- only difference is one swapped callee-saved pair: the original
-   keeps pDst in s1 and the scan pointer coalesced with it (copy to v1 for the
-   return); gcc here gives pDst s2 and the scan pointer v1.
 char* strcat(char* pDst, char* pSrc) {
-    char* p;
+    char* pRet;
 
     if (pDst == NULL || pSrc == NULL)
         return NULL;
-    if (pDst + strlen(pDst) == pSrc + strlen(pSrc))
-        return NULL;
-    p = pDst;
-    while (*p++)
-        ;
-    p--;
-    while ((*p++ = *pSrc++))
-        ;
-    return pDst;
+    if (pDst + strlen(pDst) != pSrc + strlen(pSrc)) {
+        pRet = pDst;
+        while (*pDst++)
+            ;
+        pDst--;
+        while ((*pDst++ = *pSrc++))
+            ;
+        return pRet;
+    }
+    return NULL;
 }
-*/
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libc", strcmp);
-
-/* best: 56.12% -- loop body and block layout differ (original keeps the loaded
-   byte in a2 and zero-extends it with andi for the compare; the mismatch path
-   reloads *(p2 - 1) because p2++ lands in the beq delay slot)
+/* best: 83.28% -- only the loop body differs: retail tests equality first
+   (beq over the mismatch), keeps the loaded byte at QImode for the zero test and
+   zero-extends it with andi for the int compare, and increments p2 in the beq
+   delay slot so the mismatch path reads *(p2 - 1). gcc rotates the loop the
+   other way round here.
 int strcmp(u_char* pString1, u_char* pString2) {
     if (pString1 == NULL || pString2 == NULL) {
-        if (pString1 != pString2) {
-            if (pString1 != NULL)
-                return 1;
+        if (pString1 == pString2)
+            return 0;
+        if (pString1 == NULL)
             return -1;
-        }
-        return 0;
+        return 1;
     }
     while (*pString1 == *pString2) {
         if (*pString1 == 0)
@@ -125,6 +119,8 @@ int strcmp(u_char* pString1, u_char* pString2) {
     return *pString1 - *pString2;
 }
 */
+
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libc", strcmp);
 
 void* strcpy(u_char* pDst, u_char* pSrc) {
     void* pRet;

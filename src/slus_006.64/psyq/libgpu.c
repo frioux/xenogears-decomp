@@ -334,13 +334,13 @@ void DumpDispEnv(DISPENV *env) {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu", ResetGraph);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu", SetGraphReverse);
-/* Best: 90.84% - only the s0/s1 assignment for `mode` and the D_800568D3
-   pointer differs; everything else is identical.
+/* best: 97.58% -- the tail is exact (pSys hoisted above the nMode test); the only
+   difference left is a register coin flip: retail puts the D_800568D3 pointer in
+   s0 and `mode` in s1, gcc gives s1 to the pointer and s0 to mode.
 int SetGraphReverse(int mode) {
+    u_long nStatus;
     u_char *pReverse = &D_800568D3;
     int nPrev = *pReverse;
-    u_long nStatus;
 
     if (g_GraphDebugLevel >= 2)
         g_GpuPrintf(D_800190C0, mode);
@@ -348,21 +348,24 @@ int SetGraphReverse(int mode) {
     *pReverse = mode;
     nStatus = D_800568C8->unk28(8);
     if (*pReverse)
-        nStatus |= 0x08000080;
+        nStatus |= 0x8000080;
     else
-        nStatus |= 0x08000000;
+        nStatus |= 0x8000000;
     D_800568C8->unk10(nStatus);
 
     if (D_800568D0 == 2) {
+        GpuSysFuncs *pSys = D_800568C8;
         u_long nMode = 0x20000504;
 
         if (*pReverse)
             nMode = 0x20000501;
-        D_800568C8->unk10(nMode);
+        pSys->unk10(nMode);
     }
     return nPrev;
 }
 */
+
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu", SetGraphReverse);
 
 int SetGraphDebug(int level) {
     u_char *pLevel = &g_GraphDebugLevel;
