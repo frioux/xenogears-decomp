@@ -448,6 +448,10 @@ void func_80025A88(WorkListEntry* pTask) {
     }
 }
 
+// splat marks 80025C04, 80025D4C, 80026F44 and 80026FE8 "Handwritten
+// function": raw mtc2/mfc2/lwc2/GTE sequences against fixed GTE registers,
+// i.e. Psy-Q Lite assembly, not gcc output. No C reproduces the fixed
+// $9/$10/$11 traffic, so these are not reachable from C.
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_80025C04);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_80025D4C);
@@ -485,12 +489,18 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_8002675C);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_80026A0C);
 /*
-Best 55.22%. Two known gaps: the original keeps the 5th argument (x) in a
-stack slot (sh t0,0x18(sp) at entry, reloaded per iteration) where gcc
-reads the incoming slot directly, so the frame is 8 bytes short; and the
-original loads all six MenuResourceTextureMetadata fields into registers
-before storing them (lhu+sb for u/v), where gcc narrows to lbu and
-interleaves loads and stores.
+Best 77.49% (380 bytes against 404). Structure is right; three source-level
+gaps remain. 1) The original spills x to a stack slot (sh t0,0x18(sp) at entry,
+lhu 0x18(sp) per iteration) which is what makes its frame 0x48 where this one is
+0x40; declaring xOffset volatile restores the frame and slot but perturbs the
+record-field loads (75.19%). 2) In the loop the original reduces the sprite
+address to pSprites+i*40 walking (addiu s3,40) plus an invariant context*20
+(s7), while gcc 2.7.2-cdk reduces (context+i*2) and multiplies by 20 per
+iteration; `i*2 + context` and `context + i*2` compile the same, and int vs u32
+i makes no difference. 3) The original loads all six record fields before it
+stores any of them (lhu+sb for u/v, so the values pass through 16-bit locals,
+which this attempt already does).
+Under gcc-2.7.2-psx this C scores 72.10%, so cdk is the right compiler.
 // Builds one SPRT per record of the dirent into pSprites, two sprites per
 // record (one per render context), and the DR_MODE that follows them.
 // Returns the record count plus one, the number of 2-sprite slots written.
@@ -499,29 +509,42 @@ s32 func_80026A0C(MenuResourceDirectory* dir, u32 index, SPRT* pSprites,
     MenuResourceDirentTextureMetadata* pDirent;
     MenuResourceTextureMetadata* pData;
     SPRT* pPrim;
-    u16 xOffset = x;
-    u32 i;
+    u16 xOffset;
+    u16 x0;
+    u16 y0;
+    u16 u0;
+    u16 v0;
+    u16 w;
+    u16 h;
+    int i;
 
     pDirent = (MenuResourceDirentTextureMetadata*)(dir->offsets[index] + (unsigned)dir);
+    xOffset = x;
     if (pDirent->count) {
         for (i = 0; i != pDirent->count; i++) {
-            pPrim = &pSprites[i * 2 + context];
+            pPrim = &pSprites[context + i * 2];
             SetSprt(pPrim);
             pData = &pDirent->data[i];
             pPrim->clut = GetClut(pData->clutX, pData->clutY);
             SetSemiTrans(pPrim, 0);
             SetShadeTex(pPrim, 1);
-            pPrim->x0 = xOffset + pData->x;
-            pPrim->y0 = y + pData->y;
-            pPrim->u0 = pData->u;
-            pPrim->v0 = pData->v;
-            pPrim->w = pData->width;
-            pPrim->h = pData->height;
+            x0 = xOffset + pData->x;
+            y0 = y + pData->y;
+            u0 = pData->u;
+            v0 = pData->v;
+            w = pData->width;
+            h = pData->height;
+            pPrim->x0 = x0;
+            pPrim->y0 = y0;
+            pPrim->u0 = u0;
+            pPrim->v0 = v0;
+            pPrim->w = w;
+            pPrim->h = h;
         }
     }
     pData = &pDirent->data[0];
-    SetDrawMode((DR_MODE*)&pSprites[pDirent->count * 2 + context], 0, 0,
-                GetTPage(pData->texPageId, 0, pData->texPageX, pData->texPageY) & 0xFFFF,
+    SetDrawMode((DR_MODE*)&pSprites[i * 2 + context], 0, 0,
+                GetTPage(pData->texPageId, 0, (s16)pData->texPageX, pData->texPageY) & 0xFFFF,
                 NULL);
     return pDirent->count + 1;
 }
