@@ -546,7 +546,8 @@ int FieldScriptVMGetVariableValue(int index) {
 // it ($v0); gcc 2.7.2 always reuses $a0 for both shifts with every form tried. Also tried, all
 // 97.14%: a local pointer with p[i] / *(p + (i >> 1)), an int param with a (u_short) cast on the
 // value, and &g_FieldScriptMemory + (index >> 1). index / 2 gives 69.29% (36 bytes, rounding
-// fixup) and a volatile cast 52.86%.
+// fixup) and a volatile cast 52.86%. A two-step `nOffset = index >> 1` plus a byte-offset add
+// `(u_char*)&g_FieldScriptMemory + (nOffset << 1)` is also 97.14%.
 /*
 void FieldScriptMemoryWriteU16(int index, u_short value) {
     ((u_short*)&g_FieldScriptMemory)[index >> 1] = value;
@@ -606,7 +607,83 @@ void func_800A30FC(void) {
     }
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/scripts/virtual_machine", func_800A31E8);
+extern u16 D_800AFC6C;
+extern u16 D_800AFE9C;
+extern char D_80059418;
+extern char D_80059420;
+extern char D_80059484;
+extern s32 g_PlayerActorIndex;
+extern u8 D_800B02C8;
+extern s32 D_8004F318;
+extern s32 D_8004F328;
+extern s32 D_8004F2F4;
+extern void func_8009FEE4(int actorIndex);
+
+// Refreshes the script memory from the field state, and every 0x1F calls walks the map position pair
+void func_800A31E8(void) {
+    int i;
+    int nValue;
+    int nLow;
+    int nHigh;
+
+    if (D_800B02C8 == 1) {
+        return;
+    }
+
+    D_800AFC6C |= D_800AFE9C;
+    for (i = 0; i < MAX_PARTY_MEMBERS; i++) {
+        g_pGameState->partyMembers[i] = g_GamePartyMembers[i];
+    }
+
+    func_800A30FC();
+    D_8004F2F4 = 0;
+    D_8004F318++;
+
+    for (i = 0; i < MAX_PARTY_MEMBERS; i++) {
+        if (g_pGameState->gearRide[i] == 1) {
+            func_8009FEE4(i);
+        }
+    }
+
+    if (D_8004F318 >= 0x1F) {
+        D_8004F318 = 0;
+
+        // Step the map position pair in the direction the script asked for
+        if (!(D_8004F328 & 0x80)) {
+            nValue = FieldScriptVMGetVariableValue(0xA);
+            nLow = nValue & 0xFF;
+            nHigh = (nValue >> 8) & 0xFF;
+
+            if (!(D_8004F328 & 4)) {
+                if (nLow != 0xFF3B) {
+                    nLow++;
+                    if (nLow >= 0x3D) {
+                        nLow = 0;
+                        nHigh++;
+                    }
+                }
+            } else {
+                if (nLow == 0) {
+                    if (nHigh != 0) {
+                        nLow = 0x3B;
+                        nHigh--;
+                    }
+                } else {
+                    nLow--;
+                }
+            }
+
+            FieldScriptMemoryWriteU16(0xA, (nHigh << 8) | (nLow & 0xFF));
+        }
+    }
+
+    FieldScriptMemoryWriteU16(0xC, D_80059418 | (D_80059420 << 8));
+    FieldScriptMemoryWriteU16(0xE, D_80059484);
+
+    FieldScriptMemoryWriteU16(0x1E, ((s16*)&g_FieldActors[g_PlayerActorIndex].pActorData->position)[1]);
+    FieldScriptMemoryWriteU16(0x20, ((s16*)&g_FieldActors[g_PlayerActorIndex].pActorData->position)[5]);
+    FieldScriptMemoryWriteU16(0x22, ((s16*)&g_FieldActors[g_PlayerActorIndex].pActorData->position)[3]);
+}
 
 INCLUDE_ASM("asm/field/nonmatchings/scripts/virtual_machine", func_800A3474);
 
