@@ -263,7 +263,46 @@ void func_80025718(WorkListEntry* pTask) {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_800257F0);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_80025A88);
+extern void func_800B1F6C(void* pDirTransforms, void* pFramesData, u_long* pOT,
+                          int flags, s32 arg4, s32 arg5);
+
+// Draws the sprite through the matrix D_8004FBB8 composed with its own, then
+// hands the model parts to func_800B1F6C.
+void func_80025A88(WorkListEntry* pTask) {
+    MATRIX matrix;
+    VECTOR vecResult;
+    SVECTOR vec;
+    SpriteData* pSpriteData;
+    s32 oldShift;
+
+    pSpriteData = pTask->unk4;
+    func_80022038(pSpriteData);
+    if (pSpriteData->pBase->pDirTransforms) {
+        vec.vx = pSpriteData->position.x >> 16;
+        vec.vy = pSpriteData->position.y >> 16;
+        vec.vz = pSpriteData->position.z >> 16;
+        ApplyMatrix(&D_8004FBB8, &vec, &vecResult);
+        pSpriteData->pBase->transformMatrix.t[0] = D_8004FBB8.t[0] + vecResult.vx;
+        pSpriteData->pBase->transformMatrix.t[1] = D_8004FBB8.t[1] + vecResult.vy;
+        pSpriteData->pBase->transformMatrix.t[2] = D_8004FBB8.t[2] + vecResult.vz;
+        SetRotMatrix(&pSpriteData->pBase->transformMatrix);
+        SetTransMatrix(&pSpriteData->pBase->transformMatrix);
+        if ((*(u32*)((u8*)pSpriteData + 0x3C) >> 25) & 1) {
+            oldShift = D_80050100;
+            D_80050100 = 0x10;
+            func_800B1F6C(pSpriteData->pBase->pDirTransforms,
+                          ((void**)&pSpriteData->pBase->pFramesData)[g_GfxCurContext],
+                          g_GfxCurOT, 0, 0xFEC,
+                          *(u8*)((u8*)pSpriteData + 0x3C) >> 5);
+            D_80050100 = oldShift;
+        } else {
+            func_800B1F6C(pSpriteData->pBase->pDirTransforms,
+                          ((void**)&pSpriteData->pBase->pFramesData)[g_GfxCurContext],
+                          g_GfxCurOT, 0, pSpriteData->field_0x30,
+                          *(u8*)((u8*)pSpriteData + 0x3C) >> 5);
+        }
+    }
+}
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_80025C04);
 
@@ -301,6 +340,48 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_800263E4);
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_8002675C);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_80026A0C);
+/*
+Best 55.22%. Two known gaps: the original keeps the 5th argument (x) in a
+stack slot (sh t0,0x18(sp) at entry, reloaded per iteration) where gcc
+reads the incoming slot directly, so the frame is 8 bytes short; and the
+original loads all six MenuResourceTextureMetadata fields into registers
+before storing them (lhu+sb for u/v), where gcc narrows to lbu and
+interleaves loads and stores.
+// Builds one SPRT per record of the dirent into pSprites, two sprites per
+// record (one per render context), and the DR_MODE that follows them.
+// Returns the record count plus one, the number of 2-sprite slots written.
+s32 func_80026A0C(MenuResourceDirectory* dir, u32 index, SPRT* pSprites,
+                  int context, u16 x, u16 y) {
+    MenuResourceDirentTextureMetadata* pDirent;
+    MenuResourceTextureMetadata* pData;
+    SPRT* pPrim;
+    u16 xOffset = x;
+    u32 i;
+
+    pDirent = (MenuResourceDirentTextureMetadata*)(dir->offsets[index] + (unsigned)dir);
+    if (pDirent->count) {
+        for (i = 0; i != pDirent->count; i++) {
+            pPrim = &pSprites[i * 2 + context];
+            SetSprt(pPrim);
+            pData = &pDirent->data[i];
+            pPrim->clut = GetClut(pData->clutX, pData->clutY);
+            SetSemiTrans(pPrim, 0);
+            SetShadeTex(pPrim, 1);
+            pPrim->x0 = xOffset + pData->x;
+            pPrim->y0 = y + pData->y;
+            pPrim->u0 = pData->u;
+            pPrim->v0 = pData->v;
+            pPrim->w = pData->width;
+            pPrim->h = pData->height;
+        }
+    }
+    pData = &pDirent->data[0];
+    SetDrawMode((DR_MODE*)&pSprites[pDirent->count * 2 + context], 0, 0,
+                GetTPage(pData->texPageId, 0, pData->texPageX, pData->texPageY) & 0xFFFF,
+                NULL);
+    return pDirent->count + 1;
+}
+*/
 
 void func_80026B9C(void) {
 }
