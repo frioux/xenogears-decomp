@@ -47,7 +47,12 @@ u32 func_801C8678(u32 mask, u8 index) {
     return mask & D_801E96E8[index];
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc2", func_801C8694);
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc2", func_801C87C4);
+void func_801C87C4(void) {
+    UnDeliverEvent(0xF4000001, 0x4);
+    UnDeliverEvent(0xF4000001, 0x8000);
+    UnDeliverEvent(0xF4000001, 0x100);
+    UnDeliverEvent(0xF4000001, 0x2000);
+}
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc2", func_801C881C);
 s32 func_801C891C(long chan) {
     if (_card_info(chan)) {
