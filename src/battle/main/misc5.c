@@ -5,6 +5,7 @@ extern u8 D_800D3725[];
 extern u16 D_8005A3A0[];
 extern u8 D_800D3430[];
 extern u8 D_800D3420[];
+extern u8 D_800D3410[];
 
 void func_80079E18(u8 arg0) {
     D_800D2D28[0xB4] = 1;
@@ -23,7 +24,13 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc5", func_8007A6C8);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc5", func_8007A744);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc5", func_8007A7BC);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc5", func_8007A828);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc5", func_8007A874);
+void func_8007A874(u8 **arg0, u8 *arg1, u8 arg2, u8 arg3) {
+    u8 *p = *arg0;
+    s32 idx = arg3 * 8 + p[1];
+    u8 *pRow = D_800D3430 + arg2 * 0x40;
+
+    arg1[idx] = pRow[p[2]];
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc5", func_8007A8B4);
 void func_8007A900(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
@@ -45,14 +52,35 @@ void func_8007A92C(u8 **arg0, u8 arg1) {
     pRow[p[1]] = val;
 } */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc5", func_8007A968);
+/* 53.44% - the value expression and the index come out right, but gcc forms the
+   D_800D3410 lui/addiu at the top (into a0) instead of after the value, so the
+   store base is 2 insns early. Tried: pRow pointer local before/after the value,
+   idx local first, single-expression store (gives the at-register form instead).
+void func_8007A968(u8 **arg0, u8 arg1) {
+    u8 *p = *arg0;
+    u32 val = (p[2] + (p[3] << 8)) * 0x10;
+    s32 idx = arg1 * 0x10 + p[1];
+
+    ((u32 *)D_800D3410)[idx] = val;
+} */
 void func_8007A9A8(u8 **arg0) {
     D_8005A3A0[(*arg0)[1]] = (*arg0)[2];
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc5", func_8007A9D0);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc5", func_8007AA1C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc5", func_8007AA60);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc5", func_8007AAB8);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc5", func_8007AAF4);
+void func_8007AAB8(u8 **arg0, u8 arg1) {
+    u8 *p = *arg0;
+    u8 *pRow = D_800D3430 + arg1 * 0x40;
+
+    pRow[p[1]] /= p[2];
+}
+void func_8007AAF4(u8 **arg0, u8 arg1) {
+    u8 *p = *arg0;
+    u8 *pRow = D_800D3430 + arg1 * 0x40;
+
+    pRow[p[1]] %= p[2];
+}
 void func_8007AB30(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
     u8 *pRow = D_800D3430 + arg1 * 0x40;
