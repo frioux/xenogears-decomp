@@ -701,3 +701,58 @@ That is **+30 functions and +0.97 points of code** in 9 rounds (~100 worker-runs
 six of which closed real functions and three of which produced only evidence that
 the residual is not reachable from C. `make check` was green for every batch and
 the public page is published at 55.6%.
+
+
+# Session 4 (2026-11-09)
+
+Baseline at session start: 1997 / 2528 functions (79.00%), 373272 / 670864 bytes,
+396 countable `INCLUDE_ASM` stubs.
+
+The session followed round 33's recommendation: **stop working the 95-99.6% class
+(proven allocator tie-breaks) and create a new pool instead.**
+
+## The split: every remaining `asm` segment is now a C unit
+
+`config/slus_006.64.yaml` still listed eleven raw `asm` subsegments -- code with no
+`.c` file, so no worker could ever touch it and it did not even appear in
+`select_target.py`. Seven of them are now `c` units (89 new functions, +3% of the
+whole binary's function count):
+
+| unit | functions | what it is |
+|---|---|---|
+| `psyq/libgpu_b` | 25 | 0x35B7C first half |
+| `psyq/libgpu_c` | 18 | 0x35B7C second half (incl. a 4832-byte `GsSortObject4`-shaped monster) |
+| `system/controller_b` | 15 | 0x26644 first half (pad/controller state machine) |
+| `system/controller_c` | 6 | 0x26644 second half |
+| `psyq/libapi_b` | 8 | 0x3137C, interrupt-hook installers |
+| `psyq/libcard_b` | 6 | 0x3F080, libcard hook layer |
+| `system/archive_b` | 5 | 0x28078, archive+heap loader |
+| `psyq/libgpu_tex` | 3 | 0x33F6C, LoadImage/GetTPage/GetClut helpers |
+| `psyq/libgte_c` | 3 | 0x2FF38, `RotMatrix`/`rcos`/`rsin` |
+
+The recipe is a two-step, and it is byte-identical under `make check` (the `.s`
+files are produced by the same maspsx path either way): append the function
+symbols that spimdisasm already found in the `asm` segment's `.s` to
+`config/symbol_addrs.slus_006.64.txt`, write the `.c` with one `INCLUDE_ASM` per
+symbol in address order, and change `[0xOFF, asm]` to `[0xOFF, c, unit]`. Split a
+big segment with `[0xMID, asm]` in between and repeat; the tail's `.s` is still
+the original segment file, so derive its function list from that file filtered by
+address.
+
+The five segments left as `asm` (`9D24`, `9D60`, `A164`, `30CF4`, `3BCAC`,
+`3CD30`) are single handwritten functions -- `mfc0`/`mtc0`, BIOS gates, the stack
+setup in `start` -- and stay asm.
+
+**Naming lead for a future session (unfinished).** The 0x35B7C range is the Gs
+library: `func_800477D0` is `GsSortObject4` (it `memset`s a 0x78-byte GsDOBJ2-ish
+header and dispatches on GPU packet words `0x2D030709`, `0x25030607`, ...), so
+`psyq/libgpu_{b,c}` should be renamed `psyq/libgs*` once they have matches. The
+Psy-Q 4.0 SDK archives with full symbol tables are public
+(<https://github.com/sozud/psy-q>, `4.0/COFF/LIB/*.A`, R3000 COFF big-endian,
+magic 0x0162, 8-byte relocations with the type in the top byte of the second
+word); parsing them would name every remaining `psyq/` stub by exact code match
+against the game's linked library. The member `.o` files already yield their
+symbol names in order via `strings` (`prim.o` gives GetTPage, GetClut, AddPrim,
+SetPolyF3, ... SetLineG4); what is missing is the symbol *offsets*, because the
+`nlist` entry stride does not come out at 18 bytes with the naive header parse --
+someone should finish that parse, it is the largest naming unlock left.
