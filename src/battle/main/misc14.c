@@ -1,7 +1,10 @@
 #include "common.h"
+#include "libgear/main.h"
 
 extern u16 D_800C3468[];
 extern u16 D_800C3448[];
+extern Temp8* D_8005919C;
+extern void func_80039DB8(s32 arg0);
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc14", func_80088990);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc14", func_80088B80);
@@ -53,4 +56,6 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc14", func_8008A274);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc14", func_8008A3EC);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc14", func_8008A684);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc14", func_8008A9C0);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc14", func_8008AA40);
+void func_8008AA40(u8 arg0) {
+    func_80039DB8((D_8005919C->unk14 << 16) | arg0);
+}
