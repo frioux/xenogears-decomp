@@ -23,6 +23,10 @@ categories:
     name: Movie Overlay
     paths:
       - movie
+  - id: menu
+    name: Menu Overlay
+    paths:
+      - menu
   - id: member_change_menu
     name: Member Change Menu Overlay
     paths:
