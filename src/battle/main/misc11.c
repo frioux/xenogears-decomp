@@ -12,6 +12,8 @@ extern u8 D_800C400B[];
 extern u8 D_800C402F[];
 extern u8 D_800D366C;
 extern u8 D_800D32A1[];
+extern u8 D_800D2DD7[];
+extern u8 D_800D2DD8[];
 
 extern s32 func_8008ABB8(s32, s32);
 extern void func_8008AB94(void);
@@ -53,12 +55,18 @@ void func_8007FE3C(void) {
     }
 }
 
+/* 89.00%: only the tail order differs - the original has sh; lw ra; addiu sp;
+   jr ra; nop (20 insns), this gives lw ra; sh; jr ra; addiu sp (19). A pointer
+   local for the stores picks up an s0 save (73.40%). */
+/*
 void func_8007FEC4(void) {
     D_800D2DB4 = (u8 *)func_8008ABB8(0x5DA4, 0);
     bzero(D_800D2DB4, 0x5DA4);
     *(u16 *)(D_800D2DB4 + 0x5D9C) = 0xA0;
     *(u16 *)(D_800D2DB4 + 0x5D9E) = 0x64;
 }
+*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_8007FEC4);
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_8007FF14);
 
@@ -78,6 +86,33 @@ void func_800800E8(u8 arg0) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_80080160);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_80080AE4);
 
+/* 84.53%: same insns, but gcc keeps the D_800D2DD7 base in t0 for the
+   loop-end `lbu` (the original keeps a copy t1,v0) and leaves the `i++` at
+   the end of the body instead of in the first beqz delay slot. Tried: u8 vs
+   s32 locals, best=0xFF init first (that is what got 84.53), ++i, separate
+   index local. */
+/*
+s32 func_80080AE4(u8 arg0) {
+    s32 best = 0xFF;
+    u8 *p = D_800D2DD7;
+    s16 *pSlots = (s16 *)(p + 0x2F);
+    s32 i = p[0];
+    s32 sel;
+    u8 idx;
+
+    do {
+        idx = D_800D2DD8[i];
+        if (pSlots[idx] < best && idx != arg0) {
+            sel = idx;
+            best = *(u8 *)&pSlots[idx];
+        }
+        if (++i == 0xB) {
+            i = 0;
+        }
+    } while (i != p[0]);
+    return sel;
+}
+*/
 void func_80080B64(u8 color) {
     D_800C402F[D_800C3EAC[0x2DA] * 0x48] = 0xFE;
     D_800C400B[D_800C3EAC[0x2DA] * 0x48] = color;
