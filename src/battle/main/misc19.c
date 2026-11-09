@@ -2,6 +2,9 @@
 #include "main/game.h"
 
 extern void* D_800C34B0;
+extern u8 D_800C3E50;
+extern u8* D_800C3DFC;
+extern u8* D_800D2DC8;
 extern u8 D_800CCE30[];
 extern u8 D_800CCE4A[];
 
@@ -87,6 +90,17 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009B46C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009B684);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009BAC4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009BD94);
+
+/* Best attempt: 97.33%. Everything matches except the mfhi temp of the `/ 20`
+   expansion ($a1 instead of $v0) and the two registers that follow it.
+void func_8009BD94(void) {
+    u8* pBase = D_800C34B0;
+
+    *(u8*)(pBase + D_800C3E50 + 0x5FA0) = 2;
+    *(u32*)(D_800C3E50 * 4 + (u32)D_800C34B0 + 0x5F6C) =
+        (D_800C3DFC[0x11] * *(u32*)(D_800D2DC8 + 0x64)) / 20;
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009BE0C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009C050);
 
