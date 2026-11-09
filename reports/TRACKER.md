@@ -820,3 +820,24 @@ they are quiet.
   a plain `old = D_x; D_x = v;` materialises the address twice (24.6%).
 - At `-O3` gcc inlines `func_80040B7C` into `func_80040C3C`, so converting the
   former breaks the latter; they cannot both be C in that unit without `-O2`.
+
+### Overlay load addresses, for whoever adds the unsplit overlays
+
+`AGENTS.md` section 9 says to fill in OVERLAY_BASE_ADDR but never says how to find
+it. It is discoverable by counting absolute references: `g_MainGameStateOverlayBuffer`
+(main-exe symbol at 0x80018084) holds **0x8006FAF0**, and `field.bin`, whose yaml
+already uses that base, references that window 577 times (words in
+[0x8006FAF0, 0x800AF5F0)). Counting the same window in the unsplit overlays gives:
+
+| overlay | words | references into 0x8006FAF0..0x800AF5F0 |
+|---|---|---|
+| `battling.bin` | 35738 | 527 |
+| `battle.bin` | 85984 | 811 |
+| `world_map.bin` | 45105 | 1312 |
+| `movie.bin` | 7444 | 70 |
+| `menu.bin` | 38466 | 0 (it references 0x801C5000-0x801E0000, 62 times) |
+
+So `battling`, `battle`, `world_map` and `movie` share field's base 0x8006FAF0, and
+`menu.bin` shares the 0x801C5000 base that `shop_menu`/`member_change_menu`/
+`gear_shop_menu` already use (its 62 self-references are the BSS tail those three
+allocate at 0x801D2800-0x801D9800).
