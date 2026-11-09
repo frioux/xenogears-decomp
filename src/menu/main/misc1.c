@@ -2,6 +2,10 @@
 
 #include "system/menu.h"
 
+extern u_char D_801EA524[]; // String IDs of the menu strings
+
+void func_801E7E68(MenuString* pStringList, u_char* pStringIdList, s32 yOffset, s32 count);
+
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc1", func_801C531C);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc1", func_801C55A0);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc1", func_801C57A4);
@@ -99,8 +103,29 @@ void func_801C6D5C(void) {
     g_Menu->unk4D4 = 0;
 }
 
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc1", func_801C6D90);
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc1", func_801C6E0C);
+void func_801C6D90(void) {
+    RECT rect;
+    u_short* pVramData;
+    u8 _unused[0x8];
+
+    pVramData = HeapAlloc(0x20, 0);
+    bzero(pVramData, 0x20);
+    pVramData[1] = 0x7FFF;
+    rect.y = 448;
+    rect.w = 16;
+    rect.x = 0;
+    rect.h = 1;
+    LoadImage(&rect, pVramData);
+    DrawSync(0);
+    HeapFree(pVramData);
+}
+
+void func_801C6E0C(void) {
+    SystemTransferPaletteToVRAM(0, 0x1D1);
+    g_Menu->unk4E0[0].pVramBuffer = HeapAlloc(0x38E, 0);
+    func_801E7E68(g_Menu->unk4E0, D_801EA524, 0, 4);
+    func_801C6D90();
+}
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc1", func_801C6E68);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc1", func_801C6F70);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc1", func_801C72BC);
