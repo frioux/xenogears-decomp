@@ -112,18 +112,34 @@ void func_80076F54(u8* p) {
     }
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc3", func_80076FA8);
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc3", func_800771D8);
+/* Best attempt: 99.67% - the two abs() locals are right, but gcc copy-propagates
+   `limit` back to the parameter and emits `negu v1,a2` where the original has
+   `negu v1,v1`. Tried: 0 - limit, arg2 test, move the decl before the early
+   return; the negu operand always folds to a2.
 s32 func_800771D8(s32 arg0, s32 arg1, s32 arg2) {
-    if (arg0 != arg1) {
-        s32 delta = arg1 - arg0;
+    s32 delta;
+    s32 limit;
 
-        if ((delta < 0 ? -delta : delta) < (arg2 < 0 ? -arg2 : arg2)) {
-            arg0 = arg1;
-        } else {
-            arg0 += arg2;
-        }
+    if (arg0 == arg1) {
+        return arg0;
+    }
+    delta = arg1 - arg0;
+    if (delta < 0) {
+        delta = -delta;
+    }
+    limit = arg2;
+    if (limit < 0) {
+        limit = -limit;
+    }
+    if (delta < limit) {
+        arg0 = arg1;
+    } else {
+        arg0 += arg2;
     }
     return arg0;
 }
+*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc3", func_80077214);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc3", func_80077480);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc3", func_8007756C);
