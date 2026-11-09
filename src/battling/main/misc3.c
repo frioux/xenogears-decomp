@@ -1,8 +1,13 @@
 #include "common.h"
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80075738);
+extern void func_800379C8(char*, ...);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80075748);
+s32 func_80075738(u8* p0, u8* p1) {
+    return *(s16*)(p1 + 0x15EA) - *(s16*)(p0 + 0x15E8);
+}
+
+void func_80075748(void) {
+}
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80075750);
 
@@ -12,11 +17,40 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80075A4C);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80075B50);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_8007639C);
+void func_8007639C(u8* p, u8 value) {
+    u8 idx;
+    u8* pSlot;
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_800763E4);
+    if (p[0x9C2] < 0x20) {
+        idx = p[0x9C0];
+        p[0x9C0] = idx + 1;
+        pSlot = p + (idx & 0x1F);
+        pSlot[0x9A0] = value;
+        p[0x9C2]++;
+    }
+}
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80076424);
+u8 func_800763E4(u8* p) {
+    u8 idx;
+    u8* pSlot;
+    u8 value;
+
+    if (p[0x9C2] == 0) {
+        return 0;
+    }
+    idx = p[0x9C1]++;
+    pSlot = p + (idx & 0x1F);
+    value = pSlot[0x9A0];
+    p[0x9C2]--;
+    return value;
+}
+
+void func_80076424(u8* p) {
+    p[0x9C2] = 0;
+    p[0x9C0] = 0;
+    p[0x9C1] = 0;
+    p[0x9C3] = 0;
+}
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80076438);
 
@@ -40,7 +74,9 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80077770);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80077A38);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80077A88);
+void func_80077A88(u8* p) {
+    *(u32*)(p + 0xD0) |= 0x80000;
+}
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80077A9C);
 
