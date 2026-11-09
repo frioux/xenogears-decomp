@@ -1066,6 +1066,11 @@ INCLUDE_ASM("asm/gear_shop_menu/nonmatchings/main/render", func_801D18F8);
 // the only remaining delta is which of two loop values gcc keeps in $fp/$s8: the original
 // keeps &sp20 there and spills (0x3C30 + i*0x80) to 0x90($sp), this version does the
 // reverse (and so puts i in $s2 instead of $s3). Everything else is identical.
+// Ruled out: dropping the (RECT*) cast (same 92.05%), declaring the RECT after the other
+// locals (92.03%, frame grows 4 bytes), a RECT* local for the two LoadImage calls (91.13%),
+// and a s32 width = 0x28 local for the RECT (folded back into a literal, same 92.05%).
+// The tie-break is how much the &sp20 pseudo is used: the original also addresses sp28[8] and
+// places[4] off fp, so it beats the 0x3C30+i*0x80 accumulator for the last callee-saved reg.
 /*
 void func_801D18F8(s32 scrollOffset, u8* pItemIds, u8* pItemTypes, u8* pItemSellQtys, u8* pItemQtys) {
     RECT sp20;
