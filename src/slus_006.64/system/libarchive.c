@@ -559,18 +559,14 @@ void ArchiveConsolidateStreamFileEntry(int sectionIndex) {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/libarchive", func_80028F30);
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/libarchive", func_8002945C);
-// Also tried 2026-11: single `nState` result variable (-1, then 0 in the
-// pSection==NULL branch, then the swapped state) with the body as one nested
-// if/else instead of early returns: 90.68%, same as below. Everything matches
-// except the result, which gcc 2.6.0 keeps in a1 and copies to v0 in the
-// jr ra delay slot (original has it in v0 throughout and `nop` there), and the
-// base/stream registers swap (ours: stream v1, base v0, result a1; original:
-// stream a1, base v0, result v0 = no separate variable).
-
-/* Best: 90.68% - base offset add lands on the pSection side (addiu v1,a0,-36)
-   instead of on the stream side, and the section header pointer gets a2 not v0.
+/* Best: 86.36% (22 insns, same length). Early returns compile to the inverted
+   branch (bnez v0,body / nop / j end) where the original has beqz to the shared
+   epilogue with `li v0,0xFFFF` in the delay slot, and pStream lands in v0 with
+   pSectionHeader in a1 (original: pStream a1, pSectionHeader v0). A single
+   `nState` accumulator with nested if/else drops to 58.41.
 u_short func_8002945C(u_char* pSection) {
     u_char* pStream;
+    u_char* pStreamEnd;
     ArchiveStreamFileSectionHeader* pSectionHeader;
     u32 nIndex;
     u16 nState;
@@ -586,7 +582,8 @@ u_short func_8002945C(u_char* pSection) {
         return 0;
     }
 
-    nIndex = (u32)(pSection - (pStream + *(s32*)pStream * 8 + 0x24)) >> 11;
+    pStreamEnd = pStream + *(s32*)pStream * 8 + 0x24;
+    nIndex = (u32)(pSection - pStreamEnd) >> 11;
     nState = pSectionHeader[nIndex].state;
     pSectionHeader[nIndex].state = 0;
 
