@@ -1387,6 +1387,15 @@ void func_801E63A8(Model* pModel) {
 // pseudo order/ties local-alloc resolves, not from anything in the body.
 // Also tried since: `int i;` declared first with the pointers after (same swap,
 // pJoint still s1), and reversing the pointer declaration order (same).
+// A `while (i < numChildren) { i++; if (...) {...} pChild++; }` body (i = 1 before
+// the three func_801DF7A8 calls) reproduces the original's instruction sequence
+// exactly -- i++ in the bne delay slot, pChild++ in the loop-back delay slot, and
+// `li` in the first jal's delay slot -- so the loop shape is settled; it scores
+// 96.10% because the allocator then swaps BOTH pairs (pJoint s1/i s0 and pSkeleton
+// s5/pTargetSkeleton s4). pTarget as `pTargetSkeleton + jointIndex`, no pTarget
+// local at all, and gcc 2.7.2 (try_flags.sh) all leave that map unchanged, so the
+// remaining gap looks like an allocno tie-break (allocno_compare returns 0 and the
+// original host's qsort ordered ties differently), not a source-level detail.
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E6578);
 /*
 void func_801E6578(Temp4* pList, s32 jointIndex, ModelJoint* pSkeleton, ModelJoint* pTargetSkeleton) {
