@@ -48,11 +48,11 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc5", func_801D0ED4);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc5", func_801D0F54);
 
 void func_801D0FD4(void) {
-    u8 index;
+    u32 offset;
 
     if (g_Menu->pManager->unk4E) {
-        index = g_Menu->unk0x10E0[0x77D];
-        AddPrim(&g_Menu->pGfxEnv->ot[4], (POLY_FT4*)(g_Menu->unk0x10E0 + 0x700) + index);
+        offset = g_Menu->unk0x10E0[0x77D] * 40 + 0x17E0;
+        AddPrim(&g_Menu->pGfxEnv->ot[4], (void*)(offset + (u32)g_Menu));
     }
 }
 
