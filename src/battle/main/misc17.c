@@ -1,5 +1,6 @@
 #include "common.h"
 #include "main/game.h"
+#include "psyq/libgpu.h"
 
 extern u8 D_800D2D24[];
 extern u8 *D_800D2D28;
@@ -21,10 +22,15 @@ extern u8 D_800CCD62[];
 extern u8 *D_800C3E00;
 extern u8 D_800CCE42[];
 extern u8 D_800D32A1[];
+extern u8 D_800C3CFA[];
 
 void func_8007FB70(void);
 void func_8009AC48(u8, s32);
-void func_800916D4(u8, u8, u8);
+void func_800916D4(u8, u8, s32);
+void func_8008AAA0(u32);
+void func_80076C78(POLY_FT4 *, s16, s16, u8, u8, s16);
+void func_80076CE8(POLY_FT4 *, s16, s16, u8, u8, s16, s16);
+s32 func_8009A258(u8, s32);
 void func_8009187C(u8, u8, u8);
 void func_80091B38(u8, u8, u8);
 void func_80093578(u8, u8);
@@ -53,9 +59,54 @@ void func_80091604(s16 arg0) {
     D_800D2D28[0x9C] = 1;
 }
 */
+/* 86.04%: the s/2 and s-s/2*2 expansion, both UV args and the pointer sum are
+   insn-identical; what is left is expansion order (gcc hoists `li a1,0x20` /
+   `li a2,0xA4` to the top here, the original materialises them after the UV
+   temps) and the arg1 narrowing landing in v0 instead of in place in a1.
+   Tried: %2 vs the explicit s-s/2*2 form, u32 vs u8 temps for the quotient,
+   pointer sum in both operand orders. */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_800916D4);
+/*
+void func_800916D4(u8 arg0, u8 arg1, s32 arg2) {
+    u32 s;
+    u8 c;
+    s32 i;
+    u16 k;
+
+    s = arg1 * 2 + arg0;
+    func_80076CE8(
+        (POLY_FT4 *)(D_800CCB34 * 0x28 + 0x140 +
+                     (s32)(*(u8 **)(D_800C3EA4 + 0xA230))),
+        0x20, 0xA4, (s - s / 2 * 2) * 0x78 & 0xF8, s / 2 * 16, 0x60, 0x10);
+    (*(u8 **)(D_800C3EA4 + 0xA230))[0x66E] = 0;
+    if (D_800D2D24[(u8)arg2] == 1) {
+        func_8008AAA0(func_8009A258((u8)arg2, s + 0x16));
+        for (i = 0, k = 0x8C; i < 3; i++, k += 8) {
+            c = D_800C3CFA[i];
+            if (c == 0xFF) {
+                continue;
+            }
+            func_80076C78(
+                (POLY_FT4 *)((*(u8 **)(D_800C3EA4 + 0xA230)) +
+                             (*(u8 *)(*(u8 **)(D_800C3EA4 + 0xA230) + 0x66E) *
+                                  2 +
+                              D_800CCB34) *
+                                 0x28 +
+                             0x190),
+                k, 0xA6, (c * 8 + 0x78) & 0xF8, 0, 8);
+            (*(u8 **)(D_800C3EA4 + 0xA230))[0x66E]++;
+        }
+    }
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_8009187C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80091B38);
+/* 98.40%: the body is byte-identical; only the entry copies differ - the
+   original parks arg1 in a3 and copies a3 to s2, gcc here copies a1 straight
+   to s2, so `addu a1,a3,a1` reads s2. Tried: arg1 as s32 (needed, the body
+   masks it to u8) and the if/else-if shape that reproduces the call CFG. */
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80091D38);
+/*
 void func_80091D38(u8 arg0, s32 arg1, u8 arg2) {
     u8 ret = 0;
 
@@ -78,6 +129,7 @@ void func_80091D38(u8 arg0, s32 arg1, u8 arg2) {
         (*(u8 **)(D_800C3EA4 + 0xA230))[0x66B] = 0;
     }
 }
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80091EC4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_8009209C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80092298);
@@ -153,6 +205,13 @@ void func_80094C78(void) {
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80094D24);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80094EE4);
+/* 99.76%: every instruction identical except the two `mfhi` results of the
+   /10 sequences (original v0/v1, gcc 2.7.2 picks a3 for both and then does the
+   `sra` into a different register). Same allocator tie as misc20's
+   func_8009E278 / func_8009E364 divides. Tried: v*N/10 vs N*v/10, s16 vs s32
+   differences, both blocks' operands - the rest of the function is byte-equal. */
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80095690);
+/*
 void func_80095690(void) {
     u8 *p = D_800C3E00;
     u8 *q = D_800C3DFC;
@@ -178,6 +237,7 @@ void func_80095690(void) {
     *(u8 *)(D_800C34B0 + D_800C3E50 + 0x5FA0) = 2;
     *(s32 *)(D_800C3E50 * 4 + D_800C34B0 + 0x5F6C) = v;
 }
+*/
 /* 95.00%: instruction multiset identical; the only difference is that gcc
    emits the sb's `li 2` before the five `sh zero` stores (the original keeps it
    after) plus the v0/v1 register colour. Tried the index as a local vs the
