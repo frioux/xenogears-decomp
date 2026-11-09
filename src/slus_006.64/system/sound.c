@@ -3351,21 +3351,25 @@ u8* func_8003DBE4(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003DC50);
 /*
-Attempt (93.36%, same size, all instructions in the original's order): two differences remain.
-gcc puts the running volume total in s0 and pAudioElements in s1 (original: volume s1,
-pAudioElements s0 - the prologue save order follows from it), and gcc omits the sll 16 / sra 16
-pair the original uses to convert the divisor argument, because it can prove the sum is
-non-negative. `s16 volume` instead of `s32 volume` only adds an `andi` (90.34%).
+Attempt (93.36%, 204 bytes, same size; ideally the register roles swap). gcc puts the running
+volume in s0 and pAudioElements in s1; the original has volume s1, pAudioElements s0 (the
+prologue save order follows). It also elides the `sll a1,16` / `sra a1,16` that converts the
+divisor argument, because gcc proves from the lbu that velocity, velocity*velocity/64 and
+their sum fit in HImode - the original could not prove it. `s32 velocity = pScript[0]` with
+`velocity + (velocity * velocity) / 64` (no s16 casts) removes the spurious `andi 0xff` and
+the extra `move v0,s1` (92.60%, 200 bytes: it drops the sll/sra pair) - that shape is the
+closest to the original's instruction sequence. `s16 volume`, `(s16)velocity` in the product
+and u8 velocity all land lower (90.34%).
 u8* func_8003DC50(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     s32 note = (s8)pScript[1];
-    u8 velocity = pScript[0];
+    s32 velocity = pScript[0];
     s32 volume;
     s32 unk16;
 
     if (note != 0) {
         if (velocity != 0) {
-            volume = velocity + ((s16)velocity * (s16)velocity) / 64;
-            pAudioElements->envelopes[1].delta = func_8003E290(note << 24, volume, 2);
+            volume = velocity + (velocity * velocity) / 64;
+            pAudioElements->envelopes[1].delta = func_8003E290(note << 24, (s16)volume, 2);
             pAudioElements->envelopes[1].reload = volume;
             unk16 = pScript[2] << 2;
             pAudioElements->envelopes[1].unk_0x1A = 0x400;
@@ -3436,32 +3440,34 @@ u8* func_8003DEB4(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
 }
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003DEE4);
-
 /*
-Attempt (76.59%, 80 bytes vs the original's 88): every instruction is present but gcc
-loads pScript[0] (frames) before pScript[1] (target) and keeps the script base in a0,
-where the original copies it to a1 at entry (a0 there is the frames value and the div
-operand) and loads target first. Declaration orders (current/target/frames, target/
-frames/current, frames-first), a `u8* p = pScript;` copy local, s8/s32/u16 variants of
-target and a combined `if (frames && delta)` all land on 76.59% or 73.86%.
+Attempt (76.59%, 80 bytes vs the original's 88): every instruction is present; gcc keeps
+pScript in a0 (so no entry `move a1,a0`), loads pScript[0] before pScript[1], and puts the
+u16-to-s32 promotion of `frames` in a3 where the original puts it in a0 (which is why the
+original has to move pScript out of a0 at entry: the div takes its divisor in a0 and the
+quotient lands back in a0). Declaration order current/target/frames plus a separate
+`step` local for the quotient (assigned before the stores, stored last) reproduces the
+original's store order exactly - the previous parked attempt used the same shape inline.
 u8* func_8003DEE4(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
-    u8* p = pScript;
-    s32 target = (s8)p[1];
-    u16 frames = p[0];
     s32 current = (s8)(pAudioElements->unk_0x74 >> 8);
+    s32 target = (s8)pScript[1];
+    u16 frames = pScript[0];
     s32 delta;
+    s32 step;
 
     if (frames) {
         delta = target - current;
         if (delta != 0) {
             delta <<= 8;
+            step = delta / frames;
             pAudioElements->unk_0x92 = delta;
             pAudioElements->unk_0x98 = frames;
             pAudioElements->unk_0x04 |= 0x10;
-            pAudioElements->unk_0x90 = delta / frames;
+            pAudioElements->unk_0x90 = step;
         }
     }
-    return p + 2;
+
+    return pScript + 2;
 }
 */
 
@@ -3506,6 +3512,42 @@ u8* func_8003DF78(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
 }
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003E04C);
+/*
+Attempt (67.52%, 232 bytes vs the original's 240): every store and the sltiu/sll
+flag computation are right; gcc gives the AudioElement s2 and volume s1 (original:
+element s1, volume s2), re-uses the velocity copy for the `addu` that forms volume so
+the original's extra `move s2,a1` is missing, and moves the `addiu s0,s0,1` and the
+`lhu 0xCE` earlier. u8/s32 velocity, value &= 0xF vs a separate index local, note/
+velocity/value declaration order, a pEnvelope local and store order all land between
+59.31% and 67.52%. type of pScript[2] is u8.
+u8* func_8003E04C(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
+    s32 velocity = pScript[0];
+    s32 note = (s8)pScript[1];
+    s32 value = pScript[2];
+    s32 volume;
+    s32 flags;
+
+    if (note != 0) {
+        if (velocity != 0) {
+            volume = velocity + (velocity * velocity) / 64;
+            flags = ((value & 0x10) == 0) * 2;
+            value &= 0xF;
+            pAudioElements->envelopes[2].delta = func_8003E290(note << 24, (s16)volume, value);
+            pAudioElements->envelopes[2].unk_0x1A = 0x400;
+            pAudioElements->envelopes[2].reload = volume;
+            pAudioElements->envelopes[2].unk_0x16 = 0;
+            pAudioElements->envelopes[2].unk_0x1C = 2;
+            pAudioElements->envelopes[2].unk_0x1D = value;
+            pAudioElements->envelopes[2].flags = flags + 1;
+            pAudioElements->envelopes[2].unk_0x0 = D_800508A4[value];
+            pAudioElements->unk_0xCE |= 0x4;
+            func_8003E3E0(&pAudioElements->envelopes[2]);
+        }
+    }
+
+    return pScript + 3;
+}
+*/
 
 u8* SoundScriptSetUnkCEAndUnk136(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     pAudioElements->unk_0xCE |= 0x4;
