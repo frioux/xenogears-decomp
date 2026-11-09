@@ -195,7 +195,9 @@ void SetDQB(long dqb) {
     gte_lddqb(dqb);
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", ReadGeomOffset);
+void ReadGeomOffset(long *pOfsX, long *pOfsY) {
+    gte_ReadGeomOffset_gpr(pOfsX, pOfsY);
+}
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", ReadGeomScreen);
 
@@ -367,6 +369,20 @@ void DpqColorLight(VECTOR *v0, CVECTOR *v1, long p, CVECTOR *v2) {
 
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", DpqColor3);
+/* best attempt 59.33% (identical under gcc 2.6.0/2.7.2, -O1/-O2/-O3). Same
+   entry-block stack-argument copy as NormalColor3: gcc loads v3/v4/v5 (at
+   0x10/0x14/0x18(sp)) into registers in the entry block, the original loads
+   them after the DPCT. A `"memory"` clobber between DPCT and gte_strgb3 does
+   not move the loads either, so it is a compiler invariant, not scheduling.
+void DpqColor3(CVECTOR *v0, CVECTOR *v1, CVECTOR *v2, long p, CVECTOR *v3,
+               CVECTOR *v4, CVECTOR *v5) {
+    gte_ldrgb3(v0, v1, v2);
+    gte_lddp(p);
+    gte_nop();
+    gte_dpct_b();
+    gte_strgb3(v3, v4, v5);
+}
+*/
 
 void Intpl(VECTOR *v0, long p, CVECTOR *v1) {
     gte_ldlvl(v0);
@@ -414,9 +430,25 @@ long AverageZ4(long sz0, long sz1, long sz2, long sz3) {
     return otz;
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", OuterProduct12);
+void OuterProduct12(VECTOR *v0, VECTOR *v1, VECTOR *v2) {
+    gte_stR11R22R33();
+    gte_ldopv1(v0);
+    gte_ldopv2(v1);
+    gte_nop();
+    gte_op12_b();
+    gte_stlvnl(v2);
+    gte_ldR11R22R33();
+}
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", OuterProduct0);
+void OuterProduct0(VECTOR *v0, VECTOR *v1, VECTOR *v2) {
+    gte_stR11R22R33();
+    gte_ldopv1(v0);
+    gte_ldopv2(v1);
+    gte_nop();
+    gte_op0_b();
+    gte_stlvnl(v2);
+    gte_ldR11R22R33();
+}
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", Lzc);
 

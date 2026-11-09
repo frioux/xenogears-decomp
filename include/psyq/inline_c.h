@@ -215,15 +215,29 @@
 	: "r"( r0 ), "r"( r1 ), "r"( r2 ), "r"( r3 ) )
 
 #define gte_ldopv1( r0 ) __asm__ volatile (			\
-	"lw	$12, 0( %0 );"					\
-	"lw	$13, 4( %0 );"					\
-	"ctc2	$12, $0;"					\
-	"lw	$14, 8( %0 );"					\
-	"ctc2	$13, $2;"					\
-	"ctc2	$14, $4"					\
+	"lw	$8, 0( %0 );"					\
+	"lw	$9, 4( %0 );"					\
+	"lw	$10, 8( %0 );"					\
+	"ctc2	$8, $0;"					\
+	"ctc2	$9, $2;"					\
+	"ctc2	$10, $4"					\
 	:							\
 	: "r"( r0 )						\
-	: "$12", "$13", "$14" )
+	: "$8", "$9", "$10" )
+
+/* OP overwrites R11R22R33; libgte saved them in $13-$15 around the command. */
+#define gte_stR11R22R33( ) __asm__ volatile (			\
+	"cfc2	$13, $0;"					\
+	"cfc2	$14, $2;"					\
+	"cfc2	$15, $4"					\
+	:							\
+	:							\
+	: "$13", "$14", "$15" )
+
+#define gte_ldR11R22R33( ) __asm__ volatile (			\
+	"ctc2	$13, $0;"					\
+	"ctc2	$14, $2;"					\
+	"ctc2	$15, $4" )
 
 #define gte_ldopv2( r0 ) __asm__ volatile (			\
 	"lwc2	$11, 8( %0 );"					\
@@ -1273,6 +1287,18 @@
 	:							\
 	: "r"( r0 ), "r"( r1 )					\
 	: "$12", "$13", "memory" )
+
+/* The 3.x revision used $8/$9 for the offset pair, not $12/$13. */
+#define gte_ReadGeomOffset_gpr( r0, r1 ) __asm__ volatile (		\
+	"cfc2	$8, $24;"					\
+	"cfc2	$9, $25;"					\
+	"sra	$8, $8, 16;"					\
+	"sra	$9, $9, 16;"					\
+	"sw	$8, 0( %0 );"					\
+	"sw	$9, 0( %1 )"					\
+	:							\
+	: "r"( r0 ), "r"( r1 )				\
+	: "$8", "$9", "memory" )
 
 #define gte_ReadGeomScreen( r0 ) __asm__ volatile (		\
 	"cfc2	$12, $26;"					\
