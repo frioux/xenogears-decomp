@@ -41,7 +41,46 @@ void func_8009BB0C(void) {
     D_800B00C0 = 1;
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/dialogue/text_box", func_8009BC98);
+// The text box keeps a SystemString at _pad[0]. system.c owns its full layout;
+// this unit only needs the pending-text state bytes.
+typedef struct {
+    /* 0x00 */ undefined8 unk0[0x6C];
+    /* 0x6C */ u8 unk6C;
+    /* 0x6D */ undefined8 unk6D[0x17];
+    /* 0x84 */ s16 unk84;
+} FieldTextBoxString;
+
+extern int func_80033CD0(FieldTextBoxString* pString);
+extern void func_80034800(FieldTextBoxString* pString, u8 red, u8 green, u8 blue);
+
+#define TEXT_BOX_STRING(index) ((FieldTextBoxString*)g_FieldTextBoxes[index]._pad)
+
+// Script command: lay out the cursor columns of the text box from the script byte.
+void func_8009BC98(void) {
+    int index;
+    u8 columns;
+
+    if (func_8009CD18(&index) == 0) {
+        g_FieldScriptMaxInstructionCount += 8;
+
+        if (func_80033CD0(TEXT_BOX_STRING(index)) == 1 ||
+            (TEXT_BOX_STRING(index)->unk84 != 0 && TEXT_BOX_STRING(index)->unk6C != 0)) {
+            g_FieldTextBoxes[index].cursor.visibility = 0;
+            g_FieldScriptVMCurActor->unk81 = 0xFF;
+            columns = SCRIPT_READ_U8_REL(1);
+            g_FieldTextBoxes[index].cursor.startPosition = columns >> 4;
+            g_FieldTextBoxes[index].cursor.maxPosition = (SCRIPT_READ_U8_REL(1) & 0xF) - (columns >> 4) + 1;
+            g_FieldTextBoxes[index].cursor.curPosition = 0;
+
+            func_80034800(TEXT_BOX_STRING(index), 0xEF, 0x1E, 0xF0);
+            g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
+        }
+    } else {
+        g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
+    }
+
+    D_800B00C0 = 1;
+}
 
 s32 func_8009BE58(void) {
     return ((g_FieldScriptVMCurActor->direction - (FieldGetCameraDirection() & 0xffff)) & MASK_8DIR_MOVEMENT_NUM_DIRECTIONS) < 5;
