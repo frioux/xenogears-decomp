@@ -448,3 +448,58 @@ Landed by area: `psyq/libgte` 4 -> 27 matched (the header revisions), `sound` +1
 7. Overlays still unsplit: `battling`, `world_map`, `battle`, `menu`, `movie`
    (AGENTS.md section 9). That is the largest single source of new work left and
    it is mostly mechanical.
+
+
+# Session 3 (2026-11-08)
+
+Baseline at session start: 1967 / 2528 functions (77.81%), 366756 / 670864 bytes,
+425 `INCLUDE_ASM` stubs at this session's counting (the "561" figure counted
+multi-line stub blocks; `grep -c '^\s*INCLUDE_ASM('` is the reproducible one).
+
+## Log
+
+| # | Batch | Functions | Total | Notes |
+|---|---|---|---|---|
+| 28 | 15 workers: libgte, sound, lib_gear, misc, misc8, temp2, misc4, misc6, rendering, archive, virtual_machine, misc12+misc5, temp1+animation_scripts, psyq libapi+libsn, misc2 (scratchpad job) | +8 | 1975 | libgte 2, animation_scripts 2, misc12 2, misc6 1, libsn 1. Zero from the six saturated `field/main/*` units |
+
+### Decision taken this session: inline asm for misc2's scratchpad stack switch
+
+The operator authorised inline `asm` for the `$sp` scratchpad switch in
+`field/main/misc2.c` only, judged per function (this overrides the general "no
+inline asm" rule for these two functions and nothing else).
+
+`func_800739C0` was attempted that way: the three `lui/ori $t1,0x1F8003FC;
+sw $sp,0($t0); addiu $t0,-4; addu $sp,$t0` switches do assemble from `asm
+volatile` statements and the function decodes completely, but it is parked at
+**72.03%** because of a register-allocation wall that has nothing to do with the
+stack trick: the original reaches `g_CameraAt+8`, `g_CameraEye` and `g_Scene` off
+one base register (`$s0`), and naming them as separate symbols makes gcc build
+two bases plus an extra callee-saved register. `func_8007554C` (the other
+scratchpad function) is untouched.
+
+Two facts for the next attempt:
+- maspsx rejects **hex** offsets inside inline asm (`invalid literal for int():
+  0x0`), so write `0($t0)`, never `0x0($t0)`. `ninja` hides the message.
+- the whole C for `func_800739C0` is parked under the stub, including the three
+  `asm volatile` blocks, so the next agent starts from 72% and only has to beat
+  the base-register wall.
+
+### What this round taught
+
+- The `field/main/misc*` units are **saturated**: every stub in `misc`, `misc4`,
+  `misc8`, `misc2` already had a parked attempt between 72% and 99.6%, and every
+  one of them is a gcc scheduling/register-allocation wall, not a source-shape
+  gap. Three separate workers re-derived them from the assembly and confirmed it.
+  Two consecutive rounds of ~0 in those units: stop spending workers there.
+- `select_target.py`'s `C?` column under-reports parked attempts (it found 4 of
+  the 60+ that exist, because a parked block that starts with `//` followed by
+  `/*` is not recognised). Read the file, do not trust the column.
+- `field/main/misc6`'s `func_800A06E8` matched from two idioms worth keeping:
+  the explicit `nOffset = idx * sizeof(FieldActor); pElem = (FieldActor*)(nOffset
+  + (s32)g_FieldActors);` form (multiply chain before the base load) and
+  `((u_short*)&status)[0] &= 0xFFDF` to stop gcc hoisting a signed `-33` mask
+  into a callee-saved register across a call.
+- untried-but-live: `psyq/libc.c` (strcmp/strcat/Sprintf), `libcard`, `libgpu`,
+  `libetc`, `system/system.c`, `work_list`, `temp3`, `camera_movement`,
+  `field/main/main.c`, `text_box*`, `shop_menu`, `member_change_menu`,
+  `gear_shop_menu` - round 29 targets these.
