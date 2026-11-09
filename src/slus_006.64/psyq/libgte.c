@@ -370,6 +370,20 @@ void DpqColorLight(VECTOR *v0, CVECTOR *v1, long p, CVECTOR *v2) {
 
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", DpqColor3);
+/* best attempt 59.33% (identical under gcc 2.6.0/2.7.2, -O1/-O2/-O3). Same
+   entry-block stack-argument copy as NormalColor3: gcc loads v3/v4/v5 (at
+   0x10/0x14/0x18(sp)) into registers in the entry block, the original loads
+   them after the DPCT. A `"memory"` clobber between DPCT and gte_strgb3 does
+   not move the loads either, so it is a compiler invariant, not scheduling.
+void DpqColor3(CVECTOR *v0, CVECTOR *v1, CVECTOR *v2, long p, CVECTOR *v3,
+               CVECTOR *v4, CVECTOR *v5) {
+    gte_ldrgb3(v0, v1, v2);
+    gte_lddp(p);
+    gte_nop();
+    gte_dpct_b();
+    gte_strgb3(v3, v4, v5);
+}
+*/
 
 void Intpl(VECTOR *v0, long p, CVECTOR *v1) {
     gte_ldlvl(v0);
