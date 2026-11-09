@@ -96,7 +96,20 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008BEC8);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008BFD4);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008C040);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008C1DC);
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008C28C);
+void func_8008C28C(WorldMapActor *pActor, int index) {
+    void *pSprite;
+
+    pSprite = func_80024524(D_8009BDF8[index], D_8009B18C[index], D_8009B194[index], D_8009B19C[index],
+                            D_8009B1A4[index], 0x40);
+    pActor->unk4C = pSprite;
+    if (g_GameState.gearRide[index] == 1) {
+        func_800245D8(pSprite, 0);
+    } else {
+        func_800245D8(pSprite, 3);
+    }
+    SpriteSetScale(pActor->unk4C, 0x2000);
+    *(u32 *)((u8 *)pActor->unk4C + 0x3C) &= ~4;
+}
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008C364);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008C530);
 
