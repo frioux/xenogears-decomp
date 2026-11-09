@@ -1,4 +1,5 @@
 #include "common.h"
+#include "psyq/libgte.h"
 
 extern u8 D_800C3B74;
 extern u8 D_800C402F[];
@@ -77,13 +78,44 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AAB34);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AAD54);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800ADF1C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AE098);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AE1BC);
+void func_800AE1BC(u8 *arg0, u8 *arg1, s32 arg2) {
+    u8 *p;
+
+    if (*(u16 *)(arg1 + 0x12) != 0) {
+        *(s16 *)(arg0 + 0x98) = 0;
+        if (arg2 != 0) {
+            *(s16 *)(arg0 + 0x9A) = *(u16 *)(arg1 + 0x2);
+        } else {
+            *(s16 *)(arg0 + 0x9A) = -1;
+        }
+        *(s16 *)(arg0 + 0x9C) = 0;
+        *(s16 *)(arg0 + 0x9E) = *(u16 *)(arg1 + 0x12);
+        p = arg1 + *(u32 *)(arg1 + 0x14);
+        *(u32 *)(arg0 + 0xA0) = (u32)p;
+        *(u32 *)(arg0 + 0xA4) = (u32)p;
+    } else {
+        *(s16 *)(arg0 + 0x98) = -1;
+    }
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AE220);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AE2A4);
 void func_800AEEEC(u8 *pArg) {
     *(s16 *)(pArg + 0x98) = -1;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AEEF8);
+/* 97.86% - identical instruction shape; only the registers of the three
+   mflo results differ (original $a1,$a0,$a0, this $a3,$a2,$v1).
+s32 func_800AEEF8(u8 *arg0) {
+    s32 dx;
+    s32 dy;
+    s32 dz;
+
+    dx = *(s16 *)(arg0 + 0x88) - *(s32 *)(*(u8 **)(arg0 + 4) + 0x5C);
+    dy = *(s16 *)(arg0 + 0x8A) - *(s32 *)(*(u8 **)(arg0 + 4) + 0x60);
+    dz = *(s16 *)(arg0 + 0x8C) - *(s32 *)(*(u8 **)(arg0 + 4) + 0x64);
+    return SquareRoot0(dx * dx + dy * dy + dz * dz);
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AEF68);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AF180);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AF270);
