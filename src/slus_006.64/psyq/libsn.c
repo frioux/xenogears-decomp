@@ -4,26 +4,17 @@
    the stub takes its arguments in a1..a3 (a0 unused) and answers with a status
    in v0 and the result in v1, which is why each wrapper shifts its arguments
    down one register and turns a non-zero status into -1. */
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libsn", PCopen);
-/* 83.12%: the branch shape matches (beqz v0 to the merge point), but gcc puts
-   the -1 in the `value` register and copies at the return
-   (`li v1,-1; jr ra; move v0,v1`) instead of the original
-   `move v0,v1; li v0,-1`, and it mis-assigns the two shifted operands.
-int PCopen(char *name, int flags, int perms) {
-    register char *pName asm("$4") = name;
-    register int nFlags asm("$5") = flags;
+int PCopen(char *name, int flags) {
     register int status asm("$2");
-    register int value asm("$3");
-    int result;
+    int value, ret;
 
-    __asm__ volatile("move $6, %2\n\tmove $5, %1\n\tbreak 259"
-                     : "=r"(status), "=r"(value) : "r"(pName), "r"(nFlags));
-    result = value;
+    __asm__ volatile("move $6, $5\n\tmove $5, $4\n\tbreak 259"
+                     : "=r"(status), "=r"(value));
+    ret = value;
     if (status != 0)
-        result = -1;
-    return result;
+        ret = -1;
+    return ret;
 }
-*/
 
 void PCclose(int fd) {
     __asm__ volatile("move $5, %0\n\tbreak 260" : : "r"(fd));

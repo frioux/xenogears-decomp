@@ -28,7 +28,33 @@ extern u_char D_8005A1C3[];
 extern void func_80036188(ControllerBState* pState);
 extern void func_80040C3C(void* pDest, int destSize, void* pSrc, int srcSize);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/controller_b", func_80035E44);
+extern u_char D_800501F8;
+extern u_char D_80059370;
+extern u_char D_80059418;
+extern u_char D_80059420;
+extern u_char D_80059484;
+
+void func_80035E44(void) {
+    int limit;
+
+    limit = 0x3C;
+    if (D_800501F8 != 0)
+        return;
+    if (++D_80059370 == limit) {
+        D_80059370 = 0;
+        D_80059418++;
+    }
+    if (D_80059418 == limit) {
+        D_80059418 = 0;
+        D_80059420++;
+    }
+    if (D_80059420 == limit) {
+        D_80059420 = 0;
+        D_80059484++;
+    }
+    if (D_80059484 == 0x64)
+        D_800501F8 = 1;
+}
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/controller_b", func_80035F1C);
 
