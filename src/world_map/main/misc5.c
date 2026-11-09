@@ -74,16 +74,20 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007BBEC);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007BF50);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007C260);
 
-int func_8007C36C(int idx) {
-    WorldMapPlayer *pBase = D_8009BE24;
-    WorldMapPlayer *pPlayer = pBase + idx;
+/* best 95.26%: instruction multiset and registers identical to the original,
+   only the emission order of the independent loads differs (gcc hoists
+   lhu D_8009A4D8 and defers sll $4,$4,1). A pointer local instead gives
+   65.26% with the same multiset.
 
-    pPlayer->unk50 = 0;
-    pPlayer->unk20 = D_8009A4D8;
-    pPlayer->unk22 = D_8009A4E8[pPlayer->unk50];
-    pPlayer->unk50++;
+int func_8007C36C(int idx) {
+    D_8009BE24[idx].unk50 = 0;
+    D_8009BE24[idx].unk20 = D_8009A4D8;
+    D_8009BE24[idx].unk22 = D_8009A4E8[D_8009BE24[idx].unk50];
+    D_8009BE24[idx].unk50++;
     return 1;
 }
+*/
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007C36C);
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007C3B8);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007C724);
