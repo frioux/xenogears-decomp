@@ -8,8 +8,8 @@ from collections import Counter
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-BINARIES = ["slus_006.64", "field", "member_change_menu", "shop_menu",
-            "gear_shop_menu", "lib_gear"]
+BINARIES = ["slus_006.64", "field", "battling", "member_change_menu",
+            "shop_menu", "gear_shop_menu", "lib_gear"]
 STUB_RE = re.compile(r'^\s*INCLUDE_ASM\(\s*"([^"]+)"\s*,\s*(\w+)\s*\)')
 INSN_RE = re.compile(r'^\s+/\*\s*[0-9A-Fa-f]+\s+[0-9A-Fa-f]{8}\s+[0-9A-Fa-f]{8}\s*\*/\s*(\S+)')
 HI_RE = re.compile(r'%hi\(([A-Za-z_]\w*)')
