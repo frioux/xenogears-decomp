@@ -624,6 +624,49 @@ void func_800AC308(void) {
 INCLUDE_ASM("asm/field/nonmatchings/main/misc9", func_800AC3AC);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc9", func_800AC99C);
+/* 81.27% (520 bytes, same size as the original). The shape is right: addPrim
+   on the two 0x34-byte polys for this render context, then 16 blocks of
+   DR_MODE[2][4] followed by SPRT[2][4] (0x100 each), the four sprites of the
+   context taking y0 from the other context's first sprite, and two addPrim
+   per sprite. Only register allocation differs: gcc spills the block walker
+   and the 0x1000 byte counter to s0/s1 (8-byte frame) where the original
+   keeps everything in t registers, and gcc emits lhu where the original has
+   lh for the y0 clone. Tried: an `other` local vs the inline (ctx + 1) & 1,
+   the two poly arguments as rows of D_800AF788[2][2] vs D_800AF7F0[ctx] and
+   D_800AF7F0[ctx - 2] (the latter reproduces the original's single base
+   symbol plus a -0x68 fold exactly), and the y0 stores hoisted above the
+   inner loop (that one is 512 bytes, 8 short).
+typedef struct {
+    DR_MODE drModes[2][4]; // 0x0
+    SPRT sprites[2][4];    // 0x60
+} FieldEffectPrimBlock; // Size: 0x100
+
+extern POLY_GT4 D_800AF7F0[2];
+extern s32 D_800AF770;
+
+void func_800AC99C(void) {
+    FieldEffectPrimBlock* pBlock;
+    int ctx;
+    int i;
+    int j;
+
+    ctx = g_FieldCurRenderContextIndex;
+    addPrim(g_FieldCurRenderContext->ot3, &D_800AF7F0[ctx]);
+    addPrim(g_FieldCurRenderContext->ot3, &D_800AF7F0[ctx - 2]);
+
+    pBlock = (FieldEffectPrimBlock*)D_800AF770;
+    for (i = 0; i < 0x1000; i += 0x100) {
+        short y = (pBlock->sprites[(ctx + 1) & 1][0].y0 - 1) & 0xFF;
+
+        for (j = 0; j < 4; j++) {
+            pBlock->sprites[ctx][j].y0 = y;
+            addPrim(g_FieldCurRenderContext->ot3, &pBlock->sprites[ctx][j]);
+            addPrim(g_FieldCurRenderContext->ot3, &pBlock->drModes[ctx][j]);
+        }
+        pBlock++;
+    }
+}
+*/
 
 void func_800ACB90(void) {
     RECT rect;
