@@ -841,3 +841,14 @@ So `battling`, `battle`, `world_map` and `movie` share field's base 0x8006FAF0, 
 `menu.bin` shares the 0x801C5000 base that `shop_menu`/`member_change_menu`/
 `gear_shop_menu` already use (its 62 self-references are the BSS tail those three
 allocate at 0x801D2800-0x801D9800).
+| 35 | 14 workers on the same pools plus the newly-named units | +7 | 2045 | `libgpu_b` 1 (`func_800453E8`), `lib_gear` 1 (`func_801E1880`), plus 5 from the merge of parked improvements that were already at 100% in clone trees. Everything else parked at 84-98% with a note |
+
+## Round 35: the fresh pool was one round deep, not more
+
+The 89 new stubs from the split gave +41 in one round and +7 in the next, and the
+second round's failures are the same shape as the old ones: `func_800379D8` 97.82%,
+`func_80046DB4` 94.39%, `func_80033CF0` 96.49%, `func_8002675C` 92.96%,
+`func_801D05BC` 89.44%. The split units are now in the same 95-99% regime as
+`field/main/*`. **Conclusion: the burst came from new functions, not from those
+units being easier.** The next burst has to come from another new pool, which is
+the unsplit overlays (see the base-address table above).
