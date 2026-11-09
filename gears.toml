@@ -96,3 +96,15 @@ build_variables = {
     maspsx_flags = "--dont-expand-li --use-comm-section --run-assembler"
 }
 paths = [ "{binary}/system/rendering." ]
+
+# The tail of system/rendering (GraphicsDrawPauseLetters, func_8001FB30) came from
+# a TU built with the cdk compiler: the same C is byte-identical under
+# gcc-2.7.2-cdk-psx and stops at 98.81% under 2.7.2-psx, while the rest of the
+# unit does the opposite. Kept as a separate path so the two presets can differ.
+[[build_preset]]
+name = "XenoPauseText"
+build_variables = {
+    gcc = "gcc-2.7.2-cdk-psx",
+    maspsx_flags = "--aspsx-version=2.67 --use-comm-section --run-assembler"
+}
+paths = [ "{binary}/system/rendering_pause_text." ]

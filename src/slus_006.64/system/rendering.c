@@ -9,8 +9,6 @@ extern void func_8001EE88(SpriteData* pSpriteData, void* pArg1, void* pArg2);
 extern void func_8001F1D4(SpriteData* pSpriteData, void* pArg1, void* pArg2);
 extern void func_8001F750(SpriteData* pSpriteData, s32 index, SpriteAnimPackage* pAnimPackage);
 extern void func_800234AC(SpriteData* pSpriteData);
-extern void* LZSSHeapDecompress(void* pCompressedData, int flags);
-extern void func_8002DDE4(void* pImg, int arg1, int x, int y, int arg4, int arg5, int arg6);
 
 // Rendering-related stuff
 
@@ -408,44 +406,5 @@ void func_8001F8E8(SpriteData* pSpriteData, s32 index, SpriteAnimPackage* pAnimP
 }
 */
 
-// .rodata
-extern u8 g_GfxPauseLettersCompressed[];
-
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", GraphicsDrawPauseLetters);
-/* Attempt: 98.81% under this unit's compiler. Solved cause: with gcc-2.7.2-cdk-psx
-   (XenoGraphics) this exact C compiles to a byte-identical object, objdiff 100.00%
-   (124 bytes) -- the only difference under gcc-2.7.2-psx is that the original puts
-   x in s1 and pImg in s0 and ours swaps them. So this function came from a TU built
-   with the cdk compiler; it can only match if it moves to its own unit carrying the
-   XenoGraphics preset (the rest of this unit is 100% under 2.7.2-psx and drops to
-   86-88% under cdk, so the unit preset cannot change). Source-shape variations tried
-   under 2.7.2-psx, all identical code: declaration order, initialiser form, u8
-   pointer vs mem_addr vs void pointer, extra s32 one/zero locals passed as the
-   constant args, and a second pointer alias for pImg.
-
-void GraphicsDrawPauseLetters(int x, int y) {
-    void* pImg;
-
-    pImg = LZSSHeapDecompress(g_GfxPauseLettersCompressed, 0);
-    func_8002DDE4(pImg, 1, x, y, 0, 0, 0);
-    DrawSync(0);
-    HeapFree(pImg);
-}
-*//* Best attempt: 98.81%. Instruction stream is identical; only the callee-saved
-   assignment differs. Original: x -> s1, y -> s2, pImg -> s0 (allocation order
-   pImg, x, y). This C: x -> s0, y -> s2, pImg -> s1 (allocation order x, pImg,
-   y). Declaration order, extra locals and folded copies for x/y do not move it.
-
-void GraphicsDrawPauseLetters(int x, int y) {
-    void* pImg = NULL;
-
-    pImg = LZSSHeapDecompress(g_GfxPauseLettersCompressed, 0);
-    func_8002DDE4(pImg, 1, x, y, 0, 0, 0);
-    DrawSync(0);
-    HeapFree(pImg);
-}
-*/
-
-// 800592E4 -> EA is bss local
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001FB30);
-
+// GraphicsDrawPauseLetters and func_8001FB30 were built by a cdk-compiler TU;
+// they live in system/rendering_pause_text.c, which carries that preset.
