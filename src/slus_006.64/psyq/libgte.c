@@ -8,6 +8,33 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", InitGeom);
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", SquareRoot0);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", InvSquareRoot);
+/* best attempt 56.69%. The C below is structurally the right function (LZCS/LZCR,
+   two early-outs, table lookup, the two stores), but retail's instruction list
+   carries a dead `andi t0,v0,0x1` and keeps every constant in a t-register where
+   gcc 2.7.2 uses v0 (li v0,-2 / li v0,31), and it has its own branch layout, so
+   this is Sony's handwritten vector.s rather than compiler output:
+long InvSquareRoot(long a, long *b, long *c) {
+    long flg, even, sh, t;
+
+    gte_ldlzc(a);
+    gte_nop();
+    gte_nop();
+    gte_stflg_val_gpr(flg);
+    if (flg == 0x20 || flg == 0) {
+        return -1;
+    }
+    even = flg & ~1;
+    sh = (0x1F - even) >> 1;
+    if (even >= 0x18) {
+        t = a << (even - 0x18);
+    } else {
+        t = a >> (0x18 - even);
+    }
+    *c = sh;
+    *b = D_80056B94[t - 0x40];
+    return 1;
+}
+*/
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", VectorNormalS);
 
