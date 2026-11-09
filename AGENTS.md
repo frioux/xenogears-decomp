@@ -67,6 +67,7 @@ for running splat and the scripts on the host; the container has its own.
 | `make progress` | `report` + render `build/progress-site/index.html` |
 | `make progress-publish` | `report` + render with history + push to `gh-pages` |
 | `tools/scripts/convertible.py <bin/unit>` | list the stubs of a unit that are safe to convert: it flags stubs whose `.s` has instructions after `.size` (padding that no C definition reproduces) or owns `dlabel` data. In `psyq/libgte` about 25 of 71 stubs are unlinkable for that reason, and they are invisible to objdiff. |
+| `tools/rounds/clone.sh` + `tools/rounds/brief.js` | the parallel-round harness: clone pool (`new`/`reset`/`merge`/`clean`) and the worker brief that carries the playbook and the mandatory gates. See section 7. |
 | `tools/scripts/lint_sources.py` | scan `src/` for the two source mistakes that only surface as a confusing link error: a function that is both `INCLUDE_ASM`'d and defined in C, and an unclosed block comment. Run it before committing. |
 | `tools/scripts/check_bin.sh <bin>` | rebuild in matching mode and byte-check one output (~35 s). Use it when objdiff refuses to reach 100% for a function whose only difference is a relocation the linker resolves identically (a section-relative `.rodata` jump table against a named `jtbl_`). Leaves the tree in matching mode. |
 | `make shell` | bash inside the build container with the repo mounted |
