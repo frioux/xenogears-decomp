@@ -383,27 +383,36 @@ int ArchiveClearStreamFileSections(void) {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/libarchive", func_80028B14);
 
-/* Best: 93.87%. Remaining diff is register allocation and scheduling, not
- * structure: the original loads g_ArchiveCurStreamFile into v0 before the
- * frame setup and copies it to s2 after the NULL test, and its debug loop
- * keeps the section count in a1, D_8004FE10 in v1, the header base in a3
- * and an extra copy of the old entry index in a2.
+/* Best: 97.87%. Structure is right; the rest is register allocation and one
+ * delay slot. Loads the stream pointer into v0 before the frame and copies it
+ * to s2 only when the global is referenced twice (guard on the global, then
+ * assign from it) - writing `pData = g_ArchiveCurStreamFile; if (!pData)` puts
+ * the load straight into s2 and emits the prologue first (93.87%). The debug
+ * loop's D_8004FE2C load must come from inside the loop body so loop.c hoists
+ * it into the preheader, after the entry test. Still different: the original
+ * keeps the section count in a1, D_8004FE10 in v1, the header base in a3 and a
+ * loop-invariant copy of the limit in a1 (`move a1,v0` after the entry test,
+ * which needs either a second reference to D_8004FE40 or a two-variable loop
+ * bound), reuses v0 for the D_8004FE0C queue index, and materialises
+ * `move v0,zero` in the g_ArchiveCurFileSize blez delay slot instead of
+ * sharing the trailing NULL block.
+ *
  * u_char* func_80028B14(void) {
+ *     int nLimit;
  *     u_char* pData;
  *     ArchiveStreamFileSectionHeader* pHeader;
  *     ArchiveStreamFileSectionHeader* pHeaders;
  *     StreamDataQueueEntry* pEntry;
  *     u_char* pPath;
  *     int nSections;
- *     int nLimit;
  *     int nIndex;
  *     int nId;
  *     int i;
  *
- *     pData = g_ArchiveCurStreamFile;
- *     if (pData == NULL) {
+ *     if (g_ArchiveCurStreamFile == NULL) {
  *         return NULL;
  *     }
+ *     pData = g_ArchiveCurStreamFile;
  *
  *     pHeader = (ArchiveStreamFileSectionHeader*)(pData + 4);
  *     nSections = *(s32*)pData;
@@ -418,12 +427,11 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/libarchive", func_80028B14);
  *             return NULL;
  *         }
  *
- *         pHeaders = D_8004FE2C;
  *         nLimit = D_8004FE40;
- *
  *         for (i = 0; i < nLimit; i++) {
+ *             pHeaders = D_8004FE2C;
  *             nIndex = D_8004FE10;
- *             pHeader = &pHeaders[nIndex];
+ *             pHeader = pHeaders + nIndex;
  *             D_8004FE10 = nIndex + 1;
  *             if (D_8004FE10 >= nLimit) {
  *                 D_8004FE10 = 0;
