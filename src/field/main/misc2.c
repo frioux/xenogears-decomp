@@ -1,6 +1,7 @@
 #include "common.h"
 #include "field/main.h"
 #include "field/actor.h"
+#include "field/camera.h"
 #include "system/math.h"
 #include "system/controller.h"
 #include "psyq/libgpu.h"
@@ -575,18 +576,147 @@ int FieldMathUpdateAngle(int curAngle, int targetAngle, int delta) {
     return result;
 }
 
-// Blocked in C without inline asm: this function switches the stack into the
-// scratchpad three times (`lui/ori $t1,0x1F8003FC; sw $sp,0($t1); addiu $t1,-4;
-// addu $sp,$t1` before the jal, `addiu $sp,4; lw $sp,0($sp)` after). No C
-// construct makes gcc store $sp into memory, so this and func_8007554C (which has
-// the same four-insn pair around its FieldRenderModels call) need an `asm`
-// statement or stay INCLUDE_ASM. It is also the FIRST owner of the unit's .rodata
-// (D_8006FB04 "MATRIX    "), so the five stubs below it cannot be converted
-// before it: cc1 emits C .rdata at the top of the object, ahead of every
-// asm-included .section .rodata, so only a prefix of D_8006FB04..D_8006FB70 can
-// move into C.
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_800739C0);
+// 72.03% (1136 vs 1144 bytes, frame 0x50 vs 0x48): the shape is right and the
+// three $sp scratchpad switches below are the authorised `asm` and assemble
+// correctly (maspsx wants plain-decimal asm offsets: `0($t0)`, not `0x0($t0)`).
+// What is left is one wall, the same as func_8007254C:
+//  1. the original keeps ONE base s0 = g_CameraAt+8 = 0x800AF898 and reaches
+//     g_CameraEye.vx with -0x18($s0), g_Scene with 0xF8($s0), At.z with 0($s0).
+//     Naming the two symbols separately makes gcc build two bases ($s0 = &At,
+//     $s1 = &Eye) and one extra callee-saved register.
+//  2. FieldMatrixResetTranslation is a real call here but was inlined in the
+//     original: write the three stores out as D_800AFC30.t[2]/t[1]/t[0] = 0.
+//  3. it is the FIRST owner of the unit's .rodata, so D_8006FB04 has to be
+//     defined here as `const char D_8006FB04[0xC] = "MATRIX    ";` in the same
+//     change that converts the function - never before it, or the bytes double.
+/*
+extern MATRIX D_800AFC30;
+extern MATRIX D_800AF85C;
+extern VECTOR D_800AF8E0;
+extern SVECTOR D_800B2184;
+extern VECTOR g_CameraEye;
+extern VECTOR g_CameraAt;
+extern VECTOR g_CameraUp;
+extern s32 D_800B00B4;
+extern s16 D_800B21B4;
+extern u_char D_800ADB05;
+extern s32 D_800ADBFC;
+extern VECTOR g_CameraAt2;
+extern VECTOR g_CameraEye2;
 
+extern void func_8008110C(void);
+extern void func_80073230(void);
+extern void func_80281B00(const char* pName);
+extern void func_800223B0(SpriteData* pSpriteData, s16 direction);
+extern void func_80021FE0(SpriteData* pSpriteData, s16 direction);
+extern long FieldGetVec2Magnitude(long x, long z);
+
+// The stack is switched into the scratchpad around three calls ($sp saved at
+// 0x1F8003FC, restored afterwards). Nothing in C makes gcc write $sp to memory, so
+// those three spots are `asm` - the only asm authorised in this unit.
+void func_800739C0(void) {
+    VECTOR eye;
+    VECTOR at;
+    int i;
+    FieldActor* pActor;
+    ActorData* pActorData;
+    s16 targetAngle;
+    s16 updateAngle;
+
+    func_8008110C();
+    RotMatrix(&D_800B2184, &D_800AFC30);
+    FieldMatrixResetTranslation(&D_800AFC30);
+
+    g_CamInterpolation.curAngleY = ratan2(g_CameraAt.vz - g_CameraEye.vz,
+        g_CameraAt.vx - g_CameraEye.vx) - 0x400;
+    g_CamInterpolation.targetAngleY = ratan2(g_CameraAt2.vz - g_CameraEye2.vz,
+        g_CameraAt2.vx - g_CameraEye2.vx) - 0x400;
+    D_800B00B4 = ratan2(FieldGetVec2Magnitude((g_CameraAt.vx - g_CameraEye.vx) >> 16,
+            (g_CameraAt.vz - g_CameraEye.vz) >> 16),
+        (g_CameraAt.vy - g_CameraEye.vy) >> 16);
+
+    asm volatile("lui $t1, 0x1F80\n\tori $t1, $t1, 0x3FC");
+    asm volatile("addu $t0, $t1, $zero\n\tsw $sp, 0($t0)\n\t"
+                 "addiu $t0, $t0, -4\n\taddu $sp, $t0, $zero");
+    func_80073230();
+    asm volatile("addiu $sp, $sp, 4\n\tlw $sp, 0($sp)");
+
+    eye.vx = g_CameraEye.vx;
+    eye.vx += D_800AF8E0.vx;
+    eye.vy = g_CameraEye.vy;
+    eye.vy += D_800AF8E0.vy;
+    eye.vz = g_CameraEye.vz;
+    eye.vz += D_800AF8E0.vz;
+    at.vx = g_CameraAt.vx;
+    at.vx += D_800AF8E0.vx;
+    at.vy = g_CameraAt.vy;
+    at.vy += D_800AF8E0.vy;
+    at.vz = g_CameraAt.vz;
+    at.vz += D_800AF8E0.vz;
+
+    if (D_800ADC18 != 0) {
+        FieldMatrixLookAt(&g_Scene.viewMatrix, &eye, &at, &g_CameraUp);
+        D_800AF85C = g_Scene.viewMatrix;
+    } else {
+        g_Scene.viewMatrix = D_800AF85C;
+        FieldMatrixLookAt(&D_800AF85C, &eye, &at, &g_CameraUp);
+    }
+
+    asm volatile("lui $t1, 0x1F80\n\tori $t1, $t1, 0x3FC\n\t"
+                 "addu $t0, $t1, $zero\n\tsw $sp, 0($t0)\n\t"
+                 "addiu $t0, $t0, -4\n\taddu $sp, $t0, $zero");
+    FieldMatrixCreateWorldToScreen();
+    asm volatile("addiu $sp, $sp, 4\n\tlw $sp, 0($sp)");
+
+    for (i = 0; i < D_800ADBFC; i++) {
+        pActor = (FieldActor*)(i * 0x5C + (int)g_FieldActors);
+        pActorData = pActor->pActorData;
+        if (pActor->status & 0xF40)
+            continue;
+        if (pActor->status & 0x20)
+            continue;
+        if (pActorData->flags & 0x100000)
+            continue;
+        if ((pActorData->flags & 0x600) == 0x200)
+            continue;
+
+        if (!(pActorData->scriptFlags.flags & 0x8000)) {
+            if (pActorData->curWalkmeshTriMaterial & 0x200000) {
+                updateAngle = 0x200;
+                if (pActorData->scriptFlags.flags & 0x1800) {
+                    updateAngle = (pActorData->flags & 0x2000) ? D_800B21B4
+                                                              : pActorData->unk11E;
+                    targetAngle = pActorData->rotation.vy;
+                } else {
+                    targetAngle = (((pActorData->curWalkmeshTriMaterial >> 11) - 2) & 7) << 9;
+                }
+            } else {
+                updateAngle = (pActorData->flags & 0x2000) ? D_800B21B4
+                                                           : pActorData->unk11E;
+                targetAngle = pActorData->rotation.vy;
+            }
+            pActorData->rotation.vz = FieldMathUpdateAngle(pActorData->rotation.vz,
+                targetAngle, updateAngle);
+        }
+
+        if (D_800ADB05 == 0) {
+            if (!(pActorData->flags & 0x1000000)) {
+                func_800223B0((SpriteData*)pActor->pSpriteData,
+                    (s16)((u_short)g_CamInterpolation.curAngleY
+                        + (u_short)pActorData->rotation.vz));
+            } else {
+                func_80021FE0((SpriteData*)pActor->pSpriteData, pActorData->rotation.vz);
+            }
+        }
+    }
+
+    if (g_FieldSystemMode == SYSTEM_MODE_PC_HDD) {
+        func_80281B00(D_8006FB04);
+    }
+}
+
+*/
 void func_80073E38(void) {
     int i;
     FieldActor* pActor;
