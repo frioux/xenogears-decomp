@@ -803,14 +803,11 @@ void func_800A0524(int dstActorIndex, int srcActorIndex) {
 }
 */
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_800A06E8);
-// 94.95%: structure right (branches, calls, frame, 464 bytes). gcc CSEs the
-// `~ACTOR_STATUS_INVISIBLE` constant into a callee-saved register across the
-// func_800A0C94 call (`li s0,-33; and v1,v1,s0`) where the original uses
-// `andi 0xffdf` twice, which then drags the D_800AFD20 store earlier.
-/*
 void func_800A06E8(void) {
     FieldActor* pFieldActor;
+    u_short nStatus;
+    FieldActor* pStatusActor;
+    s32 nOffset;
     int partyId;
 
     pFieldActor = &g_FieldActors[D_800AFD1C];
@@ -818,12 +815,15 @@ void func_800A06E8(void) {
     pFieldActor->status = (pFieldActor->status & 0xF07F) | 0x200;
     if (partyId != -1) {
         func_80076AC0(D_800AFD1C, partyId, g_PartyDataBuffers[partyId], 2, 0, partyId, 1);
+        nOffset = D_800AFD1C * sizeof(FieldActor);
+        pStatusActor = (FieldActor*)(nOffset + (s32)g_FieldActors);
+        nStatus = pStatusActor->status;
         D_800AFD20 = -0xC0;
-        g_FieldActors[D_800AFD1C].status &= ~ACTOR_STATUS_INVISIBLE;
+        pStatusActor->status = nStatus & 0xFFDF;
         func_800A0C94();
         g_FieldScriptVMCurActor->scriptFlags.flags |= 0x100;
         g_FieldScriptVMCurActor->scriptFlags.flags &= ~0x80;
-        g_FieldActors[D_800AFD1C].status &= ~ACTOR_STATUS_INVISIBLE;
+        ((u_short*)&g_FieldActors[D_800AFD1C].status)[0] &= 0xFFDF;
     } else {
         func_80076AC0(D_800AFD1C, 0, g_PartyDataBuffers[0], 1, 0, 0, 1);
         g_FieldScriptVMCurActor->scriptFlags.fields.scriptFlags_0x0 = 1;
@@ -833,7 +833,6 @@ void func_800A06E8(void) {
     }
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
-*/
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_800A08B8);
 
@@ -893,6 +892,7 @@ void func_800A0C94(void) {
     pSpriteData->field_0x84 = curY;
     pActor->curYPos = curY;
 }
+
 */
 
 void func_800A0D3C(void) {
