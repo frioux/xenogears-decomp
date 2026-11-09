@@ -1,5 +1,6 @@
 #include "common.h"
 #include "system/controller.h"
+#include "system/memory.h"
 
 typedef void (*ControllerPrintFunc)(int);
 
@@ -102,4 +103,244 @@ void func_800366F0(int c) {
     D_80050594(c);
 }
 
+// Best attempt at func_80036718 so far: matches every debug-format spec but
+// the frame, the state struct (16 bytes copied from D_8005A1CC, with the sign
+// char at offset 0x1 of the flags word) and the register allocation still
+// differ. Best objdiff: 24.96%.
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/controller_c", func_80036718);
+
+/*
+     extern char D_80018B30[];
+     extern char D_80018B44[];
+     extern void* memchr(u_char* pString, u_char c, int nLength);
+
+     typedef struct {
+          int nFlags;
+          char cSign;
+          u_char pad5[3];
+          int nWidth;
+          int nPrecision;
+          int nBase;
+          char* pPad;
+     } ControllerPrintState;
+
+     int func_80036718(int nChannel, u_char* pFormat, int* pArgs) {
+         ControllerPrintState state;
+         u_char cBuffer[0x20];
+         u_char* pBuffer;
+         u_char* pCur;
+         char* pDigits;
+         int nValue;
+         int nBase;
+         int nCur;
+         int nEnd;
+         int i;
+         int nCount;
+
+         nCount = 0;
+         for (; *pFormat != 0; pFormat++) {
+             if (*pFormat != '%') {
+                 func_800366F0(*pFormat);
+                 nCount++;
+                 continue;
+             }
+             state.nFlags = 0;
+             state.cSign = 0;
+             while (1) {
+                 pFormat++;
+                 if (*pFormat == '-') {
+                     state.nFlags |= 1;
+                 } else if (*pFormat == '+') {
+                     state.nFlags |= 2;
+                 } else if (*pFormat == ' ') {
+                     state.cSign = ' ';
+                 } else if (*pFormat == '0') {
+                     state.nFlags |= 4;
+                 } else {
+                     break;
+                 }
+             }
+             if (*pFormat == '*') {
+                 pArgs++;
+                 if (*pArgs < 0) {
+                     state.nFlags |= 1;
+                     *pArgs = -*pArgs;
+                 }
+                 state.nWidth = *pArgs;
+                 pFormat++;
+             } else {
+                 while (*pFormat >= '0' && *pFormat <= '9') {
+                     state.nWidth = state.nWidth * 10 + (*pFormat - '0');
+                     pFormat++;
+                 }
+             }
+             if (*pFormat == '.') {
+                 pFormat++;
+                 if (*pFormat == '*') {
+                     pArgs++;
+                     state.nPrecision = *pArgs;
+                     pFormat++;
+                 } else {
+                     while (*pFormat >= '0' && *pFormat <= '9') {
+                         state.nPrecision = state.nPrecision * 10 + (*pFormat - '0');
+                         pFormat++;
+                     }
+                 }
+                 if (state.nPrecision >= 0) {
+                     state.nFlags |= 8;
+                 }
+             }
+             if (state.nFlags & 1) {
+                 state.nFlags &= ~4;
+             }
+             pBuffer = cBuffer + 0x20;
+             switch (*pFormat) {
+             case 'b':
+                 pArgs++;
+                 nValue = *pArgs;
+                 nBase = 2;
+                 goto unsignedNumber;
+             case 'd':
+             case 'i':
+                 pArgs++;
+                 nValue = *pArgs;
+                 if (nValue < 0) {
+                     nValue = -nValue;
+                     state.cSign = '-';
+                 } else if (state.nFlags & 2) {
+                     state.cSign = '+';
+                 }
+                 nBase = 10;
+                 goto number;
+             case 'u':
+                 pArgs++;
+                 nValue = *pArgs;
+                 nBase = 10;
+             unsignedNumber:
+                 state.cSign = 0;
+             number:
+                 state.nBase = nBase;
+                 if (!(state.nFlags & 8)) {
+                     if (state.nFlags & 4) {
+                         if (state.cSign != 0) {
+                             state.nPrecision = state.nWidth - 1;
+                         } else {
+                             state.nPrecision = state.nWidth;
+                         }
+                     }
+                     if (state.nPrecision <= 0) {
+                         state.nPrecision = 1;
+                     }
+                 }
+                 i = 0;
+                 while (nValue != 0) {
+                     pBuffer--;
+                     *pBuffer = nValue % state.nBase + '0';
+                     nValue /= state.nBase;
+                     i++;
+                 }
+                 if (i < state.nPrecision) {
+                     do {
+                         pBuffer--;
+                         *pBuffer = '0';
+                         i++;
+                     } while (i < state.nPrecision);
+                 }
+                 if (state.cSign != 0) {
+                     pBuffer--;
+                     *pBuffer = state.cSign;
+                     i++;
+                 }
+                 goto output;
+             case 'p':
+                 state.nPrecision = 8;
+                 state.nFlags |= 8;
+
+             case 'X':
+                 pDigits = D_80018B30;
+                 goto hexNumber;
+             case 'x':
+                 pDigits = D_80018B44;
+             hexNumber:
+                 pArgs++;
+                 nValue = *pArgs;
+                 if (!(state.nFlags & 8)) {
+                     if (state.nFlags & 4) {
+                         state.nPrecision = state.nWidth;
+                     }
+                     if (state.nPrecision <= 0) {
+                         state.nPrecision = 1;
+                     }
+                 }
+                 i = 0;
+                 while (nValue != 0) {
+                     pBuffer--;
+                     *pBuffer = pDigits[nValue & 0xF];
+                     nValue >>= 4;
+                     i++;
+                 }
+                 if (i < state.nPrecision) {
+                     do {
+                         pBuffer--;
+                         *pBuffer = '0';
+                         i++;
+                     } while (i < state.nPrecision);
+                 }
+                 goto output;
+             case 'c':
+                 pArgs++;
+                 pBuffer--;
+                 *pBuffer = *pArgs;
+                 i = 1;
+                 goto output;
+             case 't':
+                 pArgs++;
+                 pBuffer = (u_char*)*pArgs;
+                 if (state.nFlags & 8) {
+                     pCur = memchr(pBuffer, 0, state.nPrecision);
+                     i = pCur - pBuffer;
+                     if (pCur == 0) {
+                         i = state.nPrecision;
+                     }
+                 } else {
+                     i = strlen((char*)pBuffer);
+                 }
+                 goto output;
+             case 'n':
+                 pArgs++;
+                 *pArgs = nCount;
+                 continue;
+             default:
+                 if (*pFormat != '%') {
+                     return nCount;
+                 }
+                 func_800366F0(*pFormat);
+                 nCount++;
+                 continue;
+             }
+         output:
+             if (i < state.nWidth && !(state.nFlags & 1)) {
+                 do {
+                     func_800366F0(' ');
+                     nCount++;
+                     state.nWidth--;
+                 } while (i < state.nWidth);
+             }
+             if (i > 0) {
+                 nCur = (int)pBuffer;
+                 nEnd = i + nCur;
+                 do {
+                     func_800366F0(*(u_char*)nCur);
+                     nCur++;
+                 } while (nCur < nEnd);
+             }
+             nCount += i;
+             while (i < state.nWidth) {
+                 func_800366F0(' ');
+                 i++;
+                 nCount++;
+             }
+         }
+         return nCount;
+     }
+*/
