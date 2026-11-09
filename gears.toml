@@ -122,3 +122,15 @@ build_variables = {
     maspsx_flags = "--dont-expand-li --use-comm-section --run-assembler"
 }
 paths = [ "world_map/" ]
+
+# battle/main/misc26..misc35's original objects are addiu-dominant (misc28: 17
+# small `addiu $r,$zero,imm` vs 0 small `ori`), so ASPSX >= 2.50 left `li` to the
+# assembler: maspsx must not expand it. misc1..misc25 are the opposite.
+[[build_preset]]
+name = "XenoBattleTail"
+build_variables = {
+    maspsx_flags = "--dont-expand-li --use-comm-section --run-assembler"
+}
+paths = [
+    "battle/main/misc28."
+]
