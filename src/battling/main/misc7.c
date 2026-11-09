@@ -8,10 +8,18 @@ extern u32 D_800912F4[];
 extern u32 D_800912F0;
 extern s32 D_80092734;
 extern s32 D_80092950;
+extern u8 D_80092884;
+
+typedef struct {
+    /* 0x00 */ u8 unk0[0x12];
+    /* 0x12 */ s16 unk12;
+} BattleTextCursor; // Size: 0x14
 
 void func_80083C0C(s32 arg);
 void func_8007F834(void);
 void func_80080C48(s32 arg);
+void func_8007EE08(s32 arg);
+u8 func_8007FF70(u8 value, s32 arg, s32 flags);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc7", func_8007F854);
 
@@ -36,7 +44,13 @@ void func_8007F8E4(void) {
     func_80083C0C(arg);
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc7", func_8007F948);
+void func_8007F948(BattleTextCursor* pCursor, s32 arg) {
+    if (pCursor->unk12 == arg) {
+        func_8007EE08(1);
+    } else {
+        func_8007EE08(0);
+    }
+}
 
 u32 func_8007F97C(void) {
     return D_800912F4[D_80099D98];
@@ -68,7 +82,9 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc7", func_800801BC);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc7", func_800801F8);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc7", func_80080234);
+void func_80080234(void) {
+    D_80092884 = func_8007FF70(D_80092884, 1, 1);
+}
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc7", func_80080268);
 
