@@ -122,3 +122,14 @@ build_variables = {
     maspsx_flags = "--dont-expand-li --use-comm-section --run-assembler"
 }
 paths = [ "world_map/" ]
+
+# battle/main/misc26..misc35 is addiu-dominant (misc30: 62 addiu vs 12 ori) while
+# misc1..misc25 is ori-dominant, so maspsx must not expand `li` in the tail units.
+[[build_preset]]
+name = "XenoBattleTail"
+build_variables = {
+    maspsx_flags = "--dont-expand-li --use-comm-section --run-assembler"
+}
+paths = [
+    "battle/main/misc30."
+]
