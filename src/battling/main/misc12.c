@@ -78,6 +78,8 @@ void func_8008895C(void) {
     D_800928EC[D_80092888++] = D_80091A6C;
 }
 
+INCLUDE_ASM("asm/battling/nonmatchings/main/misc12", func_800889C8);
+
 /* Best attempt: objdiff 87.13%. The loop and both returns match exactly; the
    only difference is `D_8006F980 |= 0x10000;`, which gcc compiles with a
    rematerialised address (`lui at` + `sw %lo(at)`) while the original keeps the
