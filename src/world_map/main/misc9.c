@@ -15,7 +15,7 @@ extern u_char* D_8009D7F8;
 extern u_char* D_8009D7FC;
 
 void func_800848B4(s32 arg0, s32 arg1);
-s32 func_800879E0(void);
+s32 func_800879E0(s32 arg0);
 
 // 0x80-byte slot in the D_8009BE24 table
 typedef struct {
@@ -87,7 +87,7 @@ s32 func_800879A8(s32 index) {
 
     pSlot->unk50 = 0;
     pSlot->unk54 = 0x10;
-    func_800879E0();
+    func_800879E0(index);
     return 1;
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_800879E0);
