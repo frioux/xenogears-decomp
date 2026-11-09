@@ -3483,6 +3483,120 @@ u_char ShopMenuBuyMenu(void) {
 INCLUDE_ASM("asm/shop_menu/nonmatchings/main/misc", func_801CFF58);
 
 INCLUDE_ASM("asm/shop_menu/nonmatchings/main/misc", func_801D05BC);
+// 89.44%: structurally right (block order, switch tail-merge, digit loop, two accumulators) but the
+// frame is 8 bytes short: retail keeps &sp20 (the RECT) in $fp and spills the 0x3C30 + i*0x80
+// accumulator to 0x90($sp), this version does the reverse and puts 0x3C30 in $s8, so i lands in $s2
+// instead of $s3. Same tie-break as gear_shop_menu/main/render.c func_801D18F8 (see the note there).
+// One mechanical delta worth attacking first: retail's y argument 0x32 + FONT_LETTER_HEIGHT * i is
+// passed with NO andi 0xffff although ShopMenuSetVertices takes a u_short (ShopMenuInitializeScrollBar's
+// andi on a2 proves the parameter type), and retail keeps a second i*0xD accumulator at 0x88($sp)
+// for 0x36 + FONT_LETTER_HEIGHT * i. Here the u_short conversion of the y kills that reduction: gcc
+// folds 0x32+0xD*i into 0xD*i plus an addiu and an andi, which is what generates one accumulator and
+// the 8-byte-smaller frame. So retail's y expression did not need a truncation at all; find the source
+// shape where gcc knows 0x32+0xD*i is in range (suspicion: the y comes from a local the original
+// incremented itself, not from gcc's strength reduction) and the frame should become 0xC0.
+/*
+void func_801D05BC(s32 scrollOffset, u8* pItemIds, u8* pItemTypes, u8* pItemSellQtys, u8* pItemQtys) {
+    RECT rect;
+    u8 digitBuffer[0xE];
+    u8 stringBuffer[0xE];
+    int places[5];
+    s32 quotient;
+    u8 didRounding;
+    s32 j;
+    s32 k;
+    u8 itemType;
+    u8 tensDigit;
+    u8 onesDigit;
+    s32 qty;
+    void* pWorkspace;
+    int i;
+
+    places[0] = 1;
+    places[1] = 10;
+    places[2] = 100;
+    places[3] = 1000;
+    places[4] = 10000;
+
+    pWorkspace = HeapAlloc(0x3F6, 0);
+
+    for (i = 0; i < SHOP_MAX_ITEMS_IN_VIEW; i++) {
+        bzero(digitBuffer, 0xE);
+        g_Menu->pShop->unk468C[i] = 0;
+        if (pItemIds[scrollOffset + i]) {
+            qty = pItemQtys[scrollOffset + i];
+            itemType = pItemTypes[scrollOffset + i];
+            switch (itemType) {
+                case ITEM_TYPE_WEAPON:
+                    g_Menu->pShop->unk3C30[i].width = SystemRenderStringEntry(
+                        GetWeaponName(pItemIds[scrollOffset + i]), pWorkspace, 0x24, 0);
+                    break;
+
+                case ITEM_TYPE_ACCESSORY:
+                    g_Menu->pShop->unk3C30[i].width = SystemRenderStringEntry(
+                        GetAccessoryName(pItemIds[scrollOffset + i]), pWorkspace, 0x24, 0);
+                    break;
+
+                case ITEM_TYPE_ITEM:
+                    g_Menu->pShop->unk3C30[i].width = SystemRenderStringEntry(
+                        GetItemName(pItemIds[scrollOffset + i]), pWorkspace, 0x24, 0);
+                    break;
+            }
+
+            didRounding = FALSE;
+            for (j = 4, k = 0; j > 0; k++, j--) {
+                quotient = qty / places[j];
+                if (quotient || didRounding) {
+                    digitBuffer[k * 2] = quotient + 0x10;
+                    didRounding = TRUE;
+                    qty -= (quotient * places[j]);
+                } else {
+                    digitBuffer[k * 2] = 0xC3;
+                }
+            }
+            digitBuffer[8] = (qty % 10) + 0x10;
+            func_80033B34((u16*)digitBuffer, stringBuffer, 5);
+            g_Menu->pShop->unk4030[i].width = SystemRenderStringEntry(stringBuffer, pWorkspace, 0x24, 1);
+            setRECT(&rect, 0x180 + (i & 1) * 0x18, 0x80 + (i / 2) * FONT_LETTER_HEIGHT, 0x28, FONT_LETTER_HEIGHT);
+            LoadImage(&rect, pWorkspace);
+            func_801C5A7C(&g_Menu->pShop->unk3C30[i], i, 0x80, 0x81);
+            ShopMenuSetVertices(g_Menu->pShop->unk3C30[i].vertices, 0x24, 0x32 + FONT_LETTER_HEIGHT * i,
+                g_Menu->pShop->unk3C30[i].width, FONT_LETTER_HEIGHT);
+            LoadImage(&rect, pWorkspace);
+            DrawSync(0);
+            func_801C5A7C(&g_Menu->pShop->unk4030[i], i, 0x80, 0x82);
+            ShopMenuSetVertices(g_Menu->pShop->unk4030[i].vertices, 0x8C, 0x32 + FONT_LETTER_HEIGHT * i,
+                g_Menu->pShop->unk4030[i].width, FONT_LETTER_HEIGHT);
+            g_Menu->pShop->unk3C30[i].renderContext = g_Menu->renderContext;
+            g_Menu->pShop->unk4030[i].renderContext = g_Menu->renderContext;
+            g_Menu->pShop->unk4684[i] = 1;
+
+            if (pItemSellQtys[scrollOffset + i]) {
+                g_Menu->pShop->unk468C[i] += func_8002675C(g_Menu->resources, 0xE5,
+                    g_Menu->pShop->polysShopInventory[i * 4], g_Menu->renderContext, 0xB4,
+                    0x36 + FONT_LETTER_HEIGHT * i, 0x1000);
+
+                tensDigit = pItemSellQtys[scrollOffset + i] / 10;
+                if (tensDigit) {
+                    g_Menu->pShop->unk468C[i] += func_8002675C(g_Menu->resources, tensDigit,
+                        &g_Menu->pShop->polysShopInventory[i * 4][g_Menu->pShop->unk468C[i] * 2],
+                        g_Menu->renderContext, 0xBC, 0x36 + FONT_LETTER_HEIGHT * i, 0x1000);
+                }
+
+                onesDigit = pItemSellQtys[scrollOffset + i] % 10;
+                g_Menu->pShop->unk468C[i] += func_8002675C(g_Menu->resources, onesDigit,
+                    &g_Menu->pShop->polysShopInventory[i * 4][g_Menu->pShop->unk468C[i] * 2],
+                    g_Menu->renderContext, 0xC4, 0x36 + FONT_LETTER_HEIGHT * i, 0x1000);
+                g_Menu->pShop->unk4694[i] = g_Menu->renderContext;
+            }
+        } else {
+            g_Menu->pShop->unk4684[i] = 0;
+        }
+    }
+
+    HeapFree(pWorkspace);
+}
+*/
 
 void ShopMenuHandleSoldItems(u_int newGoldAmount, u_char* pItemIds, u_char* pItemSellQtys, int listLength,
     u_char* pInventoryItemIds, u_char* pInventoryQtys, u_char* pItemTypes, u_char isBulkSale, u_char characterIndex) {
