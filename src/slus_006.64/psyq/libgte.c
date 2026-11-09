@@ -417,13 +417,37 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", Lzc);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", RotTransSV);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", SquareSS12);
+SVECTOR *SquareSS12(SVECTOR *v0, SVECTOR *v1) {
+    gte_ldsv(v0);
+    gte_nop();
+    gte_sqr12_b();
+    gte_stsv(v1);
+    return v1;
+}
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", SquareSS0);
+SVECTOR *SquareSS0(SVECTOR *v0, SVECTOR *v1) {
+    gte_ldsv(v0);
+    gte_nop();
+    gte_sqr0_b();
+    gte_stsv(v1);
+    return v1;
+}
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", SquareSL12);
+VECTOR *SquareSL12(SVECTOR *v0, VECTOR *v1) {
+    gte_ldsv(v0);
+    gte_nop();
+    gte_sqr12_b();
+    gte_stlvl(v1);
+    return v1;
+}
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", SquareSL0);
+VECTOR *SquareSL0(SVECTOR *v0, VECTOR *v1) {
+    gte_ldsv(v0);
+    gte_nop();
+    gte_sqr0_b();
+    gte_stlvl(v1);
+    return v1;
+}
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", RotTransPers);
 
