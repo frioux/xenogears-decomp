@@ -1484,13 +1484,20 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008C180);
 // compares/const is the visible symptom. Also solved here, do not redo: the second
 // half must read D_8005A444[partyIndex] ONCE into a local before the `sh` that
 // stores FieldActor::status, or gcc reloads it three times (two after the store)
-// and the function comes out 12 bytes short.
-/*
+// and the function comes out 12 bytes short. Tried for the address, all at
+// 92.49%: `&g_FieldActors[i]` twice, a `FieldActor** pFieldActors =
+// (FieldActor**)&g_FieldActors;` local (initialiser and assignment, the misc6
+// idiom), and a `FieldActor* volatile*` one. gcc 2.7.2 rematerialises the
+// address (`lui; lw %lo(sym)`) at both loads because the pseudo is used only
+// twice; misc6's func_800A0524 gets the materialised form with the same idiom
+// because it uses the local eight times.
 extern FieldActor* D_800B06B8;
 extern void* g_PartyDataBuffers[];
 extern void func_80080A74(int actorIndex);
 
+/*
 void func_8008C180(int partyIndex) {
+    FieldActor** pFieldActors;
     FieldActor* pFieldActor;
     FieldActor* pPrevFieldActor;
     ActorData* pActor;
@@ -1500,7 +1507,8 @@ void func_8008C180(int partyIndex) {
     u_short prevScriptPointer;
 
     if (D_8005A444[partyIndex] != ACTOR_ID_INVALID) {
-        pFieldActor = &g_FieldActors[D_8005A444[partyIndex]];
+        pFieldActors = (FieldActor**)&g_FieldActors;
+        pFieldActor = &(*pFieldActors)[D_8005A444[partyIndex]];
         pPrevFieldActor = D_800B06B8;
         pPrevActor = g_FieldScriptVMCurActor;
         prevActorIndex = D_800AFD1C;
@@ -1510,7 +1518,7 @@ void func_8008C180(int partyIndex) {
         func_80080A74(D_8005A444[partyIndex]);
 
         characterId = D_8005A444[partyIndex];
-        pFieldActor = &g_FieldActors[characterId];
+        pFieldActor = &(*pFieldActors)[characterId];
         pFieldActor->status = (pFieldActor->status & 0xF07F) | 0x200;
         D_800AFD1C = characterId;
         func_80076AC0(characterId, 0, g_PartyDataBuffers[0], 1, 0, 0, 1);
