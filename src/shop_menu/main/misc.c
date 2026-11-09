@@ -139,8 +139,8 @@ void func_801C5040(POLY_FT4* pPoly, short x, short y, u_char u, u_char v, short 
     );
 }
 
-u_short ShopMenuIsCharacterFlagSet(u_short value, u_char maskIndex) {
-    return D_801D21F0[maskIndex] & value;
+s32 ShopMenuIsCharacterFlagSet(u_short value, s32 maskIndex) {
+    return D_801D21F0[maskIndex & 0xFF] & value;
 }
 
 u_short ShopMenuGetCharacterBitMask(int maskIndex) {
@@ -352,7 +352,7 @@ void ShopMenuInitialize(void) {
 
     flags = (g_GameState.unk1D30 & g_GameState.FrMask) & 0x7FF;
     for (i = 0; i < 0x10; i++) {
-        if (ShopMenuIsCharacterFlagSet(flags, i)) {
+        if ((u_short)ShopMenuIsCharacterFlagSet(flags, (u_char)i)) {
             g_Menu->availableCharacters[i] = TRUE;
         } else {
             g_Menu->availableCharacters[i] = FALSE;
@@ -3494,7 +3494,7 @@ s32 func_801CFF58(u_char itemId, u_char itemType) {
     MenuShopAccessory* pAccessory;
     MenuShopItem* pItem;
     s32 equipFlags;
-    s32 equippedFlags;
+    u_short equippedFlags;
     s32 quotient;
     u8 didRounding;
     s32 j;
@@ -3502,8 +3502,6 @@ s32 func_801CFF58(u_char itemId, u_char itemType) {
     s32 price;
     s32 sellPrice;
     void* pWorkspace;
-    int i;
-    int n;
 
     equipFlags = 0;
     places[0] = 1;
@@ -3588,21 +3586,21 @@ s32 func_801CFF58(u_char itemId, u_char itemType) {
     }
 
     g_Menu->pShop->unk46A9 = 0;
-    for (i = 0, n = 0; i < 0x10; i++) {
-        if (g_Menu->availableCharacters[i] != 0) {
-            if (ShopMenuIsCharacterFlagSet(equipFlags, i)) {
-                g_Menu->pShop->unk469C[n] = 1;
+    for (k = 0, j = 0; k < 0x10; k++) {
+        if (g_Menu->availableCharacters[k] != 0) {
+            if (ShopMenuIsCharacterFlagSet(equipFlags, k)) {
+                g_Menu->pShop->unk469C[j] = 1;
             } else {
-                g_Menu->pShop->unk469C[n] = 0;
+                g_Menu->pShop->unk469C[j] = 0;
             }
 
-            if (ShopMenuIsCharacterFlagSet(equippedFlags, i)) {
+            if (ShopMenuIsCharacterFlagSet(equippedFlags, k)) {
                 g_Menu->pShop->unk46A9 += func_8002675C(g_Menu->resources, 0xE,
                     &g_Menu->pShop->polys2D0[g_Menu->pShop->unk46A9 * 2], g_Menu->renderContext,
-                    D_801D21CC[n] + 0xE, 0xB4, 0x1000);
+                    D_801D21CC[j] + 0xE, 0xB4, 0x1000);
             }
 
-            n += 1;
+            j += 1;
         }
     }
 
