@@ -66,90 +66,97 @@ void func_8001A684(s32 arg0, s32 arg1) {
 extern int D_800592C8;
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp3", func_8001A6E8);
-/* Best attempt: 89.90%. Control flow, calls, constants and store offsets all line up; the
-   differences are allocation only: gcc spills the prim count (0x18(sp)) instead of keeping
-   it in fp, which shifts i/j into s3/s2 instead of s4/s3 and grows the frame by 8 bytes.
+/* Best attempt: 97.70%. Frame, callee-saved set, spill slots (gridOffset 0x20, rowOffset 0x18, pOt 0x10), count in
+   fp and every instruction match; only the callee-saved numbering of three pseudos is
+   rotated. The original allocates pField (the strength-reduced pPrim+8 induction pointer)
+   s2, j s3, i s4; this C gets j s2, i s3, pField s4, so the ~200 differing words are all the
+   same instruction with s2/s3/s4 renamed. Writing the three prim stores as offsets off
+   pPrim (pPrim[3], pPrim+4, pPrim+8) is what reproduces the original single-IV shape -- an
+   explicit pField = pPrim + 8 makes gcc split it into two IVs and spill count. gridOffset
+   must be declared after rowOffset to get the 0x18/0x20 slots. The second loop reuses i
+(both loops' counters are s4 in the original); with a separate k, k lands in a0 and the
+   compared constant in a1 instead of the original a0. Refs-driven allocation order, so
+   declaration order, explicit i-minus-one and i-plus-one locals, and a mask-style temp all
+   failed to move it.
+
 void func_8001A6E8(u_long* pOt) {
-       s32 i;
-       s32 j;
-       s32 k;
-       s32 count;
-       s32 gridOffset;
-       s32 rowOffset;
-       s32 x;
-       s32 y;
-       u8* pPrim;
-       u8* pField;
-   
-       pPrim = (u8*)(&D_800592DC)[D_800592C8];
-       count = 0;
-       for (i = 0, gridOffset = 0; i < 0x1C; i++, gridOffset += 0x28) {
-           rowOffset = gridOffset;
-           pField = pPrim + 8;
-           for (j = 0; j < 0x28; j++) {
-               if (D_800592D4[rowOffset + j] != 0) {
-                   *(u8*)(pField - 5) = 2;
-                   *(u32*)(pField - 4) = 0x70280000;
-                   *(u32*)pField = (j << 3) | (i << 19);
-                   AddPrim(pOt, pPrim);
-                   pField += 0xC;
-                   pPrim += 0xC;
-                   count++;
-                   func_8001A684(i - 1, j - 1);
-                   func_8001A684(i - 1, j);
-                   func_8001A684(i - 1, j + 1);
-                   func_8001A684(i, j - 1);
-                   func_8001A684(i, j + 1);
-                   func_8001A684(i + 1, j - 1);
-                   func_8001A684(i + 1, j);
-                   func_8001A684(i + 1, j + 1);
-               }
-           }
-       }
-   
-       for (k = 0; k < 0x460; k++) {
-           if (D_800592D8[k] != 2) {
-               D_800592D4[k] = D_800592D8[k] == 3;
-           }
-           D_800592D8[k] = 0;
-       }
-   
-       if (count < 0x14) {
-           count = 0;
-           x = rand() % 0x1C;
-           y = rand() % 0x28;
-           do {
-               x = x - 1 + rand() % 3;
-               y = y - 1 + rand() % 3;
-               if (x < 0) {
-                   x = 0x1C;
-               }
-               if (x > 0x1C) {
-                   x = 0;
-               }
-               if (y < 0) {
-                   y = 0x28;
-               }
-               if (y > 0x28) {
-                   y = 0;
-               }
-               D_800592D4[x * 0x28 + y] = 1;
-               count++;
-           } while (count < 0x14);
-       }
-   
-       x = rand() % 0x1C;
-       y = rand() % 0x28;
-       func_8001A684(x - 1, y - 1);
-       func_8001A684(x - 1, y);
-       func_8001A684(x - 1, y + 1);
-       func_8001A684(x, y - 1);
-       func_8001A684(x, y + 1);
-       func_8001A684(x + 1, y - 1);
-       func_8001A684(x + 1, y);
-       func_8001A684(x + 1, y + 1);
-   }
+    s32 j;
+    s32 i;
+    s32 count;
+    s32 rowOffset;
+    s32 gridOffset;
+    s32 x;
+    s32 y;
+    u8* pPrim;
+
+    pPrim = (u8*)(&D_800592DC)[D_800592C8];
+    count = 0;
+    for (i = 0, gridOffset = 0; i < 0x1C; i++, gridOffset += 0x28) {
+        rowOffset = gridOffset;
+        for (j = 0; j < 0x28; j++) {
+            if (D_800592D4[rowOffset + j] != 0) {
+                *(u8*)(pPrim + 3) = 2;
+                *(u32*)(pPrim + 4) = 0x70280000;
+                *(u32*)(pPrim + 8) = (j << 3) | (i << 19);
+                AddPrim(pOt, pPrim);
+                pPrim += 0xC;
+                count++;
+                func_8001A684(i - 1, j - 1);
+                func_8001A684(i - 1, j);
+                func_8001A684(i - 1, j + 1);
+                func_8001A684(i, j - 1);
+                func_8001A684(i, j + 1);
+                func_8001A684(i + 1, j - 1);
+                func_8001A684(i + 1, j);
+                func_8001A684(i + 1, j + 1);
+            }
+        }
+    }
+
+    for (i = 0; i < 0x460; i++) {
+        if (D_800592D8[i] != 2) {
+            D_800592D4[i] = D_800592D8[i] == 3;
+        }
+        D_800592D8[i] = 0;
+    }
+
+    if (count < 0x14) {
+        count = 0;
+        x = rand() % 0x1C;
+        y = rand() % 0x28;
+        do {
+            x = x - 1 + rand() % 3;
+            y = y - 1 + rand() % 3;
+            if (x < 0) {
+                x = 0x1C;
+            }
+            if (x > 0x1C) {
+                x = 0;
+            }
+            if (y < 0) {
+                y = 0x28;
+            }
+            if (y > 0x28) {
+                y = 0;
+            }
+            D_800592D4[x * 0x28 + y] = 1;
+            count++;
+        } while (count < 0x14);
+    }
+
+    x = rand() % 0x1C;
+    y = rand() % 0x28;
+    func_8001A684(x - 1, y - 1);
+    func_8001A684(x - 1, y);
+    func_8001A684(x - 1, y + 1);
+    func_8001A684(x, y - 1);
+    func_8001A684(x, y + 1);
+    func_8001A684(x + 1, y - 1);
+    func_8001A684(x + 1, y);
+    func_8001A684(x + 1, y + 1);
+}
 */
+
 
 extern s32 D_8004F364;
 extern s32 D_8004F36C;
