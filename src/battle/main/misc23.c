@@ -1,4 +1,5 @@
 #include "common.h"
+#include "psyq/libgpu.h"
 #include "system/memory.h"
 
 extern s32 D_800D2D40;
@@ -14,6 +15,22 @@ extern void func_800A22A8(u8 *);
 extern void func_800A2D1C(u8 *);
 extern void func_800A9FF0(s32);
 extern void func_800AA934(void *, void *, void *, void *);
+extern s32 func_800AF400(void);
+extern void func_800A429C(void *);
+extern void func_800A64E4(void);
+extern void func_800BF85C(s32, s32);
+
+extern u8 *D_800D33E4;
+extern u16 D_800D361A;
+extern u_long *D_800D3604;
+extern RECT D_800D3628;
+extern void *D_800C3AC4;
+extern void *D_800C3AC8;
+extern u8 D_800C3D68;
+extern u8 D_800591AC;
+extern s32 D_80059464;
+extern s32 D_800C360C;
+extern u8 D_800C4000[];
 
 // Per-unit 6-byte state records, unit id 0..3; the original spells each byte
 // as its own symbol.
@@ -59,7 +76,35 @@ void func_800A6444(s32 arg0, s32 arg1, s32 arg2, s32 arg3, s32 arg4, s32 arg5) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A64E4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A6884);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A6AE8);
+
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A6F98);
+/* 84.20%: identical instruction multiset except that the original keeps
+   &D_800D3628 in s0 across LoadImage/DrawSync and gcc 2.7.2 rematerialises the
+   symbol address instead (also costs an s0 slot and shuffles the i++ into the
+   delay slot). Tried: RECT *pRect, u8 *pBuf, reusing the loop pointer, all
+   identical code.
+void func_800A6F98(void) {
+    u8 *p;
+    s32 i;
+
+    if (D_800D361A != 0) {
+        p = *(u8 **)(D_800D33E4 + 0x118);
+        for (i = 0; i < *(u8 *)(D_800D33E4 + 0x10E); i++) {
+            if (*(u16 *)(p + 0x1A) != 0) {
+                *(s32 *)p = 0;
+            }
+            p += 0x30;
+        }
+        p = (u8 *)&D_800D3628;
+        LoadImage((RECT *)p, D_800D3604);
+        DrawSync(0);
+        func_800A429C(p - 0x28);
+    }
+    func_800A64E4();
+    HeapFree(D_800C3AC4);
+    HeapFree(D_800C3AC8);
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A7064);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A7948);
 
@@ -104,5 +149,34 @@ void func_800AA320(u16 arg0, u16 arg1, void *arg2) {
     }
 }
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800AA384);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800AA454);
+void func_800AA384(u16 arg0, u16 arg1, void *arg2) {
+    D_800C3D40 = arg0;
+    D_800C3E30 = arg1;
+    D_800C3D68 = 1;
+    ((u8 *)D_800D3368[arg0])[0x35] = 1;
+    D_80059464 = 0;
+    D_800591AC = 1;
+    func_800BF85C(arg0, func_800AF400());
+    D_800C360C = 1;
+    D_800C4000[func_800AF400()] = 0;
+    if (D_800D3368[arg0] != NULL) {
+        func_800AA934(D_800D3368[arg0], D_800D3368[arg0], D_800C3D0C, arg2);
+    }
+}
+void func_800AA454(u16 arg0, u16 arg1, void *arg2) {
+    u16 savedIdx;
+    u16 savedUnk;
+
+    savedIdx = D_800C3D40;
+    savedUnk = D_800C3E30;
+    D_800C3D40 = arg0;
+    D_800C3E30 = arg1;
+    ((u8 *)D_800D3368[arg0])[0x35] = 0;
+    if (D_800D3368[arg0] != NULL) {
+        if ((s32)arg0 != func_800AF400()) {
+            func_800AA934(D_800D3368[arg0], D_800D3368[arg0], D_800C3D0C, arg2);
+        }
+    }
+    D_800C3D40 = savedIdx;
+    D_800C3E30 = savedUnk;
+}
