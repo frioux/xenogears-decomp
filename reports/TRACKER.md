@@ -958,3 +958,66 @@ three-step carve above, and then in the 157 `battling` functions still sitting i
 is a few bytes longer or shorter than retail (objdiff compares the function's own
 range, so a longer body hides its tail). Workers who ran `check_bin.sh` before their
 last commit never produced one of these.
+
+
+# Session 5 (2026-11-09)
+
+Baseline at session start: **2145 / 2985 functions (71.86%)**, 388872 / 670864 bytes
+of the six original outputs, ~560 countable `INCLUDE_ASM` stubs.
+
+The session did what session 4's last paragraph said to do: **create new pools.**
+Four overlays that had never been built are now in the tree, which adds 1583
+functions to the pool in one sitting:
+
+| overlay | functions | units | load address |
+|---|---|---|---|
+| `world_map.bin` | 385 | `main/misc1..16` | 0x8006FAF0 |
+| `battle.bin` | 857 | `main/misc1..35` | 0x8006FAF0 |
+| `menu.bin` | 307 | `main/misc1..12` | 0x801C5000 |
+| `movie.bin` | 34 | `main/misc1..2` | 0x8006FAF0 |
+
+All four build byte-identically (`make check` now gates eleven outputs, three of
+them new) and the recipe is now written down in `AGENTS.md` section 9 and
+encoded in `tools/rounds/overlay-brief.js`. The two tricks that cost the time:
+a whole-overlay `[0x0, asm]` segment *links* but reports `undefined reference to
+D_XXXX` for the tail (that is splat saying the tail is data), and a `data`
+subsegment auto-lengths to a 4-byte boundary so the `databin` has to start at
+that aligned end or the output comes up 1-6 bytes short.
+
+Metric note: the denominator went **2985 -> 4568 functions** because the four
+overlays are now in `objdiff.json`. The headline percentage therefore fell from
+71.86% to 48.53% while the matched count went UP. On the session-start
+denominator the session so far is 2217/2985 = 74.27%.
+
+Also fixed: `select_target.py` never counted `battling` stubs (its `BINARIES`
+list was written before that overlay existed), so four sessions of "remaining
+stubs" undercounted by 359. It counts every overlay now.
+
+## Log (session 5)
+
+| # | Batch | Functions | Total | Notes |
+|---|---|---|---|---|
+| — | `world_map` overlay split (16 units) | — | 2145 | byte-identical; new tool `tools/rounds/sync-report.sh` |
+| — | `movie`/`menu`/`battle` overlays split (49 units total) | — | 2145 | 3 parallel overlay-setup workers; all three byte-identical first try with the recipe in the brief |
+| 38 | 8 workers: `battling` misc13..18 (brand-new 156-stub carve) + `libgpu_b` + `archive_b` | +72 | 2217 | **misc13 24/26, misc15 12, misc14 10, misc16 9, misc18 9, misc17 8**; gpub/archive_b 0 (both saturated: every stub has a parked attempt at 77-99%) |
+
+### Round 38: the new carve converts at ~46%, and that is the number that matters
+
+72 matches from six workers on 156 never-attempted stubs (misc14/16/17/18 report
+12-16 stubs still untouched, so it is 72 of ~110 actually attempted). Compare
+with +2 from the same number of workers on the saturated units in rounds 35-37.
+The pool is the whole variable: `battling` misc13 is 24/26 matched with the two
+residuals parked at 90.98% and 85.28%.
+
+Idioms that came back from this round (all in the parked notes):
+- A 4-word block copy wants a **struct assignment** (`*(Vec4*)sp = *(Vec4*)p`);
+  element-by-element interleaves the loads and stores. `Bytes8`/`Words3`/`Words4`
+  local typedefs are how misc15 got eight functions in one sitting.
+- `return (cond) ? a : b;` gives `beqz`+then-first; `if (cond) return a; else
+  return b;` gives the mirrored `bnez` shape (`func_8008F9B0`).
+- `-fcross-jumping` is on: identical call tails merge, so a function with three
+  shareable tails has to be written with the calls duplicated in the source.
+- The library pool is dead for a different reason than the 95-99% class:
+  `libgpu_b`'s `func_800459DC` is 99.55% on a final `or` operand order and
+  `archive_b`'s `func_800379C8` is a **sibcall** (`j FontPrintf`, the only `j` in
+  the whole asm tree — not gcc 2.7.2 output at all).
