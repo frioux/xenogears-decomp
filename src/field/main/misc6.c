@@ -581,6 +581,11 @@ int FieldCharacterIdToPartyId(int characterId) {
     return -1;
 }
 
+// Also tried: the two-return shape `if (SCRIPT_READ_U8(0) == 0xFF) { ...body...;
+// return 0; } return 0;` reproduces retail's `bne`-to-shared-epilogue and the exact
+// 0x20 frame (90.25%, 320/324 bytes). Only the 0x7C store's sll/sra pair is left;
+// gcc folds it because it can prove `((x + 4) & 7) << 9` fits in 13 bits (tried
+// s32 nAngle, an `nAngle << 16 >> 16` temp, and reading 0x56 back).
 INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_8009FA54);
 // 90.86% (316 of 324 bytes): frame (0x20 with ra/s2/s1/s0), the `sll s0; sra s0`
 // of nX in the 2nd call's delay slot, both call orders and the rotation value are
@@ -850,6 +855,9 @@ void func_800A0C4C(void) {
 // into the freshly loaded base register (`addu v0,v1,v0`). Same size and operand
 // order; -O2/-O3 both do this. index+base operand order is required (base-first
 // gives `addu v0,v0,v1`).
+// Also tried: `offset += (s32)g_FieldActors` in the third block (mutating the index
+// variable moves the whole allocation, 82.38%), `u_int offset` (same 99.64%) and
+// computing the pointer after `z = pPosition[5]` (same 99.64%).
 INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_800A0C94);
 /*
 void func_800A0C94(void) {
