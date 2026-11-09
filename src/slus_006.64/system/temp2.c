@@ -557,6 +557,122 @@ void ResourceHelperGetTexCoords(MenuResourceDirectory *dir, u32 index,
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_800263E4);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_8002675C);
+/*
+Best 86.77% (696 bytes against 664). Three gaps, all in the first loop body:
+1. Frame is 8 bytes too big and the locals are in the wrong slots: the
+   original has the x copy at 0x10, the y copy at 0x18, pDirent at 0x20 and the
+   counter at 0x24, so the source declares the two coordinate copies before
+   pDirent and i.
+2. The four scaled values are read with signed loads (lh 0x8, lh 0xA, lh 0x4,
+   lh 0x6) while the u/v/width/height reads of the same fields later are lhu,
+   so the scaling part casts the fields to s16.
+3. Of the four /4096 divisions the original emits sra for the x and width ones
+   but srl for the y and height ones, each still preceded by the bgez plus
+   0xFFF sign fixup. A plain signed division gives sra for all four (that is
+   what the parked code below does) and a u32 division drops the fixup, so the
+   y/height source expression is still unknown.
+
+Builds the two textured quads of every record of a dirent: the extents are
+// scaled by a 1/4096 fixed-point factor and the u/v range is mirrored when the
+// record's flip bits are set. Returns the dirent's record count.
+s32 func_8002675C(MenuResourceDirectory* dir, u32 index, POLY_FT4* pPrims,
+                  s32 context, u16 x, u16 y, u16 scale) {
+    MenuResourceDirentTextureMetadata* pDirent;
+    MenuResourceTextureMetadata* pData;
+    POLY_FT4* pPrim;
+    u16 localX = x;
+    u16 localY = y;
+    s32 nX;
+    s32 nY;
+    s32 nWidth;
+    s32 nHeight;
+    u16 u;
+    u16 v;
+    u16 width;
+    u16 height;
+    u16 x0;
+    u16 x1;
+    u16 y0;
+    u16 y1;
+    s32 i = 0;
+
+    pDirent = (MenuResourceDirentTextureMetadata*)(dir->offsets[index] + (unsigned)dir);
+    if (pDirent->count != 0) {
+        for (; i != pDirent->count; i++) {
+            pData = &pDirent->data[i];
+            pPrim = pPrims + i * 2 + context;
+
+            nX = pData->x * scale / 4096;
+            nY = pData->y * scale / 4096;
+            nWidth = pData->width * scale / 4096;
+            nHeight = pData->height * scale / 4096;
+
+            SetPolyFT4(pPrim);
+            SetSemiTrans(pPrim, 0);
+            SetShadeTex(pPrim, 1);
+            pPrim->tpage = GetTPage(pData->texPageId, 0, pData->texPageX,
+                                    pData->texPageY);
+            pPrim->clut = GetClut(pData->clutX, pData->clutY);
+
+            u = pData->u;
+            v = pData->v;
+            width = pData->width;
+            height = pData->height;
+            if (!pData->flipX) {
+                x0 = localX + nX;
+                x1 = x0 + nWidth;
+                pPrim->x0 = x0;
+                pPrim->x2 = x0;
+                pPrim->x1 = x1;
+                pPrim->x3 = x1;
+            } else {
+                u = pData->u - 1;
+                x1 = localX + nX;
+                x0 = x1 + nWidth;
+                pPrim->x0 = x0;
+                pPrim->x2 = x0;
+                pPrim->x1 = x1;
+                pPrim->x3 = x1;
+                if ((s16)u < 0) {
+                    u = 0;
+                    width = width - 1;
+                }
+            }
+
+            if (!pData->flipY) {
+                y0 = localY + nY;
+                y1 = y0 + nHeight;
+                pPrim->y0 = y0;
+                pPrim->y1 = y0;
+                pPrim->y2 = y1;
+                pPrim->y3 = y1;
+            } else {
+                v = pData->v - 1;
+                y1 = localY + nY;
+                y0 = y1 + nHeight;
+                pPrim->y0 = y0;
+                pPrim->y1 = y0;
+                pPrim->y2 = y1;
+                pPrim->y3 = y1;
+                if ((s16)v < 0) {
+                    v = 0;
+                    height = height - 1;
+                }
+            }
+
+            pPrim->u0 = u;
+            pPrim->v0 = v;
+            pPrim->u1 = u + width;
+            pPrim->v1 = v;
+            pPrim->u2 = u;
+            pPrim->v2 = v + height;
+            pPrim->u3 = u + width;
+            pPrim->v3 = v + height;
+        }
+    }
+    return pDirent->count;
+}
+*/
 
 // Builds one SPRT per record of the dirent into pSprites, two sprites per
 // record (one per render context), and the DR_MODE that follows them.
@@ -747,6 +863,7 @@ s32 func_80026DCC(MenuResourceDirectory* dir, u32 index, MenuResourceSprite* out
     }
     return count;
 }
+*/
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_80026F44);
 
