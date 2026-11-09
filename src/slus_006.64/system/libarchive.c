@@ -559,11 +559,14 @@ void ArchiveConsolidateStreamFileEntry(int sectionIndex) {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/libarchive", func_80028F30);
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/libarchive", func_8002945C);
-/* Best: 86.36% (22 insns, same length). Early returns compile to the inverted
-   branch (bnez v0,body / nop / j end) where the original has beqz to the shared
-   epilogue with `li v0,0xFFFF` in the delay slot, and pStream lands in v0 with
-   pSectionHeader in a1 (original: pStream a1, pSectionHeader v0). A single
-   `nState` accumulator with nested if/else drops to 58.41.
+/* Best: 90.68% (identical instruction sequence AND size; the only diff is a
+   3-register rotation). gcc gives pStream v1, nState a1, temp v0 and adds a
+   `move v0,a1` before jr ra; the original has pStream a1, nState v0 (so the
+   null path's `li v0,0xffff` lands in the beqz delay slot and no epilogue copy
+   is needed) and temp v1. Early returns are wrong here: the matched neighbour
+   func_800294B4 shows gcc 2.6 emitting `bnez/j epilogue/ori v0,0xFFFF` for
+   that shape. A `nState` accumulator (below) is the only shape that reproduces
+   the two beqz-to-shared-epilogue branches.
 u_short func_8002945C(u_char* pSection) {
     u_char* pStream;
     u_char* pStreamEnd;
@@ -572,20 +575,19 @@ u_short func_8002945C(u_char* pSection) {
     u16 nState;
 
     pStream = g_ArchiveCurStreamFile;
-    if (pStream == NULL) {
-        return -1;
+    nState = -1;
+
+    if (pStream != NULL) {
+        pSectionHeader = (ArchiveStreamFileSectionHeader*)(pStream + 4);
+        if (pSection != NULL) {
+            pStreamEnd = pStream + *(s32*)pStream * 8 + 0x24;
+            nIndex = (u32)(pSection - pStreamEnd) >> 11;
+            nState = pSectionHeader[nIndex].state;
+            pSectionHeader[nIndex].state = 0;
+        } else {
+            nState = 0;
+        }
     }
-
-    pSectionHeader = (ArchiveStreamFileSectionHeader*)(pStream + 4);
-
-    if (pSection == NULL) {
-        return 0;
-    }
-
-    pStreamEnd = pStream + *(s32*)pStream * 8 + 0x24;
-    nIndex = (u32)(pSection - pStreamEnd) >> 11;
-    nState = pSectionHeader[nIndex].state;
-    pSectionHeader[nIndex].state = 0;
 
     return nState;
 }
