@@ -18,6 +18,8 @@ extern int rsin(int a);
 extern u8 D_8009D498[];
 extern u8 D_8009BD64[];
 extern u8 D_8009BAC8[];
+extern s32 D_8009B264[];
+extern s32 D_8009B26C[];
 extern s32 D_8009D160;
 extern s32 D_8009D2B4;
 
@@ -50,6 +52,7 @@ void func_80093354(WorldMapPos* p) {
         p->z += D_8009D2B4 * 0x800000;
     }
 }
+
 void func_800933EC(WorldMapPos* p) {
     if (p->x >= D_8009D160 * 2048) {
         p->x -= D_8009D160 * 2048;
@@ -64,6 +67,7 @@ void func_800933EC(WorldMapPos* p) {
         p->z += D_8009D2B4 * 2048;
     }
 }
+
 void func_80093484(WorldMapPos* p) {
     if (p->x < -0x4000000) {
         p->x += D_8009D160 * 0x800000;
@@ -76,6 +80,7 @@ void func_80093484(WorldMapPos* p) {
         p->z -= D_8009D2B4 * 0x800000;
     }
 }
+
 void func_80093534(WorldMapPos* p) {
     if (p->x < -0x4000) {
         p->x += D_8009D160 * 2048;
@@ -88,6 +93,7 @@ void func_80093534(WorldMapPos* p) {
         p->z -= D_8009D2B4 * 2048;
     }
 }
+
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_800935DC);
 /* best: 72.73%. Every instruction up to the division matches; the original has
    the zero-division and overflow trap guards (break 7 / break 6) that maspsx
@@ -124,6 +130,33 @@ s16 func_80094060(s16 row, s16 col) {
 }
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_80094088);
+/* best: 79.96%. Yield/dot-product of the position against the row k of
+   D_8009B264/D_8009B26C (stride 0x10). The sum, the branches and the reloads
+   are right; deltas are the callee-saved order (s0/s1) and that gcc forms the
+   second table address as lui+addiu+addu instead of the original's
+   lui+addu+lw %lo(at).
+
+s32 func_80094088(WorldMapPos* p, WorldMapPos* pPos, WorldMapPos* pOut) {
+    s16 k;
+    s32 sum;
+
+    k = func_80093FE4(p);
+    sum = pPos->x * D_8009B264[k * 4] + pPos->z * D_8009B26C[k * 4];
+    if (sum == 0) {
+        pOut->x = pPos->x;
+        pOut->z = pPos->z;
+        return 0;
+    }
+    if (sum < 0) {
+        pOut->x = -D_8009B264[k * 4];
+        pOut->z = -D_8009B26C[k * 4];
+    } else {
+        pOut->x = D_8009B264[k * 4];
+        pOut->z = D_8009B26C[k * 4];
+    }
+    return 1;
+}
+*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_80094154);
 /* best: 91.07%. Instruction sequence and mult/mflo placement identical; the
    only delta is that gcc copies p0 from a0 into a2 at entry (and permutes the
