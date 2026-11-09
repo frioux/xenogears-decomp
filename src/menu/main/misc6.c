@@ -3,7 +3,15 @@
 #include "system/memory.h"
 #include "system/menu.h"
 
+extern u8 D_80059460;
+
 void func_801C7BF4(void);
+void func_801C851C(SVECTOR* pVertices, u16 x, u16 y, u16 width, u16 height);
+void func_801D1258(void);
+void func_801D1B20(void);
+void func_801D1BE8(void);
+void func_801D1C48(void);
+s32 func_8002675C(MenuResourceDirectory* pDir, u32 index, POLY_FT4* pPrims, s32 context, s32 x, s32 y, s32 scale);
 void func_801C8574(u_char soundEffectId);
 void func_801D397C(u_char a0, u_char a1, u_char a2, u_char a3, u16 a4, u_char a5, u_char a6, u32 a7, u_char a8);
 void func_801D4EA0(u_char a0);
@@ -14,7 +22,22 @@ void func_801D7CFC(u_char a0, u_char a1, u_char a2);
 void func_801D8DE4(u_char a0, s32 a1, s32 a2, u_char a3);
 void func_801D8EA4(u_char a0, s32 a1, s32 a2, u_char a3);
 
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc6", func_801D1CA0);
+void func_801D1CA0(void) {
+    if (g_Menu->shouldDrawMenu) {
+        switch (D_80059460) {
+            case 0:
+                func_801D1B20();
+                break;
+            case 2:
+                func_801D1BE8();
+                break;
+            case 6:
+                func_801D1C48();
+                break;
+        }
+    }
+    func_801D1258();
+}
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc6", func_801D1D40);
 void func_801D1E80(void) {
     g_Menu->transitionEffectState = MENU_OPEN_ANIMATION_START;
@@ -80,7 +103,17 @@ void func_801D32B4(void) {
     }
     func_801C7BF4();
 }
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc6", func_801D3344);
+void func_801D3344(s32 a0, s32 a1, s32 a2) {
+    if (g_Menu->pManager->scrollHandleActive == 0) {
+        g_Menu->pScrollHandle = HeapAlloc(0x74, 0);
+        bzero(g_Menu->pScrollHandle, 0x74);
+    }
+    func_8002675C(g_Menu->resources, 0x107, (POLY_FT4*)g_Menu->pScrollHandle, g_Menu->renderContext, a0, a1, 0x1000);
+    func_801C851C(g_Menu->pScrollHandle->vertices, a0, a1, 8, a2);
+    // the original reads renderContext as a byte here, but as a word for the arg above
+    g_Menu->pScrollHandle->renderContext = *(u_char*)&g_Menu->renderContext;
+    g_Menu->pManager->scrollHandleActive = 1;
+}
 void func_801D3444(void) {
     g_Menu->pManager->scrollHandleActive = 0;
     HeapFree(g_Menu->pScrollHandle);
