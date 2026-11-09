@@ -1,6 +1,7 @@
 #include "common.h"
 #include "psyq/libgpu.h"
-
+#include "psyq/libgte.h"
+#include "system/memory.h"
 
 extern s32 D_80092790;
 extern s32 D_800927AC;
@@ -16,8 +17,14 @@ typedef struct {
 } Unk16; // Size: 0x10
 
 extern Unk8 D_80092768;
-extern Unk16 D_8009871C;
-extern Unk16 D_8009867C;
+extern s32 D_8009871C;
+extern s32 D_8009867C;
+extern s32 D_80098720;
+extern s32 D_80098724;
+extern s32 D_80092770;
+extern s32 D_80092774;
+extern u8 D_8009287C;
+extern s32 D_8009290C;
 
 extern s32 D_80092794;
 extern s32 D_800927B0;
@@ -26,6 +33,10 @@ extern s16 D_80097102;
 extern s16 D_8009881E;
 
 extern int rand(void);
+
+extern s32 D_80092944;
+extern char D_800701B0[];
+extern void func_8007EBE0(char* p);
 
 extern s32 func_8008AC0C();
 extern s32 func_80083310();
@@ -49,6 +60,21 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc9", func_80082488);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc9", func_80082880);
 
+/* best 88.24%: identical instruction set (the unused s32 tmp[12] is what
+   reproduces the original's 0x30 frame); only the sll/sra pairing of the two
+   sign extensions is interleaved differently.
+s16 func_80082880(u8* p) {
+    s32 tmp[12];
+    s32 a;
+    s32 b;
+
+    a = ((s32)*(u16*)p << 16) >> 24;
+    b = ((s32)*(u16*)(p + 4) << 16) >> 24;
+
+    return *(s16*)&D_800928DC[(b << 7) + a];
+}
+*/
+
 u32 func_800828C4(s32* p) {
     s32 a;
     s32 b;
@@ -66,7 +92,20 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc9", func_80082C4C);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc9", func_80082E60);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc9", func_800831C8);
+void func_800831C8(void) {
+    s32 ang;
+    s32 scale;
+
+    scale = (rand() & 0x1FFF) + 0x800;
+    ang = rand() % 0x600 + 0x500;
+    D_8009871C = ((rcos(ang) * scale) >> 12) + 0x4000;
+    D_80098724 = ((rsin(ang) * scale) >> 12) + 0x4000;
+    D_80098720 = -((rand() & 0x7FF) + 0x400);
+    D_80092770 = 0x100;
+    D_80092774 = 0x40;
+    D_8009287C = 0x40;
+    D_8009290C = 0x400;
+}
 
 void func_800832C0(s32 flags) {
     if (flags & 0x8000) {
@@ -91,8 +130,8 @@ void func_8008369C(void) {
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc9", func_80083738);
 
 void func_80083B54(Unk16* p0, Unk16* p1) {
-    *p0 = D_8009871C;
-    *p1 = D_8009867C;
+    *p0 = *(Unk16*)&D_8009871C;
+    *p1 = *(Unk16*)&D_8009867C;
 }
 
 void func_80083BB4(s32 arg) {
@@ -144,6 +183,18 @@ s32 func_80083CD8(void) {
 }
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc9", func_80083CE8);
+
+/* best 85.00%: all divisions/moduli and the *99 expansion line up; gcc picks
+   different registers for the three arguments and hoists the format address.
+void func_80083CE8(void) {
+    char buf[0x20];
+    s32 n;
+
+    n = D_80092944;
+    Sprintf(buf, D_800701B0, n / 1800, (n % 1800) / 30, (n % 30) * 99 / 30);
+    func_8007EBE0(buf);
+}
+*/
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc9", func_80083DCC);
 
