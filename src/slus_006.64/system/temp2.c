@@ -863,7 +863,6 @@ s32 func_80026DCC(MenuResourceDirectory* dir, u32 index, MenuResourceSprite* out
     }
     return count;
 }
-*/
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_80026F44);
 
