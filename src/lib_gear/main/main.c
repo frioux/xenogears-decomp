@@ -321,6 +321,8 @@ INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801DDBF8);
 // Declaring pKeyframe last, assigning it after the flag loads, and reading
 // pBlock->unk6 into a local first were all tried; gcc 2.6 hoists the address
 // computation regardless, so this is an allocator limit, not a source shape.
+// Reading numTransFrames before flags matches the original's load order
+// (0x6, 0xC, 0xE, 0x4) but then flags reuses a1 and pKeyframe takes a2: 94.95%.
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801DEF10);
 /*
 void func_801DEF10(ModelJoint* pSkeleton, KeyframeBlock* pBlock) {
@@ -1272,11 +1274,10 @@ INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E63A8);
 // objdiff 98.63%: byte-identical except that gcc 2.6 puts pJoint in s1 and the
 // loop counter i in s0; the original has pJoint in s0, i in s1 (the other five
 // callee-saved assignments -- pList s3, pSkeleton s4, pChild s2, pTargetSkeleton
-// s5, numChildren s6 -- do match). Declaring pChild first with its initializer,
-// and forming pJoint/pTarget as `jointIndex * sizeof(ModelJoint) + (s32)base` so
-// the addu keeps the index-first operand order, is what fixed the rest. Further
-// orders of locals, for/while, u_short numChildren and moving pChild++ to the
-// loop tail all score lower or leave the s0/s1 pair alone.
+// s5, numChildren s6 -- do match). Declaration orders, for/while, u_short
+// numChildren, moving pChild++ to the loop tail, an explicit `s32 offset` local,
+// `u_short i` (adds 8 bytes, order becomes pJoint/pChild/i) and hoisting `i = 1`
+// into the declarations (same) all leave the pair alone or score lower.
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E6578);
 /*
 void func_801E6578(Temp4* pList, s32 jointIndex, ModelJoint* pSkeleton, ModelJoint* pTargetSkeleton) {
@@ -1352,30 +1353,38 @@ int func_801E67F8(void) {
 // formulation tried — u8 index, s32 index with `& 0xFF`, s32 index with a
 // `(u8)` cast, and a separate `s32 n = index` temporary — because the shift
 // count only needs its low 5 bits, so the narrowing never survives.
+// objdiff 92.95%: one `andi v0,a1,0xff` short. gcc 2.6 keeps the merged u8 index in
+// SImode (jump-delay slots then hold a copy of `li v1,1`), the original truncates
+// it once at the merge. Reassigning a `u8 index = type` local in each branch (this
+// shape) reproduces the rest exactly, including the `andi v1,a1,0xff` at the top
+// and the index living in a1; u8 param, s32 index with `& 0xFF`, a `(u8)` cast and
+// an `s32 n = index` temporary all leave the same delta, because the mask only
+// feeds a shift count.
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E6830);
-/* void func_801E6830(Model* pModel, u8 type, s16* pMask) {
-    u8 index;
+/*
+void func_801E6830(Model* pModel, int type, s16* pMask) {
+    u8 index = type;
 
-    if (type == 0xFF) {
+    if (index == 0xFF) {
         index = func_801E67F8();
-    } else if (type == 0xFE) {
+    } else if (index == 0xFE) {
         index = *(u8*)&D_801E86B0;
-    } else if (type == 0xFD || type == 0xF9) {
+    } else if (index == 0xFD || index == 0xF9) {
         index = pModel->unk20;
-    } else if (type == 0xFC) {
+    } else if (index == 0xFC) {
         index = pModel->unk21;
-    } else if (type == 0xFA) {
+    } else if (index == 0xFA) {
         index = 0xA;
-    } else if (type == 0xF8) {
+    } else if (index == 0xF8) {
         index = pModel->unk20 * 2 + 8;
-    } else if (type == 0xF7) {
+    } else if (index == 0xF7) {
         index = pModel->unk20 * 2 + 9;
-    } else {
-        index = type;
     }
 
     *pMask = 1 << index;
-} */
+}
+
+*/
 
 void* func_801E6910(Model* pModel, u8 index, s32* pFlags) {
     void* pResult;
@@ -1473,11 +1482,6 @@ void func_801E6E48(void* pAnimFile, s32 animIndex, s32 arg2, s16 direction, s16 
     }
 }
 
-// objdiff 99.21%: everything matches except one word. maspsx does not translate
-// cop2 macros, so gte_mvmva(1,0,0,0,0) emits the aspsx-style 0x020013BF where the
-// original has MVMVA 1,0,0,0,0 = 0x4A481200. Unreachable from C without inline asm.
-INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E6F64);
-/*
 void func_801E6F64(void* pTaskRaw) {
     AnimTask* pTask = pTaskRaw;
     LibGearJointTask* pJointTask;
@@ -1514,7 +1518,6 @@ void func_801E6F64(void* pTaskRaw) {
 
     pJointTask->pChainCallback(pTask);
 }
-*/
 
 void func_801E7094(Model* pModel, ModelJoint* pJoint, u8 flags, s16 x, s16 y, s16 z) {
     ModelJoint* pChild;
