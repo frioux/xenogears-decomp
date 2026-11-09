@@ -436,6 +436,13 @@ typedef struct {
     /* 0x1EFE */ u16 unk1EFE;
 } MenuUnk8; /* size: 1F00 */
 
+// Second selection-menu-like object (0x1198 bytes, freed on menu exit)
+typedef struct {
+    /* 0x0000 */ u8 unk0[0x1180];
+    /* 0x1180 */ void* pVramBuffer;
+    /* 0x1184 */ u8 unk1184[0x14];
+} MenuUnk9; // Size: 0x1198
+
 // Character Info
 typedef struct {
     /* 0x0   */ POLY_FT4 polysDescriptionStrings[18];
@@ -715,7 +722,8 @@ typedef struct {
     /* 0x39C  */ void* unk39C[3];
     /* 0x3A8  */ u8 unk3A8[0x80];
     /* 0x428  */ MenuPointerCursors* pCursors;
-    /* 0x42C  */ u8 unk42C[0x10];
+    /* 0x42C  */ MenuUnk9* unk42C;
+    /* 0x430  */ u8 unk430[0xC];
     /* 0x43C  */ MenuScrollBarHandle* pScrollHandle;
     /* 0x440  */ MenuShoulderButtonUi* pShoulderButtonUi;
     /* 0x444  */ MenuArrowCursor* arrowCursors[MENU_MAX_NUM_ARROW_CURSORS];
