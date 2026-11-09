@@ -1,9 +1,13 @@
 #include "common.h"
 #include "system/controller.h"
+#include "psyq/libapi.h"
 
 extern u_char D_8005938C;
 extern int D_80059390;
 extern int D_800501FC;
+extern int D_80050204;
+
+extern void ControllerResetState(void);
 
 typedef struct {
     /* 0x0 */ u_char unk0;
@@ -22,6 +26,7 @@ extern u_short D_8005A1C0[];
 extern u_char D_8005A1C3[];
 
 extern void func_80036188(ControllerBState* pState);
+extern void func_80040C3C(void* pDest, int destSize, void* pSrc, int srcSize);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/controller_b", func_80035E44);
 
@@ -29,7 +34,14 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/controller_b", func_80035F1C);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/controller_b", func_80035FF8);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/controller_b", func_8003611C);
+void func_8003611C(void) {
+    D_8005A1BC[0].unk0 = 0;
+    D_8005A1BC[0].unk4 = 0;
+    D_8005A1BC[0].unk6 = 0;
+    D_8005A1BC[0].unk7 = 0;
+    D_8005A1BC[1] = D_8005A1BC[0];
+    func_80040C3C(&D_8005A1BC[0], 4, &D_8005A1BC[1], 4);
+}
 
 void func_80036188(ControllerBState* pState) {
     if (pState->unk7) {
@@ -69,7 +81,29 @@ void func_80036270(int index, u_char value) {
     D_8005A1C3[index * 8] = value;
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/controller_b", ControllerInit);
+void ControllerInit(void) {
+    u_char* pMapping;
+    int i;
+
+    InitPAD(g_C1Buffer, CONTROLLER_BUFFER_SIZE, g_C1Buffer + CONTROLLER_BUFFER_SIZE, CONTROLLER_BUFFER_SIZE);
+    StartPAD();
+    ChangeClearPAD(0);
+    ControllerResetState();
+    func_8003611C();
+
+    D_80050204 = 0;
+    D_8005938C = 1;
+    D_80059390 = 0;
+    i = 7;
+    pMapping = &g_ControllerButtonMappings[7];
+    for (; i >= 0; i--) {
+        *pMapping-- = i;
+    }
+    g_ControllerButtonMappings[0] = 1;
+    g_ControllerButtonMappings[1] = 0;
+    g_ControllerButtonMappings[2] = 3;
+    g_ControllerButtonMappings[3] = 2;
+}
 
 void func_8003633C(u_char value) {
     D_8005938C = value;
