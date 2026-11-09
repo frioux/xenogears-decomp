@@ -621,6 +621,12 @@ form is source-level and the two can coexist. Worth retrying with declarations
 for D_800594F8/D_8005946C/D_800594D4/D_800595A0 in this unit and
 D_8005947C/D_800594F8 read through a pointer local inside func_8001B6C4;
 deciding who owns this .bss data is a unit-level call.
+Confirmed in maspsx (__init__.py, store/load gp-rel branch): a symbol is relaxed to
+%gp_rel only when it is in sbss_entries AND not in comm_symbols, i.e. only a file-local
+(.lcomm) definition does it; a plain definition here becomes .comm (fcommon) and is never
+relaxed. So making func_8001BB50 match would turn func_8001B6C4's store to D_800594F8
+(gp_rel here impossible - retail has lui $at %hi there) into gp_rel and break that
+function's verified 100%, which is the unit-level conflict.
 void func_8001BB50(void) {
     D_800594F8 = 1;
     D_8005946C = 0;
