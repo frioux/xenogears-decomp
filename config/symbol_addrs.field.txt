@@ -290,6 +290,7 @@ g_FieldMouseSpeedY = 0x800B0060;
 g_FieldMousePositionsX = 0x800B0068;
 g_FieldMousePositionsY = 0x800B0070;
 g_FieldScriptVMCurActor = 0x800B0078;
+D_800B00E8 = 0x800B00E8; // size:0x20
 g_FieldParticleActorIDs = 0x800B0108;
 D_800B0188 = 0x800B0188; // size:0x140
 g_FieldDefaultParticleBanks = 0x800B02CC; // type:ParticleBank size:0x78
