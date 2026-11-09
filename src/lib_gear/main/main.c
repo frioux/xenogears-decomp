@@ -483,127 +483,132 @@ int func_801DF7A8(Temp4* pUnk, s8* arg1) {
     return index;
 }
 
+// Best attempt below: objdiff 70.90%, frame 0x48 (same as the original) and the
+// whole loop body -- both channels, the NULL/0xFF paths, the release path, the
+// 0xFFFF-rematerialised compares and the 6-byte-per-joint keyframe stride --
+// emits the same instructions in the same order. What is left is the allocator:
+//   * the original keeps pSkeleton/pJoint in s0 and pBlock/pKeyframe coalesced in
+//     s1; here pBlock takes s0 (so pJoint reuses s0) and pKeyframe gets its own
+//     s1, because the `(u16*)((u8*)pBlock + 0x18)` copy is not combined with the
+//     dead parameter. `pBlock->keyframes` coalesces but grows the frame to 0x50.
+//   * the original spills `count` to 0x10(sp) and holds 0xFF in s7; here `count`
+//     wins s7 and the `type` parameter is copied to 0x10(sp) instead, so the
+//     pObject->unk3 test compares against a register loaded inside the loop.
+//   * the original reads pBlock->unk6 with `lhu` (unsigned); u16, s16 and a u16
+//     cast on the s16 header field all still emit `lh`.
+// Also tried: `pJoint = pSkeleton` as a declaration initialiser (68.76%), using
+// pSkeleton as the joint cursor instead of a separate pJoint (68.76%), no
+// `flag1` local with `flags & 0x1` inline (70.81%), declaration-order variations.
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801DF7F4);
-// Two-channel variant of the keyframe update: for each joint it binds or
-// releases the two tracked objects (unk70 / unk74) from the vertex keyframe
-// block. Best attempt 58.22%: the control flow and every load/store match, but
-// gcc here keeps pList/pSkeleton/pBlock in s0-s2 in a different order and the
-// frame is 0x50 where the original has 0x48 (one fewer spilled local), so the
-// prologue and the two per-channel blocks are shifted. Locals are s0=pSkeleton,
-// s1=pBlock, s4=pList, s5=vertexData base, s6=flag1, fp=frame, s7=0xFF.
-// Keyframe entry: offset into the vertex block for each channel plus each
-// channel's packet type byte.
-// typedef struct {
-//     /* 0x0 */ u16 offset0;
-//     /* 0x2 */ u16 offset1;
-//     /* 0x4 */ u8 type0;
-//     /* 0x5 */ u8 type1;
-// } VertexKeyframe; // Size: 0x6
-//
-// s32 func_801DF7F4(Temp4* pList, ModelJoint* pSkeleton, KeyframeBlock* pBlock, s32 flags, u8 type) {
-//     u16 numChildren;
-//     u16 numRotFrames;
-//     u16 numTransFrames;
-//     u16 blockFlags;
-//     u8 flag1;
-//     s16 frame;
-//     s16 count;
-//     u16* pKeyframe;
-//     u8* pVertexData;
-//     Temp3* pObject;
-//     ModelJoint* pJoint;
-//     int i;
-//
-//     if (pBlock->unk6 != 0) {
-//         func_801DFE8C(pList, pSkeleton);
-//         func_801DEF10(pSkeleton, pBlock);
-//         return 1;
-//     }
-//
-//     numChildren = pSkeleton->numChildren;
-//     numRotFrames = pBlock->unkC;
-//     numTransFrames = pBlock->unkE;
-//     blockFlags = pBlock->unk4;
-//     flag1 = flags & 0x1;
-//
-//     count = numChildren;
-//     if (numRotFrames + 1 < numChildren) {
-//         count = numRotFrames + 1;
-//     }
-//
-//     frame = pBlock->unk2;
-//     if (flag1 == 0) {
-//         frame--;
-//     }
-//
-//     pKeyframe = (u16*)((u8*)pBlock + 0x18);
-//     pVertexData = (u8*)pKeyframe + (numRotFrames + 1) * 6;
-//     if (!(blockFlags & 0x1)) {
-//         pVertexData += numRotFrames * 6;
-//     }
-//     if (!(blockFlags & 0x2)) {
-//         pVertexData += numTransFrames * 6;
-//     }
-//
-//     pJoint = pSkeleton;
-//
-//     for (i = 0; i < count; i++) {
-//         pObject = (Temp3*)pJoint->unk70;
-//
-//         if (pKeyframe[0] != 0xFFFF) {
-//             if (pObject == NULL) {
-//                 pObject = func_801DF6F0(pList);
-//             } else if (pObject->unk3 == 0xFF) {
-//                 goto next1;
-//             }
-//
-//             if (pObject != NULL) {
-//                 pObject->unk0 = 1;
-//                 pObject->unk1 = flag1;
-//                 pObject->unk3 = type;
-//                 pObject->unk2 = ((u8*)pKeyframe)[4];
-//                 pObject->unk10 = 0;
-//                 pObject->unk12 = frame;
-//                 *(u32*)&pObject->unk4 = *(u32*)&pObject->unk8 = (u32)(pVertexData + pKeyframe[0]);
-//                 pJoint->unk70 = (u32)pObject;
-//             }
-//         } else if (pObject != NULL && i != 0 && pObject->unk3 != 0xFF) {
-//             func_801DF7A8(pList, (s8*)pObject);
-//             pJoint->unk70 = 0;
-//         }
-//     next1:
-//
-//         pObject = (Temp3*)pJoint->unk74;
-//
-//         if (pKeyframe[1] != 0xFFFF) {
-//             if (pObject == NULL) {
-//                 pObject = func_801DF6F0(pList);
-//             } else if (pObject->unk3 == 0xFF) {
-//                 goto next2;
-//             }
-//
-//             if (pObject != NULL) {
-//                 pObject->unk0 = 1;
-//                 pObject->unk1 = flag1;
-//                 pObject->unk3 = type;
-//                 pObject->unk2 = ((u8*)pKeyframe)[5];
-//                 pObject->unk10 = 0;
-//                 pObject->unk12 = frame;
-//                 *(u32*)&pObject->unk4 = *(u32*)&pObject->unk8 = (u32)(pVertexData + pKeyframe[1]);
-//                 pJoint->unk74 = (u32)pObject;
-//             }
-//         } else if (pObject != NULL && i != 0 && pObject->unk3 != 0xFF) {
-//             func_801DF7A8(pList, (s8*)pObject);
-//             pJoint->unk74 = 0;
-//         }
-//     next2:
-//
-//         pJoint++;
-//         pKeyframe += 3;
-//     }
-//
-//     return 0;
-// }
+/*
+s32 func_801DF7F4(Temp4* pList, ModelJoint* pSkeleton, KeyframeBlock* pBlock, s32 flags, u8 type) {
+    u16 numRotFrames;
+    u16 numChildren;
+    u16 numTransFrames;
+    u16 blockFlags;
+    u16 count;
+    u8 flag1;
+    s16 frame;
+    u16* pKeyframe;
+    u8* pVertexData;
+    Temp3* pObject;
+    ModelJoint* pJoint;
+    int i;
+
+    if (pBlock->unk6 != 0) {
+        func_801DFE8C(pList, pSkeleton);
+        func_801DEF10(pSkeleton, pBlock);
+        return 1;
+    }
+
+    numRotFrames = pBlock->unkC;
+    numChildren = pSkeleton->numChildren;
+    count = numChildren;
+    numTransFrames = pBlock->unkE;
+    blockFlags = pBlock->unk4;
+    flag1 = flags & 0x1;
+
+    if (numRotFrames + 1 < numChildren) {
+        count = numRotFrames + 1;
+    }
+
+    frame = pBlock->unk2;
+    if (flag1 == 0) {
+        frame--;
+    }
+
+    pKeyframe = (u16*)((u8*)pBlock + 0x18);
+    pVertexData = (u8*)pKeyframe + (numRotFrames + 1) * 6;
+    if (!(blockFlags & 0x1)) {
+        pVertexData += numRotFrames * 6;
+    }
+    if (!(blockFlags & 0x2)) {
+        pVertexData += numTransFrames * 6;
+    }
+
+    pJoint = pSkeleton;
+    for (i = 0; i < count; i++) {
+        if (pKeyframe[0] != 0xFFFF) {
+            pObject = (Temp3*)pJoint->unk70;
+            if (pObject == NULL) {
+                pObject = func_801DF6F0(pList);
+            } else if (pObject->unk3 == 0xFF) {
+                goto next1;
+            }
+            if (pObject != NULL) {
+                pObject->unk0 = 1;
+                pObject->unk1 = flag1;
+                pObject->unk3 = type;
+                pObject->unk2 = ((u8*)pKeyframe)[4];
+                pObject->unk10 = 0;
+                pObject->unk12 = frame;
+                *(u32*)&pObject->unk4 = *(u32*)&pObject->unk8 = (u32)(pVertexData + pKeyframe[0]);
+                pJoint->unk70 = (u32)pObject;
+            }
+        } else {
+            pObject = (Temp3*)pJoint->unk70;
+            if (pObject != NULL && i != 0 && pObject->unk3 != 0xFF) {
+                func_801DF7A8(pList, (s8*)pObject);
+                pJoint->unk70 = 0;
+            }
+        }
+    next1:
+
+        pKeyframe++;
+
+        if (pKeyframe[0] != 0xFFFF) {
+            pObject = (Temp3*)pJoint->unk74;
+            if (pObject == NULL) {
+                pObject = func_801DF6F0(pList);
+            } else if (pObject->unk3 == 0xFF) {
+                goto next2;
+            }
+            if (pObject != NULL) {
+                pObject->unk0 = 1;
+                pObject->unk1 = flag1;
+                pObject->unk3 = type;
+                pObject->unk2 = ((u8*)pKeyframe)[4];
+                pObject->unk10 = 0;
+                pObject->unk12 = frame;
+                *(u32*)&pObject->unk4 = *(u32*)&pObject->unk8 = (u32)(pVertexData + pKeyframe[0]);
+                pJoint->unk74 = (u32)pObject;
+            }
+        } else {
+            pObject = (Temp3*)pJoint->unk74;
+            if (pObject != NULL && i != 0 && pObject->unk3 != 0xFF) {
+                func_801DF7A8(pList, (s8*)pObject);
+                pJoint->unk74 = 0;
+            }
+        }
+    next2:
+
+        pKeyframe += 2;
+        pJoint++;
+    }
+
+    return 0;
+}
+*/
 
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801DFAC4);
 
