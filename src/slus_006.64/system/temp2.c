@@ -405,10 +405,81 @@ void func_80025718(WorkListEntry* pTask) {
     }
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_800257F0);
-
 extern void func_800B1F6C(void* pDirTransforms, void* pFramesData, u_long* pOT,
                           int flags, s32 arg4, s32 arg5);
+extern MATRIX D_8004FD80;
+extern MATRIX D_8004FDA0;
+
+// Builds the sprite's color and light matrices from its base scale/rotation,
+// then draws its model parts; a negative flag word saves and restores the
+// geometry offset around the draw.
+void func_800257F0(WorkListEntry* pTask) {
+    MATRIX matrix;
+    VECTOR vec;
+    MATRIX colorMatrix;
+    MATRIX lightMatrix;
+    long geomOffsetX;
+    long geomOffsetY;
+    SpriteData* pSpriteData;
+    s32 oldShift;
+
+    pSpriteData = pTask->unk4;
+    func_80022038(pSpriteData);
+    if (pSpriteData->pBase->pDirTransforms) {
+        if ((*(u32*)((u8*)pSpriteData + 0x40) >> 1) & 1) {
+            PushMatrix();
+            // The scale values go in the m[i][0] slots (bytes 0, 6, 0xC), which
+            // is where the static initialiser keeps its 0xC00 identity values.
+            D_8004FD80.m[0][0] = *(u16*)((u8*)pSpriteData->pBase + 0x4C);
+            D_8004FD80.m[1][0] = *(u16*)((u8*)pSpriteData->pBase + 0x4E);
+            D_8004FD80.m[2][0] = *(u16*)((u8*)pSpriteData->pBase + 0x50);
+            RotMatrix((SVECTOR*)((u8*)pSpriteData->pBase + 0x44), &colorMatrix);
+            MulMatrix0(&colorMatrix, &pSpriteData->pBase->transformMatrix,
+                       &colorMatrix);
+            MulMatrix0(&D_8004FDA0, &colorMatrix, &lightMatrix);
+            SetBackColor(0x20, 0x20, 0x20);
+            SetColorMatrix(&D_8004FD80);
+            SetLightMatrix(&lightMatrix);
+            PopMatrix();
+        }
+
+        vec.vx = pSpriteData->position.x >> 16;
+        vec.vy = pSpriteData->position.y >> 16;
+        vec.vz = pSpriteData->position.z >> 16;
+        TransMatrix(&pSpriteData->pBase->transformMatrix, &vec);
+        if (!(*(u8*)((u8*)pSpriteData + 0x3F) & 1)) {
+            CompMatrix(&D_8004FBB8, &pSpriteData->pBase->transformMatrix,
+                       &matrix);
+            SetRotMatrix(&matrix);
+            SetTransMatrix(&matrix);
+        } else {
+            SetRotMatrix(&pSpriteData->pBase->transformMatrix);
+            SetTransMatrix(&pSpriteData->pBase->transformMatrix);
+        }
+
+        if (*(s32*)((u8*)pSpriteData + 0x3C) < 0) {
+            ReadGeomOffset(&geomOffsetX, &geomOffsetY);
+            SetGeomOffset(0xA0, 0x70);
+        }
+        if ((*(u32*)((u8*)pSpriteData + 0x3C) >> 25) & 1) {
+            oldShift = D_80050100;
+            D_80050100 = 0x10;
+            func_800B1F6C(pSpriteData->pBase->pDirTransforms,
+                          ((void**)&pSpriteData->pBase->pFramesData)[g_GfxCurContext],
+                          g_GfxCurOT, 0, 0xFEC,
+                          *(u8*)((u8*)pSpriteData + 0x3C) >> 5);
+            D_80050100 = oldShift;
+        } else {
+            func_800B1F6C(pSpriteData->pBase->pDirTransforms,
+                          ((void**)&pSpriteData->pBase->pFramesData)[g_GfxCurContext],
+                          g_GfxCurOT, 0, pSpriteData->field_0x30,
+                          *(u8*)((u8*)pSpriteData + 0x3C) >> 5);
+        }
+        if (*(s32*)((u8*)pSpriteData + 0x3C) < 0) {
+            SetGeomOffset(geomOffsetX, geomOffsetY);
+        }
+    }
+}
 
 // Draws the sprite through the matrix D_8004FBB8 composed with its own, then
 // hands the model parts to func_800B1F6C.
@@ -486,6 +557,122 @@ void ResourceHelperGetTexCoords(MenuResourceDirectory *dir, u32 index,
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_800263E4);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_8002675C);
+/*
+Best 86.77% (696 bytes against 664). Three gaps, all in the first loop body:
+1. Frame is 8 bytes too big and the locals are in the wrong slots: the
+   original has the x copy at 0x10, the y copy at 0x18, pDirent at 0x20 and the
+   counter at 0x24, so the source declares the two coordinate copies before
+   pDirent and i.
+2. The four scaled values are read with signed loads (lh 0x8, lh 0xA, lh 0x4,
+   lh 0x6) while the u/v/width/height reads of the same fields later are lhu,
+   so the scaling part casts the fields to s16.
+3. Of the four /4096 divisions the original emits sra for the x and width ones
+   but srl for the y and height ones, each still preceded by the bgez plus
+   0xFFF sign fixup. A plain signed division gives sra for all four (that is
+   what the parked code below does) and a u32 division drops the fixup, so the
+   y/height source expression is still unknown.
+
+Builds the two textured quads of every record of a dirent: the extents are
+// scaled by a 1/4096 fixed-point factor and the u/v range is mirrored when the
+// record's flip bits are set. Returns the dirent's record count.
+s32 func_8002675C(MenuResourceDirectory* dir, u32 index, POLY_FT4* pPrims,
+                  s32 context, u16 x, u16 y, u16 scale) {
+    MenuResourceDirentTextureMetadata* pDirent;
+    MenuResourceTextureMetadata* pData;
+    POLY_FT4* pPrim;
+    u16 localX = x;
+    u16 localY = y;
+    s32 nX;
+    s32 nY;
+    s32 nWidth;
+    s32 nHeight;
+    u16 u;
+    u16 v;
+    u16 width;
+    u16 height;
+    u16 x0;
+    u16 x1;
+    u16 y0;
+    u16 y1;
+    s32 i = 0;
+
+    pDirent = (MenuResourceDirentTextureMetadata*)(dir->offsets[index] + (unsigned)dir);
+    if (pDirent->count != 0) {
+        for (; i != pDirent->count; i++) {
+            pData = &pDirent->data[i];
+            pPrim = pPrims + i * 2 + context;
+
+            nX = pData->x * scale / 4096;
+            nY = pData->y * scale / 4096;
+            nWidth = pData->width * scale / 4096;
+            nHeight = pData->height * scale / 4096;
+
+            SetPolyFT4(pPrim);
+            SetSemiTrans(pPrim, 0);
+            SetShadeTex(pPrim, 1);
+            pPrim->tpage = GetTPage(pData->texPageId, 0, pData->texPageX,
+                                    pData->texPageY);
+            pPrim->clut = GetClut(pData->clutX, pData->clutY);
+
+            u = pData->u;
+            v = pData->v;
+            width = pData->width;
+            height = pData->height;
+            if (!pData->flipX) {
+                x0 = localX + nX;
+                x1 = x0 + nWidth;
+                pPrim->x0 = x0;
+                pPrim->x2 = x0;
+                pPrim->x1 = x1;
+                pPrim->x3 = x1;
+            } else {
+                u = pData->u - 1;
+                x1 = localX + nX;
+                x0 = x1 + nWidth;
+                pPrim->x0 = x0;
+                pPrim->x2 = x0;
+                pPrim->x1 = x1;
+                pPrim->x3 = x1;
+                if ((s16)u < 0) {
+                    u = 0;
+                    width = width - 1;
+                }
+            }
+
+            if (!pData->flipY) {
+                y0 = localY + nY;
+                y1 = y0 + nHeight;
+                pPrim->y0 = y0;
+                pPrim->y1 = y0;
+                pPrim->y2 = y1;
+                pPrim->y3 = y1;
+            } else {
+                v = pData->v - 1;
+                y1 = localY + nY;
+                y0 = y1 + nHeight;
+                pPrim->y0 = y0;
+                pPrim->y1 = y0;
+                pPrim->y2 = y1;
+                pPrim->y3 = y1;
+                if ((s16)v < 0) {
+                    v = 0;
+                    height = height - 1;
+                }
+            }
+
+            pPrim->u0 = u;
+            pPrim->v0 = v;
+            pPrim->u1 = u + width;
+            pPrim->v1 = v;
+            pPrim->u2 = u;
+            pPrim->v2 = v + height;
+            pPrim->u3 = u + width;
+            pPrim->v3 = v + height;
+        }
+    }
+    return pDirent->count;
+}
+*/
 
 // Builds one SPRT per record of the dirent into pSprites, two sprites per
 // record (one per render context), and the DR_MODE that follows them.
