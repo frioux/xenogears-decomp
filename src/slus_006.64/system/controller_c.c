@@ -5,7 +5,44 @@ typedef void (*ControllerPrintFunc)(int);
 
 extern ControllerPrintFunc D_80050594;
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/controller_c", func_80036420);
+extern int func_80036410(void);
+extern void ControllerResetState(void);
+
+void func_80036420(void) {
+    u_short nC2PressedOnce;
+    u_short nC1PressedOnce;
+    u_short nC2Released;
+    u_short nC1Released;
+    u_short nC2ButtonState;
+    u_short nC1ButtonState;
+
+    nC2PressedOnce = 0;
+    nC1PressedOnce = 0;
+    nC2Released = 0;
+    nC1Released = 0;
+    nC2ButtonState = 0;
+    nC1ButtonState = 0;
+
+    if (func_80036410()) {
+        ControllerResetState();
+    } else {
+        while (ControllerPopState()) {
+            nC1ButtonState |= g_C1ButtonState;
+            nC2ButtonState |= g_C2ButtonState;
+            nC1Released |= g_C1ButtonStateReleased;
+            nC2Released |= g_C2ButtonStateReleased;
+            nC1PressedOnce |= g_C1ButtonStatePressedOnce;
+            nC2PressedOnce |= g_C2ButtonStatePressedOnce;
+        }
+    }
+
+    g_C1ButtonState = nC1ButtonState;
+    g_C2ButtonState = nC2ButtonState;
+    g_C1ButtonStateReleased = nC1Released;
+    g_C2ButtonStateReleased = nC2Released;
+    g_C1ButtonStatePressedOnce = nC1PressedOnce;
+    g_C2ButtonStatePressedOnce = nC2PressedOnce;
+}
 
 extern char D_80018ACC[]; // "%02x "
 extern char D_80018AD4[]; // "\n"
