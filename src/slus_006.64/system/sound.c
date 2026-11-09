@@ -1204,9 +1204,69 @@ AudioManager* func_800397FC(SoundFile* pFile, s32 arg1, s32 arg2) {
     return pManager;
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_80039850);
+AudioManager* func_80039850(AudioManager* pManager) {
+    AudioManager* pSource = pManager;
+    AudioManager* pNew;
+    s16 status;
+    s32 size;
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_80039910);
+    status = (s16)SoundUnkDebug0(pManager);
+    if (status != 0) {
+        SoundHandleError(status);
+        return NULL;
+    }
+
+    size = SoundCalculateAudioManagerSize(pManager->elementCount);
+    if (pManager->unk_0x15 != 0) {
+        size += 0x180;
+    }
+
+    pNew = SoundHeapAllocate(size);
+    if (pNew == NULL) {
+        SoundHandleError(0x1E);
+        return NULL;
+    }
+
+    pNew->unk_0x8 = (s32)pSource;
+    if (pSource->unk_0x15 != 0) {
+        func_8003B0AC(pNew, pSource);
+    }
+    func_8003B22C(pNew);
+    func_8003B424(pNew);
+    pNew->unk_0x4c = 0;
+    SoundAddAudioManagerToList(pNew);
+
+    return pNew;
+}
+
+AudioManager* func_80039910(AudioManager* pManager, AudioManager* pNew) {
+    s16 status;
+    s32 size;
+
+    status = (s16)SoundUnkDebug0(pManager);
+    if (status != 0) {
+        SoundHandleError(status);
+        return NULL;
+    }
+
+    size = SoundCalculateAudioManagerSize(pManager->elementCount);
+    if (pManager->unk_0x15 != 0) {
+        size += 0x180;
+    }
+    SoundHeapClearBlockMemory(pNew, size);
+
+    pNew->unk_0x8 = (s32)pManager;
+    if (pManager->unk_0x15 != 0) {
+        func_8003B0AC(pNew, pManager);
+    }
+    func_8003B22C(pNew);
+    func_8003B424(pNew);
+    pNew->unk_0x4c = 0;
+    SoundAddAudioManagerToList(pNew);
+    pNew->unk_Flags |= 0x4000;
+
+    return pNew;
+}
 
 void func_800399D4(AudioManager* pManager) {
     if (pManager->unk_Flags & 0x8000) {
@@ -1732,7 +1792,28 @@ void func_8003AD98(AudioManager* pManager) {
     }
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003ADCC);
+void func_8003ADCC(AudioManager* pManager) {
+    AudioManager* pCopy;
+    s32 size;
+
+    DisableEvent(g_unk_SoundEvent);
+    size = SoundCalculateAudioManagerSize(pManager->elementCount);
+    if (pManager->unk_Manager_0x4 == NULL) {
+        pCopy = SoundHeapAllocate(size);
+    }
+    if (pCopy == NULL) {
+        EnableEvent(g_unk_SoundEvent);
+        return;
+    }
+
+    pManager->unk_Flags |= 0x10;
+    pManager->unk_Manager_0x4 = pCopy;
+    SoundHeapSetBlockMemory(pCopy, pManager, size);
+    pCopy->next = NULL;
+    pCopy->unk_Manager_0x4 = NULL;
+    pManager->unk_0x2c = 0;
+    EnableEvent(g_unk_SoundEvent);
+}
 
 void func_8003AE84(AudioManager* pManager) {
     s32 savedValue;
@@ -3254,6 +3335,40 @@ void SoundAbortVoiceOnChannel(SoundVoiceData* voiceData, u32 channelIndex) {
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003E900);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003EB5C);
+/*
+Attempt (85.11%, same size): the loop body and the key-off tail are instruction for
+instruction right. gcc picks a different register for the loop-carried voice mask
+(a1/v0 here, v1 in the original) and therefore a different s/ptr register, and it
+sinks the pVoice-0xA preheader addiu into the guarding branch delay slot where the
+original leaves a nop. Reading the mask global directly in the loop, a u32 or long
+mask local and declaration order all give the same allocation.
+void func_8003EB5C(void) {
+    u32 voiceMask = g_unk_VoicesNeedingProcessing;
+    SpuUnion* pSpu = g_pSoundSpuRegisters;
+    SPU_VOICE_REG* pVoice = pSpu->_rxx.voice;
+    u32 keyOff;
+    s32 i;
+
+    if (voiceMask != 0) {
+        i = 0;
+        do {
+            if (voiceMask & (1 << i)) {
+                pVoice->adsr[1] = (pVoice->adsr[1] & 0xFFC0) | 6;
+            }
+            i++;
+            pVoice++;
+        } while (i < NUM_VOICES);
+    }
+
+    keyOff = g_SoundKeyOffFlags | g_unk_VoicesNeedingProcessing;
+    if (keyOff != 0) {
+        pSpu->_rxx.key_off[0] = keyOff;
+        pSpu->_rxx.key_off[1] = (u16)(keyOff >> 0x10);
+        g_unk_VoicesNeedingProcessing = 0;
+        g_SoundKeyOffFlags = 0;
+    }
+}
+*/
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003EBF0);
 
