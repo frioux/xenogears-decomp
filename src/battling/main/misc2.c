@@ -4,6 +4,28 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80072D18);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80073064);
 
+/* 84.61%: gte_lddp_a2 + gte_ldir123 + two nops and .word 0x4b98003d + a
+   3-register IR read-back reproduces the instruction sequence, but gcc picks
+   a3/v1/v0 for the loads where the original has t0/t1/t2 and also steals the
+   last `sh` into the `jr ra` delay slot. The read-back macro it needs is
+   gte_stir123_gpr: mfc2 %0,$9 / %1,$10 / %2,$11 with "=r" outputs. */
+/* void func_80073064(s16 *p0, s16 *p1, s32 ir0) {
+    s32 vx = p0[0];
+    s32 vy = p0[1];
+    s32 vz = p0[2];
+    s32 x, y, z;
+
+    gte_lddp_a2(ir0);
+    gte_ldir123(vx, vy, vz);
+    gte_nop();
+    gte_nop();
+    gte_gpf12_b();
+    mfc2 x from $9, y from $10, z from $11;
+    p1[0] = x;
+    p1[1] = y;
+    p1[2] = z;
+} */
+
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_800730AC);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_800730F4);
