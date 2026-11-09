@@ -612,7 +612,154 @@ s32 func_801DF7F4(Temp4* pList, ModelJoint* pSkeleton, KeyframeBlock* pBlock, s3
 }
 */
 
+// objdiff 75.14%. The instruction shapes of the whole 242-insn body are right:
+// the two 6-byte-stride channels, the 0xFFFF merge into the else arm (the
+// unk3==0xFF goto lands on the same code), blockFlags&1 / i!=0 / rotFrame<
+// numRotFrames guards, pObject fill order (unk0,unk1,unk3,unk2,unk10,unk12,
+// unk4=unk8=pVertexBase+pKeyframe[0]) and the 6-byte pKeyframe stride.
+// Remaining delta is allocation only: the original keeps flag1 in $fp and the
+// constant 1 in $a1 (spilled to 0x48(sp) around the two func_801DF6F0 calls),
+// and reads the u8 `type` argument straight from its home slot 0x88(sp) each
+// use; gcc here spills flag1 to a slot and copies `type` into a slot at entry,
+// which costs the register that the other value needs. Also unmatched: the
+// original spills `(u8*)&pKeyframe[2]` (addiu t0,s2,4 at the loop top, reloaded
+// for both channels) where gcc uses 4(s2)/5(s2) immediates; and it allocates
+// pSkeleton to s1 and pBlock to s2, ours is swapped. Declaration reordering
+// (flag1 first) dropped the score to 75.10%.
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801DFAC4);
+/*
+s32 func_801DFAC4(Temp4* pList, ModelJoint* pSkeleton, KeyframeBlock* pBlock, s32 flags, u8 type) {
+    u16 numRotFrames;
+    u16 numTransFrames;
+    u16 count;
+    u16 frame;
+    u16 rotFrame;
+    u16 transFrame;
+    u16 blockFlags;
+    s32 flag1;
+    u16* pKeyframe;
+    u16* pData;
+    u8* pVertexBase;
+    Temp3* pObject;
+    ModelJoint* pJoint;
+    s32 i;
+
+    if (pBlock->unk6 != 0) {
+        func_801DFE8C(pList, pSkeleton);
+        func_801DEF10(pSkeleton, pBlock);
+        return 1;
+    }
+
+    flag1 = flags & 0x1;
+    numRotFrames = pBlock->unkC;
+    rotFrame = 0;
+    count = pSkeleton->numChildren;
+    if (numRotFrames + 1 < count) {
+        count = numRotFrames + 1;
+    }
+    numTransFrames = pBlock->unkE;
+    transFrame = 0;
+
+    frame = pBlock->unk2;
+    if (flag1 == 0) {
+        frame--;
+    }
+
+    blockFlags = pBlock->unk4;
+    pKeyframe = (u16*)pBlock->keyframes;
+    pData = pKeyframe + (numRotFrames + 1) * 3;
+    pVertexBase = (u8*)pData;
+    if (!(blockFlags & 0x1)) {
+        pVertexBase += numRotFrames * 6;
+    }
+    if (!(blockFlags & 0x2)) {
+        pVertexBase += numTransFrames * 6;
+    }
+
+    pJoint = pSkeleton;
+    for (i = 0; i < count; i++) {
+        if (pKeyframe[0] != 0xFFFF) {
+            pObject = (Temp3*)pJoint->unk70;
+            if (pObject != NULL) {
+                if (pObject->unk3 == 0xFF) {
+                    goto skipRot;
+                }
+            } else {
+                pObject = func_801DF6F0(pList);
+            }
+
+            if (!(blockFlags & 0x1) && i != 0 && (u16)rotFrame < numRotFrames) {
+                pJoint->rotation.vx = *pData++;
+                pJoint->rotation.vy = *pData++;
+                pJoint->rotation.vz = *pData++;
+                rotFrame++;
+                pJoint->doTransform = 1;
+                pJoint->doRotate = 1;
+            }
+
+            if (pObject != NULL) {
+                pObject->unk0 = 1;
+                pObject->unk1 = flag1;
+                pObject->unk3 = type;
+                pObject->unk2 = ((u8*)&pKeyframe[2])[0];
+                pObject->unk10 = 0;
+                pObject->unk12 = frame;
+                *(u32*)&pObject->unk4 = *(u32*)&pObject->unk8 = (u32)(pVertexBase + pKeyframe[0]);
+                pJoint->unk70 = (u32)pObject;
+            }
+        } else {
+        skipRot:
+            if (!(blockFlags & 0x1) && i != 0 && (u16)rotFrame < numRotFrames) {
+                pData += 3;
+                rotFrame++;
+            }
+        }
+
+        pKeyframe++;
+
+        if (pKeyframe[0] != 0xFFFF) {
+            pObject = (Temp3*)pJoint->unk74;
+            if (pObject != NULL) {
+                if (pObject->unk3 == 0xFF) {
+                    goto skipTrans;
+                }
+            } else {
+                pObject = func_801DF6F0(pList);
+            }
+
+            if (!(blockFlags & 0x2) && i != 0 && (u16)transFrame < numTransFrames) {
+                pJoint->translation.x = *(s16*)pData++;
+                pJoint->translation.y = *(s16*)pData++;
+                pJoint->translation.z = *(s16*)pData++;
+                transFrame++;
+                pJoint->doTransform = 1;
+            }
+
+            if (pObject != NULL) {
+                pObject->unk0 = 1;
+                pObject->unk1 = flag1;
+                pObject->unk3 = type;
+                pObject->unk2 = ((u8*)&pKeyframe[2])[1];
+                pObject->unk10 = 0;
+                pObject->unk12 = frame;
+                *(u32*)&pObject->unk4 = *(u32*)&pObject->unk8 = (u32)(pVertexBase + pKeyframe[0]);
+                pJoint->unk74 = (u32)pObject;
+            }
+        } else {
+        skipTrans:
+            if (!(blockFlags & 0x2) && i != 0 && (u16)transFrame < numTransFrames) {
+                pData += 3;
+                transFrame++;
+            }
+        }
+
+        pKeyframe += 2;
+        pJoint++;
+    }
+
+    return 0;
+}
+*/
 
 void func_801DFE8C(Temp4* pList, ModelJoint* pSkeleton) {
     int i;
@@ -1131,7 +1278,59 @@ s32 func_801E36BC(Model* pModel, s32 arg1, s32 count, s32 arg3, s32 arg4) {
     return result;
 }
 
-INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E37D0);
+void func_801E37D0(Model* pModel) {
+    MATRIX* pMatrix = (MATRIX*)PSX_SCRATCH;
+    SVECTOR vec;
+
+    if (g_LibGearModels[pModel->unk5C] != NULL) {
+        if (!(pModel->unk4A & 0x10)) {
+            pModel->unk34 = g_LibGearModels[pModel->unk5C]->unk34;
+        }
+
+        if (pModel->unk34 == 0) {
+            return;
+        }
+
+        if (pModel->unk5D != 0) {
+            if (pModel->unk5E != 0) {
+                MulMatrix0(
+                    &g_LibGearModels[pModel->unk5C]->pSkeleton[0].globalTransform,
+                    &g_LibGearModels[pModel->unk5C]->pSkeleton[pModel->unk5E].globalTransform,
+                    (MATRIX*)PSX_SCRATCH
+                );
+            } else {
+                pMatrix = &g_LibGearModels[pModel->unk5C]->pSkeleton[0].globalTransform;
+            }
+
+            MulMatrix2(pMatrix, &pModel->pSkeleton[0].localTransform);
+            MulMatrix2(pMatrix, &pModel->pSkeleton[0].globalTransform);
+        }
+
+        if (pModel->unk5E != 0) {
+            CompMatrix(
+                &g_LibGearModels[pModel->unk5C]->pSkeleton[0].localTransform,
+                &g_LibGearModels[pModel->unk5C]->pSkeleton[pModel->unk5E].globalTransform,
+                pMatrix
+            );
+        } else {
+            pMatrix = &g_LibGearModels[pModel->unk5C]->pSkeleton[0].localTransform;
+        }
+
+        SetRotMatrix(pMatrix);
+        SetTransMatrix(pMatrix);
+
+        vec.vx = *(u16*)&pModel->unk62[8];
+        vec.vy = *(u16*)&pModel->unk62[10];
+        vec.vz = *(u16*)&pModel->unk62[12];
+
+        gte_ldv0(&vec);
+        gte_mvmva(1, 0, 0, 0, 0);
+        gte_stlvnl(&pModel->pSkeleton[0].localTransform.t[0]);
+        gte_stlvnl(&pModel->pSkeleton[0].translation.x);
+    } else {
+        pModel->unk5C = 0xFF;
+    }
+}
 
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E39F0);
 
