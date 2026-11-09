@@ -2053,6 +2053,13 @@ void func_8008E59C(void) {
 // Fills values[0..count-1] with distinct random numbers in [0, unk4] and bumps
 // them by one, so 0xFFFF becomes 0. D_800B2298/D_800B229C are splat's split of
 // the same storage (see func_8008E85C, the script handler that drives this).
+// The original reads unk4 and count through those two symbols with offset 0
+// while the array is based at D_800B2294 + 0xC, so this C is one symbol name
+// apart from a 100% match (objdiff 99.26%, same instructions and bytes; the
+// relocations resolve to the same addresses). Declaring D_800B2298/D_800B229C
+// as structs to fix the names instead makes gcc hoist D_800B229C's address out
+// of the branch in func_8008E85C, because the two symbols no longer share an
+// alias set, and that function's bytes change.
 typedef struct {
     /* 0x0 */ u32 unk0;
     /* 0x4 */ s32 unk4;
