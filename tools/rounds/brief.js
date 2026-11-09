@@ -1,15 +1,15 @@
 // Fan a round of decompilation workers out, one unit per worker.
-// args: { round, workers: [{ tree, file, unit, asm, preset, presetNote?, symbols,
-//                            funcs, more?, extra? }] }
+// args: { round, workers: [{ tree, file, unit, asm, binary, overlay, preset,
+//                            presetNote?, symbols, funcs, more?, extra? }] }
 const HEADER = (w) => `You are a worker on a PS1 matching decompilation (Xenogears, US). YOUR TREE: ${w.tree} - this is your own private copy of the repo; work only there. Read AGENTS.md sections 3 and 4 plus CLAUDE.md 'Known sharp edges' in it before you start.
 
-YOU OWN EXACTLY ONE FILE: ${w.file} (unit path for diffing: ${w.unit}).
+YOU OWN EXACTLY ONE FILE: ${w.file} (unit path for diffing: ${w.unit}). ${w.ownNote || "Do not edit any other .c file."}
 
 INNER LOOP, from the root of your tree: run \`tools/scripts/diff_func.sh ${w.unit} <Func> || true\`. The trailing \`|| true\` matters - the script exits 1 on a mismatch and that is not a failure. One command per tool call, and never paste diff output back into bash. It compiles only your unit inside the build container (~5 s) and prints MATCH or a side-by-side diff (left = original, right = yours) plus an \`objdiff: NN.NN%\` score.
 
 A function counts as matched when the output has BOTH a line starting \`MATCH:\` AND \`objdiff: 100.00%\` for that function. MATCH alone is not enough: functions have looked matched while their C was a different size or used different registers, and that breaks the link.
 
-ONE EXCEPTION, and only for a jump table: if the diff is otherwise perfect but the only difference is the switch's table operand (the original names a \`jtbl_\` symbol, yours says \`.rodata\` or \`.L...\`), objdiff can never say 100% because the linker resolves both to the same address. In that case run \`tools/scripts/check_bin.sh <overlay>\` (~35 s, <overlay> is field / shop_menu / gear_shop_menu / member_change_menu / lib_gear / slus_006.64). If it prints \`OK\`, your function really does match - commit it and say CHECK_BIN_OK in your report. NOTE this leaves your tree in matching mode, so run \`make objdiff-config\` before you can diff again (~35 s); do it at most once, at the end of your batch.
+ONE EXCEPTION, and only for a jump table: if the diff is otherwise perfect but the only difference is the switch's table operand (the original names a \`jtbl_\` symbol, yours says \`.rodata\` or \`.L...\`), objdiff can never say 100% because the linker resolves both to the same address. In that case run \`tools/scripts/check_bin.sh ${w.overlay}\` (~35 s). If it prints \`OK\`, your function really does match - commit it and say CHECK_BIN_OK in your report. NOTE this leaves your tree in matching mode, so run \`make objdiff-config\` before you can diff again (~35 s); do it at most once, at the end of your batch.
 
 RULES
 - Never run \`make\` (any target) except that one \`make objdiff-config\`: it does a full clean rebuild and takes 30 s. Use the diff script. Never run bare ninja outside it.
@@ -55,12 +55,15 @@ KNOWN BLOCKERS ALREADY FOUND IN THIS REPO - do not rediscover them
 - Converting the LAST function of a unit whose data still comes from asm deletes that data. Check \'grep -c dlabel asm/<binary>/matchings/<unit>/<Func>.s\' before you convert: if the stub's .s defines rodata/data labels, converting it drops those bytes, the overlay shifts and \'make check\' fails even though objdiff said 100%. Leave it as INCLUDE_ASM and report it instead.
 - In \`psyq/\`, objdiff 100% is not proof: several stubs own trailing nops after \`.size\` that no C definition emits. If the stub's .s has instructions after \`.size\`, do not convert it.
 - Never change the signature or return type of a function that is already matched; it is someone else's signed-off 100% and it usually costs bytes at link time.
-- The GTE helper headers in include/psyq (inline_c.h, gtemac.h) are the wrong SDK revision: they emit two nops plus a raw \'.word\' where the original has one nop and a real COP2 encoding (and \'gte_mvmva(1,0,0,0,0)\' gives 0x020013BF vs the original 0x4A481200). Do not burn time on the Normal*Color/LocalLight/Square/matrix-GTE families; report them as blocked.
+- The GTE macros in include/psyq/inline_c.h are now the RIGHT SDK revision (3.x: one nop plus the canonical COP2 word; read-backs into $2/$8 via gte_*_gpr and gte_*_val). NormalColor, ColorCol, LocalLight, Square*, SetRot/Light/ColorMatrix, AverageSZ3/Z4 all match. Still blocked, do not retry blind: the *3 family (NormalColor3, ColorCol3, DpqColor3) where retail lazily loads incoming stack arguments after the GTE command, and functions whose .s is bare mtc2/ctc2 with no macro equivalent.
+- A macro whose scratch registers are declared as hard-coded clobbers ("$2","$3") beats "=r" outputs: that is what makes gcc copy a1/a2 into $v0 at the end instead of storing through $v0. If a GTE store/read-back is one register off, try the clobber form.
+- psx 100%-in-objdiff-but-wrong: run \'python3 tools/scripts/convertible.py ${w.binary}/${w.unit}\' to list which stubs of your unit are linkable at all. BLOCKED = instructions after .size or the stub owns dlabel data; those cannot be converted without moving the unit\'s data to C as one address-ordered job, so leave them and report them.
+- If the stub already has a parked \'/* ... */\' attempt under it, READ IT FIRST and use it as the starting point (its percentage is in the comment). Rewriting such a function from the assembly throws away the answer: those are 95-100% cases whose only difference is a register or a delay slot.
 - \`-mcpu=r8000\` is NOT this project's compiler (it breaks slus_006.64 and field at link time). Do not chase it; the delay-slot shapes are source-level.
 
 MANDATORY FINAL GATE, before you write your report: run these two in your tree and paste their output into the report.
 1. 'python3 tools/scripts/lint_sources.py -q' - catches a function that is both INCLUDE_ASM'd and defined in C (maspsx rejects it, and the build system hides the error, so the only symptom is a missing .o).
-2. 'tools/scripts/check_bin.sh <overlay>' - the overlay is field / slus_006.64 / shop_menu / gear_shop_menu / member_change_menu / lib_gear. It rebuilds in MATCHING mode and byte-compares. It MUST print OK. If it does not, your change moved data or changed a function's size: 'tools/scripts/culprit.sh <overlay>' names the functions whose bytes differ - revert the ones you touched and keep the rest. This single step is worth 20 minutes of the orchestrator's time per round, and skipping it has thrown away whole rounds of work. (It leaves the tree in matching mode; that is fine at this point.)
+2. 'tools/scripts/check_bin.sh ${w.overlay}' - this is YOUR binary; do not guess another. It rebuilds in MATCHING mode and byte-compares. It MUST print OK. If it does not, your change moved data or changed a function's size: 'tools/scripts/culprit.sh ${w.overlay}' names the functions whose bytes differ - revert the ones you touched and keep the rest. This single step is worth 20 minutes of the orchestrator's time per round, and skipping it has thrown away whole rounds of work. (It leaves the tree in matching mode; that is fine at this point.)
 
 FINAL REPORT (the only thing I can see): one line per function you touched - \`MATCH <name> <pct>\` or \`FAIL <name> - one-line reason (best %)\` - plus any symbols/headers you added and anything a later agent should know about this unit. No diffs, no code.`;
 
