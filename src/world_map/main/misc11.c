@@ -135,11 +135,6 @@ int func_8008BD1C(int index) {
     }
     return result;
 }
-   func_80093978 call; the prologue scales index in v0 instead of v1 (which forces
-   the 0x40 stack argument to be spilled early) and the tail puts the constants in
-   v0 where the original uses v1. func_8008B54C, which differs only in two
-   constants, reaches 93.37% with the same body; this is the allocator tie-break
-   class, four source shapes did not move it.
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008BDD0);
 /* 83.03%: the body is instruction-for-instruction identical up to the func_80093978
    call; the prologue scales index in v0 where the original uses v1 (which also
