@@ -1,6 +1,8 @@
 #include "common.h"
 
 extern s32 func_80073DE4(u8* p, s32 arg1);
+extern void func_8008F7B8(u8* p);
+extern s32 func_8008F720(u8* p, s32 arg1);
 extern s32 func_8008F580(u8* p);
 extern s32 D_8009284C;
 
@@ -46,16 +48,34 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc18", func_8008F9B0);
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc18", func_8008FA2C);
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc18", func_8008FACC);
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc18", func_8008FBD8);
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc18", func_8008FC7C);
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc18", func_8008FCC8);
+void func_8008FC7C(u8* pArg0) {
+    u8* p;
+
+    p = *(u8**)(pArg0 + 0x15FC);
+    *(s32*)(p + 0x20) = 0;
+    *(u8*)(p + 0x8) = 0;
+    *(s16*)(p + 0x4) = (2 - *(u8*)(p + 0xF)) * 30 + 0x5A;
+    func_8008F7B8(p);
+}INCLUDE_ASM("asm/battling/nonmatchings/main/misc18", func_8008FCC8);
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc18", func_8008FE80);
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc18", func_8008FF24);
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc18", func_8008FFEC);
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc18", func_80090174);
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc18", func_80090258);
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc18", func_8009031C);
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc18", func_80090504);
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc18", func_80090580);
+void func_80090504(u8* pArg0) {
+    u8* p;
+    s32 r;
+
+    p = *(u8**)(pArg0 + 0x15FC);
+    *(u8*)(p + 0x8) = 3;
+    r = rand();
+    *(u8*)(p + 0x9) = r % 4 + 1;
+    *(s16*)(p + 0x4) = 0;
+    func_8008F7B8(p);
+    *(u8*)(p + 0xE) = func_8008F720(pArg0, 1);
+    *(u8*)(p + 0x2E) = 0;
+}INCLUDE_ASM("asm/battling/nonmatchings/main/misc18", func_80090580);
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc18", func_80090894);
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc18", func_80090990);
 void func_80090C88(u8* pArg0) {
