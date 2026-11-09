@@ -30,6 +30,14 @@ extern u_char D_80076FCE[];
 extern u_char D_80076FDC[];
 extern u_char D_80076FDD[];
 extern u_char D_80076FDE[];
+extern s32 D_80076FAC[];
+extern s32 D_80076FBC[];
+extern u_char D_80076F8C[];
+extern u_char D_80076F8D[];
+extern u_char D_80076F8E[];
+extern u_char D_80076F9C[];
+extern u_char D_80076F9D[];
+extern u_char D_80076F9E[];
 extern s32 D_80076FEC[];
 extern s32 D_80076FFC[];
 
@@ -88,6 +96,42 @@ void func_800729A8(char* pName, char* pBuffer, int len) {
 INCLUDE_ASM("asm/movie/nonmatchings/main/misc1", func_80072A08);
 
 INCLUDE_ASM("asm/movie/nonmatchings/main/misc1", func_80072D84);
+
+// Best attempt (96.65%): the instruction stream is otherwise identical. gcc emits
+// the loop-index save before the div-by-3 magic and the 6th stack argument where
+// retail emits it after them, and the div-by-3 quotient lands in v0 here and v1
+// in retail. Naming the 8 as a local (kept below) is what fixed the equivalent
+// ordering in func_80073328.
+/*
+void func_80072D84(POLY_G4* pPoly0, POLY_G4* pPoly1, s32 x, s32 y, s32 w, s32 h) {
+    s32 i;
+    s32 j;
+    s32 brightness;
+
+    brightness = 8;
+
+    for (i = 0; i < 0x10; i += 4) {
+        D_80076F8C[i] = (func_80074AF0() & 0xFF) / 32 + 8;
+        D_80076F8D[i] = brightness;
+        D_80076F8E[i] = (func_80074AF0() & 0xFF) / 3 + 0x10;
+        D_80076F9C[i] = (func_80074AF0() & 0xFF) / 32 + 8;
+        D_80076F9D[i] = brightness;
+        D_80076F9E[i] = (func_80074AF0() & 0xFF) / 3 + 0x10;
+    }
+
+    for (j = 0; j < 4; j++) {
+        D_80076FAC[j] = 0;
+        D_80076FBC[j] = (func_80074AF0() & 0xFF) + 0x20;
+    }
+
+    SetPolyG4(pPoly0);
+    SetSemiTrans(pPoly0, 0);
+    setXY4(pPoly0, x, y, x + w, y, x, y + h, x + w, y + h);
+    SetPolyG4(pPoly1);
+    SetSemiTrans(pPoly1, 0);
+    setXY4(pPoly1, x, y, x + w, y, x, y + h, x + w, y + h);
+}
+*/
 
 INCLUDE_ASM("asm/movie/nonmatchings/main/misc1", func_80072F98);
 
