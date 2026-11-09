@@ -1,8 +1,13 @@
 #include "common.h"
 
+#include "psyq/libapi.h"
+
 extern u16 D_801E96A8[]; // Bit masks, LSB first
 extern u16 D_801E96C8[]; // Bit masks, MSB first
 extern u32 D_801E96E8[];
+extern s32 D_801E9768[]; // Card result to error code
+
+s32 func_801C881C(void);
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc2", func_801C7B0C);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc2", func_801C7BF4);
@@ -38,7 +43,12 @@ u32 func_801C8678(u32 mask, u8 index) {
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc2", func_801C8694);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc2", func_801C87C4);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc2", func_801C881C);
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc2", func_801C891C);
+s32 func_801C891C(long chan) {
+    if (_card_info(chan)) {
+        return D_801E9768[func_801C881C() & 0xFF];
+    }
+    return -1;
+}
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc2", func_801C8960);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc2", func_801C8A10);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc2", func_801C8BEC);
