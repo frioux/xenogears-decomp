@@ -35,6 +35,13 @@ extern void func_80097DC0(void);
 extern void func_800976C8(void);
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_800967E4);
+// Best: 99.79% -- blocked, not a match problem: this switch's table is
+// jtbl_80070CA0 in asm/world_map/data/0.rodata.s, whose entries are
+// .word .L80096910/.L80096918/.L80096950/.L80096958. Converting the function
+// deletes those local labels from the asm and the overlay stops linking
+// (undefined reference to .L80096910 at .rodata+0x11b0). The table would have
+// to move to C with the function, and a C definition cannot name code labels.
+/*
 s32 func_800968E0(void) {
     switch (D_8009CD44) {
     case 0:
@@ -56,6 +63,8 @@ s32 func_800968E0(void) {
     }
     return 3;
 }
+ */
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_800968E0);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_8009699C);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_80096A6C);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_80096C0C);
@@ -170,7 +179,8 @@ void func_800978FC(void) {
     }
 }
 */
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_800978FC);INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_800979C8);
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_800978FC);
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_800979C8);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_80097BC0);
 // Best: 94.28%. Instruction multiset is identical; only the clear loop's
 // allocator tie-break differs (original keeps pEnd in v0 and i in v1, this
@@ -192,6 +202,7 @@ void func_80097CB8(s32 arg0) {
 }
 */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_80097CB8);
+
 void func_80097D64(void) {
     s32 i;
 
@@ -201,4 +212,5 @@ void func_80097D64(void) {
         }
     }
 }
+
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_80097DC0);
