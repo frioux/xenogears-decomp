@@ -41,7 +41,6 @@ void FieldComputeSceneMatrices(void) {
     SetTransMatrix(&g_Scene.worldToScreenMatrix);
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80072254);
 // 85.50%: everything matches but one register. The original keeps the *address*
 // &g_FieldActors in $s1 across the RotMatrix call and loads the pointer through it
 // for the 2nd and 3rd actor base (`lw a1,0($s1)`, `lw a0,0($s1)`), which costs one
@@ -55,6 +54,13 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80072254);
 // rather than saved. `long scale[3]` (not VECTOR) is required - the original
 // stores the three scales with 32-bit `sw` at sp+0x10/0x14/0x18. The scale reads
 // are signed (`lh`), so the u_short ActorData::scaleX/Y/Z are read through (s16).
+// Also tried, all 85.50%: `FieldActor* volatile* ppActors`, offset-first
+// `(FieldActor*)(actorIndex * 0x5C + (int)*ppActors)` in all three blocks, and
+// `ppActors` assigned before the scale block. gcc folds the symbol address into a
+// fresh %hi/%lo pair at each dereference in every form; retail's own `lui/addiu
+// s1` says the base is a constant there, so this is not the runtime-base case.
+
+INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80072254);
 /*
 void func_80072254(int actorIndex) {
     long scale[3];
@@ -346,7 +352,6 @@ void func_800726E8(void) {
 }
 */
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80072A38);
 // Attempt below is 99.52%: identical except the final `bnez` delay slot - ours fills it
 // with the `andi` of the flag clear, retail leaves a `nop` and puts the `andi` after.
 // Verified NOT a preset problem: try_flags --sweep gives 99.52 for gcc-2.7.2 at -O2/-O3,
@@ -355,6 +360,11 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80072A38);
 // into an `s32 flags` local. The andi dest ($v0) and its source ($a0) are both dead at the
 // branch target, so reorg is free to steal it in every spelling tried; blocking the steal
 // means changing what reorg sees (e.g. a live use at the target), not the statement shape.
+// Also 99.52% and byte-identical: `s32* pFlags` local, `!--unk70`, and the split
+// `unk70--; if (unk70 == 0)`. A ternary form scores 99.93% only because it grows the
+// function by 4 bytes (828 vs 824) - no.
+
+INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80072A38);
 /*
 extern int func_8007CD80(VECTOR* pPos, SVECTOR* pPoints, SVec4* pOut);
 extern void func_80073684(VECTOR* pEye, VECTOR* pAt);
