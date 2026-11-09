@@ -21,6 +21,10 @@ extern u16 D_801E863C;
 extern u16 D_801E86B0;
 extern s32 D_801E8640;
 extern s16 D_801E869C;
+extern s16 D_801E8698;
+
+void func_801DCEC8(Model* pModel, MATRIX* pMatrix, s32 arg2, s32 arg3, s32 arg4, s32 arg5, s32 arg6);
+void func_801E37D0(Model* pModel);
 extern VertexBuffer g_LibGearVertexBuffer;
 
 ModelMesh* LibGearInitializeMesh(ModelFileHeader* pModelFile, ModelMesh* pModel) {
@@ -1747,7 +1751,56 @@ void LibGearInitialize(int capacity) {
 
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E742C);
 
-INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E7D14);
+void func_801E7D14(MATRIX* pMatrix, s32 arg1, s32* pOT, s32 arg3, s32 arg4) {
+    int i;
+    int count;
+    u16 angle;
+    RECT rect;
+
+    count = 0;
+    D_801E8640 += arg4 + 1;
+    if (D_801E8640 >= 7) {
+        D_801E8640 = 6;
+    }
+
+    while (D_801E8640 >= 2) {
+        D_801E8640 -= 2;
+        count++;
+    }
+
+    angle = D_801E869C + count * 56;
+    D_801E869C = angle;
+    D_801E8698 = (rsin((s16)angle) + 0x1000) / 800 + 4;
+
+    for (i = 0; i < MAX_MODELS; i++) {
+        if (g_LibGearModels[i] != NULL) {
+            g_LibGearModels[i]->unk11C = g_LibGearModels[i]->pSkeleton->translation.x;
+            g_LibGearModels[i]->unk120 = g_LibGearModels[i]->pSkeleton->translation.y;
+            g_LibGearModels[i]->unk124 = g_LibGearModels[i]->pSkeleton->translation.z;
+            func_801E36BC(g_LibGearModels[i], (s32)&D_801E86A8, count, arg3, 1);
+        }
+    }
+
+    for (i = 0; i < MAX_MODELS; i++) {
+        if (g_LibGearModels[i] != NULL && g_LibGearModels[i]->unk5C < 0xFF) {
+            func_801E37D0(g_LibGearModels[i]);
+        }
+    }
+
+    func_801E1880(g_LibGearModels);
+    SetColorMatrix(D_801E8644);
+
+    for (i = 0; i < MAX_MODELS; i++) {
+        if (g_LibGearModels[i] != NULL) {
+            g_LibGearModels[i]->unk128 = g_LibGearModels[i]->unk11C - g_LibGearModels[i]->pSkeleton->translation.x;
+            g_LibGearModels[i]->unk12C = g_LibGearModels[i]->unk120 - g_LibGearModels[i]->pSkeleton->translation.y;
+            g_LibGearModels[i]->unk130 = g_LibGearModels[i]->unk124 - g_LibGearModels[i]->pSkeleton->translation.z;
+            func_801DCEC8(g_LibGearModels[i], pMatrix, arg1, 1, 1, pOT, arg3);
+        }
+    }
+
+    func_801E0398(&g_LibGearVertexBuffer, pMatrix, count, pOT, arg3);
+}
 
 void func_801E7FD4(void) {
     int i;
@@ -1760,7 +1813,78 @@ void func_801E7FD4(void) {
     LibGearFreeVertexBuffer(&g_LibGearVertexBuffer);
 }
 
+// 94.08%: the body is right, the reload shape of `g_LibGearModels[modelIndex]`
+// (a CSE'd &g_LibGearModels[modelIndex] in s1, the model pointer never hoisted)
+// matches, and so do the two 0x30/0x24 teardown loops. Remaining delta is one
+// register pair: the original keeps the array address in s1 and &D_801E86A8 in
+// s0, ours has them swapped, which also moves `addiu v0,s4,-8` out of the
+// `beqz` delay slot. Declaration order and dropping the pList local both leave
+// the swap.
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E8030);
+/*
+    void func_801E8030(s32 modelIndex) {
+        s32 i;
+        s32 offset;
+
+        if (g_LibGearModels[modelIndex] == NULL) {
+            return;
+        }
+
+        if (g_LibGearModels[modelIndex]->unkA8 != NULL) {
+            HeapFree(g_LibGearModels[modelIndex]->unkA8);
+            LibGearFreeModelMesh(g_LibGearModels[modelIndex]->pMesh, 1);
+        }
+
+        if (g_LibGearModels[modelIndex]->unk62[0] != 0) {
+            func_8003852C(((Temp8*)g_LibGearModels[modelIndex]->unkB0)->pUnk8);
+        }
+
+        if (g_LibGearModels[modelIndex]->unkAC != NULL) {
+            HeapFree(g_LibGearModels[modelIndex]->unkAC);
+        }
+
+        if ((u32)(modelIndex - 8) >= 2) {
+            if (g_LibGearModels[modelIndex]->pSkeleton != NULL) {
+                func_801DFE8C(&D_801E86A8, g_LibGearModels[modelIndex]->pSkeleton);
+                func_801DFF78(&D_801E86A8, g_LibGearModels[modelIndex]->pSkeleton, 0xFF);
+                LibGearFreeModelSkeleton(g_LibGearModels[modelIndex]->pSkeleton);
+                g_LibGearModels[modelIndex]->pMesh = NULL;
+                g_LibGearModels[modelIndex]->pSkeleton = NULL;
+            }
+        } else {
+            if (g_LibGearModels[modelIndex]->pSkeleton != NULL) {
+                func_801DFE8C(&D_801E86A8, g_LibGearModels[modelIndex]->pSkeleton);
+                func_801DFF78(&D_801E86A8, g_LibGearModels[modelIndex]->pSkeleton, 0xFF);
+                HeapFree(g_LibGearModels[modelIndex]->pSkeleton);
+            }
+        }
+
+        if (g_LibGearModels[modelIndex]->unk10C != 0) {
+            HeapFree(g_LibGearModels[modelIndex]->unk110);
+        }
+
+        if (g_LibGearModels[modelIndex]->unk10E != 0) {
+            offset = 0;
+            for (i = 0; i < g_LibGearModels[modelIndex]->unk10E; i++) {
+                func_801E165C((Temp8*)((u8*)g_LibGearModels[modelIndex]->unk118 + offset));
+                offset += 0x30;
+            }
+            HeapFree(g_LibGearModels[modelIndex]->unk118);
+        }
+
+        if (g_LibGearModels[modelIndex]->unk10D != 0) {
+            offset = 0;
+            for (i = 0; i < g_LibGearModels[modelIndex]->unk10D; i++) {
+                func_801E3438((Temp9*)((u8*)g_LibGearModels[modelIndex]->unk114 + offset));
+                offset += 0x24;
+            }
+            HeapFree(g_LibGearModels[modelIndex]->unk114);
+        }
+
+        HeapFree(g_LibGearModels[modelIndex]);
+        g_LibGearModels[modelIndex] = NULL;
+    }
+*/
 
 void func_801E8330(u16 modelIndex, u16 bits, s32 arg2) {
     Model* pModel = g_LibGearModels[modelIndex];

@@ -238,7 +238,8 @@ typedef struct {
     /* 0x9E  */ s16 unk9E;
     /* 0xA0  */ u8* unkA0;
     /* 0xA4  */ u8* unkA4;
-    /* 0xA8  */ u8 unkA8[0x8];
+    /* 0xA8  */ void* unkA8;
+    /* 0xAC  */ void* unkAC;
     /* 0xB0  */ void* unkB0;
     /* 0xB4  */ void* unkB4;
     /* 0xB8  */ POLY_FT4 polys[2];
@@ -251,7 +252,12 @@ typedef struct {
     /* 0x110 */ UnkInner1* unk110; // 0x70 sized array, unk10C entries
     /* 0x114 */ Temp9* unk114; // unk10D entries
     /* 0x118 */ Temp8* unk118; // unk10E entries
-    /* 0x11C */ u8 unk11C[0x18];
+    /* 0x11C */ s32 unk11C; // joint translation snapshot, then displaced by the live one
+    /* 0x120 */ s32 unk120;
+    /* 0x124 */ s32 unk124;
+    /* 0x128 */ s32 unk128;
+    /* 0x12C */ s32 unk12C;
+    /* 0x130 */ s32 unk130;
 } Model; // Size: 0x134
 
 // Keyframe block consumed by the joint update loops: a 0x18 byte header
