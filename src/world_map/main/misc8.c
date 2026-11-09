@@ -41,16 +41,32 @@ extern u8 D_8009AC60[];
 extern u8 D_8009C5AC[];
 
 extern void ModelPartFreeLightData(void *pModelPart);
+#include "psyq/memory.h"
+
 extern int Vsync(int mode);
 extern void func_80097D64(void);
 extern void func_800967E4(void);
 extern void func_80097BC0(void *p);
 extern s32 func_80096668(void);
 extern s16 func_80084DB8(void *pArg, s16 arg1);
-extern void func_80083108(void *pArg, u8 *pDst, s32 count, s32 arg3);
+extern void func_80083108(WorldMapEntry *pEntry, u8 *pDst, s32 count, s32 arg3);
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_80082F64);
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_80083108);
+void func_80083108(WorldMapEntry *pEntry, u8 *pDst, s32 count, s32 arg3) {
+    s32 i;
+
+    for (i = count - 1; i != -1; i--) {
+        pDst[3] = 7;
+        pDst[7] = 0x24;
+        *(u16 *)(pDst + 0x16) = GetTPage(0, arg3, 0x2C0, 0x100);
+        pDst[4] = 0;
+        pDst[5] = 0;
+        pDst[6] = 0;
+        pDst[7] |= 2;
+        pDst += 0x20;
+    }
+    memcpy(pEntry->unk4C, pEntry->unk48, count << 5);
+}
 void func_800831D8(u8 *pData, s32 count, u8 r, u8 g, s32 b) {
     s32 i;
     for (i = count - 1; i != -1; i--) {
