@@ -1394,14 +1394,16 @@ void func_801E63A8(Model* pModel) {
 // local at all, and gcc 2.7.2 (try_flags.sh) all leave that map unchanged, so the
 // remaining gap looks like an allocno tie-break (allocno_compare returns 0 and the
 // original host's qsort ordered ties differently), not a source-level detail.
+// Also tried since (all still 98.63%, same s0/s1 swap): pChild's initialiser
+// moved above pJoint's, and `pChild = pChild + 1` in the loop tail.
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E6578);
 /*
 void func_801E6578(Temp4* pList, s32 jointIndex, ModelJoint* pSkeleton, ModelJoint* pTargetSkeleton) {
     int i;
     int numChildren;
-    ModelJoint* pTarget = (ModelJoint*)(jointIndex * sizeof(ModelJoint) + (s32)pTargetSkeleton);
-    ModelJoint* pJoint = (ModelJoint*)(jointIndex * sizeof(ModelJoint) + (s32)pSkeleton);
     ModelJoint* pChild = pSkeleton;
+    ModelJoint* pJoint = (ModelJoint*)(jointIndex * sizeof(ModelJoint) + (s32)pSkeleton);
+    ModelJoint* pTarget = (ModelJoint*)(jointIndex * sizeof(ModelJoint) + (s32)pTargetSkeleton);
 
     numChildren = pChild->numChildren;
     pJoint->unk7 = 0;
@@ -1421,6 +1423,7 @@ void func_801E6578(Temp4* pList, s32 jointIndex, ModelJoint* pSkeleton, ModelJoi
             func_801E6578(pList, pChild->numChildren, pSkeleton, pTargetSkeleton);
         }
     }
+}
 */
 
 void func_801E6668(ModelJoint* pSkeleton, ModelJoint* pTargetSkeleton) {
