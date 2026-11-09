@@ -39,14 +39,6 @@ s32 func_800AA9DC(FieldActorModelData* pModel) {
     return maxDelta * 2 + 1;
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc9", func_800AAA74);
-/* 64.08% first attempt; the structure and the four bound tests below are
-   decoded and right, the frame is not. Original frame is 0x58 and keeps the
-   RotTransPers sxy word in a register for both halves (`sra` high, `sll`/`sra`
-   low), while this C makes gcc keep sxy on the stack and re-load the low half
-   with `lhu`. Remaining gaps: 8 bytes of unused frame (0x34..0x37) and the
-   second RotTransPers reading sxy back from memory. Local order here is
-   VECTOR, SVECTOR, flag, sxy, p, y1, x1, y2, x2.
 extern MATRIX D_800B00E8;
 extern s32 D_800C3A5C;
 extern s32 D_800C3A60;
@@ -58,10 +50,11 @@ s32 func_800AAA74(FieldActorModelData* pModel) {
     long flag;
     long sxy;
     long p;
-    s16 y1;
-    s16 x1;
-    s16 y2;
-    s16 x2;
+    s32 size;
+    int y1;
+    int x1;
+    int y2;
+    int x2;
 
     RotTrans((SVECTOR*)&pModel->centerX, &vec, &flag);
     D_800B00E8.t[0] = vec.vx;
@@ -70,36 +63,26 @@ s32 func_800AAA74(FieldActorModelData* pModel) {
     SetRotMatrix(&D_800B00E8);
     SetTransMatrix(&D_800B00E8);
 
-    point.vx = -pModel->size;
-    point.vy = -pModel->size;
+    size = pModel->size;
+    point.vx = -size;
+    point.vy = -size;
     point.vz = 0;
     RotTransPers(&point, &sxy, &p, &flag);
-    y1 = ((s16*)&sxy)[1];
-    x1 = ((s16*)&sxy)[0];
+    y1 = sxy >> 16;
+    x1 = (s16)sxy;
 
-    point.vx = pModel->size;
-    point.vy = pModel->size;
+    point.vx = size;
+    point.vy = size;
     point.vz = 0;
     RotTransPers(&point, &sxy, &p, &flag);
-    y2 = ((s16*)&sxy)[1];
-    x2 = ((s16*)&sxy)[0];
+    y2 = sxy >> 16;
+    x2 = (s16)sxy;
 
-    if (y1 >= D_800C3A60 + 0xE0) {
-        return -1;
+    if (y1 < D_800C3A60 + 0xE0 && -D_800C3A60 < y2 && x1 < D_800C3A5C + 0x140 && -D_800C3A5C < x2) {
+        return 0;
     }
-    if (-D_800C3A60 >= y2) {
-        return -1;
-    }
-    if (x1 >= D_800C3A5C + 0x140) {
-        return -1;
-    }
-    if (-D_800C3A5C >= x2) {
-        return -1;
-    }
-    return 0;
+    return -1;
 }
-
-*/
 
 extern SpriteList* D_800AFC68;
 
