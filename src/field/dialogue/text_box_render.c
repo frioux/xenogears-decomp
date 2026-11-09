@@ -263,57 +263,15 @@ void FieldTextBoxInitializePrimitives(int index) {
 // the top left U and V of each of the four portraits.
 extern u_char D_800ADF34[];
 
-// 98.61%: pUVTable is what makes gcc emit `la D_800ADF34` before the `sll` of
-// portraitID * 4, but it costs a register: the table base ends up in a2 and the
-// scaled index in v1, where the original uses v0 and a0. Writing pU/pV straight
-// as &D_800ADF34[portraitID * 4] / [+2] gets the original's registers (97.59%)
-// but emits the `sll` one instruction earlier. Needs the table hidden behind a
-// construct that keeps v0 as the base.
-//
-// Tried and no better: `D_800ADF34 + portraitID * 4` (same 97.59%), the same
-// with a (u_char*)/(u_int) cast, portraitID << 2, and `u_int table = (u_int)
-// D_800ADF34; ... table + portraitID * 4` (98.61%, base lands in a2). The order
-// is gcc's: expand_binop swaps a constant first operand to op1, so the shift of
-// a directly-indexed table is always expanded before the `la`. Getting the `la`
-// first needs a preceding movsi, and gcc then allocates that base to a2/an
-// a-register instead of the temp v0.
-INCLUDE_ASM("asm/field/nonmatchings/dialogue/text_box_render", func_8007F5AC);
-
-// Best, 97.59%: one `sll` too high, everything else byte-identical.
-/*
-void func_8007F5AC(int index, int portraitID) {
-    FieldTextBox* pBox = &g_FieldTextBoxes[index];
-    u_char* pU = &D_800ADF34[portraitID * 4];
-    u_char* pV = &D_800ADF34[portraitID * 4 + 2];
-    u_short clut;
-
-    g_FieldTextBoxes[index].portrait.polys[1].u0 = pBox->portrait.polys[0].u0 = *pU;
-    g_FieldTextBoxes[index].portrait.polys[1].v0 = pBox->portrait.polys[0].v0 = *pV;
-    g_FieldTextBoxes[index].portrait.polys[1].u1 = pBox->portrait.polys[0].u1 = *pU + 0x40;
-    g_FieldTextBoxes[index].portrait.polys[1].v1 = pBox->portrait.polys[0].v1 = *pV;
-    g_FieldTextBoxes[index].portrait.polys[1].u2 = pBox->portrait.polys[0].u2 = *pU;
-    g_FieldTextBoxes[index].portrait.polys[1].v2 = pBox->portrait.polys[0].v2 = *pV + 0x40;
-    g_FieldTextBoxes[index].portrait.polys[1].u3 = pBox->portrait.polys[0].u3 = *pU + 0x40;
-    g_FieldTextBoxes[index].portrait.polys[1].v3 = pBox->portrait.polys[0].v3 = *pV + 0x40;
-
-    clut = GetClut(0, portraitID + 0xE0);
-    pBox->portrait.polys[0].clut = clut;
-    g_FieldTextBoxes[index].portrait.polys[1].clut = clut;
-}
-*/
-
-// Alternative, 98.61%: pUVTable keeps the `la` first but moves the base to a2.
-// Confirmed by diff: this variant has the original's instruction ORDER (la, then
-// sll, then addu) and differs only in register numbers -- original wants the
-// table base in v0 and the scaled index in a0, this gets a2/v1. The 97.59%
-// variant below has the original's registers but the `sll` one insn early. Both
-// halves are known; a construct that gets order AND registers would close it.
-/*
+// The V half of the table needs its own base local: with a single base gcc
+// attaches the +2 to the scaled index instead of the base and the addiu lands on
+// the wrong register.
 void func_8007F5AC(int index, int portraitID) {
     FieldTextBox* pBox = &g_FieldTextBoxes[index];
     u_char* pUVTable = D_800ADF34;
     u_char* pU = &pUVTable[portraitID * 4];
-    u_char* pV = &pUVTable[portraitID * 4 + 2];
+    u_char* pVTable = pUVTable + 2;
+    u_char* pV = &pVTable[portraitID * 4];
     u_short clut;
 
     g_FieldTextBoxes[index].portrait.polys[1].u0 = pBox->portrait.polys[0].u0 = *pU;
@@ -329,7 +287,6 @@ void func_8007F5AC(int index, int portraitID) {
     pBox->portrait.polys[0].clut = clut;
     g_FieldTextBoxes[index].portrait.polys[1].clut = clut;
 }
-*/
 
 extern u16 D_800B2174[];
 extern int D_800B068C[4];
