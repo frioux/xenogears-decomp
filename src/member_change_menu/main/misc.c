@@ -1967,27 +1967,15 @@ void MemberChangeMenuFreeCursors(void) {
 INCLUDE_ASM("asm/member_change_menu/nonmatchings/main/misc", MemberChangeMenuSwapCharacters);
 // 98.22% (460 bytes): every instruction matches, only the s0-s4 assignment differs.
 // Original: canSwapSrc=s0, canSwapDst=s1, result=s2, srcIndex=s3, dstIndex=s4.
-// gcc 2.6.0 -O2 -G8 (this unit's preset, best) emits result=s0, srcIndex=s1,
-// dstIndex=s2, canSwapSrc=s3, canSwapDst=s4. gcc 2.7.2 gives 97.22, 2.7.2-cdk
-// 93.03, -O3 variants 63-71.
-//
-// Diagnosed 2026-11 with -dg (build/src/member_change_menu/main/misc.c.i.greg):
-// global.c orders allocnos by
-//     pri = floor_log2(n_refs) * n_refs / live_length   (descending)
-// and find_reg hands out the lowest free callee-saved reg in that order, so the
-// s0..s4 mapping is fully determined by two numbers per variable. From the -dl
-// dump (reg / n_refs / live_length): result 81/4/48 -> pri 1666, srcIndex
-// 79/5/64 -> 1562, dstIndex 80/5/65 -> 1538, canSwapSrc 82/3/37 -> 810,
-// canSwapDst 83/3/38 -> 789, i.e. exactly the emitted order.
-// The original needs canSwapSrc/canSwapDst FIRST, which with floor_log2 means
-// they each had 4 register references, not 3 (4/37 -> 2162 > result's 1666);
-// with 4 refs the gcc 2.6.0 order becomes canSwapSrc, canSwapDst, result,
-// srcIndex, dstIndex, i.e. the original's. Every instruction of this function
-// is accounted for, so the 4th reference is one gcc deleted before final and it
-// does not come from the source shapes tried so far (declaration order,
-// initialisation order, int/u_char types, shared id local, == TRUE tests).
-// Also tried (this round, both regress): nested `if (canSwapSrc) { if (canSwapDst)`
-// 91.81%, and deferring the two TRUE inits until after the index selection 91.81%.
+// Ours:     result=s0, srcIndex=s1, dstIndex=s2, canSwapSrc=s3, canSwapDst=s4.
+// global.c orders allocnos by pri = floor_log2(n_refs) * n_refs / live_length, so
+// the two flags need n_refs == 4 (they measure 3: two defs + one use in the
+// `if (canSwapSrc && canSwapDst)` test). Every insn is already accounted for, so
+// the 4th mention must be one that final/reorg deletes. Tried and regressing:
+// else{TRUE} (94.23), duplicated cond block (83.02), an extra `|| canSwapDst` on
+// the src test (96.48), nested ifs (91.81), deferred TRUE inits (91.81),
+// declaration/initialisation order, int/u_char types, `== TRUE` tests,
+// gcc 2.7.2 (97.22) and 2.7.2-cdk (93.03), -O3 variants (63-71).
 // u_char MemberChangeMenuSwapCharacters(u_char isBenchedWindowActive, s32 curCharIndex, s32 curCharOffset, u_char isSelectedCharOnBenchedWindow, s32 selectedCharIndex, s32 selectedCharOffset) {
 //     u_char srcIndex;
 //     u_char dstIndex;
