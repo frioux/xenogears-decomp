@@ -28,7 +28,7 @@ extern u_long *D_800569A0; // GPU status register
 extern u_long *D_800569A4; // GPU data register (GP0)
 extern u_long *D_800569A8;
 extern u_long *D_800569AC;
-extern u_long *D_800569B0;
+extern volatile u_long *D_800569B0;
 extern u_long *D_800569B4;
 extern u_long *D_800569B8;
 extern u_long *D_800569BC;
@@ -95,6 +95,14 @@ u_long func_80045BCC(int x, int y) {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_b", func_80045C10);
 
+/* this is _get_tw(): retail spills all four masked fields into 0(sp)/4/8/0xc
+   (a 0x10 frame) and keeps them live in a1/v0/a2/v1; the plain macro body below
+   is semantically identical but gcc folds (h<<5) into a mask and drops the frame.
+u_long func_80045C10(RECT *tw) {
+    return _get_tw(tw);
+}
+*/
+
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_b", func_80045C94);
 
 u_long func_80045D44(void) {
@@ -120,7 +128,25 @@ u_char func_80046588(int index) {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_b", func_8004659C);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_b", func_800465EC);
+/* best: 81.75% -- same instructions, but gcc rotates the loop (store into the
+   delay slot of the backward bne) where retail keeps store then bne with
+   move v0,zero in the slot.
+int func_8004659C(u_long *src, int n) {
+    int i;
+
+    *D_800569A4 = 0x04000000;
+    for (i = n - 1; i != -1; i--)
+        *D_800569A0 = *src++;
+    return 0;
+}
+*/
+
+void func_800465EC(u_long value) {
+    *D_800569A4 = 0x04000002;
+    *D_800569A8 = value;
+    *D_800569AC = 0;
+    *D_800569B0 = 0x01000401;
+}
 
 u_long func_80046638(u_long value) {
     *D_800569A4 = value | 0x10000000;
