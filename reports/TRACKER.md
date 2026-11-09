@@ -1049,3 +1049,38 @@ the pattern is that the mid-round preset change cost each of them a
 `make objdiff-config` plus a re-diff of everything). Resume message that works:
 "keep only functions at MATCH + 100.00%, park the rest, commit, run the two
 gates, report".
+| 40 | 13 units worked (world_map misc11-16 done, battle misc3-6, menu misc2/3, movie misc2) | +121 | 2080 | world_map 52, battle 46, menu 18, movie 5; new stub total 2080 |
+
+### Round 40: +121, and the two hazards it exposed
+
+Per unit: `world_map` misc11 11, misc12 10, misc13 11, misc14 9, misc15 10, misc16 1
+(it had only 10 stubs and they are 36-259 instructions each), `battle` misc3 10,
+misc4 12, misc5 12, misc6 12, `menu` misc2 13, misc3 5, `movie` misc2 5. Eleven
+of thirteen workers hit the 30-minute limit and were recovered with
+`subagent resume`; every one of them had its batch committed, so nothing was lost.
+
+Hazards found during integration, both new:
+
+1. **Two workers in one header.** `menu/main/misc2` and `menu/main/misc3` both
+   edited `MenuUnk2` in `include/system/menu.h` with different field splits of the
+   same tail (`unk4FDC[0xA]` vs `unk4FDC[0x8], unk4FE4, unk4FE5, unk4FE6[0x4E]`).
+   Both were size-correct (0x5034), and `git merge -X ours` kept the older one,
+   which broke the *other* file's compile. Fix: the union split
+   (`unk4FDC[0x8], unk4FE4, unk4FE5, unk4FE6, unk4FE7[0x4D]`), which satisfies
+   both. When two units in one overlay share a struct, give them the same
+   struct or give them separate ones; a header is a shared file like any other.
+2. **Do not `clone.sh reset` a tag whose previous session has not finished.**
+   Round 39's resumes were still running when round 40 reused the same clone
+   directories, so two sessions shared a tree for a few minutes. Nothing was lost
+   (the merges and `make check` were clean and the numbers add up), but the fix is
+   to confirm `subagent status` shows every child finished before resetting.
+
+Facts banked this round:
+- `world_map` misc1's `GameState` now names the u16s at 0x1820/0x1822/0x1824/
+  0x1832/0x1834/0x1836 (carved out of `unk17FC[0x52]`): 12.4 fixed-point map
+  position plus a flag word masking 0x2000/0x4000/0x1FFF/0xDFFF.
+- `func_80073300` needs an explicit `case 0: return;` to get retail's 5-entry jump
+  table (`sltiu x,5` with no -1 bias).
+- `D_8009D3F8..D_8009D414` is a 3-entry stream-data queue table for `func_80029AFC`;
+  `D_8009BE10` is a world-map mode with values 1,2,4,5,7.
+
