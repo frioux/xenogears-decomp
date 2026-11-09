@@ -558,30 +558,23 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_800263E4);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_8002675C);
 /*
-Best 86.77% (696 bytes against 664). Three gaps, all in the first loop body:
-1. Frame is 8 bytes too big and the locals are in the wrong slots: the
-   original has the x copy at 0x10, the y copy at 0x18, pDirent at 0x20 and the
-   counter at 0x24, so the source declares the two coordinate copies before
-   pDirent and i.
-2. The four scaled values are read with signed loads (lh 0x8, lh 0xA, lh 0x4,
-   lh 0x6) while the u/v/width/height reads of the same fields later are lhu,
-   so the scaling part casts the fields to s16.
-3. Of the four /4096 divisions the original emits sra for the x and width ones
-   but srl for the y and height ones, each still preceded by the bgez plus
-   0xFFF sign fixup. A plain signed division gives sra for all four (that is
-   what the parked code below does) and a u32 division drops the fixup, so the
-   y/height source expression is still unknown.
-
-Builds the two textured quads of every record of a dirent: the extents are
-// scaled by a 1/4096 fixed-point factor and the u/v range is mirrored when the
-// record's flip bits are set. Returns the dirent's record count.
+Best 91.30% (696 bytes, same size as the original). What the 86.77% attempt was
+missing: declare localX/localY before pDirent and i (frame 0x50, x copy at 0x10,
+y copy at 0x18), cast the four scaled reads to s16 so they load with lh, read v
+through (u16) and texPageX through (s16), assign the corners in offset order
+(x0,x1,x2,x3 - not x0,x2,x1,x3), and put the pPrim computation before pData.
+Still open, and all that is left: the original ends the y and height quotients
+with srl while x and width use sra, each after the same bgez/+0xFFF fixup. A
+signed division gives sra for all four, an unsigned dividend drops the fixup, so
+the y/height source form is still unknown. The u/v pair also lands in a1/a2
+instead of the original's a2/a1.
 s32 func_8002675C(MenuResourceDirectory* dir, u32 index, POLY_FT4* pPrims,
                   s32 context, u16 x, u16 y, u16 scale) {
+    u16 localX = x;
+    u16 localY = y;
     MenuResourceDirentTextureMetadata* pDirent;
     MenuResourceTextureMetadata* pData;
     POLY_FT4* pPrim;
-    u16 localX = x;
-    u16 localY = y;
     s32 nX;
     s32 nY;
     s32 nWidth;
@@ -599,39 +592,39 @@ s32 func_8002675C(MenuResourceDirectory* dir, u32 index, POLY_FT4* pPrims,
     pDirent = (MenuResourceDirentTextureMetadata*)(dir->offsets[index] + (unsigned)dir);
     if (pDirent->count != 0) {
         for (; i != pDirent->count; i++) {
-            pData = &pDirent->data[i];
             pPrim = pPrims + i * 2 + context;
+            pData = &pDirent->data[i];
 
-            nX = pData->x * scale / 4096;
-            nY = pData->y * scale / 4096;
-            nWidth = pData->width * scale / 4096;
-            nHeight = pData->height * scale / 4096;
+            nX = (s16)pData->x * scale / 4096;
+            nY = (s16)pData->y * scale / 4096;
+            nWidth = (s16)pData->width * scale / 4096;
+            nHeight = (s16)pData->height * scale / 4096;
 
             SetPolyFT4(pPrim);
             SetSemiTrans(pPrim, 0);
             SetShadeTex(pPrim, 1);
-            pPrim->tpage = GetTPage(pData->texPageId, 0, pData->texPageX,
+            pPrim->tpage = GetTPage(pData->texPageId, 0, (s16)pData->texPageX,
                                     pData->texPageY);
             pPrim->clut = GetClut(pData->clutX, pData->clutY);
 
             u = pData->u;
-            v = pData->v;
+            v = (u16)pData->v;
             width = pData->width;
             height = pData->height;
             if (!pData->flipX) {
                 x0 = localX + nX;
                 x1 = x0 + nWidth;
                 pPrim->x0 = x0;
-                pPrim->x2 = x0;
                 pPrim->x1 = x1;
+                pPrim->x2 = x0;
                 pPrim->x3 = x1;
             } else {
                 u = pData->u - 1;
                 x1 = localX + nX;
                 x0 = x1 + nWidth;
                 pPrim->x0 = x0;
-                pPrim->x2 = x0;
                 pPrim->x1 = x1;
+                pPrim->x2 = x0;
                 pPrim->x3 = x1;
                 if ((s16)u < 0) {
                     u = 0;
