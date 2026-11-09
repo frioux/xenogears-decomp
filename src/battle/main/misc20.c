@@ -96,6 +96,15 @@ void func_8009E3C8(void) {
     D_800CCE4A[o] = 3;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc20", func_8009E410);
+/* best 72.58%: divide is /20 (sra 3) and matches; remaining diff is the
+   mfhi/sra/subu placement vs the base load and the a0/v1 colour.
+void func_8009E410(void) {
+    s32 v = *(u16 *)(D_800D2DC8 + 0x3A) * D_800C3DFC[0x11];
+
+    (D_800C34B0 + D_800C3E50)[0x5FA0] = 0xA;
+    *(s32 *)(D_800C3E50 * 4 + D_800C34B0 + 0x5F6C) = v / 20;
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc20", func_8009E48C);
 void func_8009E508(void) {
     u8 *p = D_800D2DC8;
