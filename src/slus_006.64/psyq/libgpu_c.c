@@ -9,6 +9,14 @@ extern u_long D_800569EC;
 extern volatile u_long *D_800569A0;
 extern volatile u_long *D_800569A4;
 
+extern volatile u_long *D_800569B0;
+
+extern u_long D_800569D4;
+extern u_long D_800569D8;
+
+extern void func_8004696C(void);
+extern int func_80046F30(void);
+
 extern u_long *D_8005A380;
 extern u_long *D_8005A384;
 extern u_long *D_8005A388;
@@ -31,6 +39,44 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_c", func_8004668C);
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_c", func_8004696C);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_c", func_80046C58);
+
+/* best 94.39%: every insn multiset and the block layout match; the only
+   difference is the tail, where retail branches on n with the n result in the
+   delay slot (bnez s0 / move v0,s0 / j / li v0,1) and gcc reverses the ternary
+   to beqz s0 / li v0,1 / j / move v0,s0. Tried if/return, nested if/else,
+   n ? n : 1, n == 0 ? 1 : n, and a ret variable; all give the reversed form.
+int func_80046DB4(int wait) {
+    u_long n;
+
+    if (wait == 0) {
+        func_80046EFC();
+
+        while (D_800569D4 != D_800569D8) {
+            func_8004696C();
+            if (func_80046F30())
+                return -1;
+        }
+
+        while ((*D_800569B0 & 0x1000000) || !(*D_800569A4 & 0x4000000)) {
+            if (func_80046F30())
+                return -1;
+        }
+
+        return 0;
+    }
+
+    n = (D_800569D4 - D_800569D8) & 0x3F;
+    if (n != 0)
+        func_8004696C();
+
+    if ((*D_800569B0 & 0x1000000) || !(*D_800569A4 & 0x4000000)) {
+        if (n != 0)
+            return n;
+        return 1;
+    }
+
+    return n;
+} */
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_c", func_80046DB4);
 
