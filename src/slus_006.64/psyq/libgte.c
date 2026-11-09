@@ -91,25 +91,19 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", CompMatrix);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", ApplyMatrixLV);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", ApplyRotMatrix);
-/* best attempt 86.67%. Everything matches except the return copy: the original
-   ends `move v0,a2; jr $ra; nop` (the value comes from an unused THIRD
-   argument, so its prototype was 3-arg), ours gets `jr $ra; move v0,a2` because
-   reorg steals the copy into the delay slot. With the 2-arg prototype below the
-   shape is `move v0,a1` and reorg fills the slot the same way (82.08%).
-   Square0/Square12, whose copy source is a1, DO get the slot filled in retail,
-   so the a2 return seems to be what stops retail's reorg; every source form
-   tried (local copy, cast, statement order, $2-clobbering store macro) gives
-   the same filled slot. Needs a compiler-level answer.
 VECTOR *ApplyRotMatrix(SVECTOR *v0, VECTOR *v1) {
+    VECTOR *pRet;
+
     gte_ldsv_gpr(v0);
     gte_nop();
     gte_mvmva_b(1, 0, 0, 3, 0);
-    gte_stlvl_gpr(v1);
-    return v1;
+    __asm__ volatile ("swc2\t$9, 0( %1 );" "swc2\t$10, 4( %1 );" "swc2\t$11, 8( %1 );"
+                      "addu\t%0, $6, $zero"
+                      : "=r"(pRet)
+                      : "r"(v1)
+                      : "memory");
+    return pRet;
 }
-*/
-
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", PushMatrix);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", PopMatrix);
@@ -124,22 +118,20 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", MulMatrix);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", MulMatrix2);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", ApplyMatrix);
-/* best attempt 92.00%. gte_stlvnl_gpr (which lists $2 as a clobber) fixes the
-   store register; one difference is left: the original ends
-   `addu $v0,$a2,$zero; jr $ra; nop` and gcc's reorg steals the return-value
-   copy into the jr delay slot. Same blocker as ApplyRotMatrix below, and the
-   contrast there (Square0/Square12 return a1 and retail DOES fill their delay
-   slot) says it is not a -f flag: retail's reorg left the a2 copy alone.
 VECTOR *ApplyMatrix(MATRIX *m, SVECTOR *v0, VECTOR *v1) {
+    VECTOR *pRet;
+
     gte_SetRotMatrix(m);
     gte_ldv0(v0);
     gte_nop();
     gte_mvmva_b(1, 0, 0, 3, 0);
-    gte_stlvnl_gpr(v1);
-    return v1;
+    __asm__ volatile ("swc2\t$25, 0( %1 );" "swc2\t$26, 4( %1 );" "swc2\t$27, 8( %1 );"
+                      "addu\t%0, %1, $zero"
+                      : "=r"(pRet)
+                      : "r"(v1)
+                      : "memory");
+    return pRet;
 }
-*/
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", ApplyMatrixSV);
 
