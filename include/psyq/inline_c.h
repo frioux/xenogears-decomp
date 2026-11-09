@@ -126,6 +126,28 @@
 	: "r"( r0 )						\
 	: "$8", "$9" )
 
+/* The 3.x revision split a three-short vector into $8-$10 and copied those to
+   V0-V2 in a separate block, so a read of the flag register can sit between
+   the two. */
+#define gte_ldv3_gpr( r0 ) __asm__ volatile (		\
+	"lw\t$8, 0( %0 );"					\
+	"lw\t$10, 4( %0 );"					\
+	"sra\t$9, $8, 16;"					\
+	"andi\t$8, $8, 0xffff;"				\
+	"andi\t$10, $10, 0xffff"				\
+	:							\
+	: "r"( r0 )						\
+	: "$8", "$9", "$10" )
+
+#define gte_lddp_v3_gpr( r0 ) __asm__ volatile (		\
+	"mtc2\t%0, $8;"					\
+	"mtc2\t$8, $9;"					\
+	"mtc2\t$9, $10;"					\
+	"mtc2\t$10, $11"					\
+	:							\
+	: "r"( r0 )						\
+	: "$8", "$9", "$10" )
+
 
 #define gte_ldlvl( r0 ) __asm__ volatile (			\
 	"lwc2	$9, 0( %0 );"					\
@@ -1201,6 +1223,21 @@
 	:							\
 	: "m"( r0 )						\
 	: "$8", "memory" )
+
+/* Same stack-pointer output, but read back through general registers. */
+#define gte_stsv_gpr_stack( r0 ) __asm__ volatile (		\
+	"mfc2\t$8, $9;"					\
+	"mfc2\t$9, $10;"					\
+	"andi\t$8, $8, 0xffff;"				\
+	"sll\t$9, $9, 16;"					\
+	"or\t$8, $8, $9;"					\
+	"lw\t$13, %0;"						\
+	"mfc2\t$10, $11;"					\
+	"sw\t$8, 0( $13 );"					\
+	"sw\t$10, 4( $13 )"					\
+	:							\
+	: "m"( r0 )						\
+	: "$8", "$9", "$10", "$13", "memory" )
 
 #define gte_stlvnl0( r0 ) __asm__ volatile (			\
 	"swc2	$25, 0( %0 )"					\

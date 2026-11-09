@@ -49,9 +49,37 @@ void LoadAverage0(VECTOR *v0, VECTOR *v1, long p0, long p1, VECTOR *v2) {
     gte_stlvl_gpr_stack(v2);
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", func_8004901C);
+void func_8004901C(SVECTOR *v0, SVECTOR *v1, long p0, long p1, SVECTOR *v2) {
+    long flg;
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", func_800490A4);
+    gte_ldv3_gpr(v0);
+    gte_lddp_v3_gpr(p0);
+    gte_nop();
+    gte_gpf12_b();
+    gte_ldv3_gpr(v1);
+    gte_stflg_val_gpr(flg);
+    gte_lddp_v3_gpr(p1);
+    gte_nop();
+    gte_gpl12_b();
+    gte_stsv_gpr_stack(v2);
+}
+
+
+void func_800490A4(SVECTOR *v0, SVECTOR *v1, long p0, long p1, SVECTOR *v2) {
+    long flg;
+
+    gte_ldv3_gpr(v0);
+    gte_lddp_v3_gpr(p0);
+    gte_nop();
+    gte_gpf0_b();
+    gte_ldv3_gpr(v1);
+    gte_stflg_val_gpr(flg);
+    gte_lddp_v3_gpr(p1);
+    gte_nop();
+    gte_gpl0_b();
+    gte_stsv_gpr_stack(v2);
+}
+
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", LoadAverageByte);
 
