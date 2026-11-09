@@ -54,6 +54,20 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", MulMatrix);
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", MulMatrix2);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", ApplyMatrix);
+/* best attempt 89.25%. Everything matches except the return-value copy: the
+   original returns v1's register ($a2) through $v0 after the stores, gcc
+   coalesces v1 into $v0 at entry and stores through it. Same blocker as
+   Square0/Square12/TransMatrix: gte_stlvnl clobbers no GPR, so gcc is free to
+   make v0 the home of v1.
+VECTOR *ApplyMatrix(MATRIX *m, SVECTOR *v0, VECTOR *v1) {
+    gte_SetRotMatrix(m);
+    gte_ldv0(v0);
+    gte_nop();
+    gte_mvmva_b(1, 0, 0, 3, 0);
+    gte_stlvnl(v1);
+    return v1;
+}
+*/
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", ApplyMatrixSV);
 
@@ -98,11 +112,17 @@ MATRIX *ScaleMatrix(MATRIX *m, VECTOR *v) {
 */
 
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", SetRotMatrix);
+void SetRotMatrix(MATRIX *m) {
+    gte_SetRotMatrix(m);
+}
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", SetLightMatrix);
+void SetLightMatrix(MATRIX *m) {
+    gte_SetLightMatrix(m);
+}
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", SetColorMatrix);
+void SetColorMatrix(MATRIX *m) {
+    gte_SetColorMatrix(m);
+}
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", SetTransMatrix);
 /* best attempt 96.25%. The original loads into t0/t1/t2, gcc into
@@ -316,7 +336,13 @@ void ColorCol(VECTOR *v0, CVECTOR *v1, CVECTOR *v2) {
     gte_strgb(v2);
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", AverageSZ3);
+long AverageSZ3(void) {
+    long otz;
+
+    gte_avsz3_b();
+    gte_stotz_val(otz);
+    return otz;
+}
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", AverageSZ4);
 
@@ -377,9 +403,25 @@ VECTOR *Square0(VECTOR *v0, VECTOR *v1) {
 */
 
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", AverageZ3);
+long AverageZ3(long sz0, long sz1, long sz2) {
+    long otz;
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", AverageZ4);
+    gte_ldsz3(sz0, sz1, sz2);
+    gte_nop();
+    gte_avsz3_b();
+    gte_stotz_val(otz);
+    return otz;
+}
+
+long AverageZ4(long sz0, long sz1, long sz2, long sz3) {
+    long otz;
+
+    gte_ldsz4(sz0, sz1, sz2, sz3);
+    gte_nop();
+    gte_avsz4_b();
+    gte_stotz_val(otz);
+    return otz;
+}
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", OuterProduct12);
 
@@ -387,15 +429,48 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", OuterProduct0);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", Lzc);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", RotTransSV);
+void RotTransSV(SVECTOR *v0, SVECTOR *v1, long *flag) {
+    long f;
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", SquareSS12);
+    gte_ldv0(v0);
+    gte_nop();
+    gte_mvmva_b(1, 0, 0, 0, 0);
+    gte_stsv(v1);
+    gte_stflg_val(f);
+    *flag = f;
+}
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", SquareSS0);
+SVECTOR *SquareSS12(SVECTOR *v0, SVECTOR *v1) {
+    gte_ldsv(v0);
+    gte_nop();
+    gte_sqr12_b();
+    gte_stsv(v1);
+    return v1;
+}
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", SquareSL12);
+SVECTOR *SquareSS0(SVECTOR *v0, SVECTOR *v1) {
+    gte_ldsv(v0);
+    gte_nop();
+    gte_sqr0_b();
+    gte_stsv(v1);
+    return v1;
+}
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", SquareSL0);
+VECTOR *SquareSL12(SVECTOR *v0, VECTOR *v1) {
+    gte_ldsv(v0);
+    gte_nop();
+    gte_sqr12_b();
+    gte_stlvl(v1);
+    return v1;
+}
+
+VECTOR *SquareSL0(SVECTOR *v0, VECTOR *v1) {
+    gte_ldsv(v0);
+    gte_nop();
+    gte_sqr0_b();
+    gte_stlvl(v1);
+    return v1;
+}
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", RotTransPers);
 

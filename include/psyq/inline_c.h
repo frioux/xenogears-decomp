@@ -125,15 +125,14 @@
 	: "r"( r0 ) )
 
 #define gte_ldsv( r0 ) __asm__ volatile (			\
-	"lhu	$12, 0( %0 );"					\
-	"lhu	$13, 2( %0 );"					\
-	"lhu	$14, 4( %0 );"					\
-	"mtc2	$12, $9;"					\
-	"mtc2	$13, $10;"					\
-	"mtc2	$14, $11"					\
+	"lh	$2, 0( %0 );"					\
+	"lh	$3, 2( %0 );"					\
+	"mtc2	$2, $9;"					\
+	"mtc2	$3, $10;"					\
+	"lwc2	$11, 4( %0 )"					\
 	:							\
 	: "r"( r0 )						\
-	: "$12", "$13", "$14" )
+	: "$2", "$3" )
 
 #define gte_ldbv( r0 ) __asm__ volatile (			\
 	"lbu	$12, 0( %0 );"					\
@@ -1064,6 +1063,10 @@
 	: "r"( r0 )						\
 	: "$12", "memory" )
 
+#define gte_stflg_val( r0 ) __asm__ volatile (			\
+	"cfc2	%0, $31"					\
+	: "=r"( r0 ) )
+
 #define gte_stflg_4( r0 ) __asm__ volatile (			\
 	"cfc2	$12, $31;"					\
 	"addi	$13, $0, 4;"					\
@@ -1170,15 +1173,14 @@
 	: "memory" )
 
 #define gte_stsv( r0 ) __asm__ volatile (			\
-	"mfc2	$12, $9;"					\
-	"mfc2	$13, $10;"					\
-	"mfc2	$14, $11;"					\
-	"sh	$12, 0( %0 );"					\
-	"sh	$13, 2( %0 );"					\
-	"sh	$14, 4( %0 )"					\
+	"mfc2	$2, $9;"					\
+	"mfc2	$3, $10;"					\
+	"swc2	$11, 4( %0 );"					\
+	"sh	$2, 0( %0 );"					\
+	"sh	$3, 2( %0 )"					\
 	:							\
 	: "r"( r0 )						\
-	: "$12", "$13", "$14", "memory" )
+	: "$2", "$3", "memory" )
 
 #define gte_stclmv( r0 ) __asm__ volatile (			\
 	"mfc2	$12, $9;"					\
