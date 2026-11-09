@@ -17,6 +17,17 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007DE78);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007DFD4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007E154);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007E1D0);
+/* best: 99.40%. The call must come first in source order, otherwise gcc hoists
+   the D_800D3420 row base above the jal (43.88%). Only remaining difference:
+   the original computes the argument off the saved copy (addiu a0,s0,3), gcc
+   off the still-live a1. Same allocator tie as func_8007E6A0.
+void func_8007E1D0(u8 **arg0, u8 arg1) {
+    u16 value = func_80089C08((u8)(arg1 + 3));
+    u8 *p = *arg0;
+    u16 *pField = (u16 *)(D_800D3420 + arg1 * 0x40);
+
+    pField[p[1]] = value;
+} */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007E234);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007E334);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007E438);
