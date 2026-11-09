@@ -1410,23 +1410,22 @@ typedef struct {
 } PartyDataChunk; // Size: 0x10
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008BF38);
-// 97.74%: every instruction matches except the loop-end constant, which the
-// original materialises into $t0 (a register that is still live in the taken
-// branch, so its lui cannot be stolen into the bne delay slot) while gcc picks
-// the dead $v0 and fills the delay slot. One instruction short (580 vs 584
-// bytes). The 0x10-byte struct copy is what reproduces the original four loads
-// followed by four stores; a plain 4x word assignment interleaves them.
+// 97.74%: everything matches except that gcc steals the 0x14000 loop-end
+// constant into the bne delay slot (580 vs 584 bytes). In the original the
+// constant is allocated to $t0, which the if-body reads (`addiu $v0,$t0,-4`),
+// so gcc's reorg refuses the target->delay-slot fill and a nop is left there;
+// ours gets $v0, which the fall-through overwrites before reading, so the fill
+// is legal. Matching needs the constant in $t0: pEnd alone already lands in $t0
+// (merged with the dead &D_8005A448 qty), only the constant temp gets $v0.
 /*
-// Loads the model data of the party member in the following slot into this
-// slot's buffer and shifts the party tables down
 void func_8008BF38(int partyIndex) {
     int characterId;
     FieldActor* pFieldActor;
     ActorData* pActor;
     void* pSprite;
+    PartyDataChunk* pEnd;
     PartyDataChunk* pSrc;
     PartyDataChunk* pDst;
-    PartyDataChunk* pEnd;
     u8 unused[8]; // original has unused stack slots; reproduces the frame
 
     characterId = D_8005A448[partyIndex];
@@ -1441,8 +1440,8 @@ void func_8008BF38(int partyIndex) {
     }
 
     pSrc = D_8005A418[partyIndex];
-    pEnd = pSrc + 0x1400;
     pDst = g_PartyDataBuffers[partyIndex];
+    pEnd = (PartyDataChunk*)((u8*)pSrc + 0x14000);
     do {
         *pDst = *pSrc;
         pSrc++;
