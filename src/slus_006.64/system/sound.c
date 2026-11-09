@@ -3322,17 +3322,23 @@ u8* SoundScriptNop5(u8* pScript, AudioManager* pAudioManager, AudioElement* pAud
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003E360);
 /*
-Attempt (93.38%, same size): only the s-register assignment is swapped (original
-keeps pScript in s1 / pAudioElements in s2, gcc 2.6 picks the opposite) and the
-original returns pScript+1 from s1 in v0 instead of computing it early.
+Attempt (94.84%, same size; was 93.38%): the s-register assignment is now RIGHT
+(pScript s1, pAudioElements s2, envelope s0, index s3). What fixed it: increment
+pScript inside the body (`pScript += 1;`) and return pScript, instead of
+`return pScript + 1;`. Only delta left: the original emits `addiu s1,s1,1` followed
+by `move v0,s1` for the return; gcc writes the increment straight into v0 (the
+FUNCTION_VALUE preference wins the pseudo) and then shuffles v1/a0 through the
+unk_0xCE read-modify-write. Moving the increment before/after the flags store and the
+unk_0xCE store does not change it.
 u8* func_8003E360(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     u8 index = pScript[0];
     AudioEnvelope* pEnvelope = &pAudioElements->envelopes[index];
 
     func_8003E3E0(pEnvelope);
     pEnvelope->flags |= 0x1;
+    pScript += 1;
     pAudioElements->unk_0xCE |= 1 << index;
-    return pScript + 1;
+    return pScript;
 }
 */
 
