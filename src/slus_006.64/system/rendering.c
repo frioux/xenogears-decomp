@@ -310,6 +310,176 @@ s32 func_8001EE74(u16* pFlags) {
 */
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001EE88);
 
+/* Best attempt: 77.38% (896 bytes, the original is 892). The whole function is a
+   verified transcription and the frame is the original 0x60; what is left is
+   register allocation plus one folded base pointer (last paragraph).
+   Facts a future attempt needs, all confirmed against the .s:
+   - `setlen(pPrim, 9)` IS where the 9 goes: byte 3 of the tag (P_TAG.len, bits
+     24-31), NOT pPrim->code (byte 7). The parked func_8001EE88 attempt above
+     writes `pPrim->code = 9`, which lands in byte 7 - that one mistake may be
+     why that function never got past 0%.
+   - `extern void* g_GfxCurWorkBuffer;` and `extern void* g_GfxCurWorkBufferEnd;`
+     must be declared in this unit: including system/animation.h turns the loads
+     into `lw $v0,0($gp)`, the original uses lui/lw (%hi/%lo).
+   - POLY_FT4 and setlen need #include "psyq/libgpu.h" (RotAverage4/SVECTOR come
+     from psyq/libgte.h via field/actor.h). D_8004FB98 is
+     `extern SVECTOR D_8004FB98[4]`; it is already in the sdata asm, do not
+     define it here.
+   - element 0 of D_8004FB98 is stored through the SYMBOL (%lo(D_8004FB98)($t1))
+     and elements 1-3 through the pointer local `pVerts = D_8004FB98`; that is
+     what keeps the hi half live and spills it to 0x30($sp) across the call.
+   - width must be re-loaded from pFrameData->width AFTER the RotAverage4 call
+     (the original reloads lbu 0x6(s3) there); keeping one local across the call
+     grows the frame to 0x70.
+   - the clip arithmetic here is the mirror of func_8001EE88: yMin/yMax from the
+     sign of height, `if (z > yMax) continue;`, `clip = (z > yMin) ? z - yMin : 0`,
+     and `tileY += clip` is duplicated inside BOTH arms of the height test.
+   Still wrong at 77.38%: gcc folds the u8 frame fields onto a second base
+   (`addu $s3,$s6,6`, then accesses 0/1/2/3 and 10/-4) where the original uses
+   $s3 = pFrameData with offsets 0,2,4..9. That costs one callee-saved register,
+   so pOt gets $t1 instead of $fp and is spilled to 0x30($sp) every iteration.
+
+ extern SVECTOR D_8004FB98[4];
+ extern void* g_GfxCurWorkBuffer;
+ extern void* g_GfxCurWorkBufferEnd;
+
+void func_8001F1D4(SpriteData* pSpriteData, u_long* pOt, s32 depth) {
+    SVECTOR* pVerts;
+    SpriteFrameData* pFrameData;
+    POLY_FT4* pPrim;
+    s32 n;
+    s32 count;
+    s32 z;
+    s32 i;
+    s32 zDepth;
+    s32 flag;
+    s32 tileX;
+    s32 tileY;
+    s32 width;
+    s32 height;
+    s32 texX;
+    s32 texY;
+    s32 texHeight;
+    s32 clip;
+    u32 spriteFlags;
+    s32 yMin;
+    s32 yMax;
+
+    n = (pSpriteData->field_0x40 >> 8) & 0x1F;
+    z = depth << n;
+    count = (pSpriteData->field_0x40 >> 2) & 0x3F;
+    pFrameData = pSpriteData->pBase->pCurRenderFramesData;
+    if ((u8*)g_GfxCurWorkBuffer + count * sizeof(POLY_FT4) >= (u8*)g_GfxCurWorkBufferEnd) {
+        return;
+    }
+    if (count == 0) {
+        return;
+    }
+
+    pVerts = D_8004FB98;
+    for (i = 0; i != (*(u8*)((u8*)pSpriteData + 0x40) >> 2); i++, pFrameData++) {
+        pPrim = g_GfxCurWorkBuffer;
+        g_GfxCurWorkBuffer = pPrim + 1;
+        setlen(pPrim, 9);
+        *(u32*)&pPrim->r0 = pFrameData->colorAndCode;
+        pPrim->tpage = pFrameData->texPage;
+        pPrim->clut = pFrameData->clutID;
+        tileX = pFrameData->tileX;
+        width = pFrameData->width;
+        width += (s8)pFrameData->deltaWidth;
+        tileY = pFrameData->tileY;
+        height = pFrameData->height;
+        height += (s8)pFrameData->deltaHeight;
+        n = (pSpriteData->field_0x40 >> 8) & 0x1F;
+        width <<= n;
+        height <<= n;
+        tileX <<= n;
+        spriteFlags = *(u32*)((u8*)pSpriteData + 0x3C);
+        tileY <<= n;
+        if (spriteFlags & 8) {
+            width = -width;
+            tileX = -tileX;
+        }
+        if (spriteFlags & 0x10) {
+            height = -height;
+            tileY = -tileY;
+        }
+        if (!(pFrameData->flags & 0x10)) {
+            D_8004FB98[0].vx = tileX;
+            pVerts[1].vx = tileX + width;
+            pVerts[2].vx = tileX + width;
+            pVerts[3].vx = tileX;
+        } else {
+            D_8004FB98[0].vx = tileX + width;
+            pVerts[1].vx = tileX;
+            pVerts[2].vx = tileX;
+            pVerts[3].vx = tileX + width;
+        }
+
+        if (height > 0) {
+            yMin = tileY;
+            yMax = tileY + height;
+        } else {
+            yMin = tileY + height;
+            yMax = tileY;
+        }
+        if (z > yMax) {
+            continue;
+        }
+        clip = (z > yMin) ? z - yMin : 0;
+        if (height > 0) {
+            tileY += clip;
+            height -= clip;
+        } else {
+            tileY += clip;
+            height += clip;
+        }
+
+        if (!(pFrameData->flags & 0x20)) {
+            pVerts[0].vy = tileY;
+            pVerts[1].vy = tileY;
+            pVerts[2].vy = tileY + height;
+            pVerts[3].vy = tileY + height;
+        } else {
+            pVerts[0].vy = tileY + height;
+            pVerts[1].vy = tileY + height;
+            pVerts[2].vy = tileY;
+            pVerts[3].vy = tileY;
+        }
+
+        RotAverage4(pVerts, &pVerts[1], &pVerts[2], &pVerts[3], (long*)&pPrim->x0, (long*)&pPrim->x1,
+            (long*)&pPrim->x3, (long*)&pPrim->x2, &zDepth, &flag);
+
+        n = (pSpriteData->field_0x40 >> 8) & 0x1F;
+        clip >>= n;
+        if (height > 0) {
+            texY = pFrameData->texY + clip;
+            texHeight = pFrameData->height - clip;
+        } else {
+            texY = pFrameData->texY - clip;
+            texHeight = pFrameData->height - clip;
+        }
+        texX = pFrameData->texX;
+        width = pFrameData->width;
+        if (pPrim->x3 < pPrim->x0) {
+            if (--texX < 0) {
+                texX = 0;
+                width--;
+            }
+        }
+        pPrim->u1 = texX + width;
+        pPrim->u3 = texX + width;
+        pPrim->v0 = texY;
+        pPrim->v1 = texY;
+        pPrim->u0 = texX;
+        pPrim->u2 = texX;
+        pPrim->v2 = texY + texHeight;
+        pPrim->v3 = texY + texHeight;
+
+        pPrim->tag = (pPrim->tag & 0xFF000000) | (*pOt & 0xFFFFFF);
+        *pOt = (*pOt & 0xFF000000) | ((u32)pPrim & 0xFFFFFF);
+    }
+}*/
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001F1D4);
 
 // .sdata
