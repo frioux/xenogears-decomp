@@ -416,7 +416,15 @@ Landed by area: `psyq/libgte` 4 -> 27 matched (the header revisions), `sound` +1
    `func_8007554C`) gates six functions and the unit's rodata. It needs an
    `asm("sw $sp, 0($t0)")`-style statement, which the hard rules forbid; this is a
    policy decision, not a technical one.
-3. **`system/sound` (~45 stubs) and `lib_gear` (~24) are now dominated by
+3. **`system/sound` is a MIXED toolchain unit and needs a TU split.** Round 26
+   found `func_8003D53C` scores 95.83% under the unit's `XenoLibrary` (gcc 2.6.0)
+   flags but **100%** under `Default` (gcc 2.7.2, -O2 -G8); six sampled matched
+   functions in the unit are 100% under both. Switching the whole unit to 2.7.2
+   fails `make check` — the first differing symbol is `SoundSpuMemoryFindBlock`,
+   so *some* functions need 2.6.0 and the rest may need 2.7.2. Splitting
+   `system/sound.c` into two source ranges with different presets (the
+   `rendering_pause_text.c` pattern) is probably worth a dozen functions.
+   **`system/sound` (~45 stubs) and `lib_gear` (~24) are also dominated by
    register-allocation puzzles** documented in their parked comments. A worker
    that only reads the parked note and tries one genuinely new lever per function
    is worth more there than a fresh attempt.
