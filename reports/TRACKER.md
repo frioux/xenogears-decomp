@@ -503,3 +503,38 @@ Two facts for the next attempt:
   `libetc`, `system/system.c`, `work_list`, `temp3`, `camera_movement`,
   `field/main/main.c`, `text_box*`, `shop_menu`, `member_change_menu`,
   `gear_shop_menu` - round 29 targets these.
+| 29 | 10 workers: psyq libgpu+libc, psyq libcard+libapi_2+libapi_3, system/system, work_list+temp3, libarchive+graphics, misc3+misc7+misc10, misc9+misc11, text_box+text_box_render, camera_movement+main, member_change_menu+gear_shop_menu+shop_menu | +1 | 1976 | `func_8009BC98` (text_box). Two workers timed out with uncommitted C (one at 95.95%) which I reverted before merging |
+
+### Round 29 notes: what "untouched" really meant
+
+Most of the untouched pools are not tractable C after all, and the evidence is now recorded:
+
+- **`psyq/libcard`, `libapi_2`, `libapi_3` are BIOS call gates**, not wrappers:
+  `addiu $t2,$zero,0xA0 / jr $t2 / addiu $t1,$zero,0xAB`, every one with a pad
+  `nop` after `.size`. gcc only ever jumps indirect through `$t9`/`jalr`, so no C
+  emits them, and `convertible.py` flags them BLOCKED. Do not list them again.
+  (`setjmp`/`longjmp` likewise: hand-written register saves to fixed `$a0` offsets.)
+- `system/work_list`'s `WorkListAddTask` really did convert (matched in the worker's
+  tree) but the worker timed out before committing and its C was reverted; the
+  same for `func_80095CC4`. Both are still open and cheap.
+- `psyq/libgpu`/`libc`: `strcat` is 85.90% with only a callee-saved pair swapped,
+  `SetGraphReverse` 90.84% likewise, `strcmp` 56% (the retail shape keeps the loaded
+  byte live across the loop), `MoveImage` 82.73% (aspsx load order).
+- `system/system`: `func_80033CF0` 87.46% and `SystemRenderStringEntry` 28.31%.
+  The second one's C content is right and only the store scheduling differs, so
+  statement order is not the lever.
+- `system/libarchive`: `func_8002945C` 90.68% after finding the real shape (an
+  `nState = -1` accumulator with a single return, not early returns); the rest is a
+  3-register rotation. `GfxLoadClutsAccelerated` 99.11%, only `&rect`/`pData` swap
+  `s3`/`s4` - but the two `.sbss` pointer definitions it needs are risky, so it stays
+  parked.
+
+### psyq/libgte is now two TUs
+
+`libgte.c` (25 stubs, the GTE/matrix family) and `libgte_b.c` (25 stubs, from
+`ReadGeomScreen` at 0x3A8DC to `RotMatrixZ`) so two workers can work the 24
+convertible stubs at once. `config/slus_006.64.yaml` has the extra `c` segment and
+`make check` is byte-identical. Splitting an all-functions unit is a one-line yaml
+edit; the only care needed is that the new file's `INCLUDE_ASM` path must name the
+new nonmatchings directory (`nonmatchings/psyq/libgte_b`), because splat generates
+the `.s` files per yaml segment.
