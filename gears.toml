@@ -113,3 +113,10 @@ build_variables = {
     maspsx_flags = "--aspsx-version=2.67 --use-comm-section --run-assembler"
 }
 paths = [ "{binary}/system/rendering_pause_text." ]
+
+[[build_preset]]
+name = "XenoWorldMap"
+build_variables = {
+    maspsx_flags = "--dont-expand-li --use-comm-section --run-assembler"
+}
+paths = [ "world_map/" ]
