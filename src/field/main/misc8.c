@@ -434,24 +434,25 @@ extern void* D_801E8670[];
 void func_80021FE0(SpriteData*, s16);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800831F4);
-/* 92.68% (140 bytes vs 144): frame and every other insn match, two residuals.
+/* 92.68% (148 vs 144 bytes): frame and every other insn match, two residuals.
    The branch shape only comes out right when the ternary sits *inside* the
    arithmetic: `angle = (rotation.vy + ((direction & 1) ? -0x400 : 0x400)) &
-   0xFFF` gives the original's `bnez $v0,.L; addu $v0,$v1,-0x400` cond-add with
+   0xFFF` gives the original's `bnez $v0,.L; addiu $v0,$v1,-0x400` cond-add with
    the delay slot filled (an if/else or a ternary split from the `& 0xFFF`
-   gives `beqz` + `j` instead). The 0x20 frame needs the unused RECT local.
+   gives `beqz` + `j` instead). The 0x20 frame needs no unused local, and the
+   second store reads `vy` unsigned (`lhu`), so the `| 0x8000` uses the field
+   type, not a signed local.
    Residuals: (1) the original loads vy into v0, copies it (`move $v1,$v0`) and
    tests in place (`andi $v0,$v0,0x8000`) so vy lives in v1 for the addu; gcc
    loads straight into v1 (`lh $v1`; `andi $v0,$v1,0x8000`) and is 4 bytes
-   short. Reading the field twice, a second local, an int local and assigning
-   in the condition all give `lh $v1`. (2) gcc sinks the second store
-   (`sh $v0,0x106($s0)`) into the `jal func_80081F80` delay slot because the
-   reload `lh $a1,0x104($s0)` is moved before it; the original stores both
-   halves, reloads, and keeps a nop in the slot.
+   short. Reading the field into a `s16 current` local first changes nothing.
+   (2) gcc sinks the second store (`sh $v0,0x106($s0)`) into the `jal
+   func_80081F80` delay slot because the reload `lh $a1,0x104($s0)` is moved
+   before it; the original stores both halves, reloads, and keeps a nop in the
+   slot.
 void func_80081F80(SpriteData*, s16, FieldActor*);
 
 void func_800831F4(SpriteData* pSprite, ActorData* pActorData, FieldActor* pActor, int direction) {
-    RECT rect;
     s16 angle;
 
     if (pActorData->moveModified.vx != 0 || pActorData->moveModified.vz != 0) {
@@ -553,17 +554,15 @@ int func_800854D0(void) {
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80085560);
 /* 81.88%: only the prologue schedule and the temp register differ (gcc stores
-   the stream file from a1 in the original, from v0 here).
-void func_80085560(int archiveIndex, int unused, void* pCallback) {
-    void* pStreamFile;
-
-    D_800ADB2C = 1;
-    pStreamFile = ArchiveAllocStreamFile(8);
-    D_800ADBB8 = pStreamFile;
-    ArchiveReadFileToBuffer(archiveIndex, pStreamFile, 0, 0x100);
-    D_800AFEA4 = pCallback;
-}
+   the stream file from a1 in the original, from v0 here). Source shape is
+   confirmed: `D_800ADB2C = 1; pStreamFile = ArchiveAllocStreamFile(8);
+   D_800ADBB8 = pStreamFile; ArchiveReadFileToBuffer(archiveIndex, pStreamFile,
+   0, 0x100); D_800AFEA4 = pCallback;`. The residual is that gcc copies `a2`
+   into `s1` in the entry block and steals `li a0,8` into the jal delay slot,
+   where retail copies `a2` into the delay slot. A function-pointer type for
+   pCallback changes nothing.
 */
+
 
 void func_8003A20C(int);
 void func_80039F9C(void*, int, int, int);
@@ -573,8 +572,9 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800855C8);
    (`andi s0,a3,7`, `sll a0,s0,1`, `sll a1,s0,1`); gcc CSEs the doubled value
    into s0 and copies it (`move a0,s0` / `move a1,s0`), which also keeps it out
    of the first jal's delay slot. Same size and registers, so it links, but
-   objdiff never reaches 100%. Writing `offset + offset` for one use does not
-   help: gcc still folds both uses into one product.
+   objdiff never reaches 100%. Writing `offset + offset`, `2 * (arg3 & 7)`, or
+   the two expressions inline with no local all still fold into one product;
+   the 100% shape needs a second `offset * 2` that gcc cannot CSE.
 void func_800855C8(int arg0, int arg1, int arg2, int arg3) {
     int offset = arg3 & 7;
 
