@@ -6,6 +6,14 @@ extern u_long *g_GpuCurTIMHandle;
 extern u_long D_800569E8;
 extern u_long D_800569EC;
 
+extern volatile u_long *D_800569A0;
+extern volatile u_long *D_800569A4;
+
+extern u_long *D_8005A380;
+extern u_long *D_8005A384;
+extern u_long *D_8005A388;
+extern u_long D_8005A38C;
+
 extern char D_8001928C[]; // "id  =%08x\n"
 extern char D_80019298[]; // "mode=%08x\n"
 extern char D_800192A4[]; // "timaddr=%08x\n"
@@ -13,6 +21,7 @@ extern char D_800192A4[]; // "timaddr=%08x\n"
 extern int Vsync(int mode);
 
 extern int func_80047518(u_long *p, TIM_IMAGE *tim);
+extern u_long func_80047638(void *p, int n, u_long *a, u_long *b, u_long *c);
 
 extern void SetDQA(long dqa);
 extern void SetDQB(long dqb);
@@ -32,7 +41,26 @@ void func_80046EFC(void) {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_c", func_80046F30);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_c", func_8004709C);
+int func_8004709C(u_long mode) {
+    *D_800569A4 = 0x10000007;
+
+    if ((*D_800569A0 & 0xFFFFFF) != 2) {
+        *D_800569A0 = (*D_800569A4 & 0x3FFF) | 0xE1001000;
+        (void)*D_800569A0; // the status port is read back to flush the write
+        if (!(*D_800569A4 & 0x1000))
+            return 0;
+        if (!(mode & 8))
+            return 1;
+        *D_800569A4 = 0x20000504;
+        return 2;
+    }
+
+    if (!(mode & 8))
+        return 3;
+
+    *D_800569A4 = 0x09000001;
+    return 4;
+}
 
 void func_80047178(void *p, int value, int n) {
     u_char *pByte = p;
@@ -58,7 +86,9 @@ TIM_IMAGE *ReadTIM(TIM_IMAGE *timimg) {
     return timimg;
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_c", func_8004722C);
+u_long func_8004722C(void *p, int n) {
+    return D_8005A38C = func_80047638(p, n, &D_8005A388, &D_8005A380, &D_8005A384);
+}
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_c", func_8004726C);
 
