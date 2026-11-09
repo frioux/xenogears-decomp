@@ -850,6 +850,8 @@ void func_800A0C4C(void) {
 // into the freshly loaded base register (`addu v0,v1,v0`). Same size and operand
 // order; -O2/-O3 both do this. index+base operand order is required (base-first
 // gives `addu v0,v0,v1`).
+INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_800A0C94);
+/*
 void func_800A0C94(void) {
     FieldActor* pFieldActor;
     SpriteData* pSpriteData;
@@ -890,6 +892,8 @@ void func_800A0C94(void) {
     pSpriteData->field_0x84 = curY;
     pActor->curYPos = curY;
 }
+
+*/
 
 void func_800A0D3C(void) {
     func_80076AC0(D_800AFD1C, 0, (void*)((*(s32*)(g_FieldSpriteData + 4)) + (s32)g_FieldSpriteData), 0, 0, 0x80, 1);
