@@ -385,19 +385,22 @@ int func_80033CD0(SystemString* pString) {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/system", func_80033CF0);
 
-/* Best attempt, 92.98%. Every instruction is right except two entry-block
-   ordering details:
-   - gcc emits the `move v1,a0` (copy of value out of a0, which pDigit reuses)
-     two insns earlier than the original does.
-   - `pScanEnd = pScan + 10` is folded to `addiu v1,v0,-2` (off pEnd) and
-     hoisted above the `andi`/`bne`; the original keeps a runtime `addiu v1,a0,20`
-     after the branch. Assigning pScanEnd inside the if fixes that insn but then
-     gcc puts the D_8005A0DE address in v1 instead of v0, and reorg steals
-     `sh a1,-22(v0)` into the branch delay slot (the taken path writes v0), for
-     92.96%.
-   The scan loop itself only matches in this shape: while/break, while with &&
-   and do/while are all rotated by loop.c; two gotos to a label after the block
-   stop the rotation.
+/* Best attempt, 96.49%, 228 bytes (the original is 228 too): every insn is
+   right and in the right place except pScanEnd, which gcc folds to
+   `addiu v1,v0,-2` off pEnd and emits one insn early; the original has
+   `addiu v1,a0,20` off pScan after the bne.
+   - `v = value;` as a statement (not using the parameter directly) is what
+     fixes the entry block: gcc emits the parameter copy after the
+     `lui/ori` of 1000000000 instead of before it (92.98% -> 96.49%).
+   - The scan loop only matches in this shape: while/break, while with &&
+     and do/while are all rotated by loop.c; the two gotos to a label after
+     the block stop the rotation.
+   - pScanEnd is the only remaining diff. cse folds pScan + 10 to pEnd - 2
+     because pScan's register carries the equivalence pEnd - 11; hiding the
+     offset (mem_addr intermediate) and moving the assignment inside the if
+     both still fold, and the in-if form also forces pEnd out of v0 (the andi
+     clobbers it) so reorg then steals the `sh a1,-22(v0)` store into the
+     bne delay slot (224 bytes, 96.47%).
 void func_80033CF0(int value, int glyphOffset, int flag) {
     u32 divisor = 1000000000;
     u16* pDigit = D_8005A0CA;
@@ -406,21 +409,23 @@ void func_80033CF0(int value, int glyphOffset, int flag) {
     u16* pScanEnd;
     int i;
     int sign = flag;
+    s32 v;
 
+    v = value;
     glyphOffset *= 16;
 
     if (sign != 0) {
-        if (value >= 0) {
+        if (v >= 0) {
             sign = 11;
         } else {
-            value = -value;
+            v = -v;
             sign = 10;
         }
     }
 
     for (i = 0; i < 10; i++) {
-        pDigit[i] = value / divisor + glyphOffset;
-        value %= divisor;
+        pDigit[i] = v / divisor + glyphOffset;
+        v %= divisor;
         divisor /= 10;
     }
 
