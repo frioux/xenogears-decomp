@@ -747,7 +747,46 @@ void func_800A0158(s32 arg0, s32* arg1, s32* arg2, s32* arg3) {
 INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_800A0228);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_800A0524);
+// 74.12%: with the `volatile` removed from `g_FieldActors`
+// (include/field/actor.h) every store order, frame and call argument matches; the
+// remaining 26% is load sharing. The original reads the base pointer once per
+// block (`lw a0,%lo(g_FieldActors)` used for both the dst and src index, and a
+// single `lw a1,0x0(s2)` feeding both matrix-call arguments), which needs a
+// non-volatile pointer. With the header as-is each `g_FieldActors[...]` is its own
+// volatile load, so the prologue/loop registers differ. Do not remove the
+// qualifier without a full make check; other units may depend on it.
+/*
+extern void FieldMatrixCopyTransform(MATRIX* pDest, MATRIX* pSrc);
+extern void FieldMatrixCopyTranslation(MATRIX* pDest, MATRIX* pSrc);
 
+// Copies the walkmesh state and transform of one field actor onto another.
+void func_800A0524(int dstActorIndex, int srcActorIndex) {
+    ActorData* pDst;
+    ActorData* pSrc;
+    int i;
+
+    pDst = g_FieldActors[dstActorIndex].pActorData;
+    pSrc = g_FieldActors[srcActorIndex].pActorData;
+    for (i = 0; i < 4; i++) {
+        pDst->walkmeshTriIds[i] = pSrc->walkmeshTriIds[i];
+    }
+    pDst->walkmeshId = pSrc->walkmeshId;
+    pDst->unkEC = pSrc->unkEC;
+    pDst->curYPos = pSrc->curYPos;
+    pDst->curTriNormal.vx = pSrc->curTriNormal.vx;
+    pDst->curTriNormal.vy = pSrc->curTriNormal.vy;
+    pDst->curTriNormal.vz = pSrc->curTriNormal.vz;
+    pDst->position.vx = pSrc->position.vx;
+    pDst->position.vy = pSrc->position.vy;
+    pDst->position.vz = pSrc->position.vz;
+    FieldMatrixCopyTransform(&g_FieldActors[dstActorIndex].transformMatrix, &g_FieldActors[srcActorIndex].transformMatrix);
+    FieldMatrixCopyTranslation(&g_FieldActors[dstActorIndex].transformMatrix, &g_FieldActors[srcActorIndex].transformMatrix);
+    ((SpriteData*)g_FieldActors[dstActorIndex].pSpriteData)->position.x = g_FieldActors[srcActorIndex].pActorData->position.vx;
+    ((SpriteData*)g_FieldActors[dstActorIndex].pSpriteData)->position.y = g_FieldActors[srcActorIndex].pActorData->position.vy;
+    ((SpriteData*)g_FieldActors[dstActorIndex].pSpriteData)->position.z = g_FieldActors[srcActorIndex].pActorData->position.vz;
+}
+
+*/
 INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_800A06E8);
 // 94.95%: structure right (branches, calls, frame, 464 bytes). gcc CSEs the
 // `~ACTOR_STATUS_INVISIBLE` constant into a callee-saved register across the
