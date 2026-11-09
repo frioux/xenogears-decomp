@@ -2040,10 +2040,64 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008EA58);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008EC30);
 
+extern s16 D_800C3A20;
+extern s16 D_800C3A22;
+extern s16 D_800C3A24;
+extern s16 D_800C3A26;
+extern s16 D_800C3A28;
+extern s16 D_800C3A2A;
+extern s16 D_800C3A2C;
+extern s16 D_800C3A2E;
+extern u16 D_800C3A30;
+extern u16 D_800C3A32;
+extern u16 D_800C3A34;
+extern u16 D_800C3A36;
+extern u16 D_800C3A38;
+extern u16 D_800C3A3A;
+extern s32 D_800ADB70;
+extern s32 D_800ADB74;
+extern s32 D_800ADB80;
+
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008EE14);
+// 79.22%: everything up to the last four stores matches. The original's
+// post-reload scheduler emits them as [lhu D_800C3A30][lw g_FieldScriptVMCurActor]
+// [sh D_800C3A36][andi/sh D_800C3A30][lhu ip][li 1][sw D_800ADB70][addiu/sh ip];
+// ours puts the D_800ADB70 store before the actor load and the ip load after it.
+/*
+void func_8008EE14(void) {
+    u16 value = FieldScriptVMGetArgument(9);
+    s16 pos;
+
+    D_800C3A20 = FieldScriptVMGetArgument(1);
+    D_800C3A2A = FieldScriptVMGetArgument(3);
+    D_800C3A2C = FieldScriptVMGetArgument(5);
+    D_800C3A2E = FieldScriptVMGetArgument(7);
+    D_800C3A30 = value;
+    if (value == 0xFE) {
+        D_800C3A3A = 1;
+    } else {
+        D_800C3A3A = 0;
+    }
+    pos = FieldScriptVMGetArgument(0xB);
+    D_800C3A22 = pos;
+    D_800C3A26 = pos;
+    pos = FieldScriptVMGetArgument(0xD);
+    D_800C3A24 = pos;
+    D_800C3A28 = pos;
+    D_800C3A32 = FieldScriptVMGetArgument(0xF);
+    D_800C3A34 = FieldScriptVMGetArgument(0x11);
+    D_800ADB80 = value & 0x40;
+    D_800C3A38 = 0xFF;
+    D_800ADB74 = 2;
+    D_800C3A30 &= 0xF;
+    D_800C3A36 = 0;
+    D_800ADB70 = 1;
+    g_FieldScriptVMCurActor->scriptInstructionPointer += 0x13;
+}
 
 extern s32 D_800ADB3C;
 extern s32 D_800ADB38;
+*/
 
 void func_8008EF5C(void) {
     D_800ADB3C = FieldScriptVMGetArgument(1);
