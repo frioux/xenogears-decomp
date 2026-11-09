@@ -1293,9 +1293,65 @@ void func_800399D4(AudioManager* pManager) {
     }
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_80039A80);
+void func_80039A80(AudioManager* pManager, s32 volume, s32 frames) {
+    s16 status;
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_80039B68);
+    if (pManager == NULL) {
+        SoundHandleError(0x5);
+        return;
+    }
+
+    pManager->unk_Flags &= ~0x8000;
+    status = (s16)SoundUnkDebug0(pManager->unk_0x8);
+    if (status != 0) {
+        SoundHandleError(0xA);
+        return;
+    }
+
+    if (pManager->unk_Flags & 0x8000) {
+        func_80039C4C(pManager);
+    }
+
+    DisableEvent(g_unk_SoundEvent);
+    func_8003B22C(pManager);
+    func_8003B424(pManager);
+    pManager->unk_Interpolator_0x70.currentValue = 0;
+    func_8003A89C(pManager, volume, frames);
+
+    pManager->unk_Flags |= 0x8000;
+    EnableEvent(g_unk_SoundEvent);
+}
+
+void func_80039B68(AudioManager* pManager, s32 volume, s32 frames) {
+    AudioElement* pElement;
+    SoundWDSEntry* pWds;
+    SoundWdsTone* pTone;
+    u32 sampleStart;
+    s32 cnt;
+
+    if (pManager == NULL) {
+        SoundHandleError(0x5);
+        return;
+    }
+
+    pElement = &pManager->elements[0];
+    cnt = pManager->elementCount;
+    do {
+        cnt--;
+        pWds = SoundFindWdsEntry(pElement->unk_0x25);
+        pElement->unk2C = (u32)pWds;
+        pTone = (SoundWdsTone*)((u8*)pWds + 0x30) + pElement->unk_0x26;
+        sampleStart = pTone->sampleOffset << 3;
+        pElement->voice_data.startAddress = sampleStart + pWds->spuMemoryAddress;
+        pElement->voice_data.loopAddress = sampleStart + (pTone->loopOffset << 3);
+        pElement->voice_data.flags = 0xFFFF;
+        pElement++;
+    } while (cnt);
+
+    pManager->unk_Interpolator_0x70.currentValue = 0;
+    pManager->unk_Flags |= 0x100;
+    func_8003A89C(pManager, volume, frames);
+}
 
 //----------------------------------------------------------------------------------------------------------------------
 void func_80039C4C(AudioManager* manager) {
