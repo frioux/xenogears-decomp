@@ -1,8 +1,15 @@
 #include "common.h"
 #include "psyq/libgte.h"
+#include "system/memory.h"
 
-typedef struct {
-    /* 0x00 */ u8 unk0[0xA];
+typedef struct Misc16Work Misc16Work;
+
+struct Misc16Work {
+    /* 0x00 */ s16 unk0;
+    /* 0x02 */ s16 unk2;
+    /* 0x04 */ u16 unk4;
+    /* 0x06 */ s16 unk6;
+    /* 0x08 */ u16 unk8;
     /* 0x0A */ s16 unkA;
     /* 0x0C */ s16 unkC;
     /* 0x0E */ u16 unkE;
@@ -24,7 +31,25 @@ typedef struct {
     /* 0x34 */ u16 unk34;
     /* 0x36 */ u16 unk36;
     /* 0x38 */ u16 unk38;
-} Misc16Work; // Size: 0x3A
+    /* 0x3A */ u16 unk3A;
+    /* 0x3C */ u16 unk3C;
+    /* 0x3E */ u16 unk3E;
+    /* 0x40 */ u16 unk40;
+    /* 0x42 */ u16 unk42;
+    /* 0x44 */ s16 unk44;
+    /* 0x46 */ s16 unk46;
+    /* 0x48 */ s16 unk48;
+    /* 0x4A */ s16 unk4A;
+    /* 0x4C */ u8 unk4C[0xC];
+    /* 0x58 */ void (*unk58)(u8*, Misc16Work*);
+    /* 0x5C */ u8 unk5C[0xC];
+    /* 0x68 */ s16 unk68;
+    /* 0x6A */ s16 unk6A;
+    /* 0x6C */ u8 unk6C[8];
+    /* 0x74 */ u8 unk74;
+    /* 0x75 */ u8 unk75;
+    /* 0x76 */ u8 unk76;
+}; // Size: 0x77 (known extent)
 
 extern s32 D_80092834;
 extern s32 D_80092838;
@@ -33,6 +58,8 @@ extern s32 D_80092840;
 extern s32 D_80092844;
 
 extern s32 rand(void);
+
+Misc16Work* func_8008D3F4(s32 arg0, s16* arg1);
 
 void func_8008CED4(void) {
 }
@@ -115,14 +142,76 @@ void func_8008D580(Misc16Work* pWork) {
 }
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc16", func_8008D5C0);
+/* 98.19% - only the s1/s2 tie-break for pWork vs the loop counter differs.
+void func_8008D5C0(Misc16Work* pWork, s32 count) {
+    s32 i;
+    u8* pEntry;
+    void (*pInitEntry)(u8*, Misc16Work*);
+
+    if (pWork->unk10 != NULL) {
+        HeapDelayedFree(pWork->unk10, 3);
+    }
+    pWork->unkA = count;
+    HeapSetCurrentContentType(0x14);
+    pEntry = HeapAlloc(pWork->unkC * pWork->unkA, 0);
+    pInitEntry = pWork->unk58;
+    pWork->unk10 = pEntry;
+    for (i = 0; i < pWork->unkA; i++) {
+        pInitEntry(pEntry, pWork);
+        *(s16*)(pEntry + 6) = 0;
+        pEntry += pWork->unkC;
+    }
+}
+*/
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc16", func_8008D680);
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc16", func_8008D980);
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc16", func_8008D9F0);
+/* 91.14% - the sign-extend of the stored unkA is emitted before the store
+   instead of after it.  Three shapes (s16/int temporary, ternary, direct
+   field re-read) all give the same v0/v1 split.
+void func_8008D9F0(Misc16Work* pWork) {
+    s32 value;
+
+    if (pWork->unk2 > 0) {
+        s16 halved;
+
+        halved = -pWork->unkA / 2;
+        pWork->unkA = halved;
+        value = halved;
+        if (value < 0) {
+            value = -value;
+        }
+        if (value < 8) {
+            pWork->unk6 = 0;
+        }
+    }
+}
+*/
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc16", func_8008DA48);
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc16", func_8008DBC0);
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc16", func_8008DC28);
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc16", func_8008DCA8);
+/* 93.22% - the original materialises the 4 into v1 before the two 0x60
+   stores and stores it last; gcc rematerialises the literal at each store.
+   A source local holding 4 does not survive constant folding.
+void func_8008DC28(void) {
+    s16 four;
+    Misc16Work* pWork;
 
+    pWork = func_8008D3F4(1, NULL);
+    pWork->unk74 = 0xFF;
+    pWork->unk75 = 0xA0;
+    pWork->unk76 = 0x70;
+    func_8008D5C0(pWork, 0x100);
+    four = 4;
+    pWork->unk44 = 0x60;
+    pWork->unk4A = 0x60;
+    pWork->unk0 = four;
+    pWork->unk48 = four;
+    pWork->unk68 = 0;
+    pWork->unk6A = 0x20;
+    D_80092834 = (s32)pWork;
+}
+*/
 void func_8008DCA8(s32 arg0) {
     D_80092838 = arg0;
 }
