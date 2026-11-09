@@ -64,8 +64,30 @@ void func_800933EC(WorldMapPos* p) {
         p->z += D_8009D2B4 * 2048;
     }
 }
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_80093484);
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_80093534);
+void func_80093484(WorldMapPos* p) {
+    if (p->x < -0x4000000) {
+        p->x += D_8009D160 * 0x800000;
+    } else if (p->x > 0x4000000) {
+        p->x -= D_8009D160 * 0x800000;
+    }
+    if (p->z < -0x4000000) {
+        p->z += D_8009D2B4 * 0x800000;
+    } else if (p->z > 0x4000000) {
+        p->z -= D_8009D2B4 * 0x800000;
+    }
+}
+void func_80093534(WorldMapPos* p) {
+    if (p->x < -0x4000) {
+        p->x += D_8009D160 * 2048;
+    } else if (p->x > 0x4000) {
+        p->x -= D_8009D160 * 2048;
+    }
+    if (p->z < -0x4000) {
+        p->z += D_8009D2B4 * 2048;
+    } else if (p->z > 0x4000) {
+        p->z -= D_8009D2B4 * 2048;
+    }
+}
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_800935DC);
 /* best: 72.73%. Every instruction up to the division matches; the original has
    the zero-division and overflow trap guards (break 7 / break 6) that maspsx
