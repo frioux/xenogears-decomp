@@ -1020,6 +1020,12 @@ s16 (*func_801E34BC(s32 type))(s16, s16, s16) {
 // is right at 14 but the li moves to insn 5. Declaration order of the two
 // locals, a mid-block `s32 one = 1;` and bare/s16/u32 -1 forms all keep it at
 // 74.36%. Best parked shape is the one below (unk98 first).
+// Later: with the unk98 store placed just before `unk2B = 0`, `one` as a bare
+// literal at unk70[15] and `negOne` declared first, the whole 38-insn body lands
+// in the original's order except that `li v1,-1` sits at 6 instead of 0 (objdiff
+// 69.18% - positional scoring punishes the one-slot shift, the multiset is exact).
+// sched2 hoists the -1 load to right after `li v0,0x6B` in both shapes, so the
+// missing piece is sched2 keeping it at insn 0, not the source order.
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E3534);
 /*
 void func_801E3534(Model* pModel, s32 arg1, u32 arg2, u32 arg3) {
