@@ -122,3 +122,26 @@ build_variables = {
     maspsx_flags = "--dont-expand-li --use-comm-section --run-assembler"
 }
 paths = [ "world_map/" ]
+
+# battle/main/misc26..misc35 are addiu-dominant (`addiu $r,$zero,imm` counts
+# 17-117 vs 0-12 `ori`), while misc1..misc25 are the opposite (0 addiu, 43-153
+# ori). So one emitter boundary sits inside the overlay at function 625: the
+# tail was assembled by ASPSX >= 2.50, which leaves `li` to the assembler, and
+# maspsx must not expand it there. Same class as XenoWorldMap/XenoRendering.
+[[build_preset]]
+name = "XenoBattleTail"
+build_variables = {
+    maspsx_flags = "--dont-expand-li --use-comm-section --run-assembler"
+}
+paths = [
+    "battle/main/misc26.",
+    "battle/main/misc27.",
+    "battle/main/misc28.",
+    "battle/main/misc29.",
+    "battle/main/misc30.",
+    "battle/main/misc31.",
+    "battle/main/misc32.",
+    "battle/main/misc33.",
+    "battle/main/misc34.",
+    "battle/main/misc35."
+]
