@@ -8,6 +8,10 @@ extern u8 D_800D342E[];
 extern u8 D_800D3430[];
 extern u8 D_800D343F[];
 extern u16 D_8005A3A0[];
+extern u8 D_800CCE34[];
+extern u8 D_800CCE3E[];
+
+u8 func_8001BD40(int, u8);
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007B424);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007B4B8);
@@ -72,7 +76,13 @@ void func_8007BA04(u8 **p, u8 index) {
     pField[pArgs[2]] = pTable[pArgs[1]];
 }
 */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007BA44);
+void func_8007BA44(u8 **p, u8 index) {
+    u32 *pField32 = (u32 *)(D_800D3410 + index * 0x40);
+    u16 *pField = (u16 *)(D_800D3410 + 0x10 + index * 0x40);
+    u8 *pArgs = *p;
+
+    pField32[pArgs[2]] = pField[pArgs[1]];
+}
 void func_8007BA88(u8 index) {
     s32 i = 0xF;
     u8 *p = D_800D343F + index * 0x40;
@@ -89,12 +99,28 @@ void func_8007BAB8(u8 index) {
         *p-- = 0;
     }
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007BAE8);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007BB2C);
+void func_8007BAE8(u8 **p, u8 index) {
+    u8 *pArgs = *p;
+
+    *(u32 *)(D_800CCE34 + (index + 3) * 0x170) = pArgs[1] | (pArgs[2] << 8);
+}
+void func_8007BB2C(u8 **p, u8 index) {
+    u8 *pArgs = *p;
+
+    *(u16 *)(D_800CCE3E + (index + 3) * 0x170) = pArgs[1] | (pArgs[2] << 8);
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007BB70);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007BBD8);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007BC40);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007BC84);
+void func_8007BC40(u8 **p, u8 *pDest, u8 count) {
+    pDest[count * 8 + (*p)[1]] = (*p)[2];
+    pDest[count * 8 + (*p)[1] + 1] = (*p)[3];
+}
+void func_8007BC84(u8 **p, u8 index) {
+    u8 value = func_8001BD40(0, (*p)[2]);
+    u8 *pTable = D_800D3430 + index * 0x40;
+
+    pTable[(*p)[1]] = value;
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007BCE8);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007BD5C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007BEA8);
