@@ -3,11 +3,6 @@
 
 extern u_long *g_GpuCurTIMHandle;
 
-extern RECT D_8005A380;
-extern u_long D_8005A384;
-extern RECT D_8005A388;
-extern u_long D_8005A38C;
-
 extern u_long D_800569E8;
 extern u_long D_800569EC;
 
@@ -18,6 +13,9 @@ extern char D_800192A4[]; // "timaddr=%08x\n"
 extern int Vsync(int mode);
 
 extern int func_80047518(u_long *p, TIM_IMAGE *tim);
+
+extern void SetDQA(long dqa);
+extern void SetDQB(long dqb);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_c", func_8004668C);
 
@@ -102,6 +100,29 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_c", func_80047638);
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_c", func_800477D0);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_c", func_80048AB0);
+
+/* best 91.54%: gcc sinks the b division after a's shift and keeps b in s0
+void func_80048AB0(int x0, int x1, int h) {
+    int d;
+    long a;
+    long b;
+
+    d = x1 - x0;
+    if (d < 100)
+        return;
+
+    a = (-x0 * x1) / d;
+    b = (x1 << 12) / d;
+    a = (a << 8) / h;
+
+    if (a < -0x8000)
+        a = -0x8000;
+    if (a > 0x7FFF)
+        a = 0x7FFF;
+
+    SetDQA(a);
+    SetDQB(b << 12);
+} */
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_c", D_80048BBC);
 
