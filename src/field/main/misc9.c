@@ -526,15 +526,8 @@ void func_800AC03C(u_char* pDst, u_short* pSrc) {
     }
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc9", func_800AC0F0);
-/* 93.13% (528 bytes, same size as the original). Everything from the first
-   func_800ABFDC call to the epilogue is instruction-identical; only the block
-   layout around the `if (D_800AF780 > 0)` differs. The original branches
-   `bgtz` into the loop body (leaving the exit `j` and the `break` block
-   between the test and the body) and my C makes gcc lay the body out as the
-   fall-through with an inverted `blez`. Tried: `for` vs `while`, `line = 0`
-   before the guard, and a duplicated `line = 0` in an else arm (that one
-   flips the branch direction but adds 8 bytes).
+extern s32 D_800AF780;
+
 void* func_800AC0F0(void* pData, s32 x, s32 frameIndex) {
     u_char glyph[0x120];
     RECT rect;
@@ -558,8 +551,10 @@ void* func_800AC0F0(void* pData, s32 x, s32 frameIndex) {
     }
 
     index = 0;
-    line = 0;
-    if (D_800AF780 > 0) {
+    if (D_800AF780 <= 0) {
+        line = 0;
+    } else {
+        line = 0;
         while (line < 0x1C) {
             if (text[index] == 0xD) {
                 index++;
@@ -595,7 +590,6 @@ void* func_800AC0F0(void* pData, s32 x, s32 frameIndex) {
     D_800AF780 -= index;
     return (u_char*)pData + index;
 }
-*/
 
 extern int ArchiveDecodeAlignedSize(unsigned int entryIndex);
 extern void ArchiveReadFileToBuffer(s32 index, void* pBuffer, u32 arg2, u32 flags);
@@ -606,7 +600,6 @@ extern void* D_800AF76C;
 extern void* D_800AF774;
 extern s32 D_800AF778;
 extern s32 D_800AF77C;
-extern s32 D_800AF780;
 extern s32 D_800AF784;
 
 // Load the two archive files this effect needs
