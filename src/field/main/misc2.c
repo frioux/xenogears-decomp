@@ -616,11 +616,14 @@ extern s32 D_800ADBFC;
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_800752C8);
 // CARRIED FORWARD: 99.60%, code matches except $a1/$a2 (original: $a1 = FieldActor,
 // $a2 = ActorData; gcc gives ActorData $a1). Converting this function is blocked by
-// the unit's .rodata: D_8006FB28 ("CHAR      ") is the 4th of the nine strings in
-// asm/field/data/main/misc2.rodata.s... and C .rodata is linked before asm .rodata,
-// so this function can only become C after func_800739C0 (D_8006FB04),
-// FieldRenderModels (D_8006FB10) and func_8007520C (D_8006FB1C) are converted, in that
-// order. The constant below is the one the object needs.
+// the unit's .rodata: D_8006FB28 ("CHAR      ") is the 4th of the nine strings the
+// six stubs below own, and C .rodata is linked before asm .rodata, so a stub can only
+// become C as part of a PREFIX of that data region, starting at D_8006FB04:
+//   D_8006FB04 func_800739C0 (285 insns)  D_8006FB10 FieldRenderModels (575 insns)
+//   D_8006FB1C func_8007520C (48 insns)   D_8006FB28 func_800752C8 (101 insns)
+//   D_8006FB34..FB64 func_8007554C (293)  D_8006FB70 func_800759E4 (77 insns)
+// So this function needs the three above it in C first, and func_800759E4 needs all
+// five. The constant below is the one the object needs.
 /*
 // .rodata
 const char D_8006FB28[0xC] = "CHAR      ";
@@ -731,10 +734,11 @@ void func_80075910(void) {
 
 // This unit owns 0x8006FB04..0x8006FB80 of .rodata (0x7C bytes, per field.yaml):
 // nine 0xC-byte strings plus D_8006FB70 = VECTOR {0, 0, 0x1000, 0}. The strings
-// still come from asm/field/data/main/misc2.rodata.s, and C .rodata is linked
-// *before* it, so defining only the VECTOR here shifts the whole overlay by 0x10.
-// To put func_800759E4 in C, move the entire 0x7C region into C (in order, with
-// the D_8006FB04.. names kept) and drop the rodata range from config/field.yaml.
+// come from the five stubs above (each owns the dlabel at the top of its .s), and C
+// .rodata is linked *before* asm .rodata, so defining only the VECTOR here shifts
+// the whole overlay by 0x10. D_8006FB70 is the LAST piece of the region, so this
+// function only becomes C after all five owners above are converted, in address
+// order, each moving its own constant into C (see the note above func_800752C8).
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_800759E4);
 
 void func_80075B08(SpriteData* pSpriteData, u_char* pColor) {
