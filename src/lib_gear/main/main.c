@@ -1013,10 +1013,17 @@ s16 (*func_801E34BC(s32 type))(s16, s16, s16) {
     }
 }
 
-// objdiff 74.36%: all 39 instructions match in value and order; the only
-// difference is where gcc materialises the shared -1 for unk98/unk3A/unk1E.
-// The original hoists `li v1,-1` to the top of the function; holding -1 in a
-// local initialized first moves ours up to insn 6, not to the top.
+// objdiff 94.87%: 39 insns, same values and order. The only delta is the
+// `li v1,-1` that unk98/unk3A/unk1E share and the `sh v1,0x98` that uses it:
+// the original materialises -1 at insn 0 and stores at insn 15, ours either
+// stores immediately (when the unk98 statement comes first: 94.87%, store at
+// insn 8) or materialises at insn 5 instead (statement in place: 74.36%). So
+// the original hoists the multi-use constant load to the top of the function
+// without moving the store, which no source shape tried (literal -1, s32/s16/
+// register local, static const, masked variants) reproduces.
+// 94.87% shape, for the next attempt: it is this body with
+// `s32 negOne = -1;` first, then `pModel->unk98 = negOne;` as the first
+// statement, and no unk98 assignment later.
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E3534);
 /*
     void func_801E3534(Model* pModel, s32 arg1, u32 arg2, u32 arg3) {
