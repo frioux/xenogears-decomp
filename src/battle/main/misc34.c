@@ -11,6 +11,7 @@ extern s32 D_800C3CE8;
 extern s32 D_800D2D68;
 
 extern void func_800A9FF0(s32);
+s32 func_800BF720(void);
 extern void func_800BD2E4(void);
 extern void *func_800BFC80(void *, s32, s32);
 
@@ -35,12 +36,12 @@ void func_800BF6CC(void) {
     }
 }
 
-s32 func_800BF720(void) {
-    return D_800D2D68 != 0;
-}
-
 s32 func_800BF6F8(void) {
     return D_80059464 - func_800BF720();
+}
+
+s32 func_800BF720(void) {
+    return D_800D2D68 != 0;
 }
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800BF730);
