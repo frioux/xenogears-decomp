@@ -146,10 +146,14 @@ void func_80025180(void* pData) {
 
 // GfxQueueShapeTransfer
 // Add Image to current g_GfxImageList[g_GfxCurContext] linked list
+//
+// The C below is byte-identical (100.00%) under gcc-2.7.2-psx and 86.30% under
+// this unit's XenoGraphics preset, where the only difference is that cdk's gcc
+// loads the stack argument height (lw v1,0x10(sp)) inside the branch instead of
+// before the sltu. The function therefore came from a 2.7.2-psx TU that sits
+// inside this splat range; it cannot match until that range is split.
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_800251C8);
 /*
-Best 86.30%: identical instructions, but gcc inlines the height argument load
-(lw v1, 0x10($sp)) inside the branch instead of hoisting it above it.
 void func_800251C8(u_long* addr, int x, int y, int width, int height) {
     Image* pCurrent;
     Image* pNext;
@@ -290,11 +294,13 @@ void func_8002541C(WorkListEntry* pTask) {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_80025544);
 /*
-Best 89.57% (464 bytes against 460): same instruction set and order, but gcc
-sinks the `lhu` of pPrim->x0 below the `subu` that computes nWidth, where the
-original has it in the load-delay slot of the `lh`, so one nop stays unfilled
-and xOffset/prim end up in s3/s1 instead of s1/s3. Both x0 reads (signed for
-the width, unsigned for the centre) have to stay in the source.
+Best 89.57% (464 bytes against 460). cdk is the right compiler here: the same C
+scores 87.24% under gcc-2.7.2-psx, so this one is source-level. Two gaps: gcc
+sinks the `lhu` of pPrim->x0 - and the `lhu` of xOffset, which the original
+issues before the g_GfxCurWorkBuffer load - so the original fills a load-delay
+slot that gcc leaves as a nop, and xOffset/prim end up in s3/s1 instead of
+s1/s3. Both x0 reads (signed for the width, unsigned for the centre) have to
+stay in the source.
 void func_80025544(WorkListEntry* pTask) {
     SpriteData* pSpriteData;
     MATRIX* pMatrix;
