@@ -55,12 +55,14 @@ u_int func_80080968(ActorData* pActor) {
 extern u_short D_800B14AC;
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800809D0);
-/* 95.56%: while-form gives the right registers (value v1, step a1, acc a0) and
-   the right loop, but the original also adds value to acc once before the
-   loop, after a `move a0,zero`. gcc 2.7.2 folds any `acc = 0; acc += value;`
-   into `li acc,-0x14D000` (so the two-instruction preheader cannot be written
-   directly), and a do-while/guard form makes gcc hoist `value += step` into
-   the preheader instead (85%, wrong shape).
+/* 95.56%: the preheader (move a0,zero; sh D_800B14AC; addu a0,a0,v1) does
+   match -- the note that said gcc folds `acc = 0; acc += value` into
+   `li a0,-0x14D000` was wrong. The only residual is the position of
+   `value += step` in the loop: the original fills the counter's load-delay slot
+   with it (lhu; addu; addiu; sh), gcc 2.7.2 always emits it before the load and
+   leaves a nop (lhu; nop; addiu), so the function is 76 bytes against 72.
+   Source order of the two statements, a `u_short count = D_800B14AC` temporary
+   and `acc += (value += step)` all compile to the same thing.
 int func_800809D0(s32* pData) {
     s32 value = -0x14D000;
     s32 step = pData[7];
