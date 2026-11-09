@@ -1239,3 +1239,57 @@ used to finish the gate. If a whole round is running, either serialise the final
 `check_bin.sh` per worker or build with `NUMPROC=2`/`3`; the build is correct at
 any `-j`, only the memory ceiling differs.
 
+# Session 5 post-mortem: where the time actually went
+
+Written because the round notifications looked like duplicated effort. They were
+not - but three real things were, and only one of them is mine to fix.
+
+## The duplicate notices were harness noise, not duplicated work
+
+`pi-subagents` re-delivers the failure notice of a superseded run every time its
+`resume` run finishes, and again as `subagent_control_notice` pings. Round 43
+produced ~40 of them for 14 children. No decompilation was repeated: each clone
+owns one `.c` file, clones are reset between rounds, and every merge was clean.
+The cost was conversation turns, and the right response after the second one was
+to ignore them (or `interrupt` the run - that path reports "no running async run"
+once the run is terminal, so it cannot be silenced from the orchestrator).
+
+## Per-worker yield, which is the number that matters
+
+| round | workers | matches | per worker | timeouts |
+|---|---|---|---|---|
+| 38 | 8 | +72 | 9.0 | 0 |
+| 39 | 14 | +97 | 6.9 | 9 |
+| 40 | 14 | +121 | 8.6 | 13 |
+| 41 | 14 | +92 | 6.6 | 1 |
+| 42 | 14 | +69 | 4.9 | 0 |
+| 43 | 14 | +31 | **2.2** | 13 |
+
+Timeouts do **not** predict low yield - round 40 timed out 13 of 14 and was the
+best round of the session, because a `resume` that only commits is cheap and the
+work was already in the tree. So "recovery ate the round" (which I wrote into the
+round-43 note) was wrong. What killed round 43 was three infrastructure hits in
+one 30-minute window: (a) a mid-round preset discovery that forced nine workers to
+edit `gears.toml`, rebuild `build.ninja` and re-diff everything, (b) one worker
+running `docker ps -q | xargs docker kill` and killing five other trees' builds,
+(c) `check_bin.sh` OOM-killing the 8 GiB VM at `ninja -j12`.
+
+## The one self-inflicted waste
+
+Round 43 briefed nine `battle` units as "Default preset" **one round after**
+codifying that `addiu`-vs-`ori` decides a unit's maspsx flags for `world_map`.
+Two greps would have caught it; instead nine workers each discovered it
+independently and the round scored 2.2 per worker against a 5-9 baseline. Call it
+60-80 missed matches. Fixed twice over: `tools/scripts/preflight.sh` prints the
+implied preset per unit, and the brief now says to run it before a round.
+
+## What was not waste but looked like it
+
+- Second passes on units with parked attempts (rounds 41-43) yielded 1-3 matches
+  per worker, which is what 95-99% allocator ties are worth. They were correctly
+  deprioritised, not wasted.
+- The overlay setups (world_map/battle/menu/movie) cost about 40 minutes of
+  worker time and produced 1583 new functions - 502 matches so far at a rate 3x
+  the saturated pools.
+- I reset and synced 14 clones for a round 44 I did not launch: ~2 minutes.
+
