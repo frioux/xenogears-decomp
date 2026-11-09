@@ -385,10 +385,19 @@ int func_80033CD0(SystemString* pString) {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/system", func_80033CF0);
 
-/* Best attempt, 87.46%: everything matches except that gcc rotates the scan
-   loop (it removes the top exit test and duplicates it at the bottom). Source
-   order and register allocation are exact - the loop form is what is wrong;
-   while+break, while with &&, for(;;) and do/while all rotate the same way.
+/* Best attempt, 92.98%. Every instruction is right except two entry-block
+   ordering details:
+   - gcc emits the `move v1,a0` (copy of value out of a0, which pDigit reuses)
+     two insns earlier than the original does.
+   - `pScanEnd = pScan + 10` is folded to `addiu v1,v0,-2` (off pEnd) and
+     hoisted above the `andi`/`bne`; the original keeps a runtime `addiu v1,a0,20`
+     after the branch. Assigning pScanEnd inside the if fixes that insn but then
+     gcc puts the D_8005A0DE address in v1 instead of v0, and reorg steals
+     `sh a1,-22(v0)` into the branch delay slot (the taken path writes v0), for
+     92.96%.
+   The scan loop itself only matches in this shape: while/break, while with &&
+   and do/while are all rotated by loop.c; two gotos to a label after the block
+   stop the rotation.
 void func_80033CF0(int value, int glyphOffset, int flag) {
     u32 divisor = 1000000000;
     u16* pDigit = D_8005A0CA;
@@ -423,9 +432,17 @@ void func_80033CF0(int value, int glyphOffset, int flag) {
     pScanEnd = pScan + 10;
 
     if ((glyphOffset & 0xFFF0) == glyphOffset) {
-        while (pScan != pScanEnd && *++pScan != glyphOffset) {
+        for (;;) {
+            if (pScan == pScanEnd) {
+                goto scanDone;
+            }
+            pScan++;
+            if (*pScan != glyphOffset) {
+                goto scanDone;
+            }
         }
     }
+scanDone:
 
     if (sign != 0) {
         *--pScan = sign + glyphOffset;
