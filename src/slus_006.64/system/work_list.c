@@ -400,6 +400,57 @@ void func_8001D2A4(void) {
 
 // Change Sprite Animation Frame maybe?
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/work_list", func_8001D2B0);
+/* Best: 97.28% (same insns, same frame, 328 vs 320 bytes). Every branch, delay
+   slot and store order matches; the only difference is that the list cursor in
+   the search loop lands in v0 here and v1 in the original (which rotates the two
+   lui/addiu address constants into v1/a0 instead of v0/a0), plus one extra word.
+   field_0x40 is tested with shift-and-mask (srl/andi) in the original, so write
+   (x >> 20) & 1 rather than x & 0x100000; curSpriteFrame is read as u16 (lhu).
+   Reading the old head into a local pOldHead and storing it last reproduces the
+   original's tail store order (0x34, head, 0x40, 0x38).
+void func_8001F8E8(SpriteData* pSpriteData, s32 index, void* pAnimPackage);
+void func_800234AC(SpriteData* pSpriteData);
+extern u8 D_8005A474[];
+extern u8 D_8006BE10[];
+
+void func_8001D2B0(SpriteData* pSpriteData, u16 animFrame) {
+    SpriteData* pOldHead;
+    SpriteData* pCurSpriteData;
+
+    if ((pSpriteData->field_0x3C_0 & 3) != 1) {
+        pSpriteData->curSpriteFrame = 0;
+        return;
+    }
+    if ((pSpriteData->field_0x40 >> 20) & 1) {
+        pSpriteData->field_0x40 &= ~0x100000;
+        if (pSpriteData->pBase->pDirTransforms != NULL) {
+            func_800234AC(pSpriteData);
+        }
+    }
+    if ((pSpriteData->field_0x40 >> 17) & 1) {
+        pCurSpriteData = D_80059190;
+        while (pCurSpriteData != NULL) {
+            if (pCurSpriteData == pSpriteData) {
+                if (
+                    pSpriteData->pVramData != &D_8005A474[0] &&
+                    pSpriteData->pVramData != &D_8006BE10[0] &&
+                    ((pSpriteData->field_0x40 >> 19) & 1) == 0
+                ) {
+                    func_8001F8E8(pSpriteData, *(u16*)&pSpriteData->curSpriteFrame, pSpriteData->pVramData);
+                }
+                pSpriteData->curSpriteFrame = animFrame;
+                return;
+            }
+            pCurSpriteData = pCurSpriteData->pBase->pNextSpriteData;
+        }
+    }
+    pOldHead = D_80059190;
+    pSpriteData->curSpriteFrame = animFrame;
+    D_80059190 = pSpriteData;
+    pSpriteData->field_0x40 |= 0x20000;
+    pSpriteData->pBase->pNextSpriteData = pOldHead;
+} */
+
 
 // Unlink SpriteData entry from list
 void func_8001D3F4(SpriteData* pSpriteData) {
