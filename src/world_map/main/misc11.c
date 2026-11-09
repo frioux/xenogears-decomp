@@ -18,7 +18,8 @@ typedef struct {
     /* 0x3C */ u32 unk3C;
     /* 0x40 */ s32 unk40;
     /* 0x44 */ undefined32 unk44;
-    /* 0x48 */ undefined32 unk48;
+    /* 0x48 */ s16 unk48;
+    /* 0x4A */ s16 unk4A;
     /* 0x4C */ void *unk4C;
     /* 0x50 */ s32 unk50;
     /* 0x54 */ void *unk54;
@@ -66,6 +67,9 @@ extern s32 func_8008C364(WorldMapActor *, s32);
 extern void func_80089160(s32, void *, void *);
 extern void func_800894C8(s32);
 extern s16 func_80093F18(void *);
+extern s32 func_80093978(s32, s32);
+extern void *D_8009BDFC[];
+extern void *D_8009BE00[];
 extern void *func_80024524(void *, s16, s16, s16, s16, s16);
 extern void func_800245D8(void *, s32);
 extern void SpriteSetScale(void *, s16);
@@ -163,7 +167,24 @@ int func_8008C6EC(int index) {
     return result;
 }
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008C75C);
+int func_8008C75C(int index) {
+    WorldMapActor *pActor = &D_8009BE24[index];
+
+    pActor->unk4C = func_80024524(D_8009BDF8[0], 0x100, 0x1FD, 0x140, 0x140, 0x40);
+    func_800245D8(pActor->unk4C, 0);
+    SpriteSetScale(pActor->unk4C, 0x2000);
+    *(u32 *)((u8 *)pActor->unk4C + 0x3C) &= ~4;
+    pActor->unk28 = g_GameState.unk1930[0x16] << 12;
+    pActor->unk30 = g_GameState.unk1930[0x17] << 12;
+    pActor->unk2C = func_80093978(pActor->unk28, pActor->unk30);
+    pActor->unk24 = 1;
+    pActor->unk40 = 0;
+    pActor->unk3C = 0;
+    pActor->unk38 = 0;
+    pActor->unk4A = 0xC;
+    pActor->unk48 = *(u16 *)&g_GameState.unk1826[0];
+    return 1;
+}
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008C844);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008D3F0);
 
@@ -183,7 +204,24 @@ int func_8008D520(int index) {
     return result;
 }
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008D590);
+int func_8008D590(int index) {
+    WorldMapActor *pActor = &D_8009BE24[index];
+
+    pActor->unk4C = func_80024524(D_8009BDFC[0], 0x100, 0x1FC, 0x160, 0x140, 0x40);
+    func_800245D8(pActor->unk4C, 0);
+    SpriteSetScale(pActor->unk4C, 0x2000);
+    *(u32 *)((u8 *)pActor->unk4C + 0x3C) &= ~4;
+    pActor->unk28 = g_GameState.unk1930[0x19] << 12;
+    pActor->unk30 = g_GameState.unk1930[0x1A] << 12;
+    pActor->unk2C = func_80093978(pActor->unk28, pActor->unk30);
+    pActor->unk24 = 1;
+    pActor->unk40 = 0;
+    pActor->unk3C = 0;
+    pActor->unk38 = 0;
+    pActor->unk4A = 0xC;
+    pActor->unk48 = *(u16 *)&g_GameState.unk1826[2];
+    return 1;
+}
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008D678);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008DD6C);
 int func_8008DE9C(int index) {
@@ -201,4 +239,21 @@ int func_8008DE9C(int index) {
     }
     return result;
 }
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008DF0C);
+int func_8008DF0C(int index) {
+    WorldMapActor *pActor = &D_8009BE24[index];
+
+    pActor->unk4C = func_80024524(D_8009BE00[0], 0x100, 0x1FB, 0x280, 0x100, 0x40);
+    func_800245D8(pActor->unk4C, 0);
+    SpriteSetScale(pActor->unk4C, 0x2000);
+    *(u32 *)((u8 *)pActor->unk4C + 0x3C) &= ~4;
+    pActor->unk28 = g_GameState.unk1930[0x1C] << 12;
+    pActor->unk30 = g_GameState.unk1930[0x1D] << 12;
+    pActor->unk2C = func_80093978(pActor->unk28, pActor->unk30);
+    pActor->unk24 = 1;
+    pActor->unk40 = 0;
+    pActor->unk3C = 0;
+    pActor->unk38 = 0;
+    pActor->unk4A = 0xC;
+    pActor->unk48 = *(u16 *)&g_GameState.unk1826[4];
+    return 1;
+}
