@@ -57,7 +57,7 @@ compile() { # gcc opt gp cpu maspsx
     docker run --rm -i --platform=linux/amd64 -v"$PWD":/xenogears-decomp ethos:latest /bin/bash -c '
         . /.venv/bin/activate
         set -e
-        mips-linux-gnu-cpp -Iinclude -I build $1 -o build/.try_flags.i "src/$2.c"
+        mips-linux-gnu-cpp -Iinclude -I build -DSKIP_ASM $1 -o build/.try_flags.i "src/$2.c"
         "tools/$3/cc1" $4 $5 $(echo $6 | sed "s/-mcpu=[^ ]*//") -o build/.try_flags.s build/.try_flags.i
         python3 tools/maspsx/maspsx.py $7 $8 -Iinclude -I build $4 $5 -march=$9 -mtune=$9 \
             -no-pad-sections -o build/.try_flags.o build/.try_flags.s >/dev/null 2>&1' -- \
