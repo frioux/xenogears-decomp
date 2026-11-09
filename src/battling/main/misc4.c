@@ -15,11 +15,37 @@ extern u8 D_80099DA1;
 extern u8 D_80099DA2;
 
 extern void func_800732CC(void);
+extern void func_80073B7C();
+extern void func_8007C100();
+extern s32 func_8007CD44();
+extern void func_8007D190();
+extern void func_8007D7A8();
+extern void func_8007DC74();
+extern s32 func_80082488();
+extern u32 func_800828C4();
+extern void func_800828F8();
+extern void func_800776A8();
+extern s32 func_80083CD8();
 extern void func_80088AF8(void);
 extern void func_8008DC28(void);
+extern void func_8008EBD0();
+extern void func_8008EB88();
+extern void func_8008ED6C();
 
+typedef struct ActorScript ActorScript;
 typedef struct ActorPart ActorPart;
 typedef struct Actor Actor;
+
+// Layout recovered from the offsets this unit touches; only those are known.
+struct ActorScript {
+    /* 0x0 */ u8 unk0;
+    /* 0x1 */ u8 unk1;
+    /* 0x2 */ u8 unk2;
+    /* 0x3 */ u8 unk3;
+    /* 0x4 */ s16 unk4;
+    /* 0x6 */ s16 unk6;
+    /* 0x8 */ s16 unk8;
+}; // Size: unknown
 
 // Layout recovered from the offsets this unit touches; only those are known.
 struct ActorPart {
@@ -32,18 +58,87 @@ struct ActorPart {
 }; // Size: unknown
 
 struct Actor {
-    /* 0x00 */ s32 unk0;
-    /* 0x04 */ s32 unk4;
-    /* 0x08 */ s32 unk8;
-    /* 0x0C */ u8 pad0C[0x48];
-    /* 0x54 */ s32 unk54;
-    /* 0x58 */ u8 pad58[0x4];
-    /* 0x5C */ ActorPart* unk5C;
+    /* 0x000 */ s32 unk0;
+    /* 0x004 */ s32 unk4;
+    /* 0x008 */ s32 unk8;
+    /* 0x00C */ u8 pad0C[0x4];
+    /* 0x010 */ s32 unk10;
+    /* 0x014 */ s32 unk14;
+    /* 0x018 */ s32 unk18;
+    /* 0x01C */ u8 pad1C[0x38];
+    /* 0x054 */ s32 unk54;
+    /* 0x058 */ u8 pad58[0x4];
+    /* 0x05C */ ActorPart* unk5C;
+    /* 0x060 */ u8 pad60[0x50];
+    /* 0x0B0 */ s32 unkB0;
+    /* 0x0B4 */ u8 padB4[0x10];
+    /* 0x0C4 */ u8 unkC4;
+    /* 0x0C5 */ u8 unkC5;
+    /* 0x0C6 */ u8 unkC6;
+    /* 0x0C7 */ u8 padC7[0x9];
+    /* 0x0D0 */ u32 unkD0;
+    /* 0x0D4 */ u32 unkD4;
+    /* 0x0D8 */ u8 padD8[0x824];
+    /* 0x8FC */ ActorScript* unk8FC;
+    /* 0x900 */ u8 pad900[0xA];
+    /* 0x90A */ u8 unk90A;
+    /* 0x90B */ u8 unk90B;
+    /* 0x90C */ u8 pad90C[0x20];
+    /* 0x92C */ s32 unk92C;
+    /* 0x930 */ s32 unk930;
+    /* 0x934 */ s32 unk934;
+    /* 0x938 */ s32 unk938;
+    /* 0x93C */ s32 unk93C;
+    /* 0x940 */ s32 unk940;
+    /* 0x944 */ s32 unk944;
+    /* 0x948 */ u8 pad948[0x4];
+    /* 0x94C */ s32 unk94C;
+    /* 0x950 */ s32 unk950;
+    /* 0x954 */ s32 unk954;
+    /* 0x958 */ u8 pad958[0x4];
+    /* 0x95C */ s32 unk95C;
+    /* 0x960 */ s32 unk960;
+    /* 0x964 */ u8 pad964[0x8];
+    /* 0x96C */ s16 unk96C;
+    /* 0x96E */ s16 unk96E;
+    /* 0x970 */ u8 pad970[0xC64];
+    /* 0x15D4 */ u8 unk15D4;
 }; // Size: unknown
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_80078920);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_80078D20);
+void func_80078D20(Actor* p) {
+    s32 tmp[4]; // unused: reproduces the original's 0x10-byte frame slot
+
+    p->unkB0 = func_80082488(p, 1);
+    p->unkD0 = (p->unkD0 & 0x9FFFFFFF) | (((func_800828C4(p) >> 24) & 3) << 29);
+    if ((p->unkD0 & 0x60000000) == 0x60000000) {
+        p->unk90B = 0xF;
+    }
+    func_800828F8(p, &p->unk10, 0x3E80);
+    p->unkD0 &= 0xFFFBFFFF;
+    if (p->unkB0 < p->unk4 + p->unk14) {
+        p->unkD0 |= 0x40000;
+        if (p->unkC4 == 4) {
+            if (!(p->unkD4 & 0x10)) {
+                func_8008EBD0(p, 0xD, p, 2);
+                func_800776A8(p, 6);
+            }
+            p->unkD4 |= 0x10;
+            if (p->unk14 >= 0x40) {
+                p->unk14 = -p->unk14 / 3;
+            } else {
+                p->unk14 = 0;
+            }
+        } else {
+            p->unk14 = 0;
+        }
+        p->unk4 = p->unkB0;
+    }
+    p->unk0 += p->unk10;
+    p->unk4 += p->unk14;
+    p->unk8 += p->unk18;
+}
 
 void func_80078E94(Actor* p) {
     p->unk5C->unk34 = p->unk0;
@@ -75,6 +170,106 @@ void func_80078ED4(UnkStruct1* p) {
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_80078F00);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_8007920C);
+
+/* Best attempt: 98.96%. Only the register names of the p->unkC4 state block and
+   the trailing p->unkD0/p->unkC6 update differ (mask in v1 vs a0).
+void func_8007920C(Actor* p) {
+    ActorScript* pScript = p->unk8FC;
+    s32 pos[3][4];
+    s32 flag;
+    s32 state;
+
+    func_80073B7C(p, pScript->unk1, pScript->unk4, pos[0]);
+    func_80073B7C(p, pScript->unk2, pScript->unk6, pos[1]);
+    p->unk93C = (pos[0][0] + pos[1][0]) / 2;
+    p->unk940 = (pos[0][1] + pos[1][1]) / 2;
+    p->unk944 = (pos[0][2] + pos[1][2]) / 2;
+
+    if ((p->unkD0 & 0x80000) && (p->unkD0 & 0x60000000) != 0x20000000 && !(p->unk90A & 1)) {
+        func_8007D190(pos[0], 9);
+        func_8007D190(pos[1], 9);
+    }
+
+    if (p->unk90B != 0) {
+        if (pos[0][1] + 0x40 > p->unkB0 - 0x20) {
+            if (p->unk96E + 6 < pos[0][1]) {
+                func_8007D7A8(pos[0], 0x20);
+            }
+        }
+        if (pos[1][1] + 0x40 > p->unkB0 - 0x20) {
+            if (p->unk96C + 6 < pos[1][1]) {
+                func_8007D7A8(pos[1], 0x20);
+            }
+        }
+        p->unk90B--;
+    }
+
+    if ((p->unkD0 & 0x60000000) == 0x20000000) {
+        func_8007DC74(&p->unk93C, &p->unk95C);
+    }
+
+    if (func_80083CD8() != 7 && (p->unkD0 & 0x60000000) == 0x20000000 && p->unk940 >= 0x81 &&
+        p->unk960 < 0x80) {
+        func_8008EB88(p, 0x3A, &p->unk93C, 2);
+    }
+
+    p->unk96E = pos[0][1];
+    p->unk96C = pos[1][1];
+    func_80073B7C(p, pScript->unk0, pScript->unk8, &p->unk92C);
+
+    p->unk930 -= 0x38;
+    p->unk94C = (p->unk93C + p->unk92C) / 2;
+    p->unk954 = (p->unk944 + p->unk934) / 2;
+    p->unk950 = (p->unk940 + p->unk930) / 2;
+
+    if ((p->unkD0 & 0x8000) && p->unkC5 == 0 && (p->unkC4 & 1)) {
+        func_8007C100(&p->unk15D4);
+        flag = (p->unkD0 >> 27) & 1;
+        func_8007CD44(flag, &p->unk92C, &p->unk93C, flag);
+        if (!(p->unkD0 & 0x10000)) {
+            func_8008ED6C(p, 8);
+            func_8008EBD0(p, 8, &p->unk93C, 2);
+        }
+    }
+
+    if (p->unkC5 != 4) {
+        if (p->unkC4 != 1) {
+            p->unkD4 &= ~3;
+        } else {
+            p->unkD4 = (p->unkD4 & ~3) | 1;
+            if (p->unkD0 & 0x8000) {
+                p->unkD4 = (p->unkD4 & ~3) | 2;
+            }
+        }
+        if (p->unkC5 == 2) {
+            p->unkD4 |= 3;
+        }
+    }
+
+    state = p->unkD4 & 3;
+    if (state != ((p->unkD4 >> 2) & 3)) {
+        switch (state) {
+        case 0:
+        case 3:
+            func_8008ED6C(p, 7);
+            func_8008ED6C(p, 9);
+            break;
+        case 1:
+            func_8008EBD0(p, 7, p, 2);
+            func_8008ED6C(p, 9);
+            break;
+        case 2:
+            func_8008EBD0(p, 9, &p->unk93C, 2);
+            func_8008ED6C(p, 7);
+            break;
+        }
+    }
+
+    p->unkD0 = (p->unkD0 & 0xFFFEFFFF) | (((p->unkD0 >> 15) & 1) << 16);
+    p->unkC6 = p->unkC4;
+    p->unkD4 = (p->unkD4 & 0xFFFFFFF3) | ((p->unkD4 & 3) << 2);
+}
+*/
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_800796B8);
 
