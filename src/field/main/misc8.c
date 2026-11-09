@@ -57,9 +57,10 @@ extern u_short D_800B14AC;
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800809D0);
 /* 95.56%: while-form gives the right registers (value v1, step a1, acc a0) and
    the right loop, but the original also adds value to acc once before the
-   loop. Writing `acc = 0; acc += value;` before the loop makes gcc fold the
-   add into a second copy of the constant and move acc to a1, so the extra
-   `addu a0,a0,v1` is missing here.
+   loop, after a `move a0,zero`. gcc 2.7.2 folds any `acc = 0; acc += value;`
+   into `li acc,-0x14D000` (so the two-instruction preheader cannot be written
+   directly), and a do-while/guard form makes gcc hoist `value += step` into
+   the preheader instead (85%, wrong shape).
 int func_800809D0(s32* pData) {
     s32 value = -0x14D000;
     s32 step = pData[7];
