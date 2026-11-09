@@ -129,6 +129,38 @@ s32 func_80096328(void) {
 }
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc14", func_800963E4);
+/* 81.41%: bubble pass with a swap. The instruction multiset is already
+   identical; gcc only folds the pCur->y / pCur->z addresses into an extra
+   base register (a1+8) instead of reusing the pNext pointer with -8 and -4
+   offsets, and keeps one more address register than the original. Both
+   declaration orders and a plain struct-swap temp were tried.
+void func_800963E4(SVec* pList) {
+    SVec* pCur = pList;
+    SVec* pNext = pList + 1;
+    s32 tmp[3];
+
+    while (pNext->x != 0) {
+        if (pCur->x > (u32)pNext->x) {
+            tmp[0] = pCur->x;
+            tmp[1] = pCur->y;
+            tmp[2] = pCur->z;
+            pCur->x = pNext->x;
+            pCur->y = pNext->y;
+            pCur->z = pNext->z;
+            pNext->x = tmp[0];
+            pNext->y = tmp[1];
+            pNext->z = tmp[2];
+            if (pList < pCur) {
+                pCur--;
+                pNext--;
+            }
+        } else {
+            pCur++;
+            pNext++;
+        }
+    }
+}
+*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc14", func_800964B0);
 s32 func_800965A4(void) {
     s32 index = D_8009BE44;
