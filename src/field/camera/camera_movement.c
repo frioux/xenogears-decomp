@@ -110,6 +110,14 @@ INCLUDE_ASM("asm/field/nonmatchings/camera/camera_movement", func_8008FC4C);
    Also tried a `s16* pMode = &g_FieldCameraMode;` local with the == 0 branch
    first (42.34%: gcc folds the pointer back to the symbol and, with case 0
    listed first, emits a jump table instead of the beq/slti/bnez chain).
+   New: a `s16* pMode = &g_FieldCameraMode;` local with the deref INSIDE the
+   switch (`switch (*pMode)`, not an if chain) and case 0 listed first does emit
+   the beq/slti/bnez chain - the jump table seen earlier came from the if/else
+   form - but it is still 63.33% and the same 224 bytes as the attempt below.
+   The missing 20 bytes are exactly the s0 save/restore plus one lui/addiu:
+   here reload rematerialises the symbol address at each of its three uses, so
+   the unblocking form probably makes the address a runtime value (a pointer
+   from memory) rather than a bare constant. Case order is a red herring.
 void func_8008FC4C(void) {
     s32 value;
 
