@@ -202,6 +202,11 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libapi", SysEnqIntRP);
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libapi", SysDeqIntRP);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libapi", EnablePAD);
+/*
+Best 0%: a hand-written tail jump through the patch hook in .bss
+(lui/lw into t1, jr t1, no $ra save). gcc 2.7.2 will not sibcall through a
+function pointer -- every C spelling tested gives a full frame plus jalr.
+*/
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libapi", func_80040B00);
 
