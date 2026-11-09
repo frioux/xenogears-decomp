@@ -1,16 +1,27 @@
 #include "common.h"
+#include "psyq/libgpu.h"
 
 extern s32 D_80092790;
 extern s32 D_800927AC;
 extern s32* D_800928DC;
+extern u8 D_800928A0;
 
 typedef struct {
     /* 0x0 */ u8 unk0[0x8];
 } Unk8; // Size: 0x8
 
+typedef struct {
+    /* 0x0 */ s32 unk0[4];
+} Unk16; // Size: 0x10
+
 extern Unk8 D_80092768;
+extern Unk16 D_8009871C;
+extern Unk16 D_8009867C;
 
 extern s32 func_8008AC0C();
+extern void func_80080D20(void* p);
+extern void func_8008AE1C(u8* p);
+extern void func_80086E24(void);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc9", func_80082178);
 
@@ -58,9 +69,21 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc9", func_8008369C);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc9", func_80083738);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc9", func_80083B54);
+void func_80083B54(Unk16* p0, Unk16* p1) {
+    *p0 = D_8009871C;
+    *p1 = D_8009867C;
+}
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc9", func_80083BB4);
+void func_80083BB4(s32 arg) {
+    RECT rect;
+
+    rect.x = 0;
+    rect.y = 0;
+    rect.w = arg ? 0x280 : 0x140;
+    rect.h = 0x1E0;
+    ClearImage(&rect, 0, 0, 0);
+    DrawSync(0);
+}
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc9", func_80083C0C);
 
@@ -76,7 +99,18 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc9", func_800840CC);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc9", func_800846A0);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc9", func_800849E0);
+s32 func_800849E0(u8* p) {
+    u8* p2;
+    void* p3;
+
+    p2 = *(u8**)(p + 0x284);
+    func_8008AC0C(p2);
+    p3 = *(void**)(p2 + D_800928A0 * 4 + 4);
+    func_80080D20(p3 + 4);
+    func_8008AE1C(p2);
+    func_80086E24();
+    return 0;
+}
 
 s32 func_80084A40(u8* p) {
     return func_8008AC0C(*(s32*)(p + 0x284));
