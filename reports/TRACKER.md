@@ -538,3 +538,41 @@ convertible stubs at once. `config/slus_006.64.yaml` has the extra `c` segment a
 edit; the only care needed is that the new file's `INCLUDE_ASM` path must name the
 new nonmatchings directory (`nonmatchings/psyq/libgte_b`), because splat generates
 the `.s` files per yaml segment.
+| 30 | 12 workers: libgte (A), libgte_b, sound, lib_gear, rendering, temp1+animation_scripts, archive, virtual_machine, misc12, temp2, misc6 | +11 | 1987 | **libgte_b 7 (the GTE wall broke)**, libgte 3, animation_scripts 1; sound timed out with a live 59% body which I reverted |
+
+### The two tricks that broke the GTE wall (round 30)
+
+`libgte_b.c` had nine stubs parked at 88-92% with the note "maspsx inserts an extra
+nop". Both causes are now known and general:
+
+1. **maspsx's load-reuse heuristic, not the macro revision.** In
+   `lwc2 $6,0($a1)` followed by `mtc2 $6,$8`, maspsx decides the `mtc2` reads the
+   COP2 register the `lwc2` just loaded and inserts a real `nop` between them.
+   Spelling the GPR as `$a2` (`gte_lddp_a2`, identical encoding) hides the collision.
+   That alone matched `NormalColorDpq`, `ColorDpq`, `DpqColorLight`.
+2. **Stack-passed output pointers read at the point of use** through an `"m"`
+   operand on the incoming stack slot (`gte_strgb3_stack`, `gte_strgb3_gpr_stack`,
+   `gte_lddp_stack`) bypass cc1's mandatory entry-block copy of a stack argument.
+   That matched the `*3` family: `NormalColor3`, `NormalColorCol3`,
+   `NormalColorDpq3`, `DpqColor3`.
+3. A third, from `libgte.c`'s worker: when retail ends a function with `move v0,a2;
+   jr ra; nop` and gcc's reorg steals the copy into the delay slot, **fuse the
+   return-value copy into a final `asm volatile` block together with the `swc2`
+   stores** - volatile asm is not delay-slot eligible. That matched `ApplyMatrix`
+   and `ApplyRotMatrix`. `ApplyMatrixLV` is the opposite: retail has the copy *in*
+   the delay slot there, so it wants the plain `return` form.
+
+`LoadAverageByte` matched with three new file-local macros (`gte_ldbv_gpr_lo/hi`,
+`gte_stbv_gpr_stack`). Still open in libgte: `CompMatrix`, `ApplyMatrixLV`,
+`SetMulMatrix` (the 5x `lw`-into-`$8`-`$12` ctc2 chain), `LoadAverageCol`,
+`MulMatrix*`, `RotAverageNclip4`, `TransposeMatrix`, and `InitGeom`/`SquareRoot0`
+(need `mfc0/mtc0` and a table respectively).
+
+### Process: two 30-minute timeouts cost 4 functions
+
+Four workers this session reached ~100% or converted a function and then died
+without committing: `WorkListAddTask`, `func_80095CC4` (95.95%), a 59% live body
+left in `sound.c`, and `SystemRenderStringEntry`. `clone.sh merge` would happily
+commit a partial body, so the integration step now is: check `git status` in each
+clone, `git checkout -- .` any clone with uncommitted changes, then merge. Workers
+are told to commit after every single match and to write by minute 20.
