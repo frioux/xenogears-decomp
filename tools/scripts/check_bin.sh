@@ -22,10 +22,10 @@ cd "$(dirname "$0")/../.."
 
 case $name in
     slus_006.64) out=build/out/slus_006.64 ;;
-    field | battling | member_change_menu | shop_menu | gear_shop_menu | lib_gear)
+    field | battling | menu | member_change_menu | shop_menu | gear_shop_menu | lib_gear)
         out=build/out/$name.bin ;;
     *)
-        echo "unknown output '$name' (want slus_006.64, field, battling, member_change_menu, shop_menu, gear_shop_menu, lib_gear)" >&2
+        echo "unknown output '$name' (want slus_006.64, field, battling, menu, member_change_menu, shop_menu, gear_shop_menu, lib_gear)" >&2
         exit 2
         ;;
 esac
