@@ -133,8 +133,6 @@ void func_80021D3C(SpriteData* pSpriteData, s32 x, s32 z) {
     pSpriteData->position.x = x << 16;
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/animation_scripts", func_80021D50);
-
 // Animation state copied in and out of a script suspension record (see func_80021D50).
 typedef struct {
     /* 0x0  */ s32 positionX;
@@ -154,6 +152,38 @@ typedef struct {
     /* 0x2A */ u16 field_0x2C;
     /* 0x2C */ u16 field_0x82;
 } SpriteAnimState; // Size: 0x30
+
+extern s32 D_80059198;
+extern void AnimScriptTick(SpriteData* pSpriteData);
+extern void func_800245D8(SpriteData* pSpriteData, s32 animId);
+
+void func_80021D50(SpriteData* pSpriteData, SpriteAnimState* pState) {
+    s32 savedRenderContext = D_80059198;
+
+    D_80059198 = 0;
+    pSpriteData->field_0x80 = pState->field_0x80;
+    *(u8*)((u8*)pSpriteData + 0xAF) = *(u8*)((u8*)pState + 0x14);
+    *(u8*)((u8*)pSpriteData + 0xB0) = *(u8*)((u8*)pState + 0x16);
+    pSpriteData->pBase->scale.x = pState->scaleX;
+    pSpriteData->pBase->scale.y = pState->scaleY;
+    pSpriteData->pBase->scale.z = pState->scaleZ;
+    pSpriteData->field_0x82 = pState->field_0x82;
+    pSpriteData->scale = pState->field_0x2C;
+    func_800245D8(pSpriteData, (s8)*(u8*)((u8*)pSpriteData + 0xAF));
+    while (((u32)pSpriteData->flags_0xA8 >> 22 & 0x3F) != pState->scriptIndex) {
+        AnimScriptTick(pSpriteData);
+        pSpriteData->position.x += pSpriteData->step.x;
+        pSpriteData->position.z += pSpriteData->step.z;
+        pSpriteData->position.y += pSpriteData->step.y;
+        pSpriteData->step.y += pSpriteData->gravity;
+    }
+    pSpriteData->position.x = pState->positionX;
+    pSpriteData->position.y = pState->positionY;
+    pSpriteData->position.z = pState->positionZ;
+    ((SpriteDataI3*)pSpriteData->field_0x7C)->field_0x0 = pState->field_0x1C;
+    ((SpriteDataI3*)pSpriteData->field_0x7C)->field_0x4 = pState->field_0x20;
+    D_80059198 = savedRenderContext;
+}
 
 void func_80021EBC(SpriteData* pSpriteData, SpriteAnimState* pState) {
     pState->positionX = pSpriteData->position.x;
