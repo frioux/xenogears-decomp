@@ -8,6 +8,9 @@ typedef struct {
 } Vec4; // Size: 0x10
 
 extern s32 func_80073DE4(u8* p, s32 arg1);
+extern void func_800767C8(u8* p);
+extern void func_8007639C(u8* p, s32 arg1);
+extern u8 D_80092884;
 extern u32 func_800828C4(s32* p);
 extern void func_8008F7B8(u8* p);
 extern s32 func_8008F720(u8* p, s32 arg1);
@@ -51,8 +54,25 @@ s32 func_8008F720(u8* pArg0, s32 arg1) {
     }
     return ((rand() & 0xFF) < *(s32*)(p1 + 0x1C));
 }INCLUDE_ASM("asm/battling/nonmatchings/main/misc18", func_8008F7B8);
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc18", func_8008F900);
-s32 func_8008F9B0(s32* pArg0) {
+void func_8008F900(u8* pArg0) {
+    if (((*(u32*)(*(u8**)(pArg0 + 0xD8) + 0xD0)) & 0x60000000) == 0x20000000) {
+        if ((rand() & 3) != 0) {
+            return;
+        }
+    }
+    if (D_80092884 != 0) {
+        func_800767C8(pArg0);
+        func_8007639C(pArg0, 4);
+        func_8007639C(pArg0, 3);
+        return;
+    }
+    if (((*(u32*)(pArg0 + 0xD0)) & 0x60000000) != 0x20000000) {
+        func_8007639C(pArg0, 3);
+        return;
+    }
+    func_8007639C(pArg0, 4);
+    func_8007639C(pArg0, 3);
+}s32 func_8008F9B0(s32* pArg0) {
     s32 sp[4];
     s32 a;
     s32 b;
