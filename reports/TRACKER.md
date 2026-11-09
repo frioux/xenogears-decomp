@@ -1224,4 +1224,9 @@ worker trees (`r-r39a`, `r-wmap`, `r-rbattle`, `r-r39b`, `r-b18`). The build
 container is shared by every clone on the host, so that is never acceptable.
 `tools/rounds/brief.js` now forbids touching docker at all. Treat a wedged build as
 "wait and re-run the diff script", never as "restart the world".
+One more confirmation of the address-order rule, with a concrete signature: a
+`battle/misc34` worker emitted `func_800BF720` before `func_800BF6F8` in the
+source, every function was `objdiff 100.00%`, and `battle.bin` still came out
+`fec42225...` instead of `1830b4ef...`. Reordering gave the checksum back. `objdiff`
+cannot see function order; only `check_bin.sh` can.
 
