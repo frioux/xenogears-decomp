@@ -27,6 +27,10 @@ categories:
     name: Menu Overlay
     paths:
       - menu
+  - id: battle
+    name: Battle Overlay
+    paths:
+      - battle
   - id: member_change_menu
     name: Member Change Menu Overlay
     paths:
