@@ -20,9 +20,13 @@ extern void func_8008AF6C(void *pData);
 extern void func_8008B730(void *pA, s32 arg1, s32 arg2);
 
 typedef struct {
-    /* 0x0 */ u32 unk0;
-    /* 0x4 */ u32 unk4;
-    /* 0x8 */ u8 unk8[0xC];
+    /* 0x00 */ u32 unk0;
+    /* 0x04 */ u32 unk4;
+    /* 0x08 */ u8 unk8[4];
+    /* 0x0C */ s16 unkC;
+    /* 0x0E */ s16 unkE;
+    /* 0x10 */ s16 unk10;
+    /* 0x12 */ u16 pad12;
 } Misc14Entry; // Size: 0x14
 
 void func_8008A618(void) {
@@ -92,6 +96,28 @@ void func_8008B070(s32 entryIndex) {
 }
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc14", func_8008B0D8);
+
+/* Best attempt: objdiff 83.44%, same 96 bytes. The original addresses the three
+   s16 stores off a second induction pointer ($v1 = entry + 0x10, offsets -4/-2/0)
+   and the word copy off the entry pointer; gcc merges them into one base
+   (entry + 4). Reordering the body drops it to 69.80%. */
+/*
+void func_8008B0D8(u8 *pActor) {
+    u8 *pModel = *(u8 **)pActor;
+    Misc14Entry *pEntry = *(Misc14Entry **)(pActor + 8);
+    s32 i;
+
+    *(s16 *)(pActor + 0x10) = 0;
+    *(s16 *)(pActor + 0x12) = 0;
+    for (i = 0; i < *(s16 *)(pModel + 6); i++) {
+        pEntry->unkC = 0;
+        pEntry->unkE = 0;
+        pEntry->unk10 = 0;
+        pEntry->unk4 = pEntry->unk0;
+        pEntry++;
+    }
+}
+*/
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc14", func_8008B13C);
 
