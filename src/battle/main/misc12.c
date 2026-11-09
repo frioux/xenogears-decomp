@@ -13,6 +13,15 @@ extern u8 D_800C3E90[];
 extern u8 D_800D3274;
 extern void func_800841E0(void);
 
+typedef struct {
+    /* 0x00 */ u16 unk0[12];
+    /* 0x18 */ u8 unk18[12];
+    /* 0x24 */ u16 unk24[12];
+    /* 0x3C */ u8 unk3C[12];
+} BattleUnk48; // Size: 0x48
+
+extern BattleUnk48 D_800C3FE8[];
+
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80082820);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_800829F4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80082BB0);
@@ -89,5 +98,14 @@ void func_80085350(void) {
         D_800D2D70[i] = 0;
     }
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80085388);
+void func_80085388(void) {
+    s32 i;
+
+    for (i = 0; i < 0xB; i++) {
+        D_800C3FE8[D_800C3EAC[0x2DA]].unk0[i] = 0;
+        D_800C3FE8[D_800C3EAC[0x2DA]].unk18[i] = 0xFF;
+        D_800C3FE8[D_800C3EAC[0x2DA]].unk24[i] = 0;
+        D_800C3FE8[D_800C3EAC[0x2DA]].unk3C[i] = 0xFF;
+    }
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80085454);
