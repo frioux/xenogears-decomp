@@ -6,8 +6,25 @@ typedef struct {
     /* 0x6 */ s16 unk6;
 } BattleMisc22Unk; // Size: 0x8
 
+typedef struct {
+    /* 0x0 */ s16 vx;
+    /* 0x2 */ s16 vy;
+    /* 0x4 */ s16 vz;
+    /* 0x6 */ s16 pad6;
+} BattleMisc22SVec; // Size: 0x8
+
+typedef struct {
+    /* 0x0 */ s16 unk0;
+    /* 0x2 */ s16 unk2;
+    /* 0x4 */ s16 unk4;
+    /* 0x6 */ u8 pad6[6];
+    /* 0xC */ u8 unkC;
+    /* 0xD */ u8 padD;
+} BattleMisc22Entry; // Size: 0xE
+
 extern s32 D_800D3344;
 extern s32 D_800D39CC;
+extern void func_800A5BE8(void *, void *, void *, s32, s32);
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A2E88);
 
@@ -72,3 +89,18 @@ s32 func_800A578C(void) {
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A579C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A5870);
+/* 99.27%: everything but the operand order of the three `addu` that form the
+   SVECTOR pointers - retail has the scaled index first (addu a0,a0,v1), gcc
+   canonicalises the base first. Tried pointer+int, int+ptr, u32 arithmetic and
+   typed-array indexing; all give base first.
+s32 func_800A5870(s32 arg0, s32 index, s32 arg2) {
+    if (D_800D3344 == 0 || D_800D39CC == 0 || index < 0) {
+        return -1;
+    }
+    func_800A5BE8(&((BattleMisc22SVec *)D_800D3344)[((BattleMisc22Entry *)D_800D39CC)[index].unk0],
+                  &((BattleMisc22SVec *)D_800D3344)[((BattleMisc22Entry *)D_800D39CC)[index].unk2],
+                  &((BattleMisc22SVec *)D_800D3344)[((BattleMisc22Entry *)D_800D39CC)[index].unk4],
+                  arg0, arg2);
+    return ((BattleMisc22Entry *)D_800D39CC)[index].unkC;
+}
+*/
