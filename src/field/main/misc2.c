@@ -928,6 +928,75 @@ void FieldLoadTIM(u_long* pTimData) {
 
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80077268);
+// 67.56% (548 bytes, same as the original's 548): every load, store, call and the
+// two loops are in place. What is left: (1) the head - the original loads the
+// g_PlayerActorIndex chain into $v0/$v1 the other way round and puts the
+// `addu a2,a2,v0` in the jal delay slot, where gcc emits it before the `lh` and
+// burns the slot on `move a3,s0`; (2) the copy blocks - gcc sinks each
+// `sw` past the next block's address setup and parks the value in $a0, the
+// original stores straight out of $v0 (3 more instructions after each lw in the
+// original are `lw v0,0(v0)` then `nop` then `sw v0,0(s2)`).
+// Findings: (1) g_FieldActors IS volatile here - the original re-loads it once per
+// statement and re-forms `&g_FieldActors[i]` after the FieldCharacterIdToPartyId
+// call, so the post-call block needs its own `pCurActor = &g_FieldActors[i]`
+// local (that base is used for both pSpriteData and pActorData) while a2 still
+// gets the loop-top pointer; (2) `FieldActor`'s copy target at 0x20/0x24/0x28 is
+// transformMatrix.t[0..2], not a position member (misc6's func_800A0C94 has the
+// same idiom); (3) the s16 argument at ActorData+0x26 is the high half of
+// position.vy, read as a short lvalue like misc6's `pPosition[1]`.
+/*
+extern void func_80084A40(int actorIndex, int y, FieldActor* pActor, ActorData* pData);
+extern int FieldCharacterIdToPartyId(int characterId);
+extern void func_80081C54(int actorIndex);
+extern s32 g_PlayerActorIndex;
+extern s32 D_800B2360;
+extern s32 D_800B2364;
+extern s32 D_800B2368;
+
+void func_80077268(void) {
+    FieldActor* pActor;
+    FieldActor* pCurActor;
+    ActorData* pData;
+    SpriteData* pSpriteData;
+    int partyId;
+    int i;
+
+    pData = g_FieldActors[g_PlayerActorIndex].pActorData;
+    func_80084A40(g_PlayerActorIndex, ((s16*)&pData->position.vy)[1],
+        &g_FieldActors[g_PlayerActorIndex], pData);
+
+    for (i = 0; i < D_800ADBFC; i++) {
+        pActor = &g_FieldActors[i];
+        pData = pActor->pActorData;
+        if ((pActor->status & 0xF80) != 0x200) {
+            continue;
+        }
+        partyId = FieldCharacterIdToPartyId(pData->characterId);
+        if (partyId == -1) {
+            continue;
+        }
+        pCurActor = &g_FieldActors[i];
+        pSpriteData = (SpriteData*)pCurActor->pSpriteData;
+        if (partyId == 0) {
+            continue;
+        }
+        func_80084A40(i, ((s16*)&pCurActor->pActorData->position.vy)[1], pActor, pData);
+        pSpriteData->position.x = ((SpriteData*)g_FieldActors[g_PlayerActorIndex].pSpriteData)->position.x;
+        pSpriteData->position.y = ((SpriteData*)g_FieldActors[g_PlayerActorIndex].pSpriteData)->position.y;
+        pSpriteData->position.z = ((SpriteData*)g_FieldActors[g_PlayerActorIndex].pSpriteData)->position.z;
+        pActor->transformMatrix.t[0] = g_FieldActors[g_PlayerActorIndex].transformMatrix.t[0];
+        pActor->transformMatrix.t[1] = g_FieldActors[g_PlayerActorIndex].transformMatrix.t[1];
+        pActor->transformMatrix.t[2] = g_FieldActors[g_PlayerActorIndex].transformMatrix.t[2];
+    }
+
+    D_800B2368 = 0;
+    D_800B2364 = 0;
+    D_800B2360 = 0;
+    for (i = 0; i < 0x20; i++) {
+        func_80081C54(g_PlayerActorIndex);
+    }
+}
+*/
 
 void func_80077544(void) {
     if (g_FieldSystemMode == 0) {
