@@ -113,3 +113,13 @@ build_variables = {
     maspsx_flags = "--aspsx-version=2.67 --use-comm-section --run-assembler"
 }
 paths = [ "{binary}/system/rendering_pause_text." ]
+
+# The whole world_map overlay was assembled by ASPSX >= 2.50: small positive `li`
+# constants are addiu (2483 of them) and not maspsx's ori (23), so leave `li` to
+# the assembler.
+[[build_preset]]
+name = "XenoWorldMap"
+build_variables = {
+    maspsx_flags = "--dont-expand-li --use-comm-section --run-assembler"
+}
+paths = [ "world_map/" ]
