@@ -1,21 +1,37 @@
 #include "common.h"
 #include "psyq/pc.h"
 #include "psyq/libcd.h"
+#include "psyq/libgpu.h"
 
 extern int Vsync(int mode);
 extern void ArchiveCdDataSync(int mode);
 extern u_char ArchiveCdSetMode(u_char mode);
 extern u32 ArchiveGetDebugTable(void);
 extern void func_8002A498(int mode);
+extern void* HeapAlloc(u_int allocSize, u_int allocFlags);
+extern s32 ArchiveReadFileFromCdSector(s32 sector, void* pDestBuffer, s32 fileSize, s32 arg3, u32 flags);
 
 // .data
+extern s32 D_80076E4C;
 extern s32 D_80076E5C;
+extern void* D_80076EA0;
+extern s32 D_80076EAC;
+extern s32 D_80076EB0;
 extern s32 D_80076EC8;
 extern s32 D_80076ECC;
 extern s32 D_80076EF4;
 extern s32 D_80076EF8;
+extern s32 D_80076F3C[];
 // .bss
 extern u_char D_80076F84[];
+extern u_char D_80076FCC[];
+extern u_char D_80076FCD[];
+extern u_char D_80076FCE[];
+extern u_char D_80076FDC[];
+extern u_char D_80076FDD[];
+extern u_char D_80076FDE[];
+extern s32 D_80076FEC[];
+extern s32 D_80076FFC[];
 
 INCLUDE_ASM("asm/movie/nonmatchings/main/misc1", func_800704E8);
 
@@ -23,7 +39,19 @@ INCLUDE_ASM("asm/movie/nonmatchings/main/misc1", func_80070DCC);
 
 INCLUDE_ASM("asm/movie/nonmatchings/main/misc1", func_800712C4);
 
-INCLUDE_ASM("asm/movie/nonmatchings/main/misc1", func_80071BA0);
+void func_80071BA0(void) {
+    if (D_80076EA0 == NULL) {
+        D_80076EA0 = HeapAlloc(0x2000, 0);
+    }
+    if (D_80076EA0 != NULL) {
+        ArchiveReadFileFromCdSector(0x40, D_80076EA0, 0x2000, 0, 0);
+    }
+    D_80076F3C[0]++;
+    if (D_80076E4C == 0) {
+        D_80076EAC = D_80076EB0;
+        D_80076EB0 = 0;
+    }
+}
 
 INCLUDE_ASM("asm/movie/nonmatchings/main/misc1", func_80071C34);
 
@@ -63,7 +91,34 @@ INCLUDE_ASM("asm/movie/nonmatchings/main/misc1", func_80072D84);
 
 INCLUDE_ASM("asm/movie/nonmatchings/main/misc1", func_80072F98);
 
-INCLUDE_ASM("asm/movie/nonmatchings/main/misc1", func_80073328);
+void func_80073328(POLY_G4* pPoly0, POLY_G4* pPoly1, s32 x, s32 y, s32 w, s32 h) {
+    s32 i;
+    s32 j;
+    s32 color;
+
+    color = 0xFF;
+
+    // The colour triplets are 4-byte structs and splat labels every byte, so the
+    // three channels are addressed as byte arrays a stride of 4 apart.
+    for (i = 0; i < 0x10; i += 4) {
+        D_80076FCC[i] = color;
+        D_80076FCD[i] = color;
+        D_80076FCE[i] = (func_80074AF0() & 0x3F) - 0x42;
+        D_80076FDC[i] = color;
+        D_80076FDD[i] = color;
+        D_80076FDE[i] = (func_80074AF0() & 0x3F) - 0x42;
+    }
+
+    for (j = 0; j < 4; j++) {
+        D_80076FEC[j] = 0;
+        D_80076FFC[j] = (func_80074AF0() & 0xFF) + 0x20;
+    }
+
+    SetPolyG4(pPoly0);
+    setXY4(pPoly0, x, y, x + w, y, x, y + h, x + w, y + h);
+    SetPolyG4(pPoly1);
+    setXY4(pPoly1, x, y, x + w, y, x, y + h, x + w, y + h);
+}
 
 INCLUDE_ASM("asm/movie/nonmatchings/main/misc1", func_800734B8);
 
