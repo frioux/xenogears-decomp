@@ -1986,6 +1986,8 @@ INCLUDE_ASM("asm/member_change_menu/nonmatchings/main/misc", MemberChangeMenuSwa
 // is accounted for, so the 4th reference is one gcc deleted before final and it
 // does not come from the source shapes tried so far (declaration order,
 // initialisation order, int/u_char types, shared id local, == TRUE tests).
+// Also tried (this round, both regress): nested `if (canSwapSrc) { if (canSwapDst)`
+// 91.81%, and deferring the two TRUE inits until after the index selection 91.81%.
 // u_char MemberChangeMenuSwapCharacters(u_char isBenchedWindowActive, s32 curCharIndex, s32 curCharOffset, u_char isSelectedCharOnBenchedWindow, s32 selectedCharIndex, s32 selectedCharOffset) {
 //     u_char srcIndex;
 //     u_char dstIndex;

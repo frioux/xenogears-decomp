@@ -559,6 +559,13 @@ void ArchiveConsolidateStreamFileEntry(int sectionIndex) {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/libarchive", func_80028F30);
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/libarchive", func_8002945C);
+// Also tried 2026-11: single `nState` result variable (-1, then 0 in the
+// pSection==NULL branch, then the swapped state) with the body as one nested
+// if/else instead of early returns: 90.68%, same as below. Everything matches
+// except the result, which gcc 2.6.0 keeps in a1 and copies to v0 in the
+// jr ra delay slot (original has it in v0 throughout and `nop` there), and the
+// base/stream registers swap (ours: stream v1, base v0, result a1; original:
+// stream a1, base v0, result v0 = no separate variable).
 
 /* Best: 90.68% - base offset add lands on the pSection side (addiu v1,a0,-36)
    instead of on the stream side, and the section header pointer gets a2 not v0.
