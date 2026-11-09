@@ -840,6 +840,99 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A84C0);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A8BA4);
 
+/* Best attempt, 83.02% / 796 bytes. Structure (SetPolyFT4 per tile, clut =
+   GetClut(0,0xE8), nABR switch on the high nibble of the tile attribute word,
+   tpage = GetTPage(0,nABR,0x380,0), SetSemiTrans(p,1), 0x6D iterations) is right;
+   what does not come out is (a) the original folds D_800AEB68/6C/6E into one
+   base register (s5 = &D_800AEB6C, loads at 0/+2/-4) with only D_800AEB6A on its
+   own base, which no C spelling of four separate extern u_short[] can express;
+   (b) it keeps two identical loop counters (s3 for slti, s2 for the *8 index);
+   (c) the tile record is reached as D_800AEF16[i*4-3..i*4] (single symbol, base
+   folded to %lo(D_800AEF16)-6).
+   extern u_short D_800AEF16[];
+   extern int D_800AEB64;
+
+   void func_800A8BA4(void) {
+       POLY_FT4* pPoly;
+       POLY_FT4* pPolyNext;
+       int i;
+       int nRect;
+       int nX;
+       int nY;
+       int nW;
+       int nH;
+       int nSrcX;
+       int nSrcY;
+       int nABR;
+
+       func_800A8314();
+       D_800AEB64 = 0;
+       HeapChangeCurrentUser(HEAP_USER_YOSI, NULL);
+       D_800AFC60[0] = HeapAlloc(0x1108, 0);
+       D_800AFC64 = HeapAlloc(0x1108, 0);
+
+       nABR = 0;
+       for (i = 0; i < 0x6D; i++) {
+           pPoly = &D_800AFC60[0][i];
+           pPolyNext = (POLY_FT4*)D_800AFC64 + i;
+           SetPolyFT4(pPoly);
+
+           pPoly->r0 = 0x80;
+           pPoly->g0 = 0x80;
+           pPoly->b0 = 0x80;
+           pPoly->clut = GetClut(0, 0xE8);
+
+           switch ((D_800AEF16[i * 4] >> 4) & 0xF) {
+           case 0:
+               nABR = 1;
+               break;
+           case 1:
+               nABR = 2;
+               break;
+           }
+           pPoly->tpage = GetTPage(0, nABR, 0x380, 0);
+           SetSemiTrans(pPoly, 1);
+
+           nX = D_800AEF16[i * 4 - 3];
+           nY = D_800AEF16[i * 4 - 2];
+           nRect = D_800AEF16[i * 4 - 1] * 4;
+           nW = D_800AEB6C[nRect];
+           nH = D_800AEB6E[nRect];
+           nSrcX = D_800AEB68[nRect];
+           nSrcY = D_800AEB6A[nRect];
+
+           pPoly->x0 = nX;
+           pPoly->y0 = nY;
+           pPoly->x1 = nX + nW;
+           pPoly->y1 = nY;
+           pPoly->x2 = nX;
+           pPoly->y2 = nY + nH;
+           pPoly->x3 = nX + nW;
+           pPoly->y3 = nY + nH;
+
+           switch (D_800AEF16[i * 4] & 0xF) {
+           case 0:
+               FieldClampPolyFT4UVs(pPoly, nSrcX, nSrcY, nSrcX + nW, nSrcY,
+                   nSrcX, nSrcY + nH, nSrcX + nW, nSrcY + nH);
+               break;
+           case 1:
+               FieldClampPolyFT4UVs(pPoly, nSrcX + nW - 1, nSrcY, nSrcX - 1, nSrcY,
+                   nSrcX + nW - 1, nSrcY + nH, nSrcX - 1, nSrcY + nH);
+               break;
+           case 2:
+               FieldClampPolyFT4UVs(pPoly, nSrcX, nSrcY + nH - 1, nSrcX + nW, nSrcY - 1,
+                   nSrcX, nSrcY + nH - 1, nSrcX + nW, nSrcY - 1);
+               break;
+           case 3:
+               FieldClampPolyFT4UVs(pPoly, nSrcX + nW - 1, nSrcY + nH - 1, nSrcX - 1, nSrcY - 1,
+                   nSrcX + nW - 1, nSrcY + nH - 1, nSrcX - 1, nSrcY - 1);
+               break;
+           }
+           *pPolyNext = *pPoly;
+       }
+       D_800AF278 = 1;
+   } */
+
 INCLUDE_ASM("asm/field/nonmatchings/main/misc5", FieldInitializeParticlePrimitive);
 
 /* Best attempt, 97.42% / 512 bytes: the original is 520, so it is 8 bytes (2
