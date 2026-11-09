@@ -821,7 +821,26 @@ void func_80089BF0(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 0x12;
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_80089DCC);
+extern s16 D_800B22E2[];
+extern s16 D_800B2324[];
+extern s16 D_800B2326[];
+extern s16 D_800B2328[];
+
+void func_80089DCC(void) {
+    int index = FieldScriptArgument1(1, SCRIPT_READ_U8_REL(9));
+    int actorIndex;
+
+    D_800B2324[index * 4] = FieldScriptArgument2(3, SCRIPT_READ_U8_REL(9));
+    D_800B2328[index * 4] = FieldScriptArgument3(5, SCRIPT_READ_U8_REL(9));
+    D_800B2326[index * 4] = FieldScriptArgument4(7, SCRIPT_READ_U8_REL(9));
+    actorIndex = FieldScriptVMGetActorIndex(0xA);
+    if (actorIndex != 0xFF) {
+        D_800B22E2[index] = actorIndex;
+    } else {
+        D_800B22E2[index] = -1;
+    }
+    g_FieldScriptVMCurActor->scriptInstructionPointer += 0xB;
+}
 
 extern FieldScriptGlobalS16 D_800B22E0;
 
@@ -1980,7 +1999,48 @@ void func_8008E59C(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 4;
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008E718);
+// Fills values[0..count-1] with distinct random numbers in [0, unk4] and bumps
+// them by one, so 0xFFFF becomes 0. D_800B2298/D_800B229C are splat's split of
+// the same storage (see func_8008E85C, the script handler that drives this).
+typedef struct {
+    /* 0x0 */ u32 unk0;
+    /* 0x4 */ s32 unk4;
+    /* 0x8 */ s32 count;
+    /* 0xC */ u16 values[0x20];
+} FieldRandomValues; // Size: 0x4C
+
+extern FieldRandomValues D_800B2294;
+extern int rand(void);
+
+void func_8008E718(void) {
+    int i;
+    int j;
+    int value;
+    u16 emptyValue;
+
+    D_800B2294.unk0 = D_800B2294.unk4;
+    if (D_800B2294.count == 0) {
+        D_800B2294.unk4 = 0;
+        return;
+    }
+    emptyValue = 0xFFFF;
+    for (i = 0x1F; i >= 0; i--) {
+        D_800B2294.values[i] = emptyValue;
+    }
+    for (i = 0; i < D_800B2294.count; i++) {
+retry:
+        value = ((rand() * (D_800B2294.unk4 + 1)) >> 15) & 0xFFFF;
+        for (j = 0; j < 0x20; j++) {
+            if (D_800B2294.values[j] == value) {
+                goto retry;
+            }
+        }
+        D_800B2294.values[i] = value;
+    }
+    for (i = 0; i < D_800B2294.count; i++) {
+        D_800B2294.values[i]++;
+    }
+}
 
 extern FieldScriptGlobalS32 D_800B2298;
 extern FieldScriptGlobalS32 D_800B229C;
