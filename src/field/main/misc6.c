@@ -582,29 +582,28 @@ int FieldCharacterIdToPartyId(int characterId) {
 }
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_8009FA54);
-// 90.74%: `if (== 0xFF) { body } return 0;` reproduces the single
-// `bne s2,v0,<epilogue>`, but the original also materializes the 0 in the delay
-// slot and again at the join (two returns), and holds the angle in a1 with
-// `sll a0,a1,16; sra v0,a0,16` shared by unk60/unk7C. gcc 2.7 folds any
-// `(short)`/`>>16` of this value because `& 7` then `<< 9` proves it fits in 16
-// bits, and it keeps the actor pointer in v0 for the three rotation stores
-// instead of a0 with `move v1,a1`. Frame is 0x28 vs 0x20. Tried: early
-// `return 0;` (beq+j), a second `return 0;` inside the body, an `nAngle << 16`
-// temp, a `pActor` pointer local for the rotation stores.
+// 85.62%: branch shape (single `bne` to the epilogue) and every call/store order
+// match. Remaining: gcc folds `nAngle << 16 >> 16` for unk7C because `& 7` then
+// `<< 9` proves the range, so the original's `sll a0,a1,16; sra v0,a0,16` pair is
+// missing (and nAngle lives in v0 instead of a1); nX is converted one insn later
+// (`move s0,v0; sll; sra a0` vs `sll s0` before the 2nd call, `sra` in its delay
+// slot); the `move v0,zero` the original keeps in the bne delay slot is absent;
+// frame is 0x28 vs 0x20. Tried: `if (!= 0xFF) return 0;` (beq+j), a `return 0;`
+// inside the body as well (320 bytes, 84.94%), s32 nX/nY, and a `pActor` local
+// for the three rotation stores.
 /*
     s32 func_8009FA54(s32 nInstructionOffset) {
-        ActorData* pActor;
-        u8 nAngleByte;
-        u8 nRotationByte;
         s32 nOffset;
+        s16 nX;
+        s16 nY;
+        u8 nAngleByte;
         s32 nAngle;
-        s32 nFixedAngle;
+        u8 nRotationByte;
         s32 nRotation;
-        s32 nX;
-        s32 nY;
+        ActorData* pActor;
 
         if (SCRIPT_READ_U8(0) == 0xFF) {
-            nOffset = nInstructionOffset * 7;
+        nOffset = nInstructionOffset * 7;
         g_FieldScriptVMCurActor->walkmeshId = SCRIPT_READ_U8(nOffset + 5);
         nX = func_8009E330(nOffset + 1);
         nY = func_8009E330(nOffset + 3);
@@ -615,10 +614,9 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_8009FA54);
         if (nAngleByte == 0xFF) {
             nAngle = ((FieldScriptVMGetVariableValue(8) + 4) & 7) << 9;
         }
-        nFixedAngle = nAngle << 16;
         g_Scene.sceneAngle.vy = nAngle;
-        g_Scene.unk7C = nFixedAngle >> 16;
-        g_Scene.unk60 = nFixedAngle;
+        g_Scene.unk7C = nAngle << 16 >> 16;
+        g_Scene.unk60 = nAngle << 16;
 
         nRotationByte = SCRIPT_READ_U8(nOffset + 7);
         nRotation = ((nRotationByte - 2) & 7) << 9 | 0x8000;
