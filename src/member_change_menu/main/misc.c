@@ -1963,18 +1963,21 @@ void MemberChangeMenuFreeCursors(void) {
     HeapFree(g_Menu->pCursors);
 }
 
+
 INCLUDE_ASM("asm/member_change_menu/nonmatchings/main/misc", MemberChangeMenuSwapCharacters);
-// 98.22%: instruction sequence is identical, only the s0-s4 allocation differs.
-// Original: canSwapSrc=s0, canSwapDst=s1, result=s2, srcIndex=s3, dstIndex=s4.
-// This gets: result=s0, srcIndex=s1, dstIndex=s2, canSwapSrc=s3, canSwapDst=s4,
-// i.e. gcc orders these five allocnos by descending live length. Reordering the
-// declarations and the flag initialisations changes nothing (tried); the
-// original's order looks like ascending reference count, which is not reachable
-// without changing the emitted code.
+// 98.22%: every instruction matches, only the s0-s4 assignment differs.
+// Original: canSwapSrc=s0, canSwapDst=s1, result=s2, srcIndex=s3, dstIndex=s4,
+// i.e. ascending reference count. gcc emits result=s0, srcIndex=s1, dstIndex=s2,
+// canSwapSrc=s3, canSwapDst=s4 (descending live range) and the order is
+// independent of the declaration order, the order of the three initialisations,
+// the int/u_char types of result and the two flags, and of the preset: gcc 2.6.0
+// -O2 -G8 (this unit's) is best at 98.22, gcc 2.7.2 gives 97.22, 2.7.2-cdk
+// 93.03, -O3 variants 63-71. The reference counts are fixed by the matching
+// instruction stream, so the allocno priorities cannot be nudged from C.
 // u_char MemberChangeMenuSwapCharacters(u_char isBenchedWindowActive, s32 curCharIndex, s32 curCharOffset, u_char isSelectedCharOnBenchedWindow, s32 selectedCharIndex, s32 selectedCharOffset) {
 //     u_char srcIndex;
 //     u_char dstIndex;
-//     u_char result;
+//     int result;
 //     u_char canSwapSrc;
 //     u_char canSwapDst;
 //     u_char numPartyCharacters;
