@@ -946,8 +946,6 @@ void func_801E17B8(Temp8* pTexture, s16 scale) {
 }
 
 // Rotates each entry's source position by the model's joint matrix
-INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E1880);
-/*
 void func_801E1880(Model** pModels) {
     MATRIX* pMatrix = (MATRIX*)PSX_SCRATCH;
     Model* pModel;
@@ -966,7 +964,7 @@ void func_801E1880(Model** pModels) {
                 SetTransMatrix(pMatrix);
 
                 gte_ldv0((SVECTOR*)&D_801E8648[i].x1);
-                gte_rt();
+                gte_mvmva(1, 0, 0, 0, 0);
                 gte_stlvnl(value);
 
                 D_801E8648[i].x0 = value[0];
@@ -980,7 +978,7 @@ void func_801E1880(Model** pModels) {
         }
     }
 }
-*/
+
 
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E1A14);
 
