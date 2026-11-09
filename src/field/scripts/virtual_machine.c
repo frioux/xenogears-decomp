@@ -257,18 +257,17 @@ void FieldScriptVMRun(int maxInstructionCount) {
 
 }
 
-// Best attempt: 74.04% measured before the last round of edits, which made the prologue and the
-// guard clauses identical; what is left is register allocation ($a0 vs $a1 for pFieldActor) and
-// how many times g_FieldScriptVMCurActor / pActorData are reloaded, i.e. whether the original
-// used a local for them or spelled the dereference out every time.
-// Best attempt: 90.49% (the parked version below was 74.04% before these three fixes):
+// Best attempt: 90.49% (636 bytes, same size as the original: only register assignment differs).
 // - nMinPriority = 0xF must be assigned BEFORE the D_800B21CC check; the original keeps the
 //   `li a2,0xF` in the delay slot of that beqz.
 // - the "no free script slot" branch is taken when nMinPriority == 0xF, not !=.
-// What is left: the original forms the actor address as `addu $a1,$s1,$v0` (offset first) and
-// keeps the scriptFlags read-modify-write contiguous, reloading pActorData for it; gcc here
-// emits `addu $a0,$v0,$s1` and splits the RMW (load first, store last), which cascades into
-// the $a0/$a1 swap for pFieldActor/pActorData through the whole loop body.
+// - the flags read-modify-write belongs BEFORE the D_800B06B8 / D_800AFD1C / g_FieldScriptVMCurActor
+//   stores, and the guard clauses above it must spell pFieldActor->pActorData->flags inline.
+// Left: the original reloads pActorData from 0x4C($a1) in the join block and keeps pFieldActor in
+// $a1 / pActorData in $a0; gcc here CSEs the 0x4C load across the two-pred join and lands on
+// `addu $a0,$v0,$s1` with the roles swapped, which is 100% of what is left. Tried without change:
+// explicit (u_char*)g_FieldActors + i*sizeof(FieldActor) byte arithmetic; a local pActor assigned
+// twice; -G0/-O3 and gcc-2.7.2-cdk presets.
 /*
 extern s32 D_800ADBFC;
 extern s32 D_800ADB1C;
@@ -303,8 +302,7 @@ void func_800A2030(void) {
             continue;
         }
 
-        pActor = pFieldActor->pActorData;
-        if (pActor->flags & 0x100000) {
+        if (pFieldActor->pActorData->flags & 0x100000) {
             continue;
         }
 
@@ -312,6 +310,7 @@ void func_800A2030(void) {
             return;
         }
 
+        pActor = pFieldActor->pActorData;
         pActor->scriptFlags.flags &= ~0x1000000;
 
         D_800B06B8 = pFieldActor;
@@ -353,6 +352,7 @@ void func_800A2030(void) {
         ;
     }
 }
+
 */
 INCLUDE_ASM("asm/field/nonmatchings/scripts/virtual_machine", func_800A2030);
 
@@ -547,19 +547,11 @@ int FieldScriptVMGetVariableValue(int index) {
 // 97.14%: a local pointer with p[i] / *(p + (i >> 1)), an int param with a (u_short) cast on the
 // value, and &g_FieldScriptMemory + (index >> 1). index / 2 gives 69.29% (36 bytes, rounding
 // fixup) and a volatile cast 52.86%. A two-step `nOffset = index >> 1` plus a byte-offset add
-// `(u_char*)&g_FieldScriptMemory + (nOffset << 1)` is also 97.14%.
+// `(u_char*)&g_FieldScriptMemory + (nOffset << 1)` is also 97.14%. gcc-2.6.0, gcc-2.7.2-cdk and
+// -O3 all give the same 97.14%. Only the shift's destination register differs from the original.
 /*
 void FieldScriptMemoryWriteU16(int index, u_short value) {
     ((u_short*)&g_FieldScriptMemory)[index >> 1] = value;
-}
-
-void FieldScriptMemoryWriteU16(int index, u_short value) {
-    int i;
-    u_short* pMemory;
-
-    i = index >> 1;
-    pMemory = (u_short*)&g_FieldScriptMemory;
-    pMemory[i] = value;
 }
 */
 INCLUDE_ASM("asm/field/nonmatchings/scripts/virtual_machine", FieldScriptMemoryWriteU16);
