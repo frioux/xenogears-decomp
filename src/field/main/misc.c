@@ -491,7 +491,9 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_80088508);
 // 97.68%: instruction for instruction identical except that gcc's allocator puts
 // the `li a0,1` for the first FieldScriptVMGetInstructionArgument call at the top
 // of the then-block instead of just before the jal, so reorg leaves a nop in the
-// delay slot. Inline vs. `address` local makes no difference.
+// delay slot. Inline vs. `address` local makes no difference. Same instruction
+// count either way (280 bytes): only those two slots differ. Casting the
+// pSpriteData load to `SpriteData* volatile*` does not stop the hoist.
 /*
 void func_80088508(void) {
     SpriteData* pSpriteData;
@@ -528,7 +530,13 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008861C);
 // in $a2 and the .x store through %hi/%lo(g_FieldDefaultParticleBanks + 0x30)
 // all match. Ours spends one extra `addu`: gcc builds
 // (&banks + 0x78*bankIndex) as an intermediate and then adds 4*i, where the
-// original shares the 4*i + 0x78*bankIndex sum with the .x store.
+// original shares the 4*i + 0x78*bankIndex sum with the .x store. A u8* base
+// with an explicit byte offset gets the sum right (and the loop test moves
+// after both stores), a ParticleBank* base gets the store order right. Best:
+// 92.50% with
+//   ParticleBank* pBank = &g_FieldDefaultParticleBanks[bankIndex];
+//   pBank->directions[i].z = 0;
+//   g_FieldDefaultParticleBanks[bankIndex].directions[i].x = 0;
 /*
 void func_8008861C(void) {
     ParticleBank* pBank;
