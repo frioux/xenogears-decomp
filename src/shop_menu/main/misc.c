@@ -2981,6 +2981,92 @@ u_short ShopMenuGetCharacterEquippedItemFlags(u_char itemID, u_char itemType) {
 INCLUDE_ASM("asm/shop_menu/nonmatchings/main/misc", func_801CDD14);
 
 INCLUDE_ASM("asm/shop_menu/nonmatchings/main/misc", func_801CE480);
+// 59.74%: shop twin of gear_shop_menu/main/render.c func_801D3558 (same signature and tail loop),
+// but it computes the two preview stat pairs inline instead of calling the DressingRoom helpers.
+// Decoded (characterId is the 5th, stack argument; itemType 0 = weapon, 1 = accessory):
+//   weapon:  newValue[0] = characters[characterId].attack + pWeaponsData[equipped].attack; the
+//            equipped slot is characters[characterId].unk6A[0], except characterId == 4 (Billy)
+//            where it sums characters[4].unk6F[0..3]; oldValue[0] uses the candidate itemId.
+//   accessory: newValue[1] = characters[c].defense + sum of the three equipped unk74[] slots'
+//            defense; oldValue[1] = defense + sum of unk74[] except the slot whose unkE group
+//            matches the candidate's (or, if no group match, the lowest-defense slot is replaced).
+//   tail: for i < 2, oldValue[i] >= newValue[i] -> pDelta = old-new, pIsImprovement = FALSE.
+// Remaining delta: the two s16[2] pairs are zero-initialised with four `sh zero` stores in the
+// original (10(sp), 8(sp), 2(sp), 0(sp)) while gcc emits an 8-byte copy from a .sdata zero, the
+// Billy loop is strength-reduced to a pointer off %hi(g_GameState+0x2DB) + addiu 0x290 in the
+// original, and the argument temporaries land in t5/t6/t2 instead of t6/t5/t1 here.
+/*
+void func_801CE480(s32* pDelta, s8* pIsImprovement, u8 itemId, u8 itemType, u8 characterId) {
+    s16 oldValue[2] = { 0, 0 };
+    s16 newValue[2] = { 0, 0 };
+    u8 changeDetected;
+    u8 leastDefense;
+    u8 smallest;
+    int i;
+
+    switch (itemType) {
+        case ITEM_TYPE_WEAPON:
+            if (characterId == 4) {
+                for (i = 0; i < 4; i++) {
+                    newValue[0] += g_Menu->pDressingRoom->pWeaponsData[g_GameState.characters[4].unk6F[i]].attack;
+                }
+            } else {
+                newValue[0] = g_Menu->pDressingRoom->pWeaponsData[g_GameState.characters[characterId].unk6A[0]].attack
+                    + g_GameState.characters[characterId].attack;
+                oldValue[0] = g_Menu->pDressingRoom->pWeaponsData[itemId].attack
+                    + g_GameState.characters[characterId].attack;
+            }
+            break;
+        case ITEM_TYPE_ACCESSORY:
+            changeDetected = TRUE;
+            oldValue[1] = g_GameState.characters[characterId].defense;
+            newValue[1] = g_GameState.characters[characterId].defense;
+
+            for (i = 0; i < 3; i++) {
+                newValue[1] += g_Menu->pDressingRoom->pAccessoriesData[g_GameState.characters[characterId].unk74[i]].defense;
+            }
+
+            for (i = 0; i < 3; i++) {
+                u16 group = g_Menu->pDressingRoom->pAccessoriesData[g_GameState.characters[characterId].unk74[i]].unkE;
+
+                if (group != 0 && group == g_Menu->pDressingRoom->pAccessoriesData[itemId].unkE) {
+                    changeDetected = FALSE;
+                    oldValue[1] += g_Menu->pDressingRoom->pAccessoriesData[itemId].defense;
+                } else {
+                    oldValue[1] += g_Menu->pDressingRoom->pAccessoriesData[g_GameState.characters[characterId].unk74[i]].defense;
+                }
+            }
+
+            leastDefense = 0xFF;
+            if (changeDetected) {
+                for (i = 0; i < 3; i++) {
+                    if (leastDefense >= g_Menu->pDressingRoom->pAccessoriesData[g_GameState.characters[characterId].unk74[i]].defense) {
+                        leastDefense = g_Menu->pDressingRoom->pAccessoriesData[g_GameState.characters[characterId].unk74[i]].defense;
+                        smallest = i;
+                    }
+                }
+
+                oldValue[1] = g_GameState.characters[characterId].defense + g_Menu->pDressingRoom->pAccessoriesData[itemId].defense;
+                for (i = 0; i < 3; i++) {
+                    if (i != smallest) {
+                        oldValue[1] += g_Menu->pDressingRoom->pAccessoriesData[g_GameState.characters[characterId].unk74[i]].defense;
+                    }
+                }
+            }
+            break;
+    }
+
+    for (i = 0; i < 2; i++) {
+        if (oldValue[i] >= newValue[i]) {
+            pDelta[i] = oldValue[i] - newValue[i];
+            pIsImprovement[i] = FALSE;
+        } else {
+            pDelta[i] = newValue[i] - oldValue[i];
+            pIsImprovement[i] = TRUE;
+        }
+    }
+}
+*/
 
 u_short func_801CE8D8(u_char* pIDs, u_char* pValues, int numIDs, u_char id) {
     int i;
