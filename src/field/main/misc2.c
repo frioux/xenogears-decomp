@@ -2,11 +2,13 @@
 #include "field/main.h"
 #include "field/actor.h"
 #include "system/math.h"
+#include "system/controller.h"
 #include "psyq/libgpu.h"
 #include "psyq/libgte.h"
 
 extern s16 D_800B218E;
 extern u_char D_800ADC1C[]; // Bit mask of each of the eight movement directions
+extern u16 D_800AFE9C; // Buttons pressed this frame (player 1)
 
 void FieldMatrixResetTranslation(MATRIX *matrix) {
     matrix->t[2] = 0;
@@ -229,6 +231,83 @@ void func_8007254C(void) {
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_8007254C);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_800726E8);
+// 93.36% (856 bytes vs the original's 844): field camera dolly. The structure,
+// the calls and every store match; what is left is (1) block 2 (the dollyStop
+// mask + the two func_800723* calls): the original holds &g_Scene.dollyStop in
+// $s0 and re-forms %hi/%lo for sceneAngle.vy on each use, gcc here holds
+// &g_Scene.sceneAngle.vy in $s0 instead (a `u_char* pDollyStop` local in the
+// block is worse, 89.89%); (2) the shared `unk66 == 0` tail: the original lays
+// it out at the end of the function (+0x2B0) where gcc puts it at +0x168, so the
+// early `dollySet/dollyStop == 0xFF` exits branch forward 0x148 instead of 0x2B0.
+// Note the two expression spellings are required: `((u_int)vy & 0xFFF) >> 9`
+// gives the original's lhu/srl in the first two blocks, while the plain signed
+// `(vy +/- 0x200) & 0xFFF) >> 9` gives lh/sra in the button blocks.
+/*
+extern void func_80284EA4(void);
+
+void func_800726E8(void) {
+    int offset;
+
+    if (g_Scene.dollySet != 0xFF && g_Scene.dollyStop != 0xFF) {
+        if (g_Scene.unk66 == 0) {
+            if (D_800ADC1C[((u_int)g_Scene.sceneAngle.vy & 0xFFF) >> 9] & g_Scene.dollySet) {
+                if (g_Scene.unk5C != -0x400000 && g_Scene.unk5C != 0x400000) {
+                    g_Scene.unk5C = 0x400000;
+                    g_Scene.unk7C += 0x200;
+                }
+                g_Scene.unk66 = 8;
+            }
+        }
+
+        if (D_800ADC1C[((u_int)g_Scene.sceneAngle.vy & 0xFFF) >> 9] & g_Scene.dollyStop) {
+            offset = func_8007234C(g_Scene.dollyStop,
+                ((u_int)g_Scene.sceneAngle.vy & 0xFFF) >> 9);
+            if (func_80072398(g_Scene.dollyStop,
+                    ((u_int)g_Scene.sceneAngle.vy & 0xFFF) >> 9) < offset) {
+                g_Scene.unk5C = -0x400000;
+                g_Scene.unk7C -= 0x200;
+            } else {
+                g_Scene.unk5C = 0x400000;
+                g_Scene.unk7C += 0x200;
+            }
+            g_Scene.unk66 = 8;
+        }
+    }
+
+    if (D_800AFE9C & 0x4) {
+        if (!(g_Scene.unk48 & 0x8000) && g_Scene.unk66 == 0) {
+            if (!(D_800ADC1C[((g_Scene.sceneAngle.vy - 0x200) & 0xFFF) >> 9] & g_Scene.dollyStop)) {
+                g_Scene.unk5C = -0x400000;
+                g_Scene.unk66 = 8;
+                g_Scene.unk7C -= 0x200;
+            }
+        }
+    }
+
+    if (D_800AFE9C & 0x8) {
+        if (!(g_Scene.unk48 & 0x8000) && g_Scene.unk66 == 0) {
+            if (!(D_800ADC1C[((g_Scene.sceneAngle.vy + 0x200) & 0xFFF) >> 9] & g_Scene.dollyStop)) {
+                g_Scene.unk5C = 0x400000;
+                g_Scene.unk66 = 8;
+                g_Scene.unk7C += 0x200;
+            }
+        }
+    }
+
+    if (g_Scene.unk66 != 0) {
+        g_Scene.unk60 += g_Scene.unk5C;
+        g_Scene.sceneAngle.vy = g_Scene.unk60 >> 16;
+        g_Scene.unk66--;
+    }
+    if (g_Scene.unk66 == 0) {
+        g_Scene.sceneAngle.vy = g_Scene.unk7C;
+    }
+
+    if (g_FieldSystemMode == SYSTEM_MODE_PC_HDD) {
+        func_80284EA4();
+    }
+}
+*/
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80072A38);
 
@@ -449,7 +528,55 @@ int func_8007469C(void) {
     return 0;
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc2", FieldPollControllers);
+extern u16 D_800AFEA0; // Buttons pressed this frame (player 2)
+extern u16 D_800C2694; // Buttons released this frame (player 1)
+extern u16 D_800C38F8; // Buttons released this frame (player 2)
+extern u16 D_800C3900; // Buttons pressed this frame, first press only (player 1)
+extern u16 D_800C3908; // Buttons pressed this frame, first press only (player 2)
+extern u16 D_800ADB00; // Mask of buttons polled by the field
+extern s32 D_800ADBDC;
+extern int D_80065848[];
+extern int ControllerPopState(void);
+extern void ControllerResetState(void);
+extern void func_8007AE78(int controllerIndex, int* pOut);
+
+void FieldPollControllers(void) {
+    D_800AFE9C = 0;
+    D_800AFEA0 = 0;
+    D_800C2694 = 0;
+    D_800C38F8 = 0;
+    D_800C3900 = 0;
+    D_800C3908 = 0;
+
+    while (ControllerPopState()) {
+        D_800AFE9C |= g_C1ButtonState & g_FieldControl.controllerBtnMask;
+        D_800AFEA0 |= g_C2ButtonState;
+        D_800C2694 |= g_C1ButtonStateReleased & g_FieldControl.controllerBtnMask;
+        D_800C38F8 |= g_C2ButtonStateReleased;
+        D_800C3900 |= g_C1ButtonStatePressedOnce & g_FieldControl.controllerBtnMask;
+        D_800C3908 |= g_C2ButtonStatePressedOnce;
+    }
+
+    D_800AFE9C &= D_800ADB00;
+    D_800C2694 &= D_800ADB00;
+    D_800C3900 &= D_800ADB00;
+
+    ControllerResetState();
+    func_8007AE78(1, D_80065848);
+
+    if (D_800ADC18 != 0) {
+        D_800AFE9C = 0;
+        D_800AFEA0 = 0;
+        D_800C2694 = 0;
+        D_800C38F8 = 0;
+        D_800C3900 = 0;
+        D_800C3908 = 0;
+    }
+
+    if (D_800ADBDC == 0) {
+        D_800C2694 &= 0xFF7F;
+    }
+}
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", FieldRenderModels);
 
