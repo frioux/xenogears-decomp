@@ -23,7 +23,15 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc5", func_8007A628);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc5", func_8007A6C8);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc5", func_8007A744);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc5", func_8007A7BC);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc5", func_8007A828);
+u8 func_8007A828(u8 **arg0, u8 *arg1, u8 arg2) {
+    u8 *p = *arg0;
+
+    arg1[arg2 * 8 + p[1]] = p[2];
+    if ((*arg0)[1] == 0) {
+        arg2++;
+    }
+    return arg2;
+}
 void func_8007A874(u8 **arg0, u8 *arg1, u8 arg2, u8 arg3) {
     u8 *p = *arg0;
     s32 idx = arg3 * 8 + p[1];
@@ -31,7 +39,15 @@ void func_8007A874(u8 **arg0, u8 *arg1, u8 arg2, u8 arg3) {
 
     arg1[idx] = pRow[p[2]];
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc5", func_8007A8B4);
+void func_8007A8B4(u8 **arg0, u8 *arg1) {
+    u8 *p;
+    s32 i;
+
+    for (i = 0; i < 8; i++) {
+        p = *arg0;
+        arg1[p[2] * 8 + i] = arg1[p[1] * 8 + i];
+    }
+}
 void func_8007A900(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
     u8 *pRow = D_800D3430 + arg1 * 0x40;
@@ -66,8 +82,29 @@ void func_8007A968(u8 **arg0, u8 arg1) {
 void func_8007A9A8(u8 **arg0) {
     D_8005A3A0[(*arg0)[1]] = (*arg0)[2];
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc5", func_8007A9D0);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc5", func_8007AA1C);
+void func_8007A9D0(u8 **arg0, u8 arg1) {
+    u8 *p = *arg0;
+    u8 *pRow = D_800D3430 + arg1 * 0x40;
+    s32 v = pRow[p[1]] + p[2];
+    s32 res;
+
+    if (v < 0x100) {
+        res = v;
+    } else {
+        res = 0xFF;
+    }
+    pRow[p[1]] = res;
+}
+void func_8007AA1C(u8 **arg0, u8 arg1) {
+    u8 *p = *arg0;
+    u8 *pRow = D_800D3430 + arg1 * 0x40;
+    s32 v = pRow[p[1]] - p[2];
+
+    if (v < 0) {
+        v = 0;
+    }
+    pRow[p[1]] = v;
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc5", func_8007AA60);
 void func_8007AAB8(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
