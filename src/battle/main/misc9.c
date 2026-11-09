@@ -2,9 +2,11 @@
 
 extern u8 D_800D2C60[];
 extern u8 D_800D2C8B[];
+extern u8 D_800D2DC0;
 extern u8 *D_800D3278;
 extern u8 *D_800D3364;
 extern u8 D_800D3410[];
+extern u8 D_800D3420[];
 extern u8 D_800D3430[];
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007D8C0);
@@ -24,7 +26,26 @@ void func_8007E674(u8 arg0) {
     D_800D2C8B[arg0] = 4;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007E6A0);
+/* best: 99.00%. Identical instruction multiset and order; the only difference
+   is the register holding the D_800D3410 row base (original a2, gcc v1, which
+   the p[1] index then reuses). Same allocator tie as func_8007E740/E8AC and the
+   misc6 D_800D34x0 family. Tried: s32 val local (75.65%), pRow/p declared in
+   both orders.
+void func_8007E6A0(u8 **arg0, u8 arg1) {
+    u8 *p = *arg0;
+    s32 *pRow = (s32 *)(D_800D3410 + arg1 * 0x40);
+
+    pRow[p[3]] = pRow[p[1]] + pRow[p[2]];
+} */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007E6F0);
+/* best: 99.00%. Same miss as func_8007E6A0: only the D_800D3410 row base
+   register (original a2, gcc v1).
+void func_8007E6F0(u8 **arg0, u8 arg1) {
+    u8 *p = *arg0;
+    s32 *pRow = (s32 *)(D_800D3410 + arg1 * 0x40);
+
+    pRow[p[3]] = pRow[p[1]] - pRow[p[2]];
+} */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007E740);
 /* best: 95.31%. Identical instruction multiset and operand order; the only
    difference is the register pair: the original keeps the D_800D3410 base in
@@ -62,7 +83,12 @@ void func_8007E8AC(u8 **arg0) {
 
     D_800D3364[idx + 0x140] = p[3];
 } */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007E8E0);
+void func_8007E8E0(u8 **arg0, u8 arg1) {
+    u8 *p = *arg0;
+    u16 *pField = (u16 *)(D_800D3420 + arg1 * 0x40);
+
+    D_800D2DC0 = func_80079E7C(pField[p[1]]) + 1;
+}
 void func_8007E934(void) {
     u8 buf[0x10];
 
@@ -74,7 +100,14 @@ s32 func_8007E954(u8 **arg0, u8 arg1) {
 
     return pRow[p[1]] == p[2];
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007E98C);
+s32 func_8007E98C(u8 **arg0, u8 arg1) {
+    u16 *pField = (u16 *)(D_800D3420 + arg1 * 0x40);
+    u8 *p = *arg0;
+
+    s32 value = p[2] | (p[3] << 8);
+
+    return pField[p[1]] == value;
+}
 s32 func_8007E9D0(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
     u8 *pRow = D_800D3430 + arg1 * 0x40;
