@@ -16,7 +16,12 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80022B2C);
    original keeps |step.y| in v1 and stores before the `bgez`, this C uses a1 and the store lands
    in the `bgez` delay slot. Tried: gcc 2.6.0/2.7.2/-O1..-O3/-G4..-G8 (try_flags sweep, best is the
    current preset at 96.30). Local `speed` must not be reused for the bounce term below or gcc
-   keeps it in a callee-saved register.
+   keeps it in a callee-saved register. The else block's emission order is the whole problem: gcc
+   emits `move a0,s0` BEFORE `lw a1,16(s0)` and reorg then steals the move into the bnez delay
+   slot (a `lw` is not delay-slot eligible, so the original's block starts with the load and reorg
+   stops there). Hoisting the shift into a local (s32 step = step.y >> 4) is folded away and does
+   not change the order.
+
 extern s32 func_80022CAC(SpriteData* pSpriteData, s32 value);
 extern void func_800BA8F4(void);
 
@@ -387,7 +392,9 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80023804);
    Tried: statement swap (93.37%), constant-first operand order, mask local, loaded-word temp
    (96.67%), intermediate `ac = v | 0x8000` (93.78%), the `((0x100 & 0xFFF) << 7)` spelling,
    pFlagsA8[1] indexing and the (u8*)pSpriteData casts (70-67%). All of them leave the mask in
-   v1, so the choice is not source-order driven.
+   v1, so the choice is not source-order driven. Also tried: the two statements split as
+   `flags_0xAC &= mask; flags_0xAC |= 0x8000;` (gcc merges them, identical RTL, same 99.10%).
+
 void func_80023804(SpriteData* pSpriteData) {
     u32* pFlagsA8;
     s32 cycles;
