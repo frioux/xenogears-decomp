@@ -378,17 +378,14 @@ void func_800234AC(SpriteData* pSpriteData) {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80023538);
 
-// SpriteData stuff
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80023804);
-/* Best attempt: 99.10%. Everything matches except v0/v1: the original keeps the flags_0xAC mask in v0 and its
-   value in v1 (its AC load is into v1 and the following flags_0xA8 load reuses v0); gcc
-   allocates the pair the other way round. Tried: swapping the two flags statements
-   (93.37%, moves the A8 load first), constant-first operand order, a mask local, explicit
-   assignment instead of &=, and writing the AC update through the pFlagsA8 pointer (81.19%,
-   gcc propagates the earlier zero store). All are 99.10 or worse. Later round: reading both flags
-   words into locals before masking drops to 96.67% (the A8 load moves ahead of the AC mask), and a
-   function-scope mask local is still 99.10% -- which reg the mask pseudo gets is not source-order driven.
-
+/* Best attempt: 99.10%. Only the AC flag word differs: the original keeps the 0xFFF8007F
+   mask in v0 and the value in v1, gcc allocates the pair the other way round. Tried:
+   swapping the statements (93.37%), constant-first operand order, a mask local, a temp for
+   the loaded word (96.67%), an intermediate `ac = v | 0x8000` (93.78%), and the
+   pointer/address-cast forms of the flag accesses (70.23% / 67.63%, both also move the base
+   pointer out of t0). The AC mask pseudo always loses v0 to the AC value's longer ref chain,
+   so the register choice is not source-order driven.
 void func_80023804(SpriteData* pSpriteData) {
     u32* pFlagsA8;
     s32 cycles;
@@ -431,7 +428,6 @@ void func_80023804(SpriteData* pSpriteData) {
 }
 */
 
-
 void func_8002393C(SpriteDataI1* pBase) {
     pBase->rotation.x = 0;
     pBase->rotation.y = 0;
@@ -468,19 +464,9 @@ void func_800239F4(SpriteData* pSpriteData) {
     pSpriteData->pBase->pNextSpriteData = NULL;
 }
 
-extern u8 D_8006BE10;
-extern u8 D_8005A474;
+extern u8 D_8006BE10[];
+extern u8 D_8005A474[];
 extern s32 func_8001EE74(u16* pFlags);
-
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80023A48);
-/* Best attempt: 97.22%. The original forms the two package addresses as `lui v0,%hi` + `addiu s2,v0,%lo` (a temp
-   for the high half, which also forces it to rematerialize `li v0,6` in the first if body
-   and lets reorg drop the second `lui` into the bne delay slot); gcc merges the pair into
-   `lui s2`/`addiu s2,s2`, which also keeps the hoisted 6 in v0, so this C is one
-   instruction shorter and every branch offset differs. The source shape (two independent
-   ifs assigning the parameter) is confirmed by the two `bne a0,v0`: a switch would emit
-   `beq`. Tried: assigning through a separate pointer local, and reusing pAnimPackage for
-   the func_8001EE74 argument (the original clearly assigns the parameter directly).
 
 AnimTask* func_80023A48(s32 arg0, s32 type, void* pAnimPackage, s32 size, void* pData) {
     AnimTask* pEntry;
@@ -494,11 +480,13 @@ AnimTask* func_80023A48(s32 arg0, s32 type, void* pAnimPackage, s32 size, void* 
         func_80023950(&pEntry->spriteData);
         break;
     case 1:
+        // indexed, not plain &D_8006BE10: the index makes gcc build the address as
+        // lui v0,%hi + addiu s2,v0,%lo (a temp for the high half) as the original does
         if (arg0 == 5) {
-            pAnimPackage = &D_8006BE10;
+            pAnimPackage = &D_8006BE10[0];
         }
         if (arg0 == 6) {
-            pAnimPackage = &D_8005A474;
+            pAnimPackage = &D_8005A474[0];
         }
         dataSize = (func_8001EE74(*(u16**)pAnimPackage) - 1) * 24 + 0x58;
         pEntry = func_800233A4(pData, dataSize + size);
@@ -516,7 +504,6 @@ AnimTask* func_80023A48(s32 arg0, s32 type, void* pAnimPackage, s32 size, void* 
     pSpriteData->pVramData = pAnimPackage;
     return pEntry;
 }
-*/
 
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80023B84);
