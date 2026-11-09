@@ -481,13 +481,18 @@ void func_800A6C40(void) {
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A6E70);
 
-/* Best attempt, 99.56% / 500 bytes (the original is 500 too): everything but
+/* PARKED, 99.56% / 500 bytes (the original is 500 too): everything but
    the two UV temporaries matches, and those only land in swapped registers -
    the original keeps (j*16) with its `& 0x3F` in v0 and the `+ 0x10` in v1,
    we get v0 and v1 the other way round (the whole instruction sequence, the
    store order and every offset are identical). Tried and no help: inline vs
    named UV locals, int vs u_char locals, three declaration orders, no UV
    locals at all, swapping the u0/u2 and u1/u3 stores, a separate nU1 local.
+   Later found (round 25): naming the second temp or spelling the u1/u3
+   store as `nU + 0x10` inline makes no difference at all; making the mask
+   local a u_short truncates nX and moves the whole nX group to v0 (so the
+   swap is the allocno priority of the +0x10 temp, not C statement order),
+   and a u_short nX adds an `andi 0x30` truncation - both score 94.91%.
    Settled facts: x0/x2 = nX, u0/u2 = nX & 0x3F, u1/u3 = that + 0x10,
    v0/v1 = i*16, v2/v3 = i*16 + 0x10 (gcc strength-reduces both to the s3/s4
    counters), x1/x3 = nX + 0x10, 0xE x 0x14 grid of 16x16 tiles,
