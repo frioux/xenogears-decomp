@@ -1399,7 +1399,78 @@ void func_8008BDD8(void) {
 }
 */
 
+extern void* D_8005A418[];
+extern s32 D_8005A448[];
+extern int g_GamePartyMemberSkins[MAX_PARTY_MEMBERS];
+extern void func_80076AC0(s32, s32, void*, s32, s32, s32, s32);
+
+// One 0x10 byte block of the 0x14000 byte party model buffers (a 320x128 image)
+typedef struct {
+    u32 w0, w1, w2, w3;
+} PartyDataChunk; // Size: 0x10
+
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008BF38);
+// 97.74%: every instruction matches except the loop-end constant, which the
+// original materialises into $t0 (a register that is still live in the taken
+// branch, so its lui cannot be stolen into the bne delay slot) while gcc picks
+// the dead $v0 and fills the delay slot. One instruction short (580 vs 584
+// bytes). The 0x10-byte struct copy is what reproduces the original four loads
+// followed by four stores; a plain 4x word assignment interleaves them.
+/*
+// Loads the model data of the party member in the following slot into this
+// slot's buffer and shifts the party tables down
+void func_8008BF38(int partyIndex) {
+    int characterId;
+    FieldActor* pFieldActor;
+    ActorData* pActor;
+    void* pSprite;
+    PartyDataChunk* pSrc;
+    PartyDataChunk* pDst;
+    PartyDataChunk* pEnd;
+    u8 unused[8]; // original has unused stack slots; reproduces the frame
+
+    characterId = D_8005A448[partyIndex];
+    if (characterId == ACTOR_ID_INVALID) {
+        g_GamePartyMemberSkins[partyIndex] = g_GamePartyMemberSkins[partyIndex + 1];
+        g_GamePartyMembers[partyIndex] = g_GamePartyMembers[partyIndex + 1];
+        D_8005A448[partyIndex - 1] = D_8005A448[partyIndex];
+        g_GamePartyMembers[partyIndex + 1] = characterId;
+        g_GamePartyMemberSkins[partyIndex + 1] = characterId;
+        D_8005A448[partyIndex] = characterId;
+        return;
+    }
+
+    pSrc = D_8005A418[partyIndex];
+    pEnd = pSrc + 0x1400;
+    pDst = g_PartyDataBuffers[partyIndex];
+    do {
+        *pDst = *pSrc;
+        pSrc++;
+        pDst++;
+    } while (pSrc != pEnd);
+
+    g_GamePartyMemberSkins[partyIndex] = g_GamePartyMemberSkins[partyIndex + 1];
+    g_GamePartyMembers[partyIndex] = g_GamePartyMembers[partyIndex + 1];
+    D_8005A444[partyIndex] = D_8005A444[partyIndex + 1];
+
+    pFieldActor = &g_FieldActors[characterId];
+    pActor = pFieldActor->pActorData;
+    if (!(pActor->unk126 & 0x80)) {
+        func_80076AC0(characterId, partyIndex, g_PartyDataBuffers[partyIndex], 1, 0, partyIndex, 1);
+    } else {
+        pSprite = (void*)((*(s32*)(g_FieldSpriteData + (pActor->unk126 & 0x7F) * 4 + 4)) + (s32)g_FieldSpriteData);
+        func_80076AC0(characterId, pActor->spriteId, pSprite,
+            ((u32)pActor->flags130 >> 28) & 0x3, pActor->flags134 & 0xF,
+            g_FieldActors[characterId].pActorData->unk126,
+            ((u32)g_FieldActors[characterId].pActorData->flags134 >> 4) & 0x1);
+    }
+
+    g_GamePartyMembers[partyIndex + 1] = ACTOR_ID_INVALID;
+    g_GamePartyMemberSkins[partyIndex + 1] = ACTOR_ID_INVALID;
+    D_8005A448[partyIndex] = ACTOR_ID_INVALID;
+}
+*/
+
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008C180);
 
