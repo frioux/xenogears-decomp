@@ -39,6 +39,10 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc10", func_8009635C);
    single `sb` at the end of both branches (path 1 jumps into the tail of the
    else body), sharing one `pQuantities + nIndex` address. Here gcc emits one
    store per branch plus an extra `nop` in the beqz delay slot.
+   Tried and rejected: inverting to `if (nIndex == -1) {...} else if (*p < 0x63)`
+   makes gcc cross-jump and hits the original's exact 172 bytes, but it then keeps
+   the shared `sb` in the else-if block, so the quantity path lands last and the
+   branch polarity flips (56%): the layout is wrong, not the code.
 void func_8009635C(int nItemId) {
     int nIndex;
     u_char* pQuantities;
