@@ -305,7 +305,91 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_80026A0C);
 void func_80026B9C(void) {
 }
 
+// Queues one semi-transparent textured quad per record of the dirent.
+//
+// Best 68.00%: blocked on the same GP-rel split as func_800250E0. The original
+// object reads g_GfxCurWorkBuffer and g_GfxCurWorkBufferEnd with lui/%hi+%lo
+// here (they were externs in this function's original TU), but the matched
+// functions 80025180/800251C8/8002541C/80025544 need %gp_rel for both, which
+// maspsx only emits when the unit itself defines the symbol in .sbss. This
+// function can only match from a separate TU that does not define them.
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_80026BA4);
+/*
+void func_80026BA4(MenuResourceDirectory* dir, u32 index, s32 x, s32 y, u_long* ot) {
+    MenuResourceDirentTextureMetadata* pDirent;
+    MenuResourceTextureMetadata* pData;
+    POLY_FT4* pPrim;
+    s32 count;
+    s32 i;
+    s32 x0;
+    s32 y0;
+    s32 w;
+    s32 h;
+    s32 u;
+    s32 v;
+    s32 u_shifted;
+    s32 texPageX_lsb;
+    s32 texPageX;
+    s32 texPageY;
+
+    pDirent = (MenuResourceDirentTextureMetadata*)(dir->offsets[index] + (unsigned)dir);
+    count = pDirent->count;
+    pPrim = g_GfxCurWorkBuffer;
+    if ((u8*)(pPrim + count) >= (u8*)g_GfxCurWorkBufferEnd) {
+        return;
+    }
+    if (count == 0) {
+        return;
+    }
+
+    pData = &pDirent->data[0];
+    for (i = 0; i != count; i++, pData++) {
+        pPrim = g_GfxCurWorkBuffer;
+        g_GfxCurWorkBuffer = pPrim + 1;
+
+        setlen(pPrim, 9);
+        setcode(pPrim, 0x2D);
+
+        u_shifted = pData->u << 0x10;
+        if (pData->texPageId != 0) {
+            texPageX_lsb = u_shifted >> 0x12;
+        } else {
+            texPageX_lsb = u_shifted >> 0x14;
+        }
+        texPageX = (s16)(pData->texPageX & 0xFFC0) + texPageX_lsb;
+        texPageY = (s16)(pData->texPageY & 0xFF00) + pData->v;
+
+        x0 = pData->x + x;
+        y0 = pData->y + y;
+        w = pData->width;
+        h = pData->height;
+        u = pData->u;
+        v = pData->v;
+
+        pPrim->clut = GetClut(pData->clutX, pData->clutY);
+        pPrim->tpage = GetTPage(pData->texPageId, 0, texPageX, texPageY);
+
+        pPrim->x0 = x0;
+        pPrim->x1 = x0 + w;
+        pPrim->x2 = x0;
+        pPrim->x3 = x0 + w;
+        pPrim->y0 = y0;
+        pPrim->y1 = y0;
+        pPrim->y2 = y0 + h;
+        pPrim->y3 = y0 + h;
+        pPrim->u0 = u;
+        pPrim->u1 = u + w;
+        pPrim->u2 = u;
+        pPrim->u3 = u + w;
+        pPrim->v0 = v;
+        pPrim->v1 = v;
+        pPrim->v2 = v + h;
+        pPrim->v3 = v + h;
+
+        AddPrim(ot, pPrim);
+    }
+}
+*/
 
 // One sprite of a menu resource dirent, converted to screen space with its
 // tpage/clut resolved. x/y stay unsigned: they are added to a screen offset.
