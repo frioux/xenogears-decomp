@@ -90,6 +90,14 @@
 	:							\
 	: "r"( r0 ), "r"( r1 ), "r"( r2 ) )
 
+/* SetRGBfifo: the FIFO fill only, without gte_ldrgb3's copy of RGB2 to RGB0. */
+#define gte_ldrgb3_fifo( r0, r1, r2 ) __asm__ volatile (	\
+	"lwc2	$20, 0( %0 );"					\
+	"lwc2	$21, 0( %1 );"					\
+	"lwc2	$22, 0( %2 )"					\
+	:							\
+	: "r"( r0 ), "r"( r1 ), "r"( r2 ) )
+
 #define gte_ldrgb3c( r0 ) __asm__ volatile (			\
 	"lwc2	$20, 0( %0 );"					\
 	"lwc2	$21, 4( %0 );"					\

@@ -130,7 +130,9 @@ void SetVertexTri(SVECTOR *v0, SVECTOR *v1, SVECTOR *v2) {
     gte_ldv3(v0, v1, v2);
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", SetRGBfifo);
+void SetRGBfifo(u_char *rgb0, u_char *rgb1, u_char *rgb2) {
+    gte_ldrgb3_fifo(rgb0, rgb1, rgb2);
+}
 
 void SetIR123(long ir1, long ir2, long ir3) {
     gte_ldir123(ir1, ir2, ir3);
