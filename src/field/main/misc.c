@@ -2094,10 +2094,10 @@ void func_8008EE14(void) {
     D_800ADB70 = 1;
     g_FieldScriptVMCurActor->scriptInstructionPointer += 0x13;
 }
+*/
 
 extern s32 D_800ADB3C;
 extern s32 D_800ADB38;
-*/
 
 void func_8008EF5C(void) {
     D_800ADB3C = FieldScriptVMGetArgument(1);
