@@ -183,7 +183,8 @@ Stubs by area at session start: `psyq` 150 (96 libgte, 12 libapi, 8 libapi_2,
 | 23 | 13 workers | +13 | 1949 | the 4-byte delta was a stray `gte_nop()`; 11 libgte functions landed |
 | 24 | 13 workers | +10 | 1959 | hard-coded-scratch GTE macros crack the return-value-coalescing wall |
 | 25 | 13 workers | +1 | 1960 | flat: the tail is one-instruction register puzzles and blocked families |
-| 26 | 13 workers | final | — | closing parked 95-99% attempts |
+| 26 | 13 workers | +4 | 1964 | SetTransMatrix, `func_8003864C`, `func_800809D0`, `func_80023A48` |
+| 27 | 13 workers | +3 | 1967 | libgte `LoadAverage0`/`LoadAverage12`; the `sound` preset question answered |
 | — | `GraphicsDrawPauseLetters` split into its own TU (`rendering_pause_text.c`) | — | — | the per-file compiler split works: that function only matches under gcc-2.7.2-cdk |
 
 ### Round 12-13 notes
@@ -360,10 +361,10 @@ New tools (all in `tools/scripts/`, all documented):
 # Session 2 result
 
 Start: **1824 / 2528 functions (72.15%)**, 339888 / 670864 bytes (50.66%), 761 stubs.
-End:   **1960 / 2528 functions (77.53%)**, 365560 / 670864 bytes (54.49%), 569 stubs.
+End:   **1967 / 2528 functions (77.81%)**, 366756 / 670864 bytes (54.67%), 561 stubs.
 
-That is **+136 functions and +3.83 points of code** in 15 rounds of 10-14 parallel
-workers (about 180 worker-runs), every batch gated by `make check`.
+That is **+143 functions and +4.01 points of code** in 16 rounds of 10-14 parallel
+workers (about 200 worker-runs), every batch gated by `make check`.
 
 Landed by area: `psyq/libgte` 4 -> 27 matched (the header revisions), `sound` +18,
 `field/main/{misc,misc2,misc4,misc5,misc6,misc8,misc9,misc11,misc12,main}` +35,
@@ -416,7 +417,13 @@ Landed by area: `psyq/libgte` 4 -> 27 matched (the header revisions), `sound` +1
    `func_8007554C`) gates six functions and the unit's rodata. It needs an
    `asm("sw $sp, 0($t0)")`-style statement, which the hard rules forbid; this is a
    policy decision, not a technical one.
-3. **`system/sound` is a MIXED toolchain unit and needs a TU split.** Round 26
+3. **`system/sound`'s preset is CONFIRMED correct (2.6.0); do not split it.** A
+   round-27 worker measured all 235 C-defined functions in the unit: 188 are
+   byte-identical under gcc 2.6.0 and 2.7.2, **45 are 100% under 2.6.0 only and
+   zero are 2.7.2-only** (the witnesses are spread across the whole unit, not
+   clustered). `func_8003D53C` is a lone accident that happens to compile
+   identically under 2.7.2; it cannot be carved out without three TUs for one
+   24-byte function. (Earlier note retained for the reasoning:) Round 26
    found `func_8003D53C` scores 95.83% under the unit's `XenoLibrary` (gcc 2.6.0)
    flags but **100%** under `Default` (gcc 2.7.2, -O2 -G8); six sampled matched
    functions in the unit are 100% under both. Switching the whole unit to 2.7.2
@@ -428,8 +435,16 @@ Landed by area: `psyq/libgte` 4 -> 27 matched (the header revisions), `sound` +1
    register-allocation puzzles** documented in their parked comments. A worker
    that only reads the parked note and tries one genuinely new lever per function
    is worth more there than a fresh attempt.
-4. **`system/model` (49 stubs) remains hopeless** (hand-written asm), and
+4. **`slus_006.64/system/menu.c` is finished for C purposes**: its last "stub"
+   `func_8001C76C` is 94 lines of raw `.word` (a menu/resource descriptor table),
+   not code. Do not put it on a work list.
+5. **A tools bug to remember**: `try_flags.sh` scored any still-`INCLUDE_ASM`
+   function as a bogus 100.00% until round 27, because it preprocessed without
+   `-DSKIP_ASM` and so compared the original assembly with itself. Fixed; if a
+   preset experiment ever reports a suspiciously perfect score for a stub, that is
+   what it was.
+6. **`system/model` (49 stubs) remains hopeless** (hand-written asm), and
    `psyq/libgte`'s `mtc2`-only bodies likewise.
-5. Overlays still unsplit: `battling`, `world_map`, `battle`, `menu`, `movie`
+7. Overlays still unsplit: `battling`, `world_map`, `battle`, `menu`, `movie`
    (AGENTS.md section 9). That is the largest single source of new work left and
    it is mostly mechanical.
