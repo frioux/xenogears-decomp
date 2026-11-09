@@ -636,3 +636,73 @@ void func_800245D8(SpriteData* pSpriteData, s32 animId) {
 }
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80024730);
+/* Best attempt: 53.46%. Shape facts recovered from the asm: the switch table covers 0..14
+   (`sltiu $v0,$s1,0xF`), so cases 0-6 and 14 are explicit empty cases in the source, not a
+   default; the bodies come out in source order 12, 10, 13, 11, 7, 8, 9 (12 and 13 are
+   byte-identical duplicates that gcc did not cross-jump). `addiu $s2,$a0,0x1C` in the beqz
+   delay slot means the source takes &pAnimTask->task2 into a local before the switch. Open
+   gaps: the original copies the AnimTask argument to $a2 at entry (`addu $a2,$a0`) and passes
+   it with `addu $a0,$a2`; a source-level extra local gets gcc to copy too but into $a1, and
+   the position copies come out load-all-then-store-all instead of the original's interleaved
+   `lw %lo/%lo+4/%lo+8; sw` with `addiu $v0,$v0,%lo` in the delay slot.
+extern void func_800BC158(AnimTask* pAnimTask);
+extern void func_80025224(WorkListEntry* pTask, s32 animType);
+extern IVEC3 D_8006F99C;
+extern IVEC3 D_8006F9AC;
+
+void func_80024730(AnimTask* pAnimTask) {
+    SpriteData* pSpriteData = &pAnimTask->spriteData;
+    WorkListEntry* pTask = &pAnimTask->task2;
+    s32 animType;
+
+    animType = (pSpriteData->field_0x40 >> 13) & 0xF;
+    switch (animType) {
+    case 12:
+        pSpriteData->curSpriteFrame = 1;
+        animType = (animType - 2) & 0xF;
+        pSpriteData->field_0x40 = (pSpriteData->field_0x40 & 0xFFFE1FFF) | (animType << 13);
+        func_800BC158(pAnimTask);
+        pSpriteData->position = D_8006F99C;
+        break;
+    case 10:
+        func_800BC158(pAnimTask);
+        pSpriteData->curSpriteFrame = 0;
+        pSpriteData->position = D_8006F99C;
+        break;
+    case 13:
+        pSpriteData->curSpriteFrame = 1;
+        animType = (animType - 2) & 0xF;
+        pSpriteData->field_0x40 = (pSpriteData->field_0x40 & 0xFFFE1FFF) | (animType << 13);
+        func_800BC158(pAnimTask);
+        pSpriteData->position = D_8006F99C;
+        break;
+    case 11:
+        func_800BC158(pAnimTask);
+        pSpriteData->curSpriteFrame = 0;
+        pSpriteData->position = D_8006F9AC;
+        break;
+    case 7:
+        TimerWorkListSetTaskCallback(pAnimTask, &func_80022E8C);
+        break;
+    case 8:
+        pSpriteData->prim = 0x68;
+        pSpriteData->curSpriteFrame = 1;
+        break;
+    case 9:
+        pSpriteData->field_0x36 = 3;
+        pSpriteData->prim = 0x60;
+        pSpriteData->curSpriteFrame = 1;
+        break;
+    case 0:
+    case 1:
+    case 2:
+    case 3:
+    case 4:
+    case 5:
+    case 6:
+    case 14:
+        break;
+    }
+    func_80025224(pTask, animType);
+}
+*/
