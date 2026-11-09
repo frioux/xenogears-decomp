@@ -1276,7 +1276,98 @@ int func_801E6338(Model* pModel) {
     return SquareRoot0(dx * dx + dy * dy + dz * dz);
 }
 
+// 93.15% as measured with Model::unk5A still declared u8[2] (so the attempt below
+// tested the field's address instead of loading it); the header now has s16
+// unk5A, which removes that delta. What already reproduces exactly: the reload of
+// unk58 after the bit-scan loop, the sequential (not else-if) test chain on
+// 0xFE/0xFD/0xFC/0xFA, the CompMatrix / SetRotMatrix / gte_ldv0 + gte_mvmva body
+// and the 0x88 tail, including the 0x38 frame (which needs a 24-byte GTE result
+// buffer, hence value[12], not value[6]).
+// Remaining delta: the original computes `type - 1` TWICE from two different
+// registers -- `move a1,v1` early, then `addiu v0,a1,-1` for the range test and
+// `addiu a0,v1,-1` for the stored index -- so its two operands are distinct
+// pseudos. Every single-local spelling tried (s16/s32/u32 local, repeated
+// `pModel->unk58` reads, a separate `rawType` copy) makes gcc 2.6 CSE them into
+// one addiu, which costs one instruction and shifts every later label.
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E63A8);
+/* Best attempt, 93.15%:
+void func_801E63A8(Model* pModel) {
+    Model* pSource;
+    MATRIX* pMatrix;
+    u_short value[12];
+    s32 index;
+    s32 jointIndex;
+    Temp3* pObject;
+
+    index = 0;
+    if (pModel->unk58 == 0xFF) {
+        for (index = 0; index < 8; index++) {
+            if ((pModel->unk10A >> index) & 0x1) {
+                break;
+            }
+        }
+    }
+
+    if (pModel->unk58 == 0xFE) {
+        index = D_801E86B0;
+    }
+    if (pModel->unk58 == 0xFD) {
+        index = pModel->unk20;
+    }
+    if (pModel->unk58 == 0xFC) {
+        index = pModel->unk21;
+    }
+    if (pModel->unk58 == 0xFA) {
+        index = 0xA;
+    }
+    if ((u32)(pModel->unk58 - 1) < 0x7F) {
+        index = pModel->unk58 - 1;
+    }
+
+    pSource = g_LibGearModels[index];
+    if (pSource == NULL) {
+        return;
+    }
+
+    if (index == pModel->unk20) {
+        return;
+    }
+
+    jointIndex = pModel->unk5A;
+    pMatrix = (MATRIX*)0x1F800000;
+
+    if (jointIndex != 0) {
+        CompMatrix(
+            &pSource->pSkeleton[0].localTransform,
+            &pSource->pSkeleton[jointIndex].globalTransform,
+            pMatrix
+        );
+    } else {
+        pMatrix = &pSource->pSkeleton[0].localTransform;
+    }
+
+    SetRotMatrix(pMatrix);
+    SetTransMatrix(pMatrix);
+
+    gte_ldv0((SVECTOR*)&pModel->unk62[2]);
+    gte_mvmva(1, 0, 0, 0, 0);
+    gte_stlvnl(value);
+
+    pModel->unk70[12] = value[0];
+    pModel->unk70[13] = value[2];
+    pModel->unk70[14] = value[4];
+
+    pObject = (Temp3*)pModel->pSkeleton->unk70;
+    if (pObject != NULL) {
+        if ((u32)(pObject->unk2 - 7) < 2) {
+            pObject->unkA = value[0];
+            pObject->unkC = value[2];
+            pObject->unkE = value[4];
+        }
+    }
+}
+*/
+
 
 // objdiff 98.63%: byte-identical except that gcc 2.6 puts pJoint in s1 and the
 // loop counter i in s0; the original has pJoint in s0, i in s1 (the other five
