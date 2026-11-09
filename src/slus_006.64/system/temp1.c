@@ -196,26 +196,25 @@ void func_800230A8(SpriteData* pSpriteData) {
     HeapFree(pSpriteData);
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80023124);
-/* Best attempt: 79.47%. Param is an 8-byte struct of two s16 pairs (x1,y1,x2,y2); ratan2 is
-   already declared long/long in psyq/libgte.h, so do not redeclare it (conflicting types).
-   Code and registers agree; the original's frame is 0x10 bigger because it also stores both
-   differences to dead stack slots at 0x10 and 0x18 (8 bytes apart) around the ratan2 call.
-   Same result under gcc-2.6.0 (67.95) and gcc-2.7.2 (79.47), so it is source-level, not preset.
 typedef struct {
-    0x0 s16 x1;
-    0x2 s16 y1;
-    0x4 s16 x2;
-    0x6 s16 y2;
-} SVEC2Pair;
+    /* 0x0 */ s16 xStart;
+    /* 0x2 */ s16 yStart;
+    /* 0x4 */ s16 xEnd;
+    /* 0x6 */ s16 yEnd;
+} SLineEnds;
 
-s32 func_80023124(SVEC2Pair line) {
-    s32 dx = line.x1 - line.x2;
-    s32 dy = line.y1 - line.y2;
+typedef struct {
+    /* 0x0 */ s32 x;
+    /* 0x4 */ s32 y;
+} SDelta;
 
-    return -ratan2(dy, dx) & 0xFFF;
+s32 func_80023124(SLineEnds line) {
+    SDelta deltas[2];
+
+    deltas[0].x = line.xStart - line.xEnd;
+    deltas[1].x = line.yStart - line.yEnd;
+    return -ratan2(deltas[1].x, deltas[0].x) & 0xFFF;
 }
-*/
 
 void func_80023170(SpriteData* pSpriteData, s32 arg1, s32 arg2, s32 arg3) {
     u32 flags = *(u32*)((u8*)pSpriteData + 0x3C);
