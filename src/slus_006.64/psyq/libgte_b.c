@@ -62,21 +62,14 @@ void NormalColor3(SVECTOR *v0, SVECTOR *v1, SVECTOR *v2, CVECTOR *v3, CVECTOR *v
 */
 
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte_b", NormalColorDpq);
-/* best attempt 88.89% (this form 77.78%). With gte_ldrgb before gte_lddp
-   every instruction matches except one extra nop maspsx inserts between
-   `lwc2 $6, 0($5)` and `mtc2 $6, $8`: it mistakes the GTE register number in
-   the lwc2 for the general register read by the mtc2 (the depth argument is in
-   $6 here). Same cause as ColorDpq/DpqColorLight below.
 void NormalColorDpq(SVECTOR *v0, CVECTOR *v1, long p, CVECTOR *v2) {
     gte_ldv0(v0);
-    gte_lddp(p);
     gte_ldrgb(v1);
+    gte_lddp_a2(p);
     gte_nop();
     gte_ncds_b();
     gte_strgb(v2);
 }
-*/
 
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte_b", NormalColorDpq3);
@@ -117,20 +110,14 @@ void NormalColorCol3(SVECTOR *v0, SVECTOR *v1, SVECTOR *v2, CVECTOR *v3, CVECTOR
 */
 
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte_b", ColorDpq);
-/* best attempt 90.00%. Everything matches except one extra nop that maspsx
-   inserts between `lwc2 $6, 0($5)` and `mtc2 $6, $8` (its load-reuse check
-   compares the lwc2 COP2 register number with the GPR the mtc2 reads; here the
-   depth argument arrives in $6).
 void ColorDpq(VECTOR *v0, CVECTOR *v1, long p, CVECTOR *v2) {
     gte_ldlvl(v0);
     gte_ldrgb(v1);
-    gte_lddp(p);
+    gte_lddp_a2(p);
     gte_nop();
     gte_cdp_b();
     gte_strgb(v2);
 }
-*/
 
 
 void ColorCol(VECTOR *v0, CVECTOR *v1, CVECTOR *v2) {
@@ -158,18 +145,14 @@ void LightColor(VECTOR *v0, VECTOR *v1) {
     gte_stlvl(v1);
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte_b", DpqColorLight);
-/* best attempt 90.00%. Same maspsx nop between `lwc2 $6, 0($5)` and
-   `mtc2 $6, $8` as ColorDpq.
 void DpqColorLight(VECTOR *v0, CVECTOR *v1, long p, CVECTOR *v2) {
     gte_ldlvl(v0);
     gte_ldrgb(v1);
-    gte_lddp(p);
+    gte_lddp_a2(p);
     gte_nop();
     gte_dpcl_b();
     gte_strgb(v2);
 }
-*/
 
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte_b", DpqColor3);

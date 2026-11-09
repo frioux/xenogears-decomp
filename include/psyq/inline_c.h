@@ -1592,3 +1592,14 @@
 #define gte_stotz_val( r0 ) __asm__ volatile (			\
 	"mfc2	%0, $7"						\
 	: "=r"( r0 ) )
+
+/* The same load, spelled with the argument's ABI name. maspsx inserts a
+   load-reuse nop after an `lwc2 $6,...` when the next instruction reads $6, and
+   `mtc2 %0,$8` does exactly that when the depth argument is the third
+   parameter (which arrives in $a2 = $6). `$a2` encodes identically, so the
+   original's single nop survives. Requires the caller to pass the depth in
+   $a2, i.e. the third argument of an unmoved parameter. */
+#define gte_lddp_a2( r0 ) __asm__ volatile (			\
+	"mtc2	$a2, $8"					\
+	:							\
+	: "r"( r0 ) )
