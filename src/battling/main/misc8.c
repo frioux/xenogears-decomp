@@ -1,6 +1,7 @@
 #include "common.h"
 #include "system/memory.h"
 #include "psyq/libgpu.h"
+#include "system/controller.h"
 
 extern u8 D_800915AC[];
 extern u16 D_800915BE;
@@ -18,6 +19,7 @@ extern s32 *D_80092760;
 extern u8 D_8009A0D8[];
 extern u8 D_800928A0;
 extern s32 D_800926DC;
+extern u8 D_800916D8[];
 extern s32 D_80092700;
 extern s32 D_80092704;
 extern u8 D_8009273C;
@@ -26,6 +28,7 @@ extern u16 D_8009286C;
 extern void *D_80092880;
 extern u16 D_8009553C;
 extern u16 D_8009553E;
+extern u8 D_800928FC;
 extern u8 D_8009A1C4;
 extern u8 D_8009A1C5;
 extern u8 D_8009A1C6;
@@ -50,6 +53,10 @@ extern void func_8008EB4C(s32 arg);
 extern void func_80083C0C(s32 mode);
 extern void func_8007F8B4(void);
 extern void func_800812BC(u8 *p);
+extern void func_80036420(void);
+extern void func_8008151C(s32 *p);
+extern void func_8008162C(s32 *p, s32 a1);
+extern void func_80081A44(void);
 extern void func_80080F04(void);
 extern void *GetStringEntry(void *pStringData, u32 entry);
 extern s32 SystemRenderStringEntry(void *pCur, void *pCharBuffer, s32 mode, s32 flag);
@@ -228,7 +235,31 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc8", func_8008162C);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc8", func_80081A44);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc8", func_80081D2C);
+void func_80081D2C(void) {
+    s32 unk[2]; /* retail reserves 8 bytes of locals here */
+    s32 *p;
+
+    if (D_8009275C != 0) {
+        func_80080AE8();
+        D_8009275C = 0;
+    }
+    func_80036420();
+    p = D_80092734;
+    if (p == (s32 *)D_800916D8) {
+        func_80081A44();
+    } else {
+        if (p != 0) {
+            if (g_C1ButtonStateReleased & 1) {
+                if (D_800926FC < 5) {
+                    D_800926FC++;
+                    func_80080AE8();
+                }
+            }
+            func_8008162C(p, D_800928FC);
+        }
+        func_8008151C(D_80092734);
+    }
+}
 
 void func_80081E00(void) {
     u16 v = D_8009286C;
