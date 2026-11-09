@@ -1353,30 +1353,38 @@ int func_801E67F8(void) {
 // formulation tried — u8 index, s32 index with `& 0xFF`, s32 index with a
 // `(u8)` cast, and a separate `s32 n = index` temporary — because the shift
 // count only needs its low 5 bits, so the narrowing never survives.
+// objdiff 92.95%: one `andi v0,a1,0xff` short. gcc 2.6 keeps the merged u8 index in
+// SImode (jump-delay slots then hold a copy of `li v1,1`), the original truncates
+// it once at the merge. Reassigning a `u8 index = type` local in each branch (this
+// shape) reproduces the rest exactly, including the `andi v1,a1,0xff` at the top
+// and the index living in a1; u8 param, s32 index with `& 0xFF`, a `(u8)` cast and
+// an `s32 n = index` temporary all leave the same delta, because the mask only
+// feeds a shift count.
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E6830);
-/* void func_801E6830(Model* pModel, u8 type, s16* pMask) {
-    u8 index;
+/*
+void func_801E6830(Model* pModel, int type, s16* pMask) {
+    u8 index = type;
 
-    if (type == 0xFF) {
+    if (index == 0xFF) {
         index = func_801E67F8();
-    } else if (type == 0xFE) {
+    } else if (index == 0xFE) {
         index = *(u8*)&D_801E86B0;
-    } else if (type == 0xFD || type == 0xF9) {
+    } else if (index == 0xFD || index == 0xF9) {
         index = pModel->unk20;
-    } else if (type == 0xFC) {
+    } else if (index == 0xFC) {
         index = pModel->unk21;
-    } else if (type == 0xFA) {
+    } else if (index == 0xFA) {
         index = 0xA;
-    } else if (type == 0xF8) {
+    } else if (index == 0xF8) {
         index = pModel->unk20 * 2 + 8;
-    } else if (type == 0xF7) {
+    } else if (index == 0xF7) {
         index = pModel->unk20 * 2 + 9;
-    } else {
-        index = type;
     }
 
     *pMask = 1 << index;
-} */
+}
+
+*/
 
 void* func_801E6910(Model* pModel, u8 index, s32* pFlags) {
     void* pResult;
