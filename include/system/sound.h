@@ -120,6 +120,16 @@ struct SoundWDSEntry_t {
 };
 typedef struct SoundWDSEntry_t SoundWDSEntry;
 
+// Tone table entry that follows the WDS header at offset 0x30 of a SoundWDSEntry.
+typedef struct {
+    /* 0x0 */ u32 sampleOffset;
+    /* 0x4 */ u16 loopOffset;
+    /* 0x6 */ u16 unk6;
+    /* 0x8 */ u32 adsr;
+    /* 0xC */ u16 unkC;
+    /* 0xE */ u16 unkE;
+} SoundWdsTone; // Size: 0x10
+
 typedef struct {
     /* 0x0 */ int currentValue; // Current interpolated value
     /* 0x4 */ int stepIncrement; // Amount to add each step

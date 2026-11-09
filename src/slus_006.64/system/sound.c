@@ -3,6 +3,9 @@
 #include "psyq/kernel.h"
 #include "psyq/libspu.h"
 
+s32 func_8003E290(s32 value, s16 divisor, s16 mode);
+s32 func_8003F240(AudioEnvelope* pEnvelope);
+
 //----------------------------------------------------------------------------------------------------------------------
 // SPU DECLARATIONS
 //----------------------------------------------------------------------------------------------------------------------
@@ -2936,6 +2939,39 @@ u8* func_8003DBE4(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
 }
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003DC50);
+/*
+Attempt (93.36%, same size, all instructions in the original's order): two differences remain.
+gcc puts the running volume total in s0 and pAudioElements in s1 (original: volume s1,
+pAudioElements s0 - the prologue save order follows from it), and gcc omits the sll 16 / sra 16
+pair the original uses to convert the divisor argument, because it can prove the sum is
+non-negative. `s16 volume` instead of `s32 volume` only adds an `andi` (90.34%).
+u8* func_8003DC50(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
+    s32 note = (s8)pScript[1];
+    u8 velocity = pScript[0];
+    s32 volume;
+    s32 unk16;
+
+    if (note != 0) {
+        if (velocity != 0) {
+            volume = velocity + (velocity * velocity) / 64;
+            pAudioElements->envelopes[1].delta = func_8003E290(note << 24, volume, 2);
+            pAudioElements->envelopes[1].reload = volume;
+            unk16 = pScript[2] << 2;
+            pAudioElements->envelopes[1].unk_0x1A = 0x400;
+            pAudioElements->envelopes[1].unk_0x0 = (undefined32)func_8003F240;
+            pAudioElements->envelopes[1].unk_0x1D = 2;
+            pAudioElements->envelopes[1].unk_0x1C = 1;
+            pAudioElements->envelopes[1].flags = 3;
+            pAudioElements->envelopes[1].unk_0x16 = unk16;
+            pAudioElements->unk_0xCE |= 0x2;
+            func_8003E3E0(&pAudioElements->envelopes[1]);
+        }
+    }
+
+    return pScript + 3;
+}
+*/
+
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003DD24);
 
@@ -3203,6 +3239,42 @@ u8* func_8003E54C(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
 }
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003E5BC);
+/*
+Attempt (25.00%, same size as the original's 200 bytes): the field mapping is right (every
+offset in the original is reproduced: voice_data.startAddress/loopAddress, the four adsr bytes,
+unk_0x28, unk_0x6C, active_flag bit 15, unk_0x26) but two things differ. gcc rewrites
+`sampleOffset * 8 + loopOffset * 8` as `(sampleOffset + loopOffset) * 8`, losing the original's
+reuse of the first shift, and it emits the `active_flag |= 0x8000` read-modify-write five
+stores earlier than the source places it, which also displaces the unkC halfword from a2 to v1.
+A `u32 sampleOffset` local and moving the flag store later in the source both left it unchanged.
+void func_8003E5BC(s16 value, AudioElement* pElement) {
+    SoundWDSEntry* pWds = (SoundWDSEntry*)pElement->unk2C;
+    SoundWdsTone* pTone = (SoundWdsTone*)((u8*)pWds + 0x30 + value * 0x10);
+    u32 adsr;
+    u16 unkC;
+
+    pElement->unk_0x26 = value;
+    pElement->voice_data.startAddress = pWds->spuMemoryAddress + pTone->sampleOffset * 8;
+    pElement->voice_data.loopAddress = pTone->sampleOffset * 8 + pTone->loopOffset * 8;
+
+    unkC = pTone->unkC;
+    pElement->voice_data.unkAdsr1 = unkC & 0x7;
+    pElement->voice_data.unkAdsr2 = (unkC >> 4) & 0x7;
+    pElement->voice_data.unkAdsr3 = (unkC >> 8) & 0x7;
+
+    adsr = pTone->adsr;
+    pElement->voice_data.unkAdsr4 = adsr & 0x7F;
+    pElement->voice_data.adsrDR = (adsr >> 8) & 0xF;
+    pElement->voice_data.unkAdsr5 = (adsr >> 16) & 0x7F;
+    pElement->voice_data.adsrSR = (adsr >> 12) & 0xF;
+    pElement->unk_0x28 = (adsr >> 24) & 0x1F;
+    pElement->voice_data.unkAdsr6 = pElement->unk_0x28;
+
+    pElement->active_flag |= 0x8000;
+    pElement->unk_0x6C = pTone->unk6;
+}
+*/
+
 
 //----------------------------------------------------------------------------------------------------------------------
 void unk_SoundSetFlagsOnActiveVoices(u16 flags, AudioManager* manager) {
