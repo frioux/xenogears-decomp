@@ -3,6 +3,7 @@
 
 extern u8 D_8005959C;
 extern s32 D_800C3EA4;
+extern u8 D_800C3E4C;
 extern s32 D_800CCB34;
 extern void *D_800D2F5C;
 extern u8 *D_800D2D28;
@@ -41,7 +42,16 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_80074554);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_800745EC);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_80074AB8);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_80074D4C);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_80074EEC);
+void func_80074EEC(void) {
+    if (D_800D2D28[0xA8] == 0) {
+        return;
+    }
+
+    func_800728B8(D_800D2DB4 + 0x5550, D_800D2DB4[0x5D80], D_800D2DB4[0x5D8F]);
+    func_800728B8(D_800D2DB4 + 0x5640, D_800D2DB4[0x5D81], D_800D2DB4[0x5D90]);
+    func_800728B8(D_800D2DB4 + 0x5C80, D_800D2DB4[0x5D82], D_800D2DB4[0x5D91]);
+}
+
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_80074F70);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_8007500C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_80075168);
@@ -66,7 +76,20 @@ void func_800764EC(void) {
     func_80074AB8();
 }
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_80076544);
+void func_80076544(void) {
+    switch (D_800C3E4C) {
+    case 0:
+        func_800764B4();
+        break;
+    case 1:
+        func_80076418();
+        break;
+    case 2:
+        func_800764EC();
+        break;
+    }
+}
+
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_800765C4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_80076710);
 
