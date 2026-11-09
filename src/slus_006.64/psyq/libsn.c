@@ -5,25 +5,26 @@
    in v0 and the result in v1, which is why each wrapper shifts its arguments
    down one register and turns a non-zero status into -1. */
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libsn", PCopen);
-/* 83.12%: the branch shape matches (beqz v0 to the merge point), but gcc puts
-   the -1 in the `value` register and copies at the return
-   (`li v1,-1; jr ra; move v0,v1`) instead of the original
-   `move v0,v1; li v0,-1`, and it mis-assigns the two shifted operands.
-int PCopen(char *name, int flags, int perms) {
-    register char *pName asm("$4") = name;
-    register int nFlags asm("$5") = flags;
+/* 84.38%: argument shifting matches (the moves must name $4/$5 directly, since
+   "r" operands let gcc swap name/flags), and the branch is the right way round
+   (beqz v0). Only the tail differs: the original copies the result first
+   (`addu v0,v1,zero`, sunk into the branch delay slot) and then stores -1 into
+   v0, so it needs the result variable live in v0 while gcc coalesces it with the
+   break's value register (`li v1,-1; jr ra; move v0,v1`). Every shape tried puts
+   the -1 arm in the delay slot instead: two returns, ?:, goto/join forms, a
+   separate result variable, `register ... asm("$2")` on the result, and
+   the same source under gcc 2.6.0 / -O2. */
+/* int PCopen(char *name, int flags) {
     register int status asm("$2");
-    register int value asm("$3");
-    int result;
+    int value, ret;
 
-    __asm__ volatile("move $6, %2\n\tmove $5, %1\n\tbreak 259"
-                     : "=r"(status), "=r"(value) : "r"(pName), "r"(nFlags));
-    result = value;
+    __asm__ volatile("move $6, $5\n\tmove $5, $4\n\tbreak 259"
+                     : "=r"(status), "=r"(value));
+    ret = value;
     if (status != 0)
-        result = -1;
-    return result;
-}
-*/
+        ret = -1;
+    return ret;
+} */
 
 void PCclose(int fd) {
     __asm__ volatile("move $5, %0\n\tbreak 260" : : "r"(fd));
