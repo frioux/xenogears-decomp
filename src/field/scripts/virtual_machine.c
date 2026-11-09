@@ -406,6 +406,73 @@ void func_800A2488(void) {
     D_800ADB8C = 0;
 }
 
+// Best attempt: 57.73% (468 bytes; frame 0x30 vs 0x40, one fewer saved register). The control
+// flow is right - the count-guarded table loop, the player position.vy -= 8, and the
+// "if (i < D_800ADBFC) { if (flags12C_0) continue; } else if (b == 0) deltas" /
+// "if (b == 1) deltas" pair reproduce the original block layout exactly. Two walls remain, both
+// about addresses:
+//  1. the original materialises ONE base register (a2 = &D_800B21D2, hoisted before the loop) and
+//     reads the three deltas with reloc-free negative offsets (lw v1,-0x16(a2), -0x12, -0xE), so
+//     its source reached D_800B21BC/C0/C4 relative to the byte symbol; this C names the three
+//     globals, so gcc hoists them into t1/t0/a3 with their own %hi/%lo pairs.
+//  2. the original reloads g_FieldActors on every use inside the loop body
+//     (lui a0,%hi(g_FieldActors); lw a0,0(a0); addu a0,a1,a0 - loop offset first), while gcc here
+//     CSEs that load and keeps it in a0, which also loses the addu operand order.
+// The D_800B2264 table/count reach-one-base idiom in the first loop is the same wall documented in
+// main/main.c func_80077884 (90.25%): fold_rtx folds the -0x80/+0x80 pair back to the symbol.
+/*
+extern s32 D_800B2264;
+extern s32 D_800ADBFC;
+extern s32 g_PlayerActorIndex;
+extern s32 g_GamePartySkinsInitialized;
+extern s32 D_800B21BC;
+extern s32 D_800B21C0;
+extern s32 D_800B21C4;
+extern u_char D_800B21D2;
+extern void func_800AD898(void);
+
+// Applies the camera shake delta from the script globals to every actor's translation
+void func_800A24C4(void) {
+    int i;
+    ActorData* pActorData;
+    FieldActor* pFieldActor;
+
+    if (!g_GamePartySkinsInitialized) {
+        return;
+    }
+
+    func_800A22AC(2);
+    func_800AD898();
+
+    for (i = 0; i < D_800B2264; i++) {
+        func_801E8330(i, 0, ((s16*)((u8*)&D_800B2264 - 0x80))[i]);
+    }
+
+    pActorData = g_FieldActors[g_PlayerActorIndex].pActorData;
+    if (pActorData->canInteract != 0xFF) {
+        pActorData->position.vy -= 8;
+    }
+
+    for (i = 0; i < g_FieldNumActors; i++) {
+        pFieldActor = &g_FieldActors[i];
+        if (i < D_800ADBFC) {
+            if (pFieldActor->pActorData->flags12C_0) {
+                continue;
+            }
+        } else if ((D_800B21D2 & 0x7F) == 0) {
+            pFieldActor->transformMatrix.t[0] += D_800B21BC;
+            pFieldActor->transformMatrix.t[1] += D_800B21C0;
+            pFieldActor->transformMatrix.t[2] += D_800B21C4;
+        }
+
+        if ((D_800B21D2 & 0x7F) == 1) {
+            pFieldActor->transformMatrix.t[0] += D_800B21BC;
+            pFieldActor->transformMatrix.t[1] += D_800B21C0;
+            pFieldActor->transformMatrix.t[2] += D_800B21C4;
+        }
+    }
+}
+*/
 INCLUDE_ASM("asm/field/nonmatchings/scripts/virtual_machine", func_800A24C4);
 
 extern s32 g_GamePartySkinsInitialized;
@@ -476,7 +543,10 @@ int FieldScriptVMGetVariableValue(int index) {
 }
 
 // Best attempt: 97.14% - the original shifts the index into a second register ($a2) before scaling
-// it ($v0); gcc 2.7.2 always reuses $a0 for both shifts with every form tried.
+// it ($v0); gcc 2.7.2 always reuses $a0 for both shifts with every form tried. Also tried, all
+// 97.14%: a local pointer with p[i] / *(p + (i >> 1)), an int param with a (u_short) cast on the
+// value, and &g_FieldScriptMemory + (index >> 1). index / 2 gives 69.29% (36 bytes, rounding
+// fixup) and a volatile cast 52.86%.
 /*
 void FieldScriptMemoryWriteU16(int index, u_short value) {
     ((u_short*)&g_FieldScriptMemory)[index >> 1] = value;
