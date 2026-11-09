@@ -277,9 +277,12 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte_b", RotAverageNclip4);
      nop`, i.e. the false path is its own block that jumps to the epilogue.
      gcc 2.6.0, 2.7.2 and 2.7.2-cdk all fold an empty else / empty then / goto
      pair / do-while(0) / for(;;)+break into one `blez`, so no C if-shape tried
-     produces it (and no other function in this binary has that shape: it is the
-     hand-written GTE library style, cf. RotTransPers4/RotAverage4, which carry
-     the same `cfc2 $3,$31 ... or` flag idiom).
+     produces it. Confirmed again: grep of every matched function in the repo
+     (all 2046 objects under asm/<bin>/matchings) finds no bgtz followed by a
+     plain b, so nothing in this tree compiles to that shape. It is the hand-written GTE
+     library style, cf. RotTransPers4/RotAverage4, which carry the same
+     `cfc2 $3,$31 ... or` flag idiom. Allocation also differs (retail keeps flg
+     in $3 and reads opz into $2; gte_stopz_val's "=r" gives a0/v1).
    - allocation: gcc picks $3 for the opz/return and $4 (a0) for the first flag
      read; the original has $2 and $3, and it groups the three lazy `lw`s of
      sxy0-2 before the mfc2 (gcc keeps them in the branch's own block and then
