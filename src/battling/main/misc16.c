@@ -37,10 +37,34 @@ extern s32 rand(void);
 void func_8008CED4(void) {
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc16", func_8008CEDC);
+typedef struct {
+    /* 0x0 */ s32 unk0;
+    /* 0x4 */ s32 unk4;
+    /* 0x8 */ s32 unk8;
+} Misc16Vec; // Size: 0xC
+
+void func_8008CEDC(u8* pArg0, u8* pArg1) {
+    pArg0[0x13] = 2;
+    pArg0[0x17] = 0x6A;
+    pArg0[0x14] = pArg1[0x74];
+    pArg0[0x15] = pArg1[0x75];
+    pArg0[0x16] = pArg1[0x76];
+    *(Misc16Vec*)(pArg0 + 0x1C) = *(Misc16Vec*)(pArg0 + 0x10);
+}
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc16", func_8008CF30);
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc16", func_8008CF9C);
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc16", func_8008CFC4);
+void func_8008CFC4(Misc16Work* pWork, s16* pOut) {
+    SVECTOR vec;
+    VECTOR rot;
+
+    vec.vx = rand() % pWork->unk24 - pWork->unk2C;
+    vec.vy = rand() % pWork->unk26 - pWork->unk2E;
+    vec.vz = rand() % pWork->unk28 - pWork->unk30;
+    ApplyRotMatrix(&vec, &rot);
+    pOut[0] = pWork->unk1C + rot.vx;
+    pOut[1] = pWork->unk1E + rot.vy;
+    pOut[2] = pWork->unk20 + rot.vz;
+}
 
 void func_8008D0A4(Misc16Work* pWork, s16* pOut) {
     pOut[0] = pWork->unk1C + rand() % pWork->unk24 - pWork->unk2C;
@@ -48,8 +72,34 @@ void func_8008D0A4(Misc16Work* pWork, s16* pOut) {
     pOut[2] = pWork->unk20 + rand() % pWork->unk28 - pWork->unk30;
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc16", func_8008D14C);
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc16", func_8008D208);
+void func_8008D14C(Misc16Work* pWork, s16* pOut) {
+    SVECTOR vec;
+    VECTOR rot;
+
+    vec.vx = rand() % pWork->unk24 - pWork->unk2C;
+    vec.vy = 0;
+    vec.vz = rand() % pWork->unk28 - pWork->unk30;
+    ApplyRotMatrix(&vec, &rot);
+    pOut[0] = pWork->unk1C + rot.vx;
+    pOut[1] = pWork->unk1E + rot.vy;
+    pOut[2] = pWork->unk20 + rot.vz;
+}
+void func_8008D208(Misc16Work* pWork, s16* pOut) {
+    s32 angle;
+    s32 rnd;
+    SVECTOR vec;
+    VECTOR rot;
+
+    angle = rand();
+    rnd = rand();
+    vec.vx = rcos(angle) * (rnd % pWork->unk24) >> 13;
+    vec.vy = 0;
+    vec.vz = rsin(angle) * (rnd % pWork->unk28) >> 13;
+    ApplyRotMatrix(&vec, &rot);
+    pOut[0] = pWork->unk1C + rot.vx;
+    pOut[1] = pWork->unk1E + rot.vy;
+    pOut[2] = pWork->unk20 + rot.vz;
+}
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc16", func_8008D304);
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc16", func_8008D3F4);
 
