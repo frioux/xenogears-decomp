@@ -13,7 +13,11 @@ extern s16 D_8009280C;
 typedef struct Misc13Node {
     /* 0x00 */ s32 state;
     /* 0x04 */ void* pData;
-    /* 0x08 */ u8 unk08[0x88];
+    /* 0x08 */ u8 unk08[0x2C];
+    /* 0x34 */ s32 unk34;
+    /* 0x38 */ s32 unk38;
+    /* 0x3C */ s32 unk3C;
+    /* 0x40 */ u8 unk40[0x50];
     /* 0x90 */ struct Misc13Node* pChildA;
     /* 0x94 */ struct Misc13Node* pChildB;
 } Misc13Node; // Size: unknown
@@ -48,17 +52,41 @@ typedef struct {
     /* 0x08 */ Misc13Entry* pEntries;
 } Misc13EntryList; // Size: unknown
 
-// The container freed by func_8008A5BC.
+// The 0x28C-byte container allocated by func_8008A3E0: four 0x9C-byte nodes
+// carved out of the block, plus the parent node it was built for.
 typedef struct {
-    /* 0x000 */ u8 unk000[0xB4];
-    /* 0x0B4 */ void* pUnk0B4;
+    /* 0x000 */ s32 unk000;
+    /* 0x004 */ Misc13Node* pNode0;
+    /* 0x008 */ Misc13Node* pNode1;
+    /* 0x00C */ Misc13Node* pNode2;
+    /* 0x010 */ Misc13Node* pNode3;
+    /* 0x014 */ u8 unk014[0xA0];
+    /* 0x0B4 */ void* pSprite1; // pNode1->pData
     /* 0x0B8 */ u8 unk0B8[0x98];
-    /* 0x150 */ void* pUnk150;
+    /* 0x150 */ void* pSprite2; // pNode2->pData
     /* 0x154 */ u8 unk154[0x98];
-    /* 0x1EC */ void* pUnk1EC;
+    /* 0x1EC */ void* pSprite3; // pNode3->pData
     /* 0x1F0 */ u8 unk1F0[0x94];
-    /* 0x284 */ Misc13Node* pUnk284;
-} Misc13Group; // Size: unknown
+    /* 0x284 */ Misc13Node* pParent;
+    /* 0x288 */ u8 unk288;
+    /* 0x289 */ u8 unk289;
+    /* 0x28A */ u8 unk28A;
+    /* 0x28B */ u8 pad28B;
+} Misc13Group; // Size: 0x28C
+
+// The 0x68-byte buffer allocated by func_8008A2B8: two parallel u32 arrays
+// carved out of one block, plus pointers to their last elements.
+typedef struct {
+    /* 0x00 */ s32 unk00;
+    /* 0x04 */ u32* pArrayA;
+    /* 0x08 */ u32* pArrayB;
+    /* 0x0C */ u32* pLastA;
+    /* 0x10 */ u32* pLastB;
+    /* 0x14 */ u16 count;
+    /* 0x16 */ u8 unk16;
+    /* 0x17 */ u8 unk17;
+    /* 0x18 */ u8 unk18[0x50];
+} Misc13Buffer; // Size: 0x68
 
 // The 0x1C-byte payload allocated by func_80089E74.
 typedef struct {
@@ -256,6 +284,10 @@ void func_8008A184(Misc13ModelPart* pPart, ModelPart* pModelPart) {
 }
 Misc13Sprite* func_8008A254(void) {
     Misc13Sprite* pSprite;
+    Misc13Sprite* pSprite2;
+    Misc13Node* pA;
+    Misc13Node* pB;
+    Misc13Node* pC;
 
     HeapSetCurrentContentType(0xB);
     pSprite = HeapAlloc(0x14, 0);
@@ -273,6 +305,39 @@ void func_8008A298(void* pData) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc13", func_8008A2B8);
 
+/* 85.28% - everything but the two "last element" pointers: the original folds
+   both into the shared count*4 temp (addiu a0,a0,-4 reused) while gcc keeps a
+   separate -4 per pointer, and that reorders the two stores.
+Misc13Buffer* func_8008A2B8(u16 count) {
+    Misc13Buffer* pBuffer;
+    s32 i;
+
+    HeapSetCurrentContentType(0xC);
+    pBuffer = HeapAlloc(0x68, 0);
+    HeapSetCurrentContentType(0xC);
+    pBuffer->pArrayA = HeapAlloc(count * 8, 0);
+    pBuffer->pArrayB = pBuffer->pArrayA + count;
+    pBuffer->unk16 = 1;
+    pBuffer->unk17 = 0xE;
+    pBuffer->unk00 = 0;
+    pBuffer->count = count;
+    pBuffer->pLastA = pBuffer->pArrayA + count - 1;
+    pBuffer->pLastB = pBuffer->pArrayB + count - 1;
+    if (count != 1) {
+        i = 1;
+        while (i != count) {
+            i <<= 1;
+            if (i > 0x4000) {
+                pBuffer->unk17 = 0xE;
+                break;
+            }
+            pBuffer->unk17--;
+        }
+    }
+    return pBuffer;
+}
+*/
+
 void func_8008A3A0(void) {
 }
 
@@ -281,12 +346,72 @@ void func_8008A3A8(Misc13Node* pNode) {
     HeapFree(pNode);
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc13", func_8008A3E0);
+Misc13Group* func_8008A3E0(Misc13Node* pParent) {
+    Misc13Group* pGroup;
+    Misc13Node* pNode0;
+    Misc13Node* pNode1;
+    Misc13Node* pNode2;
+    Misc13Node* pNode3;
+    Misc13Sprite* pSprite;
+    Misc13Sprite* pSprite2;
+    Misc13Node* pA;
+    Misc13Node* pB;
+    Misc13Node* pC;
+
+    HeapSetCurrentContentType(9);
+    pGroup = HeapAlloc(0x28C, 0);
+    pNode0 = (Misc13Node*)((u8*)pGroup + 0x14);
+    pNode1 = (Misc13Node*)((u8*)pGroup + 0xB0);
+    pNode2 = (Misc13Node*)((u8*)pGroup + 0x14C);
+    pNode3 = (Misc13Node*)((u8*)pGroup + 0x1E8);
+    pGroup->unk000 = 0;
+    pGroup->pNode0 = pNode0;
+    pGroup->pNode1 = pNode1;
+    pGroup->pNode2 = pNode2;
+    pGroup->pNode3 = pNode3;
+    func_80089B44(pNode0);
+    func_80089B44(pNode1);
+    func_80089B44(pNode2);
+    func_80089B44(pNode3);
+    func_80089E64(pGroup->pNode1, func_8008A254());
+    func_80089E64(pGroup->pNode2, func_8008A254());
+    func_80089E64(pGroup->pNode3, func_8008A254());
+    pA = pGroup->pNode1;
+    pB = pGroup->pNode2;
+    pC = pGroup->pNode3;
+    pC->unk38 = -2;
+    pB->unk38 = -2;
+    pA->unk38 = -2;
+    pGroup->pNode1->unk34 = 0;
+    pGroup->pNode1->unk3C = 1;
+    pGroup->pNode2->unk34 = -1;
+    pGroup->pNode2->unk3C = -1;
+    pGroup->pNode3->unk34 = 1;
+    pGroup->pNode3->unk3C = -1;
+    pSprite = (Misc13Sprite*)pGroup->pNode1->pData;
+    pSprite->unk10 = 0x800;
+    pSprite->unk0E = 0x800;
+    pSprite->unk0C = 0x800;
+    pSprite2 = (Misc13Sprite*)pGroup->pNode2->pData;
+    pSprite2->unk10 = 0;
+    pSprite2->unk0E = 0;
+    pSprite2->unk0C = 0;
+    *(Misc13Sprite*)pGroup->pNode3->pData = *(Misc13Sprite*)pGroup->pNode2->pData;
+    pGroup->pParent = pParent;
+    pGroup->unk28A = 0;
+    pGroup->unk289 = 0;
+    pGroup->unk288 = 0;
+    pGroup->unk28A = 0x10;
+    pGroup->unk289 = 0x10;
+    pGroup->unk288 = 0x10;
+    func_8008ABAC(&pGroup->pNode1);
+    return pGroup;
+}
 
 void func_8008A5BC(Misc13Group* pGroup) {
-    HeapFree(pGroup->pUnk0B4);
-    HeapFree(pGroup->pUnk150);
-    HeapFree(pGroup->pUnk1EC);
-    func_8008A3A8(pGroup->pUnk284);
+    HeapFree(pGroup->pSprite1);
+    HeapFree(pGroup->pSprite2);
+    HeapFree(pGroup->pSprite3);
+    func_8008A3A8(pGroup->pParent);
     HeapFree(pGroup);
 }
