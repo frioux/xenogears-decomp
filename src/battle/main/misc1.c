@@ -22,6 +22,17 @@ extern void func_8028022C(void);
 extern void func_800BE790(void);
 extern void func_8003A89C(s32 *, s32, s32);
 extern void ArchiveReadFileToBuffer(s32, void *, u32, u32);
+extern u8 D_800D2CAF;
+extern u16 D_800D2C94;
+extern u16 D_800C48E8;
+extern u8 *D_800D39F0;
+extern s32 D_800D39C0[];
+extern u8 D_800D39C6;
+extern u8 *GetStringEntry(u8 *);
+extern u8 D_800D3014;
+extern void func_80079E18(s32);
+extern void func_80079E4C(s32);
+extern s32 SystemRenderStringEntry(u8 *, s32, s32, s32);
 
 void func_80070E2C(void) {
     s32 first;
@@ -75,6 +86,23 @@ s32 func_800716D8(void) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_8007171C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_800718BC);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80071964);
+/* 98.78% - only the register for the leading lbu differs (original a1, gcc v0,
+   forcing the two lhu temps to swap v0/v1). Tried: two early-return ifs, one
+   compound && if, and nested ifs (49%).
+void func_80071964(void) {
+    u8 *pEntry;
+    s32 i;
+
+    if (D_800D2CAF != 0 && (D_800D2C94 & D_800C48E8) == 0) {
+        pEntry = GetStringEntry(D_800D39F0);
+        D_800D39C6 = SystemRenderStringEntry(pEntry, D_800D39C0[0], 0x39, 1);
+        LoadImage((RECT *)&D_800D39C0[-2], (u_long *)D_800D39C0[0]);
+        for (i = 3; i != 0; i--) {
+            func_800716D8();
+        }
+    }
+}
+*/
 
 void func_80071A08(void) {
     s32 i;
@@ -111,6 +139,27 @@ void func_80071A8C(void) {
 }
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80071AE0);
+/* 99.33% - only the (D_800D2C94 & D_800C48E8) test: gcc loads D_800D2C94 into
+   v1 first, the original loads it into v0 (the and's result reg). Same miss as
+   func_80071964. Tried: operand swap, a u16 local for either side, volatile.
+void func_80071AE0(void) {
+    s32 i;
+
+    if (D_800D2CAF != 0 && (D_800D2C94 & D_800C48E8) == 0) {
+        func_80079E18(7);
+        D_800C3EAC[0x2DB] = 0;
+        for (i = 0x3B; i != 0; i--) {
+            func_800716D8();
+            if (D_800D3014 != 8) {
+                break;
+            }
+        }
+        D_800C3EAC[0x2DB] = 1;
+        func_80079E4C(7);
+        func_800716D8();
+    }
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80071B94);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80072270);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80072324);
