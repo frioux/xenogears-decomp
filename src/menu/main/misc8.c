@@ -28,7 +28,34 @@ void Vsync(s32 mode);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801D7CFC);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801D7F50);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801D827C);
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801D83AC);
+void func_801D83AC(POLY_FT4* pPolys, u_char mode, u_char count, u_char startIndex) {
+    POLY_FT4* pPoly;
+    u8 rgb[3];
+    s32 i;
+
+    rgb[1] = 0x40;
+    switch (mode) {
+    case 0:
+        rgb[0] = 0x80;
+        rgb[2] = 0x40;
+        break;
+    case 1:
+        rgb[0] = 0x40;
+        rgb[2] = 0x80;
+        break;
+    case 2:
+        rgb[0] = 0x40;
+        rgb[2] = 0x40;
+        break;
+    }
+    for (i = 0; i < count; i++) {
+        pPoly = &pPolys[startIndex + i * 2];
+        SetShadeTex(pPoly, 0);
+        pPoly->r0 = rgb[0];
+        pPoly->g0 = rgb[1];
+        pPoly->b0 = rgb[2];
+    }
+}
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801D84B4);
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801D85DC);
@@ -75,6 +102,50 @@ void func_801D8DE4(s32 arg0, u_char arg1, s32 arg2, s32 arg3) {
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801D8EA4);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801D9704);
+
+/* 84.26%. Same instruction multiset; gcc lays the `arg2` if/else out the
+   other way in case 1 (it falls through to the 0x60 block and jumps to
+   0x30) and therefore places the return block differently.
+s32 func_801D9704(s32 arg0, u_char arg1, u_char arg2) {
+    switch (arg1) {
+    case 0:
+        arg0++;
+        while (1) {
+            if (arg0 >= 3) {
+                arg0 = 0;
+            }
+            if (arg2 == 0) {
+                if (g_Menu->pManager->currentCharacterIDs[arg0] != 0xFF) {
+                    break;
+                }
+            } else if (g_Menu->pManager->unk60[arg0] != 0) {
+                arg0--;
+                break;
+            }
+            arg0++;
+        }
+        break;
+    case 1:
+        arg0--;
+        while (1) {
+            if (arg0 < 0) {
+                arg0 = 2;
+            }
+            if (arg2 == 0) {
+                if (g_Menu->pManager->currentCharacterIDs[arg0] != 0xFF) {
+                    break;
+                }
+            } else if (g_Menu->pManager->unk60[arg0] != 0) {
+                arg0++;
+                break;
+            }
+            arg0--;
+        }
+        break;
+    }
+    return arg0;
+}
+*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801D9808);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801D9B08);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801D9C84);
