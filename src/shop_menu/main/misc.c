@@ -3543,6 +3543,200 @@ void ShopMenuHandleSoldItems(u_int newGoldAmount, u_char* pItemIds, u_char* pIte
 }
 
 INCLUDE_ASM("asm/shop_menu/nonmatchings/main/misc", ShopMenuSellMenu);
+// 95.12%: ported from the 100% twin gear_shop_menu/main/render.c GearShopMenuSellMenu, so the
+// block order, the five alloca'd arrays and the switch bodies are right. The remaining delta is
+// one callee-saved register: retail keeps pItemSellQtys in $s7 and redrawTransactionSummary in
+// $s6, this version spills pItemSellQtys to 0x70($fp) and gives $s7 to redrawTransactionSummary,
+// which also pushes i/itemCount into callee-saved registers ($s6/$t3 vs retail's $a3/$t4) and
+// moves the u32 locals up 8 bytes (currentGold at 0x88, not 0x80). Frame size (0xD0) is right.
+/*
+void ShopMenuSellMenu(s32 listLength, u8* pInventoryItemIds, u8* pInventoryQtys, int itemType, u8 flag1, u8* pGivenItemTypes, u8 flag2) {
+    u8 continueProcessing = TRUE;
+    u8 redrawWindows = TRUE;
+    u8 redrawTransactionSummary = TRUE;
+    int rowIndex = 0;
+    int newRowIndex = 0xFF;
+    int scrollOffset = 0;
+    int newScrollOffset = 0xFF;
+
+    u8 *pItemIds = alloca(listLength); // sp60
+    u8 *pItemTypes = alloca(listLength); // sp68
+    u8 *pItemSellQtys = alloca(listLength); // s7
+    u8 *pItemIsOwned = alloca(listLength); // sp70
+
+    u8 *pItemQtys; // sp78
+    int currentGold; // sp80
+    int projectedBalance; // s4
+    int itemPrice; // sp88
+    int cartTotal = 0; // s3
+    int itemCount; // sp90
+    int i;
+
+    currentGold = g_GameState.gold;
+    pItemQtys = alloca(listLength);
+    projectedBalance = g_GameState.gold;
+
+    for (i = 0; i < listLength; i++) {
+        pItemQtys[i] = 0;
+        pItemIsOwned[i] = 0;
+        pItemSellQtys[i] = 0;
+        pItemIds[i] = 0;
+        if (flag1) {
+            pItemTypes[i] = itemType;
+        } else {
+            pItemTypes[i] = pGivenItemTypes[i];
+        }
+    }
+
+    // coalesce the item quantities, dropping the empty slots
+    itemCount = 0;
+    for (i = 0; i < listLength; i++) {
+        if (pInventoryItemIds[i]) {
+            if (pInventoryQtys[i]) {
+                if ((pItemTypes[i] != ITEM_TYPE_ITEM) || ((g_Menu->pDressingRoom->pItemsData[pInventoryItemIds[i]].unk4[2] & 0x10) == 0)) {
+                    pItemIds[itemCount] = pInventoryItemIds[i];
+                    pItemQtys[itemCount] = pInventoryQtys[i];
+                    pItemIsOwned[itemCount] = 1;
+                    itemCount++;
+                }
+            }
+        }
+    }
+
+    ShopMenuInitializeArrowCursor(0);
+
+    while (continueProcessing) {
+        ShopMenuUpdateAndRender();
+
+        if ((scrollOffset != newScrollOffset) || redrawTransactionSummary) {
+            func_801D05BC(scrollOffset, pItemIds, pItemTypes, pItemSellQtys, pItemQtys);
+            ShopMenuUpdateScrollBarHandle(0xC, 0x32, 0x3C, itemCount, scrollOffset);
+        }
+
+        if ((rowIndex != newRowIndex) || (scrollOffset != newScrollOffset)) {
+            itemPrice = func_801CFF58(pItemIds[scrollOffset + rowIndex], pItemTypes[scrollOffset + rowIndex]);
+            newRowIndex = rowIndex;
+            newScrollOffset = scrollOffset;
+            g_Menu->pManager->unk5A = 1;
+        }
+
+        ShopMenuUpdateArrowCursor(rowIndex, scrollOffset, 0, 0);
+
+        if (redrawWindows) {
+            ShopMenuInitializeWindow(2, 0xC, 0x2A, 0xC4, 0x74, 0, 1, 4, 1);
+            ShopMenuInitializeWindow(3, 0x20, 0xE, 0xFC, 0x14, 0, 1, 4, 0);
+            ShopMenuStartOpenMenuTransition();
+            if (flag1) {
+                ShopMenuUpdateCharacterPortraits();
+            }
+            while (g_Menu->transitionEffectState != MENU_ANIMATION_DONE) {
+                ShopMenuUpdateAndRender();
+            }
+            ShopMenuUpdateSellMenuExplanationGraphics();
+            redrawWindows = FALSE;
+        }
+
+        if (redrawTransactionSummary) {
+            ShopMenuUpdateGoldGraphics(currentGold, cartTotal, projectedBalance);
+            redrawTransactionSummary = FALSE;
+        }
+
+        switch (g_Menu->input) {
+            case MENU_INPUT_CONFIRM:
+                if (cartTotal != 0) {
+                    ShopMenuPlaySoundEffect(MENU_SOUND_CONFIRM);
+                    g_Menu->pManager->unk5A = FALSE;
+                    g_Menu->pManager->shouldRenderWindow[2] = FALSE;
+                    g_Menu->pManager->shouldRenderWindow[3] = FALSE;
+                    g_Menu->pManager->scrollHandleActive = FALSE;
+                    continueProcessing = FALSE;
+                    g_Menu->pManager->shouldRenderArrowCursor[0] = FALSE;
+                    ShopMenuInitializePointerCursors(0);
+                    ShopMenuSetFinalPriceGraphics(cartTotal);
+                    if (ShopMenuConfirmationWindow(MENU_STRING_CONFIRM_SELL, 0xFF, 1) != MENU_CHOICE_NO) {
+                        ShopMenuHandleSoldItems(projectedBalance, pItemIds, pItemSellQtys, listLength, pInventoryItemIds, pInventoryQtys, pItemTypes, flag1, flag2);
+                    } else {
+                        continueProcessing = TRUE;
+                        g_Menu->pManager->shouldRenderWindow[2] = TRUE;
+                        g_Menu->pManager->shouldRenderWindow[3] = TRUE;
+                        g_Menu->pManager->scrollHandleActive = TRUE;
+                        newScrollOffset = 0xFF;
+                        newRowIndex = 0xFF;
+                        g_Menu->pManager->shouldRenderArrowCursor[0] = TRUE;
+                    }
+                    ShopMenuFreePointerCursors();
+                } else {
+                    ShopMenuPlaySoundEffect(MENU_SOUND_ERROR);
+                }
+                break;
+
+            case MENU_INPUT_BACK:
+                continueProcessing = FALSE;
+                if (cartTotal != 0) {
+                    g_Menu->pManager->unk5A = FALSE;
+                    g_Menu->pManager->shouldRenderWindow[2] = FALSE;
+                    g_Menu->pManager->shouldRenderWindow[3] = FALSE;
+                    g_Menu->pManager->scrollHandleActive = FALSE;
+                    g_Menu->pManager->shouldRenderArrowCursor[0] = FALSE;
+                    ShopMenuInitializePointerCursors(0);
+                    if (ShopMenuConfirmationWindow(0x92, 0xFF, 1) == MENU_CHOICE_NO) {
+                        continueProcessing = TRUE;
+                        g_Menu->pManager->shouldRenderWindow[2] = TRUE;
+                        g_Menu->pManager->shouldRenderWindow[3] = TRUE;
+                        g_Menu->pManager->scrollHandleActive = TRUE;
+                        newScrollOffset = 0xFF;
+                        newRowIndex = 0xFF;
+                        g_Menu->pManager->shouldRenderArrowCursor[0] = TRUE;
+                    }
+                    ShopMenuFreePointerCursors();
+                }
+                break;
+
+            case MENU_INPUT_DOWN:
+                rowIndex += 1;
+                if (rowIndex >= 8) {
+                    rowIndex = 7;
+                    scrollOffset += 1;
+                    if ((itemCount - 8) < scrollOffset) {
+                        scrollOffset -= 1;
+                    }
+                }
+                break;
+
+            case MENU_INPUT_UP:
+                rowIndex -= 1;
+                if (rowIndex < 0) {
+                    scrollOffset -= 1;
+                    rowIndex = 0;
+                    if (scrollOffset < 0) {
+                        scrollOffset = 0;
+                    }
+                }
+                break;
+
+            case MENU_INPUT_RIGHT:
+                if (pItemIsOwned[scrollOffset + rowIndex] && pItemQtys[scrollOffset + rowIndex] - 1 >= 0) {
+                    redrawTransactionSummary = 1;
+                    cartTotal += itemPrice;
+                    projectedBalance += itemPrice;
+                    pItemSellQtys[scrollOffset + rowIndex]++;
+                    pItemQtys[scrollOffset + rowIndex]--;
+                }
+                break;
+
+            case MENU_INPUT_LEFT:
+                if (pItemIsOwned[scrollOffset + rowIndex] && pItemSellQtys[scrollOffset + rowIndex] - 1 >= 0) {
+                    cartTotal -= itemPrice;
+                    redrawTransactionSummary = 1;
+                    pItemQtys[scrollOffset + rowIndex]++;
+                    pItemSellQtys[scrollOffset + rowIndex]--;
+                    projectedBalance -= itemPrice;
+                }
+                break;
+        }
+    }
+}
+*/
 
 int ShopMenuSellEquipmentMenu(void) {
     u_char itemIDs[8];
