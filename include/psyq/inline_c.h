@@ -1593,6 +1593,42 @@
 	"mfc2	%0, $7"						\
 	: "=r"( r0 ) )
 
+/* OPZ read-back followed by the GTE pipeline nop the 3.x revision carried. */
+#define gte_stopz_val( r0 ) __asm__ volatile (			\
+	"mfc2	%0, $24;"					\
+	"nop"							\
+	: "=r"( r0 ) )
+
+/* Flag read and store through an output pointer that arrives on the stack: the
+   3.x revision loaded the slot at the point of use, before the cfc2. %1 is the
+   incoming slot, %0 the flag value. */
+#define gte_stflg_val_stack( r0, r1 ) __asm__ volatile (	\
+	"lw	$8, %1;"					\
+	"cfc2	%0, $31;"					\
+	"nop;"							\
+	"sw	%0, 0( $8 )"					\
+	: "=r"( r1 )						\
+	: "m"( r0 )						\
+	: "$8", "memory" )
+
+/* Ordinary word store through a stack output, pointer loaded lazily. */
+#define gte_stsw_val_stack( r0, r1 ) __asm__ volatile (		\
+	"lw	$8, %1;"					\
+	"sw	%0, 0( $8 )"					\
+	:							\
+	: "r"( r1 ), "m"( r0 )					\
+	: "$8", "memory" )
+
+/* OTZ read-back written straight through a stack output. */
+#define gte_stotz_val_stack( r0 ) __asm__ volatile (		\
+	"lw	$8, %0;"					\
+	"mfc2	$9, $7;"					\
+	"nop;"							\
+	"sw	$9, 0( $8 )"					\
+	:							\
+	: "m"( r0 )						\
+	: "$8", "$9", "memory" )
+
 /* The same load, spelled with the argument's ABI name. maspsx inserts a
    load-reuse nop after an `lwc2 $6,...` when the next instruction reads $6, and
    `mtc2 %0,$8` does exactly that when the depth argument is the third

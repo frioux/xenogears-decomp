@@ -269,6 +269,50 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte_b", RotTransPers4);
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte_b", RotAverage4);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte_b", RotAverageNclip4);
+/* best attempt 59.52% (180 bytes, the original's size: no frame, no extra insn).
+   Everything structural is right with the *_val_stack macros in inline_c.h (each
+   incoming stack argument is re-loaded at its point of use, which is why the
+   original has no frame and re-loads 0x28 twice). Two things stay wrong:
+   - the branch. The original is `mfc2 $2,$24; nop; bgtz $2,body; nop; b end;
+     nop`, i.e. the false path is its own block that jumps to the epilogue.
+     gcc 2.6.0, 2.7.2 and 2.7.2-cdk all fold an empty else / empty then / goto
+     pair / do-while(0) / for(;;)+break into one `blez`, so no C if-shape tried
+     produces it (and no other function in this binary has that shape: it is the
+     hand-written GTE library style, cf. RotTransPers4/RotAverage4, which carry
+     the same `cfc2 $3,$31 ... or` flag idiom).
+   - allocation: gcc picks $3 for the opz/return and $4 (a0) for the first flag
+     read; the original has $2 and $3, and it groups the three lazy `lw`s of
+     sxy0-2 before the mfc2 (gcc keeps them in the branch's own block and then
+     maspsx has to insert load-delay nops after them).
+   Uncommenting this needs the four macros already added to inline_c.h
+   (gte_stopz_val, gte_stflg_val_stack, gte_stsw_val_stack,
+   gte_stotz_val_stack); RotTransPers4 and RotAverage4 need the same ones.
+long RotAverageNclip4(SVECTOR *v0, SVECTOR *v1, SVECTOR *v2, SVECTOR *v3,
+                      long *sxy0, long *sxy1, long *sxy2, long *sxy3,
+                      long *p, long *otz, long *flag) {
+    long rtv, flg, flg2;
+
+    gte_ldv3(v0, v1, v2);
+    gte_nop();
+    gte_rtpt_b();
+    gte_stflg_val_stack(flag, flg);
+    gte_nclip_b();
+    gte_stopz_val(rtv);
+    if (rtv > 0) {
+        gte_stsxy3(sxy0, sxy1, sxy2);
+        gte_ldv0(v3);
+        gte_nop();
+        gte_rtps_b();
+        gte_stsxy(sxy3);
+        gte_stflg_val(flg2);
+        gte_stdp(p);
+        gte_stsw_val_stack(flag, flg2 | flg);
+        gte_avsz4_b();
+        gte_stotz_val_stack(otz);
+    }
+    return rtv;
+}
+*/
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte_b", TransposeMatrix);
 /* best attempt 65.00%. Word-wise transpose (below) reproduces the original's
