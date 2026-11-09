@@ -37,6 +37,15 @@ extern u16 D_8009D410;
 extern void* D_8009D414;
 extern void* D_8009D528;
 
+typedef struct {
+    /* 0x0 */ s16 x;
+    /* 0x2 */ u16 id;
+    /* 0x4 */ s16 z;
+    /* 0x6 */ u16 pad6;
+} WorldMapPoint; // Size: 0x8
+
+extern WorldMapPoint* D_8009D3F4;
+
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_800712D0);
 
 int func_80071A50(void) {
@@ -47,33 +56,36 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80071A58);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80071B9C);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80071CDC);
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80071EF0);
-/* best: 94.43%. Store order of the D_8009D3xx queue fields was reached, the
-   remaining delta is the register holding the third HeapAlloc result and the
-   position of the D_8009D410/D_8009D414 zero stores.
+/* best: 98.00%. Only the D_8009D3F8 store differs: the original reuses the
+   $a0 that already holds the address for the func_80029AFC call and emits a
+   bare "sh $v1,0($a0)"; gcc re-forms the symbol address and needs one extra
+   lui $at. A local StreamDataQueueEntry* does not stop that folding.
 
 void func_80071EF0(void) {
     void* pBuffer;
+    StreamDataQueueEntry* pQueue;
 
     D_8009C59C = HeapAlloc(ArchiveDecodeAlignedSize(D_8009C17C), 1);
     D_8009BD20 = HeapAlloc(ArchiveDecodeAlignedSize(D_8009C174), 1);
     pBuffer = HeapAlloc(ArchiveDecodeAlignedSize(D_8009D3C4), 1);
+    pQueue = (StreamDataQueueEntry*)&D_8009D3F8;
     D_8009C180 = pBuffer;
-    D_8009D3FC = pBuffer;
     D_8009D410 = 0;
+    D_8009D3FC = pBuffer;
     D_8009D414 = 0;
-    D_8009D3F8 = D_8009D3C4;
+    pQueue->archiveIndex = D_8009D3C4;
     D_8009D400 = D_8009C17C;
     D_8009D408 = D_8009C174;
     D_8009D404 = D_8009C59C;
     D_8009D40C = D_8009BD20;
-    func_80029AFC((StreamDataQueueEntry*)&D_8009D3F8, 0, 0);
+    func_80029AFC(pQueue, 0, 0);
 }
 */
-
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80071FEC);
-/* best: 94.98%. Only the order of the D_8009D408/D_8009D40C zero stores and
-   of the D_8009D404 store relative to them is off.
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80071EF0);
+/* best: 94.98%. Store order now matches the original exactly; the only delta is
+   that the original materialises the 0x25 constant into $v1 before the two
+   pointer stores and keeps 0x26 in $v0 until its own store, while gcc emits
+   each constant at its store. An s32 local for 0x25 folds straight back.
 
 void func_80071FEC(void) {
     void* pBuffer;
@@ -84,12 +96,13 @@ void func_80071FEC(void) {
     D_8009D3FC = pBuffer;
     D_8009D3F8 = 0x25;
     D_8009D400 = 0x26;
-    D_8009D404 = D_8005945C;
     D_8009D408 = 0;
     D_8009D40C = 0;
+    D_8009D404 = D_8005945C;
     func_80029AFC((StreamDataQueueEntry*)&D_8009D3F8, 0, 0);
 }
 */
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80071FEC);
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80072090);
 
@@ -169,7 +182,37 @@ void func_80073398(void) {
 }
 */
 
+/* best: 91.29%. Instruction multiset is identical; gcc hoists the p->z load
+   above the D_8009C5B0 store and therefore keeps it in a second register,
+   where the original reuses $v0. Tried: direct stores (91.29), s32* pointer
+   stores (87.24, also changes the relocation base to D_8009C5AC+4), an s32
+   temp for x, and separate x/z locals.
+void func_80073448(s32 arg0) {
+    WorldMapPoint* p;
+
+    if (g_GameState.unk1834 & 0x2000) {
+        g_GameState.unk1834 &= ~0x2000;
+        func_8008DFF4(&D_8009C5AC);
+        D_8009C584 = g_GameState.unk1832;
+    } else {
+        p = D_8009D3F4;
+        while (*(s16*)&p->id != -1) {
+            if ((s16)p->id == arg0) {
+                D_8009C5B0 = 0;
+                D_8009C5AC = p->x << 12;
+                D_8009C5B4 = p->z << 12;
+                return;
+            }
+            p++;
+        }
+        D_8009C5AC = 0;
+        D_8009C5B0 = 0;
+        D_8009C5B4 = 0;
+    }
+}
+*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80073448);
+
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80073530);
 
 void func_8007369C(void) {
