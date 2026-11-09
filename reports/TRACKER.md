@@ -180,6 +180,10 @@ Stubs by area at session start: `psyq` 150 (96 libgte, 12 libapi, 8 libapi_2,
 | 20 | 14 workers | +10 | 1931 | |
 | 21 | 13 workers | +5 | 1936 | |
 | 22 | 13 workers | +3 | 1939 | Psy-Q 3.x GTE macro revision found; six conversions held back for a 4-byte link delta |
+| 23 | 13 workers | +13 | 1949 | the 4-byte delta was a stray `gte_nop()`; 11 libgte functions landed |
+| 24 | 13 workers | +10 | 1959 | hard-coded-scratch GTE macros crack the return-value-coalescing wall |
+| 25 | 13 workers | +1 | 1960 | flat: the tail is one-instruction register puzzles and blocked families |
+| 26 | 13 workers | final | — | closing parked 95-99% attempts |
 | — | `GraphicsDrawPauseLetters` split into its own TU (`rendering_pause_text.c`) | — | — | the per-file compiler split works: that function only matches under gcc-2.7.2-cdk |
 
 ### Round 12-13 notes
@@ -351,3 +355,73 @@ New tools (all in `tools/scripts/`, all documented):
   into the functions that own them, using the load address in `linker/<bin>.ld`
   and `config/symbol_addrs.<bin>.txt`. Turns "make check failed" into a list of
   suspects instead of a bisect.
+
+
+# Session 2 result
+
+Start: **1824 / 2528 functions (72.15%)**, 339888 / 670864 bytes (50.66%), 761 stubs.
+End:   **1960 / 2528 functions (77.53%)**, 365560 / 670864 bytes (54.49%), 569 stubs.
+
+That is **+136 functions and +3.83 points of code** in 15 rounds of 10-14 parallel
+workers (about 180 worker-runs), every batch gated by `make check`.
+
+Landed by area: `psyq/libgte` 4 -> 27 matched (the header revisions), `sound` +18,
+`field/main/{misc,misc2,misc4,misc5,misc6,misc8,misc9,misc11,misc12,main}` +35,
+`temp1`/`temp3` +14, `lib_gear` +6, `temp2` +7, `shop_menu` +3, plus
+`member_change_menu`, `graphics`, `line_scroll` and `rendering`
+(`GraphicsDrawPauseLetters` now lives in its own TU with the `XenoGraphics` preset).
+
+## The five things that mattered
+
+1. **The GTE header was the wrong SDK revision, twice.** `include/psyq/inline_c.h`
+   shipped the 4.3 spelling: two `nop`s plus a raw `.word` per Type-2 command, and
+   read-backs through memory only. Retail is the 3.x revision: one `nop`, canonical
+   COP2 words, and reads straight into `$2`/`$8`. Fixing it matched
+   `NormalColor`, `NormalLightCol`, `ColorCol`, `LocalLight`, `SetIR0`,
+   `SetData32`, `SetBackColor`, `SetFarColor`, `Intpl`, `DpqColor`,
+   `SetDQA/DQB/IR123/MAC123/Rii`, `SetRGBfifo`, `SetSZfifo3/4`, `SetSXSYfifo`,
+   `SetRotMatrix`, `SetLightMatrix`, `SetColorMatrix`, `AverageSZ3/Z3/Z4`,
+   `Square0/12/SS0/SS12/SL0/SL12`, `OuterProduct0/12`, `RotTransSV`,
+   `ReadGeomOffset`, `ratan2` and `lib_gear`'s `func_801E6F64`.
+2. **Hard-coded scratch registers in a macro's clobber list beat "return-value
+   coalescing".** `"$2"` in the clobber list (not `"=r"` outputs) is what makes gcc
+   copy `a1`/`a2` into `$v0` at the end instead of storing through `$v0`. That one
+   trick closed six GTE functions and has more left (ApplyMatrix is 92% and only
+   the `jr` delay slot differs).
+3. **A stub can be unlinkable even at objdiff 100%.** `tools/scripts/convertible.py`
+   encodes the rule: instructions after `.size` or `dlabel` data in the stub's `.s`
+   mean the C cannot reproduce the unit's bytes. About 25 of libgte's 71 stubs are
+   blocked this way, and psyq's syscall trampolines (`addiu $t2; jr $t2`) and the
+   GTE read-back family are blocked for related reasons.
+4. **`const` is load-bearing for unit rodata** (`shop_menu`'s 0x10 shift), and a
+   unit's rodata family converts only as an **address-ordered prefix**, because
+   cc1 emits C `.rodata` before the `.rodata` that `INCLUDE_ASM`d asm brings in.
+   `field/main/misc2` is blocked because its first two rodata owners switch the
+   stack into the 0x1F8003FC scratchpad, which no C construct can do.
+5. **Toolchain questions are cheap now.** `try_flags.sh` settled that the project
+   is neither `-mcpu=r8000` nor gcc 2.8.1, both of which are tempting from the
+   Crash 2 and FF8/Vagrant Story write-ups. `culprit.sh` and `lint_sources.py`
+   ended the "make check failed, now bisect six binaries" tax.
+
+## Where the next session should start
+
+1. **`psyq/libgte` still has ~45 stubs and is the single biggest tractable pool.**
+   The remaining GTE-macro blockers are now narrow: (a) lazy loading of incoming
+   stack arguments (`NormalColor3`, `NormalColorCol3`, `NormalColorDpq3`,
+   `ColorDpq3`, `DpqColor3`, `LoadAverage0/12`) - gcc materialises them in the
+   entry block, retail loads them after the GTE command; (b) the `jr` delay-slot
+   fill for `ApplyMatrix`/`ApplyRotMatrix`; (c) `TransMatrix`/`ScaleMatrix`/
+   `RotMatrix*` cannot be converted at all (padding after `.size`).
+2. **`field/main/misc2`'s scratchpad stack switch** (`func_800739C0`,
+   `func_8007554C`) gates six functions and the unit's rodata. It needs an
+   `asm("sw $sp, 0($t0)")`-style statement, which the hard rules forbid; this is a
+   policy decision, not a technical one.
+3. **`system/sound` (~45 stubs) and `lib_gear` (~24) are now dominated by
+   register-allocation puzzles** documented in their parked comments. A worker
+   that only reads the parked note and tries one genuinely new lever per function
+   is worth more there than a fresh attempt.
+4. **`system/model` (49 stubs) remains hopeless** (hand-written asm), and
+   `psyq/libgte`'s `mtc2`-only bodies likewise.
+5. Overlays still unsplit: `battling`, `world_map`, `battle`, `menu`, `movie`
+   (AGENTS.md section 9). That is the largest single source of new work left and
+   it is mostly mechanical.
