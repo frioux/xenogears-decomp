@@ -82,19 +82,28 @@ void func_8007A968(u8 **arg0, u8 arg1) {
 void func_8007A9A8(u8 **arg0) {
     D_8005A3A0[(*arg0)[1]] = (*arg0)[2];
 }
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc5", func_8007A9D0);
+/* 61.47% - clamp to 0xFF. Original keeps the sum in v0 and copies it to the
+   store register v1 (move v1,v0 in the bnez delay slot) and materialises the
+   D_800D3430 lui/addiu after the pointer load; gcc puts the sum straight in v1
+   and the base 2 insns early. Tried: if/else with a res local (47.26%,
+   branchless/min form), ternary, if-without-else, separate base/idx locals.
 void func_8007A9D0(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
     u8 *pRow = D_800D3430 + arg1 * 0x40;
     s32 v = pRow[p[1]] + p[2];
-    s32 res;
 
-    if (v < 0x100) {
-        res = v;
-    } else {
-        res = 0xFF;
+    if (v >= 0x100) {
+        v = 0xFF;
     }
-    pRow[p[1]] = res;
-}
+    pRow[p[1]] = v;
+} */
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc5", func_8007AA1C);
+/* 67.00% - clamp at 0. Same miss as func_8007A9D0: the original keeps
+   mem-p[2] in v0 and copies it into the store register v1 (move v1,v0 in the
+   bgez delay slot), and forms the D_800D3430 base after the pointer load.
+   Tried: if/else with a res local (60.24%, branchless add/subu/sra/and form),
+   v-first declaration orders.
 void func_8007AA1C(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
     u8 *pRow = D_800D3430 + arg1 * 0x40;
@@ -104,7 +113,7 @@ void func_8007AA1C(u8 **arg0, u8 arg1) {
         v = 0;
     }
     pRow[p[1]] = v;
-}
+} */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc5", func_8007AA60);
 void func_8007AAB8(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
