@@ -32,6 +32,8 @@ typedef struct {
     /* 0x3C */ int (*unk3C)(int mode);
 } GpuSysFuncs; // Size: 0x40
 
+extern char D_8001908C[]; // "ResetGraph:jtb=%08x,env=%08x\n"
+extern char D_800190AC[]; // "ResetGraph(%d)...\n"
 extern char D_800190D8[]; // "SetGraphDebug:level:%d,type:%d reverse:%d\n"
 extern char D_800190C0[]; // "SetGraphReverse(%d)...\n"
 extern char D_80019104[]; // "SetGrapQue(%d)...\n"
@@ -65,7 +67,13 @@ extern u_long D_80056980;
 extern u_long D_80056984;
 extern u_long D_80056988;
 
+extern GpuSysFuncs D_80056888; // the driver table D_800568C8 points at
+extern u_int D_80056950[];     // draw-mode table: clip width/height per mode
+extern u_int D_80056964[];     // draw-mode table: VRAM height per mode
+
 extern void func_8004463C(char *name, RECT *rect);
+extern void func_800471A4(u_long value);
+extern u_char func_80046C58(int mode);
 extern void func_8004574C(DR_ENV *pDrEnv, DRAWENV *pEnv);
 extern void func_80047178(void *p, int value, int n);
 extern int DMACallback(int id, void (*pCallbackFn)());
@@ -334,9 +342,41 @@ void DumpDispEnv(DISPENV *env) {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu", ResetGraph);
 
-/* best: 97.58% -- the tail is exact (pSys hoisted above the nMode test); the only
-   difference left is a register coin flip: retail puts the D_800568D3 pointer in
-   s0 and `mode` in s1, gcc gives s1 to the pointer and s0 to mode.
+/* best: 92.76% -- everything matches up to the case-5 write block: gcc hoists
+   both D_80056950/D_80056964 loads above the D_800568D1 store and materialises
+   li a1,-1 early, retail keeps them in source order (asm-level scheduling again,
+   as with MoveImage). Register allocation (s0 = pLevel, s1 = mode) is right and
+   needs pLevel assigned inside case 5 with printf taking &D_800568D0 directly.
+int ResetGraph(int mode) {
+    u_char *pLevel;
+    u_char nMode;
+
+    switch (mode & 7) {
+    case 0:
+    case 3:
+        printf(D_8001908C, &D_80056888, &D_800568D0);
+    case 5:
+        pLevel = &D_800568D0;
+        func_80047178(pLevel, 0, 0x80);
+        ResetCallback();
+        func_800471A4((u_long)D_800568C8 & 0xFFFFFF);
+        nMode = func_80046C58(mode);
+        *pLevel = nMode;
+        D_800568D1 = 1;
+        D_800568D4 = D_80056950[nMode];
+        D_800568D6 = D_80056964[nMode];
+        func_80047178(pLevel + 0x10, -1, sizeof(DRAWENV));
+        func_80047178(pLevel + 0x6C, -1, sizeof(DISPENV));
+        return *pLevel;
+    default:
+        if (g_GraphDebugLevel >= 2)
+            g_GpuPrintf(D_800190AC, mode);
+        D_800568C8->unk34(1);
+        break;
+    }
+}
+*/
+
 int SetGraphReverse(int mode) {
     u_long nStatus;
     u_char *pReverse = &D_800568D3;
@@ -357,15 +397,12 @@ int SetGraphReverse(int mode) {
         GpuSysFuncs *pSys = D_800568C8;
         u_long nMode = 0x20000504;
 
-        if (*pReverse)
+        if (D_800568D3)
             nMode = 0x20000501;
         pSys->unk10(nMode);
     }
     return nPrev;
 }
-*/
-
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu", SetGraphReverse);
 
 int SetGraphDebug(int level) {
     u_char *pLevel = &g_GraphDebugLevel;
@@ -455,6 +492,7 @@ int ClearImage(RECT *rect, u_char r, u_char g, u_char b) {
     return D_800568C8->unk08(D_800568C8->unk0C, rect, 8, (b << 16) | (g << 8) | r);
 }
 
+
 int ClearImage2(RECT *rect, u_char r, u_char g, u_char b) {
     func_8004463C(D_80019180, rect);
     return D_800568C8->unk08(D_800568C8->unk0C, rect, 8, 0x80000000 | (b << 16) | (g << 8) | r);
@@ -471,9 +509,10 @@ int StoreImage(RECT *rect, u_long *p) {
 }
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu", MoveImage);
-/* Best: 82.73% - identical instruction set, aspsx appears to have hoisted
-   `lw a0,0(rect)` above the first store and sunk `lw a0,24(pSys)` below the
-   second, which gcc's own order cannot reproduce.
+
+/* best: 82.73% -- identical instruction multiset; aspsx 2.56 scheduled the block
+   (all three loads hoisted above the two stores, li a2,0x14 between them) and gcc
+   emits source order, so no C shape reproduces it.
 int MoveImage(RECT *rect, int x, int y) {
     u_long *pPacket;
 
@@ -490,6 +529,7 @@ int MoveImage(RECT *rect, int x, int y) {
     return D_800568C8->unk08(D_800568C8->unk18, pPacket, 0x14, 0);
 }
 */
+
 
 u_long* ClearOTag(u_long *ot, int n) {
     if (g_GraphDebugLevel >= 2)
