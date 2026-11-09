@@ -55,20 +55,22 @@ u_int func_80080968(ActorData* pActor) {
 extern u_short D_800B14AC;
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800809D0);
-/* 85.00%: pre-loop `acc = 0; acc += value` is folded by gcc into a copy of the
-   constant (no `addu a0,zero,zero`), so acc lands in a1 instead of a0.
+/* 95.56%: while-form gives the right registers (value v1, step a1, acc a0) and
+   the right loop, but the original also adds value to acc once before the
+   loop. Writing `acc = 0; acc += value;` before the loop makes gcc fold the
+   add into a second copy of the constant and move acc to a1, so the extra
+   `addu a0,a0,v1` is missing here.
 int func_800809D0(s32* pData) {
-    int value = -0x14D000;
-    int step = pData[7];
-    int acc = 0;
+    s32 value = -0x14D000;
+    s32 step = pData[7];
+    s32 acc = 0;
 
     D_800B14AC = 0;
-    acc += value;
-    do {
+    while (value <= 0) {
         D_800B14AC += 2;
         value += step;
         acc += value;
-    } while (value <= 0);
+    }
     acc -= value;
     return acc >> 16;
 }
