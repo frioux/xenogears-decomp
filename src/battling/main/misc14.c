@@ -10,7 +10,6 @@ extern s32 D_80092810;
 extern s32 D_80092820;
 extern u32 D_800928E4;
 extern s32 D_80050100;
-extern s32 D_80050104;
 extern s32 D_80091C30;
 extern s32 D_80096D88;
 extern s32 D_80096D8C;
