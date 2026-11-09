@@ -2,6 +2,7 @@
 
 #include "system/menu.h"
 
+extern u8 D_80059460; // Index of the menu overlay the menu was entered with
 extern u_char D_801EA524[]; // String IDs of the menu strings
 
 void func_801E7E68(MenuString* pStringList, u_char* pStringIdList, s32 yOffset, s32 count);
@@ -83,8 +84,42 @@ void func_801C5E10(u_char isInitialization) {
     HeapFree(g_Menu->unk348);
 }
 
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc1", func_801C5E74);
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc1", func_801C5F10);
+void func_801C5E74(u_char isInitialization) {
+    s32 i;
+
+    if (isInitialization) {
+        for (i = 0; i < 3; i++) {
+            g_Menu->unk39C[i] = HeapAlloc(0x127C, 0);
+            bzero(g_Menu->unk39C[i], 0x127C);
+        }
+        return;
+    }
+    for (i = 0; i < 3; i++) {
+        HeapFree(g_Menu->unk39C[i]);
+    }
+}
+
+void func_801C5F10(void) {
+    func_801C5BB8(1);
+    func_801C5C1C(1);
+    func_801C5C80(1);
+    func_801C5CE4(1);
+    func_801C5E10(1);
+    g_Menu->pCursors = HeapAlloc(sizeof(MenuPointerCursors), 0);
+    bzero(g_Menu->pCursors, sizeof(MenuPointerCursors));
+    switch (D_80059460) {
+        case 0:
+            func_801C5B54(1);
+            func_801C5D48(1);
+            func_801C5DAC(1);
+            func_801C5E74(1);
+            break;
+        case 2:
+        case 6:
+            func_801C5B54(1);
+            break;
+    }
+}
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc1", func_801C5FE4);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc1", func_801C62A8);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc1", func_801C6400);
