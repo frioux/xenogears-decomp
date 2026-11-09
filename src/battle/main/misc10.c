@@ -27,7 +27,10 @@ s32 func_8007EBD8(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
     u8 *pRow = D_800D3430 + arg1 * 0x40;
 
-    return (pRow[p[1]] & p[2]) != 0;
+    s32 v = pRow[p[1]];
+
+    v &= p[2];
+    return v != 0;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc10", func_8007EC10);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc10", func_8007EC54);
@@ -46,7 +49,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc10", func_8007EE28);
 s32 func_8007EE70(u8 **arg0) {
     u8 *p = *arg0;
 
-    return D_800CCD64[p[1] * 0x170] >> 15;
+    return D_800CCD64[p[1] * 0xB8] >> 15;
 }
 s32 func_8007EEA8(u8 **arg0) {
     u8 *p = *arg0;
