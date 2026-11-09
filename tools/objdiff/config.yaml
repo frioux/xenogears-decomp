@@ -15,6 +15,10 @@ categories:
     name: Battling Overlay
     paths:
       - battling
+  - id: world_map
+    name: World Map Overlay
+    paths:
+      - world_map
   - id: member_change_menu
     name: Member Change Menu Overlay
     paths:
