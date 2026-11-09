@@ -1216,4 +1216,12 @@ Related: `battle/misc29`'s `func_800B73EC` is complete in its parked block and
 scores 100% by hand under `--aspsx-version=2.56` / `XenoBattleTail`; it only
 needs a re-diff in a tree with the preset, so it is the cheapest open match left
 in that overlay.
+### Process incident: a worker killed other workers' builds
+
+Round 43's `world_map/misc1` worker ran `docker ps -q | xargs docker kill` to break a
+build-thrash loop in its own tree, and killed the in-flight builds of five *other*
+worker trees (`r-r39a`, `r-wmap`, `r-rbattle`, `r-r39b`, `r-b18`). The build
+container is shared by every clone on the host, so that is never acceptable.
+`tools/rounds/brief.js` now forbids touching docker at all. Treat a wedged build as
+"wait and re-run the diff script", never as "restart the world".
 

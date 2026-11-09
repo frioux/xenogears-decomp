@@ -12,6 +12,7 @@ A function counts as matched when the output has BOTH a line starting \`MATCH:\`
 ONE EXCEPTION, and only for a jump table: if the diff is otherwise perfect but the only difference is the switch's table operand (the original names a \`jtbl_\` symbol, yours says \`.rodata\` or \`.L...\`), objdiff can never say 100% because the linker resolves both to the same address. In that case run \`tools/scripts/check_bin.sh ${w.overlay}\` (~35 s). If it prints \`OK\`, your function really does match - commit it and say CHECK_BIN_OK in your report. NOTE this leaves your tree in matching mode, so run \`make objdiff-config\` before you can diff again (~35 s); do it at most once, at the end of your batch.
 
 RULES
+- NEVER run \`docker kill\`/\`docker rm\`/\`docker ps ... | xargs docker ...\` or otherwise touch containers: the build container is shared with every other worker tree on this host, and one worker once killed five other workers' builds with \`docker ps -q | xargs docker kill\`. If a build wedges, wait, re-run the diff script, or work from the assembly; do not touch docker.
 - Never run \`make\` (any target) except that one \`make objdiff-config\`: it does a full clean rebuild and takes 30 s. Use the diff script. Never run bare ninja outside it.
 - Keep the file's functions in address order. Leave stubs you do not match exactly as they are.
 - No inline assembly, no #pragma, no per-function compiler flags. \`char\` is unsigned (-funsigned-char).
