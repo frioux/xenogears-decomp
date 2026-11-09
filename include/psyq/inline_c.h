@@ -1592,3 +1592,48 @@
 #define gte_stotz_val( r0 ) __asm__ volatile (			\
 	"mfc2	%0, $7"						\
 	: "=r"( r0 ) )
+
+/* The same load, spelled with the argument's ABI name. maspsx inserts a
+   load-reuse nop after an `lwc2 $6,...` when the next instruction reads $6, and
+   `mtc2 %0,$8` does exactly that when the depth argument is the third
+   parameter (which arrives in $a2 = $6). `$a2` encodes identically, so the
+   original's single nop survives. Requires the caller to pass the depth in
+   $a2, i.e. the third argument of an unmoved parameter. */
+#define gte_lddp_a2( r0 ) __asm__ volatile (			\
+	"mtc2	$a2, $8"					\
+	:							\
+	: "r"( r0 ) )
+
+/* The 3.x revision read an output pointer that arrives on the stack at the point
+   of use, after the command, instead of honouring the entry-block copy of an
+   incoming stack argument: `lw $8,0x10($sp)` lands between the command and the
+   swc2. The "m" operand is the incoming slot itself, not the pointed-to object
+   (same trick as gte_stlvl_gpr_stack). */
+#define gte_strgb3_stack( r0, r1, r2 ) __asm__ volatile (	\
+	"lw	$8, %0;"					\
+	"lw	$9, %1;"					\
+	"lw	$10, %2;"					\
+	"swc2	$20, 0( $8 );"					\
+	"swc2	$21, 0( $9 );"					\
+	"swc2	$22, 0( $10 )"					\
+	:							\
+	: "m"( r0 ), "m"( r1 ), "m"( r2 )			\
+	: "$8", "$9", "$10", "memory" )
+
+/* Same, for the 3-vector form whose first output pointer is still in $a3. */
+#define gte_strgb3_gpr_stack( r0, r1, r2 ) __asm__ volatile (	\
+	"lw	$8, %1;"					\
+	"lw	$9, %2;"					\
+	"swc2	$20, 0( %0 );"					\
+	"swc2	$21, 0( $8 );"					\
+	"swc2	$22, 0( $9 )"					\
+	:							\
+	: "r"( r0 ), "m"( r1 ), "m"( r2 )			\
+	: "$8", "$9", "memory" )
+
+/* Depth coefficient passed by value on the stack: the 3.x revision loaded it
+   straight into the GTE instead of through a general register. */
+#define gte_lddp_stack( r0 ) __asm__ volatile (			\
+	"lwc2	$8, %0"						\
+	:							\
+	: "m"( r0 ) )
