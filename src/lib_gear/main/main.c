@@ -311,18 +311,16 @@ INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801DCEC8);
 
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801DDBF8);
 
-// objdiff 95.98%. The whole loop body matches: the rotation channel tests
-// pJoint->unk70 (0x70) and the translation channel pJoint->unk74 (0x74) -- the
-// earlier attempt had those one field low (pCurModelPacket / unk70), which cost
-// the two `lw 108(a0)` / `lw 112(a0)` loads. Only the 0x18 prologue differs:
-// gcc emits the `addiu pKeyframe` first and parks the flags value one register
-// high (a3 vs a2) instead of keeping pKeyframe in a1 (pBlock's incoming
-// register, as the original's `addiu a1,a1,0x18` in the branch delay slot shows).
-// Declaring pKeyframe last, assigning it after the flag loads, and reading
-// pBlock->unk6 into a local first were all tried; gcc 2.6 hoists the address
-// computation regardless, so this is an allocator limit, not a source shape.
-// Reading numTransFrames before flags matches the original's load order
-// (0x6, 0xC, 0xE, 0x4) but then flags reuses a1 and pKeyframe takes a2: 94.95%.
+// objdiff 95.98%. Loop body and register anchors match the original
+// instruction for instruction (a0 is the skeleton+4 cursor, a0 += 0x7C per
+// joint, rotation compared with lh, translation with lw). Two prologue
+// differences remain, both allocation: the original loads pBlock->unk6 first
+// into t0 and keeps pKeyframe in a1 (the in-place `addiu a1,a1,0x18` reorg
+// pulls into the bnez delay slot), where gcc 2.6 loads unk6 last (v0) and
+// copies pBlock to a2 for pKeyframe; and the back edge loses the original's
+// dead `andi v0,count` delay slot insn. Load order 0x6,0xC,0xE,0x4 (fixed by
+// declaring numTransFrames before flags) still allocates flags to a1 and
+// pKeyframe to a2. Also tried: s16 x/y/z locals (74.79%), gcc 2.7.2 (94.95%).
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801DEF10);
 /*
 void func_801DEF10(ModelJoint* pSkeleton, KeyframeBlock* pBlock) {
@@ -330,8 +328,8 @@ void func_801DEF10(ModelJoint* pSkeleton, KeyframeBlock* pBlock) {
     u16 transFrame = 0;
     s16 blockType = pBlock->unk6;
     u16 numRotFrames = pBlock->unkC;
-    u16 flags = pBlock->unk4;
     u16 numTransFrames = pBlock->unkE;
+    u16 flags = pBlock->unk4;
     s16* pKeyframe = (s16*)(pBlock + 1);
     u16 count;
     int i;
@@ -1012,75 +1010,61 @@ s16 (*func_801E34BC(s32 type))(s16, s16, s16) {
     }
 }
 
-// objdiff 94.87%: 39 insns, same values and order. The only delta is the
-// `li v1,-1` that unk98/unk3A/unk1E share and the `sh v1,0x98` that uses it:
-// the original materialises -1 at insn 0 and stores at insn 15, ours either
-// stores immediately (when the unk98 statement comes first: 94.87%, store at
-// insn 8) or materialises at insn 5 instead (statement in place: 74.36%). So
-// the original hoists the multi-use constant load to the top of the function
-// without moving the store, which no source shape tried (literal -1, s32/s16/
-// register local, static const, masked variants) reproduces.
-// 94.87% shape, for the next attempt: it is this body with
-// `s32 negOne = -1;` first, then `pModel->unk98 = negOne;` as the first
-// statement, and no unk98 assignment later.
-// Re-measured: that shape is exactly 94.87% - `li v1,-1` lands at insn 0 (good)
-// but the `sh v1,152` follows at insn 8 instead of 15. With unk98 in its right
-// place the store is right and the load sits at insn 5 (74.36%). s16/u32 local,
-// separate `negOne = -1;` statement and bare `-1` literals all give the same
-// 74.36%; the only lever found on the load position is moving the store.
-// Later finding: the `ori v0,zero,0x1` the original materialises at insn 8 (used
-// only by the unk70[15] store at insn 36) is a local `s32 one = 1;` stored as
-// `pModel->unk70[15] = one;` - that reproduces the load position exactly, so the
-// original did hoist initialised locals to their repeated constants. With it,
-// `negOne` lands at insn 6 (right after `li v0,0x6B`, inside the unk39 statement)
-// instead of insn 0, and swapping the two declarations does not move it; so the
-// remaining delta is only where gcc parks the -1 load, and the `one` local is the
-// shape to build a next attempt on.
+// objdiff 94.87%: 39 insns, same instruction multiset, one slot apart. Both
+// `li v0,1` (for unk70[15], insn 7) and the whole body match, so the locals
+// negOne = -1 and one = 1 are confirmed. The only delta is where gcc 2.6's
+// post-reload scheduler parks `li v1,-1`: it must stay at insn 0 while the
+// `sh v1,0x98` that first uses it lands at insn 14. The two are coupled:
+// with `pModel->unk98 = negOne;` as the first statement the li is at 0 but the
+// store at 8; with the assignment in its logical place (after unk2B) the store
+// is right at 14 but the li moves to insn 5. Declaration order of the two
+// locals, a mid-block `s32 one = 1;` and bare/s16/u32 -1 forms all keep it at
+// 74.36%. Best parked shape is the one below (unk98 first).
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E3534);
 /*
-    void func_801E3534(Model* pModel, s32 arg1, u32 arg2, u32 arg3) {
-        s32 negOne;
+void func_801E3534(Model* pModel, s32 arg1, u32 arg2, u32 arg3) {
+    s32 negOne = -1;
+    s32 one = 1;
 
-        negOne = -1;
-        pModel->unk3C = 0xFFFF;
-        pModel->unk5C = 0xFF;
-        pModel->unk39 = 0x6B;
+    pModel->unk98 = negOne;
+    pModel->unk3C = 0xFFFF;
+    pModel->unk5C = 0xFF;
+    pModel->unk39 = 0x6B;
 
-        pModel->unk8 = arg2;
-        pModel->unkC = 0;
-        pModel->unk10 = 0;
-        pModel->unk14 = (Temp7**)arg3;
-        pModel->unk18 = NULL;
+    pModel->unk8 = arg2;
+    pModel->unkC = 0;
+    pModel->unk10 = 0;
+    pModel->unk14 = (Temp7**)arg3;
+    pModel->unk18 = NULL;
 
-        pModel->unk2B = 0;
-        pModel->unk98 = negOne;
-        pModel->unk58 = 0;
+    pModel->unk2B = 0;
+    pModel->unk58 = 0;
 
-        pModel->unk35 = 0;
-        pModel->unk37 = 0;
-        pModel->unk38 = 0;
-        pModel->unk3A = negOne;
+    pModel->unk35 = 0;
+    pModel->unk37 = 0;
+    pModel->unk38 = 0;
+    pModel->unk3A = negOne;
 
-        pModel->unk70[0] = 0;
-        pModel->unk70[1] = 0;
-        pModel->unk70[2] = 0;
-        pModel->unk70[3] = 0;
-        pModel->unk70[4] = 0;
-        pModel->unk70[5] = 0;
-        pModel->unk70[6] = 0;
-        pModel->unk70[7] = 0;
-        pModel->unk70[8] = 0;
-        pModel->unk70[9] = 0;
-        pModel->unk70[10] = 0;
-        pModel->unk70[11] = 0;
-        pModel->unk70[12] = 0;
-        pModel->unk70[13] = 0;
-        pModel->unk70[14] = 0;
-        pModel->unk70[15] = 1;
+    pModel->unk70[0] = 0;
+    pModel->unk70[1] = 0;
+    pModel->unk70[2] = 0;
+    pModel->unk70[3] = 0;
+    pModel->unk70[4] = 0;
+    pModel->unk70[5] = 0;
+    pModel->unk70[6] = 0;
+    pModel->unk70[7] = 0;
+    pModel->unk70[8] = 0;
+    pModel->unk70[9] = 0;
+    pModel->unk70[10] = 0;
+    pModel->unk70[11] = 0;
+    pModel->unk70[12] = 0;
+    pModel->unk70[13] = 0;
+    pModel->unk70[14] = 0;
+    pModel->unk70[15] = one;
 
-        pModel->unk36 = 0;
-        pModel->unk1E = negOne;
-    }
+    pModel->unk36 = 0;
+    pModel->unk1E = negOne;
+}
 */
 
 void func_801E35D0(Model* pModel, Model* pSource, s32 arg2, s32 arg3) {
