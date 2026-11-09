@@ -756,3 +756,67 @@ symbol names in order via `strings` (`prim.o` gives GetTPage, GetClut, AddPrim,
 SetPolyF3, ... SetLineG4); what is missing is the symbol *offsets*, because the
 `nlist` entry stride does not come out at 18 bytes with the naive header parse --
 someone should finish that parse, it is the largest naming unlock left.
+
+## Log (session 4)
+
+| # | Batch | Functions | Total | Notes |
+|---|---|---|---|---|
+| 34 | 14 workers: the 9 new split units + libgte/libgte_b/lib_gear/temp2/virtual_machine | +41 | 2038 | `libgpu_b` 11, `system/controller_b` 11 (2 of them via `check_bin`), `libgpu_c` 5, `controller_c` 5, `libapi_b` 4, `libgpu_tex` 3 (all three), `archive_b` 1, `lib_gear` 1. `libcard_b` 0 (all six are hand-written card-BIOS patch asm); temp2/rendering/gte/gteb/vm only parked attempts |
+| — | name recovery from the Psy-Q 4.0 library objects | — | — | 16 renames, and the method below |
+
+**Round 34 is the first round in three sessions that paid more than +10, and the
+reason is the split, not the workers.** 34 of the 41 matches are in units that had
+never been attempted before (they did not exist). The two "saturated" pools
+(`libgte`, `libgte_b`) and the synced `temp2`/`rendering` units produced nothing
+but parked notes, exactly as round 33 predicted.
+
+### Naming: the Psy-Q 4.0 SDK libraries are public and parseable
+
+The single biggest piece of durable knowledge from this session. `github.com/sozud/psy-q`
+carries the real Sony Psy-Q SDK trees (3.3, 3.5, 3.6, 4.0) including
+`<ver>/PSX/LIB/*.LIB`, whose objects keep their **symbol tables**. `psy-k`
+(<https://github.com/ttkb-oss/psy-k>, `cargo build --release -p psy-k-bin`) reads
+them: `psyk extract LIBGPU.LIB` writes the `.OBJ` modules out, and a ~40-line Rust
+bin over the `psy-k` API dumps every XDEF as (section, offset, name) plus the
+module's code with the relocation-patched words marked wildcard.
+
+Comparing that against every `asm/slus_006.64/*/psyq/**/*.s` here:
+
+- **224 of the 247 functions that match at all match the SAME name in all four
+  library versions** -- which is what makes a rename trustworthy. The 8 that
+  disagree are all the `*2` family (`InitPAD2`, `StartPAD2`, `InitCARD2`, ...),
+  where 3.3/3.5 say `InitPAD` and 3.6/4.0 say `InitPAD2`; the game has both.
+- 16 renames landed: `VSyncCallback`, `SetDrawLoad`, `LoadAverageShort0/12`,
+  `_96_remove`, `_SendPAD`, `_remove_ChgclrPAD`, `SetPriority`, `siocons`,
+  `GPU_cw`, `SetFogNearFar`, `LoadTPage`, `LoadClut`, `LoadClut2`, `MatrixNormal`,
+  `_SN_read`. Four of those were already matched C under their `func_` name.
+- **Rejected, and the reason is the method's limit:** a function whose retail form
+  differs from the library's only in *patched* words cannot be told apart from its
+  siblings. That kills the libetc interrupt-callback family (`DMACallback`,
+  `InterruptCallback`, `StopCallback` and `RestartCallback` are distinguished
+  solely by which global they store to) and most of the `Cd*` stubs. Only rename
+  when the name agrees across versions AND at least half the words are unpatched.
+
+It also pins the module a unit came from: `psyq/libgpu_tex` is `EXT.OBJ`
+(LoadTPage/LoadClut/LoadClut2), `psyq/libapi_b` is the libapi PAD/DS hook layer,
+and the 0x35B7C range (`libgpu_b`/`libgpu_c`) is the **Gs** library --
+`func_800477D0` is `GsSortObject4` (memset 0x78, then a switch on packet words
+`0x2D030709`, `0x25030607`, ...). Rename those two units to `psyq/libgs*` once
+they are quiet.
+
+### Round 34 notes worth keeping
+
+- **`diff_func.sh` and `try_flags.sh` want the unit path WITH the binary prefix**
+  (`slus_006.64/system/sound`, not `system/sound`). Six workers hit this; it was
+  my brief's fault. Now stated in `tools/rounds/brief.js`.
+- maspsx/gas and splat rename every field address a function references into its
+  own symbol, so a constant non-zero offset from a named global can never reach
+  objdiff 100% even though the linked bytes match. `check_bin.sh` + `CHECK_BIN_OK`
+  is the right gate for those (2 functions this round).
+- `system/controller_c`'s locals must be declared and zeroed in the REVERSE order
+  of their retail use to flip the whole prologue (`func_80036420`); the pad-state
+  array at 0x8005A1BC is 8-byte records `{u8,u8,u8,u8, s16 unk4, u8, u8}`.
+- `libapi_b`'s two hook setters need a **pointer local** (`long* pHook = &D_x;`);
+  a plain `old = D_x; D_x = v;` materialises the address twice (24.6%).
+- At `-O3` gcc inlines `func_80040B7C` into `func_80040C3C`, so converting the
+  former breaks the latter; they cannot both be C in that unit without `-O2`.
