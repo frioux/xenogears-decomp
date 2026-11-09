@@ -680,10 +680,12 @@ void func_8009B338(void) {
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc12", func_8009B398);
 /* 95.05%, same instruction count (179). Only the 2D-actor arm differs: gcc
-   schedules the `D_800B21CE = 1` store before the scriptInstructionPointer
-   update (taking a0, which pushes the D_8005A444 pointer and loop counter into
-   a1/a2); the original emits `sh 204(v0)` first and materialises the 1 into v0
-   after it. Everything from the else arm onwards matches instruction for
+   schedules the `D_800B21CE = 1` store (which takes a0 for the constant, pushing
+   the D_8005A444 pointer, the loop counter and the 0xFF/-0x8000 constants into
+   a1/a2/t0/a3) between the `lhu` and the `sh` of scriptInstructionPointer; the
+   original emits `sh 204(v0)` first and materialises the 1 into v0 after it.
+   Reversing the two source statements changes nothing - -fschedule-insns2
+   decides this. Everything from the else arm onwards matches instruction for
    instruction. Bit idiom `| ~0x7FFF` is the house spelling (see func_8009F4CC
    in misc6.c): `| 0x8000` on the short field gives lh/ori instead of lhu/or. */
 /*
@@ -839,11 +841,10 @@ void func_8009BA0C(void) {
 }
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc12", func_8009BA7C);
-/* 96.94%: store order matches (unk7C, then unk60, then sceneAngle.vy). The
-   original computes `angle << 9` twice and does not fold the unk60 chain into a
-   single `sll 25`; gcc 2.7.2 CSEs the two shifts and combine folds
-   (x<<9)<<16 -> sll 25. Tried: both statement orders, `* 0x200` / `* 0x10000`,
-   a u_long temp for unk7C - all fold. */
+/* 96.94%: only difference is gcc CSEs the two `direction << 9` and folds
+   (angle<<9)<<16 into sll 25; the original emits sll v0,v0,9 / sll v1,v0,9 /
+   sll v0,v0,16. Tried: both statement orders, * 0x200 / * 0x10000, u_long
+   temp for unk7C - all fold. */
 /*
 void func_8009BA7C(void) {
     int direction;
@@ -858,4 +859,5 @@ void func_8009BA7C(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 7;
 }
 */
+
 
