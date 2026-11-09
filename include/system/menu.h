@@ -687,7 +687,8 @@ typedef struct {
     /* 0x33A  */ u_char subMenuNumChoices;
     /* 0x33B  */ u8 unk33B;
     /* 0x33C */ MenuManager* pManager;
-    /* 0x340  */ u8 unk340[0x8];
+    /* 0x340  */ void* unk340;
+    /* 0x344  */ void* unk344;
     /* 0x348  */ MenuUnk1* unk348;
     /* 0x34C  */ u8 unk34C[0x4];
     /* 0x350  */ MenuSelectionMenu* pSelectionMenu;
@@ -737,7 +738,12 @@ typedef struct {
     /* 0x4C4  */ s32 texPageX3;
     /* 0x4C8  */ s32 texPageY3;
 
-    /* 0x4CC  */ u8 unk4CC[0x14];
+    /* 0x4CC  */ s32 unk4CC;
+    /* 0x4D0  */ s32 unk4D0;
+    /* 0x4D4  */ s32 unk4D4;
+    /* 0x4D8  */ u8 unk4D8;
+    /* 0x4D9  */ u8 unk4D9;
+    /* 0x4DA  */ u8 unk4DA[0x6];
     /* 0x4E0  */ MenuString unk4E0[4];
     /* 0x6E0  */ MenuString unk6E0[8];
     /* 0xAE0  */ MenuString unkAE0[6];
