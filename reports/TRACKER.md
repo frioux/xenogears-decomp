@@ -1021,3 +1021,31 @@ Idioms that came back from this round (all in the parked notes):
   `libgpu_b`'s `func_800459DC` is 99.55% on a final `or` operand order and
   `archive_b`'s `func_800379C8` is a **sibcall** (`j FontPrintf`, the only `j` in
   the whole asm tree — not gcc 2.7.2 output at all).
+| 39 | 14 workers: `world_map` misc1..10, `battle` misc1/2, `menu` misc1, `movie` misc1 | +97 | 2314 | world_map 62, battle 15, menu 14, movie 6; all eleven outputs still byte-identical |
+
+### Round 39: the new overlays convert at 30-55% per worker, and they need a maspsx flag
+
+97 matches, the biggest single round of any session, from units that did not
+exist this morning. Per worker: `world_map` misc3 14/25 (its stub total is 1193
+instructions), misc8 10, misc9 8, misc10 8, battle misc2 9, menu misc1 14/26,
+movie misc1 6, battle misc1 6, world_map misc1-6 3-5 each.
+
+**The `world_map` overlay needs `--dont-expand-li`.** A misc8 worker counted
+`addiu $r,$zero,imm` against `ori $r,$zero,imm` across `asm/world_map/nonmatchings`:
+2483 vs 23, while `battling`/`menu`/`movie`/`field` are 0 vs 289-2003. The overlay
+was assembled by ASPSX >= 2.50, which leaves `li` to the assembler, so maspsx's
+expansion to `ori` is wrong for it: every function that loads a small positive
+constant sat at ~70% and `check_bin.sh world_map` would have failed at the end.
+`gears.toml` now has a `XenoWorldMap` preset (`--dont-expand-li`) scoped to
+`paths = ["world_map/"]`. Same class as the existing `XenoRendering` preset. The
+check is two greps and it is worth running for every newly carved overlay:
+
+    grep -rho 'addiu *\$[a-z0-9]*, *\$zero, *0x' asm/<bin>/nonmatchings | wc -l
+    grep -rho 'ori *\$[a-z0-9]*, *\$zero, *0x' asm/<bin>/nonmatchings | wc -l
+
+**Nine of ten `world_map` workers hit the 30-minute limit** and were recovered
+with `subagent resume` (all nine had a full batch committed, so nothing was lost;
+the pattern is that the mid-round preset change cost each of them a
+`make objdiff-config` plus a re-diff of everything). Resume message that works:
+"keep only functions at MATCH + 100.00%, park the rest, commit, run the two
+gates, report".
