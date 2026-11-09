@@ -38,6 +38,23 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", CompMatrix);
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", ApplyMatrixLV);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", ApplyRotMatrix);
+/* best attempt 86.67%. Everything matches except the return copy: the original
+   ends `move v0,a2; jr $ra; nop` (the value comes from an unused THIRD
+   argument, so its prototype was 3-arg), ours gets `jr $ra; move v0,a2` because
+   reorg steals the copy into the delay slot. With the 2-arg prototype below the
+   shape is `move v0,a1` and reorg fills the slot the same way (82.08%).
+   Square0/Square12, whose copy source is a1, DO get the slot filled in retail,
+   so the a2 return seems to be what stops retail's reorg; every source form
+   tried (local copy, cast, statement order, $2-clobbering store macro) gives
+   the same filled slot. Needs a compiler-level answer.
+VECTOR *ApplyRotMatrix(SVECTOR *v0, VECTOR *v1) {
+    gte_ldsv_gpr(v0);
+    gte_nop();
+    gte_mvmva_b(1, 0, 0, 3, 0);
+    gte_stlvl_gpr(v1);
+    return v1;
+}
+*/
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", PushMatrix);
 
@@ -57,7 +74,9 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", ApplyMatrix);
 /* best attempt 92.00%. gte_stlvnl_gpr (which lists $2 as a clobber) fixes the
    store register; one difference is left: the original ends
    `addu $v0,$a2,$zero; jr $ra; nop` and gcc's reorg steals the return-value
-   copy into the jr delay slot.
+   copy into the jr delay slot. Same blocker as ApplyRotMatrix below, and the
+   contrast there (Square0/Square12 return a1 and retail DOES fill their delay
+   slot) says it is not a -f flag: retail's reorg left the a2 copy alone.
 VECTOR *ApplyMatrix(MATRIX *m, SVECTOR *v0, VECTOR *v1) {
     gte_SetRotMatrix(m);
     gte_ldv0(v0);
@@ -510,6 +529,35 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", RotAverage4);
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", RotAverageNclip4);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", TransposeMatrix);
+/* best attempt 65.00%. Word-wise transpose (below) reproduces the original's
+   store sequence exactly, byte for byte in the right ORDER with the right
+   values; what is left is allocation. The original ends `lh t2,0x10(a0)`, keeps
+   the store base in a1 (`move v0,a1` at entry, stores through a1, last store in
+   the jr delay slot) and uses t1/t2/t3 for the words, reusing t1 for p[3].
+   gcc 2.7.2 stores through v0 (the return copy), picks v1/a2 for the words and
+   reuses a1 for p[3], and emits `lhu` for m22. a2/a3 look reserved in retail's
+   allocation, which is the same oddity as ApplyRotMatrix returning an unused
+   third argument -- worth checking whether these two stubs want the 2.6.0
+   preset or a 3-arg-ish prototype before more C surgery. Both pointer locals
+   and direct casts give the same 65.00%.
+MATRIX *TransposeMatrix(MATRIX *m0, MATRIX *m1) {
+    long t0, t1, t2, t3;
+
+    t0 = ((long *)m0)[0];
+    t1 = ((long *)m0)[1];
+    ((long *)m1)[1] = t0;
+    ((long *)m1)[0] = t1;
+    ((short *)m1)[0] = t0;
+    t2 = ((long *)m0)[2];
+    t3 = ((long *)m0)[3];
+    ((long *)m1)[3] = t2;
+    ((long *)m1)[2] = t3;
+    ((short *)m1)[6] = t1;
+    ((short *)m1)[4] = t2;
+    ((short *)m1)[8] = ((short *)m0)[8];
+    ((short *)m1)[2] = t3;
+    return m1;
+}
 /* best attempt 65.00%. Structure and store order match: word stores q[1]=p[0],
    q[0]=p[1] patched with the low half of p[0], then q[3],q[2] patched from
    p[1].lo/p[2].lo/p[3].lo and the halfword at 0x10. What is left: gcc folds the

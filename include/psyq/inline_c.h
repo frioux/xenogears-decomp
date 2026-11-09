@@ -116,6 +116,16 @@
 	:							\
 	: "r"( r0 )						\
 	: "$12", "$13" )
+/* The 3.x revision loaded the V0 pair through general registers. */
+#define gte_ldsv_gpr( r0 ) __asm__ volatile (			\
+	"lw	$8, 0( %0 );"					\
+	"lw	$9, 4( %0 );"					\
+	"mtc2	$8, $0;"					\
+	"mtc2	$9, $1"						\
+	:							\
+	: "r"( r0 )						\
+	: "$8", "$9" )
+
 
 #define gte_ldlvl( r0 ) __asm__ volatile (			\
 	"lwc2	$9, 0( %0 );"					\
@@ -1170,6 +1180,9 @@
 
 /* $2 as a clobber keeps the destination out of $v0, so `return dest` does not
    degenerate into stores through the return register. */
+/* Same $2 clobber trick for the IR1-IR3 (LVL) store. */
+#define gte_stlvl_gpr( r0 ) __asm__ volatile ( "swc2\t$9, 0( %0 );" "swc2\t$10, 4( %0 );" "swc2\t$11, 8( %0 )" : : "r"( r0 ) : "$2", "memory" )
+
 #define gte_stlvnl_gpr( r0 ) __asm__ volatile ( "swc2\t$25, 0( %0 );" "swc2\t$26, 4( %0 );" "swc2\t$27, 8( %0 )" : : "r"( r0 ) : "$2", "memory" )
 
 #define gte_stlvnl0( r0 ) __asm__ volatile (			\
