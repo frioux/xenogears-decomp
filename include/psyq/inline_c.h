@@ -334,19 +334,19 @@
 	: "$12", "$13" )
 
 #define gte_SetRotMatrix( r0 ) __asm__ volatile (		\
-	"lw	$12, 0( %0 );"					\
-	"lw	$13, 4( %0 );"					\
-	"ctc2	$12, $0;"					\
-	"ctc2	$13, $1;"					\
-	"lw	$12, 8( %0 );"					\
-	"lw	$13, 12( %0 );"					\
-	"lw	$14, 16( %0 );"					\
-	"ctc2	$12, $2;"					\
-	"ctc2	$13, $3;"					\
-	"ctc2	$14, $4"					\
+	"lw	$8, 0( %0 );"				\
+	"lw	$9, 4( %0 );"				\
+	"lw	$10, 8( %0 );"				\
+	"lw	$11, 12( %0 );"				\
+	"lw	$12, 16( %0 );"				\
+	"ctc2	$8, $0;"				\
+	"ctc2	$9, $1;"				\
+	"ctc2	$10, $2;"				\
+	"ctc2	$11, $3;"				\
+	"ctc2	$12, $4"					\
 	:							\
 	: "r"( r0 )						\
-	: "$12", "$13", "$14" )
+	: "$8", "$9", "$10", "$11", "$12" )
 
 #define gte_ldsvllrow0( r0 ) __asm__ volatile (			\
 	"lw	$12, 0( %0 );"					\
@@ -358,19 +358,19 @@
 	: "$12", "$13" )
 
 #define gte_SetLightMatrix( r0 ) __asm__ volatile ( 		\
-	"lw	$12, 0( %0 );"					\
-	"lw	$13, 4( %0 );"					\
-	"ctc2	$12, $8;"					\
-	"ctc2	$13, $9;"					\
-	"lw	$12, 8( %0 );"					\
-	"lw	$13, 12( %0 );"					\
-	"lw	$14, 16( %0 );"					\
-	"ctc2	$12, $10;"					\
-	"ctc2	$13, $11;"					\
-	"ctc2	$14, $12"					\
+	"lw	$8, 0( %0 );"				\
+	"lw	$9, 4( %0 );"				\
+	"lw	$10, 8( %0 );"				\
+	"lw	$11, 12( %0 );"				\
+	"lw	$12, 16( %0 );"				\
+	"ctc2	$8, $8;"				\
+	"ctc2	$9, $9;"				\
+	"ctc2	$10, $10;"				\
+	"ctc2	$11, $11;"				\
+	"ctc2	$12, $12"					\
 	:							\
 	: "r"( r0 )						\
-	: "$12", "$13", "$14" )
+	: "$8", "$9", "$10", "$11", "$12" )
 
 #define gte_ldsvlcrow0( r0 ) __asm__ volatile (			\
 	"lw	$12, 0( %0 );"					\
@@ -382,19 +382,19 @@
 	: "$12", "$13" )
 
 #define gte_SetColorMatrix( r0 ) __asm__ volatile (		\
-	"lw	$12, 0( %0 );"					\
-	"lw	$13, 4( %0 );"					\
-	"ctc2	$12, $16;"					\
-	"ctc2	$13, $17;"					\
-	"lw	$12, 8( %0 );"					\
-	"lw	$13, 12( %0 );"					\
-	"lw	$14, 16( %0 );"					\
-	"ctc2	$12, $18;"					\
-	"ctc2	$13, $19;"					\
-	"ctc2	$14, $20"					\
+	"lw	$8, 0( %0 );"				\
+	"lw	$9, 4( %0 );"				\
+	"lw	$10, 8( %0 );"				\
+	"lw	$11, 12( %0 );"				\
+	"lw	$12, 16( %0 );"				\
+	"ctc2	$8, $16;"				\
+	"ctc2	$9, $17;"				\
+	"ctc2	$10, $18;"				\
+	"ctc2	$11, $19;"				\
+	"ctc2	$12, $20"					\
 	:							\
 	: "r"( r0 )						\
-	: "$12", "$13", "$14" )
+	: "$8", "$9", "$10", "$11", "$12" )
 
 #define gte_SetTransMatrix( r0 ) __asm__ volatile (		\
 	"lw	$12, 20( %0 );"					\
@@ -1483,3 +1483,13 @@
 	:							\
 	:							\
 	: "$12" )
+
+/*
+ * Value read-back. This binary's libgte came from the Psy-Q 3.x inline_c.h,
+ * which returned a GTE register in a general register ($2 for a function's
+ * return value) instead of storing it through a pointer the way the 4.3
+ * macros above do.
+ */
+#define gte_stotz_val( r0 ) __asm__ volatile (			\
+	"mfc2	%0, $7"						\
+	: "=r"( r0 ) )
