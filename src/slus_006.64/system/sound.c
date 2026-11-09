@@ -5,6 +5,7 @@
 
 s32 func_8003E290(s32 value, s16 divisor, s16 mode);
 s32 func_8003F240(AudioEnvelope* pEnvelope);
+s32 func_8003F2A0(AudioEnvelope* pEnvelope);
 
 //----------------------------------------------------------------------------------------------------------------------
 // SPU DECLARATIONS
@@ -2970,6 +2971,46 @@ u8* func_8003D884(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
 }
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003D8B8);
+/*
+Attempt (92.34%, same size, all instructions in the original's order except two missing
+int-to-s16 conversions): gcc elides the `sll 16`/`sra 16` pair before the velocity square
+and the one converting the divisor argument, because it can prove the sum non-negative and
+in range (`u8` velocity, `s16` velocity, an explicit `(s16)` cast and `s32 volume` all give
+the same elision). The register allocation also comes out mirrored: gcc puts the volume
+total in s0 and pAudioElements in s1, the original the other way round (the prologue save
+order follows). The note curve `note * abs(note)` does match with the if/else below.
+u8* func_8003D8B8(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
+    s8 note = pScript[1];
+    u8 velocity = pScript[0];
+    s32 volume;
+    s32 pitch;
+    s32 unk16;
+
+    if (note != 0) {
+        if (velocity != 0) {
+            if (note < 0) {
+                pitch = note * -note;
+            } else {
+                pitch = note * note;
+            }
+            volume = velocity + ((s16)velocity * (s16)velocity) / 64;
+            pAudioElements->envelopes[0].delta = func_8003E290(pitch << 14, volume, 3);
+            pAudioElements->envelopes[0].reload = volume;
+            unk16 = pScript[2] << 2;
+            pAudioElements->envelopes[0].unk_0x1A = 0x400;
+            pAudioElements->envelopes[0].unk_0x0 = (undefined32)func_8003F2A0;
+            pAudioElements->envelopes[0].unk_0x1D = 3;
+            pAudioElements->envelopes[0].flags = 3;
+            pAudioElements->envelopes[0].unk_0x1C = 0;
+            pAudioElements->envelopes[0].unk_0x16 = unk16;
+            pAudioElements->unk_0xCE |= 0x1;
+            func_8003E3E0(&pAudioElements->envelopes[0]);
+        }
+    }
+
+    return pScript + 3;
+}
+*/
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003D9A4);
 
