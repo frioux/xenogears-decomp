@@ -143,6 +143,89 @@ void func_800723E4(SVec4* pA, SVec4* pB, SVec4* pOut) {
     pOut->y = pB->y + ((t * nB.vz) >> 12);
 }
 
+// 58.55%: a plain list of assignments per store in the original order matches the
+// stores themselves, but gcc here re-materialises a lui/%lo pair for every symbol,
+// where the original bases all of them off $s0 = &g_CamInterpolation (including
+// `addiu $a0,$s0,0x2C` for the func_80070594 argument). Getting gcc to take that
+// base is the whole problem; the store set and order below are otherwise right.
+/*
+extern CameraInterpolation g_CamInterpolation;
+extern VECTOR g_CameraEye;
+extern VECTOR g_CameraAt;
+extern VECTOR g_CameraUp;
+extern VECTOR g_CameraEye2;
+extern VECTOR g_CameraAt2;
+extern VECTOR D_800AF8D0;
+extern s32 D_800AF8E0;
+extern s32 D_800AF8E4;
+extern s32 D_800AF8E8;
+extern s16 g_FieldCameraMode;
+extern s16 g_CamMovementFlags;
+extern s16 g_CamAtMovementDuration;
+extern s16 g_CamEyeMovementDuration;
+extern void func_80070594(MATRIX* dest);
+
+void func_8007254C(void) {
+    g_CamInterpolation.atStepDistance = 8;
+    g_CamInterpolation.eyeStepDistance = 8;
+    g_Scene.unk5C = 0x400000;
+    g_Scene.unk60 = 0x8000000;
+    g_Scene.sceneAngle.vy = 0x800;
+    *(s32*)((u_char*)&g_Scene + 0xA8) = 0;
+    *(s32*)((u_char*)&g_Scene + 0xA4) = 0;
+    *(s32*)((u_char*)&g_Scene + 0xA0) = 0;
+    *(s32*)((u_char*)&g_Scene + 0xB4) = 0;
+    *(s32*)((u_char*)&g_Scene + 0xB0) = 0;
+    *(s32*)((u_char*)&g_Scene + 0xAC) = 0;
+    *(s16*)((u_char*)&g_Scene + 0x98) = 0;
+    *(s16*)((u_char*)&g_Scene + 0x9C) = 0;
+    g_Scene.unk48 = 0;
+    g_CamInterpolation.curAngleY = 0;
+    g_CamInterpolation.targetAngleY = 0;
+    g_Scene.dollySet = 0;
+    g_Scene.dollyStop = 0;
+    g_Scene.unk66 = 0;
+    g_Scene.sceneAngle.vx = 0;
+    g_Scene.sceneAngle.vz = 0;
+    g_Scene.unk7C = 0x800;
+    g_Scene.camRotation.vx = 0;
+    g_Scene.camRotation.vy = 0;
+    g_Scene.camRotation.vz = 0;
+    func_80070594(&g_Scene.camRotationMatrix);
+    g_CameraEye.vx = 0;
+    g_CameraEye.vy = 0;
+    g_CameraEye.vz = 0;
+    g_CameraUp.vy = 0x10000000;
+    D_800AF8D0.vy = 0x10000000;
+    g_Scene.sceneDIP = 0x1E;
+    g_Scene.sceneScrZ = 0x200;
+    g_CameraAt.vx = 0;
+    g_CameraAt.vy = 0;
+    g_CameraAt.vz = 0;
+    g_CameraUp.vx = 0;
+    g_CameraUp.vz = 0;
+    D_800AF8E0 = 0;
+    D_800AF8E4 = 0;
+    D_800AF8E8 = 0;
+    g_CameraEye2.vx = 0;
+    g_CameraEye2.vy = 0;
+    g_CameraEye2.vz = 0;
+    g_CameraAt2.vx = 0;
+    g_CameraAt2.vy = 0;
+    g_CameraAt2.vz = 0;
+    D_800AF8D0.vx = 0;
+    D_800AF8D0.vz = 0;
+    g_Scene.unk70 = 0;
+    g_Scene.unk80 = 0;
+    g_Scene.unk8C = 0;
+    g_Scene.sceneScale = 0x1000;
+    g_FieldCameraMode = 0;
+    g_CamMovementFlags = 0;
+    g_CamAtMovementDuration = 0;
+    g_CamEyeMovementDuration = 0;
+}
+*/
+
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_8007254C);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_800726E8);
