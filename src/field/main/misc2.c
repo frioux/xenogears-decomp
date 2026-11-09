@@ -577,33 +577,47 @@ int FieldMathUpdateAngle(int curAngle, int targetAngle, int delta) {
 }
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_800739C0);
-// 72.03% (1136 vs 1144 bytes, frame 0x50 vs 0x48): the shape is right and the
-// three $sp scratchpad switches below are the authorised `asm` and assemble
-// correctly (maspsx wants plain-decimal asm offsets: `0($t0)`, not `0x0($t0)`).
-// What is left is one wall, the same as func_8007254C:
-//  1. the original keeps ONE base s0 = g_CameraAt+8 = 0x800AF898 and reaches
-//     g_CameraEye.vx with -0x18($s0), g_Scene with 0xF8($s0), At.z with 0($s0).
-//     Naming the two symbols separately makes gcc build two bases ($s0 = &At,
-//     $s1 = &Eye) and one extra callee-saved register.
-//  2. FieldMatrixResetTranslation is a real call here but was inlined in the
-//     original: write the three stores out as D_800AFC30.t[2]/t[1]/t[0] = 0.
-//  3. it is the FIRST owner of the unit's .rodata, so D_8006FB04 has to be
-//     defined here as `const char D_8006FB04[0xC] = "MATRIX    ";` in the same
-//     change that converts the function - never before it, or the bytes double.
+// 76.67% (1136 vs 1144 bytes, frame 0x50 vs 0x48). The three $sp scratchpad
+// switches below assemble correctly (maspsx wants plain-decimal asm offsets:
+// `0($t0)`, not `0x0($t0)`), and these two things are settled:
+//  - FieldMatrixResetTranslation is inlined here as three stores, and its t[2]/
+//    t[1]/t[0] are three SEPARATE .bss symbols in the expected object, so they
+//    have to be spelled D_800AFC4C/D_800AFC48/D_800AFC44 = 0, not D_800AFC30.t[i].
+//  - the D_800AF8E0 offset vector is likewise three symbols (D_800AF8E0/E4/E8).
+// What is left is the same base-register wall as func_8007254C: the original
+// keeps ONE register ($s0 = &g_CameraAt+8) and reaches g_CameraEye.vx with
+// -0x18($s0), g_CameraUp with +8($s0) and g_Scene.viewMatrix with +0xF8($s0).
+// Spelling the base as `u_char* pCam = (u_char*)&g_CameraAt + 8` gets the lui/
+// addiu and the offset-0 loads right, but gcc folds every NONZERO offset back
+// into a fresh %hi/%lo base (a re-formed &g_CameraAt with the offset in the
+// load, plus a second callee-saved register for &g_CameraEye+8), which costs
+// the frame and two instructions. Also still different: the updateAngle/
+// targetAngle block is laid out on the other side (the mat-based branch first)
+// and gcc reads rotation.vy/unk11E with lhu + sll/sra where the original is lh.
+// Note it is the FIRST owner of the unit's .rodata, so D_8006FB04 has to be
+// defined in C in the same change that converts the function - never before.
 /*
+// .rodata
+const char D_8006FB04[0xC] = "MATRIX    ";
+
 extern MATRIX D_800AFC30;
+extern s32 D_800AFC44;
+extern s32 D_800AFC48;
+extern s32 D_800AFC4C;
 extern MATRIX D_800AF85C;
-extern VECTOR D_800AF8E0;
+extern s32 D_800AF8E0;
+extern s32 D_800AF8E4;
+extern s32 D_800AF8E8;
 extern SVECTOR D_800B2184;
 extern VECTOR g_CameraEye;
 extern VECTOR g_CameraAt;
 extern VECTOR g_CameraUp;
+extern VECTOR g_CameraAt2;
+extern VECTOR g_CameraEye2;
 extern s32 D_800B00B4;
 extern s16 D_800B21B4;
 extern u_char D_800ADB05;
 extern s32 D_800ADBFC;
-extern VECTOR g_CameraAt2;
-extern VECTOR g_CameraEye2;
 
 extern void func_8008110C(void);
 extern void func_80073230(void);
@@ -621,15 +635,25 @@ void func_800739C0(void) {
     int i;
     FieldActor* pActor;
     ActorData* pActorData;
+    MATRIX* pView;
+    VECTOR* pUp;
+    u_char* pCam;
     s16 targetAngle;
     s16 updateAngle;
 
     func_8008110C();
     RotMatrix(&D_800B2184, &D_800AFC30);
-    FieldMatrixResetTranslation(&D_800AFC30);
+    // &g_CameraAt.vz: the original reaches g_CameraEye.vx, g_CameraUp and
+    // g_Scene.viewMatrix off this one base register, as displacements.
+    pCam = (u_char*)&g_CameraAt + 8;
+    pView = (MATRIX*)(pCam + 0xF8);
+    pUp = (VECTOR*)(pCam + 8);
+    D_800AFC4C = 0;
+    D_800AFC48 = 0;
+    D_800AFC44 = 0;
 
-    g_CamInterpolation.curAngleY = ratan2(g_CameraAt.vz - g_CameraEye.vz,
-        g_CameraAt.vx - g_CameraEye.vx) - 0x400;
+    g_CamInterpolation.curAngleY = ratan2(*(s32*)pCam - g_CameraEye.vz,
+        g_CameraAt.vx - *(s32*)(pCam - 0x18)) - 0x400;
     g_CamInterpolation.targetAngleY = ratan2(g_CameraAt2.vz - g_CameraEye2.vz,
         g_CameraAt2.vx - g_CameraEye2.vx) - 0x400;
     D_800B00B4 = ratan2(FieldGetVec2Magnitude((g_CameraAt.vx - g_CameraEye.vx) >> 16,
@@ -642,25 +666,25 @@ void func_800739C0(void) {
     func_80073230();
     asm volatile("addiu $sp, $sp, 4\n\tlw $sp, 0($sp)");
 
-    eye.vx = g_CameraEye.vx;
-    eye.vx += D_800AF8E0.vx;
+    eye.vx = *(s32*)(pCam - 0x18);
+    eye.vx += D_800AF8E0;
     eye.vy = g_CameraEye.vy;
-    eye.vy += D_800AF8E0.vy;
+    eye.vy += D_800AF8E4;
     eye.vz = g_CameraEye.vz;
-    eye.vz += D_800AF8E0.vz;
+    eye.vz += D_800AF8E8;
     at.vx = g_CameraAt.vx;
-    at.vx += D_800AF8E0.vx;
+    at.vx += D_800AF8E0;
     at.vy = g_CameraAt.vy;
-    at.vy += D_800AF8E0.vy;
-    at.vz = g_CameraAt.vz;
-    at.vz += D_800AF8E0.vz;
+    at.vy += D_800AF8E4;
+    at.vz = *(s32*)pCam;
+    at.vz += D_800AF8E8;
 
     if (D_800ADC18 != 0) {
-        FieldMatrixLookAt(&g_Scene.viewMatrix, &eye, &at, &g_CameraUp);
-        D_800AF85C = g_Scene.viewMatrix;
+        FieldMatrixLookAt(pView, &eye, &at, pUp);
+        D_800AF85C = *pView;
     } else {
-        g_Scene.viewMatrix = D_800AF85C;
-        FieldMatrixLookAt(&D_800AF85C, &eye, &at, &g_CameraUp);
+        *pView = D_800AF85C;
+        FieldMatrixLookAt(&D_800AF85C, &eye, &at, pUp);
     }
 
     asm volatile("lui $t1, 0x1F80\n\tori $t1, $t1, 0x3FC\n\t"
@@ -672,7 +696,7 @@ void func_800739C0(void) {
     for (i = 0; i < D_800ADBFC; i++) {
         pActor = (FieldActor*)(i * 0x5C + (int)g_FieldActors);
         pActorData = pActor->pActorData;
-        if (pActor->status & 0xF40)
+        if (!(pActor->status & 0xF40))
             continue;
         if (pActor->status & 0x20)
             continue;
@@ -715,7 +739,6 @@ void func_800739C0(void) {
         func_80281B00(D_8006FB04);
     }
 }
-
 */
 void func_80073E38(void) {
     int i;
