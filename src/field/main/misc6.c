@@ -582,31 +582,37 @@ int FieldCharacterIdToPartyId(int characterId) {
 }
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_8009FA54);
-// 85.62%: branch shape (single `bne` to the epilogue) and every call/store order
-// match. Remaining: gcc folds `nAngle << 16 >> 16` for unk7C because `& 7` then
-// `<< 9` proves the range, so the original's `sll a0,a1,16; sra v0,a0,16` pair is
-// missing (and nAngle lives in v0 instead of a1); nX is converted one insn later
-// (`move s0,v0; sll; sra a0` vs `sll s0` before the 2nd call, `sra` in its delay
-// slot); the `move v0,zero` the original keeps in the bne delay slot is absent;
-// frame is 0x28 vs 0x20. Tried: `if (!= 0xFF) return 0;` (beq+j), a `return 0;`
-// inside the body as well (320 bytes, 84.94%), s32 nX/nY, and a `pActor` local
-// for the three rotation stores.
+// 90.86% (316 of 324 bytes): frame (0x20 with ra/s2/s1/s0), the `sll s0; sra s0`
+// of nX in the 2nd call's delay slot, both call orders and the rotation value are
+// right. `s16 nAngle` and `s32 nX` with an explicit (s16) cast on the call are
+// what fix those; `s16 nRotation` instead CSEs the 0x8000 constant into $s0, so
+// nRotation stays s32. Remaining 8 bytes: (a) the original emits
+// `sll a0,a1,16; sra v0,a0,16` for the 0x7C store and shares the sll with the
+// 0x60 store, i.e. nAngle is sign-extended because it is a narrow variable;
+// gcc folds the conversion away here (and then re-emits a lone `sll` for 0x60),
+// it only keeps the pair when the 0x60 store comes first, which then puts the
+// three stores in the wrong order (88.83%, 320 bytes); (b) the original keeps
+// `addu v0,zero,zero` in the bne delay slot, i.e. it has two `return 0` sites
+// that gcc merged into a shared epilogue; a single trailing return puts it after
+// the rotation stores and an if/else doubles it into a `j` (90.25%, 320 bytes).
+// Also tried: reading 0x7C back through g_Scene.sceneAngle.vy (folded), a named
+// s32 fixed-point temp (folded), `unk7C = nAngle` with s16 nAngle (folded).
 /*
-    s32 func_8009FA54(s32 nInstructionOffset) {
-        s32 nOffset;
-        s16 nX;
-        s16 nY;
-        u8 nAngleByte;
-        s32 nAngle;
-        u8 nRotationByte;
-        s32 nRotation;
-        ActorData* pActor;
+s32 func_8009FA54(s32 nInstructionOffset) {
+    s32 nOffset;
+    s32 nX;
+    s32 nY;
+    u8 nAngleByte;
+    s16 nAngle;
+    u8 nRotationByte;
+    s32 nRotation;
+    ActorData* pActor;
 
-        if (SCRIPT_READ_U8(0) == 0xFF) {
+    if (SCRIPT_READ_U8(0) == 0xFF) {
         nOffset = nInstructionOffset * 7;
         g_FieldScriptVMCurActor->walkmeshId = SCRIPT_READ_U8(nOffset + 5);
-        nX = func_8009E330(nOffset + 1);
-        nY = func_8009E330(nOffset + 3);
+        nX = (s16)func_8009E330(nOffset + 1);
+        nY = (s16)func_8009E330(nOffset + 3);
         func_8009E574(nX, nY);
 
         nAngleByte = SCRIPT_READ_U8(nOffset + 6);
@@ -615,7 +621,7 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_8009FA54);
             nAngle = ((FieldScriptVMGetVariableValue(8) + 4) & 7) << 9;
         }
         g_Scene.sceneAngle.vy = nAngle;
-        g_Scene.unk7C = nAngle << 16 >> 16;
+        g_Scene.unk7C = nAngle;
         g_Scene.unk60 = nAngle << 16;
 
         nRotationByte = SCRIPT_READ_U8(nOffset + 7);
@@ -627,11 +633,10 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_8009FA54);
         pActor->rotation.vx = nRotation;
         pActor->rotation.vy = nRotation;
         pActor->rotation.vz = nRotation;
-        }
-        return 0;
     }
+    return 0;
+}
 */
-
 INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_8009FB98);
 // 66.50%: only the ordering differs - the original stores D_800B2268 before it
 // reloads scriptInstructionPointer (+2) and stores it; gcc hoists the ip update
@@ -754,26 +759,30 @@ void func_800A0158(s32 arg0, s32* arg1, s32* arg2, s32* arg3) {
 INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_800A0228);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_800A0524);
-// 74.12%: with the `volatile` removed from `g_FieldActors`
-// (include/field/actor.h) every store order, frame and call argument matches; the
-// remaining 26% is load sharing. The original reads the base pointer once per
-// block (`lw a0,%lo(g_FieldActors)` used for both the dst and src index, and a
-// single `lw a1,0x0(s2)` feeding both matrix-call arguments), which needs a
-// non-volatile pointer. With the header as-is each `g_FieldActors[...]` is its own
-// volatile load, so the prologue/loop registers differ. Do not remove the
-// qualifier without a full make check; other units may depend on it.
+// 91.72% (440 of 452 bytes): every load, store, call and the copy loop match.
+// g_FieldActors is declared volatile in include/field/actor.h, but this unit's
+// original object reads it through a plain pointer, so the pointer load is
+// shared between uses. Reading it through a local `FieldActor**` (below)
+// gets that: `(*(FieldActor**)&g_FieldActors)` does NOT, gcc keeps MEM_VOLATILE
+// (74.12%). Remaining 12 bytes: the original materialises `&g_FieldActors` into
+// $s2 at the first matrix call (after the copy loop, `lui s2; addiu s2; lw
+// a1,0(s2)`), gcc hoists the two address insns to the top of the function where
+// the local pointer is assigned and leaves `lw a1,0(s2)` where the original has
+// it; the saved-$s2 slot then also moves. Tried: macro/inline cast per use
+// (volatile, 74.12%), plain `g_FieldActors[...]` (74.12%).
 /*
 extern void FieldMatrixCopyTransform(MATRIX* pDest, MATRIX* pSrc);
 extern void FieldMatrixCopyTranslation(MATRIX* pDest, MATRIX* pSrc);
 
-// Copies the walkmesh state and transform of one field actor onto another.
 void func_800A0524(int dstActorIndex, int srcActorIndex) {
+    FieldActor** pFieldActors;
     ActorData* pDst;
     ActorData* pSrc;
     int i;
 
-    pDst = g_FieldActors[dstActorIndex].pActorData;
-    pSrc = g_FieldActors[srcActorIndex].pActorData;
+    pFieldActors = (FieldActor**)&g_FieldActors;
+    pDst = (*pFieldActors)[dstActorIndex].pActorData;
+    pSrc = (*pFieldActors)[srcActorIndex].pActorData;
     for (i = 0; i < 4; i++) {
         pDst->walkmeshTriIds[i] = pSrc->walkmeshTriIds[i];
     }
@@ -786,14 +795,14 @@ void func_800A0524(int dstActorIndex, int srcActorIndex) {
     pDst->position.vx = pSrc->position.vx;
     pDst->position.vy = pSrc->position.vy;
     pDst->position.vz = pSrc->position.vz;
-    FieldMatrixCopyTransform(&g_FieldActors[dstActorIndex].transformMatrix, &g_FieldActors[srcActorIndex].transformMatrix);
-    FieldMatrixCopyTranslation(&g_FieldActors[dstActorIndex].transformMatrix, &g_FieldActors[srcActorIndex].transformMatrix);
-    ((SpriteData*)g_FieldActors[dstActorIndex].pSpriteData)->position.x = g_FieldActors[srcActorIndex].pActorData->position.vx;
-    ((SpriteData*)g_FieldActors[dstActorIndex].pSpriteData)->position.y = g_FieldActors[srcActorIndex].pActorData->position.vy;
-    ((SpriteData*)g_FieldActors[dstActorIndex].pSpriteData)->position.z = g_FieldActors[srcActorIndex].pActorData->position.vz;
+    FieldMatrixCopyTransform(&(*pFieldActors)[dstActorIndex].transformMatrix, &(*pFieldActors)[srcActorIndex].transformMatrix);
+    FieldMatrixCopyTranslation(&(*pFieldActors)[dstActorIndex].transformMatrix, &(*pFieldActors)[srcActorIndex].transformMatrix);
+    ((SpriteData*)(*pFieldActors)[dstActorIndex].pSpriteData)->position.x = (*pFieldActors)[srcActorIndex].pActorData->position.vx;
+    ((SpriteData*)(*pFieldActors)[dstActorIndex].pSpriteData)->position.y = (*pFieldActors)[srcActorIndex].pActorData->position.vy;
+    ((SpriteData*)(*pFieldActors)[dstActorIndex].pSpriteData)->position.z = (*pFieldActors)[srcActorIndex].pActorData->position.vz;
 }
-
 */
+
 INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_800A06E8);
 // 94.95%: structure right (branches, calls, frame, 464 bytes). gcc CSEs the
 // `~ACTOR_STATUS_INVISIBLE` constant into a callee-saved register across the
