@@ -1,5 +1,6 @@
 #include "common.h"
 #include "system/memory.h"
+#include "psyq/libgte.h"
 
 typedef struct {
     /* 0x00 */ u16 unk0;
@@ -17,6 +18,13 @@ typedef struct {
 
 extern Misc15Slot *D_8009BE24;
 extern void *D_8009C184[];
+extern MATRIX D_8009A180;
+extern MATRIX D_8009D534;
+extern u32 D_8009C580[];
+extern s32 D_8009C5BC;
+extern s32 D_8009C618;
+extern void func_800981C8(s32);
+extern void func_80097DC0(void);
 
 extern void func_800976C8(void);
 
@@ -101,6 +109,25 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_80097800);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_800978FC);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_800979C8);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_80097BC0);
+// Best: 94.28%. Instruction multiset is identical; only the clear loop's
+// allocator tie-break differs (original keeps pEnd in v0 and i in v1, this
+// shape gets the two swapped).
+/*
+void func_80097CB8(s32 arg0) {
+    s32 i;
+    u32 *pEnd;
+
+    D_8009D534 = D_8009A180;
+    pEnd = D_8009C580;
+    for (i = 0xFF; i >= 0; i--) {
+        *pEnd-- = 0;
+    }
+    D_8009C5BC = 0;
+    D_8009C618 = 0x400;
+    func_800981C8(arg0);
+    func_80097DC0();
+}
+*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_80097CB8);
 void func_80097D64(void) {
     s32 i;
