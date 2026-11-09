@@ -347,24 +347,22 @@ void func_800726E8(void) {
 */
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80072A38);
-// 96.12% (832 bytes vs the original's 844): everything but one register matches.
-// Findings that got it here: (1) func_8007CD80 takes (VECTOR* pos, SVECTOR points[2],
-// SVec4* out) -- the input is a VECTOR (func reads the high halves of the longs at
-// +0/+8 as `lh 2`/`lh 0xA`) and the two SVECTORs are read through u16 (lhu, stride 4);
-// (2) the locals are declared points, line, cross, result, pos in that order -- that
-// is the original's ascending slot order -- and the original's frame also has 0x20 of
-// stack no instruction references, hence the unused MATRIX; (3) the else branch is
-// vx, D_800ADBA8 = 0, vy, vz, then `g_CameraAt2.vy = g_CameraAt2.vy - 0x200000`
-// (the dead first vy store survives only in that spelling); (4) the flag clears are
-// spelled `&= 0xFFFE` / `&= 0xFFF7` so they come out as `andi`; (5) the scene-angle
-// chains are written out twice, never in a local, or gcc keeps the angle across the
-// rsin/rcos calls instead of reloading sceneDIP.
-// What is left: after the rsin statement gcc keeps &g_CameraEye2 + 0x4 in $s0 (the
-// `sw v0,0($s0)` vy store) and then derives the vx store and both func_80073684
-// arguments from it; the original forms the vy store with a fresh `lui at/%lo` and
-// derives $s0 - 0x14C / - 0x13C from the still-live &g_Scene.sceneDIP instead.
-// Splitting the value into an `s32 offset` local (what is below) is what got the
-// score from 95.66 to 96.12; the two address CSEs across the call are the rest.
+// 99.52%, 4 bytes short (one delay-slot nop). How to get here: the retail build compiled
+// the eye/at vectors and the scene as one object, so gcc kept the far-away
+// `&g_Scene.sceneDIP` base in $s0 and reached the camera vectors from it
+// (`addiu a0,s0,-0x14C`, `lw v0,-0x13C(s0)`), while it stored the eye members with fresh
+// `lui at/%hi` forms. Writing the four vy/vz accesses through the g_CameraEye2 /
+// g_CameraAt2 symbols (their relocations are what the original object has) and the tail
+// through scene-base-relative pointers reproduces both. Remaining difference: our gcc
+// fills the delay slot of the final `bnez` with the `andi`, the original leaves a `nop`.
+// Earlier findings, still valid: func_8007CD80 takes (VECTOR* pos, SVECTOR points[2],
+// SVec4* out); the locals are declared points, line, cross, result, pos in that order
+// (the original's ascending slot order) plus an unused MATRIX for the 0x20 of unreferenced
+// stack in the original frame; the else branch is vx, D_800ADBA8 = 0, vy, vz, then
+// `g_CameraAt2.vy = g_CameraAt2.vy - 0x200000` (the dead first vy store survives only in
+// that spelling); the flag clears are spelled `&= 0xFFFE` / `&= 0xFFF7` so they come out
+// as `andi`; the scene-angle chains are written out twice, never through a local, or gcc
+// keeps the angle across the rsin/rcos calls instead of reloading sceneDIP.
 /*
 extern int func_8007CD80(VECTOR* pPos, SVECTOR* pPoints, SVec4* pOut);
 extern void func_80073684(VECTOR* pEye, VECTOR* pAt);
@@ -412,15 +410,21 @@ void func_80072A38(VECTOR* pPos, int param) {
     }
 
     {
+        s16* pSceneDIP;
+        VECTOR* pEye;
+        VECTOR* pAt;
         s32 offset;
 
-        offset = (-((rsin(((g_Scene.sceneDIP * 91) >> 3) + 0xC00) * (s32)g_Scene.sceneScrZ) << 5) >> 0x10) * g_Scene.sceneScale * 0x10;
+        pSceneDIP = &g_Scene.sceneDIP;
+        pEye = (VECTOR*)((u_char*)pSceneDIP - 0x14C);
+        pAt = (VECTOR*)((u_char*)pSceneDIP - 0x13C);
+        offset = (-((rsin(((*pSceneDIP * 91) >> 3) + 0xC00) * (s32)g_Scene.sceneScrZ) << 5) >> 0x10) * g_Scene.sceneScale * 0x10;
         g_CameraEye2.vy = offset + g_CameraAt2.vy;
-        offset = ((((rcos(((g_Scene.sceneDIP * 91) >> 3) + 0xC00) * (s32)g_Scene.sceneScrZ) << 5) >> 0x10) * g_Scene.sceneScale * 0x10);
+        offset = ((((rcos(((*pSceneDIP * 91) >> 3) + 0xC00) * (s32)g_Scene.sceneScrZ) << 5) >> 0x10) * g_Scene.sceneScale * 0x10);
         g_CameraEye2.vz = offset + g_CameraAt2.vz;
+        pEye->vx = pAt->vx;
+        func_80073684(pEye, pAt);
     }
-    g_CameraEye2.vx = g_CameraAt2.vx;
-    func_80073684(&g_CameraEye2, &g_CameraAt2);
 
     if (g_Scene.unk48 & 0x1) {
         if (g_Scene.unk8C != 0) {
@@ -435,7 +439,9 @@ void func_80072A38(VECTOR* pPos, int param) {
     if (g_Scene.unk48 & 0x8) {
         g_Scene.unk74 += g_Scene.unk78;
         g_Scene.sceneDIP = g_Scene.unk74 >> 16;
-        if (--g_Scene.unk70 == 0) {
+        if (--g_Scene.unk70 != 0) {
+            ;
+        } else {
             g_Scene.unk48 &= 0xFFF7;
         }
     }
