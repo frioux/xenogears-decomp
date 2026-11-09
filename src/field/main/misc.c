@@ -1344,9 +1344,60 @@ void func_8008B894(void) {
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008B978);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008BC80);
+extern void func_8008A7DC(int characterId, int partyIndex);
+
+void func_8008BC80(void) {
+    int characterId;
+    int partyIndex;
+
+    if (D_800ADBC4 == CHARACTER_ID_NONE && D_800ADB2C == 0 && func_8008A558() == 0) {
+        ArchiveCdDataSync(0);
+        characterId = FieldScriptVMGetArgument(1);
+        if (characterId != CHARACTER_ID_NONE) {
+            if (func_8008A790(characterId, &partyIndex) == 0) {
+                g_pGameState->gearRide[partyIndex] = 0;
+                g_GamePartyMembers[partyIndex] = characterId;
+                func_8008A7DC(characterId, partyIndex);
+                g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
+            } else {
+                g_pGameState->unk1D30 |= 1 << characterId;
+                g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
+            }
+        } else {
+            g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
+        }
+    } else {
+        D_800B00C0 = 1;
+        g_FieldScriptVMCurActor->scriptInstructionPointer -= 1;
+    }
+}
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008BDD8);
+// 94.32%: structure and every store match; only the second SCRIPT_READ_U8_REL(1)
+// expansion is ordered differently (the original loads both globals before the
+// `lhu 0xCC` and the party index before the `addu`; gcc reorders ours the other
+// way and picks $v0/$v1 the opposite way round).
+/*
+void func_8008BDD8(void) {
+    int partyIndex;
+
+    if (D_800ADBC4 == CHARACTER_ID_NONE && D_800ADB2C == 0 && func_8008A558() == 0) {
+        ArchiveCdDataSync(0);
+        if (func_8008A790(SCRIPT_READ_U8_REL(1), &partyIndex) == 0) {
+            g_pGameState->gearRide[partyIndex] = 0;
+            g_GamePartyMembers[partyIndex] = SCRIPT_READ_U8_REL(1);
+            func_8008A7DC();
+            g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
+        } else {
+            g_pGameState->unk1D30 |= 1 << SCRIPT_READ_U8_REL(1);
+            g_FieldScriptVMCurActor->scriptInstructionPointer += 4;
+        }
+    } else {
+        D_800B00C0 = 1;
+        g_FieldScriptVMCurActor->scriptInstructionPointer -= 1;
+    }
+}
+*/
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008BF38);
 
@@ -2328,7 +2379,44 @@ void func_8008F76C(void) {
     }
 }
 
+extern s32 D_8004F354;
+extern void func_80085EEC(void);
+extern void func_8001B66C(void);
+extern void func_80085B20(int, int);
+
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008F7B8);
+// 92.24%: the two guards match as `!=` conjunctions (both `beq` jump forward to
+// the shared `D_800B00C0 = 1`), but then gcc merges that store with the one for
+// the `func_8008A558() != 0 || D_800ADBDC.value == 0` arm, which the original
+// keeps separate and inline. Spelling that arm as `== 1 || == -1` keeps it
+// inline (it shares the `li v1,1`) but inverts the second `beq` (90.82%).
+/*
+void func_8008F7B8(void) {
+    int characterId = FieldScriptVMGetArgument(1);
+
+    if (D_800ADB1C == 0) {
+        func_80085EEC();
+        if (characterId != D_8004F324) {
+            func_8001B66C();
+            D_8004F308 = -1;
+        }
+        D_8004F324 = characterId;
+        g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
+    } else if (func_8008A558() != 0 || D_800ADBDC.value == 0) {
+        D_800B00C0 = 1;
+    } else if (D_8004F354 != 1 && D_8004F308 != -1) {
+        if (characterId != D_8004F324) {
+            func_8001B66C();
+            D_8004F324 = characterId;
+            D_8004F308 = -1;
+            func_80085B20(characterId, 0);
+        }
+        g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
+    } else {
+        D_800B00C0 = 1;
+    }
+}
+*/
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008F90C);
 // 90.60%: everything matches except that gcc's post-reload scheduler moves the
