@@ -64,7 +64,38 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_c", func_8004722C);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_c", func_8004726C);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_c", func_80047518);
+int func_80047518(u_long *p, TIM_IMAGE *tim) {
+    int clutSize;
+    int size;
+
+    if (*p++ != 0x10)
+        return -1;
+
+    tim->mode = *p++;
+
+    if (GetGraphDebug() == 2)
+        printf(D_8001928C, 0x10);
+    if (GetGraphDebug() == 2)
+        printf(D_80019298, tim->mode);
+    if (GetGraphDebug() == 2)
+        printf(D_800192A4, p);
+
+    if (tim->mode & 8) {
+        clutSize = *p >> 2;
+        tim->crect = (RECT *)(p + 1);
+        tim->caddr = (u_long *)(p + 3);
+        p += clutSize;
+    } else {
+        tim->crect = 0;
+        tim->caddr = 0;
+        clutSize = 0;
+    }
+
+    size = (*p >> 2) + 2;
+    tim->prect = (RECT *)(p + 1);
+    tim->paddr = (u_long *)(p + 3);
+    return clutSize + size;
+}
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_c", func_80047638);
 
