@@ -342,7 +342,46 @@ SoundWDSEntry* SoundLoadWdsFile(SoundWDSEntry* pWdsFile, void* pUnk) {
 }
 
 // Loads part of a WDS file, basically a sized SoundLoadWdsFile?
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_800380D0);
+SoundWDSEntry* func_800380D0(SoundWDSEntry* pWdsFile, int size, int mode) {
+    SoundWDSEntry* pEntry;
+    SoundWDSEntry** ppLink;
+    int spuAddress;
+
+    if (SoundFindWdsEntry(pWdsFile->id) != 0) {
+        SoundHandleError(0x16);
+        return NULL;
+    }
+
+    spuAddress = SoundSpuMemoryAllocateWDS(pWdsFile, mode);
+    if (spuAddress == 0) {
+        SoundHandleError(0x1F);
+        return NULL;
+    }
+
+    SoundWdsSetTransferParamters(spuAddress, pWdsFile->adpcmDataSize);
+    SoundTransferWdsPart((u8*)pWdsFile + pWdsFile->adpcmDataOffset, size - pWdsFile->headerSizeMby);
+
+    pEntry = (SoundWDSEntry*)func_80039024(pWdsFile->headerSizeMby);
+    if (pEntry == NULL) {
+        SoundSpuMemoryFreeBlock(spuAddress);
+        SoundHandleError(0x1E);
+        return NULL;
+    }
+
+    SoundHeapSetBlockMemory(pEntry, pWdsFile, pWdsFile->headerSizeMby);
+    pEntry->spuMemoryAddress = spuAddress;
+
+    DisableEvent(g_unk_SoundEvent);
+    ppLink = &g_SoundWdsLinkedList;
+    while (*ppLink != NULL) {
+        ppLink = &(*ppLink)->pNext;
+    }
+    *ppLink = pEntry;
+    pEntry->pNext = NULL;
+    EnableEvent(g_unk_SoundEvent);
+
+    return pEntry;
+}
 
 void SoundSpuMemoryAllocateWDS(SoundWDSEntry* pWdsFile, int mode) {
     if (mode == SOUND_WDS_ALLOCATE_AT_ADDRESS) {
@@ -1915,7 +1954,42 @@ void func_8003AA30(AudioManager* pManager) {
     EnableEvent(g_unk_SoundEvent);
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003AAC4);
+// Mutes or unmutes the voices selected by `flags`, one bit per element.
+void func_8003AAC4(AudioManager* pManager, u32 flags) {
+    AudioElement* pElement;
+    s32 count;
+
+    if (pManager == NULL) {
+        return;
+    }
+
+    pManager->unk_0x4c = flags;
+    pElement = pManager->elements;
+    count = pManager->elementCount;
+    do {
+        if (pElement->active_flag != 0) {
+            if (flags & 1) {
+                if (!(pElement->active_flag & 0x20)) {
+                    pElement->active_flag |= 0x20;
+                    if (pManager->unk_Flags & 0x8000) {
+                        SoundStopVoiceOnChannel(&pElement->voice_data, pElement->voice_number);
+                    }
+                }
+            } else {
+                if (pElement->active_flag & 0x20) {
+                    pElement->active_flag &= ~0x20;
+                    if ((*(u32*)&pElement->active_flag & 0x110) == 0x100) {
+                        if (pManager->unk_Flags & 0x8000) {
+                            SoundAssignVoiceToChannelAndPlay(&pElement->voice_data, pElement->voice_number);
+                        }
+                    }
+                }
+            }
+        }
+        pElement++;
+        flags >>= 1;
+    } while (--count != 0);
+}
 
 void func_8003ABE8(AudioManager* pManager, u8 value) {
     pManager->unk_0x1b = value;
@@ -3141,7 +3215,7 @@ u8* func_8003D8B8(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
             } else {
                 pitch = note * note;
             }
-            volume = velocity + (velocity * velocity) / 64;
+            volume = velocity + ((s16)velocity * (s16)velocity) / 64;
             pAudioElements->envelopes[0].delta = func_8003E290(pitch << 14, volume, 3);
             pAudioElements->envelopes[0].reload = volume;
             unk16 = pScript[2] << 2;
@@ -3161,6 +3235,45 @@ u8* func_8003D8B8(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
 */
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003D9A4);
+/*
+Attempt (63.84%, 268 bytes vs the original's 280): the shape is right (pitch = note * abs(note)
+via the if/else, volume = velocity + velocity^2/64, the call and the envelopes[0] store order all
+line up) but gcc mirrors the callee-saved allocation: it puts pAudioElements in s2 and the
+velocity in a2/v1, where the original has pAudioElements s1 (copied in the first beqz delay slot),
+velocity s2, index s3, flags s0. `s32 velocity`/`s32 note` (in either declaration order) and
+u8/s16 local types all give the same mirror. A second miss: `((mode & 0x10) == 0) * 2 + 1` becomes
+a two-way branch here instead of the original's sltiu/sll/addiu, and `(s16)velocity * (s16)velocity`
+is elided unless the local is widened to s32. Compare the parked func_8003D8B8, the same function
+with a constant mode, which is stuck at 92.34% on the same allocation mirror.
+u8* func_8003D9A4(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
+    s8 note = pScript[1];
+    s16 velocity = pScript[0];
+    u8 mode = pScript[2];
+    s32 pitch;
+    s32 volume;
+
+    if (note != 0 && velocity != 0) {
+        if (note < 0) {
+            pitch = note * -note;
+        } else {
+            pitch = note * note;
+        }
+        volume = velocity + (velocity * velocity) / 64;
+        pAudioElements->envelopes[0].delta = func_8003E290(pitch << 14, (s16)volume, mode & 0xF);
+        pAudioElements->envelopes[0].unk_0x1A = 0x400;
+        pAudioElements->envelopes[0].reload = volume;
+        pAudioElements->envelopes[0].unk_0x16 = 0;
+        pAudioElements->envelopes[0].unk_0x1D = mode & 0xF;
+        pAudioElements->envelopes[0].unk_0x1C = 0;
+        pAudioElements->envelopes[0].flags = ((mode & 0x10) == 0) * 2 + 1;
+        pAudioElements->envelopes[0].unk_0x0 = D_800508A4[mode & 0xF];
+        pAudioElements->unk_0xCE |= 0x1;
+        func_8003E3E0(&pAudioElements->envelopes[0]);
+    }
+
+    return pScript + 3;
+}
+*/
 
 u8* func_8003DAB0(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     s32 divisor = (u8)(*pScript + 1);
@@ -3251,7 +3364,7 @@ u8* func_8003DC50(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
 
     if (note != 0) {
         if (velocity != 0) {
-            volume = velocity + (velocity * velocity) / 64;
+            volume = velocity + ((s16)velocity * (s16)velocity) / 64;
             pAudioElements->envelopes[1].delta = func_8003E290(note << 24, volume, 2);
             pAudioElements->envelopes[1].reload = volume;
             unk16 = pScript[2] << 2;
