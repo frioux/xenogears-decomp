@@ -261,6 +261,14 @@ void FieldScriptVMRun(int maxInstructionCount) {
 // guard clauses identical; what is left is register allocation ($a0 vs $a1 for pFieldActor) and
 // how many times g_FieldScriptVMCurActor / pActorData are reloaded, i.e. whether the original
 // used a local for them or spelled the dereference out every time.
+// Best attempt: 90.49% (the parked version below was 74.04% before these three fixes):
+// - nMinPriority = 0xF must be assigned BEFORE the D_800B21CC check; the original keeps the
+//   `li a2,0xF` in the delay slot of that beqz.
+// - the "no free script slot" branch is taken when nMinPriority == 0xF, not !=.
+// What is left: the original forms the actor address as `addu $a1,$s1,$v0` (offset first) and
+// keeps the scriptFlags read-modify-write contiguous, reloading pActorData for it; gcc here
+// emits `addu $a0,$v0,$s1` and splits the RMW (load first, store last), which cascades into
+// the $a0/$a1 swap for pFieldActor/pActorData through the whole loop body.
 /*
 extern s32 D_800ADBFC;
 extern s32 D_800ADB1C;
@@ -310,6 +318,8 @@ void func_800A2030(void) {
         D_800AFD1C = i;
         g_FieldScriptVMCurActor = pActor;
 
+        // Pick the script slot with the lowest priority
+        nMinPriority = 0xF;
         if (D_800B21CC != 0) {
             for (j = 0; j < 3; j++) {
                 if (D_8005A444[j] != ACTOR_ID_INVALID && D_8005A444[j] == i) {
@@ -318,8 +328,6 @@ void func_800A2030(void) {
             }
         }
 
-        // Pick the script slot with the lowest priority
-        nMinPriority = 0xF;
         for (j = 0; j < ACTOR_MAX_NUM_SCRIPTS; j++) {
             if (g_FieldScriptVMCurActor->scripts[j].flags_0x12 <= nMinPriority) {
                 nMinPriority = g_FieldScriptVMCurActor->scripts[j].flags_0x12;
@@ -327,7 +335,7 @@ void func_800A2030(void) {
             }
         }
 
-        if (nMinPriority != 0xF) {
+        if (nMinPriority == 0xF) {
             g_FieldScriptVMCurActor->scripts[0].currentIP = FieldScriptGetBytecodeOffset(i, 1);
             g_FieldScriptVMCurActor->curScriptIndex = 0;
             g_FieldScriptVMCurActor->scripts[0].flags_0x12 = 7;
