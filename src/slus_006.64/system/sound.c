@@ -3215,7 +3215,7 @@ u8* func_8003D8B8(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
             } else {
                 pitch = note * note;
             }
-            volume = velocity + (velocity * velocity) / 64;
+            volume = velocity + ((s16)velocity * (s16)velocity) / 64;
             pAudioElements->envelopes[0].delta = func_8003E290(pitch << 14, volume, 3);
             pAudioElements->envelopes[0].reload = volume;
             unk16 = pScript[2] << 2;
@@ -3235,6 +3235,45 @@ u8* func_8003D8B8(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
 */
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003D9A4);
+/*
+Attempt (63.84%, 268 bytes vs the original's 280): the shape is right (pitch = note * abs(note)
+via the if/else, volume = velocity + velocity^2/64, the call and the envelopes[0] store order all
+line up) but gcc mirrors the callee-saved allocation: it puts pAudioElements in s2 and the
+velocity in a2/v1, where the original has pAudioElements s1 (copied in the first beqz delay slot),
+velocity s2, index s3, flags s0. `s32 velocity`/`s32 note` (in either declaration order) and
+u8/s16 local types all give the same mirror. A second miss: `((mode & 0x10) == 0) * 2 + 1` becomes
+a two-way branch here instead of the original's sltiu/sll/addiu, and `(s16)velocity * (s16)velocity`
+is elided unless the local is widened to s32. Compare the parked func_8003D8B8, the same function
+with a constant mode, which is stuck at 92.34% on the same allocation mirror.
+u8* func_8003D9A4(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
+    s8 note = pScript[1];
+    s16 velocity = pScript[0];
+    u8 mode = pScript[2];
+    s32 pitch;
+    s32 volume;
+
+    if (note != 0 && velocity != 0) {
+        if (note < 0) {
+            pitch = note * -note;
+        } else {
+            pitch = note * note;
+        }
+        volume = velocity + (velocity * velocity) / 64;
+        pAudioElements->envelopes[0].delta = func_8003E290(pitch << 14, (s16)volume, mode & 0xF);
+        pAudioElements->envelopes[0].unk_0x1A = 0x400;
+        pAudioElements->envelopes[0].reload = volume;
+        pAudioElements->envelopes[0].unk_0x16 = 0;
+        pAudioElements->envelopes[0].unk_0x1D = mode & 0xF;
+        pAudioElements->envelopes[0].unk_0x1C = 0;
+        pAudioElements->envelopes[0].flags = ((mode & 0x10) == 0) * 2 + 1;
+        pAudioElements->envelopes[0].unk_0x0 = D_800508A4[mode & 0xF];
+        pAudioElements->unk_0xCE |= 0x1;
+        func_8003E3E0(&pAudioElements->envelopes[0]);
+    }
+
+    return pScript + 3;
+}
+*/
 
 u8* func_8003DAB0(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     s32 divisor = (u8)(*pScript + 1);
@@ -3325,7 +3364,7 @@ u8* func_8003DC50(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
 
     if (note != 0) {
         if (velocity != 0) {
-            volume = velocity + (velocity * velocity) / 64;
+            volume = velocity + ((s16)velocity * (s16)velocity) / 64;
             pAudioElements->envelopes[1].delta = func_8003E290(note << 24, volume, 2);
             pAudioElements->envelopes[1].reload = volume;
             unk16 = pScript[2] << 2;
