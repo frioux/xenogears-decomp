@@ -441,14 +441,14 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", RotAverage4);
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", RotAverageNclip4);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", TransposeMatrix);
-/* best attempt 65.00%. Structure and store order match: word stores q[1]=p[0],
-   q[0]=p[1] patched with the low half of p[0], then q[3],q[2] patched from
-   p[1].lo/p[2].lo/p[3].lo and the halfword at 0x10. What is left: gcc folds the
-   `addu v0,a1,zero` return copy into every store (`sw ..,0(v0)`) where the
-   original keeps storing through a1, allocates the temps as v1/a2 instead of
-   t1/t2 (t1 reused for p[3]), and turns the 0x10 `lh` into `lhu`.
+/* best attempt 68.44%. Instruction sequence and store order now match exactly
+   (the 0x10 halfword must go through a long temp to get `lh` and to reuse the
+   dead p[1] register). Only differences left: gcc coalesces the returned m1 into
+   v0 and stores through v0 while the original keeps the return copy in v0 and
+   stores through a1, so the temps land in v1/a2 instead of t1/t2/t3. gcc
+   CSEs every copy form of the return value (ret = m1, cast, separate pointer),
+   and gcc-2.6.0 -O3 gives the same 68.44%.
 MATRIX *TransposeMatrix(MATRIX *m0, MATRIX *m1) {
-    MATRIX *ret = m1;
     long *p = (long *)m0;
     long *q = (long *)m1;
     short *s = (short *)m1;
@@ -465,9 +465,10 @@ MATRIX *TransposeMatrix(MATRIX *m0, MATRIX *m1) {
     q[2] = t3;
     s[6] = t1;
     s[4] = t2;
-    s[8] = ((short *)m0)[8];
+    t1 = ((short *)m0)[8];
     s[2] = t3;
-    return ret;
+    s[8] = t1;
+    return m1;
 }
 */
 
