@@ -1474,6 +1474,63 @@ void func_8008BF38(int partyIndex) {
 */
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008C180);
+// 92.49%: prologue, body and epilogue match instruction for instruction, but ours
+// is 428 bytes against the original's 440. Two things are left, both from one
+// cause. The original keeps `&g_FieldActors` (the address of the global
+// pointer, not its value) in $s0 for the two `lw %lo(g_FieldActors)` in this
+// function, so it needs one more callee-saved register ($s7 = 0xFF) and a 0x48
+// frame; ours re-forms the symbol address at each of the two loads (lui+lw, same
+// instruction count), which costs the s7 save and 8 bytes of frame. The 0xFF
+// compares/const is the visible symptom. Also solved here, do not redo: the second
+// half must read D_8005A444[partyIndex] ONCE into a local before the `sh` that
+// stores FieldActor::status, or gcc reloads it three times (two after the store)
+// and the function comes out 12 bytes short.
+/*
+extern FieldActor* D_800B06B8;
+extern void* g_PartyDataBuffers[];
+extern void func_80080A74(int actorIndex);
+
+void func_8008C180(int partyIndex) {
+    FieldActor* pFieldActor;
+    FieldActor* pPrevFieldActor;
+    ActorData* pActor;
+    ActorData* pPrevActor;
+    int characterId;
+    int prevActorIndex;
+    u_short prevScriptPointer;
+
+    if (D_8005A444[partyIndex] != ACTOR_ID_INVALID) {
+        pFieldActor = &g_FieldActors[D_8005A444[partyIndex]];
+        pPrevFieldActor = D_800B06B8;
+        pPrevActor = g_FieldScriptVMCurActor;
+        prevActorIndex = D_800AFD1C;
+        prevScriptPointer = g_FieldScriptVMCurActor->scriptInstructionPointer;
+        D_800B06B8 = pFieldActor;
+        g_FieldScriptVMCurActor = pFieldActor->pActorData;
+        func_80080A74(D_8005A444[partyIndex]);
+
+        characterId = D_8005A444[partyIndex];
+        pFieldActor = &g_FieldActors[characterId];
+        pFieldActor->status = (pFieldActor->status & 0xF07F) | 0x200;
+        D_800AFD1C = characterId;
+        func_80076AC0(characterId, 0, g_PartyDataBuffers[0], 1, 0, 0, 1);
+
+        pActor = g_FieldScriptVMCurActor;
+        pActor->scriptFlags.flags |= 1;
+        pActor->flags |= 0x100000;
+        D_800B00C0 = 0;
+        g_FieldScriptVMCurActor = pPrevActor;
+        D_800B06B8 = pPrevFieldActor;
+        D_800AFD1C = prevActorIndex;
+        pActor->scriptInstructionPointer = prevScriptPointer;
+        pActor->scriptFlags.flags |= 0x20000;
+        pActor->flags |= 0x400;
+        D_8005A444[partyIndex] = ACTOR_ID_INVALID;
+    }
+    g_GamePartyMembers[partyIndex] = ACTOR_ID_INVALID;
+    g_GamePartyMemberSkins[partyIndex] = ACTOR_ID_INVALID;
+}
+*/
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008C334);
 
