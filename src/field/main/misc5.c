@@ -188,7 +188,77 @@ void FieldDisplay(void) {
     DrawOTag(g_FieldCurRenderContext->ot3 + 7);
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A6998);
+// Fades out the vertex colors of one corner of a particle primitive while the
+// corner's projected position stays near the screen centre.
+void func_800A6998(POLY_GT4* pPoly, int nCorner, int nDistance, u_short* pTimer) {
+    VECTOR vecA;
+    VECTOR vecB;
+    int nCenterX;
+    int nCenterY;
+
+    nCenterX = 0xA0;
+    nCenterY = 0x70;
+    vecA.vz = 0;
+
+    switch (nCorner) {
+    case 0:
+        vecA.vx = nCenterX - pPoly->x0;
+        vecA.vy = nCenterY - pPoly->y0;
+        Square0(&vecA, &vecB);
+        if ((SquareRoot0(vecB.vx + vecB.vy) >> 1) < nDistance) {
+            *pTimer -= 6;
+            if ((s_short)*pTimer < 0) {
+                *pTimer = 0;
+            }
+            pPoly->r0 = *pTimer;
+            pPoly->g0 = *pTimer;
+            pPoly->b0 = *pTimer;
+        }
+        break;
+    case 1:
+        vecA.vx = nCenterX - pPoly->x1;
+        vecA.vy = nCenterY - pPoly->y1;
+        Square0(&vecA, &vecB);
+        if ((SquareRoot0(vecB.vx + vecB.vy) >> 1) < nDistance) {
+            *pTimer -= 6;
+            if ((s_short)*pTimer < 0) {
+                *pTimer = 0;
+            }
+            pPoly->r1 = *pTimer;
+            pPoly->g1 = *pTimer;
+            pPoly->b1 = *pTimer;
+        }
+        break;
+    case 2:
+        vecA.vx = nCenterX - pPoly->x2;
+        vecA.vy = nCenterY - pPoly->y2;
+        Square0(&vecA, &vecB);
+        if ((SquareRoot0(vecB.vx + vecB.vy) >> 1) < nDistance) {
+            *pTimer -= 6;
+            if ((s_short)*pTimer < 0) {
+                *pTimer = 0;
+            }
+            pPoly->r2 = *pTimer;
+            pPoly->g2 = *pTimer;
+            pPoly->b2 = *pTimer;
+        }
+        break;
+    case 3:
+        vecA.vx = nCenterX - pPoly->x3;
+        vecA.vy = nCenterY - pPoly->y3;
+        Square0(&vecA, &vecB);
+        if ((SquareRoot0(vecB.vx + vecB.vy) >> 1) < nDistance) {
+            *pTimer -= 6;
+            if ((s_short)*pTimer < 0) {
+                *pTimer = 0;
+            }
+            pPoly->r3 = *pTimer;
+            pPoly->g3 = *pTimer;
+            pPoly->b3 = *pTimer;
+        }
+        break;
+    }
+}
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A6C40);
 
