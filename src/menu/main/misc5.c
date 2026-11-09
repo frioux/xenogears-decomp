@@ -57,13 +57,41 @@ void func_801D0EBC(void) {
 }
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc5", func_801D0ED4);
+/* Best attempt: 99.69%. Only the base/index order of the address addiu differs
+   (addu a2,v1,s1 vs the original addu a2,s1,v1); everything else, including the
+   strength-reduced 0x10E0 loop offset, is identical.
+void func_801D0ED4(void) {
+    s32 i;
+
+    for (i = 0; i < 8; i++) {
+        if (g_Menu->pManager->unk38[i]) {
+            func_801CE198(1, g_Menu->unk10E0[i].vertices, g_Menu->unk10E0[i].polys,
+                          g_Menu->unk10E0[i].renderContext);
+        }
+    }
+}
+*/
+
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc5", func_801D0F54);
+/* Best attempt: 93.28%. The instruction multiset is identical; only the
+   sll/addiu scheduling order of the address and index chains differs.
+void func_801D0F54(void) {
+    s32 i;
+
+    for (i = 0; i < 6; i++) {
+        if (g_Menu->pManager->unk40[i]) {
+            func_801CE198(1, g_Menu->unk14E0[i].vertices, g_Menu->unk14E0[i].polys,
+                          g_Menu->unk14E0[i].renderContext);
+        }
+    }
+}
+*/
 
 void func_801D0FD4(void) {
     u32 offset;
 
     if (g_Menu->pManager->unk4E) {
-        offset = g_Menu->unk0x10E0[0x77D] * 40 + 0x17E0;
+        offset = g_Menu->unk17E0[0].renderContext * 40 + 0x17E0;
         AddPrim(&g_Menu->pGfxEnv->ot[4], (void*)(offset + (u32)g_Menu));
     }
 }
