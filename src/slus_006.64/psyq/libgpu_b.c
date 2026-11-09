@@ -34,12 +34,14 @@ extern u_long *D_800569AC;
 extern volatile u_long *D_800569B0;
 extern u_long *D_800569B4;
 extern u_long *D_800569B8;
-extern u_long *D_800569BC;
+extern volatile u_long *D_800569BC;
 extern u_long *D_800569C0;
 
 extern u_char D_8005A27C[]; // one byte per GP0 command
 
 extern void func_8004668C(u_long *p, int x, int y, int w);
+extern void func_80046EFC(void);
+extern int func_80046F30(void);
 extern u_long func_80045A34(int x, int y);
 extern u_long func_80045B00(int x, int y);
 extern u_long func_800459DC(int dfe, int dtd, u_short tpage);
@@ -104,8 +106,31 @@ u_long func_80045A34(int x, int y) {
 }
 */
 
+/* best: 70.27% (176 bytes, same size) -- the ternary form fixes the branch
+   polarity and block order; gcc keeps the raw x in $a0 and truncates into $a2
+   where retail copies the raw x to $a3 and truncates $a0 in place, and gcc CSEs
+   the two "D_800568D4 - 1" that retail computes twice.
+u_long func_80045A34(int x, int y) {
+    x = ((s16)x < 0) ? 0 : (((s16)x > D_800568D4 - 1) ? D_800568D4 - 1 : x);
+    y = ((s16)y < 0) ? 0 : (((s16)y > D_800568D6 - 1) ? D_800568D6 - 1 : y);
+    if (D_800568D0 == 1 || D_800568D0 == 2)
+        return 0xE3000000 | (x & 0xFFF) | ((y & 0xFFF) << 12);
+    return 0xE3000000 | (x & 0x3FF) | ((y & 0x3FF) << 10);
+}
+*/
+
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_b", func_80045A34);
 
+
+/* best: 70.27% -- same clamp as func_80045A34, E4 word.
+u_long func_80045B00(int x, int y) {
+    x = ((s16)x < 0) ? 0 : (((s16)x > D_800568D4 - 1) ? D_800568D4 - 1 : x);
+    y = ((s16)y < 0) ? 0 : (((s16)y > D_800568D6 - 1) ? D_800568D6 - 1 : y);
+    if (D_800568D0 == 1 || D_800568D0 == 2)
+        return 0xE4000000 | (x & 0xFFF) | ((y & 0xFFF) << 12);
+    return 0xE4000000 | (x & 0x3FF) | ((y & 0x3FF) << 10);
+}
+*/
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_b", func_80045B00);
 
@@ -156,7 +181,19 @@ u_long func_80045D44(void) {
     return *D_800569A4;
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_b", func_80045D5C);
+int func_80045D5C(u_long *ot, int n) {
+    *D_800569C0 |= 0x08000000;
+    *D_800569BC = 0;
+    *D_800569B4 = (u_long)&ot[n - 1];
+    *D_800569B8 = n;
+    *D_800569BC = 0x11000002;
+    func_80046EFC();
+    while (*D_800569BC & 0x1000000) {
+        if (func_80046F30())
+            return -1;
+    }
+    return n;
+}
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_b", func_80045E44);
 
