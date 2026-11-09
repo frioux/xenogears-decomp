@@ -2,7 +2,26 @@
 #include "psyq/libetc.h"
 #include "psyq/libgpu.h"
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_tex", func_8004376C);
+u_short func_8004376C(u_long *p, int tp, int abr, int x, int y, int w, int h) {
+    RECT rect;
+
+    rect.x = x;
+    rect.y = y;
+    rect.h = h;
+    switch (tp) {
+    case 0:
+        rect.w = w / 4;
+        break;
+    case 1:
+        rect.w = w / 2;
+        break;
+    case 2:
+        rect.w = w;
+        break;
+    }
+    LoadImage(&rect, p);
+    return GetTPage(tp, abr, x, y);
+}
 
 u_short func_80043858(u_long *p, int x, int y) {
     RECT rect;
