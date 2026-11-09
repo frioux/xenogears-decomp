@@ -21,7 +21,8 @@ typedef struct {
 typedef struct WorldMapEntry {
     /* 0x00 */ s16 unk0;
     /* 0x02 */ u16 pad2;
-    /* 0x04 */ u32 unk4;
+    /* 0x04 */ u16 unk4;
+    /* 0x06 */ u16 pad6;
     /* 0x08 */ s32 unk8;
     /* 0x0C */ s32 unkC;
     /* 0x10 */ s32 unk10;
@@ -45,6 +46,7 @@ extern void func_80097D64(void);
 extern void func_800967E4(void);
 extern void func_80097BC0(void *p);
 extern s32 func_80096668(void);
+extern s16 func_80084DB8(void *pArg, s16 arg1);
 extern void func_80083108(void *pArg, u8 *pDst, s32 count, s32 arg3);
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_80082F64);
@@ -130,7 +132,21 @@ void func_800848B4(s32 arg0, s32 arg1) {
     D_8009C620[arg1].unk50 = &D_8009C620[arg0];
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_800848F4);
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_80084D00);
+s32 func_80084D00(void *pArg, s16 *pOut) {
+    WorldMapEntry *pEntry = D_8009C620;
+    s16 result;
+    s16 i;
+
+    for (i = 0; i < D_8009D7E0; i++) {
+        if ((pEntry->unk4 & 1) && (result = func_80084DB8(pArg, i)) != 0) {
+            *pOut = i;
+            return result;
+        }
+        pEntry++;
+    }
+    return 0;
+}
+
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_80084DB8);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_80085158);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_80085418);
