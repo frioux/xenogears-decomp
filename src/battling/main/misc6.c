@@ -19,6 +19,12 @@ extern s16 D_800926E8;
 extern s16 D_800926EC;
 extern u8 D_8009791B;
 extern u8 D_80099037;
+extern u8 D_800954E0[];
+extern s32 D_800928E8;
+
+void func_8007E964(u8 c);
+u8* func_8007E8AC(u8 c);
+s32 func_8007EB6C(u8* pText);
 extern s32 D_800926DC;
 
 void func_8008EB4C(s32 arg);
@@ -110,7 +116,15 @@ void func_8007E528(s32 mode) {
     D_80092708 = mode;
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007E574);
+void func_8007E574(void* pOt) {
+    if (D_80092708 != 0) {
+        if (D_800928E8 & 2) {
+            AddPrim(pOt, &D_800954E0[D_800928A0 * 0x1C]);
+            AddPrim(pOt, &D_800954E0[D_800928A0 * 0x1C - 8]);
+        }
+        D_80092708--;
+    }
+}
 
 s32 func_8007E624(void) {
     return D_800926DC;
@@ -131,15 +145,64 @@ void func_8007E954(s32 value) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007E964);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007EB6C);
+s32 func_8007EB6C(u8* pText) {
+    s32 width = 0;
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007EBE0);
+    while (*pText != 0) {
+        u8* pGlyph = func_8007E8AC(*pText);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007EC54);
+        pText++;
+        width += 2 + ((pGlyph[2] * D_800912DC) >> 8);
+    }
+    return width;
+}
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007ECF0);
+void func_8007EBE0(u8* pText) {
+    s16 x = D_800926E8;
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007ED84);
+    while (*pText != 0) {
+        func_8007E964(*pText);
+        pText++;
+    }
+    D_800926E8 = x;
+    D_800926EC += 0x14;
+}
+
+void func_8007EC54(u8* pText) {
+    s16 x = D_800926E8;
+
+    D_800926E8 -= func_8007EB6C(pText) / 2;
+    while (*pText != 0) {
+        func_8007E964(*pText);
+        pText++;
+    }
+    D_800926E8 = x;
+    D_800926EC += 0x14;
+}
+
+void func_8007ECF0(u8* pText) {
+    s16 x = D_800926E8;
+
+    D_800926E8 -= func_8007EB6C(pText);
+    while (*pText != 0) {
+        func_8007E964(*pText);
+        pText++;
+    }
+    D_800926E8 = x;
+    D_800926EC += 0x14;
+}
+
+void func_8007ED84(u8* pText, s16 dx) {
+    s16 x = D_800926E8;
+
+    D_800926E8 = x - dx;
+    while (*pText != 0) {
+        func_8007E964(*pText);
+        pText++;
+    }
+    D_800926E8 = x;
+    D_800926EC += 0x14;
+}
 
 void func_8007EE08(s32 flag) {
     if (flag != 0) {
