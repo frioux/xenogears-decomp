@@ -35,6 +35,13 @@ extern void func_80078658(u8 arg0, u8 arg1);
 extern void func_800787E0(u8 arg0, u8 arg1);
 extern void func_8007887C(u8 arg0);
 extern s32 func_8007A280(u8 arg0, u8 arg1, s32 arg2, s32 arg3);
+extern void func_800716D8(void);
+extern void func_800793F0(u8 arg0);
+extern void func_80079674(u8 arg0);
+extern void func_80085350(void);
+extern void func_80085388(void);
+extern s32 func_80080AE4(u8 arg0);
+extern void func_800B89FC(s32 arg0, u8 arg1, s32 arg2, s32 arg3);
 extern s32 func_80079ED8(u8 arg0, u8 arg1, u8 arg2, s32 arg3);
 
 void func_8007887C(u8 arg0) {
@@ -116,12 +123,31 @@ void func_80079270(u8 arg0, u8 arg1) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc4", func_800792F8);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc4", func_800793F0);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc4", func_80079674);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc4", func_80079778);
+void func_80079778(u8 arg0) {
+    D_800C3EAC[0x2DA] = 0;
+    func_80085350();
+    func_80085388();
+    D_800C400B[D_800C3EAC[0x2DA] * 72] = arg0;
+    func_800716D8();
+    func_800B89FC(1, arg0, 0, func_80080AE4(arg0));
+    func_800793F0(arg0);
+    func_80079674(arg0);
+    while (D_800C3EAC[0x2DB] == 0) {
+        func_800716D8();
+    }
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc4", func_80079840);
 void func_80079934(u8** pCursor) {
     *pCursor += 4;
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc4", func_80079948);
+void func_80079948(u8** pCursor) {
+    while (**pCursor >= 0x80) {
+        func_80079934(pCursor);
+    }
+    while ((u32)((**pCursor - 0x80) & 0xFF) >= 0x70) {
+        func_80079934(pCursor);
+    }
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc4", func_800799C8);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc4", func_80079AB0);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc4", func_80079C24);
