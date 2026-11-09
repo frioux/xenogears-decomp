@@ -76,6 +76,10 @@ void func_8007BA04(u8 **p, u8 index) {
     pField[pArgs[2]] = pTable[pArgs[1]];
 }
 */
+/* best: 95.29%. Only the register holding the stored halfword differs
+   (original a0, gcc v1); everything else, including the D_800D3420 base
+   derived as D_800D3410+0x10, is identical.
+
 void func_8007BA44(u8 **p, u8 index) {
     u32 *pField32 = (u32 *)(D_800D3410 + index * 0x40);
     u16 *pField = (u16 *)(D_800D3410 + 0x10 + index * 0x40);
@@ -83,6 +87,7 @@ void func_8007BA44(u8 **p, u8 index) {
 
     pField32[pArgs[2]] = pField[pArgs[1]];
 }
+*/
 void func_8007BA88(u8 index) {
     s32 i = 0xF;
     u8 *p = D_800D343F + index * 0x40;
@@ -99,22 +104,37 @@ void func_8007BAB8(u8 index) {
         *p-- = 0;
     }
 }
-void func_8007BAE8(u8 **p, u8 index) {
-    u8 *pArgs = *p;
+/* best: 96.76%. Only the register holding *p differs (original v1, gcc
+   reuses a0). The two-statement slot local is needed: written as
+   (index + 3) * 0x170 inside the store, gcc folds 3*0x170 into the
+   displacement instead of the addiu the original has.
 
-    *(u32 *)(D_800CCE34 + (index + 3) * 0x170) = pArgs[1] | (pArgs[2] << 8);
+void func_8007BAE8(u8 **p, u8 index) {
+    s32 slot = index + 3;
+
+    *(u32 *)(D_800CCE34 + slot * 0x170) = (*p)[1] | ((*p)[2] << 8);
 }
+*/
+/* best: 39.71%. Same operator as func_8007BAE8 but storing a halfword; the
+   0x170 scaling and the store addressing both come out differently.
+
 void func_8007BB2C(u8 **p, u8 index) {
     u8 *pArgs = *p;
 
     *(u16 *)(D_800CCE3E + (index + 3) * 0x170) = pArgs[1] | (pArgs[2] << 8);
 }
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007BB70);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007BBD8);
+/* best: 98.82%. Only the last addu is commuted (original base first into a1,
+   gcc reuses the dead a2): identical multiset. Writing *p inline twice is
+   required, the second load is CSE'd if it goes through a local.
+
 void func_8007BC40(u8 **p, u8 *pDest, u8 count) {
     pDest[count * 8 + (*p)[1]] = (*p)[2];
-    pDest[count * 8 + (*p)[1] + 1] = (*p)[3];
+    pDest[count * 8 + ((*p)[1] + 1)] = (*p)[3];
 }
+*/
 void func_8007BC84(u8 **p, u8 index) {
     u8 value = func_8001BD40(0, (*p)[2]);
     u8 *pTable = D_800D3430 + index * 0x40;
