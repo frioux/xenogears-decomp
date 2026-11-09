@@ -303,6 +303,11 @@ void func_8007F5AC(int index, int portraitID) {
 */
 
 // Alternative, 98.61%: pUVTable keeps the `la` first but moves the base to a2.
+// Confirmed by diff: this variant has the original's instruction ORDER (la, then
+// sll, then addu) and differs only in register numbers -- original wants the
+// table base in v0 and the scaled index in a0, this gets a2/v1. The 97.59%
+// variant below has the original's registers but the `sll` one insn early. Both
+// halves are known; a construct that gets order AND registers would close it.
 /*
 void func_8007F5AC(int index, int portraitID) {
     FieldTextBox* pBox = &g_FieldTextBoxes[index];
