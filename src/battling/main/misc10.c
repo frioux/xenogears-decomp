@@ -4,6 +4,11 @@
 
 // .sdata/.bss of the overlay (supplied by splat's asm segments)
 extern u8 D_800928A0;
+extern s16 D_80092780;
+extern s32 D_80092794;
+extern s32 D_800928C8;
+extern u8 D_8005061C;
+extern u8* D_800927B4[];
 extern u8 D_80092920;
 extern u8 D_80099D9D;
 extern u8 D_80099D9E;
@@ -13,7 +18,14 @@ extern u8* D_80092784;
 
 
 extern int ArchiveDecodeAlignedSize(unsigned int entryIndex);
+extern void ArchiveCdDataSync(s32 mode);
 extern void func_8008E120(void);
+extern void func_8007F258(void* pOt, s32 arg);
+extern void func_80080D20(void* pOt);
+extern void func_8008E3CC(void* pOt, s32 arg1, s32 arg2);
+extern void func_8008BC04(void);
+extern void func_80083BB4(s32 arg);
+extern void func_80083C0C(s32 arg);
 
 typedef struct {
     /* 0x0 */ u16 unk0;
@@ -29,7 +41,15 @@ extern Misc10Prim D_8009A300[];
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_80084A64);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_80084AE0);
+void func_80084AE0(void) {
+    if (D_80092780 != 0) {
+        func_8008E120();
+        func_8007F258(D_80092938, 0);
+        func_80080D20(D_80092938);
+        func_8008E3CC(D_80092938, 0xC0, 1);
+        func_8008BC04();
+    }
+}
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_80084B48);
 
@@ -43,7 +63,14 @@ void func_80084FD0(void) {
     }
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_80085014);
+void func_80085014(void) {
+    D_80092920 &= 0xFE;
+    func_80083BB4(0);
+    func_80083C0C(5);
+    D_80099D9E = 1;
+    D_80099D9D = 1;
+    D_800928C8 = 6;
+}
 
 void func_80085070(void) {
     u8 flags = D_80092920;
@@ -55,7 +82,13 @@ void func_80085070(void) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_8008509C);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_80085134);
+void func_80085134(s32 index) {
+    ArchiveCdDataSync(0);
+    if (D_800927B4[index] != NULL) {
+        HeapFree(D_800927B4[index]);
+        D_800927B4[index] = NULL;
+    }
+}
 
 void func_8008518C(Misc10Resource* pResource, u_int allocFlags) {
     pResource->unk4 = (s32)HeapAlloc(ArchiveDecodeAlignedSize(pResource->unk0), allocFlags);
@@ -63,7 +96,16 @@ void func_8008518C(Misc10Resource* pResource, u_int allocFlags) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_800851D4);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_80085264);
+s32 func_80085264(void) {
+    s32 result = 0;
+
+    if (D_80092794 == 5 || D_80092794 == 7) {
+        result = 1;
+    } else if (D_80092794 == 1 && D_800928C8 == 4 && D_8005061C == 0) {
+        result = 1;
+    }
+    return result;
+}
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_800852C4);
 
