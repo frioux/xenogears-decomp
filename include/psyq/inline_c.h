@@ -1091,6 +1091,11 @@
 	"cfc2	%0, $31"					\
 	: "=r"( r0 ) )
 
+/* The 3.x revision read the flag register over the data bus (mfc2), not cfc2. */
+#define gte_stflg_val_gpr( r0 ) __asm__ volatile (		\
+	"mfc2	%0, $31"					\
+	: "=r"( r0 ) )
+
 #define gte_stflg_4( r0 ) __asm__ volatile (			\
 	"cfc2	$12, $31;"					\
 	"addi	$13, $0, 4;"					\
@@ -1184,6 +1189,18 @@
 #define gte_stlvl_gpr( r0 ) __asm__ volatile ( "swc2\t$9, 0( %0 );" "swc2\t$10, 4( %0 );" "swc2\t$11, 8( %0 )" : : "r"( r0 ) : "$2", "memory" )
 
 #define gte_stlvnl_gpr( r0 ) __asm__ volatile ( "swc2\t$25, 0( %0 );" "swc2\t$26, 4( %0 );" "swc2\t$27, 8( %0 )" : : "r"( r0 ) : "$2", "memory" )
+
+/* The 3.x revision loaded an output pointer that lives on the stack with a plain
+   `lw $8` instead of asking reload for a register. */
+#define gte_stlvl_gpr_stack( r0 ) __asm__ volatile (		\
+	"lw	$8, %0;"					\
+	"nop;"							\
+	"swc2	$9, 0( $8 );"					\
+	"swc2	$10, 4( $8 );"					\
+	"swc2	$11, 8( $8 )"					\
+	:							\
+	: "m"( r0 )						\
+	: "$8", "memory" )
 
 #define gte_stlvnl0( r0 ) __asm__ volatile (			\
 	"swc2	$25, 0( %0 )"					\

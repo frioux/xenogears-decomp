@@ -19,9 +19,35 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", func_80048DD8);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", func_80048E94);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", LoadAverage12);
+void LoadAverage12(VECTOR *v0, VECTOR *v1, long p0, long p1, VECTOR *v2) {
+    long flg;
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", LoadAverage0);
+    gte_lddp(p0);
+    gte_ldlvl(v0);
+    gte_nop();
+    gte_gpf12_b();
+    gte_stflg_val_gpr(flg);
+    gte_lddp(p1);
+    gte_ldlvl(v1);
+    gte_nop();
+    gte_gpl12_b();
+    gte_stlvl_gpr_stack(v2);
+}
+
+void LoadAverage0(VECTOR *v0, VECTOR *v1, long p0, long p1, VECTOR *v2) {
+    long flg;
+
+    gte_lddp(p0);
+    gte_ldlvl(v0);
+    gte_nop();
+    gte_gpf0_b();
+    gte_stflg_val_gpr(flg);
+    gte_lddp(p1);
+    gte_ldlvl(v1);
+    gte_nop();
+    gte_gpl0_b();
+    gte_stlvl_gpr_stack(v2);
+}
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", func_8004901C);
 
