@@ -42,6 +42,41 @@ void FieldComputeSceneMatrices(void) {
 }
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80072254);
+// 85.50%: everything matches but one register. The original keeps the *address*
+// &g_FieldActors in $s1 across the RotMatrix call and loads the pointer through it
+// for the 2nd and 3rd actor base (`lw a1,0($s1)`, `lw a0,0($s1)`), which costs one
+// callee-saved slot (frame 0x30; ours 0x28 and 156 bytes vs 164). gcc 2.7.2
+// rematerialises the symbol address instead in every form tried: three block-scoped
+// pointer locals off `&g_FieldActors[i]` (84.62%), the same with the first block
+// written offset-first `(FieldActor*)(i * 0x5C + (int)g_FieldActors)` to get the
+// original's `addu v1,s0,v1` operand order (84.38%), and a function-scope
+// `FieldActor** ppActors = &g_FieldActors` read as `(*ppActors)[i]` (85.50%, the
+// best, below): the pseudo is a constant symbol address, so it is rematerialised
+// rather than saved. `long scale[3]` (not VECTOR) is required - the original
+// stores the three scales with 32-bit `sw` at sp+0x10/0x14/0x18. The scale reads
+// are signed (`lh`), so the u_short ActorData::scaleX/Y/Z are read through (s16).
+/*
+void func_80072254(int actorIndex) {
+    long scale[3];
+    FieldActor** ppActors;
+
+    {
+        FieldActor* pActor = (FieldActor*)(actorIndex * 0x5C + (int)g_FieldActors);
+        scale[0] = (s16)pActor->pActorData->scaleX;
+        scale[1] = (s16)pActor->pActorData->scaleY;
+        scale[2] = (s16)pActor->pActorData->scaleZ;
+    }
+    ppActors = &g_FieldActors;
+    {
+        FieldActor* pActor = &(*ppActors)[actorIndex];
+        RotMatrix(&pActor->rotation, &pActor->transformMatrix);
+    }
+    {
+        FieldActor* pActor = &(*ppActors)[actorIndex];
+        ScaleMatrix(&pActor->transformMatrix, (VECTOR*)scale);
+    }
+}
+*/
 // 85.25%: two findings. (1) The three pointer loads the original does into
 // $v1/$a1/$a0 come out of *block-scoped* pointer locals - one declaration
 // assigned once in each of the three statements. A single function-scope local
