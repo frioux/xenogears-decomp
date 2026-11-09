@@ -1,4 +1,7 @@
 #include "common.h"
+#include "psyq/libgte.h"
+#include "psyq/gtemac.h"
+#include "psyq/inline_c.h"
 
 extern u8 D_8006F978[];
 extern u8 *D_800927CC;
@@ -6,10 +9,20 @@ extern u8 *D_800927D0;
 extern u8 D_80095968[];
 
 extern void *func_8008820C();
+extern void func_80085EC8(void *);
+
+typedef struct {
+    /* 0x000 */ u32 unk0[0xC4];
+} BattlingWork; // Size: 0x310
+
+extern BattlingWork D_8009A2F8[2];
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc11", func_80087068);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc11", func_800875EC);
+void func_800875EC(void) {
+    func_80085EC8(D_8009A2F8);
+    D_8009A2F8[1] = D_8009A2F8[0];
+}
 
 void func_80087650(void) {
     s32 i;
@@ -38,7 +51,13 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc11", func_80087EA0);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc11", func_8008820C);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc11", func_800882D4);
+void func_800882D4(s32 arg0, s32 *arg1, s32 arg2, s16 arg3) {
+    u8 *p = func_8008820C(arg0, arg1, arg2);
+
+    if (p != NULL) {
+        *(s16 *)(p + 0x30) = arg3;
+    }
+}
 
 void func_80088308(void) {
     s32 i;
@@ -56,9 +75,27 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc11", func_8008859C);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc11", func_80088658);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc11", func_800886FC);
+s32 func_800886FC(s32 *arg0) {
+    long out[3];
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc11", func_80088754);
+    gte_ldlvl(arg0);
+    gte_nop();
+    gte_nop();
+    gte_sqr0_b();
+    gte_stlvnl(out);
+    return SquareRoot0(out[0] + out[1] + out[2]);
+}
+
+s32 func_80088754(s32 *arg0) {
+    long out[3];
+
+    gte_ldlvl(arg0);
+    gte_nop();
+    gte_nop();
+    gte_sqr0_b();
+    gte_stlvnl(out);
+    return SquareRoot0(out[0] + out[2]);
+}
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc11", func_800887A4);
 
