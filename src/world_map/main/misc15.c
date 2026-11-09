@@ -37,23 +37,18 @@ void func_800976A0(void) {
 }
 
 void func_800976C8(void) {
-    Misc15Slot *pSlot = D_8009BE24;
     s32 i;
 
     for (i = 0; i < 0x40; i++) {
-        pSlot->unk4C = 0;
-        pSlot->unk18 = 0;
-        pSlot->unk1C = 0;
-        pSlot++;
+        D_8009BE24[i].unk4C = 0;
+        D_8009BE24[i].unk18 = 0;
+        D_8009BE24[i].unk1C = 0;
     }
 }
 
 void func_800976FC(s32 value, s32 index) {
-    u8 *pSlot = (u8 *)D_8009BE24;
-
-    pSlot += index << 7;
-    *(u16 *)pSlot = 0;
-    *(s32 *)(pSlot + 0x18) = value;
+    D_8009BE24[index].unk0 = 0;
+    D_8009BE24[index].unk18 = value;
 }
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_80097718);
