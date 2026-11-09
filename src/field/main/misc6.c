@@ -582,57 +582,66 @@ int FieldCharacterIdToPartyId(int characterId) {
 }
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_8009FA54);
-// 90.74%: the `if (== 0xFF) { body } return 0;` form reproduces the single
-// `bne s2,v0,<epilogue>` with `move v0,zero` in the delay slot (an early
-// `return 0;` instead gives beq+j).
-// Remaining: (1) the original sign-extends the angle for g_Scene.unk7C with
-// `sll a0,a1,16; sra v0,a0,16` reusing the unk60 shift; gcc 2.7 folds any
-// `(short)`/`>>16` of this value away because both branches of the 0xFF test
-// produce `(x & 7) << 9`. (2) The frame is 0x28 here vs 0x20, and the tail
-// rotation stores put the actor in $v0 instead of $a0 with `move v0,zero`
-// scheduled last instead of before the actor load.
+// 90.74%: `if (== 0xFF) { body } return 0;` reproduces the single
+// `bne s2,v0,<epilogue>`, but the original also materializes the 0 in the delay
+// slot and again at the join (two returns), and holds the angle in a1 with
+// `sll a0,a1,16; sra v0,a0,16` shared by unk60/unk7C. gcc 2.7 folds any
+// `(short)`/`>>16` of this value because `& 7` then `<< 9` proves it fits in 16
+// bits, and it keeps the actor pointer in v0 for the three rotation stores
+// instead of a0 with `move v1,a1`. Frame is 0x28 vs 0x20. Tried: early
+// `return 0;` (beq+j), a second `return 0;` inside the body, an `nAngle << 16`
+// temp, a `pActor` pointer local for the rotation stores.
 /*
-s32 func_8009FA54(s32 nInstructionOffset) {
-    u8 nByte;
-    s32 nOffset;
-    s32 nAngle;
-    s32 nRotation;
-    s32 nX;
-    s32 nY;
+    s32 func_8009FA54(s32 nInstructionOffset) {
+        ActorData* pActor;
+        u8 nAngleByte;
+        u8 nRotationByte;
+        s32 nOffset;
+        s32 nAngle;
+        s32 nFixedAngle;
+        s32 nRotation;
+        s32 nX;
+        s32 nY;
 
-    if (SCRIPT_READ_U8(0) == 0xFF) {
-        nOffset = nInstructionOffset * 7;
+        if (SCRIPT_READ_U8(0) == 0xFF) {
+            nOffset = nInstructionOffset * 7;
         g_FieldScriptVMCurActor->walkmeshId = SCRIPT_READ_U8(nOffset + 5);
         nX = func_8009E330(nOffset + 1);
         nY = func_8009E330(nOffset + 3);
         func_8009E574(nX, nY);
 
-        nByte = SCRIPT_READ_U8(nOffset + 6);
-        nAngle = ((nByte + 4) & 7) << 9;
-        if (nByte == 0xFF) {
+        nAngleByte = SCRIPT_READ_U8(nOffset + 6);
+        nAngle = ((nAngleByte + 4) & 7) << 9;
+        if (nAngleByte == 0xFF) {
             nAngle = ((FieldScriptVMGetVariableValue(8) + 4) & 7) << 9;
         }
-        g_Scene.unk7C = (short)nAngle;
-        g_Scene.unk60 = nAngle << 16;
+        nFixedAngle = nAngle << 16;
         g_Scene.sceneAngle.vy = nAngle;
+        g_Scene.unk7C = nFixedAngle >> 16;
+        g_Scene.unk60 = nFixedAngle;
 
-        nByte = SCRIPT_READ_U8(nOffset + 7);
-        nRotation = ((nByte - 2) & 7) << 9 | 0x8000;
-        if (nByte == 0xFF) {
+        nRotationByte = SCRIPT_READ_U8(nOffset + 7);
+        nRotation = ((nRotationByte - 2) & 7) << 9 | 0x8000;
+        if (nRotationByte == 0xFF) {
             nRotation = ((FieldScriptVMGetVariableValue(6) - 2) & 7) << 9 | 0x8000;
         }
-        g_FieldScriptVMCurActor->rotation.vx = nRotation;
-        g_FieldScriptVMCurActor->rotation.vy = nRotation;
-        g_FieldScriptVMCurActor->rotation.vz = nRotation;
+        pActor = g_FieldScriptVMCurActor;
+        pActor->rotation.vx = nRotation;
+        pActor->rotation.vy = nRotation;
+        pActor->rotation.vz = nRotation;
+        }
+        return 0;
     }
-    return 0;
-}
 */
+
 INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_8009FB98);
 // 66.50%: only the ordering differs - the original stores D_800B2268 before it
-// reloads scriptInstructionPointer (+2) and stores it; every source order I tried
-// (and a volatile store) lets gcc's scheduler hoist the ip update above the
-// global store. 116-120 bytes, so it cannot be committed.
+// reloads scriptInstructionPointer (+2) and stores it; gcc hoists the ip update
+// above the global store. Cause is gcc's alias.c: a store through a SYMBOL_REF
+// (D_800B2268) is treated as independent of the load through the varying
+// actor pointer, so cse merges the two `lhu 0xcc(a0)`. Tried: source orders
+// swapped, a volatile store, an `nIP` local read before the store (still
+// reordered, 116 vs 120 bytes).
 /*
 void func_8009FB98(void) {
     g_GameSceneMapNum |= 0xC000;
@@ -829,13 +838,13 @@ void func_800A0C4C(void) {
 
 // FieldResetActorPosition: copies the current actor's scripted position into the
 // field actor's transform/child matrices and into its sprite.
-INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_800A0C94);
 // 99.64%: every instruction matches except the destination register of the third
 // block's `addu`: the original coalesces base+offset into the index register
 // (`addu v1,v1,v0`, then the two stores off $v1); gcc 2.7.2 always coalesces it
 // into the freshly loaded base register (`addu v0,v1,v0`). Same size and operand
 // order; -O2/-O3 both do this. index+base operand order is required (base-first
 // gives `addu v0,v0,v1`).
+INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_800A0C94);
 /*
 void func_800A0C94(void) {
     FieldActor* pFieldActor;
@@ -878,6 +887,7 @@ void func_800A0C94(void) {
     pActor->curYPos = curY;
 }
 */
+
 void func_800A0D3C(void) {
     func_80076AC0(D_800AFD1C, 0, (void*)((*(s32*)(g_FieldSpriteData + 4)) + (s32)g_FieldSpriteData), 0, 0, 0x80, 1);
     func_800A0C94();
