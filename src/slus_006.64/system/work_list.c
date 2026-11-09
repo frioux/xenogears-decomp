@@ -95,10 +95,13 @@ void WorkListUpdate(void) {
     }
 }
 
-// 89.34%: every instruction is right, but gcc emits the unk14/unk10 read-modify-
-// write loads before the D_80059184 and g_WorkList loads instead of after them.
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/work_list", WorkListAddTask);
-/*
+/* Best: 89.34% (same instruction multiset, 38 insns). Two residuals: the two
+   pEntry bitfield read-modify-writes (0x10/0x14) are hoisted above the
+   D_80059184 and g_WorkList gp loads (original loads counter, g_WorkList,
+   0x14(a1), 0x10(a1) in that order), and the values land in v1/a2/a3 where the
+   original has them in a3/a2/v1. Swapping the unk10 and unk14 statements drops
+   to 73.37.
 void WorkListAddTask(WorkListEntry* pData, WorkListEntry* pEntry) {
     pEntry->unk0 = pData;
     pEntry->pNext = g_WorkList;
