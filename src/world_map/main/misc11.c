@@ -28,6 +28,18 @@ typedef struct {
 } WorldMapActor; // Size: 0x80
 
 typedef struct {
+    /* 0x000 */ undefined32 unk000[40]; // 0x000..0x09F
+    /* 0x0A0 */ s16 unk0A0;
+    /* 0x0A2 */ s16 unk0A2;
+    /* 0x0A4 */ s16 unk0A4;
+    /* 0x0A6 */ undefined16 unk0A6;
+    /* 0x0A8 */ s16 unk0A8;
+    /* 0x0AA */ s16 unk0AA;
+    /* 0x0AC */ s16 unk0AC;
+    /* 0x0AE */ undefined16 unk0AE;
+} WorldMapScreenPos; // Size: 0xB0
+
+typedef struct {
     /* 0x00 */ s16 unk00;
     /* 0x02 */ undefined16 unk02;
     /* 0x04 */ s32 unk04;
@@ -95,7 +107,19 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008BDD0);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008BEC8);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008BFD4);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008C040);
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008C1DC);
+void func_8008C1DC(s32 arg0, WorldMapActor *pActor, WorldMapScreenPos *pPos) {
+    if (func_80093F18(&pActor->unk28) == 3) {
+        pPos->unk0A0 = pActor->unk28 >> 12;
+        pPos->unk0A2 = pActor->unk2C >> 12;
+        pPos->unk0A4 = pActor->unk30 >> 12;
+        pPos->unk0AC = 0;
+        pPos->unk0A8 = 0;
+        pPos->unk0AA = pActor->unk5C;
+        func_80089160(arg0, &pPos->unk0A0, &pPos->unk0A8);
+    } else {
+        func_800894C8(arg0);
+    }
+}
 void func_8008C28C(WorldMapActor *pActor, int index) {
     void *pSprite;
 
