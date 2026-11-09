@@ -55,23 +55,26 @@ u_int func_80080968(ActorData* pActor) {
 extern u_short D_800B14AC;
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800809D0);
-/* 95.56%: the preheader (move a0,zero; sh D_800B14AC; addu a0,a0,v1) does
-   match -- the note that said gcc folds `acc = 0; acc += value` into
-   `li a0,-0x14D000` was wrong. The only residual is the position of
-   `value += step` in the loop: the original fills the counter's load-delay slot
-   with it (lhu; addu; addiu; sh), gcc 2.7.2 always emits it before the load and
-   leaves a nop (lhu; nop; addiu), so the function is 76 bytes against 72.
-   Source order of the two statements, a `u_short count = D_800B14AC` temporary
-   and `acc += (value += step)` all compile to the same thing.
+/* 95.56%, and now the SIZE matches (72 bytes; the `D_800B14AC += 2` attempt
+   was 76). Reading the counter into a u_short temp and incrementing the temp
+   puts `value += step` at the loop head, one slot before `lui v0`: the original
+   has it inside the loop, in the `lhu` load-delay slot. gcc 2.7.2 hoists the induction update to the loop head whatever the
+   source order (a do/while, `acc += (value += step)` and hoisting `acc +=
+   value` before the loop all give the same 72-byte shape). Reproducing the
+   original also needs a `acc += value` before the loop that does NOT fold into
+   `lui/ori` of -0x14D000; adding it gives 76 bytes and swaps a0/a1.
 int func_800809D0(s32* pData) {
     s32 value = -0x14D000;
     s32 step = pData[7];
     s32 acc = 0;
+    u_short count;
 
     D_800B14AC = 0;
     while (value <= 0) {
-        D_800B14AC += 2;
+        count = D_800B14AC;
         value += step;
+        count += 2;
+        D_800B14AC = count;
         acc += value;
     }
     acc -= value;
@@ -443,12 +446,15 @@ extern void* D_801E8670[];
 void func_80021FE0(SpriteData*, s16);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800831F4);
-/* 92.68%: the whole chain matches; gcc loads vy straight into v1 and stores
-   `sh 0x106` into the call delay slot, where the original loads into v0 and
-   copies to v1 (`move v1,v0`, one more insn: 144 vs 140 bytes) and keeps both
-   stores before the reload of rotation.vx. `u_short value` for the second half
-   is required: it is what makes the second half a single `lhu`. `int vy` in
-   place of `short vy` also keeps `lh v1` and shrinks the frame to 0x18.
+/* 92.68%: the whole chain matches except one instruction: the original loads
+   vy into v0, copies it (`move v1,v0`) and does the bit test in place
+   (`andi v0,v0,0x8000`), so vy lives in v1 for the `addiu`; gcc 2.7.2 loads
+   straight into v1 (`lh v1`; `andi v0,v1,0x8000`) and is 4 bytes short (140 vs
+   144). `u_short value` for the second half is required: it makes it a single
+   `lhu`. `int vy` also gives `lh v1`, and adding a second source-level
+   assignment `rotation = vy;` before the test makes gcc branch on the ternary
+   instead (148 bytes, 84.97%), so the extra copy is not a duplicate
+   assignment.
 void func_800831F4(int arg0, ActorData* pActor, int arg2, int arg3) {
     short vy;
     int rotation;
