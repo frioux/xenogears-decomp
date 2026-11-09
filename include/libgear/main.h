@@ -227,7 +227,8 @@ typedef struct {
     /* 0x58  */ s16 unk58;
     /* 0x5A  */ s16 unk5A;
     /* 0x5C  */ u8 unk5C;
-    /* 0x5D  */ u8 unk5D[0x3];
+    /* 0x5D  */ u8 unk5D;
+    /* 0x5E  */ s16 unk5E;
     /* 0x60  */ s16 ground; // seems to be some kind of offset? maybe "below this point model will clip through the ground"?
     /* 0x62  */ u8 unk62[0xE];
     /* 0x70  */ s16 unk70[0x10];
@@ -266,7 +267,7 @@ typedef struct {
     /* 0x0  */ u16 unk0;
     /* 0x2  */ u16 unk2;
     /* 0x4  */ u16 unk4; // bit 0 skips the rotation channel, bit 1 the translation channel
-    /* 0x6  */ s16 unk6;
+    /* 0x6  */ u16 unk6;
     /* 0x8  */ u16 unk8;
     /* 0xA  */ u16 unkA;
     /* 0xC  */ u16 unkC;
