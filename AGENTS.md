@@ -330,28 +330,33 @@ commit. Rules that make that work:
   a comment; a wrong layout costs a whole overlay.
 
 
-### The GTE macros had the wrong DMPSX revision (fixed)
+### The GTE macros had the wrong DMPSX revision, twice (both fixed)
 
-`include/psyq/inline_c.h` used to say "DMPSX version 3" and emit **two** `nop`s
-plus a raw `.word` per Type-2 GTE command. The retail Psy-Q 4.x libraries were
-built with the one-`nop` spelling and the canonical COP2 encodings, so every
-GTE-macro function in the repo was stuck at 60-99% (and `gte_mvmva(1,0,0,0,0)`
-emitted `0x020013BF` where retail has `0x4A480012`). The header now emits the
-retail words, which immediately matched `NormalColor`, `NormalLightCol`,
-`ColorCol` and `LocalLight` in `psyq/libgte.c`.
+`include/psyq/inline_c.h` shipped the **4.3** spelling of the DMPSX macros. Retail
+was built with the **3.x** revision, and the difference blocked about 40 functions:
 
-Consequences worth knowing:
+- Type-2 commands: 4.3 emits `nop; nop; .word 0x...`; 3.x emits **one** `nop` plus
+  the canonical COP2 word (`gte_mvmva(1,0,0,0,0)` is `0x4A480012`, not `0x020013BF`).
+- Read-backs: 4.3 only has `swc2`-to-memory stores; 3.x reads straight into a GPR
+  (`mfc2 %0,$7`, `cfc2 %0,$31`, `cfc2 $8,$24`).
+- Matrix loads: 3.x loads five words into `$8`-`$12` and then does five `ctc2`s;
+  4.3 interleaves `$12/$13/$14`.
 
-- Functions that use GTE macros are now ordinary matching work again -- see
-  `psyq/libgte.c` (`NormalColor3`, `NormalColorCol3`, `NormalColorDpq3`,
-  `Square0`, `Square12`, `SetRGBfifo`, `VectorNormal*`), `lib_gear/main/main.c`
-  (`func_801E6F64` and friends) and `system/temp2.c` (`func_80026F44`,
-  `func_80026FE8`, `func_80025C04`).
-- The ground truth for any command's encoding is in this repo: the target
-  disassembly prints the instruction word, e.g.
-  `grep -h "4A" asm/slus_006.64/nonmatchings/psyq/libgte/NormalColor.s`.
-- A function whose `.s` is a `/* Handwritten function */` of raw `mtc2`/`mfc2`
-  with no macro equivalent is still out of reach; do not force it.
+Both revisions now live in the header, the 3.x forms under names like
+`gte_stotz_val`, `gte_stflg_val`, `gte_ldsv_gpr`, `gte_stsv_gpr`,
+`gte_stlvnl_gpr`, `gte_stlvl_gpr`, `gte_ReadGeomOffset_gpr`.
+
+**The clobber trick matters more than the encodings.** A read-back or store macro
+whose scratch registers are declared as **hard-coded clobbers** (`"$2","$3"`) beats
+the "return-value coalescing" wall: gcc then copies `a1`/`a2` into `$v0` at the end
+(`addu $v0,$a2,zero`) instead of storing through `$v0`. Declaring the same registers
+as `"=r"` outputs re-opens the wall. `gte_stlvnl` is deliberately left without the
+`$2` clobber because `lib_gear`'s matched code depends on that shape.
+
+Still out of reach: stubs whose `.s` is hand-written `mtc2`/`mfc2`/`addi` with no
+macro equivalent (`system/model`, several `system/temp2` GPF bodies), and the whole
+`NormalColor*3`/`ColorDpq*` family, where retail lazily loads incoming stack
+arguments after the GTE command and gcc materialises them in the entry block.
 
 ## 6. Hard rules
 
