@@ -329,6 +329,11 @@ INCLUDE_ASM("asm/field/nonmatchings/main/main", func_80077E10);
 // (the original has a `nop` there). Same size, 120 bytes. The original's first
 // value load lands in $a0 and its `1` in $v1, i.e. $v0 looks reserved at that
 // point; nothing in the shape below reserves it.
+// 15th-16th attempts, same shape family, both worse: one merged
+// `return -(a == 1 && b == 0 && flags)` scores 87.50% (the `&&` forces the sltu into
+// $a0 and leaves `negu v0,a0`, the coalescing wall), and `if (a == 1 && b == 0)
+// return -(...); return 0;` scores 91.50% (extra `j`, the zero return lands after
+// the compute block instead of being the branch target).
 // Tried and all <= this (13 attempts): `s32 result = 0; if (a && b) result =
 // ...; return result;` (96.00%, leaves `negu a0,v0; move v0,a0`), two separate
 // `return 0;` early exits, nested ifs (91.50%, extra j), a flags local, a mode
