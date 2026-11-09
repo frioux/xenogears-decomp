@@ -1410,17 +1410,21 @@ typedef struct {
 } PartyDataChunk; // Size: 0x10
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008BF38);
-// 97.74%: everything matches except that gcc steals the 0x14000 loop-end
-// constant into the bne delay slot (580 vs 584 bytes). In the original the
-// constant is allocated to $t0, which the if-body reads (`addiu $v0,$t0,-4`),
-// so gcc's reorg refuses the target->delay-slot fill and a nop is left there;
-// ours gets $v0, which the fall-through overwrites before reading, so the fill
-// is legal. Matching needs the constant in $t0: pEnd alone already lands in $t0
-// (merged with the dead &D_8005A448 qty), only the constant temp gets $v0.
+// 97.81%: every instruction matches except the `li 0x14000` that holds the
+// copy end offset. The original allocates it to $t0, and $t0 still holds
+// &D_8005A448 (read by the if-body as `addiu $v0,$t0,-4`), so reorg refuses
+// the branch-target->delay-slot fill and leaves a nop before the loop
+// (584 bytes). Ours gets $v0 there, which is dead in the if-body, so the fill
+// is legal and the function is 580 bytes. Forcing the constant into a local
+// (u32/int/long, declared first or last) or moving it out of the else block
+// does not change the colour; writing the address arithmetic with $t0 already
+// live (e.g. pEnd = &((u8*)pSrc)[0x14000], (u32)pSrc + 0x14000, u8* src,
+// flipped loop condition, while/for forms) only loses more instructions.
+// The addu operand order *is* solved: &g_FieldActors[characterId] emits
+// base-first, `(characterId + g_FieldActors)` emits index-first as retail does.
 /*
 void func_8008BF38(int partyIndex) {
     int characterId;
-    FieldActor* pFieldActor;
     ActorData* pActor;
     void* pSprite;
     PartyDataChunk* pEnd;
@@ -1452,16 +1456,15 @@ void func_8008BF38(int partyIndex) {
     g_GamePartyMembers[partyIndex] = g_GamePartyMembers[partyIndex + 1];
     D_8005A444[partyIndex] = D_8005A444[partyIndex + 1];
 
-    pFieldActor = &g_FieldActors[characterId];
-    pActor = pFieldActor->pActorData;
+    pActor = (characterId + g_FieldActors)->pActorData;
     if (!(pActor->unk126 & 0x80)) {
         func_80076AC0(characterId, partyIndex, g_PartyDataBuffers[partyIndex], 1, 0, partyIndex, 1);
     } else {
         pSprite = (void*)((*(s32*)(g_FieldSpriteData + (pActor->unk126 & 0x7F) * 4 + 4)) + (s32)g_FieldSpriteData);
         func_80076AC0(characterId, pActor->spriteId, pSprite,
             ((u32)pActor->flags130 >> 28) & 0x3, pActor->flags134 & 0xF,
-            g_FieldActors[characterId].pActorData->unk126,
-            ((u32)g_FieldActors[characterId].pActorData->flags134 >> 4) & 0x1);
+            (characterId + g_FieldActors)->pActorData->unk126,
+            ((u32)(characterId + g_FieldActors)->pActorData->flags134 >> 4) & 0x1);
     }
 
     g_GamePartyMembers[partyIndex + 1] = ACTOR_ID_INVALID;
@@ -1469,7 +1472,6 @@ void func_8008BF38(int partyIndex) {
     D_8005A448[partyIndex] = ACTOR_ID_INVALID;
 }
 */
-
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008C180);
 
