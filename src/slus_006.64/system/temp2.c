@@ -864,6 +864,60 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_80026F44);
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_80026FE8);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_8002709C);
+/*
+Status: derivation only, never diffed (no percentage yet); kept so the next
+worker does not have to re-read 202 instructions. Every offset below is taken
+straight from the .s.
+
+Signature: 13 parameters. The only caller, func_80071828 in field/main/misc3,
+sets stack slots 0x10..0x30 before the jal, i.e. args 5..13.
+  a0 u16 width, a1 s16 height (a1 is stored with sh and used in the signed
+  modulo below, so it is s16), a2 s32 at 0x328, a3 s32 at 0x32C,
+  arg5/arg6 clutX/clutY (reloaded inside the FT4 loop, so GetClut is called
+  there), arg7 u16 at 0x338, arg8 s32 negated when pVec->vz is negative,
+  arg9 VECTOR* pVec (u16 read at 0, 4, 8 and the s32 at 8 tests < 0),
+  arg10 u8* pColors, arg11/arg12/arg13 u16 at 0x346/0x348/0x34A.
+
+Block returned by HeapAlloc(0x34C, 0) after HeapChangeCurrentUser(4, 0):
+  0x000 POLY_FT4[16] (0x28 each), 0x280 POLY_F4[4] (0x18 each),
+  0x2E0 POLY_G4[2] (0x24 each, the interleaved psyq layout),
+  then s32 0x328, s32 0x32C, s32 0x330, u16 0x334 width, 0x336 height,
+  0x338 arg7, 0x33A height mod 256 (signed: cdk emits the +0xFF fixup),
+  0x33C/0x33E/0x340 the low halves of pVec vx/vy/vz, 0x344 flag,
+  0x346/0x348/0x34A arg11..13. HeapAlloc(0x34C) is the frame check.
+
+Statement order the asm shows: HeapChangeCurrentUser(4, 0); HeapAlloc;
+if NULL return NULL; GetDrawEnv(&env) with a DRAWENV local at 0x10(sp)
+(that is the whole 0xA0 frame); then 0x328, 0x32C, 0x33C, 0x33E, 0x340,
+0x346, 0x348, 0x34A; then 0x330 = (pVec->vz < 0) ? -arg8 : arg8; then 0x334,
+0x336, 0x338 and 0x33A; then the FT4 loop; then the pColors block.
+
+pColors block: 0x344 = pColors ? 1 : 0. Then
+  (a) two POLY_F4 at 0x280: SetPolyF4, r0/g0/b0 = pColors[0..2],
+      x0=0, y0=0, x1=0x140, y1=0, x2=0, x3=0x140 - note y2 and y3 are NOT
+      written here.
+      then pColors += 4.
+  (b) two POLY_G4 at 0x2E0: SetPolyG4, r0/g0/b0 = pColors[0..2],
+      r1/g1/b1 = pColors[0..2], r2/g2/b2 = pColors[4..6],
+      r3/g3/b3 = pColors[4..6], x0=0, x1=0x140, x2=0, x3=0x140.
+      (the asm does addiu s2,s2,4 halfway and addiu s2,s2,-4 at the end of
+      the iteration, net zero, then advances it by 4 after the loop; reading
+      pColors[4..6] without the add/re-add is semantically identical but
+      will not reproduce the two addius.)
+      then pColors += 4.
+  (c) two POLY_F4 at 0x2B0 (f4[2] and f4[3]): SetPolyF4, r0/g0/b0 =
+      pColors[0..2], x0=0, x1=0x140, x2=0, y2=0xF0, x3=0x140, y3=0xF0 -
+      here y0 and y1 are NOT written.
+Returns the block pointer.
+
+Why it is not written yet: the fills are six or eight byte/short stores per
+primitive interleaved with three lbu loads, and the base register gcc picks
+differs per block (s0 = base + i*0x28, base + i*0x18, base + i*0x24,
+base + 0x30 + i*0x18), so the per-primitive statement set has to be written
+EXACTLY as the original for the instruction order to come out. Start from the
+fills above, diff, and only then chase the pColors add/re-add shape.
+*/
+
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_800273C4);
 
