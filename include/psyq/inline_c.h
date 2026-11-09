@@ -1063,6 +1063,10 @@
 	: "r"( r0 )						\
 	: "$12", "memory" )
 
+#define gte_stflg_val( r0 ) __asm__ volatile (			\
+	"cfc2	%0, $31"					\
+	: "=r"( r0 ) )
+
 #define gte_stflg_4( r0 ) __asm__ volatile (			\
 	"cfc2	$12, $31;"					\
 	"addi	$13, $0, 4;"					\

@@ -54,6 +54,20 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", MulMatrix);
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", MulMatrix2);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", ApplyMatrix);
+/* best attempt 89.25%. Everything matches except the return-value copy: the
+   original returns v1's register ($a2) through $v0 after the stores, gcc
+   coalesces v1 into $v0 at entry and stores through it. Same blocker as
+   Square0/Square12/TransMatrix: gte_stlvnl clobbers no GPR, so gcc is free to
+   make v0 the home of v1.
+VECTOR *ApplyMatrix(MATRIX *m, SVECTOR *v0, VECTOR *v1) {
+    gte_SetRotMatrix(m);
+    gte_ldv0(v0);
+    gte_nop();
+    gte_mvmva_b(1, 0, 0, 3, 0);
+    gte_stlvnl(v1);
+    return v1;
+}
+*/
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", ApplyMatrixSV);
 
@@ -415,7 +429,16 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", OuterProduct0);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", Lzc);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", RotTransSV);
+void RotTransSV(SVECTOR *v0, SVECTOR *v1, long *flag) {
+    long f;
+
+    gte_ldv0(v0);
+    gte_nop();
+    gte_mvmva_b(1, 0, 0, 0, 0);
+    gte_stsv(v1);
+    gte_stflg_val(f);
+    *flag = f;
+}
 
 SVECTOR *SquareSS12(SVECTOR *v0, SVECTOR *v1) {
     gte_ldsv(v0);
