@@ -576,3 +576,76 @@ left in `sound.c`, and `SystemRenderStringEntry`. `clone.sh merge` would happily
 commit a partial body, so the integration step now is: check `git status` in each
 clone, `git checkout -- .` any clone with uncommitted changes, then merge. Workers
 are told to commit after every single match and to write by minute 20.
+| 31 | 11 workers: libgte, libgte_b (2nd pass), work_list+temp3, misc11+misc9, text_box*, misc3 (FieldFree), camera+main, member_change/gear_shop/shop_menu, libgpu+libc, system/system, libarchive+graphics | +2 | 1989 | strcat, `func_8007F5AC`; four children hit the 30-minute limit with matches uncommitted - see the resume note below |
+| 32 | 9 workers: misc6 (flag forensics), sound, lib_gear, rendering, archive, virtual_machine, temp1, misc12, temp2 | +7 | 1996 | sound 2, virtual_machine `func_800A31E8`, archive `func_8002B084`, libarchive `func_8002945C`, temp2 `func_800257F0`, plus `func_8002945C`; restored 6 timed-out children by `subagent resume` instead of re-running them |
+
+## Session 3 result
+
+Start: **1967 / 2528 (77.81%)**, 366756 / 670864 bytes (54.67%), 425 countable
+`INCLUDE_ASM` stubs.
+End:   **1996 / 2528 (78.96%)**, 372996 / 670864 bytes (55.60%), 396 stubs.
+
+**+29 functions, +0.93 points of code, +1.15 points of functions**, in 8 rounds of
+9-15 parallel workers (~95 worker-runs), every batch gated by `make check`.
+
+### The decisive negative: it is not a compiler flag
+
+One worker built a harness that compiles one unit exactly as `build.ninja` does and
+scores a batch of functions against a 10-function control group of already-matched
+functions, then ran the near-miss corpus (95-99.6%) under every plausible flag:
+`-fno-function-cse` and `-fno-peephole` have **no effect at all** on gcc 2.7.2's
+output; `-fno-defer-pop`, `-fomit-frame-pointer`, `-fno-inline`,
+`-fno-caller-saves` likewise; `-fno-strength-reduce`, `-fno-force-mem` and
+`-fno-expensive-optimizations` each **break already-matched functions** and flip
+nothing; `-O1` collapses every function in the corpus; `-mno-split-addresses`,
+`-foptimize-register-move` and `-Os` are rejected by cc1. Combined with the
+earlier `-mcpu=r8000`, gcc 2.8.1, gcc 2.6.0-per-unit and full `-O`/`-G` sweeps,
+**the toolchain is settled and the residual is source shape or a maspsx/assembler
+detail - not a flag.** Stop looking for a compiler switch.
+
+### What did work: five mechanical root causes
+
+1. **maspsx load-reuse**: `lwc2 $6,0(a1)` + `mtc2 $6,$8` makes maspsx insert a
+   `nop`; spelling the GPR `$a2` hides it (7 GTE functions).
+2. **`"m"`-slot stack arguments**: reading an incoming stack pointer at its point
+   of use through an `"m"` operand bypasses cc1's entry-block copy (the `*3` family).
+3. **Second base local beats strength reduction**: `pVTable = pUVTable + 2;` as a
+   second local stops gcc folding `+2` into the scaled index - order *and*
+   registers both came out right (`func_8007F5AC`, after two sessions parked).
+4. **Hoist an assignment to the block that shares it**: `dir = entryFlags & 7` must
+   sit *above* the `if`, not inside it, when the original's `andi` is in the shared
+   block's delay slot (`func_8001F8E8`, 88.26 -> 91.88%).
+5. **Split the expression into three statements** when one C expression cannot
+   produce the original's register triple: `nWords = (f+3)/4; nHalf = SIZE/4;
+   nHalf = nHalf - nWords;` (not `-=`) is what makes reorg steal the right `li`
+   (`func_8002B084` 99.74 -> 100.00%).
+
+### Process: `subagent resume` recovers a timed-out worker
+
+Six workers hit the 30-minute limit with a **100% function in an uncommitted
+working tree** this session. Re-running them costs a full 30 minutes and usually
+re-derives the same code; `subagent({action:"resume", id})` with the message
+"commit anything at 100.00%, park everything else, run the two gates, report"
+recovered four of them in about two minutes each. Do that before merging:
+`git checkout -- .` in any clone that is still dirty, then merge.
+
+### psyq/libgte is worth its two TUs; the rest of psyq is not
+
+The split paid (10 functions across two workers in two rounds). But the other psyq
+pools are dead ends and should not be listed again: `libcard`, `libapi_2` and
+`libapi_3` are BIOS call gates (`addiu $t2,0xA0; jr $t2; addiu $t1,N`) with pad
+nops after `.size`; `libc`/`libgpu` are down to allocation-only deltas
+(`strcat` matched; `strcmp` 56%, `SetGraphReverse` 90.84%, `MoveImage` 82.73%);
+6 of libgte's remaining 9 stubs have instructions after `.size`.
+
+### The closest open items, for whoever continues
+
+`func_8002B084` is matched; `func_8002B2F0` (identical body to `func_8002B5D0`, so
+one match pays twice) is 96.40% with the residual being two `lhu`s that gcc CSEs.
+`func_800A0C94` 99.64% (one `addu` destination). `func_80023804` 99.10% (symmetric
+`v0`/`v1` mask swap). `GfxLoadClutsAccelerated` 99.11% (`s3`/`s4` swap - and the
+old note's advice to define `D_800592F0/F4` in the unit is *wrong*: they are
+already in `asm/slus_006.64/data/49AC0.sbss.s` and maspsx only emits `%gp_rel` for
+symbols the unit itself defines, so this one needs a data-ownership change).
+`func_801E6578` 98.63% (one callee-saved pair, allocnos identical, so global.c's
+tie order). `FieldFree` 97.34% (652 vs 656 bytes, two combine decisions).
