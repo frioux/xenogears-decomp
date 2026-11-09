@@ -282,6 +282,12 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte_b", TransposeMatrix);
    third argument -- worth checking whether these two stubs want the 2.6.0
    preset or a 3-arg-ish prototype before more C surgery. Both pointer locals
    and direct casts give the same 65.00%.
+   Preset sweep (try_flags.sh, this file's C as it stands): -O2 and -O3
+   give 65.00% on gcc 2.6.0, 2.7.2 and 2.7.2-cdk alike, but -O1 gives
+   83.00%. -O1 still stores through v0, so the copy is not a preset
+   problem: at every level gcc coalesces the store base with the
+   returned parameter. The original needs the store base and the
+   returned pointer live in two registers at once.
 MATRIX *TransposeMatrix(MATRIX *m0, MATRIX *m1) {
     long t0, t1, t2, t3;
 
