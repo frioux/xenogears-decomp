@@ -1,4 +1,5 @@
 #include "common.h"
+#include "psyq/libgpu.h"
 
 extern u8 D_80092954[];
 
@@ -88,7 +89,20 @@ s32 func_80070FD8(u8* p) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_8007107C);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_80071724);
+extern s32 D_800925E0;
+extern s32 D_800925E4;
+extern void* D_80092868;
+extern u8 D_800928A0;
+extern u8 D_800929E4[];
+
+void func_80071724(void* pOt) {
+    u8* p;
+
+    p = D_80092868;
+    *(s32*)(p + 0x7C) = D_800925E0 | (D_800925E4 << 16);
+    AddPrim(pOt, p + 0x74);
+    AddPrim(pOt, &D_800929E4[D_800928A0 * 8]);
+}
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_80071794);
 
@@ -104,13 +118,18 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_80071DA4);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_80071F8C);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_800720C4);
+extern u8 D_8009293C;
+
+void func_800720C4(void) {
+    D_8009293C = 0;
+}
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_800720D4);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_80072170);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_800725A8);
+void func_800725A8(void) {
+}
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_800725B0);
 
