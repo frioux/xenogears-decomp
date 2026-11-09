@@ -868,3 +868,34 @@ The pool is real: spimdisasm found 456 functions in the overlay, the first 150 a
 are still one `asm` segment at 0xFD64, to be carved the same way as they get
 worked. Conversion rate on the slus split pool was 48 of 89 in two rounds; game
 logic like this is slower than library code, so expect well under that.
+| 36 | 14 workers: 6 on the new `battling` pool, 8 on the old ones | +41 | 2086 | `battling/main/misc2` 3, `misc4` 6, `misc5` 6 (+1 proved by checksum), `misc6` 10, `misc1` 5, `libgpu_b` 1, `lib_gear` 1; everything else parked |
+
+## Round 36: the battling pool converts at ~15-20% per worker, and 9 functions had to be un-converted
+
+The overlay's 150 fresh stubs gave +27 in one round from six workers, which is a
+better rate than any saturated pool (`sound`/`libgte`/`temp2` gave 2). Twenty-five
+of the 150 came back at objdiff 100%; nine of those had to be restored to
+`INCLUDE_ASM` because `make check` went red and the units' `.text` sizes were off:
+
+| unit | function(s) reverted | why |
+|---|---|---|
+| `battling/main/misc1` | `func_80070808`, `func_80070FD8` | 66.68%, 48.02% |
+| `battling/main/misc3` | `func_80076438` | 84.73% |
+| `battling/main/misc6` | `func_8007EBE0`, `EC54`, `ECF0`, `ED84`, `EE08`, `EE68` | all MISMATCH |
+| `shop_menu/main/misc` | `func_801CFF58` | objdiff said MATCH/100% yet the unit grew 8 bytes |
+| `system/sound` | `func_8003DF78` | objdiff said 100% yet the unit shrank 12 bytes |
+
+`system/sound`'s `func_8003DF78` and `shop_menu`'s `func_801CFF58` are the important
+ones: **objdiff can report MATCH + 100% for a function whose object bytes are still
+wrong**, when the compiled body is longer or shorter than the retail one and the
+extra/missing instructions fall outside the compared range (both were written by a
+worker that hit the 30-minute timeout before running `check_bin.sh`). The gate that
+catches it is `check_bin.sh` per overlay, or `make check` + `culprit.sh`; the
+per-function percentage is not enough. Both attempts are still in git history
+(`git log --oneline 6d09519..HEAD -- src/shop_menu/main/misc.c`), worth a re-look
+with the size delta in hand.
+
+Tooling fixed this round: `check_bin.sh` now knows `battling` (`tools/scripts/check_bin.sh
+battling` works), and the `rounds/brief.js` template literal is valid JS again (a
+backtick in a hint had broken it and every workflow launch failed with a JSON error
+for three rounds -- the tell is "Unexpected token" from the tool, not from your args).

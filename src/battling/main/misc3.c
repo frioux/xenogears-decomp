@@ -55,20 +55,7 @@ void func_80076424(u8* p) {
     p[0x9C3] = 0;
 }
 
-void func_80076438(u8* p) {
-    s32 i;
-    u8 idx;
-
-    idx = p[0x9C1];
-    func_800379C8(D_8006FCC0);
-    for (i = 0; i < p[0x9C2]; i++) {
-        u8* pSlot = p + (idx & 0x1F);
-        char* pFmt = D_8006FCC4;
-        func_800379C8(pFmt, pSlot[0x9A0]);
-        idx++;
-    }
-    func_800379C8(D_8006FCC8);
-}
+INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80076438);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_800764CC);
 

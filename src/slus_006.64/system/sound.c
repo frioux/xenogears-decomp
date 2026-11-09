@@ -3480,30 +3480,7 @@ u8* func_8003DF3C(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
     return pScript;
 }
 
-u8* func_8003DF78(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
-    s8 note = pScript[1];
-    s32 velocity = pScript[0];
-    s32 volume;
-    s32 count;
-
-    if (note != 0) {
-        if (velocity != 0) {
-            volume = velocity + (velocity * velocity) / 64;
-            pAudioElements->envelopes[2].delta = func_8003E290(note << 24, (s16)volume, 3);
-            pAudioElements->envelopes[2].reload = volume;
-            count = pScript[2] << 2;
-            pAudioElements->envelopes[2].unk_0x1A = 0x400;
-            pAudioElements->envelopes[2].unk_0x0 = (undefined32)func_8003F2A0;
-            pAudioElements->envelopes[2].unk_0x1D = 3;
-            pAudioElements->envelopes[2].unk_0x1C = 2;
-            pAudioElements->envelopes[2].flags = 3;
-            pAudioElements->envelopes[2].unk_0x16 = count;
-            pAudioElements->unk_0xCE |= 0x4;
-            func_8003E3E0(&pAudioElements->envelopes[2]);
-        }
-    }
-    return pScript + 3;
-}
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003DF78);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003E04C);
 
