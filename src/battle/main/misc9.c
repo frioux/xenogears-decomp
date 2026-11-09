@@ -111,14 +111,19 @@ s32 func_8007E954(u8 **arg0, u8 arg1) {
 
     return pRow[p[1]] == p[2];
 }
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007E98C);
+/* best: 96.47%. Identical instruction multiset and order once the 16-bit value
+   is a local; only the register pair is mirrored (original: base v1, p in a0,
+   p[3] in a2; gcc: base v0, p v1, p[3] a0). Same allocator tie as func_8007E6A0.
+   Tried: value inline in the comparison (73.41%, reorders the lbu's), pField/p
+   declared in both orders.
 s32 func_8007E98C(u8 **arg0, u8 arg1) {
-    u16 *pField = (u16 *)(D_800D3420 + arg1 * 0x40);
     u8 *p = *arg0;
-
+    u16 *pField = (u16 *)(D_800D3420 + arg1 * 0x40);
     s32 value = p[2] | (p[3] << 8);
 
     return pField[p[1]] == value;
-}
+} */
 s32 func_8007E9D0(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
     u8 *pRow = D_800D3430 + arg1 * 0x40;
