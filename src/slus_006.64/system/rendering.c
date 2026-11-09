@@ -28,17 +28,19 @@ extern MATRIX D_8004FBB8;
 extern u8 D_800591AD;
 extern u8 D_800591AE;
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001E148);
-/* Best attempt: 90.89% (332 bytes, the original is 336). Every field, cast and
-   instruction shape in the body matches -- the `lb` (not lbu) loads want the
-   (s8) offsets, the flags read wants the (u32) cast to stay srl, and the
-   `pMat = &D_8004FBB8` local is required or gcc re-forms lui/addiu for each
-   t[] access after the ApplyMatrix call. What is left is callee-saved
-   allocation: the original holds the matrix address in s1, yOffset in s3 and
-   xOffset in s2 with pSpriteData in s0; this C always gives the address the
-   lowest-priority register (s3) because it has the fewest references, and
-   moving its declaration to the top of the list just moves pSpriteData out of
-   s0 instead. Also 86.76% under gcc-2.7.2-cdk-psx, so it is not the preset.
+/* Best attempt: 90.89% (332 bytes, the original is 336). Field/cast shapes are
+   right (the `lb` loads want the (s8) offsets, the flags read wants the (u32)
+   cast to stay srl, and the `pMat = &D_8004FBB8` local is required or gcc
+   re-forms lui/addiu for every t[] access after the ApplyMatrix call). The
+   remaining delta is gcc's callee-saved priority: the original is s0 sprite
+   data, s1 matrix address, s2 xOffset, s3 yOffset; this C gives the matrix
+   address s3 because its live range starts at the top of the function.
+   Reordering the declarations changes nothing (gcc ranks pseudos by references
+   and live length), assigning pMat only next to ApplyMatrix makes gcc drop the
+   pseudo and re-form the address per use (86.02%), and splitting the shifted
+   offsets into extra locals reaches the original's 336 bytes but still hoists
+   the matrix address (86.93%). Also 86.76% under gcc-2.7.2-cdk-psx, so it is
+   not the preset.
 
 void func_8001E148(SpriteData* pSpriteData) {
     MATRIX* pMat = &D_8004FBB8;
@@ -78,6 +80,7 @@ void func_8001E148(SpriteData* pSpriteData) {
     SetTransMatrix(pMatrix);
 }
 */
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001E148);
 
 void func_8001E298(SpriteData* pSpriteData, void* pArg) {
     func_8001E148(pSpriteData);
@@ -340,25 +343,30 @@ void func_8001F750(SpriteData* pSpriteData, s32 index, SpriteAnimPackage* pAnimP
 */
 
 // Animation frame and tile data stuff
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001F8E8);
-/* Best attempt: 91.88% (456 bytes, the original's size). The `dir` puzzle below
-   is solved: the original computes `dir = entryFlags & 7` in the block shared by
-   the 0x20 and 0x10 tests (`andi a1,s1,0x7` sits in the delay slot of the
-   `beqz (entryFlags & 0x20)`), so the assignment belongs BEFORE that test and
-   not inside it -- that alone takes the frame back to 60 bytes and dir to a1.
-   What is left is the loop entry: the original builds `pEntry = pBlock +
-   count*4 + 6` as a separate `addu` before the loop and the counter test that
-   feeds `beqz count` comes from a distinct `andi`; this C lets gcc fold the
-   block-header address into the first `lbu` and re-merge `andi s5`/`andi s4`,
-   which shifts every later offset by 4. Earlier 88.26% attempt (dir computed
-   inside the 0x20 arm, dir in s3, 64-byte frame):
+/* Best attempt: 95.23% (456 bytes, same instruction count as the original).
+   What this attempt fixed over the 91.88% one: pBlock is built with integer
+   (mem_addr) addition so the original's `addu v1,v1,a0` operand order comes out;
+   `pEntry++` belongs BEFORE the `entryFlags & 0x40` test (the original keeps it
+   in that branch's delay slot and the else arm then only adds 1 + (f&1) + (f&2)).
+   What is still wrong:
+   1. frame: the original reserves 0x40 (saves at 0x20-0x38) with 0x20 bytes of
+      unused stack; this C gets 0x30 (the default 0x10 outgoing-args area + the 7
+      saves). func_8001F750, the sibling, has a tight 0x30 frame, and an unused
+      local such as `MATRIX unused;` is dropped by gcc, so the extra 0x10 looks
+      like a larger outgoing-args area in the original rather than a local.
+   2. the original emits `andi s5,v0,0x80` (unkFlag) BEFORE `andi s4,v0,0x3f`
+      (count) and both before the `beqz count`; this C gets count first and
+      unkFlag folded down into the loop head (its only use), which then takes the
+      `beqz count` delay slot and pushes the pEntry `addu` above the branch.
+   3. the `entryFlags & 0x10` arm: the original loads the entry byte and does
+      `pEntry++` before the pBase/pDirTransforms loads; this C computes the store
+      address first (same 9 instructions, different order).
 
 void func_8001F8E8(SpriteData* pSpriteData, s32 index, SpriteAnimPackage* pAnimPackage) {
     u8* pFrames;
     u8* pBlock;
     u8* pEntry;
     u16 header;
-    u8 flags;
     u32 unkFlag;
     u32 count;
     u8 entryFlags;
@@ -372,24 +380,23 @@ void func_8001F8E8(SpriteData* pSpriteData, s32 index, SpriteAnimPackage* pAnimP
             func_8001F750(pSpriteData, index, pAnimPackage);
             return;
         }
-        pBlock = pFrames + ((u16*)pFrames)[index];
-        flags = *pBlock;
+        pBlock = (u8*)((mem_addr)((u16*)pFrames)[index] + (mem_addr)pFrames);
         i = 0;
-        unkFlag = flags & 0x80;
-        count = flags & 0x3F;
+        unkFlag = *pBlock & 0x80;
+        count = *pBlock & 0x3F;
         pEntry = pBlock + (count * 4 + 6);
         if (count != 0) {
             for (;;) {
                 entryFlags = *pEntry;
                 if (entryFlags & 0x80) {
+                    pEntry++;
                     if (entryFlags & 0x40) {
-                        pEntry++;
                         if (pSpriteData->pBase->pDirTransforms == 0) {
                             pSpriteData->pBase->pDirTransforms = HeapAlloc(sizeof(SpriteDirectionTransforms), 0);
                             func_800234AC(pSpriteData);
                         }
+                        dir = entryFlags & 7;
                         if (entryFlags & 0x20) {
-                            dir = entryFlags & 7;
                             *(u8*)((mem_addr)pSpriteData->pBase->pDirTransforms + dir * 8) = *pEntry++;
                             *(u8*)((mem_addr)pSpriteData->pBase->pDirTransforms + (dir * 8 + 1)) = *pEntry++;
                         }
@@ -421,6 +428,7 @@ void func_8001F8E8(SpriteData* pSpriteData, s32 index, SpriteAnimPackage* pAnimP
     }
 }
 */
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001F8E8);
 
 // GraphicsDrawPauseLetters and func_8001FB30 were built by a cdk-compiler TU;
 // they live in system/rendering_pause_text.c, which carries that preset.
