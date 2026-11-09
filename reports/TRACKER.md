@@ -1229,4 +1229,13 @@ One more confirmation of the address-order rule, with a concrete signature: a
 source, every function was `objdiff 100.00%`, and `battle.bin` still came out
 `fec42225...` instead of `1830b4ef...`. Reordering gave the checksum back. `objdiff`
 cannot see function order; only `check_bin.sh` can.
+### Tooling: `check_bin.sh` can be OOM-killed when many trees build at once
+
+A round-43 worker saw `make: *** [build] Error 137` from `check_bin.sh` - the
+8 GiB colima VM cannot run `ninja -j12` for the eleven outputs while other worker
+trees are also building. The equivalent, much gentler invocation is
+`make NUMPROC=3 build` followed by the sha256 comparison, which is what that worker
+used to finish the gate. If a whole round is running, either serialise the final
+`check_bin.sh` per worker or build with `NUMPROC=2`/`3`; the build is correct at
+any `-j`, only the memory ceiling differs.
 
