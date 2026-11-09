@@ -385,9 +385,10 @@ int func_80033CD0(SystemString* pString) {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/system", func_80033CF0);
 
-/* Best attempt, 87.37%: matches the digit loop and all data references, but the
-   scan loop is rotated (gcc duplicates the exit test) and the end pointer is
-   folded to D_8005A0DE-2 instead of computed as pScan+10.
+/* Best attempt, 87.46%: everything matches except that gcc rotates the scan
+   loop (it removes the top exit test and duplicates it at the bottom). Source
+   order and register allocation are exact - the loop form is what is wrong;
+   while+break, while with &&, for(;;) and do/while all rotate the same way.
 void func_80033CF0(int value, int glyphOffset, int flag) {
     u32 divisor = 1000000000;
     u16* pDigit = D_8005A0CA;
@@ -395,11 +396,11 @@ void func_80033CF0(int value, int glyphOffset, int flag) {
     u16* pScan;
     u16* pScanEnd;
     int i;
-    int sign = 0;
+    int sign = flag;
 
     glyphOffset *= 16;
 
-    if (flag != 0) {
+    if (sign != 0) {
         if (value >= 0) {
             sign = 11;
         } else {
@@ -422,12 +423,7 @@ void func_80033CF0(int value, int glyphOffset, int flag) {
     pScanEnd = pScan + 10;
 
     if ((glyphOffset & 0xFFF0) == glyphOffset) {
-        while (pScan != pScanEnd) {
-            pScan++;
-
-            if (*pScan != glyphOffset) {
-                break;
-            }
+        while (pScan != pScanEnd && *++pScan != glyphOffset) {
         }
     }
 
@@ -572,9 +568,11 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/system", func_80034888);
 // Render string entry to a buffer
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/system", SystemRenderStringEntry);
 
-/* Best attempt, 30.00%: every instruction and data reference is right, but gcc
-   schedules the stores in a different order (it emits D_8005A040/D_8005A041 and
-   the D_8005A068 address ahead of the D_80059FF4 store).
+/* Best attempt, 28.31%: every instruction and data reference is right and the
+   statement order below is exactly the order of the original stores, but gcc
+   emits the 8 constant-touching stores (D_80059FE0, D_8005A040, D_8005A041,
+   D_8005A068, andi a3) about ten instructions earlier than the original, and
+   reuses one li v0,1 where the original loads the constant twice.
 int SystemRenderStringEntry(void* pCur, void* pCharBuffer, int mode, int flag) {
     D_80059FE2 = mode;
     D_80059FE4 = 1;
