@@ -19,6 +19,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007B578);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007B608);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007B6C0);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007B7B0);
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007B8D4);
 /* best: 73.75%. Instruction multiset identical; the original loads *p into v0
    and puts the D_800D3420 base in a0, gcc emits the base first instead. Same
    allocator tie as the rest of the D_800D34x0 operators in misc6.
@@ -42,6 +43,7 @@ void func_8007B958(u8 **p, u8 index) {
 
     pTable[pArgs[2]] = pTable[pArgs[1]];
 }
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007B98C);
 /* best: 84.67%. Instruction multiset identical; the original loads *p into v0
    and puts the D_800D3420 base in a0, gcc emits the base first instead. Same
    allocator tie as func_8007B8D4.
@@ -53,6 +55,7 @@ void func_8007B98C(u8 **p, u8 index) {
     pField[pArgs[2]] = pField[pArgs[1]];
 }
 */
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007B9C8);
 /* best: 84.67%. Instruction multiset identical; the original loads *p into v0
    and puts the D_800D3410 base in a0, gcc emits the base first instead. Same
    allocator tie as func_8007B98C.
@@ -64,6 +67,7 @@ void func_8007B9C8(u8 **p, u8 index) {
     pField[pArgs[2]] = pField[pArgs[1]];
 }
 */
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007BA04);
 /* best: 95.94%. Only the register pair chosen for the source byte and the
    destination halfword differs (v1/a0 vs v0/v1); the D_800D3430 base is already
    derived as D_800D3420+0x10 like the original.
@@ -76,6 +80,7 @@ void func_8007BA04(u8 **p, u8 index) {
     pField[pArgs[2]] = pTable[pArgs[1]];
 }
 */
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007BA44);
 /* best: 95.29%. Only the register holding the stored halfword differs
    (original a0, gcc v1); everything else, including the D_800D3420 base
    derived as D_800D3410+0x10, is identical.
@@ -104,6 +109,7 @@ void func_8007BAB8(u8 index) {
         *p-- = 0;
     }
 }
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007BAE8);
 /* best: 96.76%. Only the register holding *p differs (original v1, gcc
    reuses a0). The two-statement slot local is needed: written as
    (index + 3) * 0x170 inside the store, gcc folds 3*0x170 into the
@@ -115,6 +121,7 @@ void func_8007BAE8(u8 **p, u8 index) {
     *(u32 *)(D_800CCE34 + slot * 0x170) = (*p)[1] | ((*p)[2] << 8);
 }
 */
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007BB2C);
 /* best: 39.71%. Same operator as func_8007BAE8 but storing a halfword; the
    0x170 scaling and the store addressing both come out differently.
 
@@ -126,6 +133,7 @@ void func_8007BB2C(u8 **p, u8 index) {
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007BB70);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007BBD8);
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007BC40);
 /* best: 98.82%. Only the last addu is commuted (original base first into a1,
    gcc reuses the dead a2): identical multiset. Writing *p inline twice is
    required, the second load is CSE'd if it goes through a local.
