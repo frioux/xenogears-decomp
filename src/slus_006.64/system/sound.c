@@ -472,28 +472,20 @@ void func_80038624(void) {
 }
 
 //----------------------------------------------------------------------------------------------------------------------
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003864C);
-/*
-Attempt (99.50%, same size): the only remaining difference is that gcc coalesces the
-lhu destination with the sll source (lhu v0 / sll v0,v0,16) where the original keeps
-them apart (lhu a1 / sll v0,a1,16). Tried: u16+(s16) cast, s16 local, s32+(s16) cast,
-two u16 locals, reversed comparison operands, declaration order, for-loop form.
-*/
-/* SoundFile* func_8003864C(SoundFile* pSoundFile) {
+SoundFile* func_8003864C(SoundFile* pSoundFile, s16 sedId) {
     SoundFile* pEntry;
-    u16 sedId;
 
     if (pSoundFile != NULL) {
         sedId = pSoundFile->sedId;
     }
-    pEntry = g_SoundSedsLinkedList;
 
-    while (pEntry != NULL && (s16)sedId != pEntry->sedId) {
+    pEntry = g_SoundSedsLinkedList;
+    while (pEntry != NULL && sedId != pEntry->sedId) {
         pEntry = pEntry->pNext;
     }
 
     return pEntry;
-} */
+}
 
 //----------------------------------------------------------------------------------------------------------------------
 void func_8003869C(void) {
@@ -2810,7 +2802,11 @@ u8* func_8003D53C(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
 (Also tried: the single combined condition (the `||`/`&&` form of this test) and the
 same with `goto done` plus one trailing `return pScript`; both compile to 88.33%, 96
 bytes, with nop in the branch delay slots and a `move v0,a0` in the `jr ra` slot
-instead, and the two flag stores landing in v0/v1 rather than v1/a0.)
+instead, and the two flag stores landing in v0/v1 rather than v1/a0. The `A && (B || C)`
+spelling compiles to the same 95.83% object as the nested if. The extra move cannot
+be removed: a0 is clobbered by the stores (`lhu a0,0x32(a2)`), so gcc must set the
+return value before them, and it refuses to share one copy across the third test's
+two edges.)
 */
 
 u8* SoundScriptSetVoiceFlags4000ClearMode(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
