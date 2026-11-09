@@ -156,6 +156,7 @@ segments:
       - [0x34128, c, psyq/libgpu]
       - [0x35B7C, asm]
       - [0x393C4, c, psyq/libgte]
+      - [0x3A8DC, c, psyq/libgte_b]
       - [0x3BCAC, asm] # Part of libetc
       - [0x3BD4C, c, psyq/libetc/vsync]
       - [0x3BF30, c, psyq/libapi_3]
