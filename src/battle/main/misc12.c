@@ -22,6 +22,17 @@ typedef struct {
 
 extern BattleUnk48 D_800C3FE8[];
 
+typedef struct {
+    /* 0x00 */ u16 unk0;
+    /* 0x02 */ u8 pad2[0x16E];
+} BattleUnk170; // Size: 0x170
+
+extern u8 D_800D2DCC[];
+extern u8 D_800C3EB7[];
+extern u8 D_800D32A1[];
+extern BattleUnk170 D_800CCD64[];
+extern BattleUnk170 D_800CCE08[];
+
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80082820);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_800829F4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80082BB0);
@@ -34,6 +45,34 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80083748);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80083948);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80083FF4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80084108);
+/* 95.93%: one instruction class off - gcc emits `sltiu a2,v0,1` in the j delay slot where the
+   original keeps `sltiu v0,v0,1` + `move a2,v0` (ret copy not coalesced).
+u32 func_80084108(u8 arg0, u8 arg1) {
+    u32 ret;
+
+    ret = 0;
+    if (D_800D2DCC[arg0] == 0) {
+        if (D_800C3EB7[arg0 * 0x1C] == 0) {
+            if (D_800D32A1[arg0 * 8] == 0) {
+                if (arg1 != 0) {
+                    ret = 1;
+                } else {
+                    ret = (D_800CCD64[arg0].unk0 & 0xC001) ? 0 : 1;
+                }
+            } else {
+                if (arg1 == 0) {
+                    if ((D_800CCE08[arg0].unk0 & 0xC001) == 0) {
+                        ret = 1;
+                    }
+                } else {
+                    ret = 1;
+                }
+            }
+        }
+    }
+    return ret;
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_800841E0);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80084548);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80084750);
