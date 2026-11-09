@@ -1,0 +1,80 @@
+00002390 <func_800A7948>:
+    2390:	3c020000 	lui	v0,0x0
+    2394:	8c420000 	lw	v0,0(v0)
+    2398:	27bdffd0 	addiu	sp,sp,-48
+    239c:	afbf002c 	sw	ra,44(sp)
+    23a0:	afb20028 	sw	s2,40(sp)
+    23a4:	afb10024 	sw	s1,36(sp)
+    23a8:	104000b6 	beqz	v0,2684 <func_800A7948+0x2f4>
+    23ac:	afb00020 	sw	s0,32(sp)
+    23b0:	3c030000 	lui	v1,0x0
+    23b4:	8c630000 	lw	v1,0(v1)
+    23b8:	00000000 	nop
+    23bc:	28620687 	slti	v0,v1,1671
+    23c0:	144000b0 	bnez	v0,2684 <func_800A7948+0x2f4>
+    23c4:	00000000 	nop
+    23c8:	286218e2 	slti	v0,v1,6370
+    23cc:	104000ad 	beqz	v0,2684 <func_800A7948+0x2f4>
+    23d0:	27a40018 	addiu	a0,sp,24
+    23d4:	00002821 	move	a1,zero
+    23d8:	00003021 	move	a2,zero
+    23dc:	00003821 	move	a3,zero
+    23e0:	34020001 	li	v0,0x1
+    23e4:	3c010000 	lui	at,0x0
+    23e8:	ac220000 	sw	v0,0(at)
+    23ec:	34020500 	li	v0,0x500
+    23f0:	34120200 	li	s2,0x200
+    23f4:	3c010000 	lui	at,0x0
+    23f8:	ac200000 	sw	zero,0(at)
+    23fc:	a7a00018 	sh	zero,24(sp)
+    2400:	a7a0001a 	sh	zero,26(sp)
+    2404:	a7a2001c 	sh	v0,28(sp)
+    2408:	0c000000 	jal	0 <func_800A55B8>
+    240c:	a7b2001e 	sh	s2,30(sp)
+    2410:	0c000000 	jal	0 <func_800A55B8>
+    2414:	00002021 	move	a0,zero
+    2418:	0c000000 	jal	0 <func_800A55B8>
+    241c:	00002021 	move	a0,zero
+    2420:	3c110000 	lui	s1,0x0
+    2424:	26310000 	addiu	s1,s1,0
+    2428:	02202021 	move	a0,s1
+    242c:	00002821 	move	a1,zero
+    2430:	00003021 	move	a2,zero
+    2434:	34070280 	li	a3,0x280
+    2438:	341000e0 	li	s0,0xe0
+    243c:	0c000000 	jal	0 <func_800A55B8>
+    2440:	afb00010 	sw	s0,16(sp)
+    2444:	3c040001 	lui	a0,0x1
+    2448:	248480f4 	addiu	a0,a0,-32524
+    244c:	00002821 	move	a1,zero
+    2450:	34060100 	li	a2,0x100
+    2454:	34070280 	li	a3,0x280
+    2458:	0c000000 	jal	0 <func_800A55B8>
+    245c:	afb00010 	sw	s0,16(sp)
+    2460:	262400b8 	addiu	a0,s1,184
+    2464:	00002821 	move	a1,zero
+    2468:	34060100 	li	a2,0x100
+    246c:	34070280 	li	a3,0x280
+    2470:	0c000000 	jal	0 <func_800A55B8>
+    2474:	afb00010 	sw	s0,16(sp)
+    2478:	3c040001 	lui	a0,0x1
+    247c:	248481ac 	addiu	a0,a0,-32340
+    2480:	00002821 	move	a1,zero
+    2484:	00003021 	move	a2,zero
+    2488:	34070280 	li	a3,0x280
+    248c:	0c000000 	jal	0 <func_800A55B8>
+    2490:	afb00010 	sw	s0,16(sp)
+    2494:	3c040000 	lui	a0,0x0
+    2498:	8c840000 	lw	a0,0(a0)
+    249c:	3c010001 	lui	at,0x1
+    24a0:	a02081bd 	sb	zero,-32323(at)
+    24a4:	3c010000 	lui	at,0x0
+    24a8:	a02000c9 	sb	zero,201(at)
+    24ac:	0c000000 	jal	0 <func_800A55B8>
+    24b0:	248400b8 	addiu	a0,a0,184
+    24b4:	3c040000 	lui	a0,0x0
+    24b8:	8c840000 	lw	a0,0(a0)
+    24bc:	0c000000 	jal	0 <func_800A55B8>
+    24c0:	00000000 	nop
+    24c4:	27a40018 	addiu	a0,sp,24
+    24c8:	00002821 	move	a1,zero

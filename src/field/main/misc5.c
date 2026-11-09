@@ -633,7 +633,84 @@ void FieldImageConvert24BitTo15Bit(void) {
     HeapFree(pImage15Bit);
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A7948);
+extern s32 D_8004F300;
+extern s32 D_801E89E0;
+extern void GameCheckAndHandleSoftReset(void);
+extern void FieldClearAndSwapOTagInternal(void);
+extern void func_800AC99C(void);
+extern void func_800ACB90(void);
+extern void func_800ACCB0(void);
+extern void func_800ACCF4(void);
+
+s32 func_800A7948(void) {
+    RECT rect;
+
+    if (!D_8004F300) {
+        return;
+    }
+    if (D_800B06A0 < 0x687) {
+        return;
+    }
+    if (D_800B06A0 >= 0x18E2) {
+        return;
+    }
+
+    D_800AFE74 = 1;
+    D_801E89E0 = 0;
+    rect.x = 0;
+    rect.y = 0;
+    rect.w = 0x500;
+    rect.h = 0x200;
+    ClearImage(&rect, 0, 0, 0);
+    DrawSync(0);
+    Vsync(0);
+    SetDefDrawEnv(&g_FieldRenderContexts[0].drawEnvs[0], 0, 0, 0x280, 0xE0);
+    SetDefDrawEnv(&g_FieldRenderContexts[1].drawEnvs[0], 0, 0x100, 0x280, 0xE0);
+    SetDefDispEnv(&g_FieldRenderContexts[0].dispEnv, 0, 0x100, 0x280, 0xE0);
+    SetDefDispEnv(&g_FieldRenderContexts[1].dispEnv, 0, 0, 0x280, 0xE0);
+    g_FieldRenderContexts[1].dispEnv.isrgb24 = 0;
+    g_FieldRenderContexts[0].dispEnv.isrgb24 = 0;
+    PutDispEnv(&g_FieldCurRenderContext->dispEnv);
+    PutDrawEnv(&g_FieldCurRenderContext->drawEnvs[0]);
+    rect.x = 0x300;
+    rect.y = 0;
+    rect.w = 0x200;
+    rect.h = 0x100;
+    ClearImage(&rect, 0, 0, 0);
+    func_800ACB90();
+    Vsync(0);
+    DrawSync(0);
+
+    while (D_800B06A0 < 0x18E2) {
+        GameCheckAndHandleSoftReset();
+        FieldClearAndSwapOTagInternal();
+        if (D_800B06A0 < 0x18DE) {
+            func_800AC99C();
+        }
+        DrawSync(0);
+        Vsync(2);
+        ClearImage(&g_FieldCurRenderContext->drawEnvs[0].clip, 0, 0, 0);
+        PutDispEnv(&g_FieldCurRenderContext->dispEnv);
+        PutDrawEnv(&g_FieldCurRenderContext->drawEnvs[0]);
+        DrawOTag(g_FieldCurRenderContext->ot3 + 7);
+        func_800ACCF4();
+        func_800A732C(5);
+    }
+
+    D_800AFE74 = 0;
+    D_801E89E0 = 1;
+    DrawSync(0);
+    Vsync(0);
+    SetDefDrawEnv(&g_FieldRenderContexts[0].drawEnvs[0], 0, 0, 0x140, 0xE0);
+    SetDefDrawEnv(&g_FieldRenderContexts[1].drawEnvs[0], 0, 0x100, 0x140, 0xE0);
+    SetDefDispEnv(&g_FieldRenderContexts[0].dispEnv, 0, 0x100, 0x140, 0xE0);
+    SetDefDispEnv(&g_FieldRenderContexts[1].dispEnv, 0, 0, 0x140, 0xE0);
+    g_FieldRenderContexts[1].dispEnv.isrgb24 = 1;
+    g_FieldRenderContexts[0].dispEnv.isrgb24 = 1;
+    g_FieldRenderContexts[1].dispEnv.isinter = 0;
+    g_FieldRenderContexts[0].dispEnv.isinter = 0;
+    func_800ACCB0();
+}
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A7C58);
 
