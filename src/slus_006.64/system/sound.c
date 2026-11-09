@@ -2950,6 +2950,13 @@ spelling compiles to the same 95.83% object as the nested if. The extra move can
 be removed: a0 is clobbered by the stores (`lhu a0,0x32(a2)`), so gcc must set the
 return value before them, and it refuses to share one copy across the third test's
 two edges.)
+Re-checked with the `&&` form under `try_flags.sh --gcc gcc-2.7.2-psx`: 99.79%, still
+100 bytes, so the 2.7.2 fix above does not generalise - 2.7.2 is not the answer for
+this spelling either. Also tried a `u8* pResult = pScript;` local returned from every
+path, an explicit `if/else`, and `u16 flags`/`modeFlags` locals for the read-modify-
+write: all 95.62%, 100 bytes, same extra `move v0,a0` at the store block. The extra
+instruction is reorg's, not the C's: it copies the store block's leading return-value
+move into the bnez delay slot on top of leaving it in the block.
 */
 
 u8* SoundScriptSetVoiceFlags4000ClearMode(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
