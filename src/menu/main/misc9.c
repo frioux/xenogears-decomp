@@ -96,6 +96,7 @@ void func_801DE2C8(u32 arg0) {
     func_801DB02C(0);
     func_801D3488(1, arg0 & 0xFF);
 }
+
 void func_801DE36C(void) {
     g_Menu->pManager->unk4A[2] = 0;
     func_801D4EA0(2);
@@ -108,6 +109,7 @@ void func_801DE36C(void) {
     HeapFree(g_Menu->unk434);
     func_801D3444();
 }
+
 void func_801DE400(void) {
     g_Menu->pManager->unk5[3] = 0;
     g_Menu->pManager->unk4A[1] = 0;
@@ -115,6 +117,7 @@ void func_801DE400(void) {
     HeapFree(g_Menu->unk35C);
     HeapFree(g_Menu->unk360);
 }
+
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DE474);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DE5CC);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DF0D4);
