@@ -852,3 +852,19 @@ second round's failures are the same shape as the old ones: `func_800379D8` 97.8
 `field/main/*`. **Conclusion: the burst came from new functions, not from those
 units being easier.** The next burst has to come from another new pool, which is
 the unsplit overlays (see the base-address table above).
+
+### Metric discontinuity: the battling overlay is now in the report
+
+`battling.bin` builds byte-identically and is in `config/checksum.sha`, so
+`make check` gates seven outputs. Adding its objdiff category also adds its
+functions to the report's denominator: **2045 / 2985 (68.5%)**, was 2045 / 2528
+(80.9%), and code goes 56.4% -> 47.1%. Nothing regressed -- the same 2045
+functions are matched -- but the share fell because 457 previously-invisible
+functions became known. That is the honest reading, and it is the only way the
+overlay can be worked at all: `diff_func.sh` needs the unit in `objdiff.json`.
+
+The pool is real: spimdisasm found 456 functions in the overlay, the first 150 are
+`c` units (`src/battling/main/misc1..misc6`, 25 stubs each) and the remaining 306
+are still one `asm` segment at 0xFD64, to be carved the same way as they get
+worked. Conversion rate on the slus split pool was 48 of 89 in two rounds; game
+logic like this is slower than library code, so expect well under that.
