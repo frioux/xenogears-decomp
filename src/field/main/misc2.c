@@ -347,6 +347,100 @@ void func_800726E8(void) {
 */
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80072A38);
+// 96.12% (832 bytes vs the original's 844): everything but one register matches.
+// Findings that got it here: (1) func_8007CD80 takes (VECTOR* pos, SVECTOR points[2],
+// SVec4* out) -- the input is a VECTOR (func reads the high halves of the longs at
+// +0/+8 as `lh 2`/`lh 0xA`) and the two SVECTORs are read through u16 (lhu, stride 4);
+// (2) the locals are declared points, line, cross, result, pos in that order -- that
+// is the original's ascending slot order -- and the original's frame also has 0x20 of
+// stack no instruction references, hence the unused MATRIX; (3) the else branch is
+// vx, D_800ADBA8 = 0, vy, vz, then `g_CameraAt2.vy = g_CameraAt2.vy - 0x200000`
+// (the dead first vy store survives only in that spelling); (4) the flag clears are
+// spelled `&= 0xFFFE` / `&= 0xFFF7` so they come out as `andi`; (5) the scene-angle
+// chains are written out twice, never in a local, or gcc keeps the angle across the
+// rsin/rcos calls instead of reloading sceneDIP.
+// What is left: after the rsin statement gcc keeps &g_CameraEye2 + 0x4 in $s0 (the
+// `sw v0,0($s0)` vy store) and then derives the vx store and both func_80073684
+// arguments from it; the original forms the vy store with a fresh `lui at/%lo` and
+// derives $s0 - 0x14C / - 0x13C from the still-live &g_Scene.sceneDIP instead.
+// Splitting the value into an `s32 offset` local (what is below) is what got the
+// score from 95.66 to 96.12; the two address CSEs across the call are the rest.
+/*
+extern int func_8007CD80(VECTOR* pPos, SVECTOR* pPoints, SVec4* pOut);
+extern void func_80073684(VECTOR* pEye, VECTOR* pAt);
+extern VECTOR g_CameraEye2;
+extern VECTOR g_CameraAt2;
+extern int D_800ADBA8;
+extern u_char D_800B21CD;
+
+void func_80072A38(VECTOR* pPos, int param) {
+    SVECTOR points[2];
+    SVec4 line;
+    SVec4 cross;
+    SVec4 result;
+    VECTOR pos;
+    // The original allocates 0x20 of stack the code never references (frame 0x80).
+    MATRIX unusedMatrix;
+
+    pos.vx = pPos->vx;
+    pos.vy = 0;
+    pos.vz = pPos->vz;
+
+    if (func_8007CD80(&pos, points, &cross) == -1) {
+        line.x = points[0].vx;
+        line.y = points[0].vz;
+        line.z = points[1].vx;
+        line.w = points[1].vz;
+        func_800723E4(&line, &cross, &result);
+
+        g_CameraAt2.vx = result.x << 16;
+        g_CameraAt2.vz = result.y << 16;
+        if (D_800B21CD == 0) {
+            if (D_800ADBA8 == 0) {
+                g_CameraAt2.vy = param << 16;
+                D_800ADBA8 = 1;
+            }
+        } else {
+            g_CameraAt2.vy = pPos->vy - 0x200000;
+        }
+    } else {
+        g_CameraAt2.vx = pPos->vx;
+        D_800ADBA8 = 0;
+        g_CameraAt2.vy = pPos->vy;
+        g_CameraAt2.vz = pPos->vz;
+        g_CameraAt2.vy = g_CameraAt2.vy - 0x200000;
+    }
+
+    {
+        s32 offset;
+
+        offset = (-((rsin(((g_Scene.sceneDIP * 91) >> 3) + 0xC00) * (s32)g_Scene.sceneScrZ) << 5) >> 0x10) * g_Scene.sceneScale * 0x10;
+        g_CameraEye2.vy = offset + g_CameraAt2.vy;
+        offset = ((((rcos(((g_Scene.sceneDIP * 91) >> 3) + 0xC00) * (s32)g_Scene.sceneScrZ) << 5) >> 0x10) * g_Scene.sceneScale * 0x10);
+        g_CameraEye2.vz = offset + g_CameraAt2.vz;
+    }
+    g_CameraEye2.vx = g_CameraAt2.vx;
+    func_80073684(&g_CameraEye2, &g_CameraAt2);
+
+    if (g_Scene.unk48 & 0x1) {
+        if (g_Scene.unk8C != 0) {
+            g_Scene.unk90 += g_Scene.unk94;
+            g_Scene.sceneScale = g_Scene.unk90 >> 16;
+        }
+        if (--g_Scene.unk8C == 0) {
+            g_Scene.unk48 &= 0xFFFE;
+        }
+    }
+
+    if (g_Scene.unk48 & 0x8) {
+        g_Scene.unk74 += g_Scene.unk78;
+        g_Scene.sceneDIP = g_Scene.unk74 >> 16;
+        if (--g_Scene.unk70 == 0) {
+            g_Scene.unk48 &= 0xFFF7;
+        }
+    }
+}
+*/
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80072D74);
 
