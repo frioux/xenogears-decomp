@@ -10,6 +10,9 @@ extern s32 D_801E9768[]; // Card result to error code
 
 s32 func_801C881C(void);
 extern void func_80039DB8(s32 arg0);
+extern int Vsync(int mode);
+
+void func_801C7BF4(void);
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc2", func_801C7B0C);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc2", func_801C7BF4);
@@ -63,5 +66,23 @@ s32 func_801C891C(long chan) {
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc2", func_801C8960);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc2", func_801C8A10);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc2", func_801C8BEC);
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc2", func_801C8CA4);
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc2", func_801C8D1C);
+void func_801C8CA4(u8 index) {
+    s32 i;
+
+    if (g_Menu->menuUnk2->unk4F74[index] != -2) {
+        g_Menu->menuUnk2->unk4FE6 = 2;
+        for (i = 0x3B; i != 0; i--) {
+            func_801C7BF4();
+        }
+        g_Menu->menuUnk2->unk4FE6 = 0;
+    }
+}
+void func_801C8D1C(u8 index) {
+    s32 i;
+
+    if (g_Menu->menuUnk2->unk4F74[index] != -2) {
+        for (i = 0x3B; i != 0; i--) {
+            Vsync(0);
+        }
+    }
+}
