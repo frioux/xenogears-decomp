@@ -9,6 +9,13 @@ extern u32 D_800912F0;
 extern s32 D_80092734;
 extern s32 D_80092950;
 extern u8 D_80092884;
+extern u8 D_80099D9A;
+extern u8 D_80099D9B;
+extern u8 D_80099D9C;
+extern u8 D_80099D9D;
+extern u8 D_80099D9E;
+extern u8 D_80099DA1;
+extern u8 D_80099DA2;
 
 typedef struct {
     /* 0x00 */ u8 unk0[0x12];
@@ -66,7 +73,23 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc7", func_8007FE48);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc7", func_8007FF70);
 
+static void SetBattleFlag(u8* pFlag, s32 arg, s32 flags) {
+    *pFlag = func_8007FF70(*pFlag, arg, flags);
+}
+
+static void SetFlag(u8* pFlag, s32 arg, s32 flags) {
+    *pFlag = func_8007FF70(*pFlag, arg, flags);
+}
+
+typedef struct {
+    /* 0x0 */ u8 unk0;
+} FlagByte; // Size: 1
+
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc7", func_80080054);
+/* best 55.13%: retail keeps &D_80099D98 in s0 across the call (lui+addiu, then lbu a0,0(s0)
+   and sb v0,0(s0)); gcc 2.7.2 rematerialises the symbol address twice instead, whatever the
+   source shape (pointer local, struct field, u8/u16*, volatile, static helper ~71%). */
+
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc7", func_80080090);
 
