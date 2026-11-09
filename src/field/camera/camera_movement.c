@@ -81,6 +81,12 @@ void func_8008FB28(void) {
    then loads the actor; gcc hoists the actor load and the scriptInstructionPointer
    read-modify-write above the stores and leaves a nop in the jr delay slot. Both
    the assignment order above and putting the multiply first give the same 66.43%.
+   Two more orders gave the same score: a `s32 z = mult...;` local stored last, and
+   the scriptInstructionPointer RMW moved to the top (that one adds 8 bytes, 53.39%).
+   Root cause is gcc's post-reload reorder: it moves the g_FieldScriptVMCurActor
+   load and the RMW store above the D_800AF93x stores because the symbol_refs cannot
+   alias, whatever the source order. To unblock, the actor read has to depend on
+   something the stores define.
 void func_8008FB28(void) {
     D_800AF930 = ((s32)g_Scene.sceneScrZ * g_Scene.sceneScale) >> 12;
     D_800AF93A[0] = 0x1000;
