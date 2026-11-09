@@ -1,6 +1,9 @@
 #include "common.h"
 
 extern void func_800379C8(char*, ...);
+extern char D_8006FCC0[];
+extern char D_8006FCC4[];
+extern char D_8006FCC8[];
 
 s32 func_80075738(u8* p0, u8* p1) {
     return *(s16*)(p1 + 0x15EA) - *(s16*)(p0 + 0x15E8);
@@ -52,7 +55,20 @@ void func_80076424(u8* p) {
     p[0x9C3] = 0;
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80076438);
+void func_80076438(u8* p) {
+    s32 i;
+    u8 idx;
+
+    idx = p[0x9C1];
+    func_800379C8(D_8006FCC0);
+    for (i = 0; i < p[0x9C2]; i++) {
+        u8* pSlot = p + (idx & 0x1F);
+        char* pFmt = D_8006FCC4;
+        func_800379C8(pFmt, pSlot[0x9A0]);
+        idx++;
+    }
+    func_800379C8(D_8006FCC8);
+}
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_800764CC);
 
@@ -80,7 +96,20 @@ void func_80077A88(u8* p) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80077A9C);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80078154);
+typedef struct {
+    /* 0x0 */ s32 x;
+    /* 0x4 */ s32 y;
+    /* 0x8 */ s32 z;
+    /* 0xC */ s32 w;
+} Vec4;
+
+void func_80078154(u8* p) {
+    *(Vec4*)p = *(Vec4*)(p + 0x93C);
+    p[0x4C] = 0;
+    p[0xC4] = 0;
+    p[0xC5] = 0;
+    *(u32*)(p + 0xD0) |= 0x2000000;
+}
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80078194);
 
