@@ -1974,6 +1974,10 @@ INCLUDE_ASM("asm/member_change_menu/nonmatchings/main/misc", MemberChangeMenuSwa
 // -O2 -G8 (this unit's) is best at 98.22, gcc 2.7.2 gives 97.22, 2.7.2-cdk
 // 93.03, -O3 variants 63-71. The reference counts are fixed by the matching
 // instruction stream, so the allocno priorities cannot be nudged from C.
+// Re-confirmed (2026-11): declaring canSwapSrc/canSwapDst first and initialising
+// them before result keeps the same s0..s4 mapping but reorders the prologue
+// stores (97.26%); loading the checked id into a shared u_char local changes
+// nothing; the mapping is neither declaration order nor first-use order.
 // u_char MemberChangeMenuSwapCharacters(u_char isBenchedWindowActive, s32 curCharIndex, s32 curCharOffset, u_char isSelectedCharOnBenchedWindow, s32 selectedCharIndex, s32 selectedCharOffset) {
 //     u_char srcIndex;
 //     u_char dstIndex;
