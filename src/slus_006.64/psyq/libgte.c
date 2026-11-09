@@ -3,6 +3,25 @@
 #include "psyq/gtemac.h"
 #include "psyq/inline_c.h"
 
+// Every stub left in this unit is Sony's hand-written vector.s: splat flags each
+// one `Handwritten function` and flags every GTE op inside it `handwritten
+// instruction`, exactly like the 28 functions above that do match because the
+// gte macros reproduce Sony's stream. What is left does not, for one of these
+// reasons (tools/scripts/convertible.py reports the first two):
+//   - nops after `.size`, which C cannot emit and whose removal shifts the rest
+//     of the unit's .text: MatrixNormal, TransMatrix, ApplyMatrixSV,
+//     LoadAverageCol, InitGeom, SquareRoot0, MulMatrix0, MulMatrix, MulMatrix2,
+//     ScaleMatrixL, ScaleMatrix, ApplyRotMatrixLV
+//   - dead code: InvSquareRoot's `andi $t0,$v0,1` (never read) and
+//     ApplyMatrixLV's `sra $t3,$t0,15` at 0x800494D0, which is jumped over
+//   - a private calling convention, operands and results in $t0-$t2 with $ra
+//     parked in $a3: func_80048DD8, MatrixNormal, VectorNormal, VectorNormalSS,
+//     and VectorNormalS, which branches into the middle of VectorNormalSS
+//   - GTE registers packed by hand around three MVMVAs (lhu + lw + lui 0xFFFF0000
+//     then and/or): SetMulMatrix, CompMatrix
+//   - $ra spilled to the global D_80056D20 around a printf and the stack depth
+//     kept in D_80056D2C: PushMatrix, PopMatrix
+
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", InitGeom);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", SquareRoot0);
@@ -155,12 +174,7 @@ void LoadAverageByte(u_char *v0, u_char *v1, long p0, long p1, u_char *v2) {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", LoadAverageCol);
 
-// MulMatrix0/MulMatrix/MulMatrix2/ScaleMatrixL/ApplyRotMatrixLV/LoadAverageCol/
-// SquareRoot0 own instructions after `.size` (trailing nops no C definition
-// emits), so they are not linkable from C: see tools/scripts/convertible.py.
-// ApplyMatrixLV/CompMatrix/SetMulMatrix are linkable but their .s holds
-// unreachable instructions (e.g. the `sra $t3,$t0,15` at 0x800494D0 in
-// ApplyMatrixLV's 16-bit packing), which a C compiler cannot produce.
+// why each of these cannot be converted: see the note at the top of the file.
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", MulMatrix0);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", CompMatrix);
