@@ -558,16 +558,18 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_800263E4);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_8002675C);
 /*
-Best 91.30% (696 bytes, same size as the original). What the 86.77% attempt was
-missing: declare localX/localY before pDirent and i (frame 0x50, x copy at 0x10,
-y copy at 0x18), cast the four scaled reads to s16 so they load with lh, read v
-through (u16) and texPageX through (s16), assign the corners in offset order
-(x0,x1,x2,x3 - not x0,x2,x1,x3), and put the pPrim computation before pData.
-Still open, and all that is left: the original ends the y and height quotients
-with srl while x and width use sra, each after the same bgez/+0xFFF fixup. A
-signed division gives sra for all four, an unsigned dividend drops the fixup, so
-the y/height source form is still unknown. The u/v pair also lands in a1/a2
-instead of the original's a2/a1.
+Best 92.96% (696 bytes, same size as the original). Remaining gaps are
+allocator/scheduler only: gcc hoists the lhu of scale to just after the dirent
+count load (the original loads it after the pDirent store), so it fills the
+beqz delay slot with the localY store where the original has a nop, and the
+first quotient lands in a0/v1 instead of v1/a0.
+The 91.30% attempt's srl-vs-sra puzzle is solved: assigning the y and height
+quotients to u16 locals is what makes cdk gcc truncate and emit srl after the
+same bgez/+0xFFF fixup (a signed int quotient gets sra, and the 91.30% attempt
+had both y and height as s32). Everything else that got the earlier attempt
+that far still holds: localX/localY declared before pDirent and i, the four
+scaled reads cast to s16 (lh), v read through (u16), texPageX through (s16),
+corners assigned in offset order, and pPrim computed before pData.
 s32 func_8002675C(MenuResourceDirectory* dir, u32 index, POLY_FT4* pPrims,
                   s32 context, u16 x, u16 y, u16 scale) {
     u16 localX = x;
@@ -576,9 +578,9 @@ s32 func_8002675C(MenuResourceDirectory* dir, u32 index, POLY_FT4* pPrims,
     MenuResourceTextureMetadata* pData;
     POLY_FT4* pPrim;
     s32 nX;
-    s32 nY;
+    u16 nY;
     s32 nWidth;
-    s32 nHeight;
+    u16 nHeight;
     u16 u;
     u16 v;
     u16 width;
