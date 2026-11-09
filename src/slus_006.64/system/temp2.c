@@ -293,7 +293,12 @@ scores 87.24% under gcc-2.7.2-psx, so this one is source-level. Two gaps: gcc
 sinks the `lhu` of pPrim->x0 - and the `lhu` of xOffset, which the original
 issues before the g_GfxCurWorkBuffer load - so the original fills a load-delay
 slot that gcc leaves as a nop, and xOffset/prim end up in s3/s1 instead of
-s1/s3. Both x0 reads (signed for the width, unsigned for the centre) have to
+s1/s3. Ruled out (all produced byte-identical output, so neither statement
+order nor copies are the lever): assigning prim before xOffset, a pNext local
+with a nested if, a second TILE pointer for the tail, aliasing the tail through
+a u16 pointer, and folding nHalf into the field updates. gcc coalesces every
+copy; the s1/s3 swap and the missing move-a1-tail copy must come from elsewhere
+in the source (prim is the higher-priority pseudo here, lower there). Both x0 reads (signed for the width, unsigned for the centre) have to
 stay in the source.
 void func_80025544(WorkListEntry* pTask) {
     SpriteData* pSpriteData;
