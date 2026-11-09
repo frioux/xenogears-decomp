@@ -98,17 +98,11 @@ MATRIX *ScaleMatrix(MATRIX *m, VECTOR *v) {
 */
 
 
-void SetRotMatrix(MATRIX *m) {
-    gte_SetRotMatrix(m);
-}
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", SetRotMatrix);
 
-void SetLightMatrix(MATRIX *m) {
-    gte_SetLightMatrix(m);
-}
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", SetLightMatrix);
 
-void SetColorMatrix(MATRIX *m) {
-    gte_SetColorMatrix(m);
-}
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", SetColorMatrix);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", SetTransMatrix);
 /* best attempt 96.25%. The original loads into t0/t1/t2, gcc into
@@ -154,7 +148,6 @@ void SetSZfifo3(long sz1, long sz2, long sz3) {
 
 void SetSZfifo4(long sz0, long sz1, long sz2, long sz3) {
     gte_ldsz4(sz0, sz1, sz2, sz3);
-    gte_nop();
 }
 
 void SetSXSYfifo(long sxy0, long sxy1, long sxy2) {
@@ -323,13 +316,7 @@ void ColorCol(VECTOR *v0, CVECTOR *v1, CVECTOR *v2) {
     gte_strgb(v2);
 }
 
-long AverageSZ3(void) {
-    long otz;
-
-    gte_avsz3_b();
-    gte_stotz_val(otz);
-    return otz;
-}
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", AverageSZ3);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", AverageSZ4);
 
@@ -390,25 +377,9 @@ VECTOR *Square0(VECTOR *v0, VECTOR *v1) {
 */
 
 
-long AverageZ3(long sz0, long sz1, long sz2) {
-    long otz;
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", AverageZ3);
 
-    gte_ldsz3(sz0, sz1, sz2);
-    gte_nop();
-    gte_avsz3_b();
-    gte_stotz_val(otz);
-    return otz;
-}
-
-long AverageZ4(long sz0, long sz1, long sz2, long sz3) {
-    long otz;
-
-    gte_ldsz4(sz0, sz1, sz2, sz3);
-    gte_nop();
-    gte_avsz4_b();
-    gte_stotz_val(otz);
-    return otz;
-}
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", AverageZ4);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", OuterProduct12);
 
@@ -441,14 +412,14 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", RotAverage4);
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", RotAverageNclip4);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", TransposeMatrix);
-/* best attempt 68.44%. Instruction sequence and store order now match exactly
-   (the 0x10 halfword must go through a long temp to get `lh` and to reuse the
-   dead p[1] register). Only differences left: gcc coalesces the returned m1 into
-   v0 and stores through v0 while the original keeps the return copy in v0 and
-   stores through a1, so the temps land in v1/a2 instead of t1/t2/t3. gcc
-   CSEs every copy form of the return value (ret = m1, cast, separate pointer),
-   and gcc-2.6.0 -O3 gives the same 68.44%.
+/* best attempt 65.00%. Structure and store order match: word stores q[1]=p[0],
+   q[0]=p[1] patched with the low half of p[0], then q[3],q[2] patched from
+   p[1].lo/p[2].lo/p[3].lo and the halfword at 0x10. What is left: gcc folds the
+   `addu v0,a1,zero` return copy into every store (`sw ..,0(v0)`) where the
+   original keeps storing through a1, allocates the temps as v1/a2 instead of
+   t1/t2 (t1 reused for p[3]), and turns the 0x10 `lh` into `lhu`.
 MATRIX *TransposeMatrix(MATRIX *m0, MATRIX *m1) {
+    MATRIX *ret = m1;
     long *p = (long *)m0;
     long *q = (long *)m1;
     short *s = (short *)m1;
@@ -465,10 +436,9 @@ MATRIX *TransposeMatrix(MATRIX *m0, MATRIX *m1) {
     q[2] = t3;
     s[6] = t1;
     s[4] = t2;
-    t1 = ((short *)m0)[8];
+    s[8] = ((short *)m0)[8];
     s[2] = t3;
-    s[8] = t1;
-    return m1;
+    return ret;
 }
 */
 
