@@ -481,25 +481,27 @@ void func_800A6C40(void) {
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A6E70);
 
-/* PARKED, 99.56% / 500 bytes (the original is 500 too): everything but
-   the two UV temporaries matches, and those only land in swapped registers -
-   the original keeps (j*16) with its `& 0x3F` in v0 and the `+ 0x10` in v1,
-   we get v0 and v1 the other way round (the whole instruction sequence, the
-   store order and every offset are identical). Tried and no help: inline vs
-   named UV locals, int vs u_char locals, three declaration orders, no UV
-   locals at all, swapping the u0/u2 and u1/u3 stores, a separate nU1 local.
-   Later found (round 25): naming the second temp or spelling the u1/u3
-   store as `nU + 0x10` inline makes no difference at all; making the mask
-   local a u_short truncates nX and moves the whole nX group to v0 (so the
-   swap is the allocno priority of the +0x10 temp, not C statement order),
-   and a u_short nX adds an `andi 0x30` truncation - both score 94.91%.
-   Settled facts: x0/x2 = nX, u0/u2 = nX & 0x3F, u1/u3 = that + 0x10,
-   v0/v1 = i*16, v2/v3 = i*16 + 0x10 (gcc strength-reduces both to the s3/s4
-   counters), x1/x3 = nX + 0x10, 0xE x 0x14 grid of 16x16 tiles,
-   tpage = GetTPage(2, 1, j / 4 * 0x40 + 0x2C0, 0x100), and
-   *pPolyNext = *pPoly copies 0x34 bytes. polygons is 560 POLY_GT4 (two
-   copies of 280), so polygonsNext is at +0x38E0 and the four u_short
-   attribute arrays start at 0x71C0.
+/* PARKED, best 99.56% and 500 bytes (the original is 500 too). Everything
+   matches - instruction sequence, store order, offsets, every other register -
+   except which of the two UV temporaries lands in v0:
+     original: j*16 in v0, u0/u2 = (v0 & 0x3F) reusing v0 after j*16 dies,
+               u1/u3 = that + 0x10 in v1
+     ours:     j*16 and the mask in v1 (same reuse), the +0x10 in v0
+   So gcc's allocno priority ranks the +0x10 temp above the j*16/mask group and
+   we need the opposite. Measured, none of these work:
+     - temp as a named local, int / u_short / u_char: the temp is allocated
+       LAST (v1 then a0), nX takes v0 and nU does not reuse it, and the
+       andi/addiu are emitted before the x0/x2 sh -> 94.92%.
+     - cast the temp at the store, (u_char)(nU + 0x10): same 94.92%.
+     - no UV locals at all (u0 = nX & 0x3F inline): same 94.92%.
+     - mask or x local as a narrow type: adds a truncation andi -> 94.91%.
+   Settled: 0xE x 0x14 grid of 16x16 tiles, i outer / j inner,
+   nIndex = i*0x14 + j, polygons is 560 POLY_GT4 (two copies of 280, next copy
+   at +0x38E0), the four u_short attribute arrays at 0x71C0/0x73F0/0x7620/
+   0x7850 set to 0x80, y0/y1 = i*16 in s5, y2/y3 = i*16 + 0x10 in s3,
+   x1/x3 = j*16 + 0x10 strength-reduced to an s4 counter,
+   tpage = GetTPage(2, 1, j / 4 * 0x40 + 0x2C0, 0x100), SetSemiTrans, then
+   *pPolyNext = *pPoly (0x34 bytes: a 4x lw/sw unrolled loop plus one word).
     void func_800A6E70(void) {
         FieldParticlePrimitiveSet* pPrims;
         POLY_GT4* pPoly;
@@ -558,8 +560,8 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A6E70);
                 *pPolyNext = *pPoly;
             }
         }
-    }*/
-
+    }
+*/
 void func_800A7064(void) {
     HeapFree(D_800B00C4);
 }
