@@ -7,6 +7,7 @@
 #include "field/script_vm.h"
 #include "field/text_box.h"
 #include "field/particles.h"
+#include "field/effects.h"
 
 void FieldScriptMemoryWriteU16(int, int);
 
@@ -179,7 +180,44 @@ void func_80087800(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_80087848);
+// Globals written directly by field script handlers. Declaring them as struct
+// members (rather than bare scalars) keeps gcc from hoisting the actor's
+// instruction pointer load above the store.
+typedef struct { s16 value; } FieldScriptGlobalS16;
+typedef struct { u16 value; } FieldScriptGlobalU16;
+typedef struct { s32 value; } FieldScriptGlobalS32;
+typedef struct { u8 value; } FieldScriptGlobalU8;
+
+extern FieldScriptGlobalS32 D_800ADBDC;
+extern int D_800ADB2C;
+extern s32 D_8004F308;
+extern s32 D_800ADB88;
+extern s32 D_800ADBE8;
+extern u8 D_8005061C;
+extern u8 D_8005061D;
+extern u8 D_8005061E;
+extern u8 D_8005061F;
+extern u8 D_80050620;
+extern u8 D_80050621;
+extern void func_800379B4(int);
+
+void func_80087848(void) {
+    if (D_800ADBDC.value == 0 || D_800ADBE4 == 0 || D_800ADB2C != 0 || D_8004F308 == -1) {
+        g_FieldScriptVMCurActor->scriptInstructionPointer -= 1;
+        D_800B00C0 = 1;
+    } else {
+        func_800379B4(0);
+        D_8005061C = FieldScriptVMGetArgument(1);
+        D_8005061D = FieldScriptVMGetArgument(3);
+        D_8005061E = FieldScriptVMGetArgument(5);
+        D_8005061F = FieldScriptVMGetArgument(7);
+        D_80050620 = FieldScriptVMGetArgument(9);
+        D_80050621 = FieldScriptVMGetArgument(0xB);
+        D_800ADB88 = 1;
+        D_800ADBE8 = 0;
+        g_FieldScriptVMCurActor->scriptInstructionPointer += 0xD;
+    }
+}
 
 void func_80087960(void) {
     FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(1), *(u_short*)&g_pGameState->unk17FC[0x48]);
@@ -192,14 +230,6 @@ void func_800879D0(void) {
     FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(2), g_pGameState->unk1852);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
 }
-
-// Globals written directly by field script handlers. Declaring them as struct
-// members (rather than bare scalars) keeps gcc from hoisting the actor's
-// instruction pointer load above the store.
-typedef struct { s16 value; } FieldScriptGlobalS16;
-typedef struct { u16 value; } FieldScriptGlobalU16;
-typedef struct { s32 value; } FieldScriptGlobalS32;
-typedef struct { u8 value; } FieldScriptGlobalU8;
 
 extern FieldScriptGlobalU8 D_800B2357;
 
@@ -1220,7 +1250,34 @@ void func_8008B2F0(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 0xF;
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008B328);
+extern void FieldDistortionSetTarget(int, int, int, int, int, int, int);
+extern void FieldDistortionFree(void);
+
+void func_8008B328(void) {
+    switch (SCRIPT_READ_U8_REL(1)) {
+        case 0:
+            FieldDistortionSetTarget(0, 0, 0, 0, 0, 0, FieldScriptVMGetArgument(2));
+            g_FieldEffects.distortion.isFinished = 1;
+            g_FieldScriptVMCurActor->scriptInstructionPointer += 4;
+            break;
+        case 1:
+            if (g_FieldEffects.distortion.isActive == 0) {
+                g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
+            } else {
+                g_FieldScriptVMCurActor->scriptInstructionPointer -= 1;
+            }
+            break;
+        case 2:
+            g_FieldEffects.distortion.isActive = 0;
+            g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
+            break;
+        case 3:
+            FieldDistortionFree();
+            g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
+            break;
+    }
+    D_800B00C0 = 1;
+}
 
 
 extern FieldScriptGlobalS16 D_800B2184;
@@ -1983,7 +2040,61 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008EA58);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008EC30);
 
+extern s16 D_800C3A20;
+extern s16 D_800C3A22;
+extern s16 D_800C3A24;
+extern s16 D_800C3A26;
+extern s16 D_800C3A28;
+extern s16 D_800C3A2A;
+extern s16 D_800C3A2C;
+extern s16 D_800C3A2E;
+extern u16 D_800C3A30;
+extern u16 D_800C3A32;
+extern u16 D_800C3A34;
+extern u16 D_800C3A36;
+extern u16 D_800C3A38;
+extern u16 D_800C3A3A;
+extern s32 D_800ADB70;
+extern s32 D_800ADB74;
+extern s32 D_800ADB80;
+
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008EE14);
+// 79.22%: everything up to the last four stores matches. The original's
+// post-reload scheduler emits them as [lhu D_800C3A30][lw g_FieldScriptVMCurActor]
+// [sh D_800C3A36][andi/sh D_800C3A30][lhu ip][li 1][sw D_800ADB70][addiu/sh ip];
+// ours puts the D_800ADB70 store before the actor load and the ip load after it.
+/*
+void func_8008EE14(void) {
+    u16 value = FieldScriptVMGetArgument(9);
+    s16 pos;
+
+    D_800C3A20 = FieldScriptVMGetArgument(1);
+    D_800C3A2A = FieldScriptVMGetArgument(3);
+    D_800C3A2C = FieldScriptVMGetArgument(5);
+    D_800C3A2E = FieldScriptVMGetArgument(7);
+    D_800C3A30 = value;
+    if (value == 0xFE) {
+        D_800C3A3A = 1;
+    } else {
+        D_800C3A3A = 0;
+    }
+    pos = FieldScriptVMGetArgument(0xB);
+    D_800C3A22 = pos;
+    D_800C3A26 = pos;
+    pos = FieldScriptVMGetArgument(0xD);
+    D_800C3A24 = pos;
+    D_800C3A28 = pos;
+    D_800C3A32 = FieldScriptVMGetArgument(0xF);
+    D_800C3A34 = FieldScriptVMGetArgument(0x11);
+    D_800ADB80 = value & 0x40;
+    D_800C3A38 = 0xFF;
+    D_800ADB74 = 2;
+    D_800C3A30 &= 0xF;
+    D_800C3A36 = 0;
+    D_800ADB70 = 1;
+    g_FieldScriptVMCurActor->scriptInstructionPointer += 0x13;
+}
+*/
 
 extern s32 D_800ADB3C;
 extern s32 D_800ADB38;
