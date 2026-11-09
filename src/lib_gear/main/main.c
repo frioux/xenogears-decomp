@@ -1272,9 +1272,9 @@ int func_801E6338(Model* pModel) {
     return SquareRoot0(dx * dx + dy * dy + dz * dz);
 }
 
-// 93.15% as measured with Model::unk5A still declared u8[2] (so the attempt below
-// tested the field's address instead of loading it); the header now has s16
-// unk5A, which removes that delta. What already reproduces exactly: the reload of
+// 95.39% with the header's Model::unk5A now s16 (it scored 93.15% while unk5A was
+// u8[2], which made the attempt below test the field's address instead of loading
+// it). What already reproduces exactly: the reload of
 // unk58 after the bit-scan loop, the sequential (not else-if) test chain on
 // 0xFE/0xFD/0xFC/0xFA, the CompMatrix / SetRotMatrix / gte_ldv0 + gte_mvmva body
 // and the 0x88 tail, including the 0x38 frame (which needs a 24-byte GTE result
