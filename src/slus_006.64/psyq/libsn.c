@@ -4,7 +4,17 @@
    the stub takes its arguments in a1..a3 (a0 unused) and answers with a status
    in v0 and the result in v1, which is why each wrapper shifts its arguments
    down one register and turns a non-zero status into -1. */
-int PCopen(char *name, int flags) {
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libsn", PCopen);
+/* 84.38%: argument shifting matches (the moves must name $4/$5 directly, since
+   "r" operands let gcc swap name/flags), and the branch is the right way round
+   (beqz v0). Only the tail differs: the original copies the result first
+   (`addu v0,v1,zero`, sunk into the branch delay slot) and then stores -1 into
+   v0, so it needs the result variable live in v0 while gcc coalesces it with the
+   break's value register (`li v1,-1; jr ra; move v0,v1`). Every shape tried puts
+   the -1 arm in the delay slot instead: two returns, ?:, goto/join forms, a
+   separate result variable, `register ... asm("$2")` on the result, and
+   the same source under gcc 2.6.0 / -O2. */
+/* int PCopen(char *name, int flags) {
     register int status asm("$2");
     int value, ret;
 
@@ -14,7 +24,7 @@ int PCopen(char *name, int flags) {
     if (status != 0)
         ret = -1;
     return ret;
-}
+} */
 
 void PCclose(int fd) {
     __asm__ volatile("move $5, %0\n\tbreak 260" : : "r"(fd));
