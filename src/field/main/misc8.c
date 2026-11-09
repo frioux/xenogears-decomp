@@ -55,14 +55,17 @@ u_int func_80080968(ActorData* pActor) {
 extern u_short D_800B14AC;
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800809D0);
-/* 95.56%, and now the SIZE matches (72 bytes; the `D_800B14AC += 2` attempt
-   was 76). Reading the counter into a u_short temp and incrementing the temp
-   puts `value += step` at the loop head, one slot before `lui v0`: the original
-   has it inside the loop, in the `lhu` load-delay slot. gcc 2.7.2 hoists the induction update to the loop head whatever the
-   source order (a do/while, `acc += (value += step)` and hoisting `acc +=
-   value` before the loop all give the same 72-byte shape). Reproducing the
-   original also needs a `acc += value` before the loop that does NOT fold into
-   `lui/ori` of -0x14D000; adding it gives 76 bytes and swaps a0/a1.
+/* 95.56%, same size (72 bytes) and the same registers as the original
+   (v1=value, a1=step, a0=acc). One residual: gcc 2.7.2 hoists the loop's
+   `value += step` to the loop head, one slot before `lui v0` and before the
+   `lhu`, so the `lhu` load-delay slot stays a nop; the original has the add
+   inside the body right after the `lhu`. A do/while, a while, a for with
+   `acc += value` as the increment, `D_800B14AC += 2` vs a u_short temp, and
+   writing the add before the counter all give this same placement. The
+   original also has an extra `addu a0,a0,v1` (acc += the initial value) just
+   before the loop label; putting it in the source makes gcc fold
+   `acc = 0; acc += value` into acc = value and rematerialise the constant into
+   a1 (76 bytes, a0/a1 swapped).
 int func_800809D0(s32* pData) {
     s32 value = -0x14D000;
     s32 step = pData[7];
@@ -454,7 +457,13 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800831F4);
    `lhu`. `int vy` also gives `lh v1`, and adding a second source-level
    assignment `rotation = vy;` before the test makes gcc branch on the ternary
    instead (148 bytes, 84.97%), so the extra copy is not a duplicate
-   assignment.
+   assignment. Casting the field to u_short for the test is worse (lhu plus
+   sll/sra, 148 bytes). A second residual shows up in
+   build/src/field/main/misc8.c.s: gcc puts `sh $v0,0x106($s0)` (rotation.vy)
+   inside the `.set noreorder` block after the `jal func_80081F80`, i.e. it
+   steals the store into the call's delay slot, so only one of the two stores
+   precedes the `lh a1,0x104($s0)` argument reload; the original emits both
+   stores before the reload and a nop in the delay slot.
 void func_800831F4(int arg0, ActorData* pActor, int arg2, int arg3) {
     short vy;
     int rotation;
