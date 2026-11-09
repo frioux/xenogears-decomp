@@ -4,6 +4,11 @@
 extern u16 D_800C3468[];
 extern u16 D_800C3448[];
 extern u8 D_800C3E4C;
+extern u8 D_800D2C38;
+extern u8 D_800CCB34;
+extern u8* D_800D2DB4;
+extern s32 func_80076A10(s32 arg0, s32 arg1, s16 arg2, s16 arg3);
+extern void func_80076B68(u8* p);
 extern Temp8* D_8005919C;
 extern void func_80039DB8(s32 arg0);
 extern void func_8008860C(void);
@@ -23,6 +28,28 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc14", func_80088990);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc14", func_80088B80);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc14", func_80089038);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc14", func_80089110);
+// Best attempt: objdiff 99.81%, 212 bytes (the original size). The only difference
+// is the last addu of the loop: the original emits "addu a0,a0,a1" (offset then
+// base pointer), gcc always emits "addu a0,a1,a0" for every spelling tried
+// (base + off, off + base, a separate s32 offset local).
+/*
+void func_80089110(void) {
+    s32 arg0;
+    s32 pEntry;
+    s32 i;
+
+    arg0 = 0xA0;
+    if (D_800D2C38 != 0) {
+        arg0 = 0xA1;
+    }
+    D_800D2DB4[0x5D75] = func_80076A10(arg0, (s32)(D_800D2DB4 + 0x3AC0), 0xA0, 0x64);
+    D_800D2DB4[0x5D84] = D_800CCB34;
+    for (i = 0; i < D_800D2DB4[0x5D75]; i++) {
+        pEntry = (i * 2 + D_800D2DB4[0x5D84]) * 0x28 + 0x3AC0;
+        func_80076B68(D_800D2DB4 + pEntry);
+    }
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc14", func_800891E4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc14", func_80089348);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc14", func_8008946C);
