@@ -7,7 +7,7 @@ extern s32 *D_800D3368[];
 u8 func_800AA514(s16 arg0, s16 arg1, s32 arg2) {
     s16 v;
 
-    v = arg1 * arg0 / 256 + arg2;
+    v = arg2 + arg1 * arg0 / 256;
     if (v >= 0x100) {
         v = 0xFF;
     }
@@ -31,8 +31,8 @@ void func_800AA788(u32 arg0) {
 void func_800AA79C(s32 arg0, s32 arg1) {
     s32 tmp;
 
-    *(u8 *)(D_800D3368[arg0] + 0x34) = 0;
-    *(u8 *)(D_800D3368[arg1] + 0x34) = 1;
+    ((u8 *)D_800D3368[arg0])[0x34] = 0;
+    ((u8 *)D_800D3368[arg1])[0x34] = 1;
     tmp = D_800D3368[arg0];
     D_800D3368[arg0] = D_800D3368[arg1];
     D_800D3368[arg1] = tmp;
@@ -42,9 +42,10 @@ u8 func_800AA7DC(s32 arg0) {
     u8 v;
 
     o = arg0 * 0x48;
-    while ((v = D_800C402F[o]) == 0xF7) {
+    do {
+        v = D_800C402F[o];
         o += 0x48;
-    }
+    } while (v == 0xF7);
     if (v == 0xFF) {
         v = 0xFE;
     }
