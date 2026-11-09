@@ -122,3 +122,12 @@ build_variables = {
     maspsx_flags = "--dont-expand-li --use-comm-section --run-assembler"
 }
 paths = [ "world_map/" ]
+
+[[build_preset]]
+name = "XenoBattleTail"
+build_variables = {
+    maspsx_flags = "--dont-expand-li --use-comm-section --run-assembler"
+}
+paths = [
+    "battle/main/misc33."
+]
