@@ -1469,7 +1469,10 @@ Attempt (79.31%, correct size and registers): the only difference is that gcc
 schedules the `andi a0,0xfe` / `xori a0,0x8` pair after the loop-preheader
 constants (`li a2,2`, `sll a1,a1,8`, `li a3,0x100`) while the original emits
 them first. Everything else - including the second pointer to status_flags -
-matches. Stable against declaration order and against a statement-per-line form.
+matches. Stable against declaration order and against a statement-per-line form,
+against cnt/volume/status written as pre-loop locals in source order (gcc emits
+the mask glued to the address expression, so it can never precede them), and
+against gcc-2.7.2-psx (72.03%).
 void func_8003A344(s32 elementIndex, s32 value) {
     s32 index = (elementIndex & 0xFE) ^ 8;
     AudioElement* pElement = &D_800595D8->elements[index];
