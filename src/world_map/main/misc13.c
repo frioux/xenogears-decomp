@@ -18,6 +18,8 @@ extern int rsin(int a);
 extern u8 D_8009D498[];
 extern u8 D_8009BD64[];
 extern u8 D_8009BAC8[];
+extern s32 D_8009D160;
+extern s32 D_8009D2B4;
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_80092BE4);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_80092C70);
@@ -34,11 +36,48 @@ void func_800931B0(void) {
 }
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_800931D8);
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_80093354);
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_800933EC);
+void func_80093354(WorldMapPos* p) {
+    if (p->x >= D_8009D160 * 0x800000) {
+        p->x -= D_8009D160 * 0x800000;
+    }
+    if (p->x < 0) {
+        p->x += D_8009D160 * 0x800000;
+    }
+    if (p->z >= D_8009D2B4 * 0x800000) {
+        p->z -= D_8009D2B4 * 0x800000;
+    }
+    if (p->z < 0) {
+        p->z += D_8009D2B4 * 0x800000;
+    }
+}
+void func_800933EC(WorldMapPos* p) {
+    if (p->x >= D_8009D160 * 2048) {
+        p->x -= D_8009D160 * 2048;
+    }
+    if (p->x < 0) {
+        p->x += D_8009D160 * 2048;
+    }
+    if (p->z >= D_8009D2B4 * 2048) {
+        p->z -= D_8009D2B4 * 2048;
+    }
+    if (p->z < 0) {
+        p->z += D_8009D2B4 * 2048;
+    }
+}
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_80093484);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_80093534);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_800935DC);
+/* best: 72.73%. Every instruction up to the division matches; the original has
+   the zero-division and overflow trap guards (break 7 / break 6) that maspsx
+   only emits with --expand-div, which the XenoWorldMap preset does not pass.
+   Blocked on the preset, not on the C.
+
+s32 func_800935DC(WorldMapPos* p0, WorldMapPos* p1, WorldMapPos* p2) {
+    p0->unk4 = (-(p2->x * (p0->x - p1->x)) - p2->z * (p0->z - p1->z)) / p2->unk4;
+    p0->unk4 += p1->unk4;
+    return p0->unk4;
+}
+*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_80093660);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_80093740);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_80093978);
