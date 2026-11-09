@@ -25,7 +25,7 @@ void func_800A55C8(void) {
 }
 
 // Set PolyFT4 color for PolyFT4s of next swap chain
-void func_800A5600(u_char color) {
+void func_800A5600(int color) {
     int i;
     POLY_FT4* pPoly;
     int nOffset;
@@ -124,7 +124,135 @@ void func_800A5884(void) {
     }
 }
 
+extern s32 D_800ADB38;
+extern s32 D_800ADB3C;
+extern s16 D_800ADC08;
+extern int D_800C3A40;
+extern void FontFree(void);
+extern void func_80070C84(void);
+extern void func_800A4748(void);
+extern void FieldClearAndSwapOTag(void);
+extern void FieldRenderSync(void);
+extern void FieldFadeToBlack(int duration);
+extern void FieldFadeToWhite(int duration);
+extern void func_80077DAC(void);
+extern void func_8007554C(void);
+extern void func_80078B5C(void);
+extern void func_80077544(void);
+extern void func_800A6E70(void);
+extern void func_800A7064(void);
+extern void func_800A915C(void);
+extern void func_800A91F0(void);
+extern void FieldZoomFadeEffectInitialize(int nSemiTrans, int nABR);
+
 INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A5924);
+
+/* Best attempt, 49.06%. The whole body decompiles cleanly - every call, both
+   16.16 fixed-point fade loops (the color starts at 0x800000 and moves by
+   0x800000 / D_800ADB3C per frame), the func_800A5774 tile loop and the
+   "wait until D_800ADB38 leaves 3" loop - but gcc lays the four switch case
+   bodies out in a different order, which costs ~1500 of the 1600 bytes of
+   branches. Body order in the original is [case 4][case 1,2][case 3]
+   (0x59D8 / 0x5A7C / 0x5B20); with the source order below gcc emits
+   [case 3][case 4][case 1,2], and writing the cases in that order in the
+   source moves case 3 to the front instead, so it is not source order. The
+   dispatch tree itself (== 3, then < 4, then == 4, then <= 0) is identical.
+   Worth trying: a case label order or a switch spelling that reproduces the
+   original layout, or a jump-table-looking enum range.
+   Side fact recovered from the original call sites: func_800A5600 takes an
+   int (its u_char parameter used to force an `andi 0xff` on the argument),
+   and both func_800A5884 call sites pass (1, 1).
+    void func_800A5924(void) {
+        int i;
+        int nColor;
+
+        if (D_800ADB38 == 0) {
+            return;
+        }
+        FontFree();
+        func_80070C84();
+        func_800A915C();
+        if (D_800ADB38 == 1 || D_800ADB38 == 4) {
+            func_800A4748();
+            DrawSync(0);
+            FieldClearAndSwapOTag();
+            FieldRenderSync();
+        }
+        FieldRenderSync();
+
+        for (;;) {
+            switch (D_800ADB38) {
+            case 3:
+                FieldZoomFadeEffectInitialize(1, 1);
+                nColor = 0x2C0;
+                for (i = 0; i < 5; i++) {
+                    func_800A5774(nColor, 0x100, 0xE0);
+                    nColor += 0x40;
+                }
+                FieldFadeToWhite(D_800ADB3C);
+                func_800A5600(0);
+                nColor = 0;
+                for (i = 0; i < D_800ADB3C; i++) {
+                    func_80077DAC();
+                    FieldZoomFadeEffectUpdate();
+                    func_8007554C();
+                    func_80078B5C();
+                    func_800A5600(nColor >> 16);
+                    nColor += 0x800000 / D_800ADB3C;
+                }
+                break;
+            case 4:
+                ((void (*)(int, int))func_800A5884)(1, 1);
+                func_800A6E70();
+                D_800ADC08 = 1;
+                FieldFadeToBlack(D_800ADB3C);
+                D_800C3A40 = 0;
+                for (i = 0; i < D_800ADB3C; i++) {
+                    func_80077DAC();
+                    func_800A6C40();
+                    func_8007554C();
+                    func_80078B5C();
+                    D_800C3A40 += 6;
+                }
+                DrawSync(0);
+                func_800A7064();
+                goto end;
+            case 1:
+            case 2:
+                ((void (*)(int, int))func_800A5884)(1, 1);
+                D_800ADC08 = 1;
+                FieldFadeToBlack(D_800ADB3C);
+                nColor = 0x800000;
+                for (i = 0; i < D_800ADB3C; i++) {
+                    func_80077DAC();
+                    FieldZoomFadeEffectUpdate();
+                    func_8007554C();
+                    func_80078B5C();
+                    func_800A5600(nColor >> 16);
+                    nColor -= 0x800000 / D_800ADB3C;
+                    if (nColor < 0) {
+                        nColor = 0;
+                    }
+                }
+                break;
+            default:
+                goto end;
+            }
+
+            while (D_800ADB38 == 3) {
+                func_80077DAC();
+                FieldZoomFadeEffectUpdate();
+                func_8007554C();
+                func_80078B5C();
+            }
+        }
+
+    end:
+        D_800ADB38 = 0;
+        func_800A91F0();
+        func_80077544();
+    }
+*/
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A5C40);
 
@@ -317,34 +445,56 @@ void func_800A6998(POLY_GT4* pPoly, int nCorner, int nDistance, u_short* pTimer)
     }
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A6C40);
-
 extern void* D_800B00C4;
 
 // 280 particle primitives in two copies (current/next) plus four u_short
 // attribute arrays indexed in parallel.
 typedef struct {
-    /* 0x0000 */ POLY_GT4 polygons[280];
-    /* 0x38E0 */ POLY_GT4 polygonsNext[280];
+    /* 0x0000 */ POLY_GT4 polygons[560];
     /* 0x71C0 */ u_short unk71C0[280];
     /* 0x73F0 */ u_short unk73F0[280];
     /* 0x7620 */ u_short unk7620[280];
     /* 0x7850 */ u_short unk7850[280];
 } FieldParticlePrimitiveSet; // Size: 0x7A80
 
-/* Best attempt, 99.56%: only the two UV temporaries land in the opposite
-   registers (v0/v1 swapped on the andi/addiu pair and their four
-   stores); every other instruction matches. Tried: inline vs named UV
-   locals, int vs u_char locals, declaration order, separate nX/nU/nU1.
-   x0/x2 use nX, u0/u2 use nX & 0x3F, u1/u3 use that + 0x10,
-   v0/v1 = i*16, v2/v3 = i*16 + 0x10 (gcc hoists i*16 itself), x1/x3 =
-   nX + 0x10 (strength-reduced to a counter), 20x14 grid of 16x16 tiles,
-   tpage = GetTPage(2, 1, j / 4 * 0x40 + 0x2C0, 0x100).
-   Also tried (still 99.5x%): nU0/nU1 locals in three declaration orders, no UV
-   locals at all (inline `nX & 0x3F` at all four UV stores), and swapping the
-   u0/u2 and u1/u3 store statements. POLY_GT4 here is the 0x34-byte libgpu
-   layout (clut at 0xE, tpage at 0x1A) and polygonsNext is at +0x38E0, so the
-   four u_short attribute arrays are at 0x71C0/0x73F0/0x7620/0x7850.
+extern u_char D_800B1E24[];
+
+void func_800A6C40(void) {
+    POLY_GT4* pPoly;
+    int i;
+    int j;
+
+    for (i = 0; i < 0xE; i++) {
+        for (j = 0; j < 0x14; j++) {
+            pPoly = (POLY_GT4*)((u_char*)D_800B00C4 + g_FieldCurRenderContextIndex * 0x38E0) + (i * 0x14 + j);
+            func_800A6998(pPoly, 0, D_800C3A40, ((FieldParticlePrimitiveSet*)D_800B00C4)->unk71C0 + (i * 0x14 + j));
+            func_800A6998(pPoly, 1, D_800C3A40, ((FieldParticlePrimitiveSet*)D_800B00C4)->unk73F0 + (i * 0x14 + j));
+            func_800A6998(pPoly, 2, D_800C3A40, ((FieldParticlePrimitiveSet*)D_800B00C4)->unk7620 + (i * 0x14 + j));
+            func_800A6998(pPoly, 3, D_800C3A40, ((FieldParticlePrimitiveSet*)D_800B00C4)->unk7850 + (i * 0x14 + j));
+            addPrim(&g_FieldCurRenderContext->ot3[0],
+                (POLY_GT4*)((u_char*)D_800B00C4 + g_FieldCurRenderContextIndex * 0x38E0) + (i * 0x14 + j));
+        }
+    }
+    addPrim(&g_FieldCurRenderContext->ot3[0],
+        &D_800B1E24[g_FieldCurRenderContextIndex * 0xC0]);
+}
+
+INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A6E70);
+
+/* Best attempt, 99.56% / 500 bytes (the original is 500 too): everything but
+   the two UV temporaries matches, and those only land in swapped registers -
+   the original keeps (j*16) with its `& 0x3F` in v0 and the `+ 0x10` in v1,
+   we get v0 and v1 the other way round (the whole instruction sequence, the
+   store order and every offset are identical). Tried and no help: inline vs
+   named UV locals, int vs u_char locals, three declaration orders, no UV
+   locals at all, swapping the u0/u2 and u1/u3 stores, a separate nU1 local.
+   Settled facts: x0/x2 = nX, u0/u2 = nX & 0x3F, u1/u3 = that + 0x10,
+   v0/v1 = i*16, v2/v3 = i*16 + 0x10 (gcc strength-reduces both to the s3/s4
+   counters), x1/x3 = nX + 0x10, 0xE x 0x14 grid of 16x16 tiles,
+   tpage = GetTPage(2, 1, j / 4 * 0x40 + 0x2C0, 0x100), and
+   *pPolyNext = *pPoly copies 0x34 bytes. polygons is 560 POLY_GT4 (two
+   copies of 280), so polygonsNext is at +0x38E0 and the four u_short
+   attribute arrays start at 0x71C0.
     void func_800A6E70(void) {
         FieldParticlePrimitiveSet* pPrims;
         POLY_GT4* pPoly;
@@ -352,7 +502,6 @@ typedef struct {
         int i;
         int j;
         int nIndex;
-        int nU1;
         int nU;
         int nX;
 
@@ -362,7 +511,7 @@ typedef struct {
                 pPrims = D_800B00C4;
                 nIndex = i * 0x14 + j;
                 pPoly = pPrims->polygons + nIndex;
-                pPolyNext = pPrims->polygonsNext + nIndex;
+                pPolyNext = pPrims->polygons + 280 + nIndex;
                 pPrims->unk71C0[nIndex] = 0x80;
                 pPrims->unk73F0[nIndex] = 0x80;
                 pPrims->unk7620[nIndex] = 0x80;
@@ -373,7 +522,6 @@ typedef struct {
                 pPoly->x0 = nX;
                 pPoly->x2 = nX;
                 nU = nX & 0x3F;
-                nU1 = nU + 0x10;
                 pPoly->r0 = 0x80;
                 pPoly->g0 = 0x80;
                 pPoly->b0 = 0x80;
@@ -394,21 +542,18 @@ typedef struct {
                 pPoly->y3 = i * 0x10 + 0x10;
                 pPoly->u0 = nU;
                 pPoly->v0 = i * 0x10;
-                pPoly->u1 = nU1;
+                pPoly->u1 = nU + 0x10;
                 pPoly->v1 = i * 0x10;
                 pPoly->u2 = nU;
                 pPoly->v2 = i * 0x10 + 0x10;
-                pPoly->u3 = nU1;
+                pPoly->u3 = nU + 0x10;
                 pPoly->v3 = i * 0x10 + 0x10;
                 pPoly->tpage = GetTPage(0x2, 0x1, j / 4 * 0x40 + 0x2C0, 0x100);
                 SetSemiTrans(pPoly, 0x1);
                 *pPolyNext = *pPoly;
             }
         }
-    }
-*/
-
-INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A6E70);
+    }*/
 
 void func_800A7064(void) {
     HeapFree(D_800B00C4);
