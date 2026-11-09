@@ -22,6 +22,10 @@ extern s8 D_800B21CC[];
 extern s32 g_PlayerActorIndex;
 extern s32 D_8005A444[];
 
+// g_FieldActors is volatile, which stops gcc from filling the delay slot of a call
+// that follows an index through it; read the pointer through a plain lvalue instead.
+#define FIELD_ACTORS (*((FieldActor**)(void*)&g_FieldActors))
+
 INCLUDE_ASM("asm/field/nonmatchings/main/misc12", func_80099AC0);
 /* 96.22% (1088 bytes, original is 1080). Below reproduces the original
    instruction for instruction except the arrival arm's two rotation stores: gcc
@@ -135,20 +139,12 @@ void FieldScriptVMWriteCurCharacterID(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc12", FieldScriptVMWritePartyLeaderCharacterID);
-/* 94.84%: identical instructions except that gcc emits `li a0,1` for
-   FieldScriptVMGetInstructionArgument early (after the prologue / before the
-   g_FieldActors loads) instead of leaving it in that call's jal delay slot.
-   Tried: `int nArgument = 1;` local, separating the pActor statement (same
-   hoist, pct unchanged), the whole call as one expression (4.19%), and
-   `int`/`short characterId` locals - those do put the li in the delay slot but
-   turn the `lh a1,228(s0)` after the call into a `move a1,s0` (74%).
 void FieldScriptVMWritePartyLeaderCharacterID(void) {
-    ActorData* pActor = g_FieldActors[g_PlayerActorIndex].pActorData;
+    ActorData* pActor = FIELD_ACTORS[g_PlayerActorIndex].pActorData;
 
     FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(1), pActor->characterId);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
-} */
+}
 
 void FieldScriptVMHandlerGetActorDirection(void) {
     int delta = PSX_DEGREES(22.5);
@@ -389,14 +385,6 @@ void FieldScriptSetActorRotation(int angle) {
 }
 
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc12", func_8009AA00);
-/* 97.58%: two instructions differ - gcc emits an extra `li a0,1` for the
-   pActor GetActorIndex call right after the pTargetActor call instead of
-   leaving it in that call's jal delay slot. Same hoist as
-   FieldScriptVMWritePartyLeaderCharacterID. Tried: naming the pTargetActor
-   index in a local (no change); swapping the two assignments changes the
-   s0/s1 allocation so it is not the same code. */
-/*
 void func_8009AA00(void) {
     ActorData* pTargetActor;
     ActorData* pActor;
@@ -404,8 +392,8 @@ void func_8009AA00(void) {
 
     if (FieldScriptVMGetActorIndex(1) != ACTOR_ID_INVALID) {
         if (FieldScriptVMGetActorIndex(2) != ACTOR_ID_INVALID) {
-            pTargetActor = g_FieldActors[FieldScriptVMGetActorIndex(2)].pActorData;
-            pActor = g_FieldActors[FieldScriptVMGetActorIndex(1)].pActorData;
+            pTargetActor = FIELD_ACTORS[FieldScriptVMGetActorIndex(2)].pActorData;
+            pActor = FIELD_ACTORS[FieldScriptVMGetActorIndex(1)].pActorData;
             rotation = -ratan2(
                 pTargetActor->position.vz - pActor->position.vz,
                 pTargetActor->position.vx - pActor->position.vx
@@ -422,7 +410,6 @@ void func_8009AA00(void) {
     }
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
-*/
 
 void func_8009AB08(int rotation) {
     short rotationValue;
