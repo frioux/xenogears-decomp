@@ -463,7 +463,41 @@ void SoundAddSedsEntry(SoundFile* pSoundFile) {
     EnableEvent(g_unk_SoundEvent);
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003852C);
+
+void func_8003852C(SoundFile* pSoundFile) {
+    SoundFile* pCurrent = g_SoundSedsLinkedList;
+    SoundFile* pPrev = NULL;
+    SoundFile* pTarget = pSoundFile;
+    short nSedsStatus;
+
+    for (; pCurrent != NULL; pCurrent = pCurrent->pNext) {
+        if (pCurrent == pTarget) break;
+        pPrev = pCurrent;
+    }
+
+    if (pCurrent == NULL) {
+        SoundHandleError(0x10);
+        return;
+    }
+
+    func_8003A094(pSoundFile);
+    DisableEvent(g_unk_SoundEvent);
+
+    if (pPrev != NULL) {
+        pPrev->pNext = pTarget->pNext;
+    } else {
+        g_SoundSedsLinkedList = pTarget->pNext;
+    }
+    pTarget->pNext = NULL;
+
+    nSedsStatus = SoundValidateFile(pSoundFile, FILE_SIGNATURE('s', 'e', 'd', 's'), 0x101);
+    if (nSedsStatus != SOUND_STATUS_OK) {
+        SoundHandleError(0xB);
+        return;
+    }
+
+    EnableEvent(g_unk_SoundEvent);
+}
 
 //----------------------------------------------------------------------------------------------------------------------
 void func_80038624(void) {
@@ -1053,7 +1087,65 @@ reverse (pPrevBlock s0, address s1) whatever the declaration order.
 */
 
 
+
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_800394B8);
+/*
+Best attempt (98.91%): control flow and instruction sequence identical; the two local pairs are
+register-mirrored in both the loop and the tail - the original keeps the next-block pointer in a0
+and the loaded spuAddress in a1, gcc 2.6 puts the loaded value in a0 and the pointer in a1
+(same systematic mirror as SoundSpuMemoryAllocateBlock below, so it is not a per-function detail).
+The tail also shows the original reading pBlock->nextBlockIndex (the last block visited), not the
+block saved as pFitBlock, so keep that spelling. The unused local pNewBlock is required: writing
+the five field stores through g_SoundSpuMemoryBlocks[index] directly makes gcc re-form the base
+with lui/addiu (87%).
+int func_800394B8(int size) {
+    SoundSpuMemoryBlock* pBlock;
+    SoundSpuMemoryBlock* pNextBlock;
+    SoundSpuMemoryBlock* pFitBlock;
+    SoundSpuMemoryBlock* pNewBlock;
+    int address;
+    int allocAddress;
+    int index;
+
+    pBlock = &g_SoundSpuMemoryBlocks[0];
+    pFitBlock = NULL;
+    while (1) {
+        address = pBlock->spuAddress + pBlock->size;
+        if (pBlock->nextBlockIndex == 0) {
+            if (0x80000 - address >= size) {
+                pFitBlock = pBlock;
+                allocAddress = 0x80000 - size;
+            }
+            break;
+        }
+        pNextBlock = &g_SoundSpuMemoryBlocks[pBlock->nextBlockIndex];
+        if (pNextBlock->spuAddress - address >= size) {
+            pFitBlock = pBlock;
+            allocAddress = pNextBlock->spuAddress - size;
+        }
+        pBlock = pNextBlock;
+    }
+
+    if (pFitBlock == NULL) {
+        return 0;
+    }
+
+    index = SoundSpuMemoryGetFreeBlock();
+    if (index < 0) {
+        return 0;
+    }
+
+    pNewBlock = &g_SoundSpuMemoryBlocks[index];
+    pNewBlock->flags = SPU_MEMORY_IN_USE;
+    pNewBlock->unk1 = 0;
+    pNewBlock->spuAddress = allocAddress;
+    pNewBlock->size = size;
+    pNewBlock->nextBlockIndex = pBlock->nextBlockIndex;
+    pBlock->nextBlockIndex = index;
+
+    return allocAddress;
+}
+*/
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", SoundSpuMemoryAllocateBlockAtAddress);
 /*
@@ -2074,7 +2166,32 @@ void func_8003B1FC(AudioManager* pManager) {
     SoundHeapFree(pManager);
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003B22C);
+void func_8003B22C(AudioManager* pManager) {
+    u8* pSeqData = (u8*)pManager->unk_0x8;
+    s16 status;
+
+    status = (s16)SoundUnkDebug0(pManager->unk_0x8);
+    if (status != 0) {
+        SoundHandleError(0xA);
+        return;
+    }
+
+    pManager->unk_Flags |= 0x1;
+    pManager->unk_0x12 = *(u16*)(pSeqData + 0x10);
+    pManager->elementCount = pSeqData[0x14];
+    pManager->unk_0x16 = *(u16*)(pSeqData + 0x16);
+    pManager->unk_0x18 = *(u16*)(pSeqData + 0x18);
+    pManager->unk_0x40[1] = pSeqData[0x1A];
+    pManager->reverbDepth = pSeqData[0x1B] << 8;
+    pManager->reverbDelay = pSeqData[0x1C];
+    pManager->reverbFeedback = pSeqData[0x1D];
+
+    if (g_SoundControlFlags & 0x1000) {
+        SoundSetReverbModeWithAllocation((s8)pManager->unk_0x40[1], pManager->reverbDepth, pManager->reverbDelay, pManager->reverbFeedback);
+    }
+
+    SoundInitializeAudioManager(pManager);
+}
 
 void func_8003B32C(AudioManager* pManager) {
     pManager->unk_Flags = 2;
