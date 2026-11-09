@@ -2019,27 +2019,18 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003B424);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003B644);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003B930);
-/*
-Attempt (79.63%, same size): gcc keeps pManager in v0 (dies before the call) where the
-original gave it s0, and puts the loop-variable copy before `bnez` instead of in its
-delay slot.
 void func_8003B930(AudioManager* pManager) {
     AudioManager* pEntry = pManager->unk_Manager_0x4;
 
-    if (pEntry == NULL) {
-        return;
-    }
-
-    pManager->unk_Manager_0x4 = NULL;
-    while (pEntry != NULL) {
-        AudioManager* pNext = pEntry->unk_Manager_0x4;
-
-        SoundHeapFree(pEntry);
-        pEntry = pNext;
+    if (pEntry != NULL) {
+        pManager->unk_Manager_0x4 = NULL;
+        do {
+            pManager = pEntry->unk_Manager_0x4;
+            SoundHeapFree(pEntry);
+            pEntry = pManager;
+        } while (pManager != NULL);
     }
 }
-*/
 
 //----------------------------------------------------------------------------------------------------------------------
 void SoundCopyAudioManagerData(AudioManager* pDest, AudioManager* pSrc) {
@@ -3018,21 +3009,27 @@ u8* func_8003DEB4(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003DEE4);
 
-/* Best attempt (76.59%): every instruction matches except the entry `move a1, a0`
-   (the original keeps the script base in a1) and the `subu` computing delta, which
-   the original places in the delay slot of the frames test instead of before it.
+/*
+Attempt (76.59%): every instruction is present, but gcc keeps the script base in a0
+(the original copies it to a1 at entry, because a0 is the divisor/quotient) and sinks
+the `lb` of pScript[1] below the divisor `andi` instead of loading it right after
+the unk_0x74 sign-extend. The nested ifs are needed for the `subu` to land in the
+delay slot of the frames test; a combined `if (frames && (delta = ...))` is worse.
 u8* func_8003DEE4(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
-    s32 target = (s8)pScript[1];
     s32 current = (s8)(pAudioElements->unk_0x74 >> 8);
-    u16 frames = pScript[0];
-    s32 delta;
+    s32 target = (s8)pScript[1];
+    u16 frames;
 
-    if (frames && (delta = target - current)) {
-        delta <<= 8;
-        pAudioElements->unk_0x92 = delta;
-        pAudioElements->unk_0x98 = frames;
-        pAudioElements->unk_0x04 |= 0x10;
-        pAudioElements->unk_0x90 = delta / frames;
+    if ((frames = pScript[0]) != 0) {
+        s32 delta = target - current;
+
+        if (delta != 0) {
+            delta <<= 8;
+            pAudioElements->unk_0x92 = delta;
+            pAudioElements->unk_0x98 = frames;
+            pAudioElements->unk_0x04 |= 0x10;
+            pAudioElements->unk_0x90 = delta / frames;
+        }
     }
 
     return pScript + 2;
