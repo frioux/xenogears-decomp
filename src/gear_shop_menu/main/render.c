@@ -1071,6 +1071,9 @@ INCLUDE_ASM("asm/gear_shop_menu/nonmatchings/main/render", func_801D18F8);
 // and a s32 width = 0x28 local for the RECT (folded back into a literal, same 92.05%).
 // The tie-break is how much the &sp20 pseudo is used: the original also addresses sp28[8] and
 // places[4] off fp, so it beats the 0x3C30+i*0x80 accumulator for the last callee-saved reg.
+// Re-confirmed by pulling the attempt below back in verbatim: still 92.05%, and the whole delta
+// is that gcc keeps the 0x4030+i*0x80 string-struct accumulator in $s8 here while the original
+// spills it to 0x90($sp) and puts &sp20 (the RECT) in $fp, which shifts i from $s2 to $s3.
 /*
 void func_801D18F8(s32 scrollOffset, u8* pItemIds, u8* pItemTypes, u8* pItemSellQtys, u8* pItemQtys) {
     RECT sp20;
