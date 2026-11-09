@@ -163,7 +163,15 @@ typedef struct {
     /* 0x0978 */ GameGear gears[MAX_GAME_GEARS];
     /* 0x1648 */ undefined8 unk1648[0x74];
     /* 0x16BC */ UnkGearState unk16BC[10];
-    /* 0x17FC */ undefined8 unk17FC[0x52];
+    /* 0x17FC */ undefined8 unk17FC[0x24];
+    /* 0x1820 */ u16 unk1820;
+    /* 0x1822 */ u16 unk1822;
+    /* 0x1824 */ u16 unk1824;
+    /* 0x1826 */ undefined8 unk1826[0xC];
+    /* 0x1832 */ u16 unk1832;
+    /* 0x1834 */ u16 unk1834;
+    /* 0x1836 */ u16 unk1836;
+    /* 0x1838 */ undefined8 unk1838[0x16];
     /* 0x184E */ undefined16 unk184E;
     /* 0x1850 */ undefined16 unk1850;
     /* 0x1852 */ undefined16 unk1852;
