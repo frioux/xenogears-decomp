@@ -1118,4 +1118,72 @@ Two more findings worth keeping:
   (`break 7`/`break 6`), which maspsx only emits with `--expand-div` - the
   `XenoWorldMap` preset does not pass it. If that family grows, consider adding
   `--expand-div` to the preset and re-checking the overlay.
+| 42 | 14 workers: `battle` misc14-26 (13 new units) + `field/main/misc2` scratchpad job | +69 | 1919 | all eleven outputs OK first try |
+| 43 | 14 workers: `battle` misc27-35 (last new battle units), `menu` misc12, second passes on `world_map` misc1/7 and `battle` misc16/17 | +31 | 1888 | 13 of 14 timed out; recovery cost the round. `XenoBattleTail` preset found |
+
+### Round 42: +69 with zero integration fallout
+
+`battle` misc14 6, misc15 13, misc16 4, misc17 4, misc18 5, misc19 6, misc20 6,
+misc21 6, misc22 6, misc23 5, misc24 6, misc25 6, misc26 5. The brief's new
+"never re-split an existing header array" rule was the difference: this round
+merged with no compile fallout at all.
+
+The `field/main/misc2` scratchpad job (the one place inline asm is authorised) did
+**not** close either function. `func_800739C0` is still parked with its three
+`asm volatile` stack-switch blocks and `func_8007554C` is untouched; the blocker
+is unchanged (retail reaches `g_CameraAt+8`, `g_CameraEye` and `g_Scene` off one
+base register). The authorisation stands for a future attempt, recorded here so it
+is not lost: **inline asm is permitted in `field/main/misc2.c` only, for the
+scratchpad `$sp` switch, judged per function, and nowhere else.**
+
+### Round 43: the emitter boundary inside `battle`, and why the round was flat
+
+A `battle` misc31 worker counted `addiu $r,$zero,imm` against `ori $r,$zero,imm`
+inside the overlay and found a **second ASPSX boundary**: misc1..misc25 are
+ori-dominant (0 addiu, 43-153 ori) and misc26..misc35 are addiu-dominant (17-117
+addiu, 0-12 ori). One emitter change sits inside `battle.bin` at function 625, so
+the tail needs `--dont-expand-li` exactly like `world_map`. `gears.toml` now has
+`XenoBattleTail` (ten paths, `battle/main/misc26.` .. `misc35.`). Verifying it: the
+same C is 94.55% under the Default flags and 100% under `--dont-expand-li`.
+
+That discovery arrived mid-round and cost the round: nine workers had to append
+the preset, rebuild with `make objdiff-config`, and re-diff their matches, so 13 of
+14 hit the 30-minute limit and the recovery pass (commit-only) ate the rest. +31.
+
+**Process lesson:** the addiu/ori count is a 2-second check that should run on
+every newly carved unit *before* a round is launched, not discovered inside it. A
+future session should count it for `battling` misc1..12 and every remaining unit
+before briefing workers.
+
+## Session 5 result
+
+Start: **2145 / 2985 functions (71.86%)**, 388872 / 670864 bytes, 561 stubs.
+End:   **2680 / 4568 functions (58.67%)**, **1888 stubs** (all overlays counted).
+
+That is **+535 functions in 6 rounds** (~80 worker-runs), every batch gated by
+`make check` on all eleven outputs. The percentage fell because the denominator
+grew by 1583: `world_map`, `battle`, `menu` and `movie` were added to the report.
+
+| source of matches | functions |
+|---|---|
+| `battling` misc13-18 (156-stub carve done this session) | +72 |
+| `world_map` (385 new functions, 16 units) | +110 |
+| `battle` (857 new functions, 35 units) | +207 |
+| `menu` (307 new functions, 12 units) | +104 |
+| `movie` (34 new functions) | +11 |
+| the old saturated pools (`slus`/`field`/`battling` misc1-12) | +31 |
+
+### The three durable findings
+
+1. **New pools are the whole game.** Four overlays that had never been built
+   produced 502 of the 535 matches in six rounds. The saturated pools produced 31
+   with roughly a third of the worker budget.
+2. **`addiu $r,$zero,imm` vs `ori $r,$zero,imm` identifies the maspsx flags of a
+   unit.** `world_map` is addiu-dominant (`XenoWorldMap`), `battle` splits at
+   function 625 (`XenoBattleTail`), `battling`/`menu`/`movie`/`field` are
+   ori-dominant (Default). Without the right flag every constant-loading function
+   caps around 70-94%. Run the two greps on every newly carved unit first.
+3. **A shared header is a merge conflict waiting to happen.** Four compiles broke
+   across rounds 40-41 because two units in one overlay each re-split the same
+   `SystemMenu` tail array differently. `tools/rounds/brief.js` now forbids it.
 
