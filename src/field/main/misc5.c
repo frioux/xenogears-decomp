@@ -129,6 +129,8 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A5924);
 INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A5C40);
 
 extern SVECTOR D_800B00B8;
+extern u_short D_800B00BA;
+extern u_short D_800B00BC;
 extern int D_800C2684;
 
 void FieldZoomFadeEffectUpdate(void) {
@@ -168,7 +170,71 @@ void FieldZoomFadeEffectUpdate(void) {
     }
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc5", FieldZoomFadeEffectInitialize);
+void FieldZoomFadeEffectInitialize(int nSemiTrans, int nABR) {
+    POLY_FT4* pPoly;
+    POLY_FT4* pPolyNext;
+    SVECTOR* pVector;
+    int i;
+
+    D_800C2684 = 0x1000;
+    D_800B00B8.vx = 0;
+    D_800B00BA = 0;
+    D_800B00BC = 0;
+
+    for (i = 0; i < 5; i++) {
+        pPoly = &g_FieldZoomFadeEffect.polygons[i * 2];
+        pPolyNext = &g_FieldZoomFadeEffect.polygons[i * 2 + 1];
+        pVector = &g_FieldZoomFadeEffect.vectors[i * 4];
+        SetPolyFT4(pPoly);
+
+        pVector[0].vx = -0x50 + i * 0x20;
+        pVector[0].vy = -0x38;
+        pVector[0].vz = 0;
+        pVector[1].vx = -0x30 + i * 0x20;
+        pVector[1].vy = -0x38;
+        pVector[1].vz = 0;
+        pVector[2].vx = -0x50 + i * 0x20;
+        pVector[2].vy = 0x38;
+        pVector[2].vz = 0;
+        pVector[3].vx = -0x30 + i * 0x20;
+        pVector[3].vy = 0x38;
+        pVector[3].vz = 0;
+
+        pPoly->x0 = i * 0x40;
+        pPoly->y0 = 0;
+        pPoly->x1 = 0x40 + i * 0x40;
+        pPoly->y1 = 0;
+        pPoly->x2 = i * 0x40;
+        pPoly->y2 = 0xDF;
+        pPoly->x3 = 0x40 + i * 0x40;
+        pPoly->y3 = 0xDF;
+
+        setRECT(&g_FieldZoomFadeEffect.rects[i * 2], 0, 0, 0xFF, 0xFF);
+        setRECT(&g_FieldZoomFadeEffect.rects[i * 2 + 1], 0, 0, 0xFF, 0xFF);
+
+        SetDrawMode(&g_FieldZoomFadeEffect.drawModes[i * 2], 0, 0,
+            GetTPage(0x2, nABR, 0x2C0 + i * 0x40, 0x100), &g_FieldZoomFadeEffect.rects[i * 2]);
+        SetDrawMode(&g_FieldZoomFadeEffect.drawModes[i * 2 + 1], 0, 0,
+            GetTPage(0x2, nABR, 0x2C0 + i * 0x40, 0x100), &g_FieldZoomFadeEffect.rects[i * 2 + 1]);
+
+        pPoly->r0 = 0x80;
+        pPoly->g0 = 0x80;
+        pPoly->b0 = 0x80;
+        SetSemiTrans(pPoly, nSemiTrans);
+
+        pPoly->u0 = 0;
+        pPoly->v0 = 0;
+        pPoly->u1 = 0x40;
+        pPoly->v1 = 0;
+        pPoly->u2 = 0;
+        pPoly->v2 = 0xDF;
+        pPoly->u3 = 0x40;
+        pPoly->v3 = 0xDF;
+        pPoly->tpage = GetTPage(0x2, nABR, 0x2C0 + i * 0x40, 0x100);
+        *pPolyNext = *pPoly;
+    }
+}
+
 
 void FieldDisplay(void) {
     DrawSync(0);
