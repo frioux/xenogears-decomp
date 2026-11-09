@@ -54,36 +54,21 @@ u_int func_80080968(ActorData* pActor) {
 
 extern u_short D_800B14AC;
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800809D0);
-/* 95.56%, same size (72 bytes) and the same registers as the original
-   (v1=value, a1=step, a0=acc). One residual: gcc 2.7.2 hoists the loop's
-   `value += step` to the loop head, one slot before `lui v0` and before the
-   `lhu`, so the `lhu` load-delay slot stays a nop; the original has the add
-   inside the body right after the `lhu`. A do/while, a while, a for with
-   `acc += value` as the increment, `D_800B14AC += 2` vs a u_short temp, and
-   writing the add before the counter all give this same placement. The
-   original also has an extra `addu a0,a0,v1` (acc += the initial value) just
-   before the loop label; putting it in the source makes gcc fold
-   `acc = 0; acc += value` into acc = value and rematerialise the constant into
-   a1 (76 bytes, a0/a1 swapped).
-int func_800809D0(s32* pData) {
+s32 func_800809D0(s32* pData) {
     s32 value = -0x14D000;
     s32 step = pData[7];
     s32 acc = 0;
     u_short count;
 
     D_800B14AC = 0;
-    while (value <= 0) {
+    do {
         count = D_800B14AC;
-        value += step;
         count += 2;
         D_800B14AC = count;
         acc += value;
-    }
-    acc -= value;
+    } while ((value += step) <= 0);
     return acc >> 16;
 }
-*/
 
 extern s32 D_800ADB58;
 extern s32 D_800ADB5C;
@@ -449,43 +434,17 @@ extern void* D_801E8670[];
 void func_80021FE0(SpriteData*, s16);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800831F4);
-/* 92.68%: the whole chain matches except one instruction: the original loads
-   vy into v0, copies it (`move v1,v0`) and does the bit test in place
-   (`andi v0,v0,0x8000`), so vy lives in v1 for the `addiu`; gcc 2.7.2 loads
-   straight into v1 (`lh v1`; `andi v0,v1,0x8000`) and is 4 bytes short (140 vs
-   144). `u_short value` for the second half is required: it makes it a single
-   `lhu`. `int vy` also gives `lh v1`, and adding a second source-level
-   assignment `rotation = vy;` before the test makes gcc branch on the ternary
-   instead (148 bytes, 84.97%), so the extra copy is not a duplicate
-   assignment. Casting the field to u_short for the test is worse (lhu plus
-   sll/sra, 148 bytes). A second residual shows up in
-   build/src/field/main/misc8.c.s: gcc puts `sh $v0,0x106($s0)` (rotation.vy)
-   inside the `.set noreorder` block after the `jal func_80081F80`, i.e. it
-   steals the store into the call's delay slot, so only one of the two stores
-   precedes the `lh a1,0x104($s0)` argument reload; the original emits both
-   stores before the reload and a nop in the delay slot.
-void func_800831F4(int arg0, ActorData* pActor, int arg2, int arg3) {
-    short vy;
-    int rotation;
-    u_short value;
-    RECT rect;
-
-    if (pActor->moveModified.vx != 0 || pActor->moveModified.vz != 0) {
-        vy = pActor->rotation.vy;
-        if (!(vy & 0x8000)) {
-            rotation = vy + ((arg3 & 1) ? -0x400 : 0x400);
-            rotation &= 0xFFF;
-            pActor->rotation.vx = rotation;
-            pActor->rotation.vy = rotation;
-            func_80081F80(arg0, pActor->rotation.vx, arg2);
-            value = pActor->rotation.vy | 0x8000;
-            pActor->rotation.vx = value;
-            pActor->rotation.vy = value;
-        }
-    }
-}
-*/
-
+/* 92.68%: frame and size now right (0x20 with the unused RECT local -- an
+   aggregate local is the only thing that reproduces the 8-byte frame gap), but
+   two instructions still differ. (1) The original loads vy into v0, copies it
+   (`move v1,v0`) and tests in place (`andi v0,v0,0x8000`), so vy lives in v1
+   for the `addiu`; gcc loads straight into v1 (`lh v1`; `andi v0,v1,0x8000`)
+   and is 4 bytes short. Reading the field twice, assigning in the condition
+   (`(rotation = ...) & 0x8000`) and a `short vy` local all give `lh v1`; the
+   copy wants two pseudos for one load, which no spelling here produced.
+   (2) gcc sinks the second store (`sh v0,0x106(s0)`) into the `jal
+   func_80081F80` delay slot, because the reload `lh a1,0x104(s0)` is scheduled
+   before it; the original emits both stores, then the reload, and a nop.
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80083288);
 
 void func_80083994(void) {
@@ -1124,19 +1083,17 @@ void func_800864F0(void) {
 }
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80086590);
-/* 85.77%: right frame (0xB0) and instruction count, every loop matched
-   (init, actor scan, slot->pane map, pane release, and the two output calls).
-   Three residuals, all address materialisation:
-   1. `lh 34(a2)` etc. in the magnitude call: the original loads pActorData once
-      into a2 for both the unk10D test and the three position reads, which needs
-      a pActor local -- but declaring that local (or a `s16* pDelta` pointer for
-      the last loop) makes gcc keep the post-call pActorData reload in a register
-      across the delta stores, so the three `lw 76(v0)` reloads collapse into one
-      and combine turns the `lh`+`subu`+`sh` pairs into `lhu`.
+/* 85.77%: right frame (0xB0), right size (872) and every loop matched; the
+   residuals are all pActorData address materialisation.
+   1. the magnitude call: the original loads pActorData once into a2 and reuses
+      it for the unk10D test and the three position reads. A `pActor` local
+      fixes that but makes gcc keep the post-call pActorData reload in a
+      register across the delta stores, collapsing the three `lw 76(v0)`
+      reloads into one and turning the `lh`+`subu`+`sh` triples into `lhu`.
    2. the last loop reads the s16 deltas through a pointer based at slots+0x60
       advancing by 8 (`lh a2,0(s0)`); slots.delta[i][0] gives `lh a2,96(s2)`.
-      Forcing it with a pointer local costs (1) above, net -0.2%.
-   3. two sw's before the g_FieldActors reload in the delta block.
+      Forcing the pointer local costs (1), net -0.2%.
+   3. two sw's are ordered before the g_FieldActors reload in the delta block.
 typedef struct {
     s32 distance[4]; // 0x00
     s32 unk10[4]; // 0x10
