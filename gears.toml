@@ -113,3 +113,13 @@ build_variables = {
     maspsx_flags = "--aspsx-version=2.67 --use-comm-section --run-assembler"
 }
 paths = [ "{binary}/system/rendering_pause_text." ]
+
+# world_map's original object expands small positive `li` constants with addiu,
+# not maspsx's ori (2483 vs 23 in the disassembly), so leave `li` to the
+# assembler.
+[[build_preset]]
+name = "XenoWorldMap"
+build_variables = {
+    maspsx_flags = "--dont-expand-li --use-comm-section --run-assembler"
+}
+paths = [ "world_map/" ]
