@@ -1159,22 +1159,14 @@ s16 (*func_801E34BC(s32 type))(s16, s16, s16) {
     }
 }
 
-// objdiff 94.87%: 39 insns, same instruction multiset, one slot apart. Both
-// `li v0,1` (for unk70[15], insn 7) and the whole body match, so the locals
-// negOne = -1 and one = 1 are confirmed. The only delta is where gcc 2.6's
-// post-reload scheduler parks `li v1,-1`: it must stay at insn 0 while the
-// `sh v1,0x98` that first uses it lands at insn 14. The two are coupled:
-// with `pModel->unk98 = negOne;` as the first statement the li is at 0 but the
-// store at 8; with the assignment in its logical place (after unk2B) the store
-// is right at 14 but the li moves to insn 5. Declaration order of the two
-// locals, a mid-block `s32 one = 1;` and bare/s16/u32 -1 forms all keep it at
-// 74.36%. Best parked shape is the one below (unk98 first).
-// Later: with the unk98 store placed just before `unk2B = 0`, `one` as a bare
-// literal at unk70[15] and `negOne` declared first, the whole 38-insn body lands
-// in the original's order except that `li v1,-1` sits at 6 instead of 0 (objdiff
-// 69.18% - positional scoring punishes the one-slot shift, the multiset is exact).
-// sched2 hoists the -1 load to right after `li v0,0x6B` in both shapes, so the
-// missing piece is sched2 keeping it at insn 0, not the source order.
+// objdiff 94.87%: 39 insns, exact instruction multiset, one store slot apart.
+// Both `li v0,1` (for unk70[15], insn 7) and the whole body match, so the locals
+// negOne = -1 and one = 1 are confirmed. The only delta is scheduling: the
+// original keeps `li v1,-1` at insn 0 and its first user `sh v1,0x98` at insn 14.
+// With `pModel->unk98 = negOne;` first the li sits at 0 but the store is deferred
+// to 8; with the store in its logical place (after unk2B) the store lands at 14
+// but the li is hoisted to 6 (74.36%). Declaration order of the two locals, a
+// mid-block `s32 one = 1;` and bare/s16/u32 -1 forms all stay at 74.36%.
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E3534);
 /*
 void func_801E3534(Model* pModel, s32 arg1, u32 arg2, u32 arg3) {
@@ -1441,14 +1433,18 @@ void func_801E5C74(Model* pModel, Temp7* pEntry, s32 arg2) {
     }
 }
 
-// Two attempts left here. The one below (71.67%) lets gcc merge all three
-// `lhu 0x14 / sll 16` tails; giving the type==1 arm its own `return` reproduces
-// the original's second copy of that tail but drops to 61.93% because gcc then
-// places the type==1 block inline instead of out of line last. The original's
-// test order is type==0, type==1, type==2 with the type==1 block emitted after
-// the shared tail, which no source shape tried so far reproduces.
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E5CD8);
-/* s32 func_801E5CD8(Model* pModel, s32 type) {
+/* Best attempt, 71.67%. The three temp8 hops are confirmed. What the original
+   does and this does not: type==1 gets its OWN copy of the `lhu 0x14 / sll 16`
+   tail (out of line, last, falling into the epilogue) while type==0 and type==2
+   share one copy. Giving the type==1 arm its own `return` produces the second
+   copy but gcc then emits type==1 inline (61.93%); with the `if (type != 1) ...
+   else return ...` spelling below gcc shares a *deeper* tail instead
+   (`lw 8(v0) / lhu 20 / sll` shared by type==1 and type==2, 88 vs 108 bytes), so
+   the split point and the block placement are one decision. A `switch` on type
+   is far off (19.74%, case bodies emitted in source order with break jumps). */
+/*
+s32 func_801E5CD8(Model* pModel, s32 type) {
     Temp8* pTexture;
 
     if (type == 0) {
@@ -1459,11 +1455,12 @@ INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E5CD8);
         }
         pTexture = ((Temp8*)pModel->unkB4)->pUnk8;
     } else {
-        pTexture = ((Temp8*)pModel->unkB0)->pUnk8;
+        return ((Temp8*)((Temp8*)pModel->unkB0)->pUnk8)->unk14 << 16;
     }
 
     return pTexture->unk14 << 16;
-} */
+}
+*/
 
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E5D44);
 
