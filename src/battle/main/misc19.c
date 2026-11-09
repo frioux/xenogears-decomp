@@ -3,6 +3,7 @@
 
 extern void* D_800C34B0;
 extern u8 D_800CCE30[];
+extern u8 D_800CCE4A[];
 
 extern int rand(void);
 extern void func_8009BE0C(void);
@@ -69,7 +70,7 @@ void func_8009B098(void) {
     u8 i;
 
     for (i = 1; i < 3; i++) {
-        u8* p = (u8*)D_800C34B0 + i * 0x170;
+        u8* p = (u8*)(i * 0x170 + (u32)D_800C34B0);
 
         *(u16*)(p + 0x4C) = 0x64;
         *(u16*)(p + 0x4E) = 0x64;
@@ -90,9 +91,9 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009BE0C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009C050);
 
 void func_8009C0E0(u8 arg0) {
-    u8* p = D_800CCE30 + arg0 * 0x170;
+    s32 off = arg0 * 0x170;
 
-    p[0] = 4;
-    p[0x1A] = 3;
+    D_800CCE30[off] = 4;
+    D_800CCE4A[off] = 3;
     g_GameState.unk16BC[0].unk1E |= 0x4000;
 }
