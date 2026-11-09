@@ -2897,6 +2897,27 @@ u8* func_8003D4E4(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003D53C);
 /*
+Attempt (95.62%, 100 bytes vs the original's 96): every instruction matches, including
+the store block, but gcc emits one extra `move v0,a0` at the top of the store block (the
+original gets the return-value copy for the third branch out of one copy, filled into the
+bnez delay slot). The guard has to be written as an early return of three ``&&`` terms -
+that shape is what reproduces the three delay-slot copies and the store order
+(voice_data.flags |= 0x4000 before voice_data.modeFlags |= 0x40); the logically
+equivalent single-return form ``if (!(c1) || (c2 && !c3)) { stores }`` scores 88.33%
+because it copies the return value only once, at the end. A `u8* p = pScript;` copy
+local changes nothing. The (u16) casts are needed: unk_Flags/voice_data fields are s16
+in sound.h but the original loads them with lhu.
+u8* func_8003D53C(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
+    if (((u16)pAudioManager->unk_Flags & 0x6) && ((u16)g_SoundControlFlags & 0x2000) &&
+        (pAudioElements->active_flag & 0x2)) {
+        return pScript;
+    }
+    pAudioElements->voice_data.flags |= 0x4000;
+    pAudioElements->voice_data.modeFlags |= 0x40;
+    return pScript;
+}
+*/
+/*
 Attempt (95.83%, 100 bytes; the original is 96): gcc-2.6.0 emits four `move v0,a0`
 where the original has three - one in each of the three branch delay slots plus one
 at the top of the stores block; the original's store block relies on the copies its
@@ -3297,19 +3318,21 @@ u8* func_8003DEB4(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003DEE4);
 
 /*
-Attempt (76.59%): every instruction is present, but gcc keeps the script base in a0
-(the original copies it to a1 at entry, because a0 is the divisor/quotient) and sinks
-the `lb` of pScript[1] below the divisor `andi` instead of loading it right after
-the unk_0x74 sign-extend. The nested ifs are needed for the `subu` to land in the
-delay slot of the frames test; a combined `if (frames && (delta = ...))` is worse.
+Attempt (76.59%, 80 bytes vs the original's 88): every instruction is present but gcc
+loads pScript[0] (frames) before pScript[1] (target) and keeps the script base in a0,
+where the original copies it to a1 at entry (a0 there is the frames value and the div
+operand) and loads target first. Declaration orders (current/target/frames, target/
+frames/current, frames-first), a `u8* p = pScript;` copy local, s8/s32/u16 variants of
+target and a combined `if (frames && delta)` all land on 76.59% or 73.86%.
 u8* func_8003DEE4(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
+    u8* p = pScript;
+    s32 target = (s8)p[1];
+    u16 frames = p[0];
     s32 current = (s8)(pAudioElements->unk_0x74 >> 8);
-    s32 target = (s8)pScript[1];
-    u16 frames;
+    s32 delta;
 
-    if ((frames = pScript[0]) != 0) {
-        s32 delta = target - current;
-
+    if (frames) {
+        delta = target - current;
         if (delta != 0) {
             delta <<= 8;
             pAudioElements->unk_0x92 = delta;
@@ -3318,8 +3341,7 @@ u8* func_8003DEE4(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
             pAudioElements->unk_0x90 = delta / frames;
         }
     }
-
-    return pScript + 2;
+    return p + 2;
 }
 */
 
