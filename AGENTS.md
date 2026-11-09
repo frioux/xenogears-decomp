@@ -388,6 +388,22 @@ orchestrator:
 3. The orchestrator integrates, runs `make check`, resolves any data layout
    fallout, commits, and publishes progress.
 
+The harness for that loop is checked in and should be used rather than rebuilt:
+
+```sh
+make objdiff-config                                 # clones need report mode
+tools/rounds/clone.sh new   misc sound temp2 ...    # cp -ac clones, ~/xw/r-<tag>
+#   subagent({workflow: "tools/rounds/brief.js", async: true,
+#             args: {workers: [{tree, file, unit, asm, preset, symbols, funcs, extra}, ...]}})
+tools/rounds/clone.sh merge misc sound temp2 ...    # commit stragglers + merge
+make check && tools/scripts/lint_sources.py -q      # the only real gate
+tools/rounds/clone.sh reset misc sound temp2 ...    # same clones, next round
+```
+
+`tools/rounds/brief.js` carries the accumulated playbook (the C idioms, the
+blockers already proved, the two mandatory gates) — read it before writing a
+brief, and keep it up to date when a round teaches something new.
+
 Give workers the facts, not the hypothesis: the `.s` file, the current C, the
 preset for that unit, and the conventions above. Ask them to report exactly which
 functions matched, which did not and why, and every symbol they named.
