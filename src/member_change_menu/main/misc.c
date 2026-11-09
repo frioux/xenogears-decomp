@@ -1965,6 +1965,12 @@ void MemberChangeMenuFreeCursors(void) {
 
 INCLUDE_ASM("asm/member_change_menu/nonmatchings/main/misc", MemberChangeMenuSwapCharacters);
 // 98.22%: instruction sequence is identical, only the s0-s4 allocation differs.
+// Original: canSwapSrc=s0, canSwapDst=s1, result=s2, srcIndex=s3, dstIndex=s4.
+// This gets: result=s0, srcIndex=s1, dstIndex=s2, canSwapSrc=s3, canSwapDst=s4,
+// i.e. gcc orders these five allocnos by descending live length. Reordering the
+// declarations and the flag initialisations changes nothing (tried); the
+// original's order looks like ascending reference count, which is not reachable
+// without changing the emitted code.
 // u_char MemberChangeMenuSwapCharacters(u_char isBenchedWindowActive, s32 curCharIndex, s32 curCharOffset, u_char isSelectedCharOnBenchedWindow, s32 selectedCharIndex, s32 selectedCharOffset) {
 //     u_char srcIndex;
 //     u_char dstIndex;
