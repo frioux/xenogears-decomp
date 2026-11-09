@@ -130,6 +130,9 @@ void func_801C6D4C(void) {
     g_Menu->renderContext = 0;
 }
 
+INCLUDE_ASM("asm/menu/nonmatchings/main/misc1", func_801C6D5C);
+
+/* Best: 69.23% (56 bytes vs the original's 52 - gcc groups the two byte stores).
 void func_801C6D5C(void) {
     g_Menu->unk4D8 = 0;
     g_Menu->unk4CC = 0;
@@ -137,6 +140,7 @@ void func_801C6D5C(void) {
     g_Menu->unk4D9 = 0;
     g_Menu->unk4D4 = 0;
 }
+*/
 
 void func_801C6D90(void) {
     RECT rect;
