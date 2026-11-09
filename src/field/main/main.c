@@ -131,19 +131,97 @@ void func_80077844(s16* pOut, int x0, int x1, int x2, int x3, int x4, int x5, in
     pOut[8] = x8;
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/main", func_80077884);
-
 extern s32 D_8005A420[];
 extern s32 D_8005A450[];
+// The s16 entry table at D_800B21DC is followed immediately by its entry count at
+// D_800B2264; the original reaches both through one base register.
+typedef struct {
+    /* 0x000 */ s16 entries[0x44];
+    /* 0x088 */ s32 count;
+} FieldSoundList;
+
+extern StreamDataQueueEntry D_800B2394[];
+extern s32 D_800B2264;
+extern void* D_800ADB20;
+extern s32 D_800ADB30;
+extern s32 D_8004F370;
+extern void func_8008A520(void);
+extern void func_800A90B4(int nHeapType);
+extern void func_80029AFC(StreamDataQueueEntry* pQueue, int arg1, int arg2);
+
+INCLUDE_ASM("asm/field/nonmatchings/main/main", func_80077884);
+// 90.25%: structure, frame (0x38, s0-s4 + ra) and size (560 bytes, same as the
+// original) are right; the two remaining gaps are both gcc rematerialising where the
+// original reuses a materialised address:
+//  1. the original builds &D_800B2264 into $v1 (lui+addiu), loads the count with
+//     `lw 0($v1)` and then `addiu $s4,$v1,-0x88` for the s16 table at D_800B21DC,
+//     reloading the count inside the loop as `lw 0x88($s4)`. This source computes the
+//     base as one constant (`lui %hi(D_800B2264); addiu -0x88`) and re-forms a second
+//     lui/%lo pair for the count instead; gcc's fold_rtx always folds the +0x88 back to
+//     the bare symbol, so the two accesses are never expressed off one register. Same
+//     wall as func_8007520C (misc2) and func_800A0EE8 (misc6), just in the other
+//     direction. Pointer locals (pCount/pTable, and `(s32*)((u8*)pTable + 0x88)`) give
+//     90.56% but 580 bytes.
+//  2. the `D_8004F370` size select: the original hoists `lw $v1,%lo(D_800ADB30)` above
+//     the branch and keeps the constant path as the fall-through with a `j` at the end;
+//     both `if (x == 0) const else call` and a pre-computed `nSize` give the same size
+//     but reorder the block.
+// Note the pData stores below relocate against D_800B2394+4, splat prints them as
+// D_800B2398; that one is link-identical and only costs objdiff points.
+/*
+void func_80077884(void) {
+    int i;
+    int nSize;
+    FieldSoundList* pSoundList;
+    void* pBuffer;
+
+    if (D_800B2264 == 0) {
+        return;
+    }
+
+    func_8008A520();
+    ArchiveSetIndex(ARCHIVE_DIR_FIELD, 0);
+    func_800A90B4(0);
+
+    nSize = (D_800ADB30 & 0xFFFFFF) + 0xFFE23FF8;
+    if (D_8004F370 != 0) {
+        nSize = ArchiveDecodeAlignedSize(0x6B9);
+    }
+    D_800ADB20 = HeapAlloc(nSize, 1);
+    func_800A90B4(1);
+
+    pSoundList = (FieldSoundList*)((u8*)&D_800B2264 - 0x88);
+    for (i = 0; i < pSoundList->count; i++) {
+        D_800B2394[i * 2 + 1].archiveIndex = pSoundList->entries[i] + 0x6BB;
+        pBuffer = HeapAlloc(ArchiveDecodeAlignedSize((s16)pSoundList->entries[i] + 0x6BB), 1);
+        D_8005A450[i] = (s32)pBuffer;
+        D_800B2394[i * 2 + 1].pData = pBuffer;
+    }
+
+    pSoundList = (FieldSoundList*)((u8*)&D_800B2264 - 0x88);
+    for (i = 0; i < pSoundList->count; i++) {
+        D_800B2394[i * 2].archiveIndex = pSoundList->entries[i] + 0x6BA;
+        pBuffer = HeapAlloc(ArchiveDecodeAlignedSize((s16)pSoundList->entries[i] + 0x6BA), 0);
+        D_8005A420[i] = (s32)pBuffer;
+        D_800B2394[i * 2].pData = pBuffer;
+    }
+
+    D_800B2394[i * 2].archiveIndex = 0x6B9;
+    D_800B2394[i * 2].pData = D_800ADB20;
+    D_800B2394[i * 2 + 1].archiveIndex = 0;
+    D_800B2394[i * 2 + 1].pData = NULL;
+
+    func_8008A520();
+    func_80029AFC(D_800B2394, 0, 0);
+}
+*/
 extern s32* D_801E8644;
 extern void* D_801E8670[];
 extern u8 D_800B225C;
 extern u8 D_800B225D;
 extern u8 D_800B225E;
 extern s16 D_800B234A;
-extern s32 D_800B2264;
 
-extern void func_8008A520(void);
 extern void FieldRenderSyncAndFlush(void);
 extern void func_801E738C(s16 arg0);
 extern void func_801E742C(s32 arg0, s32 arg1, s32 arg2, s32 arg3, s16 arg4, s32 arg5, s32 arg6,
