@@ -202,7 +202,9 @@ typedef struct {
 typedef struct {
     /* 0x00 */ u8 unk0[0x18];
     /* 0x18 */ u8 ids[0xC];
-    /* 0x24 */ u8 unk24[0x38];
+    /* 0x24 */ u8 unk24[0x34];
+    /* 0x58 */ u8 unk58;
+    /* 0x59 */ u8 unk59[0x3];
 } MenuUnk2Record; // Size: 0x5C
 
 typedef struct {
@@ -227,7 +229,9 @@ typedef struct {
     /* 0x4F74 */ s32 unk4F74[2];
     /* 0x4F7C */ s32 unk4F7C;
     /* 0x4F80 */ s32 unk4F80;
-    /* 0x4F84 */ u8 unk4F84[0xA];
+    /* 0x4F84 */ u8 unk4F84[0x8];
+    /* 0x4F8C */ u8 unk4F8C;
+    /* 0x4F8D */ u8 unk4F8D;
     /* 0x4F8E */ u8 unk4F8E[0x20];
     /* 0x4FAE */ u8 unk4FAE[0x20];
     /* 0x4FCE */ u8 unk4FCE[0xC];

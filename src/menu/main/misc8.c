@@ -1,11 +1,17 @@
 #include "common.h"
 
 #include "system/menu.h"
+#include "psyq/libcd.h"
 
 extern u8 D_80059460; // Index of the menu overlay the menu was entered with
 extern u16 D_801EA53C[]; // String IDs of the menu strings
 extern u16 D_801EA542[]; // String IDs of the menu strings
 extern u16 D_801EA548[]; // String IDs of the menu strings
+extern s32 D_801EA900;
+extern s32 D_801EA904;
+extern CdlCB D_801EA718;
+extern CdlCB D_801EA71C;
+extern CdlCB D_801EA720;
 
 void func_801D22F4(s32 arg0);
 void func_801D3444(void);
@@ -14,6 +20,10 @@ void func_801C72BC(s32 arg0);
 void func_801D7F50(s32 arg0, s32 arg1, u_char arg2);
 void func_801D8644(u_char arg0, s32 arg1, s32 arg2, u_char arg3, u_char arg4);
 void func_801E8018(s32 count, void* pStrings, void* pStringIds, void* pFlags);
+void func_801E64E0(void);
+void func_801E5B3C(void);
+void func_801E649C(void);
+void Vsync(s32 mode);
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801D7CFC);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801D7F50);
@@ -68,7 +78,28 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801D9704);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801D9808);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801D9B08);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801D9C84);
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801D9E3C);
+void func_801D9E3C(void) {
+    s32 i;
+
+    g_Menu->unk4D8 = 0;
+    func_801E64E0();
+    func_801E5B3C();
+    func_801E649C();
+    for (i = 0; i < 0x20; i++) {
+        g_Menu->menuUnk2->records[i].unk58 = 0;
+    }
+    g_Menu->menuUnk2->unk4F8C = 0xFF;
+    g_Menu->menuUnk2->unk4F8D = 0xFF;
+    D_801EA904 = 0;
+    D_801EA900 = 0;
+    DrawSync(0);
+    Vsync(0);
+    EnterCriticalSection();
+    CdSyncCallback(D_801EA718);
+    CdReadyCallback(D_801EA71C);
+    CdReadCallback(D_801EA720);
+    ExitCriticalSection();
+}
 
 void func_801D9F34(void) {
     if (D_80059460 != 2) {
