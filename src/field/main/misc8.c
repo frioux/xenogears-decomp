@@ -700,11 +700,6 @@ void func_800859DC(FieldWdsBlock* pBlock) {
     }
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80085B20);
-/* 97.82%: one instruction (4 bytes) short. The original keeps the stream id byte
-   in a0 across the D_8004F33C compare, so the `* 2 + 0x13` index is forced into
-   v0 and copied at the call with `move a0,v0`; gcc here puts the byte in v1 and
-   computes the index straight into a0, dropping the copy.
 void func_80085B20(int arg0) {
     u_short streamId;
     int index;
@@ -720,10 +715,10 @@ void func_80085B20(int arg0) {
         func_80086024();
     }
     streamId = D_800ADFCD[arg0 * 2 - 1];
-    index = streamId * 2;
     if (streamId != 0xFF) {
+        index = streamId * 2 + 0x13;
         if (D_8004F33C != streamId) {
-            func_80085560(index + 0x13, 1, (void*)func_800859DC);
+            func_80085560(index, 1, (void*)func_800859DC);
             D_8004F354 = 1;
             D_800B2370 = 0;
             D_800C3A1C = HeapAlloc(0x2000, 1);
@@ -733,7 +728,6 @@ void func_80085B20(int arg0) {
     D_8004F308 = -1;
     D_800AFC54 = 1;
 }
-*/
 
 int func_80085C3C(void) {
     int i;
@@ -1058,8 +1052,6 @@ void func_800864F0(void) {
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80086590);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80086908);
-/*
 extern VECTOR g_CameraEye;
 extern VECTOR g_CameraAt;
 extern s16 D_800B22E0;
@@ -1078,7 +1070,6 @@ void func_80086908(void) {
             return;
     }
 }
-*/
 
 void FieldScriptVM2Run(void) {
     char *script = (char *)g_FieldScriptVMCurScriptData;
