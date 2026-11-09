@@ -809,25 +809,8 @@ void func_801E0398(VertexBuffer* pVertexBuffer, MATRIX* pMatrix, s32 arg2, s32* 
     }
 }
 
-INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E0698);
-// Best attempt: 87.57%. Three residual deltas, all scheduling/regalloc:
-//  - prologue: original keeps arg8 (stack 0x30) in s2 and arg11 (0x3C) in s3, gcc
-//    gives us the swap; that is what the size of the diff is.
-//  - original sign-extends the divisor (lhu t9 then sll/sra) once, into v1, and
-//    reuses v1 for all three `div`s; we rematerialise it later into v0.
-//    Untried idea: make it a `s16` local assigned before the `if` so its
-//    conversion is hoisted out of the three delta statements.
-//  - we sink `entry->unk68 = arg8 << 6` past the dividends and fold the third
-//    numerator to `(arg8 - arg11) << 6`; the original keeps store + `lh` reload.
-// Types confirmed against the .s: pEntry, u32 arg1 (sw), s16 arg2 (sh 0x0),
-// u8 arg3 (sb 0x2), s16 numFrames (lw + sll/sra, < 7), s16 divisor (lhu +
-// sll/sra, then signed `div`), u8 arg6..arg11 (lbu, << 6), u16 arg12..arg18 (lhu).
-// Fields 0x62..0x6E are all `sh`: include/libgear/main.h still calls that range
-// `/* 0x62 */ u8 unk62[0xE]`; modelling them as s16 did not move the match.
-/* s32 func_801E0698(UnkInner1* pEntry, u32 arg1, u16 arg2, u8 arg3, s16 numFrames, s16 divisor, u8 arg6, u8 arg7, u8 arg8, u8 arg9, u8 arg10, u8 arg11, u16 arg12, u16 arg13, u16 arg14, u16 arg15, u16 arg16, u16 arg17, u16 arg18) {
-    s16 deltaX;
-    s16 deltaY;
-    s16 deltaZ;
+s32 func_801E0698(UnkInner1* pEntry, u32 arg1, u16 arg2, u8 arg3, s16 numFrames, u16 divisor, u8 arg6, u8 arg7, u8 arg8, u8 arg9, u8 arg10, u8 arg11, u16 arg12, u16 arg13, u16 arg14, u16 arg15, u16 arg16, u16 arg17, u16 arg18) {
+    s16 div;
 
     if (pEntry != NULL) {
         pEntry->unk3 = arg18;
@@ -851,19 +834,17 @@ INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E0698);
         pEntry->unk64 = arg6 << 6;
         pEntry->unk66 = arg7 << 6;
         pEntry->unk68 = arg8 << 6;
-        deltaX = (pEntry->unk64 - (arg9 << 6)) / divisor;
-        deltaY = (pEntry->unk66 - (arg10 << 6)) / divisor;
-        deltaZ = (pEntry->unk68 - (arg11 << 6)) / divisor;
+        div = (s16)divisor;
+        pEntry->unk6A = (pEntry->unk64 - (arg9 << 6)) / div;
+        pEntry->unk6C = (pEntry->unk66 - (arg10 << 6)) / div;
+        pEntry->unk6E = (pEntry->unk68 - (arg11 << 6)) / div;
 
         pEntry->unk62 = divisor;
         pEntry->unk8 = 0;
-        pEntry->unk6A = deltaX;
-        pEntry->unk6C = deltaY;
-        pEntry->unk6E = deltaZ;
 
         return 0;
     }
-} */
+}
 
 void func_801E0844(short* pValue) {
     *pValue = -1;
@@ -1399,14 +1380,16 @@ void func_801E63A8(Model* pModel) {
 // swaps the addu operands to `addu s1,s4,v0` without touching s0/s1. Since both
 // builds emit the same insns in the same order, the choice comes from the
 // pseudo order/ties local-alloc resolves, not from anything in the body.
+// Also tried since: `int i;` declared first with the pointers after (same swap,
+// pJoint still s1), and reversing the pointer declaration order (same).
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E6578);
 /*
 void func_801E6578(Temp4* pList, s32 jointIndex, ModelJoint* pSkeleton, ModelJoint* pTargetSkeleton) {
-    ModelJoint* pChild = pSkeleton;
-    ModelJoint* pJoint = (ModelJoint*)(jointIndex * sizeof(ModelJoint) + (s32)pSkeleton);
-    ModelJoint* pTarget = (ModelJoint*)(jointIndex * sizeof(ModelJoint) + (s32)pTargetSkeleton);
-    int numChildren;
     int i;
+    int numChildren;
+    ModelJoint* pTarget = (ModelJoint*)(jointIndex * sizeof(ModelJoint) + (s32)pTargetSkeleton);
+    ModelJoint* pJoint = (ModelJoint*)(jointIndex * sizeof(ModelJoint) + (s32)pSkeleton);
+    ModelJoint* pChild = pSkeleton;
 
     numChildren = pChild->numChildren;
     pJoint->unk7 = 0;
@@ -1426,7 +1409,6 @@ void func_801E6578(Temp4* pList, s32 jointIndex, ModelJoint* pSkeleton, ModelJoi
             func_801E6578(pList, pChild->numChildren, pSkeleton, pTargetSkeleton);
         }
     }
-}
 */
 
 void func_801E6668(ModelJoint* pSkeleton, ModelJoint* pTargetSkeleton) {
