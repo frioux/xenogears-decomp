@@ -30,7 +30,7 @@ options:
     - config/symbol_addrs.movie.txt
     - config/symbol_addrs.slus_006.64.txt
   reloc_addrs_path:
-    - configs/reloc_addrs.movie.txt
+    - config/reloc_addrs.txt
 
   undefined_funcs_auto_path: linker/undefined_funcs_auto.movie.txt
   undefined_syms_auto_path: linker/undefined_syms_auto.movie.txt
@@ -43,16 +43,22 @@ options:
   data_string_encoding: ASCII
   rodata_string_guesser_level: 2
   data_string_guesser_level: 2
+  ld_bss_is_noload: true
 segments:
   - name: movie
     type: code
     start: 0x0
-    vram: 0x8006faf0
+    vram: 0x8006FAF0
+    bss_size: 0x1000
     align: 4
     subalign: 4
     subsegments:
+      # The head is rodata: the debug strings, then two jump tables (0x204, 0x7DC).
       - [0x0, rodata]
-      - [0x7DC, asm]
-      - [0x7354, data]
+      # 34 functions, ~17 per unit. spimdisasm finds no code after 0x7358; the
+      # tail (0xFFFFFFFF sentinels, the 0x80076ED0/0x80076EE0 pointer table) is data.
+      - [0x9F8, c, main/misc1]
+      - [0x5068, c, main/misc2]
+      - [0x7358, data]
   - [0x7450, databin]
   - [0x7453]

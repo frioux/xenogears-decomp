@@ -19,6 +19,10 @@ categories:
     name: World Map Overlay
     paths:
       - world_map
+  - id: movie
+    name: Movie Overlay
+    paths:
+      - movie
   - id: member_change_menu
     name: Member Change Menu Overlay
     paths:
