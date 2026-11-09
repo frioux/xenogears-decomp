@@ -2981,7 +2981,7 @@ total in s0 and pAudioElements in s1, the original the other way round (the prol
 order follows). The note curve `note * abs(note)` does match with the if/else below.
 u8* func_8003D8B8(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     s8 note = pScript[1];
-    u8 velocity = pScript[0];
+    s16 velocity = pScript[0];
     s32 volume;
     s32 pitch;
     s32 unk16;
@@ -2993,7 +2993,7 @@ u8* func_8003D8B8(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
             } else {
                 pitch = note * note;
             }
-            volume = velocity + ((s16)velocity * (s16)velocity) / 64;
+            volume = velocity + (velocity * velocity) / 64;
             pAudioElements->envelopes[0].delta = func_8003E290(pitch << 14, volume, 3);
             pAudioElements->envelopes[0].reload = volume;
             unk16 = pScript[2] << 2;
