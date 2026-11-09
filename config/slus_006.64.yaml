@@ -101,6 +101,9 @@ segments:
       - [0xC5DC, c, system/menu]
       - [0xD0DC, c, system/work_list]
       - [0xDCE8, c, system/rendering]
+      # GraphicsDrawPauseLetters and func_8001FB30: the original object was built
+      # with the cdk compiler, so this range needs its own TU and preset.
+      - [0x102B4, c, system/rendering_pause_text]
       - [0x103A4, c, system/animation_scripts]
       - [0x1320C, c, system/graphics]
       - [0x1332C, c, system/temp1] # Graphics stuff
