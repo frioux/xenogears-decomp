@@ -48,6 +48,18 @@ typedef struct {
     /* 0x08 */ Misc13Entry* pEntries;
 } Misc13EntryList; // Size: unknown
 
+// The container freed by func_8008A5BC.
+typedef struct {
+    /* 0x000 */ u8 unk000[0xB4];
+    /* 0x0B4 */ void* pUnk0B4;
+    /* 0x0B8 */ u8 unk0B8[0x98];
+    /* 0x150 */ void* pUnk150;
+    /* 0x154 */ u8 unk154[0x98];
+    /* 0x1EC */ void* pUnk1EC;
+    /* 0x1F0 */ u8 unk1F0[0x94];
+    /* 0x284 */ Misc13Node* pUnk284;
+} Misc13Group; // Size: unknown
+
 // The 0x1C-byte payload allocated by func_80089E74.
 typedef struct {
     /* 0x00 */ s32 unk00;
@@ -76,7 +88,28 @@ extern void HeapSetCurrentContentType(u_short contentTag);
 extern void ModelPartFreeLightData(ModelPart* pModelPart);
 extern void HeapDelayedFree(void* pMem, u_int delay);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc13", func_80089D5C);
+void func_80089D5C(Misc13Node* pNode) {
+    if (pNode == NULL) {
+        return;
+    }
+    func_80089D5C(pNode->pChildB);
+    func_80089D5C(pNode->pChildA);
+    switch (pNode->state) {
+    case 1:
+        func_80089FF8(pNode->pData);
+        break;
+    case 2:
+        func_80089EB4(pNode->pData);
+        break;
+    case 5:
+        func_8008C120(pNode->pData);
+        break;
+    }
+    if (pNode->pData != NULL) {
+        HeapFree(pNode->pData);
+    }
+    HeapFree(pNode);
+}
 
 void func_80089E2C(Misc13Node* pNode, void* pData) {
     pNode->pData = pData;
@@ -165,7 +198,14 @@ void func_80089FF8(Misc13ModelPart* pPart) {
     }
     ModelPartFreeLightData(pPart->pModelPart);
 }
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc13", func_8008A040);
+void func_8008A040(void* pImg) {
+    if (D_80092800 > 0) {
+        func_8002DDE4(pImg, 1, D_80092800, D_80092804, 1, D_80092808, D_8009280C);
+    } else {
+        func_8002DDE4(pImg, 0, 0, 0, 0, 0, 0);
+    }
+}
+
 void func_8008A0B4(Misc13Node* pNode, s32 r, s32 g, s32 b) {
     ((Misc13ModelPart*)pNode->pData)->r = r;
     ((Misc13ModelPart*)pNode->pData)->g = g;
@@ -200,7 +240,20 @@ void func_8008A168(void) {
     D_80092808 = -1;
     D_80092800 = -1;
 }
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc13", func_8008A184);
+void func_8008A184(Misc13ModelPart* pPart, ModelPart* pModelPart) {
+    pPart->pModelPart = pModelPart;
+    pPart->unk10 = func_800303C8(pModelPart, 1);
+    ModelAllocatePackets(pPart->pModelPart, &pPart->pPacketBuffer, &pPart->pCurrentPacket);
+    if (D_80092800 >= 0) {
+        func_8002CC54(GetTPage(0, 1, D_80092800, D_80092804) & 0xFFFF);
+    }
+    if (D_80092808 >= 0) {
+        ModelPacketSetBaseClut(D_80092808, D_8009280C);
+    }
+    ModelInitializePacket(pPart->pModelPart, pPart->pPacketBuffer, 2);
+    func_800732AC(pPart->pCurrentPacket, pPart->pPacketBuffer, pPart->pModelPart->unk20[1].modelPacketSize);
+    pPart->flags |= 0x2;
+}
 Misc13Sprite* func_8008A254(void) {
     Misc13Sprite* pSprite;
 
@@ -223,6 +276,17 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc13", func_8008A2B8);
 void func_8008A3A0(void) {
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc13", func_8008A3A8);
+void func_8008A3A8(Misc13Node* pNode) {
+    HeapDelayedFree(pNode->pData, 3);
+    HeapFree(pNode);
+}
+
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc13", func_8008A3E0);
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc13", func_8008A5BC);
+
+void func_8008A5BC(Misc13Group* pGroup) {
+    HeapFree(pGroup->pUnk0B4);
+    HeapFree(pGroup->pUnk150);
+    HeapFree(pGroup->pUnk1EC);
+    func_8008A3A8(pGroup->pUnk284);
+    HeapFree(pGroup);
+}
