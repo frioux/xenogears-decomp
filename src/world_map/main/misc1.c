@@ -8,16 +8,20 @@ extern void ArchiveReadFileToBuffer(s32 index, void* pBuffer, u32 arg2, u32 flag
 extern void func_80029AFC(StreamDataQueueEntry* pQueue, int arg1, int arg2);
 extern void func_8008DFF4(void* pVector);
 
+// D_8009D3F8 .. D_8009D414 are the 3-entry StreamDataQueueEntry stream request
+// table; D_8009C5AC/B0/B4 are the 12.4 fixed point position written by
+// func_8008DFF4.
 extern void* D_8005945C;
 extern void* D_8006259C;
 extern void* D_8009BC38;
 extern void* D_8009BCB0;
+extern s32 D_8009BE10;
 extern void* D_8009BD20;
 extern void* D_8009C180;
-extern void* D_8009C59C;
 extern s32 D_8009C174;
 extern s32 D_8009C17C;
 extern s32 D_8009C584;
+extern void* D_8009C59C;
 extern s32 D_8009C5AC;
 extern s32 D_8009C5B0;
 extern s32 D_8009C5B4;
@@ -32,7 +36,6 @@ extern void* D_8009D40C;
 extern u16 D_8009D410;
 extern void* D_8009D414;
 extern void* D_8009D528;
-extern s32 D_8009BE10;
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_800712D0);
 
@@ -43,6 +46,11 @@ int func_80071A50(void) {
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80071A58);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80071B9C);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80071CDC);
+
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80071EF0);
+/* best: 94.43%. Store order of the D_8009D3xx queue fields was reached, the
+   remaining delta is the register holding the third HeapAlloc result and the
+   position of the D_8009D410/D_8009D414 zero stores.
 
 void func_80071EF0(void) {
     void* pBuffer;
@@ -61,6 +69,11 @@ void func_80071EF0(void) {
     D_8009D40C = D_8009BD20;
     func_80029AFC((StreamDataQueueEntry*)&D_8009D3F8, 0, 0);
 }
+*/
+
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80071FEC);
+/* best: 94.98%. Only the order of the D_8009D408/D_8009D40C zero stores and
+   of the D_8009D404 store relative to them is off.
 
 void func_80071FEC(void) {
     void* pBuffer;
@@ -76,6 +89,7 @@ void func_80071FEC(void) {
     D_8009D40C = 0;
     func_80029AFC((StreamDataQueueEntry*)&D_8009D3F8, 0, 0);
 }
+*/
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80072090);
 
@@ -92,11 +106,19 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_8007299C);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80072BB0);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80072DB4);
 
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80073300);
+/* best: 92.05%. Jump table shape matches (5 entries, .rodata vs jtbl_ is the
+   linker-equivalent difference). Needs the value pseudo in $v0 instead of $a1
+   and gcc kept case 3 and case 4 as one shared block where the original has
+   two identical blocks. The explicit case 0 is required for a 5 entry table.
+
 void func_80073300(void) {
     s32 nMode;
 
     if (g_GameState.unk1834 & 0x4000) {
         switch (g_GameState.unk1834 & 0x1FFF) {
+        case 0:
+            return;
         case 1:
             nMode = 4;
             break;
@@ -104,6 +126,8 @@ void func_80073300(void) {
             nMode = 5;
             break;
         case 3:
+            nMode = 7;
+            break;
         case 4:
             nMode = 7;
             break;
@@ -117,6 +141,11 @@ void func_80073300(void) {
     }
     D_8009BE10 = nMode;
 }
+*/
+
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80073398);
+/* best: 85.11%. Cases 1,2 share a block; 4,5,7 share a block; 3 and 6 fall
+   through to the epilogue, which is why the table has 7 entries.
 
 void func_80073398(void) {
     s32 nMode;
@@ -138,6 +167,7 @@ void func_80073398(void) {
         break;
     }
 }
+*/
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80073448);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80073530);
