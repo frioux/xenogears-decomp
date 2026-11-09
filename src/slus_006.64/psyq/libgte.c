@@ -132,7 +132,9 @@ void SetVertexTri(SVECTOR *v0, SVECTOR *v1, SVECTOR *v2) {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", SetRGBfifo);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", SetIR123);
+void SetIR123(long ir1, long ir2, long ir3) {
+    gte_ldir123(ir1, ir2, ir3);
+}
 
 void SetIR0(long p) {
     gte_lddp(p);
@@ -152,17 +154,25 @@ void SetSXSYfifo(long sxy0, long sxy1, long sxy2) {
     gte_ldsxy2(sxy2);
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", SetRii);
+void SetRii(long r11, long r22, long r33) {
+    gte_ldr11r22r33(r11, r22, r33);
+}
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", SetMAC123);
+void SetMAC123(long mac1, long mac2, long mac3) {
+    gte_ldmac123(mac1, mac2, mac3);
+}
 
 void SetData32(long data) {
     gte_ldlzc(data);
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", SetDQA);
+void SetDQA(long dqa) {
+    gte_lddqa(dqa);
+}
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", SetDQB);
+void SetDQB(long dqb) {
+    gte_lddqb(dqb);
+}
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", ReadGeomOffset);
 

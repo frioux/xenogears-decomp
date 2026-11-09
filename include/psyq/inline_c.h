@@ -230,6 +230,37 @@
 	:							\
 	: "r"( r0 ) )
 
+#define gte_lddqa( r0 ) __asm__ volatile (			\
+	"ctc2	%0, $27"					\
+	:							\
+	: "r"( r0 ) )
+
+#define gte_lddqb( r0 ) __asm__ volatile (			\
+	"ctc2	%0, $28"					\
+	:							\
+	: "r"( r0 ) )
+
+#define gte_ldir123( r0, r1, r2 ) __asm__ volatile (		\
+	"mtc2	%0, $9;"					\
+	"mtc2	%1, $10;"					\
+	"mtc2	%2, $11"					\
+	:							\
+	: "r"( r0 ), "r"( r1 ), "r"( r2 ) )
+
+#define gte_ldmac123( r0, r1, r2 ) __asm__ volatile (		\
+	"mtc2	%0, $25;"					\
+	"mtc2	%1, $26;"					\
+	"mtc2	%2, $27"					\
+	:							\
+	: "r"( r0 ), "r"( r1 ), "r"( r2 ) )
+
+#define gte_ldr11r22r33( r0, r1, r2 ) __asm__ volatile (	\
+	"ctc2	%0, $0;"					\
+	"ctc2	%1, $2;"					\
+	"ctc2	%2, $4"					\
+	:							\
+	: "r"( r0 ), "r"( r1 ), "r"( r2 ) )
+
 #define gte_SetRGBcd( r0 ) __asm__ volatile (			\
 	"lwc2	$6, 0( %0 )"					\
 	:							\
