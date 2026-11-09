@@ -347,22 +347,14 @@ void func_800726E8(void) {
 */
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80072A38);
-// 99.52%, 4 bytes short (one delay-slot nop). How to get here: the retail build compiled
-// the eye/at vectors and the scene as one object, so gcc kept the far-away
-// `&g_Scene.sceneDIP` base in $s0 and reached the camera vectors from it
-// (`addiu a0,s0,-0x14C`, `lw v0,-0x13C(s0)`), while it stored the eye members with fresh
-// `lui at/%hi` forms. Writing the four vy/vz accesses through the g_CameraEye2 /
-// g_CameraAt2 symbols (their relocations are what the original object has) and the tail
-// through scene-base-relative pointers reproduces both. Remaining difference: our gcc
-// fills the delay slot of the final `bnez` with the `andi`, the original leaves a `nop`.
-// Earlier findings, still valid: func_8007CD80 takes (VECTOR* pos, SVECTOR points[2],
-// SVec4* out); the locals are declared points, line, cross, result, pos in that order
-// (the original's ascending slot order) plus an unused MATRIX for the 0x20 of unreferenced
-// stack in the original frame; the else branch is vx, D_800ADBA8 = 0, vy, vz, then
-// `g_CameraAt2.vy = g_CameraAt2.vy - 0x200000` (the dead first vy store survives only in
-// that spelling); the flag clears are spelled `&= 0xFFFE` / `&= 0xFFF7` so they come out
-// as `andi`; the scene-angle chains are written out twice, never through a local, or gcc
-// keeps the angle across the rsin/rcos calls instead of reloading sceneDIP.
+// Attempt below is 99.52%: identical except the final `bnez` delay slot - ours fills it
+// with the `andi` of the flag clear, retail leaves a `nop` and puts the `andi` after.
+// Verified NOT a preset problem: try_flags --sweep gives 99.52 for gcc-2.7.2 at -O2/-O3,
+// -G4/-G8, mcpu 3000/r8000 (2.6.0: 99.32, 2.7.2-cdk: 72.11). Tried and equally 99.52: plain
+// `if (--unk70 == 0)`, the original `if (!=0) ; else` spelling, and hoisting the flags word
+// into an `s32 flags` local. The andi dest ($v0) and its source ($a0) are both dead at the
+// branch target, so reorg is free to steal it in every spelling tried; blocking the steal
+// means changing what reorg sees (e.g. a live use at the target), not the statement shape.
 /*
 extern int func_8007CD80(VECTOR* pPos, SVECTOR* pPoints, SVec4* pOut);
 extern void func_80073684(VECTOR* pEye, VECTOR* pAt);
@@ -437,12 +429,11 @@ void func_80072A38(VECTOR* pPos, int param) {
     }
 
     if (g_Scene.unk48 & 0x8) {
+        s32 flags = g_Scene.unk48;
         g_Scene.unk74 += g_Scene.unk78;
         g_Scene.sceneDIP = g_Scene.unk74 >> 16;
-        if (--g_Scene.unk70 != 0) {
-            ;
-        } else {
-            g_Scene.unk48 &= 0xFFF7;
+        if (--g_Scene.unk70 == 0) {
+            g_Scene.unk48 = flags & 0xFFF7;
         }
     }
 }
