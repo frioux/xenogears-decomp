@@ -21,6 +21,7 @@ RULES
 - You may append names to ${w.symbols} and add declarations to headers under include/ if a function needs them (your tree is yours; I will merge it). If you edit a header, delete build/src/${w.unit}.c.{i,s,o} afterwards, because ninja does not notice header changes.
 - Do not define new globals or data unless the original object really has that data in this unit.
 
+BATCH SIZE: this list was sized so you can actually finish it. If a function is over ~120 instructions, it will eat 10+ minutes on its own - work the small ones first, and when your list runs out, PARK and report rather than starting new functions (a parked attempt with a percentage is worth more to me than a fourth uncommitted body). Do not spend more than 10 minutes on any single function whose parked note says 95%+ with 6+ shapes already tried.
 JOB CONTROL: you are killed at 30 minutes. Run \`git add -A && git commit -m "match N in ${w.unit}"\` after every 2-3 matches instead of saving it for the end, and plan to be done writing by minute 22.
 
 Compiler preset for this unit: ${w.preset}${w.presetNote ? " - " + w.presetNote : ""}.
