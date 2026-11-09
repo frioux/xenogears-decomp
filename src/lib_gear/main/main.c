@@ -1283,8 +1283,13 @@ INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E63A8);
 // callee-saved assignments -- pList s3, pSkeleton s4, pChild s2, pTargetSkeleton
 // s5, numChildren s6 -- do match). Declaration orders, for/while, u_short
 // numChildren, moving pChild++ to the loop tail, an explicit `s32 offset` local,
-// `u_short i` (adds 8 bytes, order becomes pJoint/pChild/i) and hoisting `i = 1`
-// into the declarations (same) all leave the pair alone or score lower.
+// `u_short i` (adds 8 bytes, order becomes pJoint/pChild/i), hoisting `i = 1`
+// into the declarations (same), `u32 i` (96.80%), `register int i` and
+// `register ModelJoint* pJoint` (both same) all leave the pair alone or score
+// lower. `pSkeleton + jointIndex` instead of the s32 cast gives 98.30%: it
+// swaps the addu operands to `addu s1,s4,v0` without touching s0/s1. Since both
+// builds emit the same insns in the same order, the choice comes from the
+// pseudo order/ties local-alloc resolves, not from anything in the body.
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E6578);
 /*
 void func_801E6578(Temp4* pList, s32 jointIndex, ModelJoint* pSkeleton, ModelJoint* pTargetSkeleton) {
