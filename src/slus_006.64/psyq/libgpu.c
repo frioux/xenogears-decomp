@@ -72,7 +72,7 @@ extern u_int D_80056950[];     // draw-mode table: clip width/height per mode
 extern u_int D_80056964[];     // draw-mode table: VRAM height per mode
 
 extern void func_8004463C(char *name, RECT *rect);
-extern void func_800471A4(u_long value);
+extern void GPU_cw(u_long value);
 extern u_char func_80046C58(int mode);
 extern void func_8004574C(DR_ENV *pDrEnv, DRAWENV *pEnv);
 extern void func_80047178(void *p, int value, int n);
@@ -359,7 +359,7 @@ int ResetGraph(int mode) {
         pLevel = &D_800568D0;
         func_80047178(pLevel, 0, 0x80);
         ResetCallback();
-        func_800471A4((u_long)D_800568C8 & 0xFFFFFF);
+        GPU_cw((u_long)D_800568C8 & 0xFFFFFF);
         nMode = func_80046C58(mode);
         *pLevel = nMode;
         D_800568D1 = 1;

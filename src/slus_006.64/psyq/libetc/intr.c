@@ -96,7 +96,7 @@ void* startIntr() {
     g_InterruptEnvironment.interruptsInitialized = 1;
     g_pInterruptControl->setVsyncIntrCallback = startIntrVSync();
     g_pInterruptControl->setDMAIntrCallback = startIntrDMA();
-    func_8004BED8();
+    _96_remove();
     ExitCriticalSection();
     return &g_InterruptEnvironment;
 }

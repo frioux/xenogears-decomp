@@ -41,7 +41,7 @@ void func_80047178(void *p, int value, int n) {
         *pByte++ = value;
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_c", func_800471A4);
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_c", GPU_cw);
 
 int OpenTIM(u_long *addr) {
     g_GpuCurTIMHandle = addr;
@@ -99,10 +99,10 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_c", func_80047638);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_c", func_800477D0);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_c", func_80048AB0);
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_c", SetFogNearFar);
 
 /* best 91.54%: gcc sinks the b division after a's shift and keeps b in s0
-void func_80048AB0(int x0, int x1, int h) {
+void SetFogNearFar(int x0, int x1, int h) {
     int d;
     long a;
     long b;

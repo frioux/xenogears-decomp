@@ -2,7 +2,7 @@
 #include "psyq/libetc.h"
 #include "psyq/libgpu.h"
 
-u_short func_8004376C(u_long *p, int tp, int abr, int x, int y, int w, int h) {
+u_short LoadTPage(u_long *p, int tp, int abr, int x, int y, int w, int h) {
     RECT rect;
 
     rect.x = x;
@@ -23,7 +23,7 @@ u_short func_8004376C(u_long *p, int tp, int abr, int x, int y, int w, int h) {
     return GetTPage(tp, abr, x, y);
 }
 
-u_short func_80043858(u_long *p, int x, int y) {
+u_short LoadClut(u_long *p, int x, int y) {
     RECT rect;
 
     rect.x = x;
@@ -34,7 +34,7 @@ u_short func_80043858(u_long *p, int x, int y) {
     return GetClut(x, y);
 }
 
-u_short func_800438C0(u_long *p, int x, int y) {
+u_short LoadClut2(u_long *p, int x, int y) {
     RECT rect;
 
     rect.x = x;

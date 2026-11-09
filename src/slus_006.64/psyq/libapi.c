@@ -29,7 +29,7 @@ extern int func_80040A4C(void);
 extern void func_80040ABC(char *buf1, long len1, char *buf2, long len2);
 extern void func_80040B00(void);
 extern void func_80040BA4(void);
-extern void func_80040C5C(char *buf1, long len1, char *buf2, long len2);
+extern void _remove_ChgclrPAD(char *buf1, long len1, char *buf2, long len2);
 extern void _patch_pad(void);
 extern void InitPAD2(char *buf1, long len1, char *buf2, long len2);
 extern void StartPAD2(void);
@@ -102,7 +102,7 @@ long func_8004077C(void) {
 }
 
 long func_8004078C(char *buf1, long len1, char *buf2, long len2) {
-    func_80040C5C(buf1, len1, buf2, len2);
+    _remove_ChgclrPAD(buf1, len1, buf2, len2);
     EnterCriticalSection();
     _patch_pad();
     ExitCriticalSection();
@@ -115,7 +115,7 @@ long func_8004078C(char *buf1, long len1, char *buf2, long len2) {
 }
 
 long InitPAD(char *buf1, long len1, char *buf2, long len2) {
-    func_80040C5C(buf1, len1, buf2, len2);
+    _remove_ChgclrPAD(buf1, len1, buf2, len2);
     EnterCriticalSection();
     _patch_pad();
     ExitCriticalSection();

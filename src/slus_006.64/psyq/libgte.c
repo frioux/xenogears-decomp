@@ -44,7 +44,7 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", VectorNormalSS);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", func_80048DD8);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", func_80048E94);
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", MatrixNormal);
 
 void LoadAverage12(VECTOR *v0, VECTOR *v1, long p0, long p1, VECTOR *v2) {
     long flg;

@@ -59,7 +59,7 @@ void func_8004546C(DR_MODE *p, RECT *pt) {
     *(u_long*)&p->code[1] = 0;
 }
 
-void func_800454B0(DR_MODE *p, int dfe, int dtd) {
+void SetPriority(DR_MODE *p, int dfe, int dtd) {
     setlen(p, 2);
     *(u_long*)&p->code[0] = 0xE6000000 | (dfe ? 0x2 : 0) | (dtd ? 0x1 : 0);
     *(u_long*)&p->code[1] = 0;
@@ -153,6 +153,6 @@ u_long func_80046638(u_long value) {
     return *D_800569A0 & 0xFFFFFF;
 }
 
-void func_80046668(u_long *p, int x, int y) {
+void siocons(u_long *p, int x, int y) {
     func_8004668C(p, x, 0, y);
 }

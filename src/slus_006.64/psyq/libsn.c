@@ -65,7 +65,7 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libsn", PCread);
 /* 98.92%: only the register assignment of `nTotal` and `buff` is swapped
    (original keeps nTotal in s2 and buff in s3; every local order and a
    pBuff copy tried gives the swap). */
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libsn", func_8004C458);
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libsn", _SN_read);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libsn", PCwrite);
 /*
