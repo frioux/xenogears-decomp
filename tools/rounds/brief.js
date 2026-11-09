@@ -16,6 +16,7 @@ RULES
 - Keep the file's functions in address order. Leave stubs you do not match exactly as they are.
 - No inline assembly, no #pragma, no per-function compiler flags. \`char\` is unsigned (-funsigned-char).
 - If a function is not at 100.00% after about 8 honest attempts, restore its INCLUDE_ASM line and leave your best attempt in a /* ... */ block directly below it with the best percentage in a comment. Do not delete it when you move on.
+- SHARED HEADERS ARE THE #1 INTEGRATION FAILURE. If your C needs a field that a header under include/ has only as an opaque array (e.g. 'u8 unk430[0xC]'), do NOT re-split that array into named fields: another unit in the same overlay depends on the current split and your version silently breaks it at merge time (this cost four compiles in rounds 40-41). Index it in your .c instead: '((void**)g_Menu->unk430)[1]', '((u16*)&g_Menu->unk17FC)[0x1C]'. Only add a NEW field if the offset is not covered by any existing one.
 - You may append names to ${w.symbols} and add declarations to headers under include/ if a function needs them (your tree is yours; I will merge it). If you edit a header, delete build/src/${w.unit}.c.{i,s,o} afterwards, because ninja does not notice header changes.
 - Do not define new globals or data unless the original object really has that data in this unit.
 

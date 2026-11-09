@@ -1083,4 +1083,39 @@ Facts banked this round:
   table (`sltiu x,5` with no -1 bias).
 - `D_8009D3F8..D_8009D414` is a 3-entry stream-data queue table for `func_80029AFC`;
   `D_8009BE10` is a world-map mode with values 1,2,4,5,7.
+| 41 | 14 units: `battle` misc7-13, `menu` misc5-11 | +92 | 1988 | battle 66, menu 26; all eleven outputs OK after two shared-header fixes |
+
+### Round 41: +92, and shared headers are now a named hazard
+
+`battle` misc7 12, misc9 13, misc10 13, misc11 8, misc12 9, misc4-8 6-12 each;
+`menu` misc5 13, misc6 13, misc8-11 3-6 each (the big menu units yield fewer).
+
+**The header collision from round 40 came back four times.** In the `menu`
+overlay, `SystemMenu` in `include/system/menu.h` is touched by almost every unit,
+and each worker invented its own split of the same tail arrays:
+
+| offset | one worker wrote | another needed | what the code does |
+|---|---|---|---|
+| 0x358/0x360 | `u8 unk358[0x4]` | `void* unk358` (HeapAlloc target) | a pointer |
+| 0x430..0x438 | `u8 unk430[0xC]` | `void* unk430/434/438` | three pointers |
+| 0x4FDC..0x4FE6 | `u8 unk4FDC[0xA]`, `u8 unk4FE6` | `unk4FDC[0x8], unk4FE4, unk4FE5, unk4FE6[0x4E]` | flags + pointer |
+| 0x10E0 | `MenuString unk10E0[8]` | `unk0x10E0` | same field, different name |
+
+All were size-correct, so `make check` is happy about the layout and only the
+*other* unit's compile fails. Resolutions: keep the pointer-shaped splits
+(`void* unk358/unk360/unk430/unk434/unk438`) and rename the one reference that used
+`unk0x10E0`. `tools/rounds/brief.js` now forbids re-splitting an existing header
+array: index it in the unit (`((void**)g_Menu->unk430)[1]`) unless the offset is
+completely unused. That is the rule that keeps a round mergeable.
+
+Two more findings worth keeping:
+- `world_map` misc15's `func_800968E0` is **99.79% and unconvertible**: its switch
+  table is `jtbl_80070CA0` in `asm/world_map/data/0.rodata.s`, and converting the
+  stub deletes the `.L80096910`-style labels that table relocates against, so the
+  overlay stops linking. Same class as `convertible.py`'s dlabel rule, but the
+  data lives in a *different* segment's asm, which `convertible.py` does not see.
+- `world_map` misc13's `func_800935DC` needs the signed-division trap guards
+  (`break 7`/`break 6`), which maspsx only emits with `--expand-div` - the
+  `XenoWorldMap` preset does not pass it. If that family grows, consider adding
+  `--expand-div` to the preset and re-checking the overlay.
 
