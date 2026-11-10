@@ -14,6 +14,9 @@ extern u8 D_800D2C8B[];
 extern u8 D_800D2CB0[];
 extern u8 D_800D2CE0[];
 extern u8 D_800D2DCC[];
+extern u8 D_800D2E0C[];
+extern u8 D_800D32A1[];
+extern u8 D_800CCDEC[];
 extern u8 D_800D3410[];
 extern u8 D_800D3420[];
 extern u8 D_800D3430[];
@@ -43,7 +46,24 @@ void func_8007C4A0(u8 **arg0, u8 arg1) {
     pRow = (u16 *)(D_800D3420 + arg1 * 0x40);
     pRow[(*arg0)[1]] = result;
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007C580);
+void func_8007C580(u8 **arg0, u8 arg1) {
+    u16 *pRow;
+    u16 result;
+    u8 best = 0xFF;
+    s32 bestIndex = 0;
+    s32 i = 3;
+    s32 slot = arg1 + 3;
+
+    for (; i < 0xB; i++) {
+        if (func_8007A628(i, (*arg0)[2]) != 0 && best >= *(s16 *)&D_800D2E0C[(i - 3) * 2] && i != slot) {
+            best = D_800D2E0C[(i - 3) * 2];
+            bestIndex = i;
+        }
+    }
+    result = func_80089C08(bestIndex);
+    pRow = (u16 *)(D_800D3420 + arg1 * 0x40);
+    pRow[(*arg0)[1]] = result;
+}
 void func_8007C678(u8 **arg0, u8 arg1) {
     u16 *pRow;
     u16 result;
@@ -187,12 +207,6 @@ void func_8007D30C(u8 **arg0, u8 arg1) {
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007D344);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007D478);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007D5B0);
-/* best: 93.33%. Insn multiset and the whole tail match; only the
-   strength-reduced D_800CCD64 offset increment sits one block early in the
-   original (in the loop-top bnez delay slot, before count++), gcc puts it in
-   the loop-branch delay slot. Also tried ++i and count += (flags & 0xC000) == 0.
-
 void func_8007D5B0(u8 **arg0, u8 arg1) {
     u8 *pRow;
     s32 count = 0;
@@ -206,7 +220,6 @@ void func_8007D5B0(u8 **arg0, u8 arg1) {
     pRow = &D_800D3430[arg1 * 0x40];
     pRow[(*arg0)[1]] = count;
 }
-*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007D610);
 /* best: 86.05%. Tail matches; same induction/delay-slot placement miss as
    func_8007D5B0 plus the D_800C3EB7 offset (s1-style at-register lookup) in
@@ -226,5 +239,23 @@ void func_8007D610(u8 **arg0, u8 arg1) {
     pRow[(*arg0)[1]] = count;
 }
 */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007D6A8);
+void func_8007D6A8(u8 **arg0, u8 arg1) {
+    u16 *pRow;
+    u16 result;
+    u32 best = -1;
+    s32 bestIndex = 0;
+    s32 i;
+    s32 offset;
+    s32 record;
+
+    for (i = 0, offset = 0, record = 0; i < 3; offset += 0x170, i++, record += 8) {
+        if (func_8007A628(i, (*arg0)[2]) != 0 && D_800D32A1[record] != 0 && best >= *(u32 *)(D_800CCDEC + offset)) {
+            best = *(u32 *)(D_800CCDEC + offset);
+            bestIndex = i;
+        }
+    }
+    result = func_80089C08(bestIndex);
+    pRow = (u16 *)(D_800D3420 + arg1 * 0x40);
+    pRow[(*arg0)[1]] = result;
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007D7B4);
