@@ -38,6 +38,15 @@ extern s32 D_800987FC;
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_80070808);
 
+/* 66.68%: original keeps &D_8009867C in $s0 across the first call, ours
+   rematerialises it; the same C is otherwise identical.
+void func_80070808(s32* p, s32 step) {
+    D_8009867C += func_800707D8(p[0], D_8009867C, step);
+    D_80098684 += func_800707D8(p[2], D_80098684, step);
+    D_80098680 += func_800707D8(p[1], D_80098680 + D_800925F4, step);
+}
+*/
+
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_800708C4);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_8007099C);
@@ -55,7 +64,23 @@ void func_80070F80(s32 value) {
 
 extern s32 D_80092934;
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_80070FD8);
+s32 func_80070FD8(u8* p) {
+    VECTOR vec;
+    s32 angle;
+
+    vec = *(VECTOR*)p;
+    vec.vx -= 0x3F80;
+    vec.vz -= 0x3F80;
+    angle = ratan2(vec.vx, vec.vz) & 0xFFF;
+    if (angle >= 0x201) {
+        *(s32*)(p + 0x58) = 0x800 - D_80092934;
+    } else {
+        *(s32*)(p + 0x58) = 0xC00 - D_80092934;
+    }
+    *(s32*)(p + 0x48) = 0xFF;
+    *(s16*)(p + 0xCE) = 0;
+    return 0;
+}
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_8007107C);
 
@@ -76,9 +101,59 @@ void func_80071724(void* pOt) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_80071794);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_800718C0);
+extern s32 D_800925D4;
+extern s32 D_800925D8;
+extern u8 D_8009868C[];
+extern s32 func_80032F54(void* pString, s16 a, s16 b, s16 c, s16 d, s16 e, s16 f);
+
+void func_800718C0(void) {
+    D_800925D8 = -1;
+    D_800925D4 = 0;
+    func_80032F54(&D_8009868C[0], 0x140, 0x30, 0x1C, 0x9A, 0x40, 4);
+}
+
+extern u8 D_80092608;
+extern s16 D_80098698;
+extern s16 D_80098692;
+extern s32 D_8009105C[];
+extern s32 D_800925E8;
+extern s32 D_800925E0;
+extern s32 D_800925EC;
+extern s32 D_800925E4;
+extern s16 D_80092600;
+extern s16 D_800987E0;
+extern u16 D_800987E8;
+extern s16 D_800970C4;
+extern u16 D_800970CC;
+extern void func_8008EB4C(s32 id);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_8007191C);
+
+/* 89.15%: reorg steals the else branch's li v0,0x4 into the bnez delay slot
+   where the original leaves a nop, which makes our value pseudo land in v1.
+void func_8007191C(u32 idx) {
+    s32 value;
+
+    D_80092608 = idx < 1;
+    if (idx == 0) {
+        func_8008EB4C(0x37);
+        D_80098698 = 2;
+        value = 0xB4;
+    } else {
+        D_80098698 = 4;
+        value = 0x9A;
+    }
+    D_80098692 = value;
+    func_80070F80(D_8009105C[idx]);
+    D_800925E8 = 0xA0;
+    D_800925E0 = 0xA0;
+    D_800925EC = 0x6D;
+    D_800925E4 = 0x6D;
+    D_80092600 = 0;
+    D_800987E0 = D_800987E8;
+    D_800970C4 = D_800970CC;
+}
+*/
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_800719F0);
 
@@ -94,7 +169,35 @@ void func_800720C4(void) {
     D_8009293C = 0;
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_800720D4);
+extern u8 D_800910C4;
+extern u8 D_800928D4;
+extern u8 D_80099D9D;
+extern u8 D_80099D9E;
+extern s32 D_80092900;
+extern s32 D_80092A00;
+extern s32 D_80092A10;
+extern s32 D_80092A20;
+extern s32 D_800970F8;
+extern s32 D_80098814;
+
+void func_800720D4(void) {
+    if (D_8009293C != 0) {
+        return;
+    }
+    func_80070F80((s32)&D_800910C4);
+    D_8009293C = 1;
+    D_800928D4 = 0;
+    D_80099D9D = 0;
+    D_80099D9E = 0;
+    D_80092900 = 0;
+    D_800925D4 = 0;
+    D_800925D8 = 0;
+    D_80092A00 = 1;
+    D_80092A10 = 1;
+    D_80092A20 = 1;
+    D_800970F8 = 0;
+    D_80098814 = 0;
+}
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_80072170);
 
@@ -103,7 +206,30 @@ void func_800725A8(void) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_800725B0);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_800726B4);
+extern void func_8008BC04(void);
+extern void func_8007F834(void);
+extern void func_80030988(s32 a0, s32 a1, s32 a2, s32 a3);
+extern void func_8008A5BC(void* p);
+extern void func_80089D5C(void* p);
+extern void func_8008976C(s32 a0, s32 a1);
+extern void func_80083C0C(s32 mode);
+extern void func_8007E954(s32 value);
+extern void func_80080D10(void);
+extern void* D_800910F0;
+extern void* D_80092610;
+
+void func_800726B4(void) {
+    func_8008BC04();
+    func_8007F834();
+    func_80030988(1, 1, 0x40, 0x40);
+    func_8008A5BC(D_800910F0);
+    func_80089D5C(D_80092610);
+    func_8008976C(0x140, 0xDA);
+    SetGeomScreen(0xC0);
+    func_80083C0C(3);
+    func_8007E954(0x100);
+    func_80080D10();
+}
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_8007273C);
 
