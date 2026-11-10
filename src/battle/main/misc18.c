@@ -3,6 +3,7 @@
 extern u8 *D_800C34B0;
 extern u8 *D_800C3DFC;
 extern u8 *D_800C3E00;
+extern u8 D_800C34AD;
 extern u8 D_800C3E50;
 extern u8 D_800D2DC4;
 
@@ -46,8 +47,9 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80096018);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80096494);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80096824);
 /* best: 99.74%. Only the quotient temp of `rand() % 100` differs: the original
-   computes it in a0, gcc 2.7.2 hands it a1. The instruction multiset around it
-   is byte-identical, so this is the allocator tie, not the source shape.
+   computes it in a0, gcc 2.7.2 hands it a1. Tried: inline `rand() % 100` in the
+   condition, an `s32 r` local (99.23%), and a pointer local for the
+   D_800C34B0 store. Instruction multiset is identical; allocator tie.
 
 void func_80096824(void) {
     u8 *p = D_800C3E00;
@@ -55,7 +57,9 @@ void func_80096824(void) {
     s32 t = p[0x5B] + q[0x14];
 
     if (rand() % 100 >= t) {
-        D_800C34B0[0x5FC7] = 0x38;
+        u8 *r = D_800C34B0;
+
+        r[0x5FC7] = 0x38;
         D_800D2DC4 = 1;
     }
 }
@@ -108,10 +112,61 @@ void func_80098C6C(u8 sel) {
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80098D2C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80099498);
+/* best: 91.52%. Two allocations off: the original scales into the base
+   (`addu v1,a2,v1`), mine into the index (`addu v1,v1,a2`), and the original
+   puts `i++` in the `beqz`'s delay slot (mine emits it after `n++` with a nop
+   in the slot). Tried: flat pointer arithmetic both operand orders, a
+   D_800C34B0 pointer local (worse: hoists the base load), and a 0x170-step
+   `BattleActor { pad0[0x7C]; u16 flags; }` array access (81.52%).
+
+s32 func_80099498(void) {
+    u8 i;
+    u8 n;
+    s32 ret = 0;
+    switch (D_800C34AD) {
+    case 2:
+        n = 0;
+        for (i = 0; i < 3; i++) {
+            if ((*(u16 *)(i * 368 + D_800C34B0 + 0x7C) & 0xC002) != 0) {
+                n++;
+            }
+        }
+        if (n == 0) {
+            ret = 1;
+        }
+        break;
+    case 3:
+        n = 0;
+        for (i = 0; i < 3; i++) {
+            if ((*(u16 *)(i * 368 + D_800C34B0 + 0x7C) & 0xC002) != 0) {
+                n++;
+            }
+        }
+        if (n != 2) {
+            ret = 1;
+        }
+        break;
+    }
+    return ret;
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_800995A0);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80099890);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80099CF0);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80099FB0);
+void func_80099FB0(void) {
+    u16 ab = *(u16 *)(D_800C3E00 + 0x8C) | *(u16 *)(D_800C3E00 + 0x8E);
+
+    D_800C34B0[0x5FBC] = D_800C3DFC[0x20];
+    D_800C34B0[0x5FBD] = D_800C3DFC[0x21];
+    D_800C34B0[0x5FBE] = D_800C3DFC[0x22];
+    D_800C34B0[0x5FBF] = D_800C3DFC[0x23];
+    D_800C34B0[0x5FC0] = D_800C34B0[0x5FC2];
+
+    ab >>= 12;
+    if ((D_800C34B0[0x5FBE] & 0x3F) == 0) {
+        D_800C34B0[0x5FBE] |= ab;
+    }
+}
 void func_8009A074(void) {
     if (*(u16 *)(D_800C34B0 + 0x5FAC) & 7) {
         *(u16 *)(D_800C34B0 + 0x5FAC) = *(u16 *)(D_800C34B0 + 0x5FAE) & 7;
