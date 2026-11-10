@@ -3,6 +3,7 @@
 #include "system/archive.h"
 #include "psyq/libgpu.h"
 #include "psyq/libgte.h"
+#include "system/controller.h"
 
 // Node of a singly linked list hung off a 0x98+ byte owner.
 typedef struct BattleListNode {
@@ -30,6 +31,8 @@ extern s16 D_8009286C;
 extern u8 D_80091A6C[];
 extern u8 D_800927EC;
 extern s32 D_80092888;
+extern s32 D_800927F4;
+extern s32 D_800927F0;
 extern u8** D_800928EC;
 extern BattleEntry D_8009A0D8[];
 
@@ -44,18 +47,18 @@ extern void func_80089534(s32, s32);
 extern void func_80089B44(void* p);
 extern void func_8002DFF0(s32, s32);
 extern void func_80089210(s32, s32);
+extern void func_800898BC(void*, SVECTOR*, SVECTOR*, SVECTOR*);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc12", func_80088940);
 
-/* Best attempt: objdiff 44.86%. gcc rematerialises the symbol address for the
-   store (fresh `lui at` + `sw %lo(at)`), so the address never stays live in
-   one register as the original's does; the pointer/value declaration order and
-   a single `|=` statement all compile to the same two-address shape. */
-/* Best attempt: objdiff 44.86%. gcc rematerialises the symbol address for the
-   store (fresh `lui at` + `sw %lo(at)`) and reuses the address register for the
-   loaded value, so the address never stays live in one register the way the
-   original's does. Pointer local, separate value local, `*p = *p | K`, `p[0]`
-   and swapped OR operands all compile to the same two-address shape. */
+/* Best attempt: objdiff 44.86%. gcc gives the store a rematerialised symbol
+   address (`lui at` + `sw %lo(at)`) and reuses the address register for the
+   loaded value, while the original keeps the address live in one register and
+   stores through it (`lui v0,%hi` + `addiu v0,v0,%lo` + `lw v1,0(v0)`). Pointer
+   local, separate value local, `*p = *p | K`, `p[0]`, a bitfield write and
+   swapped OR operands all compile to the same two-address shape. The whole
+   function is 100% under `-G0` (tools/scripts/try_flags.sh ... --gp -G0), so
+   this is the same `-G8` vs `-G0` question as func_80088A40. */
 /*
 void func_80088940(void) {
     s32 value;
@@ -113,7 +116,21 @@ void func_80088BD4(void) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc12", func_80088BFC);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc12", func_80088C28);
+void func_80088C28(void) {
+    u16 buttons;
+
+    buttons = g_C1ButtonState;
+    if (buttons & 4) {
+        D_800927F4++;
+    }
+    if (buttons & 1) {
+        D_800927F4--;
+    }
+    if (D_800927F4 < 0) {
+        D_800927F4 = 0;
+    }
+    HeapDebugDump(1, D_800927F4, 0xA, 0x80AD);
+}
 
 void func_80088CBC(s32 slot) {
     BattleEntry* pEntry;
@@ -175,17 +192,9 @@ void func_80089C54(void) {
     func_80089B44(p);
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc12", func_80089C88);
-
-/* Best attempt: objdiff 76.25%. Everything but the list walk matches; the
-   original tests `pTail->unk90` once before the loop and then again at the top
-   of each iteration (the guard's value is discarded, `lw v1` follows `lw v0`),
-   while gcc 2.7.2 -O2 folds the guard into the loop and branches to the bottom
-   test. An explicit `if (cond) { do {} while (cond); }` guard and an
-   if/else-with-while both fold the same way. */
-/*
 void func_80089C88(BattleListNode* pList, BattleListNode* pNode) {
     BattleListNode* pTail;
+    BattleListNode* pCur;
 
     pNode->unk8C = pList;
     pTail = pList->unk94;
@@ -193,13 +202,40 @@ void func_80089C88(BattleListNode* pList, BattleListNode* pNode) {
         pList->unk94 = pNode;
         return;
     }
-    if (pTail->unk90 != 0) {
-        do {
-            pTail = pTail->unk90;
-        } while (pTail->unk90 != 0);
+    pCur = pTail;
+    while (pCur->unk90 != 0) {
+        pCur = pCur->unk90;
     }
-    pTail->unk90 = pNode;
+    pCur->unk90 = pNode;
 }
-*/
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc12", func_80089CD8);
+void func_80089CD8(BattleListNode* pNode) {
+    BattleListNode* pList;
+    BattleListNode* pPrev;
+    BattleListNode* pCur;
+
+    if (pNode == 0) {
+        return;
+    }
+    pList = pNode->unk8C;
+    if (pList == 0) {
+        return;
+    }
+    pNode->unk8C = 0;
+    pPrev = pList->unk94;
+    if (pPrev == 0) {
+        return;
+    }
+    if (pPrev == pNode) {
+        pList->unk94 = pNode->unk90;
+    } else {
+        pCur = pPrev;
+        if (pCur->unk90 != pNode) {
+            do {
+                pCur = pCur->unk90;
+            } while (pCur->unk90 != pNode);
+        }
+        pCur->unk90 = pNode->unk90;
+    }
+    pNode->unk90 = 0;
+}
