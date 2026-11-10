@@ -62,8 +62,13 @@ merge)
     for tag in "$@"; do
         d=$POOL/r-$tag/xenogears-decomp
         [ -d "$d" ] || { echo "?? no clone r-$tag" >&2; continue; }
+        # Do NOT commit a worker's uncommitted edits. A worker that hit the 30-minute
+        # kill leaves an unverified half-conversion behind; committing it is how round 6
+        # merged five overlays into a shifted state (the worker's own check_bin.sh ran
+        # before those edits). Only committed work is merged; the rest is reported.
         if [ -n "$(git -C "$d" status --porcelain)" ]; then
-            git -C "$d" add -A && git -C "$d" commit -q -m "wip leftovers from r-$tag"
+            echo "UNCOMMITTED r-$tag (not merged): $(git -C "$d" status --porcelain | tr '\n' ' ')"
+            git -C "$d" checkout -- . 2>/dev/null || git -C "$d" reset -q --hard
         fi
         branch=$(git -C "$d" branch --show-current)
         git remote add -f "r$tag" "$d" >/dev/null 2>&1 || git fetch -q "r$tag"
