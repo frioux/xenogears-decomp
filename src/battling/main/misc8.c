@@ -174,10 +174,13 @@ void func_80080B58(void) {
 }
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc8", func_80080C48);
-/* 95.60%: gcc hoists the `a0 = 0` of the shared tail into both branches (one
-   extra `move a0,zero` + a nop in the jal slot); retail sets it once at the
-   merge point.  Writing the tail once after the if/else reorders the blocks
-   outright (79.80%).
+/* 95.60%: retail keeps the shared tail's `a0 = 0` once at the merge block and
+   lets reorg put it in the func_80083C0C jal delay slot; ours is stolen into
+   branch 1's `j` delay slot with a copy re-inserted at the end of branch 2
+   (2 extra insns).  Same output whether the tail is written once after the
+   if/else chain or duplicated in both branches (gcc cross-jumps them), and
+   whether the argument is a literal or an `s32 mode = 0` local.  gcc 2.7.2-cdk
+   scores worse (85.36%), so the unit preset is right.
 void func_80080C48(s32 a0) {
     func_80039FF8();
     func_8008EB4C(0x1F);
@@ -259,26 +262,31 @@ void func_80081100(s32 entry, s32 mode) {
 }
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc8", func_800811AC);
-/* 87.21%: instruction multiset and instruction count identical; only the a1/a2
-   tie-break (base address in a1 vs a2) differs.  `sym + off` for the store base
-   plus `sym + (off + 4)` for the AddPrim argument reproduces retail's two addu's.
+/* 98.68%: only the `D_800928A0 * 0x14` chain's temp register differs - retail
+   keeps it in a1 for all three insns (sll/addu/sll) because `off` itself is
+   allocated to a1, ours gives the temp v0 and only the last sll a1.  Every
+   other insn, the base address in a2 and both addu operand orders match.
+   Tried: off as s32 and as u32, off/pBase declaration order swapped -
+   identical output.  Keeping the base pointer in a local and forming the
+   addresses as `pBase + off` / `pBase + (off + 4)` from it is what fixes the
+   a1/a2 tie-break (87.21% -> 98.68%).
 void func_800811AC(u8 *p) {
-    s32 off;
+    u32 off;
     u8 *pBase;
 
     if (D_8009273C != 0) {
+        pBase = (u8 *)&D_80095510[0];
         off = D_800928A0 * 0x14;
-        pBase = (u8 *)&D_80095510[0] + off;
-        *(u16 *)(pBase + 0x14) = D_8009553C;
-        *(u16 *)(pBase + 0xC) = D_8009553E;
-        AddPrim(p, (u8 *)&D_80095510[0] + (off + 4));
+        *(u16 *)(pBase + off + 0x14) = D_8009553C;
+        *(u16 *)(pBase + off + 0xC) = D_8009553E;
+        AddPrim(p, pBase + (off + 4));
     }
     if (D_80092740 != 0) {
+        pBase = (u8 *)&D_80095540;
         off = D_800928A0 * 0x14;
-        pBase = (u8 *)&D_80095540 + off;
-        *(u16 *)(pBase + 0x14) = D_8009556C;
-        *(u16 *)(pBase + 0xC) = D_8009556E;
-        AddPrim(p, (u8 *)&D_80095540 + (off + 4));
+        *(u16 *)(pBase + off + 0x14) = D_8009556C;
+        *(u16 *)(pBase + off + 0xC) = D_8009556E;
+        AddPrim(p, pBase + (off + 4));
     }
     if (D_8009273C | D_80092740) {
         AddPrim(p, D_80095570 + D_800928A0 * 8);
@@ -302,15 +310,17 @@ void func_800814AC(void) {
 }
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc8", func_8008151C);
-/* 95.15%: only the a0/a1 setup diamond differs - retail duplicates the
-   `lh a1,0x14` in both paths and ends the taken path with `j`; ours merges the
-   two identical loads into one block before the shared jal (and puts i=0 in a
-   separate `move` instead of func_8007E894's delay slot).  Also tried:
-   a1 loaded once before the if (93%), two separate calls (no merge, 79%?).
-   The `u32 pEntries` field is deliberate: as a pointer, gcc canonicalises
-   `off + base` to `addu base,off`; as an integer it keeps retail's operand
-   order. */
-/*
+/* 95.15%: two differences.  (1) retail keeps the `lh a1,0x14` duplicated in
+   both arms of the unk0 test (each arm ends at the shared jal); gcc merges the
+   two identical loads into one block that both arms reach, whichever way the
+   arms are written (if/else assigning a1 in both, explicit goto to a label
+   before the call) - the address RTL is identical so cross-jumping folds it.
+   (2) retail materialises i=0 before off=0 (so `move s1,zero` sits in the
+   func_8007E894 jal delay slot and `move s2,zero` after the count test); ours
+   emits off=0 first, and `i = 0; off = 0;` or a swapped comma expression both
+   give the same output.  The `u32 pEntries` field is deliberate: as a pointer,
+   gcc canonicalises `off + base` to `addu base,off`; as an integer it keeps
+   retail's operand order.
 void func_8008151C(BattleTextList *p) {
     s32 i;
     s32 off;
