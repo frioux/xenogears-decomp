@@ -201,24 +201,25 @@ s32 func_8007A568(void) {
 }
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_8007A570);
-/* 67.74%: the whole shape is right (scratchpad halfword stores off
-   PSX_SCRATCH + 0xA0/0xA2/0xA4, then func_80089160(0xA, 0x1F8000A0, 0)), but the
-   original splits the `li a1,0x1F8000A0` into lui a1,0x1F80 ... ori a1,a1,0xA0
-   around the s->unk8 load and interleaves each s->unk8/0xC/0x10 load with its
-   store; gcc here hoists the loads and keeps lui/ori adjacent.
+/* 92.11%: a `s16 *dst = (s16 *)((u8 *)PSX_SCRATCH + 0xA0)` local (rather than
+   three separate `*(s16 *)(PSX_SCRATCH + 0xA0/0xA2/0xA4)` casts, which scored
+   67.74%) puts the lui/ori for $a1 where the original has them, and the stores
+   reach the right addresses. Only difference left: gcc hoists the 2nd load
+   before the 1st store (and puts the 1st value in $a0), so the three
+   load/store pairs are not adjacent as in the original.
 s32 func_8007A570(s32 index) {
     WorldMapActor *p;
     WorldMapState *s;
+    s16 *dst;
 
-    index *= 0x80;
-    p = D_8009BE24;
+    p = D_8009BE24 + index;
     s = D_8009C620;
-    p = (WorldMapActor *)((u8 *)p + index);
     p->unk4 = 0;
-    *(s16 *)((u8 *)PSX_SCRATCH + 0xA0) = s->unk8;
-    *(s16 *)((u8 *)PSX_SCRATCH + 0xA2) = s->unkC;
-    *(s16 *)((u8 *)PSX_SCRATCH + 0xA4) = s->unk10;
-    func_80089160(0xA, (s32)PSX_SCRATCH + 0xA0, 0);
+    dst = (s16 *)((u8 *)PSX_SCRATCH + 0xA0);
+    dst[0] = s->unk8;
+    dst[1] = s->unkC;
+    dst[2] = s->unk10;
+    func_80089160(0xA, (s32)dst, 0);
     return 3;
 }
 */
