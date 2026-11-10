@@ -105,7 +105,10 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80073CEC);
    sum in the parameter's $a1 and the hw temp in $v1 (`lh v1; addu a1,v1,a1;
    slti v1,a1`), ours assigns the sum to $v1 and the temp to $v0. Also tried
    `arg1 += hw` in place, a separate s32/s16 local, and `t` declared after the
-   load - the sum pseudo never coalesces back into $a1. */
+   load - the sum pseudo never coalesces back into $a1. Also retried this
+   session as `arg1 = *(s16 *)(p0 + 0xB6) + arg1` in place and with a `hw`
+   local (both 97.78%, operands come out swapped as well); 2.6.0 gives 97.22
+   and 2.7.2-cdk 97.78, so the preset is not the lever. */
 /* s32 func_80073DE4(u8 *p0, s32 arg1) {
     s32 t = *(s16 *)(p0 + 0xB6) + arg1;
 
@@ -126,7 +129,31 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80074678);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80074998);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80074AB4);
+extern void func_80074678(u8 *, s32, u8);
+extern void func_80074998(u8 *);
+extern void func_8008B0D8(u8 *);
+extern void func_8008B730(u8 *, s32, s32);
+
+void func_80074AB4(u8 *p0) {
+    u8 *pState = *(u8 **)(p0 + 0x15CC);
+    u8 *pData = *(u8 **)(p0 + 0x15D0);
+    u8 *pEntry;
+
+    *(s32 *)(p0 + 0x00) = *(s16 *)(pState + 0x0);
+    *(s32 *)(p0 + 0x04) = *(s16 *)(pState + 0x2);
+    *(s32 *)(p0 + 0x08) = *(s16 *)(pState + 0x4);
+    *(u8 *)(p0 + 0x4C) = *(u8 *)(pData + 0x8);
+    *(s32 *)(p0 + 0x54) = (*(u16 *)(pState + 0x6) << 20) >> 20;
+    pEntry = *(u8 **)(*(u8 **)(*(u8 **)(p0 + 0x5C) + 0x4) + 0x8) + *(u8 *)(pData + 0x8) * 0x14;
+    if (*(u16 *)(pData + 0x6) & 0x1000) {
+        func_80074998(p0);
+        func_8008B0D8(pEntry);
+    }
+    func_80074678(p0, *(s16 *)(pEntry + 0x12), *(u8 *)(*(u8 **)(p0 + 0x15D0) + 0x9));
+    if (*(u8 *)(pData + 0xA) != 0) {
+        func_8008B730(pEntry, *(u8 *)(pData + 0x9), *(u8 *)(pData + 0xA));
+    }
+}
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80074BA4);
 
