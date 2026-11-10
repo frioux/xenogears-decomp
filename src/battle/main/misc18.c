@@ -7,6 +7,7 @@ extern u8 D_800C34AD;
 extern u8 *D_800C3E34;
 extern u8 D_800C3E50;
 extern u8 D_800D2DC4;
+extern u8 *D_800D2D6C;
 
 extern u8 D_800D220E[];
 extern u16 D_800D2C98;
@@ -16,6 +17,7 @@ extern s32 rand(void);
 extern s8 func_80097964(u8, u8, u16);
 extern void func_800995A0(u8, u8, u16, s32);
 extern void func_80098D2C(u8, u8);
+extern void func_80094D24(void);
 
 void func_80095A78(void) {
     s8 ret = func_80097964(D_800C3DFC[0x1C], D_800C3DFC[0x1D],
@@ -84,7 +86,9 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80096824);
    coalesces it with the quotient in a0 (mfhi a0; sra a0,a0,5), gcc gives the
    mfhi pseudo a1. Tried: inline expression, pointer locals for p/q, an `s32 r`
    local (99.23%), and `t <= rand() % 100` instead of `>=`. Instruction
-   multiset identical; allocator tie.
+   multiset identical; allocator tie. Also tried `s32 m = rand() % 100;` then
+   `m >= t` (99.23%): the local makes gcc keep the quotient and the mfhi in
+   different registers either way.
 
 void func_80096824(void) {
     s32 t = D_800C3E00[0x5B] + D_800C3DFC[0x14];
@@ -113,6 +117,71 @@ void func_80097D08(void) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80097D5C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_8009892C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80098AF8);
+/* best: 95.16%, 94 instructions (same count as the original). Body, both
+   branches, the outer/inner branch layout, the 9*x tails, the 0xA5/0xA0 clamp,
+   the rand()%8-4 delta and the call are byte-identical. Left: gcc folds the
+   row stride's +0x1058 / +0x2228 into the base add (addiu v0,a1,K then
+   addu v1,v1,v0) where the original keeps it on the index (addiu v1,v1,K then
+   addu v1,v1,a1), which then names the row pointer v0 instead of v1. Tried:
+   the whole sum as ints with (s32)pBase, &pBase[idx + K] subscript form,
+   (u8 *)(idx + K) + (s32)pBase (this one, 95.16), and a separate `s32 off`
+   local for idx + K which DOES fix the addiu but flips t/other between a0 and
+   v1 and drops to 90.97. Row strides: 0x5F0 (+0x1058) when bit 0x80 of
+   actor[0x15A] is clear, 0x690 (+0x2228) when set, plus
+   D_800C34B0[0x5FC2]*0x28; t = (s8)row[0x27]; v = t < other ? 9*(other-t) : 9
+   with other = actor[0x5A] / actor[0x13C] respectively, 9*actor[0x5A] when
+   sel >= 3; then v = 0xA5 - v; d = rand()%8 - 4; v -= d; func_80094D24();
+   return v. The `d` local is load-bearing: `v -= rand() % 8 - 4` makes gcc
+   fold the 4 into v before the call. func_80094D24 takes no arguments.
+
+u8 func_80098AF8(u8 sel) {
+    u8 *pBase = D_800C34B0;
+    u8 *pActor = (u8 *)(sel * 0x170 + (s32)pBase);
+    u8 *pRow;
+    u8 other;
+    s32 t;
+    s32 v;
+    s32 d;
+
+    D_800C3E00 = pActor;
+    D_800D2D6C = pActor + 0xA4;
+
+    if (sel < 3) {
+        if ((pActor[0x15A] & 0x80) == 0) {
+            pRow = (u8 *)(sel * 0x5F0 + 0x1058) + (s32)pBase + pBase[0x5FC2] * 0x28;
+            D_800C3DFC = pRow;
+            t = (s8)pRow[0x27];
+            other = pActor[0x5A];
+            if (t < other) {
+                v = (other - t) * 9;
+            } else {
+                v = 9;
+            }
+        } else {
+            pRow = (u8 *)(sel * 0x690 + 0x2228) + (s32)pBase + pBase[0x5FC2] * 0x28;
+            D_800C3DFC = pRow;
+            t = (s8)pRow[0x27];
+            other = pActor[0x13C];
+            if (t < other) {
+                v = (other - t) * 9;
+            } else {
+                v = 9;
+            }
+        }
+    } else {
+        v = pActor[0x5A] * 9;
+    }
+
+    if ((u16)v >= 0xA6) {
+        v = 0xA0;
+    }
+    v = 0xA5 - v;
+    d = rand() % 8 - 4;
+    v -= d;
+    func_80094D24();
+    return v;
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80098C6C);
 /* best: 95.83%. Same instruction multiset; only the mask shift sits one slot
    later than in the original (it fills the back edge's delay slot instead of
