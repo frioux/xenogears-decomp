@@ -74,6 +74,12 @@ extern void func_80096A6C(void);
 extern u32 ArchiveGetDebugTable(void);
 extern s32 func_800968E0(void);
 extern void func_800966CC(void *p);
+extern s32 D_8009BBB4;
+extern s32 D_8009BBB8;
+extern s32 D_8009BBBC;
+extern s16 D_8009C838;
+extern s16 D_8009C83A;
+extern s16 D_8009C83C;
 
 s32 func_800967E4(void) {
     s32 result = 0;
@@ -316,21 +322,49 @@ void func_800978FC(void) {
 }
 */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_800979C8);
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_80097BC0);
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_80097CB8);
-// Best: 94.28%. Everything matches except the clear loop's allocator
-// tie-break: the original keeps the pointer in v0 and the counter in v1, and
-// this shape gets the two swapped (deliberately, the note records that the
-// i-first declaration order gives the same swap). func_80097BC0 below shares
-// the same loop and the same gap.
+// Best: 63.31%. Same shape as the parked 94.28% note class: cc1 2.7.2 sinks
+// both masked `and`+store pairs to the end of the block and hoists the mask's
+// (high) half alone, so the original's interleaved order (lui+ori together, then
+// plain stores, then and+store, then second load) is unreachable from any
+// source order tried; 2.6.0 gives 72% for this function but drops the already
+// matched func_80097CB8 to 97.21%, so the preset is right.
 /*
+void func_80097BC0(s32 *p) {
+    u32 *pEnd;
+    s32 i;
+    s32 x;
+    s32 z;
+
+    D_8009D534 = D_8009A180;
+    i = 0xFF;
+    pEnd = D_8009C580;
+    for (; i >= 0; i--) {
+        *pEnd-- = 0;
+    }
+    x = p[0];
+    D_8009BBB8 = 0;
+    D_8009C5BC = 0;
+    D_8009C618 = 0x400;
+    D_8009BBB4 = x & 0x7FFFFF;
+    z = p[2];
+    D_8009C838 = 2;
+    D_8009C83A = 0;
+    D_8009C83C = 2;
+    D_8009BBBC = z & 0x7FFFFF;
+    func_800981C8((s32)p);
+    func_80097DC0();
+}
+*/
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_80097BC0);
+
 void func_80097CB8(s32 arg0) {
     u32 *pEnd;
     s32 i;
 
     D_8009D534 = D_8009A180;
+    i = 0xFF;
     pEnd = D_8009C580;
-    for (i = 0xFF; i >= 0; i--) {
+    for (; i >= 0; i--) {
         *pEnd-- = 0;
     }
     D_8009C5BC = 0;
@@ -338,7 +372,6 @@ void func_80097CB8(s32 arg0) {
     func_800981C8(arg0);
     func_80097DC0();
 }
-*/
 
 void func_80097D64(void) {
     s32 i;
