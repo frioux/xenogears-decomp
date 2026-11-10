@@ -2,6 +2,7 @@
 
 extern u8 D_800C37C8;
 extern u16 D_800C3E30;
+extern u8 D_800C3D40;
 extern u8 D_800C3D6C;
 extern u8 *D_800C3BAC[];
 extern s32 D_800C3BCC[];
@@ -71,7 +72,25 @@ s32 func_800AF400(void) {
     }
     return i;
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800AF438);
+s32 func_800AF438(u8 *p, u32 id, u16 *pOut) {
+    if ((id & 0xFF) == 0xFF) {
+        id = func_800AF400();
+    } else if ((id & 0xFF) == 0xFE) {
+        id = D_800C3D40;
+    } else if ((id & 0xFF) == 0xFD || (id & 0xFF) == 0xF9) {
+        id = p[0x20];
+    } else if ((id & 0xFF) == 0xFC) {
+        id = p[0x21];
+    } else if ((id & 0xFF) == 0xFA) {
+        id = 0x1F;
+    } else if ((id & 0xFF) == 0xF8) {
+        id = p[0x20] * 2 + 0xD;
+    } else if ((id & 0xFF) == 0xF7) {
+        id = p[0x20] * 2 + 0xE;
+    }
+    *pOut = 1 << (id & 0xFF);
+    return id & 0xFF;
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800AF518);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800AF678);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800AFA98);
@@ -213,15 +232,16 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800B15D8);
    3+3+1, and re-forms D_800C3BD0+8/+16 instead of using one register.
 s32 func_800B15D8(u8 *p, s32 index) {
     BattleFrame *pFrame = (BattleFrame *)(p + index * 0x1C + 0xC);
+    BattleFrame *pDst = &D_800C3BD0;
 
-    D_800C3BD0 = *pFrame;
-    if ((*(s32 *)(p + 4) & 1) == 0) {
-        D_800C3BD0.unk0 += (mem_addr)pFrame;
-        D_800C3BD0.unk8 += (mem_addr)pFrame;
-        D_800C3BD0.unk10 += (mem_addr)pFrame;
+    *pDst = *pFrame;
+    if ((*(u32 *)(p + 4) & 1) == 0) {
+        pDst->unk0 += (mem_addr)pFrame;
+        pDst->unk8 += (mem_addr)pFrame;
+        pDst->unk10 += (mem_addr)pFrame;
     }
     D_800C3BF0 = 0;
-    D_800C3BEC = D_800C3BD0.unk10;
+    D_800C3BEC = pDst->unk10;
     return pFrame->unk14;
 }
 */
