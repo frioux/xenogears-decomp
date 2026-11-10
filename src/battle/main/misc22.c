@@ -21,6 +21,14 @@ typedef struct {
 } BattleMisc22Rect; // Size: 0x8
 
 typedef struct {
+    /* 0x00 */ u8 pad0[0x16];
+    /* 0x16 */ s16 unk16;
+    /* 0x18 */ u8 pad18[0x14];
+    /* 0x2C */ u8 unk2C[0x28];
+    /* 0x54 */ u8 unk54[0x28];
+} BattleMisc22Spr; // Size: 0x7C
+
+typedef struct {
     /* 0x0 */ u8 pad0[0x4];
     /* 0x4 */ u16 *unk4;
     /* 0x8 */ u8 *unk8;
@@ -44,6 +52,8 @@ typedef struct {
 
 extern s32 D_800D3344;
 extern s32 D_800D39CC;
+extern s32 D_800D3348;
+extern s32 func_800A5A48(void *, void *, void *, s32);
 extern void func_800A5BE8(void *, void *, void *, s32, s32);
 extern int LoadImage(void *pRect, void *p);
 extern s16 D_800D2FC8;
@@ -60,13 +70,37 @@ extern void GfxLineScrollFree(void *pLineScroll);
 extern void func_800B10EC(void *pArg, s16 x, s16 y, s32 z);
 extern void HeapFree(void *pMem);
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A2E88);
+s32 func_800A2E88(BattleMisc22Unk *pArg, s16 arg1) {
+    BattleMisc22Spr *pSpr;
+    s16 i;
+
+    i = pArg->unk6;
+    if (i < pArg->unk4) {
+        pSpr = (BattleMisc22Spr *)(i * 124 + pArg->unk0);
+        if (pSpr->unk16 == -1) {
+            pArg->unk6 = i + 1;
+            while (pArg->unk6 < pArg->unk4) {
+                BattleMisc22Spr *pNext = (BattleMisc22Spr *)(pArg->unk6 * 124 + pArg->unk0);
+
+                if (pNext->unk16 == -1) {
+                    break;
+                }
+                pArg->unk6++;
+            }
+            SetSemiTrans(&pSpr->unk2C, arg1);
+            SetSemiTrans(&pSpr->unk54, arg1);
+            return (s32)pSpr;
+        }
+    }
+    return pArg->unk4 * 124 + pArg->unk0;
+}
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A2F94);
 /* 99.41%: instruction-for-instruction identical except that gcc puts the multu
-   high part in a2 and shifts into v1, where retail mfhi's straight into v1.
-   Source is right: 124 = 4*31 is the only divisor shape that reproduces the
-   0x21084211/srl 2 sequence (a plain /31 gives the +1-magic variant).
+   high part in a2 and shifts into v1, where retail mfhi's straight into v1
+   (allocator tie-break; a separate `diff` temp and both spellings of the
+   subtraction leave it untouched). 124 = 4*31 is the only divisor shape that
+   reproduces the 0x21084211/srl 2 sequence.
 s32 func_800A2F94(BattleMisc22Unk *pArg, u8 *pEnd) {
     s32 count = ((u32)pEnd - pArg->unk0) / 124;
 
@@ -231,20 +265,33 @@ s32 func_800A577C(void) {
 s32 func_800A578C(void) {
     return D_800D39CC;
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A579C);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A5870);
-/* 99.27%: everything but the operand order of the three `addu` that form the
-   SVECTOR pointers - retail has the scaled index first (addu a0,a0,v1), gcc
-   canonicalises the base first. Tried pointer+int, int+ptr, u32 arithmetic and
-   typed-array indexing; all give base first.
+
+s32 func_800A579C(s32 arg0) {
+    BattleMisc22Entry *pEntry;
+    s32 i;
+
+    if (D_800D3344 != 0 && D_800D39CC != 0) {
+        for (i = 0; i < D_800D3348; i++) {
+            pEntry = (BattleMisc22Entry *)(i * 14 + D_800D39CC);
+            if (func_800A5A48((BattleMisc22SVec *)(pEntry->unk0 * 8 + D_800D3344),
+                              (BattleMisc22SVec *)(pEntry->unk2 * 8 + D_800D3344),
+                              (BattleMisc22SVec *)(pEntry->unk4 * 8 + D_800D3344), arg0) == -1) {
+                return i;
+            }
+        }
+    }
+    return -1;
+}
+
 s32 func_800A5870(s32 arg0, s32 index, s32 arg2) {
+    BattleMisc22Entry *pEntry;
+
     if (D_800D3344 == 0 || D_800D39CC == 0 || index < 0) {
         return -1;
     }
-    func_800A5BE8(&((BattleMisc22SVec *)D_800D3344)[((BattleMisc22Entry *)D_800D39CC)[index].unk0],
-                  &((BattleMisc22SVec *)D_800D3344)[((BattleMisc22Entry *)D_800D39CC)[index].unk2],
-                  &((BattleMisc22SVec *)D_800D3344)[((BattleMisc22Entry *)D_800D39CC)[index].unk4],
-                  arg0, arg2);
-    return ((BattleMisc22Entry *)D_800D39CC)[index].unkC;
+    pEntry = (BattleMisc22Entry *)(index * 14 + D_800D39CC);
+    func_800A5BE8((BattleMisc22SVec *)(pEntry->unk0 * 8 + D_800D3344),
+                  (BattleMisc22SVec *)(pEntry->unk2 * 8 + D_800D3344),
+                  (BattleMisc22SVec *)(pEntry->unk4 * 8 + D_800D3344), arg0, arg2);
+    return ((BattleMisc22Entry *)(index * 14 + D_800D39CC))->unkC;
 }
-*/
