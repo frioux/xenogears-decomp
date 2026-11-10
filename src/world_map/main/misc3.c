@@ -26,7 +26,7 @@ extern s32 D_8009D144;
 extern s32 D_8009BD40;
 extern s16 D_8009D558;
 extern s32 D_8009BBB4;
-extern u32 D_8009BE28;
+extern s32 D_8009BE28;
 extern u8* D_8009BE3C;
 extern s32 D_8009C5BC;
 extern s32 D_8009BC38;
@@ -72,6 +72,7 @@ extern WorldMapScriptHandler D_8009A3C0[];
 
 s32 func_80076A1C(void) {
     u8* p;
+    s32* pState;
 
     if (D_8009D144 == 0) {
         func_80097440(&D_8009BD40);
@@ -88,9 +89,10 @@ s32 func_80076A1C(void) {
         func_80096130();
         func_80098CC0();
     }
-    func_800983A0(&D_8009BE28);
+    pState = &D_8009BE28;
+    func_800983A0(pState);
     p = D_8009BE3C;
-    func_8009932C(*(s32*)(p + 0x70), *(s32*)(p + 0x74), &D_8009BE28);
+    func_8009932C(*(s32*)(p + 0x70), *(s32*)(p + 0x74), pState);
     D_8009C5BC = D_8009C5BC + 0x40;
     func_80073B04();
     func_800737EC();
@@ -202,32 +204,13 @@ void func_80076F54(u8* p) {
     }
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc3", func_80076FA8);
-s32 func_800771D8(s32 arg0, s32 arg1, s32 arg2) {
-    s32 delta;
-    s32 limit;
-
-    if (arg0 == arg1) {
-        return arg0;
-    }
-    delta = arg1 - arg0;
-    limit = arg2;
-    if (delta < 0) {
-        delta = -delta;
-    }
-    if (limit < 0) {
-        limit = -limit;
-    }
-    if (delta < limit) {
-        arg0 = arg1;
-    } else {
-        arg0 += arg2;
-    }
-    return arg0;
-}
-/* Best attempt: 99.67% - the two abs() locals are right, but gcc copy-propagates
-   `limit` back to the parameter and emits `negu v1,a2` where the original has
-   `negu v1,v1`. Tried: 0 - limit, arg2 test, move the decl before the early
-   return; the negu operand always folds to a2.
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc3", func_800771D8);
+/* Best attempt: 99.67%. Only difference: the original negates the local
+   (`negu v1,v1`) where gcc's cse substitutes the parameter (`negu v1,a2`),
+   although the `move v1,a2` copy itself is emitted in the right place. Also
+   tried: the ternary form `(arg2 < 0) ? -arg2 : arg2` (same code), the
+   `limit = arg2` assign moved before the first abs (move lands in the wrong
+   delay slot, 91.67%), `0 - limit`, an arg2 test instead of a limit test.
 s32 func_800771D8(s32 arg0, s32 arg1, s32 arg2) {
     s32 delta;
     s32 limit;
@@ -286,6 +269,7 @@ s32 func_80077954(void) {
 
 s32 func_8007795C(void) {
     u8* p;
+    s32* pState;
 
     if (D_8009D144 == 0) {
         func_80097440(&D_8009BD40);
@@ -300,9 +284,10 @@ s32 func_8007795C(void) {
         func_80096130();
         func_80098CC0();
     }
-    func_800983A0(&D_8009BE28);
+    pState = &D_8009BE28;
+    func_800983A0(pState);
     p = D_8009BE3C;
-    func_8009932C(*(s32*)(p + 0x70), *(s32*)(p + 0x74), &D_8009BE28);
+    func_8009932C(*(s32*)(p + 0x70), *(s32*)(p + 0x74), pState);
     D_8009C5BC = D_8009C5BC + 0x40;
     func_80073B04();
     func_800737EC();
