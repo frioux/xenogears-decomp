@@ -204,8 +204,58 @@ s32 func_800A23E8(BattleBlockPool* pPool, BattleBlock* pBlock) {
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_800A2434);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_800A2704);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_800A2ACC);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_800A2BB8);
+void func_800A2ACC(BattleBlockPool* pPool, BattleSprite* pSprites) {
+    BattleBlock* pBlock;
+    BattleSprite* pSprite;
+    s32 i;
+    s32 count;
+
+    count = pSprites->count;
+    pSprite = pSprites;
+    for (i = 0; i < count; i++, pSprite++) {
+        pBlock = pSprite->p70;
+        if (pBlock != NULL && pBlock->unk1[2] != 0xFF) {
+            func_800A23E8(pPool, pBlock);
+            pSprite->p70 = NULL;
+        }
+        pBlock = pSprite->p74;
+        if (pBlock != NULL && pBlock->unk1[2] != 0xFF) {
+            func_800A23E8(pPool, pBlock);
+            pSprite->p74 = NULL;
+        }
+        pBlock = pSprite->p78;
+        if (pBlock != NULL && pBlock->unk1[2] != 0xFF) {
+            func_800A23E8(pPool, pBlock);
+            pSprite->p78 = NULL;
+        }
+    }
+}
+void func_800A2BB8(BattleBlockPool* pPool, BattleSprite* pSprites, u8 tag) {
+    BattleBlock* pBlock;
+    BattleSprite* pSprite;
+    s32 i;
+    s32 count;
+
+    count = pSprites->count;
+    pSprite = pSprites;
+    for (i = 0; i < count; i++, pSprite++) {
+        pBlock = pSprite->p70;
+        if (pBlock != NULL && pBlock->unk1[2] == tag) {
+            func_800A23E8(pPool, pBlock);
+            pSprite->p70 = NULL;
+        }
+        pBlock = pSprite->p74;
+        if (pBlock != NULL && pBlock->unk1[2] == tag) {
+            func_800A23E8(pPool, pBlock);
+            pSprite->p74 = NULL;
+        }
+        pBlock = pSprite->p78;
+        if (pBlock != NULL && pBlock->unk1[2] == tag) {
+            func_800A23E8(pPool, pBlock);
+            pSprite->p78 = NULL;
+        }
+    }
+}
 BattleSpritePool* func_800A2CA4(BattleSpritePool* pPool, s32 count) {
     HeapChangeCurrentUser(4, NULL);
     pPool->count = count;
