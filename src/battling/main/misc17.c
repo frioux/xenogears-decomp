@@ -168,7 +168,8 @@ void func_8008ED6C(u8* p, s32 idx) {
         func_8008ECEC(((*(u32*)(p + 0xD0) >> 20) & 0x80) | (pTable[i + 1] & 0x7F));
     }
 }
-*/INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008EE1C);
+*/
+INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008EE1C);
 void func_8008EF00(u8* p0, u8* p1) {
     func_800767C8(p0, p1);
     *(u16*)(p1 + 4) = 0x3C;
