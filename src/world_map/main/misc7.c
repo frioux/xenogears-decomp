@@ -128,9 +128,13 @@ void func_800809EC(u8 *p, s32 count, s32 a, s32 b, s32 c) {
     }
 }
 
-// Best: 92.64%. All instructions and relocations match; only the schedule of
-// three insns differs (retail emits `move a0,s0` and keeps `sll a0,a0,7` on a0,
-// ours defers both and hoists the D_8009C5B4 load two statements early).
+// Best: 92.64% (two shapes tie). Instruction multiset, relocations and every
+// store offset match; two residues. (1) retail emits `sll a0,a0,0x7` on the
+// parameter register and `addu v0,v0,a0`, gcc allocates a fresh pseudo
+// (`sll a1,a0,0x7`). (2) retail's `move a0,s0` (the first call argument) lands
+// between the two pos stores, gcc emits it just before them; writing the slot
+// stores in retail's emission order (x, y, unk54, unk50, unk58, z) gives this
+// shape, the x/y/z-first order gives the same 92.64%.
 /*
 s32 func_80080A28(s32 index) {
     u8 *p = D_8009C620;
@@ -138,10 +142,10 @@ s32 func_80080A28(s32 index) {
 
     pSlot->pos.x = D_8009C5AC.x;
     pSlot->pos.y = 0xFFF80000;
-    pSlot->pos.z = D_8009C5B4;
     pSlot->unk54 = -0x800;
     pSlot->unk50 = 0;
     pSlot->unk58 = 0x80;
+    pSlot->pos.z = D_8009C5B4;
     func_8007A06C(p, *(s32 *)(p + 0x48), *(u16 *)(*(s32 *)(p + 0x40) + 4));
     p += 0x54;
     func_8007A06C(p, *(s32 *)(p + 0x48), *(u16 *)(*(s32 *)(p + 0x40) + 4));
@@ -177,28 +181,31 @@ void func_8008106C(void) {
     D_8009BBC4 = 1;
     D_8006F950 = v;
 }
-// Best: 65.26%. Instruction multiset identical; the original forms the slot
-// address (sll/addu/sw/lw) before loading D_8009A6C0, gcc hoists the global
-// load above the pointer arithmetic. Decl order, an s32 index temp and an
-// explicit `i + 1` store were all tried.
+// Best: 95.26%. Statement order matches retail (the slot base is formed before
+// the D_8009A6C0 load, the counter is reloaded twice); only the register choice
+// differs: retail keeps the base in $v1 and the index in $a0, gcc puts the base
+// in $v0 and reuses $a0 for the index. A pointer local restores $v1 but
+// reorders the statements (65.26%); the post-increment spelling scores 56.84%.
 /*
 s32 func_80081174(s32 index) {
-    WorldMapSlot *pSlot = &D_8009BE24[index];
-
-    pSlot->unk50 = 0;
-    pSlot->unk20 = D_8009A6C0;
-    pSlot->unk22 = D_8009A70C[pSlot->unk50];
-    pSlot->unk50++;
+    D_8009BE24[index].unk50 = 0;
+    D_8009BE24[index].unk20 = D_8009A6C0;
+    D_8009BE24[index].unk22 = D_8009A70C[D_8009BE24[index].unk50];
+    D_8009BE24[index].unk50 = D_8009BE24[index].unk50 + 1;
     return 1;
 }
 */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_80081174);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_800811C0);
-// Best: 77.76%. All instructions present and the six global stores match
-// exactly (relocations included); the original keeps the two trailing
-// `sh` stores to the slot (unk4, unk20) after them, gcc's scheduler groups
-// them with the `unk7C` store. Writing them first in the source raises the
-// score to this shape but does not move them.
+// Best: 76.59%, same class as before: instruction multiset and relocations are
+// identical (the three source words are the separate globals D_8009C5AC,
+// D_8009C5B0 and D_8009C5B4, not offsets off a Vec3 - retail names all three),
+// only the schedule of the `sh` pairs differs. With the two slot halfword
+// stores written first gcc emits them right after the base addu and pushes the
+// BE28/D55C pair down (this shape, 76.59%); moving them last instead reorders
+// the whole tail (65.71%, and 33.94% while y/z were still struct offsets).
+// Reading y/z as D_8009C5AC.y/.z scores 77.76% but emits lui/lw 4(a0)/8(a0)
+// relocations retail does not have.
 /*
 s32 func_800813E8(s32 index) {
     WorldMapSlot *pSlot = &D_8009BE24[index];
@@ -211,8 +218,8 @@ s32 func_800813E8(s32 index) {
     D_8009D144 = 0;
     pSlot->unk7C = 0x1000;
     x = D_8009C5AC.x;
-    y = D_8009C5AC.y;
-    z = D_8009C5AC.z;
+    y = D_8009C5B0;
+    z = D_8009C5B4;
     D_8009BE0C = 0x78;
     D_8009BE28 = x;
     D_8009D55C = x;
@@ -281,7 +288,9 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_80081FD8);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_80082324);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_800826B4);
 
-// Best: 51.67%. Instruction multiset is identical; the original computes the
+// The live body directly below this block matches 100% (index-then-symbol
+// order): the pointer local is what misallocates here.
+// Parked alternative: 51.67%. Instruction multiset is identical; the original computes the
 // slot pointer (sll/addu) before forming the address of D_8009A758, gcc forms
 // the address first. 46.11% for the slot-pointer-first order; declaring pData
 // before pSlot puts the symbol address first and reaches 51.67%. Also tried:
