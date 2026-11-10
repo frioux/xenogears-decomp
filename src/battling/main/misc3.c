@@ -4,7 +4,7 @@ extern void func_800379C8(char*, ...);
 extern char D_8006FCC0[];
 extern char D_8006FCC4[];
 extern char D_8006FCC8[];
-extern void func_80077584(u8*);
+extern s32 D_8009284C;
 extern u8 D_80091178[];
 extern u8 D_80091179[];
 
@@ -76,11 +76,57 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_8007661C);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_800767C8);
 
+/* 89.36%: identical instructions except delay slots. The original leaves a nop
+   after the "bne flags & 0x60000000" test where gcc/as always fills the slot
+   with the lbu from the target block (one instruction, 4 bytes). Tried: early
+   returns, one big && chain (83.28%), nested if for the last test.
+void func_800767C8(u8* p) {
+    u32 flags;
+
+    if (D_8009284C >= 0x201) {
+        return;
+    }
+    if (p[0xC5] == 4) {
+        return;
+    }
+    flags = *(u32*)(p + 0xD0);
+    if (flags & 0x1000000) {
+        return;
+    }
+    if (!(flags & 0x40000)) {
+        return;
+    }
+    if (!(*(u32*)(*(u8**)(p + 0xD8) + 0xD0) & 0x40000)) {
+        return;
+    }
+    if ((flags & 0x60000000) != 0x20000000 || (p[0x90A] & 2)) {
+        func_80076424(p);
+        func_8007639C(p, 5);
+    }
+}
+*/
+
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80076884);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80077038);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80077584);
+
+/* 97.62%: the only difference is a nop in the original's beqz delay slot before
+   the "p->unk14 = -0x82" clamp, where gcc always fills the slot with the addiu.
+   Tried: plain if, empty else branch, pointer local for the field, s32 local
+   holding the limit.
+void func_80077584(u8* p, s32 ang, s32 shift, s32 dec) {
+    *(s32*)(p + 0x20) += rcos(ang) >> shift;
+    *(s32*)(p + 0x28) += rsin(ang) >> shift;
+    if (*(s32*)(p + 0x14) >= -0x8B) {
+        *(s32*)(p + 0x14) -= dec;
+    }
+    if (*(s32*)(p + 0x14) < -0x82) {
+        *(s32*)(p + 0x14) = -0x82;
+    }
+}
+*/
 
 void func_8007762C(u8* p) {
     *(u32*)(p + 0xD0) |= 0x1000;
