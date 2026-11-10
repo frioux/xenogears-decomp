@@ -213,15 +213,17 @@ void func_8007E674(u8 arg0) {
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007E6A0);
 /* best: 99.00%. Identical instruction multiset and order; the only difference
-   is the register holding the D_800D3410 row base (original a2, gcc v1, which
-   the p[1] index then reuses). Same allocator tie as func_8007E740/E8AC and the
-   misc6 D_800D34x0 family. Tried: s32 val local (75.65%), pRow/p declared in
-   both orders, `s32 arg1` with an explicit `(arg1 & 0xFF) * 0x40` mask (the
-   masking that func_8007E1D0 needed), the three references spelled inline to
-   let CSE renumber the base (70.75%), and the row base in ELEMENT units
-   (`(s32 *)D_800D3410 + (arg1 & 0xFF) * 0x10`, which still emits sll 6): same
-   99.00%, base v1. No try_flags.sh combination reaches 100
-   (2.6.0 99.0, cdk 96.5, -O1 51.9).
+   is the register holding the D_800D3410 sum base: original a2 (and it is never
+   reused), gcc v1 (which the p[1] scale temp then reuses). Same allocator tie as
+   func_8007E6F0/E740/E98C/E8AC and the misc6 D_800D34x0 family. Tried here:
+   split summand locals (84.35%, reorders the three lbu's RHS-first), three
+   explicit `s32 i3/i1/i2 = p[..]` index locals (99.00%, same base v1), the
+   byte-pointer form `(s32 *)((u8 *)D_800D3410 + (arg1 & 0xFF) * 0x40)` (99.00%),
+   and `D_800D3410 + ((arg1 & 0xFF) << 6)` (99.00%). Also tried before: pRow/p in
+   both orders, `s32 arg1` + explicit mask, element-unit base, all references
+   inline. No try_flags.sh row reaches 100 (2.6.0 99.0, cdk 96.5, -O1 51.9), and
+   the unit cannot move to cdk at all: func_8007E154 79.68%, func_8007E674 10.45%
+   under cdk while matched under Default.
 void func_8007E6A0(u8 **arg0, s32 arg1) {
     u8 *p = *arg0;
     s32 *pRow = (s32 *)(D_800D3410 + (arg1 & 0xFF) * 0x40);
@@ -229,9 +231,9 @@ void func_8007E6A0(u8 **arg0, s32 arg1) {
     pRow[p[3]] = pRow[p[1]] + pRow[p[2]];
 } */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007E6F0);
-/* best: 99.00%. Same miss as func_8007E6A0 (the D_800D3410 row base register:
-   original a2, gcc v1); the subtraction itself is byte-exact. See the note there
-   for the shapes already tried.
+/* best: 99.00%. Same miss as func_8007E6A0 (the D_800D3410 sum base: original
+   a2, gcc v1); the subtraction itself is byte-exact. See the note there for the
+   shapes already tried.
 void func_8007E6F0(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
     s32 *pRow = (s32 *)(D_800D3410 + arg1 * 0x40);
