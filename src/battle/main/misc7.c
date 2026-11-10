@@ -26,6 +26,10 @@ s32 func_80079E7C(u16);
 s32 func_80079ED8(u8, u8, u8, s32);
 s32 func_8007A280(u8, u8, s32, s32);
 
+// Preset screened: all 11 matched functions stay at 100.00% under gcc 2.6.0 and
+// none of the parked bodies improves under it, so this unit is Default (2.7.2).
+// gcc 2.7.2-cdk is ruled out (matched functions drop to 41.73-99.09%).
+
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007B424);
 /* best: 90.81%. The pTable = (u8 *)pField + 0x10 form is what puts the
    addiu 0x10 in the jal delay slot like the original. Remaining gap is the
@@ -134,7 +138,8 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007B98C);
 /* best: 84.67%. Instruction multiset identical; the original loads *p into v0
    before materialising the D_800D3420 base in a0, gcc always emits the base
    first and reuses the dead a0 for the load. Declaration order, an explicit
-   offset local and a volatile load all leave it unchanged.
+   dst local, a bare *p inline twice and a volatile load all leave it unchanged,
+   and 2.6.0 / 2.7.2-cdk both give the same 84.67%.
 
 void func_8007B98C(u8 **p, u8 index) {
     u16 *pField = (u16 *)(D_800D3420 + index * 0x40);
@@ -156,9 +161,10 @@ void func_8007B9C8(u8 **p, u8 index) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007BA04);
-/* best: 95.94%. Only the register pair chosen for the source byte and the
-   destination halfword differs (v1/a0 vs v0/v1); the D_800D3430 base is already
-   derived as D_800D3420+0x10 like the original.
+/* best: 95.94%. Pure register renaming (gcc swaps v0 and v1 and keeps the *p
+   load in v1 instead of reusing the dead a0); identical multiset, unchanged by
+   gcc 2.6.0 and 2.7.2-cdk. The D_800D3430 base is already derived as
+   D_800D3420+0x10 like the original.
 
 void func_8007BA04(u8 **p, u8 index) {
     u16 *pField = (u16 *)(D_800D3420 + index * 0x40);
@@ -232,8 +238,9 @@ void func_8007BBD8(u8 **p, u8 index) {
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007BC40);
 /* best: 98.82%. Only the last addu is commuted (original base first into a1,
-   gcc reuses the dead a2): identical multiset. Writing *p inline twice is
-   required, the second load is CSE'd if it goes through a local.
+   gcc reuses the dead a2): identical multiset, same 98.82% under gcc 2.6.0 and
+   2.7.2-cdk. Writing *p inline twice is required, the second load is CSE'd if
+   it goes through a local.
 
 void func_8007BC40(u8 **p, u8 *pDest, u8 count) {
     pDest[count * 8 + (*p)[1]] = (*p)[2];
