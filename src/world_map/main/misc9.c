@@ -105,7 +105,9 @@ void func_80086700(void) {
         pSrc += 4;
     }
 }
-*/INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_80086798);
+*/
+
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_80086798);
 s32 func_80087710(s32 index) {
     WorldMapSlot* pSlot = (WorldMapSlot*)(D_8009BE24 + index * 0x80);
 
