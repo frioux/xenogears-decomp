@@ -12,7 +12,59 @@ extern u_char func_801CBD90(u_char arg0);
 extern u_char func_801CC6D8(void);
 extern u_char func_801CD2AC(void);
 extern void func_801CD81C(MenuCharacter* pCharacter, u_char arg1, u_char arg2, s32 arg3, s32 arg4, u_char arg5);
-extern void func_801CDB1C(MenuCharacter* pCharacter, u_char characterIndex, u_char localIndex, s32 arg3, s32 arg4) {
+extern void func_801CDB1C(MenuCharacter* pCharacter, u_char arg1, u_char arg2, s32 arg3, s32 arg4);
+extern void func_801CDC6C(MenuCharacter* pCharacter, u_char arg1, u_char arg2, s32 arg3, s32 arg4, u_char arg5);
+extern void func_801CE198(s32 count, SVECTOR* pVertices, POLY_FT4* pPolys, s32 renderContext);
+extern void func_801CE2B4(int length, POLY_FT4* pPolys, int renderContext);
+extern void func_801CE860(void);
+extern void func_801CF37C(void);
+extern void func_801CF5E4(s32 arg0, s32 arg1, s32 arg2);
+extern void func_801CF8D8(void);
+extern void func_801CFB48(void);
+extern void func_801CFF64(void);
+extern void func_801D22F4(s32 arg0);
+extern void func_801D2484(void);
+
+INCLUDE_ASM("asm/menu/nonmatchings/main/misc4", func_801CD2AC);
+s32 func_801CD710(u_char arg0) {
+    u_char result = 1;
+    u8 choice;
+
+    func_801D22F4(0);
+    ((u8*)g_Menu->pManager)[0x2F] = 0;
+    choice = g_Menu->subMenuChoice;
+    switch (choice) {
+        case 0:
+            g_Menu->unk334 = 7;
+            if (func_801CD2AC()) {
+                result = 0;
+            }
+            break;
+        case 1:
+            g_Menu->unk334 = 6;
+            if (func_801CC6D8()) {
+                result = 0;
+            }
+            break;
+        case 2:
+            if (D_80059460 != g_Menu->subMenuChoice) {
+                g_Menu->unk334 = 3;
+                if (func_801CBD90(arg0)) {
+                    result = 0;
+                }
+            } else {
+                g_Menu->unk334 = 2;
+                if (func_801CB304()) {
+                    result = 0;
+                }
+            }
+            break;
+    }
+    func_801D2484();
+    return result;
+}
+INCLUDE_ASM("asm/menu/nonmatchings/main/misc4", func_801CD81C);
+void func_801CDB1C(MenuCharacter* pCharacter, u_char characterIndex, u_char localIndex, s32 arg3, s32 arg4) {
     s32* pPositionsY = (s32*)arg4;
     s32 i;
     u_char digit;
@@ -34,6 +86,7 @@ extern void func_801CDB1C(MenuCharacter* pCharacter, u_char characterIndex, u_ch
     func_801C80B8(g_GameState.characters[characterIndex].unk63);
     pCharacter->unkBE1 = 0;
 }
+
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc4", func_801CDC6C);
 void func_801CE0CC(MenuCharacter* pCharacter, u_char arg1, u_char arg2, s32 arg3, s32 arg4, u_char arg5) {
     func_801CD81C(pCharacter, arg1, arg2, arg3, arg4, arg5);
