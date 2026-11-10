@@ -90,9 +90,9 @@ void func_80070EDC(void) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80070F40);
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_800716D8);
-/* 78.82% - the C below is correct: it scores 100.00% under gcc-2.6.0. This unit
-   is Default (2.6.0 breaks func_80071A38 to 99.05), and 2.7.2 orders the tail
-   differently: ours is `lw ra; move v0,zero; jr ra; addiu sp` where the original
+/* 78.82% - the C below is correct: it scores 100.00% under gcc-2.6.0 (verified
+   by compiling this body alone against expected/). Under the unit's 2.7.2 the
+   tail differs: ours is `lw ra; move v0,zero; jr ra; addiu sp` where the original
    is `addu v0,zero,zero; lw ra; addiu sp; jr ra; nop` (2.7.2 fills the jr's delay
    slot with the sp adjust and schedules lw ra before the return-value move).
    Tried: return 0, s32 ret = 0 at top / after the call, ret = 0; return ret.
@@ -108,8 +108,9 @@ s32 func_800716D8(void) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_8007171C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_800718BC);
 /* 94.76% - the body below is EXACTLY right: it scores 100.00% under gcc-2.6.0
-   (so this unit is probably a 2.6.0 unit; see the note on func_800716D8). Under
-   the unit's 2.7.2 the only difference is the tail: 2.7.2 schedules `lw ra`
+   (verified by compiling this body alone against expected/), as do every other
+   function matched in this unit, so the file can be flipped to 2.6.0: see the
+   note on func_80071A38. Under the unit's 2.7.2 the only difference is the tail: 2.7.2 schedules `lw ra`
    before the final `sh` and puts `addiu sp` in the `jr`'s delay slot.
    The old 87.57% snag is solved: the second table must be spelled relative to the
    first one, `D_800D2E06[i - 0xB]`, which is what makes gcc emit the original's
