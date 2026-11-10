@@ -20,6 +20,9 @@ extern void func_800B73A0(void);
 extern void func_800B6F0C(void);
 extern void func_800B7134(void);
 extern void func_800B7364(u8 *p);
+extern s32 func_80023124(s32 arg0, s32 arg1);
+extern void func_80021FE0(u8 *pActor, s16 arg1);
+extern void func_800223B0(u8 *pActor, s16 arg1);
 extern void func_80021B04(SVECTOR *pVector, s16 x, s16 y, s16 z);
 extern void func_801FC53C(void *pArg, s32 arg1, s32 arg2, s32 arg3, s32 arg4, s32 arg5, s32 arg6);
 
@@ -79,6 +82,25 @@ void func_800B64D4(s32 arg0, u8 *p) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc28", func_800B6518);
+/* best 81.08%: retail materialises the two 8-byte locals in memory (sh) and
+   rebuilds each word from two lhu, and its frame is 8 bytes larger (one
+   unused slot); gcc reads each word back with a single lw.  Explicit
+   (v.vy << 16) | v.vx recombination is worse (69.61).  The A pair loads lh
+   (signed) and the B pair lhu, so the B fields are unsigned halfwords.
+void func_800B6518(u8 *pActor) {
+    SVECTOR a;
+    SVECTOR b;
+    s16 angle;
+
+    a.vx = *(s16 *)(pActor + 0x2);
+    a.vy = *(s16 *)(pActor + 0xA);
+    b.vx = *(u16 *)(pActor + 0xA0);
+    b.vy = *(u16 *)(pActor + 0xA4);
+    angle = func_80023124(*(s32 *)&b, *(s32 *)&a);
+    func_80021FE0(pActor, angle);
+    func_800223B0(pActor, angle);
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc28", func_800B65B0);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc28", func_800B6808);
 void func_800B6930(u32 *pOut, s8 *p) {
