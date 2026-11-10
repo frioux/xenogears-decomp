@@ -43,6 +43,22 @@ extern s16 D_8009CE68;
 extern void func_800963E4(SVec* pRecord);
 extern void func_800964B0(SVec4* pRecord);
 extern void func_800967E4(void);
+extern void func_80093354(void* p);
+extern s32 func_80093F18(void* p);
+extern s16 func_80094060(s16 row, s16 col);
+
+// Scratchpad probe at 0x1F800000: the near/far pair at 0x20/0x30 is computed in
+// place, and the winning one is copied down to 0x00. The field at 0x08 is a
+// scratch temp; 0x18 is the vertical reference func_80094750 measures from.
+typedef struct {
+    /* 0x00 */ SVec4 v;
+    /* 0x10 */ s32 unk10;
+    /* 0x14 */ s32 unk14;
+    /* 0x18 */ s32 unk18;
+    /* 0x1C */ s32 unk1C;
+    /* 0x20 */ SVec4 near;
+    /* 0x30 */ SVec4 far;
+} WorldMapProbe; // Size: 0x40
 
 s32 func_80094238(SVec* p, s32 index) {
     WorldMapRect* pRect;
@@ -99,9 +115,84 @@ void func_80094434(void) {
 }
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc14", func_8009443C);
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc14", func_800945C8);
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc14", func_80094750);
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc14", func_800948D8);
+s32 func_800945C8(SVec* pPos, SVec* pAim, WorldMapProbe* pProbe, s16 kind) {
+    SVec4* pNear;
+    SVec4* pFar;
+    s32 scale;
+    s32 edge;
+
+    scale = (pAim->z << 12) / pAim->x;
+    pNear = &pProbe->near;
+    pFar = &pProbe->far;
+    edge = (pPos->x & 0xFFF80000) - pPos->x;
+    pProbe->v.x = edge;
+    pNear->x = edge;
+    pFar->x = pProbe->v.x - 1;
+    pNear->z = ((scale * pNear->x) >> 12) + pPos->z;
+    pFar->z = ((scale * pFar->x) >> 12) + pPos->z;
+    pNear->x += pPos->x;
+    pFar->x += pPos->x;
+    func_80093354(pNear);
+    if (func_80094060(kind, func_80093F18(pNear)) == 0) {
+        pProbe->v = pProbe->near;
+        return 1;
+    }
+    func_80093354(pFar);
+    return func_80094060(kind, func_80093F18(pFar)) == 0 ? 3 : 0;
+}
+
+s32 func_80094750(SVec* pPos, SVec* pAim, WorldMapProbe* pProbe, s16 kind) {
+    SVec4* pNear;
+    SVec4* pFar;
+    s32 scale;
+    s32 edge;
+
+    scale = (pAim->x << 12) / pAim->z;
+    pNear = &pProbe->near;
+    pFar = &pProbe->far;
+    edge = (pProbe->unk18 & 0xFFF80000) - pPos->z;
+    pProbe->v.z = edge;
+    pNear->z = edge - 1;
+    pFar->z = pProbe->v.z;
+    pNear->x = ((scale * pNear->z) >> 12) + pPos->x;
+    pFar->x = ((scale * pFar->z) >> 12) + pPos->x;
+    pNear->z += pPos->z;
+    pFar->z += pPos->z;
+    func_80093354(pNear);
+    if (func_80094060(kind, func_80093F18(pNear)) == 0) {
+        pProbe->v = pProbe->near;
+        return 1;
+    }
+    func_80093354(pFar);
+    return func_80094060(kind, func_80093F18(pFar)) == 0 ? 2 : 0;
+}
+
+s32 func_800948D8(SVec* pPos, SVec* pAim, WorldMapProbe* pProbe, s16 kind) {
+    SVec4* pNear;
+    SVec4* pFar;
+    s32 scale;
+    s32 edge;
+
+    scale = (pAim->x << 12) / pAim->z;
+    pNear = &pProbe->near;
+    pFar = &pProbe->far;
+    edge = (pPos->z & 0xFFF80000) - pPos->z;
+    pProbe->v.z = edge;
+    pNear->z = edge;
+    pFar->z = pProbe->v.z - 1;
+    pNear->x = ((scale * pNear->z) >> 12) + pPos->x;
+    pFar->x = ((scale * pFar->z) >> 12) + pPos->x;
+    pNear->z += pPos->z;
+    pFar->z += pPos->z;
+    func_80093354(pNear);
+    if (func_80094060(kind, func_80093F18(pNear)) == 0) {
+        pProbe->v = pProbe->near;
+        return 1;
+    }
+    func_80093354(pFar);
+    return func_80094060(kind, func_80093F18(pFar)) == 0 ? 2 : 0;
+}
+
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc14", func_80094A5C);
 extern s32 func_80094088(SVec* p0, SVec* p1, SVec* p2);
 extern s32 func_80094A5C(void* p0, SVec* p1, s32 mode, s16 kind);
