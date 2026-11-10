@@ -15,23 +15,20 @@ extern u8 D_800CCE4A[];
 extern u16 D_800D2C94;
 extern s8 func_8009DBFC();
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc20", func_8009C134);
-/* best 72.60% (100 bytes, same size): only the i++ / delay-slot placement and
-   the a2/a3 colour of the store base differ.  Using D_800D2C94 directly scores
-   76.56% but is one instruction short, so the pointer local is the right shape.
 void func_8009C134(void) {
+    u8 i = 0;
+    s32 target = 3; /* local, not a literal: the compare constant must live in a
+                       register outside the loop */
     u16 *p = &D_800D2C94;
     s32 o;
-    u8 i;
 
-    for (i = 0; i < 3; i++) {
+    for (; i < 3; i++) {
         o = i * 0x170;
-        if (D_800CCD3E[o] == 3) {
+        if (D_800CCD3E[o] == target) {
             *p = 1 << i;
         }
     }
 }
-*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc20", func_8009C198);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc20", func_8009C4B4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc20", func_8009C9C4);
