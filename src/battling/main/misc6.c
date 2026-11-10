@@ -205,6 +205,13 @@ void func_8007ED84(u8* pText, s32 dy) {
     D_800926EC += 0x14;
 }
 
+INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007EE08);
+/* best 95.83%: one instruction short. The original materialises 0xFF twice (its
+   own li at the head of each arm, the else arm copy stolen into the beqz delay
+   slot by reorg); gcc 2.7.2 merges the two identical constants into the delay
+   slot and both arms read it from there. Tried: literal in both arms (this
+   shape). Everything else (load of D_80059488 first, sb order F4/F8/F0, x*20
+   as sll/addu/sll) is already exact.
 void func_8007EE08(s32 arg) {
     if (arg != 0) {
         D_800926F4 = 0xFF;
@@ -216,7 +223,15 @@ void func_8007EE08(s32 arg) {
         D_800926F8 = 0xFF;
     }
 }
+ */
 
+INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007EE68);
+/* best 72.66%: the original loads D_80059488 TWICE into two registers (v1 for
+   0xF0, a0 for 0xF4) and subtracts with li 0xFF + subu; gcc CSEs the two
+   identical loads of the one extern and then strength-reduces 0xFF - (x * 20)
+   to nor, since only the stored byte matters. The original subu means its two
+   MEMs were two different symbols that both resolve to 0x80059488, and splat
+   can only name one of them.
 void func_8007EE68(s32 arg) {
     if (arg != 0) {
         D_800926F8 = 0xFF;
@@ -228,10 +243,52 @@ void func_8007EE68(s32 arg) {
         D_800926F8 = 0xFF;
     }
 }
+ */
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007EEE8);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007EFB4);
+/* best 71.17%: structure, store order and the 7x7 iteration are right.
+   The original keeps count in a2 and the six hoisted constants in t1-t6, saves
+   no registers, and has a 0x48 frame with ra at 0x40 (8-byte-aligned frame, so
+   0x30 of unreferenced local space); gcc spills count to s0, uses a 0x18 frame.
+   Tried: count declared first/last, u16 count (worse, 69.33%).
+typedef struct {
+    0x00  u16 unk0;
+    0x02  u16 unk2;
+    0x04  u16 unk4;
+    0x06  u16 unk6;
+    0x08  u16 unk8;
+    0x0A  u16 unkA;
+    0x0C  u16 unkC;
+    0x0E  u16 unkE;
+    0x10  u16 unk10;
+    0x12  u16 unk12;
+} BattleSprite; // Size: 0x14
+
+void func_8007EFB4(void) {
+    s32 count = 0x1FF;
+    BattleSprite* pSprite;
+    s32 row;
+    s32 col;
+
+    pSprite = HeapAlloc(0x3D4, 0);
+    D_8009270C = pSprite;
+    for (row = 0; row < 7; row++) {
+        for (col = 0; col < 7; col++) {
+            pSprite->unk0 = 0x200;
+            pSprite->unk2 = count--;
+            pSprite->unk4 = 0x80;
+            pSprite->unk6 = 1;
+            pSprite->unk8 = 0x1A0 + row * 0x20;
+            pSprite->unkA = col * 0x40;
+            pSprite->unkC = 0x1E;
+            pSprite->unkE = 0x40;
+            pSprite++;
+        }
+    }
+}
+ */
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007F05C);
 
