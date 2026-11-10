@@ -129,7 +129,23 @@ s32 func_8007EEA8(u8 **arg0) {
 s32 func_8007EED0(void) {
     return (D_800D39DC & 3) == 0;
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc10", func_8007EEE8);
+s32 func_8007EEE8(void) {
+    s32 ret = 1;
+    s32 i = 0;
+    s32 ofs = 0x54;
+
+    for (; i < 8; i++) {
+        if ((D_800D39DC >> 5) != 0) {
+            if ((D_800C3EB7[ofs] & 0x80) == 0) {
+                ret = 0;
+                break;
+            }
+        }
+        ofs += 0x1C;
+    }
+
+    return ret;
+}
 s32 func_8007EF44(u8 arg0) {
     s32 idx = arg0 + 3;
 
