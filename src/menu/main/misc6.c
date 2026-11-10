@@ -29,6 +29,11 @@ void func_801E8DA8(u_char a0, u_char a1);
 void func_801E8474(s32 a0, u32* a1);
 
 extern u32 D_801EA19C[];
+extern u32 D_801EA164[];
+extern s16 D_801E9A1C[][2];
+extern s16 D_801E9A48[][2];
+extern s16 D_801E9E94[][2];
+extern u32 D_801EA16C[];
 extern u32 D_801E9A58[];
 extern u32 D_801E9A68[];
 
@@ -161,6 +166,38 @@ void func_801D25E4(void) {
     }
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc6", func_801D261C);
+/* PARKED 86.91% (652 bytes = retail's exact size). Decoded: set the four corners of
+   g_Menu->unkAE0[subMenuChoice].polys[renderContext] from three tables, then copy
+   renderContext into that MenuString and set pManager->unk14[subMenuChoice] = 1.
+   x0 = x2 = D_801E9A1C[c] + (D_801E9E94[c] + 0x16);  x1 = x3 = width + x0;
+   y0 = y1 = D_801E9A48[c] - 0x22;                    y2 = y3 = D_801E9A48[c] - 0x15;
+   the source repeats every g_Menu-> load in all eight statements (retail re-reads
+   0x308/0x338 per statement; a pointer or index local makes gcc hoist them).
+   Findings that matter for the next attempt: (1) the three tables are indexed with
+   stride 4 and read with lhu, so they are arrays of 2 halfwords - declared here as
+   s16 [][2] and read [c][0]; declaring D_801E9A48 s16 is also what makes gcc use
+   lhu + addiu -0x22 instead of lhu + li 0xffde + addu (a 1-D s16 spelling scores
+   88.04% but indexes with stride 2, i.e. reads the wrong entry);
+   (2) retail's frame is 0x60 (ra at 0x58) and ours is 0x18, so the original has an
+   unused ~0x54-byte stack local that has to be declared (the usual unused-local
+   trick) before the register allocation will line up.
+*/
+/* Best attempt (86.91%): the body below is what the note above was measured with.
+void func_801D261C(void) {
+    func_801D249C(0);
+
+    g_Menu->unkAE0[g_Menu->subMenuChoice].polys[g_Menu->renderContext].x0 = D_801E9A1C[g_Menu->subMenuChoice][0] + (D_801E9E94[g_Menu->subMenuChoice][0] + 0x16);
+    g_Menu->unkAE0[g_Menu->subMenuChoice].polys[g_Menu->renderContext].y0 = D_801E9A48[g_Menu->subMenuChoice][0] - 0x22;
+    g_Menu->unkAE0[g_Menu->subMenuChoice].polys[g_Menu->renderContext].x1 = g_Menu->unkAE0[g_Menu->subMenuChoice].width + (D_801E9A1C[g_Menu->subMenuChoice][0] + 0x16) + D_801E9E94[g_Menu->subMenuChoice][0];
+    g_Menu->unkAE0[g_Menu->subMenuChoice].polys[g_Menu->renderContext].y1 = D_801E9A48[g_Menu->subMenuChoice][0] - 0x22;
+    g_Menu->unkAE0[g_Menu->subMenuChoice].polys[g_Menu->renderContext].x2 = D_801E9A1C[g_Menu->subMenuChoice][0] + (D_801E9E94[g_Menu->subMenuChoice][0] + 0x16);
+    g_Menu->unkAE0[g_Menu->subMenuChoice].polys[g_Menu->renderContext].y2 = D_801E9A48[g_Menu->subMenuChoice][0] - 0x15;
+    g_Menu->unkAE0[g_Menu->subMenuChoice].polys[g_Menu->renderContext].x3 = g_Menu->unkAE0[g_Menu->subMenuChoice].width + (D_801E9A1C[g_Menu->subMenuChoice][0] + 0x16) + D_801E9E94[g_Menu->subMenuChoice][0];
+    g_Menu->unkAE0[g_Menu->subMenuChoice].polys[g_Menu->renderContext].y3 = D_801E9A48[g_Menu->subMenuChoice][0] - 0x15;
+    g_Menu->unkAE0[g_Menu->subMenuChoice].renderContext = *(u_char*)&g_Menu->renderContext;
+    g_Menu->pManager->unk14[g_Menu->subMenuChoice] = 1;
+}
+*/
 void func_801D28A8(void) {
     func_801D397C(0, 0xD4, 0xB2, 0x60, 0x10, 0, 0, 4, 0);
     func_801D5BA4(0xD8, 0xB6);
@@ -192,12 +229,23 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc6", func_801D29A8);
    beq/j/andi-in-the-delay-slot shape exactly.
 */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc6", func_801D2D38);
-/* Best attempt (99.18%): the body below is what the note above was measured with.
+/* PARKED 99.74% (392 bytes, instruction multiset identical). Only ONE difference is
+   left: retail loads the gearId into a0 and truncates in place (lbu a0 / beq a0,s2 /
+   addiu a0,a0,0xB / andi a0,a0,0xff); ours loads it into v0 and does andi a0,v0,0xff.
+   What got 99.18 -> 99.74: give the TWO loops separate counter variables (i and j).
+   With one shared i the allocator hands the first loop's counter s0 and the second
+   loop's s1; with i/j retail's shape falls out exactly (first loop in s1, then
+   loop2's counter s0 and its 6 + j*2 biv back in s1).
+   Tried for the gearId: u_char/int/u32 local, the cast outside the ternary, the cast
+   inside, both ternary arm orders. It stays in v0.
+*/
+/* Best attempt (99.74%): the body below is what the note above was measured with.
 void func_801D2D38(void) {
     s32 i;
+    s32 j;
     u_char menuCharacterId;
     u_char characterIndex;
-    u_char characterId;
+    u32 characterId;
 
     if (D_80059460 == 0) {
         for (i = 0; i < 2; i++) {
@@ -210,13 +258,13 @@ void func_801D2D38(void) {
         func_801C8574(0x5E);
     }
 
-    for (i = 0; i < 3; i++) {
-        menuCharacterId = g_Menu->pManager->currentCharacterIDs[i];
+    for (j = 0; j < 3; j++) {
+        menuCharacterId = g_Menu->pManager->currentCharacterIDs[j];
         if (menuCharacterId != 0xFF) {
-            characterIndex = i;
+            characterIndex = j;
             func_801E8DA8(menuCharacterId, characterIndex * 2);
-            characterId = g_GameState.characters[g_Menu->pManager->currentCharacterIDs[i]].gearId;
-            func_801E8DA8((characterId == 0xFF) ? 0xFF : (u_char)(characterId + 0xB), 6 + (i << 1));
+            characterId = g_GameState.characters[g_Menu->pManager->currentCharacterIDs[j]].gearId;
+            func_801E8DA8((u_char)((characterId == 0xFF) ? 0xFF : characterId + 0xB), 6 + (j << 1));
         }
     }
     func_801E8474(8, D_801EA19C);
@@ -261,6 +309,45 @@ void func_801D3444(void) {
     HeapFree(g_Menu->pScrollHandle);
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc6", func_801D3488);
+/* PARKED 98.90% (492 bytes, identical instruction multiset). The first loop, the
+   early-return ternary (write it as "a1 == 0 ? unk32B : unk33B", not the other way
+   round), the HeapAlloc/bzero block and the tail all match exactly. The only
+   difference left is in the 4-iteration func_801C851C loop: the allocator swaps two
+   registers (retail keeps pUi in v1 and the strength-reduced i*2 in a1; ours the
+   other way round), so every displacement/operand of that loop differs by the pair.
+   Tried: declaring the poly pointer inside/outside the loop, an explicit polys base
+   local (96.50), an explicit index local, and both ternary spellings. It is the same
+   a1/v1 allocator tie as func_801D2D38 above.
+*/
+/* Best attempt (98.90%): the body below is what the note above was measured with.
+void func_801D3488(u_char a0, u_char a1) {
+    s32 i;
+
+    if ((a1 == 0 ? g_Menu->unk32B : g_Menu->unk33B) == 1) {
+        return;
+    }
+
+    if (g_Menu->pManager->unk63[4] == 0) {
+        g_Menu->pShoulderButtonUi = HeapAlloc(0x1C4, 0);
+        bzero(g_Menu->pShoulderButtonUi, 0x1C4);
+        g_Menu->pManager->unk63[4] = 1;
+    }
+
+    for (i = 0; i < 2; i++) {
+        func_8002675C(g_Menu->resources, 0x164 + i, &g_Menu->pShoulderButtonUi->polys[i * 4], g_Menu->renderContext, D_801EA164[i], D_801EA16C[a0], 0x1000);
+    }
+
+    for (i = 0; i < 4; i++) {
+        s32 polyIndex = i * 2 + g_Menu->renderContext;
+        POLY_FT4* pPoly = &g_Menu->pShoulderButtonUi->polys[polyIndex];
+        func_801C851C(&g_Menu->pShoulderButtonUi->vertices[i * 4], pPoly->x0, pPoly->y0, pPoly->x1 - pPoly->x0, pPoly->y3 - pPoly->y0);
+    }
+
+    // the original reads renderContext as a byte here, but as a word for the arg above
+    g_Menu->pShoulderButtonUi->renderContext = *(u_char*)&g_Menu->renderContext;
+    g_Menu->pManager->shoulderButtonUiActive = 1;
+}
+*/
 void func_801D3674(void) {
     if (g_Menu->pManager->unk5C[0xB] != 0) {
         g_Menu->pManager->shoulderButtonUiActive = 0;
