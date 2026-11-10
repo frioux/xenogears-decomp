@@ -136,16 +136,6 @@ int func_8007BA08(void) {
     return 3;
 }
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007BA10);
-/* 93.61%: every instruction matches except the return value register. Retail
-   holds it in s0 across both calls (li s0,1 before the first branch,
-   move v0,s0 in each path, li s0,3 in the reset path, plus the s0
-   save/restore); gcc rematerialises li v0,1 / li v0,3 after the calls, which
-   also drops the s0 spill so the frame is 8 bytes short. Tried: comparing
-   against the nResult variable instead of the literal 1, and a single return
-   after an if/else (52.51%, block layout flips). The 16-byte struct copy in
-   the reset path is exact. D_8009A488 (third arg to func_80089160) lives in
-   the main exe and is recorded in config/symbol_addrs.world_map.txt.
 int func_8007BA10(int idx) {
     u8 *pPlayer = (u8 *)D_8009BE24 + (idx << 7);
     s16 timer;
@@ -161,22 +151,21 @@ int func_8007BA10(int idx) {
     timer = *(u16 *)(pPlayer + 0x22);
     timer--;
     *(s16 *)(pPlayer + 0x22) = timer;
-    if (timer <= 0) {
+    if (timer > 0) {
+        *(s32 *)(pPlayer + 0x28) += -0x95D0;
+        *(s32 *)(pPlayer + 0x30) += 0x2F130;
+        *(u16 *)0x1F8000A0 = *(s32 *)(pPlayer + 0x28) >> 12;
+        *(u16 *)0x1F8000A2 = *(s32 *)(pPlayer + 0x2C) >> 12;
+        *(u16 *)0x1F8000A4 = *(s32 *)(pPlayer + 0x30) >> 12;
+        func_80089160(9, (void *)0x1F8000A0, (s32)D_8009A488);
+    } else {
         *(s16 *)(pPlayer + 0x22) = 0x3C;
         *(WorldMapPos *)(pPlayer + 0x28) = *(WorldMapPos *)&D_8009C5AC;
         func_800894C8(9);
         nResult = 3;
-        return nResult;
     }
-    *(s32 *)(pPlayer + 0x28) += -0x95D0;
-    *(s32 *)(pPlayer + 0x30) += 0x2F130;
-    *(u16 *)0x1F8000A0 = *(s32 *)(pPlayer + 0x28) >> 12;
-    *(u16 *)0x1F8000A2 = *(s32 *)(pPlayer + 0x2C) >> 12;
-    *(u16 *)0x1F8000A4 = *(s32 *)(pPlayer + 0x30) >> 12;
-    func_80089160(9, (void *)0x1F8000A0, (s32)D_8009A488);
     return nResult;
 }
-*/
 
 int func_8007BB60(int idx) {
     WorldMapWork *pWork;
@@ -320,6 +309,42 @@ int func_8007CE84(int idx) {
     return 1;
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007CF18);
+/* best 75.19% (356 bytes, size exact): the two `if` blocks and every store
+   are right, but gcc CSEs the three scratchpad addresses (0x1F8000A0/A2/A4,
+   each used once per block) into s3/s4/s2 across both calls -- retail
+   re-materialises them as absolute `lui $at / sh` for all but one, so our
+   frame is 0x30 not 0x28 and s5 replaces retail's single s3-held constant 1.
+   Tried: volatile on the six stores (76.84%, 364 bytes), keeping the
+   literal 1 in each comparison. The same six stores in func_8007D2B8 (this
+   file, matched) do compile to the $at form, so this is an allocator tie
+   triggered by the extra `0x20` test, not a source-shape error.
+int func_8007CF18(int idx) {
+    u8 *pPlayer = (u8 *)D_8009BE24 + (idx << 7);
+    u8 *pWork = (u8 *)D_8009C620;
+
+    if (*(s16 *)(pPlayer + 4) == 1) {
+        *(s16 *)(pPlayer + 4) = 0;
+        *(s16 *)(pPlayer + 0x20) = 1;
+    }
+    *(s32 *)(pPlayer + 0x30) += *(s32 *)(pPlayer + 0x40);
+    func_80093354(pPlayer + 0x28);
+    *(s32 *)(pPlayer + 0x2C) = func_80093A5C(*(s32 *)(pPlayer + 0x28), *(s32 *)(pPlayer + 0x30)) - 0x4000;
+    *(s32 *)(pWork + 0x1AC) = *(s32 *)(pPlayer + 0x28) >> 12;
+    *(s32 *)(pWork + 0x1B0) = *(s32 *)(pPlayer + 0x2C) >> 12;
+    *(s32 *)(pWork + 0x1B4) = *(s32 *)(pPlayer + 0x30) >> 12;
+    *(u16 *)0x1F8000A0 = *(s32 *)(pPlayer + 0x28) >> 12;
+    *(u16 *)0x1F8000A2 = *(s32 *)(pPlayer + 0x2C) >> 12;
+    *(u16 *)0x1F8000A4 = *(s32 *)(pPlayer + 0x30) >> 12;
+    func_80089160(0x15, (void *)0x1F8000A0, 0);
+    if (*(s16 *)(pPlayer + 0x20) == 1) {
+        *(u16 *)0x1F8000A0 = *(s32 *)(pPlayer + 0x28) >> 12;
+        *(u16 *)0x1F8000A2 = *(s32 *)(pPlayer + 0x2C) >> 12;
+        *(u16 *)0x1F8000A4 = *(s32 *)(pPlayer + 0x30) >> 12;
+        func_80089160(0x1E, (void *)0x1F8000A0, 0);
+    }
+    return 1;
+}
+*/
 int func_8007D078(int idx) {
     WorldMapWork *pWork;
     WorldMapPlayer *pPlayer;
@@ -385,4 +410,30 @@ int func_8007D228(int idx) {
     return 1;
 }
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007D2B8);
+int func_8007D2B8(int idx) {
+    u8 *pPlayer = (u8 *)D_8009BE24 + (idx << 7);
+    u8 *pWork = (u8 *)D_8009C620;
+
+    if (*(s16 *)(pPlayer + 4) == 1) {
+        *(s16 *)(pPlayer + 4) = 0;
+        *(s16 *)(pWork + 0x348) = 1;
+        *(s16 *)(pWork + 0x39C) = 1;
+        func_800894C8(0x17);
+        *(u16 *)0x1F8000A0 = *(s32 *)(pPlayer + 0x28) >> 12;
+        *(u16 *)0x1F8000A2 = *(s32 *)(pPlayer + 0x2C) >> 12;
+        *(u16 *)0x1F8000A4 = *(s32 *)(pPlayer + 0x30) >> 12;
+        func_80089160(0x1C, (void *)0x1F8000A0, 0);
+        return 3;
+    }
+    *(s32 *)(pPlayer + 0x30) += *(s32 *)(pPlayer + 0x40);
+    func_80093354(pPlayer + 0x28);
+    *(s32 *)(pPlayer + 0x2C) = func_80093A5C(*(s32 *)(pPlayer + 0x28), *(s32 *)(pPlayer + 0x30)) - 0x4000;
+    *(s32 *)(pWork + 0x350) = *(s32 *)(pPlayer + 0x28) >> 12;
+    *(s32 *)(pWork + 0x354) = *(s32 *)(pPlayer + 0x2C) >> 12;
+    *(s32 *)(pWork + 0x358) = *(s32 *)(pPlayer + 0x30) >> 12;
+    *(u16 *)0x1F8000A0 = *(s32 *)(pPlayer + 0x28) >> 12;
+    *(u16 *)0x1F8000A2 = *(s32 *)(pPlayer + 0x2C) >> 12;
+    *(u16 *)0x1F8000A4 = *(s32 *)(pPlayer + 0x30) >> 12;
+    func_80089160(0x17, (void *)0x1F8000A0, 0);
+    return 1;
+}
