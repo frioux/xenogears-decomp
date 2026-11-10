@@ -29,12 +29,55 @@ extern void func_80090310(u8, u8);
 extern void func_800904A0(s32, s32);
 extern void func_8009070C(s32, s32);
 extern void *D_800D2F5C;
+extern u8 D_800C3E4C;
+extern void func_80076B00(void *);
 extern s32 func_800263E4(void *, s32, void *, s32, s16, s16, s32, s32, s32);
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008CDE4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008CFB8);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008D328);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008D598);
+/* 99.91%: identical except ONE word -- the original ends the dy computation
+   with addu s0,s4,s6 (arg2 first) and gcc emits addu s0,s6,s4. Tried: source
+   order arg2+arg4 and arg4+arg2, an (s32) cast on arg4, an explicit (s16) cast
+   on the whole sum, and a split s32 sum temp followed by sum-8; all reach
+   99.91 and leave that one addu reversed. Everything else in the 464-byte body
+   matches byte for byte: the codes[] branch pair (last store cross-jumped), the
+   four func_80076A10 calls with 'p->5A0 = func(...) + p->5A0' (that operand
+   order is what reproduces lw v1 / addu v0,v0,v1), dx computed between calls 1
+   and 2, dy between calls 2 and 3, and the 4-iteration func_80076B00 loop.
+void func_8008DC34(u8 arg0, s32 arg1, s32 arg2, s32 arg3, u16 arg4) {
+    u8 codes[4];
+    u8 *p;
+    s16 dx;
+    s16 dy;
+    s32 sum;
+    s32 i;
+
+    p = D_800D2E38[arg0];
+    if (D_800C3E4C != 0) {
+        codes[0] = 0x4A;
+        codes[1] = 0x4C;
+        codes[2] = 0x4F;
+        codes[3] = 0x51;
+    } else {
+        codes[0] = 0xF0;
+        codes[1] = 0xF2;
+        codes[2] = 0xF5;
+        codes[3] = 0xF7;
+    }
+    *(s32 *)(p + 0x5A0) = 0;
+    *(s32 *)(p + 0x5A0) = func_80076A10(codes[0], (s32)(p + *(s32 *)(p + 0x5A0) * 0x50), (s16)arg1, (s16)arg2) + *(s32 *)(p + 0x5A0);
+    dx = arg1 + arg3 - 8;
+    *(s32 *)(p + 0x5A0) = func_80076A10(codes[1], (s32)(p + *(s32 *)(p + 0x5A0) * 0x50), dx, (s16)arg2) + *(s32 *)(p + 0x5A0);
+    dy = (s16)(arg2 + arg4 - 8);
+    *(s32 *)(p + 0x5A0) = func_80076A10(codes[2], (s32)(p + *(s32 *)(p + 0x5A0) * 0x50), (s16)arg1, dy) + *(s32 *)(p + 0x5A0);
+    *(s32 *)(p + 0x5A0) = func_80076A10(codes[3], (s32)(p + *(s32 *)(p + 0x5A0) * 0x50), dx, dy) + *(s32 *)(p + 0x5A0);
+    for (i = 0; i < 4; i++) {
+        func_80076B00(p + (i * 2 + D_800CCB34) * 0x28);
+    }
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008DC34);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008DE04);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008E430);
@@ -251,14 +294,16 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8009023C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_80090310);
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_800904A0);
-extern /* 96.64%: everything matches except the final pointer add's operand order --
-   the original ends `addiu a0,a0,0x280; addu a0,a0,v1` (index product first,
-   base last, in the jal delay slot); gcc emits `addu a0,v1,a0`. Reached 96.64
-   by loading the base into a local `pBase` and the index into `palIndex` and
-   writing `pBase + (palIndex * 0x28 + 0x280)`; swapping the sum and an (s32)
-   cast on the base both leave the emitted order unchanged. gcc 2.7.2 orders a
-   reg+reg add by register number (v1 < a0), so the source shape does not
-   control it here. 78.72% is the inline-expression versiovoid func_8009070C(s32 arg0, s32 arg1) {
+/* 99.84% (was 96.64): the only remaining difference is the final addu operand
+   order in the func_80076C78 jal delay slot -- the original has
+   `addiu a0,a0,0x280; addu a0,a0,v1` (index product first, base last) and gcc
+   emits `addu a0,v1,a0`. The trick that got from 96.64 to 99.84 was writing the
+   address as an int-first sum with the base left as a pointer:
+   `(s32)(palIndex * 0x28 + 0x280) + pBase`. Written as `pBase + (...)` (or with
+   an (s32) cast on the base) gcc puts the base first or folds the 0x280 onto the
+   base register instead. Two u8 params (the original andi's both), and the u8
+   arg type on the existing extern is only for this body.
+void func_8009070C(u8 arg0, u8 arg1) {
     RECT rect;
     u8 *pBuf;
     u8 *pBase;
@@ -277,7 +322,7 @@ extern /* 96.64%: everything matches except the final pointer add's operand orde
     func_800769E8(&rect, pBuf);
     pBase = *(u8 **)(D_800C3EA4 + 0xA230);
     palIndex = D_800CCB34;
-    func_80076C78((POLY_FT4 *)(pBase + (palIndex * 0x28 + 0x280)), 0x30, 0x42, 0, 0, len & 0xFF);
+    func_80076C78((POLY_FT4 *)((s32)(palIndex * 0x28 + 0x280) + pBase), 0x30, 0x42, 0, 0, len & 0xFF);
     HeapFree(pBuf);
 }
 */
