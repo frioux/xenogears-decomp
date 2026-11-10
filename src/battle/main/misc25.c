@@ -2,11 +2,14 @@
 
 extern u8 D_800C37C8;
 extern u16 D_800C3E30;
+extern u8 D_800C3D40;
 extern u8 D_800C3D6C;
 extern u8 *D_800C3BAC[];
 extern s32 D_800C3BCC[];
 extern s32 D_800C3BEC;
 extern s32 D_800C3BF0;
+extern s32 D_800C360C;
+extern u8 D_800C4000[];
 extern void *D_800658C8;
 
 extern void HeapFree(void *pMem);
@@ -17,6 +20,12 @@ extern void func_800A5870(s16 *, s16, void *);
 extern s32 func_800A5914(s16 *, s16, s32);
 extern void func_8003852C(s32);
 extern void func_800B00D0(void);
+extern u8 D_800C3D0C[];
+extern u8 *D_800D3368[];
+extern void func_800A9FF0(s32);
+extern void func_800AA934(void *, void *, void *, void *);
+extern void func_800BE790(void);
+extern void func_800B0D70(s16 *, u16 *);
 
 typedef struct BattleModelNode BattleModelNode;
 
@@ -69,21 +78,42 @@ s32 func_800AF400(void) {
     }
     return i;
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800AF438);
+s32 func_800AF438(u8 *p, u32 id, u16 *pOut) {
+    if ((id & 0xFF) == 0xFF) {
+        id = func_800AF400();
+    } else if ((id & 0xFF) == 0xFE) {
+        id = D_800C3D40;
+    } else if ((id & 0xFF) == 0xFD || (id & 0xFF) == 0xF9) {
+        id = p[0x20];
+    } else if ((id & 0xFF) == 0xFC) {
+        id = p[0x21];
+    } else if ((id & 0xFF) == 0xFA) {
+        id = 0x1F;
+    } else if ((id & 0xFF) == 0xF8) {
+        id = p[0x20] * 2 + 0xD;
+    } else if ((id & 0xFF) == 0xF7) {
+        id = p[0x20] * 2 + 0xE;
+    }
+    *pOut = 1 << (id & 0xFF);
+    return id & 0xFF;
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800AF518);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800AF678);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800AFA98);
-/* 89.22%: the loop is right, gcc picks an offset induction variable where the
-   original keeps a pointer one (base in a1 reloaded per iteration vs s0). A
-   pointer-local variant reaches 95.11% but starts at element 0, not 1.
+/* 96.44%: everything matches except the position of the loop's `i++`: gcc puts
+   it after the count reload, the original keeps it in the `bne`'s delay slot
+   (i.e. before the recursive call's argument setup).
 void func_800AFA98(BattleModel *pModel, BattleModelNode *pNode, s32 flags) {
+    BattleModelNode *pChild;
     s32 i;
 
     pNode->unk7 = flags & 1;
     if (flags & 0x80) {
+        pChild = pModel->pNodes;
         for (i = 1; i < pModel->pNodes->unkA; i++) {
-            if (pModel->pNodes[i].pParent == pNode) {
-                func_800AFA98(pModel, &pModel->pNodes[i], flags);
+            pChild++;
+            if (pChild->pParent == pNode) {
+                func_800AFA98(pModel, pChild, flags);
             }
         }
     }
@@ -164,28 +194,117 @@ s32 func_800B0AB4(s16 *pPos) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800B0B14);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800B0D70);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800B0FF4);
+/* 70.81%: the frame, the s16 vec[3] (element 1 unused, hence the 0x10/0x14
+   slots) and the two `div`s are right, but our output has no divide guards at
+   all: the original carries gcc's `bnez $v0; break 7` zero check and the
+   `li $at,0xFFFFFFFF` / `lui $at,0x80000000` / `break 6` range check around
+   each `div`, and none of them are emitted here (maspsx strips them?). Every
+   `break 7` in the repo is still in nonmatchings, so this looks preset-level,
+   not source-level. Only other diff: the second `mflo` lands in $a3, not $a0.
+void func_800B0FF4(u16 *pA, u16 *pB) {
+    s16 vec[3];
+    s32 len;
+
+    vec[0] = pA[0] - pB[0];
+    vec[2] = pA[2] - pB[2];
+    len = SquareRoot0(vec[0] * vec[0] + vec[2] * vec[2]) + 1;
+    vec[0] = (vec[0] << 9) / len;
+    vec[2] = (vec[2] << 9) / len;
+    func_800B0D70(vec, pB);
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800B10EC);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800B12D0);
+/* 99.74% (156 bytes, identical instruction stream): only the switch's jump
+   table operand differs (the original names jtbl_800707C4). It cannot be
+   converted as-is: that table lives in the splat-owned .rodata
+   (asm/battle/data/0.rodata.s) and its entries point at this stub's local
+   labels (.L800B132C/1334/133C/1344), so `make build` fails to link with
+   "undefined reference to .L800B132C" the moment the stub becomes C.
+   The mapping is kind -> flag mask:
+   0,1 -> 1; 2,3 -> 8; 4 -> 4; 5 -> 2; else -> id & 0xFF.
+s32 func_800B12D0(s32 arg0, s32 arg1) {
+    s32 result = 0;
+    s32 v;
+    u8 *pRow = &D_800C4000[(D_800C360C - 1) * 0x48];
+    u8 kind = pRow[arg0];
+
+    if (kind < 6) {
+        switch (kind) {
+        case 0:
+        case 1:
+            v = arg1 & 1;
+            break;
+        case 5:
+            v = arg1 & 2;
+            break;
+        case 4:
+            v = arg1 & 4;
+            break;
+        case 2:
+        case 3:
+            v = arg1 & 8;
+            break;
+        }
+        if (v == 0) {
+            result = 1;
+        }
+    }
+    if ((arg1 & 0xFF) == 0) {
+        result = 1;
+    }
+    return result;
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800B136C);
 void func_800B14B8(void) {
     D_800C3D6C = 1;
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800B14CC);
+void func_800B14CC(s32 arg0) {
+    s32 i;
+    s32 flag;
+    u8 *pEntry;
+
+    for (i = 0; i < 3; i++) {
+        if (i != arg0) {
+            func_800AA934(D_800D3368[i], D_800D3368[i], D_800C3D0C, 5);
+        }
+    }
+    do {
+        flag = 0;
+        for (i = 0; i < 3; i++) {
+            if (i != arg0) {
+                pEntry = D_800D3368[i];
+                if (pEntry != NULL && (pEntry[0x34] != 0 || pEntry[0x38] != 0)) {
+                    flag = 1;
+                }
+            }
+        }
+        func_800BE790();
+    } while (flag != 0);
+    func_800BE790();
+    for (i = 0; i < 3; i++) {
+        if (i != arg0) {
+            func_800A9FF0(i);
+        }
+    }
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800B15D8);
 /* 71.84%: the frame address and the 7-word struct copy are right; gcc swaps the
    frame pointer / D_800C3BD0 register roles and blocks the copy 4+3 instead of
    3+3+1, and re-forms D_800C3BD0+8/+16 instead of using one register.
 s32 func_800B15D8(u8 *p, s32 index) {
     BattleFrame *pFrame = (BattleFrame *)(p + index * 0x1C + 0xC);
+    BattleFrame *pDst = &D_800C3BD0;
 
-    D_800C3BD0 = *pFrame;
-    if ((*(s32 *)(p + 4) & 1) == 0) {
-        D_800C3BD0.unk0 += (mem_addr)pFrame;
-        D_800C3BD0.unk8 += (mem_addr)pFrame;
-        D_800C3BD0.unk10 += (mem_addr)pFrame;
+    *pDst = *pFrame;
+    if ((*(u32 *)(p + 4) & 1) == 0) {
+        pDst->unk0 += (mem_addr)pFrame;
+        pDst->unk8 += (mem_addr)pFrame;
+        pDst->unk10 += (mem_addr)pFrame;
     }
     D_800C3BF0 = 0;
-    D_800C3BEC = D_800C3BD0.unk10;
+    D_800C3BEC = pDst->unk10;
     return pFrame->unk14;
 }
 */
