@@ -27,6 +27,13 @@ extern int ArchiveDecodeAlignedSize(unsigned int entryIndex);
 extern void ArchiveReadFileToBuffer(s32 index, void *pBuffer, u32 arg2, u32 flags);
 extern void HeapFree(void *pMem);
 extern void bzero(void *p, s32 n);
+extern u8 *D_800C3E24;
+extern u8 D_800D2C34;
+extern u8 func_80084854(u8 arg0, u8 arg1);
+extern void func_80093B08(u8 arg0);
+extern u16 func_80089C08(u8 arg0);
+extern void func_800BC404(u16 arg0);
+extern void func_800BCD98(u16 arg0);
 
 /* 46.02%: gcc CSEs the entry address pBase+(D_800CCB34+i*2)*16 and stores the
    four halfwords through one register, while the original recomputes it (and
@@ -104,13 +111,19 @@ void func_8007FE3C(void) {
     }
 }
 
-/* 89.00%: only the tail order differs - the original has sh; lw ra; addiu sp;
-   jr ra; nop (20 insns), this gives lw ra; sh; jr ra; addiu sp (19). A pointer
-   local for the stores picks up an s0 save (73.40%). */
+/* 89.00%: the tail order differs. The original ends sh; lw ra; addiu sp;
+   jr ra; nop (20 insns); this gives sh; lw ra; sh; jr ra with addiu sp in the
+   delay slot (19 insns), i.e. dbr moves the addiu sp into the return slot and
+   the last sh fills the gap. Swapping the two stores gives 88.85. Tried: u16
+   pointer local for the stores, stores through D_800D2DB4 directly, swapped
+   order. */
 /*
 void func_8007FEC4(void) {
-    D_800D2DB4 = (u8 *)func_8008ABB8(0x5DA4, 0);
-    bzero(D_800D2DB4, 0x5DA4);
+    u8 *pBuffer;
+
+    pBuffer = (u8 *)func_8008ABB8(0x5DA4, 0);
+    D_800D2DB4 = pBuffer;
+    bzero(pBuffer, 0x5DA4);
     *(u16 *)(D_800D2DB4 + 0x5D9C) = 0xA0;
     *(u16 *)(D_800D2DB4 + 0x5D9E) = 0x64;
 }
@@ -135,33 +148,27 @@ void func_800800E8(u8 arg0) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_80080160);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_80080AE4);
 
-/* 84.53%: same insns, but gcc keeps the D_800D2DD7 base in t0 for the
-   loop-end `lbu` (the original keeps a copy t1,v0) and leaves the `i++` at
-   the end of the body instead of in the first beqz delay slot. Tried: u8 vs
-   s32 locals, best=0xFF init first (that is what got 84.53), ++i, separate
-   index local. */
-/*
 s32 func_80080AE4(u8 arg0) {
     s32 best = 0xFF;
-    u8 *p = D_800D2DD7;
-    s16 *pSlots = (s16 *)(p + 0x2F);
-    s32 i = p[0];
+    s32 i = D_800D2DD7[0];
     s32 sel;
-    u8 idx;
+    s32 idx;
+    s16 *pSlots = (s16 *)(D_800D2DD7 + 0x2F);
 
     do {
         idx = D_800D2DD8[i];
-        if (pSlots[idx] < best && idx != arg0) {
+        i++;
+        if (*(pSlots + idx) < best && idx != arg0) {
             sel = idx;
-            best = *(u8 *)&pSlots[idx];
+            best = *(u8 *)(pSlots + idx);
         }
-        if (++i == 0xB) {
+        if (i == 0xB) {
             i = 0;
         }
-    } while (i != p[0]);
+    } while (i != D_800D2DD7[0]);
     return sel;
 }
-*/
+
 void func_80080B64(u8 color) {
     D_800C402F[D_800C3EAC[0x2DA] * 0x48] = 0xFE;
     D_800C400B[D_800C3EAC[0x2DA] * 0x48] = color;
@@ -188,7 +195,27 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_8008115C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_80081318);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_80081504);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_800816F8);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_8008189C);
+void func_8008189C(s32 arg0) {
+    s32 i;
+
+    if (D_800C3EAC[0x2E9] != 0) {
+        return;
+    }
+    func_800BC404(func_80089C08(D_800C3EAC[0x2E8]));
+    func_800BCD98(func_80089C08(D_800C3EAC[0x2E8]));
+    i = 0;
+    do {
+        if (func_80084854(D_800C3EAC[0x2E8], i) != D_800C3EAC[0x2E8]) {
+            (D_800C3E24 + i)[0xE6] = 1;
+        } else {
+            (D_800C3E24 + i)[0xE6] = 0;
+        }
+        i++;
+    } while (i < 4);
+    if (D_800D2C34 != 4) {
+        func_80093B08(arg0);
+    }
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_800819A4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_80081B58);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_800820A4);
