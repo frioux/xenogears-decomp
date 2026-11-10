@@ -8,12 +8,40 @@ extern u8* D_800D2DC8;
 extern u8 D_800CCE30[];
 extern u8 D_800CCE4A[];
 extern u8 D_800CCCE8[];
+extern u8 D_800D2C34;
 
 extern int rand(void);
 extern void func_8009BE0C(void);
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009A0DC);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009A1AC);
+u16 func_8009A1AC(u8 arg0) {
+    u8* p = (u8*)(arg0 * 0x170 + (u32)D_800C34B0);
+    u16 f7C = *(u16*)(p + 0x7C);
+    u16 ret = 0;
+    u16 f;
+
+    if (f7C & 0x8000) {
+        return 0;
+    }
+    f = *(u16*)(p + 0x80);
+    if (f & 0x1000) {
+        ret |= 0x8000;
+    }
+    if (f & 0x2000) {
+        ret |= 0x4000;
+    }
+    if (f7C & 0x800) {
+        ret |= 0x2000;
+    }
+    f = *(u16*)(p + 0x8C) | *(u16*)(p + 0x8E);
+    if (f & 0xF00) {
+        ret |= (f & 0xF00) >> 3;
+    }
+    if (f & 0xF000) {
+        ret |= (f & 0xF000) >> 3;
+    }
+    return ret;
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009A258);
 /* Best attempt: 92.90%. Structure and instruction multiset identical (the
    addiu 0x1058 of the row offset, the two strength-reduced multiplies and the
@@ -74,7 +102,22 @@ s32 func_8009A9D0(void) {
 */
 
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009AA44);
+void func_8009AA44(u8 arg0) {
+    u8* p;
+    u8* q;
+
+    *(u8*)((u8*)D_800C34B0 + 0x5FC2) = 0;
+    q = (u8*)D_800C34B0 + arg0 * 0x170;
+    q[0x15A] |= 1;
+    p = (u8*)D_800C34B0 + arg0 * 0x170;
+    if ((*(u8*)(p + 0x15A) & 0x80) && (*(u16*)(p + 0x126) & 0x10)) {
+        *(u16*)(p + 0x120) &= 0xFE4F;
+        *(u16*)(p + 0x7C) &= 0xEFFF;
+    }
+    if (D_800D2C34 == 4) {
+        *(u8*)((u8*)D_800C34B0 + 0x5FC7) = 0x3D;
+    }
+}
 
 u8 func_8009AB00(u8 arg0) {
     u8* p = (u8*)D_800C34B0 + arg0 * 0x170;
