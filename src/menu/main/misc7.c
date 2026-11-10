@@ -1,14 +1,21 @@
 #include "common.h"
 
+#include "main/game.h"
 #include "system/memory.h"
 #include "system/menu.h"
 
+void func_801C80B8(u32 number);
 void func_801D4F2C(u_char a0, u_char a1, s32 a2, s32 a3);
 void func_801D50EC(u_char a0, s32 a1, s32 a2);
 void func_801D51EC(u_char a0, u_char a1, s32 a2, s32 a3);
 void func_801D53D0(u_char a0, u_char a1, s32 a2, s32 a3);
 void func_801D55B4(u_char a0, u_char a1, s32 a2, s32 a3);
 void func_801D5794(u_char a0, u_char a1, s32 a2, s32 a3);
+extern s32 D_801E9A78[];
+extern s32 D_801E9AC8[];
+extern s32 D_801EA34C[];
+
+s32 func_8002675C(MenuResourceDirectory* pDir, u32 index, POLY_FT4* pPrims, s32 context, s32 x, s32 y, s32 scale);
 void func_801D5ED4(u_char a0, u_char a1);
 void func_801D6194(u_char a0);
 void func_801D6338(u_char a0, u_char a1);
@@ -32,7 +39,25 @@ void func_801D4EA0(u_char a0) {
     HeapFree(g_Menu->windowParameters[a0]);
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D4F2C);
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D50EC);
+void func_801D50EC(u_char a0, s32 a1, s32 a2) {
+    u8* pWindow;
+    s32 i;
+
+    pWindow = (u8*)g_Menu->unk39C[a0];
+    pWindow[0x1279] = 0;
+    for (i = 0; i < 0x14; i++) {
+        if (D_801EA34C[i] != 0xFFFF) {
+            pWindow[0x1279] += func_8002675C(
+                g_Menu->resources,
+                D_801EA34C[i],
+                (POLY_FT4*)(pWindow + (pWindow[0x1279] * 0x50 + 0xA0)),
+                g_Menu->renderContext,
+                a1 + D_801E9A78[i],
+                a2 + D_801E9AC8[i],
+                0x1000);
+        }
+    }
+}
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D51EC);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D53D0);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D55B4);
@@ -60,6 +85,38 @@ void func_801D5A50(u_char a0, u_char a1) {
     *(u8*)(pWindow + 0x1270) = *(u8*)&g_Menu->renderContext;
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D5BA4);
+/* Best: 96.88%. Only the delay-slot fill differs: retail puts the loop
+   increment `addiu s0,s0,1` in the `digits[i] != 0xFF` branch delay slot
+   and keeps `li v0,0x1000` before the arg stores; gcc picks the other
+   order. Tried: += then func()+count (addu order), `continue` form,
+   digits[i++] with (i-1)*8, running x local with x += 8 (96.65%).
+   void func_801D5BA4(s32 a0, s32 a1) {
+       s32 i;
+
+       func_801C80B8(g_GameState.gold);
+       *(s32*)((u8*)g_Menu->unk340 + 0x320) = 0;
+       for (i = 0; i < 9; i++) {
+           if (g_Menu->digits[i] != 0xFF) {
+               *(s32*)((u8*)g_Menu->unk340 + 0x320) =
+                   func_8002675C(
+                       g_Menu->resources,
+                       g_Menu->digits[i],
+                       (POLY_FT4*)(*(s32*)((u8*)g_Menu->unk340 + 0x320) * 0x50 +
+                                   (u32)g_Menu->unk340),
+                       g_Menu->renderContext,
+                       a0 + i * 8,
+                       a1,
+                       0x1000) +
+                   *(s32*)((u8*)g_Menu->unk340 + 0x320);
+           }
+       }
+       func_8002675C(g_Menu->resources, 0x10,
+                     (POLY_FT4*)((u8*)g_Menu->unk340 + 0x2D0),
+                     g_Menu->renderContext, a0 + 0x50, a1, 0x1000);
+       g_Menu->pManager->unk5[0] = 1;
+       *(u8*)((u8*)g_Menu->unk340 + 0x324) = *(u8*)&g_Menu->renderContext;
+   }
+*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D5CF8);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D5ED4);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D6194);
