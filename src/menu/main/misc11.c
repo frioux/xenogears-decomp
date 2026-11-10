@@ -5,7 +5,9 @@
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc11", func_801E433C);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc11", func_801E4754);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc11", func_801E4928);
-/* Best: 91.61%
+/* Best: 91.61% - instruction multiset identical, allocator puts the dividend in
+   $a0 instead of $v0 (and the /120 magic in $v0 instead of $a1); 6 declaration
+   orders and shapes leave the tie untouched.
 u8 func_801E4928(u8 gearId) {
     GameGear* pGear;
     u_short weightClass;
@@ -107,17 +109,16 @@ s32 func_801E65E4(u8* p) {
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc11", func_801E6668);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc11", func_801E68AC);
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc11", func_801E6AE8);
-/* Best: 99.71%
+s32 func_8002675C(MenuResourceDirectory* pDir, u32 index, POLY_FT4* pPrims, s32 context, s32 x, s32 y, s32 scale);
+
 void func_801E6AE8(u8 arg0, u8* pArg1) {
     u8* pPrims;
     u32 offset;
 
     offset = 0xA98 + arg0 * 0x87C;
     pPrims = (u8*)(offset + (u32)g_Menu->unk34C);
-    func_8002675C(g_Menu->resources, pArg1[arg0 + 0x1C] + 0x14E, pPrims,
+    func_8002675C(g_Menu->resources, (pArg1 + arg0)[0x1C] + 0x14E, pPrims,
                   g_Menu->renderContext, D_801EA004[arg0], D_801EA010[arg0], 0x1000);
 }
-*/
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc11", func_801E6B70);
