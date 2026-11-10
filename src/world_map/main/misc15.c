@@ -271,6 +271,13 @@ void func_800978FC(void) {
 */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_800979C8);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_80097BC0);
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_80097CB8);
+// Best: 94.28%. Everything matches except the clear loop's allocator
+// tie-break: the original keeps the pointer in v0 and the counter in v1, and
+// this shape gets the two swapped (deliberately, the note records that the
+// i-first declaration order gives the same swap). func_80097BC0 below shares
+// the same loop and the same gap.
+/*
 void func_80097CB8(s32 arg0) {
     u32 *pEnd;
     s32 i;
@@ -285,6 +292,7 @@ void func_80097CB8(s32 arg0) {
     func_800981C8(arg0);
     func_80097DC0();
 }
+*/
 
 void func_80097D64(void) {
     s32 i;
