@@ -80,7 +80,13 @@ segments:
       - [0x3AA24, c, main/misc24]
       - [0x3F7D4, c, main/misc25]
       - [0x41B9C, c, main/misc26]
+      # misc27 is split in three: func_800B5854 is the only function in the unit that
+      # is 100% under gcc 2.7.2 and 93.71% under gcc 2.7.2-cdk (try_flags.sh), while the
+      # rest of the unit is cdk-only (see gears.toml, XenoBattleTailCdk). Presets are per
+      # file, so the psx function gets its own file.
       - [0x44414, c, main/misc27]
+      - [0x45D64, c, main/misc27_psx]
+      - [0x45E34, c, main/misc27_b]
       - [0x46900, c, main/misc28]
       - [0x478FC, c, main/misc29]
       - [0x4956C, c, main/misc30]
