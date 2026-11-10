@@ -14,6 +14,8 @@ extern s32 D_80091C30;
 extern s32 D_80096D88;
 extern s32 D_80096D8C;
 extern s32 D_80092914;
+extern u8 *D_80092938;
+extern void *D_80092868;
 
 extern void func_80030A30(s32 index, void *pLight);
 extern void func_8008B730(void *pA, s32 arg1, s32 arg2);
@@ -96,7 +98,24 @@ void func_8008AC8C(void) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc14", func_8008ACB8);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc14", func_8008AE1C);
+extern void func_800453E8(void *pDrmode, void *pRect);
+extern void func_8004546C(void *pDrmode, void *pRect);
+
+void func_8008AE1C(u8 *pActor) {
+    func_8008AC7C((s32)pActor);
+    AddPrims(D_80092938, *(void **)(pActor + D_800928A0 * 4 + 0xC), *(void **)(pActor + D_800928A0 * 4 + 4));
+    if ((*(u8 *)(pActor + 0x16) & 4) == 0) {
+        func_800453E8(pActor + (D_800928A0 * 12 + 0x18), D_80092868);
+    }
+    if ((*(u8 *)(pActor + 0x16) & 8) == 0) {
+        func_8004546C(pActor + (D_800928A0 * 12 + 0x30), (u8 *)D_80092868 + 8);
+    }
+    if (*(u8 *)(pActor + 0x16) & 0x10) {
+        AddPrim(D_80092938, pActor + (D_800928A0 * 16 + 0x48));
+    }
+    AddPrim(D_80092938, pActor + (D_800928A0 * 12 + 0x30));
+    AddPrim(D_80092938, pActor + (D_800928A0 * 12 + 0x18));
+}
 
 typedef struct {
     /* 0x00 */ u32 unk0;
