@@ -182,7 +182,52 @@ void func_80095324(void* pOut, SVec* pDir, SVec* pResult) {
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc14", func_80095414);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc14", func_80095CD4);
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc14", func_80095F78);
+extern void* D_8009D7C4;
+extern void* D_8009C660;
+extern u8 D_8009C58F;
+extern s32 D_8009CD44;
+
+void func_80095F78(void) {
+    u32 first = ArchiveGetDebugTable();
+    u32 second = ArchiveGetDebugTable();
+    void** pSlot;
+    u8* pName;
+    s32 i;
+
+    if ((first == 0) | (second == 0xFFFFFFFF)) {
+        pSlot = &D_8009D7C4;
+        D_8009BCB8 = 0;
+        D_8009BE44 = 0;
+        D_8009CD44 = 0;
+        for (i = 15; i >= 0; i--) {
+            *pSlot-- = NULL;
+        }
+        D_8009BE08 = HeapAlloc(0x4200, 0);
+        D_8009D7D4 = HeapAlloc(0x800, 0);
+        i = 7;
+        pName = &D_8009C58F;
+        D_8009D808 = 0;
+        do {
+            *pName-- = 0;
+        } while (--i >= 0);
+    } else {
+        pSlot = &D_8009C660;
+        D_8009BCB8 = 0;
+        D_8009BE44 = 0;
+        D_8009CD44 = 0;
+        for (i = 15; i >= 0; i--) {
+            *pSlot-- = NULL;
+        }
+        D_8009D3C0 = HeapAlloc(0x5800, 0);
+        D_8009D7D4 = HeapAlloc(0x800, 0);
+        i = 7;
+        pName = &D_8009C58F;
+        D_8009D808 = 0;
+        do {
+            *pName-- = 0;
+        } while (--i >= 0);
+    }
+}
 
 void func_800960BC(void) {
     u32 first = ArchiveGetDebugTable();
@@ -265,73 +310,55 @@ s32 func_80096328(void) {
     return -1;
 }
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc14", func_800963E4);
-/* 81.41%: bubble pass with a swap. The instruction multiset is already
-   identical; gcc only folds the pCur->y / pCur->z addresses into an extra
-   base register (a1+8) instead of reusing the pNext pointer with -8 and -4
-   offsets, and keeps one more address register than the original. Both
-   declaration orders and a plain struct-swap temp were tried.
 void func_800963E4(SVec* pList) {
     SVec* pCur = pList;
-    SVec* pNext = pList + 1;
     s32 tmp[3];
 
-    while (pNext->x != 0) {
-        if (pCur->x > (u32)pNext->x) {
-            tmp[0] = pCur->x;
-            tmp[1] = pCur->y;
-            tmp[2] = pCur->z;
-            pCur->x = pNext->x;
-            pCur->y = pNext->y;
-            pCur->z = pNext->z;
-            pNext->x = tmp[0];
-            pNext->y = tmp[1];
-            pNext->z = tmp[2];
+    while (pCur[1].x != 0) {
+        if (pCur[0].x > (u32)pCur[1].x) {
+            tmp[0] = pCur[0].x;
+            tmp[1] = pCur[0].y;
+            tmp[2] = pCur[0].z;
+            pCur[0].x = pCur[1].x;
+            pCur[0].y = pCur[1].y;
+            pCur[0].z = pCur[1].z;
+            pCur[1].x = tmp[0];
+            pCur[1].y = tmp[1];
+            pCur[1].z = tmp[2];
             if (pList < pCur) {
                 pCur--;
-                pNext--;
             }
         } else {
             pCur++;
-            pNext++;
         }
     }
 }
-*/
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc14", func_800964B0);
-/* 60.21%: the record is 16 bytes, the terminator sits in word 0, the sort key
-   in word 1, the swap is one full 16-byte struct copy through a stack temp,
-   and the step-back test is an unsigned pList < pCur. The delta is codegen
-   shape: the original reaches pCur words 1..3 as pNext-relative offsets
-   -0xC/-8/-4 off its $a1 and emits both struct copies as interleaved lw/sw
-   pairs, while gcc here keeps one base register per pointer (4($a2) etc.)
-   and batches four loads then four stores. func_800963E4 is the same shape
-   with 3-word records.
-typedef struct {
-    u32 x; u32 key; u32 unk8; u32 unkC;
-} SortRec4; // Size: 0x10
+void func_800964B0(SVec4* pList) {
+    SVec4* pCur = pList;
+    u32 tmp[4];
 
-void func_800964B0(SortRec4* pList) {
-    SortRec4* pCur = pList;
-    SortRec4* pNext = pList + 1;
-    SortRec4 tmp;
-
-    while (pNext->x != 0) {
-        if (pNext->key < pCur->key) {
-            tmp = *pCur;
-            *pCur = *pNext;
-            *pNext = tmp;
+    while (pCur[1].x != 0) {
+        if ((u32)pCur[0].y > (u32)pCur[1].y) {
+            tmp[0] = pCur[0].x;
+            tmp[1] = pCur[0].y;
+            tmp[2] = pCur[0].z;
+            tmp[3] = pCur[0].w;
+            pCur[0].x = pCur[1].x;
+            pCur[0].y = pCur[1].y;
+            pCur[0].z = pCur[1].z;
+            pCur[0].w = pCur[1].w;
+            pCur[1].x = tmp[0];
+            pCur[1].y = tmp[1];
+            pCur[1].z = tmp[2];
+            pCur[1].w = tmp[3];
             if (pList < pCur) {
                 pCur--;
-                pNext--;
             }
         } else {
             pCur++;
-            pNext++;
         }
     }
 }
-*/
 s32 func_800965A4(void) {
     s32 index = D_8009BE44;
     SVec4* p = &D_8009D3C0[index * 0x58];
@@ -363,4 +390,54 @@ void func_80096694(void) {
     } while (func_80096668() != 0);
 }
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc14", func_800966CC);
+
+typedef struct {
+    /* 0x0 */ char* pName;
+    /* 0x4 */ s32 offset;
+    /* 0x8 */ s32 size;
+    /* 0xC */ char* pBuffer;
+} WorldMapLoadEntry; // Size: 0x10
+
+extern int PCopen(char* name, int flags, int perms);
+extern int PClseek(int fd, int offset, int mode);
+extern int PCread(int fd, char* buff, int len);
+extern int PCclose(int fd);
+extern s32 D_8009BE48;
+extern s32 D_8009CCA0;
+extern s32 D_8009CCA8;
+extern s32 D_8009CCB0;
+
+void func_800966CC(WorldMapLoadEntry* pEntry) {
+    s32 retry;
+    s32 fd;
+
+    D_8009BE48 = 0;
+    D_8009CCB0 = 0;
+    D_8009CCA8 = 0;
+    D_8009CCA0 = 0;
+    for (; pEntry->pName != NULL; pEntry++) {
+        retry = 0;
+        do {
+            fd = PCopen(pEntry->pName, 0, 0);
+            if (fd != -1) {
+                break;
+            }
+        } while (++retry < 8);
+        if (fd == -1) {
+            continue;
+        }
+        PClseek(fd, pEntry->offset, 0);
+        retry = 0;
+        do {
+            if (PCread(fd, pEntry->pBuffer, pEntry->size) != 0) {
+                break;
+            }
+        } while (++retry < 8);
+        retry = 0;
+        do {
+            if (PCclose(fd) == 0) {
+                break;
+            }
+        } while (++retry < 8);
+    }
+}
