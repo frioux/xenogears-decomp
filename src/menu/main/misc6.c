@@ -131,6 +131,7 @@ void func_801D249C(u_char a0) {
         }
     }
 }
+*/
 
 void func_801D25E4(void) {
     int i;
