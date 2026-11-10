@@ -1,4 +1,5 @@
 #include "common.h"
+#include "main/game.h"
 
 extern u8 *D_800C3EAC;
 extern u8 *D_800D2D28;
@@ -25,6 +26,9 @@ extern u8 D_800D301D[];
 extern u8 D_800C3EB5[];
 extern u8 D_800C4000[];
 extern u16 D_800C3FE8[];
+extern u8 D_800D2C34;
+extern u8 D_800D2D24[];
+extern u8 D_800C34CC[];
 
 extern void func_80085454(u8);
 extern void func_80085618(u8);
@@ -39,6 +43,7 @@ extern void func_800B89FC(s32, s32, s32, s32);
 extern s32 func_8009ADA0(u8, s32 *);
 extern void func_80085388(void);
 extern void func_800BE538(u8, s32, s32, s32);
+extern s32 func_80089C6C(s32, u8);
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80085618);
 void func_80085AC4(s32 arg0) {
@@ -124,6 +129,37 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80085EB4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80086028);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_800861D0);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80086B88);
+/* Best: 89.09%. Same instruction multiset, three position differences: the
+   original holds &D_800D2C34 in s2 across the call (`lbu v1,0(s2)`) where gcc
+   rematerialises `lui/lbu`; it computes `i = arg0 + (cnt+1)*3` before loading
+   D_800C3EAC[0x2D6] and puts `li s0,1` in the beqz slot, ours does the reverse.
+   A `u8 *pCfg = &D_800D2C34` local does not stop the rematerialisation, and the
+   `s32 mode = 4` local is needed to keep the `s1 = 4` register (that part
+   matches).
+s32 func_80086B88(s32 arg0, s32 arg1) {
+    s32 i;
+    s32 ret;
+
+    i = arg0 + (D_800C3EAC[0x2CC] + 1) * 3;
+    ret = 1;
+    if (D_800C3EAC[0x2D6] != 0) {
+        u8 *pCfg = &D_800D2C34;
+        s32 mode = 4;
+
+        if (*pCfg == mode) {
+            i = arg0 + 0xC;
+        }
+        if ((u16)func_80089C6C((u16)g_GameState.unk16BC[D_800D2D24[arg1 & 0xFF]].unk8,
+                               D_800C34CC[i & 0xFF]) == 0) {
+            ret = 0;
+        } else if (D_800C3EAC[0x2CC] != 0xFF && *pCfg != mode &&
+                   *pCfg < D_800C3EAC[0x2CC] + 1) {
+            ret = 0;
+        }
+    }
+    return ret;
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80086C88);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80086F98);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_800877E0);
