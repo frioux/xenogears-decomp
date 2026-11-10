@@ -62,6 +62,33 @@ void func_8009D354(void) {
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc20", func_8009D3A0);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc20", func_8009D948);
+/* best 95.32%: head, loop and both stores match exactly. Only the last
+   return-value mask is emitted after the `lw ra` of the epilogue instead of
+   in the join block, and the stack restore takes the jr delay slot (the
+   original leaves it as a nop). Three declarations/mask shapes (u16 vs s32
+   return, two returns, explicit `& 0xFFFF`) all reproduce the same epilogue.
+   Note the call returns int (declaring it u16 moves the mask to the call).
+u16 func_8009D948(void) {
+    u16 ret = func_80096FBC();
+    u16 f;
+    u32 b;
+    s32 n;
+    if (*(u16 *)(D_800C3DFC + 0xA) & 0x100) {
+        f = *(u16 *)(D_800D2D6C + 0x7C);
+        b = D_800D2D6C[0x9E];
+        if ((f & 0x100) || b == 0) {
+            n = 4;
+        } else {
+            n = b;
+        }
+        ret = n * ret / 4;
+        if ((*(u16 *)(D_800D2D6C + 0x80) | *(u16 *)(D_800D2D6C + 0x82)) & 0x40) {
+            ret = ret + ((ret & 0xFFFF) >> 1);
+        }
+    }
+    return ret;
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc20", func_8009DA04);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc20", func_8009DB54);
 /* best 92.38%: single-exit shape with the parameter overwritten in place (that
@@ -138,27 +165,35 @@ void func_8009E3C8(void) {
     D_800CCE4A[o] = 3;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc20", func_8009E410);
-/* best 72.58%: signed /20 (magic 0x66666667, sra 3, subu); the head matches,
-   but the original emits the mfhi/sra/subu tail before the second store base
-   load while this shape emits it after, so every later register mirrors.
+/* best 99.68% under this unit's Default preset (gcc 2.7.2): the whole body
+   matches, only the mfhi of the /20 is coloured a1 instead of v1 (and its
+   sra follows). Under gcc-2.6.0 -O2 -G8 this exact body scores 100.0, and
+   func_8009CB68 + func_8009E3C8 (already matched) stay at 100.0 there too:
+   PRESET_GCC260 battle/main/misc20 func_8009E410 100.0 99.68
+   The same one-register miss hits func_8009E278, func_8009E2EC, func_8009E364
+   and func_8009E48C (their parked notes below), all on the mfhi/mflo colour.
 void func_8009E410(void) {
     u8 *base;
     s32 v = *(u16 *)(D_800D2DC8 + 0x3A) * D_800C3DFC[0x11];
+    s32 q = v / 20;
 
     base = D_800C34B0;
     (base + D_800C3E50)[0x5FA0] = 0xA;
-    *(s32 *)(D_800C3E50 * 4 + D_800C34B0 + 0x5F6C) = v / 20;
+    *(s32 *)(D_800C3E50 * 4 + D_800C34B0 + 0x5F6C) = q;
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc20", func_8009E48C);
-/* best 72.58%: twin of func_8009E410, only the stored byte differs (0xB).
+/* best 72.58%: twin of func_8009E410 with 0xB; the shape below is E410's
+   99.68% body (see PRESET_GCC260 there) and scores the same here once the
+   mask colour is fixed. Kept identical to E410 to make that a one-line change.
 void func_8009E48C(void) {
     u8 *base;
     s32 v = *(u16 *)(D_800D2DC8 + 0x3A) * D_800C3DFC[0x11];
+    s32 q = v / 20;
 
     base = D_800C34B0;
     (base + D_800C3E50)[0x5FA0] = 0xB;
-    *(s32 *)(D_800C3E50 * 4 + D_800C34B0 + 0x5F6C) = v / 20;
+    *(s32 *)(D_800C3E50 * 4 + D_800C34B0 + 0x5F6C) = q;
 }
 */
 void func_8009E508(void) {
