@@ -120,6 +120,43 @@ s32 func_800889C8(void) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc12", func_80088A40);
 
+/* Best attempt: objdiff 61.85% (up from 47.28% with the pointer-local shape that
+   func_80088940 needs; the store address now stays in a register instead of
+   being rematerialised into $at). What is left is the original's five DEFERRED
+   stores: it loads D_8006F980 once, keeps all five statement values live in
+   $a2,$a1,$a0,$v1,$t0 and stores them together after the last field load, while
+   gcc stores each value as it is computed and reuses one register. The masks,
+   the five field loads and the shifts all match. Unclear how C source defers
+   stores past the following global loads (they must alias), so this may not be
+   reachable from C at all. */
+/*
+void func_80088A40(void) {
+    s32* pFlags;
+    s32 v0;
+    s32 v1;
+    s32 v2;
+    s32 v3;
+    s32 v4;
+
+    if (D_8005061C == 0) {
+        return;
+    }
+    pFlags = &D_8006F980;
+    v0 = *pFlags;
+    v0 = (v0 & 0xFFFFFFF0) | 1;
+    v1 = (v0 & 0xFFFFFFEF) | ((D_80099D9B & 1) << 4);
+    v2 = (v1 & 0xFFFFFFDF) | ((D_80099D9C & 1) << 5);
+    v3 = (v2 & 0xFFFFE03F) | ((D_80099D9F & 0x7F) << 6);
+    v4 = (v3 & 0xFFFF1FFF) | ((D_80099D98 & 7) << 13);
+    *pFlags = v0;
+    *pFlags = v1;
+    *pFlags = v2;
+    *pFlags = v3;
+    *pFlags = v4;
+}
+*/
+
+
 /* Best attempt: objdiff 47.28% (identical under `--gp -G0`, so this is not the
    -G8/-G0 question that func_80088940 has). The source is five statements
    `D_8006F980 = (D_8006F980 & ~MASK) | ((D_80099D9x & m) << shift);` with a
@@ -181,6 +218,12 @@ void func_80088BD4(void) {
 }
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc12", func_80088BFC);
+
+/* Not attempted. The original starts with a dead `lb $t0,0x52C4($zero)` (a read
+   of RAM address 0x52C4, which has no symbol in symbol_addrs or
+   undefined_syms_auto and is never used again); the rest is
+   `D_800927F0 = Vsync(1)`. No C statement produces that dead load, so the stub
+   is probably not convertible as a single function. */
 
 void func_80088C28(void) {
     u16 buttons;
@@ -254,6 +297,19 @@ void func_8008976C(s32 a0, s32 a1) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc12", func_800897AC);
 
+/* Not attempted (68 insns, decoded but not written). Signature is
+   (sprite, s16 x, s16 y, s16 w, s16 h, s16 v) with x..v taken from a1,a2,a3 and
+   the two stack slots at 0x50/0x54. Body: RECT at sp+0x10 gets x,y,w,h and
+   func_800453E8(&p->0x18) and (&p->0x24) are called with rect.y = y + v on the
+   second call; a second RECT at sp+0x18 gets only x and y and feeds
+   func_8004546C(&p->0x30) and (&p->0x3C). Then p->0x4B = 3,
+   p->0x4C = 0x60000000, p->0x50 = p->0x52 = 0, p->0x54 = w, p->0x56 = h,
+   a 0x10-byte struct copy from p+0x48 to p+0x58, and p->0x16 |= 0xC.
+   func_800453E8/func_8004546C are (DR_MODE*, RECT*) from psyq/libgpu_b.c, and
+   DR_MODE is 0xC bytes, so p holds four consecutive DR_MODEs at 0x18, 0x24,
+   0x30, 0x3C. Needs a new sprite struct in this unit; the 0x48 block is
+   u32,u32,u16,u16,u16,u16 so it can be copied as a 0x10 struct. */
+
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc12", func_800898BC);
 
 /*@func_80089A98*/
@@ -277,6 +333,15 @@ void func_80089A98(BattleMisc12Owner* pOwner, VECTOR* pFrom, VECTOR* pTo) {
 /*@@*/
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc12", func_80089B44);
+
+/* Not attempted (68 insns). Zeroes a 0x9C-byte object (see func_80089C54:
+   HeapAlloc(0x9C)) in the order words 0x0,0x8C,0x94,0x90,0x8,0x4; words
+   0x3C,0x38,0x34; halves 0x48,0x46,0x44; halves 0x30,0x2E,0x2C, then copies the
+   0x20-byte template D_80091C0C to p+0x6C, copies p+0x6C..0x7C to p+0x4C,
+   p+0x7C..0x8C to p+0x5C, p+0x4C..0x5C to p+0x0C and p+0x5C..0x6C to p+0x1C
+   (four 0x10-byte struct copies). The odd zeroing order is a source-order
+   question; func_80089210 shows D_80091C0C is a 0x20-byte 4-word-aligned
+   template, so the 0x10 blocks are plausible members of it. */
 
 void func_80089C54(void) {
     void* p;
