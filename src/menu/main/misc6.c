@@ -24,6 +24,11 @@ void func_801D8DE4(u_char a0, s32 a1, s32 a2, u_char a3);
 void func_801D8EA4(u_char a0, s32 a1, s32 a2, u_char a3);
 
 void func_801D4D1C(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4, u_char a5, s32 a6, u_char a7);
+void func_801D29A8(s32 a0, s32 a1);
+void func_801E8DA8(u_char a0, u_char a1);
+void func_801E8474(s32 a0, u32* a1);
+
+extern u32 D_801EA19C[];
 
 void func_801D1CA0(void) {
     if (g_Menu->shouldDrawMenu) {
@@ -105,9 +110,10 @@ extern u16 D_801E9E58[];
 void func_801E7E68(MenuString* pStringList, u_char* pStringIdList, s32 yOffset, s32 count);
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc6", func_801D249C);
-/* PRESET_260: 100.00% under gcc-2.6.0-psx, 99.88% under this unit's current
-   gcc-2.7.2 (its only 2.7.2 difference is addu a0,s2,v1 vs addu a0,v1,s2 for the
-   vertices address). Uncomment once misc6 is on a 2.6.0 preset.
+/* PRESET_260: 100.00% under gcc-2.6.0-psx, 99.88% under this unit's gcc-2.7.2 (its
+   only 2.7.2 difference is "addu a0,s2,v1" vs "addu a0,v1,s2" for the vertices
+   address, a commutative addu canonicalisation). Uncomment once misc6 is on a
+   2.6.0 preset.
 void func_801D249C(u_char a0) {
     s32 i;
 
@@ -152,6 +158,44 @@ void func_801D2968(void) {
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc6", func_801D29A8);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc6", func_801D2D38);
+/* 90.10% under gcc-2.7.2 and 90.10% under gcc-2.6.0, so the gap is source shape,
+   not the preset. Every instruction of the body agrees; the one difference is that
+   gcc strength-reduces the first argument's "i times 2" into a second induction
+   variable (four saved registers s0-s3 instead of three), while retail leaves it
+   inside the loop as "sll a1,s0,1" followed by "andi a1,a1,0xFE" (0xFE, not 0xFF,
+   is what the original masks with). Shapes tried: i times 2 with a u_char
+   parameter, (i times 2) & 0xFE, (i << 1), (u_char)(i << 1), an if-block instead
+   of continue, and a ternary for the gearId 0xFF case; all score 90.10 and all
+   keep the extra induction variable.
+void func_801D2D38(void) {
+    s32 i;
+    u_char characterId;
+
+    if (D_80059460 == 0) {
+        for (i = 0; i < 2; i++) {
+            g_Menu->windows[i] = HeapAlloc(0x720, 0);
+            bzero(g_Menu->windows[i], 0x720);
+            g_Menu->windowParameters[i] = HeapAlloc(0x18, 0);
+            bzero(g_Menu->windowParameters[i], 0x18);
+            func_801E53CC(i);
+        }
+        func_801C8574(0x5E);
+    }
+
+    for (i = 0; i < 3; i++) {
+        if (g_Menu->pManager->currentCharacterIDs[i] != 0xFF) {
+            func_801E8DA8(g_Menu->pManager->currentCharacterIDs[i], (u_char)(i << 1));
+            characterId = g_GameState.characters[g_Menu->pManager->currentCharacterIDs[i]].gearId;
+            characterId = (characterId == 0xFF) ? 0xFF : characterId + 0xB;
+            func_801E8DA8(characterId, 6 + (i << 1));
+        }
+    }
+    func_801E8474(8, D_801EA19C);
+    func_801D29A8(1, 0);
+    func_801D28FC();
+}
+*/
+
 void func_801D2EC0(u_char a0, u_char a1) {
     func_801D7C3C(a0, a1);
     func_801D7CFC(a0, a1, g_GameState.gearRide[a0]);
