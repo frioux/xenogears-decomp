@@ -32,6 +32,11 @@ extern u8 D_800D39C6;
 extern u8 *GetStringEntry(u8 *);
 extern u8 D_800D3014;
 extern u8 D_800D2DE4[];
+extern u8 D_800D2DC0;
+extern u8 D_800D2DD7[];
+extern u8 D_800D2DD8[];
+extern u8 D_800D2DE3[];
+extern u16 D_800D2E04[];
 extern u16 D_800D2DF0[];
 extern u16 D_800D2E06[];
 extern u16 D_800D2C9E;
@@ -85,8 +90,9 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80070F40);
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_800716D8);
 /* 78.82% - original emits the return-value zeroing before the ra restore (nop in
-   the last jal's delay slot); gcc steals lw ra into that slot from every shape
-   tried: return 0, s32 ret = 0 at top / after the call, ret = 0; return ret.
+   the last jal's delay slot); gcc steals addiu sp into the jr's delay slot and
+   schedules lw ra before the return value. Same under gcc 2.7.2-cdk.
+   Tried: return 0, s32 ret = 0 at top / after the call, ret = 0; return ret.
 s32 func_800716D8(void) {
     if (D_8005917C[0] != -1) {
         func_8028022C();
@@ -198,7 +204,12 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80071B94);
    The pointer pair pDst = D_800D2E06, pSrc = pDst - 0xB reproduces the original
    addiu s2,s1,-0x16 exactly. */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80072270);
-/* void func_80072270(void) {
+/* 72.36% - body and pointer pair (pSrc = pDst - 0xB gives the original's
+   addiu s2,s1,-0x16) are right; the miss is the flag store: gcc's loop.c hoists
+   `li v0,1` into s3 (extra callee-saved reg, 40-byte frame vs 32) where the
+   original re-materialises `li v0,1` inside the block, and it loads D_800D2D28
+   after the sh instead of before the lhu. Same blocker as func_80071B94.
+void func_80072270(void) {
     s32 i;
     u16 *pSrc;
     u16 *pDst;
@@ -209,8 +220,8 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80072270);
         for (i = 0; i < 3; i++) {
             if (func_80089C9C(D_800D2C9E, i) != 0) {
                 D_800D2DE4[i] = 0;
-                (D_800D2D28 + i)[0x7C] = 1;
                 *pDst = *pSrc;
+                (D_800D2D28 + i)[0x7C] = 1;
             }
             pDst++;
             pSrc++;
@@ -243,7 +254,52 @@ void func_80072324(void) {
         }
     }
 }
+
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_800723E0);
+/* 69.63% - whole structure is right (16-byte frame, both early-exit paths, the
+   wrap at 0xB and the *pCurrent = i + 1 tail). Misses: gcc reloads
+   D_800D2DD8[i] after the loop instead of reusing the loop's slot register
+   (an `idx` local makes it worse, 68.58, and adds an andi), it materialises a
+   second `li 0xb` for the tail compare where the original keeps a3, and it
+   hoists `move a0,zero` out of the final jal's delay slot. Tried: for/while with
+   the increment in the clause vs in the body, idx local, s32 vs u8 locals.
+void func_800723E0(void) {
+    u8 *pCurrent;
+    s32 i;
+
+    if (D_800D39E0 != 0) {
+        func_80072324();
+        return;
+    }
+
+    if (D_800D2DC0 != 0) {
+        D_800C3EAC[0x2D3] = D_800D2DC0;
+        D_800D2DE3[D_800D2DC0] = 1;
+        D_800D2E04[D_800D2DC0] = 0;
+        D_800D2DC0 = 0;
+        func_80071B94(0);
+        return;
+    }
+
+    D_800C3EAC[0x2D3] = 0;
+    pCurrent = D_800D2DD7;
+    for (i = *pCurrent; D_800D2DE4[D_800D2DD8[i]] != 1; i++) {
+        if (i == 0xB) {
+            i = 0;
+        }
+        if (i == *pCurrent) {
+            break;
+        }
+    }
+    D_800C3EAC[0x2D3] = D_800D2DD8[i] + 1;
+    *pCurrent = i + 1;
+    if (*pCurrent == 0xB) {
+        *pCurrent = 0;
+    }
+    func_80071B94(0);
+}
+*/
+
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_8007252C);
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_800728B8);
