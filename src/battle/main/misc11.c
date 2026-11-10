@@ -35,22 +35,26 @@ extern u16 func_80089C08(u8 arg0);
 extern void func_800BC404(u16 arg0);
 extern void func_800BCD98(u16 arg0);
 
-/* 46.02%: gcc CSEs the entry address pBase+(D_800CCB34+i*2)*16 and stores the
-   four halfwords through one register, while the original recomputes it (and
-   reloads D_800CCB34) for each of the four stores. Tried: hoisting
-   D_800C3EA4 into a local, inlining it, s32/u8 loop counter. */
+/* 46.62%. Structure and prologue now match; the blocker is that gcc 2.7.2
+   groups the four stores onto one base register (one reload of D_800CCB34 per
+   iteration instead of four: the original reloads it before each store because
+   each store may alias it). Making D_800CCB34 volatile reproduces the four
+   reloads exactly (73.94%), so the reload pattern is understood; what is left
+   then is allocation only: the original keeps count in t0, pSrc in a1, i in a2
+   and the D_800C3EA4 base in a3 (loaded once before the loop), while adding a
+   pBase local to hoist that load moves count into a1 (69.39%). Params are
+   (u8 arg0, s32 arg1) compared as (u8)count - that reproduces the prologue
+   byte for byte (move t0,a1; andi a0,a0,0xFF; andi v0,t0,0xFF; bne). */
 /*
 void func_8007FBE0(u8 arg0, u8 arg1) {
     s32 count;
-    u8 *pBase;
-    u8 *pSrc;
     s32 i;
+    u8 *pSrc;
 
     count = arg1;
     if (arg0 == arg1) {
         count = arg1 - 1;
     }
-    pBase = D_800C3EA4;
     pSrc = D_800C3202 + arg0 * 6;
     for (i = 0; i < arg0 - 1; i++) {
         *(u16 *)(D_800C3EA4 + (D_800CCB34 + i * 2) * 0x10 + 0x910) = 0xC;
@@ -146,8 +150,6 @@ void func_800800E8(u8 arg0) {
 }
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_80080160);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_80080AE4);
-
 s32 func_80080AE4(u8 arg0) {
     s32 best = 0xFF;
     s32 i = D_800D2DD7[0];
