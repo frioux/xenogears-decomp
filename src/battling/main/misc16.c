@@ -79,7 +79,9 @@ void func_8008CEDC(u8* pArg0, u8* pArg1) {
     *(Misc16Vec*)(pArg0 + 0x1C) = *(Misc16Vec*)(pArg0 + 0x10);
 }
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc16", func_8008CF30);
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc16", func_8008CF9C);
+void func_8008CF9C(u8* pArg0, u8* pArg1) {
+    *(SVECTOR*)pArg1 = *(SVECTOR*)(pArg0 + 0x1C);
+}
 void func_8008CFC4(Misc16Work* pWork, s16* pOut) {
     SVECTOR vec;
     VECTOR rot;
@@ -227,5 +229,30 @@ void func_8008DF30(void) {
 }
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc16", func_8008DF50);
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc16", func_8008E064);
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc16", func_8008E0C8);
+void func_8008E064(void) {
+    if (D_80092844 != 0) {
+        HeapDelayedFree((u8*)D_80092844, 2);
+        HeapDelayedFree((u8*)D_8009283C, 2);
+        HeapDelayedFree((u8*)D_80092840, 2);
+        D_80092844 = 0;
+        D_8009283C = 0;
+        D_80092840 = 0;
+    }
+}
+void func_8008E0C8(void) {
+    s32* pSrc;
+    s32* pWordDst;
+    u8* pByteDst;
+    s32 value;
+    s32 i;
+
+    pByteDst = (u8*)D_80092844;
+    pWordDst = (s32*)D_8009283C;
+    pSrc = (s32*)D_80092840;
+    for (i = 0xA7F; i != -1; i--) {
+        value = *pSrc++;
+        *pWordDst++ = value;
+        *pByteDst++ = value;
+        *pByteDst++ = value >> 16;
+    }
+}
