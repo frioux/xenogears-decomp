@@ -1308,6 +1308,26 @@ green on all eleven outputs.
 Round 1 was cut in half by an ENOSPC (see below) and still landed 54.
 
 | 2 | `battle/{misc1,2,3,8}`, `battling/{misc8,11,14,15}`, `world_map/{misc3,10}`, `menu/misc2`, `movie/misc2` | +35 | 1799 | 12 workers, all 11 outputs OK, no reverts. Per unit: battling/misc11 5, world_map/misc10 5, menu/misc2 5, battle/misc8 4, world_map/misc3 4, movie/misc2 3, battle/misc3 2, battling/misc14 2, battling/misc15 2, battle/misc1 1, battle/misc2 1, battling/misc8 1 |
+| 3 | `battle/{misc19,25}`, `battling/{misc2,6,12,18}`, `world_map/{misc2,5,7}`, `menu/{misc4,6,11}` | +38 | 1761 | 12 workers. net is 42 landed minus 4 reverted: `world_map/misc5` matched 4 at objdiff 100% and passed its own `check_bin.sh`, but the merged overlay failed and no subset of its conversions was safe, so the unit was reverted whole (see below). Per unit: menu/misc4 10 (worker timed out, still landed 10), battling/misc18 6, battling/misc12 4 (-G0 preset paid: func_80088940 + func_800889C8 both closed), battling/misc6 4, menu/misc11 4, battle/misc19 3, battling/misc2 3, battle/misc25 2, world_map/misc2 1, world_map/misc7 1, world_map/misc5 0, menu/misc6 1 |
+
+### `-G0` for `battling/main/misc12` was right, twice over
+
+Both stubs parked at 44.86% and 87.13% under `-G8` closed to 100.00% under the new
+`XenoBattlingNoGp` preset, with the *same* source shape the parked notes described. The
+`battling` overlay is therefore mixed-preset unit by unit; each remaining `battling` unit
+should be screened with `try_flags.sh <unit> <Func> --gp -G0` before C is written.
+
+### The one case where a worker's own `check_bin.sh` OK did not survive the merge
+
+`world_map/main/misc5`: 4 functions at objdiff 100.00%, `lint_sources` clean, and the
+worker's own `check_bin.sh world_map` printed OK - twice. After merging, `world_map.bin`
+differed at 4 symbols, and reverting ANY subset of the 4 conversions still differed, while
+reverting the whole unit restored the checksum. The differing bytes are at *earlier*
+addresses than the conversions (`func_8007A5DC` 4 bytes, `func_8007A9F8` 742,
+`func_8007AD34` 103, and 20 bytes of data at 0x8006FBC4), i.e. the unit's layout moved -
+which objdiff cannot see and `check_bin` from the worker's tree did not catch. Left as
+`INCLUDE_ASM`; whoever retries it should convert one function at a time and run
+`check_bin.sh world_map` after each, on a tree that also has the round-3 neighbours merged.
 
 ## Round 1 findings
 
