@@ -1,4 +1,5 @@
 #include "common.h"
+#include "main/game.h"
 
 // Operator argument tables: D_800D3420 is the 16-bit field table, D_800D3430
 // the 8-bit one, D_800D3410 the 32-bit one; all are indexed by slot * 0x40.
@@ -8,17 +9,103 @@ extern u8 D_800D342E[];
 extern u8 D_800D3430[];
 extern u8 D_800D343F[];
 extern u16 D_8005A3A0[];
+extern u8 D_800D2E5C;
+extern u8 D_800CCDEC[];
 extern u8 D_800CCE34[];
+extern u8 D_800CCE38[];
+extern u8 D_800CCE39[];
+extern u8 D_800CCE3A[];
+extern u8 D_800CCE3B[];
+extern u8 D_800CCE3C[];
+extern u8 D_800CCE3D[];
 extern u8 D_800CCE3E[];
 
 u8 func_8001BD40(int, u8);
+u16 func_80089B50(int, u16);
+s32 func_80079E7C(u16);
+s32 func_80079ED8(u8, u8, u8, s32);
+s32 func_8007A280(u8, u8, s32, s32);
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007B424);
+/* best: 90.81%. The pTable = (u8 *)pField + 0x10 form is what puts the
+   addiu 0x10 in the jal delay slot like the original. Remaining gap is the
+   allocator: the original keeps slot in s0 and base+0x10 in s1, gcc folds
+   slot+base into s0 before the call and needs one saved register fewer.
+
+void func_8007B424(u8 **p, u8 index) {
+    u16 *pField = (u16 *)(D_800D3420 + index * 0x40);
+    u8 *pTable = (u8 *)pField + 0x10;
+    u8 value = func_80079E7C(pField[(*p)[3]]);
+
+    pTable[(*p)[1]] = func_80079ED8(value, (*p)[2], 0, 1);
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007B4B8);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007B578);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007B608);
+/* best: 81.15%. Frame and register set now match; the only gap is that the
+   original materialises D_800D3420+0x10 with its own addiu and then adds slot
+   and the arg byte, gcc folds the 0x10 into the lbu displacement. 62.17% if
+   pTable is a pointer local declared before the call.
+
+u8 func_8007B4B8(u8 **p, u8 index, u8 arg2) {
+    s32 slot = index * 0x40;
+    u16 *pField = (u16 *)(D_800D3420 + slot);
+    u8 ret = arg2;
+    u8 value = func_80079E7C(pField[(*p)[3]]);
+
+    if (value < 3) {
+        D_800D2E5C = 0x20;
+        ret = arg2 + 1;
+    } else {
+        func_80079ED8(value, (*p)[2], (D_800D3420 + 0x10 + slot)[(*p)[1]], 0);
+    }
+    return ret;
+}
+*/
+void func_8007B578(u8 **p, u8 index) {
+    u16 *pTable = (u16 *)(D_800D3420 + index * 0x40);
+    u8 value = func_80079E7C(pTable[(*p)[3]]);
+
+    pTable[(*p)[1]] = func_8007A280(value, (*p)[2], 0, 1);
+}
+u8 func_8007B608(u8 **p, u8 index, u8 arg2) {
+    u16 *pField = (u16 *)(D_800D3420 + index * 0x40);
+    u8 ret = arg2;
+    u8 value = func_80079E7C(pField[(*p)[3]]);
+
+    if (value < 3) {
+        D_800D2E5C = 0x20;
+        ret = arg2 + 1;
+    } else {
+        func_8007A280(value, (*p)[2], pField[(*p)[1]], 0);
+    }
+    return ret;
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007B6C0);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007B7B0);
+/* best: 89.53%. Structurally complete (both cases, the -0x10 derived from the
+   D_800D3420 base in the jal delay slot, u8 value local, g_GameState.gold), but
+   the original keeps slot and base in separate callee-saved regs (s1, s0) and
+   combines them after the call, gcc combines them before and needs one saved
+   register fewer (228 vs 224 bytes). 85.93% with the case-2 pointer inlined.
+
+void func_8007B6C0(u8 **p, u8 index) {
+    switch ((*p)[2]) {
+    case 1: {
+        u16 *pField = (u16 *)(D_800D3420 + index * 0x40);
+        u32 *pField32 = (u32 *)((u8 *)pField - 0x10);
+        u8 value = func_80079E7C(pField[(*p)[3]]);
+
+        pField32[(*p)[1]] = *(u32 *)(D_800CCDEC + value * 0x170);
+        break;
+    }
+    case 2: {
+        u32 *pField32 = (u32 *)(D_800D3410 + index * 0x40);
+
+        pField32[(*p)[1]] = g_GameState.gold;
+        break;
+    }
+    }
+}
+*/INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007B7B0);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007B8D4);
 /* best: 73.75%. Instruction multiset identical; the original loads *p into v0
    and puts the D_800D3420 base in a0, gcc emits the base first instead. Same
@@ -45,8 +132,9 @@ void func_8007B958(u8 **p, u8 index) {
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007B98C);
 /* best: 84.67%. Instruction multiset identical; the original loads *p into v0
-   and puts the D_800D3420 base in a0, gcc emits the base first instead. Same
-   allocator tie as func_8007B8D4.
+   before materialising the D_800D3420 base in a0, gcc always emits the base
+   first and reuses the dead a0 for the load. Declaration order, an explicit
+   offset local and a volatile load all leave it unchanged.
 
 void func_8007B98C(u8 **p, u8 index) {
     u16 *pField = (u16 *)(D_800D3420 + index * 0x40);
@@ -113,7 +201,8 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007BAE8);
 /* best: 96.76%. Only the register holding *p differs (original v1, gcc
    reuses a0). The two-statement slot local is needed: written as
    (index + 3) * 0x170 inside the store, gcc folds 3*0x170 into the
-   displacement instead of the addiu the original has.
+   displacement instead of the addiu the original has. Hoisting the value
+   into a u32 local (which works for func_8007BB2C) drops it to 41.18%.
 
 void func_8007BAE8(u8 **p, u8 index) {
     s32 slot = index + 3;
@@ -121,18 +210,26 @@ void func_8007BAE8(u8 **p, u8 index) {
     *(u32 *)(D_800CCE34 + slot * 0x170) = (*p)[1] | ((*p)[2] << 8);
 }
 */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007BB2C);
-/* best: 39.71%. Same operator as func_8007BAE8 but storing a halfword; the
-   0x170 scaling and the store addressing both come out differently.
-
 void func_8007BB2C(u8 **p, u8 index) {
-    u8 *pArgs = *p;
+    u32 value = (*p)[1] | ((*p)[2] << 8);
+    s32 slot = index + 3;
 
-    *(u16 *)(D_800CCE3E + (index + 3) * 0x170) = pArgs[1] | (pArgs[2] << 8);
+    *(u16 *)(D_800CCE3E + slot * 0x170) = value;
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007BB70);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007BBD8);
+void func_8007BB70(u8 **p, u8 index) {
+    s32 slot = index + 3;
+
+    *(u8 *)(D_800CCE3D + slot * 0x170) = (*p)[1];
+    *(u8 *)(D_800CCE3B + slot * 0x170) = (*p)[2];
+    *(u8 *)(D_800CCE39 + slot * 0x170) = (*p)[3];
+}
+void func_8007BBD8(u8 **p, u8 index) {
+    s32 slot = index + 3;
+
+    *(u8 *)(D_800CCE3C + slot * 0x170) = (*p)[1];
+    *(u8 *)(D_800CCE3A + slot * 0x170) = (*p)[2];
+    *(u8 *)(D_800CCE38 + slot * 0x170) = (*p)[3];
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007BC40);
 /* best: 98.82%. Only the last addu is commuted (original base first into a1,
    gcc reuses the dead a2): identical multiset. Writing *p inline twice is
@@ -149,7 +246,12 @@ void func_8007BC84(u8 **p, u8 index) {
 
     pTable[(*p)[1]] = value;
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007BCE8);
+void func_8007BCE8(u8 **p, u8 index) {
+    u16 value = func_80089B50(0, (*p)[2] | ((*p)[3] << 8));
+    u16 *pField = (u16 *)(D_800D3420 + index * 0x40);
+
+    pField[(*p)[1]] = value;
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007BD5C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007BEA8);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007C040);
