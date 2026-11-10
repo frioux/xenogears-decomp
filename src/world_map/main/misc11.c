@@ -73,6 +73,10 @@ extern void *D_8009BE00[];
 extern void *func_80024524(void *, s16, s16, s16, s16, s16);
 extern void func_800245D8(void *, s32);
 extern void SpriteSetScale(void *, s16);
+extern void func_80093354(void *);
+extern s32 D_8009C5AC;
+extern s32 D_8009C5B4;
+extern s32 D_8009C584;
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008A72C);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008B2BC);
@@ -166,7 +170,27 @@ int func_8008BDD0(int index) {
     return 1;
 }
 */
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008BEC8);
+int func_8008BEC8(WorldMapActor *pActor) {
+    s32 dx;
+    s32 dz;
+    s32 result = 0;
+
+    dx = pActor->unk50 - (pActor->unk28 >> 12);
+    if ((dx < 0 ? -dx : dx) >= 5) {
+        pActor->unk28 += pActor->unk38 * (pActor->unk4A / 2);
+    } else {
+        result = 1;
+    }
+    dz = pActor->unk54 - (pActor->unk30 >> 12);
+    if ((dz < 0 ? -dz : dz) >= 5) {
+        pActor->unk30 += pActor->unk40 * (pActor->unk4A / 2);
+    } else {
+        result |= 2;
+    }
+    func_80093354(&pActor->unk28);
+    pActor->unk2C = func_80093978(pActor->unk28, pActor->unk30);
+    return result;
+}
 void func_8008BFD4(s16 arg0, s32 *pArray, s16 arg2, s16 arg3) {
     WorldMapEntry *pEntry = &D_8009BE6C[D_8009BD04];
 
@@ -245,6 +269,46 @@ int func_8008C75C(int index) {
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008C844);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008D3F0);
+/* 81.33%: everything after the func_8008C364 call is correct except the store
+   order in the head: the original puts the three zero stores (0x40, 0x3C, 0x38)
+   first, then hoists the g_GameState+0x1828 load above them, and re-reads
+   unk48 with lh; gcc here sinks the zero stores below the sll/sra chain and cse
+   folds the re-read into the lhu. The mode < 4 / mode < 8 / gearRide blocks and
+   the whole tail are byte-identical. Also tried: unk5C assigned after the
+   D_8009BE10 load (identical output), ascending zero stores.
+int func_8008D3F0(int index) {
+    WorldMapActor *pActor = &D_8009BE24[index];
+    s32 result = func_8008C364(pActor, 1);
+    s32 mode;
+
+    pActor->unk40 = 0;
+    pActor->unk3C = 0;
+    pActor->unk38 = 0;
+    pActor->unk4A = 0xC;
+    pActor->unk58 = 0xF;
+    pActor->unk48 = *(u16 *)&g_GameState.unk1826[2];
+    pActor->unk5C = pActor->unk48;
+    mode = D_8009BE10;
+    if (mode > 0) {
+        if (mode < 4) {
+            if (g_GameState.gearRide[1] == 1) {
+                pActor->unk20 = 1;
+                pActor->unk28 = D_8009C5AC;
+                pActor->unk30 = D_8009C5B4;
+                pActor->unk2C = func_80093978(pActor->unk28, pActor->unk30);
+                pActor->unk48 = D_8009C584;
+            }
+        } else if (mode < 8) {
+            pActor->unk20 = 2;
+            pActor->unk24 = 1;
+        }
+    }
+    g_GameState.unk1930[0x19] = pActor->unk28 >> 12;
+    g_GameState.unk1930[0x1A] = pActor->unk30 >> 12;
+    *(u16 *)&g_GameState.unk1826[2] = pActor->unk48;
+    return result;
+}*/
+
 
 int func_8008D520(int index) {
     WorldMapActor *pActor = &D_8009BE24[index];
