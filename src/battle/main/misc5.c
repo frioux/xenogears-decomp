@@ -9,6 +9,7 @@ extern u8 D_800D3410[];
 extern u8 D_800D2DCC[];
 extern u8 D_800CCD64[];
 extern u8 D_800CCD6C[];
+extern u8 D_800C3EB7[];
 
 void func_80079E18(u8 arg0) {
     D_800D2D28[0xB4] = 1;
@@ -36,16 +37,8 @@ u8 func_80079E7C(u16 arg0) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc5", func_80079ED8);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc5", func_8007A280);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc5", func_8007A628);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc5", func_8007A6C8);
-/* 96.61% - everything matches except one move: the original ends
-   andi v0,v0,0x20 / sltiu v0,v0,1 / move v1,v0 (a 124-byte body), this attempt
-   lets gcc sltiu straight into v1 and drops the copy (120 bytes). Masking
-   inside the comparison instead of into a local makes gcc turn it into
-   srl/xori (86.90%). Tried: == 0, < 1, !(...), u32 f local masked (96.61%),
-   u32 f unmasked (86.74%), u16 n = comparison then res = n (86.90%).
-   The stride is 0x170 per arg0 and the two fields are at +0x0 and +0x8.
 u32 func_8007A6C8(u8 arg0, u8 arg1) {
-    u32 res = 0;
+    u8 res = 0;
 
     if (D_800D2DCC[arg0] != 0) {
         s32 off = arg0 * 0x170;
@@ -54,13 +47,21 @@ u32 func_8007A6C8(u8 arg0, u8 arg1) {
             res = 1;
             if (arg1 == 0) {
                 u32 f = *(u16 *)(D_800CCD6C + off) & 0x20;
+
                 res = f == 0;
             }
         }
     }
     return res;
-} */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc5", func_8007A744);
+}
+u32 func_8007A744(u8 arg0) {
+    u8 res = 0;
+
+    if (D_800D2DCC[arg0] != 0 && D_800C3EB7[arg0 * 0x1C] == 0) {
+        res = (*(u16 *)(D_800CCD64 + arg0 * 0x170) & 0xC000) == 0;
+    }
+    return res;
+}
 u8 func_8007A7BC(u8 **arg0, u8 *arg1, u8 arg2, u8 arg3) {
     u8 *pRow = (u8 *)(arg3 * 8 + (mem_addr)arg1);
 
