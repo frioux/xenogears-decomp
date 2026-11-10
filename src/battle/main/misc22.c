@@ -97,9 +97,10 @@ s32 func_800A2E88(BattleMisc22Unk *pArg, s16 arg1) {
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A2F94);
 /* 99.41%: instruction-for-instruction identical except that gcc puts the multu
-   high part in a2 and shifts into v1, where retail mfhi's straight into v1.
-   Source is right: 124 = 4*31 is the only divisor shape that reproduces the
-   0x21084211/srl 2 sequence (a plain /31 gives the +1-magic variant).
+   high part in a2 and shifts into v1, where retail mfhi's straight into v1
+   (allocator tie-break; a separate `diff` temp and both spellings of the
+   subtraction leave it untouched). 124 = 4*31 is the only divisor shape that
+   reproduces the 0x21084211/srl 2 sequence.
 s32 func_800A2F94(BattleMisc22Unk *pArg, u8 *pEnd) {
     s32 count = ((u32)pEnd - pArg->unk0) / 124;
 
@@ -264,6 +265,7 @@ s32 func_800A577C(void) {
 s32 func_800A578C(void) {
     return D_800D39CC;
 }
+
 s32 func_800A579C(s32 arg0) {
     BattleMisc22Entry *pEntry;
     s32 i;
@@ -280,6 +282,7 @@ s32 func_800A579C(s32 arg0) {
     }
     return -1;
 }
+
 s32 func_800A5870(s32 arg0, s32 index, s32 arg2) {
     BattleMisc22Entry *pEntry;
 
