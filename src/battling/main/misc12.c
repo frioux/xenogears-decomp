@@ -125,7 +125,38 @@ void func_80088A40(void) {
 }
 */
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc12", func_80088AF8);
+void func_80088AF8(void) {
+    u32 flags;
+    u32* pFlags;
+    s32 i;
+    u8* pBytes;
+
+    if (D_8005061C == 0) {
+        return;
+    }
+    pFlags = (u32*)&D_8006F980;
+    flags = *pFlags;
+    D_800927EC = 0;
+    if ((flags & 0xF) == 1) {
+        D_80099D9B = (flags >> 4) & 1;
+        D_80099D9C = (flags >> 5) & 1;
+        D_80099D9F = (flags >> 6) & 0x7F;
+        D_80099D98 = (flags >> 13) & 7;
+        if (flags & 0x10000) {
+            i = 7;
+            pBytes = (u8*)pFlags - 1;
+            for (; i >= 0; i--) {
+                *pBytes-- = 0;
+            }
+        }
+    } else {
+        D_80099D9B = 0;
+        D_80099D9C = 0;
+        D_80099D9F = 2;
+        D_80099D98 = 0;
+        func_80088A40();
+    }
+}
 
 void func_80088BD4(void) {
     func_800888B0();
