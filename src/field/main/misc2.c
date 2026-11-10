@@ -1088,6 +1088,91 @@ void FieldLoadTIM(u_long* pTimData) {
 
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80077268);
+// 68.96% (544 bytes vs the original's 548). Structure is right: both loops, both
+// calls and all sixteen stores land in the original's order and the tail matches
+// instruction for instruction. What is left is three allocator/scheduler
+// tie-breaks, not a source shape:
+// (1) head - the original loads g_PlayerActorIndex a second time for the address
+// of the ActorData it reads position 0x26 from (`lui/lw v0`, then its own
+// `sll/addu/sll/subu/sll` chain into v1 and a separate `addu v1,v1,v0`), and
+// keeps that chain apart from the add of the pointer; gcc CSEs the second read of
+// the global across the volatile `lw g_FieldActors` and merges the add into
+// `addu v1,v0,v1`. Ordering the pointer read before the ActorData read (a
+// `pPlayerActor` local for arg2) is required and gets the two `lw g_FieldActors`
+// into the original's order; two separate expression spellings of the index do
+// not produce the reload.
+// (2) loop - identical instruction multiset, but gcc swaps $v0/$v1 on
+// `li 0x200` / `lhu` / `andi` and permutes the callee-saved set (original
+// s0=pActorData, s1=counter, s2=sprite, s3=actor base, s4=byte offset; ours
+// s0=counter, s1=sprite, s2=actor base, s3=pActorData). Reordering the local
+// declarations and a `u16 status` temp both leave it unchanged.
+// (3) the sprite copy - gcc sinks each `sw` past the next statement's address
+// setup and parks the loaded value in $a0; the original stores straight out of
+// $v0 (`lw v0,0(v0); nop; sw v0,0(s2)`).
+// Findings worth keeping: g_FieldActors IS volatile, so every `g_FieldActors[x]`
+// statement re-reads the pointer and the value at ActorData+0x26 is the s16 view
+// pPosition[3] (misc6's func_800A0C94 idiom); FieldActor+0x4 is pSpriteData and
+// +0x20/+0x24/+0x28 is transformMatrix.t[0..2].
+/*
+extern void func_80084A40(int actorIndex, int y, FieldActor* pActor, ActorData* pData);
+extern int FieldCharacterIdToPartyId(int characterId);
+extern void func_80081C54(int actorIndex);
+extern s32 g_PlayerActorIndex;
+extern s32 D_800B2360;
+extern s32 D_800B2364;
+extern s32 D_800B2368;
+
+void func_80077268(void) {
+    ActorData* pData;
+    int i;
+    SpriteData* pSpriteData;
+    FieldActor* pActor;
+    FieldActor* pCurActor;
+    int partyId;
+    int actorIndex;
+
+    actorIndex = g_PlayerActorIndex;
+    {
+        FieldActor* pPlayerActor = &g_FieldActors[actorIndex];
+        ActorData* pPlayerData = g_FieldActors[g_PlayerActorIndex].pActorData;
+        func_80084A40(actorIndex, ((s16*)&pPlayerData->position)[3], pPlayerActor, pPlayerData);
+    }
+
+    for (i = 0; i < D_800ADBFC; i++) {
+        u16 status;
+
+        pActor = &g_FieldActors[i];
+        status = pActor->status;
+        pData = pActor->pActorData;
+        if ((status & 0xF80) != 0x200) {
+            continue;
+        }
+        partyId = FieldCharacterIdToPartyId(pData->characterId);
+        if (partyId == -1) {
+            continue;
+        }
+        pCurActor = &g_FieldActors[i];
+        pSpriteData = (SpriteData*)pCurActor->pSpriteData;
+        if (partyId == 0) {
+            continue;
+        }
+        func_80084A40(i, ((s16*)&pCurActor->pActorData->position)[3], pActor, pData);
+        pSpriteData->position.x = ((SpriteData*)g_FieldActors[g_PlayerActorIndex].pSpriteData)->position.x;
+        pSpriteData->position.y = ((SpriteData*)g_FieldActors[g_PlayerActorIndex].pSpriteData)->position.y;
+        pSpriteData->position.z = ((SpriteData*)g_FieldActors[g_PlayerActorIndex].pSpriteData)->position.z;
+        pActor->transformMatrix.t[0] = g_FieldActors[g_PlayerActorIndex].transformMatrix.t[0];
+        pActor->transformMatrix.t[1] = g_FieldActors[g_PlayerActorIndex].transformMatrix.t[1];
+        pActor->transformMatrix.t[2] = g_FieldActors[g_PlayerActorIndex].transformMatrix.t[2];
+    }
+
+    D_800B2368 = 0;
+    D_800B2364 = 0;
+    D_800B2360 = 0;
+    for (i = 0; i < 0x20; i++) {
+        func_80081C54(g_PlayerActorIndex);
+    }
+}*/
+
 // 67.56% (548 bytes, same as the original's 548): every load, store, call and the
 // two loops are in place. What is left: (1) the head - the original loads the
 // g_PlayerActorIndex chain into $v0/$v1 the other way round and puts the
