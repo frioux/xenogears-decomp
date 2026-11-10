@@ -109,6 +109,14 @@ void func_80078C5C(void) {
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_80078D44);
 
+INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_80079288);
+/* Best attempt: 79.46% (the form below scores 78.37%, 728 bytes against the
+   original's 684). splat splits this block per word, so the original's
+   relocations name D_800B2298 (period), D_800B229C (count) and D_800B22A0
+   (values) separately while reading all three through one base register
+   (s1 = &D_800B2298; count at -4(a0), values at 0(a0) for a0 = s1 + 8, i.e.
+   combine_givs re-basing three symbols onto one pointer). Remaining deltas:
+   that rebase, and rand()'s product landing in a2/a3 instead of s1/a2.
 extern s32 D_800ADBDC;
 extern s32 D_800ADBE4;
 extern s32 D_800ADBEC;
