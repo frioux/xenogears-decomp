@@ -1,4 +1,5 @@
 #include "common.h"
+#include "main/game.h"
 #include "psyq/libgpu.h"
 #include "system/memory.h"
 
@@ -28,6 +29,24 @@ s32 func_8007EB6C(u8* pText);
 extern s32 D_800926DC;
 
 void func_8008EB4C(s32 arg);
+void func_8008895C(void);
+
+// 0x20-byte entry of the D_80092874 table; func_8007EEE8 reads only the s16 at 0x4.
+typedef struct {
+    /* 0x00 */ u8 unk0[4];
+    /* 0x04 */ s16 unk4;
+    /* 0x06 */ u8 unk6[0x1A];
+} BattleFilterEntry; // Size: 0x20
+
+// 0xC-byte record whose address func_8007EEE8 queues into D_800928EC.
+typedef struct {
+    /* 0x00 */ u8 unk0[0xC];
+} BattleQueueRecord; // Size: 0xC
+
+extern BattleFilterEntry* D_80092874;
+extern s32 D_80091964[];
+extern u8** D_800928EC;
+extern s32 D_80092888;
 
 typedef struct {
     /* 0x0 */ u16 unk0;
@@ -206,12 +225,11 @@ void func_8007ED84(u8* pText, s32 dy) {
 }
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007EE08);
-/* best 95.83%: one instruction short. The original materialises 0xFF twice (its
+/* best 95.83%, one instruction short: the original materialises 0xFF twice (its
    own li at the head of each arm, the else arm copy stolen into the beqz delay
    slot by reorg); gcc 2.7.2 merges the two identical constants into the delay
-   slot and both arms read it from there. Tried: literal in both arms (this
-   shape). Everything else (load of D_80059488 first, sb order F4/F8/F0, x*20
-   as sll/addu/sll) is already exact.
+   slot and both arms read it from there. Everything else (load of D_80059488
+   first, sb order F4/F8/F0, x*20 as sll/addu/sll) is already exact.
 void func_8007EE08(s32 arg) {
     if (arg != 0) {
         D_800926F4 = 0xFF;
@@ -246,6 +264,37 @@ void func_8007EE68(s32 arg) {
  */
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007EEE8);
+/* best 90.45%: every instruction and relocation matches except which of the two
+   loop induction pointers gets a0 and which gets a1 (the original keeps the
+   0x20-byte table pointer in a1 and the 0xC-byte record pointer in a0) and, as
+   a consequence, where the HeapAlloc result is copied into a3 in the loop
+   preheader. Frame (0x20, ra at 0x18), the s0/s1 split, the
+   g_GameState+0x1930 lhu, the filter compare and the D_80092888
+   read-modify-write are exact. Tried: index and pointer forms for both
+   induction variables and every mixture, i*3 over an s32 array, a nested if
+   with continue, split increment, six declaration orders, and -G0 / -O3 /
+   gcc 2.6.0 / gcc 2.7.2-cdk (90.45 or worse under all). What is left is a
+   global.c allocator tie-break between two allocnos with identical ref counts
+   and live ranges.
+void func_8007EEE8(s32 arg) {
+    s32 i;
+    s32 limit;
+    u8** pQueue;
+
+    limit = g_GameState.unk1930[0];
+    pQueue = HeapAlloc(0xC4, 1);
+    D_800928EC = pQueue;
+    D_80092888 = 0;
+    for (i = 0; i < 0x31; i++) {
+        if (arg == 0 || D_80092874[i].unk4 <= limit) {
+            pQueue[D_80092888++] = (u8*)&D_80091964[i];
+        }
+    }
+    if (arg != 0) {
+        func_8008895C();
+    }
+}
+ */
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007EFB4);
 /* best 71.17%: structure, store order and the 7x7 iteration are right.
