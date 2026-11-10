@@ -62,6 +62,7 @@ extern u16 D_8009A698;
 extern u16 D_8009A6AC[];
 extern u16 D_8009A68C[];
 extern WorldMapPath D_8009A65C[];
+extern u8 D_8009A660[];
 extern u32 D_8009BE0C;
 extern u32 D_8009BE28;
 extern u32 D_8009BE2C;
@@ -170,27 +171,31 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007D7FC);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007D918);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007DCE0);
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007DE14);
-/* 82.21%: only difference is that the original keeps an 8-byte stack frame
-   (addiu sp,sp,-8 mid-body) and stores unk50 before unk58; everything else,
-   including the two loads off D_8009A65C and the reloads, is identical.
 int func_8007DE14(int index) {
     WorldMapActor *pActor = &D_8009BE24[index];
+    RECT rect;
 
     pActor->unk54 = D_8009A65C[D_8009D3D4].unk0;
+    /* the original object relocates the second word of the pair against its own
+       symbol D_8009A660 (= D_8009A65C + 4) */
+    pActor->unk58 = *(u16 **)&D_8009A660[D_8009D3D4 * sizeof(WorldMapPath)];
     pActor->unk50 = 0;
-    pActor->unk58 = D_8009A65C[D_8009D3D4].unk4;
     pActor->unk20 = *(u16 *)pActor->unk54;
     pActor->unk22 = ((u16 *)pActor->unk58)[pActor->unk50];
     pActor->unk50++;
     return 1;
 }
-*/
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007DE98);
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007E450);
-/* 24.00%
+/* 41.32% (24.00% without the volatile casts). Same body as func_80080578 plus
+   three stores. Retail is in strict source order; gcc 2.7.2's post-reload
+   scheduler hoists every load (and `li` of a store constant) to the top of the
+   block. Tried: locals for the three copies (24.00%), volatile-qualified loads
+   + store (41.32%, the loads then land at the very top), -O1
+   (75.00% on func_80080578), -O3 (27.21%), gcc 2.6.0 (27.03%), -mcpu=r8000
+   (32.57%). Suspect the unit wants -fno-schedule-insns2.
 int func_8007E450(int index) {
     WorldMapActor *pActor = &D_8009BE24[index];
     int nScale = 0x1000;
@@ -218,9 +223,7 @@ int func_8007E450(int index) {
     pActor->unk50 = 0;
     return 1;
 }
-*/
-
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007E4E4);
+*/INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007E4E4);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007EBBC);
 /* 99.83%: byte-identical except that gcc picks the loop pointer base as
    pPrim + 7 where the original has pPrim + 6 (every displacement off it is
