@@ -538,6 +538,12 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007AE78);
    per use is required: it reproduces the three reloads of the buffer pointer.
    A version that loaded both bytes into locals (95.87%) gets li after lb but
    hoists both loads above the bnez.
+   Round 42: confirmed the mechanism - gcc emits the constant before the load
+   inside the && block, and reorg then steals the li into the bnez delay slot,
+   which forces a real load-delay nop after the lb. Nested if, a local for byte
+   1 only, and swapping the comparison operands all give the identical 252-byte
+   object; the original's 252 bytes exist only with the load emitted first, so
+   the block has to start with a non-movable insn.
 void func_8007AE78(int controllerIndex, int* pOut) {
     func_8007AF74(controllerIndex);
     pOut[0] = g_FieldMousePositionsX[controllerIndex] / g_FieldMouseSpeedX;
