@@ -1098,7 +1098,13 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc5", FieldInitializeParticlePrimitiv
    and y1*16 in t0, which are the values it does NOT recompute), while gcc CSEs
    all four products (4 sll) however they are spelled. Its four shape loads also
    land in a1(x0), a2(y0), a3(x1), t0(y1); ours get a0..a3, i.e. a0 is free in
-   ours where the original used it as the x-minus scratch. Same 97.42 with -O3,
+   ours where the original used it as the x-minus scratch. The missing 2 sll are
+   a cse1 invalidation artifact, not a spelling problem: retail's RTL gives the
+   MINUS the second product's own pseudo as target (`subu a0,a3,a0`), which
+   kills the CSE entry for x0*16 so the sum recomputes it; our expander gives
+   the subtraction a fresh target (`subu t0,a2,a0`), so both product entries
+   survive and the sum reuses them. Result locals in any order do not change it.
+   Same 97.42 with -O3,
    gcc-2.6.0-psx, product locals, s16 casts, <<4/mult mixes and every
    declaration order. Vertex pairing below is the one in the disassembly
    (0xAA = y1*16 - y0*16, 0xB2/0xBA = y0*16 + y1*16); pairing vertices[1].vy to
