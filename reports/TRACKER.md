@@ -1890,3 +1890,33 @@ Also learned, and it matters for `menu/misc10`: **five of that unit's twelve stu
 jtbl-blocked** (`func_801E23CC`, `E2BE4`, `E3088`, `E36D4`, `E3ECC` - the tables'
 entries are `.L` labels inside their own `.s`), and `convertible.py` reports all twelve as
 OK, so it does not catch this class.
+
+| 19 | `battle/{misc1,16,19}`, `menu/{misc12,8,11,6,7}`, `world_map/{misc11,12,15}`, `battling/{misc6,8}`, `field/misc4` | +5 | 1544 | menu/misc12 1 (`func_801E8978`, its 99.91% wall was the `+0x8C0` offset folding onto the base pointer), menu/misc11 1 (`func_801E5924`, the in-loop offset-giv idiom), plus 3 from truncated reports. Both blockers of the round are allocator walls now documented per unit |
+
+### Round 19: thin, and the tail is now mostly named walls
+
+Yield dropped to 5. Every report this round is the same shape: the function is fully decoded,
+the instruction multiset is right, and one named compiler behaviour differs. The four that
+keep recurring, all now documented with per-unit instances:
+
+1. **A scalar global's *address* cannot be held in a saved register.** Retail's
+   `lui sX,%hi; addiu sX,sX,%lo; ... lw vY,0(sX)` is a materialised `la`; our gcc folds the
+   address into each load (`lui/lw %lo(sym)`), so CSE can never hoist it, and pointer-local
+   spellings are folded back. Unit-wide in `battle/misc16` (`D_800CCB34`, four functions) and
+   `battle/misc19` (`D_800CCE42`/`D_800CCD68`).
+2. **`loop.c` hoisting a `li` out of the loop** costs a callee-saved register and changes the
+   frame (`battle/misc1`'s `func_80072270`, 0x28 vs 0x20).
+3. **`combine_givs` picking the body's last memory reference as the base** - the indexed-loop
+   idiom fixes the pointer form, but not a 368-stride giv (`battle/misc8`'s `func_8007D5B0`).
+4. **Commuted `addu`/`mfhi` register naming** with identical instruction multisets.
+
+Two useful new idioms did come out of it:
+- Keep a >16-bit constant offset in its own `u32 off` local when the original does not fold it
+  onto the base pointer (`menu/misc12`'s `func_801E8978`: `numTexts * 0x50 + 0x8C0`).
+- A signed product cast to `u32` before dividing gives `mult` + `multu`/`srl` where a `u32`
+  product gives `multu` (`battle/misc19`'s `func_8009BD94`) - objdiff's fuzzy score *prefers*
+  the wrong spelling (97.33 vs 83.67), so trust the instruction shapes here, not the number.
+
+Process note worth keeping: a worker rebuilt a park block by string-slicing and silently
+deleted a matched body in the same file; only `check_bin.sh` caught it (undefined reference at
+link). Diff against the previous commit after park/unpark surgery.
