@@ -7,6 +7,14 @@ typedef struct {
     /* 0x8 */ s32 z;
 } WorldMapPos; // Size: 0xC
 
+// One slot of the world map menu list; stride 0x80, only 0x20 and 0x50 are read.
+typedef struct {
+    /* 0x00 */ u8 unk0[0x20];
+    /* 0x20 */ s16 unk20;
+    /* 0x22 */ u8 unk22[0x2E];
+    /* 0x50 */ s32 unk50;
+} WorldMapMenuSlot; // Size: 0x80
+
 extern void func_800346D4(void* pString);
 extern s32 func_80093E8C(WorldMapPos* p);
 extern u8* func_80093660(s32 x, s32 z);
@@ -33,6 +41,14 @@ extern u8 D_8009D500;
 extern s32 func_80032F54(void* pString, s16 a, s16 b, s16 c, s16 d, s16 e, s16 f);
 extern void func_80093740(WorldMapPos* p, s32 x, s32 z);
 extern s32 func_800935DC(WorldMapPos* p0, WorldMapPos* p1, WorldMapPos* p2);
+extern void func_80034614(void* pString);
+extern void func_80034714(void* pString, void* pData);
+extern void func_80034888(void* pString, u32 unk, u32 arg);
+extern u8* GetStringEntry(u8* pData, s32 index);
+extern u8* D_8009BE24;
+extern u32* D_8009BE3C;
+extern u8* D_8009D784;
+extern u8* D_8009D7F0;
 
 s32 func_80092BE4(void) {
     u8* pBuffer;
@@ -46,6 +62,41 @@ s32 func_80092BE4(void) {
     return 1;
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_80092C70);
+/* best: 98.98% (352 bytes, same size). The body must be a two-case switch, not
+   an if/else chain (an if/else makes gcc emit a single bnez). The only delta
+   left is one reorg fill: the original copies the case 0 `li v0,-1` into the
+   `beq v1,v0` delay slot as well as materialising it in case 0, ours leaves a
+   nop there. Holding -1 in a local before the switch makes it worse (96.81%: the
+   constant lands in a0 and both compares change register).
+
+s32 func_80092C70(s32 index) {
+    WorldMapMenuSlot* pSlot;
+
+    pSlot = (WorldMapMenuSlot*)(D_8009BE24 + index * 0x80);
+    switch (pSlot->unk20) {
+    case 0:
+        if (D_8009BD24 != -1) {
+            func_80034614(D_8009D498);
+            func_80034714(D_8009D498, GetStringEntry(D_8009D784, D_8009BD24));
+            pSlot->unk20 = 1;
+            pSlot->unk50 = D_8009BD24;
+        }
+        break;
+    case 1:
+        if (D_8009BD24 == 1) {
+            func_80034614(D_8009D498);
+            pSlot->unk20 = 0;
+        } else if (D_8009BD24 != pSlot->unk50) {
+            func_80034614(D_8009D498);
+            func_80034714(D_8009D498, GetStringEntry(D_8009D784, D_8009BD24));
+            pSlot->unk50 = D_8009BD24;
+        }
+        break;
+    }
+    func_80034888(D_8009D498, D_8009BE3C[0x1C], (u32)D_8009D7F0);
+    return 1;
+}
+*/
 
 void func_80092DD0(void) {
     func_800346D4(&D_8009D498[0]);
@@ -115,18 +166,11 @@ void func_80093534(WorldMapPos* p) {
     }
 }
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_800935DC);
-/* best: 72.73%. Every instruction up to the division matches; the original has
-   the zero-division and overflow trap guards (break 7 / break 6) that maspsx
-   only emits with --expand-div, which the XenoWorldMap preset does not pass.
-   Blocked on the preset, not on the C.
-
 s32 func_800935DC(WorldMapPos* p0, WorldMapPos* p1, WorldMapPos* p2) {
     p0->unk4 = (-(p2->x * (p0->x - p1->x)) - p2->z * (p0->z - p1->z)) / p2->unk4;
     p0->unk4 += p1->unk4;
     return p0->unk4;
 }
-*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_80093660);
 /* best: 92.59% (220 bytes vs 224). Instruction multiset is identical; only the
    register assignment of the four temps differs (the original keeps hx in a0 and
@@ -237,11 +281,11 @@ s16 func_80094060(s16 row, s16 col) {
 }
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_80094088);
-/* best: 79.96%. Yield/dot-product of the position against the row k of
-   D_8009B264/D_8009B26C (stride 0x10). The sum, the branches and the reloads
-   are right; deltas are the callee-saved order (s0/s1) and that gcc forms the
-   second table address as lui+addiu+addu instead of the original's
-   lui+addu+lw %lo(at).
+/* best: 79.96%. The index really is `k * 4` on the s32 arrays (the original's
+   sll 16/sra 12 sign-extends the s16 k and scales by 16; plain D_8009B264[k] is
+   sra 14 and is worse). Remaining deltas: gcc swaps the callee-saved pair (pPos
+   in s1, pOut in s0; the original has pPos in s0), and forms the second table
+   address as lui+addiu+addu instead of the original's lui+addu+lw %lo(at).
 
 s32 func_80094088(WorldMapPos* p, WorldMapPos* pPos, WorldMapPos* pOut) {
     s16 k;
@@ -263,35 +307,32 @@ s32 func_80094088(WorldMapPos* p, WorldMapPos* pPos, WorldMapPos* pOut) {
     }
     return 1;
 }
-*/
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_80094154);
-/* best: 92.50%. Instruction sequence, abs/shift/mult order and the mult/mflo
-   split are identical; the only delta is that gcc copies p0 from a0 into a2 at
-   entry and then uses a0 for the dx temp, where the original keeps p0 in a0 and
-   uses v0/v1 for the temps. Declaration orders tried: dx,dz,dx2,dz2 (91.07),
-   dz,dx,dx2,dz2 (92.50); single-expression, accumulator and shift-in-place
-   shapes are all worse (72-91%).
+*/INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_80094154);
+/* best: 98.21% (112 bytes, original 112). Instruction sequence and sizes are
+   identical; the only delta is register choice: gcc swaps the two loads and
+   puts the dz difference's operand load in the dying a0, and picks a3/v0 for
+   the two mflo results where the original has a2/v1. Six declaration orders of
+   {dx,dz,sum} all give exactly 98.21%; split-statement (dx = p0->x; dx -= p1->x)
+   forms are 91.79, single-expression 72.86. Allocator tie.
 
 s32 func_80094154(WorldMapPos* p0, WorldMapPos* p1) {
-    s32 dz;
     s32 dx;
-    s32 dx2;
-    s32 dz2;
+    s32 dz;
+    s32 sum;
 
     dx = p0->x - p1->x;
     if (dx < 0) {
         dx = -dx;
     }
-    dx = dx >> 12;
-    dx2 = dx * dx;
+    sum = (dx >> 12) * (dx >> 12);
     dz = p0->z - p1->z;
     if (dz < 0) {
         dz = -dz;
     }
-    return SquareRoot0(dx2 + (dz >> 12) * (dz >> 12));
+    sum += (dz >> 12) * (dz >> 12);
+    return SquareRoot0(sum);
 }
 */
-
 void func_800941C4(WorldMapPos* p0, WorldMapPos* p1, s32* pVector, s16* pAngle) {
     s32 dx;
     s32 dz;
