@@ -21,13 +21,16 @@ extern void func_800B6F0C(void);
 extern void func_800B7134(void);
 extern void func_800B7364(u8 *p);
 extern s32 func_80023124(s32 arg0, s32 arg1);
+extern s32 func_80022CAC(u8 *pActor, s32 arg1);
+extern void func_801FC4C4(s32 arg0, s32 arg1, void *pArg2, s32 arg3, s32 arg4, s32 arg5, s32 arg6, s32 arg7);
 extern void func_80021FE0(u8 *pActor, s16 arg1);
 extern void func_800223B0(u8 *pActor, s16 arg1);
 extern void func_80021B04(SVECTOR *pVector, s16 x, s16 y, s16 z);
 extern void func_801FC53C(void *pArg, s32 arg1, s32 arg2, s32 arg3, s32 arg4, s32 arg5, s32 arg6);
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc28", func_800B63F0);
-/* best 77.22%: retail passes the three zero args from one register
+/* best 100.0% under gcc 2.7.2-cdk, 77.22% under the unit preset.
+   retail passes the three zero args from one register
    (li a1,0; move a2,a1; move a3,a1) where gcc emits a separate li per arg.
 void func_800B63F0(s32 arg0, u8 *p) {
     s32 pad[3];
@@ -41,7 +44,8 @@ void func_800B63F0(s32 arg0, u8 *p) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc28", func_800B6438);
-/* best 63.64%: retail puts the `lui a1,%hi(D_80025A88)` of the callback address
+/* best 100.0% under gcc 2.7.2-cdk, 63.64% under the unit preset.
+   retail puts the `lui a1,%hi(D_80025A88)` of the callback address
    before the `sw ra` frame store; gcc emits it after the pointer load.
 void func_800B6438(u8 *p) {
     WorkListSetTaskCallback((u8 *)*(u32 *)(p + 0x6C) + 0x1C, D_80025A88);
@@ -71,7 +75,8 @@ void func_800B6464(u8 *pActor, u8 *p) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc28", func_800B64D4);
-/* best 77.59%: retail adds 0x8C8C as a separate li+addu on the runtime base
+/* best 95.76% under gcc 2.7.2-cdk, 77.59% under the unit preset.
+   retail adds 0x8C8C as a separate li+addu on the runtime base
    (li v1,0x8C8C; addu v0,v0,v1; lw a0,0(v0)), gcc always folds it into the
    symbol address as lui at,0x1 / lw a0,-29556(at).  Tried: local base pointer,
    separate offset statements, u32 integer base, gcc-2.6.0 and 2.7.2-cdk.
@@ -103,6 +108,38 @@ void func_800B6518(u8 *pActor) {
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc28", func_800B65B0);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc28", func_800B6808);
+/* best 100.0% under gcc 2.7.2-cdk, 99.93% under the unit preset: the
+   whole body is identical except the third zero argument, retail
+   shares one zero register (move a2,zero; move a3,a2).  The
+   store to 0x32 belongs before the func_80021B04 call, not after.
+void func_800B6808(u8 *p) {
+    u16 rot[3];
+    VECTOR diff;
+    VECTOR sq;
+    SVECTOR vec;
+    MATRIX mtx;
+    VECTOR out;
+    s32 len;
+    s16 zero;
+
+    zero = 0;
+    diff.vx = *(s16 *)(p + 0xA0) - *(s16 *)(p + 0x2);
+    diff.vy = *(s16 *)(p + 0xA2) - *(s16 *)(p + 0x6);
+    diff.vz = *(s16 *)(p + 0xA4) - *(s16 *)(p + 0xA);
+    Square0(&diff, &sq);
+    len = SquareRoot0(sq.vx + sq.vz);
+    rot[1] = -ratan2(diff.vz, diff.vx);
+    rot[2] = ratan2(diff.vy, len);
+    rot[0] = 0;
+    *(u16 *)(p + 0x32) = rot[1];
+    func_80021B04(&vec, (*(s32 *)(p + 0x18) << 9) >> 16, zero, zero);
+    RotMatrix((SVECTOR *)rot, &mtx);
+    ApplyMatrix(&mtx, &vec, &out);
+    *(s32 *)(p + 0xC) = out.vx << 7;
+    *(s32 *)(p + 0x10) = out.vy << 7;
+    *(s32 *)(p + 0x14) = out.vz << 7;
+}
+*/
 void func_800B6930(u32 *pOut, s8 *p) {
     p += (p[1] << 8) | (u8)p[0];
     pOut[0] = ((p[1] << 8) | (u8)p[0]) << 16;
@@ -140,6 +177,33 @@ void func_800B6A50(u8 *p) {
     *(u32 *)(p + 0x14) = *(u32 *)(pSrc + 0x14);
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc28", func_800B6A7C);
+/* PRESET: the body below is 100.0 under gcc 2.7.2-cdk and 99.06 under the unit
+   preset (XenoBattleTail, gcc 2.7.2-psx); the only difference is which saved
+   register holds pActor and x2.  try_flags.sh scores func_800B6CEC, 6DC0,
+   6930 and 69E4 the same under both compilers, so this unit may be a cdk unit.
+void func_800B6A7C(u8 *pActor, s8 *pArg) {
+    s32 x2;
+    s8 *p;
+    s32 x1;
+    s32 x3;
+
+    p = pArg + ((pArg[1] << 8) | (u8)pArg[0]);
+    if (*(u16 *)(pActor + 0x3A) != 0) {
+        x1 = func_80022CAC(pActor, (p[1] << 3) | (u8)p[0]) << 8;
+        x2 = func_80022CAC(pActor, (u8)p[2]) << 16;
+        x3 = func_80022CAC(pActor, (u8)p[3]) << 16;
+    } else {
+        x1 = ((p[1] << 3) | (u8)p[0]) << 5;
+        x2 = (u8)p[2] << 13;
+        x3 = (u8)p[3] << 13;
+    }
+    func_801FC4C4(*(u32 *)(*(u32 *)(pActor + 0x20) + 0x34), *(u32 *)(*(u32 *)(pActor + 0x20) + 0x2C),
+                  *(u32 *)(pActor + 0x20) + 0xC, x1, x2, x3, (u8)p[4] << 4, (u8)p[5] << 2);
+    *(u32 *)(*(u32 *)(pActor + 0x20) + 0x34) = 0;
+    *(u32 *)(*(u32 *)(pActor + 0x20) + 0x2C) = 0;
+    *(u32 *)(*(u32 *)(pActor + 0x20) + 0x30) = 0;
+}
+*/
 void func_800B6B98(u8 *pArg, s8 *p) {
     p += (p[1] << 8) | (u8)p[0];
     func_801FC53C(pArg, (u8)p[0] << 4, (u8)p[1], p[2] << 3, (u8)p[3] << 3, p[4] << 3, (u8)p[5]);
@@ -162,13 +226,46 @@ void func_800B6C98(u8 *p) {
     *(u16 *)(*(u32 *)(p + 0x20) + 0) = ratan2(*(s32 *)(p + 0x14) >> 8, *(s32 *)(p + 0xC) >> 8);
     *(u32 *)(p + 0x3C) |= 0x10000000;
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc28", func_800B6CEC);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc28", func_800B6DC0);
+void func_800B6CEC(u8 *p) {
+    VECTOR vec;
+    VECTOR sq;
+    s32 len;
+
+    vec.vx = *(s32 *)(p + 0xC) >> 8;
+    vec.vy = *(s32 *)(p + 0x10) >> 8;
+    vec.vz = *(s32 *)(p + 0x14) >> 8;
+    if (vec.vz == 0) {
+        vec.vz = 4;
+    }
+    Square0(&vec, &sq);
+    len = SquareRoot0(sq.vx + sq.vz);
+    *(s16 *)(*(u32 *)(p + 0x20) + 0x2) = -ratan2(vec.vz, vec.vx);
+    *(s16 *)(*(u32 *)(p + 0x20) + 0x4) = ratan2(vec.vy, len);
+    *(s16 *)(*(u32 *)(p + 0x20) + 0x0) = 0;
+    *(u32 *)(p + 0x3C) |= 0x10000000;
+}
+void func_800B6DC0(u8 *p) {
+    s32 i;
+
+    if (*(u32 *)(p + 0x20) == 0) {
+        return;
+    }
+    if (*(u32 *)(*(u32 *)(p + 0x20) + 0x34) == 0) {
+        return;
+    }
+    for (i = 0; i != 8; i++) {
+        *(u8 *)(*(u32 *)(*(u32 *)(p + 0x20) + 0x34) + i * 8 + 0x0) = 0;
+        *(u8 *)(*(u32 *)(*(u32 *)(p + 0x20) + 0x34) + i * 8 + 0x1) = 0;
+        *(u16 *)(*(u32 *)(*(u32 *)(p + 0x20) + 0x34) + i * 8 + 0x2) = 0;
+        *(u16 *)(*(u32 *)(*(u32 *)(p + 0x20) + 0x34) + i * 8 + 0x4) = 0;
+        *(u16 *)(*(u32 *)(*(u32 *)(p + 0x20) + 0x34) + i * 8 + 0x6) = 0;
+    }
+    *(u8 *)(*(u32 *)(p + 0x20) + 0x3C) = 0;
+    *(u8 *)(*(u32 *)(p + 0x20) + 0x3D) = 0;
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc28", func_800B6E84);
-/* best 99.85%: only the second zero argument differs - retail copies a1 into
-   a2 (one shared register for both zero args) where gcc rematerialises
-   move a2,zero.  Tried: literal 0, s32/s16 zero locals, (s16) cast, shared
-   variable for both args.  Size and every other instruction match.
+/* best 100.0% under gcc 2.7.2-cdk, 99.85% under the unit preset: only
+   the second zero argument differs - retail copies a1 into a2.
 void func_800B6E84(u8 *pActor, s8 *p) {
     SVECTOR rotation;
     MATRIX mtx;
@@ -207,7 +304,8 @@ void func_800B7364(u8 *p) {
     func_80025180(p);
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc28", func_800B73A0);
-/* best 78.95%: same instructions, only the position of `move a1,zero` and the
+/* best 100.0% under gcc 2.7.2-cdk, 78.95% under the unit preset.
+   same instructions, only the position of `move a1,zero` and the
    `lui a3,%hi(func_800B7134)` differ.
 void func_800B73A0(void) {
     func_800B7424(WorkListsAddTasks(0x10F7C, 0, func_800B6F0C, func_800B7134, func_800B7364));
