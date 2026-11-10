@@ -8,6 +8,30 @@ extern u8 *D_800927CC;
 extern u8 *D_800927D0;
 extern u8 D_80095968[];
 
+typedef struct {
+    /* 0x00 */ u8 pad0[0x4];
+    /* 0x04 */ u8 unk4;
+    /* 0x05 */ u8 unk5;
+    /* 0x06 */ u8 unk6;
+    /* 0x07 */ u8 pad7[0xD];
+    /* 0x14 */ u8 unk14;
+    /* 0x15 */ u8 unk15;
+    /* 0x16 */ u8 unk16;
+    /* 0x17 */ u8 pad17[0x9];
+    /* 0x20 */ s16 unk20;
+    /* 0x22 */ s16 unk22;
+    /* 0x24 */ s16 unk24;
+    /* 0x26 */ u8 pad26[0x2];
+    /* 0x28 */ s16 unk28;
+    /* 0x2A */ s16 unk2A;
+    /* 0x2C */ s16 unk2C;
+    /* 0x2E */ u8 pad2E[0x2];
+    /* 0x30 */ s16 unk30;
+    /* 0x32 */ u8 pad32[0x2];
+} BattlingSlot; // Size: 0x34
+
+extern BattlingSlot D_80095938[];
+
 extern void *func_8008820C();
 extern void func_80085EC8(void *);
 
@@ -34,6 +58,38 @@ typedef struct {
 } BattlingEntry68; // Size: 0x68
 
 extern BattlingEntry68 D_8009A988[];
+
+typedef union {
+    /* 0x0 */ u32 word;
+    /* 0x0 */ u8 bytes[4];
+} BattlingPacketWord;
+
+typedef struct {
+    /* 0x00 */ u8 pad0[0x3];
+    /* 0x03 */ u8 unk3;
+    /* 0x04 */ BattlingPacketWord unk4;
+    /* 0x08 */ u8 pad8[0x4];
+    /* 0x0C */ u16 unkC;
+    /* 0x0E */ u16 unkE;
+    /* 0x10 */ u8 pad10[0x4];
+    /* 0x14 */ u16 unk14;
+    /* 0x16 */ u16 unk16;
+    /* 0x18 */ u8 pad18[0x4];
+    /* 0x1C */ u16 unk1C;
+    /* 0x1E */ u8 pad1E[0x6];
+    /* 0x24 */ u16 unk24;
+    /* 0x26 */ u8 pad26[0x2];
+} BattlingPacket; // Size: 0x28
+
+typedef struct {
+    /* 0x0000 */ u8 pad0[0x1604];
+    /* 0x1604 */ BattlingPacket packet[2];
+} BattlingPacketOwner; // Size: 0x1654
+
+extern u16 D_800927D4;
+extern u16 D_800927D8;
+extern u8 D_800927DC;
+extern u8 D_800927E0;
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc11", func_80087068);
 
@@ -84,7 +140,20 @@ void func_80087830(void) {
 */
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc11", func_800878DC);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc11", func_80087AB0);
+void func_80087AB0(BattlingPacketOwner *arg0) {
+    BattlingPacket *p = arg0->packet;
+
+    p->unk4.word = 0x2C101010;
+    p->unk3 = 9;
+    p->unk4.bytes[3] |= 2;
+    p->unkE = D_800927D8;
+    p->unk16 = D_800927D4;
+    p->unkC = D_800927DC | (D_800927E0 << 8);
+    p->unk14 = (D_800927DC + 0x3F) | (D_800927E0 << 8);
+    p->unk1C = D_800927DC | ((D_800927E0 + 0x3F) << 8);
+    p->unk24 = (D_800927DC + 0x3F) | ((D_800927E0 + 0x3F) << 8);
+    arg0->packet[1] = arg0->packet[0];
+}
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc11", func_80087B74);
 
@@ -111,7 +180,39 @@ void func_80087E38(s32 *arg0) {
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc11", func_80087EA0);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc11", func_8008820C);
+/* Best 40.72%: instruction multiset is right, only the addressing base differs.
+   The original keeps p in a2 and stores at 0x30/0x20/... off it; gcc picks
+   p+0x2C as the canonical base and reaches the rest with negative offsets, so
+   the loop induction var and the return copy land in different registers.
+   Tried: p++ in the for-increment (this shape, 40.72).
+void *func_8008820C(s32 *arg0, s32 *arg1, s32 arg2) {
+    BattlingSlot *p = D_80095938;
+    s32 dim14 = (arg2 & 2) * 0x7F;
+    s32 dim15 = (arg2 & 4) * 0x3F;
+    s32 dim16 = (arg2 & 1) * 0xFF;
+    s32 i;
 
+    for (i = 0; i < 0x64; i++, p++) {
+        if (p->unk30 == 0) {
+            p->unk30 = 1;
+            p->unk20 = arg0[0];
+            p->unk22 = arg0[1];
+            p->unk24 = arg0[2];
+            p->unk28 = arg1[0];
+            p->unk2A = arg1[1];
+            p->unk4 = dim14;
+            p->unk5 = dim15;
+            p->unk6 = dim16;
+            p->unk14 = dim14;
+            p->unk15 = dim15;
+            p->unk16 = dim16;
+            p->unk2C = arg1[2];
+            return p;
+        }
+    }
+    return NULL;
+}
+*/
 void func_800882D4(s32 arg0, s32 *arg1, s32 arg2, s16 arg3) {
     u8 *p = func_8008820C(arg0, arg1, arg2);
 
