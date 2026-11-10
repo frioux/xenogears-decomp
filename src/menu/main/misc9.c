@@ -159,14 +159,6 @@ void func_801DE400(void) {
     HeapFree(g_Menu->unk360);
 }
 
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DE474);
-/* Best: 84.17% (gcc-2.6.0). Same instruction sequence except that gcc hoists two
-   loop invariants into callee-saved registers that retail re-materialises every
-   iteration: the `&D_801EA558[offset]` base (lui/addiu inside the loop in retail)
-   and the constant 3 for the 8th argument (li v0,3 in retail). Those two hoists
-   cost s4/s5 and a 0x48 frame instead of 0x40, which is the -15.8%. Identical
-   score under 2.7.2 (84.17) and 2.7.2-cdk (83.88); offset local / inline
-   expression / `D_801EA558 + offset` / `&D_801EA558[offset]` all the same.
 void func_801DE474(u_char arg0, u_char arg1) {
     s32 i;
     s32 start;
@@ -188,8 +180,8 @@ void func_801DE474(u_char arg0, u_char arg1) {
         label = 0x5A;
     }
 
-    offset = (arg1 & 0xFF) * 6;
     for (i = start; i < count; i++) {
+        offset = (arg1 & 0xFF) * 6;
         func_801E8070(6, (u8*)g_Menu + 0x14E0, (u8*)(&D_801EA558[offset]), D_801E9EA0,
                       g_Menu->pManager->unk40, (u8)i, (u8)i, 3);
     }
@@ -200,7 +192,6 @@ void func_801DE474(u_char arg0, u_char arg1) {
 
     func_801D397C(4, 0x10, 0xC, 0x80, label, 0, 1, 4, 0);
 }
-*/
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DE5CC);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DF0D4);
