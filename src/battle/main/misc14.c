@@ -43,26 +43,22 @@ extern void func_80076BF0(u8 *p);
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc14", func_80088990);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc14", func_80088B80);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc14", func_80089038);
-// Best attempt: objdiff 99.81%; only diff is the loop call arg addu: original "addu a1,a1,v1" (index first),
-// gcc gives "addu a1,v1,a1" for this pointer form. The index-first int form
-// (s32)(D_800D2DB4[0x5DA1] * 0x50 + 0x4CE0 + (s32)D_800D2DB4) drops to 87.50%
-/*
 void func_80089038(void) {
     s32 i = 0;
     s32 pitch = 0x6E << 16;
+    s32 off;
 
     D_800D2DB4[0x5DA1] = 0;
     for (i = 0; i < 5; i++) {
         if ((u16)func_80089C6C(D_800D2C30, i) != 0) {
-            D_800D2DB4[0x5DA1] += func_80076A10(i + 0xC4, (s32)(D_800D2DB4 + 0x4CE0 + D_800D2DB4[0x5DA1] * 0x50), 0xE0, pitch >> 16);
+            off = D_800D2DB4[0x5DA1] * 0x50 + 0x4CE0;
+            D_800D2DB4[0x5DA1] += func_80076A10(i + 0xC4, (s32)(off + (s32)D_800D2DB4), 0xE0, pitch >> 16);
             pitch += 0xA0000;
         }
     }
     D_800D2DB4[0x5DA0] = D_800CCB34;
     *(u16*)(D_800D2DB4 + 0x5DA2) = 0;
 }
-*/
 void func_80089110(void) {
     s32 arg0;
     s32 pEntry;
@@ -103,9 +99,14 @@ void func_800891E4(void) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc14", func_80089348);
-// Best attempt: objdiff 94.23% with the "off" local; without it (inline (s32)(base + 0x4E70 + idx*0x50)) the two loop
-// arg addus come out base-first instead of index-first (96.70%). Needs a spelling that gets
-// index-first addu AND addiu on the index without disturbing allocation
+// Best attempt: objdiff 96.84%, 292 bytes (the original size). The boost loop matches
+// exactly with the "off" local + "(s32)(off + (s32)D_800D2DB4)" (index-first addu, and
+// the +0x4E70 stays on the offset chain). The tail loop is one instruction off: the
+// original keeps the base in $a1 and folds the constant into the offset chain
+// (sll a0,a0,3 / addiu a0,a0,0x4E70 / addu a0,a0,a1), gcc folds it onto the base
+// instead (addiu v0,a1,0x4E70 / addu a0,a0,v0). Inline form for the tail loop (no
+// "off" local) is the same 96.84%; the "off"-local form for the tail loop is 94.23%
+// (base lands in $a0 and the offset in $v0).
 /*
 void func_80089348(void) {
     s32 i = 0;
@@ -122,15 +123,16 @@ void func_80089348(void) {
     }
     D_800D2DB4[0x5D87] = D_800CCB34;
     for (i = 0; i < D_800D2DB4[0x5D78]; i++) {
-        off = (i * 2 + D_800D2DB4[0x5D87]) * 0x28 + 0x4E70;
-        func_80076B68((u8*)(off + (s32)D_800D2DB4));
+        func_80076B68((u8*)((i * 2 + D_800D2DB4[0x5D87]) * 0x28 + 0x4E70 + (s32)D_800D2DB4));
     }
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc14", func_8008946C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc14", func_8008963C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc14", func_800897CC);
-// Best attempt: objdiff 94.23%, same remaining diff as func_80089348 (its twin: D_800C3CFB, 0x51E0, 0x5D7B, a3 = 0x5E, i < 2)
+// Best attempt: objdiff 96.84%, 292 bytes; the twin of func_80089348 (same one-instruction
+// tail-loop difference: original "addiu a0,a0,0x51E0 / addu a0,a0,a1", gcc
+// "addiu v0,a1,0x51E0 / addu a0,a0,v0"). Inline index-first form for both loops: 87.45%.
 /*
 void func_800897CC(void) {
     s32 i = 0;
@@ -147,8 +149,7 @@ void func_800897CC(void) {
     }
     D_800D2DB4[0x5D8A] = D_800CCB34;
     for (i = 0; i < D_800D2DB4[0x5D7B]; i++) {
-        off = (i * 2 + D_800D2DB4[0x5D8A]) * 0x28 + 0x51E0;
-        func_80076B68((u8*)(off + (s32)D_800D2DB4));
+        func_80076B68((u8*)((i * 2 + D_800D2DB4[0x5D8A]) * 0x28 + 0x51E0 + (s32)D_800D2DB4));
     }
 }
 */
@@ -164,17 +165,18 @@ void func_80089AF8(void) {
     func_800897CC();
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc14", func_80089B50);
-// Best attempt: objdiff 90.38%, 144 bytes (the original size). The original masks
-// rand()'s result to u16 right after each call; every spelling that makes that mask
-// appear (u16 temp or cast) also re-lays out the arg1 == 0 test and grows the
-// function to 156 bytes (85.38%), so it is parked here.
-// Also tried: "return rand();" in the >0xFFFE branch with
-// "return arg0 + (u16)rand() % (range + 1)" -> 85.38% / 156 bytes, because gcc
-// masks arg1 into $v0 instead of $v1 and so cannot fold "return 0" into the beqz
-// delay slot (it emits bnez/nop/j instead). Moving "range = arg1 - arg0" above the
-// arg0 == arg1 test -> 83.59% / 136 bytes.
+// Best attempt: objdiff 90.38%, 144 bytes (the original size). Everything up to the
+// div matches exactly, including the folded "return 0" in the beqz delay slot; the only
+// diff is that the original puts the remainder AND the sum in $v1
+// (div zero,v0,v1 / mfhi v1 / addu v1,s1,v1 / andi v0,v1,0xffff) while gcc coalesces
+// both into $v0 and then merges the sum's u16 conversion with the other branch's mask
+// at the shared exit. Every spelling that masks the dividend ((u16)rand(),
+// rand() & 0xFFFF, a u16 temp) instead makes gcc put the rand call in the beqz delay
+// slot and duplicate it -> 85.38% / 156 bytes. Also tried: s32 rem and u16 res locals,
+// swapping the range/rem declaration order, "return rand()" vs "return rand() & 0xFFFF".
 /*
 u16 func_80089B50(u16 arg0, u16 arg1) {
+    s32 rem;
     s32 range;
 
     if (arg0 == 0xFFFF) {
@@ -188,9 +190,10 @@ u16 func_80089B50(u16 arg0, u16 arg1) {
     }
     range = arg1 - arg0;
     if (range > 0xFFFE) {
-        return rand() & 0xFFFF;
+        return rand();
     }
-    return (u16)(arg0 + rand() % (range + 1));
+    rem = rand() % (range + 1);
+    return (u16)(arg0 + rem);
 }
 */
 u16 func_80089BEC(u8 idx) {
