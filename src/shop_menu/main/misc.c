@@ -3622,6 +3622,15 @@ INCLUDE_ASM("asm/shop_menu/nonmatchings/main/misc", func_801D05BC);
 // the 8-byte-smaller frame. So retail's y expression did not need a truncation at all; find the source
 // shape where gcc knows 0x32+0xD*i is in range (suspicion: the y comes from a local the original
 // incremented itself, not from gcc's strength reduction) and the frame should become 0xC0.
+// Ruled out since: a hoisted `int y = 0x32` incremented in the for-header and passed to both
+// ShopMenuSetVertices calls is WORSE (88.23%): it does reproduce retail's 0x32-based accumulator
+// but gcc still emits one andi 0xffff (CSE'd, hoisted above both calls), so the truncation is the
+// blocker and not the shape of the accumulator. Landing it needs a y whose RTL is ALREADY a
+// zero/sign extend (gcc only cancels a redundant `and` in that case), yet retail's slot is
+// word-sized and incremented with lw/addiu/sw -- that combination is the open question here.
+// The u_short parameter type itself is confirmed twice: andi 0xFFFF on the y argument of the
+// matched ShopMenuUpdateScrollBarHandle (asm/shop_menu/matchings/main/misc/ShopMenuUpdateScrollBarHandle.s:2038)
+// and func_8002675C's y is 0x36+0xD*i with a plain addiu, i.e. a wider parameter.
 /*
 void func_801D05BC(s32 scrollOffset, u8* pItemIds, u8* pItemTypes, u8* pItemSellQtys, u8* pItemQtys) {
     RECT rect;
