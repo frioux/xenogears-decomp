@@ -20,6 +20,7 @@ extern u8 D_801EA714;
 extern CdlCB D_801EA718;
 extern CdlCB D_801EA71C;
 extern CdlCB D_801EA720;
+extern s32 D_801E977C[]; // String IDs of the menu scroll bar textures
 
 void func_801D22F4(s32 arg0);
 void func_801D3444(void);
@@ -39,8 +40,61 @@ void func_801D2F4C(s32 arg0);
 void func_801D32B4(void);
 void func_801E8EAC(POLY_FT4* pPoly, u_char mode);
 void func_801E8F60(s32 mode, u_char index);
+s32 func_8002675C(MenuResourceDirectory* pDir, u32 index, POLY_FT4* pPrims, s32 context, s32 x, s32 y, s32 scale);
+void func_801C851C(SVECTOR* pVertices, u16 x, u16 y, u16 width, u16 height);
+void func_801E91C4(P_TAG* pTag);
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801D7CFC);
+
+/* 78.55% (596 bytes, same size as the original). Full decode: arg1 != 0
+   guards the whole body. ((u8*)g_Menu->unk358)[0x2AED] = 0, then two
+   windows: func_8002675C(g_Menu->resources, D_801E977C[i], 0x1E00 + i*0x50
+   + unk358, g_Menu->renderContext, 0x78 + i*0x20, 0x5A, 0x1000) and
+   func_801C851C(0x2AA0 + i*0x20 + unk358, x, y, right - x, bottom - y) with
+   a u8* pEntry = unk358 + (renderContext + i*2)*0x28 and fields +0x1E08,
+   +0x1E0A, +0x1E10, +0x1E22 (i.e. 0x1E00-relative 40-byte records).
+   Then func_801E91C4(unk358 + (renderContext + 2*(arg2 == 0))*0x28),
+   *(u16*)(pEntry+0x1E16) |= 0x20, *(u8*)(pEntry+0x1E04/05/06) = 0x20,
+   ((u8*)unk358)[0x2AEE] = *(u8*)&g_Menu->renderContext,
+   ((u8*)unk358)[0x2AED] = 2. Post-call statements must repeat the whole
+   address expression inline (a pEntry local kept in a register gives 46.14%,
+   this version 78.55%). Remaining diffs: (1) gcc's loop.c strength-reduces
+   the D_801E977C[i] giv into an incrementing pointer, which costs a sixth
+   saved register and shifts every other saved reg one up (retail keeps the
+   indexed lui %hi + addu + lw %lo at-form, and has s0=i, s1=0x1E00+0x50i,
+   s2=0x78+0x20i, s3=0x2AA0+0x20i, s4=(arg2 == 0)); frame 0x40 vs 0x38
+   follows from that. (2) retail does not CSE the twin lhu of +0x1E08 (loads
+   it into a1 and again into v0 for the width subtraction) and loads x/y
+   straight into a1/a2, where gcc emits move a1,v0 / move a2,v1.
+   func_8002675C args must be s32 x,y,scale (u16 costs an extra andi).
+   Also declared: func_801C851C, func_801E91C4, D_801E977C.
+void func_801D7CFC(s32 arg0, u_char arg1, u_char arg2) {
+    s32 selected = (arg2 == 0);
+    u8* pEntry;
+    s32 i;
+
+    if (arg1 != 0) {
+        ((u8*)g_Menu->unk358)[0x2AED] = 0;
+        for (i = 0; i < 2; i++) {
+            func_8002675C(g_Menu->resources, D_801E977C[i],
+                          (POLY_FT4*)((u8*)g_Menu->unk358 + 0x1E00 + i * 0x50),
+                          g_Menu->renderContext, 0x78 + i * 0x20, 0x5A, 0x1000);
+            pEntry = (u8*)g_Menu->unk358 + (g_Menu->renderContext + i * 2) * 0x28;
+            func_801C851C((SVECTOR*)((u8*)g_Menu->unk358 + 0x2AA0 + i * 0x20),
+                          *(u16*)(pEntry + 0x1E08), *(u16*)(pEntry + 0x1E0A),
+                          *(u16*)(pEntry + 0x1E10) - *(u16*)(pEntry + 0x1E08),
+                          *(u16*)(pEntry + 0x1E22) - *(u16*)(pEntry + 0x1E0A));
+        }
+        func_801E91C4((P_TAG*)((u8*)g_Menu->unk358 + (g_Menu->renderContext + selected * 2) * 0x28));
+        *(u16*)((u8*)g_Menu->unk358 + (g_Menu->renderContext + selected * 2) * 0x28 + 0x1E16) |= 0x20;
+        *(u8*)((u8*)g_Menu->unk358 + (g_Menu->renderContext + selected * 2) * 0x28 + 0x1E04) = 0x20;
+        *(u8*)((u8*)g_Menu->unk358 + (g_Menu->renderContext + selected * 2) * 0x28 + 0x1E05) = 0x20;
+        *(u8*)((u8*)g_Menu->unk358 + (g_Menu->renderContext + selected * 2) * 0x28 + 0x1E06) = 0x20;
+        ((u8*)g_Menu->unk358)[0x2AEE] = *(u8*)&g_Menu->renderContext;
+        ((u8*)g_Menu->unk358)[0x2AED] = 2;
+    }
+}
+*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801D7F50);
 void func_801D827C(POLY_G4* pPolys, u_char mode) {
     POLY_G4* pPoly;
@@ -118,18 +172,22 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801D84B4);
 
 /* 99.73%. Identical instruction multiset and frame; the only difference is
    that gcc puts the HI result of the divide-by-10000 in $t0 and shifts it
-   into the destination, while the original shifts HI in place (mfhi v0;
-   sra v0,v0,12 vs mfhi t0; sra v0,t0,12), in both divisions. Tried: nested
-   expression, 6400*(x)/10000 vs (x)*6400/10000, a pct local, a scale local
-   holding 6400*pct. All give the same 99.73%.
+   into the destination (mfhi t0; sra v0,t0,12 vs the original mfhi v0;
+   sra v0,v0,12), in both divisions. Tried: nested expression, 6400*(x)/10000
+   vs (x)*6400/10000, a pct local (96.42), a temp for the whole product
+   (99.59), scale local with *= (90.47). Also tried s32 x,y args of
+   func_8002675C - irrelevant here.
 void func_801D84B4(u_short arg0, u_short arg1, s32 arg2) {
     s32 diff;
+    s32 scale;
 
     D_801EA6FC = arg0;
     D_801EA700 = arg1;
     diff = arg1 - arg0;
     D_801EA704 = diff;
-    D_801EA708 = (100 * arg0 / arg2) * 6400 / 10000;
+    scale = 100 * arg0 / arg2;
+    scale *= 6400;
+    D_801EA708 = scale / 10000;
     if (diff >= 0) {
         D_801EA710 = 2;
         D_801EA714 = 0xE3;
@@ -138,7 +196,9 @@ void func_801D84B4(u_short arg0, u_short arg1, s32 arg2) {
         D_801EA714 = 0xE5;
         D_801EA704 = arg0 - arg1;
     }
-    D_801EA70C = (100 * D_801EA704 / arg2) * 6400 / 10000;
+    scale = 100 * D_801EA704 / arg2;
+    scale *= 6400;
+    D_801EA70C = scale / 10000;
 }
 */
 
