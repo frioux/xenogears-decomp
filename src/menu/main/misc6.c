@@ -109,11 +109,6 @@ extern u16 D_801E9E58[];
 
 void func_801E7E68(MenuString* pStringList, u_char* pStringIdList, s32 yOffset, s32 count);
 
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc6", func_801D249C);
-/* PRESET_260: 100.00% under gcc-2.6.0-psx, 99.88% under this unit's gcc-2.7.2 (its
-   only 2.7.2 difference is "addu a0,s2,v1" vs "addu a0,v1,s2" for the vertices
-   address, a commutative addu canonicalisation). Uncomment once misc6 is on a
-   2.6.0 preset.
 void func_801D249C(u_char a0) {
     s32 i;
 
@@ -131,7 +126,6 @@ void func_801D249C(u_char a0) {
         }
     }
 }
-*/
 
 void func_801D25E4(void) {
     int i;
@@ -241,11 +235,6 @@ void func_801D3674(void) {
     }
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc6", func_801D36E0);
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc6", func_801D397C);
-/* PRESET_260: 100.00% under gcc-2.6.0-psx, 95.42% under gcc-2.7.2.
-   Sibling ShopMenuInitializeWindow (shop_menu/main/misc.c, a 2.6.0 unit) is the
-   same function. The x/y/width/height params are u_short, not u_char: the
-   original stores them with plain sh and no andi 0xFF.
 void func_801D397C(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4, u_char a5, u_char a6, s32 a7, u_char a8) {
     MenuWindowParameters* pParams;
 
@@ -275,11 +264,7 @@ void func_801D397C(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4, u_
 
     func_801D4D1C(a0, a1, a2, a3, a4, a6, a7, a8);
 }
-*/
 
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc6", func_801D3B00);
-/* PRESET_260: 100.00% under gcc-2.6.0-psx, 80.37% under gcc-2.7.2.
-   Sibling ShopMenuUpdateWindows (shop_menu/main/misc.c) is the same function.
 void func_801D3B00(void) {
     u_char flag;
     int i;
@@ -321,4 +306,3 @@ void func_801D3B00(void) {
         }
     }
 }
-*/
