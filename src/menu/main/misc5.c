@@ -267,26 +267,20 @@ void func_801D14FC(void) {
     }
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc5", func_801D1640);
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc5", func_801D17C4);
-/* Best attempt: 92.88%. Same shape as func_801D14FC against Menu+0x434, but
-   gcc keeps the i*0x80 index in a saved register (and drops the 0x400
-   induction variable), and the three flag/byte chains come out with the add
-   operands the other way round (addu v0,s1,v1 for the original addu v0,v1,s1).
 void func_801D17C4(void) {
     s32 i;
-    u32 offset;
     u32 offset2;
+    u32 offset;
 
     if (g_Menu->pManager->unk4A[2] == 0) {
         return;
     }
-    for (i = 0; i < 8; i++) {
-        if (((u8*)((u32)g_Menu->unk434 + 0xA10))[i]) {
+    for (i = 0, offset2 = 0x400; i < 8; i++, offset2 += sizeof(MenuString)) {
+        if (g_Menu->unk434->unkA10[i]) {
             offset = i * sizeof(MenuString);
             func_801CE198(1, (SVECTOR*)(offset + (u32)g_Menu->unk434 + 0x50),
                           (POLY_FT4*)(offset + (u32)g_Menu->unk434),
-                          ((u8*)((u32)g_Menu->unk434 + offset))[0x7D]);
-            offset2 = i * sizeof(MenuString) + 0x400;
+                          ((u8*)(offset + (u32)g_Menu->unk434))[0x7D]);
             func_801CE198(1, (SVECTOR*)(offset2 + (u32)g_Menu->unk434 + 0x50),
                           (POLY_FT4*)(offset2 + (u32)g_Menu->unk434),
                           ((u8*)((u32)g_Menu->unk434 + offset))[0x47D]);
@@ -294,16 +288,15 @@ void func_801D17C4(void) {
     }
     func_801CE198(1, (SVECTOR*)((u32)g_Menu->unk434 + 0x850), (POLY_FT4*)((u32)g_Menu->unk434 + 0x800),
                   ((u8*)g_Menu->unk434)[0x87D]);
-    if (((u8*)((u32)g_Menu->unk434 + 0xA18))[0]) {
+    if (g_Menu->unk434->unkA18[0]) {
         for (i = 0; i < 3; i++) {
             offset2 = i * sizeof(MenuString) + 0x880;
             func_801CE198(1, (SVECTOR*)(offset2 + (u32)g_Menu->unk434 + 0x50),
-                          (POLY_FT4*)(offset2 + (u32)g_Menu->unk434),
-                          ((u8*)((u32)g_Menu->unk434 + i * sizeof(MenuString)))[0x8FD]);
+                          (POLY_FT4*)(offset2 + (u32)g_Menu->unk434), g_Menu->unk434->unk880[i].renderContext);
         }
     }
 }
-*/
+
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc5", func_801D1914);
 void func_801D1AAC(void) {
     s32 i;

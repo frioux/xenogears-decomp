@@ -458,6 +458,18 @@ typedef struct {
     /* 0x1184 */ u8 unk1184[0x14];
 } MenuUnk9; // Size: 0x1198
 
+// MenuString-shaped sprite records plus one visibility flag per record (0xA1C bytes, allocated in misc9)
+typedef struct {
+    /* 0x0000 */ MenuString unk0[8];
+    /* 0x0400 */ MenuString unk400[8];
+    /* 0x0800 */ MenuString unk800;
+    /* 0x0880 */ MenuString unk880[3];
+    /* 0x0A00 */ u8 unkA00[0x10];
+    /* 0x0A10 */ u8 unkA10[8];
+    /* 0x0A18 */ u8 unkA18[3];
+    /* 0x0A1B */ u8 unkA1B;
+} MenuCharacterSpriteRecords; // Size: 0xA1C
+
 // Character Info
 typedef struct {
     /* 0x0   */ POLY_FT4 polysDescriptionStrings[18];
@@ -741,7 +753,7 @@ typedef struct {
     /* 0x428  */ MenuPointerCursors* pCursors;
     /* 0x42C  */ MenuUnk9* unk42C;
     /* 0x430  */ void* unk430;
-    /* 0x434  */ void* unk434;
+    /* 0x434  */ MenuCharacterSpriteRecords* unk434;
     /* 0x438  */ void* unk438;
     /* 0x43C  */ MenuScrollBarHandle* pScrollHandle;
     /* 0x440  */ MenuShoulderButtonUi* pShoulderButtonUi;
