@@ -271,9 +271,11 @@ void func_80083BB4(s32 arg) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc9", func_80083C0C);
 
-/* best 87.02%: switch order and layout match; gcc re-forms the two
-   D_8009881E/D_80097102 addresses per branch instead of keeping them in
-   a1/a0 across the loads, costing two lui/addiu pairs.
+/* best 87.02%: gcc folds &D_8009881E / &D_80097102 into the two lh and
+   re-forms the -0xF2 addresses with fresh lui/addiu pairs; the original
+   materialises each symbol address once (lui/addiu) and derives the -0xF2
+   pointer from that register. Selecting into an extra `s16* p` variable and
+   splitting the loads into separate statements both give the same 87.02%.
 void func_80083C0C(s32 mode) {
     s16* pA;
     s16* pB;
@@ -308,8 +310,11 @@ s32 func_80083CD8(void) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc9", func_80083CE8);
 
-/* best 85.00%: all divisions/moduli and the *99 expansion line up; gcc picks
-   different registers for the three arguments and hoists the format address.
+/* best 85.00%: instruction stream is insn-for-insn identical; gcc puts n in
+   t0 and the 0x88888889 magic in a0 where the original has n in a0, the magic
+   in a1 and an extra `move a2,t0` for n/1800, and gcc hoists the format
+   address. Splitting the three values into locals gives byte-identical C
+   output (also 85.00%).
 void func_80083CE8(void) {
     char buf[0x20];
     s32 n;
