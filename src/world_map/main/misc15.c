@@ -1,6 +1,7 @@
 #include "common.h"
 #include "system/memory.h"
 #include "psyq/libgte.h"
+#include "psyq/libcd.h"
 
 typedef struct {
     /* 0x00 */ u16 unk0;
@@ -16,6 +17,14 @@ typedef struct {
     /* 0x50 */ u8 unk50[0x30];
 } Misc15Slot; // Size: 0x80
 
+typedef struct {
+    /* 0x0 */ s32 unk0;
+    /* 0x4 */ u32 unk4;
+    /* 0x8 */ s32 unk8;
+    /* 0xC */ u8 unkC[0x18];
+} Misc15CdRequest; // Size: 0x24
+
+
 extern Misc15Slot *D_8009BE24;
 extern void *D_8009C184[];
 extern MATRIX D_8009A180;
@@ -28,13 +37,51 @@ extern u8 *D_8009BCB4;
 extern s32 D_8009BCB8;
 extern s32 D_8009BD2C;
 extern s32 D_8009CD44;
-extern s32 D_8009D788[];
+extern void *D_8009D788[16];
+extern void *D_8009C624[16];
 extern void func_800981C8(s32);
 extern void func_80097DC0(void);
 
 extern void func_800976C8(void);
+extern CdlLOC D_8009CEBC;
+extern u8 *D_8009D3BC;
+extern s32 D_8009D7F4;
+extern s32 D_8009D614;
+extern s32 D_8009D56C;
+extern s32 D_8009CEB8;
+extern s32 D_8009C590;
+extern s32 D_8009BE48;
+extern s32 D_8009CCB0;
+extern s32 D_8009CCA8;
+extern s32 D_8009CCA0;
+extern void func_80096A6C(void);
+extern u32 ArchiveGetDebugTable(void);
+extern s32 func_800968E0(void);
+extern void func_800966CC(void *p);
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_800967E4);
+s32 func_800967E4(void) {
+    s32 result = 0;
+    u32 first;
+    u32 second;
+
+    first = ArchiveGetDebugTable();
+    second = ArchiveGetDebugTable();
+    if ((first == 0) | (second == 0xFFFFFFFF)) {
+        result = func_800968E0();
+        if (result == 0) {
+            if (D_8009D788[D_8009BCB8] != NULL) {
+                func_8009699C((Misc15CdRequest *)D_8009D788[D_8009BCB8]);
+            }
+        }
+    } else {
+        if (D_8009C624[D_8009BCB8] != NULL) {
+            func_800966CC(D_8009C624[D_8009BCB8]);
+            D_8009C624[D_8009BCB8] = NULL;
+            D_8009BCB8 = (D_8009BCB8 + 1) & 0xF;
+        }
+    }
+    return result;
+}
 // Best: 99.79% -- blocked, not a match problem: this switch's table is
 // jtbl_80070CA0 in asm/world_map/data/0.rodata.s, whose entries are
 // .word .L80096910/.L80096918/.L80096950/.L80096958. Converting the function
@@ -66,6 +113,42 @@ s32 func_800968E0(void) {
  */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_800968E0);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_8009699C);
+// Best: 85.17%. Structurally right (every global and call in place; the four
+// zero stores, the (size+0x7FF)>>11 and the call sequence line up) but gcc
+// drops the first `D_8009D3BC = p` store as dead (the original keeps both) and
+// then re-orders the three loads ahead of it. Marking D_8009D3BC volatile
+// keeps both stores (87.21%) but loses the `move a1,s0` in the CdIntToPos
+// delay slot.
+/*
+void func_8009699C(Misc15CdRequest *p) {
+    CdlLOC *pLoc;
+    s32 lba;
+    u32 size;
+    u32 sizeCopy;
+    s32 unk8;
+
+    lba = p->unk0;
+    D_8009CD44 = 1;
+    pLoc = &D_8009CEBC;
+    D_8009D3BC = (u8 *)p;
+    D_8009D3BC = (u8 *)p + 0xC;
+    size = p->unk4;
+    sizeCopy = p->unk4;
+    unk8 = p->unk8;
+    D_8009BE48 = 0;
+    D_8009CCB0 = 0;
+    D_8009CCA8 = 0;
+    D_8009CCA0 = 0;
+    D_8009D7F4 = lba;
+    D_8009D614 = lba;
+    D_8009D56C = (size + 0x7FF) >> 11;
+    D_8009CEB8 = sizeCopy;
+    D_8009C590 = unk8;
+    CdIntToPos(lba, pLoc);
+    CdSyncCallback(func_80096A6C);
+    CdControlF(CdlSetloc, (u8 *)pLoc);
+}
+*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_80096A6C);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_80096C0C);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_80096F18);
@@ -182,13 +265,9 @@ void func_800978FC(void) {
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_800978FC);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_800979C8);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_80097BC0);
-// Best: 94.28%. Instruction multiset is identical; only the clear loop's
-// allocator tie-break differs (original keeps pEnd in v0 and i in v1, this
-// shape gets the two swapped).
-/*
 void func_80097CB8(s32 arg0) {
-    s32 i;
     u32 *pEnd;
+    s32 i;
 
     D_8009D534 = D_8009A180;
     pEnd = D_8009C580;
@@ -200,8 +279,6 @@ void func_80097CB8(s32 arg0) {
     func_800981C8(arg0);
     func_80097DC0();
 }
-*/
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_80097CB8);
 
 void func_80097D64(void) {
     s32 i;
