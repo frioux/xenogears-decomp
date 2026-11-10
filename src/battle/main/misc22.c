@@ -52,6 +52,8 @@ typedef struct {
 
 extern s32 D_800D3344;
 extern s32 D_800D39CC;
+extern s32 D_800D3348;
+extern s32 func_800A5A48(void *, void *, void *, s32);
 extern void func_800A5BE8(void *, void *, void *, s32, s32);
 extern int LoadImage(void *pRect, void *p);
 extern s16 D_800D2FC8;
@@ -262,7 +264,22 @@ s32 func_800A577C(void) {
 s32 func_800A578C(void) {
     return D_800D39CC;
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A579C);
+s32 func_800A579C(s32 arg0) {
+    BattleMisc22Entry *pEntry;
+    s32 i;
+
+    if (D_800D3344 != 0 && D_800D39CC != 0) {
+        for (i = 0; i < D_800D3348; i++) {
+            pEntry = (BattleMisc22Entry *)(i * 14 + D_800D39CC);
+            if (func_800A5A48((BattleMisc22SVec *)(pEntry->unk0 * 8 + D_800D3344),
+                              (BattleMisc22SVec *)(pEntry->unk2 * 8 + D_800D3344),
+                              (BattleMisc22SVec *)(pEntry->unk4 * 8 + D_800D3344), arg0) == -1) {
+                return i;
+            }
+        }
+    }
+    return -1;
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A5870);
 /* 99.27%: everything but the operand order of the three `addu` that form the
    SVECTOR pointers - retail has the scaled index first (addu a0,a0,v1), gcc
