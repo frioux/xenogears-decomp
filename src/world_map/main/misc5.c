@@ -21,6 +21,13 @@ typedef struct {
 } WorldMapPlayer; // Size: 0x80
 
 typedef struct {
+    /* 0x00 */ s32 x;
+    /* 0x04 */ s32 y;
+    /* 0x08 */ s32 z;
+    /* 0x0C */ s32 w;
+} WorldMapPos; // Size: 0x10
+
+typedef struct {
     /* 0x00 */ s16 unk0;
     /* 0x02 */ u8 unk2[0x16];
     /* 0x18 */ SVECTOR rot;
@@ -57,7 +64,35 @@ extern s32 D_8009D3F0;
 extern s32 D_8009D55C;
 extern s32 D_8009D560;
 extern s32 D_8009D564;
+extern s32 D_8009D144;
+extern u8 *D_8006259C;
+extern s32 D_8009BC38;
+extern s32 D_8009BCB0;
+extern s32 D_8009BC3C;
+extern s32 D_8009BCB4;
+extern s32 D_8009C180;
+extern s16 D_8006F94E;
+extern s16 D_8006F950;
+extern s16 D_8006F954;
+extern s32 D_8009BBC4;
 extern void func_800848B4(int, int);
+extern void HeapFree(void *pMem);
+extern void func_80039FF8(void);
+extern void func_8003852C(void *p);
+extern void func_80084818(void);
+extern void func_80086568(void);
+extern void func_800866C8(void);
+extern void func_80074F04(void);
+extern void func_800750DC(void);
+extern void func_80088FF4(void);
+extern void func_80089128(void);
+extern void func_80097D64(void);
+extern void func_800976A0(void);
+extern void func_80093354(void *p);
+extern s32 func_80093A5C(s32, s32);
+extern void func_800894C8(s32);
+extern void func_80089160(s32, void *, s32);
+extern s16 D_8009A488[];
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007A9F8);
 /* best 94.72%: everything matches except the position of the final
@@ -102,6 +137,46 @@ int func_8007BA08(void) {
 }
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007BA10);
+/* 93.61%: every instruction matches except the return value register. Retail
+   holds it in s0 across both calls (li s0,1 before the first branch,
+   move v0,s0 in each path, li s0,3 in the reset path, plus the s0
+   save/restore); gcc rematerialises li v0,1 / li v0,3 after the calls, which
+   also drops the s0 spill so the frame is 8 bytes short. Tried: comparing
+   against the nResult variable instead of the literal 1, and a single return
+   after an if/else (52.51%, block layout flips). The 16-byte struct copy in
+   the reset path is exact. D_8009A488 (third arg to func_80089160) lives in
+   the main exe and is recorded in config/symbol_addrs.world_map.txt.
+int func_8007BA10(int idx) {
+    u8 *pPlayer = (u8 *)D_8009BE24 + (idx << 7);
+    s16 timer;
+    int nResult = 1;
+
+    if (*(s16 *)(pPlayer + 4) == 1) {
+        *(s16 *)(pPlayer + 4) = 0;
+        *(s16 *)(pPlayer + 0x22) = 0x3C;
+        *(s32 *)(pPlayer + 0x28) = D_8009C5AC;
+        *(s32 *)(pPlayer + 0x2C) = D_8009C5B0;
+        *(s32 *)(pPlayer + 0x30) = D_8009C5B4;
+    }
+    timer = *(u16 *)(pPlayer + 0x22);
+    timer--;
+    *(s16 *)(pPlayer + 0x22) = timer;
+    if (timer <= 0) {
+        *(s16 *)(pPlayer + 0x22) = 0x3C;
+        *(WorldMapPos *)(pPlayer + 0x28) = *(WorldMapPos *)&D_8009C5AC;
+        func_800894C8(9);
+        nResult = 3;
+        return nResult;
+    }
+    *(s32 *)(pPlayer + 0x28) += -0x95D0;
+    *(s32 *)(pPlayer + 0x30) += 0x2F130;
+    *(u16 *)0x1F8000A0 = *(s32 *)(pPlayer + 0x28) >> 12;
+    *(u16 *)0x1F8000A2 = *(s32 *)(pPlayer + 0x2C) >> 12;
+    *(u16 *)0x1F8000A4 = *(s32 *)(pPlayer + 0x30) >> 12;
+    func_80089160(9, (void *)0x1F8000A0, (s32)D_8009A488);
+    return nResult;
+}
+*/
 
 int func_8007BB60(int idx) {
     WorldMapWork *pWork;
@@ -124,7 +199,32 @@ int func_8007BB60(int idx) {
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007BBEC);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007BF50);
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007C260);
+void func_8007C260(void) {
+    u16 v;
+
+    func_80039FF8();
+    func_8003852C(D_8006259C);
+    HeapFree(D_8006259C);
+    func_80084818();
+    func_80086568();
+    func_800866C8();
+    func_80074F04();
+    func_800750DC();
+    func_80088FF4();
+    func_80089128();
+    func_80097D64();
+    HeapFree(D_8009BC38);
+    HeapFree(D_8009BCB0);
+    HeapFree(D_8009BC3C);
+    HeapFree(D_8009BCB4);
+    HeapFree(D_8009C180);
+    func_800976A0();
+    v = D_8009BD3A;
+    D_8006F94E = 0x111;
+    D_8006F954 = 2;
+    D_8009BBC4 = 1;
+    D_8006F950 = v;
+}
 
 /* best 95.26%: instruction multiset and registers identical to the original,
    only the emission order of the independent loads differs (gcc hoists
@@ -136,6 +236,43 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007C36C);
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007C3B8);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007C724);
+/* 44.62%: instruction multiset and size identical (180 bytes), only gcc sched2
+   order differs. Retail puts the 0x7C store right after the addu and emits the
+   three D_8009C5xx loads after it, and keeps li 0xffc0 late; gcc hoists the
+   D_8009C5B0/B4 loads, sinks the 0x7C store next to the 0x58 store and hoists
+   li 0xffc0 to the top. Tried: unk5C indexed vs a named unk7C field, s32
+   locals for the three loads, plain globals (all three give the same 180-byte
+   schedule), -O3 (41.22%). Same class as misc4 func_80077DC8 (70%) and misc6
+   func_80080578 (34.97%).
+int func_8007C724(int idx) {
+    WorldMapPlayer *pPlayer;
+    s32 a;
+    s32 b;
+    s32 c;
+
+    D_8009BE0C = 0x78;
+    D_8009D3F0 = 0x400000;
+    pPlayer = D_8009BE24 + idx;
+    D_8009D144 = 1;
+    ((u32 *)pPlayer->unk5C)[8] = 0x1000;
+    a = D_8009C5AC;
+    b = D_8009C5B0;
+    c = D_8009C5B4;
+    D_8009BD38 = -0x40;
+    D_8009BD3A = 0;
+    D_8009BD3C = 0;
+    D_8009BE28 = a;
+    D_8009D55C = a;
+    D_8009BE2C = b;
+    D_8009D560 = b;
+    D_8009BE30 = c;
+    D_8009D564 = c;
+    pPlayer->unk58 = 0x40;
+    pPlayer->unk50 = 0;
+    return 1;
+}
+*/
+
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007C7D8);
 int func_8007CC6C(int idx) {
     WorldMapWork *pWork;
@@ -204,7 +341,30 @@ int func_8007D078(int idx) {
     pPlayer->unk30 = 0;
     return 1;
 }
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007D110);
+int func_8007D110(int idx) {
+    u8 *pPlayer = (u8 *)D_8009BE24 + (idx << 7);
+    u8 *pWork = (u8 *)D_8009C620;
+
+    if (*(s16 *)(pPlayer + 4) == 1) {
+        *(s16 *)(pPlayer + 4) = 0;
+        *(s16 *)(pWork + 0x2F4) = 1;
+        *(s16 *)(pWork + 0x24C) = 1;
+        *(s16 *)(pWork + 0x2A0) = 1;
+        func_800894C8(0x16);
+        return 3;
+    }
+    *(s32 *)(pPlayer + 0x30) += *(s32 *)(pPlayer + 0x40);
+    func_80093354(pPlayer + 0x28);
+    *(s32 *)(pPlayer + 0x2C) = func_80093A5C(*(s32 *)(pPlayer + 0x28), *(s32 *)(pPlayer + 0x30)) - 0x4000;
+    *(s32 *)(pWork + 0x2FC) = *(s32 *)(pPlayer + 0x28) >> 12;
+    *(s32 *)(pWork + 0x300) = *(s32 *)(pPlayer + 0x2C) >> 12;
+    *(s32 *)(pWork + 0x304) = *(s32 *)(pPlayer + 0x30) >> 12;
+    *(u16 *)0x1F8000A0 = *(s32 *)(pPlayer + 0x28) >> 12;
+    *(u16 *)0x1F8000A2 = *(s32 *)(pPlayer + 0x2C) >> 12;
+    *(u16 *)0x1F8000A4 = *(s32 *)(pPlayer + 0x30) >> 12;
+    func_80089160(0x16, (void *)0x1F8000A0, 0);
+    return 1;
+}
 
 int func_8007D228(int idx) {
     WorldMapWork *pWork;
