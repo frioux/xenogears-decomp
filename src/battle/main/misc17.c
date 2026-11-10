@@ -45,10 +45,14 @@ extern u8 *D_800C3DE8;
 extern u8 D_800CCD88[];
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80091064);
-/* 94.88%: three addu operand orders + one load-scheduling slot differ; the
-   instruction multiset and every load/store are identical. Tried =f()+a
-   instead of += (flips the accumulate but moves the 0xF8 reload) and both
-   source orders of offset+arg0 (gcc prints arg0 first regardless). */
+/* 94.88%: this `+=` form reproduces the original's instruction ORDER exactly
+   (accumulator load before `i++`, `addiu s0` in the bnez delay slot); only the
+   three remaining addu's operand/dest regs differ. The `s32 size = f();
+   acc = size + acc;` spelling fixes the accumulate (orig v0 = ret + acc,
+   `+=` gives v1 = acc + ret) but hoists `i++` over the 0xF8 load and adds a
+   nop in the lw-delay slot. Also tried: (s16)(arg0+offset) vs
+   (s16)(offset+arg0) (gcc emits s2,s0 either way, original s0,s2), the
+   arg1 pointer sum in both operand orders, and =f()+a. Operand-order tie. */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80091604);
 /*
 void func_80091604(s16 arg0) {
@@ -222,25 +226,24 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_800946F4);
    order of one addu for i*0x170 + pBase (original base-first, gcc index-first).
    Tried: array-ref, pointer-plus (this version), integer base and a pointer
    local for that sum; also 2.7.2-cdk -> 99.77. */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80094C78);
-/*
 void func_80094C78(void) {
     u8 *pBase = D_800C34B0;
     u8 *pOther = (u8 *)(D_800C3E50 * 4 + (u32)pBase);
+    u8 *pRow;
     u8 i;
 
     for (i = 0; i < 3; i++) {
         if (((u8 *)(pBase + i))[0x5FA0] != 0) {
             continue;
         }
-        if (*(pBase + i * 0x170 + 0x15A) & 0x80) {
-            *(u32 *)(pBase + i * 4 + 0x5F60) += *(u32 *)(pOther + 0x5F6C);
+        pRow = pBase + i * 0x170;
+        if (pRow[0x15A] & 0x80) {
+            *(u32 *)(i * 4 + (s32)pBase + 0x5F60) += *(u32 *)(pOther + 0x5F6C);
         } else {
-            *(u32 *)(pBase + i * 4 + 0x5F54) += *(u32 *)(pOther + 0x5F6C);
+            *(u32 *)(i * 4 + (s32)pBase + 0x5F54) += *(u32 *)(pOther + 0x5F6C);
         }
     }
 }
-*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80094D24);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80094EE4);
 /* 99.76%: every instruction identical except the two `mfhi` results of the
