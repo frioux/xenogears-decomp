@@ -104,15 +104,17 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_800743A4);
     AddPrim(D_800CCB04 + 4, (*(u8 **)(D_800C3EA4 + 0xA230)) + 0xA0 + (*(u8 **)(D_800C3EA4 + 0xA230))[0x668] * 40);
     AddPrim(D_800CCB04 + 4, (*(u8 **)(D_800C3EA4 + 0xA230)) + 0xF0 + (*(u8 **)(D_800C3EA4 + 0xA230))[0x668] * 40);
 } */
-/* 82.84%: only difference is that the original keeps the address of
-   D_800CCB04 in s0 and reloads from it, and its final `addu a1,a1,v1` comes
-   out as `addu a1,v1,a1` here. Two separate statements and a local holding the
-   address both make gcc re-form the address with lui/addiu. */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_800744BC);
-/* void func_800744BC(void) {
-    AddPrim(D_800CCB04 + 4, (*(u8 **)(D_800C3EA4 + 0xA230)) + 0x320 + (*(u8 **)(D_800C3EA4 + 0xA230))[0x66A] * 40);
-    AddPrim(D_800CCB04 + 4, (*(u8 **)(D_800C3EA4 + 0xA230)) + 0x370 + (*(u8 **)(D_800C3EA4 + 0xA230))[0x66A] * 40);
-} */
+void func_800744BC(void) {
+    u8 *p;
+    s32 off;
+
+    p = *(u8 **)(D_800C3EA4 + 0xA230);
+    off = p[0x66A] * 40 + 0x320;
+    AddPrim(D_800CCB04 + 4, (u8 *)(off + (s32)p));
+    p = *(u8 **)(D_800C3EA4 + 0xA230);
+    off = p[0x66A] * 40 + 0x370;
+    AddPrim(D_800CCB04 + 4, (u8 *)(off + (s32)p));
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_80074554);
 /* Same shape as func_800744BC with 0x280 and 0x2D0: identical result. */
 /* void func_80074554(void) {
@@ -133,19 +135,20 @@ void func_80074EEC(void) {
     func_800728B8(D_800D2DB4 + 0x5C80, D_800D2DB4[0x5D82], D_800D2DB4[0x5D91]);
 }
 
-/* 99.74%: identical except the final `addu a1,a1,v1`; gcc puts the base
-   pointer first (addu a1,v1,a1). Casting the index sum to a pointer to flip the
-   operand makes gcc fold 0x7A4 into the base instead (92.67%). */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_80074F70);
-/* void func_80074F70(void) {
+void func_80074F70(void) {
+    u8 *p;
+    s32 off;
+
     if (D_800D2D28[0xC8] != 0) {
-        AddPrim(D_800CCB04 + 4, D_800D3278 + 0x7A4 + D_800D3278[0x7F4] * 40);
+        p = D_800D3278;
+        off = p[0x7F4] * 40 + 0x7A4;
+        AddPrim(D_800CCB04 + 4, (u8 *)(off + (s32)p));
     }
 
     if (D_800D2D28[0xC9] != 0) {
         func_80034888(D_800D2DAC, D_800CCB04 + 4, D_800CCB34);
     }
-} */
+}
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_8007500C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_80075168);
