@@ -23,6 +23,14 @@ extern s32 D_801E9B60[];
 extern s32 D_801E9C20[];
 extern s32 D_801EA34C[];
 extern s32 D_801EA39C[];
+extern u16 D_801E9B58;
+extern u16 D_801E9B5C;
+extern s32 D_801EA578[];
+extern u8 D_801EA5C4[];
+extern u16 g_SystemPalette1;
+extern u16 g_SystemPalette2;
+void func_801E920C(POLY_FT4* pPoly, u_short x, u_short y, u_char u, u_char v, s32 width, s32 height);
+void func_801E927C(POLY_FT4* pPoly);
 
 void func_801C851C(SVECTOR* pVertices, u16 x, u16 y, u16 width, u16 height);
 s32 func_800263E4(MenuResourceDirectory* pDir, u32 index, POLY_FT4* pPrims, s32 context, s32 x, s32 y, s32 scale, s32 mirrorX, s32 mirrorY);
@@ -90,6 +98,34 @@ void func_801D4EA0(u_char a0) {
     HeapFree(g_Menu->windowParameters[a0]);
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D4F2C);
+/* Best: 87.79%. Structure and every called function/prototype is right; what is
+   left is allocation and instruction order: (1) retail emits `addu v1,s1,v1`
+   for the tpage-store address where gcc commutes it to `addu v1,v1,s1`, (2)
+   retail keeps a0 in s3 / a3 in s4, gcc the reverse, (3) in the func_801E920C
+   arg setup retail does `andi a3,a3,0xFC` after the a1/a2 masks and keeps the
+   7th stack store (`sw v0,0x18(sp)`) before the jal, gcc puts it in the delay
+   slot. func_801E920C must be declared `u_short x, u_short y` HERE (misc12.c
+   defines it as `short`): with `short` the caller gets sll/sra 0x10 instead of
+   retail's `andi 0xFFFF`.
+   void func_801D4F2C(u_char a0, u_char a1, s32 a2, s32 a3) {
+       u8* pWindow = (u8*)g_Menu->unk39C[a0];
+       u8* pBase;
+   
+       func_8002675C(g_Menu->resources, a0 + 0x14B, (POLY_FT4*)pWindow,
+                     g_Menu->renderContext, a2, a3, 0x1000);
+       func_801E927C((POLY_FT4*)(pWindow + (g_Menu->renderContext * 0x28 + 0x50)));
+       *(u16*)(pWindow + g_Menu->renderContext * 0x28 + 0x66) = GetTPage(0, 0, 0x180, 0);
+       pBase = pWindow + g_Menu->renderContext * 0x28;
+       if (g_Menu->pManager->currentCharacterIDs[a0] & 1) {
+           *(u16*)(pBase + 0x5E) = g_SystemPalette2;
+       } else {
+           *(u16*)(pBase + 0x5E) = g_SystemPalette1;
+       }
+       func_801E920C((POLY_FT4*)(pWindow + (g_Menu->renderContext * 0x28 + 0x50)),
+                     D_801E9B58 + a2, D_801E9B5C + a3,
+                     (D_801EA578[a0] << 2) & 0xFC, D_801EA5C4[a0], 0x48, 0xD);
+   }
+*/
 void func_801D50EC(u_char a0, s32 a1, s32 a2) {
     u8* pWindow;
     s32 i;
