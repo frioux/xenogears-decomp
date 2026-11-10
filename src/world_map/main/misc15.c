@@ -269,6 +269,9 @@ void func_800977E0(s32 index, u16 value) {
 }
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_80097800);
+// try_flags: --gp -G0 gives 88.53 but drops the matched func_80097CB8 to
+// 97.21 and func_8009699C to 91.63, so the unit preset is right; gcc 2.6.0
+// gives 79.25 with the parked shape.
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_800978FC);
 // Best: 82.47%. Everything matches except that the original holds s0 =
 // &D_8009BC3C across the second HeapAlloc and reads the buffer back with
