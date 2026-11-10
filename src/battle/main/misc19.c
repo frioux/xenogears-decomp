@@ -86,7 +86,9 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009A258);
    in $v0 and the arg1 chain in $v1 where the original has them in $v1/$v0, which
    cascades to the base pointer ($a1 vs $a3) and costs the original's
    `move v1,v0` for the u8 sum. Tried: one-expression form, `u8* q` slice,
-   pointer-free `s32 off`, and a separate `s32 sum` + `u8 v = sum`.
+   pointer-free `s32 off`, a separate `s32 sum` + `u8 v = sum`, and folding arg1
+   into `off` (`off = arg0*0x5F0 + 0x1058 + arg1*0x28`, 65.00%: it then groups the
+   base with the arg1 chain).
 u8 func_8009A258(u8 arg0, u8 arg1) {
     u8* p = D_800C34B0;
     s32 off = arg0 * 0x5F0 + 0x1058;
@@ -127,9 +129,12 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009A9D0);
 /* Best attempt: 99.66%. Only difference: the mfhi temp of the `% 100` expansion
    lands in $a1 instead of the original's $a0 (allocator tie-break, 2 insns).
    Tried: direct `rand() % 100 < 50`, a named `s32 r = rand()`, a named
-   `s32 m = r % 100`, and `r % 100 <= 49` -- all 99.66%.
+   `s32 m = r % 100`, `r % 100 <= 49`, a `u8* p = D_800C34B0` local, and the
+   -G0 / 2.7.2-cdk presets -- all 99.66%.
 s32 func_8009A9D0(void) {
-    *(u8*)((u8*)D_800C34B0 + 0x5FC2) = 0;
+    u8* p = D_800C34B0;
+
+    p[0x5FC2] = 0;
     if (rand() % 100 < 50) {
         func_8009BE0C();
         return 1;
@@ -335,9 +340,10 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009B46C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009B684);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009BAC4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009BD94);
-
 /* Best attempt: 97.33%. Everything matches except the mfhi temp of the `/ 20`
-   expansion ($a1 instead of $v0) and the two registers that follow it.
+   expansion ($a1 instead of $v0) and the two registers that follow it; gcc also
+   puts the store-address base in $v1 and the index in $v0, the reverse of the
+   original. Reordering the store's add operands does not change it.
    Also tried: a `u32 num` numerator local (83.67%) and a `u32* pDest` pointer
    local, which CSEs the D_800C34B0 base and comes out 100 bytes (70.17%).
 void func_8009BD94(void) {
