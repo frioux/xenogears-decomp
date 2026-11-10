@@ -24,6 +24,9 @@ extern void func_8001CE74(void* pTask);
 extern void func_8001D3F4(void* pPayload);
 extern void WorkListRemoveTask(void* pTask);
 extern void TimerWorkListRemoveTask(void* pTask);
+extern s32 func_800A5914(s16* pVec, s32 arg1, s32 arg2);
+extern s32 func_800A579C(s16* pVec);
+extern void func_800A5870(s16* pVec, s32 arg1, u8* pOut);
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800B905C);
 
@@ -65,10 +68,35 @@ void func_800B9C00(SpriteData* pSprite, s32 arg1) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800B9C78);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800B9F78);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800BA4E0);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800BA59C);
+void func_800BA59C(SpriteData* pSprite, s16 angle) {
+    s32 scale = pSprite->moveSpeed >> 3;
+
+    pSprite->direction = angle;
+    pSprite->step.x = ((rsin(angle) >> 1) * scale) >> 8;
+    pSprite->step.z = -(((rcos(pSprite->direction) >> 1) * scale)) >> 8;
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800BA614);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800BA768);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800BA8F4);
+void func_800BA8F4(u8* pSprite) {
+    s16 vec[3];
+    u8 out[0x10];
+    s32 coord;
+    s32 index;
+
+    coord = *(s16*)(pSprite + 0x2);
+    vec[0] = coord;
+    coord = *(s16*)(pSprite + 0x6);
+    vec[1] = coord;
+    coord = *(s16*)(pSprite + 0xA);
+    vec[2] = coord;
+    index = func_800A5914(vec, *(s32*)(pSprite + 0x78), 4);
+    if (index < 0) {
+        index = func_800A579C(vec);
+    }
+    func_800A5870(vec, index, out);
+    *(u16*)(pSprite + 0x84) = vec[1];
+    *(s32*)(pSprite + 0x78) = index;
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800BA984);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800BAB0C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800BABDC);
