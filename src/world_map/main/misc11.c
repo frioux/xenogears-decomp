@@ -95,10 +95,15 @@ int func_8008B498(int index) {
     return result;
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008B54C);
-/* 93.37%:  Everything from the func_80093978 call to the tail is byte-identical;
-   the only difference is the prologue, where gcc materialises index*128 in v0 and
-   then has to spill the 0x40 stack argument early, while the original keeps it in
-   v0 and scales into v1.
+/* 93.37% (re-diffed under the current XenoWorldMap flags; cdk 83.19%, plain -G0/-O
+   variants lower). Everything is byte-identical except three insns in the prologue:
+   the original computes index*0x80 in v1 BEFORE the 0x100 push and stores the
+   0x40 stack argument just before the jal, while gcc emits the store right after
+   li 0x40 and puts the shift in v0 after it. The SAME call shape with the SAME
+   neighbours (func_8008C75C, matched) reproduces the original prologue exactly, so
+   the trigger is something in this function's tail, not the call: the tail below is
+   itself byte-identical. Tried: flat tail without the unk48 temp (83.05), pointer
+   built as (u8*)D_8009BE24 + index*0x80 (93.37), cdk (83.19).
 int func_8008B54C(int index) {
     WorldMapActor *pActor = &D_8009BE24[index];
 
@@ -140,12 +145,10 @@ int func_8008BD1C(int index) {
     return result;
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008BDD0);
-/* 83.03%: the body is instruction-for-instruction identical up to the func_80093978
-   call; the prologue scales index in v0 where the original uses v1 (which also
-   forces the 0x40 stack argument to be spilled early) and the tail puts the
-   constants in v0 where the original uses v1. func_8008B54C, same shape with two
-   different constants, reaches 93.37%; four source shapes did not close either,
-   so this is the allocator tie-break class.
+/* 93.37% (was 83.03% before the preset change). Byte-identical apart from the same
+   three prologue insns as func_8008B54C: original shifts index into v1 before the
+   0x100 push and stores the 0x40 argument in front of the jal; gcc stores it right
+   after li 0x40 and shifts into v0. Tail is byte-identical.
 int func_8008BDD0(int index) {
     WorldMapActor *pActor = &D_8009BE24[index];
 
@@ -346,6 +349,47 @@ int func_8008D590(int index) {
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008D678);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008DD6C);
+/* 81.33%: structurally the same function as func_8008D3F0 (mode 2, gearRide[2],
+   g_GameState+0x182A and unk1930[0x1C]/[0x1D]); the whole branch body and the tail
+   are byte-identical. Two head differences remain: (1) the original emits the three
+   zero stores to 0x40/0x3C/0x38 immediately after the func_8008C364 call and the
+   lhu of g_GameState+0x182A right after them, while gcc sinks the zero stores below
+   the D_8009BE10 load; (2) the original re-reads unk48 with lh and sign-extends for
+   unk5C, gcc keeps the value in a register (sll/sra pair). Also tried a u16 temp for
+   the g_GameState load: same 81.33%, and it makes the unk5C store worse.
+int func_8008DD6C(int index) {
+    WorldMapActor *pActor = &D_8009BE24[index];
+    s32 result = func_8008C364(pActor, 2);
+    s32 mode;
+
+    pActor->unk40 = 0;
+    pActor->unk3C = 0;
+    pActor->unk38 = 0;
+    pActor->unk4A = 0xC;
+    pActor->unk58 = 0x1F;
+    pActor->unk48 = *(u16 *)&g_GameState.unk1826[4];
+    pActor->unk5C = pActor->unk48;
+    mode = D_8009BE10;
+    if (mode > 0) {
+        if (mode < 4) {
+            if (g_GameState.gearRide[2] == 1) {
+                pActor->unk20 = 1;
+                pActor->unk28 = D_8009C5AC;
+                pActor->unk30 = D_8009C5B4;
+                pActor->unk2C = func_80093978(pActor->unk28, pActor->unk30);
+                pActor->unk48 = D_8009C584;
+            }
+        } else if (mode < 8) {
+            pActor->unk20 = 2;
+            pActor->unk24 = 1;
+        }
+    }
+    g_GameState.unk1930[0x1C] = pActor->unk28 >> 12;
+    g_GameState.unk1930[0x1D] = pActor->unk30 >> 12;
+    *(u16 *)&g_GameState.unk1826[4] = pActor->unk48;
+    return result;
+}
+*/
 int func_8008DE9C(int index) {
     WorldMapActor *pActor = &D_8009BE24[index];
     s32 result = func_8008C364(pActor, 2);
