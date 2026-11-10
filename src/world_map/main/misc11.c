@@ -349,6 +349,47 @@ int func_8008D590(int index) {
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008D678);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008DD6C);
+/* 81.33%: structurally the same function as func_8008D3F0 (mode 2, gearRide[2],
+   g_GameState+0x182A and unk1930[0x1C]/[0x1D]); the whole branch body and the tail
+   are byte-identical. Two head differences remain: (1) the original emits the three
+   zero stores to 0x40/0x3C/0x38 immediately after the func_8008C364 call and the
+   lhu of g_GameState+0x182A right after them, while gcc sinks the zero stores below
+   the D_8009BE10 load; (2) the original re-reads unk48 with lh and sign-extends for
+   unk5C, gcc keeps the value in a register (sll/sra pair). Also tried a u16 temp for
+   the g_GameState load: same 81.33%, and it makes the unk5C store worse.
+int func_8008DD6C(int index) {
+    WorldMapActor *pActor = &D_8009BE24[index];
+    s32 result = func_8008C364(pActor, 2);
+    s32 mode;
+
+    pActor->unk40 = 0;
+    pActor->unk3C = 0;
+    pActor->unk38 = 0;
+    pActor->unk4A = 0xC;
+    pActor->unk58 = 0x1F;
+    pActor->unk48 = *(u16 *)&g_GameState.unk1826[4];
+    pActor->unk5C = pActor->unk48;
+    mode = D_8009BE10;
+    if (mode > 0) {
+        if (mode < 4) {
+            if (g_GameState.gearRide[2] == 1) {
+                pActor->unk20 = 1;
+                pActor->unk28 = D_8009C5AC;
+                pActor->unk30 = D_8009C5B4;
+                pActor->unk2C = func_80093978(pActor->unk28, pActor->unk30);
+                pActor->unk48 = D_8009C584;
+            }
+        } else if (mode < 8) {
+            pActor->unk20 = 2;
+            pActor->unk24 = 1;
+        }
+    }
+    g_GameState.unk1930[0x1C] = pActor->unk28 >> 12;
+    g_GameState.unk1930[0x1D] = pActor->unk30 >> 12;
+    *(u16 *)&g_GameState.unk1826[4] = pActor->unk48;
+    return result;
+}
+*/
 int func_8008DE9C(int index) {
     WorldMapActor *pActor = &D_8009BE24[index];
     s32 result = func_8008C364(pActor, 2);
