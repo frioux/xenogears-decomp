@@ -1,4 +1,5 @@
 #include "common.h"
+#include "main/game.h"
 #include "psyq/libgpu.h"
 
 extern u8 D_800D2CE0[];
@@ -42,8 +43,75 @@ extern void *D_800D2F5C;
 extern u8 D_800C3E4C;
 extern void func_80076B00(void *);
 extern s32 func_800263E4(void *, s32, void *, s32, s16, s16, s32, s32, s32);
+extern u16 D_800C324E;
+extern u16 D_800C3250;
+extern u16 D_800C3252;
+extern u16 D_800C323A;
+extern u8 D_800CEF34[];
+extern u8 D_800CEF10[];
+extern u8 D_800CCDC4[];
+extern u8 D_800CCD62[];
+extern u8 D_800D2D24[];
+extern s32 func_80089C6C(s32, u8);
+extern u8 func_80085084(u16, u8, s32);
+extern void func_8008CCCC(u8);
+extern void func_8008CD28(u8);
+extern void func_8008AA74(u8);
+extern void func_80076CE8(POLY_FT4 *, s16, s16, u8, u8, s16, s16);
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008CDE4);
+/* 99.83%: byte-identical size (468) and instruction multiset; the only
+   difference is which of the mask test's two operands lands in v0 -- retail
+   `lhu v0,0(at)` (D_800CCD62) + `lhu v1,16(sp)` (hdr[arg1]) + `and v0,v0,v1`,
+   ours the two registers swapped, i.e. the `and` destination coalesces with the
+   other operand. Load ORDER matches retail, so it is a global.c tie-break.
+   Tried: both `&` operand orders (the swapped order fixes the registers but
+   hoists the hdr load ahead of the D_800CCD62 load), `*(u16 *)(hdr + arg1)`.
+   Everything else matches: the u16 hdr[4] four-sh initializer (an initializer
+   list makes cc1 emit an extra lwl/lwr block copy and a 0x48 frame), the
+   (arg1 + 0x25) * 0x28 + arg0 * 0x690 / arg0 * 0x170 index pair, sltu, the
+   func_80089C6C andi 0xffff chain, and the flag/ret tail.
+u8 func_8008CDE4(u8 arg0, u8 arg1) {
+    u16 hdr[4];
+    u8 flag;
+    u8 ret;
+    s32 idx;
+    s32 ofs;
+    u16 trigger;
+    u16 cur;
+    u16 dmg;
+
+    hdr[0] = D_800C324E;
+    hdr[1] = D_800C3250;
+    hdr[2] = D_800C3252;
+    hdr[3] = D_800C323A;
+    ret = 0;
+    flag = 1;
+    idx = (arg1 + 0x25) * 0x28 + arg0 * 0x690;
+    ofs = arg0 * 0x170;
+    trigger = *(u16 *)(D_800CEF34 + idx);
+    cur = *(u16 *)(D_800CCDC4 + ofs);
+    dmg = *(u16 *)(D_800CEF10 + idx);
+    if (cur >= trigger &&
+        (u16)func_80089C6C((u16)g_GameState.unk16BC[D_800D2D24[arg0]].unk1E, arg1) != 0 &&
+        (*(u16 *)(D_800CCD62 + ofs) & hdr[arg1]) == 0) {
+        func_8008CCCC(1);
+        D_800D2D28[0xC6] = 1;
+        if (func_80085084(dmg, arg0, 0) != 0) {
+            *(u16 *)(D_800CCDC4 + ofs) -= trigger;
+            ret = 1;
+        } else {
+            D_800D2D28[0xC6] = 0;
+            func_8008CD28(arg0);
+        }
+        flag = 0;
+    }
+    if (flag != 0) {
+        func_8008AA74(0x4F);
+    }
+    return ret;
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008CFB8);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008D328);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008D598);
@@ -357,6 +425,39 @@ void func_8009080C(u8 arg0, u8 arg1, u8 arg2) {
     p[0x66B] = 1;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8009093C);
+/* 36.86%: first attempt. The shape is right -- the slti 0x68 / -0x68 /
+   vofs 0x10 split, the two (idx*0x28 + K) palette sh stores, four
+   func_80076CE8(p, x, y, u, v, dx, dy) calls with the 0x60/0x10 dx and the
+   0x68 dy held in saved registers across them, and the trailing 0x668 store.
+   The gap is this unit's documented wall: retail materialises
+   `a2 = &D_800CCB34` (lui/addiu) and reloads `lw v0,0(a2)`, ours emits
+   `lui/lw D_800CCB34` at each use; retail also keeps pal in a1 and pBase in
+   a0 across the .L800909F4 join, so cc1 here reorders the two sh stores and
+   pushes the D_800CCB34*0x28 multiply around. Not attempted: a pPal/pBase
+   local pair (the same fold that parked func_80090C44 / func_80090E7C).
+void func_8009093C(s32 arg0) {
+    s32 index;
+    u16 vofs;
+    u16 pal;
+
+    index = arg0;
+    if (index >= 0x68) {
+        index -= 0x68;
+        vofs = 0x10;
+        pal = g_SystemPalette2;
+    } else {
+        vofs = 0;
+        pal = g_SystemPalette1;
+    }
+    *(u16 *)(*(u8 **)(D_800C3EA4 + 0xA230) + D_800CCB34 * 0x28 + 0xE) = pal;
+    *(u16 *)(*(u8 **)(D_800C3EA4 + 0xA230) + D_800CCB34 * 0x28 + 0x5E) = pal;
+    func_80076CE8((POLY_FT4 *)(*(u8 **)(D_800C3EA4 + 0xA230) + D_800CCB34 * 0x28), 0x30, 0x60, 0, index, 0x60, 0x68);
+    func_80076CE8((POLY_FT4 *)(*(u8 **)(D_800C3EA4 + 0xA230) + D_800CCB34 * 0x28 + 0x50), 0xB4, 0x60, 0x78, index, 0x60, 0x68);
+    func_80076CE8((POLY_FT4 *)(*(u8 **)(D_800C3EA4 + 0xA230) + D_800CCB34 * 0x28 + 0xA0), 0x98, 0x60, vofs, index, 0x10, 0x68);
+    func_80076CE8((POLY_FT4 *)(*(u8 **)(D_800C3EA4 + 0xA230) + D_800CCB34 * 0x28 + 0xF0), 0x11C, 0x60, vofs | 0x40, index, 0x10, 0x68);
+    *(u8 *)(*(u8 **)(D_800C3EA4 + 0xA230) + 0x668) = D_800CCB34;
+}
+*/
 void func_80090B90(s32 arg0, s32 arg1, s32 *pIndex, u8 *pCount) {
     u8 *p;
 
