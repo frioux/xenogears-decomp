@@ -67,7 +67,54 @@ extern void func_80093354(void *);
 extern s32 func_80093A5C(s32, s32);
 extern void func_80039E60(s32);
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_80077CC0);
+extern void HeapFree(void *pMem);
+extern void func_80039FF8(void);
+extern void func_8003852C(void *p);
+extern void func_80084818(void);
+extern void func_80086568(void);
+extern void func_800866C8(void);
+extern void func_80074F04(void);
+extern void func_800750DC(void);
+extern void func_80088FF4(void);
+extern void func_80089128(void);
+extern void func_80097D64(void);
+extern void func_800976A0(void);
+extern s32 D_8009BC38;
+extern s32 D_8009BCB0;
+extern s32 D_8009BC3C;
+extern s32 D_8009BCB4;
+extern s32 D_8009C180;
+extern s16 D_8006F94E;
+extern s16 D_8006F950;
+extern s16 D_8006F954;
+extern s32 D_8009BBC4;
+
+void func_80077CC0(void) {
+    u16 v;
+
+    func_80039FF8();
+    func_8003852C(D_8006259C);
+    HeapFree(D_8006259C);
+    func_80084818();
+    func_80086568();
+    func_800866C8();
+    func_80074F04();
+    func_800750DC();
+    func_80088FF4();
+    func_80089128();
+    func_80097D64();
+    HeapFree(D_8009BC38);
+    HeapFree(D_8009BCB0);
+    HeapFree(D_8009BC3C);
+    HeapFree(D_8009BCB4);
+    HeapFree(D_8009C180);
+    func_800976A0();
+    v = *(u16 *)&D_8009BD3A;
+    D_8006F94E = 0x10E;
+    D_8006F954 = 0;
+    D_8009BBC4 = 1;
+    D_8006F950 = v;
+}
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_80077DC8);
 /* 70.00%: identical instruction multiset and registers; only the position of the
    WorldMapActor store cluster differs (original puts addu/sh 0x20/sw 0x58/54/50
@@ -105,7 +152,33 @@ s32 func_80078948(void) {
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_80078950);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_80078A60);
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_80078D24);
+void func_80078D24(void) {
+    u16 v;
+
+    func_80039FF8();
+    func_8003852C(D_8006259C);
+    HeapFree(D_8006259C);
+    func_80084818();
+    func_80086568();
+    func_800866C8();
+    func_80074F04();
+    func_800750DC();
+    func_80088FF4();
+    func_80089128();
+    func_80097D64();
+    HeapFree(D_8009BC38);
+    HeapFree(D_8009BCB0);
+    HeapFree(D_8009BC3C);
+    HeapFree(D_8009BCB4);
+    HeapFree(D_8009C180);
+    func_800976A0();
+    v = *(u16 *)&D_8009BD3A;
+    D_8006F94E = 0x110;
+    D_8006F954 = 0;
+    D_8009BBC4 = 1;
+    D_8006F950 = v;
+}
+
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_80078E2C);
 /* 30.80%: instruction multiset is identical; source order already matches the
    original, but gcc's scheduler sinks the WorldMapActor stores to the end of the
@@ -200,7 +273,22 @@ s32 func_8007A568(void) {
     return 3;
 }
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_8007A570);
+s32 func_8007A570(s32 index) {
+    WorldMapActor *p;
+    WorldMapState *s;
+    SVECTOR *pScratch;
+
+    p = D_8009BE24 + index;
+    s = D_8009C620;
+    p->unk4 = 0;
+    pScratch = (SVECTOR *)((u8 *)PSX_SCRATCH + 0xA0);
+    pScratch->vx = s->unk8;
+    pScratch->vy = s->unkC;
+    pScratch->vz = s->unk10;
+    func_80089160(0xA, (s32)pScratch, 0);
+    return 3;
+}
+
 /* 92.11%: a `s16 *dst = (s16 *)((u8 *)PSX_SCRATCH + 0xA0)` local (rather than
    three separate `*(s16 *)(PSX_SCRATCH + 0xA0/0xA2/0xA4)` casts, which scored
    67.74%) puts the lui/ori for $a1 where the original has them, and the stores
