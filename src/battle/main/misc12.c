@@ -108,16 +108,21 @@ u32 func_80084108(u8 arg0, u8 arg1) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_800841E0);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80084548);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80084750);
-/* 78.20%: both loops and the body match; the only remaining difference is the second
-   loop's exit: the original runs it as a countdown (`li s3,8; addiu s3,s3,-1; bgez`)
-   with `i++` stolen into the beqz delay slot, ours keeps `addiu i,1; slti` in the latch.
-   A do-while spelling compiles to the identical (non-countdown) code, and gcc's doloop
-   pass does not fire on this loop because of the two calls in the body. The first loop
-   IS a pointer loop (`p = D_800C3E9B; for (i=0;i<12;i++) *p-- = 0xFF;`) - any
-   `D_800C3E90[i]` spelling gives indexed addressing and no countdown.
+/* 81.43%: this unit's gcc does NOT reverse loops (func_80085350's `for (i=0;i<11;i++)`
+   keeps `slti`), so the second loop's countdown `addiu s3,s3,-1 / bgez s3` is
+   SOURCE-WRITTEN, not check_dbra_loop: it is `for (i = 3, k = 8; --k >= 0; i++)`.
+   First loop matches (single-store loop IS reversed by check_dbra_loop).
+   The 79.72% variant below is the shape retail actually emits (`li s3,0x8` early, then
+   `addiu s3,s3,-1` + `bltz s3` entry guard, then `li s2,0x3`): it only appears when
+   `k = 8;` is a separate statement BEFORE the first loop, because jump.c then cannot
+   fold `8-1<0` away (different basic block). What is still off in that variant is
+   instruction order (retail: move s4,zero / addiu s3,-1 / stores / bltz / li s2,3)
+   and one extra callee-saved register: retail keeps `i` in s1 AND s2 because reorg
+   stuffed `i++` into the beqz delay slot. 78.20% was the original indexed spelling.
 u8 func_80084750(u8 arg0) {
     s32 i;
     s32 n;
+    s32 k;
     u8 *p;
 
     p = D_800C3E9B;
@@ -127,7 +132,7 @@ u8 func_80084750(u8 arg0) {
     n = 0;
     D_800D3274 = 0;
     D_800C3D64 = 0;
-    for (i = 3; i < 11; i++) {
+    for (i = 3, k = 8; --k >= 0; i++) {
         if (func_80083FF4(arg0, i) != 0) {
             D_800C3E90[n] = i;
             D_800C3D64 |= func_80089C08(i);
