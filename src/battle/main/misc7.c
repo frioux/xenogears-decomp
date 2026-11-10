@@ -19,10 +19,31 @@ extern u8 D_800CCE3E[];
 
 u8 func_8001BD40(int, u8);
 u16 func_80089B50(int, u16);
+s32 func_80079E7C(u16);
+s32 func_80079ED8(u8, u8, u8, s32);
+s32 func_8007A280(u8, u8, s32, s32);
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007B424);
+/* best: 90.81%. The pTable = (u8 *)pField + 0x10 form is what puts the
+   addiu 0x10 in the jal delay slot like the original. Remaining gap is the
+   allocator: the original keeps slot in s0 and base+0x10 in s1, gcc folds
+   slot+base into s0 before the call and needs one saved register fewer.
+
+void func_8007B424(u8 **p, u8 index) {
+    u16 *pField = (u16 *)(D_800D3420 + index * 0x40);
+    u8 *pTable = (u8 *)pField + 0x10;
+    u8 value = func_80079E7C(pField[(*p)[3]]);
+
+    pTable[(*p)[1]] = func_80079ED8(value, (*p)[2], 0, 1);
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007B4B8);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007B578);
+void func_8007B578(u8 **p, u8 index) {
+    u16 *pTable = (u16 *)(D_800D3420 + index * 0x40);
+    u8 value = func_80079E7C(pTable[(*p)[3]]);
+
+    pTable[(*p)[1]] = func_8007A280(value, (*p)[2], 0, 1);
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007B608);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007B6C0);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007B7B0);
