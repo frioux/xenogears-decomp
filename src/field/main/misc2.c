@@ -60,6 +60,10 @@ void FieldComputeSceneMatrices(void) {
 // `ppActors` assigned before the scale block. gcc folds the symbol address into a
 // fresh %hi/%lo pair at each dereference in every form; retail's own `lui/addiu
 // s1` says the base is a constant there, so this is not the runtime-base case.
+// Not a preset question either (try_flags on the 85.50% form): -O3 85.25, -G4
+// 85.25, gcc-2.6.0 84.62, gcc-2.7.2-cdk 85.25 - so the unit cannot be switched to
+// cdk on this function's account. Same wall as func_8007254C and func_8007520C
+// below: every one of this unit's convertible stubs is parked on it.
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80072254);
 /*
