@@ -10,7 +10,7 @@ extern u_char func_801CD2AC(void);
 extern void func_801CD81C(MenuCharacter* pCharacter, u_char arg1, u_char arg2, s32 arg3, s32 arg4, u_char arg5);
 extern void func_801CDB1C(MenuCharacter* pCharacter, u_char arg1, u_char arg2, s32 arg3, s32 arg4);
 extern void func_801CDC6C(MenuCharacter* pCharacter, u_char arg1, u_char arg2, s32 arg3, s32 arg4, u_char arg5);
-extern void func_801CE198(s32 count, SVECTOR* pVertices, POLY_FT4* pPolys, u_char renderContext);
+extern void func_801CE198(s32 count, SVECTOR* pVertices, POLY_FT4* pPolys, s32 renderContext);
 extern void func_801CE2B4(int length, POLY_FT4* pPolys, int renderContext);
 extern void func_801CE860(void);
 extern void func_801CF37C(void);
@@ -22,14 +22,8 @@ extern void func_801D22F4(s32 arg0);
 extern void func_801D2484(void);
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc4", func_801CD2AC);
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc4", func_801CD710);
-/* 98.36%: one instruction off.  Retail compares the switch on a fresh
-   `ori v0,1` and sinks `result = 1` into that branch's delay slot; gcc reuses
-   the result register as the compare constant.  Tried: initializer at
-   declaration, assignment before/after the two calls, a local copy of
-   subMenuChoice, then/else flipped in case 2 (only this order is right).
 s32 func_801CD710(u_char arg0) {
-    s32 result = 1;
+    u_char result = 1;
     u8 choice;
 
     func_801D22F4(0);
@@ -65,7 +59,6 @@ s32 func_801CD710(u_char arg0) {
     func_801D2484();
     return result;
 }
-*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc4", func_801CD81C);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc4", func_801CDB1C);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc4", func_801CDC6C);
@@ -77,6 +70,27 @@ void func_801CE0CC(MenuCharacter* pCharacter, u_char arg1, u_char arg2, s32 arg3
     pCharacter->renderContext = ((u_char*)g_Menu)[0x308];
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc4", func_801CE198);
+/* 96.06%: only ordering of the compiler-made induction variables differs.  The
+   4th argument must be s32 (a u_char parameter adds an andi and loses 8%).
+   Retail initialises the poly index IV before the loop-invariant li's and
+   updates it first in the latch; gcc 2.7.2 does both last.  Tried: index as a
+   local recomputed from i (best), index hoisted before the loop with += 2 in
+   the body and in the for-increment, u_char vs s32 parameter.
+void func_801CE198(s32 count, SVECTOR* pVertices, POLY_FT4* pPolys, s32 renderContext) {
+    s32 index;
+    s32 i;
+    long interpolated;
+    long flag;
+
+    for (i = 0; i < count; i++) {
+        index = 2 * i + renderContext;
+        RotTransPers4(&pVertices[2 * i], &pVertices[2 * i + 1], &pVertices[2 * i + 2],
+                      &pVertices[2 * i + 3], (long*)&pPolys[index].x0, (long*)&pPolys[index].x1,
+                      (long*)&pPolys[index].x2, (long*)&pPolys[index].x3, &interpolated, &flag);
+        AddPrim(&g_Menu->pGfxEnv->ot[4], &pPolys[index]);
+    }
+}
+*/
 void func_801CE2B4(int length, POLY_FT4* pPolys, int renderContext) {
     s32 i;
 
@@ -124,6 +138,33 @@ void func_801CE464(void) {
     }
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc4", func_801CE540);
+/* 92.14%: every instruction is right except (a) retail does `i++` in the beqz
+   delay slot, i.e. before the body, while gcc keeps it at the latch, and (b)
+   the second AddPrim computes +0x50 before loading pGfxEnv.  Putting the
+   increment in the if condition (i++ in the subscript) fixes the delay slot but
+   makes the scheduler hoist the pData load above the flag load (88.88%).
+   Also tried: continue-guard, separate u8 flag local, both statement orders.
+void func_801CE540(void) {
+    s32 i;
+    u8* pData;
+
+    for (i = 0; i < 3; i++) {
+        pData = (u8*)g_Menu->unk39C[i];
+        if (((u8*)g_Menu->pManager)[i]) {
+            AddPrim(&g_Menu->pGfxEnv->ot[4], (void*)(pData + pData[0x1270] * sizeof(POLY_FT4)));
+            AddPrim(&g_Menu->pGfxEnv->ot[4],
+                    (void*)(pData + pData[0x1270] * sizeof(POLY_FT4) + 0x50));
+            func_801CE2B4(pData[0x1279], (POLY_FT4*)(pData + 0xA0), pData[0x1270]);
+            func_801CE2B4(pData[0x1273], (POLY_FT4*)(pData + 0xAF0), pData[0x1270]);
+            func_801CE2B4(pData[0x1274], (POLY_FT4*)(pData + 0xBE0), pData[0x1270]);
+            func_801CE2B4(pData[0x1275], (POLY_FT4*)(pData + 0xCD0), pData[0x1270]);
+            func_801CE2B4(pData[0x1276], (POLY_FT4*)(pData + 0xD70), pData[0x1270]);
+            func_801CE2B4(pData[0x1277], (POLY_FT4*)(pData + 0xE10), pData[0x1270]);
+            func_801CE2B4(pData[0x1271], (POLY_FT4*)(pData + 0x910), pData[0x1270]);
+        }
+    }
+}
+*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc4", func_801CE660);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc4", func_801CE860);
 void func_801CEB5C(void) {
