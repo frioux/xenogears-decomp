@@ -46,66 +46,72 @@ void func_801E1398(void) {
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E1418);
 
-/* objdiff 68.19% (300 bytes vs 296). Recovered shape: returns the average
-   percentage of 7 gear-stat slots, 0 if nothing was counted. Averages
-   weight[i] * 100 / value[i] over the slots, clamped to 100, where
-   weight = ((u16*)((u8*)&g_GameState.characters[charId] + 0x90))[i] (charId =
-   g_Menu->pManager->currentCharacterIDs[slot]) and value comes from a table at
-   ((u8*)g_Menu->unk438)[0x2578] with stride 0x110 per charId and 0xE per index.
-   Retail skips the whole thing (returns 0) for index >= 7 unless
-   g_GameState.unk22B6 & 0x4000. Remaining diffs: retail keeps 0xFFFF in a
-   `li v0` delay slot where 2.7.2 hoists it to t3, the if/else layout is
-   inverted (retail falls through into the weight != 0 path), the loop counter
-   is an int (slti, not sltiu) and slot/index registers are swapped (a0 is
-   copied to v1 there, a1 to t2 here).
-   u32 func_801E1418(u8 slot, u8 index) {
-       u8 charId;
-       u16* pWeight;
-       u16* pRow;
-       u16* pTable;
-       u32 weight;
-       u32 value;
-       u32 total;
-       u32 count;
-       u32 i;
-       u32 pct;
+/* objdiff 75.33% (296 bytes, same size; was 68.19% with the old if/else order).
+   Recovered shape and the details that are now settled: charId =
+   g_Menu->pManager->currentCharacterIDs[slot]; weight = *pWeight++ where pWeight
+   = (u16*)((u8*)&g_GameState.characters[charId] + 0x90); value = pRow[i] where
+   pRow = (u8*)pTable + charId * 0x110 + index * 0xE and
+   pTable = *(u32*)((u8*)g_Menu->unk438 + 0x2578); total/count are u32, the loop
+   counter is a signed int (retail ends the loop with slti, not sltiu). The
+   weight != 0 test comes FIRST in the source (retail branches over it into the
+   `else if (value != 0) count++;` block) -- writing `if (weight == 0)` first
+   costs 7 points and 4 bytes.
+   Residue: retail recomputes charId * 0x110 INSIDE the loop and keeps
+   `li v0,0xffff` in the loop, i.e. loop.c did not hoist either; writing the row
+   address as one flat expression inside the loop body does reproduce that
+   (no hoisting, li stays) but gcc canonicalises the operand order (it emits the
+   index * 0xE chain before the charId chain, retail the reverse) and puts charId
+   in a1 instead of a3, which scores 66.44%. Any hoisted row pointer scores
+   75.33% because loop.c lifts it into the pre-header. Both 2.6.0 and 2.7.2 emit
+   byte-identical code for this function (75.33 either way), so this is not a
+   preset question.
+u32 func_801E1418(u8 slot, u8 index) {
+    u8 charId;
+    u16* pWeight;
+    u16* pRow;
+    u16* pTable;
+    u32 weight;
+    u32 value;
+    u32 total;
+    u32 count;
+    int i;
+    u32 pct;
 
-       total = 0;
-       if ((u32)index >= 7 && (g_GameState.unk22B6 & 0x4000) == 0) {
-           return 0;
-       }
-       count = 0;
-       i = 0;
-       charId = g_Menu->pManager->currentCharacterIDs[slot];
-       pWeight = (u16*)((u8*)&g_GameState.characters[charId] + 0x90);
-       pTable = *(u16**)((u8*)g_Menu->unk438 + 0x2578);
-       pRow = (u16*)((u8*)pTable + charId * 0x110 + index * 0xE);
-       for (i = 0; i < 7; i++) {
-           weight = *pWeight++;
-           value = pRow[i];
-           if (weight == 0) {
-               if (value != 0) {
-                   count++;
-               }
-           } else if (value != 0) {
-               if (value == 0xFFFF) {
-                   count++;
-               } else {
-                   pct = weight * 100 / value;
-                   if (pct < 100) {
-                       total += pct;
-                   } else {
-                       total += 100;
-                   }
-                   count++;
-               }
-           }
-       }
-       if (count == 0) {
-           return 0;
-       }
-       return total / count;
-   }
+    total = 0;
+    if ((u32)index >= 7 && (g_GameState.unk22B6 & 0x4000) == 0) {
+        return 0;
+    }
+    count = 0;
+    charId = g_Menu->pManager->currentCharacterIDs[slot];
+    pWeight = (u16*)((u8*)&g_GameState.characters[charId] + 0x90);
+    pTable = *(u16**)((u8*)g_Menu->unk438 + 0x2578);
+    pRow = (u16*)((u8*)pTable + charId * 0x110 + index * 0xE);
+    for (i = 0; i < 7; i++) {
+        weight = *pWeight++;
+        value = pRow[i];
+        if (weight != 0) {
+            if (value != 0) {
+                if (value == 0xFFFF) {
+                    count++;
+                } else {
+                    pct = weight * 100 / value;
+                    if (pct < 100) {
+                        total += pct;
+                    } else {
+                        total += 100;
+                    }
+                    count++;
+                }
+            }
+        } else if (value != 0) {
+            count++;
+        }
+    }
+    if (count == 0) {
+        return 0;
+    }
+    return total / count;
+}
 */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E1544);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E1AC8);
@@ -204,37 +210,44 @@ void func_801E3088(u8 arg0) {
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E31C0);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E35BC);
 
-/* objdiff 80.36% (280 bytes vs 272). Structure is right: characters[charIndex]
-   (pChar) / characters[targetIndex] (pTarget) / gears[gearId] (pGear) and the
-   arg4 branch, but retail loads hp/maxHp (0x4C/0x4E) again for the clamp while
-   2.7.2 forwards the stored value (andi 0xffff + sltu), and the pSlots load
-   (pDressingRoom->unk20[charIndex] + slotIndex * sizeof(GameCharacter)) is
-   emitted after the index chain instead of before it. Retried with a `value`
-   local, pChar->ether vs the inline access, and both comparisons: 80.36%.
-   void func_801E35BC(MenuDressingRoom* pDressingRoom, u8 charIndex, u8 targetIndex, u8 slotIndex, u8 isGear) {
-       GameCharacter* pChar;
-       GameCharacter* pTarget;
-       GameCharacter* pSlots;
-       GameGear* pGear;
-       u32 value;
+/* objdiff 96.71% (280 bytes, same size; 80.36% was the previous 2.7.2 attempt).
+   Structure is complete: pTarget->hp += value and both clamps (which reload the
+   stored halfword exactly as retail does) already match byte for byte, as does
+   the isGear else-branch. The only residue is register allocation plus load
+   scheduling in the first nine instructions: retail loads the slot pointer into
+   a0 straight after forming pDressingRoom + charIndex*4 and puts ether in v1
+   (mult v1,v0), this compile keeps the pointer in v1, ether in a0. Note for
+   whoever retries: the pSlots table is pDressingRoom->unk20[charIndex] and each
+   slot record is 0x28 bytes with a u8 at 0x11 -- NOT sizeof(GameCharacter)
+   (0xA4); using GameCharacter* gave a 288-byte object and 80.36%. Retried:
+   single-statement indexing (93.86%), &pSlots[slotIndex*0x28] vs byte offset
+   (96.71 both), swapped multiply operands (93.33%), gcc-2.7.2-cdk (84.13%).
+void func_801E35BC(MenuDressingRoom* pDressingRoom, u8 charIndex, u8 targetIndex, u8 slotIndex, u8 isGear) {
+    GameCharacter* pChar;
+    GameCharacter* pTarget;
+    u8* pSlots;
+    u8* pSlot;
+    GameGear* pGear;
+    u32 value;
 
-       pChar = &g_GameState.characters[charIndex];
-       pTarget = &g_GameState.characters[targetIndex];
-       pGear = &g_GameState.gears[g_GameState.characters[charIndex].gearId];
-       if (isGear == 0) {
-           pSlots = ((GameCharacter**)pDressingRoom->unk20)[charIndex];
-           value = pChar->ether * pSlots[slotIndex].unk0[0x11];
-           pTarget->hp = pTarget->hp + value;
-           if (pTarget->hp > pTarget->maxHp) {
-               pTarget->hp = pTarget->maxHp;
-           }
-       } else {
-           pGear->hp += pGear->maxHp / 10;
-           if (pGear->maxHp < pGear->hp) {
-               pGear->hp = pGear->maxHp;
-           }
-       }
-   }
+    pChar = &g_GameState.characters[charIndex];
+    pTarget = &g_GameState.characters[targetIndex];
+    pGear = &g_GameState.gears[g_GameState.characters[charIndex].gearId];
+    if (isGear == 0) {
+        pSlots = ((u8**)pDressingRoom->unk20)[charIndex];
+        pSlot = &pSlots[slotIndex * 0x28];
+        value = pChar->ether * pSlot[0x11];
+        pTarget->hp = pTarget->hp + value;
+        if (pTarget->hp > pTarget->maxHp) {
+            pTarget->hp = pTarget->maxHp;
+        }
+    } else {
+        pGear->hp += pGear->maxHp / 10;
+        if (pGear->maxHp < pGear->hp) {
+            pGear->hp = pGear->maxHp;
+        }
+    }
+}
 */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E36D4);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E3A80);
@@ -281,15 +294,6 @@ void func_801E4258(MenuDressingRoom* pDressingRoom, u8 gearIndex) {
     pGear->baseEtherDefense = pArmor->unkA;
 }
 
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E42AC);
-
-/* PRESET_260: 100.00% under gcc-2.6.0, 89.56% under this unit's Default
-   (gcc-2.7.2). Only difference: retail keeps `fuel` in $a0 from an early load
-   and re-loads maxFuel at the clamp, while 2.7.2 gives the register to maxFuel
-   and re-loads fuel. Same source shape as the matched func_801D62A4 in
-   gear_shop_menu (XenoLibrary = gcc-2.6.0). All eight already-matched functions
-   in this file also score 100.00 under 2.6.0, so misc10 looks like a XenoLibrary
-   unit. `u32 fuel` instead of `u16` changes nothing (also 89.56%).
 void func_801E42AC(MenuDressingRoom* pDressingRoom, u8 gearIndex) {
     GameGear* pGear;
     GearEngine* pEngine;
@@ -312,4 +316,3 @@ void func_801E42AC(MenuDressingRoom* pDressingRoom, u8 gearIndex) {
         pGear->fuel = pGear->maxFuel;
     }
 }
-*/
