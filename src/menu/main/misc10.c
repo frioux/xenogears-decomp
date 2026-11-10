@@ -188,10 +188,13 @@ void func_801E4258(MenuDressingRoom* pDressingRoom, u8 gearIndex) {
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E42AC);
 
-/* 100.00% under gcc-2.6.0, 89.56% under the unit's gcc-2.7.2: retail keeps
-   fuel in a0 from an early load and re-loads maxFuel for the clamp store,
-   while 2.7.2 CSEs the second load across the sb to 0x3F.  This is the same
-   source shape as the matched func_801D62A4 in gear_shop_menu (XenoLibrary).
+/* PRESET_260: 100.00% under gcc-2.6.0, 89.56% under this unit's Default
+   (gcc-2.7.2). Only difference: retail keeps `fuel` in $a0 from an early load
+   and re-loads maxFuel at the clamp, while 2.7.2 gives the register to maxFuel
+   and re-loads fuel. Same source shape as the matched func_801D62A4 in
+   gear_shop_menu (XenoLibrary = gcc-2.6.0). All eight already-matched functions
+   in this file also score 100.00 under 2.6.0, so misc10 looks like a XenoLibrary
+   unit. `u32 fuel` instead of `u16` changes nothing (also 89.56%).
 void func_801E42AC(MenuDressingRoom* pDressingRoom, u8 gearIndex) {
     GameGear* pGear;
     GearEngine* pEngine;
