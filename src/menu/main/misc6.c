@@ -38,7 +38,46 @@ void func_801D1CA0(void) {
     }
     func_801D1258();
 }
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc6", func_801D1D40);
+void func_801D1D40(void) {
+    SystemMenu *pMenu = g_Menu;
+
+    switch (pMenu->transitionEffectState) {
+        case 4:
+            pMenu->translation.vz = 0x200;
+            pMenu->rotation.vx = pMenu->rotation.vy = pMenu->rotation.vz = 0;
+            pMenu->translation.vx = pMenu->translation.vy = 0;
+            pMenu->transitionEffectState = 2;
+            break;
+        case 3:
+            pMenu->translation.vz = 0x800;
+            pMenu->rotation.vx = pMenu->rotation.vy = pMenu->rotation.vz = 0;
+            pMenu->translation.vx = pMenu->translation.vy = 0;
+            pMenu->transitionEffectState = 1;
+            break;
+        case 2:
+            pMenu->rotation.vy -= 0x60;
+            pMenu->translation.vz += 0x40;
+            if (pMenu->translation.vz >= 0xE00) {
+                pMenu->transitionEffectState = 0;
+            }
+            break;
+        case 1:
+            pMenu->rotation.vx += 0x7C;
+            pMenu->translation.vz -= 0x30;
+            if (pMenu->translation.vz < 0x200) {
+                pMenu->translation.vz = 0x200;
+                pMenu->rotation.vz = 0;
+                pMenu->rotation.vx = 0;
+                pMenu->rotation.vy = 0;
+                pMenu->transitionEffectState = 0;
+            }
+            break;
+    }
+    RotMatrix(&g_Menu->rotation, &g_Menu->matTransform);
+    TransMatrix(&g_Menu->matTransform, &g_Menu->translation);
+    SetRotMatrix(&g_Menu->matTransform);
+    SetTransMatrix(&g_Menu->matTransform);
+}
 void func_801D1E80(void) {
     g_Menu->transitionEffectState = MENU_OPEN_ANIMATION_START;
     func_801C8574(0x5B);
