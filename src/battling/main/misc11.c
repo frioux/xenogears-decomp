@@ -8,6 +8,30 @@ extern u8 *D_800927CC;
 extern u8 *D_800927D0;
 extern u8 D_80095968[];
 
+typedef struct {
+    /* 0x00 */ u8 pad0[0x4];
+    /* 0x04 */ u8 unk4;
+    /* 0x05 */ u8 unk5;
+    /* 0x06 */ u8 unk6;
+    /* 0x07 */ u8 pad7[0xD];
+    /* 0x14 */ u8 unk14;
+    /* 0x15 */ u8 unk15;
+    /* 0x16 */ u8 unk16;
+    /* 0x17 */ u8 pad17[0x9];
+    /* 0x20 */ s16 unk20;
+    /* 0x22 */ s16 unk22;
+    /* 0x24 */ s16 unk24;
+    /* 0x26 */ u8 pad26[0x2];
+    /* 0x28 */ s16 unk28;
+    /* 0x2A */ s16 unk2A;
+    /* 0x2C */ s16 unk2C;
+    /* 0x2E */ u8 pad2E[0x2];
+    /* 0x30 */ s16 unk30;
+    /* 0x32 */ u8 pad32[0x2];
+} BattlingSlot; // Size: 0x34
+
+extern BattlingSlot D_80095938[];
+
 extern void *func_8008820C();
 extern void func_80085EC8(void *);
 
@@ -156,7 +180,39 @@ void func_80087E38(s32 *arg0) {
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc11", func_80087EA0);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc11", func_8008820C);
+/* Best 40.72%: instruction multiset is right, only the addressing base differs.
+   The original keeps p in a2 and stores at 0x30/0x20/... off it; gcc picks
+   p+0x2C as the canonical base and reaches the rest with negative offsets, so
+   the loop induction var and the return copy land in different registers.
+   Tried: p++ in the for-increment (this shape, 40.72).
+void *func_8008820C(s32 *arg0, s32 *arg1, s32 arg2) {
+    BattlingSlot *p = D_80095938;
+    s32 dim14 = (arg2 & 2) * 0x7F;
+    s32 dim15 = (arg2 & 4) * 0x3F;
+    s32 dim16 = (arg2 & 1) * 0xFF;
+    s32 i;
 
+    for (i = 0; i < 0x64; i++, p++) {
+        if (p->unk30 == 0) {
+            p->unk30 = 1;
+            p->unk20 = arg0[0];
+            p->unk22 = arg0[1];
+            p->unk24 = arg0[2];
+            p->unk28 = arg1[0];
+            p->unk2A = arg1[1];
+            p->unk4 = dim14;
+            p->unk5 = dim15;
+            p->unk6 = dim16;
+            p->unk14 = dim14;
+            p->unk15 = dim15;
+            p->unk16 = dim16;
+            p->unk2C = arg1[2];
+            return p;
+        }
+    }
+    return NULL;
+}
+*/
 void func_800882D4(s32 arg0, s32 *arg1, s32 arg2, s16 arg3) {
     u8 *p = func_8008820C(arg0, arg1, arg2);
 
