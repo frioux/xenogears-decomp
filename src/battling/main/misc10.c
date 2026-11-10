@@ -110,17 +110,20 @@ void func_80084AE0(void) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_80084B48);
 
-/* 95.98% - one instruction off: the original sign-extends the decremented value
-   into its own register (`sll v0; sra a1,v0,0x10; bgtz a1`), ours lets combine
-   fold the sra into the branch (`sll v0; bgtz v0`), so the frame is 4 bytes of
-   layout off. Tried: `D_80092780 -= 4` + test the global, `x = x - 4` + test,
-   an s16 local for the store, an explicit (s16) cast, an int local read back.
-   All 95.98%.
+/* 95.98% - frame, the `addu v1,v0` copy, the store and both arms now line up
+   (inverted arms: expired case is the fall-through). One instruction off: the
+   original sign-extends the decremented value into its own register
+   (`sll v0; sra a1,v0,0x10; bgtz a1; nop`), ours lets combine fold the sra
+   into the branch (`sll v0; bgtz v0; move a1,zero`). Tried: `D_80092780 -= 4`
+   + test the global, s16 local for store and test, s32 local with `(s16)timer`
+   and `(s32)timer` casts, int local read back, non-inverted arms (`timer > 0`,
+   which also costs the 0x20 frame) - all 95.98%.
 void func_80084B48(void) {
     s16 timer;
 
-    if (D_80092780 != 0) {
-        timer = D_80092780 - 4;
+    timer = D_80092780;
+    if (timer != 0) {
+        timer = timer - 4;
         D_80092780 = timer;
         if ((s32)timer <= 0) {
             D_80092780 = 0;
