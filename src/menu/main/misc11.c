@@ -127,6 +127,36 @@ void func_801E64E0(void) {
     *(volatile u8*)&g_Menu->pManager->unkB = 0;
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc11", func_801E6544);
+/* Best: 68.70% (same under gcc-2.6.0).  The transformation is an in-place
+   compaction of each 16-byte block: 4 groups of (x[0], x[1]|x[2], x[3]) from
+   x[0..3] go to p[3g..3g+2], stores ascending.  Every instruction matches once
+   the base register does: retail keeps the loop pointer in $a2 and uses
+   offsets 0..0xF, while gcc always invents a SECOND induction variable for the
+   group (addu $6,$7,11 in the entry block, offsets -10..4 in the body) - it
+   picks 0xB, the highest offset that is both read and written, as the new base.
+   Reversing the statement order moves the secondary base to the last offset
+   (+1), duplicating the self store does not change it, and |= for the OR sites
+   changes nothing.  Volatile on the first store keeps the pair but splits $a3
+   in two bases as well.
+void func_801E6544(u8* p) {
+    int i;
+
+    for (i = 0; i < 0x10; i++, p += 0x10) {
+        p[0x0] = p[0x0];
+        p[0x1] = p[0x1] | p[0x2];
+        p[0x2] = p[0x3];
+        p[0x3] = p[0x4];
+        p[0x4] = p[0x5] | p[0x6];
+        p[0x5] = p[0x7];
+        p[0x6] = p[0x8];
+        p[0x7] = p[0x9] | p[0xA];
+        p[0x8] = p[0xB];
+        p[0x9] = p[0xC];
+        p[0xA] = p[0xD] | p[0xE];
+        p[0xB] = p[0xF];
+    }
+}
+*/
 s32 func_801E65E4(u8* p) {
     u8 hi;
     u8 lo;
