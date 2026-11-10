@@ -1,4 +1,5 @@
 #include "common.h"
+#include "psyq/libgpu.h"
 
 typedef struct {
     /* 0x0 */ u8* pBlocks;
@@ -259,3 +260,38 @@ void func_800A2D1C(BattleBlockPool* pPool) {
     pPool->pBlocks = NULL;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_800A2D5C);
+/* 65.07% (288 vs 284 bytes): structure and all offsets are recovered, but gcc
+   writes the poly fields through the poly base (0xC,0xD,0x14...) while retail
+   uses a sprite-based pointer (0x38,0x39,0x40...) walking 0x28, and retail's
+   outer loop test is `lh count; i++; count+1; slt`. Symbol map for the next
+   attempt: sprite+0x16 (s16) = -1, sprite+0x1E (s16) = 0, then two POLY_FT4 at
+   sprite+0x2C and sprite+0x54: clut = GetClut(0, 0x1CD),
+   tpage = GetTPage(0, 1, 0x380, 0), u0 = 0, v0 = 0xC1, u1 = 0, v1 = 0xC1,
+   u2 = 0xF, v2 = 0xC1, u3 = 0xF, v3 = 0xC1; stride 0x7C, count+1 sprites.
+void func_800A2D5C(BattleSpritePool* pPool) {
+    BattleSprite* pSprite;
+    POLY_FT4* pPoly;
+    s32 i;
+    s32 j;
+
+    pSprite = (BattleSprite*)pPool->pBlocks;
+    for (i = 0; i <= pPool->count; i++, pSprite++) {
+        *(s16*)&pSprite->unk0C[0xA] = -1;
+        *(s16*)&pSprite->unk0C[0x12] = 0;
+        for (j = 0; j < 2; j++) {
+            pPoly = (POLY_FT4*)((u8*)pSprite + 0x2C + j * 0x28);
+            SetPolyFT4(pPoly);
+            SetSemiTrans(pPoly, 1);
+            pPoly->clut = GetClut(0, 0x1CD);
+            pPoly->tpage = GetTPage(0, 1, 0x380, 0);
+            pPoly->u2 = 0xF;
+            pPoly->u0 = 0;
+            pPoly->v0 = 0xC1;
+            pPoly->u1 = 0;
+            pPoly->v1 = 0xC1;
+            pPoly->v2 = 0xC1;
+            pPoly->u3 = 0xF;
+            pPoly->v3 = 0xC1;
+        }
+    }
+}
