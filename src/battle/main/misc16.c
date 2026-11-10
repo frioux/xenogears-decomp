@@ -57,6 +57,7 @@ extern u8 func_80085084(u16, u8, s32);
 extern void func_8008CCCC(u8);
 extern void func_8008CD28(u8);
 extern void func_8008AA74(u8);
+extern void func_80076CE8(POLY_FT4 *, s16, s16, u8, u8, s16, s16);
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008CDE4);
 /* 99.83%: byte-identical size (468) and instruction multiset; the only
@@ -424,6 +425,39 @@ void func_8009080C(u8 arg0, u8 arg1, u8 arg2) {
     p[0x66B] = 1;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8009093C);
+/* 36.86%: first attempt. The shape is right -- the slti 0x68 / -0x68 /
+   vofs 0x10 split, the two (idx*0x28 + K) palette sh stores, four
+   func_80076CE8(p, x, y, u, v, dx, dy) calls with the 0x60/0x10 dx and the
+   0x68 dy held in saved registers across them, and the trailing 0x668 store.
+   The gap is this unit's documented wall: retail materialises
+   `a2 = &D_800CCB34` (lui/addiu) and reloads `lw v0,0(a2)`, ours emits
+   `lui/lw D_800CCB34` at each use; retail also keeps pal in a1 and pBase in
+   a0 across the .L800909F4 join, so cc1 here reorders the two sh stores and
+   pushes the D_800CCB34*0x28 multiply around. Not attempted: a pPal/pBase
+   local pair (the same fold that parked func_80090C44 / func_80090E7C).
+void func_8009093C(s32 arg0) {
+    s32 index;
+    u16 vofs;
+    u16 pal;
+
+    index = arg0;
+    if (index >= 0x68) {
+        index -= 0x68;
+        vofs = 0x10;
+        pal = g_SystemPalette2;
+    } else {
+        vofs = 0;
+        pal = g_SystemPalette1;
+    }
+    *(u16 *)(*(u8 **)(D_800C3EA4 + 0xA230) + D_800CCB34 * 0x28 + 0xE) = pal;
+    *(u16 *)(*(u8 **)(D_800C3EA4 + 0xA230) + D_800CCB34 * 0x28 + 0x5E) = pal;
+    func_80076CE8((POLY_FT4 *)(*(u8 **)(D_800C3EA4 + 0xA230) + D_800CCB34 * 0x28), 0x30, 0x60, 0, index, 0x60, 0x68);
+    func_80076CE8((POLY_FT4 *)(*(u8 **)(D_800C3EA4 + 0xA230) + D_800CCB34 * 0x28 + 0x50), 0xB4, 0x60, 0x78, index, 0x60, 0x68);
+    func_80076CE8((POLY_FT4 *)(*(u8 **)(D_800C3EA4 + 0xA230) + D_800CCB34 * 0x28 + 0xA0), 0x98, 0x60, vofs, index, 0x10, 0x68);
+    func_80076CE8((POLY_FT4 *)(*(u8 **)(D_800C3EA4 + 0xA230) + D_800CCB34 * 0x28 + 0xF0), 0x11C, 0x60, vofs | 0x40, index, 0x10, 0x68);
+    *(u8 *)(*(u8 **)(D_800C3EA4 + 0xA230) + 0x668) = D_800CCB34;
+}
+*/
 void func_80090B90(s32 arg0, s32 arg1, s32 *pIndex, u8 *pCount) {
     u8 *p;
 
