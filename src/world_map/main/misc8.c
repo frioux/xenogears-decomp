@@ -251,6 +251,10 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_8008390C);
 // folds the stores to D_8009BD3A (0x400) and D_8009BD3C (0) into the later
 // reads of them (lui $v0,0x40 instead of lui/lh), so retail's compiler did
 // not forward store to load here. -O1 scores 67.46.
+// Tried: reading the flags as `*(volatile s16 *)&D_8009BD3A/3C` does force a
+// real load back, but gcc keeps the known value, so it emits
+// lhu + sll 0x10 + sra 0x4 instead of lh + sll 0xc and the allocation shifts
+// (72.84%). volatile on the stores alone changes nothing.
 /*
 s32 func_8008390C(s32 arg0) {
     WorldMapActor *pActor = &D_8009BE24[arg0];
