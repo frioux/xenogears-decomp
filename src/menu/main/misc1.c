@@ -7,9 +7,52 @@ extern u_char D_801EA524[]; // String IDs of the menu strings
 
 void func_801E7E68(MenuString* pStringList, u_char* pStringIdList, s32 yOffset, s32 count);
 
+void func_801C531C(u_char arg0);
+void func_801C7BF4(void);
+void func_801C8694(u_char arg0);
+s32 func_801CACF8(u_char a0, u_char a1, u_char a2);
+void func_801D1E80(void);
+void func_801D22F4(s32 arg0);
+void func_801D2484(void);
+
+extern u8 D_801E977A;
+extern u8 D_801EA8FC;
+extern u8 D_801E96A4;
+extern u8 D_801E96A5;
+
+extern u8 D_80059171;
+
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc1", func_801C531C);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc1", func_801C55A0);
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc1", func_801C57A4);
+
+void func_801C57A4(void) {
+    u_char shouldReset;
+
+    D_80059171 = 1;
+    D_801E977A = 0;
+    func_801D1E80();
+    shouldReset = 1;
+    while (g_Menu->transitionEffectState != 0) {
+        func_801C7BF4();
+    }
+    func_801D22F4(0);
+    if ((u_char)func_801CACF8(0x7D, 0xFF, 1) != 0 || D_801EA8FC != 0) {
+        if (func_801CACF8(0x80, 0xFF, 1) != 0) {
+            shouldReset = 0;
+        }
+    }
+    func_801D2484();
+    if (shouldReset) {
+        D_801E96A5 = 1;
+        D_801E96A4 = 1;
+        func_801C531C(0);
+        D_801E96A4 = 0;
+        D_801E96A5 = 0;
+    }
+    g_Menu->pManager->unk4 = 0;
+    g_Menu->pManager->unk3 = 0;
+    func_801C8694(D_80059171);
+}
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc1", func_801C58EC);
 
 void func_801C5B54(u_char isInitialization) {
@@ -130,7 +173,13 @@ void func_801C6D4C(void) {
     g_Menu->renderContext = 0;
 }
 
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc1", func_801C6D5C);
+void func_801C6D5C(void) {
+    g_Menu->unk4D8 = 0;
+    g_Menu->unk4CC = 0;
+    g_Menu->unk4D0 = 0;
+    g_Menu->unk4D9 = 0;
+    g_Menu->unk4D4 = 0;
+}
 
 /* Best: 69.23% (56 bytes vs the original's 52 - gcc groups the two byte stores).
 void func_801C6D5C(void) {
