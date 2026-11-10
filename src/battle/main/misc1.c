@@ -51,6 +51,7 @@ extern u16 func_80098AF8(s32, s32);
 extern void func_80079E18(s32);
 extern void func_80079E4C(s32);
 extern s32 SystemRenderStringEntry(u8 *, s32, s32, s32);
+extern s32 D_800CCB34;
 
 void func_80070E2C(void) {
     s32 first;
@@ -89,9 +90,11 @@ void func_80070EDC(void) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80070F40);
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_800716D8);
-/* 78.82% - original emits the return-value zeroing before the ra restore (nop in
-   the last jal's delay slot); gcc steals addiu sp into the jr's delay slot and
-   schedules lw ra before the return value. Same under gcc 2.7.2-cdk.
+/* 78.82% - the C below is correct: it scores 100.00% under gcc-2.6.0. This unit
+   is Default (2.6.0 breaks func_80071A38 to 99.05), and 2.7.2 orders the tail
+   differently: ours is `lw ra; move v0,zero; jr ra; addiu sp` where the original
+   is `addu v0,zero,zero; lw ra; addiu sp; jr ra; nop` (2.7.2 fills the jr's delay
+   slot with the sp adjust and schedules lw ra before the return-value move).
    Tried: return 0, s32 ret = 0 at top / after the call, ret = 0; return ret.
 s32 func_800716D8(void) {
     if (D_8005917C[0] != -1) {
@@ -104,9 +107,13 @@ s32 func_800716D8(void) {
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_8007171C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_800718BC);
-/* 87.57% - original derives the second table (0x800D2DF0) as &D_800D2E06 - 0x16
-   with addiu off the live base register; gcc re-forms its lui/addiu, or folds
-   the -0x16 into the sh immediate (84%) when the pointer is a local.
+/* 94.76% - the body below is EXACTLY right: it scores 100.00% under gcc-2.6.0
+   (so this unit is probably a 2.6.0 unit; see the note on func_800716D8). Under
+   the unit's 2.7.2 the only difference is the tail: 2.7.2 schedules `lw ra`
+   before the final `sh` and puts `addiu sp` in the `jr`'s delay slot.
+   The old 87.57% snag is solved: the second table must be spelled relative to the
+   first one, `D_800D2E06[i - 0xB]`, which is what makes gcc emit the original's
+   `addiu a0,v0,-0x16` instead of re-forming D_800D2DF0's lui/addiu.
 void func_800718BC(void) {
     u8 index;
 
@@ -115,7 +122,7 @@ void func_800718BC(void) {
         D_800D2DE4[index] = 0;
     }
     D_800D2E06[D_800C3EAC[0x2D3]] = func_80098AF8(D_800C3EAC[0x2D3], 0);
-    D_800D2DF0[D_800C3EAC[0x2D3]] = D_800D2E06[D_800C3EAC[0x2D3]];
+    D_800D2E06[D_800C3EAC[0x2D3] - 0xB] = D_800D2E06[D_800C3EAC[0x2D3]];
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80071964);
@@ -317,6 +324,31 @@ void func_800728B8(u8 *pPrim, s32 count, s16 index) {
 */
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80072938);
+/* 83.62% - body is otherwise exact: POLY_FT4 array subscripted by
+   `D_800CCB34 + i * 2` repeated per store (which is why the original reloads
+   D_800CCB34 four times per iteration), SetShadeTex first, then r0/g0, then b0.
+   The `!= 1` spelling is what reproduces the original's branch layout (beq to the
+   out-of-line r0/g0 = 0x80 block, fall through to r0 = 0x80 / g0 = 0).
+   Left: 2.7.2 keeps the index `i` in a callee-saved reg and re-does `sll i,1` each
+   iteration (6 saved regs, 0x30 frame) and re-masks `mode` in the loop; ours makes
+   `i*2` itself the loop induction and hoists `andi mode,0xFF` into the preheader
+   (5 saved regs, 0x28 frame), which also shifts s3-s5 down by one.
+void func_80072938(POLY_FT4 *pPrim, s32 first, s32 last, s32 mode) {
+    s32 i;
+
+    for (i = first; i < last; i++) {
+        SetShadeTex(&pPrim[D_800CCB34 + i * 2], 0);
+        if ((mode & 0xFF) != 1) {
+            pPrim[D_800CCB34 + i * 2].r0 = 0x80;
+            pPrim[D_800CCB34 + i * 2].g0 = 0;
+        } else {
+            pPrim[D_800CCB34 + i * 2].r0 = 0x80;
+            pPrim[D_800CCB34 + i * 2].g0 = 0x80;
+        }
+        pPrim[D_800CCB34 + i * 2].b0 = 0;
+    }
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80072A9C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80072DA8);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80072F38);
