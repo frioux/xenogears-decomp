@@ -4,6 +4,7 @@ extern u8 D_800C3EB7[];
 extern u16 D_800CCD64[];
 extern u8 D_800D301C[];
 extern u16 D_800D39DC;
+extern u8 D_800D3410[];
 extern u8 D_800D3420[];
 extern u8 D_800D3430[];
 
@@ -97,9 +98,24 @@ s32 func_8007ED58(u8 **arg0, u8 arg1) {
 
     return (pRow[p[1]] ^ pRow[p[2]]) != 0;
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc10", func_8007ED98);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc10", func_8007EDE0);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc10", func_8007EE28);
+s32 func_8007ED98(u8 **arg0, u8 arg1) {
+    u8 *p = *arg0;
+    u16 *pRow = (u16 *)(D_800D3420 + arg1 * 0x40);
+
+    return (pRow[p[1]] ^ pRow[p[2]]) != 0;
+}
+s32 func_8007EDE0(u8 **arg0, u8 arg1) {
+    u8 *p = *arg0;
+    u32 *pRow = (u32 *)(D_800D3410 + arg1 * 0x40);
+
+    return (pRow[p[1]] ^ pRow[p[2]]) == 0;
+}
+s32 func_8007EE28(u8 **arg0, u8 arg1) {
+    u8 *p = *arg0;
+    u32 *pRow = (u32 *)(D_800D3410 + arg1 * 0x40);
+
+    return pRow[p[1]] <= pRow[p[2]];
+}
 s32 func_8007EE70(u8 **arg0) {
     u8 *p = *arg0;
 
