@@ -189,6 +189,12 @@ BattleBlock* func_800A2330(BattleBlockPool* pPool) {
     return NULL;
 }
 */
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_800A23E8);
+/* 100.0 under gcc-2.6.0 (tools/scripts/try_flags.sh battle/main/misc21
+   func_800A23E8 --gcc gcc-2.6.0-psx), 80.53 under this unit's XenoBattleDiv
+   (2.7.2) preset, so the C below IS the match once the unit gets a 2.6.0 preset;
+   under 2.7.2 it emits 0x48 bytes vs retail 0x4c (the `return -1` placement and
+   mfhi landing in a2 instead of v1).
 s32 func_800A23E8(BattleBlockPool* pPool, BattleBlock* pBlock) {
     s32 index;
 
@@ -202,6 +208,7 @@ s32 func_800A23E8(BattleBlockPool* pPool, BattleBlock* pBlock) {
     pBlock->flag = 0;
     return index;
 }
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_800A2434);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_800A2704);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_800A2ACC);

@@ -190,6 +190,8 @@ void func_800AFC68(u8 *p) {
 }
 */
 
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800AFD98);
+
 void func_800AFF9C(u8 *p) {
     u8 unk10[0x10];
     s16 vec[3];
