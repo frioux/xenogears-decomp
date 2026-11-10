@@ -57,7 +57,10 @@ extern s32 D_8009283C;
 extern s32 D_80092840;
 extern s32 D_80092844;
 
+extern u8 D_800928A0;
+
 extern s32 rand(void);
+extern void func_80031870(u8* pLink, u32 addr);
 
 Misc16Work* func_8008D3F4(s32 arg0, s16* arg1);
 
@@ -78,7 +81,16 @@ void func_8008CEDC(u8* pArg0, u8* pArg1) {
     pArg0[0x16] = pArg1[0x76];
     *(Misc16Vec*)(pArg0 + 0x1C) = *(Misc16Vec*)(pArg0 + 0x10);
 }
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc16", func_8008CF30);
+void func_8008CF30(u8* pArg0, u8* pArg1) {
+    s32 buf[2];
+    u8* pObj;
+    s32 offset;
+
+    pObj = pArg0 + 0x10 + D_800928A0 * 0xC;
+    offset = RotTransPers((SVECTOR*)pArg0, (long*)(pObj + 8), (long*)buf, (long*)buf);
+    offset = offset >> 2;
+    func_80031870(pArg1 + offset * 4, (u32)pObj);
+}
 void func_8008CF9C(u8* pArg0, u8* pArg1) {
     *(SVECTOR*)pArg1 = *(SVECTOR*)(pArg0 + 0x1C);
 }
@@ -166,7 +178,16 @@ void func_8008D5C0(Misc16Work* pWork, s32 count) {
 }
 */
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc16", func_8008D680);
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc16", func_8008D980);
+void func_8008D980(Misc16Work* pWork) {
+    s32 count;
+
+    if (pWork->unkA > 0) {
+        count = pWork->unk2;
+        if (func_80082488(pWork, 0) < count) {
+            pWork->unkA = -pWork->unkA / 2;
+        }
+    }
+}
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc16", func_8008D9F0);
 /* 91.14% - the sign-extend of the stored unkA is emitted before the store
    instead of after it.  Three shapes (s16/int temporary, ternary, direct
@@ -190,7 +211,19 @@ void func_8008D9F0(Misc16Work* pWork) {
 }
 */
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc16", func_8008DA48);
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc16", func_8008DBC0);
+typedef struct {
+    /* 0x0 */ s32 unk0[8];
+} Misc16Oct; // Size: 0x20
+
+void func_8008DBC0(u8* pArg0, s16 arg1, u8* pArg1) {
+    u8** pArray;
+    u8* pObj;
+    Misc16Oct unused; // reproduces the original 0x20 stack frame
+
+    pArray = *(u8***)(*(u8**)(pArg0 + 4) + 4);
+    pObj = pArray[arg1];
+    *(Misc16Oct*)pArg1 = *(Misc16Oct*)(pObj + 0x4C);
+}
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc16", func_8008DC28);
 /* 93.22% - the original materialises the 4 into v1 before the two 0x60
    stores and stores it last; gcc rematerialises the literal at each store.
