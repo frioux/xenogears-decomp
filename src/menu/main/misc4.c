@@ -1,6 +1,10 @@
 #include "common.h"
 
+#include "main/game.h"
 #include "system/menu.h"
+
+void func_801C80B8(u32 number);
+s32 func_8002675C(MenuResourceDirectory* pDir, u32 index, POLY_FT4* pPrims, s32 context, s32 x, s32 y, s32 scale);
 
 extern u8 D_80059460;
 extern u_char func_801CB304(void);
@@ -60,7 +64,29 @@ s32 func_801CD710(u_char arg0) {
     return result;
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc4", func_801CD81C);
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc4", func_801CDB1C);
+void func_801CDB1C(MenuCharacter* pCharacter, u_char characterIndex, u_char localIndex, s32 arg3, s32 arg4) {
+    s32* pPositionsY = (s32*)arg4;
+    s32 i;
+    u_char digit;
+
+    func_801C80B8(g_GameState.characters[characterIndex].level);
+    pCharacter->levelStringLength = 0;
+    for (i = 0; i < 3; i++) {
+        digit = g_Menu->digits[i + 6];
+        if (digit != 0xFF) {
+            pCharacter->levelStringLength += func_8002675C(
+                g_Menu->resources, digit,
+                &pCharacter->polysLevelString[pCharacter->levelStringLength * 2],
+                g_Menu->renderContext,
+                i * 8 + ((s32*)arg3)[10],
+                localIndex * 0x38 + pPositionsY[10],
+                0x1000);
+        }
+    }
+    func_801C80B8(g_GameState.characters[characterIndex].unk63);
+    pCharacter->unkBE1 = 0;
+}
+
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc4", func_801CDC6C);
 void func_801CE0CC(MenuCharacter* pCharacter, u_char arg1, u_char arg2, s32 arg3, s32 arg4, u_char arg5) {
     func_801CD81C(pCharacter, arg1, arg2, arg3, arg4, arg5);
@@ -75,7 +101,10 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc4", func_801CE198);
    Retail initialises the poly index IV before the loop-invariant li's and
    updates it first in the latch; gcc 2.7.2 does both last.  Tried: index as a
    local recomputed from i (best), index hoisted before the loop with += 2 in
-   the body and in the for-increment, u_char vs s32 parameter.
+   the body and in the for-increment, u_char vs s32 parameter, a pPoly local
+   computed first in the body (same 96.06).  The emitted IV order is the
+   reverse of the RTL discovery order, so the poly-index expression would have
+   to be expanded after the four pVertices ones; no shape yet achieves it.
 void func_801CE198(s32 count, SVECTOR* pVertices, POLY_FT4* pPolys, s32 renderContext) {
     s32 index;
     s32 i;
@@ -143,7 +172,10 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc4", func_801CE540);
    the second AddPrim computes +0x50 before loading pGfxEnv.  Putting the
    increment in the if condition (i++ in the subscript) fixes the delay slot but
    makes the scheduler hoist the pData load above the flag load (88.88%).
-   Also tried: continue-guard, separate u8 flag local, both statement orders.
+   Also tried: continue-guard, separate u8 flag local, both statement orders,
+   i++ in the pData subscript with pData textually first (87.33, 296 bytes),
+   i++ only in the flag subscript with an empty for-increment (88.88), flag
+   read first via unk39C[i-1] (89.03, 300 bytes), do/while(++i<3) (92.14).
 void func_801CE540(void) {
     s32 i;
     u8* pData;
