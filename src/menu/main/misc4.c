@@ -116,7 +116,10 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc4", func_801CE540);
    the second AddPrim computes +0x50 before loading pGfxEnv.  Putting the
    increment in the if condition (i++ in the subscript) fixes the delay slot but
    makes the scheduler hoist the pData load above the flag load (88.88%).
-   Also tried: continue-guard, separate u8 flag local, both statement orders.
+   Also tried: continue-guard, separate u8 flag local, both statement orders,
+   i++ in the pData subscript with pData textually first (87.33, 296 bytes),
+   i++ only in the flag subscript with an empty for-increment (88.88), flag
+   read first via unk39C[i-1] (89.03, 300 bytes), do/while(++i<3) (92.14).
 void func_801CE540(void) {
     s32 i;
     u8* pData;
