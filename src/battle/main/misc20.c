@@ -120,43 +120,29 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc20", func_8009DBFC);
 void func_8009E268(void) {
     D_800D2DC8[0x99] = 0;
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc20", func_8009E278);
-/* best 98.97%: D_800C34B0 loaded through a pointer local reproduces the original
-   load order of the first store. Only the mfhi result colour differs (v1 in the
-   original, a1 here), and the store base colour follows from it.
 void func_8009E278(void) {
-    u8 *base;
     u8 *p = D_800D2DC8;
     u32 v = p[0x4F] * *(s32 *)(p + 0x64);
+    u32 q = v / 10;
+    u8 *base = D_800C34B0;
 
-    base = D_800C34B0;
     (base + D_800C3E50)[0x5FA0] = 2;
-    *(s32 *)(D_800C3E50 * 4 + D_800C34B0 + 0x5F6C) = v / 10;
+    *(s32 *)(D_800C3E50 * 4 + D_800C34B0 + 0x5F6C) = q;
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc20", func_8009E2EC);
-/* best 99.00%: divide is unsigned /20 (multu 0xCCCCCCCD, mfhi, srl 4); the
-   pointer local fixes the load order of the first store. Only the mfhi result
-   colour differs (v1 original, a1 here).
 void func_8009E2EC(void) {
-    u8 *base;
     u32 v = D_800C3DFC[0x11] * *(s32 *)(D_800D2DC8 + 0x64);
+    u32 q = v / 20;
+    u8 *base = D_800C34B0;
 
-    base = D_800C34B0;
     (base + D_800C3E50)[0x5FA0] = 2;
-    *(s32 *)(D_800C3E50 * 4 + D_800C34B0 + 0x5F6C) = v / 20;
+    *(s32 *)(D_800C3E50 * 4 + D_800C34B0 + 0x5F6C) = q;
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc20", func_8009E364);
-/* best 99.60%: the mflo result colour is the only difference (v1 in the
-   original, a1 here); the instruction multiset is identical.
 void func_8009E364(void) {
     s32 v = D_800C3E00[0x5B] * D_800C3DFC[0x11];
 
     (D_800C34B0 + D_800C3E50)[0x5FA0] = 2;
     *(s32 *)(D_800C3E50 * 4 + D_800C34B0 + 0x5F6C) = v;
 }
-*/
 void func_8009E3C8(void) {
     s32 o;
 
@@ -164,14 +150,6 @@ void func_8009E3C8(void) {
     o = D_800C3E50 * 0x170;
     D_800CCE4A[o] = 3;
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc20", func_8009E410);
-/* best 99.68% under this unit's Default preset (gcc 2.7.2): the whole body
-   matches, only the mfhi of the /20 is coloured a1 instead of v1 (and its
-   sra follows). Under gcc-2.6.0 -O2 -G8 this exact body scores 100.0, and
-   func_8009CB68 + func_8009E3C8 (already matched) stay at 100.0 there too:
-   PRESET_GCC260 battle/main/misc20 func_8009E410 100.0 99.68
-   The same one-register miss hits func_8009E278, func_8009E2EC, func_8009E364
-   and func_8009E48C (their parked notes below), all on the mfhi/mflo colour.
 void func_8009E410(void) {
     u8 *base;
     s32 v = *(u16 *)(D_800D2DC8 + 0x3A) * D_800C3DFC[0x11];
@@ -181,11 +159,6 @@ void func_8009E410(void) {
     (base + D_800C3E50)[0x5FA0] = 0xA;
     *(s32 *)(D_800C3E50 * 4 + D_800C34B0 + 0x5F6C) = q;
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc20", func_8009E48C);
-/* best 99.68%: twin of func_8009E410 with 0xB; the body below is E410's
-   99.68% shape and scores the same here (same single mfhi colour miss).
-   See the PRESET_GCC260 note on func_8009E410.
 void func_8009E48C(void) {
     u8 *base;
     s32 v = *(u16 *)(D_800D2DC8 + 0x3A) * D_800C3DFC[0x11];
@@ -195,7 +168,6 @@ void func_8009E48C(void) {
     (base + D_800C3E50)[0x5FA0] = 0xB;
     *(s32 *)(D_800C3E50 * 4 + D_800C34B0 + 0x5F6C) = q;
 }
-*/
 void func_8009E508(void) {
     u8 *p = D_800D2DC8;
     u8 *q = D_800C3E34;
