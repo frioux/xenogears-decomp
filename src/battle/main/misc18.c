@@ -44,15 +44,6 @@ void func_80095B44(void) {
         func_800995A0(D_800C3E50, q[0x1D], *(u16 *)(q + 0x1E), 5);
     }
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80095BAC);
-/* 100.0% as written under gcc 2.6.0 (XenoLibrary preset): the whole unit is a
-   2.6.0 unit, see the note under func_80096824. Under the current 2.7.2
-   Default preset it is 99.90: the original coalesces the mfhi temp of
-   `rand() % 100` with the quotient in a0 (mfhi a0; sra a0,a0,5), 2.7.2 gives
-   the mfhi pseudo a1 (mfhi a1; sra a0,a1,5). Tried under 2.7.2:
-   `rand() % 100 > t` and `t < rand() % 100` (99.90), an `s32 r = rand() % 100`
-   local (99.81), -O3 (95.62).
-
 void func_80095BAC(void) {
     u8 t = D_800C3DFC[0x1C];
 
@@ -79,23 +70,9 @@ void func_80095BAC(void) {
         }
     }
 }
-*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80095D4C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80096018);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80096494);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80096824);
-/* PRESET: this unit is gcc 2.6.0 (XenoLibrary), not the 2.7.2 Default. Proof:
-   as written this function is 100.0% under gcc-2.6.0 and 99.74% under 2.7.2,
-   func_80095BAC 100.0/99.90, func_80098C6C 100.0/95.83, func_80099498
-   95.15/91.52, and all six already-matched functions in the unit stay 100.0
-   under 2.6.0 (func_80095A78, 80095B44, 8009795C, 80097D08, 80099FB0,
-   8009A074). Under 2.7.2 the only difference here is the mfhi temp of
-   `rand() % 100`: the original coalesces it with the quotient in a0
-   (mfhi a0; sra a0,a0,5), 2.7.2 gives the mfhi pseudo a1. Tried under 2.7.2:
-   inline expression, pointer locals, an `s32 r` local (99.23%),
-   `s32 m = rand() % 100` (99.23%), explicit `q = r / 100` then `r - q * 100`
-   (99.74), `t <= rand() % 100` instead of `>=`.
-
 void func_80096824(void) {
     s32 t = D_800C3E00[0x5B] + D_800C3DFC[0x14];
 
@@ -104,7 +81,6 @@ void func_80096824(void) {
         D_800D2DC4 = 1;
     }
 }
-*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_800968C0);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80096AB8);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80096FBC);
@@ -190,13 +166,6 @@ u8 func_80098AF8(u8 sel) {
     return v;
 }
 */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80098C6C);
-/* 100.0% as written under gcc 2.6.0 (XenoLibrary; this unit is a 2.6.0 unit,
-   see the note under func_80096824). 95.83 under the current 2.7.2 Default,
-   84.27 under 2.7.2-cdk. Under 2.7.2 the same instruction multiset comes out
-   with the mask shift one slot late (it fills the back edge's delay slot
-   instead of the `beqz`'s).
-
 void func_80098C6C(u8 sel) {
     u8 i;
     u16 mask;
@@ -217,26 +186,22 @@ void func_80098C6C(u8 sel) {
         D_800D2C98 = 0xC2;
     }
 }
-*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80098D2C);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80099498);
-/* best: 95.15 under gcc 2.6.0 (91.52 under the current 2.7.2). Left under
-   2.6.0: the original bound-checks the switch range (`slti v0,v1,3; bnez` to
-   the default before the case-3 compare) and scales `addu v1,a2,v1`
-   (base first) where this C gives `addu v1,v1,a2`.
-   Tried: flat pointer arithmetic both operand orders, a
-   D_800C34B0 pointer local (worse: hoists the base load), and a 0x170-step
-   `BattleActor { pad0[0x7C]; u16 flags; }` array access (81.52%).
-
 s32 func_80099498(void) {
     u8 i;
     u8 n;
     s32 ret = 0;
-    switch (D_800C34AD) {
+    s32 mode = D_800C34AD;
+
+    switch (mode) {
+    case 1:
+        break;
     case 2:
         n = 0;
         for (i = 0; i < 3; i++) {
-            if ((*(u16 *)(i * 368 + D_800C34B0 + 0x7C) & 0xC002) != 0) {
+            s32 off = i * 368;
+
+            if ((*(u16 *)((s32)D_800C34B0 + off + 0x7C) & 0xC002) != 0) {
                 n++;
             }
         }
@@ -247,7 +212,9 @@ s32 func_80099498(void) {
     case 3:
         n = 0;
         for (i = 0; i < 3; i++) {
-            if ((*(u16 *)(i * 368 + D_800C34B0 + 0x7C) & 0xC002) != 0) {
+            s32 off = i * 368;
+
+            if ((*(u16 *)((s32)D_800C34B0 + off + 0x7C) & 0xC002) != 0) {
                 n++;
             }
         }
@@ -255,10 +222,11 @@ s32 func_80099498(void) {
             ret = 1;
         }
         break;
+    default:
+        break;
     }
     return ret;
 }
-*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_800995A0);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80099890);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80099CF0);
