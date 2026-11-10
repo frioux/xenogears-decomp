@@ -49,14 +49,24 @@ s32 func_8007EAC8(u8 **arg0, u8 arg1) {
 
     return pRow[p[1]] == pRow[p[2]];
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc10", func_8007EB08);
+s32 func_8007EB08(u8 **arg0, u8 arg1) {
+    u8 *p = *arg0;
+    u16 *pRow = (u16 *)(D_800D3420 + arg1 * 0x40);
+
+    return pRow[p[1]] == pRow[p[2]];
+}
 s32 func_8007EB50(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
     u8 *pRow = D_800D3430 + arg1 * 0x40;
 
     return pRow[p[1]] <= pRow[p[2]];
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc10", func_8007EB90);
+s32 func_8007EB90(u8 **arg0, u8 arg1) {
+    u8 *p = *arg0;
+    u16 *pRow = (u16 *)(D_800D3420 + arg1 * 0x40);
+
+    return pRow[p[1]] <= pRow[p[2]];
+}
 s32 func_8007EBD8(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
     u8 *pRow = D_800D3430 + arg1 * 0x40;
@@ -94,7 +104,14 @@ s32 func_8007EC54(u8 **arg0, u8 arg1) {
 
     return (lhs & pRow[p[2]]) != 0;
 } */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc10", func_8007EC94);
+s32 func_8007EC94(u8 **arg0, u8 arg1) {
+    u8 *p = *arg0;
+    u16 *pRow = (u16 *)(D_800D3420 + arg1 * 0x40);
+    u16 a = pRow[p[1]];
+    u16 b = pRow[p[2]];
+
+    return (a & b) != 0;
+}
 s32 func_8007ECDC(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
     u8 *pRow = D_800D3430 + arg1 * 0x40;
