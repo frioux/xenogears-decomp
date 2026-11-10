@@ -1772,3 +1772,29 @@ Additional reusable idiom (paid for `battle/misc2`'s `func_80074F70`): split the
 arithmetic into named locals — `p = D_x; off = p[0x7F4] * 40 + 0x7A4; AddPrim(ot,
 (u8*)(off + (s32)p))` — so gcc stops reassociating the constant into the base pointer.
 The `743A4/744BC/74554` family in that unit is one allocator decision away now, not three.
+
+| 14 | seven `battling` units (-G0/2.6.0 screen) + five `menu` units + two `world_map` units | +9 | 1597 | battling/misc1 2, misc4 1, misc10 1, misc11 1, menu/misc2 1, plus 3 from the units whose reports were truncated; `menu/main/misc5` is a gcc-2.6.0 unit (new preset, and its `func_801D1258` park is an uncomment away) |
+
+### Round 14: the screens keep paying one unit at a time
+
+`menu/main/misc5` is the fifth 2.6.0 unit found: **all nineteen** matched functions stay at
+100.0 under 2.6.0 and `func_801D1258` is 100.00% only there (99.35 under Default - the sole
+difference is a canonicalised commutative `addu`). Its parked body un-parks with no C change.
+So the preset landscape is now: `menu/misc9`, `menu/misc5`, `battle/misc18`, `misc20`,
+`misc21`, `battling/misc12` (which is `-G0`), plus the div-expansion family — everything else
+screened is plain Default. `battling/misc1`, `misc4`, `misc6`, `misc8`, `misc10`, `misc11`
+are all confirmed **not** `-G0` and not 2.6.0, so that overlay is fully classified too.
+
+A worker did the right thing when it could not commit: `menu/misc5`'s worker found the preset
+answer, could not safely convert anything under the *current* preset, and left the tree
+link-safe with the evidence in the parked notes. That is the pattern to want - a parked body
+plus a preset claim is worth more than a live 99.35% body.
+
+Idioms banked this round:
+- `addu` operand order again, both directions: declaring the base field `u32` instead of a
+  pointer, or writing the address as integer arithmetic with the offset first, is what flips
+  `addu v0,s2,v0` vs `addu v0,v0,s2`. This single idiom has now paid in five units.
+- A `switch` is required for `switch (D_80059460) { case 2: case 0: case 6: }` - gcc's
+  decision tree for those three values reproduces retail exactly (`menu/misc2`).
+- Six halfword reads must be hoisted into `s32` locals, never `s16` (`s16` gives `lhu` +
+  `sll`/`sra`) - `battling/misc1`'s `func_800725B0`.

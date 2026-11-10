@@ -264,9 +264,14 @@ paths = [ "battle/main/misc21." ]
 # NOT fix the unit's other blocker (a 3-case switch that retail lowers as a
 # binary-search tree and every gcc we have lowers sequentially), so treat that
 # family as parked.
+
+# menu/main/misc5 is a gcc-2.6.0 unit, proven the way section 5 asks for: all NINETEEN
+# already-matched functions stay at 100.0 under 2.6.0, and func_801D1258 is 100.00% only
+# there (99.35 under Default, the sole difference being a canonicalised commutative
+# addu). Its parked body is a straight uncomment once the preset is on.
 [[build_preset]]
 name = "XenoMenu260"
 build_variables = {
     gcc = "gcc-2.6.0-psx"
 }
-paths = [ "menu/main/misc9." ]
+paths = [ "menu/main/misc9.", "menu/main/misc5." ]
