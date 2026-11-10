@@ -20,6 +20,9 @@ extern u8 D_801EA714;
 extern CdlCB D_801EA718;
 extern CdlCB D_801EA71C;
 extern CdlCB D_801EA720;
+extern u8 D_801EA574[];
+extern u8 D_801EA578[];
+extern u8 D_801E9F88[];
 extern s32 D_801E977C[]; // String IDs of the menu scroll bar textures
 
 void func_801D22F4(s32 arg0);
@@ -29,6 +32,12 @@ void func_801C72BC(s32 arg0);
 void func_801D7F50(s32 arg0, s32 arg1, u_char arg2);
 void func_801D8644(u_char arg0, s32 arg1, s32 arg2, u_char arg3, u_char arg4);
 void func_801E8018(s32 count, void* pStrings, void* pStringIds, void* pFlags);
+void func_801E8070(s32 arg0, void* pArg1, void* pArg2, void* pArg3, void* pArg4, u8 arg5, u8 arg6, u8 arg7);
+void func_801E86C8(s32 arg0);
+void func_801E8B4C(s32 arg0);
+void func_801E8044(s32 arg0, void* pArg1);
+s32 func_80038824(void);
+void func_800386C4(s32 arg0);
 void func_801E64E0(void);
 void func_801E5B3C(void);
 void func_801E649C(void);
@@ -302,6 +311,90 @@ s32 func_801D9704(s32 arg0, u_char arg1, u_char arg2) {
 */
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801D9808);
+
+/* 97.08%. Only `case 1` of the g_Menu->input switch differs: the original
+   lays the then-arm (subMenuChoice--) out first and branches `beqz` forward to
+   the subMenuNumChoices - 1 arm; gcc always emits the numChoices - 1 arm first
+   and branches `bnez` forward to the decrement, and it reuses the loaded value
+   in the branch delay slot instead of reloading it in the arm (the original
+   reloads). Both if/else arm orders give byte-identical code. Everything else
+   matches: frame 0x38, $s0 = choice, $s1 = firstPass, $s2 = quit (and the
+   loop-test mask), $s3 = accepted, $s4 = the hoisted constant 1 of `case 1`,
+   and the blocks come out in the order case 4+5 (fall-through), 1, 3, so the
+   switch's source order is 4/5, 1, 3. The function returns 1 (the trailing
+   `li v0,1` before jr ra). Full decode below.
+s32 func_801D9808(void) {
+    u_char quit = 1;
+    u_char firstPass = 1;
+    u_char accepted = 0;
+    s32 choice;
+
+    do {
+        func_801C7BF4();
+        if (firstPass != 0) {
+            func_801E8018(4, g_Menu->unk1BE0, D_801EA574, g_Menu->pManager->unk5C);
+            func_801E86C8(0);
+            g_Menu->subMenuPrevChoice = 0xFF;
+            switch (func_80038824()) {
+            case 0:
+                choice = 0;
+                break;
+            case 1:
+                choice = 2;
+                break;
+            case 2:
+                choice = 1;
+                break;
+            }
+            g_Menu->subMenuChoice = choice;
+            firstPass = 0;
+        }
+        if (g_Menu->subMenuChoice != g_Menu->subMenuPrevChoice) {
+            func_801E8070(6, g_Menu->unk1BE0, D_801EA578, D_801E9F88, g_Menu->pManager->unk5C,
+                          g_Menu->subMenuChoice, 7, 0);
+            func_801E8B4C(0);
+            g_Menu->subMenuPrevChoice = g_Menu->subMenuChoice;
+        }
+        switch (g_Menu->input) {
+        case 4:
+            accepted = 1;
+        case 5:
+            quit = 0;
+            break;
+        case 1:
+            if (g_Menu->subMenuChoice == 0) {
+                g_Menu->subMenuChoice = g_Menu->subMenuNumChoices - 1;
+            } else {
+                g_Menu->subMenuChoice--;
+            }
+            break;
+        case 3:
+            if (++g_Menu->subMenuChoice >= g_Menu->subMenuNumChoices) {
+                g_Menu->subMenuChoice = 0;
+            }
+            break;
+        }
+    } while (quit != 0);
+    if (accepted != 0) {
+        switch (g_Menu->subMenuChoice) {
+        case 0:
+            choice = 0;
+            break;
+        case 1:
+            choice = 2;
+            break;
+        case 2:
+            choice = 1;
+            break;
+        }
+        func_800386C4(choice);
+    }
+    func_801E8044(4, g_Menu->pManager->unk5C);
+    g_Menu->pManager->unk4 = 0;
+    g_Menu->pManager->unk3 = 0;
+    return 1;
+}
+*/
 void func_801D9B08(void) {
     func_801C8960();
     Vsync(0);
@@ -437,6 +530,71 @@ void func_801DB02C(u_char index) {
 }
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801DB0A8);
+
+/* 98.80%. Byte-identical to the original over all 188 lines except one
+   adjacent swap in the func_801C851C argument setup: the original emits
+   `addu a1,v1,s2; addu a2,t0,s1; andi a1,0xffff; andi a2,0xffff`, gcc emits
+   `addu a1; andi a1; addu a2; andi a2`. Tried: sums in s32 x/y locals (same
+   code), inline expressions (same), u16 locals (same). Full decode below;
+   fields: pCursor = g_Menu->arrowCursors[arg3] (MenuArrowCursor), the poly
+   record is &pCursor->polys[g_Menu->renderContext] read as u16 at +8/+A/+10/+22
+   (POLY_FT4.x0/y0/x1/y3, hence lhu), ofsX in $s2 and ofsY in $s1.
+void func_801DB0A8(s32 arg0, s32 arg1, u_char arg2, u_char arg3) {
+    MenuArrowCursor* pCursor;
+    u8* pPoly;
+    s32 ofsX;
+    s32 ofsY;
+    s32 x;
+    s32 y;
+    s32 shouldDraw = 1;
+
+    pCursor = g_Menu->arrowCursors[arg3];
+    if (++pCursor->animFrameDuration >= 6) {
+        pCursor->curAnimFrame--;
+        if (pCursor->curAnimFrame < 0) {
+            pCursor->curAnimFrame = 4;
+        }
+        pCursor->animFrameDuration = 0;
+    }
+    switch (arg2) {
+    case 0:
+        ofsX = (arg0 % 2) * 0x88 + 0x1C;
+        ofsY = (arg0 / 2) * 0x10 + 0x11;
+        break;
+    case 1:
+        if (arg0 >= arg1 * 2 && arg0 < arg1 * 2 + 0x10) {
+            ofsX = (arg0 % 2) * 0x88 + 0x18;
+            ofsY = ((arg0 - arg1 * 2) / 2) * 0x10 + 0x11;
+        } else {
+            shouldDraw = 0;
+        }
+        break;
+    case 2:
+        ofsX = (arg0 % 2) * 0x88 + 0x18;
+        ofsY = (arg0 / 2) * 0x10 + 0x14;
+        break;
+    case 3:
+        ofsX = 0xA0;
+        ofsY = arg0 * 13 + 0x14;
+        shouldDraw = 2;
+        break;
+    }
+    if (shouldDraw != 0) {
+        func_8002675C(g_Menu->resources, pCursor->curAnimFrame + 0x15B, (POLY_FT4*)pCursor,
+                      g_Menu->renderContext, 0, 0, 0x1000);
+        pPoly = (u8*)pCursor + g_Menu->renderContext * 0x28;
+        x = *(u16*)(pPoly + 8) + ofsX;
+        y = *(u16*)(pPoly + 0xA) + ofsY;
+        func_801C851C(pCursor->vertices, x, y,
+                      *(u16*)(pPoly + 0x10) - *(u16*)(pPoly + 8),
+                      *(u16*)(pPoly + 0x22) - *(u16*)(pPoly + 0xA));
+        pCursor->renderContext = *(u8*)&g_Menu->renderContext;
+        g_Menu->pManager->shouldRenderArrowCursor[arg3] = 1;
+    } else {
+        g_Menu->pManager->shouldRenderArrowCursor[arg3] = 0;
+    }
+}
+*/
 
 void func_801DB340(u_char index) {
     HeapFree(g_Menu->arrowCursors[index]);
