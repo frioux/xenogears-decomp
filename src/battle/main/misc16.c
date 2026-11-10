@@ -97,14 +97,18 @@ void func_8008FA60(u8 arg0) {
     HeapFree(D_800D2E38[arg0]);
     HeapFree(D_800D2D90[arg0]);
 }
-/* 87.51%: the four halfword fields, the clamping, the count==2 flag and the
-   func_8008F6E4 call are identified; gcc lays the clamp arms out the other way
-   round (it emits beqz with the then-arm inline where the original has bnez
-   with the else-arm inline) and folds the size temp away. Tried: a u16 size
-   temp per axis, both condition polarities, `+=` vs store-at-join, and
-   `*(base + i + K)` for the 0xBF flag store.
-
-void func_8008FAD8(void) {
+/* 90.41% (was 87.51): the `>=` polarity below is what reproduces the original's
+   branch direction (bnez to the `+= 0x20` arm, `cur = w` in the fall-through)
+   with count=0 placed in the bnez delay slot. Remaining gap: the original's two
+   arms share ONE `sh v0,8(a0)` at the join because its else arm reloads w into
+   v0 (`lhu v0,4(a0); j; ori a1,zero,1`) and its taken arm reloads cur
+   (`lhu v0,8(a0); nop; addiu v0,v0,0x20`), so jump.c can cross-jump the
+   identical stores; here gcc reuses the compare's registers (a1=w, a2=cur) and
+   the two stores stay split. count also lands in v1 instead of a1.
+   Tried: original `if (<)` polarity with per-arm `+=`/`=` stores (87.51, wrong
+   branch direction) and a u16 `size` temp in both arms with one store after the
+   if -- that gives the shared join store but gcc then puts the then arm out of
+   line behind an extra `j` plus `move v0,a1` (88.4). void func_8008FAD8(void) {
     s32 i;
     u8 *p;
     u8 *pFlags;
@@ -122,17 +126,17 @@ void func_8008FAD8(void) {
             continue;
         }
         count = 0;
-        if (((u16 *)p)[4] + 0x20 < ((u16 *)p)[2]) {
-            ((u16 *)p)[4] += 0x20;
-        } else {
+        if (((u16 *)p)[4] + 0x20 >= ((u16 *)p)[2]) {
             ((u16 *)p)[4] = ((u16 *)p)[2];
             count++;
-        }
-        if (((u16 *)p)[5] + 0x20 < ((u16 *)p)[3]) {
-            ((u16 *)p)[5] += 0x20;
         } else {
+            ((u16 *)p)[4] += 0x20;
+        }
+        if (((u16 *)p)[5] + 0x20 >= ((u16 *)p)[3]) {
             ((u16 *)p)[5] = ((u16 *)p)[3];
             count++;
+        } else {
+            ((u16 *)p)[5] += 0x20;
         }
         if (count == 2) {
             D_800D2D28[i + 0xBF] = 1;
@@ -177,34 +181,54 @@ void func_8009023C(s32 arg0) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8009023C);
-/* 50.34%: signature and inner arithmetic recovered (u8,u8; index = arg1*2+arg0;
-   if (index >= 0x11) index -= 0x10 and the palette/UV base switches; the store
-   is *(u16 *)(P + D_800CCB34*0x28 + 0x14E) = palette with
-   P = *(u8 **)(D_800C3EA4 + 0xA230); u = (index % 2) * 0x78, v = (index / 2) * 13;
-   two func_80076C78 calls at P + D_800CCB34*0x28 + 0x140 (0x18,0x33,...,0x60) and
-   + 0x190 (0x84,0x33,((index%2)<<6)|ofs,...,0x10), and the andi 0xF8/0xD0 masks
-   are gcc's range-narrowed u8 argument truncation, not source masks).
-   The gap is structural: the original hoists the D_800CCB34 and D_800C3EA4 loads
-   of the store address INTO both if-arms (cse.c load hoisting) and keeps `index`
-   in a1-a3, giving a 0x30 frame with s0-s3; gcc keeps the loads after the join,
-   puts index in s1 and emits a 0x28 frame with three saves. Tried: if/else vs
-   pre-assigning g_SystemPalette1 before the if.
-   Next idea: force the hoisting by making the store address a local pointer
-   computed before the if, or by duplicating the store into both arms. */
+/* 74.61% (was 50.34): duplicating the palette store into both if-arms is what
+   reproduces the original's structure -- gcc computes the D_800CCB34*0x28 and
+   D_800C3EA4 prefix in each arm and cross-jumps the shared tail
+   (P load, <<3, addu, `sh a0,0x14E`), exactly as the original does; a single
+   store after the join only reaches 50%.
+   Remaining gap: the original keeps `&D_800CCB34` in s2 (`lui/addiu` once, then
+   `lw v1,0(s2)` per use) and `index % 2` in s1 next to vofs in s3, and stores
+   the u8-truncated `v` to 0x10(sp) before reloading the index; here gcc reloads
+   D_800CCB34 with a fresh lui/lw at each call (2 extra insns, 0x28 frame with
+   three saves instead of 0x30 with four). Keeping `i2 = index % 2` in a local
+   and using it twice drops it to 72.33. void func_80090310(u8 arg0, u8 arg1) {
+    s32 index;
+    s32 vofs;
+    s32 u;
+    s32 v;
+
+    index = arg1 * 2 + arg0;
+    vofs = 0;
+    if (index >= 0x11) {
+        index -= 0x10;
+        vofs = 0x10;
+        *(u16 *)(*(u8 **)(D_800C3EA4 + 0xA230) + D_800CCB34 * 0x28 + 0x14E) = g_SystemPalette2;
+    } else {
+        *(u16 *)(*(u8 **)(D_800C3EA4 + 0xA230) + D_800CCB34 * 0x28 + 0x14E) = g_SystemPalette1;
+    }
+    v = index / 2 * 13;
+    u = index % 2 * 0x78;
+    func_80076C78((POLY_FT4 *)(*(u8 **)(D_800C3EA4 + 0xA230) + D_800CCB34 * 0x28 + 0x140), 0x18, 0x33, u, v, 0x60);
+    func_80076C78((POLY_FT4 *)(*(u8 **)(D_800C3EA4 + 0xA230) + D_800CCB34 * 0x28 + 0x190), 0x84, 0x33, (index % 2 << 6) | vofs, v, 0x10);
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_80090310);
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_800904A0);
-/* 78.72%: RECT setup, bzero/GetStringEntry/SystemRenderStringEntry order and the
-   stack args all match; the poly pointer is the problem - gcc loads the
-   D_800CCB34 index first and sinks the final `addiu a0,a0,0x280` into the jal
-   delay slot, where the original loads *(D_800C3EA4+0xA230) first and does the
-   addiu before the base addu. Tried: base-first and index-first grouping of
-   the address.
-void func_8009070C(s32 arg0, s32 arg1) {
+extern /* 96.64%: everything matches except the final pointer add's operand order --
+   the original ends `addiu a0,a0,0x280; addu a0,a0,v1` (index product first,
+   base last, in the jal delay slot); gcc emits `addu a0,v1,a0`. Reached 96.64
+   by loading the base into a local `pBase` and the index into `palIndex` and
+   writing `pBase + (palIndex * 0x28 + 0x280)`; swapping the sum and an (s32)
+   cast on the base both leave the emitted order unchanged. gcc 2.7.2 orders a
+   reg+reg add by register number (v1 < a0), so the source shape does not
+   control it here. 78.72% is the inline-expression versiovoid func_8009070C(s32 arg0, s32 arg1) {
     RECT rect;
     u8 *pBuf;
+    u8 *pBase;
     s32 index;
     s32 len;
+    s32 palIndex;
 
     index = D_800D2CE0[arg1 * 2 + arg0];
     pBuf = (u8 *)func_8008AC00(0x39);
@@ -215,16 +239,13 @@ void func_8009070C(s32 arg0, s32 arg1) {
     rect.w = 0x3C;
     rect.h = 0xD;
     func_800769E8(&rect, pBuf);
-    func_80076C78((POLY_FT4 *)((*(u8 **)(D_800C3EA4 + 0xA230)) + D_800CCB34 * 0x28 + 0x280), 0x30, 0x42, 0, 0, len & 0xFF);
+    pBase = *(u8 **)(D_800C3EA4 + 0xA230);
+    palIndex = D_800CCB34;
+    func_80076C78((POLY_FT4 *)(pBase + (palIndex * 0x28 + 0x280)), 0x30, 0x42, 0, 0, len & 0xFF);
     HeapFree(pBuf);
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8009070C);
-/* 99.87%: one register. The 0x66D store loads its pointer into v1 where the
-   original uses v0; everything else matches. Tried: p/flag declaration order.
-   NOTE arg0..arg2 are u8: that is what produces the per-branch andi of
-   arg0/arg1 for the table index and the andi of arg2 twice.
-
 void func_8009080C(u8 arg0, u8 arg1, u8 arg2) {
     u8 flag;
     u8 *p;
@@ -234,8 +255,7 @@ void func_8009080C(u8 arg0, u8 arg1, u8 arg2) {
     } else {
         flag = D_800C3D70[arg1 * 2 + arg0];
     }
-    p = *(u8 **)(D_800C3EA4 + 0xA230);
-    p[0x66D] = 0;
+    *(u8 *)(*(u8 **)(D_800C3EA4 + 0xA230) + 0x66D) = 0;
     func_80090310(arg0, arg1);
     if (flag != 0 && arg2 == 0) {
         func_8009070C(arg0, arg1);
@@ -248,8 +268,6 @@ void func_8009080C(u8 arg0, u8 arg1, u8 arg2) {
     p = *(u8 **)(D_800C3EA4 + 0xA230);
     p[0x66B] = 1;
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8009080C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8009093C);
 void func_80090B90(s32 arg0, s32 arg1, s32 *pIndex, u8 *pCount) {
     u8 *p;
