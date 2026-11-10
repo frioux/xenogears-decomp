@@ -31,6 +31,11 @@ new)
         rm -rf "$dst"
         mkdir -p "$dst"
         cp -ac "$ROOT" "$dst/xenogears-decomp"
+        # cp -ac is NOT CoW across this volume in practice: measured ~2.6 GB per
+        # clone, of which 1.3 GB is disc/disc{1,2}, the raw disc images that only
+        # `make extract` reads. A dozen clones filled the disk and killed a whole
+        # round with ENOSPC. disc/<bin>.bin stay: culprit.sh diffs against them.
+        rm -rf "$dst/xenogears-decomp/disc/disc1" "$dst/xenogears-decomp/disc/disc2"
         cd "$dst/xenogears-decomp"
         git checkout -q -b "$BRANCH_PREFIX$tag"
         git config user.email "worker@local"
