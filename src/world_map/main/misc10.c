@@ -189,20 +189,15 @@ void func_800894C8(s32 arg0) {
     }
 }
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc10", func_80089514);
-/* 88.11%: the 256-entry outer loop counts 0xFF down to -1 (bne against -1);
-   the inner 8-entry loop is an ordinary slti loop over pEntry[0] == arg0 * 8 + j
-   with pEntry[3] != 0, then pEntry[2] = 0.
 void func_80089514(s32 arg0) {
     s16* pEntry;
     s32 i;
     s32 j;
 
     pEntry = D_8009BDF4;
-    arg0 <<= 3;
-    for (i = 0; i < 256; i++) {
+    for (i = 0xFF; i != -1; i--) {
         for (j = 0; j < 8; j++) {
-            if (pEntry[0] == arg0 + j && pEntry[3] != 0) {
+            if (pEntry[0] == (arg0 << 3) + j && pEntry[3] != 0) {
                 pEntry[2] = 0;
                 break;
             }
@@ -210,7 +205,6 @@ void func_80089514(s32 arg0) {
         pEntry += 0x26;
     }
 }
-*/
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc10", func_80089580);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc10", func_80089748);
