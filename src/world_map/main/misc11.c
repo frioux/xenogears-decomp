@@ -51,6 +51,19 @@ typedef struct {
     /* 0x16 */ undefined16 unk16;
 } WorldMapEntry; // Size: 0x18
 
+typedef struct {
+    /* 0x0 */ s32 unk00;
+    /* 0x4 */ s32 unk04;
+    /* 0x8 */ s32 unk08;
+    /* 0xC */ s32 unk0C;
+} WorldMapVec; // Size: 0x10
+
+typedef struct {
+    /* 0x00 */ WorldMapVec vec;
+    /* 0x10 */ u16 unk10;
+    /* 0x12 */ u16 pad12;
+} WorldMapTrail; // Size: 0x14
+
 // 12.4 fixed point world map position; the range test below uses the middle axis too.
 typedef struct {
     /* 0x0 */ s32 x;
@@ -86,6 +99,10 @@ extern void func_80093354(void *);
 extern s32 D_8009C5AC;
 extern s32 D_8009C5B4;
 extern s32 D_8009C584;
+extern WorldMapVec D_8009D55C;
+extern WorldMapTrail D_8009CEC4[];
+extern u16 D_8009D52C;
+extern u16 D_8009D154;
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008A72C);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008B2BC);
@@ -215,25 +232,24 @@ void func_8008BFD4(s16 arg0, s32 *pArray, s16 arg2, s16 arg3) {
     D_8009BD04 = (D_8009BD04 + 1) & 0x1F;
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008C040);
-/* 99.17% (412 bytes, same size). Byte-identical except two things:
-   (1) the frame is 96 bytes in the original and 80 here: the original has 16
-       more bytes of stack than any instruction references (the only addressable
-       local is the 12-byte WorldMapPos at sp+0x10, and its x@0x10/z@0x18 stores
-       and the &diff argument match exactly), so the extra slots look like
-       unreferenced spill slots, not a source-level local.
-   (2) s1/s2 are swapped between the loop-carried entry pointer and the index
-       (allocator tie; declaring i before pEntry gives the identical 99.17%).
-   The wrap/distance test is `pos < entry->unk08 ? entry->unk08 - (pos - arg2*0x1000)
-   : pos - (entry->unk08 - entry->unk10*0x1000)`, then (that >> 12) < arg2+unk10.
-   Note func_80093534 takes a WorldMapPos* that it wraps in place, and the
-   distance is 2D (x/z), so its unk4 is deliberately left unset.
-   Tried: indexed &D_8009BE6C[i] instead of pEntry++ (95.09), the >>12 hoisted
-   into each arm (95.09 -> then 98.19 with it in the test), shared hi/lo
-   subtraction across the arms (94.31), i declared first (99.17).
+/* 99.37% (412 bytes, same size). The frame is now exactly retail's 96 bytes: the
+   original has 16 bytes of unreferenced local area at sp+0x00 (diff sits at sp+0x10
+   and is the only addressable local), and a dead "s32 tmp[4]" local reproduces it --
+   every sp offset in the prologue and epilogue matches. The only remaining
+   difference is the allocator tie s1/s2 between the loop-carried entry pointer
+   (retail s1, ours s2) and the index (retail s2, ours s1); every other insn is
+   byte-identical. Tried: indexed &D_8009BE6C[i] (95.09), the >>12 hoisted into each
+   arm (98.19), shared hi/lo subtraction (94.31), i declared first, pEntry declared
+   first (both identical), pEntry++,i++ instead of i++,pEntry++ (97.80, 408 bytes),
+   tmp[4] in four declaration positions (99.32-99.37). At global-alloc time the
+   pointer only has ~2 refs (loop.c moves the body's loads onto the pEntry+0x14 biv,
+   which is why retail's base register is entry+0x14 with negative displacements)
+   against the index's 3, which is what puts the index in the lower register.
 void func_8008C040(WorldMapPos *pPos, s32 arg1, s32 arg2, u8 *pOut, u8 *pOut2) {
-    s32 i;
     WorldMapEntry *pEntry = D_8009BE6C;
+    s32 i;
     WorldMapPos diff;
+    s32 tmp[4];
     s32 pos;
     s32 base;
     s32 dist;
@@ -297,7 +313,68 @@ void func_8008C28C(WorldMapActor *pActor, int index) {
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008C364);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008C530);
+/* 78.83% (432 bytes; retail is 444). Structurally right and byte-identical from the
+   func_80093978 jal onward, including the 32-iteration 0x14-stride copy to
+   D_8009CEC4 and the tail. Two source facts established:
+   (1) the mode chain must be written inverted -- "if (mode >= 4) { if (mode < 8) {
+       unk20 = 2; unk24 = 1; } } else { ...gearRide... }" -- because that is the only
+       spelling that puts the gearRide block out of line behind "bnez v0, A" like
+       retail; the natural "if (mode < 4) A else if (mode < 8) B" compiles to the
+       mirror image (79.81% but with the two blocks swapped).
+   (2) the 16-byte copies are struct assignments (WorldMapVec), which is what makes
+       gcc emit the 3-load / 3-store / 1-load / 1-store block move retail has; four
+       separate field stores interleave load/store instead.
+   What still differs is the same store-sink wall as func_8008D3F0 and func_8008DD6C
+   in this unit: retail keeps the three "unk40/unk3C/unk38 = 0" stores above the
+   D_8009BE10 load, gcc sinks them below it, and inside the gearRide block retail
+   keeps "unk20 = 1" first while gcc sinks it below the two D_8009C5AC/D_8009C5B4
+   global loads. Source order of the stores does not change it. Everything else
+   (lh reload of unk48 for unk5C, the delay slot store, unk4A = 0xC, the tail) matches.
+s32 func_8008C530(int index) {
+    WorldMapActor *pActor = &D_8009BE24[index];
+    s32 result = func_8008C364(pActor, 0);
+    WorldMapTrail *pTrail;
+    s32 mode;
+    s32 i;
 
+    pActor->unk40 = 0;
+    pActor->unk3C = 0;
+    pActor->unk38 = 0;
+    pActor->unk48 = *(u16 *)&g_GameState.unk1826[0];
+    pActor->unk4A = 0xC;
+    pActor->unk5C = pActor->unk48;
+    mode = D_8009BE10;
+    if (mode > 0) {
+        if (mode >= 4) {
+            if (mode < 8) {
+                pActor->unk20 = 2;
+                pActor->unk24 = 1;
+            }
+        } else {
+            if (g_GameState.gearRide[0] == 1) {
+                pActor->unk20 = 1;
+                pActor->unk28 = D_8009C5AC;
+                pActor->unk30 = D_8009C5B4;
+                pActor->unk2C = func_80093978(pActor->unk28, pActor->unk30);
+                pActor->unk48 = D_8009C584;
+                D_8009D55C = *(WorldMapVec *)&pActor->unk28;
+                D_8009D52C = pActor->unk48;
+                D_8009D154 = 0;
+                pTrail = D_8009CEC4;
+                for (i = 0; i < 0x20; i++, pTrail++) {
+                    pTrail->vec = *(WorldMapVec *)&pActor->unk28;
+                    pTrail->unk10 = pActor->unk48;
+                }
+            }
+        }
+    }
+    g_GameState.unk1930[0x16] = pActor->unk28 >> 12;
+    g_GameState.unk1930[0x17] = pActor->unk30 >> 12;
+    *(u16 *)&g_GameState.unk1826[0] = pActor->unk48;
+    return result;
+}
+
+*/
 int func_8008C6EC(int index) {
     WorldMapActor *pActor = &D_8009BE24[index];
     s32 result = func_8008C364(pActor, 0);
