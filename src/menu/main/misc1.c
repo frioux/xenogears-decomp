@@ -169,9 +169,12 @@ void func_801C5F10(void) {
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc1", func_801C5FE4);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc1", func_801C62A8);
 
-/* Best: 92.33% - the inner if/else-if chain lays its then-block in-line while the original
-   keeps both call blocks out of line after a positive beqz/beq pair.  Tried: else-if,
-   !=/else form (87.67%), 2-way switch (92.33%), two separate ifs (reloads D_800594D0).
+/* Best: 92.33% - only the placement of the two func_801C8694 call blocks differs: the
+   original lays the outer test's then-block out of line (beqz $v0 -> call block) and
+   falls through to the second test, then to a "j end".  Tried: else-if, `!=`/else
+   (87.67%), 2-way switch with default (92.33%), early break + separate if (92.33%),
+   nested if (92.33%), 2-way switch (92.33%).  Instruction multiset is identical; this is
+   a bb-reorder tie-break.
 void func_801C62A8(void) {
     u8 menuIndex;
 
@@ -212,19 +215,13 @@ void func_801C6D4C(void) {
     g_Menu->renderContext = 0;
 }
 
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc1", func_801C6D5C);
-
-/* Best: 69.23% (56 bytes vs the original's 52).  The original keeps three separate loads of
-   g_Menu and reuses the stale pre-store pointer for 0x4CC/0x4D0; ours reorders the 0x4D9
-   byte store ahead of them and reuses the post-store pointer.
 void func_801C6D5C(void) {
-    g_Menu->unk4D8 = 0;
     g_Menu->unk4CC = 0;
     g_Menu->unk4D0 = 0;
+    g_Menu->unk4D8 = 0;
     g_Menu->unk4D9 = 0;
     g_Menu->unk4D4 = 0;
 }
-*/
 
 void func_801C6D90(void) {
     RECT rect;
