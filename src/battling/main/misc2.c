@@ -38,14 +38,21 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_8007313C);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_800731F8);
 
-void func_800732AC(u32 *p0, u32 *p1, s32 n) {
+/* 98.75%: only the load temp differs, the original uses $t0 where gcc picks
+   $v0 (`lw t0,0(a1)` vs `lw v0,0(a1)`). Tried u8*/u32* parameters, `p0 += 4`
+   against `p0++`, a separate `u32`/`u32 *end` local and a while loop (that one
+   also grows a pre-test, 71.25%). The do/while with `n += (s32)p1` is right;
+   the register is an allocator pick - $2/$3/$7 are all free here so gcc's
+   first fresh pseudo is $v0, and no source shape moved it to $t0. */
+/* void func_800732AC(u32 *p0, u32 *p1, s32 n) {
     n += (s32)p1;
     do {
         *p0 = *p1;
         p1++;
         p0++;
     } while ((s32)p1 != n);
-}
+} */
+INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_800732AC);
 
 extern u8 *func_8008D3F4(s32, s32);
 extern void func_8008D5C0(u8 *, s32);
