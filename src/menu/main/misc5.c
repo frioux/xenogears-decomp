@@ -266,7 +266,40 @@ void func_801D14FC(void) {
                       ((u8*)g_Menu->unk42C)[0x117D]);
     }
 }
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc5", func_801D1640);
+void func_801D1640(void) {
+    u32 offset;
+    s32 i;
+    u32 offset2;
+    u32 offset3;
+
+    if (g_Menu->pManager->unk4A[0] == 0) {
+        return;
+    }
+    for (i = 0, offset2 = 0x700; i < 14; i++, offset2 += sizeof(MenuString)) {
+        if (((u8*)((u32)g_Menu->unk430 + i))[0x1084]) {
+            offset = i * sizeof(MenuString);
+            func_801CE198(1, (SVECTOR*)(offset + (u32)g_Menu->unk430 + 0x50),
+                          (POLY_FT4*)(offset + (u32)g_Menu->unk430),
+                          ((u8*)(offset + (u32)g_Menu->unk430))[0x7D]);
+            func_801CE198(1, (SVECTOR*)(offset2 + (u32)g_Menu->unk430 + 0x50),
+                          (POLY_FT4*)(offset2 + (u32)g_Menu->unk430),
+                          ((u8*)((u32)g_Menu->unk430 + offset))[0x77D]);
+        }
+    }
+    if (((u8*)g_Menu->unk430)[0x1092]) {
+        func_801CE198(1, (SVECTOR*)((u32)g_Menu->unk430 + 0xE50), (POLY_FT4*)((u32)g_Menu->unk430 + 0xE00),
+                      ((u8*)g_Menu->unk430)[0xE7D]);
+        func_801CE198(1, (SVECTOR*)((u32)g_Menu->unk430 + 0xED0), (POLY_FT4*)((u32)g_Menu->unk430 + 0xE80),
+                      ((u8*)g_Menu->unk430)[0xEFD]);
+        for (i = 0, offset3 = 0xF00; i < 2; i++, offset3 += sizeof(MenuString)) {
+            func_801CE198(1, (SVECTOR*)(offset3 + (u32)g_Menu->unk430 + 0x50),
+                          (POLY_FT4*)(offset3 + (u32)g_Menu->unk430),
+                          ((u8*)((u32)g_Menu->unk430 + (i << 7)))[0xF7D]);
+        }
+    }
+    func_801CE198(1, (SVECTOR*)((u32)g_Menu->unk430 + 0x1050), (POLY_FT4*)((u32)g_Menu->unk430 + 0x1000),
+                  ((u8*)g_Menu->unk430)[0x107D]);
+}
 void func_801D17C4(void) {
     s32 i;
     u32 offset2;
@@ -297,7 +330,39 @@ void func_801D17C4(void) {
     }
 }
 
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc5", func_801D1914);
+void func_801D1914(void) {
+    u32 offset;
+    s32 i;
+    u32 offset2;
+    u32 offset3;
+    u32 offset4;
+
+    if (g_Menu->pManager->unk4A[3] == 0) {
+        return;
+    }
+    for (i = 0, offset2 = 0x680; i < 13; i++, offset2 += sizeof(MenuString)) {
+        if (((u8*)((u32)g_Menu->unk438 + i))[0x2596]) {
+            offset = i * sizeof(MenuString);
+            AddPrim(&g_Menu->pGfxEnv->ot[4],
+                    (POLY_FT4*)(offset + (u32)g_Menu->unk438 +
+                                ((u8*)(offset + (u32)g_Menu->unk438))[0x7D] * sizeof(POLY_FT4)));
+            AddPrim(&g_Menu->pGfxEnv->ot[4],
+                    (POLY_FT4*)(offset2 + (u32)g_Menu->unk438 +
+                                ((u8*)((u32)g_Menu->unk438 + offset))[0x7D] * sizeof(POLY_FT4)));
+        }
+    }
+    func_801CE198(1, (SVECTOR*)((u32)g_Menu->unk438 + 0xD50), (POLY_FT4*)((u32)g_Menu->unk438 + 0xD00),
+                  ((u8*)g_Menu->unk438)[0xD7D]);
+    for (i = 0, offset4 = 0x21D0, offset3 = 0xD80; i < 13; offset3 += 0x190, i++, offset4 += 0x48) {
+        func_801CE2B4(((u8*)((u32)g_Menu->unk438 + i))[0x257C], (void*)(offset3 + (u32)g_Menu->unk438),
+                      ((u8*)((u32)g_Menu->unk438 + i))[0x2589]);
+        if (((u8*)((u32)g_Menu->unk438 + i))[0x25A3]) {
+            AddPrim(&g_Menu->pGfxEnv->ot[4],
+                    (POLY_G4*)(offset4 + (u32)g_Menu->unk438 +
+                               ((u8*)((u32)g_Menu->unk438 + i))[0x25B0] * sizeof(POLY_G4)));
+        }
+    }
+}
 void func_801D1AAC(void) {
     s32 i;
 
