@@ -13,7 +13,41 @@ extern u8 D_800D2C34;
 extern int rand(void);
 extern void func_8009BE0C(void);
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009A0DC);
+s32 func_8009A0DC(u8 arg0) {
+    u8* p = (u8*)(arg0 * 0x170 + (u32)D_800C34B0);
+    u16 f7C = *(u16*)(p + 0x7C);
+    u16 f80;
+
+    if (f7C & 0x4000) {
+        return 8;
+    }
+    if (f7C & 0x8000) {
+        return 1;
+    }
+    if (f7C & 0x2000) {
+        return 2;
+    }
+    f80 = *(u16*)(p + 0x80);
+    if (f80 & 0x1000) {
+        return 3;
+    }
+    if (f80 & 0x2000) {
+        return 4;
+    }
+    if (f7C & 0x800) {
+        return 5;
+    }
+    if (f7C & 0x1000) {
+        return 6;
+    }
+    if (f7C & 0x2) {
+        return 3;
+    }
+    if ((*(u16*)(p + 0x84) | *(u16*)(p + 0x86)) & 0x8000) {
+        return 7;
+    }
+    return *(u16*)(p + 0x4C) < (*(u16*)(p + 0x4E) >> 3) ? 5 : 0;
+}
 u16 func_8009A1AC(u8 arg0) {
     u8* p = (u8*)(arg0 * 0x170 + (u32)D_800C34B0);
     u16 f7C = *(u16*)(p + 0x7C);
