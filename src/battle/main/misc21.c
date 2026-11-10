@@ -295,3 +295,4 @@ void func_800A2D5C(BattleSpritePool* pPool) {
         }
     }
 }
+*/
