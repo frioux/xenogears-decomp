@@ -28,21 +28,27 @@ u8 func_801E4928(u8 gearId) {
 }
 */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc11", func_801E4998);
-/* Best: 87.97% - everything matches except that gcc folds the +0x5C8 into the
-   member offset (0x5EC) where the original keeps addiu base,0x5C8 + 0x24(base),
-   which also costs the mfhi destination registers ($v0/$v1 vs $a3). The first
-   store has to be volatile so the following read is not forwarded; the second
-   store must not be, or reorg cannot put it in the jr delay slot.
+/* Best: 93.61% (was 87.97% - the Folded offset was the whole problem).
+   The +0x5C8 pointer offset must NOT be folded into the field offset: retail
+   keeps addiu base,0x5C8 then a 0x24(base) access, and gcc only stops folding
+   when the base is kept as an integer (u32) instead of a pointer type - with a
+   u16* / u8* intermediate cse folds 0x5C8+0x24 into 0x5EC and drops the addiu.
+   What is left is the same allocator tie as func_801E4928: retail puts every
+   mfhi result in $v0 (and so can hoist the /10 magic's lui into slot 0), gcc
+   always picks $a3.  Inlining the division into the store changes nothing.
+   The first store is volatile so the following read is not forwarded; the
+   second store must not be, or reorg cannot put it in the jr delay slot.
 void func_801E4998(MenuDressingRoom* pDressingRoom, u8 gearId) {
-    u16* p;
-    u16 value;
+    u32 p;
     u32 hp;
+    u16 value;
 
     hp = g_GameState.gears[gearId].maxHp / 10 * 2 / 9;
-    p = (u16*)(*(u32*)((u8*)pDressingRoom + 0x4C + gearId * 4) + 0x5C8);
-    *(volatile u16*)((u8*)p + 0x24) = hp;
-    value = *(volatile u16*)((u8*)p + 0x24) / 10;
-    *(u16*)((u8*)p + 0x24) = value * 10;
+    p = *(u32*)((u8*)pDressingRoom + 0x4C + gearId * 4);
+    p = p + 0x5C8;
+    *(volatile u16*)(p + 0x24) = hp;
+    value = *(volatile u16*)(p + 0x24) / 10;
+    *(u16*)(p + 0x24) = value * 10;
 }
 */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc11", func_801E4A28);
