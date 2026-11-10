@@ -18,6 +18,13 @@ typedef struct {
     /* 0x54 */ u8 unk54[0x2C];
 } WorldMapActor; // Size: 0x80
 
+typedef struct {
+    /* 0x0 */ u8 r;
+    /* 0x1 */ u8 g;
+    /* 0x2 */ u8 b;
+    /* 0x3 */ u8 a;
+} FadeParams; // Size: 0x4, alignment 1
+
 typedef struct WorldMapEntry {
     /* 0x00 */ s16 unk0;
     /* 0x02 */ u16 pad2;
@@ -63,6 +70,7 @@ extern s32 D_8009D144;
 extern s32 D_8009D3F0;
 extern s32 D_8009BE0C;
 extern void HeapFree(void *pMem);
+extern void *HeapAlloc(u_int allocSize, u_int allocFlags);
 extern void *D_8006259C;
 extern s32 D_8009BC38;
 extern s32 D_8009BCB0;
@@ -83,6 +91,11 @@ extern void func_80088FF4(void);
 extern void func_80089128(void);
 extern void func_800976A0(void);
 extern void func_80084818(void);
+extern void func_8002DD20(void *pBlock);
+extern void func_800931D8(u8 *pSrc, u8 *pDst, s32 count, u8 *pFactors);
+extern void *D_8009BD20;
+extern u16 D_8009BCE0[];
+extern FadeParams D_800704DC;
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_80082F64);
 
@@ -245,6 +258,51 @@ s32 func_80083FE4(s32 arg0) {
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_80084068);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_8008440C);
+// Best: 90.19%. Structure is right (the unaligned 4-byte copy of the
+// alignment-1 FadeParams at D_800704DC into sp+0x18, the RECT at sp+0x10,
+// 0x200/0x2000 HeapAllocs, func_800931D8 factors argument, the 16 GetClut
+// loop). Remaining diff is allocation/schedule: retail hoists `i = 0`
+// into the LZSS delay slot and computes &D_8009BCE0 late, ours does the
+// reverse; retail ends with i in s5 and pClut in s2. Declaration order had
+// no effect (six permutations, all 90.19).
+/*
+void func_8008440C(void) {
+    RECT rect;
+    FadeParams factors = D_800704DC;
+    u8 *pData;
+    u8 *pDst;
+    u16 *pClut;
+    s32 i;
+
+    pData = LZSSHeapDecompress(D_8009BD20, 1);
+    func_8002DD20(pData);
+    DrawSync(0);
+    HeapFree(pData);
+    HeapFree(D_8009BD20);
+    pData = HeapAlloc(0x200, 1);
+    pDst = HeapAlloc(0x2000, 1);
+    rect.x = 0;
+    rect.y = 0x1F0;
+    rect.w = 0x100;
+    rect.h = 1;
+    StoreImage(&rect, (u_long *)pData);
+    DrawSync(0);
+    func_800931D8(pData, pDst, 0x10, (u8 *)&factors);
+    rect.x = 0;
+    rect.y = 0x1F0;
+    rect.w = 0x100;
+    rect.h = 0xF;
+    LoadImage(&rect, (u_long *)pDst);
+    DrawSync(0);
+    pClut = D_8009BCE0;
+    for (i = 0; i < 0x10; i++, pClut++) {
+        *pClut = GetClut(rect.x, rect.y);
+        rect.y++;
+    }
+    HeapFree(pDst);
+    HeapFree(pData);
+}
+*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_80084580);
 
 void func_80084818(void) {
