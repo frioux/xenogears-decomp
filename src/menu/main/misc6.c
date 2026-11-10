@@ -29,6 +29,8 @@ void func_801E8DA8(u_char a0, u_char a1);
 void func_801E8474(s32 a0, u32* a1);
 
 extern u32 D_801EA19C[];
+extern u32 D_801E9A58[];
+extern u32 D_801E9A68[];
 
 void func_801D1CA0(void) {
     if (g_Menu->shouldDrawMenu) {
@@ -99,7 +101,31 @@ void func_801D22C4(void) {
     g_Menu->pManager->unk4 = 0;
     g_Menu->pManager->unk3 = 0;
 }
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc6", func_801D22F4);
+void func_801D22F4(u_char a0) {
+    s32 i;
+
+    g_Menu->pManager->shouldRenderCursors = 0;
+    switch (a0) {
+        case 0:
+            g_Menu->pManager->shouldRenderCursors = 1;
+            g_Menu->pCursors->unk144[0] = 1;
+            g_Menu->pCursors->unk144[1] = 1;
+        case 2:
+            for (i = 0; i < 4; i++) {
+                func_8002675C(g_Menu->resources, 0x108, &g_Menu->pCursors->polysCursor[i * 2],
+                              g_Menu->renderContext, D_801E9A58[i], D_801E9A68[i], 0x800);
+                g_Menu->pCursors->renderContexts[i] = *(u_char*)&g_Menu->renderContext;
+            }
+            break;
+        case 1:
+            break;
+        case 3:
+            func_8002675C(g_Menu->resources, 0x108, g_Menu->pCursors->polysCursor,
+                          g_Menu->renderContext, 0, 0, 0x800);
+            g_Menu->pCursors->renderContexts[0] = *(u_char*)&g_Menu->renderContext;
+            break;
+    }
+}
 void func_801D2484(void) {
     g_Menu->pManager->shouldRenderCursors = 0;
 }
@@ -151,20 +177,22 @@ void func_801D2968(void) {
     }
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc6", func_801D29A8);
+/* PARKED 99.18% (392 vs 388 bytes, and the instruction multiset is identical).
+   Only two allocator ties are left:
+   1. the two loop registers come out swapped (retail: the 3-count index in s0 and the
+      strength-reduced 6 + i*2 in s1; ours the other way round; the same swap appears
+      with an explicit second loop counter "i++, characterSlot += 2");
+   2. the gearId value is loaded into a0 in retail (lbu a0 / beq a0 / addiu a0,a0,0xB /
+      andi a0,a0,0xff, all in place) while ours keeps it in v0 and truncates straight
+      into a0 (andi a0,v0,0xff).  Repeating the memory access in the ternary instead of
+      a local, and declaring the local first/last, both leave it in v0.
+   What got 97.09 -> 99.18: put the whole ternary in the call argument
+   (func_801E8DA8((characterId == 0xFF) ? 0xFF : (u_char)(characterId + 0xB), 6 + (i << 1)))
+   instead of assigning it back to the u_char local - that reproduces retail's
+   beq/j/andi-in-the-delay-slot shape exactly.
+*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc6", func_801D2D38);
-/* PARKED 97.09%, 388 bytes = same size as the original (was 90.10 before). The loop
-   skeleton now agrees instruction for instruction. Two differences remain: gcc
-   allocates the two loop registers the other way round (ours: i in s1, the
-   strength-reduced 6 + i*2 in s0; retail: i in s0, 6 + i*2 in s1), and the gearId
-   ternary comes out with the opposite branch polarity (ours bne plus a trailing
-   andi 0xFF, retail beq with an extra j whose delay slot holds the andi).
-   What unlocked 90.10 -> 97.09: reading the character id into a menuCharacterId
-   local so gcc CSEs the 0xFF test with the first call's argument (retail does two
-   lbu of currentCharacterIDs, not three), and copying i to a u_char characterIndex
-   before "characterIndex * 2" so the masked index does not become a third induction
-   variable. Declaration order of the three u_char locals does not move the tie.
-   Shapes that scored 90.10: (u_char)(i << 1), (i << 1), (i * 2) & 0xFE, an if block
-   instead of the negated test, and "6 + characterIndex * 2" (90.55, 396 bytes).
+/* Best attempt (99.18%): the body below is what the note above was measured with.
 void func_801D2D38(void) {
     s32 i;
     u_char menuCharacterId;
@@ -188,8 +216,7 @@ void func_801D2D38(void) {
             characterIndex = i;
             func_801E8DA8(menuCharacterId, characterIndex * 2);
             characterId = g_GameState.characters[g_Menu->pManager->currentCharacterIDs[i]].gearId;
-            characterId = (characterId == 0xFF) ? 0xFF : characterId + 0xB;
-            func_801E8DA8(characterId, 6 + (i << 1));
+            func_801E8DA8((characterId == 0xFF) ? 0xFF : (u_char)(characterId + 0xB), 6 + (i << 1));
         }
     }
     func_801E8474(8, D_801EA19C);
