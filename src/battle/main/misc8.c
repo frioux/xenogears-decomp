@@ -27,7 +27,6 @@ extern u8 *D_800D3364;
 extern u8 D_800CCD34[];
 extern u8 func_8007A6C8(u8 arg0, u8 arg1);
 extern u8 func_8001BD40(s32 arg0, u8 arg1);
-extern u8 func_8007A744(u8 arg0);
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007C1A4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007C33C);
