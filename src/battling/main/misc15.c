@@ -171,17 +171,15 @@ void func_8008C2C0(void* pWork) {
     D_80092828 = pWork;
     func_8008C298(pWork);
 }
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc15", func_8008C2E8);
-/* Best C match, 98.54%: only $v0/$v1 are swapped from the pBase chain onwards (a
-   global.c allocator tie-break); five statement shapes all give the same swap.
 void func_8008C2E8(u8* pObj) {
     u8* pData;
+    u8* pChk;
     u8* pBase;
 
     pData = *(u8**)(pObj + 4);
     if (*(s32*)pData == 1) {
-        pBase = *(u8**)(pData + 4);
-        if ((*(s32*)*(u8**)(pBase + 4) & 1) == 0) {
+        pChk = *(u8**)(pData + 4);
+        if ((*(s32*)*(u8**)(pChk + 4) & 1) == 0) {
             pBase = *(u8**)(pData + 0xC);
             func_8008BD70(*(void**)(pBase + 0xC), *(void**)((u8*)pBase + 0x10 + D_800928A0 * 4),
                           (u8*)D_800928E4 + 4, *(void**)(pBase + 8));
@@ -192,7 +190,6 @@ void func_8008C2E8(u8* pObj) {
     if (*(u8**)(pObj + 0x90) != NULL)
         func_8008C2E8(*(u8**)(pObj + 0x90));
 }
-*/
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc15", func_8008C3A8);
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc15", func_8008C4B0);
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc15", func_8008C620);
