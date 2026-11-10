@@ -2106,7 +2106,20 @@ void func_8003AE84(AudioManager* pManager) {
     }
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003AF24);
+void func_8003AF24(AudioManager* pManager, u16 volume) {
+    s32 newVolume = 0x7F00;
+    u_long event = g_unk_SoundEvent;
+
+    pManager->unk_Flags |= 0x20;
+    *(u16*)&pManager->unk_0x1e[0] = volume;
+    DisableEvent(event);
+    SoundReleaseAllVoices(pManager);
+    EnableEvent(g_unk_SoundEvent);
+    pManager->unk_Interpolator_0x64.targetValue = newVolume;
+    pManager->unk_Interpolator_0x64.counter = 0;
+    pManager->unk_Interpolator_0x64.currentValue = newVolume << 16;
+    pManager->unk_0x54 = (pManager->unk_0x58 >> 16) * newVolume;
+}
 /*
 Attempt (87.10%, same size): every instruction is right; only the first eight are
 ordered differently. The original schedules `lui/lw a0` (DisableEvent's argument)
@@ -3487,6 +3500,44 @@ u8* func_8003DF3C(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
 }
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003DF78);
+/*
+Attempt (94.40%, 204 bytes vs the original's 208): every instruction is right except
+two deltas. (1) gcc elides the sll 16 / sra 16 pair that converts the divisor argument
+to s16, because it can prove the sum is in range (velocity is lbu, so velocity plus
+velocity squared over 64 stays below 0x800); a separate s16 divisor local and an s16
+volume local both still elide it - func_8003D8B8 (92.34%) hits the identical wall on
+the same velocity square. (2) the callee-saved pair comes out swapped: gcc puts the
+volume total in s0 and pAudioElements in s1, the original the other way round, and the
+prologue save order follows (sw s2, sw s0, sw ra, sw s1). The rest of the shape is
+exact: envelopes index 2, delta then reload, unk_0x16 from pScript[2] shifted left 2
+loaded early, callback func_8003F2A0, unk_0x1D 3, unk_0x1C 2, flags 3, unk_0xCE or 4,
+then func_8003E3E0 on the envelope.
+u8* func_8003DF78(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
+    s8 note = pScript[1];
+    s16 velocity = pScript[0];
+    s32 volume;
+    s32 unk16;
+
+    if (note != 0) {
+        if (velocity != 0) {
+            volume = velocity + ((s16)velocity * (s16)velocity) / 64;
+            pAudioElements->envelopes[2].delta = func_8003E290(note << 24, (s16)volume, 3);
+            pAudioElements->envelopes[2].reload = volume;
+            unk16 = pScript[2] << 2;
+            pAudioElements->envelopes[2].unk_0x1A = 0x400;
+            pAudioElements->envelopes[2].unk_0x0 = (undefined32)func_8003F2A0;
+            pAudioElements->envelopes[2].unk_0x1D = 3;
+            pAudioElements->envelopes[2].unk_0x1C = 2;
+            pAudioElements->envelopes[2].flags = 3;
+            pAudioElements->envelopes[2].unk_0x16 = unk16;
+            pAudioElements->unk_0xCE |= 0x4;
+            func_8003E3E0(&pAudioElements->envelopes[2]);
+        }
+    }
+
+    return pScript + 3;
+}
+*/
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003E04C);
 /*
