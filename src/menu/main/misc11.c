@@ -5,7 +5,9 @@
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc11", func_801E433C);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc11", func_801E4754);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc11", func_801E4928);
-/* Best: 91.61%
+/* Best: 91.61% - instruction multiset identical, allocator puts the dividend in
+   $a0 instead of $v0 (and the /120 magic in $v0 instead of $a1); 6 declaration
+   orders and shapes leave the tie untouched.
 u8 func_801E4928(u8 gearId) {
     GameGear* pGear;
     u_short weightClass;
@@ -21,6 +23,23 @@ u8 func_801E4928(u8 gearId) {
 }
 */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc11", func_801E4998);
+/* Best: 87.97% - everything matches except that gcc folds the +0x5C8 into the
+   member offset (0x5EC) where the original keeps addiu base,0x5C8 + 0x24(base),
+   which also costs the mfhi destination registers ($v0/$v1 vs $a3). The first
+   store has to be volatile so the following read is not forwarded; the second
+   store must not be, or reorg cannot put it in the jr delay slot.
+void func_801E4998(MenuDressingRoom* pDressingRoom, u8 gearId) {
+    u16* p;
+    u16 value;
+    u32 hp;
+
+    hp = g_GameState.gears[gearId].maxHp / 10 * 2 / 9;
+    p = (u16*)(*(u32*)((u8*)pDressingRoom + 0x4C + gearId * 4) + 0x5C8);
+    *(volatile u16*)((u8*)p + 0x24) = hp;
+    value = *(volatile u16*)((u8*)p + 0x24) / 10;
+    *(u16*)((u8*)p + 0x24) = value * 10;
+}
+*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc11", func_801E4A28);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc11", func_801E4D10);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc11", func_801E5058);
@@ -55,10 +74,9 @@ void func_801E5B3C(void) {
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc11", func_801E5B88);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc11", func_801E5E4C);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc11", func_801E61B0);
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc11", func_801E6450);
-/* Best: 99.79%
 void func_801E6450(void) {
     void* pMem;
+    u32 unk[2]; // unused: the original frame has 8 bytes of locals we cannot express
 
     pMem = HeapAlloc(0x2DC0, 0);
     g_Menu->unk34C = pMem;
@@ -66,16 +84,15 @@ void func_801E6450(void) {
     func_801E5B88();
     func_801E5E4C();
 }
-*/
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc11", func_801E649C);
-/* Best: 81.18%
 void func_801E649C(void) {
-    HeapFree(g_Menu->unk34C);
-    g_Menu->pManager->unkB = 0;
+    void* pMem;
+    MenuManager* pManager;
+
+    pMem = g_Menu->unk34C;
+    HeapFree(pMem);
+    pManager = g_Menu->pManager;
+    *(volatile u8*)&pManager->unkB = 0;
 }
-*/
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc11", func_801E64E0);
-/* Best: 87.20%
 void func_801E64E0(void) {
     RECT rect;
 
@@ -84,9 +101,8 @@ void func_801E64E0(void) {
     rect.w = 0x40;
     rect.h = 0x20;
     ClearImage(&rect, 0, 0, 0);
-    g_Menu->pManager->unkB = 0;
+    *(volatile u8*)&g_Menu->pManager->unkB = 0;
 }
-*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc11", func_801E6544);
 s32 func_801E65E4(u8* p) {
     u8 hi;
@@ -110,17 +126,16 @@ s32 func_801E65E4(u8* p) {
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc11", func_801E6668);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc11", func_801E68AC);
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc11", func_801E6AE8);
-/* Best: 99.71%
+s32 func_8002675C(MenuResourceDirectory* pDir, u32 index, POLY_FT4* pPrims, s32 context, s32 x, s32 y, s32 scale);
+
 void func_801E6AE8(u8 arg0, u8* pArg1) {
     u8* pPrims;
     u32 offset;
 
     offset = 0xA98 + arg0 * 0x87C;
     pPrims = (u8*)(offset + (u32)g_Menu->unk34C);
-    func_8002675C(g_Menu->resources, pArg1[arg0 + 0x1C] + 0x14E, pPrims,
+    func_8002675C(g_Menu->resources, (pArg1 + arg0)[0x1C] + 0x14E, pPrims,
                   g_Menu->renderContext, D_801EA004[arg0], D_801EA010[arg0], 0x1000);
 }
-*/
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc11", func_801E6B70);
