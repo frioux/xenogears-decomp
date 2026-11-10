@@ -62,6 +62,13 @@ extern u8 D_800928A0;
 
 extern u16 D_80091CE0[];
 
+extern u8* D_8009282C;
+extern u8* D_80092830;
+
+extern VECTOR D_80096FA8;
+extern VECTOR D_80096FAC;
+extern VECTOR D_80096FB0;
+
 extern s32 rand(void);
 extern void func_80031870(u8* pLink, u32 addr);
 
@@ -240,6 +247,48 @@ void func_8008D9F0(Misc16Work* pWork) {
 }
 */
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc16", func_8008DA48);
+/* 85.63% - everything including the frame (the 0x28 unused local) and the
+   division-by-3 magic matches; only the mfhi scratch register differs
+   (original a3, gcc a2), the usual allocator tie-break.  Tried: s16 value,
+   2 * -x / 3, pad declared first, -x * 2 / 3.
+void func_8008DA48(Misc16Work* pWork, u8* pArg1) {
+    u8 pad[0x28]; // reproduces the original frame; never referenced
+    s32 i;
+    s32 value;
+    u8* pEntry;
+    void (*pCallback)(u8*, u8*);
+
+    D_8009282C = (u8*)0x1F800000;
+    D_80092830 = (u8*)0x1F800030;
+    *(s16*)(PSX_SCRATCH + 0x30) = D_80096FA8.vx;
+    *(s16*)(PSX_SCRATCH + 0x32) = D_80096FAC.vx;
+    *(s16*)(PSX_SCRATCH + 0x34) = D_80096FB0.vx;
+    pEntry = pWork->unk10;
+    pCallback = ((void (**)(u8*, u8*))&pWork->unk4C[8])[0];
+    for (i = 0; i < pWork->unkA; i++) {
+        if (*(s16*)(pEntry + 6) != 0) {
+            *(s16*)(pEntry + 6) = *(s16*)(pEntry + 6) - 1;
+            *(u16*)(pEntry + 0xA) += pWork->unk0;
+            *(u16*)(pEntry + 0x0) += *(u16*)(pEntry + 8);
+            *(u16*)(pEntry + 0x2) += *(u16*)(pEntry + 0xA);
+            *(u16*)(pEntry + 0x4) += *(u16*)(pEntry + 0xC);
+            if (*(s16*)(pEntry + 2) > 0) {
+                value = -*(s16*)(pEntry + 0xA) * 2 / 3;
+                *(s16*)(pEntry + 0xA) = value;
+                value = (s16)value;
+                if (value < 0) {
+                    value = -value;
+                }
+                if (value < 4) {
+                    *(s16*)(pEntry + 6) = 0;
+                }
+            }
+            pCallback(pEntry, pArg1);
+        }
+        pEntry += pWork->unkC;
+    }
+}
+*/
 typedef struct {
     /* 0x0 */ s32 unk0[8];
 } Misc16Oct; // Size: 0x20
