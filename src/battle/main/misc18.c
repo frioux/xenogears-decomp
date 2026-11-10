@@ -45,11 +45,13 @@ void func_80095B44(void) {
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80095BAC);
-/* best: 99.90%. Whole body matches except the mfhi temp of `rand() % 100`:
-   the original coalesces it with the quotient in a0 (mfhi a0; sra a0,a0,5),
-   gcc gives the mfhi pseudo a1 (mfhi a1; sra a0,a1,5). Same tie in
-   func_80096824. Tried: `rand() % 100 > t` and `t < rand() % 100` (99.90),
-   an `s32 r = rand() % 100` local (99.81), gcc 2.6.0 (95.72), -O3 (95.62).
+/* 100.0% as written under gcc 2.6.0 (XenoLibrary preset): the whole unit is a
+   2.6.0 unit, see the note under func_80096824. Under the current 2.7.2
+   Default preset it is 99.90: the original coalesces the mfhi temp of
+   `rand() % 100` with the quotient in a0 (mfhi a0; sra a0,a0,5), 2.7.2 gives
+   the mfhi pseudo a1 (mfhi a1; sra a0,a1,5). Tried under 2.7.2:
+   `rand() % 100 > t` and `t < rand() % 100` (99.90), an `s32 r = rand() % 100`
+   local (99.81), -O3 (95.62).
 
 void func_80095BAC(void) {
     u8 t = D_800C3DFC[0x1C];
@@ -82,13 +84,17 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80095D4C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80096018);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80096494);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80096824);
-/* best: 99.74%. Only the mfhi temp of `rand() % 100` differs: the original
-   coalesces it with the quotient in a0 (mfhi a0; sra a0,a0,5), gcc gives the
-   mfhi pseudo a1. Tried: inline expression, pointer locals for p/q, an `s32 r`
-   local (99.23%), and `t <= rand() % 100` instead of `>=`. Instruction
-   multiset identical; allocator tie. Also tried `s32 m = rand() % 100;` then
-   `m >= t` (99.23%): the local makes gcc keep the quotient and the mfhi in
-   different registers either way.
+/* PRESET: this unit is gcc 2.6.0 (XenoLibrary), not the 2.7.2 Default. Proof:
+   as written this function is 100.0% under gcc-2.6.0 and 99.74% under 2.7.2,
+   func_80095BAC 100.0/99.90, func_80098C6C 100.0/95.83, func_80099498
+   95.15/91.52, and all six already-matched functions in the unit stay 100.0
+   under 2.6.0 (func_80095A78, 80095B44, 8009795C, 80097D08, 80099FB0,
+   8009A074). Under 2.7.2 the only difference here is the mfhi temp of
+   `rand() % 100`: the original coalesces it with the quotient in a0
+   (mfhi a0; sra a0,a0,5), 2.7.2 gives the mfhi pseudo a1. Tried under 2.7.2:
+   inline expression, pointer locals, an `s32 r` local (99.23%),
+   `s32 m = rand() % 100` (99.23%), explicit `q = r / 100` then `r - q * 100`
+   (99.74), `t <= rand() % 100` instead of `>=`.
 
 void func_80096824(void) {
     s32 t = D_800C3E00[0x5B] + D_800C3DFC[0x14];
@@ -117,7 +123,9 @@ void func_80097D08(void) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80097D5C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_8009892C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80098AF8);
-/* best: 95.16%, 94 instructions (same count as the original). Body, both
+/* best: 95.16%, 94 instructions (same count as the original), in every preset
+   screened (2.7.2, 2.6.0, 2.7.2-cdk), so the addiu fold below is not a preset
+   question. Body, both
    branches, the outer/inner branch layout, the 9*x tails, the 0xA5/0xA0 clamp,
    the rand()%8-4 delta and the call are byte-identical. Left: gcc folds the
    row stride's +0x1058 / +0x2228 into the base add (addiu v0,a1,K then
@@ -183,12 +191,11 @@ u8 func_80098AF8(u8 sel) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80098C6C);
-/* best: 95.83%. Same instruction multiset; only the mask shift sits one slot
-   later than in the original (it fills the back edge's delay slot instead of
-   the `beqz`'s, i.e. gcc puts `mask <<= 1` after the loop test). The 8-bit
-   loop counter, the `mask = 1` after the first call and everything else line
-   up byte for byte. Also tried `mask <<= 1` in the for-increment clause: same
-   95.83.
+/* 100.0% as written under gcc 2.6.0 (XenoLibrary; this unit is a 2.6.0 unit,
+   see the note under func_80096824). 95.83 under the current 2.7.2 Default,
+   84.27 under 2.7.2-cdk. Under 2.7.2 the same instruction multiset comes out
+   with the mask shift one slot late (it fills the back edge's delay slot
+   instead of the `beqz`'s).
 
 void func_80098C6C(u8 sel) {
     u8 i;
@@ -213,10 +220,11 @@ void func_80098C6C(u8 sel) {
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80098D2C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80099498);
-/* best: 91.52%. Two allocations off: the original scales into the base
-   (`addu v1,a2,v1`), mine into the index (`addu v1,v1,a2`), and the original
-   puts `i++` in the `beqz`'s delay slot (mine emits it after `n++` with a nop
-   in the slot). Tried: flat pointer arithmetic both operand orders, a
+/* best: 95.15 under gcc 2.6.0 (91.52 under the current 2.7.2). Left under
+   2.6.0: the original bound-checks the switch range (`slti v0,v1,3; bnez` to
+   the default before the case-3 compare) and scales `addu v1,a2,v1`
+   (base first) where this C gives `addu v1,v1,a2`.
+   Tried: flat pointer arithmetic both operand orders, a
    D_800C34B0 pointer local (worse: hoists the base load), and a 0x170-step
    `BattleActor { pad0[0x7C]; u16 flags; }` array access (81.52%).
 
