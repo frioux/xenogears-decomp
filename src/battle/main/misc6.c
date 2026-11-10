@@ -5,6 +5,13 @@
 extern u8 D_800D3420[];
 extern u8 D_800D3430[];
 
+// All 13 parked stubs below are one and the same miss: retail holds the symbol
+// address in $v0 (or $a2 when $v0-$a1 are live) while our gcc gives it $v1, the
+// second entry of mips REG_ALLOC_ORDER. The instruction multiset is identical;
+// it is a local_alloc priority tie between the `la` temp and (*p)[k]. Not a
+// preset question: func_8007B2C0 scores 99.00 under 2.7.2, 2.6.0, -O3 and 96.50
+// under 2.7.2-cdk, and the unit's 25 already-matched functions depend on 2.7.2.
+
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc6", func_8007AC30);
 /* best: 97.00%. Identical instruction multiset; only the register holding
    the D_800D34x0 base address differs (original keeps it in v0/a2, gcc
