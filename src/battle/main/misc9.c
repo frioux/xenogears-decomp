@@ -102,7 +102,7 @@ void func_8007E334(u8 **arg0, u8 arg1) {
     }
     pRow = (u16 *)(D_800D3420 + arg1 * 0x40);
     pRow[(*arg0)[1]] = acc << 2;
-} */
+} */ */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007E334);
 /* best: 80.63%. The record table takes an explicit byte offset
    (D_800C3EB4[offset], offset from 0x38 stepping -0x1C): that is the only form
@@ -133,6 +133,40 @@ void func_8007E438(u8 **arg0, u8 arg1) {
 } */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007E438);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007E554);
+/* best: 89.08%. Structure: for (i = 0xA; i >= 3; i--) over the operator slots,
+   comparing D_800C3EB4[(u8)func_80079E7C(pField[p[2]]) * 0x1C] against
+   D_800C3EB4[offset] with offset = 0x118 stepping -0x1C, then storing
+   `acc << 2` into the row. The row base MUST be a local pointer computed before
+   the loop (inline gives 74.68%: gcc hoists &D_800D3420 and the <<6 separately
+   and does the addu inside the loop, growing the frame to 0x38).
+   Remaining: (1) gcc hoists &D_800C3EB4 into a register for the first of the two
+   record loads only (retail uses the `lui at / addu at / lbu %lo(at)` form for
+   both, so its 6th saved reg is absent); spelling the index through a separate
+   `s32 slot` local is the next thing to try. (2) the accumulator doubling: retail
+   emits `a1 = s1 << 1` on both paths and copies back at the join (sll a1,s1,1 /
+   move s1,a1, and the final store shifts a1), gcc doubles in place
+   (sll s1,s1,1) - same miss as func_8007E334, so `acc = acc * 2` vs
+   `acc <<= 1` should be re-screened here.
+void func_8007E554(u8 **arg0, u8 arg1) {
+    s32 acc = 0;
+    s32 offset = 0x118;
+    s32 i;
+    u16 *pField = (u16 *)(D_800D3420 + arg1 * 0x40);
+    u16 *pRow;
+
+    for (i = 0xA; i >= 3; i--) {
+        if ((u8)func_8007A744((u8)i) != 0) {
+            if (D_800C3EB4[(u8)func_80079E7C(pField[(*arg0)[2]]) * 0x1C] ==
+                D_800C3EB4[offset]) {
+                acc |= 1;
+            }
+        }
+        acc <<= 1;
+        offset -= 0x1C;
+    }
+    pRow = (u16 *)(D_800D3420 + arg1 * 0x40);
+    pRow[(*arg0)[1]] = acc << 2;
+} */
 void func_8007E674(u8 arg0) {
     ((u32 *)D_800D2C60)[arg0] = 0;
     D_800D2C8B[arg0] = 4;
@@ -151,7 +185,7 @@ void func_8007E6A0(u8 **arg0, s32 arg1) {
     s32 *pRow = (s32 *)(D_800D3410 + (arg1 & 0xFF) * 0x40);
 
     pRow[p[3]] = pRow[p[1]] + pRow[p[2]];
-}
+} */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007E6F0);
 /* best: 99.00%. Same miss as func_8007E6A0 (the D_800D3410 row base register:
    original a2, gcc v1); the subtraction itself is byte-exact. See the note there
@@ -161,7 +195,7 @@ void func_8007E6F0(u8 **arg0, u8 arg1) {
     s32 *pRow = (s32 *)(D_800D3410 + arg1 * 0x40);
 
     pRow[p[3]] = pRow[p[1]] - pRow[p[2]];
-}
+} */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007E740);
 /* best: 95.31%. Identical instruction multiset and operand order; the only
    difference is the register pair: the original keeps the D_800D3410 base in
@@ -175,7 +209,7 @@ void func_8007E740(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
 
     pRow[p[1]] = p[2] * pRow[p[1]];
-}
+} */
 void func_8007E780(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
     u32 *pRow = (u32 *)(D_800D3410 + arg1 * 0x40);
@@ -219,7 +253,7 @@ void func_8007E8AC(u8 **arg0) {
     s32 idx = p[2] * 8 + p[1] * 0x40;
 
     D_800D3364[idx + 0x140] = p[3];
-}
+} */
 void func_8007E8E0(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
     u16 *pField = (u16 *)(D_800D3420 + arg1 * 0x40);
@@ -249,7 +283,7 @@ s32 func_8007E98C(u8 **arg0, s32 arg1) {
     s32 value = p[2] | (p[3] << 8);
 
     return pField[p[1]] == value;
-}
+} */
 s32 func_8007E9D0(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
     u8 *pRow = D_800D3430 + arg1 * 0x40;
