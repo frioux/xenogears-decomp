@@ -242,11 +242,21 @@ void func_8007ED84(u8* pText, s32 dy) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007EE08);
 /* best 95.83%, one instruction short. The original materialises 0xFF twice: the
-   else arm's first li is stolen into the beqz delay slot by reorg, and the then
-   arm keeps its own li after the D_80059488 load. gcc 2.7.2 CSEs the two
-   identical constants across the branch, so ours has a single li in the delay
-   slot and both arms read that. Everything else (load first, sb order F4/F8/F0,
-   x*20 as sll/addu/sll, both branch targets) is exact.
+   else arm's li sits in the beqz delay slot (reorg steals it from the target
+   thread) and the then arm keeps its own li after the D_80059488 load. gcc
+   2.7.2 CSEs the two identical QImode constants across the branch, so ours has
+   a single li in the delay slot that both arms read. Everything else (load
+   first, sb order F4/F8/F0, x*20 as sll/addu/sll, both branch targets) is
+   exact.
+   Two more rounds tried: giving the else arm an SImode local (`s32 v = 0xFF;`)
+   does produce two genuine li (QImode vs SImode do not CSE) but then reorg
+   steals the *then* arm's li into the delay slot and leaves the else arm's li
+   in place - 91.46%, the two li swapped, still one insn of placement off.
+   Chained assignment `D_800926F0 = D_800926F4 = D_800926F8 = 0xFF;` emits the
+   else stores in reverse (F8,F4,F0) - wrong order, 79.79%. Putting the load
+   first as `s32 v = D_80059488;` changes nothing (79-91%): gcc reorders it
+   back. Whatever decides which thread reorg steals from is not reachable from
+   the C here.
 void func_8007EE08(s32 arg) {
     if (arg != 0) {
         D_800926F4 = 0xFF;
@@ -265,8 +275,12 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007EE68);
    0xF0, a0 for 0xF4) and subtracts with li 0xFF + subu; gcc CSEs the two
    identical loads of the one extern and then strength-reduces 0xFF - (x * 20)
    to nor, since only the stored byte matters. The original subu means its two
-   MEMs were two different symbols that both resolve to 0x80059488, and splat
-   can only name one of them.
+   MEMs were two different symbols that both resolve to 0x80059488 (aliases),
+   and splat can only name one of them, so the second name cannot be spelled
+   without a hand-edited linker/undefined_syms_auto.battling.txt (generated).
+   A `*(volatile s32*)&D_80059488` second read does produce two lw, but the
+   volatile one cannot be hoisted to the block head and the nor is still there:
+   72.03%, no better.
 void func_8007EE68(s32 arg) {
     if (arg != 0) {
         D_800926F8 = 0xFF;
