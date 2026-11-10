@@ -23,6 +23,23 @@ u8 func_801E4928(u8 gearId) {
 }
 */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc11", func_801E4998);
+/* Best: 87.97% - everything matches except that gcc folds the +0x5C8 into the
+   member offset (0x5EC) where the original keeps addiu base,0x5C8 + 0x24(base),
+   which also costs the mfhi destination registers ($v0/$v1 vs $a3). The first
+   store has to be volatile so the following read is not forwarded; the second
+   store must not be, or reorg cannot put it in the jr delay slot.
+void func_801E4998(MenuDressingRoom* pDressingRoom, u8 gearId) {
+    u16* p;
+    u16 value;
+    u32 hp;
+
+    hp = g_GameState.gears[gearId].maxHp / 10 * 2 / 9;
+    p = (u16*)(*(u32*)((u8*)pDressingRoom + 0x4C + gearId * 4) + 0x5C8);
+    *(volatile u16*)((u8*)p + 0x24) = hp;
+    value = *(volatile u16*)((u8*)p + 0x24) / 10;
+    *(u16*)((u8*)p + 0x24) = value * 10;
+}
+*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc11", func_801E4A28);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc11", func_801E4D10);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc11", func_801E5058);
