@@ -134,28 +134,18 @@ s32 func_800968E0(void) {
 }
  */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_800968E0);
-// Best: 95.83%. Two diffs left. (1) gcc deletes the first `D_8009D3BC = p`
-// store as dead (the original keeps both, so the original source had two names
-// for that address or a volatile pointer). (2) Because of that deletion the two
-// `p->unk4` loads end up adjacent and gcc CSEs nothing but allocates them
-// 4->v0, 8->a2, 4->v1 where the original has 4->v0, 4->a2, 8->v1.
-// Declaring D_8009D3BC `u8 *volatile` keeps both stores (87.21%) but then gcc
-// hoists both loads above the stores, merges the two `p->unk4` loads into one
-// and loses the `move a1,s0` in the CdIntToPos delay slot.
-/*
 void func_8009699C(Misc15CdRequest *p) {
     CdlLOC *pLoc;
     s32 lba;
     u32 size;
-    s32 unk8;
 
     lba = p->unk0;
     D_8009CD44 = 1;
     pLoc = &D_8009CEBC;
-    D_8009D3BC = (u8 *)p;
+    /* retail keeps this dead store: the volatile store blocks gcc's elimination */
+    *(u8 *volatile *)&D_8009D3BC = (u8 *)p;
     D_8009D3BC = (u8 *)p + 0xC;
     size = p->unk4;
-    unk8 = p->unk8;
     D_8009BE48 = 0;
     D_8009CCB0 = 0;
     D_8009CCA8 = 0;
@@ -164,13 +154,12 @@ void func_8009699C(Misc15CdRequest *p) {
     D_8009D614 = lba;
     D_8009D56C = (size + 0x7FF) >> 11;
     D_8009CEB8 = p->unk4;
-    D_8009C590 = unk8;
+    D_8009C590 = p->unk8;
     CdIntToPos(lba, pLoc);
     CdSyncCallback(func_80096A6C);
     CdControlF(CdlSetloc, (u8 *)pLoc);
 }
-*/
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_8009699C);
+
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_80096A6C);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_80096C0C);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_80096F18);
