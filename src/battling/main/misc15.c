@@ -22,7 +22,10 @@ typedef struct HeapNode {
 
 extern s32 D_80092824;
 extern void* D_80092828;
-extern void func_8008C188();
+extern void* func_8008C188(u8* pObj, void* pArg);
+extern s32 func_80089C54(void);
+extern void func_80089C88(s32 handle, void* pNode);
+extern void func_8008BE4C(void* pBlock, void* pData);
 extern s32 rand(void);
 extern u8 D_800928A0;
 extern s32 D_800928E4;
@@ -35,6 +38,7 @@ extern void func_8008BD70(u8* pData, void* pPacket, void* pUnk, void* pVertices)
 extern void func_8008C620(void* pNode, s16 n);
 extern void func_8008C4B0(void* pNode, s16 n);
 extern void func_800316C0(void* pOT, void* pPrim);
+extern void func_80031750(void* pOT, void* pPrim);
 extern VECTOR D_8009A2C8;
 extern s32 D_8009A2CC;
 extern s32 D_8009A2D0;
@@ -58,10 +62,6 @@ typedef struct {
 } Words2; // Size: 0x8
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc15", func_8008BC04);
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc15", func_8008BCC8);
-/* Best C match, 82.38%: gcc hoists the D_8009A2D0 load above the store through
-   $s0; the original keeps the three shift statements in source order. The frame
-   (0x40) needs the second, unused VECTOR local.
 void func_8008BCC8(u8* pObj, u8* pDst) {
     VECTOR vec;
     VECTOR vecUnused;
@@ -71,15 +71,17 @@ void func_8008BCC8(u8* pObj, u8* pDst) {
     vec.vz = -16;
     VectorNormal(&vec, &D_8009A2C8);
     D_8009A2C8.vx <<= 4;
-    D_8009A2D0 <<= 4;
-    D_8009A2CC <<= 4;
+    D_8009A2C8.vy <<= 4;
+    D_8009A2C8.vz <<= 4;
     func_8008C3A8(*(void**)(pObj + 8), pDst, *(u16*)(pObj + 2));
 }
-*/
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc15", func_8008BD70);
-/* Best C match, 78.82%: gcc stores D_80059528 before the loop instead of merging
-   that store with the loop-top one, and passes the node rather than node+4 to
-   func_8008C620/func_8008C4B0. The body is a loop rotated to a bottom test.
+/* Best C match, 83.00%: the body is right (the loop's decrement even lands in
+   both jal delay slots), but gcc emits a top test (`li v0,-1; beq s1,v0`) and
+   keeps `D_80059528 = *(pData+0x10)` in the preheader, while the original
+   rotates the loop (preheader `s1--`, `j` to the bottom test) and merges that
+   store into the loop-tail block.  do/while (i-- != 0) with i = count-1 and
+   `while (i != -1) { ...; i--; }` both drop to 74-80%.
 void func_8008BD70(u8* pData, void* pPacket, void* pUnk, void* pVertices) {
     s32 i;
     u8* pNode;
@@ -90,15 +92,14 @@ void func_8008BD70(u8* pData, void* pPacket, void* pUnk, void* pVertices) {
     D_80059568 = pUnk;
     g_pCurModelVertices = pVertices;
     D_800595C0 += *(u16*)(pData + 4);
-    while (i != -1) {
+    while (--i != -1) {
         pNode = (u8*)D_80059528;
         D_80059528 = pNode + 4;
         if (pNode[0] & 8)
-            func_8008C620(pNode, *(s16*)(pNode + 2));
+            func_8008C620(pNode + 4, *(s16*)(pNode + 2));
         else
-            func_8008C4B0(pNode, *(s16*)(pNode + 2));
+            func_8008C4B0(pNode + 4, *(s16*)(pNode + 2));
         D_80059528 = (u8*)D_80059528 + (*(s16*)(pNode + 2) << 3);
-        i--;
     }
 }
 */
@@ -133,7 +134,32 @@ void func_8008C120(HeapNode* pNode) {
         HeapFree(pBlock);
     }
 }
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc15", func_8008C188);
+void* func_8008C188(u8* pObj, void* pArg) {
+    void* pWork;
+    HeapNode* pNode;
+    void* pBlock;
+    void* pData;
+    u8* pChild;
+
+    HeapSetCurrentContentType(6);
+    pWork = (void*)func_80089C54();
+    pNode = func_8008C0CC(pObj);
+    func_8008C0BC(pWork, pNode);
+    if (pNode->type == 1) {
+        pData = *(void**)(*(u8**)(pObj + 4) + 0x14);
+        HeapSetCurrentContentType(5);
+        pBlock = HeapAlloc(0x18, 2);
+        pNode->pBlock = pBlock;
+        func_8008BE4C(pBlock, pData);
+    }
+    pChild = *(u8**)(pObj + 0x94);
+    D_80092824++;
+    if (pChild != NULL)
+        func_80089C88((s32)pWork, func_8008C188(pChild, pWork));
+    if (*(void**)(pObj + 0x90) != NULL)
+        func_80089C88((s32)pArg, func_8008C188(*(u8**)(pObj + 0x90), pArg));
+    return pWork;
+}
 void func_8008C298(void* pWork) {
     D_80092824 = 0;
     func_8008C188(pWork, NULL);
@@ -183,7 +209,20 @@ void func_8008C828(u8* pObj, u8* pSrc) {
     *(Words4*)(pObj + 0x44) = *(Words4*)(pObj + 0x28);
     *(Words3*)(pObj + 0x54) = *(Words3*)(pObj + 0x38);
 }
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc15", func_8008C8B4);
+void func_8008C8B4(u8* pObj, u8* pOT) {
+    long local[2];
+    u8* pBase;
+    s32 otz;
+
+    pBase = pObj + 0x28 + D_800928A0 * 0x1C;
+    otz = RotTransPers4((SVECTOR*)pObj, (SVECTOR*)(pObj + 0x10), (SVECTOR*)(pObj + 0x18),
+                        (SVECTOR*)(pObj + 0x20), (long*)(pBase + 8), (long*)(pBase + 0xC),
+                        (long*)(pBase + 0x10), (long*)(pBase + 0x14), local, local);
+    *(Bytes8*)(pObj + 0x20) = *(Bytes8*)(pObj + 0x18);
+    *(Bytes8*)(pObj + 0x18) = *(Bytes8*)(pObj + 0x10);
+    *(Bytes8*)(pObj + 0x10) = *(Bytes8*)pObj;
+    func_80031750(pOT + ((otz >> 2) << 2), pBase);
+}
 void func_8008C9B8(u8* pObj) {
     *(Bytes8*)(pObj + 0x18) = *(Bytes8*)pObj;
     *(Bytes8*)(pObj + 0x10) = *(Bytes8*)(pObj + 0x18);
