@@ -1,31 +1,86 @@
 #include "common.h"
 
+extern void func_800BDF1C(u8 *pEntry);
+extern void WorkListsDeleteTasks(void);
+extern u8 *D_800C3750;
+extern void func_8001F6B0(u8 *pObj);
+extern void func_80025180(u8 *pData);
+extern void func_8001CE74(u8 *pTask);
+extern void TimerWorkListRemoveTask(u8 *pTask);
+extern void func_800BDB74(void);
+extern void func_800BDCF8(u8 *pEntry);
+extern void TimerWorkListSetTaskCallback(u8 *pTask, void *pCallback);
+extern u8 *D_800D2D68;
+extern s32 D_800C374C;
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BCC60);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BCD8C);
-/* best 45.00% (before the XenoBattleTail preset): retail's aspsx expands the
-   bare `sh $0,SYM` macro into `lui v0,%hi; sh $0,%lo(v0)` and fills the jr
-   delay slot with the store. gcc leaves the macro to GNU as, which emits
-   `lui $at` + `sh 0($at)`: two insns, so the delay slot stays empty and the
-   register differs.
 extern s16 D_800C3D14;
 
 void func_800BCD8C(void) {
     D_800C3D14 = 0;
 }
-*/
+
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BCD98);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BCEAC);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BCFAC);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BD024);
+void func_800BD024(u8 *pTask) {
+    u8 *pData;
+    u8 *pObj;
+
+    pData = *(u8 **)(pTask + 0x4);
+    pObj = *(u8 **)(pData + 0x38);
+    pObj[0x2B] |= 1;
+    func_8001F6B0(pObj);
+    func_80025180(*(u8 **)(pData + 0x5C));
+    func_8001CE74(pTask);
+    TimerWorkListRemoveTask(pTask);
+    HeapFree(pData);
+}
+
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BD098);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BD1FC);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BD2E4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BD3AC);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BD7A0);
+void func_800BD7A0(u8 *pEntry) {
+    u8 **ppHead;
+    u8 *pTarget;
+    u8 *pCur;
+    u8 *pPrev;
+
+    ppHead = &D_800C3750;
+    pPrev = NULL;
+    pCur = *ppHead;
+    pTarget = pEntry;
+    while (pCur != NULL) {
+        if (pCur == pTarget) {
+            if (pPrev != NULL) {
+                *(u8 **)(pPrev + 0x38) = *(u8 **)(pCur + 0x38);
+            } else {
+                *ppHead = *(u8 **)(pCur + 0x38);
+            }
+            break;
+        }
+        pPrev = pCur;
+        pCur = *(u8 **)(pCur + 0x38);
+    }
+    WorkListsDeleteTasks();
+}
+
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BD810);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BD974);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BDA1C);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BDB08);
+void func_800BDB08(u8 *pTask) {
+    void (*pCallback)(u8 *);
+
+    func_800BDF1C(pTask);
+    pTask[0x80] -= 2;
+    pTask[0x81] -= 2;
+    pTask[0x82] -= 2;
+    if (--*(s32 *)(pTask + 0x88) < 0) {
+        pCallback = *(void (**)(u8 *))(pTask + 0xC);
+        pCallback(pTask);
+    }
+}
+
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BDB74);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BDC14);
 /* best 83.40% (before the XenoBattleTail preset): only the base register of the
@@ -34,6 +89,12 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BDC14);
    the call and stays on $16. Tried: u8* with pEntry+0x88 casts, a struct type,
    a pTask copy, a callback local, indexed and offset forms - all give $4.
 extern void func_800BDF1C(u8 *pEntry);
+extern void WorkListsDeleteTasks(void);
+extern u8 *D_800C3750;
+extern void func_8001F6B0(u8 *pObj);
+extern void func_80025180(u8 *pData);
+extern void func_8001CE74(u8 *pTask);
+extern void TimerWorkListRemoveTask(u8 *pTask);
 extern void TimerWorkListSetTaskCallback(void *pEntry, void *pCallback);
 extern void func_800BDB74(void);
 
