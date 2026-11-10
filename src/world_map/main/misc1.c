@@ -322,13 +322,17 @@ void func_80073398(void) {
 }
 */
 
-/* best: 91.29%. Instruction multiset is identical; gcc hoists the p->z load
-   above the D_8009C5B0 store and therefore keeps it in a second register,
-   where the original reuses $v0. Tried: direct stores (91.29), s32* pointer
-   stores (87.24, also changes the relocation base to D_8009C5AC+4), an s32
-   temp for x, and separate x/z locals.
+/* best: 94.74%. A single s32 nPos reused for both coordinates (below) is
+   better than two separate temporaries (91.29): with separate pseudos gcc picks
+   a second register for z, with one pseudo it at least reuses $v0. What still
+   differs: retail loads p->z AFTER the D_8009C5B0/D_8009C5AC stores and needs
+   the load-delay nop there; gcc's sched hoists the p->z load to the top of the
+   block (into $v1) whatever the source order, so our block is 4 bytes shorter.
+   Tried, no help: two separate temps, x-first / B0-first statement orders,
+   direct stores through the globals, s32* pointer stores.
 void func_80073448(s32 arg0) {
     WorldMapPoint* p;
+    s32 nPos;
 
     if (g_GameState.unk1834 & 0x2000) {
         g_GameState.unk1834 &= ~0x2000;
@@ -338,9 +342,11 @@ void func_80073448(s32 arg0) {
         p = D_8009D3F4;
         while (*(s16*)&p->id != -1) {
             if ((s16)p->id == arg0) {
+                nPos = p->x << 12;
                 D_8009C5B0 = 0;
-                D_8009C5AC = p->x << 12;
-                D_8009C5B4 = p->z << 12;
+                D_8009C5AC = nPos;
+                nPos = p->z << 12;
+                D_8009C5B4 = nPos;
                 return;
             }
             p++;
@@ -353,6 +359,7 @@ void func_80073448(s32 arg0) {
 */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80073448);
 
+
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80073530);
 
 void func_8007369C(void) {
@@ -361,17 +368,21 @@ void func_8007369C(void) {
 }
 
 
-/* best: 26.13% - every one of the 68 insns is present with the right store
-   order and width; only the register allocation differs. Decoded: p =
-   &D_8009D198 (kept in $v0), 0x24-stride sub-blocks at 0x00..0xFC, each with a
-   word at +0,+8,+0x10,+0x18 and bytes at +0x23 and +0x27; colours 0xFF7A70,
-   0xFFF5E0, 0xC03745; bytes 8 and 0x38; the first 0x40 bytes are reached
-   through their own absolute symbols (D_8009D197, D_8009D198, D_8009D1A0,
-   D_8009D1A8, D_8009D1B0, D_8009D1BC, D_8009D1C4, D_8009D1CC, D_8009D1D4).
-   gcc rotates the constant registers one place (it gets v1,a0,v0,a1 where the
-   original has a0,a1,v1,a2): the base pointer loses the top allocation
-   priority, and u32 locals for the two colours do not change it.
-
+/* best: 26.13% under this unit's preset (gcc 2.7.2). The blocker is NOT the
+   allocator: 2.7.2 folds the `u8* p = &D_8009D198` base into absolute
+   `D_8009D198+NN` symbol addresses, so the 40-odd `NN($v0)` offset stores
+   become `lui $at` + store pairs and the function is 106 insns instead of 68.
+   Retail keeps the base in $v0. Under gcc-2.7.2-cdk, whose `la` is two RTL
+   insns (`lui %hi` + `addiu %lo`) so the address is a runtime value, the same
+   source scores 90.34% and reproduces the shape (la $v0 + offsets); it only
+   rotates the second colour into $v0 instead of $a1 and forms the la at its
+   first use. Retail: a0=0xFF7A70, a1=0xFFF5E0, v1=0xC03745, v0=base (formed
+   BEFORE the first store), a2=8, a1 reused for 0x38.
+   Decoded layout: 0x24-stride sub-blocks at 0x00..0xFC, each with a word at
+   +0,+8,+0x10,+0x18 and bytes at +0x23 and +0x27; colours 0xFF7A70, 0xFFF5E0,
+   0xC03745; bytes 8 and 0x38; the first 0x40 bytes are reached through their
+   own absolute symbols (D_8009D197, D_8009D198, D_8009D1A0, D_8009D1A8,
+   D_8009D1B0, D_8009D1BC, D_8009D1C4, D_8009D1CC, D_8009D1D4).
 extern u32 D_8009D1A0;
 extern u32 D_8009D1A8;
 extern u32 D_8009D1B0;
@@ -435,9 +446,9 @@ void func_800736DC(void) {
     p[0xDB] = 0x38;
     p[0xFB] = 8;
     p[0xFF] = 0x38;
-}
-*/
+}*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_800736DC);
+
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_800737EC);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_800739B8);
