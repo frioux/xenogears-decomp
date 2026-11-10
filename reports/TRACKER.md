@@ -1825,3 +1825,24 @@ Idioms banked this round:
   beats a cached pointer local when the original reloads through it every iteration.
 - `battling/misc2` has three `/* Handwritten function */` stubs (bare `mtc2`/`mfc2`) that no C
   can produce - same class as `psyq/libgte`'s.
+
+| 16 | `menu/{misc6,10,5,8}`, `battling/{misc17,2,6,8}`, `world_map/{misc11,12,15}`, `battle/{misc4,5}`, `field/misc9` | +12 | 1571 | menu/misc6 3 (the 2.6.0 un-parks), menu/misc5 2, menu/misc10 1, battling/misc17 3, battling/misc2 1, plus 2 from truncated reports |
+
+### Round 16: the induction-base idiom, worth three at once
+
+`battling/main/misc17`'s three loop stubs (99.39/99.54/99.56%) all closed with one change:
+write the loop **indexed** (`pSlot[i].field` plus an `s32 i`) instead of with an incrementing
+pointer (`p->field; p++`). With `p++` gcc's `combine_givs` re-bases the induction register onto
+the address of the body's *last* memory reference (base `&unk2`, offsets 10/-1/2/0); with
+`p[i]` the biv is `p + i*stride`, the base register stays the symbol, and every displacement is
+the literal struct offset - retail's shape. This is now in the round brief.
+
+Other banked facts:
+- Two `0xFF` immediates in one function are CSE'd unless they differ in **mode**: an
+  `s32 v = 0xFF;` arm defeats the CSE where a `u8`/literal arm does not (`battling/misc6`).
+- `menu/main/misc5` finished its small-function work with *disjoint* offset locals
+  (`offset`/`offset2`/`offset3`, each with its own live range) - one local reused for several
+  running offsets never matches.
+- A worker found `func_80073F34` (battling/misc2) is 97.87% but 428 bytes against retail's
+  432, so it is **not** linkable and must stay `INCLUDE_ASM` - the size check is why the
+  check_bin gate exists.
