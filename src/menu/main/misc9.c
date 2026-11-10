@@ -222,5 +222,53 @@ void func_801DFE2C(u_char arg0) {
     g_Menu->pDressingRoom->unkB8[5] = g_Menu->pDressingRoom->unkB4;
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DFF5C);
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801E0434);
+void func_801E0434(u_char arg0, u_char arg1) {
+    u_char* pIds;
+    u_char* pQuantities;
+    u_char characterId;
+    u_char gearId;
+    u_char weaponId;
+    u_char found = 1;
+    u_char count;
+    s32 i;
+
+    if (arg1 == 0) {
+        pIds = g_GameState.weaponIDs;
+        characterId = g_Menu->pManager->currentCharacterIDs[arg0];
+        weaponId = g_GameState.characters[characterId].unk6F[0];
+        g_GameState.characters[characterId].unk6F[0] = 0;
+        pQuantities = g_GameState.weaponQuantities;
+        count = MAX_INVENTORY_WEAPONS;
+    } else {
+        pIds = g_GameState.gearWeaponsIds;
+        characterId = g_Menu->pManager->currentCharacterIDs[arg0];
+        gearId = g_GameState.characters[characterId].gearId;
+        weaponId = g_GameState.gears[gearId].unk4[0];
+        g_GameState.gears[gearId].unk4[0] = 0;
+        pQuantities = g_GameState.gearWeaponsQty;
+        count = MAX_INVENTORY_WEAPONS;
+    }
+
+    for (i = 0; i < count; i++) {
+        if (pIds[i] == weaponId) {
+            u_char quantity = pQuantities[i] + 1;
+
+            pQuantities[i] = quantity;
+            if (quantity >= MAX_INVENTORY_WEAPONS) {
+                pQuantities[i] = MAX_ITEM_QUANTITY;
+            }
+            found = 0;
+        }
+    }
+
+    if (found) {
+        for (i = 0; i < count; i++) {
+            if (pIds[i] == 0) {
+                pIds[i] = weaponId;
+                pQuantities[i] = 1;
+                break;
+            }
+        }
+    }
+}
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801E05D0);
