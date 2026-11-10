@@ -10,9 +10,11 @@ extern u8 D_800CCE4A[];
 extern u8 D_800CCCE8[];
 extern u8 D_800D2C34;
 extern u8* D_800C3E00;
+extern u8 D_800CCD68[];
 
 extern int rand(void);
 extern void func_8009BE0C(void);
+extern void func_8009B104(u8 arg0, u8* arg1);
 
 s32 func_8009A0DC(u8 arg0) {
     u8* p = (u8*)(arg0 * 0x170 + (u32)D_800C34B0);
@@ -162,10 +164,80 @@ u8 func_8009AB00(u8 arg0) {
     return flags;
 }
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009AB38);
+void func_8009AB38(u8 arg0) {
+    u8* p = (u8*)D_800C34B0 + arg0 * 0x170;
+    u16 f;
+
+    if (p[0x15A] & 0x80) {
+        f = *(u16*)(p + 0x124) & 0x2000;
+    } else {
+        f = *(u16*)(p + 0x88) & 0x400;
+    }
+    if (f == 0) {
+        return;
+    }
+    p = (u8*)D_800C34B0 + arg0 * 0x170;
+    if (p[0x15A] & 0x80) {
+        p = (u8*)D_800C34B0 + (arg0 * 0x690 + 0x2228);
+        *(u16*)(p + 0x348) = 1;
+        *(u16*)(p + 0x398) = 1;
+        *(u16*)(p + 0x3C0) = 1;
+        *(u16*)(p + 0x3E8) = 1;
+        *(u16*)(p + 0x410) = 1;
+        *(u16*)(p + 0x438) = 1;
+        *(u16*)(p + 0x460) = 1;
+    } else {
+        p = (u8*)D_800C34B0 + (arg0 * 0x5F0 + 0x1058);
+        *(u16*)(p + 0x370) = 1;
+        *(u16*)(p + 0x3C0) = 1;
+        *(u16*)(p + 0x3E8) = 1;
+        *(u16*)(p + 0x410) = 1;
+        *(u16*)(p + 0x438) = 1;
+        *(u16*)(p + 0x460) = 1;
+        *(u16*)(p + 0x488) = 1;
+        *(u16*)(p + 0x4B0) = 1;
+        *(u16*)(p + 0x4D8) = 1;
+        *(u16*)(p + 0x500) = 1;
+    }
+}
+
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009AC48);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009ADA0);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009AEFC);
+/* Best attempt: 88.27%. Everything matches except the 3..11 loop: the original
+   re-forms `lui at,%hi(D_800CCD68); addu at,at,v0` at BOTH memory references,
+   while gcc hoists the symbol base into a register before the loop (loop.c moves
+   the invariant), which then CSEs the address and drops 7 insns. Tried: plain
+   `*(u16*)(D_800CCD68 + i*0x170) &= 0xFFDF`, the `((u16*)(...))[0] &=` spelling
+   (86.36%), `u8 t` vs `s32 t` for the 0x56 temp. Everything else (two D_800C34B0
+   loads, the four zero stores, the `f & 0x2000` store and the func_8009B104 call)
+   lines up exactly.
+void func_8009AEFC(u8 arg0) {
+    u8* p;
+    u16 f;
+    s32 t;
+
+    *(u8*)((u8*)D_800C34B0 + 0x5FC2) = 0;
+    p = arg0 * 0x170 + (u32)D_800C34B0;
+    f = *(u16*)(p + 0x80);
+    t = p[0x56];
+    *(u16*)(p + 0x7C) = 0;
+    *(u16*)(p + 0x84) = 0;
+    *(u16*)(p + 0x88) = 0;
+    *(u16*)(p + 0x8C) = 0;
+    *(u16*)(p + 0x80) = f & 0x2000;
+    if (t == 7) {
+        func_8009B104(arg0, p);
+    }
+    if (p[0x56] == 3) {
+        u8 i;
+
+        for (i = 3; i < 11; i++) {
+            *(u16*)(D_800CCD68 + i * 0x170) &= 0xFFDF;
+        }
+    }
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009AFD8);
 /* Best attempt: 99.33%, same size (192 bytes). Jump table is
    case 0-3 -> shared tail, 4-5 -> return, 6 -> tail of the 7..19 block,
@@ -232,7 +304,23 @@ void func_8009B098(void) {
     }
 }
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009B104);
+void func_8009B104(u8 arg0, u8* arg1) {
+    u8* p = arg0 * 0x170 + (u32)D_800C34B0;
+    u8* q = p + 0xA4;
+
+    if (*(u16*)(arg1 + 0x4E) * 50 > 0x1869F) {
+        if (*(u16*)(arg1 + 0x4C) * 50 > 0x1869F) {
+            *(u32*)(p + 0x104) = 0x1869F;
+        } else {
+            *(u32*)(p + 0x104) = *(u16*)(arg1 + 0x4C) * 50;
+        }
+        *(u32*)(q + 0x64) = 0x1869F;
+    } else {
+        *(u32*)(p + 0x104) = *(u16*)(arg1 + 0x4C) * 50;
+        *(u32*)(p + 0x108) = *(u16*)(arg1 + 0x4E) * 50;
+    }
+}
+
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009B1E4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009B46C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009B684);
