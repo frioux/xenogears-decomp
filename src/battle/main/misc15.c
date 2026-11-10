@@ -13,6 +13,12 @@ extern void func_8008FA60(s32 arg0);
 extern u16 func_80089C08(u8 arg0);
 extern void func_800BC404(u16 arg0);
 extern void func_800BCD98(u16 arg0);
+extern u16 func_80089C9C(u16 arg0, u8 arg1);
+extern u16 func_80089C48(u8 arg0);
+extern u8 D_800C400B[];
+extern u16 D_800C4022[];
+extern u8 D_800C402F[];
+extern u8 D_800CCD1C[];
 
 void func_8008AA74(u8 arg0) {
     if (D_800D366C != 0) {
@@ -73,6 +79,40 @@ void func_8008AC50(void) {
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008AC88);
+/* Best: 97.26%. Everything matches except two delay slots: the original fills
+   the `beqz func_80089C9C()` slot with the loop's `i++` and copies `slti
+   i,8` into the `bnez flags&0x800` slot; ours fills the first slot with the
+   table `lhu` and leaves the second `nop`. Same instruction count and same
+   bytes otherwise. Seven loop spellings (for/while, increment list order,
+   i++ in the body, both `continue` forms, off+= inside/outside) compile
+   identically, so this is cc1's reorg choice. Prologue order needs the
+   comma-init and this declaration order (mask,i,off,idx) to match.
+void func_8008AC88(u16 arg0, u8 arg1) {
+    u16 mask;
+    s32 i;
+    s32 off;
+    u8 idx;
+
+    mask = arg0 & 0xFFF8;
+    for (i = 0, off = 0x450; i < 8; i++) {
+        idx = i + 3;
+        if (func_80089C9C(mask, idx) != 0) {
+            if ((*(u16 *)(D_800CCD1C + off) & 0x800) == 0) {
+                mask &= func_80089C48(idx);
+            }
+        }
+        off += 0x170;
+    }
+    if (mask == 0) {
+        return;
+    }
+    D_800C400B[D_800C3EAC[0x2DA] * 72] = arg1;
+    D_800C402F[D_800C3EAC[0x2DA] * 72] = 0xF3;
+    D_800C4022[D_800C3EAC[0x2DA] * 36] = mask;
+    D_800C3EAC[0x2DA] = D_800C3EAC[0x2DA] + 1;
+}
+*/
+
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008ADD0);
 void func_8008B108(u8 arg0) {
     D_800D2D28[0x9C] = D_800D2D28[0x9D] = D_800D2D28[0x9E] = 0;
@@ -111,10 +151,12 @@ void func_8008BC40(u8 arg0) {
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008BC98);
-/* Best: 99.35%. One instruction differs: the last `D_800C3EAC + arg0*0x40`
-   comes out `addu s1,s1,v0` where the original has `addu v0,v0,s1`; both
-   operands die there, so it is a global.c tie-break, not a source shape.
-   Tried: array subscript vs pointer arithmetic.
+/* Best: 99.35%. Parking note: two `addu` operand orders differ (original
+   base-first `addu v1,v1,s1` / `addu v0,v0,s1`, ours index-first). Eight source
+   spellings (subscript, pointer arith, u8(*)[0x40] cast, (arg0<<6), base+0x3C
+   indexed, u32 integer add, off locals) all compile byte-identically, so this is
+   the allocator picking which dying operand coalesces with the dest, not a source
+   shape. Same tail in func_8008B168 / func_8008C3F0 / func_8008CD28.
 void func_8008BC98(u8 arg0) {
     u16 value;
 
@@ -186,3 +228,4 @@ void func_8008CD28(u8 arg0) {
     func_800BCD98(func_80089C08((D_800C3EAC + arg0 * 0x40)[0x3C]));
 }
 */
+
