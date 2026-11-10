@@ -13,6 +13,8 @@ extern s32 D_800595A0;
 extern u8 D_800D2DCC[];
 extern u8 D_800D2DE4[];
 extern u16 D_800D2DF0[];
+extern u16 g_SystemPalette1;
+extern u16 g_SystemPalette2;
 
 extern s32 func_8008ABB8(s32, s32);
 extern u16 func_80098AF8(s32, s32);
@@ -144,6 +146,41 @@ void func_80077980(void) {
 }
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_80077990);
+/* 61.46%: retail walks two 0x28-byte packets from pInfo to pInfo+0x50 and
+   finishes with pInfo[0x5D] = 0. Two things block the u8* form above:
+   1. retail's loop compare is `slt` (signed) against a register holding
+      pInfo+0x50, i.e. the source compares POLY_FT4* values, not u8* (a
+      pointer compare off a u8* gives `sltu` and gcc also hoists the bound
+      into a pre-loop `sltu`/while guard that retail does not have). The
+      packet fields must then be pPoly->clut / pPoly->tpage.
+   2. retail stores the flag and RE-READS it (`andi v0,s3,1; sb v0,0x5C(s1);
+      lbu v0,0x5C(s1); beqz`) and does not hoist `arg & 1`; every plain
+      store-then-test spelling lets cse forward the store, which also makes
+      loop.c hoist the `andi` into the prologue (extra saved register and a
+      different body).
+void func_800780A8(u8 *pInfo, s32 arg) {
+    u8 *p;
+    u16 tile;
+
+    for (p = pInfo; p < pInfo + 0x50; p += 0x28) {
+        SetPolyFT4((POLY_FT4 *)p);
+        p[4] = 0x80;
+        p[5] = 0x80;
+        p[6] = 0x80;
+        SetSemiTrans(p, 0);
+        SetShadeTex(p, 1);
+        pInfo[0x5C] = arg & 1;
+        if (pInfo[0x5C] != 0) {
+            tile = g_SystemPalette2;
+        } else {
+            tile = g_SystemPalette1;
+        }
+        *(u16 *)(p + 0xE) = tile;
+        *(u16 *)(p + 0x16) = GetTPage(0, 0, 0x3C0, arg / 2 * 13);
+    }
+    pInfo[0x5D] = 0;
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_800780A8);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_8007819C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_80078310);
