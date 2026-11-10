@@ -88,17 +88,21 @@ u16 func_8009D948(void) {
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc20", func_8009DA04);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc20", func_8009DB54);
-/* best 92.38%: single-exit shape with the parameter overwritten in place (that
-   is what puts the accumulator in a0 and frees a2 for the mask). Left over: the
-   loop-invariant colours (0x8000 a3 / mask a2 original, a2 / v1 here) and the
-   mfhi result colour, which turn every register after the loop into a mirror.
+/* best 93.93% under gcc 2.6.0 (92.38% under 2.7.2): the head and the divide
+   match, but the original has one extra block - the `break` path copies the
+   index into v1 (`j .L8009DB8C; addu v1,a1,zero`) before the shared
+   `lbu 0x88(D_800D2DC8 + i)` load, so the loop counter and the index used after
+   the loop are not the same source variable there.  Also the two loop
+   invariants come out mirrored (0x8000 in a2 / mask in v1 here, a3 / a2 in the
+   original); making 0x8000 a local did not move it.
 s32 func_8009DB54(s32 arg0) {
+    u8 i = 0;
     u16 mask = *(u16 *)(D_800C3DFC + 8);
-    u8 i;
+    s32 bit = 0x8000;
     u8 v;
 
-    for (i = 0; i < 0x10; i++) {
-        if (mask & (0x8000 >> i)) {
+    for (; i < 0x10; i++) {
+        if (mask & (bit >> i)) {
             break;
         }
     }
