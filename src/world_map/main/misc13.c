@@ -20,6 +20,7 @@ extern u8 D_8009BD64[];
 extern u8 D_8009BAC8[];
 extern s32 D_8009B264[];
 extern s32 D_8009B26C[];
+extern s32 D_8009C184[];
 extern s32 D_8009B364[];
 extern s32 D_8009B36C[];
 extern s32 D_8009B464[];
@@ -125,6 +126,36 @@ s32 func_800935DC(WorldMapPos* p0, WorldMapPos* p1, WorldMapPos* p2) {
 }
 */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_80093660);
+/* best: 92.59% (220 bytes vs 224). Instruction multiset is identical; only the
+   register assignment of the four temps differs (the original keeps hx in a0 and
+   hz in a1 by reusing the dying x/z argument registers, gcc gives hx a3 and hz
+   v1 and then puts zone in a0), and gcc fills the hz bgez delay slot with the
+   hx >> 4 where the original has a nop. Seven local declaration orders all give
+   exactly 92.59%, so this is an allocator tie, not a source-order problem.
+
+u8* func_80093660(s32 x, s32 z) {
+    s32 hx;
+    s32 hz;
+    s16 idx;
+    s16 zone;
+    s16 sub;
+
+    idx = ((z >> 20) / 8) * D_8009D160 + (x >> 20) / 8;
+    hx = (x >> 12) & 0x7FF;
+    hz = (z >> 12) & 0x7FF;
+    zone = 0;
+    if (hx >= 0x400) {
+        zone = 1;
+        hx -= 0x400;
+    }
+    if (hz >= 0x400) {
+        zone |= 2;
+        hz -= 0x400;
+    }
+    sub = ((hz >> 4) / 8) * 9 + (hx >> 4) / 8;
+    return (u8*)D_8009C184[idx] + zone * 81 * 4 + sub * 4;
+}
+*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_80093740);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_80093978);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_80093A5C);
@@ -218,6 +249,7 @@ s32 func_80094154(WorldMapPos* p0, WorldMapPos* p1) {
     return SquareRoot0(dx2 + (dz >> 12) * (dz >> 12));
 }
 */
+
 void func_800941C4(WorldMapPos* p0, WorldMapPos* p1, s32* pVector, s16* pAngle) {
     s32 dx;
     s32 dz;
