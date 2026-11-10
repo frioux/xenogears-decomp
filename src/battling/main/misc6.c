@@ -327,31 +327,17 @@ void func_8007EEE8(s32 arg) {
 }
  */
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007EFB4);
-/* best 80.67%: frame (0x48, ra at 0x40) and the 7x7 iteration, the constant
-   hoisting into t1-t6 and the a1/v1 (record base and record base + 0xE) split
-   are exact. Two differences left:
-   1. the original copies the row value at the outer loop head ("addu t0,a3") and
-      stores it to unk8 from t0; gcc coalesces the y pseudo with the
-      strength-reduced induction variable and stores a2 directly, so every
-      remaining register is rotated by one (t6..t1 vs t5..t0).
-   2. the original evaluates col*0x40 first in the inner body ("sll v0,a0,0x6"
-      before the unk0 store); ours sinks the shift to the unkA store, after the
-      count decrement.
-   Tried: count initialised after the HeapAlloc call (fixed the 0x1FF spilling to
-   s0 and the 0x18 frame - was 71.17%), unused s32 tmp[12] (fixed the frame),
-   y and x locals assigned at loop top (gcc copy-propagates both away).
 void func_8007EFB4(void) {
     s32 tmp[12]; // unused: reproduces the original's 0x48 frame
     BattleSprite* pSprite;
     s32 count;
     s32 row;
     s32 col;
-    s32 y;
-    s32 x;
+    s16 y;
+    s16 x;
 
-    pSprite = HeapAlloc(0x3D4, 0);
-    D_8009270C = pSprite;
+    D_8009270C = HeapAlloc(0x3D4, 0);
+    pSprite = D_8009270C;
     count = 0x1FF;
     for (row = 0; row < 7; row++) {
         y = 0x1A0 + row * 0x20;
@@ -369,7 +355,6 @@ void func_8007EFB4(void) {
         }
     }
 }
- */
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007F05C);
 
