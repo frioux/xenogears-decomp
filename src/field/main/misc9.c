@@ -624,11 +624,18 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc9", func_800AC99C);
    per sprite. Only register allocation differs: gcc spills the block walker
    and the 0x1000 byte counter to s0/s1 (8-byte frame) where the original
    keeps everything in t registers, and gcc emits lhu where the original has
-   lh for the y0 clone. Tried: an `other` local vs the inline (ctx + 1) & 1,
-   the two poly arguments as rows of D_800AF788[2][2] vs D_800AF7F0[ctx] and
-   D_800AF7F0[ctx - 2] (the latter reproduces the original's single base
-   symbol plus a -0x68 fold exactly), and the y0 stores hoisted above the
-   inner loop (that one is 512 bytes, 8 short).
+   lh for the y0 clone (the `& 0xFF` lets combine drop the sign extension; a
+   sign-dependent use of the loaded y0 is still missing). Tried: an `other`
+   local vs the inline (ctx + 1) & 1, the two poly arguments as rows of
+   D_800AF788[2][2] vs D_800AF7F0[ctx] and D_800AF7F0[ctx - 2] (the latter
+   reproduces the original's single base symbol plus a -0x68 fold exactly),
+   the y0 stores hoisted above the inner loop as four statements (80.70%,
+   512 bytes, 8 short: gcc then merges the two 0x14-stride sprite walkers into
+   one and drops the per-iteration addu pair). The
+   in-loop y0 store is the only shape that reproduces the original's TWO
+   sprite walkers (t1 accumulator for the addPrim lvalue, t2 accumulator for
+   getaddr), so keep it; the gap is gcc hoisting only one of the two mask
+   constant pairs and spilling the counter and the 0x50*other offset.
 typedef struct {
     DR_MODE drModes[2][4]; // 0x0
     SPRT sprites[2][4];    // 0x60
