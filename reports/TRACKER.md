@@ -1490,3 +1490,98 @@ leave it and report it.
   `Misc16Oct unused;`) when the original reserves a slot it never reads.
 - A wrong return type poisons callers: `func_80093E8C` had to be `s32`, not
   `s16` (`srl` without `sll/sra` proves it), which then closed `func_80093F18`.
+
+## Round 8: 14 workers on the div-trap pool, and the preset bug that hid behind it
+
+Units: `world_map/{misc5,7,6,2,14,13}`, `battle/{misc25,21,23,24,20}`,
+`lib_gear/main/main`, `battling/{misc7,15}` — i.e. the units that already had a
+`--expand-div` preset from round 6 and had barely been worked since. Six of the
+fourteen children hit the 30-minute kill; every one of them had committed first,
+so nothing was lost.
+
+| # | Units | Functions | Stubs left | Notes |
+|---|---|---|---|---|
+| 8 | the 14 above | +40 | 1665 | `world_map` misc5 3, misc14 5, misc2 2, misc7 1, misc13 1; `battle` misc20 5, misc21 4+1, misc24 3, misc25 1; `battling` misc15 2; `lib_gear` 1. All eleven outputs OK |
+
+### gears picks presets in HashMap order, so a unit's preset was random
+
+**The most important thing found in a long time.** `tools/gears/src/presets.rs`
+stores presets in a `HashMap` keyed by path string and resolves one with
+
+```rust
+fn preset_lut_contains(lut, path) -> Option<Arc<BuildPreset>> {
+    for key in lut.keys() { if path.contains(key) { return Some(lut[key].clone()) } }
+}
+```
+
+Iterating a Rust `HashMap` is randomised per process, so **a unit that matches two
+keys gets whichever preset the hash order happened to put first, freshly on every
+`gears` run.** `gears.toml` had a `world_map/` directory key *and* nine per-file
+`world_map/main/miscN.` keys, so six of the sixteen world_map units silently lost
+`--expand-div` on some builds and kept it on others.
+
+The damage it did in this round: a worker matched `world_map/main/misc13`'s
+`func_800935DC` (a div function) in a tree whose `build.ninja` had `--expand-div`,
+while the orchestrator tree's `build.ninja` did not. `objdiff` reported `MATCH` +
+`100.00%`, `check_bin.sh` in the worker's tree said `OK`, and `make check` then
+failed `world_map.bin` by exactly 36 bytes — the missing div-trap sequence. A
+`make check` twenty minutes earlier had passed with the same source, which is the
+tell that something upstream is nondeterministic.
+
+Fix: **never put a directory key and a per-file key in `gears.toml` for the same
+tree.** All sixteen world_map units are now listed by name (7 on the plain
+`XenoWorldMap`, 9 on `XenoWorldMapDiv`), and two consecutive `make objdiff-config`
+runs produce an identical per-unit preset map. Any future preset experiment should
+start by checking `python3` map of unit -> maspsx_flags twice.
+
+### A new preset axis: `battle/main/misc21` is gcc 2.6.0 *and* div-expanded
+
+`func_800A23E8` is 100.00% under `gcc-2.6.0-psx -O2 -G8` and 80.53% under
+`XenoBattleDiv` (2.7.2), where its C is 0x48 bytes against retail's 0x4c; the ten
+functions already matched in the unit stay at 100.0 under 2.6.0. Three of its stubs
+also carry the div trap. New preset `XenoBattle260Div` (gcc 2.6.0 +
+`--expand-div`), and `func_800A23E8` is matched under it. This is the same shape as
+`battle/misc20` (round 7): **screen the `battle` misc units for 2.6.0 the way
+`battling` was screened for `-G0`** — a worker's single `try_flags.sh --gcc
+gcc-2.6.0-psx` run is enough.
+
+### Two units lost their INCLUDE_ASM at park time
+
+`battle/misc25` lost `func_800AFD98` (undefined reference at link) and
+`battle/misc21` lost `func_800A23E8` (4 bytes short, every function still 100.00%)
+because the worker replaced the `INCLUDE_ASM` line with C and then parked the C
+inside `/* ... */` without putting the stub back. `lint_sources.py` only catches
+the *both* case, not the *neither* case. `tools/rounds/brief.js` now says the
+`INCLUDE_ASM` line is part of parking.
+
+Cheap global detector, worth running after any round:
+compare each C-defined function's compiled size (`nm -S` on `build/src/*.c.o`) with
+the same function's span in `asm/<bin>/{matchings,nonmatchings}/<unit>/<Func>.s`.
+It found `func_800A23E8` among 193 objects in one call; everything else that
+flagged was my heuristic mis-reading a `.s` that owns data.
+
+### What the div units actually convert at
+
+`world_map/misc5` 3 (of 22), `misc14` 5 (of 16), `misc2` 2 (of 19), `misc7` 1,
+`misc13` 1, `battle/misc24` 3 (of 19, the small-function unit), `misc25` 1,
+`misc20` 5 (of 19), `misc21` 5, `battling/misc15` 2, `lib_gear` 1. The div-trap
+presets are necessary but not sufficient: the residuals are the usual allocator
+ties (`func_8007EBBC` 99.83%, `func_8007AD34` 94.72%, `func_80075228` 94.80%,
+`func_8007F8AC` 94.77%) and several real blockers found and parked:
+- `world_map` `func_80080944` uses a raw absolute `0x1F8000A0` with no relocation.
+- `battling/misc15` `func_8008C3A8` needs MAC1/MAC3 read-back macros
+  (`mfc2 %0,$25/$26/$27`) that `inline_c.h` does not have.
+- `world_map/misc5`'s `D_8009C620` is an array of 0x54-byte rotation blocks from
+  offset 0x150 (indices 0-6 at 0x150, 0x1A4, 0x1F8, 0x24C, 0x2A0, 0x2F4, 0x348);
+  that one fact converted three functions at once.
+
+### Process notes
+
+- `cp -ac` clones are ~220 MB each on this volume now (the disc directories are
+  dropped), so 14 clones cost ~3 GB; disk is not the constraint it was.
+- A stray untracked `.ninja_lock` in a clone makes `clone.sh merge` treat it as
+  UNCOMMITTED and drop that clone's commits. `rm -f r-*/xenogears-decomp/.ninja_lock`
+  before merging.
+- `try_flags.sh` reports `compile-failed` intermittently when run in a tight loop
+  (docker container churn, not a compiler problem); re-run the row before believing
+  it.
