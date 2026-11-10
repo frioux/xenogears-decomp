@@ -21,6 +21,8 @@ extern void func_800B6F0C(void);
 extern void func_800B7134(void);
 extern void func_800B7364(u8 *p);
 extern s32 func_80023124(s32 arg0, s32 arg1);
+extern s32 func_80022CAC(u8 *pActor, s32 arg1);
+extern void func_801FC4C4(s32 arg0, s32 arg1, void *pArg2, s32 arg3, s32 arg4, s32 arg5, s32 arg6, s32 arg7);
 extern void func_80021FE0(u8 *pActor, s16 arg1);
 extern void func_800223B0(u8 *pActor, s16 arg1);
 extern void func_80021B04(SVECTOR *pVector, s16 x, s16 y, s16 z);
@@ -140,6 +142,33 @@ void func_800B6A50(u8 *p) {
     *(u32 *)(p + 0x14) = *(u32 *)(pSrc + 0x14);
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc28", func_800B6A7C);
+/* best 99.06%: every instruction identical; only the saved registers holding
+   pActor and x2 are swapped (retail pActor=s2, x2=s1; gcc s1/s2).  Tried:
+   pArg + offset instead of p += (this removed the extra move s0,a1 and the
+   size difference), and x1/x2/p declaration orders.
+void func_800B6A7C(u8 *pActor, s8 *pArg) {
+    s32 x2;
+    s8 *p;
+    s32 x1;
+    s32 x3;
+
+    p = pArg + ((pArg[1] << 8) | (u8)pArg[0]);
+    if (*(u16 *)(pActor + 0x3A) != 0) {
+        x1 = func_80022CAC(pActor, (p[1] << 3) | (u8)p[0]) << 8;
+        x2 = func_80022CAC(pActor, (u8)p[2]) << 16;
+        x3 = func_80022CAC(pActor, (u8)p[3]) << 16;
+    } else {
+        x1 = ((p[1] << 3) | (u8)p[0]) << 5;
+        x2 = (u8)p[2] << 13;
+        x3 = (u8)p[3] << 13;
+    }
+    func_801FC4C4(*(u32 *)(*(u32 *)(pActor + 0x20) + 0x34), *(u32 *)(*(u32 *)(pActor + 0x20) + 0x2C),
+                  *(u32 *)(pActor + 0x20) + 0xC, x1, x2, x3, (u8)p[4] << 4, (u8)p[5] << 2);
+    *(u32 *)(*(u32 *)(pActor + 0x20) + 0x34) = 0;
+    *(u32 *)(*(u32 *)(pActor + 0x20) + 0x2C) = 0;
+    *(u32 *)(*(u32 *)(pActor + 0x20) + 0x30) = 0;
+}
+*/
 void func_800B6B98(u8 *pArg, s8 *p) {
     p += (p[1] << 8) | (u8)p[0];
     func_801FC53C(pArg, (u8)p[0] << 4, (u8)p[1], p[2] << 3, (u8)p[3] << 3, p[4] << 3, (u8)p[5]);
@@ -162,8 +191,43 @@ void func_800B6C98(u8 *p) {
     *(u16 *)(*(u32 *)(p + 0x20) + 0) = ratan2(*(s32 *)(p + 0x14) >> 8, *(s32 *)(p + 0xC) >> 8);
     *(u32 *)(p + 0x3C) |= 0x10000000;
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc28", func_800B6CEC);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc28", func_800B6DC0);
+void func_800B6CEC(u8 *p) {
+    VECTOR vec;
+    VECTOR sq;
+    s32 len;
+
+    vec.vx = *(s32 *)(p + 0xC) >> 8;
+    vec.vy = *(s32 *)(p + 0x10) >> 8;
+    vec.vz = *(s32 *)(p + 0x14) >> 8;
+    if (vec.vz == 0) {
+        vec.vz = 4;
+    }
+    Square0(&vec, &sq);
+    len = SquareRoot0(sq.vx + sq.vz);
+    *(s16 *)(*(u32 *)(p + 0x20) + 0x2) = -ratan2(vec.vz, vec.vx);
+    *(s16 *)(*(u32 *)(p + 0x20) + 0x4) = ratan2(vec.vy, len);
+    *(s16 *)(*(u32 *)(p + 0x20) + 0x0) = 0;
+    *(u32 *)(p + 0x3C) |= 0x10000000;
+}
+void func_800B6DC0(u8 *p) {
+    s32 i;
+
+    if (*(u32 *)(p + 0x20) == 0) {
+        return;
+    }
+    if (*(u32 *)(*(u32 *)(p + 0x20) + 0x34) == 0) {
+        return;
+    }
+    for (i = 0; i != 8; i++) {
+        *(u8 *)(*(u32 *)(*(u32 *)(p + 0x20) + 0x34) + i * 8 + 0x0) = 0;
+        *(u8 *)(*(u32 *)(*(u32 *)(p + 0x20) + 0x34) + i * 8 + 0x1) = 0;
+        *(u16 *)(*(u32 *)(*(u32 *)(p + 0x20) + 0x34) + i * 8 + 0x2) = 0;
+        *(u16 *)(*(u32 *)(*(u32 *)(p + 0x20) + 0x34) + i * 8 + 0x4) = 0;
+        *(u16 *)(*(u32 *)(*(u32 *)(p + 0x20) + 0x34) + i * 8 + 0x6) = 0;
+    }
+    *(u8 *)(*(u32 *)(p + 0x20) + 0x3C) = 0;
+    *(u8 *)(*(u32 *)(p + 0x20) + 0x3D) = 0;
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc28", func_800B6E84);
 /* best 99.85%: only the second zero argument differs - retail copies a1 into
    a2 (one shared register for both zero args) where gcc rematerialises
