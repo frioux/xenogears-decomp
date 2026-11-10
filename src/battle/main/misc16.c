@@ -27,7 +27,7 @@ extern void func_80077454(s32);
 extern void func_8008F6E4(s32, s32, s32, s32, s32);
 extern void func_80090310(u8, u8);
 extern void func_800904A0(s32, s32);
-extern void func_8009070C(s32, s32);
+extern void func_8009070C(u8, u8);
 extern void *D_800D2F5C;
 extern u8 D_800C3E4C;
 extern void func_80076B00(void *);
@@ -38,14 +38,15 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008CFB8);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008D328);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008D598);
 /* 99.91%: identical except ONE word -- the original ends the dy computation
-   with addu s0,s4,s6 (arg2 first) and gcc emits addu s0,s6,s4. Tried: source
-   order arg2+arg4 and arg4+arg2, an (s32) cast on arg4, an explicit (s16) cast
-   on the whole sum, and a split s32 sum temp followed by sum-8; all reach
-   99.91 and leave that one addu reversed. Everything else in the 464-byte body
-   matches byte for byte: the codes[] branch pair (last store cross-jumped), the
-   four func_80076A10 calls with 'p->5A0 = func(...) + p->5A0' (that operand
-   order is what reproduces lw v1 / addu v0,v0,v1), dx computed between calls 1
-   and 2, dy between calls 2 and 3, and the 4-iteration func_80076B00 loop.
+   with addu s0,s4,s6 (arg2's register first) and gcc emits addu s0,s6,s4.
+   Tried: source order arg2+arg4 and arg4+arg2 (gcc emits s6,s4 for BOTH, so it
+   is not an RTL operand order issue -- the allocator/emit order is canonical),
+   implicit narrowing instead of the (s16) cast, an (s32) cast on arg4, a split
+   s32 sum temp, and gcc-2.7.2-cdk (84.94, so the preset is right). Everything
+   else in the 464-byte body matches byte for byte: the codes[] branch pair, the
+   four func_80076A10 calls with the 0x5A0 accumulate operand order, dx between
+   calls 1 and 2, dy between calls 2 and 3, and the 4-iteration func_80076B00
+   loop.
 void func_8008DC34(u8 arg0, s32 arg1, s32 arg2, s32 arg3, u16 arg4) {
     u8 codes[4];
     u8 *p;
@@ -77,8 +78,11 @@ void func_8008DC34(u8 arg0, s32 arg1, s32 arg2, s32 arg3, u16 arg4) {
         func_80076B00(p + (i * 2 + D_800CCB34) * 0x28);
     }
 }
+
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008DC34);
+
+
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008DE04);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008E430);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008EA70);
@@ -294,21 +298,13 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8009023C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_80090310);
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_800904A0);
-/* 99.84% (was 96.64): the only remaining difference is the final addu operand
-   order in the func_80076C78 jal delay slot -- the original has
-   `addiu a0,a0,0x280; addu a0,a0,v1` (index product first, base last) and gcc
-   emits `addu a0,v1,a0`. The trick that got from 96.64 to 99.84 was writing the
-   address as an int-first sum with the base left as a pointer:
-   `(s32)(palIndex * 0x28 + 0x280) + pBase`. Written as `pBase + (...)` (or with
-   an (s32) cast on the base) gcc puts the base first or folds the 0x280 onto the
-   base register instead. Two u8 params (the original andi's both), and the u8
-   arg type on the existing extern is only for this body.
 void func_8009070C(u8 arg0, u8 arg1) {
     RECT rect;
     u8 *pBuf;
     u8 *pBase;
     s32 index;
     s32 len;
+    s32 ofs;
     s32 palIndex;
 
     index = D_800D2CE0[arg1 * 2 + arg0];
@@ -322,11 +318,12 @@ void func_8009070C(u8 arg0, u8 arg1) {
     func_800769E8(&rect, pBuf);
     pBase = *(u8 **)(D_800C3EA4 + 0xA230);
     palIndex = D_800CCB34;
-    func_80076C78((POLY_FT4 *)((s32)(palIndex * 0x28 + 0x280) + pBase), 0x30, 0x42, 0, 0, len & 0xFF);
+    ofs = palIndex * 0x28 + 0x280;
+    func_80076C78((POLY_FT4 *)(ofs + (s32)pBase), 0x30, 0x42, 0, 0, len & 0xFF);
     HeapFree(pBuf);
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8009070C);
+
+
 void func_8009080C(u8 arg0, u8 arg1, u8 arg2) {
     u8 flag;
     u8 *p;
