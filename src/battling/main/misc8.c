@@ -175,13 +175,19 @@ void func_80080B58(void) {
 }
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc8", func_80080C48);
-/* 95.60%: retail keeps the shared tail's `a0 = 0` once at the merge block and
-   lets reorg put it in the func_80083C0C jal delay slot; ours is stolen into
-   branch 1's `j` delay slot with a copy re-inserted at the end of branch 2
-   (2 extra insns).  Same output whether the tail is written once after the
-   if/else chain or duplicated in both branches (gcc cross-jumps them), and
-   whether the argument is a literal or an `s32 mode = 0` local.  gcc 2.7.2-cdk
-   scores worse (85.36%), so the unit preset is right.
+/* 95.60%: the tail MUST be duplicated in both branches (that is what makes gcc
+   place it between branch 2 and the else block, matching retail's
+   [test1][A][j tail][test2][B][tail][else] layout).  Only difference left: the
+   func_80083C0C argument setup.  Retail emits `addu a0,zero,zero` once, inside
+   the tail, in the jal delay slot and a plain `nop` in branch 1's `j` slot;
+   ours hoists it out of the merged tail in both copies - one lands in branch
+   1's `j` delay slot and one above branch 2's D_80091762 store, and the jal
+   delay slot is a `nop` (2 extra insns, all other insns identical).
+   Also tried: the tail written once after the if/else chain with the else
+   returning first (79.80% - gcc then puts the else block before the tail, so
+   branch 2 and the else both need a `j` epilogue), and the argument as an
+   `s32 mode = 0` local.  gcc 2.7.2-cdk scores worse (85.36%), so the unit
+   preset is right.
 void func_80080C48(s32 a0) {
     func_80039FF8();
     func_8008EB4C(0x1F);
@@ -348,8 +354,11 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc8", func_800811AC);
    keeps it in a1 for all three insns (sll/addu/sll) because `off` itself is
    allocated to a1, ours gives the temp v0 and only the last sll a1.  Every
    other insn, the base address in a2 and both addu operand orders match.
-   Tried: off as s32 and as u32, off/pBase declaration order swapped -
-   identical output.  Keeping the base pointer in a local and forming the
+   Tried: off as s32 and as u32, an intermediate `s32 n = D_800928A0` feeding
+   off, off/pBase declaration order swapped - identical output.  Inlining the
+   multiply in each address instead of an `off` local gives 90.15% (264 bytes,
+   recomputed), and gcc-2.7.2-cdk gives 95.29%, so Default + the `off` local is
+   the right shape.  Keeping the base pointer in a local and forming the
    addresses as `pBase + off` / `pBase + (off + 4)` from it is what fixes the
    a1/a2 tie-break (87.21% -> 98.68%).
 void func_800811AC(u8 *p) {
@@ -397,12 +406,13 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc8", func_8008151C);
    `lh a1,0x14` in BOTH arms; assigning a1 in both arms and calling once merges
    the load instead (95.15%).
    Only difference left: retail sets i=0 before the count load (so `move s1,zero`
-   lands in the func_8007E894 jal delay slot) and sinks off=0 past the `blez`;
-   ours emits off=0 first (into the jal delay slot) and i=0 into the blez delay
-   slot.  Tried: `i = 0;` hoisted out of the for-init, the init clause written
-   `i = 0, off = 0` and `off = 0, i = 0`, both declaration orders, and a while
-   loop (97.47%) - the two loop-initialisation insns keep retail's order
-   inverted.
+   lands in the func_8007E894 jal delay slot) and sinks off=0 after the `blez`
+   (in the fall-through, after the `move a0,s0` that fills the blez slot); ours
+   emits off=0 first (into the jal delay slot) and i=0 into the blez delay slot.
+   Tried: `i = 0;` before the for, `i = 0;` immediately after the call with
+   `for (off = 0; ...)`, the init clause written `i = 0, off = 0` and
+   `off = 0, i = 0`, both declaration orders, and a while loop (97.47%) - the
+   two loop-initialisation insns keep retail's order inverted.
 void func_8008151C(BattleTextList *p) {
     s32 i;
     s32 off;
