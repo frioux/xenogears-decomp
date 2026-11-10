@@ -1,5 +1,6 @@
 #include "common.h"
 #include "psyq/libgpu.h"
+#include "system/archive.h"
 #include "system/memory.h"
 
 extern s32 D_800D2D40;
@@ -31,6 +32,21 @@ extern u8 D_800591AC;
 extern s32 D_80059464;
 extern s32 D_800C360C;
 extern u8 D_800C4000[];
+extern StreamDataQueueEntry *D_800C3B78;
+extern u8 *D_800658C8;
+extern s32 D_800C3E88;
+extern u16 D_800C3CF0;
+extern u8 D_800C3D6C;
+extern u16 D_800C3B7C;
+extern u8 D_800C3B74;
+extern u8 D_800C3ACC[];
+extern u8 D_800D330A[];
+extern void func_800A2234(s32);
+extern void func_800A2CA4(s32);
+extern void func_800B00D0(void);
+
+extern int ArchiveDecodeAlignedSize(unsigned int entryIndex);
+extern void func_80029AFC(StreamDataQueueEntry *pQueue, int arg1, int arg2);
 
 // Per-unit 6-byte state records, unit id 0..3; the original spells each byte
 // as its own symbol.
@@ -126,10 +142,62 @@ void func_800A8A88(Misc23Block *pBlock) {
     }
 }
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A8B0C);
+void func_800A8B0C(void) {
+    s32 i;
+    s32 off;
+
+    D_800C3E88 = 0;
+    D_800C3CF0 = 0;
+    D_800C3D6C = 0;
+    D_800C3D68 = 0;
+    D_800C3B7C = 0;
+    D_800C3B74 = 1;
+    func_800A2234(*(s16 *)((u8 *)D_800658C8 + 0x348));
+    func_800A2CA4(*(s16 *)((u8 *)D_800658C8 + 0x34A));
+    func_800B00D0();
+    for (i = 0x1F; i >= 0; i--) {
+        ((u8 **)&D_800D33E4)[i - 0x1F] = NULL;
+    }
+    for (off = 0x98; off >= 0; off -= 8) {
+        *(s32 *)(D_800C3ACC + off) = 0;
+    }
+    for (off = 0x14; off >= 0; off -= 0x14) {
+        *(u16 *)(D_800D330A + off) = 0;
+    }
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A8BF0);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A9540);
+
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A96B4);
+/* best 87.98%: register assignment (s0=pQueue, s1=base, s2=idx) and the whole
+   instruction multiset match; only the two archiveIndex stores sit in the
+   previous call's delay slot instead of the ArchiveDecodeAlignedSize one, and
+   the pData store lands after that call instead of before it. Also tried: a
+   size local with the stores after the decode (78.71%), pData before
+   archiveIndex per entry (86.10%), base+1/base+2 inline (77.98%).
+void func_800A96B4(s32 arg0) {
+    StreamDataQueueEntry *pQueue;
+    s32 dirIndex;
+    s32 entryIndex;
+    s32 fileIdx;
+
+    ArchiveGetArchiveOffsetIndices(&dirIndex, &entryIndex);
+    ArchiveSetIndex(0x28, 0);
+    HeapChangeCurrentUser(4, NULL);
+    pQueue = HeapAlloc(0x18, 1);
+    D_800C3B78 = pQueue;
+    fileIdx = arg0 * 2 + 1;
+    pQueue[0].archiveIndex = fileIdx;
+    ArchiveGetFilePath(fileIdx);
+    pQueue[0].pData = HeapAlloc(ArchiveDecodeAlignedSize(fileIdx), 1);
+    pQueue[1].archiveIndex = fileIdx + 1;
+    pQueue[1].pData = HeapAlloc(ArchiveDecodeAlignedSize(fileIdx + 1), 1);
+    pQueue[2].archiveIndex = 0;
+    pQueue[2].pData = NULL;
+    func_80029AFC(D_800C3B78, 0, 0);
+    ArchiveSetIndex(dirIndex, entryIndex);
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A979C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A9A50);
 
