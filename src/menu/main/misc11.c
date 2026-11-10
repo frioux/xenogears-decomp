@@ -85,64 +85,44 @@ void func_801C851C(SVECTOR* pVertices, u16 x, u16 y, u16 width, u16 height);
 extern u16 D_801E9894[];
 extern u16 D_801E9914[];
 
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc11", func_801E5924);
-/* Best: 91.86%.  Shape is confirmed: 4 LINE_F3 prims of stride 0x18 at
-   base+0x50 (loop writes elements i and i+2), two SVECTOR quads at base+0x100 /
-   base+0x120, coordinates from the u16 pairs at D_801E9894/D_801E9914 indexed
-   by offset*4.  Every instruction multiset matches; what differs is that retail
-   keeps pBase in $s3 and strength-reduces THREE induction values off it (a
-   moving field-write pointer $s0 = pBase + i*0x18, plus two offset counters
-   $s4 = 0x50 + i*0x18 and $s5 = 0x80 + i*0x18 used as "addu a0,s3,s4"), while
-   gcc makes the moving pointer itself the base ($s0 rebased onto the last
-   memory reference, negative displacements such as -62(s0)) and folds the two
-   SetLineF3 arguments into "addiu a0,<biv>,0x50/0x80".  Consequently retail
-   also needs one more callee-saved register (it saves $30/fp for the 0xFF
-   constant; gcc only needs 9).  The parked body below is the closest of the
-   shapes tried; the others were: indexed (pBase + i * 0x18 + 0x50) access for
-   both SetLineF3 arguments (88.24%), and one shared tmp for both prim
-   pointers (same 91.86%).
 void func_801E5924(s32 index) {
     u8* pBase;
-    u8* p;
     u16* pX;
     u16* pY;
-    LINE_F3* pLineA;
-    LINE_F3* pLineB;
+    s32 offA;
+    s32 offB;
     s32 i;
 
     pBase = (u8*)g_Menu->unk3A8[index];
     pX = &D_801E9894[index * 2];
     pY = &D_801E9914[index * 2];
-    p = pBase;
     for (i = 0; i < 2; i++) {
-        pLineA = (LINE_F3*)(p + 0x50);
-        SetLineF3(pLineA);
-        pLineA->r0 = 0;
-        pLineA->g0 = 0xFF;
-        pLineA->b0 = 0;
-        pLineA->x0 = pX[0];
-        pLineA->y0 = pY[0];
-        pLineA->x1 = pX[0] + 0x10;
-        pLineA->y1 = pY[0];
-        pLineA->x2 = pX[0] + 0x10;
-        pLineA->y2 = pY[0] + 0x10;
+        offA = i * 0x18 + 0x50;
+        offB = i * 0x18 + 0x80;
+        SetLineF3((LINE_F3*)(pBase + offA));
+        ((LINE_F3*)(pBase + i * 0x18 + 0x50))->r0 = 0;
+        ((LINE_F3*)(pBase + i * 0x18 + 0x50))->g0 = 0xFF;
+        ((LINE_F3*)(pBase + i * 0x18 + 0x50))->b0 = 0;
+        ((LINE_F3*)(pBase + i * 0x18 + 0x50))->x0 = pX[0];
+        ((LINE_F3*)(pBase + i * 0x18 + 0x50))->y0 = pY[0];
+        ((LINE_F3*)(pBase + i * 0x18 + 0x50))->x1 = pX[0] + 0x10;
+        ((LINE_F3*)(pBase + i * 0x18 + 0x50))->y1 = pY[0];
+        ((LINE_F3*)(pBase + i * 0x18 + 0x50))->x2 = pX[0] + 0x10;
+        ((LINE_F3*)(pBase + i * 0x18 + 0x50))->y2 = pY[0] + 0x10;
         func_801C851C((SVECTOR*)(pBase + 0x100), pX[0], pY[0], 0x10, 0x10);
-        pLineB = (LINE_F3*)(p + 0x80);
-        SetLineF3(pLineB);
-        pLineB->r0 = 0;
-        pLineB->g0 = 0xFF;
-        pLineB->b0 = 0;
-        pLineB->x0 = pX[0];
-        pLineB->y0 = pY[0];
-        pLineB->x1 = pX[0];
-        pLineB->y1 = pY[0] + 0x10;
-        pLineB->x2 = pX[0] + 0x10;
-        pLineB->y2 = pY[0] + 0x10;
+        SetLineF3((LINE_F3*)(pBase + offB));
+        ((LINE_F3*)(pBase + i * 0x18 + 0x80))->r0 = 0;
+        ((LINE_F3*)(pBase + i * 0x18 + 0x80))->g0 = 0xFF;
+        ((LINE_F3*)(pBase + i * 0x18 + 0x80))->b0 = 0;
+        ((LINE_F3*)(pBase + i * 0x18 + 0x80))->x0 = pX[0];
+        ((LINE_F3*)(pBase + i * 0x18 + 0x80))->y0 = pY[0];
+        ((LINE_F3*)(pBase + i * 0x18 + 0x80))->x1 = pX[0];
+        ((LINE_F3*)(pBase + i * 0x18 + 0x80))->y1 = pY[0] + 0x10;
+        ((LINE_F3*)(pBase + i * 0x18 + 0x80))->x2 = pX[0] + 0x10;
+        ((LINE_F3*)(pBase + i * 0x18 + 0x80))->y2 = pY[0] + 0x10;
         func_801C851C((SVECTOR*)(pBase + 0x120), pX[0], pY[0], 0x10, 0x10);
-        p += 0x18;
     }
 }
-*/
 void func_801E5ACC(void) {
     void* pMem;
     int i;
