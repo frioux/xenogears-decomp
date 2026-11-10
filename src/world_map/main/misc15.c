@@ -134,7 +134,6 @@ s32 func_800968E0(void) {
 }
  */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_800968E0);
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_8009699C);
 // Best: 85.17%. Structurally right (every global and call in place; the four
 // zero stores, the (size+0x7FF)>>11 and the call sequence line up) but gcc
 // drops the first `D_8009D3BC = p` store as dead (the original keeps both) and
@@ -171,6 +170,7 @@ void func_8009699C(Misc15CdRequest *p) {
     CdControlF(CdlSetloc, (u8 *)pLoc);
 }
 */
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_8009699C);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_80096A6C);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_80096C0C);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_80096F18);
