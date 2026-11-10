@@ -642,7 +642,6 @@ s32 func_8009FA54(s32 nInstructionOffset) {
     return 0;
 }
 */
-INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_8009FB98);
 // 63.17% (120 vs 120 bytes): insn multiset is identical, only the order of the
 // two epilogue stores differs. cc1 puts `sh ip+2,0xCC(a0)` before
 // `sw D_800B2268` and hoists the second `lhu 0xCC(a0)` above the `lbu`, i.e. it
@@ -651,7 +650,9 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_8009FB98);
 // Tried: a local `pActor` for the two 0xCC accesses (same 63.17%), the macro form
 // SCRIPT_READ_U8_REL (same, so the previous 66.50% note was an objdiff-version
 // difference), and a `*(volatile s32*)&D_800B2268` store (no change - so cc1 is
-// not sinking the store, the scheduling happens before it).
+// not sinking the store, the scheduling happens before it). Re-tried a `s16 ip`
+// temp for the 0xCC read-modify-write: identical 63.17%.
+INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_8009FB98);
 /*
 void func_8009FB98(void) {
     ActorData* pActor;
@@ -1017,6 +1018,8 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_800A0EE8);
 // emits %hi/%lo per access and reloads the actor first. Pointer (`s32* p =
 // &D_800B2264; (*p)--;`) and array (`D_800B2264[0]--`) forms both produce the same
 // %hi/%lo code. Result is one insn short (236 vs 240 bytes).
+// Re-tried `(*(volatile s32*)&D_800B2264)--` (88.97%: the volatile form adds a
+// second address use and hoists the 0xCC load further) and -G0 (90.55%).
 /*
 extern s32 D_800B2264;
 extern void* D_801E8670[];
