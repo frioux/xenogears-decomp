@@ -164,6 +164,14 @@ u8 func_8009AB00(u8 arg0) {
     return flags;
 }
 
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009AB38);
+/* Best attempt: 96.91%, identical size (272 bytes) and identical instruction
+   multiset/order. The only difference is one allocator permutation at the
+   second row recomputation: the original re-masks arg0 into $v1 and puts the
+   D_800C34B0 base in $a0 (and the 3*arg0 partial in $a1), gcc masks arg0 in
+   place in $a0 and puts the base in $a1 and the partial in $a2, which swaps
+   $v0/$v1 in both store tails. Tried: plain `arg0 * 0x170` both times, an
+   `s32 off = arg0 * 0x170` local, and a `u8 a = arg0;` copy -- all 96.91%.
 void func_8009AB38(u8 arg0) {
     u8* p = (u8*)D_800C34B0 + arg0 * 0x170;
     u16 f;
@@ -201,6 +209,7 @@ void func_8009AB38(u8 arg0) {
     }
 }
 
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009AC48);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009ADA0);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009AEFC);
