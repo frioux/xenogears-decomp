@@ -1167,31 +1167,33 @@ s16 (*func_801E34BC(s32 type))(s16, s16, s16) {
 // to 8; with the store in its logical place (after unk2B) the store lands at 14
 // but the li is hoisted to 6 (74.36%). Declaration order of the two locals, a
 // mid-block `s32 one = 1;` and bare/s16/u32 -1 forms all stay at 74.36%.
+// Round 14: the two remaining deltas are the -1 constant's slot and the 0x98
+// store's slot, and they are coupled by sched2: with `unk98 = negOne` as the
+// first statement the addiu lands at slot 0 (correct) but the store at 8 (target
+// 14); with it as the 10th statement the store lands at 14 (correct) but the
+// addiu at 5; 6th statement gives (5, 9). Store order = source order in every
+// shape, so the (0, 14) split needs a scheduling decision this gcc will not make.
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E3534);
 /*
 void func_801E3534(Model* pModel, s32 arg1, u32 arg2, u32 arg3) {
-    s32 negOne = -1;
-    s32 one = 1;
+    s16 negOne = -1;
+    s16 one = 1;
 
     pModel->unk98 = negOne;
     pModel->unk3C = 0xFFFF;
     pModel->unk5C = 0xFF;
     pModel->unk39 = 0x6B;
-
     pModel->unk8 = arg2;
     pModel->unkC = 0;
     pModel->unk10 = 0;
     pModel->unk14 = (Temp7**)arg3;
     pModel->unk18 = NULL;
-
     pModel->unk2B = 0;
     pModel->unk58 = 0;
-
     pModel->unk35 = 0;
     pModel->unk37 = 0;
     pModel->unk38 = 0;
     pModel->unk3A = negOne;
-
     pModel->unk70[0] = 0;
     pModel->unk70[1] = 0;
     pModel->unk70[2] = 0;
@@ -1208,12 +1210,10 @@ void func_801E3534(Model* pModel, s32 arg1, u32 arg2, u32 arg3) {
     pModel->unk70[13] = 0;
     pModel->unk70[14] = 0;
     pModel->unk70[15] = one;
-
     pModel->unk36 = 0;
     pModel->unk1E = negOne;
 }
 */
-
 void func_801E35D0(Model* pModel, Model* pSource, s32 arg2, s32 arg3) {
     if ((pModel != NULL) && (pSource != NULL)) {
         if (pModel->unk2B != 0) {
@@ -1433,6 +1433,8 @@ void func_801E5C74(Model* pModel, Temp7* pEntry, s32 arg2) {
     }
 }
 
+// Round 14: three separate `return`s with no shared local also cross-jump the
+// same wrong pair (61.93%, 88 bytes): gcc keeps type==1 inline at the beq target.
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E5CD8);
 /* Best attempt, 71.67%. The three temp8 hops are confirmed. What the original
    does and this does not: type==1 gets its OWN copy of the `lhu 0x14 / sll 16`
@@ -1682,6 +1684,9 @@ int func_801E67F8(void) {
 // and the index living in a1; u8 param, s32 index with `& 0xFF`, a `(u8)` cast and
 // an `s32 n = index` temporary all leave the same delta, because the mask only
 // feeds a shift count.
+// Round 14: an explicit `1 << (index & 0xFF)` in the store is folded away by gcc
+// exactly like the u8 conversion (92.95%): the four per-path `andi v0,a1,0xff`
+// turn into copies of `li v1,1` in the jump delay slots instead.
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E6830);
 /*
 void func_801E6830(Model* pModel, int type, s16* pMask) {
