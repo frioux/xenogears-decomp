@@ -14,22 +14,6 @@ typedef struct {
     /* 0xC */ s32 w;
 } SVec4; // Size: 0x10
 
-typedef struct {
-    /* 0x0 */ s16 x;
-    /* 0x2 */ s16 y;
-    /* 0x4 */ s16 w;
-    /* 0x6 */ s16 h;
-    /* 0x8 */ s16 term;
-    /* 0xA */ s16 unkA;
-    /* 0xC */ u16 unkC;
-    /* 0xE */ s16 id;
-} MapRect; // Size: 0x10
-
-extern MapRect** D_8009BD00;
-extern s16 D_8009BD24;
-extern u16 D_8009CE68;
-extern MapRect* D_8009D7D8;
-
 extern int Vsync(int mode);
 extern u32 ArchiveGetDebugTable(void);
 extern s32 D_8009BCB8;
@@ -44,52 +28,8 @@ extern void func_800963E4(SVec* pRecord);
 extern void func_800964B0(SVec4* pRecord);
 extern void func_800967E4(void);
 
-s32 func_80094238(SVec* p, s32 index) {
-    MapRect* pRect = D_8009BD00[index];
-    u16 px = (u32)p->x >> 12;
-    u16 py = (u32)p->z >> 12;
-
-    while (pRect->term != -1) {
-        if (px >= pRect->x & px <= pRect->x + pRect->w & py >= pRect->y &
-            py <= pRect->y + pRect->h) {
-            u16 nC = pRect->unkC;
-
-            if (pRect->id == 4) {
-                D_8009D7D8 = (MapRect*)-1;
-                D_8009BD24 = -1;
-                D_8009CE68 = nC;
-            } else {
-                D_8009D7D8 = pRect;
-                D_8009CE68 = -1;
-                D_8009BD24 = nC;
-            }
-            return 1;
-        }
-        pRect++;
-    }
-    D_8009D7D8 = (MapRect*)-1;
-    D_8009BD24 = -1;
-    D_8009CE68 = -1;
-    return 0;
-}
-
-s32 func_80094364(SVec* p, s32 index, s32 id) {
-    MapRect* pRect = D_8009BD00[index];
-    u16 px = (u32)p->x >> 12;
-    u16 py = (u32)p->z >> 12;
-
-    while (pRect->term != -1) {
-        if (px >= pRect->x & px <= pRect->x + pRect->w & py >= pRect->y &
-            py <= pRect->y + pRect->h) {
-            if (pRect->id == id) {
-                D_8009D7D8 = pRect;
-                return 1;
-            }
-        }
-        pRect++;
-    }
-    return 0;
-}
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc14", func_80094238);
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc14", func_80094364);
 
 void func_80094434(void) {
 }

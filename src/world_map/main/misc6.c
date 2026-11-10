@@ -47,6 +47,11 @@ typedef struct {
     /* 0x000 */ WorldMapGroup unk000[17]; // 0x000..0x593
 } WorldMapRoot;
 
+typedef struct {
+    /* 0x0 */ u16 *unk0;
+    /* 0x4 */ u16 *unk4;
+} WorldMapPath; // Size: 0x8
+
 extern WorldMapActor *D_8009BE24;
 extern WorldMapRoot *D_8009C620;
 extern u32 D_8009C5AC;
@@ -54,8 +59,7 @@ extern u32 D_8009C5B0;
 extern u32 D_8009C5B4;
 extern u16 D_8009A698;
 extern u16 D_8009A6AC[];
-extern u16 *D_8009A65C[];
-extern u16 *D_8009A660[];
+extern WorldMapPath D_8009A65C[];
 extern u32 D_8009BE0C;
 extern u32 D_8009BE28;
 extern u32 D_8009BE2C;
@@ -164,18 +168,22 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007D7FC);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007D918);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007DCE0);
 
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007DE14);
+/* 82.21%: only difference is that the original keeps an 8-byte stack frame
+   (addiu sp,sp,-8 mid-body) and stores unk50 before unk58; everything else,
+   including the two loads off D_8009A65C and the reloads, is identical.
 int func_8007DE14(int index) {
     WorldMapActor *pActor = &D_8009BE24[index];
-    SVECTOR vec; // unused, but reproduces the 8-byte frame retail allocates
 
-    pActor->unk54 = D_8009A65C[D_8009D3D4 * 2];
-    pActor->unk58 = D_8009A660[D_8009D3D4 * 2];
+    pActor->unk54 = D_8009A65C[D_8009D3D4].unk0;
     pActor->unk50 = 0;
+    pActor->unk58 = D_8009A65C[D_8009D3D4].unk4;
     pActor->unk20 = *(u16 *)pActor->unk54;
     pActor->unk22 = ((u16 *)pActor->unk58)[pActor->unk50];
     pActor->unk50++;
     return 1;
 }
+*/
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007DE98);
 
@@ -217,24 +225,26 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007EE34);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007F8AC);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007F968);
 
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007FC8C);
+/* 88.66%: the two func_8007A06C calls and the store order match; the original
+   materialises 0x1498000, 0x4AF2000 and the 3 into v1/a0/v0 before the first
+   store, so those three come from locals, not literals.
 int func_8007FC8C(int index) {
     WorldMapRoot *pRoot = D_8009C620;
     WorldMapActor *pActor = &D_8009BE24[index];
-    u32 nX = 0x1498000;
-    u32 nZ = 0x4AF2000;
-    int nThree = 3;
 
     func_8007A06C(&pRoot->unk000[9], pRoot->unk000[9].unk48, *(u16 *)((u8 *)pRoot->unk000[9].unk40 + 4));
     func_8007A06C(&pRoot->unk000[10], pRoot->unk000[10].unk48, *(u16 *)((u8 *)pRoot->unk000[10].unk40 + 4));
-    pActor->unk28 = nX;
+    pActor->unk28 = 0x1498000;
     pActor->unk2C = 0xFFF80000;
     pActor->unk54 = (void *)-0x800;
     pActor->unk20 = 0;
-    pActor->unk30 = nZ;
+    pActor->unk30 = 0x4AF2000;
     pActor->unk50 = 0;
     pActor->unk58 = (void *)0x80;
-    return nThree;
+    return 3;
 }
+*/
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007FD30);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007FF70);
@@ -252,22 +262,18 @@ int func_8008032C(int index) {
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_80080370);
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_80080578);
-/* 71.88%: with D_8009C5AC/B0/B4 declared volatile (so the three loads stay put)
-   and the two actor halves stored through a volatile u16 pointer, the whole body
-   is in retail order except that gcc sinks the li v0,0x78 / sw D_8009BE0C group
-   above the three loads and drops the return's second "li v0,1" (cse sees v0
-   already holds 1). Tried: literals instead of the three locals (a per-global lw
-   pair, worse), volatile on the destinations (register set shifts to a1/a2/a3),
-   volatile on D_8009BE0C (loads get hoisted to the top). Retail's schedule is
-   plain source order with no cross-statement movement at all, which no shape
-   found so far reproduces.
+/* 34.97%: same body as func_8007E450 minus the last three stores. The
+   original emits everything in strict source order (sll, lw D_8009BE24,
+   li 0x1000, sw D_8009D144, addu, sw 0x7C, then the three D_8009C5xx loads,
+   li 0x78, sw D_8009BE0C, li 1, the six paired stores); gcc 2.7.2 reorders
+   the loads here, so the shape is not reproducible from this source order.
 int func_80080578(int index) {
     WorldMapActor *pActor = &D_8009BE24[index];
-    u32 nScale = 0x1000;
+    int nScale = 0x1000;
     u32 unkAc;
     u32 unkB0;
     u32 unkB4;
-    u32 nOne;
+    int nOne;
 
     D_8009D144 = 0;
     pActor->unk7C = nScale;
@@ -282,8 +288,8 @@ int func_80080578(int index) {
     D_8009D560 = unkB0;
     D_8009BE30 = unkB4;
     D_8009D564 = unkB4;
-    *(volatile u16 *)&pActor->unk04 = nOne;
-    *(volatile u16 *)&pActor->unk20 = 0;
+    pActor->unk04 = nOne;
+    pActor->unk20 = 0;
     return 1;
 }
 */
