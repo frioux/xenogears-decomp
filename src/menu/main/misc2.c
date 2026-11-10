@@ -10,6 +10,7 @@ extern u16 D_801E96C8[]; // Bit masks, MSB first
 extern u32 D_801E96E8[];
 extern s32 D_801E9768[]; // Card result to error code
 extern u8 D_801E9779;
+extern u8 D_80059460; // Index of the menu overlay the menu was entered with
 
 s32 func_801C881C(void);
 extern void func_80039DB8(s32 arg0);
@@ -25,19 +26,51 @@ s32 func_801D2F4C(u8 arg0);
 s32 func_801D32B4(void);
 void func_801E92CC(void);
 s32 func_801E93A0(s32 arg0);
+void func_801C6400(void);
+void func_801C6AA0(void);
+void func_801C6D4C(void);
+void func_801C6D5C(void);
+void func_801C6E0C(void);
+void func_801C6E68(void);
+void func_801C6F70(void);
 
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc2", func_801C7B0C);
+void func_801C7B0C(void) {
+    g_Menu->pSelectionMenu->unk1180.x = 0x2C0;
+    g_Menu->pSelectionMenu->unk1180.y = 0x100;
+    g_Menu->pSelectionMenu->unk1180.w = 0x140;
+    g_Menu->pSelectionMenu->unk1180.h = 0xE0;
+    g_Menu->unk348->unk15B = 0x40;
+    func_801C6AA0();
+    func_801C6D4C();
+    func_801C6E0C();
+    func_801C6F70();
+    func_801C6E68();
+    switch (D_80059460) {
+    case 2:
+        g_Menu->unk348->unk15B = 0x4C;
+        /* fallthrough */
+    case 0:
+    case 6:
+        func_801C6400();
+        func_801C6D5C();
+        break;
+    }
+}
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc2", func_801C7BF4);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc2", func_801C7D78);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc2", func_801C7F34);
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc2", func_801C80B8);
 /* Best: 82.91%. Instruction multiset and structure are right; only two things
    differ, and they are the same cause: the original has `srl` (the second half
    of `divisor /= 10`) before the `sb`, with the `sb` in the bnez delay slot,
-   and allocates digit->a1, i->a2, divisor->a3 where gcc gives digit->v1,
-   i->a1, divisor->a2. Already tried: no digit local (80.35%), digit as a
-   separate u32 local, declaration orders (i/digit/divisor, 4 orderings),
-   `divisor /= 10` in the for-increment clause, `value = number` copy.
+   and allocates digit->a1, i->a2, divisor->a3, magic->t0 where gcc gives
+   digit->v1, i->a1, divisor->a2, magic->a3. The original matches plain
+   global_alloc priority order (digit 1 ref/2 insns, i and divisor 1, magic 0),
+   so it looks like `digit` is a global allocno there and a local one here.
+   Tried since: digit/u32 vs s32, u_char digit (80.35), `digit = 0` init (the
+   dead init is removed, no change), declaration orders, `store first` and
+   `store before divisor /= 10` (80.35), `number = number % divisor`, separate
+   `value` copy of the parameter, u_char* pDigits (58.00), register on each
+   local. None moves the allocation.
 void func_801C80B8(u32 number) {
     s32 i;
     u32 digit;
@@ -78,6 +111,59 @@ void func_801C8164(POLY_G4* pPoly, u_char r, u_char g, u_char b) {
     pPoly->b3 = 0;
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc2", func_801C81E0);
+/* Best: 86.86% (324 bytes, same size). Two instructions sit one slot apart:
+   retail loads the 5th parameter (`lbu t1,0x10(sp)`) after the four word
+   stores and fills the `beqz` delay slot with `li v0,1`, gcc hoists the lbu to
+   the top of the block and puts `sw a3,0xC(v1)` in the delay slot instead.
+   The base pointer has to be a local for the first five stores and a fresh
+   `g_Menu + index*0x24` re-deref for everything after it (retail recomputes the
+   base once per basic block, five times in all). Tried: re-deref everywhere
+   (80.41), pointer local everywhere (83.26), natural field order 0/4/8/C
+   (86.72), s32* vs u8* base (same), pointer local through the second if
+   (83.26). Struct: g_Menu + index*0x24, size 0x24, first member of SystemMenu
+   (indexed through the opaque unk0[108], 3 entries).
+void func_801C81E0(s32 arg0, s32 arg1, s32 arg2, s32 arg3, u8 arg4, u8 index) {
+    s32* pEntry;
+
+    pEntry = (s32*)((u8*)g_Menu + index * 0x24);
+    pEntry[0] = arg0;
+    pEntry[2] = arg1;
+    pEntry[1] = arg2;
+    pEntry[3] = arg3;
+    if (arg2 < arg0) {
+        arg2 = arg0 - arg2;
+        *(u8*)((u8*)pEntry + 0x20) = 1;
+    } else {
+        arg2 = arg2 - arg0;
+        *(u8*)((u8*)pEntry + 0x20) = 0;
+    }
+    if (arg3 < arg1) {
+        arg1 = arg1 - arg3;
+        *(u8*)((u8*)pEntry + 0x21) = 1;
+    } else {
+        arg1 = arg3 - arg1;
+        *(u8*)((u8*)pEntry + 0x21) = 0;
+    }
+    if (arg3 < arg1) {
+        arg1 = arg1 - arg3;
+        ((u8*)g_Menu + index * 0x24)[0x21] = 1;
+    } else {
+        arg1 = arg3 - arg1;
+        ((u8*)g_Menu + index * 0x24)[0x21] = 0;
+    }
+    if (arg2 < arg1) {
+        ((s32*)((u8*)g_Menu + index * 0x24))[5] = 0x100;
+        ((s32*)((u8*)g_Menu + index * 0x24))[4] = (arg2 << 8) / arg1;
+    } else {
+        ((s32*)((u8*)g_Menu + index * 0x24))[4] = 0x100;
+        ((s32*)((u8*)g_Menu + index * 0x24))[5] = (arg1 << 8) / arg2;
+    }
+    ((u8*)g_Menu + index * 0x24)[0x22] = arg4;
+    ((s32*)((u8*)g_Menu + index * 0x24))[6] = 0;
+    ((s32*)((u8*)g_Menu + index * 0x24))[7] = 0;
+    ((u8*)g_Menu + index * 0x24)[0x23] = 0;
+}
+*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc2", func_801C8324);
 void func_801C851C(SVECTOR* pVertices, u16 x, u16 y, u16 width, u16 height) {
     pVertices[0].vx = x + 0xFF60;
