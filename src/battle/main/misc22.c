@@ -14,6 +14,26 @@ typedef struct {
 } BattleMisc22SVec; // Size: 0x8
 
 typedef struct {
+    /* 0x0 */ s16 x;
+    /* 0x2 */ s16 y;
+    /* 0x4 */ s16 w;
+    /* 0x6 */ s16 h;
+} BattleMisc22Rect; // Size: 0x8
+
+typedef struct {
+    /* 0x0 */ u8 pad0[0x4];
+    /* 0x4 */ u16 *unk4;
+    /* 0x8 */ u8 *unk8;
+    /* 0xC */ u8 *unkC;
+    /* 0x10 */ u8 unk10;
+    /* 0x11 */ u8 pad11[0x9];
+    /* 0x1A */ u16 unk1A;
+    /* 0x1C */ u8 *unk1C;
+    /* 0x20 */ u8 pad20[0x8];
+    /* 0x28 */ BattleMisc22Rect rect28;
+} BattleMisc22Image; // Size: 0x30
+
+typedef struct {
     /* 0x0 */ s16 unk0;
     /* 0x2 */ s16 unk2;
     /* 0x4 */ s16 unk4;
@@ -25,6 +45,20 @@ typedef struct {
 extern s32 D_800D3344;
 extern s32 D_800D39CC;
 extern void func_800A5BE8(void *, void *, void *, s32, s32);
+extern int LoadImage(void *pRect, void *p);
+extern s16 D_800D2FC8;
+extern u16 *D_800D2FD0;
+extern s32 D_800C3E38;
+extern void *D_800658C8;
+extern void *D_800C3D50[2];
+extern void *D_800C3EA0;
+extern u8 D_800C3DA0[];
+extern s32 func_800AA650(void *pArg);
+extern void func_800A9FF0(s32 arg0);
+extern void func_80027D40(void *p);
+extern void GfxLineScrollFree(void *pLineScroll);
+extern void func_800B10EC(void *pArg, s16 x, s16 y, s32 z);
+extern void HeapFree(void *pMem);
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A2E88);
 
@@ -62,7 +96,9 @@ s16 func_800A3514(s16 angle, s16 divisor, s16 base) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A3578);
-/* byte-exact under maspsx --expand-div, see above.
+/* 55%: the C is byte-exact under maspsx --expand-div (the original object has
+   the break-7 / break-6 trap sequence around every div); the Default preset
+   does not pass --expand-div. Same for func_800A3490/3514/35C8.
 s16 func_800A3578(s16 angle, s16 divisor, s16 base) {
     return base - angle / divisor;
 }
@@ -70,15 +106,112 @@ s16 func_800A3578(s16 angle, s16 divisor, s16 base) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A35C8);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A3640);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A3E98);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A429C);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A4348);
+void func_800A429C(BattleMisc22Image *pArg) {
+    if (pArg->unk1A != 0) {
+        if (pArg->unk4 != 0) {
+            if (pArg->unk10 < 4) {
+                LoadImage(&pArg->rect28, pArg->unk4);
+            }
+            HeapFree(pArg->unk4);
+            pArg->unk4 = 0;
+        }
+        if (pArg->unk8 != 0) {
+            HeapFree(pArg->unk8);
+            pArg->unk8 = 0;
+        }
+        if (pArg->unkC != 0) {
+            HeapFree(pArg->unkC);
+            pArg->unkC = 0;
+        }
+        pArg->unk1A = 0;
+    }
+}
+void func_800A4348(BattleMisc22Image *pArg, s16 scale) {
+    s32 i;
+    s32 j;
+    u16 *pSrc = pArg->unk4;
+
+    for (i = 0; i < pArg->rect28.h; i++) {
+        for (j = 0; j < pArg->rect28.w; j++) {
+            s16 *pRow = (s16 *)((pArg->rect28.y + i) * 6 + (s32)pArg->unk1C);
+
+            pRow[pArg->rect28.x + j] = *pSrc * scale / 32;
+            pSrc++;
+        }
+    }
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A43F8);
+/* 96.30%: same loops and address arithmetic as func_800A4348 (which is 100%);
+   retail re-loads *pSrc2 for the accumulate instead of keeping it in a
+   register, i.e. that pseudo was spilled and rematerialised there, and the
+   scalars land in t2/t0/t3 instead of t3/t2/t4. Tried a delta local (76.50%),
+   ++ inside the expression and swapped declarations.
+void func_800A43F8(BattleMisc22Image *pArg, s16 scale) {
+    s32 i;
+    s32 j;
+    u16 *pSrc1 = pArg->unk4;
+    u16 *pSrc2 = pArg->unk8;
+
+    for (i = 0; i < pArg->rect28.h; i++) {
+        for (j = 0; j < pArg->rect28.w; j++) {
+            s16 *pRow = (s16 *)((pArg->rect28.y + i) * 6 + (s32)pArg->unk1C);
+
+            pRow[pArg->rect28.x + j] = *pSrc2 + (*pSrc1 - *pSrc2) * scale / 32;
+            pSrc1++;
+            pSrc2++;
+        }
+    }
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A44C0);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A4654);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A4820);
+/* 96.86%: every instruction is right except the first loop's i++, which retail
+   has in the delay slot of the `beqz` before the func_80027D40 call and we emit
+   after the store, one insn too late for reorg to steal it. The i = 0 hoists
+   (before each if) are needed to put `move s1,zero` in the beqz delay slots.
+void func_800A4820(void) {
+    s32 i;
+
+    func_800A9FF0(0x1F);
+    D_800C3E38 = 0;
+    i = 0;
+    if (D_800658C8 != 0) {
+        HeapFree(D_800658C8);
+    }
+    D_800658C8 = 0;
+    for (; i < 2;) {
+        if (D_800C3D50[i] != 0) {
+            func_80027D40(D_800C3D50[i]);
+        }
+        D_800C3D50[i++] = 0;
+    }
+    i = 0;
+    if (D_800C3EA0 != 0) {
+        HeapFree(D_800C3EA0);
+    }
+    D_800C3EA0 = 0;
+    for (; i < 2; i++) {
+        GfxLineScrollFree(&D_800C3DA0[i * 0x18]);
+    }
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A48EC);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A4B3C);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A4CF8);
+void func_800A4CF8(void *pArg) {
+    s16 a;
+    s16 b;
+    s16 c;
+    u16 *pSrc = D_800D2FD0;
+    s32 i;
+
+    for (i = 0; i < D_800D2FC8; i++) {
+        a = *pSrc++;
+        b = *pSrc++;
+        c = *pSrc++;
+        func_800B10EC(pArg, a, b, func_800AA650(pArg) + c);
+    }
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A4DB8);
 s32 func_800A577C(void) {
     return D_800D3344;
