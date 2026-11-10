@@ -24,6 +24,10 @@ extern s32 D_801E9C20[];
 extern s32 D_801EA34C[];
 extern s32 D_801EA39C[];
 extern s32 D_801E9B28;
+extern s32 D_801E9B48;
+extern s32 D_801E9B4C;
+extern s32 D_801E9B50;
+extern s32 D_801E9B54;
 extern s32 D_801E9B2C;
 extern s32 D_801E9B30;
 extern s32 D_801E9B34;
@@ -190,8 +194,35 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D51EC);
            }
        }
    }
+*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D53D0);
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D55B4);
+void func_801D55B4(u_char a0, u_char a1, s32 a2, s32 a3) {
+    u8* pWindow = (u8*)g_Menu->unk39C[a0];
+    s32 i;
+
+    func_801C80B8(*(s32*)((u8*)&g_GameState.characters[a1] + 0x44));
+    pWindow[0x1277] = 0;
+    for (i = 0; i < 7; i++) {
+        if (g_Menu->digits[2 + i] != 0xFF) {
+            pWindow[0x1277] += func_8002675C(
+                g_Menu->resources, g_Menu->digits[2 + i],
+                (POLY_FT4*)((u8*)pWindow + (pWindow[0x1277] * 0x50 + 0xE10)),
+                g_Menu->renderContext, a2 + D_801E9B48 + i * 8,
+                a3 + D_801E9B4C, 0x1000);
+        }
+    }
+    func_801C80B8(*(s32*)((u8*)&g_GameState.characters[a1] + 0x48));
+    pWindow[0x1278] = 0;
+    for (i = 0; i < 7; i++) {
+        if (g_Menu->digits[2 + i] != 0xFF) {
+            pWindow[0x1278] += func_8002675C(
+                g_Menu->resources, g_Menu->digits[2 + i],
+                (POLY_FT4*)((u8*)pWindow + (pWindow[0x1278] * 0x50 + 0x1040)),
+                g_Menu->renderContext, a2 + D_801E9B50 + i * 8,
+                a3 + D_801E9B54, 0x1000);
+        }
+    }
+}
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D5794);
 void func_801D5A50(u_char a0, u_char a1) {
     s32* pData;
