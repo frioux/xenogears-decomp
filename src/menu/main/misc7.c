@@ -24,6 +24,10 @@ extern s32 D_801E9C20[];
 extern s32 D_801EA34C[];
 extern s32 D_801EA39C[];
 extern s32 D_801E9B28;
+extern s32 D_801E9B38;
+extern s32 D_801E9B3C;
+extern s32 D_801E9B40;
+extern s32 D_801E9B44;
 extern s32 D_801E9B48;
 extern s32 D_801E9B4C;
 extern s32 D_801E9B50;
@@ -196,6 +200,44 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D51EC);
    }
 */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D53D0);
+/* Best: 94.45%. Same allocator tie as func_801D51EC, which see: every
+   instruction matches except that gcc emits the loop-2 draw counter init
+   (`addu s2,zero,zero`) as the first insn after loop 1, reorg steals it into
+   the loop-back `bnez` delay slot, and a1 therefore keeps its own
+   callee-saved register (frame 0x40, s5). Retail emits `andi v1,s2,0xFF`
+   (the second `characters[a1]` address chain) first and puts the counter init
+   in the `jal func_801C80B8` delay slot, so a1 and n share s2 (frame 0x38).
+   void func_801D53D0(u_char a0, u_char a1, s32 a2, s32 a3) {
+       u8* pWindow = (u8*)g_Menu->unk39C[a0];
+       s32 i;
+       s32 n;
+
+       func_801C80B8(g_GameState.characters[a1].mp);
+       pWindow[0x1275] = 0;
+       for (i = 0; i < 2; i++) {
+           if (g_Menu->digits[7 + i] != 0xFF) {
+               pWindow[0x1275] += func_8002675C(
+                   g_Menu->resources, g_Menu->digits[7 + i],
+                   (POLY_FT4*)((u8*)pWindow + (pWindow[0x1275] * 0x50 + 0xCD0)),
+                   g_Menu->renderContext, a2 + D_801E9B38 + i * 8,
+                   a3 + D_801E9B3C, 0x1000);
+           }
+       }
+       func_801C80B8(g_GameState.characters[a1].maxMp);
+       pWindow[0x1276] = 0;
+       n = 0;
+       for (i = 0; i < 2; i++) {
+           if (g_Menu->digits[7 + i] != 0xFF) {
+               pWindow[0x1276] += func_8002675C(
+                   g_Menu->resources, g_Menu->digits[7 + i],
+                   (POLY_FT4*)((u8*)pWindow + (pWindow[0x1276] * 0x50 + 0xD70)),
+                   g_Menu->renderContext, a2 + D_801E9B40 + n * 8,
+                   a3 + D_801E9B44, 0x1000);
+               n++;
+           }
+       }
+   }
+*/
 void func_801D55B4(u_char a0, u_char a1, s32 a2, s32 a3) {
     u8* pWindow = (u8*)g_Menu->unk39C[a0];
     s32 i;
