@@ -58,6 +58,32 @@ extern s32 D_8009D55C;
 extern s32 D_8009D560;
 extern s32 D_8009D564;
 extern void func_8007A06C(void *, s32, s32);
+extern s16 D_8009BD38;
+extern s16 D_8009BD3A;
+extern s16 D_8009BD3C;
+extern s32 D_8009D3F0;
+extern void *D_8006259C;
+extern s16 D_8006F94E;
+extern s16 D_8006F950;
+extern s16 D_8006F954;
+extern s32 D_8009BBC4;
+extern s32 D_8009BC38;
+extern s32 D_8009BCB0;
+extern s32 D_8009BC3C;
+extern s32 D_8009BCB4;
+extern s32 D_8009C180;
+extern void HeapFree(void *pMem);
+extern void func_80039FF8(void);
+extern void func_8003852C(void *p);
+extern void func_80074F04(void);
+extern void func_800750DC(void);
+extern void func_80084818(void);
+extern void func_80086568(void);
+extern void func_800866C8(void);
+extern void func_80088FF4(void);
+extern void func_80089128(void);
+extern void func_800976A0(void);
+extern void func_80097D64(void);
 
 s32 func_80080900(s32 index) {
     WorldMapSlot *pSlot = &D_8009BE24[index];
@@ -125,7 +151,32 @@ s32 func_80080A28(s32 index) {
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_80080A28);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_80080AC4);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_80080D00);
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_8008106C);
+void func_8008106C(void) {
+    u16 v;
+
+    func_80039FF8();
+    func_8003852C(D_8006259C);
+    HeapFree(D_8006259C);
+    func_80084818();
+    func_80086568();
+    func_800866C8();
+    func_80074F04();
+    func_800750DC();
+    func_80088FF4();
+    func_80089128();
+    func_80097D64();
+    HeapFree(D_8009BC38);
+    HeapFree(D_8009BCB0);
+    HeapFree(D_8009BC3C);
+    HeapFree(D_8009BCB4);
+    HeapFree(D_8009C180);
+    func_800976A0();
+    v = *(u16 *)&D_8009BD3A;
+    D_8006F94E = 0x1FA;
+    D_8006F954 = 0;
+    D_8009BBC4 = 1;
+    D_8006F950 = v;
+}
 // Best: 65.26%. Instruction multiset identical; the original forms the slot
 // address (sll/addu/sw/lw) before loading D_8009A6C0, gcc hoists the global
 // load above the pointer arithmetic. Decl order, an s32 index temp and an
@@ -249,5 +300,45 @@ s32 func_800827C8(s32 index) {
     D_8009BE24[index].unk50 = (u32)D_8009A758;
     return 1;
 }
+// Best: 39.15%. Blocker is gcc's store-to-load forwarding: retail stores 0 to
+// D_8009BD3A/D_8009BD3C and reads them back with `lh` to build the two `<< 12`
+// slot stores, while this gcc folds the read to 0 and drops the sll (which also
+// shuffles the whole tail). Same blocker as misc8's func_8008390C (84.75%).
+/*
+s32 func_800827EC(s32 index) {
+    WorldMapSlot *pSlot = &D_8009BE24[index];
+    s32 a;
+    s32 b;
+
+    pSlot->unk7C = 0x1000;
+    D_8009BE28 = D_8009C5AC.x;
+    D_8009D55C = D_8009C5AC.x;
+    pSlot->pos.x = D_8009C5AC.x;
+    D_8009BE2C = D_8009C5B0;
+    D_8009D560 = D_8009C5B0;
+    pSlot->pos.y = D_8009C5B0;
+    D_8009BE30 = D_8009C5B4;
+    D_8009D564 = D_8009C5B4;
+    pSlot->pos.z = D_8009C5B4;
+    pSlot->unk20 = 0;
+    pSlot->unk4 = 0;
+    *(s32 *)pSlot->unk5C = 0x500000;
+    D_8009BD38 = -0x220;
+    D_8009BD3A = 0;
+    D_8009BD3C = 0;
+    pSlot->unk50 = 0xFFDE0000;
+    ((s32 *)pSlot->unk34)[1] = 0xFFDE0000;
+    a = D_8009BD3A;
+    D_8009D144 = 0;
+    D_8009D3F0 = 0x500000;
+    pSlot->unk54 = a << 12;
+    ((s32 *)pSlot->unk34)[2] = a << 12;
+    b = D_8009BD3C;
+    D_8009BE0C = 0x78;
+    pSlot->unk58 = b << 12;
+    ((s32 *)pSlot->unk34)[3] = b << 12;
+    return 1;
+}
+*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_800827EC);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_800828DC);
