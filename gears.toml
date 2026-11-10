@@ -116,12 +116,26 @@ paths = [ "{binary}/system/rendering_pause_text." ]
 
 # world_map's original object is addiu-dominant (2483 `addiu $r,$zero,imm` vs 23
 # `ori`), so ASPSX >= 2.50 left `li` to the assembler: maspsx must not expand it.
+#
+# EVERY unit is listed by name, never as a `world_map/` directory key: gears
+# resolves presets by iterating a HashMap of path keys and taking the first key
+# that the unit path contains, so a directory key plus a per-file key makes the
+# choice depend on HashMap order, i.e. random per `gears` run. That is how
+# world_map/main/misc13 silently lost `--expand-div` and broke the overlay.
 [[build_preset]]
 name = "XenoWorldMap"
 build_variables = {
     maspsx_flags = "--dont-expand-li --use-comm-section --run-assembler"
 }
-paths = [ "world_map/" ]
+paths = [
+    "world_map/main/misc1.",
+    "world_map/main/misc3.",
+    "world_map/main/misc4.",
+    "world_map/main/misc9.",
+    "world_map/main/misc11.",
+    "world_map/main/misc12.",
+    "world_map/main/misc15."
+]
 
 # battle/main/misc26..misc35 are addiu-dominant (`addiu $r,$zero,imm` counts
 # 17-117 vs 0-12 `ori`), while misc1..misc25 are the opposite (0 addiu, 43-153
@@ -225,3 +239,17 @@ build_variables = {
     gcc = "gcc-2.6.0-psx"
 }
 paths = [ "battle/main/misc20." ]
+
+# battle/main/misc21 is a gcc-2.6.0 unit AND a div-expansion unit, proven the way
+# section 5 asks for: func_800A23E8 is 100.0% under gcc-2.6.0 and 80.53% under
+# XenoBattleDiv (2.7.2), where its C is 0x48 bytes against retail's 0x4c; the ten
+# functions already matched in the unit stay at 100.0 under 2.6.0. Three stubs in
+# the unit also carry the ASPSX div trap (`break 6`/`break 7`), so it needs both.
+# Must stay after XenoBattleDiv, which lists the same path.
+[[build_preset]]
+name = "XenoBattle260Div"
+build_variables = {
+    gcc = "gcc-2.6.0-psx",
+    maspsx_flags = "--expand-div --use-comm-section --run-assembler"
+}
+paths = [ "battle/main/misc21." ]
