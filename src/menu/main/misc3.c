@@ -17,6 +17,7 @@ extern void func_801CB184(void);
 extern int func_801C8D78(u_char);
 extern void func_801C7BF4(void);
 extern u_char func_801CACF8(u_char, u_char, u_char);
+extern void func_80033B34(u16* pInput, u8* pOutput, int count);
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801C8D78);
 
@@ -72,7 +73,9 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801C9270);
    scheduled before the menuUnk2 load (original: after the unk4FAE load), which
    then swaps the record base and pMenu between a2/a3 and flips the `chunks[k]`
    addu operand order. Tried: matched placed before/after the pRecord
-   assignment, `u_char matched` (96.15%), `u_short` shape. */
+   assignment, `u_char matched` (96.15%), `u_short` shape, and hoisting the
+   unk4FAE byte into a `u8 idx` local (86.54% - the original really does reload
+   unk4FAE inside the `if`, so the index must stay inline). */
 /*
 void func_801C9270(int a0) {
     MenuUnk2Record* pRecord;
@@ -183,50 +186,43 @@ void func_801CADB0(void) {
 }
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CAE08);
+
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CB184);
 
-/* Best attempt: 78.88%. Original keeps the entry pointer on an advancing
-   register (s0 += 0x14) and rematerialises the odd byte base as
-   (g_GameState + 1) + (i + j) with a fresh lui/addiu each row; gcc instead
-   hoists &g_GameState into a callee-saved register and merges the two byte
-   addresses into one base with 0/1 offsets. The 74.21% variant (pEntry
-   advanced by hand, symbol used directly for the odd byte) had the right
-   inner-loop shape but an extra s4 for the symbol base. */
+/* Best attempt: 86.36%. The even-byte read wants an advancing pointer
+   (s0 = &g_GameState + i, a1 = s0) and the odd-byte read wants the constant
+   base %hi(g_GameState + 0x1) rematerialised inside the outer loop, which only
+   happens when no register holds &g_GameState. Any source that inits the row
+   pointer before the loop lets gcc CSE &g_GameState into a callee-saved
+   register, which then folds the +1 into it (85.29%); assigning the pointer
+   inside the loop instead makes gcc keep `i` in one register and materialise
+   the base per iteration but lose the strength reduction (86.36%, this one).
+   Tried: pEntry in the for-increment / in the body / indexed form for both
+   reads (78.41%) / int declarations first. */
 /*
 void func_801CB184(void) {
     u8 inBuf[0x14];
     u8 outBuf[0x14];
-    u8* pChars;
     u8* pEntry;
-    u8* pEven;
-    u8* pOdd;
-    s8* pDst;
-    s8* pOut;
     int i;
     int j;
 
-    pChars = (u8*)&g_GameState;
     for (i = 0; i < 0x26C; i += 0x14) {
-        pEntry = pChars + i;
-        pEven = inBuf;
-        pOdd = inBuf + 1;
+        pEntry = (u8*)&g_GameState + i;
         for (j = 0; j < 0x14; j += 2) {
-            *pEven = pEntry[j];
-            *pOdd = pChars[i + j + 1];
-            if (pEntry[j] == 0 && pChars[i + j + 1] == 0) {
+            inBuf[j] = pEntry[j];
+            inBuf[j + 1] = ((u8*)&g_GameState)[i + j + 1];
+            if (pEntry[j] == 0 && ((u8*)&g_GameState)[i + j + 1] == 0) {
                 break;
             }
-            pEven += 2;
-            pOdd += 2;
         }
         func_80033B34((u16*)inBuf, outBuf, j / 2);
-        pOut = (s8*)outBuf;
-        pDst = (s8*)pEntry;
-        while (pDst < (s8*)pEntry + 0x14) {
-            *pDst++ = *pOut++;
+        for (j = 0; j < 0x14; j++) {
+            pEntry[j] = outBuf[j];
         }
     }
-}*/
+}
+*/
 
 void func_801CB28C(u32* pSrc) {
     int i;
