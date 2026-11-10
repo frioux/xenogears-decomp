@@ -531,69 +531,80 @@ void func_801DB02C(u_char index) {
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801DB0A8);
 
-/* 98.80%. Byte-identical to the original over all 188 lines except one
-   adjacent swap in the func_801C851C argument setup: the original emits
-   `addu a1,v1,s2; addu a2,t0,s1; andi a1,0xffff; andi a2,0xffff`, gcc emits
-   `addu a1; andi a1; addu a2; andi a2`. Tried: sums in s32 x/y locals (same
-   code), inline expressions (same), u16 locals (same). Full decode below;
-   fields: pCursor = g_Menu->arrowCursors[arg3] (MenuArrowCursor), the poly
-   record is &pCursor->polys[g_Menu->renderContext] read as u16 at +8/+A/+10/+22
-   (POLY_FT4.x0/y0/x1/y3, hence lhu), ofsX in $s2 and ofsY in $s1.
-void func_801DB0A8(s32 arg0, s32 arg1, u_char arg2, u_char arg3) {
-    MenuArrowCursor* pCursor;
-    u8* pPoly;
-    s32 ofsX;
-    s32 ofsY;
-    s32 x;
-    s32 y;
-    s32 shouldDraw = 1;
+/* 98.80%. Only difference: the func_801C851C argument setup. Original emits
+   `addu a1,v1,s2; addu a2,t0,s1; andi a1,0xffff; andi a2,0xffff` (both sums,
+   then both truncations); gcc folds each sum into its argument position and
+   emits `addu a1; andi a1; addu a2; andi a2`. Every other line is identical.
+   Tried, all with the same interleaving: sums as s32 locals (also with the two
+   statements in reverse order), inline expressions, u16 locals, the four poly
+   loads hoisted into u16 locals first. cse replaces the use of a single-use sum
+   pseudo with the recomputed add, so neither the statement order nor the
+   innermost register survives. Also screened (all 98.80): gcc 2.7.2-cdk, -O3,
+   -G0.
+   Full decode: pCursor = g_Menu->arrowCursors[arg3] (MenuArrowCursor); the
+   poly record is &pCursor->polys[g_Menu->renderContext], read as u16 at
+   +8/+A/+10/+22 (POLY_FT4.x0/y0/x1/y3, hence lhu), ofsX in $s2, ofsY in $s1.
+   void func_801DB0A8(s32 arg0, s32 arg1, u_char arg2, u_char arg3) {
+       MenuArrowCursor* pCursor;
+       u8* pPoly;
+       s32 ofsX;
+       s32 ofsY;
+       s32 x;
+       s32 y;
+       u16 lx0;
+       u16 ly0;
+       u16 lx1;
+       u16 ly1;
+       s32 shouldDraw = 1;
 
-    pCursor = g_Menu->arrowCursors[arg3];
-    if (++pCursor->animFrameDuration >= 6) {
-        pCursor->curAnimFrame--;
-        if (pCursor->curAnimFrame < 0) {
-            pCursor->curAnimFrame = 4;
-        }
-        pCursor->animFrameDuration = 0;
-    }
-    switch (arg2) {
-    case 0:
-        ofsX = (arg0 % 2) * 0x88 + 0x1C;
-        ofsY = (arg0 / 2) * 0x10 + 0x11;
-        break;
-    case 1:
-        if (arg0 >= arg1 * 2 && arg0 < arg1 * 2 + 0x10) {
-            ofsX = (arg0 % 2) * 0x88 + 0x18;
-            ofsY = ((arg0 - arg1 * 2) / 2) * 0x10 + 0x11;
-        } else {
-            shouldDraw = 0;
-        }
-        break;
-    case 2:
-        ofsX = (arg0 % 2) * 0x88 + 0x18;
-        ofsY = (arg0 / 2) * 0x10 + 0x14;
-        break;
-    case 3:
-        ofsX = 0xA0;
-        ofsY = arg0 * 13 + 0x14;
-        shouldDraw = 2;
-        break;
-    }
-    if (shouldDraw != 0) {
-        func_8002675C(g_Menu->resources, pCursor->curAnimFrame + 0x15B, (POLY_FT4*)pCursor,
-                      g_Menu->renderContext, 0, 0, 0x1000);
-        pPoly = (u8*)pCursor + g_Menu->renderContext * 0x28;
-        x = *(u16*)(pPoly + 8) + ofsX;
-        y = *(u16*)(pPoly + 0xA) + ofsY;
-        func_801C851C(pCursor->vertices, x, y,
-                      *(u16*)(pPoly + 0x10) - *(u16*)(pPoly + 8),
-                      *(u16*)(pPoly + 0x22) - *(u16*)(pPoly + 0xA));
-        pCursor->renderContext = *(u8*)&g_Menu->renderContext;
-        g_Menu->pManager->shouldRenderArrowCursor[arg3] = 1;
-    } else {
-        g_Menu->pManager->shouldRenderArrowCursor[arg3] = 0;
-    }
-}
+       pCursor = g_Menu->arrowCursors[arg3];
+       if (++pCursor->animFrameDuration >= 6) {
+           pCursor->curAnimFrame--;
+           if (pCursor->curAnimFrame < 0) {
+               pCursor->curAnimFrame = 4;
+           }
+           pCursor->animFrameDuration = 0;
+       }
+       switch (arg2) {
+       case 0:
+           ofsX = (arg0 % 2) * 0x88 + 0x1C;
+           ofsY = (arg0 / 2) * 0x10 + 0x11;
+           break;
+       case 1:
+           if (arg0 >= arg1 * 2 && arg0 < arg1 * 2 + 0x10) {
+               ofsX = (arg0 % 2) * 0x88 + 0x18;
+               ofsY = ((arg0 - arg1 * 2) / 2) * 0x10 + 0x11;
+           } else {
+               shouldDraw = 0;
+           }
+           break;
+       case 2:
+           ofsX = (arg0 % 2) * 0x88 + 0x18;
+           ofsY = (arg0 / 2) * 0x10 + 0x14;
+           break;
+       case 3:
+           ofsX = 0xA0;
+           ofsY = arg0 * 13 + 0x14;
+           shouldDraw = 2;
+           break;
+       }
+       if (shouldDraw != 0) {
+           func_8002675C(g_Menu->resources, pCursor->curAnimFrame + 0x15B, (POLY_FT4*)pCursor,
+                         g_Menu->renderContext, 0, 0, 0x1000);
+           pPoly = (u8*)pCursor + g_Menu->renderContext * 0x28;
+           lx0 = *(u16*)(pPoly + 8);
+           ly0 = *(u16*)(pPoly + 0xA);
+           lx1 = *(u16*)(pPoly + 0x10);
+           ly1 = *(u16*)(pPoly + 0x22);
+           y = ly0 + ofsY;
+           x = lx0 + ofsX;
+           func_801C851C(pCursor->vertices, x, y, lx1 - lx0, ly1 - ly0);
+           pCursor->renderContext = *(u8*)&g_Menu->renderContext;
+           g_Menu->pManager->shouldRenderArrowCursor[arg3] = 1;
+       } else {
+           g_Menu->pManager->shouldRenderArrowCursor[arg3] = 0;
+       }
+   }
 */
 
 void func_801DB340(u_char index) {
