@@ -113,19 +113,20 @@ void func_8008B070(s32 entryIndex) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc14", func_8008B0D8);
 
-/* Best attempt: objdiff 83.44%, same 96 bytes. The original addresses the three
-   s16 stores off a second induction pointer ($v1 = entry + 0x10, offsets -4/-2/0)
-   and the word copy off the entry pointer; gcc merges them into one base
-   (entry + 4). Reordering the body drops it to 69.80%. */
+/* Best attempt: objdiff 91.84%, same 100 bytes as the original. Head matches
+   exactly; the loop differs only in which giv gcc makes the store base: the
+   original uses $v1 = entry + 0x10 (sh at -4/-2/0, sw at -0xC), gcc picks
+   entry + 4 (sh at 8/10/12, sw at 0) no matter whether the source addresses the
+   s16 stores through unkC/unkE/unk10 or through a separate s16 *pField based at
+   +0x10. */
 /*
 void func_8008B0D8(u8 *pActor) {
-    u8 *pModel = *(u8 **)pActor;
     Misc14Entry *pEntry = *(Misc14Entry **)(pActor + 8);
     s32 i;
 
     *(s16 *)(pActor + 0x10) = 0;
     *(s16 *)(pActor + 0x12) = 0;
-    for (i = 0; i < *(s16 *)(pModel + 6); i++) {
+    for (i = 0; i < *(s16 *)(*(u8 **)pActor + 6); i++) {
         pEntry->unkC = 0;
         pEntry->unkE = 0;
         pEntry->unk10 = 0;
