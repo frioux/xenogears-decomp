@@ -83,12 +83,14 @@ void func_801E71B4(s32 index, u8* pEntry, s32 arg2) {
 */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E733C);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E76EC);
-/* Best: 99.87%. Retail uses v1 for the g_Menu->menuUnk2 load and v0 for the
-   arg0 * 0x200 shift; gcc mirrors the pair (both pseudos have one use and die
-   at the same addu). Declaration permutations of i/offset/pEntry all keep i in
-   s3 and offset in s2 only when i is declared first; the index must be spelled
-   *(pEntry + i + 0x1C) or the addu operands swap. Operand order, a named
-   scaled local, a named base local and the array-index form were all tried.
+/* Best: 99.87%. Two register pairs, both mirrored: retail puts g_Menu->menuUnk2
+   in v1 and the arg0 * 0x200 shift in v0, and i in s3 with offset in s2.
+   Spelling pEntry as (u8*)(arg0 * 0x200 + (s32)g_Menu->menuUnk2) + 0xC94 fixes
+   the v0/v1 pair but then flips i to s2 (98.99%); every declaration order and
+   init style of i/offset keeps i in s2 under that spelling. The index must be
+   spelled *(pEntry + i + 0x1C) or the addu operands swap. Declaration
+   permutations of i/offset/pEntry, operand order, a named scaled local, a
+   named base local and the array-index form were all tried.
 void func_801E76EC(s32 arg0) {
     s32 i = 0;
     u32 offset = 0;
@@ -151,21 +153,15 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E8474);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E86C8);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E8978);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E8B4C);
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E8DA8);
-/* Best: 99.51%. The only difference is that retail emits the sw s0 / move s0,a0
-   pair before the sw s3 / move s3,a1 pair; gcc copies the incoming params in
-   the reverse order. All six declaration orders of rect/pBuf/offset give the
-   same 99.51%. The byte-cast table reads below are what reproduce the
-   original's sll v1,s3,1 ; andi v1,v1,0x1FC (both tables are byte blobs).
-void func_801E8DA8(u_char arg0, s32 arg1) {
+void func_801E8DA8(s32 arg0, s32 arg1) {
     RECT rect;
     u8* pBuf;
     s32 offset;
 
     pBuf = HeapAlloc(0x3F6, 0);
     bzero(pBuf, 0x3F6);
-    if (arg0 != 0xFF) {
-        offset = (arg0 >> 1) * 0x28;
+    if ((u_char)arg0 != 0xFF) {
+        offset = ((u_char)arg0 >> 1) * 0x28;
         SystemRenderStringEntry((u8*)&g_GameState + offset, pBuf, 0x24, 0);
         SystemRenderStringEntry((u8*)&g_GameState + offset + 0x14, pBuf, 0x24, 1);
     }
@@ -177,7 +173,6 @@ void func_801E8DA8(u_char arg0, s32 arg1) {
     DrawSync(0);
     HeapFree(pBuf);
 }
-*/
 
 void func_801E8EAC(POLY_FT4* pPoly, u_char mode) {
     SetShadeTex(pPoly, 0);
