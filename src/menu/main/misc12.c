@@ -80,6 +80,7 @@ void func_801E71B4(s32 index, u8* pEntry, s32 arg2) {
     DrawSync(0);
     HeapFree(pBuf);
 }
+*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E733C);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E76EC);
 /* Best: 99.87%. Retail uses v1 for the g_Menu->menuUnk2 load and v0 for the
@@ -88,8 +89,6 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E76EC);
    s3 and offset in s2 only when i is declared first; the index must be spelled
    *(pEntry + i + 0x1C) or the addu operands swap. Operand order, a named
    scaled local, a named base local and the array-index form were all tried.
-*/
-
 void func_801E76EC(s32 arg0) {
     s32 i = 0;
     u32 offset = 0;
