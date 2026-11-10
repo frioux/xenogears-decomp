@@ -1,6 +1,10 @@
 #include "common.h"
 
+#include "main/game.h"
 #include "system/menu.h"
+
+void func_801C80B8(u32 number);
+s32 func_8002675C(MenuResourceDirectory* pDir, u32 index, POLY_FT4* pPrims, s32 context, s32 x, s32 y, s32 scale);
 
 extern u8 D_80059460;
 extern u_char func_801CB304(void);
@@ -8,59 +12,28 @@ extern u_char func_801CBD90(u_char arg0);
 extern u_char func_801CC6D8(void);
 extern u_char func_801CD2AC(void);
 extern void func_801CD81C(MenuCharacter* pCharacter, u_char arg1, u_char arg2, s32 arg3, s32 arg4, u_char arg5);
-extern void func_801CDB1C(MenuCharacter* pCharacter, u_char arg1, u_char arg2, s32 arg3, s32 arg4);
-extern void func_801CDC6C(MenuCharacter* pCharacter, u_char arg1, u_char arg2, s32 arg3, s32 arg4, u_char arg5);
-extern void func_801CE198(s32 count, SVECTOR* pVertices, POLY_FT4* pPolys, s32 renderContext);
-extern void func_801CE2B4(int length, POLY_FT4* pPolys, int renderContext);
-extern void func_801CE860(void);
-extern void func_801CF37C(void);
-extern void func_801CF5E4(s32 arg0, s32 arg1, s32 arg2);
-extern void func_801CF8D8(void);
-extern void func_801CFB48(void);
-extern void func_801CFF64(void);
-extern void func_801D22F4(s32 arg0);
-extern void func_801D2484(void);
+extern void func_801CDB1C(MenuCharacter* pCharacter, u_char characterIndex, u_char localIndex, s32 arg3, s32 arg4) {
+    s32* pPositionsY = (s32*)arg4;
+    s32 i;
+    u_char digit;
 
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc4", func_801CD2AC);
-s32 func_801CD710(u_char arg0) {
-    u_char result = 1;
-    u8 choice;
-
-    func_801D22F4(0);
-    ((u8*)g_Menu->pManager)[0x2F] = 0;
-    choice = g_Menu->subMenuChoice;
-    switch (choice) {
-        case 0:
-            g_Menu->unk334 = 7;
-            if (func_801CD2AC()) {
-                result = 0;
-            }
-            break;
-        case 1:
-            g_Menu->unk334 = 6;
-            if (func_801CC6D8()) {
-                result = 0;
-            }
-            break;
-        case 2:
-            if (D_80059460 != g_Menu->subMenuChoice) {
-                g_Menu->unk334 = 3;
-                if (func_801CBD90(arg0)) {
-                    result = 0;
-                }
-            } else {
-                g_Menu->unk334 = 2;
-                if (func_801CB304()) {
-                    result = 0;
-                }
-            }
-            break;
+    func_801C80B8(g_GameState.characters[characterIndex].level);
+    pCharacter->levelStringLength = 0;
+    for (i = 0; i < 3; i++) {
+        digit = g_Menu->digits[i + 6];
+        if (digit != 0xFF) {
+            pCharacter->levelStringLength += func_8002675C(
+                g_Menu->resources, digit,
+                &pCharacter->polysLevelString[pCharacter->levelStringLength * 2],
+                g_Menu->renderContext,
+                i * 8 + ((s32*)arg3)[10],
+                localIndex * 0x38 + pPositionsY[10],
+                0x1000);
+        }
     }
-    func_801D2484();
-    return result;
+    func_801C80B8(g_GameState.characters[characterIndex].unk63);
+    pCharacter->unkBE1 = 0;
 }
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc4", func_801CD81C);
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc4", func_801CDB1C);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc4", func_801CDC6C);
 void func_801CE0CC(MenuCharacter* pCharacter, u_char arg1, u_char arg2, s32 arg3, s32 arg4, u_char arg5) {
     func_801CD81C(pCharacter, arg1, arg2, arg3, arg4, arg5);
