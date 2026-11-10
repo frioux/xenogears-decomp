@@ -1350,6 +1350,7 @@ nearly every stub) averaged 42 per round.
 
 | — (presets) | 20 units got `--expand-div` | +4 | 1719 | `battle/misc22`'s four div stubs, verified end to end |
 | 6 | 12 units, all timed out | +4 net (+26 raw) | 1715 | the bad round: see below |
+| 7 | `battle/{misc8,11,19,20,22}`, `world_map/{misc8,16}`, `menu/misc1`, `battling/misc10`, `field/{misc2,misc4,misc8}` | +11 | 1704 | first round gated on the first try after the straggler-commit fix. battle/misc22 +3 (the `--expand-div` preset paying), battle/misc8 +2, battle/misc11 +2, battle/misc19 +1, world_map/misc8 +1, menu/misc1 +1, field/misc4 +1, 0 in battle/misc20, world_map/misc16, battling/misc10, field/misc2, field/misc8 |
 
 ### Round 6: a new preset axis, and a merge bug that ate the round
 
