@@ -544,9 +544,12 @@ void func_8001F5BC(SpriteData* pSpriteData, s32 unusedIndex, s32* pOutX, s32* pO
 }
 */
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001F6B0);
 /* Best attempt: 96.50%. UPDATE: this C scores 97.12% under gcc-2.7.2-cdk-psx,
-   so the preset is not the answer; the miss is the allocator.
+   so the preset is not the answer; the miss is the allocator. Round r12: cdk is
+   ruled out for the whole unit -- under gcc-2.7.2-cdk-psx func_8001E2F8 and
+   func_8001E368 (both matched at 100% under 2.7.2) drop to 88.57%,
+   func_8001D4E8 to 97.14%, and func_8001E298/func_8001EE68/func_8001F530 fail
+   to compile at all.
    Instruction stream is identical; only the temp
    assignment differs (original: pSpriteData->t1, texPageBits->a3, color->a1,
    pFrameData->a0, i->t0; this C: a3, t0, a2, v1, a0). Reordering the locals has
@@ -560,41 +563,14 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001F6B0);
    79-96.5. Clue for the next attempt: a2 is NEVER used in the original, so its
    block 1 held one more block-local pseudo than any shape tried here -- that is
    what would push the parameter out to t1.
-
-void func_8001F6B0(SpriteData* pSpriteData) {
-    SpriteFrameData* pFrameData;
-    u32 flags;
-    u32 color;
-    u32 texPageBits;
-    u16 texPage;
-    s32 i;
-    SVEC2 tex;
-
-    flags = *(u32*)((u8*)pSpriteData + 0x3C);
-    if ((flags & 3) != 1) {
-        return;
-    }
-
-    texPageBits = (flags >> 5) & 7;
-    if (texPageBits != 0) {
-        texPageBits--;
-    }
-    tex = ((SpriteAnimPackage*)pSpriteData->pVramData)->tex;
-    color = *(u32*)&pSpriteData->red;
-    pFrameData = pSpriteData->pBase->pCurRenderFramesData;
-    for (i = 0; i != (*(u8*)((u8*)pSpriteData + 0x40) >> 2); i++) {
-        texPage = pFrameData[i].texPage;
-        pFrameData[i].colorAndCode = color;
-        pFrameData[i].texPage = (texPage & 0xFF9F) | (texPageBits << 5);
-    }
-}
+   Re-checked round r12: the compiled stream is instruction-for-instruction the
+   original's; the only delta is a permutation of the five live values
+   (param/texPageBits/color/pFrameData/i): original t1/a3/a1/a0/t0, ours
+   a3/t0/a2/v1/a0. Both sides copy the parameter out of a0 at entry because the
+   block-local `flags` load takes a0; only the copy's destination differs.
 */
-/* Best attempt: 96.50%, instruction stream identical, only the register
-   allocation differs (the original gets the sprite data into t1, freeing a0 for
-   the frame pointer; this keeps the sprite in a3 and puts the counter in a0).
-   The 4-byte copy of ((SpriteAnimPackage*)pVramData)->tex into a local is dead
-   code that the original object really contains.
-
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001F6B0);
+/* Best attempt: 96.50% (see the note above the INCLUDE_ASM).
 void func_8001F6B0(SpriteData* pSpriteData) {
     SpriteFrameData* pFrameData;
     u32 flags;
@@ -711,6 +687,13 @@ void func_8001F750(SpriteData* pSpriteData, s32 index, SpriteAnimPackage* pAnimP
       saves). func_8001F750, the sibling, has a tight 0x30 frame, and an unused
       local such as `MATRIX unused;` is dropped by gcc, so the extra 0x10 looks
       like a larger outgoing-args area in the original rather than a local.
+      Round r12 checked that: the largest call in the body takes 3 arguments
+      (func_8001F750), then HeapAlloc(2) and func_800234AC(1), so the outgoing
+      area can only be 0x10, and no instruction in the 115 accesses any stack
+      word in 0x00-0x1F. So the extra 0x10 is not outgoing args; it behaves like
+      incoming-parameter / pretend-arg space (a callee that declares more
+      parameters than the callers pass), which source C cannot express without
+      changing the signature.
    2. the original emits `andi s5,v0,0x80` (unkFlag) BEFORE `andi s4,v0,0x3f`
       (count) and both before the `beqz count`; this C gets count first and
       unkFlag folded down into the loop head (its only use), which then takes the
