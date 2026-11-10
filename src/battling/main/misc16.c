@@ -188,7 +188,21 @@ void func_8008D980(Misc16Work* pWork) {
         }
     }
 }
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc16", func_8008D9F0);
+void func_8008D9F0(Misc16Work* pWork) {
+    s32 value;
+
+    if (pWork->unk2 > 0) {
+        value = -pWork->unkA / 2;
+        pWork->unkA = value;
+        value = (s16)value;
+        if (value < 0) {
+            value = -value;
+        }
+        if (value < 8) {
+            pWork->unk6 = 0;
+        }
+    }
+}
 /* 91.14% - the sign-extend of the stored unkA is emitted before the store
    instead of after it.  Three shapes (s16/int temporary, ternary, direct
    field re-read) all give the same v0/v1 split.
