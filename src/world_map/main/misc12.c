@@ -1,5 +1,6 @@
 #include "common.h"
 #include "main/game.h"
+#include "psyq/libgpu.h"
 #include "psyq/libgte.h"
 
 extern s32 func_80095414(s32 *pPos, s32 *pRot, s32 *pOut, s32 nSpeed, s32 nMode);
@@ -76,6 +77,10 @@ extern WorldMapSource *D_8009C620;
 typedef struct {
     /* 0x0 */ u32 w[4];
 } Quad; // Size: 0x10
+
+typedef struct {
+    /* 0x00 */ u32 w[9];
+} WorldMapG4; // Size: 0x24, two POLY_G4-shaped primitives are not it
 
 typedef struct {
     /* 0x00 */ u8 unk0[0x1C];
@@ -283,13 +288,13 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_80090C68);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_80090E14);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_80090FB4);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_80091430);
-/* best: 88.22%. Everything but the D_8009BD3A pair matches: retail computes the
-   address once into v1 (sh + lh off the same base) and really reloads it for
-   unk58, while gcc forwards the value it just stored and so uses the address
-   once ($at) and skips the lh. Not a preset problem: cdk 75.97, -O3 85.22,
-   -G0 85.22, -O2 88.22. Declaring D_8009BD3A volatile kills the forwarding but
-   also splits the address into a second lui/addiu (78.10). Swapping the two
-   halfword stores changes nothing (88.22).
+/* best: 91.20%. Retail keeps the address of D_8009BD3A in one register (sh then
+   lh off the same base); gcc forwards the stored value so the address is used
+   once. A volatile STORE kills the forwarding (88.22 -> 91.20) but the address
+   still splits: `lui $at/%lo` for the store plus a fresh lui for the load, and
+   it also hoists the D_8009BE10 load. Also tried: volatile load (78.10, lhu +
+   sll16/sra4), s16 pointer local for both accesses (same split), cdk 75.97,
+   -O3/-G0 85.22.
 
 s32 func_80091430(s32 idx) {
     WorldMapPlayer *pPlayer;
@@ -298,7 +303,7 @@ s32 func_80091430(s32 idx) {
     pPlayer = D_8009BE24 + idx;
     *(Quad *)&pPlayer->unk28 = *(Quad *)D_8009D55C;
     D_8009BD3C = 0;
-    D_8009BD3A = D_8009D52C;
+    *(volatile s16 *)&D_8009BD3A = D_8009D52C;
     pPlayer->unk50 = (s16)D_8009D52C;
     pPlayer->unk58 = D_8009BD3A << 12;
     nMode = D_8009BE10;
@@ -398,5 +403,87 @@ s32 func_800922AC(s32 idx) {
     }
     return nRet;
 }
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_800923A8);
+// The original touches every field of the two primitives at 0x8009CE6C, so
+// splat gave each field its own address symbol; naming them here keeps the
+// %lo relocations identical to the original object.
+extern WorldMapG4 D_8009CE6C;
+extern u8 D_8009CE6F;
+extern u8 D_8009CE70;
+extern u8 D_8009CE71;
+extern u8 D_8009CE72;
+extern u8 D_8009CE73;
+extern u16 D_8009CE74;
+extern u16 D_8009CE76;
+extern u8 D_8009CE78;
+extern u8 D_8009CE79;
+extern u8 D_8009CE7A;
+extern u16 D_8009CE7C;
+extern u16 D_8009CE7E;
+extern u8 D_8009CE80;
+extern u8 D_8009CE81;
+extern u8 D_8009CE82;
+extern u16 D_8009CE84;
+extern u16 D_8009CE86;
+extern u8 D_8009CE88;
+extern u8 D_8009CE89;
+extern u8 D_8009CE8A;
+extern u16 D_8009CE8C;
+extern u16 D_8009CE8E;
+extern u16 D_8009CE98;
+extern u16 D_8009CE9A;
+extern u16 D_8009CEA0;
+extern u16 D_8009CEA2;
+extern u16 D_8009CEA8;
+extern u16 D_8009CEAA;
+extern u16 D_8009CEB0;
+extern u16 D_8009CEB2;
+extern DR_TPAGE D_8009D310;
+extern s32 D_8009CCA4;
+
+s32 func_800923A8(s32 idx) {
+    WorldMapPlayer *pPlayer;
+    WorldMapG4 *pG4;
+    u_short nTpage;
+
+    pPlayer = D_8009BE24 + idx;
+    pPlayer->unk50 = 0xF8;
+    nTpage = GetTPage(0, D_8009CCA4, 0x380, 0x100);
+    SetDrawTPage(&D_8009D310, 1, 0, nTpage);
+    pG4 = &D_8009CE6C;
+    // the original re-reads unk50 for all twelve colour bytes; volatile stops
+    // gcc folding them into one load.
+    D_8009CE6F = 8;
+    D_8009CE73 = 0x38;
+    D_8009CE70 = *(volatile s32 *)&pPlayer->unk50;
+    D_8009CE71 = *(volatile s32 *)&pPlayer->unk50;
+    D_8009CE72 = *(volatile s32 *)&pPlayer->unk50;
+    D_8009CE78 = *(volatile s32 *)&pPlayer->unk50;
+    D_8009CE79 = *(volatile s32 *)&pPlayer->unk50;
+    D_8009CE7A = *(volatile s32 *)&pPlayer->unk50;
+    D_8009CE80 = *(volatile s32 *)&pPlayer->unk50;
+    D_8009CE81 = *(volatile s32 *)&pPlayer->unk50;
+    D_8009CE82 = *(volatile s32 *)&pPlayer->unk50;
+    D_8009CE88 = *(volatile s32 *)&pPlayer->unk50;
+    D_8009CE89 = *(volatile s32 *)&pPlayer->unk50;
+    D_8009CE8A = *(volatile s32 *)&pPlayer->unk50;
+    SetSemiTrans(pG4, 1);
+    pG4[1] = pG4[0];
+    D_8009CE74 = 0;
+    D_8009CE76 = 0;
+    D_8009CE7C = 0x140;
+    D_8009CE7E = 0;
+    D_8009CE84 = 0;
+    D_8009CE86 = 0xD8;
+    D_8009CE8C = 0x140;
+    D_8009CE8E = 0xD8;
+    D_8009CE98 = 0;
+    D_8009CE9A = 0;
+    D_8009CEA0 = 0x140;
+    D_8009CEA2 = 0;
+    D_8009CEA8 = 0;
+    D_8009CEAA = 0xD8;
+    D_8009CEB0 = 0x140;
+    D_8009CEB2 = 0xD8;
+    return 1;
+}
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_800925A0);
