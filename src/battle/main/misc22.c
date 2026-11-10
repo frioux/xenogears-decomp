@@ -280,19 +280,15 @@ s32 func_800A579C(s32 arg0) {
     }
     return -1;
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A5870);
-/* 99.27%: everything but the operand order of the three `addu` that form the
-   SVECTOR pointers - retail has the scaled index first (addu a0,a0,v1), gcc
-   canonicalises the base first. Tried pointer+int, int+ptr, u32 arithmetic and
-   typed-array indexing; all give base first.
 s32 func_800A5870(s32 arg0, s32 index, s32 arg2) {
+    BattleMisc22Entry *pEntry;
+
     if (D_800D3344 == 0 || D_800D39CC == 0 || index < 0) {
         return -1;
     }
-    func_800A5BE8(&((BattleMisc22SVec *)D_800D3344)[((BattleMisc22Entry *)D_800D39CC)[index].unk0],
-                  &((BattleMisc22SVec *)D_800D3344)[((BattleMisc22Entry *)D_800D39CC)[index].unk2],
-                  &((BattleMisc22SVec *)D_800D3344)[((BattleMisc22Entry *)D_800D39CC)[index].unk4],
-                  arg0, arg2);
-    return ((BattleMisc22Entry *)D_800D39CC)[index].unkC;
+    pEntry = (BattleMisc22Entry *)(index * 14 + D_800D39CC);
+    func_800A5BE8((BattleMisc22SVec *)(pEntry->unk0 * 8 + D_800D3344),
+                  (BattleMisc22SVec *)(pEntry->unk2 * 8 + D_800D3344),
+                  (BattleMisc22SVec *)(pEntry->unk4 * 8 + D_800D3344), arg0, arg2);
+    return ((BattleMisc22Entry *)(index * 14 + D_800D39CC))->unkC;
 }
-*/
