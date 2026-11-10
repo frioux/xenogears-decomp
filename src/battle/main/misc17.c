@@ -37,6 +37,12 @@ void func_80093578(u8, u8);
 void func_8009382C(u8, u8);
 s32 func_80076A10(s32, u8 *, s32, s16);
 s32 func_80089C6C(s32, u8);
+extern void *func_8008AC00(s32);
+extern u8 *GetStringEntry(u8 *, s32);
+extern s32 SystemRenderStringEntry(u8 *, void *, s32, s32);
+extern void func_800769E8(RECT *, u_long *);
+extern u8 *D_800C3DE8;
+extern u8 D_800CCD88[];
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80091064);
 /* 94.88%: three addu operand orders + one load-scheduling slot differ; the
@@ -137,7 +143,38 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80092784);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80092B74);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_800930AC);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80093578);
+/* 72.03%: RECT/bzero/GetStringEntry/SystemRenderStringEntry order, both stack
+   args and the frame all match. Same blocker as misc16's func_8009070C
+   (78.72%): the original loads *(D_800C3EA4+0xA230) FIRST, keeps &D_800CCB34
+   in a saved reg (lw 0(s3)) and does `addiu a0,a0,0x280` before the base addu;
+   gcc loads the D_800CCB34 index first, re-forms its address per call and sinks
+   the addiu into the jal delay slot. Improves to 74% with the index in a local. */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_8009382C);
+/*
+void func_8009382C(u8 arg0, u8 arg1) {
+    RECT rect;
+    u8 *pBuf;
+    u16 index;
+    s32 len1;
+    s32 len2;
+
+    index = (D_800CCD88[arg0 * 0x170] * 4 + arg1) * 2;
+    pBuf = (u8 *)func_8008AC00(0x39);
+    bzero(pBuf, 0x618);
+    len1 = SystemRenderStringEntry(GetStringEntry(D_800C3DE8, index), pBuf, 0x39, 0);
+    len2 = SystemRenderStringEntry(GetStringEntry(D_800C3DE8, index | 1), pBuf, 0x39, 1);
+    rect.x = 0x3C0;
+    rect.y = 0;
+    rect.w = 0x3C;
+    rect.h = 0xD;
+    func_800769E8(&rect, pBuf);
+    func_80076C78((POLY_FT4 *)(*(u8 **)(D_800C3EA4 + 0xA230) + D_800CCB34 * 0x28 + 0x280),
+                  0x88, 0xB6, 0, 0, len1 & 0xFF);
+    func_80076C78((POLY_FT4 *)(*(u8 **)(D_800C3EA4 + 0xA230) + D_800CCB34 * 0x28 + 0x2D0),
+                  0x88, 0xC6, 0, 0, len2 & 0xFF);
+    HeapFree(pBuf);
+}
+*/
 /* 99.81%: instruction multiset and every operand identical except the two
    loads feeding the `and` - the original puts them in v0/v1, gcc 2.7.2 picks
    a0/v0 for the same insn order. Tried both source orders of the operands,
@@ -182,8 +219,9 @@ void func_8009413C(u8 arg0, u8 arg1) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_800941A4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_800946F4);
 /* 99.77%: instruction multiset identical; the only difference is the operand
-   order of one addu (i*0x170 + pBase). Tried array-ref, pointer-plus, integer
-   base and a pointer local for that sum; gcc always emits index-first there. */
+   order of one addu for i*0x170 + pBase (original base-first, gcc index-first).
+   Tried: array-ref, pointer-plus (this version), integer base and a pointer
+   local for that sum; also 2.7.2-cdk -> 99.77. */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80094C78);
 /*
 void func_80094C78(void) {
@@ -195,7 +233,7 @@ void func_80094C78(void) {
         if (((u8 *)(pBase + i))[0x5FA0] != 0) {
             continue;
         }
-        if (*(u8 *)((u32)pBase + i * 0x170 + 0x15A) & 0x80) {
+        if (*(pBase + i * 0x170 + 0x15A) & 0x80) {
             *(u32 *)(pBase + i * 4 + 0x5F60) += *(u32 *)(pOther + 0x5F6C);
         } else {
             *(u32 *)(pBase + i * 4 + 0x5F54) += *(u32 *)(pOther + 0x5F6C);
@@ -269,4 +307,37 @@ void func_800957D8(void) {
     D_800D2C9E |= 1 << t;
 }
 */
+/* 99.90%: only the divmod temp register differs - original keeps the %100
+   `mfhi` result in the same register as the quotient (a0), gcc 2.7.2 picks a2
+   (or a3/a1 with the quotient in an explicit local, which is worse). Same
+   allocator tie as func_80095690's /10 sequences. */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_800958D8);
+/*
+void func_800958D8(void) {
+    if (rand() % 100 > D_800C3DFC[0x1C]) {
+        return;
+    }
+    if (D_800C3DFC[0x1D] != 0x6E) {
+        return;
+    }
+    if (*(u16 *)(D_800C3DFC + 0x1E) & 0x8000) {
+        *(u16 *)(D_800C3E34 + 0x84) = 0;
+    }
+    if (*(u16 *)(D_800C3DFC + 0x1E) & 0x4000) {
+        *(u16 *)(D_800C3E34 + 0x86) = 0;
+    }
+    if (*(u16 *)(D_800C3DFC + 0x1E) & 0x2000) {
+        *(u16 *)(D_800C3E34 + 0x88) = 0;
+    }
+    if (*(u16 *)(D_800C3DFC + 0x1E) & 0x1000) {
+        *(u16 *)(D_800C3E34 + 0x8A) = 0;
+    }
+    if (*(u16 *)(D_800C3DFC + 0x1E) & 0x800) {
+        *(u16 *)(D_800C3E34 + 0x8C) = 0;
+    }
+    if (*(u16 *)(D_800C3DFC + 0x1E) & 0x400) {
+        *(u16 *)(D_800C3E34 + 0x8E) = 0;
+    }
+    D_800C34B0[0x5FC7] = 0x3A;
+}
+*/
