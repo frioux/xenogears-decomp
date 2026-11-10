@@ -153,6 +153,12 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc5", func_8007A968);
    store base is 2 insns early. Tried: pRow pointer local before/after the value,
    idx local first, single-expression store (8-42%, at-register form),
    (u32*)D_800D3410 + arg1*0x10 element pointer, mem_addr index-first form.
+   Round 20: with u32 val = ((p[3]<<8)+p[2])*0x10 first and a u8* row pointer
+   used as ((u32*)pRow)[p[1]] every instruction is right but the whole
+   lui/addiu + addu a1,a1,a0 group lands BEFORE the value loads (10.31%): gcc
+   sinks the one-use value into the store, so the pointer init is expanded
+   first. Same wall as func_8007A92C; gcc-2.6.0, 2.7.2-cdk, -O1 and -O3 all
+   fail on it too.
 void func_8007A968(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
     u32 val = (p[2] + (p[3] << 8)) * 0x10;
@@ -227,6 +233,8 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc5", func_8007AA60);
    Tried: s16 v with u8 res copy (99.55%), s32 operands
    via a cur local, u8 res = product then s16 v = res (87.95%, extension folded),
    operand locals before/after the row pointer (71.50%).
+   Round 20: still 99.55% and also exactly 99.55% under gcc-2.7.2-cdk, so this
+   one is not the cdk-flippable tie that func_8007ABD8 is.
 void func_8007AA60(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
     u8 *pRow = D_800D3430 + arg1 * 0x40;
@@ -269,18 +277,24 @@ void func_8007ABA0(u8 **arg0, u8 arg1) {
     pRow[p[1]] ^= p[2];
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc5", func_8007ABD8);
-/* 82.73% - the clamped u16 read-modify-write. The original forms the row base
-   once (addu a1,v1,a1, index-first) and keeps it for both the lhu and the sh;
-   spelling the address twice (this attempt) or keeping one pRow local both
-   leave 2-3 insns of address formation off. Tried: one pRow local (56.14%,
-   base hoisted before the pointer load), address spelled twice (82.73%),
-   u32/s32 v with if-clamp, mem_addr index-first form.
+/* 96.36% - every instruction and its position is right; the only difference is
+   that retail puts the D_800D3420 base (and p[3], which reuses it) in v0 and
+   p[1]/p[2] in v1, ours mirrors it exactly (la into v1, p[1]/p[2] in v0). Pure
+   allocator tie between two 1-ref pseudos. Proof the shape is right:
+   tools/scripts/try_flags.sh battle/main/misc5 func_8007ABD8 --gcc
+   gcc-2.7.2-cdk-psx scores 100.0 with this exact body (the cdk la being two RTL
+   insns breaks the tie retail's way); 2.6.0 rejects it. The unit cannot be
+   switched to cdk: func_80079E18/4C, A6C8, A744, A9A8, A9D0, AA1C and the
+   AAB8-ABA0 family all drop to 38-89% under cdk though they match under 2.7.2.
+   Tried: pRow declared before/after p, u8* row + ((u16*)pRow)[p[1]], u8 idx
+   local, mem_addr/s32 row local, address spelled twice (82.73%). Best 96.36%.
 void func_8007ABD8(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
-    u32 v = *((u16 *)(D_800D3420 + arg1 * 0x40 + p[1] * 2)) + (p[2] + (p[3] << 8));
+    u16 *pRow = (u16 *)(D_800D3420 + arg1 * 0x40);
+    s32 v = pRow[p[1]] + ((p[3] << 8) + p[2]);
 
     if (v > 0xFFFF) {
         v = 0xFFFF;
     }
-    *((u16 *)(D_800D3420 + arg1 * 0x40 + p[1] * 2)) = v;
+    pRow[p[1]] = v;
 } */
