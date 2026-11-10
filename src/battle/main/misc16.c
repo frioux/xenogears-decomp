@@ -10,6 +10,16 @@ extern u8 *D_800D2E38[];
 extern u8 *D_800D2D90[];
 extern u16 g_SystemPalette1;
 extern u16 g_SystemPalette2;
+extern u8 D_800CCD38[];
+extern u8 D_800CCD3A[];
+extern u8 D_800D2F7C;
+extern u8 D_800D2F7D;
+extern u8 D_800D2F7E;
+extern u8 D_800D2F7F;
+extern u8 D_800D2F80;
+extern u8 D_800D2F81;
+extern u8 D_800D2F82;
+extern u8 D_800D2F83;
 
 extern void func_800716D8(void);
 extern void HeapFree(void *pMem);
@@ -361,5 +371,101 @@ void func_80090B90(s32 arg0, s32 arg1, s32 *pIndex, u8 *pCount) {
     p[0xA7] = *(u8 *)&D_800CCB34;
     *(volatile u8 *)(D_800D2D28 + 0x9E) = 1;
 }
+/* 72.46%: the four draw blocks have the right shape (divide-by-10 magic, the
+   u16 truncations, the (idx*0x28 + K) + base order, and the literal 8 for arg6
+   which gcc does hoist into a register from block 2 on, as the original does).
+   Remaining gap: the original keeps `&D_800CCB34` in s2 (`lui/addiu` once in
+   block 2, `lw v0,0(s2)` per use); gcc 2.7.2 emits a fresh `lui/lw` pair for
+   the value at every use and folds an `s32 *pPal = &D_800CCB34;` local back
+   into exactly that. That also renumbers the magic-10 register (s2 here, s1 in
+   the original) and pushes `mfhi` into t1. Same wall as func_8009023C above.
+   Tried: inline arg expression (69.01), separate `ofs` local + `ofs + (s32)pBase`
+   (70.15), `s32 *pPal` local (70.15, folded away), the u8 `u` mask local below
+   (72.46).
+void func_80090C44(u8 arg0) {
+    u8 *pBase;
+    s32 eo;
+    s32 ofs;
+    u32 v;
+    u16 d;
+    u8 u;
+
+    eo = arg0 * 0x170;
+    v = *(u16 *)(D_800CCD38 + eo);
+    d = v / 10;
+    if (d != 0) {
+        u = (d * 8 + 0x78) & 0xF8;
+        pBase = *(u8 **)(D_800C3EA4 + 0xA230);
+        ofs = D_800CCB34 * 0x28 + 0x460;
+        func_80076C78((POLY_FT4 *)(ofs + (s32)pBase), 0x104, 0xC6, u, 0, 8);
+    }
+    v = *(u16 *)(D_800CCD38 + eo);
+    d = v % 10;
+    u = (d * 8 + 0x78) & 0xF8;
+    pBase = *(u8 **)(D_800C3EA4 + 0xA230);
+    ofs = D_800CCB34 * 0x28 + 0x4B0;
+    func_80076C78((POLY_FT4 *)(ofs + (s32)pBase), 0x10C, 0xC6, u, 0, 8);
+    v = *(u16 *)(D_800CCD3A + eo);
+    d = v / 10;
+    if (d != 0) {
+        u = (d * 8 + 0x78) & 0xF8;
+        pBase = *(u8 **)(D_800C3EA4 + 0xA230);
+        ofs = D_800CCB34 * 0x28 + 0x500;
+        func_80076C78((POLY_FT4 *)(ofs + (s32)pBase), 0x11C, 0xC6, u, 0, 8);
+    }
+    v = *(u16 *)(D_800CCD3A + eo);
+    d = v % 10;
+    u = (d * 8 + 0x78) & 0xF8;
+    pBase = *(u8 **)(D_800C3EA4 + 0xA230);
+    ofs = D_800CCB34 * 0x28 + 0x550;
+    func_80076C78((POLY_FT4 *)(ofs + (s32)pBase), 0x124, 0xC6, u, 0, 8);
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_80090C44);
+/* 64.78%: call/arg order, the four u16 hdr[] stack slots and the
+   (arg1+0x25)*0x28 + arg0*0x690 / arg0*0x170 index chains are right (those two
+   strided tables are why the byte-offset `*(u16 *)(SYM + ofs)` shape works).
+   Remaining gap: the original keeps `&D_800CCB34` in s0 (`lui/addiu` once,
+   `lw v1,0(s0)` at each of the 5 uses) and holds the incoming arg0 in s1; gcc
+   2.7.2 emits a fresh `lui/lw` pair per use instead (0x20 frame here vs 0x28)
+   and puts arg0 in s0. A `u8 *pPal = (u8 *)&D_800CCB34;` local plus
+   `*(s32 *)pPal` gets the `la` form only once and re-materialises it after each
+   call. Same wall as func_80090C44/func_8009023C/func_80090310; gcc 2.6.0
+   scores the same 64.43, so it is not the compiler version.
+void func_80090E7C(s32 arg0) {
+    u8 *pBase;
+    u8 *pPal;
+    s32 ofs;
+    u16 pal;
+
+    pPal = (u8 *)&D_800CCB34;
+    pBase = *(u8 **)(D_800C3EA4 + 0xA230);
+    ofs = *(s32 *)pPal * 0x28;
+    func_80076C78((POLY_FT4 *)((ofs + 0x3C0) + (s32)pBase), 0xA8, 0xA6, D_800D2F82, D_800D2F83, D_800D2F80);
+    ofs = *(s32 *)pPal * 0x28;
+    pBase = *(u8 **)(D_800C3EA4 + 0xA230);
+    if (D_800D2F81 != 0) {
+        pal = g_SystemPalette2;
+    } else {
+        pal = g_SystemPalette1;
+    }
+    *(u16 *)(pBase + ofs + 0x3CE) = pal;
+    ofs = *(s32 *)pPal * 0x28;
+    pBase = *(u8 **)(D_800C3EA4 + 0xA230);
+    func_80076C78((POLY_FT4 *)((ofs + 0x410) + (s32)pBase), 0xEC, 0xC6, D_800D2F7E, D_800D2F7F, D_800D2F7C);
+    ofs = *(s32 *)pPal * 0x28;
+    pBase = *(u8 **)(D_800C3EA4 + 0xA230);
+    if (D_800D2F7D != 0) {
+        pal = g_SystemPalette2;
+    } else {
+        pal = g_SystemPalette1;
+    }
+    *(u16 *)(pBase + ofs + 0x41E) = pal;
+    func_80090C44(arg0);
+    pBase = *(u8 **)(D_800C3EA4 + 0xA230);
+    func_80076A10(0x71, (s32)pBase + 0x5A0, 0x118, 0xD1);
+    pBase = *(u8 **)(D_800C3EA4 + 0xA230);
+    pBase[0x66C] = *(u8 *)&D_800CCB34;
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_80090E7C);
