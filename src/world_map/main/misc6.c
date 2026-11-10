@@ -47,11 +47,6 @@ typedef struct {
     /* 0x000 */ WorldMapGroup unk000[17]; // 0x000..0x593
 } WorldMapRoot;
 
-typedef struct {
-    /* 0x0 */ u16 *unk0;
-    /* 0x4 */ u16 *unk4;
-} WorldMapPath; // Size: 0x8
-
 extern WorldMapActor *D_8009BE24;
 extern WorldMapRoot *D_8009C620;
 extern u32 D_8009C5AC;
@@ -59,7 +54,8 @@ extern u32 D_8009C5B0;
 extern u32 D_8009C5B4;
 extern u16 D_8009A698;
 extern u16 D_8009A6AC[];
-extern WorldMapPath D_8009A65C[];
+extern u16 *D_8009A65C[];
+extern u16 *D_8009A660[];
 extern u32 D_8009BE0C;
 extern u32 D_8009BE28;
 extern u32 D_8009BE2C;
@@ -168,22 +164,18 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007D7FC);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007D918);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007DCE0);
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007DE14);
-/* 82.21%: only difference is that the original keeps an 8-byte stack frame
-   (addiu sp,sp,-8 mid-body) and stores unk50 before unk58; everything else,
-   including the two loads off D_8009A65C and the reloads, is identical.
 int func_8007DE14(int index) {
     WorldMapActor *pActor = &D_8009BE24[index];
+    SVECTOR vec; // unused, but reproduces the 8-byte frame retail allocates
 
-    pActor->unk54 = D_8009A65C[D_8009D3D4].unk0;
+    pActor->unk54 = D_8009A65C[D_8009D3D4 * 2];
+    pActor->unk58 = D_8009A660[D_8009D3D4 * 2];
     pActor->unk50 = 0;
-    pActor->unk58 = D_8009A65C[D_8009D3D4].unk4;
     pActor->unk20 = *(u16 *)pActor->unk54;
     pActor->unk22 = ((u16 *)pActor->unk58)[pActor->unk50];
     pActor->unk50++;
     return 1;
 }
-*/
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007DE98);
 
