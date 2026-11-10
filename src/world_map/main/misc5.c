@@ -92,6 +92,11 @@ extern void func_80097D64(void);
 extern void func_800976A0(void);
 extern void HeapFree(void*);
 
+/* best 94.72%: every instruction matches except the position of the single
+   sw of unk50 = 0x1000; the original schedules it after the last D_ store
+   and gcc 2.7.2 always keeps it next to its li $3,4096 (three statement
+   positions tried, plus a named local: all give the same placement).
+
 int func_8007AD34(int idx) {
     WorldMapPlayer *pPlayer;
 
@@ -110,6 +115,8 @@ int func_8007AD34(int idx) {
     pPlayer->unk50 = 0x1000;
     return 1;
 }
+*/
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007AD34);
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007A9F8);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007ADD4);
@@ -176,7 +183,9 @@ int func_8007C260(void) {
 /* best 95.26%: instruction multiset and registers identical to the original,
    only the emission order of the independent loads differs (gcc hoists
    lhu D_8009A4D8 and defers sll $4,$4,1). A pointer local instead gives
-   65.26% with the same multiset.
+   65.26% with the same multiset. Spelling the base as (D_8009BE24 + idx)
+   gives the same 95.26%: gcc puts the player pointer in $2 where the
+   original keeps it in $3.
 
 int func_8007C36C(int idx) {
     D_8009BE24[idx].unk50 = 0;
@@ -189,6 +198,11 @@ int func_8007C36C(int idx) {
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007C36C);
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007C3B8);
+/* best 44.62%: same instruction multiset as the original but gcc's sched2
+   reorders the independent stores (it sinks the D_8009BE28/D_8009D55C pair
+   past the rest and hoists unk58/unk50); the original keeps them in source
+   order with only unk50 moved into the jr delay slot.
+
 int func_8007C724(int idx) {
     WorldMapPlayer *pPlayer;
 
@@ -210,6 +224,8 @@ int func_8007C724(int idx) {
     pPlayer->unk50 = 0;
     return 1;
 }
+*/
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007C724);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007C7D8);
 int func_8007CC6C(int idx) {
     WorldMapWork *pWork;
