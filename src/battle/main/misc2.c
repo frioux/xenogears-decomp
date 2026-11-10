@@ -12,9 +12,15 @@ extern s32 D_800CCB34;
 extern void *D_800D2F5C;
 extern u8 *D_800D2D28;
 extern u8 *D_800D2DB4;
+extern u8 D_800C3EB6;
+extern u8 D_800D32A1;
 
 extern s32 func_8002675C(void *pDir, s32 index, void *pPrims, s32 context, s16 x, s16 y, s16 scale);
 extern void func_800728B8(u8 *pDst, s32 arg1, s32 arg2);
+extern void func_80072A9C(s32 index, u8 arg1);
+extern void func_80072DA8(s32 index, u8 arg1);
+extern s32 func_80072F38(s32 index, u8 arg1);
+extern void func_80073380(s32 index);
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_80073B64);
 
@@ -37,10 +43,67 @@ void func_80073E88(void) {
     } while (i < 2);
 }
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_80073F08);
+void func_80073F08(void) {
+    if (D_800D2D28[0x9C] != 0) {
+        func_800728B8(D_800C3EA4 + 0xBA8, *(s32 *)(D_800D2D28 + 0xF8), D_800D2D28[0xA5]);
+    }
+
+    if (D_800D2D28[0x9E] != 0) {
+        func_800728B8(D_800C3EA4 + 0x27C8, *(s32 *)(D_800D2D28 + 0x100), D_800D2D28[0xA7]);
+    }
+
+    if (D_800D2D28[0x9D] != 0) {
+        func_800728B8(D_800C3EA4 + 0x1E68, *(s32 *)(D_800D2D28 + 0xFC), D_800D2D28[0xA6]);
+    }
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_80073FB8);
+/* 87.42%: instruction multiset matches except the two D_800D32A1 reads. The
+   original forms `lui %hi(D_800D32A1); addu at,at,s1; lbu %lo(at)` from an
+   integer index s1 = i*8 recomputed every iteration, and keeps &D_800CCB04 in
+   s0; gcc 2.7.2 strength-reduces the address into a pointer biv in s1 and
+   rematerialises the link address with lui/lw. Every access shape tried
+   (array subscript, integer cast of the symbol address, block-scoped base
+   local) produces the biv. */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_800742A0);
+/* void func_800742A0(void) {
+    s32 i;
+    s32 offset;
+    s32 value;
+
+    for (i = 0, offset = 0; i < 3; i++, offset += 0x1C) {
+        if (*(u8 *)(D_800D2D28 + i + 0x7C) != 0) {
+            *(s32 *)(D_800D2D28 + i * 4 + 0xE0) = 0;
+            *(s32 *)(D_800D2D28 + i * 4 + 0xEC) = 0;
+            if ((&D_800C3EB6)[offset] != 0x7F) {
+                func_80073380(i);
+                value = func_80072F38(i, *(u8 *)((s32)&D_800D32A1 + i * 8));
+                if (*(u8 *)((s32)&D_800D32A1 + i * 8) != 0) {
+                    func_80072DA8(i, value);
+                } else {
+                    func_80072A9C(i, value);
+                }
+                *(u8 *)(D_800D2D28 + i + 0x93) = *(u8 *)&D_800CCB34;
+                *(u8 *)(D_800D2D28 + i + 0x7C) = 0;
+            }
+        }
+    }
+} */
+/* 90.29%: the only differences are that the original keeps the address of
+   D_800CCB04 in s0 and reloads through it, and its `addu a1,a1,v1` (offset
+   first) comes out as `addu a1,v1,a1` here. Same two problems as
+   func_800744BC, but with four AddPrim uses of the link address still not
+   enough to make gcc spill it to a callee-saved register. */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_800743A4);
+/* void func_800743A4(void) {
+    if ((*(u8 **)(D_800C3EA4 + 0xA230))[0x669] == 0) {
+        return;
+    }
+
+    AddPrim(D_800CCB04 + 4, (*(u8 **)(D_800C3EA4 + 0xA230)) + (*(u8 **)(D_800C3EA4 + 0xA230))[0x668] * 40);
+    AddPrim(D_800CCB04 + 4, (*(u8 **)(D_800C3EA4 + 0xA230)) + 0x50 + (*(u8 **)(D_800C3EA4 + 0xA230))[0x668] * 40);
+    AddPrim(D_800CCB04 + 4, (*(u8 **)(D_800C3EA4 + 0xA230)) + 0xA0 + (*(u8 **)(D_800C3EA4 + 0xA230))[0x668] * 40);
+    AddPrim(D_800CCB04 + 4, (*(u8 **)(D_800C3EA4 + 0xA230)) + 0xF0 + (*(u8 **)(D_800C3EA4 + 0xA230))[0x668] * 40);
+} */
 /* 82.84%: only difference is that the original keeps the address of
    D_800CCB04 in s0 and reloads from it, and its final `addu a1,a1,v1` comes
    out as `addu a1,v1,a1` here. Two separate statements and a local holding the
@@ -50,7 +113,6 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_800744BC);
     AddPrim(D_800CCB04 + 4, (*(u8 **)(D_800C3EA4 + 0xA230)) + 0x320 + (*(u8 **)(D_800C3EA4 + 0xA230))[0x66A] * 40);
     AddPrim(D_800CCB04 + 4, (*(u8 **)(D_800C3EA4 + 0xA230)) + 0x370 + (*(u8 **)(D_800C3EA4 + 0xA230))[0x66A] * 40);
 } */
-
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_80074554);
 /* Same shape as func_800744BC with 0x280 and 0x2D0: identical result. */
 /* void func_80074554(void) {
