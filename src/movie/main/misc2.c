@@ -33,6 +33,27 @@ extern s32 D_80077024;
 extern u32 D_80077028;
 extern s32 D_80076F04;
 extern s32 D_80076F08;
+extern s32 D_80076F2C;
+extern s32 D_80076F30;
+extern s32 D_80076F34;
+extern s32 D_8007702C;
+extern s32 D_80077030;
+extern s32 D_80077034;
+extern s32 D_8007703C;
+extern s32 D_80077040;
+extern s32 D_80077044;
+extern s32 D_8007704C;
+extern s16 D_800770B0;
+extern s16 D_800770B2;
+extern s32 D_800770B8[];
+extern s32 D_800770CC;
+extern s32 D_800770D0;
+extern s32 D_800770D4;
+extern s32 D_800770D8[];
+extern s32 D_800770EC;
+extern s32 D_800770F0;
+extern s32 D_800770F4;
+extern s32 D_800770F8[];
 extern s32 D_8007711C;
 extern u8 D_8007713C;
 extern u8 D_80077191;
@@ -220,3 +241,37 @@ void func_80076C68(void) {
 }
 
 INCLUDE_ASM("asm/movie/nonmatchings/main/misc2", func_80076CA4);
+
+/* best 73.61% - the original keeps &D_8007703C in $s5 across the GTE calls
+   (that is also the extra saved register in its 0x30 frame) and forms
+   &D_800770B8 as (address of D_800770CC) - 0x14; a source-level pointer to
+   D_8007703C gets rematerialised instead. Also reorders the D_800770CC/D0/D4
+   block.
+void func_80076CA4(void) {
+    s32 dz;
+    s32 dzSq;
+    s32 dx;
+    s32 dxSq;
+    s32 dy;
+    s32* pz;
+
+    dz = D_80077044 - D_80077034;
+    dzSq = dz * dz;
+    pz = &D_8007703C;
+    dx = *pz - D_8007702C;
+    dxSq = dx * dx;
+    dy = D_80077040 - D_80077030;
+    D_800770B0 = ratan2(dy, SquareRoot0(dzSq + dxSq));
+    D_800770B2 = -ratan2(dx, dz);
+    RotMatrix((SVECTOR*)&D_800770B0, (MATRIX*)&D_800770D8);
+    RotMatrixZ(D_8007704C, (MATRIX*)&D_800770D8);
+    MulMatrix2((MATRIX*)&D_800770F8, (MATRIX*)&D_800770D8);
+    D_800770EC = 0;
+    D_800770F0 = 0;
+    D_800770F4 = SquareRoot0(dxSq + dy * dy + dzSq);
+    D_800770CC = D_80076F2C - *pz;
+    D_800770D0 = D_80076F30 - D_80077040;
+    D_800770D4 = D_80076F34 - D_80077044;
+    CompMatrix((MATRIX*)&D_800770D8, (MATRIX*)&D_800770B8, &D_80077050);
+}
+*/
