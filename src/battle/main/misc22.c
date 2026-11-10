@@ -14,6 +14,26 @@ typedef struct {
 } BattleMisc22SVec; // Size: 0x8
 
 typedef struct {
+    /* 0x0 */ s16 x;
+    /* 0x2 */ s16 y;
+    /* 0x4 */ s16 w;
+    /* 0x6 */ s16 h;
+} BattleMisc22Rect; // Size: 0x8
+
+typedef struct {
+    /* 0x0 */ u8 pad0[0x4];
+    /* 0x4 */ u16 *unk4;
+    /* 0x8 */ u8 *unk8;
+    /* 0xC */ u8 *unkC;
+    /* 0x10 */ u8 unk10;
+    /* 0x11 */ u8 pad11[0x9];
+    /* 0x1A */ u16 unk1A;
+    /* 0x1C */ u8 *unk1C;
+    /* 0x20 */ u8 pad20[0x8];
+    /* 0x28 */ BattleMisc22Rect rect28;
+} BattleMisc22Image; // Size: 0x30
+
+typedef struct {
     /* 0x0 */ s16 unk0;
     /* 0x2 */ s16 unk2;
     /* 0x4 */ s16 unk4;
@@ -25,6 +45,8 @@ typedef struct {
 extern s32 D_800D3344;
 extern s32 D_800D39CC;
 extern void func_800A5BE8(void *, void *, void *, s32, s32);
+extern int LoadImage(void *pRect, void *p);
+extern void HeapFree(void *pMem);
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A2E88);
 
@@ -62,7 +84,9 @@ s16 func_800A3514(s16 angle, s16 divisor, s16 base) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A3578);
-/* byte-exact under maspsx --expand-div, see above.
+/* 55%: the C is byte-exact under maspsx --expand-div (the original object has
+   the break-7 / break-6 trap sequence around every div); the Default preset
+   does not pass --expand-div. Same for func_800A3490/3514/35C8.
 s16 func_800A3578(s16 angle, s16 divisor, s16 base) {
     return base - angle / divisor;
 }
@@ -70,8 +94,40 @@ s16 func_800A3578(s16 angle, s16 divisor, s16 base) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A35C8);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A3640);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A3E98);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A429C);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A4348);
+void func_800A429C(BattleMisc22Image *pArg) {
+    if (pArg->unk1A != 0) {
+        if (pArg->unk4 != 0) {
+            if (pArg->unk10 < 4) {
+                LoadImage(&pArg->rect28, pArg->unk4);
+            }
+            HeapFree(pArg->unk4);
+            pArg->unk4 = 0;
+        }
+        if (pArg->unk8 != 0) {
+            HeapFree(pArg->unk8);
+            pArg->unk8 = 0;
+        }
+        if (pArg->unkC != 0) {
+            HeapFree(pArg->unkC);
+            pArg->unkC = 0;
+        }
+        pArg->unk1A = 0;
+    }
+}
+void func_800A4348(BattleMisc22Image *pArg, s16 scale) {
+    s32 i;
+    s32 j;
+    u16 *pSrc = pArg->unk4;
+
+    for (i = 0; i < pArg->rect28.h; i++) {
+        for (j = 0; j < pArg->rect28.w; j++) {
+            s16 *pRow = (s16 *)((pArg->rect28.y + i) * 6 + (s32)pArg->unk1C);
+
+            pRow[pArg->rect28.x + j] = *pSrc * scale / 32;
+            pSrc++;
+        }
+    }
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A43F8);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A44C0);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A4654);
