@@ -1348,6 +1348,47 @@ nearly every stub) averaged 42 per round.
   snapshot cannot land in main.
 | 5 | `battle/{misc16,17,22,27,31,32}`, `world_map/{misc1,7}`, `menu/{misc3,7}`, `field/main/misc`, `system/sound` | +18 | 1723 | 12 workers, all 11 outputs OK. Per unit: menu/misc7 4, battle/misc22 3, the three `battle` tail units 2 each, world_map/misc7 2, battle/misc16 1, world_map/misc1 1, system/sound 1, and 0 in battle/misc17, menu/misc3, field/misc |
 
+| — (presets) | 20 units got `--expand-div` | +4 | 1719 | `battle/misc22`'s four div stubs, verified end to end |
+| 6 | 12 units, all timed out | +4 net (+26 raw) | 1715 | the bad round: see below |
+
+### Round 6: a new preset axis, and a merge bug that ate the round
+
+**The preset axis (this is the durable finding).** Round 5's `battle/misc22` worker
+noticed that a three-line function with a division was byte-exact C but stuck at 55.00%,
+with the `break 7` / `break 6` div-overflow trap as the only missing instructions: the
+unit's retail object was assembled with maspsx `--expand-div` and our preset did not
+expand. I screened all 231 units for `break 6|7` in each stub's own `.s`: **50 stubs
+across 20 units** carry the trap, and only `lib_gear` (XenoLibraryDiv), `psyq` (PSY-Q)
+and `XenoGraphicsLibrary` had expansion. Added `XenoBattleDiv` (battle misc21/23/24/25,
+battling/misc15, movie misc1/2), `XenoWorldMapDiv` (nine world_map units - both
+`--dont-expand-li` AND `--expand-div`) and `XenoGraphicsDiv` (system/temp2). Verified on
+`battle/misc22`: `func_800A3578` 55.00 -> 100.00 with unchanged C, then all four div
+stubs in that unit matched (`func_800A3578/3490/3514/35C8`), and `make check` stayed
+green on all 11 outputs, so no already-matched function moved. **~46 stubs are now
+matchable that were not before; the units holding them have barely been worked.**
+
+**The merge bug.** All twelve round-6 workers hit the 30-minute kill. `clone.sh merge`
+committed each worker's *uncommitted* edits as "wip leftovers", i.e. the one part of
+their work that had never passed `check_bin.sh`. Five overlays came out shifted, and the
+signature was always the same: sizes off by -4/-44/+16/+20/+64 and the first differing
+byte inside a `jtbl_` region. Bisecting file-by-file against the preset commit (which was
+green) cost six full builds (~40 min) and recovered only 4 of 26 matches:
+`battle/misc18` +1 and `battling/misc15` +3 survived; `battle/{misc13,21,25}`,
+`world_map/misc6`, `menu/misc9`, `movie/misc1` each independently shift the layout and
+were reverted.
+
+Two fixes, both in the repo now:
+- `clone.sh merge` no longer commits uncommitted work: it prints `UNCOMMITTED r-<tag>`
+  and discards, so only gated commits merge.
+- `brief.js` now says to commit *then* gate, and never to convert a `switch` in a unit
+  whose original stubs reference a `jtbl_` (a C switch emits its own table into the
+  unit's `.rodata`, which lands before the asm-owned tables and shifts the overlay
+  while every function still reads objdiff 100.00%). `menu/misc9` (2 switches),
+  `movie/misc1` (1) and `battle/misc18` (1) were exactly that.
+
+The units round 6 had to drop keep their parked analysis in the branches under
+`~/xw/r-<tag>`; they are worth one more worker each with the jtbl rule in hand.
+
 ### The `battle` misc26..35 ceiling is real and quantified
 
 Three tail units (`misc32`, `misc31`, `misc27`) with 24, 23 and 24 fresh stubs - all convertible,
