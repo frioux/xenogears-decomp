@@ -13,8 +13,19 @@ extern void func_80039A80(s32* pFile, s32 volume, s32 frames);
 extern int ArchiveDecodeAlignedSize(unsigned int entryIndex);
 
 typedef struct {
-    /* 0x0 */ s32 unk0;
-    /* 0x4 */ s32 unk4;
+    /* 0x0 */ s16 tile;
+    /* 0x2 */ s16 duration;
+} WorldMapFrame; // Size: 0x4
+
+typedef struct {
+    /* 0x0 */ RECT rect;
+    /* 0x8 */ u32 unk8;
+    /* 0xC */ WorldMapFrame* pFrames;
+} WorldMapSprite; // Size: 0x10
+
+typedef struct {
+    /* 0x0 */ u32 unk0;
+    /* 0x4 */ WorldMapSprite* pSprite;
     /* 0x8 */ s16 unk8;
     /* 0xA */ s16 unkA;
 } WorldMapEntry; // Size: 0xC
@@ -111,7 +122,25 @@ void func_80074F04(void) {
     HeapFree(D_8009D780);
 }
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc2", func_80074F2C);
+void func_80074F2C(void) {
+    WorldMapEntry* pEntry;
+    s32 i;
+
+    pEntry = (WorldMapEntry*)D_8009D780;
+    for (i = 0; i < D_8009CC9C; i++, pEntry++) {
+        pEntry->unkA--;
+        if (pEntry->unkA == 0) {
+            pEntry->unk8++;
+            pEntry->unkA = pEntry->pSprite->pFrames[pEntry->unk8].duration;
+            if (pEntry->unkA < 0) {
+                pEntry->unk8 = 0;
+                pEntry->unkA = pEntry->pSprite->pFrames[0].duration;
+            }
+            LoadImage(&pEntry->pSprite->rect,
+                      (u_long*)(pEntry->unk0 + (pEntry->pSprite->pFrames[pEntry->unk8].tile << 4)));
+        }
+    }
+}
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc2", func_80075030);
 
 /* Same routine as func_80074E58 above with the D_8009D7C8 / D_8009CD64 /
@@ -122,7 +151,28 @@ void func_800750DC(void) {
     HeapFree(D_8009D7D0);
 }
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc2", func_80075104);
+void func_80075104(void) {
+    WorldMapEntry* pEntry;
+    s32 offset;
+    s32 i;
+
+    pEntry = (WorldMapEntry*)D_8009D7D0;
+    for (i = 0; i < D_8009CD64; i++, pEntry++) {
+        pEntry->unkA--;
+        if (pEntry->unkA == 0) {
+            pEntry->unk8++;
+            pEntry->unkA = pEntry->pSprite->pFrames[pEntry->unk8].duration;
+            if (pEntry->unkA < 0) {
+                pEntry->unk8 = 0;
+                pEntry->unkA = pEntry->pSprite->pFrames[0].duration;
+            }
+            offset = pEntry->pSprite->rect.h * pEntry->pSprite->rect.w * 2;
+            LoadImage(&pEntry->pSprite->rect,
+                      (u_long*)(pEntry->unk0 +
+                                pEntry->pSprite->pFrames[pEntry->unk8].tile * offset));
+        }
+    }
+}
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc2", func_80075228);
 
 /* 94.80%: the clear loop and the 0x300/0x180 selection match; every remaining
