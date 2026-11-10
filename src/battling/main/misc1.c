@@ -55,7 +55,23 @@ void func_80070F80(s32 value) {
 
 extern s32 D_80092934;
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_80070FD8);
+s32 func_80070FD8(u8* p) {
+    VECTOR vec;
+    s32 angle;
+
+    vec = *(VECTOR*)p;
+    vec.vx -= 0x3F80;
+    vec.vz -= 0x3F80;
+    angle = ratan2(vec.vx, vec.vz) & 0xFFF;
+    if (angle >= 0x201) {
+        *(s32*)(p + 0x58) = 0x800 - D_80092934;
+    } else {
+        *(s32*)(p + 0x58) = 0xC00 - D_80092934;
+    }
+    *(s32*)(p + 0x48) = 0xFF;
+    *(s16*)(p + 0xCE) = 0;
+    return 0;
+}
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_8007107C);
 
@@ -103,7 +119,35 @@ void func_800720C4(void) {
     D_8009293C = 0;
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_800720D4);
+extern u8 D_800910C4;
+extern u8 D_800928D4;
+extern u8 D_80099D9D;
+extern u8 D_80099D9E;
+extern s32 D_80092900;
+extern s32 D_80092A00;
+extern s32 D_80092A10;
+extern s32 D_80092A20;
+extern s32 D_800970F8;
+extern s32 D_80098814;
+
+void func_800720D4(void) {
+    if (D_8009293C != 0) {
+        return;
+    }
+    func_80070F80((s32)&D_800910C4);
+    D_8009293C = 1;
+    D_800928D4 = 0;
+    D_80099D9D = 0;
+    D_80099D9E = 0;
+    D_80092900 = 0;
+    D_800925D4 = 0;
+    D_800925D8 = 0;
+    D_80092A00 = 1;
+    D_80092A10 = 1;
+    D_80092A20 = 1;
+    D_800970F8 = 0;
+    D_80098814 = 0;
+}
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_80072170);
 
