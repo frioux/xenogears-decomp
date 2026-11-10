@@ -35,13 +35,17 @@ ref=expected/asm/$unit.s.o
 
 # Defaults straight from the generated build.ninja.
 ninja_var() { awk -v v="^$1 = " '$0 ~ v {sub(v, ""); print; exit}' build.ninja; }
-edge_var() { awk -v b="build build/src/$unit.c.s: cc" -v v="^  $1 = " \
-    '$0 == b {p = 1; next} p && /^build / {exit} p && $0 ~ v {sub(v, ""); print; exit}' build.ninja; }
+# Per-edge overrides: the preset puts gcc/opt/gp on the cc edge and maspsx_flags on
+# the maspsx edge, so a rule name is part of the lookup (looking for maspsx_flags on
+# the cc edge silently falls back to Default's flags and mis-scores every
+# --dont-expand-li unit, e.g. battle/misc28 and misc34).
+edge_var() { awk -v b="build build/src/$unit.c.$2: $3" -v v="^  $1 = " \
+    '$0 ~ b {p = 1; next} p && /^build / {exit} p && $0 ~ v {sub(v, ""); print; exit}' build.ninja; }
 cpp_flags=$(ninja_var cpp_flags) cc_flags=$(ninja_var cc_flags) endian=$(ninja_var endianness)
-def_gcc=$(edge_var gcc) def_msx=$(edge_var maspsx_flags)
+def_gcc=$(edge_var gcc s cc) def_msx=$(edge_var maspsx_flags o maspsx)
 def_gcc=${def_gcc:-$(ninja_var gcc)} def_msx=${def_msx:-$(ninja_var maspsx_flags)}
-def_opt=$(edge_var optimization_flag) def_opt=${def_opt:-$(ninja_var optimization_flag)}
-def_gp=$(edge_var gp_flag) def_gp=${def_gp:-$(ninja_var gp_flag)}
+def_opt=$(edge_var optimization_flag s cc) def_opt=${def_opt:-$(ninja_var optimization_flag)}
+def_gp=$(edge_var gp_flag s cc) def_gp=${def_gp:-$(ninja_var gp_flag)}
 [ -n "$def_gcc" ] || { echo "could not read the compiler for this unit from build.ninja" >&2; exit 1; }
 
 if [ $sweep -eq 1 ]; then
