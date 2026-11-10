@@ -24,10 +24,31 @@ extern void func_801CE338(void);
 extern void func_801CE3C8(void);
 extern void func_801CEC40(void);
 extern void func_801D3B00(void);
+extern void func_801CE540(void);
+extern void func_801CE660(void);
+extern void func_801CEB5C(void);
+extern void func_801CEBB4(void);
+extern void func_801CE464(void);
+extern void func_801D14FC(void);
+extern void func_801D1640(void);
+extern void func_801D17C4(void);
+extern void func_801D1914(void);
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc5", func_801D09F0);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc5", func_801D0C78);
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc5", func_801D0D90);
+
+void func_801D0D90(void) {
+    s32 i;
+    u32 offset;
+
+    for (i = 0; i < 4; i++) {
+        if (g_Menu->pManager->unk34[i]) {
+            offset = i * sizeof(MenuString) + 0x4E0;
+            AddPrim(&g_Menu->pGfxEnv->ot[4],
+                    (void*)(offset + (u32)g_Menu + g_Menu->unk4E0[i].renderContext * 40));
+        }
+    }
+}
 
 void func_801D0E20(void) {
     s32 i;
@@ -56,36 +77,31 @@ void func_801D0EBC(void) {
     }
 }
 
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc5", func_801D0ED4);
-/* Best attempt: 99.69%. Only the base/index order of the address addiu differs
-   (addu a2,v1,s1 vs the original addu a2,s1,v1); everything else, including the
-   strength-reduced 0x10E0 loop offset, is identical.
 void func_801D0ED4(void) {
     s32 i;
+    u32 offset;
 
     for (i = 0; i < 8; i++) {
         if (g_Menu->pManager->unk38[i]) {
-            func_801CE198(1, g_Menu->unk10E0[i].vertices, g_Menu->unk10E0[i].polys,
+            offset = i * sizeof(MenuString) + 0x10E0;
+            func_801CE198(1, (SVECTOR*)(offset + (u32)g_Menu + 0x50), (POLY_FT4*)(offset + (u32)g_Menu),
                           g_Menu->unk10E0[i].renderContext);
         }
     }
 }
-*/
 
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc5", func_801D0F54);
-/* Best attempt: 93.28%. The instruction multiset is identical; only the
-   sll/addiu scheduling order of the address and index chains differs.
 void func_801D0F54(void) {
     s32 i;
+    u32 offset;
 
     for (i = 0; i < 6; i++) {
         if (g_Menu->pManager->unk40[i]) {
-            func_801CE198(1, g_Menu->unk14E0[i].vertices, g_Menu->unk14E0[i].polys,
+            offset = i * sizeof(MenuString) + 0x14E0;
+            func_801CE198(1, (SVECTOR*)(offset + (u32)g_Menu + 0x50), (POLY_FT4*)(offset + (u32)g_Menu),
                           g_Menu->unk14E0[i].renderContext);
         }
     }
 }
-*/
 
 void func_801D0FD4(void) {
     u32 offset;
@@ -96,9 +112,60 @@ void func_801D0FD4(void) {
     }
 }
 
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc5", func_801D1030);
+void func_801D1030(void) {
+    s32 i;
+    MenuString* pString;
+
+    if (((u8*)g_Menu->pManager)[0x2E] == 0) {
+        return;
+    }
+    for (i = 0; i < 3; i++) {
+        pString = g_Menu->unk1DE0[i];
+        if (pString->unk7F) {
+            func_801CE198(1, pString->vertices, pString->polys, pString->renderContext);
+        } else {
+            AddPrim(&g_Menu->pGfxEnv->ot[4], &pString->polys[pString->renderContext]);
+        }
+    }
+}
+
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc5", func_801D10DC);
+/* Best attempt: 99.39%. Draws the six records at Menu+0x18E0 (array element 2 of
+   unk17E0) but every add is one operand order off: the original addu a3,v1,a2
+   (base + index) where this emits addu a3,a2,v1. Writing the address as
+   g_Menu->unk17E0[2 + i] makes gcc strength-reduce the i+2 induction variable
+   into a second saved register instead. Needs a field named at 0x18E0 to match.
+void func_801D10DC(void) {
+    s32 i;
+
+    for (i = 0; i < 6; i++) {
+        if (g_Menu->pManager->unk54[i] && ((MenuString*)&g_Menu->unk17E0[2])[i].unk7F) {
+            func_801CE198(1, ((MenuString*)&g_Menu->unk17E0[2])[i].vertices,
+                          ((MenuString*)&g_Menu->unk17E0[2])[i].polys,
+                          ((MenuString*)&g_Menu->unk17E0[2])[i].renderContext);
+        }
+    }
+}
+*/
+
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc5", func_801D1160);
+/* Best attempt: 99.72%. Same shape as func_801D0D90 but the records start at
+   Menu+0x1BE0 (array element 8 of unk17E0), which needs a named field to keep
+   the index chain a plain lbu 0x1C5D(g_Menu + (i << 7)); through a cast gcc
+   emits addu v0,v0,a0 instead of the original addu v0,a0,v0.
+void func_801D1160(void) {
+    s32 i;
+    u32 offset;
+
+    for (i = 0; i < 4; i++) {
+        if (g_Menu->pManager->unk5C[i]) {
+            offset = i * sizeof(MenuString) + 0x1BE0;
+            AddPrim(&g_Menu->pGfxEnv->ot[4],
+                    (void*)(offset + (u32)g_Menu + ((MenuString*)&g_Menu->unk17E0[8])[i].renderContext * 40));
+        }
+    }
+}
+*/
 
 void func_801D11F0(void) {
     func_801D0D90();
@@ -114,6 +181,14 @@ void func_801D11F0(void) {
 }
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc5", func_801D1258);
+/* Best attempt: 99.35%. The original emits addu a1,a1,v0 (offset + base) where
+   this emits addu a1,v0,a1 (base + offset); the registers holding the two values
+   are otherwise identical, as is the whole 24 and 12 byte index chain.
+void func_801D1258(void) {
+    AddPrim(&g_Menu->pGfxEnv->ot[8], &g_Menu->unk348->polysDimEffect[g_Menu->renderContext]);
+    AddPrim(&g_Menu->pGfxEnv->ot[8], &g_Menu->unk348->drawModeDimEffect[g_Menu->renderContext]);
+}
+*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc5", func_801D12D4);
 void func_801D13F8(void) {
     s32 i;
@@ -153,7 +228,30 @@ void func_801D1AAC(void) {
         }
     }
 }
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc5", func_801D1B20);
+void func_801D1B20(void) {
+    func_801D3B00();
+    func_801D11F0();
+    func_801CE3C8();
+    func_801CE338();
+    func_801D02D8();
+    func_801D01D0();
+    func_801CE540();
+    func_801CE660();
+    func_801CEB5C();
+    func_801CEBB4();
+    func_801CE464();
+    func_801D13F8();
+    func_801D1AAC();
+    func_801D14FC();
+    func_801D1640();
+    func_801D17C4();
+    func_801D1914();
+    func_801D1464();
+    func_801D14B0();
+    func_801D0C78();
+    func_801CEC40();
+    func_801CF308();
+}
 
 void func_801D1BE8(void) {
     func_801D3B00();
