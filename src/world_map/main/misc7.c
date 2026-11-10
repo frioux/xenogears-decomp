@@ -288,7 +288,9 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_80081FD8);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_80082324);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_800826B4);
 
-// Best: 51.67%. Instruction multiset is identical; the original computes the
+// The live body directly below this block matches 100% (index-then-symbol
+// order): the pointer local is what misallocates here.
+// Parked alternative: 51.67%. Instruction multiset is identical; the original computes the
 // slot pointer (sll/addu) before forming the address of D_8009A758, gcc forms
 // the address first. 46.11% for the slot-pointer-first order; declaring pData
 // before pSlot puts the symbol address first and reaches 51.67%. Also tried:
