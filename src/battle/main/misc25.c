@@ -214,6 +214,15 @@ void func_800B0FF4(u16 *pA, u16 *pB) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800B10EC);
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800B12D0);
+/* 99.74% (156 bytes, identical instruction stream): only the switch's jump
+   table operand differs (the original names jtbl_800707C4). It cannot be
+   converted as-is: that table lives in the splat-owned .rodata
+   (asm/battle/data/0.rodata.s) and its entries point at this stub's local
+   labels (.L800B132C/1334/133C/1344), so `make build` fails to link with
+   "undefined reference to .L800B132C" the moment the stub becomes C.
+   The mapping is kind -> flag mask:
+   0,1 -> 1; 2,3 -> 8; 4 -> 4; 5 -> 2; else -> id & 0xFF.
 s32 func_800B12D0(s32 arg0, s32 arg1) {
     s32 result = 0;
     s32 v;
@@ -246,6 +255,7 @@ s32 func_800B12D0(s32 arg0, s32 arg1) {
     }
     return result;
 }
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800B136C);
 void func_800B14B8(void) {
     D_800C3D6C = 1;
