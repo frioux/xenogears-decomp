@@ -607,6 +607,113 @@ void func_8007B07C(SVECTOR* pA, SVECTOR* pB, SVECTOR* pC, SVECTOR* pOut, VECTOR*
 }
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007B1C4);
+/* Best attempt: 90.22% (704 bytes; the original is 692). Needs
+   #include "psyq/inline_c.h" at the top of the unit for gte_ldsxy3/gte_nclip/
+   gte_stopz - without it those resolve to libgte.h functions and the GTE
+   sequence becomes three `jal`s (57.65%).
+   Remaining delta: our frame is 88 bytes with ra/s0/s1 saved, the original's is
+   160 with ra/s0/s1; the original keeps the triangle pointer in a2 (a loop-local
+   pointer that it bumps by 0xE in the bnez delay slot and reads the vertex index
+   from each time) and the count in t1, while gcc here spills the count and the
+   vertex base to the stack and keeps the pointer in t0. The three `lh` index
+   loads also have to be re-read per use the way the u_short[] copy below does.
+   The signature and the GTE rejection order (n0,n1,nRef / n1,n2,nRef /
+   n2,n0,nRef against a packed (x<<16)+z reference point) are confirmed by the
+   instruction encoding; NCLIP's result is MAC0 via gte_stopz.
+   Decoded types: triangle entries are 7 halfwords (v0,v1,v2 indices then 8 bytes
+   of material data, stride 0xE), vertices are 8 bytes (vx,vy,vz,pad).
+typedef struct {
+       s16 v0;
+       s16 v1;
+       s16 v2;
+       undefined8 pad6[0x8];
+   } FieldWalkmeshTriIdx; // Size: 0xE
+   
+   typedef struct {
+       s16 vx;
+       s16 vy;
+       s16 vz;
+       u16 pad6;
+   } FieldWalkmeshVertIdx; // Size: 0x8
+   
+   extern FieldWalkmeshTriIdx* D_800AFB24[];
+   extern FieldWalkmeshVertIdx* D_800AFB34[];
+   extern s32 D_800AFB44[];
+   
+   // Index of the walkmesh triangle that contains pRef's x/z, 0 when none does
+   int func_8007B1C4(s16 x, s16 z, int nWalkmesh, SVECTOR* pOut, VECTOR* pNormal) {
+       SVECTOR v[3];
+       SVECTOR ref;
+       FieldWalkmeshTriIdx* pTri;
+       FieldWalkmeshVertIdx* pVerts;
+       u_short* pComp;
+       int nCount;
+       int nRef;
+       int n0;
+       int n1;
+       int n2;
+       long nTemp;
+       int i;
+   
+       ref.vx = x;
+       ref.vy = 0;
+       ref.vz = z;
+       nRef = (x << 16) + z;
+       pTri = D_800AFB24[nWalkmesh];
+       nCount = D_800AFB44[nWalkmesh];
+       pVerts = D_800AFB34[nWalkmesh];
+       pComp = (u_short*)pVerts;
+   
+       for (i = 0; i < nCount; i++, pTri++) {
+           n0 = (pVerts[pTri->v0].vx << 16) + pVerts[pTri->v0].vz;
+           n1 = (pVerts[pTri->v1].vx << 16) + pVerts[pTri->v1].vz;
+           n2 = (pVerts[pTri->v2].vx << 16) + pVerts[pTri->v2].vz;
+   
+           gte_ldsxy3(n0, n1, nRef);
+           gte_nclip();
+           gte_stopz(&nTemp);
+           if (nTemp < 0) {
+               continue;
+           }
+           gte_ldsxy3(n1, n2, nRef);
+           gte_nclip();
+           gte_stopz(&nTemp);
+           if (nTemp < 0) {
+               continue;
+           }
+           gte_ldsxy3(n2, n0, nRef);
+           gte_nclip();
+           gte_stopz(&nTemp);
+           if (nTemp < 0) {
+               continue;
+           }
+   
+           v[0].vx = pComp[pTri->v0 * 4 + 0];
+           v[0].vy = pComp[pTri->v0 * 4 + 1];
+           v[0].vz = pComp[pTri->v0 * 4 + 2];
+           v[1].vx = pComp[pTri->v1 * 4 + 0];
+           v[1].vy = pComp[pTri->v1 * 4 + 1];
+           v[1].vz = pComp[pTri->v1 * 4 + 2];
+           v[2].vx = pComp[pTri->v2 * 4 + 0];
+           v[2].vy = pComp[pTri->v2 * 4 + 1];
+           v[2].vz = pComp[pTri->v2 * 4 + 2];
+   
+           func_8007B07C(&v[0], &v[1], &v[2], &ref, pNormal);
+           pOut->vx = ref.vx;
+           pOut->vy = ref.vy;
+           pOut->vz = ref.vz;
+           return i;
+       }
+   
+       pOut->vx = 0;
+       pOut->vy = 0;
+       pOut->vz = 0;
+       pNormal->vx = 0;
+       pNormal->vy = 0;
+       pNormal->vz = 0;
+       return 0;
+   }
+*/
 
 // 1 when the triangle pA/pB/pC winds consistently seen from pRef, -1 when it folds back
 int func_8007B478(SVECTOR* pA, SVECTOR* pB, SVECTOR* pC, SVECTOR* pRef) {
