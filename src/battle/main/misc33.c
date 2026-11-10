@@ -13,6 +13,7 @@ extern u16 D_800D2E54;
 extern u8 D_800D3350;
 extern u8 D_800C3784[];
 extern u8 D_800C3EB0[];
+extern u32 D_800C37A4[];
 extern u8 D_800591AC;
 extern s32 D_80059464;
 
@@ -30,15 +31,50 @@ typedef struct {
 typedef struct {
     /* 0x0 */ s16 unk0;
     /* 0x2 */ s16 unk2;
+} Misc33Pair; // Size: 0x4
+
+typedef struct {
+    /* 0x0 */ s16 unk0;
+    /* 0x2 */ s16 unk2;
     /* 0x4 */ s16 unk4;
     /* 0x6 */ s16 unk6;
 } Misc33LineEnds; // Size: 0x8
 
-extern s32 func_80023124(Misc33LineEnds);
+extern s16 func_80023124(Misc33Pair, Misc33Pair);
 extern s32 func_800C0FAC(s32);
+extern u8 func_80021AD8(u8, s16);
+
+typedef struct {
+    /* 0x00 */ u8 unk0[0xC];
+    /* 0x0C */ void (*unkC)(void *);
+    /* 0x10 */ u8 unk10[0x2C];
+    /* 0x3C */ u16 unk3C;
+    /* 0x3E */ u8 unk3E[0x2];
+    /* 0x40 */ s32 unk40;
+    /* 0x44 */ s32 unk44;
+    /* 0x48 */ s32 unk48;
+    /* 0x4C */ u8 unk4C[0x14];
+    /* 0x60 */ s32 unk60;
+    /* 0x64 */ u16 unk64;
+    /* 0x66 */ u8 unk66[0x2];
+    /* 0x68 */ u8 unk68;
+    /* 0x69 */ u8 unk69;
+    /* 0x6A */ u8 unk6A;
+} BattleMisc33Actor;
 extern void func_800C1140(s32);
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BE11C);
+void func_800BE11C(BattleMisc33Actor *p) {
+    p->unk3C = p->unk3C + p->unk64;
+    p->unk40 += 0x330;
+    p->unk44 += 0x330;
+    p->unk48 += 0x330;
+    p->unk68 = func_80021AD8(p->unk68, -4);
+    p->unk69 = func_80021AD8(p->unk69, -4);
+    p->unk6A = func_80021AD8(p->unk6A, -4);
+    if (--p->unk60 == 0) {
+        p->unkC(p);
+    }
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BE1C4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BE330);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BE538);
@@ -57,6 +93,51 @@ void func_800BE6A0(s32 arg0, u8 *p, s32 n, s32 arg3) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BE6E8);
+/* best 82.71%: retail walks ONE pointer that is decremented in the loop-test
+   block's branch delay slot, so both `lw` reads are at offset 0(v1) and the
+   pointer is restored with a dead `addiu v1,v1,4` after the loop; gcc keeps the
+   source pointer as the base here and reads the quotient at -4(v1), and it also
+   emits a `beqz` loop guard instead of retail's `j` into the test block.  The
+   divisors really are tab[n-1] (quotient) and tab[n] (remainder) -- the two
+   divu are NOT CSE'd, so a single `divisor` local (which merges them into one
+   div with mflo+mfhi) is wrong.  `(u32)` on both divisions is required: retail
+   uses divu, and the table D_800C37A4 holds u32.
+s32 func_800BE6E8(s32 value, u8 *pBuf, s32 n, u8 started, s32 base) {
+    u8 *pDst;
+    u8 digit;
+    s32 count;
+    u32 *pTab;
+
+    count = 0;
+    pDst = pBuf + 1;
+    if (value < 0) {
+        count = 1;
+        pBuf[1] = '-';
+        pDst = pBuf + 2;
+        value = -value;
+        n--;
+    }
+    pTab = &D_800C37A4[n];
+    while (n != 0) {
+        digit = (u32)value / pTab[-1];
+        if (digit != 0) {
+            started = 1;
+        }
+        n--;
+        if (started != 0) {
+            *pDst = digit + base;
+            pDst++;
+            count++;
+        }
+        value = (u32)value % *pTab;
+        pTab--;
+    }
+    *pDst = value + base;
+    pBuf[0] = count + 1;
+    return count + 1;
+}
+*/
+
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BE790);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BEB04);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BEBC4);
@@ -113,19 +194,36 @@ s32 func_800BEEB4(u16 mask, void **pOut, s32 arg2) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BEF24);
-/* best 71.38%: the two 4-byte groups land at sp+0x10 and sp+0x18 in retail,
-   so the original built two 4-byte temporaries, not one 8-byte struct.
+/* best 72.54%: passing two 4-byte by-value structs reproduces retail's
+   store-two-halves / reload-with-lhu-and-or argument shape and gives the right
+   slots (sp+0x10, sp+0x18), but gcc over-allocates the frame (0x40 vs retail
+   0x30, 16 dead bytes) and loads the 0x2/0xA fields with lhu where retail uses
+   lh.  Declaring the locals as 4- and 8-byte structs changes nothing.
 s16 func_800BEF24(Misc33Point *p0, Misc33Point *p1) {
-    Misc33LineEnds line;
+    Misc33Pair e0;
+    Misc33Pair e1;
 
-    line.unk0 = p1->unk2;
-    line.unk2 = p1->unkA;
-    line.unk4 = p0->unk2;
-    line.unk6 = p0->unkA;
-    return func_80023124(line);
+    e0.unk0 = p0->unk2;
+    e0.unk2 = p0->unkA;
+    e1.unk0 = p1->unk2;
+    e1.unk2 = p1->unkA;
+    return func_80023124(e1, e0);
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BEF8C);
+/* best 68.54%: same shape as func_800BEF24 (two 4-byte structs by value, slots
+   sp+0x10 / sp+0x18 correct); frame 0x40 vs retail 0x30.
+s16 func_800BEF8C(Misc33Point *p) {
+    Misc33LineEnds e0;
+    Misc33LineEnds e1;
+
+    e0.unk0 = p->unk2;
+    e0.unk2 = p->unkA;
+    e1.unk0 = p->unkA0;
+    e1.unk2 = p->unkA4;
+    return func_80023124(*(Misc33Pair *)&e1, *(Misc33Pair *)&e0);
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BEFF4);
 
 void func_800BF0B4(s32 arg0) {
