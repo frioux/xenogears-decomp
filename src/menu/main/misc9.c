@@ -26,6 +26,8 @@ void func_801E3ECC(MenuDressingRoom* pDressingRoom, s32 gearId);
 void func_801D397C(u_char a0, u_char a1, u_char a2, u_char a3, u16 a4, u_char a5, u_char a6, u32 a7, u_char a8);
 void func_801E8070(s32 arg0, void* pArg1, void* pArg2, void* pArg3, void* pArg4, u8 arg5, u8 arg6, u8 arg7);
 void func_801E3C2C(MenuDressingRoom* pDressingRoom, s32 gearId);
+void func_801E8EAC(POLY_FT4* pPoly, u_char mode);
+void func_801E8F60(s32 mode, u_char index);
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DB920);
 
@@ -117,6 +119,39 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DC2CC);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DC3D8);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DCE60);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DD5E8);
+/* Best: 94.01%, same size (416 bytes). Remaining deltas are allocator
+   naming plus two real shapes: retail sums the poly offset as
+   rc*0x28 + i*0x80 in a register before adding the base, and re-does the
+   `andi a1,arg0,0xff` in loop 2 in the loop-back branch delay slot.
+   Spelling the address as `(u8*)base + (rc*0x28 + i*0x80)` reproduces
+   retail operand order but adds 2 instructions (91.84-91.89%).
+   void func_801DD5E8(u_char arg0) {
+       MenuString* pStrings;
+       POLY_FT4* pPoly;
+       s32 i;
+
+       func_801E8F60(5, arg0);
+       func_801E8F60(6, arg0);
+       for (i = 0; i < 0xC; i++) {
+           pStrings = g_Menu->unk430;
+           pPoly = &pStrings[i].polys[pStrings[i].renderContext];
+           if (pPoly->r0 != 0x20) {
+               func_801E8EAC(pPoly, arg0);
+               pStrings = g_Menu->unk430;
+               pPoly = &pStrings[i + 0xE].polys[pStrings[i + 0xE].renderContext];
+               func_801E8EAC(pPoly, arg0);
+           }
+       }
+       func_801E8EAC(&g_Menu->arrowCursors[0]->polys[g_Menu->arrowCursors[0]->renderContext], arg0);
+       pStrings = g_Menu->unk430;
+       func_801E8EAC(&pStrings[0x1C].polys[pStrings[0x1C].renderContext], arg0);
+       for (i = 0; i < 2; i++) {
+           pStrings = g_Menu->unk430;
+           pPoly = &pStrings[0x1E + i].polys[pStrings[0x1E + i].renderContext];
+           func_801E8EAC(pPoly, arg0);
+       }
+   }
+*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DD790);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DDF24);
 
