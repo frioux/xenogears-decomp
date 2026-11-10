@@ -24,6 +24,10 @@ typedef struct {
     /* 0xC */ u8 unkC[0x18];
 } Misc15CdRequest; // Size: 0x24
 
+typedef struct {
+    /* 0x0 */ u32 unk0[4];
+} Misc15Block16; // Size: 0x10
+
 
 extern Misc15Slot *D_8009BE24;
 extern void *D_8009C184[];
@@ -224,45 +228,47 @@ void func_800977E0(s32 index, u16 value) {
 }
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_80097800);
-// Best: 74.73%. The 0x20-byte slot filler loop and the 0x10000-byte block copy
-// match exactly (addiu v1,v1,6 bias and the bne-vs-pEnd loop included); what is
-// missing is the original's s0 = &D_8009BC3C held across the 2nd HeapAlloc call
-// (this shape gets lui at + a fresh lui for the later read, so the frame has no
-// s0 slot).
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_800978FC);
+// Best: 82.47%. Everything matches except that the original holds s0 =
+// &D_8009BC3C across the second HeapAlloc and reads the buffer back with
+// `lw v1,0(s0)`; every shape tried (global stores, u8 **ppBuffer, a
+// u8 *pBuffer local) gets lui/at for the store plus a fresh lui for the read,
+// so the frame has no s0 slot and the copy loop's 0x10000 constant lands in
+// v0 instead of t0. The two do-while loops and the +6 slot-filler bias are
+// required for the rest to match.
 /*
-typedef struct {
-    u32 unk0[4];
-} Misc15Block16; // Size: 0x10
-
 void func_800978FC(void) {
     u8 **ppBuffer;
+    u8 *pBuffer;
+    u8 *pSlot;
     Misc15Block16 *pSrc;
     Misc15Block16 *pDst;
     Misc15Block16 *pEnd;
-    u8 *pSlot;
     s32 i;
 
     ppBuffer = &D_8009BC3C;
     *ppBuffer = HeapAlloc(0x10000, 1);
     D_8009BCB4 = HeapAlloc(0x10000, 1);
-    pSlot = *ppBuffer;
-    for (i = 0; i < 0x800; i++) {
+    pBuffer = *ppBuffer;
+    pSlot = pBuffer;
+    i = 0;
+    do {
+        i++;
         pSlot[3] = 7;
         pSlot[7] = 0x24;
         pSlot[4] = 0x80;
         pSlot[5] = 0x80;
         pSlot[6] = 0x80;
         pSlot += 0x20;
-    }
+    } while (i < 0x800);
     pSrc = (Misc15Block16 *)D_8009BC3C;
     pDst = (Misc15Block16 *)D_8009BCB4;
     pEnd = pSrc + 0x1000;
-    while (pSrc != pEnd) {
+    do {
         *pDst++ = *pSrc++;
-    }
+    } while (pSrc != pEnd);
 }
 */
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_800978FC);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_800979C8);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_80097BC0);
 void func_80097CB8(s32 arg0) {
