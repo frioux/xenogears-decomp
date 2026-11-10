@@ -62,6 +62,23 @@ void func_801C80B8(u32 number) {
     }
 }
 */
+void func_801C8164(POLY_G4* pPoly, u_char r, u_char g, u_char b) {
+    SetPolyG4(pPoly);
+    pPoly->r0 = r;
+    pPoly->g0 = g;
+    pPoly->b0 = b;
+    pPoly->r1 = r;
+    pPoly->g1 = g;
+    pPoly->b1 = b;
+    pPoly->r2 = 0;
+    pPoly->g2 = 0;
+    pPoly->b2 = 0;
+    pPoly->r3 = 0;
+    pPoly->g3 = 0;
+    pPoly->b3 = 0;
+}
+INCLUDE_ASM("asm/menu/nonmatchings/main/misc2", func_801C81E0);
+INCLUDE_ASM("asm/menu/nonmatchings/main/misc2", func_801C8324);
 void func_801C851C(SVECTOR* pVertices, u16 x, u16 y, u16 width, u16 height) {
     pVertices[0].vx = x + 0xFF60;
     pVertices[0].vy = y + 0xFF90;
