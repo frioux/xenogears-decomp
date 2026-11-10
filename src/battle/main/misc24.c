@@ -1,9 +1,16 @@
 #include "common.h"
 #include "psyq/libgte.h"
+#include "system/memory.h"
 
 extern u8 D_800C3B74;
 extern u8 D_800C402F[];
 extern s32 *D_800D3368[];
+extern u8 *D_8005919C;
+extern u8 *D_800C4924;
+extern s16 func_800A3490(s16 angle, s16 divisor, s16 base);
+extern s16 func_800A3514(s16 angle, s16 divisor, s16 base);
+extern s16 func_800A3578(s16 angle, s16 divisor, s16 base);
+extern s16 func_800A35C8(s16 angle, s16 divisor, s16 base);
 
 u8 func_800AA514(s16 arg0, s16 arg1, s32 arg2) {
     s16 v;
@@ -15,23 +22,61 @@ u8 func_800AA514(s16 arg0, s16 arg1, s32 arg2) {
     return v;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AA564);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AA600);
+s32 func_800AA600(s32 arg0) {
+    u8 *p;
+
+    p = (u8 *)D_800D3368[arg0];
+    if (p != 0) {
+        return (*(s16 *)(p + 0x24) * ((*(s16 *)(p + 0x1C) * *(s16 *)(*(u8 **)(p + 4) + 0x4E)) >> 12)) >> 12;
+    }
+    return 0;
+}
 /* 99.00% - only the two "mflo" destinations differ (original mflo $v0, this
    mflo $a1); the single-expression form is otherwise instruction-identical.
 s32 func_800AA600(s32 arg0) {
     u8 *p;
+
+    p = (u8 *)D_800D3368[arg0];
+    if (p != 0) {
+        return (*(s16 *)(p + 0x24) * ((*(s16 *)(p + 0x1C) * *(s16 *)(*(u8 **)(p + 4) + 0x4E)) >> 12)) >> 12;
+    }
+    return 0;
+}
+*/
+s32 func_800AA650(s32 arg0) {
+    u8 *p;
+    s32 a;
+    s32 b;
     s32 r;
 
     r = 0;
     p = (u8 *)D_800D3368[arg0];
     if (p != 0) {
-        r = (*(s16 *)(p + 0x24) * ((*(s16 *)(p + 0x1C) * *(s16 *)(*(u8 **)(p + 4) + 0x4E)) >> 12)) >> 12;
+        if (*(u16 *)(p + 0x4A) & 8) {
+            a = *(s16 *)(p + 0x26);
+            b = *(s16 *)(*(u8 **)(p + 4) + 0x4C);
+        } else {
+            a = *(s16 *)(p + 0x28);
+            b = *(s16 *)(*(u8 **)(p + 4) + 0x50);
+        }
+        r = (*(s16 *)((u8 *)D_800D3368[arg0] + 0x1C) * b) >> 12;
+        r = (a * r) >> 12;
     }
     return r;
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AA650);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AA6E0);
+void func_800AA6E0(u8 *arg0) {
+    u8 *p;
+    s32 i;
+
+    if (*(u8 *)(arg0 + 0x10C) != 0) {
+        p = HeapAlloc(*(u8 *)(arg0 + 0x10C) * 0x70, 0);
+        for (i = 0; i < *(u8 *)(arg0 + 0x10C); i++) {
+            *(s16 *)(p + i * 0x70) = -1;
+            *(u32 *)(p + i * 0x70 + 8) = 0;
+        }
+        *(u32 *)(arg0 + 0x110) = (u32)p;
+    }
+}
 void func_800AA760(s32 arg0, u8 arg1) {
     s32 p;
 
@@ -70,7 +115,17 @@ u8 func_800AA7DC(s32 arg0) {
     return v;
 }
 */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AA820);
+s16 (*func_800AA820(s32 arg0))(s16 angle, s16 divisor, s16 base) {
+    switch (arg0) {
+    case 1:
+        return func_800A3514;
+    case 2:
+        return func_800A3578;
+    case 3:
+        return func_800A35C8;
+    }
+    return func_800A3490;
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AA898);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AA934);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AAA20);
@@ -97,7 +152,20 @@ void func_800AE1BC(u8 *arg0, u8 *arg1, s32 arg2) {
         *(s16 *)(arg0 + 0x98) = -1;
     }
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AE220);
+s32 func_800AE220(u8 *arg0, s32 arg1) {
+    if (arg1 == 0) {
+        return *(u16 *)(D_8005919C + 0x14) << 16;
+    }
+    if (arg1 == 1) {
+        return *(u16 *)(*(u8 **)(*(u8 **)(arg0 + 0xB0) + 8) + 0x14) << 16;
+    }
+    if (arg1 == 2) {
+        return *(u16 *)(*(u8 **)(*(u8 **)(arg0 + 0xB4) + 8) + 0x14) << 16;
+    }
+    if (arg1 == 3) {
+        return *(u16 *)(D_800C4924 + 0x14) << 16;
+    }
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AE2A4);
 void func_800AEEEC(u8 *pArg) {
     *(s16 *)(pArg + 0x98) = -1;
