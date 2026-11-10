@@ -102,7 +102,7 @@ void func_8007E334(u8 **arg0, u8 arg1) {
     }
     pRow = (u16 *)(D_800D3420 + arg1 * 0x40);
     pRow[(*arg0)[1]] = acc << 2;
-} */ */
+} */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007E334);
 /* best: 80.63%. The record table takes an explicit byte offset
    (D_800C3EB4[offset], offset from 0x38 stepping -0x1C): that is the only form
