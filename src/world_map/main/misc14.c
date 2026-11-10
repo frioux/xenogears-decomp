@@ -299,6 +299,39 @@ void func_800963E4(SVec* pList) {
 }
 */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc14", func_800964B0);
+/* 60.21%: the record is 16 bytes, the terminator sits in word 0, the sort key
+   in word 1, the swap is one full 16-byte struct copy through a stack temp,
+   and the step-back test is an unsigned pList < pCur. The delta is codegen
+   shape: the original reaches pCur words 1..3 as pNext-relative offsets
+   -0xC/-8/-4 off its $a1 and emits both struct copies as interleaved lw/sw
+   pairs, while gcc here keeps one base register per pointer (4($a2) etc.)
+   and batches four loads then four stores. func_800963E4 is the same shape
+   with 3-word records.
+typedef struct {
+    u32 x; u32 key; u32 unk8; u32 unkC;
+} SortRec4; // Size: 0x10
+
+void func_800964B0(SortRec4* pList) {
+    SortRec4* pCur = pList;
+    SortRec4* pNext = pList + 1;
+    SortRec4 tmp;
+
+    while (pNext->x != 0) {
+        if (pNext->key < pCur->key) {
+            tmp = *pCur;
+            *pCur = *pNext;
+            *pNext = tmp;
+            if (pList < pCur) {
+                pCur--;
+                pNext--;
+            }
+        } else {
+            pCur++;
+            pNext++;
+        }
+    }
+}
+*/
 s32 func_800965A4(void) {
     s32 index = D_8009BE44;
     SVec4* p = &D_8009D3C0[index * 0x58];
