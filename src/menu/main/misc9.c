@@ -5,6 +5,7 @@
 #include "system/memory.h"
 #include "system/menu.h"
 
+extern u8 D_801EA548[];
 extern u8 D_801EA558[];
 extern u16 D_801EA724;
 extern s32 D_801EA728;
@@ -35,21 +36,27 @@ void func_801DBD4C(s32 index0, s32 index1) {
 }
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DBDB4);
-/* Best: 86.97%. Everything but the loop matches; gcc-2.7.2 turns the upward
-   counter into a countdown (li a0,0x95 / addiu a0,-1 / bgez), retail keeps
-   slti a0,0x96 / addiu a0,1.
-s32 func_801DBDB4(void) {
-    s32 count = 0;
-    s32 index = 0;
+/* Best: 86.97% (gcc 2.7.2, `while (count < 0x96)` form; 94.47 under gcc-2.6.0,
+   which is probably this unit's real compiler - see func_801DE29C). 2.7.2 turns
+   the upward counter into a countdown (li a0,0x95 / addiu a0,-1 / bgez) because
+   the loop has a single exit and a known trip count; retail keeps
+   slti a0,0x96 / bnez + addiu a0,1. `count != 0x96` dodges the inversion but
+   needs an extra li a2 and bne (86.00%). `for`/`do-while`/`while` forms all
+   invert. `last` is genuinely uninitialised in retail (a1 is never set up front).
+void func_801DBDB4(void) {
+    s32 count;
+    s32 index;
     s32 last;
 
-    do {
+    index = 0;
+    count = 0;
+    while (count < 0x96) {
         if (g_GameState.itemIDs[index] != 0) {
             last = index;
         }
         count++;
         index++;
-    } while (count < 0x96);
+    }
 
     if (last < 0x10) {
         D_801EA724 = 0x74;
@@ -67,6 +74,37 @@ s32 func_801DBDB4(void) {
 */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DBE54);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DC1D4);
+/* Best: 91.94%, same size (228 bytes). Everything matches except the case
+   dispatch: retail built a binary-search tree (beq x,1 / slti x,2 / beqz x,0 /
+   beq x,2) which gcc 2.7.2 and 2.6.0 (and -O3, and 2.7.2-cdk) only emit for a
+   sparse switch; for these 3 dense cases both give a sequential compare chain
+   (beq x,1 / beqz x,0 / beq x,2). A hand-written if/else chain in tree order
+   inverts the branches instead. `kind` is genuinely uninitialised in retail
+   (the default paths pass garbage to func_801C72BC).
+void func_801DC1D4(u32 arg0) {
+    s32 kind;
+    s32 index = 0;
+
+    g_Menu->unk430 = HeapAlloc(0x1094, 0);
+    bzero(g_Menu->unk430, 0x1094);
+    switch (arg0 & 0xFF) {
+    case 0:
+        kind = 2;
+        break;
+    case 1:
+        kind = 5;
+        break;
+    case 2:
+        kind = 6;
+        index = 1;
+        break;
+    }
+    func_801E8018(8, g_Menu->unk10E0, &D_801EA548[index * 8], g_Menu->pManager->unk38);
+    func_801C72BC((u8)kind);
+    func_801D22F4(2);
+    func_801D3488(2, arg0 & 0xFF);
+}
+*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DC2CC);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DC3D8);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DCE60);
@@ -75,10 +113,11 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DD790);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DDF24);
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DE29C);
-/* Best: 67.27%. The C below is byte-identical under gcc-2.6.0 (try_flags 100.0)
-   but gcc-2.7.2 fills the jr delay slot with the sp restore and sinks the
-   return value after the ra restore.
-s32 func_801DE29C(u32 arg0, u32 arg1) {
+/* Best: 67.27% under the unit preset (gcc 2.7.2). Under gcc-2.6.0 the C below
+   scores 100.0 (try_flags): 2.7.2 sinks li v0,1 past lw ra and fills the jr
+   delay slot with addiu sp, retail emits li v0,1 right after the jal and leaves
+   the delay slot nop. Compiler-version difference, not a source shape.
+s32 func_801DE29C(u_char arg0, u_char arg1) {
     func_801DDF24(arg0, arg1, 0);
     return 1;
 }
