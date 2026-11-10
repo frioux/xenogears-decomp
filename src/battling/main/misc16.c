@@ -15,8 +15,10 @@ struct Misc16Work {
     /* 0x0C */ s16 unkC;
     /* 0x0E */ u16 unkE;
     /* 0x10 */ u8* unk10;
-    /* 0x14 */ s32 unk14;
-    /* 0x18 */ s32 unk18;
+    /* 0x14 */ s16 unk14;
+    /* 0x16 */ s16 unk16;
+    /* 0x18 */ s16 unk18;
+    /* 0x1A */ u16 pad1A;
     /* 0x1C */ u16 unk1C;
     /* 0x1E */ u16 unk1E;
     /* 0x20 */ u16 unk20;
@@ -41,9 +43,15 @@ struct Misc16Work {
     /* 0x46 */ s16 unk46;
     /* 0x48 */ s16 unk48;
     /* 0x4A */ s16 unk4A;
-    /* 0x4C */ u8 unk4C[0xC];
+    /* 0x4C */ u8 unk4C[2];
+    /* 0x4E */ s16 unk4E;
+    /* 0x50 */ s32 unk50;
+    /* 0x54 */ s32 unk54;
     /* 0x58 */ void (*unk58)(u8*, Misc16Work*);
-    /* 0x5C */ u8 unk5C[0xC];
+    /* 0x5C */ s32 unk5C;
+    /* 0x60 */ s32 unk60;
+    /* 0x64 */ s16 unk64;
+    /* 0x66 */ s16 unk66;
     /* 0x68 */ s16 unk68;
     /* 0x6A */ s16 unk6A;
     /* 0x6C */ u8 unk6C[8];
@@ -72,10 +80,21 @@ extern VECTOR D_80096FB0;
 extern s32 rand(void);
 extern void func_80031870(u8* pLink, u32 addr);
 
-Misc16Work* func_8008D3F4(s32 arg0, s16* arg1);
+Misc16Work* func_8008D3F4(s32 arg0, s32 arg1);
 
 void func_8008CED4(void) {
 }
+
+typedef struct {
+    /* 0x0 */ void (*unk0)(u8*, Misc16Work*);
+    /* 0x4 */ s32 unk4;
+    /* 0x8 */ s32 unk8;
+    /* 0xC */ s32 unkC;
+} Misc16Kind; // Size: 0x10
+
+extern Misc16Kind D_80091C74[];
+extern s32 D_80091CC4[];
+extern s32 D_80091CDC;
 
 typedef struct {
     /* 0x0 */ s32 unk0;
@@ -165,7 +184,63 @@ void func_8008D304(Misc16Work* pWork, s16* pOut, s32 angle) {
     pOut[2] = pWork->unk20 + rot.vz;
 }
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc16", func_8008D3F4);
+/* 96.92% - everything matches except the load of D_80091CC4 into $a0
+   where retail uses $v1 (and therefore has a nop after the lw before the
+   store to unk5C).  Tried: an s16 second parameter, a s32 one with an
+   explicit (s16) cast on the index (that one fixes the unk4E store's extra
+   move), and an s32 then u32 local for the loaded word declared first or
+   last.  The register is an allocator pick; $a0 is free at that point in
+   both versions.
+Misc16Work* func_8008D3F4(s32 arg0, s32 arg1) {
+    Misc16Work* pWork;
+    Misc16Kind* pKind;
+    u32 kind;
 
+    HeapSetCurrentContentType(0x15);
+    pWork = (Misc16Work*)HeapAlloc(0x7C, 0);
+    pWork->unk24 = 0x1000;
+    pWork->unk26 = 0x1000;
+    pWork->unk28 = 0x1000;
+    pWork->unk44 = 1;
+    pWork->unk4E = arg1;
+    pWork->unk2 = 0;
+    pWork->unk4 = 0;
+    pWork->unk6 = 0;
+    pWork->unk14 = 0;
+    pWork->unk16 = 0;
+    pWork->unk18 = 0;
+    pWork->unk34 = 0;
+    pWork->unk36 = 0;
+    pWork->unk38 = 0;
+    pWork->unk3C = 0;
+    pWork->unk3E = 0;
+    pWork->unk40 = 0;
+    pWork->unk0 = 0;
+    pWork->unk46 = 0;
+    pWork->unk48 = 0x100;
+    pWork->unk4A = 0x100;
+    pWork->unk2C = (s16)pWork->unk24 / 2;
+    pWork->unk2E = (s16)pWork->unk26 / 2;
+    pWork->unk30 = (s16)pWork->unk28 / 2;
+    kind = D_80091CC4[(s16)arg1];
+    pWork->unk5C = kind;
+    pWork->unk10 = NULL;
+    pWork->unk66 = arg0;
+    pWork->unk60 = D_80091CDC;
+    pWork->unk64 = 0;
+    pWork->unk6A = 0x64;
+    pWork->unk74 = 0xFF;
+    pWork->unk75 = 0xFF;
+    pWork->unk76 = 0xFF;
+    pWork->unk68 = 0;
+    pKind = &D_80091C74[pWork->unk66];
+    pWork->unkC = pKind->unkC;
+    pWork->unk50 = pKind->unk4;
+    pWork->unk54 = pKind->unk8;
+    pWork->unk58 = pKind->unk0;
+    return pWork;
+}
+*/
 void func_8008D580(Misc16Work* pWork) {
     s32 i;
     u8* pEntry;
@@ -264,7 +339,7 @@ void func_8008DA48(Misc16Work* pWork, u8* pArg1) {
     *(s16*)(PSX_SCRATCH + 0x32) = D_80096FAC.vx;
     *(s16*)(PSX_SCRATCH + 0x34) = D_80096FB0.vx;
     pEntry = pWork->unk10;
-    pCallback = ((void (**)(u8*, u8*))&pWork->unk4C[8])[0];
+    pCallback = (void (*)(u8*, u8*))pWork->unk54;
     for (i = 0; i < pWork->unkA; i++) {
         if (*(s16*)(pEntry + 6) != 0) {
             *(s16*)(pEntry + 6) = *(s16*)(pEntry + 6) - 1;
