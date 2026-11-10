@@ -1749,3 +1749,26 @@ Structurally unconvertible, newly confirmed:
 - `field/main/misc4` has four BLOCKED jtbl owners; the rest of the unit is convertible.
 - `field/main`'s `func_80087FA4` (79.83%) needs `la` in a register where gcc folds
   `%hi/%lo` - the mirror image of the `$at` ceiling, and equally a source-shape dead end.
+
+| 13 | 10 `battle` units (2.6.0 screen) + `field/{misc5,misc6}`, `lib_gear` | +7 | 1606 | `battle/misc18` 4 (three un-parked by the preset switch plus `func_80099498`), misc2 1, misc9 1, misc14 1; the other seven `battle` units are confirmed **not** 2.6.0 |
+
+### Round 13: seven more battle units are not 2.6.0, and the preset switch paid 4
+
+`battle/main/misc18` under `XenoBattle260`: three parked bodies became matches on the
+switch alone, and `func_80099498` closed from 95.15% with two idioms worth keeping:
+- a 3-case switch whose lowest case body is empty (`case 1: break;`) is what makes gcc
+  2.6.0 emit the signed low-bound check (`slti v0,v1,3; bnez`); two cases give a plain
+  `beq/beq/j` chain. The index also wants a *signed* local plus `default: break;`.
+- `addu v1,a2,v1` (base first) needs the index multiply in its own statement
+  (`s32 off = i * 368;` then `(s32)base + off + 0x7C`); every pointer expression makes
+  gcc canonicalise the shift result to op0, in every preset.
+
+Screened and **negative** for gcc 2.6.0 (do not re-screen): `battle/main/misc1`
+(`func_80071A08` 100 -> 99.17), `misc2`, `misc3`, `misc7` (all 11 matched stay 100 but no
+parked body improves), `misc9` (a full `try_flags --sweep`: 2.6.0 99.0, cdk 96.5, `-O1`
+51.9), `misc14` (compatible but nothing needs it), `misc15`, `misc16`.
+
+Additional reusable idiom (paid for `battle/misc2`'s `func_80074F70`): split the address
+arithmetic into named locals — `p = D_x; off = p[0x7F4] * 40 + 0x7A4; AddPrim(ot,
+(u8*)(off + (s32)p))` — so gcc stops reassociating the constant into the base pointer.
+The `743A4/744BC/74554` family in that unit is one allocator decision away now, not three.
