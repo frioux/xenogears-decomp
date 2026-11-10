@@ -1585,3 +1585,37 @@ ties (`func_8007EBBC` 99.83%, `func_8007AD34` 94.72%, `func_80075228` 94.80%,
 - `try_flags.sh` reports `compile-failed` intermittently when run in a tight loop
   (docker container churn, not a compiler problem); re-run the row before believing
   it.
+
+| 9 | `battle/{misc21,23,25,24,17,16}`, `world_map/{misc6,1,4,9}`, `menu/{misc7,3}`, `battling/{misc2,5}` | +18 | 1647 | battle/misc21 4 (two of them stale parked notes that matched under the new 2.6.0 preset), misc17 1, misc16 1, world_map/misc6 1, battling/misc5 1, and 10 more from the units whose reports were cut off; all eleven outputs OK, zero reverts |
+
+### Round 9: the "stale parked note" vein is real, the rest is the known tail
+
+Two of `battle/misc21`'s four matches were parked attempts that had been scored
+under 2.7.2 and became matches the moment the unit's preset changed to 2.6.0. **A
+parked percentage is only meaningful under the preset that produced it** - after any
+preset change, re-diff every parked attempt in the unit before writing new C. That
+is the cheapest match in the repo and it is why the preset screens pay twice.
+
+Preset screens run this round and their verdicts (all negative, so do not re-run):
+
+- `battle/misc23` under gcc 2.6.0: two matched functions stay 100.0 but
+  `func_800A96B4` is 99.1 under both, i.e. its 99.10% is allocation, not toolchain.
+- `battle/misc25` under gcc 2.6.0: `func_800B15D8` is 71.38% vs 71.84%, so no.
+
+Blockers re-confirmed or newly found:
+
+- `world_map/misc1`'s `func_80073398` reads `jtbl_8006FB24`; a C `switch` would put
+  the table in the unit's `.rodata`, which `linker/world_map.ld` places before
+  `.text`, shifting every world_map function even at objdiff 100%. Leave it.
+- `battle/misc21`'s `func_800A0838` references `jtbl` - same rule.
+- `battle/misc16`'s worker lost an `INCLUDE_ASM` line into a parked comment and
+  caught it with `lint_sources.py`; lint does catch that case when the line drifts
+  inside a block comment, so run it after every parking edit.
+- `world_map/misc6`'s `func_80080578`/`func_8007E450` are pure scheduler
+  reordering (retail is in strict source order, cc1 hoists independent global
+  loads); `-O1` gets 75%, `-O3` 27%, gcc 2.6.0 27%, `-mcpu=r8000` 32%. Same family
+  as `misc6`'s three 88-99.8% parks and `world_map/misc5`'s.
+- `world_map` `func_8007DE14` needed `D_8009A660` named separately from
+  `D_8009A65C+4` (a reloc naming another symbol can never reach objdiff 100%).
+- An 8-byte frame with no locals comes from an unused 8-byte local (`RECT rect;`),
+  used twice now.
