@@ -41,7 +41,6 @@ extern void func_80090E10(u8*);
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008E120);
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008E2B8);
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008E3CC);
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008E620);
 /* best: objdiff 99.39% - only difference: gcc folds the address of the loop body's last store into the induction pointer (base = &unk2, offsets 10/-1/2/0) instead of using &unk0 with 12/1/4/2. Statement order does not change the choice; the base always follows the last store. An indexed form (D_80096EA0[i].unkC) loses the strength reduction entirely (45%).
 void func_8008E620(void) {
     BattleSlot* pSlot;
@@ -60,6 +59,22 @@ void func_8008E620(void) {
         pSlot++;
     }
 }*/
+void func_8008E620(void) {
+    BattleSlot* pSlot;
+    s32 timer;
+    u32 i;
+
+    timer = 0x300;
+    func_80039FF8();
+    pSlot = D_80096EA0;
+    for (i = 0; i < 4; i++) {
+        pSlot[i].unkC = timer;
+        timer <<= 2;
+        pSlot[i].unk1 = 0;
+        pSlot[i].unk4 = 0;
+        pSlot[i].unk2 = i * 2;
+    }
+}
 void func_8008E67C(void) {
     if (D_80096EA0[0].unk4 != 0xFFFF) {
         D_80096EA0[0].unk4++;
@@ -99,23 +114,20 @@ u8* func_8008E6F8(u8* p) {
 }
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008E78C);
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008E8B0);
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008EADC);
-/* best: objdiff 99.54% - same induction-pointer fold as func_8008E620: base is &unk1 (offsets 7/11/0) instead of &unk0 (8/12/1).
 void func_8008EADC(void) {
     BattleSlot* pSlot;
     s32 i;
 
     pSlot = D_80096EA0;
     for (i = 0; i < 4; i++) {
-        if ((func_8003A5D0(pSlot->unk8) & pSlot->unkC) == 0) {
-            pSlot->unk1 = 0;
+        if ((func_8003A5D0(pSlot[i].unk8) & pSlot[i].unkC) == 0) {
+            pSlot[i].unk1 = 0;
         }
-        pSlot++;
     }
     func_8008E67C();
-}*/
+}
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008EB4C);
-/* best: objdiff 73.33% - identical instruction multiset; gcc emits lui 0x60000, then addu, then the arg-4 load, retail emits the arg-4 load between the lui and the addu (and keep a1's zero before the jal, not in its delay slot).
+/* best: objdiff 73.33% - identical instruction multiset; retail loads the arg-4 global after the hoisted lui 0x60000 and defers the addu/move a1 to after it, gcc 2.7.2 and 2.6.0 both emit lui, addu, move a1, then the arg-4 load. Also tried: locals for the constant, pre-loading D_80059488 into an s32, all give 73.33%.
 void func_8008EB4C(u8* p) {
     if (p != NULL) {
         func_8008E78C(p + 0x60000, 0, NULL, D_80059488);
@@ -128,21 +140,18 @@ void func_8008EB88(u8* p, s32 idx, u8* pData, s32 flags) {
     }
 }
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008EBD0);
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008ECEC);
-/* best: objdiff 99.56% - same induction-pointer fold: base is &unk1 (offsets 0/2/0 instead of 1/3/1).
 void func_8008ECEC(u8 kind) {
     BattleSlot* pSlot;
     s32 i;
 
     pSlot = D_80096EA0;
     for (i = 0; i < 4; i++) {
-        if (pSlot->unk1 != 0 && pSlot->unk3 == kind) {
-            func_8003A20C(pSlot->unk2);
-            pSlot->unk1 = 0;
+        if (pSlot[i].unk1 != 0 && pSlot[i].unk3 == kind) {
+            func_8003A20C(pSlot[i].unk2);
+            pSlot[i].unk1 = 0;
         }
-        pSlot++;
     }
-}*/
+}
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008ED6C);
 /* best: objdiff 90.11% - body, operand order and frame all match except register numbering (original keeps &D_80091EE0 in s1 and the byte index in s2; gcc gives the index s1) and an 8-byte larger frame in the original. %gp/%hi spelling of D_80091EE0 is already right (first read folds hi+index through at, second goes through a base pointer).
 void func_8008ED6C(u8* p, s32 idx) {
