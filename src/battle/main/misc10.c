@@ -155,14 +155,23 @@ s32 func_8007EF44(u8 arg0) {
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc10", func_8007EF6C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc10", func_8007F8C0);
-/* 91.16% - dense jump table 0x80..0x9B (jtbl_8006FE0C), one opcode per case;
-   the C below reproduces every block and its order. Remaining difference is
-   one insn: the original computes `acc | ret` into a temp (v1) and copies it
-   to s3 in the loop-back delay slot, gcc writes s3 directly
-   (`or s3,s3,s0`), so the original is 4 bytes longer. Tried: do/while with
-   `ret = acc;` before a single return (90.55%, the copy propagates away),
-   `for (;;)` with `if (code < 0x80) { ret = acc; break; }` (91.16%),
-   `acc = ret | acc`.
+/* 92.62% - RODATA-BLOCKED, do not convert: the switch's table is jtbl_8006FE0C,
+   which splat already emits inside the 0x133C-byte asm rodata blob
+   (build/asm/battle/data/0.rodata.s, 132 tables). cc1 emits its own 0x70-byte
+   table into misc10.c.o(.rodata); linker/battle.ld puts every unit's C .rodata
+   after that blob and battle_TEXT_START immediately follows it, so the whole
+   overlay shifts by 0x70 and make check fails while objdiff still reads ~93%.
+   Unconvertible until the overlay's rodata block as a whole moves to C, and an
+   if/else chain cannot reproduce the sltiu plus table dispatch.
+   Code shape: 174 insns vs the original's 172. Remaining differences are the
+   block ordering of the loop tail (retail: `or v1,s3,s0` fills the load-delay
+   slot after `lw (*arg0)` and the back edge is `beqz v0,looptop` with
+   `addu s3,v1,zero` in its delay slot; gcc emits `bnez v0,<store>` plus a `j`)
+   and one extra nop. Tried: acc = ret | acc (91.16), ret = acc then break,
+   for(;;) variants, inverting the `< 0x80` test to `>= 0x80 with continue`,
+   a named `next` temp for acc | ret (92.01), and ((cont & 0xFF) == 0) to force
+   the retail's `andi v0,s4,0xff` (92.62, the andi is right, the tail ordering
+   is not).
    Needs these declarations, kept out of the file until it is matched:
      s32 func_8007E954(u8 **arg0, u8 arg1);
      s32 func_8007E98C(u8 **arg0, u8 arg1);
@@ -173,6 +182,7 @@ s32 func_8007F8C0(u8 **arg0, u8 arg1) {
     s32 ret = 0;
     s32 cont = 0;
     s32 acc = 0;
+    s32 next;
 
     for (;;) {
         switch ((*arg0)[0]) {
@@ -260,14 +270,16 @@ s32 func_8007F8C0(u8 **arg0, u8 arg1) {
             break;
         }
         func_80079934(arg0);
-        if (!cont) {
+        if (!(cont & 0xFF)) {
             break;
         }
-        acc = ret | acc;
-        if ((*arg0)[0] < 0x80) {
-            ret = acc;
-            break;
+        next = acc | ret;
+        if ((*arg0)[0] >= 0x80) {
+            acc = next;
+            continue;
         }
+        ret = acc;
+        break;
     }
 
     return ret & 0xFF;
