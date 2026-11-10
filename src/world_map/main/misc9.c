@@ -1,6 +1,7 @@
 #include "common.h"
 #include "system/memory.h"
 #include "psyq/libgpu.h"
+#include "psyq/libgte.h"
 
 extern u_char* D_8009BE24;
 extern s32 D_8009C610;
@@ -16,8 +17,11 @@ extern u_char* D_8009D7FC;
 extern u_char* D_8009C620;
 extern s16 D_8009AFA0[];
 extern u16 D_8009B688[];
+extern u16 D_8009B64C[];
+extern u16 D_8009B64E[];
 
 void func_800848B4(s32 arg0, s32 arg1);
+void func_80087904(u8* pDst, u8* pSrc, s32 count, s32 abr);
 s32 func_800879E0(s32 arg0);
 
 // 0x80-byte slot in the D_8009BE24 table
@@ -66,6 +70,7 @@ void func_800866C8(void) {
     HeapFree(D_8009D7FC);
     HeapFree(D_8009D7F8);
 }
+
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_80086700);
 // Best: 92.29%. Verified shape: 0x50 iterations, s16 deltas at 0/4 of a 0x8-byte
 // entry added to the two s32 angles at 0/8 of a 0x10-byte entry, each wrapped by
@@ -101,6 +106,7 @@ void func_80086700(void) {
     }
 }
 */
+
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_80086798);
 s32 func_80087710(s32 index) {
     WorldMapSlot* pSlot = (WorldMapSlot*)(D_8009BE24 + index * 0x80);
@@ -168,9 +174,42 @@ s32 func_800879A8(s32 index) {
     func_800879E0(index);
     return 1;
 }
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_800879E0);
+s32 func_800879E0(s32 index) {
+    u8* pBase = D_8009C620;
+    u8* pEntry;
+    u8* pEntry2;
+    s32 entryIndex;
+    long tmp[2]; // unused: reproduces retail's 0x10-byte stack slot
+
+    entryIndex = D_8009C610 * 2;
+    pEntry = pBase + D_8009B64C[entryIndex] * 0x54;
+    pEntry2 = pBase + D_8009B64E[entryIndex] * 0x54;
+    func_80087904(pEntry, *(u8**)(pEntry + 0x48), *(u16*)(*(u8**)(pEntry + 0x40) + 4), 3);
+    func_80087904(pEntry2, *(u8**)(pEntry2 + 0x48), *(u16*)(*(u8**)(pEntry2 + 0x40) + 4), 3);
+    return 1;
+}
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_80087A8C);
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_80087B84);
+void func_80087B84(VECTOR* pVec, VECTOR* pWork, MATRIX* pMat) {
+    s16* pOut = (s16*)pMat;
+
+    pWork->vz = 0;
+    pWork->vx = 0;
+    pWork->vy = 0x1000;
+    OuterProduct12(pWork, pVec, pWork);
+    VectorNormal(pWork, pWork);
+    pOut[0] = pWork->vx;
+    pOut[1] = pWork->vy;
+    pOut[2] = pWork->vz;
+    OuterProduct12(pVec, pWork, pWork);
+    VectorNormal(pWork, pWork);
+    pOut[3] = pWork->vx;
+    pOut[4] = pWork->vy;
+    pOut[5] = pWork->vz;
+    pOut[6] = pVec->vx;
+    pOut[7] = pVec->vy;
+    pOut[8] = pVec->vz;
+    TransposeMatrix(pMat, pMat);
+}
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_80087C6C);
 s32 func_80087F60(void) {
     s32 value = D_8009B674[D_8009C610];
@@ -209,4 +248,5 @@ s32 func_8008868C(void) {
     return 1;
 }
 */
+
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_80088720);
