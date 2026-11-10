@@ -25,7 +25,7 @@ extern u16 func_80089C08(u8 arg0);
 extern u8 D_800D2E06[];
 extern u8 *D_800D3364;
 extern u8 D_800CCD34[];
-extern s32 func_80079E7C(u16 arg0);
+extern u8 func_80079E7C(u16 arg0);
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007C1A4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007C33C);
@@ -165,6 +165,33 @@ void func_8007CDD0(u8 **arg0, u8 arg1) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007CEA4);
+/* best: 72.38%. Structure, register set and the slti-in-bne-delay-slot all
+   come out right with the func_8007A628(i++, 0) spelling and func_80079E7C
+   declared u8 (it returns u8, misc5.c defines it; the s32 extern here was
+   wrong). Two things still miss: (1) gcc hoists &D_800C3EB4 into a callee-
+   saved s6 for the two lookups, so the frame grows to 0x30+s6 and the second
+   lookup is lbu 0(v1) instead of retail's per-use lui at/%hi + addu at,at,v1 +
+   lbu %lo(at); (2) with i++ in the call argument gcc emits i++ BEFORE the jal
+   and puts slti in the beqz delay slot, retail has i++ in the beqz slot and
+   the test in the bne slot. Also tried the plain 'for(...; i < 3; i++, offset
+   += 0x1C)' form with i (71.96%, i++ lands in the latch).
+
+void func_8007CEA4(u8 **arg0, u8 arg1) {
+    u16 *pRow = (u16 *)(D_800D3420 + arg1 * 0x40);
+    u8 *pCount;
+    s32 count = 0;
+    s32 i;
+    s32 offset;
+
+    for (i = 0, offset = 0; i < 3; offset += 0x1C) {
+        if (func_8007A628(i++, 0) != 0
+            && D_800C3EB4[offset] == D_800C3EB4[func_80079E7C(pRow[(*arg0)[2]]) * 0x1C]) {
+            count++;
+        }
+    }
+    pCount = &D_800D3430[arg1 * 0x40];
+    pCount[(*arg0)[1]] = count;
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007CFB8);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007D0CC);
 /* best: 85.97%. Loop body and the D_800D2CE0/D_800D2CB0 at-register lookups
