@@ -281,6 +281,13 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_800978FC);
 // v0 instead of t0. The two do-while loops and the +6 slot-filler bias are
 // required for the rest to match. gcc-2.7.2-cdk gives 84.65%, so the preset is
 // not the answer either.
+// Round 19 re-check: the parked shape is the best one (76.88% from a direct
+// `*ppBuffer = ...` form; adding the pSlot[-3..1] form loses the s0 formation
+// entirely -- cc1 rematerialises &D_8009BC3C as `lui $at` for the store and a
+// fresh `la` for the reload, because copy-prop turns ppBuffer back into the
+// constant and cse then expands each use separately. Also try_flags.sh
+// compile-fails on every row in this tree (even the default one), so flag
+// experiments here have to be done by hand.
 /*
 void func_800978FC(void) {
     u8 **ppBuffer;
@@ -321,6 +328,16 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_800979C8);
 // plain stores, then and+store, then second load) is unreachable from any
 // source order tried; 2.6.0 gives 72% for this function but drops the already
 // matched func_80097CB8 to 97.21%, so the preset is right.
+// Round 19: confirmed at the RTL level (build/src/world_map/main/misc15.c.s).
+// cc1 2.7.2 emits
+// `li $4,0x7f0000` right after the clear loop and the `ori $4,$4,0xffff` ten
+// insns later, and hoists the two `li $2,2` / C838,C83C stores above the BBBx
+// stores; retail has one `li $a0,0x7FFFFF` and keeps source order, so the
+// instruction multiset is identical and only the order differs (52.66% for the
+// direct form, 63.31% for this parked x/z form). A `u32 mask = 0x7FFFFF;`
+// local changes nothing; the x/z loads-as-statements form makes the hoisting
+// worse. This is the documented allocator/scheduler-tie class. -O1/-O3/cdk
+// could not be scored: try_flags.sh compile-fails on every row in this tree.
 /*
 void func_80097BC0(s32 *p) {
     u32 *pEnd;
