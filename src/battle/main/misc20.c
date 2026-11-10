@@ -16,8 +16,9 @@ extern u16 D_800D2C94;
 extern s8 func_8009DBFC();
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc20", func_8009C134);
-/* best 72.60%: only the i++ / delay-slot placement and the a2/a3 colour of the
-   store base differ.
+/* best 72.60% (100 bytes, same size): only the i++ / delay-slot placement and
+   the a2/a3 colour of the store base differ.  Using D_800D2C94 directly scores
+   76.56% but is one instruction short, so the pointer local is the right shape.
 void func_8009C134(void) {
     u16 *p = &D_800D2C94;
     s32 o;
