@@ -43,10 +43,42 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80083340);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80083580);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80083748);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80083948);
+extern u8 *D_800D3364;
+
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80083FF4);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80084108);
-/* 95.93%: one instruction class off - gcc emits `sltiu a2,v0,1` in the j delay slot where the
-   original keeps `sltiu v0,v0,1` + `move a2,v0` (ret copy not coalesced).
+/* best: 87.61% (86.38% with the semantically correct polarity; the 87.61% run had every
+   guard inverted, which objdiff only counts as one opcode diff). Remaining diffs: gcc keeps
+   an unused 8-byte frame (.frame $sp,8, vars=8) and emits "move v0,t0" in each exit's delay
+   slot where the original copies ret into v0 only once at "jr ra"; also the two
+   D_800C3EB4 loads come out in the opposite order (original loads the arg1*0x1C byte first,
+   then sll 3, then the arg0*0x1C byte with sll 6, then addu v1,v1,a0). Swapping the two
+   terms of the sum, and gcc-2.7.2-cdk, were both worse. Same ret-copy tie as func_80084108.
+
+u32 func_80083FF4(u8 arg0, u8 arg1) {
+    u32 ret;
+
+    ret = 0;
+    if (D_800D2DCC[arg1] != 0) {
+        if (D_800C3EB7[arg1 * 0x1C] == 0) {
+            if (D_800D32A1[arg1 * 8] == 0) {
+                if (D_800D3364[D_800C3EB4[arg1 * 0x1C] * 8 + D_800C3EB4[arg0 * 0x1C] * 0x40 + 0x140] == 0) {
+                    ret = (D_800CCD64[arg1].unk0 & 0xC001) == 0;
+                }
+            } else {
+                if ((D_800CCE08[arg1].unk0 & 0xC001) == 0) {
+                    ret = 1;
+                }
+            }
+        }
+    }
+    return ret;
+}
+*/
+/* 95.93% with the guards inverted as below (94.35% with the correct polarity and the
+   else-branch folded into "arg1 != 0 || (...)"); every one of the 54 instructions lines up
+   except one: gcc folds the flag test into the ret register (sltiu a2,v0,1 straight into the
+   j delay slot) where the original keeps "sltiu v0,v0,1" plus "move a2,v0". Tried: ? 0 : 1,
+   == 0, a bool temp, gcc-2.7.2-cdk (67.41%). Same ret-copy allocator tie as func_80083FF4.
 u32 func_80084108(u8 arg0, u8 arg1) {
     u32 ret;
 
@@ -73,6 +105,7 @@ u32 func_80084108(u8 arg0, u8 arg1) {
     return ret;
 }
 */
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80084108);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_800841E0);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80084548);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80084750);
