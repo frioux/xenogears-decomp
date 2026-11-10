@@ -106,7 +106,24 @@ void func_80076CE8(POLY_FT4 *p, s16 x, s16 y, u8 u, u8 v, s16 dx, s16 dy) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_80076D58);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_80076EA4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_80077074);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_80077364);
+void func_80077364(POLY_FT4 *p, u8 index) {
+    s32 i;
+    s32 offset;
+
+    for (i = 0; i < 4; i++) {
+        SetPolyFT4(&p[i]);
+        SetShadeTex(&p[i], 1);
+        p[i].r0 = 0xFF;
+        p[i].g0 = 0xFF;
+        p[i].b0 = 0xFF;
+        offset = index * 0x18;
+        p[i].tpage = GetTPage(*(s32 *)(D_800C3EA4 + offset + 0xA238), 0,
+                              *(s32 *)(D_800C3EA4 + offset + 0xA244),
+                              *(s32 *)(D_800C3EA4 + offset + 0xA248));
+        p[i].clut = GetClut(*(s32 *)(D_800C3EA4 + offset + 0xA23C),
+                            *(s32 *)(D_800C3EA4 + offset + 0xA240));
+    }
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_80077454);
 void func_80077610(void) {
     u8 *p = (u8 *)func_8008ABB8(0x670, 0);
@@ -130,7 +147,6 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_80077990);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_800780A8);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_8007819C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_80078310);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_80078508);
 /* 99.80%: only the two `sh` in the then-branch are swapped (original stores
    [i+0xB] first, then [i]); the prologue pointer derivation, both loop
    increments and the whole else-branch are identical. The primary induction
@@ -144,6 +160,8 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_80078508);
    becomes `addiu v0,%lo+0x16` and needs a third addiu (91.04%); the original
    keeps base+0 while its two `sh` are [i+0xB]-first, i.e. store order and giv
    order disagree there. else-branch order does not influence it (99.57%).
+
+   99.80% body (everything identical but the then-branch's two sh swapped):
 void func_80078508(u8 *pOut) {
     s32 i;
     u16 value;
@@ -162,7 +180,21 @@ void func_80078508(u8 *pOut) {
         pOut[i] = 0;
     }
 }
+
+   91.04% body (all four stores [i+0xB] first): insn stream identical to
+   retail except gcc makes the add_val=22 giv the base, so the prologue is
+   `addiu v0,%lo+0x16; addiu s2,v0,-0x16; addiu s3,v0,0x16` instead of
+   `addiu v0,%lo; addiu s3,v0,0x2C; addiu s2,s1,0x16` and s1/s2 swap in the
+   store and increment slots. Tried this session on top of the above: three
+   explicit pointer givs (pLo/pHi/pEnd, 57.98 - base right but increments get
+   hoisted above the branch join), `pDst = D_800D2DF0 + i` indexed (75.06,
+   collapses to one base + displacements), declaration order of i/value,
+   gcc 2.6.0 (91.04), 2.7.2-cdk (54.04), -O1 -G0 (35.08). The base-register
+   pick is gcc's combine_givs; no source spelling found that keeps store order
+   [i+0xB],[i] and base add_val 0.
 */
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_80078508);
+
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_800785D4);
 /* 57.27%: the tail (two D_800C3EAC loads, pEntry shared by the 0xC4022 store
    and the count increment) matches; the whole difference is where the
