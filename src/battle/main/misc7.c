@@ -8,6 +8,7 @@ extern u8 D_800D342E[];
 extern u8 D_800D3430[];
 extern u8 D_800D343F[];
 extern u16 D_8005A3A0[];
+extern u8 D_800D2E5C;
 extern u8 D_800CCE34[];
 extern u8 D_800CCE38[];
 extern u8 D_800CCE39[];
@@ -44,7 +45,19 @@ void func_8007B578(u8 **p, u8 index) {
 
     pTable[(*p)[1]] = func_8007A280(value, (*p)[2], 0, 1);
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007B608);
+u8 func_8007B608(u8 **p, u8 index, u8 arg2) {
+    u16 *pField = (u16 *)(D_800D3420 + index * 0x40);
+    u8 ret = arg2;
+    u8 value = func_80079E7C(pField[(*p)[3]]);
+
+    if (value < 3) {
+        D_800D2E5C = 0x20;
+        ret = arg2 + 1;
+    } else {
+        func_8007A280(value, (*p)[2], pField[(*p)[1]], 0);
+    }
+    return ret;
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007B6C0);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007B7B0);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007B8D4);
