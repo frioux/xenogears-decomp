@@ -10,6 +10,7 @@ extern void WorkListRemoveTask(void *pEntry);
 extern void TimerWorkListRemoveTask(void *pEntry);
 extern void func_8001F6B0(u8 *pEntry);
 extern s32 rcos(s32 a);
+extern void TimerWorkListSetTaskCallback(void *pEntry, void *pCallback);
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BB248);
 
@@ -56,7 +57,7 @@ void func_800BCAD0(void) {
 }
 
 void func_800BCAFC(u8 *pEntry, s32 angle) {
-s32 color;
+    s32 color;
 
     color = rcos(angle << 6);
     color += 0x1000;
@@ -71,4 +72,24 @@ s32 color;
     func_8001F6B0(pEntry);
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BCB54);
+/* best 86.08%: retail keeps the address of D_800C3748 in $s1 across the calls
+   (lui s1,%hi then two %lo(...)($s1) uses); gcc rematerialises it per use
+   because the load and the store sit in different basic blocks, so we get
+   lui s0 / lw s0 plus a lui $at store, and the frame is 24 instead of 32.
+   Plain `pEntry = D_800C3748`, a u8 **pSlot = &D_800C3748 local, and moving the
+   store out of the if all fold back to the same RTL. */
+/* void func_800BCB54(void) {
+    u8 *pEntry;
+
+    pEntry = D_800C3748;
+    if (pEntry != NULL) {
+        u8 *pFlags;
+
+        pFlags = *(u8 **)(pEntry + 0x1C);
+        pFlags[0x2B] |= 1;
+        TimerWorkListRemoveTask(pEntry);
+        HeapFree(pEntry);
+        D_800C3748 = NULL;
+    }
+} */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BCBB4);
