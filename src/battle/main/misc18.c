@@ -187,24 +187,21 @@ void func_80098C6C(u8 sel) {
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80098D2C);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80099498);
-/* best: 95.15 under gcc 2.6.0 (91.52 under the current 2.7.2). Left under
-   2.6.0: the original bound-checks the switch range (`slti v0,v1,3; bnez` to
-   the default before the case-3 compare) and scales `addu v1,a2,v1`
-   (base first) where this C gives `addu v1,v1,a2`.
-   Tried: flat pointer arithmetic both operand orders, a
-   D_800C34B0 pointer local (worse: hoists the base load), and a 0x170-step
-   `BattleActor { pad0[0x7C]; u16 flags; }` array access (81.52%).
-
 s32 func_80099498(void) {
     u8 i;
     u8 n;
     s32 ret = 0;
-    switch (D_800C34AD) {
+    s32 mode = D_800C34AD;
+
+    switch (mode) {
+    case 1:
+        break;
     case 2:
         n = 0;
         for (i = 0; i < 3; i++) {
-            if ((*(u16 *)(i * 368 + D_800C34B0 + 0x7C) & 0xC002) != 0) {
+            s32 off = i * 368;
+
+            if ((*(u16 *)((s32)D_800C34B0 + off + 0x7C) & 0xC002) != 0) {
                 n++;
             }
         }
@@ -215,7 +212,9 @@ s32 func_80099498(void) {
     case 3:
         n = 0;
         for (i = 0; i < 3; i++) {
-            if ((*(u16 *)(i * 368 + D_800C34B0 + 0x7C) & 0xC002) != 0) {
+            s32 off = i * 368;
+
+            if ((*(u16 *)((s32)D_800C34B0 + off + 0x7C) & 0xC002) != 0) {
                 n++;
             }
         }
@@ -223,10 +222,11 @@ s32 func_80099498(void) {
             ret = 1;
         }
         break;
+    default:
+        break;
     }
     return ret;
 }
-*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_800995A0);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80099890);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80099CF0);
