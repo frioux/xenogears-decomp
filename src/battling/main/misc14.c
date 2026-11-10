@@ -13,6 +13,7 @@ extern s32 D_80050100;
 extern s32 D_80091C30;
 extern s32 D_80096D88;
 extern s32 D_80096D8C;
+extern s32 D_80092914;
 
 extern void func_80030A30(s32 index, void *pLight);
 extern void func_8008AF6C(void *pData);
@@ -38,7 +39,21 @@ void func_8008A62C(void) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc14", func_8008A63C);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc14", func_8008A6F8);
+typedef struct {
+    u8 b[4];
+} Misc14Quad; // Size: 0x4
+
+void func_8008A6F8(u8 *pSrc) {
+    u8 *pDst = (u8 *)&D_80092818[D_800928A0];
+
+    if (pSrc[0] == pDst[0] && pSrc[1] == pDst[1] && pSrc[2] == pDst[2]) {
+        D_80092914 = 0;
+    } else {
+        D_80092914 = 1;
+        *(Misc14Quad *)pDst = *(Misc14Quad *)pSrc;
+        pDst[3] = 0x20;
+    }
+}
 
 void func_8008A78C(u8 *pActor) {
     s32 index = D_800928A0;
