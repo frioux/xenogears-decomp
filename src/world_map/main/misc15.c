@@ -1,6 +1,7 @@
 #include "common.h"
 #include "system/memory.h"
 #include "psyq/libgte.h"
+#include "psyq/libcd.h"
 
 typedef struct {
     /* 0x00 */ u16 unk0;
@@ -16,6 +17,30 @@ typedef struct {
     /* 0x50 */ u8 unk50[0x30];
 } Misc15Slot; // Size: 0x80
 
+typedef struct {
+    /* 0x0 */ s32 unk0;
+    /* 0x4 */ u32 unk4;
+    /* 0x8 */ s32 unk8;
+    /* 0xC */ u8 unkC[0x18];
+} Misc15CdRequest; // Size: 0x24
+
+typedef struct {
+    /* 0x0 */ u32 unk0[4];
+} Misc15Block16; // Size: 0x10
+
+typedef struct {
+    /* 0x0 */ s16 unk0;
+    /* 0x2 */ s16 unk2;
+    /* 0x4 */ s16 unk4;
+    /* 0x6 */ s16 unk6;
+    /* 0x8 */ s16 unk8;
+    /* 0xA */ u16 unkA;
+    /* 0xC */ s16 unkC;
+    /* 0xE */ s16 unkE;
+    /* 0x10 */ MATRIX unk10;
+} Misc15Xform; // Size: 0x30
+
+
 extern Misc15Slot *D_8009BE24;
 extern void *D_8009C184[];
 extern MATRIX D_8009A180;
@@ -28,13 +53,51 @@ extern u8 *D_8009BCB4;
 extern s32 D_8009BCB8;
 extern s32 D_8009BD2C;
 extern s32 D_8009CD44;
-extern s32 D_8009D788[];
+extern void *D_8009D788[16];
+extern void *D_8009C624[16];
 extern void func_800981C8(s32);
 extern void func_80097DC0(void);
 
 extern void func_800976C8(void);
+extern CdlLOC D_8009CEBC;
+extern u8 *D_8009D3BC;
+extern s32 D_8009D7F4;
+extern s32 D_8009D614;
+extern s32 D_8009D56C;
+extern s32 D_8009CEB8;
+extern s32 D_8009C590;
+extern s32 D_8009BE48;
+extern s32 D_8009CCB0;
+extern s32 D_8009CCA8;
+extern s32 D_8009CCA0;
+extern void func_80096A6C(void);
+extern u32 ArchiveGetDebugTable(void);
+extern s32 func_800968E0(void);
+extern void func_800966CC(void *p);
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_800967E4);
+s32 func_800967E4(void) {
+    s32 result = 0;
+    u32 first;
+    u32 second;
+
+    first = ArchiveGetDebugTable();
+    second = ArchiveGetDebugTable();
+    if ((first == 0) | (second == 0xFFFFFFFF)) {
+        result = func_800968E0();
+        if (result == 0) {
+            if (D_8009D788[D_8009BCB8] != NULL) {
+                func_8009699C((Misc15CdRequest *)D_8009D788[D_8009BCB8]);
+            }
+        }
+    } else {
+        if (D_8009C624[D_8009BCB8] != NULL) {
+            func_800966CC(D_8009C624[D_8009BCB8]);
+            D_8009C624[D_8009BCB8] = NULL;
+            D_8009BCB8 = (D_8009BCB8 + 1) & 0xF;
+        }
+    }
+    return result;
+}
 // Best: 99.79% -- blocked, not a match problem: this switch's table is
 // jtbl_80070CA0 in asm/world_map/data/0.rodata.s, whose entries are
 // .word .L80096910/.L80096918/.L80096950/.L80096958. Converting the function
@@ -66,9 +129,79 @@ s32 func_800968E0(void) {
  */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_800968E0);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_8009699C);
+// Best: 85.17%. Structurally right (every global and call in place; the four
+// zero stores, the (size+0x7FF)>>11 and the call sequence line up) but gcc
+// drops the first `D_8009D3BC = p` store as dead (the original keeps both) and
+// then re-orders the three loads ahead of it. Marking D_8009D3BC volatile
+// keeps both stores (87.21%) but loses the `move a1,s0` in the CdIntToPos
+// delay slot.
+/*
+void func_8009699C(Misc15CdRequest *p) {
+    CdlLOC *pLoc;
+    s32 lba;
+    u32 size;
+    u32 sizeCopy;
+    s32 unk8;
+
+    lba = p->unk0;
+    D_8009CD44 = 1;
+    pLoc = &D_8009CEBC;
+    D_8009D3BC = (u8 *)p;
+    D_8009D3BC = (u8 *)p + 0xC;
+    size = p->unk4;
+    sizeCopy = p->unk4;
+    unk8 = p->unk8;
+    D_8009BE48 = 0;
+    D_8009CCB0 = 0;
+    D_8009CCA8 = 0;
+    D_8009CCA0 = 0;
+    D_8009D7F4 = lba;
+    D_8009D614 = lba;
+    D_8009D56C = (size + 0x7FF) >> 11;
+    D_8009CEB8 = sizeCopy;
+    D_8009C590 = unk8;
+    CdIntToPos(lba, pLoc);
+    CdSyncCallback(func_80096A6C);
+    CdControlF(CdlSetloc, (u8 *)pLoc);
+}
+*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_80096A6C);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_80096C0C);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_80096F18);
+// Best: 59.80%. The structure is decoded and every call/argument is right (the
+// scratchpad rot vector at 0x1F8000A0, the matrix at 0x1F8000F0, the vectors at
+// 0x1F800000/0x1F800010, RotMatrixYXZ / ApplyMatrixLV / RotMatrixYXZ /
+// ApplyMatrix, and the >>12 and ->>12 folds). What differs is the frame: gcc
+// CSEs 0x1F8000A0/0xA2/0xA4 into the callee-saved s3/s4/s5, so the frame is
+// 0x30 with six saved registers, while the original keeps only 0xA0 in s3 and
+// reaches 0xA2/0xA4 with a fresh lui $at plus maspsx's low-half offset fold
+// (sh $v0,0xA2($at)) -- a 4-byte size difference and a different allocation.
+/*
+void func_80096F18(Misc15Xform *pOut, u8 *pSrc, s32 height, u8 *pAngles) {
+    pOut->unk8 = 0;
+    pOut->unkA = *(s32 *)(pSrc + 4) >> 12;
+    pOut->unkC = 0;
+    *(u16 *)0x1F8000A0 = *(u16 *)(pAngles + 0);
+    *(u16 *)0x1F8000A2 = *(u16 *)(pAngles + 2);
+    *(u16 *)0x1F8000A4 = 0;
+    RotMatrixYXZ((SVECTOR *)0x1F8000A0, (MATRIX *)0x1F8000F0);
+    *(s32 *)0x1F800000 = 0;
+    *(s32 *)0x1F800004 = 0;
+    *(s32 *)0x1F800008 = -(height >> 12);
+    ApplyMatrixLV((MATRIX *)0x1F8000F0, (VECTOR *)0x1F800000, (VECTOR *)0x1F800010);
+    pOut->unk0 = *(s32 *)0x1F800010;
+    pOut->unk2 = pOut->unkA + *(s32 *)0x1F800014;
+    pOut->unk4 = *(s32 *)0x1F800018;
+    *(u16 *)0x1F8000A0 = 0;
+    *(u16 *)0x1F8000A2 = *(u16 *)(pAngles + 2);
+    *(u16 *)0x1F8000A4 = *(u16 *)(pAngles + 4);
+    RotMatrixYXZ((SVECTOR *)0x1F8000A0, (MATRIX *)0x1F8000F0);
+    *(u16 *)0x1F8000A0 = 0;
+    *(u16 *)0x1F8000A2 = -0x1000;
+    *(u16 *)0x1F8000A4 = 0;
+    ApplyMatrix((MATRIX *)0x1F8000F0, (SVECTOR *)0x1F8000A0, (VECTOR *)((u8 *)pOut + 0x10));
+}
+*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_80097070);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_80097244);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_80097440);
@@ -141,54 +274,59 @@ void func_800977E0(s32 index, u16 value) {
 }
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_80097800);
-// Best: 74.73%. The 0x20-byte slot filler loop and the 0x10000-byte block copy
-// match exactly (addiu v1,v1,6 bias and the bne-vs-pEnd loop included); what is
-// missing is the original's s0 = &D_8009BC3C held across the 2nd HeapAlloc call
-// (this shape gets lui at + a fresh lui for the later read, so the frame has no
-// s0 slot).
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_800978FC);
+// Best: 82.47%. Everything matches except that the original holds s0 =
+// &D_8009BC3C across the second HeapAlloc and reads the buffer back with
+// `lw v1,0(s0)`; every shape tried (global stores, u8 **ppBuffer, a
+// u8 *pBuffer local) gets lui/at for the store plus a fresh lui for the read,
+// so the frame has no s0 slot and the copy loop's 0x10000 constant lands in
+// v0 instead of t0. The two do-while loops and the +6 slot-filler bias are
+// required for the rest to match.
 /*
-typedef struct {
-    u32 unk0[4];
-} Misc15Block16; // Size: 0x10
-
 void func_800978FC(void) {
     u8 **ppBuffer;
+    u8 *pBuffer;
+    u8 *pSlot;
     Misc15Block16 *pSrc;
     Misc15Block16 *pDst;
     Misc15Block16 *pEnd;
-    u8 *pSlot;
     s32 i;
 
     ppBuffer = &D_8009BC3C;
     *ppBuffer = HeapAlloc(0x10000, 1);
     D_8009BCB4 = HeapAlloc(0x10000, 1);
-    pSlot = *ppBuffer;
-    for (i = 0; i < 0x800; i++) {
+    pBuffer = *ppBuffer;
+    pSlot = pBuffer;
+    i = 0;
+    do {
+        i++;
         pSlot[3] = 7;
         pSlot[7] = 0x24;
         pSlot[4] = 0x80;
         pSlot[5] = 0x80;
         pSlot[6] = 0x80;
         pSlot += 0x20;
-    }
+    } while (i < 0x800);
     pSrc = (Misc15Block16 *)D_8009BC3C;
     pDst = (Misc15Block16 *)D_8009BCB4;
     pEnd = pSrc + 0x1000;
-    while (pSrc != pEnd) {
+    do {
         *pDst++ = *pSrc++;
-    }
+    } while (pSrc != pEnd);
 }
 */
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_800978FC);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_800979C8);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_80097BC0);
-// Best: 94.28%. Instruction multiset is identical; only the clear loop's
-// allocator tie-break differs (original keeps pEnd in v0 and i in v1, this
-// shape gets the two swapped).
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_80097CB8);
+// Best: 94.28%. Everything matches except the clear loop's allocator
+// tie-break: the original keeps the pointer in v0 and the counter in v1, and
+// this shape gets the two swapped (deliberately, the note records that the
+// i-first declaration order gives the same swap). func_80097BC0 below shares
+// the same loop and the same gap.
 /*
 void func_80097CB8(s32 arg0) {
-    s32 i;
     u32 *pEnd;
+    s32 i;
 
     D_8009D534 = D_8009A180;
     pEnd = D_8009C580;
@@ -201,7 +339,6 @@ void func_80097CB8(s32 arg0) {
     func_80097DC0();
 }
 */
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_80097CB8);
 
 void func_80097D64(void) {
     s32 i;
