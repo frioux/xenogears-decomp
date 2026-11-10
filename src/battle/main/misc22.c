@@ -46,6 +46,10 @@ extern s32 D_800D3344;
 extern s32 D_800D39CC;
 extern void func_800A5BE8(void *, void *, void *, s32, s32);
 extern int LoadImage(void *pRect, void *p);
+extern s16 D_800D2FC8;
+extern u16 *D_800D2FD0;
+extern s32 func_800AA650(void *pArg);
+extern void func_800B10EC(void *pArg, s16 x, s16 y, s32 z);
 extern void HeapFree(void *pMem);
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A2E88);
@@ -128,13 +132,41 @@ void func_800A4348(BattleMisc22Image *pArg, s16 scale) {
         }
     }
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A43F8);
+void func_800A43F8(BattleMisc22Image *pArg, s16 scale) {
+    s32 i;
+    s32 j;
+    u16 *pSrc1 = pArg->unk4;
+    u16 *pSrc2 = pArg->unk8;
+
+    for (i = 0; i < pArg->rect28.h; i++) {
+        for (j = 0; j < pArg->rect28.w; j++) {
+            s16 *pRow = (s16 *)((pArg->rect28.y + i) * 6 + (s32)pArg->unk1C);
+
+            pRow[pArg->rect28.x + j] = *pSrc2 + (*pSrc1 - *pSrc2) * scale / 32;
+            pSrc1++;
+            pSrc2++;
+        }
+    }
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A44C0);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A4654);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A4820);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A48EC);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A4B3C);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A4CF8);
+void func_800A4CF8(void *pArg) {
+    s16 a;
+    s16 b;
+    s16 c;
+    u16 *pSrc = D_800D2FD0;
+    s32 i;
+
+    for (i = 0; i < D_800D2FC8; i++) {
+        a = *pSrc++;
+        b = *pSrc++;
+        c = *pSrc++;
+        func_800B10EC(pArg, a, b, func_800AA650(pArg) + c);
+    }
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A4DB8);
 s32 func_800A577C(void) {
     return D_800D3344;
