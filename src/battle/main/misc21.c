@@ -63,35 +63,23 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_8009F1C4);
 void func_8009F5B0(void) {
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_8009F5B8);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_8009F708);
-/* 96.57% (140 vs 144 bytes): only the loop increment is misplaced. Retail has
-   `addiu s1,s1,1` stolen into the `beqz a0` delay slot (before the count reload),
-   gcc emits `lhu count; addiu s1,s1,1; slt` instead; every other instruction,
-   the frame (0x28) and the register assignment (s2 = pSprites, s1 = i, s0 =
-   &pSprite->p6C) already agree. Tried: do/while vs for vs while, index form
-   (pSprites[i].p68), pointer form, unused 8-byte local (needed for the frame in
-   the do-while form only). Matches 96.37% under gcc-2.6.0 too.
 void func_8009F708(BattleSprite* pSprites) {
     BattleSprite* pSprite;
     s32 i;
 
     if (pSprites != NULL) {
-        i = 0;
         pSprite = pSprites;
-        while (i < pSprites->count) {
+        for (i = 0; i < pSprites->count; i++, pSprite++) {
             if (pSprite->p68 != NULL) {
                 HeapFree(pSprite->p68);
                 pSprite->p68 = NULL;
                 pSprite->p6C = NULL;
             }
-            pSprite++;
-            i++;
         }
         pSprites->count = 0;
         HeapFree(pSprites);
     }
 }
-*/
 void func_8009F794(BattleModelPartList* pList, s32 freeLight) {
     u32 i;
 
@@ -166,29 +154,22 @@ void func_800A22E8(BattleBlockPool* pPool) {
         }
     }
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_800A2330);
-/* 73.89% (168 vs 164 bytes): retail reloads usedCount from memory after each
-   increment (lhu with no andi mask) and keeps pBlocks[index] in a3; gcc keeps
-   the incremented value in a register, masks it, and re-hoists the loop.
 BattleBlock* func_800A2330(BattleBlockPool* pPool) {
     BattleBlock* pBlock;
-    BattleBlock* pBlocks;
 
     if (pPool->usedCount < pPool->capacity) {
         pBlock = &((BattleBlock*)pPool->pBlocks)[pPool->usedCount];
         if (pBlock->flag == 0) {
             pPool->usedCount++;
-            pBlocks = (BattleBlock*)pPool->pBlocks;
-            while (pPool->usedCount < pPool->capacity && pBlocks[pPool->usedCount].flag != 0) {
+            while (pPool->usedCount < pPool->capacity &&
+                   ((BattleBlock*)pPool->pBlocks)[pPool->usedCount].flag != 0) {
                 pPool->usedCount++;
             }
             return pBlock;
         }
-        return NULL;
     }
     return NULL;
 }
-*/
 s32 func_800A23E8(BattleBlockPool* pPool, BattleBlock* pBlock) {
     s32 index;
 
