@@ -1,4 +1,6 @@
 #include "common.h"
+#include "psyq/libgpu.h"
+#include "psyq/memory.h"
 
 typedef struct {
     /* 0x0 */ s32 x;
@@ -22,7 +24,22 @@ typedef struct {
     /* 0x7C */ s32 unk7C;
 } WorldMapSlot; // Size: 0x80
 
+typedef struct {
+    /* 0x00 */ u8 unk0[0x8];
+    /* 0x08 */ s32 unk8;
+    /* 0x0C */ s32 unkC;
+    /* 0x10 */ s32 unk10;
+    /* 0x14 */ u8 unk14[0x2C];
+    /* 0x40 */ u8 *unk40;
+    /* 0x44 */ u32 unk44;
+    /* 0x48 */ u8 *unk48;
+    /* 0x4C */ u8 *unk4C;
+    /* 0x50 */ u8 unk50[0x4];
+} WorldMapEntry; // Size: 0x54
+
 extern WorldMapSlot *D_8009BE24;
+extern WorldMapEntry *D_8009C620;
+extern void func_800816DC(WorldMapEntry *pEntry, u8 *pDst, s32 count, s32 abr);
 extern u8 D_8009A758[];
 // externs used by the parked attempts below
 extern Vec3 D_8009C5AC;
@@ -40,7 +57,6 @@ extern s32 D_8009BE30;
 extern s32 D_8009D55C;
 extern s32 D_8009D560;
 extern s32 D_8009D564;
-extern u8 *D_8009C620;
 extern void func_8007A06C(void *, s32, s32);
 
 s32 func_80080900(s32 index) {
@@ -158,8 +174,36 @@ s32 func_800813E8(s32 index) {
 */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_800813E8);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_80081470);
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_800816DC);
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_800817A0);
+void func_800816DC(WorldMapEntry *pEntry, u8 *pDst, s32 count, s32 abr) {
+    s32 i;
+
+    for (i = 0; i < count; i++) {
+        pDst[3] = 9;
+        pDst[7] = 0x2C;
+        *(u16 *)(pDst + 0x16) = GetTPage(0, abr, 0x180, 0);
+        pDst[7] |= 2;
+        pDst += 0x28;
+    }
+    memcpy(pEntry->unk4C, pEntry->unk48, count * 0x28);
+}
+
+s32 func_800817A0(s32 index) {
+    WorldMapSlot *pSlot = &D_8009BE24[index];
+    WorldMapEntry *pEntry = &D_8009C620[2];
+
+    pSlot->unk20 = 0;
+    pSlot->pos.x = D_8009C5AC.x;
+    pSlot->pos.y = D_8009C5B0 - 0x100000;
+    pSlot->pos.z = D_8009C5B4;
+    pSlot->unk50 = 0;
+    pSlot->unk54 = 0;
+    pSlot->unk58 = 0;
+    func_800816DC(pEntry, pEntry->unk48, *(u16 *)(pEntry->unk40 + 4), 1);
+    pEntry->unk8 = pSlot->pos.x >> 12;
+    pEntry->unkC = pSlot->pos.y >> 12;
+    pEntry->unk10 = pSlot->pos.z >> 12;
+    return 1;
+}
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_80081868);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_800819C8);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_80081B24);
@@ -193,6 +237,9 @@ s32 func_800827C8(s32 index) {
     return 1;
 }
 */
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_800827C8);
+s32 func_800827C8(s32 index) {
+    D_8009BE24[index].unk50 = (u32)D_8009A758;
+    return 1;
+}
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_800827EC);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_800828DC);
