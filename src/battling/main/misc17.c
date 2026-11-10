@@ -127,7 +127,7 @@ void func_8008EADC(void) {
     func_8008E67C();
 }
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008EB4C);
-/* best: objdiff 73.33% - identical instruction multiset; gcc emits lui 0x60000, then addu, then the arg-4 load, retail emits the arg-4 load between the lui and the addu (and keep a1's zero before the jal, not in its delay slot).
+/* best: objdiff 73.33% - identical instruction multiset; retail loads the arg-4 global after the hoisted lui 0x60000 and defers the addu/move a1 to after it, gcc 2.7.2 and 2.6.0 both emit lui, addu, move a1, then the arg-4 load. Also tried: locals for the constant, pre-loading D_80059488 into an s32, all give 73.33%.
 void func_8008EB4C(u8* p) {
     if (p != NULL) {
         func_8008E78C(p + 0x60000, 0, NULL, D_80059488);
