@@ -59,41 +59,35 @@ void func_8007474C(void) {
     HeapFree(D_8009D30C);
 }
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc2", func_80074794);
-
-/* 98.89%: instructions and store order are identical; the allocator gives the
-   loaded D_8009D30C pointer a2 and the index*8 temporary a3, retail the
-   reverse. Also tried: (index << 3) + base and index * 8 + base operand order,
-   explicit s32 offset local — gcc canonicalises all of them to the same RTL.
 void func_80074794(s16 arg0, s32* pVec) {
     Vector16* pEntry;
     s32 index;
 
     index = D_8009BE38;
-    pEntry = (Vector16*)D_8009D30C + index;
+    pEntry = (Vector16*)((index << 3) + (s32)D_8009D30C);
     pEntry->vx = pVec[0] >> 12;
     pEntry->vz = pVec[2] >> 12;
     pEntry->vy = arg0;
     D_8009BE38 = (index + 1) & 0xF;
 }
-*/
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc2", func_800747DC);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc2", func_80074E58);
 
 /* 89.84%. func_80075030 below is the same routine with D_8009D77C->D_8009D7C8,
    D_8009CC9C->D_8009CD64, D_8009D780->D_8009D7D0 and D_8009A1E8->D_8009A250,
-   so matching one matches both. What this body gets right that the old 72.65%
-   attempt did not: the entry pointer must be a real `pEntry++` walker (that is
-   what makes retail anchor the s16 fields at a0+0xA with -6/-2 displacements),
-   while the two source walkers stay indexed expressions so gcc sinks their
-   addresses into the loop preheader after the entry `blez`. Remaining
-   differences: the preheader order is retail `li t2,1 / addiu v1,a0,10 /
-   lw t0,D_8009D77C / lui+addiu a3 / move a2,t0` against ours
-   `li t2,1 / a3 / t0 / addiu v1,a0,10`, and retail increments a3 right after
-   its store (pDesc walker) and keeps `addiu a0,a0,12` in the branch delay slot
-   where gcc puts a3 there. The count must be re-read from the global for the
-   loop bound (no s-register saves in retail: nothing lives across HeapAlloc).
+   so matching one matches both. The entry pointer has to be a real `pEntry++`
+   walker (that is what makes retail anchor the s16 fields at a0+0xA with the
+   -6/-2 displacements) and the loop bound is the global re-read after the
+   HeapAlloc. Remaining: retail emits the desc walker's addiu a3,a3,16 right
+   after sw a3,-6(v1) and ends the body
+   `addiu v1,v1,12 / slt / bnez / (delay) addiu a0,a0,12`, while gcc's IV
+   reduction puts a3's increment last (delay slot) and a0's before the slt.
+   A real source walker (pDesc; pDesc += 0x10) reproduces the a3 placement
+   exactly (89.07%) but flips the dst walker and the counter between a0/a1
+   (retail: a0 = dst from HeapAlloc's result, a1 = counter). Also tried:
+   (i << 4) for the desc index, *((s32*)D_8009D77C + i + 1), ++i, three
+   declaration orders, s32/u32 counter, count re-read into a local.
 void func_80074E58(void) {
     WorldMapEntry* pEntry;
     s32 count;
