@@ -63,54 +63,42 @@ void func_80076C34(u8 *p) {
     *(u16 *)(p + 0x16) |= 0x40;
 }
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_80076C78);
-/* 55.61%: the store set is right (a POLY_FT4 quad, dy = 13), only the order in
-   which the four vertices are written and the temps' registers differ; gcc also
-   keeps x/y in a1/a2 where the original copies them to v1/v0. Tried: vertex
-   order as listed above, x/y-first grouping, dx declared s16 vs u8.
-void func_80076C78(POLY_FT4 *p, s16 x, s16 y, u8 u, u8 v, s16 dx) {
+void func_80076C78(POLY_FT4 *p, s16 x, s16 y, u8 u, u8 v, u8 dx) {
     p->x0 = x;
     p->y0 = y;
-    p->u0 = u;
-    p->v0 = v;
-    p->x1 = x + dx;
     p->y1 = y;
-    p->u1 = u + dx;
-    p->v1 = v;
     p->x2 = x;
     p->y2 = y + 13;
-    p->u2 = u;
-    p->v2 = v + 13;
-    p->x3 = x + dx;
     p->y3 = y + 13;
+    p->u0 = u;
+    p->u2 = u;
+    p->x1 = x + dx;
+    p->x3 = x + dx;
+    p->v0 = v;
+    p->u1 = u + dx;
+    p->v1 = v;
+    p->v2 = v + 13;
     p->u3 = u + dx;
     p->v3 = v + 13;
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_80076CE8);
-/* 53.75%: same POLY_FT4 quad as func_80076C78 with separate dx/dy deltas;
-   identical store set, only the store order and the stack-arg temps (original
-   t0/t1 vs t2/t3 here) differ. Tried: two orderings, dx/dy s16 and s32.
 void func_80076CE8(POLY_FT4 *p, s16 x, s16 y, u8 u, u8 v, s16 dx, s16 dy) {
     p->x0 = x;
     p->y0 = y;
-    p->u0 = u;
-    p->v0 = v;
-    p->x1 = x + dx;
     p->y1 = y;
-    p->u1 = u + dx;
-    p->v1 = v;
     p->x2 = x;
-    p->y2 = y + dy;
+    p->u0 = u;
     p->u2 = u;
-    p->v2 = v + dy;
+    p->x1 = x + dx;
+    p->y2 = y + dy;
     p->x3 = x + dx;
     p->y3 = y + dy;
+    p->v0 = v;
+    p->u1 = u + dx;
+    p->v1 = v;
+    p->v2 = v + dy;
     p->u3 = u + dx;
     p->v3 = v + dy;
 }
-*/
-
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_80076D58);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_80076EA4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_80077074);
