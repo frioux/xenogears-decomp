@@ -18,6 +18,8 @@ extern s32 D_80092914;
 extern void func_80030A30(s32 index, void *pLight);
 extern void func_8008AF6C(void *pData);
 extern void func_8008B730(void *pA, s32 arg1, s32 arg2);
+extern u32 func_800405E4(void);
+extern void func_8008BB3C(void *pCtx);
 
 typedef struct {
     /* 0x00 */ u32 unk0;
@@ -171,7 +173,31 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc14", func_8008B650);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc14", func_8008B730);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc14", func_8008BA2C);
+typedef struct {
+    /* 0x00 */ u32 unk0[0x20];
+    /* 0x80 */ u32 unk80;
+} Misc14Work; // Size: 0x84
+
+Misc14Work *func_8008BA2C(u32 arg0, u32 arg1, u32 arg2, s32 arg3) {
+    Misc14Work *p;
+    s32 i;
+    u32 value;
+
+    HeapSetCurrentContentType(3);
+    p = HeapAlloc(0x84, 2);
+    for (i = 0x1F; i >= 0; i--) {
+        p->unk0[i] = 0;
+    }
+    p->unk80 = arg2;
+    p->unk0[0x1C] = func_800405E4();
+    value = p->unk80 + arg3 * 4;
+    p->unk0[0x1F] = arg0;
+    p->unk0[4] = arg1;
+    p->unk0[0x1D] = value;
+    p->unk0[0x1E] = value;
+    func_8008BB3C(p);
+    return p;
+}
 
 void func_8008BAE0(void *pMem) {
     HeapFree(pMem);
