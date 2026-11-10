@@ -1,5 +1,6 @@
 #include "common.h"
 
+extern u8 D_800D2CA4[];
 extern u8 D_800D2E5D[];
 extern u8 D_800D2E60[];
 extern u8 D_800D2E62[];
@@ -17,6 +18,11 @@ typedef struct {
 } BattleStatusEntry; // Size: 0x4
 
 extern BattleStatusEntry D_800C3D1B[];
+extern u8 D_800D342E[];
+extern u8 D_800D3439[];
+extern u8 D_800D343E[];
+extern u16 D_800C48E8;
+extern s32 func_80089C08(u8 arg0);
 extern u8 D_800D2DE4[];
 extern BattleTableEntry D_800CCD64[];
 extern u8 D_800D2E5F[];
@@ -93,6 +99,18 @@ void func_80079054(u8 arg0, u8 arg1) {
     func_80079ED8(arg0, D_800D2E5D[arg1 * 8], D_800D2E60[arg1 * 8], 0);
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc4", func_80079098);
+/* Best: 70.26%. Same CSE class as func_8007916C: gcc builds &D_800D2E5D[arg1*8]
+   once into a saved register across the first call instead of re-forming it with
+   a fresh lui/addu from the shifted index. Tried: one expression twice, two
+   index locals, nested call.
+
+s32 func_80079098(u8 arg0, u8 arg1) {
+    s32 value;
+
+    value = func_80079ED8(arg0, D_800D2E5D[arg1 * 8], 0, 1);
+    return func_80079ED8(arg0, D_800D2E5D[arg1 * 8], (D_800D2E60[arg1 * 8] + value) & 0xFF, 0);
+}
+*/
 void func_80079114(u8 arg0, u8 arg1) {
     func_8007A280(arg0, D_800D2E5D[arg1 * 8], D_800D2E60[arg1 * 8] | (D_800D2E61[arg1 * 8] << 8), 0);
 }
@@ -137,7 +155,35 @@ void func_80079778(u8 arg0) {
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc4", func_80079840);
-void func_80079934(u8** pCursor) {
+/* Best: 96.48%. Two emit-order/allocator tie-breaks left: the loop preheader
+   puts `move a1,v1` after `la a2` where the original has it first, and the
+   D_800C3EAC load adds index-first (`addu v0,v0,v1`) where the original adds
+   base-first (`addu v1,v1,v0`). Tried: D_800C3EAC[slot * 0x40 + 0x3C] inline,
+   the (mem_addr) cast form, and a u8* pBuf local (96.48%). The slot/off split
+   matters: `u8 slot = arg1 - 3` with `slot * 0x40` at each use reproduces the
+   original's andi-then-sll rematerialisation; folding them into one u8 off
+   gives a single sll in the preheader and 93.20%.
+
+void func_80079840(u8 arg0, u8 arg1) {
+    u8 slot;
+    s32 i;
+    u8* pBuf;
+
+    if (arg1 >= 3) {
+        slot = arg1 - 3;
+        *(u16*)&D_800D342E[slot * 0x40] = func_80089C08(arg0);
+        for (i = 0; i < 5; i++) {
+            D_800D3439[slot * 0x40 + i] = D_800D2CA4[i];
+        }
+        pBuf = D_800C3EAC + (arg0 & 0xFF) * 0x40;
+        if (D_800C48E8 & func_80089C08(pBuf[0x3C])) {
+            D_800D343E[slot * 0x40] = 1;
+        } else {
+            D_800D343E[slot * 0x40] = 0;
+        }
+    }
+}
+*/void func_80079934(u8** pCursor) {
     *pCursor += 4;
 }
 void func_80079948(u8** pCursor) {
