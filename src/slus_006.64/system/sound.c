@@ -1700,24 +1700,25 @@ void func_8003A2E4(s32 id, s32 value) {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003A344);
 /*
-Attempt (79.31%, correct size and registers): the only difference is that gcc
-schedules the `andi a0,0xfe` / `xori a0,0x8` pair after the loop-preheader
-constants (`li a2,2`, `sll a1,a1,8`, `li a3,0x100`) while the original emits
-them first. Everything else - including the second pointer to status_flags -
-matches. Stable against declaration order and against a statement-per-line form,
-against cnt/volume/status written as pre-loop locals in source order (gcc emits
-the mask glued to the address expression, so it can never precede them), and
-against gcc-2.7.2-psx (72.03%).
+Attempt (79.31%, 116 bytes - same size): every instruction matches and is in the
+original's order except that gcc emits the `andi a0,0xFE` / `xori a0,0x8` index pair
+directly before the index*0x158 multiply chain, where the original emits it first,
+before the loop-invariant constants (`li a2,2`, `sll a1,a1,8`, `li a3,0x100`).
+gcc folds the whole index expression into the address computation, so writing the
+index as a separate first statement, as `elementIndex &= 0xFE; elementIndex ^= 8;`,
+as an inline expression, or leaving `value << 8` / `0x100` as loop-body literals
+(which loop.c then hoists) all give the identical instruction stream (79.31%).
 void func_8003A344(s32 elementIndex, s32 value) {
     s32 index = (elementIndex & 0xFE) ^ 8;
-    AudioElement* pElement = &D_800595D8->elements[index];
-    s32 volume = value << 8;
     u32 cnt = 2;
+    s32 volume = value << 8;
+    s32 status = 0x100;
+    AudioElement* pElement = &D_800595D8->elements[index];
 
     do {
         if (pElement->active_flag & 0x1) {
             pElement->unk_0x76 = volume;
-            pElement->status_flags = 0x100;
+            pElement->status_flags = status;
         }
         pElement++;
         cnt--;
@@ -3454,17 +3455,23 @@ u8* func_8003DEB4(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003DEE4);
 /*
-Attempt (76.59%, 80 bytes vs the original's 88): every instruction is present; gcc keeps
-pScript in a0 (so no entry `move a1,a0`), loads pScript[0] before pScript[1], and puts the
-u16-to-s32 promotion of `frames` in a3 where the original puts it in a0 (which is why the
-original has to move pScript out of a0 at entry: the div takes its divisor in a0 and the
-quotient lands back in a0). Declaration order current/target/frames plus a separate
-`step` local for the quotient (assigned before the stores, stored last) reproduces the
-original's store order exactly - the previous parked attempt used the same shape inline.
+Attempt (76.59%, 80 bytes vs the original's 88): the shape is now exact - the raw
+unk_0x74 load, then pScript[1], then pScript[0], the shift pair as its own statement,
+the u16 frames used as the branch test (andi), delta = target - current first in the
+body (so reorg can fill the frames branch's delay slot), and the store order
+0x92/0x98/0x04/0x90. What is left is one load placement: gcc sinks `lb target` past
+the andi (emitting it right before the branch) and then allocates delta in a1 with the
+divisor in a3, where the original keeps target in v1, the promoted divisor in a0 and
+the quotient back in a0 (which is also why the original starts with `move a1,a0`).
+Tried: target/frames in both declaration orders, s8/s32 target, delta computed before
+the if (73.86% - correct load order, but the subu then precedes the andi), raw volume
+with the shift at the point of use (52.73%), inline expression form. Declaring current
+before the two byte loads puts the shifts before them (76.59% again).
 u8* func_8003DEE4(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
-    s32 current = (s8)(pAudioElements->unk_0x74 >> 8);
-    s32 target = (s8)pScript[1];
+    s32 volume = pAudioElements->unk_0x74;
     u16 frames = pScript[0];
+    s32 target = (s8)pScript[1];
+    s32 current = (s8)(volume >> 8);
     s32 delta;
     s32 step;
 
@@ -3674,14 +3681,15 @@ u8* SoundScriptNop5(u8* pScript, AudioManager* pAudioManager, AudioElement* pAud
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003E360);
 /*
-Attempt (94.84%, same size; was 93.38%): the s-register assignment is now RIGHT
-(pScript s1, pAudioElements s2, envelope s0, index s3). What fixed it: increment
-pScript inside the body (`pScript += 1;`) and return pScript, instead of
-`return pScript + 1;`. Only delta left: the original emits `addiu s1,s1,1` followed
-by `move v0,s1` for the return; gcc writes the increment straight into v0 (the
-FUNCTION_VALUE preference wins the pseudo) and then shuffles v1/a0 through the
-unk_0xCE read-modify-write. Moving the increment before/after the flags store and the
-unk_0xCE store does not change it.
+Attempt (94.84%, same size): the s-register assignment is RIGHT (pScript s1,
+pAudioElements s2, envelope s0, index s3) because pScript is incremented inside the
+body (`pScript += 1;` + `return pScript;`) instead of `return pScript + 1;`. Only
+delta left is the allocator coalescing the increment into the function-value register:
+gcc emits `addiu v0,s1,1` and then runs the flags/unk_0xCE read-modify-write through
+v1/a0, where the original increments in place (`addiu s1,s1,1`), uses v0 only for the
+flags temp, and copies the result at the end (`move v0,s1`). Moving the increment
+before/after the flags store and the unk_0xCE store does not change it; `return
+++pScript` and a separate pNext local both make the coalescing worse.
 u8* func_8003E360(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     u8 index = pScript[0];
     AudioEnvelope* pEnvelope = &pAudioElements->envelopes[index];
