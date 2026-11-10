@@ -5,6 +5,7 @@
 extern void func_801CE198(s32 count, SVECTOR* pVertices, POLY_FT4* pPolys, u_char renderContext);
 extern void func_801D12D4(MenuCharacter* pCharacter, s32 flag);
 extern void func_801CE2B4(u_char length, void* pPolys, u_char renderContext);
+extern void func_801D0954(SVECTOR* pVertices, POLY_FT4* pPolys, s32 polyIndex, s32 otIndex);
 extern void func_801D09F0(s32 menuIndex, u_char hasScrollBar);
 
 extern void func_801CF308(void);
@@ -37,6 +38,53 @@ extern void func_801D17C4(void);
 extern void func_801D1914(void);
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc5", func_801D09F0);
+/* Best attempt: 94.75%. Only the AddPrim argument setup differs (the original
+   puts addiu 0x70 on the zIndex product and addu pGfxEnv last).
+void func_801D09F0(s32 menuIndex, u_char hasScrollBar) {
+    MenuWindow* pWindow;
+    s32 i;
+    long interpolated;
+    long flag;
+
+    pWindow = g_Menu->windows[menuIndex];
+    for (i = 0; i < 4; i++) {
+        func_801D0954(&pWindow->vertsWindowBorderCorners[i * 4], &pWindow->polysWindowBorderCorners[i * 2],
+                      pWindow->renderContext, pWindow->zIndex);
+    }
+    if (hasScrollBar & 0xFF) {
+        for (i = 0; i < 2; i++) {
+            func_801D0954(&pWindow->vertsScrollBarEnds[i * 4], &pWindow->polysScrollBarEnds[i * 2],
+                          pWindow->renderContext, pWindow->zIndex);
+        }
+        func_801D0954(&pWindow->vertsScrollBarEmpty[0], &pWindow->polysScrollBarEmpty[0], pWindow->renderContext,
+                      pWindow->zIndex);
+    }
+    func_801D0954(&pWindow->vertsWindowBorderTop1[0], &pWindow->polysWindowBorderTop[0], pWindow->renderContext,
+                  pWindow->zIndex);
+    func_801D0954(&pWindow->vertsWindowBorderTop2[0], &pWindow->polysWindowBorderTop[2], pWindow->renderContext,
+                  pWindow->zIndex);
+    func_801D0954(&pWindow->vertsWindowBorderBottom1[0], &pWindow->polysWindowBorderBottom[0],
+                  pWindow->renderContext, pWindow->zIndex);
+    func_801D0954(&pWindow->vertsWindowBorderBottom2[0], &pWindow->polysWindowBorderBottom[2],
+                  pWindow->renderContext, pWindow->zIndex);
+    func_801D0954(&pWindow->vertsWindowBorderLeft1[0], &pWindow->polysWindowBorderLeft[0], pWindow->renderContext,
+                  pWindow->zIndex);
+    func_801D0954(&pWindow->vertsWindowBorderLeft2[0], &pWindow->polysWindowBorderLeft[2], pWindow->renderContext,
+                  pWindow->zIndex);
+    func_801D0954(&pWindow->vertsWindowBorderRight1[0], &pWindow->polysWindowBorderRight[0],
+                  pWindow->renderContext, pWindow->zIndex);
+    func_801D0954(&pWindow->vertsWindowBorderRight2[0], &pWindow->polysWindowBorderRight[2],
+                  pWindow->renderContext, pWindow->zIndex);
+    RotTransPers4(&pWindow->vertsBackground[0], &pWindow->vertsBackground[1], &pWindow->vertsBackground[2],
+                  &pWindow->vertsBackground[3], (long*)&pWindow->polysBackground[pWindow->renderContext].x0,
+                  (long*)&pWindow->polysBackground[pWindow->renderContext].x1,
+                  (long*)&pWindow->polysBackground[pWindow->renderContext].x2,
+                  (long*)&pWindow->polysBackground[pWindow->renderContext].x3, &interpolated, &flag);
+    AddPrim((void*)((u32)g_Menu->pGfxEnv + (0x70 + pWindow->zIndex * sizeof(u32))),
+            &pWindow->polysBackground[pWindow->renderContext]);
+    AddPrim((void*)((u32)g_Menu->pGfxEnv + (0x70 + pWindow->zIndex * sizeof(u32))),
+            &pWindow->drawModes[pWindow->renderContext]);
+}*/
 void func_801D0C78(void) {
     s32 i;
     SVECTOR rot;
@@ -266,7 +314,40 @@ void func_801D14FC(void) {
                       ((u8*)g_Menu->unk42C)[0x117D]);
     }
 }
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc5", func_801D1640);
+void func_801D1640(void) {
+    u32 offset;
+    s32 i;
+    u32 offset2;
+    u32 offset3;
+
+    if (g_Menu->pManager->unk4A[0] == 0) {
+        return;
+    }
+    for (i = 0, offset2 = 0x700; i < 14; i++, offset2 += sizeof(MenuString)) {
+        if (((u8*)((u32)g_Menu->unk430 + i))[0x1084]) {
+            offset = i * sizeof(MenuString);
+            func_801CE198(1, (SVECTOR*)(offset + (u32)g_Menu->unk430 + 0x50),
+                          (POLY_FT4*)(offset + (u32)g_Menu->unk430),
+                          ((u8*)(offset + (u32)g_Menu->unk430))[0x7D]);
+            func_801CE198(1, (SVECTOR*)(offset2 + (u32)g_Menu->unk430 + 0x50),
+                          (POLY_FT4*)(offset2 + (u32)g_Menu->unk430),
+                          ((u8*)((u32)g_Menu->unk430 + offset))[0x77D]);
+        }
+    }
+    if (((u8*)g_Menu->unk430)[0x1092]) {
+        func_801CE198(1, (SVECTOR*)((u32)g_Menu->unk430 + 0xE50), (POLY_FT4*)((u32)g_Menu->unk430 + 0xE00),
+                      ((u8*)g_Menu->unk430)[0xE7D]);
+        func_801CE198(1, (SVECTOR*)((u32)g_Menu->unk430 + 0xED0), (POLY_FT4*)((u32)g_Menu->unk430 + 0xE80),
+                      ((u8*)g_Menu->unk430)[0xEFD]);
+        for (i = 0, offset3 = 0xF00; i < 2; i++, offset3 += sizeof(MenuString)) {
+            func_801CE198(1, (SVECTOR*)(offset3 + (u32)g_Menu->unk430 + 0x50),
+                          (POLY_FT4*)(offset3 + (u32)g_Menu->unk430),
+                          ((u8*)((u32)g_Menu->unk430 + (i << 7)))[0xF7D]);
+        }
+    }
+    func_801CE198(1, (SVECTOR*)((u32)g_Menu->unk430 + 0x1050), (POLY_FT4*)((u32)g_Menu->unk430 + 0x1000),
+                  ((u8*)g_Menu->unk430)[0x107D]);
+}
 void func_801D17C4(void) {
     s32 i;
     u32 offset2;
@@ -297,7 +378,39 @@ void func_801D17C4(void) {
     }
 }
 
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc5", func_801D1914);
+void func_801D1914(void) {
+    u32 offset;
+    s32 i;
+    u32 offset2;
+    u32 offset3;
+    u32 offset4;
+
+    if (g_Menu->pManager->unk4A[3] == 0) {
+        return;
+    }
+    for (i = 0, offset2 = 0x680; i < 13; i++, offset2 += sizeof(MenuString)) {
+        if (((u8*)((u32)g_Menu->unk438 + i))[0x2596]) {
+            offset = i * sizeof(MenuString);
+            AddPrim(&g_Menu->pGfxEnv->ot[4],
+                    (POLY_FT4*)(offset + (u32)g_Menu->unk438 +
+                                ((u8*)(offset + (u32)g_Menu->unk438))[0x7D] * sizeof(POLY_FT4)));
+            AddPrim(&g_Menu->pGfxEnv->ot[4],
+                    (POLY_FT4*)(offset2 + (u32)g_Menu->unk438 +
+                                ((u8*)((u32)g_Menu->unk438 + offset))[0x7D] * sizeof(POLY_FT4)));
+        }
+    }
+    func_801CE198(1, (SVECTOR*)((u32)g_Menu->unk438 + 0xD50), (POLY_FT4*)((u32)g_Menu->unk438 + 0xD00),
+                  ((u8*)g_Menu->unk438)[0xD7D]);
+    for (i = 0, offset4 = 0x21D0, offset3 = 0xD80; i < 13; offset3 += 0x190, i++, offset4 += 0x48) {
+        func_801CE2B4(((u8*)((u32)g_Menu->unk438 + i))[0x257C], (void*)(offset3 + (u32)g_Menu->unk438),
+                      ((u8*)((u32)g_Menu->unk438 + i))[0x2589]);
+        if (((u8*)((u32)g_Menu->unk438 + i))[0x25A3]) {
+            AddPrim(&g_Menu->pGfxEnv->ot[4],
+                    (POLY_G4*)(offset4 + (u32)g_Menu->unk438 +
+                               ((u8*)((u32)g_Menu->unk438 + i))[0x25B0] * sizeof(POLY_G4)));
+        }
+    }
+}
 void func_801D1AAC(void) {
     s32 i;
 
