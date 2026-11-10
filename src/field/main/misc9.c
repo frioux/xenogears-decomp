@@ -636,6 +636,14 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc9", func_800AC99C);
    sprite walkers (t1 accumulator for the addPrim lvalue, t2 accumulator for
    getaddr), so keep it; the gap is gcc hoisting only one of the two mask
    constant pairs and spilling the counter and the 0x50*other offset.
+   Later round: the original DOES hoist the four y0 stores above the inner loop
+   (four sh at 0x6A/0x7E/0x92/0xA6 straight after the lh), so four explicit
+   stores are the right shape, but that variant scores only 80.34% (512 bytes,
+   8 short): gcc then hoists t5+ctx*0x50 once per block where the original
+   re-forms it with addu inside the inner loop, and the extra live base adds an
+   s0 spill and an 8-byte frame the original does not have. The load must stay
+   lh: `short y = x & 0xFF` compiles to lhu and `u_char y` to lbu, so a
+   sign-dependent use of the loaded y0 is still missing from every shape tried.
 typedef struct {
     DR_MODE drModes[2][4]; // 0x0
     SPRT sprites[2][4];    // 0x60
