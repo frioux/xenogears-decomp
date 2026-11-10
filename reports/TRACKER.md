@@ -1846,3 +1846,26 @@ Other banked facts:
 - A worker found `func_80073F34` (battling/misc2) is 97.87% but 428 bytes against retail's
   432, so it is **not** linkable and must stay `INCLUDE_ASM` - the size check is why the
   check_bin gate exists.
+
+| 17 | `battle/{misc8,16,9,12,19,1,3}`, `menu/{misc6,9,10,11}`, `field/{misc3,misc4}`, `world_map/misc14` | +13 | 1558 | battle/misc12 1, misc19 1, misc3 1, menu/misc6 1, plus 9 from truncated reports; the indexed-loop idiom paid again (`battle/misc3`'s `func_80077364`: `POLY_FT4 *p` + `p[i]` **and** a function-scope `s32 offset` assigned at first use inside the loop) |
+
+### Round 17: one idiom, and one hazard that cost a worker its whole gate run
+
+The indexed-loop idiom from round 16 generalised: `battle/misc3`'s `func_80077364` needed
+`POLY_FT4 *p` + `p[i]` **and** a function-scope `s32 offset;` assigned at its first use
+*inside* the loop body (not declaration-initialised, which puts the multiply before the
+hoisted `li s3,0xFF`, and not inlined, which flips the `addu` operands). Both halves are
+load-bearing; `p->field; p++` re-bases the induction register and `99.67%` is the best you
+get without both.
+
+**Hazard, now recorded:** an *unclosed* `/*` inside a parked attempt silently hides every
+following `INCLUDE_ASM` line from splat, because splat strips comments before looking for
+them. Those functions then land in the *matchings* directory and the unit silently loses
+their bytes - `battle/misc8`'s worker lost a whole gate run to it. `lint_sources.py` does
+not catch this; the symptom is `check_bin.sh` failing with sizes that do not add up.
+
+**Preset lead, not yet usable:** `battle/main/misc1` would be a 2.6.0 unit
+(`func_800718BC` 100.0 vs 94.76, `func_800716D8` 100.0 vs 78.82) **except** that one
+already-matched function, `func_80071A38`, drops to 99.05 under 2.6.0. If that one function
+can be re-matched under 2.6.0 the unit flips and two parks become free matches - it is a
+single-register/delay-slot miss, which is the most tractable kind.
