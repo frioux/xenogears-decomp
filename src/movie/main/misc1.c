@@ -164,7 +164,66 @@ void func_80073328(POLY_G4* pPoly0, POLY_G4* pPoly1, s32 x, s32 y, s32 w, s32 h)
     setXY4(pPoly1, x, y, x + w, y, x, y + h, x + w, y + h);
 }
 
-INCLUDE_ASM("asm/movie/nonmatchings/main/misc1", func_800734B8);
+// The colour triplets live at a stride of 4 in the byte arrays splat labels, so
+// they are indexed with `i * 4`; the step/total counters are plain s32 arrays.
+void func_800734B8(u32* pOther, POLY_G4* pPoly, s32 x, s32 y, s32 w, s32 h) {
+    s32 i;
+    s32 r;
+    s32 g;
+    s32 b;
+
+    pPoly->x0 = x;
+    pPoly->y0 = y;
+    pPoly->y1 = y;
+    pPoly->x2 = x;
+    pPoly->x1 = x + w;
+    pPoly->y2 = y + h;
+    pPoly->x3 = x + w;
+    pPoly->y3 = y + h;
+
+    for (i = 0; i < 4; i++) {
+        if (++D_80076FEC[i] > D_80076FFC[i]) {
+            D_80076FEC[i] = 0;
+            D_80076FFC[i] = (func_80074AF0() & 0xFF) + 0x20;
+            D_80076FCC[i * 4] = D_80076FDC[i * 4];
+            D_80076FCC[i * 4 + 1] = D_80076FDC[i * 4 + 1];
+            D_80076FCC[i * 4 + 2] = D_80076FDC[i * 4 + 2];
+            D_80076FDC[i * 4] = 0xFF;
+            D_80076FDC[i * 4 + 1] = 0xFF;
+            D_80076FDC[i * 4 + 2] = (func_80074AF0() & 0x3F) - 0x42;
+        }
+
+        r = (D_80076FDC[i * 4] - D_80076FCC[i * 4]) * D_80076FEC[i] / D_80076FFC[i] + D_80076FCC[i * 4];
+        g = (D_80076FDC[i * 4 + 1] - D_80076FCC[i * 4 + 1]) * D_80076FEC[i] / D_80076FFC[i] + D_80076FCC[i * 4 + 1];
+        b = (D_80076FDC[i * 4 + 2] - D_80076FCC[i * 4 + 2]) * D_80076FEC[i] / D_80076FFC[i] + D_80076FCC[i * 4 + 2];
+
+        switch (i) {
+        case 0:
+            pPoly->r0 = r;
+            pPoly->g0 = g;
+            pPoly->b0 = b;
+            break;
+        case 1:
+            pPoly->r1 = r;
+            pPoly->g1 = g;
+            pPoly->b1 = b;
+            break;
+        case 2:
+            pPoly->r2 = r;
+            pPoly->g2 = g;
+            pPoly->b2 = b;
+            break;
+        case 3:
+            pPoly->r3 = r;
+            pPoly->g3 = g;
+            pPoly->b3 = b;
+            break;
+        }
+    }
+
+    *(u32*)pPoly = (*(u32*)pPoly & 0xFF000000) | (*pOther & 0x00FFFFFF);
+    *pOther = (*pOther & 0xFF000000) | ((u32)pPoly & 0x00FFFFFF);
+}
 
 INCLUDE_ASM("asm/movie/nonmatchings/main/misc1", func_800737EC);
 
