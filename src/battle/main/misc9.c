@@ -8,6 +8,13 @@ extern u8 *D_800D3364;
 extern u8 D_800D3410[];
 extern u8 D_800D3420[];
 extern u8 D_800D3430[];
+extern u8 D_800C3EB7[];
+extern u8 D_800CCD62[];
+extern u8 D_800CD1B2[];
+extern u8 D_800D32A1[];
+extern u8 D_800D32B1[];
+extern u8 D_800D32F1[];
+extern u8 D_800C3EB4[];
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007D8C0);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007DA1C);
@@ -15,7 +22,16 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007DB78);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007DCF8);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007DE78);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007DFD4);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007E154);
+void func_8007E154(u8 **arg0, s32 arg1) {
+    s32 idx = (arg1 & 0xFF) + 3;
+
+    D_800C3EB7[idx * 0x1C] = (*arg0)[1];
+    if ((*arg0)[1] & 0x80) {
+        func_80087EDC((u8)(arg1 + 3), (u8)(arg1 + 3));
+    } else {
+        func_800883AC((u8)(arg1 + 3));
+    }
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007E1D0);
 /* best: 99.40%. The call must come first in source order, otherwise gcc hoists
    the D_800D3420 row base above the jal (43.88%). Only remaining difference:
@@ -28,8 +44,98 @@ void func_8007E1D0(u8 **arg0, u8 arg1) {
 
     pField[p[1]] = value;
 } */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007E234);
+void func_8007E234(u8 **arg0, u8 arg1) {
+    s32 acc = 0;
+    s32 i;
+    u16 *pRow;
+
+    // the slot table is walked downwards from D_800D32B1
+    for (i = 2; i >= 0; i--) {
+        if ((u8)func_8007A744((u8)i) != 0) {
+            switch ((*arg0)[2]) {
+            case 1:
+                if (D_800D32B1[(i - 2) * 8] != 0) {
+                    acc |= 1;
+                }
+                break;
+            case 2:
+                if (D_800D32B1[(i - 2) * 8] == 0) {
+                    acc |= 1;
+                }
+                break;
+            default:
+                acc |= 1;
+                break;
+            }
+        }
+        acc <<= 1;
+    }
+    pRow = (u16 *)(D_800D3420 + arg1 * 0x40);
+    pRow[(*arg0)[1]] = (u16)acc >> 1;
+}
+/* best: 95.31%. Same family as func_8007E234 (walk the slot table downwards,
+   `(i - 0xA) * 8` keeps D_800D32F1 as the base symbol). Only difference: the
+   original doubles the accumulator into a temp and copies it back (sll a1,s0,1
+   / move s0,a1) and reuses a1 for the final shift, gcc does it in place
+   (sll s0,s0,1). Tried: acc*=2, acc=acc*2, acc=2*acc, acc=acc+acc,
+   next=acc*2;acc=next, doubling in the for-increment clause (91.06%).
+void func_8007E334(u8 **arg0, u8 arg1) {
+    s32 acc = 0;
+    s32 i;
+    u16 *pRow;
+
+    // the slot table is walked downwards from D_800D32F1
+    for (i = 0xA; i >= 3; i--) {
+        if ((u8)func_8007A744((u8)i) != 0) {
+            switch ((*arg0)[2]) {
+            case 1:
+                if (D_800D32F1[(i - 0xA) * 8] != 0) {
+                    acc |= 1;
+                }
+                break;
+            case 2:
+                if (D_800D32F1[(i - 0xA) * 8] == 0) {
+                    acc |= 1;
+                }
+                break;
+            default:
+                acc |= 1;
+                break;
+            }
+        }
+        acc *= 2;
+    }
+    pRow = (u16 *)(D_800D3420 + arg1 * 0x40);
+    pRow[(*arg0)[1]] = acc << 2;
+} */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007E334);
+/* best: 80.63%. The record table takes an explicit byte offset
+   (D_800C3EB4[offset], offset from 0x38 stepping -0x1C): that is the only form
+   that reproduces the original's two `lui at / addu at / lbu %lo(at)` loads and
+   the `li s2,0x38` prologue. Remaining: gcc splits the row base into
+   `(arg1 & 0xFF) << 6` plus a hoisted `&D_800D3420` (the original keeps the
+   whole sum in s4) and hoists a third symbol base, so the frame grows to 0x38.
+   Tried: row base as a pRow local (77.49%, gcc CSEs it with the store's), row
+   base inline + pRow local for the store (80.63%).
+void func_8007E438(u8 **arg0, u8 arg1) {
+    s32 acc = 0;
+    s32 offset = 0x38;
+    s32 i;
+    u16 *pRow;
+
+    for (i = 2; i >= 0; i--) {
+        if ((u8)func_8007A744((u8)i) != 0) {
+            if (D_800C3EB4[(u8)func_80079E7C(*(u16 *)(D_800D3420 + arg1 * 0x40 + (*arg0)[2] * 2)) * 0x1C] ==
+                D_800C3EB4[offset]) {
+                acc |= 1;
+            }
+        }
+        acc <<= 1;
+        offset -= 0x1C;
+    }
+    pRow = (u16 *)(D_800D3420 + arg1 * 0x40);
+    pRow[(*arg0)[1]] = (u16)acc >> 1;
+} */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007E438);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007E554);
 void func_8007E674(u8 arg0) {
@@ -82,6 +188,27 @@ void func_8007E7C0(u8 **arg0) {
 
     *(u16 *)(D_800D3278 + p[1] * 2 + 0x394) = p[2];
 }
+/* best: 96.50%. Structure found: do-while with the pointer compared as a SIGNED
+   int (a u16* compare gives sltu, the original has slt), and the flag tested as
+   `(u8)flag` so it is truncated at each of the two test sites. Only remaining
+   difference: gcc fuses the truncation into the preheader (`andi s2,v0,0xff`)
+   and drops the copy at the loop back edge, the original keeps the untruncated
+   value in s2 (`move s2,v0; andi v0,s2,0xff`) and re-emits the andi in the
+   bnez delay slot. Tried: u8 flag (94.60%), s32+cast (96.50%), flag&0xFF
+   (94.60%), u8 copy inside the loop (96.50%).
+void func_8007E7E4(u8 **arg0) {
+    s32 flag = (*arg0)[2] != 0;
+    s32 addr = (s32)D_800CCD62;
+
+    do {
+        if ((u8)flag) {
+            *(u16 *)addr |= func_80089BEC((u8)((*arg0)[1] + 7));
+        } else {
+            *(u16 *)addr &= ~func_80089BEC((u8)((*arg0)[1] + 7));
+        }
+        addr += 0x170;
+    } while (addr < (s32)D_800CD1B2);
+} */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007E7E4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007E8AC);
 /* best: 95.38%. Identical instruction multiset and instruction order; only the
