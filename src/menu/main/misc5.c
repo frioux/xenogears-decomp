@@ -157,7 +157,7 @@ void func_801D1030(void) {
 }
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc5", func_801D10DC);
-/* Best attempt: 99.39%. Draws the six records at Menu+0x18E0 (array element 2 of
+/* Best attempt: 99.70% under gcc-2.6.0, 99.39% under Default. Draws the six records at Menu+0x18E0 (array element 2 of
    unk17E0) but every add is one operand order off: the original addu a3,v1,a2
    (base + index) where this emits addu a3,a2,v1. Writing the address as
    g_Menu->unk17E0[2 + i] makes gcc strength-reduce the i+2 induction variable
@@ -208,9 +208,14 @@ void func_801D11F0(void) {
 }
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc5", func_801D1258);
-/* Best attempt: 99.35%. The original emits addu a1,a1,v0 (offset + base) where
-   this emits addu a1,v0,a1 (base + offset); the registers holding the two values
-   are otherwise identical, as is the whole 24 and 12 byte index chain.
+/* 100.00% under gcc-2.6.0, 99.35% under this unit's Default 2.7.2 (see
+   PRESET_260: the only difference is addu a1,a1,v0 vs addu a1,v0,a1, which is
+   gcc 2.7.2 canonicalising the commutative operands). Uncomment with the 2.6.0
+   preset and it links as is. Under 2.7.2 the original emits addu a1,a1,v0
+   (offset + base) where this emits addu a1,v0,a1 (base + offset); the registers
+   holding the two values are otherwise identical, as is the whole 24 and 12 byte
+   index chain. Tried under 2.7.2: offset locals (82.26%), pointer locals for the
+   two arrays (78.58%) - no source shape beats the operand canonicalisation.
 void func_801D1258(void) {
     AddPrim(&g_Menu->pGfxEnv->ot[8], &g_Menu->unk348->polysDimEffect[g_Menu->renderContext]);
     AddPrim(&g_Menu->pGfxEnv->ot[8], &g_Menu->unk348->drawModeDimEffect[g_Menu->renderContext]);
