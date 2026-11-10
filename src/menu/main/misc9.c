@@ -8,6 +8,7 @@
 extern u8 D_801EA548[];
 extern u8 D_801EA558[];
 extern u16 D_801EA724;
+extern u8 D_801EA730[];
 extern s32 D_801EA728;
 extern u16 D_801EA72C;
 extern u8 D_801E9EA0[];
@@ -231,8 +232,74 @@ void func_801DE474(u_char arg0, u_char arg1) {
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DE5CC);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DF0D4);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DF5D0);
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DF890);
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DFB68);
+void func_801DF890(u_char arg0, u_char arg1) {
+    s32 i;
+
+    if (arg1 == 0) {
+        for (i = 0; i < 5; i++) {
+            g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].unk6A[i] =
+                ((u8*)g_Menu->unk360 + i)[0x29C];
+            g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].unk6F[i] =
+                ((u8*)g_Menu->unk360 + i)[0x2A1];
+        }
+        for (i = 0; i < 3; i++) {
+            g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].unk74[i] =
+                ((u8*)g_Menu->unk360 + i)[0x2A6];
+        }
+    } else {
+        for (i = 0; i < 4; i++) {
+            g_GameState.gears[g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].gearId].weaponId[i] =
+                ((u8*)g_Menu->unk360 + i)[0x29C];
+            g_GameState.gears[g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].gearId].unk4[i] =
+                ((u8*)g_Menu->unk360 + i)[0x2A1];
+        }
+        for (i = 0; i < 3; i++) {
+            g_GameState.gears[g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].gearId].accessorySlots[i] =
+                ((u8*)g_Menu->unk360 + i)[0x2A6];
+        }
+    }
+}
+void func_801DFB68(u_char arg0, s32 arg1, s32 arg2, s32 arg3, u_char arg4, u_char arg5) {
+    if (arg5 == 0) {
+        if (arg4 == 0) {
+            if (arg1 == 0) {
+                g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].unk6A[0] =
+                    D_801EA730[arg3 + arg2];
+            } else {
+                if (arg1 < 0) {
+                    return;
+                }
+                if (arg1 > 3) {
+                    return;
+                }
+                g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].unk74[arg1 - 1] =
+                    D_801EA730[arg3 + arg2];
+            }
+        } else {
+            g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].unk6F[arg1] =
+                D_801EA730[arg3 + arg2];
+        }
+    } else {
+        if (arg4 == 0) {
+            if (arg1 == 0) {
+                g_GameState.gears[g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].gearId]
+                    .weaponId[0] = D_801EA730[arg3 + arg2];
+            } else {
+                if (arg1 < 0) {
+                    return;
+                }
+                if (arg1 > 3) {
+                    return;
+                }
+                g_GameState.gears[g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].gearId]
+                    .accessorySlots[arg1 - 1] = D_801EA730[arg3 + arg2];
+            }
+        } else {
+            g_GameState.gears[g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].gearId]
+                .unk4[arg1] = D_801EA730[arg3 + arg2];
+        }
+    }
+}
 void func_801DFE2C(u_char arg0) {
     u8 charId;
 
