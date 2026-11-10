@@ -363,4 +363,54 @@ void func_80096694(void) {
     } while (func_80096668() != 0);
 }
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc14", func_800966CC);
+
+typedef struct {
+    /* 0x0 */ char* pName;
+    /* 0x4 */ s32 offset;
+    /* 0x8 */ s32 size;
+    /* 0xC */ char* pBuffer;
+} WorldMapLoadEntry; // Size: 0x10
+
+extern int PCopen(char* name, int flags, int perms);
+extern int PClseek(int fd, int offset, int mode);
+extern int PCread(int fd, char* buff, int len);
+extern int PCclose(int fd);
+extern s32 D_8009BE48;
+extern s32 D_8009CCA0;
+extern s32 D_8009CCA8;
+extern s32 D_8009CCB0;
+
+void func_800966CC(WorldMapLoadEntry* pEntry) {
+    s32 retry;
+    s32 fd;
+
+    D_8009BE48 = 0;
+    D_8009CCB0 = 0;
+    D_8009CCA8 = 0;
+    D_8009CCA0 = 0;
+    for (; pEntry->pName != NULL; pEntry++) {
+        retry = 0;
+        do {
+            fd = PCopen(pEntry->pName, 0, 0);
+            if (fd != -1) {
+                break;
+            }
+        } while (++retry < 8);
+        if (fd == -1) {
+            continue;
+        }
+        PClseek(fd, pEntry->offset, 0);
+        retry = 0;
+        do {
+            if (PCread(fd, pEntry->pBuffer, pEntry->size) != 0) {
+                break;
+            }
+        } while (++retry < 8);
+        retry = 0;
+        do {
+            if (PCclose(fd) == 0) {
+                break;
+            }
+        } while (++retry < 8);
+    }
+}
