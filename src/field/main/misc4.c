@@ -38,6 +38,12 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_80078BC8);
    compile to 144 bytes with `li v0,-1` re-materialised in every branch delay slot
    (78.38% for the first two), so the shape below is the closest; also 90.68%
    under every gcc-2.6.0/2.7.2/2.7.2-cdk -O1..-O3 -G4/-G8 combination.
+   The lone addiu v0,-1 sits in the ArchiveDataSync branch's delay slot, so it
+   also runs on the fall-through path; the three nops are that value simply not
+   being clobbered again. Every guard load lands in v0 in our compile and in v1
+   in the original, i.e. the -1 has to be live in v0 (a call-crossing constant in
+   a call-clobbered register); goto/label, a hoisted nResult and per-block -1 all
+   still rematerialise it per block (77-80%).
 extern int ArchiveDataSync(void);
 extern s32 D_800ADB2C;
 extern s32 D_800ADB34;
