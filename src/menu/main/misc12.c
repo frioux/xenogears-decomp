@@ -5,20 +5,6 @@
 #include "system/menu.h"
 
 extern u_char D_801EA8F4;
-extern void func_801E61B0(void);
-extern void func_801E68AC(u8* pEntry);
-extern void func_801E6AE8(u8 arg0, u8* pEntry);
-extern void func_801E6B70(u8 arg0, u8* pEntry);
-extern void func_801E6F5C(u8 arg0, u8* pEntry);
-extern void func_801E71B4(u8 arg0, u8* pEntry, s32 arg2);
-extern void func_801E733C(void);
-
-extern u8 D_801EA578[];
-extern u8 D_801EA5C4[];
-extern void* HeapAlloc(s32 size, u8 mode);
-extern void HeapFree(void* pBlock);
-extern int SystemRenderStringEntry(void* pCur, void* pCharBuffer, int mode, int flag);
-extern void bzero(void* pDst, s32 len);
 extern int Vsync(int mode);
 extern void ArchiveCdDataSync(int mode);
 extern u_char ArchiveCdSetMode(u_char mode);
@@ -38,6 +24,8 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E76EC);
 /* Best: 99.08%. Everything matches except gcc puts the loop counter `i` in
    s2 and the 0x87C accumulator in s3; retail has them the other way round.
    Declaration order, for-init form and u32/s32 all leave the pair swapped.
+   Needs externs for the func_801E6AE8/6B70/6CFC/6F5C/71B4 siblings and
+   func_801E61B0/68AC/733C.
 void func_801E76EC(s32 arg0) {
     u32 offset = 0;
     s32 i = 0;
@@ -103,7 +91,9 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E8DA8);
 /* Best: 99.51%. Every instruction matches except that retail emits the
    s0/a0 pair before the s3/a1 pair in the prologue; gcc copies the incoming
    params in the reverse order. The byte-cast table reads below are what
-   reproduce the original's `sll v1,s3,1; andi v1,v1,0x1FC`.
+   reproduce the original's `sll v1,s3,1; andi v1,v1,0x1FC` (both tables are
+   byte blobs; declare them as u8[]). Needs externs HeapAlloc, bzero,
+   SystemRenderStringEntry.
 void func_801E8DA8(u_char arg0, s32 arg1) {
     RECT rect;
     u8* pBuf;
