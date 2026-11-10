@@ -25,6 +25,7 @@ extern u8 *D_800D3368[];
 extern void func_800A9FF0(s32);
 extern void func_800AA934(void *, void *, void *, void *);
 extern void func_800BE790(void);
+extern void func_800B0D70(s16 *, u16 *);
 
 typedef struct BattleModelNode BattleModelNode;
 
@@ -193,6 +194,25 @@ s32 func_800B0AB4(s16 *pPos) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800B0B14);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800B0D70);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800B0FF4);
+/* 70.81%: the frame, the s16 vec[3] (element 1 unused, hence the 0x10/0x14
+   slots) and the two `div`s are right, but our output has no divide guards at
+   all: the original carries gcc's `bnez $v0; break 7` zero check and the
+   `li $at,0xFFFFFFFF` / `lui $at,0x80000000` / `break 6` range check around
+   each `div`, and none of them are emitted here (maspsx strips them?). Every
+   `break 7` in the repo is still in nonmatchings, so this looks preset-level,
+   not source-level. Only other diff: the second `mflo` lands in $a3, not $a0.
+void func_800B0FF4(u16 *pA, u16 *pB) {
+    s16 vec[3];
+    s32 len;
+
+    vec[0] = pA[0] - pB[0];
+    vec[2] = pA[2] - pB[2];
+    len = SquareRoot0(vec[0] * vec[0] + vec[2] * vec[2]) + 1;
+    vec[0] = (vec[0] << 9) / len;
+    vec[2] = (vec[2] << 9) / len;
+    func_800B0D70(vec, pB);
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800B10EC);
 s32 func_800B12D0(s32 arg0, s32 arg1) {
     s32 result = 0;
