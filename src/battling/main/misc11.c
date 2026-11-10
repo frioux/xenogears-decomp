@@ -35,6 +35,38 @@ typedef struct {
 
 extern BattlingEntry68 D_8009A988[];
 
+typedef union {
+    /* 0x0 */ u32 word;
+    /* 0x0 */ u8 bytes[4];
+} BattlingPacketWord;
+
+typedef struct {
+    /* 0x00 */ u8 pad0[0x3];
+    /* 0x03 */ u8 unk3;
+    /* 0x04 */ BattlingPacketWord unk4;
+    /* 0x08 */ u8 pad8[0x4];
+    /* 0x0C */ u16 unkC;
+    /* 0x0E */ u16 unkE;
+    /* 0x10 */ u8 pad10[0x4];
+    /* 0x14 */ u16 unk14;
+    /* 0x16 */ u16 unk16;
+    /* 0x18 */ u8 pad18[0x4];
+    /* 0x1C */ u16 unk1C;
+    /* 0x1E */ u8 pad1E[0x6];
+    /* 0x24 */ u16 unk24;
+    /* 0x26 */ u8 pad26[0x2];
+} BattlingPacket; // Size: 0x28
+
+typedef struct {
+    /* 0x0000 */ u8 pad0[0x1604];
+    /* 0x1604 */ BattlingPacket packet[2];
+} BattlingPacketOwner; // Size: 0x1654
+
+extern u16 D_800927D4;
+extern u16 D_800927D8;
+extern u8 D_800927DC;
+extern u8 D_800927E0;
+
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc11", func_80087068);
 
 void func_800875EC(void) {
@@ -84,7 +116,20 @@ void func_80087830(void) {
 */
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc11", func_800878DC);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc11", func_80087AB0);
+void func_80087AB0(BattlingPacketOwner *arg0) {
+    BattlingPacket *p = arg0->packet;
+
+    p->unk4.word = 0x2C101010;
+    p->unk3 = 9;
+    p->unk4.bytes[3] |= 2;
+    p->unkE = D_800927D8;
+    p->unk16 = D_800927D4;
+    p->unkC = D_800927DC | (D_800927E0 << 8);
+    p->unk14 = (D_800927DC + 0x3F) | (D_800927E0 << 8);
+    p->unk1C = D_800927DC | ((D_800927E0 + 0x3F) << 8);
+    p->unk24 = (D_800927DC + 0x3F) | ((D_800927E0 + 0x3F) << 8);
+    arg0->packet[1] = arg0->packet[0];
+}
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc11", func_80087B74);
 
