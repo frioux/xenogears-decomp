@@ -490,21 +490,96 @@ void func_8009B104(u8 arg0, u8* arg1) {
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009B1E4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009B46C);
+/* Best attempt: 93.87%. Every instruction from the `p[0x56] == 3` test onward
+   matches; the only difference is the D_800CCE42 access. The original re-forms
+   `lui at,%hi(D_800CCE42); addu at,at,idx; lbu %lo(at)` at BOTH references,
+   while gcc's loop.c hoists the symbol base into a register before the loop
+   (`lui t1; addiu t1` at function entry) and then does `addu v0,idx,t1;
+   lbu 0(v0)` -- 4 bytes larger, which shifts every branch target before the
+   second block. Same signature as the func_8009AEFC park (D_800CCD68) in this
+   unit, so it is a unit-wide compiler behaviour, not the source shape: tried
+   D_800CCE42[i*0x170], ((u32)i*0x170 + (u32)D_800CCE42) and gcc-2.7.2-cdk
+   (94.10%, no fix). Everything else -- the 3-iteration loop with its
+   strength-reduced 0x170 index, both compare pairs, the count accumulation, the
+   limit/drop tail and the rand()%100 test -- is exact.
+void func_8009B46C(u16* arg0) {
+    u8 count = 0;
+    u8 i;
+
+    for (i = 0; i < 3; i++) {
+        u8* p = (u8*)D_800C34B0 + i * 0x170;
+        u8* q = p + 0xA4;
+        u32 cur;
+        u32 max;
+
+        if (p[0x56] == 0) {
+            if (*(u8*)((u32)i * 0x170 + (u32)D_800CCE42) & 0x80) {
+                max = *(u32*)(p + 0x108);
+                cur = *(u32*)(p + 0x104);
+            } else {
+                max = *(u16*)(p + 0x4E);
+                cur = *(u16*)(p + 0x4C);
+            }
+            if (cur < (max >> 1)) {
+                count++;
+            }
+            if (cur < (max >> 2)) {
+                count++;
+            }
+        }
+        if (p[0x56] == 3) {
+            if (*(u8*)((u32)i * 0x170 + (u32)D_800CCE42) & 0x80) {
+                max = *(u32*)(q + 0x64);
+                cur = *(u32*)(q + 0x60);
+            } else {
+                max = *(u16*)(p + 0x4E);
+                cur = *(u16*)(p + 0x4C);
+            }
+            if (cur < (max >> 1)) {
+                count++;
+            }
+            if (cur < (max >> 2)) {
+                count++;
+            }
+        }
+    }
+    {
+        u32 limit = 0xA;
+        u16 f;
+        s32 drop;
+
+        if (count != 0) {
+            *arg0 = *arg0 + count * (*arg0 >> 1);
+        }
+        f = *(u16*)(D_800C3E00 + 0x32);
+        drop = (f & 0x400) ? 4 : 3;
+        if (f & 0x200) {
+            limit = 0x3C;
+        }
+        if (rand() % 100 < limit) {
+            *arg0 = (drop * *arg0) >> 1;
+        }
+    }
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009B684);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009BAC4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009BD94);
-/* Best attempt: 97.33%. Everything matches except the mfhi temp of the `/ 20`
-   expansion ($a1 instead of $v0) and the two registers that follow it; gcc also
-   puts the store-address base in $v1 and the index in $v0, the reverse of the
-   original. Reordering the store's add operands does not change it.
-   Also tried: a `u32 num` numerator local (83.67%) and a `u32* pDest` pointer
-   local, which CSEs the D_800C34B0 base and comes out 100 bytes (70.17%).
+/* Best attempt: matches every instruction up to the last 5, which are an
+   allocator permutation (index pseudo in $v0 vs the original's $v1, so the store
+   goes through $v0 and mfhi lands in $a1 vs $v0). objdiff scores the earlier
+   all-unsigned spelling of this expression 97.33% (it likes its instruction
+   multiset better), but THIS spelling is the shape-correct one: retail's first
+   product is `mult` (signed) and only the /20 is unsigned (`multu` by
+   0xCCCCCCCD + `srl 4`, no sign fixup), which only falls out of a signed product
+   cast to u32. With *(u32*)(D_800D2DC8 + 0x64) the multiply comes out `multu`
+   and the mult/multu pair is wrong. Also tried: `(u32)D_800C34B0 + idx * 4`
+   operand order (identical result), a u32 numerator local (83.67%), a u32*
+   destination pointer local (70.17%, CSEs the base).
 void func_8009BD94(void) {
-    u8* pBase = D_800C34B0;
-
-    *(u8*)(pBase + D_800C3E50 + 0x5FA0) = 2;
-    *(u32*)(D_800C3E50 * 4 + (u32)D_800C34B0 + 0x5F6C) =
-        (D_800C3DFC[0x11] * *(u32*)(D_800D2DC8 + 0x64)) / 20;
+    *(u8*)((u8*)D_800C34B0 + D_800C3E50 + 0x5FA0) = 2;
+    *(u32*)((u32)D_800C34B0 + D_800C3E50 * 4 + 0x5F6C) =
+        (u32)(D_800C3DFC[0x11] * *(s32*)(D_800D2DC8 + 0x64)) / 20;
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009BE0C);
