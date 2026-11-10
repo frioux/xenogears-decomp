@@ -20,6 +20,7 @@ extern u8 D_80092920;
 extern u8 D_80099D9D;
 extern u8 D_80099D9E;
 extern s32 D_80059488;
+extern s32 D_8009292C;
 extern u8* D_80092938;
 extern u8* D_80092784;
 
@@ -31,6 +32,8 @@ extern void func_8007F258(void* pOt, s32 arg);
 extern void func_80080D20(void* pOt);
 extern void func_8008E3CC(void* pOt, s32 arg1, s32 arg2);
 extern void func_8008BC04(void);
+extern void func_8003A838(s32 arg0, s32 arg1, s32 arg2);
+extern void func_8008E064(void);
 extern void func_80083BB4(s32 arg);
 extern void func_80083C0C(s32 arg);
 extern void func_8003852C(s32 arg);
@@ -72,6 +75,17 @@ typedef struct {
     /* 0x00 */ u8 unk00[0x310];
 } Misc10Prim; // Size: 0x310
 
+typedef struct {
+    /* 0x00 */ u8 unk00[0x04];
+    /* 0x04 */ u8* unk04;
+    /* 0x08 */ u8 unk08[0x04];
+    /* 0x0C */ u8* unk0C;
+} Misc10TagSrc; // Size: 0x10
+
+typedef struct {
+    /* 0x00 */ u32 unk00[0xA];
+} Misc10TagPair; // Size: 0x28
+
 extern Misc10Prim D_8009A300[];
 
 s32 func_80084A64(Misc10Actor* pActor) {
@@ -95,6 +109,33 @@ void func_80084AE0(void) {
 }
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_80084B48);
+
+/* 95.98% - one instruction off: the original sign-extends the decremented value
+   into its own register (`sll v0; sra a1,v0,0x10; bgtz a1`), ours lets combine
+   fold the sra into the branch (`sll v0; bgtz v0`), so the frame is 4 bytes of
+   layout off. Tried: `D_80092780 -= 4` + test the global, `x = x - 4` + test,
+   an s16 local for the store, an explicit (s16) cast, an int local read back.
+   All 95.98%.
+void func_80084B48(void) {
+    s16 timer;
+
+    if (D_80092780 != 0) {
+        timer = D_80092780 - 4;
+        D_80092780 = timer;
+        if ((s32)timer <= 0) {
+            D_80092780 = 0;
+            D_80092784 = 0;
+            func_8003A838(D_80092948, 0x100, 0);
+            D_8009292C = 0x100;
+            func_8008E064();
+        } else {
+            func_8008E3CC(D_80092938, 0, 1);
+        }
+    } else {
+        D_80092784 = 0;
+    }
+}
+*/
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_80084BEC);
 
@@ -232,6 +273,65 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_80085EC8);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_800864B4);
 
+/* 87.29% (556 vs 544 bytes). Structure below is right; left over: the s2/s3/s4
+   rotation (mode/scale/arg1 -- global-alloc tie-break), and `x + unk4 * scale`
+   must be hoisted into a local before the `scale == 2` if so gcc keeps the
+   `mult` and the two stores instead of strength-reducing *2 inside the arm.
+   Field access goes through u8* + offset because the two source structs
+   (p->unk04, p->unk0C) are read with mixed widths (lh/lbu/lhu at the same
+   offsets). The 0x28-byte tail copy is a struct assignment of a u32[0xA] type:
+   a u8[0x28] one makes gcc emit an alignment-check path, the original has none.
+void func_800864B4(Misc10TagSrc* p, s32 x, s32 y, u8* pOut, s32 mode) {
+    s32 scale;
+    u16 value;
+
+    switch (mode) {
+    case 0:
+        scale = 4;
+        break;
+    case 1:
+        scale = 2;
+        break;
+    case 2:
+        scale = 1;
+        break;
+    }
+
+    pOut[3] = 9;
+    pOut[7] = 0x2D;
+    *(u16*)(pOut + 0xE) = GetClut(*(s16*)(p->unk04 + 0), *(s16*)(p->unk04 + 2));
+    *(u16*)(pOut + 0x16) = GetTPage(mode, 0, *(s16*)(p->unk0C + 0), *(s16*)(p->unk0C + 2));
+    *(u16*)(pOut + 0x18) = x;
+    *(u16*)(pOut + 0x08) = x;
+    if (scale == 2) {
+        *(u16*)(pOut + 0x20) = x + *(s16*)(p->unk0C + 4) * scale + 1;
+    } else {
+        *(u16*)(pOut + 0x20) = x + *(s16*)(p->unk0C + 4) * scale;
+    }
+    value = *(u16*)(pOut + 0x20);
+    *(u16*)(pOut + 0x12) = y;
+    *(u16*)(pOut + 0x0A) = y;
+    *(u16*)(pOut + 0x20) = value;
+    *(u16*)(pOut + 0x10) = value;
+    value = *(u16*)(p->unk0C + 6) + y;
+    *(u16*)(pOut + 0x22) = value;
+    *(u16*)(pOut + 0x1A) = value;
+    value = *(s16*)(p->unk0C + 0) * scale;
+    pOut[0x1C] = value;
+    pOut[0x0C] = value;
+    value = (*(s16*)(p->unk0C + 0) + *(s16*)(p->unk0C + 4)) * scale;
+    pOut[0x24] = value;
+    pOut[0x14] = value;
+    value = *(u8*)(p->unk0C + 2);
+    pOut[0x15] = value;
+    pOut[0x0D] = value;
+    value = *(u8*)(p->unk0C + 2) + *(u8*)(p->unk0C + 6);
+    pOut[0x25] = value;
+    pOut[0x1D] = value;
+    *(Misc10TagPair*)(pOut + 0x28) = *(Misc10TagPair*)pOut;
+}
+*/
+
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_800866D4);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_800868E0);
@@ -244,8 +344,12 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_80086E70);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_80086FF8);
 
-/* 84.25% - the two value branches each re-materialise `li 0x28000000`; the
-   original shares one lui across the branch and keeps the 1 return in v0.
+/* 84.25% - the two value branches each re-materialise `li 0x28000000` (gcc
+   rematerialises the constant per branch); the original hoists one lui into
+   the beqz delay slot and keeps `ori v1,v1,imm` in each arm, plus the 1 return
+   in v0 (ours puts value in a0 and 5 in v1). Also tried: full constants in
+   each arm, `value = 0x28000000 | (c ? 0xFFFF : 0xFF)`, the ternary inside the
+   store, and `value |= c ? 0xFFFF : 0xFF` - all 84.25%.
 s32 func_80086FF8(s32 arg0, u8* pOut) {
     s32 value;
 
@@ -253,7 +357,11 @@ s32 func_80086FF8(s32 arg0, u8* pOut) {
         return 0;
     }
     value = 0x28000000;
-    value |= func_8008F530(arg0, 1) ? 0xFFFF : 0xFF;
+    if (func_8008F530(arg0, 1) != 0) {
+        value |= 0xFFFF;
+    } else {
+        value |= 0xFF;
+    }
     pOut[3] = 5;
     *(s32*)(pOut + 4) = value;
     return 1;
