@@ -1675,3 +1675,41 @@ Other blockable facts from this round: `battle/misc11` has **8 of 15** stubs tha
 reference a `jtbl_` (all blocked); `menu/misc9` has 4 of 21 at-free-unmatchable;
 `world_map/misc1`'s `func_80073398` and `battle/misc21`'s `func_800A0838` are
 jtbl-blocked. Every worker that hit a `jtbl_` stub correctly left it alone this round.
+
+| 11 | five more menu units (2.6.0 screen), `battle/{misc27,28,13,18}`, `world_map/{misc5,2}`, `battling/{misc9,16}` | +21 | 1616 | menu/misc9 2 (the stale park matched under `XenoMenu260`), menu/misc7 2, menu/misc12 1, menu/misc4 1, battle/misc28 3, misc27 1, plus the units whose reports were truncated; all eleven outputs OK |
+
+### Round 11: the menu overlay is mixed-preset, and cdk is the answer to the "dead" 95-99% class
+
+The `XenoMenu260` switch paid immediately: `menu/main/misc9`'s parked attempt
+`func_801DE29C` was already a match and only needed the compiler change, plus one new
+function. `menu/main/misc7` is **not** a 2.6.0 unit (`func_801D5A50` breaks from 100.0 to
+99.88), so menu is mixed like `battling` and `battle`: screen each unit, do not assume.
+
+**The big one.** A `battle/misc27` worker reproduced `func_800B5DC4` byte-identically
+under `gcc-2.7.2-cdk-psx` while the same C is 70.00% under the unit's 2.7.2, and found
+the mechanism: **2.7.2 emits `la sym` as a single macro** that maspsx expands to an
+adjacent `lui`/`addiu` pair, so reorg can never put the `addiu` in a `jal` delay slot;
+**cdk emits the two instructions as separate RTL**, so it can. That is precisely the
+"one instruction in the jal delay slot" family this repo has called an unsolvable
+allocator tie for three sessions. It was a compiler version, not a register allocation.
+
+The catch, measured here: presets are **per file**, and `battle/misc27` is *function*
+mixed under cdk - five of its parked bodies are 100% under cdk and three of its
+already-matched functions fall to 93.71 under it (`func_800B5854`). The cdk-only and
+2.7.2-only functions interleave in address order, so the `rendering_pause_text` TU-split
+trick cannot separate them either. Those five stay parked; the screen is still worth
+running on every unit that is *uniformly* cdk, which is what round 12 does for the units
+with the most 95-99% parks.
+
+Idioms banked this round:
+- `addu` operand order: writing an address as **integer** arithmetic with the offset
+  first (`(POLY_FT4*)(i * 0x50 + (s32)g_Menu->unk344)`) emits `addu a2,s0,a2`; every
+  pointer/array spelling canonicalises base-first.
+- A wide parameter truncated with an explicit `(u_char)` cast at each use emits the
+  `sw s0` / `move s0,a0` save pair in the opposite order from a narrow parameter
+  (`menu/misc12`'s `func_801E8DA8`, 99.51 -> 100%).
+- `u_char result = 1;` gives the byte-mode constant its own constant-pool entry, which
+  is how the original gets two `li 1`s (`menu/misc4`'s `func_801CD710`).
+- A worker's intermediate commit dropped three stubs by matching an `extern` prototype
+  line instead of the definition (`menu/misc4`); the tip repaired it, but
+  `lint_sources.py` does not catch a *missing* stub - `make check` does.
