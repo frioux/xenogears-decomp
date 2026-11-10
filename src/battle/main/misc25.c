@@ -7,6 +7,8 @@ extern u8 *D_800C3BAC[];
 extern s32 D_800C3BCC[];
 extern s32 D_800C3BEC;
 extern s32 D_800C3BF0;
+extern s32 D_800C360C;
+extern u8 D_800C4000[];
 extern void *D_800658C8;
 
 extern void HeapFree(void *pMem);
@@ -73,17 +75,20 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800AF438);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800AF518);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800AF678);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800AFA98);
-/* 89.22%: the loop is right, gcc picks an offset induction variable where the
-   original keeps a pointer one (base in a1 reloaded per iteration vs s0). A
-   pointer-local variant reaches 95.11% but starts at element 0, not 1.
+/* 96.44%: everything matches except the position of the loop's `i++`: gcc puts
+   it after the count reload, the original keeps it in the `bne`'s delay slot
+   (i.e. before the recursive call's argument setup).
 void func_800AFA98(BattleModel *pModel, BattleModelNode *pNode, s32 flags) {
+    BattleModelNode *pChild;
     s32 i;
 
     pNode->unk7 = flags & 1;
     if (flags & 0x80) {
+        pChild = pModel->pNodes;
         for (i = 1; i < pModel->pNodes->unkA; i++) {
-            if (pModel->pNodes[i].pParent == pNode) {
-                func_800AFA98(pModel, &pModel->pNodes[i], flags);
+            pChild++;
+            if (pChild->pParent == pNode) {
+                func_800AFA98(pModel, pChild, flags);
             }
         }
     }
@@ -165,7 +170,38 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800B0B14);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800B0D70);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800B0FF4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800B10EC);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800B12D0);
+s32 func_800B12D0(s32 arg0, s32 arg1) {
+    s32 result = 0;
+    s32 v;
+    u8 *pRow = &D_800C4000[(D_800C360C - 1) * 0x48];
+    u8 kind = pRow[arg0];
+
+    if (kind < 6) {
+        switch (kind) {
+        case 0:
+        case 1:
+            v = arg1 & 1;
+            break;
+        case 5:
+            v = arg1 & 2;
+            break;
+        case 4:
+            v = arg1 & 4;
+            break;
+        case 2:
+        case 3:
+            v = arg1 & 8;
+            break;
+        }
+        if (v == 0) {
+            result = 1;
+        }
+    }
+    if ((arg1 & 0xFF) == 0) {
+        result = 1;
+    }
+    return result;
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800B136C);
 void func_800B14B8(void) {
     D_800C3D6C = 1;
