@@ -41,6 +41,19 @@ extern s32 D_80098684;
 extern s32 D_8009871C;
 extern s32 D_80098720;
 extern s32 D_80098724;
+extern u8 D_800928C0;
+extern s32 D_80092A34;
+extern s32 D_80092A38;
+extern s32 D_80092A44;
+extern s32 D_80092A48;
+extern s32 D_80092A54;
+extern s32 D_80092A58;
+extern s32 D_80092A64;
+extern s32 D_80092A68;
+extern s32 D_8009872C;
+extern s32 D_80097010;
+extern s32 D_80099068;
+extern s32 D_8009794C;
 
 extern void func_800732CC(void);
 extern s32 rand(void);
@@ -369,16 +382,18 @@ void func_80079D08(Actor* p) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_80079D6C);
 
-/* Best attempt: 73.10%. gcc merges the 2nd and 3rd stores into one and CSEs the
-   p->unk15CC load; the original re-loads the pointer per statement and stores
-   three times. Third term is a bit-14 extract: original emits sll 17/slti/sll 19
-   where this gives sll 17/srl 31/sll 19.
+/* Best attempt: 91.03%. Everything matches except the third term: the original
+   materialises the bit-14 test as `sll 17; slti 0` while every source shape
+   tried here gives gcc's canonical `sll 17; srl 31` (a local, a u32 local, a
+   multiply, `!= 0` on the masked sign bit, and the direct expression all fold
+   the same way), and `li a1,-5` lands one slot earlier than the original.
 void func_80079D6C(Actor* p) {
-    u16 tmp = p->unk15CC->unk6;
+    u32 flag;
 
-    p->unkD0 = (p->unkD0 & 0xFFFFFFFB) | ((p->unk15CC->unkA >> 6) & 4);
-    p->unkD0 = (p->unkD0 & 0xFFFF7FFF) | ((tmp << 2) & 0x8000);
-    p->unkD0 = (p->unkD0 & 0xFFF7FFFF) | ((((u32)tmp << 17) >> 31) << 19);
+    p->unkD0 = (p->unkD0 & ~4) | ((p->unk15CC->unkA >> 6) & 4);
+    p->unkD0 = (p->unkD0 & 0xFFFF7FFF) | ((p->unk15CC->unk6 << 2) & 0x8000);
+    flag = ((p->unk15CC->unk6 << 17) & 0x80000000) != 0;
+    p->unkD0 = (p->unkD0 & 0xFFF7FFFF) | (flag << 19);
 }
 */
 
@@ -388,7 +403,22 @@ void func_80079DE0(void) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_80079DF0);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_8007A21C);
+void func_8007A21C(s32 unk0) {
+    if (unk0 < 0xFF) {
+        D_800928AC = unk0 - 2;
+        D_800928C0 -= unk0;
+    } else {
+        D_800928AC = 0xFF;
+    }
+    *(VECTOR*)&D_80092A34 = *(VECTOR*)&D_8009872C;
+    *(VECTOR*)&D_80092A44 = *(VECTOR*)&D_80097010;
+    *(VECTOR*)&D_80092A54 = *(VECTOR*)&D_80099068;
+    *(VECTOR*)&D_80092A64 = *(VECTOR*)&D_8009794C;
+    D_80092A68 = 0x100;
+    D_80092A58 = 0x100;
+    D_80092A48 = 0x100;
+    D_80092A38 = 0x100;
+}
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_8007A344);
 
@@ -417,10 +447,11 @@ void func_8007A730(Actor* p) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_8007A768);
 
-/* Best attempt: 92.44%. gcc reassociates `p->unk4 - 0x400 - D_80092670` into
-   `p->unk4 - (D_80092670 + 0x400)` (addiu on the loaded global) and hoists the
-   p->unk0 load above the D_80098680 store; the original keeps
-   addiu v1,v1,-0x400 then subu, in statement order.
+/* Best attempt: 92.44%. Only the D_80098680/D_8009867C/D_80098720 block differs:
+   post-reload scheduling batches the p->unk0 and D_80092670 loads ahead of the
+   D_80098680 store, and `p->unk4 - 0x400 - D_80092670` reassociates into
+   `p->unk4 - (D_80092670 + 0x400)` (addiu on the loaded global). A `y` local
+   keeps the addiu on p->unk4 but lengthens its live range and still batches.
 void func_8007A768(Actor* p) {
     ActorScript* pScript = p->unk8FC;
     s32 r;
@@ -433,7 +464,7 @@ void func_8007A768(Actor* p) {
     r = rand();
     D_80098680 = p->unk4;
     D_8009867C = p->unk0;
-    D_80098720 = p->unk4 - 0x400 - D_80092670;
+    D_80098720 = (p->unk4 - 0x400) - D_80092670;
     D_80098684 = p->unk8;
     D_8009871C = D_8009867C + (((rcos(r) << 2) * D_80092674) >> 12);
     D_80098724 = D_80098684 + (((rsin(r) << 2) * D_80092674) >> 12);
