@@ -22,6 +22,7 @@ extern u32 D_80059598;
 extern u8 D_80091934[];
 extern u8 *D_80092854;
 extern u8 *D_80092858;
+extern long MathGetLargestVectorComponent(long, long, long);
 extern void func_800732AC(void *, void *, s32);
 extern void func_80072D18(s32, s32, s32);
 
@@ -129,11 +130,43 @@ void func_80088308(void) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc11", func_8008832C);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc11", func_800884E0);
+void func_800884E0(VECTOR *arg0, VECTOR *arg1) {
+    VECTOR normal;
+    s32 sqrt;
+    s32 largestComponent;
+
+    normal = *arg0;
+    largestComponent = MathGetLargestVectorComponent(normal.vx, normal.vy, normal.vz);
+    if (largestComponent < 0) {
+        largestComponent = -largestComponent;
+    }
+    sqrt = SquareRoot0(largestComponent);
+    normal.vx = normal.vx / sqrt;
+    normal.vy = normal.vy / sqrt;
+    normal.vz = normal.vz / sqrt;
+    VectorNormal(&normal, arg1);
+}
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc11", func_8008859C);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc11", func_80088658);
+void func_80088658(SVECTOR *arg0, SVECTOR *arg1) {
+    VECTOR normal;
+    s32 sqrt;
+    s32 largestComponent;
+
+    normal.vx = arg0->vx;
+    normal.vy = arg0->vy;
+    normal.vz = arg0->vz;
+    largestComponent = MathGetLargestVectorComponent(normal.vx, normal.vy, normal.vz);
+    if (largestComponent < 0) {
+        largestComponent = -largestComponent;
+    }
+    sqrt = SquareRoot0(largestComponent);
+    normal.vx = normal.vx / sqrt;
+    normal.vy = normal.vy / sqrt;
+    normal.vz = normal.vz / sqrt;
+    VectorNormalS(&normal, arg1);
+}
 
 s32 func_800886FC(s32 *arg0) {
     long out[3];
