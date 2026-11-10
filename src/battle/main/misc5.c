@@ -37,23 +37,30 @@ u8 func_80079E7C(u16 arg0) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc5", func_80079ED8);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc5", func_8007A280);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc5", func_8007A628);
-u32 func_8007A6C8(u8 arg0, u8 arg1) {
+/* 99.12% - identical instruction sequence, only the two register choices
+   differ: the original keeps res in a2 and the row offset arg0*0x170 in v1
+   (sll v1,v0,4 / addu at,at,v1 / addu at,at,v1), ours puts res in v1 and the
+   offset in a0. Same body as func_8007A6C8 (which matches 100% with res in v1,
+   offset in a0), so the two differ only in allocation: this one needs res out of
+   v1. Tried: res declared before/after off, off/f as top-level declarations,
+   u32/u8 res. The u8 res is what produces the sltiu v0 + move (a2,v0) copy.
+u32 func_8007A628(u8 arg0, u8 arg1) {
+    s32 off;
+    u32 f;
     u8 res = 0;
 
-    if (D_800D2DCC[arg0] != 0) {
-        s32 off = arg0 * 0x170;
-
+    if (D_800D2DCC[arg0] != 0 && D_800C3EB7[arg0 * 0x1C] == 0) {
+        off = arg0 * 0x170;
         if ((*(u16 *)(D_800CCD64 + off) & 0xC002) == 0) {
             res = 1;
             if (arg1 == 0) {
-                u32 f = *(u16 *)(D_800CCD6C + off) & 0x20;
-
+                f = *(u16 *)(D_800CCD6C + off) & 0x20;
                 res = f == 0;
             }
         }
     }
     return res;
-}
+} */
 u32 func_8007A744(u8 arg0) {
     u8 res = 0;
 
@@ -105,18 +112,21 @@ void func_8007A900(u8 **arg0, u8 arg1) {
     pRow[p[1]] = p[2];
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc5", func_8007A92C);
-/* 84.67% - only the last addu is transposed: gcc forms ((idx*2 + base) + row)
-   where the original forms ((row + base) + idx*2), i.e. it emits
-   addu v0,v0,a1 (idx, rowbase) after addu a1,a1,v1 (row, base). The base is
-   formed after the value here, which is right. 28.33% forms (28%/35.67%) all
-   let gcc fold the symbol through $at or hoist the base 2-3 insns early.
-   Tried: index in the pointer initialiser (E), mem_addr form (gives $at),
-   base/idx as separate locals (base hoists), (u16*)sym + arg1*0x20, inline
-   value, u8* base + cast store, split |= statement.
+/* 84.67% - everything but the final two addus matches (order, registers, the
+   lui/addiu base after the p[1] load). Ours associates the sum as
+   (idx2 + base) + rowOff (addu v0,v0,v1 / addu a1,a1,v0); the original wants
+   (rowOff + base) + idx2 (addu a1,a1,v1 / addu v0,v0,a1), i.e. rowOff must be
+   the FIRST operand of the first addu and idx2 the first of the second.
+   Naming (rowOff + sym) in a local fixes the add order but makes gcc hoist the
+   lui/addiu above the p[] loads (18.33%); `u8 idx = p[1]` with one local gives
+   the perfect val/lbu order but hoists the base the same way; an array form
+   `((u16*)(sym + arg1*0x40))[p[1]]` and the fully inline sum both become the
+   %at address (28.33%). Tried: 8 shapes (84.67% best).
 void func_8007A92C(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
+    s32 rowOff = arg1 * 0x40;
     u16 val = p[2] | (p[3] << 8);
-    u16 *pRow = (u16 *)(D_800D3420 + arg1 * 0x40 + p[1] * 2);
+    u16 *pRow = (u16 *)(rowOff + (mem_addr)D_800D3420 + (p[1] << 1));
 
     *pRow = val;
 } */
@@ -193,7 +203,9 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc5", func_8007AA60);
 /* 99.55% - one insn off: the original's multiply is mult v1,v0 (value first,
    p[2] second); writing `p[2] * pRow[p[1]]` is the only shape that also gets the
    lbu order right, but then gcc emits mult v0,v1. `pRow[p[1]] * p[2]` swaps the
-   lbu order too (71.50%). Tried: s16 v with u8 res copy (99.55%), s32 operands
+   lbu order too (71.50%, also with `u8 n = p[2]` in a local before the row
+   pointer: gcc sinks that load past the addu either way).
+   Tried: s16 v with u8 res copy (99.55%), s32 operands
    via a cur local, u8 res = product then s16 v = res (87.95%, extension folded).
 void func_8007AA60(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
