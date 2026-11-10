@@ -48,7 +48,10 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc4", func_801CE198);
    Retail initialises the poly index IV before the loop-invariant li's and
    updates it first in the latch; gcc 2.7.2 does both last.  Tried: index as a
    local recomputed from i (best), index hoisted before the loop with += 2 in
-   the body and in the for-increment, u_char vs s32 parameter.
+   the body and in the for-increment, u_char vs s32 parameter, a pPoly local
+   computed first in the body (same 96.06).  The emitted IV order is the
+   reverse of the RTL discovery order, so the poly-index expression would have
+   to be expanded after the four pVertices ones; no shape yet achieves it.
 void func_801CE198(s32 count, SVECTOR* pVertices, POLY_FT4* pPolys, s32 renderContext) {
     s32 index;
     s32 i;
