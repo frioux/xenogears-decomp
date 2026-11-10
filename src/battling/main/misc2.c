@@ -186,6 +186,56 @@ s32 func_80073E2C(u8 *p0, s32 arg1, s32 arg2) {
     return 1;
 }
 
+/* 97.87% (428 bytes against the original's 432): the body is right but one
+   instruction is scheduled differently. The original hoists `addiu a3,sp,0x10`
+   (the vecA argument) to just after `move a0,s2`, which leaves
+   `move s3,v0` free for the func_80073B7C delay slot; ours emits it as the last
+   argument, it takes that delay slot, and `move s3,v0` then falls into the
+   func_8007D25C delay slot, losing one `nop`. Also `lbu a2,1(s1)` in the
+   original against `lbu v1,1(s1)` here. Tried a `s32 *pVecA` temp (coalesced
+   away, no change) and both if/else orders (the inverted one is the 97.87; the
+   direct one is 89.81). gcc 2.7.2-cdk rejects the unit. The frame layout
+   (locals at sp+0x10 and sp+0x20, 0x10 unused below) matches with two s32[4]. */
+/* extern s32 func_8007CD14(s32, u8, s16, s32);
+extern s32 func_80073B7C(u8 *, u8, s16, void *);
+extern s32 func_8007D25C(u8);
+extern void func_8007CD44(s32, void *, void *, s32);
+extern void func_8007D65C(void *, void *);
+extern void func_8007C100(u8 *);
+extern void func_8007C880(s32, void *, s32, s32);
+extern void func_8007D190(void *, s32);
+
+void func_80073F34(u8 *p0, u8 *p1) {
+    s32 vecA[4];
+    s32 vecB[4];
+    s32 r;
+
+    func_8007CD14((*(u32 *)(p0 + 0xD0) >> 27) & 1, *(u8 *)(p1 + 2), *(s16 *)(p1 + 4), 1);
+    r = func_80073B7C(p0, *(u8 *)(p1 + 2), *(s16 *)(p1 + 4), vecA);
+    if (func_8007D25C(*(u8 *)(p1 + 1)) != 0) {
+        s32 *pVecB = vecB;
+
+        func_80073B7C(p0, *(u8 *)(p1 + 3), *(s16 *)(p1 + 6), pVecB);
+        if (*(u8 *)(p1 + 1) == 0x10) {
+            func_8007CD44((*(u32 *)(p0 + 0xD0) >> 27) & 1, vecA, pVecB, r);
+        } else {
+            func_8007D65C(vecA, pVecB);
+        }
+        return;
+    }
+    if (*(u8 *)(p1 + 2) != *(u8 *)(p1 + 3) || *(s16 *)(p1 + 4) != *(s16 *)(p1 + 6)) {
+        func_80073B7C(p0, *(u8 *)(p1 + 3), *(s16 *)(p1 + 6), vecB);
+        vecA[0] = (vecA[0] + vecB[0]) / 2;
+        vecA[1] = (vecA[1] + vecB[1]) / 2;
+        vecA[2] = (vecA[2] + vecB[2]) / 2;
+    }
+    func_8007C100(p0 + 0x15D4);
+    if (*(u8 *)(p1 + 1) >= 0x20) {
+        func_8007C880((*(u32 *)(p0 + 0xD0) >> 27) & 1, vecA, r, *(u8 *)(p1 + 1) - 0x20);
+    } else {
+        func_8007D190(vecA, *(u8 *)(p1 + 1));
+    }
+} */
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80073F34);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_800740E4);
@@ -240,16 +290,11 @@ void func_80074AB4(u8 *p0) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80074BA4);
 
-/* 90.07%: the whole body matches instruction for instruction except that the
-   original branches *to* the common `sb $v0,D_80050622` tail (`bnez v0,store`
-   with `li v0,N` in the delay slot) where this single-`r` version keeps the
-   store as the fallthrough (`beqz` + `j`), and the result lands in $v1 instead
-   of $v0. Next shape to try: give every branch its own `D_80050622 = N;
-   return;` so gcc's cross-jumping builds the shared store in $v0. */
-/* extern u8 D_8009872C[];
+extern u8 D_8009872C[];
 extern s32 D_80099D8C;
 extern s32 D_80099D88;
 extern u8 D_80050622;
+extern s32 func_8008F4F4(u8 *, s32);
 
 void func_80075060(s32 arg0) {
     u8 *p = D_8009872C;
@@ -257,46 +302,53 @@ void func_80075060(s32 arg0) {
     s16 v;
     s32 a;
     s32 b;
-    u8 r;
 
     if (arg0 != 0) {
         if (func_8008F4F4(p, 0xE0) != 0) {
-            r = 2;
-        } else if (func_8008F4F4(p, 0x10) != 0) {
-            r = 1;
-        } else {
-            r = 3;
+            D_80050622 = 2;
+            return;
         }
-    } else if (D_80099D8C == 0 && D_80099D88 == 0) {
-        r = 0x88;
-    } else if (D_80099D88 == 0) {
-        r = 0x82;
-    } else {
-        v = *(s16 *)(p + 0xBC);
-        a = (v * 176) / 255;
-        if (a < *(s32 *)(p + 0x1654)) {
-            r = 0x83;
-        } else {
-            b = (v * 160) / 255;
-            if (b < *(s32 *)(p + 0x1658)) {
-                r = 0x84;
-            } else if (a < *(s32 *)(p + 0x1658) + *(s32 *)(p + 0x1654)) {
-                r = 0x85;
-            } else {
-                pDst = *(u8 **)(p + 0xD8);
-                if (func_8008F4F4(pDst, 0xE0) != 0) {
-                    r = 0x86;
-                } else if (func_8008F4F4(pDst, 0x10) != 0) {
-                    r = 0x81;
-                } else {
-                    r = 0x87;
-                }
-            }
+        if (func_8008F4F4(p, 0x10) != 0) {
+            D_80050622 = 1;
+            return;
         }
+        D_80050622 = 3;
+        return;
     }
-    D_80050622 = r;
-} */
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80075060);
+    if (D_80099D8C == 0 && D_80099D88 == 0) {
+        D_80050622 = 0x88;
+        return;
+    }
+    if (D_80099D88 == 0) {
+        D_80050622 = 0x82;
+        return;
+    }
+    v = *(s16 *)(p + 0xBC);
+    a = (v * 176) / 255;
+    if (a < *(s32 *)(p + 0x1654)) {
+        D_80050622 = 0x83;
+        return;
+    }
+    b = (v * 160) / 255;
+    if (b < *(s32 *)(p + 0x1658)) {
+        D_80050622 = 0x84;
+        return;
+    }
+    if (a < *(s32 *)(p + 0x1658) + *(s32 *)(p + 0x1654)) {
+        D_80050622 = 0x85;
+        return;
+    }
+    pDst = *(u8 **)(p + 0xD8);
+    if (func_8008F4F4(pDst, 0xE0) != 0) {
+        D_80050622 = 0x86;
+        return;
+    }
+    if (func_8008F4F4(pDst, 0x10) != 0) {
+        D_80050622 = 0x81;
+        return;
+    }
+    D_80050622 = 0x87;
+}
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_800751C8);
 
