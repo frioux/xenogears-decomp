@@ -4,6 +4,7 @@ extern u8 *D_800C34B0;
 extern u8 *D_800C3DFC;
 extern u8 *D_800C3E00;
 extern u8 D_800C34AD;
+extern u8 *D_800C3E34;
 extern u8 D_800C3E50;
 extern u8 D_800D2DC4;
 
@@ -42,24 +43,54 @@ void func_80095B44(void) {
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80095BAC);
+/* best: 99.90%. Whole body matches except the mfhi temp of `rand() % 100`:
+   the original coalesces it with the quotient in a0 (mfhi a0; sra a0,a0,5),
+   gcc gives the mfhi pseudo a1 (mfhi a1; sra a0,a1,5). Same tie in
+   func_80096824. Tried: `rand() % 100 > t` and `t < rand() % 100` (99.90),
+   an `s32 r = rand() % 100` local (99.81), gcc 2.6.0 (95.72), -O3 (95.62).
+
+void func_80095BAC(void) {
+    u8 t = D_800C3DFC[0x1C];
+
+    if (t < rand() % 100) {
+        u8 *p = D_800C34B0;
+
+        *(u8 *)(p + D_800C3E50 + 0x5FA0) = 6;
+    } else {
+        if (D_800C3DFC[0x1D] & 0x80) {
+            *(u16 *)(D_800C3E34 + 0x7C) &= 0xC000;
+        }
+        if (D_800C3DFC[0x1D] & 0x40) {
+            *(u16 *)(D_800C3E34 + 0x80) = 0;
+            *(u16 *)(D_800C3E34 + 0x7A) &= 0xFFDF;
+        }
+        if (D_800C3DFC[0x1D] & 0x20) {
+            *(u16 *)(D_800C3E34 + 0x84) = 0;
+        }
+        if (D_800C3DFC[0x1D] & 0x10) {
+            *(u16 *)(D_800C3E34 + 0x88) = 0;
+        }
+        if (D_800C3DFC[0x1D] & 0x8) {
+            *(u16 *)(D_800C3E34 + 0x8C) = 0;
+        }
+    }
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80095D4C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80096018);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80096494);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80096824);
-/* best: 99.74%. Only the quotient temp of `rand() % 100` differs: the original
-   computes it in a0, gcc 2.7.2 hands it a1. Tried: inline `rand() % 100` in the
-   condition, an `s32 r` local (99.23%), and a pointer local for the
-   D_800C34B0 store. Instruction multiset is identical; allocator tie.
+/* best: 99.74%. Only the mfhi temp of `rand() % 100` differs: the original
+   coalesces it with the quotient in a0 (mfhi a0; sra a0,a0,5), gcc gives the
+   mfhi pseudo a1. Tried: inline expression, pointer locals for p/q, an `s32 r`
+   local (99.23%), and `t <= rand() % 100` instead of `>=`. Instruction
+   multiset identical; allocator tie.
 
 void func_80096824(void) {
-    u8 *p = D_800C3E00;
-    u8 *q = D_800C3DFC;
-    s32 t = p[0x5B] + q[0x14];
+    s32 t = D_800C3E00[0x5B] + D_800C3DFC[0x14];
 
     if (rand() % 100 >= t) {
-        u8 *r = D_800C34B0;
-
-        r[0x5FC7] = 0x38;
+        D_800C34B0[0x5FC7] = 0x38;
         D_800D2DC4 = 1;
     }
 }
@@ -87,7 +118,8 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80098C6C);
    later than in the original (it fills the back edge's delay slot instead of
    the `beqz`'s, i.e. gcc puts `mask <<= 1` after the loop test). The 8-bit
    loop counter, the `mask = 1` after the first call and everything else line
-   up byte for byte.
+   up byte for byte. Also tried `mask <<= 1` in the for-increment clause: same
+   95.83.
 
 void func_80098C6C(u8 sel) {
     u8 i;
