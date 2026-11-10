@@ -21,6 +21,14 @@ typedef struct {
 } WorldMapPlayer; // Size: 0x80
 
 typedef struct {
+    /* 0x00 */ s16 unk0;
+    /* 0x02 */ u8 unk2[0x16];
+    /* 0x18 */ SVECTOR rot;
+    /* 0x20 */ MATRIX mat;
+    /* 0x40 */ u8 unk40[0x14];
+} WorldMapRotBlock; // Size: 0x54
+
+typedef struct {
     /* 0x000 */ u8 unk0[0x18];
     /* 0x018 */ SVECTOR unk18;
     /* 0x020 */ MATRIX unk20;
@@ -92,11 +100,73 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007C36C);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007C3B8);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007C724);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007C7D8);
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007CC6C);
+int func_8007CC6C(int idx) {
+    WorldMapWork *pWork;
+    WorldMapPlayer *pPlayer;
+    WorldMapRotBlock *pBlock;
+
+    func_800848B4(4, 0);
+    func_800848B4(4, 2);
+    func_800848B4(4, 1);
+    func_800848B4(4, 3);
+    pWork = D_8009C620;
+    pBlock = (WorldMapRotBlock *)&((u8 *)pWork)[0x150];
+    pBlock->unk0 = 0;
+    pBlock->rot.vx = pBlock->rot.vy = pBlock->rot.vz = 0;
+    RotMatrixYXZ(&pBlock->rot, &pBlock->mat);
+    pPlayer = D_8009BE24 + idx;
+    pPlayer->unk40 = -0x4000;
+    pPlayer->unk28 = 0xD00000;
+    pPlayer->unk3C = 0;
+    pPlayer->unk38 = 0;
+    pPlayer->unk2C = 0;
+    pPlayer->unk30 = 0x400000;
+    return 1;
+}
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007CD20);
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007CE84);
+int func_8007CE84(int idx) {
+    WorldMapWork *pWork;
+    WorldMapPlayer *pPlayer;
+    WorldMapRotBlock *pBlock;
+
+    func_800848B4(5, 6);
+    pWork = D_8009C620;
+    pBlock = (WorldMapRotBlock *)&((u8 *)pWork)[0x1A4];
+    pBlock->unk0 = 0;
+    pBlock->rot.vx = pBlock->rot.vy = pBlock->rot.vz = 0;
+    RotMatrixYXZ(&pBlock->rot, &pBlock->mat);
+    pPlayer = D_8009BE24 + idx;
+    pPlayer->unk40 = -0x4000;
+    pPlayer->unk28 = 0xB00000;
+    pPlayer->unk20 = 0;
+    pPlayer->unk3C = 0;
+    pPlayer->unk38 = 0;
+    pPlayer->unk2C = 0;
+    pPlayer->unk30 = 0x200000;
+    return 1;
+}
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007CF18);
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007D078);
+int func_8007D078(int idx) {
+    WorldMapWork *pWork;
+    WorldMapPlayer *pPlayer;
+    WorldMapRotBlock *pBlock;
+
+    func_800848B4(9, 7);
+    func_800848B4(9, 8);
+    pWork = D_8009C620;
+    pBlock = (WorldMapRotBlock *)&((u8 *)pWork)[0x2F4];
+    pBlock->unk0 = 0;
+    pBlock->rot.vx = pBlock->rot.vy = pBlock->rot.vz = 0;
+    RotMatrixYXZ(&pBlock->rot, &pBlock->mat);
+    pPlayer = D_8009BE24 + idx;
+    pPlayer->unk40 = -0x4000;
+    pPlayer->unk3C = 0;
+    pPlayer->unk38 = 0;
+    pPlayer->unk28 = 0xC00000;
+    pPlayer->unk2C = 0;
+    pPlayer->unk30 = 0;
+    return 1;
+}
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007D110);
 
 int func_8007D228(int idx) {
