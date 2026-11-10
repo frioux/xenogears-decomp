@@ -103,7 +103,43 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc14", func_800945C8);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc14", func_80094750);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc14", func_800948D8);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc14", func_80094A5C);
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc14", func_800951A8);
+extern s32 func_80094088(SVec* p0, SVec* p1, SVec* p2);
+extern s32 func_80094A5C(void* p0, SVec* p1, s32 mode, s16 kind);
+
+s32 func_800951A8(void* p0, SVec* p1, SVec* p2, s32 mode, s16 kind) {
+    s32 ret;
+    s32 state;
+    s32 result;
+
+    state = func_80094A5C(p0, p1, mode, kind);
+    switch (state) {
+    case 0:
+        ret = 1;
+        break;
+    case 1:
+        result = func_80094088((SVec*)0x1F800000, p1, p2);
+        ret = 0;
+        if (result == 0) {
+            p2->z = 0;
+            p2->y = 0;
+            p2->x = 0;
+        }
+        break;
+    case 2:
+        p2->x = p1->x < 0 ? -0x1000 : 0x1000;
+        p2->z = 0;
+        p2->y = 0;
+        ret = 0;
+        break;
+    case 3:
+        p2->y = 0;
+        p2->x = 0;
+        p2->z = p1->z < 0 ? -0x1000 : 0x1000;
+        ret = 0;
+        break;
+    }
+    return ret;
+}
 
 void func_800952B0(SVec* p0, SVec* p1, SVec* p2) {
     s32 dot = p2->x * p0->x + p2->z * p0->z;
@@ -162,7 +198,22 @@ void func_800960BC(void) {
     HeapFree(D_8009D7D4);
 }
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc14", func_80096130);
+void func_80096130(void) {
+    u32 first = ArchiveGetDebugTable();
+    u32 second = ArchiveGetDebugTable();
+
+    if ((first == 0) | (second == 0xFFFFFFFF)) {
+        while (D_8009D788[D_8009BE44] != NULL) {
+            Vsync(0);
+            func_800967E4();
+        }
+    } else {
+        while (D_8009C624[D_8009BE44] != NULL) {
+            Vsync(0);
+            func_800967E4();
+        }
+    }
+}
 
 s32 func_8009623C(s32 x, s32 y, s32 z) {
     SVec* p;
