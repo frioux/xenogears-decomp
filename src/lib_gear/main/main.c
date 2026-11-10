@@ -1442,7 +1442,13 @@ INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E5CD8);
    else return ...` spelling below gcc shares a *deeper* tail instead
    (`lw 8(v0) / lhu 20 / sll` shared by type==1 and type==2, 88 vs 108 bytes), so
    the split point and the block placement are one decision. A `switch` on type
-   is far off (19.74%, case bodies emitted in source order with break jumps). */
+   is far off (19.74%, case bodies emitted in source order with break jumps).
+   Later round: the plain `if/else if` chain that assigns a single `pTexture`
+   local and then has ONE `return pTexture->unk14 << 16` is also 61.93%
+   (88 bytes vs the original's 108): gcc cross-jumps the type==1 and type==2
+   tails and hoists them, so the pair that merges is (1,2) instead of the
+   original's (0,2). Which of the three identical `lhu 0x14 / sll 16` tails
+   survives is the whole function. */
 /*
 s32 func_801E5CD8(Model* pModel, s32 type) {
     Temp8* pTexture;
