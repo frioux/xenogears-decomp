@@ -23,6 +23,18 @@ extern s32 D_801E9B60[];
 extern s32 D_801E9C20[];
 extern s32 D_801EA34C[];
 extern s32 D_801EA39C[];
+extern s32 D_801E9B28;
+extern s32 D_801E9B38;
+extern s32 D_801E9B3C;
+extern s32 D_801E9B40;
+extern s32 D_801E9B44;
+extern s32 D_801E9B48;
+extern s32 D_801E9B4C;
+extern s32 D_801E9B50;
+extern s32 D_801E9B54;
+extern s32 D_801E9B2C;
+extern s32 D_801E9B30;
+extern s32 D_801E9B34;
 extern u16 D_801E9B58;
 extern u16 D_801E9B5C;
 extern s32 D_801EA578[];
@@ -146,8 +158,113 @@ void func_801D50EC(u_char a0, s32 a1, s32 a2) {
     }
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D51EC);
+/* Best: 94.45%. Only structural diff: gcc emits the loop-2 draw counter init
+   (`n = 0`) as the first insn after loop 1, so reorg steals it into the
+   loop-back `bnez` delay slot and a1 therefore stays live in its own
+   callee-saved register (frame 0x40, s5). Retail puts `andi v1,s2,0xFF` (the
+   second `characters[a1]` address computation) first and `addu s2,zero,zero`
+   in the `jal func_801C80B8` delay slot, letting a1 and n share s2 (frame
+   0x38). Everything else - both loops, the digit gate, the 0xA4 stride, the
+   0xAF0/0xBE0 prim bases, the count bytes 0x1273/0x1274 - is byte-identical.
+   Tried: n=0 after the sb (as below), n=0 before the call, a `s32 maxHp`
+   temp for the second func_801C80B8 argument (folded away).
+   void func_801D51EC(u_char a0, u_char a1, s32 a2, s32 a3) {
+       u8* pWindow = (u8*)g_Menu->unk39C[a0];
+       s32 i;
+       s32 n;
+
+       func_801C80B8(g_GameState.characters[a1].hp);
+       pWindow[0x1273] = 0;
+       for (i = 0; i < 3; i++) {
+           if (g_Menu->digits[6 + i] != 0xFF) {
+               pWindow[0x1273] += func_8002675C(
+                   g_Menu->resources, g_Menu->digits[6 + i],
+                   (POLY_FT4*)((u8*)pWindow + (pWindow[0x1273] * 0x50 + 0xAF0)),
+                   g_Menu->renderContext, a2 + D_801E9B28 + i * 8,
+                   a3 + D_801E9B2C, 0x1000);
+           }
+       }
+       n = 0;
+       func_801C80B8(g_GameState.characters[a1].maxHp);
+       pWindow[0x1274] = 0;
+       for (i = 0; i < 3; i++) {
+           if (g_Menu->digits[6 + i] != 0xFF) {
+               pWindow[0x1274] += func_8002675C(
+                   g_Menu->resources, g_Menu->digits[6 + i],
+                   (POLY_FT4*)((u8*)pWindow + (pWindow[0x1274] * 0x50 + 0xBE0)),
+                   g_Menu->renderContext, a2 + D_801E9B30 + n * 8,
+                   a3 + D_801E9B34, 0x1000);
+               n++;
+           }
+       }
+   }
+*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D53D0);
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D55B4);
+/* Best: 94.45%. Same allocator tie as func_801D51EC, which see: every
+   instruction matches except that gcc emits the loop-2 draw counter init
+   (`addu s2,zero,zero`) as the first insn after loop 1, reorg steals it into
+   the loop-back `bnez` delay slot, and a1 therefore keeps its own
+   callee-saved register (frame 0x40, s5). Retail emits `andi v1,s2,0xFF`
+   (the second `characters[a1]` address chain) first and puts the counter init
+   in the `jal func_801C80B8` delay slot, so a1 and n share s2 (frame 0x38).
+   void func_801D53D0(u_char a0, u_char a1, s32 a2, s32 a3) {
+       u8* pWindow = (u8*)g_Menu->unk39C[a0];
+       s32 i;
+       s32 n;
+
+       func_801C80B8(g_GameState.characters[a1].mp);
+       pWindow[0x1275] = 0;
+       for (i = 0; i < 2; i++) {
+           if (g_Menu->digits[7 + i] != 0xFF) {
+               pWindow[0x1275] += func_8002675C(
+                   g_Menu->resources, g_Menu->digits[7 + i],
+                   (POLY_FT4*)((u8*)pWindow + (pWindow[0x1275] * 0x50 + 0xCD0)),
+                   g_Menu->renderContext, a2 + D_801E9B38 + i * 8,
+                   a3 + D_801E9B3C, 0x1000);
+           }
+       }
+       func_801C80B8(g_GameState.characters[a1].maxMp);
+       pWindow[0x1276] = 0;
+       n = 0;
+       for (i = 0; i < 2; i++) {
+           if (g_Menu->digits[7 + i] != 0xFF) {
+               pWindow[0x1276] += func_8002675C(
+                   g_Menu->resources, g_Menu->digits[7 + i],
+                   (POLY_FT4*)((u8*)pWindow + (pWindow[0x1276] * 0x50 + 0xD70)),
+                   g_Menu->renderContext, a2 + D_801E9B40 + n * 8,
+                   a3 + D_801E9B44, 0x1000);
+               n++;
+           }
+       }
+   }
+*/
+void func_801D55B4(u_char a0, u_char a1, s32 a2, s32 a3) {
+    u8* pWindow = (u8*)g_Menu->unk39C[a0];
+    s32 i;
+
+    func_801C80B8(*(s32*)((u8*)&g_GameState.characters[a1] + 0x44));
+    pWindow[0x1277] = 0;
+    for (i = 0; i < 7; i++) {
+        if (g_Menu->digits[2 + i] != 0xFF) {
+            pWindow[0x1277] += func_8002675C(
+                g_Menu->resources, g_Menu->digits[2 + i],
+                (POLY_FT4*)((u8*)pWindow + (pWindow[0x1277] * 0x50 + 0xE10)),
+                g_Menu->renderContext, a2 + D_801E9B48 + i * 8,
+                a3 + D_801E9B4C, 0x1000);
+        }
+    }
+    func_801C80B8(*(s32*)((u8*)&g_GameState.characters[a1] + 0x48));
+    pWindow[0x1278] = 0;
+    for (i = 0; i < 7; i++) {
+        if (g_Menu->digits[2 + i] != 0xFF) {
+            pWindow[0x1278] += func_8002675C(
+                g_Menu->resources, g_Menu->digits[2 + i],
+                (POLY_FT4*)((u8*)pWindow + (pWindow[0x1278] * 0x50 + 0x1040)),
+                g_Menu->renderContext, a2 + D_801E9B50 + i * 8,
+                a3 + D_801E9B54, 0x1000);
+        }
+    }
+}
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D5794);
 void func_801D5A50(u_char a0, u_char a1) {
     s32* pData;
@@ -204,7 +321,32 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D5BA4);
        *(u8*)((u8*)g_Menu->unk340 + 0x324) = *(u8*)&g_Menu->renderContext;
    }
 */
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D5CF8);
+void func_801D5CF8(s32 a0, s32 a1) {
+    s32 i;
+
+    for (i = 0; i < 3; i++) {
+        func_8002675C(g_Menu->resources, ((s32*)g_Menu->unk2EC)[i],
+                      (POLY_FT4*)(i * 0x50 + (s32)g_Menu->unk344),
+                      g_Menu->renderContext, a0 + i * 8, a1, 0x1000);
+    }
+    for (i = 3; i < 5; i++) {
+        func_8002675C(g_Menu->resources, ((s32*)g_Menu->unk2EC)[i],
+                      (POLY_FT4*)(i * 0x50 + (s32)g_Menu->unk344),
+                      g_Menu->renderContext, a0 + i * 8 + 8, a1, 0x1000);
+    }
+    for (i = 5; i < 7; i++) {
+        func_8002675C(g_Menu->resources, ((s32*)g_Menu->unk2EC)[i],
+                      (POLY_FT4*)(i * 0x50 + (s32)g_Menu->unk344),
+                      g_Menu->renderContext, a0 + i * 8 + 0x10, a1, 0x1000);
+    }
+    func_8002675C(g_Menu->resources, 0xEE,
+                  (POLY_FT4*)((u8*)g_Menu->unk344 + 0x230),
+                  g_Menu->renderContext, a0 + 0x18, a1, 0x1000);
+    func_8002675C(g_Menu->resources, 0xEE,
+                  (POLY_FT4*)((u8*)g_Menu->unk344 + 0x2D0),
+                  g_Menu->renderContext, a0 + 0x30, a1, 0x1000);
+    *(u8*)((u8*)g_Menu->unk344 + 0x370) = *(u8*)&g_Menu->renderContext;
+}
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D5ED4);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D6194);
 /* Best: 93.40%. Two diffs left. (1) retail has `addiu s0,s0,1` in the delay
