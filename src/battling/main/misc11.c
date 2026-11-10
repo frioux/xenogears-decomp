@@ -147,7 +147,22 @@ void func_800884E0(VECTOR *arg0, VECTOR *arg1) {
     VectorNormal(&normal, arg1);
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc11", func_8008859C);
+void func_8008859C(VECTOR *arg0, SVECTOR *arg1) {
+    VECTOR normal;
+    s32 sqrt;
+    s32 largestComponent;
+
+    normal = *arg0;
+    largestComponent = MathGetLargestVectorComponent(normal.vx, normal.vy, normal.vz);
+    if (largestComponent < 0) {
+        largestComponent = -largestComponent;
+    }
+    sqrt = SquareRoot0(largestComponent);
+    normal.vx = normal.vx / sqrt;
+    normal.vy = normal.vy / sqrt;
+    normal.vz = normal.vz / sqrt;
+    VectorNormalS(&normal, arg1);
+}
 
 void func_80088658(SVECTOR *arg0, SVECTOR *arg1) {
     VECTOR normal;
