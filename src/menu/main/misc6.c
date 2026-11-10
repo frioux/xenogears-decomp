@@ -152,17 +152,23 @@ void func_801D2968(void) {
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc6", func_801D29A8);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc6", func_801D2D38);
-/* 90.10% under gcc-2.7.2 and 90.10% under gcc-2.6.0, so the gap is source shape,
-   not the preset. Every instruction of the body agrees; the one difference is that
-   gcc strength-reduces the first argument's "i times 2" into a second induction
-   variable (four saved registers s0-s3 instead of three), while retail leaves it
-   inside the loop as "sll a1,s0,1" followed by "andi a1,a1,0xFE" (0xFE, not 0xFF,
-   is what the original masks with). Shapes tried: i times 2 with a u_char
-   parameter, (i times 2) & 0xFE, (i << 1), (u_char)(i << 1), an if-block instead
-   of continue, and a ternary for the gearId 0xFF case; all score 90.10 and all
-   keep the extra induction variable.
+/* PARKED 97.09%, 388 bytes = same size as the original (was 90.10 before). The loop
+   skeleton now agrees instruction for instruction. Two differences remain: gcc
+   allocates the two loop registers the other way round (ours: i in s1, the
+   strength-reduced 6 + i*2 in s0; retail: i in s0, 6 + i*2 in s1), and the gearId
+   ternary comes out with the opposite branch polarity (ours bne plus a trailing
+   andi 0xFF, retail beq with an extra j whose delay slot holds the andi).
+   What unlocked 90.10 -> 97.09: reading the character id into a menuCharacterId
+   local so gcc CSEs the 0xFF test with the first call's argument (retail does two
+   lbu of currentCharacterIDs, not three), and copying i to a u_char characterIndex
+   before "characterIndex * 2" so the masked index does not become a third induction
+   variable. Declaration order of the three u_char locals does not move the tie.
+   Shapes that scored 90.10: (u_char)(i << 1), (i << 1), (i * 2) & 0xFE, an if block
+   instead of the negated test, and "6 + characterIndex * 2" (90.55, 396 bytes).
 void func_801D2D38(void) {
     s32 i;
+    u_char menuCharacterId;
+    u_char characterIndex;
     u_char characterId;
 
     if (D_80059460 == 0) {
@@ -177,8 +183,10 @@ void func_801D2D38(void) {
     }
 
     for (i = 0; i < 3; i++) {
-        if (g_Menu->pManager->currentCharacterIDs[i] != 0xFF) {
-            func_801E8DA8(g_Menu->pManager->currentCharacterIDs[i], (u_char)(i << 1));
+        menuCharacterId = g_Menu->pManager->currentCharacterIDs[i];
+        if (menuCharacterId != 0xFF) {
+            characterIndex = i;
+            func_801E8DA8(menuCharacterId, characterIndex * 2);
             characterId = g_GameState.characters[g_Menu->pManager->currentCharacterIDs[i]].gearId;
             characterId = (characterId == 0xFF) ? 0xFF : characterId + 0xB;
             func_801E8DA8(characterId, 6 + (i << 1));
@@ -189,7 +197,6 @@ void func_801D2D38(void) {
     func_801D28FC();
 }
 */
-
 void func_801D2EC0(u_char a0, u_char a1) {
     func_801D7C3C(a0, a1);
     func_801D7CFC(a0, a1, g_GameState.gearRide[a0]);
