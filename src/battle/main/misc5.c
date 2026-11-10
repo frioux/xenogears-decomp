@@ -61,6 +61,23 @@ u32 func_8007A628(u8 arg0, u8 arg1) {
     }
     return res;
 } */
+u32 func_8007A6C8(u8 arg0, u8 arg1) {
+    u8 res = 0;
+
+    if (D_800D2DCC[arg0] != 0) {
+        s32 off = arg0 * 0x170;
+
+        if ((*(u16 *)(D_800CCD64 + off) & 0xC002) == 0) {
+            res = 1;
+            if (arg1 == 0) {
+                u32 f = *(u16 *)(D_800CCD6C + off) & 0x20;
+
+                res = f == 0;
+            }
+        }
+    }
+    return res;
+}
 u32 func_8007A744(u8 arg0) {
     u8 res = 0;
 
