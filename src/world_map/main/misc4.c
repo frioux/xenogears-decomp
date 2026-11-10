@@ -1,5 +1,7 @@
 #include "common.h"
+#include "psyq/libgpu.h"
 #include "psyq/libgte.h"
+#include "psyq/memory.h"
 
 typedef struct {
     /* 0x00 */ u8 pad0[0x4];
@@ -61,7 +63,7 @@ extern s16 D_8009BD38;
 extern s16 D_8009BD3A;
 extern s16 D_8009BD3C;
 extern void func_80089160(s32, s32, s32);
-extern void func_8007A06C(s32, u8 *, u16);
+extern void func_8007A06C(s32, u8 *, s32);
 extern u8 *D_8006259C;
 extern void func_80093354(void *);
 extern s32 func_80093A5C(s32, s32);
@@ -180,30 +182,26 @@ void func_80078D24(void) {
 }
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_80078E2C);
-/* 30.80%: instruction multiset is identical; source order already matches the
-   original, but gcc's scheduler sinks the WorldMapActor stores to the end of the
-   block (sw 0x58/0x54/0x50 land after `li v0,1`) and defers the D_8009BE24 load
-   to just before its first use, while the original interleaves them with the
-   global stores. `p = D_8009BE24 + index` instead of `index *= 0x80` drops it to
-   19.97% (p goes to v0). -O1 scores 45.0.
+/* 35.90%: the whole WorldMapActor store cluster is scheduled to the end of the
+   block, with the D_8009BE24 load sunk just before it, instead of interleaved
+   with the global stores as the original has it. 12 source shapes tried
+   (pointer local, repeated array-index casts, every statement permutation,
+   `index *= 0x80` vs `D_8009BE24 + index` vs `&index`): 19.97-35.90%. Source
+   order does not matter, the scheduler owns the block. -O1 gives 45. Same
+   scheduler class as func_80077DC8.
 s32 func_80078E2C(s32 index) {
-    WorldMapActor *p;
-
+    ((WorldMapActor *)D_8009BE24)[index].unk20 = 0x10;
     D_8009BE0C = 0x78;
     D_8009D3F0 = 0x200000;
     D_8009D144 = 0;
-    p = D_8009BE24;
-    index *= 0x80;
-    p = (WorldMapActor *)((u8 *)p + index);
-    p->unk20 = 0x10;
-    p->unk58 = 0;
-    p->unk54 = 0;
-    p->unk50 = 0;
+    ((WorldMapActor *)D_8009BE24)[index].unk58 = 0;
+    ((WorldMapActor *)D_8009BE24)[index].unk54 = 0;
+    ((WorldMapActor *)D_8009BE24)[index].unk50 = 0;
     D_8009BD38 = -0xC0;
     D_8009BD3A = 0x680;
     D_8009BD3C = 0;
-    p->unk22 = 0x40;
-    p->unk74 = 0;
+    ((WorldMapActor *)D_8009BE24)[index].unk22 = 0x40;
+    ((WorldMapActor *)D_8009BE24)[index].unk74 = 0;
     return 1;
 }
 */
@@ -243,6 +241,31 @@ s32 func_80079538(s32 index) {
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_800795E4);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_80079778);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_8007A06C);
+/* 99.85%: only the loop-pointer bias differs. gcc makes the loop pointer
+   pSrc + 7, retail holds pSrc + 6, so every displacement is off by one
+   (sb -4/-3/-2/-1/0, sh 7/15 vs -3/-2/-1/0/1, sh 8/16 -> 8 insns). Same class
+   as misc6 func_8007EBBC (pPrim + 7 vs + 6). Store order in the body does move
+   the schedule (9/128/128/128 first = 83.3%, 128/9/.../128/128 = 90.7%, this
+   one is best); what does NOT move the bias: struct-typed pointer, index form,
+   u8 offsets, loop pointer declared separately.
+void func_8007A06C(s32 arg0, u8 *pDst, s32 count) {
+    s32 i;
+
+    for (i = 0; i < count; i++) {
+        pDst[3] = 9;
+        pDst[7] = 0x2C;
+        *(u16 *)(pDst + 0x16) = GetTPage(1, 3, 0x340, 0x100);
+        *(u16 *)(pDst + 0xE) = GetClut(0x100, 0x1FF);
+        pDst[4] = 0x80;
+        pDst[5] = 0x80;
+        pDst[6] = 0x80;
+        pDst[7] |= 2;
+        pDst += 0x28;
+    }
+    memcpy(*(u8 **)(arg0 + 0x4C), *(u8 **)(arg0 + 0x48), count * 0x28);
+}
+*/
+
 s32 func_8007A144(s32 index) {
     WorldMapActor *p;
 
