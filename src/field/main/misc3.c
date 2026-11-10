@@ -18,6 +18,12 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc3", func_8006FDEC);
 // before it, and the original reaches all of them as byte offsets off one base register
 // holding &g_Scene - `addiu $a1,$s1,-0x110`, `sw $v0,0x138($s1)` - so the C has to spell
 // them that way (plain &g_CameraEye gives a separate lui/addiu pair and cannot match).
+// Retried: the trailing ambient reads as `pData[0]`, `pData[1]`, `pData[2]` do give the
+// original's `lhu 0/2/4($s0)` with no increments, but gcc then hoists the third `lhu`
+// into the previous load-delay `nop` (into $v1) and the 0x14-byte copies still hoist above
+// the `sh` to D_800AFB00, so the indexed form scores no better (91.6-92.4%). The copies
+// are the real blocker: our compile batches 4 loads + 4 stores per copy with $t0 as a
+// fourth scratch where retail interleaves them right after the $at store.
 /*
 typedef struct {
      s32 vx;
@@ -143,6 +149,9 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc3", FieldFree);
 //     and `lui at` + `sw %lo` for the store instead. An explicit pointer local,
 //     hoisting that local above FontFree, and plain symbol read/write all give
 //     the same rematerialised form.
+//  3. Tried `tools/scripts/try_flags.sh field/main/misc3 FieldFree --gp -G0`: 98.66%,
+//     so the -G0/gp lead is not what closes this one either; the D_800B2264 remat and
+//     the missing `move` both survive it.
 // Facts recovered for whoever retries: the unit needs field/actor.h for
 // g_FieldActors/g_FieldNumActors/g_FieldCurScriptFile/g_FieldSpriteData; the
 // actor loop must index as `(i * sizeof(FieldActor) + (int)g_FieldActors)` to get
