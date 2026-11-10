@@ -358,7 +358,79 @@ s32 func_800B12D0(s32 arg0, s32 arg1) {
     return result;
 }
 */
+extern s32 func_800BF6F8(void);
+extern s32 ArchiveDataSync(void);
+extern void func_8002A498(s32);
+
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800B136C);
+/* 96.96% (332 bytes vs 328): the whole control flow, the two 11-entry polls and
+   the ArchiveDataSync wait loop match; only two register-allocation ties remain.
+   1. prologue save order: original `sw ra,32 / sw s1,20 / sw s0,16 / move s1,zero
+      / move s0,zero`, ours emits `sw s1,20 / move s1,zero` before `sw ra,32`.
+   2. first poll loop: original keeps the array walker in $a0 and the element in
+      $v1, ours the other way round.
+   Tried: D_800D3368[i] and *(pp++) walkers, one base pointer local (pBase) vs
+   two (pBase + ppBase), comma for-init, flagA declared before/after the base.
+   Shape notes for whoever retries: phase 1 is
+     for (;;) { poll 11 entries; if (func_800BF6F8()) flagA = 1;
+                if (flagA) { func_800BE790(); flagA = 0; continue; } break; }
+   phase 2 needs BOTH a base local (loaded once into $s2 before the while) and a
+   walker reset from it each pass, and a `if (flagA == 0) break;` after the
+   sync test so gcc shares the loop test with the break.
+void func_800B136C(void) {
+    s32 flagB = 0;
+    u8 **pBase = D_800D3368;
+    s32 flagA = 0;
+    u8 *pEntry;
+    s32 i;
+    u8 **pp;
+    u8 **ppBase;
+
+    for (;;) {
+        for (i = 0; i < 11; i++) {
+            pEntry = pBase[i];
+            if (pEntry != NULL) {
+                if (pEntry[0x38] != 0) {
+                    flagA = 1;
+                }
+                if (*(s32 *)(pEntry + 0xC) != 0) {
+                    flagB = 1;
+                }
+            }
+        }
+        if (func_800BF6F8() != 0) {
+            flagA = 1;
+        }
+        if (flagA != 0) {
+            func_800BE790();
+            flagA = 0;
+            continue;
+        }
+        break;
+    }
+    if (flagB == 0) {
+        return;
+    }
+    func_8002A498(0);
+    flagA = 1;
+    ppBase = D_800D3368;
+    while (flagA != 0) {
+        if (ArchiveDataSync() == 0) {
+            for (i = 0, pp = ppBase; i < 11; i++) {
+                pEntry = *pp++;
+                if (pEntry != NULL && *(s32 *)(pEntry + 0xC) != 0) {
+                    func_800B0060(pEntry);
+                }
+            }
+            flagA = 0;
+        }
+        if (flagA == 0) {
+            break;
+        }
+        func_800BE790();
+    }
+}
+*/
 void func_800B14B8(void) {
     D_800C3D6C = 1;
 }
@@ -392,9 +464,13 @@ void func_800B14CC(s32 arg0) {
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800B15D8);
-/* 71.84%: the frame address and the 7-word struct copy are right; gcc swaps the
-   frame pointer / D_800C3BD0 register roles and blocks the copy 4+3 instead of
-   3+3+1, and re-forms D_800C3BD0+8/+16 instead of using one register.
+/* 71.84% (192 bytes, same size as the original): the 7-word copy and the frame
+   arithmetic are right. Remaining differences: the original keeps the copy
+   destination in $a2 and the lui high half in $a3 (so the later global accesses
+   are `lw v0,%lo(D_800C3BD0)($a3)`), and blocks the copy 3+3+1 instead of 4+3.
+   Tried: pDst pointer local, direct global access on every reference,
+   `s32 offset` local folding the +0xC into the register (that one matches the
+   original's `addiu v0,v0,0xC` but the rest is unchanged).
 s32 func_800B15D8(u8 *p, s32 index) {
     BattleFrame *pFrame = (BattleFrame *)(p + index * 0x1C + 0xC);
     BattleFrame *pDst = &D_800C3BD0;
