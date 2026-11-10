@@ -23,6 +23,10 @@ void func_801DA518(void);
 void func_801DE36C(void);
 void func_801DE400(void);
 void func_801D25E4(void);
+void func_801C8574(u8);
+u8 func_801D9704(u8, u8, u8);
+void func_801E1014(void);
+void func_801E1AC8(u8);
 
 int func_801E0F78(u8 arg0, u8 arg1) {
     g_Menu->unk35C = HeapAlloc(0x32F4, 0);
@@ -47,24 +51,28 @@ void func_801E1398(void) {
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E1418);
 
 /* objdiff 75.33% (296 bytes, same size; was 68.19% with the old if/else order).
-   Recovered shape and the details that are now settled: charId =
-   g_Menu->pManager->currentCharacterIDs[slot]; weight = *pWeight++ where pWeight
-   = (u16*)((u8*)&g_GameState.characters[charId] + 0x90); value = pRow[i] where
-   pRow = (u8*)pTable + charId * 0x110 + index * 0xE and
+   Settled: charId = g_Menu->pManager->currentCharacterIDs[slot]; weight =
+   *pWeight++ where pWeight = (u16*)((u8*)&g_GameState.characters[charId] + 0x90);
+   value = pRow[i] where pRow = (u8*)pTable + charId * 0x110 + index * 0xE and
    pTable = *(u32*)((u8*)g_Menu->unk438 + 0x2578); total/count are u32, the loop
    counter is a signed int (retail ends the loop with slti, not sltiu). The
    weight != 0 test comes FIRST in the source (retail branches over it into the
    `else if (value != 0) count++;` block) -- writing `if (weight == 0)` first
    costs 7 points and 4 bytes.
-   Residue: retail recomputes charId * 0x110 INSIDE the loop and keeps
-   `li v0,0xffff` in the loop, i.e. loop.c did not hoist either; writing the row
-   address as one flat expression inside the loop body does reproduce that
-   (no hoisting, li stays) but gcc canonicalises the operand order (it emits the
-   index * 0xE chain before the charId chain, retail the reverse) and puts charId
-   in a1 instead of a3, which scores 66.44%. Any hoisted row pointer scores
-   75.33% because loop.c lifts it into the pre-header. Both 2.6.0 and 2.7.2 emit
-   byte-identical code for this function (75.33 either way), so this is not a
-   preset question.
+   Residue: retail recomputes charId * 0x110 AND index * 0xE inside the loop and
+   keeps `li v0,0xffff` in the loop, i.e. loop.c hoisted neither -- yet a hoisted
+   pRow local scores 75.33% because it lands in the pre-header, and the flat
+   `*(u16*)((u8*)pTable + charId*0x110 + index*0xE + i*2)` does reproduce the
+   non-hoisting but scores 66.44%: gcc then emits the index * 0xE chain before the
+   charId chain (retail the reverse: charId chain, addu t3, index chain) and
+   rotates the whole register assignment (retail t0=total, t1=i, a2=count,
+   t2=pWeight, a3=charId, t3=pTable, a1=index; this compile gives total a3,
+   index a masked t2 copy, charId a1, pWeight t0). Tried this round and no
+   better: flat expression with the (u32)index cast dropped (66.44, cdk too),
+   explicit ((...) + (index*0xE)) + i*2 parenthesisation (66.44), the indexed
+   pRow[i] form (75.33 after hoisting), gcc-2.7.2-cdk on the flat form (66.44).
+   Both 2.6.0 and 2.7.2 emit byte-identical code for the hoisted version, so this
+   is not a preset question.
 u32 func_801E1418(u8 slot, u8 index) {
     u8 charId;
     u16* pWeight;
@@ -115,7 +123,43 @@ u32 func_801E1418(u8 slot, u8 index) {
 */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E1544);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E1AC8);
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E20C8);
+u8 func_801E20C8(u8 slot) {
+    u8 active;
+    u8 lastSlot;
+
+    active = 1;
+    lastSlot = 0xFF;
+    if ((u8)(g_Menu->pManager->currentCharacterIDs[slot] - 7) < 2) {
+        func_801C8574(4);
+        return 1;
+    }
+    func_801E1014();
+    do {
+        func_801C7BF4();
+        if (slot != lastSlot) {
+            func_801E1AC8(slot);
+            lastSlot = slot;
+        }
+        switch (g_Menu->input) {
+        case 5:
+            active = 0;
+            break;
+        case 9:
+            do {
+                slot = func_801D9704(slot, 0, 0);
+            } while ((u8)(g_Menu->pManager->currentCharacterIDs[slot] - 7) < 2);
+            break;
+        case 10:
+            do {
+                slot = func_801D9704(slot, 1, 0);
+            } while ((u8)(g_Menu->pManager->currentCharacterIDs[slot] - 7) < 2);
+            break;
+        }
+    } while (active != 0);
+    func_801E1398();
+    return 1;
+}
+
 u8 func_801E2250(void) {
     u32 i;
 
@@ -213,15 +257,19 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E35BC);
 /* objdiff 96.71% (280 bytes, same size; 80.36% was the previous 2.7.2 attempt).
    Structure is complete: pTarget->hp += value and both clamps (which reload the
    stored halfword exactly as retail does) already match byte for byte, as does
-   the isGear else-branch. The only residue is register allocation plus load
-   scheduling in the first nine instructions: retail loads the slot pointer into
-   a0 straight after forming pDressingRoom + charIndex*4 and puts ether in v1
-   (mult v1,v0), this compile keeps the pointer in v1, ether in a0. Note for
-   whoever retries: the pSlots table is pDressingRoom->unk20[charIndex] and each
-   slot record is 0x28 bytes with a u8 at 0x11 -- NOT sizeof(GameCharacter)
-   (0xA4); using GameCharacter* gave a 288-byte object and 80.36%. Retried:
-   single-statement indexing (93.86%), &pSlots[slotIndex*0x28] vs byte offset
+   the isGear else-branch. The only residue is the five-instruction register
+   choice in the isGear == 0 head: retail builds the base temp in v0
+   (addu v0,t0,t2), loads pSlots into a0 and the slot byte into v0 with ether in
+   v1; this compile always builds the base in a0, the pointer in v1 and ether in
+   a0. The instruction multiset is already identical, so this is the allocator
+   tie-break class. Shapes tried this round (all 280 bytes):
+   ether hoisted into its own local before pSlots (96.71), pSlot as one flat
+   expression (93.86), raw *(u8**)(unk20 + charIndex*4) load (93.86). Earlier:
+   single-statement indexing (93.86), &pSlots[slotIndex*0x28] vs byte offset
    (96.71 both), swapped multiply operands (93.33%), gcc-2.7.2-cdk (84.13%).
+   The pSlots table is pDressingRoom->unk20[charIndex] and each slot record is
+   0x28 bytes with a u8 at 0x11 -- NOT sizeof(GameCharacter) (0xA4); using
+   GameCharacter* gave a 288-byte object and 80.36%.
 void func_801E35BC(MenuDressingRoom* pDressingRoom, u8 charIndex, u8 targetIndex, u8 slotIndex, u8 isGear) {
     GameCharacter* pChar;
     GameCharacter* pTarget;
