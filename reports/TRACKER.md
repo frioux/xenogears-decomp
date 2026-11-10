@@ -1713,3 +1713,39 @@ Idioms banked this round:
 - A worker's intermediate commit dropped three stubs by matching an `extern` prototype
   line instead of the definition (`menu/misc4`); the tip repaired it, but
   `lint_sources.py` does not catch a *missing* stub - `make check` does.
+
+| 12 | cdk screens on 11 units + `field/main/{misc,misc4,misc6}` etc. | +3 | 1613 | the round was a **screen**, not a batch: cdk is conclusively wrong for 7 of the 11 units, and `battle/main/misc18` is a gcc-2.6.0 unit (three parked bodies just need the preset) |
+
+### Round 12: cdk is settled, and the 2.6.0 screen is the live axis in `battle`
+
+Eleven units were screened for `gcc-2.7.2-cdk` and **every one is function-mixed**, so
+none can take the preset (a unit switches only if *every* already-matched function stays
+100.0). Do not re-screen these:
+
+| unit | matched functions that break under cdk |
+|---|---|
+| `field/main/misc` | 42 of 174 (e.g. `FieldSetScreenDimensions` 100 -> 36.29) |
+| `field/main/misc2` | `func_8007234C` 100 -> 82.63 |
+| `field/main/misc4` | `func_8007B478` 100 -> 98.3, `func_80078C5C` 100 -> 88.1 |
+| `field/main/misc8` | `func_8008083C` 100 -> 98.65 |
+| `battle/main/misc16` | `func_8008FA60` 100 -> 84.83 |
+| `battle/main/misc18`, `world_map/main/misc6` | several, incl. `func_8008032C` 100 -> 44.41 |
+
+So the cdk mechanism found in round 11 is real but cannot be exploited for any unit
+screened so far: the units that need it are always *mixed* with units that do not. It
+remains the explanation for `battle/misc27`'s five unreachable parks.
+
+**What did pay: `battle/main/misc18` is gcc 2.6.0** (added to `XenoBattle260`).
+`func_80096824` 100.0 under 2.6.0 vs 99.74, `func_80095BAC` 100.0 vs 99.90,
+`func_80098C6C` 100.0 vs 95.83, and all six matched functions stay at 100.0. Three parked
+bodies in the file become matches on the preset switch alone - round 13 un-parks them.
+That is the fourth `battle` unit found to be 2.6.0 (with `misc20`, `misc21`), so the
+overlay is being screened unit by unit; `misc23` and `misc25` are confirmed *not* 2.6.0.
+
+Structurally unconvertible, newly confirmed:
+- `field/main/misc2`'s `func_8007520C`, `func_800759E4`, `func_800752C8` are BLOCKED
+  (`convertible.py`: they own the unit's rodata - `"GEAR      "`, `D_8006FB70`) and that
+  rodata is gated behind the two scratchpad-stack-switch stubs.
+- `field/main/misc4` has four BLOCKED jtbl owners; the rest of the unit is convertible.
+- `field/main`'s `func_80087FA4` (79.83%) needs `la` in a register where gcc folds
+  `%hi/%lo` - the mirror image of the `$at` ceiling, and equally a source-shape dead end.
