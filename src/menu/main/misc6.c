@@ -30,6 +30,9 @@ void func_801E8474(s32 a0, u32* a1);
 
 extern u32 D_801EA19C[];
 extern u32 D_801EA164[];
+extern s16 D_801E9A1C[][2];
+extern s16 D_801E9A48[][2];
+extern s16 D_801E9E94[][2];
 extern u32 D_801EA16C[];
 extern u32 D_801E9A58[];
 extern u32 D_801E9A68[];
@@ -163,6 +166,38 @@ void func_801D25E4(void) {
     }
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc6", func_801D261C);
+/* PARKED 86.91% (652 bytes = retail's exact size). Decoded: set the four corners of
+   g_Menu->unkAE0[subMenuChoice].polys[renderContext] from three tables, then copy
+   renderContext into that MenuString and set pManager->unk14[subMenuChoice] = 1.
+   x0 = x2 = D_801E9A1C[c] + (D_801E9E94[c] + 0x16);  x1 = x3 = width + x0;
+   y0 = y1 = D_801E9A48[c] - 0x22;                    y2 = y3 = D_801E9A48[c] - 0x15;
+   the source repeats every g_Menu-> load in all eight statements (retail re-reads
+   0x308/0x338 per statement; a pointer or index local makes gcc hoist them).
+   Findings that matter for the next attempt: (1) the three tables are indexed with
+   stride 4 and read with lhu, so they are arrays of 2 halfwords - declared here as
+   s16 [][2] and read [c][0]; declaring D_801E9A48 s16 is also what makes gcc use
+   lhu + addiu -0x22 instead of lhu + li 0xffde + addu (a 1-D s16 spelling scores
+   88.04% but indexes with stride 2, i.e. reads the wrong entry);
+   (2) retail's frame is 0x60 (ra at 0x58) and ours is 0x18, so the original has an
+   unused ~0x54-byte stack local that has to be declared (the usual unused-local
+   trick) before the register allocation will line up.
+*/
+/* Best attempt (86.91%): the body below is what the note above was measured with.
+void func_801D261C(void) {
+    func_801D249C(0);
+
+    g_Menu->unkAE0[g_Menu->subMenuChoice].polys[g_Menu->renderContext].x0 = D_801E9A1C[g_Menu->subMenuChoice][0] + (D_801E9E94[g_Menu->subMenuChoice][0] + 0x16);
+    g_Menu->unkAE0[g_Menu->subMenuChoice].polys[g_Menu->renderContext].y0 = D_801E9A48[g_Menu->subMenuChoice][0] - 0x22;
+    g_Menu->unkAE0[g_Menu->subMenuChoice].polys[g_Menu->renderContext].x1 = g_Menu->unkAE0[g_Menu->subMenuChoice].width + (D_801E9A1C[g_Menu->subMenuChoice][0] + 0x16) + D_801E9E94[g_Menu->subMenuChoice][0];
+    g_Menu->unkAE0[g_Menu->subMenuChoice].polys[g_Menu->renderContext].y1 = D_801E9A48[g_Menu->subMenuChoice][0] - 0x22;
+    g_Menu->unkAE0[g_Menu->subMenuChoice].polys[g_Menu->renderContext].x2 = D_801E9A1C[g_Menu->subMenuChoice][0] + (D_801E9E94[g_Menu->subMenuChoice][0] + 0x16);
+    g_Menu->unkAE0[g_Menu->subMenuChoice].polys[g_Menu->renderContext].y2 = D_801E9A48[g_Menu->subMenuChoice][0] - 0x15;
+    g_Menu->unkAE0[g_Menu->subMenuChoice].polys[g_Menu->renderContext].x3 = g_Menu->unkAE0[g_Menu->subMenuChoice].width + (D_801E9A1C[g_Menu->subMenuChoice][0] + 0x16) + D_801E9E94[g_Menu->subMenuChoice][0];
+    g_Menu->unkAE0[g_Menu->subMenuChoice].polys[g_Menu->renderContext].y3 = D_801E9A48[g_Menu->subMenuChoice][0] - 0x15;
+    g_Menu->unkAE0[g_Menu->subMenuChoice].renderContext = *(u_char*)&g_Menu->renderContext;
+    g_Menu->pManager->unk14[g_Menu->subMenuChoice] = 1;
+}
+*/
 void func_801D28A8(void) {
     func_801D397C(0, 0xD4, 0xB2, 0x60, 0x10, 0, 0, 4, 0);
     func_801D5BA4(0xD8, 0xB6);
