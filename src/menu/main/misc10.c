@@ -46,66 +46,72 @@ void func_801E1398(void) {
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E1418);
 
-/* objdiff 68.19% (300 bytes vs 296). Recovered shape: returns the average
-   percentage of 7 gear-stat slots, 0 if nothing was counted. Averages
-   weight[i] * 100 / value[i] over the slots, clamped to 100, where
-   weight = ((u16*)((u8*)&g_GameState.characters[charId] + 0x90))[i] (charId =
-   g_Menu->pManager->currentCharacterIDs[slot]) and value comes from a table at
-   ((u8*)g_Menu->unk438)[0x2578] with stride 0x110 per charId and 0xE per index.
-   Retail skips the whole thing (returns 0) for index >= 7 unless
-   g_GameState.unk22B6 & 0x4000. Remaining diffs: retail keeps 0xFFFF in a
-   `li v0` delay slot where 2.7.2 hoists it to t3, the if/else layout is
-   inverted (retail falls through into the weight != 0 path), the loop counter
-   is an int (slti, not sltiu) and slot/index registers are swapped (a0 is
-   copied to v1 there, a1 to t2 here).
-   u32 func_801E1418(u8 slot, u8 index) {
-       u8 charId;
-       u16* pWeight;
-       u16* pRow;
-       u16* pTable;
-       u32 weight;
-       u32 value;
-       u32 total;
-       u32 count;
-       u32 i;
-       u32 pct;
+/* objdiff 75.33% (296 bytes, same size; was 68.19% with the old if/else order).
+   Recovered shape and the details that are now settled: charId =
+   g_Menu->pManager->currentCharacterIDs[slot]; weight = *pWeight++ where pWeight
+   = (u16*)((u8*)&g_GameState.characters[charId] + 0x90); value = pRow[i] where
+   pRow = (u8*)pTable + charId * 0x110 + index * 0xE and
+   pTable = *(u32*)((u8*)g_Menu->unk438 + 0x2578); total/count are u32, the loop
+   counter is a signed int (retail ends the loop with slti, not sltiu). The
+   weight != 0 test comes FIRST in the source (retail branches over it into the
+   `else if (value != 0) count++;` block) -- writing `if (weight == 0)` first
+   costs 7 points and 4 bytes.
+   Residue: retail recomputes charId * 0x110 INSIDE the loop and keeps
+   `li v0,0xffff` in the loop, i.e. loop.c did not hoist either; writing the row
+   address as one flat expression inside the loop body does reproduce that
+   (no hoisting, li stays) but gcc canonicalises the operand order (it emits the
+   index * 0xE chain before the charId chain, retail the reverse) and puts charId
+   in a1 instead of a3, which scores 66.44%. Any hoisted row pointer scores
+   75.33% because loop.c lifts it into the pre-header. Both 2.6.0 and 2.7.2 emit
+   byte-identical code for this function (75.33 either way), so this is not a
+   preset question.
+u32 func_801E1418(u8 slot, u8 index) {
+    u8 charId;
+    u16* pWeight;
+    u16* pRow;
+    u16* pTable;
+    u32 weight;
+    u32 value;
+    u32 total;
+    u32 count;
+    int i;
+    u32 pct;
 
-       total = 0;
-       if ((u32)index >= 7 && (g_GameState.unk22B6 & 0x4000) == 0) {
-           return 0;
-       }
-       count = 0;
-       i = 0;
-       charId = g_Menu->pManager->currentCharacterIDs[slot];
-       pWeight = (u16*)((u8*)&g_GameState.characters[charId] + 0x90);
-       pTable = *(u16**)((u8*)g_Menu->unk438 + 0x2578);
-       pRow = (u16*)((u8*)pTable + charId * 0x110 + index * 0xE);
-       for (i = 0; i < 7; i++) {
-           weight = *pWeight++;
-           value = pRow[i];
-           if (weight == 0) {
-               if (value != 0) {
-                   count++;
-               }
-           } else if (value != 0) {
-               if (value == 0xFFFF) {
-                   count++;
-               } else {
-                   pct = weight * 100 / value;
-                   if (pct < 100) {
-                       total += pct;
-                   } else {
-                       total += 100;
-                   }
-                   count++;
-               }
-           }
-       }
-       if (count == 0) {
-           return 0;
-       }
-       return total / count;
-   }
+    total = 0;
+    if ((u32)index >= 7 && (g_GameState.unk22B6 & 0x4000) == 0) {
+        return 0;
+    }
+    count = 0;
+    charId = g_Menu->pManager->currentCharacterIDs[slot];
+    pWeight = (u16*)((u8*)&g_GameState.characters[charId] + 0x90);
+    pTable = *(u16**)((u8*)g_Menu->unk438 + 0x2578);
+    pRow = (u16*)((u8*)pTable + charId * 0x110 + index * 0xE);
+    for (i = 0; i < 7; i++) {
+        weight = *pWeight++;
+        value = pRow[i];
+        if (weight != 0) {
+            if (value != 0) {
+                if (value == 0xFFFF) {
+                    count++;
+                } else {
+                    pct = weight * 100 / value;
+                    if (pct < 100) {
+                        total += pct;
+                    } else {
+                        total += 100;
+                    }
+                    count++;
+                }
+            }
+        } else if (value != 0) {
+            count++;
+        }
+    }
+    if (count == 0) {
+        return 0;
+    }
+    return total / count;
+}
 */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E1544);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E1AC8);
