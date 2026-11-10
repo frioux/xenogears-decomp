@@ -43,6 +43,13 @@ s32 func_800AA600(s32 arg0) {
     return 0;
 }
 */
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AA650);
+/* 99.44% - identical except the two "mflo" destinations: the original writes
+   the LO result straight into $v0 (mflo $v0 / sra $v0,$v0,0xc), this gives
+   mflo $a2 / sra $v0,$a2,0xc; the LO copy is never coalesced with the shift.
+   The second D_800D3368[arg0] read (after the if/else, for the 0x1C load) is
+   what the original does - without it gcc keeps the pointer live and uses
+   $a0 for b instead of $v1 (82.92%). Also tried -O3 (99.44, no change).
 s32 func_800AA650(s32 arg0) {
     u8 *p;
     s32 a;
@@ -64,6 +71,7 @@ s32 func_800AA650(s32 arg0) {
     }
     return r;
 }
+*/
 void func_800AA6E0(u8 *arg0) {
     u8 *p;
     s32 i;
@@ -98,8 +106,14 @@ void func_800AA79C(s32 arg0, s32 arg1) {
     D_800D3368[arg1] = tmp;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AA7DC);
-/* 88.24% - instruction multiset identical, only the "li a1,0xF7" of the loop
-   condition sits after the arg0*0x48 preheader instead of before it.
+/* 88.24% - instruction multiset identical, only the hoisted "li a1,0xF7" of
+   the loop condition sits after the arg0*0x48 preheader instead of before it.
+   The indexed form D_800C402F[i*0x48] does put "li a1,0xF7" first (gcc emits
+   hoisted invariants before strength-reduction inits) but then turns the biv
+   into a pointer, folding %hi/%lo into a register in the preheader
+   (lui v1/addiu v1/addu v0,v0,v1/lbu 0(v0)) instead of re-forming the symbol
+   address each iteration - 56.76% and 2 insns longer. A "u8 stop = 0xF7;"
+   local changes nothing (the constant is re-folded).
 u8 func_800AA7DC(s32 arg0) {
     s32 o;
     u8 v;
@@ -187,8 +201,14 @@ s32 func_800AEEF8(u8 *arg0) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AEF68);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AF180);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AF270);
-/* 85.71% - identical except the loop guard's delay slot (nop there, the
-   arg0 += 7 lands there here) and one insn shorter for it.
+/* 85.71% - instruction multiset identical, only the preheader order differs:
+   the original emits the hoisted "li a3,1" before "addiu a0,a0,7", here the
+   arg0 += 7 statement lands there first (and reorg then fills the beqz delay
+   slot with it, so the frame is one insn shorter). Indexed forms
+   arg0[i*0x7C+7] (90.33%) or p=arg0+7 / p[i*0x7C] (90.43%) put li a3 first
+   but let gcc fold the +7 into the load displacement (lbu 7(a0)) or into the
+   biv init (addiu a0,a0,0x83); a u8 one; local made it worse (85.71%, the
+   addiu hoisted above the slt).
 void func_800AF270(u8 *arg0, u8 *arg1) {
     s32 n;
     s32 i;
