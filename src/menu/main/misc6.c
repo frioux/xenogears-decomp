@@ -13,7 +13,8 @@ void func_801D1BE8(void);
 void func_801D1C48(void);
 s32 func_8002675C(MenuResourceDirectory* pDir, u32 index, POLY_FT4* pPrims, s32 context, s32 x, s32 y, s32 scale);
 void func_801C8574(u_char soundEffectId);
-void func_801D397C(u_char a0, u_char a1, u_char a2, u_char a3, u16 a4, u_char a5, u_char a6, u32 a7, u_char a8);
+void func_801D397C(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4, u_char a5, u_char a6, s32 a7, u_char a8);
+void func_801E53CC(u_char a0);
 void func_801D4EA0(u_char a0);
 void func_801D5BA4(u_char a0, u_char a1);
 void func_801D5CF8(u_char a0, u_char a1);
@@ -21,6 +22,8 @@ void func_801D7C3C(u_char a0, u_char a1);
 void func_801D7CFC(u_char a0, u_char a1, u_char a2);
 void func_801D8DE4(u_char a0, s32 a1, s32 a2, u_char a3);
 void func_801D8EA4(u_char a0, s32 a1, s32 a2, u_char a3);
+
+void func_801D4D1C(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4, u_char a5, s32 a6, u_char a7);
 
 void func_801D1CA0(void) {
     if (g_Menu->shouldDrawMenu) {
@@ -102,9 +105,9 @@ extern u16 D_801E9E58[];
 void func_801E7E68(MenuString* pStringList, u_char* pStringIdList, s32 yOffset, s32 count);
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc6", func_801D249C);
-// 99.88%: only difference is `addu a0,s2,v1` vs `addu a0,v1,s2` (operand order of the
-// vertices address); every other insn is identical.
-/*
+/* PRESET_260: 100.00% under gcc-2.6.0-psx, 99.88% under this unit's current
+   gcc-2.7.2 (its only 2.7.2 difference is addu a0,s2,v1 vs addu a0,v1,s2 for the
+   vertices address). Uncomment once misc6 is on a 2.6.0 preset.
 void func_801D249C(u_char a0) {
     s32 i;
 
@@ -195,4 +198,83 @@ void func_801D3674(void) {
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc6", func_801D36E0);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc6", func_801D397C);
+/* PRESET_260: 100.00% under gcc-2.6.0-psx, 95.42% under gcc-2.7.2.
+   Sibling ShopMenuInitializeWindow (shop_menu/main/misc.c, a 2.6.0 unit) is the
+   same function. The x/y/width/height params are u_short, not u_char: the
+   original stores them with plain sh and no andi 0xFF.
+void func_801D397C(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4, u_char a5, u_char a6, s32 a7, u_char a8) {
+    MenuWindowParameters* pParams;
+
+    if (a0 >= 2) {
+        g_Menu->windows[a0] = HeapAlloc(sizeof(MenuWindow), 0);
+        bzero(g_Menu->windows[a0], sizeof(MenuWindow));
+        g_Menu->windowParameters[a0] = HeapAlloc(sizeof(MenuWindowParameters), 0);
+        bzero(g_Menu->windowParameters[a0], sizeof(MenuWindowParameters));
+        func_801E53CC(a0);
+    }
+
+    pParams = g_Menu->windowParameters[a0];
+    if (a5 != 0) {
+        pParams->index = a0;
+        pParams->unk11 = 0;
+        pParams->x = a1;
+        pParams->y = a2;
+        pParams->width = a3;
+        pParams->height = a4;
+        pParams->unk8 = 0;
+        pParams->unkA = 0;
+        g_Menu->pManager->unk27[a0] = 1;
+        pParams->unk12 = a6;
+        pParams->zIndex = a7;
+        return;
+    }
+
+    func_801D4D1C(a0, a1, a2, a3, a4, a6, a7, a8);
+}
+*/
+
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc6", func_801D3B00);
+/* PRESET_260: 100.00% under gcc-2.6.0-psx, 80.37% under gcc-2.7.2.
+   Sibling ShopMenuUpdateWindows (shop_menu/main/misc.c) is the same function.
+void func_801D3B00(void) {
+    u_char flag;
+    int i;
+    MenuWindowParameters* pWindowInfo;
+
+    for (i = 0; i < MENU_MAX_NUM_WINDOWS; i++) {
+        pWindowInfo = g_Menu->windowParameters[i];
+        if ((g_Menu->pManager->unk27[i]) && pWindowInfo->unk11 == 0) {
+            flag = 0;
+
+            if ((pWindowInfo->unk8 + 32) >= pWindowInfo->width) {
+                pWindowInfo->unk8 = pWindowInfo->width;
+                flag += 1;
+            } else {
+                pWindowInfo->unk8 += 32;
+            }
+
+            if ((pWindowInfo->unkA + 32) >= pWindowInfo->height) {
+                pWindowInfo->unkA = pWindowInfo->height;
+                flag += 1;
+            } else {
+                pWindowInfo->unkA += 32;
+            }
+
+            if (flag == 2) {
+                pWindowInfo->unk11 = 1;
+            }
+
+            func_801D4D1C(
+                pWindowInfo->index,
+                (pWindowInfo->x + (pWindowInfo->width / 2)) - (pWindowInfo->unk8 / 2),
+                (pWindowInfo->y + (pWindowInfo->height / 2)) - (pWindowInfo->unkA / 2),
+                pWindowInfo->unk8,
+                pWindowInfo->unkA,
+                pWindowInfo->unk12,
+                pWindowInfo->zIndex,
+                pWindowInfo->hasScrollBar
+            );
+        }
+    }
+}
+*/
