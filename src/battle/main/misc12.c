@@ -2,7 +2,12 @@
 
 extern u8 D_800D2D5C[];
 extern u16 D_800D2D70[];
-extern u16 D_800C3EBE[];
+typedef struct {
+    /* 0x00 */ u16 unk0;
+    /* 0x02 */ u8 unk2[0x1A];
+} BattleUnk1C; // Size: 0x1C
+
+extern BattleUnk1C D_800C3EBE[];
 extern u8 D_800C3EB4[];
 extern u16 D_800C3D64;
 extern u8 D_800C3E2C;
@@ -147,20 +152,9 @@ u16 func_80084D28(void) {
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80084DE4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80085084);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80085310);
-/* 77.50%: the direct form is 60.31% (gcc shares one lui/addiu of D_800C3EBE between
-   the two loads); two u32 locals reproduce the original's
-   per-load $at folds but add an 8-byte phantom frame, same blocker as func_80083FF4.
 u32 func_80085310(u8 arg0, u8 arg1) {
-    u32 x;
-    u32 y;
-
-    x = D_800C3EBE[arg0 * 14];
-    y = D_800C3EBE[arg1 * 14];
-    return y < x;
+    return D_800C3EBE[arg0].unk0 > D_800C3EBE[arg1].unk0;
 }
-*/
-
 void func_80085350(void) {
     s32 i;
 
