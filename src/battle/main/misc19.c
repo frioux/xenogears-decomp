@@ -490,6 +490,78 @@ void func_8009B104(u8 arg0, u8* arg1) {
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009B1E4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009B46C);
+/* Best attempt: 93.87%. Every instruction from the `p[0x56] == 3` test onward
+   matches; the only difference is the D_800CCE42 access. The original re-forms
+   `lui at,%hi(D_800CCE42); addu at,at,idx; lbu %lo(at)` at BOTH references,
+   while gcc's loop.c hoists the symbol base into a register before the loop
+   (`lui t1; addiu t1` at function entry) and then does `addu v0,idx,t1;
+   lbu 0(v0)` -- 4 bytes larger, which shifts every branch target before the
+   second block. Same signature as the func_8009AEFC park (D_800CCD68) in this
+   unit, so it is a unit-wide compiler behaviour, not the source shape: tried
+   D_800CCE42[i*0x170], ((u32)i*0x170 + (u32)D_800CCE42) and gcc-2.7.2-cdk
+   (94.10%, no fix). Everything else -- the 3-iteration loop with its
+   strength-reduced 0x170 index, both compare pairs, the count accumulation, the
+   limit/drop tail and the rand()%100 test -- is exact.
+void func_8009B46C(u16* arg0) {
+    u8 count = 0;
+    u8 i;
+
+    for (i = 0; i < 3; i++) {
+        u8* p = (u8*)D_800C34B0 + i * 0x170;
+        u8* q = p + 0xA4;
+        u32 cur;
+        u32 max;
+
+        if (p[0x56] == 0) {
+            if (*(u8*)((u32)i * 0x170 + (u32)D_800CCE42) & 0x80) {
+                max = *(u32*)(p + 0x108);
+                cur = *(u32*)(p + 0x104);
+            } else {
+                max = *(u16*)(p + 0x4E);
+                cur = *(u16*)(p + 0x4C);
+            }
+            if (cur < (max >> 1)) {
+                count++;
+            }
+            if (cur < (max >> 2)) {
+                count++;
+            }
+        }
+        if (p[0x56] == 3) {
+            if (*(u8*)((u32)i * 0x170 + (u32)D_800CCE42) & 0x80) {
+                max = *(u32*)(q + 0x64);
+                cur = *(u32*)(q + 0x60);
+            } else {
+                max = *(u16*)(p + 0x4E);
+                cur = *(u16*)(p + 0x4C);
+            }
+            if (cur < (max >> 1)) {
+                count++;
+            }
+            if (cur < (max >> 2)) {
+                count++;
+            }
+        }
+    }
+    {
+        u32 limit = 0xA;
+        u16 f;
+        s32 drop;
+
+        if (count != 0) {
+            *arg0 = *arg0 + count * (*arg0 >> 1);
+        }
+        f = *(u16*)(D_800C3E00 + 0x32);
+        drop = (f & 0x400) ? 4 : 3;
+        if (f & 0x200) {
+            limit = 0x3C;
+        }
+        if (rand() % 100 < limit) {
+            *arg0 = (drop * *arg0) >> 1;
+        }
+    }
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009B684);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009BAC4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009BD94);
