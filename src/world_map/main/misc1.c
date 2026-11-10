@@ -114,6 +114,71 @@ s32 func_80071A58(void) {
     }
     return 1;
 }
+/* best: 89.50% (308 bytes, same size). Decoded: if arg0 < 8 an 8-entry u16
+   level table at D_8009B566 is scanned while arg1 >= entry, and nLevel-1 (1 plus
+   the count) goes to D_8009C610; then pEntry = (WorldMapTableEntry*)(arg0 * 8 +
+   &D_8009B57C) for arg0 < 8 and &D_8009B58C otherwise, and 13 globals are set
+   from pEntry. The whole 13-store tail already matches byte for byte (the source
+   order is +1,+2,+3...,+0xA with unk2/unk4/unk6 stored last; the scheduler is
+   what swaps each pair into +1,+3,+2,+5,+4...), so only the level loop and the
+   pEntry address formation are wrong: retail materialises D_8009B564 first and
+   then adds 2 (so the pointer came from an address with a runtime base, i.e.
+   &D_8009B564 + 1 or a struct member), which also costs it one extra addiu,
+   and it forms pEntry before the D_8009C610 store instead of after.
+
+typedef struct {
+    s16 unk0;
+    s16 unk2;
+    s16 unk4;
+    s16 unk6;
+} WorldMapTableEntry; // Size: 0x8
+
+extern u16 D_8009B566;
+extern WorldMapTableEntry D_8009B57C;
+extern WorldMapTableEntry D_8009B58C;
+extern s32 D_8009C610;
+extern s32 D_8009CC98;
+extern s32 D_8009D3D0;
+extern s32 D_8009D800;
+extern s32 D_8009BCD8;
+extern s32 D_8009BCC8;
+extern s32 D_8009D2B4;
+extern s32 D_8009D160;
+extern s32 D_8009BD08;
+extern s32 D_8009D7CC;
+
+void func_80071B9C(s32 arg0, s32 arg1) {
+    WorldMapTableEntry* pEntry;
+    u16* pTable;
+    s32 nLevel;
+
+    if (arg0 < 8) {
+        nLevel = 1;
+        pTable = &D_8009B566;
+        while (arg1 >= *pTable) {
+            pTable++;
+            nLevel++;
+        }
+        D_8009C610 = nLevel - 1;
+        pEntry = (WorldMapTableEntry*)(arg0 * 8 + (s32)&D_8009B57C);
+    } else {
+        pEntry = (WorldMapTableEntry*)(arg0 * 8 + (s32)&D_8009B58C);
+    }
+    D_8009D3C4 = pEntry->unk0 + 1;
+    D_8009C17C = pEntry->unk0 + 2;
+    D_8009C174 = pEntry->unk0 + 3;
+    D_8009CC98 = pEntry->unk0 + 4;
+    D_8009D3D0 = pEntry->unk0 + 5;
+    D_8009D3C8 = pEntry->unk0 + 6;
+    D_8009D800 = pEntry->unk0 + 7;
+    D_8009BCC8 = pEntry->unk0 + 8;
+    D_8009BCD8 = pEntry->unk0 + 9;
+    D_8009BD08 = pEntry->unk0 + 0xA;
+    D_8009D160 = pEntry->unk2;
+    D_8009D2B4 = pEntry->unk4;
+    D_8009D7CC = pEntry->unk6;
+}
+*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80071B9C);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80071CDC);
 
@@ -217,6 +282,11 @@ void func_80073300(void) {
 }
 */
 
+/* BLOCKED, do not convert: the stub reads jtbl_8006FB24, so it needs a C switch,
+   and any C switch makes cc1 emit a table into this unit's .rodata. The overlay
+   linker places every misc unit's .rodata after the asm rodata but BEFORE .text
+   (linker/world_map.ld), so the table shifts all world_map code even at objdiff
+   100%. Same for func_80073300 above. */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80073398);
 /* best: 85.11%. Cases 1,2 share a block; 4,5,7 share a block; 3 and 6 fall
    through to the epilogue, which is why the table has 7 entries.
