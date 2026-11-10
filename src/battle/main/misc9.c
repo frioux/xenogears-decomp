@@ -15,7 +15,47 @@ extern u8 D_800D32A1[];
 extern u8 D_800D32B1[];
 extern u8 D_800D32F1[];
 extern u8 D_800C3EB4[];
+extern u8 func_8007A628(u8 arg0, u8 arg1);
+extern s32 func_8007A280(u8 arg0, u8 arg1, s32 arg2, s32 arg3);
+extern u8 func_8001BD40(s32 arg0, u8 arg1);
+extern u16 func_80089C08(u8 arg0);
 
+/* best: 80.37%. Same family as func_8007DA1C/DB78/DCF8/DE78/DFD4 (all still
+   stubs). Structure recovered from the asm: zero the row slot, then a do-while
+   over the operator slots collecting the matching ones into an 8-byte stack
+   buffer, then pick one at random. The `idx = i++` copy is real: retail keeps
+   it in a separate register (s3) and re-forms it at the loop latch, and the
+   buffer stores idx, not i. Remaining misses, all at 80.37% (336 bytes, frame
+   and saved-register set already exact): (1) the final store re-forms the row
+   base with a fresh `lui a1 / addiu a1 / addu a0,a0,a1` instead of reusing the
+   loop's base register - tried a pOut pointer (77-80%, gcc reuses the loop
+   base or spills), `(s32)D_800D3420` staged local (76.10%, shape right but one
+   extra insn) and the plain inline expression (the $at form);
+   (2) retail steals `i++` into the beqz delay slot after the func_8007A628
+   call, gcc emits it at the loop head;
+   (3) declaration order of the two zeroed accumulators (retail i then count).
+void func_8007D8C0(u8 **arg0, s32 arg1) {
+    u8 buf[8];
+    s32 count = 0;
+    s32 i = 0;
+    s32 idx;
+    u16 *pField = (u16 *)(D_800D3420 + (arg1 & 0xFF) * 0x40);
+
+    pField[(*arg0)[2]] = 0;
+    idx = i;
+    do {
+        idx = i++;
+        if (func_8007A628(idx, 0) != 0) {
+            if (pField[(*arg0)[3]] & func_8007A280(idx, (*arg0)[1], 0, 1)) {
+                buf[count] = idx;
+                count++;
+            }
+        }
+    } while (i < 3);
+    if (count != 0) {
+        ((u16 *)(D_800D3420 + (arg1 & 0xFF) * 0x40))[(*arg0)[2]] = func_80089C08(buf[func_8001BD40(0, count - 1)]);
+    }
+} */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007D8C0);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007DA1C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007DB78);
