@@ -16,6 +16,9 @@ extern void func_8008F7B8(u8* p);
 extern s32 func_8008F720(u8* p, s32 arg1);
 extern s32 func_8008F580(u8* p);
 extern s32 D_8009284C;
+extern s32 func_8008F5B4(u8* p, s32 arg1);
+extern void func_8008FFEC(u8* p, u8* arg1);
+extern void func_80076424(u8* p);
 
 s32 func_8008F530(u8* pArg0, s32 arg1) {
     if (arg1 != 0) {
@@ -86,9 +89,45 @@ void func_8008F900(u8* pArg0) {
         return 1;
     }
     return ((func_800828C4(pArg0) & 0x3000000) ^ 0x1000000) < 1;
-}INCLUDE_ASM("asm/battling/nonmatchings/main/misc18", func_8008FA2C);
+}extern long ratan2(long y, long x);
+extern s32 D_80092934;
+
+s32 func_8008FA2C(s32* pArg0, u8* pArg1) {
+    s32 sp[4];
+    s32 a;
+    s32 b;
+    s32 r;
+
+    *(Vec4*)sp = *(Vec4*)pArg0;
+    a = sp[0] - 0x3F80;
+    b = sp[2] - 0x3F80;
+    sp[0] = a;
+    sp[2] = b;
+    r = ratan2(sp[0], sp[2]);
+    *(s16*)(pArg1 + 0xA) = (((r & 0xFFF) >= 0x201) ? 0x800 : 0xC00) - D_80092934;
+    *(s16*)(pArg1 + 0xC) = 0xFF;
+    return 0;
+}
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc18", func_8008FACC);
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc18", func_8008FBD8);
+void func_8008FBD8(u8* pArg0, u8* pArg1) {
+    u8 v;
+
+    v = *(u8*)(pArg1 + 0xF);
+    if (v >= 2) {
+        *(u32*)(pArg0 + 0xD0) |= 2;
+        func_80076424(pArg0);
+        return;
+    }
+    if (v != 0) {
+        if (!(*(u8*)(pArg1 + 0x2C) & 1)) {
+            return;
+        }
+    } else if (*(u8*)(pArg1 + 0x2C) % 6 != 0) {
+        return;
+    }
+    *(u32*)(pArg0 + 0xD0) |= 2;
+    func_80076424(pArg0);
+}
 void func_8008FC7C(u8* pArg0) {
     u8* p;
 
@@ -98,11 +137,83 @@ void func_8008FC7C(u8* pArg0) {
     *(s16*)(p + 0x4) = (2 - *(u8*)(p + 0xF)) * 30 + 0x5A;
     func_8008F7B8(p);
 }INCLUDE_ASM("asm/battling/nonmatchings/main/misc18", func_8008FCC8);
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc18", func_8008FE80);
+void func_8008FE80(u8* pArg0) {
+    s32 n;
+    s32 v;
+
+    v = rand() % 10;
+    n = 1;
+    if (v >= 2) {
+        n = 2;
+    }
+    if (v >= 5) {
+        n++;
+    }
+    for (; n != 0; n--) {
+        func_8007639C(pArg0, (rand() & 1) + 1);
+    }
+}
+
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc18", func_8008FF24);
+/* 94.70%: instruction multiset matches; gcc swaps $a0/$a1 (the *20 product wants
+   $a1, it gets $a0) and folds the +1 into the product instead of the remainder.
+   Also tried: separate locals for the product and for rand() % 20 + 1, both
+   parenthesised groupings, and the terms in the other order (worse: 67-75%).
+void func_8008FF24(u8* pArg0, u8* pArg1) {
+    if (*(u8*)(*(u8**)(pArg0 + 0xD8) + 0xC4) == 4) {
+        if ((*(u32*)(pArg1 + 0x2C) & 0xA00) == 0x200) {
+            func_8008F900(pArg0);
+            *(s16*)(pArg1 + 0x4) = 3;
+        }
+    } else {
+        func_8008FE80(pArg0);
+        *(s16*)(pArg1 + 0x4) = (2 - *(u8*)(pArg1 + 0xF)) * 20 + rand() % 20 + 1;
+    }
+    func_8008F7B8(pArg1);
+}
+*/
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc18", func_8008FFEC);
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc18", func_80090174);
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc18", func_80090258);
+void func_80090174(u8* pArg0) {
+    u8* p;
+    u8 v;
+
+    p = *(u8**)(pArg0 + 0x15FC);
+    p[0x8] = 1;
+    func_8008FF24(pArg0, p);
+    v = p[0xF];
+    if (v >= 2) {
+        p[0x9] = rand() % 8 + 1;
+    } else if (v != 0) {
+        p[0x9] = rand() % 6 + 1;
+    } else {
+        p[0x9] = rand() % 4 + 1;
+    }
+    *(s16*)(p + 0xC) = 0;
+    p[0xE] = 0;
+    func_8008F7B8(p);
+}
+
+s32 func_80090258(u8* pArg0, u8* pArg1) {
+    if (*(u8*)(pArg0 + 0x911) != 0) {
+        if ((rand() & 1) == 0) {
+            return 1;
+        }
+        if ((rand() & 1) != 0 && func_8008F5B4(pArg0, 0) != 0) {
+            func_8008F900(pArg0);
+            return 0;
+        }
+        if (D_8009284C < 0x1001) {
+            func_8008FFEC(pArg0, pArg1);
+            return 0;
+        }
+        return 1;
+    }
+    if (func_8008F5B4(pArg0, 0) != 0) {
+        func_8008F900(pArg0);
+        return 0;
+    }
+    return 1;
+}
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc18", func_8009031C);
 void func_80090504(u8* pArg0) {
     u8* p;
@@ -117,7 +228,21 @@ void func_80090504(u8* pArg0) {
     *(u8*)(p + 0xE) = func_8008F720(pArg0, 1);
     *(u8*)(p + 0x2E) = 0;
 }INCLUDE_ASM("asm/battling/nonmatchings/main/misc18", func_80090580);
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc18", func_80090894);
+void func_80090894(u8* pArg0) {
+    u8* p;
+
+    p = *(u8**)(pArg0 + 0x15FC);
+    p[0x8] = 2;
+    if (rand() % 3 == 0) {
+        func_800767C8(pArg0);
+    }
+    *(s32*)(p + 0x28) = rand() % 1536 + 0x100;
+    *(s16*)(p + 0x4) = 0;
+    p[0x9] = rand() % 5 + 3;
+    func_8008F7B8(p);
+    p[0xE] = func_8008F720(pArg0, 0);
+    p[0x2E] = 0;
+}
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc18", func_80090990);
 void func_80090C88(u8* pArg0) {
     u8* p1;
