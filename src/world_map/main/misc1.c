@@ -52,7 +52,68 @@ int func_80071A50(void) {
     return 1;
 }
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80071A58);
+extern s32 D_8009D144;
+extern s32 D_8009BD40;
+extern s16 D_8009D558;
+extern s32 D_8009BBB4;
+extern s32 D_8009BE28;
+extern u8* D_8009BE3C;
+extern s32 D_8009C5BC;
+
+extern void func_80097440(s32* p);
+extern void func_80097244(s32* p);
+extern void func_80089748(void);
+extern void func_80089C78(void);
+extern void func_80085CDC(void);
+extern void func_8008615C(void);
+extern void func_800747DC(void);
+extern void func_800848F4(void);
+extern void func_800980D4(s32* p);
+extern void func_800981C8(s32* p);
+extern void func_80096130(void);
+extern void func_80098CC0(void);
+extern void func_800983A0(s32* p);
+extern void func_8009932C(s32 arg0, s32 arg1, s32* p);
+extern void func_80073B04(void);
+extern void func_800737EC(void);
+extern void func_80086798(void);
+extern void func_800740B8(void);
+
+s32 func_80071A58(void) {
+    u8* p;
+    s32* pState;
+    s32 pad[2];
+
+    if (D_8009D144 == 0) {
+        func_80097440(&D_8009BD40);
+    } else {
+        func_80097244(&D_8009BD40);
+    }
+    func_80089748();
+    func_80089C78();
+    func_80085CDC();
+    func_8008615C();
+    func_800747DC();
+    func_800848F4();
+    func_800980D4(&D_8009BBB4);
+    if (D_8009D558 != 0) {
+        func_800981C8(&D_8009BE28);
+        func_80096130();
+        func_80098CC0();
+    }
+    pState = &D_8009BE28;
+    func_800983A0(pState);
+    p = D_8009BE3C;
+    func_8009932C(*(s32*)(p + 0x70), *(s32*)(p + 0x74), pState);
+    D_8009C5BC = D_8009C5BC + 0x40;
+    func_80073B04();
+    func_800737EC();
+    func_80086798();
+    if (((u16*)g_GameState.unk1838)[5] == 0) {
+        func_800740B8();
+    }
+    return 1;
+}
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80071B9C);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80071CDC);
 
@@ -220,7 +281,85 @@ void func_8007369C(void) {
     D_8009BCB0 = HeapAlloc(0x1000, 0);
 }
 
+
+/* best: 26.13% - every one of the 68 insns is present with the right store
+   order and width; only the register allocation differs. Decoded: p =
+   &D_8009D198 (kept in $v0), 0x24-stride sub-blocks at 0x00..0xFC, each with a
+   word at +0,+8,+0x10,+0x18 and bytes at +0x23 and +0x27; colours 0xFF7A70,
+   0xFFF5E0, 0xC03745; bytes 8 and 0x38; the first 0x40 bytes are reached
+   through their own absolute symbols (D_8009D197, D_8009D198, D_8009D1A0,
+   D_8009D1A8, D_8009D1B0, D_8009D1BC, D_8009D1C4, D_8009D1CC, D_8009D1D4).
+   gcc rotates the constant registers one place (it gets v1,a0,v0,a1 where the
+   original has a0,a1,v1,a2): the base pointer loses the top allocation
+   priority, and u32 locals for the two colours do not change it.
+
+extern u32 D_8009D1A0;
+extern u32 D_8009D1A8;
+extern u32 D_8009D1B0;
+extern u32 D_8009D1BC;
+extern u32 D_8009D1C4;
+extern u32 D_8009D1CC;
+extern u32 D_8009D1D4;
+extern u8 D_8009D197;
+extern u8 D_8009D19B;
+extern u8 D_8009D198;
+
+void func_800736DC(void) {
+    u8* p;
+
+    p = &D_8009D198;
+    D_8009D1C4 = 0xFF7A70;
+    D_8009D1BC = 0xFF7A70;
+    D_8009D1A0 = 0xFF7A70;
+    *(u32*)p = 0xFF7A70;
+    D_8009D1D4 = 0xFFF5E0;
+    D_8009D1CC = 0xFFF5E0;
+    D_8009D1B0 = 0xFFF5E0;
+    D_8009D1A8 = 0xFFF5E0;
+    D_8009D197 = 8;
+    D_8009D19B = 0x38;
+    p[0x23] = 8;
+    p[0x27] = 0x38;
+    *(u32*)(p + 0x74) = 0xC03745;
+    *(u32*)(p + 0x6C) = 0xC03745;
+    *(u32*)(p + 0x50) = 0xC03745;
+    *(u32*)(p + 0x48) = 0xC03745;
+    *(u32*)(p + 0x84) = 0xFF7A70;
+    *(u32*)(p + 0x7C) = 0xFF7A70;
+    *(u32*)(p + 0x60) = 0xFF7A70;
+    *(u32*)(p + 0x58) = 0xFF7A70;
+    p[0x47] = 8;
+    p[0x4B] = 0x38;
+    p[0x6B] = 8;
+    p[0x6F] = 0x38;
+    *(u32*)(p + 0xCC) = 0xC03745;
+    *(u32*)(p + 0xC4) = 0xC03745;
+    *(u32*)(p + 0xBC) = 0xC03745;
+    *(u32*)(p + 0xB4) = 0xC03745;
+    *(u32*)(p + 0xA8) = 0xC03745;
+    *(u32*)(p + 0xA0) = 0xC03745;
+    *(u32*)(p + 0x98) = 0xC03745;
+    *(u32*)(p + 0x90) = 0xC03745;
+    p[0x8F] = 8;
+    p[0x93] = 0x38;
+    p[0xB3] = 8;
+    p[0xB7] = 0x38;
+    *(u32*)(p + 0x114) = 0xC03745;
+    *(u32*)(p + 0x10C) = 0xC03745;
+    *(u32*)(p + 0x104) = 0xC03745;
+    *(u32*)(p + 0xFC) = 0xC03745;
+    *(u32*)(p + 0xF0) = 0xC03745;
+    *(u32*)(p + 0xE8) = 0xC03745;
+    *(u32*)(p + 0xE0) = 0xC03745;
+    *(u32*)(p + 0xD8) = 0xC03745;
+    p[0xD7] = 8;
+    p[0xDB] = 0x38;
+    p[0xFB] = 8;
+    p[0xFF] = 0x38;
+}
+*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_800736DC);
+
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_800737EC);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_800739B8);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80073B04);
