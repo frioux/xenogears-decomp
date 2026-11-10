@@ -50,9 +50,91 @@ typedef struct {
     /* 0x20 */ void *unk20;
 } Misc23Block;
 
+// 0xE-byte node of the tree rooted at D_800D39CC, indexed by D_800D3348.
+typedef struct {
+    /* 0x0 */ s16 unk0;
+    /* 0x2 */ s16 unk2;
+    /* 0x4 */ s16 unk4;
+    /* 0x6 */ s16 unk6;
+    /* 0x8 */ s16 unk8;
+    /* 0xA */ s16 unkA;
+    /* 0xC */ u8 unkC;
+    /* 0xD */ u8 unkD;
+} Misc23TreeEntry; // Size: 0xE
+
+extern s32 D_800D3344;
+extern s32 D_800D3348;
+extern s32 D_800D39CC;
+extern u8 D_800D2F64;
+extern s32 func_800A5D54(s32, s32, s32);
+
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A5914);
+/* 96.62%: everything matches except that the original RELOADS D_800D2F64
+   after incrementing it (lui/lbu/nop/bnez) while gcc 2.7.2 forwards the
+   stored value (andi v0,v0,0xff; bnez), 8 bytes short. Tried: volatile u8
+   (95.91%, gcc then emits the load three times), incrementing through a
+   pointer local (same forwarding). Tried only D_800D2F64; the rest of the
+   function is byte-identical, including the uninitialised `result` that the
+   original returns from the arg2 <= 0 path.
+s32 func_800A5914(s32 arg0, s32 arg1, s32 arg2) {
+    s32 result;
+    s32 i;
+
+    if (D_800D3344 == 0) {
+        return -1;
+    }
+    if (D_800D39CC == 0) {
+        return -1;
+    }
+    if (arg1 >= D_800D3348) {
+        return -1;
+    }
+    for (i = 0; i < arg2; i++) {
+        result = func_800A5D54(arg0, arg1, arg2);
+        if (result >= 0) {
+            break;
+        }
+    }
+    D_800D2F64++;
+    if (D_800D2F64 != 0) {
+        return result;
+    }
+    D_800D2F64 = 1;
+    for (i = 0; i < D_800D3348; i++) {
+        ((Misc23TreeEntry *)(i * 14 + D_800D39CC))->unkD = 0;
+    }
+    return result;
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A5A48);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A5BE8);
+/* 99.23%: identical instruction multiset; only allocator picks differ - the
+   original holds the divisor (pNormal->vy) in $a2 and the two products in
+   $v1/$v0, gcc 2.7.2 picks $a1 for the divisor and $a2/$t1 for the products
+   (and swaps the two loads of the z pair). Tried: two named product locals
+   (same), the divisor held in a local across the branch (same), inlining the
+   negation (same).
+void func_800A5BE8(SVECTOR *pBase, SVECTOR *pA, SVECTOR *pB, SVECTOR *pOut, VECTOR *pNormal) {
+    VECTOR nA;
+    VECTOR nB;
+    long d[3];
+
+    d[0] = pA->vx - pBase->vx;
+    d[1] = pA->vy - pBase->vy;
+    d[2] = pA->vz - pBase->vz;
+    VectorNormal((VECTOR *)d, &nA);
+    d[0] = pB->vx - pBase->vx;
+    d[1] = pB->vy - pBase->vy;
+    d[2] = pB->vz - pBase->vz;
+    VectorNormal((VECTOR *)d, &nB);
+    OuterProduct12(&nA, &nB, pNormal);
+    if (pNormal->vy == 0) {
+        pOut->vy = 0;
+    } else {
+        pOut->vy = pBase->vy + (-((pOut->vx - pBase->vx) * pNormal->vx) - (pOut->vz - pBase->vz) * pNormal->vz) / pNormal->vy;
+    }
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A5D54);
 /* 97.24%: the whole function is byte-identical except that gcc emits the
    "lbu $v0,0xD($a0)" of the visited-flag test AFTER the two D_800D2F64 insns
@@ -213,18 +295,36 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A8B0C);
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A8BF0);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A9540);
+// 0x18-byte archive entry allocated by func_800A96B4, stored in D_800C3B78.
+typedef struct {
+    /* 0x0  */ u16 unk0;
+    /* 0x2  */ u16 pad2;
+    /* 0x4  */ void *unk4;
+    /* 0x8  */ u16 unk8;
+    /* 0xA  */ u16 padA;
+    /* 0xC  */ void *unkC;
+    /* 0x10 */ u16 unk10;
+    /* 0x12 */ u16 pad12;
+    /* 0x14 */ s32 unk14;
+} Misc23ArchiveEntry; // Size: 0x18
+
+extern Misc23ArchiveEntry *D_800C3B78;
+extern int ArchiveDecodeAlignedSize(unsigned int);
+extern void func_80029AFC(Misc23ArchiveEntry *, s32, s32);
+
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A96B4);
 /* 99.10%: identical instruction multiset; the only difference is which of
    $s1/$s2 holds the (arg0 * 2) index and which holds index + 1 - the original
-   puts the index in $s1, gcc 2.7.2 puts it in $s2, so both the prologue saves
-   and the three "move a0,sN" swaps follow. Tried: computing index before the
-   HeapAlloc calls (45.83%), after them (99.10%, the shape below), naming
-   index + 1 as its own local, and reordering all five local declarations.
+   puts the index in $s1 (reusing the saved parameter register: "sll s1,s1,1")
+   and gcc 2.7.2 puts it in $s2, so both the prologue saves and the three
+   "move a0,sN" swaps follow. Tried: computing index before the HeapAlloc
+   calls (45.83%), after them (99.10%), naming index + 1 as its own local,
+   reordering all five declarations, rewriting it as "arg0 *= 2" so the scale
+   happens in place (99.10%), and gcc 2.6.0 (99.1, so not a preset problem).
 void func_800A96B4(s32 arg0) {
     Misc23ArchiveEntry *pEntry;
     s32 alignedIndex;
     s32 remainder;
-    s32 index;
     s32 next;
 
     ArchiveGetArchiveOffsetIndices(&alignedIndex, &remainder);
@@ -232,22 +332,18 @@ void func_800A96B4(s32 arg0) {
     HeapChangeCurrentUser(4, NULL);
     pEntry = HeapAlloc(0x18, 1);
     D_800C3B78 = pEntry;
-    index = arg0 * 2;
-    next = index + 1;
+    arg0 *= 2;
+    next = arg0 + 1;
     ArchiveGetFilePath(next);
     pEntry->unk0 = next;
     pEntry->unk4 = HeapAlloc(ArchiveDecodeAlignedSize(next), 1);
-    pEntry->unk8 = index + 2;
-    pEntry->unkC = HeapAlloc(ArchiveDecodeAlignedSize(index + 2), 1);
+    pEntry->unk8 = arg0 + 2;
+    pEntry->unkC = HeapAlloc(ArchiveDecodeAlignedSize(arg0 + 2), 1);
     pEntry->unk10 = 0;
     pEntry->unk14 = 0;
     func_80029AFC(D_800C3B78, 0, 0);
     ArchiveSetIndex(alignedIndex, remainder);
 }
-   pEntry is a 0x18-byte record: u16 unk0; u16 pad2; void *unk4; u16 unk8;
-   u16 padA; void *unkC; u16 unk10; u16 pad12; s32 unk14. Needs
-   extern Misc23ArchiveEntry *D_800C3B78; extern int ArchiveDecodeAlignedSize(unsigned int);
-   extern void func_80029AFC(Misc23ArchiveEntry *, s32, s32);
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A979C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A9A50);
