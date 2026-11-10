@@ -282,7 +282,47 @@ s32 func_800817A0(s32 index) {
 }
 */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_800817A0);
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_80081868);
+s32 func_80081868(s32 index) {
+    WorldMapSlot *pSlot = &D_8009BE24[index];
+    WorldMapEntry *pEntry = &D_8009C620[2];
+    u8 *p;
+    s32 i;
+
+    switch (pSlot->unk4) {
+    case 1:
+        pSlot->unk4 = 0;
+        pSlot->unk20 = 1;
+        break;
+    case 2:
+        pSlot->unk4 = 0;
+        pSlot->unk20 = 0;
+        p = *(u8 **)((u8 *)pEntry + D_8009D7F0 * 4 + 0x48);
+        for (i = 0; i < *(u16 *)(pEntry->unk40 + 4); i++, p += 0x28) {
+            p[7] &= ~2;
+            p[4] = 0x80;
+            p[5] = 0x80;
+            p[6] = 0x80;
+        }
+        break;
+    }
+    if (pSlot->unk20 != 0) {
+        if (pSlot->unk20 == 1) {
+            pSlot->unk50 += 1;
+            pSlot->unk54 += 1;
+            pSlot->unk58 += 1;
+            if (pSlot->unk50 >= 0xFF) {
+                pSlot->unk58 = 0xFF;
+                pSlot->unk54 = 0xFF;
+                pSlot->unk50 = 0xFF;
+                pSlot->unk20 = 0;
+            }
+        }
+    }
+    func_800809EC(*(u8 **)((u8 *)pEntry + D_8009D7F0 * 4 + 0x48),
+                  *(u16 *)(pEntry->unk40 + 4),
+                  pSlot->unk50, pSlot->unk54, pSlot->unk58);
+    return 1;
+}
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_800819C8);
 s32 func_80081B24(s32 index) {
     WorldMapSlot *pSlot = &D_8009BE24[index];
