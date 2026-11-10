@@ -8,6 +8,8 @@ extern s32 D_800CCB34;
 extern u8 *D_800D2D28;
 extern u8 *D_800D2E38[];
 extern u8 *D_800D2D90[];
+extern u16 g_SystemPalette1;
+extern u16 g_SystemPalette2;
 
 extern void func_800716D8(void);
 extern void HeapFree(void *pMem);
@@ -23,7 +25,7 @@ extern u8 D_800C3D70[];
 extern void *func_8008ABB8(s32, s32);
 extern void func_80077454(s32);
 extern void func_8008F6E4(s32, s32, s32, s32, s32);
-extern void func_80090310(s32, s32);
+extern void func_80090310(u8, u8);
 extern void func_800904A0(s32, s32);
 extern void func_8009070C(s32, s32);
 
@@ -147,13 +149,17 @@ void func_8008FDE4(void) {
     func_8008FC1C(0x20, 0x5C, 0xCC, 0x60, 0xE);
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008FE18);
-/* 99.62%: only two commutative operand orders differ. gcc attaches the -4 to
-   the loop induction variable (addiu a3,s0,-4) where the original attaches it
-   to the argument (addiu a3,s2,-4), and emits `addu a1,v0,a1` where the
-   original has `addu a1,a1,v0`. Tried: arg0 - 4 + offset, (arg0 - 4) + offset,
-   offset + arg0 - 4, offset + (arg0 - 4), base+offset and offset+base casts for
-   the destination pointer, and a `size` temp for the block-size accumulate
-   (that temp is what fixed the rest of the loop body from 65%).
+/* 99.62%: two commutative operand orders. The original loads the D_800C3EA4
+   index part first (sll/addu/sll) then `addiu a1,a1,0xBA8` then `addu a1,a1,v0`
+   with the pointer base; gcc either reverses the final addu (pointer base, as
+   below) or, with the base cast to s32, folds 0xBA8 onto the base side
+   (`addiu v0,v0,0xBA8; addu a1,a1,v0`). For the 4th argument gcc moves the -4
+   onto the loop induction variable (`addiu a3,s0,-4; addu a3,a3,s2`) whichever
+   way the sum is written, because fold attaches constants to the GIV; the
+   original has `addiu a3,s2,-4; addu a3,s0,a3`. Tried: arg0-4+offset,
+   (arg0-4)+offset, offset+arg0-4, offset+(arg0-4), base-first and
+   index-first with and without an (s32) cast on the base, and a `size` temp for
+   the block-size accumulate (that temp fixed the rest of the loop, 65 -> 99.62).
 void func_8009023C(s32 arg0) {
     s32 i;
     s32 offset;
@@ -171,7 +177,22 @@ void func_8009023C(s32 arg0) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8009023C);
+/* 50.34%: signature and inner arithmetic recovered (u8,u8; index = arg1*2+arg0;
+   if (index >= 0x11) index -= 0x10 and the palette/UV base switches; the store
+   is *(u16 *)(P + D_800CCB34*0x28 + 0x14E) = palette with
+   P = *(u8 **)(D_800C3EA4 + 0xA230); u = (index % 2) * 0x78, v = (index / 2) * 13;
+   two func_80076C78 calls at P + D_800CCB34*0x28 + 0x140 (0x18,0x33,...,0x60) and
+   + 0x190 (0x84,0x33,((index%2)<<6)|ofs,...,0x10), and the andi 0xF8/0xD0 masks
+   are gcc's range-narrowed u8 argument truncation, not source masks).
+   The gap is structural: the original hoists the D_800CCB34 and D_800C3EA4 loads
+   of the store address INTO both if-arms (cse.c load hoisting) and keeps `index`
+   in a1-a3, giving a 0x30 frame with s0-s3; gcc keeps the loads after the join,
+   puts index in s1 and emits a 0x28 frame with three saves. Tried: if/else vs
+   pre-assigning g_SystemPalette1 before the if.
+   Next idea: force the hoisting by making the store address a local pointer
+   computed before the if, or by duplicating the store into both arms. */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_80090310);
+
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_800904A0);
 /* 78.72%: RECT setup, bzero/GetStringEntry/SystemRenderStringEntry order and the
    stack args all match; the poly pointer is the problem - gcc loads the
@@ -230,10 +251,6 @@ void func_8009080C(u8 arg0, u8 arg1, u8 arg2) {
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8009080C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8009093C);
-/* 95.11%: identical instruction multiset; the only difference is that gcc sinks
-   the final `sb v0,0x9E(v1)` past the `lw ra`/`addiu sp` epilogue where the
-   original keeps it before them. Tried: direct byte stores, a hoisted u8 *p
-   local for both tail stores, `*(u8 *)&D_800CCB34` for the 0xA7 source.
 void func_80090B90(s32 arg0, s32 arg1, s32 *pIndex, u8 *pCount) {
     u8 *p;
 
@@ -246,10 +263,7 @@ void func_80090B90(s32 arg0, s32 arg1, s32 *pIndex, u8 *pCount) {
     *(s32 *)(D_800D2D28 + 0x100) = func_80076A10(*pIndex + 0xE0, D_800C3EA4 + 0x27C8, arg0, arg1);
     p = D_800D2D28;
     p[0xA7] = *(u8 *)&D_800CCB34;
-    p = D_800D2D28;
-    p[0x9E] = 1;
+    *(volatile u8 *)(D_800D2D28 + 0x9E) = 1;
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_80090B90);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_80090C44);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_80090E7C);
