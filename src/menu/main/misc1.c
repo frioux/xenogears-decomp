@@ -16,6 +16,9 @@ void func_801D22F4(s32 arg0);
 void func_801D2484(void);
 void func_801D2D38(void);
 void func_801C7B0C(void);
+extern int ArchiveDecodeAlignedSize(unsigned int entryIndex);
+extern void ArchiveCdDataSync(int mode);
+extern void ArchiveReadFileToBuffer(s32 index, void* pBuffer, u32 arg2, u32 flags);
 
 extern u8 D_801E977A;
 extern u8 D_801EA8FC;
@@ -208,6 +211,64 @@ void func_801C62A8(void) {
 }
 */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc1", func_801C6400);
+
+/* Best: 90.45% (480 bytes, same size).  Remaining: gcc rotates the saved registers
+   (pBuffer/i/lineCount are s2/s0/s1 here vs s0/s1/s2 in the original) and puts the
+   newline block in-line where the original keeps it after a `j` back to the loop top.
+   Tried: per-statement re-deref of g_Menu->menuUnk2 (needed, the original reloads),
+   `while` vs `if (n) for(;;)` vs do-while loop shapes, explicit pointer for the
+   0x4FFC copy loop (needed, the original strength-reduces), declaration permutations.
+void func_801C6400(void) {
+   u8* pBuffer;
+   s32 i;
+   s32 j;
+   u16 lineCount;
+   u8* p;
+   MenuUnk2* pInfo;
+
+   for (i = 0; i < 2; i++) {
+       g_Menu->menuUnk2->unk4F84[4 + i] = 0;
+       g_Menu->menuUnk2->unk4F84[6 + i] = 0;
+       ((u8*)&g_Menu->menuUnk2->unk4F8C)[i] = 0xFF;
+   }
+   for (i = 0; i < 0x20; i++) {
+       g_Menu->menuUnk2->records[i].unk58 = 0;
+       g_Menu->menuUnk2->unk4FAE[i] = 0xFF;
+   }
+   lineCount = g_GameState.unk1930[0];
+   i = 0;
+   ArchiveSetIndex(0x10, 1);
+   pBuffer = HeapAlloc(ArchiveDecodeAlignedSize(1), 1);
+   ArchiveReadFileToBuffer(1, pBuffer, 0, 0x80);
+   ArchiveCdDataSync(0);
+   if (lineCount != 0) {
+       for (;;) {
+           if (pBuffer[i] >= 0x80) {
+               i += 2;
+               continue;
+           }
+           if (pBuffer[i] == '\n') {
+               lineCount += 0xFFFF;
+               if (lineCount != 0) {
+                   i++;
+                   continue;
+               }
+               break;
+           }
+           i++;
+       }
+   }
+   p = &pBuffer[i];
+   for (j = 0; j < 0x1E; j++) {
+       g_Menu->menuUnk2->unk4FE7[0x15 + j] = p[j];
+   }
+   pInfo = g_Menu->menuUnk2;
+   pInfo->unk4FE7[0x34] = 0;
+   pInfo->unk4FE7[0x33] = 0;
+   ArchiveSetIndex(0x10, 0);
+   HeapFree(pBuffer);
+}
+*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc1", func_801C65F4);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc1", func_801C6AA0);
 
