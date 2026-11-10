@@ -1,4 +1,5 @@
 #include "common.h"
+#include "main/game.h"
 #include "psyq/libgpu.h"
 
 extern u8 D_800D2CE0[];
@@ -42,8 +43,74 @@ extern void *D_800D2F5C;
 extern u8 D_800C3E4C;
 extern void func_80076B00(void *);
 extern s32 func_800263E4(void *, s32, void *, s32, s16, s16, s32, s32, s32);
+extern u16 D_800C324E;
+extern u16 D_800C3250;
+extern u16 D_800C3252;
+extern u16 D_800C323A;
+extern u8 D_800CEF34[];
+extern u8 D_800CEF10[];
+extern u8 D_800CCDC4[];
+extern u8 D_800CCD62[];
+extern u8 D_800D2D24[];
+extern s32 func_80089C6C(s32, u8);
+extern u8 func_80085084(u16, u8, s32);
+extern void func_8008CCCC(u8);
+extern void func_8008CD28(u8);
+extern void func_8008AA74(u8);
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008CDE4);
+/* 99.83%: byte-identical size (468) and instruction multiset; the only
+   difference is which of the mask test's two operands lands in v0 -- retail
+   `lhu v0,0(at)` (D_800CCD62) + `lhu v1,16(sp)` (hdr[arg1]) + `and v0,v0,v1`,
+   ours the two registers swapped, i.e. the `and` destination coalesces with the
+   other operand. Load ORDER matches retail, so it is a global.c tie-break.
+   Tried: both `&` operand orders (the swapped order fixes the registers but
+   hoists the hdr load ahead of the D_800CCD62 load), `*(u16 *)(hdr + arg1)`.
+   Everything else matches: the u16 hdr[4] four-sh initializer (an initializer
+   list makes cc1 emit an extra lwl/lwr block copy and a 0x48 frame), the
+   (arg1 + 0x25) * 0x28 + arg0 * 0x690 / arg0 * 0x170 index pair, sltu, the
+   func_80089C6C andi 0xffff chain, and the flag/ret tail.
+u8 func_8008CDE4(u8 arg0, u8 arg1) {
+    u16 hdr[4];
+    u8 flag;
+    u8 ret;
+    s32 idx;
+    s32 ofs;
+    u16 trigger;
+    u16 cur;
+    u16 dmg;
+
+    hdr[0] = D_800C324E;
+    hdr[1] = D_800C3250;
+    hdr[2] = D_800C3252;
+    hdr[3] = D_800C323A;
+    ret = 0;
+    flag = 1;
+    idx = (arg1 + 0x25) * 0x28 + arg0 * 0x690;
+    ofs = arg0 * 0x170;
+    trigger = *(u16 *)(D_800CEF34 + idx);
+    cur = *(u16 *)(D_800CCDC4 + ofs);
+    dmg = *(u16 *)(D_800CEF10 + idx);
+    if (cur >= trigger &&
+        (u16)func_80089C6C((u16)g_GameState.unk16BC[D_800D2D24[arg0]].unk1E, arg1) != 0 &&
+        (*(u16 *)(D_800CCD62 + ofs) & hdr[arg1]) == 0) {
+        func_8008CCCC(1);
+        D_800D2D28[0xC6] = 1;
+        if (func_80085084(dmg, arg0, 0) != 0) {
+            *(u16 *)(D_800CCDC4 + ofs) -= trigger;
+            ret = 1;
+        } else {
+            D_800D2D28[0xC6] = 0;
+            func_8008CD28(arg0);
+        }
+        flag = 0;
+    }
+    if (flag != 0) {
+        func_8008AA74(0x4F);
+    }
+    return ret;
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008CFB8);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008D328);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008D598);
