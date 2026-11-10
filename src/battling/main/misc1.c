@@ -76,7 +76,16 @@ void func_80071724(void* pOt) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_80071794);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_800718C0);
+extern s32 D_800925D4;
+extern s32 D_800925D8;
+extern u8 D_8009868C[];
+extern s32 func_80032F54(void* pString, s16 a, s16 b, s16 c, s16 d, s16 e, s16 f);
+
+void func_800718C0(void) {
+    D_800925D8 = -1;
+    D_800925D4 = 0;
+    func_80032F54(&D_8009868C[0], 0x140, 0x30, 0x1C, 0x9A, 0x40, 4);
+}
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_8007191C);
 
@@ -103,7 +112,30 @@ void func_800725A8(void) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_800725B0);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_800726B4);
+extern void func_8008BC04(void);
+extern void func_8007F834(void);
+extern void func_80030988(s32 a0, s32 a1, s32 a2, s32 a3);
+extern void func_8008A5BC(void* p);
+extern void func_80089D5C(void* p);
+extern void func_8008976C(s32 a0, s32 a1);
+extern void func_80083C0C(s32 mode);
+extern void func_8007E954(s32 value);
+extern void func_80080D10(void);
+extern void* D_800910F0;
+extern void* D_80092610;
+
+void func_800726B4(void) {
+    func_8008BC04();
+    func_8007F834();
+    func_80030988(1, 1, 0x40, 0x40);
+    func_8008A5BC(D_800910F0);
+    func_80089D5C(D_80092610);
+    func_8008976C(0x140, 0xDA);
+    SetGeomScreen(0xC0);
+    func_80083C0C(3);
+    func_8007E954(0x100);
+    func_80080D10();
+}
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_8007273C);
 
