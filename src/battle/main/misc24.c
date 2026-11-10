@@ -1,9 +1,16 @@
 #include "common.h"
 #include "psyq/libgte.h"
+#include "system/memory.h"
 
 extern u8 D_800C3B74;
 extern u8 D_800C402F[];
 extern s32 *D_800D3368[];
+extern u8 *D_8005919C;
+extern u8 *D_800C4924;
+extern s16 func_800A3490(s16 angle, s16 divisor, s16 base);
+extern s16 func_800A3514(s16 angle, s16 divisor, s16 base);
+extern s16 func_800A3578(s16 angle, s16 divisor, s16 base);
+extern s16 func_800A35C8(s16 angle, s16 divisor, s16 base);
 
 u8 func_800AA514(s16 arg0, s16 arg1, s32 arg2) {
     s16 v;
@@ -16,22 +23,65 @@ u8 func_800AA514(s16 arg0, s16 arg1, s32 arg2) {
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AA564);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AA600);
-/* 99.00% - only the two "mflo" destinations differ (original mflo $v0, this
-   mflo $a1); the single-expression form is otherwise instruction-identical.
+/* 99.00% - only the two "mflo" destinations differ (original mflo $v0 twice,
+   this mflo $a1 twice, and the sra sources follow). Instruction sequence,
+   operands and mult order are otherwise identical. Tried: r = 0 + single
+   expression (99.00), two-statement r >>= 12 chain (95.00), separate t local
+   (94.50), "if (p == 0) return 0;" early return (85.75, unmerged epilogue),
+   "if (p != 0) return expr; return 0;" (99.00). The mflo->sra LO copy is
+   never coalesced into $v0.
 s32 func_800AA600(s32 arg0) {
     u8 *p;
+
+    p = (u8 *)D_800D3368[arg0];
+    if (p != 0) {
+        return (*(s16 *)(p + 0x24) * ((*(s16 *)(p + 0x1C) * *(s16 *)(*(u8 **)(p + 4) + 0x4E)) >> 12)) >> 12;
+    }
+    return 0;
+}
+*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AA650);
+/* 99.44% - identical except the two "mflo" destinations: the original writes
+   the LO result straight into $v0 (mflo $v0 / sra $v0,$v0,0xc), this gives
+   mflo $a2 / sra $v0,$a2,0xc; the LO copy is never coalesced with the shift.
+   The second D_800D3368[arg0] read (after the if/else, for the 0x1C load) is
+   what the original does - without it gcc keeps the pointer live and uses
+   $a0 for b instead of $v1 (82.92%). Also tried -O3 (99.44, no change).
+s32 func_800AA650(s32 arg0) {
+    u8 *p;
+    s32 a;
+    s32 b;
     s32 r;
 
     r = 0;
     p = (u8 *)D_800D3368[arg0];
     if (p != 0) {
-        r = (*(s16 *)(p + 0x24) * ((*(s16 *)(p + 0x1C) * *(s16 *)(*(u8 **)(p + 4) + 0x4E)) >> 12)) >> 12;
+        if (*(u16 *)(p + 0x4A) & 8) {
+            a = *(s16 *)(p + 0x26);
+            b = *(s16 *)(*(u8 **)(p + 4) + 0x4C);
+        } else {
+            a = *(s16 *)(p + 0x28);
+            b = *(s16 *)(*(u8 **)(p + 4) + 0x50);
+        }
+        r = (*(s16 *)((u8 *)D_800D3368[arg0] + 0x1C) * b) >> 12;
+        r = (a * r) >> 12;
     }
     return r;
 }
 */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AA650);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AA6E0);
+void func_800AA6E0(u8 *arg0) {
+    u8 *p;
+    s32 i;
+
+    if (*(u8 *)(arg0 + 0x10C) != 0) {
+        p = HeapAlloc(*(u8 *)(arg0 + 0x10C) * 0x70, 0);
+        for (i = 0; i < *(u8 *)(arg0 + 0x10C); i++) {
+            *(s16 *)(p + i * 0x70) = -1;
+            *(u32 *)(p + i * 0x70 + 8) = 0;
+        }
+        *(u32 *)(arg0 + 0x110) = (u32)p;
+    }
+}
 void func_800AA760(s32 arg0, u8 arg1) {
     s32 p;
 
@@ -53,8 +103,14 @@ void func_800AA79C(s32 arg0, s32 arg1) {
     D_800D3368[arg1] = tmp;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AA7DC);
-/* 88.24% - instruction multiset identical, only the "li a1,0xF7" of the loop
-   condition sits after the arg0*0x48 preheader instead of before it.
+/* 88.24% - instruction multiset identical, only the hoisted "li a1,0xF7" of
+   the loop condition sits after the arg0*0x48 preheader instead of before it.
+   The indexed form D_800C402F[i*0x48] does put "li a1,0xF7" first (gcc emits
+   hoisted invariants before strength-reduction inits) but then turns the biv
+   into a pointer, folding %hi/%lo into a register in the preheader
+   (lui v1/addiu v1/addu v0,v0,v1/lbu 0(v0)) instead of re-forming the symbol
+   address each iteration - 56.76% and 2 insns longer. A "u8 stop = 0xF7;"
+   local changes nothing (the constant is re-folded).
 u8 func_800AA7DC(s32 arg0) {
     s32 o;
     u8 v;
@@ -70,7 +126,17 @@ u8 func_800AA7DC(s32 arg0) {
     return v;
 }
 */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AA820);
+s16 (*func_800AA820(s32 arg0))(s16 angle, s16 divisor, s16 base) {
+    switch (arg0) {
+    case 1:
+        return func_800A3514;
+    case 2:
+        return func_800A3578;
+    case 3:
+        return func_800A35C8;
+    }
+    return func_800A3490;
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AA898);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AA934);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AAA20);
@@ -97,7 +163,20 @@ void func_800AE1BC(u8 *arg0, u8 *arg1, s32 arg2) {
         *(s16 *)(arg0 + 0x98) = -1;
     }
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AE220);
+s32 func_800AE220(u8 *arg0, s32 arg1) {
+    if (arg1 == 0) {
+        return *(u16 *)(D_8005919C + 0x14) << 16;
+    }
+    if (arg1 == 1) {
+        return *(u16 *)(*(u8 **)(*(u8 **)(arg0 + 0xB0) + 8) + 0x14) << 16;
+    }
+    if (arg1 == 2) {
+        return *(u16 *)(*(u8 **)(*(u8 **)(arg0 + 0xB4) + 8) + 0x14) << 16;
+    }
+    if (arg1 == 3) {
+        return *(u16 *)(D_800C4924 + 0x14) << 16;
+    }
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AE2A4);
 void func_800AEEEC(u8 *pArg) {
     *(s16 *)(pArg + 0x98) = -1;
@@ -119,8 +198,14 @@ s32 func_800AEEF8(u8 *arg0) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AEF68);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AF180);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AF270);
-/* 85.71% - identical except the loop guard's delay slot (nop there, the
-   arg0 += 7 lands there here) and one insn shorter for it.
+/* 85.71% - instruction multiset identical, only the preheader order differs:
+   the original emits the hoisted "li a3,1" before "addiu a0,a0,7", here the
+   arg0 += 7 statement lands there first (and reorg then fills the beqz delay
+   slot with it, so the frame is one insn shorter). Indexed forms
+   arg0[i*0x7C+7] (90.33%) or p=arg0+7 / p[i*0x7C] (90.43%) put li a3 first
+   but let gcc fold the +7 into the load displacement (lbu 7(a0)) or into the
+   biv init (addiu a0,a0,0x83); a u8 one; local made it worse (85.71%, the
+   addiu hoisted above the slt).
 void func_800AF270(u8 *arg0, u8 *arg1) {
     s32 n;
     s32 i;
