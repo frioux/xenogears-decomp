@@ -1,4 +1,5 @@
 #include "common.h"
+#include "psyq/libgpu.h"
 #include "psyq/libgte.h"
 
 typedef struct {
@@ -59,6 +60,7 @@ extern u32 D_8009C5B0;
 extern u32 D_8009C5B4;
 extern u16 D_8009A698;
 extern u16 D_8009A6AC[];
+extern u16 D_8009A68C[];
 extern WorldMapPath D_8009A65C[];
 extern u32 D_8009BE0C;
 extern u32 D_8009BE28;
@@ -220,26 +222,86 @@ int func_8007E450(int index) {
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007E4E4);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007EBBC);
+/* 99.83%: byte-identical except that gcc picks the loop pointer base as
+   pPrim + 7 where the original has pPrim + 6 (every displacement off it is
+   then 0 vs 1, -3 vs -2, ...). Tried: setlen/setcode split, explicit field
+   stores, u8 pointer with p[..] offsets, &pPoly[i] indexing (that one drops
+   the bias to 0, 83.84%), pPoly++ in the body, code |= 2 instead of
+   setSemiTrans - the bias never lands on 6.
+void func_8007EBBC(WorldMapGroup *pGroup, u8 *pPrim, int count, int abr) {
+    POLY_FT4 *pPoly;
+    int i;
+
+    for (i = 0, pPoly = (POLY_FT4 *)pPrim; i < count; i++, pPoly++) {
+        setPolyFT4(pPoly);
+        pPoly->tpage = GetTPage(0, abr, 0x300, 0x100);
+        pPoly->clut = GetClut(0, 0x1FF);
+        setRGB0(pPoly, 0x3C, 0x3C, 0xC0);
+        setSemiTrans(pPoly, 1);
+    }
+    memcpy((u8 *)pGroup->unk4C, pGroup->unk48, count * sizeof(POLY_FT4));
+}
+*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007ECA4);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007EE34);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007F8AC);
+/* 94.77%: instruction order matches except that gcc pins `li v0,1` (the
+   return value) immediately after the jal, which then forces v1/a0 for the
+   -0x85A / 0xDA6 / 0x3C constants and the D_8009A68C halfword; retail emits
+   it between the 0x22 store and the 0x5C store. Writing the 0x22 store after
+   the 0x5C store (the other order the allocator likes) moves li v0,1 to the
+   right place (91.49%) but then the 0x22 store is hoisted above the 0x20 and
+   0x3C stores. Group base is unk000[nType + 4], i.e. D_8009C620 + 84*nType +
+   0x150, and pActor->unk5C[0] = D_8009A68C[nType].
+int func_8007F8AC(int index) {
+    int nType = index - 4;
+    WorldMapActor *pActor = &D_8009BE24[index];
+    WorldMapGroup *pGroup = &D_8009C620->unk000[nType + 4];
+    u16 unkValue;
+    int nAbr;
+
+    if (nType == 4) {
+        nAbr = 1;
+    } else {
+        nAbr = 3;
+    }
+    func_8007EBBC(pGroup, pGroup->unk48, *(u16 *)((u8 *)pGroup->unk40 + 4), nAbr);
+    pActor->unk38 = -0x85A;
+    pActor->unk40 = 0xDA6;
+    pActor->unk20 = 0;
+    pActor->unk3C = 0;
+    unkValue = D_8009A68C[nType];
+    pActor->unk22 = 0x3C;
+    pActor->unk5C[0] = unkValue;
+    return 1;
+}
+*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007F968);
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007FC8C);
-/* 88.66%: the two func_8007A06C calls and the store order match; the original
-   materialises 0x1498000, 0x4AF2000 and the 3 into v1/a0/v0 before the first
-   store, so those three come from locals, not literals.
+/* 88.66%: instruction multiset identical. Retail materialises all the
+   immediates first (lui/ori v1 = 0x1498000, lui/ori a0 = 0x4AF2000,
+   li v0 = 3 for the return) and only then starts storing, and it defers
+   the unk58 = 0x80 store to the very end; gcc reorders my stores the
+   other way (0x58 right after 0x54). Tried literals and int locals for
+   the two big constants - gcc folds the locals straight back into the
+   stores. Group bases are unk000[9] (s1 + 0x2F4) and unk000[10]
+   (s1 + 0x348).
 int func_8007FC8C(int index) {
     WorldMapRoot *pRoot = D_8009C620;
     WorldMapActor *pActor = &D_8009BE24[index];
+    int nX;
+    int nZ;
 
     func_8007A06C(&pRoot->unk000[9], pRoot->unk000[9].unk48, *(u16 *)((u8 *)pRoot->unk000[9].unk40 + 4));
     func_8007A06C(&pRoot->unk000[10], pRoot->unk000[10].unk48, *(u16 *)((u8 *)pRoot->unk000[10].unk40 + 4));
-    pActor->unk28 = 0x1498000;
+    nX = 0x1498000;
+    nZ = 0x4AF2000;
+    pActor->unk28 = nX;
     pActor->unk2C = 0xFFF80000;
     pActor->unk54 = (void *)-0x800;
     pActor->unk20 = 0;
-    pActor->unk30 = 0x4AF2000;
+    pActor->unk30 = nZ;
     pActor->unk50 = 0;
     pActor->unk58 = (void *)0x80;
     return 3;
