@@ -13,7 +13,7 @@ extern u16 g_SystemPalette2;
 
 extern void func_800716D8(void);
 extern void HeapFree(void *pMem);
-extern void func_8008FC1C(s32, s32, s32, s32, s32);
+extern void func_8008FC1C(s32, s32, s32, s32, u8);
 extern s32 func_80076A10(s32, s32, s16, s16);
 extern void func_80076C78(POLY_FT4 *p, s16 x, s16 y, u8 u, u8 v, s16 dx);
 extern void func_800769E8(RECT *pRect, u_long *pData);
@@ -28,6 +28,8 @@ extern void func_8008F6E4(s32, s32, s32, s32, s32);
 extern void func_80090310(u8, u8);
 extern void func_800904A0(s32, s32);
 extern void func_8009070C(s32, s32);
+extern void *D_800D2F5C;
+extern s32 func_800263E4(void *, s32, void *, s32, s16, s16, s32, s32, s32);
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008CDE4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008CFB8);
@@ -148,6 +150,40 @@ void func_8008FA60(u8 arg0) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008FAD8);
+/* 66.32%: the two func_80076A10 loops and the accumulates match; the whole
+   gap is the 9-arg func_800263E4 call block. The original keeps &D_800CCB34
+   in s1 across the call (`lw a3,0(s1)` for the context arg, `lbu v0,0(s1)`
+   after it) and needs no extra saved register (0x50 frame, s0-s5 + ra); gcc
+   rematerialises `lui/lbu D_800CCB34` after the call, needs s6 and spills
+   mirrorY. The last addu is also reversed: original `addu a2,a2,v0`
+   (index product first), ours `addu a2,v0,a2`. Tried: `=` vs `+=` for the
+   accumulate (65.93/66.11), an explicit `u8 *pPal = (u8 *)&D_800CCB34` used
+   for both the s32 context and the tail byte store (66.32). Note the 5th
+   parameter is u8 (the count comes in with lbu), not s32.
+void func_8008FC1C(s32 arg0, s32 arg1, s32 arg2, s32 arg3, u8 arg4) {
+    u8 *pPal;
+    s32 i;
+    s32 offset;
+    s32 size;
+
+    *(s32 *)(D_800D2D28 + 0xFC) = 0;
+    i = 0;
+    for (offset = arg3; i < arg4; i++) {
+        size = func_80076A10(0x65, D_800C3EA4 + (*(s32 *)(D_800D2D28 + 0xFC) * 0x50 + 0x1E68), arg0, offset);
+        *(s32 *)(D_800D2D28 + 0xFC) = size + *(s32 *)(D_800D2D28 + 0xFC);
+        offset += 8;
+    }
+    pPal = (u8 *)&D_800CCB34;
+    size = func_80076A10(0x64, D_800C3EA4 + (*(s32 *)(D_800D2D28 + 0xFC) * 0x50 + 0x1E68), arg0, arg1);
+    *(s32 *)(D_800D2D28 + 0xFC) = size + *(s32 *)(D_800D2D28 + 0xFC);
+    size = func_800263E4(D_800D2F5C, 0x64,
+        (POLY_FT4 *)(D_800C3EA4 + (*(s32 *)(D_800D2D28 + 0xFC) * 0x50 + 0x1E68)),
+        *(s32 *)pPal, (s16)arg0, (s16)arg2, 0x1000, 0, 1);
+    *(s32 *)(D_800D2D28 + 0xFC) = size + *(s32 *)(D_800D2D28 + 0xFC);
+    D_800D2D28[0xA6] = *pPal;
+    D_800D2D28[0x9D] = 1;
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008FC1C);
 void func_8008FDE4(void) {
     func_8008FC1C(0x20, 0x5C, 0xCC, 0x60, 0xE);
