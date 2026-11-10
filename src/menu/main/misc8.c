@@ -140,23 +140,19 @@ void func_801D84B4(u_short arg0, u_short arg1, s32 arg2) {
 }
 */
 
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801D85DC);
-
-/* 87.69%. Instruction multiset and frame (0x18) match; the only difference is
-   that gcc emits `i++` after the conditional `max = *p` load, while the
-   original has it before it (it ends up in the beqz delay slot). The u16 max
-   plus the volatile pointers are what reproduce the double load of `*p`.
 s32 func_801D85DC(s32 unusedArg, volatile u16* p0, volatile u16* p1) {
-    SVECTOR unusedSlot[3];
+    SVECTOR unusedFrame[3]; // original allocates a 0x18 frame it never writes
     u16 max = 0;
     s32 i;
 
-    for (i = 0; i < 7; i++, p0++) {
+    for (i = 0; i < 7; p0++) {
+        i++;
         if (max < *p0) {
             max = *p0;
         }
     }
-    for (i = 0; i < 7; i++, p1++) {
+    for (i = 0; i < 7; p1++) {
+        i++;
         if (max < *p1) {
             max = *p1;
         }
@@ -164,7 +160,6 @@ s32 func_801D85DC(s32 unusedArg, volatile u16* p0, volatile u16* p1) {
 
     return max;
 }
-*/
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801D8644);
 void func_801D8DE4(s32 arg0, u_char arg1, s32 arg2, s32 arg3) {
@@ -183,16 +178,28 @@ void func_801D8DE4(s32 arg0, u_char arg1, s32 arg2, s32 arg3) {
     g_Menu->unk35C->unk32F1 = *(u_char*)&g_Menu->renderContext;
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801D8EA4);
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801D9704);
-
 /* 84.26%. Same instruction multiset; gcc lays the `arg2` if/else out the
    other way in case 1 (it falls through to the 0x60 block and jumps to
-   0x30) and therefore places the return block differently.
+   0x30) and therefore places the return block differently. */
+INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801D9704);
+
+/* 84.26%. Frame and instruction multiset identical (260 bytes both). gcc lays
+   the `arg2` test out the other way round in both cases: it makes the 0x60
+   (unk60) block the fall-through and branches with `beqz a2` to the 0x30
+   (currentCharacterIDs) block, where the original branches `bnez a2` to the
+   0x60 block and falls through into the 0x30 one. Tried: if/else-if in both
+   orders, `for (arg0++; 1; arg0++)` vs `while (1)` + trailing arg0++, a
+   pManager local (66.43%, makes gcc drop the second block's reload), goto
+   labels (right order, but the loop stops being recognised so g_Menu and the
+   0xFF constant are no longer hoisted, 62.38%). An explicit
+   `arg0++; continue;` plus a second `arg0++` at the bottom gets the block
+   order and the `bnez a2` right but cross-jumps the two increments into one
+   shared block, costing 8 bytes (85.62%). The increment sitting in the branch
+   delay slot of both paths is what the for-increment clause produces.
 s32 func_801D9704(s32 arg0, u_char arg1, u_char arg2) {
     switch (arg1) {
     case 0:
-        arg0++;
-        while (1) {
+        for (arg0++; 1; arg0++) {
             if (arg0 >= 3) {
                 arg0 = 0;
             }
@@ -204,12 +211,10 @@ s32 func_801D9704(s32 arg0, u_char arg1, u_char arg2) {
                 arg0--;
                 break;
             }
-            arg0++;
         }
         break;
     case 1:
-        arg0--;
-        while (1) {
+        for (arg0--; 1; arg0--) {
             if (arg0 < 0) {
                 arg0 = 2;
             }
@@ -221,13 +226,13 @@ s32 func_801D9704(s32 arg0, u_char arg1, u_char arg2) {
                 arg0++;
                 break;
             }
-            arg0--;
         }
         break;
     }
     return arg0;
 }
 */
+
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801D9808);
 void func_801D9B08(void) {
     func_801C8960();
