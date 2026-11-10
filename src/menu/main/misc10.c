@@ -204,37 +204,44 @@ void func_801E3088(u8 arg0) {
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E31C0);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E35BC);
 
-/* objdiff 80.36% (280 bytes vs 272). Structure is right: characters[charIndex]
-   (pChar) / characters[targetIndex] (pTarget) / gears[gearId] (pGear) and the
-   arg4 branch, but retail loads hp/maxHp (0x4C/0x4E) again for the clamp while
-   2.7.2 forwards the stored value (andi 0xffff + sltu), and the pSlots load
-   (pDressingRoom->unk20[charIndex] + slotIndex * sizeof(GameCharacter)) is
-   emitted after the index chain instead of before it. Retried with a `value`
-   local, pChar->ether vs the inline access, and both comparisons: 80.36%.
-   void func_801E35BC(MenuDressingRoom* pDressingRoom, u8 charIndex, u8 targetIndex, u8 slotIndex, u8 isGear) {
-       GameCharacter* pChar;
-       GameCharacter* pTarget;
-       GameCharacter* pSlots;
-       GameGear* pGear;
-       u32 value;
+/* objdiff 96.71% (280 bytes, same size; 80.36% was the previous 2.7.2 attempt).
+   Structure is complete: pTarget->hp += value and both clamps (which reload the
+   stored halfword exactly as retail does) already match byte for byte, as does
+   the isGear else-branch. The only residue is register allocation plus load
+   scheduling in the first nine instructions: retail loads the slot pointer into
+   a0 straight after forming pDressingRoom + charIndex*4 and puts ether in v1
+   (mult v1,v0), this compile keeps the pointer in v1, ether in a0. Note for
+   whoever retries: the pSlots table is pDressingRoom->unk20[charIndex] and each
+   slot record is 0x28 bytes with a u8 at 0x11 -- NOT sizeof(GameCharacter)
+   (0xA4); using GameCharacter* gave a 288-byte object and 80.36%. Retried:
+   single-statement indexing (93.86%), &pSlots[slotIndex*0x28] vs byte offset
+   (96.71 both), swapped multiply operands (93.33%), gcc-2.7.2-cdk (84.13%).
+void func_801E35BC(MenuDressingRoom* pDressingRoom, u8 charIndex, u8 targetIndex, u8 slotIndex, u8 isGear) {
+    GameCharacter* pChar;
+    GameCharacter* pTarget;
+    u8* pSlots;
+    u8* pSlot;
+    GameGear* pGear;
+    u32 value;
 
-       pChar = &g_GameState.characters[charIndex];
-       pTarget = &g_GameState.characters[targetIndex];
-       pGear = &g_GameState.gears[g_GameState.characters[charIndex].gearId];
-       if (isGear == 0) {
-           pSlots = ((GameCharacter**)pDressingRoom->unk20)[charIndex];
-           value = pChar->ether * pSlots[slotIndex].unk0[0x11];
-           pTarget->hp = pTarget->hp + value;
-           if (pTarget->hp > pTarget->maxHp) {
-               pTarget->hp = pTarget->maxHp;
-           }
-       } else {
-           pGear->hp += pGear->maxHp / 10;
-           if (pGear->maxHp < pGear->hp) {
-               pGear->hp = pGear->maxHp;
-           }
-       }
-   }
+    pChar = &g_GameState.characters[charIndex];
+    pTarget = &g_GameState.characters[targetIndex];
+    pGear = &g_GameState.gears[g_GameState.characters[charIndex].gearId];
+    if (isGear == 0) {
+        pSlots = ((u8**)pDressingRoom->unk20)[charIndex];
+        pSlot = &pSlots[slotIndex * 0x28];
+        value = pChar->ether * pSlot[0x11];
+        pTarget->hp = pTarget->hp + value;
+        if (pTarget->hp > pTarget->maxHp) {
+            pTarget->hp = pTarget->maxHp;
+        }
+    } else {
+        pGear->hp += pGear->maxHp / 10;
+        if (pGear->maxHp < pGear->hp) {
+            pGear->hp = pGear->maxHp;
+        }
+    }
+}
 */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E36D4);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E3A80);
@@ -281,15 +288,6 @@ void func_801E4258(MenuDressingRoom* pDressingRoom, u8 gearIndex) {
     pGear->baseEtherDefense = pArmor->unkA;
 }
 
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E42AC);
-
-/* PRESET_260: 100.00% under gcc-2.6.0, 89.56% under this unit's Default
-   (gcc-2.7.2). Only difference: retail keeps `fuel` in $a0 from an early load
-   and re-loads maxFuel at the clamp, while 2.7.2 gives the register to maxFuel
-   and re-loads fuel. Same source shape as the matched func_801D62A4 in
-   gear_shop_menu (XenoLibrary = gcc-2.6.0). All eight already-matched functions
-   in this file also score 100.00 under 2.6.0, so misc10 looks like a XenoLibrary
-   unit. `u32 fuel` instead of `u16` changes nothing (also 89.56%).
 void func_801E42AC(MenuDressingRoom* pDressingRoom, u8 gearIndex) {
     GameGear* pGear;
     GearEngine* pEngine;
@@ -312,4 +310,3 @@ void func_801E42AC(MenuDressingRoom* pDressingRoom, u8 gearIndex) {
         pGear->fuel = pGear->maxFuel;
     }
 }
-*/
