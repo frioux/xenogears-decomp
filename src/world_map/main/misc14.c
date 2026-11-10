@@ -1,5 +1,6 @@
 #include "common.h"
 #include "system/memory.h"
+#include "psyq/libgte.h"
 
 typedef struct {
     /* 0x0 */ s32 x;
@@ -14,6 +15,17 @@ typedef struct {
     /* 0xC */ s32 w;
 } SVec4; // Size: 0x10
 
+typedef struct {
+    /* 0x0 */ s16 left;
+    /* 0x2 */ s16 top;
+    /* 0x4 */ s16 width;
+    /* 0x6 */ s16 height;
+    /* 0x8 */ s16 kind;
+    /* 0xA */ s16 unkA;
+    /* 0xC */ u16 value;
+    /* 0xE */ s16 mode;
+} WorldMapRect; // Size: 0x10
+
 extern int Vsync(int mode);
 extern u32 ArchiveGetDebugTable(void);
 extern s32 D_8009BCB8;
@@ -24,12 +36,64 @@ extern SVec4* D_8009D3C0;
 extern void* D_8009D7D4;
 extern void* D_8009D788[16];
 extern void* D_8009C624[16];
+extern WorldMapRect** D_8009BD00;
+extern void* D_8009D7D8;
+extern s16 D_8009BD24;
+extern s16 D_8009CE68;
 extern void func_800963E4(SVec* pRecord);
 extern void func_800964B0(SVec4* pRecord);
 extern void func_800967E4(void);
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc14", func_80094238);
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc14", func_80094364);
+s32 func_80094238(SVec* p, s32 index) {
+    WorldMapRect* pRect;
+    u16 x;
+    u16 z;
+
+    x = (u32)p->x >> 12;
+    pRect = D_8009BD00[index];
+    z = (u32)p->z >> 12;
+    while (pRect->kind != -1) {
+        if ((x >= pRect->left) & (x <= pRect->left + pRect->width) & (z >= pRect->top) &
+            (z <= pRect->top + pRect->height)) {
+            if (pRect->mode == 4) {
+                D_8009D7D8 = (void*)-1;
+                D_8009BD24 = -1;
+                D_8009CE68 = pRect->value;
+            } else {
+                D_8009D7D8 = pRect;
+                D_8009CE68 = -1;
+                D_8009BD24 = pRect->value;
+            }
+            return 1;
+        }
+        pRect++;
+    }
+    D_8009D7D8 = (void*)-1;
+    D_8009BD24 = -1;
+    D_8009CE68 = -1;
+    return 0;
+}
+
+s32 func_80094364(SVec* p, s32 index, s32 mode) {
+    WorldMapRect* pRect;
+    u16 x;
+    u16 z;
+
+    x = (u32)p->x >> 12;
+    pRect = D_8009BD00[index];
+    z = (u32)p->z >> 12;
+    while (pRect->kind != -1) {
+        if ((x >= pRect->left) & (x <= pRect->left + pRect->width) & (z >= pRect->top) &
+            (z <= pRect->top + pRect->height)) {
+            if (pRect->mode == mode) {
+                D_8009D7D8 = pRect;
+                return 1;
+            }
+        }
+        pRect++;
+    }
+    return 0;
+}
 
 void func_80094434(void) {
 }
@@ -57,7 +121,29 @@ void func_800952B0(SVec* p0, SVec* p1, SVec* p2) {
     p1->y = 0;
 }
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc14", func_80095324);
+void func_80095324(void* pOut, SVec* pDir, SVec* pResult) {
+    s32 dot;
+    s32 nx;
+
+    *(s32*)0x1F800018 = 0;
+    *(s32*)0x1F800010 = 0;
+    *(s32*)0x1F800014 = -0x1000;
+    OuterProduct12((VECTOR*)pOut, (VECTOR*)0x1F800010, (VECTOR*)0x1F800020);
+    VectorNormal((VECTOR*)0x1F800020, (VECTOR*)0x1F800000);
+    nx = ((SVec*)0x1F800000)->x;
+    dot = nx * pDir->x + ((SVec*)0x1F800000)->z * pDir->z;
+    if (dot < 0) {
+        pResult->x = -nx;
+        pResult->z = -((SVec*)0x1F800000)->z;
+    } else if (dot > 0) {
+        pResult->x = nx;
+        pResult->z = ((SVec*)0x1F800000)->z;
+    } else {
+        pResult->z = 0;
+        pResult->x = 0;
+    }
+    pResult->y = 0;
+}
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc14", func_80095414);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc14", func_80095CD4);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc14", func_80095F78);
