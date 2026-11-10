@@ -4,6 +4,7 @@
 
 extern void func_801CE198(s32 count, SVECTOR* pVertices, POLY_FT4* pPolys, u_char renderContext);
 extern void func_801D12D4(MenuCharacter* pCharacter, s32 arg1);
+extern void func_801D09F0(s32 menuIndex, u_char hasScrollBar);
 
 extern void func_801CF308(void);
 extern void func_801D01D0(void);
@@ -35,7 +36,32 @@ extern void func_801D17C4(void);
 extern void func_801D1914(void);
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc5", func_801D09F0);
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc5", func_801D0C78);
+void func_801D0C78(void) {
+    s32 i;
+    SVECTOR rot;
+    VECTOR trans;
+    MATRIX m;
+    long unk48[2]; // unused: the original frame keeps 8 bytes after the matrix
+
+    for (i = 0; i < 7; i++) {
+        if (g_Menu->pManager->shouldRenderWindow[i]) {
+            if (g_Menu->windows[i]->unk714 == 0) {
+                PushMatrix();
+                rot.vx = rot.vy = rot.vz = 0;
+                trans.vx = trans.vy = 0;
+                trans.vz = 0x200;
+                RotMatrix(&rot, &m);
+                TransMatrix(&m, &trans);
+                SetRotMatrix(&m);
+                SetTransMatrix(&m);
+                func_801D09F0(i, g_Menu->windows[i]->hasScrollBar);
+                PopMatrix();
+            } else {
+                func_801D09F0(i, g_Menu->windows[i]->hasScrollBar);
+            }
+        }
+    }
+}
 
 void func_801D0D90(void) {
     s32 i;
