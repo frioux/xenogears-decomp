@@ -50,8 +50,8 @@ typedef struct {
     /* 0x4C */ u8 unk4C[0x4];
     /* 0x50 */ s32 unk50;
     /* 0x54 */ u32 unk54;
-    /* 0x58 */ u32 unk58;
-    /* 0x5C */ u32 unk5C;
+    /* 0x58 */ s32 unk58;
+    /* 0x5C */ s32 unk5C;
     /* 0x60 */ u32 unk60;
     /* 0x64 */ void *unk64;
     /* 0x68 */ void *unk68;
@@ -76,6 +76,14 @@ extern WorldMapSource *D_8009C620;
 typedef struct {
     /* 0x0 */ u32 w[4];
 } Quad; // Size: 0x10
+
+typedef struct {
+    /* 0x00 */ u8 unk0[0x1C];
+    /* 0x1C */ u16 unk1C;
+    /* 0x1E */ u8 unk1E[0x2];
+    /* 0x20 */ MATRIX matrix;
+    /* 0x40 */ u8 unk40[0x14];
+} WorldMapRot; // Size: 0x54
 
 void func_8008DFF4(s32 *pOut) {
     pOut[0] = g_GameState.unk182C << 12;
@@ -183,6 +191,79 @@ int func_800907C4(void) {
 }
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_800907F4);
+/* best: 98.27%. Structurally identical (same frame, same registers, two pointers
+   at D_8009C620+0xA8/+0xFC, one scratchpad base in $s0 live across both calls).
+   The only delta is the value in $s0: retail holds 0x1F800000 and so stores at
+   0xA0/0xA2/0xA4/0xA8/0xAA/0xAC and passes the two RotMatrixZYX vectors with
+   `ori a0,s0,0xA0` / `ori a0,s0,0xA8`; gcc 2.7.2 rematerialises the one-insn
+   constant and derives the vectors as base+0xA0 with `addiu` (98.27), while a
+   base of 0x1F8000A0 keeps a register but shifts all eight offsets (98.27 too,
+   mirrored). Literal 0x1F8000xx addresses make reload use $at per store (74.29);
+   cdk 72.92, so the preset is not the answer.
+
+s32 func_800907F4(s32 idx) {
+    WorldMapPlayer *pPlayer;
+    WorldMapRot *pRotA;
+    WorldMapRot *pRotB;
+
+    pPlayer = D_8009BE24 + idx;
+    pRotA = (WorldMapRot *)((u8 *)D_8009C620 + 0xA8);
+    pRotB = (WorldMapRot *)((u8 *)D_8009C620 + 0xFC);
+    if (pPlayer->unk4 == 9) {
+        pPlayer->unk4 = 0;
+        pPlayer->unk20 = 1;
+    } else if (pPlayer->unk4 == 0xA) {
+        pPlayer->unk4 = 0;
+        pPlayer->unk20 = 2;
+    }
+    switch (pPlayer->unk20) {
+    case 0:
+        pPlayer->unk58 = 0;
+        pPlayer->unk5C = 0;
+        break;
+    case 1:
+        pPlayer->unk58 += 4;
+        if (pPlayer->unk58 >= 0x11) {
+            pPlayer->unk5C += 4;
+        }
+        if (pPlayer->unk58 >= 0x80) {
+            pPlayer->unk58 = 0x80;
+        }
+        if (pPlayer->unk5C >= 0x80) {
+            pPlayer->unk5C = 0x80;
+        }
+        if ((pPlayer->unk58 >= 0x80) & (pPlayer->unk5C >= 0x80)) {
+            pPlayer->unk20 = 3;
+        }
+        break;
+    case 2:
+        pPlayer->unk58 -= 4;
+        if (pPlayer->unk58 < 0x70) {
+            pPlayer->unk5C -= 4;
+        }
+        if (pPlayer->unk58 < 0) {
+            pPlayer->unk58 = 0;
+        }
+        if (pPlayer->unk5C < 0) {
+            pPlayer->unk5C = 0;
+        }
+        if ((pPlayer->unk58 == 0) & (pPlayer->unk5C == 0)) {
+            pPlayer->unk20 = 0;
+        }
+        break;
+    }
+    pPlayer->unk50 += pPlayer->unk58;
+    pPlayer->unk54 -= pPlayer->unk5C;
+    *(u16 *)0x1F8000A8 = 0;
+    *(u16 *)0x1F8000A0 = 0;
+    *(u16 *)0x1F8000A2 = pPlayer->unk50;
+    *(u16 *)0x1F8000AA = pPlayer->unk54;
+    *(u16 *)0x1F8000A4 = pRotA->unk1C;
+    *(u16 *)0x1F8000AC = pRotB->unk1C;
+    RotMatrixZYX((SVECTOR *)0x1F8000A0, &pRotA->matrix);
+    RotMatrixZYX((SVECTOR *)0x1F8000A8, &pRotB->matrix);
+    return 1;
+}*/
 void func_80090A18(void) {
     u16 keys;
     s32 state;
