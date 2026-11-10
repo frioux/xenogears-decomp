@@ -147,36 +147,41 @@ void func_80077980(void) {
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_80077990);
 /* 61.46%: retail walks two 0x28-byte packets from pInfo to pInfo+0x50 and
-   finishes with pInfo[0x5D] = 0. Two things block the u8* form above:
-   1. retail's loop compare is `slt` (signed) against a register holding
-      pInfo+0x50, i.e. the source compares POLY_FT4* values, not u8* (a
-      pointer compare off a u8* gives `sltu` and gcc also hoists the bound
-      into a pre-loop `sltu`/while guard that retail does not have). The
-      packet fields must then be pPoly->clut / pPoly->tpage.
-   2. retail stores the flag and RE-READS it (`andi v0,s3,1; sb v0,0x5C(s1);
-      lbu v0,0x5C(s1); beqz`) and does not hoist `arg & 1`; every plain
-      store-then-test spelling lets cse forward the store, which also makes
-      loop.c hoist the `andi` into the prologue (extra saved register and a
-      different body).
+   finishes with pInfo[0x5D] = 0. What retail does that no attempt so far
+   reproduces:
+   1. its loop compare is `slt` (signed) against a register holding pInfo+0x50,
+      and it re-forms that bound inside the loop (addiu s0,s0,0x28; addiu
+      v0,s1,0x50; slt; bnez) with NO pre-loop guard. A POLY_FT4* compare (the
+      body below) still gives `sltu` plus a hoisted `addiu v0,s2,0x50; sltu;
+      beqz` guard, and so does a u8* compare, so the signed compare is not a
+      pointer-vs-u8* question; it wants a signed integer cursor/limit.
+   2. retail stores the flag and RE-READS it (andi v0,s3,1; sb v0,0x5C(s1);
+      lbu v0,0x5C(s1); beqz) - every plain store-then-test spelling lets cse
+      forward the store and compare the register instead.
+   3. retail's GetTPage has a0=0 preloaded in the beqz delay slot and
+      p->clut = tile lands in the jal's delay slot.
+   Parked body (61.46):
 void func_800780A8(u8 *pInfo, s32 arg) {
-    u8 *p;
-    u16 tile;
+    POLY_FT4 *p;
+    u16 clut;
+    s32 offset;
 
-    for (p = pInfo; p < pInfo + 0x50; p += 0x28) {
-        SetPolyFT4((POLY_FT4 *)p);
-        p[4] = 0x80;
-        p[5] = 0x80;
-        p[6] = 0x80;
+    for (p = (POLY_FT4 *)pInfo; p < (POLY_FT4 *)(pInfo + 0x50); p++) {
+        SetPolyFT4(p);
+        p->r0 = 0x80;
+        p->g0 = 0x80;
+        p->b0 = 0x80;
         SetSemiTrans(p, 0);
         SetShadeTex(p, 1);
         pInfo[0x5C] = arg & 1;
         if (pInfo[0x5C] != 0) {
-            tile = g_SystemPalette2;
+            clut = g_SystemPalette2;
         } else {
-            tile = g_SystemPalette1;
+            clut = g_SystemPalette1;
         }
-        *(u16 *)(p + 0xE) = tile;
-        *(u16 *)(p + 0x16) = GetTPage(0, 0, 0x3C0, arg / 2 * 13);
+        p->clut = clut;
+        offset = arg / 2;
+        p->tpage = GetTPage(0, 0, 0x3C0, offset * 13);
     }
     pInfo[0x5D] = 0;
 }
@@ -232,29 +237,27 @@ void func_80078508(u8 *pOut) {
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_80078508);
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_800785D4);
-/* 57.27%: the tail (two D_800C3EAC loads, pEntry shared by the 0xC4022 store
-   and the count increment) matches; the whole difference is where the
-   scheduler puts the first store's address chain. Mine hoists `andi/sll` for
-   index*8 to the top and sinks the tile's low-byte load plus the `or` past the
-   sb; the original keeps andi/sll after the pointer load + lbu and finishes the
-   tile before the sb. Every spelling of the tile expression compiles to the
-   same insns, so it is not the expression: tried tile as u16 local, hi-first
-   `(D_800D2E61[i*8] << 8) | D_800D2E60[i*8]`, lo/hi u8 locals, inline tile,
-   `u8 i = D_800C3EAC[0x2DA]` local, D_800C4022 as u16[36][] with [idx][0],
-   pEntry before/after the colour store (before = 48.18%), post-increment in
-   the index. Not the preset: gcc 2.6.0 also 57.27.
+/* 75.45%: with a pEntry local (one load of the global shared by the two uses
+   after the sb) the first store and everything from the `sh` tail on is
+   byte-identical; the ONLY difference is that retail's two tile `lbu`s are
+   scheduled BEFORE the sb while gcc puts them after it. Source order does not
+   matter (tile first / tile last / an s32 offset local all compile identically),
+   so it is gcc's scheduler placement. Also tried: no pEntry (three loads of the
+   global, 48.18), inline tile.
+   Parked body (75.45):
 void func_800785D4(u8 color, u8 index) {
     u16 tile;
     u8 *pEntry;
 
+    pEntry = D_800C3EAC;
     tile = D_800D2E60[index * 8] | (D_800D2E61[index * 8] << 8);
-    D_800C400B[D_800C3EAC[0x2DA] * 0x48] = color;
+    D_800C400B[pEntry[0x2DA] * 0x48] = color;
     pEntry = D_800C3EAC;
     *(u16 *)(D_800C4022 + pEntry[0x2DA] * 0x48) = tile;
     pEntry[0x2DA]++;
 }
 */
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_800785D4);
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_80078658);
 void func_800787E0(u8 color, u8 flag) {
