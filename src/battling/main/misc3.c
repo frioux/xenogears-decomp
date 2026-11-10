@@ -144,6 +144,41 @@ void func_8007762C(u8* p) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_800776A8);
 
+/* 88.00%: gcc emits the mask constant before the flags load, so reorg steals
+   the lui into the beq delay slot and maspsx must add a load-delay nop; the
+   original has the load first and an unfilled slot (same shape as func_800767C8).
+void func_800776A8(u8* p, s32 mode) {
+    u32 flags;
+    s32 kind;
+
+    if (func_80083CD8(p) == 4) {
+        return;
+    }
+    flags = *(u32*)(p + 0xD0);
+    if (flags & 0x8000000) {
+        if (D_800928C8 != 2 && D_800928C8 != 4) {
+            return;
+        }
+        if (!(D_80099D9C & 1)) {
+            return;
+        }
+        if (flags & 0x40) {
+            return;
+        }
+        kind = 1;
+    } else {
+        if (!(D_80099D9B & 1)) {
+            return;
+        }
+        if (flags & 0x40) {
+            return;
+        }
+        kind = 0;
+    }
+    func_80036258(kind, mode);
+}
+*/
+
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80077770);
 
 u8* func_80077A38(u8* p, s32 flag) {
