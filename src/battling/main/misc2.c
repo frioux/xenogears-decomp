@@ -119,7 +119,45 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80073CEC);
 } */
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80073DE4);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80073E2C);
+extern s32 D_800928C8;
+extern void func_8008EB4C(s32);
+
+s32 func_80073E2C(u8 *p0, s32 arg1, s32 arg2) {
+    s16 t;
+    s32 q;
+
+    if (D_800928C8 == 4) {
+        return 1;
+    }
+    if (D_800928C8 == 6) {
+        return 1;
+    }
+    t = *(u16 *)(p0 + 0xB6) + arg1;
+    *(s16 *)(p0 + 0xB6) = t;
+    if (t < 0x1001) {
+        return 1;
+    }
+    q = (t - 0x1000) / 20;
+    if (q >= *(s16 *)(p0 + 0xB4)) {
+        *(s16 *)(p0 + 0xB6) = t - arg1;
+        *(s16 *)(p0 + 0xBA) = 0;
+        if (func_80083CD8() != 4) {
+            func_8008EB4C(0x2E);
+        }
+        return 0;
+    }
+    *(s16 *)(p0 + 0xB6) = 0x1000;
+    *(s16 *)(p0 + 0xBA) = q;
+    switch (arg2) {
+    case 1:
+        *(s32 *)(p0 + 0x1654) += (s16)q;
+        break;
+    case 2:
+        *(s32 *)(p0 + 0x1658) += (s16)q;
+        break;
+    }
+    return 1;
+}
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80073F34);
 
