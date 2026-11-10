@@ -2,6 +2,7 @@
 #include "psyq/libetc.h"
 #include "psyq/libgpu.h"
 #include "psyq/memory.h"
+#include "psyq/libgte.h"
 
 typedef struct {
     /* 0x00 */ u32 unk0;
@@ -44,6 +45,19 @@ typedef struct WorldMapEntry {
 extern WorldMapActor *D_8009BE24; // actors, 0x80 apart
 extern WorldMapEntry *D_8009C620; // sprite sets, 0x54 apart
 extern s16 D_8009D7E0; // D_8009C620 entry count
+typedef struct {
+    /* 0x00 */ VECTOR scale;
+    /* 0x10 */ u8 unk10[0x90];
+    /* 0xA0 */ SVECTOR rot;
+    /* 0xA8 */ u8 unkA8[0x48];
+    /* 0xF0 */ MATRIX mat;
+} WorldMapModel; // Size: 0x110
+
+typedef struct {
+    /* 0x00 */ u8 unk0[0x20];
+    /* 0x20 */ MATRIX mat;
+} WorldMapModelOut; // Size: 0x40
+
 extern u8 D_8009AC60[];
 extern u8 D_8009C5AC[];
 
@@ -98,6 +112,51 @@ extern u16 D_8009BCE0[];
 extern FadeParams D_800704DC;
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_80082F64);
+// Best: 98.71%. Instruction multiset and registers are identical bar one
+// store: `sw v?,4(s2)` (scale.vy = 0x1000) sits in the load-delay slot of
+// `lw 0x68` here, while retail puts it in the slot of `lw 0x70`. Source order
+// (vy before vx) is what fixes the store order; swapping them breaks it.
+// The guard is two tests in retail (beqz x==0 then bne x!=1), i.e. two
+// early returns, not one `if (x == 1)`.
+/*
+void func_80082F64(WorldMapActor *pActor, WorldMapModelOut *pOut, WorldMapModel *pModel) {
+    if (pActor->unk20 == 0) {
+        return;
+    }
+    if (pActor->unk20 != 1) {
+        return;
+    }
+    {
+        pModel->rot.vz = 0;
+        pModel->rot.vx = 0;
+        pModel->rot.vy = ((s32 *)&pActor->unk50)[6];
+        pModel->scale.vy = 0x1000;
+        pModel->scale.vx = ((s32 *)&pActor->unk50)[8] & 0x7FFF;
+        pModel->scale.vz = rcos(((s32 *)&pActor->unk50)[7]) * 6;
+        RotMatrix(&pModel->rot, &pModel->mat);
+        ScaleMatrix(&pModel->mat, &pModel->scale);
+        pOut->mat = pModel->mat;
+        ((s32 *)&pActor->unk50)[0] += ((s32 *)&pActor->unk50)[3];
+        ((s32 *)&pActor->unk50)[1] += ((s32 *)&pActor->unk50)[4];
+        if (((s32 *)&pActor->unk50)[0] >= 0x100) {
+            ((s32 *)&pActor->unk50)[0] = 0xFF;
+            ((s32 *)&pActor->unk50)[3] = -((s32 *)&pActor->unk50)[3];
+        } else if (((s32 *)&pActor->unk50)[0] < 0x40) {
+            ((s32 *)&pActor->unk50)[0] = 0x40;
+            ((s32 *)&pActor->unk50)[3] = -((s32 *)&pActor->unk50)[3];
+        }
+        if (((s32 *)&pActor->unk50)[1] >= 0x100) {
+            ((s32 *)&pActor->unk50)[1] = 0xFF;
+            ((s32 *)&pActor->unk50)[4] = -((s32 *)&pActor->unk50)[4];
+        } else if (((s32 *)&pActor->unk50)[1] < 0x80) {
+            ((s32 *)&pActor->unk50)[1] = 0x80;
+            ((s32 *)&pActor->unk50)[4] = -((s32 *)&pActor->unk50)[4];
+        }
+        ((s32 *)&pActor->unk50)[7] = (((s32 *)&pActor->unk50)[7] + 8) & 0xFFF;
+        ((s32 *)&pActor->unk50)[8] += ((s32 *)&pActor->unk50)[9];
+    }
+}
+*/
 
 void func_80083108(WorldMapEntry *pEntry, u8 *pDst, s32 count, s32 arg3) {
     s32 i;
@@ -192,6 +251,10 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_8008390C);
 // folds the stores to D_8009BD3A (0x400) and D_8009BD3C (0) into the later
 // reads of them (lui $v0,0x40 instead of lui/lh), so retail's compiler did
 // not forward store to load here. -O1 scores 67.46.
+// Tried: reading the flags as `*(volatile s16 *)&D_8009BD3A/3C` does force a
+// real load back, but gcc keeps the known value, so it emits
+// lhu + sll 0x10 + sra 0x4 instead of lh + sll 0xc and the allocation shifts
+// (72.84%). volatile on the stores alone changes nothing.
 /*
 s32 func_8008390C(s32 arg0) {
     WorldMapActor *pActor = &D_8009BE24[arg0];
@@ -258,13 +321,12 @@ s32 func_80083FE4(s32 arg0) {
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_80084068);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_8008440C);
-// Best: 90.19%. Structure is right (the unaligned 4-byte copy of the
-// alignment-1 FadeParams at D_800704DC into sp+0x18, the RECT at sp+0x10,
-// 0x200/0x2000 HeapAllocs, func_800931D8 factors argument, the 16 GetClut
-// loop). Remaining diff is allocation/schedule: retail hoists `i = 0`
-// into the LZSS delay slot and computes &D_8009BCE0 late, ours does the
-// reverse; retail ends with i in s5 and pClut in s2. Declaration order had
-// no effect (six permutations, all 90.19).
+// Best: 98.71%. Only diff left: retail has `li a1,1` before `lui/lw a0` and
+// `move s5,zero` (i = 0) in the LZSSHeapDecompress jal delay slot; we get the
+// reverse, because reorg steals the nearest eligible insn and our i=0 is
+// emitted before the call's arg setup. `s32 i = 0;` at the declaration plus
+// `for (; i < 0x10; i++, pClut++)` is what fixed the other 8% (it puts the
+// pClut la and rect.y in retail's positions).
 /*
 void func_8008440C(void) {
     RECT rect;
@@ -272,7 +334,7 @@ void func_8008440C(void) {
     u8 *pData;
     u8 *pDst;
     u16 *pClut;
-    s32 i;
+    s32 i = 0;
 
     pData = LZSSHeapDecompress(D_8009BD20, 1);
     func_8002DD20(pData);
@@ -295,7 +357,7 @@ void func_8008440C(void) {
     LoadImage(&rect, (u_long *)pDst);
     DrawSync(0);
     pClut = D_8009BCE0;
-    for (i = 0; i < 0x10; i++, pClut++) {
+    for (; i < 0x10; i++, pClut++) {
         *pClut = GetClut(rect.x, rect.y);
         rect.y++;
     }
