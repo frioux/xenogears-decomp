@@ -281,11 +281,11 @@ s16 func_80094060(s16 row, s16 col) {
 }
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_80094088);
-/* best: 79.96%. Yield/dot-product of the position against the row k of
-   D_8009B264/D_8009B26C (stride 0x10). The sum, the branches and the reloads
-   are right; deltas are the callee-saved order (s0/s1) and that gcc forms the
-   second table address as lui+addiu+addu instead of the original's
-   lui+addu+lw %lo(at).
+/* best: 79.96%. The index really is `k * 4` on the s32 arrays (the original's
+   sll 16/sra 12 sign-extends the s16 k and scales by 16; plain D_8009B264[k] is
+   sra 14 and is worse). Remaining deltas: gcc swaps the callee-saved pair (pPos
+   in s1, pOut in s0; the original has pPos in s0), and forms the second table
+   address as lui+addiu+addu instead of the original's lui+addu+lw %lo(at).
 
 s32 func_80094088(WorldMapPos* p, WorldMapPos* pPos, WorldMapPos* pOut) {
     s16 k;
@@ -307,8 +307,7 @@ s32 func_80094088(WorldMapPos* p, WorldMapPos* pPos, WorldMapPos* pOut) {
     }
     return 1;
 }
-*/
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_80094154);
+*/INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_80094154);
 /* best: 98.21% (112 bytes, original 112). Instruction sequence and sizes are
    identical; the only delta is register choice: gcc swaps the two loads and
    puts the dz difference's operand load in the dying a0, and picks a3/v0 for
