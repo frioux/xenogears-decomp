@@ -104,20 +104,21 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007C840);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007C9D4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007CB20);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007CC50);
-/* best: 87.29%. The whole tail matches once the row pointer is a local
-   assigned after the loop (a direct D_800D3430[...] index makes maspsx emit
-   the at-register form). Remaining: the original increments the D_800C3EB4
-   offset (s1 = i * 0x1C) in the loop-branch delay slot and keeps the base
-   as %hi/%lo per access, and steals i++ into the post-call beqz delay slot;
-   gcc strength-reduces s1 to an absolute pointer and puts i++ last.
+/* best: 95.10%. A source-level offset variable is what produces the
+   D_800C3EB4 at-register (lui at/%hi, addu at,at,s1, lbu %lo) form; the
+   earlier i * 0x1C spelling got the symbol folded into a pointer (87.29%).
+   Only reorg placement is left: the original steals i++ into the post-call
+   beqz delay slot and duplicates the loop's slti into the bne delay slot,
+   gcc emits i++ after count++ and a single slti.
 
 void func_8007CC50(u8 **arg0, u8 arg1) {
     u8 *pRow;
     s32 count = 0;
     s32 i;
+    s32 offset;
 
-    for (i = 0; i < 3; i++) {
-        if (func_8007A628(i, 0) != 0 && D_800C3EB4[i * 0x1C] == (*arg0)[2]) {
+    for (i = 0, offset = 0; i < 3; offset += 0x1C, i++) {
+        if (func_8007A628(i, 0) != 0 && D_800C3EB4[offset] == (*arg0)[2]) {
             count++;
         }
     }
@@ -207,6 +208,16 @@ void func_8007D30C(u8 **arg0, u8 arg1) {
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007D344);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007D478);
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007D5B0);
+/* best: 93.33%. Insn multiset and the whole tail match; only the
+   strength-reduced D_800CCD64 offset increment sits one block early in the
+   original (in the loop-top bnez delay slot, before count++), gcc puts it in
+   the loop-branch delay slot. An explicit offset variable (which is what gives
+   the at-register form in func_8007CC50 and func_8007D6A8) is rewritten here
+   into a countdown giv, because this loop - unlike those two - has no call, so
+   the full giv combine runs. Also tried ++i, count += (flags & 0xC000) == 0 and
+   (u8 *)D_800CCD64 + i * 0x170 (85.83%).
+
 void func_8007D5B0(u8 **arg0, u8 arg1) {
     u8 *pRow;
     s32 count = 0;
@@ -220,6 +231,7 @@ void func_8007D5B0(u8 **arg0, u8 arg1) {
     pRow = &D_800D3430[arg1 * 0x40];
     pRow[(*arg0)[1]] = count;
 }
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007D610);
 /* best: 86.05%. Tail matches; same induction/delay-slot placement miss as
    func_8007D5B0 plus the D_800C3EB7 offset (s1-style at-register lookup) in
