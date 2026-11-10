@@ -4,6 +4,8 @@
 #include "main/game.h"
 
 extern u8 D_801EA568[];
+extern u8 D_801E9808[];
+extern u8 D_801E9811;
 
 void func_801E8018(u8, u8*, u8*, void*);
 void func_801E41C0(MenuDressingRoom*, u8);
@@ -336,7 +338,46 @@ void func_801E3A80(MenuDressingRoom* pDressingRoom, u8 charIndex) {
     }
 }
 
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E3C2C);
+void func_801E3C2C(MenuDressingRoom* pDressingRoom, u8 gearIndex) {
+    GameCharacter* pChar;
+    GameGear* pGear;
+    s32 value;
+    u32 pilotId;
+
+    if (g_GameState.unk22B6 & 0x1000) {
+        D_801E9811 = 10;
+    }
+    if (gearIndex == 7) {
+        g_GameState.gears[7].hp = g_GameState.characters[7].hp * 50;
+        g_GameState.gears[7].maxHp = g_GameState.characters[7].maxHp * 50;
+        g_GameState.gears[7].engineOutput = g_GameState.characters[7].attack + g_GameState.characters[7].unk0[0x28];
+        g_GameState.gears[7].baseDefense = (g_GameState.characters[7].defense + g_GameState.characters[7].unk0[0x29]) * 12;
+        g_GameState.gears[7].baseEtherDefense = (g_GameState.characters[7].etherDefense + g_GameState.characters[7].etherDefenseFromEquipment) * 6;
+        g_GameState.gears[7].agility = g_GameState.characters[7].agility + g_GameState.characters[7].unk0[0x2A];
+    }
+    pGear = &g_GameState.gears[gearIndex];
+    pilotId = D_801E9808[gearIndex];
+    pDressingRoom->hp = pGear->hp;
+    pDressingRoom->maxHp = pGear->maxHp;
+    pDressingRoom->totalDefense = pGear->baseDefense + pGear->defenseFromEquipment;
+    pChar = &g_GameState.characters[pilotId];
+    pDressingRoom->totalEtherDefense = pChar->etherDefense + pChar->etherDefenseFromEquipment + pGear->etherDefenseFromEquipment + pGear->baseEtherDefense;
+    pDressingRoom->totalWeight = pGear->weight + pGear->weightFromEquipment;
+    pDressingRoom->unkAA = pGear->unk6A;
+    pDressingRoom->fuel = pGear->fuel;
+    pDressingRoom->maxFuel = pGear->maxFuel;
+    value = pGear->engineOutput * (pGear->attackPower + pGear->unk55[1]);
+    if (gearIndex == 5 || gearIndex == 13) {
+        pDressingRoom->unkB0 = (pGear->weaponData[0].unk2 + pGear->weaponData[2].unk2) * 6 / 10 + value;
+    } else {
+        pDressingRoom->unkB0 = pGear->weaponData[0].unk2 + value;
+    }
+    pDressingRoom->totalResponsiveness = pGear->unk9F + pGear->responsiveness;
+    pDressingRoom->unkB3 = pGear->agility - pGear->unk4A;
+    pDressingRoom->unkB4 = pGear->etherAmplification + pGear->unk54;
+    pDressingRoom->unkB5 = pGear->unk9D;
+    pDressingRoom->unkB6 = pGear->unk9C;
+}
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E3ECC);
 void func_801E4170(MenuDressingRoom* pDressingRoom, u8 gearIndex) {
     func_801E41C0(pDressingRoom, gearIndex);
