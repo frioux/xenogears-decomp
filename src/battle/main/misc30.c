@@ -100,6 +100,25 @@ void func_800BA8F4(u8* pSprite) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800BA984);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800BAB0C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800BABDC);
+/* 92.48% (tried: pTask + 0x58 for the block read so pPayload is only used by
+   the call; gcc still defers "addiu s1,s0,0x38" into the branch delay slot
+   instead of the prologue, and both shapes score the same).
+void func_800BABDC(u8* pTask) {
+    u8* pPayload = pTask + 0x38;
+    void* pBlock;
+
+    pBlock = *(void**)(pPayload + 0x20);
+    pBlock = *(void**)((u8*)pBlock + 0x2C);
+    if (pBlock != NULL) {
+        HeapFree(pBlock);
+    }
+    func_8001CE74(pTask);
+    func_8001D3F4(pPayload);
+    WorkListRemoveTask(pTask + 0x1C);
+    TimerWorkListRemoveTask(pTask);
+    HeapFree(pTask);
+}
+*/
 /* 92.48%: gcc rematerialises pTask + 0x38 as a 0x58 offset from pTask instead of
    holding it in $s1 like the original, which shifts the whole register shape.
 void func_800BABDC(u8* pTask) {
