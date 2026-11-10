@@ -13,6 +13,12 @@ typedef struct BattleListNode {
     /* 0x94 */ struct BattleListNode* unk94;
 } BattleListNode;
 
+// Owner struct whose field 4 holds the pointer this unit offsets by 0xC.
+typedef struct {
+    /* 0x0 */ u32 unk0;
+    /* 0x4 */ void* unk4;
+} BattleMisc12Owner; // Size: 0x8
+
 // Slot table entry, 0xF8 bytes, indexed by slot number.
 typedef struct {
     /* 0x00 */ u8 unk0[0x77];
@@ -26,6 +32,12 @@ typedef struct {
 } BattleEntry; // Size: 0xF8
 
 extern s32 D_8006F980;
+extern VECTOR D_80096FA8;
+extern u8 D_8005061C;
+extern u8 D_80099D98;
+extern u8 D_80099D9B;
+extern u8 D_80099D9C;
+extern u8 D_80099D9F;
 extern s16 D_8009285C;
 extern s16 D_8009286C;
 extern u8 D_80091A6C[];
@@ -107,6 +119,28 @@ s32 func_800889C8(void) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc12", func_80088A40);
 
+/* Best attempt: objdiff 47.28% (identical under `--gp -G0`, so this is not the
+   -G8/-G0 question that func_80088940 has). The source is five statements
+   `D_8006F980 = (D_8006F980 & ~MASK) | ((D_80099D9x & m) << shift);` with a
+   `if (D_8005061C == 0) return;` guard: the single load, the five masks, the
+   five field loads and the shifts all match. Two differences remain: gcc
+   rematerialises the store address into `$at` instead of keeping it in `$a3`,
+   and the original keeps all five statement values live in five registers
+   (`$a2,$a1,$a0,$v1,$t0`) storing them together after the last field load,
+   where gcc stores each value immediately and reuses one register. */
+/*
+void func_80088A40(void) {
+    if (D_8005061C == 0) {
+        return;
+    }
+    D_8006F980 = (D_8006F980 & 0xFFFFFFF0) | 1;
+    D_8006F980 = (D_8006F980 & 0xFFFFFFEF) | ((D_80099D9B & 1) << 4);
+    D_8006F980 = (D_8006F980 & 0xFFFFFFDF) | ((D_80099D9C & 1) << 5);
+    D_8006F980 = (D_8006F980 & 0xFFFFE03F) | ((D_80099D9F & 0x7F) << 6);
+    D_8006F980 = (D_8006F980 & 0xFFFF1FFF) | ((D_80099D98 & 7) << 13);
+}
+*/
+
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc12", func_80088AF8);
 
 void func_80088BD4(void) {
@@ -180,7 +214,25 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc12", func_800897AC);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc12", func_800898BC);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc12", func_80089A98);
+/*@func_80089A98*/
+void func_80089A98(BattleMisc12Owner* pOwner, VECTOR* pFrom, VECTOR* pTo) {
+    SVECTOR scale;
+    SVECTOR offset;
+    SVECTOR zero;
+
+    scale.vy = 0x1000;
+    scale.vz = 0;
+    scale.vx = 0;
+    D_80096FA8 = *pTo;
+    offset.vx = pFrom->vx - pTo->vx;
+    offset.vy = pFrom->vy - pTo->vy;
+    offset.vz = pFrom->vz - pTo->vz;
+    zero.vz = 0;
+    zero.vx = 0;
+    zero.vy = 0;
+    func_800898BC((u8*)pOwner->unk4 + 0xC, &offset, &zero, &scale);
+}
+/*@@*/
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc12", func_80089B44);
 
