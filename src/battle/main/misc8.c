@@ -192,6 +192,7 @@ void func_8007CEA4(u8 **arg0, u8 arg1) {
     pCount = &D_800D3430[arg1 * 0x40];
     pCount[(*arg0)[1]] = count;
 }
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007CFB8);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007D0CC);
 /* best: 85.97%. Loop body and the D_800D2CE0/D_800D2CB0 at-register lookups
