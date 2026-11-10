@@ -15,26 +15,39 @@ void func_801E64E0(void);
 void func_801E6668(s32 arg0);
 void func_801E76EC(s32 arg0);
 void func_801E7E68(MenuString* pStringList, u_char* pStringIdList, s32 yOffset, s32 count);
+void func_801E61B0(void);
+void func_801E68AC(u8* pEntry);
+void func_801E6AE8(u8 index, u8* pEntry);
+void func_801E6B70(u8 index, u8* pEntry);
+void func_801E6CFC(u8 index, u8* pEntry);
+void func_801E6F5C(u8 index, u8* pEntry);
+void func_801E71B4(u8 index, u8* pEntry, s32 arg2);
+void func_801E733C(void);
+
+extern u8 D_801EA578[];
+extern u8 D_801EA5C4[];
+extern s32 SystemRenderStringEntry(u8* pSrc, void* pDst, s32 len, s32 mode);
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E6CFC);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E6F5C);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E71B4);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E733C);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E76EC);
-/* Best: 99.08%. Everything matches except gcc puts the loop counter `i` in
-   s2 and the 0x87C accumulator in s3; retail has them the other way round.
-   Declaration order, for-init form and u32/s32 all leave the pair swapped.
-   Needs externs for the func_801E6AE8/6B70/6CFC/6F5C/71B4 siblings and
-   func_801E61B0/68AC/733C.
+/* Best: 99.87%. Retail uses v1 for the g_Menu->menuUnk2 load and v0 for the
+   arg0 * 0x200 shift; gcc mirrors the pair (both pseudos have one use and die
+   at the same addu). Declaration permutations of i/offset/pEntry all keep i in
+   s3 and offset in s2 only when i is declared first; the index must be spelled
+   *(pEntry + i + 0x1C) or the addu operands swap. Operand order, a named
+   scaled local, a named base local and the array-index form were all tried.
 void func_801E76EC(s32 arg0) {
-    u32 offset = 0;
     s32 i = 0;
+    u32 offset = 0;
     u8* pEntry;
 
     pEntry = (u8*)g_Menu->menuUnk2 + arg0 * 0x200 + 0xC94;
     func_801E61B0();
     for (; i < 3; i++) {
-        if (pEntry[i + 0x1C] != 0xFF) {
+        if (*(pEntry + i + 0x1C) != 0xFF) {
             *(u8*)((u8*)g_Menu->unk34C + offset + 0x1310) = 1;
             func_801E6AE8(i, pEntry);
             func_801E6B70(i, pEntry);
@@ -51,6 +64,7 @@ void func_801E76EC(s32 arg0) {
     func_801E733C();
 }
 */
+
 void func_801E781C(s32 arg0, u_char arg1) {
     func_801E64E0();
     if (arg0 != 0xFF) {
@@ -88,12 +102,11 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E86C8);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E8978);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E8B4C);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E8DA8);
-/* Best: 99.51%. Every instruction matches except that retail emits the
-   s0/a0 pair before the s3/a1 pair in the prologue; gcc copies the incoming
-   params in the reverse order. The byte-cast table reads below are what
-   reproduce the original's `sll v1,s3,1; andi v1,v1,0x1FC` (both tables are
-   byte blobs; declare them as u8[]). Needs externs HeapAlloc, bzero,
-   SystemRenderStringEntry.
+/* Best: 99.51%. The only difference is that retail emits the sw s0 / move s0,a0
+   pair before the sw s3 / move s3,a1 pair; gcc copies the incoming params in
+   the reverse order. All six declaration orders of rect/pBuf/offset give the
+   same 99.51%. The byte-cast table reads below are what reproduce the
+   original's sll v1,s3,1 ; andi v1,v1,0x1FC (both tables are byte blobs).
 void func_801E8DA8(u_char arg0, s32 arg1) {
     RECT rect;
     u8* pBuf;
@@ -115,6 +128,7 @@ void func_801E8DA8(u_char arg0, s32 arg1) {
     HeapFree(pBuf);
 }
 */
+
 void func_801E8EAC(POLY_FT4* pPoly, u_char mode) {
     SetShadeTex(pPoly, 0);
     switch (mode) {
