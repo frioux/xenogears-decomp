@@ -265,40 +265,57 @@ void func_8009AC48(u8 arg0, u8 arg1) {
         *(u16*)(r + 0x88) &= 0xFBFF;
     }
 }
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009ADA0);
+/* Best attempt: 88.68% (89.14% with the four quotients written inline as
+   `(u16)(*(u16*)(p + 0x4E) / 20)` instead of the shared `u16 val` local), 2 insns too big (0x15C vs 0x164 at the tail). The slot
+   layout (0x4E/20 then 0x52/20 then 0x52/20, then *arg1 = 0, 0xDE/50, and
+   += 0xDE/50) and every mask/offset match. Two differences, both scheduling:
+   the original's `lui v1,0xCCCCCCCD` of each `/20` is the FIRST insn of the
+   guarded block and lands in the preceding branch's delay slot, while gcc emits
+   `lhu v1` first and keeps the lui second, so reorg fills the slot with a nop
+   (+1 insn); and gcc's mfhi lands in $a3 rather than $v0. Tried: inline
+   `(u16)(x / 20)` casts, one shared `u16 val` local for all four quotients,
+   both give the same order.
 s32 func_8009ADA0(u8 arg0, u32* arg1) {
     u8* p = arg0 * 0x170 + (u32)D_800C34B0;
     u16 f = *(u16*)(p + 0x7C);
+    u16 val;
     s32 ret = 0;
 
     if (f & 0x8000) {
         return 0;
     }
     if (f & 0x800) {
-        *arg1 = (u16)(*(u16*)(p + 0x4E) / 20);
+        val = *(u16*)(p + 0x4E) / 20;
+        *arg1 = val;
         ret = 1;
     }
     arg1++;
     if (*(u16*)(p + 0x80) & 0x200) {
-        *arg1 = (u16)(*(u16*)(p + 0x52) / 20);
+        val = *(u16*)(p + 0x52) / 20;
+        *arg1 = val;
         ret = 1;
     }
     if (*(u16*)(p + 0x120) & 0x200) {
-        *arg1 = (u16)(*(u16*)(p + 0x52) / 20);
+        val = *(u16*)(p + 0x52) / 20;
+        *arg1 = val;
         ret = 1;
     }
     arg1++;
     *arg1 = 0;
     if (*(u16*)(p + 0x120) & 0x80) {
-        *arg1 = (u16)(*(u16*)(p + 0xDE) / 50);
+        val = *(u16*)(p + 0xDE) / 50;
+        *arg1 = val;
         ret = 1;
     }
     if (*(u16*)(p + 0x124) & 0x8000) {
-        *arg1 += (u16)(*(u16*)(p + 0xDE) / 50);
+        val = *(u16*)(p + 0xDE) / 50;
+        *arg1 += val;
         ret = 1;
     }
     return ret;
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009AEFC);
+*/INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009AEFC);
 /* Best attempt: 88.27%. Everything matches except the 3..11 loop: the original
    re-forms `lui at,%hi(D_800CCD68); addu at,at,v0` at BOTH memory references,
    while gcc hoists the symbol base into a register before the loop (loop.c moves
