@@ -9,10 +9,17 @@ typedef struct {
 } Vec3; // Size: 0xC
 
 typedef struct {
+    /* 0x0 */ s32 w0;
+    /* 0x4 */ s32 w1;
+    /* 0x8 */ s32 w2;
+    /* 0xC */ s32 w3;
+} Quad; // Size: 0x10
+
+typedef struct {
     /* 0x00 */ u8 unk0[0x4];
     /* 0x04 */ s16 unk4;
     /* 0x06 */ u8 unk6[0x1A];
-    /* 0x20 */ u16 unk20;
+    /* 0x20 */ s16 unk20;
     /* 0x22 */ u16 unk22;
     /* 0x24 */ u8 unk24[0x4];
     /* 0x28 */ Vec3 pos;
@@ -74,6 +81,11 @@ extern s32 D_8009BCB4;
 extern s32 D_8009C180;
 extern void HeapFree(void *pMem);
 extern void func_80039FF8(void);
+extern void func_80086124(void);
+extern s32 D_8009D7F0;
+extern u8 *D_8009D158;
+extern u8 *D_8009D15C;
+extern u8 *D_8009D148;
 extern void func_8003852C(void *p);
 extern void func_80074F04(void);
 extern void func_800750DC(void);
@@ -272,7 +284,72 @@ s32 func_800817A0(s32 index) {
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_800817A0);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_80081868);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_800819C8);
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_80081B24);
+s32 func_80081B24(s32 index) {
+    WorldMapSlot *pSlot = &D_8009BE24[index];
+    u8 *pEntry = (u8 *)D_8009C620;
+
+    if (pSlot->unk4 == 1) {
+        pSlot->unk4 = 0;
+        pSlot->unk20 = 1;
+    }
+    if (pSlot->unk20 != 0) {
+        if (pSlot->unk20 == 1) {
+            pSlot->unk50 += 4;
+            pSlot->unk54 += 2;
+            pSlot->unk58 += 1;
+            if (pSlot->unk50 >= 0xFC) {
+                pSlot->unk50 = 0xFC;
+                pSlot->unk20 = 0;
+            }
+        }
+    }
+    func_800809EC(*(u8 **)(pEntry + D_8009D7F0 * 4 + 0x48),
+                  *(u16 *)(*(u8 **)(pEntry + 0x40) + 4),
+                  pSlot->unk50, pSlot->unk54, pSlot->unk58);
+    pEntry += 0x54;
+    func_800809EC(*(u8 **)(pEntry + D_8009D7F0 * 4 + 0x48),
+                  *(u16 *)(*(u8 **)(pEntry + 0x40) + 4),
+                  pSlot->unk50, pSlot->unk54, pSlot->unk58);
+    return 1;
+}
+/*
+s32 func_80081C3C(void) {
+    Quad *pSrc;
+    Quad *pDst;
+    u16 *pFill;
+    u8 *p;
+    s32 i;
+
+    D_8009D158 = HeapAlloc(0x1E00, 0);
+    D_8009D15C = HeapAlloc(0x1E00, 0);
+    D_8009D148 = HeapAlloc(0x180, 0);
+    p = D_8009D158;
+    for (i = 0; i < 0xC0; i++) {
+        p[7] = 0x2C;
+        p[3] = 9;
+        p[4] = 0x80;
+        p[5] = 0x80;
+        p[6] = 0x80;
+        p[7] |= 1;
+        *(u16 *)(p + 0x16) = GetTPage(2, 0, 0x280, 0x100);
+        p += 0x28;
+    }
+    pSrc = (Quad *)D_8009D158;
+    pDst = (Quad *)D_8009D15C;
+    for (i = 0; i < 0x1E0; i++) {
+        *pDst++ = *pSrc++;
+    }
+    pFill = (u16 *)D_8009D148;
+    for (i = 0xBF; i >= 0; i--) {
+        *pFill++ = 1;
+    }
+    return 1;
+}
+*/
+// Best: 87.09%. Allocation, both loops' shapes and GetTPage are right; the
+// differences are (1) retail keeps &D_8009D158 in $s0 across the three
+// HeapAlloc calls (store and later load both go through it), gcc rematerialises
+// lui/$at for each; (2) retail materialises 9 into $s4 before 0x2C into $s3.
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_80081C3C);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_80081D80);
 
@@ -286,7 +363,34 @@ s32 func_80081FB4(s32 index) {
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_80081FD8);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_80082324);
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_800826B4);
+s32 func_800826B4(void) {
+    u16 v;
+
+    func_80039FF8();
+    func_8003852C(D_8006259C);
+    HeapFree(D_8006259C);
+    func_80084818();
+    func_80086124();
+    func_80086568();
+    func_800866C8();
+    func_80074F04();
+    func_800750DC();
+    func_80088FF4();
+    func_80089128();
+    func_80097D64();
+    HeapFree(D_8009BC38);
+    HeapFree(D_8009BCB0);
+    HeapFree(D_8009BC3C);
+    HeapFree(D_8009BCB4);
+    HeapFree(D_8009C180);
+    func_800976A0();
+    v = *(u16 *)&D_8009BD3A;
+    D_8006F94E = 0x269;
+    D_8006F954 = 2;
+    D_8009BBC4 = 1;
+    D_8006F950 = v;
+    return 1;
+}
 
 // The live body directly below this block matches 100% (index-then-symbol
 // order): the pointer local is what misallocates here.
