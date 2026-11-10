@@ -160,10 +160,12 @@ void func_80071A38(void) {
     u8 *pDst;
     u8 *pSrc;
 
+    // `*(p + i + k)` and not `p[i + k]`: only the former puts the base first in
+    // the addu under both 2.6.0 and 2.7.2, which is the original's order.
     for (i = 0; i < 3; i++) {
-        pDst = D_800D2D28 + i;
-        pSrc = D_800C3EAC + i;
-        pDst[0x7C] = pSrc[0x2EB];
+        pDst = D_800D2D28;
+        pSrc = D_800C3EAC;
+        *(pDst + i + 0x7C) = *(pSrc + i + 0x2EB);
     }
     func_800716D8();
 }
