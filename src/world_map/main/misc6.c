@@ -195,7 +195,14 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007E450);
    block. Tried: locals for the three copies (24.00%), volatile-qualified loads
    + store (41.32%, the loads then land at the very top), -O1
    (75.00% on func_80080578), -O3 (27.21%), gcc 2.6.0 (27.03%), -mcpu=r8000
-   (32.57%). Suspect the unit wants -fno-schedule-insns2.
+   (32.57%). PROVEN round 12: the unit IS scheduled, so no preset can fix this
+   shape. -fno-schedule-insns2 keeps this at 49.68% (80080578) but drops every
+   matched function in the file (D414 75.94, D600 75.94, D690 66.42, D774
+   63.91, DE14 74.97, 8032C 76.47, vs 100.00 stock); -fno-schedule-insns2
+   -fno-schedule-insns gives 80.59% on 80080578 with every register correct and
+   only the addu two slots early (41.61-68.76 on the matched ones). Volatile on
+   all eleven touched globals reproduces the exact master store order but moves
+   the three sources to $5/$6/$7 (23.21%).
 int func_8007E450(int index) {
     WorldMapActor *pActor = &D_8009BE24[index];
     int nScale = 0x1000;
@@ -254,7 +261,9 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007F8AC);
    it between the 0x22 store and the 0x5C store. Writing the 0x22 store after
    the 0x5C store (the other order the allocator likes) moves li v0,1 to the
    right place (91.49%) but then the 0x22 store is hoisted above the 0x20 and
-   0x3C stores. Group base is unk000[nType + 4], i.e. D_8009C620 + 84*nType +
+   0x3C stores. The store order below is already the master's (0x28, 0x2C,
+   0x54, 0x20, 0x30, 0x50, 0x58); the deviation is only that gcc pulls the
+   0x58 store up to follow 0x54 and materialises li v0,3 last. Group base is unk000[nType + 4], i.e. D_8009C620 + 84*nType +
    0x150, and pActor->unk5C[0] = D_8009A68C[nType].
 int func_8007F8AC(int index) {
     int nType = index - 4;
@@ -327,7 +336,9 @@ int func_8008032C(int index) {
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_80080370);
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_80080578);
-/* 34.97%: same body as func_8007E450 minus the last three stores. The
+/* 34.97%: same body as func_8007E450 minus the last three stores (see its
+   note for the proof that the scheduler cannot be turned off for this unit).
+   The
    original emits everything in strict source order (sll, lw D_8009BE24,
    li 0x1000, sw D_8009D144, addu, sw 0x7C, then the three D_8009C5xx loads,
    li 0x78, sw D_8009BE0C, li 1, the six paired stores); gcc 2.7.2 reorders
