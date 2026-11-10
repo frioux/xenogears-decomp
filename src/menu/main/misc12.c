@@ -21,6 +21,36 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E6F5C);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E71B4);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E733C);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E76EC);
+/* Best: 99.08%. Everything matches except gcc puts the loop counter `i` in
+   s2 and the 0x87C accumulator in s3; retail has them the other way round.
+   Declaration order, for-init form and u32/s32 all leave the pair swapped.
+   Needs externs for the func_801E6AE8/6B70/6CFC/6F5C/71B4 siblings and
+   func_801E61B0/68AC/733C.
+void func_801E76EC(s32 arg0) {
+    u32 offset = 0;
+    s32 i = 0;
+    u8* pEntry;
+
+    pEntry = (u8*)g_Menu->menuUnk2 + arg0 * 0x200 + 0xC94;
+    func_801E61B0();
+    for (; i < 3; i++) {
+        if (pEntry[i + 0x1C] != 0xFF) {
+            *(u8*)((u8*)g_Menu->unk34C + offset + 0x1310) = 1;
+            func_801E6AE8(i, pEntry);
+            func_801E6B70(i, pEntry);
+            func_801E6CFC(i, pEntry);
+            func_801E6F5C(i, pEntry);
+            func_801E71B4(i, pEntry, arg0);
+        } else {
+            *(u8*)((u8*)g_Menu->unk34C + offset + 0x1310) = 0;
+        }
+        *(u8*)((u8*)g_Menu->unk34C + offset + 0x130F) = *(u8*)&g_Menu->renderContext;
+        offset += 0x87C;
+    }
+    func_801E68AC(pEntry);
+    func_801E733C();
+}
+*/
 void func_801E781C(s32 arg0, u_char arg1) {
     func_801E64E0();
     if (arg0 != 0xFF) {
@@ -58,16 +88,42 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E86C8);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E8978);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E8B4C);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E8DA8);
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E8EAC);
-/* Best: 92.44%. Switch tree and every store match; gcc emits three copies of
-   `a0 = pPoly` where retail keeps exactly one, stolen into the `beq s0,1` delay
-   slot, and reuses a0 for the case-1 tpage load. One extra insn in the frame.
+/* Best: 99.51%. Every instruction matches except that retail emits the
+   s0/a0 pair before the s3/a1 pair in the prologue; gcc copies the incoming
+   params in the reverse order. The byte-cast table reads below are what
+   reproduce the original's `sll v1,s3,1; andi v1,v1,0x1FC` (both tables are
+   byte blobs; declare them as u8[]). Needs externs HeapAlloc, bzero,
+   SystemRenderStringEntry.
+void func_801E8DA8(u_char arg0, s32 arg1) {
+    RECT rect;
+    u8* pBuf;
+    s32 offset;
+
+    pBuf = HeapAlloc(0x3F6, 0);
+    bzero(pBuf, 0x3F6);
+    if (arg0 != 0xFF) {
+        offset = (arg0 >> 1) * 0x28;
+        SystemRenderStringEntry((u8*)&g_GameState + offset, pBuf, 0x24, 0);
+        SystemRenderStringEntry((u8*)&g_GameState + offset + 0x14, pBuf, 0x24, 1);
+    }
+    rect.x = *(u16*)(D_801EA578 + ((arg1 * 2) & 0x1FC)) + 0x180;
+    rect.y = *(u16*)(D_801EA5C4 + ((arg1 * 2) & 0x1FC));
+    rect.w = 0x28;
+    rect.h = 0xD;
+    LoadImage(&rect, (u_long*)pBuf);
+    DrawSync(0);
+    HeapFree(pBuf);
+}
+*/
 void func_801E8EAC(POLY_FT4* pPoly, u_char mode) {
     SetShadeTex(pPoly, 0);
     switch (mode) {
     case 1:
         pPoly->tpage |= 0x20;
         SetSemiTrans(pPoly, 1);
+        // fallthrough
+    case 3:
+        setRGB0(pPoly, 33, 33, 33);
         break;
     case 0:
         SetSemiTrans(pPoly, 0);
@@ -75,12 +131,8 @@ void func_801E8EAC(POLY_FT4* pPoly, u_char mode) {
     case 2:
         setRGB0(pPoly, 128, 128, 128);
         break;
-    case 3:
-        setRGB0(pPoly, 33, 33, 33);
-        break;
     }
 }
-*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E8F60);
 void func_801E91C4(P_TAG* pTag) {
     SetSemiTrans(pTag, 1);
