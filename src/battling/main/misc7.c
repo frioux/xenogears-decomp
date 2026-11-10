@@ -2,6 +2,7 @@
 #include "system/memory.h"
 #include "system/archive.h"
 #include "psyq/libgpu.h"
+#include "system/controller.h"
 
 /* The nine flag bytes below are declared as open arrays on purpose: -G8
    classifies a 1-byte extern as small data, which makes its address one
@@ -35,6 +36,10 @@ extern s32 D_80092704;
 extern s32 D_80092710;
 extern s32 D_80092714;
 extern s32 D_80092720;
+extern s32 D_80091364;
+extern s32 D_80092888;
+extern s32 D_80092748;
+extern s32** D_800928EC;
 extern u8 D_8006FF5C[];
 extern u8 D_8006FFA0[];
 extern u8 D_8006FFA4[];
@@ -49,6 +54,8 @@ void func_8007ECF0(u8* pText);
 void func_80081100(s32 entry, s32 mode);
 void func_8008EB4C(s32 arg);
 void ArchiveCdDataSync(int mode);
+void func_8008509C(s32 index, s32 value);
+void func_80085134(s32 index);
 s32 ArchiveReadFileFromCdSector(s32 sector, void* pDestBuffer, s32 fileSize, s32 arg3, u32 flags);
 s32 func_8007FF70(s32 value, s32 max, s32 flags);
 
@@ -259,7 +266,30 @@ void func_80080268(void) {
     D_80099DA2[0] = func_8007FF70(D_80099DA2[0], 0xD, 3);
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc7", func_800802A4);
+void func_800802A4(void) {
+    s32 same;
+
+    if (D_80091364 == 0) {
+        if (g_C1ButtonStateReleased & 0x40) {
+            D_80092710 &= -2;
+            func_80085134(0);
+            func_8008EB4C(0x22);
+        }
+    }
+    if ((D_80092710 & 1) == 0) {
+        same = (D_80092700 == D_80092704);
+        do {
+            D_80092700 = func_8007FF70(D_80092700, D_80092888 - 1, 3);
+        } while (D_80092700 == D_80092704 && (D_80092748 & 1) == 0 && !same);
+        if (D_80091364 == 0) {
+            if (g_C1ButtonStateReleased & 0x20) {
+                D_80092710 |= 1;
+                func_8008EB4C(0x21);
+                func_8008509C(0, *D_800928EC[D_80092700]);
+            }
+        }
+    }
+}
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc7", func_8008040C);
 
