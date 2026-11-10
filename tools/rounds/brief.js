@@ -46,6 +46,7 @@ KNOWN BLOCKERS ALREADY FOUND IN THIS REPO - do not rediscover them
 - A constant the original loads ONCE into a call-clobbered register before a switch ('li v1,0xA0', 'li a2,0x70): assign it to a source local before the switch; a literal gives a per-block li.
 - A divisor/argument the original passes with a plain move/div and no andi or sll/sra pair wants the narrow SIGNED type (s16), not u8/s32.
 - Whole-word script-flag read-modify-write: use the union scalar member (actor->scriptFlags.flags), never the bitfields.
+- THE INDUCTION-BASE FIX (worth three functions in one unit): when a loop stub is stuck at 99.3-99.6% with only base-register/offset differences, write the loop as an INDEXED access ('pSlot[i].field' plus an s32 i) instead of an incrementing pointer ('p->field; p++'). With p++ gcc's combine_givs re-bases the induction register onto the address of the body's LAST memory reference, so every displacement is shifted by the struct offset; with p[i] the biv is p + i*stride, the base register stays the symbol, and the displacements are the literal struct offsets - retail's shape. Try this before any other source shape.
 - addu operand order follows C order: (i + p->array)->field emits index-first addu, p->array[i].field does not.
 - Translate wide vectors as long tmp[3] cast to (VECTOR*) to get 32-bit sw/lw; a VECTOR local gives sh.
 - Never write */ or /* inside a parked /* ... */ attempt (e.g. Normal*/Color), and never nest two attempt blocks: it has broken the build three times this session.
