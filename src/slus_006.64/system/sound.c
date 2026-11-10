@@ -2106,7 +2106,20 @@ void func_8003AE84(AudioManager* pManager) {
     }
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003AF24);
+void func_8003AF24(AudioManager* pManager, u16 volume) {
+    s32 newVolume = 0x7F00;
+    u_long event = g_unk_SoundEvent;
+
+    pManager->unk_Flags |= 0x20;
+    *(u16*)&pManager->unk_0x1e[0] = volume;
+    DisableEvent(event);
+    SoundReleaseAllVoices(pManager);
+    EnableEvent(g_unk_SoundEvent);
+    pManager->unk_Interpolator_0x64.targetValue = newVolume;
+    pManager->unk_Interpolator_0x64.counter = 0;
+    pManager->unk_Interpolator_0x64.currentValue = newVolume << 16;
+    pManager->unk_0x54 = (pManager->unk_0x58 >> 16) * newVolume;
+}
 /*
 Attempt (87.10%, same size): every instruction is right; only the first eight are
 ordered differently. The original schedules `lui/lw a0` (DisableEvent's argument)
