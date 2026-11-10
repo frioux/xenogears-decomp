@@ -3,7 +3,8 @@
 #include "system/menu.h"
 
 extern void func_801CE198(s32 count, SVECTOR* pVertices, POLY_FT4* pPolys, u_char renderContext);
-extern void func_801D12D4(MenuCharacter* pCharacter, s32 arg1);
+extern void func_801D12D4(MenuCharacter* pCharacter, s32 flag);
+extern void func_801CE2B4(u_char length, void* pPolys, u_char renderContext);
 extern void func_801D09F0(s32 menuIndex, u_char hasScrollBar);
 
 extern void func_801CF308(void);
@@ -215,7 +216,23 @@ void func_801D1258(void) {
     AddPrim(&g_Menu->pGfxEnv->ot[8], &g_Menu->unk348->drawModeDimEffect[g_Menu->renderContext]);
 }
 */
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc5", func_801D12D4);
+void func_801D12D4(MenuCharacter* pCharacter, s32 flag) {
+    if (pCharacter->unkBE7 == 0) {
+        return;
+    }
+    AddPrim(&g_Menu->pGfxEnv->ot[4], &pCharacter->polysPortraitSmall[pCharacter->renderContext]);
+    AddPrim(&g_Menu->pGfxEnv->ot[4], &pCharacter->polys4B0[pCharacter->renderContext]);
+    func_801CE2B4(pCharacter->descriptionStringsLength, pCharacter, pCharacter->renderContext);
+    func_801CE2B4(pCharacter->levelStringLength, pCharacter->polysLevelString, pCharacter->renderContext);
+    func_801CE2B4(pCharacter->unkBE1, pCharacter->polys5F0, pCharacter->renderContext);
+    func_801CE2B4(pCharacter->hpStringLength, pCharacter->polysHpString, pCharacter->renderContext);
+    func_801CE2B4(pCharacter->maxHpStringLength, pCharacter->polysMaxHpString, pCharacter->renderContext);
+    func_801CE2B4(pCharacter->mpStringLength, pCharacter->polysMpString, pCharacter->renderContext);
+    func_801CE2B4(pCharacter->maxMpStringLength, pCharacter->polysMaxMpString, pCharacter->renderContext);
+    if (flag & 0xFF) {
+        func_801CE2B4(5, pCharacter->polys2D0, pCharacter->renderContext);
+    }
+}
 void func_801D13F8(void) {
     s32 i;
 
