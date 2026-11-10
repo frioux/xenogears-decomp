@@ -279,6 +279,16 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008D3F0);
    folds the re-read into the lhu. The mode < 4 / mode < 8 / gearRide blocks and
    the whole tail are byte-identical. Also tried: unk5C assigned after the
    D_8009BE10 load (identical output), ascending zero stores.
+   Re-diffed under the current XenoWorldMap flags, still 81.33%. Two new facts:
+   the source ORDER of the zero stores makes no difference - gcc's post-reload
+   scheduler sinks all three to just before the branch and floats the sh/lh pair
+   above the D_8009BE10 load whatever the C order is, and hoisting the mode load
+   to the top of the head only makes it worse. And storing unk48 through a
+   volatile u16 pointer reproduces the original's lh reload (instead of an
+   sll/sra pair, which makes the function 304 bytes instead of the original 300):
+   that variant scores 80.07% but has the original's exact instruction multiset,
+   with only the position of the two blocks differing, so it is the base to
+   continue from rather than the text below.
 int func_8008D3F0(int index) {
     WorldMapActor *pActor = &D_8009BE24[index];
     s32 result = func_8008C364(pActor, 1);
