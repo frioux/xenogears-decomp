@@ -179,8 +179,15 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc6", func_801D261C);
    lhu + addiu -0x22 instead of lhu + li 0xffde + addu (a 1-D s16 spelling scores
    88.04% but indexes with stride 2, i.e. reads the wrong entry);
    (2) retail's frame is 0x60 (ra at 0x58) and ours is 0x18, so the original has an
-   unused ~0x54-byte stack local that has to be declared (the usual unused-local
-   trick) before the register allocation will line up.
+   unused 0x48-byte stack local that has to be declared (the usual unused-local
+   trick) before the register allocation will line up.  FIXED: 'u8 pad[0x48]' as the
+   first local makes sp-0x60/ra-at-0x58 match retail exactly (86.91 -> 86.93, 652
+   bytes = retail's size).  Remaining differences are the address tree and the table
+   read order of every statement: retail adds g_Menu early (poly base =
+   ctx*0x28 + (sub*0x80 + g_Menu)) where gcc folds the global last, and retail reads
+   E94 before A1C in x0/x2 (addiu attached to E94) but A1C before E94 in x1/x3
+   (addiu attached to A1C), i.e. the two corner groups come from differently grouped
+   source expressions.  No source shape reproduces both.
 */
 /* Best attempt (86.91%): the body below is what the note above was measured with.
 void func_801D261C(void) {
@@ -237,7 +244,8 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc6", func_801D2D38);
    loop's s1; with i/j retail's shape falls out exactly (first loop in s1, then
    loop2's counter s0 and its 6 + j*2 biv back in s1).
    Tried for the gearId: u_char/int/u32 local, the cast outside the ternary, the cast
-   inside, both ternary arm orders. It stays in v0.
+   inside, both ternary arm orders, and inlining the whole
+   g_GameState.characters[...].gearId expression twice (-ffunction-cse). It stays in v0.
 */
 /* Best attempt (99.74%): the body below is what the note above was measured with.
 void func_801D2D38(void) {
@@ -312,12 +320,16 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc6", func_801D3488);
 /* PARKED 98.90% (492 bytes, identical instruction multiset). The first loop, the
    early-return ternary (write it as "a1 == 0 ? unk32B : unk33B", not the other way
    round), the HeapAlloc/bzero block and the tail all match exactly. The only
-   difference left is in the 4-iteration func_801C851C loop: the allocator swaps two
-   registers (retail keeps pUi in v1 and the strength-reduced i*2 in a1; ours the
-   other way round), so every displacement/operand of that loop differs by the pair.
-   Tried: declaring the poly pointer inside/outside the loop, an explicit polys base
-   local (96.50), an explicit index local, and both ternary spellings. It is the same
-   a1/v1 allocator tie as func_801D2D38 above.
+   difference left is in the 4-iteration func_801C851C loop, and it is NOT an
+   allocator tie - the add operand ORDER differs.  Retail loads pUi into v1 and forms
+   the poly address with 'addu v1,v1,v0' (base first, idx*0x28 already in v0); ours
+   forms the same address as 'addu $2,$2,$5' (offset first, pUi second), i.e. our RTL
+   is (plus off pUi) where retail's is (plus pUi off).  The array-subscript expansion
+   puts the base last, so retail's poly pointer did not come from a plain subscript.
+   The i*2+renderContext sum is right (both do 'sll a1,s0,1' then 'addu a1,a1,v0').
+   Tried, all still 98.90: poly pointer declared inside/outside the loop, an explicit
+   polys base local (96.50), an explicit index local, both ternary spellings, and
+   replacing the subscript with (POLY_FT4*)((u_char*)pUi + polyIndex * 0x28).
 */
 /* Best attempt (98.90%): the body below is what the note above was measured with.
 void func_801D3488(u_char a0, u_char a1) {
