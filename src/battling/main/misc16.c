@@ -1,4 +1,5 @@
 #include "common.h"
+#include "psyq/libgpu.h"
 #include "psyq/libgte.h"
 #include "system/memory.h"
 
@@ -58,6 +59,8 @@ extern s32 D_80092840;
 extern s32 D_80092844;
 
 extern u8 D_800928A0;
+
+extern u16 D_80091CE0[];
 
 extern s32 rand(void);
 extern void func_80031870(u8* pLink, u32 addr);
@@ -141,7 +144,19 @@ void func_8008D208(Misc16Work* pWork, s16* pOut) {
     pOut[1] = pWork->unk1E + rot.vy;
     pOut[2] = pWork->unk20 + rot.vz;
 }
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc16", func_8008D304);
+void func_8008D304(Misc16Work* pWork, s16* pOut, s32 angle) {
+    SVECTOR vec;
+    VECTOR rot;
+    s32 rotAngle; // retail reads the incoming s2 without ever setting it
+
+    vec.vx = rcos(rotAngle) * pWork->unk24 >> 12;
+    vec.vy = rand() % pWork->unk26 - pWork->unk26 / 2;
+    vec.vz = rsin(rotAngle) * pWork->unk28 >> 12;
+    ApplyRotMatrix(&vec, &rot);
+    pOut[0] = pWork->unk1C + rot.vx;
+    pOut[1] = pWork->unk1E + rot.vy;
+    pOut[2] = pWork->unk20 + rot.vz;
+}
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc16", func_8008D3F4);
 
 void func_8008D580(Misc16Work* pWork) {
@@ -275,7 +290,37 @@ void func_8008DF30(void) {
     D_80092840 = 0;
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc16", func_8008DF50);
+void func_8008DF50(void) {
+    s32 i;
+    RECT rect;
+    s16* pFirst;
+    s16* pSecond;
+
+    if (D_80092844 == 0) {
+        D_80092844 = (s32)HeapAlloc(0x1500, 1);
+        D_8009283C = (s32)HeapAlloc(0x2BC0, 1);
+        D_80092840 = (s32)HeapAlloc(0x2BC0, 1);
+    }
+    pFirst = (s16*)(D_8009283C + 0x2AE0);
+    pSecond = (s16*)(D_80092840 + 0x2AE0);
+    for (i = 0x1570; i != -1; i--) {
+        *pSecond = 0;
+        *pFirst = 0;
+        pFirst--;
+        pSecond--;
+    }
+    for (i = 0; i < 0x1500; i++) {
+        ((u8*)D_80092844)[i] = 0;
+    }
+    for (i = 0; i < 0x100; i++) {
+        D_80091CE0[i] |= 0x8000;
+    }
+    rect.x = 0;
+    rect.y = 0x1FD;
+    rect.w = 0xFF;
+    rect.h = 1;
+    LoadImage(&rect, (u_long*)D_80091CE0);
+}
 void func_8008E064(void) {
     if (D_80092844 != 0) {
         HeapDelayedFree((u8*)D_80092844, 2);
