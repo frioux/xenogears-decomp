@@ -110,6 +110,124 @@ void func_80078C5C(void) {
 INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_80078D44);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_80079288);
+/* Best attempt: 79.46% (the form below scores 78.37%, 728 bytes against the
+   original's 684). splat splits this block per word, so the original's
+   relocations name D_800B2298 (period), D_800B229C (count) and D_800B22A0
+   (values) separately while reading all three through one base register
+   (s1 = &D_800B2298; count at -4(a0), values at 0(a0) for a0 = s1 + 8, i.e.
+   combine_givs re-basing three symbols onto one pointer). Remaining deltas:
+   that rebase, and rand()'s product landing in a2/a3 instead of s1/a2.
+extern s32 D_800ADBDC;
+extern s32 D_800ADBE4;
+extern s32 D_800ADBEC;
+extern s32 D_800ADB2C;
+extern u_char D_800ADB04;
+extern s32 D_800ADBD0;
+extern s32 D_8004F370;
+extern s32 D_800B2294;   // countdown to the next regeneration of the slot table
+extern s32 D_800B2298;   // regeneration period, 0 disables the random skin
+extern s32 D_800B229C;   // number of slot table entries in use
+extern u16 D_800B22A0[]; // slot table; 0xFFFF marks a free slot
+extern u16 D_800B2270[]; // per-skin value handed to the field system
+extern s16 D_800B2290;
+extern u_char D_80065ADC[]; // per-skin selection weight
+extern u_char D_80059508;
+extern u_char D_800594F8;
+extern void func_8008E718(void);
+extern void LoadGameStateOverlay(int);
+extern void func_80281204(int);
+extern int rand(void);
+
+// Ages the slot table and, once a slot frees up, rolls a skin against
+// D_80065ADC's weights and switches the party to it.
+void func_80079288(void) {
+    int aWeightSums[16];
+    int nTotal;
+    int nTarget;
+    int i;
+    int nSum;
+    s32* pPeriod;
+    s32* pCount;
+    u16* pSlots;
+    u_char* pWeight;
+
+    if (D_800ADBDC == 0) {
+        return;
+    }
+    if (D_800ADBE4 == 0) {
+        return;
+    }
+    if (D_800ADBEC == 0) {
+        return;
+    }
+    if (D_8004F308 == -1) {
+        return;
+    }
+    pPeriod = &D_800B2298;
+    if (*pPeriod == 0) {
+        return;
+    }
+    if (g_FieldControl.isRandomEncountersEnabled == -1) {
+        return;
+    }
+    if (D_800ADB2C == 1) {
+        return;
+    }
+    if (D_800ADB04 == 0) {
+        return;
+    }
+    if (--D_800B2294 == 0) {
+        func_8008E718();
+    }
+    pSlots = (u16*)&pPeriod[2];
+    for (i = 0; i < pPeriod[1]; i++) {
+        if (pSlots[i] != 0xFFFF) {
+            pSlots[i] = pSlots[i] - 1;
+        }
+    }
+    pCount = &D_800B229C;
+    pSlots = (u16*)&pCount[1];
+    for (i = 0; i < *pCount; i++) {
+        if (pSlots[i] != 0) {
+            continue;
+        }
+        D_800B22A0[i] = 0xFFFF;
+        pWeight = D_80065ADC;
+        nTotal = 0;
+        for (i = 0; i < 16; i++) {
+            nTotal += pWeight[i];
+        }
+        nSum = 0;
+        for (i = 0; i < 16; i++) {
+            aWeightSums[i] = nSum;
+            nSum += pWeight[i];
+        }
+        nTarget = (rand() * (nTotal + 1)) >> 15;
+        nSum = 0;
+        for (i = 15; i >= 0; i--) {
+            if (pWeight[i] != 0 && aWeightSums[i] < nTarget) {
+                nSum++;
+                break;
+            }
+        }
+        if (nSum == 0) {
+            return;
+        }
+        D_80059508 = i;
+        D_800594F8 = 0;
+        D_800B2290 = D_800B2270[i];
+        if (D_8004F370 == 0) {
+            LoadGameStateOverlay(2);
+        }
+        D_800ADBDC = 0;
+        D_800ADBD0 = 1;
+        if (g_FieldSystemMode == 0) {
+            func_80281204(i);
+        }
+        break;
+    }
+}
+*/
 
 extern u_char D_8005942C;
 extern s32 D_800AFC78;
