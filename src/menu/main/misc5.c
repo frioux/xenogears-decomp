@@ -5,6 +5,7 @@
 extern void func_801CE198(s32 count, SVECTOR* pVertices, POLY_FT4* pPolys, u_char renderContext);
 extern void func_801D12D4(MenuCharacter* pCharacter, s32 flag);
 extern void func_801CE2B4(u_char length, void* pPolys, u_char renderContext);
+extern void func_801D0954(SVECTOR* pVertices, POLY_FT4* pPolys, s32 polyIndex, s32 otIndex);
 extern void func_801D09F0(s32 menuIndex, u_char hasScrollBar);
 
 extern void func_801CF308(void);
@@ -37,6 +38,53 @@ extern void func_801D17C4(void);
 extern void func_801D1914(void);
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc5", func_801D09F0);
+/* Best attempt: 94.75%. Only the AddPrim argument setup differs (the original
+   puts addiu 0x70 on the zIndex product and addu pGfxEnv last).
+void func_801D09F0(s32 menuIndex, u_char hasScrollBar) {
+    MenuWindow* pWindow;
+    s32 i;
+    long interpolated;
+    long flag;
+
+    pWindow = g_Menu->windows[menuIndex];
+    for (i = 0; i < 4; i++) {
+        func_801D0954(&pWindow->vertsWindowBorderCorners[i * 4], &pWindow->polysWindowBorderCorners[i * 2],
+                      pWindow->renderContext, pWindow->zIndex);
+    }
+    if (hasScrollBar & 0xFF) {
+        for (i = 0; i < 2; i++) {
+            func_801D0954(&pWindow->vertsScrollBarEnds[i * 4], &pWindow->polysScrollBarEnds[i * 2],
+                          pWindow->renderContext, pWindow->zIndex);
+        }
+        func_801D0954(&pWindow->vertsScrollBarEmpty[0], &pWindow->polysScrollBarEmpty[0], pWindow->renderContext,
+                      pWindow->zIndex);
+    }
+    func_801D0954(&pWindow->vertsWindowBorderTop1[0], &pWindow->polysWindowBorderTop[0], pWindow->renderContext,
+                  pWindow->zIndex);
+    func_801D0954(&pWindow->vertsWindowBorderTop2[0], &pWindow->polysWindowBorderTop[2], pWindow->renderContext,
+                  pWindow->zIndex);
+    func_801D0954(&pWindow->vertsWindowBorderBottom1[0], &pWindow->polysWindowBorderBottom[0],
+                  pWindow->renderContext, pWindow->zIndex);
+    func_801D0954(&pWindow->vertsWindowBorderBottom2[0], &pWindow->polysWindowBorderBottom[2],
+                  pWindow->renderContext, pWindow->zIndex);
+    func_801D0954(&pWindow->vertsWindowBorderLeft1[0], &pWindow->polysWindowBorderLeft[0], pWindow->renderContext,
+                  pWindow->zIndex);
+    func_801D0954(&pWindow->vertsWindowBorderLeft2[0], &pWindow->polysWindowBorderLeft[2], pWindow->renderContext,
+                  pWindow->zIndex);
+    func_801D0954(&pWindow->vertsWindowBorderRight1[0], &pWindow->polysWindowBorderRight[0],
+                  pWindow->renderContext, pWindow->zIndex);
+    func_801D0954(&pWindow->vertsWindowBorderRight2[0], &pWindow->polysWindowBorderRight[2],
+                  pWindow->renderContext, pWindow->zIndex);
+    RotTransPers4(&pWindow->vertsBackground[0], &pWindow->vertsBackground[1], &pWindow->vertsBackground[2],
+                  &pWindow->vertsBackground[3], (long*)&pWindow->polysBackground[pWindow->renderContext].x0,
+                  (long*)&pWindow->polysBackground[pWindow->renderContext].x1,
+                  (long*)&pWindow->polysBackground[pWindow->renderContext].x2,
+                  (long*)&pWindow->polysBackground[pWindow->renderContext].x3, &interpolated, &flag);
+    AddPrim((void*)((u32)g_Menu->pGfxEnv + (0x70 + pWindow->zIndex * sizeof(u32))),
+            &pWindow->polysBackground[pWindow->renderContext]);
+    AddPrim((void*)((u32)g_Menu->pGfxEnv + (0x70 + pWindow->zIndex * sizeof(u32))),
+            &pWindow->drawModes[pWindow->renderContext]);
+}*/
 void func_801D0C78(void) {
     s32 i;
     SVECTOR rot;
