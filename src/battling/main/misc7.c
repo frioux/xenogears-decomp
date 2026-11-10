@@ -45,6 +45,12 @@ extern u8 D_8006FF5C[];
 extern u8 D_8006FFA0[];
 extern u8 D_8006FFA4[];
 extern u8 D_8006FFA8[];
+extern u8 D_8006FF68[];
+extern u8 D_8006FF6C[];
+extern u8 D_8006FF74[];
+extern s32 D_8009130C[];
+extern s32 D_8009292C;
+extern u16 D_80099DA4[];
 
 void func_8007EE08(s32 arg);
 void func_8007F834(void);
@@ -128,7 +134,38 @@ u32 func_8007F97C(void) {
     return D_800912F4[D_80099D98[0]];
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc7", func_8007F9A0);
+void func_8007F9A0(Misc7Struct* p) {
+    u8 buf[0x8];
+    u8* pText;
+    s32 value;
+
+    func_8007E894(p->unk24 + p->unk28 - 0xA, p->unk14);
+    func_8007EE08(0);
+    func_8007F948(p, 0);
+    func_8007ECF0((u8*)func_8007F97C());
+    func_8007F948(p, 1);
+    Sprintf(buf, D_8006FF5C, D_80099DA1[0] + 1);
+    value = D_8009130C[D_80099DA1[0]];
+    D_8009292C = value;
+    D_80099DA4[0] = value;
+    func_8007ECF0(buf);
+    func_8007F948(p, 2);
+    Sprintf(buf, D_8006FF60, D_80091300[D_80099D9A[0]]);
+    func_8007ECF0(buf);
+    func_8007F948(p, 3);
+    pText = D_8006FF6C;
+    if (D_80099D9D[0] != 0) {
+        pText = D_8006FF68;
+    }
+    func_8007ECF0(pText);
+    func_8007F948(p, 4);
+    pText = D_8006FF74;
+    if (D_80099D9E[0] != 0) {
+        pText = D_8006FF68;
+    }
+    func_8007ECF0(pText);
+    func_8007EE08(0);
+}
 
 void func_8007FB0C(Misc7Struct* p) {
     u8 buf[0x8];
