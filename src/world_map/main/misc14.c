@@ -114,7 +114,32 @@ s32 func_80094364(SVec* p, s32 index, s32 mode) {
 void func_80094434(void) {
 }
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc14", func_8009443C);
+s32 func_8009443C(SVec* pPos, SVec* pAim, WorldMapProbe* pProbe, s16 kind) {
+    SVec4* pNear;
+    SVec4* pFar;
+    s32 scale;
+    s32 edge;
+
+    scale = (pAim->z << 12) / pAim->x;
+    pNear = &pProbe->near;
+    pFar = &pProbe->far;
+    edge = (pProbe->unk10 & 0xFFF80000) - pPos->x;
+    pProbe->v.x = edge;
+    pNear->x = edge - 1;
+    pFar->x = pProbe->v.x;
+    pNear->z = ((scale * pNear->x) >> 12) + pPos->z;
+    pFar->z = ((scale * pFar->x) >> 12) + pPos->z;
+    pNear->x += pPos->x;
+    pFar->x += pPos->x;
+    func_80093354(pNear);
+    if (func_80094060(kind, func_80093F18(pNear)) == 0) {
+        pProbe->v = pProbe->near;
+        return 1;
+    }
+    func_80093354(pFar);
+    return func_80094060(kind, func_80093F18(pFar)) == 0 ? 3 : 0;
+}
+
 s32 func_800945C8(SVec* pPos, SVec* pAim, WorldMapProbe* pProbe, s16 kind) {
     SVec4* pNear;
     SVec4* pFar;
