@@ -7,42 +7,24 @@ extern u16 D_800D39DC;
 extern u8 D_800D3420[];
 extern u8 D_800D3430[];
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc10", func_8007EA08);
-/* 96.47% - identical 17-insn multiset, only the register pick of the `p`
-   pseudo differs: the original loads arg0[0] in place into a0 and gives the
-   D_800D3420 base v0; gcc here gives p v0 (base v1, p[3] a0). A u16 `value`
-   local is required for the unsigned compare (without it gcc emits slt).
-   Tried: a u16 pointer for pRow, value declared before/after pRow,
-   the direct expression with no local.
-
 s32 func_8007EA08(u8 **arg0, u8 arg1) {
-    u8 *p = *arg0;
+    u16 value = (*arg0)[2] | ((*arg0)[3] << 8);
     u16 *pRow = (u16 *)(D_800D3420 + arg1 * 0x40);
-    u16 value = p[2] | (p[3] << 8);
 
-    return value >= pRow[p[1]];
-} */
+    return value >= pRow[(*arg0)[1]];
+}
 s32 func_8007EA4C(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
     u8 *pRow = D_800D3430 + arg1 * 0x40;
 
     return !(pRow[p[1]] < p[2]);
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc10", func_8007EA84);
-/* 96.47% - identical 17-insn multiset, only the register pick of the `p`
-   pseudo differs: the original loads arg0[0] in place into a0 and gives the
-   D_800D3420 base v0; gcc here gives p v0 (base v1, p[3] a0). A u16 `value`
-   local is required for the unsigned compare (without it gcc emits slt).
-   Tried: a u16 pointer for pRow, value declared before/after pRow,
-   the direct expression with no local.
-
 s32 func_8007EA84(u8 **arg0, u8 arg1) {
-    u8 *p = *arg0;
-    u8 *pRow = D_800D3420 + arg1 * 0x40;
-    u16 value = p[2] | (p[3] << 8);
+    u16 value = (*arg0)[2] | ((*arg0)[3] << 8);
+    u16 *pRow = (u16 *)(D_800D3420 + arg1 * 0x40);
 
-    return ((u16 *)pRow)[p[1]] >= value;
-} */
+    return pRow[(*arg0)[1]] >= value;
+}
 s32 func_8007EAC8(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
     u8 *pRow = D_800D3430 + arg1 * 0x40;
@@ -76,21 +58,12 @@ s32 func_8007EBD8(u8 **arg0, u8 arg1) {
     v &= p[2];
     return v != 0;
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc10", func_8007EC10);
-/* 96.47% - identical 17-insn multiset, only the register pick of the `p`
-   pseudo differs: the original loads arg0[0] in place into a0 and gives the
-   D_800D3420 base v0; gcc here gives p v0 (base v1, p[3] a0). A u16 `value`
-   local is required for the unsigned compare (without it gcc emits slt).
-   Tried: a u16 pointer for pRow, value declared before/after pRow,
-   the direct expression with no local.
-
 s32 func_8007EC10(u8 **arg0, u8 arg1) {
-    u8 *p = *arg0;
-    u8 *pRow = D_800D3420 + arg1 * 0x40;
-    u16 value = p[2] + (p[3] << 8);
+    u16 value = (*arg0)[2] + ((*arg0)[3] << 8);
+    u16 *pRow = (u16 *)(D_800D3420 + arg1 * 0x40);
 
-    return (((u16 *)pRow)[p[1]] & value) != 0;
-} */
+    return (pRow[(*arg0)[1]] & value) != 0;
+}
 s32 func_8007EC54(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
     u8 *pRow = D_800D3430 + arg1 * 0x40;
@@ -112,21 +85,12 @@ s32 func_8007ECDC(u8 **arg0, u8 arg1) {
 
     return (pRow[p[1]] ^ p[2]) != 0;
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc10", func_8007ED14);
-/* 96.47% - identical 17-insn multiset, only the register pick of the `p`
-   pseudo differs: the original loads arg0[0] in place into a0 and gives the
-   D_800D3420 base v0; gcc here gives p v0 (base v1, p[3] a0). A u16 `value`
-   local is required for the unsigned compare (without it gcc emits slt).
-   Tried: a u16 pointer for pRow, value declared before/after pRow,
-   the direct expression with no local.
-
 s32 func_8007ED14(u8 **arg0, u8 arg1) {
-    u8 *p = *arg0;
-    u8 *pRow = D_800D3420 + arg1 * 0x40;
-    u16 value = p[2] | (p[3] << 8);
+    u16 value = (*arg0)[2] | ((*arg0)[3] << 8);
+    u16 *pRow = (u16 *)(D_800D3420 + arg1 * 0x40);
 
-    return (((u16 *)pRow)[p[1]] ^ value) != 0;
-} */
+    return (pRow[(*arg0)[1]] ^ value) != 0;
+}
 s32 func_8007ED58(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
     u8 *pRow = D_800D3430 + arg1 * 0x40;
