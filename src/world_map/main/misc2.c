@@ -99,6 +99,10 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc2", func_80074E58);
    (retail: a0 = dst from HeapAlloc's result, a1 = counter). Also tried:
    (i << 4) for the desc index, *((s32*)D_8009D77C + i + 1), ++i, three
    declaration orders, s32/u32 counter, count re-read into a local.
+   NOTE: the sibling loops func_80074F2C / func_80075104 only reached 100% with
+   `for (i = 0; ...; i++, pEntry++)` (the counter increment must come before
+   pEntry's) and with pSprite a typed struct pointer field so gcc reloads it per
+   basic block - both worth retrying here.
 void func_80074E58(void) {
     WorldMapEntry* pEntry;
     s32 count;
@@ -108,12 +112,11 @@ void func_80074E58(void) {
     D_8009CC9C = count;
     pEntry = (WorldMapEntry*)HeapAlloc(count * 0xC, 0);
     D_8009D780 = (u8*)pEntry;
-    for (i = 0; i < D_8009CC9C; i++) {
-        pEntry->unk0 = (s32)D_8009D77C + ((s32*)D_8009D77C)[i + 1];
-        pEntry->unk4 = (s32)(D_8009A1E8 + i * 0x10);
+    for (i = 0; i < D_8009CC9C; i++, pEntry++) {
+        pEntry->unk0 = (u32)D_8009D77C + ((s32*)D_8009D77C)[i + 1];
+        pEntry->pSprite = (WorldMapSprite*)(D_8009A1E8 + i * 0x10);
         pEntry->unk8 = 0;
         pEntry->unkA = 1;
-        pEntry++;
     }
 }
 */
