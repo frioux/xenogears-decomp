@@ -175,11 +175,6 @@ Misc13Scale* func_80089E74(void) {
     return pSprite;
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc13", func_80089EB4);
-
-/* 90.98% - the loop shape is right, but gcc folds the entry test
-   (i != -1 for i = count - 1) into a beqz on count; the original keeps
-   addiu + beq against -1. s16/s32/u32 counters all fold or add sll/sra.
 void func_80089EB4(Misc13EntryList* pList) {
     s32 i;
 
@@ -188,18 +183,16 @@ void func_80089EB4(Misc13EntryList* pList) {
     }
     if (pList->pEntries != NULL) {
         if (D_80091C2C == 0) {
-            i = pList->count - 1;
-            while (i != -1) {
+            i = pList->count;
+            while (--i != -1) {
                 if (pList->pEntries[i].unk00 != 0) {
                     HeapFree(pList->pEntries[i].pData);
                 }
-                i--;
             }
         }
         HeapFree(pList->pEntries);
     }
 }
-*/
 
 Misc13ModelPart* func_80089F8C(Misc13ModelPart* pPart) {
     pPart->unk04 = 1;
@@ -303,11 +296,6 @@ void func_8008A298(void* pData) {
     HeapFree(pData);
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc13", func_8008A2B8);
-
-/* 85.28% - everything but the two "last element" pointers: the original folds
-   both into the shared count*4 temp (addiu a0,a0,-4 reused) while gcc keeps a
-   separate -4 per pointer, and that reorders the two stores.
 Misc13Buffer* func_8008A2B8(u16 count) {
     Misc13Buffer* pBuffer;
     s32 i;
@@ -321,10 +309,10 @@ Misc13Buffer* func_8008A2B8(u16 count) {
     pBuffer->unk17 = 0xE;
     pBuffer->unk00 = 0;
     pBuffer->count = count;
-    pBuffer->pLastA = pBuffer->pArrayA + count - 1;
-    pBuffer->pLastB = pBuffer->pArrayB + count - 1;
-    if (count != 1) {
-        i = 1;
+    pBuffer->pLastA = &pBuffer->pArrayA[count - 1];
+    pBuffer->pLastB = &pBuffer->pArrayB[count - 1];
+    i = 1;
+    if (count != i) {
         while (i != count) {
             i <<= 1;
             if (i > 0x4000) {
@@ -336,7 +324,6 @@ Misc13Buffer* func_8008A2B8(u16 count) {
     }
     return pBuffer;
 }
-*/
 
 void func_8008A3A0(void) {
 }
