@@ -213,3 +213,15 @@ build_variables = {
     maspsx_flags = "--aspsx-version=2.67 --expand-div --use-comm-section --run-assembler"
 }
 paths = [ "slus_006.64/system/temp2." ]
+
+# battle/main/misc20 is a gcc-2.6.0 unit, proven the way section 5 asks for:
+# func_8009E410 is 100.0% under gcc-2.6.0 -O2 -G8 and 99.68% under Default, and the
+# already-matched func_8009CB68 / func_8009E3C8 stay at 100.0 under 2.6.0. Five more
+# stubs in the unit sit on the identical one-register mfhi/mflo miss, which is the
+# same signature as the other 2.6.0 misc units.
+[[build_preset]]
+name = "XenoBattle260"
+build_variables = {
+    gcc = "gcc-2.6.0-psx"
+}
+paths = [ "battle/main/misc20." ]
