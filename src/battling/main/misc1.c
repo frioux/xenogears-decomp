@@ -38,6 +38,15 @@ extern s32 D_800987FC;
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_80070808);
 
+/* 66.68%: original keeps &D_8009867C in $s0 across the first call, ours
+   rematerialises it; the same C is otherwise identical.
+void func_80070808(s32* p, s32 step) {
+    D_8009867C += func_800707D8(p[0], D_8009867C, step);
+    D_80098684 += func_800707D8(p[2], D_80098684, step);
+    D_80098680 += func_800707D8(p[1], D_80098680 + D_800925F4, step);
+}
+*/
+
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_800708C4);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_8007099C);
@@ -103,7 +112,48 @@ void func_800718C0(void) {
     func_80032F54(&D_8009868C[0], 0x140, 0x30, 0x1C, 0x9A, 0x40, 4);
 }
 
+extern u8 D_80092608;
+extern s16 D_80098698;
+extern s16 D_80098692;
+extern s32 D_8009105C[];
+extern s32 D_800925E8;
+extern s32 D_800925E0;
+extern s32 D_800925EC;
+extern s32 D_800925E4;
+extern s16 D_80092600;
+extern s16 D_800987E0;
+extern u16 D_800987E8;
+extern s16 D_800970C4;
+extern u16 D_800970CC;
+extern void func_8008EB4C(s32 id);
+
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_8007191C);
+
+/* 89.15%: reorg steals the else branch's li v0,0x4 into the bnez delay slot
+   where the original leaves a nop, which makes our value pseudo land in v1.
+void func_8007191C(u32 idx) {
+    s32 value;
+
+    D_80092608 = idx < 1;
+    if (idx == 0) {
+        func_8008EB4C(0x37);
+        D_80098698 = 2;
+        value = 0xB4;
+    } else {
+        D_80098698 = 4;
+        value = 0x9A;
+    }
+    D_80098692 = value;
+    func_80070F80(D_8009105C[idx]);
+    D_800925E8 = 0xA0;
+    D_800925E0 = 0xA0;
+    D_800925EC = 0x6D;
+    D_800925E4 = 0x6D;
+    D_80092600 = 0;
+    D_800987E0 = D_800987E8;
+    D_800970C4 = D_800970CC;
+}
+*/
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_800719F0);
 
