@@ -9,6 +9,12 @@ extern u8 D_800D3430[];
 extern u8 D_800D343F[];
 extern u16 D_8005A3A0[];
 extern u8 D_800CCE34[];
+extern u8 D_800CCE38[];
+extern u8 D_800CCE39[];
+extern u8 D_800CCE3A[];
+extern u8 D_800CCE3B[];
+extern u8 D_800CCE3C[];
+extern u8 D_800CCE3D[];
 extern u8 D_800CCE3E[];
 
 u8 func_8001BD40(int, u8);
@@ -129,8 +135,20 @@ void func_8007BB2C(u8 **p, u8 index) {
 
     *(u16 *)(D_800CCE3E + slot * 0x170) = value;
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007BB70);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007BBD8);
+void func_8007BB70(u8 **p, u8 index) {
+    s32 slot = index + 3;
+
+    *(u8 *)(D_800CCE3D + slot * 0x170) = (*p)[1];
+    *(u8 *)(D_800CCE3B + slot * 0x170) = (*p)[2];
+    *(u8 *)(D_800CCE39 + slot * 0x170) = (*p)[3];
+}
+void func_8007BBD8(u8 **p, u8 index) {
+    s32 slot = index + 3;
+
+    *(u8 *)(D_800CCE3C + slot * 0x170) = (*p)[1];
+    *(u8 *)(D_800CCE3A + slot * 0x170) = (*p)[2];
+    *(u8 *)(D_800CCE38 + slot * 0x170) = (*p)[3];
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007BC40);
 /* best: 98.82%. Only the last addu is commuted (original base first into a1,
    gcc reuses the dead a2): identical multiset. Writing *p inline twice is
