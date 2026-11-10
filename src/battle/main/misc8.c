@@ -18,10 +18,28 @@ extern u8 D_800D3410[];
 extern u8 D_800D3420[];
 extern u8 D_800D3430[];
 extern u8 func_8007A628(u8 arg0, u8 arg1);
+extern u16 func_80089C08(u8 arg0);
+extern u8 D_800D2E06[];
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007C1A4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007C33C);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007C4A0);
+void func_8007C4A0(u8 **arg0, u8 arg1) {
+    u16 *pRow;
+    u16 result;
+    u8 best = 0xFF;
+    s32 bestIndex = 0;
+    s32 i;
+
+    for (i = 0; i < 3; i++) {
+        if (func_8007A628(i, (*arg0)[2]) != 0 && best >= *(s16 *)&D_800D2E06[i * 2]) {
+            best = D_800D2E06[i * 2];
+            bestIndex = i;
+        }
+    }
+    result = func_80089C08(bestIndex);
+    pRow = (u16 *)(D_800D3420 + arg1 * 0x40);
+    pRow[(*arg0)[1]] = result;
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007C580);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007C678);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007C75C);
@@ -75,7 +93,8 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007D0CC);
 /* best: 85.97%. Loop body and the D_800D2CE0/D_800D2CB0 at-register lookups
    match exactly; the prologue order does not - the original forms the
    D_800D3430 base before the p[1] load and its i = 0 lands after it, gcc
-   hoists i = 0 to the top and loads p first.
+   hoists i = 0 to the top and loads p first. Also tried i = 0 between the
+   store and the loop, and a separate pDst local; both give the same order.
 
 void func_8007D0CC(u8 **arg0, u8 arg1) {
     u8 *pRow = D_800D3430 + arg1 * 0x40;
@@ -90,20 +109,13 @@ void func_8007D0CC(u8 **arg0, u8 arg1) {
     }
 }
 */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007D148);
-/* best: 99.96%. Everything matches except the second byte store lands at
-   0(a1) instead of 1(a1); writing the +1 index flips the final addu's
-   destination from a1 to a3 (99.17%). Tried: +1 in the index, swapped
-   operand order, (arg1 + 1)[idx] - allocator tie.
-
 void func_8007D148(u8 **arg0, u8 *arg1, u8 arg2, u8 arg3) {
     u16 *pField = (u16 *)(D_800D3420 + arg2 * 0x40);
     u16 value = pField[(*arg0)[2]];
 
     arg1[arg3 * 8 + (*arg0)[1]] = value;
-    arg1[arg3 * 8 + (*arg0)[1] + 1] = value >> 8;
+    *(arg1 + (arg3 * 8 + (*arg0)[1]) + 1) = value >> 8;
 }
-*/
 void func_8007D1A8(u8 **arg0, u8 arg1) {
     u32 *pRow = (u32 *)(D_800D3410 + arg1 * 0x40);
     u8 *p = *arg0;
@@ -123,7 +135,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007D5B0);
 /* best: 93.33%. Insn multiset and the whole tail match; only the
    strength-reduced D_800CCD64 offset increment sits one block early in the
    original (in the loop-top bnez delay slot, before count++), gcc puts it in
-   the loop-branch delay slot.
+   the loop-branch delay slot. Also tried ++i and count += (flags & 0xC000) == 0.
 
 void func_8007D5B0(u8 **arg0, u8 arg1) {
     u8 *pRow;
