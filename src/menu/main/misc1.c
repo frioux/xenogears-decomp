@@ -7,9 +7,55 @@ extern u_char D_801EA524[]; // String IDs of the menu strings
 
 void func_801E7E68(MenuString* pStringList, u_char* pStringIdList, s32 yOffset, s32 count);
 
+void func_801C531C(u_char arg0);
+void func_801C7BF4(void);
+void func_801C8694(u_char arg0);
+s32 func_801CACF8(u_char a0, u_char a1, u_char a2);
+void func_801D1E80(void);
+void func_801D22F4(s32 arg0);
+void func_801D2484(void);
+void func_801D2D38(void);
+void func_801C7B0C(void);
+
+extern u8 D_801E977A;
+extern u8 D_801EA8FC;
+extern u8 D_801E96A4;
+extern u8 D_801E96A5;
+
+extern u8 D_80059171;
+extern u8 D_800594D0;
+
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc1", func_801C531C);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc1", func_801C55A0);
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc1", func_801C57A4);
+
+void func_801C57A4(void) {
+    u_char shouldReset;
+
+    D_80059171 = 1;
+    D_801E977A = 0;
+    func_801D1E80();
+    shouldReset = 1;
+    while (g_Menu->transitionEffectState != 0) {
+        func_801C7BF4();
+    }
+    func_801D22F4(0);
+    if ((u_char)func_801CACF8(0x7D, 0xFF, 1) != 0 || D_801EA8FC != 0) {
+        if (func_801CACF8(0x80, 0xFF, 1) != 0) {
+            shouldReset = 0;
+        }
+    }
+    func_801D2484();
+    if (shouldReset) {
+        D_801E96A5 = 1;
+        D_801E96A4 = 1;
+        func_801C531C(0);
+        D_801E96A4 = 0;
+        D_801E96A5 = 0;
+    }
+    g_Menu->pManager->unk4 = 0;
+    g_Menu->pManager->unk3 = 0;
+    func_801C8694(D_80059171);
+}
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc1", func_801C58EC);
 
 void func_801C5B54(u_char isInitialization) {
@@ -122,6 +168,42 @@ void func_801C5F10(void) {
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc1", func_801C5FE4);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc1", func_801C62A8);
+
+/* Best: 92.33% - the inner if/else-if chain lays its then-block in-line while the original
+   keeps both call blocks out of line after a positive beqz/beq pair.  Tried: else-if,
+   !=/else form (87.67%), 2-way switch (92.33%), two separate ifs (reloads D_800594D0).
+void func_801C62A8(void) {
+    u8 menuIndex;
+
+    func_801C5F10();
+    func_801C7B0C();
+    g_Menu->shouldDrawMenu = 1;
+    g_Menu->unk32A = 1;
+    menuIndex = D_80059460;
+    switch (menuIndex) {
+        case 0:
+            func_801D2D38();
+            func_801C55A0();
+            break;
+        case 2:
+            D_800594D0 = 0;
+            func_801C58EC();
+            g_Menu->pManager->shouldRenderSelectionMenu = 0;
+            g_Menu->pManager->unk4 = 0;
+            g_Menu->pManager->unk3 = 0;
+            if (D_800594D0 == 0) {
+                func_801C8694(0);
+            } else if (D_800594D0 == menuIndex) {
+                func_801C8694(((u8*)g_GameState.unk1930)[0xA4]);
+            }
+            break;
+        case 6:
+            func_801C57A4();
+            break;
+    }
+    func_801C5FE4();
+}
+*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc1", func_801C6400);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc1", func_801C65F4);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc1", func_801C6AA0);
@@ -132,7 +214,9 @@ void func_801C6D4C(void) {
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc1", func_801C6D5C);
 
-/* Best: 69.23% (56 bytes vs the original's 52 - gcc groups the two byte stores).
+/* Best: 69.23% (56 bytes vs the original's 52).  The original keeps three separate loads of
+   g_Menu and reuses the stale pre-store pointer for 0x4CC/0x4D0; ours reorders the 0x4D9
+   byte store ahead of them and reuses the post-store pointer.
 void func_801C6D5C(void) {
     g_Menu->unk4D8 = 0;
     g_Menu->unk4CC = 0;
