@@ -183,9 +183,9 @@ void func_8009E410(void) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc20", func_8009E48C);
-/* best 72.58%: twin of func_8009E410 with 0xB; the shape below is E410's
-   99.68% body (see PRESET_GCC260 there) and scores the same here once the
-   mask colour is fixed. Kept identical to E410 to make that a one-line change.
+/* best 99.68%: twin of func_8009E410 with 0xB; the body below is E410's
+   99.68% shape and scores the same here (same single mfhi colour miss).
+   See the PRESET_GCC260 note on func_8009E410.
 void func_8009E48C(void) {
     u8 *base;
     s32 v = *(u16 *)(D_800D2DC8 + 0x3A) * D_800C3DFC[0x11];
