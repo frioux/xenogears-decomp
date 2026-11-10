@@ -111,10 +111,12 @@ void func_800718BC(void) {
 }
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80071964);
-/* 98.78% - only the register for the leading lbu differs (original a1, gcc v0,
-   forcing the two lhu temps to swap v0/v1). Tried: two early-return ifs, one
-   compound && if, and nested ifs (49%), u8 mode local + !(), u16 mask local
-   with nested ifs (no change: the miss is an allocator tie-break on the lbu).
+/* 99.51% under 2.6.0 and 2.7.2: every instruction is identical except the
+   leading flag load, which retail puts in $a1 (a dead argument register at
+   entry) and gcc in $v0 (reused by the later lhu). Both pseudos have one use
+   and no live range overlap, so this is an allocator tie; the and-operand
+   register pair is identical. Tried: compound &&, !(), nested ifs, volatile on
+   the flag, an int local for the flag.
 void func_80071964(void) {
     u8 *pEntry;
     s32 i;
@@ -129,7 +131,6 @@ void func_80071964(void) {
     }
 }
 */
-
 void func_80071A08(void) {
     s32 i;
     u8 *p;
@@ -198,11 +199,11 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80071B94);
    The pointer pair pDst = D_800D2E06, pSrc = pDst - 0xB reproduces the original
    addiu s2,s1,-0x16 exactly. */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80072270);
-/* 72.36% - body and pointer pair (pSrc = pDst - 0xB gives the original's
-   addiu s2,s1,-0x16) are right; the miss is the flag store: gcc's loop.c hoists
-   `li v0,1` into s3 (extra callee-saved reg, 40-byte frame vs 32) where the
-   original re-materialises `li v0,1` inside the block, and it loads D_800D2D28
-   after the sh instead of before the lhu. Same blocker as func_80071B94.
+/* 72.36% under 2.6.0 and 2.7.2. The pointer pair (pSrc = pDst - 0xB gives the
+   original addiu s2,s1,-22) and every operand are right; gcc's loop.c hoists
+   `li s3,1` for the flag store into a callee-saved register, so the frame is
+   0x28 instead of 0x20 and the D_800D2D28 load lands after the sh instead of
+   before the lhu. Tried under 2.6.0: 0x7C store before/after *pDst = *pSrc.
 void func_80072270(void) {
     s32 i;
     u16 *pSrc;
@@ -224,6 +225,7 @@ void func_80072270(void) {
     D_800D2C9E = 0;
 }
 */
+
 void func_80072324(void) {
     u8 *pBuf;
     u8 *p;
@@ -250,13 +252,12 @@ void func_80072324(void) {
 }
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_800723E0);
-/* 69.63% - whole structure is right (16-byte frame, both early-exit paths, the
-   wrap at 0xB and the *pCurrent = i + 1 tail). Misses: gcc reloads
-   D_800D2DD8[i] after the loop instead of reusing the loop's slot register
-   (an `idx` local makes it worse, 68.58, and adds an andi), it materialises a
-   second `li 0xb` for the tail compare where the original keeps a3, and it
-   hoists `move a0,zero` out of the final jal's delay slot. Tried: for/while with
-   the increment in the clause vs in the body, idx local, s32 vs u8 locals.
+/* 68.84% under 2.6.0 (69.63 under 2.7.2). Whole structure is right (0x18 frame,
+   both early-exit paths, the 0xB wrap and the *pCurrent = i + 1 tail). Misses:
+   gcc invents a 4th lbu of D_800D2DC0 in the middle block, reloads
+   D_800D2DD8[i] after the loop instead of reusing the loop's slot register,
+   materialises a second `li 0xb` for the tail compare where the original keeps
+   a3, and hoists `move a0,zero` out of the final jal's delay slot.
 void func_800723E0(void) {
     u8 *pCurrent;
     s32 i;
@@ -293,13 +294,15 @@ void func_800723E0(void) {
     func_80071B94(0);
 }
 */
-
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_8007252C);
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_800728B8);
-/* 78.84% - with an s32/u32 index gcc strength-reduces index*40 into a hoisted
-   pointer (+80 per iteration); the original recomputes sll/addu/sll inside the
-   loop. An s16 index blocks the reduction but adds sll/sra at each use.
+/* 78.84% under both 2.6.0 and 2.7.2: the original recomputes index*40 inline
+   each iteration (sll 2 / addu / sll 3, the sll 2 rotated into the branch delay
+   slot) while gcc strength-reduces an int index into a pointer (+80/iteration)
+   and hoists pPrim into it. An s16 index emits the original's inline multiply
+   but adds a sll/sra pair per use. Tried under 2.6.0: index += 2 in the body,
+   index += 2 in the for clause, u32/s16/s32 index.
 void func_800728B8(u8 *pPrim, s32 count, s16 index) {
     s32 i;
 
