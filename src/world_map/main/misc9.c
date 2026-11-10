@@ -70,6 +70,7 @@ void func_800866C8(void) {
     HeapFree(D_8009D7FC);
     HeapFree(D_8009D7F8);
 }
+
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_80086700);
 // Best: 92.29%. Verified shape: 0x50 iterations, s16 deltas at 0/4 of a 0x8-byte
 // entry added to the two s32 angles at 0/8 of a 0x10-byte entry, each wrapped by
@@ -104,8 +105,7 @@ void func_80086700(void) {
         pSrc += 4;
     }
 }
-*/
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_80086798);
+*/INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_80086798);
 s32 func_80087710(s32 index) {
     WorldMapSlot* pSlot = (WorldMapSlot*)(D_8009BE24 + index * 0x80);
 
@@ -246,4 +246,5 @@ s32 func_8008868C(void) {
     return 1;
 }
 */
+
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_80088720);
