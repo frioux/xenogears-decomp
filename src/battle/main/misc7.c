@@ -45,8 +45,9 @@ void func_8007B958(u8 **p, u8 index) {
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007B98C);
 /* best: 84.67%. Instruction multiset identical; the original loads *p into v0
-   and puts the D_800D3420 base in a0, gcc emits the base first instead. Same
-   allocator tie as func_8007B8D4.
+   before materialising the D_800D3420 base in a0, gcc always emits the base
+   first and reuses the dead a0 for the load. Declaration order, an explicit
+   offset local and a volatile load all leave it unchanged.
 
 void func_8007B98C(u8 **p, u8 index) {
     u16 *pField = (u16 *)(D_800D3420 + index * 0x40);
@@ -113,7 +114,8 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007BAE8);
 /* best: 96.76%. Only the register holding *p differs (original v1, gcc
    reuses a0). The two-statement slot local is needed: written as
    (index + 3) * 0x170 inside the store, gcc folds 3*0x170 into the
-   displacement instead of the addiu the original has.
+   displacement instead of the addiu the original has. Hoisting the value
+   into a u32 local (which works for func_8007BB2C) drops it to 41.18%.
 
 void func_8007BAE8(u8 **p, u8 index) {
     s32 slot = index + 3;
@@ -121,16 +123,12 @@ void func_8007BAE8(u8 **p, u8 index) {
     *(u32 *)(D_800CCE34 + slot * 0x170) = (*p)[1] | ((*p)[2] << 8);
 }
 */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007BB2C);
-/* best: 39.71%. Same operator as func_8007BAE8 but storing a halfword; the
-   0x170 scaling and the store addressing both come out differently.
-
 void func_8007BB2C(u8 **p, u8 index) {
-    u8 *pArgs = *p;
+    u32 value = (*p)[1] | ((*p)[2] << 8);
+    s32 slot = index + 3;
 
-    *(u16 *)(D_800CCE3E + (index + 3) * 0x170) = pArgs[1] | (pArgs[2] << 8);
+    *(u16 *)(D_800CCE3E + slot * 0x170) = value;
 }
-*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007BB70);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007BBD8);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007BC40);
