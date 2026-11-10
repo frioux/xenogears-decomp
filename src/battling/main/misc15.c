@@ -1,4 +1,5 @@
 #include "common.h"
+#include "psyq/libgte.h"
 #include "system/memory.h"
 
 // The block func_8008C0CC hangs off a heap node; func_8008C120 releases it.
@@ -22,6 +23,22 @@ typedef struct HeapNode {
 extern s32 D_80092824;
 extern void* D_80092828;
 extern void func_8008C188();
+extern s32 rand(void);
+extern u8 D_800928A0;
+extern s32 D_800928E4;
+extern void* g_pCurModelPacket;
+extern void* g_pCurModelVertices;
+extern void* D_80059568;
+extern s32 D_800595C0;
+extern void* D_80059528;
+extern void func_8008BD70(u8* pData, void* pPacket, void* pUnk, void* pVertices);
+extern void func_8008C620(void* pNode, s16 n);
+extern void func_8008C4B0(void* pNode, s16 n);
+extern void func_800316C0(void* pOT, void* pPrim);
+extern VECTOR D_8009A2C8;
+extern s32 D_8009A2CC;
+extern s32 D_8009A2D0;
+extern void func_8008C3A8(void* pSrc, void* pDst, u16 n);
 // An 8-byte, byte-aligned chunk: assigning one copies 8 bytes with lwl/lwr.
 typedef struct {
     u8 unk[8];
@@ -42,7 +59,49 @@ typedef struct {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc15", func_8008BC04);
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc15", func_8008BCC8);
+/* Best C match, 82.38%: gcc hoists the D_8009A2D0 load above the store through
+   $s0; the original keeps the three shift statements in source order. The frame
+   (0x40) needs the second, unused VECTOR local.
+void func_8008BCC8(u8* pObj, u8* pDst) {
+    VECTOR vec;
+    VECTOR vecUnused;
+
+    vec.vx = -8;
+    vec.vy = -8;
+    vec.vz = -16;
+    VectorNormal(&vec, &D_8009A2C8);
+    D_8009A2C8.vx <<= 4;
+    D_8009A2D0 <<= 4;
+    D_8009A2CC <<= 4;
+    func_8008C3A8(*(void**)(pObj + 8), pDst, *(u16*)(pObj + 2));
+}
+*/
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc15", func_8008BD70);
+/* Best C match, 78.82%: gcc stores D_80059528 before the loop instead of merging
+   that store with the loop-top one, and passes the node rather than node+4 to
+   func_8008C620/func_8008C4B0. The body is a loop rotated to a bottom test.
+void func_8008BD70(u8* pData, void* pPacket, void* pUnk, void* pVertices) {
+    s32 i;
+    u8* pNode;
+
+    i = *(u16*)(pData + 6);
+    D_80059528 = *(void**)(pData + 0x10);
+    g_pCurModelPacket = pPacket;
+    D_80059568 = pUnk;
+    g_pCurModelVertices = pVertices;
+    D_800595C0 += *(u16*)(pData + 4);
+    while (i != -1) {
+        pNode = (u8*)D_80059528;
+        D_80059528 = pNode + 4;
+        if (pNode[0] & 8)
+            func_8008C620(pNode, *(s16*)(pNode + 2));
+        else
+            func_8008C4B0(pNode, *(s16*)(pNode + 2));
+        D_80059528 = (u8*)D_80059528 + (*(s16*)(pNode + 2) << 3);
+        i--;
+    }
+}
+*/
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc15", func_8008BE4C);
 void func_8008C0BC(void* pObj, void* pValue) {
     *(s32*)pObj = 5;
@@ -84,6 +143,27 @@ void func_8008C2C0(void* pWork) {
     func_8008C298(pWork);
 }
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc15", func_8008C2E8);
+/* Best C match, 98.54%: only $v0/$v1 are swapped from the pBase chain onwards (a
+   global.c allocator tie-break); five statement shapes all give the same swap.
+void func_8008C2E8(u8* pObj) {
+    u8* pData;
+    u8* pBase;
+
+    pData = *(u8**)(pObj + 4);
+    if (*(s32*)pData == 1) {
+        pBase = *(u8**)(pData + 4);
+        if ((*(s32*)*(u8**)(pBase + 4) & 1) == 0) {
+            pBase = *(u8**)(pData + 0xC);
+            func_8008BD70(*(void**)(pBase + 0xC), *(void**)((u8*)pBase + 0x10 + D_800928A0 * 4),
+                          (u8*)D_800928E4 + 4, *(void**)(pBase + 8));
+        }
+    }
+    if (*(u8**)(pObj + 0x94) != NULL)
+        func_8008C2E8(*(u8**)(pObj + 0x94));
+    if (*(u8**)(pObj + 0x90) != NULL)
+        func_8008C2E8(*(u8**)(pObj + 0x90));
+}
+*/
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc15", func_8008C3A8);
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc15", func_8008C4B0);
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc15", func_8008C620);
@@ -131,8 +211,31 @@ void func_8008CC54(u8* pObj, u8* pSrc) {
     pObj[0x1E] = pSrc[0x76];
     *(Words4*)(pObj + 0x28) = *(Words4*)(pObj + 0x18);
 }
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc15", func_8008CCB0);
+void func_8008CCB0(u8* pObj, u8* pOT) {
+    long local[2];
+    u8* pBase;
+    s32 otz;
+
+    pBase = pObj + 0x18 + D_800928A0 * 0x10;
+    otz = RotTransPers3((SVECTOR*)pObj, (SVECTOR*)(pObj + 0x10), (SVECTOR*)local,
+                        (long*)(pBase + 8), (long*)(pBase + 0xC),
+                        local, local, local);
+    *(Bytes8*)(pObj + 0x10) = *(Bytes8*)pObj;
+    func_800316C0(pOT + ((otz >> 2) << 2), pBase);
+}
 void func_8008CD54(void) {
 }
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc15", func_8008CD5C);
+void func_8008CD5C(u8* pObj, u8* pSrc) {
+    s16 n;
+
+    pObj[0x13] = 3;
+    pObj[0x17] = 0x62;
+    n = rand() % 2 + 2;
+    *(s16*)(pObj + 0x1E) = n;
+    *(s16*)(pObj + 0x1C) = n * 2;
+    pObj[0x14] = pSrc[0x74];
+    pObj[0x15] = pSrc[0x75];
+    pObj[0x16] = pSrc[0x76];
+    *(Words4*)(pObj + 0x20) = *(Words4*)(pObj + 0x10);
+}
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc15", func_8008CE0C);
