@@ -75,6 +75,7 @@ typedef struct {
     /* 0x16 */ s16 unk16;
 } BattleTextList; // Size: 0x18
 
+extern void func_800811AC(u8 *p);
 extern void func_8008151C(BattleTextList *p);
 extern void func_8008162C(s32 *p, s32 a1);
 extern void func_80081A44(void);
@@ -213,7 +214,40 @@ void func_80080D10(void) {
     D_800926DC = 0;
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc8", func_80080D20);
+extern u8 *D_800926D4[];
+extern s32 D_800912F0;
+extern u8 D_80095498[];
+extern u8 D_800954C8[];
+extern u8 D_8009A0DA[];
+
+void func_80080D20(u8 *p) {
+    s32 i;
+    u8 *pEntry;
+    RECT rect;
+
+    pEntry = D_800926D4[D_800928A0];
+    for (i = 0; i < D_800926DC; i++, pEntry += 0x28) {
+        AddPrim(p, pEntry);
+    }
+    D_800926DC = 0;
+    func_800811AC(p);
+    if (((D_80092734 != 0) && (D_80092758 != 0)) || (D_800912F0 != 0)) {
+        if (D_80092734 != 0) {
+            AddPrim(p, (u8 *)D_80092734 + (D_800928A0 * 0x10 + 0x1C));
+            SetDrawTPage((DR_TPAGE *)(D_800954C8 + D_800928A0 * 8), 0, 0, GetTPage(0, 2, 0, 0));
+            AddPrim(p, D_800954C8 + D_800928A0 * 8);
+        }
+        rect.x = 0x140;
+        rect.y = 0x100;
+        rect.w = 0x140;
+        rect.h = 0xDA;
+        SetDrawMove((DR_MOVE *)(D_80095498 + D_800928A0 * 0x18), &rect,
+                    *(s16 *)(D_8009A0D8 + D_800928A0 * 0xF8),
+                    *(s16 *)(D_8009A0DA + D_800928A0 * 0xF8));
+        AddPrim(p, D_80095498 + D_800928A0 * 0x18);
+    }
+    D_800912F0 = 0;
+}
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc8", func_80080F04);
 /* 83.89%: both sprite halves match except the four sprite-scaling stores.
