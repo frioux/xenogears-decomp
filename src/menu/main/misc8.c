@@ -37,6 +37,8 @@ void func_801C7BF4(void);
 u_char func_801C93A8(void);
 void func_801D2F4C(s32 arg0);
 void func_801D32B4(void);
+void func_801E8EAC(POLY_FT4* pPoly, u_char mode);
+void func_801E8F60(s32 mode, u_char index);
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801D7CFC);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801D7F50);
@@ -381,5 +383,46 @@ void func_801DB340(u_char index) {
     g_Menu->pManager->shouldRenderArrowCursor[index] = 0;
 }
 
+/* 96.75%. Frame and instruction multiset identical except that the original
+   keeps the record pointer in $a2 and re-forms the poly address a second time
+   (`addu a0,a2,a1` after the `r0 != 0x20` check) where gcc CSEs it into one
+   address, and the original carries the `i * 0x80` offset in an incrementing
+   $s2 for the second array. Also `addu` operand order differs in three places
+   (original puts the byte offset first, gcc the pointer): spelling the poly
+   pointer as `renderContext * 0x28 + (u32)base` fixes the order but relocates
+   the shift chain and dropped the function to 87.15%.
+void func_801DB39C(u_char arg0) {
+    POLY_FT4* pPoly;
+    s32 i;
+
+    func_801E8F60(3, arg0);
+    func_801E8F60(4, arg0);
+    pPoly = &g_Menu->pScrollHandle->polys[g_Menu->pScrollHandle->renderContext];
+    func_801E8EAC(pPoly, arg0);
+    for (i = 0; i < 0x10; i++) {
+        pPoly = &((MenuString*)g_Menu->unk42C)[i].polys[((MenuString*)g_Menu->unk42C)[i].renderContext];
+        if (pPoly->r0 != 0x20) {
+            func_801E8EAC(pPoly, arg0);
+            pPoly = &((MenuString*)g_Menu->unk42C)[i + 0x10]
+                         .polys[((MenuString*)g_Menu->unk42C)[i + 0x10].renderContext];
+            func_801E8EAC(pPoly, arg0);
+        }
+    }
+    for (i = 0; i < 2; i++) {
+        pPoly = &g_Menu->arrowCursors[i]->polys[g_Menu->arrowCursors[i]->renderContext];
+        func_801E8EAC(pPoly, arg0);
+    }
+    pPoly = &((MenuString*)g_Menu->unk42C)[0x20].polys[((MenuString*)g_Menu->unk42C)[0x20].renderContext];
+    func_801E8EAC(pPoly, arg0);
+    pPoly = &((MenuString*)g_Menu->unk42C)[0x21].polys[((MenuString*)g_Menu->unk42C)[0x21].renderContext];
+    func_801E8EAC(pPoly, arg0);
+    pPoly = &((MenuString*)g_Menu->unk42C)[0x22].polys[((MenuString*)g_Menu->unk42C)[0x22].renderContext];
+    func_801E8EAC(pPoly, arg0);
+    for (i = 0; i < 8; i++) {
+        pPoly = &g_Menu->unk10E0[i].polys[g_Menu->unk10E0[i].renderContext];
+        func_801E8EAC(pPoly, arg0);
+    }
+}
+*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801DB39C);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801DB5E4);
