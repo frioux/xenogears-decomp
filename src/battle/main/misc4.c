@@ -5,6 +5,10 @@ extern u8 D_800D2E5D[];
 extern u8 D_800D2E60[];
 extern u8 D_800D2E62[];
 extern u16 D_800D39E0;
+extern u8 D_800D2E5C[];
+extern u8 D_800D3400[];
+extern s32 func_8007EF6C(u8** arg0, u8 arg1, u8 arg2);
+extern s32 func_8007F8C0(u8** arg0, u8 arg1);
 // A 0x170-byte battle table entry; only the flag word at +0 is read here.
 typedef struct {
     /* 0x000 */ u16 flags;
@@ -195,5 +199,54 @@ void func_80079948(u8** pCursor) {
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc4", func_800799C8);
+/* Best: 87.14%. Whole structure, both clear loops (the *p++ / p < pEnd do-while
+   and the 0x8B8 / -0x48 loop) and the if/else layout are right. Left: gcc puts
+   the loop test at the top (no preheader `j`) where the original rotates it to
+   the bottom (`bne` back to the body, fall into the epilogue), and it gives the
+   0xFF compare constant a callee-saved reg ($s2, +sw/lw) where the original
+   parks it in the bne delay slot. `cmd` must be u32 (u8 gives an andi per use,
+   s32 gives slti) and the >= 0x80 test must come first or the arms swap order.
+   Tried: while with the load in the condition, for(;;) with two breaks,
+   break vs return for the 0xFF exit, u8/u32/s32 cmd, u8 value.
+
+void func_800799C8(u8 arg0) {
+    u8 *p;
+    u8 *pEnd;
+    u8 *pCursor;
+    u8 slot;
+    u8 value;
+    u32 cmd;
+    s32 i;
+
+    value = 0;
+    slot = arg0 - 3;
+    pCursor = *(u8 **)(D_800D3400 + slot * 0x40);
+    p = D_800D2E5C;
+    pEnd = p + 0x100;
+    do {
+        *p++ = 0;
+    } while (p < pEnd);
+    for (i = 0x8B8; i >= 0; i -= 0x48) {
+        D_800C402F[i] = 0xFF;
+    }
+    for (;;) {
+        cmd = *pCursor;
+        if (cmd == 0xFD) {
+            break;
+        }
+        if (cmd == 0xFF) {
+            break;
+        }
+        if (cmd >= 0x80) {
+            if ((func_8007F8C0(&pCursor, slot) & 0xFF) != 0) {
+                continue;
+            }
+            func_80079948(&pCursor);
+        } else {
+            value = func_8007EF6C(&pCursor, slot, value);
+        }
+    }
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc4", func_80079AB0);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc4", func_80079C24);
