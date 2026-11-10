@@ -20,6 +20,11 @@ extern void func_800A5870(s16 *, s16, void *);
 extern s32 func_800A5914(s16 *, s16, s32);
 extern void func_8003852C(s32);
 extern void func_800B00D0(void);
+extern u8 D_800C3D0C[];
+extern u8 *D_800D3368[];
+extern void func_800A9FF0(s32);
+extern void func_800AA934(void *, void *, void *, void *);
+extern void func_800BE790(void);
 
 typedef struct BattleModelNode BattleModelNode;
 
@@ -225,7 +230,35 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800B136C);
 void func_800B14B8(void) {
     D_800C3D6C = 1;
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800B14CC);
+void func_800B14CC(s32 arg0) {
+    s32 i;
+    s32 flag;
+    u8 *pEntry;
+
+    for (i = 0; i < 3; i++) {
+        if (i != arg0) {
+            func_800AA934(D_800D3368[i], D_800D3368[i], D_800C3D0C, 5);
+        }
+    }
+    do {
+        flag = 0;
+        for (i = 0; i < 3; i++) {
+            if (i != arg0) {
+                pEntry = D_800D3368[i];
+                if (pEntry != NULL && (pEntry[0x34] != 0 || pEntry[0x38] != 0)) {
+                    flag = 1;
+                }
+            }
+        }
+        func_800BE790();
+    } while (flag != 0);
+    func_800BE790();
+    for (i = 0; i < 3; i++) {
+        if (i != arg0) {
+            func_800A9FF0(i);
+        }
+    }
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800B15D8);
 /* 71.84%: the frame address and the 7-word struct copy are right; gcc swaps the
    frame pointer / D_800C3BD0 register roles and blocks the copy 4+3 instead of
