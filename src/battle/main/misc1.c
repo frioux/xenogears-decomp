@@ -11,6 +11,7 @@ extern s32 D_800D3284;
 extern s32 D_800D328C;
 extern s32 *D_8005917C;
 extern u8 *D_800CCB04;
+extern u8 *D_800C3EA4;
 
 extern void func_8008AB4C(void);
 extern s32 func_8008ABB8(s32, s32);
@@ -33,6 +34,14 @@ extern u8 D_800D3014;
 extern u8 D_800D2DE4[];
 extern u16 D_800D2DF0[];
 extern u16 D_800D2E06[];
+extern u16 D_800D2C9E;
+extern u16 func_80089C9C(u16, u8);
+extern u16 D_800D39E0;
+extern u8 D_800C402F[];
+extern u8 D_800D2E5C;
+extern u8 D_800D2E60;
+extern void func_80085AC4(u8);
+extern void func_80071B94(s32);
 extern u16 func_80098AF8(s32, s32);
 extern void func_80079E18(s32);
 extern void func_80079E4C(s32);
@@ -106,7 +115,8 @@ void func_800718BC(void) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80071964);
 /* 98.78% - only the register for the leading lbu differs (original a1, gcc v0,
    forcing the two lhu temps to swap v0/v1). Tried: two early-return ifs, one
-   compound && if, and nested ifs (49%).
+   compound && if, and nested ifs (49%), u8 mode local + !(), u16 mask local
+   with nested ifs (no change: the miss is an allocator tie-break on the lbu).
 void func_80071964(void) {
     u8 *pEntry;
     s32 i;
@@ -179,8 +189,60 @@ void func_80071AE0(void) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80071B94);
+/* 72.24% - body is exact except the flag store: gcc hoists `li s3,1` out of the
+   loop (loop.c invariant) and then schedules the D_800D2D28 store before the sh,
+   costing a callee-saved reg and a 40-byte frame vs the original 32; the original
+   re-materialises `li v0,1` inside the block. Tried: plain D_800D2D28[i + 0x7C]
+   (index-first addu), (D_800D2D28 + i)[0x7C] (base-first addu, now identical),
+   store order before/after *pDst = *pSrc (no effect), pFlag pointer local.
+   The pointer pair pDst = D_800D2E06, pSrc = pDst - 0xB reproduces the original
+   addiu s2,s1,-0x16 exactly. */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80072270);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80072324);
+/* void func_80072270(void) {
+    s32 i;
+    u16 *pSrc;
+    u16 *pDst;
+
+    if ((D_800D2C9E & 7) != 0) {
+        pDst = D_800D2E06;
+        pSrc = pDst - 0xB;
+        for (i = 0; i < 3; i++) {
+            if (func_80089C9C(D_800D2C9E, i) != 0) {
+                D_800D2DE4[i] = 0;
+                (D_800D2D28 + i)[0x7C] = 1;
+                *pDst = *pSrc;
+            }
+            pDst++;
+            pSrc++;
+        }
+    }
+    D_800D2C9E = 0;
+}
+*/
+void func_80072324(void) {
+    u8 *pBuf;
+    u8 *p;
+    u8 *pEnd;
+    s32 i;
+    s32 j;
+
+    for (i = 3; i < 0xB; i++) {
+        if (func_80089C9C(D_800D39E0, i) != 0) {
+            p = pBuf;
+            pEnd = p + 0x100;
+            do {
+                *p++ = 0;
+            } while (p < pEnd);
+            for (j = 0x8B8; j >= 0; j -= 0x48) {
+                D_800C402F[j] = 0xFF;
+            }
+            D_800D2E5C = 4;
+            D_800D2E60 = 0x17;
+            func_80085AC4(i);
+            func_80071B94(1);
+        }
+    }
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_800723E0);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_8007252C);
 
@@ -204,4 +266,25 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80072DA8);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80072F38);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80073380);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80073538);
+/* 91.00% - every instruction but two addu operand orders and one CSE is right.
+   Misses: (1) the original keeps `&D_800CCB04` in s0 across both AddPrim calls
+   (lui/addiu once, then two `lw a0,0(s0)`), gcc re-forms lui/lw for each use even
+   with a `u8 **pOt = &D_800CCB04;` local (constant-propagated away); (2) the delay
+   slot add is `addu a1,a1,v1` (offset + base) in the original, gcc canonicalises an
+   offset-first `(0x63C8 + idx*24) + p` back to `addu a1,v1,a1`.
+   The three colour stores, the `lbu 0x6415` guard and the reload-after-store
+   pattern (D_800C3EA4 is a u8 * so the sb forces a reload) all match exactly. */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80073A58);
+/* void func_80073A58(void) {
+    u8 **pOt;
+
+    if (((u8 *)D_800C3EA4)[0x6415] != 0) {
+        ((u8 *)D_800C3EA4)[0x63CC + ((u8 *)D_800C3EA4)[0x6414] * 24] = ((u8 *)D_800C3EA4)[0x6410];
+        ((u8 *)D_800C3EA4)[0x63CD + ((u8 *)D_800C3EA4)[0x6414] * 24] = ((u8 *)D_800C3EA4)[0x6410];
+        ((u8 *)D_800C3EA4)[0x63CE + ((u8 *)D_800C3EA4)[0x6414] * 24] = ((u8 *)D_800C3EA4)[0x6410];
+        pOt = &D_800CCB04;
+        AddPrim(*pOt + 4, (0x63C8 + ((u8 *)D_800C3EA4)[0x6414] * 24) + (u8 *)D_800C3EA4);
+        AddPrim(*pOt + 4, (0x63F8 + ((u8 *)D_800C3EA4)[0x6414] * 12) + (u8 *)D_800C3EA4);
+    }
+}
+*/
