@@ -32,18 +32,13 @@ void func_8007E154(u8 **arg0, s32 arg1) {
         func_800883AC((u8)(arg1 + 3));
     }
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007E1D0);
-/* best: 99.40%. The call must come first in source order, otherwise gcc hoists
-   the D_800D3420 row base above the jal (43.88%). Only remaining difference:
-   the original computes the argument off the saved copy (addiu a0,s0,3), gcc
-   off the still-live a1. Same allocator tie as func_8007E6A0.
-void func_8007E1D0(u8 **arg0, u8 arg1) {
-    u16 value = func_80089C08((u8)(arg1 + 3));
+void func_8007E1D0(u8 **arg0, s32 arg1) {
+    u16 value = func_80089C08((arg1 + 3) & 0xFF);
     u8 *p = *arg0;
-    u16 *pField = (u16 *)(D_800D3420 + arg1 * 0x40);
+    u16 *pField = (u16 *)(D_800D3420 + (arg1 & 0xFF) * 0x40);
 
     pField[p[1]] = value;
-} */
+}
 void func_8007E234(u8 **arg0, u8 arg1) {
     s32 acc = 0;
     s32 i;
@@ -147,22 +142,26 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007E6A0);
    is the register holding the D_800D3410 row base (original a2, gcc v1, which
    the p[1] index then reuses). Same allocator tie as func_8007E740/E8AC and the
    misc6 D_800D34x0 family. Tried: s32 val local (75.65%), pRow/p declared in
-   both orders.
-void func_8007E6A0(u8 **arg0, u8 arg1) {
+   both orders, `s32 arg1` with an explicit `(arg1 & 0xFF) * 0x40` mask (the
+   masking that func_8007E1D0 needed), and the three references spelled inline to
+   let CSE renumber the base (70.75%). No try_flags.sh combination reaches 100
+   (2.6.0 99.0, cdk 96.5, -O1 51.9).
+void func_8007E6A0(u8 **arg0, s32 arg1) {
     u8 *p = *arg0;
-    s32 *pRow = (s32 *)(D_800D3410 + arg1 * 0x40);
+    s32 *pRow = (s32 *)(D_800D3410 + (arg1 & 0xFF) * 0x40);
 
     pRow[p[3]] = pRow[p[1]] + pRow[p[2]];
-} */
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007E6F0);
-/* best: 99.00%. Same miss as func_8007E6A0: only the D_800D3410 row base
-   register (original a2, gcc v1).
+/* best: 99.00%. Same miss as func_8007E6A0 (the D_800D3410 row base register:
+   original a2, gcc v1); the subtraction itself is byte-exact. See the note there
+   for the shapes already tried.
 void func_8007E6F0(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
     s32 *pRow = (s32 *)(D_800D3410 + arg1 * 0x40);
 
     pRow[p[3]] = pRow[p[1]] - pRow[p[2]];
-} */
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007E740);
 /* best: 95.31%. Identical instruction multiset and operand order; the only
    difference is the register pair: the original keeps the D_800D3410 base in
@@ -176,7 +175,7 @@ void func_8007E740(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
 
     pRow[p[1]] = p[2] * pRow[p[1]];
-} */
+}
 void func_8007E780(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
     u32 *pRow = (u32 *)(D_800D3410 + arg1 * 0x40);
@@ -220,7 +219,7 @@ void func_8007E8AC(u8 **arg0) {
     s32 idx = p[2] * 8 + p[1] * 0x40;
 
     D_800D3364[idx + 0x140] = p[3];
-} */
+}
 void func_8007E8E0(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
     u16 *pField = (u16 *)(D_800D3420 + arg1 * 0x40);
@@ -243,14 +242,14 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007E98C);
    is a local; only the register pair is mirrored (original: base v1, p in a0,
    p[3] in a2; gcc: base v0, p v1, p[3] a0). Same allocator tie as func_8007E6A0.
    Tried: value inline in the comparison (73.41%, reorders the lbu's), pField/p
-   declared in both orders.
-s32 func_8007E98C(u8 **arg0, u8 arg1) {
+   declared in both orders, `s32 arg1` + explicit `(arg1 & 0xFF) * 0x40`.
+s32 func_8007E98C(u8 **arg0, s32 arg1) {
     u8 *p = *arg0;
-    u16 *pField = (u16 *)(D_800D3420 + arg1 * 0x40);
+    u16 *pField = (u16 *)(D_800D3420 + (arg1 & 0xFF) * 0x40);
     s32 value = p[2] | (p[3] << 8);
 
     return pField[p[1]] == value;
-} */
+}
 s32 func_8007E9D0(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
     u8 *pRow = D_800D3430 + arg1 * 0x40;
