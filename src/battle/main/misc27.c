@@ -1,4 +1,5 @@
 #include "common.h"
+#include "psyq/libgte.h"
 
 extern void TimerWorkListSetTaskCallback();
 extern void WorkListSetTaskCallback();
@@ -9,6 +10,7 @@ extern void func_800B51B0();
 extern void func_800B5CC0();
 extern void func_800B5DF4();
 extern void func_800B6004();
+extern void func_800B59BC();
 
 typedef struct {
     /* 0x0 */ u8 unk0;
@@ -41,11 +43,38 @@ void func_800B56E4(u8* pWork) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc27", func_800B572C);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc27", func_800B57E4);
+long func_800B57E4(u8* pActor) {
+    VECTOR v;
+    VECTOR out;
+
+    v.vx = *(s16*)(pActor + 0xA0) - *(s16*)(pActor + 0x2);
+    v.vy = *(s16*)(pActor + 0xA2) - *(s16*)(pActor + 0x6);
+    v.vz = *(s16*)(pActor + 0xA4) - *(s16*)(pActor + 0xA);
+    Square0(&v, &out);
+    return SquareRoot0(out.vx + out.vz + out.vy);
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc27", func_800B5854);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc27", func_800B5924);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc27", func_800B59BC);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc27", func_800B5AC4);
+typedef struct {
+    /* 0x0 */ u16 x;
+    /* 0x2 */ u16 y;
+} BattlePoint;
+
+BattlePoint* func_800B5AC4(BattlePoint* pOut, u8* pActor, s32 index) {
+    BattlePoint point;
+    int ofs;
+
+    func_800B59BC(&point, pActor, index);
+    ofs = *(s16*)(pActor + 0x2);
+    point.x = point.x + ofs;
+    ofs = *(s16*)(pActor + 0x6);
+    point.y = point.y + ofs;
+    *pOut = point;
+    return pOut;
+}
+
+
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc27", func_800B5B3C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc27", func_800B5C18);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc27", func_800B5CC0);
