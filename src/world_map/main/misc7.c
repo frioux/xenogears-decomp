@@ -26,6 +26,8 @@ extern WorldMapSlot *D_8009BE24;
 extern u8 D_8009A758[];
 // externs used by the parked attempts below
 extern Vec3 D_8009C5AC;
+extern s32 D_8009C5B0;
+extern s32 D_8009C5B4;
 extern s16 D_1F8000A0[];
 extern void func_80089160(s32, s16 *, s32);
 extern u16 D_8009A6C0;
@@ -38,12 +40,9 @@ extern s32 D_8009BE30;
 extern s32 D_8009D55C;
 extern s32 D_8009D560;
 extern s32 D_8009D564;
+extern u8 *D_8009C620;
+extern void func_8007A06C(void *, s32, s32);
 
-// Best: 98.82%. Byte-identical to the original except that the 2nd and 3rd
-// stores relocate against D_8009C5AC+4/+8 where the original names D_8009C5B0
-// and D_8009C5B4; the linker resolves both to the same address, so this is
-// only provable with check_bin.sh, not objdiff.
-/*
 s32 func_80080900(s32 index) {
     WorldMapSlot *pSlot = &D_8009BE24[index];
 
@@ -52,8 +51,6 @@ s32 func_80080900(s32 index) {
     pSlot->pos.z = D_8009C5AC.z;
     return 1;
 }
-*/
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_80080900);
 // Best: 76.71%. Structure is right (the branch, the three >>12 halfword
 // stores and the three func_80089160 calls); the original addresses the
 // scratchpad with raw absolute immediates (lui $a1,0x1F80 / ori ...0xA0, and
@@ -89,6 +86,26 @@ void func_800809EC(u8 *p, s32 count, s32 a, s32 b, s32 c) {
     }
 }
 
+// Best: 92.64%. All instructions and relocations match; only the schedule of
+// three insns differs (retail emits `move a0,s0` and keeps `sll a0,a0,7` on a0,
+// ours defers both and hoists the D_8009C5B4 load two statements early).
+/*
+s32 func_80080A28(s32 index) {
+    u8 *p = D_8009C620;
+    WorldMapSlot *pSlot = &D_8009BE24[index];
+
+    pSlot->pos.x = D_8009C5AC.x;
+    pSlot->pos.y = 0xFFF80000;
+    pSlot->pos.z = D_8009C5B4;
+    pSlot->unk54 = -0x800;
+    pSlot->unk50 = 0;
+    pSlot->unk58 = 0x80;
+    func_8007A06C(p, *(s32 *)(p + 0x48), *(u16 *)(*(s32 *)(p + 0x40) + 4));
+    p += 0x54;
+    func_8007A06C(p, *(s32 *)(p + 0x48), *(u16 *)(*(s32 *)(p + 0x40) + 4));
+    return 3;
+}
+*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_80080A28);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_80080AC4);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_80080D00);
