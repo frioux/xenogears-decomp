@@ -15,6 +15,8 @@ extern s32 D_801E9A78[];
 extern s32 D_801E9AC8[];
 extern s32 D_801EA34C[];
 
+void func_801C851C(SVECTOR* pVertices, u16 x, u16 y, u16 width, u16 height);
+s32 func_800263E4(MenuResourceDirectory* pDir, u32 index, POLY_FT4* pPrims, s32 context, s32 x, s32 y, s32 scale, s32 mirrorX, s32 mirrorY);
 s32 func_8002675C(MenuResourceDirectory* pDir, u32 index, POLY_FT4* pPrims, s32 context, s32 x, s32 y, s32 scale);
 void func_801D5ED4(u_char a0, u_char a1);
 void func_801D6194(u_char a0);
@@ -26,6 +28,28 @@ void func_801D74EC(u_char a0, u_char a1);
 void func_801D7884(u_char a0, u_char a1);
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D3C4C);
+/* Best: 94.00%. The sibling ShopMenuInitializeScrollBar
+   (src/shop_menu/main/misc.c) is this exact function and matches, so the C is
+   right; the whole difference is s0<->s1: retail puts the 5th param `height`
+   in s1 and the 0x1000 scale in s0, gcc does the reverse. Note func_800263E4
+   must be declared with wide (s32) x/y/scale - a u16 there adds an andi 0xFFFF
+   after the -8 and drops to 87%. Tried: s32 scale local, u16 x/y/scale for
+   func_800263E4 (87.70%).
+   void func_801D3C4C(u_char index, u_short x, u_short y, u_short width, u_short height) {
+       MenuWindow* pWindow = g_Menu->windows[index];
+
+       func_8002675C(g_Menu->resources, MENU_TEX_SCROLL_BAR_ORNAMENT,
+                     pWindow->polysScrollBarEnds, g_Menu->renderContext, x, y, 0x1000);
+       func_800263E4(g_Menu->resources, MENU_TEX_SCROLL_BAR_ORNAMENT,
+                     &pWindow->polysScrollBarEnds[2], g_Menu->renderContext,
+                     x, y + height - 8, 0x1000, 0, 1);
+       func_8002675C(g_Menu->resources, MENU_TEX_SCROLL_BAR_EMPTY,
+                     pWindow->polysScrollBarEmpty, g_Menu->renderContext, x, y + 8, 0x1000);
+       func_801C851C(pWindow->vertsScrollBarEnds, x, y, 8, 8);
+       func_801C851C(&pWindow->vertsScrollBarEnds[4], x, y + height, 8, -8);
+       func_801C851C(pWindow->vertsScrollBarEmpty, x, y + 8, 8, height - 8);
+   }
+*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D3DB0);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D3FF8);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D433C);
