@@ -288,13 +288,13 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_80090C68);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_80090E14);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_80090FB4);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_80091430);
-/* best: 88.22%. Everything but the D_8009BD3A pair matches: retail computes the
-   address once into v1 (sh + lh off the same base) and really reloads it for
-   unk58, while gcc forwards the value it just stored and so uses the address
-   once ($at) and skips the lh. Not a preset problem: cdk 75.97, -O3 85.22,
-   -G0 85.22, -O2 88.22. Declaring D_8009BD3A volatile kills the forwarding but
-   also splits the address into a second lui/addiu (78.10). Swapping the two
-   halfword stores changes nothing (88.22).
+/* best: 91.20%. Retail keeps the address of D_8009BD3A in one register (sh then
+   lh off the same base); gcc forwards the stored value so the address is used
+   once. A volatile STORE kills the forwarding (88.22 -> 91.20) but the address
+   still splits: `lui $at/%lo` for the store plus a fresh lui for the load, and
+   it also hoists the D_8009BE10 load. Also tried: volatile load (78.10, lhu +
+   sll16/sra4), s16 pointer local for both accesses (same split), cdk 75.97,
+   -O3/-G0 85.22.
 
 s32 func_80091430(s32 idx) {
     WorldMapPlayer *pPlayer;
@@ -303,7 +303,7 @@ s32 func_80091430(s32 idx) {
     pPlayer = D_8009BE24 + idx;
     *(Quad *)&pPlayer->unk28 = *(Quad *)D_8009D55C;
     D_8009BD3C = 0;
-    D_8009BD3A = D_8009D52C;
+    *(volatile s16 *)&D_8009BD3A = D_8009D52C;
     pPlayer->unk50 = (s16)D_8009D52C;
     pPlayer->unk58 = D_8009BD3A << 12;
     nMode = D_8009BE10;
