@@ -13,8 +13,10 @@ extern u16 D_800C3D64;
 extern u8 D_800C3E2C;
 extern u16 func_80089C9C(u16, u8);
 extern u16 func_80089C08(u8);
+extern u8 func_80083FF4(u8, u8);
 extern u8 *D_800C3EAC;
 extern u8 D_800C3E90[];
+extern u8 D_800C3E9B[];
 extern u8 D_800D3274;
 extern void func_800841E0(void);
 
@@ -50,29 +52,28 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80083580);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80083748);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80083948);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80083FF4);
-/* 89.49%: the D_800C3EB4[][0x1C] / D_800C3EB7[][0x1C] types kill the 8-byte phantom frame
-   the u8[] + [i*0x1C] spelling caused (was 86.45%). Left over: gcc evaluates the two
-   D_800C3EB4 loads and their *8 / *0x40 shifts in the mirrored register order, and the
-   `ret = (x & 0xC001) == 0` tail differs (`move t0,v0` + later or vs `andi`/`sltiu`).
-u32 func_80083FF4(u8 arg0, u8 arg1) {
+/* 95.58%: nested ifs + `else if (...) ret = 1;` + paren-grouped index sum match the original
+   exactly except the last block: original does `sltiu v0,v0,1` then copies to ret in the j
+   delay slot (`move t0,v0`); gcc always coalesces the copy into `sltiu t0,v0,1`.
+   Also tried: `if (!=0) {ret=1;}` (same), `? 1 : 0` (same).
+u8 func_80083FF4(u8 arg0, u8 arg1) {
     u32 ret;
 
     ret = 0;
     if (D_800D2DCC[arg1] != 0) {
         if (D_800C3EB7[arg1][0] == 0) {
             if (D_800D32A1[arg1 * 8] == 0) {
-                if (*(u8 *)(D_800D3364 + D_800C3EB4[arg1][0] * 8 +
-                            D_800C3EB4[arg0][0] * 0x40 + 0x140) == 0) {
+                if (*(u8 *)(D_800D3364 + (D_800C3EB4[arg0][0] * 0x40 +
+                                          D_800C3EB4[arg1][0] * 8) + 0x140) == 0) {
                     ret = (D_800CCD64[arg1].unk0 & 0xC001) == 0;
                 }
-            } else {
-                ret = (D_800CCE08[arg1].unk0 & 0xC001) == 0;
+            } else if ((D_800CCE08[arg1].unk0 & 0xC001) == 0) {
+                ret = 1;
             }
         }
     }
     return ret;
 }
-
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80084108);
 /* 95.93% (spelled with the old u8[] + [i*0x1C] types): one instruction class off - gcc emits `sltiu a2,v0,1` in the j delay slot where the
@@ -107,6 +108,35 @@ u32 func_80084108(u8 arg0, u8 arg1) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_800841E0);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80084548);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80084750);
+/* 78.20%: both loops and the body match; the only remaining difference is the second
+   loop's exit: the original runs it as a countdown (`li s3,8; addiu s3,s3,-1; bgez`)
+   with `i++` stolen into the beqz delay slot, ours keeps `addiu i,1; slti` in the latch.
+   A do-while spelling compiles to the identical (non-countdown) code, and gcc's doloop
+   pass does not fire on this loop because of the two calls in the body. The first loop
+   IS a pointer loop (`p = D_800C3E9B; for (i=0;i<12;i++) *p-- = 0xFF;`) - any
+   `D_800C3E90[i]` spelling gives indexed addressing and no countdown.
+u8 func_80084750(u8 arg0) {
+    s32 i;
+    s32 n;
+    u8 *p;
+
+    p = D_800C3E9B;
+    for (i = 0; i < 12; i++) {
+        *p-- = 0xFF;
+    }
+    n = 0;
+    D_800D3274 = 0;
+    D_800C3D64 = 0;
+    for (i = 3; i < 11; i++) {
+        if (func_80083FF4(arg0, i) != 0) {
+            D_800C3E90[n] = i;
+            D_800C3D64 |= func_80089C08(i);
+            D_800D3274++;
+        }
+    }
+    return D_800C3E90[0];
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80084854);
 void func_80084A7C(u8 arg0) {
     s32 off;
