@@ -24,6 +24,15 @@ extern u8* D_8009BE18;
 extern s32 D_8009BE38;
 extern u8* D_8009D30C;
 extern u8* D_8009D780;
+extern s32 D_8009C180;
+extern s32 D_8009CD48;
+extern s32 D_8009BD30;
+extern s32 D_8009D308;
+extern s32 D_8009BCC0;
+extern s32 D_8009C7EC;
+extern s32 D_8009D77C;
+extern s32 D_8009D7C8;
+extern void* LZSSHeapDecompress(void* pCompressedData, int flags);
 extern u8* D_8009D7D0;
 extern s16 D_8009C872[1];
 extern s32 D_8009BCC4;
@@ -40,6 +49,25 @@ void func_8007474C(void) {
 }
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc2", func_80074794);
+
+/* 98.89%: instructions and store order are identical; the allocator puts the
+   loaded D_8009D30C pointer in a2 and the index*8 temporary in a3, retail does
+   the reverse (also tried: pointer local, index*8 via (u8*) arithmetic,
+   declaration order, store order vx/vy/vz vs vx/vz/vy — the latter is the right
+   one, this body has it — (u8*)D_8009D30C + index*8 written index-first, and
+   the plain '(Vector16*)D_8009D30C + index' scaled add).
+void func_80074794(s16 arg0, s32* pVec) {
+    Vector16* pEntry;
+    s32 index;
+
+    index = D_8009BE38;
+    pEntry = (Vector16*)D_8009D30C + index;
+    pEntry->vx = pVec[0] >> 12;
+    pEntry->vz = pVec[2] >> 12;
+    pEntry->vy = arg0;
+    D_8009BE38 = (index + 1) & 0xF;
+}
+*/
 
 /* 98.89%: instructions and store order are identical; the allocator puts the
    loaded D_8009D30C pointer in a2 and the index*8 temporary in a3, retail does
@@ -73,7 +101,42 @@ void func_800750DC(void) {
 }
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc2", func_80075104);
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc2", func_80075228);
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc2", func_80075228)
+
+/* 94.80%: everything matches except the constant 1. Retail re-materialises it
+   (`li v1,1` for D_8009D64C, later `li v0,1` for D_8009BCC4); gcc CSEs both
+   stores onto one register (a0), which also drags the 0x180/0x300 value from
+   v0 into v1. Reading g_GameState.unk1834 into a `u16 flags` local *before* the
+   D_8009D64C store is what puts the `lhu` ahead of it, and writing the width as
+   `if (!(flags & 0x4000)) w = 0x180; else w = 0x300;` is what produces retail's
+   `bnez` polarity. Also tried: ternary, direct store per branch, -O3 (85.8),
+   gcc-2.7.2-cdk (85.8), declaration order. The clear loop must decrement a
+   `s16*` local from D_8009C872, not index D_8009C854.
+void func_80075228(void) {
+    s32 i;
+    s32 screenWidth;
+    u16 flags;
+    s16* p;
+
+    i = 0xF;
+    p = D_8009C872;
+    for (; i >= 0; i--) {
+        *p = 0;
+        p--;
+    }
+    flags = g_GameState.unk1834;
+    D_8009D64C = 1;
+    if (!(flags & 0x4000)) {
+        screenWidth = 0x180;
+    } else {
+        screenWidth = 0x300;
+    }
+    D_8009BE40 = screenWidth;
+    D_8009BCC4 = 1;
+    D_8009D80C = 0;
+}
+*/
+
 
 /* 94.80%: the clear loop and the 0x300/0x180 selection match; upstream gcc CSEs
    the constant 1 into one register (li a0,1 reused for both D_8009D64C and
@@ -149,7 +212,23 @@ void func_800767D4(u8* pSrc, s32 index) {
     func_80039A80(D_80062528, 0x7F, 0);
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc2", func_80076858);
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc2", func_80076954);
+void func_80076954(void) {
+    s32* pHeader;
+    u8* pBase;
+
+    pHeader = (s32*)D_8009C180;
+    D_8009C180 = (s32)LZSSHeapDecompress(pHeader, 0);
+    HeapFree(pHeader);
+    pBase = (u8*)D_8009C180;
+    pHeader = (s32*)pBase;
+    D_8009CD48 = (s32)(pBase + pHeader[2]);
+    D_8009D308 = (s32)(pBase + pHeader[3]);
+    D_8009BD30 = (s32)(pBase + pHeader[4]);
+    D_8009C7EC = (s32)(pBase + pHeader[5]);
+    D_8009BCC0 = (s32)(pBase + pHeader[6]);
+    D_8009D77C = (s32)(pBase + pHeader[8]);
+    D_8009D7C8 = (s32)(pBase + pHeader[9]);
+}
 
 int func_80076A14(void) {
     return 1;
