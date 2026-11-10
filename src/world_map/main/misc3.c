@@ -70,6 +70,52 @@ extern void HeapFree(void* pMem);
 typedef s32 (*WorldMapScriptHandler)(u8* pSlot, s32 arg1, s16 arg2, s16 arg3);
 extern WorldMapScriptHandler D_8009A3C0[];
 
+// World map player (stride 0x80), the scroll fields func_80076DA4 and
+// func_80076FA8 touch. Same layout as misc12.c's local WorldMapPlayer.
+typedef struct {
+    /* 0x00 */ u8 unk0[0x28];
+    /* 0x28 */ s32 unk28;
+    /* 0x2C */ s32 unk2C;
+    /* 0x30 */ s32 unk30;
+    /* 0x34 */ s32 unk34;
+    /* 0x38 */ s32 unk38;
+    /* 0x3C */ s32 unk3C;
+    /* 0x40 */ s32 unk40;
+    /* 0x44 */ u8 unk44[0xC];
+    /* 0x50 */ s32 unk50;
+    /* 0x54 */ s32 unk54;
+    /* 0x58 */ s32 unk58;
+    /* 0x5C */ s32 unk5C;
+} WorldMapPlayer; // Size: 0x60
+
+// Four-word position record; misc12.c copies the same bytes through a Quad.
+typedef struct {
+    /* 0x0 */ s32 x;
+    /* 0x4 */ s32 y;
+    /* 0x8 */ s32 z;
+    /* 0xC */ s32 w;
+} WorldMapPos4; // Size: 0x10
+
+// Scroll delta buffer: the wrapped xyz offset at 0x00 and its 1/8 step at 0x10.
+typedef struct {
+    /* 0x00 */ s32 x;
+    /* 0x04 */ s32 y;
+    /* 0x08 */ s32 z;
+    /* 0x0C */ s32 pad0C;
+    /* 0x10 */ s32 stepX;
+    /* 0x14 */ s32 stepY;
+    /* 0x18 */ s32 stepZ;
+} WorldMapScrollDelta; // Size: 0x1C
+
+extern void func_80093484(WorldMapScrollDelta* pDelta);
+extern s32 D_8009D55C;
+extern s32 D_8009D560;
+extern s32 D_8009D564;
+extern s32 D_8009BBBC;
+extern s16 D_8009BD38;
+extern s16 D_8009BD3A;
+extern s16 D_8009BD3C;
+
 s32 func_80076A1C(void) {
     u8* p;
     s32* pState;
@@ -190,6 +236,48 @@ s32 func_80076D8C(s32 arg0, s32 arg1, s32 arg2) {
 }
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc3", func_80076DA4);
+/* Best attempt: 96.52% (420 bytes, same size). The compare block, the three
+   abs-step blocks and the frame are byte-identical. Only the last three
+   halfword stores differ: the original emits them fully sequentially (lw 0x38,
+   nop, sra, sh D_8009BD38; lw 0x3C, nop, sra, sh D_8009BD3A; lw 0x40, nop, sra,
+   sh D_8009BD3C) while gcc hoists one load one slot early. gcc emits the three
+   stores in source order 1,3,2, so writing them 0x38/0x40/0x3C (below) is what
+   reproduces the original's 38/3A/3C order. Also tried: natural order (stores
+   come out 38/3C/3A), s32 locals, s16 locals, the interleaved per-value form,
+   and volatile globals (94.68%: fixes the store order, the hoist stays).
+   Shortcut: one scheduler slot; do not retry these shapes.
+void func_80076DA4(WorldMapPlayer* pPlayer, WorldMapScrollDelta* pDelta) {
+    if ((pPlayer->unk38 != pPlayer->unk50) | (pPlayer->unk3C != pPlayer->unk54) |
+        (pPlayer->unk40 != pPlayer->unk58)) {
+        pDelta->x = pPlayer->unk50 - pPlayer->unk38;
+        pDelta->y = pPlayer->unk54 - pPlayer->unk3C;
+        pDelta->z = pPlayer->unk58 - pPlayer->unk40;
+        func_80093484(pDelta);
+        pDelta->stepX = pDelta->x >> 3;
+        pDelta->stepY = pDelta->y >> 3;
+        pDelta->stepZ = pDelta->z >> 3;
+        if ((pDelta->stepX < 0 ? -pDelta->stepX : pDelta->stepX) < 0x40) {
+            pPlayer->unk38 = pPlayer->unk50;
+        } else {
+            pPlayer->unk38 += pDelta->stepX;
+        }
+        if ((pDelta->stepY < 0 ? -pDelta->stepY : pDelta->stepY) < 0x40) {
+            pPlayer->unk3C = pPlayer->unk54;
+        } else {
+            pPlayer->unk3C += pDelta->stepY;
+        }
+        if ((pDelta->stepZ < 0 ? -pDelta->stepZ : pDelta->stepZ) < 0x40) {
+            pPlayer->unk40 = pPlayer->unk58;
+        } else {
+            pPlayer->unk40 += pDelta->stepZ;
+        }
+    }
+    D_8009BD38 = pPlayer->unk38 >> 12;
+    D_8009BD3C = pPlayer->unk40 >> 12;
+    D_8009BD3A = pPlayer->unk3C >> 12;
+}
+*/
+
 void func_80076F54(u8* p) {
     s32 cur = *(s32*)(p + 0x5C);
     s32 idx;
@@ -204,6 +292,47 @@ void func_80076F54(u8* p) {
     }
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc3", func_80076FA8);
+/* Best attempt: 75.16%. Same skeleton as func_80076DA4 (compare the three
+   player fields against the D_8009D55C/560/564 goal, wrap the delta through
+   func_80093484, 1/8 step, |step| < 0x200 snaps to the goal). Remaining diff:
+   inside the if-block gcc cse reuses the D_8009D55C/560/564 values it loaded
+   for the compare (in a2/a3/a1), while the original reloads D_8009D560 and
+   D_8009D564 plus the player fields, so everything after shifts by two
+   instructions. The four-word copy at the end is WorldMapPos4.
+void func_80076FA8(WorldMapPlayer* pPlayer, WorldMapScrollDelta* pDelta) {
+    if ((pPlayer->unk28 != D_8009D55C) | (pPlayer->unk2C != D_8009D560) |
+        (pPlayer->unk30 != D_8009D564)) {
+        pDelta->x = D_8009D55C - pPlayer->unk28;
+        pDelta->y = D_8009D560 - pPlayer->unk2C;
+        pDelta->z = D_8009D564 - pPlayer->unk30;
+        func_80093484(pDelta);
+        pDelta->stepX = pDelta->x >> 3;
+        pDelta->stepY = pDelta->y >> 3;
+        pDelta->stepZ = pDelta->z >> 3;
+        if ((pDelta->stepX < 0 ? -pDelta->stepX : pDelta->stepX) < 0x200) {
+            D_8009BBB4 += pDelta->x;
+            pPlayer->unk28 = D_8009D55C;
+        } else {
+            D_8009BBB4 += pDelta->stepX;
+            pPlayer->unk28 += pDelta->stepX;
+        }
+        if ((pDelta->stepY < 0 ? -pDelta->stepY : pDelta->stepY) < 0x200) {
+            pPlayer->unk2C = D_8009D560;
+        } else {
+            pPlayer->unk2C += pDelta->stepY;
+        }
+        if ((pDelta->stepZ < 0 ? -pDelta->stepZ : pDelta->stepZ) < 0x200) {
+            D_8009BBBC += pDelta->z;
+            pPlayer->unk30 = D_8009D564;
+        } else {
+            D_8009BBBC += pDelta->stepZ;
+            pPlayer->unk30 += pDelta->stepZ;
+        }
+    }
+    *(WorldMapPos4*)&D_8009BE28 = *(WorldMapPos4*)&pPlayer->unk28;
+}
+*/
+
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc3", func_800771D8);
 /* Best attempt: 99.67%. Only difference: the original negates the local
    (`negu v1,v1`) where gcc's cse substitutes the parameter (`negu v1,a2`),
