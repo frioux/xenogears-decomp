@@ -109,7 +109,18 @@ void func_8007A968(u8 **arg0, u8 arg1) {
 void func_8007A9A8(u8 **arg0) {
     D_8005A3A0[(*arg0)[1]] = (*arg0)[2];
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc5", func_8007A9D0);
+void func_8007A9D0(u8 **arg0, u8 arg1) {
+    u8 *p = *arg0;
+    u8 *pRow = D_800D3430 + arg1 * 0x40;
+    s32 v = pRow[p[1]] + p[2];
+    u8 res = v;
+
+    if (v >= 0x100) {
+        res = 0xFF;
+    }
+    pRow[p[1]] = res;
+}
+
 /* 61.47% - clamp to 0xFF. Original keeps the sum in v0 and copies it to the
    store register v1 (move v1,v0 in the bnez delay slot) and materialises the
    D_800D3430 lui/addiu after the pointer load; gcc puts the sum straight in v1
@@ -125,7 +136,17 @@ void func_8007A9D0(u8 **arg0, u8 arg1) {
     }
     pRow[p[1]] = v;
 } */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc5", func_8007AA1C);
+void func_8007AA1C(u8 **arg0, u8 arg1) {
+    u8 *p = *arg0;
+    u8 *pRow = D_800D3430 + arg1 * 0x40;
+    s32 v = pRow[p[1]] - p[2];
+    u8 res = v;
+
+    if (v < 0) {
+        res = 0;
+    }
+    pRow[p[1]] = res;
+}
 /* 67.00% - clamp at 0. Same miss as func_8007A9D0: the original keeps
    mem-p[2] in v0 and copies it into the store register v1 (move v1,v0 in the
    bgez delay slot), and forms the D_800D3430 base after the pointer load.
@@ -142,6 +163,22 @@ void func_8007AA1C(u8 **arg0, u8 arg1) {
     pRow[p[1]] = v;
 } */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc5", func_8007AA60);
+/* 99.55% - one insn off: the original's multiply is mult v1,v0 (value first,
+   p[2] second); writing `p[2] * pRow[p[1]]` is the only shape that also gets the
+   lbu order right, but then gcc emits mult v0,v1. `pRow[p[1]] * p[2]` swaps the
+   lbu order too (71.50%). Tried: s16 v with u8 res copy (99.55%), s32 operands
+   via a cur local, u8 res = product then s16 v = res (87.95%, extension folded).
+void func_8007AA60(u8 **arg0, u8 arg1) {
+    u8 *p = *arg0;
+    u8 *pRow = D_800D3430 + arg1 * 0x40;
+    s16 v = p[2] * pRow[p[1]];
+    u8 res = v;
+
+    if (v >= 0x100) {
+        res = 0xFF;
+    }
+    pRow[p[1]] = res;
+} */
 void func_8007AAB8(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
     u8 *pRow = D_800D3430 + arg1 * 0x40;
