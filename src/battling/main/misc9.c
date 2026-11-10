@@ -123,6 +123,55 @@ u32 func_800828C4(s32* p) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc9", func_800828F8);
 
+/* best 94.16%: frame, local layout (v/v2/vSq/m/mT/n at 0x10/0x20/0x30/0x40/
+   0x60/0x80) and the whole matrix block line up. Two residuals: gcc picks
+   the opposite registers for the two SVECTOR normal loads (lhu 128/132), and
+   it folds the loop update into v.vz - ((r - radius) - 8) instead of the
+   original's (v.vz + 8) - (r - radius).
+void func_800828F8(VECTOR* p0, VECTOR* p1, s32 radius) {
+    VECTOR v;
+    VECTOR v2;
+    VECTOR vSq;
+    MATRIX m;
+    MATRIX mT;
+    SVECTOR n;
+    s32 r;
+    s32 ofs;
+
+    v.vx = p0->vx + p1->vx - 0x3F80;
+    v.vz = p0->vz + p1->vz - 0x3F80;
+    Square0(&v, &vSq);
+    if (radius < SquareRoot0(vSq.vx + vSq.vz)) {
+        VectorNormalS(&v, &n);
+        m.m[2][1] = 0;
+        m.m[1][2] = 0;
+        m.m[1][0] = 0;
+        m.m[0][1] = 0;
+        m.m[1][1] = 0x1000;
+        m.m[2][0] = ((u16*)&n)[0];
+        m.m[2][2] = ((u16*)&n)[2];
+        m.m[0][0] = ((u16*)&n)[2];
+        m.m[0][2] = -((u16*)&n)[0];
+        ApplyMatrixLV(&m, p1, &v);
+        TransposeMatrix(&m, &mT);
+        SetRotMatrix(&mT);
+        v.vz = 0;
+        while (1) {
+            ApplyRotMatrixLV(&v, p1);
+            v2.vx = p0->vx + p1->vx - 0x3F80;
+            v2.vz = p0->vz + p1->vz - 0x3F80;
+            Square0(&v2, &vSq);
+            r = SquareRoot0(vSq.vx + vSq.vz);
+            if (radius >= r) {
+                break;
+            }
+            ofs = r - radius;
+            v.vz = v.vz + 8 - ofs;
+        }
+    }
+}
+*/
+
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc9", func_80082A70);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc9", func_80082C4C);
