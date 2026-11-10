@@ -261,6 +261,18 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_80081B58);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_800820A4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_800822C4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_80082504);
+/* 84.29%: everything after the D_800CCE42 update matches instruction for
+   instruction. What is left is that one statement: the original forms the
+   symbol base twice (`lui at,%hi(D_800CCE42); addu at,at,idx; lbu/sb %lo(at)`,
+   i.e. maspsx's $at form) because gcc emitted the `la` once per memory access,
+   while our gcc hoists one `la` out of the index chain and shares it, so the
+   pair stays as lui/addiu into a general register (5 fewer insns). Tried: plain
+   `|=`, index-first and base-first spellings, a load/store pair through a local,
+   and a volatile access (82.41, also loses the `move a0,s0` delay slot). Also two
+   allocation details behind it: `move a1,zero` belongs in the `beq` delay slot
+   and the D_800D32A1 store must stay above the D_800D2D24 load. The rest of the
+   function is exact, including the three-iteration g_GameState loop. */
+/*
 void func_800826CC(u8 arg0) {
     s32 i;
 
@@ -281,3 +293,5 @@ void func_800826CC(u8 arg0) {
         }
     }
 }
+*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_800826CC);
