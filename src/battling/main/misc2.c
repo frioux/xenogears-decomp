@@ -97,7 +97,34 @@ void func_80073CA4(u8 *p0) {
     }
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80073CEC);
+extern s32 D_80092650;
+
+typedef struct {
+    /* 0x0 */ s32 x;
+    /* 0x4 */ s32 y;
+    /* 0x8 */ s32 z;
+    /* 0xC */ s32 w;
+} Quad; // Size: 0x10
+
+void func_80073CEC(u8 *p0, u8 *p1, s32 arg2, u8 *p3, u8 *p4, s32 arg5, u8 *p6) {
+    u32 flags;
+
+    arg2 &= 1;
+    *(Quad *)(p4 + 0x10) = *(Quad *)(p4 + 0x00);
+    *(Quad *)(p4 + 0x30) = *(Quad *)(p4 + 0x20);
+    *(Quad *)(p4 + 0x00) = *(Quad *)p0;
+    *(Quad *)(p4 + 0x20) = *(Quad *)p1;
+    flags = *(u32 *)(p4 + 0x44);
+    flags &= ~2;
+    flags |= arg2 << 1;
+    *(u8 *)(p4 + 0x43) = arg5;
+    *(u32 *)(p4 + 0x44) = flags;
+    *(u8 *)(p4 + 0x45) = 2;
+    *(u8 *)(p4 + 0x47) = *(u32 *)(p6 + 0x644);
+    *(s32 *)(p4 + 0x50) = *(s32 *)(p6 + 0x84);
+    *(u8 *)(p4 + 0x46) = *(u8 *)(p3 + 0x1);
+    D_80092650++;
+}
 
 /* 98.06%: inverting the condition (`if (t >= 0x1001)`) is what makes reorg put
    `li v0,1` in the bnez delay slot instead of a separate block with a `j`, and
