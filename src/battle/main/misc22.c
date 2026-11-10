@@ -21,6 +21,14 @@ typedef struct {
 } BattleMisc22Rect; // Size: 0x8
 
 typedef struct {
+    /* 0x00 */ u8 pad0[0x16];
+    /* 0x16 */ s16 unk16;
+    /* 0x18 */ u8 pad18[0x14];
+    /* 0x2C */ u8 unk2C[0x28];
+    /* 0x54 */ u8 unk54[0x28];
+} BattleMisc22Spr; // Size: 0x7C
+
+typedef struct {
     /* 0x0 */ u8 pad0[0x4];
     /* 0x4 */ u16 *unk4;
     /* 0x8 */ u8 *unk8;
@@ -60,7 +68,30 @@ extern void GfxLineScrollFree(void *pLineScroll);
 extern void func_800B10EC(void *pArg, s16 x, s16 y, s32 z);
 extern void HeapFree(void *pMem);
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A2E88);
+s32 func_800A2E88(BattleMisc22Unk *pArg, s16 arg1) {
+    BattleMisc22Spr *pSpr;
+    s16 i;
+
+    i = pArg->unk6;
+    if (i < pArg->unk4) {
+        pSpr = (BattleMisc22Spr *)(i * 124 + pArg->unk0);
+        if (pSpr->unk16 == -1) {
+            pArg->unk6 = i + 1;
+            while (pArg->unk6 < pArg->unk4) {
+                BattleMisc22Spr *pNext = (BattleMisc22Spr *)(pArg->unk6 * 124 + pArg->unk0);
+
+                if (pNext->unk16 == -1) {
+                    break;
+                }
+                pArg->unk6++;
+            }
+            SetSemiTrans(&pSpr->unk2C, arg1);
+            SetSemiTrans(&pSpr->unk54, arg1);
+            return (s32)pSpr;
+        }
+    }
+    return pArg->unk4 * 124 + pArg->unk0;
+}
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A2F94);
 /* 99.41%: instruction-for-instruction identical except that gcc puts the multu
