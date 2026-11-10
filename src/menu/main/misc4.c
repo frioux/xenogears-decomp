@@ -8,6 +8,11 @@ extern void func_801CDC6C(MenuCharacter* pCharacter, u_char arg1, u_char arg2, s
 extern void func_801CE198(s32 count, SVECTOR* pVertices, POLY_FT4* pPolys, u_char renderContext);
 extern void func_801CE2B4(int length, POLY_FT4* pPolys, int renderContext);
 extern void func_801CE860(void);
+extern void func_801CF37C(void);
+extern void func_801CF5E4(s32 arg0, s32 arg1, s32 arg2);
+extern void func_801CF8D8(void);
+extern void func_801CFB48(void);
+extern void func_801CFF64(void);
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc4", func_801CD2AC);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc4", func_801CD710);
@@ -109,7 +114,33 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc4", func_801CF5E4);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc4", func_801CF8D8);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc4", func_801CFB48);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc4", func_801CFF64);
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc4", func_801D01D0);
+void func_801D01D0(void) {
+    func_801CF37C();
+    func_801CF5E4(0, 0, 0x10);
+    func_801CF5E4(0x10, 0x10, 0x20);
+    func_801CFB48();
+    func_801CF8D8();
+    func_801CFF64();
+    if (++g_Menu->unk4D0 == 0xF) {
+        g_Menu->unk4D0 = 0;
+        if (++g_Menu->unk4CC == 6) {
+            g_Menu->unk4CC = 0;
+        }
+    }
+    if (!g_Menu->unk4D9) {
+        g_Menu->unk4D4 += 4;
+        if (g_Menu->unk4D4 >= 0x81) {
+            g_Menu->unk4D9 = 1;
+            g_Menu->unk4D4 = 0x7C;
+        }
+    } else {
+        g_Menu->unk4D4 -= 4;
+        if (g_Menu->unk4D4 < 0) {
+            g_Menu->unk4D9 = 0;
+            g_Menu->unk4D4 = 4;
+        }
+    }
+}
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc4", func_801D02D8);
 void func_801D0954(SVECTOR* pVertices, POLY_FT4* pPolys, s32 polyIndex, s32 otIndex) {
     long interpolated;
