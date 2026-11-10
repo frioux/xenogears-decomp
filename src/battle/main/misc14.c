@@ -99,9 +99,14 @@ void func_800891E4(void) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc14", func_80089348);
-// Best attempt: objdiff 94.23% with the "off" local; without it (inline (s32)(base + 0x4E70 + idx*0x50)) the two loop
-// arg addus come out base-first instead of index-first (96.70%). Needs a spelling that gets
-// index-first addu AND addiu on the index without disturbing allocation
+// Best attempt: objdiff 96.84%, 292 bytes (the original size). The boost loop matches
+// exactly with the "off" local + "(s32)(off + (s32)D_800D2DB4)" (index-first addu, and
+// the +0x4E70 stays on the offset chain). The tail loop is one instruction off: the
+// original keeps the base in $a1 and folds the constant into the offset chain
+// (sll a0,a0,3 / addiu a0,a0,0x4E70 / addu a0,a0,a1), gcc folds it onto the base
+// instead (addiu v0,a1,0x4E70 / addu a0,a0,v0). Inline form for the tail loop (no
+// "off" local) is the same 96.84%; the "off"-local form for the tail loop is 94.23%
+// (base lands in $a0 and the offset in $v0).
 /*
 void func_80089348(void) {
     s32 i = 0;
@@ -118,15 +123,16 @@ void func_80089348(void) {
     }
     D_800D2DB4[0x5D87] = D_800CCB34;
     for (i = 0; i < D_800D2DB4[0x5D78]; i++) {
-        off = (i * 2 + D_800D2DB4[0x5D87]) * 0x28 + 0x4E70;
-        func_80076B68((u8*)(off + (s32)D_800D2DB4));
+        func_80076B68((u8*)((i * 2 + D_800D2DB4[0x5D87]) * 0x28 + 0x4E70 + (s32)D_800D2DB4));
     }
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc14", func_8008946C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc14", func_8008963C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc14", func_800897CC);
-// Best attempt: objdiff 94.23%, same remaining diff as func_80089348 (its twin: D_800C3CFB, 0x51E0, 0x5D7B, a3 = 0x5E, i < 2)
+// Best attempt: objdiff 96.84%, 292 bytes; the twin of func_80089348 (same one-instruction
+// tail-loop difference: original "addiu a0,a0,0x51E0 / addu a0,a0,a1", gcc
+// "addiu v0,a1,0x51E0 / addu a0,a0,v0"). Inline index-first form for both loops: 87.45%.
 /*
 void func_800897CC(void) {
     s32 i = 0;
@@ -143,8 +149,7 @@ void func_800897CC(void) {
     }
     D_800D2DB4[0x5D8A] = D_800CCB34;
     for (i = 0; i < D_800D2DB4[0x5D7B]; i++) {
-        off = (i * 2 + D_800D2DB4[0x5D8A]) * 0x28 + 0x51E0;
-        func_80076B68((u8*)(off + (s32)D_800D2DB4));
+        func_80076B68((u8*)((i * 2 + D_800D2DB4[0x5D8A]) * 0x28 + 0x51E0 + (s32)D_800D2DB4));
     }
 }
 */
