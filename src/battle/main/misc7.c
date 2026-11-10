@@ -10,6 +10,8 @@ extern u8 D_800D3430[];
 extern u8 D_800D343F[];
 extern u16 D_8005A3A0[];
 extern u8 D_800D2E5C;
+extern u8 D_800D32A1[];
+extern u8 D_800C3EB4[];
 extern u8 D_800CCDEC[];
 extern u8 D_800CCE34[];
 extern u8 D_800CCE38[];
@@ -22,6 +24,8 @@ extern u8 D_800CCE3E[];
 
 u8 func_8001BD40(int, u8);
 u16 func_80089B50(int, u16);
+u8 func_8007A628(u8, u8);
+u16 func_80089C08(u8);
 s32 func_80079E7C(u16);
 s32 func_80079ED8(u8, u8, u8, s32);
 s32 func_8007A280(u8, u8, s32, s32);
@@ -260,5 +264,89 @@ void func_8007BCE8(u8 **p, u8 index) {
     pField[(*p)[1]] = value;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007BD5C);
+/* best: 80.48%. Structure recovered (3-byte `buf[0] = buf[1] = buf[2] = 0`
+   is what gives the three sb zero; `while (!(buf[0] & buf[1] & buf[2]))`
+   reproduces both copies of the test). Sole gap: gcc hoists the loop-
+   invariant absolute base of D_800D32A1 into a callee-saved register (s5)
+   at the preheader, so the frame is 56 instead of 48 and pField is added
+   straight into s4 instead of a1. Retail re-forms `lui $at,%hi(D_800D32A1)`
+   every iteration, i.e. its RTL keeps the symbol inside the mem address.
+   Unchanged by nested ifs, `&&`, -G0 and 2.6.0/cdk.
+
+void func_8007BD5C(u8 **p, u8 index) {
+    u8 buf[3];
+    u16 *pField = (u16 *)(D_800D3420 + index * 0x40);
+    u8 idx;
+
+    buf[0] = buf[1] = buf[2] = 0;
+    pField[(*p)[1]] = 0;
+    while (!(buf[0] & buf[1] & buf[2])) {
+        idx = func_8001BD40(0, 2);
+        if (buf[idx] == 0) {
+            if (func_8007A628(idx, (*p)[2]) != 0) {
+                if (D_800D32A1[idx * 8] == 0) {
+                    pField[(*p)[1]] = func_80089C08(idx);
+                    break;
+                }
+            }
+            buf[idx] = 1;
+        }
+    }
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007BEA8);
+/* best: 76.81%. Same body as func_8007BD5C plus the D_800C3EB4 entry
+   comparison; the frame/register set is off for the same reason - gcc
+   hoists the absolute bases of D_800C3EB4 and D_800D32A1 into extra
+   callee-saved registers instead of re-forming `lui %hi` each iteration
+   like retail (which only strength-reduces the *offsets*: s3 starts at
+   0x54 and steps by 0x1C). Nothing found yet that keeps the symbol inside
+   the mem address.
+
+void func_8007BEA8(u8 **p, u8 index) {
+    u8 buf[3];
+    u8 idx;
+
+    buf[0] = buf[1] = buf[2] = 0;
+    ((u16 *)(D_800D3420 + index * 0x40))[(*p)[1]] = 0;
+    while (!(buf[0] & buf[1] & buf[2])) {
+        idx = func_8001BD40(0, 2);
+        if (buf[idx] == 0) {
+            if (func_8007A628(idx, (*p)[2]) != 0
+                && D_800C3EB4[(index + 3) * 0x1C] == D_800C3EB4[idx * 0x1C]
+                && D_800D32A1[idx * 8] == 0) {
+                ((u16 *)(D_800D3420 + index * 0x40))[(*p)[1]] = func_80089C08(idx);
+                break;
+            }
+            buf[idx] = 1;
+        }
+    }
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007C040);
+/* best: 65.42%. Structure recovered (collect the 3..10 slots whose
+   D_800C3EB4 entry equals the (index+3) one into a stack buffer, then pick
+   one at random; both D_800D3420 stores are spelled inline, retail
+   re-forms their base with a fresh lui as well). Gap is the same hoist as
+   func_8007BEA8 (D_800C3EB4/D_800D32A1 bases into callee-saved registers,
+   +8 frame). -G0 changes nothing.
+
+void func_8007C040(u8 **p, u8 index) {
+    u8 buf[9];
+    s32 count = 0;
+    s32 i;
+
+    ((u16 *)(D_800D3420 + index * 0x40))[(*p)[1]] = 0;
+    for (i = 3; i < 11; i++) {
+        if (func_8007A628(i, (*p)[2]) != 0
+            && D_800C3EB4[(index + 3) * 0x1C] == D_800C3EB4[i * 0x1C]
+            && D_800D32A1[i * 8] == 0) {
+            buf[count++] = i;
+        }
+    }
+    if (count != 0) {
+        ((u16 *)(D_800D3420 + index * 0x40))[(*p)[1]] =
+            func_80089C08(buf[func_8001BD40(0, count - 1)]);
+    }
+}
+*/
