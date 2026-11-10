@@ -9,6 +9,7 @@ extern u8 D_800CCE30[];
 extern u8 D_800CCE4A[];
 extern u8 D_800CCCE8[];
 extern u8 D_800D2C34;
+extern u8* D_800C3E00;
 
 extern int rand(void);
 extern void func_8009BE0C(void);
@@ -166,6 +167,55 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009AC48);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009ADA0);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009AEFC);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009AFD8);
+/* Best attempt: 99.33%, same size (192 bytes). Jump table is
+   case 0-3 -> shared tail, 4-5 -> return, 6 -> tail of the 7..19 block,
+   7..19 -> the block that decrements gearPartsIds[0x6C + e00[0x6F]]. The only
+   difference is that gcc duplicates the shared last decrement into the
+   7..19 block instead of keeping one block that cases 0-3 jump to. `u8 idx`
+   (93.92%) gives an extra andi; `s32 idx` is required.
+*/
+/* PARKED ATTEMPT (99.33%)
+void func_8009AFD8(void) {
+    u8 sel = *(u8*)((u8*)D_800C34B0 + 0x5FC2);
+    s32 idx;
+
+    switch (sel) {
+    case 0:
+    case 1:
+    case 2:
+    case 3:
+        idx = *(u8*)(D_800C3E00 + 0x6F);
+        break;
+    case 4:
+    case 5:
+        return;
+    case 6:
+    case 7:
+    case 8:
+    case 9:
+    case 10:
+    case 11:
+    case 12:
+    case 13:
+    case 14:
+    case 15:
+    case 16:
+    case 17:
+    case 18:
+    case 19:
+        idx = *(u8*)(D_800C3E00 + 0x6F);
+        if (g_GameState.gearPartsIds[0x6C + idx]) {
+            g_GameState.gearPartsIds[0x6C + idx]--;
+        }
+        idx = *(u8*)(D_800C3E00 + 0x72);
+        break;
+    }
+    if (g_GameState.gearPartsIds[0x6C + idx]) {
+        g_GameState.gearPartsIds[0x6C + idx]--;
+    }
+}
+
+*/
 
 void func_8009B098(void) {
     u8 i;
