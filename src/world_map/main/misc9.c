@@ -179,7 +179,7 @@ s32 func_800879E0(s32 index) {
     u8* pEntry;
     u8* pEntry2;
     s32 entryIndex;
-    long tmp[2];
+    long tmp[2]; // unused: reproduces retail's 0x10-byte stack slot
 
     entryIndex = D_8009C610 * 2;
     pEntry = pBase + D_8009B64C[entryIndex] * 0x54;
