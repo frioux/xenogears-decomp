@@ -1,9 +1,12 @@
 #include "common.h"
 #include "psyq/libgte.h"
+#include "psyq/libgpu.h"
 
 extern void TimerWorkListSetTaskCallback();
 extern void WorkListSetTaskCallback();
 extern void func_8001E148();
+extern void AnimScriptTick(void* pSprite);
+extern s32 func_80022CAC(void* pSprite, s32 value);
 extern void func_800C08CC();
 extern void func_800B3CD4();
 extern void func_800B51B0();
@@ -24,6 +27,30 @@ typedef struct {
 } BattleScriptOp;
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc27", func_800B3F04);
+// 84.19% under the unit preset; the instruction set matches, the list
+// scheduler places one insn differently (needs gcc 2.7.2-cdk, like the rest of
+// the callback cluster here).
+/*
+void func_800B4EDC(u8* pArg) {
+    RECT rect;
+    u8* p;
+    u16 palette;
+    u16 vram;
+
+    p = *(u8**)(*(u8**)(pArg + 0x20) + 0x30);
+    palette = *(u16*)(p + 0xA);
+    rect.x = (*(u8*)(p + 0x4) >> 2) + ((palette & 0xF) << 6);
+    rect.w = 8;
+    rect.h = 8;
+    rect.y = *(u8*)(p + 0x5) + ((palette << 4) & 0x100);
+    MoveImage(&rect, 0x3F0, 0x1F0);
+    vram = *(u16*)(p + 0xC);
+    rect.w = 0x10;
+    rect.h = 1;
+    rect.x = vram & 0x3F;
+    rect.y = (vram >> 6) & 0x1FF;
+    MoveImage(&rect, 0x3F0, 0x1EE);
+}*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc27", func_800B4EDC);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc27", func_800B4F88);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc27", func_800B50D4);
@@ -64,7 +91,34 @@ long func_800B57E4(u8* pActor) {
     Square0(&v, &out);
     return SquareRoot0(out.vx + out.vz + out.vy);
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc27", func_800B5854);
+void func_800B5854(u8* pTask) {
+    u8* pActor;
+    s32 prev;
+    s32 dist;
+    s32 speed;
+    u8 flag;
+
+    flag = 0;
+    pActor = *(u8**)(pTask + 0x1C);
+    prev = *(s32*)(pTask + 0x28);
+    dist = func_800B57E4(pActor);
+    *(s32*)(pTask + 0x28) = dist;
+    if (prev < dist || dist < *(s32*)(pTask + 0x2C)) {
+        flag = 1;
+        speed = *(s32*)(pTask + 0x30);
+        *(u16*)(pActor + 0x9E) = 1;
+        *(s32*)(pActor + 0x64) = speed;
+    }
+    if (*(s16*)(pActor + 0x9E) == 0) {
+        flag = 1;
+    }
+    if (*(s8*)(pActor + 0xAF) != *(s32*)(pTask + 0x24)) {
+        flag = 1;
+    }
+    if (flag) {
+        ((void (*)(u8*))*(void**)(pTask + 0xC))(pTask);
+    }
+}
 // 100% under gcc 2.7.2-cdk, 89.34% under the unit's current gcc 2.7.2 (which
 // emits the callback's lui/addiu pair before move a0,s0 instead of after it).
 
@@ -105,6 +159,37 @@ BattlePoint* func_800B5AC4(BattlePoint* pOut, u8* pActor, s32 index) {
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc27", func_800B5B3C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc27", func_800B5C18);
+// 98.15% under the unit preset; the instruction set matches, the list
+// scheduler places one insn differently (needs gcc 2.7.2-cdk, like the rest of
+// the callback cluster here).
+/*
+void func_800B5CC0(u8* pWork) {
+    MATRIX m;
+    SVECTOR rot;
+    SVECTOR rot2;
+    VECTOR v;
+    u8* pSprite;
+
+    pSprite = *(u8**)(pWork + 0x4);
+    AnimScriptTick(pSprite);
+    rot2.vy = *(s32*)(pSprite + 0x10) >> 13;
+    rot2.vx = 0;
+    rot2.vz = *(s32*)(pSprite + 0x14) >> 13;
+    rot.vx = func_80022CAC(pSprite, *(s32*)(pSprite + 0xC) >> 13);
+    rot.vy = 0;
+    rot.vz = 0;
+    RotMatrix(&rot2, &m);
+    ApplyMatrix(&m, &rot, &v);
+    v.vx += *(s16*)(pSprite + 0xA0);
+    v.vy += *(s16*)(pSprite + 0xA2);
+    v.vz += *(s16*)(pSprite + 0xA4);
+    *(u32*)(pSprite + 0x0) = v.vx << 16;
+    *(u32*)(pSprite + 0x4) = v.vy << 16;
+    *(u32*)(pSprite + 0x8) = v.vz << 16;
+    if (*(u32*)(pSprite + 0x64) == 0) {
+        ((void (*)(u8*))*(void**)(pWork + 0xC))(pWork);
+    }
+}*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc27", func_800B5CC0);
 // PRESET: the whole unit compiles to the original under gcc 2.7.2-cdk, not the
 // gcc 2.7.2 that XenoBattleTail selects. Verified with try_flags.sh: this stub,
