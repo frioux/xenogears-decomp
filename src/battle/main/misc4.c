@@ -102,36 +102,26 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc4", func_80078E24);
 void func_80079054(u8 arg0, u8 arg1) {
     func_80079ED8(arg0, D_800D2E5D[arg1 * 8], D_800D2E60[arg1 * 8], 0);
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc4", func_80079098);
-/* Best: 70.26%. Same CSE class as func_8007916C: gcc builds &D_800D2E5D[arg1*8]
-   once into a saved register across the first call instead of re-forming it with
-   a fresh lui/addu from the shifted index. Tried: one expression twice, two
-   index locals, nested call.
-
-s32 func_80079098(u8 arg0, u8 arg1) {
+void func_80079098(u8 arg0, u8 arg1) {
+    s32 idx;
     s32 value;
 
-    value = func_80079ED8(arg0, D_800D2E5D[arg1 * 8], 0, 1);
-    return func_80079ED8(arg0, D_800D2E5D[arg1 * 8], (D_800D2E60[arg1 * 8] + value) & 0xFF, 0);
+    idx = arg1 * 8;
+    value = func_80079ED8(arg0, D_800D2E5D[idx], 0, 1);
+    func_80079ED8(arg0, D_800D2E5D[idx], D_800D2E60[idx] + value, 0);
 }
-*/
 void func_80079114(u8 arg0, u8 arg1) {
     func_8007A280(arg0, D_800D2E5D[arg1 * 8], D_800D2E60[arg1 * 8] | (D_800D2E61[arg1 * 8] << 8), 0);
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc4", func_8007916C);
-/* Best: 77.89%. Instruction multiset is right; gcc keeps &D_800D2E5D[arg1*8] in
-   a saved register across the first call (base-in-register, lbu 0(s0)) where the
-   original re-forms it with lui/addu from the shifted index. Same CSE blocker as
-   func_80079098.
-
-s32 func_8007916C(u8 arg0, u8 arg1) {
+void func_8007916C(u8 arg0, u8 arg1) {
+    s32 idx;
     s32 value;
 
-    value = func_8007A280(arg0, D_800D2E5D[arg1 * 8], 0, 1);
-    return func_8007A280(arg0, D_800D2E5D[arg1 * 8],
-                        D_800D2E60[arg1 * 8] + (value + (D_800D2E61[arg1 * 8] << 8)) & 0xFFFF, 0);
+    idx = arg1 * 8;
+    value = func_8007A280(arg0, D_800D2E5D[idx], 0, 1);
+    func_8007A280(arg0, D_800D2E5D[idx],
+                  (u16)(D_800D2E60[idx] + (value + (D_800D2E61[idx] << 8))), 0);
 }
-*/
 void func_800791FC(u8 arg0, u8 arg1) {
     func_8007893C(arg1, arg0);
     D_800C402F[D_800C3EAC[0x2DA] * 72] = 0xF4;
