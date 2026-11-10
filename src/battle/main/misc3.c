@@ -10,8 +10,12 @@ extern u8 D_800C402F[];
 extern u8 D_800D2E60[];
 extern u8 D_800D2E61[];
 extern s32 D_800595A0;
+extern u8 D_800D2DCC[];
+extern u8 D_800D2DE4[];
+extern u16 D_800D2DF0[];
 
 extern s32 func_8008ABB8(s32, s32);
+extern u16 func_80098AF8(s32, s32);
 extern void func_80077074(void);
 extern void HeapFree(void *pMem);
 extern void bzero(void *p, s32 n);
@@ -127,6 +131,33 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_800780A8);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_8007819C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_80078310);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_80078508);
+/* 99.80%: only the two `sh` in the then-branch are swapped (original stores
+   [i+0xB] first, then [i]); the prologue pointer derivation, both loop
+   increments and the whole else-branch are identical. The primary induction
+   register is chosen from the giv of the then-branch's FIRST store, so making
+   that store [i+0xB] (the original's order) turns the base into
+   %lo(D_800D2DF0+0x16) and derives the other pointers from it, which costs
+   3 addius. Tried: then [i],[i+0xB] / else [i+0xB],[i] (this one),
+   both branches [i],[i+0xB], both [i+0xB],[i].
+void func_80078508(u8 *pOut) {
+    s32 i;
+    u16 value;
+
+    for (i = 0; i < 11; i++) {
+        if (D_800D2DCC[i] != 0) {
+            value = func_80098AF8(i, 0);
+            D_800D2DF0[i] = value;
+            D_800D2DF0[i + 0xB] = value;
+        } else {
+            D_800D2DF0[i + 0xB] = 0xFF;
+            D_800D2DF0[i] = 0xFF;
+        }
+        D_800D2DE4[i] = 0;
+        D_800D2DF0[i + 0x16] = 0;
+        pOut[i] = 0;
+    }
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_800785D4);
 /* 57.27%: the original keeps no pointer local for the first store (reloads
    D_800C3EAC, then uses one reload for the 0xC4022 store and the count
@@ -138,11 +169,11 @@ void func_800785D4(u8 color, u8 index) {
     u16 tile;
     u8 *pEntry;
 
-    tile = D_800D2E60[index * 8] | (D_800D2E61[index * 8] << 8);
-    D_800C400B[D_800C3EAC[0x2DA] * 0x48] = color;
     pEntry = D_800C3EAC;
-    *(u16 *)(D_800C4022 + pEntry[0x2DA] * 0x48) = tile;
-    pEntry[0x2DA]++;
+    tile = D_800D2E60[index * 8] | (D_800D2E61[index * 8] << 8);
+    D_800C400B[pEntry[0x2DA] * 0x48] = color;
+    *(u16 *)(D_800C4022 + D_800C3EAC[0x2DA] * 0x48) = tile;
+    D_800C3EAC[0x2DA]++;
 }
 */
 
