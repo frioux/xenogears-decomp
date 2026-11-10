@@ -1,4 +1,5 @@
 #include "common.h"
+#include "psyq/libgte.h"
 
 extern s32 D_80059464;
 extern s16 D_800D3678;
@@ -105,6 +106,31 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800BFDA8);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800BFE48);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800C0314);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800C0564);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800C06E4);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800C0758);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800C07CC);
+s32 func_800C06E4(VECTOR *pVec0, VECTOR *pVec1) {
+    VECTOR v;
+
+    v.vx = pVec0->vx - pVec1->vx;
+    v.vy = pVec0->vy - pVec1->vy;
+    v.vz = pVec0->vz - pVec1->vz;
+    Square0(&v, &v);
+    return SquareRoot0(v.vy + v.vz + v.vx);
+}
+
+s32 func_800C0758(SVECTOR *pVec0, SVECTOR *pVec1) {
+    VECTOR v;
+
+    v.vx = pVec0->vx - pVec1->vx;
+    v.vy = pVec0->vy - pVec1->vy;
+    v.vz = pVec0->vz - pVec1->vz;
+    Square0(&v, &v);
+    return SquareRoot0(v.vy + v.vz + v.vx);
+}
+
+s32 func_800C07CC(DVECTOR vec0, DVECTOR vec1) {
+    VECTOR v;
+
+    v.vx = vec0.vx - vec1.vx;
+    v.vz = vec0.vy - vec1.vy;
+    Square0(&v, &v);
+    return SquareRoot0(v.vx + v.vz);
+}
