@@ -233,17 +233,26 @@ void func_8007D5B0(u8 **arg0, u8 arg1) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007D610);
-/* best: 86.05%. Tail matches; same induction/delay-slot placement miss as
-   func_8007D5B0 plus the D_800C3EB7 offset (s1-style at-register lookup) in
-   the three-way && chain.
+/* best: 95.50%. Whole function matches except ONE insn position: retail
+   steals i++ (addiu a2,a2,1) into the beqz delay slot of the D_800D2DCC[i]
+   test, gcc emits it in the latch after count++. Register assignment is exact
+   once the accumulators are declared record-then-offset (t0=0x54, a3=0x450).
+   Writing the increment as 'D_800D2DCC[i++]' DOES put it in that delay slot
+   (identical prologue) but gcc then strength-reduces i to a pointer into
+   D_800D2DCC (slt v0,a2,t2 instead of slti v0,a2,0xB), 88.11%. Also tried:
+   i++ as the last body statement, a while loop with the increments in the
+   body, and the explicit-offset form under (u8 *)D_800CCD64 (79.67%, gcc
+   turns the i giv into a countdown). Parked at 95.50.
 
 void func_8007D610(u8 **arg0, u8 arg1) {
     u8 *pRow;
     s32 count = 0;
     s32 i;
+    s32 record;
+    s32 offset;
 
-    for (i = 3; i < 0xB; i++) {
-        if (D_800D2DCC[i] != 0 && (D_800CCD64[i].flags & 0xC000) == 0 && D_800C3EB7[i * 0x1C] == 0) {
+    for (i = 3, record = 0x54, offset = 0x450; i < 0xB; i++, record += 0x1C, offset += 0x170) {
+        if (D_800D2DCC[i] != 0 && (*(u16 *)((u8 *)D_800CCD64 + offset) & 0xC000) == 0 && D_800C3EB7[record] == 0) {
             count++;
         }
     }
