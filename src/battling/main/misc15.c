@@ -22,7 +22,10 @@ typedef struct HeapNode {
 
 extern s32 D_80092824;
 extern void* D_80092828;
-extern void func_8008C188();
+extern void* func_8008C188(u8* pObj, void* pArg);
+extern s32 func_80089C54(void);
+extern void func_80089C88(s32 handle, void* pNode);
+extern void func_8008BE4C(void* pBlock, void* pData);
 extern s32 rand(void);
 extern u8 D_800928A0;
 extern s32 D_800928E4;
@@ -133,7 +136,32 @@ void func_8008C120(HeapNode* pNode) {
         HeapFree(pBlock);
     }
 }
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc15", func_8008C188);
+void* func_8008C188(u8* pObj, void* pArg) {
+    void* pWork;
+    HeapNode* pNode;
+    void* pBlock;
+    void* pData;
+    u8* pChild;
+
+    HeapSetCurrentContentType(6);
+    pWork = (void*)func_80089C54();
+    pNode = func_8008C0CC(pObj);
+    func_8008C0BC(pWork, pNode);
+    if (pNode->type == 1) {
+        pData = *(void**)(*(u8**)(pObj + 4) + 0x14);
+        HeapSetCurrentContentType(5);
+        pBlock = HeapAlloc(0x18, 2);
+        pNode->pBlock = pBlock;
+        func_8008BE4C(pBlock, pData);
+    }
+    pChild = *(u8**)(pObj + 0x94);
+    D_80092824++;
+    if (pChild != NULL)
+        func_80089C88((s32)pWork, func_8008C188(pChild, pWork));
+    if (*(void**)(pObj + 0x90) != NULL)
+        func_80089C88((s32)pArg, func_8008C188(*(u8**)(pObj + 0x90), pArg));
+    return pWork;
+}
 void func_8008C298(void* pWork) {
     D_80092824 = 0;
     func_8008C188(pWork, NULL);
