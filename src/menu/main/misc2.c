@@ -17,6 +17,14 @@ extern int Vsync(int mode);
 
 void func_801C7BF4(void);
 void func_801C8A10(s32 arg0);
+extern s32 ArchiveGetDiscNumber(void);
+void func_801D1E80(void);
+void func_801D22F4(s32 arg0);
+void func_801D2484(void);
+s32 func_801D2F4C(u8 arg0);
+s32 func_801D32B4(void);
+void func_801E92CC(void);
+s32 func_801E93A0(s32 arg0);
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc2", func_801C7B0C);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc2", func_801C7BF4);
@@ -94,14 +102,64 @@ u32 func_801C865C(u32 mask, u8 index) {
 u32 func_801C8678(u32 mask, u8 index) {
     return mask & D_801E96E8[index];
 }
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc2", func_801C8694);
+void func_801C8694(u8 index) {
+    u_char flag;
+    u_char counter;
+
+    func_801D1E80();
+    flag = 1;
+    while (g_Menu->transitionEffectState) {
+        func_801C7BF4();
+    }
+    func_801D22F4(0);
+    while (flag) {
+        if (ArchiveGetDiscNumber() == index + 1) {
+            flag = 0;
+        } else {
+            func_801E92CC();
+            func_801D2F4C(index * 3 - 0x7D);
+            if (func_801E93A0(index + 1)) {
+                func_801D32B4();
+                func_801D2F4C(0x89);
+                for (counter = 0x1D; counter != 0; counter--) {
+                    func_801C7BF4();
+                }
+                func_801D32B4();
+                func_801C7BF4();
+            } else {
+                func_801D32B4();
+                flag = 0;
+            }
+        }
+    }
+    func_801D2484();
+}
 void func_801C87C4(void) {
     UnDeliverEvent(0xF4000001, 0x4);
     UnDeliverEvent(0xF4000001, 0x8000);
     UnDeliverEvent(0xF4000001, 0x100);
     UnDeliverEvent(0xF4000001, 0x2000);
 }
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc2", func_801C881C);
+s32 func_801C881C(void) {
+    while (1) {
+        if (TestEvent(((s32*)&g_Menu->menuUnk2->unk4FE4)[5]) == 1) {
+            func_801C87C4();
+            return 3;
+        }
+        if (TestEvent(((s32*)&g_Menu->menuUnk2->unk4FE4)[3]) == 1) {
+            func_801C87C4();
+            return 1;
+        }
+        if (TestEvent(((s32*)&g_Menu->menuUnk2->unk4FE4)[2]) == 1) {
+            func_801C87C4();
+            return 0;
+        }
+        if (TestEvent(((s32*)&g_Menu->menuUnk2->unk4FE4)[4]) == 1) {
+            func_801C87C4();
+            return 2;
+        }
+    }
+}
 s32 func_801C891C(long chan) {
     if (_card_info(chan)) {
         return D_801E9768[func_801C881C() & 0xFF];
