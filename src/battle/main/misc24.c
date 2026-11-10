@@ -11,6 +11,12 @@ extern s16 func_800A3490(s16 angle, s16 divisor, s16 base);
 extern s16 func_800A3514(s16 angle, s16 divisor, s16 base);
 extern s16 func_800A3578(s16 angle, s16 divisor, s16 base);
 extern s16 func_800A35C8(s16 angle, s16 divisor, s16 base);
+extern u16 D_800C3D40;
+extern u16 D_800C3E30;
+extern u8 D_800C3D0C[];
+extern s32 func_800AF400(void);
+extern void func_800AA934(u8 *arg0, u8 *arg1, void *arg2, s32 arg3);
+extern void func_800AAD54(void *arg0, void *arg1, s32 arg2, s32 arg3, s32 arg4);
 
 u8 func_800AA514(s16 arg0, s16 arg1, s32 arg2) {
     s16 v;
@@ -21,6 +27,19 @@ u8 func_800AA514(s16 arg0, s16 arg1, s32 arg2) {
     }
     return v;
 }
+/* 88.71% - structure, branch layout, both table reads and the whole tail
+   (stores + func_800AAD54(arg0, arg2, -1, 1, 0)) already line up. Three
+   differences left: (1) the original reloads arg0[0x2B] for the "++" (lbu/nop/
+   addiu) while gcc CSEs it into one load and masks it ("andi v0,v1,0xff"), so
+   the two blocks are 4 instructions apart; (2) the if-branch pointer
+   read comes out in $a1 instead of $v0; (3) the else-branch folds the +4 of
+   *(u8 **)(arg1 + 0xC) + 4 into the -0x138 displacement (-0x134) where the
+   original keeps it as "lw v1,4(v0)". Tried: nested ifs with bare dereferences
+   (64.61), a u8 *pCount = arg0 + 0x2B local (88.71, no change), pointer
+   locals for both table bases (88.71), a u16 n = D_800C3E30 local to hoist the
+   lhu before the stores (needed, it was late without it).
+*/
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AA564);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AA600);
 /* 99.00% - only the two "mflo" destinations differ (original mflo $v0 twice,
@@ -138,7 +157,90 @@ s16 (*func_800AA820(s32 arg0))(s16 angle, s16 divisor, s16 base) {
     return func_800A3490;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AA898);
+/*
+void func_800AA898(u8 *arg0, s32 arg1, s32 arg2, s32 arg3) {
+    *(u16 *)(arg0 + 0x3C) = -1;
+    *(u8 *)(arg0 + 0x5C) = 0xFF;
+    *(u8 *)(arg0 + 0x39) = 0x6B;
+    *(s32 *)(arg0 + 0x8) = arg2;
+    *(s32 *)(arg0 + 0xC) = 0;
+    *(s32 *)(arg0 + 0x10) = 0;
+    *(s32 *)(arg0 + 0x14) = arg3;
+    *(s32 *)(arg0 + 0x18) = 0;
+    *(u8 *)(arg0 + 0x2B) = 0;
+    *(s16 *)(arg0 + 0x98) = -1;
+    *(u16 *)(arg0 + 0x58) = 0;
+    *(u8 *)(arg0 + 0x35) = 0;
+    *(u8 *)(arg0 + 0x37) = 0;
+    *(u8 *)(arg0 + 0x38) = 0;
+    *(s16 *)(arg0 + 0x3A) = -1;
+    *(u16 *)(arg0 + 0x70) = 0;
+    *(u16 *)(arg0 + 0x72) = 0;
+    *(u16 *)(arg0 + 0x74) = 0;
+    *(u16 *)(arg0 + 0x76) = 0;
+    *(u16 *)(arg0 + 0x78) = 0;
+    *(u16 *)(arg0 + 0x7A) = 0;
+    *(u16 *)(arg0 + 0x7C) = 0;
+    *(u16 *)(arg0 + 0x7E) = 0;
+    *(u16 *)(arg0 + 0x80) = 0;
+    *(u16 *)(arg0 + 0x82) = 0;
+    *(u16 *)(arg0 + 0x84) = 0;
+    *(u16 *)(arg0 + 0x86) = 0;
+    *(u16 *)(arg0 + 0x88) = 0;
+    *(u16 *)(arg0 + 0x8A) = 0;
+    *(u16 *)(arg0 + 0x8C) = 0;
+    *(u16 *)(arg0 + 0x8E) = 1;
+    *(u8 *)(arg0 + 0x36) = 0;
+    *(s16 *)(arg0 + 0x1E) = -1;
+}
+/* 74.36% - every store and every constant is identical and in the same order;
+   the only difference is where the "-1" constant is materialised: the original
+   does "li v1,-1" as the very first instruction (before "li v0,0xffff"), this
+   emits it just before the sh to 0x98. Tried: raw -1 literals for the three
+   s16 fields (74.36), a "s16 m1 = -1;" decl initialiser at the top (74.36),
+   a separate "m1 = -1;" statement first (74.36) - gcc always sinks the
+   constant to its first use here, and the 0xFFFF/0xFF/0x6B/0x1 loads already
+   match exactly. Also note *(u16 *)(arg0 + 0x3C) is unsigned (ori 0xffff)
+   while 0x98/0x3A/0x1E are signed -1 (addiu), so the two constants must stay
+   spelled differently.
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AA934);
+/*
+void func_800AA934(u8 *arg0, u8 *arg1, void *arg2, s32 arg3) {
+    s32 *pTable;
+    u8 *pCount;
+    u16 n;
+
+    pCount = arg0 + 0x2B;
+    if (arg0 != 0) {
+        if (arg1 != 0) {
+            if (*pCount != 0) {
+                if (*pCount < 5) {
+                    *pCount = *pCount + 1;
+                }
+                ((u8 *)arg0)[*pCount + 0x2A] = *(u8 *)(arg1 + 0x20);
+                ((u8 *)arg0)[*pCount + 0x2E] = arg3;
+            } else {
+                if (arg3 < 0x50) {
+                    pTable = (s32 *)*(u8 **)(arg1 + 8);
+                    *(s32 *)(arg0 + 0x10) = pTable[arg3];
+                } else {
+                    pTable = (s32 *)(*(u8 **)(arg1 + 0xC) + 4);
+                    *(s32 *)(arg0 + 0x10) = *(s32 *)((u8 *)pTable + arg3 * 4 - 0x138);
+                }
+                n = D_800C3E30;
+                *(u16 *)(arg0 + 0x42) = 0;
+                *(u16 *)(arg0 + 0x40) = 0;
+                *(s32 *)(arg0 + 0x50) = 0;
+                *(s32 *)(arg0 + 0x54) = 0;
+                *(s32 *)(arg0 + 0x4C) = 0;
+                *(u8 *)(arg0 + 0x23) = 0;
+                *(u16 *)(arg0 + 0x10A) = n;
+                func_800AAD54(arg0, arg2, -1, 1, 0);
+            }
+        }
+    }
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AAA20);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AAB34);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AAD54);
