@@ -8,7 +8,7 @@ typedef struct {
 } WorldMapPos; // Size: 0xC
 
 extern void func_800346D4(void* pString);
-extern s16 func_80093E8C(WorldMapPos* p);
+extern s32 func_80093E8C(WorldMapPos* p);
 extern u8* func_80093660(s32 x, s32 z);
 extern long SquareRoot0(long a);
 extern long ratan2(long y, long x);
@@ -20,10 +20,28 @@ extern u8 D_8009BD64[];
 extern u8 D_8009BAC8[];
 extern s32 D_8009B264[];
 extern s32 D_8009B26C[];
+extern s32 D_8009B364[];
+extern s32 D_8009B36C[];
+extern s32 D_8009B464[];
+extern s32 D_8009B46C[];
 extern s32 D_8009D160;
 extern s32 D_8009D2B4;
+extern s16 D_8009BD24;
+extern u16 D_8009D4A8;
+extern u8 D_8009D500;
+extern s32 func_80032F54(void* pString, s16 a, s16 b, s16 c, s16 d, s16 e, s16 f);
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_80092BE4);
+s32 func_80092BE4(void) {
+    u8* pBuffer;
+
+    pBuffer = D_8009D498;
+    D_8009BD24 = -1;
+    func_80032F54(pBuffer, 0x3C0, 0x180, 0xA0, 0x78, 0x20, 1);
+    D_8009D500 = 8;
+    D_8009D4A8 |= 2;
+    func_80034614(pBuffer);
+    return 1;
+}
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_80092C70);
 
 void func_80092DD0(void) {
@@ -111,7 +129,23 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_80093740);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_80093978);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_80093A5C);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_80093E8C);
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_80093F18);
+s32 func_80093F18(WorldMapPos* p) {
+    s32 n;
+    s32 k;
+    s32 dx;
+    s32 dz;
+    s32 sum;
+
+    n = func_80093E8C(p);
+    k = (n & 0xF) * 4;
+    dx = (u16)(p->x / 8) - D_8009B464[k];
+    dz = (u16)(p->z / 8) - D_8009B46C[k];
+    sum = (dx * D_8009B364[k] >> 12) + (dz * D_8009B36C[k] >> 12);
+    if (sum > 0) {
+        return ((u32)n >> 4) & 7;
+    }
+    return ((u32)n >> 7) & 7;
+}
 
 s32 func_80093FE4(WorldMapPos* p) {
     return func_80093E8C(p) & 0xF;
@@ -158,14 +192,16 @@ s32 func_80094088(WorldMapPos* p, WorldMapPos* pPos, WorldMapPos* pOut) {
 }
 */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_80094154);
-/* best: 91.07%. Instruction sequence and mult/mflo placement identical; the
-   only delta is that gcc copies p0 from a0 into a2 at entry (and permutes the
-   temps) where the original keeps p0 in a0 and uses v0/v1. Tried the squares
-   in the final expression and ternary negation: both worse.
+/* best: 92.50%. Instruction sequence, abs/shift/mult order and the mult/mflo
+   split are identical; the only delta is that gcc copies p0 from a0 into a2 at
+   entry and then uses a0 for the dx temp, where the original keeps p0 in a0 and
+   uses v0/v1 for the temps. Declaration orders tried: dx,dz,dx2,dz2 (91.07),
+   dz,dx,dx2,dz2 (92.50); single-expression, accumulator and shift-in-place
+   shapes are all worse (72-91%).
 
 s32 func_80094154(WorldMapPos* p0, WorldMapPos* p1) {
-    s32 dx;
     s32 dz;
+    s32 dx;
     s32 dx2;
     s32 dz2;
 
@@ -179,12 +215,9 @@ s32 func_80094154(WorldMapPos* p0, WorldMapPos* p1) {
     if (dz < 0) {
         dz = -dz;
     }
-    dz = dz >> 12;
-    dz2 = dz * dz;
-    return SquareRoot0(dx2 + dz2);
+    return SquareRoot0(dx2 + (dz >> 12) * (dz >> 12));
 }
 */
-
 void func_800941C4(WorldMapPos* p0, WorldMapPos* p1, s32* pVector, s16* pAngle) {
     s32 dx;
     s32 dz;
