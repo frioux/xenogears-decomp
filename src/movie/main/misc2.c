@@ -12,8 +12,13 @@ extern void SoundLoadWdsFile(void* pWdsFile, void* pUnk);
 extern void HeapFree(void* pMem);
 extern s32 ArchiveDecodeSizeAbsolute(int entryIndex);
 extern u32 g_ArchiveTable;
+extern int ControllerGetButtonState(int controllerIndex);
+extern void SoundSetCdVolumeWithFade(s32 volume, s32 frames);
 
 // .rodata
+extern char D_80070304[];
+extern char D_80070328[];
+extern char D_8007034C[];
 extern char D_80070370[];
 extern char D_80070394[];
 
@@ -26,6 +31,8 @@ extern s32 D_80077018;
 extern s32 D_8007701C;
 extern s32 D_80077024;
 extern u32 D_80077028;
+extern s32 D_80076F04;
+extern s32 D_80076F08;
 extern s32 D_8007711C;
 extern u8 D_8007713C;
 extern u8 D_80077191;
@@ -33,6 +40,7 @@ extern u8 D_80077274;
 extern u8 D_800772C9;
 extern s32 D_8007739C;
 extern s32 D_800773AC;
+extern s32 D_800773B4;
 extern s32 D_80077438;
 extern s32 D_80077448;
 extern s32 D_801D68B4;
@@ -52,7 +60,27 @@ INCLUDE_ASM("asm/movie/nonmatchings/main/misc2", func_80074BA4);
 
 INCLUDE_ASM("asm/movie/nonmatchings/main/misc2", func_8007519C);
 
-INCLUDE_ASM("asm/movie/nonmatchings/main/misc2", func_800753B8);
+void func_800753B8(void) {
+    char* pWdsFile;
+
+    pWdsFile = ArchiveReadHddFile(D_80070304, 0);
+    SoundLoadWdsFile(pWdsFile, 0);
+    while ((func_8003BDFC(0) << 16) != 0) {
+    }
+    HeapFree(pWdsFile);
+
+    pWdsFile = ArchiveReadHddFile(D_80070328, 0);
+    SoundLoadWdsFile(pWdsFile, 0);
+    while ((func_8003BDFC(0) << 16) != 0) {
+    }
+    HeapFree(pWdsFile);
+
+    pWdsFile = ArchiveReadHddFile(D_8007034C, 0);
+    SoundLoadWdsFile(pWdsFile, 0);
+    while ((func_8003BDFC(0) << 16) != 0) {
+    }
+    HeapFree(pWdsFile);
+}
 
 void func_8007548C(void) {
     char* pWdsFile;
@@ -89,9 +117,14 @@ INCLUDE_ASM("asm/movie/nonmatchings/main/misc2", func_8007625C);
 
 INCLUDE_ASM("asm/movie/nonmatchings/main/misc2", func_800763BC);
 
-/* best 82.33% - branch layout of the state==2 early return differs
+/* best 82.33% - frame needs `long pad[6]`; only the form of the D_80077448==1
+   test differs (original branches on != 1 and falls into the SetIndex block).
+   The state>2 path repeats the reset block and gcc cross-jumps it, which
+   reproduces the original's shared tail but moves the ==2 test before the
+   size check. Shapes tried: else-if chain + goto, nested else, either branch
+   polarity on ==2, duplicated reset block.
 void func_800763BC(u8 mode) {
-    long pad[6]; // unused frame slot in the original
+    long pad[6];
     s32 nIndex;
 
     D_80077028 = mode;
@@ -103,14 +136,14 @@ void func_800763BC(u8 mode) {
         ArchiveSetIndex(0x18, 1);
         nIndex = 1;
     } else if (D_80077448 != 2) {
-        goto exit;
+        goto reset;
     } else {
         return;
     }
     if (D_8007711C >= (s16)ArchiveDecodeSizeAbsolute(nIndex)) {
         return;
     }
-exit:
+reset:
     D_8007713C = 0;
     D_80077274 = 0;
     D_80077191 = 1;
@@ -121,23 +154,20 @@ exit:
 
 INCLUDE_ASM("asm/movie/nonmatchings/main/misc2", func_80076488);
 
-INCLUDE_ASM("asm/movie/nonmatchings/main/misc2", func_800768D8);
-
-/* best 97.06% - one extra nop after the D_80077438 load
 void func_800768D8(u16 arg0, s32 arg1, u16 arg2) {
     D_80077010 = arg0;
     if (D_801D68B4 == 1) {
-        if (arg2 == D_80077024) {
-            D_80077018 = 1;
-        } else {
+        if (arg2 != D_80077024) {
             D_80077018 = 0;
+        } else {
+            D_80077018 = 1;
         }
-    } else if (arg2 == D_80077024) {
-        D_80077018 = 1;
-        D_8007701C = 1;
-    } else {
+    } else if (arg2 != D_80077024) {
         D_80077018 = 0;
         D_8007701C = 0;
+    } else {
+        D_80077018 = 1;
+        D_8007701C = 1;
     }
     if (arg0 < D_8007739C) {
         return;
@@ -147,9 +177,35 @@ void func_800768D8(u16 arg0, s32 arg1, u16 arg2) {
     }
     D_80077014 = 1;
 }
-*/
 
-INCLUDE_ASM("asm/movie/nonmatchings/main/misc2", func_800769A4);
+void func_800769A4(void) {
+    D_800773B4 = D_800773AC;
+    D_800773AC = ControllerGetButtonState(0);
+    if (D_800773B4 == D_800773AC) {
+        if (D_800773B4 != 0) {
+            D_80076F04++;
+            if (D_80076F08 < D_80076F04) {
+                D_800773B4 = 0;
+                D_80076F08 = 1;
+                D_80076F04 = 0;
+            }
+        } else {
+            D_80076F08 = 0x5A;
+            D_80076F04 = 0;
+        }
+    } else {
+        D_80076F08 = 0x5A;
+        D_80076F04 = 0;
+    }
+    if ((D_800773B4 & 0x40) == 0 && (D_800773AC & 0x40) != 0 && D_80077028 == 0) {
+        SoundSetCdVolumeWithFade(0, 0xA);
+        D_80077014 = 5;
+    }
+    if ((D_800773B4 & 0x800) == 0 && (D_800773AC & 0x800) != 0 && D_80077028 == 0) {
+        SoundSetCdVolumeWithFade(0, 0xA);
+        D_80077014 = 5;
+    }
+}
 
 INCLUDE_ASM("asm/movie/nonmatchings/main/misc2", func_80076AF0);
 
