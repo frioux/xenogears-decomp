@@ -82,8 +82,17 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A32D8);
 void func_800A3484(s16 *pArg) {
     *pArg = -1;
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A3490);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A3514);
+s16 func_800A3490(s16 angle, s16 divisor, s16 base) {
+    return base + (rsin(angle) + 0x1000) / divisor;
+}
+s16 func_800A3514(s16 angle, s16 divisor, s16 base) {
+    s16 value = base + angle / divisor;
+
+    if (value >= 33) {
+        return -1;
+    }
+    return value;
+}
 /* byte-exact under maspsx --expand-div; the Default preset does not pass it, so
    the div-by-zero trap sequence is missing from our object (99.41% otherwise).
 s16 func_800A3514(s16 angle, s16 divisor, s16 base) {
@@ -95,15 +104,17 @@ s16 func_800A3514(s16 angle, s16 divisor, s16 base) {
     return result;
 }
 */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A3578);
-/* 55%: the C is byte-exact under maspsx --expand-div (the original object has
-   the break-7 / break-6 trap sequence around every div); the Default preset
-   does not pass --expand-div. Same for func_800A3490/3514/35C8.
 s16 func_800A3578(s16 angle, s16 divisor, s16 base) {
     return base - angle / divisor;
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A35C8);
+s16 func_800A35C8(s16 angle, s16 divisor, s16 base) {
+    s16 value = 0x20 - angle / divisor;
+
+    if (value < base) {
+        value = base;
+    }
+    return value;
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A3640);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A3E98);
 void func_800A429C(BattleMisc22Image *pArg) {

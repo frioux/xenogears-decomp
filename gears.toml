@@ -159,3 +159,57 @@ build_variables = {
     gp_flag = "-G0"
 }
 paths = [ "battling/main/misc12." ]
+
+# battle/main/misc22's retail object carries the ASPSX div trap (`break 7`/`break 6`),
+# so maspsx has to expand `div`. Proven on func_800A3578: byte-exact C is 55.00% under
+# Default and 100% with --expand-div, the only difference being the trap sequence.
+[[build_preset]]
+name = "XenoBattleDiv"
+build_variables = {
+    maspsx_flags = "--expand-div --use-comm-section --run-assembler"
+}
+paths = [ "battle/main/misc22." ]
+
+# The rest of the div-trap family (same evidence as XenoBattleDiv above; 50 stubs
+# across 20 units carry `break 6`/`break 7` in their own .s, and a unit's preset
+# has to expand `div` for any of them to match at all).
+[[build_preset]]
+name = "XenoBattleDiv"
+build_variables = {
+    maspsx_flags = "--expand-div --use-comm-section --run-assembler"
+}
+paths = [
+    "battle/main/misc21.",
+    "battle/main/misc23.",
+    "battle/main/misc24.",
+    "battle/main/misc25.",
+    "battling/main/misc15.",
+    "movie/main/misc1.",
+    "movie/main/misc2."
+]
+
+# world_map is addiu-dominant AND expands div: both flags, not either.
+[[build_preset]]
+name = "XenoWorldMapDiv"
+build_variables = {
+    maspsx_flags = "--dont-expand-li --expand-div --use-comm-section --run-assembler"
+}
+paths = [
+    "world_map/main/misc2.",
+    "world_map/main/misc5.",
+    "world_map/main/misc6.",
+    "world_map/main/misc7.",
+    "world_map/main/misc8.",
+    "world_map/main/misc10.",
+    "world_map/main/misc13.",
+    "world_map/main/misc14.",
+    "world_map/main/misc16."
+]
+
+[[build_preset]]
+name = "XenoGraphicsDiv"
+build_variables = {
+    gcc = "gcc-2.7.2-cdk-psx",
+    maspsx_flags = "--aspsx-version=2.67 --expand-div --use-comm-section --run-assembler"
+}
+paths = [ "slus_006.64/system/temp2." ]
