@@ -1,5 +1,6 @@
 #include "common.h"
 
+#include "psyq/libapi.h"
 #include "system/menu.h"
 #include "psyq/libcd.h"
 
@@ -9,6 +10,13 @@ extern u16 D_801EA542[]; // String IDs of the menu strings
 extern u16 D_801EA548[]; // String IDs of the menu strings
 extern s32 D_801EA900;
 extern s32 D_801EA904;
+extern s32 D_801EA6FC;
+extern s32 D_801EA700;
+extern s32 D_801EA704;
+extern s32 D_801EA708;
+extern s32 D_801EA70C;
+extern u8 D_801EA710;
+extern u8 D_801EA714;
 extern CdlCB D_801EA718;
 extern CdlCB D_801EA71C;
 extern CdlCB D_801EA720;
@@ -24,10 +32,58 @@ void func_801E64E0(void);
 void func_801E5B3C(void);
 void func_801E649C(void);
 void Vsync(s32 mode);
+void func_801C8960(void);
+void func_801C7BF4(void);
+u_char func_801C93A8(void);
+void func_801D2F4C(s32 arg0);
+void func_801D32B4(void);
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801D7CFC);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801D7F50);
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801D827C);
+void func_801D827C(POLY_G4* pPolys, u_char mode) {
+    POLY_G4* pPoly;
+    u8 rgb[3];
+    s32 i;
+
+    switch (mode) {
+    case 0:
+        rgb[0] = 0xFF;
+        rgb[1] = 0x80;
+        rgb[2] = 0x80;
+        break;
+    case 1:
+        rgb[0] = 0x80;
+        rgb[1] = 0xFF;
+        rgb[2] = 0x80;
+        break;
+    case 2:
+        rgb[0] = 0xFF;
+        rgb[1] = 0;
+        rgb[2] = 0;
+        break;
+    case 3:
+        rgb[0] = 0;
+        rgb[1] = 0;
+        rgb[2] = 0xFF;
+        break;
+    }
+    for (i = 0; i < 2; i++) {
+        pPoly = &pPolys[i];
+        SetPolyG4(pPoly);
+        pPoly->r0 = rgb[0];
+        pPoly->g0 = rgb[1];
+        pPoly->b0 = rgb[2];
+        pPoly->r1 = rgb[0];
+        pPoly->g1 = rgb[1];
+        pPoly->b1 = rgb[2];
+        pPoly->r2 = 0;
+        pPoly->g2 = 0;
+        pPoly->b2 = 0;
+        pPoly->r3 = 0;
+        pPoly->g3 = 0;
+        pPoly->b3 = 0;
+    }
+}
 void func_801D83AC(POLY_FT4* pPolys, u_char mode, u_char count, u_char startIndex) {
     POLY_FT4* pPoly;
     u8 rgb[3];
@@ -57,6 +113,32 @@ void func_801D83AC(POLY_FT4* pPolys, u_char mode, u_char count, u_char startInde
     }
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801D84B4);
+
+/* 99.73%. Identical instruction multiset and frame; the only difference is
+   that gcc puts the HI result of the divide-by-10000 in $t0 and shifts it
+   into the destination, while the original shifts HI in place (mfhi v0;
+   sra v0,v0,12 vs mfhi t0; sra v0,t0,12), in both divisions. Tried: nested
+   expression, 6400*(x)/10000 vs (x)*6400/10000, a pct local, a scale local
+   holding 6400*pct. All give the same 99.73%.
+void func_801D84B4(u_short arg0, u_short arg1, s32 arg2) {
+    s32 diff;
+
+    D_801EA6FC = arg0;
+    D_801EA700 = arg1;
+    diff = arg1 - arg0;
+    D_801EA704 = diff;
+    D_801EA708 = (100 * arg0 / arg2) * 6400 / 10000;
+    if (diff >= 0) {
+        D_801EA710 = 2;
+        D_801EA714 = 0xE3;
+    } else {
+        D_801EA710 = 3;
+        D_801EA714 = 0xE5;
+        D_801EA704 = arg0 - arg1;
+    }
+    D_801EA70C = (100 * D_801EA704 / arg2) * 6400 / 10000;
+}
+*/
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801D85DC);
 
@@ -147,8 +229,71 @@ s32 func_801D9704(s32 arg0, u_char arg1, u_char arg2) {
 }
 */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801D9808);
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801D9B08);
+void func_801D9B08(void) {
+    func_801C8960();
+    Vsync(0);
+    InitCARD(1);
+    StartCARD();
+    _bu_init();
+    DrawSync(0);
+    Vsync(0);
+    EnterCriticalSection();
+    ((s32*)&g_Menu->menuUnk2->unk4FE4)[2] = OpenEvent(0xF4000001, 4, 0x2000, 0);
+    ((s32*)&g_Menu->menuUnk2->unk4FE4)[3] = OpenEvent(0xF4000001, 0x8000, 0x2000, 0);
+    ((s32*)&g_Menu->menuUnk2->unk4FE4)[4] = OpenEvent(0xF4000001, 0x100, 0x2000, 0);
+    ((s32*)&g_Menu->menuUnk2->unk4FE4)[5] = OpenEvent(0xF4000001, 0x2000, 0x2000, 0);
+    EnableEvent(((s32*)&g_Menu->menuUnk2->unk4FE4)[2]);
+    EnableEvent(((s32*)&g_Menu->menuUnk2->unk4FE4)[3]);
+    EnableEvent(((s32*)&g_Menu->menuUnk2->unk4FE4)[4]);
+    EnableEvent(((s32*)&g_Menu->menuUnk2->unk4FE4)[5]);
+    ExitCriticalSection();
+}
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801D9C84);
+
+/* 92.55%. Everything but the wait loop matches; gcc rotates the loop
+   (entry guard `beqz` plus a duplicated test at the bottom) while the
+   original keeps one test and enters it with a `j` (body emitted first).
+   Also the original reuses $s0 (the result local, == 1) for the
+   pManager->unk33 store. Tried: while, for(;;cond;call), u_char return for
+   func_801C93A8 (that one is needed for the andi 0xff) and a pMenu local
+   for the two 0xFF stores (also needed).
+s32 func_801D9C84(void) {
+    MenuUnk2* pMenu;
+    s32 result = 1;
+
+    func_801D2F4C(0x20);
+    g_Menu->pManager->_pad33 = 1;
+    for (; g_Menu->transitionEffectState != 0; func_801C7BF4()) {
+    }
+    g_Menu->menuUnk2->unk4FE7[0] = 1;
+    func_801C7BF4();
+    func_801D9B08();
+    DrawSync(0);
+    Vsync(0);
+    EnterCriticalSection();
+    D_801EA718 = CdSyncCallback(0);
+    D_801EA71C = CdReadyCallback(0);
+    D_801EA720 = CdReadCallback(0);
+    ExitCriticalSection();
+    pMenu = g_Menu->menuUnk2;
+    pMenu->unk4FE7[2] = 0xFF;
+    pMenu->unk4FE7[1] = 0xFF;
+    g_Menu->menuUnk2->unk4F84[4] = 0;
+    g_Menu->menuUnk2->unk4F84[5] = 0;
+    g_Menu->menuUnk2->unk4FE6 = 2;
+    g_Menu->unk326 = 0x3C;
+    func_801C7BF4();
+    func_801C7BF4();
+    if (func_801C93A8() == 0) {
+        result = 0;
+        if (g_Menu->pManager->_pad33 != 0) {
+            func_801D32B4();
+            g_Menu->pManager->_pad33 = 0;
+        }
+    }
+    return result;
+}
+*/
 void func_801D9E3C(void) {
     s32 i;
 
