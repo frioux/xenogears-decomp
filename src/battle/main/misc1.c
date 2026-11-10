@@ -150,8 +150,8 @@ void func_80071A08(void) {
     u8 *p;
 
     for (i = 0; i < 3; i++) {
-        p = D_800C3EAC + i;
-        p[0x2EB] = 0;
+        p = D_800C3EAC;
+        *(p + i + 0x2EB) = 0;
     }
 }
 
