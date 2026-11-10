@@ -35,8 +35,11 @@ int func_801C9038(u8* pPath, u8* pBuffer) {
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801C90B0);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801C9270);
 
-/* Best attempt: 97.56%. Only the record-base register (a3 vs a2) and the
-   chunk-pointer register pair differ; the instruction multiset is identical. */
+/* Best attempt: 97.56%. Instruction multiset identical; two allocator/order
+   ties remain: `matched = 1` is hoisted above the menuUnk2 load (original
+   emits `li t1,1` after the unk4FAE load), and menuUnk2 lands in a0 with the
+   record/chunk bases swapping a2/a3. Moving `matched = 1` after the pRecord
+   assignment changed nothing; `int matched` -> u8/u_short untried. */
 /*
 void func_801C9270(int a0) {
     MenuUnk2Record* pRecord;
@@ -49,8 +52,8 @@ void func_801C9270(int a0) {
         g_Menu->menuUnk2->unk4F8E[a0 * 0x10 + i] = 0;
     }
     for (j = 0; j < 0xF; j++) {
-        matched = 1;
         pRecord = &g_Menu->menuUnk2->records[g_Menu->menuUnk2->unk4FAE[a0 * 0x10 + j]];
+        matched = 1;
         for (i = 0; i < 0xC; i++) {
             if (pRecord->ids[i] != g_Menu->menuUnk2->unk4FCE[i]) {
                 matched = 0;
@@ -66,6 +69,7 @@ void func_801C9270(int a0) {
     }
 }
 */
+
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801C93A8);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801C9BCC);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801C9D34);
@@ -102,6 +106,50 @@ void func_801CADB0(void) {
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CAE08);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CB184);
+
+/* Best attempt: 78.88%. Original keeps the entry pointer on an advancing
+   register (s0 += 0x14) and rematerialises the odd byte base as
+   (g_GameState + 1) + (i + j) with a fresh lui/addiu each row; gcc instead
+   hoists &g_GameState into a callee-saved register and merges the two byte
+   addresses into one base with 0/1 offsets. The 74.21% variant (pEntry
+   advanced by hand, symbol used directly for the odd byte) had the right
+   inner-loop shape but an extra s4 for the symbol base. */
+/*
+void func_801CB184(void) {
+    u8 inBuf[0x14];
+    u8 outBuf[0x14];
+    u8* pChars;
+    u8* pEntry;
+    u8* pEven;
+    u8* pOdd;
+    s8* pDst;
+    s8* pOut;
+    int i;
+    int j;
+
+    pChars = (u8*)&g_GameState;
+    for (i = 0; i < 0x26C; i += 0x14) {
+        pEntry = pChars + i;
+        pEven = inBuf;
+        pOdd = inBuf + 1;
+        for (j = 0; j < 0x14; j += 2) {
+            *pEven = pEntry[j];
+            *pOdd = pChars[i + j + 1];
+            if (pEntry[j] == 0 && pChars[i + j + 1] == 0) {
+                break;
+            }
+            pEven += 2;
+            pOdd += 2;
+        }
+        func_80033B34((u16*)inBuf, outBuf, j / 2);
+        pOut = (s8*)outBuf;
+        pDst = (s8*)pEntry;
+        while (pDst < (s8*)pEntry + 0x14) {
+            *pDst++ = *pOut++;
+        }
+    }
+}*/
+
 void func_801CB28C(u32* pSrc) {
     int i;
 
