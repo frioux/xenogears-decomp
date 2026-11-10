@@ -1,6 +1,8 @@
 #include "common.h"
 #include "main/game.h"
+#include "psyq/libgte.h"
 
+extern s32 func_80095414(s32 *pPos, s32 *pRot, s32 *pOut, s32 nSpeed, s32 nMode);
 extern void func_800848B4(int, int);
 extern u8 D_8009BD60;
 extern s16 D_8009BD24;
@@ -109,7 +111,20 @@ void func_8008E078(void) {
     D_8009D7D8 = pRect;
     D_8009BD24 = nEntry;
 }
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_8008E0F0);
+s32 func_8008E0F0(s32 *pPos, s32 *pDir, s32 nSpeed) {
+    s32 nAngle;
+    s32 out[4];
+    s32 rot[4];
+
+    for (nAngle = 0; nAngle < 0x1000; nAngle += 0x100) {
+        rot[0] = rcos(nAngle);
+        rot[2] = -rsin(nAngle);
+        if (func_80095414(pPos, rot, out, nSpeed, 2) == 1) {
+            return nAngle;
+        }
+    }
+    return -1;
+}
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_8008E190);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_8008E4F4);
 s32 func_8008E680(s32 idx) {
@@ -187,10 +202,13 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_80090C68);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_80090E14);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_80090FB4);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_80091430);
-/* best: 88.22%. The 4-word copy at 0x28 and the tail match; retail re-reads
-   D_8009BD3A with lh (and keeps its address in v1 across the unk50 store) where
-   gcc forwards the value it just stored there, so the address is used once and
-   is emitted as lui at. Also the D_8009BE10 load sits one statement later.
+/* best: 88.22%. Everything but the D_8009BD3A pair matches: retail computes the
+   address once into v1 (sh + lh off the same base) and really reloads it for
+   unk58, while gcc forwards the value it just stored and so uses the address
+   once ($at) and skips the lh. Not a preset problem: cdk 75.97, -O3 85.22,
+   -G0 85.22, -O2 88.22. Declaring D_8009BD3A volatile kills the forwarding but
+   also splits the address into a second lui/addiu (78.10). Swapping the two
+   halfword stores changes nothing (88.22).
 
 s32 func_80091430(s32 idx) {
     WorldMapPlayer *pPlayer;
