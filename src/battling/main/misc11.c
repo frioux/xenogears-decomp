@@ -18,6 +18,12 @@ typedef struct {
 extern BattlingWork D_8009A2F8[2];
 
 extern s32 D_800928F8;
+extern u32 D_80059598;
+extern u8 D_80091934[];
+extern u8 *D_80092854;
+extern u8 *D_80092858;
+extern void func_800732AC(void *, void *, s32);
+extern void func_80072D18(s32, s32, s32);
 
 typedef struct {
     /* 0x00 */ s16 unk0;
@@ -46,10 +52,35 @@ void func_80087650(void) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc11", func_80087698);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc11", func_8008779C);
+void func_8008779C(s32 arg0, s32 arg1, s32 arg2) {
+    D_80059598 = (D_80059598 & 0xFFFFFF) | 0x24000000;
+    gte_ldrgb(&D_80059598);
+    func_800732AC((void *)0x1F800120, D_80091934, 0x30);
+    func_80072D18(arg0, arg1, arg2);
+}
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc11", func_80087830);
+/* Best 80.95%: the original CSEs &D_80092854 for the store and the following load
+   and keeps it in s0 (frame 0x18); gcc recomputes the address with $at each time
+   (frame 0x10, 4 bytes short). Tried: p = g + 7, p = g then p += 7 (80.95),
+   p initialized at declaration (74.72), explicit u8 **pBuf = &D_80092854.
+void func_80087830(void) {
+    s32 i;
+    u8 *p;
 
+    D_800927CC = (u8 *)0x1F800000;
+    D_800927D0 = (u8 *)0x1F800080;
+    D_80092854 = HeapAlloc(0xE100, 0);
+    D_80092858 = HeapAlloc(0xE100, 0);
+    p = D_80092854 + 7;
+    for (i = 0; i < 0x708; i++) {
+        p[-4] = 7;
+        p[0] = 0x24;
+        p += 0x20;
+    }
+    func_800732AC(D_80092858, D_80092854, 0xE100);
+}
+*/
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc11", func_800878DC);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc11", func_80087AB0);
@@ -57,8 +88,11 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc11", func_80087AB0);
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc11", func_80087B74);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc11", func_80087E38);
-/* Best 84.04%: only the base register differs (original keeps the base in a0 and
-   sums into v0; gcc reuses the dead base register for the sum).
+/* Best 98.08%: the only difference is which register gets the sum. The original
+   keeps the base in a0 and the result in v0 (addu v0,v0,a0); gcc reuses the dead
+   base register (addu a0,v0,a0) and the i+1 temp then moves to v0. Tried: p += i,
+   p = p + i, p = &p[i], p = base + i, u8* + i*0x68, n = i + 1, decls outside the
+   if (all 98.08 or worse), &D_8009A988[i] and i + D_8009A988 (84.04).
 void func_80087E38(s32 *arg0) {
     s32 i = D_800928F8;
 
@@ -73,7 +107,6 @@ void func_80087E38(s32 *arg0) {
     }
 }
 */
-
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc11", func_80087EA0);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc11", func_8008820C);
@@ -124,7 +157,19 @@ s32 func_80088754(s32 *arg0) {
     return SquareRoot0(out[0] + out[2]);
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc11", func_800887A4);
+s32 func_800887A4(s32 *arg0, s32 *arg1) {
+    long out[3];
+
+    out[0] = arg1[0] - arg0[0];
+    out[1] = arg1[1] - arg0[1];
+    out[2] = arg1[2] - arg0[2];
+    gte_ldlvl(out);
+    gte_nop();
+    gte_nop();
+    gte_sqr0_b();
+    gte_stlvnl(out);
+    return SquareRoot0(out[0] + out[1] + out[2]);
+}
 
 s32 func_80088838(s32 *arg0, s32 *arg1) {
     long out[3];
