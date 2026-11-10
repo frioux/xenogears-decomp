@@ -187,6 +187,12 @@ void func_800816DC(WorldMapEntry *pEntry, u8 *pDst, s32 count, s32 abr) {
     memcpy(pEntry->unk4C, pEntry->unk48, count * 0x28);
 }
 
+// Best: 66.00%. Structure, relocations and offsets are all right (the call,
+// the three >>12 stores, the six slot stores); gcc's scheduler hoists the
+// D_8009C5B0/D_8009C5B4 loads and the D_8009C620 load above the `sh 0x20`
+// store and sinks the D_8009C5AC load to its store, retail keeps statement
+// order. Locals x/y/z and a late pEntry assignment were no better.
+/*
 s32 func_800817A0(s32 index) {
     WorldMapSlot *pSlot = &D_8009BE24[index];
     WorldMapEntry *pEntry = &D_8009C620[2];
@@ -204,6 +210,8 @@ s32 func_800817A0(s32 index) {
     pEntry->unk10 = pSlot->pos.z >> 12;
     return 1;
 }
+*/
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_800817A0);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_80081868);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_800819C8);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_80081B24);
