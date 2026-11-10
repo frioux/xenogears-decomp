@@ -1,5 +1,7 @@
 #include "common.h"
 #include "system/memory.h"
+#include "system/archive.h"
+#include "psyq/libgpu.h"
 
 /* The nine flag bytes below are declared as open arrays on purpose: -G8
    classifies a 1-byte extern as small data, which makes its address one
@@ -27,6 +29,16 @@ extern u8 D_8006FF7C[];
 extern char D_8006FF60[];
 extern s32 D_8009274C;
 extern s32 D_80092750;
+extern u8* D_8009270C;
+extern s32 D_80092700;
+extern s32 D_80092704;
+extern s32 D_80092710;
+extern s32 D_80092714;
+extern s32 D_80092720;
+extern u8 D_8006FF5C[];
+extern u8 D_8006FFA0[];
+extern u8 D_8006FFA4[];
+extern u8 D_8006FFA8[];
 
 void func_8007EE08(s32 arg);
 void func_8007F834(void);
@@ -36,6 +48,8 @@ void func_8007E894(s32 a, s32 b);
 void func_8007ECF0(u8* pText);
 void func_80081100(s32 entry, s32 mode);
 void func_8008EB4C(s32 arg);
+void ArchiveCdDataSync(int mode);
+s32 ArchiveReadFileFromCdSector(s32 sector, void* pDestBuffer, s32 fileSize, s32 arg3, u32 flags);
 s32 func_8007FF70(s32 value, s32 max, s32 flags);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc7", func_8007F854);
@@ -125,7 +139,36 @@ void func_8007FB0C(Misc7Struct* p) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc7", func_8007FBEC);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc7", func_8007FE48);
+void func_8007FE48(Misc7Struct* p) {
+    u8 buf[0x10];
+    u8* pText;
+    u8 flag;
+
+    func_8007EE08(0);
+    func_8007E894(p->unk24 + p->unk28 - 0xA, p->unk14);
+    func_8007ECF0(D_8006FF7C);
+    func_8007ECF0(D_8006FF7C);
+    func_8007ECF0(D_8006FF7C);
+    func_8007ECF0(D_8006FF7C);
+    func_8007F948(p, 4);
+    flag = D_80099D9F[0];
+    if (flag != 0) {
+        Sprintf(buf, D_8006FF5C, flag);
+        pText = buf;
+    } else {
+        pText = D_8006FFA0;
+    }
+    func_8007ECF0(pText);
+    func_8007F948(p, 5);
+    func_8007ECF0((u8*)D_800912F4[D_80099D98[0]]);
+    func_8007F948(p, 6);
+    pText = D_8006FFA8;
+    if (D_80092884 != 0) {
+        pText = D_8006FFA4;
+    }
+    func_8007ECF0(pText);
+    func_8007EE08(0);
+}
 
 s32 func_8007FF70(s32 value, s32 max, s32 flags) {
     s32 delta = 1;
@@ -222,6 +265,28 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc7", func_8008040C);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc7", func_80080570);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc7", func_80080644);
+void func_80080644(s32 idx0, s32 idx1) {
+    u8* pBuf;
+    u8* pSrc;
+    u8* pSprite;
+
+    pBuf = HeapAlloc(0x2000, 0);
+    ArchiveReadFileFromCdSector(ArchiveDecodeSector(6) + idx0 * 2, pBuf, 0x1000, 0, 0);
+    ArchiveReadFileFromCdSector(ArchiveDecodeSector(6) + idx1 * 2, pBuf + 0x1000, 0x1000, 0, 0);
+    D_80092700 = idx0;
+    D_80092704 = idx1;
+    D_80092714 = idx0;
+    D_80092720 = idx1;
+    D_80092710 = 3;
+    ArchiveCdDataSync(0);
+    pSrc = pBuf + 0x1000;
+    pSprite = D_8009270C + idx0 * 0x14;
+    LoadImage((RECT*)pSprite, (u_long*)pBuf);
+    LoadImage((RECT*)(pSprite + 8), (u_long*)(pBuf + 0x100));
+    pSprite = D_8009270C + idx1 * 0x14;
+    LoadImage((RECT*)pSprite, (u_long*)pSrc);
+    LoadImage((RECT*)(pSprite + 8), (u_long*)(pBuf + 0x1100));
+    HeapDelayedFree(pBuf, 2);
+}
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc7", func_80080780);
