@@ -93,6 +93,13 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E76EC);
    spelled *(pEntry + i + 0x1C) or the addu operands swap. Declaration
    permutations of i/offset/pEntry, operand order, a named scaled local, a
    named base local and the array-index form were all tried.
+   ROUND-NOTE (this worker): the i/offset pair is a pure allocator tie, confirmed
+   by a byte-identical instruction stream with s2<->s3 swapped. Declaring
+   `u32 offset = 0;` BEFORE `s32 i = 0;` is what makes the prologue's
+   sw/move interleave match, and i must stay s32 (u32 turns slti into sltu,
+   98.55). With that decl order plus the fixed v0/v1 spelling above, the only
+   remaining diff is the tie (99.28); with the original spelling both pairs stay
+   mirrored (99.87). The i * 0x87C strength-reduced form scores 98.66.
 void func_801E76EC(s32 arg0) {
     s32 i = 0;
     u32 offset = 0;
@@ -153,21 +160,10 @@ void func_801E8044(u_char count, u_char* pBuffer) {
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E8070);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E8474);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E86C8);
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E8978);
-/* Best: 99.91%, one addu operand order. Everything else in the 468 bytes is
-   identical: the cursor pointer is spelled (POLY_FT4*)(numCursors * 0x50 +
-   (s32)g_Menu->pSelectionMenu) because the additive form is what makes gcc put
-   the index first (the array form emits addu a2,base,index); the text pointer
-   needs the array form &polysTexts[numTexts * 2] or gcc folds the +0x8C0 into
-   the base and emits addiu before the shifts. Those two spellings cannot both
-   be chosen: the array form for polysTexts emits addu a2,v1,a2 where retail has
-   addu a2,a2,v1. Names hoisted into a local (index) cost a register across the
-   call. renderContext is read as a full int for the func_8002675C context
-   argument but through *(u8*)&g_Menu->renderContext for the two u_char stores.
 void func_801E8978(u_char count, u_char selected, s32* pEntries) {
-    MenuSelectionMenu* pSelect;
     s32 i;
     u32 index;
+    u32 off;
 
     g_Menu->pSelectionMenu->numCursors = 0;
     g_Menu->pSelectionMenu->numTexts = 0;
@@ -180,8 +176,10 @@ void func_801E8978(u_char count, u_char selected, s32* pEntries) {
         g_Menu->pSelectionMenu->numCursors = func_8002675C(g_Menu->resources, index,
             (POLY_FT4*)(g_Menu->pSelectionMenu->numCursors * 0x50 + (s32)g_Menu->pSelectionMenu),
             g_Menu->renderContext, 0xA0, 0x96, 0x1000) + g_Menu->pSelectionMenu->numCursors;
+        // kept in a local so gcc does not fold 0x8C0 onto the base pointer
+        off = g_Menu->pSelectionMenu->numTexts * 0x50 + 0x8C0;
         g_Menu->pSelectionMenu->numTexts = func_8002675C(g_Menu->resources, pEntries[i * 2 + 1],
-            &g_Menu->pSelectionMenu->polysTexts[g_Menu->pSelectionMenu->numTexts * 2],
+            (POLY_FT4*)(off + (s32)g_Menu->pSelectionMenu),
             g_Menu->renderContext, 0xA0, 0x96, 0x1000) + g_Menu->pSelectionMenu->numTexts;
     }
     g_Menu->pSelectionMenu->cursorsRenderCtx = *(u8*)&g_Menu->renderContext;
@@ -189,7 +187,6 @@ void func_801E8978(u_char count, u_char selected, s32* pEntries) {
     func_801D1EE0(selected, 1);
     g_Menu->pManager->unk4 = 1;
 }
-*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E8B4C);
 void func_801E8DA8(s32 arg0, s32 arg1) {
     RECT rect;
