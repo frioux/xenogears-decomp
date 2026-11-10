@@ -47,10 +47,49 @@ extern void func_80081E6C(void);
 extern void func_80080D20(void* p);
 extern void func_8008AE1C(u8* p);
 extern void func_80086E24(void);
+extern void func_80087698(s32 x0, s32 y0, s32 x1, s32 y1);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc9", func_80082178);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc9", func_80082300);
+
+/* best 99.40%: instruction stream identical, including both spill slots;
+   only the s5/s6 pair of bx and x is swapped (an allocator tie-break, six
+   source shapes tried: declaration order twice, x0/x assignment order, an
+   s32 start[2] array instead of the x0/y0 spill pair).
+void func_80082300(s32 arg0, s32 arg1, s32 arg2) {
+    s32 x0;
+    s32 y0;
+    s32 x;
+    s32 y;
+    s32 bx;
+    s32 by;
+    s32 px;
+    s32 py;
+    s32 ang;
+    s32 i;
+
+    bx = arg0 >> 8;
+    by = arg1 >> 8;
+    x = bx + ((rcos(arg2 + 0x100) << 4) >> 12);
+    x0 = x;
+    y = by + ((rsin(arg2 + 0x100) << 4) >> 12);
+    y0 = y;
+    ang = arg2 + 0x78A;
+    for (i = 0; i < 3; i++) {
+        px = bx + ((rcos(ang) << 5) >> 12);
+        py = by + ((rsin(ang) << 5) >> 12);
+        func_80087698(x, y, px, py);
+        x = px;
+        y = py;
+        ang += 0x75;
+    }
+    px = bx + ((rcos(arg2 - 0x100) << 4) >> 12);
+    py = by + ((rsin(arg2 - 0x100) << 4) >> 12);
+    func_80087698(x, y, px, py);
+    func_80087698(x0, y0, px, py);
+}
+*/
 
 void func_80082458(Unk8* p) {
     *p = D_80092768;
@@ -58,22 +97,20 @@ void func_80082458(Unk8* p) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc9", func_80082488);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc9", func_80082880);
-
-/* best 88.24%: identical instruction set (the unused s32 tmp[12] is what
-   reproduces the original's 0x30 frame); only the sll/sra pairing of the two
-   sign extensions is interleaved differently.
 s16 func_80082880(u8* p) {
     s32 tmp[12];
     s32 a;
     s32 b;
+    s32 lo;
+    s32 hi;
 
-    a = ((s32)*(u16*)p << 16) >> 24;
-    b = ((s32)*(u16*)(p + 4) << 16) >> 24;
+    a = *(u16*)p << 16;
+    b = *(u16*)(p + 4) << 16;
+    lo = a >> 24;
+    hi = (b >> 24) << 7;
 
-    return *(s16*)&D_800928DC[(b << 7) + a];
+    return *(s16*)&D_800928DC[hi + lo];
 }
-*/
 
 u32 func_800828C4(s32* p) {
     s32 a;
