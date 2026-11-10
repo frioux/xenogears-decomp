@@ -91,26 +91,20 @@ s32 func_8007EC10(u8 **arg0, u8 arg1) {
 
     return (((u16 *)pRow)[p[1]] & value) != 0;
 } */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc10", func_8007EC54);
-/* 99.38% - only the two lbu destinations are swapped: gcc puts the
-   pRow[p[2]] value in v0 (it swaps the AND operands), the original puts
-   pRow[p[1]] in v0. Tried: s32/u8 temp with `v &= pRow[p[2]]` in a separate
-   statement (97.81/96.56, fixes the load order but moves the D_800D3430 base
-   into v1 and p into a0), u8 lhs local, reversed declaration order.
 s32 func_8007EC54(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
     u8 *pRow = D_800D3430 + arg1 * 0x40;
     u8 lhs = pRow[p[1]];
 
-    return (lhs & pRow[p[2]]) != 0;
-} */
+    return (pRow[p[2]] & lhs) != 0;
+}
 s32 func_8007EC94(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
     u16 *pRow = (u16 *)(D_800D3420 + arg1 * 0x40);
     u16 a = pRow[p[1]];
     u16 b = pRow[p[2]];
 
-    return (a & b) != 0;
+    return (b & a) != 0;
 }
 s32 func_8007ECDC(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
