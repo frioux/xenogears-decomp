@@ -97,7 +97,34 @@ void func_80073CA4(u8 *p0) {
     }
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80073CEC);
+extern s32 D_80092650;
+
+typedef struct {
+    /* 0x0 */ s32 x;
+    /* 0x4 */ s32 y;
+    /* 0x8 */ s32 z;
+    /* 0xC */ s32 w;
+} Quad; // Size: 0x10
+
+void func_80073CEC(u8 *p0, u8 *p1, s32 arg2, u8 *p3, u8 *p4, s32 arg5, u8 *p6) {
+    u32 flags;
+
+    arg2 &= 1;
+    *(Quad *)(p4 + 0x10) = *(Quad *)(p4 + 0x00);
+    *(Quad *)(p4 + 0x30) = *(Quad *)(p4 + 0x20);
+    *(Quad *)(p4 + 0x00) = *(Quad *)p0;
+    *(Quad *)(p4 + 0x20) = *(Quad *)p1;
+    flags = *(u32 *)(p4 + 0x44);
+    flags &= ~2;
+    flags |= arg2 << 1;
+    *(u8 *)(p4 + 0x43) = arg5;
+    *(u32 *)(p4 + 0x44) = flags;
+    *(u8 *)(p4 + 0x45) = 2;
+    *(u8 *)(p4 + 0x47) = *(u32 *)(p6 + 0x644);
+    *(s32 *)(p4 + 0x50) = *(s32 *)(p6 + 0x84);
+    *(u8 *)(p4 + 0x46) = *(u8 *)(p3 + 0x1);
+    D_80092650++;
+}
 
 /* 98.06%: inverting the condition (`if (t >= 0x1001)`) is what makes reorg put
    `li v0,1` in the bnez delay slot instead of a separate block with a `j`, and
@@ -119,7 +146,45 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80073CEC);
 } */
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80073DE4);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80073E2C);
+extern s32 D_800928C8;
+extern void func_8008EB4C(s32);
+
+s32 func_80073E2C(u8 *p0, s32 arg1, s32 arg2) {
+    s16 t;
+    s32 q;
+
+    if (D_800928C8 == 4) {
+        return 1;
+    }
+    if (D_800928C8 == 6) {
+        return 1;
+    }
+    t = *(u16 *)(p0 + 0xB6) + arg1;
+    *(s16 *)(p0 + 0xB6) = t;
+    if (t < 0x1001) {
+        return 1;
+    }
+    q = (t - 0x1000) / 20;
+    if (q >= *(s16 *)(p0 + 0xB4)) {
+        *(s16 *)(p0 + 0xB6) = t - arg1;
+        *(s16 *)(p0 + 0xBA) = 0;
+        if (func_80083CD8() != 4) {
+            func_8008EB4C(0x2E);
+        }
+        return 0;
+    }
+    *(s16 *)(p0 + 0xB6) = 0x1000;
+    *(s16 *)(p0 + 0xBA) = q;
+    switch (arg2) {
+    case 1:
+        *(s32 *)(p0 + 0x1654) += (s16)q;
+        break;
+    case 2:
+        *(s32 *)(p0 + 0x1658) += (s16)q;
+        break;
+    }
+    return 1;
+}
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80073F34);
 
@@ -127,10 +192,28 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_800740E4);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80074678);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80074998);
+void func_80074998(u8 *p0) {
+    u32 **pArray = *(u32 ***)(*(u8 **)(*(u8 **)(p0 + 0x5C) + 0x4) + 0x4);
+    s32 i;
+
+    for (i = 0; i < *(s16 *)(*(u8 **)(*(u8 **)(p0 + 0x5C) + 0x4)); i++) {
+        u32 *pEntry = pArray[i];
+
+        if (pEntry[0] == 1) {
+            *(u32 *)*(u32 **)((u8 *)pEntry + 0x4) &= ~1;
+        }
+    }
+    for (i = 0; i < *(u8 *)(p0 + 0x908); i++) {
+        u32 *pEntry = pArray[*(u8 *)(*(u8 **)(p0 + 0x904) + i)];
+
+        *(u32 *)*(u32 **)((u8 *)pEntry + 0x4) |= 1;
+    }
+    if (*(u8 *)(p0 + 0x909) == 0xD) {
+        *(u32 *)*(u32 **)((u8 *)pArray[0xD] + 0x4) |= 1;
+    }
+}
 
 extern void func_80074678(u8 *, s32, u8);
-extern void func_80074998(u8 *);
 extern void func_8008B0D8(u8 *);
 extern void func_8008B730(u8 *, s32, s32);
 
@@ -157,6 +240,62 @@ void func_80074AB4(u8 *p0) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80074BA4);
 
+/* 90.07%: the whole body matches instruction for instruction except that the
+   original branches *to* the common `sb $v0,D_80050622` tail (`bnez v0,store`
+   with `li v0,N` in the delay slot) where this single-`r` version keeps the
+   store as the fallthrough (`beqz` + `j`), and the result lands in $v1 instead
+   of $v0. Next shape to try: give every branch its own `D_80050622 = N;
+   return;` so gcc's cross-jumping builds the shared store in $v0. */
+/* extern u8 D_8009872C[];
+extern s32 D_80099D8C;
+extern s32 D_80099D88;
+extern u8 D_80050622;
+
+void func_80075060(s32 arg0) {
+    u8 *p = D_8009872C;
+    u8 *pDst;
+    s16 v;
+    s32 a;
+    s32 b;
+    u8 r;
+
+    if (arg0 != 0) {
+        if (func_8008F4F4(p, 0xE0) != 0) {
+            r = 2;
+        } else if (func_8008F4F4(p, 0x10) != 0) {
+            r = 1;
+        } else {
+            r = 3;
+        }
+    } else if (D_80099D8C == 0 && D_80099D88 == 0) {
+        r = 0x88;
+    } else if (D_80099D88 == 0) {
+        r = 0x82;
+    } else {
+        v = *(s16 *)(p + 0xBC);
+        a = (v * 176) / 255;
+        if (a < *(s32 *)(p + 0x1654)) {
+            r = 0x83;
+        } else {
+            b = (v * 160) / 255;
+            if (b < *(s32 *)(p + 0x1658)) {
+                r = 0x84;
+            } else if (a < *(s32 *)(p + 0x1658) + *(s32 *)(p + 0x1654)) {
+                r = 0x85;
+            } else {
+                pDst = *(u8 **)(p + 0xD8);
+                if (func_8008F4F4(pDst, 0xE0) != 0) {
+                    r = 0x86;
+                } else if (func_8008F4F4(pDst, 0x10) != 0) {
+                    r = 0x81;
+                } else {
+                    r = 0x87;
+                }
+            }
+        }
+    }
+    D_80050622 = r;
+} */
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80075060);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_800751C8);
