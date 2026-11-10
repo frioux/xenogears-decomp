@@ -240,6 +240,62 @@ void func_80074AB4(u8 *p0) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80074BA4);
 
+/* 90.07%: the whole body matches instruction for instruction except that the
+   original branches *to* the common `sb $v0,D_80050622` tail (`bnez v0,store`
+   with `li v0,N` in the delay slot) where this single-`r` version keeps the
+   store as the fallthrough (`beqz` + `j`), and the result lands in $v1 instead
+   of $v0. Next shape to try: give every branch its own `D_80050622 = N;
+   return;` so gcc's cross-jumping builds the shared store in $v0. */
+/* extern u8 D_8009872C[];
+extern s32 D_80099D8C;
+extern s32 D_80099D88;
+extern u8 D_80050622;
+
+void func_80075060(s32 arg0) {
+    u8 *p = D_8009872C;
+    u8 *pDst;
+    s16 v;
+    s32 a;
+    s32 b;
+    u8 r;
+
+    if (arg0 != 0) {
+        if (func_8008F4F4(p, 0xE0) != 0) {
+            r = 2;
+        } else if (func_8008F4F4(p, 0x10) != 0) {
+            r = 1;
+        } else {
+            r = 3;
+        }
+    } else if (D_80099D8C == 0 && D_80099D88 == 0) {
+        r = 0x88;
+    } else if (D_80099D88 == 0) {
+        r = 0x82;
+    } else {
+        v = *(s16 *)(p + 0xBC);
+        a = (v * 176) / 255;
+        if (a < *(s32 *)(p + 0x1654)) {
+            r = 0x83;
+        } else {
+            b = (v * 160) / 255;
+            if (b < *(s32 *)(p + 0x1658)) {
+                r = 0x84;
+            } else if (a < *(s32 *)(p + 0x1658) + *(s32 *)(p + 0x1654)) {
+                r = 0x85;
+            } else {
+                pDst = *(u8 **)(p + 0xD8);
+                if (func_8008F4F4(pDst, 0xE0) != 0) {
+                    r = 0x86;
+                } else if (func_8008F4F4(pDst, 0x10) != 0) {
+                    r = 0x81;
+                } else {
+                    r = 0x87;
+                }
+            }
+        }
+    }
+    D_80050622 = r;
+} */
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80075060);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_800751C8);
