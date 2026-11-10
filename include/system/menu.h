@@ -795,7 +795,9 @@ typedef struct {
     // Three arrays of MenuString-shaped sprite records (0x80 each)
     /* 0x10E0 */ MenuString unk10E0[8];
     /* 0x14E0 */ MenuString unk14E0[6];
-    /* 0x17E0 */ MenuString unk17E0[12];
+    /* 0x17E0 */ MenuString unk17E0[2];
+    /* 0x18E0 */ MenuString unk18E0[6];
+    /* 0x1BE0 */ MenuString unk1BE0[4];
     /* 0x1DE0 */ MenuString* unk1DE0[4];
     /* 0x1DF0 */ MenuCharacter* benchedCharacters[MAX_BENCHED_PARTY_MEMBERS];
     /* 0x1E08 */ MenuCharacter* currentCharacters[MAX_PARTY_MEMBERS];
