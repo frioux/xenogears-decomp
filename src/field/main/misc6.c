@@ -643,21 +643,26 @@ s32 func_8009FA54(s32 nInstructionOffset) {
 }
 */
 INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_8009FB98);
-// 66.50%: only the ordering differs - the original stores D_800B2268 before it
-// reloads scriptInstructionPointer (+2) and stores it; gcc hoists the ip update
-// above the global store. Cause is gcc's alias.c: a store through a SYMBOL_REF
-// (D_800B2268) is treated as independent of the load through the varying
-// actor pointer, so cse merges the two `lhu 0xcc(a0)`. Tried: source orders
-// swapped, a volatile store, an `nIP` local read before the store (still
-// reordered, 116 vs 120 bytes).
+// 63.17% (120 vs 120 bytes): insn multiset is identical, only the order of the
+// two epilogue stores differs. cc1 puts `sh ip+2,0xCC(a0)` before
+// `sw D_800B2268` and hoists the second `lhu 0xCC(a0)` above the `lbu`, i.e. it
+// schedules the store past the independent one (the unit's scheduler is on at
+// -O2) and retail's `sh` ends up in the `jr ra` delay slot while ours does not.
+// Tried: a local `pActor` for the two 0xCC accesses (same 63.17%), the macro form
+// SCRIPT_READ_U8_REL (same, so the previous 66.50% note was an objdiff-version
+// difference), and a `*(volatile s32*)&D_800B2268` store (no change - so cc1 is
+// not sinking the store, the scheduling happens before it).
 /*
 void func_8009FB98(void) {
+    ActorData* pActor;
+
     g_GameSceneMapNum |= 0xC000;
     GameWaitForCdData();
     GamePartySyncSkinData();
     GamePartySyncStreamedData();
-    D_800B2268 = SCRIPT_READ_U8_REL(1);
-    g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
+    pActor = g_FieldScriptVMCurActor;
+    D_800B2268 = *(u8*)&g_FieldScriptVMCurScriptData[pActor->scriptInstructionPointer + 1];
+    pActor->scriptInstructionPointer += 2;
 }
 */
 
@@ -739,7 +744,56 @@ void func_8009FE4C(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
 }
 
+extern s32 D_8005A444[];
+extern s32 D_8005A448;
+extern s32 D_8005A44C;
+
 INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_8009FEE4);
+// 99.36% (624 bytes; retail is 628). Everything matches except one delay slot: cc1
+// (reorg) puts the first insn of the fall-through block, `sll v0,v1,1` (part of
+// nActorIndex * sizeof(FieldActor)), into the `beq nActorIndex,0xFF` delay slot, and
+// retail leaves a `nop` there (retail's `sll` writes $v0, which the branch reads).
+// The `pActorSlots` local is what reproduces retail's `la $s0,D_8005A444` in the
+// entry block (without it gcc addresses D_8005A444 with %hi/%lo per use and the
+// frame loses $s0: 95.25%); case 1/2 must use the absolute symbols D_8005A448 /
+// D_8005A44C (both already in linker/undefined_syms_auto.field.txt) because retail
+// does, and case 0 goes through the pointer. Tried: if-wrap instead of the early
+// return, and three declaration orders - all identical. Parking for the reorg
+// delay-slot fill, which no source shape reached.
+/*
+void func_8009FEE4(int partyMemberIndex) {
+    s32* pActorSlots;
+    s32 nActorIndex;
+    s32 nWalkmeshFlags;
+    ActorData* pActorData;
+
+    pActorSlots = D_8005A444;
+    nActorIndex = pActorSlots[partyMemberIndex];
+    if (nActorIndex == ACTOR_ID_INVALID) {
+        return;
+    }
+    pActorData = g_FieldActors[nActorIndex].pActorData;
+    nWalkmeshFlags = pActorData->walkmeshId << 14;
+    switch (partyMemberIndex) {
+        case 0:
+            FieldScriptMemoryWriteU16(0x2A, (g_GameSceneMapNum & 0xFFF) | nWalkmeshFlags);
+            FieldScriptMemoryWriteU16(0x2C, ((s16*)&g_FieldActors[pActorSlots[0]].pActorData->position)[1]);
+            FieldScriptMemoryWriteU16(0x2E, ((s16*)&g_FieldActors[pActorSlots[0]].pActorData->position)[5]);
+            break;
+        case 1:
+            FieldScriptMemoryWriteU16(0x30, (g_GameSceneMapNum & 0xFFF) | nWalkmeshFlags);
+            FieldScriptMemoryWriteU16(0x32, ((s16*)&g_FieldActors[D_8005A448].pActorData->position)[1]);
+            FieldScriptMemoryWriteU16(0x34, ((s16*)&g_FieldActors[D_8005A448].pActorData->position)[5]);
+            break;
+        case 2:
+            FieldScriptMemoryWriteU16(0x36, (g_GameSceneMapNum & 0xFFF) | nWalkmeshFlags);
+            FieldScriptMemoryWriteU16(0x38, ((s16*)&g_FieldActors[D_8005A44C].pActorData->position)[1]);
+            FieldScriptMemoryWriteU16(0x3A, ((s16*)&g_FieldActors[D_8005A44C].pActorData->position)[5]);
+            break;
+    }
+}
+
+*/
 
 void func_800A0158(s32 arg0, s32* arg1, s32* arg2, s32* arg3) {
     switch (arg0) {
@@ -991,12 +1045,15 @@ void func_800A0EE8(void) {
 INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_800A0FD8);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_800A1364);
-// 84.19%: frame is exactly right now (u8 unused[8] reproduces the 0x30 frame with
-// ra/s0 at 0x2C/0x28). Only gap left: gcc merges the last two loads of
-// D_800B2264 (one load, `addiu` for the ++) and puts `sw D_800B2264` before
-// `sw 0x12C(g_FieldScriptVMCurActor)`; the original reloads D_800B2264 after the
-// flags12C store and keeps the ++ store last, i.e. its alias analysis treats the
-// bitfield RMW as aliasing D_800B2264.
+// 84.19% (368 vs 368 bytes): the frame, all four calls and every load/store match.
+// The only gap is ORDER: retail emits the flags12C bitfield RMW and only then
+// reloads D_800B2264 for the `++`, with `sw D_800B2264` last; gcc shares one load
+// between the `& 7` and the `++` and hoists the `++` store above the RMW store.
+// Cause is the -O2 scheduler hoisting an independent store, not the allocator: a
+// volatile store (`(*(volatile s32*)&D_800B2264)++`) is hoisted just the same (and
+// adds a redundant reload, 72.02%), and the reorder is already present in cc1's
+// .s. Parking: making the `++` store depend on the RMW store is not expressible in
+// source. Everything else in the function is exact.
 /*
 void func_800A1364(void) {
     int arg;
