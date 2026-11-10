@@ -1,4 +1,5 @@
 #include "common.h"
+#include "system/memory.h"
 
 /* The nine flag bytes below are declared as open arrays on purpose: -G8
    classifies a 1-byte extern as small data, which makes its address one
@@ -20,11 +21,21 @@ extern s32 D_800912F0;
 extern s32 D_80098800[];
 extern s32 D_800970E4[];
 extern s32 D_80092950;
+extern u8* D_8009132C[];
+extern u8 D_80091300[];
+extern u8 D_8006FF7C[];
+extern char D_8006FF60[];
+extern s32 D_8009274C;
+extern s32 D_80092750;
 
 void func_8007EE08(s32 arg);
 void func_8007F834(void);
 void func_80080C48(s32 arg);
 void func_80083C0C(s32 mode);
+void func_8007E894(s32 a, s32 b);
+void func_8007ECF0(u8* pText);
+void func_80081100(s32 entry, s32 mode);
+void func_8008EB4C(s32 arg);
 s32 func_8007FF70(s32 value, s32 max, s32 flags);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc7", func_8007F854);
@@ -76,7 +87,12 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc7", func_8007F8E4);
 typedef struct {
     /* 0x0 */ u8 unk0[0x12];
     /* 0x12 */ s16 unk12;
-} Misc7Struct; // Size: 0x14
+    /* 0x14 */ s16 unk14;
+    /* 0x16 */ u8 unk16[0xE];
+    /* 0x24 */ s16 unk24;
+    /* 0x26 */ u8 unk26[2];
+    /* 0x28 */ s16 unk28;
+} Misc7Struct; // Size: 0x2A
 
 void func_8007F948(Misc7Struct* p, s32 arg) {
     if (p->unk12 == arg) {
@@ -92,13 +108,70 @@ u32 func_8007F97C(void) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc7", func_8007F9A0);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc7", func_8007FB0C);
+void func_8007FB0C(Misc7Struct* p) {
+    u8 buf[0x8];
+
+    func_8007E894(p->unk24 + p->unk28 - 0xA, p->unk14);
+    func_8007EE08(0);
+    func_8007ECF0(D_8006FF7C);
+    func_8007F948(p, 1);
+    func_8007ECF0(D_8009132C[D_80099DA2[0]]);
+    func_80081100(D_80099DA2[0] + 0x15, 1);
+    func_8007F948(p, 2);
+    Sprintf(buf, D_8006FF60, D_80091300[D_80099D9A[0]]);
+    func_8007ECF0(buf);
+    func_8007EE08(0);
+}
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc7", func_8007FBEC);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc7", func_8007FE48);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc7", func_8007FF70);
+s32 func_8007FF70(s32 value, s32 max, s32 flags) {
+    s32 delta = 1;
+    s32 pad;
+    s32 status;
+
+    if (flags & 4) {
+        delta = -1;
+    }
+    pad = 0;
+    if (flags & 2) {
+        status = D_8009274C;
+    } else {
+        status = D_80092750;
+    }
+    if (status & 0x2000) {
+        value += delta;
+    }
+    if (status & 0x8000) {
+        value -= delta;
+    }
+    if (status & 0xA000) {
+        pad = 1;
+    }
+    if (flags & 1) {
+        if (value == -1) {
+            value = max;
+        }
+        if (value > max) {
+            value = 0;
+        }
+    } else {
+        if (value == -1) {
+            pad = 0;
+            value = 0;
+        }
+        if (value > max) {
+            pad = 0;
+            value = max;
+        }
+    }
+    if (pad) {
+        func_8008EB4C(0x20);
+    }
+    return value;
+}
 
 void func_80080054(void) {
     D_80099D98[0] = func_8007FF70(D_80099D98[0], 2, 0);
