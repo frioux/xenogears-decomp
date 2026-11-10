@@ -2,6 +2,11 @@
 
 #include "system/menu.h"
 
+extern u8 D_80059460;
+extern u_char func_801CB304(void);
+extern u_char func_801CBD90(u_char arg0);
+extern u_char func_801CC6D8(void);
+extern u_char func_801CD2AC(void);
 extern void func_801CD81C(MenuCharacter* pCharacter, u_char arg1, u_char arg2, s32 arg3, s32 arg4, u_char arg5);
 extern void func_801CDB1C(MenuCharacter* pCharacter, u_char arg1, u_char arg2, s32 arg3, s32 arg4);
 extern void func_801CDC6C(MenuCharacter* pCharacter, u_char arg1, u_char arg2, s32 arg3, s32 arg4, u_char arg5);
@@ -13,9 +18,54 @@ extern void func_801CF5E4(s32 arg0, s32 arg1, s32 arg2);
 extern void func_801CF8D8(void);
 extern void func_801CFB48(void);
 extern void func_801CFF64(void);
+extern void func_801D22F4(s32 arg0);
+extern void func_801D2484(void);
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc4", func_801CD2AC);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc4", func_801CD710);
+/* 98.36%: one instruction off.  Retail compares the switch on a fresh
+   `ori v0,1` and sinks `result = 1` into that branch's delay slot; gcc reuses
+   the result register as the compare constant.  Tried: initializer at
+   declaration, assignment before/after the two calls, a local copy of
+   subMenuChoice, then/else flipped in case 2 (only this order is right).
+s32 func_801CD710(u_char arg0) {
+    s32 result = 1;
+    u8 choice;
+
+    func_801D22F4(0);
+    ((u8*)g_Menu->pManager)[0x2F] = 0;
+    choice = g_Menu->subMenuChoice;
+    switch (choice) {
+        case 0:
+            g_Menu->unk334 = 7;
+            if (func_801CD2AC()) {
+                result = 0;
+            }
+            break;
+        case 1:
+            g_Menu->unk334 = 6;
+            if (func_801CC6D8()) {
+                result = 0;
+            }
+            break;
+        case 2:
+            if (D_80059460 != g_Menu->subMenuChoice) {
+                g_Menu->unk334 = 3;
+                if (func_801CBD90(arg0)) {
+                    result = 0;
+                }
+            } else {
+                g_Menu->unk334 = 2;
+                if (func_801CB304()) {
+                    result = 0;
+                }
+            }
+            break;
+    }
+    func_801D2484();
+    return result;
+}
+*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc4", func_801CD81C);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc4", func_801CDB1C);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc4", func_801CDC6C);
