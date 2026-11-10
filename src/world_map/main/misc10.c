@@ -210,9 +210,15 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc10", func_80089580);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc10", func_80089748);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc10", func_80089C78);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc10", func_8008A2C8);
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc10", func_8008A52C);
+/* 76.69%: everything after the call is byte-identical. Only the prologue order
+   differs: retail emits sll v1,a0,0x7 before the argument setup and keeps the
+   0x40 stack argument in v0 until just before the jal, gcc sinks the sll into
+   the argument region, uses v0 for it and stores 0x40 immediately. Tried the
+   scaled index as a named local and both declaration orders.
 s32 func_8008A52C(s32 arg0) {
-    u8* pActor;
     u8* pSprite;
+    u8* pActor;
 
     pActor = D_8009BE24 + (arg0 << 7);
     pSprite = func_80024524(D_8009CD34, 0x100, 0x1E0, 0x140, 0x100, 0x40);
@@ -222,4 +228,5 @@ s32 func_8008A52C(s32 arg0) {
     *(u32*)(*(u8**)(pActor + 0x4C) + 0x3C) &= ~4;
     return 1;
 }
+*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc10", func_8008A5B8);
