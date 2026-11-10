@@ -59,6 +59,32 @@ void func_801C7B0C(void) {
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc2", func_801C7BF4);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc2", func_801C7D78);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc2", func_801C7F34);
+/* Best: 83.02% (388 bytes, same size). The divisors below are decoded from the
+   multiply-back shifts in the assembly and are certainly right (21600000,
+   2160000, 216000, 36000, 3600, 600, 120 in a running-remainder chain, stored to
+   g_Menu->unk2EC[0..6] as 32-bit words). What is left is allocation plus the
+   scheduler: retail keeps all seven quotients in t0/a3/t2/t1/a2/a1/v0 and
+   batches the six stores after the last `multu`, and each `mfhi` lands in the
+   same register its `srl` reads, where gcc gives mfhi its own temp
+   (`mfhi t3; srl t2,t3,0x16`) and stores as it goes. Tried: plain
+   store-after-each-division form with a running `value %= k` (this one).
+void func_801C7F34(u32 value) {
+    ((u32*)g_Menu->unk2EC)[0] = value / 21600000;
+    value %= 21600000;
+    ((u32*)g_Menu->unk2EC)[1] = value / 2160000;
+    value %= 2160000;
+    ((u32*)g_Menu->unk2EC)[2] = value / 216000;
+    value %= 216000;
+    ((u32*)g_Menu->unk2EC)[3] = value / 36000;
+    value %= 36000;
+    ((u32*)g_Menu->unk2EC)[4] = value / 3600;
+    value %= 3600;
+    ((u32*)g_Menu->unk2EC)[5] = value / 600;
+    value %= 600;
+    ((u32*)g_Menu->unk2EC)[6] = value / 120;
+}
+*/
+INCLUDE_ASM("asm/menu/nonmatchings/main/misc2", func_801C80B8);
 /* Best: 82.91%. Instruction multiset and structure are right; only two things
    differ, and they are the same cause: the original has `srl` (the second half
    of `divisor /= 10`) before the `sb`, with the `sb` in the bnez delay slot,
