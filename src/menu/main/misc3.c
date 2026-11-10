@@ -13,9 +13,40 @@ extern int func_801D2F4C(u_char);
 extern u_char func_801CAA38(u_char);
 extern int func_801D32B4(void);
 extern void func_801CB184(void);
+extern int func_801C8D78(u_char);
+extern void func_801C7BF4(void);
+extern u_char func_801CACF8(u_char, u_char, u_char);
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801C8D78);
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801C8EE8);
+
+void func_801C8EE8(void) {
+    switch (g_Menu->menuUnk2->unk4FE6) {
+    case 1:
+        if (g_Menu->menuUnk2->unk4F84[4] == 0) {
+            if ((u_char)func_801C8D78(0) != 0) {
+                g_Menu->unk334 = 1;
+            }
+            g_Menu->menuUnk2->unk4F84[4] = 1;
+        }
+        if (g_Menu->menuUnk2->unk4F84[5] == 0) {
+            if ((u_char)func_801C8D78(1) != 0) {
+                g_Menu->unk334 = 1;
+            }
+            g_Menu->menuUnk2->unk4F84[5] = 1;
+        }
+        break;
+    case 2:
+        if (g_Menu->menuUnk2->unk4F84[4] == 0) {
+            func_801C8D78(0);
+            g_Menu->menuUnk2->unk4F84[4] = 1;
+        }
+        if (g_Menu->menuUnk2->unk4F84[5] == 0) {
+            func_801C8D78(1);
+            g_Menu->menuUnk2->unk4F84[5] = 1;
+        }
+        break;
+    }
+}
 
 int func_801C9038(u8* pPath, u8* pBuffer) {
     int fd;
@@ -33,13 +64,14 @@ int func_801C9038(u8* pPath, u8* pBuffer) {
 }
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801C90B0);
+
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801C9270);
 
-/* Best attempt: 97.56%. Instruction multiset identical; two allocator/order
-   ties remain: `matched = 1` is hoisted above the menuUnk2 load (original
-   emits `li t1,1` after the unk4FAE load), and menuUnk2 lands in a0 with the
-   record/chunk bases swapping a2/a3. Moving `matched = 1` after the pRecord
-   assignment changed nothing; `int matched` -> u8/u_short untried. */
+/* Best attempt: 97.56%. Instruction multiset identical; `matched = 1` is
+   scheduled before the menuUnk2 load (original: after the unk4FAE load), which
+   then swaps the record base and pMenu between a2/a3 and flips the `chunks[k]`
+   addu operand order. Tried: matched placed before/after the pRecord
+   assignment, `u_char matched` (96.15%), `u_short` shape. */
 /*
 void func_801C9270(int a0) {
     MenuUnk2Record* pRecord;
@@ -68,6 +100,7 @@ void func_801C9270(int a0) {
         }
     }
 }
+
 */
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801C93A8);
@@ -162,7 +195,33 @@ void func_801CB28C(u32* pSrc) {
 }
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CB304);
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CB8AC);
+u_char func_801CB8AC(u_char a0) {
+    MenuUnk2* pMenu;
+    u8 prev[2];
+    u_char changed;
+    u_char result;
+
+    prev[0] = g_Menu->menuUnk2->unk4FE4;
+    prev[1] = g_Menu->menuUnk2->unk4FE5;
+    func_801D2F4C(a0 * 3 + 0x29);
+    g_Menu->input = 8;
+    g_Menu->menuUnk2->unk4FE6 = 2;
+    result = 0;
+    changed = 0;
+    while (g_Menu->input == 8) {
+        func_801C7BF4();
+        pMenu = g_Menu->menuUnk2;
+        if (prev[0] != pMenu->unk4FE4 || prev[1] != pMenu->unk4FE5) {
+            changed = 1;
+            break;
+        }
+    }
+    func_801D32B4();
+    if (changed == 0) {
+        result = func_801CACF8(0x2F, 0xFF, 1);
+    }
+    return result;
+}
 u_char func_801CB9E8(u_char a0, u_char a1) {
     u_char found;
     int i;
