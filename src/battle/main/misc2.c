@@ -104,7 +104,15 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_800743A4);
     AddPrim(D_800CCB04 + 4, (*(u8 **)(D_800C3EA4 + 0xA230)) + 0xA0 + (*(u8 **)(D_800C3EA4 + 0xA230))[0x668] * 40);
     AddPrim(D_800CCB04 + 4, (*(u8 **)(D_800C3EA4 + 0xA230)) + 0xF0 + (*(u8 **)(D_800C3EA4 + 0xA230))[0x668] * 40);
 } */
-void func_800744BC(void) {
+/* 79.68% (82.84% with the offset left inline). Splitting the offset into a
+   named local and adding the prim pointer last fixes the final addu's operand
+   order (addu a1,v0,a1, the original's addu a1,a1,v1) - the trick that matched
+   func_80074F70. What is left is allocation only: gcc puts p in a1 and the sum
+   in v0 where the original builds the sum in a1 and keeps p in v1, and gcc
+   re-forms %hi/%lo(D_800CCB04) per call instead of keeping &D_800CCB04 in s0
+   and reloading through it. func_800743A4 and func_80074554 are identical. */
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_800744BC);
+/* void func_800744BC(void) {
     u8 *p;
     s32 off;
 
@@ -114,7 +122,7 @@ void func_800744BC(void) {
     p = *(u8 **)(D_800C3EA4 + 0xA230);
     off = p[0x66A] * 40 + 0x370;
     AddPrim(D_800CCB04 + 4, (u8 *)(off + (s32)p));
-}
+} */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_80074554);
 /* Same shape as func_800744BC with 0x280 and 0x2D0: identical result. */
 /* void func_80074554(void) {
