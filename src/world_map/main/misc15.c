@@ -134,18 +134,19 @@ s32 func_800968E0(void) {
 }
  */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_800968E0);
-// Best: 85.17%. Structurally right (every global and call in place; the four
-// zero stores, the (size+0x7FF)>>11 and the call sequence line up) but gcc
-// drops the first `D_8009D3BC = p` store as dead (the original keeps both) and
-// then re-orders the three loads ahead of it. Marking D_8009D3BC volatile
-// keeps both stores (87.21%) but loses the `move a1,s0` in the CdIntToPos
-// delay slot.
+// Best: 95.83%. Two diffs left. (1) gcc deletes the first `D_8009D3BC = p`
+// store as dead (the original keeps both, so the original source had two names
+// for that address or a volatile pointer). (2) Because of that deletion the two
+// `p->unk4` loads end up adjacent and gcc CSEs nothing but allocates them
+// 4->v0, 8->a2, 4->v1 where the original has 4->v0, 4->a2, 8->v1.
+// Declaring D_8009D3BC `u8 *volatile` keeps both stores (87.21%) but then gcc
+// hoists both loads above the stores, merges the two `p->unk4` loads into one
+// and loses the `move a1,s0` in the CdIntToPos delay slot.
 /*
 void func_8009699C(Misc15CdRequest *p) {
     CdlLOC *pLoc;
     s32 lba;
     u32 size;
-    u32 sizeCopy;
     s32 unk8;
 
     lba = p->unk0;
@@ -154,7 +155,6 @@ void func_8009699C(Misc15CdRequest *p) {
     D_8009D3BC = (u8 *)p;
     D_8009D3BC = (u8 *)p + 0xC;
     size = p->unk4;
-    sizeCopy = p->unk4;
     unk8 = p->unk8;
     D_8009BE48 = 0;
     D_8009CCB0 = 0;
@@ -163,7 +163,7 @@ void func_8009699C(Misc15CdRequest *p) {
     D_8009D7F4 = lba;
     D_8009D614 = lba;
     D_8009D56C = (size + 0x7FF) >> 11;
-    D_8009CEB8 = sizeCopy;
+    D_8009CEB8 = p->unk4;
     D_8009C590 = unk8;
     CdIntToPos(lba, pLoc);
     CdSyncCallback(func_80096A6C);
@@ -287,7 +287,8 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_800978FC);
 // u8 *pBuffer local) gets lui/at for the store plus a fresh lui for the read,
 // so the frame has no s0 slot and the copy loop's 0x10000 constant lands in
 // v0 instead of t0. The two do-while loops and the +6 slot-filler bias are
-// required for the rest to match.
+// required for the rest to match. gcc-2.7.2-cdk gives 84.65%, so the preset is
+// not the answer either.
 /*
 void func_800978FC(void) {
     u8 **ppBuffer;
