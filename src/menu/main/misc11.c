@@ -55,10 +55,9 @@ void func_801E5B3C(void) {
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc11", func_801E5B88);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc11", func_801E5E4C);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc11", func_801E61B0);
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc11", func_801E6450);
-/* Best: 99.79%
 void func_801E6450(void) {
     void* pMem;
+    u32 unk[2]; // unused: the original frame has 8 bytes of locals we cannot express
 
     pMem = HeapAlloc(0x2DC0, 0);
     g_Menu->unk34C = pMem;
@@ -66,16 +65,15 @@ void func_801E6450(void) {
     func_801E5B88();
     func_801E5E4C();
 }
-*/
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc11", func_801E649C);
-/* Best: 81.18%
 void func_801E649C(void) {
-    HeapFree(g_Menu->unk34C);
-    g_Menu->pManager->unkB = 0;
+    void* pMem;
+    MenuManager* pManager;
+
+    pMem = g_Menu->unk34C;
+    HeapFree(pMem);
+    pManager = g_Menu->pManager;
+    *(volatile u8*)&pManager->unkB = 0;
 }
-*/
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc11", func_801E64E0);
-/* Best: 87.20%
 void func_801E64E0(void) {
     RECT rect;
 
@@ -84,9 +82,8 @@ void func_801E64E0(void) {
     rect.w = 0x40;
     rect.h = 0x20;
     ClearImage(&rect, 0, 0, 0);
-    g_Menu->pManager->unkB = 0;
+    *(volatile u8*)&g_Menu->pManager->unkB = 0;
 }
-*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc11", func_801E6544);
 s32 func_801E65E4(u8* p) {
     u8 hi;
