@@ -1346,6 +1346,23 @@ nearly every stub) averaged 42 per round.
 - Workers somehow left `reports/progress.json` dirty in their own clones (7 of 12 by round 4).
   Clones now get `checkout -- reports/progress.json` before merging, so a worker's report
   snapshot cannot land in main.
+| 5 | `battle/{misc16,17,22,27,31,32}`, `world_map/{misc1,7}`, `menu/{misc3,7}`, `field/main/misc`, `system/sound` | +18 | 1723 | 12 workers, all 11 outputs OK. Per unit: menu/misc7 4, battle/misc22 3, the three `battle` tail units 2 each, world_map/misc7 2, battle/misc16 1, world_map/misc1 1, system/sound 1, and 0 in battle/misc17, menu/misc3, field/misc |
+
+### The `battle` misc26..35 ceiling is real and quantified
+
+Three tail units (`misc32`, `misc31`, `misc27`) with 24, 23 and 24 fresh stubs - all convertible,
+all tiny (52-97 insns average) - returned **2 matches each**, and the workers' reports agree on
+why: every function whose global symbol address is used exactly once needs `$at`, and the retail
+object has none (round 43's finding, now confirmed on 71 fresh stubs). The ones that match reuse
+an address, so gcc allocates a register. Converting the tail at ~8% per worker is not worth a
+slot; those 22 stubs per unit are a fixed ceiling, not a queue.
+
+### `select_target.py`'s `attempt` flag under-reports
+
+Two units briefed as "fresh" (`field/main/misc`, `menu/misc3`) returned 0 because their stubs
+do carry parked analysis, just not in the `/* ... */` shape the flag looks for (decoded-shape
+prose notes, `-G0` evidence, "dead class" labels). Screening by `attempt` is still better than
+stub count alone, but a 2-second `grep -c '%' src/<unit>.c` before briefing is the cheap check.
 
 ## Round 1 findings
 
