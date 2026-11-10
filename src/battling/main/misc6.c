@@ -75,6 +75,22 @@ extern BattleQuad D_80094818[100];
 extern s32 D_800926B0;
 extern s32 D_800926B4;
 
+// 0x14-byte sprite record of the 7x7 table func_8007EFB4 allocates at D_8009270C.
+typedef struct {
+    /* 0x00 */ u16 unk0;
+    /* 0x02 */ u16 unk2;
+    /* 0x04 */ u16 unk4;
+    /* 0x06 */ u16 unk6;
+    /* 0x08 */ u16 unk8;
+    /* 0x0A */ u16 unkA;
+    /* 0x0C */ u16 unkC;
+    /* 0x0E */ u16 unkE;
+    /* 0x10 */ u16 unk10;
+    /* 0x12 */ u16 unk12;
+} BattleSprite; // Size: 0x14
+
+extern BattleSprite* D_8009270C;
+
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007E020);
 
 void func_8007E24C(void) {
@@ -225,11 +241,12 @@ void func_8007ED84(u8* pText, s32 dy) {
 }
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007EE08);
-/* best 95.83%, one instruction short: the original materialises 0xFF twice (its
-   own li at the head of each arm, the else arm copy stolen into the beqz delay
-   slot by reorg); gcc 2.7.2 merges the two identical constants into the delay
-   slot and both arms read it from there. Everything else (load of D_80059488
-   first, sb order F4/F8/F0, x*20 as sll/addu/sll) is already exact.
+/* best 95.83%, one instruction short. The original materialises 0xFF twice: the
+   else arm's first li is stolen into the beqz delay slot by reorg, and the then
+   arm keeps its own li after the D_80059488 load. gcc 2.7.2 CSEs the two
+   identical constants across the branch, so ours has a single li in the delay
+   slot and both arms read that. Everything else (load first, sb order F4/F8/F0,
+   x*20 as sll/addu/sll, both branch targets) is exact.
 void func_8007EE08(s32 arg) {
     if (arg != 0) {
         D_800926F4 = 0xFF;
@@ -297,40 +314,41 @@ void func_8007EEE8(s32 arg) {
  */
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007EFB4);
-/* best 71.17%: structure, store order and the 7x7 iteration are right.
-   The original keeps count in a2 and the six hoisted constants in t1-t6, saves
-   no registers, and has a 0x48 frame with ra at 0x40 (8-byte-aligned frame, so
-   0x30 of unreferenced local space); gcc spills count to s0, uses a 0x18 frame.
-   Tried: count declared first/last, u16 count (worse, 69.33%).
-typedef struct {
-    0x00  u16 unk0;
-    0x02  u16 unk2;
-    0x04  u16 unk4;
-    0x06  u16 unk6;
-    0x08  u16 unk8;
-    0x0A  u16 unkA;
-    0x0C  u16 unkC;
-    0x0E  u16 unkE;
-    0x10  u16 unk10;
-    0x12  u16 unk12;
-} BattleSprite; // Size: 0x14
-
+/* best 80.67%: frame (0x48, ra at 0x40) and the 7x7 iteration, the constant
+   hoisting into t1-t6 and the a1/v1 (record base and record base + 0xE) split
+   are exact. Two differences left:
+   1. the original copies the row value at the outer loop head ("addu t0,a3") and
+      stores it to unk8 from t0; gcc coalesces the y pseudo with the
+      strength-reduced induction variable and stores a2 directly, so every
+      remaining register is rotated by one (t6..t1 vs t5..t0).
+   2. the original evaluates col*0x40 first in the inner body ("sll v0,a0,0x6"
+      before the unk0 store); ours sinks the shift to the unkA store, after the
+      count decrement.
+   Tried: count initialised after the HeapAlloc call (fixed the 0x1FF spilling to
+   s0 and the 0x18 frame - was 71.17%), unused s32 tmp[12] (fixed the frame),
+   y and x locals assigned at loop top (gcc copy-propagates both away).
 void func_8007EFB4(void) {
-    s32 count = 0x1FF;
+    s32 tmp[12]; // unused: reproduces the original's 0x48 frame
     BattleSprite* pSprite;
+    s32 count;
     s32 row;
     s32 col;
+    s32 y;
+    s32 x;
 
     pSprite = HeapAlloc(0x3D4, 0);
     D_8009270C = pSprite;
+    count = 0x1FF;
     for (row = 0; row < 7; row++) {
+        y = 0x1A0 + row * 0x20;
         for (col = 0; col < 7; col++) {
+            x = col * 0x40;
             pSprite->unk0 = 0x200;
             pSprite->unk2 = count--;
             pSprite->unk4 = 0x80;
             pSprite->unk6 = 1;
-            pSprite->unk8 = 0x1A0 + row * 0x20;
-            pSprite->unkA = col * 0x40;
+            pSprite->unk8 = y;
+            pSprite->unkA = x;
             pSprite->unkC = 0x1E;
             pSprite->unkE = 0x40;
             pSprite++;
