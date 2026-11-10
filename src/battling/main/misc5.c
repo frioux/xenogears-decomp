@@ -13,6 +13,13 @@ typedef struct {
 } SlotMotion; // Size: 0x28
 
 typedef struct {
+    /* 0x0 */ u16 vx;
+    /* 0x2 */ u16 vy;
+    /* 0x4 */ u16 vz;
+    /* 0x6 */ u16 pad6;
+} SVector; // Size: 0x8
+
+typedef struct {
     /* 0x00 */ SlotMotion unk0;
     /* 0x28 */ SlotMotion unk28;
     /* 0x50 */ u8 unk50;
@@ -47,7 +54,7 @@ extern VECTOR D_80096FA8;
 
 extern int rand(void);
 
-extern void func_8007E3CC(void);
+extern void func_8007E3CC(s32);
 extern void func_8007D334(s32, s32, s32);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007B270);
@@ -156,21 +163,24 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007CD44);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007CF78);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007D068);
-
-/* Best attempt: objdiff 96.84%. 16-byte VECTOR copy from D_80096FA8 to the
-   scratchpad is right but reload puts the two addresses in a0/a1 where the
-   original uses a1/a2. */
-/*
-void func_8007D068(void) {
-    VECTOR *pScratch = (VECTOR *)PSX_SCRATCH;
-
-    *pScratch = D_80096FA8;
-    func_8007E3CC();
+void func_8007D068(s32 arg0) {
+    *(VECTOR *)PSX_SCRATCH = D_80096FA8;
+    func_8007E3CC(arg0);
 }
-*/
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007D0B4);
+
+/* Best attempt: objdiff 73.11%. Everything matches except that gcc folds
+   `vx - 0x18 + rand() % 0x30` into `vx + (rand() % 0x30 - 0x18)` and keeps
+   -0x18 in a saved register, where the original does `addiu` on the loaded
+   value; that costs one saved register and three insns. */
+/*
+void func_8007D0B4(SVector *pVec) {
+    pVec->vx = pVec->vx - 0x18 + rand() % 0x30;
+    pVec->vy = pVec->vy - 0x18 + rand() % 0x30;
+    pVec->vz = pVec->vz - 0x18 + rand() % 0x30;
+}
+*/
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007D190);
 
