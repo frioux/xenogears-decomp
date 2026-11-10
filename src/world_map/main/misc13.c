@@ -31,6 +31,8 @@ extern s16 D_8009BD24;
 extern u16 D_8009D4A8;
 extern u8 D_8009D500;
 extern s32 func_80032F54(void* pString, s16 a, s16 b, s16 c, s16 d, s16 e, s16 f);
+extern void func_80093740(WorldMapPos* p, s32 x, s32 z);
+extern s32 func_800935DC(WorldMapPos* p0, WorldMapPos* p1, WorldMapPos* p2);
 
 s32 func_80092BE4(void) {
     u8* pBuffer;
@@ -157,7 +159,28 @@ u8* func_80093660(s32 x, s32 z) {
 }
 */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_80093740);
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_80093978);
+s32 func_80093978(s32 x, s32 z) {
+    WorldMapPos a;
+    WorldMapPos b;
+    WorldMapPos c;
+    u8* pTile;
+
+    pTile = func_80093660(x, z);
+    a.x = (u16)(x / 8);
+    a.z = -(u16)(z / 8);
+    if (pTile[1] & 0x80) {
+        b.x = 0;
+        b.z = 0;
+        b.unk4 = (s8)pTile[0] << 12;
+    } else {
+        b.x = 0x10000;
+        b.z = 0;
+        b.unk4 = (s8)pTile[4] << 12;
+    }
+    func_80093740(&c, x, z);
+    func_800935DC(&a, &b, &c);
+    return a.unk4 << 3;
+}
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_80093A5C);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_80093E8C);
 s32 func_80093F18(WorldMapPos* p) {
