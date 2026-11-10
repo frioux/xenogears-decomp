@@ -48,7 +48,14 @@ extern WorldMapActor *D_8009BE24;
 extern u16 D_8009A450;
 extern u16 D_8009A46C[];
 extern WorldMapState *D_8009C620;
+extern s32 D_8009BE0C;
+extern s32 D_8009D3F0;
+extern s32 D_8009D144;
+extern s16 D_8009BD38;
+extern s16 D_8009BD3A;
+extern s16 D_8009BD3C;
 extern void func_80089160(s32, s32, s32);
+extern void func_8007A06C(s32, u8 *, u16);
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_80077CC0);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_80077DC8);
@@ -64,6 +71,32 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_80078950);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_80078A60);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_80078D24);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_80078E2C);
+/* 30.80%: instruction multiset is identical and the source order already
+   matches the original, but gcc's sched2 sinks the WorldMapActor stores
+   (sw 0x58/0x54/0x50 land after `li v0,1` at the end) and defers the
+   D_8009BE24 load to just before its first use; the original keeps them
+   interleaved with the global stores. -O1 scores 45.0.
+s32 func_80078E2C(s32 index) {
+    WorldMapActor *p;
+
+    D_8009BE0C = 0x78;
+    D_8009D3F0 = 0x200000;
+    p = D_8009BE24;
+    index *= 0x80;
+    p = (WorldMapActor *)((u8 *)p + index);
+    D_8009D144 = 0;
+    p->unk20 = 0x10;
+    p->unk58 = 0;
+    p->unk54 = 0;
+    p->unk50 = 0;
+    D_8009BD38 = -0xC0;
+    D_8009BD3A = 0x680;
+    D_8009BD3C = 0;
+    p->unk22 = 0x40;
+    p->unk74 = 0;
+    return 1;
+}
+*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_80078EA4);
 s32 func_800794D8(s32 index) {
     WorldMapActor *p;
@@ -86,7 +119,19 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_80079538);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_800795E4);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_80079778);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_8007A06C);
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_8007A144);
+s32 func_8007A144(s32 index) {
+    WorldMapActor *p;
+
+    p = D_8009BE24 + index;
+    p->unk20 = 0;
+    p->unk70 = 0;
+    p->unk6C = 0;
+    func_8007A06C((s32)D_8009C620 + 0x498, D_8009C620->unk4E0,
+                  ((u16 *)D_8009C620->unk4D8)[2]);
+    func_8007A06C((s32)D_8009C620 + 0x4EC, D_8009C620->unk534,
+                  ((u16 *)D_8009C620->unk52C)[2]);
+    return 3;
+}
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_8007A1B4);
 
 s32 func_8007A410(s32 index) {
