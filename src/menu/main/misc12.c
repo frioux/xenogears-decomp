@@ -21,16 +21,65 @@ void func_801E6AE8(u8 index, u8* pEntry);
 void func_801E6B70(u8 index, u8* pEntry);
 void func_801E6CFC(u8 index, u8* pEntry);
 void func_801E6F5C(u8 index, u8* pEntry);
-void func_801E71B4(u8 index, u8* pEntry, s32 arg2);
+void func_801E71B4(s32 index, u8* pEntry, s32 arg2);
 void func_801E733C(void);
 
 extern u8 D_801EA578[];
 extern u8 D_801EA5C4[];
 extern s32 SystemRenderStringEntry(u8* pSrc, void* pDst, s32 len, s32 mode);
+extern u8 D_801EA590[];
+extern u8 D_801EA5DC[];
+extern void func_80033B34(u16* pInput, u8* pOutput, int count);
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E6CFC);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E6F5C);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E71B4);
+/* Best: 97.81%. Four shapes were needed: i = 0 before pEntry += (u_char)index,
+   pTable = (u8*)(arg2 * 0x200 + (s32)g_Menu->menuUnk2) + 0xC94 (the plain
+   additive form mirrors the addu operands), a pRow local recomputed for each of
+   the two table reads, and the loop exit spelled !*pKey && !*pValue with
+   pValue += 2 before pKey += 2. What is left is one register: retail loads the
+   second table byte into v0 (and so leaves a nop in the bnez delay slot), gcc
+   picks v1 and reorg then fills the slot with the load.
+void func_801E71B4(s32 index, u8* pEntry, s32 arg2) {
+    RECT rect;
+    u8 pairs[0x14];
+    u8 text[0x18];
+    u8* pKey;
+    u8* pValue;
+    u8* pTable;
+    u8* pRow;
+    u8* pBuf;
+    s32 i;
+
+    i = 0;
+    pEntry += (u_char)index;
+    pTable = (u8*)(arg2 * 0x200 + (s32)g_Menu->menuUnk2) + 0xC94;
+    pValue = pairs + 1;
+    pKey = pairs;
+    for (; i < 0x14; i += 2) {
+        pRow = pTable + pEntry[0x1C] * 0x14 + i;
+        *pKey = pRow[0x24];
+        pRow = pTable + pEntry[0x1C] * 0x14 + i;
+        *pValue = pRow[0x25];
+        if (!*pKey && !*pValue) {
+            break;
+        }
+        pValue += 2;
+        pKey += 2;
+    }
+    func_80033B34((u16*)pairs, text, i / 2);
+    pBuf = HeapAlloc(0x3F6, 0);
+    bzero(pBuf, 0x3F6);
+    SystemRenderStringEntry(text, pBuf, 0x24, 0);
+    rect.x = *(u16*)(D_801EA590 + (u_char)index * 4) + 0x180;
+    rect.y = *(u16*)(D_801EA5DC + (u_char)index * 4);
+    rect.w = 0x28;
+    rect.h = 0xD;
+    LoadImage(&rect, (u_long*)pBuf);
+    DrawSync(0);
+    HeapFree(pBuf);
+}
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E733C);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E76EC);
 /* Best: 99.87%. Retail uses v1 for the g_Menu->menuUnk2 load and v0 for the
@@ -39,6 +88,8 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E76EC);
    s3 and offset in s2 only when i is declared first; the index must be spelled
    *(pEntry + i + 0x1C) or the addu operands swap. Operand order, a named
    scaled local, a named base local and the array-index form were all tried.
+*/
+
 void func_801E76EC(s32 arg0) {
     s32 i = 0;
     u32 offset = 0;
