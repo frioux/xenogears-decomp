@@ -16,13 +16,36 @@ void func_80079E4C(u8 arg0) {
     D_800D2D28[0xB4] = 0;
     D_800D3725[arg0 * 0x60] = 0;
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc5", func_80079E7C);
+
+extern u16 func_80089C9C(u16, u8);
+
+
+u8 func_80079E7C(u16 arg0) {
+    s32 i;
+
+    for (i = 0; i < 0xB; i++) {
+        if (func_80089C9C(arg0, i) != 0) {
+            break;
+        }
+    }
+    return i;
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc5", func_80079ED8);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc5", func_8007A280);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc5", func_8007A628);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc5", func_8007A6C8);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc5", func_8007A744);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc5", func_8007A7BC);
+u8 func_8007A7BC(u8 **arg0, u8 *arg1, u8 arg2, u8 arg3) {
+    u8 *pRow = (u8 *)(arg3 * 8 + (mem_addr)arg1);
+
+    pRow[0] = 0x80;
+    pRow[1] = (*arg0)[0];
+    pRow[2] = (*arg0)[1];
+    pRow[3] = (*arg0)[2];
+    pRow[4] = (*arg0)[3];
+    arg3++;
+    return arg3;
+}
 u8 func_8007A828(u8 **arg0, u8 *arg1, u8 arg2) {
     u8 *p = *arg0;
 
@@ -55,23 +78,27 @@ void func_8007A900(u8 **arg0, u8 arg1) {
     pRow[p[1]] = p[2];
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc5", func_8007A92C);
-/* 18.33% - same 15 insns, gcc materialises the D_800D3420 lui/addiu before the
-   p[2]/p[3] value (into a0, pushing the value to a2); the original forms the base
-   after the value, reusing v1 once p dies. Tried: value-before-pointer, u16/s32
-   value local, split |= statement, u8* base with cast store, direct index (gives
-   the at-register form instead of a register base).
+/* 84.67% - only the last addu is transposed: gcc forms ((idx*2 + base) + row)
+   where the original forms ((row + base) + idx*2), i.e. it emits
+   addu v0,v0,a1 (idx, rowbase) after addu a1,a1,v1 (row, base). The base is
+   formed after the value here, which is right. 28.33% forms (28%/35.67%) all
+   let gcc fold the symbol through $at or hoist the base 2-3 insns early.
+   Tried: index in the pointer initialiser (E), mem_addr form (gives $at),
+   base/idx as separate locals (base hoists), (u16*)sym + arg1*0x20, inline
+   value, u8* base + cast store, split |= statement.
 void func_8007A92C(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
     u16 val = p[2] | (p[3] << 8);
-    u16 *pRow = (u16 *)(D_800D3420 + arg1 * 0x40);
+    u16 *pRow = (u16 *)(D_800D3420 + arg1 * 0x40 + p[1] * 2);
 
-    pRow[p[1]] = val;
+    *pRow = val;
 } */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc5", func_8007A968);
 /* 53.44% - the value expression and the index come out right, but gcc forms the
    D_800D3410 lui/addiu at the top (into a0) instead of after the value, so the
    store base is 2 insns early. Tried: pRow pointer local before/after the value,
-   idx local first, single-expression store (gives the at-register form instead).
+   idx local first, single-expression store (8-42%, at-register form),
+   (u32*)D_800D3410 + arg1*0x10 element pointer, mem_addr index-first form.
 void func_8007A968(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
     u32 val = (p[2] + (p[3] << 8)) * 0x10;
@@ -146,3 +173,18 @@ void func_8007ABA0(u8 **arg0, u8 arg1) {
     pRow[p[1]] ^= p[2];
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc5", func_8007ABD8);
+/* 82.73% - the clamped u16 read-modify-write. The original forms the row base
+   once (addu a1,v1,a1, index-first) and keeps it for both the lhu and the sh;
+   spelling the address twice (this attempt) or keeping one pRow local both
+   leave 2-3 insns of address formation off. Tried: one pRow local (56.14%,
+   base hoisted before the pointer load), address spelled twice (82.73%),
+   u32/s32 v with if-clamp, mem_addr index-first form.
+void func_8007ABD8(u8 **arg0, u8 arg1) {
+    u8 *p = *arg0;
+    u32 v = *((u16 *)(D_800D3420 + arg1 * 0x40 + p[1] * 2)) + (p[2] + (p[3] << 8));
+
+    if (v > 0xFFFF) {
+        v = 0xFFFF;
+    }
+    *((u16 *)(D_800D3420 + arg1 * 0x40 + p[1] * 2)) = v;
+} */
