@@ -5,6 +5,12 @@
 #include "system/menu.h"
 
 void func_801C80B8(u32 number);
+void func_801D3C4C(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4);
+void func_801D3DB0(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4);
+void func_801D3FF8(u_char a0, u_short a1, u_short a2, u_short a3);
+void func_801D433C(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4);
+void func_801D4688(u_char a0, u_short a1, u_short a2, u_short a3);
+void func_801D49D0(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4);
 void func_801D4F2C(u_char a0, u_char a1, s32 a2, s32 a3);
 void func_801D50EC(u_char a0, s32 a1, s32 a2);
 void func_801D51EC(u_char a0, u_char a1, s32 a2, s32 a3);
@@ -55,7 +61,25 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D3FF8);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D433C);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D4688);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D49D0);
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D4D1C);
+void func_801D4D1C(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4, u_char a5, s32 a6, u_char a7) {
+    MenuWindow* pWindow = g_Menu->windows[a0];
+
+    g_Menu->pManager->shouldRenderWindow[a0] = 0;
+    func_801C851C(pWindow->vertsBackground, a1, a2, a3, a4);
+    func_801D3DB0(a0, a1, a2, a3, a4);
+    func_801D3FF8(a0, a1, a2, a3);
+    func_801D433C(a0, a1, a2, a3, a4);
+    func_801D4688(a0, a1, a2, a4);
+    func_801D49D0(a0, a1, a2, a3, a4);
+    if (a7 != 0) {
+        func_801D3C4C(a0, a1, a2, a3, a4);
+    }
+    pWindow->hasScrollBar = a7;
+    pWindow->unk714 = a5;
+    pWindow->zIndex = a6;
+    pWindow->renderContext = *(u8*)&g_Menu->renderContext;
+    g_Menu->pManager->shouldRenderWindow[a0] = 1;
+}
 void func_801D4EA0(u_char a0) {
     g_Menu->pManager->shouldRenderWindow[a0] = 0;
     g_Menu->pManager->unk27[a0] = 0;
