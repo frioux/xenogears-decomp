@@ -54,7 +54,10 @@ void func_800980D4(WorldMapMisc16Struct* p) {
     y = p->unk8 >> 23;
     D_8009C83C = y + 2;
 }
-*/ // 93.74%: the second field load is hoisted above the first store by our cc1
+*/ // 93.74%: the second field load is hoisted above the first store by our cc1.
+// Writing the tail as D_8009C838 = (p->unk0 >> 23) + 2; puts the two top loads in
+// the original order but then cc1 hoists the second tail load above the first
+// D_8009C838 store (88.77%). Both halves cannot be won at once so far.
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc16", func_800981C8);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc16", func_800983A0);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc16", func_800987AC);
