@@ -298,7 +298,44 @@ void func_801E35BC(MenuDressingRoom* pDressingRoom, u8 charIndex, u8 targetIndex
 }
 */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E36D4);
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E3A80);
+void func_801E3A80(MenuDressingRoom* pDressingRoom, u8 charIndex) {
+    GameCharacter* pChar;
+
+    pChar = &g_GameState.characters[charIndex];
+    if (pChar->unk56 == 4) {
+        pDressingRoom->unkB8[0] = (pChar->unk0[4] + pChar->unk0[0x1C]) * 6 / 10;
+    } else {
+        pDressingRoom->unkB8[0] = pChar->attack + pChar->unk0[0x28] + pChar->unk0[4];
+    }
+    pDressingRoom->unkB8[1] = pChar->hitPercentage + pChar->unk2D[1];
+    pDressingRoom->unkB8[2] = pChar->defense + pChar->unk0[0x29] + pChar->unk2D[0];
+    pDressingRoom->unkB8[3] = pChar->evadePercentage + pChar->unk2D[2];
+    pDressingRoom->unkB8[4] = pChar->ether + pChar->unk0[0x2B];
+    pDressingRoom->unkB8[5] = pChar->etherDefense + pChar->etherDefenseFromEquipment;
+    pDressingRoom->unkB8[6] = pChar->agility + pChar->unk0[0x2A];
+    if (pDressingRoom->unkB8[0] > 0xFA) {
+        pDressingRoom->unkB8[0] = 0xFA;
+    }
+    if (pDressingRoom->unkB8[1] > 0x63) {
+        pDressingRoom->unkB8[1] = 0x63;
+    }
+    if (pDressingRoom->unkB8[2] > 0xFA) {
+        pDressingRoom->unkB8[2] = 0xFA;
+    }
+    if (pDressingRoom->unkB8[3] > 0x63) {
+        pDressingRoom->unkB8[3] = 0x63;
+    }
+    if (pDressingRoom->unkB8[4] > 0xFA) {
+        pDressingRoom->unkB8[4] = 0xFA;
+    }
+    if (pDressingRoom->unkB8[5] > 0xFA) {
+        pDressingRoom->unkB8[5] = 0xFA;
+    }
+    if (pDressingRoom->unkB8[6] > 0x14) {
+        pDressingRoom->unkB8[6] = 0x10;
+    }
+}
+
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E3C2C);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E3ECC);
 void func_801E4170(MenuDressingRoom* pDressingRoom, u8 gearIndex) {
