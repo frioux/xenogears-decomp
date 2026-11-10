@@ -541,6 +541,9 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008861C);
 //   ParticleBank* pBank = &g_FieldDefaultParticleBanks[bankIndex];
 //   pBank->directions[i].z = 0;
 //   g_FieldDefaultParticleBanks[bankIndex].directions[i].x = 0;
+// Byte-offset forms (`u8* pBanks` + `int offset = i * 4 + bank * 0x78`)
+// and a flat element index `bank * 30 + i` both give 87.05% (the bank
+// term and the 4*i term stop being shared).
 // `ParticleBank* pBanks = g_FieldDefaultParticleBanks;` (pointer to the array
 // start, index shared) gives 82.27%: the association comes out (base + 0x78*bank)
 // + 4*i, one addu more than the original's (4*i + 0x78*bank) + base.
