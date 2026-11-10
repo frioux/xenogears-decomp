@@ -110,17 +110,20 @@ void func_80084AE0(void) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_80084B48);
 
-/* 95.98% - one instruction off: the original sign-extends the decremented value
-   into its own register (`sll v0; sra a1,v0,0x10; bgtz a1`), ours lets combine
-   fold the sra into the branch (`sll v0; bgtz v0`), so the frame is 4 bytes of
-   layout off. Tried: `D_80092780 -= 4` + test the global, `x = x - 4` + test,
-   an s16 local for the store, an explicit (s16) cast, an int local read back.
-   All 95.98%.
+/* 95.98% - frame, the `addu v1,v0` copy, the store and both arms now line up
+   (inverted arms: expired case is the fall-through). One instruction off: the
+   original sign-extends the decremented value into its own register
+   (`sll v0; sra a1,v0,0x10; bgtz a1; nop`), ours lets combine fold the sra
+   into the branch (`sll v0; bgtz v0; move a1,zero`). Tried: `D_80092780 -= 4`
+   + test the global, s16 local for store and test, s32 local with `(s16)timer`
+   and `(s32)timer` casts, int local read back, non-inverted arms (`timer > 0`,
+   which also costs the 0x20 frame) - all 95.98%.
 void func_80084B48(void) {
     s16 timer;
 
-    if (D_80092780 != 0) {
-        timer = D_80092780 - 4;
+    timer = D_80092780;
+    if (timer != 0) {
+        timer = timer - 4;
         D_80092780 = timer;
         if ((s32)timer <= 0) {
             D_80092780 = 0;
@@ -137,30 +140,25 @@ void func_80084B48(void) {
 }
 */
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_80084BEC);
-
-/* 97.56% - instruction multiset identical, only the s0/s1/s2 assignment is
-   rotated (a global-alloc tie-break; three declaration orders tried).
 void func_80084BEC(Misc10Actor* pActor) {
-    Misc10Draw* pDraw;
     u8* pScript;
     s32 arg0;
+    Misc10Draw* pDraw;
+    u8* pBuf;
 
     pScript = *(u8**)((u8*)pActor + 0x5C);
     pScript = *(u8**)(pScript + 4);
     pScript = *(u8**)(pScript + 4);
     arg0 = *(s32*)(pScript + 0x30);
-
     pDraw = (Misc10Draw*)func_80089C54();
-    pScript = (u8*)func_80089FC4();
-    func_80089E2C(pDraw, pScript);
-    func_8008A184(pScript, D_80091FB0);
+    pBuf = (u8*)func_80089FC4();
+    func_80089E2C(pDraw, pBuf);
+    func_8008A184(pBuf, D_80091FB0);
     func_80089C88(arg0, pDraw);
     pDraw->unk46 = 0xC00;
     pDraw->unk44 = 0;
     pDraw->unk48 = 0x400;
 }
-*/
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_80084C88);
 
@@ -347,9 +345,10 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_80086FF8);
 /* 84.25% - the two value branches each re-materialise `li 0x28000000` (gcc
    rematerialises the constant per branch); the original hoists one lui into
    the beqz delay slot and keeps `ori v1,v1,imm` in each arm, plus the 1 return
-   in v0 (ours puts value in a0 and 5 in v1). Also tried: full constants in
-   each arm, `value = 0x28000000 | (c ? 0xFFFF : 0xFF)`, the ternary inside the
-   store, and `value |= c ? 0xFFFF : 0xFF` - all 84.25%.
+   in v0 (ours puts value in a0 and 5 in v1). Tried: full constants in each
+   arm, `value = 0x28000000 | (c ? 0xFFFF : 0xFF)`, the ternary inside the
+   store, `value |= c ? 0xFFFF : 0xFF`, u32 value, `0x28 << 24`, inverted
+   condition - all 82-84%, and -G0 / 2.6.0 score the same.
 s32 func_80086FF8(s32 arg0, u8* pOut) {
     s32 value;
 
