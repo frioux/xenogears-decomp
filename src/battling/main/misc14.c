@@ -113,24 +113,31 @@ void func_8008B070(s32 entryIndex) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc14", func_8008B0D8);
 
-/* Best attempt: objdiff 91.84%, same 100 bytes as the original. Head matches
-   exactly; the loop differs only in which giv gcc makes the store base: the
-   original uses $v1 = entry + 0x10 (sh at -4/-2/0, sw at -0xC), gcc picks
-   entry + 4 (sh at 8/10/12, sw at 0) no matter whether the source addresses the
-   s16 stores through unkC/unkE/unk10 or through a separate s16 *pField based at
-   +0x10. */
+/* Best attempt: objdiff 99.80%, same 100 bytes. The instruction order and the
+   registers ($a1 = entry, $v1 = entry+0x10, $v0 = value, $a2 = i) all match;
+   the only difference is which derived giv gcc re-bases onto: the original uses
+   entry+0x10 (sh at -4/-2/0, sw at -0xC), gcc entry+4 (sh at 8/10/12, sw at 0).
+   Both serve exactly four refs, so this is a loop.c combine_givs tie. Confirmed
+   rule: the base is the address of the body's LAST memory reference, so putting
+   `unk4 = unk0` first flips the base to entry+0x10 (correct!) but moves its lw/sw
+   to the top of the body, and putting `unk4 = value` last flips it back to
+   entry+4. A separate s16 *pField = entry+0x10 pointer gives 75.84% and 112
+   bytes (two strength-reduced bivs). An indexed pEntry[i] loop gives 88.24% and
+   92 bytes (single base, no derived giv). */
 /*
 void func_8008B0D8(u8 *pActor) {
     Misc14Entry *pEntry = *(Misc14Entry **)(pActor + 8);
     s32 i;
+    s32 value;
 
     *(s16 *)(pActor + 0x10) = 0;
     *(s16 *)(pActor + 0x12) = 0;
     for (i = 0; i < *(s16 *)(*(u8 **)pActor + 6); i++) {
         pEntry->unkC = 0;
         pEntry->unkE = 0;
+        value = pEntry->unk0;
         pEntry->unk10 = 0;
-        pEntry->unk4 = pEntry->unk0;
+        pEntry->unk4 = value;
         pEntry++;
     }
 }
@@ -144,31 +151,23 @@ void func_8008B5DC(void *pA, s32 arg1) {
     func_8008B730(pA, arg1, 1);
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc14", func_8008B5FC);
-
-/* Best attempt: objdiff 96.19% and 88 bytes against the original's 84, so it is
-   not linkable either. Identical apart from which pseudo holds `value`: the
-   original keeps it in $v0 (`move v0,a0` in the beqz delay slot, `mflo v0`,
-   `subu v0,a0,v0`), gcc in $a0, which dies at the same point. `return value;`
-   at the end and three early `return`s both give the $a0 form. */
-/*
 s16 func_8008B5FC(s32 arg0, s32 arg1, s32 arg2) {
     s32 value;
     s32 diff;
 
     arg0 &= 0xFFF;
     diff = (arg0 - arg1) & 0xFFF;
-    value = arg0;
     if (diff != 0) {
         if (diff < 0x800) {
             value = arg0 - diff / arg2;
         } else {
             value = arg0 + (0x1000 - diff) / arg2;
         }
+    } else {
+        value = arg0;
     }
     return value;
 }
-*/
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc14", func_8008B650);
 
@@ -206,10 +205,11 @@ void func_8008BAE0(void *pMem) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc14", func_8008BB00);
 
-/* Best attempt: objdiff 94.29%. Only the temporaries differ: the original loads
-   into $t0/$t1, gcc into $v0/$v1; the instruction sequence and both symbols are
-   identical. Two locals, direct field stores and a struct pointer all give
-   $v0/$v1. */
+/* Best attempt: objdiff 94.29% (also 94.29 under gcc-2.7.2-cdk). Only the
+   temporaries differ: the original loads into $t0/$t1, gcc into $v0/$v1; the
+   instruction sequence and both symbols are identical. Two locals, direct field
+   stores, a struct pointer and an 8-byte struct copy (70.71%, it also bases the
+   second load off one symbol) all give $v0/$v1. */
 /*
 void func_8008BB00(Misc14Entry *pDst) {
     pDst->unk0 = D_80096D88;
@@ -219,13 +219,18 @@ void func_8008BB00(Misc14Entry *pDst) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc14", func_8008BB1C);
 
-/* Best attempt: objdiff 73.12%. The original stores each field before loading
-   the next (`lw t0 / sw t0 / lw t0 / sw t0`, one temporary); gcc hoists the
-   second load above the first store (`lw v0 / lw v1 / sw / sw`). */
+/* Best attempt: objdiff 97.50% (97.5 under gcc-2.6.0 and -cdk too) - identical
+   except that the original keeps the one reused temporary in $t0, gcc in $v0.
+   Reusing a single temp is what reproduces the interleaved load/store order;
+   two separate statements make gcc hoist the second load (73.12%). */
 /*
 void func_8008BB1C(Misc14Entry *pSrc) {
-    D_80096D88 = pSrc->unk0;
-    D_80096D8C = pSrc->unk4;
+    u32 value;
+
+    value = pSrc->unk0;
+    D_80096D88 = value;
+    value = pSrc->unk4;
+    D_80096D8C = value;
 }
 */
 
