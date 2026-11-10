@@ -109,6 +109,48 @@ s32 func_8008FA2C(s32* pArg0, u8* pArg1) {
     return 0;
 }
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc18", func_8008FACC);
+/* 89.78%: instruction multiset matches except gcc lays the two return 0 blocks out
+   at the end of the function instead of merging them before the body, and puts
+   li v0,1 in a branch delay slot. Also tried: one combined condition (same),
+   splitting the two early returns (same), and hoisting the 0x8F4 load before the
+   second func_8008F9B0 call (worse: 78%, costs an extra saved register).
+extern u8 D_800928C4;
+
+s32 func_8008FACC(s32* pArg0, u8* pArg1) {
+    s32 v;
+
+    if (D_800928C4 == 0) {
+        return 0;
+    }
+    if ((*(u32*)((u8*)pArg0 + 0xD0) & 0x8000000) == 0) {
+        return 0;
+    }
+    if (func_8008F9B0(pArg0) != 0) {
+        func_8008FA2C(pArg0, pArg1);
+        return 1;
+    }
+    if (func_8008F9B0(*(s32**)((u8*)pArg0 + 0xD8)) == 0) {
+        return 0;
+    }
+    v = *(s32*)(*(u8**)((u8*)pArg0 + 0xD8) + 0x8F4);
+    if (v < 0x800) {
+        *(u32*)((u8*)pArg0 + 0xD0) |= 0x8000;
+        pArg1[0xE] = 1;
+        *(s16*)(pArg1 + 0xC) = 0xFF;
+        *(s16*)(pArg1 + 0xA) = 0x800;
+        *(s32*)((u8*)pArg0 + 0x58) = 0x800;
+        return 1;
+    }
+    if (v < 0x1001) {
+        return 1;
+    }
+    *(u32*)((u8*)pArg0 + 0xD0) &= 0xFFFF7FFF;
+    pArg1[0xE] = 0;
+    *(s16*)(pArg1 + 0xC) = 0;
+    *(s32*)((u8*)pArg0 + 0x58) = 0x800;
+    return 1;
+}
+*/
 void func_8008FBD8(u8* pArg0, u8* pArg1) {
     u8 v;
 
@@ -128,6 +170,7 @@ void func_8008FBD8(u8* pArg0, u8* pArg1) {
     *(u32*)(pArg0 + 0xD0) |= 2;
     func_80076424(pArg0);
 }
+
 void func_8008FC7C(u8* pArg0) {
     u8* p;
 
