@@ -1,4 +1,5 @@
 #include "common.h"
+#include "main/game.h"
 #include "psyq/libgpu.h"
 
 extern u8 *D_800C3EAC;
@@ -17,7 +18,7 @@ extern u8 D_800D2DD8[];
 extern u8 D_800C204C;
 extern u8 D_800C3202[];
 extern u8 *D_800C3EA4;
-extern s32 D_800CCB34;
+extern volatile s32 D_800CCB34;
 
 extern s32 func_8008ABB8(s32, s32);
 extern void func_8008AB94(void);
@@ -34,20 +35,31 @@ extern void func_80093B08(u8 arg0);
 extern u16 func_80089C08(u8 arg0);
 extern void func_800BC404(u16 arg0);
 extern void func_800BCD98(u16 arg0);
+extern void func_80088490(u8 arg0);
+extern void func_8009AEFC(u8 arg0);
+extern void func_800BAF48(u8 arg0);
+extern void func_800883AC(u8 arg0);
+extern u8 D_800CCE42[];
+extern u8 D_800C3EB8[];
+extern u8 D_800D2D24[];
+extern u8 D_80059179;
+extern u8 D_800C4022[];
+extern u8 D_800C3FFE[];
+extern void func_80077980(void);
+extern void func_8009413C(u8 arg0, u8 arg1);
 
-/* 46.62%. Structure and prologue now match; the blocker is that gcc 2.7.2
-   groups the four stores onto one base register (one reload of D_800CCB34 per
-   iteration instead of four: the original reloads it before each store because
-   each store may alias it). Making D_800CCB34 volatile reproduces the four
-   reloads exactly (73.94%), so the reload pattern is understood; what is left
-   then is allocation only: the original keeps count in t0, pSrc in a1, i in a2
-   and the D_800C3EA4 base in a3 (loaded once before the loop), while adding a
-   pBase local to hoist that load moves count into a1 (69.39%). Params are
-   (u8 arg0, s32 arg1) compared as (u8)count - that reproduces the prologue
-   byte for byte (move t0,a1; andi a0,a0,0xFF; andi v0,t0,0xFF; bne). */
+/* 74.02%: with `extern volatile s32 D_800CCB34` the loop body is exact (four
+   reloads of the counter between the four stores, and the two separate
+   `lbu 0(a1)` of pSrc[i]: the stores are plain, the counter is what reloads).
+   The remaining gap is that the original hoists `lw a3,D_800C3EA4` into the
+   preheader and hoists only the 0xC constant (`li t2,0xC`), leaving `li v1,0x12`
+   in the body; our gcc keeps the D_800C3EA4 load in the loop (CSE'd across the
+   four stores) and hoists both constants. Also allocation: original i=a2,
+   pSrc=a1, base=a3. A pDst local hoists the load but drops to 71.89.
+   Prologue is exact: (u8 arg0, u8 arg1), u8 count, compared as (u8)count. */
 /*
 void func_8007FBE0(u8 arg0, u8 arg1) {
-    s32 count;
+    u8 count;
     s32 i;
     u8 *pSrc;
 
@@ -115,24 +127,16 @@ void func_8007FE3C(void) {
     }
 }
 
-/* 89.00%: the tail order differs. The original ends sh; lw ra; addiu sp;
-   jr ra; nop (20 insns); this gives sh; lw ra; sh; jr ra with addiu sp in the
-   delay slot (19 insns), i.e. dbr moves the addiu sp into the return slot and
-   the last sh fills the gap. Swapping the two stores gives 88.85. Tried: u16
-   pointer local for the stores, stores through D_800D2DB4 directly, swapped
-   order. */
-/*
 void func_8007FEC4(void) {
     u8 *pBuffer;
 
     pBuffer = (u8 *)func_8008ABB8(0x5DA4, 0);
     D_800D2DB4 = pBuffer;
     bzero(pBuffer, 0x5DA4);
-    *(u16 *)(D_800D2DB4 + 0x5D9C) = 0xA0;
-    *(u16 *)(D_800D2DB4 + 0x5D9E) = 0x64;
+    *(volatile u16 *)(D_800D2DB4 + 0x5D9C) = 0xA0;
+    *(volatile u16 *)(D_800D2DB4 + 0x5D9E) = 0x64;
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_8007FEC4);
+
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_8007FF14);
 
@@ -218,9 +222,76 @@ void func_8008189C(s32 arg0) {
         func_80093B08(arg0);
     }
 }
+/* 92.34%: `func_80089C08` returns u16, so a separate `orBits = f(a); orBits |=
+   f(b);` masks both results; writing the two calls as one `|` expression inside
+   the func_800BC404 call lets gcc fold them into the single `or` + final `andi
+   0xffff` the original has. What is left: the original loads D_800C3EAC once and
+   shares the base between the `[0x2DA]` read and the `+arg0*0x40` pointer for
+   the func_80089C08 argument (we reload it), and the two `addu base,base,idx`
+   come out with the index register as destination instead of the base
+   (allocator tie, both values dead after). */
+/*
+void func_800819A4(u8 arg0) {
+    s32 orBits;
+
+    if (D_800C3EAC[0x2E9] != 0) {
+        return;
+    }
+    D_800C3EAC[0x2E9] = 1;
+    func_800BCD98(0);
+    *(u8 *)((u32)D_800C3EAC + arg0 * 0x40 + 0x3C) = D_800C3EAC[0x2E8];
+    func_8007FCE8();
+    func_8007FDEC();
+    func_80077980();
+    orBits = func_80089C08(arg0) | func_80089C08(D_800C3EAC[arg0 * 0x40 + 0x3C]);
+    func_800BC404(orBits);
+    if (D_800D2D24[arg0] != 4) {
+        D_800C400B[D_800C3EAC[0x2DA] * 0x48] = arg0;
+        D_800C402F[D_800C3EAC[0x2DA] * 0x48] = 0xFD;
+        *(u16 *)(D_800C4022 + D_800C3EAC[0x2DA] * 0x48) = 0;
+        *(u16 *)(D_800C3FFE + D_800C3EAC[0x2DA] * 0x48) =
+            func_80089C08(D_800C3EAC[arg0 * 0x40 + 0x3C]);
+        D_800C3EAC[0x2DA]++;
+    }
+    func_8009413C(arg0, 0);
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_800819A4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_80081B58);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_800820A4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_800822C4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_80082504);
+/* 84.29%: everything after the D_800CCE42 update matches instruction for
+   instruction. What is left is that one statement: the original forms the
+   symbol base twice (`lui at,%hi(D_800CCE42); addu at,at,idx; lbu/sb %lo(at)`,
+   i.e. maspsx's $at form) because gcc emitted the `la` once per memory access,
+   while our gcc hoists one `la` out of the index chain and shares it, so the
+   pair stays as lui/addiu into a general register (5 fewer insns). Tried: plain
+   `|=`, index-first and base-first spellings, a load/store pair through a local,
+   and a volatile access (82.41, also loses the `move a0,s0` delay slot). Also two
+   allocation details behind it: `move a1,zero` belongs in the `beq` delay slot
+   and the D_800D32A1 store must stay above the D_800D2D24 load. The rest of the
+   function is exact, including the three-iteration g_GameState loop. */
+/*
+void func_800826CC(u8 arg0) {
+    s32 i;
+
+    func_80088490(arg0);
+    func_8009AEFC(arg0);
+    func_800BAF48(arg0);
+    *(u8 *)(D_800CCE42 + arg0 * 0x170) |= 0x80;
+    func_800883AC(arg0);
+    D_800D32A1[arg0 * 8] = 2;
+    if (D_800D2D24[arg0] != 7) {
+        *(u8 *)(arg0 * 0x1E4 + (u32)D_800C3EA4 + 0x853D) = 2;
+    }
+    D_800C3EB8[arg0 * 0x1C] = 1;
+    D_800C3EAC[arg0 + 0x2EB] = 1;
+    for (i = 0; i < 3; i++) {
+        if (g_GameState.partyMembers[i] == D_800D2D24[arg0] && D_80059179 == 0) {
+            g_GameState.gearRide[i] = 1;
+        }
+    }
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_800826CC);
