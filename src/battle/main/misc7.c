@@ -1,4 +1,5 @@
 #include "common.h"
+#include "main/game.h"
 
 // Operator argument tables: D_800D3420 is the 16-bit field table, D_800D3430
 // the 8-bit one, D_800D3410 the 32-bit one; all are indexed by slot * 0x40.
@@ -9,6 +10,7 @@ extern u8 D_800D3430[];
 extern u8 D_800D343F[];
 extern u16 D_8005A3A0[];
 extern u8 D_800D2E5C;
+extern u8 D_800CCDEC[];
 extern u8 D_800CCE34[];
 extern u8 D_800CCE38[];
 extern u8 D_800CCE39[];
@@ -58,7 +60,8 @@ u8 func_8007B4B8(u8 **p, u8 index, u8 arg2) {
     }
     return ret;
 }
-*/void func_8007B578(u8 **p, u8 index) {
+*/
+void func_8007B578(u8 **p, u8 index) {
     u16 *pTable = (u16 *)(D_800D3420 + index * 0x40);
     u8 value = func_80079E7C(pTable[(*p)[3]]);
 
@@ -78,7 +81,31 @@ u8 func_8007B608(u8 **p, u8 index, u8 arg2) {
     return ret;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007B6C0);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007B7B0);
+/* best: 89.53%. Structurally complete (both cases, the -0x10 derived from the
+   D_800D3420 base in the jal delay slot, u8 value local, g_GameState.gold), but
+   the original keeps slot and base in separate callee-saved regs (s1, s0) and
+   combines them after the call, gcc combines them before and needs one saved
+   register fewer (228 vs 224 bytes). 85.93% with the case-2 pointer inlined.
+
+void func_8007B6C0(u8 **p, u8 index) {
+    switch ((*p)[2]) {
+    case 1: {
+        u16 *pField = (u16 *)(D_800D3420 + index * 0x40);
+        u32 *pField32 = (u32 *)((u8 *)pField - 0x10);
+        u8 value = func_80079E7C(pField[(*p)[3]]);
+
+        pField32[(*p)[1]] = *(u32 *)(D_800CCDEC + value * 0x170);
+        break;
+    }
+    case 2: {
+        u32 *pField32 = (u32 *)(D_800D3410 + index * 0x40);
+
+        pField32[(*p)[1]] = g_GameState.gold;
+        break;
+    }
+    }
+}
+*/INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007B7B0);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007B8D4);
 /* best: 73.75%. Instruction multiset identical; the original loads *p into v0
    and puts the D_800D3420 base in a0, gcc emits the base first instead. Same
