@@ -20,6 +20,11 @@ extern void func_800B73A0(void);
 extern void func_800B6F0C(void);
 extern void func_800B7134(void);
 extern void func_800B7364(u8 *p);
+extern s32 func_80023124(s32 arg0, s32 arg1);
+extern void func_80021FE0(u8 *pActor, s16 arg1);
+extern void func_800223B0(u8 *pActor, s16 arg1);
+extern void func_80021B04(SVECTOR *pVector, s16 x, s16 y, s16 z);
+extern void func_801FC53C(void *pArg, s32 arg1, s32 arg2, s32 arg3, s32 arg4, s32 arg5, s32 arg6);
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc28", func_800B63F0);
 /* best 77.22%: retail passes the three zero args from one register
@@ -43,6 +48,28 @@ void func_800B6438(u8 *p) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc28", func_800B6464);
+/* best 59.79%: retail loads both packet bytes before any arithmetic and
+   copies the packet pointer to t1 in the first slot; gcc reuses a0 for the
+   second lbu and sinks it below the srl.  Also tried: u16 v local, s32 byte
+   locals, i less-than n (gives slt instead of the rotated bne), and both
+   signed and unsigned packet pointer types.
+void func_800B6464(u8 *pActor, u8 *p) {
+    u8 *pEntry;
+    s16 n;
+    s16 i;
+
+    n = *(u8 *)(pActor + 0x40) >> 2;
+    pEntry = (u8 *)(*(u32 *)(*(u32 *)(pActor + 0x20) + 0x30)) + 0xC;
+    for (i = 0; i != n; i++) {
+        u16 v = *(u16 *)pEntry;
+        s32 b0 = p[0];
+        s32 b1 = p[1];
+
+        *(u16 *)pEntry = ((v & 0x3F) + b0) | ((((v >> 6) & 0x1FF) + b1) << 6);
+        pEntry += 0x18;
+    }
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc28", func_800B64D4);
 /* best 77.59%: retail adds 0x8C8C as a separate li+addu on the runtime base
    (li v1,0x8C8C; addu v0,v0,v1; lw a0,0(v0)), gcc always folds it into the
@@ -55,9 +82,33 @@ void func_800B64D4(s32 arg0, u8 *p) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc28", func_800B6518);
+/* best 81.08%: retail materialises the two 8-byte locals in memory (sh) and
+   rebuilds each word from two lhu, and its frame is 8 bytes larger (one
+   unused slot); gcc reads each word back with a single lw.  Explicit
+   (v.vy << 16) | v.vx recombination is worse (69.61).  The A pair loads lh
+   (signed) and the B pair lhu, so the B fields are unsigned halfwords.
+void func_800B6518(u8 *pActor) {
+    SVECTOR a;
+    SVECTOR b;
+    s16 angle;
+
+    a.vx = *(s16 *)(pActor + 0x2);
+    a.vy = *(s16 *)(pActor + 0xA);
+    b.vx = *(u16 *)(pActor + 0xA0);
+    b.vy = *(u16 *)(pActor + 0xA4);
+    angle = func_80023124(*(s32 *)&b, *(s32 *)&a);
+    func_80021FE0(pActor, angle);
+    func_800223B0(pActor, angle);
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc28", func_800B65B0);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc28", func_800B6808);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc28", func_800B6930);
+void func_800B6930(u32 *pOut, s8 *p) {
+    p += (p[1] << 8) | (u8)p[0];
+    pOut[0] = ((p[1] << 8) | (u8)p[0]) << 16;
+    pOut[1] = ((p[3] << 8) | (u8)p[2]) << 16;
+    pOut[2] = ((p[5] << 8) | (u8)p[4]) << 16;
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc28", func_800B6990);
 /* best 52.71%: the first read (p += ...) matches byte for byte with this shape;
    every pOut store instead gets lbu + sll 24/sra 16 because gcc truncates the
@@ -70,7 +121,17 @@ void func_800B6990(u16 *pOut, s8 *p) {
     pOut[2] = (p[5] << 8) | (u8)p[4];
 }
 */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc28", func_800B69E4);
+void func_800B69E4(u16 *pOut, s8 *p) {
+    s32 v;
+
+    p += (p[1] << 8) | (u8)p[0];
+    v = (p[1] << 8) | (u8)p[0];
+    pOut[0] += v;
+    v = (p[3] << 8) | (u8)p[2];
+    pOut[1] += v;
+    v = (p[5] << 8) | (u8)p[4];
+    pOut[2] += v;
+}
 void func_800B6A50(u8 *p) {
     u8 *pSrc = *(u8 **)(p + 0x70);
 
@@ -79,7 +140,10 @@ void func_800B6A50(u8 *p) {
     *(u32 *)(p + 0x14) = *(u32 *)(pSrc + 0x14);
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc28", func_800B6A7C);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc28", func_800B6B98);
+void func_800B6B98(u8 *pArg, s8 *p) {
+    p += (p[1] << 8) | (u8)p[0];
+    func_801FC53C(pArg, (u8)p[0] << 4, (u8)p[1], p[2] << 3, (u8)p[3] << 3, p[4] << 3, (u8)p[5]);
+}
 void func_800B6BFC(void) {
     RECT rect;
 
@@ -101,6 +165,27 @@ void func_800B6C98(u8 *p) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc28", func_800B6CEC);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc28", func_800B6DC0);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc28", func_800B6E84);
+/* best 99.85%: only the second zero argument differs - retail copies a1 into
+   a2 (one shared register for both zero args) where gcc rematerialises
+   move a2,zero.  Tried: literal 0, s32/s16 zero locals, (s16) cast, shared
+   variable for both args.  Size and every other instruction match.
+void func_800B6E84(u8 *pActor, s8 *p) {
+    SVECTOR rotation;
+    MATRIX mtx;
+    VECTOR vec;
+    s16 zero;
+    s32 z;
+
+    zero = 0;
+    z = p[0] << 4;
+    func_80021B04(&rotation, zero, zero, z);
+    RotMatrix(&rotation, &mtx);
+    ApplyMatrixLV(&mtx, (VECTOR *)(pActor + 0xC), &vec);
+    *(s32 *)(pActor + 0xC) = vec.vx;
+    *(s32 *)(pActor + 0x10) = vec.vy;
+    *(s32 *)(pActor + 0x14) = vec.vz;
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc28", func_800B6F0C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc28", func_800B7134);
 /* best 65.36%: retail stores D_800C3CB4 through a register base
