@@ -17,8 +17,8 @@ extern u32 D_800912F4[];
 extern s32* D_80092734;
 extern u8 D_80092884;
 extern s32 D_800912F0;
-extern s32 D_80098800;
-extern s32 D_800970E4;
+extern s32 D_80098800[];
+extern s32 D_800970E4[];
 extern s32 D_80092950;
 
 void func_8007EE08(s32 arg);
@@ -29,17 +29,23 @@ s32 func_8007FF70(s32 value, s32 max, s32 flags);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc7", func_8007F854);
 
-/* 63% under the unit's preset, 96.08% under -G0: the original materialises
-   &D_80098800 and &D_800970E4 into a1/a0 and does lw/ori/sw through them,
-   which is gcc's -G0 addressing. This unit may want an XenoMain-style -G0
-   preset (gears.toml, not touched here). */
+/* 96.25%: everything matches except the currency allocation, which is mirrored
+   - the original loads/stores D_80098800 side through a1/v1 and D_800970E4
+   through a0/v0, ours picks the pair the other way round, so both value and
+   address registers are swapped (and the two lw/ori/sw groups with them).
+   Also tried: statement order reversed (95.42), no tmp array (96.08).
+   The D_80098800[]/D_800970E4[] open-array declarations below are what got it
+   this far: a scalar s32 extern is small data under -G8, and then gcc
+   rematerialises each address instead of holding it in a register. */
 /* void func_8007F854(void) {
+    s32 tmp[2];
+
     D_800912F0 = 1;
     func_80083C0C(1);
     D_80092734 = 0;
     func_8007F834();
-    D_80098800 |= 0xC;
-    D_800970E4 |= 0xC;
+    D_80098800[0] |= 0xC;
+    D_800970E4[0] |= 0xC;
 } */
 
 void func_8007F8B4(void) {
