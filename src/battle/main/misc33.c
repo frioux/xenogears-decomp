@@ -13,6 +13,7 @@ extern u16 D_800D2E54;
 extern u8 D_800D3350;
 extern u8 D_800C3784[];
 extern u8 D_800C3EB0[];
+extern u32 D_800C37A4[];
 extern u8 D_800591AC;
 extern s32 D_80059464;
 
@@ -92,6 +93,51 @@ void func_800BE6A0(s32 arg0, u8 *p, s32 n, s32 arg3) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BE6E8);
+/* best 82.71%: retail walks ONE pointer that is decremented in the loop-test
+   block's branch delay slot, so both `lw` reads are at offset 0(v1) and the
+   pointer is restored with a dead `addiu v1,v1,4` after the loop; gcc keeps the
+   source pointer as the base here and reads the quotient at -4(v1), and it also
+   emits a `beqz` loop guard instead of retail's `j` into the test block.  The
+   divisors really are tab[n-1] (quotient) and tab[n] (remainder) -- the two
+   divu are NOT CSE'd, so a single `divisor` local (which merges them into one
+   div with mflo+mfhi) is wrong.  `(u32)` on both divisions is required: retail
+   uses divu, and the table D_800C37A4 holds u32.
+s32 func_800BE6E8(s32 value, u8 *pBuf, s32 n, u8 started, s32 base) {
+    u8 *pDst;
+    u8 digit;
+    s32 count;
+    u32 *pTab;
+
+    count = 0;
+    pDst = pBuf + 1;
+    if (value < 0) {
+        count = 1;
+        pBuf[1] = '-';
+        pDst = pBuf + 2;
+        value = -value;
+        n--;
+    }
+    pTab = &D_800C37A4[n];
+    while (n != 0) {
+        digit = (u32)value / pTab[-1];
+        if (digit != 0) {
+            started = 1;
+        }
+        n--;
+        if (started != 0) {
+            *pDst = digit + base;
+            pDst++;
+            count++;
+        }
+        value = (u32)value % *pTab;
+        pTab--;
+    }
+    *pDst = value + base;
+    pBuf[0] = count + 1;
+    return count + 1;
+}
+*/
+
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BE790);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BEB04);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BEBC4);
