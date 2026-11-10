@@ -62,7 +62,24 @@ void func_8007C678(u8 **arg0, u8 arg1) {
     pRow = (u16 *)(D_800D3420 + arg1 * 0x40);
     pRow[(*arg0)[1]] = result;
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007C75C);
+void func_8007C75C(u8 **arg0, u8 arg1) {
+    u16 *pRow;
+    u16 result;
+    u16 best = 0xFFFF;
+    s32 bestIndex = 0;
+    s32 i;
+    s32 offset;
+
+    for (i = 3, offset = 0x450; i < 0xB; i++, offset += 0x170) {
+        if (func_8007A628(i, (*arg0)[2]) != 0 && best >= *(u16 *)(D_800CCD34 + offset)) {
+            best = *(u16 *)(D_800CCD34 + offset);
+            bestIndex = i;
+        }
+    }
+    result = func_80089C08(bestIndex);
+    pRow = (u16 *)(D_800D3420 + arg1 * 0x40);
+    pRow[(*arg0)[1]] = result;
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007C840);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007C9D4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007CB20);
