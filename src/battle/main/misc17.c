@@ -244,7 +244,54 @@ void func_80094C78(void) {
         }
     }
 }
+/* 91.61% first attempt: the whole shape is right (two count loops, the
+   if/else-if pair, the two duplicated fix loops, u8 counters masked with
+   0xFF). Left to close: the beqz delay slot (the original puts `i++` there,
+   gcc leaves a nop and emits it after the counter increment) and the
+   base/index order of the row-pointer addu in the two fix loops
+   (original `addu a0,t1,v1` base-first, gcc `addu v1,a3,v1`). Making the
+   count loops use a row pointer fixed their addu order (91.47 -> 91.61).
+   Tried: p[0x3E] vs the full expression, one u16 *p reused vs re-declared
+   per loop. Un-parking needs `extern u16 D_800C3AA4[];`. */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80094D24);
+/*
+void func_80094D24(void) {
+    u8 i;
+    u8 n1;
+    u8 n2;
+    u16 *p;
+
+    for (i = 0, n1 = 0; i < 3; i++) {
+        p = (u16 *)(D_800C34B0 + i * 0x170);
+        if (p[0x3E] & 0xC000) {
+            n1++;
+        }
+    }
+    for (i = 0, n2 = 0; i < 3; i++) {
+        p = (u16 *)(D_800C34B0 + i * 0x170);
+        if (p[0x3E] & 2) {
+            n2++;
+        }
+    }
+    if (n1 == 1 && n2 == 2) {
+        for (i = 0; i < 3; i++) {
+            p = (u16 *)(D_800C34B0 + i * 0x170);
+            if (p[0x3E] & 2) {
+                p[0x3E] &= ~2;
+                p[0x3D] = D_800C3AA4[i];
+            }
+        }
+    } else if (n1 == 2 && n2 == 1) {
+        for (i = 0; i < 3; i++) {
+            p = (u16 *)(D_800C34B0 + i * 0x170);
+            if (p[0x3E] & 2) {
+                p[0x3E] &= ~2;
+                p[0x3D] = D_800C3AA4[i];
+            }
+        }
+    }
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80094EE4);
 /* 99.76%: every instruction identical except the two `mfhi` results of the
    /10 sequences (original v0/v1, gcc 2.7.2 picks a3 for both and then does the
@@ -279,12 +326,13 @@ void func_80095690(void) {
     *(s32 *)(D_800C3E50 * 4 + D_800C34B0 + 0x5F6C) = v;
 }
 */
-/* 95.00%: instruction multiset identical; the only difference is that gcc
-   emits the sb's `li 2` before the five `sh zero` stores (the original keeps it
-   after) plus the v0/v1 register colour. Tried the index as a local vs the
-   global inline, both declaration orders and both source orders of the index
-   load; the five stores go through a pointer loaded from a global, so the extra
-   `nop` after that load is the load-delay hazard it introduces. */
+/* 95.00% (this shape): instruction multiset identical; gcc emits the sb's
+   `li 2` before the five `sh zero` stores (the original keeps it after), and
+   picks v1/a1 for the p/index pair where the original has v0/v1, which also
+   drags the /10 `mfhi` to a2 instead of v0. Tried: index/p as locals
+   (this, 95.00), both globals inline (89.30 - nop after the p load, index load
+   sunk past the stores), both declaration orders, `p` reassigned for the
+   0x4E read. Operand/allocator tie. */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_800957D8);
 /*
 void func_800957D8(void) {
