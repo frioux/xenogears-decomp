@@ -157,17 +157,77 @@ s32 func_8007EB6C(u8* pText) {
     return width;
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007EBE0);
+void func_8007EBE0(u8* pText) {
+    s32 y = D_800926E8;
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007EC54);
+    while (*pText != 0) {
+        func_8007E964(*pText);
+        pText++;
+    }
+    D_800926E8 = y;
+    D_800926EC += 0x14;
+}
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007ECF0);
+void func_8007EC54(u8* pText) {
+    s32 y = D_800926E8;
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007ED84);
+    D_800926E8 -= func_8007EB6C(pText) / 2;
+    while (*pText != 0) {
+        func_8007E964(*pText);
+        pText++;
+    }
+    D_800926E8 = y;
+    D_800926EC += 0x14;
+}
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007EE08);
+void func_8007ECF0(u8* pText) {
+    s32 y = D_800926E8;
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007EE68);
+    D_800926E8 -= func_8007EB6C(pText);
+    while (*pText != 0) {
+        func_8007E964(*pText);
+        pText++;
+    }
+    D_800926E8 = y;
+    D_800926EC += 0x14;
+}
+
+void func_8007ED84(u8* pText, s32 dy) {
+    s32 tmp[2]; // unused: reproduces the original's 8-byte frame slot
+    s32 y = D_800926E8;
+
+    D_800926E8 = y - dy;
+    while (*pText != 0) {
+        func_8007E964(*pText);
+        pText++;
+    }
+    D_800926E8 = y;
+    D_800926EC += 0x14;
+}
+
+void func_8007EE08(s32 arg) {
+    if (arg != 0) {
+        D_800926F4 = 0xFF;
+        D_800926F8 = 0;
+        D_800926F0 = D_80059488 * 20;
+    } else {
+        D_800926F0 = 0xFF;
+        D_800926F4 = 0xFF;
+        D_800926F8 = 0xFF;
+    }
+}
+
+void func_8007EE68(s32 arg) {
+    if (arg != 0) {
+        D_800926F8 = 0xFF;
+        D_800926F0 = 0xFF - D_80059488 * 20;
+        D_800926F4 = 0xFF - D_80059488 * 20;
+    } else {
+        D_800926F0 = 0xFF;
+        D_800926F4 = 0xFF;
+        D_800926F8 = 0xFF;
+    }
+}
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007EEE8);
 
