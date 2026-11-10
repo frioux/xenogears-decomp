@@ -28,6 +28,18 @@ typedef struct {
     /* 0x0 */ u32 unk0[4];
 } Misc15Block16; // Size: 0x10
 
+typedef struct {
+    /* 0x0 */ s16 unk0;
+    /* 0x2 */ s16 unk2;
+    /* 0x4 */ s16 unk4;
+    /* 0x6 */ s16 unk6;
+    /* 0x8 */ s16 unk8;
+    /* 0xA */ u16 unkA;
+    /* 0xC */ s16 unkC;
+    /* 0xE */ s16 unkE;
+    /* 0x10 */ MATRIX unk10;
+} Misc15Xform; // Size: 0x30
+
 
 extern Misc15Slot *D_8009BE24;
 extern void *D_8009C184[];
@@ -156,6 +168,40 @@ void func_8009699C(Misc15CdRequest *p) {
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_80096A6C);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_80096C0C);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_80096F18);
+// Best: 59.80%. The structure is decoded and every call/argument is right (the
+// scratchpad rot vector at 0x1F8000A0, the matrix at 0x1F8000F0, the vectors at
+// 0x1F800000/0x1F800010, RotMatrixYXZ / ApplyMatrixLV / RotMatrixYXZ /
+// ApplyMatrix, and the >>12 and ->>12 folds). What differs is the frame: gcc
+// CSEs 0x1F8000A0/0xA2/0xA4 into the callee-saved s3/s4/s5, so the frame is
+// 0x30 with six saved registers, while the original keeps only 0xA0 in s3 and
+// reaches 0xA2/0xA4 with a fresh lui $at plus maspsx's low-half offset fold
+// (sh $v0,0xA2($at)) -- a 4-byte size difference and a different allocation.
+/*
+void func_80096F18(Misc15Xform *pOut, u8 *pSrc, s32 height, u8 *pAngles) {
+    pOut->unk8 = 0;
+    pOut->unkA = *(s32 *)(pSrc + 4) >> 12;
+    pOut->unkC = 0;
+    *(u16 *)0x1F8000A0 = *(u16 *)(pAngles + 0);
+    *(u16 *)0x1F8000A2 = *(u16 *)(pAngles + 2);
+    *(u16 *)0x1F8000A4 = 0;
+    RotMatrixYXZ((SVECTOR *)0x1F8000A0, (MATRIX *)0x1F8000F0);
+    *(s32 *)0x1F800000 = 0;
+    *(s32 *)0x1F800004 = 0;
+    *(s32 *)0x1F800008 = -(height >> 12);
+    ApplyMatrixLV((MATRIX *)0x1F8000F0, (VECTOR *)0x1F800000, (VECTOR *)0x1F800010);
+    pOut->unk0 = *(s32 *)0x1F800010;
+    pOut->unk2 = pOut->unkA + *(s32 *)0x1F800014;
+    pOut->unk4 = *(s32 *)0x1F800018;
+    *(u16 *)0x1F8000A0 = 0;
+    *(u16 *)0x1F8000A2 = *(u16 *)(pAngles + 2);
+    *(u16 *)0x1F8000A4 = *(u16 *)(pAngles + 4);
+    RotMatrixYXZ((SVECTOR *)0x1F8000A0, (MATRIX *)0x1F8000F0);
+    *(u16 *)0x1F8000A0 = 0;
+    *(u16 *)0x1F8000A2 = -0x1000;
+    *(u16 *)0x1F8000A4 = 0;
+    ApplyMatrix((MATRIX *)0x1F8000F0, (SVECTOR *)0x1F8000A0, (VECTOR *)((u8 *)pOut + 0x10));
+}
+*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_80097070);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_80097244);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_80097440);
