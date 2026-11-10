@@ -182,7 +182,52 @@ void func_80095324(void* pOut, SVec* pDir, SVec* pResult) {
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc14", func_80095414);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc14", func_80095CD4);
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc14", func_80095F78);
+extern void* D_8009D7C4;
+extern void* D_8009C660;
+extern u8 D_8009C58F;
+extern s32 D_8009CD44;
+
+void func_80095F78(void) {
+    u32 first = ArchiveGetDebugTable();
+    u32 second = ArchiveGetDebugTable();
+    void** pSlot;
+    u8* pName;
+    s32 i;
+
+    if ((first == 0) | (second == 0xFFFFFFFF)) {
+        pSlot = &D_8009D7C4;
+        D_8009BCB8 = 0;
+        D_8009BE44 = 0;
+        D_8009CD44 = 0;
+        for (i = 15; i >= 0; i--) {
+            *pSlot-- = NULL;
+        }
+        D_8009BE08 = HeapAlloc(0x4200, 0);
+        D_8009D7D4 = HeapAlloc(0x800, 0);
+        i = 7;
+        pName = &D_8009C58F;
+        D_8009D808 = 0;
+        do {
+            *pName-- = 0;
+        } while (--i >= 0);
+    } else {
+        pSlot = &D_8009C660;
+        D_8009BCB8 = 0;
+        D_8009BE44 = 0;
+        D_8009CD44 = 0;
+        for (i = 15; i >= 0; i--) {
+            *pSlot-- = NULL;
+        }
+        D_8009D3C0 = HeapAlloc(0x5800, 0);
+        D_8009D7D4 = HeapAlloc(0x800, 0);
+        i = 7;
+        pName = &D_8009C58F;
+        D_8009D808 = 0;
+        do {
+            *pName-- = 0;
+        } while (--i >= 0);
+    }
+}
 
 void func_800960BC(void) {
     u32 first = ArchiveGetDebugTable();
