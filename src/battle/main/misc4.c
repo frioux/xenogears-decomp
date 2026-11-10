@@ -85,16 +85,18 @@ void func_80078D48(u8 arg0, u8 arg1) {
 }
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc4", func_80078D6C);
-/* Best: 82.72%. Everything matches (including the 0x170-stride flag word) except
-   that gcc sinks the D_800C3D1B store past the flag-word load. Tried: statement
-   order both ways, pointer local for the entry (changes the address shape to
-   base-in-register), scalar-plus-cast spelling.
+/* Best: 86.09%. The second store is stolen into the lhu load-delay slot by gcc
+   unless its address register is clobbered by the 0x170 multiply chain, and only
+   the folded `&D_800C3D1B[arg0 - 3].unk0` address does that (chain reuses v0), but
+   it folds -12 into %hi(D_800C3D1B) and costs the original's separate
+   addiu/sll + %hi/addu address. Kept in place by volatile; the remaining diff is
+   that address shape only. Also: -O1 scores 90.74, so the mover is an -O2 pass.
 
 void func_80078D6C(u8 arg0, u8 arg1) {
     D_800C402F[D_800C3EAC[0x2DA] * 72] = 0xF9;
     func_800785D4(arg0, arg1);
     D_800D2DE4[arg0] = 0xFF;
-    D_800C3D1B[arg0 - 3].unk0 = 1;
+    *(volatile u8*)&D_800C3D1B[arg0 - 3].unk0 = 1;
     D_800CCD64[arg0].flags &= 0x8000;
 }
 */
@@ -102,36 +104,26 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc4", func_80078E24);
 void func_80079054(u8 arg0, u8 arg1) {
     func_80079ED8(arg0, D_800D2E5D[arg1 * 8], D_800D2E60[arg1 * 8], 0);
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc4", func_80079098);
-/* Best: 70.26%. Same CSE class as func_8007916C: gcc builds &D_800D2E5D[arg1*8]
-   once into a saved register across the first call instead of re-forming it with
-   a fresh lui/addu from the shifted index. Tried: one expression twice, two
-   index locals, nested call.
-
-s32 func_80079098(u8 arg0, u8 arg1) {
+void func_80079098(u8 arg0, u8 arg1) {
+    s32 idx;
     s32 value;
 
-    value = func_80079ED8(arg0, D_800D2E5D[arg1 * 8], 0, 1);
-    return func_80079ED8(arg0, D_800D2E5D[arg1 * 8], (D_800D2E60[arg1 * 8] + value) & 0xFF, 0);
+    idx = arg1 * 8;
+    value = func_80079ED8(arg0, D_800D2E5D[idx], 0, 1);
+    func_80079ED8(arg0, D_800D2E5D[idx], D_800D2E60[idx] + value, 0);
 }
-*/
 void func_80079114(u8 arg0, u8 arg1) {
     func_8007A280(arg0, D_800D2E5D[arg1 * 8], D_800D2E60[arg1 * 8] | (D_800D2E61[arg1 * 8] << 8), 0);
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc4", func_8007916C);
-/* Best: 77.89%. Instruction multiset is right; gcc keeps &D_800D2E5D[arg1*8] in
-   a saved register across the first call (base-in-register, lbu 0(s0)) where the
-   original re-forms it with lui/addu from the shifted index. Same CSE blocker as
-   func_80079098.
-
-s32 func_8007916C(u8 arg0, u8 arg1) {
+void func_8007916C(u8 arg0, u8 arg1) {
+    s32 idx;
     s32 value;
 
-    value = func_8007A280(arg0, D_800D2E5D[arg1 * 8], 0, 1);
-    return func_8007A280(arg0, D_800D2E5D[arg1 * 8],
-                        D_800D2E60[arg1 * 8] + (value + (D_800D2E61[arg1 * 8] << 8)) & 0xFFFF, 0);
+    idx = arg1 * 8;
+    value = func_8007A280(arg0, D_800D2E5D[idx], 0, 1);
+    func_8007A280(arg0, D_800D2E5D[idx],
+                  (u16)(D_800D2E60[idx] + (value + (D_800D2E61[idx] << 8))), 0);
 }
-*/
 void func_800791FC(u8 arg0, u8 arg1) {
     func_8007893C(arg1, arg0);
     D_800C402F[D_800C3EAC[0x2DA] * 72] = 0xF4;
@@ -200,14 +192,14 @@ void func_80079948(u8** pCursor) {
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc4", func_800799C8);
 /* Best: 87.14%. Whole structure, both clear loops (the *p++ / p < pEnd do-while
-   and the 0x8B8 / -0x48 loop) and the if/else layout are right. Left: gcc puts
-   the loop test at the top (no preheader `j`) where the original rotates it to
-   the bottom (`bne` back to the body, fall into the epilogue), and it gives the
-   0xFF compare constant a callee-saved reg ($s2, +sw/lw) where the original
-   parks it in the bne delay slot. `cmd` must be u32 (u8 gives an andi per use,
-   s32 gives slti) and the >= 0x80 test must come first or the arms swap order.
-   Tried: while with the load in the condition, for(;;) with two breaks,
-   break vs return for the 0xFF exit, u8/u32/s32 cmd, u8 value.
+   and the 0x8B8 / -0x48 loop) and the if/else layout are right. Left: gcc merges
+   the while test and the 0xFF break into two compares at the top of the body
+   (0xFD, then 0xFF parked in a callee-saved $s2, hence the extra sw/lw s2) where
+   the original has the 0xFD test only at the bottom and materialises 0xFF in the
+   bne delay slot. `cmd` must be u32 (u8 gives an andi per use, s32 gives slti)
+   and the >= 0x80 test must come first or the arms swap order.
+   Tried: while with the load in the condition, for(;;) with two breaks, break vs
+   return for the 0xFF exit, u8/u32/s32 cmd, u8 value.
 
 void func_800799C8(u8 arg0) {
     u8 *p;
