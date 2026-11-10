@@ -568,6 +568,85 @@ void func_8003869C(void) {
 
 //----------------------------------------------------------------------------------------------------------------------
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_800386C4);
+/*
+Attempt (97.67%, 352 bytes - same size as the original). Everything matches: the switch/tree
+shape needs `case 0: break;` (with only cases 1-3 gcc pivots on 2 and the whole tree differs),
+the volume local must be shifted back into itself (`volume <<= 7/6`) so only one sll is emitted.
+Only delta left: the `li v0,1` for the two flag stores is emitted one instruction early (before
+the `sh s0,0x66`) where the original emits it after. Source order 0x66 then 0x36/0x62 already;
+chained `pState->unk62 = pState->unk36 = 1;` and a separate flag local do not move it.
+// State block reached through D_80059518 (only reader in the binary).
+typedef struct {
+    u16 active;      // 0x00, bit 0 = sequencer active
+    u8 unk2[0x10];   // 0x02
+    u16 unk12;       // 0x12
+    u8 unk14[0x22];  // 0x14
+    s16 unk36;       // 0x36
+    s16 unk38;       // 0x38
+    s16 unk3A;       // 0x3A
+    u8 unk3C[0x26];  // 0x3C
+    s16 unk62;       // 0x62
+    s16 unk64;       // 0x64
+    s16 unk66;       // 0x66
+} SoundCdSeqState; // Size: 0x68
+
+extern SoundCdSeqState* D_80059518;
+
+void func_800386C4(s32 mode) {
+    AudioManager* pManager;
+    SoundCdSeqState* pState;
+    u16 volume;
+
+    g_SoundControlFlags &= ~0x700;
+
+    switch (mode) {
+        case 0:
+            break;
+        case 1:
+            g_SoundControlFlags |= 0x100;
+            break;
+        case 2:
+            g_SoundControlFlags |= 0x300;
+            break;
+        case 3:
+            g_SoundControlFlags |= 0x500;
+            break;
+    }
+
+    SoundApplyVolumeSettings();
+    SpuSetReverbModeDepth(g_SoundReverbDepth.left, g_SoundReverbDepth.right);
+
+    pManager = g_SoundAudioManagerListHead;
+    while (pManager != NULL) {
+        unk_SoundSetFlagsOnActiveVoices(0x100, pManager);
+        pManager = pManager->next;
+    }
+
+    if (g_SoundControlFlags & 0x4000) {
+        SoundSetupCdMix(g_SoundVolumeController.unk_field2);
+    }
+
+    pState = D_80059518;
+    if (pState != NULL) {
+        if (pState->active & 0x1) {
+            volume = pState->unk12;
+            if (func_80038824() != 0) {
+                volume <<= 7;
+                pState->unk38 = volume;
+                pState->unk3A = 0;
+                pState->unk64 = 0;
+            } else {
+                volume <<= 6;
+                pState->unk38 = volume;
+                pState->unk3A = volume;
+                pState->unk64 = volume;
+            }
+            pState->unk66 = volume;
+            pState->unk62 = pState->unk36 = 1;
+        }
+    }
+}
+*/
 
 //----------------------------------------------------------------------------------------------------------------------
 s32 func_80038824(void) {
@@ -3773,22 +3852,23 @@ u8* func_8003E54C(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003E5BC);
 /*
-Attempt (25.00%, same size as the original's 200 bytes): the field mapping is right (every
-offset in the original is reproduced: voice_data.startAddress/loopAddress, the four adsr bytes,
-unk_0x28, unk_0x6C, active_flag bit 15, unk_0x26) but two things differ. gcc rewrites
-`sampleOffset * 8 + loopOffset * 8` as `(sampleOffset + loopOffset) * 8`, losing the original's
-reuse of the first shift, and it emits the `active_flag |= 0x8000` read-modify-write five
-stores earlier than the source places it, which also displaces the unkC halfword from a2 to v1.
-A `u32 sampleOffset` local and moving the flag store later in the source both left it unchanged.
+Attempt (32.33%, 196 bytes vs the original's 200): startAddress/loopAddress now match exactly -
+the shared shift needs a `u32 offset = pTone->sampleOffset * 8;` local, otherwise gcc folds
+`a*8 + b*8` into `(a+b)*8`. Remaining delta: gcc keeps unkC in v1 where the original uses a2
+(free third temp), which reorders the third unkC store past the active_flag load and drags the
+flag RMW four stores early. u16/u32 unkC, declaration order and a separate adsr local all leave
+the same allocation.
 void func_8003E5BC(s16 value, AudioElement* pElement) {
     SoundWDSEntry* pWds = (SoundWDSEntry*)pElement->unk2C;
     SoundWdsTone* pTone = (SoundWdsTone*)((u8*)pWds + 0x30 + value * 0x10);
+    u32 offset;
     u32 adsr;
     u16 unkC;
 
     pElement->unk_0x26 = value;
-    pElement->voice_data.startAddress = pWds->spuMemoryAddress + pTone->sampleOffset * 8;
-    pElement->voice_data.loopAddress = pTone->sampleOffset * 8 + pTone->loopOffset * 8;
+    offset = pTone->sampleOffset * 8;
+    pElement->voice_data.startAddress = pWds->spuMemoryAddress + offset;
+    pElement->voice_data.loopAddress = offset + pTone->loopOffset * 8;
 
     unkC = pTone->unkC;
     pElement->voice_data.unkAdsr1 = unkC & 0x7;
@@ -3807,7 +3887,6 @@ void func_8003E5BC(s16 value, AudioElement* pElement) {
     pElement->unk_0x6C = pTone->unk6;
 }
 */
-
 
 //----------------------------------------------------------------------------------------------------------------------
 void unk_SoundSetFlagsOnActiveVoices(u16 flags, AudioManager* manager) {
