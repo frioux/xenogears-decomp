@@ -7,6 +7,7 @@ extern u8* D_800C3DFC;
 extern u8* D_800D2DC8;
 extern u8 D_800CCE30[];
 extern u8 D_800CCE4A[];
+extern u8 D_800CCCE8[];
 
 extern int rand(void);
 extern void func_8009BE0C(void);
@@ -14,6 +15,24 @@ extern void func_8009BE0C(void);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009A0DC);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009A1AC);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009A258);
+/* Best attempt: 92.90%. Structure and instruction multiset identical (the
+   addiu 0x1058 of the row offset, the two strength-reduced multiplies and the
+   clamp all line up); the only difference is that gcc puts the row-offset chain
+   in $v0 and the arg1 chain in $v1 where the original has them in $v1/$v0, which
+   cascades to the base pointer ($a1 vs $a3) and costs the original's
+   `move v1,v0` for the u8 sum. Tried: one-expression form, `u8* q` slice,
+   pointer-free `s32 off`, and a separate `s32 sum` + `u8 v = sum`.
+u8 func_8009A258(u8 arg0, u8 arg1) {
+    u8* p = D_800C34B0;
+    s32 off = arg0 * 0x5F0 + 0x1058;
+    u8 v = *(u8*)((u8*)p + off + arg1 * 0x28 + 0x14) + p[arg0 * 0x170 + 0x5B];
+
+    if (v > 0x64) {
+        v = 0x64;
+    }
+    return v;
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009A2D4);
 
 u8 func_8009A7B8(u8 arg0) {
@@ -42,6 +61,8 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009A854);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009A9D0);
 /* Best attempt: 99.66%. Only difference: the mfhi temp of the `% 100` expansion
    lands in $a1 instead of the original's $a0 (allocator tie-break, 2 insns).
+   Tried: direct `rand() % 100 < 50`, a named `s32 r = rand()`, a named
+   `s32 m = r % 100`, and `r % 100 <= 49` -- all 99.66%.
 s32 func_8009A9D0(void) {
     *(u8*)((u8*)D_800C34B0 + 0x5FC2) = 0;
     if (rand() % 100 < 50) {
@@ -93,6 +114,8 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009BD94);
 
 /* Best attempt: 97.33%. Everything matches except the mfhi temp of the `/ 20`
    expansion ($a1 instead of $v0) and the two registers that follow it.
+   Also tried: a `u32 num` numerator local (83.67%) and a `u32* pDest` pointer
+   local, which CSEs the D_800C34B0 base and comes out 100 bytes (70.17%).
 void func_8009BD94(void) {
     u8* pBase = D_800C34B0;
 
@@ -103,6 +126,35 @@ void func_8009BD94(void) {
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009BE0C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009C050);
+/* Best attempt: 97.78%. Instruction multiset and all offsets match; the only
+   difference is that gcc reassociates `base + 0xA4 + idx` into
+   `base + (idx + 0xA4)`, so the two `addiu $x,base,0xA4/0x148` come out off the
+   index register instead of off the base register (and the base lands in $a1
+   instead of $a0). Splitting the bases into their own pointer locals
+   (`pTimerBase = base + 0xA4; pTimer = pTimerBase + idx;`) gets the right shape
+   but reorders everything and drops to 69.53%. Note `s32 flag = ... & 0x400;
+   ret = flag != 0;` is required: the direct `(x & 0x400) != 0` becomes
+   srl/andi instead of the original's andi/sltu.
+u8 func_8009C050(u8 arg0) {
+    s32 idx = arg0 * 0x170;
+    u8* base = D_800CCCE8;
+    u8* pTimer = base + 0xA4 + idx;
+    u8* pRow = base + idx;
+    u8* pState = base + 0x148 + idx;
+    s32 flag = *(u16*)(pTimer + 0x7C) & 0x400;
+    u8 ret = flag != 0;
+
+    if (*(u32*)(pTimer + 0x60) < (*(u32*)(pTimer + 0x64) >> 3)) {
+        if (!(*(u16*)(pRow + 0x36) & 1)) {
+            ret |= 2;
+        }
+    }
+    if (*pState == 4) {
+        ret |= 4;
+    }
+    return ret;
+}
+*/
 
 void func_8009C0E0(u8 arg0) {
     s32 off = arg0 * 0x170;
