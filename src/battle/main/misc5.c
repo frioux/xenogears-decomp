@@ -219,11 +219,14 @@ void func_8007AA1C(u8 **arg0, u8 arg1) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc5", func_8007AA60);
 /* 99.55% - one insn off: the original's multiply is mult v1,v0 (value first,
    p[2] second); writing `p[2] * pRow[p[1]]` is the only shape that also gets the
-   lbu order right, but then gcc emits mult v0,v1. `pRow[p[1]] * p[2]` swaps the
-   lbu order too (71.50%, also with `u8 n = p[2]` in a local before the row
-   pointer: gcc sinks that load past the addu either way).
+   lbu order right (lbu p[1], lbu p[2], addu row base, lbu row), but then gcc
+   emits mult v0,v1. `pRow[p[1]] * p[2]` flips the mult but also flips the loads
+   to p[1], addu, row, p[2] (71.50%). Splitting the operands into locals
+   (`u8 idx = p[1]; u8 n = p[2]; v = pRow[idx] * n;`) is also 71.50%: cse sinks
+   the p[2] load past the row addu anyway.
    Tried: s16 v with u8 res copy (99.55%), s32 operands
-   via a cur local, u8 res = product then s16 v = res (87.95%, extension folded).
+   via a cur local, u8 res = product then s16 v = res (87.95%, extension folded),
+   operand locals before/after the row pointer (71.50%).
 void func_8007AA60(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
     u8 *pRow = D_800D3430 + arg1 * 0x40;
