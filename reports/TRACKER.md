@@ -1920,3 +1920,35 @@ Two useful new idioms did come out of it:
 Process note worth keeping: a worker rebuilt a park block by string-slicing and silently
 deleted a matched body in the same file; only `check_bin.sh` caught it (undefined reference at
 link). Diff against the previous commit after park/unpark surgery.
+
+| 20 | `menu/{misc7,misc8,misc6,misc9}`, `battle/{misc19,misc16,misc5}`, `world_map/{misc11,misc12,misc1,misc15}`, `battling/{misc6,misc8}`, `field/misc4` | +2 | 1542 | both from `menu/misc9`: `func_801DF890` (182 insns) and `func_801DFB68` (177), the two largest untouched stubs in the unit. Every other unit returned only park notes |
+
+### Round 20: the grind has hit the wall, and here is the measured reason
+
+13 of 14 units returned park notes and nothing else, and the notes all name one of four
+behaviours with no source-level lever left:
+
+- **`cse` replacing a single-use sum pseudo at the argument position** - statement order and
+  local declarations provably do not survive it (`menu/misc8`'s `func_801DB0A8`, 98.80%).
+- **RTL block rotation**: retail's loop-2 `i++` sits at the *top* of the body block
+  (`addiu s1,s1,1` in the `beq` delay slot with no latch copy); no `for`/`while`/`continue`
+  shape reaches that layout (`menu/misc7`'s `func_801D51EC`/`func_801D53D0`, both 98.31%).
+- **gcc cannot hold a scalar global's address in a saved register**, so where retail re-forms
+  `lui at,%hi; addu at,at,idx; lbu %lo(at)` per use, ours hoists the base - and the two are
+  only equivalent when the two indices are *different* values, so CSE credits the shared one
+  (`battle/misc19`, `battle/misc16`).
+- **`combine_givs`/`global.c` tie-breaks** with an identical instruction multiset.
+
+What the round did produce is coverage: `menu/misc11` now knows **7 of its 13 stubs are
+jtbl-blocked**, `battle/misc5` proved its `func_8007ABD8` body is 100.0 under cdk but the unit
+is mixed, `field/misc4` has 4 BLOCKED jtbl owners, and `menu/misc9`'s two matches came with a
+reusable idiom (`((u8*)base + i)[K]` puts the constant offset last and matches retail's
+`addu` order; two separate `if` statements are what emit `bltz` + `slti` where a compound
+range test collapses to one `sltu`).
+
+**Open decision for the operator** (recorded here so it is not lost): the cdk/2.6.0-**mixed**
+units are unreachable only because presets are per *file*. Splitting a mixed unit into one TU
+per function (the `rendering_pause_text.c` precedent generalised: 3-way yaml range split, a
+renamed tail file, one preset entry) would reach `battle/misc27`'s five cdk-only parks,
+`battle/misc5`'s `func_8007ABD8` and the rest of that class - perhaps 10-20 functions. It
+restructures the tree (many small files) and nobody has authorised it.
