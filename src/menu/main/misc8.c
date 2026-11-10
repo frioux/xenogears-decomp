@@ -196,6 +196,12 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801D9704);
    order and the `bnez a2` right but cross-jumps the two increments into one
    shared block, costing 8 bytes (85.62%). The increment sitting in the branch
    delay slot of both paths is what the for-increment clause produces.
+   Round 15: also tried the arms swapped (arg2 != 0 first) - identical
+   84.26%; the block order follows whichever arm is written first and gcc
+   then puts a beqz to the other one, so the original's `bnez a2` -> 0x60
+   with the 0x30 block as fall-through is not reachable by arm order alone.
+   With this variant the case-block prologue also puts `addiu a0,a0,1`
+   before `andi a2,a2,0xff` whereas the original has it last.
 s32 func_801D9704(s32 arg0, u_char arg1, u_char arg2) {
     switch (arg1) {
     case 0:
@@ -262,6 +268,10 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801D9C84);
    pManager->unk33 store. Tried: while, for(;;cond;call), u_char return for
    func_801C93A8 (that one is needed for the andi 0xff) and a pMenu local
    for the two 0xFF stores (also needed).
+   Round 15: `while (cond) { call(); }` gives the identical 92.55% as the
+   for-shape - gcc 2.7.2 rotates this loop (entry `beqz` guard) whatever the
+   spelling, and the pManager load also lands in $v1 where the original uses
+   $v0 (the original stores $s0, i.e. the `result` local, into _pad33).
 s32 func_801D9C84(void) {
     MenuUnk2* pMenu;
     s32 result = 1;
