@@ -201,6 +201,10 @@ typedef struct {
 } Misc8Text; // Size: 0x30
 
 extern Misc8Text D_80095510[2];
+extern Misc8Text D_80095540;
+extern u16 D_8009556C;
+extern u16 D_8009556E;
+extern u8 D_80095570[];
 
 void func_80081094(Misc8Text *p, s32 entry, s32 flag) {
     s32 len;
@@ -210,9 +214,56 @@ void func_80081094(Misc8Text *p, s32 entry, s32 flag) {
     p->x = (0x140 - len) / 2;
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc8", func_80081100);
+void func_80081100(s32 entry, s32 mode) {
+    RECT rect;
+
+    if (mode == 0) {
+        if (entry == D_8009273C) {
+            return;
+        }
+        D_8009273C = entry;
+        func_80081094(&D_80095510[0], entry, 0);
+    } else {
+        if (entry == D_80092740) {
+            return;
+        }
+        D_80092740 = entry;
+        func_80081094(&D_80095540, entry, 1);
+    }
+    rect.x = 0x140;
+    rect.y = 0x30;
+    rect.w = 0x42;
+    rect.h = 0xD;
+    LoadImage(&rect, D_80095510[0].pData);
+}
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc8", func_800811AC);
+/* 87.21%: instruction multiset and instruction count identical; only the a1/a2
+   tie-break (base address in a1 vs a2) differs.  `sym + off` for the store base
+   plus `sym + (off + 4)` for the AddPrim argument reproduces retail's two addu's.
+void func_800811AC(u8 *p) {
+    s32 off;
+    u8 *pBase;
+
+    if (D_8009273C != 0) {
+        off = D_800928A0 * 0x14;
+        pBase = (u8 *)&D_80095510[0] + off;
+        *(u16 *)(pBase + 0x14) = D_8009553C;
+        *(u16 *)(pBase + 0xC) = D_8009553E;
+        AddPrim(p, (u8 *)&D_80095510[0] + (off + 4));
+    }
+    if (D_80092740 != 0) {
+        off = D_800928A0 * 0x14;
+        pBase = (u8 *)&D_80095540 + off;
+        *(u16 *)(pBase + 0x14) = D_8009556C;
+        *(u16 *)(pBase + 0xC) = D_8009556E;
+        AddPrim(p, (u8 *)&D_80095540 + (off + 4));
+    }
+    if (D_8009273C | D_80092740) {
+        AddPrim(p, D_80095570 + D_800928A0 * 8);
+    }
+}
+*/
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc8", func_800812BC);
 
