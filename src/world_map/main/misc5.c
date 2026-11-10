@@ -43,10 +43,54 @@ extern WorldMapPlayer *D_8009BE24;
 extern WorldMapWork *D_8009C620;
 extern u16 D_8009A4D8;
 extern u16 D_8009A4E8[];
+extern u16 D_8009BD38;
+extern u16 D_8009BD3A;
+extern u16 D_8009BD3C;
+extern s32 D_8009BE0C;
+extern s32 D_8009BE28;
+extern s32 D_8009BE2C;
+extern s32 D_8009BE30;
+extern s32 D_8009C5AC;
+extern s32 D_8009C5B0;
+extern s32 D_8009C5B4;
+extern s32 D_8009D3F0;
+extern s32 D_8009D55C;
+extern s32 D_8009D560;
+extern s32 D_8009D564;
 extern void func_800848B4(int, int);
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007A9F8);
+/* best 94.72%: everything matches except the position of the final
+   sw to D_8009BE24[idx].unk50 -- retail leaves it last, gcc hoists it
+   next to the addiu that materialises 0x1000. Tried: literal, pointer
+   local, s32 locals, plain globals (89.35%), address computed mid-block.
+
+int func_8007AD34(int idx) {
+    WorldMapPlayer *pPlayer;
+    s32 a;
+    s32 b;
+    s32 c;
+
+    a = D_8009C5AC;
+    b = D_8009C5B0;
+    c = D_8009C5B4;
+    D_8009BE0C = 0x78;
+    D_8009D3F0 = 0x1C0000;
+    D_8009BD38 = 0x40;
+    D_8009BD3A = 0x480;
+    D_8009BD3C = 0;
+    pPlayer = D_8009BE24 + idx;
+    D_8009BE28 = a;
+    D_8009D55C = a;
+    D_8009BE2C = b;
+    D_8009D560 = b;
+    D_8009BE30 = c;
+    D_8009D564 = c;
+    pPlayer->unk50 = 0x1000;
+    return 1;
+}*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007AD34);
+
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007ADD4);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007B200);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007B394);
@@ -85,15 +129,8 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007C260);
 /* best 95.26%: instruction multiset and registers identical to the original,
    only the emission order of the independent loads differs (gcc hoists
    lhu D_8009A4D8 and defers sll $4,$4,1). A pointer local instead gives
-   65.26% with the same multiset.
-
-int func_8007C36C(int idx) {
-    D_8009BE24[idx].unk50 = 0;
-    D_8009BE24[idx].unk20 = D_8009A4D8;
-    D_8009BE24[idx].unk22 = D_8009A4E8[D_8009BE24[idx].unk50];
-    D_8009BE24[idx].unk50++;
-    return 1;
-}
+   65.26% with the same multiset, and a pointer local plus an s32 index
+   local (i = pPlayer->unk50 before the D_8009A4D8 read) gives 49.68%.
 */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007C36C);
 
