@@ -16,7 +16,6 @@ extern s32 D_80096D8C;
 extern s32 D_80092914;
 
 extern void func_80030A30(s32 index, void *pLight);
-extern void func_8008AF6C(void *pData);
 extern void func_8008B730(void *pA, s32 arg1, s32 arg2);
 extern u32 func_800405E4(void);
 extern void func_8008BB3C(void *pCtx);
@@ -99,7 +98,49 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc14", func_8008ACB8);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc14", func_8008AE1C);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc14", func_8008AF6C);
+typedef struct {
+    /* 0x00 */ u32 unk0;
+    /* 0x04 */ u32 unk4;
+    /* 0x08 */ u32 unk8;
+    /* 0x0C */ u32 unkC;
+    /* 0x10 */ u32 unk10;
+    /* 0x14 */ u32 unk14;
+    /* 0x18 */ u32 unk18;
+    /* 0x1C */ u32 unk1C;
+    /* 0x20 */ u32 unk20;
+    /* 0x24 */ u32 unk24;
+} Misc14Reloc; // Size: 0x28
+
+extern void func_8008A040(void *pImg);
+
+Misc14Reloc *func_8008AF6C(Misc14Reloc *pData) {
+    s32 delta = (s32)pData - (s32)pData->unk1C;
+    u32 *pSlot;
+    u32 i;
+
+    pData->unk1C = (u32)pData;
+    pData->unk0 += delta;
+    pData->unk4 += delta;
+    pData->unk10 += delta;
+    pData->unk14 += delta;
+    pData->unk18 += delta;
+    pData->unk20 += delta;
+    pData->unk24 += delta;
+    if (pData->unkC != 0) {
+        pData->unkC += delta;
+        func_8008A040((void *)pData->unkC);
+    }
+    if (pData->unk8 != 0) {
+        pData->unk8 += delta;
+        for (i = 1; i < ((u32 *)pData->unk8)[0] + 1; i++) {
+            pSlot = (u32 *)(i * 4 + pData->unk8);
+            if (*pSlot != 0) {
+                *pSlot += delta;
+            }
+        }
+    }
+    return pData;
+}
 
 void func_8008B070(s32 entryIndex) {
     void *pBuffer;
