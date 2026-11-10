@@ -1328,6 +1328,24 @@ addresses than the conversions (`func_8007A5DC` 4 bytes, `func_8007A9F8` 742,
 which objdiff cannot see and `check_bin` from the worker's tree did not catch. Left as
 `INCLUDE_ASM`; whoever retries it should convert one function at a time and run
 `check_bin.sh world_map` after each, on a tree that also has the round-3 neighbours merged.
+| 4 | `battle/{misc14,15,20}`, `battling/{misc1,4,9}`, `world_map/{misc4,9}`, `menu/{misc8,10,12}`, `field/main/misc6` | +20 | 1741 | 12 workers, all 11 outputs OK. Per unit: battling/misc4 6, battling/misc1 4, battle/misc14 2, world_map/misc4 2, menu/misc8 2, battle/misc20 1, battling/misc9 1, menu/misc10 1, menu/misc12 1, and 0 in the three units whose stubs were already parked (`battle/misc15`, `world_map/misc9`, `field/misc6`) |
+
+Round 4 is the first round under 30, and it says why: three of its twelve units
+(`battle/misc15`, `world_map/misc9`, `field/main/misc6`) were already saturated with parked
+95-99% attempts and returned 0, and four more returned 1. **Pick units by the fraction of
+stubs that already carry a parked attempt, not just by stub count and size**: `select_target.py
+--json` reports `attempt` per stub, and rounds 1-3 (which took units where it was false for
+nearly every stub) averaged 42 per round.
+
+### Two harness bugs that cost merges this session
+
+- `make progress-publish` leaves `reports/progress.json` modified and tracked, so the next
+  `clone.sh merge` refuses **every** branch (`CONFLICT r-x`) even though nothing overlaps.
+  Commit that snapshot before merging (or merge after publishing, which is what this session
+  did on the second attempt). Same class as the uncommitted-`brief.js` failure in round 1.
+- Workers somehow left `reports/progress.json` dirty in their own clones (7 of 12 by round 4).
+  Clones now get `checkout -- reports/progress.json` before merging, so a worker's report
+  snapshot cannot land in main.
 
 ## Round 1 findings
 
