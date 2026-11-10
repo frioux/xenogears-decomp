@@ -1798,3 +1798,30 @@ Idioms banked this round:
   decision tree for those three values reproduces retail exactly (`menu/misc2`).
 - Six halfword reads must be hoisted into `s32` locals, never `s16` (`s16` gives `lhu` +
   `sll`/`sra`) - `battling/misc1`'s `func_800725B0`.
+
+| 15 | `menu/{misc5,8,10,6}`, `battling/{misc6,8,17,2}`, `world_map/{misc11,12,15}`, `battle/{misc4,5}`, `field/misc9` | +14 | 1583 | menu/misc5 4 (the preset un-park plus three more), battling/misc2 3, battling/misc17 2, plus 5 from truncated reports; `menu/misc6` and `menu/misc10` are also gcc-2.6.0 units (added to the preset) |
+
+### Round 15: the menu overlay is mostly gcc 2.6.0, and a preset un-park keeps paying
+
+`menu/main/misc5` gave **4** matches: the free un-park, then three functions that needed a
+*named* struct field rather than a cast (`MenuString unk18E0[6]` at Menu+0x18E0,
+`unk1BE0[4]` at +0x1BE0, and a `MenuCharacterSpriteRecords` type for the `HeapAlloc(0xA1C)`
+block). Nothing was re-split: one opaque array became three named ones covering the same
+span, which is the safe form of that edit.
+
+`menu/main/misc6` and `menu/main/misc10` are **also 2.6.0** (both added to `XenoMenu260`),
+so five of the twelve `menu` units checked so far are 2.6.0 and six are not - the overlay is
+genuinely mixed and every unit needs its own screen. `menu/misc6` has three parked bodies
+that are straight uncomments once the preset is on.
+
+Idioms banked this round:
+- A loop that the original runs with *two* induction variables (index and byte offset) wants
+  two C loop variables (`for (i = 0, offset2 = 0x400; i < 8; i++, offset2 += 0x80)`) - that
+  is what reproduces `addu a2,s2,v0` plus `addiu s2,s2,0x80` in the delay slot.
+- A flag read-modify-write split into three statements (`flags = lw; flags &= ~2;
+  flags |= arg2 << 1;`) moved a whole parameter from `$8` to `$3` and took `battling/misc2`'s
+  `func_80073CEC` from 0.00% to 100.00%.
+- Re-dereferencing the *full* chain at each use (`*(s16*)(*(u8**)(*(u8**)(p + 0x5C) + 4))`)
+  beats a cached pointer local when the original reloads through it every iteration.
+- `battling/misc2` has three `/* Handwritten function */` stubs (bare `mtc2`/`mfc2`) that no C
+  can produce - same class as `psyq/libgte`'s.

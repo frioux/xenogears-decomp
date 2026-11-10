@@ -274,4 +274,9 @@ name = "XenoMenu260"
 build_variables = {
     gcc = "gcc-2.6.0-psx"
 }
-paths = [ "menu/main/misc9.", "menu/main/misc5." ]
+# menu/main/misc6 and misc10 joined the same family in round 15: for misc6 all 15
+# already-matched functions stay 100.0 under 2.6.0 and func_801D249C is 100.0 only there
+# (99.88 under 2.7.2); for misc10 five sampled matched functions stay 100.0 and
+# func_801E42AC is 100.0 under 2.6.0 vs 89.56 under 2.7.2. Three parked bodies in misc6
+# are straight uncomments once the preset is on.
+paths = [ "menu/main/misc9.", "menu/main/misc5.", "menu/main/misc6.", "menu/main/misc10." ]
