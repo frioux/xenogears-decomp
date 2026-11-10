@@ -1,4 +1,5 @@
 #include "common.h"
+#include "psyq/libgte.h"
 #include "system/memory.h"
 
 // The block func_8008C0CC hangs off a heap node; func_8008C120 releases it.
@@ -23,6 +24,15 @@ extern s32 D_80092824;
 extern void* D_80092828;
 extern void func_8008C188();
 extern s32 rand(void);
+extern u8 D_800928A0;
+extern s32 D_800928E4;
+extern void* g_pCurModelPacket;
+extern void* g_pCurModelVertices;
+extern void* D_80059568;
+extern s32 D_800595C0;
+extern s32 D_80059528;
+extern void func_8008BD70(void* pData, void* pPacket, void* pUnk, void* pVertices);
+extern void func_800316C0(void* pOT, void* pPrim);
 // An 8-byte, byte-aligned chunk: assigning one copies 8 bytes with lwl/lwr.
 typedef struct {
     u8 unk[8];
@@ -84,7 +94,24 @@ void func_8008C2C0(void* pWork) {
     D_80092828 = pWork;
     func_8008C298(pWork);
 }
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc15", func_8008C2E8);
+void func_8008C2E8(u8* pObj) {
+    u8* pData;
+    u8* pBase;
+
+    pData = *(u8**)(pObj + 4);
+    if (*(s32*)pData == 1) {
+        pBase = *(u8**)(pData + 4);
+        if ((*(s32*)*(u8**)(pBase + 4) & 1) == 0) {
+            pBase = *(u8**)(pData + 0xC);
+            func_8008BD70(*(void**)(pBase + 0xC), *(void**)((u8*)pBase + 0x10 + D_800928A0 * 4),
+                          (u8*)D_800928E4 + 4, *(void**)(pBase + 8));
+        }
+    }
+    if (*(u8**)(pObj + 0x94) != NULL)
+        func_8008C2E8(*(u8**)(pObj + 0x94));
+    if (*(u8**)(pObj + 0x90) != NULL)
+        func_8008C2E8(*(u8**)(pObj + 0x90));
+}
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc15", func_8008C3A8);
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc15", func_8008C4B0);
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc15", func_8008C620);
@@ -132,7 +159,18 @@ void func_8008CC54(u8* pObj, u8* pSrc) {
     pObj[0x1E] = pSrc[0x76];
     *(Words4*)(pObj + 0x28) = *(Words4*)(pObj + 0x18);
 }
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc15", func_8008CCB0);
+void func_8008CCB0(u8* pObj, u8* pOT) {
+    long local[2];
+    u8* pBase;
+    s32 otz;
+
+    pBase = pObj + 0x18 + D_800928A0 * 0x10;
+    otz = RotTransPers3((SVECTOR*)pObj, (SVECTOR*)(pObj + 0x10), (SVECTOR*)local,
+                        (long*)(pBase + 8), (long*)(pBase + 0xC),
+                        local, local, local);
+    *(Bytes8*)(pObj + 0x10) = *(Bytes8*)pObj;
+    func_800316C0(pOT + ((otz >> 2) << 2), pBase);
+}
 void func_8008CD54(void) {
 }
 void func_8008CD5C(u8* pObj, u8* pSrc) {
