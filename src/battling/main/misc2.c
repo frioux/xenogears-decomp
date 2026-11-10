@@ -1,50 +1,59 @@
 #include "common.h"
+#include "psyq/libgte.h"
+#include "psyq/gtemac.h"
+#include "psyq/inline_c.h"
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80072D18);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80073064);
-
-/* 84.61%: gte_lddp_a2 + gte_ldir123 + two nops and .word 0x4b98003d + a
-   3-register IR read-back reproduces the instruction sequence, but gcc picks
-   a3/v1/v0 for the loads where the original has t0/t1/t2 and also steals the
-   last `sh` into the `jr ra` delay slot. The read-back macro it needs is
-   gte_stir123_gpr: mfc2 %0,$9 / %1,$10 / %2,$11 with "=r" outputs. */
-/* void func_80073064(s16 *p0, s16 *p1, s32 ir0) {
-    s32 vx = p0[0];
-    s32 vy = p0[1];
-    s32 vz = p0[2];
-    s32 x, y, z;
-
-    gte_lddp_a2(ir0);
-    gte_ldir123(vx, vy, vz);
+/* The depth is consumed out of $a2 by gte_ldir123_dp_a2, so the third
+   parameter must stay in place. */
+void func_80073064(SVECTOR *p0, SVECTOR *p1, s32 ir0) {
+    gte_ldir123_lh(p0);
+    gte_ldir123_dp_a2(ir0);
     gte_nop();
     gte_nop();
     gte_gpf12_b();
-    mfc2 x from $9, y from $10, z from $11;
-    p1[0] = x;
-    p1[1] = y;
-    p1[2] = z;
-} */
+    gte_stir123_lh(p1);
+}
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_800730AC);
+void func_800730AC(SVECTOR *p0, SVECTOR *p1, s32 ir0) {
+    gte_ldir123_lh(p0);
+    gte_ldir123_dp_a2(ir0);
+    gte_nop();
+    gte_nop();
+    gte_gpf0_b();
+    gte_stir123_lh(p1);
+}
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_800730F4);
+void func_800730F4(SVECTOR *p0, SVECTOR *p1, s32 ir0) {
+    gte_ldir123_lh4(p0);
+    gte_ldir123_dp_a2(ir0);
+    gte_nop();
+    gte_nop();
+    gte_gpf12_b();
+    gte_stir123_lh(p1);
+}
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_8007313C);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_800731F8);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_800732AC);
-
-/* 98.75%: identical, only the load temp is v0 where the original uses t0. */
-/* void func_800732AC(u8 *p0, u8 *p1, s32 n) {
+/* 98.75%: only the load temp differs, the original uses $t0 where gcc picks
+   $v0 (`lw t0,0(a1)` against `lw v0,0(a1)`). Tried byte and word pointer
+   parameters, `p0 += 4` against `p0++`, a separate u32 temp, an `end` pointer
+   local, and a while loop (that one also grows a pre-test, 71.25%). The
+   do/while with `n += (s32)p1` is right; the register is an allocator pick -
+   $2, $3 and $7 are all free here, so gcc's first fresh pseudo is $v0, and no
+   source shape moved it to $t0. */
+/* void func_800732AC(u32 *p0, u32 *p1, s32 n) {
     n += (s32)p1;
     do {
-        *(u32 *)p0 = *(u32 *)p1;
-        p1 += 4;
-        p0 += 4;
+        *p0 = *p1;
+        p1++;
+        p0++;
     } while ((s32)p1 != n);
 } */
+INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_800732AC);
 
 extern u8 *func_8008D3F4(s32, s32);
 extern void func_8008D5C0(u8 *, s32);
@@ -90,17 +99,22 @@ void func_80073CA4(u8 *p0) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80073CEC);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80073DE4);
-
-/* 80.83%: same insns, but gcc puts `li v0,1` in its own block after the else
-   path and jumps to the shared epilogue instead of filling the bnez delay slot. */
+/* 98.06%: inverting the condition (`if (t >= 0x1001)`) is what makes reorg put
+   `li v0,1` in the bnez delay slot instead of a separate block with a `j`, and
+   `hw + arg1` fixes the addu operand order. Left over: the original keeps the
+   sum in the parameter's $a1 and the hw temp in $v1 (`lh v1; addu a1,v1,a1;
+   slti v1,a1`), ours assigns the sum to $v1 and the temp to $v0. Also tried
+   `arg1 += hw` in place, a separate s32/s16 local, and `t` declared after the
+   load - the sum pseudo never coalesces back into $a1. */
 /* s32 func_80073DE4(u8 *p0, s32 arg1) {
-    arg1 += *(s16 *)(p0 + 0xB6);
-    if (arg1 < 0x1001) {
-        return 1;
+    s32 t = *(s16 *)(p0 + 0xB6) + arg1;
+
+    if (t >= 0x1001) {
+        return ((t - 0xFF1) / 20) < *(s16 *)(p0 + 0xB4);
     }
-    return ((arg1 - 0xFF1) / 20) < *(s16 *)(p0 + 0xB4);
+    return 1;
 } */
+INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80073DE4);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80073E2C);
 
