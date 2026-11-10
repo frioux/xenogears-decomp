@@ -1307,6 +1307,8 @@ green on all eleven outputs.
 
 Round 1 was cut in half by an ENOSPC (see below) and still landed 54.
 
+| 2 | `battle/{misc1,2,3,8}`, `battling/{misc8,11,14,15}`, `world_map/{misc3,10}`, `menu/misc2`, `movie/misc2` | +35 | 1799 | 12 workers, all 11 outputs OK, no reverts. Per unit: battling/misc11 5, world_map/misc10 5, menu/misc2 5, battle/misc8 4, world_map/misc3 4, movie/misc2 3, battle/misc3 2, battling/misc14 2, battling/misc15 2, battle/misc1 1, battle/misc2 1, battling/misc8 1 |
+
 ## Round 1 findings
 
 ### `cp -ac` clones are not free: they killed the disk, not the work
