@@ -241,22 +241,18 @@ void func_8007ED84(u8* pText, s32 dy) {
 }
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007EE08);
-/* best 95.83%, one instruction short. The original materialises 0xFF twice: the
-   else arm's li sits in the beqz delay slot (reorg steals it from the target
-   thread) and the then arm keeps its own li after the D_80059488 load. gcc
-   2.7.2 CSEs the two identical QImode constants across the branch, so ours has
-   a single li in the delay slot that both arms read. Everything else (load
-   first, sb order F4/F8/F0, x*20 as sll/addu/sll, both branch targets) is
-   exact.
-   Two more rounds tried: giving the else arm an SImode local (`s32 v = 0xFF;`)
-   does produce two genuine li (QImode vs SImode do not CSE) but then reorg
-   steals the *then* arm's li into the delay slot and leaves the else arm's li
-   in place - 91.46%, the two li swapped, still one insn of placement off.
-   Chained assignment `D_800926F0 = D_800926F4 = D_800926F8 = 0xFF;` emits the
-   else stores in reverse (F8,F4,F0) - wrong order, 79.79%. Putting the load
-   first as `s32 v = D_80059488;` changes nothing (79-91%): gcc reorders it
-   back. Whatever decides which thread reorg steals from is not reachable from
-   the C here.
+/* best 95.83%, one instruction short. The original materialises 0xFF twice per
+   path: the else arm's li sits in the beqz delay slot and the then arm keeps its
+   own li after the D_80059488 load. gcc 2.7.2 cse-hoists one QImode 0xFF to
+   before the branch, reorg drops it in the delay slot, and both arms then read
+   it, so the then arm loses its li. Everything else (load first, sb order
+   F4/F8/F0, x*20 as sll/addu/sll, both branch targets) is exact.
+   Tried and identical or worse: an s32 local for the then arm's 0xFF (two li,
+   but cse still hoists the SImode one into the delay slot and leaves the else
+   arm's li in place - 91.46%, the two li swapped); the same for the else arm
+   (same bytes); chained `D_800926F8 = D_800926F4 = D_800926F0 = 0xFF;` in the
+   else arm (correct store order, still 95.83%). The delay slot is already
+   occupied by the hoisted li, so reorg never gets to steal the else arm's li.
 void func_8007EE08(s32 arg) {
     if (arg != 0) {
         D_800926F4 = 0xFF;
