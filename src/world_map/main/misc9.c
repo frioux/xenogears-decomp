@@ -19,6 +19,8 @@ extern s16 D_8009AFA0[];
 extern u16 D_8009B688[];
 extern u16 D_8009B64C[];
 extern u16 D_8009B64E[];
+extern u16 D_8009B624[];
+extern u16 D_8009B626[];
 
 void func_800848B4(s32 arg0, s32 arg1);
 void func_80087904(u8* pDst, u8* pSrc, s32 count, s32 abr);
@@ -148,6 +150,41 @@ s32 func_800877E0(s32 index) {
     return 1;
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_80087804);
+// Best: 87.50%. Family of func_80087734: angle update, two scratchpad SVECTORs
+// (0x1F8000A0 / 0x1F8000A8) fed to RotMatrix with D_8009C620 +
+// D_8009B624[..]*0x54 + 0x20 / D_8009B626[..]*0x54 + 0x20, plus the lhu 0x1A of
+// each entry. Everything matches (frame 0x20 via the unused long[2]) except that
+// gcc hoists the two `sh zero` stores above the pSlot->unk50 store; retail keeps
+// them after it. Hoisting the two table halfwords into s32 locals is required —
+// with the array expressions inline gcc sinks the D_8009C610 load to 60%.
+/*
+s32 func_80087804(s32 index) {
+    WorldMapSlot* pSlot = (WorldMapSlot*)(D_8009BE24 + index * 0x80);
+    u8* pSrc = D_8009C620;
+    s32 entryIndex = D_8009C610 * 2;
+    s32 index1 = D_8009B624[entryIndex];
+    s32 index2 = D_8009B626[entryIndex];
+    u8* pEntry;
+    u8* pEntry2;
+    long tmp[2]; // unused: reproduces retail's 0x20-byte stack frame
+    u16 angle;
+
+    pSlot->unk50 = (pSlot->unk50 + pSlot->unk54) & 0xFFF;
+    pEntry = pSrc + index1 * 0x54;
+    *(u16*)0x1F8000A8 = 0;
+    *(u16*)0x1F8000A0 = 0;
+    *(u16*)0x1F8000A2 = *(u16*)(pEntry + 0x1A);
+    pEntry2 = pSrc + index2 * 0x54;
+    *(u16*)0x1F8000AA = *(u16*)(pEntry2 + 0x1A);
+    angle = ((u16*)&pSlot->unk50)[0];
+    *(u16*)0x1F8000AC = angle;
+    *(u16*)0x1F8000A4 = angle;
+    RotMatrix((SVECTOR*)0x1F8000A0, (MATRIX*)(pEntry + 0x20));
+    RotMatrix((SVECTOR*)0x1F8000A8, (MATRIX*)(pEntry2 + 0x20));
+    return 1;
+}
+*/
+
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_80087904);
 // Best: 92.44%. Loop body, GetTPage(0, abr, 0x1A0, 0xA0), the |2 on the byte at
 // p+7 and the trailing memcpy(pDst[0x4C], pDst[0x48], count*0x28) are exact. Only
@@ -189,6 +226,35 @@ s32 func_800879E0(s32 index) {
     return 1;
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_80087A8C);
+// Best: 50.02%. Same family as func_80087734 above: angle update then two
+// scratchpad SVECTORs (0x1F8000A0 / 0x1F8000A8) fed to RotMatrix with
+// D_8009C620 + D_8009B64C[..]*0x54 + 0x20 / D_8009B64E[..]*0x54 + 0x20. Retail
+// saves only s0 (it re-points the base at the second entry in the first jal's
+// delay slot) and loads both table halfwords before the calls; gcc keeps the
+// D_8009C610*2 index in s1 across the call and sinks the second lhu.
+/*
+s32 func_80087A8C(s32 index) {
+    WorldMapSlot* pSlot = (WorldMapSlot*)(D_8009BE24 + index * 0x80);
+    u8* pSrc = D_8009C620;
+    s32 entryIndex = D_8009C610 * 2;
+    s32 off1 = D_8009B64C[entryIndex] * 0x54;
+    s32 off2 = D_8009B64E[entryIndex] * 0x54;
+    u16 angle;
+
+    pSlot->unk50 = (pSlot->unk50 + pSlot->unk54) & 0xFFF;
+    *(u16*)0x1F8000AC = 0;
+    *(u16*)0x1F8000A4 = 0;
+    *(u16*)0x1F8000A8 = 0;
+    *(u16*)0x1F8000A0 = 0;
+    angle = ((u16*)&pSlot->unk50)[0];
+    *(u16*)0x1F8000AA = angle;
+    *(u16*)0x1F8000A2 = angle;
+    RotMatrix((SVECTOR*)0x1F8000A0, (MATRIX*)(pSrc + off1 + 0x20));
+    RotMatrix((SVECTOR*)0x1F8000A8, (MATRIX*)(pSrc + off2 + 0x20));
+    return 1;
+}
+*/
+
 void func_80087B84(VECTOR* pVec, VECTOR* pWork, MATRIX* pMat) {
     s16* pOut = (s16*)pMat;
 
