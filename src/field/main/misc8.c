@@ -264,6 +264,10 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800821F4);
    rematerialises the compare inline and keeps the -0x162 address (used in both
    branches) in s2 instead. Computing pTable after the compare is what gets
    gcc to share one base at all; who owns the register is the remaining gap.
+   Verified this round: indexing the array directly with no local
+   (`((s16*)&D_800B2346)[i - 0xB1]`, recomputing the 0x12C read at each store)
+   drops to 91.23% and loses the s2 slot entirely (gcc folds each address into
+   `lui at; addu at,at,v0`), so the pointer local below is required.
 void func_800821F4(int arg0, int actorId, FieldActor* pActor) {
     s16* pTable;
 
