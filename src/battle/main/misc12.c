@@ -75,7 +75,7 @@ u32 func_80083FF4(u8 arg0, u8 arg1) {
 
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80084108);
-/* 95.93%: one instruction class off - gcc emits `sltiu a2,v0,1` in the j delay slot where the
+/* 95.93% (spelled with the old u8[] + [i*0x1C] types): one instruction class off - gcc emits `sltiu a2,v0,1` in the j delay slot where the
    original keeps `sltiu v0,v0,1` + `move a2,v0` (ret copy not coalesced). `== 0` spelled
    explicitly instead of `? 0 : 1` gives 94.35% with the same sltiu-into-a2 shape.
 u32 func_80084108(u8 arg0, u8 arg1) {
@@ -83,7 +83,7 @@ u32 func_80084108(u8 arg0, u8 arg1) {
 
     ret = 0;
     if (D_800D2DCC[arg0] == 0) {
-        if (D_800C3EB7[arg0 * 0x1C] == 0) {
+        if (D_800C3EB7[arg0][0] == 0) {
             if (D_800D32A1[arg0 * 8] == 0) {
                 if (arg1 != 0) {
                     ret = 1;
