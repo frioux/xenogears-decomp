@@ -34,10 +34,11 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc11", func_801E4998);
    when the base is kept as an integer (u32) instead of a pointer type - with a
    u16* / u8* intermediate cse folds 0x5C8+0x24 into 0x5EC and drops the addiu.
    What is left is the same allocator tie as func_801E4928: retail puts every
-   mfhi result in $v0 (and so can hoist the /10 magic's lui into slot 0), gcc
-   always picks $a3.  Inlining the division into the store changes nothing.
-   The first store is volatile so the following read is not forwarded; the
-   second store must not be, or reorg cannot put it in the jr delay slot.
+   mfhi result in $v0 (reusing the multiplier's dead register, so it can hoist
+   the /10 magic's lui to slot 0), gcc always picks $a3 and emits the magic's
+   lui just before the multu.  Inlining the division into the store changes
+   nothing.  The first store is volatile so the following read is not forwarded;
+   the second store must not be, or reorg cannot put it in the jr delay slot.
 void func_801E4998(MenuDressingRoom* pDressingRoom, u8 gearId) {
     u32 p;
     u32 hp;
