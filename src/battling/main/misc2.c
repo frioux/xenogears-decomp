@@ -105,7 +105,10 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80073CEC);
    sum in the parameter's $a1 and the hw temp in $v1 (`lh v1; addu a1,v1,a1;
    slti v1,a1`), ours assigns the sum to $v1 and the temp to $v0. Also tried
    `arg1 += hw` in place, a separate s32/s16 local, and `t` declared after the
-   load - the sum pseudo never coalesces back into $a1. */
+   load - the sum pseudo never coalesces back into $a1. Also retried this
+   session as `arg1 = *(s16 *)(p0 + 0xB6) + arg1` in place and with a `hw`
+   local (both 97.78%, operands come out swapped as well); 2.6.0 gives 97.22
+   and 2.7.2-cdk 97.78, so the preset is not the lever. */
 /* s32 func_80073DE4(u8 *p0, s32 arg1) {
     s32 t = *(s16 *)(p0 + 0xB6) + arg1;
 
