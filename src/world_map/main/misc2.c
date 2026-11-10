@@ -211,7 +211,20 @@ void func_800767D4(u8* pSrc, s32 index) {
     D_80062528 = func_80039850(D_80062648);
     func_80039A80(D_80062528, 0x7F, 0);
 }
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc2", func_80076858);
+void func_80076858(s32 arg0, s16* pRow0, s16* pRow1, s16* pRow2, s32* pOut) {
+    s32 s;
+    s32 iz;
+    s32 zv;
+    s32 xs;
+
+    s = 0x1000 - arg0;
+    iz = ((s * s) << 3) >> 12;
+    zv = ((s * arg0) >> 8) + 0x8000;
+    xs = ((arg0 * arg0) << 3) >> 12;
+    pOut[0] = pRow0[0] * iz + pRow1[0] * zv + pRow2[0] * xs;
+    pOut[1] = pRow0[1] * iz + pRow1[1] * zv + pRow2[1] * xs;
+    pOut[2] = pRow0[2] * iz + pRow1[2] * zv + pRow2[2] * xs;
+}
 void func_80076954(void) {
     s32* pHeader;
     u8* pBase;
