@@ -1,4 +1,5 @@
 #include "common.h"
+#include "psyq/inline_c.h"
 
 extern u8 D_800C37C8;
 extern u16 D_800C3E30;
@@ -119,9 +120,75 @@ void func_800AFA98(BattleModel *pModel, BattleModelNode *pNode, s32 flags) {
     }
 }
 */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800AFB4C);
+extern u8 *func_80023FD8(s32, s32, s32, s32);
+extern void func_80021FE0(void *, s16);
+extern void func_800223B0(void *, s16);
+extern void SpriteSetScale(void *, s16);
+extern s32 WorkListTaskGetTaskCallback(void *);
+extern void TimerWorkListSetTaskCallback(void *, void *);
+extern void func_800AFC68();
+
+void func_800AFB4C(s32 arg0, s32 arg1, s32 arg2, s32 arg3, s32 arg4, u8 *arg5, s32 arg6) {
+    u8 *p;
+    u8 *pSub;
+    u8 *pNode;
+
+    p = func_80023FD8(arg1, arg0, arg2, 0x18);
+    pSub = p + 0x38;
+    func_80021FE0(pSub, arg3);
+    func_800223B0(pSub, arg3);
+    SpriteSetScale(pSub, arg4);
+    pNode = p + *(s16 *)(p + 0xBE);
+    *(s32 *)(pNode + 0x8) = arg6;
+    *(u16 *)(pNode + 0xC) = arg5[5];
+    if (arg5[0x13] != 0) {
+        *(s32 *)(pNode + 0x4) = WorkListTaskGetTaskCallback(p);
+        TimerWorkListSetTaskCallback(p, func_800AFC68);
+        *(u16 *)(pNode + 0x10) = *(u16 *)(arg5 + 0x6);
+        *(u16 *)(pNode + 0x12) = *(u16 *)(arg5 + 0x8);
+        *(u16 *)(pNode + 0x14) = *(u16 *)(arg5 + 0xA);
+        *(u16 *)(pNode + 0xE) = arg5[0xC];
+    }
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800AFC68);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800AFD98);
+/* 91.71%: structure, the GTE block (gte_ldv0/gte_mvmva/gte_stlvnl are an exact
+   match) and the callback tail are right; the only difference is which temp
+   register holds pMat: original `lw $v0,4($v0)` in $v0 + offset in $a1, ours
+   the other way round. Tried: offset as a local before the call, pMat local.
+extern void CompMatrix(void *, void *, void *);
+extern void SetRotMatrix(void *);
+extern void SetTransMatrix(void *);
+
+void func_800AFC68(u8 *p) {
+    u8 *pNode;
+    u8 *pMatrix;
+    s32 index;
+    s32 vec[3];
+
+    pNode = p + *(s16 *)(p + 0xBE);
+    index = *(s16 *)(pNode + 0xC);
+    pMatrix = PSX_SCRATCH;
+    if (index != 0) {
+        s32 offset = index * 0x7C;
+        u8 *pMat = *(u8 **)(*(u8 **)(pNode + 0x8) + 4);
+        CompMatrix(pMat + 0xC, pMat + offset + 0x2C, PSX_SCRATCH);
+    } else {
+        pMatrix = *(u8 **)(*(u8 **)(pNode + 0x8) + 4) + 0xC;
+    }
+    SetRotMatrix(pMatrix);
+    SetTransMatrix(pMatrix);
+    gte_ldv0(pNode + 0x10);
+    gte_mvmva(1, 0, 0, 0, 0);
+    gte_stlvnl(vec);
+    if (*(s16 *)(pNode + 0xE) != 0) {
+        vec[1] = *(s16 *)(*(u8 **)(pNode + 0x8) + 0x60);
+    }
+    *(s32 *)(p + 0x38) = vec[0] << 16;
+    *(s32 *)(p + 0x3C) = vec[1] << 16;
+    *(s32 *)(p + 0x40) = vec[2] << 16;
+    ((void (*)(u8 *)) * (u32 *)(pNode + 0x4))(p);
+}
+*/
 
 void func_800AFF9C(u8 *p) {
     u8 unk10[0x10];
@@ -180,6 +247,41 @@ void func_800B00F4(s32 arg0) {
 }
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800B0164);
+/* 99.70%: everything right except the scratch register gcc uses to spill the
+   7th stack argument at entry (original `lhu $t0,104(sp)` / `sh $t0,16(sp)`,
+   ours $a0); a0 is free here because arg0 is unused, so it is a global.c
+   tie-break. Tried: s16 vs u16 params, &D_800C3BAC[index] vs index+base
+   (needed a `pBase` local to get the original lui/addiu-then-sll order).
+void func_800B0164(s32 arg0, s32 index, u8 arg2, u8 arg3, u16 arg4, u16 arg5, u16 arg6,
+                   u16 arg7, u16 arg8, u16 arg9, u16 arg10) {
+    u8 **pBase;
+    u8 **pp;
+    u8 *p;
+
+    if (D_800C37C8 == 0) {
+        pBase = D_800C3BAC;
+        pp = &pBase[index];
+        if (*pp == NULL) {
+            *pp = (u8 *)func_800A2330();
+        }
+        p = *pp;
+        if (p != NULL) {
+            p[0] = 1;
+            p[1] = 0;
+            p[2] = arg2;
+            p[3] = arg3;
+            *(s16 *)(p + 0x4) = arg4;
+            *(s16 *)(p + 0x6) = arg5;
+            *(s16 *)(p + 0x8) = arg6;
+            *(s16 *)(p + 0xA) = arg7;
+            *(s16 *)(p + 0xC) = arg8;
+            *(s16 *)(p + 0xE) = arg9;
+            *(s16 *)(p + 0x10) = 0;
+            *(s16 *)(p + 0x12) = arg10;
+        }
+    }
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800B026C);
 
 s32 func_800B0AB4(s16 *pPos) {
@@ -194,13 +296,11 @@ s32 func_800B0AB4(s16 *pPos) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800B0B14);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800B0D70);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800B0FF4);
-/* 70.81%: the frame, the s16 vec[3] (element 1 unused, hence the 0x10/0x14
-   slots) and the two `div`s are right, but our output has no divide guards at
-   all: the original carries gcc's `bnez $v0; break 7` zero check and the
-   `li $at,0xFFFFFFFF` / `lui $at,0x80000000` / `break 6` range check around
-   each `div`, and none of them are emitted here (maspsx strips them?). Every
-   `break 7` in the repo is still in nonmatchings, so this looks preset-level,
-   not source-level. Only other diff: the second `mflo` lands in $a3, not $a0.
+/* 99.84%: identical instruction stream (the div guards --expand-div adds are
+   exactly right); the only difference is the register holding the second
+   product: the original `mflo $a0` + `addu $a0,$a1,$a0`, ours `mflo $a3` +
+   `addu $a0,$a1,$a3`. Tried: inline sum, `s32 d2` split, reversed add
+   operands (reversed also flips the mult order, 89.27%).
 void func_800B0FF4(u16 *pA, u16 *pB) {
     s16 vec[3];
     s32 len;
