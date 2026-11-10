@@ -145,3 +145,17 @@ paths = [
     "battle/main/misc34.",
     "battle/main/misc35."
 ]
+
+# battling/main/misc12 is a -G0 unit, proven the way section 5 asks for:
+# func_80088940 is 100.0% under -G0 and 44.86% under Default -G8, and all six
+# functions in the unit that were already matched stay at 100.0 under -G0. The
+# symptom that identifies the family: the original holds &D_<addr> in a saved
+# register across a call, which -G2..-G8 makes pointless (gp-relative reload is
+# one instruction) and -G0 forces. misc7 has the same symptom at weaker evidence
+# (63.5 -> 96.08), so the rest of `battling` is a per-unit -G0 question.
+[[build_preset]]
+name = "XenoBattlingNoGp"
+build_variables = {
+    gp_flag = "-G0"
+}
+paths = [ "battling/main/misc12." ]
