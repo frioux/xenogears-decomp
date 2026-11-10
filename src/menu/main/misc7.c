@@ -204,6 +204,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D51EC);
            }
        }
    }
+*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D53D0);
 /* Best: 98.31%. Same shape as func_801D51EC, which see: `i = 0;` written
    before the second func_801C80B8 call and `n = 0;` after the counter store
