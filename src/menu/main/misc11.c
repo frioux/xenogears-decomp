@@ -161,4 +161,41 @@ void func_801E6AE8(u8 arg0, u8* pArg1) {
                   g_Menu->renderContext, D_801EA004[arg0], D_801EA010[arg0], 0x1000);
 }
 
+void func_801C80B8(u32 number);
+
+extern u32 D_801EA01C;
+extern u32 D_801EA020;
+
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc11", func_801E6B70);
+/* Best: 89.55% (was 87.42% with a u8 loop counter).  Shape is right: the
+   counter byte is g_Menu[0x322 + i], the memset target g_Menu->unk34C + arg0 *
+   0x87C + 0x1308 and the prim pointer 0xA98 + arg0 * 0x87C + unk34C +
+   counter * 0x50 + 0x320.  What is left, all allocator ties:
+   (1) retail emits "addu v1,v1,s1" (base first) where gcc always emits
+   "addu v1,s1,v1" at all three unk34C+offset sites - flipping the C operand
+   order and casting through (u8*) changes nothing;
+   (2) retail re-materialises arg0 * 0x87C at the tail instead of reusing s1
+   (an explicit u32 offset local makes gcc reuse it, so the source repeats the
+   multiply inline);
+   (3) retail stores the x stack argument and 0x1000 to 16(sp)/24(sp) before
+   it forms the prim pointer; gcc sinks both.
+   void func_801E6B70(u8 arg0, u8* pArg1) {
+       int i;
+
+       func_801C80B8((pArg1 + arg0)[0x16]);
+       ((u8*)g_Menu->unk34C)[arg0 * 0x87C + 0x1308] = 0;
+       for (i = 0; i < 3; i++) {
+           if (((u8*)g_Menu)[i + 0x322] == 0xFF) {
+               continue;
+           }
+           ((u8*)g_Menu->unk34C)[arg0 * 0x87C + 0x1308] += func_8002675C(
+               g_Menu->resources, ((u8*)g_Menu)[i + 0x322],
+               (POLY_FT4*)(0xA98 + arg0 * 0x87C + (u32)g_Menu->unk34C +
+                           (((u8*)g_Menu->unk34C)[arg0 * 0x87C + 0x1308] * 0x50 + 0x320)),
+               g_Menu->renderContext, D_801EA01C + arg0 * 0x50 + i * 8,
+               D_801EA020, 0x1000);
+       }
+       func_801C80B8((pArg1 + arg0)[0x19]);
+       ((u8*)g_Menu->unk34C)[arg0 * 0x87C + 0x1309] = 0;
+   }
+*/
