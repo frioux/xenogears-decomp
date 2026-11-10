@@ -42,7 +42,30 @@ void func_801E4998(MenuDressingRoom* pDressingRoom, u8 gearId) {
 */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc11", func_801E4A28);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc11", func_801E4D10);
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc11", func_801E5058);
+void func_801E5058(void) {
+    u8 i;
+
+    for (i = 1; i < 0x48; i++) {
+        g_GameState.weaponIDs[i] = i;
+        g_GameState.weaponQuantities[i] = 10;
+    }
+    for (i = 1; i < 0x96; i++) {
+        g_GameState.accessoryIDs[i] = i;
+        g_GameState.accessoryQuantities[i] = 10;
+    }
+    for (i = 1; i < 0x4C; i++) {
+        g_GameState.itemIDs[i + 2] = i;
+        g_GameState.itemQuantities[i + 2] = 10;
+    }
+    for (i = 1; i < 0x48; i++) {
+        g_GameState.gearWeaponsIds[i] = i;
+        g_GameState.gearWeaponsQty[i] = 10;
+    }
+    for (i = 1; i < 0x69; i++) {
+        g_GameState.gearPartsIds[i] = i;
+        g_GameState.gearPartsQty[i] = 10;
+    }
+}
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc11", func_801E5178);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc11", func_801E53CC);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc11", func_801E56E8);
