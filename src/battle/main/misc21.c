@@ -28,9 +28,9 @@ typedef struct {
     /* 0x0C */ u8 unk0C[0x5C];
     /* 0x68 */ void* p68;
     /* 0x6C */ void* p6C;
-    /* 0x70 */ void* p70;
-    /* 0x74 */ void* p74;
-    /* 0x78 */ void* p78;
+    /* 0x70 */ BattleBlock* p70;
+    /* 0x74 */ BattleBlock* p74;
+    /* 0x78 */ BattleBlock* p78;
 } BattleSprite; // Size: 0x7C
 
 extern void* HeapAlloc(u_int allocSize, u_int allocFlags);
@@ -38,6 +38,7 @@ extern u_int HeapFree(void* pMem);
 extern void HeapChangeCurrentUser(u_int userTag, char** pContentTypes);
 extern void func_800A22E8(BattleBlockPool* pPool);
 extern void func_800A2D5C(BattleSpritePool* pPool);
+extern s32 func_800A23E8(BattleBlockPool* pPool, BattleBlock* pBlock);
 extern u32 ModelResolvePointers(void* pModel);
 extern void ModelPartFreeLightData(void* pLightData);
 
@@ -91,12 +92,45 @@ void func_8009F708(BattleSprite* pSprites) {
     }
 }
 */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_8009F794);
+void func_8009F794(BattleModelPartList* pList, s32 freeLight) {
+    u32 i;
+
+    if (pList != NULL) {
+        for (i = 0; i < pList->count; i++) {
+            if (pList->pParts != NULL && pList->pParts[i] != NULL && freeLight != 0) {
+                ModelPartFreeLightData(pList->pParts[i]);
+            }
+        }
+        if (pList->pParts != NULL) {
+            HeapFree(pList->pParts);
+            pList->pParts = NULL;
+        }
+    }
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_8009F844);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_800A0838);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_800A1B50);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_800A1CF4);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_800A216C);
+void func_800A216C(BattleBlockPool* pPool, BattleSprite* pSprites, s32 index, u32 flags) {
+    BattleSprite* pSprite;
+
+    pSprite = pSprites;
+    if (index < pSprite->count) {
+        pSprite += index;
+        if (pSprite->p70 != NULL && (flags & 1)) {
+            func_800A23E8(pPool, pSprite->p70);
+            pSprite->p70 = NULL;
+        }
+        if (pSprite->p74 != NULL && (flags & 2)) {
+            func_800A23E8(pPool, pSprite->p74);
+            pSprite->p74 = NULL;
+        }
+        if (pSprite->p78 != NULL && (flags & 4)) {
+            func_800A23E8(pPool, pSprite->p78);
+            pSprite->p78 = NULL;
+        }
+    }
+}
 BattleBlockPool* func_800A2234(BattleBlockPool* pPool, s32 count) {
     if (count <= 0) {
         return NULL;
