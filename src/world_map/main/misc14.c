@@ -47,9 +47,12 @@ extern void func_80093354(void* p);
 extern s32 func_80093F18(void* p);
 extern s16 func_80094060(s16 row, s16 col);
 
-// Scratchpad probe at 0x1F800000: the near/far pair at 0x20/0x30 is computed in
-// place, and the winning one is copied down to 0x00. The field at 0x08 is a
-// scratch temp; 0x18 is the vertical reference func_80094750 measures from.
+// Scratchpad probe at 0x1F800000: the near/far pair at 0x20/0x30 is projected
+// in place and the winning one is copied down to 0x00. v.x/v.z is a scratch
+// temp; 0x10 and 0x18 are the x- and z-references func_8009443C and
+// func_80094750 measure from. The three stores of a projection must keep the
+// temp first: writing the scaled field first lets gcc forward the temp and drop
+// the reload of it that the original does.
 typedef struct {
     /* 0x00 */ SVec4 v;
     /* 0x10 */ s32 unk10;
