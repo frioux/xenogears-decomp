@@ -355,7 +355,11 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_80087FA4);
 // 79.83%: gcc folds the symbol into both accesses (`lui/lhu` then `lui at/sh`),
 // the original materialises &D_800B2348 once in $v1 and uses 0($v1) twice. A
 // local pointer to the global (`p->value++`, also `+= 1`, `volatile` variants)
-// is folded back to the same immediate form.
+// is folded back to the same immediate form. Also 19.92% with a cast pointer
+// (`u16* p = (u16*)&D_800B2348; (*p)++;`): gcc still folds and allocates worse.
+// The `lui+addiu` form appears where the C uses the symbol's address as a VALUE
+// (cf. func_8008861C's `$a2 = &g_FieldDefaultParticleBanks`), and a deref of
+// `&sym` never survives fold, so a pointer local is not enough.
 /*
 void func_80087FA4(void) {
     D_800B2348.value++;
@@ -537,6 +541,9 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008861C);
 //   ParticleBank* pBank = &g_FieldDefaultParticleBanks[bankIndex];
 //   pBank->directions[i].z = 0;
 //   g_FieldDefaultParticleBanks[bankIndex].directions[i].x = 0;
+// `ParticleBank* pBanks = g_FieldDefaultParticleBanks;` (pointer to the array
+// start, index shared) gives 82.27%: the association comes out (base + 0x78*bank)
+// + 4*i, one addu more than the original's (4*i + 0x78*bank) + base.
 /*
 void func_8008861C(void) {
     ParticleBank* pBank;
