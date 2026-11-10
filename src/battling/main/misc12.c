@@ -61,17 +61,6 @@ extern void func_8002DFF0(s32, s32);
 extern void func_80089210(s32, s32);
 extern void func_800898BC(void*, SVECTOR*, SVECTOR*, SVECTOR*);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc12", func_80088940);
-
-/* Best attempt: objdiff 44.86%. gcc gives the store a rematerialised symbol
-   address (`lui at` + `sw %lo(at)`) and reuses the address register for the
-   loaded value, while the original keeps the address live in one register and
-   stores through it (`lui v0,%hi` + `addiu v0,v0,%lo` + `lw v1,0(v0)`). Pointer
-   local, separate value local, `*p = *p | K`, `p[0]`, a bitfield write and
-   swapped OR operands all compile to the same two-address shape. The whole
-   function is 100% under `-G0` (tools/scripts/try_flags.sh ... --gp -G0), so
-   this is the same `-G8` vs `-G0` question as func_80088A40. */
-/*
 void func_80088940(void) {
     s32 value;
     s32* pFlags;
@@ -80,7 +69,6 @@ void func_80088940(void) {
     value = *pFlags;
     *pFlags = value | 0x10000;
 }
-*/
 
 void func_8008895C(void) {
     if ((D_8006F980 & 0x10000) == 0) {
@@ -93,16 +81,10 @@ void func_8008895C(void) {
     D_800928EC[D_80092888++] = D_80091A6C;
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc12", func_800889C8);
-
-/* Best attempt: objdiff 87.13%. The loop and both returns match exactly; the
-   only difference is `D_8006F980 |= 0x10000;`, which gcc compiles with a
-   rematerialised address (`lui at` + `sw %lo(at)`) while the original keeps the
-   address live and stores it in the `jal` delay slot. Same root cause as
-   func_80088940. */
-/*
 s32 func_800889C8(void) {
     s32 slot;
+    s32 value;
+    s32* pFlags;
 
     for (slot = 0; slot < 0x31; slot++) {
         if (slot != 0x16) {
@@ -111,11 +93,13 @@ s32 func_800889C8(void) {
             }
         }
     }
-    D_8006F980 |= 0x10000;
+    pFlags = &D_8006F980;
+    value = *pFlags;
+    *pFlags = value | 0x10000;
     func_8008895C();
     return 0;
 }
-*/
+
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc12", func_80088A40);
 
