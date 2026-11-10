@@ -38,6 +38,7 @@ extern s32 D_80092714;
 extern s32 D_80092720;
 extern s32 D_80091364;
 extern s32 D_80092888;
+extern s32 D_800928C8;
 extern s32 D_80092748;
 extern s32** D_800928EC;
 extern u8 D_8006FF5C[];
@@ -291,7 +292,31 @@ void func_800802A4(void) {
     }
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc7", func_8008040C);
+void func_8008040C(void) {
+    s32 same;
+
+    if (D_80092750 & 0x40) {
+        if (D_800928C8 == 2) {
+            D_80092710 &= -3;
+        } else {
+            D_80092710 = 0;
+            func_80085134(1);
+            func_8008EB4C(0x22);
+            return;
+        }
+    }
+    if ((D_80092710 & 2) == 0) {
+        same = (D_80092700 == D_80092704);
+        do {
+            D_80092704 = func_8007FF70(D_80092704, D_80092888 - 1, 3);
+        } while (D_80092700 == D_80092704 && (D_80092748 & 1) == 0 && !same);
+        if (D_80092750 & 0x20) {
+            D_80092710 |= 2;
+            func_8008EB4C(0x21);
+            func_8008509C(1, *D_800928EC[D_80092704]);
+        }
+    }
+}
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc7", func_80080570);
 
