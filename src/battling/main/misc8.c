@@ -53,8 +53,29 @@ extern void func_8008EB4C(s32 arg);
 extern void func_80083C0C(s32 mode);
 extern void func_8007F8B4(void);
 extern void func_800812BC(u8 *p);
+extern void func_8007E894(s16 a, s16 b);
+extern void func_8007F948(void *p, s32 arg);
+extern void func_8007EBE0(u8 *p);
+extern void func_8007ED84(u8 *p, s32 dy);
 extern void func_80036420(void);
-extern void func_8008151C(s32 *p);
+typedef struct {
+    /* 0x0  */ u8 unk0[4];
+    /* 0x4  */ u32 unk4;
+    /* 0x8  */ u8 unk8[0xA];
+    /* 0x12 */ s16 unk12;
+} BattleTextEntry; // Size: 0x14
+
+typedef struct {
+    /* 0x0  */ u8 unk0;
+    /* 0x4  */ u32 pEntries;
+    /* 0x8  */ s16 count;
+    /* 0xC  */ void (*unkC)(void *p);
+    /* 0x10 */ u8 unk10[4];
+    /* 0x14 */ s16 unk14;
+    /* 0x16 */ s16 unk16;
+} BattleTextList; // Size: 0x18
+
+extern void func_8008151C(BattleTextList *p);
 extern void func_8008162C(s32 *p, s32 a1);
 extern void func_80081A44(void);
 extern void func_80080F04(void);
@@ -281,7 +302,50 @@ void func_800814AC(void) {
 }
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc8", func_8008151C);
+/* 95.15%: only the a0/a1 setup diamond differs - retail duplicates the
+   `lh a1,0x14` in both paths and ends the taken path with `j`; ours merges the
+   two identical loads into one block before the shared jal (and puts i=0 in a
+   separate `move` instead of func_8007E894's delay slot).  Also tried:
+   a1 loaded once before the if (93%), two separate calls (no merge, 79%?).
+   The `u32 pEntries` field is deliberate: as a pointer, gcc canonicalises
+   `off + base` to `addu base,off`; as an integer it keeps retail's operand
+   order. */
+/*
+void func_8008151C(BattleTextList *p) {
+    s32 i;
+    s32 off;
+    s32 a0;
+    s32 a1;
 
+    if (p == 0) {
+        return;
+    }
+    D_80092734 = (s32 *)p;
+    if ((s32 *)p == (s32 *)D_800916D8) {
+        return;
+    }
+    if (p->unk0 != 0) {
+        a0 = p->unk16;
+        a1 = p->unk14;
+    } else {
+        a0 = 0xA0;
+        a1 = p->unk14;
+    }
+    func_8007E894(a0, a1);
+    for (i = 0, off = 0; i < p->count; i++) {
+        func_8007F948(p, i);
+        if (p->unk0 != 0) {
+            func_8007EBE0((u8 *)*(u32 *)(off + p->pEntries + 4));
+        } else {
+            func_8007ED84((u8 *)*(u32 *)(off + p->pEntries + 4), *(s16 *)(off + p->pEntries + 0x12));
+        }
+        off += 0x14;
+    }
+    if (p->unkC != 0) {
+        p->unkC(p);
+    }
+}
+*/
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc8", func_8008162C);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc8", func_80081A44);
