@@ -11,12 +11,51 @@ typedef struct {
     /* 0x1 */ u8 unk1[0x13];
 } BattleBlock; // Size: 0x14
 
+typedef struct {
+    /* 0x0 */ u8* pBlocks;
+    /* 0x4 */ s16 count;
+    /* 0x6 */ u16 unk6;
+} BattleSpritePool; // Size: 0x8
+
+typedef struct {
+    /* 0x0 */ void** pParts;
+    /* 0x4 */ u32 count;
+} BattleModelPartList; // Size: 0x8
+
+typedef struct {
+    /* 0x00 */ u8 unk00[0xA];
+    /* 0x0A */ u16 count;
+    /* 0x0C */ u8 unk0C[0x5C];
+    /* 0x68 */ void* p68;
+    /* 0x6C */ void* p6C;
+    /* 0x70 */ void* p70;
+    /* 0x74 */ void* p74;
+    /* 0x78 */ void* p78;
+} BattleSprite; // Size: 0x7C
+
 extern void* HeapAlloc(u_int allocSize, u_int allocFlags);
 extern u_int HeapFree(void* pMem);
 extern void HeapChangeCurrentUser(u_int userTag, char** pContentTypes);
 extern void func_800A22E8(BattleBlockPool* pPool);
+extern void func_800A2D5C(BattleSpritePool* pPool);
+extern u32 ModelResolvePointers(void* pModel);
+extern void ModelPartFreeLightData(void* pLightData);
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_8009EBA8);
+BattleModelPartList* func_8009EBA8(u8* pModel, BattleModelPartList* pList) {
+    u32 count;
+    u32 i;
+
+    HeapChangeCurrentUser(4, NULL);
+    count = ModelResolvePointers(pModel);
+    pList->pParts = HeapAlloc(count * 4, 0);
+    pList->count = count;
+    if (pList->pParts != NULL) {
+        for (i = 0; i < count; i++) {
+            pList->pParts[i] = pModel + (0x10 + i * 0x38);
+        }
+    }
+    return pList;
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_8009EC4C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_8009EF3C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_8009F1C4);
@@ -24,6 +63,34 @@ void func_8009F5B0(void) {
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_8009F5B8);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_8009F708);
+/* 96.57% (140 vs 144 bytes): only the loop increment is misplaced. Retail has
+   `addiu s1,s1,1` stolen into the `beqz a0` delay slot (before the count reload),
+   gcc emits `lhu count; addiu s1,s1,1; slt` instead; every other instruction,
+   the frame (0x28) and the register assignment (s2 = pSprites, s1 = i, s0 =
+   &pSprite->p6C) already agree. Tried: do/while vs for vs while, index form
+   (pSprites[i].p68), pointer form, unused 8-byte local (needed for the frame in
+   the do-while form only). Matches 96.37% under gcc-2.6.0 too.
+void func_8009F708(BattleSprite* pSprites) {
+    BattleSprite* pSprite;
+    s32 i;
+
+    if (pSprites != NULL) {
+        i = 0;
+        pSprite = pSprites;
+        while (i < pSprites->count) {
+            if (pSprite->p68 != NULL) {
+                HeapFree(pSprite->p68);
+                pSprite->p68 = NULL;
+                pSprite->p6C = NULL;
+            }
+            pSprite++;
+            i++;
+        }
+        pSprites->count = 0;
+        HeapFree(pSprites);
+    }
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_8009F794);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_8009F844);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_800A0838);
@@ -88,10 +155,6 @@ BattleBlock* func_800A2330(BattleBlockPool* pPool) {
     return NULL;
 }
 */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_800A23E8);
-/* 80.53% (72 bytes): same insns, but gcc lays out the return -1 block last
-   (beqz to the end) where retail branches to the body and puts the return -1
-   block in the middle (bnez a1 + j epilogue). Also mfhi lands in a2, retail v1.
 s32 func_800A23E8(BattleBlockPool* pPool, BattleBlock* pBlock) {
     s32 index;
 
@@ -105,12 +168,21 @@ s32 func_800A23E8(BattleBlockPool* pPool, BattleBlock* pBlock) {
     pBlock->flag = 0;
     return index;
 }
-*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_800A2434);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_800A2704);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_800A2ACC);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_800A2BB8);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_800A2CA4);
+BattleSpritePool* func_800A2CA4(BattleSpritePool* pPool, s32 count) {
+    HeapChangeCurrentUser(4, NULL);
+    pPool->count = count;
+    pPool->unk6 = 0;
+    pPool->pBlocks = HeapAlloc((count + 1) * 0x7C, 0);
+    if (pPool->pBlocks != NULL) {
+        func_800A2D5C(pPool);
+        return pPool;
+    }
+    return NULL;
+}
 void func_800A2D1C(BattleBlockPool* pPool) {
     u8* pBlocks = pPool->pBlocks;
 
