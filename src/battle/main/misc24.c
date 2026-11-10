@@ -27,19 +27,6 @@ u8 func_800AA514(s16 arg0, s16 arg1, s32 arg2) {
     }
     return v;
 }
-/* 88.71% - structure, branch layout, both table reads and the whole tail
-   (stores + func_800AAD54(arg0, arg2, -1, 1, 0)) already line up. Three
-   differences left: (1) the original reloads arg0[0x2B] for the "++" (lbu/nop/
-   addiu) while gcc CSEs it into one load and masks it ("andi v0,v1,0xff"), so
-   the two blocks are 4 instructions apart; (2) the if-branch pointer
-   read comes out in $a1 instead of $v0; (3) the else-branch folds the +4 of
-   *(u8 **)(arg1 + 0xC) + 4 into the -0x138 displacement (-0x134) where the
-   original keeps it as "lw v1,4(v0)". Tried: nested ifs with bare dereferences
-   (64.61), a u8 *pCount = arg0 + 0x2B local (88.71, no change), pointer
-   locals for both table bases (88.71), a u16 n = D_800C3E30 local to hoist the
-   lhu before the stores (needed, it was late without it).
-*/
-*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AA564);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AA600);
 /* 99.00% - only the two "mflo" destinations differ (original mflo $v0 twice,
@@ -157,7 +144,15 @@ s16 (*func_800AA820(s32 arg0))(s16 angle, s16 divisor, s16 base) {
     return func_800A3490;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AA898);
-/*
+/* 74.36% - every store and constant is identical and in the same order; the
+   only difference is where the "-1" constant is materialised: the original
+   does "li v1,-1" as the very first instruction (before "li v0,0xffff"), this
+   emits it just before the sh to 0x98. Tried: raw -1 literals for the three
+   s16 fields (74.36), a "s16 m1 = -1;" decl initialiser at the top (74.36),
+   a separate "m1 = -1;" statement first (74.36) - gcc sinks the constant to
+   its first use here, and the 0xFFFF/0xFF/0x6B/0x1 loads already match.
+   Note *(u16 *)(arg0 + 0x3C) is unsigned (ori 0xffff) while 0x98/0x3A/0x1E are
+   signed -1 (addiu), so the two constants must stay spelled differently.
 void func_800AA898(u8 *arg0, s32 arg1, s32 arg2, s32 arg3) {
     *(u16 *)(arg0 + 0x3C) = -1;
     *(u8 *)(arg0 + 0x5C) = 0xFF;
@@ -193,19 +188,21 @@ void func_800AA898(u8 *arg0, s32 arg1, s32 arg2, s32 arg3) {
     *(u8 *)(arg0 + 0x36) = 0;
     *(s16 *)(arg0 + 0x1E) = -1;
 }
-/* 74.36% - every store and every constant is identical and in the same order;
-   the only difference is where the "-1" constant is materialised: the original
-   does "li v1,-1" as the very first instruction (before "li v0,0xffff"), this
-   emits it just before the sh to 0x98. Tried: raw -1 literals for the three
-   s16 fields (74.36), a "s16 m1 = -1;" decl initialiser at the top (74.36),
-   a separate "m1 = -1;" statement first (74.36) - gcc always sinks the
-   constant to its first use here, and the 0xFFFF/0xFF/0x6B/0x1 loads already
-   match exactly. Also note *(u16 *)(arg0 + 0x3C) is unsigned (ori 0xffff)
-   while 0x98/0x3A/0x1E are signed -1 (addiu), so the two constants must stay
-   spelled differently.
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AA934);
-/*
+/* 88.71% - structure, branch layout, both table reads and the whole tail
+   (the stores + func_800AAD54(arg0, arg2, -1, 1, 0)) already line up. Three
+   differences left: (1) the original reloads arg0[0x2B] for the "++"
+   (lbu, nop, addiu) while gcc CSEs it into one load and masks it
+   ("andi v0,v1,0xff"), so the two blocks are 4 instructions apart;
+   (2) the if-branch table pointer lands in $a1 instead of $v0;
+   (3) the else branch folds the +4 of *(u8 **)(arg1 + 0xC) + 4 into the
+   -0x138 displacement (-0x134) where the original keeps "lw v1,4(v0)".
+   Tried: nested ifs with bare dereferences (64.61), a u8 *pCount = arg0 +
+   0x2B local (88.71, no change), pointer locals for both table bases (88.71),
+   and a u16 n = D_800C3E30 local which is needed to hoist the lhu before the
+   stores. Same-family blocker as the note above: a constant/pointer being
+   re-formed where the original keeps it live.
 void func_800AA934(u8 *arg0, u8 *arg1, void *arg2, s32 arg3) {
     s32 *pTable;
     u8 *pCount;
@@ -241,6 +238,7 @@ void func_800AA934(u8 *arg0, u8 *arg1, void *arg2, s32 arg3) {
         }
     }
 }
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AAA20);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AAB34);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AAD54);
