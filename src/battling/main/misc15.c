@@ -22,6 +22,7 @@ typedef struct HeapNode {
 extern s32 D_80092824;
 extern void* D_80092828;
 extern void func_8008C188();
+extern s32 rand(void);
 // An 8-byte, byte-aligned chunk: assigning one copies 8 bytes with lwl/lwr.
 typedef struct {
     u8 unk[8];
@@ -134,5 +135,17 @@ void func_8008CC54(u8* pObj, u8* pSrc) {
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc15", func_8008CCB0);
 void func_8008CD54(void) {
 }
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc15", func_8008CD5C);
+void func_8008CD5C(u8* pObj, u8* pSrc) {
+    s16 n;
+
+    pObj[0x13] = 3;
+    pObj[0x17] = 0x62;
+    n = rand() % 2 + 2;
+    *(s16*)(pObj + 0x1E) = n;
+    *(s16*)(pObj + 0x1C) = n * 2;
+    pObj[0x14] = pSrc[0x74];
+    pObj[0x15] = pSrc[0x75];
+    pObj[0x16] = pSrc[0x76];
+    *(Words4*)(pObj + 0x20) = *(Words4*)(pObj + 0x10);
+}
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc15", func_8008CE0C);
