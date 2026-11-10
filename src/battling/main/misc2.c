@@ -127,10 +127,28 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_800740E4);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80074678);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80074998);
+void func_80074998(u8 *p0) {
+    u32 **pArray = *(u32 ***)(*(u8 **)(*(u8 **)(p0 + 0x5C) + 0x4) + 0x4);
+    s32 i;
+
+    for (i = 0; i < *(s16 *)(*(u8 **)(*(u8 **)(p0 + 0x5C) + 0x4)); i++) {
+        u32 *pEntry = pArray[i];
+
+        if (pEntry[0] == 1) {
+            *(u32 *)*(u32 **)((u8 *)pEntry + 0x4) &= ~1;
+        }
+    }
+    for (i = 0; i < *(u8 *)(p0 + 0x908); i++) {
+        u32 *pEntry = pArray[*(u8 *)(*(u8 **)(p0 + 0x904) + i)];
+
+        *(u32 *)*(u32 **)((u8 *)pEntry + 0x4) |= 1;
+    }
+    if (*(u8 *)(p0 + 0x909) == 0xD) {
+        *(u32 *)*(u32 **)((u8 *)pArray[0xD] + 0x4) |= 1;
+    }
+}
 
 extern void func_80074678(u8 *, s32, u8);
-extern void func_80074998(u8 *);
 extern void func_8008B0D8(u8 *);
 extern void func_8008B730(u8 *, s32, s32);
 
