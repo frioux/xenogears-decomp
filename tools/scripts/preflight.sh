@@ -37,3 +37,19 @@ for u in "$@"; do
         echo "    cheap: $(basename "$f" .s)"
     done | head -5
 done
+
+# AT-FREE stubs: a stub whose original does a one-instruction load or store off an
+# absolute symbol using a base register that is neither $at nor (for a load) the
+# destination cannot be matched by any preset. gcc emits the one-instruction pseudo
+# (`lw $d,D_x` / `sw $x,D_x`); our assembler expands it as `lui $at,%hi; op ..,%lo($at)`
+# for stores and `lui $d,%hi; lw $d,%lo($d)` for loads, while the ASPSX that built
+# battle/main/{misc6,misc26..misc35} picked an arbitrary free register. Across every
+# other unit's originals `%lo(sym)($r)` uses $at 1657 times and a real register once,
+# so it is an assembler-revision ceiling: no gcc version, -O level or -G setting moves
+# it (TRACKER round 10 has the ten-shape experiment). `lui $r,%hi` + `addiu $r,$r,%lo`
+# (la-style) and function calls are fine, which is why those stubs can still match.
+for u in "$@"; do
+    dir=asm/${u%%/*}/nonmatchings/${u#*/}
+    [ -d "$dir" ] || continue
+    python3 tools/scripts/atfree.py "$u" "$dir"
+done

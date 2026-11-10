@@ -253,3 +253,17 @@ build_variables = {
     maspsx_flags = "--expand-div --use-comm-section --run-assembler"
 }
 paths = [ "battle/main/misc21." ]
+
+# menu/main/misc9 is a gcc-2.6.0 unit, proven the way section 5 asks for:
+# func_801DE29C is 100.0% under 2.6.0 and 67.27% under Default (2.7.2 sinks the
+# epilogue's `li v0,1` past `lw ra`), func_801DBDB4 is 94.47% vs 86.97%, and all
+# three functions already matched in the unit stay at 100.0 under 2.6.0. It does
+# NOT fix the unit's other blocker (a 3-case switch that retail lowers as a
+# binary-search tree and every gcc we have lowers sequentially), so treat that
+# family as parked.
+[[build_preset]]
+name = "XenoMenu260"
+build_variables = {
+    gcc = "gcc-2.6.0-psx"
+}
+paths = [ "menu/main/misc9." ]

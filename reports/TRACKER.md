@@ -1619,3 +1619,59 @@ Blockers re-confirmed or newly found:
   `D_8009A65C+4` (a reloc naming another symbol can never reach objdiff 100%).
 - An 8-byte frame with no locals comes from an unused 8-byte local (`RECT rect;`),
   used twice now.
+
+| 10 | `battle/{misc30,12,13,11,18}`, `menu/{misc9,11,4,12}`, `world_map/{misc7,2,5}`, `battling/{misc3,9}` | +10 | 1637 | battle/misc30 2, battle/misc11 1, menu/misc11 1, menu/misc4 1, plus 5 from the units whose reports were truncated; `menu/main/misc9` is a gcc-2.6.0 unit (new `XenoMenu260` preset); all eleven outputs OK |
+
+### Round 10: the `$at` ceiling is real, and now it is measured instead of guessed
+
+The `battle/misc26..misc35` "no `$at` at all" finding (round 43) was a hypothesis about
+compiler flags. A worker spent 15 minutes on ten source shapes in
+`func_800B9B30` and settled the mechanism: **gcc never emits `lui` for these at all**
+- it emits the one-instruction pseudo `lw $d,D_x` / `sw $x,D_x` - and the difference
+is entirely in the assembler:
+
+| form | our assembler (GAS via maspsx) | the ASPSX that built those units |
+|---|---|---|
+| load | `lui $d,%hi; lw $d,%lo($d)` | `lui $r,%hi; lw $d,%lo($r)`, `$r` free |
+| store | `lui $at,%hi; sw $x,%lo($at)` | `lui $r,%hi; sw $x,%lo($r)`, `$r` free |
+
+Proof that it is an assembler revision and not a flag: across every *other* unit's
+originals, `%lo(sym)($r)` uses `$at` **1657** times and a real register **once**.
+
+`tools/scripts/atfree.py` (new, and hooked into `preflight.sh`) applies the rule per stub:
+a stub is unmatchable if it has a store off an absolute symbol whose base is not `$at`,
+or a load whose base is neither `$at` nor the destination. `lui`+`addiu` (`la`-style)
+and function calls are fine, which is why the rest of those units is still workable.
+
+Measured over `asm/*/nonmatchings`: **123 of 1637 stubs** are unmatchable this way, and
+they are almost all in one place - `battle/main/misc{26,27,29,30,31,32,33,34,35}` (5-17
+each). Two useful corrections came out of the measurement:
+
+- `battle/misc28` has only 2 of 19 unmatchable and `battle/misc27` 7 of 22, so the
+  round-6 "the whole tail is an 8%-per-worker ceiling, do not brief it" was too broad;
+  both are back on the work list.
+- `slus_006.64/system/sound` has **0 of 31** unmatchable, so its flatness is allocation,
+  not the ceiling.
+
+### `menu/main/misc9` is gcc 2.6.0 (new `XenoMenu260` preset)
+
+`func_801DE29C` is 100.0% under 2.6.0 and 67.27% under Default (2.7.2 sinks the
+epilogue's `li v0,1` past `lw ra` and steals the delay slot), `func_801DBDB4` is 94.47%
+vs 86.97%, and all three already-matched functions stay 100.0. **The `menu` overlay is
+therefore mixed-preset like `battling` and `battle`, unit by unit** - round 11 screens
+five more menu units. It does not fix the unit's other blocker: retail lowers a 3-case
+`switch (x & 0xFF) {0,1,2}` as a binary-search tree (`beq x,1` / `slti x,2` / `beqz x,0`)
+and every gcc here lowers it sequentially, so that family stays parked.
+
+### A new gcc quirk worth knowing: the 8-byte phantom frame
+
+A function containing **two register-indexed loads of the same global** gets an 8-byte
+frame (prologue/epilogue only, nothing stored) from gcc 2.7.2, 2.6.0 and 2.7.2-cdk,
+unaffected by `-O1..-O3`, `-G0/-G4/-G8`, `-fno-common`, `-fno-peephole`. Two *different*
+symbols, or one load plus one store, give `vars = 0`. That is `battle/misc12`'s
+`func_80085310`/`func_80084D28` blocker and probably a few others' at 95-96%.
+
+Other blockable facts from this round: `battle/misc11` has **8 of 15** stubs that
+reference a `jtbl_` (all blocked); `menu/misc9` has 4 of 21 at-free-unmatchable;
+`world_map/misc1`'s `func_80073398` and `battle/misc21`'s `func_800A0838` are
+jtbl-blocked. Every worker that hit a `jtbl_` stub correctly left it alone this round.
