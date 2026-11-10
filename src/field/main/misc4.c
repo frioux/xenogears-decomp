@@ -15,29 +15,21 @@ extern s32 D_8004F308;
 extern s32 D_8004F324;
 extern s32 D_800ADC18;
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_80078B5C);
-/* Best attempt: 96.30%, but 104 bytes against the original's 108: gcc steals the
-   decrement into the beqz delay slot, where the original has a real nop, so this
-   unit can never link until that nop appears. The nop means the value the branch
-   tests is live at the epilogue, but v0 already carries the decremented result
-   there, and `return D_800ADC18;` only adds a reload (88.70%, 112 bytes). Tried
-   and identical: volatile, a count local decremented then stored, an explicit
-   goto, unsigned, and the plain form below.
-extern int func_80085C90(s32 arg0);
-extern s32 D_8004F308;
-extern s32 D_8004F324;
-extern s32 D_800ADC18;
+// Ticks down the countdown timer, returning the value it held after the tick
+int func_80078B5C(void) {
+    int nCount;
 
-void func_80078B5C(void) {
     rand();
     if (D_8004F308 == -1) {
         D_8004F308 = func_80085C90(D_8004F324);
     }
-    if (D_800ADC18 != 0) {
-        D_800ADC18--;
+    nCount = D_800ADC18;
+    if (nCount != 0) {
+        nCount--;
+        D_800ADC18 = nCount;
     }
+    return nCount;
 }
-*/
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_80078BC8);
 /* Best attempt: 90.68%. The original keeps -1 in v0 across the whole guard chain
@@ -546,6 +538,12 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007AE78);
    per use is required: it reproduces the three reloads of the buffer pointer.
    A version that loaded both bytes into locals (95.87%) gets li after lb but
    hoists both loads above the bnez.
+   Round 42: confirmed the mechanism - gcc emits the constant before the load
+   inside the && block, and reorg then steals the li into the bnez delay slot,
+   which forces a real load-delay nop after the lb. Nested if, a local for byte
+   1 only, and swapping the comparison operands all give the identical 252-byte
+   object; the original's 252 bytes exist only with the load emitted first, so
+   the block has to start with a non-movable insn.
 void func_8007AE78(int controllerIndex, int* pOut) {
     func_8007AF74(controllerIndex);
     pOut[0] = g_FieldMousePositionsX[controllerIndex] / g_FieldMouseSpeedX;
