@@ -21,6 +21,8 @@ void func_801E8018(s32 arg0, void* pArg1, void* pArg2, void* pArg3);
 void func_801D22F4(s32 arg0);
 void func_801DB02C(s32 arg0);
 void func_801D3488(s32 arg0, s32 arg1);
+void func_801E3ECC(MenuDressingRoom* pDressingRoom, s32 gearId);
+void func_801E3C2C(MenuDressingRoom* pDressingRoom, s32 gearId);
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DB920);
 
@@ -36,13 +38,15 @@ void func_801DBD4C(s32 index0, s32 index1) {
 }
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DBDB4);
-/* Best: 86.97% (gcc 2.7.2, `while (count < 0x96)` form; 94.47 under gcc-2.6.0,
-   which is probably this unit's real compiler - see func_801DE29C). 2.7.2 turns
-   the upward counter into a countdown (li a0,0x95 / addiu a0,-1 / bgez) because
-   the loop has a single exit and a known trip count; retail keeps
-   slti a0,0x96 / bnez + addiu a0,1. `count != 0x96` dodges the inversion but
-   needs an extra li a2 and bne (86.00%). `for`/`do-while`/`while` forms all
-   invert. `last` is genuinely uninitialised in retail (a1 is never set up front).
+/* Best: 94.47% (gcc-2.6.0, the unit preset). Only difference: gcc turns this
+   counted loop into a countdown (li a0,0x95 / addiu -1 / bgez) while retail
+   keeps slti a0,0x96 / bnez. Swept gcc 2.6.0/2.7.2/2.7.2-cdk x -O1..-O3 x
+   -G4/-G8/-G0 x 3000/r8000: every combination gives 94.47 or less, so no preset
+   produces the slti shape. `while`/`do-while`/`for`, count++ before or after the
+   if, count++ at the top of the body, `0x96 > count` all identical. `last` is
+   genuinely uninitialised in retail (a1 is never set up front). Shape below
+   reproduces retail's increment placement exactly (count++ in the beqz delay
+   slot, index++ in the bnez delay slot).
 void func_801DBDB4(void) {
     s32 count;
     s32 index;
@@ -72,6 +76,7 @@ void func_801DBDB4(void) {
     }
 }
 */
+
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DBE54);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DC1D4);
 /* Best: 91.94%, same size (228 bytes). Everything matches except the case
@@ -112,16 +117,10 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DD5E8);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DD790);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DDF24);
 
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DE29C);
-/* Best: 67.27% under the unit preset (gcc 2.7.2). Under gcc-2.6.0 the C below
-   scores 100.0 (try_flags): 2.7.2 sinks li v0,1 past lw ra and fills the jr
-   delay slot with addiu sp, retail emits li v0,1 right after the jal and leaves
-   the delay slot nop. Compiler-version difference, not a source shape.
 s32 func_801DE29C(u_char arg0, u_char arg1) {
     func_801DDF24(arg0, arg1, 0);
     return 1;
 }
-*/
 
 void func_801DE2C8(u32 arg0) {
     MenuManager* pManager;
@@ -163,7 +162,20 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DF0D4);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DF5D0);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DF890);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DFB68);
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DFE2C);
+void func_801DFE2C(u_char arg0) {
+    u8 charId;
+
+    charId = g_Menu->pManager->currentCharacterIDs[arg0];
+    func_801E3ECC(g_Menu->pDressingRoom, g_GameState.characters[charId].gearId);
+    charId = g_Menu->pManager->currentCharacterIDs[arg0];
+    func_801E3C2C(g_Menu->pDressingRoom, g_GameState.characters[charId].gearId);
+    g_Menu->pDressingRoom->unkB8[0] = g_Menu->pDressingRoom->unkB0;
+    g_Menu->pDressingRoom->unkB8[1] = g_Menu->pDressingRoom->totalDefense;
+    g_Menu->pDressingRoom->unkB8[2] = g_Menu->pDressingRoom->totalEtherDefense;
+    g_Menu->pDressingRoom->unkB8[3] = g_Menu->pDressingRoom->totalResponsiveness;
+    g_Menu->pDressingRoom->unkB8[4] = g_Menu->pDressingRoom->unkB3;
+    g_Menu->pDressingRoom->unkB8[5] = g_Menu->pDressingRoom->unkB4;
+}
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DFF5C);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801E0434);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801E05D0);
