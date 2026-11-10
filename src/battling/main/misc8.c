@@ -216,6 +216,54 @@ void func_80080D10(void) {
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc8", func_80080D20);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc8", func_80080F04);
+/* 83.89%: both sprite halves match except the four sprite-scaling stores.
+   Retail writes x0/y0 as one sw and u0/v0 as one sh to the ABSOLUTE symbols
+   D_8009551C/D_80095520 (and D_8009554C/D_80095550 for the second half), and
+   h/clut to D_80095526/D_80095522: the retail immediates are
+   `sh $s3,%lo(D_80095526)($at)` (0x5526), so the address is not formed as
+   base+0x16 off D_80095510.  Spelling them as extern scalars gives those
+   instruction shapes but only 63.38%: gcc then sinks all four of those stores
+   BELOW the 0x14-byte struct copy (they do not alias it as far as it knows),
+   while retail keeps h/clut before the copy.  Writing them as sprite fields
+   (pSprt->x0 ...) keeps retail's order but uses s0-relative addressing and
+   fails to merge the two halfword pairs.
+   Also missing: the last two words are reloaded through %hi(D_80095570)
+   instead of `lw $v1,4($s0)`.  Explicit statement order has no effect (the
+   copy is emitted first and the scalar stores after it either way).
+void func_80080F04(void) {
+    u_long *pData;
+    Misc8Text *p;
+    SPRT *pSprt;
+
+    pData = HeapAlloc(0x6B4, 0);
+    p = D_80095510;
+    D_80095540.pData = pData;
+    p[0].pData = pData;
+    pSprt = &p[0].sprt[0];
+    pSprt->x0 = 0;
+    pSprt->y0 = 0xB4;
+    pSprt->u0 = 0;
+    pSprt->v0 = 0x30;
+    SetSprt(pSprt);
+    SetShadeTex(pSprt, 1);
+    pSprt->h = 0xD;
+    pSprt->clut = g_SystemPalette1;
+    p[0].sprt[1] = p[0].sprt[0];
+    pSprt = &p[1].sprt[0];
+    pSprt->x0 = 0;
+    pSprt->y0 = 0xB4;
+    pSprt->u0 = 0;
+    pSprt->v0 = 0x30;
+    SetSprt(pSprt);
+    SetShadeTex(pSprt, 1);
+    pSprt->h = 0xD;
+    pSprt->clut = g_SystemPalette2;
+    p[1].sprt[1] = p[1].sprt[0];
+    SetDrawTPage((DR_TPAGE *)D_80095570, 0, 0, GetTPage(0, 0, 0x140, 0x30));
+    D_80095578 = *(u32 *)D_80095570;
+    D_8009557C = *((u32 *)D_80095570 + 1);
+}
+*/
 
 typedef struct {
     /* 0x00 */ u_long *pData;
