@@ -95,10 +95,15 @@ int func_8008B498(int index) {
     return result;
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008B54C);
-/* 93.37%:  Everything from the func_80093978 call to the tail is byte-identical;
-   the only difference is the prologue, where gcc materialises index*128 in v0 and
-   then has to spill the 0x40 stack argument early, while the original keeps it in
-   v0 and scales into v1.
+/* 93.37% (re-diffed under the current XenoWorldMap flags; cdk 83.19%, plain -G0/-O
+   variants lower). Everything is byte-identical except three insns in the prologue:
+   the original computes index*0x80 in v1 BEFORE the 0x100 push and stores the
+   0x40 stack argument just before the jal, while gcc emits the store right after
+   li 0x40 and puts the shift in v0 after it. The SAME call shape with the SAME
+   neighbours (func_8008C75C, matched) reproduces the original prologue exactly, so
+   the trigger is something in this function's tail, not the call: the tail below is
+   itself byte-identical. Tried: flat tail without the unk48 temp (83.05), pointer
+   built as (u8*)D_8009BE24 + index*0x80 (93.37), cdk (83.19).
 int func_8008B54C(int index) {
     WorldMapActor *pActor = &D_8009BE24[index];
 
@@ -140,12 +145,10 @@ int func_8008BD1C(int index) {
     return result;
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008BDD0);
-/* 83.03%: the body is instruction-for-instruction identical up to the func_80093978
-   call; the prologue scales index in v0 where the original uses v1 (which also
-   forces the 0x40 stack argument to be spilled early) and the tail puts the
-   constants in v0 where the original uses v1. func_8008B54C, same shape with two
-   different constants, reaches 93.37%; four source shapes did not close either,
-   so this is the allocator tie-break class.
+/* 93.37% (was 83.03% before the preset change). Byte-identical apart from the same
+   three prologue insns as func_8008B54C: original shifts index into v1 before the
+   0x100 push and stores the 0x40 argument in front of the jal; gcc stores it right
+   after li 0x40 and shifts into v0. Tail is byte-identical.
 int func_8008BDD0(int index) {
     WorldMapActor *pActor = &D_8009BE24[index];
 
