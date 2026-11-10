@@ -30,6 +30,7 @@ typedef struct {
 extern u8 D_800D2DCC[];
 extern u8 D_800C3EB7[];
 extern u8 D_800D32A1[];
+extern u8 *D_800D3364;
 extern BattleUnk170 D_800CCD64[];
 extern BattleUnk170 D_800CCE08[];
 
@@ -44,9 +45,34 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80083580);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80083748);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80083948);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80083FF4);
+/* 86.45%: two C adds an 8-byte phantom frame (vars=8) that the original does not have.
+   Every shape tried (2 locals, 2 different symbols, -O1/-O2/-O3/-Os, -G0/-G4/-G8,
+   gcc 2.6.0 and 2.7.2-cdk, -fno-common/-fno-peephole/-fno-function-cse) keeps it:
+   gcc 2.7.2 gives a symbol used twice in one function a stack slot, so the same-symbol
+   -twice family in this unit cannot be matched as written.
+u32 func_80083FF4(u8 arg0, u8 arg1) {
+    u32 ret;
+
+    ret = 0;
+    if (D_800D2DCC[arg1] != 0) {
+        if (D_800C3EB7[arg1 * 0x1C] == 0) {
+            if (D_800D32A1[arg1 * 8] == 0) {
+                if (*(u8 *)(D_800D3364 + D_800C3EB4[arg1 * 0x1C] * 8 +
+                            D_800C3EB4[arg0 * 0x1C] * 0x40 + 0x140) == 0) {
+                    ret = (D_800CCD64[arg1].unk0 & 0xC001) == 0;
+                }
+            } else {
+                ret = (D_800CCE08[arg1].unk0 & 0xC001) == 0;
+            }
+        }
+    }
+    return ret;
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80084108);
 /* 95.93%: one instruction class off - gcc emits `sltiu a2,v0,1` in the j delay slot where the
-   original keeps `sltiu v0,v0,1` + `move a2,v0` (ret copy not coalesced).
+   original keeps `sltiu v0,v0,1` + `move a2,v0` (ret copy not coalesced). `== 0` spelled
+   explicitly instead of `? 0 : 1` gives 94.35% with the same sltiu-into-a2 shape.
 u32 func_80084108(u8 arg0, u8 arg1) {
     u32 ret;
 
@@ -122,10 +148,16 @@ u16 func_80084D28(void) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80084DE4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80085084);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80085310);
-/* 60.31%: only diff is the base address; gcc shares one lui/addiu of D_800C3EBE between the
-   two accesses while the original re-forms it into $at per load.
+/* 77.50%: the direct form is 60.31% (gcc shares one lui/addiu of D_800C3EBE between
+   the two loads); two u32 locals reproduce the original's
+   per-load $at folds but add an 8-byte phantom frame, same blocker as func_80083FF4.
 u32 func_80085310(u8 arg0, u8 arg1) {
-    return D_800C3EBE[arg0 * 14] > D_800C3EBE[arg1 * 14];
+    u32 x;
+    u32 y;
+
+    x = D_800C3EBE[arg0 * 14];
+    y = D_800C3EBE[arg1 * 14];
+    return y < x;
 }
 */
 
