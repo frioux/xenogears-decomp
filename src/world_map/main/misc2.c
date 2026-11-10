@@ -49,6 +49,8 @@ extern s32 D_8009BE40;
 extern s32 D_8009D64C;
 extern s32 D_8009D80C;
 extern s32* D_80062528;
+extern s32 D_8009CD64;
+extern u8 D_8009A250[];
 extern u8 D_80062648[];
 
 void func_8007474C(void) {
@@ -59,29 +61,10 @@ void func_8007474C(void) {
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc2", func_80074794);
 
-/* 98.89%: instructions and store order are identical; the allocator puts the
-   loaded D_8009D30C pointer in a2 and the index*8 temporary in a3, retail does
-   the reverse (also tried: pointer local, index*8 via (u8*) arithmetic,
-   declaration order, store order vx/vy/vz vs vx/vz/vy — the latter is the right
-   one, this body has it — (u8*)D_8009D30C + index*8 written index-first, and
-   the plain '(Vector16*)D_8009D30C + index' scaled add).
-void func_80074794(s16 arg0, s32* pVec) {
-    Vector16* pEntry;
-    s32 index;
-
-    index = D_8009BE38;
-    pEntry = (Vector16*)D_8009D30C + index;
-    pEntry->vx = pVec[0] >> 12;
-    pEntry->vz = pVec[2] >> 12;
-    pEntry->vy = arg0;
-    D_8009BE38 = (index + 1) & 0xF;
-}
-*/
-
-/* 98.89%: instructions and store order are identical; the allocator puts the
-   loaded D_8009D30C pointer in a2 and the index*8 temporary in a3, retail does
-   the reverse (also tried: pointer local, index*8 via (u8*) arithmetic,
-   declaration order, store order vx/vy/vz vs vx/vz/vy).
+/* 98.89%: instructions and store order are identical; the allocator gives the
+   loaded D_8009D30C pointer a2 and the index*8 temporary a3, retail the
+   reverse. Also tried: (index << 3) + base and index * 8 + base operand order,
+   explicit s32 offset local — gcc canonicalises all of them to the same RTL.
 void func_80074794(s16 arg0, s32* pVec) {
     Vector16* pEntry;
     s32 index;
@@ -98,27 +81,34 @@ void func_80074794(s16 arg0, s32* pVec) {
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc2", func_800747DC);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc2", func_80074E58);
 
-/* 72.65%. func_80075030 below is the same routine with D_8009D77C->
-   D_8009D7C8, D_8009CC9C->D_8009CD64, D_8009D780->D_8009D7D0 and
-   D_8009A1E8->D_8009A250, so matching one matches both. Retail keeps four
-   live pointers plus the counter (i in a1, pData in a2, D_8009A1E8 walker in
-   a3, entry in a0 with a second base a0+0xA for the s16 fields) and stores the
-   entry fields in address order 0x0/0x4/0x8/0xA; gcc here sinks the unk0 store
-   (the one that depends on the data load) past the other three. The count must
-   be re-read from the global after HeapAlloc (retail has no s-register save, so
-   the data pointer is not live across the call).
+/* 89.84%. func_80075030 below is the same routine with D_8009D77C->D_8009D7C8,
+   D_8009CC9C->D_8009CD64, D_8009D780->D_8009D7D0 and D_8009A1E8->D_8009A250,
+   so matching one matches both. What this body gets right that the old 72.65%
+   attempt did not: the entry pointer must be a real `pEntry++` walker (that is
+   what makes retail anchor the s16 fields at a0+0xA with -6/-2 displacements),
+   while the two source walkers stay indexed expressions so gcc sinks their
+   addresses into the loop preheader after the entry `blez`. Remaining
+   differences: the preheader order is retail `li t2,1 / addiu v1,a0,10 /
+   lw t0,D_8009D77C / lui+addiu a3 / move a2,t0` against ours
+   `li t2,1 / a3 / t0 / addiu v1,a0,10`, and retail increments a3 right after
+   its store (pDesc walker) and keeps `addiu a0,a0,12` in the branch delay slot
+   where gcc puts a3 there. The count must be re-read from the global for the
+   loop bound (no s-register saves in retail: nothing lives across HeapAlloc).
 void func_80074E58(void) {
     WorldMapEntry* pEntry;
+    s32 count;
     s32 i;
 
-    D_8009CC9C = ((s32*)D_8009D77C)[0];
-    pEntry = (WorldMapEntry*)HeapAlloc(D_8009CC9C * 0xC, 0);
+    count = ((s32*)D_8009D77C)[0];
+    D_8009CC9C = count;
+    pEntry = (WorldMapEntry*)HeapAlloc(count * 0xC, 0);
     D_8009D780 = (u8*)pEntry;
     for (i = 0; i < D_8009CC9C; i++) {
-        pEntry[i].unk0 = (s32)D_8009D77C + ((s32*)D_8009D77C)[i + 1];
-        pEntry[i].unk4 = (s32)(D_8009A1E8 + i * 0x10);
-        pEntry[i].unk8 = 0;
-        pEntry[i].unkA = 1;
+        pEntry->unk0 = (s32)D_8009D77C + ((s32*)D_8009D77C)[i + 1];
+        pEntry->unk4 = (s32)(D_8009A1E8 + i * 0x10);
+        pEntry->unk8 = 0;
+        pEntry->unkA = 1;
+        pEntry++;
     }
 }
 */
@@ -130,22 +120,26 @@ void func_80074F04(void) {
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc2", func_80074F2C);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc2", func_80075030);
 
+/* Same routine as func_80074E58 above with the D_8009D7C8 / D_8009CD64 /
+   D_8009D7D0 / D_8009A250 symbols swapped in; see that attempt (89.84%). */
+
+
 void func_800750DC(void) {
     HeapFree(D_8009D7D0);
 }
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc2", func_80075104);
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc2", func_80075228)
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc2", func_80075228);
 
-/* 94.80%: everything matches except the constant 1. Retail re-materialises it
-   (`li v1,1` for D_8009D64C, later `li v0,1` for D_8009BCC4); gcc CSEs both
-   stores onto one register (a0), which also drags the 0x180/0x300 value from
-   v0 into v1. Reading g_GameState.unk1834 into a `u16 flags` local *before* the
-   D_8009D64C store is what puts the `lhu` ahead of it, and writing the width as
+/* 94.80%: the clear loop and the 0x300/0x180 selection match; every remaining
+   slot is gcc's constant CSE (`li v1,1` for D_8009D64C then a fresh `li v0,1`
+   for D_8009BCC4 in retail, one shared register here, which also moves the
+   width value from v0 to v1). Reading g_GameState.unk1834 into a `u16 flags`
+   local *before* the D_8009D64C store is what puts the `lhu` ahead of it, and
    `if (!(flags & 0x4000)) w = 0x180; else w = 0x300;` is what produces retail's
    `bnez` polarity. Also tried: ternary, direct store per branch, -O3 (85.8),
-   gcc-2.7.2-cdk (85.8), declaration order. The clear loop must decrement a
-   `s16*` local from D_8009C872, not index D_8009C854.
+   gcc-2.7.2-cdk (85.8), local vs literal constant, declaration order. The clear
+   loop must decrement a `s16*` local from D_8009C872, not index D_8009C854.
 void func_80075228(void) {
     s32 i;
     s32 screenWidth;
@@ -164,52 +158,6 @@ void func_80075228(void) {
         screenWidth = 0x180;
     } else {
         screenWidth = 0x300;
-    }
-    D_8009BE40 = screenWidth;
-    D_8009BCC4 = 1;
-    D_8009D80C = 0;
-}
-*/
-
-
-/* 94.80%: the clear loop and the 0x300/0x180 selection match; upstream gcc CSEs
-   the constant 1 into one register (li a0,1 reused for both D_8009D64C and
-   D_8009BCC4) while retail re-materialises it (li v1,1 then li v0,1), which also
-   drags the width value out of v0 into v1. Also tried: -O3 and gcc-2.7.2-cdk
-   (both 85.8), ternary vs if/else, local vs direct store, decl order.
-void func_80075228(void) {
-    s32 i;
-    s32 screenWidth;
-    s16* p;
-
-    i = 0xF;
-    p = D_8009C872;
-    for (; i >= 0; i--) {
-        *p = 0;
-        p--;
-    }
-    D_8009D64C = 1;
-    screenWidth = (g_GameState.unk1834 & 0x4000) == 0 ? 0x180 : 0x300;
-    D_8009BE40 = screenWidth;
-    D_8009BCC4 = 1;
-    D_8009D80C = 0;
-}
-*/
-
-/* 91.92%: the loop's base symbol (D_8009C854+0x1E vs D_8009C872), gcc's
-   li-constant CSE and the if/else branch polarity all differ.
-void func_80075228(void) {
-    s32 i;
-    s32 screenWidth;
-
-    for (i = 0xF; i >= 0; i--) {
-        D_8009C854[i] = 0;
-    }
-    D_8009D64C = 1;
-    if (((u16*)g_GameState.unk17FC)[0x1C] & 0x4000) {
-        screenWidth = 0x300;
-    } else {
-        screenWidth = 0x180;
     }
     D_8009BE40 = screenWidth;
     D_8009BCC4 = 1;
