@@ -126,7 +126,31 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80074678);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80074998);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80074AB4);
+extern void func_80074678(u8 *, s32, u8);
+extern void func_80074998(u8 *);
+extern void func_8008B0D8(u8 *);
+extern void func_8008B730(u8 *, s32, s32);
+
+void func_80074AB4(u8 *p0) {
+    u8 *pState = *(u8 **)(p0 + 0x15CC);
+    u8 *pData = *(u8 **)(p0 + 0x15D0);
+    u8 *pEntry;
+
+    *(s32 *)(p0 + 0x00) = *(s16 *)(pState + 0x0);
+    *(s32 *)(p0 + 0x04) = *(s16 *)(pState + 0x2);
+    *(s32 *)(p0 + 0x08) = *(s16 *)(pState + 0x4);
+    *(u8 *)(p0 + 0x4C) = *(u8 *)(pData + 0x8);
+    *(s32 *)(p0 + 0x54) = (*(u16 *)(pState + 0x6) << 20) >> 20;
+    pEntry = *(u8 **)(*(u8 **)(*(u8 **)(p0 + 0x5C) + 0x4) + 0x8) + *(u8 *)(pData + 0x8) * 0x14;
+    if (*(u16 *)(pData + 0x6) & 0x1000) {
+        func_80074998(p0);
+        func_8008B0D8(pEntry);
+    }
+    func_80074678(p0, *(s16 *)(pEntry + 0x12), *(u8 *)(*(u8 **)(p0 + 0x15D0) + 0x9));
+    if (*(u8 *)(pData + 0xA) != 0) {
+        func_8008B730(pEntry, *(u8 *)(pData + 0x9), *(u8 *)(pData + 0xA));
+    }
+}
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80074BA4);
 
