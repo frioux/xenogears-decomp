@@ -20,6 +20,9 @@ extern u8 D_800CCD68[];
 extern u8 D_800CCD74[];
 extern u8 D_800D366C;
 extern u8 D_800C3E18;
+extern u8 D_800D32A1[];
+extern u8 D_800C3EB5[];
+extern u8 D_800D301D[];
 
 extern void func_80085454(u8);
 extern void func_80085618(u8);
@@ -30,6 +33,12 @@ extern void func_80085D34(void);
 extern s32 func_800877E0(s32, s32);
 extern s32 func_80080AE4(s32);
 extern void func_800B89FC(s32, s32, s32, s32);
+extern u8 func_80089C48(u8);
+extern s32 func_8009ADA0(u8, s32 *);
+extern void func_80085388(void);
+extern void func_800BE538(u8, s32, s32, s32);
+extern u8 D_800C4000[];
+extern u8 D_800C3FE8[];
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80085618);
 void func_80085AC4(s32 arg0) {
@@ -52,6 +61,29 @@ void func_80085AC4(s32 arg0) {
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80085B58);
+/* 92.25%: retail schedules the D_800C3EAC pointer load (lui/lw) into the lhu's
+   load-delay slot and leaves the sh after it; gcc puts the sh first and a nop.
+void func_80085B58(s32 arg0) {
+    s32 buf[3];
+    s32 i;
+    u16 v;
+
+    buf[0] = buf[1] = buf[2] = 0;
+    if (func_8009ADA0((u8)arg0, buf) != 0) {
+        for (i = 0; i < 3; i++) {
+            if (buf[i] != 0) {
+                D_800C3EAC[0x2DA] = 0;
+                func_80085388();
+                D_800C4000[(u8)arg0] = i + 8;
+                v = buf[i];
+                *(u16 *)(D_800C3FE8 + (u8)arg0 * 2) = v;
+                func_80085618(D_800C3EAC[0x2DA]);
+            }
+        }
+        func_800BE538((u8)arg0, buf[0], buf[1], buf[2]);
+    }
+}
+*/
 void func_80085C48(s32 arg0, u16 arg1, u16 arg2) {
     u16 v = D_800D39DC;
 
@@ -127,6 +159,24 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80087AF0);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80087EDC);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_800881B8);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_800883AC);
+/* 92.28%: instruction multiset identical; gcc hoists the func_80089C48 argument
+   load into the load-delay slot after the D_800D301C load while retail leaves a
+   nop there and loads the argument after the store.
+void func_800883AC(u8 arg0) {
+    s32 ofs;
+    u8 sel;
+    u8 ret;
+
+    sel = (arg0 >= 3) * 8;
+    if (D_800D32A1[arg0 * 8] != 0) {
+        sel |= 0x10;
+    }
+    ofs = arg0 * 28;
+    D_800D301C[(D_800C3EB4[ofs] + sel) << 2]--;
+    ret = func_80089C48(D_800C3EB5[ofs]);
+    D_800D301D[(D_800C3EB4[ofs] + sel) << 2] &= ret;
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80088490);
 u8 func_800885D0(u8 arg0) {
     return D_800D301C[(D_800C3EB4[arg0 * 28] + 0x18) << 2];
