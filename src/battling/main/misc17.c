@@ -22,6 +22,13 @@ extern u16 D_80096EC8;
 extern u16 D_80096EEC;
 extern u16 D_80096F10;
 
+extern u8 D_80091EE0[];
+extern u8 D_80091F60[];
+extern u8 D_80091F70[];
+extern u8 D_80091F80[];
+extern u8 D_80091F90[];
+extern u8 D_80091FA0[];
+
 extern void func_8007639C(u8*, u8);
 extern void func_800767C8(u8*, u8*);
 extern void func_8008E78C(u8*, u32, u8*, u32);
@@ -72,7 +79,29 @@ void func_8008E67C(void) {
         D_80096F10++;
     }
 }*/
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008E6F8);
+u8* func_8008E6F8(u8* p) {
+    u8* pTable;
+
+    switch (*(u8*)(p + 0x909)) {
+    case 9:
+        pTable = D_80091FA0;
+        break;
+    case 0x1D:
+        pTable = D_80091F60;
+        break;
+    case 0x1B:
+        pTable = D_80091F80;
+        break;
+    case 0x24:
+        pTable = D_80091F70;
+        break;
+    default:
+        pTable = D_80091F90;
+        break;
+    }
+    *(u8**)(p + 0x1664) = pTable;
+    return pTable;
+}
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008E78C);
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008E8B0);
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008EADC);
@@ -120,6 +149,26 @@ void func_8008ECEC(u8 kind) {
     }
 }*/
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008ED6C);
+/* best: objdiff 90.11% - body, operand order and frame all match except register numbering (original keeps &D_80091EE0 in s1 and the byte index in s2; gcc gives the index s1) and an 8-byte larger frame in the original. %gp/%hi spelling of D_80091EE0 is already right (first read folds hi+index through at, second goes through a base pointer).
+void func_8008ED6C(u8* p, s32 idx) {
+    u8* pTable;
+    s32 i;
+    u8 v;
+
+    v = *(u8*)(*(u32*)(p + 0x1664) + idx);
+    if (v == 0xFF) {
+        return;
+    }
+    i = v << 1;
+    pTable = D_80091EE0;
+    if (D_80091EE0[i] != 0) {
+        func_8008ECEC(((*(u32*)(p + 0xD0) >> 20) & 0x80) | (D_80091EE0[i] & 0x7F));
+    }
+    if (pTable[i + 1] != 0) {
+        func_8008ECEC(((*(u32*)(p + 0xD0) >> 20) & 0x80) | (pTable[i + 1] & 0x7F));
+    }
+}
+*/
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008EE1C);
 void func_8008EF00(u8* p0, u8* p1) {
     func_800767C8(p0, p1);
