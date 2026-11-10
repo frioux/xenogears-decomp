@@ -177,8 +177,10 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007E6A0);
    the p[1] index then reuses). Same allocator tie as func_8007E740/E8AC and the
    misc6 D_800D34x0 family. Tried: s32 val local (75.65%), pRow/p declared in
    both orders, `s32 arg1` with an explicit `(arg1 & 0xFF) * 0x40` mask (the
-   masking that func_8007E1D0 needed), and the three references spelled inline to
-   let CSE renumber the base (70.75%). No try_flags.sh combination reaches 100
+   masking that func_8007E1D0 needed), the three references spelled inline to
+   let CSE renumber the base (70.75%), and the row base in ELEMENT units
+   (`(s32 *)D_800D3410 + (arg1 & 0xFF) * 0x10`, which still emits sll 6): same
+   99.00%, base v1. No try_flags.sh combination reaches 100
    (2.6.0 99.0, cdk 96.5, -O1 51.9).
 void func_8007E6A0(u8 **arg0, s32 arg1) {
     u8 *p = *arg0;
@@ -203,7 +205,11 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007E740);
    mirror image (base v1, row v0, mflo a2). Same allocator tie as func_8007E8AC
    and the misc6 D_800D34x0 family. Tried: s32 vs u32 element, pRow before/after
    pArgs, product written as p[2] * pRow[p[1]] (this variant, operand order
-   right), compound assignment.
+   right), compound assignment, and func_8007E780's exact shape copied verbatim
+   with `p` declared first (95.00%, the mult operands then swap to `mult v1,a0`).
+   Decisive: the MATCHED divide sibling func_8007E780 has byte-identical asm
+   (same base v0 / slot v1 allocation) under the same C shape, so the split is
+   the multiply's HI/LO pseudo shifting the allocator, not the source.
 void func_8007E740(u8 **arg0, u8 arg1) {
     u32 *pRow = (u32 *)(D_800D3410 + arg1 * 0x40);
     u8 *p = *arg0;
@@ -248,6 +254,8 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007E8AC);
    v0/v1 pair is mirrored (original: p[2] in v1, p[1] in v0, sum in v1, the
    D_800D3364 pointer reusing v0). Same allocator tie as func_8007E740. Tried:
    both summand orders, inline index, s32 idx local, pointer local for the base.
+   Confirmed a pure labelling tie: both sides end in the same `addu v0,v0,v1`;
+   only the two scale temps and the D_800D3364 pointer swap v0/v1.
 void func_8007E8AC(u8 **arg0) {
     u8 *p = *arg0;
     s32 idx = p[2] * 8 + p[1] * 0x40;
@@ -276,7 +284,9 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007E98C);
    is a local; only the register pair is mirrored (original: base v1, p in a0,
    p[3] in a2; gcc: base v0, p v1, p[3] a0). Same allocator tie as func_8007E6A0.
    Tried: value inline in the comparison (73.41%, reorders the lbu's), pField/p
-   declared in both orders, `s32 arg1` + explicit `(arg1 & 0xFF) * 0x40`.
+   declared in both orders, `s32 arg1` + explicit `(arg1 & 0xFF) * 0x40`, and
+   `u8 arg1` + element index `(u16 *)D_800D3420 + arg1 * 0x20` (96.47%, same two
+   mirrored pairs).
 s32 func_8007E98C(u8 **arg0, s32 arg1) {
     u8 *p = *arg0;
     u16 *pField = (u16 *)(D_800D3420 + (arg1 & 0xFF) * 0x40);
