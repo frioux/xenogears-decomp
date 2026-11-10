@@ -158,16 +158,21 @@ void func_801D50EC(u_char a0, s32 a1, s32 a2) {
     }
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D51EC);
-/* Best: 94.45%. Only structural diff: gcc emits the loop-2 draw counter init
-   (`n = 0`) as the first insn after loop 1, so reorg steals it into the
-   loop-back `bnez` delay slot and a1 therefore stays live in its own
-   callee-saved register (frame 0x40, s5). Retail puts `andi v1,s2,0xFF` (the
-   second `characters[a1]` address computation) first and `addu s2,zero,zero`
-   in the `jal func_801C80B8` delay slot, letting a1 and n share s2 (frame
-   0x38). Everything else - both loops, the digit gate, the 0xA4 stride, the
-   0xAF0/0xBE0 prim bases, the count bytes 0x1273/0x1274 - is byte-identical.
-   Tried: n=0 after the sb (as below), n=0 before the call, a `s32 maxHp`
-   temp for the second func_801C80B8 argument (folded away).
+/* Best: 98.31%, frame 0x38, a1 and n share s2 as in retail. The one remaining
+   diff is loop 2's `i++`: retail has `addiu s1,s1,1` in the `beq
+   digits[6+i]==0xFF` delay slot with `ori v0,0x1000` first in the body, gcc
+   puts the `li 0x1000` in the slot and `addiu s1,s1,1` in the latch. That is
+   reorg's delay-slot choice, not allocation (both sides are 122 insns).
+   The key discovery is the statement order after loop 1: gcc's loop-2 preheader
+   hoists the `n = 0` biv init to the TOP of the fall-through block, so reorg
+   steals it into loop 1's back-branch slot and a1 has to keep a register of its
+   own (frame 0x40). Writing `i = 0;` as a statement BEFORE the second
+   func_801C80B8 call (and `n = 0` after the counter store) makes `i = 0` the
+   block's first insn - reorg rejects it because s1 is live at loop 1's head -
+   so reorg takes the `andi v1,s2,0xFF` of the second characters[] chain instead,
+   exactly like retail, and a1 then dies before n is born. Tried: `continue`
+   form, n=0 before the call / after the sb, i=0 only in the for-init, `i < 3`
+   with the increment in the latch: all 94.45-98.31%.
    void func_801D51EC(u_char a0, u_char a1, s32 a2, s32 a3) {
        u8* pWindow = (u8*)g_Menu->unk39C[a0];
        s32 i;
@@ -184,10 +189,11 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D51EC);
                    a3 + D_801E9B2C, 0x1000);
            }
        }
-       n = 0;
+       i = 0;
        func_801C80B8(g_GameState.characters[a1].maxHp);
        pWindow[0x1274] = 0;
-       for (i = 0; i < 3; i++) {
+       n = 0;
+       for (; i < 3; i++) {
            if (g_Menu->digits[6 + i] != 0xFF) {
                pWindow[0x1274] += func_8002675C(
                    g_Menu->resources, g_Menu->digits[6 + i],
@@ -198,15 +204,15 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D51EC);
            }
        }
    }
-*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D53D0);
-/* Best: 94.45%. Same allocator tie as func_801D51EC, which see: every
-   instruction matches except that gcc emits the loop-2 draw counter init
-   (`addu s2,zero,zero`) as the first insn after loop 1, reorg steals it into
-   the loop-back `bnez` delay slot, and a1 therefore keeps its own
-   callee-saved register (frame 0x40, s5). Retail emits `andi v1,s2,0xFF`
-   (the second `characters[a1]` address chain) first and puts the counter init
-   in the `jal func_801C80B8` delay slot, so a1 and n share s2 (frame 0x38).
+/* Best: 98.31%. Same shape as func_801D51EC, which see: `i = 0;` written
+   before the second func_801C80B8 call and `n = 0;` after the counter store
+   reproduces retail's loop-1 exit block (`andi v1,s2,0xFF` in the back-branch
+   delay slot, `addu s2,zero,zero` in the jal delay slot) and drops the extra
+   callee-saved register, frame 0x38. The one remaining diff is loop 2's
+   `i++`: retail keeps `addiu s1,s1,1` in the `beq digits[7+i]==0xFF` delay
+   slot, gcc puts it in the latch (both sides 122 insns, so reorg's slot
+   choice).
    void func_801D53D0(u_char a0, u_char a1, s32 a2, s32 a3) {
        u8* pWindow = (u8*)g_Menu->unk39C[a0];
        s32 i;
@@ -223,10 +229,11 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D53D0);
                    a3 + D_801E9B3C, 0x1000);
            }
        }
+       i = 0;
        func_801C80B8(g_GameState.characters[a1].maxMp);
        pWindow[0x1276] = 0;
        n = 0;
-       for (i = 0; i < 2; i++) {
+       for (; i < 2; i++) {
            if (g_Menu->digits[7 + i] != 0xFF) {
                pWindow[0x1276] += func_8002675C(
                    g_Menu->resources, g_Menu->digits[7 + i],
