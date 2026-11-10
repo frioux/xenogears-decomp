@@ -1,4 +1,5 @@
 #include "common.h"
+#include "psyq/libgte.h"
 
 extern s32 D_8009292C;
 extern s32 D_80092918;
@@ -13,8 +14,43 @@ extern u8 D_80099D9D;
 extern u8 D_80099D9E;
 extern u8 D_80099DA1;
 extern u8 D_80099DA2;
+typedef struct {
+    /* 0x00 */ u8 pad00[0x2C];
+    /* 0x2C */ s16 unk2C;
+} UnkA884; // Size: unknown
+
+extern s32 D_80092640;
+extern s32 D_80092668;
+extern s32 D_8009266C;
+extern s32 D_80092670;
+extern s32 D_80092674;
+extern s32 D_800928AC;
+extern s32 D_80092890;
+extern s32 D_8009867C;
+extern u8* D_80092644;
+extern UnkA884* D_8009790C;
+extern UnkA884* D_80099028;
+extern u8 D_80091150;
+extern u8 D_80091151;
+extern s32 D_80098730;
+extern s32 D_80097014;
+extern s32 D_8009879C;
+extern s32 D_80097080;
+extern s32 D_80098680;
+extern s32 D_80098684;
+extern s32 D_8009871C;
+extern s32 D_80098720;
+extern s32 D_80098724;
 
 extern void func_800732CC(void);
+extern s32 rand(void);
+extern void func_8007E24C();
+extern void func_8008D580();
+extern void func_8007BB7C();
+extern void func_8007F834();
+extern void func_8008E620();
+extern void func_80074BA4(void);
+extern void func_80074678();
 extern void func_80073B7C();
 extern void func_8007C100();
 extern s32 func_8007CD44();
@@ -45,7 +81,21 @@ struct ActorScript {
     /* 0x4 */ s16 unk4;
     /* 0x6 */ s16 unk6;
     /* 0x8 */ s16 unk8;
+    /* 0xA */ u8 padA[0x1A];
+    /* 0x24 */ s16 unk24;
+    /* 0x26 */ s16 unk26;
+    /* 0x28 */ s16 unk28;
+    /* 0x2A */ s16 unk2A;
 }; // Size: unknown
+
+typedef struct {
+    /* 0x0 */ u8 pad00[0x6];
+    /* 0x6 */ u16 unk6;
+    /* 0x8 */ u8 pad08[0x2];
+    /* 0xA */ u16 unkA;
+} ActorSub;
+
+// Actor pointer at 0x15CC, aimed at the actor's own 0x9CC.
 
 // Layout recovered from the offsets this unit touches; only those are known.
 struct ActorPart {
@@ -65,7 +115,13 @@ struct Actor {
     /* 0x010 */ s32 unk10;
     /* 0x014 */ s32 unk14;
     /* 0x018 */ s32 unk18;
-    /* 0x01C */ u8 pad1C[0x38];
+    /* 0x01C */ u8 pad1C[0x30];
+    /* 0x04C */ u8 unk4C;
+    /* 0x04D */ u8 pad4D[0x2];
+    /* 0x04F */ u8 unk4F;
+    /* 0x050 */ u8 pad50[0x2];
+    /* 0x052 */ u8 unk52;
+    /* 0x053 */ u8 pad53;
     /* 0x054 */ s32 unk54;
     /* 0x058 */ u8 pad58[0x4];
     /* 0x05C */ ActorPart* unk5C;
@@ -101,7 +157,12 @@ struct Actor {
     /* 0x964 */ u8 pad964[0x8];
     /* 0x96C */ s16 unk96C;
     /* 0x96E */ s16 unk96E;
-    /* 0x970 */ u8 pad970[0xC64];
+    /* 0x970 */ u8 pad970[0x28];
+    /* 0x998 */ s16 unk998;
+    /* 0x99A */ s16 unk99A;
+    /* 0x99C */ u8 pad99C[0xC30];
+    /* 0x15CC */ ActorSub* unk15CC;
+    /* 0x15D0 */ u8 pad15D0[0x4];
     /* 0x15D4 */ u8 unk15D4;
 }; // Size: unknown
 
@@ -300,11 +361,30 @@ void func_80079B0C(void) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_80079B44);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_80079D08);
+void func_80079D08(Actor* p) {
+    p->unk15CC->unkA = (p->unk15CC->unkA & 0xFEFF) | ((p->unkD0 << 6) & 0x100);
+    p->unk15CC->unk6 = (p->unk15CC->unk6 & 0xDFFF) | ((p->unkD0 >> 2) & 0x2000);
+    p->unk15CC->unk6 = (p->unk15CC->unk6 & 0xBFFF) | ((p->unkD0 >> 5) & 0x4000);
+}
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_80079D6C);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_80079DE0);
+/* Best attempt: 73.10%. gcc merges the 2nd and 3rd stores into one and CSEs the
+   p->unk15CC load; the original re-loads the pointer per statement and stores
+   three times. Third term is a bit-14 extract: original emits sll 17/slti/sll 19
+   where this gives sll 17/srl 31/sll 19.
+void func_80079D6C(Actor* p) {
+    u16 tmp = p->unk15CC->unk6;
+
+    p->unkD0 = (p->unkD0 & 0xFFFFFFFB) | ((p->unk15CC->unkA >> 6) & 4);
+    p->unkD0 = (p->unkD0 & 0xFFFF7FFF) | ((tmp << 2) & 0x8000);
+    p->unkD0 = (p->unkD0 & 0xFFF7FFFF) | ((((u32)tmp << 17) >> 31) << 19);
+}
+*/
+
+void func_80079DE0(void) {
+    D_80092640 = 0;
+}
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_80079DF0);
 
@@ -312,13 +392,77 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_8007A21C);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_8007A344);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_8007A6D0);
+void func_8007A6D0(Actor* p) {
+    D_8009292C = 0x100;
+    if (D_800928AC < 0x78) {
+        p->unk4F = 0x10;
+        p->unk52 = 0;
+        p->unk4C = 0x10;
+        p->unkD0 |= 0x400;
+    } else {
+        p->unk4F = 0x10;
+        p->unk52 = 0;
+        p->unk4C = 0;
+        p->unkD0 |= 0x400;
+    }
+}
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_8007A730);
+void func_8007A730(Actor* p) {
+    D_8009292C = 0x100;
+    p->unk4F = 0x10;
+    p->unk52 = 0;
+    p->unk4C = 9;
+    p->unkD0 |= 0x2000400;
+}
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_8007A768);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_8007A884);
+/* Best attempt: 92.44%. gcc reassociates `p->unk4 - 0x400 - D_80092670` into
+   `p->unk4 - (D_80092670 + 0x400)` (addiu on the loaded global) and hoists the
+   p->unk0 load above the D_80098680 store; the original keeps
+   addiu v1,v1,-0x400 then subu, in statement order.
+void func_8007A768(Actor* p) {
+    ActorScript* pScript = p->unk8FC;
+    s32 r;
+
+    D_80092668 = pScript->unk24;
+    D_8009266C = pScript->unk28;
+    D_80092670 = pScript->unk26;
+    D_80092674 = pScript->unk2A;
+    SetGeomScreen(0x200);
+    r = rand();
+    D_80098680 = p->unk4;
+    D_8009867C = p->unk0;
+    D_80098720 = p->unk4 - 0x400 - D_80092670;
+    D_80098684 = p->unk8;
+    D_8009871C = D_8009867C + (((rcos(r) << 2) * D_80092674) >> 12);
+    D_80098724 = D_80098684 + (((rsin(r) << 2) * D_80092674) >> 12);
+}
+*/
+
+void func_8007A884(void) {
+    UnkA884* p;
+    s32 v;
+
+    func_8007E24C();
+    func_8008D580(D_80092644);
+    func_8007BB7C();
+    func_8007F834();
+    func_8008E620();
+    p = (D_80092890 != 0) ? D_8009790C : D_80099028;
+    if (p->unk2C != 0) {
+        D_80091150 = 1;
+        v = 0x10;
+    } else {
+        D_80091150 = 2;
+        v = -1;
+    }
+    D_80091151 = v;
+    D_80098730 = 0x100;
+    D_80097014 = 0x100;
+    D_8009879C = 0x100;
+    D_80097080 = 0x100;
+}
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_8007A958);
 
@@ -326,4 +470,12 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_8007AC3C);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_8007AE10);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_8007B210);
+void func_8007B210(Actor* p, u8 unk4C) {
+    p->unk15CC = (ActorSub*)((u8*)p + 0x9CC);
+    p->unk4F = 0x10;
+    p->unk4C = unk4C;
+    p->unk52 = 0;
+    D_8009292C = 0x100;
+    func_80074BA4();
+    func_80074678(p, p->unk998, p->unk99A);
+}
