@@ -43,6 +43,11 @@ extern void func_80076BF0(u8 *p);
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc14", func_80088990);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc14", func_80088B80);
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc14", func_80089038);
+// Best attempt: objdiff 99.81%; only diff is the loop call arg addu: original "addu a1,a1,v1" (index first),
+// gcc gives "addu a1,v1,a1" for this pointer form. The index-first int form
+// (s32)(D_800D2DB4[0x5DA1] * 0x50 + 0x4CE0 + (s32)D_800D2DB4) drops to 87.50%
+/*
 void func_80089038(void) {
     s32 i = 0;
     s32 pitch = 0x6E << 16;
@@ -57,6 +62,7 @@ void func_80089038(void) {
     D_800D2DB4[0x5DA0] = D_800CCB34;
     *(u16*)(D_800D2DB4 + 0x5DA2) = 0;
 }
+*/
 void func_80089110(void) {
     s32 arg0;
     s32 pEntry;
@@ -73,6 +79,9 @@ void func_80089110(void) {
         func_80076B68((u8*)(pEntry + (s32)D_800D2DB4));
     }
 }
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc14", func_800891E4);
+// Best attempt: objdiff 95.11%, same addu operand order / register-allocation issue in the two tail loops
+/*
 void func_800891E4(void) {
     u8 v;
     s32 i;
@@ -92,6 +101,12 @@ void func_800891E4(void) {
         func_80076BF0((u8*)(off + (s32)D_800D2DB4));
     }
 }
+*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc14", func_80089348);
+// Best attempt: objdiff 94.23% with the "off" local; without it (inline (s32)(base + 0x4E70 + idx*0x50)) the two loop
+// arg addus come out base-first instead of index-first (96.70%). Needs a spelling that gets
+// index-first addu AND addiu on the index without disturbing allocation
+/*
 void func_80089348(void) {
     s32 i = 0;
     s32 pitch = 0x11A << 16;
@@ -111,8 +126,12 @@ void func_80089348(void) {
         func_80076B68((u8*)(off + (s32)D_800D2DB4));
     }
 }
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc14", func_8008946C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc14", func_8008963C);
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc14", func_800897CC);
+// Best attempt: objdiff 94.23%, same remaining diff as func_80089348 (its twin: D_800C3CFB, 0x51E0, 0x5D7B, a3 = 0x5E, i < 2)
+/*
 void func_800897CC(void) {
     s32 i = 0;
     s32 pitch = 0x11A << 16;
@@ -132,6 +151,7 @@ void func_800897CC(void) {
         func_80076B68((u8*)(off + (s32)D_800D2DB4));
     }
 }
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc14", func_800898F0);
 void func_80089AF8(void) {
     func_8008860C();
@@ -206,6 +226,10 @@ s32 func_80089C9C(s32 mask, u8 idx) {
     return flags;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc14", func_80089CCC);
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc14", func_8008A144);
+// Best attempt: objdiff 91.84%; single diff: the (field*4 + 0x8970) temp lands in $v1, original reuses $a1
+// (coalesced with the field load). Everything else identical
+/*
 void func_8008A144(void) {
     D_800D2D28[0xAA] += 1;
     if ((D_800D2D28[0xAA] & 1) == 0) {
@@ -220,6 +244,7 @@ void func_8008A144(void) {
         *(u32*)(D_800D2D28 + 0x30) = 0;
     }
 }
+*/
 void func_8008A274(u8 arg0) {
     if (D_800CCC58 != 0) {
         func_8007171C();
