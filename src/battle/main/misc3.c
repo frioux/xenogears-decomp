@@ -139,6 +139,11 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_80078508);
    %lo(D_800D2DF0+0x16) and derives the other pointers from it, which costs
    3 addius. Tried: then [i],[i+0xB] / else [i+0xB],[i] (this one),
    both branches [i],[i+0xB], both [i+0xB],[i].
+   The blocker is precise: gcc picks the base giv from the FIRST D_800D2DF0
+   store in the loop body, so with all four stores [i+0xB]-first the prologue
+   becomes `addiu v0,%lo+0x16` and needs a third addiu (91.04%); the original
+   keeps base+0 while its two `sh` are [i+0xB]-first, i.e. store order and giv
+   order disagree there. else-branch order does not influence it (99.57%).
 void func_80078508(u8 *pOut) {
     s32 i;
     u16 value;
@@ -159,21 +164,26 @@ void func_80078508(u8 *pOut) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_800785D4);
-/* 57.27%: the original keeps no pointer local for the first store (reloads
-   D_800C3EAC, then uses one reload for the 0xC4022 store and the count
-   increment), which the pEntry local reproduces, but it schedules the index
-   mask/shift after the pointer load and this version puts them first. Tried:
-   tile as a u16 local (57%), lo/hi u8 locals (43%), inline tile expression,
-   post-increment inside the index, pEntry for all three stores.
+/* 57.27%: the tail (two D_800C3EAC loads, pEntry shared by the 0xC4022 store
+   and the count increment) matches; the whole difference is where the
+   scheduler puts the first store's address chain. Mine hoists `andi/sll` for
+   index*8 to the top and sinks the tile's low-byte load plus the `or` past the
+   sb; the original keeps andi/sll after the pointer load + lbu and finishes the
+   tile before the sb. Every spelling of the tile expression compiles to the
+   same insns, so it is not the expression: tried tile as u16 local, hi-first
+   `(D_800D2E61[i*8] << 8) | D_800D2E60[i*8]`, lo/hi u8 locals, inline tile,
+   `u8 i = D_800C3EAC[0x2DA]` local, D_800C4022 as u16[36][] with [idx][0],
+   pEntry before/after the colour store (before = 48.18%), post-increment in
+   the index. Not the preset: gcc 2.6.0 also 57.27.
 void func_800785D4(u8 color, u8 index) {
     u16 tile;
     u8 *pEntry;
 
-    pEntry = D_800C3EAC;
     tile = D_800D2E60[index * 8] | (D_800D2E61[index * 8] << 8);
-    D_800C400B[pEntry[0x2DA] * 0x48] = color;
-    *(u16 *)(D_800C4022 + D_800C3EAC[0x2DA] * 0x48) = tile;
-    D_800C3EAC[0x2DA]++;
+    D_800C400B[D_800C3EAC[0x2DA] * 0x48] = color;
+    pEntry = D_800C3EAC;
+    *(u16 *)(D_800C4022 + pEntry[0x2DA] * 0x48) = tile;
+    pEntry[0x2DA]++;
 }
 */
 
