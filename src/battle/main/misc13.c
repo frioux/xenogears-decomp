@@ -24,6 +24,9 @@ extern u8 D_800C3E18;
 extern u8 D_800D32A1[];
 extern u8 D_800C3EB5[];
 extern u8 D_800D301D[];
+extern u8 D_800C3EBE[];
+extern u8 D_800C3EC0[];
+extern u8 *D_800D3364;
 
 extern void func_80085454(u8);
 extern void func_80085618(u8);
@@ -236,6 +239,44 @@ void func_800883AC(u8 arg0) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80088490);
+/* 63.19%: first block and the five `D_800C3EB4[ofs]` reloads match retail exactly;
+   still open: gcc branches on the skip condition (`beq $2,$0,store`, loop as
+   fall-through) where retail branches INTO the loop (`bnez $2,loop`) and puts
+   `li a1,0x40` in that delay slot; gcc keeps `n` in $a2 for the whole function
+   (retail loads it into $v1 and copies to $a2 on the skip and break paths, which
+   also makes retail's loop-exhaust path store $a2); gcc emits the
+   `D_800D301C` flag store before `D_800D301D` (swap them in the source does not
+   change it - sched2 reorders); and `D_800D3364 + idx*8` gives `addu idx,base`
+   where retail has `addu base,idx` (writing `idx*8 + D_800D3364` does not change
+   it either). `* 4` instead of `<< 2` scores 68.19% but folds the +0x10 into
+   `%lo` (`lbu v0,64(at)`) instead of retail's `addiu`/`sll` pair, i.e. it is a
+   wrong instruction choice that the fuzzy score likes; `<< 2` reproduces the
+   shape func_800885D0 matched with. Dropping the `ofs` local and spelling
+   `arg0 * 0x1C` inline is worse (56.81%: gcc switches to a `la` base pointer and
+   loads `D_800D3364` twice).
+void func_80088490(u8 arg0) {
+    s32 ofs;
+    s32 i;
+    s32 n;
+
+    ofs = arg0 * 0x1C;
+    n = D_800C3EB4[ofs];
+    if (D_800D301C[(n + 0x10) << 2] != 0) {
+        for (i = 0; i < 8; i++) {
+            if (D_800D301C[(i + 0x10) << 2] == 0) {
+                n = i;
+                break;
+            }
+        }
+    }
+    D_800C3EB4[ofs] = n;
+    D_800C3EB5[ofs] = 0;
+    D_800D301D[(D_800C3EB4[ofs] + 0x10) << 2] = 1;
+    D_800D301C[(D_800C3EB4[ofs] + 0x10) << 2] = 1;
+    *(u16 *)(D_800C3EBE + ofs) = *(u16 *)(D_800D3364 + D_800C3EB4[ofs] * 8 + 0x100);
+    *(u16 *)(D_800C3EC0 + ofs) = *(u16 *)(D_800D3364 + D_800C3EB4[ofs] * 8 + 0x102);
+}
+*/
 u8 func_800885D0(u8 arg0) {
     return D_800D301C[(D_800C3EB4[arg0 * 28] + 0x18) << 2];
 }
