@@ -45,6 +45,68 @@ void func_801E1398(void) {
     HeapFree(g_Menu->unk438);
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E1418);
+
+/* objdiff 68.19% (300 bytes vs 296). Recovered shape: returns the average
+   percentage of 7 gear-stat slots, 0 if nothing was counted. Averages
+   weight[i] * 100 / value[i] over the slots, clamped to 100, where
+   weight = ((u16*)((u8*)&g_GameState.characters[charId] + 0x90))[i] (charId =
+   g_Menu->pManager->currentCharacterIDs[slot]) and value comes from a table at
+   ((u8*)g_Menu->unk438)[0x2578] with stride 0x110 per charId and 0xE per index.
+   Retail skips the whole thing (returns 0) for index >= 7 unless
+   g_GameState.unk22B6 & 0x4000. Remaining diffs: retail keeps 0xFFFF in a
+   `li v0` delay slot where 2.7.2 hoists it to t3, the if/else layout is
+   inverted (retail falls through into the weight != 0 path), the loop counter
+   is an int (slti, not sltiu) and slot/index registers are swapped (a0 is
+   copied to v1 there, a1 to t2 here).
+   u32 func_801E1418(u8 slot, u8 index) {
+       u8 charId;
+       u16* pWeight;
+       u16* pRow;
+       u16* pTable;
+       u32 weight;
+       u32 value;
+       u32 total;
+       u32 count;
+       u32 i;
+       u32 pct;
+
+       total = 0;
+       if ((u32)index >= 7 && (g_GameState.unk22B6 & 0x4000) == 0) {
+           return 0;
+       }
+       count = 0;
+       i = 0;
+       charId = g_Menu->pManager->currentCharacterIDs[slot];
+       pWeight = (u16*)((u8*)&g_GameState.characters[charId] + 0x90);
+       pTable = *(u16**)((u8*)g_Menu->unk438 + 0x2578);
+       pRow = (u16*)((u8*)pTable + charId * 0x110 + index * 0xE);
+       for (i = 0; i < 7; i++) {
+           weight = *pWeight++;
+           value = pRow[i];
+           if (weight == 0) {
+               if (value != 0) {
+                   count++;
+               }
+           } else if (value != 0) {
+               if (value == 0xFFFF) {
+                   count++;
+               } else {
+                   pct = weight * 100 / value;
+                   if (pct < 100) {
+                       total += pct;
+                   } else {
+                       total += 100;
+                   }
+                   count++;
+               }
+           }
+       }
+       if (count == 0) {
+           return 0;
+       }
+       return total / count;
+   }
+*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E1544);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E1AC8);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E20C8);
@@ -141,6 +203,39 @@ void func_801E3088(u8 arg0) {
 */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E31C0);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E35BC);
+
+/* objdiff 80.36% (280 bytes vs 272). Structure is right: characters[charIndex]
+   (pChar) / characters[targetIndex] (pTarget) / gears[gearId] (pGear) and the
+   arg4 branch, but retail loads hp/maxHp (0x4C/0x4E) again for the clamp while
+   2.7.2 forwards the stored value (andi 0xffff + sltu), and the pSlots load
+   (pDressingRoom->unk20[charIndex] + slotIndex * sizeof(GameCharacter)) is
+   emitted after the index chain instead of before it. Retried with a `value`
+   local, pChar->ether vs the inline access, and both comparisons: 80.36%.
+   void func_801E35BC(MenuDressingRoom* pDressingRoom, u8 charIndex, u8 targetIndex, u8 slotIndex, u8 isGear) {
+       GameCharacter* pChar;
+       GameCharacter* pTarget;
+       GameCharacter* pSlots;
+       GameGear* pGear;
+       u32 value;
+
+       pChar = &g_GameState.characters[charIndex];
+       pTarget = &g_GameState.characters[targetIndex];
+       pGear = &g_GameState.gears[g_GameState.characters[charIndex].gearId];
+       if (isGear == 0) {
+           pSlots = ((GameCharacter**)pDressingRoom->unk20)[charIndex];
+           value = pChar->ether * pSlots[slotIndex].unk0[0x11];
+           pTarget->hp = pTarget->hp + value;
+           if (pTarget->hp > pTarget->maxHp) {
+               pTarget->hp = pTarget->maxHp;
+           }
+       } else {
+           pGear->hp += pGear->maxHp / 10;
+           if (pGear->maxHp < pGear->hp) {
+               pGear->hp = pGear->maxHp;
+           }
+       }
+   }
+*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E36D4);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E3A80);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E3C2C);
