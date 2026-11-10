@@ -179,7 +179,33 @@ void func_800B00F4(s32 arg0) {
     func_800B00D0();
 }
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800B0164);
+void func_800B0164(s32 arg0, s32 index, u8 arg2, u8 arg3, s16 arg4, s16 arg5, s16 arg6, s16 arg7,
+                   s16 arg8, s16 arg9, s16 arg10) {
+    u8 **pSlot;
+    u8 *pEntry;
+
+    if (D_800C37C8 == 0) {
+        pSlot = &D_800C3BAC[index];
+        if (*pSlot == NULL) {
+            *pSlot = (u8 *)func_800A2330();
+        }
+        pEntry = *pSlot;
+        if (pEntry != NULL) {
+            pEntry[0] = 1;
+            pEntry[1] = 0;
+            pEntry[2] = arg2;
+            pEntry[3] = arg3;
+            *(s16 *)(pEntry + 0x4) = arg4;
+            *(s16 *)(pEntry + 0x6) = arg5;
+            *(s16 *)(pEntry + 0x8) = arg6;
+            *(s16 *)(pEntry + 0xA) = arg7;
+            *(s16 *)(pEntry + 0xC) = arg8;
+            *(s16 *)(pEntry + 0xE) = arg9;
+            *(s16 *)(pEntry + 0x10) = 0;
+            *(s16 *)(pEntry + 0x12) = arg10;
+        }
+    }
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800B026C);
 
 s32 func_800B0AB4(s16 *pPos) {
@@ -194,13 +220,13 @@ s32 func_800B0AB4(s16 *pPos) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800B0B14);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800B0D70);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800B0FF4);
-/* 70.81%: the frame, the s16 vec[3] (element 1 unused, hence the 0x10/0x14
-   slots) and the two `div`s are right, but our output has no divide guards at
-   all: the original carries gcc's `bnez $v0; break 7` zero check and the
-   `li $at,0xFFFFFFFF` / `lui $at,0x80000000` / `break 6` range check around
-   each `div`, and none of them are emitted here (maspsx strips them?). Every
-   `break 7` in the repo is still in nonmatchings, so this looks preset-level,
-   not source-level. Only other diff: the second `mflo` lands in $a3, not $a0.
+/* 99.84% with --expand-div (was 70.81% before the preset expansion was enabled):
+   identical instruction stream, frame and the two divide guard blocks all match.
+   The single difference is the register gcc gives the second `mult` result: the
+   original does `mflo $a0` / `addu $a0,$a1,$a0` (the sum coalesces into the call
+   argument register), ours does `mflo $a3` / `addu $a0,$a1,$a3`. Tried: one
+   combined expression, separate d0/d2 products, one product in a local, and the
+   d0/d2 declaration orders - all give $a3.
 void func_800B0FF4(u16 *pA, u16 *pB) {
     s16 vec[3];
     s32 len;
