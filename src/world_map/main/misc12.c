@@ -5,6 +5,17 @@
 
 extern s32 func_80095414(s32 *pPos, s32 *pRot, s32 *pOut, s32 nSpeed, s32 nMode);
 extern void func_800848B4(int, int);
+extern s16 D_8009BD40;
+extern s16 D_8009BD44;
+extern s32 D_8009BE28;
+extern s32 D_8009BE30;
+extern s32 D_8009D560;
+extern s32 D_8009BCDC;
+extern s32 D_8009B214[];
+extern u16 D_1F8000A8;
+extern void func_80096F18(s16 *pOut, s32 *pSrc, s32 nHeight, u16 *pAngles);
+extern void func_80093354(void *p);
+extern u8 *func_80093660(s32 x, s32 z);
 extern u8 D_8009BD60;
 extern s16 D_8009BD24;
 extern u8 D_8009D738;
@@ -293,27 +304,13 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_80091430);
    once. A volatile STORE kills the forwarding (88.22 -> 91.20) but the address
    still splits: `lui $at/%lo` for the store plus a fresh lui for the load, and
    it also hoists the D_8009BE10 load. Also tried: volatile load (78.10, lhu +
-   sll16/sra4), s16 pointer local for both accesses (same split), cdk 75.97,
-   -O3/-G0 85.22.
-
-s32 func_80091430(s32 idx) {
-    WorldMapPlayer *pPlayer;
-    s32 nMode;
-
-    pPlayer = D_8009BE24 + idx;
-    *(Quad *)&pPlayer->unk28 = *(Quad *)D_8009D55C;
-    D_8009BD3C = 0;
-    *(volatile s16 *)&D_8009BD3A = D_8009D52C;
-    pPlayer->unk50 = (s16)D_8009D52C;
-    pPlayer->unk58 = D_8009BD3A << 12;
-    nMode = D_8009BE10;
-    if (nMode < 8) {
-        if (nMode >= 6) {
-            pPlayer->unk20 = 3;
-        }
-    }
-    return 1;
-}
+   sll16/sra4), s16 pointer local for both accesses (same split), `extern
+   volatile s16 D_8009BD3A` plus a volatile pointer local (78.10, lhu + the
+   split), cdk 75.97, -O3/-G0 85.22. maspsx fuses any single-use symbol address
+   into `%lo(sym)($at)`, so both memory refs must survive cse AND share the
+   lazily-loaded address - a plain store lets cse forward the value, volatile
+   stops cse pooling the address. Untried: a shape where the two refs cannot be
+   value-numbered for another reason.
 */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_800914D0);
 s32 func_80091B54(s32 idx) {
@@ -348,6 +345,83 @@ s32 func_80091B54(s32 idx) {
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_80091C18);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_80091FF8);
+/* best: 92.10%, same size (580 bytes). The whole structure is decoded and every
+   relocation is right; what is left is gcc allocation/scheduling:
+   - the three callee-saved roles are permuted (retail nX=s3, nBest=s4, i=s5;
+     this compile nBest=s3, i=s4, nX=s5 - the loop counter lands in a different
+     register, so the tail `move v0,s5`/`lw s5,16(sp)` pair differs),
+   - `lui v0,0xfff8` (the 0xFFF80000 mask) is hoisted to the top of the block
+     here and used as an early t0, retail emits it late and uses it twice,
+   - retail fills the `beqz` delay slot of the inner `if (nZ < nBest)` with the
+     `sw v1,4(s1)`; this compile leaves a nop there,
+   - the final distance is `tbl + nBase - (nBest*8 - 0x50)`; gcc folds the 0x50
+     onto the minuend here (`addiu v0,v0,80`) unless the subtrahend is held in a
+     local, and then the second `slti` is duplicated into a delay slot.
+   The 4th call argument must be `&D_1F8000A8` (a symbol reloc) - writing
+   `pScratch + 0xA8` gives the same bytes with no reloc, and retail keeps the
+   symbol *and* reuses $s1 as the high half.
+
+s32 func_80091FF8(s32 nLimit, u16 *pIn, s16 *pOfs) {
+    s32 *pTrack;
+    u8 *pScratch;
+    s32 nBase;
+    s32 nX;
+    s32 nY;
+    s32 nBest;
+    s32 nZ;
+    s32 i;
+    s32 j;
+    s32 k;
+
+    u16 v = *(u16 *)&D_8009BD3A;
+    u16 a = *(u16 *)&D_8009BD3C;
+
+    nBase = D_8009D560 >> 12;
+    *(u16 *)0x1F8000AA = v;
+    *(u16 *)0x1F8000AC = a;
+    pScratch = (u8 *)0x1F800000;
+    pTrack = D_8009B214;
+    for (i = 0; i < 3; i++) {
+        nBest = 0;
+        *(u16 *)(pScratch + 0xA8) = *pIn;
+        func_80096F18(&D_8009BD40, &D_8009BE28, *pTrack - (D_8009BCDC / 2 << 12), (u16 *)&D_1F8000A8);
+        nX = (D_8009BE28 + ((D_8009BD40 - 0x180) << 12)) & 0xFFF80000;
+        nY = (D_8009BE30 - ((D_8009BD44 + 0x180) << 12)) & 0xFFF80000;
+        *(s32 *)(pScratch + 8) = nY;
+        for (j = 0; j < 6; j++) {
+            *(s32 *)pScratch = nX;
+            for (k = 0; k < 6; k++) {
+                func_80093354(pScratch);
+                nZ = *(s8 *)func_80093660(*(s32 *)pScratch, *(s32 *)(pScratch + 8));
+                if (nZ < nBest) {
+                    *(s32 *)(pScratch + 4) = nZ;
+                    nBest = nZ;
+                }
+                *(s32 *)pScratch += 0x80000;
+            }
+            *(s32 *)(pScratch + 8) += 0x80000;
+        }
+        if (*(s16 *)pOfs + nBase + 0x50 < (nBest << 3)) {
+            break;
+        }
+        pIn++;
+        pTrack++;
+        pOfs++;
+    }
+    if (i < nLimit) {
+        s32 nDist = (nBest << 3) - 0x50;
+        nZ = ((s16 *)D_8009B234)[nLimit] + nBase - nDist;
+        if (nZ < 0) {
+            nZ = -nZ;
+        }
+        if (nZ < 0x41) {
+            i = nLimit;
+        }
+    }
+    return i;
+}
+*/
+
 s32 func_80092234(s32 idx) {
     WorldMapPlayer *pPlayer;
     s32 nMode;
