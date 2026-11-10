@@ -30,6 +30,8 @@ extern s32 SystemRenderStringEntry(u8* pSrc, void* pDst, s32 len, s32 mode);
 extern u8 D_801EA590[];
 extern u8 D_801EA5DC[];
 extern void func_80033B34(u16* pInput, u8* pOutput, int count);
+extern s32 func_8002675C(MenuResourceDirectory* pDir, u32 index, POLY_FT4* pPrims, s32 context, u16 x, u16 y, u16 scale);
+extern void func_801D1EE0(u_char arg0, s32 arg1);
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E6CFC);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E6F5C);
@@ -152,6 +154,42 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E8070);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E8474);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E86C8);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E8978);
+/* Best: 99.91%, one addu operand order. Everything else in the 468 bytes is
+   identical: the cursor pointer is spelled (POLY_FT4*)(numCursors * 0x50 +
+   (s32)g_Menu->pSelectionMenu) because the additive form is what makes gcc put
+   the index first (the array form emits addu a2,base,index); the text pointer
+   needs the array form &polysTexts[numTexts * 2] or gcc folds the +0x8C0 into
+   the base and emits addiu before the shifts. Those two spellings cannot both
+   be chosen: the array form for polysTexts emits addu a2,v1,a2 where retail has
+   addu a2,a2,v1. Names hoisted into a local (index) cost a register across the
+   call. renderContext is read as a full int for the func_8002675C context
+   argument but through *(u8*)&g_Menu->renderContext for the two u_char stores.
+void func_801E8978(u_char count, u_char selected, s32* pEntries) {
+    MenuSelectionMenu* pSelect;
+    s32 i;
+    u32 index;
+
+    g_Menu->pSelectionMenu->numCursors = 0;
+    g_Menu->pSelectionMenu->numTexts = 0;
+    for (i = 0; i < count; i++) {
+        if (i == selected) {
+            index = pEntries[i * 2] + 0xD;
+        } else {
+            index = pEntries[i * 2];
+        }
+        g_Menu->pSelectionMenu->numCursors = func_8002675C(g_Menu->resources, index,
+            (POLY_FT4*)(g_Menu->pSelectionMenu->numCursors * 0x50 + (s32)g_Menu->pSelectionMenu),
+            g_Menu->renderContext, 0xA0, 0x96, 0x1000) + g_Menu->pSelectionMenu->numCursors;
+        g_Menu->pSelectionMenu->numTexts = func_8002675C(g_Menu->resources, pEntries[i * 2 + 1],
+            &g_Menu->pSelectionMenu->polysTexts[g_Menu->pSelectionMenu->numTexts * 2],
+            g_Menu->renderContext, 0xA0, 0x96, 0x1000) + g_Menu->pSelectionMenu->numTexts;
+    }
+    g_Menu->pSelectionMenu->cursorsRenderCtx = *(u8*)&g_Menu->renderContext;
+    g_Menu->pSelectionMenu->textsRenderCtx = *(u8*)&g_Menu->renderContext;
+    func_801D1EE0(selected, 1);
+    g_Menu->pManager->unk4 = 1;
+}
+*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E8B4C);
 void func_801E8DA8(s32 arg0, s32 arg1) {
     RECT rect;
