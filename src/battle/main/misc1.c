@@ -89,13 +89,6 @@ void func_80070EDC(void) {
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80070F40);
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_800716D8);
-/* 78.82% - the C below is correct: it scores 100.00% under gcc-2.6.0 (verified
-   by compiling this body alone against expected/). Under the unit's 2.7.2 the
-   tail differs: ours is `lw ra; move v0,zero; jr ra; addiu sp` where the original
-   is `addu v0,zero,zero; lw ra; addiu sp; jr ra; nop` (2.7.2 fills the jr's delay
-   slot with the sp adjust and schedules lw ra before the return-value move).
-   Tried: return 0, s32 ret = 0 at top / after the call, ret = 0; return ret.
 s32 func_800716D8(void) {
     if (D_8005917C[0] != -1) {
         func_8028022C();
@@ -103,18 +96,9 @@ s32 func_800716D8(void) {
     func_800BE790();
     return 0;
 }
-*/
+
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_8007171C);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_800718BC);
-/* 94.76% - the body below is EXACTLY right: it scores 100.00% under gcc-2.6.0
-   (verified by compiling this body alone against expected/), as do every other
-   function matched in this unit, so the file can be flipped to 2.6.0: see the
-   note on func_80071A38. Under the unit's 2.7.2 the only difference is the tail: 2.7.2 schedules `lw ra`
-   before the final `sh` and puts `addiu sp` in the `jr`'s delay slot.
-   The old 87.57% snag is solved: the second table must be spelled relative to the
-   first one, `D_800D2E06[i - 0xB]`, which is what makes gcc emit the original's
-   `addiu a0,v0,-0x16` instead of re-forming D_800D2DF0's lui/addiu.
 void func_800718BC(void) {
     u8 index;
 
@@ -125,7 +109,7 @@ void func_800718BC(void) {
     D_800D2E06[D_800C3EAC[0x2D3]] = func_80098AF8(D_800C3EAC[0x2D3], 0);
     D_800D2E06[D_800C3EAC[0x2D3] - 0xB] = D_800D2E06[D_800C3EAC[0x2D3]];
 }
-*/
+
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80071964);
 /* 98.78% - only the register for the leading lbu differs (original a1, gcc v0,
    forcing the two lhu temps to swap v0/v1). Tried: two early-return ifs, one

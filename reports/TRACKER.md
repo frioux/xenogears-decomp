@@ -1869,3 +1869,24 @@ not catch this; the symptom is `check_bin.sh` failing with sizes that do not add
 already-matched function, `func_80071A38`, drops to 99.05 under 2.6.0. If that one function
 can be re-matched under 2.6.0 the unit flips and two parks become free matches - it is a
 single-register/delay-slot miss, which is the most tractable kind.
+
+| 18 | `battle/{misc1,19,9,16,3}`, `menu/{misc9,10,11,8}`, `field/misc4`, `world_map/{misc14,11}`, `battling/{misc6,8}` | +11 | 1549 | `battle/misc1` flipped to gcc-2.6.0 (both blockers re-matched, then its two parked bodies un-parked in integration = 4), `battle/misc16` 1, `menu/misc10` 1, plus the rest from truncated reports |
+
+### Round 18: `battle/misc1` flipped, and the addu mirror rule that made it possible
+
+The unit was one function away from flipping to 2.6.0 - except it was *two*. Both blockers
+(`func_80071A38` 99.05, `func_80071A08` 99.17) closed with the same one-line change: 2.6.0
+canonicalises `p = base + i; p[k]` to **index-first** `addu v1,a0,v1`, while retail is
+**base-first**. Writing `pDst = D_x; *(pDst + i + 0x7C)` (or `(&D_x[i])[k]`) yields
+base-first under both compilers; `p[i + k]` never does. That is the mirror image of the
+existing "`(i + p->array)` emits index-first" idiom and it only bites when the preset
+changes - worth remembering before re-screening any unit.
+
+With the preset flipped, the unit's two parked bodies (`func_800716D8` 78.82 -> 100.0,
+`func_800718BC` 94.76 -> 100.0) were un-parked in the integration step: **four functions
+for no C writing at all**, and every already-matched function in the unit stays 100.0.
+
+Also learned, and it matters for `menu/misc10`: **five of that unit's twelve stubs are
+jtbl-blocked** (`func_801E23CC`, `E2BE4`, `E3088`, `E36D4`, `E3ECC` - the tables'
+entries are `.L` labels inside their own `.s`), and `convertible.py` reports all twelve as
+OK, so it does not catch this class.

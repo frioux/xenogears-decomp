@@ -241,7 +241,13 @@ build_variables = {
 # battle/main/misc18 is the same unit family (round 12): func_80096824 is 100.0 under
 # 2.6.0 vs 99.74 under Default, func_80095BAC 100.0 vs 99.90, func_80098C6C 100.0 vs
 # 95.83, and all six already-matched functions stay at 100.0.
-paths = [ "battle/main/misc20.", "battle/main/misc18." ]
+# battle/main/misc1 joined in round 18: under 2.6.0 EVERY function matched in it scores
+# 100.0 (and so do its two parked bodies, func_800716D8 78.82->100.0 and
+# func_800718BC 94.76->100.0), while under 2.7.2 both of those are stuck below 95%.
+# func_80071A38 and func_80071A08 were the two blockers at 99.05/99.17 and both closed
+# once the address was written base-first (`pDst = D_x; *(pDst + i + K)`), so the unit
+# is flippable with nothing lost.
+paths = [ "battle/main/misc20.", "battle/main/misc18.", "battle/main/misc1." ]
 
 # battle/main/misc21 is a gcc-2.6.0 unit AND a div-expansion unit, proven the way
 # section 5 asks for: func_800A23E8 is 100.0% under gcc-2.6.0 and 80.53% under
