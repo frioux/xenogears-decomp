@@ -128,9 +128,10 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009A854);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009A9D0);
 /* Best attempt: 99.66%. Only difference: the mfhi temp of the `% 100` expansion
    lands in $a1 instead of the original's $a0 (allocator tie-break, 2 insns).
-   Tried: direct `rand() % 100 < 50`, a named `s32 r = rand()`, a named
-   `s32 m = r % 100`, `r % 100 <= 49`, a `u8* p = D_800C34B0` local, and the
-   -G0 / 2.7.2-cdk presets -- all 99.66%.
+   Tried: direct `rand() % 100 < 50`, a named `s32 r = rand()` before the store
+   (74.24%: forces p into $s0), a `s32 ret` + `ret = 1` tail (85.14%, $s0),
+   a named `s32 m = r % 100`, `r % 100 <= 49`, a `u8* p = D_800C34B0` local, and
+   the -G0 / 2.7.2-cdk presets -- all 99.66%.
 s32 func_8009A9D0(void) {
     u8* p = D_800C34B0;
 
@@ -215,8 +216,88 @@ void func_8009AB38(u8 arg0) {
 }
 
 */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009AC48);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009ADA0);
+void func_8009AC48(u8 arg0, u8 arg1) {
+    u8* p;
+    u8* r;
+    u16 f;
+
+    if (arg1 != 0) {
+        if (!(*(u16*)(D_800C3DFC + 0xA) & 0x100)) {
+            return;
+        }
+    }
+    p = (u8*)D_800C34B0 + arg0 * 0x170;
+    if (p[0x15A] & 0x80) {
+        f = *(u16*)(p + 0x124) & 0x2000;
+    } else {
+        f = *(u16*)(p + 0x88) & 0x400;
+    }
+    if (f == 0) {
+        return;
+    }
+    r = (u8*)D_800C34B0 + arg0 * 0x170;
+    if (r[0x15A] & 0x80) {
+        s32 off = arg0 * 0x690 + 0x2228;
+        u8* q = (u8*)off + (u32)D_800C34B0;
+
+        *(u16*)(q + 0x348) = 0x2000;
+        *(u16*)(q + 0x398) = 0x2000;
+        *(u16*)(q + 0x3C0) = 0x2000;
+        *(u16*)(q + 0x3E8) = 0x2000;
+        *(u16*)(q + 0x410) = 0x2000;
+        *(u16*)(q + 0x438) = 0x2000;
+        *(u16*)(q + 0x460) = 0x2000;
+        *(u16*)(r + 0x124) &= 0xDFFF;
+    } else {
+        s32 off = arg0 * 0x5F0 + 0x1058;
+        u8* q = (u8*)off + (u32)D_800C34B0;
+
+        *(u16*)(q + 0x370) = 0x2000;
+        *(u16*)(q + 0x3C0) = 0x2000;
+        *(u16*)(q + 0x3E8) = 0x2000;
+        *(u16*)(q + 0x410) = 0x2000;
+        *(u16*)(q + 0x438) = 0x2000;
+        *(u16*)(q + 0x460) = 0x2000;
+        *(u16*)(q + 0x488) = 0x2000;
+        *(u16*)(q + 0x4B0) = 0x2000;
+        *(u16*)(q + 0x4D8) = 0x2000;
+        *(u16*)(q + 0x500) = 0x2000;
+        *(u16*)(r + 0x88) &= 0xFBFF;
+    }
+}
+s32 func_8009ADA0(u8 arg0, u32* arg1) {
+    u8* p = arg0 * 0x170 + (u32)D_800C34B0;
+    u16 f = *(u16*)(p + 0x7C);
+    s32 ret = 0;
+
+    if (f & 0x8000) {
+        return 0;
+    }
+    if (f & 0x800) {
+        *arg1 = (u16)(*(u16*)(p + 0x4E) / 20);
+        ret = 1;
+    }
+    arg1++;
+    if (*(u16*)(p + 0x80) & 0x200) {
+        *arg1 = (u16)(*(u16*)(p + 0x52) / 20);
+        ret = 1;
+    }
+    if (*(u16*)(p + 0x120) & 0x200) {
+        *arg1 = (u16)(*(u16*)(p + 0x52) / 20);
+        ret = 1;
+    }
+    arg1++;
+    *arg1 = 0;
+    if (*(u16*)(p + 0x120) & 0x80) {
+        *arg1 = (u16)(*(u16*)(p + 0xDE) / 50);
+        ret = 1;
+    }
+    if (*(u16*)(p + 0x124) & 0x8000) {
+        *arg1 += (u16)(*(u16*)(p + 0xDE) / 50);
+        ret = 1;
+    }
+    return ret;
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009AEFC);
 /* Best attempt: 88.27%. Everything matches except the 3..11 loop: the original
    re-forms `lui at,%hi(D_800CCD68); addu at,at,v0` at BOTH memory references,
