@@ -1599,6 +1599,50 @@
 	"nop"							\
 	: "=r"( r0 ) )
 
+/* The 3.x revision read a short vector through $8-$10 and copied those into
+   IR1-IR3, instead of the three lwc2 the 4.3 macros above use. The lh form is
+   for a packed vector, the lh4 form for one whose components sit 4 bytes
+   apart. */
+#define gte_ldir123_lh( r0 ) __asm__ volatile (		\
+	"lh	$8, 0( %0 );"					\
+	"lh	$9, 2( %0 );"					\
+	"lh	$10, 4( %0 )"					\
+	:							\
+	: "r"( r0 )						\
+	: "$8", "$9", "$10" )
+
+#define gte_ldir123_lh4( r0 ) __asm__ volatile (		\
+	"lh	$8, 0( %0 );"					\
+	"lh	$9, 4( %0 );"					\
+	"lh	$10, 8( %0 )"					\
+	:							\
+	: "r"( r0 )						\
+	: "$8", "$9", "$10" )
+
+/* Depth into IR0 followed by the $8-$10 -> IR1-IR3 copy, in the original's
+   order. Like gte_lddp_a2, the depth has to arrive in $a2, i.e. as the third
+   argument of an unmoved parameter. */
+#define gte_ldir123_dp_a2( r0 ) __asm__ volatile (		\
+	"mtc2	$a2, $8;"					\
+	"mtc2	$8, $9;"					\
+	"mtc2	$9, $10;"					\
+	"mtc2	$10, $11"					\
+	:							\
+	: "r"( r0 )						\
+	: "$8" )
+
+/* IR1-IR3 back out through $8-$10 and stored as three shorts. */
+#define gte_stir123_lh( r0 ) __asm__ volatile (		\
+	"mfc2	$8, $9;"					\
+	"mfc2	$9, $10;"					\
+	"mfc2	$10, $11;"					\
+	"sh	$8, 0( %0 );"					\
+	"sh	$9, 2( %0 );"					\
+	"sh	$10, 4( %0 )"					\
+	:							\
+	: "r"( r0 )						\
+	: "$8", "$9", "$10", "memory" )
+
 /* Flag read and store through an output pointer that arrives on the stack: the
    3.x revision loaded the slot at the point of use, before the cfc2. %1 is the
    incoming slot, %0 the flag value. */

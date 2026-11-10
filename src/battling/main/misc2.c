@@ -1,50 +1,51 @@
 #include "common.h"
+#include "psyq/libgte.h"
+#include "psyq/gtemac.h"
+#include "psyq/inline_c.h"
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80072D18);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80073064);
-
-/* 84.61%: gte_lddp_a2 + gte_ldir123 + two nops and .word 0x4b98003d + a
-   3-register IR read-back reproduces the instruction sequence, but gcc picks
-   a3/v1/v0 for the loads where the original has t0/t1/t2 and also steals the
-   last `sh` into the `jr ra` delay slot. The read-back macro it needs is
-   gte_stir123_gpr: mfc2 %0,$9 / %1,$10 / %2,$11 with "=r" outputs. */
-/* void func_80073064(s16 *p0, s16 *p1, s32 ir0) {
-    s32 vx = p0[0];
-    s32 vy = p0[1];
-    s32 vz = p0[2];
-    s32 x, y, z;
-
-    gte_lddp_a2(ir0);
-    gte_ldir123(vx, vy, vz);
+/* The depth is consumed out of $a2 by gte_ldir123_dp_a2, so the third
+   parameter must stay in place. */
+void func_80073064(SVECTOR *p0, SVECTOR *p1, s32 ir0) {
+    gte_ldir123_lh(p0);
+    gte_ldir123_dp_a2(ir0);
     gte_nop();
     gte_nop();
     gte_gpf12_b();
-    mfc2 x from $9, y from $10, z from $11;
-    p1[0] = x;
-    p1[1] = y;
-    p1[2] = z;
-} */
+    gte_stir123_lh(p1);
+}
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_800730AC);
+void func_800730AC(SVECTOR *p0, SVECTOR *p1, s32 ir0) {
+    gte_ldir123_lh(p0);
+    gte_ldir123_dp_a2(ir0);
+    gte_nop();
+    gte_nop();
+    gte_gpf0_b();
+    gte_stir123_lh(p1);
+}
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_800730F4);
+void func_800730F4(SVECTOR *p0, SVECTOR *p1, s32 ir0) {
+    gte_ldir123_lh4(p0);
+    gte_ldir123_dp_a2(ir0);
+    gte_nop();
+    gte_nop();
+    gte_gpf12_b();
+    gte_stir123_lh(p1);
+}
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_8007313C);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_800731F8);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_800732AC);
-
-/* 98.75%: identical, only the load temp is v0 where the original uses t0. */
-/* void func_800732AC(u8 *p0, u8 *p1, s32 n) {
+void func_800732AC(u32 *p0, u32 *p1, s32 n) {
     n += (s32)p1;
     do {
-        *(u32 *)p0 = *(u32 *)p1;
-        p1 += 4;
-        p0 += 4;
+        *p0 = *p1;
+        p1++;
+        p0++;
     } while ((s32)p1 != n);
-} */
+}
 
 extern u8 *func_8008D3F4(s32, s32);
 extern void func_8008D5C0(u8 *, s32);
