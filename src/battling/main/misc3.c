@@ -1,7 +1,9 @@
 #include "common.h"
 
 extern void func_800379C8(char*, ...);
-extern void func_80077584(u8* p);
+extern void func_80077584();
+extern int rcos(int a);
+extern int rsin(int a);
 extern char D_8006FCC0[];
 extern char D_8006FCC4[];
 extern char D_8006FCC8[];
@@ -80,7 +82,16 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80076884);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80077038);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80077584);
+void func_80077584(u8* p, s32 angle, s32 shift, s32 dec) {
+    *(s32*)(p + 0x20) += rcos(angle) >> shift;
+    *(s32*)(p + 0x28) += rsin(angle) >> shift;
+    if (*(s32*)(p + 0x14) >= -0x8B) {
+        *(s32*)(p + 0x14) -= dec;
+    }
+    if (*(s32*)(p + 0x14) < -0x82) {
+        *(s32*)(p + 0x14) = -0x82;
+    }
+}
 
 void func_8007762C(u8* p) {
     p[0x4C] = 8;
