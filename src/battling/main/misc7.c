@@ -39,7 +39,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc7", func_8007F854);
 } */
 
 void func_8007F8B4(void) {
-    s32 tmp[2];
+    s32 tmp[2]; // reproduces the original's unused 8-byte stack slot
 
     func_80083C0C(1);
     D_80092734 = 0;
