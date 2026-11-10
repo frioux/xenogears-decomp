@@ -22,17 +22,14 @@ u8 func_800AA514(s16 arg0, s16 arg1, s32 arg2) {
     return v;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AA564);
-s32 func_800AA600(s32 arg0) {
-    u8 *p;
-
-    p = (u8 *)D_800D3368[arg0];
-    if (p != 0) {
-        return (*(s16 *)(p + 0x24) * ((*(s16 *)(p + 0x1C) * *(s16 *)(*(u8 **)(p + 4) + 0x4E)) >> 12)) >> 12;
-    }
-    return 0;
-}
-/* 99.00% - only the two "mflo" destinations differ (original mflo $v0, this
-   mflo $a1); the single-expression form is otherwise instruction-identical.
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AA600);
+/* 99.00% - only the two "mflo" destinations differ (original mflo $v0 twice,
+   this mflo $a1 twice, and the sra sources follow). Instruction sequence,
+   operands and mult order are otherwise identical. Tried: r = 0 + single
+   expression (99.00), two-statement r >>= 12 chain (95.00), separate t local
+   (94.50), "if (p == 0) return 0;" early return (85.75, unmerged epilogue),
+   "if (p != 0) return expr; return 0;" (99.00). The mflo->sra LO copy is
+   never coalesced into $v0.
 s32 func_800AA600(s32 arg0) {
     u8 *p;
 
