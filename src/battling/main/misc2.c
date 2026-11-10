@@ -91,17 +91,22 @@ void func_80073CA4(u8 *p0) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80073CEC);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80073DE4);
-
-/* 80.83%: same insns, but gcc puts `li v0,1` in its own block after the else
-   path and jumps to the shared epilogue instead of filling the bnez delay slot. */
+/* 98.06%: inverting the condition (`if (t >= 0x1001)`) is what makes reorg put
+   `li v0,1` in the bnez delay slot instead of a separate block with a `j`, and
+   `hw + arg1` fixes the addu operand order. Left over: the original keeps the
+   sum in the parameter's $a1 and the hw temp in $v1 (`lh v1; addu a1,v1,a1;
+   slti v1,a1`), ours assigns the sum to $v1 and the temp to $v0. Also tried
+   `arg1 += hw` in place, a separate s32/s16 local, and `t` declared after the
+   load - the sum pseudo never coalesces back into $a1. */
 /* s32 func_80073DE4(u8 *p0, s32 arg1) {
-    arg1 += *(s16 *)(p0 + 0xB6);
-    if (arg1 < 0x1001) {
-        return 1;
+    s32 t = *(s16 *)(p0 + 0xB6) + arg1;
+
+    if (t >= 0x1001) {
+        return ((t - 0xFF1) / 20) < *(s16 *)(p0 + 0xB4);
     }
-    return ((arg1 - 0xFF1) / 20) < *(s16 *)(p0 + 0xB4);
+    return 1;
 } */
+INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80073DE4);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80073E2C);
 
