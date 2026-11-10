@@ -63,7 +63,10 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D3C4C);
    in s1 and the 0x1000 scale in s0, gcc does the reverse. Note func_800263E4
    must be declared with wide (s32) x/y/scale - a u16 there adds an andi 0xFFFF
    after the -8 and drops to 87%. Tried: s32 scale local, u16 x/y/scale for
-   func_800263E4 (87.70%).
+   func_800263E4 (87.70%). Also gcc-2.7.2-cdk: 93.33 (and the matched
+   func_801D55B4 drops to 82.14 under cdk, so this is not a cdk unit). The tie
+   is priority(0x1000) > priority(height) in retail, the reverse in 2.7.2; both
+   are live across the same two calls with 3 uses each.
    void func_801D3C4C(u_char index, u_short x, u_short y, u_short width, u_short height) {
        MenuWindow* pWindow = g_Menu->windows[index];
 
@@ -170,7 +173,13 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D51EC);
    func_801C80B8 call (and `n = 0` after the counter store) makes `i = 0` the
    block's first insn - reorg rejects it because s1 is live at loop 1's head -
    so reorg takes the `andi v1,s2,0xFF` of the second characters[] chain instead,
-   exactly like retail, and a1 then dies before n is born. Tried: `continue`
+   exactly like retail, and a1 then dies before n is born. Re-read since: retail
+   keeps `addiu s1,s1,1` in the latch for loop 1 but has it in the `beq` delay
+   slot with no latch copy for loop 2 - i.e. in retail's RTL the loop-2
+   increment sits at the top of the body block. No for/while/continue/
+   digits[i++] shape gives that (a `while (i < 3)` puts the test at the head,
+   where retail's head starts at the `g_Menu` load), and cdk does not change it,
+   so this is an RTL rotation, not a delay-slot choice. Tried: `continue`
    form, n=0 before the call / after the sb, i=0 only in the for-init, `i < 3`
    with the increment in the latch: all 94.45-98.31%.
    void func_801D51EC(u_char a0, u_char a1, s32 a2, s32 a3) {
