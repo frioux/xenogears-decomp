@@ -1352,6 +1352,27 @@ nearly every stub) averaged 42 per round.
 | 6 | 12 units, all timed out | +4 net (+26 raw) | 1715 | the bad round: see below |
 | 7 | `battle/{misc8,11,19,20,22}`, `world_map/{misc8,16}`, `menu/misc1`, `battling/misc10`, `field/{misc2,misc4,misc8}` | +11 | 1704 | first round gated on the first try after the straggler-commit fix. battle/misc22 +3 (the `--expand-div` preset paying), battle/misc8 +2, battle/misc11 +2, battle/misc19 +1, world_map/misc8 +1, menu/misc1 +1, field/misc4 +1, 0 in battle/misc20, world_map/misc16, battling/misc10, field/misc2, field/misc8 |
 
+### Preset screening is now the highest-yield activity per worker-hour
+
+Three preset axes have been found by screening rather than by writing C, and each one
+unlocks stubs that no amount of source shaping could reach:
+
+| axis | screen | units | stubs unlocked |
+|---|---|---|---|
+| maspsx `--expand-div` | `break 6`/`break 7` in the stub's own `.s` | 20 | ~46 (only ~6 taken so far) |
+| maspsx `--dont-expand-li` | `addiu $r,$zero` vs `ori $r,$zero` counts | world_map, battle tail, rendering | already in use |
+| gcc 2.6.0 vs 2.7.2 | a stub at 99.x under Default and 100.0 under 2.6.0, with matched functions staying 100.0 | `battle/misc20` (new, `XenoBattle260`), the XenoLibrary misc units | ~5 in misc20 |
+| `-G0` vs `-G8` | original holds `&D_xxx` in `$s0` across a call | `battling/misc12` (new), `battling/misc7` (suspected) | 2 taken, more suspected |
+
+`tools/scripts/try_flags.sh` answers the gcc/-G questions in a second; the two maspsx
+questions need the greps. Both are cheap enough to run on every unit before briefing it,
+and the brief now asks workers to report `PRESET_G0` evidence rather than edit gears.toml.
+
+Round 7's `battle/misc22` also closed three of its aggressive parks (99.27% -> 100%) with
+one idiom: recompute `(T*)(index * 14 + SYM)` at each use instead of holding a pointer
+local across a call, so gcc re-adds the reloaded base exactly as retail does.
+
+
 ### Round 6: a new preset axis, and a merge bug that ate the round
 
 **The preset axis (this is the durable finding).** Round 5's `battle/misc22` worker
