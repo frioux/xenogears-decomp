@@ -111,7 +111,7 @@ s32 func_8009A7E4(u8 arg0) {
 
     s32 ret;
 
-    if (g_GameState.characters[4].unk0[6] == id) {
+    if (((u8*)&g_GameState)[0x502] == id) {
         ret = 1;
     } else if (g_GameState.characters[4].unk0[0xE] == id) {
         ret = 1;
@@ -123,6 +123,58 @@ s32 func_8009A7E4(u8 arg0) {
     return ret;
 }
 
+/* Best attempt: 76.74% (round 18, first attempt on this stub). The 4-way
+   compare chain, the `andi/sltiu` loop and every offset/mask are right; what is
+   wrong is the g_GameState addressing. Retail materialises each store address
+   fresh as `lui at,%hi(g_GameState+0x500); addu at,at,idx; sb %lo(at)` with the
+   constant folded into the relocation, while gcc CSEs the first
+   `g_GameState+0x502` load into a register (emitting `lui a0; addiu a0,1282;
+   lbu 0(a0)`, i.e. an `la`, instead of the folded `lbu %lo(g_GameState+0x502)`)
+   and then reuses it as `a0-2/-3/-4` for the stores. func_8009A7E4 in this same
+   unit uses the identical `g_GameState.characters[4].unk0[6]` expression and
+   DOES fold, so the trigger is the store block coexisting with the loads; raw
+   `((u8*)&g_GameState)[N]` and struct spellings both give 76.74%.
+PARKED (76.74%)
+void func_8009A854(u8 arg0, u8 arg1) {
+    u8* p = (u8*)(arg0 * 16 + 0x54F8) + (u32)D_800C34B0;
+    u8 id = p[6];
+    u8 row = arg1;
+    u8 i;
+
+    if (((u8*)&g_GameState)[0x502] == id) {
+        row = 0;
+    }
+    if (((u8*)&g_GameState)[0x50A] == id) {
+        row = 1;
+    }
+    if (((u8*)&g_GameState)[0x512] == id) {
+        row = 2;
+    }
+    if (((u8*)&g_GameState)[0x51A] == id) {
+        row = 3;
+    }
+    *(u8*)((u8*)&g_GameState + 0x500 + row * 8) = p[0xC];
+    *(u8*)((u8*)&g_GameState + 0x4FF + row * 8) = p[0xB];
+    *(u8*)((u8*)&g_GameState + 0x4FE + row * 8) = p[0xA];
+    *(u8*)((u8*)&g_GameState + 0x4FF + row * 8) = p[0xB];
+    ((u8*)&g_GameState)[0x56B + row] = arg0;
+    g_GameState.gearPartsIds[0x6C + arg0] = p[3];
+    ((u8*)&g_GameState)[0x56B + row] = arg0;
+    for (i = 0; i < 3; i++) {
+        u8* q = (u8*)(i * 0x170 + (u32)D_800C34B0);
+
+        if (q[0x56] == 4) {
+            u8* r = q + row * 8;
+
+            r[4] = p[0xC];
+            r[3] = p[0xB];
+            r[2] = p[0xA];
+            r[3] = p[0xB];
+            q[0x6F + row] = arg0;
+        }
+    }
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009A854);
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009A9D0);
@@ -130,13 +182,16 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009A9D0);
    lands in $a1 instead of the original's $a0 (allocator tie-break, 2 insns).
    Tried: direct `rand() % 100 < 50`, a named `s32 r = rand()` before the store
    (74.24%: forces p into $s0), a `s32 ret` + `ret = 1` tail (85.14%, $s0),
-   a named `s32 m = r % 100`, `r % 100 <= 49`, a `u8* p = D_800C34B0` local, and
-   the -G0 / 2.7.2-cdk presets -- all 99.66%.
+   a named `s32 m = r % 100`, `r % 100 <= 49`, a `u8* p = D_800C34B0` local,
+   `int r; r = rand();` between the store and the test, and the -G0 /
+   2.7.2-cdk presets -- all 99.66%.
 s32 func_8009A9D0(void) {
     u8* p = D_800C34B0;
+    int r;
 
     p[0x5FC2] = 0;
-    if (rand() % 100 < 50) {
+    r = rand();
+    if (r % 100 < 50) {
         func_8009BE0C();
         return 1;
     }
@@ -453,8 +508,9 @@ void func_8009BD94(void) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009BE0C);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009C050);
-/* Best attempt: 97.78%. Instruction multiset and all offsets match; the only
+/* Best attempt: 97.78% (the `(u8*)idx + (u32)(base + 0xA4)` spelling added in
+   round 18 still folds to `base + (idx + 0xA4)`, the wrong direction, and a
+   `pTimerBase` local drops to 69.53%). Instruction multiset and all offsets match; the only
    difference is that gcc reassociates `base + 0xA4 + idx` into
    `base + (idx + 0xA4)`, so the two `addiu $x,base,0xA4/0x148` come out off the
    index register instead of off the base register (and the base lands in $a1
@@ -463,6 +519,9 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009C050);
    but reorders everything and drops to 69.53%. Note `s32 flag = ... & 0x400;
    ret = flag != 0;` is required: the direct `(x & 0x400) != 0` becomes
    srl/andi instead of the original's andi/sltu.
+*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009C050);
+/* PARKED (97.78%)
 u8 func_8009C050(u8 arg0) {
     s32 idx = arg0 * 0x170;
     u8* base = D_800CCCE8;
@@ -483,7 +542,6 @@ u8 func_8009C050(u8 arg0) {
     return ret;
 }
 */
-
 void func_8009C0E0(u8 arg0) {
     s32 off = arg0 * 0x170;
 
