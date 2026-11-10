@@ -5,6 +5,12 @@
 #include "system/menu.h"
 
 void func_801C80B8(u32 number);
+void func_801D3C4C(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4);
+void func_801D3DB0(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4);
+void func_801D3FF8(u_char a0, u_short a1, u_short a2, u_short a3);
+void func_801D433C(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4);
+void func_801D4688(u_char a0, u_short a1, u_short a2, u_short a3);
+void func_801D49D0(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4);
 void func_801D4F2C(u_char a0, u_char a1, s32 a2, s32 a3);
 void func_801D50EC(u_char a0, s32 a1, s32 a2);
 void func_801D51EC(u_char a0, u_char a1, s32 a2, s32 a3);
@@ -13,7 +19,18 @@ void func_801D55B4(u_char a0, u_char a1, s32 a2, s32 a3);
 void func_801D5794(u_char a0, u_char a1, s32 a2, s32 a3);
 extern s32 D_801E9A78[];
 extern s32 D_801E9AC8[];
+extern s32 D_801E9B60[];
+extern s32 D_801E9C20[];
 extern s32 D_801EA34C[];
+extern s32 D_801EA39C[];
+extern u16 D_801E9B58;
+extern u16 D_801E9B5C;
+extern s32 D_801EA578[];
+extern u8 D_801EA5C4[];
+extern u16 g_SystemPalette1;
+extern u16 g_SystemPalette2;
+void func_801E920C(POLY_FT4* pPoly, u_short x, u_short y, u_char u, u_char v, s32 width, s32 height);
+void func_801E927C(POLY_FT4* pPoly);
 
 void func_801C851C(SVECTOR* pVertices, u16 x, u16 y, u16 width, u16 height);
 s32 func_800263E4(MenuResourceDirectory* pDir, u32 index, POLY_FT4* pPrims, s32 context, s32 x, s32 y, s32 scale, s32 mirrorX, s32 mirrorY);
@@ -55,7 +72,25 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D3FF8);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D433C);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D4688);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D49D0);
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D4D1C);
+void func_801D4D1C(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4, u_char a5, s32 a6, u_char a7) {
+    MenuWindow* pWindow = g_Menu->windows[a0];
+
+    g_Menu->pManager->shouldRenderWindow[a0] = 0;
+    func_801C851C(pWindow->vertsBackground, a1, a2, a3, a4);
+    func_801D3DB0(a0, a1, a2, a3, a4);
+    func_801D3FF8(a0, a1, a2, a3);
+    func_801D433C(a0, a1, a2, a3, a4);
+    func_801D4688(a0, a1, a2, a4);
+    func_801D49D0(a0, a1, a2, a3, a4);
+    if (a7 != 0) {
+        func_801D3C4C(a0, a1, a2, a3, a4);
+    }
+    pWindow->hasScrollBar = a7;
+    pWindow->unk714 = a5;
+    pWindow->zIndex = a6;
+    pWindow->renderContext = *(u8*)&g_Menu->renderContext;
+    g_Menu->pManager->shouldRenderWindow[a0] = 1;
+}
 void func_801D4EA0(u_char a0) {
     g_Menu->pManager->shouldRenderWindow[a0] = 0;
     g_Menu->pManager->unk27[a0] = 0;
@@ -63,6 +98,34 @@ void func_801D4EA0(u_char a0) {
     HeapFree(g_Menu->windowParameters[a0]);
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D4F2C);
+/* Best: 87.79%. Structure and every called function/prototype is right; what is
+   left is allocation and instruction order: (1) retail emits `addu v1,s1,v1`
+   for the tpage-store address where gcc commutes it to `addu v1,v1,s1`, (2)
+   retail keeps a0 in s3 / a3 in s4, gcc the reverse, (3) in the func_801E920C
+   arg setup retail does `andi a3,a3,0xFC` after the a1/a2 masks and keeps the
+   7th stack store (`sw v0,0x18(sp)`) before the jal, gcc puts it in the delay
+   slot. func_801E920C must be declared `u_short x, u_short y` HERE (misc12.c
+   defines it as `short`): with `short` the caller gets sll/sra 0x10 instead of
+   retail's `andi 0xFFFF`.
+   void func_801D4F2C(u_char a0, u_char a1, s32 a2, s32 a3) {
+       u8* pWindow = (u8*)g_Menu->unk39C[a0];
+       u8* pBase;
+   
+       func_8002675C(g_Menu->resources, a0 + 0x14B, (POLY_FT4*)pWindow,
+                     g_Menu->renderContext, a2, a3, 0x1000);
+       func_801E927C((POLY_FT4*)(pWindow + (g_Menu->renderContext * 0x28 + 0x50)));
+       *(u16*)(pWindow + g_Menu->renderContext * 0x28 + 0x66) = GetTPage(0, 0, 0x180, 0);
+       pBase = pWindow + g_Menu->renderContext * 0x28;
+       if (g_Menu->pManager->currentCharacterIDs[a0] & 1) {
+           *(u16*)(pBase + 0x5E) = g_SystemPalette2;
+       } else {
+           *(u16*)(pBase + 0x5E) = g_SystemPalette1;
+       }
+       func_801E920C((POLY_FT4*)(pWindow + (g_Menu->renderContext * 0x28 + 0x50)),
+                     D_801E9B58 + a2, D_801E9B5C + a3,
+                     (D_801EA578[a0] << 2) & 0xFC, D_801EA5C4[a0], 0x48, 0xD);
+   }
+*/
 void func_801D50EC(u_char a0, s32 a1, s32 a2) {
     u8* pWindow;
     s32 i;
@@ -144,6 +207,47 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D5BA4);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D5CF8);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D5ED4);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D6194);
+/* Best: 93.40%. Two diffs left. (1) retail has `addiu s0,s0,1` in the delay
+   slot of the `digit == 0xFFFF` beq and then does the render; gcc puts the
+   increment at the end of the body - the same delay-slot-fill puzzle as the
+   func_801D5BA4 note. (2) second loop: retail loads lhu 0xA8 twice (a1 for the
+   arg, v0 for the width subtraction) and loads x/y straight into a1/a2; gcc
+   CSEs the twin lhu and then emits `move a1,v1`/`move a2,t0`.
+   Tried: `if (== 0xFFFF) continue;` form (same), outer `if (count > 0)` guard
+   around loop 2 (extra beqz+nop - a bare `for` gives retail's `blez`).
+   Symbols added: D_801E9B60, D_801E9C20, D_801EA39C (all live in
+   asm/menu/data/246A4.data.s).
+   void func_801D6194(u_char a0) {
+       s32 i;
+       u8* pEntry;
+   
+       ((u8*)g_Menu->unk358)[0x2AEC] = 0;
+       for (i = 0; i < 0x18; i++) {
+           if (D_801EA39C[a0 * 0x18 + i] == 0xFFFF) continue;
+           {
+               ((u8*)g_Menu->unk358)[0x2AEC] += func_8002675C(
+                   g_Menu->resources,
+                   D_801EA39C[a0 * 0x18 + i],
+                   (POLY_FT4*)(((u8*)g_Menu->unk358) +
+                               (((u8*)g_Menu->unk358)[0x2AEC] * 0x50 + 0xA0)),
+                   g_Menu->renderContext,
+                   D_801E9B60[a0 * 0x18 + i],
+                   D_801E9C20[a0 * 0x18 + i],
+                   0x1000);
+           }
+       }
+       {
+           for (i = 0; i < ((u8*)g_Menu->unk358)[0x2AEC]; i++) {
+               pEntry = (u8*)g_Menu->unk358 + (g_Menu->renderContext + i * 2) * 0x28;
+               func_801C851C((SVECTOR*)((u8*)g_Menu->unk358 + 0x1EE0 + i * 0x20),
+                             *(u16*)(pEntry + 0xA8),
+                             *(u16*)(pEntry + 0xAA),
+                             *(u16*)(pEntry + 0xB0) - *(u16*)(pEntry + 0xA8),
+                             *(u16*)(pEntry + 0xC2) - *(u16*)(pEntry + 0xAA));
+           }
+       }
+   }
+*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D6338);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D680C);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D6CF4);
