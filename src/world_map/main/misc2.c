@@ -13,6 +13,13 @@ extern void func_80039A80(s32* pFile, s32 volume, s32 frames);
 extern int ArchiveDecodeAlignedSize(unsigned int entryIndex);
 
 typedef struct {
+    /* 0x0 */ s32 unk0;
+    /* 0x4 */ s32 unk4;
+    /* 0x8 */ s16 unk8;
+    /* 0xA */ s16 unkA;
+} WorldMapEntry; // Size: 0xC
+
+typedef struct {
     /* 0x0 */ s16 vx;
     /* 0x2 */ s16 vy;
     /* 0x4 */ s16 vz;
@@ -33,6 +40,8 @@ extern s32 D_8009C7EC;
 extern s32 D_8009D77C;
 extern s32 D_8009D7C8;
 extern void* LZSSHeapDecompress(void* pCompressedData, int flags);
+extern s32 D_8009CC9C;
+extern u8 D_8009A1E8[];
 extern u8* D_8009D7D0;
 extern s16 D_8009C872[1];
 extern s32 D_8009BCC4;
@@ -88,6 +97,31 @@ void func_80074794(s16 arg0, s32* pVec) {
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc2", func_800747DC);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc2", func_80074E58);
+
+/* 72.65%. func_80075030 below is the same routine with D_8009D77C->
+   D_8009D7C8, D_8009CC9C->D_8009CD64, D_8009D780->D_8009D7D0 and
+   D_8009A1E8->D_8009A250, so matching one matches both. Retail keeps four
+   live pointers plus the counter (i in a1, pData in a2, D_8009A1E8 walker in
+   a3, entry in a0 with a second base a0+0xA for the s16 fields) and stores the
+   entry fields in address order 0x0/0x4/0x8/0xA; gcc here sinks the unk0 store
+   (the one that depends on the data load) past the other three. The count must
+   be re-read from the global after HeapAlloc (retail has no s-register save, so
+   the data pointer is not live across the call).
+void func_80074E58(void) {
+    WorldMapEntry* pEntry;
+    s32 i;
+
+    D_8009CC9C = ((s32*)D_8009D77C)[0];
+    pEntry = (WorldMapEntry*)HeapAlloc(D_8009CC9C * 0xC, 0);
+    D_8009D780 = (u8*)pEntry;
+    for (i = 0; i < D_8009CC9C; i++) {
+        pEntry[i].unk0 = (s32)D_8009D77C + ((s32*)D_8009D77C)[i + 1];
+        pEntry[i].unk4 = (s32)(D_8009A1E8 + i * 0x10);
+        pEntry[i].unk8 = 0;
+        pEntry[i].unkA = 1;
+    }
+}
+*/
 
 void func_80074F04(void) {
     HeapFree(D_8009D780);
