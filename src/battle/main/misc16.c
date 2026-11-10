@@ -191,6 +191,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8009023C);
    pre-assigning g_SystemPalette1 before the if.
    Next idea: force the hoisting by making the store address a local pointer
    computed before the if, or by duplicating the store into both arms. */
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_80090310);
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_800904A0);
 /* 78.72%: RECT setup, bzero/GetStringEntry/SystemRenderStringEntry order and the
