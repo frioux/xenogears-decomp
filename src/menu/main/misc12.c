@@ -30,6 +30,8 @@ extern s32 SystemRenderStringEntry(u8* pSrc, void* pDst, s32 len, s32 mode);
 extern u8 D_801EA590[];
 extern u8 D_801EA5DC[];
 extern void func_80033B34(u16* pInput, u8* pOutput, int count);
+extern s32 func_8002675C(MenuResourceDirectory* pDir, u32 index, POLY_FT4* pPrims, s32 context, u16 x, u16 y, u16 scale);
+extern void func_801D1EE0(u_char arg0, s32 arg1);
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E6CFC);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E6F5C);
@@ -83,12 +85,14 @@ void func_801E71B4(s32 index, u8* pEntry, s32 arg2) {
 */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E733C);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E76EC);
-/* Best: 99.87%. Retail uses v1 for the g_Menu->menuUnk2 load and v0 for the
-   arg0 * 0x200 shift; gcc mirrors the pair (both pseudos have one use and die
-   at the same addu). Declaration permutations of i/offset/pEntry all keep i in
-   s3 and offset in s2 only when i is declared first; the index must be spelled
-   *(pEntry + i + 0x1C) or the addu operands swap. Operand order, a named
-   scaled local, a named base local and the array-index form were all tried.
+/* Best: 99.87%. Two register pairs, both mirrored: retail puts g_Menu->menuUnk2
+   in v1 and the arg0 * 0x200 shift in v0, and i in s3 with offset in s2.
+   Spelling pEntry as (u8*)(arg0 * 0x200 + (s32)g_Menu->menuUnk2) + 0xC94 fixes
+   the v0/v1 pair but then flips i to s2 (98.99%); every declaration order and
+   init style of i/offset keeps i in s2 under that spelling. The index must be
+   spelled *(pEntry + i + 0x1C) or the addu operands swap. Declaration
+   permutations of i/offset/pEntry, operand order, a named scaled local, a
+   named base local and the array-index form were all tried.
 void func_801E76EC(s32 arg0) {
     s32 i = 0;
     u32 offset = 0;
@@ -150,22 +154,52 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E8070);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E8474);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E86C8);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E8978);
+/* Best: 99.91%, one addu operand order. Everything else in the 468 bytes is
+   identical: the cursor pointer is spelled (POLY_FT4*)(numCursors * 0x50 +
+   (s32)g_Menu->pSelectionMenu) because the additive form is what makes gcc put
+   the index first (the array form emits addu a2,base,index); the text pointer
+   needs the array form &polysTexts[numTexts * 2] or gcc folds the +0x8C0 into
+   the base and emits addiu before the shifts. Those two spellings cannot both
+   be chosen: the array form for polysTexts emits addu a2,v1,a2 where retail has
+   addu a2,a2,v1. Names hoisted into a local (index) cost a register across the
+   call. renderContext is read as a full int for the func_8002675C context
+   argument but through *(u8*)&g_Menu->renderContext for the two u_char stores.
+void func_801E8978(u_char count, u_char selected, s32* pEntries) {
+    MenuSelectionMenu* pSelect;
+    s32 i;
+    u32 index;
+
+    g_Menu->pSelectionMenu->numCursors = 0;
+    g_Menu->pSelectionMenu->numTexts = 0;
+    for (i = 0; i < count; i++) {
+        if (i == selected) {
+            index = pEntries[i * 2] + 0xD;
+        } else {
+            index = pEntries[i * 2];
+        }
+        g_Menu->pSelectionMenu->numCursors = func_8002675C(g_Menu->resources, index,
+            (POLY_FT4*)(g_Menu->pSelectionMenu->numCursors * 0x50 + (s32)g_Menu->pSelectionMenu),
+            g_Menu->renderContext, 0xA0, 0x96, 0x1000) + g_Menu->pSelectionMenu->numCursors;
+        g_Menu->pSelectionMenu->numTexts = func_8002675C(g_Menu->resources, pEntries[i * 2 + 1],
+            &g_Menu->pSelectionMenu->polysTexts[g_Menu->pSelectionMenu->numTexts * 2],
+            g_Menu->renderContext, 0xA0, 0x96, 0x1000) + g_Menu->pSelectionMenu->numTexts;
+    }
+    g_Menu->pSelectionMenu->cursorsRenderCtx = *(u8*)&g_Menu->renderContext;
+    g_Menu->pSelectionMenu->textsRenderCtx = *(u8*)&g_Menu->renderContext;
+    func_801D1EE0(selected, 1);
+    g_Menu->pManager->unk4 = 1;
+}
+*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E8B4C);
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E8DA8);
-/* Best: 99.51%. The only difference is that retail emits the sw s0 / move s0,a0
-   pair before the sw s3 / move s3,a1 pair; gcc copies the incoming params in
-   the reverse order. All six declaration orders of rect/pBuf/offset give the
-   same 99.51%. The byte-cast table reads below are what reproduce the
-   original's sll v1,s3,1 ; andi v1,v1,0x1FC (both tables are byte blobs).
-void func_801E8DA8(u_char arg0, s32 arg1) {
+void func_801E8DA8(s32 arg0, s32 arg1) {
     RECT rect;
     u8* pBuf;
     s32 offset;
 
     pBuf = HeapAlloc(0x3F6, 0);
     bzero(pBuf, 0x3F6);
-    if (arg0 != 0xFF) {
-        offset = (arg0 >> 1) * 0x28;
+    if ((u_char)arg0 != 0xFF) {
+        offset = ((u_char)arg0 >> 1) * 0x28;
         SystemRenderStringEntry((u8*)&g_GameState + offset, pBuf, 0x24, 0);
         SystemRenderStringEntry((u8*)&g_GameState + offset + 0x14, pBuf, 0x24, 1);
     }
@@ -177,7 +211,6 @@ void func_801E8DA8(u_char arg0, s32 arg1) {
     DrawSync(0);
     HeapFree(pBuf);
 }
-*/
 
 void func_801E8EAC(POLY_FT4* pPoly, u_char mode) {
     SetShadeTex(pPoly, 0);
