@@ -54,7 +54,20 @@ void func_801CE3C8(void) {
         }
     }
 }
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc4", func_801CE464);
+void func_801CE464(void) {
+    u32 offset;
+
+    if (((u8*)g_Menu->pManager)[0x5]) {
+        func_801CE2B4(*(s32*)((u8*)g_Menu->unk340 + 0x320), (POLY_FT4*)g_Menu->unk340,
+                      ((u8*)g_Menu->unk340)[0x324]);
+        offset = ((u8*)g_Menu->unk340)[0x324] * sizeof(POLY_FT4) + 0x2D0;
+        AddPrim(&g_Menu->pGfxEnv->ot[4], (void*)(offset + (u32)g_Menu->unk340));
+    }
+    if (((u8*)g_Menu->pManager)[0x6]) {
+        func_801CE2B4(7, (POLY_FT4*)g_Menu->unk344, ((u8*)g_Menu->unk344)[0x370]);
+        func_801CE2B4(4, (POLY_FT4*)((u8*)g_Menu->unk344 + 0x230), ((u8*)g_Menu->unk344)[0x370]);
+    }
+}
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc4", func_801CE540);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc4", func_801CE660);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc4", func_801CE860);
