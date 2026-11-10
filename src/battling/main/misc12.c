@@ -31,6 +31,23 @@ typedef struct {
     /* 0x84 */ u8 unk84[0x74];
 } BattleEntry; // Size: 0xF8
 
+// 0x20-byte template copied wholesale into the two env globals below.
+typedef struct {
+    /* 0x00 */ u32 unk0;
+    /* 0x04 */ u32 unk4;
+    /* 0x08 */ u32 unk8;
+    /* 0x0C */ u32 unkC;
+    /* 0x10 */ u32 unk10;
+    /* 0x14 */ u32 unk14;
+    /* 0x18 */ u32 unk18;
+    /* 0x1C */ u32 unk1C;
+} BattleEnv; // Size: 0x20
+
+extern BattleEnv D_80091C0C;
+extern BattleEnv D_80096FE0;
+extern BattleEnv D_8009A2D8;
+extern s16 D_80096FE8;
+
 extern s32 D_8006F980;
 extern VECTOR D_80096FA8;
 extern u8 D_8005061C;
@@ -203,7 +220,17 @@ void* func_800891C0(s32 entryIndex) {
     return pBuffer;
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc12", func_80089210);
+void func_80089210(s32 w, s32 h) {
+    s32 scaleW;
+    s32 scaleH;
+
+    scaleW = (w << 12) / 320 * h / w;
+    scaleH = (h << 12) / 240 * h / w;
+    D_8009A2D8 = D_80091C0C;
+    D_80096FE0 = D_80091C0C;
+    ((s16*)&D_80096FE0)[0] = scaleW;
+    D_80096FE8 = scaleH;
+}
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc12", func_80089330);
 
