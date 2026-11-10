@@ -1293,3 +1293,80 @@ implied preset per unit, and the brief now says to run it before a round.
   the saturated pools.
 - I reset and synced 14 clones for a round 44 I did not launch: ~2 minutes.
 
+
+# Session 6
+
+Start: **2680 / 4568 functions (58.67%)**, 1888 `INCLUDE_ASM` stubs, `make check`
+green on all eleven outputs.
+
+## Log
+
+| # | Units (one worker each) | Functions | Stubs left | Notes |
+|---|---|---|---|---|
+| 1 | `battle/{misc4,5,7,9,10}`, `battling/{misc7,12,16,17}`, `world_map/{misc13,15}`, `menu/misc5` | +54 | 1834 | 12 workers, `make check` green on all 11 outputs. Yield per unit: misc10 13, menu/misc5 8, misc16 7, battle/misc7 6, battling/misc7 4, misc5 4, misc12 4, world_map/misc13 3, misc9 2, world_map/misc15 1, misc17 1, battle/misc4 0 |
+
+Round 1 was cut in half by an ENOSPC (see below) and still landed 54.
+
+## Round 1 findings
+
+### `cp -ac` clones are not free: they killed the disk, not the work
+
+Eight of twelve workers died with `ENOSPC` in the middle of the round. Two causes:
+
+- `cp -ac` measured **~2.6 GB real per clone on this volume**, not the
+  near-zero a copy-on-write duplicate should cost, and 47 stale clones from
+  sessions 2-5 (145 GB total) had the volume at 100%. I deleted the ones whose
+  HEAD was already an ancestor of `main`; three were not (`r-gu`, `r-gv`,
+  `s2-temp2`) and were kept for merging.
+- **1.3 GB of every clone is `disc/disc1` + `disc/disc2`**, the raw disc images
+  that only `make extract` reads. `tools/rounds/clone.sh new` now drops those two
+  directories after the copy (it keeps `disc/<bin>.bin`, which `culprit.sh`
+  needs). That is ~16 GB per 12-worker round.
+
+Recovery: `subagent({action:"resume", id})` on each failed child worked well -
+they kept their uncommitted edits, found them with `git status`, and 7 of the 8
+came back with matches. Resume is much cheaper than relaunching a unit.
+
+Also: a merge into `main` fails on *any* uncommitted tracked file in `main`, not
+just on overlapping paths (the round-1 clone script misfired because I had an
+uncommitted `tools/rounds/brief.js`). Commit tooling edits before merging.
+
+### `battling/main/misc12` wants `-G0`, and it is the discriminating kind
+
+`try_flags.sh battling/main/misc12 func_80088940 --gp -G0` = **100.0**, under the
+unit's Default `-G8` = 44.86, and all six already-matched functions in the unit
+stay at 100.0 under `-G0`. That is the AGENTS.md section 5 bar (matches under one
+candidate and nothing else), so this unit needs a preset rather than more C.
+
+`battling/main/misc7` is the same shape but weaker evidence: `func_8007F854`
+63.5 -> 96.08 under `-G0` (not 100), and nine stubs parked at 55.13% all fail by
+holding `&D_80099Dxx` in a saved register across a call, which is exactly what
+`-G2..-G8` permits (gp-relative rematerialisation) and `-G0` forbids. Treat the
+`battling` overlay as a `-G0` candidate unit by unit, not as one boundary.
+
+### The `jtbl_` corner of `world_map`: entries pointing INTO a function
+
+`world_map/main/misc15`'s `func_800968E0` and `func_80097800` are `BLOCKED`, not
+hard: `asm/world_map/data/0.rodata.s` holds `jtbl_80070CA0` and `jtbl_80070CE8`
+whose `.word` entries point at `.L80096910` / `.L80097868`, code labels *inside*
+those two functions. Converting either deletes the labels and the overlay cannot
+link. No C can name a code label, so it is the same class as "owns dlabel data":
+leave it and report it.
+
+### Source shapes that closed matches this round (all cheap, all repeatable)
+
+- `(*arg0)[n]`, spelled inline, keeps the pointer load in `$a0`; binding
+  `u8 *p = *arg0;` first makes gcc hoist it: 96.47% -> 100% for four functions in
+  `battle/misc10`.
+- `(b & a)` instead of `(a & b)` in `if ((a & b) != 0)` picks the original's
+  register: 99.38% -> 100%, 95% -> 100% (same unit).
+- Declare the *value* local before the *index* local (`u32 value = ...;` above
+  `s32 slot = index + 3;`) in the formulaic battle-operator stubs, and do not
+  hoist `*p` into a cached local: the original reloads `lw v0,0(s1)` after each
+  call, and caching it changes the saved-register set (6 matches in `battle/misc7`).
+- Counter width is a real signal: `s32` where the original has `slt`/`bnez` and
+  no `sltiu`, `s16` when a plain `move`/`div` has no `andi`/`sll`-`sra` pair.
+- An unused struct local reproduces the original's frame (`s32 tmp[2]`,
+  `Misc16Oct unused;`) when the original reserves a slot it never reads.
+- A wrong return type poisons callers: `func_80093E8C` had to be `s32`, not
+  `s16` (`srl` without `sll/sra` proves it), which then closed `func_80093F18`.
