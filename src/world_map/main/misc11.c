@@ -51,6 +51,13 @@ typedef struct {
     /* 0x16 */ undefined16 unk16;
 } WorldMapEntry; // Size: 0x18
 
+// 12.4 fixed point world map position; the range test below uses the middle axis too.
+typedef struct {
+    /* 0x0 */ s32 x;
+    /* 0x4 */ s32 unk4;
+    /* 0x8 */ s32 z;
+} WorldMapPos; // Size: 0xC
+
 extern WorldMapActor *D_8009BE24;
 extern s32 D_8009BE10;
 extern s16 D_8009BD04;
@@ -62,6 +69,8 @@ extern s16 D_8009B1A4[];
 extern void *D_8009BDF8[];
 extern void *D_8009CD38;
 extern void *D_8009CD3C;
+extern void func_80093534(WorldMapPos *);
+extern s32 SquareRoot0(s32);
 
 extern s32 func_8008C364(WorldMapActor *, s32);
 extern void func_80089160(s32, void *, void *);
@@ -206,6 +215,59 @@ void func_8008BFD4(s16 arg0, s32 *pArray, s16 arg2, s16 arg3) {
     D_8009BD04 = (D_8009BD04 + 1) & 0x1F;
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008C040);
+/* 99.17% (412 bytes, same size). Byte-identical except two things:
+   (1) the frame is 96 bytes in the original and 80 here: the original has 16
+       more bytes of stack than any instruction references (the only addressable
+       local is the 12-byte WorldMapPos at sp+0x10, and its x@0x10/z@0x18 stores
+       and the &diff argument match exactly), so the extra slots look like
+       unreferenced spill slots, not a source-level local.
+   (2) s1/s2 are swapped between the loop-carried entry pointer and the index
+       (allocator tie; declaring i before pEntry gives the identical 99.17%).
+   The wrap/distance test is `pos < entry->unk08 ? entry->unk08 - (pos - arg2*0x1000)
+   : pos - (entry->unk08 - entry->unk10*0x1000)`, then (that >> 12) < arg2+unk10.
+   Note func_80093534 takes a WorldMapPos* that it wraps in place, and the
+   distance is 2D (x/z), so its unk4 is deliberately left unset.
+   Tried: indexed &D_8009BE6C[i] instead of pEntry++ (95.09), the >>12 hoisted
+   into each arm (95.09 -> then 98.19 with it in the test), shared hi/lo
+   subtraction across the arms (94.31), i declared first (99.17).
+void func_8008C040(WorldMapPos *pPos, s32 arg1, s32 arg2, u8 *pOut, u8 *pOut2) {
+    s32 i;
+    WorldMapEntry *pEntry = D_8009BE6C;
+    WorldMapPos diff;
+    s32 pos;
+    s32 base;
+    s32 dist;
+
+    *pOut = 0;
+    *pOut2 = 0;
+    if (D_8009BD04 > 0) {
+        for (i = 0; i < D_8009BD04; i++, pEntry++) {
+            pos = pPos->unk4;
+            if (pos < pEntry->unk08) {
+                base = pos - arg2 * 0x1000;
+                pos = pEntry->unk08;
+            } else {
+                base = pEntry->unk08 - pEntry->unk10 * 0x1000;
+            }
+            if (((pos - base) >> 12) < arg2 + pEntry->unk10) {
+                diff.x = (pEntry->unk04 - pPos->x) >> 12;
+                diff.z = (pEntry->unk0C - pPos->z) >> 12;
+                func_80093534(&diff);
+                dist = SquareRoot0(diff.x * diff.x + diff.z * diff.z);
+                if (dist < pEntry->unk14 + arg1) {
+                    *pOut = 2;
+                } else if (dist < pEntry->unk14 + arg1 + 0x10) {
+                    *pOut = 1;
+                } else {
+                    continue;
+                }
+                *pOut2 = pEntry->unk00;
+                break;
+            }
+        }
+    }
+}
+*/
 void func_8008C1DC(s32 arg0, WorldMapActor *pActor, WorldMapScreenPos *pPos) {
     if (func_80093F18(&pActor->unk28) == 3) {
         pPos->unk0A0 = pActor->unk28 >> 12;
