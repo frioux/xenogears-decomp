@@ -17,6 +17,12 @@ void func_801E8044(u8, u8*);
 void func_801D249C(u8);
 void func_801D3488(u8, u8);
 void func_801E05D0(u8, u8, u8);
+void func_801D9E3C(void);
+void func_801DC2CC(u8);
+void func_801DA518(void);
+void func_801DE36C(void);
+void func_801DE400(void);
+void func_801D25E4(void);
 
 int func_801E0F78(u8 arg0, u8 arg1) {
     g_Menu->unk35C = HeapAlloc(0x32F4, 0);
@@ -91,6 +97,48 @@ void func_801E2B80(void) {
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E2BE4);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E3088);
+
+/* objdiff 99.87% (312 bytes, same size) but NOT linkable: the jump table
+   jtbl_801C51DC lives in asm/menu/data/0.rodata.s and its entries are .word
+   .L801E31B0/.L801E30C8/... labels defined inside this function's asm, so
+   converting the function leaves those references undefined and the overlay
+   stops linking. Checked with tools/scripts/check_bin.sh menu.
+void func_801E3088(u8 arg0) {
+    switch (g_Menu->mainMenuChoice + arg0) {
+    case 0:
+    case 7:
+    case 9:
+        break;
+    case 1:
+    case 8:
+        func_801D9E3C();
+        break;
+    case 2:
+        g_Menu->pManager->unk5[2] = 0;
+        g_Menu->pManager->unk8 = 0;
+        g_Menu->pManager->unk4A[1] = 0;
+        func_801E2368();
+        break;
+    case 3:
+        func_801DC2CC(0);
+        break;
+    case 4:
+        func_801DA518();
+        break;
+    case 5:
+        func_801DE36C();
+        func_801DE400();
+        break;
+    case 6:
+        g_Menu->pManager->unk5[2] = 0;
+        g_Menu->pManager->unk8 = 0;
+        g_Menu->pManager->unk4A[1] = 0;
+        func_801D25E4();
+        func_801E2B80();
+        break;
+    }
+}
+*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E31C0);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E35BC);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E36D4);
@@ -103,13 +151,15 @@ void func_801E4170(MenuDressingRoom* pDressingRoom, u8 gearIndex) {
     func_801E4258(pDressingRoom, gearIndex);
 }
 
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E41C0);
-
-/* 93.95% - instruction multiset identical up to the frameId load being scaled
-   before pGearFrames is loaded; gcc picks a1 for pGear instead of a2.
 void func_801E41C0(MenuDressingRoom* pDressingRoom, u8 gearIndex) {
-    GameGear* pGear = &g_GameState.gears[gearIndex];
-    GearFrame* pFrame = &pDressingRoom->pGearFrames[pGear->frameId];
+    GameGear* pGear;
+    GearFrame* pFrame;
+    u8 frameId;
+
+    pGear = &g_GameState.gears[gearIndex];
+    pFrame = pDressingRoom->pGearFrames;
+    frameId = pGear->frameId;
+    pFrame = &pFrame[frameId];
 
     pGear->hp = pFrame->hp;
     pGear->maxHp = pFrame->hp;
@@ -117,15 +167,20 @@ void func_801E41C0(MenuDressingRoom* pDressingRoom, u8 gearIndex) {
     pGear->etherAmplification = pFrame->unk15;
     pGear->unk9D = pFrame->unk16;
     pGear->unk9F = pFrame->unk17;
-    if (pGear->hp > pGear->maxHp) {
+    if (pGear->maxHp < pGear->hp) {
         pGear->hp = pGear->maxHp;
     }
 }
-*/
+
 
 void func_801E4258(MenuDressingRoom* pDressingRoom, u8 gearIndex) {
-    GameGear* pGear = &g_GameState.gears[gearIndex];
-    GearArmor* pArmor = &pDressingRoom->pGearArmor[pGear->armorId];
+    GameGear* pGear;
+    GearArmor* pArmorList;
+    GearArmor* pArmor;
+
+    pGear = &g_GameState.gears[gearIndex];
+    pArmorList = pDressingRoom->pGearArmor;
+    pArmor = &pArmorList[pGear->armorId];
 
     pGear->baseDefense = pArmor->unk8;
     pGear->baseEtherDefense = pArmor->unkA;
@@ -133,19 +188,29 @@ void func_801E4258(MenuDressingRoom* pDressingRoom, u8 gearIndex) {
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E42AC);
 
-/* 89.56% - only the fuel clamp's allocator differs: retail keeps the old fuel
-   in a0 from an early load and re-reads maxFuel for the store, gcc reuses the
-   register it already has.  Everything else in the function matches.
+/* 100.00% under gcc-2.6.0, 89.56% under the unit's gcc-2.7.2: retail keeps
+   fuel in a0 from an early load and re-loads maxFuel for the clamp store,
+   while 2.7.2 CSEs the second load across the sb to 0x3F.  This is the same
+   source shape as the matched func_801D62A4 in gear_shop_menu (XenoLibrary).
 void func_801E42AC(MenuDressingRoom* pDressingRoom, u8 gearIndex) {
-    GameGear* pGear = &g_GameState.gears[gearIndex];
-    GearEngine* pEngine = &pDressingRoom->pGearEngines[pGear->engineId];
+    GameGear* pGear;
+    GearEngine* pEngine;
+    u16 fuel;
+    u8 engineId;
+
+    pGear = &g_GameState.gears[gearIndex];
+    engineId = pGear->engineId;
+    pEngine = pDressingRoom->pGearEngines;
+    fuel = pGear->fuel;
+    pEngine = &pEngine[engineId];
 
     pGear->maxFuel = pEngine->maxFuel;
     pGear->engineOutput = pEngine->powerOutput;
     pGear->unk3D = pEngine->unkD;
     pGear->unk3E = pEngine->unkE;
     pGear->unk3F = pEngine->unkE;
-    if (pGear->fuel > pGear->maxFuel) {
+
+    if (pGear->maxFuel < fuel) {
         pGear->fuel = pGear->maxFuel;
     }
 }
