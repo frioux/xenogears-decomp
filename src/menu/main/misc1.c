@@ -14,6 +14,8 @@ s32 func_801CACF8(u_char a0, u_char a1, u_char a2);
 void func_801D1E80(void);
 void func_801D22F4(s32 arg0);
 void func_801D2484(void);
+void func_801D2D38(void);
+void func_801C7B0C(void);
 
 extern u8 D_801E977A;
 extern u8 D_801EA8FC;
@@ -21,6 +23,7 @@ extern u8 D_801E96A4;
 extern u8 D_801E96A5;
 
 extern u8 D_80059171;
+extern u8 D_800594D0;
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc1", func_801C531C);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc1", func_801C55A0);
@@ -165,6 +168,42 @@ void func_801C5F10(void) {
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc1", func_801C5FE4);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc1", func_801C62A8);
+
+/* Best: 92.33% - the inner if/else-if chain lays its then-block in-line while the original
+   keeps both call blocks out of line after a positive beqz/beq pair.  Tried: else-if,
+   !=/else form (87.67%), 2-way switch (92.33%), two separate ifs (reloads D_800594D0).
+void func_801C62A8(void) {
+    u8 menuIndex;
+
+    func_801C5F10();
+    func_801C7B0C();
+    g_Menu->shouldDrawMenu = 1;
+    g_Menu->unk32A = 1;
+    menuIndex = D_80059460;
+    switch (menuIndex) {
+        case 0:
+            func_801D2D38();
+            func_801C55A0();
+            break;
+        case 2:
+            D_800594D0 = 0;
+            func_801C58EC();
+            g_Menu->pManager->shouldRenderSelectionMenu = 0;
+            g_Menu->pManager->unk4 = 0;
+            g_Menu->pManager->unk3 = 0;
+            if (D_800594D0 == 0) {
+                func_801C8694(0);
+            } else if (D_800594D0 == menuIndex) {
+                func_801C8694(((u8*)g_GameState.unk1930)[0xA4]);
+            }
+            break;
+        case 6:
+            func_801C57A4();
+            break;
+    }
+    func_801C5FE4();
+}
+*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc1", func_801C6400);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc1", func_801C65F4);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc1", func_801C6AA0);
