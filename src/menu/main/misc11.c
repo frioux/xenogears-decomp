@@ -5,9 +5,14 @@
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc11", func_801E433C);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc11", func_801E4754);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc11", func_801E4928);
-/* Best: 91.61% - instruction multiset identical, allocator puts the dividend in
-   $a0 instead of $v0 (and the /120 magic in $v0 instead of $a1); 6 declaration
-   orders and shapes leave the tie untouched.
+/* Best: 91.61% - instruction multiset identical, only register assignment
+   differs: retail has the u16 dividend in $v0, the /120 magic in $a1 and mfhi
+   back into $v0 (which lets the scheduler hoist the magic's lui to the very
+   first slot); gcc always puts the dividend in $a0, the magic in $v0 and mfhi
+   in $a1.  Tried: pointer local vs inline indexing, u8* + 0xA4 byte arithmetic,
+   a separate s32 diff local, 6 declaration orders.  Everything from
+   `andi v0,v0,0xffff` to the epilogue already matches, so this is a local-alloc
+   tie on the three pre-multu quantities, not a source shape.
 u8 func_801E4928(u8 gearId) {
     GameGear* pGear;
     u_short weightClass;
@@ -23,21 +28,27 @@ u8 func_801E4928(u8 gearId) {
 }
 */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc11", func_801E4998);
-/* Best: 87.97% - everything matches except that gcc folds the +0x5C8 into the
-   member offset (0x5EC) where the original keeps addiu base,0x5C8 + 0x24(base),
-   which also costs the mfhi destination registers ($v0/$v1 vs $a3). The first
-   store has to be volatile so the following read is not forwarded; the second
-   store must not be, or reorg cannot put it in the jr delay slot.
+/* Best: 93.61% (was 87.97% - the Folded offset was the whole problem).
+   The +0x5C8 pointer offset must NOT be folded into the field offset: retail
+   keeps addiu base,0x5C8 then a 0x24(base) access, and gcc only stops folding
+   when the base is kept as an integer (u32) instead of a pointer type - with a
+   u16* / u8* intermediate cse folds 0x5C8+0x24 into 0x5EC and drops the addiu.
+   What is left is the same allocator tie as func_801E4928: retail puts every
+   mfhi result in $v0 (and so can hoist the /10 magic's lui into slot 0), gcc
+   always picks $a3.  Inlining the division into the store changes nothing.
+   The first store is volatile so the following read is not forwarded; the
+   second store must not be, or reorg cannot put it in the jr delay slot.
 void func_801E4998(MenuDressingRoom* pDressingRoom, u8 gearId) {
-    u16* p;
-    u16 value;
+    u32 p;
     u32 hp;
+    u16 value;
 
     hp = g_GameState.gears[gearId].maxHp / 10 * 2 / 9;
-    p = (u16*)(*(u32*)((u8*)pDressingRoom + 0x4C + gearId * 4) + 0x5C8);
-    *(volatile u16*)((u8*)p + 0x24) = hp;
-    value = *(volatile u16*)((u8*)p + 0x24) / 10;
-    *(u16*)((u8*)p + 0x24) = value * 10;
+    p = *(u32*)((u8*)pDressingRoom + 0x4C + gearId * 4);
+    p = p + 0x5C8;
+    *(volatile u16*)(p + 0x24) = hp;
+    value = *(volatile u16*)(p + 0x24) / 10;
+    *(u16*)(p + 0x24) = value * 10;
 }
 */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc11", func_801E4A28);
@@ -126,37 +137,24 @@ void func_801E64E0(void) {
     ClearImage(&rect, 0, 0, 0);
     *(volatile u8*)&g_Menu->pManager->unkB = 0;
 }
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc11", func_801E6544);
-/* Best: 68.70% (same under gcc-2.6.0).  The transformation is an in-place
-   compaction of each 16-byte block: 4 groups of (x[0], x[1]|x[2], x[3]) from
-   x[0..3] go to p[3g..3g+2], stores ascending.  Every instruction matches once
-   the base register does: retail keeps the loop pointer in $a2 and uses
-   offsets 0..0xF, while gcc always invents a SECOND induction variable for the
-   group (addu $6,$7,11 in the entry block, offsets -10..4 in the body) - it
-   picks 0xB, the highest offset that is both read and written, as the new base.
-   Reversing the statement order moves the secondary base to the last offset
-   (+1), duplicating the self store does not change it, and |= for the OR sites
-   changes nothing.  Volatile on the first store keeps the pair but splits $a3
-   in two bases as well.
 void func_801E6544(u8* p) {
     int i;
 
-    for (i = 0; i < 0x10; i++, p += 0x10) {
-        p[0x0] = p[0x0];
-        p[0x1] = p[0x1] | p[0x2];
-        p[0x2] = p[0x3];
-        p[0x3] = p[0x4];
-        p[0x4] = p[0x5] | p[0x6];
-        p[0x5] = p[0x7];
-        p[0x6] = p[0x8];
-        p[0x7] = p[0x9] | p[0xA];
-        p[0x8] = p[0xB];
-        p[0x9] = p[0xC];
-        p[0xA] = p[0xD] | p[0xE];
-        p[0xB] = p[0xF];
+    for (i = 0; i < 0x10; i++) {
+        p[i * 0x10 + 0x0] = p[i * 0x10 + 0x0];
+        p[i * 0x10 + 0x1] = p[i * 0x10 + 0x1] | p[i * 0x10 + 0x2];
+        p[i * 0x10 + 0x2] = p[i * 0x10 + 0x3];
+        p[i * 0x10 + 0x3] = p[i * 0x10 + 0x4];
+        p[i * 0x10 + 0x4] = p[i * 0x10 + 0x5] | p[i * 0x10 + 0x6];
+        p[i * 0x10 + 0x5] = p[i * 0x10 + 0x7];
+        p[i * 0x10 + 0x6] = p[i * 0x10 + 0x8];
+        p[i * 0x10 + 0x7] = p[i * 0x10 + 0x9] | p[i * 0x10 + 0xA];
+        p[i * 0x10 + 0x8] = p[i * 0x10 + 0xB];
+        p[i * 0x10 + 0x9] = p[i * 0x10 + 0xC];
+        p[i * 0x10 + 0xA] = p[i * 0x10 + 0xD] | p[i * 0x10 + 0xE];
+        p[i * 0x10 + 0xB] = p[i * 0x10 + 0xF];
     }
 }
-*/
 s32 func_801E65E4(u8* p) {
     u8 hi;
     u8 lo;
