@@ -536,6 +536,8 @@ extern s32 D_800ADB2C;
 extern void* D_800ADBB8;
 extern void* D_800AFEA4;
 int func_80028B14(void);
+int* ArchiveAllocStreamFile(int numEntries, int allocMode);
+void ArchiveReadFileToBuffer(int fileIndex, void* pBuffer, int arg2, int size);
 
 int func_800854D0(void) {
     int result = func_80028B14();
@@ -556,17 +558,15 @@ int func_800854D0(void) {
     return -1;
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80085560);
-/* 81.88%: only the prologue schedule and the temp register differ (gcc stores
-   the stream file from a1 in the original, from v0 here). Source shape is
-   confirmed: `D_800ADB2C = 1; pStreamFile = ArchiveAllocStreamFile(8);
-   D_800ADBB8 = pStreamFile; ArchiveReadFileToBuffer(archiveIndex, pStreamFile,
-   0, 0x100); D_800AFEA4 = pCallback;`. The residual is that gcc copies `a2`
-   into `s1` in the entry block and steals `li a0,8` into the jal delay slot,
-   where retail copies `a2` into the delay slot. A function-pointer type for
-   pCallback changes nothing.
-*/
+void func_80085560(int archiveIndex, int allocMode, void* pCallback) {
+    int* pStreamFile;
 
+    D_800ADB2C = 1;
+    pStreamFile = ArchiveAllocStreamFile(8, allocMode);
+    D_800ADBB8 = pStreamFile;
+    ArchiveReadFileToBuffer(archiveIndex, pStreamFile, 0, 0x100);
+    D_800AFEA4 = pCallback;
+}
 
 void func_8003A20C(int);
 void func_80039F9C(void*, int, int, int);
