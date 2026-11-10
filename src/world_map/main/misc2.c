@@ -83,26 +83,6 @@ void func_80074794(s16 arg0, s32* pVec) {
 }
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc2", func_800747DC);
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc2", func_80074E58);
-
-/* 89.84%. func_80075030 below is the same routine with D_8009D77C->D_8009D7C8,
-   D_8009CC9C->D_8009CD64, D_8009D780->D_8009D7D0 and D_8009A1E8->D_8009A250,
-   so matching one matches both. The entry pointer has to be a real `pEntry++`
-   walker (that is what makes retail anchor the s16 fields at a0+0xA with the
-   -6/-2 displacements) and the loop bound is the global re-read after the
-   HeapAlloc. Remaining: retail emits the desc walker's addiu a3,a3,16 right
-   after sw a3,-6(v1) and ends the body
-   `addiu v1,v1,12 / slt / bnez / (delay) addiu a0,a0,12`, while gcc's IV
-   reduction puts a3's increment last (delay slot) and a0's before the slt.
-   A real source walker (pDesc; pDesc += 0x10) reproduces the a3 placement
-   exactly (89.07%) but flips the dst walker and the counter between a0/a1
-   (retail: a0 = dst from HeapAlloc's result, a1 = counter). Also tried:
-   (i << 4) for the desc index, *((s32*)D_8009D77C + i + 1), ++i, three
-   declaration orders, s32/u32 counter, count re-read into a local.
-   NOTE: the sibling loops func_80074F2C / func_80075104 only reached 100% with
-   `for (i = 0; ...; i++, pEntry++)` (the counter increment must come before
-   pEntry's) and with pSprite a typed struct pointer field so gcc reloads it per
-   basic block - both worth retrying here.
 void func_80074E58(void) {
     WorldMapEntry* pEntry;
     s32 count;
@@ -119,7 +99,6 @@ void func_80074E58(void) {
         pEntry->unkA = 1;
     }
 }
-*/
 
 void func_80074F04(void) {
     HeapFree(D_8009D780);
@@ -144,11 +123,23 @@ void func_80074F2C(void) {
         }
     }
 }
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc2", func_80075030);
 
-/* Same routine as func_80074E58 above with the D_8009D7C8 / D_8009CD64 /
-   D_8009D7D0 / D_8009A250 symbols swapped in; see that attempt (89.84%). */
+void func_80075030(void) {
+    WorldMapEntry* pEntry;
+    s32 count;
+    s32 i;
 
+    count = ((s32*)D_8009D7C8)[0];
+    D_8009CD64 = count;
+    pEntry = (WorldMapEntry*)HeapAlloc(count * 0xC, 0);
+    D_8009D7D0 = (u8*)pEntry;
+    for (i = 0; i < D_8009CD64; i++, pEntry++) {
+        pEntry->unk0 = (u32)D_8009D7C8 + ((s32*)D_8009D7C8)[i + 1];
+        pEntry->pSprite = (WorldMapSprite*)(D_8009A250 + i * 0x10);
+        pEntry->unk8 = 0;
+        pEntry->unkA = 1;
+    }
+}
 
 void func_800750DC(void) {
     HeapFree(D_8009D7D0);
