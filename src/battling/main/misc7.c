@@ -1,20 +1,24 @@
 #include "common.h"
 
-extern u8 D_80099D98;
-extern u8 D_80099D9A;
-extern u8 D_80099DA1;
-extern u8 D_80099D9B;
-extern u8 D_80099D9C;
-extern u8 D_80099D9D;
-extern u8 D_80099D9E;
-extern u8 D_80099D9F;
-extern u8 D_80099DA2;
+/* The nine flag bytes below are declared as open arrays on purpose: -G8
+   classifies a 1-byte extern as small data, which makes its address one
+   gp-relative insn, so gcc rematerialises it at each use instead of holding
+   it in a saved register across the call the way the original does. */
+extern u8 D_80099D98[];
+extern u8 D_80099D9A[];
+extern u8 D_80099DA1[];
+extern u8 D_80099D9B[];
+extern u8 D_80099D9C[];
+extern u8 D_80099D9D[];
+extern u8 D_80099D9E[];
+extern u8 D_80099D9F[];
+extern u8 D_80099DA2[];
 extern u32 D_800912F4[];
 extern s32* D_80092734;
 extern u8 D_80092884;
 extern s32 D_800912F0;
-extern s32 D_80098800;
-extern s32 D_800970E4;
+extern s32 D_80098800[];
+extern s32 D_800970E4[];
 extern s32 D_80092950;
 
 void func_8007EE08(s32 arg);
@@ -25,17 +29,23 @@ s32 func_8007FF70(s32 value, s32 max, s32 flags);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc7", func_8007F854);
 
-/* 63% under the unit's preset, 96.08% under -G0: the original materialises
-   &D_80098800 and &D_800970E4 into a1/a0 and does lw/ori/sw through them,
-   which is gcc's -G0 addressing. This unit may want an XenoMain-style -G0
-   preset (gears.toml, not touched here). */
+/* 96.25%: everything matches except the currency allocation, which is mirrored
+   - the original loads/stores D_80098800 side through a1/v1 and D_800970E4
+   through a0/v0, ours picks the pair the other way round, so both value and
+   address registers are swapped (and the two lw/ori/sw groups with them).
+   Also tried: statement order reversed (95.42), no tmp array (96.08).
+   The D_80098800[]/D_800970E4[] open-array declarations below are what got it
+   this far: a scalar s32 extern is small data under -G8, and then gcc
+   rematerialises each address instead of holding it in a register. */
 /* void func_8007F854(void) {
+    s32 tmp[2];
+
     D_800912F0 = 1;
     func_80083C0C(1);
     D_80092734 = 0;
     func_8007F834();
-    D_80098800 |= 0xC;
-    D_800970E4 |= 0xC;
+    D_80098800[0] |= 0xC;
+    D_800970E4[0] |= 0xC;
 } */
 
 void func_8007F8B4(void) {
@@ -77,7 +87,7 @@ void func_8007F948(Misc7Struct* p, s32 arg) {
 }
 
 u32 func_8007F97C(void) {
-    return D_800912F4[D_80099D98];
+    return D_800912F4[D_80099D98[0]];
 }
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc7", func_8007F9A0);
@@ -90,85 +100,37 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc7", func_8007FE48);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc7", func_8007FF70);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc7", func_80080054);
+void func_80080054(void) {
+    D_80099D98[0] = func_8007FF70(D_80099D98[0], 2, 0);
+}
 
-/* 55%: the original keeps &D_80099D98 in $s0 across the call and loads and
-   stores through it; every C shape tried (*p = f(*p), a pointer local,
-   a value local, the plain assignment) makes gcc rematerialise the
-   address instead, and -G0 does not change it. */
-/* void func_80080054(void) {
-    D_80099D98 = func_8007FF70(D_80099D98, 2, 0);
-} */
+void func_80080090(void) {
+    D_80099DA1[0] = func_8007FF70(D_80099DA1[0], 7, 2);
+}
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc7", func_80080090);
+void func_800800CC(void) {
+    D_80099D9A[0] = func_8007FF70(D_80099D9A[0], 4, 2);
+}
 
-/* 55%: the original keeps &D_80099DA1 in $s0 across the call and loads and
-   stores through it; every C shape tried (*p = f(*p), a pointer local,
-   a value local, the plain assignment) makes gcc rematerialise the
-   address instead. */
-/* void func_80080090(void) {
-    D_80099DA1 = func_8007FF70(D_80099DA1, 7, 2);
-} */
+void func_80080108(void) {
+    D_80099D9B[0] = func_8007FF70(D_80099D9B[0], 1, 1);
+}
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc7", func_800800CC);
+void func_80080144(void) {
+    D_80099D9C[0] = func_8007FF70(D_80099D9C[0], 1, 1);
+}
 
-/* 55%: the original keeps &D_80099D9A in $s0 across the call and loads and
-   stores through it; every C shape tried (*p = f(*p), a pointer local,
-   a value local, the plain assignment) makes gcc rematerialise the
-   address instead. */
-/* void func_800800CC(void) {
-    D_80099D9A = func_8007FF70(D_80099D9A, 4, 2);
-} */
+void func_80080180(void) {
+    D_80099D9D[0] = func_8007FF70(D_80099D9D[0], 1, 1);
+}
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc7", func_80080108);
+void func_800801BC(void) {
+    D_80099D9E[0] = func_8007FF70(D_80099D9E[0], 1, 1);
+}
 
-/* 55%: the original keeps &D_80099D9B in $s0 across the call and loads and
-   stores through it; every C shape tried (*p = f(*p), a pointer local,
-   a value local, the plain assignment) makes gcc rematerialise the
-   address instead. */
-/* void func_80080108(void) {
-    D_80099D9B = func_8007FF70(D_80099D9B, 1, 1);
-} */
-
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc7", func_80080144);
-
-/* 55%: the original keeps &D_80099D9C in $s0 across the call and loads and
-   stores through it; every C shape tried (*p = f(*p), a pointer local,
-   a value local, the plain assignment) makes gcc rematerialise the
-   address instead. */
-/* void func_80080144(void) {
-    D_80099D9C = func_8007FF70(D_80099D9C, 1, 1);
-} */
-
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc7", func_80080180);
-
-/* 55%: the original keeps &D_80099D9D in $s0 across the call and loads and
-   stores through it; every C shape tried (*p = f(*p), a pointer local,
-   a value local, the plain assignment) makes gcc rematerialise the
-   address instead. */
-/* void func_80080180(void) {
-    D_80099D9D = func_8007FF70(D_80099D9D, 1, 1);
-} */
-
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc7", func_800801BC);
-
-/* 55%: the original keeps &D_80099D9E in $s0 across the call and loads and
-   stores through it; every C shape tried (*p = f(*p), a pointer local,
-   a value local, the plain assignment) makes gcc rematerialise the
-   address instead. */
-/* void func_800801BC(void) {
-    D_80099D9E = func_8007FF70(D_80099D9E, 1, 1);
-} */
-
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc7", func_800801F8);
-
-/* 55%: the original keeps &D_80099D9F in $s0 across the call and loads and
-   stores through it; every C shape tried (*p = f(*p), a pointer local,
-   a value local, the plain assignment) makes gcc rematerialise the
-   address instead. */
-/* void func_800801F8(void) {
-    D_80099D9F = func_8007FF70(D_80099D9F, 3, 2);
-} */
+void func_800801F8(void) {
+    D_80099D9F[0] = func_8007FF70(D_80099D9F[0], 3, 2);
+}
 
 s32 func_80080234(void) {
     s32 value = func_8007FF70(D_80092884, 1, 1);
@@ -177,15 +139,9 @@ s32 func_80080234(void) {
     return value;
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc7", func_80080268);
-
-/* 55%: the original keeps &D_80099DA2 in $s0 across the call and loads and
-   stores through it; every C shape tried (*p = f(*p), a pointer local,
-   a value local, the plain assignment) makes gcc rematerialise the
-   address instead. */
-/* void func_80080268(void) {
-    D_80099DA2 = func_8007FF70(D_80099DA2, 0xD, 3);
-} */
+void func_80080268(void) {
+    D_80099DA2[0] = func_8007FF70(D_80099DA2[0], 0xD, 3);
+}
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc7", func_800802A4);
 
