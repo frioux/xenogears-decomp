@@ -43,6 +43,10 @@ extern u8 D_800CCE42[];
 extern u8 D_800C3EB8[];
 extern u8 D_800D2D24[];
 extern u8 D_80059179;
+extern u8 D_800C4022[];
+extern u8 D_800C3FFE[];
+extern void func_80077980(void);
+extern void func_8009413C(u8 arg0, u8 arg1);
 
 /* 74.02%: with `extern volatile s32 D_800CCB34` the loop body is exact (four
    reloads of the counter between the four stores, and the two separate
@@ -218,6 +222,40 @@ void func_8008189C(s32 arg0) {
         func_80093B08(arg0);
     }
 }
+/* 92.34%: `func_80089C08` returns u16, so a separate `orBits = f(a); orBits |=
+   f(b);` masks both results; writing the two calls as one `|` expression inside
+   the func_800BC404 call lets gcc fold them into the single `or` + final `andi
+   0xffff` the original has. What is left: the original loads D_800C3EAC once and
+   shares the base between the `[0x2DA]` read and the `+arg0*0x40` pointer for
+   the func_80089C08 argument (we reload it), and the two `addu base,base,idx`
+   come out with the index register as destination instead of the base
+   (allocator tie, both values dead after). */
+/*
+void func_800819A4(u8 arg0) {
+    s32 orBits;
+
+    if (D_800C3EAC[0x2E9] != 0) {
+        return;
+    }
+    D_800C3EAC[0x2E9] = 1;
+    func_800BCD98(0);
+    *(u8 *)((u32)D_800C3EAC + arg0 * 0x40 + 0x3C) = D_800C3EAC[0x2E8];
+    func_8007FCE8();
+    func_8007FDEC();
+    func_80077980();
+    orBits = func_80089C08(arg0) | func_80089C08(D_800C3EAC[arg0 * 0x40 + 0x3C]);
+    func_800BC404(orBits);
+    if (D_800D2D24[arg0] != 4) {
+        D_800C400B[D_800C3EAC[0x2DA] * 0x48] = arg0;
+        D_800C402F[D_800C3EAC[0x2DA] * 0x48] = 0xFD;
+        *(u16 *)(D_800C4022 + D_800C3EAC[0x2DA] * 0x48) = 0;
+        *(u16 *)(D_800C3FFE + D_800C3EAC[0x2DA] * 0x48) =
+            func_80089C08(D_800C3EAC[arg0 * 0x40 + 0x3C]);
+        D_800C3EAC[0x2DA]++;
+    }
+    func_8009413C(arg0, 0);
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_800819A4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_80081B58);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_800820A4);
