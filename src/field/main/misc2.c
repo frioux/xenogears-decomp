@@ -64,6 +64,7 @@ void FieldComputeSceneMatrices(void) {
 // 85.25, gcc-2.6.0 84.62, gcc-2.7.2-cdk 85.25 - so the unit cannot be switched to
 // cdk on this function's account. Same wall as func_8007254C and func_8007520C
 // below: every one of this unit's convertible stubs is parked on it.
+// screened: Default 85.50 (best), cdk 85.50, 2.6.0 84.62 - not the preset; still the $s1 rematerialisation wall.
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80072254);
 /*
@@ -202,6 +203,7 @@ void func_800723E4(SVec4* pA, SVec4* pB, SVec4* pOut) {
 // gcc rematerialises the constant address after the call instead of saving it, so
 // the post-call block is one lui-at/%lo pair per store. Defeating that
 // rematerialisation is the whole remaining problem (same wall as func_80072254).
+// screened: Default 62.01, cdk 65.16 (best), 2.6.0 62.01 - no preset harvests it; the $s0 &g_CamInterpolation base wall.
 /*
 extern VECTOR g_CameraEye;
 extern void func_80070594(MATRIX* pMatrix);
@@ -290,6 +292,7 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_800726E8);
 // Note the two expression spellings are required: `((u_int)vy & 0xFFF) >> 9`
 // gives the original's lhu/srl in the first two blocks, while the plain signed
 // `(vy +/- 0x200) & 0xFFF) >> 9` gives lh/sra in the button blocks.
+// screened: Default 93.36 (best), cdk 65.00, 2.6.0 92.51 - not the preset; the dollyStop base register and the branch layout.
 /*
 extern void func_80284EA4(void);
 
@@ -368,6 +371,7 @@ void func_800726E8(void) {
 // Also 99.52% and byte-identical: `s32* pFlags` local, `!--unk70`, and the split
 // `unk70--; if (unk70 == 0)`. A ternary form scores 99.93% only because it grows the
 // function by 4 bytes (828 vs 824) - no.
+// screened: Default 99.52 (best), cdk 72.11, 2.6.0 99.32 - the one-instruction reorg delay slot described above.
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80072A38);
 /*
@@ -600,6 +604,7 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_800739C0);
 // and gcc reads rotation.vy/unk11E with lhu + sll/sra where the original is lh.
 // Note it is the FIRST owner of the unit's .rodata, so D_8006FB04 has to be
 // defined in C in the same change that converts the function - never before.
+// screened: Default 76.67 (best), cdk 59.23, 2.6.0 76.16 - the $s0 camera base wall; also the first .rodata owner, so D_8006FB04 must move to C with it.
 /*
 // .rodata
 const char D_8006FB04[0xC] = "MATRIX    ";
@@ -889,6 +894,7 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_8007520C);
 // 91.00%: the original materialises &D_800B2264 into $s0, loads 0($s0) and passes
 // $s0 - 0x48 as the second argument. Every C form tried (pointer local, s32 local,
 // negative array index) makes gcc rematerialise a second %hi/%lo pair instead.
+// screened: Default 91.00 (best), cdk 85.17, 2.6.0 91.00 - the &D_800B2264 base wall; also a .rodata owner (D_8006FB1C).
 /*
 extern s32 D_8004F380;
 extern s32 D_800B2264;
@@ -929,6 +935,7 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_800752C8);
 //   D_8006FB34..FB64 func_8007554C (293)  D_8006FB70 func_800759E4 (77 insns)
 // So this function needs the three above it in C first, and func_800759E4 needs all
 // five. The constant below is the one the object needs.
+// screened: Default 99.60 (best), cdk 93.87, 2.6.0 99.60 - the $a1/$a2 swap above; .rodata owner (D_8006FB28).
 /*
 // .rodata
 const char D_8006FB28[0xC] = "CHAR      ";
@@ -1117,6 +1124,7 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80077268);
 // statement re-reads the pointer and the value at ActorData+0x26 is the s16 view
 // pPosition[3] (misc6's func_800A0C94 idiom); FieldActor+0x4 is pSpriteData and
 // +0x20/+0x24/+0x28 is transformMatrix.t[0..2].
+// screened: Default 68.96 (best), cdk 68.85, 2.6.0 68.90 - not the preset; the allocator and CSE differences noted above.
 /*
 extern void func_80084A40(int actorIndex, int y, FieldActor* pActor, ActorData* pData);
 extern int FieldCharacterIdToPartyId(int characterId);
@@ -1175,7 +1183,8 @@ void func_80077268(void) {
     for (i = 0; i < 0x20; i++) {
         func_80081C54(g_PlayerActorIndex);
     }
-}*/
+}
+*/
 
 // 67.56% (548 bytes, same as the original's 548): every load, store, call and the
 // two loops are in place. What is left: (1) the head - the original loads the
