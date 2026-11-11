@@ -581,12 +581,13 @@ int FieldCharacterIdToPartyId(int characterId) {
     return -1;
 }
 
+// Screened 36 variants (2.7.2 / cdk / 2.6.0 x -O1/-O2/-O3 x -G4/-G8): best is
+// 90.86% here, cdk 87.35%, 2.6.0 90.86% - the 0x7C store's sll/sra pair is left.
 // Also tried: the two-return shape `if (SCRIPT_READ_U8(0) == 0xFF) { ...body...;
 // return 0; } return 0;` reproduces retail's `bne`-to-shared-epilogue and the exact
 // 0x20 frame (90.25%, 320/324 bytes). Only the 0x7C store's sll/sra pair is left;
 // gcc folds it because it can prove `((x + 4) & 7) << 9` fits in 13 bits (tried
 // s32 nAngle, an `nAngle << 16 >> 16` temp, and reading 0x56 back).
-INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_8009FA54);
 // 90.86% (316 of 324 bytes): frame (0x20 with ra/s2/s1/s0), the `sll s0; sra s0`
 // of nX in the 2nd call's delay slot, both call orders and the rotation value are
 // right. `s16 nAngle` and `s32 nX` with an explicit (s16) cast on the call are
@@ -642,6 +643,9 @@ s32 func_8009FA54(s32 nInstructionOffset) {
     return 0;
 }
 */
+INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_8009FA54);
+// Screened 36 variants: flat 63.17% under all three gccs - only the epilogue store
+// order differs, no compiler/flag combination reaches 100.
 // 63.17% (120 vs 120 bytes): insn multiset is identical, only the order of the
 // two epilogue stores differs. cc1 puts `sh ip+2,0xCC(a0)` before
 // `sw D_800B2268` and hoists the second `lhu 0xCC(a0)` above the `lbu`, i.e. it
@@ -652,7 +656,6 @@ s32 func_8009FA54(s32 nInstructionOffset) {
 // difference), and a `*(volatile s32*)&D_800B2268` store (no change - so cc1 is
 // not sinking the store, the scheduling happens before it). Re-tried a `s16 ip`
 // temp for the 0xCC read-modify-write: identical 63.17%.
-INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_8009FB98);
 /*
 void func_8009FB98(void) {
     ActorData* pActor;
@@ -666,6 +669,7 @@ void func_8009FB98(void) {
     pActor->scriptInstructionPointer += 2;
 }
 */
+INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_8009FB98);
 
 extern s32 D_8006F990[];
 int func_8009FC10(int actorIndex) {
@@ -749,7 +753,8 @@ extern s32 D_8005A444[];
 extern s32 D_8005A448;
 extern s32 D_8005A44C;
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_8009FEE4);
+// Screened 36 variants: best 99.36% here, cdk 96.03%, 2.6.0 99.36% - the reorg
+// delay-slot fill (`sll` into the beq slot) is the whole gap.
 // 99.36% (624 bytes; retail is 628). Everything matches except one delay slot: cc1
 // (reorg) puts the first insn of the fall-through block, `sll v0,v1,1` (part of
 // nActorIndex * sizeof(FieldActor)), into the `beq nActorIndex,0xFF` delay slot, and
@@ -793,8 +798,8 @@ void func_8009FEE4(int partyMemberIndex) {
             break;
     }
 }
-
 */
+INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_8009FEE4);
 
 void func_800A0158(s32 arg0, s32* arg1, s32* arg2, s32* arg3) {
     switch (arg0) {
@@ -818,7 +823,11 @@ void func_800A0158(s32 arg0, s32* arg1, s32* arg2, s32* arg3) {
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_800A0228);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_800A0524);
+extern void FieldMatrixCopyTransform(MATRIX* pDest, MATRIX* pSrc);
+extern void FieldMatrixCopyTranslation(MATRIX* pDest, MATRIX* pSrc);
+
+// Screened 36 variants: best 91.72% here, cdk 73.20%, 2.6.0 91.36% - 
+// the &g_FieldActors materialisation ($s2 hoist) is the gap.
 // 91.72% (440 of 452 bytes): every load, store, call and the copy loop match.
 // g_FieldActors is declared volatile in include/field/actor.h, but this unit's
 // original object reads it through a plain pointer, so the pointer load is
@@ -831,9 +840,6 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_800A0524);
 // it; the saved-$s2 slot then also moves. Tried: macro/inline cast per use
 // (volatile, 74.12%), plain `g_FieldActors[...]` (74.12%).
 /*
-extern void FieldMatrixCopyTransform(MATRIX* pDest, MATRIX* pSrc);
-extern void FieldMatrixCopyTranslation(MATRIX* pDest, MATRIX* pSrc);
-
 void func_800A0524(int dstActorIndex, int srcActorIndex) {
     FieldActor** pFieldActors;
     ActorData* pDst;
@@ -862,6 +868,7 @@ void func_800A0524(int dstActorIndex, int srcActorIndex) {
     ((SpriteData*)(*pFieldActors)[dstActorIndex].pSpriteData)->position.z = (*pFieldActors)[srcActorIndex].pActorData->position.vz;
 }
 */
+INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_800A0524);
 
 void func_800A06E8(void) {
     FieldActor* pFieldActor;
@@ -902,6 +909,8 @@ void func_800A0C4C(void) {
     g_FieldActors[g_PlayerActorIndex].pActorData->scriptFlags.flags |= 0x80;
 }
 
+// Screened 36 variants: best 99.64% here, cdk 94.07%, 2.6.0 99.64% - the third
+// block's `addu` destination register is the whole gap.
 // FieldResetActorPosition: copies the current actor's scripted position into the
 // field actor's transform/child matrices and into its sprite.
 // 99.64%: every instruction matches except the destination register of the third
@@ -924,7 +933,6 @@ void func_800A0C4C(void) {
 // reloaded base and the offset are all local-alloc quantities and gcc 2.7.2 always
 // takes the first free $v0; retail's $v1 dest needs the offset quantity to be
 // preferred, which no source shape reached.
-INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_800A0C94);
 /*
 void func_800A0C94(void) {
     FieldActor* pFieldActor;
@@ -966,8 +974,8 @@ void func_800A0C94(void) {
     pSpriteData->field_0x84 = curY;
     pActor->curYPos = curY;
 }
-
 */
+INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_800A0C94);
 
 void func_800A0D3C(void) {
     func_80076AC0(D_800AFD1C, 0, (void*)((*(s32*)(g_FieldSpriteData + 4)) + (s32)g_FieldSpriteData), 0, 0, 0x80, 1);
@@ -1012,7 +1020,11 @@ void func_800A0EB0(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer++;
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_800A0EE8);
+extern void* D_801E8670[];
+extern void func_801E8030(int modelIndex);
+
+// Screened 36 variants: best 90.55% here, cdk 85.13%, 2.6.0 90.55% - the
+// &D_800B2264 lui/addiu vs %hi/%lo shape is the gap.
 // 90.55%: dispatch and case 0 match exactly. Only case 1 differs - the original
 // materialises &D_800B2264 into a register (lui+addiu, then lw/sw off it), gcc
 // emits %hi/%lo per access and reloads the actor first. Pointer (`s32* p =
@@ -1021,10 +1033,6 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_800A0EE8);
 // Re-tried `(*(volatile s32*)&D_800B2264)--` (88.97%: the volatile form adds a
 // second address use and hoists the 0xCC load further) and -G0 (90.55%).
 /*
-extern s32 D_800B2264;
-extern void* D_801E8670[];
-extern void func_801E8030(int modelIndex);
-
 void func_800A0EE8(void) {
     int nModelIndex;
 
@@ -1044,10 +1052,12 @@ void func_800A0EE8(void) {
     D_800B00C0 = 1;
 }
 */
+INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_800A0EE8);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_800A0FD8);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_800A1364);
+// Screened 36 variants: best 84.19% here, cdk 81.67%, 2.6.0 83.64% - the RMW vs
+// `++` store order is the gap (already reordered in cc1's .s).
 // 84.19% (368 vs 368 bytes): the frame, all four calls and every load/store match.
 // The only gap is ORDER: retail emits the flags12C bitfield RMW and only then
 // reloads D_800B2264 for the `++`, with `sw D_800B2264` last; gcc shares one load
@@ -1080,6 +1090,7 @@ void func_800A1364(void) {
     D_800B2264++;
 }
 */
+INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_800A1364);
 
 void func_800A14F0(void) {
     int arg;
