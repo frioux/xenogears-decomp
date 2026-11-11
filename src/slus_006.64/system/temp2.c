@@ -102,6 +102,10 @@ typedef struct {
 // This function is in another TU than func_80024F64 due to GP Rel variables
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_800250E0);
 /*
+Un-park screen: cdk 87.38%, gcc-2.6.0 70.20%, gcc-2.7.2 70.20%, cdk -O3
+87.38%, cdk -G0 69.00%, and aspsx 2.56 scores the same as 2.67 - no compiler
+switch helps; the GP-rel split below is the whole gap. Body must keep
+s32 D_80059524; as a tentative definition (maspsx emits %gp_rel only then).
 Best 87.38%: blocked on the GP-rel split. The original object reads
 
 g_GfxWorkBuffers through %hi/%lo here (it was an extern in this function's
@@ -287,6 +291,8 @@ void func_8002541C(WorkListEntry* pTask) {
 }
 
 /*
+Un-park screen: cdk 89.57%, gcc-2.6.0 88.37%, gcc-2.7.2 88.24% - the park
+stays, and cdk is still the closest of the three.
 Best 89.57% (464 bytes against 460). cdk is the right compiler here: the same C
 scores 87.24% under gcc-2.7.2-psx, so this one is source-level. Two gaps: gcc
 sinks the `lhu` of pPrim->x0 - and the `lhu` of xOffset, which the original
@@ -556,6 +562,8 @@ void ResourceHelperGetTexCoords(MenuResourceDirectory *dir, u32 index,
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_800263E4);
 
+// Un-park screen: 81.59% under cdk (82.30% was an earlier attempt of this body),
+// 75.89% under gcc-2.6.0, 76.39% under gcc-2.7.2, unchanged by -O3/-G0/aspsx.
 // Parked: best 82.30% (816 bytes against 888). The corner fills, both clamps,
 // the uv stores and the negation blocks already come out instruction for
 // instruction; what does not match is register pressure. The original spills
@@ -693,6 +701,9 @@ s32 func_800263E4(MenuResourceDirectory* dir, u32 index, POLY_FT4* pPrims,
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_8002675C);
 /*
+Un-park screen: cdk 92.96%, gcc-2.6.0 84.08%, gcc-2.7.2 88.09%, cdk -O3
+92.96%, cdk -G0 92.96% - the park stays and cdk is right; the gap is the
+scheduler, not the compiler.
 Best 92.96% (696 bytes, same size as the original). Remaining gaps are
 allocator/scheduler only: gcc hoists the lhu of scale to just after the dirent
 count load (the original loads it after the pDirent store), so it fills the
@@ -857,6 +868,8 @@ void func_80026B9C(void) {
 
 // Queues one semi-transparent textured quad per record of the dirent.
 //
+// Un-park screen: cdk 68.00%, gcc-2.6.0 67.64%, gcc-2.7.2 67.82%, cdk -G0
+// 67.17% - no compiler switch helps; it is the GP-rel split below.
 // Best 68.00%: blocked on the same GP-rel split as func_800250E0. The original
 // object reads g_GfxCurWorkBuffer and g_GfxCurWorkBufferEnd with lui/%hi+%lo
 // here (they were externs in this function's original TU), but the matched
