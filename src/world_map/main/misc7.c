@@ -97,6 +97,11 @@ extern void func_80089128(void);
 extern void func_800976A0(void);
 extern void func_80097D64(void);
 
+// Preset screen: every body parked below was also compiled with this unit's
+// maspsx flags under gcc-2.7.2-cdk and gcc-2.6.0, and none reaches 100% (best
+// alternative 95.26, equal to its current score), so the parks are C problems
+// and not this unit's compiler. Per-function alternative scores are in the
+// notes beside each park.
 s32 func_80080900(s32 index) {
     WorldMapSlot *pSlot = &D_8009BE24[index];
 
@@ -111,6 +116,7 @@ s32 func_80080900(s32 index) {
 // `sh $v0,0xA0($at)` with no relocation), while naming D_1F8000A0 in C emits
 // %hi/%lo relocations and makes gcc keep the base in a saved register.
 // Reaching 100% therefore needs the literal 0x1F8000A0 in the source.
+// Preset screen: cdk 66.67, gcc-2.6.0 76.48.
 /*
 s32 func_80080944(s32 index) {
     WorldMapSlot *pSlot = &D_8009BE24[index];
@@ -147,6 +153,7 @@ void func_800809EC(u8 *p, s32 count, s32 a, s32 b, s32 c) {
 // between the two pos stores, gcc emits it just before them; writing the slot
 // stores in retail's emission order (x, y, unk54, unk50, unk58, z) gives this
 // shape, the x/y/z-first order gives the same 92.64%.
+// Preset screen: cdk 87.51, gcc-2.6.0 87.15.
 /*
 s32 func_80080A28(s32 index) {
     u8 *p = D_8009C620;
@@ -198,6 +205,7 @@ void func_8008106C(void) {
 // differs: retail keeps the base in $v1 and the index in $a0, gcc puts the base
 // in $v0 and reuses $a0 for the index. A pointer local restores $v1 but
 // reorders the statements (65.26%); the post-increment spelling scores 56.84%.
+// Preset screen: cdk 48.89, gcc-2.6.0 95.26.
 /*
 s32 func_80081174(s32 index) {
     D_8009BE24[index].unk50 = 0;
@@ -218,6 +226,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_800811C0);
 // the whole tail (65.71%, and 33.94% while y/z were still struct offsets).
 // Reading y/z as D_8009C5AC.y/.z scores 77.76% but emits lui/lw 4(a0)/8(a0)
 // relocations retail does not have.
+// Preset screen: cdk 76.59, gcc-2.6.0 46.47.
 /*
 s32 func_800813E8(s32 index) {
     WorldMapSlot *pSlot = &D_8009BE24[index];
@@ -262,6 +271,7 @@ void func_800816DC(WorldMapEntry *pEntry, u8 *pDst, s32 count, s32 abr) {
 // D_8009C5B0/D_8009C5B4 loads and the D_8009C620 load above the `sh 0x20`
 // store and sinks the D_8009C5AC load to its store, retail keeps statement
 // order. Locals x/y/z and a late pEntry assignment were no better.
+// Preset screen: cdk 50.54, gcc-2.6.0 58.56.
 /*
 s32 func_800817A0(s32 index) {
     WorldMapSlot *pSlot = &D_8009BE24[index];
@@ -390,6 +400,7 @@ s32 func_80081C3C(void) {
 // differences are (1) retail keeps &D_8009D158 in $s0 across the three
 // HeapAlloc calls (store and later load both go through it), gcc rematerialises
 // lui/$at for each; (2) retail materialises 9 into $s4 before 0x2C into $s3.
+// Preset screen: cdk 71.46, gcc-2.6.0 87.09.
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_80081C3C);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_80081D80);
 
@@ -457,6 +468,7 @@ s32 func_800827C8(s32 index) {
 // D_8009BD3A/D_8009BD3C and reads them back with `lh` to build the two `<< 12`
 // slot stores, while this gcc folds the read to 0 and drops the sll (which also
 // shuffles the whole tail). Same blocker as misc8's func_8008390C (84.75%).
+// Preset screen: cdk 36.73, gcc-2.6.0 40.43.
 /*
 s32 func_800827EC(s32 index) {
     WorldMapSlot *pSlot = &D_8009BE24[index];
