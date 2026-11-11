@@ -569,6 +569,8 @@ void func_8003869C(void) {
 //----------------------------------------------------------------------------------------------------------------------
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_800386C4);
 /*
+Screened under gcc-2.7.2-cdk / gcc-2.7.2 / this unit's gcc-2.6.0: 93.18 / 97.67 / 97.67 - not
+a compiler-only match; the current preset is the best of the three.
 Attempt (97.67%, 352 bytes - same size as the original). Everything matches: the switch/tree
 shape needs `case 0: break;` (with only cases 1-3 gcc pivots on 2 and the whole tree differs),
 the volume local must be shifted back into itself (`volume <<= 7/6`) so only one sll is emitted.
@@ -1034,6 +1036,8 @@ void* func_80039024(int size) {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", SoundHeapFree);
 /*
+Screened under gcc-2.7.2-cdk / gcc-2.7.2 / this unit's gcc-2.6.0: 96.62 / 96.62 / 96.62 - not
+a compiler-only match; the current preset is the best of the three.
 Attempt (96.62%, same size): every instruction is right and pBlock=s1 / pCurrent=s0
 match; the original copies the loop variable to v0 (`move v0,s0`) and iterates on v0,
 gcc keeps iterating on s0. Adding a separate loop variable or an explicit
@@ -1160,6 +1164,8 @@ void SoundSpuMemoryInitialize(void) {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", SoundSpuMemoryAllocateBlock);
 /*
+Screened under gcc-2.7.2-cdk / gcc-2.7.2 / this unit's gcc-2.6.0: 73.56 / 94.58 / 94.58 - not
+a compiler-only match; the current preset is the best of the three.
 Attempt (94.58%, same size): every instruction matches except the two callee-saved pointers:
 the original keeps the free address in s0 and the loop-carried block in s1, gcc 2.6 picks the
 reverse (pPrevBlock s0, address s1) whatever the declaration order.
@@ -1208,6 +1214,8 @@ reverse (pPrevBlock s0, address s1) whatever the declaration order.
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_800394B8);
 /*
+Screened under gcc-2.7.2-cdk / gcc-2.7.2 / this unit's gcc-2.6.0: 95.70 / 98.91 / 98.91 - not
+a compiler-only match; the current preset is the best of the three.
 Best attempt (98.91%): control flow and instruction sequence identical; the two local pairs are
 register-mirrored in both the loop and the tail - the original keeps the next-block pointer in a0
 and the loaded spuAddress in a1, gcc 2.6 puts the loaded value in a0 and the pointer in a1
@@ -1267,6 +1275,8 @@ int func_800394B8(int size) {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", SoundSpuMemoryAllocateBlockAtAddress);
 /*
+Screened under gcc-2.7.2-cdk / gcc-2.7.2 / this unit's gcc-2.6.0: 79.46 / 87.00 / 87.00 - not
+a compiler-only match; the current preset is the best of the three.
 Attempt (87.00%): the control flow matches; gcc 2.6 puts `address` in s0 and the loop-carried block
 pointer in s1, the original has them the other way round (address s1, pPrevBlock s0 - descending
 register order by reference count).
@@ -1734,6 +1744,8 @@ void func_8003A14C(s32 sedId) {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003A20C);
 /*
+Screened under gcc-2.7.2-cdk / gcc-2.7.2 / this unit's gcc-2.6.0: 80.40 / 80.40 / 84.00 - not
+a compiler-only match; the current preset is the best of the three.
 Attempt (84.00%, correct size and registers): same blocker as func_8003A344 - the
 only difference is that gcc emits the `andi a0,0xfe` / `xori a0,0x8` mask after
 the loop-preheader constants (`li s2,2`, `li s4,1`) while the original emits it
@@ -1779,6 +1791,8 @@ void func_8003A2E4(s32 id, s32 value) {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003A344);
 /*
+Screened under gcc-2.7.2-cdk / gcc-2.7.2 / this unit's gcc-2.6.0: 72.03 / 72.03 / 79.31 - not
+a compiler-only match; the current preset is the best of the three.
 Attempt (79.31%, 116 bytes - same size): every instruction matches and is in the
 original's order except that gcc emits the `andi a0,0xFE` / `xori a0,0x8` index pair
 directly before the index*0x158 multiply chain, where the original emits it first,
@@ -1834,6 +1848,8 @@ void func_8003A3B8(s32 id, s32 value, s32 frames) {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003A450);
 /*
+Screened under gcc-2.7.2-cdk / gcc-2.7.2 / this unit's gcc-2.6.0: 90.47 / 90.47 / 90.70 - not
+a compiler-only match; the current preset is the best of the three.
 Attempt (90.70%, correct size): identical to func_8003A3B8 except that gcc hoists
 the `andi a0,0xFE` / `xori a0,0x8` index pair into the loop preheader (after
 `li t0,2` / `sll a1,8`) while the original keeps them in the entry block. Same
@@ -1883,6 +1899,8 @@ void func_8003A4FC(s32 id, s32 value) {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003A55C);
 /*
+Screened under gcc-2.7.2-cdk / gcc-2.7.2 / this unit's gcc-2.6.0: 72.03 / 72.03 / 79.31 - not
+a compiler-only match; the current preset is the best of the three.
 Attempt (79.31%, correct size and registers): the only difference is that gcc
 schedules the `andi a0,0xfe` / `xori a0,0x8` pair after the loop-preheader
 constants (`li a2,2`, `sll a1,a1,8`, `li a3,0x100`) while the original emits
@@ -3062,39 +3080,7 @@ u8* func_8003D4E4(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
     return pScript + 3;
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003D53C);
-/*
-Attempt (95.62%, 100 bytes vs the original's 96): every instruction matches, including
-the store block, but gcc emits one extra `move v0,a0` at the top of the store block (the
-original gets the return-value copy for the third branch out of one copy, filled into the
-bnez delay slot). The guard has to be written as an early return of three ``&&`` terms -
-that shape is what reproduces the three delay-slot copies and the store order
-(voice_data.flags |= 0x4000 before voice_data.modeFlags |= 0x40); the logically
-equivalent single-return form ``if (!(c1) || (c2 && !c3)) { stores }`` scores 88.33%
-because it copies the return value only once, at the end. A `u8* p = pScript;` copy
-local changes nothing. The (u16) casts are needed: unk_Flags/voice_data fields are s16
-in sound.h but the original loads them with lhu.
-u8* func_8003D53C(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
-    if (((u16)pAudioManager->unk_Flags & 0x6) && ((u16)g_SoundControlFlags & 0x2000) &&
-        (pAudioElements->active_flag & 0x2)) {
-        return pScript;
-    }
-    pAudioElements->voice_data.flags |= 0x4000;
-    pAudioElements->voice_data.modeFlags |= 0x40;
-    return pScript;
-}
-*/
-/*
-Attempt (95.83%, 100 bytes; the original is 96): gcc-2.6.0 emits four `move v0,a0`
-where the original has three - one in each of the three branch delay slots plus one
-at the top of the stores block; the original's store block relies on the copies its
-callers' delay slots already made. The nested if with early returns below is the
-first two tests of the original exactly; writing the last two tests as if/else
-changes nothing.
-THE SAME C IS 100.00% / 96 BYTES UNDER gcc-2.7.2 (and 2.7.2-cdk): this is the only
-function in the unit that wants 2.7.2, and its neighbours - func_8003D2D0 (99.17%),
-func_8003D3D8 (84.79%), func_8003D438 (82.89%) - are all 2.6.0-only, so the unit
-cannot be carved at a compiler boundary here.
+// 100.00% under gcc-2.7.2 and 2.7.2-cdk, 95.83% under this unit's gcc-2.6.0 (one extra `move v0,a0`).
 u8* func_8003D53C(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     if (pAudioManager->unk_Flags & 0x6) {
         if ((g_SoundControlFlags & 0x2000) == 0) {
@@ -3109,22 +3095,6 @@ u8* func_8003D53C(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
     pAudioElements->voice_data.modeFlags |= 0x40;
     return pScript;
 }
-(Also tried: the single combined condition (the `||`/`&&` form of this test) and the
-same with `goto done` plus one trailing `return pScript`; both compile to 88.33%, 96
-bytes, with nop in the branch delay slots and a `move v0,a0` in the `jr ra` slot
-instead, and the two flag stores landing in v0/v1 rather than v1/a0. The `A && (B || C)`
-spelling compiles to the same 95.83% object as the nested if. The extra move cannot
-be removed: a0 is clobbered by the stores (`lhu a0,0x32(a2)`), so gcc must set the
-return value before them, and it refuses to share one copy across the third test's
-two edges.)
-Re-checked with the `&&` form under `try_flags.sh --gcc gcc-2.7.2-psx`: 99.79%, still
-100 bytes, so the 2.7.2 fix above does not generalise - 2.7.2 is not the answer for
-this spelling either. Also tried a `u8* pResult = pScript;` local returned from every
-path, an explicit `if/else`, and `u16 flags`/`modeFlags` locals for the read-modify-
-write: all 95.62%, 100 bytes, same extra `move v0,a0` at the store block. The extra
-instruction is reorg's, not the C's: it copies the store block's leading return-value
-move into the bnez delay slot on top of leaving it in the block.
-*/
 
 u8* SoundScriptSetVoiceFlags4000ClearMode(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     pAudioElements->voice_data.flags |= 0x4000;
@@ -3287,6 +3257,8 @@ u8* func_8003D884(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003D8B8);
 /*
+Screened under gcc-2.7.2-cdk / gcc-2.7.2 / this unit's gcc-2.6.0: 83.90 / 83.90 / 92.34 - not
+a compiler-only match; the current preset is the best of the three.
 Attempt (92.34%, same size, all instructions in the original's order except two missing
 int-to-s16 conversions): gcc elides the `sll 16`/`sra 16` pair before the velocity square
 and the one converting the divisor argument, because it can prove the sum non-negative and
@@ -3329,6 +3301,8 @@ u8* func_8003D8B8(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003D9A4);
 /*
+Screened under gcc-2.7.2-cdk / gcc-2.7.2 / this unit's gcc-2.6.0: 61.87 / 65.37 / 63.84 - not
+a compiler-only match; the current preset is the best of the three.
 Attempt (63.84%, 268 bytes vs the original's 280): the shape is right (pitch = note * abs(note)
 via the if/else, volume = velocity + velocity^2/64, the call and the envelopes[0] store order all
 line up) but gcc mirrors the callee-saved allocation: it puts pAudioElements in s2 and the
@@ -3444,6 +3418,8 @@ u8* func_8003DBE4(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003DC50);
 /*
+Screened under gcc-2.7.2-cdk / gcc-2.7.2 / this unit's gcc-2.6.0: 88.64 / 88.64 / 92.60 - not
+a compiler-only match; the current preset is the best of the three.
 Attempt (93.36%, 204 bytes, same size; ideally the register roles swap). gcc puts the running
 volume in s0 and pAudioElements in s1; the original has volume s1, pAudioElements s0 (the
 prologue save order follows). It also elides the `sll a1,16` / `sra a1,16` that converts the
@@ -3534,6 +3510,8 @@ u8* func_8003DEB4(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003DEE4);
 /*
+Screened under gcc-2.7.2-cdk / gcc-2.7.2 / this unit's gcc-2.6.0: 76.59 / 76.59 / 76.59 - not
+a compiler-only match; the current preset is the best of the three.
 Attempt (76.59%, 80 bytes vs the original's 88): the shape is now exact - the raw
 unk_0x74 load, then pScript[1], then pScript[0], the shift pair as its own statement,
 the u16 frames used as the branch test (andi), delta = target - current first in the
@@ -3587,6 +3565,8 @@ u8* func_8003DF3C(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003DF78);
 /*
+Screened under gcc-2.7.2-cdk / gcc-2.7.2 / this unit's gcc-2.6.0: 90.43 / 90.43 / 94.40 - not
+a compiler-only match; the current preset is the best of the three.
 Attempt (94.40%, 204 bytes vs the original's 208): every instruction is right except
 two deltas. (1) gcc elides the sll 16 / sra 16 pair that converts the divisor argument
 to s16, because it can prove the sum is in range (velocity is lbu, so velocity plus
@@ -3627,6 +3607,8 @@ u8* func_8003DF78(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003E04C);
 /*
+Screened under gcc-2.7.2-cdk / gcc-2.7.2 / this unit's gcc-2.6.0: 57.67 / 67.11 / 67.52 - not
+a compiler-only match; the current preset is the best of the three.
 Attempt (67.52%, 232 bytes vs the original's 240): every store and the sltiu/sll
 flag computation are right; gcc gives the AudioElement s2 and volume s1 (original:
 element s1, volume s2), re-uses the velocity copy for the `addu` that forms volume so
@@ -3701,6 +3683,8 @@ u8* func_8003E180(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003E1F8);
 /*
+Screened under gcc-2.7.2-cdk / gcc-2.7.2 / this unit's gcc-2.6.0: 82.97 / 84.21 / 83.37 - not
+a compiler-only match; the current preset is the best of the three.
 Attempt (82.97%, same size): every instruction is right except that gcc gives
 pScript s2 and the AudioEnvelope s1 (original: pScript s1, envelope s2) and re-uses
 the pScript[0] load for the sum where the original reloads it into a1 and copies the
@@ -3760,6 +3744,8 @@ u8* SoundScriptNop5(u8* pScript, AudioManager* pAudioManager, AudioElement* pAud
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003E360);
 /*
+Screened under gcc-2.7.2-cdk / gcc-2.7.2 / this unit's gcc-2.6.0: 94.84 / 94.84 / 94.84 - not
+a compiler-only match; the current preset is the best of the three.
 Attempt (94.84%, same size): the s-register assignment is RIGHT (pScript s1,
 pAudioElements s2, envelope s0, index s3) because pScript is incremented inside the
 body (`pScript += 1;` + `return pScript;`) instead of `return pScript + 1;`. Only
@@ -3852,6 +3838,8 @@ u8* func_8003E54C(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003E5BC);
 /*
+Screened under gcc-2.7.2-cdk / gcc-2.7.2 / this unit's gcc-2.6.0: 32.12 / 32.12 / 32.33 - not
+a compiler-only match; the current preset is the best of the three.
 Attempt (32.33%, 196 bytes vs the original's 200): startAddress/loopAddress now match exactly -
 the shared shift needs a `u32 offset = pTone->sampleOffset * 8;` local, otherwise gcc folds
 `a*8 + b*8` into `(a+b)*8`. Remaining delta: gcc keeps unkC in v1 where the original uses a2
@@ -4020,6 +4008,8 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003E900);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003EB5C);
 /*
+Screened under gcc-2.7.2-cdk / gcc-2.7.2 / this unit's gcc-2.6.0: 81.05 / 81.05 / 85.11 - not
+a compiler-only match; the current preset is the best of the three.
 Attempt (85.11%, same size): the loop body and the key-off tail are instruction for
 instruction right. gcc picks a different register for the loop-carried voice mask
 (a1/v0 here, v1 in the original) and therefore a different s/ptr register, and it
