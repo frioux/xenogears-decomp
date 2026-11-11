@@ -2,28 +2,25 @@
 #include "system/memory.h"
 
 /*
- * This unit's retail object materialises absolute symbol addresses into
- * allocated registers (lui $v0 / $v1 / $s0 ...) for every access, and it was
- * assembled with li left unexpanded. Our Default preset does neither: gcc emits
- * the absolute form and GNU as expands it with $at, and maspsx expands
- * `li $a1,1` to `ori` where retail has `addiu`. So functions whose symbol
- * address is used only once cannot match under the Default preset, and any C
- * using a small positive constant is off by one instruction. Confirmed with
- * try_flags.sh: gcc 2.6.0 / 2.7.2-cdk / -O1 / -O3 / -G0 / -mcpu=r8000 all
- * score the same.
+ * This unit's retail object materialises absolute symbol addresses into allocated
+ * registers (lui $v0 / $v1 / $s0 ...) for every access, and it was assembled with
+ * li left unexpanded (the XenoBattleTail preset's --dont-expand-li). Our assembler
+ * always expands a one-shot absolute load/store's address into $at, so such a
+ * function matches under no preset: 17 of the 21 stubs here are that class
+ * (atfree.py). Re-checked with try_flags.sh --all: gcc 2.6.0 and 2.7.2-cdk score
+ * identically to the unit's own preset.
  */
 
 extern int ArchiveDataSync(void);
+extern u8 D_800D2FDC;
+extern void *D_800C3E1C;
+extern s32 D_80059464;
+extern void *D_800C3618;
 extern void func_800BE790(void);
 extern void func_800245D8(void *, s32);
 extern void func_80021BF8(void *, void *);
 extern void func_8002A498(s32);
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B73EC);
-/*
- * 100.00% once maspsx runs with --aspsx-version=2.56 (li not expanded); under
- * the Default preset the only difference is `ori $a1,$zero,1` vs `addiu`.
- *   100.00%
 void func_800B73EC(void) {
     u8 *pWork = HeapAlloc(0x10F7C, 1);
 
@@ -31,30 +28,28 @@ void func_800B73EC(void) {
     *(u8 **)(pWork + 0x20) = pWork;
     func_800B7424(pWork);
 }
-*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B7424);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B7870);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B7C28);
+// 45.00% under every preset tried (unit preset, gcc 2.6.0, gcc 2.7.2-cdk):
+// retail keeps the address in $v0 and the store in the jr delay slot, while our
+// assembler always expands this one-shot absolute store with $at (atfree.py).
 /*
- * 45.00%: retail keeps the address in $v0 and the store in the jr delay slot,
- * we get `lui $at / sb $zero,0($at) / jr` because gcc emits the absolute form.
- *   45.00%
-extern u8 D_800D2FDC;
 void func_800B7C28(void) {
     D_800D2FDC = 0;
 }
 */
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B7C28);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B7C34);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B7E94);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B8048);
+// 45.00% under every preset tried (unit preset, gcc 2.6.0, gcc 2.7.2-cdk): the
+// same at-free one-shot absolute store as func_800B7C28, retail is lui $v0 / jr /
+// sw $a0 and we get $at.
 /*
- * 45.00%, same cause: retail is `lui $v0,%hi(D_800C3E1C) / jr / sw $a0,%lo($v0)`.
- *   45.00%
-extern void *D_800C3E1C;
 void func_800B8048(void *pArg) {
     D_800C3E1C = pArg;
 }
 */
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B8048);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B8054);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B8068);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B8098);
@@ -77,14 +72,10 @@ void func_800B89F4(void) {
 }
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B89FC);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B8D04);
+// 81.63% under every preset tried (unit preset, gcc 2.6.0, gcc 2.7.2-cdk): retail
+// CSEs both symbol addresses into $s0 and stores in the delay slot; the one-shot
+// D_80059464 load goes through $at here (atfree.py).
 /*
- * 81.63%: retail CSEs both symbol addresses into $s0; gcc emits the absolute
- * form twice, so the load gets its destination as scratch and the store gets
- * $at.
- *   81.63%
-extern s32 D_80059464;
-extern void *D_800C3618;
 void func_800B8D04(void) {
     func_800B8354();
     func_800BF9EC();
@@ -98,6 +89,7 @@ void func_800B8D04(void) {
     }
 }
 */
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B8D04);
 
 void func_800B8D7C(void) {
     func_8002A498(0);
