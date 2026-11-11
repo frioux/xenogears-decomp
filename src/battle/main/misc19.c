@@ -80,8 +80,10 @@ u16 func_8009A1AC(u8 arg0) {
     }
     return ret;
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009A258);
-/* Best attempt: 92.90%. Structure and instruction multiset identical (the
+// best 92.90% (2.7.2-psx and cdk); 96.94% under gcc-2.6.0. The row-offset chain
+// goes in $v0 where retail has $v1, which cascades to the base pointer and the u8 sum.
+/*
+Best attempt: 92.90%. Structure and instruction multiset identical (the
    addiu 0x1058 of the row offset, the two strength-reduced multiplies and the
    clamp all line up); the only difference is that gcc puts the row-offset chain
    in $v0 and the arg1 chain in $v1 where the original has them in $v1/$v0, which
@@ -101,6 +103,7 @@ u8 func_8009A258(u8 arg0, u8 arg1) {
     return v;
 }
 */
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009A258);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009A2D4);
 
 u8 func_8009A7B8(u8 arg0) {
@@ -124,7 +127,10 @@ s32 func_8009A7E4(u8 arg0) {
     return ret;
 }
 
-/* Best attempt: 76.74% (round 18, first attempt on this stub). The 4-way
+// best 84.95% under gcc-2.6.0 (76.74% on 2.7.2, 72.68% cdk): retail folds each
+// g_GameState store address into the relocation, gcc CSEs one register for all four.
+/*
+Best attempt: 76.74% (round 18, first attempt on this stub). The 4-way
    compare chain, the `andi/sltiu` loop and every offset/mask are right; what is
    wrong is the g_GameState addressing. Retail materialises each store address
    fresh as `lui at,%hi(g_GameState+0x500); addu at,at,idx; sb %lo(at)` with the
@@ -178,14 +184,8 @@ void func_8009A854(u8 arg0, u8 arg1) {
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009A854);
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009A9D0);
-/* Best attempt: 99.66%. Only difference: the mfhi temp of the `% 100` expansion
-   lands in $a1 instead of the original's $a0 (allocator tie-break, 2 insns).
-   Tried: direct `rand() % 100 < 50`, a named `s32 r = rand()` before the store
-   (74.24%: forces p into $s0), a `s32 ret` + `ret = 1` tail (85.14%, $s0),
-   a named `s32 m = r % 100`, `r % 100 <= 49`, a `u8* p = D_800C34B0` local,
-   `int r; r = rand();` between the store and the test, and the -G0 /
-   2.7.2-cdk presets -- all 99.66%.
+// 100.00% only under gcc-2.6.0 (99.66% on the unit's 2.7.2): the mfhi temp of the
+// `% 100` expansion lands in $a0 there, in $a1 under 2.7.2.
 s32 func_8009A9D0(void) {
     u8* p = D_800C34B0;
     int r;
@@ -198,7 +198,6 @@ s32 func_8009A9D0(void) {
     }
     return 0;
 }
-*/
 
 
 void func_8009AA44(u8 arg0) {
@@ -226,8 +225,10 @@ u8 func_8009AB00(u8 arg0) {
     return flags;
 }
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009AB38);
-/* Best attempt: 96.91%, identical size (272 bytes) and identical instruction
+// best 96.91% (2.7.2-psx and cdk); 96.84% under gcc-2.6.0. One allocator
+// permutation at the second row recomputation swaps $v0/$v1 in both store tails.
+/*
+Best attempt: 96.91%, identical size (272 bytes) and identical instruction
    multiset/order. The only difference is one allocator permutation at the
    second row recomputation: the original re-masks arg0 into $v1 and puts the
    D_800C34B0 base in $a0 (and the 3*arg0 partial in $a1), gcc masks arg0 in
@@ -270,8 +271,8 @@ void func_8009AB38(u8 arg0) {
         *(u16*)(p + 0x500) = 1;
     }
 }
-
 */
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009AB38);
 void func_8009AC48(u8 arg0, u8 arg1) {
     u8* p;
     u8* r;
@@ -321,17 +322,8 @@ void func_8009AC48(u8 arg0, u8 arg1) {
         *(u16*)(r + 0x88) &= 0xFBFF;
     }
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009ADA0);
-/* Best attempt: 88.68% (89.14% with the four quotients written inline as
-   `(u16)(*(u16*)(p + 0x4E) / 20)` instead of the shared `u16 val` local), 2 insns too big (0x15C vs 0x164 at the tail). The slot
-   layout (0x4E/20 then 0x52/20 then 0x52/20, then *arg1 = 0, 0xDE/50, and
-   += 0xDE/50) and every mask/offset match. Two differences, both scheduling:
-   the original's `lui v1,0xCCCCCCCD` of each `/20` is the FIRST insn of the
-   guarded block and lands in the preceding branch's delay slot, while gcc emits
-   `lhu v1` first and keeps the lui second, so reorg fills the slot with a nop
-   (+1 insn); and gcc's mfhi lands in $a3 rather than $v0. Tried: inline
-   `(u16)(x / 20)` casts, one shared `u16 val` local for all four quotients,
-   both give the same order.
+// 100.00% only under gcc-2.6.0 (88.68% on 2.7.2): 2.6.0 puts each `/20` mul by
+// 0xCCCCCCCD first in the guarded block and mfhi in $v0, which is retail's order.
 s32 func_8009ADA0(u8 arg0, u32* arg1) {
     u8* p = arg0 * 0x170 + (u32)D_800C34B0;
     u16 f = *(u16*)(p + 0x7C);
@@ -371,8 +363,10 @@ s32 func_8009ADA0(u8 arg0, u32* arg1) {
     }
     return ret;
 }
-*/INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009AEFC);
-/* Best attempt: 88.27%. Everything matches except the 3..11 loop: the original
+// best 90.27% (2.7.2-psx and gcc-2.6.0); 89.18% cdk. loop.c hoists the
+// D_800CCD68 base out of the 3..11 loop; retail re-forms it at both references.
+/*
+Best attempt: 88.27%. Everything matches except the 3..11 loop: the original
    re-forms `lui at,%hi(D_800CCD68); addu at,at,v0` at BOTH memory references,
    while gcc hoists the symbol base into a register before the loop (loop.c moves
    the invariant), which then CSEs the address and drops 7 insns. Tried: plain
@@ -406,15 +400,17 @@ void func_8009AEFC(u8 arg0) {
     }
 }
 */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009AFD8);
-/* Best attempt: 99.33%, same size (192 bytes). Jump table is
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009AEFC);
+// best 99.33% (2.7.2-psx and gcc-2.6.0); 74.02% cdk. gcc duplicates the shared
+// last decrement into the 7..19 block instead of one block cases 0-3 jump to.
+/*
+Best attempt: 99.33%, same size (192 bytes). Jump table is
    case 0-3 -> shared tail, 4-5 -> return, 6 -> tail of the 7..19 block,
    7..19 -> the block that decrements gearPartsIds[0x6C + e00[0x6F]]. The only
    difference is that gcc duplicates the shared last decrement into the
    7..19 block instead of keeping one block that cases 0-3 jump to. `u8 idx`
    (93.92%) gives an extra andi; `s32 idx` is required.
-*/
-/* PARKED ATTEMPT (99.33%)
+ PARKED ATTEMPT (99.33%)
 void func_8009AFD8(void) {
     u8 sel = *(u8*)((u8*)D_800C34B0 + 0x5FC2);
     s32 idx;
@@ -454,8 +450,8 @@ void func_8009AFD8(void) {
         g_GameState.gearPartsIds[0x6C + idx]--;
     }
 }
-
 */
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009AFD8);
 
 void func_8009B098(void) {
     u8 i;
@@ -490,10 +486,10 @@ void func_8009B104(u8 arg0, u8* arg1) {
 }
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009B1E4);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009B46C);
-
-
-/* Best attempt: 93.87%. Every instruction from the `p[0x56] == 3` test onward
+// best 94.23% under gcc-2.6.0 (93.87% on 2.7.2, 94.10% cdk): the D_800CCE42
+// base is hoisted out of the loop where retail re-forms lui/addiu per reference.
+/*
+Best attempt: 93.87%. Every instruction from the `p[0x56] == 3` test onward
    matches; the only difference is the D_800CCE42 access. The original re-forms
    `lui at,%hi(D_800CCE42); addu at,at,idx; lbu %lo(at)` at BOTH references,
    while gcc's loop.c hoists the symbol base into a register before the loop
@@ -573,10 +569,13 @@ void func_8009B46C(u16* arg0) {
     }
 }
 */
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009B46C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009B684);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009BAC4);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009BD94);
-/* Best attempt: matches every instruction up to the last 5, which are an
+// best 86.33% under gcc-2.6.0 (83.67% on 2.7.2 and cdk): the index pseudo lands
+// in $v0 where retail has $v1, so the store and mfhi registers swap.
+/*
+Best attempt: matches every instruction up to the last 5, which are an
    allocator permutation (index pseudo in $v0 vs the original's $v1, so the store
    goes through $v0 and mfhi lands in $a1 vs $v0). objdiff scores the earlier
    all-unsigned spelling of this expression 97.33% (it likes its instruction
@@ -593,8 +592,12 @@ void func_8009BD94(void) {
         (u32)(D_800C3DFC[0x11] * *(s32*)(D_800D2DC8 + 0x64)) / 20;
 }
 */
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009BD94);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009BE0C);
-/* Best attempt: 97.78% (the `(u8*)idx + (u32)(base + 0xA4)` spelling added in
+// best 99.31% under cdk (97.78% on 2.7.2 and 2.6.0): gcc reassociates
+// base+0xA4+idx into base+(idx+0xA4), off the index register not the base.
+/*
+Best attempt: 97.78% (the `(u8*)idx + (u32)(base + 0xA4)` spelling added in
    round 18 still folds to `base + (idx + 0xA4)`, the wrong direction, and a
    `pTimerBase` local drops to 69.53%). Instruction multiset and all offsets match; the only
    difference is that gcc reassociates `base + 0xA4 + idx` into
@@ -605,9 +608,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009BE0C);
    but reorders everything and drops to 69.53%. Note `s32 flag = ... & 0x400;
    ret = flag != 0;` is required: the direct `(x & 0x400) != 0` becomes
    srl/andi instead of the original's andi/sltu.
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009C050);
-/* PARKED (97.78%)
+ PARKED (97.78%)
 u8 func_8009C050(u8 arg0) {
     s32 idx = arg0 * 0x170;
     u8* base = D_800CCCE8;
@@ -628,6 +629,7 @@ u8 func_8009C050(u8 arg0) {
     return ret;
 }
 */
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009C050);
 void func_8009C0E0(u8 arg0) {
     s32 off = arg0 * 0x170;
 
