@@ -150,13 +150,11 @@ build_variables = {
 paths = [
     "battle/main/misc26.",
     "battle/main/misc27_psx.",
-    "battle/main/misc28.",
     "battle/main/misc29.",
     "battle/main/misc30.",
     "battle/main/misc31.",
     "battle/main/misc32.",
     "battle/main/misc33.",
-    "battle/main/misc34.",
     "battle/main/misc35."
 ]
 
@@ -299,4 +297,12 @@ build_variables = {
     gcc = "gcc-2.7.2-cdk-psx",
     maspsx_flags = "--dont-expand-li --use-comm-section --run-assembler"
 }
-paths = [ "battle/main/misc27.", "battle/main/misc27_b." ]
+# battle/main/misc28 and misc34 are uniformly cdk as well (screened with
+# tools/scripts/screen_unit.sh: every C function in both units is 100.0 under
+# 2.7.2-cdk, and their parked bodies are 100.0 there against 63-99% under 2.7.2).
+paths = [
+    "battle/main/misc27.",
+    "battle/main/misc27_b.",
+    "battle/main/misc28.",
+    "battle/main/misc34."
+]

@@ -28,10 +28,6 @@ extern void func_800223B0(u8 *pActor, s16 arg1);
 extern void func_80021B04(SVECTOR *pVector, s16 x, s16 y, s16 z);
 extern void func_801FC53C(void *pArg, s32 arg1, s32 arg2, s32 arg3, s32 arg4, s32 arg5, s32 arg6);
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc28", func_800B63F0);
-/* best 100.0% under gcc 2.7.2-cdk, 77.22% under the unit preset.
-   retail passes the three zero args from one register
-   (li a1,0; move a2,a1; move a3,a1) where gcc emits a separate li per arg.
 void func_800B63F0(s32 arg0, u8 *p) {
     s32 pad[3];
     u8 *pData;
@@ -42,15 +38,9 @@ void func_800B63F0(s32 arg0, u8 *p) {
     pad[2] = 0;
     func_8002DDE4(pData, 0, 0, 0);
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc28", func_800B6438);
-/* best 100.0% under gcc 2.7.2-cdk, 63.64% under the unit preset.
-   retail puts the `lui a1,%hi(D_80025A88)` of the callback address
-   before the `sw ra` frame store; gcc emits it after the pointer load.
 void func_800B6438(u8 *p) {
     WorkListSetTaskCallback((u8 *)*(u32 *)(p + 0x6C) + 0x1C, D_80025A88);
 }
-*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc28", func_800B6464);
 /* best 59.79%: retail loads both packet bytes before any arithmetic and
    copies the packet pointer to t1 in the first slot; gcc reuses a0 for the
@@ -107,11 +97,6 @@ void func_800B6518(u8 *pActor) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc28", func_800B65B0);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc28", func_800B6808);
-/* best 100.0% under gcc 2.7.2-cdk, 99.93% under the unit preset: the
-   whole body is identical except the third zero argument, retail
-   shares one zero register (move a2,zero; move a3,a2).  The
-   store to 0x32 belongs before the func_80021B04 call, not after.
 void func_800B6808(u8 *p) {
     u16 rot[3];
     VECTOR diff;
@@ -139,7 +124,6 @@ void func_800B6808(u8 *p) {
     *(s32 *)(p + 0x10) = out.vy << 7;
     *(s32 *)(p + 0x14) = out.vz << 7;
 }
-*/
 void func_800B6930(u32 *pOut, s8 *p) {
     p += (p[1] << 8) | (u8)p[0];
     pOut[0] = ((p[1] << 8) | (u8)p[0]) << 16;
@@ -176,11 +160,6 @@ void func_800B6A50(u8 *p) {
     *(u32 *)(p + 0x10) = *(u32 *)(pSrc + 0x10);
     *(u32 *)(p + 0x14) = *(u32 *)(pSrc + 0x14);
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc28", func_800B6A7C);
-/* PRESET: the body below is 100.0 under gcc 2.7.2-cdk and 99.06 under the unit
-   preset (XenoBattleTail, gcc 2.7.2-psx); the only difference is which saved
-   register holds pActor and x2.  try_flags.sh scores func_800B6CEC, 6DC0,
-   6930 and 69E4 the same under both compilers, so this unit may be a cdk unit.
 void func_800B6A7C(u8 *pActor, s8 *pArg) {
     s32 x2;
     s8 *p;
@@ -203,7 +182,6 @@ void func_800B6A7C(u8 *pActor, s8 *pArg) {
     *(u32 *)(*(u32 *)(pActor + 0x20) + 0x2C) = 0;
     *(u32 *)(*(u32 *)(pActor + 0x20) + 0x30) = 0;
 }
-*/
 void func_800B6B98(u8 *pArg, s8 *p) {
     p += (p[1] << 8) | (u8)p[0];
     func_801FC53C(pArg, (u8)p[0] << 4, (u8)p[1], p[2] << 3, (u8)p[3] << 3, p[4] << 3, (u8)p[5]);
@@ -263,9 +241,6 @@ void func_800B6DC0(u8 *p) {
     *(u8 *)(*(u32 *)(p + 0x20) + 0x3C) = 0;
     *(u8 *)(*(u32 *)(p + 0x20) + 0x3D) = 0;
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc28", func_800B6E84);
-/* best 100.0% under gcc 2.7.2-cdk, 99.85% under the unit preset: only
-   the second zero argument differs - retail copies a1 into a2.
 void func_800B6E84(u8 *pActor, s8 *p) {
     SVECTOR rotation;
     MATRIX mtx;
@@ -282,7 +257,6 @@ void func_800B6E84(u8 *pActor, s8 *p) {
     *(s32 *)(pActor + 0x10) = vec.vy;
     *(s32 *)(pActor + 0x14) = vec.vz;
 }
-*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc28", func_800B6F0C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc28", func_800B7134);
 /* best 65.36%: retail stores D_800C3CB4 through a register base
@@ -303,11 +277,6 @@ void func_800B7364(u8 *p) {
     TimerWorkListRemoveTask(p);
     func_80025180(p);
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc28", func_800B73A0);
-/* best 100.0% under gcc 2.7.2-cdk, 78.95% under the unit preset.
-   same instructions, only the position of `move a1,zero` and the
-   `lui a3,%hi(func_800B7134)` differ.
 void func_800B73A0(void) {
     func_800B7424(WorkListsAddTasks(0x10F7C, 0, func_800B6F0C, func_800B7134, func_800B7364));
 }
-*/

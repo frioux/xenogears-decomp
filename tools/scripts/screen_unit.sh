@@ -26,6 +26,10 @@ PY
 )
 [ -n "$funcs" ] || { echo "no C functions in src/$unit.c" >&2; exit 1; }
 printf '%s\n' "$funcs" | while read -r f; do
-    pct=$(tools/scripts/try_flags.sh "$unit" "$f" "$@" 2>/dev/null | tail -1 | awk '{print $NF}') || true
+    for try in 1 2 3; do
+        pct=$(tools/scripts/try_flags.sh "$unit" "$f" "$@" </dev/null 2>/dev/null | tail -1 | awk '{print $NF}') || true
+        [ "$pct" = compile-failed ] || break
+        sleep 3   # try_flags fails transiently under container churn; re-run the row
+    done
     printf '%-34s %s\n' "$f" "${pct:-compile-failed}"
 done

@@ -22,16 +22,13 @@ extern void TimerWorkListSetTaskCallback(void *pTask, void *pCallback);
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800BF4F0);
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800BF5E8);
-// 55.00%: retail keeps the address in one register and reuses it for the load
-// and the store (lui $v1; lw $v0,%lo($v1); sw $v0,%lo($v1)). gcc emits the bare
-// `sw $2,D_800C3CE8` and maspsx expands it with $at, so the store cannot reuse
-// the address register. Not affected by --dont-expand-li (XenoBattleTail).
+// 55.00%: our assembler picks $at where retail picked a free register (atfree).
 /*
 void func_800BF5E8(void) {
     D_800C3CE8++;
 }
 */
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800BF5E8);
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800BF600);
 
@@ -49,14 +46,13 @@ s32 func_800BF720(void) {
     return D_800D2D68 != 0;
 }
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800BF730);
-// 45.00%: same maspsx store-expansion wall as func_800BF5E8 - retail emits
-// `lui $v0` itself and puts the `sw` in the jr delay slot.
+// 45.00%: our assembler picks $at where retail picked a free register (atfree).
 /*
 void func_800BF730(s32 arg0) {
     D_800C3628 = arg0;
 }
 */
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800BF730);
 
 void func_800BF73C(u8 *pArg) {
     u8 *pTask;
@@ -73,13 +69,6 @@ void func_800BF73C(u8 *pArg) {
     }
 }
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800BF7C8);
-// 100.00% under gcc-2.7.2-cdk-psx, 92.97% under the unit's gcc-2.7.2: the only
-// difference is the callback argument order, i.e. reorg stealing the
-// `addiu a1,%lo(func_800BF73C)` into the jal delay slot, which 2.7.2 cannot do
-// because it emits the address as a single `la`. Same symptom as misc27's
-// func_800B5924; every function matched in this unit stays 100.00% under cdk.
-/*
 void func_800BF7C8(u8 *pActor, s32 arg1, s32 arg2) {
     u8 *pTask;
 
@@ -92,15 +81,8 @@ void func_800BF7C8(u8 *pActor, s32 arg1, s32 arg2) {
     *(s32*)(pTask + 0x28) = arg1;
     *(u32*)(pActor + 0xAC) |= 0x20;
 }
-*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800BF85C);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800BF8CC);
-// 92.21% under gcc-2.7.2-cdk-psx, 76.59% under the unit's 2.7.2, and the shape
-// below under both: the instruction multiset matches and only the index/pointer
-// registers are swapped (retail v1 = index, a1 = pointer; gcc a1/v1 the other
-// way round) - the same allocator tie as func_800BF954. A `for (i = 0; i <
-// D_800D3678; i++)` with the global read in the condition does NOT invert to
-// retail's `beqz` guard + `bne` back edge, so the count has to be a local.
+// 92.21% under gcc-2.7.2-cdk-psx (76.59 under 2.7.2): instruction multiset\n// matches, only the index/pointer registers are swapped. Not a preset question.
 /*
 void func_800BF8CC(u8 *pActor) {
     s32 count;
@@ -124,11 +106,7 @@ void func_800BF8CC(u8 *pActor) {
     }
 }
 */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800BF954);
-// 96.76%: identical apart from an allocator tie - retail keeps the index in
-// $a1 and the advancing pointer in $v1, gcc 2.7.2 swaps them (four source
-// shapes tried: while/for, indexed/deref, decl order, split increments).
-/*
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800BF8CC);
 s32 func_800BF954(s32 arg0) {
     s16 count = D_800D3678;
     s32 i = 0;
@@ -144,9 +122,7 @@ s32 func_800BF954(s32 arg0) {
     }
     return i;
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800BF998);
-// Untested (the round ended before the preset fix landed).
+// 79.76%: frame differs (gcc reserves an extra slot); allocator tie.
 /*
 void func_800BF998(void) {
     s16 first = D_800D2D4C + 1;
@@ -159,6 +135,7 @@ void func_800BF998(void) {
     }
 }
 */
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800BF998);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800BF9EC);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800BFA9C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800BFBA0);
