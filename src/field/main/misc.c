@@ -470,12 +470,19 @@ void func_800883D4(void) {
 
 extern FieldScriptGlobalS16 D_800B236C;
 
+// 100.0% under gcc 2.6.0-psx, 78.75% under this unit's 2.7.2: it needs a
+// per-file preset, and this unit cannot be split yet - it declares several names
+// twice with different types mid-file (PartyDataChunk, FieldRandomValues), so
+// copying the typedefs into a new TU does not compile.
+/*
 void func_8008848C(void) {
     int value = SCRIPT_READ_U8_REL(1);
 
     g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
     D_800B236C.value = value ^ 1;
 }
+*/
+INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008848C);
 
 extern FieldScriptGlobalS16 D_800B21AC;
 

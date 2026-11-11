@@ -191,6 +191,9 @@ void func_8009382C(u8 arg0, u8 arg1) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_8009382C);
+// 100.0% under gcc 2.6.0-psx (99.81/99.76/99.90 under this unit's 2.7.2): this
+// function wants a 2.6.0 TU of its own; the unit as a whole is a 2.7.2 unit.
+/*
 void func_800939CC(u8 arg0, u8 arg1) {
     u16 tbl[4];
     s32 o;
@@ -214,6 +217,8 @@ void func_800939CC(u8 arg0, u8 arg1) {
         (*(u8 **)(D_800C3EA4 + 0xA230))[0x66B] = 0;
     }
 }
+*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_800939CC);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80093B08);
 void func_8009413C(u8 arg0, u8 arg1) {
     if (D_800D2D24[arg0] == 4) {
@@ -300,6 +305,9 @@ void func_80094D24(void) {
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80094D24);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80094EE4);
+// 100.0% under gcc 2.6.0-psx (99.81/99.76/99.90 under this unit's 2.7.2): this
+// function wants a 2.6.0 TU of its own; the unit as a whole is a 2.7.2 unit.
+/*
 void func_80095690(void) {
     u8 *p = D_800C3E00;
     u8 *q = D_800C3DFC;
@@ -325,6 +333,8 @@ void func_80095690(void) {
     *(u8 *)(D_800C34B0 + D_800C3E50 + 0x5FA0) = 2;
     *(s32 *)(D_800C3E50 * 4 + D_800C34B0 + 0x5F6C) = v;
 }
+*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80095690);
 /* 95.00% (this shape): instruction multiset identical; gcc emits the sb's
    `li 2` before the five `sh zero` stores (the original keeps it after), and
    picks v1/a1 for the p/index pair where the original has v0/v1, which also
@@ -359,6 +369,9 @@ void func_800957D8(void) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_800957D8);
+// 100.0% under gcc 2.6.0-psx (99.81/99.76/99.90 under this unit's 2.7.2): this
+// function wants a 2.6.0 TU of its own; the unit as a whole is a 2.7.2 unit.
+/*
 void func_800958D8(void) {
     if (rand() % 100 > D_800C3DFC[0x1C]) {
         return;
@@ -386,3 +399,5 @@ void func_800958D8(void) {
     }
     D_800C34B0[0x5FC7] = 0x3A;
 }
+*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_800958D8);

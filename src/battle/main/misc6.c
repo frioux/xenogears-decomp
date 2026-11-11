@@ -68,24 +68,45 @@ void func_8007AD24(u8 **p, u8 index) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc6", func_8007AD24);
+// 100.0% under gcc 2.7.2-cdk, 97.x under this unit's 2.7.2: the whole run of
+// three functions (AD6C, ADB0, ADF4) wants a cdk TU. Splitting it needs
+// tools/scripts/split_unit.py, whose chunking still cuts park blocks - finish that
+// first (see reports/TRACKER.md, session 7).
+/*
 void func_8007AD6C(u8 **p, u8 index) {
     u16 *pField = (u16 *)(D_800D3420 + index * 0x40);
     u8 *pArgs = *p;
 
     pField[pArgs[1]] &= pArgs[2] + (pArgs[3] << 8);
 }
+*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc6", func_8007AD6C);
+// 100.0% under gcc 2.7.2-cdk, 97.x under this unit's 2.7.2: the whole run of
+// three functions (AD6C, ADB0, ADF4) wants a cdk TU. Splitting it needs
+// tools/scripts/split_unit.py, whose chunking still cuts park blocks - finish that
+// first (see reports/TRACKER.md, session 7).
+/*
 void func_8007ADB0(u8 **p, u8 index) {
     u16 *pField = (u16 *)(D_800D3420 + index * 0x40);
     u8 *pArgs = *p;
 
     pField[pArgs[1]] |= pArgs[2] + (pArgs[3] << 8);
 }
+*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc6", func_8007ADB0);
+// 100.0% under gcc 2.7.2-cdk, 97.x under this unit's 2.7.2: the whole run of
+// three functions (AD6C, ADB0, ADF4) wants a cdk TU. Splitting it needs
+// tools/scripts/split_unit.py, whose chunking still cuts park blocks - finish that
+// first (see reports/TRACKER.md, session 7).
+/*
 void func_8007ADF4(u8 **p, u8 index) {
     u16 *pField = (u16 *)(D_800D3420 + index * 0x40);
     u8 *pArgs = *p;
 
     pField[pArgs[1]] ^= pArgs[2] + (pArgs[3] << 8);
 }
+*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc6", func_8007ADF4);
 // best 93.33% under every compiler: retail keeps *p in $a0 and copies the sum to $v1
 // before slti, gcc renames *p to $a2 and tests the sum in place.
 /*
@@ -116,6 +137,9 @@ void func_8007AE98(u8 **p, u8 index) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc6", func_8007AE98);
+// 100.0% under gcc 2.6.0-psx, 98.52% under 2.7.2-cdk and 96.5% under 2.7.2: needs a
+// 2.6.0 TU of its own.
+/*
 void func_8007AEF0(u8 **p, u8 index) {
     u8 *pTable = D_800D3430 + index * 0x40;
     u8 *pArgs = *p;
@@ -126,6 +150,8 @@ void func_8007AEF0(u8 **p, u8 index) {
     }
     pTable[pArgs[3]] = value;
 }
+*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc6", func_8007AEF0);
 void func_8007AF5C(u8 **p, u8 index) {
     u8 *pTable = D_800D3430 + index * 0x40;
     u8 *pArgs = *p;

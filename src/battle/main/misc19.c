@@ -186,6 +186,9 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009A854);
 
 // 100.00% only under gcc-2.6.0 (99.66% on the unit's 2.7.2): the mfhi temp of the
 // `% 100` expansion lands in $a0 there, in $a1 under 2.7.2.
+// links 2 bytes wrong: objdiff-clean bodies can still differ from retail (the
+// `r % 100` division sequence is the suspect; try maspsx --expand-div for the unit).
+/*
 s32 func_8009A9D0(void) {
     u8* p = D_800C34B0;
     int r;
@@ -198,6 +201,8 @@ s32 func_8009A9D0(void) {
     }
     return 0;
 }
+*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009A9D0);
 
 
 void func_8009AA44(u8 arg0) {
@@ -324,6 +329,9 @@ void func_8009AC48(u8 arg0, u8 arg1) {
 }
 // 100.00% only under gcc-2.6.0 (88.68% on 2.7.2): 2.6.0 puts each `/20` mul by
 // 0xCCCCCCCD first in the guarded block and mfhi in $v0, which is retail's order.
+// 0x164 bytes against retail's 0x15c: the body is 8 bytes too long, so it cannot
+// be converted even if it diffs clean (see the size check in AGENTS.md).
+/*
 s32 func_8009ADA0(u8 arg0, u32* arg1) {
     u8* p = arg0 * 0x170 + (u32)D_800C34B0;
     u16 f = *(u16*)(p + 0x7C);
@@ -363,6 +371,8 @@ s32 func_8009ADA0(u8 arg0, u32* arg1) {
     }
     return ret;
 }
+*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009ADA0);
 // best 90.27% (2.7.2-psx and gcc-2.6.0); 89.18% cdk. loop.c hoists the
 // D_800CCD68 base out of the 3..11 loop; retail re-forms it at both references.
 /*

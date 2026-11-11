@@ -3081,6 +3081,10 @@ u8* func_8003D4E4(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
 }
 
 // 100.00% under gcc-2.7.2 and 2.7.2-cdk, 95.83% under this unit's gcc-2.6.0 (one extra `move v0,a0`).
+// 100.0% under gcc 2.7.2-psx, 95.83% under this unit's 2.6.0: the one function
+// in system/sound that wants the newer compiler, so it needs its own TU with a
+// per-file preset (see the note above XenoLibrary in gears.toml).
+/*
 u8* func_8003D53C(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     if (pAudioManager->unk_Flags & 0x6) {
         if ((g_SoundControlFlags & 0x2000) == 0) {
@@ -3095,6 +3099,8 @@ u8* func_8003D53C(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
     pAudioElements->voice_data.modeFlags |= 0x40;
     return pScript;
 }
+*/
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003D53C);
 
 u8* SoundScriptSetVoiceFlags4000ClearMode(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     pAudioElements->voice_data.flags |= 0x4000;
