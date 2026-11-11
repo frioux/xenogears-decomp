@@ -351,7 +351,6 @@ void func_80087E98(void) {
 
 extern FieldScriptGlobalU16 D_800B2348;
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_80087FA4);
 // 79.83%: gcc folds the symbol into both accesses (`lui/lhu` then `lui at/sh`),
 // the original materialises &D_800B2348 once in $v1 and uses 0($v1) twice. A
 // local pointer to the global (`p->value++`, also `+= 1`, `volatile` variants)
@@ -360,12 +359,15 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_80087FA4);
 // The `lui+addiu` form appears where the C uses the symbol's address as a VALUE
 // (cf. func_8008861C's `$a2 = &g_FieldDefaultParticleBanks`), and a deref of
 // `&sym` never survives fold, so a pointer local is not enough.
+// preset screen: 2.7.2 79.83%, cdk 79.83%, 2.6.0 79.83% - no compiler
+// fixes it.
 /*
 void func_80087FA4(void) {
     D_800B2348.value++;
     g_FieldScriptVMCurActor->scriptInstructionPointer += 1;
 }
 */
+INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_80087FA4);
 
 void func_80087FD4(void) {
     func_800A8BA4();
@@ -468,21 +470,12 @@ void func_800883D4(void) {
 
 extern FieldScriptGlobalS16 D_800B236C;
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008848C);
-// 78.75%: the original clobbers $v1 with `ip + g_FieldScriptVMCurScriptData`,
-// then RELOADS `lhu $v0,0xCC($a0)` for the `+= 2` and XORs at the store site
-// (`...; sh $v0,0xCC($a0); xori $v1,$v1,1; sh $v1,D_800B236C`). Ours keeps the
-// instruction pointer live in $v1 and reuses it, and hoists the xori.
-// `int value = SCRIPT_READ_U8_REL(1);` + `= value ^ 1` at the store does not
-// force the reload (gcc CSEs the two loads into the live register).
-/*
 void func_8008848C(void) {
     int value = SCRIPT_READ_U8_REL(1);
 
     g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
     D_800B236C.value = value ^ 1;
 }
-*/
 
 extern FieldScriptGlobalS16 D_800B21AC;
 
@@ -491,13 +484,14 @@ void func_800884CC(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_80088508);
 // 97.68%: instruction for instruction identical except that gcc's allocator puts
 // the `li a0,1` for the first FieldScriptVMGetInstructionArgument call at the top
 // of the then-block instead of just before the jal, so reorg leaves a nop in the
 // delay slot. Inline vs. `address` local makes no difference. Same instruction
 // count either way (280 bytes): only those two slots differ. Casting the
 // pSpriteData load to `SpriteData* volatile*` does not stop the hoist.
+// preset screen: 2.7.2 97.68%, cdk 84.20%, 2.6.0 97.68% - no compiler
+// fixes it.
 /*
 void func_80088508(void) {
     SpriteData* pSpriteData;
@@ -521,6 +515,7 @@ void func_80088508(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 7;
 }
 */
+INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_80088508);
 
 typedef struct {
     /* 0x0 */ int bankIndex;
@@ -529,7 +524,6 @@ typedef struct {
 
 extern ParticleBankHandle D_800B2384;
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008861C);
 // 92.50%: the single bankIndex load, &g_FieldDefaultParticleBanks materialised
 // in $a2 and the .x store through %hi/%lo(g_FieldDefaultParticleBanks + 0x30)
 // all match. Ours spends one extra `addu`: gcc builds
@@ -547,6 +541,8 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008861C);
 // `ParticleBank* pBanks = g_FieldDefaultParticleBanks;` (pointer to the array
 // start, index shared) gives 82.27%: the association comes out (base + 0x78*bank)
 // + 4*i, one addu more than the original's (4*i + 0x78*bank) + base.
+// preset screen: 2.7.2 92.50%, cdk 66.55%, 2.6.0 92.50% - no compiler
+// fixes it.
 /*
 void func_8008861C(void) {
     ParticleBank* pBank;
@@ -561,6 +557,7 @@ void func_8008861C(void) {
     }
 }
 */
+INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008861C);
 
 extern s32 D_800B2374;
 extern s32 D_800B2378;
@@ -628,7 +625,6 @@ void func_80088790(void) {
     g_FieldScriptMaxInstructionCount += 4;
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_800888A4);
 // 81.13%: the struct fields are now right (ActorData flags12C_0x12 is the 10-bit
 // field at bit 18, so the mask is the original's 0xF003FFFF), but two misses
 // remain. (1) The original keeps `type` in $s1 and shifts it by 6 into a temp for
@@ -638,6 +634,8 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_800888A4);
 // (type << 24)` rather than a `type << 6` bitfield store. (2) `li a0,1` for the
 // first FieldScriptVMGetArgument is hoisted above the frame setup instead of
 // sitting in the jal delay slot.
+// preset screen: 2.7.2 81.13%, cdk 81.13%, 2.6.0 81.13% - no compiler
+// fixes it.
 /*
 extern void func_8002303C(SpriteData*, int, int);
 
@@ -658,6 +656,7 @@ void func_800888A4(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
 }
 */
+INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_800888A4);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_800889BC);
 
@@ -1390,11 +1389,14 @@ void func_8008BC80(void) {
     }
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008BDD8);
 // 94.32%: structure and every store match; only the second SCRIPT_READ_U8_REL(1)
 // expansion is ordered differently (the original loads both globals before the
 // `lhu 0xCC` and the party index before the `addu`; gcc reorders ours the other
 // way and picks $v0/$v1 the opposite way round).
+// preset screen: 2.7.2 94.89%, cdk 84.77%, 2.6.0 94.89%, all with the call below
+// fixed - no compiler fixes it. As parked the body does not compile:
+// func_8008A7DC() is declared with two params, and passing
+// SCRIPT_READ_U8_REL(1) and partyIndex gives the numbers above.
 /*
 void func_8008BDD8(void) {
     int partyIndex;
@@ -1416,6 +1418,7 @@ void func_8008BDD8(void) {
     }
 }
 */
+INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008BDD8);
 
 extern void* D_8005A418[];
 extern s32 D_8005A448[];
@@ -1427,7 +1430,6 @@ typedef struct {
     u32 w0, w1, w2, w3;
 } PartyDataChunk; // Size: 0x10
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008BF38);
 // 97.81%: every instruction matches except the `li 0x14000` that holds the
 // copy end offset. The original allocates it to $t0, and $t0 still holds
 // &D_8005A448 (read by the if-body as `addiu $v0,$t0,-4`), so reorg refuses
@@ -1440,6 +1442,8 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008BF38);
 // flipped loop condition, while/for forms) only loses more instructions.
 // The addu operand order *is* solved: &g_FieldActors[characterId] emits
 // base-first, `(characterId + g_FieldActors)` emits index-first as retail does.
+// preset screen: 2.7.2 97.81%, cdk 86.01%, 2.6.0 97.81% - no compiler
+// fixes it.
 /*
 void func_8008BF38(int partyIndex) {
     int characterId;
@@ -1490,8 +1494,12 @@ void func_8008BF38(int partyIndex) {
     D_8005A448[partyIndex] = ACTOR_ID_INVALID;
 }
 */
+INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008BF38);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008C180);
+extern FieldActor* D_800B06B8;
+extern void* g_PartyDataBuffers[];
+extern void func_80080A74(int actorIndex);
+
 // 92.49%: prologue, body and epilogue match instruction for instruction, but ours
 // is 428 bytes against the original's 440. Two things are left, both from one
 // cause. The original keeps `&g_FieldActors` (the address of the global
@@ -1509,10 +1517,8 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008C180);
 // address (`lui; lw %lo(sym)`) at both loads because the pseudo is used only
 // twice; misc6's func_800A0524 gets the materialised form with the same idiom
 // because it uses the local eight times.
-extern FieldActor* D_800B06B8;
-extern void* g_PartyDataBuffers[];
-extern void func_80080A74(int actorIndex);
-
+// preset screen: 2.7.2 92.49%, cdk 83.59%, 2.6.0 92.30% - no compiler
+// fixes it.
 /*
 void func_8008C180(int partyIndex) {
     FieldActor** pFieldActors;
@@ -1557,6 +1563,7 @@ void func_8008C180(int partyIndex) {
     g_GamePartyMemberSkins[partyIndex] = ACTOR_ID_INVALID;
 }
 */
+INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008C180);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008C334);
 
@@ -2331,11 +2338,12 @@ extern s32 D_800ADB70;
 extern s32 D_800ADB74;
 extern s32 D_800ADB80;
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008EE14);
 // 79.22%: everything up to the last four stores matches. The original's
 // post-reload scheduler emits them as [lhu D_800C3A30][lw g_FieldScriptVMCurActor]
 // [sh D_800C3A36][andi/sh D_800C3A30][lhu ip][li 1][sw D_800ADB70][addiu/sh ip];
 // ours puts the D_800ADB70 store before the actor load and the ip load after it.
+// preset screen: 2.7.2 79.22%, cdk 79.22%, 2.6.0 79.22% - no compiler
+// fixes it.
 /*
 void func_8008EE14(void) {
     u16 value = FieldScriptVMGetArgument(9);
@@ -2368,6 +2376,7 @@ void func_8008EE14(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 0x13;
 }
 */
+INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008EE14);
 
 extern s32 D_800ADB3C;
 extern s32 D_800ADB38;
@@ -2546,12 +2555,13 @@ extern void func_80085EEC(void);
 extern void func_8001B66C(void);
 extern void func_80085B20(int, int);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008F7B8);
 // 92.24%: the two guards match as `!=` conjunctions (both `beq` jump forward to
 // the shared `D_800B00C0 = 1`), but then gcc merges that store with the one for
 // the `func_8008A558() != 0 || D_800ADBDC.value == 0` arm, which the original
 // keeps separate and inline. Spelling that arm as `== 1 || == -1` keeps it
 // inline (it shares the `li v1,1`) but inverts the second `beq` (90.82%).
+// preset screen: 2.7.2 92.24%, cdk 92.24%, 2.6.0 92.24% - no compiler
+// fixes it.
 /*
 void func_8008F7B8(void) {
     int characterId = FieldScriptVMGetArgument(1);
@@ -2579,13 +2589,15 @@ void func_8008F7B8(void) {
     }
 }
 */
+INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008F7B8);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008F90C);
 // 90.60%: everything matches except that gcc's post-reload scheduler moves the
 // `scriptInstructionPointer += 9` load/addiu/store below the three divisions and
 // the two g_Scene s16 stores (the original has it right after the frames clamp).
 // Writing the clamp first in the source makes it worse: the divs and the s16
 // stores are then all emitted before the pointer store (48.80%).
+// preset screen: 2.7.2 90.60%, cdk 72.87%, 2.6.0 90.60% - no compiler
+// fixes it.
 /*
 // Starts an interpolation of the camera position from the current g_Scene
 // position to the one passed in the script arguments.
@@ -2612,3 +2624,4 @@ void func_8008F90C(void) {
     }
 }
 */
+INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008F90C);
