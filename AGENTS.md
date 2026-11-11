@@ -272,6 +272,53 @@ release assets of <https://github.com/decompals/old-gcc> (tag `0.17`,
 Linux i386 static). Untar into `tools/gcc-2.8.1-psx/` and either use `try_flags.sh
 --gcc gcc-2.8.1-psx` or add a preset; pair it with `--aspsx-version=2.79`.
 
+### A unit carries ONE preset: screen it, then either switch it or split it
+
+Presets are keyed per file in `gears.toml`, so a unit whose functions want two
+different compilers cannot be matched as one file. Two commands decide what to do,
+and both are cheap (one compile each):
+
+```sh
+tools/scripts/try_flags.sh <unit> --all                        # score EVERY C function
+tools/scripts/try_flags.sh <unit> --all --gcc gcc-2.7.2-cdk-psx # ... under the candidate
+```
+
+Read the two lists side by side:
+
+- **every function 100.0 under the candidate** -> switch the unit: add a per-file key
+  to the candidate's preset (`paths = [ "battle/main/misc28.", ... ]`) and move the
+  path out of the old preset. No new files. Then un-park every body the switch made
+  exact — that is where the matches are, and no C needs writing.
+- **some functions below 100.0 under the candidate** -> split the unit (below).
+
+Only *C-defined* functions constrain the split: an `INCLUDE_ASM` stub is retail asm
+and ignores the preset, so it belongs to whichever run is adjacent — put the stubs
+with a known parked body for the candidate compiler on the candidate's side.
+
+**The split** (`battle/main/misc27` is the worked example, `rendering_pause_text` is the
+other):
+
+1. `config/<bin>.yaml`: replace `[0x44414, c, main/misc27]` with one `c` range per run
+   of same-preset functions. Ranges start at a function's **file offset**, and the
+   function after the last one of the unit starts the next unit's range, so the ranges
+   tile the old range exactly.
+2. Create the new files: `main/misc27` keeps the head, `main/misc27_psx` the run that
+   needs the unit's original compiler, `main/misc27_b` a later run that needs the
+   candidate. Each is a full TU: `#include "common.h"`, the `extern`s and the
+   typedefs **that its own functions use** — a typedef declared halfway down the
+   original file has to be repeated in the file that needs it.
+3. Splat gives each new file its own asm directory, so the new file's `INCLUDE_ASM`
+   paths name the **run** (`asm/battle/nonmatchings/main/misc27_b`), not the old unit.
+4. `gears.toml`: one **per-file** path key per run (never a directory key plus a
+   per-file key for the same tree — see the round-8 `HashMap` bug). The new preset
+   entry goes at the end of the file so it wins over the one listing the old path.
+5. `make check` before touching any C: the split must be byte-identical. Then un-park.
+
+Parked bodies are usually already written, so the un-park is minutes per unit, not
+hours. Three traps: the same `/* body */` is often stored **twice** (before and after
+its stub) — keep one; a block can close as `}*/`; and a body whose compiled size is
+wrong still reads objdiff 100.00%, so the gate after un-parking is `make check`.
+
 ## 5. Compiler presets (`gears.toml`)
 
 | Preset | gcc | Flags that differ | Applies to |

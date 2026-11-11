@@ -1952,3 +1952,69 @@ per function (the `rendering_pause_text.c` precedent generalised: 3-way yaml ran
 renamed tail file, one preset entry) would reach `battle/misc27`'s five cdk-only parks,
 `battle/misc5`'s `func_8007ABD8` and the rest of that class - perhaps 10-20 functions. It
 restructures the tree (many small files) and nobody has authorised it.
+
+# Session 7
+
+Start: **3026 / 4568 functions (66.2%)**, 1542 `INCLUDE_ASM` stubs, eleven outputs OK.
+
+The per-function TU split is **authorised** this session (operator: generalise it), and
+it immediately paid, because the screen below shows that most "mixed" units are not
+mixed at all - they are cdk units whose *compiler* was never checked.
+
+## The recipe: screen a unit, then either switch it or split it
+
+Presets are keyed per file, so a unit carries exactly one compiler. Two cheap tools
+decide between "just switch the unit" and "split it":
+
+    tools/scripts/try_flags.sh <unit> --all                      # every C function, unit preset
+    tools/scripts/try_flags.sh <unit> --all --gcc gcc-2.7.2-cdk-psx   # ... under the variant
+    tools/scripts/screen_unit.sh <unit> --gcc gcc-2.7.2-cdk-psx       # per-function, slower
+
+- Every C function 100.0 under the variant -> **switch the unit's preset**. No new
+  files. Then un-park every body the switch made exact (that is where the matches are).
+- Some C functions below 100.0 under the variant -> **split**: `config/<bin>.yaml`
+  gets one `c` range per run of same-preset functions, the runs become
+  `main/miscN` + `main/miscN_psx` + `main/miscN_b` files, and `gears.toml` gets a
+  per-file path entry per run (never a directory key plus a per-file key for the same
+  tree - see round 8).
+- Only *C-defined* functions constrain the split. `INCLUDE_ASM` stubs are retail asm
+  and ignore the preset, so a stub goes in whichever run is adjacent; put the stubs
+  with a known parked cdk body on the cdk side.
+
+Mechanics that cost time and are now known:
+- `tools/scripts/try_flags.sh` used to read `maspsx_flags` off the *cc* edge, where the
+  preset does not put it, and so silently fell back to Default's flags: every
+  `--dont-expand-li` unit was under-scored under cdk (misc34's `func_800BF7C8` read
+  98.38 instead of 100.0). Fixed; it now reads the *maspsx* edge.
+- `try_flags.sh --all` scores every C symbol of the unit in one compile.
+- Splat puts the stubs of a split file in their own `asm/<bin>/nonmatchings/<run>/`
+  directory, so the new file's `INCLUDE_ASM` paths must name the *run*, not the unit.
+- Each split file needs its own preamble (includes, `extern`s, and any typedef that
+  was declared mid-file in the original - a `BattlePoint` typedef declared halfway down
+  cost one build).
+- Duplicate parked bodies are common (the same `/* body */` twice, once before and once
+  after the stub). Un-park by name; keep one copy.
+- After un-parking, `make check`: a body whose C is the wrong *size* still reads 100.00%
+  in objdiff.
+
+## Log
+
+| # | Units | Functions | Stubs left | Notes |
+|---|---|---|---|---|
+| 1 | `battle/{misc6,7,8,9,28,33,34}`, `battling/{misc7,14,16}`, `world_map/{misc7,9}`, `system/sound` | +21 | 1516 | all eleven OK. Per unit: battling/misc7 7, battle/misc34 4, battling/misc14 3, world_map/misc7 3, battle/misc28 2, battle/misc8 1 (`func_8007D7B4`), battle/misc33 1 (`func_800BE11C`); 0 in battle/misc6, battle/misc7, battle/misc9, battling/misc16, world_map/misc9, system/sound. Ten of the thirteen units turned out to have accurate parked notes from earlier rounds, so the "fresh stub" counts in `select_target.py` are not to be trusted (`battle/misc6` reported 13 fresh stubs and had 13 parked bodies). |
+| 2 | `battle/misc27` split (cdk) | +5 | 1511 | `func_800B5854` is 100.0 under 2.7.2 and 93.71 under cdk; the rest of the unit is cdk-only. 3 files: `main/misc27` + `main/misc27_b` on the new `XenoBattleTailCdk` preset, `main/misc27_psx` on `XenoBattleTail`. Un-parked 56E4/5924/5DC4/5FBC/61B0. `func_800B4EDC` is 84.19 under *both* compilers and `func_800B5CC0` 98.15 under both - the split proves those two are not preset questions. |
+| 3 | `battle/misc28`, `battle/misc34` (uniformly cdk -> preset switch, no split) | +8 | 1503 | `screen_unit.sh` says every C function in both units is 100.0 under cdk (11 and 8 of them), so they move to `XenoBattleTailCdk`. Un-parked misc28's 63F0/6438/6808/6A7C/6E84/73A0 and misc34's BF7C8/BF954. misc34's `func_800BF8CC` is 92.21 under cdk too (register swap, not a preset), BF5E8/BF730 are atfree-blocked, BF998 is a frame/allocator tie. |
+
+### Round 1's finding: `select_target.py --json`'s `attempt` flag is now useless
+
+Ten of thirteen units briefed as "fresh stubs, never attempted" already had parked bodies
+under every one of them, and the round landed 21. The flag only looks for `/*` directly
+below the `INCLUDE_ASM`; the repo's parks come in four shapes (block below, block above
+with `//` notes between, `}*/` on the body's closing brace, and duplicated blocks). Grep
+`^/\*` before briefing, or just accept that every remaining unit is screened.
+
+### The cdk switch is worth much more than one function per unit
+
+`battle/misc28` moved six functions with **no C written** - the bodies were already
+parked from round 21 and only the compiler was wrong. Same for misc34 (+2). The
+ordering rule that makes this cheap: **screen first, write nothing, un-park second**.

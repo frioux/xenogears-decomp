@@ -5,6 +5,8 @@
 #
 #   tools/scripts/try_flags.sh <unit> <Func>                  # default preset
 #   tools/scripts/try_flags.sh <unit> <Func> --sweep           # gcc x -mcpu x -O x -G
+#   tools/scripts/try_flags.sh <unit> --all [--gcc ...]        # EVERY C function of
+#                                                              # the unit, one compile
 #   tools/scripts/try_flags.sh <unit> <Func> --cpu r8000
 #   tools/scripts/try_flags.sh <unit> <Func> --gcc gcc-2.7.2-cdk-psx --opt -O3
 #
@@ -15,10 +17,12 @@
 set -euo pipefail
 [ $# -ge 2 ] || { sed -n '2,16p' "$0" >&2; exit 2; }
 unit=$1 func=$2; shift 2
+all=0; [ "$func" = "--all" ] && { all=1; func=; }
 gcc=''; opt=''; gp=''; cpu=''; maspsx=''; sweep=0
 while [ $# -gt 0 ]; do
     case $1 in
         --sweep) sweep=1 ;;
+        --all) all=1 ;;
         --gcc) gcc=$2; shift ;;
         --opt) opt=$2; shift ;;
         --gp) gp=$2; shift ;;
@@ -68,29 +72,44 @@ compile() { # gcc opt gp cpu maspsx
         "$cpp_flags" "$unit" "$1" "$2" "$3" "$cc_flags" "$5" "$endian" "$(march "$4")" \
         2>/dev/null || return 1
 }
-score() {
+score() {   # $1 = json path
+    if [ $all -eq 1 ]; then
+        tools/objdiff/objdiff-cli diff -1 "$ref" -2 "$obj" -o - --format json \
+            >"$1" 2>/dev/null || true
+        python3 -c 'import json,sys
+d = json.load(open(sys.argv[1]))
+for s in d.get("right", {}).get("symbols", []):
+    if not s.get("name"):
+        continue
+    if "match_percent" in s and s.get("size"):
+        print("%7.2f %s" % (s["match_percent"], s["name"]))
+    else:
+        print("     -- %s" % s["name"])' "$1"
+        return
+    fi
     tools/objdiff/objdiff-cli diff -1 "$ref" -2 "$obj" -o - --format json "$func" \
-        >build/.try_flags.json 2>/dev/null || true
+        >"$1" 2>/dev/null || true
     python3 -c 'import json,sys
 try:
-    d = json.load(open("build/.try_flags.json"))
-    syms = [s for s in d.get("right", {}).get("symbols", []) if s.get("name") == sys.argv[1]]
+    d = json.load(open(sys.argv[1]))
+    syms = [s for s in d.get("right", {}).get("symbols", []) if s.get("name") == sys.argv[2]]
     # "no C body" shows up as a right-side symbol with no size/match_percent
     if not syms or "match_percent" not in syms[0] or not syms[0].get("size"):
         print("not-in-C (still INCLUDE_ASM?)")
     else:
         print(round(syms[0]["match_percent"], 2))
 except Exception:
-    print("absent")' "$func"
+    print("absent")' "$1" "$func"
 }
 
 status=1
 for g in "${gccs[@]}"; do for o in "${opts[@]}"; do for p in "${gps[@]}"; do for c in "${cpus[@]}"; do
     rm -f "$obj"
-    if compile "$g" "$o" "$p" "$c" "${maspsx:-$def_msx}" && [ -f "$obj" ]; then pct=$(score)
+    if compile "$g" "$o" "$p" "$c" "${maspsx:-$def_msx}" && [ -f "$obj" ]; then pct=$(score build/.try_flags.json)
     else pct="compile-failed"; fi
     printf '%-30s %s\n' "${g%-psx} $o $p -mcpu=$c" "$pct"
     [ "$pct" = "100.0" ] && status=0
+    [ $all -eq 1 ] && status=0
 done; done; done; done
 rm -f build/.try_flags.i build/.try_flags.s build/.try_flags.o build/.try_flags.json
 exit $status
