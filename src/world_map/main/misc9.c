@@ -79,6 +79,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_80086700);
 // (+-0x2000000). Retail keeps one destination pointer (`lw/sw 8(a2)`); gcc gives
 // the y field its own induction pointer and shifts the three wrap constants up a
 // register. Struct access, raw *(s32*)(pDst+8), pointer and index forms all agree.
+// Screen: cdk 92.29, 2.6.0 86.50, best 92.29 here - not a compiler miss.
 /*
 void func_80086700(void) {
     u8* pDst = D_8009D150;
@@ -124,6 +125,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_80087734);
 // D_8009BE24 first and D_8009C620 only after the slot angle update; gcc hoists the
 // D_8009C620 load above the frame and stores 0xA8/0xA0/0xA2/0xAA/0xAC/0xA4 in an
 // order that neither the source order nor a struct walk reproduces.
+// Screen: cdk 63.72, 2.6.0 63.49, best 63.72 here - not a compiler miss.
 /*
 s32 func_80087734(s32 index) {
     WorldMapSlot* pSlot = (WorldMapSlot*)(D_8009BE24 + index * 0x80);
@@ -157,6 +159,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_80087804);
 // gcc hoists the two `sh zero` stores above the pSlot->unk50 store; retail keeps
 // them after it. Hoisting the two table halfwords into s32 locals is required —
 // with the array expressions inline gcc sinks the D_8009C610 load to 60%.
+// Screen: cdk 62.00, 2.6.0 87.11, best 87.50 here - not a compiler miss.
 /*
 s32 func_80087804(s32 index) {
     WorldMapSlot* pSlot = (WorldMapSlot*)(D_8009BE24 + index * 0x80);
@@ -191,6 +194,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_80087904);
 // the prologue differs: retail leaves `p = pSrc + 7` out of the entry block (blez,
 // `sw s0` in its delay slot, then `addiu s0,a1,7`), gcc sets s0 up before `sw ra`
 // and steals `sw ra` into the delay slot instead.
+// Screen: cdk 92.05, 2.6.0 92.44, best 92.44 here - not a compiler miss.
 /*
 void func_80087904(u8* pDst, u8* pSrc, s32 count, s32 abr) {
     u8* p;
@@ -232,6 +236,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_80087A8C);
 // saves only s0 (it re-points the base at the second entry in the first jal's
 // delay slot) and loads both table halfwords before the calls; gcc keeps the
 // D_8009C610*2 index in s1 across the call and sinks the second lhu.
+// Screen: cdk 30.16, 2.6.0 49.69, best 50.02 here - not a compiler miss.
 /*
 s32 func_80087A8C(s32 index) {
     WorldMapSlot* pSlot = (WorldMapSlot*)(D_8009BE24 + index * 0x80);
@@ -295,6 +300,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_8008868C);
 // and as `li a0,-1` before it, i.e. loop.c did not hoist the constant; every
 // decl order / do-while / pointer-vs-index shape tried so far gets it hoisted
 // into a callee-saved s3 (frame 0x28 instead of 0x20).
+// Screen: cdk 61.86, 2.6.0 76.81, best 76.81 here - not a compiler miss.
 /*
 s32 func_8008868C(void) {
     s32 base = D_8009B688[D_8009C610];
