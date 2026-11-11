@@ -52,8 +52,9 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80091064);
    `+=` gives v1 = acc + ret) but hoists `i++` over the 0xF8 load and adds a
    nop in the lw-delay slot. Also tried: (s16)(arg0+offset) vs
    (s16)(offset+arg0) (gcc emits s2,s0 either way, original s0,s2), the
-   arg1 pointer sum in both operand orders, and =f()+a. Operand-order tie. */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80091604);
+   arg1 pointer sum in both operand orders, and =f()+a. Operand-order tie.
+   Re-screened for a compiler swap: 94.88 under 2.7.2 and 94.88 under
+   2.7.2-cdk (a tie), 92.12 under gcc-2.6.0 - this preset is the right one. */
 /*
 void func_80091604(s16 arg0) {
     s32 i;
@@ -69,13 +70,17 @@ void func_80091604(s16 arg0) {
     D_800D2D28[0x9C] = 1;
 }
 */
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80091604);
 /* 86.04%: the s/2 and s-s/2*2 expansion, both UV args and the pointer sum are
    insn-identical; what is left is expansion order (gcc hoists `li a1,0x20` /
    `li a2,0xA4` to the top here, the original materialises them after the UV
    temps) and the arg1 narrowing landing in v0 instead of in place in a1.
    Tried: %2 vs the explicit s-s/2*2 form, u32 vs u8 temps for the quotient,
-   pointer sum in both operand orders. */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_800916D4);
+   pointer sum in both operand orders.
+   Re-screened: best 91.42 under gcc-2.6.0 (76.76 under cdk). There the left-
+   overs are different and partly source level - 2.6.0 narrows arg1 with
+   `sll/sra` where the original has `andi a1,s1,0xffff` (a signed-type hint),
+   and it keeps `li a1,0x20`/`li a2,0xA4` before the s/2*2 chain, not after. */
 /*
 void func_800916D4(u8 arg0, u8 arg1, s32 arg2) {
     u32 s;
@@ -109,13 +114,15 @@ void func_800916D4(u8 arg0, u8 arg1, s32 arg2) {
     }
 }
 */
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_800916D4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_8009187C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80091B38);
 /* 98.40%: the body is byte-identical; only the entry copies differ - the
    original parks arg1 in a3 and copies a3 to s2, gcc here copies a1 straight
    to s2, so `addu a1,a3,a1` reads s2. Tried: arg1 as s32 (needed, the body
-   masks it to u8) and the if/else-if shape that reproduces the call CFG. */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80091D38);
+   masks it to u8) and the if/else-if shape that reproduces the call CFG.
+   Re-screened: 98.40 under gcc-2.6.0 as well (73.63 under cdk), so the
+   a3/s2 entry copy is not a compiler-version artifact. */
 /*
 void func_80091D38(u8 arg0, s32 arg1, u8 arg2) {
     u8 ret = 0;
@@ -140,6 +147,7 @@ void func_80091D38(u8 arg0, s32 arg1, u8 arg2) {
     }
 }
 */
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80091D38);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80091EC4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_8009209C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80092298);
@@ -152,8 +160,11 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80093578);
    (78.72%): the original loads *(D_800C3EA4+0xA230) FIRST, keeps &D_800CCB34
    in a saved reg (lw 0(s3)) and does `addiu a0,a0,0x280` before the base addu;
    gcc loads the D_800CCB34 index first, re-forms its address per call and sinks
-   the addiu into the jal delay slot. Improves to 74% with the index in a local. */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_8009382C);
+   the addiu into the jal delay slot. Improves to 74% with the index in a local.
+   Re-screened: best 84.56 under gcc-2.6.0 (71.40 under cdk). There the frame
+   is 56 vs 2.6.0's 48 - the original spills the &D_800CCB34 index into s3,
+   2.6.0 does not re-form it - and the addiu/addu order of the +0x280/+0x2D0
+   adds is still swapped. */
 /*
 void func_8009382C(u8 arg0, u8 arg1) {
     RECT rect;
@@ -179,13 +190,7 @@ void func_8009382C(u8 arg0, u8 arg1) {
     HeapFree(pBuf);
 }
 */
-/* 99.81%: instruction multiset and every operand identical except the two
-   loads feeding the `and` - the original puts them in v0/v1, gcc 2.7.2 picks
-   a0/v0 for the same insn order. Tried both source orders of the operands,
-   separate `mask`/`flags` locals in both declaration orders, and the
-   index/table loads inline; only the argument-setup order is source level. */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_800939CC);
-/*
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_8009382C);
 void func_800939CC(u8 arg0, u8 arg1) {
     u16 tbl[4];
     s32 o;
@@ -209,7 +214,6 @@ void func_800939CC(u8 arg0, u8 arg1) {
         (*(u8 **)(D_800C3EA4 + 0xA230))[0x66B] = 0;
     }
 }
-*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80093B08);
 void func_8009413C(u8 arg0, u8 arg1) {
     if (D_800D2D24[arg0] == 4) {
@@ -252,8 +256,10 @@ void func_80094C78(void) {
    (original `addu a0,t1,v1` base-first, gcc `addu v1,a3,v1`). Making the
    count loops use a row pointer fixed their addu order (91.47 -> 91.61).
    Tried: p[0x3E] vs the full expression, one u16 *p reused vs re-declared
-   per loop. Un-parking needs `extern u16 D_800C3AA4[];`. */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80094D24);
+   per loop. Un-parking needs `extern u16 D_800C3AA4[];`.
+   Re-screened: best 96.96 under gcc-2.6.0 (90.04 under cdk). There only the
+   two count loops' registers differ (n1 in a2 vs t0, base in a0 vs a3), both
+   row addu's are operand-swapped, and one `j`/`nop` pair is left over. */
 /*
 void func_80094D24(void) {
     u8 i;
@@ -292,14 +298,8 @@ void func_80094D24(void) {
     }
 }
 */
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80094D24);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80094EE4);
-/* 99.76%: every instruction identical except the two `mfhi` results of the
-   /10 sequences (original v0/v1, gcc 2.7.2 picks a3 for both and then does the
-   `sra` into a different register). Same allocator tie as misc20's
-   func_8009E278 / func_8009E364 divides. Tried: v*N/10 vs N*v/10, s16 vs s32
-   differences, both blocks' operands - the rest of the function is byte-equal. */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80095690);
-/*
 void func_80095690(void) {
     u8 *p = D_800C3E00;
     u8 *q = D_800C3DFC;
@@ -325,15 +325,15 @@ void func_80095690(void) {
     *(u8 *)(D_800C34B0 + D_800C3E50 + 0x5FA0) = 2;
     *(s32 *)(D_800C3E50 * 4 + D_800C34B0 + 0x5F6C) = v;
 }
-*/
 /* 95.00% (this shape): instruction multiset identical; gcc emits the sb's
    `li 2` before the five `sh zero` stores (the original keeps it after), and
    picks v1/a1 for the p/index pair where the original has v0/v1, which also
    drags the /10 `mfhi` to a2 instead of v0. Tried: index/p as locals
    (this, 95.00), both globals inline (89.30 - nop after the p load, index load
    sunk past the stores), both declaration orders, `p` reassigned for the
-   0x4E read. Operand/allocator tie. */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_800957D8);
+   0x4E read. Operand/allocator tie.
+   Re-screened: best 95.16 under gcc-2.6.0 (69.17 under cdk). There the p/index
+   pair is v1/a1 against the original's v0/v1, and the /10 `mfhi` follows it. */
 /*
 void func_800957D8(void) {
     s32 t;
@@ -358,12 +358,7 @@ void func_800957D8(void) {
     D_800D2C9E |= 1 << t;
 }
 */
-/* 99.90%: only the divmod temp register differs - original keeps the %100
-   `mfhi` result in the same register as the quotient (a0), gcc 2.7.2 picks a2
-   (or a3/a1 with the quotient in an explicit local, which is worse). Same
-   allocator tie as func_80095690's /10 sequences. */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_800958D8);
-/*
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_800957D8);
 void func_800958D8(void) {
     if (rand() % 100 > D_800C3DFC[0x1C]) {
         return;
@@ -391,4 +386,3 @@ void func_800958D8(void) {
     }
     D_800C34B0[0x5FC7] = 0x3A;
 }
-*/
