@@ -325,7 +325,8 @@ INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801DDBF8);
 // dead `andi v0,count` delay slot insn. Load order 0x6,0xC,0xE,0x4 (fixed by
 // declaring numTransFrames before flags) still allocates flags to a1 and
 // pKeyframe to a2. Also tried: s16 x/y/z locals (74.79%), gcc 2.7.2 (94.95%).
-INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801DEF10);
+// Screened: no compiler harvests it - 94.95 best (2.6.0 and 2.7.2 -O2 alike), 92.43 under 2.7.2-cdk,
+// 89.90 cdk + maspsx aspsx 2.67. The delta is the one un-reproducible register pair noted above.
 /*
 void func_801DEF10(ModelJoint* pSkeleton, KeyframeBlock* pBlock) {
     u16 rotFrame = 0;
@@ -383,6 +384,7 @@ void func_801DEF10(ModelJoint* pSkeleton, KeyframeBlock* pBlock) {
     }
 }
 */
+INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801DEF10);
 
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801DF0B4);
 
@@ -501,7 +503,7 @@ int func_801DF7A8(Temp4* pUnk, s8* arg1) {
 // Also tried: `pJoint = pSkeleton` as a declaration initialiser (68.76%), using
 // pSkeleton as the joint cursor instead of a separate pJoint (68.76%), no
 // `flag1` local with `flags & 0x1` inline (70.81%), declaration-order variations.
-INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801DF7F4);
+// Screened: 71.21 best (2.6.0), 70.49 under 2.7.2-cdk - not a preset problem.
 /*
 s32 func_801DF7F4(Temp4* pList, ModelJoint* pSkeleton, KeyframeBlock* pBlock, s32 flags, u8 type) {
     u16 numRotFrames;
@@ -611,6 +613,7 @@ s32 func_801DF7F4(Temp4* pList, ModelJoint* pSkeleton, KeyframeBlock* pBlock, s3
     return 0;
 }
 */
+INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801DF7F4);
 
 // objdiff 75.14%. The instruction shapes of the whole 242-insn body are right:
 // the two 6-byte-stride channels, the 0xFFFF merge into the else arm (the
@@ -626,7 +629,7 @@ s32 func_801DF7F4(Temp4* pList, ModelJoint* pSkeleton, KeyframeBlock* pBlock, s3
 // for both channels) where gcc uses 4(s2)/5(s2) immediates; and it allocates
 // pSkeleton to s1 and pBlock to s2, ours is swapped. Declaration reordering
 // (flag1 first) dropped the score to 75.10%.
-INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801DFAC4);
+// Screened: 75.14 best (2.6.0), 74.89 under 2.7.2-cdk - not a preset problem.
 /*
 s32 func_801DFAC4(Temp4* pList, ModelJoint* pSkeleton, KeyframeBlock* pBlock, s32 flags, u8 type) {
     u16 numRotFrames;
@@ -760,6 +763,7 @@ s32 func_801DFAC4(Temp4* pList, ModelJoint* pSkeleton, KeyframeBlock* pBlock, s3
     return 0;
 }
 */
+INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801DFAC4);
 
 void func_801DFE8C(Temp4* pList, ModelJoint* pSkeleton) {
     int i;
@@ -1173,7 +1177,7 @@ s16 (*func_801E34BC(s32 type))(s16, s16, s16) {
 // 14); with it as the 10th statement the store lands at 14 (correct) but the
 // addiu at 5; 6th statement gives (5, 9). Store order = source order in every
 // shape, so the (0, 14) split needs a scheduling decision this gcc will not make.
-INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E3534);
+// Screened: 94.87 identical under 2.6.0 and 2.7.2-cdk - not a compiler problem.
 /*
 void func_801E3534(Model* pModel, s32 arg1, u32 arg2, u32 arg3) {
     s16 negOne = -1;
@@ -1214,6 +1218,7 @@ void func_801E3534(Model* pModel, s32 arg1, u32 arg2, u32 arg3) {
     pModel->unk1E = negOne;
 }
 */
+INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E3534);
 void func_801E35D0(Model* pModel, Model* pSource, s32 arg2, s32 arg3) {
     if ((pModel != NULL) && (pSource != NULL)) {
         if (pModel->unk2B != 0) {
@@ -1435,22 +1440,23 @@ void func_801E5C74(Model* pModel, Temp7* pEntry, s32 arg2) {
 
 // Round 14: three separate `return`s with no shared local also cross-jump the
 // same wrong pair (61.93%, 88 bytes): gcc keeps type==1 inline at the beq target.
-INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E5CD8);
-/* Best attempt, 71.67%. The three temp8 hops are confirmed. What the original
-   does and this does not: type==1 gets its OWN copy of the `lhu 0x14 / sll 16`
-   tail (out of line, last, falling into the epilogue) while type==0 and type==2
-   share one copy. Giving the type==1 arm its own `return` produces the second
-   copy but gcc then emits type==1 inline (61.93%); with the `if (type != 1) ...
-   else return ...` spelling below gcc shares a *deeper* tail instead
-   (`lw 8(v0) / lhu 20 / sll` shared by type==1 and type==2, 88 vs 108 bytes), so
-   the split point and the block placement are one decision. A `switch` on type
-   is far off (19.74%, case bodies emitted in source order with break jumps).
-   Later round: the plain `if/else if` chain that assigns a single `pTexture`
-   local and then has ONE `return pTexture->unk14 << 16` is also 61.93%
-   (88 bytes vs the original's 108): gcc cross-jumps the type==1 and type==2
-   tails and hoists them, so the pair that merges is (1,2) instead of the
-   original's (0,2). Which of the three identical `lhu 0x14 / sll 16` tails
-   survives is the whole function. */
+// Best attempt, 71.67%. The three temp8 hops are confirmed. What the original
+// does and this does not: type==1 gets its OWN copy of the `lhu 0x14 / sll 16`
+// tail (out of line, last, falling into the epilogue) while type==0 and type==2
+// share one copy. Giving the type==1 arm its own `return` produces the second
+// copy but gcc then emits type==1 inline (61.93%); with the `if (type != 1) ...
+// else return ...` spelling below gcc shares a *deeper* tail instead
+// (`lw 8(v0) / lhu 20 / sll` shared by type==1 and type==2, 88 vs 108 bytes), so
+// the split point and the block placement are one decision. A `switch` on type
+// is far off (19.74%, case bodies emitted in source order with break jumps).
+// Later round: the plain `if/else if` chain that assigns a single `pTexture`
+// local and then has ONE `return pTexture->unk14 << 16` is also 61.93%
+// (88 bytes vs the original's 108): gcc cross-jumps the type==1 and type==2
+// tails and hoists them, so the pair that merges is (1,2) instead of the
+// original's (0,2). Which of the three identical `lhu 0x14 / sll 16` tails
+// survives is the whole function.
+// Screened: 71.67% is also what 2.7.2-cdk gives (identical), so the tail
+// split is a C-shape problem, not a compiler one.
 /*
 s32 func_801E5CD8(Model* pModel, s32 type) {
     Temp8* pTexture;
@@ -1469,6 +1475,7 @@ s32 func_801E5CD8(Model* pModel, s32 type) {
     return pTexture->unk14 << 16;
 }
 */
+INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E5CD8);
 
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E5D44);
 
@@ -1497,8 +1504,8 @@ int func_801E6338(Model* pModel) {
 // pseudos. Every single-local spelling tried (s16/s32/u32 local, repeated
 // `pModel->unk58` reads, a separate `rawType` copy) makes gcc 2.6 CSE them into
 // one addiu, which costs one instruction and shifts every later label.
-INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E63A8);
-/* Best attempt, 93.15%:
+// Screened: 93.15 attempt above; 95.39 best (2.6.0), 92.13 under 2.7.2-cdk - not a preset problem.
+/*
 void func_801E63A8(Model* pModel) {
     Model* pSource;
     MATRIX* pMatrix;
@@ -1575,6 +1582,7 @@ void func_801E63A8(Model* pModel) {
     }
 }
 */
+INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E63A8);
 
 
 // objdiff 98.63%: byte-identical except that gcc 2.6 puts pJoint in s1 and the
@@ -1602,7 +1610,8 @@ void func_801E63A8(Model* pModel) {
 // original host's qsort ordered ties differently), not a source-level detail.
 // Also tried since (all still 98.63%, same s0/s1 swap): pChild's initialiser
 // moved above pJoint's, and `pChild = pChild + 1` in the loop tail.
-INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E6578);
+// Screened: 98.63 best (2.6.0 and 2.7.2 -O2 alike), 93.73 under 2.7.2-cdk. Closest park in the
+// unit, but not a preset problem.
 /*
 void func_801E6578(Temp4* pList, s32 jointIndex, ModelJoint* pSkeleton, ModelJoint* pTargetSkeleton) {
     int i;
@@ -1631,6 +1640,7 @@ void func_801E6578(Temp4* pList, s32 jointIndex, ModelJoint* pSkeleton, ModelJoi
     }
 }
 */
+INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E6578);
 
 void func_801E6668(ModelJoint* pSkeleton, ModelJoint* pTargetSkeleton) {
     int i;
@@ -1687,7 +1697,7 @@ int func_801E67F8(void) {
 // Round 14: an explicit `1 << (index & 0xFF)` in the store is folded away by gcc
 // exactly like the u8 conversion (92.95%): the four per-path `andi v0,a1,0xff`
 // turn into copies of `li v1,1` in the jump delay slots instead.
-INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E6830);
+// Screened: 92.95 identical under 2.6.0 and 2.7.2-cdk - not a compiler problem.
 /*
 void func_801E6830(Model* pModel, int type, s16* pMask) {
     u8 index = type;
@@ -1710,8 +1720,8 @@ void func_801E6830(Model* pModel, int type, s16* pMask) {
 
     *pMask = 1 << index;
 }
-
 */
+INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E6830);
 
 void* func_801E6910(Model* pModel, u8 index, s32* pFlags) {
     void* pResult;
@@ -2025,71 +2035,73 @@ void func_801E7FD4(void) {
 // s0, ours has them swapped, which also moves `addiu v0,s4,-8` out of the
 // `beqz` delay slot. Declaration order and dropping the pList local both leave
 // the swap.
-INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E8030);
+// Screened: 94.08 at -G8, 96.93 at -G4 (2.6.0), 85.49 under 2.7.2-cdk - near, but -G4 is not the
+// unit's setting.
 /*
-    void func_801E8030(s32 modelIndex) {
-        s32 i;
-        s32 offset;
+void func_801E8030(s32 modelIndex) {
+    s32 i;
+    s32 offset;
 
-        if (g_LibGearModels[modelIndex] == NULL) {
-            return;
-        }
-
-        if (g_LibGearModels[modelIndex]->unkA8 != NULL) {
-            HeapFree(g_LibGearModels[modelIndex]->unkA8);
-            LibGearFreeModelMesh(g_LibGearModels[modelIndex]->pMesh, 1);
-        }
-
-        if (g_LibGearModels[modelIndex]->unk62[0] != 0) {
-            func_8003852C(((Temp8*)g_LibGearModels[modelIndex]->unkB0)->pUnk8);
-        }
-
-        if (g_LibGearModels[modelIndex]->unkAC != NULL) {
-            HeapFree(g_LibGearModels[modelIndex]->unkAC);
-        }
-
-        if ((u32)(modelIndex - 8) >= 2) {
-            if (g_LibGearModels[modelIndex]->pSkeleton != NULL) {
-                func_801DFE8C(&D_801E86A8, g_LibGearModels[modelIndex]->pSkeleton);
-                func_801DFF78(&D_801E86A8, g_LibGearModels[modelIndex]->pSkeleton, 0xFF);
-                LibGearFreeModelSkeleton(g_LibGearModels[modelIndex]->pSkeleton);
-                g_LibGearModels[modelIndex]->pMesh = NULL;
-                g_LibGearModels[modelIndex]->pSkeleton = NULL;
-            }
-        } else {
-            if (g_LibGearModels[modelIndex]->pSkeleton != NULL) {
-                func_801DFE8C(&D_801E86A8, g_LibGearModels[modelIndex]->pSkeleton);
-                func_801DFF78(&D_801E86A8, g_LibGearModels[modelIndex]->pSkeleton, 0xFF);
-                HeapFree(g_LibGearModels[modelIndex]->pSkeleton);
-            }
-        }
-
-        if (g_LibGearModels[modelIndex]->unk10C != 0) {
-            HeapFree(g_LibGearModels[modelIndex]->unk110);
-        }
-
-        if (g_LibGearModels[modelIndex]->unk10E != 0) {
-            offset = 0;
-            for (i = 0; i < g_LibGearModels[modelIndex]->unk10E; i++) {
-                func_801E165C((Temp8*)((u8*)g_LibGearModels[modelIndex]->unk118 + offset));
-                offset += 0x30;
-            }
-            HeapFree(g_LibGearModels[modelIndex]->unk118);
-        }
-
-        if (g_LibGearModels[modelIndex]->unk10D != 0) {
-            offset = 0;
-            for (i = 0; i < g_LibGearModels[modelIndex]->unk10D; i++) {
-                func_801E3438((Temp9*)((u8*)g_LibGearModels[modelIndex]->unk114 + offset));
-                offset += 0x24;
-            }
-            HeapFree(g_LibGearModels[modelIndex]->unk114);
-        }
-
-        HeapFree(g_LibGearModels[modelIndex]);
-        g_LibGearModels[modelIndex] = NULL;
+    if (g_LibGearModels[modelIndex] == NULL) {
+        return;
     }
+
+    if (g_LibGearModels[modelIndex]->unkA8 != NULL) {
+        HeapFree(g_LibGearModels[modelIndex]->unkA8);
+        LibGearFreeModelMesh(g_LibGearModels[modelIndex]->pMesh, 1);
+    }
+
+    if (g_LibGearModels[modelIndex]->unk62[0] != 0) {
+        func_8003852C(((Temp8*)g_LibGearModels[modelIndex]->unkB0)->pUnk8);
+    }
+
+    if (g_LibGearModels[modelIndex]->unkAC != NULL) {
+        HeapFree(g_LibGearModels[modelIndex]->unkAC);
+    }
+
+    if ((u32)(modelIndex - 8) >= 2) {
+        if (g_LibGearModels[modelIndex]->pSkeleton != NULL) {
+            func_801DFE8C(&D_801E86A8, g_LibGearModels[modelIndex]->pSkeleton);
+            func_801DFF78(&D_801E86A8, g_LibGearModels[modelIndex]->pSkeleton, 0xFF);
+            LibGearFreeModelSkeleton(g_LibGearModels[modelIndex]->pSkeleton);
+            g_LibGearModels[modelIndex]->pMesh = NULL;
+            g_LibGearModels[modelIndex]->pSkeleton = NULL;
+        }
+    } else {
+        if (g_LibGearModels[modelIndex]->pSkeleton != NULL) {
+            func_801DFE8C(&D_801E86A8, g_LibGearModels[modelIndex]->pSkeleton);
+            func_801DFF78(&D_801E86A8, g_LibGearModels[modelIndex]->pSkeleton, 0xFF);
+            HeapFree(g_LibGearModels[modelIndex]->pSkeleton);
+        }
+    }
+
+    if (g_LibGearModels[modelIndex]->unk10C != 0) {
+        HeapFree(g_LibGearModels[modelIndex]->unk110);
+    }
+
+    if (g_LibGearModels[modelIndex]->unk10E != 0) {
+        offset = 0;
+        for (i = 0; i < g_LibGearModels[modelIndex]->unk10E; i++) {
+            func_801E165C((Temp8*)((u8*)g_LibGearModels[modelIndex]->unk118 + offset));
+            offset += 0x30;
+        }
+        HeapFree(g_LibGearModels[modelIndex]->unk118);
+    }
+
+    if (g_LibGearModels[modelIndex]->unk10D != 0) {
+        offset = 0;
+        for (i = 0; i < g_LibGearModels[modelIndex]->unk10D; i++) {
+            func_801E3438((Temp9*)((u8*)g_LibGearModels[modelIndex]->unk114 + offset));
+            offset += 0x24;
+        }
+        HeapFree(g_LibGearModels[modelIndex]->unk114);
+    }
+
+    HeapFree(g_LibGearModels[modelIndex]);
+    g_LibGearModels[modelIndex] = NULL;
+}
 */
+INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E8030);
 
 void func_801E8330(u16 modelIndex, u16 bits, s32 arg2) {
     Model* pModel = g_LibGearModels[modelIndex];
