@@ -13,6 +13,12 @@ extern s32 D_800595A0;
 extern u8 D_800D2DCC[];
 extern u8 D_800D2DE4[];
 extern u16 D_800D2DF0[];
+extern u8 D_800C3E8C;
+extern u8 *D_800C3DDC;
+extern u8 D_800D2E5F[];
+extern u8 D_800D3718[];
+extern u8 D_800D3720[];
+extern u8 D_800D3726[];
 extern u16 g_SystemPalette1;
 extern u16 g_SystemPalette2;
 
@@ -20,6 +26,9 @@ extern s32 func_8008ABB8(s32, s32);
 extern u16 func_80098AF8(s32, s32);
 extern void func_80077074(void);
 extern void HeapFree(void *pMem);
+extern u8 *GetStringEntry(u8 *, s32);
+extern s32 SystemRenderStringEntry(u8 *, void *, s32, s32);
+extern void func_800769E8(RECT *, u_long *);
 extern void bzero(void *p, s32 n);
 
 void func_80076AC8(u8 *p) {
@@ -305,6 +314,36 @@ void func_800785D4(u8 color, u8 index) {
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_800785D4);
 
+/* 99.94%: the entire instruction stream is identical except the stack frame:
+   retail allocates 0x18 and saves s0/ra at 0x10/0x14, this body allocates
+   0x20 and saves them at 0x18/0x1C, i.e. gcc reserves 8 extra bytes of local
+   space for something that never gets used (both objects are 392 bytes, so
+   the frame is the only difference). Tried: pStr temp for GetStringEntry
+   (same), inlining GetStringEntry (same), splitting `D_800C3E8C++` into a
+   load + separate increment (87.44 - breaks the store/increment order).
+   The D_800D3718/D_800D3720/D_800D3726 arrays are one struct of 0x60
+   (RECT rect @0, u_long *pBuf @8, u8 @0xE, POLY_FT4 prim[2] @0x10); the
+   spellings below use byte offsets instead of that struct so no shared
+   header had to change.
+   Parked body (99.94):
+   void func_80078658(u8 index, u8 color) {
+       u8 *pEntry;
+
+       if (D_800C3E8C < 9) {
+           *(u8 *)((u8 *)&D_800D3726 + D_800C3E8C * 0x60) =
+               SystemRenderStringEntry(GetStringEntry(D_800C3DDC, D_800D2E5F[index * 8]),
+                                       *(u8 **)((u8 *)&D_800D3720 + D_800C3E8C * 0x60), 0x39,
+                                       D_800C3E8C & 1);
+           func_800769E8((RECT *)((u8 *)&D_800D3718 + D_800C3E8C * 0x60),
+                         *(u_long **)((u8 *)&D_800D3720 + D_800C3E8C * 0x60));
+           D_800C400B[D_800C3EAC[0x2DA] * 0x48] = color;
+           D_800C402F[D_800C3EAC[0x2DA] * 0x48] = 0xFA;
+           pEntry = D_800C3EAC;
+           *(u16 *)(D_800C4022 + pEntry[0x2DA] * 0x48) = D_800C3E8C++;
+           pEntry[0x2DA]++;
+       }
+   }
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_80078658);
 void func_800787E0(u8 color, u8 flag) {
     u8 *pEntry;
