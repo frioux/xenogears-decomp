@@ -1,10 +1,15 @@
 #include "common.h"
+#include "main/game.h"
 
+extern u8 D_800C3AA4[];
+extern u8 D_800D2D10[];
+extern u8 D_800D2D24[];
 extern u8 *D_800C34B0;
 extern u8 *D_800C3DFC;
 extern u8 *D_800C3E00;
 extern u8 D_800C34AD;
 extern u8 *D_800C3E34;
+extern u8 D_800C3E04;
 extern u8 D_800C3E50;
 extern u8 D_800D2DC4;
 extern u8 *D_800D2D6C;
@@ -82,6 +87,74 @@ void func_80096824(void) {
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_800968C0);
+/* best: 99.52%, same 504 bytes. Two residual differences: (1) the gear-pointer
+   add for actor[0x15A] commutes (`addu v0,v0,v1` here vs. `addu v1,v1,v0` in
+   the original, which then renames the dest register); (2) at the end of the
+   swap block the original stores D_800C3E34 before D_800C3E00, ours the other
+   way round. Everything else, including the `sel < 3 && !(flags & 0x2000)`
+   return, rand() % 100 tail and the three D_800C34B0 writes, is identical.
+
+void func_800968C0(void) {
+    u8 *pData;
+    u8 *pBase;
+    u16 t;
+    u8 sel;
+    u8 s;
+    u8 tmp;
+    u8 *p;
+    u8 *q;
+    s32 lim;
+
+    pData = D_800C3E34;
+    if (*(u16 *)(pData + 0x7C) & 0xA000) {
+        return;
+    }
+    t = *(u16 *)(pData + 0x80);
+    if (t & 0x1000) {
+        return;
+    }
+    sel = D_800C3E04;
+    if (sel < 3 && !(t & 0x2000)) {
+        return;
+    }
+    if (!(*(u16 *)(pData + 0x88) & 0x1000)) {
+        return;
+    }
+    t = *(u16 *)(D_800C3DFC + 0xA);
+    if (t & 0x2000) {
+        return;
+    }
+    if (t & 0x100) {
+        return;
+    }
+    pBase = D_800C34B0;
+    if (*(u8 *)(pBase + sel * 0x170 + 0x15A) & 0x80) {
+        return;
+    }
+    lim = 0x32;
+    if (*(u8 *)(pData + 0x56) == 0) {
+        lim = 0x3C;
+    }
+    if (lim < rand() % 100) {
+        return;
+    }
+    if (*(u8 *)(D_800C3DFC + 0x16) == 2) {
+        return;
+    }
+    tmp = D_800C3E50;
+    s = D_800C3E04;
+    p = D_800C3E00;
+    D_800C3E04 = tmp;
+    q = D_800C3E34;
+    D_800C3E34 = p;
+    D_800C3E50 = s;
+    D_800C3E00 = q;
+    D_800C3DFC = (u8 *)(D_800C34B0 + D_800C3E04 * 0x5F0 + 0x1378);
+    *(u8 *)(D_800C34B0 + D_800C3E04 + 0x5FA0) = 7;
+    *(u32 *)(D_800C34B0 + D_800C3E04 * 4 + 0x5F6C) = 0;
+    D_800C34B0[0x5FC7] = 0x34;
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80096AB8);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80096FBC);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80097610);
@@ -98,6 +171,65 @@ void func_80097D08(void) {
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80097D5C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_8009892C);
+/* best: 96.96%, same 460 bytes and the same instruction multiset. Twelve source
+   shapes tried (order of the D_800C3E00 / D_800D2D6C / D_800C3AA4 stores, hp
+   temp vs. direct expression, u16[] vs. byte-cast array, decl order). The only
+   residual difference is placement inside the block: the original leaves the
+   last `sll v0,v0,0x4` of i*0x170 until after the D_800C34B0 load and computes
+   the D_800C3AA4[i] address (`addu a0,a0,t0`) after the lhu, if the addresses
+   are at all source-controlled; the 95-99% allocator/placement class. Presets
+   screened: 2.6.0 (this, 96.96), 2.7.2 (93.91), 2.7.2-cdk (72.30). The tail
+   from `flag = ...` to the end of the function is byte-identical.
+
+void func_8009892C(void) {
+    u8 i;
+    u8 j;
+    u8 v;
+    u8 *pActor;
+    u8 *pRow;
+    u16 hp;
+    u16 flag;
+
+    for (i = 0; i < 3; i++) {
+        if (D_800D2D24[i] != 0x7F) {
+            pActor = (u8 *)(i * 0x170 + (s32)D_800C34B0);
+            pRow = pActor + 0xA4;
+            D_800C3E00 = pActor;
+            hp = *(u16 *)(pActor + 0x7A);
+            D_800D2D6C = pRow;
+            *(u16 *)&D_800C3AA4[i * 2] = hp;
+            for (j = 0; j < 4; j++) {
+                v = D_800D2D10[j];
+                if (v != 0) {
+                    D_800D2D6C[0x98] -= v;
+                    D_800D2D6C[0x98] += *(u8 *)((s32)D_800D2D6C + j + 0x50);
+                }
+            }
+            if (D_800D2D6C[0x98] >= 0x11) {
+                D_800D2D6C[0x98] = 0x10;
+            }
+        }
+    }
+
+    flag = *(u16 *)((u8 *)&g_GameState + 0x17DA);
+    *(u8 *)((u8 *)&g_GameState + 0x7E6) = 7;
+    if (flag & 0x2000) {
+        *(u16 *)((u8 *)&g_GameState + 0x17C2) |= 0x800;
+    }
+    if (*(u16 *)((u8 *)&g_GameState + 0x1930) < 0xBB) {
+        *(u8 *)((u8 *)&g_GameState + 0x9EC) = 10;
+        *(u8 *)((u8 *)&g_GameState + 0xA90) = 10;
+        *(u8 *)((u8 *)&g_GameState + 0x10F8) = 9;
+        *(u8 *)((u8 *)&g_GameState + 0x119C) = 9;
+        *(u8 *)((u8 *)&g_GameState + 0x1240) = 8;
+        *(u8 *)((u8 *)&g_GameState + 0x12E4) = 12;
+        *(u8 *)((u8 *)&g_GameState + 0x1388) = 12;
+        *(u8 *)((u8 *)&g_GameState + 0x11CE) = 0x58;
+        *(u8 *)((u8 *)&g_GameState + 0xDF7) = 0;
+        *(u8 *)((u8 *)&g_GameState + 0x131C) = 0x28;
+    }
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80098AF8);
 /* best: 95.16%, 94 instructions (same count as the original), in every preset
    screened (2.7.2, 2.6.0, 2.7.2-cdk), so the addiu fold below is not a preset
