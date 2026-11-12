@@ -402,6 +402,60 @@ void func_80073448(s32 arg0) {
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80073448);
 
 
+extern void* LZSSHeapDecompress(void* pCompressedData, int flags);
+extern s32 D_8009CD48;
+extern s32 D_8009D308;
+extern s32 D_8009BD30;
+extern s32 D_8009C7EC;
+extern s32 D_8009BCC0;
+extern s32 D_8009D784;
+extern s32 D_8009D77C;
+extern s32 D_8009D7C8;
+extern s32* D_8009BD00;
+extern s32 D_8009D73C[];
+
+/* best: 97.42%. Everything matches except one register: retail keeps pEntry
+   (pBase + pHeader[1], live across the 16-entry table loop) in $s0 and gives the
+   loop $a1/$a2/$a3, while gcc 2.7.2 puts pEntry in $a1 and shifts the walker to
+   $a2/$a3/$t0. The 8 header stores, the loop body and the four D_8009BD00
+   fixups (loads through the local, stores through the reloaded global) all
+   match. Tried: pEntry computed before vs after the header stores, indexed vs
+   pointer-walk loop, explicit walker copy. Allocator tie, not source order.
+   Sibling func_80076954 in misc2 is the same function without the loop.
+
+void func_80073530(void) {
+    s32* pHeader;
+    u8* pBase;
+    s32* pEntry;
+    s32* p;
+    s32 i;
+
+    pHeader = (s32*)D_8009C180;
+    D_8009C180 = LZSSHeapDecompress(pHeader, 0);
+    HeapFree(pHeader);
+    pBase = (u8*)D_8009C180;
+    pHeader = (s32*)pBase;
+    pEntry = (s32*)(pBase + pHeader[1]);
+    D_8009CD48 = (s32)(pBase + pHeader[2]);
+    D_8009D308 = (s32)(pBase + pHeader[3]);
+    D_8009BD30 = (s32)(pBase + pHeader[4]);
+    D_8009C7EC = (s32)(pBase + pHeader[5]);
+    D_8009BCC0 = (s32)(pBase + pHeader[6]);
+    D_8009D784 = (s32)(pBase + pHeader[7]);
+    D_8009D77C = (s32)(pBase + pHeader[8]);
+    D_8009D7C8 = (s32)(pBase + pHeader[9]);
+    for (i = 0; i < 0x10; i++) {
+        D_8009D73C[i] = (s32)(pBase + pHeader[0xB + i]);
+    }
+    D_8009D3F4 = (WorldMapPoint*)((u8*)pEntry + pEntry[0]);
+    p = (s32*)((u8*)pEntry + pEntry[1]);
+    D_8009BD00 = p;
+    p[0] = (s32)((u8*)pEntry + p[0]);
+    D_8009BD00[1] = (s32)((u8*)pEntry + p[1]);
+    D_8009BD00[2] = (s32)((u8*)pEntry + p[2]);
+    D_8009BD00[3] = (s32)((u8*)pEntry + p[3]);
+}
+*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80073530);
 
 void func_8007369C(void) {
@@ -537,4 +591,77 @@ void func_800739B8(void) {
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80073B04);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80073E30);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_800740B8);
+extern void* D_8009D30C;
+extern void* D_8009BE14;
+extern void* D_8009BE18;
+extern s32 D_8009BE38;
+
+typedef struct {
+    /* 0x0 */ s16 unk0;
+    /* 0x2 */ s16 unk2;
+    /* 0x4 */ s16 unk4;
+    /* 0x6 */ s16 unk6;
+} WorldMapSlot; // Size: 0x8
+
+typedef struct {
+    /* 0x0 */ u32 w0;
+    /* 0x4 */ u32 w1;
+    /* 0x8 */ u32 w2;
+    /* 0xC */ u32 w3;
+} WorldMapChunk; // Size: 0x10
+
+/* best: 98.55%. All three loops match except one register in the clearing loop:
+   retail emits li v0,-1 and compares that, gcc 2.7.2 picks a0 (the loop body, the
+   prim loop and the 0x280-byte chunk copy are byte-identical). Shapes that got
+   here: countdown counter (i = 0xF; i != -1; i--) plus a forward slot pointer,
+   fields written unk4/unk2/unk0 (that is what reproduces retail's base = slot+2
+   and its 2(v0)/0(v0)/0(v1) order), and the copy as a 16-byte struct assignment
+   over a pointer end compare. Sibling of func_800739B8.
+
+void func_80074594(void) {
+    WorldMapSlot* pSlot;
+    POLY_FT4* pPrim;
+    WorldMapChunk* pSrc;
+    WorldMapChunk* pDst;
+    WorldMapChunk* pEnd;
+    s32 i;
+
+    D_8009D30C = HeapAlloc(0x80, 0);
+    D_8009BE14 = HeapAlloc(0x280, 0);
+    D_8009BE18 = HeapAlloc(0x280, 0);
+    pSlot = (WorldMapSlot*)D_8009D30C;
+    for (i = 0xF; i != -1; i--) {
+        pSlot->unk4 = 0;
+        pSlot->unk2 = 0;
+        pSlot->unk0 = 0;
+        pSlot++;
+    }
+    pPrim = (POLY_FT4*)D_8009BE14;
+    for (i = 0xF; i >= 0; i--) {
+        setPolyFT4(pPrim);
+        pPrim->r0 = 0x40;
+        pPrim->g0 = 0x40;
+        pPrim->b0 = 0x48;
+        pPrim->u0 = 0x80;
+        pPrim->v0 = 0xF0;
+        pPrim->u1 = 0x8F;
+        pPrim->v1 = 0xF0;
+        pPrim->u2 = 0x80;
+        pPrim->v2 = 0xFF;
+        pPrim->u3 = 0x8F;
+        pPrim->v3 = 0xFF;
+        pPrim->clut = GetClut(0x120, 0x1FE);
+        pPrim->tpage = GetTPage(0, 0, 0x380, 0x100);
+        SetSemiTrans(pPrim, 1);
+        pPrim++;
+    }
+    pSrc = (WorldMapChunk*)D_8009BE14;
+    pDst = (WorldMapChunk*)D_8009BE18;
+    pEnd = pSrc + 0x28;
+    do {
+        *pDst++ = *pSrc++;
+    } while (pSrc != pEnd);
+    D_8009BE38 = 0;
+}
+*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80074594);
