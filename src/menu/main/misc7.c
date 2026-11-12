@@ -82,7 +82,44 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D3C4C);
        func_801C851C(pWindow->vertsScrollBarEmpty, x, y + 8, 8, height - 8);
    }
 */
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D3DB0);
+void func_801E91C4(P_TAG* pTag);
+void func_801D3DB0(u_char index, u_short x, u_short y, u_short width, u_short height) {
+    MenuWindow* pWindow = g_Menu->windows[index];
+    u16 left;
+    u16 top;
+    u16 right;
+    u16 bottom;
+    s32 i;
+
+    pWindow->unk710 = 0;
+    pWindow->unk710 = func_8002675C(g_Menu->resources, 0xFD,
+                                    pWindow->polysWindowBorderCorners,
+                                    g_Menu->renderContext, 0, 0, 0x1000)
+                    + pWindow->unk710;
+    pWindow->unk710 = func_8002675C(g_Menu->resources, 0xFF,
+                                    (POLY_FT4*)((u8*)pWindow + pWindow->unk710 * 0x50),
+                                    g_Menu->renderContext, 0, 0, 0x1000)
+                    + pWindow->unk710;
+    pWindow->unk710 = func_8002675C(g_Menu->resources, 0x102,
+                                    (POLY_FT4*)((u8*)pWindow + pWindow->unk710 * 0x50),
+                                    g_Menu->renderContext, 0, 0, 0x1000)
+                    + pWindow->unk710;
+    pWindow->unk710 = func_8002675C(g_Menu->resources, 0x104,
+                                    (POLY_FT4*)((u8*)pWindow + pWindow->unk710 * 0x50),
+                                    g_Menu->renderContext, 0, 0, 0x1000)
+                    + pWindow->unk710;
+    left = x - 8;
+    top = y + 8;
+    func_801C851C(pWindow->vertsWindowBorderCorners, left, top, 0x10, 0xFFF0);
+    right = x + width + 8;
+    func_801C851C(&pWindow->vertsWindowBorderCorners[4], right, top, 0xFFF0, 0xFFF0);
+    bottom = y + height - 8;
+    func_801C851C(&pWindow->vertsWindowBorderCorners[8], left, bottom, 0x10, 0x10);
+    func_801C851C(&pWindow->vertsWindowBorderCorners[12], right, bottom, 0xFFF0, 0x10);
+    for (i = 0; i < 4; i++) {
+        func_801E91C4((P_TAG*)&pWindow->polysWindowBorderCorners[i * 2 + g_Menu->renderContext]);
+    }
+}
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D3FF8);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D433C);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D4688);
