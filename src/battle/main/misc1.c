@@ -167,10 +167,6 @@ void func_80071A8C(void) {
     func_800716D8();
 }
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80071AE0);
-/* 99.33% - only the (D_800D2C94 & D_800C48E8) test: gcc loads D_800D2C94 into
-   v1 first, the original loads it into v0 (the and's result reg). Same miss as
-   func_80071964. Tried: operand swap, a u16 local for either side, volatile.
 void func_80071AE0(void) {
     s32 i;
 
@@ -188,7 +184,6 @@ void func_80071AE0(void) {
         func_800716D8();
     }
 }
-*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80071B94);
 /* 72.24% - body is exact except the flag store: gcc hoists `li s3,1` out of the
    loop (loop.c invariant) and then schedules the D_800D2D28 store before the sh,
