@@ -4,11 +4,18 @@
 #include "psyq/memory.h"
 
 typedef struct {
+    /* 0x0 */ s32 x;
+    /* 0x4 */ s32 y;
+    /* 0x8 */ s32 z;
+    /* 0xC */ s32 w;
+} WorldMapPos4; // Size: 0x10
+
+typedef struct {
     /* 0x00 */ u8 pad0[0x4];
     /* 0x04 */ s16 unk4;
     /* 0x06 */ u8 pad6[0x1A];
     /* 0x20 */ s16 unk20;
-    /* 0x22 */ s16 unk22;
+    /* 0x22 */ u16 unk22;
     /* 0x24 */ u8 pad24[0x4];
     /* 0x28 */ s32 unk28;
     /* 0x2C */ s32 unk2C;
@@ -90,6 +97,29 @@ extern s16 D_8006F94E;
 extern s16 D_8006F950;
 extern s16 D_8006F954;
 extern s32 D_8009BBC4;
+extern s32 D_8009BD40;
+extern s32 D_8009BBB4;
+extern s16 D_8009D558;
+extern s32 D_8009BE28;
+extern u8 *D_8009BE3C;
+extern s32 D_8009C5BC;
+extern WorldMapPos4 D_8009C5AC;
+extern void func_80097440(s32 *p);
+extern void func_80097244(s32 *p);
+extern void func_80089748(void);
+extern void func_80089C78(void);
+extern void func_800848F4(void);
+extern void func_800980D4(s32 *p);
+extern void func_800981C8(s32 *p);
+extern void func_80096130(void);
+extern void func_80098CC0(void);
+extern void func_800983A0(s32 *p);
+extern void func_8009932C(s32 arg0, s32 arg1, s32 *p);
+extern void func_80073B04(void);
+extern void func_800737EC(void);
+extern void func_80086798(void);
+extern void func_800894C8(s32 arg0);
+extern void func_800848B4(s32 arg0, s32 arg1);
 
 void func_80077CC0(void) {
     u16 v;
@@ -145,14 +175,70 @@ s32 func_80077DC8(s32 index) {
 }
 */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_80077E68);
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_8007828C);
+s32 func_8007828C(s32 index) {
+    WorldMapActor *p;
+    s32 *pSlot;
+
+    func_800848B4(0, 1);
+    func_800848B4(0, 2);
+    func_800848B4(0, 3);
+    func_800848B4(0, 4);
+    func_800848B4(0, 5);
+    func_800848B4(0, 6);
+    func_800848B4(0, 7);
+    func_800848B4(0, 8);
+    func_800848B4(0, 9);
+    func_800848B4(0, 10);
+    func_800848B4(0, 11);
+    func_800848B4(0, 12);
+    func_800848B4(0, 13);
+    p = D_8009BE24 + index;
+    p->unk20 = 0;
+    *(WorldMapPos4 *)&p->unk28 = D_8009C5AC;
+    pSlot = (s32 *)p;
+    pSlot[0x15] = 0x40;
+    pSlot[0x16] = 0x200;
+    pSlot[0x17] = 0x60;
+    pSlot[0x18] = 0x300;
+    pSlot[0x14] = 0;
+    pSlot[0x19] = 0x50;
+    *(WorldMapPos4 *)&D_8009BE28 = *(WorldMapPos4 *)&p->unk28;
+    return 1;
+}
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_800783E8);
 
 s32 func_80078948(void) {
     return 1;
 }
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_80078950);
+s32 func_80078950(void) {
+    u8 *p;
+    s32 *pState;
+
+    if (D_8009D144 == 0) {
+        func_80097440(&D_8009BD40);
+    } else {
+        func_80097244(&D_8009BD40);
+    }
+    func_80089748();
+    func_80089C78();
+    func_800848F4();
+    func_800980D4(&D_8009BBB4);
+    if (D_8009D558 != 0) {
+        func_800981C8(&D_8009BE28);
+        func_80096130();
+        func_80098CC0();
+    }
+    pState = &D_8009BE28;
+    func_800983A0(pState);
+    p = D_8009BE3C;
+    func_8009932C(*(s32 *)(p + 0x70), *(s32 *)(p + 0x74), pState);
+    D_8009C5BC = D_8009C5BC + 0x40;
+    func_80073B04();
+    func_800737EC();
+    func_80086798();
+    return 1;
+}
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_80078A60);
 void func_80078D24(void) {
     u16 v;
@@ -291,6 +377,47 @@ s32 func_8007A410(s32 index) {
 }
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_8007A430);
+/* 77.29%: everything but the tail of the `unk22 > 0` branch matches. The
+   original materialises the func_80089160 argument (0x1F8000A0) as lui a1 in
+   the middle of the three scratch stores (lui a1,0x1F80; sh..; ori a1,a1,0xA0)
+   and puts p->unk30 += 0x20000 in a1, so p is in a2. This shape (s16 *pDst
+   for the stores and the call argument) gets p into a2 and 77.29%; the literal
+   `*(s16 *)((u8 *)PSX_SCRATCH + 0xA0)` form gets the store order right but
+   moves p to a3 (74.40%). gcc 2.7.2-cdk: 73.44%. Not a cdk/frame problem - the
+   address constant and the 0x20000 swap registers between the two shapes.
+s32 func_8007A430(s32 index) {
+    WorldMapActor *p;
+    WorldMapState *s;
+    WorldMapPos4 *pSrc;
+    s16 *pDst;
+    s32 result = 1;
+
+    p = D_8009BE24 + index;
+    if (p->unk4 == 1) {
+        s = D_8009C620;
+        p->unk4 = 0;
+        p->unk28 = s->unk8 << 12;
+        p->unk2C = s->unkC << 12;
+        p->unk30 = s->unk10 << 12;
+    }
+    p->unk22 = p->unk22 - 1;
+    if ((s16)p->unk22 > 0) {
+        p->unk30 += 0x20000;
+        pDst = (s16 *)((u8 *)PSX_SCRATCH + 0xA0);
+        pDst[0] = p->unk28 >> 12;
+        pDst[1] = p->unk2C >> 12;
+        pDst[2] = p->unk30 >> 12;
+        func_80089160(9, (s32)pDst, 0);
+    } else {
+        p->unk22 = 0x60;
+        pSrc = &D_8009C5AC;
+        *(WorldMapPos4 *)&p->unk28 = *pSrc;
+        func_800894C8(9);
+        result = 3;
+    }
+    return result;
+}
+*/
 
 s32 func_8007A568(void) {
     return 3;
@@ -335,7 +462,32 @@ s32 func_8007A570(s32 index) {
 }
 */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_8007A5DC);
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_8007A8AC);
+void func_8007A8AC(void) {
+    u16 v;
+
+    func_80039FF8();
+    func_8003852C(D_8006259C);
+    HeapFree(D_8006259C);
+    func_80084818();
+    func_80086568();
+    func_800866C8();
+    func_80074F04();
+    func_800750DC();
+    func_80088FF4();
+    func_80089128();
+    func_80097D64();
+    HeapFree(D_8009BC38);
+    HeapFree(D_8009BCB0);
+    HeapFree(D_8009BC3C);
+    HeapFree(D_8009BCB4);
+    HeapFree(D_8009C180);
+    func_800976A0();
+    v = *(u16 *)&D_8009BD3A;
+    D_8006F94E = 0x11A;
+    D_8006F954 = 0;
+    D_8009BBC4 = 1;
+    D_8006F950 = v;
+}
 s32 func_8007A9B4(s32 index) {
     WorldMapActor *p;
 
