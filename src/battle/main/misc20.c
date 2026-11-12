@@ -7,6 +7,7 @@ extern u8 *D_800C3E00;
 extern u8 *D_800C3E34;
 extern u8 *D_800C34B0;
 extern u8 *D_800D2DC8;
+extern u8 *D_800D2D6C;
 extern u8 D_800C3E50;
 extern u8 D_800CCD3E[];
 extern u8 D_800CCD8C[];
@@ -31,7 +32,46 @@ void func_8009C134(void) {
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc20", func_8009C198);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc20", func_8009C4B4);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc20", func_8009C9C4);
+void func_8009C9C4(void) {
+    u16 a = *(u16 *)(D_800D2D6C + 0x84);
+    u16 b = *(u16 *)(D_800C3E00 + 0x8A);
+    u16 c;
+
+    D_800C34B0[0x5FBC] = D_800C3DFC[0x20];
+    D_800C34B0[0x5FBD] = D_800C3DFC[0x21];
+    D_800C34B0[0x5FBE] = D_800C3DFC[0x22];
+    D_800C34B0[0x5FBF] = D_800C3DFC[0x23];
+    D_800C34B0[0x5FC0] = D_800C34B0[0x5FC2];
+    c = (a | b) >> 12;
+    if ((D_800C34B0[0x5FBE] & 0x3F) == 0) {
+        D_800C34B0[0x5FBE] |= c;
+    }
+}
+/* best 99.91%: head, both index chains, both stores and the shared store all
+   match. Only the flag test's fail branch differs: the original targets the
+   else block (.L8009CAFC), gcc jumps to the epilogue (same net effect, one
+   instruction different). Writing the flag test as a flat `A && B && C` chain
+   produces the original branch but flips the index add's operands to
+   `addu v1,v1,a0` (99.63%); the nested `if` gives `addu v1,a0,v1` but jumps to
+   the epilogue. Six shapes tried.
+void func_8009CA90(void) {
+    u8 *p = D_800C34B0;
+
+    if (p[0x5FC2] >= 0xC && p[0x5FC2] < 0xF) {
+        u8 *q = p + D_800C3E50 * 0x170;
+        if (!(q[0x15A] & 0x80)) {
+            D_800C3DFC += 0x78;
+        }
+    } else {
+        if (p[0x5FC2] < 3) {
+            u8 *q = p + D_800C3E50 * 0x170;
+            if (!(q[0x15A] & 0x80)) {
+                D_800C3DFC += 0x258;
+            }
+        }
+    }
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc20", func_8009CA90);
 void func_8009CB68(u8 arg0) {
     s32 o = arg0 * 0x170;
