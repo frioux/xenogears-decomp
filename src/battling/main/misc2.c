@@ -77,6 +77,7 @@ void func_800732CC(void) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_8007334C);
 
+INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80073424);
 /* 98.09%: the loop's induction shape. The original keeps BOTH a walking
    pointer ($a2 = p2 + i*0x44, tested as `lbu v0,0x67C(a2)`) and the byte offset
    ($t0, used as `addiu v0,t0,0x64C; addu s0,s3,v0`); gcc folds the two into one
