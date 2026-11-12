@@ -52,6 +52,24 @@ extern void func_80079E18(s32);
 extern void func_80079E4C(s32);
 extern s32 SystemRenderStringEntry(u8 *, s32, s32, s32);
 extern s32 D_800CCB34;
+extern u8 D_800D2D88[];
+extern u8 D_800D3280;
+extern u16 D_800C3076[];
+extern u16 D_800C3254[];
+extern s32 func_80076A10(s32, s32, s16, s16);
+extern void func_80072938(POLY_FT4 *, s32, s32, s32);
+extern u8 D_800D3298;
+extern u8 D_800D2DCC[];
+extern u16 D_800CCD64[];
+extern u16 D_800CCD68[];
+extern u16 D_800CCD6C[];
+extern u16 D_800CCD6E[];
+extern u8 D_800CCE44[];
+extern u16 D_800D2E1C[];
+extern u8 D_800C3CF9[];
+extern u8 D_800D32A0[];
+extern u16 D_800CCDC4[];
+extern void func_8008AAA0(s32);
 
 void func_80070E2C(void) {
     s32 first;
@@ -99,17 +117,74 @@ s32 func_800716D8(void) {
 
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_8007171C);
-void func_800718BC(void) {
-    u8 index;
+/* 77.62% under 2.6.0. The whole control flow (the 1/2 decrement, the 0x1000
+   bit toggle on D_800D2E1C, the 0x2000 timer, the 0x80/0x1000 guards and the
+   0xB wrap) is right; the miss is that gcc strength-reduces the most-used
+   `(u8 *)SYM + off` (D_800CCD64, four uses) into a pointer biv, so its base is
+   hoisted once into a3 and the loads become `lhu 0(a3)`, where retail re-forms
+   `lui $at,%hi(SYM); addu $at,$at,$a0` at every use and keeps `off` an integer
+   biv. Tried: `off` as a running for-clause biv, `off = i * 0x170` inline (both
+   77.62%), one-`if`-per-level nesting without continue (70.32%), splitting the
+   two entry tests. The other four symbols already come out in the retail form.
+void func_8007171C(void) {
+    u16 v;
+    u8 *pTimer;
+    s32 dec;
+    s32 i;
+    s32 off;
 
-    index = D_800C3EAC[0x2D3];
-    if (D_800D2DE4[index] != 0xFF) {
-        D_800D2DE4[index] = 0;
+    if (D_800D3298 == 0) {
+        return;
     }
-    D_800D2E06[D_800C3EAC[0x2D3]] = func_80098AF8(D_800C3EAC[0x2D3], 0);
-    D_800D2E06[D_800C3EAC[0x2D3] - 0xB] = D_800D2E06[D_800C3EAC[0x2D3]];
-}
 
+    for (i = 0; i < 0xB; i++) {
+        off = i * 0x170;
+        if (D_800D2DCC[i] == 0) {
+            continue;
+        }
+        if (D_800D2DE4[i] != 0) {
+            continue;
+        }
+        dec = 1;
+        if ((*(u16 *)((u8 *)D_800CCD6C + off) | *(u16 *)((u8 *)D_800CCD6E + off)) & 0x8000) {
+            dec = 2;
+        }
+        if (*(u16 *)((u8 *)D_800CCD64 + off) & 0x1000) {
+            v = *(u16 *)((u8 *)D_800D2E1C + i * 2) ^ 1;
+            *(u16 *)((u8 *)D_800D2E1C + i * 2) = v;
+            if (v != 0) {
+                continue;
+            }
+        }
+        v = *(u16 *)((u8 *)D_800CCD64 + off);
+        if (v & 0x2000) {
+            pTimer = (u8 *)((u8 *)D_800CCE44 + off);
+            *pTimer -= dec;
+            if (*pTimer != 0) {
+                continue;
+            }
+            v = *(u16 *)((u8 *)D_800CCD64 + off);
+            *pTimer = 0;
+            *(u16 *)((u8 *)D_800CCD64 + off) = v & 0xDFFF;
+            continue;
+        }
+        if (v & 0x80) {
+            continue;
+        }
+        if (*(u16 *)((u8 *)D_800CCD68 + off) & 0x1000) {
+            continue;
+        }
+        pTimer = (u8 *)((u8 *)D_800D2E06 + i * 2);
+        v = *(u16 *)pTimer - dec;
+        *(u16 *)pTimer = v;
+        if ((s16)v > 0) {
+            continue;
+        }
+        D_800D2DE4[i] = 1;
+        *(u16 *)pTimer = 0;
+    }
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80071964);
 /* 99.51% under 2.6.0 and 2.7.2: every instruction is identical except the
    leading flag load, which retail puts in $a1 (a dead argument register at
@@ -340,29 +415,81 @@ void func_80072938(POLY_FT4 *pPrim, s32 first, s32 last, s32 mode) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80072A9C);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80072DA8);
+void func_80072DA8(s32 arg0, u8 arg1) {
+    s32 first;
+    s32 i;
+
+    first = *(s32 *)(D_800D2D28 + arg0 * 4 + 0xE0);
+    for (i = 0; i < 5; i++) {
+        if (D_800D2D88[i] != 0xFF) {
+            *(s32 *)(D_800D2D28 + arg0 * 4 + 0xE0) += func_80076A10(
+                D_800D2D88[i] + 0x67,
+                (s32)(D_800C3EA4 + (arg0 * 3200 + 0x3A88)) + *(s32 *)(D_800D2D28 + arg0 * 4 + 0xE0) * 80,
+                (s16)(D_800C3076[arg0 * 24 + i] + D_800C3254[D_800D3280 * 3 + arg0]),
+                0x10);
+        }
+    }
+    if (arg1 != 0) {
+        func_80072938((POLY_FT4 *)(D_800C3EA4 + (arg0 * 3200 + 0x3A88)), first,
+                      *(s32 *)(D_800D2D28 + arg0 * 4 + 0xE0), arg1);
+    }
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80072F38);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80073380);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80073538);
-/* 91.00% - every instruction but two addu operand orders and one CSE is right.
-   Misses: (1) the original keeps `&D_800CCB04` in s0 across both AddPrim calls
-   (lui/addiu once, then two `lw a0,0(s0)`), gcc re-forms lui/lw for each use even
-   with a `u8 **pOt = &D_800CCB04;` local (constant-propagated away); (2) the delay
-   slot add is `addu a1,a1,v1` (offset + base) in the original, gcc canonicalises an
-   offset-first `(0x63C8 + idx*24) + p` back to `addu a1,v1,a1`.
-   The three colour stores, the `lbu 0x6415` guard and the reload-after-store
-   pattern (D_800C3EA4 is a u8 * so the sb forces a reload) all match exactly. */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80073A58);
-/* void func_80073A58(void) {
-    u8 **pOt;
+/* 99.82% under 2.6.0: only two `addu` operand orders differ in the first block.
+   Retail does `addu v1,v1,v0` (the sum lands in the register that held
+   D_800C3EA4, then `addu at,v1,at` for the 0x10000); gcc's commutative-operand
+   precedence puts the `arg0 * 484` product first, so it emits `addu v0,v0,v1`
+   and `addu at,v0,at`. Everything else - the 484-byte stride, the 0x853D
+   displacement, the two amount sources, the func_80076A10 loop (80-stride,
+   *i*6 accumulate, 0x25) and the final byte store - is exact. Tried: the
+   expression inline as `D_800C3EA4 + (arg0*484 + 0x853D)`, a `u8 *pFlags` local,
+   and a separate `off = arg0 * 484` temp; all give the same 99.82%.
+void func_80073380(s32 arg0) {
+    u8 *pFlags;
+    s16 amount;
+    s32 off;
+    s32 i;
 
+    off = arg0 * 484;
+    pFlags = D_800C3EA4 + off;
+    if (*(u8 *)(pFlags + 0x853D) == 1) {
+        amount = *(u8 *)(D_800D32A0 + arg0 * 8);
+    } else {
+        amount = *(u16 *)((u8 *)D_800CCDC4 + arg0 * 0x170);
+    }
+    func_8008AAA0(amount);
+
+    for (i = 0; i < 4; i++) {
+        if (D_800C3CF9[i] != 0xFF) {
+            *(s32 *)(D_800D2D28 + arg0 * 4 + 0xEC) += func_80076A10(
+                D_800C3CF9[i] + 0x83,
+                (s32)(D_800C3EA4 + (arg0 * 320 + 0x6008)) + *(s32 *)(D_800D2D28 + arg0 * 4 + 0xEC) * 80,
+                (s16)(arg0 * 96 + (D_800C3254[D_800D3280 * 3 + arg0] + 0x4A) + i * 6),
+                0x25);
+        }
+    }
+    *(u8 *)(D_800D2D28 + arg0 + 0x99) = *(u8 *)&D_800CCB34;
+}
+*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80073538);
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80073A58);
+/* 91.30% - the three colour stores, the `lbu 0x6415` guard, the reload-after-store
+   pattern (D_800C3EA4 is a u8 * so the sb forces a reload) and both `addu a1,a1,v1`
+   (offset-first) are exact. The only remaining miss is the link address: retail
+   keeps `&D_800CCB04` in s0 (one lui/addiu, then `lw a0,0(s0)` per call, 0x18 frame
+   with s0 saved) while gcc re-forms lui/lw per use and needs no saved register
+   (0x10 frame). Tried: `u8 **pOt = &D_800CCB04` then `*pOt` (constant-propagated
+   away) and the bare `D_800CCB04 + 4` form (identical 91.30%). Same open problem as
+   misc2's func_800743A4 and func_800744BC - no shape found in the repo makes gcc
+   materialise the address of a global once across calls.
+void func_80073A58(void) {
     if (((u8 *)D_800C3EA4)[0x6415] != 0) {
         ((u8 *)D_800C3EA4)[0x63CC + ((u8 *)D_800C3EA4)[0x6414] * 24] = ((u8 *)D_800C3EA4)[0x6410];
         ((u8 *)D_800C3EA4)[0x63CD + ((u8 *)D_800C3EA4)[0x6414] * 24] = ((u8 *)D_800C3EA4)[0x6410];
         ((u8 *)D_800C3EA4)[0x63CE + ((u8 *)D_800C3EA4)[0x6414] * 24] = ((u8 *)D_800C3EA4)[0x6410];
-        pOt = &D_800CCB04;
-        AddPrim(*pOt + 4, (0x63C8 + ((u8 *)D_800C3EA4)[0x6414] * 24) + (u8 *)D_800C3EA4);
-        AddPrim(*pOt + 4, (0x63F8 + ((u8 *)D_800C3EA4)[0x6414] * 12) + (u8 *)D_800C3EA4);
+        AddPrim(D_800CCB04 + 4, (0x63C8 + ((u8 *)D_800C3EA4)[0x6414] * 24) + (u8 *)D_800C3EA4);
+        AddPrim(D_800CCB04 + 4, (0x63F8 + ((u8 *)D_800C3EA4)[0x6414] * 12) + (u8 *)D_800C3EA4);
     }
 }
 */
