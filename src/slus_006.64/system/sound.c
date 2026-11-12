@@ -3465,6 +3465,44 @@ u8* func_8003DC50(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003DD24);
 /*
+Attempt (69.46%, 244 bytes vs the original's 236). pScript reaches s4, volume s2 and the step
+handler table load v1, so the head and the tail order are right. Still different: (1) the flags
+test - the original is andi s0,s3,0x10 + sltiu s0,s0,1 + sll + addiu 1, but gcc 2.6 turns every
+spelling tried (an inline == 0 or != 0 comparison, or a `== 0` / `< 1` / `!x` local multiplied by
+2) into either a bnez pair or srl/xori/andi bit extraction; (2) the third call argument reaches a2
+through a move in the jal delay slot where the original reuses the andi a2,s3,0xF computed before
+the division; (3) with the flags local present pAudioElements moves from s1 to s3. Reusing one
+variable for the velocity and the volume (`volume += volume * volume / 64`) is what puts them in a
+single register; separate velocity/volume locals come out at 59.39% in exactly 236 bytes.
+// u8* func_8003DD24(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
+//     s32 note = (s8)pScript[1];
+//     u8 unk2 = pScript[2];
+//     s32 value;
+//     s32 unk10;
+//     s32 volume = pScript[0];
+
+//     if (note != 0) {
+//         if (volume != 0) {
+//             volume += (volume * volume) / 64;
+//             value = unk2 & 0xF;
+//             unk10 = !(unk2 & 0x10);
+//             pAudioElements->envelopes[1].delta = func_8003E290(note << 24, (s16)volume, value);
+//             pAudioElements->envelopes[1].unk_0x1A = 0x400;
+//             pAudioElements->envelopes[1].reload = volume;
+//             pAudioElements->envelopes[1].unk_0x16 = 0;
+//             pAudioElements->envelopes[1].unk_0x1C = 1;
+//             pAudioElements->envelopes[1].flags = unk10 * 2 + 1;
+//             pAudioElements->envelopes[1].unk_0x0 = D_800508A4[value];
+//             pAudioElements->envelopes[1].unk_0x1D = value;
+//             pAudioElements->unk_0xCE |= 0x2;
+//             func_8003E3E0(&pAudioElements->envelopes[1]);
+//         }
+//     }
+
+//     return pScript + 3;
+// }
+*/
+/*
 Attempt (71.39%, same size as the original's 236 bytes): the tail is present in the
 original's order (delta, 0x400, reload, 0, step-handler table, unk_0x1C, unk_0x1D,
 flags, unk_0xCE, call), but gcc loads the table entry into a1 instead of v1, drops the
