@@ -1,6 +1,7 @@
 #include "common.h"
 
 extern s32 D_80059488;
+extern s32 D_8009284C;
 
 typedef struct {
     /* 0x00 */ u8 unk0;
@@ -209,8 +210,40 @@ void func_8008F060(u8* p0, u8* p1) {
     func_8007639C(p0, 4);
     *(u16*)(p1 + 4) = 0x3C;
 }
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008F094);
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008F17C);
+void func_8008F094(u8* p0, u8* p1) {
+    u16 timer;
+
+    if (D_8009284C >= 0x801) {
+        *(u16*)(p1 + 0x4) = 1;
+        *(u16*)(p1 + 0xC) = 0;
+        return;
+    }
+    *(u16*)(p1 + 0x4) -= 1;
+    if ((s16)*(u16*)(p1 + 0x4) != -1) {
+        return;
+    }
+    *(u16*)(p1 + 0xA) = rand() % 0x600 + 0x500;
+    timer = rand() % 50 + 0xA;
+    *(u16*)(p1 + 0xC) = 0xFF;
+    *(u16*)(p1 + 0x4) = timer;
+}
+void func_8008F17C(u8* p0, u8* p1) {
+    u16 timer;
+
+    if (D_8009284C < 0x100) {
+        *(u16*)(p1 + 0x4) = 1;
+        *(u16*)(p1 + 0xC) = 0;
+        return;
+    }
+    *(u16*)(p1 + 0x4) -= 1;
+    if ((s16)*(u16*)(p1 + 0x4) != -1) {
+        return;
+    }
+    *(u16*)(p1 + 0xA) = rand() % 0x600 - 0x300;
+    timer = rand() % 120 + 0xA;
+    *(u16*)(p1 + 0xC) = 0xFF;
+    *(u16*)(p1 + 0x4) = timer;
+}
 void func_8008F260(u8* p0, u8* p1, u8 value) {
     p1[0xF] = value;
     func_80090E10(p0);
