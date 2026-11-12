@@ -270,6 +270,17 @@ void func_801CF308(void) {
         func_801CE2B4(g_Menu->unk354->unk1400, g_Menu->unk354->polys0, g_Menu->unk354->unk1408);
     }
 }
+INCLUDE_ASM("asm/menu/nonmatchings/main/misc4", func_801CF37C);
+/* 98.89%: everything matches except where gcc puts `valid = 1` relative to the
+   `character == 0xFF` compare (retail emits it before the compare and lets reorg
+   duplicate the `andi` into the delay slot; gcc puts it in that slot instead).
+   Notes: D_801E981C is the overlay dlabel table in asm/menu/data/246A4.data.s so
+   it only needs an extern declaration.  The three colour bytes read the low byte
+   at 0x4D4 through a u8* cast (retail uses lbu) and the AddPrim offsets must be
+   written as &pData[ctx * N + K] (array subscript): that is what makes the addiu
+   land before the addu.  Also tried: else-branch assignment to valid (96%), the
+   || form valid = character != 0xFF || ... (worse), a u32 offset local hoisted
+   above each AddPrim (95.10%), and offset + pData operand order (96.78%).
 void func_801CF37C(void) {
     s32 i;
     u8 character;
@@ -307,6 +318,8 @@ void func_801CF37C(void) {
         AddPrim(&g_Menu->pGfxEnv->ot[4], (void*)&pData[g_Menu->renderContext * 12 + 0x140]);
     }
 }
+*/
+
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc4", func_801CF5E4);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc4", func_801CF8D8);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc4", func_801CFB48);
