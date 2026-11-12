@@ -324,7 +324,44 @@ s32 func_80079538(s32 index) {
     D_8009C620->unk550 = p->unk30 >> 12;
     return 1;
 }
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_800795E4);
+s32 func_800795E4(s32 index) {
+    WorldMapActor *p;
+    WorldMapState *s;
+    u16 *q;
+    s32 *pSlot;
+
+    func_800848B4(0, 1);
+    func_800848B4(0, 2);
+    func_800848B4(0, 3);
+    func_800848B4(0, 4);
+    func_800848B4(0, 5);
+    func_800848B4(0, 6);
+    func_800848B4(0, 7);
+    func_800848B4(0, 8);
+    func_800848B4(0, 9);
+    func_800848B4(0, 10);
+    func_800848B4(0, 11);
+    func_800848B4(0, 12);
+    func_800848B4(0, 13);
+    p = D_8009BE24 + index;
+    p->unk20 = 0;
+    *(WorldMapPos4 *)&p->unk28 = D_8009C5AC;
+    pSlot = (s32 *)p;
+    pSlot[0x15] = 0x40;
+    pSlot[0x16] = 0x200;
+    pSlot[0x17] = 0x60;
+    pSlot[0x18] = 0x300;
+    pSlot[0x14] = 0;
+    pSlot[0x19] = 0x50;
+    *(WorldMapPos4 *)&D_8009BE28 = *(WorldMapPos4 *)&p->unk28;
+    s = D_8009C620;
+    q = D_8006259C;
+    ((s16 *)s)[0xC] = -0x100;
+    ((s16 *)s)[0xD] = 0;
+    ((s16 *)s)[0xE] = -0x40;
+    func_80039E60((q[0xA] << 16) | 0x36);
+    return 1;
+}
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_80079778);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_8007A06C);
 /* 99.85%: only the loop-pointer bias differs. gcc makes the loop pointer
