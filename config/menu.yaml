@@ -65,6 +65,8 @@ segments:
       - [0x16920, c, main/misc9]
       - [0x1BF78, c, main/misc10]
       - [0x1F33C, c, main/misc11]
+      - [0x1F928, c, main/misc11_r1]
+      - [0x1FA28, c, main/misc11_r2]
       - [0x21CFC, c, main/misc12]
       - [0x246A4, data]
   - [0x25908]

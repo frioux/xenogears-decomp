@@ -175,7 +175,7 @@ def main():
     for i, (needs_new, members) in enumerate(groups):
         names = [n for _, n in members]
         fname = unit if i == 0 else f"{unit}_r{i}"
-        asm_dir = f"asm/{binary}/nonmatchings/{fname.split('/', 1)[1]}"
+        asm_dir = f"asm/{binary}/nonmatchings/{fname}"
         print(f"  run {i}: {'NEW PRESET' if needs_new else 'unit preset'} "
               f"{len(names)} fn off 0x{off(names[0]):X}  src/{binary}/{fname}.c  {names[0]}..{names[-1]}")
         body_start = members[0][0]
