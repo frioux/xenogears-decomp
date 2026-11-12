@@ -2,6 +2,7 @@
 #include "psyq/libgpu.h"
 #include "psyq/libgte.h"
 #include "system/memory.h"
+#include "psyq/memory.h"
 
 typedef struct {
     /* 0x00 */ undefined32 unk00;
@@ -104,7 +105,69 @@ extern u16 D_8006F950;
 extern u16 D_8006F954;
 extern u32 D_8009BBC4;
 extern u16 D_8009A5CC[];
-extern s32 D_80062528;
+extern void func_80072BB0(void);
+extern void func_80072DB4(int, int, int, int);
+extern int ArchiveDataSync(void);
+extern void func_80076954(void);
+extern void func_8009766C(void);
+extern MATRIX D_8009A180;
+extern MATRIX D_8009BE4C;
+extern s32 D_8009CCA4;
+extern s32 D_8009D3CC;
+extern s32 D_8009D804;
+extern void func_80086700(void);
+extern void (*D_8009CD40)(void);
+extern void func_80098044(void);
+extern int ArchiveCdDataSync(int);
+extern void func_8001B66C(void);
+extern s16 D_8009A5B4[];
+extern s16 D_8009A5B6[];
+extern s16 D_8009A5B8[];
+extern void func_80084580(void);
+extern void func_8008440C(void);
+extern void func_800979C8(void);
+extern void func_80072090(void);
+extern void func_800736DC(void);
+extern void func_800863E0(void);
+extern void func_80074E58(void);
+extern void func_80075030(void);
+extern void func_800739B8(void);
+extern void func_80088F64(void);
+extern void *g_GameCurLoadedWDS;
+extern void *SoundLoadWdsFile(void *, void *);
+extern void *D_8009C88C;
+extern void func_80097BC0(s32 *);
+extern void func_800967E4(void);
+extern int Vsync(int);
+extern int func_80096668(void);
+extern u16 g_SoundControlFlags;
+extern void SoundAddSedsEntry(void *);
+extern int ArchiveDecodeAlignedSize(u32);
+extern s32 D_8009D3D0;
+extern u8 D_80062648[];
+extern void *D_8009C884;
+extern void *func_80039850(void *);
+extern s32 *D_80062528;
+extern void func_80039A80(s32 *, int, int);
+extern void func_80097718(void *, void *);
+extern void func_800978FC(void);
+extern void func_8008901C(void);
+extern void func_800865A0(void);
+extern void func_80075228(void);
+extern void func_800923A8(void);
+extern void func_800925A0(void);
+extern int func_8007DE14(int);
+extern void func_8007DE98(int);
+extern int func_8007E450(int);
+extern void func_8007E4E4(int);
+extern void func_8007ECA4(int);
+extern void func_8007EE34(int);
+extern void func_8007F8AC(int);
+extern void func_8007F968(int);
+extern void func_8007FC8C(int);
+extern void func_8007FD30(int);
+extern void func_80078948(void);
+extern void func_80078950(void);
 
 int func_8007D414(int index) {
     WorldMapGroup *pGroup;
@@ -228,7 +291,83 @@ int func_8007D7FC(int index) {
     return 1;
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007D918);
-void func_8007DCE0(void) {
+/* 93.88%: byte-identical except the &D_8009C5AC group. Retail keeps the address
+   in $s0 (lui/addiu before the first store, sw v0,0(s0), then move a0,s0 at the
+   func_80097BC0 call); gcc folds every use to %hi/%lo. Tried: a pPos local used
+   for the store and the call, pPos[0], and plain D_8009C5AC plus &D_8009C5AC
+   (all three compile identically). Also note the ArchiveDataSync loop is
+   while (ArchiveDataSync() >= 3), which is what gives the slti/beqz shape.
+void func_8007D918(void) {
+    RECT rect;
+    s32 nIndex;
+
+    func_80072BB0();
+    rect.x = 0;
+    rect.y = 0;
+    rect.w = 0x140;
+    rect.h = 0xD8;
+    MoveImage(&rect, 0x2C0, 0x100);
+    DrawSync(0);
+    func_80072DB4(0x40, 0, 4, 2);
+    while (ArchiveDataSync() >= 3) {
+    }
+    func_80076954();
+    func_8009766C();
+    D_8009BE4C = D_8009A180;
+    D_8009CCA4 = 2;
+    D_8009D3CC = 0x10;
+    D_8009D804 = 0;
+    D_8009D144 = 0;
+    D_8009CD40 = func_80086700;
+    func_80098044();
+    ArchiveCdDataSync(0);
+    func_8001B66C();
+    nIndex = D_8009D3D4;
+    D_8009C5AC = D_8009A5B4[nIndex * 4] << 12;
+    D_8009C5B0 = D_8009A5B6[nIndex * 4] << 12;
+    D_8009C5B4 = D_8009A5B8[nIndex * 4] << 12;
+    func_80084580();
+    func_8008440C();
+    func_800979C8();
+    func_80072090();
+    func_800736DC();
+    func_800863E0();
+    func_80074E58();
+    func_80075030();
+    func_800739B8();
+    func_80088F64();
+    ArchiveCdDataSync(0);
+    g_GameCurLoadedWDS = SoundLoadWdsFile(D_8009C88C, 0);
+    ArchiveSetIndex(0x24, 0);
+    func_80097BC0(&D_8009C5AC);
+    do {
+        func_800967E4();
+        Vsync(0);
+    } while (func_80096668() > 0);
+    while (g_SoundControlFlags & 0x10) {
+    }
+    HeapFree(D_8009C88C);
+    SoundAddSedsEntry(D_8006259C);
+    memcpy(D_80062648, D_8009C884, ArchiveDecodeAlignedSize(D_8009D3D0));
+    D_80062528 = func_80039850(D_80062648);
+    func_80039A80(D_80062528, 0x7F, 0);
+    func_80097718(func_800923A8, func_800925A0);
+    func_80097718(func_8007DE14, func_8007DE98);
+    func_80097718(func_8007E450, func_8007E4E4);
+    func_80097718(func_8007ECA4, func_8007EE34);
+    func_80097718(func_8007F8AC, func_8007F968);
+    func_80097718(func_8007F8AC, func_8007F968);
+    func_80097718(func_8007F8AC, func_8007F968);
+    func_80097718(func_8007F8AC, func_8007F968);
+    func_80097718(func_8007F8AC, func_8007F968);
+    func_80097718(func_8007FC8C, func_8007FD30);
+    func_80097718(func_80078948, func_80078950);
+    func_800978FC();
+    func_8008901C();
+    func_800865A0();
+    func_80075228();
+}
+*/void func_8007DCE0(void) {
     s32 nIndex;
     u16 unkWord;
     u16 unkValue;
