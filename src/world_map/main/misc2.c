@@ -32,6 +32,18 @@ typedef struct {
 } WorldMapEntry; // Size: 0xC
 
 typedef struct {
+    /* 0x0 */ u32 data[0x800];
+} ActorBlock; // Size: 0x2000
+
+typedef struct {
+    /* 0x0 */ s16 data[0x10];
+} SlotBlock; // Size: 0x20
+
+typedef struct {
+    /* 0x0 */ u32 data[0xA0];
+} UnkBlock; // Size: 0x280
+
+typedef struct {
     /* 0x00 */ u8 pad0[0x24];
     /* 0x24 */ u16 unk24;
     /* 0x26 */ u16 unk26;
@@ -49,6 +61,48 @@ typedef struct {
     /* 0x4 */ s16 vz;
     /* 0x6 */ u16 pad6;
 } Vector16; // Size: 0x8
+
+extern void func_80072BB0(void);
+extern void func_80072DB4(s32 arg0, s32 arg1, s32 arg2, s32 arg3);
+extern void func_8008440C(void);
+extern void func_800978FC(void);
+extern void func_8008901C(void);
+extern void func_800865A0(void);
+extern void func_80085FE0(void);
+extern void SystemTransferPaletteToVRAM(short xDest, short yDest);
+extern void ControllerResetState(void);
+extern void ArchiveCdDataSync(s32 arg0);
+extern void ArchiveReadFileToBuffer(s32 index, void* pBuffer, u32 arg2, u32 flags);
+extern void* D_8005945C;
+extern void* D_8009C7E4;
+extern s32 D_8009C174;
+extern void* D_8009BD20;
+extern u8* D_8009BE3C;
+extern u_long* D_8009C800;
+extern u_long* D_8009C890;
+extern s32 D_8009D14C;
+extern s32 D_8009D804;
+extern u_char D_80059179;
+
+extern u32 D_8005A4E4[];
+extern u8 D_8009CEC4[];
+extern s32 D_8009BBB4;
+extern s32 D_8009BBB8;
+extern s32 D_8009BBBC;
+extern s32 D_8009BD38;
+extern s32 D_8009BD3C;
+extern s32 D_8009BE0C;
+extern s32 D_8009BE28;
+extern s32 D_8009BE2C;
+extern s32 D_8009BE30;
+extern s32 D_8009C838;
+extern s32 D_8009C83C;
+extern s16 D_8009D154;
+extern s32 D_8009D3F0;
+extern s16 D_8009D52C;
+extern s32 D_8009D55C;
+extern s32 D_8009D560;
+extern s32 D_8009D564;
 
 extern WorldMapActor* D_8009BE24;
 extern s32 D_8009BE10;
@@ -249,10 +303,91 @@ void func_8007528C(void) {
         }
     }
 }
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc2", func_80075460);
+void func_80075460(void) {
+    u8* pSave;
+
+    pSave = D_8005A4E4;
+    *(ActorBlock*)pSave = *(ActorBlock*)D_8009BE24;
+    *(s32*)(pSave + 0x2000) = D_8009D55C;
+    *(s32*)(pSave + 0x2004) = D_8009D560;
+    *(s32*)(pSave + 0x2008) = D_8009D564;
+    *(s32*)(pSave + 0x2010) = D_8009D52C;
+    *(s32*)(pSave + 0x2014) = D_8009BE40;
+    *(s32*)(pSave + 0x2018) = D_8009BCC4;
+    *(s32*)(pSave + 0x201C) = D_8009D64C;
+    *(SlotBlock*)(pSave + 0x2020) = *(SlotBlock*)D_8009C854;
+    *(UnkBlock*)(pSave + 0x2040) = *(UnkBlock*)D_8009CEC4;
+    *(s32*)(pSave + 0x22C0) = D_8009D154;
+    *(s32*)(pSave + 0x22C4) = D_8009BD38;
+    *(s32*)(pSave + 0x22C8) = D_8009BD3C;
+    *(s32*)(pSave + 0x22CC) = D_8009D3F0;
+    *(s32*)(pSave + 0x22D0) = D_8009BE0C;
+    *(s32*)(pSave + 0x22E4) = D_8009C838;
+    *(s32*)(pSave + 0x22E8) = D_8009C83C;
+    *(s32*)(pSave + 0x22D4) = D_8009BBB4;
+    *(s32*)(pSave + 0x22D8) = D_8009BBB8;
+    *(s32*)(pSave + 0x22DC) = D_8009BBBC;
+    *(s32*)(pSave + 0x22EC) = D_8009BE28;
+    *(s32*)(pSave + 0x22F0) = D_8009BE2C;
+    *(s32*)(pSave + 0x22F4) = D_8009BE30;
+}
+
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc2", func_8007565C);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc2", func_800758C0);
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc2", func_80075B58);
+void func_80075B58(void) {
+    RECT rect;
+    void* pBuffer;
+    s32 mode;
+    s32 w;
+    s32 h;
+
+    w = 0x100;
+    h = 0x140;
+    HeapChangeCurrentUser(3, 0);
+    ArchiveSetIndex(0x24, 0);
+    HeapFree(D_8005945C);
+    HeapFree(D_8009C7E4);
+    func_80072BB0();
+    pBuffer = HeapAlloc(ArchiveDecodeAlignedSize(D_8009C174), 1);
+    D_8009BD20 = pBuffer;
+    ArchiveReadFileToBuffer(D_8009C174, pBuffer, 0, 0);
+    func_80072DB4(0x10, 0x80, -8, 2);
+    rect.x = 0x2C0;
+    rect.y = w;
+    rect.w = h;
+    rect.h = 0xD8;
+    MoveImage(&rect, 0, 0);
+    MoveImage(&rect, 0, 0xD8);
+    ClearOTagR(*(u_long**)(D_8009BE3C + 0x70), 0x400);
+    ArchiveCdDataSync(0);
+    func_8008440C();
+    rect.x = 0x180;
+    rect.y = w;
+    rect.w = 0x80;
+    rect.h = w;
+    LoadImage(&rect, D_8009C800);
+    rect.x = 0;
+    rect.y = 0x1B0;
+    rect.w = h;
+    rect.h = 0x50;
+    LoadImage(&rect, D_8009C890);
+    DrawSync(0);
+    HeapFree(D_8009C800);
+    HeapFree(D_8009C890);
+    func_800978FC();
+    func_8008901C();
+    func_800865A0();
+    func_80085FE0();
+    SystemTransferPaletteToVRAM(0x130, 0x1E0);
+    Vsync(0);
+    ControllerResetState();
+    mode = D_8009D14C;
+    D_8009D804 = 0;
+    g_GameState.unk1836 = 0;
+    D_80059179 = mode;
+    func_80075D4C();
+}
+
 void func_80075D4C(void) {
     WorldMapActor* pActors;
     u8 ride;
