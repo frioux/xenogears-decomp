@@ -87,12 +87,15 @@ void func_801DBDB4(void) {
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DBE54);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DC1D4);
 /* Best: 91.94%, same size (228 bytes). Everything matches except the case
-   dispatch: retail built a binary-search tree (beq x,1 / slti x,2 / beqz x,0 /
-   beq x,2) which gcc 2.7.2 and 2.6.0 (and -O3, and 2.7.2-cdk) only emit for a
-   sparse switch; for these 3 dense cases both give a sequential compare chain
-   (beq x,1 / beqz x,0 / beq x,2). A hand-written if/else chain in tree order
-   inverts the branches instead. `kind` is genuinely uninitialised in retail
-   (the default paths pass garbage to func_801C72BC).
+   dispatch: retail built a balanced decision tree (beq x,1 / slti x,2 / beqz x,0
+   / beq x,2) where gcc 2.6.0 emits a sequential compare chain for this switch.
+   The tree IS reachable from gcc 2.6.0: the sibling func_801DC2CC above emits
+   exactly it for an identical `switch (arg0 & 0xFF)` over the same 3 cases, so
+   the trigger is some other property of this function, not the compiler. Tried:
+   2.6.0/2.7.2/2.7.2-cdk x -O1..-O3 x -G0/-G4/-G8 (all 94.47 or less on the
+   older parked shape, 91.94 here), while/for/do-while, index init before/after
+   the switch, case order. `kind` and `index` are genuinely uninitialised /
+   zeroed by retail's own code; the default path passes a garbage `kind`.
 void func_801DC1D4(u32 arg0) {
     s32 kind;
     s32 index = 0;
@@ -117,6 +120,7 @@ void func_801DC1D4(u32 arg0) {
     func_801D3488(2, arg0 & 0xFF);
 }
 */
+
 void func_801DC2CC(u_char arg0) {
     s32 kind;
 
