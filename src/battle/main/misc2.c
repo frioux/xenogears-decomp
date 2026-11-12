@@ -15,7 +15,12 @@ extern u8 *D_800D2DB4;
 extern u8 D_800C3EB6;
 extern u8 D_800D32A1;
 
+extern u8 D_800D36C8;
+extern u8 D_800D3725[];
+extern u8 D_800D3726[];
+
 extern s32 func_8002675C(void *pDir, s32 index, void *pPrims, s32 context, s16 x, s16 y, s16 scale);
+extern void func_80076C78(POLY_FT4 *p, u16 x, s16 y, u8 u, u8 v, u8 dx);
 extern void func_800728B8(u8 *pDst, s32 arg1, s32 arg2);
 extern void func_80072A9C(s32 index, u8 arg1);
 extern void func_80072DA8(s32 index, u8 arg1);
@@ -159,6 +164,41 @@ void func_80074F70(void) {
 }
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_8007500C);
+/* 62.98%: the loop, the two argument sets, the u16/u8 conversions and the
+   frame all match; gcc 2.7.2 hoists `la D_800D3726` (4 uses in the loop) into
+   a callee-saved register, and strength-reduces the `off + base` prim address
+   into a second biv, while the original keeps no address register at all: it
+   re-forms `lui %hi(sym); addu $at,$at,off; lbu %lo($at)` at each use and
+   `addu a0,off,base` per call (i.e. retail current loop.c reduced nothing).
+   Also open: the original reaches D_800CCB34 through `&D_800CCB04 + 0x30`
+   (`lw v0,0x30(s3)` with `la D_800CCB04` hoisted) in the AddPrim index only.
+   Tried: explicit `off` counter, inline `i * 0x60`, `(s32)&sym + off` casts,
+   `sym[off]`, literal `[0]` in the i==0 branch, plus cdk / -O1 / -O3 / -G0
+   (try_flags: 44.94-62.98). */
+/*
+    void func_8007500C(void) {
+        s32 i;
+        s32 off;
+
+        i = 0;
+        off = 0;
+        do {
+            if (D_800D3725[off] != 0) {
+                if (i == 0) {
+                    func_80076C78((POLY_FT4 *)((s32)&D_800D36C8 + D_800CCB34 * 40),
+                                  0x40 - (D_800D3726[off] >> 1), 0x2C, 0, 0, D_800D3726[off]);
+                } else {
+                    func_80076C78((POLY_FT4 *)(off + ((s32)&D_800D36C8 + D_800CCB34 * 40)),
+                                  0x9A - (D_800D3726[off] >> 1), 0xCA, 0,
+                                  (13 * (i / 2)) & 0xFF, D_800D3726[off]);
+                }
+                AddPrim(D_800CCB04 + 4,
+                        (u8 *)(off + ((s32)&D_800D36C8 + D_800CCB34 * 40)));
+            }
+            i++;
+            off += 0x60;
+        } while (i < 8);
+    }*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_80075168);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_80075938);
 void func_80076418(void) {
