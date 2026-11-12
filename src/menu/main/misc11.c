@@ -3,7 +3,53 @@
 #include "system/menu.h"
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc11", func_801E433C);
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc11", func_801E4754);
+void func_801E4754(MenuDressingRoom* pDressingRoom, u8 gearId) {
+    GameGear* pGear = &g_GameState.gears[gearId];
+    GearWeapon* pWeapon;
+
+    pWeapon = pDressingRoom->pGearWeapons;
+    pWeapon += pGear->weaponId[0];
+    pGear->weaponData[0].unk2 = pWeapon->unkE;
+    pGear->weaponData[0].unk0 = pWeapon->unk12;
+    pGear->weaponData[0].unk3 = pWeapon->unk10;
+    pGear->weaponData[0].unk4 = pWeapon->unk11;
+
+    pGear->unk5C[0] = pWeapon->unk0[0];
+    pGear->unk5C[1] = pWeapon->unk0[1];
+    pGear->unk5C[2] = pWeapon->unk0[2];
+    pGear->unk5C[3] = pWeapon->unk0[3];
+
+    if (pGear->weaponData[0].unk4 == 100) {
+        pGear->unk86 = pGear->unk86 & 0xFFF;
+        pGear->unk86 |= pGear->weaponData[0].unk0;
+    }
+    if ((gearId == 5) || (gearId == 0xD)) {
+        pWeapon = pDressingRoom->pGearWeapons;
+        pWeapon += pGear->unk4[0];
+
+        pGear->weaponData[0].unk2 = pWeapon->unkE;
+        pGear->weaponData[0].unk0 = pWeapon->unk12;
+        pGear->weaponData[0].unk3 = pWeapon->unk10;
+        pGear->weaponData[0].unk4 = pWeapon->unk11;
+        pGear->unk5C[1] = pWeapon->unk0[1];
+
+        pWeapon = pDressingRoom->pGearWeapons;
+        pWeapon += pGear->unk4[1];
+        pGear->weaponData[1].unk2 = pWeapon->unkE;
+        pGear->weaponData[1].unk0 = pWeapon->unk12;
+        pGear->weaponData[1].unk3 = pWeapon->unk10;
+        pGear->weaponData[1].unk4 = pWeapon->unk11;
+        pGear->unk5C[2] = pWeapon->unk0[2];
+
+        pWeapon = pDressingRoom->pGearWeapons;
+        pWeapon += pGear->unk4[3];
+        pGear->weaponData[2].unk2 = pWeapon->unkE;
+        pGear->weaponData[2].unk0 = pWeapon->unk12;
+        pGear->weaponData[2].unk3 = pWeapon->unk10;
+        pGear->weaponData[2].unk4 = pWeapon->unk11;
+        pGear->unk5C[3] = pWeapon->unk0[3];
+    }
+}
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc11", func_801E4928);
 /* Best: 91.61% - instruction multiset identical, only register assignment
    differs: retail has the u16 dividend in $v0, the /120 magic in $a1 and mfhi
@@ -80,12 +126,70 @@ void func_801E5058(void) {
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc11", func_801E5178);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc11", func_801E53CC);
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc11", func_801E56E8);
+void func_801E927C(POLY_FT4* pPoly);
 void func_801C851C(SVECTOR* pVertices, u16 x, u16 y, u16 width, u16 height);
 
 extern u16 D_801E9894[];
 extern u16 D_801E9914[];
 
+INCLUDE_ASM("asm/menu/nonmatchings/main/misc11", func_801E56E8);
+/* Best: 90.78% - every instruction matches except ONE register: retail keeps
+   the POLY_F4 colour 0x80 in $v0 with `li v0,0x80` INSIDE the loop, gcc's
+   loop.c moves it out into a free call-saved register ($s8), which also swaps
+   the $s6/$s7 assignment of `offset`/`i` and costs the extra $s8 save/restore
+   (580 vs 576 bytes).  Structure confirmed correct: the FT4 biv is
+   pBase + i * 0x28, the F4 biv is pBase + i * 0x18 with displacements 0xB4..,
+   the `offset` counter (0xB0, +0x18) is shared by the SetPolyF4 and
+   SetSemiTrans arguments, and the RECT is written y,x,h,w.  Tried: literal
+   0x80 three times, a u8 local `shade = 0x80`, a walking POLY_F4* instead of
+   the indexed form (89.28), -O3 (90.78, same), gcc-2.7.2-cdk (86.17).
+   void func_801E56E8(s32 index) {
+       u8* pBase;
+       u16* pX;
+       u16* pY;
+       RECT rect;
+       s32 offset;
+       s32 i;
+
+       pBase = (u8*)g_Menu->unk3A8[index];
+       pX = &D_801E9894[index * 2];
+       pY = &D_801E9914[index * 2];
+       offset = 0xB0;
+       for (i = 0; i < 2; i++) {
+           func_801E927C((POLY_FT4*)(pBase + i * 0x28));
+           ((POLY_FT4*)(pBase + i * 0x28))->x0 = pX[0];
+           ((POLY_FT4*)(pBase + i * 0x28))->y0 = pY[0];
+           ((POLY_FT4*)(pBase + i * 0x28))->x1 = pX[0] + 0x10;
+           ((POLY_FT4*)(pBase + i * 0x28))->y1 = pY[0];
+           ((POLY_FT4*)(pBase + i * 0x28))->x2 = pX[0];
+           ((POLY_FT4*)(pBase + i * 0x28))->y2 = pY[0] + 0x10;
+           ((POLY_FT4*)(pBase + i * 0x28))->x3 = pX[0] + 0x10;
+           ((POLY_FT4*)(pBase + i * 0x28))->y3 = pY[0] + 0x10;
+           ((POLY_FT4*)(pBase + i * 0x28))->tpage = GetTPage(0, 0, 0x140, 0x80);
+           SetPolyF4((POLY_F4*)(pBase + offset));
+           ((POLY_F4*)(pBase + i * 0x18 + 0xB0))->r0 = 0x80;
+           ((POLY_F4*)(pBase + i * 0x18 + 0xB0))->g0 = 0x80;
+           ((POLY_F4*)(pBase + i * 0x18 + 0xB0))->b0 = 0x80;
+           SetSemiTrans((POLY_F4*)(pBase + offset), 1);
+           ((POLY_F4*)(pBase + i * 0x18 + 0xB0))->x0 = pX[0];
+           ((POLY_F4*)(pBase + i * 0x18 + 0xB0))->y0 = pY[0];
+           ((POLY_F4*)(pBase + i * 0x18 + 0xB0))->x1 = pX[0] + 0x10;
+           ((POLY_F4*)(pBase + i * 0x18 + 0xB0))->y1 = pY[0];
+           ((POLY_F4*)(pBase + i * 0x18 + 0xB0))->x2 = pX[0];
+           ((POLY_F4*)(pBase + i * 0x18 + 0xB0))->y2 = pY[0] + 0x10;
+           ((POLY_F4*)(pBase + i * 0x18 + 0xB0))->x3 = pX[0] + 0x10;
+           ((POLY_F4*)(pBase + i * 0x18 + 0xB0))->y3 = pY[0] + 0x10;
+           offset += 0x18;
+           func_801C851C((SVECTOR*)(pBase + 0xE0), pX[0], pY[0], 0x10, 0x10);
+       }
+       rect.y = 0;
+       rect.x = 0;
+       rect.h = 0x100;
+       rect.w = 0x100;
+       SetDrawMode((DR_MODE*)(pBase + 0x140), 0, 0, GetTPage(0, 2, 0x140, 0x80), &rect);
+       SetDrawMode((DR_MODE*)(pBase + 0x14C), 0, 0, GetTPage(0, 2, 0x140, 0x80), &rect);
+   }
+*/
 void func_801E5924(s32 index) {
     u8* pBase;
     u16* pX;
