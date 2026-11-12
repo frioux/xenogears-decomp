@@ -15,6 +15,7 @@ extern u8 D_801E9EA0[];
 
 void func_801DDF24(u_char arg0, u_char arg1, s32 arg2);
 void func_801C7BF4(void);
+void func_801D2484(void);
 void func_801D4EA0(s32 arg0);
 void func_801C72BC(s32 arg0);
 void func_801D3444(void);
@@ -116,7 +117,32 @@ void func_801DC1D4(u32 arg0) {
     func_801D3488(2, arg0 & 0xFF);
 }
 */
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DC2CC);
+void func_801DC2CC(u_char arg0) {
+    s32 kind;
+
+    func_801D4EA0(3);
+    func_801D4EA0(4);
+    func_801D4EA0(5);
+    func_801D4EA0(6);
+    func_801D2484();
+    g_Menu->pManager->unk4A[0] = 0;
+    func_801C7BF4();
+    switch (arg0 & 0xFF) {
+    case 0:
+        kind = 2;
+        break;
+    case 1:
+        kind = 5;
+        break;
+    case 2:
+        kind = 6;
+        break;
+    }
+    func_801C72BC((kind | 0x10) & 0xFF);
+    HeapFree(g_Menu->unk430);
+    g_Menu->pManager->unk5[1] = 1;
+    g_Menu->pManager->shouldRenderWindow[1] = 1;
+}
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DC3D8);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DCE60);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DD5E8);
