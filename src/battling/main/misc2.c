@@ -78,7 +78,74 @@ void func_800732CC(void) {
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_8007334C);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80073424);
+/* 98.09%: the loop's induction shape. The original keeps BOTH a walking
+   pointer ($a2 = p2 + i*0x44, tested as `lbu v0,0x67C(a2)`) and the byte offset
+   ($t0, used as `addiu v0,t0,0x64C; addu s0,s3,v0`); gcc folds the two into one
+   register, and which one survives depends on the source shape: `p2 + 0x67C +
+   i * 0x44` with `pSlot = p2 + 0x64C + i * 0x44` keeps the walking pointer for
+   the test but turns pSlot into a sll/addu multiply chain (89.52%), and a single
+   `off` variable feeding both gives the addiu back but recomputes the test
+   address as `addu v0,off,p2; lbu v0,1660(v0)` (this 98.09%). Also tried a
+   separate walking pFlags with off += 0x44 (gcc drops off entirely, 98.09 with
+   the pointer in $a0). Everything else - the frame (the unused s32 pad[2] at
+   sp+0x30), both VECTOR locals at sp+0x10/sp+0x20, the 0x10-byte copies and all
+   four calls - matches instruction for instruction.
+extern u8 D_800910F4[];
+extern void func_8008859C(VECTOR *, SVECTOR *);
+extern void func_8008EBD0(u8 *, s32, void *, s32);
 
+void func_80073424(VECTOR *p0, VECTOR *p1, u8 *p2, s32 arg3, s32 arg4, s32 arg5) {
+    VECTOR vDiff;
+    VECTOR vNormal;
+    s32 pad[2];
+    u8 *pSrc;
+    u8 *pSlot;
+    u8 *pEntry;
+    s32 i;
+    s32 off;
+    u8 *pFlags;
+
+    off = 0;
+    pFlags = p2;
+    for (i = 0; i < 9; i++) {
+        if (*(u8 *)(pFlags + 0x67C) == 0) {
+            pSlot = p2 + 0x64C + off;
+            break;
+        }
+        pFlags += 0x44;
+        off += 0x44;
+    }
+    if (i == 8) {
+        return;
+    }
+    pSrc = *(u8 **)(p2 + 0xD8);
+    vNormal.vx = *(s32 *)(pSrc + 0x0) - p0->vx;
+    vNormal.vy = *(s32 *)(pSrc + 0x4) - p0->vy - 0x90;
+    vNormal.vz = *(s32 *)(pSrc + 0x8) - p0->vz;
+    pEntry = D_800910F4 + arg3 * 8;
+    if (p1 != NULL) {
+        vDiff.vx = p0->vx - p1->vx;
+        vDiff.vy = p0->vy - p1->vy;
+        vDiff.vz = p0->vz - p1->vz;
+    } else {
+        vDiff = vNormal;
+    }
+    func_8008859C(&vDiff, (SVECTOR *)(pSlot + 0x28));
+    *(s16 *)(pSlot + 0x3E) = *(u16 *)(pEntry + 0x0);
+    *(u8 *)(pSlot + 0x31) = *(u8 *)(pEntry + 0x4);
+    *(s16 *)(pSlot + 0x40) = *(u8 *)(pEntry + 0x3);
+    *(u8 *)(pSlot + 0x32) = *(u8 *)(pEntry + 0x2);
+    *(u8 *)(pSlot + 0x33) = *(u8 *)(pEntry + 0x5);
+    *(s32 *)(pSlot + 0x38) = arg5;
+    *(s16 *)(pSlot + 0x3C) = arg4;
+    if (*(u8 *)(pEntry + 0x6) != 0) {
+        func_8008EBD0(p2, *(u8 *)(pEntry + 0x6), pSlot, 2);
+    }
+    func_80073064((SVECTOR *)(pSlot + 0x28), (SVECTOR *)(pSlot + 0x20), *(u8 *)(pSlot + 0x31));
+    *(VECTOR *)pSlot = *p0;
+    *(VECTOR *)(pSlot + 0x10) = *(VECTOR *)pSlot;
+    *(u8 *)(pSlot + 0x30) = 1;
+} */
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80073644);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80073B7C);
