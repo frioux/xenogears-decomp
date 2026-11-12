@@ -62,6 +62,18 @@ typedef struct {
     /* 0xD */ u8 unkD;
 } Misc23TreeEntry; // Size: 0xE
 
+extern s32 D_800C3E88;
+extern u16 D_800C3CF0;
+extern u8 D_800C3D6C;
+extern u16 D_800C3B7C;
+extern u8 D_800C3B74;
+extern u8 D_800C3ACC[];
+extern u8 D_800D330A[];
+extern void *D_800658C8;
+extern void func_800A2234(u8 *, s32);
+extern void func_800A2CA4(u8 *, s32);
+extern void func_800B00D0(void);
+
 extern s32 D_800D3344;
 extern s32 D_800D3348;
 extern s32 D_800D39CC;
@@ -218,11 +230,14 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A6884);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A6AE8);
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A6F98);
-/* 84.20%: identical instruction multiset except that the original keeps
-   &D_800D3628 in s0 across LoadImage/DrawSync and gcc 2.7.2 rematerialises the
-   symbol address instead (also costs an s0 slot and shuffles the i++ into the
-   delay slot). Tried: RECT *pRect, u8 *pBuf, reusing the loop pointer, all
-   identical code.
+/* PRESET_G0 LEAD: 84.20% under this unit's -G8 flags, **96.96% under --gp -G0**,
+   and all seven already-matched functions of this unit score 100.00 under -G0
+   (verified with try_flags.sh --all --gp -G0), so this unit may want the -G0
+   preset. Under -G8 the original keeps &D_800D3628 in s0 across
+   LoadImage/DrawSync while gcc rematerialises lui/addiu each time - the
+   classic small-data/-G8 rematerialisation. Remaining diff under -G0 not yet
+   inspected (needs the -G0 object kept). Tried under -G8: RECT *pRect, u8 *pBuf,
+   reusing the loop pointer, all identical code.
 void func_800A6F98(void) {
     u8 *p;
     s32 i;
@@ -262,16 +277,21 @@ void func_800A8A88(Misc23Block *pBlock) {
 }
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A8B0C);
-/* 86.40%: statement order and instruction multiset match, but gcc puts the
-   pointer induction variable of the descending clear loop in $v1 and the counter
-   in $v0 (the original has the pointer in $v0 and the counter in $v1), and the
-   "1" stored to D_800C3B74 lands in $v1 instead of $v0. Tried: swapping the
-   pWord/i declaration order, hoisting D_800C3D0C into a pBuf local (that fixed
-   the other two differences: the early lui/addiu of the argument and the u16
-   store to D_800C3B7C).
+/* 86.40%: three differences only - (a) gcc hoists "li v1,1" into the load-delay
+   slot of "lw v0,D_800658C8" and emits the pBuf "lui a0,%hi(D_800C3D0C)" late,
+   the original does the reverse (pBuf la early, "ori v0,zero,1" immediately
+   before the sb); (b) the first clear loop gets the pointer in $v1 and the
+   counter in $v0, the original has pointer $v0 / counter $v1; (c) therefore the
+   D_800C3B74=1 store is "sb v1" instead of "sb v0". Everything else, including
+   the other two clear loops, is byte-identical. Tried: pBuf as an assignment or
+   as a declaration initializer (identical), pWord/i declaration order both ways,
+   "u8 D_800C3ACC[]" indexed stores (unchanged). The bgez/branch shapes and the
+   instruction multiset already match, so this is the allocator/scheduler-pick
+   class, not source reachable.
     u8 *pBuf;
     u32 *pWord;
     s32 i;
+
     pBuf = D_800C3D0C;
     D_800C3E88 = 0;
     D_800C3CF0 = 0;
@@ -294,8 +314,9 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A8B0C);
     }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A8BF0);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A9540);
-// 0x18-byte archive entry allocated by func_800A96B4, stored in D_800C3B78.
+// Archive entry allocated by func_800A9540 / func_800A96B4, stored in D_800C3B78.
+// The 0x18-byte variant stops after unk14; the 0x20-byte one adds a second
+// {u16, s32} pair at 0x18.
 typedef struct {
     /* 0x0  */ u16 unk0;
     /* 0x2  */ u16 pad2;
@@ -306,12 +327,72 @@ typedef struct {
     /* 0x10 */ u16 unk10;
     /* 0x12 */ u16 pad12;
     /* 0x14 */ s32 unk14;
-} Misc23ArchiveEntry; // Size: 0x18
+    /* 0x18 */ u16 unk18;
+    /* 0x1A */ u16 pad1A;
+    /* 0x1C */ s32 unk1C;
+} Misc23ArchiveEntry; // Size: 0x20
 
 extern Misc23ArchiveEntry *D_800C3B78;
 extern int ArchiveDecodeAlignedSize(unsigned int);
 extern void func_80029AFC(Misc23ArchiveEntry *, s32, s32);
+extern u8 D_800CCD88[];
+extern u8 D_800CCDE8[];
+extern u8 D_800C3509[];
 
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A9540);
+/* 77.73%: structure and instruction sequence understood; remaining differences:
+   (a) the original hoists the D_800C3509 symbol constant into $s0 ("lui/addiu"
+   + "addu $v0,$s0,$s1" for the second, -1-displaced read) because BOTH the
+   "D_800C3509[index]" and the "D_800C3509[index-1]" accesses share one symbol
+   constant, while gcc 2.7.2 folds the -1 into the symbol and emits
+   "%lo(D_800C3509-1)($reg)" with $at, so the base never reaches a saved
+   register; (b) that costs the original a fifth saved register ($s0-s$4 vs
+   $s0-$s3 here) and shifts every register after it. Also fixed by this shape:
+   the count compare is "slt" in the original, "sltu" here, so count is a
+   signed-or-int compare against a u8 field. Tried: s32 nameLen (removed the
+   andi that a u16 gave), pTable as a local (gcc folds it away, one use).
+void func_800A9540(s32 arg0) {
+    Misc23ArchiveEntry *pEntry;
+    u8 *pTable;
+    u16 *pTail;
+    s32 alignedIndex;
+    s32 remainder;
+    u32 index;
+    s32 nameLen;
+    u8 count;
+    u8 base;
+
+    ArchiveGetArchiveOffsetIndices(&alignedIndex, &remainder);
+    ArchiveSetIndex(0x28, 1);
+    HeapChangeCurrentUser(4, NULL);
+    index = D_800CCD88[arg0 * 0x170] * 2;
+    count = D_800CCDE8[arg0 * 0x170];
+    if (D_800C3509[index] < count) {
+        count = 0;
+    }
+    pEntry = HeapAlloc(0x20, 1);
+    pTable = D_800C3509;
+    D_800C3B78 = pEntry;
+    base = pTable[index - 1];
+    nameLen = base + 1;
+    pEntry->unk0 = nameLen;
+    pEntry->unk4 = HeapAlloc(ArchiveDecodeAlignedSize(nameLen), 1);
+    nameLen = base + 2;
+    pEntry->unk8 = nameLen;
+    pEntry->unkC = HeapAlloc(ArchiveDecodeAlignedSize(nameLen), 0);
+    pTail = &pEntry->unk10;
+    if (count != 0) {
+        nameLen = nameLen + count;
+        pEntry->unk10 = nameLen;
+        pEntry->unk14 = HeapAlloc(ArchiveDecodeAlignedSize(nameLen), 1);
+        pTail = &pEntry->unk18;
+    }
+    pTail[0] = 0;
+    *(s32 *)(pTail + 2) = 0;
+    func_80029AFC(D_800C3B78, 0, 0);
+    ArchiveSetIndex(alignedIndex, remainder);
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A96B4);
 /* 99.10%: identical instruction multiset; the only difference is which of
    $s1/$s2 holds the (arg0 * 2) index and which holds index + 1 - the original
