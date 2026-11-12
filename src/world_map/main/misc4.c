@@ -148,19 +148,23 @@ void func_80077CC0(void) {
     D_8006F950 = v;
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_80077DC8);
-/* 70.00%: identical instruction multiset and registers; only the position of the
-   WorldMapActor store cluster differs (original puts addu/sh 0x20/sw 0x58/54/50
-   before the D_8009BD3C/3A/38 stores, gcc puts them after D_8009BD38). Swapping
-   the statement order in C changes nothing, so the scheduler is ordering by
-   priority, not source order.
+/* 70.00%: identical instruction multiset and registers; the only difference is
+   where the WorldMapActor store cluster (addu s0,s0,a0 and sh 0x20 / sw 0x58 /
+   0x54 / 0x50) sits.  Loading D_8009BE24 into p FIRST and adding `index` after
+   the D_8009BE0C/D_8009D3F0/D_8006259C statements reproduces the original's
+   early `lw s0, D_8009BE24` (at 0x82E4, before the first global store), but the
+   scheduler still emits the cluster after the D_8009BD3C/3A/38 stores; putting
+   those three first in C changes nothing (the scheduler owns the block). Same
+   class as func_80078E2C below.
 s32 func_80077DC8(s32 index) {
     WorldMapActor *p;
     u8 *q;
 
+    p = D_8009BE24;
     D_8009BE0C = 0x78;
     D_8009D3F0 = 0x200000;
     q = D_8006259C;
-    p = D_8009BE24 + index;
+    p = p + index;
     p->unk20 = 0;
     p->unk58 = 0;
     p->unk54 = 0;
