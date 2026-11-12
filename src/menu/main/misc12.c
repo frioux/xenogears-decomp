@@ -14,6 +14,10 @@ extern void func_8002A498(int mode);
 void func_801E64E0(void);
 void func_801E6668(s32 arg0);
 void func_801E76EC(s32 arg0);
+void func_801E7C50(MenuString* pStringList, s32 index, s32 yOffset, s32 flags);
+extern void* GetStringEntry(void* pStringData, u32 index);
+extern u16 g_SystemPalette1;
+extern u16 g_SystemPalette2;
 void func_801E7E68(MenuString* pStringList, u_char* pStringIdList, s32 yOffset, s32 count);
 void func_801E61B0(void);
 void func_801E68AC(u8* pEntry);
@@ -133,7 +137,92 @@ void func_801E781C(s32 arg0, u_char arg1) {
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E78C8);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E7C50);
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E7E68);
+/* Best: 72.41% under gcc-2.6.0 (62.66% under 2.7.2). Shape recovered from the asm:
+   row = index / 2 and column = index & 1 are separate locals (retail keeps row in
+   s4 and reuses it for the flags != 0 branch's row * 0xD), u = (row & 1) * 0x80 is
+   loop-invariant and rides in s3, the else branch computes column * 0x60 as a
+   fresh temp (v1, not the u variable), color = 0 is reset at the top of each
+   iteration and the yOffset parameter is spilled to 16(sp) by retail. What is
+   still wrong is the allocator: retail puts pStringList in s2, index in s8,
+   flags in s7 and spills yOffset, my compile keeps yOffset in s8 and gives
+   pStringList s3, plus the branch-1 u1/u2 store order and one extra saved reg.
+void func_801E7C50(MenuString* pStringList, s32 index, s32 yOffset, s32 flags) {
+    POLY_FT4* pPoly;
+    u8 color;
+    s32 row;
+    s32 column;
+    s32 u;
+    s32 v;
+    s32 i;
+
+    row = index / 2;
+    column = index & 1;
+    u = (row & 1) * 0x80;
+    for (i = 0; i < 2; i++) {
+        color = 0;
+        pPoly = &pStringList->polys[i];
+        func_801E927C(pPoly);
+        if ((flags & 0xFF) == 0) {
+            pStringList->unk7C = column;
+            pPoly->tpage = GetTPage(0, 0, 0x140, 0);
+            pPoly->u0 = u;
+            v = (index + yOffset) / 4 * 0xD;
+            pPoly->v0 = v;
+            pPoly->u1 = u + pStringList->width;
+            pPoly->v1 = v;
+            pPoly->u2 = u;
+            pPoly->v2 = v + 0xD;
+            pPoly->u3 = u + pStringList->width;
+            pPoly->v3 = v + 0xD;
+        } else {
+            if (flags & 0x80) {
+                color = 0x20;
+                SetSemiTrans(pPoly, 1);
+                setRGB0(pPoly, 0x20, 0x20, 0x20);
+            }
+            pStringList->unk7C = (flags & 0x7F) + 0xFF;
+            pPoly->tpage = color | GetTPage(0, 0, 0x180, 0x80);
+            v = row * 0xD + yOffset;
+            pPoly->u0 = column * 0x60;
+            pPoly->v0 = v;
+            pPoly->v1 = v;
+            pPoly->u2 = column * 0x60;
+            pPoly->v2 = v + 0xD;
+            pPoly->u1 = column * 0x60 + pStringList->width;
+            pPoly->v3 = v + 0xD;
+            pPoly->u3 = column * 0x60 + pStringList->width;
+        }
+        if (pStringList->unk7C != 0) {
+            pPoly->clut = g_SystemPalette2;
+        } else {
+            pPoly->clut = g_SystemPalette1;
+        }
+    }
+    pStringList->unk7F = 0;
+}
+*/
+
+void func_801E7E68(MenuString* pStringList, u_char* pStringIdList, s32 yOffset, s32 count) {
+    RECT* pRect;
+    s32 i;
+
+    for (i = 0; i < count; i += 2) {
+        pStringList[i].width = SystemRenderStringEntry(GetStringEntry(g_Menu->unk2E0, pStringIdList[i]),
+            g_Menu->unk4E0[0].pVramBuffer, 0x18, 0);
+        pRect = &pStringList[i].vramDest;
+        pStringList[i + 1].width = SystemRenderStringEntry(GetStringEntry(g_Menu->unk2E0, pStringIdList[i + 1]),
+            g_Menu->unk4E0[0].pVramBuffer, 0x18, 1);
+        pStringList[i].vramDest.x = ((i / 2) & 1) * 0x20 + 0x140;
+        pStringList[i].vramDest.y = ((i + yOffset) / 4) * 0xD;
+        pStringList[i].vramDest.w = 0x1C;
+        pStringList[i].vramDest.h = 0xD;
+        pStringList[i + 1].vramDest = pStringList[i].vramDest;
+        func_801E7C50(&pStringList[i], i, yOffset, 0);
+        func_801E7C50(&pStringList[i + 1], i + 1, yOffset, 0);
+        LoadImage(pRect, g_Menu->unk4E0[0].pVramBuffer);
+        DrawSync(0);
+    }
+}
 void func_801E8018(u_char count, MenuString* pStringList, u_char* pStringIdList, void* pUnused) {
     func_801E7E68(pStringList, pStringIdList, 4, count);
 }
