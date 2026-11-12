@@ -83,6 +83,33 @@ void func_80086568(void) {
     HeapFree(D_8009D150);
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_800865A0);
+// Best: 53.39%. Shape recovered: 0x120 POLY_FT4 primitives in D_8009D7F8, each
+// getting setPolyFT4 + setRGB0(0x26,0x26,0x26) + tpage GetTPage(0,1,0x3C0,0x100)
+// + clut GetClut(0x130,0x1FE) + SetSemiTrans(p,1), then a 0x2D00-byte memcpy
+// into D_8009D7FC (gcc inlines it as the 16-bytes-per-iteration loop). Retail
+// hoists both 9 and 0x2C into callee-saved s5/s4 and re-reads D_8009D7F8 through
+// the CSE'd symbol address in s0 (frame 0x30, six saved regs); ours rematerialises
+// 0x2C per iteration with li and reloads the symbol with a fresh lui (frame 0x28).
+/*
+void func_800865A0(void) {
+    POLY_FT4* pPrim;
+    POLY_FT4* pSrc;
+    s32 i;
+
+    D_8009D7F8 = HeapAlloc(0x2D00, 1);
+    D_8009D7FC = HeapAlloc(0x2D00, 1);
+    pPrim = (POLY_FT4*)D_8009D7F8;
+    for (i = 0; i < 0x120; i++, pPrim++) {
+        setPolyFT4(pPrim);
+        setRGB0(pPrim, 0x26, 0x26, 0x26);
+        pPrim->tpage = GetTPage(0, 1, 0x3C0, 0x100);
+        pPrim->clut = GetClut(0x130, 0x1FE);
+        SetSemiTrans(pPrim, 1);
+    }
+    pSrc = (POLY_FT4*)D_8009D7F8;
+    memcpy(D_8009D7FC, pSrc, 0x2D00);
+}*/
+
 void func_800866C8(void) {
     HeapFree(D_8009D7FC);
     HeapFree(D_8009D7F8);
