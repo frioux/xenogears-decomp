@@ -108,7 +108,67 @@ void func_801C9270(int a0) {
 */
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801C93A8);
+extern s32 D_801E981C[];
+
+typedef struct {
+    /* 0x4FE4 */ u8 pad0[0x4FE4];
+    /* 0x4FE4 */ u8 flags[0x4];
+} MenuUnk2Flags;
+
+/* Best attempt: 99.44%. Only difference is an allocator tie-break: the result
+   flag gets a3 where the original has a2 and the `unk4F7C` index gets a2 where
+   the original has a3 (both live ranges are otherwise identical). Tried: every
+   declaration order, initialiser forms, `register idx`, and the statement
+   order of the two assignments. The base-first `addu` (a1 + index) needs an array member, hence
+   the local MenuUnk2Flags cast below; the shared header's scalar unk4FE4 with
+   `(&pMenu->unk4FE4)[...]` emits the operands the other way round. */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801C9BCC);
+/*
+u_char func_801C9BCC(s32 a0) {
+    MenuUnk2* pMenu = g_Menu->menuUnk2;
+    s32 result = 1;
+    s32 j;
+    s32 idx = pMenu->unk4F7C;
+
+    switch (a0) {
+    case 0:
+        if (*(s32*)&pMenu->unk4F84[4] & 0xFFFF0000) {
+            j = D_801E981C[idx];
+            if (((MenuUnk2Flags*)pMenu)->flags[j / 16] != 0) {
+                if (pMenu->unk4FAE[j] != 0xFF) {
+                    break;
+                }
+            }
+        }
+        result = 0;
+        break;
+    case 1:
+        if (*(s32*)&pMenu->unk4F84[4] & 0xFFFF0000) {
+            j = D_801E981C[idx];
+            if (((MenuUnk2Flags*)pMenu)->flags[j / 16] != 0) {
+                if (pMenu->unk4FAE[j] != 0xFF) {
+                    if (pMenu->unk4F8E[j] != 0) {
+                        break;
+                    }
+                }
+            }
+        }
+        result = 0;
+        break;
+    case 2:
+        j = D_801E981C[idx];
+        if (((MenuUnk2Flags*)pMenu)->flags[j / 16] == 0) {
+            result = 0;
+        }
+        break;
+    }
+    if (result != 0) {
+        g_Menu->unk4D8 = 2;
+    }
+    return result;
+}
+*/
+
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801C9D34);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801C9EF4);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CA1D4);
