@@ -104,6 +104,14 @@ extern s32 D_8009D55C;
 extern s32 D_8009D560;
 extern s32 D_8009D564;
 
+extern s32 func_80094028(s32 arg0);
+extern s32 func_80093F18(s32 arg0);
+extern s16 D_8009A3A0[];
+extern u16 D_8009B578[];
+extern u8* D_8009D73C[];
+extern u8 D_800658DC[];
+extern u8 D_80059508;
+
 extern WorldMapActor* D_8009BE24;
 extern s32 D_8009BE10;
 extern u8* D_8009BE14;
@@ -425,6 +433,65 @@ void func_80075D4C(void) {
 }
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc2", func_80075E7C);
+/* 89.46%: the two calls, the s16 index read and the memcpy at the end all
+   match. Remaining: the first limit test uses base+2 instead of the folded
+   symbol+2, the 0x10-byte sum loop folds the (zone - 1) << 4 into the
+   displacement instead of retail's addiu -1 then sll 4, and the pick loop
+   bases at buf+1 rather than buf (giv re-basing, t0/a1 vs t1/a0). Also
+   tried: u8* instead of s32 addresses (sltu vs retail's slt, 88.02/82.67),
+   while instead of do-while (extra entry guard), indexing the u16 symbol
+   directly instead of a pointer local.
+s32 func_80075E7C(s32 arg0, s32 arg1) {
+    u8 buf[0x10];
+    u16* pLimit;
+    s32 pSrc;
+    s32 pDst;
+    s32 pEnd;
+    s32 index;
+    s32 sum;
+    s32 pick;
+    s32 i;
+    s32 zone;
+
+    index = (s16)func_80094028(arg0);
+    if ((s16)func_80093F18(arg0) == 4) {
+        index = D_8009A3A0[index];
+    }
+    pLimit = D_8009B578;
+    zone = 1;
+    while (arg1 >= pLimit[zone]) {
+        zone++;
+    }
+    zone--;
+    sum = 0;
+    pSrc = (s32)D_8009D73C[index] + 0x200 + (zone << 4);
+    pDst = (s32)buf;
+    pEnd = pSrc + 0x10;
+    do {
+        *(u8*)pDst = *(u8*)pSrc;
+        sum += *(u8*)pSrc;
+        pSrc++;
+        pDst++;
+    } while (pSrc < pEnd);
+    if (sum <= 0) {
+        return 0;
+    }
+    pick = rand() % sum + 1;
+    i = 0;
+    pSrc = (s32)buf;
+    do {
+        pick--;
+        while (*(u8*)pSrc == 0) {
+            pSrc++;
+            i++;
+        }
+        (*(u8*)pSrc)--;
+    } while (pick > 0);
+    memcpy(D_800658DC, D_8009D73C[index], 0x200);
+    D_80059508 = i;
+    return 1;
+}
+*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc2", func_80076098);
 void func_800762FC(void) {
     DrawSync(0);
