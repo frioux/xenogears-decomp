@@ -118,8 +118,8 @@ typedef struct {
 /* Best attempt: 99.44%. Only difference is an allocator tie-break: the result
    flag gets a3 where the original has a2 and the `unk4F7C` index gets a2 where
    the original has a3 (both live ranges are otherwise identical). Tried: every
-   declaration order, initialiser forms, and the statement order of the two
-   assignments. The base-first `addu` (a1 + index) needs an array member, hence
+   declaration order, initialiser forms, `register idx`, and the statement
+   order of the two assignments. The base-first `addu` (a1 + index) needs an array member, hence
    the local MenuUnk2Flags cast below; the shared header's scalar unk4FE4 with
    `(&pMenu->unk4FE4)[...]` emits the operands the other way round. */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801C9BCC);
