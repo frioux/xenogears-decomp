@@ -54,6 +54,10 @@ extern s32 D_8009872C;
 extern s32 D_80097010;
 extern s32 D_80099068;
 extern s32 D_8009794C;
+extern s32 D_80099088;
+extern s32 D_8009796C;
+extern s32 D_80098798;
+extern s32 D_8009707C;
 
 extern void func_800732CC(void);
 extern s32 rand(void);
@@ -498,6 +502,38 @@ void func_8007A884(void) {
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_8007A958);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_8007AC3C);
+
+/* Best attempt: 78.58%. All 120 instructions are present; only two shapes differ.
+   (a) Each 16-byte copy: the original groups three word loads then three word
+   stores, then a separate fourth load/store with a delay nop; gcc 2.7.2 emits
+   2/2/2/2 for a 16-byte block move (the shape func_8007A21C matches with) and
+   2/2 + 1/1 for a 12-byte copy, so the original's copies are not plain VECTOR
+   assignments. (b) The original materialises the destination address before the
+   source and keeps D_8009872C/D_80097010 in t0/a3 across the function; ours
+   rematerialises them and picks a0 for the destination.
+   Shapes tried: eight plain VECTOR assignments (77.46%), VECTOR* locals for the
+   two reused bases (78.58%), Vec3(0xC) copy + separate [3] word store with
+   global or pointer bases (52%/50% - gcc sinks all four word stores to the end
+   of the function, 576 bytes).
+void func_8007AC3C(void) {
+    VECTOR* pA = (VECTOR*)&D_8009872C;
+    VECTOR* pB = (VECTOR*)&D_80097010;
+
+    D_800928AC = 0x96;
+    D_8009292C = 0x100;
+    SetGeomScreen(0x200);
+    *pA = *(VECTOR*)&D_80092A34;
+    *pB = *(VECTOR*)&D_80092A44;
+    *(VECTOR*)&D_80099068 = *(VECTOR*)&D_80092A54;
+    *(VECTOR*)&D_8009794C = *(VECTOR*)&D_80092A64;
+    *(VECTOR*)&D_80099088 = *(VECTOR*)&D_80099068;
+    *(VECTOR*)&D_8009796C = *(VECTOR*)&D_8009794C;
+    *(VECTOR*)&D_80098798 = *pA;
+    *(VECTOR*)&D_8009707C = *pB;
+    func_8007A768(D_80092890 != 0 ? (Actor*)pB : (Actor*)pA);
+}
+*/
+
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_8007AE10);
 
