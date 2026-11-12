@@ -23,6 +23,9 @@ extern u8 *D_800C3E00;
 extern u8 D_800CCE42[];
 extern u8 D_800D32A1[];
 extern u8 D_800C3CFA[];
+extern u16 g_SystemPalette1;
+extern u8 D_800D32A1[];
+extern void *D_800D367C;
 
 void func_8007FB70(void);
 void func_8009AC48(u8, s32);
@@ -116,6 +119,40 @@ void func_800916D4(u8 arg0, u8 arg1, s32 arg2) {
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_800916D4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_8009187C);
+/* 87.45%: the whole shape (index branch, RECT, two string draws, two
+   func_80076C78 calls, HeapFree) reproduces; the leftovers are the
+   &D_800CCB34 wall (retail holds `lui s3/addiu s3` once and does `lw 0(s3)`
+   twice, gcc rematerialises `lui/lw` per call) and the `andi s0,s0,0xffff`
+   retail emits at index's first use (gcc proves the u8-derived range here and
+   drops it). Also tried: the (arg2*2+arg1)*2 sum in a local before the branch
+   (74.68 - it hoists the whole vofs computation to the top of the frame). */
+/*
+void func_80091B38(u8 arg0, u8 arg1, u8 arg2) {
+    RECT rect;
+    u8 *pBuf;
+    u16 index;
+    s32 len1;
+    s32 len2;
+
+    if (D_800D32A1[arg0 * 8] == 0) {
+        index = D_800D2D24[arg0] * 0x20 + (arg2 * 2 + arg1) * 2;
+    } else {
+        index = g_GameState.characters[D_800D2D24[arg0]].gearId * 0x20 + (arg2 * 2 + arg1) * 2;
+    }
+    pBuf = (u8 *)func_8008AC00(0x39);
+    bzero(pBuf, 0x618);
+    len1 = SystemRenderStringEntry(GetStringEntry(D_800D367C, index), pBuf, 0x39, 0);
+    len2 = SystemRenderStringEntry(GetStringEntry(D_800D367C, index | 1), pBuf, 0x39, 1);
+    rect.x = 0x3C0;
+    rect.y = 0;
+    rect.w = 0x3C;
+    rect.h = 0xD;
+    func_800769E8(&rect, pBuf);
+    func_80076C78((POLY_FT4 *)(*(u8 **)(D_800C3EA4 + 0xA230) + D_800CCB34 * 0x28 + 0x280), 0x30, 0xB6, 0, 0, len1 & 0xFF);
+    func_80076C78((POLY_FT4 *)(*(u8 **)(D_800C3EA4 + 0xA230) + D_800CCB34 * 0x28 + 0x2D0), 0x30, 0xC6, 0, 0, len2 & 0xFF);
+    HeapFree(pBuf);
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80091B38);
 /* 98.40%: the body is byte-identical; only the entry copies differ - the
    original parks arg1 in a3 and copies a3 to s2, gcc here copies a1 straight
@@ -148,6 +185,25 @@ void func_80091D38(u8 arg0, s32 arg1, u8 arg2) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80091D38);
+/* 64.13%: shape is right (two palette stores, four func_80076CE8 calls with
+   the arg0/0x60/0x10 stack args, trailing 0x668 store) but retail keeps
+   `&D_800CCB34` in s0 (`lui/addiu` once) where gcc rematerialises
+   `lui/lw D_800CCB34` at each use and a `lui/lbu` at the end; that also costs
+   the 4th saved register (frame 56 vs 48) and swaps the s1/s2 roles of
+   arg0/0x60. Tried: plain D_800CCB34 (64.13), `s32 *pIndex = &D_800CCB34`,
+   a `u8 *pPal` plus an s32 cache of it (59.64, and the body grows). This is
+   misc16's documented &D_800CCB34 wall. */
+/*
+void func_80091EC4(u8 arg0) {
+    *(u16 *)(*(u8 **)(D_800C3EA4 + 0xA230) + D_800CCB34 * 0x28 + 0xE) = g_SystemPalette1;
+    *(u16 *)(*(u8 **)(D_800C3EA4 + 0xA230) + D_800CCB34 * 0x28 + 0x5E) = g_SystemPalette1;
+    func_80076CE8((POLY_FT4 *)(*(u8 **)(D_800C3EA4 + 0xA230) + D_800CCB34 * 0x28), 0x34, 0x34, 0, arg0, 0x60, 0x60);
+    func_80076CE8((POLY_FT4 *)(*(u8 **)(D_800C3EA4 + 0xA230) + D_800CCB34 * 0x28 + 0x50), 0xB8, 0x34, 0x78, arg0, 0x60, 0x60);
+    func_80076CE8((POLY_FT4 *)(*(u8 **)(D_800C3EA4 + 0xA230) + D_800CCB34 * 0x28 + 0xA0), 0x9C, 0x34, 0, arg0, 0x10, 0x60);
+    func_80076CE8((POLY_FT4 *)(*(u8 **)(D_800C3EA4 + 0xA230) + D_800CCB34 * 0x28 + 0xF0), 0x120, 0x34, 0x40, arg0, 0x10, 0x60);
+    *(u8 *)(*(u8 **)(D_800C3EA4 + 0xA230) + 0x668) = *(u8 *)&D_800CCB34;
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80091EC4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_8009209C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80092298);
@@ -302,9 +358,6 @@ void func_80094D24(void) {
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80094D24);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80094EE4);
-// 100.0% under gcc 2.6.0-psx (99.81/99.76/99.90 under this unit's 2.7.2): this
-// function wants a 2.6.0 TU of its own; the unit as a whole is a 2.7.2 unit.
-/*
 void func_80095690(void) {
     u8 *p = D_800C3E00;
     u8 *q = D_800C3DFC;
@@ -330,8 +383,6 @@ void func_80095690(void) {
     *(u8 *)(D_800C34B0 + D_800C3E50 + 0x5FA0) = 2;
     *(s32 *)(D_800C3E50 * 4 + D_800C34B0 + 0x5F6C) = v;
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80095690);
 /* 95.00% (this shape): instruction multiset identical; gcc emits the sb's
    `li 2` before the five `sh zero` stores (the original keeps it after), and
    picks v1/a1 for the p/index pair where the original has v0/v1, which also
