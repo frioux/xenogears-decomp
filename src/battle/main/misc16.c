@@ -35,7 +35,12 @@ extern s32 SystemRenderStringEntry(u8 *, void *, s32, s32);
 extern u8 D_800C3D70[];
 extern void *func_8008ABB8(s32, s32);
 extern void func_80077454(s32);
-extern void func_8008F6E4(s32, s32, s32, s32, s32);
+extern void func_8008F6E4(u8, s32, s32, s32, s32);
+extern void func_8008DC34(u8, s32, s32, s32, u16);
+extern void func_8008DE04(u8, s32, s32, s32);
+extern void func_8008E430(u8, s32, s32, s32, u16);
+extern void func_8008EA70(u8, s32, s32, s32);
+extern void func_8008F0A8(u8, s32, s32, s32, u16);
 extern void func_80090310(u8, u8);
 extern void func_800904A0(s32, s32);
 extern void func_8009070C(u8, u8);
@@ -166,6 +171,36 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008E430);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008EA70);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008F0A8);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008F6E4);
+/* 57.38% (was 48.61 with inline sums, 53.06 with u16 params): the five calls
+   and the four u16 arg masks are right; the gap is the eight sh stores. Retail
+   recomputes `lw D_800CCB34 / sll / addu / sll` in front of EVERY store, which
+   the full-expression form below does reproduce, but retail also keeps the same
+   s1/s0 (== arg1/arg2) for the store values while gcc puts the sums in t0/t1 and
+   runs the frame 0x38 with s0-s5 (here a bigger frame and one fewer recompute --
+   416 bytes vs 528). Tried: u16 params (53.06), s32 params + w/h locals (48.61),
+   inline sums (50.12), per-store full expression (57.38). Same &D_800CCB34 wall
+   as func_80090E7C/func_80090310 in this unit.
+void func_8008F6E4(u8 arg0, s32 arg1, s32 arg2, s32 arg3, s32 arg4) {
+    u8 *p;
+
+    D_800D2D28[arg0 + 0xB0] = 0;
+    *(u16 *)(D_800D2E38[arg0] + D_800CCB34 * 0x24 + 0x3C8) = arg1;
+    *(u16 *)(D_800D2E38[arg0] + D_800CCB34 * 0x24 + 0x3CA) = arg2;
+    *(u16 *)(D_800D2E38[arg0] + D_800CCB34 * 0x24 + 0x3D0) = arg1 + arg3;
+    *(u16 *)(D_800D2E38[arg0] + D_800CCB34 * 0x24 + 0x3D2) = arg2;
+    *(u16 *)(D_800D2E38[arg0] + D_800CCB34 * 0x24 + 0x3D8) = arg1;
+    *(u16 *)(D_800D2E38[arg0] + D_800CCB34 * 0x24 + 0x3DA) = arg2 + arg4;
+    *(u16 *)(D_800D2E38[arg0] + D_800CCB34 * 0x24 + 0x3E0) = arg1 + arg3;
+    *(u16 *)(D_800D2E38[arg0] + D_800CCB34 * 0x24 + 0x3E2) = arg2 + arg4;
+    func_8008DC34(arg0, arg1, arg2, arg3, arg4);
+    func_8008DE04(arg0, arg1, arg2, arg3);
+    func_8008E430(arg0, arg1, arg2, arg3, arg4);
+    func_8008EA70(arg0, arg1, arg2, arg4);
+    func_8008F0A8(arg0, arg1, arg2, arg3, arg4);
+    *(u8 *)(D_800D2E38[arg0] + 0x5A4) = *(u8 *)&D_800CCB34;
+    D_800D2D28[arg0 + 0xB0] = 1;
+}
+*/
 /* 96.44%: whole body matches; only the prologue save/copy order differs (gcc
    gives s4 to arg5 and s5 to arg1 and copies arg0 last; the original has
    s4=arg1, s5=arg5 and copies arg0 first). Tried: separate pointer temps per
