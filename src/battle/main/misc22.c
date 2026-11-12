@@ -95,12 +95,6 @@ s32 func_800A2E88(BattleMisc22Unk *pArg, s16 arg1) {
     return pArg->unk4 * 124 + pArg->unk0;
 }
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A2F94);
-/* 99.41%: instruction-for-instruction identical except that gcc puts the multu
-   high part in a2 and shifts into v1, where retail mfhi's straight into v1
-   (allocator tie-break; a separate `diff` temp and both spellings of the
-   subtraction leave it untouched). 124 = 4*31 is the only divisor shape that
-   reproduces the 0x21084211/srl 2 sequence.
 s32 func_800A2F94(BattleMisc22Unk *pArg, u8 *pEnd) {
     s32 count = ((u32)pEnd - pArg->unk0) / 124;
 
@@ -110,7 +104,6 @@ s32 func_800A2F94(BattleMisc22Unk *pArg, u8 *pEnd) {
     ((s16 *)pEnd)[0xB] = -1;
     return count;
 }
-*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A2FD8);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A32D8);
 void func_800A3484(s16 *pArg) {
@@ -185,12 +178,6 @@ void func_800A4348(BattleMisc22Image *pArg, s16 scale) {
         }
     }
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A43F8);
-/* 96.30%: same loops and address arithmetic as func_800A4348 (which is 100%);
-   retail re-loads *pSrc2 for the accumulate instead of keeping it in a
-   register, i.e. that pseudo was spilled and rematerialised there, and the
-   scalars land in t2/t0/t3 instead of t3/t2/t4. Tried a delta local (76.50%),
-   ++ inside the expression and swapped declarations.
 void func_800A43F8(BattleMisc22Image *pArg, s16 scale) {
     s32 i;
     s32 j;
@@ -207,14 +194,8 @@ void func_800A43F8(BattleMisc22Image *pArg, s16 scale) {
         }
     }
 }
-*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A44C0);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A4654);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A4820);
-/* 96.86%: every instruction is right except the first loop's i++, which retail
-   has in the delay slot of the `beqz` before the func_80027D40 call and we emit
-   after the store, one insn too late for reorg to steal it. The i = 0 hoists
-   (before each if) are needed to put `move s1,zero` in the beqz delay slots.
 void func_800A4820(void) {
     s32 i;
 
@@ -240,7 +221,6 @@ void func_800A4820(void) {
         GfxLineScrollFree(&D_800C3DA0[i * 0x18]);
     }
 }
-*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A48EC);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A4B3C);
 void func_800A4CF8(void *pArg) {

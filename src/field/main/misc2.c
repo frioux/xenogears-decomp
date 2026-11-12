@@ -66,8 +66,6 @@ void FieldComputeSceneMatrices(void) {
 // below: every one of this unit's convertible stubs is parked on it.
 // screened: Default 85.50 (best), cdk 85.50, 2.6.0 84.62 - not the preset; still the $s1 rematerialisation wall.
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80072254);
-/*
 void func_80072254(int actorIndex) {
     long scale[3];
     FieldActor** ppActors;
@@ -88,7 +86,6 @@ void func_80072254(int actorIndex) {
         ScaleMatrix(&pActor->transformMatrix, (VECTOR*)scale);
     }
 }
-*/
 // 85.25%: two findings. (1) The three pointer loads the original does into
 // $v1/$a1/$a0 come out of *block-scoped* pointer locals - one declaration
 // assigned once in each of the three statements. A single function-scope local

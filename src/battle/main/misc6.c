@@ -139,7 +139,6 @@ void func_8007AE98(u8 **p, u8 index) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc6", func_8007AE98);
 // 100.0% under gcc 2.6.0-psx, 98.52% under 2.7.2-cdk and 96.5% under 2.7.2: needs a
 // 2.6.0 TU of its own.
-/*
 void func_8007AEF0(u8 **p, u8 index) {
     u8 *pTable = D_800D3430 + index * 0x40;
     u8 *pArgs = *p;
@@ -150,8 +149,6 @@ void func_8007AEF0(u8 **p, u8 index) {
     }
     pTable[pArgs[3]] = value;
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc6", func_8007AEF0);
 void func_8007AF5C(u8 **p, u8 index) {
     u8 *pTable = D_800D3430 + index * 0x40;
     u8 *pArgs = *p;

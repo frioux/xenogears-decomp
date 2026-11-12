@@ -163,11 +163,6 @@ void func_800BEDE8(void) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BEE2C);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BEEB4);
-/* best 97.32%: instruction multiset identical. Retail has lui $v0 for the
-   D_800C3EB0 address (GNU as expand of la reuses the destination, $a3) and
-   move $t1,$t0 for the two zeroed counters; both are allocator/assembler
-   ties. The 0x8C8C offset must stay a separate add, not folded into %lo.
 s32 func_800BEEB4(u16 mask, void **pOut, s32 arg2) {
     u8 *pBase;
     u8 *pEntity;
@@ -192,7 +187,6 @@ s32 func_800BEEB4(u16 mask, void **pOut, s32 arg2) {
     pOut[count] = NULL;
     return count;
 }
-*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BEF24);
 /* best 72.54%: passing two 4-byte by-value structs reproduces retail's
    store-two-halves / reload-with-lhu-and-or argument shape and gives the right

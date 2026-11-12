@@ -28,14 +28,6 @@ u8 func_800AA514(s16 arg0, s16 arg1, s32 arg2) {
     return v;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AA564);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AA600);
-/* 99.00% - only the two "mflo" destinations differ (original mflo $v0 twice,
-   this mflo $a1 twice, and the sra sources follow). Instruction sequence,
-   operands and mult order are otherwise identical. Tried: r = 0 + single
-   expression (99.00), two-statement r >>= 12 chain (95.00), separate t local
-   (94.50), "if (p == 0) return 0;" early return (85.75, unmerged epilogue),
-   "if (p != 0) return expr; return 0;" (99.00). The mflo->sra LO copy is
-   never coalesced into $v0.
 s32 func_800AA600(s32 arg0) {
     u8 *p;
 
@@ -45,14 +37,6 @@ s32 func_800AA600(s32 arg0) {
     }
     return 0;
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AA650);
-/* 99.44% - identical except the two "mflo" destinations: the original writes
-   the LO result straight into $v0 (mflo $v0 / sra $v0,$v0,0xc), this gives
-   mflo $a2 / sra $v0,$a2,0xc; the LO copy is never coalesced with the shift.
-   The second D_800D3368[arg0] read (after the if/else, for the 0x1C load) is
-   what the original does - without it gcc keeps the pointer live and uses
-   $a0 for b instead of $v1 (82.92%). Also tried -O3 (99.44, no change).
 s32 func_800AA650(s32 arg0) {
     u8 *p;
     s32 a;
@@ -74,7 +58,6 @@ s32 func_800AA650(s32 arg0) {
     }
     return r;
 }
-*/
 void func_800AA6E0(u8 *arg0) {
     u8 *p;
     s32 i;
@@ -281,9 +264,6 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AE2A4);
 void func_800AEEEC(u8 *pArg) {
     *(s16 *)(pArg + 0x98) = -1;
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AEEF8);
-/* 97.86% - identical instruction shape; only the registers of the three
-   mflo results differ (original $a1,$a0,$a0, this $a3,$a2,$v1).
 s32 func_800AEEF8(u8 *arg0) {
     s32 dx;
     s32 dy;
@@ -294,7 +274,6 @@ s32 func_800AEEF8(u8 *arg0) {
     dz = *(s16 *)(arg0 + 0x8C) - *(s32 *)(*(u8 **)(arg0 + 4) + 0x64);
     return SquareRoot0(dx * dx + dy * dy + dz * dz);
 }
-*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AEF68);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AF180);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AF270);

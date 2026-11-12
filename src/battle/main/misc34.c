@@ -23,12 +23,9 @@ extern void TimerWorkListSetTaskCallback(void *pTask, void *pCallback);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800BF4F0);
 
 // 55.00%: our assembler picks $at where retail picked a free register (atfree).
-/*
 void func_800BF5E8(void) {
     D_800C3CE8++;
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800BF5E8);
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800BF600);
 
@@ -47,12 +44,9 @@ s32 func_800BF720(void) {
 }
 
 // 45.00%: our assembler picks $at where retail picked a free register (atfree).
-/*
 void func_800BF730(s32 arg0) {
     D_800C3628 = arg0;
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800BF730);
 
 void func_800BF73C(u8 *pArg) {
     u8 *pTask;
@@ -123,7 +117,6 @@ s32 func_800BF954(s32 arg0) {
     return i;
 }
 // 79.76%: frame differs (gcc reserves an extra slot); allocator tie.
-/*
 void func_800BF998(void) {
     s16 first = D_800D2D4C + 1;
     s16 second = D_800D36BC + 1;
@@ -134,8 +127,6 @@ void func_800BF998(void) {
         func_800A9FF0(0xB);
     }
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800BF998);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800BF9EC);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800BFA9C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800BFBA0);

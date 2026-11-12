@@ -254,17 +254,12 @@ void func_8007EBBC(WorldMapGroup *pGroup, u8 *pPrim, int count, int abr) {
 */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007ECA4);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007EE34);
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007F8AC);
-/* 94.77%: instruction order matches except that gcc pins `li v0,1` (the
-   return value) immediately after the jal, which then forces v1/a0 for the
-   -0x85A / 0xDA6 / 0x3C constants and the D_8009A68C halfword; retail emits
-   it between the 0x22 store and the 0x5C store. Writing the 0x22 store after
-   the 0x5C store (the other order the allocator likes) moves li v0,1 to the
-   right place (91.49%) but then the 0x22 store is hoisted above the 0x20 and
-   0x3C stores. The store order below is already the master's (0x28, 0x2C,
-   0x54, 0x20, 0x30, 0x50, 0x58); the deviation is only that gcc pulls the
-   0x58 store up to follow 0x54 and materialises li v0,3 last. Group base is unk000[nType + 4], i.e. D_8009C620 + 84*nType +
-   0x150, and pActor->unk5C[0] = D_8009A68C[nType].
+// 100.00% in objdiff under -G0 (99.4 under the unit preset) but the C is 45 bytes
+// the wrong length at link time, so -G0 is NOT the answer for this overlay (its
+// globals are absolute symbols from undefined_syms_auto, and -G0 changes that
+// addressing). Do not re-try -G0 here.
+
+/*
 int func_8007F8AC(int index) {
     int nType = index - 4;
     WorldMapActor *pActor = &D_8009BE24[index];
@@ -288,6 +283,7 @@ int func_8007F8AC(int index) {
     return 1;
 }
 */
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007F8AC);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007F968);
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007FC8C);

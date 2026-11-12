@@ -154,7 +154,6 @@ paths = [
     "battle/main/misc30.",
     "battle/main/misc31.",
     "battle/main/misc32.",
-    "battle/main/misc33.",
     "battle/main/misc35."
 ]
 
@@ -170,18 +169,14 @@ name = "XenoBattlingNoGp"
 build_variables = {
     gp_flag = "-G0"
 }
-paths = [ "battling/main/misc12." ]
+paths = [
+    "battling/main/misc12.",
+    "battling/main/misc9."
+]
 
 # battle/main/misc22's retail object carries the ASPSX div trap (`break 7`/`break 6`),
 # so maspsx has to expand `div`. Proven on func_800A3578: byte-exact C is 55.00% under
 # Default and 100% with --expand-div, the only difference being the trap sequence.
-[[build_preset]]
-name = "XenoBattleDiv"
-build_variables = {
-    maspsx_flags = "--expand-div --use-comm-section --run-assembler"
-}
-paths = [ "battle/main/misc22." ]
-
 # The rest of the div-trap family (same evidence as XenoBattleDiv above; 50 stubs
 # across 20 units carry `break 6`/`break 7` in their own .s, and a unit's preset
 # has to expand `div` for any of them to match at all).
@@ -247,7 +242,15 @@ build_variables = {
 # stay 100.0 under 2.6.0 and its parked `func_8008AC88` (97.26% under 2.7.2, two missed
 # delay slots) is 100.0 only there. Same for misc23 and misc25, which also need the div
 # trap and so live in XenoBattle260Div.
-paths = [ "battle/main/misc20.", "battle/main/misc18.", "battle/main/misc1.", "battle/main/misc15." ]
+paths = [
+    "battle/main/misc20.",
+    "battle/main/misc18.",
+    "battle/main/misc1.",
+    "battle/main/misc15.",
+    "battle/main/misc6.",
+    "battle/main/misc8.",
+    "battle/main/misc17."
+]
 
 # battle/main/misc21 is a gcc-2.6.0 unit AND a div-expansion unit, proven the way
 # section 5 asks for: func_800A23E8 is 100.0% under gcc-2.6.0 and 80.53% under
@@ -264,7 +267,13 @@ build_variables = {
 # misc23 and misc25 are also 2.6.0 units that still need --expand-div (all 7 and 10
 # matched functions stay 100.0 under 2.6.0, and their four parked bodies are 100.0 only
 # there); they moved here from XenoBattleDiv.
-paths = [ "battle/main/misc21.", "battle/main/misc23.", "battle/main/misc25." ]
+paths = [
+    "battle/main/misc21.",
+    "battle/main/misc23.",
+    "battle/main/misc25.",
+    "battle/main/misc22.",
+    "battle/main/misc24."
+]
 
 # menu/main/misc9 is a gcc-2.6.0 unit, proven the way section 5 asks for:
 # func_801DE29C is 100.0% under 2.6.0 and 67.27% under Default (2.7.2 sinks the
@@ -310,6 +319,25 @@ build_variables = {
 paths = [
     "battle/main/misc27.",
     "battle/main/misc27_b.",
-    "battle/main/misc28.",
-    "battle/main/misc34."
+    "battle/main/misc33."
 ]
+
+# The park sweep's -G0 units: a parked body that is 100.0 only with -G0, while every
+# function already matched in the unit stays 100.0 that way (the unit holds a global's
+# address in a saved register across a call, which -G2..-G8 rematerialise).
+[[build_preset]]
+name = "XenoBattleTailCdk0"
+build_variables = {
+    gcc = "gcc-2.7.2-cdk-psx",
+    gp_flag = "-G0",
+    maspsx_flags = "--dont-expand-li --use-comm-section --run-assembler"
+}
+paths = [ "battle/main/misc28.", "battle/main/misc34." ]
+
+[[build_preset]]
+name = "XenoFieldNoGp"
+build_variables = {
+    gp_flag = "-G0"
+}
+paths = [ "field/main/misc2." ]
+

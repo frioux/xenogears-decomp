@@ -258,15 +258,10 @@ void func_800B6E84(u8 *pActor, s8 *p) {
     *(s32 *)(pActor + 0x14) = vec.vz;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc28", func_800B6F0C);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc28", func_800B7134);
-/* best 65.36%: retail stores D_800C3CB4 through a register base
-   (lui v0,%hi; sw v1,%lo(v0), in the jal delay slot) where gcc+maspsx emit
-   lui at,%hi / sw v0,0(at).  Same $at store as misc26's func_800B3588.
 void func_800B7134(void) {
     D_800C3CB4 = g_GfxCurOT;
     func_800B7160();
 }
-*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc28", func_800B7160);
 void func_800B7330(void *p) {
     DrawSync(0);

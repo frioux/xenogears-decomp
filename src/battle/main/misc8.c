@@ -137,14 +137,6 @@ void func_8007C9D4(u8 **arg0, u8 arg1) {
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007C9D4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007CB20);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007CC50);
-/* best: 95.10%. A source-level offset variable is what produces the
-   D_800C3EB4 at-register (lui at/%hi, addu at,at,s1, lbu %lo) form; the
-   earlier i * 0x1C spelling got the symbol folded into a pointer (87.29%).
-   Only reorg placement is left: the original steals i++ into the post-call
-   beqz delay slot and duplicates the loop's slti into the bne delay slot,
-   gcc emits i++ after count++ and a single slti.
-
 void func_8007CC50(u8 **arg0, u8 arg1) {
     u8 *pRow;
     s32 count = 0;
@@ -159,7 +151,6 @@ void func_8007CC50(u8 **arg0, u8 arg1) {
     pRow = &D_800D3430[arg1 * 0x40];
     pRow[(*arg0)[1]] = count;
 }
-*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007CD10);
 /* best: 87.29%. func_8007CC50 with the loop bounds 3..0xB; same miss (the
    D_800C3EB4 offset induction and the i++ delay slot).
@@ -303,16 +294,6 @@ void func_8007D344(u8 **arg0, u8 arg1) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007D344);
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007D478);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007D5B0);
-/* best: 93.33%. Insn multiset and the whole tail match; only the
-   strength-reduced D_800CCD64 offset increment sits one block early in the
-   original (in the loop-top bnez delay slot, before count++), gcc puts it in
-   the loop-branch delay slot. An explicit offset variable (which is what gives
-   the at-register form in func_8007CC50 and func_8007D6A8) is rewritten here
-   into a countdown giv, because this loop - unlike those two - has no call, so
-   the full giv combine runs. Also tried ++i, count += (flags & 0xC000) == 0 and
-   (u8 *)D_800CCD64 + i * 0x170 (85.83%).
-
 void func_8007D5B0(u8 **arg0, u8 arg1) {
     u8 *pRow;
     s32 count = 0;
@@ -326,19 +307,6 @@ void func_8007D5B0(u8 **arg0, u8 arg1) {
     pRow = &D_800D3430[arg1 * 0x40];
     pRow[(*arg0)[1]] = count;
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007D610);
-/* best: 95.50%. Whole function matches except ONE insn position: retail
-   steals i++ (addiu a2,a2,1) into the beqz delay slot of the D_800D2DCC[i]
-   test, gcc emits it in the latch after count++. Register assignment is exact
-   once the accumulators are declared record-then-offset (t0=0x54, a3=0x450).
-   Writing the increment as 'D_800D2DCC[i++]' DOES put it in that delay slot
-   (identical prologue) but gcc then strength-reduces i to a pointer into
-   D_800D2DCC (slt v0,a2,t2 instead of slti v0,a2,0xB), 88.11%. Also tried:
-   i++ as the last body statement, a while loop with the increments in the
-   body, and the explicit-offset form under (u8 *)D_800CCD64 (79.67%, gcc
-   turns the i giv into a countdown). Parked at 95.50.
-
 void func_8007D610(u8 **arg0, u8 arg1) {
     u8 *pRow;
     s32 count = 0;
@@ -354,7 +322,6 @@ void func_8007D610(u8 **arg0, u8 arg1) {
     pRow = &D_800D3430[arg1 * 0x40];
     pRow[(*arg0)[1]] = count;
 }
-*/
 void func_8007D6A8(u8 **arg0, u8 arg1) {
     u16 *pRow;
     u16 result;

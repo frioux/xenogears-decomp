@@ -269,13 +269,6 @@ void func_80083BB4(s32 arg) {
     DrawSync(0);
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc9", func_80083C0C);
-
-/* best 87.02%: gcc folds &D_8009881E / &D_80097102 into the two lh and
-   re-forms the -0xF2 addresses with fresh lui/addiu pairs; the original
-   materialises each symbol address once (lui/addiu) and derives the -0xF2
-   pointer from that register. Selecting into an extra `s16* p` variable and
-   splitting the loads into separate statements both give the same 87.02%.
 void func_80083C0C(s32 mode) {
     s16* pA;
     s16* pB;
@@ -302,7 +295,6 @@ void func_80083C0C(s32 mode) {
         break;
     }
 }
-*/
 
 s32 func_80083CD8(void) {
     return D_80092790;
