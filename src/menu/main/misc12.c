@@ -35,14 +35,6 @@ extern void func_801D1EE0(u_char arg0, s32 arg1);
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E6CFC);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E6F5C);
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E71B4);
-/* Best: 97.81%. Four shapes were needed: i = 0 before pEntry += (u_char)index,
-   pTable = (u8*)(arg2 * 0x200 + (s32)g_Menu->menuUnk2) + 0xC94 (the plain
-   additive form mirrors the addu operands), a pRow local recomputed for each of
-   the two table reads, and the loop exit spelled !*pKey && !*pValue with
-   pValue += 2 before pKey += 2. What is left is one register: retail loads the
-   second table byte into v0 (and so leaves a nop in the bnez delay slot), gcc
-   picks v1 and reorg then fills the slot with the load.
 void func_801E71B4(s32 index, u8* pEntry, s32 arg2) {
     RECT rect;
     u8 pairs[0x14];
@@ -82,7 +74,6 @@ void func_801E71B4(s32 index, u8* pEntry, s32 arg2) {
     DrawSync(0);
     HeapFree(pBuf);
 }
-*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E733C);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E76EC);
 /* Best: 99.87%. Two register pairs, both mirrored: retail puts g_Menu->menuUnk2

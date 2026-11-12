@@ -100,10 +100,6 @@ s32 func_800AF438(u8 *p, u32 id, u16 *pOut) {
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800AF518);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800AF678);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800AFA98);
-/* 96.44%: everything matches except the position of the loop's `i++`: gcc puts
-   it after the count reload, the original keeps it in the `bne`'s delay slot
-   (i.e. before the recursive call's argument setup).
 void func_800AFA98(BattleModel *pModel, BattleModelNode *pNode, s32 flags) {
     BattleModelNode *pChild;
     s32 i;
@@ -119,7 +115,6 @@ void func_800AFA98(BattleModel *pModel, BattleModelNode *pNode, s32 flags) {
         }
     }
 }
-*/
 extern u8 *func_80023FD8(s32, s32, s32, s32);
 extern void func_80021FE0(void *, s16);
 extern void func_800223B0(void *, s16);
@@ -297,12 +292,6 @@ s32 func_800B0AB4(s16 *pPos) {
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800B0B14);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800B0D70);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800B0FF4);
-/* 99.84%: identical instruction stream (the div guards --expand-div adds are
-   exactly right); the only difference is the register holding the second
-   product: the original `mflo $a0` + `addu $a0,$a1,$a0`, ours `mflo $a3` +
-   `addu $a0,$a1,$a3`. Tried: inline sum, `s32 d2` split, reversed add
-   operands (reversed also flips the mult order, 89.27%).
 void func_800B0FF4(u16 *pA, u16 *pB) {
     s16 vec[3];
     s32 len;
@@ -314,7 +303,6 @@ void func_800B0FF4(u16 *pA, u16 *pB) {
     vec[2] = (vec[2] << 9) / len;
     func_800B0D70(vec, pB);
 }
-*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800B10EC);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800B12D0);
 /* 99.74% (156 bytes, identical instruction stream): only the switch's jump

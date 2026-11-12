@@ -90,15 +90,6 @@ void func_8008AC50(void) {
         func_800716D8();
     }
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008AC88);
-/* Best: 97.26%. Everything matches except two delay slots: the original fills
-   the `beqz func_80089C9C()` slot with the loop's `i++` and copies `slti
-   i,8` into the `bnez flags&0x800` slot; ours fills the first slot with the
-   table `lhu` and leaves the second `nop`. Same instruction count and same
-   bytes otherwise. Seven loop spellings (for/while, increment list order,
-   i++ in the body, both `continue` forms, off+= inside/outside) compile
-   identically, so this is cc1's reorg choice. Prologue order needs the
-   comma-init and this declaration order (mask,i,off,idx) to match.
 void func_8008AC88(u16 arg0, u8 arg1) {
     u16 mask;
     s32 i;
@@ -123,7 +114,6 @@ void func_8008AC88(u16 arg0, u8 arg1) {
     D_800C4022[D_800C3EAC[0x2DA] * 36] = mask;
     D_800C3EAC[0x2DA] = D_800C3EAC[0x2DA] + 1;
 }
-*/
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008ADD0);
 void func_8008B108(u8 arg0) {

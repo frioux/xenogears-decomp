@@ -68,14 +68,6 @@ extern s32 D_800D39CC;
 extern u8 D_800D2F64;
 extern s32 func_800A5D54(s32, s32, s32);
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A5914);
-/* 96.62%: everything matches except that the original RELOADS D_800D2F64
-   after incrementing it (lui/lbu/nop/bnez) while gcc 2.7.2 forwards the
-   stored value (andi v0,v0,0xff; bnez), 8 bytes short. Tried: volatile u8
-   (95.91%, gcc then emits the load three times), incrementing through a
-   pointer local (same forwarding). Tried only D_800D2F64; the rest of the
-   function is byte-identical, including the uninitialised `result` that the
-   original returns from the arg2 <= 0 path.
 s32 func_800A5914(s32 arg0, s32 arg1, s32 arg2) {
     s32 result;
     s32 i;
@@ -105,15 +97,7 @@ s32 func_800A5914(s32 arg0, s32 arg1, s32 arg2) {
     }
     return result;
 }
-*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A5A48);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A5BE8);
-/* 99.23%: identical instruction multiset; only allocator picks differ - the
-   original holds the divisor (pNormal->vy) in $a2 and the two products in
-   $v1/$v0, gcc 2.7.2 picks $a1 for the divisor and $a2/$t1 for the products
-   (and swaps the two loads of the z pair). Tried: two named product locals
-   (same), the divisor held in a local across the branch (same), inlining the
-   negation (same).
 void func_800A5BE8(SVECTOR *pBase, SVECTOR *pA, SVECTOR *pB, SVECTOR *pOut, VECTOR *pNormal) {
     VECTOR nA;
     VECTOR nB;
@@ -134,26 +118,6 @@ void func_800A5BE8(SVECTOR *pBase, SVECTOR *pA, SVECTOR *pB, SVECTOR *pOut, VECT
         pOut->vy = pBase->vy + (-((pOut->vx - pBase->vx) * pNormal->vx) - (pOut->vz - pBase->vz) * pNormal->vz) / pNormal->vy;
     }
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A5D54);
-/* 97.24%: the whole function is byte-identical except that gcc emits the
-   "lbu $v0,0xD($a0)" of the visited-flag test AFTER the two D_800D2F64 insns
-   instead of before them (one instruction moved, nothing else differs; "jal" and
-   branch offsets in the leftover diff are linker/objdump artifacts). Tried: the
-   comparison written with the operands swapped (97.12%), a persistent pEntry
-   pointer instead of the inline (index * 14 + sym) casts (93.40%, the original
-   really does reload D_800D39CC after every call), one shared result variable
-   instead of three (95.96%, costs a move v1,v0), if (res3 < 0) return -1
-   (91.33%), and the single-exit if (res3 < 0) res3 = -1; return res3 (97.24%,
-   same as the shape below).
-typedef struct {
-    s16 unk0; s16 unk2; s16 unk4; s16 unk6; s16 unk8; s16 unkA; u8 unkC; u8 unkD;
-} Misc23TreeEntry; // Size: 0xE
-extern s32 D_800D3344;
-extern s32 D_800D39CC;
-extern u8 D_800D2F64;
-extern s32 func_800A5A48(void *, void *, void *, s32);
-
 s32 func_800A5D54(s32 arg0, s32 index, s32 depth) {
     s32 result;
     s32 res2;
@@ -188,7 +152,6 @@ s32 func_800A5D54(s32 arg0, s32 index, s32 depth) {
     }
     return res3;
 }
-*/
 
 void func_800A5E9C(s32 arg0, s32 arg1) {
     D_800D2D40 = arg0;

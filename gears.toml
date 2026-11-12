@@ -192,9 +192,7 @@ build_variables = {
 }
 paths = [
     "battle/main/misc21.",
-    "battle/main/misc23.",
     "battle/main/misc24.",
-    "battle/main/misc25.",
     "battling/main/misc15.",
     "movie/main/misc1.",
     "movie/main/misc2."
@@ -245,7 +243,11 @@ build_variables = {
 # func_80071A38 and func_80071A08 were the two blockers at 99.05/99.17 and both closed
 # once the address was written base-first (`pDst = D_x; *(pDst + i + K)`), so the unit
 # is flippable with nothing lost.
-paths = [ "battle/main/misc20.", "battle/main/misc18.", "battle/main/misc1." ]
+# battle/main/misc15 joined in session 7's park sweep: all 11 of its matched functions
+# stay 100.0 under 2.6.0 and its parked `func_8008AC88` (97.26% under 2.7.2, two missed
+# delay slots) is 100.0 only there. Same for misc23 and misc25, which also need the div
+# trap and so live in XenoBattle260Div.
+paths = [ "battle/main/misc20.", "battle/main/misc18.", "battle/main/misc1.", "battle/main/misc15." ]
 
 # battle/main/misc21 is a gcc-2.6.0 unit AND a div-expansion unit, proven the way
 # section 5 asks for: func_800A23E8 is 100.0% under gcc-2.6.0 and 80.53% under
@@ -259,7 +261,10 @@ build_variables = {
     gcc = "gcc-2.6.0-psx",
     maspsx_flags = "--expand-div --use-comm-section --run-assembler"
 }
-paths = [ "battle/main/misc21." ]
+# misc23 and misc25 are also 2.6.0 units that still need --expand-div (all 7 and 10
+# matched functions stay 100.0 under 2.6.0, and their four parked bodies are 100.0 only
+# there); they moved here from XenoBattleDiv.
+paths = [ "battle/main/misc21.", "battle/main/misc23.", "battle/main/misc25." ]
 
 # menu/main/misc9 is a gcc-2.6.0 unit, proven the way section 5 asks for:
 # func_801DE29C is 100.0% under 2.6.0 and 67.27% under Default (2.7.2 sinks the
@@ -283,7 +288,9 @@ build_variables = {
 # (99.88 under 2.7.2); for misc10 five sampled matched functions stay 100.0 and
 # func_801E42AC is 100.0 under 2.6.0 vs 89.56 under 2.7.2. Three parked bodies in misc6
 # are straight uncomments once the preset is on.
-paths = [ "menu/main/misc9.", "menu/main/misc5.", "menu/main/misc6.", "menu/main/misc10." ]
+# menu/main/misc12 joined in session 7: all 11 matched functions stay 100.0 under 2.6.0
+# and func_801E71B4 is 100.0 only there (97.81 under 2.7.2).
+paths = [ "menu/main/misc9.", "menu/main/misc5.", "menu/main/misc6.", "menu/main/misc10.", "menu/main/misc12." ]
 
 # battle/main/misc27 is function-mixed and cannot be a single-preset unit: its
 # callback cluster is byte-identical only under gcc 2.7.2-cdk (the parked bodies in
