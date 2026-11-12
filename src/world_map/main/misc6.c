@@ -1,13 +1,14 @@
 #include "common.h"
 #include "psyq/libgpu.h"
 #include "psyq/libgte.h"
+#include "system/memory.h"
 
 typedef struct {
     /* 0x00 */ undefined32 unk00;
-    /* 0x04 */ u16 unk04;
+    /* 0x04 */ s16 unk04;
     /* 0x06 */ u16 unk06;
     /* 0x08 */ undefined32 unk08[6]; // 0x08..0x1F
-    /* 0x20 */ u16 unk20;
+    /* 0x20 */ s16 unk20;
     /* 0x22 */ u16 unk22;
     /* 0x24 */ undefined32 unk24;
     /* 0x28 */ s32 unk28;
@@ -68,7 +69,7 @@ extern u32 D_8009BE28;
 extern u32 D_8009BE2C;
 extern u32 D_8009BE30;
 extern u32 D_8009D144;
-extern u32 D_8009D3D4;
+extern s32 D_8009D3D4;
 extern u32 D_8009D55C;
 extern u32 D_8009D560;
 extern u32 D_8009D564;
@@ -78,6 +79,32 @@ extern void func_800848B4(int, int);
 extern void func_80089160(int, void *, int);
 extern void func_80093354(VECTOR *);
 extern int func_80093A5C(int, int);
+extern void func_8003A89C(void *, int, int);
+extern void func_80039FF8(void);
+extern void func_8003852C(void *);
+extern void func_80084818(void);
+extern void func_80086124(void);
+extern void func_80086568(void);
+extern void func_800866C8(void);
+extern void func_80074F04(void);
+extern void func_800750DC(void);
+extern void func_80088FF4(void);
+extern void func_80089128(void);
+extern void func_80097D64(void);
+extern void func_800976A0(void);
+extern u8 *D_8006259C;
+extern u8 *D_8009BC38;
+extern u8 *D_8009BCB0;
+extern u8 *D_8009BC3C;
+extern u8 *D_8009BCB4;
+extern u8 *D_8009C180;
+extern u16 D_8009BD3A;
+extern u16 D_8006F94E;
+extern u16 D_8006F950;
+extern u16 D_8006F954;
+extern u32 D_8009BBC4;
+extern u16 D_8009A5CC[];
+extern s32 D_80062528;
 
 int func_8007D414(int index) {
     WorldMapGroup *pGroup;
@@ -167,9 +194,70 @@ int func_8007D774(int index) {
     return 3;
 }
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007D7FC);
+int func_8007D7FC(int index) {
+    WorldMapGroup *pGroup = &D_8009C620->unk000[16];
+    WorldMapActor *pActor = &D_8009BE24[index];
+    s32 nPos;
+
+    switch (pActor->unk04) {
+    case 1:
+        // volatile: keeps the D_8009BE28 load below these two stores, as retail has it
+        *(volatile s16 *)&pActor->unk04 = 0;
+        *(volatile s16 *)&pGroup->unk00 = 0;
+        pActor->unk28 = D_8009BE28;
+        pActor->unk30 = D_8009BE30 + 0x400000;
+        break;
+    case 2:
+        pActor->unk04 = 0;
+        pActor->unk20 = 2;
+        break;
+    }
+    pActor->unk30 += pActor->unk40;
+    func_80093354((VECTOR *)&pActor->unk28);
+    pGroup->unk08 = pActor->unk28 >> 12;
+    pGroup->unk0C = pActor->unk2C >> 12;
+    pGroup->unk10 = pActor->unk30 >> 12;
+    if (pActor->unk20 == 2) {
+        nPos = pActor->unk28;
+        D_8009D55C = nPos;
+        nPos = pActor->unk2C;
+        D_8009D560 = nPos;
+        nPos = pActor->unk30;
+        D_8009D564 = nPos;
+    }
+    return 1;
+}
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007D918);
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007DCE0);
+void func_8007DCE0(void) {
+    s32 nIndex;
+    u16 unkWord;
+    u16 unkValue;
+
+    func_8003A89C(D_80062528, 0, 0xF0);
+    func_80039FF8();
+    func_8003852C(D_8006259C);
+    HeapFree(D_8006259C);
+    func_80084818();
+    func_80086568();
+    func_800866C8();
+    func_80074F04();
+    func_800750DC();
+    func_80088FF4();
+    func_80089128();
+    func_80097D64();
+    HeapFree(D_8009BC38);
+    HeapFree(D_8009BCB0);
+    HeapFree(D_8009BC3C);
+    HeapFree(D_8009BCB4);
+    HeapFree(D_8009C180);
+    func_800976A0();
+    nIndex = D_8009D3D4;
+    D_8006F94E = 0x1A1;
+    unkValue = D_8009A5CC[nIndex];
+    D_8009BBC4 = 1;
+    D_8006F950 = D_8009BD3A;
+    D_8006F954 = unkValue;
+}
 
 int func_8007DE14(int index) {
     WorldMapActor *pActor = &D_8009BE24[index];
@@ -318,7 +406,33 @@ int func_8007FC8C(int index) {
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007FD30);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007FF70);
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_80080218);
+void func_80080218(void) {
+    u16 unkValue;
+
+    func_80039FF8();
+    func_8003852C(D_8006259C);
+    HeapFree(D_8006259C);
+    func_80084818();
+    func_80086124();
+    func_80086568();
+    func_800866C8();
+    func_80074F04();
+    func_800750DC();
+    func_80088FF4();
+    func_80089128();
+    func_80097D64();
+    HeapFree(D_8009BC38);
+    HeapFree(D_8009BCB0);
+    HeapFree(D_8009BC3C);
+    HeapFree(D_8009BCB4);
+    HeapFree(D_8009C180);
+    func_800976A0();
+    unkValue = D_8009BD3A;
+    D_8006F94E = 0x84;
+    D_8006F954 = 2;
+    D_8009BBC4 = 1;
+    D_8006F950 = unkValue;
+}
 
 int func_8008032C(int index) {
     WorldMapActor *pActor = &D_8009BE24[index];
