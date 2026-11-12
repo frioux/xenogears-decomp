@@ -257,7 +257,34 @@ void func_801DE474(u_char arg0, u_char arg1) {
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DE5CC);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DF0D4);
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DF5D0);
+void func_801DF5D0(u_char arg0, u_char arg1) {
+    s32 i;
+
+    for (i = 0; i < 9; i++) {
+        ((u16*)((u8*)g_Menu->unk360 + 0x280))[i] = g_Menu->pDressingRoom->unkB8[i];
+    }
+
+    if (arg1 == 0) {
+        for (i = 0; i < 5; i++) {
+            ((u8*)g_Menu->unk360 + i)[0x29C] =
+                g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].unk6A[i];
+            ((u8*)g_Menu->unk360 + i)[0x2A1] =
+                g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].unk6F[i];
+            ((u8*)g_Menu->unk360 + i)[0x2A6] =
+                g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].unk74[i];
+        }
+    } else {
+        for (i = 0; i < 4; i++) {
+            ((u8*)g_Menu->unk360 + i)[0x29C] =
+                g_GameState.gears[g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].gearId].weaponId[i];
+            ((u8*)g_Menu->unk360 + i)[0x2A1] =
+                g_GameState.gears[g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].gearId].unk4[i];
+            ((u8*)g_Menu->unk360 + i)[0x2A6] =
+                g_GameState.gears[g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].gearId].accessorySlots[i];
+        }
+    }
+}
+
 void func_801DF890(u_char arg0, u_char arg1) {
     s32 i;
 
