@@ -1,5 +1,6 @@
 #include "common.h"
 #include "main/game.h"
+#include "psyq/libgpu.h"
 #include "system/archive.h"
 #include "system/memory.h"
 
@@ -239,7 +240,48 @@ void func_80071FEC(void) {
 */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80071FEC);
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80072090);
+extern s32 D_8004F304;
+extern s32 D_8009CC98;
+extern s32 D_8009D3D0;
+extern s32 D_8009D800;
+extern s32 D_8009BCC8;
+extern void* D_8009C88C;
+extern void* D_8009C884;
+extern void* D_8009C888;
+extern void* D_8009C614;
+extern u16 D_8009D418;
+extern void* D_8009D41C;
+extern u16 D_8009D420;
+extern s32 D_8009D424;
+
+void func_80072090(void) {
+    void* pBuffer;
+
+    D_8004F304++;
+    D_8009D3F8 = D_8009CC98;
+    pBuffer = HeapAlloc(ArchiveDecodeAlignedSize(D_8009CC98), 1);
+    D_8009C88C = pBuffer;
+    D_8009D3FC = pBuffer;
+    D_8009D400 = D_8009D3D0;
+    pBuffer = HeapAlloc(ArchiveDecodeAlignedSize(D_8009D3D0), 0);
+    D_8009C884 = pBuffer;
+    D_8009D404 = pBuffer;
+    D_8009D408 = D_8009D3C8;
+    pBuffer = HeapAlloc(ArchiveDecodeAlignedSize(D_8009D3C8), 0);
+    D_8006259C = pBuffer;
+    D_8009D40C = pBuffer;
+    D_8009D410 = D_8009D800;
+    pBuffer = HeapAlloc(ArchiveDecodeAlignedSize(D_8009D800), 0);
+    D_8009C888 = pBuffer;
+    D_8009D414 = pBuffer;
+    D_8009D418 = D_8009BCC8;
+    pBuffer = HeapAlloc(ArchiveDecodeAlignedSize(D_8009BCC8), 0);
+    D_8009C614 = pBuffer;
+    D_8009D41C = pBuffer;
+    D_8009D420 = 0;
+    D_8009D424 = 0;
+    func_80029AFC((StreamDataQueueEntry*)&D_8009D3F8, 0, 0);
+}
 
 void func_800721E4(void) {
     s32 nSize;
@@ -451,7 +493,47 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_800736DC);
 
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_800737EC);
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_800739B8);
+extern u32 D_8009C744[];
+extern DR_MODE D_8009D3D8[];
+
+void func_800739B8(void) {
+    POLY_FT4* pPrim;
+    RECT tw;
+    u16 tpage;
+    u16 clut;
+    s32 i;
+
+    tpage = GetTPage(0, 1, 0x380, 0x100);
+    clut = GetClut(0x110, 0x1FE);
+    pPrim = (POLY_FT4*)D_8009C744;
+    for (i = 0; i < 4; i++, pPrim++) {
+        setPolyFT4(pPrim);
+        pPrim->r0 = 0x30;
+        pPrim->g0 = 0x30;
+        pPrim->b0 = 0x30;
+        pPrim->u0 = 0;
+        pPrim->v0 = 0;
+        pPrim->u1 = 0xFF;
+        pPrim->v1 = 0;
+        pPrim->u2 = 0;
+        pPrim->v2 = 0x3F;
+        pPrim->u3 = 0xFF;
+        pPrim->v3 = 0x3F;
+        pPrim->tpage = tpage;
+        pPrim->clut = clut;
+        SetSemiTrans(pPrim, 1);
+    }
+    tw.x = 0;
+    tw.y = 0;
+    tw.w = 0x80;
+    tw.h = 0;
+    func_800453AC(&D_8009D3D8[0], &tw);
+    tw.x = 0;
+    tw.y = 0;
+    tw.w = 0;
+    tw.h = 0;
+    func_800453AC(&D_8009D3D8[1], &tw);
+}
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80073B04);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80073E30);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_800740B8);
