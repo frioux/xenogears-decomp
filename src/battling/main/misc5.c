@@ -9,8 +9,27 @@ typedef struct {
 } Color4; // Size: 0x4
 
 typedef struct {
-    /* 0x00 */ u8 unk0[0x28];
+    /* 0x00 */ u32 unk0;
+    /* 0x04 */ u8 r;
+    /* 0x05 */ u8 g;
+    /* 0x06 */ u8 b;
+    /* 0x07 */ u8 unk7;
+    /* 0x08 */ u8 unk8[6];
+    /* 0x0E */ u16 unkE;
+    /* 0x10 */ u8 unk10[6];
+    /* 0x16 */ u16 unk16;
+    /* 0x18 */ u8 unk18[0x10];
 } SlotMotion; // Size: 0x28
+
+typedef struct {
+    /* 0x00 */ u8 unk0[0xA];
+    /* 0x0A */ u8 unkA;
+    /* 0x0B */ u8 unkB;
+    /* 0x0C */ u16 unkC;
+    /* 0x0E */ u16 unkE;
+    /* 0x10 */ u16 unk10;
+    /* 0x12 */ u16 unk12;
+} BattleAction; // Size: 0x14
 
 typedef struct {
     /* 0x0 */ u16 vx;
@@ -39,7 +58,10 @@ typedef struct {
 } BattleSlot; // Size: 0x7C
 
 extern BattleSlot D_80092AD8[];
+extern BattleAction D_80092A74[];
 extern Color4 D_800926B8;
+extern u8 D_800926B9;
+extern u8 D_800926BA;
 extern u32 D_800926A4;
 extern u32 D_800926B0;
 extern u32 D_800926B4;
@@ -147,7 +169,44 @@ void func_8007C100(Color4 *pColor) {
     D_800926B8 = *pColor;
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007C124);
+void func_8007C124(SVector *pVec, s32 action) {
+    BattleSlot *pSlot = D_80092AD8;
+    BattleAction *pAction;
+    SlotMotion *pMotion;
+    s32 i;
+
+    for (i = 0; i < 0x3C; i++, pSlot++) {
+        if (pSlot->unk50 == 0) {
+            break;
+        }
+    }
+    if (i == 0x3C) {
+        return;
+    }
+    pSlot->unk50 = 1;
+    pAction = &D_80092A74[action];
+    pSlot->unk53 = 0;
+    pSlot->unk51 = 0;
+    pSlot->unk60 = (u32)pAction;
+    pSlot->unk52 = pAction->unkA;
+    pSlot->unk64 = pAction->unk10;
+    pSlot->unk66 = 0;
+    pSlot->unk54 = pVec->vx;
+    pSlot->unk56 = pVec->vy;
+    pSlot->unk58 = pVec->vz;
+    pMotion = &pSlot->unk0;
+    pMotion->unk16 = pAction->unkE;
+    if (action == 2) {
+        pMotion->unk7 &= 0xFE;
+        pMotion->r = D_800926B8.r;
+        pMotion->g = D_800926B9;
+        pMotion->b = D_800926BA;
+    } else {
+        pMotion->unk7 |= 1;
+    }
+    pMotion->unkE = pAction->unkC;
+    pSlot->unk28 = *pMotion;
+}
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007C280);
 
