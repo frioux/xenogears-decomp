@@ -6,6 +6,7 @@
 #include "system/memory.h"
 
 extern int Vsync(int mode);
+extern int rand(void);
 extern void func_80039CC4(void);
 extern void func_800399D4(s32* pFile);
 extern void* func_80039850(void* pFile);
@@ -31,12 +32,26 @@ typedef struct {
 } WorldMapEntry; // Size: 0xC
 
 typedef struct {
+    /* 0x00 */ u8 pad0[0x24];
+    /* 0x24 */ u16 unk24;
+    /* 0x26 */ u16 unk26;
+    /* 0x28 */ s32 unk28;
+    /* 0x2C */ s32 unk2C;
+    /* 0x30 */ s32 unk30;
+    /* 0x34 */ u8 pad34[0x24];
+    /* 0x58 */ s32 unk58;
+    /* 0x5C */ u8 pad5C[0x24];
+} WorldMapActor; // Size: 0x80
+
+typedef struct {
     /* 0x0 */ s16 vx;
     /* 0x2 */ s16 vy;
     /* 0x4 */ s16 vz;
     /* 0x6 */ u16 pad6;
 } Vector16; // Size: 0x8
 
+extern WorldMapActor* D_8009BE24;
+extern s32 D_8009BE10;
 extern u8* D_8009BE14;
 extern u8* D_8009BE18;
 extern s32 D_8009BE38;
@@ -55,6 +70,7 @@ extern s32 D_8009CC9C;
 extern u8 D_8009A1E8[];
 extern u8* D_8009D7D0;
 extern s16 D_8009C872[1];
+extern s16 D_8009C854[];
 extern s32 D_8009BCC4;
 extern s32 D_8009BE40;
 extern s32 D_8009D64C;
@@ -203,12 +219,76 @@ void func_80075228(void) {
 }
 */
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc2", func_8007528C);
+void func_8007528C(void) {
+    s32 value;
+    s32 j;
+    s32 i;
+
+    if (--D_8009D64C == 0) {
+        for (i = 0; i < D_8009BCC4; i++) {
+            if (i != 0) {
+                do {
+                    value = rand() % D_8009BE40 + 1;
+                    for (j = 0; j < i; j++) {
+                        if (D_8009C854[j] == value) {
+                            break;
+                        }
+                    }
+                } while (j < i);
+            } else {
+                value = rand() % D_8009BE40 + 1;
+            }
+            D_8009C854[i] = value;
+        }
+        D_8009D64C = D_8009BE40;
+    }
+    D_8009D80C = 0;
+    for (i = 0; i < D_8009BCC4; i++) {
+        if (--D_8009C854[i] == 0) {
+            D_8009D80C++;
+        }
+    }
+}
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc2", func_80075460);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc2", func_8007565C);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc2", func_800758C0);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc2", func_80075B58);
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc2", func_80075D4C);
+void func_80075D4C(void) {
+    WorldMapActor* pActors;
+    u8 ride;
+    s32 count;
+    s32 i;
+
+    pActors = D_8009BE24;
+    for (i = 0; i < 3; i++) {
+        ride = g_GameState.gearRide[i];
+        if (ride != ((u8*)g_GameState.unk1838)[i * 2 + 4]) {
+            if (ride == 0) {
+                pActors[i + 1].unk28 = pActors[i + 4].unk28;
+                pActors[i + 1].unk2C = pActors[i + 4].unk2C;
+                pActors[i + 1].unk30 = pActors[i + 4].unk30;
+                pActors[i + 1].unk58 = pActors[i + 4].unk58;
+            } else {
+                ((s16*)((u8*)g_GameState.unk1838 + 0x122))[i * 3] = 0x400;
+                pActors[i + 4].unk28 = pActors[i + 1].unk28;
+                pActors[i + 4].unk2C = pActors[i + 1].unk2C;
+                pActors[i + 4].unk30 = pActors[i + 1].unk30;
+                pActors[i + 4].unk24 = 0;
+                pActors[i + 4].unk58 = pActors[i + 1].unk58;
+            }
+        }
+    }
+    count = 0;
+    for (i = 0; i < 3; i++) {
+        if (g_GameState.partyMembers[i] != 0xFF && g_GameState.gearRide[i] == 1) {
+            count++;
+        }
+    }
+    if (!(g_GameState.unk1834 & 0x4000)) {
+        D_8009BE10 = count != 0 ? 2 : 1;
+    }
+}
+
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc2", func_80075E7C);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc2", func_80076098);
 void func_800762FC(void) {
