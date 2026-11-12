@@ -7,6 +7,7 @@ void func_801C80B8(u32 number);
 s32 func_8002675C(MenuResourceDirectory* pDir, u32 index, POLY_FT4* pPrims, s32 context, s32 x, s32 y, s32 scale);
 
 extern u8 D_80059460;
+extern s32 D_801E981C[];
 extern u_char func_801CB304(void);
 extern u_char func_801CBD90(u_char arg0);
 extern u_char func_801CC6D8(void);
@@ -198,6 +199,43 @@ void func_801CE540(void) {
 }
 */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc4", func_801CE660);
+/* 99.80%: only the register holding the g_Menu pointer in the prologue differs
+   (retail $v1, gcc $a1; 4 instructions).  Same 99.80 under 2.7.2-cdk, -O3 and
+   -G0, so it is an allocator pick, not the preset.  Tried: the shared-header
+   cast ((u8*)g_Menu->pManager)[0x7], the named field pManager->unk5[2], an
+   explicit SystemMenu* pMenu local, and a u8 flag local read before the if.
+void func_801CE660(void) {
+    u8* pData;
+
+    if (((u8*)g_Menu->pManager)[0x7]) {
+        pData = (u8*)g_Menu->unk358;
+        func_801CE198(1, (SVECTOR*)(pData + 0x1EA0), (POLY_FT4*)pData, pData[0x2AE0]);
+        pData = (u8*)g_Menu->unk358;
+        func_801CE198(1, (SVECTOR*)(pData + 0x1EC0), (POLY_FT4*)(pData + 0x50), pData[0x2AE0]);
+        pData = (u8*)g_Menu->unk358;
+        func_801CE198(pData[0x2AED], (SVECTOR*)(pData + 0x2AA0), (POLY_FT4*)(pData + 0x1E00),
+                      pData[0x2AEE]);
+        pData = (u8*)g_Menu->unk358;
+        func_801CE198(pData[0x2AEC], (SVECTOR*)(pData + 0x1EE0), (POLY_FT4*)(pData + 0xA0), pData[0x2AE0]);
+        pData = (u8*)g_Menu->unk358;
+        func_801CE198(pData[0x2AE7], (SVECTOR*)(pData + 0x2780), (POLY_FT4*)(pData + 0x1630), pData[0x2AE0]);
+        pData = (u8*)g_Menu->unk358;
+        func_801CE198(pData[0x2AE8], (SVECTOR*)(pData + 0x2820), (POLY_FT4*)(pData + 0x17C0), pData[0x2AE0]);
+        pData = (u8*)g_Menu->unk358;
+        func_801CE198(pData[0x2AE9], (SVECTOR*)(pData + 0x28C0), (POLY_FT4*)(pData + 0x1950), pData[0x2AE0]);
+        pData = (u8*)g_Menu->unk358;
+        func_801CE198(pData[0x2AEA], (SVECTOR*)(pData + 0x2960), (POLY_FT4*)(pData + 0x1AE0), pData[0x2AE0]);
+        pData = (u8*)g_Menu->unk358;
+        func_801CE198(pData[0x2AE1], (SVECTOR*)(pData + 0x2300), (POLY_FT4*)(pData + 0xAF0), pData[0x2AE0]);
+        pData = (u8*)g_Menu->unk358;
+        func_801CE198(pData[0x2AE3], (SVECTOR*)(pData + 0x23C0), (POLY_FT4*)(pData + 0xCD0), pData[0x2AE0]);
+        pData = (u8*)g_Menu->unk358;
+        func_801CE198(pData[0x2AE5], (SVECTOR*)(pData + 0x25C0), (POLY_FT4*)(pData + 0x11D0), pData[0x2AE0]);
+        pData = (u8*)g_Menu->unk358;
+        func_801CE198(pData[0x2AEB], (SVECTOR*)(pData + 0x2A00), (POLY_FT4*)(pData + 0x1C70), pData[0x2AE0]);
+    }
+}
+*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc4", func_801CE860);
 void func_801CEB5C(void) {
     u8* pData;
@@ -233,6 +271,55 @@ void func_801CF308(void) {
     }
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc4", func_801CF37C);
+/* 98.89%: everything matches except where gcc puts `valid = 1` relative to the
+   `character == 0xFF` compare (retail emits it before the compare and lets reorg
+   duplicate the `andi` into the delay slot; gcc puts it in that slot instead).
+   Notes: D_801E981C is the overlay dlabel table in asm/menu/data/246A4.data.s so
+   it only needs an extern declaration.  The three colour bytes read the low byte
+   at 0x4D4 through a u8* cast (retail uses lbu) and the AddPrim offsets must be
+   written as &pData[ctx * N + K] (array subscript): that is what makes the addiu
+   land before the addu.  Also tried: else-branch assignment to valid (96%), the
+   || form valid = character != 0xFF || ... (worse), a u32 offset local hoisted
+   above each AddPrim (95.10%), and offset + pData operand order (96.78%).
+void func_801CF37C(void) {
+    s32 i;
+    u8 character;
+    u8 valid;
+    u8* pData;
+    long interpolated;
+    long flag;
+
+    if (g_Menu->unk4D8 != 2) {
+        return;
+    }
+    character = g_Menu->menuUnk2->unk4FAE[D_801E981C[g_Menu->menuUnk2->unk4F7C]];
+    for (i = 0; i < 0x20; i++) {
+        if (character != g_Menu->menuUnk2->unk4FAE[i]) {
+            continue;
+        }
+        valid = 1;
+        if (character == 0xFF) {
+            valid = i == D_801E981C[g_Menu->menuUnk2->unk4F7C];
+        }
+        if (!valid) {
+            continue;
+        }
+        pData = (u8*)g_Menu->unk3A8[i];
+        *(u8*)(g_Menu->renderContext * 0x18 + (u32)pData + 0xB4) = ((u8*)g_Menu)[0x4D4];
+        *(u8*)(g_Menu->renderContext * 0x18 + (u32)pData + 0xB5) = ((u8*)g_Menu)[0x4D4];
+        *(u8*)(g_Menu->renderContext * 0x18 + (u32)pData + 0xB6) = ((u8*)g_Menu)[0x4D4];
+        RotTransPers4((SVECTOR*)(pData + 0xE0), (SVECTOR*)(pData + 0xE8), (SVECTOR*)(pData + 0xF0),
+                      (SVECTOR*)(pData + 0xF8),
+                      (long*)(g_Menu->renderContext * 0x18 + (u32)pData + 0xB8),
+                      (long*)(g_Menu->renderContext * 0x18 + (u32)pData + 0xBC),
+                      (long*)(g_Menu->renderContext * 0x18 + (u32)pData + 0xC0),
+                      (long*)(g_Menu->renderContext * 0x18 + (u32)pData + 0xC4), &interpolated, &flag);
+        AddPrim(&g_Menu->pGfxEnv->ot[4], (void*)&pData[g_Menu->renderContext * 0x18 + 0xB0]);
+        AddPrim(&g_Menu->pGfxEnv->ot[4], (void*)&pData[g_Menu->renderContext * 12 + 0x140]);
+    }
+}
+*/
+
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc4", func_801CF5E4);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc4", func_801CF8D8);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc4", func_801CFB48);
