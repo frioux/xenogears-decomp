@@ -202,6 +202,10 @@ void func_801E7C50(MenuString* pStringList, s32 index, s32 yOffset, s32 flags) {
 }
 */
 
+// Was matched (objdiff 100.00%) under 2.7.2 and links 12 bytes wrong under the unit's
+// gcc 2.6.0 preset, which this unit moved to in session 7. Re-match under 2.6.0:
+
+/*
 void func_801E7E68(MenuString* pStringList, u_char* pStringIdList, s32 yOffset, s32 count) {
     RECT* pRect;
     s32 i;
@@ -223,6 +227,8 @@ void func_801E7E68(MenuString* pStringList, u_char* pStringIdList, s32 yOffset, 
         DrawSync(0);
     }
 }
+*/
+INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E7E68);
 void func_801E8018(u_char count, MenuString* pStringList, u_char* pStringIdList, void* pUnused) {
     func_801E7E68(pStringList, pStringIdList, 4, count);
 }
