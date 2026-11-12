@@ -109,7 +109,40 @@ s32 func_800A5914(s32 arg0, s32 arg1, s32 arg2) {
     }
     return result;
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A5A48);
+s32 func_800A5A48(SVECTOR *pBase, SVECTOR *pA, SVECTOR *pB, SVECTOR *pC) {
+    VECTOR d1;
+    VECTOR d2;
+    VECTOR n;
+
+    d1.vx = pA->vx - pBase->vx;
+    d1.vy = 0;
+    d1.vz = pA->vz - pBase->vz;
+    d2.vx = pC->vx - pBase->vx;
+    d2.vy = 0;
+    d2.vz = pC->vz - pBase->vz;
+    OuterProduct0(&d1, &d2, &n);
+    if (n.vy < 0) {
+        return 0;
+    }
+    d1.vx = pB->vx - pA->vx;
+    d1.vy = 0;
+    d1.vz = pB->vz - pA->vz;
+    d2.vx = pC->vx - pA->vx;
+    d2.vy = 0;
+    d2.vz = pC->vz - pA->vz;
+    OuterProduct0(&d1, &d2, &n);
+    if (n.vy < 0) {
+        return 0;
+    }
+    d1.vx = pBase->vx - pB->vx;
+    d1.vy = 0;
+    d1.vz = pBase->vz - pB->vz;
+    d2.vx = pC->vx - pB->vx;
+    d2.vy = 0;
+    d2.vz = pC->vz - pB->vz;
+    OuterProduct0(&d1, &d2, &n);
+    return -(n.vy >= 0);
+}
 void func_800A5BE8(SVECTOR *pBase, SVECTOR *pA, SVECTOR *pB, SVECTOR *pOut, VECTOR *pNormal) {
     VECTOR nA;
     VECTOR nB;
@@ -240,6 +273,45 @@ void func_800A8A88(Misc23Block *pBlock) {
 }
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A8B0C);
+/* 99.12% (gcc 2.6.0, the unit preset): only the first clear loop's two live
+   values are swapped - the original has the counter in $v1 and the pointer in
+   $v0, gcc gives the counter $v0 and the pointer $v1, so "bgez" and the delay
+   slot follow. Everything else, including the pBuf la / li+sb ordering that a
+   parked 2.7.2 attempt got wrong, is byte-identical. What fixed the first part:
+   the call argument is an s32 local loaded before the "= 1" store (an s16 local
+   makes gcc emit lhu + sll/sra). Tried for the loop: pointer/counter source
+   order both ways, for-init vs separate statement, mem_addr + *(u32 *)pWord vs
+   u32 *pWord--, declaration order both ways - all 99.12.
+    u8 *pBuf;
+    s32 i;
+    mem_addr pWord;
+    s32 arg1;
+
+    pBuf = D_800C3D0C;
+    D_800C3E88 = 0;
+    D_800C3CF0 = 0;
+    D_800C3D6C = 0;
+    D_800C3D68 = 0;
+    D_800C3B7C = 0;
+    arg1 = *(s16 *)(D_800658C8 + 0x348);
+    D_800C3B74 = 1;
+    func_800A2234(pBuf, arg1);
+    func_800A2CA4(D_800C3D04, *(s16 *)(D_800658C8 + 0x34A));
+    func_800B00D0();
+    i = 0x1F;
+    pWord = (mem_addr)&D_800D33E4;
+    for (; i >= 0; i--) {
+        *(u32 *)pWord = 0;
+        pWord -= 4;
+    }
+    for (i = 0x98; i >= 0; i -= 8) {
+        *(u32 *)(D_800C3ACC + i) = 0;
+    }
+    for (i = 0x14; i >= 0; i -= 0x14) {
+        *(u16 *)(D_800D330A + i) = 0;
+    }
+*/
+
 /* 86.40%: three differences only - (a) gcc hoists "li v1,1" into the load-delay
    slot of "lw v0,D_800658C8" and emits the pBuf "lui a0,%hi(D_800C3D0C)" late,
    the original does the reverse (pBuf la early, "ori v0,zero,1" immediately
