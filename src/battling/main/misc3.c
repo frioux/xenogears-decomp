@@ -1,4 +1,5 @@
 #include "common.h"
+#include "psyq/libgte.h"
 
 extern void func_800379C8(char*, ...);
 extern char D_8006FCC0[];
@@ -17,9 +18,88 @@ void func_80075748(void) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80075750);
 
+/* 85.58%: the whole body, frame (0x40, three saved regs), the two divides,
+   the 0xFFF rounding and the tail all line up; the only residual is that gcc
+   gives $s1 to `ex = x3 - x1` and $s0 to `ey = y3 - y1` while the original has
+   the reverse (every downstream mult operand is swapped with them). Tried:
+   both declaration orders for ex/ey, both assignment orders (that one also
+   swaps the $v1/$t0 temps and drops to 85.13%), ex/ey declared after the other
+   locals. Allocation order follows the RTL definition order, so the pair cannot
+   be flipped without also flipping the emitted order.
+s32 func_80075750(s32 x1, s32 y1, s32 x2, s32 y2, s32 x3, s32 y3, s32 r) {
+    VECTOR v;
+    VECTOR vSq;
+    s32 dist;
+    s32 nx;
+    s32 ny;
+    s32 along;
+    s32 cross;
+    s32 ey;
+    s32 ex;
+
+    v.vx = x2 - x1;
+    v.vy = y2 - y1;
+    v.vz = r;
+    ex = x3 - x1;
+    ey = y3 - y1;
+    Square0(&v, &vSq);
+    dist = SquareRoot0(vSq.vx + vSq.vy);
+    if (dist == 0) {
+        return 0;
+    }
+    nx = (v.vx << 12) / dist;
+    ny = (v.vy << 12) / dist;
+    along = ex * nx + ey * ny;
+    if (along < 0) {
+        along += 0xFFF;
+    }
+    along >>= 12;
+    cross = ey * nx - ex * ny;
+    if (cross < 0) {
+        cross += 0xFFF;
+    }
+    cross >>= 12;
+    if (along < 0) {
+        return 0;
+    }
+    return (cross * cross - r * r < 0) & (dist + r >= along);
+}
+*/
+
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80075888);
 
+extern s32 D_80092654;
+extern s32 D_80092658;
+
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80075A4C);
+
+/* 83.62%: two residuals. The original stores D_80092654/58 AFTER the four
+   arg-register loads (order: stack stores, arg loads, global stores, jal);
+   this source emits the global stores before the stack stores. And the
+   original's three `return 1` blocks are threaded into the bnez delay slots
+   while gcc leaves the third as a j + li block after the last call. Tried:
+   if/return chain, || chain (adds a saved reg), r = call(); if (r != 0)...,
+   and `? 1 : 0` for the tail.
+s32 func_80075A4C(u8* p, s32 a, s32 b, s32 c) {
+    s32 r;
+
+    D_80092654 = a;
+    D_80092658 = b;
+    r = func_80075750(*(s32*)(p + 0x10), *(s32*)(p + 0x18), *(s32*)(p + 0x0), *(s32*)(p + 0x8), a, b, c);
+    if (r != 0) {
+        return 1;
+    }
+    r = func_80075750(*(s32*)(p + 0x30), *(s32*)(p + 0x38), *(s32*)(p + 0x20), *(s32*)(p + 0x28), a, b, c);
+    if (r != 0) {
+        return 1;
+    }
+    r = func_80075750(*(s32*)(p + 0x0), *(s32*)(p + 0x8), *(s32*)(p + 0x20), *(s32*)(p + 0x28), a, b, c);
+    if (r != 0) {
+        return 1;
+    }
+    return func_80075750(*(s32*)(p + 0x10), *(s32*)(p + 0x18), *(s32*)(p + 0x30), *(s32*)(p + 0x38), a, b, c) ? 1 : 0;
+}
+*/
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80075B50);
 
