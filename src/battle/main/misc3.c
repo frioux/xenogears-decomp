@@ -105,6 +105,52 @@ void func_80076CE8(POLY_FT4 *p, s16 x, s16 y, u8 u, u8 v, s16 dx, s16 dy) {
     p->u3 = u + dx;
     p->v3 = v + dy;
 }
+/* 92.31%: the do-while below reproduces retail's loop tail exactly
+   (`addiu s0,s0,0x28; addiu v0,s2,0x50; slt; bnez`, signed, no pre-loop
+   guard) and the whole switch. The only difference is gcc's combine_givs
+   re-basing the induction onto the address of the last memory reference:
+   mine keeps p (calls + compare) in one register AND p+0xE (all the field
+   accesses, displacements -0xA/-9/-8/0/8) in another, so it saves a 6th
+   register (frame 0x30 vs 0x28). Retail keeps one register (p) with literal
+   displacements 4/5/6/0xE/0x16. Tried: POLY_FT4* p++ with p < pInfo+2
+   (83.14, also sltu + hoisted guard), u8* for-loop (83.14), do-while on u8*
+   (92.31, this one), s32 cursor (85.66). Not found: the shape that stops the
+   re-base.
+   Parked body (92.31):
+void func_80076D58(u8 *pInfo, u8 flag, u8 mode) {
+    u8 *p;
+
+    p = pInfo;
+    do {
+        SetPolyFT4(p);
+        p[4] = 0x80;
+        p[5] = 0x80;
+        p[6] = 0x80;
+        SetSemiTrans(p, 0);
+        SetShadeTex(p, 1);
+        switch (mode) {
+        case 0:
+            *(u16 *)(p + 0x16) = GetTPage(0, 0, 0x380, 0);
+            break;
+        case 1:
+            *(u16 *)(p + 0x16) = GetTPage(0, 0, 0x380, 0x100);
+            break;
+        case 2:
+            *(u16 *)(p + 0x16) = GetTPage(0, 0, 0x3C0, 0x100);
+            break;
+        case 3:
+            *(u16 *)(p + 0x16) = GetTPage(0, 0, 0x3C0, 0);
+            break;
+        }
+        if (flag != 0) {
+            *(u16 *)(p + 0xE) = g_SystemPalette2;
+        } else {
+            *(u16 *)(p + 0xE) = g_SystemPalette1;
+        }
+        p += 0x28;
+    } while ((s32)p < (s32)pInfo + 0x50);
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_80076D58);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_80076EA4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_80077074);
