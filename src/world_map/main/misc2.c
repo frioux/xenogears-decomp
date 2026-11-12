@@ -6,6 +6,7 @@
 #include "system/memory.h"
 
 extern int Vsync(int mode);
+extern int rand(void);
 extern void func_80039CC4(void);
 extern void func_800399D4(s32* pFile);
 extern void* func_80039850(void* pFile);
@@ -31,12 +32,88 @@ typedef struct {
 } WorldMapEntry; // Size: 0xC
 
 typedef struct {
+    /* 0x0 */ u32 data[0x800];
+} ActorBlock; // Size: 0x2000
+
+typedef struct {
+    /* 0x0 */ s16 data[0x10];
+} SlotBlock; // Size: 0x20
+
+typedef struct {
+    /* 0x0 */ u32 data[0xA0];
+} UnkBlock; // Size: 0x280
+
+typedef struct {
+    /* 0x00 */ u8 pad0[0x24];
+    /* 0x24 */ u16 unk24;
+    /* 0x26 */ u16 unk26;
+    /* 0x28 */ s32 unk28;
+    /* 0x2C */ s32 unk2C;
+    /* 0x30 */ s32 unk30;
+    /* 0x34 */ u8 pad34[0x24];
+    /* 0x58 */ s32 unk58;
+    /* 0x5C */ u8 pad5C[0x24];
+} WorldMapActor; // Size: 0x80
+
+typedef struct {
     /* 0x0 */ s16 vx;
     /* 0x2 */ s16 vy;
     /* 0x4 */ s16 vz;
     /* 0x6 */ u16 pad6;
 } Vector16; // Size: 0x8
 
+extern void func_80072BB0(void);
+extern void func_80072DB4(s32 arg0, s32 arg1, s32 arg2, s32 arg3);
+extern void func_8008440C(void);
+extern void func_800978FC(void);
+extern void func_8008901C(void);
+extern void func_800865A0(void);
+extern void func_80085FE0(void);
+extern void SystemTransferPaletteToVRAM(short xDest, short yDest);
+extern void ControllerResetState(void);
+extern void ArchiveCdDataSync(s32 arg0);
+extern void ArchiveReadFileToBuffer(s32 index, void* pBuffer, u32 arg2, u32 flags);
+extern void* D_8005945C;
+extern void* D_8009C7E4;
+extern s32 D_8009C174;
+extern void* D_8009BD20;
+extern u8* D_8009BE3C;
+extern u_long* D_8009C800;
+extern u_long* D_8009C890;
+extern s32 D_8009D14C;
+extern s32 D_8009D804;
+extern u_char D_80059179;
+
+extern u32 D_8005A4E4[];
+extern u8 D_8009CEC4[];
+extern s32 D_8009BBB4;
+extern s32 D_8009BBB8;
+extern s32 D_8009BBBC;
+extern s32 D_8009BD38;
+extern s32 D_8009BD3C;
+extern s32 D_8009BE0C;
+extern s32 D_8009BE28;
+extern s32 D_8009BE2C;
+extern s32 D_8009BE30;
+extern s32 D_8009C838;
+extern s32 D_8009C83C;
+extern s16 D_8009D154;
+extern s32 D_8009D3F0;
+extern s16 D_8009D52C;
+extern s32 D_8009D55C;
+extern s32 D_8009D560;
+extern s32 D_8009D564;
+
+extern s32 func_80094028(s32 arg0);
+extern s32 func_80093F18(s32 arg0);
+extern s16 D_8009A3A0[];
+extern u16 D_8009B578[];
+extern u8* D_8009D73C[];
+extern u8 D_800658DC[];
+extern u8 D_80059508;
+
+extern WorldMapActor* D_8009BE24;
+extern s32 D_8009BE10;
 extern u8* D_8009BE14;
 extern u8* D_8009BE18;
 extern s32 D_8009BE38;
@@ -55,6 +132,7 @@ extern s32 D_8009CC9C;
 extern u8 D_8009A1E8[];
 extern u8* D_8009D7D0;
 extern s16 D_8009C872[1];
+extern s16 D_8009C854[];
 extern s32 D_8009BCC4;
 extern s32 D_8009BE40;
 extern s32 D_8009D64C;
@@ -203,13 +281,217 @@ void func_80075228(void) {
 }
 */
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc2", func_8007528C);
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc2", func_80075460);
+void func_8007528C(void) {
+    s32 value;
+    s32 j;
+    s32 i;
+
+    if (--D_8009D64C == 0) {
+        for (i = 0; i < D_8009BCC4; i++) {
+            if (i != 0) {
+                do {
+                    value = rand() % D_8009BE40 + 1;
+                    for (j = 0; j < i; j++) {
+                        if (D_8009C854[j] == value) {
+                            break;
+                        }
+                    }
+                } while (j < i);
+            } else {
+                value = rand() % D_8009BE40 + 1;
+            }
+            D_8009C854[i] = value;
+        }
+        D_8009D64C = D_8009BE40;
+    }
+    D_8009D80C = 0;
+    for (i = 0; i < D_8009BCC4; i++) {
+        if (--D_8009C854[i] == 0) {
+            D_8009D80C++;
+        }
+    }
+}
+void func_80075460(void) {
+    u8* pSave;
+
+    pSave = D_8005A4E4;
+    *(ActorBlock*)pSave = *(ActorBlock*)D_8009BE24;
+    *(s32*)(pSave + 0x2000) = D_8009D55C;
+    *(s32*)(pSave + 0x2004) = D_8009D560;
+    *(s32*)(pSave + 0x2008) = D_8009D564;
+    *(s32*)(pSave + 0x2010) = D_8009D52C;
+    *(s32*)(pSave + 0x2014) = D_8009BE40;
+    *(s32*)(pSave + 0x2018) = D_8009BCC4;
+    *(s32*)(pSave + 0x201C) = D_8009D64C;
+    *(SlotBlock*)(pSave + 0x2020) = *(SlotBlock*)D_8009C854;
+    *(UnkBlock*)(pSave + 0x2040) = *(UnkBlock*)D_8009CEC4;
+    *(s32*)(pSave + 0x22C0) = D_8009D154;
+    *(s32*)(pSave + 0x22C4) = D_8009BD38;
+    *(s32*)(pSave + 0x22C8) = D_8009BD3C;
+    *(s32*)(pSave + 0x22CC) = D_8009D3F0;
+    *(s32*)(pSave + 0x22D0) = D_8009BE0C;
+    *(s32*)(pSave + 0x22E4) = D_8009C838;
+    *(s32*)(pSave + 0x22E8) = D_8009C83C;
+    *(s32*)(pSave + 0x22D4) = D_8009BBB4;
+    *(s32*)(pSave + 0x22D8) = D_8009BBB8;
+    *(s32*)(pSave + 0x22DC) = D_8009BBBC;
+    *(s32*)(pSave + 0x22EC) = D_8009BE28;
+    *(s32*)(pSave + 0x22F0) = D_8009BE2C;
+    *(s32*)(pSave + 0x22F4) = D_8009BE30;
+}
+
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc2", func_8007565C);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc2", func_800758C0);
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc2", func_80075B58);
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc2", func_80075D4C);
+void func_80075B58(void) {
+    RECT rect;
+    void* pBuffer;
+    s32 mode;
+    s32 w;
+    s32 h;
+
+    w = 0x100;
+    h = 0x140;
+    HeapChangeCurrentUser(3, 0);
+    ArchiveSetIndex(0x24, 0);
+    HeapFree(D_8005945C);
+    HeapFree(D_8009C7E4);
+    func_80072BB0();
+    pBuffer = HeapAlloc(ArchiveDecodeAlignedSize(D_8009C174), 1);
+    D_8009BD20 = pBuffer;
+    ArchiveReadFileToBuffer(D_8009C174, pBuffer, 0, 0);
+    func_80072DB4(0x10, 0x80, -8, 2);
+    rect.x = 0x2C0;
+    rect.y = w;
+    rect.w = h;
+    rect.h = 0xD8;
+    MoveImage(&rect, 0, 0);
+    MoveImage(&rect, 0, 0xD8);
+    ClearOTagR(*(u_long**)(D_8009BE3C + 0x70), 0x400);
+    ArchiveCdDataSync(0);
+    func_8008440C();
+    rect.x = 0x180;
+    rect.y = w;
+    rect.w = 0x80;
+    rect.h = w;
+    LoadImage(&rect, D_8009C800);
+    rect.x = 0;
+    rect.y = 0x1B0;
+    rect.w = h;
+    rect.h = 0x50;
+    LoadImage(&rect, D_8009C890);
+    DrawSync(0);
+    HeapFree(D_8009C800);
+    HeapFree(D_8009C890);
+    func_800978FC();
+    func_8008901C();
+    func_800865A0();
+    func_80085FE0();
+    SystemTransferPaletteToVRAM(0x130, 0x1E0);
+    Vsync(0);
+    ControllerResetState();
+    mode = D_8009D14C;
+    D_8009D804 = 0;
+    g_GameState.unk1836 = 0;
+    D_80059179 = mode;
+    func_80075D4C();
+}
+
+void func_80075D4C(void) {
+    WorldMapActor* pActors;
+    u8 ride;
+    s32 count;
+    s32 i;
+
+    pActors = D_8009BE24;
+    for (i = 0; i < 3; i++) {
+        ride = g_GameState.gearRide[i];
+        if (ride != ((u8*)g_GameState.unk1838)[i * 2 + 4]) {
+            if (ride == 0) {
+                pActors[i + 1].unk28 = pActors[i + 4].unk28;
+                pActors[i + 1].unk2C = pActors[i + 4].unk2C;
+                pActors[i + 1].unk30 = pActors[i + 4].unk30;
+                pActors[i + 1].unk58 = pActors[i + 4].unk58;
+            } else {
+                ((s16*)((u8*)g_GameState.unk1838 + 0x122))[i * 3] = 0x400;
+                pActors[i + 4].unk28 = pActors[i + 1].unk28;
+                pActors[i + 4].unk2C = pActors[i + 1].unk2C;
+                pActors[i + 4].unk30 = pActors[i + 1].unk30;
+                pActors[i + 4].unk24 = 0;
+                pActors[i + 4].unk58 = pActors[i + 1].unk58;
+            }
+        }
+    }
+    count = 0;
+    for (i = 0; i < 3; i++) {
+        if (g_GameState.partyMembers[i] != 0xFF && g_GameState.gearRide[i] == 1) {
+            count++;
+        }
+    }
+    if (!(g_GameState.unk1834 & 0x4000)) {
+        D_8009BE10 = count != 0 ? 2 : 1;
+    }
+}
+
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc2", func_80075E7C);
+/* 89.46%: the two calls, the s16 index read and the memcpy at the end all
+   match. Remaining: the first limit test uses base+2 instead of the folded
+   symbol+2, the 0x10-byte sum loop folds the (zone - 1) << 4 into the
+   displacement instead of retail's addiu -1 then sll 4, and the pick loop
+   bases at buf+1 rather than buf (giv re-basing, t0/a1 vs t1/a0). Also
+   tried: u8* instead of s32 addresses (sltu vs retail's slt, 88.02/82.67),
+   while instead of do-while (extra entry guard), indexing the u16 symbol
+   directly instead of a pointer local.
+s32 func_80075E7C(s32 arg0, s32 arg1) {
+    u8 buf[0x10];
+    u16* pLimit;
+    s32 pSrc;
+    s32 pDst;
+    s32 pEnd;
+    s32 index;
+    s32 sum;
+    s32 pick;
+    s32 i;
+    s32 zone;
+
+    index = (s16)func_80094028(arg0);
+    if ((s16)func_80093F18(arg0) == 4) {
+        index = D_8009A3A0[index];
+    }
+    pLimit = D_8009B578;
+    zone = 1;
+    while (arg1 >= pLimit[zone]) {
+        zone++;
+    }
+    zone--;
+    sum = 0;
+    pSrc = (s32)D_8009D73C[index] + 0x200 + (zone << 4);
+    pDst = (s32)buf;
+    pEnd = pSrc + 0x10;
+    do {
+        *(u8*)pDst = *(u8*)pSrc;
+        sum += *(u8*)pSrc;
+        pSrc++;
+        pDst++;
+    } while (pSrc < pEnd);
+    if (sum <= 0) {
+        return 0;
+    }
+    pick = rand() % sum + 1;
+    i = 0;
+    pSrc = (s32)buf;
+    do {
+        pick--;
+        while (*(u8*)pSrc == 0) {
+            pSrc++;
+            i++;
+        }
+        (*(u8*)pSrc)--;
+    } while (pick > 0);
+    memcpy(D_800658DC, D_8009D73C[index], 0x200);
+    D_80059508 = i;
+    return 1;
+}
+*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc2", func_80076098);
 void func_800762FC(void) {
     DrawSync(0);
