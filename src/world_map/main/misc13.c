@@ -48,7 +48,41 @@ extern u8* GetStringEntry(u8* pData, s32 index);
 extern u8* D_8009BE24;
 extern u32* D_8009BE3C;
 extern u8* D_8009D784;
-extern u8* D_8009D7F0;
+extern s32 D_8009D7F0;
+extern s16 D_8009CE68;
+extern u8 D_8009D2B8[];
+extern u8 D_8009BDCC;
+extern u16 D_8009D2C0;
+extern u16 D_8009D2C2;
+extern u16 D_8009D2C8;
+extern u16 D_8009D2CA;
+extern u16 D_8009D2D0;
+extern u16 D_8009D2D2;
+extern u16 D_8009D2D8;
+extern u16 D_8009D2DA;
+extern u8 D_8009D2BB;
+extern u8 D_8009D2BC;
+extern u8 D_8009D2BD;
+extern u8 D_8009D2BE;
+extern u8 D_8009D2BF;
+extern u8 D_8009D2C4;
+extern u8 D_8009D2C5;
+extern u8 D_8009D2CC;
+extern u8 D_8009D2CD;
+extern u8 D_8009D2D4;
+extern u8 D_8009D2D5;
+extern u8 D_8009D2DC;
+extern u8 D_8009D2DD;
+extern u16 D_8009D2C6;
+extern u16 D_8009D2CE;
+extern u16 GetTPage(int tp, int abr, int x, int y);
+extern u16 GetClut(int x, int y);
+extern void SetSemiTrans(void* p, int abe);
+
+// Untyped 0x28-byte primitive blob at D_8009D2B8; only the copy is visible.
+typedef struct {
+    /* 0x00 */ u32 unk0[0xA];
+} WorldMapPrim; // Size: 0x28
 
 s32 func_80092BE4(void) {
     u8* pBuffer;
@@ -103,7 +137,89 @@ void func_80092DD0(void) {
 }
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_80092DF8);
+/* best: 91.17% (480 bytes vs 472). Instruction stream and the 0x28-byte copy
+   loop are identical; the only delta is that retail hoists each `li` of a
+   repeated constant one statement earlier than gcc does here (e.g. `li v1,296`
+   lands before the D_8009D2C2 store). Store order below is retail's.
+
+s32 func_80092DF8(void) {
+    u16 flags;
+
+    D_8009CE68 = -1;
+    func_80032F54(D_8009BD64, 0x3C0, 0x18D, 0xA0, 0x78, 0x20, 4);
+    flags = D_8009D4A8;
+    D_8009BDCC = 8;
+    D_8009D4A8 = flags | 2;
+    func_80034614(D_8009BD64);
+    D_8009D2BB = 9;
+    D_8009D2BF = 0x2C;
+    D_8009D2C2 = 0x70;
+    D_8009D2CA = 0x70;
+    D_8009D2C8 = 0x128;
+    D_8009D2D8 = 0x128;
+    D_8009D2C0 = 0x98;
+    D_8009D2D0 = 0x98;
+    D_8009D2D2 = 0xB4;
+    D_8009D2DA = 0xB4;
+    D_8009D2C4 = 0x80;
+    D_8009D2C5 = 0;
+    D_8009D2CC = 0xFF;
+    D_8009D2CD = 0;
+    D_8009D2D4 = 0x80;
+    D_8009D2D5 = 0x3F;
+    D_8009D2DC = 0xFF;
+    D_8009D2DD = 0x3F;
+    D_8009D2BC = 0x80;
+    D_8009D2BD = 0x80;
+    D_8009D2BE = 0x80;
+    D_8009D2CE = GetTPage(0, 0, 0x380, 0x100);
+    D_8009D2C6 = GetClut(0x130, 0x1E4);
+    SetSemiTrans(D_8009D2B8, 1);
+    ((WorldMapPrim*)D_8009D2B8)[1] = ((WorldMapPrim*)D_8009D2B8)[0];
+    return 1;
+}
+*/
+
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_80092FD8);
+/* best: 85.92% (484 bytes vs 472). Everything up to the display-list linking
+   matches; only the constant/address materialisation order inside it differs
+   (retail loads `la D_8009D2B8`, the 0xFF000000 mask, D_8009D7F0 and
+   D_8009BE3C before the *40 multiply, ours interleaves them).
+
+s32 func_80092FD8(s32 index) {
+    WorldMapMenuSlot* pSlot;
+    u32* pPrim;
+
+    pSlot = (WorldMapMenuSlot*)(D_8009BE24 + index * 0x80);
+    switch (pSlot->unk20) {
+    case 0:
+        if (D_8009CE68 != -1) {
+            func_80034614(D_8009BD64);
+            func_80034714(D_8009BD64, GetStringEntry(D_8009D784, D_8009CE68));
+            pSlot->unk20 = 1;
+            pSlot->unk50 = D_8009CE68;
+        }
+        break;
+    case 1:
+        if (D_8009CE68 == -1) {
+            func_80034614(D_8009BD64);
+            pSlot->unk20 = 0;
+        } else if (D_8009CE68 != pSlot->unk50) {
+            func_80034614(D_8009BD64);
+            func_80034714(D_8009BD64, GetStringEntry(D_8009D784, D_8009CE68));
+            pSlot->unk50 = D_8009CE68;
+        }
+        break;
+    }
+    func_80034888(D_8009BD64, D_8009BE3C[0x1C], (u32)D_8009D7F0);
+    if (pSlot->unk20 == 1) {
+        pPrim = (u32*)(D_8009D2B8 + D_8009D7F0 * 0x28);
+        pPrim[0] = (pPrim[0] & 0xFF000000) | (*(u32*)D_8009BE3C[0x1C] & 0xFFFFFF);
+        *(u32*)D_8009BE3C[0x1C] = (*(u32*)D_8009BE3C[0x1C] & 0xFF000000) | ((u32)pPrim & 0xFFFFFF);
+    }
+    return 1;
+}
+*/
 
 void func_800931B0(void) {
     func_800346D4(&D_8009BD64[0]);
