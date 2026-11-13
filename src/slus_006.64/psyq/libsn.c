@@ -62,35 +62,78 @@ int PCinit(void) {
     __asm__ volatile("break 257");
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libsn", PCread);
-/* 98.92%: only the register assignment of `nTotal` and `buff` is swapped
-   (original keeps nTotal in s2 and buff in s3; every local order and a
-   pBuff copy tried gives the swap). */
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libsn", _SN_read);
-
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libsn", PCwrite);
-/*
-int PCwrite(int fd, char *buff, int len) {
+int PCread(int fd, char *buff, int len) {
+    register char *pBuff asm("$19");
+    int nLeft;
+    int nTotal;
     int nChunk;
     int nWritten;
-    int nTotal;
 
+    pBuff = buff;
+    nLeft = len;
     nTotal = 0;
-    if (len != 0) {
+    if (nLeft != 0) {
         do {
-            nChunk = len;
-            if ((u_int)len > 0x8000)
+            nChunk = nLeft;
+            if ((u_int)nLeft > 0x8000)
                 nChunk = 0x8000;
-            nWritten = func_8004C530(0, fd, nChunk, buff);
+            nWritten = _SN_read(0, fd, nChunk, pBuff);
             nTotal += nWritten;
             if (nWritten == -1)
                 return -1;
-            buff += nWritten;
-            len -= nWritten;
+            pBuff += nWritten;
+            nLeft -= nWritten;
             if (nWritten < nChunk)
                 break;
-        } while (len != 0);
+        } while (nLeft != 0);
     }
     return nTotal;
 }
+
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libsn", _SN_read);
+/* 79.17%: the trap is the only asm; the tail is honest C, but gcc coalesces the
+   result copy into the value register, so the epilogue is
+   `li v1,-1; jr ra; move v0,v1` instead of retail's
+   `beqz v0,L; move v0,v1; li v0,-1` (copy sunk into the branch delay slot).
+   Forcing `register int ret asm("$2")` does emit the copy but then the branch
+   reads a clobbered status. Same 79.17% under gcc 2.6.0, 2.7.2-cdk, -O1, -O2.
+int _SN_read(int fd, int cmd, int nbytes, char *buff) {
+    register int status asm("$2");
+    register int value asm("$3");
+    int ret;
+
+    __asm__ volatile("break 261" : "=r"(status), "=r"(value));
+    ret = value;
+    if (status != 0)
+        ret = -1;
+    return ret;
+}
 */
+
+int PCwrite(int fd, char *buff, int len) {
+    register char *pBuff asm("$19");
+    int nLeft;
+    int nTotal;
+    int nChunk;
+    int nWritten;
+
+    pBuff = buff;
+    nLeft = len;
+    nTotal = 0;
+    if (nLeft != 0) {
+        do {
+            nChunk = nLeft;
+            if ((u_int)nLeft > 0x8000)
+                nChunk = 0x8000;
+            nWritten = func_8004C530(0, fd, nChunk, pBuff);
+            nTotal += nWritten;
+            if (nWritten == -1)
+                return -1;
+            pBuff += nWritten;
+            nLeft -= nWritten;
+            if (nWritten < nChunk)
+                break;
+        } while (nLeft != 0);
+    }
+    return nTotal;
+}
