@@ -1,5 +1,6 @@
 #include "common.h"
 #include "psyq/libgte.h"
+#include "system/memory.h"
 
 typedef struct {
     /* 0x0 */ u8 r;
@@ -57,6 +58,24 @@ typedef struct {
     /* 0x68 */ u8 unk68[0x14];
 } BattleSlot; // Size: 0x7C
 
+// 0xC-byte primitive template func_8007D6B8 allocates at D_800926C0/D_800926C4.
+typedef struct {
+    /* 0x0 */ u8 unk0[3];
+    /* 0x3 */ u8 unk3;
+    /* 0x4 */ u32 unk4;
+    /* 0x8 */ u8 unk8[4];
+} BattlePrimTemplate; // Size: 0xC
+
+// 0xA-byte entry table func_8007D6B8 allocates at D_800926BC.
+typedef struct {
+    /* 0x0 */ u16 unk0;
+    /* 0x2 */ u16 unk2;
+    /* 0x4 */ u16 unk4;
+    /* 0x6 */ s8 unk6;
+    /* 0x7 */ s8 unk7;
+    /* 0x8 */ u16 unk8;
+} BattleSpriteEntry; // Size: 0xA
+
 extern BattleSlot D_80092AD8[];
 extern BattleAction D_80092A74[];
 extern Color4 D_800926B8;
@@ -73,6 +92,11 @@ extern u16 D_800926A0;
 extern s16 D_80092698;
 extern s16 D_8009269C;
 extern VECTOR D_80096FA8;
+
+extern u8 *D_800926BC;
+extern u8 *D_800926C0;
+extern u8 *D_800926C4;
+extern u8 *D_800928DC;
 
 extern int rand(void);
 
@@ -281,7 +305,77 @@ void func_8007D65C(s32 arg0, s32 arg1, s32 arg2) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007D6B8);
 
+/* Best attempt: objdiff 84.85%. Indexed form reproduces retail's registers
+   exactly (a0 = i*0xC, a1 = entry base, a2 = i, a3 = 0x6880B0F0, t0 = 2) and
+   the six entry stores in retail order, but retail keeps a second induction
+   register v1 = entry + 4 (used for the +4/+2/+6 stores, -2(v1)/(v1)/2(v1))
+   and gcc anchors every store on the base instead. The pointer form
+   (pEntry->unkX with pEntry++) does create the +4 biv and the right
+   displacements, but shifts the whole register allocation up by one
+   (i -> a3, offset -> a1) and compiles 4 instructions long: 83.82%. */
+
+/*
+void func_8007D6B8(void) {
+    BattlePrimTemplate *pTemplate;
+    BattleSpriteEntry *pEntry;
+    s32 i;
+
+    D_800926BC = HeapAlloc(0x9F6, 0);
+    D_800926C0 = HeapAlloc(0xBF4, 0);
+    D_800926C4 = HeapAlloc(0xBF4, 0);
+    pEntry = (BattleSpriteEntry *)D_800926BC;
+    for (i = 0; i < 0xFF; i++) {
+        ((BattlePrimTemplate *)D_800926C0)[i].unk3 = 2;
+        ((BattlePrimTemplate *)D_800926C0)[i].unk4 = 0x6880B0F0;
+        ((BattlePrimTemplate *)D_800926C4)[i].unk3 = 2;
+        ((BattlePrimTemplate *)D_800926C4)[i].unk4 = 0x6880B0F0;
+        pEntry[i].unk4 = 0;
+        pEntry[i].unk2 = 0;
+        pEntry[i].unk0 = 0;
+        pEntry[i].unk6 = 0;
+        pEntry[i].unk4 = 0;
+        pEntry[i].unk0 = 0;
+    }
+}
+*/
+
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007D7A8);
+
+/* Best attempt: objdiff 91.67%. Loop head, break-on-zero, the two rand()
+   modulo-64 computations ((src - 0x20) + rand() % 64, i.e. the -0x20 attached
+   to the source value, not folded after the add) and the table lookup all
+   match. Only the induction anchor differs: retail keeps the second pointer
+   at entry+6 (lb/sb at -0/-1/1), gcc anchors it at entry+7 (every entry
+   displacement is off by one) and merges (s8)vz << 7 into sll 24/sra 17
+   where retail does sra 24 then sll 7. */
+
+/*
+void func_8007D7A8(VECTOR *pSrc, s32 count) {
+    BattleSpriteEntry *pEntry = (BattleSpriteEntry *)D_800926BC;
+    u16 vx;
+    u16 vz;
+    u16 v;
+    s32 i;
+
+    for (i = 0; i < 0xFB; i++, pEntry++) {
+        if (count == 0) {
+            break;
+        }
+        if (pEntry->unk6 == 0) {
+            vx = pSrc->vx - 32 + rand() % 64;
+            pEntry->unk0 = vx;
+            vz = pSrc->vz - 32 + rand() % 64;
+            pEntry->unk4 = vz;
+            v = *(u16 *)(D_800928DC + ((((s8)vz) << 7) + (s8)vx) * 4);
+            pEntry->unk8 = v;
+            pEntry->unk2 = v;
+            pEntry->unk6 = 0x14;
+            pEntry->unk7 = -(rand() % 10 + 10);
+            count--;
+        }
+    }
+}
+*/
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007D918);
 
