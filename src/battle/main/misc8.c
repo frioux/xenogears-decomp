@@ -146,7 +146,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007CB20);
    instead makes cse hoist the base into a callee-saved register before the
    call (85.07%). Tried: inline base+index, index-first with a cast,
    `(u16 *)(base) + (*arg0)[1]` (this one), a second pointer local.
-*/
+
 void func_8007CB20(u8 **arg0, u8 arg1) {
     u8 buf[8];
     s32 i = 3;
@@ -171,6 +171,7 @@ void func_8007CB20(u8 **arg0, u8 arg1) {
         *pDst = result;
     }
 }
+*/
 void func_8007CC50(u8 **arg0, u8 arg1) {
     u8 *pRow;
     s32 count = 0;
