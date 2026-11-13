@@ -3,6 +3,7 @@
 #include "psyq/libapi.h"
 #include "psyq/libgte.h"
 #include "psyq/libgpu.h"
+#include "system/controller.h"
 #include "system/menu.h"
 
 extern u16 D_801E96A8[]; // Bit masks, LSB first
@@ -29,6 +30,12 @@ extern s32* D_8005917C; // -1 when no debugger is attached
 extern int D_80059488;
 extern u8 D_801E9784;
 extern s32 ArchiveGetDiscNumber(void);
+extern int ControllerGetType(int controllerIndex);
+extern int ControllerPopState(void);
+extern void ControllerResetState(void);
+extern void SoundEnableAllSpuChannels(void);
+extern void SoundMuteAllSpuChannels(void);
+extern int func_80036410(void);
 void func_801D1E80(void);
 void func_801D22F4(s32 arg0);
 void func_801D2484(void);
@@ -105,7 +112,93 @@ void func_801C7BF4(void) {
     func_801C8BEC();
     func_801C8EE8();
 }
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc2", func_801C7D78);
+void func_801C7D78(void) {
+    u8 wasControllerUnplugged;
+    u8 isLooping;
+    s32 savedVolume;
+    u8 input;
+
+    isLooping = 1;
+    wasControllerUnplugged = 0;
+    while (isLooping) {
+        // Is the main controller not plugged in?
+        if (ControllerGetType(0) == CONTROLLER_TYPE_NONE) {
+            if (wasControllerUnplugged == 0) {
+                wasControllerUnplugged++;
+                SoundMuteAllSpuChannels();
+                savedVolume = D_80059488;
+            }
+            continue;
+        }
+
+        isLooping--;
+        if (wasControllerUnplugged) {
+            SoundEnableAllSpuChannels();
+            D_80059488 = savedVolume;
+        }
+    }
+
+    input = MENU_INPUT_IDLE;
+    if (func_80036410()) {
+        ControllerResetState();
+    } else {
+        while (ControllerPopState()) {
+            if (g_C1ButtonStatePressedOnce & CTRL_BTN_RIGHT) {
+                input = 0;
+                func_801C8574(1);
+                break;
+            }
+            if (g_C1ButtonStatePressedOnce & CTRL_BTN_DOWN) {
+                input = 1;
+                func_801C8574(1);
+                break;
+            }
+            if (g_C1ButtonStatePressedOnce & CTRL_BTN_LEFT) {
+                input = 2;
+                func_801C8574(1);
+                break;
+            }
+            if (g_C1ButtonStatePressedOnce & CTRL_BTN_UP) {
+                input = 3;
+                func_801C8574(1);
+                break;
+            }
+            if (g_C1ButtonStateReleased & CTRL_BTN_CIRCLE) {
+                input = 4;
+                func_801C8574(2);
+                break;
+            }
+            if (g_C1ButtonStateReleased & CTRL_BTN_CROSS) {
+                input = 5;
+                func_801C8574(3);
+                break;
+            }
+            if (g_C1ButtonStateReleased & CTRL_BTN_SQUARE) {
+                input = 6;
+                break;
+            }
+            if (g_C1ButtonStateReleased & CTRL_BTN_TRIANGLE) {
+                input = 7;
+                break;
+            }
+            if (g_C1ButtonStatePressedOnce & CTRL_BTN_L1) {
+                input = 10;
+                func_801C8574(1);
+                break;
+            }
+            if (g_C1ButtonStatePressedOnce & CTRL_BTN_R1) {
+                input = 9;
+                func_801C8574(1);
+                break;
+            }
+            if (g_C1ButtonStateReleased & CTRL_BTN_SELECT) {
+                input = 12;
+                break;
+            }
+        }
+    }
+    g_Menu->input = input;
+}
 void func_801C7F34(u32 value) {
     ((u32*)g_Menu->unk2EC)[0] = value / 21600000;
     value %= 21600000;
@@ -203,6 +296,7 @@ void func_801C81E0(s32 arg0, s32 arg1, s32 arg2, s32 arg3, u8 arg4, u8 index) {
     ((s32*)(g_Menu->unk0 + index * 0x24))[7] = 0;
     g_Menu->unk0[index * 0x24 + 0x23] = 0;
 }
+*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc2", func_801C8324);
 void func_801C851C(SVECTOR* pVertices, u16 x, u16 y, u16 width, u16 height) {
     pVertices[0].vx = x + 0xFF60;
