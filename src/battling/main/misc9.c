@@ -38,7 +38,48 @@ extern s32 D_80092944;
 extern char D_800701B0[];
 extern void func_8007EBE0(char* p);
 
+typedef struct {
+    /* 0x00 */ s32 unk0;
+    /* 0x04 */ s32 unk4;
+    /* 0x08 */ s32 unk8;
+    /* 0x0C */ s16 unkC;
+    /* 0x0E */ s16 unkE;
+    /* 0x10 */ s16 unk10;
+} Poly9; // Size: unknown
+
+typedef struct {
+    /* 0x0 */ u32 unk0;
+    /* 0x4 */ Poly9* unk4;
+} PolyOwner;
+
+typedef struct {
+    /* 0x0000 */ s32 pos[3];
+    /* 0x000C */ u8 pad0C[0x15C8];
+    /* 0x15D4 */ u8 unk15D4;
+    /* 0x15D5 */ u8 unk15D5;
+    /* 0x15D6 */ u8 unk15D6;
+} BattlerData;
+
+typedef struct {
+    /* 0x000 */ s32 unk0;
+    /* 0x004 */ s32 unk4;
+    /* 0x008 */ s32 unk8;
+    /* 0x00C */ u8 pad0C[0xC8];
+    /* 0x0D4 */ u32 unkD4;
+    /* 0x0D8 */ BattlerData* unkD8;
+    /* 0x0DC */ u8 padDC[0x83C];
+    /* 0x918 */ u8 unk918;
+} Battler9;
+
+typedef struct {
+    /* 0x0 */ u8 pad0[0x8];
+    /* 0x8 */ PolyOwner* unk8[3];
+} PolyTable;
+
+extern u8* D_8009288C;
+
 extern s32 func_8008AC0C();
+extern void func_80030A30(s32 index, Poly9* pPoly);
 extern s32 func_80083310();
 extern void func_8007A21C(s32);
 extern void func_8007AC3C(void);
@@ -317,7 +358,54 @@ void func_80083CE8(void) {
 }
 */
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc9", func_80083DCC);
+void func_80083DCC(PolyTable* pTable, Battler9* pActor, s32 idx) {
+    PolyOwner* pOwner;
+    u8 alpha;
+    u8 next;
+    s32 a;
+    s32 tmp[8];
+
+    alpha = pActor->unk918;
+    a = alpha;
+    pOwner = pTable->unk8[idx];
+    if (a != 0) {
+        next = alpha - 0x18;
+        pActor->unk918 = next;
+        if (a < next) {
+            pActor->unk918 = 0;
+        }
+    }
+    if (pActor->unkD4 & 0x20) {
+        pOwner->unk4->unkC = (pActor->unkD8->unk15D4 * a) / 16;
+        pOwner->unk4->unkE = (pActor->unkD8->unk15D5 * a) / 16;
+        pOwner->unk4->unk10 = (pActor->unkD8->unk15D6 * a) / 16;
+    } else {
+        pOwner->unk4->unkC = a << 4;
+        pOwner->unk4->unkE = a << 3;
+        pOwner->unk4->unk10 = 0;
+    }
+    if (D_8009288C[0x10] != 0) {
+        pOwner->unk4->unkC /= 2;
+        pOwner->unk4->unkE /= 2;
+        pOwner->unk4->unk10 /= 2;
+    }
+    pOwner->unk4->unk0 = pActor->unk0;
+    pOwner->unk4->unk4 = pActor->unk4;
+    pOwner->unk4->unk8 = pActor->unk8;
+    pOwner->unk4->unk0 -= pActor->unkD8->pos[0];
+    pOwner->unk4->unk4 -= pActor->unkD8->pos[1];
+    pOwner->unk4->unk8 -= pActor->unkD8->pos[2];
+    func_80030A30(idx, pOwner->unk4);
+    pOwner = pTable->unk8[2];
+    pOwner->unk4->unkC = pOwner->unk4->unkE = pOwner->unk4->unk10 = 0;
+    pOwner->unk4->unk0 = pActor->unk0;
+    pOwner->unk4->unk4 = pActor->unk4;
+    pOwner->unk4->unk8 = pActor->unk8;
+    pOwner->unk4->unk0 -= D_8009871C;
+    pOwner->unk4->unk4 -= D_80098720;
+    pOwner->unk4->unk8 -= D_80098724;
+    func_80030A30(2, pOwner->unk4);
+}
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc9", func_800840CC);
 
