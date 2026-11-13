@@ -193,6 +193,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80071CDC);
    ids (breaks loop 1), pData stored before archiveIndex, nCount++ folded into
    `pQueue[nCount++].pData`, terminator stores through the absolute symbols
    D_8009D3F8/D_8009D3FC (grows the frame to 0x38).
+*/
 /*
 extern void* D_8009CD34[3];
 extern void* D_8009BDF8[3];
@@ -355,6 +356,98 @@ void func_800721E4(void) {
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80072238);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_8007299C);
+/* best: 98.37%, 532 bytes (same size). Everything matches except the four
+   insns of `D_8006F954 |= 0x8000`: retail materialises the address once
+   (lui v1,%hi / addiu v1,v1,%lo) and loads and stores through v1, gcc folds the
+   address into each access (lui v0,%hi + lhu %lo, then lui $at + sh %lo).
+   Tried with no change: a u16* local, a two-statement pointer load/store, and
+   `volatile u16`. Second note: the first loop's `addu` needed the index first,
+   i.e. `(u8*)(i * 0x80 + (s32)D_8009BE24)`; the ptr-first spelling gives the
+   reversed addu. Sibling teardown func_80074594 has the same 98.55% class.
+*/
+/*
+extern void* D_80062528;
+extern void* D_8009BE24;
+extern void* D_8009BC3C;
+extern void* D_8009BCB4;
+extern u16 D_8006F954;
+extern s32 D_8009D7CC;
+extern void* D_8009CD34[3];
+extern void* D_8009BDF8[3];
+
+extern void func_8003A89C(void* p, s32 arg1, s32 arg2);
+extern void func_80039FF8(void);
+extern void func_8003852C(void* p);
+extern void func_800230A8(void* p);
+extern void func_80075460(void);
+extern void func_80092DD0(void);
+extern void func_800931B0(void);
+extern void func_80084818(void);
+extern void func_80086124(void);
+extern void GfxFreeWorkBuffers(void);
+extern void func_80086568(void);
+extern void func_800866C8(void);
+extern void func_8007474C(void);
+extern void func_80074F04(void);
+extern void func_800750DC(void);
+extern void func_80088FF4(void);
+extern void func_80089128(void);
+extern void func_80097D64(void);
+extern void func_800976A0(void);
+extern void func_800960BC(void);
+
+void func_8007299C(void) {
+    u8* p;
+    s32 i;
+
+    if (D_8009D7CC == 0) {
+        func_8003A89C(D_80062528, 0, 0xF0);
+    }
+    func_80039FF8();
+    func_8003852C(D_8006259C);
+    HeapFree(D_8006259C);
+    for (i = 0; i < 0x40; i++) {
+        p = (u8*)(i * 0x80 + (s32)D_8009BE24);
+        if (*(void**)(p + 0x4C) != NULL) {
+            func_800230A8(*(void**)(p + 0x4C));
+            *(void**)((u8*)D_8009BE24 + i * 0x80 + 0x4C) = NULL;
+        }
+    }
+    if (D_8009D7CC == 1) {
+        func_80075460();
+        D_8006F954 |= 0x8000;
+    }
+    func_80092DD0();
+    func_800931B0();
+    func_80084818();
+    func_80086124();
+    GfxFreeWorkBuffers();
+    func_80086568();
+    func_800866C8();
+    func_8007474C();
+    func_80074F04();
+    func_800750DC();
+    func_80088FF4();
+    func_80089128();
+    func_80097D64();
+    HeapFree(D_8009BC38);
+    HeapFree(D_8009BCB0);
+    HeapFree(D_8009BC3C);
+    HeapFree(D_8009BCB4);
+    HeapFree(D_8009C180);
+    for (i = 0; i < 3; i++) {
+        if (D_8009CD34[i] != NULL) {
+            HeapFree(D_8009CD34[i]);
+        }
+        if (D_8009BDF8[i] != NULL) {
+            HeapFree(D_8009BDF8[i]);
+        }
+    }
+    func_800976A0();
+    func_800960BC();
+}
+*/
+
 typedef struct {
     /* 0x00 */ DRAWENV drawEnv; // Size: 0x5C
     /* 0x5C */ DISPENV dispEnv; // Size: 0x14
@@ -384,7 +477,6 @@ extern u16 D_8009BCA6;
 extern u16 D_8009BCA8;
 extern u16 D_8009BCAA;
 extern s32 D_8009BCDC;
-extern s32 D_8009D7CC;
 
 extern void SetNearColor(long rfc, long gfc, long bfc);
 
