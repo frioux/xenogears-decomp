@@ -33,6 +33,34 @@ extern u8 func_8001BD40(s32 arg0, u8 arg1);
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007C1A4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007C33C);
+/* best: 77.91%. Structure read from the asm: u8 buf[8] at sp+0x10, loop
+   3..0xB with `record += 0x1C` from 0x54, the arg1-derived operand index
+   (arg1 + 3) * 0x1C hoisted into s5 in the prologue, i++ copied to a u8
+   (move s1,s0) for the predicate and the buffer, and the final row store
+   spelled INLINE (retail re-forms it from the saved arg1 after the call, so
+   unlike func_8007CB20 there is no pRow local). This attempt only covers the
+   skeleton; the loop body order and the `!=` operand order were not tuned.
+
+void func_8007C33C(u8 **arg0, u8 arg1) {
+    u8 buf[8];
+    s32 i = 3;
+    s32 count = 0;
+    s32 record = 0x54;
+
+    ((u16 *)(D_800D3420 + arg1 * 0x40))[(*arg0)[1]] = 0;
+    for (; i < 0xB; i++, record += 0x1C) {
+        u8 idx = i;
+
+        if (func_8007A628(idx, (*arg0)[2]) != 0
+            && D_800C3EB4[(arg1 + 3) * 0x1C] != D_800C3EB4[record]
+            && D_800D32A1[i * 8] == 0) {
+            buf[count++] = idx;
+        }
+    }
+    if (count != 0) {
+        ((u16 *)(D_800D3420 + arg1 * 0x40))[(*arg0)[1]] = func_80089C08(buf[func_8001BD40(0, count - 1)]);
+    }
+}
 void func_8007C4A0(u8 **arg0, u8 arg1) {
     u16 *pRow;
     u16 result;
@@ -133,7 +161,7 @@ void func_8007C9D4(u8 **arg0, u8 arg1) {
                 pRow[(*arg0)[1]] = func_80089C08(idx);
                 break;
             }
-            buf[slot] = 1;
+            buf[idx] = 1;
         }
     }
 }
@@ -382,6 +410,38 @@ void func_8007D344(u8 **arg0, u8 arg1) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007D344);
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007D478);
+/* best: 98.05%. Every instruction matches except the saved-register numbering
+   and one preheader copy: retail defines the row base in a caller-saved temp
+   (addu a1,a1,v1), uses it for the zeroing store, and copies it to s2 at the
+   end of the block (move s2,a1) - so retail allocates s1 to arg0 and s2 to the
+   base, and the function is one instruction longer. gcc 2.6 homes the base
+   straight into s1 (addu s1,a1,v1) and gives s2 to arg0. With the zeroing
+   store spelled inline instead (retail's CSE shape) the base is materialised
+   twice (97.24%, addu s2,a1,v1 + addu v0,a1,v0/addu v0,v0,v1) and with both
+   stores inline it is 88.06%. Also tried: u8 buf first vs u16 *pRow first
+   (identical), buf[idx] = 1 vs buf[slot] = 1 (the latter loses the move/andi
+   split, 92.79%).
+
+void func_8007D478(u8 **arg0, u8 arg1) {
+    u8 buf[3];
+    u16 *pRow = (u16 *)(D_800D3420 + arg1 * 0x40);
+
+    buf[0] = buf[1] = buf[2] = 0;
+    pRow[(*arg0)[1]] = 0;
+    while ((buf[0] & buf[1] & buf[2]) == 0) {
+        s32 slot = func_8001BD40(0, 2);
+        u8 idx = slot;
+
+        if (buf[idx] == 0) {
+            if ((D_800CCD64[idx].flags & 0x8000) && (D_800CCD64[idx].flags & 0x4002) == 0) {
+                pRow[(*arg0)[1]] = func_80089C08(idx);
+                break;
+            }
+            buf[idx] = 1;
+        }
+    }
+}
+*/
 void func_8007D5B0(u8 **arg0, u8 arg1) {
     u8 *pRow;
     s32 count = 0;
