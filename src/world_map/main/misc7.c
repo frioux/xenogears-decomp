@@ -1,5 +1,6 @@
 #include "common.h"
 #include "psyq/libgpu.h"
+#include "psyq/libgte.h"
 #include "psyq/memory.h"
 
 typedef struct {
@@ -50,6 +51,7 @@ extern void func_800816DC(WorldMapEntry *pEntry, u8 *pDst, s32 count, s32 abr);
 extern u8 D_8009A758[];
 // externs used by the parked attempts below
 extern Vec3 D_8009C5AC;
+extern MATRIX D_8009A180;
 extern s32 D_8009C5B0;
 extern s32 D_8009C5B4;
 extern s16 D_1F8000A0[];
@@ -333,7 +335,42 @@ s32 func_80081868(s32 index) {
                   pSlot->unk50, pSlot->unk54, pSlot->unk58);
     return 1;
 }
+// Best: 87.03%. Every call, offset and relocation is right (the 8-word matrix
+// copy from D_8009A180, the three scratchpad words, ScaleMatrix with the
+// 0x1F800000 scale vector, the matrix copy to +0x74, both func_800816DC
+// calls). The only delta is the block of pSlot stores: gcc hoists the
+// D_8009C5B0/D_8009C5B4 loads and the lui 0x1F80 to the top of the block and
+// sinks the D_8009C5AC store below the three zero stores, while retail keeps
+// statement order and reuses $v1 for all three loads. Same blocker as
+// func_800817A0 above; pointer local, zero-store order and x/y/z order were
+// all no better (vec3 through a pointer local: 87.03, zeros first: 84.43).
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_800819C8);
+/*
+s32 func_800819C8(s32 index) {
+    u8 *pEntry = (u8 *)D_8009C620;
+    WorldMapSlot *pSlot = &D_8009BE24[index];
+
+    pSlot->unk20 = 0;
+    pSlot->pos.x = D_8009C5AC.x;
+    pSlot->pos.y = D_8009C5B0;
+    pSlot->pos.z = D_8009C5B4;
+    pSlot->unk50 = 0;
+    pSlot->unk54 = 0;
+    pSlot->unk58 = 0;
+    *(MATRIX *)(pEntry + 0x20) = D_8009A180;
+    *(s32 *)0x1F800008 = 0x1000;
+    *(s32 *)0x1F800000 = 0x1000;
+    *(s32 *)0x1F800004 = 0x7000;
+    ScaleMatrix((MATRIX *)(pEntry + 0x20), (VECTOR *)0x1F800000);
+    *(MATRIX *)(pEntry + 0x74) = *(MATRIX *)(pEntry + 0x20);
+    func_800816DC((WorldMapEntry *)pEntry, *(u8 **)(pEntry + 0x48),
+                  *(u16 *)(*(u8 **)(pEntry + 0x40) + 4), 3);
+    pEntry += 0x54;
+    func_800816DC((WorldMapEntry *)pEntry, *(u8 **)(pEntry + 0x48),
+                  *(u16 *)(*(u8 **)(pEntry + 0x40) + 4), 3);
+    return 1;
+}
+*/
 s32 func_80081B24(s32 index) {
     WorldMapSlot *pSlot = &D_8009BE24[index];
     u8 *pEntry = (u8 *)D_8009C620;
