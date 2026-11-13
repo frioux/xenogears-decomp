@@ -891,7 +891,86 @@ void func_800A0158(s32 arg0, s32* arg1, s32* arg2, s32* arg3) {
     }
 }
 
+extern int GameCharacterGetGearID(int characterId);
+extern void func_800A0D3C(void);
+extern s32 D_8006F990[3];
+extern s16 D_800AFB54;
+
 INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_800A0228);
+
+// 99.82% (764 bytes): every instruction, load, store and jump matches; the only
+// difference is the two call-saved registers. Retail keeps the "party member is
+// valid" flag in $s2 and &g_GamePartyMembers[partyIndex] in $s3; gcc 2.7.2 gives
+// the pointer $s2 and the flag $s3. gcc's allocno_compare sorts on
+// n_refs/live_length, and here the pointer (2 refs over ~35 insns) wins over the
+// flag (4 refs over 93 insns) by 2*93 vs 4*35; retail needs the flag to have ~6
+// refs, so its RTL differs somewhere in something that emits no instruction.
+// What did matter, in order: (a) the else-block must end in `return;` so the
+// actor tail sits after the if/else (that moved the block layout into retail's
+// order, 86.28 -> 99.08%); (b) spell g_FieldScriptVMCurActor directly instead of
+// a pointer local for the flags update and the else branch, which fixes the
+// $v0/$a1 choice (99.08 -> 99.82%); (c) g_FieldActors[D_800AFD1C].status rather
+// than an nOffset + (s32)g_FieldActors pointer local, which fixes the two
+// `addu v0,v0,v1` / status-in-$v1 blocks. Tried and no effect: 24 declaration
+// orders of the locals (byte-identical), initialising the flag at its
+// declaration, `if (nFlag == 0)` vs `if (!nFlag)`.
+/*
+void func_800A0228(void) {
+    int partyIndex;
+    int nFlag;
+    s32 nMapData;
+    s32 nX;
+    s32 nY;
+    FieldActor* pFieldActor;
+    ActorData* pCurActor;
+
+    pFieldActor = &g_FieldActors[D_800AFD1C];
+    partyIndex = FieldScriptVMGetArgument(1);
+    if (partyIndex >= 3) {
+        partyIndex = 2;
+    }
+    D_8006F990[partyIndex] = D_800AFD1C;
+    nFlag = 1;
+    if (g_GamePartyMembers[partyIndex] != CHARACTER_ID_NONE &&
+        GameCharacterGetGearID(g_GamePartyMembers[partyIndex]) != CHARACTER_ID_NONE) {
+        func_800A0158(partyIndex, &nMapData, &nX, &nY);
+        pCurActor = g_FieldScriptVMCurActor;
+        pCurActor->walkmeshId = (nMapData >> 14) & 3;
+        if ((g_GameSceneMapNum & 0xFFF) != (nMapData & 0x3FFF)) {
+            nFlag = 0;
+            nX = 0;
+            nY = 0;
+            pCurActor->walkmeshId = 0;
+        }
+        if (g_pGameState->gearRide[partyIndex] != 0 || g_GamePartyMembers[partyIndex] == 7) {
+            nFlag = 0;
+        }
+        pFieldActor->status = (pFieldActor->status & 0xF07F) | 0x200;
+        func_80076AC0(D_800AFD1C, partyIndex, g_PartyDataBuffers[partyIndex], 1, 0, partyIndex, 1);
+        g_FieldActors[D_800AFD1C].status &= 0xFFDF;
+        if ((g_GameSceneMapNum & 0xFFF) != (nMapData & 0x3FFF)) {
+            g_FieldScriptVMCurActor->walkmeshId = 0;
+        }
+        func_8009E574(nX, nY);
+        func_800A0C94();
+        g_FieldScriptVMCurActor->scriptFlags.flags = (g_FieldScriptVMCurActor->scriptFlags.flags | 0x400) & ~0x300;
+        if (nFlag == 0) {
+            g_FieldActors[D_800AFD1C].status |= 0x20;
+        }
+    } else {
+        func_800A0D3C();
+        g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
+        g_FieldScriptVMCurActor->flags |= 0x800;
+        return;
+    }
+    if (D_800AFB54 - 1 < g_FieldScriptVMCurActor->walkmeshId) {
+        g_FieldScriptVMCurActor->walkmeshId = 0;
+    }
+    g_FieldScriptVMCurActor->scriptFlags.flags |= 0x20000;
+    g_FieldScriptVMCurActor->flags |= 0xC00;
+    g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
+}
+*/
 
 extern void FieldMatrixCopyTransform(MATRIX* pDest, MATRIX* pSrc);
 extern void FieldMatrixCopyTranslation(MATRIX* pDest, MATRIX* pSrc);
