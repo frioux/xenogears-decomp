@@ -2018,3 +2018,119 @@ with `//` notes between, `}*/` on the body's closing brace, and duplicated block
 `battle/misc28` moved six functions with **no C written** - the bodies were already
 parked from round 21 and only the compiler was wrong. Same for misc34 (+2). The
 ordering rule that makes this cheap: **screen first, write nothing, un-park second**.
+
+# Session 8: the preset sweep (park-level and unit-level), +55 with almost no C
+
+Start: **1517 `INCLUDE_ASM` stubs** (3051 / 4568 functions), eleven outputs OK.
+End: **1462 stubs** (3060 / 4568 = 67.0% functions), eleven outputs OK, public page
+republished.
+
+The session was one idea applied twice: the existing per-unit preset screens
+(`try_flags.sh --unit --all`) only score *C-defined* functions, so every parked body
+- which is exactly where the free matches live - is invisible to them. Un-parking the
+bodies first makes the screen see them.
+
+## The two sweeps
+
+`/tmp/park_sweep.py` (not checked in; 40 lines, uses `tools/scripts/park.py` as a
+library): for every unit with parked bodies, un-park *all* of them, run
+`try_flags.sh <unit> --all` under the unit's own flags and under each candidate, score
+every body, `git checkout` the file. 139 units in ~20 minutes because `try_flags` is
+~1 s per compile. A second sweep (`/tmp/unit_screen.py`) scores every C function of
+each unit under the same candidates, which says **which already-matched functions
+break** under a candidate - the other half of the switch/split decision.
+
+Join the two: `breaks == 0 && harvest > 0` means the unit takes the compiler wholesale
+and its parked bodies un-park for free. `breaks > 0` means a TU split, and the address
+order decides how many runs (use `split_unit.py --dry-run`).
+
+Results, all gated by `make check`:
+
+| # | What | Functions | Stubs left |
+|---|---|---|---|
+| 23 | 4 whole-unit preset switches found by the park sweep (battle/misc15, misc23, misc25, menu/misc12) | +7 | 1510 |
+| 23 | 14 workers on fresh-stub units | +9 | 1501 |
+| 24 | 9 more whole-unit switches (battle/misc6, misc8, misc17, misc22, misc24, misc33, misc28, misc34, field/misc2, battling/misc9) | +19 | 1482 |
+| 24 | menu/misc11 split (2 bodies on 2.6.0), battle/misc1 stale un-park | +3 | 1479 |
+| 24 | 14 workers (one unit each) | +13 | 1462 |
+
+Whole-unit switches, with the new presets they needed: `XenoBattle260` gains
+battle/{misc1 (round 18), misc6, misc8, misc15, misc17, misc18, misc20} and
+`XenoBattle260Div` gains battle/{misc21, misc22, misc23, misc24, misc25};
+`XenoBattleTailCdk` gains battle/misc33; **new** `XenoBattleTailCdk0` (cdk +
+`--dont-expand-li` + `-G0`) takes battle/{misc28, misc34}, `XenoFieldNoGp` (`-G0`)
+takes field/main/misc2, and `XenoBattlingNoGp` gains battling/misc9. `menu/misc12`
+and `menu/misc11_r1` join `XenoMenu260`.
+
+## What is exhausted (do not re-run)
+
+- **maspsx axes**: un-parking all bodies and scoring them with `--expand-div`,
+  without `--dont-expand-li`, with `-G4`, and with `-O1` (in that order) yields **zero**
+  additional 100.0 bodies across all 139 units. The div/no-li landscape really is
+  fully classified.
+- **Combined variants**: `gcc-2.6.0 + -G0` and `gcc-2.7.2-cdk + -G0` break exactly the
+  same functions as `2.6.0` and `cdk` alone, so they never rescue a split candidate.
+- **`-G0` in `world_map`**: `func_8007F8AC` (misc6) is 100.00% in objdiff under `-G0`
+  but its C links 45 bytes the wrong length - the overlay's globals are absolute
+  symbols from `undefined_syms_auto`, and `-G0` changes how they are addressed. Do not
+  give `world_map` a `-G0` preset.
+
+## Remaining split candidates (measured, not guesses)
+
+`harvest` = parked bodies that are 100.0 under the candidate; `breaks` = already-matched
+functions in the unit that fall below 100.0 there. Files the split would cost:
+
+| unit | preset | harvest | breaks | runs |
+|---|---|---|---|---|
+| battle/misc16 | 2.6.0 | func_8008CDE4 | 1 (func_8008FA60 99.33) | 2 |
+| battle/misc19 | 2.6.0 | func_8009A9D0, func_8009ADA0 | 3 (99.57/95.71/99.77) | 5 |
+| menu/misc8 | cdk | func_801D9C84 | 6 | 3 |
+| field/main/misc | 2.6.0 / `-G0` | func_8008848C / func_80087FA4 | 61 / 2 | many |
+| battle/misc6 | cdk | func_8007AD6C/ADB0/ADF4 | 1 | 2 |
+
+battle/misc6 is now a 2.6.0 unit (func_8007AEF0, +1 taken); the three cdk bodies there
+need a second TU, which is why they are still parked.
+
+## Hazard: two workers deleted an adjacent matched body while re-parking
+
+`battling/misc17` lost func_8008E620/E67C/E6F8 *and* stub func_8008E3CC, and
+`battle/misc1` lost func_800718BC, when the worker replaced a park block by
+string-slicing and its slice ran past the end of the block into the next function.
+`lint_sources.py` does not catch it, objdiff cannot see a function that is simply
+absent, and the only symptom is `undefined reference` at link. Both were restored from
+the pre-round commit.
+
+**The gate that does catch it** - run it after every merge:
+
+```sh
+python3 - <<'PY'
+import re,subprocess
+DEF=re.compile(r'^[A-Za-z_][\w \t*]*?\b(\w+)\s*\([^;]*\)\s*\{',re.M)
+for f in subprocess.run(["git","diff","--name-only","<pre-round>","HEAD","--","src/"],
+                        capture_output=True,text=True).stdout.split():
+    old=subprocess.run(["git","show","<pre-round>:"+f],capture_output=True,text=True).stdout
+    new=open(f).read()
+    missing=sorted(set(DEF.findall(old))-set(DEF.findall(new)))
+    missing=[m for m in missing if not re.search(r'/\*[\s\S]*?\b'+m+r'\s*\([^;]*\)\s*\{[\s\S]*?\*/',new)]
+    if missing: print(f,"MISSING:",missing)
+PY
+```
+
+(a definition still present inside a park block is fine; that is the filter above).
+
+## Other things this session settled
+
+- `tools/scripts/split_unit.py` computed a new file's asm directory as
+  `asm/<bin>/nonmatchings/<last component>`, dropping `main/`, so every `INCLUDE_ASM`
+  in a split file pointed at a directory splat never writes. maspsx then failed with
+  `can't open ...` **hidden by the maspsx rule's `2>/dev/null`**, and the only symptom
+  was `cannot find build/src/....c.o` at link time. Fixed.
+- A parked percentage is only valid under the preset that produced it: `menu/misc12`'s
+  `func_801E7E68` was matched at objdiff 100.00% under 2.7.2, and after the unit moved
+  to 2.6.0 the same C links 12 bytes wrong. Re-parked. (Fourth time this pattern has
+  bitten; see round 9.)
+- gcc 2.6.0 emits jump tables and balanced binary-search switch trees for dense cases
+  (a `menu/misc9` worker corrected an old park note that claimed no preset could).
+- Workers burn 10-15 minutes of a 22-minute writing budget per function on these units
+  now: 14 workers produced 13 matches in round 24 and 9 in round 23, i.e. ~0.8 per
+  worker, against ~1.2 for the two preset rounds that wrote no C at all.
