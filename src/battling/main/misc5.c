@@ -83,7 +83,10 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007B270);
 
 /* Best attempt: objdiff 95.11%. Only the load order of the first three bytes
    differs (the original computes b = p[2] - 0x80 between the two loads); the
-   instruction multiset and registers are identical. */
+   instruction multiset and registers are identical. Re-confirmed: writing the
+   three loads in the same order (r, b, g) still gives gcc `lbu p[0]; addiu r;
+   lbu p[2]; lbu p[1];` while retail has `lbu p[0]; lbu p[2]; addiu r; lbu
+   p[1];` - an allocator tie, not a source shape. */
 /*
 void func_8007B270(u8 *p0, u8 *p1) {
     s32 r;
@@ -229,15 +232,19 @@ void func_8007D068(s32 arg0) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007D0B4);
 
-/* Best attempt: objdiff 73.11%. Everything matches except that gcc folds
-   `vx - 0x18 + rand() % 0x30` into `vx + (rand() % 0x30 - 0x18)` and keeps
-   -0x18 in a saved register, where the original does `addiu` on the loaded
-   value; that costs one saved register and three insns. */
+/* Best attempt: objdiff 76.82%. The instruction multiset and the registers are
+   identical; the only difference is which side the -0x18 lands on. Original:
+   `lhu; addiu -0x18; ... addu vx,r` i.e. (vx - 0x18) + rand() % 0x30. Every
+   source shape tried folds to (vx + r) - 0x18, which schedules the addiu after
+   the modulo: `vx - 0x18 + rand() % 0x30` (73.11%, folds to vx + (r - 0x18)),
+   `vx + rand() % 0x30 - 0x18` (76.82%), `vx -= 0x18 - rand() % 0x30`, and a
+   `u16 v = pVec->vx;` temp (65.42%, keeps -0x18 in a saved reg). Same 76.82%
+   under gcc-2.6.0 and gcc-2.7.2-cdk, so it is not a compiler-version fold. */
 /*
 void func_8007D0B4(SVector *pVec) {
-    pVec->vx = pVec->vx - 0x18 + rand() % 0x30;
-    pVec->vy = pVec->vy - 0x18 + rand() % 0x30;
-    pVec->vz = pVec->vz - 0x18 + rand() % 0x30;
+    pVec->vx = pVec->vx + rand() % 0x30 - 0x18;
+    pVec->vy = pVec->vy + rand() % 0x30 - 0x18;
+    pVec->vz = pVec->vz + rand() % 0x30 - 0x18;
 }
 */
 
