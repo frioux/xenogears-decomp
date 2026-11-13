@@ -61,6 +61,18 @@ extern s32 D_80092718;
 extern s32 D_8009271C;
 extern s32 D_80092724;
 extern s32 D_80092728;
+extern u8 D_800916D8[];
+extern u8* D_800916DC;
+extern s16 D_800916EA;
+extern u8 D_80091714[];
+extern u8* D_80091718;
+extern s16 D_80091726;
+extern s32 D_8009272C;
+extern s32 D_80092730;
+extern s32 D_80092754;
+extern s32 D_80092938;
+extern u8 D_8006FF80[];
+extern u8 D_8006FF90[];
 
 void func_8007EE08(s32 arg);
 void func_8007F834(void);
@@ -76,6 +88,9 @@ void func_80085134(s32 index);
 s32 ArchiveReadFileFromCdSector(s32 sector, void* pDestBuffer, s32 fileSize, s32 arg3, u32 flags);
 s32 func_8007FF70(s32 value, s32 max, s32 flags);
 void func_80080964(s32 arg);
+void func_8007EC54(u8* pText);
+void func_8007F258(void* pOt, s32 arg);
+extern int ControllerGetType(int controllerIndex);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc7", func_8007F854);
 
@@ -195,7 +210,53 @@ void func_8007FB0C(Misc7Struct* p) {
     func_8007EE08(0);
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc7", func_8007FBEC);
+void func_8007FBEC(void) {
+    s32 tmp[2]; // reproduces the original's unused 8-byte stack slot
+    Misc7Struct* pPad;
+    s32 s0;
+
+    func_8007E894(0xA0, 0x8C);
+    pPad = (Misc7Struct*)D_800916D8;
+    s0 = !(D_80092710 & 1);
+    if (s0 && D_800916EA == 0) {
+        D_8009272C = 1;
+    } else {
+        D_8009272C = 0;
+    }
+    func_8007E894(0x50, 0x8C);
+    if (ControllerGetType(0) == 4 && D_80099D9D[0] == 0) {
+        if (s0) {
+            func_8007F948(pPad, 1);
+        }
+        func_8007EC54((D_80099D9B[0] & 1) ? D_8006FF80 : D_8006FF90);
+        D_800916DC[0x14] &= ~4;
+    } else {
+        D_800916DC[0x14] |= 4;
+    }
+    func_8007EE08(0);
+    s0 = !(D_80092710 & 2);
+    if (s0 && D_80092754 == 0) {
+        s0 = 0;
+    }
+    pPad = (Misc7Struct*)D_80091714;
+    if (s0 && D_80091726 == 0) {
+        D_80092730 = 1;
+    } else {
+        D_80092730 = 0;
+    }
+    func_8007E894(0xF0, 0x8C);
+    if (ControllerGetType(1) == 4 && D_80099D9E[0] == 0) {
+        if (s0) {
+            func_8007F948(pPad, 1);
+        }
+        func_8007EC54((D_80099D9C[0] & 1) ? D_8006FF80 : D_8006FF90);
+        D_80091718[0x14] &= ~4;
+    } else {
+        D_80091718[0x14] |= 4;
+    }
+    func_8007EE08(0);
+    func_8007F258(D_80092938, 1);
+}
 
 void func_8007FE48(Misc7Struct* p) {
     u8 buf[0x10];
