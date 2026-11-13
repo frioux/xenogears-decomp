@@ -333,7 +333,60 @@ void func_80088CBC(s32 slot) {
     pEntry->unk82 = GetClut(0x3F0, 0xC0);
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc12", func_80088D1C);
+extern u8 func_80088BFC[];
+extern u8 D_80091BB0[];
+extern s32 D_80010000;
+extern void* D_80092868;
+extern void* D_80092870;
+extern s32 D_800928CC;
+extern u16 D_80092898;
+extern s32 D_8009289C;
+extern u16 D_800928D0;
+extern s32 D_800928E8;
+extern s32 D_80092930;
+extern u8 D_800928A0;
+extern u8 D_80092920;
+extern void* FontLoadFont(s32, s32, s32, s32, s32, u32, s32, s32, s32, s32, void*);
+extern void func_8008A110(s32, s32);
+extern void func_8008A128(s32, s32);
+extern void func_8008E620(void);
+
+void func_80088D1C(void) {
+    RECT rect;
+
+
+    DrawSyncCallback((void (*)())((u8*)func_80088BFC + 4));
+    InitGeom();
+    HeapChangeCurrentUser(6, (char**)D_80091BB0);
+    ArchiveSetIndex(0x30, 0);
+    FontLoadFont(4, 2, 0x138, 0xDA, 0x14, 1, 0x3C0, 0x1F0, 0x3C0, 0x1EF, 0);
+    func_80088CBC(0);
+    func_80088CBC(1);
+    switch (D_80010000) {
+    case -1:
+        D_800928CC = 2;
+        break;
+    case 0:
+        D_800928CC = 1;
+        break;
+    default:
+        D_800928CC = 0;
+        break;
+    }
+    D_80092868 = D_8009A0D8;
+    D_80092870 = &D_8009A0D8[1];
+    func_8008A110(-1, -1);
+    func_8008A128(-1, -1);
+    D_80092898 = 2;
+    D_8009289C = 1;
+    D_80092930 = 0;
+    D_800928E8 = 0;
+    D_800928A0 = 0;
+    D_80092920 = 0;
+    D_80092930 = 0;
+    D_800928D0 = 7;
+    func_8008E620();
+}
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc12", func_80088E90);
 
