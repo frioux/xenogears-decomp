@@ -228,8 +228,58 @@ s32 func_801E65E4(u8* p) {
     return Krom2RawAdd((hi << 8) | lo);
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc11_r2", func_801E6668);
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc11_r2", func_801E68AC);
 s32 func_8002675C(MenuResourceDirectory* pDir, u32 index, POLY_FT4* pPrims, s32 context, s32 x, s32 y, s32 scale);
+void func_801C7F34(u32 value);
+
+extern s32 D_801E9FE0[];
+extern s32 D_801E9FE4[];
+
+INCLUDE_ASM("asm/menu/nonmatchings/main/misc11_r2", func_801E68AC);
+/* Best: 91.16%.  Everything matches except gcc's loop.c hoists the loop's
+   y constant 0x7A out into a free call-saved register ($s6, adding its
+   save/restore and shifting the frame), where retail re-materialises it
+   with "li v0,0x7A" every iteration; that also flips the addu operand
+   order of the loop's prim pointer (retail "addu a2,s0,a2").  Same wall as
+   func_801E56E8 below.  Structure confirmed: x/y tables D_801E9FE0[0],
+   D_801E9FE4[0] then D_801E9FE0[i+2] in a 7-iteration loop, prim pointers
+   0x240C/0x24AC/0x254C+i*0x50 off g_Menu->unk34C, then 0x2C7C, 0x2CCC,
+   0x2D1C=(number/10), 0x2D6C=(number%10) with number = pArg[0x23]+1.
+   Tried: an explicit u32 offset accumulator (loop addu becomes
+   "addu a2,s0,a2" but gcc spills s7 and the frame grows to 0x48, 87.42%).
+   void func_801E68AC(u8* pArg) {
+       s32 number;
+       s32 i;
+
+       func_8002675C(g_Menu->resources, 0xEE,
+                     (POLY_FT4*)((u8*)g_Menu->unk34C + 0x240C),
+                     g_Menu->renderContext, D_801E9FE0[0], 0x7A, 0x1000);
+       func_8002675C(g_Menu->resources, 0xEE,
+                     (POLY_FT4*)((u8*)g_Menu->unk34C + 0x24AC),
+                     g_Menu->renderContext, D_801E9FE4[0], 0x7A, 0x1000);
+       func_801C7F34(*(u32*)pArg);
+       for (i = 0; i < 7; i++) {
+           func_8002675C(g_Menu->resources, ((u32*)g_Menu->unk2EC)[i],
+                         (POLY_FT4*)((u8*)g_Menu->unk34C + 0x254C + i * 0x50),
+                         g_Menu->renderContext, D_801E9FE0[i + 2], 0x7A,
+                         0x1000);
+       }
+       func_8002675C(g_Menu->resources, 0x17,
+                     (POLY_FT4*)((u8*)g_Menu->unk34C + 0x2C7C),
+                     g_Menu->renderContext, 0x8, 0x66, 0x1000);
+       func_8002675C(g_Menu->resources, 0x32,
+                     (POLY_FT4*)((u8*)g_Menu->unk34C + 0x2CCC),
+                     g_Menu->renderContext, 0x10, 0x66, 0x1000);
+       number = pArg[0x23] + 1;
+       func_8002675C(g_Menu->resources, number / 10,
+                     (POLY_FT4*)((u8*)g_Menu->unk34C + 0x2D1C),
+                     g_Menu->renderContext, 0x10, 0x6E, 0x1000);
+       number = pArg[0x23] + 1;
+       func_8002675C(g_Menu->resources, number % 10,
+                     (POLY_FT4*)((u8*)g_Menu->unk34C + 0x2D6C),
+                     g_Menu->renderContext, 0x18, 0x6E, 0x1000);
+   }
+*/
+
 
 void func_801E6AE8(u8 arg0, u8* pArg1) {
     u8* pPrims;
