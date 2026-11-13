@@ -1,4 +1,5 @@
 #include "common.h"
+#include "main/game.h"
 #include "system/memory.h"
 #include "psyq/libgpu.h"
 #include "psyq/libgte.h"
@@ -28,10 +29,24 @@ s32 func_800879E0(s32 arg0);
 
 // 0x80-byte slot in the D_8009BE24 table
 typedef struct {
-    /* 0x00 */ u8 pad0[0x50];
+    /* 0x00 */ u8 pad0[0x20];
+    /* 0x20 */ u16 unk20;
+    /* 0x22 */ u8 pad22[0x6];
+    /* 0x28 */ s32 unk28;
+    /* 0x2C */ s32 unk2C;
+    /* 0x30 */ s32 unk30;
+    /* 0x34 */ u8 pad34[0x4];
+    /* 0x38 */ s32 unk38;
+    /* 0x3C */ s32 unk3C;
+    /* 0x40 */ s32 unk40;
+    /* 0x44 */ u8 pad44[0x6];
+    /* 0x4A */ u16 unk4A;
+    /* 0x4C */ u8 pad4C[0x4];
     /* 0x50 */ s32 unk50;
     /* 0x54 */ s32 unk54;
-    /* 0x58 */ u8 pad58[0x28];
+    /* 0x58 */ s32 unk58;
+    /* 0x5C */ s32 unk5C;
+    /* 0x60 */ u8 pad60[0x20];
 } WorldMapSlot; // Size: 0x80
 
 typedef struct {
@@ -68,6 +83,33 @@ void func_80086568(void) {
     HeapFree(D_8009D150);
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_800865A0);
+// Best: 53.39%. Shape recovered: 0x120 POLY_FT4 primitives in D_8009D7F8, each
+// getting setPolyFT4 + setRGB0(0x26,0x26,0x26) + tpage GetTPage(0,1,0x3C0,0x100)
+// + clut GetClut(0x130,0x1FE) + SetSemiTrans(p,1), then a 0x2D00-byte memcpy
+// into D_8009D7FC (gcc inlines it as the 16-bytes-per-iteration loop). Retail
+// hoists both 9 and 0x2C into callee-saved s5/s4 and re-reads D_8009D7F8 through
+// the CSE'd symbol address in s0 (frame 0x30, six saved regs); ours rematerialises
+// 0x2C per iteration with li and reloads the symbol with a fresh lui (frame 0x28).
+/*
+void func_800865A0(void) {
+    POLY_FT4* pPrim;
+    POLY_FT4* pSrc;
+    s32 i;
+
+    D_8009D7F8 = HeapAlloc(0x2D00, 1);
+    D_8009D7FC = HeapAlloc(0x2D00, 1);
+    pPrim = (POLY_FT4*)D_8009D7F8;
+    for (i = 0; i < 0x120; i++, pPrim++) {
+        setPolyFT4(pPrim);
+        setRGB0(pPrim, 0x26, 0x26, 0x26);
+        pPrim->tpage = GetTPage(0, 1, 0x3C0, 0x100);
+        pPrim->clut = GetClut(0x130, 0x1FE);
+        SetSemiTrans(pPrim, 1);
+    }
+    pSrc = (POLY_FT4*)D_8009D7F8;
+    memcpy(D_8009D7FC, pSrc, 0x2D00);
+}*/
+
 void func_800866C8(void) {
     HeapFree(D_8009D7FC);
     HeapFree(D_8009D7F8);
@@ -293,6 +335,52 @@ s32 func_80087F60(void) {
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_80087FD0);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_80088570);
+// Best: 95.92%. Size and instruction multiset exact; only the gcc allocator's
+// pick for the g_GameState+0x1854 pointer differs (retail keeps it in v1, ours
+// takes a0) plus the knock-on register for the merged `v` store (retail v0, ours
+// v1). Notes that got here: the 0x2C store precedes the 0x30 value in both
+// branches (a `v` local assigned in each branch is what makes the single
+// pSlot->unk30 store land at the join); g_GameState+0x184E is read with `lh`, so
+// it wants an s32 local; writing 0x2C/0x30 as direct stores gives 97.75% but
+// emits an extra store (288 vs 284 bytes) because gcc does not cross-jump.
+// Screen: cdk 66.38, best 95.92% here - not a compiler miss.
+/*
+s32 func_80088570(s32 index) {
+    WorldMapSlot* pSlot;
+    s32 v;
+
+    func_8008868C();
+    pSlot = (WorldMapSlot*)(D_8009BE24 + index * 0x80);
+    pSlot->unk54 = 4;
+    pSlot->unk20 = 0;
+    pSlot->unk50 = 0;
+    pSlot->unk58 = 0;
+    pSlot->unk5C = 0xC;
+    if (g_GameState.unk1854 == 0) {
+        g_GameState.unk1854 = g_GameState.unk1854 + 1;
+        pSlot->unk2C = 0xFFD80000;
+        v = 0x4800000;
+        pSlot->unk28 = 0;
+    } else {
+        s32 angleY = *(s16*)&g_GameState.unk184E;
+        u16 posX = ((u16*)g_GameState.unk1838)[0xA];
+
+        pSlot->unk2C = 0xFFD80000;
+        pSlot->unk28 = angleY * 0x1000 + posX;
+        v = (s16)g_GameState.unk1852 * 0x1000 + g_GameState.unk1850;
+    }
+    pSlot->unk30 = v;
+    pSlot->unk40 = 0xB50;
+    pSlot->unk38 = 0xB50;
+    pSlot->unk3C = 0;
+    pSlot->unk4A = 1;
+    ((u16*)g_GameState.unk1838)[0xA] = pSlot->unk28;
+    g_GameState.unk184E = pSlot->unk28 >> 12;
+    g_GameState.unk1850 = pSlot->unk30;
+    g_GameState.unk1852 = pSlot->unk30 >> 12;
+    return 1;
+}
+*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_8008868C);
 // Best: 76.81%. Two-pointer walk over the interleaved s16 pairs of D_8009AFA0
 // (pX[0], pX[1] with pX += 2) offset by base = D_8009B688[D_8009C610], ending at
