@@ -20,7 +20,6 @@ extern u8 *D_80092938;
 extern void *D_80092868;
 
 extern void func_80030A30(s32 index, void *pLight);
-extern void func_8008B730(void *pA, s32 arg1, s32 arg2);
 extern u32 func_800405E4(void);
 extern void func_8008BB3C(void *pCtx);
 
@@ -267,16 +266,6 @@ void func_8008B0D8(u8 *pActor) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc14", func_8008B13C);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc14", func_8008B38C);
-
-/* Best attempt: objdiff 71.54%, 0x268 bytes against 0x250: the whole structure,
-   call order, both loops and every offset are recovered, but this shape keeps too
-   many values live at once (five spills and a 0x68 frame against retail's two
-   spills and 0x58), so the s-register assignment differs throughout. Next step is
-   fewer simultaneous locals: one variable for the buffer (indexed writes instead
-   of a separate slot pointer), the second loop in its own names instead of
-   reusing the buffer and list pointers, and 'count' kept in one register. */
-/*
 extern u32 ModelResolvePointers(void *pModel);
 extern void *func_80089C54(void);
 extern void func_80089C88(void *pList, void *pNode);
@@ -287,26 +276,33 @@ extern void *func_80089FC4(void);
 extern void func_8008A184(void *pPart, void *pModelPart);
 extern void func_8008B13C(void *pA, void *pB, void *pC);
 
+INCLUDE_ASM("asm/battling/nonmatchings/main/misc14", func_8008B38C);
+
+/* Best attempt: objdiff 77.11%, 608 bytes against 592. Structure, call order,
+   both loops and every offset match; three stack homes instead of retail's two
+   (mine: pData 0x10, count 0x18, pNode 0x20; retail: pNode 0x10, pOther 0x18),
+   so the frame is 0x60 against 0x58 and every s-register is one higher. Retail
+   spills pOther (loaded once, read twice at the end) and keeps pData, count,
+   pBuf, pScale, pCur, pPart, pSlot and i in registers.
+   Two things did help and should be kept: reading *(s16 *)(pCur + 2) inline
+   twice instead of through an `idx` local (71.54 -> 77.11: retail reloads the
+   field after the func_80089E2C call), and *(s16 *)pCur inline. Dead ends:
+   pSlot as ((u8 **)pBuf)[i] (71.80), every pointer declared before use (71.54). */
+/*
 void *func_8008B38C(u8 *pArg) {
-    u8 *pData;
-    u8 *pList;
-    u8 *pOther;
-    u8 *pCur;
+    u8 *pData = *(u8 **)(pArg + 4);
+    u8 *pList = *(u8 **)pArg;
+    u8 *pOther = *(u8 **)(pArg + 8);
+    u32 count = *(u32 *)pList;
+    u8 *pCur = pList + 4;
     u8 *pScale;
     u8 *pNode;
     u8 *pBuf;
     u8 *pPart;
     u8 *pListArg;
     u8 **pSlot;
-    u32 count;
-    s32 i;
-    s16 idx;
+    u32 i;
 
-    pData = *(u8 **)(pArg + 4);
-    pList = *(u8 **)pArg;
-    pOther = *(u8 **)(pArg + 8);
-    count = *(u32 *)pList;
-    pCur = pList + 4;
     ModelResolvePointers(pData);
     HeapSetCurrentContentType(0x12);
     pBuf = HeapAlloc(count * 4, 0);
@@ -320,17 +316,15 @@ void *func_8008B38C(u8 *pArg) {
     for (i = 0; i < count; i++) {
         pPart = func_80089C54();
         *pSlot = pPart;
-        idx = *(s16 *)(pCur + 2);
-        if (idx != -1) {
+        if (*(s16 *)(pCur + 2) != -1) {
             pListArg = func_80089FC4();
             func_80089E2C(pPart, pListArg);
-            func_8008A184(pListArg, pData + (idx * 8 - idx) * 8 + 0x10);
+            func_8008A184(pListArg, pData + (*(s16 *)(pCur + 2) * 8 - *(s16 *)(pCur + 2)) * 8 + 0x10);
         }
-        idx = *(s16 *)pCur;
-        if (idx == -1) {
+        if (*(s16 *)pCur == -1) {
             pListArg = pNode;
         } else {
-            pListArg = *(u8 **)(pBuf + idx * 4);
+            pListArg = *(u8 **)(pBuf + *(s16 *)pCur * 4);
         }
         func_80089C88(pListArg, pPart);
         *(u16 *)(pPart + 0x44) = *(u16 *)(pCur + 4);
@@ -360,6 +354,40 @@ void *func_8008B38C(u8 *pArg) {
     return pNode;
 }
 */
+
+typedef struct {
+    /* 0x0 */ s16 unk0;
+    /* 0x2 */ s16 unk2;
+    /* 0x4 */ s16 unk4;
+    /* 0x6 */ s16 unk6;
+} Misc14AnimCfg; // Size: 0x8
+
+typedef struct {
+    /* 0x0 */ u16 *unk0;
+    /* 0x4 */ u16 unk4;
+    /* 0x6 */ s16 unk6;
+} Misc14AnimEntry; // Size: 0x8
+
+typedef struct {
+    /* 0x00 */ u32 unk0;
+    /* 0x04 */ u8 *unk4;
+    /* 0x08 */ u16 *unk8;
+    /* 0x0C */ u16 unkC;
+    /* 0x0E */ u16 unkE;
+    /* 0x10 */ u16 unk10;
+    /* 0x12 */ s16 unk12;
+} Misc14AnimTrack; // Size: 0x14
+
+typedef struct {
+    /* 0x00 */ Misc14AnimCfg *unk0;
+    /* 0x04 */ Misc14AnimEntry *unk4;
+    /* 0x08 */ Misc14AnimTrack *unk8;
+    /* 0x0C */ u32 unkC;
+    /* 0x10 */ u16 unk10;
+    /* 0x12 */ s16 unk12;
+} Misc14Anim; // Size: 0x14
+
+extern s32 func_8008B730(Misc14Anim *pAnim, s32 arg1, s32 arg2);
 
 void func_8008B5DC(void *pA, s32 arg1) {
     func_8008B730(pA, arg1, 1);
@@ -433,6 +461,107 @@ s16 func_8008B650(s32 arg0, s32 arg1, s32 arg2) {
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc14", func_8008B650);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc14", func_8008B730);
+
+/* Best attempt: objdiff 91.66%, 760 bytes against 756 - one instruction too many.
+   Whole structure, all four loops, the script decoder and the unused 0x10 stack
+   slot are right (keep the pad[4]: without it the frame is 0x50, not retail's
+   0x60). Also confirmed: the arg1 == 0 early exit returns whatever is in $v0 (the
+   config pointer), so it is not `return 0/1` - it is the enclosing
+   `if (arg1 != 0) { ...; return X; }` with no trailing return, which is why that
+   path has a nop, not a li, in the beqz delay slot.
+   What is still wrong:
+   1. The three loops emit `lw count; nop; lh count; addiu i,1` where retail has
+      `lw count; addiu i,1; lh count` (maspsx then needs no nop). Tried i++/++i
+      and pEntry++/++pEntry - no change. Next: `i = 0; while (i < count) { ...;
+      i++; }` so the increment is body code.
+   2. The script decoder needs `move v1,v0` after the `lb` (retail keeps the char
+      in v1 and the load in v0); gcc loads straight into v1 here.
+   3. The final `return pAnim->unk12 == pAnim->unk0->unk0 && arg2 == 1;` costs an
+      extra `move v0,a0` (gcc puts the sltiu in a0) and picks v1/v0 where retail
+      picks a0/v1. */
+/*
+s32 func_8008B730(Misc14Anim *pAnim, s32 arg1, s32 arg2) {
+    Misc14AnimEntry *pEntry;
+    Misc14AnimTrack *pTrack;
+    u8 *pScript;
+    s32 c;
+    s32 i;
+    s32 j;
+    s32 pos;
+    s32 pad[4];
+
+    if (pAnim->unk0 == NULL) {
+        return 1;
+    }
+    if (arg1 != 0) {
+    pos = pAnim->unk12;
+    if (pos + arg1 > pAnim->unk0->unk0) {
+        arg1 = pAnim->unk0->unk0 - pos;
+    }
+    pAnim->unk12 = pos + arg1;
+    arg2 -= arg1;
+    if (arg2 <= 0) {
+        arg2 = 1;
+    }
+    pEntry = pAnim->unk4;
+    if (arg2 == 1) {
+        for (i = 0; i < pAnim->unk0->unk4; i++) {
+            *(u16 *)pEntry->unk0 = pEntry->unk4;
+            ++pEntry;
+        }
+    } else {
+        for (i = 0; i < pAnim->unk0->unk4; i++) {
+            u16 value = *pEntry->unk0;
+
+            if (pEntry->unk6 != 0) {
+                *pEntry->unk0 = func_8008B5FC((s16)value, (s16)pEntry->unk4, arg2);
+            } else {
+                *pEntry->unk0 = value + ((s16)pEntry->unk4 - (s16)value) / arg2;
+            }
+            ++pEntry;
+        }
+    }
+    pTrack = pAnim->unk8;
+    for (i = 0; i < pAnim->unk0->unk6; i++) {
+        for (j = 0; j < arg1; j++) {
+            if (pTrack->unkC != 0) {
+                pTrack->unkC--;
+            } else {
+                pScript = pTrack->unk4;
+                pTrack->unk4 = pScript + 1;
+                c = *(s8 *)pScript;
+                if (c & 0x80) {
+                    s32 bits = c & 0x3F;
+
+                    if (c & 0x40) {
+                        pTrack->unk4 = pScript + 2;
+                        pTrack->unk10 = bits | ((s8)pScript[1] << 6);
+                    } else {
+                        pTrack->unkC = bits;
+                    }
+                } else {
+                    pTrack->unk10 = (s8)(c << 1) >> 1;
+                }
+            }
+            pTrack->unkE += pTrack->unk10;
+        }
+        if (arg2 == 1) {
+            *pTrack->unk8 = pTrack->unkE;
+        } else {
+            u16 value = *pTrack->unk8;
+
+            if (pTrack->unk12 != 0) {
+                *pTrack->unk8 = func_8008B5FC((s16)value, (s16)pTrack->unkE, arg2);
+            } else {
+                *pTrack->unk8 = value + ((s16)pTrack->unkE - (s16)value) / arg2;
+            }
+        }
+        pTrack++;
+    }
+    return pAnim->unk12 == pAnim->unk0->unk0 && arg2 == 1;
+    }
+}
+*/
 
 typedef struct {
     /* 0x00 */ u32 unk0[0x20];
