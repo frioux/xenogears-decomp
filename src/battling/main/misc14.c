@@ -111,7 +111,54 @@ void func_8008AC8C(void) {
     D_80092820 = GetRCnt(0xF2000001);
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc14", func_8008ACB8);
+void func_8008ACB8(s32 arg0) {
+    u8 *pCtx = (u8 *)D_80091C30;
+    s32 timeout;
+    s32 start;
+    s32 diff;
+    s32 i;
+    u32 *pOT;
+    u32 *pPrim;
+    u32 *pNext;
+
+    if (pCtx == 0) {
+        return;
+    }
+    start = D_80092820;
+    D_80091C30 = 0;
+    if (arg0 != 0) {
+        timeout = ((arg0 << 4) - arg0) << 4;
+    } else {
+        timeout = 0xC0;
+    }
+    i = *(s16 *)(pCtx + 0x14) - 1;
+    if (i < 4) {
+        return;
+    }
+    do {
+        diff = GetRCnt(0xF2000001) - start;
+        if (diff < 0) {
+            diff += 0x10000;
+        }
+        if (timeout < diff) {
+            break;
+        }
+        pOT = *(u32 **)(pCtx + D_800928A0 * 4 + 4);
+        pPrim = (u32 *)pOT[i];
+        pNext = (u32 *)((*pPrim & 0xFFFFFF) + 0x80000000);
+        if (*(u8 *)((u8 *)pNext + 3) == 0) {
+            do {
+                if (i < 5) {
+                    break;
+                }
+                pNext = (u32 *)((*pNext & 0xFFFFFF) + 0x80000000);
+                i--;
+            } while (*(u8 *)((u8 *)pNext + 3) == 0);
+            *pPrim = (*pPrim & 0xFF000000) | ((u32)pNext & 0xFFFFFF);
+        }
+        i--;
+    } while (i >= 4);
+}
 
 extern void func_800453E8(void *pDrmode, void *pRect);
 extern void func_8004546C(void *pDrmode, void *pRect);
@@ -327,8 +374,8 @@ void func_8008BAE0(void *pMem) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc14", func_8008BB00);
 
-/* Best attempt: objdiff 94.29% (also 94.29 under gcc-2.7.2-cdk). Only the
-   temporaries differ: the original loads into $t0/$t1, gcc into $v0/$v1; the
+/* Best attempt: objdiff 94.29% (same under gcc-2.6.0 and gcc-2.7.2-cdk). Only
+   the temporaries differ: the original loads into $t0/$t1, gcc into $v0/$v1; the
    instruction sequence and both symbols are identical. Two locals, direct field
    stores, a struct pointer and an 8-byte struct copy (70.71%, it also bases the
    second load off one symbol) all give $v0/$v1. */
