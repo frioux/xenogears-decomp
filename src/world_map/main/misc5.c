@@ -93,6 +93,8 @@ extern s32 func_80093A5C(s32, s32);
 extern void func_800894C8(s32);
 extern void func_80089160(s32, void *, s32);
 extern s16 D_8009A488[];
+extern MATRIX D_8009A180;
+extern void func_8007A06C(void *pBlock, s32 arg, s32 arg2);
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007A9F8);
 /* best 94.72%: everything matches except the position of the final
@@ -127,7 +129,39 @@ int func_8007AD34(int idx) {
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007AD34);
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007ADD4);
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007B200);
+int func_8007B200(int idx) {
+    u8 *pWork = (u8 *)D_8009C620;
+    u8 *pBlock = pWork + 0x150;
+    u8 *pSrc = pWork + 0x198;
+    u8 *pPlayer = (u8 *)D_8009BE24 + (idx << 7);
+    u32 *pScratch = (u32 *)0x1F800000;
+    WorldMapRotBlock *pLast;
+    s32 scale;
+    s32 i;
+
+    for (i = 0; i < 2; i++) {
+        u32 arg1 = *(u32 *)pSrc;
+        u16 arg2 = *(u16 *)(*(u32 *)(pSrc - 8) + 4);
+
+        func_8007A06C(pBlock, arg1, arg2);
+        pSrc += 0x54;
+        pBlock += 0x54;
+    }
+    *(s32 *)(pPlayer + 0x54) = 0;
+    *(s32 *)(pPlayer + 0x50) = 0;
+    *(MATRIX *)&pScratch[0x3C] = D_8009A180;
+    scale = *(s32 *)(pPlayer + 0x50);
+    pScratch[1] = 0x1000;
+    pScratch[2] = scale;
+    pScratch[0] = scale;
+    ScaleMatrix((MATRIX *)&pScratch[0x3C], (VECTOR *)pScratch);
+    pLast = (WorldMapRotBlock *)pBlock;
+    pLast->mat = *(MATRIX *)&pScratch[0x3C];
+    pLast[1].mat = *(MATRIX *)&pScratch[0x3C];
+    pLast[1].unk0 = 1;
+    pLast->unk0 = 1;
+    return 3;
+}
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007B394);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007B604);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007B798);
@@ -221,7 +255,18 @@ void func_8007C260(void) {
    65.26% with the same multiset, and a pointer local plus an s32 index
    local (i = pPlayer->unk50 before the D_8009A4D8 read) gives 49.68%.
 */
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007C36C);
+int func_8007C36C(int idx) {
+    WorldMapPlayer *pPlayer = D_8009BE24;
+    u32 *pCount;
+
+    pPlayer += idx;
+    pCount = &pPlayer->unk50;
+    *pCount = 0;
+    pPlayer->unk20 = D_8009A4D8;
+    pPlayer->unk22 = D_8009A4E8[*pCount];
+    *pCount = *pCount + 1;
+    return 1;
+}
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007C3B8);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007C724);
@@ -286,7 +331,42 @@ int func_8007CC6C(int idx) {
     pPlayer->unk30 = 0x400000;
     return 1;
 }
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007CD20);
+int func_8007CD20(int idx) {
+    u8 *pPlayer = (u8 *)D_8009BE24 + (idx << 7);
+    u8 *pBlock = (u8 *)D_8009C620 + 0x150;
+    u16 *pScratch = (u16 *)0x1F800000;
+    s16 mode;
+
+    mode = *(s16 *)(pPlayer + 4);
+    if (mode == 1) {
+        *(s16 *)(pPlayer + 4) = 0;
+        *(s16 *)(pPlayer + 0x20) = 1;
+    } else if (mode == 2) {
+        *(s16 *)(pPlayer + 4) = 0;
+        *(s16 *)(pPlayer + 0x20) = 2;
+    }
+    *(s32 *)(pPlayer + 0x30) += *(s32 *)(pPlayer + 0x40);
+    func_80093354(pPlayer + 0x28);
+    *(s32 *)(pBlock + 8) = *(s32 *)(pPlayer + 0x28) >> 12;
+    *(s32 *)(pBlock + 0xC) = *(s32 *)(pPlayer + 0x2C) >> 12;
+    *(s32 *)(pBlock + 0x10) = *(s32 *)(pPlayer + 0x30) >> 12;
+    pScratch[0x50] = *(s32 *)(pPlayer + 0x28) >> 12;
+    pScratch[0x51] = *(s32 *)(pPlayer + 0x2C) >> 12;
+    pScratch[0x52] = *(s32 *)(pPlayer + 0x30) >> 12;
+    func_80089160(0x13, (void *)&pScratch[0x50], 0);
+    switch (*(s16 *)(pPlayer + 0x20)) {
+    case 1:
+        func_80089160(0x1F, (void *)&pScratch[0x50], 0);
+        /* fallthrough */
+    case 0:
+        D_8009D564 = *(s32 *)(pPlayer + 0x30);
+        break;
+    case 2:
+        func_80089160(0x1F, (void *)&pScratch[0x50], 0);
+        break;
+    }
+    return 1;
+}
 int func_8007CE84(int idx) {
     WorldMapWork *pWork;
     WorldMapPlayer *pPlayer;
