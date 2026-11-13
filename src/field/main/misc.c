@@ -1065,7 +1065,61 @@ int func_8008A790(int characterId, int* pPartyIndex) {
     return -1;
 }
 
+extern void* HeapAlloc(u_int allocSize, u_int allocFlags);
+extern int ArchiveSetIndex(int directoryIndex, int entryIndex);
+extern void ArchiveCdDataSync(int mode);
+extern int ArchiveDecodeAlignedSize(unsigned int entryIndex);
+extern void ArchiveReadFileToBuffer(s32 index, void* pBuffer, u32 arg2, u32 flags);
+extern int GameCharacterGetGearID(int characterId);
+extern s32 g_GameSceneMapNum;
+extern int g_GamePartyMemberSkins[MAX_PARTY_MEMBERS];
+extern void* D_800ADBC0;
+extern s32 D_800ADBC4;
+extern void* D_800ADBC8;
+extern s32 D_800ADBCC;
+
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008A7DC);
+/*
+ * func_8008A7DC 98.73% - only difference is $s0/$s1 assignment
+ * (archiveIndex vs characterId); instruction multiset identical.
+void func_8008A7DC(int characterId, int partyIndex) {
+    int archiveIndex;
+    int size;
+    void* pBuffer;
+    int characterIndex;
+
+    D_800ADBCC = partyIndex;
+    D_800ADBC8 = characterId;
+    ArchiveSetIndex(4, 0);
+    if (D_800ADB1C == 0) {
+        ArchiveCdDataSync(0);
+    }
+    if ((g_GameSceneMapNum & 0xC000) == 0) {
+        archiveIndex = characterId + 5;
+        size = ArchiveDecodeAlignedSize(archiveIndex);
+        g_GamePartyMemberSkins[D_800ADBCC] = characterId;
+        pBuffer = HeapAlloc(size, 0);
+        D_800ADBC0 = pBuffer;
+        ArchiveReadFileToBuffer(archiveIndex, pBuffer, 0, 0x80);
+    } else {
+        characterIndex = GameCharacterGetGearID(characterId);
+        if (characterIndex == 0xFF) {
+            characterIndex = 0;
+        }
+        characterIndex += 0x10;
+        archiveIndex = characterIndex + 5;
+        size = ArchiveDecodeAlignedSize(archiveIndex);
+        pBuffer = HeapAlloc(size, 0);
+        D_800ADBC0 = pBuffer;
+        g_GamePartyMemberSkins[D_800ADBCC] = characterIndex;
+        ArchiveReadFileToBuffer(archiveIndex, pBuffer, 0, 0x80);
+    }
+    if (D_800ADB1C == 0) {
+        ArchiveCdDataSync(0);
+    }
+    D_800ADBC4 = 1;
+}
+ */
 
 void func_8008A93C(void) {
     g_FieldScriptVMCurActor->unkAnimationId = ~SCRIPT_READ_U8_REL(1);
