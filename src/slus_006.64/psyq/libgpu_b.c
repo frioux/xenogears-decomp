@@ -86,6 +86,36 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_b", func_80045534);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_b", func_8004574C);
 
+/* best: 96.82% (88 bytes; identical instruction multiset, identical size) -- only
+   the two live registers differ: retail keeps mode in $v1 and the tpage word in
+   $v0, gcc coalesces mode into $v0 and the tpage word into the incoming $a2.
+   `mode = 0xE1000000` at the declaration instead of at the top of each arm moves
+   lui $v1 into the graph-type test's delay slot (78.67%); the ternary form of the
+   tpage word gives the same two registers; `(tpage & mask) | (dfe ? bit : 0)` with
+   the mask first reproduces retail's block order exactly. Allocator tie.
+u_long func_800459DC(int dfe, int dtd, u_short tpage) {
+    u_long mode;
+    u_long tp;
+
+    if (D_800568D0 == 1 || D_800568D0 == 2) {
+        mode = 0xE1000000;
+        if (dtd)
+            mode |= 0x800;
+        tp = tpage & 0x27FF;
+        if (dfe)
+            tp |= 0x1000;
+    } else {
+        mode = 0xE1000000;
+        if (dtd)
+            mode |= 0x200;
+        tp = tpage & 0x9FF;
+        if (dfe)
+            tp |= 0x400;
+    }
+    return mode | tp;
+}
+*/
+
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_b", func_800459DC);
 
 /* best: 58.61% -- the (s16) casts reproduce retail's clamp tests, but gcc keeps
@@ -148,9 +178,14 @@ u_long func_80045BCC(int x, int y) {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_b", func_80045C10);
 
-/* this is _get_tw(): retail spills all four masked fields into 0(sp)/4/8/0xc
-   (a 0x10 frame) and keeps them live in a1/v0/a2/v1; the plain macro body below
-   is semantically identical but gcc folds (h<<5) into a mask and drops the frame.
+/* this is _get_tw(). Retail: 0x10 frame, the four masked fields spilled to
+   0(sp)/4(sp)/8(sp)/0xc(sp) and never reloaded, then kept live in a1/v0/a2/v1.
+   Four locals declared x,y,w,h reproduce that slot order, and
+   (~(tw->w - 1) & 0xff) >> 3 is the form that gives retail's negu/andi/sra --
+   the header macro masks INSIDE the complement, which folds differently. But
+   without the dead stores gcc combine turns h's (>>3)<<5 into sll 2 + andi 0x3e0
+   and drops the frame (25 insns vs retail 33). A local struct of the four words
+   whose stores gcc 2.7.2 does not DSE is the untried idea that would block it.
 u_long func_80045C10(RECT *tw) {
     return _get_tw(tw);
 }
@@ -212,9 +247,13 @@ u_char func_80046588(int index) {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_b", func_8004659C);
 
-/* best: 81.75% -- same instructions, but gcc rotates the loop (store into the
-   delay slot of the backward bne) where retail keeps store then bne with
-   move v0,zero in the slot.
+/* best: 81.75% (retail 22 insns, this 21) -- retail fills BOTH delay slots with
+   `addu $v0,zero,zero`, so its RTL carries a second copy of the return-0 setup
+   inside the loop, and it leaves `sw $v1,0($v0)` before the backward bne; gcc
+   rotates the loop so that store is the fall-through insn and reorg steals it
+   into the slot. Guarding with an explicit `if (n == 0) return 0;` emits a
+   duplicate beqz (23 insns). cdk is not this unit's compiler: under
+   gcc-2.7.2-cdk this scores 59.45% and matched neighbours collapse.
 int func_8004659C(u_long *src, int n) {
     int i;
 
