@@ -1,5 +1,6 @@
 #include "common.h"
 #include "field/actor.h"
+#include "psyq/libgte.h"
 
 // Battle state pointed to by D_800C3610. Only the fields this unit touches are recovered.
 typedef struct {
@@ -15,6 +16,10 @@ typedef struct {
 extern BattleState* D_800C3610;
 extern u8 D_800C3664;
 extern u8 D_800C3EB0[];
+extern u8* D_800D3368[];
+extern s32 D_80050100;
+extern MATRIX D_800D30BC;
+extern u_long* g_GfxCurOT;
 
 extern void AnimScriptTick(SpriteData* pSprite);
 extern void func_80022CDC(SpriteData* pSprite);
@@ -32,6 +37,8 @@ extern void TimerWorkListRemoveTask(void* pTask);
 extern s32 func_800A5914(s16* pVec, s32 arg1, s32 arg2);
 extern s32 func_800A579C(s16* pVec);
 extern void func_800A5870(s16* pVec, s32 arg1, u8* pOut);
+extern void func_8001E298(SpriteData* pSprite, u_long* pOT);
+extern void* func_800BFC80(void* pArg0, s32 arg1, s32 arg2);
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800B905C);
 
@@ -102,7 +109,43 @@ void func_800BA8F4(u8* pSprite) {
     *(s32*)(pSprite + 0x78) = index;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800BA984);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800BAB0C);
+// RotTransPers output block; the tail is unused but reproduces retail's 0x40 frame.
+typedef struct {
+    s32 sxy;
+    s32 flag;
+    s32 pad[4];
+} RotTransPersOut;
+
+void func_800BAB0C(u8* pTask) {
+    SpriteData* pSprite;
+    SVECTOR vec;
+    s32 coord;
+    s32 otz;
+    RotTransPersOut out;
+
+    if (D_800C3664 != 0) {
+        return;
+    }
+    pSprite = *(SpriteData**)(pTask + 0x4);
+    coord = *(s16*)((u8*)pSprite + 0x2);
+    vec.vx = coord;
+    coord = *(s16*)((u8*)pSprite + 0x6);
+    vec.vy = coord;
+    coord = *(s16*)((u8*)pSprite + 0xA);
+    vec.vz = coord;
+    SetRotMatrix(&D_800D30BC);
+    SetTransMatrix(&D_800D30BC);
+    otz = (RotTransPers(&vec, &out.sxy, (u_long*)&out.sxy, &out.flag) >> D_80050100) +
+          *(s16*)((u8*)pSprite + 0x30);
+    if (out.flag & 0x8000) {
+        otz = 0;
+    }
+    *(s16*)((u8*)pSprite + 0x2E) = otz;
+    if ((u32)(otz - 1) < 0xFFF) {
+        func_8001E298(pSprite, g_GfxCurOT + otz);
+    }
+}
+
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800BABDC);
 /* 92.48% (tried: pTask + 0x58 for the block read so pPayload is only used by
    the call; gcc still defers "addiu s1,s0,0x38" into the branch delay slot
@@ -155,7 +198,77 @@ void func_800BAC50(u8* pTask) {
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800BACBC);
+/* 99.29%: the only difference is that retail's sprite pointer takes $v1 and its
+   SImode load temp $v0, gcc's the other way (identical size, 280 bytes, every
+   other instruction exact, frame and 0x8C8C li+addu head included).  Writing
+   `vec.vx = *(s16*)(...) + 0` flips the registers into retail's order but turns
+   the loads into lhu; the `s32 coord` temp that gives lh also gives the swap.
+   Tried: coord declared before/after pSprite, pBase via the global, s16[3] vec.
+/*
+void func_800BACBC(s32 index, s16* p0, s16* p1, s16* p2, s16* p3, s16* p4, s16* p5) {
+    u8* pBase = D_800C3EB0;
+    s32 coord;
+    SpriteData* pSprite;
+    SVECTOR vec;
+    u16 sxy[2];
+    s32 flag;
+
+    pSprite = *(SpriteData**)(pBase + index * 4 + 0x8C8C);
+    coord = *(s16*)((u8*)pSprite + 0x2);
+    vec.vx = coord;
+    coord = *(s16*)((u8*)pSprite + 0x6);
+    vec.vy = coord;
+    coord = *(s16*)((u8*)pSprite + 0xA);
+    vec.vz = coord;
+    PushMatrix();
+    SetRotMatrix(&D_800D30BC);
+    SetTransMatrix(&D_800D30BC);
+    *p2 = RotTransPers(&vec, (long*)sxy, &flag, &flag) >> 4;
+    *p0 = sxy[0];
+    *p1 = sxy[1];
+    *p3 = sxy[0] - 0x30;
+    *p4 = 0x30;
+    *p5 = sxy[0] - 0x18;
+    PopMatrix();
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800BADD4);
+/* 92.04%: the 0x8C8C constant-fold wall, second shape.  With pBase a local the
+   tail's instruction stream is retail's exactly (`li v0,0x8C8C; addu; sw 0` and
+   the same for 0x8CB8), but gcc then keeps pBase live in $s3 across the calls
+   and saves it, where retail re-forms lui/addiu for D_800C3EB0 and reuses $s1
+   for the if-block pointer.  Spelling the tail address with the global
+   (`D_800C3EB0 + index*4 + 0x8C8C`) instead makes gcc fold the constant into
+   the symbol (lui 0x1; addiu -29556; sw 0x2C) and reach 94.02%, and routing it
+   through a cast `(mem_addr)` pointer gets the frame right but splits the add
+   into li 0x8000 + displacement (92.75%).  Everything else, frame and the
+   0x8000/D24 if-block included, is exact.
+/*
+void func_800BADD4(s32 index) {
+    u8* pBase = D_800C3EB0;
+    SpriteData* pSprite;
+    u8* pSlot;
+    void* pPayload;
+
+    pSprite = *(SpriteData**)(pBase + index * 4 + 0x8CB8);
+    if (pSprite == NULL) {
+        return;
+    }
+    func_800BFC80(pSprite, 0, 2);
+    if (index < 3) {
+        pSlot = pBase + index * 0xC + 0x8000;
+        pPayload = *(void**)(pSlot + 0xD24);
+        if (pPayload != NULL) {
+            HeapFree(pPayload);
+        }
+        *(u32*)(pSlot + 0xD24) = 0;
+    }
+    (*(void (**)(SpriteData*))((u8*)pSprite + 0xC))(pSprite);
+    func_8001CE74(pSprite);
+    *(u32*)(pBase + index * 4 + 0x8C8C) = 0;
+    *(u32*)(pBase + index * 4 + 0x8CB8) = 0;
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800BAEB8);
 /* 75.68%: the known 0x8C8C wall (same as misc28's func_800B64D4).  Retail keeps
    &D_800C3EB0 in $a1 and adds 0x8C8C with a separate li+addu; gcc always folds
@@ -214,4 +327,33 @@ void func_800BB080(s32 arg0) {
     func_800B14CC(arg0);
 }
 */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800BB13C);
+void func_800BB13C(u8* pTask) {
+    SpriteData* pSprite;
+    u8* pScript;
+    s32 mode;
+    s32 index;
+    u32 unused[2]; // unused: reproduces retail's 0x28 frame
+
+    pSprite = *(SpriteData**)(pTask + 0x4);
+    mode = *(u32*)((u8*)pSprite + 0xA8) >> 30;
+    index = ((*(u32*)((u8*)pSprite + 0xAC) & 3) << 2) | mode;
+    pScript = D_800D3368[index];
+    if (pScript == NULL) {
+        return;
+    }
+    if (pSprite->animScriptWaitTimer == 0) {
+        pSprite->pSpriteBytecode = NULL;
+    }
+    if (pSprite->pSpriteBytecode != NULL) {
+        AnimScriptTick(pSprite);
+        func_80022CDC(pSprite);
+        if (((u32)pSprite->flags_0xAC >> 6) & 1) {
+            AnimScriptTick(pSprite);
+            func_80022CDC(pSprite);
+        }
+    }
+    pSprite->position.x = *(u32*)(*(u32*)(pScript + 0x4) + 0x5C) << 16;
+    pSprite->position.y = *(u32*)(*(u32*)(pScript + 0x4) + 0x60) << 16;
+    pSprite->position.z = *(u32*)(*(u32*)(pScript + 0x4) + 0x64) << 16;
+}
+
