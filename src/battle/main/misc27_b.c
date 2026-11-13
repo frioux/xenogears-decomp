@@ -10,6 +10,7 @@ extern s32 func_80022CAC(void* pSprite, s32 value);
 extern void func_800C08CC();
 extern void func_800B3CD4();
 extern void func_800B51B0();
+extern void func_800B59BC();
 extern void func_800B5CC0();
 extern void func_800B5DF4();
 extern void func_800B6004();
@@ -45,6 +46,10 @@ u8* func_800B5924(u8* pActor, s32 arg1, s32 arg2) {
     *(u32*)(pActor + 0xAC) |= 0x20;
     return pTask;
 }
+// PARKED: with 59BC defined in C, its caller func_800B5AC4 compiles 8 bytes SHORT (112
+// against retail 120) because the visible definition lets gcc drop a callee-saved pair.
+// Keeping the old-style void declaration is what reproduces retail.
+/*
 BattlePoint* func_800B59BC(BattlePoint* pOut, u8* pActor, s32 index) {
     DVECTOR rot;
 
@@ -67,6 +72,8 @@ BattlePoint* func_800B59BC(BattlePoint* pOut, u8* pActor, s32 index) {
     *(DVECTOR*)pOut = rot;
     return pOut;
 }
+*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc27_b", func_800B59BC);
 BattlePoint* func_800B5AC4(BattlePoint* pOut, u8* pActor, s32 index) {
     BattlePoint point;
     int ofs;
