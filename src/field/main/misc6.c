@@ -293,6 +293,76 @@ typedef struct {
     /* 0xE */ u16 f7;
 } FieldScriptArgs; // Size: 0x10
 
+// 73.71% (632 vs 664 bytes), first shape tried on this stub (no prior park).
+// Frame (0xA0, seven saves), the loop bounds and both calls match. What is left:
+// (a) retail does not keep &g_FieldActors[D_800AFD1C] in a register - it
+// re-derives the address at each of the six transform/childMatrix stores, so the
+// source probably spells g_FieldActors[D_800AFD1C].transformMatrix.t[n] inline
+// and keeps only pSpriteData in a local; my extra live pointer shifts the args
+// to s5/s6 and pSpriteData to s4 (retail: s4/s5 and s3).
+// (b) loop body: retail computes i * 2 for walkmeshTriIds[i] after the call and
+// bumps the points pointer in the bnez delay slot; gcc hoists both.
+// Next: inline the g_FieldActors[...] expressions, and give the call result a
+// temp before the walkmeshTriIds store.
+/*
+extern s16 D_800AFB54;
+extern int func_8007B1C4(int x, int z, int walkmeshId, SVECTOR* pOut, VECTOR* pNormal);
+extern u_int func_80080968(ActorData* pActor);
+
+void func_8009E574(s32 nX, s32 nY) {
+    VECTOR normals[4];
+    SVECTOR points[4];
+    SpriteData* pSprite;
+    FieldActor* pFieldActor;
+    ActorData* pActor;
+    int i;
+
+    pFieldActor = &g_FieldActors[D_800AFD1C];
+    pSprite = (SpriteData*)pFieldActor->pSpriteData;
+    for (i = 0; i < D_800AFB54 - 1; i++) {
+        g_FieldScriptVMCurActor->walkmeshTriIds[i] = func_8007B1C4(nX, nY, i, &points[i], &normals[i]);
+    }
+
+    g_FieldScriptVMCurActor->curWalkmeshTriMaterial = func_80080968(g_FieldScriptVMCurActor);
+    pActor = g_FieldScriptVMCurActor;
+    pActor->curTriNormal.vx = normals[pActor->walkmeshId].vx;
+    pActor->curTriNormal.vy = normals[pActor->walkmeshId].vy;
+    pActor->curTriNormal.vz = normals[pActor->walkmeshId].vz;
+    pFieldActor->transformMatrix.t[0] = nX;
+    pFieldActor->childMatrix.t[0] = nX;
+    pFieldActor->transformMatrix.t[1] = points[pActor->walkmeshId].vy;
+    pFieldActor->childMatrix.t[1] = points[pActor->walkmeshId].vy;
+    pFieldActor->transformMatrix.t[2] = nY;
+    pFieldActor->childMatrix.t[2] = nY;
+    pSprite->field_0x84 = points[pActor->walkmeshId].vy;
+    pActor->position.vx = nX << 16;
+    pActor->position.vz = nY << 16;
+    pActor->position.vy = points[pActor->walkmeshId].vy << 16;
+    pActor->curYPos = points[pActor->walkmeshId].vy;
+    pSprite->position.x = pActor->position.vx;
+    pSprite->position.y = pActor->position.vy;
+    pSprite->position.z = pActor->position.vz;
+    pActor->move.vx = 0;
+    pActor->move.vy = 0;
+    pActor->move.vz = 0;
+    pActor->moveModified.vx = 0;
+    pActor->moveModified.vy = 0;
+    pActor->moveModified.vz = 0;
+    pActor->unkD0.vx = 0;
+    pActor->unkD0.vy = 0;
+    pActor->unkD0.vz = 0;
+    pActor->unk60.vx = 0;
+    pActor->unk60.vy = 0;
+    pActor->unk60.vz = 0;
+    pSprite->step.x = 0;
+    pSprite->step.y = 0;
+    pSprite->step.z = 0;
+    pActor->unkF0 = 0;
+    pActor->unkEC = 0;
+    pActor->curYPos = ((u16*)&pActor->position)[3];
+    pActor->flags = (pActor->flags & ~0x40000) | 0x400000;
+}
+*/
 INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_8009E574);
 
 // Writes the actor's Y position (fixed point) and the cached short copies
