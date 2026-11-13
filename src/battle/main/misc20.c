@@ -7,6 +7,7 @@ extern u8 *D_800C3E00;
 extern u8 *D_800C3E34;
 extern u8 *D_800C34B0;
 extern u8 *D_800D2DC8;
+extern u8 *D_800D2D6C;
 extern u8 D_800C3E50;
 extern u8 D_800CCD3E[];
 extern u8 D_800CCD8C[];
@@ -14,6 +15,7 @@ extern u8 D_800CCCE8[];
 extern u8 D_800CCE4A[];
 extern u16 D_800D2C94;
 extern s8 func_8009DBFC();
+extern s32 func_80097610();
 
 void func_8009C134(void) {
     u8 i = 0;
@@ -31,7 +33,46 @@ void func_8009C134(void) {
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc20", func_8009C198);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc20", func_8009C4B4);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc20", func_8009C9C4);
+void func_8009C9C4(void) {
+    u16 a = *(u16 *)(D_800D2D6C + 0x84);
+    u16 b = *(u16 *)(D_800C3E00 + 0x8A);
+    u16 c;
+
+    D_800C34B0[0x5FBC] = D_800C3DFC[0x20];
+    D_800C34B0[0x5FBD] = D_800C3DFC[0x21];
+    D_800C34B0[0x5FBE] = D_800C3DFC[0x22];
+    D_800C34B0[0x5FBF] = D_800C3DFC[0x23];
+    D_800C34B0[0x5FC0] = D_800C34B0[0x5FC2];
+    c = (a | b) >> 12;
+    if ((D_800C34B0[0x5FBE] & 0x3F) == 0) {
+        D_800C34B0[0x5FBE] |= c;
+    }
+}
+/* best 99.91%: head, both index chains, both stores and the shared store all
+   match. Only the flag test's fail branch differs: the original targets the
+   else block (.L8009CAFC), gcc jumps to the epilogue (same net effect, one
+   instruction different). Writing the flag test as a flat `A && B && C` chain
+   produces the original branch but flips the index add's operands to
+   `addu v1,v1,a0` (99.63%); the nested `if` gives `addu v1,a0,v1` but jumps to
+   the epilogue. Six shapes tried.
+void func_8009CA90(void) {
+    u8 *p = D_800C34B0;
+
+    if (p[0x5FC2] >= 0xC && p[0x5FC2] < 0xF) {
+        u8 *q = p + D_800C3E50 * 0x170;
+        if (!(q[0x15A] & 0x80)) {
+            D_800C3DFC += 0x78;
+        }
+    } else {
+        if (p[0x5FC2] < 3) {
+            u8 *q = p + D_800C3E50 * 0x170;
+            if (!(q[0x15A] & 0x80)) {
+                D_800C3DFC += 0x258;
+            }
+        }
+    }
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc20", func_8009CA90);
 void func_8009CB68(u8 arg0) {
     s32 o = arg0 * 0x170;
@@ -81,6 +122,39 @@ u16 func_8009D948(void) {
         ret = n * ret / 4;
         if ((*(u16 *)(D_800D2D6C + 0x80) | *(u16 *)(D_800D2D6C + 0x82)) & 0x40) {
             ret = ret + ((ret & 0xFFFF) >> 1);
+        }
+    }
+    return ret;
+}
+*/
+/* best 98.21%: arm order, both divide-by-100 sites, the shared guard add and
+   the return mask all match. Remaining: the guard add comes out as
+   `addu a1,a1,v0` after the branch instead of the original's speculative
+   `addu v0,a1,a0` + `move a1,v0` in the beqz delay slot, the >>1 is sra here
+   and srl in the original (so `ret` wants an unsigned type, but an unsigned
+   `ret` turns the /100 into an unsigned division), and the 0x15A index chain
+   lands in v0 instead of v1.  (u16 v) vs (s32 v) + cast: 98.21 / 97.20.
+u16 func_8009DA04(void) {
+    s32 ret = func_80097610();
+    u16 v;
+    u8 n;
+
+    if (*(u16 *)(D_800C3DFC + 0xA) & 0x100) {
+        v = *(u16 *)(D_800D2DC8 + 0x72);
+        n = D_800D2DC8[0x99];
+        if (n != 0 && v != 0) {
+            v = v * (100 - n) / 100;
+        }
+        if (*(u8 *)(D_800C34B0 + D_800C3E50 * 0x170 + 0x15A) & 0x80) {
+            ret = ret + v;
+        }
+        if ((*(u16 *)(D_800D2DC8 + 0x80) | *(u16 *)(D_800D2DC8 + 0x82)) & 0x20) {
+            ret = ret + ((ret & 0xFFFF) >> 1);
+        }
+    } else {
+        n = D_800D2DC8[0x99];
+        if (n != 0) {
+            ret = (ret & 0xFFFF) * (100 - n) / 100;
         }
     }
     return ret;
