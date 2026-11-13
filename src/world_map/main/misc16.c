@@ -40,7 +40,7 @@ typedef struct {
 } WorldMapMisc16Rect; // Size: 0x6
 
 typedef struct {
-    /* 0x0 */ u16 grid[81];
+    /* 0x0 */ s16 grid[81];
 } WorldMapMisc16Grid; // Size: 0xA2
 
 extern WorldMapMisc16Grid D_8009D318;
@@ -115,7 +115,7 @@ void func_800981C8(WorldMapMisc16Struct* p) {
     s32 j;
     s32 w;
     s32 h;
-    u16* pGrid;
+    s16* pGrid;
 
     w = D_8009D160;
     h = D_8009D2B4;
@@ -156,7 +156,102 @@ void func_800981C8(WorldMapMisc16Struct* p) {
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc16", func_800983A0);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc16", func_800987AC);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc16", func_80098CC0);
+typedef struct {
+    /* 0x0 */ u16 unk0;
+    /* 0x2 */ u16 unk2;
+    /* 0x4 */ u32 unk4;
+} WorldMapMisc16Tex; // Size: 0x8
+
+extern WorldMapMisc16Tex D_8009D650[];
+extern WorldMapMisc16Tex D_8009D654[];
+extern s16 D_8009D618[];
+extern u8* D_8009C184[];
+extern u16 D_8009CCB4[];
+extern u16 D_8009CD54[];
+extern MATRIX D_8009D534;
+extern MATRIX D_8009C808;
+extern s32 D_8009D7DC;
+extern void func_80099708(u8* pSrc, u8* p1, u8* p2, WorldMapMisc16Rect* pRect);
+
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc16", func_8009932C);
+/* 63.53% first attempt. Structure read off the asm and believed right: two u16 copy
+   loops from D_8009CCB4 (0x40) and D_8009CD54 (7) into scratchpad 0x1F800288/0x1F800308,
+   the 0x20-byte MATRIX copy of D_8009D534 to 0x1F800350, CompMatrix/SetRotMatrix/
+   SetTransMatrix on 0x1F800370, the 5x5 tile loop (row/fp, col/s4, flat k/s7 whose *8
+   biv is retail's s3), the four RECT corners built at 0x1F800330/0x338 from the volatile
+   0x1F800328/0x1F80032C coords, and the four func_80099708 calls selected by
+   (s16)(D_8009D650[k].unk0 | .unk2 | D_8009D654[k].unk0 | .unk2) == -1. Scratchpad
+   accesses MUST stay volatile: retail reloads 0x1F800320 right after storing it and
+   loads 0x1F800328 twice per iteration, which cse only allows through volatile.
+   What is wrong: allocation only. Retail col=s4 k=s2? no - retail has base=s2, col=s4,
+   row=s8, k=s7 and frame 0x38 (10 saves); ours puts base in s6, col in s5, spills to a
+   0x40 frame (11 slots) and reorders the k++/col++ epilogue. 6 shapes not tried yet.
+   Next: try col/k as a single flat counter, and read D_8009D650[k] into locals before
+   the coords so the OR chain does not force the base register.
+void func_8009932C(u8* p0, u8* p1, WorldMapMisc16Struct* p) {
+    s32 i;
+    s32 row;
+    s32 col;
+    s32 k;
+    s16 x;
+    s16 y;
+    s16 all;
+    u8* pImg;
+
+    for (i = 0; i < 0x40; i++) {
+        ((u16*)0x1F800288)[i] = D_8009CCB4[i];
+    }
+    for (i = 0; i < 7; i++) {
+        ((u16*)0x1F800308)[i] = D_8009CD54[i];
+    }
+    *(MATRIX*)0x1F800350 = D_8009D534;
+    CompMatrix(&D_8009C808, (MATRIX*)0x1F800350, (MATRIX*)0x1F800370);
+    SetRotMatrix((MATRIX*)0x1F800370);
+    SetTransMatrix((MATRIX*)0x1F800370);
+    *(s32*)0x1F800318 = -((p->unk0 >> 12) & 0x7FF) - 0x1000;
+    *(s32*)0x1F800320 = -((p->unk8 >> 12) & 0x7FF) - 0x1000;
+    *(volatile u16*)0x1F80032C = -*(s32*)0x1F800320;
+    D_8009D7DC = 0;
+    k = 0;
+    for (row = 0; row < 5; row++) {
+        *(volatile u16*)0x1F800328 = *(s32*)0x1F800318;
+        for (col = 0; col < 5; col++, k++) {
+            if (D_8009D618[k] == -1) {
+                continue;
+            }
+            y = *(volatile u16*)0x1F80032C;
+            x = *(volatile u16*)0x1F800328;
+            pImg = D_8009C184[D_8009D570.grid[(row + D_8009C83C) * 9 + col + D_8009C838]];
+            *(volatile u16*)0x1F800330 = *(volatile u16*)0x1F800340 = *(volatile u16*)0x1F800328 + 0x400;
+            *(volatile u16*)0x1F800334 = y;
+            *(volatile u16*)0x1F800338 = x;
+            *(volatile u16*)0x1F80033C = *(volatile u16*)0x1F800344 = *(volatile u16*)0x1F80032C - 0x400;
+            all = D_8009D650[k].unk0 | D_8009D650[k].unk2 | D_8009D654[k].unk0 | D_8009D654[k].unk2;
+            if (all != -1) {
+                func_80099708(pImg, p0, p1 + D_8009D7DC * 0x20, (WorldMapMisc16Rect*)0x1F800328);
+                func_80099708(pImg + 0x144, p0, p1 + D_8009D7DC * 0x20, (WorldMapMisc16Rect*)0x1F800330);
+                func_80099708(pImg + 0x288, p0, p1 + D_8009D7DC * 0x20, (WorldMapMisc16Rect*)0x1F800338);
+                func_80099708(pImg + 0x3CC, p0, p1 + D_8009D7DC * 0x20, (WorldMapMisc16Rect*)0x1F800340);
+            } else {
+                if (y != all) {
+                    func_80099708(pImg, p0, p1 + D_8009D7DC * 0x20, (WorldMapMisc16Rect*)0x1F800328);
+                }
+                if (D_8009D650[k].unk2 != all) {
+                    func_80099708(pImg + 0x144, p0, p1 + D_8009D7DC * 0x20, (WorldMapMisc16Rect*)0x1F800330);
+                }
+                if (D_8009D654[k].unk0 != all) {
+                    func_80099708(pImg + 0x288, p0, p1 + D_8009D7DC * 0x20, (WorldMapMisc16Rect*)0x1F800338);
+                }
+                if (D_8009D654[k].unk2 != all) {
+                    func_80099708(pImg + 0x3CC, p0, p1 + D_8009D7DC * 0x20, (WorldMapMisc16Rect*)0x1F800340);
+                }
+            }
+        }
+        *(volatile u16*)0x1F800328 += 0x800;
+        *(volatile u16*)0x1F80032C -= 0x800;
+    }
+}
+*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc16", func_80099708);
 /* 78.20%: loop shape and instruction multiset now match retail (`for (i = 8; i != -1; i--)`
    gives the addiu/-1 countdown; the if/else assigns the *already <<16-shifted* value in each
