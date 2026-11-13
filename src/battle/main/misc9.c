@@ -53,10 +53,49 @@ void func_8007D8C0(u8 **arg0, s32 arg1) {
         }
     } while (i < 3);
     if (count != 0) {
-        ((u16 *)(D_800D3420 + (arg1 & 0xFF) * 0x40))[(*arg0)[2]] = func_80089C08(buf[func_8001BD40(0, count - 1)]);
+        u8 *pBase = D_800D3420 + (arg1 & 0xFF) * 0x40;
+
+        *(u16 *)(pBase + (*arg0)[2] * 2) = func_80089C08(buf[func_8001BD40(0, count - 1)]);
     }
 } */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007D8C0);
+/* best: 75.77%. Same family as func_8007D8C0/DE78 (see D8C0's note). Structure
+   recovered and confirmed byte-for-byte against the -(13) prologue, the row
+   zero, the count loop and the call sequence; two misses remain:
+   (1) the tail store. Retail re-forms the row base with `lui a1,%hi / addiu a1 /
+   addu a0,a0,a1` (a real register via `la`) and then adds the index; every shape
+   tried (inline byte expression, (u16*)cast array index, s32 base local in both
+   operand orders, u8 *pBase local, reuse of the pRow local) makes gcc fold the
+   two register terms first and emit `sh v0,D_800D3420(a0)`, i.e. maspsx's
+   $at form. So it is gcc's combine merging (sym+reg) into the store address that
+   retail's compiler did not do, not a source detail.
+   (2) retail steals `addiu s1,s1,1` into the beqz delay slot after the
+   func_8007A628 call; gcc emits it at the loop bottom.
+   func_8007DE78 is this function with i starting at 0, the loop bound 3 and
+   func_8007A628's second argument 1, so it shares both misses.
+void func_8007DA1C(u8 **arg0, s32 arg1) {
+    u8 buf[8];
+    s32 count = 0;
+    s32 i;
+    u8 idx;
+    u16 *pRow = (u16 *)(D_800D3420 + (arg1 & 0xFF) * 0x40);
+
+    pRow[(*arg0)[2]] = 0;
+    for (i = 3; i < 0xB; i++) {
+        idx = i;
+        if (func_8007A628(idx, 0) != 0) {
+            if (pRow[(*arg0)[3]] & func_8007A280(idx, (*arg0)[1], 0, 1)) {
+                buf[count] = i;
+                count++;
+            }
+        }
+    }
+    if (count != 0) {
+        u8 *pBase = D_800D3420 + (arg1 & 0xFF) * 0x40;
+
+        *(u16 *)(pBase + (*arg0)[2] * 2) = func_80089C08(buf[func_8001BD40(0, count - 1)]);
+    }
+} */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007DA1C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007DB78);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007DCF8);
