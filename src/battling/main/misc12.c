@@ -129,6 +129,36 @@ extern BattleEntry D_8009A0D8[];
 extern void ArchiveReadFileToBuffer(s32 index, void* pBuffer, u32 arg2, u32 flags);
 extern void func_800453E8(void* pDrmode, void* pRect);
 extern void func_8004546C(void* pDrmode, void* pRect);
+extern void func_80045534(DR_MODE* pDrmode, RECT* pRect);
+
+extern u8 D_8009A0EE;
+extern u8 D_8009A0EF;
+extern u8 D_8009A0F0;
+extern u16 D_8009A0EC;
+extern u16 D_8009A1E4;
+extern u8 D_8009A1E6;
+extern u8 D_8009A1E7;
+extern u8 D_8009A1E8;
+
+extern u8 D_8009A134[];
+extern u16 D_8009A13C;
+extern s16 D_8009A13E;
+extern u16 D_8009A140;
+extern s16 D_8009A142;
+extern u8 D_8009A144;
+extern u16 D_8009A234;
+extern s16 D_8009A236;
+extern u16 D_8009A238;
+extern s16 D_8009A23A;
+extern u8 D_8009A23C;
+extern u8 D_8009A1C0[];
+extern u8 D_8009A1C3;
+extern u32 D_8009A1C4;
+extern s16 D_8009A1C8;
+extern s16 D_8009A1CA;
+extern s16 D_8009A1CC;
+extern s16 D_8009A1CE;
+extern u8 D_8009A2B8[];
 
 extern void func_800888B0(void);
 extern s32 func_800888E4(s32 slot);
@@ -329,7 +359,96 @@ void func_80089210(s32 w, s32 h) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc12", func_80089330);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc12", func_80089534);
+/* Best attempt: objdiff 79.77%. Everything from the prologue to the last tile
+   store matches, including the retail store order (0x1C3, 0x1C4, 0x1CC, 0x1C8,
+   0x1CA, 0x1CE). Two things are left and both come from one cause: gcc hoists
+   the trailing 16-byte struct copy of D_8009A1C0 -> D_8009A2B8 up to just after
+   the func_80089210 call (retail emits it last), and because that copy occupies
+   $v0/$v1 earlier, the tile stores use $s2/$s1 directly where retail copies
+   them into $v0 first (move $v0,$s2 ; sh $v0,0x1CC / move $v0,$s1 ; sh $v0,0x1CE).
+   Tried: struct copy vs four u32 copies (u32 form hoists the loads and uses
+   per-symbol stores), statement order copy-first vs copy-last, and volatile on
+   the copy destination (that makes gcc call memcpy). */
+/*
+void func_80089330(s32 w, s32 h) {
+    DISPENV* pDisp;
+
+    if (h >= 0x101) {
+        pDisp = (DISPENV*)D_8009A134;
+        SetDefDispEnv(pDisp, 0, 0, w, h);
+        SetDefDispEnv((DISPENV*)((u8*)pDisp + 0xF8), 0, 0, w, h);
+        D_8009A23C = 1;
+        D_8009A144 = 1;
+        D_8009A13C = 0;
+        D_8009A13E = 0x10;
+        D_8009A140 = 0x100;
+        D_8009A142 = 0xD4;
+        D_8009A234 = 0;
+        D_8009A236 = 0x10;
+        D_8009A238 = 0x100;
+        D_8009A23A = 0xD4;
+    } else {
+        pDisp = (DISPENV*)D_8009A134;
+        SetDefDispEnv(pDisp, 0, 0x100, w, h);
+        SetDefDispEnv((DISPENV*)((u8*)pDisp + 0xF8), 0, 0, w, h);
+        D_8009A23C = 0;
+        D_8009A144 = 0;
+        D_8009A13C = 0;
+        D_8009A13E = 0xA;
+        D_8009A140 = 0x100;
+        D_8009A142 = h;
+        D_8009A234 = 0;
+        D_8009A236 = 0xA;
+        D_8009A238 = 0x100;
+        D_8009A23A = h;
+    }
+    D_8009285C = w;
+    D_8009286C = h;
+    func_80089210((s16)w, (s16)h);
+    D_8009A1C3 = 3;
+    D_8009A1C4 = 0x60000000;
+    D_8009A1CC = w;
+    D_8009A1C8 = 0;
+    D_8009A1CA = 0;
+    D_8009A1CE = h;
+    *(BattleBlk16*)&D_8009A2B8 = *(BattleBlk16*)&D_8009A1C0;
+}
+*/
+
+void func_80089534(s32 w, s32 h) {
+    DRAWENV* pEnv;
+    u8* pBase;
+    u16 tpage;
+
+    SetGeomOffset(w / 2, h / 2);
+    SetGeomScreen(0x180);
+    func_8002DFF0(w, h);
+    if (h >= 0x101) {
+        pEnv = (DRAWENV*)D_8009A0D8;
+        SetDefDrawEnv(pEnv, 0, 0, w, h);
+        SetDefDrawEnv((DRAWENV*)((u8*)pEnv + 0xF8), 0, 0, w, h);
+        D_8009A1E7 = 0;
+        D_8009A0EF = 0;
+    } else {
+        pEnv = (DRAWENV*)D_8009A0D8;
+        SetDefDrawEnv(pEnv, 0, 0, w, h);
+        SetDefDrawEnv((DRAWENV*)((u8*)pEnv + 0xF8), 0, 0x100, w, h);
+    }
+    pBase = &D_8009A0EE;
+    D_8009A1E6 = 1;
+    *pBase = 1;
+    D_8009A1E8 = 0;
+    D_8009A0F0 = 0;
+    tpage = GetTPage(0, 2, 0x280, 0);
+    D_8009A1E4 = tpage;
+    D_8009A0EC = tpage;
+    func_80045534((DR_MODE*)(pBase + 6), (RECT*)(pBase - 0x16));
+    func_80045534((DR_MODE*)(pBase + 0xFE), (RECT*)(pBase + 0xE2));
+    func_800453E8((DR_MODE*)(pBase + 0xBA), (RECT*)(pBase - 0x16));
+    func_800453E8((DR_MODE*)(pBase + 0x1B2), (RECT*)(pBase + 0xE2));
+    func_8004546C((DR_MODE*)(pBase + 0xC6), (RECT*)(pBase - 0xE));
+    func_8004546C((DR_MODE*)(pBase + 0x1BE), (RECT*)(pBase + 0xEA));
+}
 
 void func_800896C4(s32 a0, s32 a1) {
     SetGeomOffset(a0 / 2, a1 / 2);
