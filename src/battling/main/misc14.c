@@ -1,5 +1,6 @@
 #include "common.h"
 #include "psyq/libgpu.h"
+#include "psyq/inline_c.h"
 #include "system/memory.h"
 #include "system/archive.h"
 
@@ -10,6 +11,7 @@ extern s32 D_80092810;
 extern s32 D_80092820;
 extern u32 D_800928E4;
 extern s32 D_80050100;
+extern s32 D_80050104;
 extern s32 D_80091C30;
 extern s32 D_80096D88;
 extern s32 D_80096D8C;
@@ -40,7 +42,20 @@ void func_8008A62C(void) {
     D_80092810 = 0;
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc14", func_8008A63C);
+extern void ModelRenderPacket(void *pPart, void *pPacket, u_long *pOT, s32 flags);
+
+void func_8008A63C(u8 *pActor) {
+    D_80050104 = 0;
+    if (D_80092810 != 0) {
+        if (*(u32 *)pActor & 0x10) {
+            gte_SetBackColor(pActor[0x18], pActor[0x19], pActor[0x1A]);
+        } else {
+            gte_SetBackColor(0x40, 0x40, 0x40);
+        }
+    }
+    ModelRenderPacket(*(void **)(pActor + 0x14), *(void **)(pActor + D_800928A0 * 4 + 8),
+                      (u_long *)D_800928E4, *(s32 *)(pActor + 4));
+}
 
 typedef struct {
     u8 b[4];
@@ -228,6 +243,53 @@ s16 func_8008B5FC(s32 arg0, s32 arg1, s32 arg2) {
     }
     return value;
 }
+
+/* Parked: best objdiff 72.62%, 228 bytes (original 216). The instruction
+   multiset and both clamp tests (slti 0x801 keep-if-0x800, slti 0x800 clamp)
+   are right; the miss is allocation. Retail keeps var in $s0 with an
+   out-of-place update (subu v0,s0,s2 then move s0,v0) and arg1 in $s1; gcc
+   keeps the saved arg0 in $s0 and var in $a0, so it saves arg0 across the
+   rand() call and updates var in place. Shapes tried: var as s16 (67.25%: right
+   copies, var in $a0), var as s32 (72.62%: in-place updates, var coalesced),
+   explicit (s16)arg0 cast, diff before var, var -= arg2 vs var = arg0 - arg2,
+   two s16 locals for the clamp (adds a fourth s-reg, 56.25%). */
+/*
+extern s32 rand(void);
+
+s16 func_8008B650(s32 arg0, s32 arg1, s32 arg2) {
+    s16 var;
+    s32 diff;
+
+    diff = (arg0 - arg1) & 0xFFF;
+    var = arg0;
+    if (diff != 0) {
+        if (diff == 0x800) {
+            if (rand() & 1) {
+                var -= arg2;
+                if ((((s16)var - (s16)arg1) & 0xFFF) > 0x800) {
+                    var = arg1;
+                }
+            } else {
+                var += arg2;
+                if ((((s16)var - (s16)arg1) & 0xFFF) >= 0x800) {
+                    var = arg1;
+                }
+            }
+        } else if (diff < 0x800) {
+            var += arg2;
+            if ((((s16)var - (s16)arg1) & 0xFFF) >= 0x800) {
+                var = arg1;
+            }
+        } else {
+            var -= arg2;
+            if ((((s16)var - (s16)arg1) & 0xFFF) > 0x800) {
+                var = arg1;
+            }
+        }
+    }
+    return var;
+}
+*/
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc14", func_8008B650);
 
