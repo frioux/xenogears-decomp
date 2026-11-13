@@ -182,6 +182,68 @@ void func_80071B9C(s32 arg0, s32 arg1) {
 */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80071B9C);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80071CDC);
+/* best: 84.51% (508 bytes vs 500). Every decoded fact matches and loop 1 is
+   byte-identical; only loop 2's register shape differs. Retail keeps TWO
+   running pointers advanced by 8 (a2 = index ptr = &D_8009D3F8, a1 = pData ptr =
+   &D_8009D3FC with a2 = a1-4, both incremented right after their own store),
+   nCount in $s1 and the loop index in $a0; gcc keeps ONE queue pointer (v1,
+   +8) with a `sw v0,4(v1)` displacement, nCount in $a2 and the index in $s1.
+   Retail also has no `andi 0xff` after the partyMembers lbu (gcc 2.7.2 masks it
+   because the u8 feeds a short store). Tried with no change: s32 locals for the
+   ids (breaks loop 1), pData stored before archiveIndex, nCount++ folded into
+   `pQueue[nCount++].pData`, terminator stores through the absolute symbols
+   D_8009D3F8/D_8009D3FC (grows the frame to 0x38).
+/*
+extern void* D_8009CD34[3];
+extern void* D_8009BDF8[3];
+extern s32 D_8009C170;
+
+void func_80071CDC(void) {
+    StreamDataQueueEntry* pQueue;
+    s32 i;
+    s32 nCount;
+    u8 nCharacterId;
+    u8 nGearId;
+
+    for (i = 0; i < 3; i++) {
+        nCharacterId = g_GameState.partyMembers[i];
+        if (nCharacterId != CHARACTER_ID_NONE) {
+            D_8009CD34[i] = HeapAlloc(ArchiveDecodeAlignedSize(nCharacterId + 2), 0);
+            nGearId = g_GameState.characters[nCharacterId].gearId;
+            if (nGearId != GEAR_ID_NONE) {
+                D_8009BDF8[i] = HeapAlloc(ArchiveDecodeAlignedSize(nGearId + 0x13), 0);
+            } else {
+                D_8009BDF8[i] = 0;
+            }
+        } else {
+            D_8009BDF8[i] = 0;
+            D_8009CD34[i] = 0;
+        }
+    }
+    pQueue = (StreamDataQueueEntry*)&D_8009D3F8;
+    D_8009C170 = 0;
+    nCount = 0;
+    for (i = 0; i < 3; i++) {
+        nCharacterId = g_GameState.partyMembers[i];
+        if (nCharacterId != CHARACTER_ID_NONE) {
+            pQueue[nCount].archiveIndex = nCharacterId + 2;
+            pQueue[nCount].pData = D_8009CD34[i];
+            D_8009C170++;
+            nCount++;
+            nGearId = g_GameState.characters[nCharacterId].gearId;
+            if (nGearId != GEAR_ID_NONE) {
+                pQueue[nCount].archiveIndex = nGearId + 0x13;
+                pQueue[nCount].pData = D_8009BDF8[i];
+                nCount++;
+            }
+        }
+    }
+    pQueue[nCount].archiveIndex = 0;
+    pQueue[nCount].pData = 0;
+    func_80029AFC(pQueue, 0, 0);
+}
+*/
+
 
 /* best: 98.00%. Only the D_8009D3F8 store differs: the original reuses the
    $a0 that already holds the address for the func_80029AFC call and emits a
