@@ -3,6 +3,7 @@
 #include "psyq/libapi.h"
 #include "psyq/libgte.h"
 #include "psyq/libgpu.h"
+#include "system/controller.h"
 #include "system/menu.h"
 
 extern u16 D_801E96A8[]; // Bit masks, LSB first
@@ -29,6 +30,12 @@ extern s32* D_8005917C; // -1 when no debugger is attached
 extern int D_80059488;
 extern u8 D_801E9784;
 extern s32 ArchiveGetDiscNumber(void);
+extern int ControllerGetType(int controllerIndex);
+extern int ControllerPopState(void);
+extern void ControllerResetState(void);
+extern void SoundEnableAllSpuChannels(void);
+extern void SoundMuteAllSpuChannels(void);
+extern int func_80036410(void);
 void func_801D1E80(void);
 void func_801D22F4(s32 arg0);
 void func_801D2484(void);
@@ -105,17 +112,93 @@ void func_801C7BF4(void) {
     func_801C8BEC();
     func_801C8EE8();
 }
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc2", func_801C7D78);
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc2", func_801C7F34);
-/* Best: 83.02% (388 bytes, same size). The divisors below are decoded from the
-   multiply-back shifts in the assembly and are certainly right (21600000,
-   2160000, 216000, 36000, 3600, 600, 120 in a running-remainder chain, stored to
-   g_Menu->unk2EC[0..6] as 32-bit words). What is left is allocation plus the
-   scheduler: retail keeps all seven quotients in t0/a3/t2/t1/a2/a1/v0 and
-   batches the six stores after the last `multu`, and each `mfhi` lands in the
-   same register its `srl` reads, where gcc gives mfhi its own temp
-   (`mfhi t3; srl t2,t3,0x16`) and stores as it goes. Tried: plain
-   store-after-each-division form with a running `value %= k` (this one).
+void func_801C7D78(void) {
+    u8 wasControllerUnplugged;
+    u8 isLooping;
+    s32 savedVolume;
+    u8 input;
+
+    isLooping = 1;
+    wasControllerUnplugged = 0;
+    while (isLooping) {
+        // Is the main controller not plugged in?
+        if (ControllerGetType(0) == CONTROLLER_TYPE_NONE) {
+            if (wasControllerUnplugged == 0) {
+                wasControllerUnplugged++;
+                SoundMuteAllSpuChannels();
+                savedVolume = D_80059488;
+            }
+            continue;
+        }
+
+        isLooping--;
+        if (wasControllerUnplugged) {
+            SoundEnableAllSpuChannels();
+            D_80059488 = savedVolume;
+        }
+    }
+
+    input = MENU_INPUT_IDLE;
+    if (func_80036410()) {
+        ControllerResetState();
+    } else {
+        while (ControllerPopState()) {
+            if (g_C1ButtonStatePressedOnce & CTRL_BTN_RIGHT) {
+                input = 0;
+                func_801C8574(1);
+                break;
+            }
+            if (g_C1ButtonStatePressedOnce & CTRL_BTN_DOWN) {
+                input = 1;
+                func_801C8574(1);
+                break;
+            }
+            if (g_C1ButtonStatePressedOnce & CTRL_BTN_LEFT) {
+                input = 2;
+                func_801C8574(1);
+                break;
+            }
+            if (g_C1ButtonStatePressedOnce & CTRL_BTN_UP) {
+                input = 3;
+                func_801C8574(1);
+                break;
+            }
+            if (g_C1ButtonStateReleased & CTRL_BTN_CIRCLE) {
+                input = 4;
+                func_801C8574(2);
+                break;
+            }
+            if (g_C1ButtonStateReleased & CTRL_BTN_CROSS) {
+                input = 5;
+                func_801C8574(3);
+                break;
+            }
+            if (g_C1ButtonStateReleased & CTRL_BTN_SQUARE) {
+                input = 6;
+                break;
+            }
+            if (g_C1ButtonStateReleased & CTRL_BTN_TRIANGLE) {
+                input = 7;
+                break;
+            }
+            if (g_C1ButtonStatePressedOnce & CTRL_BTN_L1) {
+                input = 10;
+                func_801C8574(1);
+                break;
+            }
+            if (g_C1ButtonStatePressedOnce & CTRL_BTN_R1) {
+                input = 9;
+                func_801C8574(1);
+                break;
+            }
+            if (g_C1ButtonStateReleased & CTRL_BTN_SELECT) {
+                input = 12;
+                break;
+            }
+        }
+    }
+    g_Menu->input = input;
+}
 void func_801C7F34(u32 value) {
     ((u32*)g_Menu->unk2EC)[0] = value / 21600000;
     value %= 21600000;
@@ -129,33 +212,17 @@ void func_801C7F34(u32 value) {
     value %= 3600;
     ((u32*)g_Menu->unk2EC)[5] = value / 600;
     value %= 600;
-    ((u32*)g_Menu->unk2EC)[6] = value / 120;
+    ((u32*)g_Menu->unk2EC)[6] = value / 60;
 }
-*/
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc2", func_801C80B8);
-/* Best: 82.91%. Instruction multiset and structure are right; only two things
-   differ, and they are the same cause: the original has `srl` (the second half
-   of `divisor /= 10`) before the `sb`, with the `sb` in the bnez delay slot,
-   and allocates digit->a1, i->a2, divisor->a3, magic->t0 where gcc gives
-   digit->v1, i->a1, divisor->a2, magic->a3. The original matches plain
-   global_alloc priority order (digit 1 ref/2 insns, i and divisor 1, magic 0),
-   so it looks like `digit` is a global allocno there and a local one here.
-   Tried since: digit/u32 vs s32, u_char digit (80.35), `digit = 0` init (the
-   dead init is removed, no change), declaration orders, `store first` and
-   `store before divisor /= 10` (80.35), `number = number % divisor`, separate
-   `value` copy of the parameter, u_char* pDigits (58.00), register on each
-   local. None moves the allocation.
 void func_801C80B8(u32 number) {
     s32 i;
-    u32 digit;
     u32 divisor;
 
     divisor = 100000000;
     for (i = 0; i < 9; i++) {
-        digit = number / divisor;
+        g_Menu->digits[i] = number / divisor;
         number %= divisor;
         divisor /= 10;
-        g_Menu->digits[i] = digit;
     }
 
     for (i = 1; i < 9; i++) {
@@ -168,7 +235,6 @@ void func_801C80B8(u32 number) {
         g_Menu->digits[i - 1] = 0xFF;
     }
 }
-*/
 void func_801C8164(POLY_G4* pPoly, u_char r, u_char g, u_char b) {
     SetPolyG4(pPoly);
     pPoly->r0 = r;
@@ -185,57 +251,50 @@ void func_801C8164(POLY_G4* pPoly, u_char r, u_char g, u_char b) {
     pPoly->b3 = 0;
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc2", func_801C81E0);
-/* Best: 86.86% (324 bytes, same size). Two instructions sit one slot apart:
-   retail loads the 5th parameter (`lbu t1,0x10(sp)`) after the four word
-   stores and fills the `beqz` delay slot with `li v0,1`, gcc hoists the lbu to
-   the top of the block and puts `sw a3,0xC(v1)` in the delay slot instead.
-   The base pointer has to be a local for the first five stores and a fresh
-   `g_Menu + index*0x24` re-deref for everything after it (retail recomputes the
-   base once per basic block, five times in all). Tried: re-deref everywhere
-   (80.41), pointer local everywhere (83.26), natural field order 0/4/8/C
-   (86.72), s32* vs u8* base (same), pointer local through the second if
-   (83.26). Struct: g_Menu + index*0x24, size 0x24, first member of SystemMenu
-   (indexed through the opaque unk0[108], 3 entries).
+/* Best: 86.74% (324 bytes, same size) under XenoMenu260. Structure and
+   instruction multiset match; two residuals: (1) retail loads the 5th
+   parameter (`lbu t1,0x10(sp)`) after the four word stores and keeps its value
+   in the `beqz` delay slot (`li v0,1`), gcc hoists the lbu to the top of the
+   block and fills the slot with `sw a3,0xC(v1)`; (2) in every block after the
+   first, retail puts the `index*0x24` address in v1 and the `li 1`/`li 0x100`
+   constant in v0, gcc swaps them. Pointer local for the first five stores plus
+   a fresh `g_Menu->unk0[...]` re-deref after it is the closest shape (plain
+   re-deref everywhere is 80.41). Tried under 2.7.2 per the old note: field
+   order 0/4/8/C, s32* base, pointer local throughout. Also 95.35-class dead
+   zone, do not burn budget on it.
 void func_801C81E0(s32 arg0, s32 arg1, s32 arg2, s32 arg3, u8 arg4, u8 index) {
-    s32* pEntry;
+    u8* pEntry;
 
-    pEntry = (s32*)((u8*)g_Menu + index * 0x24);
-    pEntry[0] = arg0;
-    pEntry[2] = arg1;
-    pEntry[1] = arg2;
-    pEntry[3] = arg3;
+    pEntry = g_Menu->unk0 + index * 0x24;
+    ((s32*)pEntry)[0] = arg0;
+    ((s32*)pEntry)[2] = arg1;
+    ((s32*)pEntry)[1] = arg2;
+    ((s32*)pEntry)[3] = arg3;
     if (arg2 < arg0) {
         arg2 = arg0 - arg2;
-        *(u8*)((u8*)pEntry + 0x20) = 1;
+        pEntry[0x20] = 1;
     } else {
         arg2 = arg2 - arg0;
-        *(u8*)((u8*)pEntry + 0x20) = 0;
+        pEntry[0x20] = 0;
     }
     if (arg3 < arg1) {
         arg1 = arg1 - arg3;
-        *(u8*)((u8*)pEntry + 0x21) = 1;
+        g_Menu->unk0[index * 0x24 + 0x21] = 1;
     } else {
         arg1 = arg3 - arg1;
-        *(u8*)((u8*)pEntry + 0x21) = 0;
-    }
-    if (arg3 < arg1) {
-        arg1 = arg1 - arg3;
-        ((u8*)g_Menu + index * 0x24)[0x21] = 1;
-    } else {
-        arg1 = arg3 - arg1;
-        ((u8*)g_Menu + index * 0x24)[0x21] = 0;
+        g_Menu->unk0[index * 0x24 + 0x21] = 0;
     }
     if (arg2 < arg1) {
-        ((s32*)((u8*)g_Menu + index * 0x24))[5] = 0x100;
-        ((s32*)((u8*)g_Menu + index * 0x24))[4] = (arg2 << 8) / arg1;
+        ((s32*)(g_Menu->unk0 + index * 0x24))[4] = (arg2 << 8) / arg1;
+        ((s32*)(g_Menu->unk0 + index * 0x24))[5] = 0x100;
     } else {
-        ((s32*)((u8*)g_Menu + index * 0x24))[4] = 0x100;
-        ((s32*)((u8*)g_Menu + index * 0x24))[5] = (arg1 << 8) / arg2;
+        ((s32*)(g_Menu->unk0 + index * 0x24))[4] = 0x100;
+        ((s32*)(g_Menu->unk0 + index * 0x24))[5] = (arg1 << 8) / arg2;
     }
-    ((u8*)g_Menu + index * 0x24)[0x22] = arg4;
-    ((s32*)((u8*)g_Menu + index * 0x24))[6] = 0;
-    ((s32*)((u8*)g_Menu + index * 0x24))[7] = 0;
-    ((u8*)g_Menu + index * 0x24)[0x23] = 0;
+    g_Menu->unk0[index * 0x24 + 0x22] = arg4;
+    ((s32*)(g_Menu->unk0 + index * 0x24))[6] = 0;
+    ((s32*)(g_Menu->unk0 + index * 0x24))[7] = 0;
+    g_Menu->unk0[index * 0x24 + 0x23] = 0;
 }
 */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc2", func_801C8324);
