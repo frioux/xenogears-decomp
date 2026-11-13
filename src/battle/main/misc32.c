@@ -120,6 +120,7 @@ void func_800BD974(SVECTOR *pVec, s32 *pOut) {
     pOut[1] = (sxy[1] - ofy) * 2;
     pOut[2] = ReadGeomScreen();
 }
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BDA1C);
 /* best 89.20%: three families of difference left.
    1. gcc 2.7.2 folds the geom-state store into one address (`lui; addiu %lo+0x1C`)
       or, through a pointer local, into `$at`; retail keeps the plain base symbol
@@ -130,7 +131,6 @@ void func_800BD974(SVECTOR *pVec, s32 *pOut) {
    3. retail's `i = 0` lands after the ShadeTriangle-free prologue block, gcc
       hoists it to the ReadGeomScreen delay slot.
    Everything else (matrix chain, the 0x18-stride loop, frame) is exact.
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BDA1C);
 typedef struct {
     // 0x00
     u8 unk0[0x1C];
@@ -184,6 +184,7 @@ void func_800BDB08(u8 *pTask) {
     }
 }
 
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BDB74);
 /* best 90.50%: only the callback argument's register is left. Retail copies the
    task into $s1 (`move $s1,$s0`) and reaches the callback through it - `lw $v0,
    0xC($s1)`, `move $a0,$s1` - while gcc uses $s0 for both. gcc 2.7.2 refuses to
@@ -195,7 +196,6 @@ void func_800BDB08(u8 *pTask) {
    the byte. With them the instruction multiset is identical.
 extern u8 func_80021AD8(u8 arg0, s16 arg1);
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BDB74);
 void func_800BDB74(u8 *pTask) {
     void (*pCallback)(u8 *);
 
@@ -235,6 +235,7 @@ void func_800BDC14(Misc32Task *pTask) {
     }
 }
 */
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BDC78);
 /* best 87.50%: the whole body matches; only the callback address is ordered
    differently. Retail emits `lui a1,%hi; move a0,s0; jal; addiu a1,%lo`, i.e.
    the %hi/%lo pair is split around the move - the cdk two-insn `la`. gcc 2.7.2
@@ -242,7 +243,6 @@ void func_800BDC14(Misc32Task *pTask) {
    `move a0,s0` into the slot instead. gcc-2.7.2-cdk scores 93.75, still not
    100 (the addiu stays next to the lui there too). Tried: the address in a
    function-pointer local assigned last.
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BDC78);
 extern void TimerWorkListSetTaskCallback(u8 *pTask, void (*pCallback)(u8 *));
 extern void func_800BDC14(u8 *pTask);
 
