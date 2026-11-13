@@ -2413,3 +2413,73 @@ is now what the two macros expand to. Nothing used them yet, so the fix is byte-
   into arbitrary GPRs (`misc15`'s `8C4B0`/`8C620`), and `misc15`'s `func_8008BC04` is a
   full register dump - `convertible.py` says OK for all of them, so it does not catch
   this class either.
+| 32 | `slus_006.64/psyq/libgte`, `battle/{misc27,misc27_b,misc30,misc31,misc32,misc33,misc9}`, `battling/{misc12,misc14,misc15,misc16}`, `field/main/misc12` | +16 | 1389 | psyq/libgte 4 (`PushMatrix PopMatrix SetMulMatrix func_80048DD8`), battle/misc33 3 (`BEF24 BEF8C BF1EC`), battle/misc27 2 (`B572C B4F88`), misc27_b 2 (`5B3C 5C18`), misc30 1 (`B9B54`), misc31 1 (`BCBB4`), misc32 1 (`BD974`), battling/misc12 1 (`89534`), misc15 1 (`8BE4C`), misc16 1 (`8DCB8`). First round that broke the overlay - see below |
+| - (preset) | `battle/main/misc30` -> `XenoBattleTailCdk0` (cdk + `--dont-expand-li` + `-G0`) | +3 | 1386 | a round-32 worker screened it: all five of its C functions 100.0 under cdk+-G0. Three of its parked bodies (`B9258 B9B30 B9C00`) are 100.00 under that preset and were un-parked |
+
+### The worst failure mode found so far: a conversion can shorten an ALREADY-MATCHED CALLER
+
+`battle/misc27_b`: a worker converted `func_800B59BC` (100.00%, byte-identical to the
+stub), and `make check` then failed `battle.bin` by **8 bytes**, with 44290 differing
+bytes over 334 symbols - the classic shifted-overlay signature. The culprit was not the
+converted function:
+
+    retail: func_800B5AC4 = 120 bytes      ours after the conversion: 112 bytes
+
+`func_800B5AC4` is an *already-matched* C function that calls `func_800B59BC`. With only
+the old-style `extern void func_800B59BC();` in scope, gcc emits a callee-saved
+save/restore pair that retail has; with the definition *visible* it drops the pair
+(8 bytes exactly). Fix: keep the stub **and** the `extern void ...()` declaration.
+`objdiff` reports the caller at 100.00% either way - only the overlay checksum can see
+this class, and it is the fourth distinct form of "a conversion moved bytes it does not own".
+
+Cheap detector for the whole repo (sizes, not objdiff):
+
+```sh
+python3 - <<'PY'
+import re,subprocess,glob
+syms={}
+for f in glob.glob("config/symbol_addrs.*.txt"):
+    for line in open(f):
+        m=re.match(r'(\w+)\s*=\s*0x([0-9A-Fa-f]+);',line)
+        if m: syms.setdefault(f.split('.')[-2],{})[m.group(1)]=int(m.group(2),16)
+for binname,tab in syms.items():
+    addr=sorted((a,n) for n,a in tab.items() if n.startswith('func_'))
+    size={addr[i][1]:addr[i+1][0]-addr[i][0] for i in range(len(addr)-1)}
+    for o in glob.glob("build/src/%s/**/*.c.o"%binname,recursive=True):
+        out=subprocess.run(["nm","-S",o],capture_output=True,text=True).stdout
+        for line in out.splitlines():
+            p=line.split()
+            if len(p)==4 and p[2]=='T' and p[3] in size and int(p[1],16)!=size[p[3]]:
+                print(binname,o.split('/')[-1],p[3],"retail",size[p[3]],"ours",int(p[1],16))
+PY
+```
+
+Run it after any round that converted more than a handful of functions; it names the
+function whose size is wrong instead of making you bisect a 334-symbol diff.
+
+### A third unconvertible class: the `$sp` stack switch
+
+Round 32 found the same shape in six units at once: retail allocates a block with
+`HeapAlloc`, stores `$sp` into it, and moves `$sp` onto the block around one call
+(`sw $sp` / `$sp = block-4` / `lw $sp`). No C construct and no builtin emits it -
+`__builtin_alloca` gives an `$fp`-relative `addu`. Confirmed instances: `battle/misc27_b`
+(`func_800B626C`, `func_800B61F8`, `func_800B62C8`), `battle/misc31` (`BB620`, `BB6E0`),
+`battle/misc33` (`BEE2C`). Treat a stub with `sw $sp` / `lw $sp` as BLOCKED and say so;
+the one authorised exception in the repo is `field/main/misc2.c`.
+
+### psyq/libgte is now the cheapest psyq unit, and maspsx gotchas that cost a worker an hour
+
+Four matches in one worker (`PushMatrix`, `PopMatrix`, `SetMulMatrix`, `func_80048DD8`)
+after the round-31 precedent. Two macros' worth of knowledge, now in the file's header note:
+
+- maspsx **aborts** (`invalid literal for int()`) on an `0x..` displacement inside inline
+  asm - write displacements in decimal. Splat's own lines survive only because their
+  `/* hex */` prefix keeps maspsx out of that parser.
+- maspsx appends a nop after every `jal`/`j` unless it has seen `.set noreorder`; a block
+  containing a call needs `.set\tnoreorder` … `.set\treorder`.
+- GAS has no `sqr`/`gpf`/`mvmva` mnemonics; spell those `.word` (the `gte_*_b` values).
+- gcc hoists the return-value `move` to the entry block unless the asm block declares the
+  return register as an output: `register T *pRet __asm__("$2")` plus `addu $2,$4,$0`
+  inside the block.
+- `VectorNormalS` (5 insns) branches into the *middle* of `VectorNormalSS`; no C
+  definition can, so it stays a stub.

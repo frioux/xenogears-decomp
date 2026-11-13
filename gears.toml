@@ -151,7 +151,6 @@ paths = [
     "battle/main/misc26.",
     "battle/main/misc27_psx.",
     "battle/main/misc29.",
-    "battle/main/misc30.",
     "battle/main/misc31.",
     "battle/main/misc32.",
     "battle/main/misc35."
@@ -334,7 +333,7 @@ build_variables = {
     gp_flag = "-G0",
     maspsx_flags = "--dont-expand-li --use-comm-section --run-assembler"
 }
-paths = [ "battle/main/misc28.", "battle/main/misc33.", "battle/main/misc34." ]
+paths = [ "battle/main/misc28.", "battle/main/misc30.", "battle/main/misc33.", "battle/main/misc34." ]
 
 [[build_preset]]
 name = "XenoFieldNoGp"
