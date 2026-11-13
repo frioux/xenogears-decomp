@@ -214,19 +214,19 @@ void func_8007FB0C(Misc7Struct* p) {
 void func_8007FBEC(void) {
     s32 tmp[2]; // reproduces the original's unused 8-byte stack slot
     Misc7Struct* pPad;
-    s32 s0;
+    s32 flag;
 
     func_8007E894(0xA0, 0x8C);
     pPad = (Misc7Struct*)D_800916D8;
-    s0 = !(D_80092710 & 1);
-    if (s0 && D_800916EA == 0) {
+    flag = !(D_80092710 & 1);
+    if (flag && D_800916EA == 0) {
         D_8009272C = 1;
     } else {
         D_8009272C = 0;
     }
     func_8007E894(0x50, 0x8C);
     if (ControllerGetType(0) == 4 && D_80099D9D[0] == 0) {
-        if (s0) {
+        if (flag) {
             func_8007F948(pPad, 1);
         }
         func_8007EC54((D_80099D9B[0] & 1) ? D_8006FF80 : D_8006FF90);
@@ -235,19 +235,19 @@ void func_8007FBEC(void) {
         D_800916DC[0x14] |= 4;
     }
     func_8007EE08(0);
-    s0 = !(D_80092710 & 2);
-    if (s0 && D_80092754 == 0) {
-        s0 = 0;
+    flag = !(D_80092710 & 2);
+    if (flag && D_80092754 == 0) {
+        flag = 0;
     }
     pPad = (Misc7Struct*)D_80091714;
-    if (s0 && D_80091726 == 0) {
+    if (flag && D_80091726 == 0) {
         D_80092730 = 1;
     } else {
         D_80092730 = 0;
     }
     func_8007E894(0xF0, 0x8C);
     if (ControllerGetType(1) == 4 && D_80099D9E[0] == 0) {
-        if (s0) {
+        if (flag) {
             func_8007F948(pPad, 1);
         }
         func_8007EC54((D_80099D9C[0] & 1) ? D_8006FF80 : D_8006FF90);
