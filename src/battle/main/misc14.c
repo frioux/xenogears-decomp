@@ -5,6 +5,9 @@
 extern u16 D_800C3468[];
 extern u16 D_800C3448[];
 extern u8 D_800C3E4C;
+extern u8 D_800CCDC4[];
+extern u8 D_800CCDC6[];
+extern u8 D_800C3CF9[];
 extern s32 D_800C3A9C;
 extern u8 D_800C3A94;
 extern s32 D_800C3A8C;
@@ -229,6 +232,44 @@ void func_800897CC(void) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc14", func_800898F0);
+// Best attempt: objdiff 91.38% (528 bytes, the original size). Only two classes of diff,
+// both shared with the rest of the func_80076A10 family in this unit: every call site puts
+// the D_800D2DB4 base in $a1 and the offset chain in $v0 where the original has base $v1 /
+// chain $a1 (the final addu is the mirror image), and the second loop's "pitch = 0x48 << 16"
+// plus its 0x80000 increment are scheduled a few instructions differently. Pitch values are
+// 0x20<<16 / 0x48<<16 with a +0x80000 step, the step is OUTSIDE the if, and the table
+// lookup index is arg0 * 0x170 into a u8 table at D_800CCDC4 / D_800CCDC6.
+/*
+void func_800898F0(u8 arg0) {
+    s32 i = 0;
+    s32 pitch = 0x20 << 16;
+    s32 off;
+
+    D_800D2DB4[0x5D7C] = 0;
+    func_8008AAA0(*(u16*)(D_800CCDC4 + arg0 * 0x170));
+    for (i = 0; i < 4; i++) {
+        if (D_800C3CF9[i] != 0xFF) {
+            off = D_800D2DB4[0x5D7C] * 0x50 + 0x5280;
+            D_800D2DB4[0x5D7C] += func_80076A10(D_800C3CF9[i] + 0x92, (s32)(off + (s32)D_800D2DB4), pitch >> 16, 0xCC);
+        }
+        pitch += 0x80000;
+    }
+    D_800D2DB4[0x5D8B] = D_800CCB34;
+    D_800D2DB4[0x5D7D] = 0;
+    func_8008AAA0(*(u16*)(D_800CCDC6 + arg0 * 0x170));
+    pitch = 0x48 << 16;
+    for (i = 0; i < 4; i++) {
+        if (D_800C3CF9[i] != 0xFF) {
+            off = D_800D2DB4[0x5D7D] * 0x50 + 0x53C0;
+            D_800D2DB4[0x5D7D] += func_80076A10(D_800C3CF9[i] + 0x92, (s32)(off + (s32)D_800D2DB4), pitch >> 16, 0xCC);
+        }
+        pitch += 0x80000;
+    }
+    off = D_800D2DB4[0x5D7D] * 0x50 + 0x53C0;
+    D_800D2DB4[0x5D7D] += func_80076A10(0x9C, (s32)(off + (s32)D_800D2DB4), 0x41, 0xCC);
+    D_800D2DB4[0x5D8C] = D_800CCB34;
+}
+*/
 void func_80089AF8(void) {
     func_8008860C();
     func_80089038();
