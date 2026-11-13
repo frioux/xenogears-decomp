@@ -36,11 +36,16 @@ extern char D_80019274[]; // "func=(%08x)(%08x,%08x)\n"
 extern char D_8001928C[]; // "id  =%08x\n"
 extern char D_80019298[]; // "mode=%08x\n"
 extern char D_800192A4[]; // "timaddr=%08x\n"
+extern char D_800192B4[]; // "analizing TMD...\n"
+extern char D_800192C8[]; // "\tid=%08X, flags=%d, nobj=%d, objid=%d\n"
+extern char D_800192F0[]; // "\tvert=%08X, nvert=%d\n"
+extern char D_80019308[]; // "\tnorm=%08X, nnorm=%d\n"
+extern char D_80019320[]; // "\tprim=%08X, nprim=%d\n"
 
 extern int Vsync(int mode);
 
 extern int func_80047518(u_long *p, TIM_IMAGE *tim);
-extern u_long func_80047638(void *p, int n, u_long *a, u_long *b, u_long *c);
+extern u_long func_80047638(u_long *tmd, int obj_no, u_long *pPrim, u_long *pVert, u_long *pNorm);
 
 extern int SetIntrMask(int newMask);
 
@@ -243,33 +248,68 @@ int func_80047518(u_long *p, TIM_IMAGE *tim) {
     return clutSize + size;
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_c", func_80047638);
+/* Object table entry of a TMD model (struct TMD_STRUCT in libgs.h). */
+typedef struct {
+    /* 0x0 */ u_long vertop;
+    /* 0x4 */ long vern;
+    /* 0x8 */ u_long nortop;
+    /* 0xC */ long norn;
+    /* 0x10 */ u_long primtop;
+    /* 0x14 */ long primn;
+    /* 0x18 */ u_long scale;
+} TmdObj; // Size: 0x1C
+
+u_long func_80047638(u_long *tmd, int obj_no, u_long *pPrim, u_long *pVert, u_long *pNorm) {
+    TmdObj *pObj = (TmdObj *)((u_char *)tmd + 0xC);
+
+    if (GetGraphDebug() == 2)
+        printf(D_800192B4);
+    if (GetGraphDebug() == 2)
+        printf(D_800192C8, tmd[0], tmd[1], tmd[2], obj_no);
+    if (GetGraphDebug() == 2)
+        printf(D_800192F0, pObj[obj_no].vertop, pObj[obj_no].vern);
+    if (GetGraphDebug() == 2)
+        printf(D_80019308, pObj[obj_no].nortop, pObj[obj_no].norn);
+    if (GetGraphDebug() == 2)
+        printf(D_80019320, pObj[obj_no].primtop, pObj[obj_no].primn);
+
+    *pVert = (u_long)((u_char *)pObj + pObj[obj_no].vertop);
+    *pNorm = (u_long)((u_char *)pObj + pObj[obj_no].nortop);
+    *pPrim = (u_long)((u_char *)pObj + pObj[obj_no].primtop);
+
+    return pObj[obj_no].primn;
+}
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_c", func_800477D0);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_c", SetFogNearFar);
 
-/* best 91.54%: gcc sinks the b division after a's shift and keeps b in s0
-void SetFogNearFar(int x0, int x1, int h) {
-    int d;
-    long a;
-    long b;
+/* best 98.66% (268 bytes, every insn and both delay slots identical): only the
+   registers differ, retail keeps d in a3, n in v0 then a0, and f in v1 then s0,
+   gcc picks d in v1, n in a0 throughout and f in s0. Splitting the n<<8 shift
+   and the f<<12 shift into their own statements is what fixed the reordering.
+void SetFogNearFar(long a, long b, long h) {
+    long d;
+    long n;
+    long f;
 
-    d = x1 - x0;
+    d = b - a;
     if (d < 100)
         return;
 
-    a = (-x0 * x1) / d;
-    b = (x1 << 12) / d;
-    a = (a << 8) / h;
+    n = (-a * b) / d;
+    f = (b << 12) / d;
+    n <<= 8;
+    n = n / h;
+    f <<= 12;
 
-    if (a < -0x8000)
-        a = -0x8000;
-    if (a > 0x7FFF)
-        a = 0x7FFF;
+    if (n < -0x8000)
+        n = -0x8000;
+    if (n > 0x7FFF)
+        n = 0x7FFF;
 
-    SetDQA(a);
-    SetDQB(b << 12);
+    SetDQA(n);
+    SetDQB(f);
 } */
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_c", D_80048BBC);
