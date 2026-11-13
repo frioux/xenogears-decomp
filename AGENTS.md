@@ -179,7 +179,7 @@ differ:
 make check
 ```
 
-All six outputs must print `OK`. This is the only definition of "matched". If a
+All eleven outputs must print `OK`. This is the only definition of "matched". If a
 function diffs clean but `make check` fails, the usual cause is data: a global you
 defined moved or resized, a `.rodata` string or jump table moved, or an unnamed
 symbol was still referenced from asm elsewhere.

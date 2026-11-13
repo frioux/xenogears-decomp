@@ -21,7 +21,7 @@ If `disc/SLUS_006.64` is missing, the disc archives are on the Desktop
 1. Replace one `INCLUDE_ASM` with C.
 2. `tools/scripts/diff_func.sh <unit> <Func>` until it prints `MATCH`.
 3. Add names to `config/symbol_addrs.<bin>.txt` and declarations to `include/`.
-4. After a batch: `make check` (all six `OK`), then commit. `make check` leaves
+4. After a batch: `make check` (all eleven `OK`), then commit. `make check` leaves
    the tree in matching mode, so run `make objdiff-config` again before diffing.
 
 ## Orchestration
