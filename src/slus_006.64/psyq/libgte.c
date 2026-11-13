@@ -17,18 +17,25 @@
 // `Handwritten function` and flags every GTE op inside it `handwritten
 // instruction`. What is left does not convert, for one of these reasons
 // (tools/scripts/convertible.py reports the first two):
-//   - nops after `.size`, which C cannot emit and whose removal shifts the rest
-//     of the unit's .text: MatrixNormal, TransMatrix, ApplyMatrixSV,
-//     LoadAverageCol, InitGeom, SquareRoot0, MulMatrix0, MulMatrix, MulMatrix2,
-//     ScaleMatrixL, ScaleMatrix, ApplyRotMatrixLV
-//   - dead code: InvSquareRoot's `andi $t0,$v0,1` (never read) and
-//     ApplyMatrixLV's `sra $t3,$t0,15` at 0x800494D0, which is jumped over
+//   - nops after `.size`, which C cannot emit: the padding sits after gcc's own
+//     `jr $ra`, so it can be reproduced neither by real C nor by a trailing asm
+//     block (gcc appends its epilogue after every asm): MatrixNormal,
+//     TransMatrix, ApplyMatrixSV, LoadAverageCol, InitGeom, SquareRoot0,
+//     MulMatrix0, MulMatrix, MulMatrix2, ScaleMatrixL, ScaleMatrix,
+//     ApplyRotMatrixLV
+//   - dead code: InvSquareRoot's `andi $t0,$v0,1` (never read), and handwritten
+//     `nop`s in the `beq`/`bltz` delay slots where reorder mode puts the next
+//     instruction
 //   - a private calling convention, operands and results in $t0-$t2 with $ra
 //     parked in $a3: MatrixNormal, and VectorNormalS, which branches into the
 //     middle of VectorNormalSS (the label lives in the C) and so cannot carry an
 //     epilogue of its own.
-//   - GTE registers packed by hand around three MVMVAs (lhu + lw + lui 0xFFFF0000
-//     then and/or): CompMatrix
+//
+// GTE registers packed by hand around three MVMVAs (lhu + lw + lui 0xFFFF0000
+// then and/or) are not a barrier: CompMatrix is the same shape as SetMulMatrix
+// and transcribes. When the original's return value move sits in the `jr` delay
+// slot, pin the asm output to the argument register (`__asm__("$6")`) so gcc
+// emits the copy itself; pinning it to $2 lets gcc place it at entry instead.
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", InitGeom);
 
@@ -276,9 +283,209 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", LoadAverageCol);
 // why each of these cannot be converted: see the note at the top of the file.
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", MulMatrix0);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", CompMatrix);
+MATRIX *CompMatrix(MATRIX *m0, MATRIX *m1, MATRIX *m2) {
+    register MATRIX *pRet __asm__("$2");
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", ApplyMatrixLV);
+    __asm__ volatile (".set\tnoreorder\n\t"
+                      "lw\t$8, 0($4)\n\t"
+                      "lw\t$9, 4($4)\n\t"
+                      "lw\t$10, 8($4)\n\t"
+                      "lw\t$11, 12($4)\n\t"
+                      "lw\t$12, 16($4)\n\t"
+                      "ctc2\t$8, $0\n\t"
+                      "ctc2\t$9, $1\n\t"
+                      "ctc2\t$10, $2\n\t"
+                      "ctc2\t$11, $3\n\t"
+                      "ctc2\t$12, $4\n\t"
+                      "lhu\t$8, 0($5)\n\t"
+                      "lw\t$9, 4($5)\n\t"
+                      "lw\t$10, 12($5)\n\t"
+                      "lui\t$at, 65535\n\t"
+                      "and\t$9, $9, $at\n\t"
+                      "or\t$8, $8, $9\n\t"
+                      "mtc2\t$8, $0\n\t"
+                      "mtc2\t$10, $1\n\t"
+                      "nop\n\t"
+                      ".word\t0x4a486012\n\t"
+                      "lhu\t$8, 2($5)\n\t"
+                      "lw\t$9, 8($5)\n\t"
+                      "lh\t$10, 14($5)\n\t"
+                      "sll\t$9, $9, 16\n\t"
+                      "or\t$8, $8, $9\n\t"
+                      "mfc2\t$11, $9\n\t"
+                      "mfc2\t$12, $10\n\t"
+                      "mfc2\t$13, $11\n\t"
+                      "mtc2\t$8, $0\n\t"
+                      "mtc2\t$10, $1\n\t"
+                      "nop\n\t"
+                      ".word\t0x4a486012\n\t"
+                      "lhu\t$8, 4($5)\n\t"
+                      "lw\t$9, 8($5)\n\t"
+                      "lw\t$10, 16($5)\n\t"
+                      "lui\t$at, 65535\n\t"
+                      "and\t$9, $9, $at\n\t"
+                      "or\t$8, $8, $9\n\t"
+                      "mfc2\t$14, $9\n\t"
+                      "mfc2\t$15, $10\n\t"
+                      "mfc2\t$24, $11\n\t"
+                      "mtc2\t$8, $0\n\t"
+                      "mtc2\t$10, $1\n\t"
+                      "nop\n\t"
+                      ".word\t0x4a486012\n\t"
+                      "andi\t$11, $11, 65535\n\t"
+                      "sll\t$14, $14, 16\n\t"
+                      "or\t$14, $14, $11\n\t"
+                      "sw\t$14, 0($6)\n\t"
+                      "andi\t$13, $13, 65535\n\t"
+                      "sll\t$24, $24, 16\n\t"
+                      "or\t$24, $24, $13\n\t"
+                      "sw\t$24, 12($6)\n\t"
+                      "mfc2\t$8, $9\n\t"
+                      "mfc2\t$9, $10\n\t"
+                      "swc2\t$11, 16($6)\n\t"
+                      "lhu\t$13, 20($5)\n\t"
+                      "lw\t$14, 24($5)\n\t"
+                      "lw\t$10, 28($5)\n\t"
+                      "sll\t$14, $14, 16\n\t"
+                      "or\t$13, $13, $14\n\t"
+                      "mtc2\t$13, $0\n\t"
+                      "mtc2\t$10, $1\n\t"
+                      "nop\n\t"
+                      ".word\t0x4a486012\n\t"
+                      "sll\t$12, $12, 16\n\t"
+                      "andi\t$8, $8, 65535\n\t"
+                      "or\t$8, $8, $12\n\t"
+                      "sw\t$8, 4($6)\n\t"
+                      "andi\t$15, $15, 65535\n\t"
+                      "sll\t$9, $9, 16\n\t"
+                      "or\t$9, $9, $15\n\t"
+                      "sw\t$9, 8($6)\n\t"
+                      "mfc2\t$8, $25\n\t"
+                      "mfc2\t$9, $26\n\t"
+                      "mfc2\t$10, $27\n\t"
+                      "lw\t$11, 20($4)\n\t"
+                      "lw\t$12, 24($4)\n\t"
+                      "lw\t$13, 28($4)\n\t"
+                      "add\t$8, $8, $11\n\t"
+                      "add\t$9, $9, $12\n\t"
+                      "add\t$10, $10, $13\n\t"
+                      "sw\t$8, 20($6)\n\t"
+                      "sw\t$9, 24($6)\n\t"
+                      "sw\t$10, 28($6)\n\t"
+                      "addu\t$2, $6, $0\n\t"
+                      ".set\treorder"
+                      : "=r"(pRet) : : "$1", "$8", "$9", "$10", "$11", "$12",
+                          "$13", "$14", "$15", "$24", "memory");
+    return pRet;
+}
+
+VECTOR *ApplyMatrixLV(MATRIX *m, VECTOR *v0, VECTOR *v1) {
+    register VECTOR *pRet __asm__("$6");
+
+    __asm__ volatile (".set\tnoreorder\n\t"
+                      "lw\t$8, 0($4)\n\t"
+                      "lw\t$9, 4($4)\n\t"
+                      "lw\t$10, 8($4)\n\t"
+                      "lw\t$11, 12($4)\n\t"
+                      "lw\t$12, 16($4)\n\t"
+                      "ctc2\t$8, $0\n\t"
+                      "ctc2\t$9, $1\n\t"
+                      "ctc2\t$10, $2\n\t"
+                      "ctc2\t$11, $3\n\t"
+                      "ctc2\t$12, $4\n\t"
+                      "lw\t$8, 0($5)\n\t"
+                      "lw\t$9, 4($5)\n\t"
+                      "lw\t$10, 8($5)\n\t"
+                      "bgez\t$8, .L800494D4\n\t"
+                      "sra\t$11, $8, 15\n\t"
+                      "negu\t$8, $8\n\t"
+                      "sra\t$11, $8, 15\n\t"
+                      "andi\t$8, $8, 32767\n\t"
+                      "negu\t$11, $11\n\t"
+                      "b\t.L800494D8\n\t"
+                      "negu\t$8, $8\n\t"
+                      "sra\t$11, $8, 15\n\t"
+                      ".L800494D4:\n\t"
+                      "andi\t$8, $8, 32767\n\t"
+                      ".L800494D8:\n\t"
+                      "bgez\t$9, .L800494FC\n\t"
+                      "sra\t$12, $9, 15\n\t"
+                      "negu\t$9, $9\n\t"
+                      "sra\t$12, $9, 15\n\t"
+                      "andi\t$9, $9, 32767\n\t"
+                      "negu\t$12, $12\n\t"
+                      "b\t.L80049500\n\t"
+                      "negu\t$9, $9\n\t"
+                      "sra\t$12, $9, 15\n\t"
+                      ".L800494FC:\n\t"
+                      "andi\t$9, $9, 32767\n\t"
+                      ".L80049500:\n\t"
+                      "bgez\t$10, .L80049524\n\t"
+                      "sra\t$13, $10, 15\n\t"
+                      "negu\t$10, $10\n\t"
+                      "sra\t$13, $10, 15\n\t"
+                      "andi\t$10, $10, 32767\n\t"
+                      "negu\t$13, $13\n\t"
+                      "b\t.L80049528\n\t"
+                      "negu\t$10, $10\n\t"
+                      "sra\t$13, $10, 15\n\t"
+                      ".L80049524:\n\t"
+                      "andi\t$10, $10, 32767\n\t"
+                      ".L80049528:\n\t"
+                      "mtc2\t$11, $9\n\t"
+                      "mtc2\t$12, $10\n\t"
+                      "mtc2\t$13, $11\n\t"
+                      "nop\n\t"
+                      ".word\t0x4a41e012\n\t"
+                      "mfc2\t$11, $25\n\t"
+                      "mfc2\t$12, $26\n\t"
+                      "mfc2\t$13, $27\n\t"
+                      "mtc2\t$8, $9\n\t"
+                      "mtc2\t$9, $10\n\t"
+                      "mtc2\t$10, $11\n\t"
+                      "nop\n\t"
+                      ".word\t0x4a49e012\n\t"
+                      "bgez\t$11, .L80049574\n\t"
+                      "nop\n\t"
+                      "negu\t$11, $11\n\t"
+                      "sll\t$11, $11, 3\n\t"
+                      "b\t.L80049578\n\t"
+                      "negu\t$11, $11\n\t"
+                      ".L80049574:\n\t"
+                      "sll\t$11, $11, 3\n\t"
+                      ".L80049578:\n\t"
+                      "bgez\t$12, .L80049590\n\t"
+                      "nop\n\t"
+                      "negu\t$12, $12\n\t"
+                      "sll\t$12, $12, 3\n\t"
+                      "b\t.L80049594\n\t"
+                      "negu\t$12, $12\n\t"
+                      ".L80049590:\n\t"
+                      "sll\t$12, $12, 3\n\t"
+                      ".L80049594:\n\t"
+                      "bgez\t$13, .L800495AC\n\t"
+                      "nop\n\t"
+                      "negu\t$13, $13\n\t"
+                      "sll\t$13, $13, 3\n\t"
+                      "b\t.L800495B0\n\t"
+                      "negu\t$13, $13\n\t"
+                      ".L800495AC:\n\t"
+                      "sll\t$13, $13, 3\n\t"
+                      ".L800495B0:\n\t"
+                      "mfc2\t$8, $25\n\t"
+                      "mfc2\t$9, $26\n\t"
+                      "mfc2\t$10, $27\n\t"
+                      "addu\t$8, $8, $11\n\t"
+                      "addu\t$9, $9, $12\n\t"
+                      "addu\t$10, $10, $13\n\t"
+                      "sw\t$8, 0($6)\n\t"
+                      "sw\t$9, 4($6)\n\t"
+                      "sw\t$10, 8($6)\n\t"
+                      ".set\treorder"
+                      : "=r"(pRet) : : "$8", "$9", "$10", "$11", "$12", "$13",
+                          "memory");
+    return pRet;
+}
 
 VECTOR *ApplyRotMatrix(SVECTOR *v0, VECTOR *v1) {
     VECTOR *pRet;
