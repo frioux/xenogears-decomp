@@ -37,6 +37,10 @@ extern s32* D_8005917C;
 extern char D_8006FB08[];
 extern char D_8006FB0C[];
 extern char D_8006FB24[];
+extern void func_800877E0(u8 arg0, u8 arg1);
+extern void func_80087EDC(u8 arg0, u8 arg1);
+extern void func_800881B8(u8 arg0, u8 arg1);
+extern void func_800BC404(u16 arg0);
 // A 0x48-byte row of the per-battle-slot table at D_800C3FFE.
 typedef u16 BattleSlotRow[36]; // Size: 0x48
 
@@ -76,7 +80,21 @@ void func_8007893C(u8 arg0, u8 arg1) {
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc4", func_80078998);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc4", func_80078B34);
+void func_80078B34(u8 arg0, u8 arg1, u8 arg2) {
+    D_800C402F[D_800C3EAC[0x2DA] * 72] = 0xFD;
+    D_800C4022[D_800C3EAC[0x2DA]][0] = 0;
+    D_800C3FFE[D_800C3EAC[0x2DA]][0] = *(u16*)(D_800D2E62 + arg1 * 8);
+    func_800877E0(arg0, arg2);
+    if (D_800D2E60[arg1 * 8] != 1) {
+        if (D_800D32A1[arg0 * 8] == 0) {
+            func_80087EDC(arg0, arg2);
+        } else {
+            func_800881B8(arg0, arg2);
+        }
+    }
+    func_800BC404(func_80089C08(arg0) | *(u16*)(D_800D2E62 + arg1 * 8));
+    func_800785D4(arg0, arg1);
+}
 void func_80078C9C(u8 arg0, u8 arg1) {
     D_800C402F[D_800C3EAC[0x2DA] * 72] = 0xFC;
     func_800785D4(arg0, arg1);
@@ -288,4 +306,67 @@ void func_800799C8(u8 arg0) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc4", func_80079AB0);
+/* Best: 98.66%. Everything but three allocator/CSE tie-breaks is identical: (1)
+   retail keeps the single `slot & 0xFF` in $a0 and reuses it for the 0x170 index
+   and D_800C3D18/D_800D3408, ours splits it into a $v0 copy plus a later $a0 one;
+   (2) retail's early `return result` loads the variable (`addu v0,s2,zero`) where
+   gcc folds it to zero here; (3) `lw a0,0x10(sp)` vs our `lw v0,0x10(sp)` for the
+   command byte. The return type must be s32 (as void, gcc deletes `result = 1`);
+   D_800C3D18 is a 4-byte-stride table read as bytes, hence the `slot * 4` index.
+   Tried: value=0/result=0 in both orders and at both positions (that pair is now
+   exact), slot as the 7th-vs-8th local declaration, the else arm written as
+   `cmd >= 0x80` first and as `cmd < 0x80` first.
+
+s32 func_80079AB0(u8 arg0) {
+    s32 result;
+    u8 value;
+    u8 slot;
+    u32 cmd;
+    u8* pCursor;
+    u8* p;
+    u8* pEnd;
+
+    result = 0;
+    value = 0;
+    slot = arg0 - 3;
+    if ((D_800CCD64[slot + 3].flags & 0x8000) != 0) {
+        if ((D_800CCD1C[slot + 3].flags & 0x800) == 0) {
+            return result;
+        }
+    }
+    D_800D2E5C[0] = 0;
+    if (D_800C3D18[slot * 4] != 0) {
+        pCursor = *(u8**)(D_800D3408 + slot * 0x40);
+        p = D_800D2E5C;
+        pEnd = p + 0x100;
+        do {
+            *p++ = 0;
+        } while (p < pEnd);
+        for (;;) {
+            cmd = *pCursor;
+            if (cmd == 0xFD) {
+                break;
+            }
+            if (cmd == 0xFF) {
+                break;
+            }
+            if (cmd >= 0x80) {
+                if ((func_8007F8C0(&pCursor, slot) & 0xFF) != 0) {
+                    continue;
+                }
+                func_80079948(&pCursor);
+            } else {
+                if (cmd == 0x62) {
+                    result = 1;
+                }
+                value = func_8007EF6C(&pCursor, slot, value);
+            }
+        }
+    }
+    if (D_800D2E5C[0] != 0) {
+        func_800793F0(slot + 3);
+    }
+    return result;
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc4", func_80079C24);
