@@ -152,7 +152,10 @@ void func_8008EADC(void) {
     func_8008E67C();
 }
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008EB4C);
-/* best: objdiff 73.33% - identical instruction multiset; retail loads the arg-4 global after the hoisted lui 0x60000 and defers the addu/move a1 to after it, gcc 2.7.2 and 2.6.0 both emit lui, addu, move a1, then the arg-4 load. Also tried: locals for the constant, pre-loading D_80059488 into an s32, all give 73.33%.
+/* best: objdiff 73.33% - identical instruction multiset; retail emits lui a0,(0x60000 >> 16), then the arg-4
+   global load, then addu a0,v0,a0 and addu a1,zero,zero; gcc 2.7.2 emits the lui/addu pair and the a1 zero
+   before the arg-4 load instead. Tried: `(u8*)((s32)p + 0x60000)`, `&p[0x60000]`, `p + 0x60000`,
+   `D_80059488[0]` (array decl), locals for the global and for the constant - all 73.33%.
 void func_8008EB4C(u8* p) {
     if (p != NULL) {
         func_8008E78C(p + 0x60000, 0, NULL, D_80059488);
@@ -165,6 +168,37 @@ void func_8008EB88(u8* p, s32 idx, u8* pData, s32 flags) {
     }
 }
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008EBD0);
+/* best: objdiff 89.69% - size, frame (0x30, `s32 pad[2]` supplies retail's extra 8 bytes), branch layout and the
+   whole instruction multiset match. Only difference: register numbering. Retail puts the table base in s0 and the
+   byte index in s1 and the params in s2/s3/s4 (p/flags/pData); gcc gives p s0, i s1, flags s2, pData s3, base s4,
+   so all five saves and the four-arg call's moves come out rotated. `u32 b` (not u8) is needed or gcc adds an
+   `andi v1,v0,0xff` after each lbu. Also tried: gcc-2.6.0 (89.7), statement order, one table read only.
+void func_8008EBD0(u8* p, s32 idx, u8* pData, s32 flags) {
+    s32 pad[2];
+    u8* pTable;
+    s32 i;
+    u32 b;
+
+    if (idx == 0) {
+        idx = rand() % 3 + 1;
+    }
+    b = *(u8*)(*(u32*)(p + 0x1664) + idx);
+    if (b == 0xFF) {
+        return;
+    }
+    i = b << 1;
+    b = D_80091EE0[i];
+    pTable = D_80091EE0;
+    if (b != 0) {
+        func_8008E78C((u8*)(b | 0x60000), flags, pData,
+                      ((*(u32*)(p + 0xD0) >> 20) & 0x80) | (b & 0x7F));
+    }
+    b = pTable[i + 1];
+    if (b != 0) {
+        func_8008E78C((u8*)(b | 0x60000), flags, pData,
+                      ((*(u32*)(p + 0xD0) >> 20) & 0x80) | (b & 0x7F));
+    }
+}*/
 void func_8008ECEC(u8 kind) {
     BattleSlot* pSlot;
     s32 i;
@@ -178,8 +212,13 @@ void func_8008ECEC(u8 kind) {
     }
 }
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008ED6C);
-/* best: objdiff 90.11% - body, operand order and frame all match except register numbering (original keeps &D_80091EE0 in s1 and the byte index in s2; gcc gives the index s1) and an 8-byte larger frame in the original. %gp/%hi spelling of D_80091EE0 is already right (first read folds hi+index through at, second goes through a base pointer).
+/* best: objdiff 90.34% - everything but two things matches, including the 0x28 frame (the `s32 pad[2]` reproduces
+   retail's extra 8 bytes of locals) and the $at-vs-base-pointer split of the two table reads. Left: retail keeps
+   &D_80091EE0 in s1 and the byte index in s2; gcc gives the index s1 and the base s2. Also retail's second block
+   emits `lw a0,208(s0)` before `andi v0,v0,0x7f`, gcc the reverse. Tried: reading D_80091EE0[] directly for both
+   (68.98%), pTable assignment before/after `i = v << 1` (no change), -G0 and gcc-2.7.2-cdk (76.41%).
 void func_8008ED6C(u8* p, s32 idx) {
+    s32 pad[2];
     u8* pTable;
     s32 i;
     u8 v;
@@ -196,8 +235,7 @@ void func_8008ED6C(u8* p, s32 idx) {
     if (pTable[i + 1] != 0) {
         func_8008ECEC(((*(u32*)(p + 0xD0) >> 20) & 0x80) | (pTable[i + 1] & 0x7F));
     }
-}
-*/
+}*/
 void func_8008EE1C(u8* p, s16 arg1, s16 arg2) {
     s32 pad[4];
     s32 v98;
