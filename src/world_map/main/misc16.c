@@ -39,6 +39,15 @@ typedef struct {
     /* 0x4 */ s16 unk4;
 } WorldMapMisc16Rect; // Size: 0x6
 
+typedef struct {
+    /* 0x0 */ u16 grid[81];
+} WorldMapMisc16Grid; // Size: 0xA2
+
+extern WorldMapMisc16Grid D_8009D318;
+extern WorldMapMisc16Grid D_8009D570;
+extern s32 D_8009D160;
+extern s32 D_8009D2B4;
+
 extern WorldMapMisc16TblEntry D_800523F0[];
 extern s32 D_8009C618;
 extern s32 D_8009C5BC;
@@ -76,17 +85,79 @@ void func_800980D4(WorldMapMisc16Struct* p) {
 }
 */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc16", func_800981C8);
+/* 96.44%: same instructions in the same order, only the register names differ
+   (retail col=a3 row=t1 w=t2 dst=t0 bound=t3 colBase=t3 pGrid=a0 colCur=a3 off=a1;
+   ours col=t1 row=t0 w=t3 dst=a3 bound=t2 colBase=a0 pGrid=a2 colCur=v1 off=a3), so
+   objdiff can never reach 100 here without snapping gcc's allocator tie-break. Shapes
+   that matter and are now right: w/h must be locals or the in-loop loads are not hoisted;
+   `for (i = 8; i != -1; i--)` both loops; the if/else-with-value form for the inner clamp
+   (that is what duplicates `addu v0,off,colCur` into the delay slot and after r=0);
+   row >>= 8 before the 0xA2-byte struct copy, colBase = col after it.
+void func_800981C8(WorldMapMisc16Struct* p) {
+    s32 col;
+    s32 row;
+    s32 colBase;
+    s32 rowOff;
+    s32 colCur;
+    s32 i;
+    s32 j;
+    s32 w;
+    s32 h;
+    u16* pGrid;
+
+    w = D_8009D160;
+    h = D_8009D2B4;
+    col = (p->unk0 >> 12) / 8 - ((D_8009C838 + 2) << 8);
+    row = (p->unk8 >> 12) / 8 - ((D_8009C83C + 2) << 8);
+    if (col < 0) {
+        col += w << 8;
+    } else if ((w << 8) < col) {
+        col -= w << 8;
+    }
+    if (row < 0) {
+        row += h << 8;
+    } else if ((h << 8) < row) {
+        row -= h << 8;
+    }
+    col >>= 8;
+    row >>= 8;
+    D_8009D318 = D_8009D570;
+    colBase = col;
+    pGrid = D_8009D570.grid;
+    for (i = 8; i != -1; i--) {
+        if (!(row < h)) {
+            row = 0;
+        }
+        colCur = colBase;
+        rowOff = row * w;
+        for (j = 8; j != -1; j--) {
+            if (colCur >= w) {
+                colCur = 0;
+            }
+            *pGrid++ = rowOff + colCur;
+            colCur++;
+        }
+        row++;
+    }
+}
+*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc16", func_800983A0);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc16", func_800987AC);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc16", func_80098CC0);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc16", func_8009932C);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc16", func_80099708);
-/* 56.68%: shape read off the .s; our cc1 keeps the plain `bgez` loop iduction
-   where retail has the countdown `addiu t7,t7,-1; bne t7,-1` form, so every
-   register after that point is shifted (retail uses all of t0-t9, s1).
-   -O3 and cdk score the same 56.68, so it is source-level, not the preset.
+/* 78.20%: loop shape and instruction multiset now match retail (`for (i = 8; i != -1; i--)`
+   gives the addiu/-1 countdown; the if/else assigns the *already <<16-shifted* value in each
+   branch, which is what puts retail's sll in the `j` delay slot and folds the else path to
+   `sll 24; sra 5`). What is left is a global register-allocation rotation: retail keeps
+   pSrc in s0 (frame 0x20, saves s0+s1) and the mult temp in s1, and uses a0=x / a3=xCur /
+   v1=v, while our compile keeps pSrc in a0 (frame 0x18) and puts idx/ii in a2/a3. 6 source
+   shapes (incl. named product local) all score 78.20, and cdk is also 78.2, so it is not
+   the preset. Retail's `addiu t0,t0,%lo(D_1F800008)` is splat naming the +8 of pPkt++, i.e.
+   a reloc the C cannot emit; objdiff can never reach 100 here even if the allocation did.
 void func_80099708(u32* pSrc, s32 unk1, s32 unk2, WorldMapMisc16Rect* pRect) {
     WorldMapMisc16Pkt* pPkt;
+    WorldMapMisc16TblEntry* pTbl;
     u32* p;
     s32 x;
     s32 y;
@@ -100,21 +171,23 @@ void func_80099708(u32* pSrc, s32 unk1, s32 unk2, WorldMapMisc16Rect* pRect) {
     s32 c;
 
     pPkt = (WorldMapMisc16Pkt*)0x1F800000;
+    pTbl = D_800523F0;
     p = pSrc;
     x = pRect->unk0;
     y = pRect->unk4;
     col = D_8009C618;
-    for (oi = 8; oi >= 0; oi--) {
+    for (oi = 8; oi != -1; oi--) {
         xCur = x;
-        iCol = D_800523F0[col & 0xFFF].unk0 * 2;
+        iCol = pTbl[col & 0xFFF].unk0 * 2;
         idx = D_8009C5BC;
-        for (ii = 8; ii >= 0; ii--) {
+        for (ii = 8; ii != -1; ii--) {
             v = *p;
-            c = (s8)v << 3;
             if (v & 0x1000) {
-                c += (D_800523F0[idx & 0xFFF].unk0 * iCol) >> 20;
+                c = (((pTbl[idx & 0xFFF].unk0 * iCol) >> 20) + ((s8)v << 3)) << 16;
+            } else {
+                c = (s8)v << 19;
             }
-            pPkt->unk0 = (c << 16) | (xCur & 0xFFFF);
+            pPkt->unk0 = c | (xCur & 0xFFFF);
             pPkt->unk4 = y;
             xCur += 0x80;
             pPkt++;
