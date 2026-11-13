@@ -94,6 +94,7 @@ int	PClseek (int fd, int offset, int mode);
 **
 ** note: unlike assembler function this provides for full 32 bit count
 */
+int	_SN_read (int reserved, int fd, int len, char *buff);
 int	PCread (int fd, char *buff, int len);
 
 /*
