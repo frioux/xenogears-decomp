@@ -150,6 +150,11 @@ void func_800BEDE8(void) {
     D_800591AC = 0;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BEE2C);
+/* Not convertible: retail switches the stack pointer into the 0x1000-byte
+   HeapAlloc block for the func_800AA320 call (sw $sp,0($t0); addiu $t0,-4;
+   addu $sp,$t0, then addiu $sp,4; lw $sp,0($sp)), which the original source
+   wrote as inline asm -- the same shape as GfxLoadImageAccelerated in
+   system/graphics.  No C produces it. */
 s32 func_800BEEB4(u16 mask, void **pOut, s32 arg2) {
     u8 *pBase;
     u8 *pEntity;
