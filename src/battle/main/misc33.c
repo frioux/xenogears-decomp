@@ -1,9 +1,12 @@
 #include "common.h"
 #include "system/memory.h"
+#include "psyq/libgte.h"
 
 typedef struct {
     /* 0x00 */ u8 unk0[0x1C];
     /* 0x1C */ s32 unk1C;
+    /* 0x20 */ u8 unk20[0x24];
+    /* 0x44 */ s32 unk44;
 } BattleMisc33State; // Size: 0x50
 
 extern BattleMisc33State *D_800C3610;
@@ -28,21 +31,13 @@ typedef struct {
     /* 0xA4 */ u16 unkA4;
 } Misc33Point;
 
-typedef struct {
-    /* 0x0 */ s16 unk0;
-    /* 0x2 */ s16 unk2;
-} Misc33Pair; // Size: 0x4
-
-typedef struct {
-    /* 0x0 */ s16 unk0;
-    /* 0x2 */ s16 unk2;
-    /* 0x4 */ s16 unk4;
-    /* 0x6 */ s16 unk6;
-} Misc33LineEnds; // Size: 0x8
-
-extern s16 func_80023124(Misc33Pair, Misc33Pair);
+extern s16 func_80023124(DVECTOR, DVECTOR);
 extern s32 func_800C0FAC(s32);
 extern u8 func_80021AD8(u8, s16);
+extern s32 func_800C07CC(DVECTOR vec0, DVECTOR vec1);
+extern void func_80021FE0(Misc33Point *p, s16 arg1);
+extern void func_800223B0(Misc33Point *p, s16 arg1);
+extern void func_800245D8(Misc33Point *p, s32 arg1);
 
 typedef struct {
     /* 0x00 */ u8 unk0[0xC];
@@ -155,6 +150,11 @@ void func_800BEDE8(void) {
     D_800591AC = 0;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BEE2C);
+/* Not convertible: retail switches the stack pointer into the 0x1000-byte
+   HeapAlloc block for the func_800AA320 call (sw $sp,0($t0); addiu $t0,-4;
+   addu $sp,$t0, then addiu $sp,4; lw $sp,0($sp)), which the original source
+   wrote as inline asm -- the same shape as GfxLoadImageAccelerated in
+   system/graphics.  No C produces it. */
 s32 func_800BEEB4(u16 mask, void **pOut, s32 arg2) {
     u8 *pBase;
     u8 *pEntity;
@@ -179,37 +179,42 @@ s32 func_800BEEB4(u16 mask, void **pOut, s32 arg2) {
     pOut[count] = NULL;
     return count;
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BEF24);
-/* best 72.54%: passing two 4-byte by-value structs reproduces retail's
-   store-two-halves / reload-with-lhu-and-or argument shape and gives the right
-   slots (sp+0x10, sp+0x18), but gcc over-allocates the frame (0x40 vs retail
-   0x30, 16 dead bytes) and loads the 0x2/0xA fields with lhu where retail uses
-   lh.  Declaring the locals as 4- and 8-byte structs changes nothing.
 s16 func_800BEF24(Misc33Point *p0, Misc33Point *p1) {
-    Misc33Pair e0;
-    Misc33Pair e1;
+    DVECTOR vec0;
+    DVECTOR vec1;
+    s32 c0;
+    s32 c1;
+    s32 c2;
+    s32 c3;
 
-    e0.unk0 = p0->unk2;
-    e0.unk2 = p0->unkA;
-    e1.unk0 = p1->unk2;
-    e1.unk2 = p1->unkA;
-    return func_80023124(e1, e0);
+    c0 = p0->unk2;
+    vec0.vx = c0;
+    c1 = p0->unkA;
+    vec0.vy = c1;
+    c2 = p1->unk2;
+    vec1.vx = c2;
+    c3 = p1->unkA;
+    vec1.vy = c3;
+    return func_80023124(vec1, vec0);
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BEF8C);
-/* best 68.54%: same shape as func_800BEF24 (two 4-byte structs by value, slots
-   sp+0x10 / sp+0x18 correct); frame 0x40 vs retail 0x30.
 s16 func_800BEF8C(Misc33Point *p) {
-    Misc33LineEnds e0;
-    Misc33LineEnds e1;
+    DVECTOR vec0;
+    DVECTOR vec1;
+    s32 c0;
+    s32 c1;
+    s32 c2;
+    s32 c3;
 
-    e0.unk0 = p->unk2;
-    e0.unk2 = p->unkA;
-    e1.unk0 = p->unkA0;
-    e1.unk2 = p->unkA4;
-    return func_80023124(*(Misc33Pair *)&e1, *(Misc33Pair *)&e0);
+    c0 = p->unk2;
+    vec0.vx = c0;
+    c1 = p->unkA;
+    vec0.vy = c1;
+    c2 = p->unkA0;
+    vec1.vx = c2;
+    c3 = p->unkA4;
+    vec1.vy = c3;
+    return func_80023124(vec1, vec0);
 }
-*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BEFF4);
 
 void func_800BF0B4(s32 arg0) {
@@ -217,7 +222,28 @@ void func_800BF0B4(s32 arg0) {
 }
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BF0C4);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BF1EC);
+void func_800BF1EC(Misc33Point *p, s32 arg1) {
+    DVECTOR vec0;
+    DVECTOR vec1;
+    s32 c0;
+    s32 c1;
+    s32 c2;
+    s32 c3;
+
+    c0 = p->unk2;
+    vec0.vx = c0;
+    c1 = p->unkA;
+    vec0.vy = c1;
+    c2 = p->unkA0;
+    vec1.vx = c2;
+    c3 = p->unkA4;
+    vec1.vy = c3;
+    D_800C3610->unk44 = func_800C07CC(vec0, vec1);
+    func_80021FE0(p, func_800BEF8C(p));
+    func_800223B0(p, func_800BEF8C(p));
+    func_800245D8(p, arg1);
+    func_800BF0B4(6);
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BF2B8);
 s32 func_800BF354(void) {
     s32 ret;
