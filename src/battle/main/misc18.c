@@ -361,7 +361,69 @@ s32 func_80099498(void) {
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_800995A0);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80099890);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80099CF0);
+void func_80099CF0(u8 *p, u8 *pOther, u8 *pCnt) {
+    if (*(u16 *)(p + 0x7C) & 0x200) {
+        pCnt[1] = pCnt[1] + 0xFF;
+        if (pCnt[1] == 0) {
+            *(u16 *)(p + 0x7C) &= 0xFDFF;
+        }
+    }
+    if (*(u16 *)(p + 0x7C) & 0x100) {
+        pCnt[2] = pCnt[2] + 0xFF;
+        if (pCnt[2] == 0) {
+            *(u16 *)(p + 0x7C) &= 0xFEFF;
+        }
+    }
+    if (*(u16 *)(p + 0x7C) & 0x80) {
+        pCnt[3] = pCnt[3] + 0xFF;
+        if (pCnt[3] == 0) {
+            *(u16 *)(p + 0x7C) &= 0xFF7F;
+        }
+    }
+    if (*(u16 *)(p + 0x7C) & 0x20) {
+        pCnt[4] = pCnt[4] + 0xFF;
+        if (pCnt[4] == 0) {
+            *(u16 *)(p + 0x7C) &= 0xFFDF;
+            *(u16 *)(pOther + 0x7C) &= 0xEFFF;
+        }
+    }
+    if (*(u16 *)(p + 0x7C) & 0x10) {
+        pCnt[5] = pCnt[5] + 0xFF;
+        if (pCnt[5] == 0) {
+            *(u16 *)(p + 0x7C) &= 0xFFEF;
+        }
+    }
+    if (*(u16 *)(p + 0x7C) & 0xF000) {
+        pCnt[7] = pCnt[7] + 0xFF;
+        if (pCnt[7] == 0) {
+            *(u16 *)(p + 0x7C) &= 0x0FFF;
+        }
+    }
+    if (*(u16 *)(p + 0x7C) & 0xF00) {
+        pCnt[8] = pCnt[8] + 0xFF;
+        if (pCnt[8] == 0) {
+            *(u16 *)(p + 0x7C) &= 0xF0FF;
+        }
+    }
+    if (*(u16 *)(p + 0x80) & 0x1000) {
+        pCnt[0xA] = pCnt[0xA] + 0xFF;
+        if (pCnt[0xA] == 0) {
+            *(u16 *)(p + 0x80) &= 0xEFFF;
+        }
+    }
+    if (*(u16 *)(p + 0x80) & 0x40) {
+        pCnt[0xB] = pCnt[0xB] + 0xFF;
+        if (pCnt[0xB] == 0) {
+            *(u16 *)(p + 0x80) &= 0xFFBF;
+        }
+    }
+    if (*(u16 *)(p + 0x80) & 0x20) {
+        pCnt[0xC] = pCnt[0xC] + 0xFF;
+        if (pCnt[0xC] == 0) {
+            *(u16 *)(p + 0x80) &= 0xFFDF;
+        }
+    }
+}
 void func_80099FB0(void) {
     u16 ab = *(u16 *)(D_800C3E00 + 0x8C) | *(u16 *)(D_800C3E00 + 0x8E);
 
