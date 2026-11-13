@@ -411,16 +411,15 @@ void func_8009AEFC(u8 arg0) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009AEFC);
-// best 99.33% (2.7.2-psx and gcc-2.6.0); 74.02% cdk. gcc duplicates the shared
-// last decrement into the 7..19 block instead of one block cases 0-3 jump to.
+// best 99.75% (2.7.2-psx; 74.02% cdk). Same size, same instruction multiset,
+// same block layout; only the switch's table operand differs, which no C can
+// reproduce here: jtbl_80070428 is split out of the overlay's splat-owned
+// rodata blob (0x80070428 = overlay + 0x938, inside the [0x0, rodata]
+// subsegment), so a C switch emits a duplicate 0x50-byte table into this unit's
+// .rodata and shifts the overlay. Leave as INCLUDE_ASM.
+// `default: return;` removed the duplicated tail decrement (99.33 -> 99.75);
+// `u8 idx` costs an extra andi, `s32 idx` is required.
 /*
-Best attempt: 99.33%, same size (192 bytes). Jump table is
-   case 0-3 -> shared tail, 4-5 -> return, 6 -> tail of the 7..19 block,
-   7..19 -> the block that decrements gearPartsIds[0x6C + e00[0x6F]]. The only
-   difference is that gcc duplicates the shared last decrement into the
-   7..19 block instead of keeping one block that cases 0-3 jump to. `u8 idx`
-   (93.92%) gives an extra andi; `s32 idx` is required.
- PARKED ATTEMPT (99.33%)
 void func_8009AFD8(void) {
     u8 sel = *(u8*)((u8*)D_800C34B0 + 0x5FC2);
     s32 idx;
@@ -455,6 +454,8 @@ void func_8009AFD8(void) {
         }
         idx = *(u8*)(D_800C3E00 + 0x72);
         break;
+    default:
+        return;
     }
     if (g_GameState.gearPartsIds[0x6C + idx]) {
         g_GameState.gearPartsIds[0x6C + idx]--;
