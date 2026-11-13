@@ -83,6 +83,8 @@ extern s32 rand(void);
 extern void func_80031870(u8* pLink, u32 addr);
 
 Misc16Work* func_8008D3F4(s32 arg0, s32 arg1);
+void func_8008DA48(Misc16Work* pWork, u8* pArg1, MATRIX* pMat);
+void func_8008D680(Misc16Work* pWork, MATRIX* pMat, s32 count);
 
 void func_8008CED4(void) {
 }
@@ -279,6 +281,17 @@ void func_8008D5C0(Misc16Work* pWork, s32 count) {
     }
 }
 */
+/* func_8008D680(pWork, pMat, count): mat = *pMat; pWork->unk1C/1E/20 +=
+   pMat->t[0..2]; RotMatrix(&pWork->unk34, &rotBase); MulMatrix(&mat,
+   &rotBase); RotMatrix(&pWork->unk3C, &rotExtra); MulMatrix(&rotExtra,
+   &mat); SetRotMatrix(&rotExtra); then two passes over pWork->unk10 (stride
+   unkC, unkA entries) that both skip entries whose unk6 timer is non-zero and
+   bail when --count hits -1.  Pass 1 builds a random direction
+   (rsin/rcos(rand()%unk44) scaled by >>12, interpolation factor
+   unk48 + rand()%unk4A) through gte_ldv0 / gte_mvmva(1,0,0,3,0) /
+   gte_lddp / GPF into entry+8; pass 2 calls pWork->unk5C(pWork, entry), sets
+   entry->unk6 = pWork->unk6A and calls pWork->unk50(entry).  Not attempted
+   body-wise yet. */
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc16", func_8008D680);
 void func_8008D980(Misc16Work* pWork) {
     s32 count;
@@ -408,7 +421,33 @@ void func_8008DCA8(s32 arg0) {
     D_80092838 = arg0;
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc16", func_8008DCB8);
+void func_8008DCB8(u8* pArg0, u8* pArg1, MATRIX* pMat, Misc16Vec* pVec) {
+    MATRIX matZero;
+    MATRIX matWork;
+    Misc16Work* pWork;
+
+    pWork = (Misc16Work*)D_80092834;
+    if (D_80092838 >= 0x10) {
+        func_8008DBC0(pArg1, 0x27, (u8*)&matWork);
+        MatrixNormal(&matWork, &matZero);
+        matZero.t[2] = 0;
+        matZero.t[1] = 0;
+        matZero.t[0] = 0;
+        pWork->unk14 = pVec->unk0;
+        pWork->unk16 = pVec->unk4;
+        pWork->unk18 = pVec->unk8;
+        pWork->unk3C = 0;
+        pWork->unk3E = 0;
+        pWork->unk40 = 0;
+        pWork->unk34 = 0;
+        pWork->unk36 = 0;
+        pWork->unk38 = 0x800;
+        func_8008D680(pWork, &matZero, D_80092838 >> 4);
+        D_80092838 -= 4;
+    }
+    gte_SetTransRotMatrix_gpr(pMat);
+    func_8008DA48(pWork, pArg0, pMat);
+}
 void func_8008DDFC(SVECTOR* pIn, SVECTOR* pOut, s32 depth) {
     register s16 vx asm("$8");
     register s16 vy asm("$9");
@@ -426,6 +465,11 @@ void func_8008DDFC(SVECTOR* pIn, SVECTOR* pOut, s32 depth) {
     pOut->vy = vy;
     pOut->vz = vz;
 }
+/* Retail's code is not compiler output: the GTE sequence at 0x8008DEC4 is
+   lwc2 $0/lwc2 $1 then two nops and straight to swc2 $14 - there is no RTPS
+   command word in the disc bytes - and $v0 = (D_800928A0 << 4) + 0x10 at
+   0x8008DEB4 is overwritten by sp+0x10 before it is used, so pObj ends up as
+   pArg0 + (the stack address of the local vector).  Left as INCLUDE_ASM. */
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc16", func_8008DE54);
 
 void func_8008DF30(void) {
