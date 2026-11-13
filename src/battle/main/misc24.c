@@ -22,6 +22,7 @@ extern s32 func_8009F1C4(u32 arg0, s16 arg1);
 extern s32 func_8009EF3C(u32 arg0, s16 arg1);
 extern s32 func_800A0838(u8 *arg0, u32 arg1, u16 arg2, s16 arg3);
 extern void func_800AE2A4(u8 *arg0, u8 *arg1, u8 *arg2);
+extern u8 *func_800A2330(u8 *arg0);
 
 u8 func_800AA514(s16 arg0, s16 arg1, s32 arg2) {
     s16 v;
@@ -263,8 +264,80 @@ s32 func_800AAA20(u8 *arg0, u8 *arg1, s32 arg2, u8 *arg3, s32 arg4) {
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AAB34);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AAD54);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800ADF1C);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AE098);
+void func_800ADF1C(u8 *arg0, u8 *arg1, s32 arg2, s32 arg3, s32 arg4, s32 arg5) {
+    u8 *pNode;
+
+    if (arg2 < 2) {
+        *(s16 *)(arg1 + 0x54) = arg3;
+        *(s16 *)(arg1 + 0x56) = arg4;
+        *(s16 *)(arg1 + 0x58) = arg5;
+        *(u8 *)(arg1 + 5) = 1;
+    } else if (*(s16 *)(arg1 + 0x54) != arg3 || *(s16 *)(arg1 + 0x56) != arg4 ||
+               *(s16 *)(arg1 + 0x58) != arg5) {
+        if (*(u8 **)(arg1 + 0x70) == 0) {
+            pNode = func_800A2330(arg0);
+        } else {
+            pNode = *(u8 **)(arg1 + 0x70);
+        }
+        if (pNode != 0) {
+            *(u8 *)(pNode + 0) = 1;
+            *(u8 *)(pNode + 2) = 3;
+            *(u8 *)(pNode + 1) = 0;
+            *(u8 *)(pNode + 3) = 0xFE;
+            *(u16 *)(pNode + 4) = *(u16 *)(arg1 + 0x54);
+            *(u16 *)(pNode + 6) = *(u16 *)(arg1 + 0x56);
+            *(u16 *)(pNode + 8) = *(u16 *)(arg1 + 0x58);
+            arg3 = (arg3 - *(s16 *)(arg1 + 0x54)) & 0xFFF;
+            if (arg3 >= 0x800) {
+                arg3 -= 0x1000;
+            }
+            *(s16 *)(pNode + 0xA) = arg3;
+            arg4 = (arg4 - *(s16 *)(arg1 + 0x56)) & 0xFFF;
+            if (arg4 >= 0x800) {
+                arg4 -= 0x1000;
+            }
+            *(s16 *)(pNode + 0xC) = arg4;
+            arg5 = (arg5 - *(s16 *)(arg1 + 0x58)) & 0xFFF;
+            if (arg5 >= 0x800) {
+                arg5 -= 0x1000;
+            }
+            *(s16 *)(pNode + 0xE) = arg5;
+            *(u16 *)(pNode + 0x10) = 0;
+            *(s16 *)(pNode + 0x12) = arg2;
+            *(u32 *)(arg1 + 0x70) = pNode;
+        }
+    }
+}
+void func_800AE098(u8 *arg0, u8 *arg1, s32 arg2, s32 arg3, s32 arg4, s32 arg5, s32 arg6, s32 arg7, s32 arg8) {
+    u8 *pNode;
+    s32 dx;
+    s32 dy;
+    s32 dz;
+
+    if (*(u32 *)(arg1 + 0x70) == 0) {
+        pNode = func_800A2330(arg0);
+    } else {
+        pNode = *(u8 **)(arg1 + 0x70);
+    }
+    if (pNode != 0) {
+        *(u8 *)(pNode + 0) = 1;
+        *(u8 *)(pNode + 2) = arg2 + 7;
+        *(u8 *)(pNode + 1) = 0;
+        *(u8 *)(pNode + 3) = 0xFE;
+        dx = arg6 - *(s32 *)(arg1 + 0x5C);
+        dy = arg7 - *(s32 *)(arg1 + 0x60);
+        dz = arg8 - *(s32 *)(arg1 + 0x64);
+        *(s16 *)(pNode + 4) = SquareRoot0(dx * dx + dy * dy + dz * dz) + 1;
+        *(s16 *)(pNode + 6) = arg3;
+        *(s16 *)(pNode + 8) = arg4;
+        *(s16 *)(pNode + 0xA) = arg6;
+        *(s16 *)(pNode + 0xC) = arg7;
+        *(s16 *)(pNode + 0xE) = arg8;
+        *(s16 *)(pNode + 0x10) = 0;
+        *(s16 *)(pNode + 0x12) = arg5;
+        *(u32 *)(arg1 + 0x70) = pNode;
+    }
+}
 void func_800AE1BC(u8 *arg0, u8 *arg1, s32 arg2) {
     u8 *p;
 
