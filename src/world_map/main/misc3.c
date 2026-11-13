@@ -107,7 +107,18 @@ typedef struct {
     /* 0x18 */ s32 stepZ;
 } WorldMapScrollDelta; // Size: 0x1C
 
+// Eight name bytes swapped through the scratchpad by func_8007756C; the type
+// is byte-aligned so gcc copies it with lwl/lwr.
+typedef struct {
+    /* 0x0 */ u8 name[8];
+} WorldMapName8; // Size: 0x8
+
 extern void func_80093484(WorldMapScrollDelta* pDelta);
+extern void func_80096F18(void* pOut, s32* pSrc, s32 nHeight);
+extern s32 D_8009BE0C;
+extern s32 D_8009BD48;
+extern s32 D_8009BE2C;
+extern s32 D_8009BE30;
 extern s32 D_8009D55C;
 extern s32 D_8009D560;
 extern s32 D_8009D564;
@@ -335,11 +346,15 @@ void func_80076FA8(WorldMapPlayer* pPlayer, WorldMapScrollDelta* pDelta) {
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc3", func_800771D8);
 /* Best attempt: 99.67%. Only difference: the original negates the local
-   (`negu v1,v1`) where gcc's cse substitutes the parameter (`negu v1,a2`),
-   although the `move v1,a2` copy itself is emitted in the right place. Also
-   tried: the ternary form `(arg2 < 0) ? -arg2 : arg2` (same code), the
-   `limit = arg2` assign moved before the first abs (move lands in the wrong
-   delay slot, 91.67%), `0 - limit`, an arg2 test instead of a limit test.
+   (negu v1,v1) where gcc's cse substitutes the parameter (negu v1,a2),
+   although the move v1,a2 copy itself is emitted in the right place. Also
+   tried: the ternary form (arg2 < 0) ? -arg2 : arg2 (same code), the
+   limit = arg2 assign moved before the first abs (move lands in the wrong
+   delay slot, 91.67%), 0 - limit, an arg2 test instead of a limit test.
+   Preset screen: cdk 99.67, gcc-2.6.0 fails to compile. This is not a
+   compiler-version or register-allocation tie: fold_rtx substitutes the copy
+   into the negate under both 2.7.2 presets, so the source shape that keeps
+   negu v1,v1 has not been found.
 s32 func_800771D8(s32 arg0, s32 arg1, s32 arg2) {
     s32 delta;
     s32 limit;
@@ -363,6 +378,7 @@ s32 func_800771D8(s32 arg0, s32 arg1, s32 arg2) {
     return arg0;
 }
 */
+
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc3", func_80077214);
 s32 func_80077480(void) {
     u16 v;
@@ -390,17 +406,27 @@ s32 func_80077480(void) {
     return 1;
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc3", func_8007756C);
-/* Best attempt: 68.25%. Structure decoded and right: the 16-byte copy
-   pSlot+0x28 -> pSlot+0x38 is one struct assignment (lw x4 then sw x4) and the
-   three 8-byte copies around 0x1F8000A0 swap D_8009BD40 with D_8009BD48 through
-   the scratchpad (needs a 1-byte-aligned struct, which is what gives lwl/lwr).
-   Remaining diffs: the original keeps &D_8009BD40 in $s0 for the whole
-   function (the call's a0 and two of the copies) and puts the address of
-   D_8009BD38 in $a3 for its single store, where gcc rematerialises both
-   with lui/$at. Next step: pointer locals for those two addresses. D_8009BD3A
-   must be declared s16 (the original does lh for the << 12).
+/* Best attempt: 74.59% (380 bytes vs 368). Structure decoded and right: the
+   16-byte copy pSlot+0x28 -> pSlot+0x38 is one struct assignment (lw x4 then
+   sw x4) and the three 8-byte copies around 0x1F8000A0 swap D_8009BD40 with
+   D_8009BD48 through the scratchpad (needs a 1-byte-aligned struct, which is
+   what gives lwl/lwr). D_8009BD3A must be s16 (the original does lh). Four
+   remaining diffs: (1) the original keeps &D_8009BD40 in $s0 across the call
+   and both copies, gcc rematerialises lui/addiu, and a WorldMapName8 pointer
+   local is folded straight back to the symbol; (2) retail reloads
+   D_8009BD3A after storing 0x200 to it, gcc forwards the constant (a
+   volatile cast forces the load but then emits lhu plus sll/sra for the
+   shift and costs 12 bytes); (3) the single D_8009BD38 store goes through
+   $a3 (lui+addiu) in the original and through $at here; (4) retail stores
+   D_8009BE28 through the $a1 that is also the call argument, then BE30,
+   BE2C, where gcc uses $at for all three and orders BE30 before BE28.
+   Preset screen: gcc-2.7.2 -G0 scores 85.30 and leaves all 18 already
+   matched functions in this unit at 100.00 (nothing in this unit is
+   gp-relative: every symbol is an absolute from undefined_syms_auto), so a
+   -G0 switch would not break the unit but still does not close it.
 s32 func_8007756C(s32 arg0) {
     u8* pSlot = (u8*)D_8009BE24 + (arg0 << 7);
+    WorldMapName8* pName = (WorldMapName8*)&D_8009BD40;
 
     D_8009BD38 = -0x80;
     D_8009BD3A = 0x200;
@@ -408,19 +434,20 @@ s32 func_8007756C(s32 arg0) {
     D_8009BD3C = 0;
     *(s32*)(pSlot + 0x28) = 0xFFF80000;
     D_8009BE0C = 0x78;
-    *(s32*)(pSlot + 0x2C) = D_8009BD3A << 12;
+    *(s32*)(pSlot + 0x2C) = *(volatile s16*)&D_8009BD3A << 12;
     *(WorldMapPos4*)(pSlot + 0x38) = *(WorldMapPos4*)(pSlot + 0x28);
     D_8009D144 = 0;
     D_8009BE28 = D_8009C5AC;
     D_8009BE2C = D_8009C5B0;
     D_8009BE30 = D_8009C5B4;
-    func_80096F18(&D_8009BD40, &D_8009BE28, D_8009D3F0);
-    *(WorldMapName8*)0x1F8000A0 = *(WorldMapName8*)&D_8009BD40;
-    *(WorldMapName8*)&D_8009BD40 = *(WorldMapName8*)&D_8009BD48;
+    func_80096F18(pName, &D_8009BE28, D_8009D3F0);
+    *(WorldMapName8*)0x1F8000A0 = *pName;
+    *pName = *(WorldMapName8*)&D_8009BD48;
     *(WorldMapName8*)&D_8009BD48 = *(WorldMapName8*)0x1F8000A0;
     return 1;
 }
 */
+
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc3", func_800776E0);
 
 s32 func_80077954(void) {
