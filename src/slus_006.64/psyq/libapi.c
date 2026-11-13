@@ -37,6 +37,11 @@ extern void StopPAD2(void);
 extern int SysEnqIntRP(int prio, u_long *pEntry);
 extern int SysDeqIntRP(int prio, u_long *pEntry);
 
+/* The A0/C0 BIOS vector stubs of this unit (ChangeClearPAD, InitPAD2, StartPAD2,
+   StopPAD2, func_80040ABC, SysEnqIntRP, SysDeqIntRP) cannot be C: retail leaves
+   an instruction after .size (convertible.py: BLOCKED), and the body is
+   `jr $t2` through vector 0xB0/0xC0 with the function index in $t1, which gcc
+   never emits -- it passes argument 0 in $a0. They belong in a hasm segment. */
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libapi", ChangeClearPAD);
 
 long SetRCnt(long spec, short target, long mode) {
@@ -210,6 +215,9 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libapi", EnablePAD);
 Best 0%: a hand-written tail jump through the patch hook in .bss
 (lui/lw into t1, jr t1, no $ra save). gcc 2.7.2 will not sibcall through a
 function pointer -- every C spelling tested gives a full frame plus jalr.
+Re-confirmed: `((void (*)(void))jtbl_800593AC)();` gives lui/lw v0, addiu sp,-24,
+sw ra, jalr v0, lw ra, addiu sp,24, jr ra -- no sibling call is even attempted
+for an indirect callee, so no C spelling can reach this. Target is retail asm.
 */
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libapi", func_80040B00);
