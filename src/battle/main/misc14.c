@@ -5,6 +5,20 @@
 extern u16 D_800C3468[];
 extern u16 D_800C3448[];
 extern u8 D_800C3E4C;
+extern s32 D_800C3A9C;
+extern u8 D_800C3A94;
+extern s32 D_800C3A8C;
+extern u8 D_800C3A98;
+extern s32 D_800C3A90;
+extern s32 D_800C2080;
+extern s32 D_800C2084;
+extern s32 D_800C3A7C;
+extern s32 D_800C3A84;
+extern s32 D_800C3A80;
+extern s32 D_800C3A88;
+extern u8 D_800C207C;
+extern u8 D_800D2C36;
+extern u8 D_800C3CFA[];
 extern u8 D_800D2C38;
 extern u16 D_800D2C30;
 extern s32 func_80089C6C(s32 mask, u8 idx);
@@ -41,7 +55,37 @@ extern void func_80089CCC(s32 arg0);
 extern void func_8008AAA0(s32 arg0);
 extern void func_80076BF0(u8 *p);
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc14", func_80088990);
+void func_80088990(void) {
+    s32 i = 0;
+
+    for (i = 0; i < D_800C3A9C; i++) {
+        if (D_800C3A94 != 0) {
+            D_800C2080 -= D_800C3A8C;
+        } else {
+            D_800C2080 += D_800C3A8C;
+        }
+        if (D_800C3A98 != 0) {
+            D_800C2084 -= D_800C3A90;
+        } else {
+            D_800C2084 += D_800C3A90;
+        }
+    }
+    if (D_800C3A8C == 0x100) {
+        if (D_800C3A94 != 0) {
+            if (D_800C2080 / 0x100 + D_800C3A7C < D_800C3A84) {
+                D_800C207C = 1;
+            }
+        } else if (D_800C3A84 < D_800C2080 / 0x100 + D_800C3A7C) {
+            D_800C207C = 1;
+        }
+    } else if (D_800C3A98 != 0) {
+        if (D_800C2084 / 0x100 + D_800C3A80 < D_800C3A88) {
+            D_800C207C = 1;
+        }
+    } else if (D_800C3A88 < D_800C2084 / 0x100 + D_800C3A80) {
+        D_800C207C = 1;
+    }
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc14", func_80088B80);
 void func_80089038(void) {
     s32 i = 0;
@@ -129,6 +173,37 @@ void func_80089348(void) {
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc14", func_8008946C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc14", func_8008963C);
+// Best attempt: objdiff 89.89%. Tail loop chain matches with "&D_800D2DB4[...]" but the
+// final addu comes out base-first (addu a0,a1,a0) where the original is offset-first;
+// the two func_80076A10 call sites put the base in $a1 and the offset chain in $v0
+// (original: base $v1, chain $a1), and reorg fills the beq delay slot with the arg0
+// addiu instead of the loop increment. The "n" counter is real (the tail call's a2 is
+// (s16)(0x11A + n*6), NOT pitch>>16).
+/*
+void func_8008963C(void) {
+    s32 i = 0;
+    s32 n = 0;
+    s32 pitch = 0x11A << 16;
+    s32 off;
+
+    func_8008AAA0(D_800D2C36);
+    for (i = 0; i < 3; i++) {
+        if (D_800C3CFA[i] != 0xFF) {
+            off = D_800D2DB4[0x5D7A] * 0x50 + 0x50A0;
+            D_800D2DB4[0x5D7A] += func_80076A10(D_800C3CFA[i] + 0x92, (s32)&D_800D2DB4[off], pitch >> 16, 0x56);
+            pitch += 0x60000;
+            n++;
+        }
+    }
+    off = D_800D2DB4[0x5D7A] * 0x50 + 0x50A0;
+    D_800D2DB4[0x5D7A] += func_80076A10(0x9D, (s32)&D_800D2DB4[off], 0x11A + n * 6, 0x56);
+    D_800D2DB4[0x5D89] = D_800CCB34;
+    for (i = 0; i < D_800D2DB4[0x5D7A]; i++) {
+        func_80076B68(&D_800D2DB4[(i * 2 + D_800D2DB4[0x5D89]) * 0x28 + 0x50A0]);
+    }
+}
+*/
+
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc14", func_800897CC);
 // Best attempt: objdiff 96.84%, 292 bytes; the twin of func_80089348 (same one-instruction
 // tail-loop difference: original "addiu a0,a0,0x51E0 / addu a0,a0,a1", gcc
