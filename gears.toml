@@ -244,6 +244,7 @@ build_variables = {
 # trap and so live in XenoBattle260Div.
 paths = [
     "battle/main/misc20.",
+    "battle/main/misc12.",
     "battle/main/misc18.",
     "battle/main/misc1.",
     "battle/main/misc15.",

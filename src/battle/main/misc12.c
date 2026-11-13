@@ -166,14 +166,6 @@ void func_80084A7C(u8 arg0) {
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80084B40);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80084D28);
-/* 95.21%: instruction multiset identical; the only two differences are reorg's
-   delay-slot steals. The original moves `i++` into the beqz delay slot at the
-   loop head and copies `slti v0,s0,0xB` into the bne delay slot; this gcc leaves
-   both slots as nop and keeps `addiu s0,s0,1` in the latch. Indexing with the
-   s32 `i` (not a u8 copy) is what produces the original's `s2` biv (+0x1C) and
-   the shared `andi s1,s0,0xFF`. Tried: u8 idx local (77.21), -G0, cdk (77.91),
-   gcc-2.6.0 (compile-failed).
 u16 func_80084D28(void) {
     s32 i;
     u16 ret;
@@ -188,7 +180,6 @@ u16 func_80084D28(void) {
     }
     return ret;
 }
-*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80084DE4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80085084);
 u32 func_80085310(u8 arg0, u8 arg1) {
