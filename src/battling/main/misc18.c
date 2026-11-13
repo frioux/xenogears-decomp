@@ -54,6 +54,7 @@ extern void func_8009031C(u8* p, u8* arg1);
 extern void func_80090580(u8* p, u8* arg1);
 extern void func_80090990(u8* p, u8* arg1);
 extern void func_8008EE1C(u8* p, s32 arg1, s32 arg2);
+extern s32 func_8008F4F4(u8* p, s32 arg1);
 
 s32 func_8008F530(u8* pArg0, s32 arg1) {
     if (arg1 != 0) {
@@ -75,7 +76,46 @@ s32 func_8008F580(u8* pArg0) {
     return (v0 - 0x200 < v1) ? !(v0 < v1) : 2;
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc18", func_8008F5B4);
+// retail spells each limit as (x * k) << 6 >> 4; folding it to x * (4 * k) is 2 insns shorter
+s32 func_8008F5B4(u8* pArg0, s32 arg1) {
+    u8* p;
+
+    p = *(u8**)(pArg0 + 0x15FC);
+    if ((rand() & 0xFF) < ((*(s32*)(p + 0x10) * 5) << 6) >> 4) {
+        if (func_8008F530(pArg0, 0) != 0) {
+            goto tail;
+        }
+        if (func_8008F4F4(pArg0, 0xC0) != 0) {
+            goto tail;
+        }
+        if ((rand() & 0xFF) < ((*(s32*)(p + 0x1C) * 3) << 6) >> 4) {
+            goto tail;
+        }
+        if (func_8008F4F4(pArg0, 0x80) == 0) {
+            return 0;
+        }
+        if (*(s16*)(*(u8**)(pArg0 + 0xD8) + 0xB4) < *(s16*)(pArg0 + 0xB4)) {
+            goto tail;
+        }
+        return 0;
+    }
+    if ((rand() & 0xFF) >= ((*(s32*)(p + 0x1C) * 5) << 6) >> 4) {
+        return 0;
+    }
+tail:
+    if ((rand() & 0xFF) < *(s32*)(p + 0x18)) {
+        if (*(u8*)(*(u8**)(pArg0 + 0xD8) + 0xC4) == 4) {
+            return 0;
+        }
+        if (func_8008F4F4(*(u8**)(pArg0 + 0xD8), 0x20) != 0) {
+            return 1;
+        }
+        if (*(s16*)(*(u8**)(pArg0 + 0xD8) + 0xB4) < *(s16*)(pArg0 + 0xB4)) {
+            return 0;
+        }
+    }
+    return 1;
+}
 s32 func_8008F720(u8* pArg0, s32 arg1) {
     u8* p1;
 
@@ -244,10 +284,12 @@ void func_8008FE80(u8* pArg0) {
 }
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc18", func_8008FF24);
-/* 94.70%: instruction multiset matches; gcc swaps $a0/$a1 (the *20 product wants
-   $a1, it gets $a0) and folds the +1 into the product instead of the remainder.
-   Also tried: separate locals for the product and for rand() % 20 + 1, both
-   parenthesised groupings, and the terms in the other order (worse: 67-75%).
+/* 94.70%: instruction multiset identical; two differences. gcc reassociates
+   A + (rand() % 20 + 1) into (A + 1) + rand() % 20, so the +1 lands on the product
+   side where retail adds it to the remainder, and it keeps the *20 product in $a0
+   where retail has it in $a1 (retail's $a0 still holds the loaded 0xF byte).
+   Also tried: a temp for the remainder, both parenthesised groupings, terms in the
+   other order (worse: 67-75%) and gcc 2.7.2-cdk (95.49%).
 void func_8008FF24(u8* pArg0, u8* pArg1) {
     if (*(u8*)(*(u8**)(pArg0 + 0xD8) + 0xC4) == 4) {
         if ((*(u32*)(pArg1 + 0x2C) & 0xA00) == 0x200) {
@@ -256,7 +298,7 @@ void func_8008FF24(u8* pArg0, u8* pArg1) {
         }
     } else {
         func_8008FE80(pArg0);
-        *(s16*)(pArg1 + 0x4) = (2 - *(u8*)(pArg1 + 0xF)) * 20 + rand() % 20 + 1;
+        *(s16*)(pArg1 + 0x4) = (2 - *(u8*)(pArg1 + 0xF)) * 20 + (rand() % 20 + 1);
     }
     func_8008F7B8(pArg1);
 }
