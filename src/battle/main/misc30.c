@@ -191,6 +191,14 @@ void func_800BAEB8(s32 index) {
 void func_800BAF40(void) {
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800BAF48);
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800BB080);
+/* 76.91%: same 0x8C8C fold as func_800BAEB8.  Retail keeps the raw
+   &D_800C3EB0 in $s0 and hoists 0x8C8C into $s4 (`li s4,0x8C8C; addu s2,s0,s4`),
+   then adds 0x8CB8 with a second li+addu after the call; gcc folds 0x8CB8 into
+   the symbol base (lui s0,0x1; addiu s0,-29512) and uses -0x2C for the other
+   access, which also drags the loop-bound `3` into a register (li s3,3).
+   The call through pSprite->field_0x6C+0xC, the three break tests and the
+   func_800B14CC tail are otherwise identical.
 void func_800BB080(s32 arg0) {
     u8* pEntry = D_800C3EB0;
     SpriteData* pSprite;
@@ -216,4 +224,5 @@ void func_800BB080(s32 arg0) {
     }
     func_800B14CC(arg0);
 }
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800BB13C);
