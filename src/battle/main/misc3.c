@@ -23,6 +23,7 @@ extern u16 g_SystemPalette1;
 extern u16 g_SystemPalette2;
 
 extern s32 func_8008ABB8(s32, s32);
+extern s32 func_800338D8(s32);
 extern u16 func_80098AF8(s32, s32);
 extern void func_80077074(void);
 extern void HeapFree(void *pMem);
@@ -34,6 +35,16 @@ extern void func_8008F8F4(s32 arg0, u16 arg1, u16 arg2, u16 arg3, u16 arg4, u8 a
 extern void *func_8008AC00(s32 arg0);
 extern u8 D_800D36C0[];
 extern u8 D_800D36C8[];
+extern u8 *D_800D2E38[];
+extern u8 D_800594D4[];
+extern u8 D_800D2F3C[];
+extern u8 D_800D2F3D[];
+extern u8 D_800D2F3E[];
+extern u8 D_800D2F3F[];
+extern u8 D_800D2F68[];
+extern u8 D_800D2F69[];
+extern u8 *D_800C3E5C[];
+
 
 void func_80076AC8(u8 *p) {
     SetSemiTrans(p, 1);
@@ -165,6 +176,65 @@ void func_80076D58(u8 *pInfo, u8 flag, u8 mode) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_80076D58);
+/* 88.70%: three shapes left. (1) retail keeps the pEntry base (la D_800D2F68
+   + off) in a scratch register emitted BEFORE the D_800D2F68[off] `sb`, while
+   gcc emits it after the store here (putting the assignment first makes gcc
+   compute it before the call in a saved register instead). (2) `addu
+   s0,s5,s0` (base first) vs this body's `addu s0,s0,s5`. (3) the third loop's
+   `D_800C3E5C[i]` base: retail re-forms `lui at,%hi; addu at,at,s1; lw %lo(at)`
+   every iteration, gcc hoists `la` out of the loop (an explicit `off += 4`
+   byte-offset variable instead makes gcc emit a bogus 16-byte pointer stride,
+   i.e. the combine_givs double-scale bug). Tried: pEntry assigned before the
+   call (saved register, worse), `*(u8 **)(D_800C3E5C + off)` with off += 4
+   (miscompiles), `*(u8 **)(D_800C3E5C + i * 4)`, rect.x as `0x3DE + i * 2`.
+   Parked body (88.70):
+void func_80076EA4(void) {
+    u8 *pBuf[11];
+    RECT rect;
+    u8 **p;
+    u8 *pEntry;
+    s32 i;
+    s32 off;
+    s32 y;
+    s32 h;
+
+    y = 0x10D;
+    h = 0xD;
+    off = 0x2C;
+    for (i = 0; i < 11; i++) {
+        pBuf[i] = func_8008AC00(0x1B);
+        bzero(pBuf[i], 0x30C);
+        D_800D2F3C[off] = SystemRenderStringEntry(func_800338D8(i + 0xA), pBuf[i], 0x1B, 0);
+        D_800D2F68[off] = SystemRenderStringEntry(func_800338D8(i + 0x15), pBuf[i], 0x1B, 1);
+        pEntry = (u8 *)(D_800D2F68 + off);
+        pEntry[2] = 0x78;
+        D_800D2F3E[off] = 0x78;
+        pEntry[3] = h;
+        D_800D2F3F[off] = h;
+        D_800D2F3D[off] = 0;
+        D_800D2F69[off] = 1;
+        rect.x = 0x3DE;
+        rect.y = y;
+        rect.w = 0x1E;
+        rect.h = 0xD;
+        func_800769E8(&rect, pBuf[i]);
+        y += 0xD;
+        h += 0xD;
+        off += 4;
+    }
+    p = pBuf;
+    for (i = 0; i < 11; i++) {
+        HeapFree(*p++);
+    }
+    for (i = 0; i < 0xA; i++) {
+        rect.x = 0x3DE + i * 2;
+        rect.y = 0x100;
+        rect.w = 6;
+        rect.h = 0xD;
+        func_800769E8(&rect, D_800C3E5C[i]);
+    }
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_80076EA4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_80077074);
 void func_80077364(POLY_FT4 *p, u8 index) {
@@ -185,7 +255,37 @@ void func_80077364(POLY_FT4 *p, u8 index) {
                             *(s32 *)(D_800C3EA4 + offset + 0xA240));
     }
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_80077454);
+void func_80077454(u8 index) {
+    u8 *pBase;
+    u8 i;
+
+    pBase = D_800D2E38[index];
+    for (i = 0; i < 2; i++) {
+        SetPolyG4((POLY_G4 *)&pBase[i * 0x24 + 0x3C0]);
+        pBase[i * 0x24 + 0x3C4] = D_800594D4[0];
+        pBase[i * 0x24 + 0x3C5] = D_800594D4[1];
+        pBase[i * 0x24 + 0x3C6] = D_800594D4[2];
+        pBase[i * 0x24 + 0x3CC] = D_800594D4[0];
+        pBase[i * 0x24 + 0x3CD] = D_800594D4[1];
+        pBase[i * 0x24 + 0x3CE] = D_800594D4[2];
+        pBase[i * 0x24 + 0x3D4] = D_800594D4[0];
+        pBase[i * 0x24 + 0x3D5] = D_800594D4[1];
+        pBase[i * 0x24 + 0x3D6] = D_800594D4[2];
+        pBase[i * 0x24 + 0x3DC] = D_800594D4[0];
+        pBase[i * 0x24 + 0x3DD] = D_800594D4[1];
+        pBase[i * 0x24 + 0x3DE] = D_800594D4[2];
+        SetSemiTrans((POLY_G4 *)&pBase[i * 0x24 + 0x3C0], 1);
+        SetDrawMode((DR_MODE *)&pBase[i * 0xC + 0x408], 0, 0,
+                    GetTPage(0, D_800595A0, *(s32 *)(D_800C3EA4 + 0xA25C),
+                             *(s32 *)(D_800C3EA4 + 0xA260)),
+                    (RECT *)D_800D2D28);
+    }
+    func_80077364((POLY_FT4 *)&pBase[0x140], 1);
+    func_80077364((POLY_FT4 *)&pBase[0x1E0], 2);
+    func_80077364((POLY_FT4 *)&pBase[0x280], 3);
+    func_80077364((POLY_FT4 *)&pBase[0x320], 4);
+}
+
 void func_80077610(void) {
     u8 *p = (u8 *)func_8008ABB8(0x670, 0);
 
