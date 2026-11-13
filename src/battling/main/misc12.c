@@ -226,41 +226,42 @@ s32 func_800889C8(void) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc12", func_80088A40);
 
-/* Best attempt: objdiff 61.85% (up from 47.28% with the pointer-local shape that
-   func_80088940 needs; the store address now stays in a register instead of
-   being rematerialised into $at). What is left is the original's five DEFERRED
-   stores: it loads D_8006F980 once, keeps all five statement values live in
-   $a2,$a1,$a0,$v1,$t0 and stores them together after the last field load, while
-   gcc stores each value as it is computed and reuses one register. The masks,
-   the five field loads and the shifts all match. Unclear how C source defers
-   stores past the following global loads (they must alias), so this may not be
-   reachable from C at all. */
+/* Best attempt: objdiff 86.96% (the same body written as five plain locals with
+   a cached s32 was 61.85%; gcc 2.7.2-cdk scores 84.13 and 2.6.0 does not
+   compile it). Writing the read-modify-write as bitfield stores on
+   (BattleFlagBits*)&D_8006F980 reproduces everything: the single lw, the five
+   clearing masks (~0xF, ~0x10, ~0x20, ~0xFFFFE03F, ~0xFFFF1FFF), the five value
+   registers ($a2,$a1,$a0,$v1,$t0) and the lbu/andi/sll/or chain. The only
+   difference left is store placement: retail defers the first four stores until
+   after the fourth lbu and issues them together (sw a2/a1/a0/v1), gcc stores
+   each value as its bitfield assignment completes (sw a2 after the first lbu,
+   ...). No C shape found that holds a store back past a load, so this may be
+   unreachable; the typedef is kept here because the body is otherwise exact. */
 /*
+typedef struct {
+    u32 mode : 4;
+    u32 flagB : 1;
+    u32 flagC : 1;
+    u32 value : 7;
+    u32 scale : 3;
+    u32 pad : 16;
+} BattleFlagBits;
+
 void func_80088A40(void) {
-    s32* pFlags;
-    s32 v0;
-    s32 v1;
-    s32 v2;
-    s32 v3;
-    s32 v4;
+    BattleFlagBits* pFlags;
 
     if (D_8005061C == 0) {
         return;
     }
-    pFlags = &D_8006F980;
-    v0 = *pFlags;
-    v0 = (v0 & 0xFFFFFFF0) | 1;
-    v1 = (v0 & 0xFFFFFFEF) | ((D_80099D9B & 1) << 4);
-    v2 = (v1 & 0xFFFFFFDF) | ((D_80099D9C & 1) << 5);
-    v3 = (v2 & 0xFFFFE03F) | ((D_80099D9F & 0x7F) << 6);
-    v4 = (v3 & 0xFFFF1FFF) | ((D_80099D98 & 7) << 13);
-    *pFlags = v0;
-    *pFlags = v1;
-    *pFlags = v2;
-    *pFlags = v3;
-    *pFlags = v4;
+    pFlags = (BattleFlagBits*)&D_8006F980;
+    pFlags->mode = 1;
+    pFlags->flagB = D_80099D9B & 1;
+    pFlags->flagC = D_80099D9C & 1;
+    pFlags->value = D_80099D9F & 0x7F;
+    pFlags->scale = D_80099D98 & 7;
 }
 */
+
 void func_80088AF8(void) {
     u32 flags;
     u32* pFlags;
