@@ -221,8 +221,101 @@ void func_80097070(MATRIX *pMtx, Misc15Rot *pRot) {
     MulMatrix0((MATRIX *)0x1F800130, (MATRIX *)0x1F800110, (MATRIX *)0x1F8000F0);
     pRot->unk4 = -ratan2(*(s16 *)0x1F8000F6, *(s16 *)0x1F8000F8);
 }
+typedef struct {
+    /* 0x0 */ s16 unk0;
+    /* 0x2 */ s16 unk2;
+    /* 0x4 */ s16 unk4;
+    /* 0x6 */ s16 unk6;
+    /* 0x8 */ s16 unk8;
+    /* 0xA */ s16 unkA;
+    /* 0xC */ s16 unkC;
+    /* 0xE */ s16 unkE;
+    /* 0x10 */ VECTOR unk10;
+} Misc15Frame; // Size: 0x1C
+
+extern s16 D_8009BD38;
+extern s16 D_8009BD3A;
+extern s16 D_8009BD3C;
+extern MATRIX D_8009C808;
+extern s16 D_8009C80A;
+extern s16 D_8009C80C;
+extern s16 D_8009C80E;
+extern s16 D_8009C810;
+extern s16 D_8009C812;
+extern s16 D_8009C814;
+extern s16 D_8009C816;
+extern s16 D_8009C818;
+
+// Best: 83.39%. Every call and its arguments match (three VectorNormal /
+// OuterProduct12 pairs on the scratchpad frames, the nine halfword stores into
+// D_8009C808..D_8009C818, the negated SVECTOR, the matrix copy and
+// ApplyMatrix/TransMatrix). What differs is cc1's scheduling of the nine 32-bit
+// loads against the nine halfword stores: retail batches all nine lw before the
+// first sh and keeps the three lhu/negu/sh of the SVECTOR after them, while this
+// compile needs two more temporaries (t4/t5), interleaves the negates, and reads
+// each subtraction pair in the opposite order. Not a type or frame problem.
+/*
+void func_80097244(Misc15Frame *p) {
+    MATRIX *pMtx;
+
+    ((VECTOR *)0x1F800000)->vx = p->unk8 - p->unk0;
+    ((VECTOR *)0x1F800000)->vy = p->unkA - p->unk2;
+    ((VECTOR *)0x1F800000)->vz = p->unkC - p->unk4;
+    VectorNormal((VECTOR *)0x1F800000, (VECTOR *)0x1F800030);
+    OuterProduct12((VECTOR *)0x1F800030, &p->unk10, (VECTOR *)0x1F800000);
+    VectorNormal((VECTOR *)0x1F800000, (VECTOR *)0x1F800010);
+    OuterProduct12((VECTOR *)0x1F800030, (VECTOR *)0x1F800010, (VECTOR *)0x1F800000);
+    VectorNormal((VECTOR *)0x1F800000, (VECTOR *)0x1F800020);
+    pMtx = &D_8009C808;
+    pMtx->m[0][0] = ((VECTOR *)0x1F800010)->vx;
+    D_8009C80A = ((VECTOR *)0x1F800010)->vy;
+    D_8009C80C = ((VECTOR *)0x1F800010)->vz;
+    D_8009C80E = ((VECTOR *)0x1F800020)->vx;
+    D_8009C810 = ((VECTOR *)0x1F800020)->vy;
+    D_8009C812 = ((VECTOR *)0x1F800020)->vz;
+    D_8009C814 = ((VECTOR *)0x1F800030)->vx;
+    D_8009C816 = ((VECTOR *)0x1F800030)->vy;
+    D_8009C818 = ((VECTOR *)0x1F800030)->vz;
+    ((SVECTOR *)0x1F800040)->vx = -(u16)p->unk0;
+    ((SVECTOR *)0x1F800040)->vy = -(u16)p->unk2;
+    ((SVECTOR *)0x1F800040)->vz = -(u16)p->unk4;
+    *(MATRIX *)0x1F800048 = *pMtx;
+    ApplyMatrix((MATRIX *)0x1F800048, (SVECTOR *)0x1F800040, (VECTOR *)0x1F800000);
+    TransMatrix(pMtx, (VECTOR *)0x1F800000);
+}
+*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_80097244);
+
+// Best: 95.06%. Instruction-identical and the same 0x20 frame; the only
+// difference is the callee-saved numbering: retail has &D_8009C808 in s0, the
+// 0x1F8000F0 matrix in s1 and the parameter in s2, this compile has p in s0,
+// &D_8009C808 in s1 and 0x1F8000F0 in s2 (so objdiff reports 95.06 and the bytes
+// differ). Five shapes tried: no pointer local, a local pointer, three separate
+// pointers for 0x1F8000F0/110/130, a u16* view of the parameter, and an extra
+// dummy local to shift the declaration order - all land on the same allocation.
+// gcc-2.7.2-cdk gives 81.27, so the preset is right.
+/*
+void func_80097440(Misc15Frame *p) {
+    MATRIX *pMtx = (MATRIX *)0x1F8000F0;
+
+    *pMtx = D_8009A180;
+    *(MATRIX *)0x1F800110 = *pMtx;
+    *(MATRIX *)0x1F800130 = *pMtx;
+    RotMatrixX(-(u16)p->unk0, pMtx);
+    RotMatrixY(-(u16)p->unk2, (MATRIX *)0x1F800110);
+    RotMatrixZ(-(u16)p->unk4, (MATRIX *)0x1F800130);
+    MulMatrix0(pMtx, (MATRIX *)0x1F800110, (MATRIX *)0x1F800150);
+    MulMatrix0((MATRIX *)0x1F800130, (MATRIX *)0x1F800150, &D_8009C808);
+    ((SVECTOR *)0x1F8000A0)->vx = -(u16)p->unk0;
+    ((SVECTOR *)0x1F8000A0)->vy = -(u16)p->unk2;
+    ((SVECTOR *)0x1F8000A0)->vz = -(u16)p->unk4;
+    *pMtx = D_8009C808;
+    ApplyMatrix(pMtx, (SVECTOR *)0x1F8000A0, (VECTOR *)0x1F800000);
+    TransMatrix(&D_8009C808, (VECTOR *)0x1F800000);
+}
+*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_80097440);
+
 
 void func_8009766C(void) {
     D_8009BE24 = HeapAlloc(0x2000, 0);
