@@ -1,5 +1,6 @@
 #include "common.h"
 #include "psyq/libgte.h"
+#include "system/memory.h"
 
 extern void func_800379C8(char*, ...);
 extern char D_8006FCC0[];
@@ -150,9 +151,100 @@ void func_80076438(u8* p) {
     func_800379C8(D_8006FCC8);
 }
 
+extern s32 func_80083CD8(u8* p);
+extern void func_8007E894(s32 a0, s32 a1);
+extern s32 D_8009292C;
+extern u32 D_80091198[];
+extern u32 D_80096FB8[];
+extern u8 D_80096FBC[];
+
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_800764CC);
 
+/* 99.76%: two residuals. (1) gcc hoists the `lui v0,0x800` / `and v1,v1,v0`
+   pair for the `flags & 0x8000000` test up into the mult->mflo shadow (before
+   the 0xD0 store); the original leaves both after the 0x15F2 store. Tried:
+   test inline in the if, in-place `flags &=`, if/else on the two call shapes,
+   a fresh s32 local, source-reordering the two stores. (2) the 0x1600 index
+   sum: gcc emits `addu v0,v0,v1` (index first), the original `addu v0,v1,v0`.
+   Tried: pointer local, `*(p1600 + i)`, indexed form.
+void func_800764CC(u8* p) {
+    u32 flags;
+    s32 prod;
+    u8* p1600;
+
+    *(s32*)(p + 0x40) = 0;
+    *(s32*)(p + 0x100) = 0;
+    if (func_80083CD8(p) != 7) {
+        flags = *(u32*)(p + 0xD0);
+        flags &= 0xFFFF7FFF;
+        flags &= ~2;
+        *(u32*)(p + 0xD0) = flags;
+    }
+    prod = *(s16*)(p + 0x15F4) * D_8009292C;
+    flags = *(u32*)(p + 0xD0);
+    flags &= ~0x80000;
+    *(u32*)(p + 0xD0) = flags;
+    *(s16*)(p + 0x15F2) = prod >> 8;
+    flags &= 0x8000000;
+    if (!flags) {
+        func_8007E894(0x28, 0x28);
+    } else {
+        func_8007E894(0xF0, 0x28);
+    }
+    if (p[0x9C3] != 0) {
+        ((u32*)D_80096FB8)[((*(u32*)(p + 0xD0) >> 27) & 1) * 5] = ((u32*)D_80091198)[p[0x9C3]];
+        p1600 = *(u8**)(p + 0x1600);
+        ((u8*)D_80096FBC)[((*(u32*)(p + 0xD0) >> 27) & 1) * 20] = (p1600[p[0x9C3] + 9] * *(s16*)p1600) / 100;
+    }
+}
+*/
+
+extern void func_8007E954(s32 color);
+extern void func_8007EBE0(char* pStr);
+extern s32 D_800928C8;
+extern s32 D_8009112C;
+extern s32 D_80096FC4[];
+extern s32 D_80096FC8[];
+extern char D_8006FD04[];
+extern char D_8006FD08[];
+extern char D_8006FD10[];
+
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_8007661C);
+
+/* 97.90%: the instruction stream is identical apart from two things. (1) the
+   frame is 0x38 instead of 0x30 -- this source needs one 8-byte stack temp the
+   original does not have (buf sits at sp+0x10 in both, only the total differs;
+   `u8 buf[0x8]` moves it to 0x30 but then the buffer is too small for
+   "FRAME:%d-%d"). (2) the three callee-saved locals come out rotated: gcc
+   gives s0/s1/s2 to p/w/h, the original has h/p/w (p in s1). Tried: both
+   declaration orders for w/h and for buf, default-plus-override instead of
+   if/else, u32 instead of s32 for the 0x96FC4 pair (that one was srl vs sra).
+void func_8007661C(u8* p) {
+    char buf[0x10];
+    s32 h;
+    s32 w;
+
+    h = 0xA;
+    w = 0x14;
+    if (*(u32*)(p + 0xD0) & 0x8000000) {
+        w = 0xB4;
+    }
+    if (D_800928C8 != 4) {
+        h = 0xB2;
+    }
+    func_8007E894(w, h);
+    Sprintf(buf, D_8006FD04, D_80096FB8[((*(u32*)(p + 0xD0) >> 27) & 1) * 5]);
+    func_8007E954(D_80096FB8[((*(u32*)(p + 0xD0) >> 27) & 1) * 5] == D_8009112C ? 0xE7 : 0x100);
+    func_8007EBE0(buf);
+    func_8007E954(0x100);
+    func_8007E894(w + 0x34, h);
+    Sprintf(buf, D_8006FD08, ((u8*)D_80096FBC)[((*(u32*)(p + 0xD0) >> 27) & 1) * 20]);
+    func_8007EBE0(buf);
+    func_8007E894(w, h + 0x14);
+    Sprintf(buf, D_8006FD10, D_80096FC4[((*(u32*)(p + 0xD0) >> 27) & 1) * 5] >> 4, D_80096FC8[((*(u32*)(p + 0xD0) >> 27) & 1) * 5] >> 4);
+    func_8007EBE0(buf);
+}
+*/
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_800767C8);
 
