@@ -670,7 +670,10 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800855C8);
    of the first jal's delay slot. Same size and registers, so it links, but
    objdiff never reaches 100%. Writing `offset + offset`, `2 * (arg3 & 7)`, or
    the two expressions inline with no local all still fold into one product;
-   the 100% shape needs a second `offset * 2` that gcc cannot CSE.
+   re-tried here: both inline (85.56%, `sll s0,s0,1` hoisted before the call
+   plus two `move`s) and `offset*2` + `offset+offset` (85.56%, same shape - the
+   front end canonicalises `+` to a shift before cse, so the two uses still
+   merge); the 100% shape needs a second `offset * 2` that gcc cannot CSE.
 void func_800855C8(int arg0, int arg1, int arg2, int arg3) {
     int offset = arg3 & 7;
 
