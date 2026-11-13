@@ -3,9 +3,11 @@
 #include "system/menu.h"
 #include "main/game.h"
 
+extern u8 D_801EA564[];
 extern u8 D_801EA568[];
 extern u8 D_801E9808[];
 extern u8 D_801E9811;
+extern u8 D_801E9EA0[];
 
 void func_801E8018(u8, u8*, u8*, void*);
 void func_801E41C0(MenuDressingRoom*, u8);
@@ -29,6 +31,8 @@ void func_801C8574(u8);
 u8 func_801D9704(u8, u8, u8);
 void func_801E1014(void);
 void func_801E1AC8(u8);
+void func_801E8070(s32, void*, void*, void*, void*, u8, u8, u8);
+void func_801D397C(u_char, u_char, u_char, u_char, u16, u_char, u_char, u32, u_char);
 
 int func_801E0F78(u8 arg0, u8 arg1) {
     g_Menu->unk35C = HeapAlloc(0x32F4, 0);
@@ -40,7 +44,54 @@ int func_801E0F78(u8 arg0, u8 arg1) {
     func_801C72BC(0x13);
     return 1;
 }
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E1014);
+void func_801E1014(void) {
+    MenuManager* pManager;
+    int i;
+    /* One variable for both the count and the inner POLY_G4 index below: it has
+       to stay live across func_801D3488 so that it lands in a call-saved
+       register, which is where retail keeps it. */
+    int count;
+
+    g_Menu->unk438 = HeapAlloc(0x25C0, 0);
+    bzero(g_Menu->unk438, 0x25C0);
+    func_801C72BC(4);
+    func_801E8018(2, (u8*)g_Menu + 0x17E0, D_801EA564, (u8*)g_Menu->pManager + 0x4E);
+    func_801E8070(2, (u8*)g_Menu + 0x17E0, D_801EA564, D_801E9EA0, (u8*)g_Menu->pManager + 0x4E, 0, 0, 4);
+    func_801D397C(2, 0x44, 0xA, 0xE4, 0xC4, 0, 1, 4, 0);
+    g_Menu->pManager->unk5[1] = 0;
+    g_Menu->pManager->shouldRenderWindow[1] = 0;
+    pManager = g_Menu->pManager;
+    i = 0;
+    count = 0;
+    for (; i < 3; i++) {
+        if (pManager->currentCharacterIDs[i] != 0xFF && (u8)(pManager->currentCharacterIDs[i] - 7) >= 2) {
+            count++;
+        }
+    }
+    if (count >= 2) {
+        func_801D3488(3, 0);
+    } else {
+        g_Menu->pManager->shoulderButtonUiActive = 0;
+    }
+    for (i = 0; i < 0xD; i++) {
+        for (count = 0; count < 2; count++) {
+            /* (i * 0x48 + 0x21D0) must stay grouped for retail's address build. */
+            SetPolyG4((POLY_G4*)((u8*)g_Menu->unk438 + (i * 0x48 + 0x21D0) + count * 0x24));
+            ((POLY_G4*)((u8*)g_Menu->unk438 + i * 0x48 + count * 0x24 + 0x21D0))->r0 = 0;
+            ((POLY_G4*)((u8*)g_Menu->unk438 + i * 0x48 + count * 0x24 + 0x21D0))->g0 = 0xFF;
+            ((POLY_G4*)((u8*)g_Menu->unk438 + i * 0x48 + count * 0x24 + 0x21D0))->b0 = 0;
+            ((POLY_G4*)((u8*)g_Menu->unk438 + i * 0x48 + count * 0x24 + 0x21D0))->r1 = 0;
+            ((POLY_G4*)((u8*)g_Menu->unk438 + i * 0x48 + count * 0x24 + 0x21D0))->g1 = 0xFF;
+            ((POLY_G4*)((u8*)g_Menu->unk438 + i * 0x48 + count * 0x24 + 0x21D0))->b1 = 0;
+            ((POLY_G4*)((u8*)g_Menu->unk438 + i * 0x48 + count * 0x24 + 0x21D0))->r2 = 0;
+            ((POLY_G4*)((u8*)g_Menu->unk438 + i * 0x48 + count * 0x24 + 0x21D0))->g2 = 0;
+            ((POLY_G4*)((u8*)g_Menu->unk438 + i * 0x48 + count * 0x24 + 0x21D0))->b2 = 0;
+            ((POLY_G4*)((u8*)g_Menu->unk438 + i * 0x48 + count * 0x24 + 0x21D0))->r3 = 0;
+            ((POLY_G4*)((u8*)g_Menu->unk438 + i * 0x48 + count * 0x24 + 0x21D0))->g3 = 0;
+            ((POLY_G4*)((u8*)g_Menu->unk438 + i * 0x48 + count * 0x24 + 0x21D0))->b3 = 0;
+        }
+    }
+}
 void func_801E1398(void) {
     func_801D3674();
     g_Menu->pManager->unk4A[3] = 0;
