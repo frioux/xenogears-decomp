@@ -269,6 +269,98 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc14", func_8008B13C);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc14", func_8008B38C);
 
+/* Best attempt: objdiff 71.54%, 0x268 bytes against 0x250: the whole structure,
+   call order, both loops and every offset are recovered, but this shape keeps too
+   many values live at once (five spills and a 0x68 frame against retail's two
+   spills and 0x58), so the s-register assignment differs throughout. Next step is
+   fewer simultaneous locals: one variable for the buffer (indexed writes instead
+   of a separate slot pointer), the second loop in its own names instead of
+   reusing the buffer and list pointers, and 'count' kept in one register. */
+/*
+extern u32 ModelResolvePointers(void *pModel);
+extern void *func_80089C54(void);
+extern void func_80089C88(void *pList, void *pNode);
+extern void func_80089E2C(void *pNode, void *pData);
+extern void func_80089E54(void *pNode, void *pData);
+extern void *func_80089E74(void);
+extern void *func_80089FC4(void);
+extern void func_8008A184(void *pPart, void *pModelPart);
+extern void func_8008B13C(void *pA, void *pB, void *pC);
+
+void *func_8008B38C(u8 *pArg) {
+    u8 *pData;
+    u8 *pList;
+    u8 *pOther;
+    u8 *pCur;
+    u8 *pScale;
+    u8 *pNode;
+    u8 *pBuf;
+    u8 *pPart;
+    u8 *pListArg;
+    u8 **pSlot;
+    u32 count;
+    s32 i;
+    s16 idx;
+
+    pData = *(u8 **)(pArg + 4);
+    pList = *(u8 **)pArg;
+    pOther = *(u8 **)(pArg + 8);
+    count = *(u32 *)pList;
+    pCur = pList + 4;
+    ModelResolvePointers(pData);
+    HeapSetCurrentContentType(0x12);
+    pBuf = HeapAlloc(count * 4, 0);
+    pScale = func_80089E74();
+    pNode = func_80089C54();
+    func_80089E54(pNode, pScale);
+    *(u8 **)(pScale + 4) = pBuf;
+    *(u16 *)pScale = count;
+    *(u8 **)(pScale + 0x18) = pCur;
+    pSlot = (u8 **)pBuf;
+    for (i = 0; i < count; i++) {
+        pPart = func_80089C54();
+        *pSlot = pPart;
+        idx = *(s16 *)(pCur + 2);
+        if (idx != -1) {
+            pListArg = func_80089FC4();
+            func_80089E2C(pPart, pListArg);
+            func_8008A184(pListArg, pData + (idx * 8 - idx) * 8 + 0x10);
+        }
+        idx = *(s16 *)pCur;
+        if (idx == -1) {
+            pListArg = pNode;
+        } else {
+            pListArg = *(u8 **)(pBuf + idx * 4);
+        }
+        func_80089C88(pListArg, pPart);
+        *(u16 *)(pPart + 0x44) = *(u16 *)(pCur + 4);
+        *(u16 *)(pPart + 0x46) = *(u16 *)(pCur + 6);
+        *(u16 *)(pPart + 0x48) = *(u16 *)(pCur + 8);
+        *(u16 *)(pPart + 0x2C) = *(u16 *)(pCur + 0xA);
+        *(u16 *)(pPart + 0x2E) = *(u16 *)(pCur + 0xC);
+        *(u16 *)(pPart + 0x30) = *(u16 *)(pCur + 0xE);
+        pSlot++;
+        pCur += 0x10;
+    }
+    if (pOther != 0) {
+        HeapSetCurrentContentType(0x11);
+        pBuf = HeapAlloc(*(u32 *)pOther * 0x14, 0);
+        *(u8 **)(pScale + 8) = pBuf;
+        *(u16 *)(pScale + 2) = *(u32 *)pOther;
+        for (i = 0; i < *(u32 *)pOther; i++) {
+            if (*(u32 *)(pOther + 4) != 0) {
+                func_8008B13C(*(void **)(pOther + 4), pBuf, pNode);
+            } else {
+                *(u32 *)pBuf = 0;
+            }
+            pBuf += 0x14;
+            pOther += 4;
+        }
+    }
+    return pNode;
+}
+*/
+
 void func_8008B5DC(void *pA, s32 arg1) {
     func_8008B730(pA, arg1, 1);
 }
