@@ -130,10 +130,10 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007AD34);
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007ADD4);
 int func_8007B200(int idx) {
+    u8 *pPlayer = (u8 *)D_8009BE24 + (idx << 7);
     u8 *pWork = (u8 *)D_8009C620;
     u8 *pBlock = pWork + 0x150;
     u8 *pSrc = pWork + 0x198;
-    u8 *pPlayer = (u8 *)D_8009BE24 + (idx << 7);
     u32 *pScratch = (u32 *)0x1F800000;
     WorldMapRotBlock *pLast;
     s32 scale;
@@ -163,7 +163,39 @@ int func_8007B200(int idx) {
     return 3;
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007B394);
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007B604);
+int func_8007B604(int idx) {
+    u8 *pPlayer = (u8 *)D_8009BE24 + (idx << 7);
+    u8 *pWork = (u8 *)D_8009C620;
+    u8 *pBlock = pWork + 0x1F8;
+    u8 *pSrc = pWork + 0x240;
+    u32 *pScratch = (u32 *)0x1F800000;
+    WorldMapRotBlock *pLast;
+    s32 scale;
+    s32 i;
+
+    for (i = 0; i < 2; i++) {
+        u32 arg1 = *(u32 *)pSrc;
+        u16 arg2 = *(u16 *)(*(u32 *)(pSrc - 8) + 4);
+
+        func_8007A06C(pBlock, arg1, arg2);
+        pSrc += 0x54;
+        pBlock += 0x54;
+    }
+    *(s32 *)(pPlayer + 0x54) = 0;
+    *(s32 *)(pPlayer + 0x50) = 0;
+    *(MATRIX *)&pScratch[0x3C] = D_8009A180;
+    scale = *(s32 *)(pPlayer + 0x50);
+    pScratch[1] = 0x1000;
+    pScratch[2] = scale;
+    pScratch[0] = scale;
+    ScaleMatrix((MATRIX *)&pScratch[0x3C], (VECTOR *)pScratch);
+    pLast = (WorldMapRotBlock *)pBlock;
+    pLast->mat = *(MATRIX *)&pScratch[0x3C];
+    pLast[1].mat = *(MATRIX *)&pScratch[0x3C];
+    pLast[1].unk0 = 1;
+    pLast->unk0 = 1;
+    return 3;
+}
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007B798);
 
 int func_8007BA08(void) {
