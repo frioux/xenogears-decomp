@@ -57,9 +57,44 @@ long InvSquareRoot(long a, long *b, long *c) {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", VectorNormalS);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", VectorNormal);
+long VectorNormal(VECTOR *v0, VECTOR *v1) {
+    register long t0 __asm__("$8");
+    register long t1 __asm__("$9");
+    register long t2 __asm__("$10");
+    register long ret __asm__("$2");
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", VectorNormalSS);
+    __asm__ volatile ("lw\t$8, 0( $4 )\n\t"
+                      "lw\t$9, 4( $4 )\n\t"
+                      "lw\t$10, 8( $4 )\n\t"
+                      "addu\t$7, $31, $zero\n\t"
+                      "jal\tfunc_80048DD8\n\t"
+                      "addu\t$31, $7, $zero"
+                      : "=r"(t0), "=r"(t1), "=r"(t2) : : "$7", "memory");
+    v1->vx = t0;
+    v1->vy = t1;
+    v1->vz = t2;
+    return ret;
+}
+
+long VectorNormalSS(SVECTOR *v0, SVECTOR *v1) {
+    register long t0 __asm__("$8");
+    register long t1 __asm__("$9");
+    register long t2 __asm__("$10");
+    register long ret __asm__("$2");
+
+    __asm__ volatile ("lh\t$8, 0( $4 )\n\t"
+                      "lh\t$9, 2( $4 )\n\t"
+                      "lh\t$10, 4( $4 )\n\t"
+                      "nop\n\t"
+                      "addu\t$7, $31, $zero\n\t"
+                      "jal\tfunc_80048DD8\n\t"
+                      "addu\t$31, $7, $zero"
+                      : "=r"(t0), "=r"(t1), "=r"(t2) : : "$7", "memory");
+    v1->vx = t0;
+    v1->vy = t1;
+    v1->vz = t2;
+    return ret;
+}
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", func_80048DD8);
 
