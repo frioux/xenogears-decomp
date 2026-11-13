@@ -65,6 +65,78 @@ void func_8008E2B8(u8* p0, s32 color, s32 flag) {
     AddPrim(p0, D_80096E00 + D_800928A0 * 0xC);
 }
 */
+INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008E3CC);
+/* best: objdiff 99.39% - only difference: gcc folds the address of the loop body's last store into the induction pointer (base = &unk2, offsets 10/-1/2/0) instead of using &unk0 with 12/1/4/2. Statement order does not change the choice; the base always follows the last store. An indexed form (D_80096EA0[i].unkC) loses the strength reduction entirely (45%).
+void func_8008E620(void) {
+    BattleSlot* pSlot;
+    s32 timer;
+    u32 i;
+
+    timer = 0x300;
+    func_80039FF8();
+    pSlot = D_80096EA0;
+    for (i = 0; i < 4; i++) {
+        pSlot->unkC = timer;
+        timer <<= 2;
+        pSlot->unk1 = 0;
+        pSlot->unk4 = 0;
+        pSlot->unk2 = i * 2;
+        pSlot++;
+    }
+}*/
+void func_8008E620(void) {
+    BattleSlot* pSlot;
+    s32 timer;
+    u32 i;
+
+    timer = 0x300;
+    func_80039FF8();
+    pSlot = D_80096EA0;
+    for (i = 0; i < 4; i++) {
+        pSlot[i].unkC = timer;
+        timer <<= 2;
+        pSlot[i].unk1 = 0;
+        pSlot[i].unk4 = 0;
+        pSlot[i].unk2 = i * 2;
+    }
+}
+void func_8008E67C(void) {
+    if (D_80096EA0[0].unk4 != 0xFFFF) {
+        D_80096EA0[0].unk4++;
+    }
+    if (D_80096EC8 != 0xFFFF) {
+        D_80096EC8++;
+    }
+    if (D_80096EEC != 0xFFFF) {
+        D_80096EEC++;
+    }
+    if (D_80096F10 != 0xFFFF) {
+        D_80096F10++;
+    }
+}
+u8* func_8008E6F8(u8* p) {
+    u8* pTable;
+
+    switch (*(u8*)(p + 0x909)) {
+    case 9:
+        pTable = D_80091FA0;
+        break;
+    case 0x1D:
+        pTable = D_80091F60;
+        break;
+    case 0x1B:
+        pTable = D_80091F80;
+        break;
+    case 0x24:
+        pTable = D_80091F70;
+        break;
+    default:
+        pTable = D_80091F90;
+        break;
+    }
+    *(u8**)(p + 0x1664) = pTable;
+    return pTable;
+}
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008E78C);
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008E8B0);
 void func_8008EADC(void) {

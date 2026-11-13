@@ -185,6 +185,17 @@ void func_8007171C(void) {
     }
 }
 */
+void func_800718BC(void) {
+    u8 index;
+
+    index = D_800C3EAC[0x2D3];
+    if (D_800D2DE4[index] != 0xFF) {
+        D_800D2DE4[index] = 0;
+    }
+    D_800D2E06[D_800C3EAC[0x2D3]] = func_80098AF8(D_800C3EAC[0x2D3], 0);
+    D_800D2E06[D_800C3EAC[0x2D3] - 0xB] = D_800D2E06[D_800C3EAC[0x2D3]];
+}
+
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80071964);
 /* 99.51% under 2.6.0 and 2.7.2: every instruction is identical except the
    leading flag load, which retail puts in $a1 (a dead argument register at
