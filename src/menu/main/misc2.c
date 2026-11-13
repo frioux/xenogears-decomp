@@ -16,8 +16,18 @@ s32 func_801C881C(void);
 extern void func_80039DB8(s32 arg0);
 extern int Vsync(int mode);
 
-void func_801C7BF4(void);
 void func_801C8A10(s32 arg0);
+extern void func_801C7D78(void);
+extern void func_801D1D40(void);
+extern void func_801D2968(void);
+extern void func_801D1CA0(void);
+extern void func_801C8BEC(void);
+extern void func_801C8EE8(void);
+extern void func_8001BD40(s32 arg0, u8 arg1);
+extern void GameCheckAndHandleSoftReset(void);
+extern s32* D_8005917C; // -1 when no debugger is attached
+extern int D_80059488;
+extern u8 D_801E9784;
 extern s32 ArchiveGetDiscNumber(void);
 void func_801D1E80(void);
 void func_801D22F4(s32 arg0);
@@ -56,7 +66,45 @@ void func_801C7B0C(void) {
         break;
     }
 }
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc2", func_801C7BF4);
+void func_801C7BF4(void) {
+    GfxEnvironment* pNextGfxEnv;
+    int renderContext;
+
+    // Debugging
+    if (*D_8005917C != -1) {
+        asm("break 0x400");
+    }
+
+    func_801C7D78();
+
+    if (D_801E9784) {
+        GameCheckAndHandleSoftReset();
+    }
+
+    pNextGfxEnv = &g_Menu->gfxEnvs[0];
+    if (g_Menu->pGfxEnv == &g_Menu->gfxEnvs[0]) {
+        pNextGfxEnv = &g_Menu->gfxEnvs[1];
+    }
+    g_Menu->pGfxEnv = pNextGfxEnv;
+
+    g_Menu->renderContext = g_Menu->renderContext == 0;
+    ClearOTagR(g_Menu->pGfxEnv->ot, 0x10);
+    func_8001BD40(0, 0xFF);
+    func_801D1D40();
+    g_Menu->unk2D8++;
+    func_801C7F34(D_80059488);
+    func_801D2968();
+    func_801D1CA0();
+    renderContext = g_Menu->renderContext == 0;
+    DrawSync(0);
+    Vsync(0);
+    PutDrawEnv(&g_Menu->pGfxEnv->drawEnv);
+    PutDispEnv(&g_Menu->pGfxEnv->dispEnv);
+    MoveImage(&g_Menu->pSelectionMenu->unk1180, 0, renderContext * 0xE0);
+    DrawOTag(&g_Menu->pGfxEnv->ot[0xF]);
+    func_801C8BEC();
+    func_801C8EE8();
+}
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc2", func_801C7D78);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc2", func_801C7F34);
 /* Best: 83.02% (388 bytes, same size). The divisors below are decoded from the

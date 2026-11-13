@@ -300,7 +300,7 @@ build_variables = {
 # are straight uncomments once the preset is on.
 # menu/main/misc12 joined in session 7: all 11 matched functions stay 100.0 under 2.6.0
 # and func_801E71B4 is 100.0 only there (97.81 under 2.7.2).
-paths = [ "menu/main/misc9.", "menu/main/misc5.", "menu/main/misc6.", "menu/main/misc10.", "menu/main/misc12.",
+paths = [ "menu/main/misc9.", "menu/main/misc5.", "menu/main/misc6.", "menu/main/misc10.", "menu/main/misc12.", "menu/main/misc2.",
     "menu/main/misc11_r1.",
 ]
 
