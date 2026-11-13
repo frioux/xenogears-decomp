@@ -6,6 +6,7 @@
 extern u8 D_801EA6D0[][0x10];
 extern u8* D_801EA6F4;
 extern s32 D_801E9818[];
+extern s32 D_801E9820[];
 extern u16 D_8005A3A0[0x10];
 extern u16 D_8006F958[0x10];
 extern int D_80059488;
@@ -173,45 +174,92 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801C9D34);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801C9EF4);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CA1D4);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CA480);
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CA5F0);
 
-/* Best attempt: 83.16%. Whole shape matches; two diffs remain.
-   1) Original keeps the loop-carried register as the D_801E9818 index
-   (`a2 = a1 - 1` in the beqz delay slot, `v1 = &D_801E9818[arg1]`), mine folds
-   the +1 into the base constant and decrements the store value instead.
-   2) The `/ 0x14` magic differs: original uses 0x88888889 + add + sra 3, mine
-   (same compiler, same dividend) uses 0x66666667 + sra 3; gcc picks the
-   "negative magic" form from the dividend's precision, so the original's
-   dividend type is probably narrower (s16?) than the s32 used here. */
+/* Best attempt: 83.32%. Cases 0 and 2 are exact; case 1 is a pure register
+   permutation (original keeps the store value in a0 and hoists g_Menu into a3,
+   mine uses a2 and holds menuUnk2 in a0). All three cases share one register
+   assignment, so they have to be found together: making case 2 exact moved
+   case 0's index from a1 to a2.
+   Learned: case 2's divisor is FIFTEEN, not 0x14 (magic 0x88888889 + add +
+   sra 3); writing /0x14 gives 0x66666667 and can never match. The ascending
+   loops are `for (i = a1; i + 1 < 0x1E; i++)` over `D_801E9820[i]` storing
+   `unk4F7C = i + 1`, which is what puts the guard on a2 = a1 + 1. */
 /*
-void func_801CA5F0(s32 arg0, s32 arg1) {
+void func_801CA480(s32 a0, s32 a1) {
     s32 i;
     s32 j;
-    s32 x;
 
-    switch (arg0) {
+    switch (a0) {
     case 0:
-        for (i = arg1 - 1; i >= 0; i--) {
-            j = D_801E9818[i + 1];
+        for (i = a1; i + 1 < 0x1E; i++) {
+            j = D_801E9820[i];
             if (g_Menu->menuUnk2->unk4FAE[j] != 0xFF) {
-                g_Menu->menuUnk2->unk4F7C = i;
+                g_Menu->menuUnk2->unk4F7C = i + 1;
                 break;
             }
         }
         break;
     case 1:
-        for (i = arg1 - 1; i >= 0; i--) {
-            j = D_801E9818[i + 1];
+        for (i = a1; i + 1 < 0x1E; i++) {
+            j = D_801E9820[i];
             if (g_Menu->menuUnk2->unk4FAE[j] != 0xFF && g_Menu->menuUnk2->unk4F8E[j] != 0) {
-                g_Menu->menuUnk2->unk4F7C = i;
+                g_Menu->menuUnk2->unk4F7C = i + 1;
                 break;
             }
         }
         break;
     case 2:
-        x = arg1 - 1;
-        if ((&g_Menu->menuUnk2->unk4FE4)[x / 0x14] != 0 && x >= 0) {
-            g_Menu->menuUnk2->unk4F7C = x;
+        i = a1 + 1;
+        if (((u8*)&g_Menu->menuUnk2->unk4FE4)[i / 15] != 0 && i < 0x1E) {
+            g_Menu->menuUnk2->unk4F7C = i;
+        }
+        break;
+    }
+}
+*/
+
+INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CA5F0);
+
+/* Best attempt: 81.70%. Both descending loops and case 2's shape match; the
+   only diff left is an allocator tie in case 2, where the original's mfhi lands
+   in v0 (the quotient's own register) and mine lands in t1 with an extra
+   `addu v0,t1,a1`.
+   Learned: the divisor is 15, not 0x14 (see func_801CA480), and keeping the
+   flag array as a pointer local turns the final `addu v0,v0,v1` into the
+   original's base-first `addu v0,v1,v0`. The descending loops are
+   `for (i = a1; i - 1 >= 0; i--)` over `D_801E9818[i]` storing
+   `unk4F7C = i - 1`, which is what makes the guard the bltz on a2 = a1 - 1. */
+/*
+void func_801CA5F0(s32 a0, s32 a1) {
+    u8* pFlags;
+    s32 i;
+    s32 j;
+
+    switch (a0) {
+    case 0:
+        for (i = a1; i - 1 >= 0; i--) {
+            j = D_801E9818[i];
+            if (g_Menu->menuUnk2->unk4FAE[j] != 0xFF) {
+                g_Menu->menuUnk2->unk4F7C = i - 1;
+                break;
+            }
+        }
+        break;
+    case 1:
+        for (i = a1; i - 1 >= 0; i--) {
+            j = D_801E9818[i];
+            if (g_Menu->menuUnk2->unk4FAE[j] != 0xFF && g_Menu->menuUnk2->unk4F8E[j] != 0) {
+                g_Menu->menuUnk2->unk4F7C = i - 1;
+                break;
+            }
+        }
+        break;
+    case 2:
+        i = a1 - 1;
+        pFlags = (u8*)&g_Menu->menuUnk2->unk4FE4;
+        j = i / 15;
+        if (pFlags[j] != 0 && i >= 0) {
+            g_Menu->menuUnk2->unk4F7C = i;
         }
         break;
     }
