@@ -15,6 +15,7 @@ extern u8 D_801E9EA0[];
 
 void func_801DDF24(u_char arg0, u_char arg1, s32 arg2);
 void func_801C7BF4(void);
+void func_801D2484(void);
 void func_801D4EA0(s32 arg0);
 void func_801C72BC(s32 arg0);
 void func_801D3444(void);
@@ -86,12 +87,15 @@ void func_801DBDB4(void) {
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DBE54);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DC1D4);
 /* Best: 91.94%, same size (228 bytes). Everything matches except the case
-   dispatch: retail built a binary-search tree (beq x,1 / slti x,2 / beqz x,0 /
-   beq x,2) which gcc 2.7.2 and 2.6.0 (and -O3, and 2.7.2-cdk) only emit for a
-   sparse switch; for these 3 dense cases both give a sequential compare chain
-   (beq x,1 / beqz x,0 / beq x,2). A hand-written if/else chain in tree order
-   inverts the branches instead. `kind` is genuinely uninitialised in retail
-   (the default paths pass garbage to func_801C72BC).
+   dispatch: retail built a balanced decision tree (beq x,1 / slti x,2 / beqz x,0
+   / beq x,2) where gcc 2.6.0 emits a sequential compare chain for this switch.
+   The tree IS reachable from gcc 2.6.0: the sibling func_801DC2CC above emits
+   exactly it for an identical `switch (arg0 & 0xFF)` over the same 3 cases, so
+   the trigger is some other property of this function, not the compiler. Tried:
+   2.6.0/2.7.2/2.7.2-cdk x -O1..-O3 x -G0/-G4/-G8 (all 94.47 or less on the
+   older parked shape, 91.94 here), while/for/do-while, index init before/after
+   the switch, case order. `kind` and `index` are genuinely uninitialised /
+   zeroed by retail's own code; the default path passes a garbage `kind`.
 void func_801DC1D4(u32 arg0) {
     s32 kind;
     s32 index = 0;
@@ -116,7 +120,33 @@ void func_801DC1D4(u32 arg0) {
     func_801D3488(2, arg0 & 0xFF);
 }
 */
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DC2CC);
+
+void func_801DC2CC(u_char arg0) {
+    s32 kind;
+
+    func_801D4EA0(3);
+    func_801D4EA0(4);
+    func_801D4EA0(5);
+    func_801D4EA0(6);
+    func_801D2484();
+    g_Menu->pManager->unk4A[0] = 0;
+    func_801C7BF4();
+    switch (arg0 & 0xFF) {
+    case 0:
+        kind = 2;
+        break;
+    case 1:
+        kind = 5;
+        break;
+    case 2:
+        kind = 6;
+        break;
+    }
+    func_801C72BC((kind | 0x10) & 0xFF);
+    HeapFree(g_Menu->unk430);
+    g_Menu->pManager->unk5[1] = 1;
+    g_Menu->pManager->shouldRenderWindow[1] = 1;
+}
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DC3D8);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DCE60);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DD5E8);
@@ -231,7 +261,34 @@ void func_801DE474(u_char arg0, u_char arg1) {
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DE5CC);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DF0D4);
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DF5D0);
+void func_801DF5D0(u_char arg0, u_char arg1) {
+    s32 i;
+
+    for (i = 0; i < 9; i++) {
+        ((u16*)((u8*)g_Menu->unk360 + 0x280))[i] = g_Menu->pDressingRoom->unkB8[i];
+    }
+
+    if (arg1 == 0) {
+        for (i = 0; i < 5; i++) {
+            ((u8*)g_Menu->unk360 + i)[0x29C] =
+                g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].unk6A[i];
+            ((u8*)g_Menu->unk360 + i)[0x2A1] =
+                g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].unk6F[i];
+            ((u8*)g_Menu->unk360 + i)[0x2A6] =
+                g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].unk74[i];
+        }
+    } else {
+        for (i = 0; i < 4; i++) {
+            ((u8*)g_Menu->unk360 + i)[0x29C] =
+                g_GameState.gears[g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].gearId].weaponId[i];
+            ((u8*)g_Menu->unk360 + i)[0x2A1] =
+                g_GameState.gears[g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].gearId].unk4[i];
+            ((u8*)g_Menu->unk360 + i)[0x2A6] =
+                g_GameState.gears[g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].gearId].accessorySlots[i];
+        }
+    }
+}
+
 void func_801DF890(u_char arg0, u_char arg1) {
     s32 i;
 
