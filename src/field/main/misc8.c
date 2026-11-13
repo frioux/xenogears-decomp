@@ -179,6 +179,98 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_8008110C);
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800815F0);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80081C54);
+/* 63.38% (772 vs 776 bytes). What is settled, from the assembly:
+   - It fills one entry of a 0x48-byte ring at D_800B14F0 indexed by a volatile
+     s32 D_800B2360 (the original re-reads the index 13 times, so the global must
+     be declared volatile), then clears D_800C3910 and does
+     D_800B2360 = (D_800B2360 - 1) & 0x1F.
+   - Sources: one &g_FieldActors[actorIndex] read gives pActorData (FieldActor
+     0x4C) and pSpriteData (0x4); two early returns
+     (actorIndex != g_PlayerActorIndex, D_800B21CC != 0).
+   - Destination offsets from 0x800B14F0 (splat has a bss label at each of
+     0x14F0/14F4/14F8/14FA/14FC/1500/1502/1504/1510/1514/1518/1530/1534):
+     0x00 ActorData scriptFlags.flags, 0x04 ActorData flags,
+     0x08/0x0A/0x0C high halves of ActorData position (s16 at 0x22/0x26/0x2A),
+     0x10 SpriteData field_0x84, 0x12 ActorData curAnimationId,
+     0x14 rotation.vy & 0xFFF, 0x16..0x1C walkmeshTriIds[4] (copied by a loop),
+     0x20/0x24/0x28 SpriteData step.x/y/z, 0x30/0x34/0x38 curTriNormal vx/vy/vz,
+     0x40 curWalkmeshTriMaterial, 0x44 walkmeshId (byte store).
+   - Residue: (1) the 0x18 frame is never used by the body, so the original
+     source must have a dead ~0x18 local; (2) pActorData/pSpriteData land in
+     a3/a1 here instead of t0/a2; (3) address CSE - the original materialises
+     sym+0x20 once (la a1, 0x800B1510) and derives +0x10 and -0xA from it with
+     runtime addius, where gcc re-forms the symbolic address per statement
+     (sw $4,D_800B14F0+32($2)); both link to the same address, so the %hi/%lo
+     addend split can never read 100% in objdiff - gate this one with
+     tools/scripts/check_bin.sh field once the shape is right.
+*/
+/* attempt:
+typedef struct {
+    0x00    u_int scriptFlags;
+    0x04    u_int flags;
+    0x08    s16 positionX;
+    0x0A    s16 positionY;
+    0x0C    s16 positionZ;
+    0x0E    s16 pad0E;
+    0x10    s16 spriteUnk84;
+    0x12    s16 animationId;
+    0x14    s16 rotation;
+    0x16    s16 walkmeshTriIds[4];
+    0x1E    s16 pad1E;
+    0x20    s32 stepX;
+    0x24    s32 stepY;
+    0x28    s32 stepZ;
+    0x2C    s32 pad2C;
+    0x30    s32 normalX;
+    0x34    s32 normalY;
+    0x38    s32 normalZ;
+    0x3C    s32 pad3C;
+    0x40    u_int walkmeshTriMaterial;
+    0x44    u8 walkmeshId;
+    0x45    undefined8 pad45[3];
+} FieldActorRenderPacket; // Size: 0x48
+
+extern FieldActorRenderPacket D_800B14F0[];
+extern volatile s32 D_800B2360;
+extern s32 D_800C3910;
+extern u_char D_800B21CC;
+extern s32 g_PlayerActorIndex;
+
+void func_80081C54(int actorIndex) {
+    FieldActor* pEntry = &g_FieldActors[actorIndex];
+    ActorData* pActor = pEntry->pActorData;
+    SpriteData* pSprite = (SpriteData*)pEntry->pSpriteData;
+    int i;
+
+    if (actorIndex != g_PlayerActorIndex) {
+        return;
+    }
+    if (D_800B21CC != 0) {
+        return;
+    }
+    D_800B14F0[D_800B2360].stepX = pSprite->step.x;
+    D_800B14F0[D_800B2360].stepY = pSprite->step.y;
+    D_800B14F0[D_800B2360].stepZ = pSprite->step.z;
+    D_800B14F0[D_800B2360].normalX = pActor->curTriNormal.vx;
+    D_800B14F0[D_800B2360].normalY = pActor->curTriNormal.vy;
+    D_800B14F0[D_800B2360].normalZ = pActor->curTriNormal.vz;
+    D_800B14F0[D_800B2360].rotation = *(u_short*)&pActor->rotation.vy & 0xFFF;
+    D_800B14F0[D_800B2360].spriteUnk84 = *(u_short*)&pSprite->field_0x84;
+    D_800B14F0[D_800B2360].positionX = ((s16*)&pActor->position)[1];
+    D_800B14F0[D_800B2360].positionY = ((s16*)&pActor->position)[3];
+    D_800B14F0[D_800B2360].positionZ = ((s16*)&pActor->position)[5];
+    D_800B14F0[D_800B2360].animationId = *(u_short*)&pActor->curAnimationId;
+    D_800B14F0[D_800B2360].walkmeshTriMaterial = pActor->curWalkmeshTriMaterial;
+    D_800B14F0[D_800B2360].scriptFlags = pActor->scriptFlags.flags;
+    D_800B14F0[D_800B2360].flags = pActor->flags;
+    for (i = 0; i < 4; i++) {
+        D_800B14F0[D_800B2360].walkmeshTriIds[i] = pActor->walkmeshTriIds[i];
+    }
+    D_800B14F0[D_800B2360].walkmeshId = *(u_short*)&pActor->walkmeshId;
+    D_800C3910 = 0;
+    D_800B2360 = (D_800B2360 - 1) & 0x1F;
+}
+*/
 
 int func_80081F5C(ActorData* pActor) {
     u_int actorType = (pActor->scriptFlags.flags >> 9) & 3;
