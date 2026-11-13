@@ -43,6 +43,8 @@ extern BattlingWork D_8009A2F8[2];
 
 extern s32 D_800928F8;
 extern u32 D_80059598;
+extern u8 D_80091834[];
+extern u8 D_800918B4[];
 extern u8 D_80091934[];
 extern u8 *D_80092854;
 extern u8 *D_80092858;
@@ -108,6 +110,62 @@ void func_80087650(void) {
 }
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc11", func_80087698);
+/* Best 81.23%: two clusters left. (1) gcc puts the live interpolated value in
+   a0 and the table byte in v1; the original has them the other way round
+   (v1 / a0). (2) the original's loop tail is i++; slt; bnez; addu(cur += step)
+   in the branch delay slot, gcc emits addu before the slt and a nop in the
+   slot. Tried: for-increment order i++,cur += step and cur += step,i++;
+   t declared before v. Semantics: interpolate a shaded span into the two
+   buffers D_800927D0 / D_800927CC, clamped by the tables D_80091834 /
+   D_800918B4+1.
+void func_80087698(s32 arg0, s32 arg1, s32 arg2, s32 arg3) {
+    s32 cur = arg0 << 8;
+    s32 step = ((arg2 - arg0) << 8) / (arg3 - arg1);
+    s32 t;
+    s32 v;
+    s32 i;
+    u8 *p;
+
+    if (arg1 == arg3) {
+        return;
+    }
+    if (arg3 < arg1) {
+        t = arg0;
+        arg0 = arg2;
+        arg2 = t;
+        t = arg1;
+        arg1 = arg3;
+        arg3 = t;
+        cur = arg0 << 8;
+        step = ((arg2 - arg0) << 8) / (arg3 - arg1);
+    }
+    for (i = arg1; i < arg3; cur += step, i++) {
+        if (i < 0) {
+            continue;
+        }
+        if (i >= 0x80) {
+            return;
+        }
+        v = cur >> 8;
+        p = D_800927D0 + i;
+        if (v < *p) {
+            t = D_80091834[i];
+            if (v < t) {
+                v = t;
+            }
+            *p = v;
+        }
+        p = D_800927CC + i;
+        if (*p < v) {
+            t = D_800918B4[i] + 1;
+            if (t < v) {
+                v = t;
+            }
+            *p = v;
+        }
+    }
+}
+*/
 
 void func_8008779C(s32 arg0, s32 arg1, s32 arg2) {
     D_80059598 = (D_80059598 & 0xFFFFFF) | 0x24000000;
@@ -179,20 +237,12 @@ void func_80087E38(s32 *arg0) {
 */
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc11", func_80087EA0);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc11", func_8008820C);
-/* Best 40.72%: instruction multiset is right, only the addressing base differs.
-   The original keeps p in a2 and stores at 0x30/0x20/... off it; gcc picks
-   p+0x2C as the canonical base and reaches the rest with negative offsets, so
-   the loop induction var and the return copy land in different registers.
-   Tried: p++ in the for-increment (this shape, 40.72).
 void *func_8008820C(s32 *arg0, s32 *arg1, s32 arg2) {
-    BattlingSlot *p = D_80095938;
-    s32 dim14 = (arg2 & 2) * 0x7F;
-    s32 dim15 = (arg2 & 4) * 0x3F;
-    s32 dim16 = (arg2 & 1) * 0xFF;
     s32 i;
 
-    for (i = 0; i < 0x64; i++, p++) {
+    for (i = 0; i < 0x64; i++) {
+        BattlingSlot *p = &D_80095938[i];
+
         if (p->unk30 == 0) {
             p->unk30 = 1;
             p->unk20 = arg0[0];
@@ -200,19 +250,18 @@ void *func_8008820C(s32 *arg0, s32 *arg1, s32 arg2) {
             p->unk24 = arg0[2];
             p->unk28 = arg1[0];
             p->unk2A = arg1[1];
-            p->unk4 = dim14;
-            p->unk5 = dim15;
-            p->unk6 = dim16;
-            p->unk14 = dim14;
-            p->unk15 = dim15;
-            p->unk16 = dim16;
             p->unk2C = arg1[2];
+            p->unk4 = (arg2 & 2) * 0x7F;
+            p->unk5 = (arg2 & 4) * 0x3F;
+            p->unk6 = (arg2 & 1) * 0xFF;
+            p->unk14 = (arg2 & 2) * 0x7F;
+            p->unk15 = (arg2 & 4) * 0x3F;
+            p->unk16 = (arg2 & 1) * 0xFF;
             return p;
         }
     }
     return NULL;
 }
-*/
 void func_800882D4(s32 arg0, s32 *arg1, s32 arg2, s16 arg3) {
     u8 *p = func_8008820C(arg0, arg1, arg2);
 
