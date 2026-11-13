@@ -187,7 +187,6 @@ build_variables = {
 }
 paths = [
     "battle/main/misc21.",
-    "battle/main/misc24.",
     "battling/main/misc15.",
     "movie/main/misc1.",
     "movie/main/misc2."
