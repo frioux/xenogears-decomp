@@ -3,11 +3,20 @@
 #include "psyq/gtemac.h"
 #include "psyq/inline_c.h"
 
-// Every stub left in this unit is Sony's hand-written vector.s: splat flags each
-// one `Handwritten function` and flags every GTE op inside it `handwritten
-// instruction`, exactly like the 28 functions above that do match because the
-// gte macros reproduce Sony's stream. What is left does not, for one of these
-// reasons (tools/scripts/convertible.py reports the first two):
+// Functions transcribed as the asm Sony wrote (the gte macros cannot express
+// these): VectorNormal, VectorNormalSS, PushMatrix, PopMatrix, func_80048DD8,
+// SetMulMatrix, plus the LoadAverage*/ApplyMatrix* bodies further down. Points a
+// transcription must observe here: maspsx aborts on a `0x..` displacement inside
+// inline asm (`sw $8, 0x0($t7)`); write it decimal. maspsx also appends a nop
+// after every `jal` unless it has seen a `.set noreorder`, so blocks that call out
+// open with `.set\tnoreorder` and close with `.set\treorder` to leave the
+// assembler state as they found it. GAS has no `sqr`/`gpf`/`mvmva` mnemonics:
+// spell those as `.word` (gte_*_b's encodings).
+//
+// Every stub left is Sony's hand-written vector.s: splat flags each one
+// `Handwritten function` and flags every GTE op inside it `handwritten
+// instruction`. What is left does not convert, for one of these reasons
+// (tools/scripts/convertible.py reports the first two):
 //   - nops after `.size`, which C cannot emit and whose removal shifts the rest
 //     of the unit's .text: MatrixNormal, TransMatrix, ApplyMatrixSV,
 //     LoadAverageCol, InitGeom, SquareRoot0, MulMatrix0, MulMatrix, MulMatrix2,
@@ -15,14 +24,11 @@
 //   - dead code: InvSquareRoot's `andi $t0,$v0,1` (never read) and
 //     ApplyMatrixLV's `sra $t3,$t0,15` at 0x800494D0, which is jumped over
 //   - a private calling convention, operands and results in $t0-$t2 with $ra
-//     parked in $a3: func_80048DD8, MatrixNormal, and VectorNormalS, which
-//     branches into the middle of VectorNormalSS (the label lives in the C).
-//     VectorNormal and VectorNormalSS do match: they are transcribed above as
-//     the asm Sony wrote, and maspsx supplies the jal delay-slot nop.
+//     parked in $a3: MatrixNormal, and VectorNormalS, which branches into the
+//     middle of VectorNormalSS (the label lives in the C) and so cannot carry an
+//     epilogue of its own.
 //   - GTE registers packed by hand around three MVMVAs (lhu + lw + lui 0xFFFF0000
-//     then and/or): SetMulMatrix, CompMatrix
-//   - $ra spilled to the global D_80056D20 around a printf and the stack depth
-//     kept in D_80056D2C: PushMatrix, PopMatrix
+//     then and/or): CompMatrix
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", InitGeom);
 
