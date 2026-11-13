@@ -127,7 +127,67 @@ void func_80071724(void* pOt) {
     AddPrim(pOt, &D_800929E4[D_800928A0 * 8]);
 }
 
+extern u32 D_800929EC;
+extern u32 D_800929F0;
+extern u8 D_8009A158;
+extern u8 D_8009A159;
+extern u16 D_8009A15A;
+
+/* 0x10-byte texture primitive template: tag, colour/code, xy, then UV and CLUT */
+typedef struct {
+    /* 0x0 */ u_long tag;
+    /* 0x4 */ u_char r0, g0, b0, code;
+    /* 0x8 */ s16 x0, y0;
+    /* 0xC */ u_char u0, v0;
+    /* 0xE */ u16 clut;
+} BattleTexBlock; // Size: 0x10
+
+extern BattleTexBlock D_8009A14C;
+extern BattleTexBlock D_8009A244;
+
+/* 79.36%: every statement is right and the size is retail's 300 bytes, but
+   gcc re-forms the second load's base (lui v1,%hi(D_800929E4); lw v1,4(v1)) where
+   retail reuses the $s0 already holding the address, hoists the GetClut argument
+   loads (lh a0/lh a1) above the D_800929EC stores, and sinks the `sh v0,
+   D_8009A15A` of GetClut's result below the 16-byte struct copy. Tried: two u32
+   loads hoisted into locals, (u32*)pTPage[i] vs pTPage->tag/->code[0] (both
+   rematerialise), a DR_TPAGE struct copy for the pair (fixes $s0 but makes the
+   second store a %lo(D_800929EC+4) reloc), copy via pointer local, and
+   (u_short*)tim.prect instead of RECT fields (gcc still narrows to lbu where
+   retail has lhu, so the andi 0x3F follows a halfword load). The unused RECT
+   local is load-bearing: it reproduces retail's 0x38 frame.
+*/
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_80071794);
+
+/* 79.36% attempt:
+void func_80071794(u8* p) {
+    TIM_IMAGE tim;
+    u_short tpage;
+    s16* pClut;
+    DR_TPAGE* pTPage;
+    BattleTexBlock* pBlock;
+    RECT rect;
+
+    OpenTIM(*(u_long**)(p + 0x60));
+    ReadTIM(&tim);
+    pClut = (s16*)tim.caddr;
+    pClut[0] = 0;
+    pClut[2] = -0x8000;
+    pClut[3] = -1;
+    LoadImage(tim.crect, tim.caddr);
+    LoadImage(tim.prect, tim.paddr);
+    tpage = GetTPage(0, 1, tim.prect->x, tim.prect->y);
+    pTPage = (DR_TPAGE*)&D_800929E4[0];
+    SetDrawTPage(pTPage, 0, 0, tpage);
+    D_800929EC = pTPage->tag;
+    D_800929F0 = pTPage->code[0];
+    D_8009A158 = (((u_short*)tim.prect)[0] & 0x3F) << 2;
+    D_8009A159 = ((u_short*)tim.prect)[1];
+    D_8009A15A = GetClut(tim.crect->x, tim.crect->y);
+    pBlock = &D_8009A244;
+    *pBlock = D_8009A14C;
+}
+*/
 
 extern s32 D_800925D4;
 extern s32 D_800925D8;
@@ -346,6 +406,20 @@ void func_800726B4(void) {
     func_80080D10();
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_8007273C);
+extern MATRIX D_80091C0C;
+
+void func_8007273C(u8* p, MATRIX* pIn, MATRIX* pOut) {
+    MATRIX mtx;
+
+    *pOut = *pIn;
+    mtx = D_80091C0C;
+    mtx.t[0] = *(s32*)(p + 0x34) - D_80096FA8;
+    mtx.t[1] = -D_80096FAC;
+    mtx.t[2] = *(s32*)(p + 0x3C) - D_80096FB0;
+    CompMatrix(pIn, &mtx, &mtx);
+    pOut->t[0] = mtx.t[0];
+    pOut->t[1] = mtx.t[1];
+    pOut->t[2] = mtx.t[2];
+}
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_80072858);
