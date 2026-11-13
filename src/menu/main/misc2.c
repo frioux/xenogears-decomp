@@ -158,59 +158,51 @@ void func_801C8164(POLY_G4* pPoly, u_char r, u_char g, u_char b) {
     pPoly->b3 = 0;
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc2", func_801C81E0);
-/* Best: 86.86% (324 bytes, same size). Two instructions sit one slot apart:
-   retail loads the 5th parameter (`lbu t1,0x10(sp)`) after the four word
-   stores and fills the `beqz` delay slot with `li v0,1`, gcc hoists the lbu to
-   the top of the block and puts `sw a3,0xC(v1)` in the delay slot instead.
-   The base pointer has to be a local for the first five stores and a fresh
-   `g_Menu + index*0x24` re-deref for everything after it (retail recomputes the
-   base once per basic block, five times in all). Tried: re-deref everywhere
-   (80.41), pointer local everywhere (83.26), natural field order 0/4/8/C
-   (86.72), s32* vs u8* base (same), pointer local through the second if
-   (83.26). Struct: g_Menu + index*0x24, size 0x24, first member of SystemMenu
-   (indexed through the opaque unk0[108], 3 entries).
+/* Best: 86.74% (324 bytes, same size) under XenoMenu260. Structure and
+   instruction multiset match; two residuals: (1) retail loads the 5th
+   parameter (`lbu t1,0x10(sp)`) after the four word stores and keeps its value
+   in the `beqz` delay slot (`li v0,1`), gcc hoists the lbu to the top of the
+   block and fills the slot with `sw a3,0xC(v1)`; (2) in every block after the
+   first, retail puts the `index*0x24` address in v1 and the `li 1`/`li 0x100`
+   constant in v0, gcc swaps them. Pointer local for the first five stores plus
+   a fresh `g_Menu->unk0[...]` re-deref after it is the closest shape (plain
+   re-deref everywhere is 80.41). Tried under 2.7.2 per the old note: field
+   order 0/4/8/C, s32* base, pointer local throughout. Also 95.35-class dead
+   zone, do not burn budget on it.
 void func_801C81E0(s32 arg0, s32 arg1, s32 arg2, s32 arg3, u8 arg4, u8 index) {
-    s32* pEntry;
+    u8* pEntry;
 
-    pEntry = (s32*)((u8*)g_Menu + index * 0x24);
-    pEntry[0] = arg0;
-    pEntry[2] = arg1;
-    pEntry[1] = arg2;
-    pEntry[3] = arg3;
+    pEntry = g_Menu->unk0 + index * 0x24;
+    ((s32*)pEntry)[0] = arg0;
+    ((s32*)pEntry)[2] = arg1;
+    ((s32*)pEntry)[1] = arg2;
+    ((s32*)pEntry)[3] = arg3;
     if (arg2 < arg0) {
         arg2 = arg0 - arg2;
-        *(u8*)((u8*)pEntry + 0x20) = 1;
+        pEntry[0x20] = 1;
     } else {
         arg2 = arg2 - arg0;
-        *(u8*)((u8*)pEntry + 0x20) = 0;
+        pEntry[0x20] = 0;
     }
     if (arg3 < arg1) {
         arg1 = arg1 - arg3;
-        *(u8*)((u8*)pEntry + 0x21) = 1;
+        g_Menu->unk0[index * 0x24 + 0x21] = 1;
     } else {
         arg1 = arg3 - arg1;
-        *(u8*)((u8*)pEntry + 0x21) = 0;
-    }
-    if (arg3 < arg1) {
-        arg1 = arg1 - arg3;
-        ((u8*)g_Menu + index * 0x24)[0x21] = 1;
-    } else {
-        arg1 = arg3 - arg1;
-        ((u8*)g_Menu + index * 0x24)[0x21] = 0;
+        g_Menu->unk0[index * 0x24 + 0x21] = 0;
     }
     if (arg2 < arg1) {
-        ((s32*)((u8*)g_Menu + index * 0x24))[5] = 0x100;
-        ((s32*)((u8*)g_Menu + index * 0x24))[4] = (arg2 << 8) / arg1;
+        ((s32*)(g_Menu->unk0 + index * 0x24))[4] = (arg2 << 8) / arg1;
+        ((s32*)(g_Menu->unk0 + index * 0x24))[5] = 0x100;
     } else {
-        ((s32*)((u8*)g_Menu + index * 0x24))[4] = 0x100;
-        ((s32*)((u8*)g_Menu + index * 0x24))[5] = (arg1 << 8) / arg2;
+        ((s32*)(g_Menu->unk0 + index * 0x24))[4] = 0x100;
+        ((s32*)(g_Menu->unk0 + index * 0x24))[5] = (arg1 << 8) / arg2;
     }
-    ((u8*)g_Menu + index * 0x24)[0x22] = arg4;
-    ((s32*)((u8*)g_Menu + index * 0x24))[6] = 0;
-    ((s32*)((u8*)g_Menu + index * 0x24))[7] = 0;
-    ((u8*)g_Menu + index * 0x24)[0x23] = 0;
+    g_Menu->unk0[index * 0x24 + 0x22] = arg4;
+    ((s32*)(g_Menu->unk0 + index * 0x24))[6] = 0;
+    ((s32*)(g_Menu->unk0 + index * 0x24))[7] = 0;
+    g_Menu->unk0[index * 0x24 + 0x23] = 0;
 }
-*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc2", func_801C8324);
 void func_801C851C(SVECTOR* pVertices, u16 x, u16 y, u16 width, u16 height) {
     pVertices[0].vx = x + 0xFF60;
