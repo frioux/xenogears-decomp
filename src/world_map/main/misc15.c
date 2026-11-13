@@ -322,6 +322,79 @@ void func_800978FC(void) {
 }
 */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_800979C8);
+// Best: 92.13%. Body, both rects, both GetClut/GetTPage loops and the frame
+// (0x38, ra + s0-s5) are instruction-identical; the only diff is register
+// NUMBERING in the second half - retail puts the loop counter i in s2 and the
+// D_8009CCB4/CD54/CD5C pointer in s3, we get the reverse, which also moves the
+// prologue's `sw <i>` + `move <i>,zero` pair and the counter of the two tpage
+// loops. Swapping the declarations of i and pClut does not move it.
+// Before un-parking: add #include "psyq/libgpu.h" (RECT/StoreImage/GetTPage),
+// and D_8009BB48 (the func_800931D8 factor table) is a label INSIDE
+// asm/world_map/data/2A39C.data.s, absent from
+// linker/undefined_syms_auto.world_map.txt, so it must be added to
+// config/symbol_addrs.world_map.txt (D_8009BB48 = 0x8009BB48;) and splat re-run
+// or the overlay link fails.
+/*
+extern void *LZSSHeapDecompress(void *pCompressedData, int flags);
+extern void func_8002DD20(void *pBlock);
+extern void func_800931D8(u8 *pSrc, u8 *pDst, s32 count, u8 *pFactors);
+extern u8 *D_8009C59C;
+extern u8 D_8009BB48[];
+extern u16 D_8009CCB4[];
+extern u16 D_8009CD54[];
+extern u16 D_8009CD5C[];
+
+void func_800979C8(void) {
+    RECT rect;
+    u8 *pData;
+    u8 *pDst;
+    s32 i = 0;
+    u16 *pClut;
+    s32 x;
+    s32 y;
+
+    pData = LZSSHeapDecompress(D_8009C59C, 1);
+    func_8002DD20(pData);
+    DrawSync(0);
+    HeapFree(pData);
+    HeapFree(D_8009C59C);
+    pData = HeapAlloc(0x400, 1);
+    pDst = HeapAlloc(0x8000, 1);
+    rect.x = 0;
+    rect.y = 0x1E0;
+    rect.w = 0x100;
+    rect.h = 2;
+    StoreImage(&rect, (u_long *)pData);
+    DrawSync(0);
+    func_800931D8(pData, pDst, 0x20, D_8009BB48);
+    func_800931D8(pData + 0x200, pDst + 0x4000, 0x20, D_8009BB48);
+    rect.x = 0;
+    rect.y = 0x1B0;
+    rect.w = 0x100;
+    rect.h = 0x40;
+    LoadImage(&rect, (u_long *)pDst);
+    DrawSync(0);
+    pClut = D_8009CCB4;
+    for (; i < 0x40; i++, pClut++) {
+        *pClut = GetClut(rect.x, rect.y);
+        rect.y++;
+    }
+    x = 0x200;
+    y = 0;
+    pClut = D_8009CD54;
+    for (i = 0; i < 4; i++, x += 0x80, pClut++) {
+        *pClut = GetTPage(1, 0, x, y);
+    }
+    x = 0x180;
+    y = 0x100;
+    pClut = D_8009CD5C;
+    for (i = 4; i < 7; i++, x += 0x80, pClut++) {
+        *pClut = GetTPage(1, 0, x, y);
+    }
+    HeapFree(pDst);
+    HeapFree(pData);
+}
+*/
 // Best: 63.31%. Same shape as the parked 94.28% note class: cc1 2.7.2 sinks
 // both masked `and`+store pairs to the end of the block and hoists the mask's
 // (high) half alone, so the original's interleaved order (lui+ori together, then
