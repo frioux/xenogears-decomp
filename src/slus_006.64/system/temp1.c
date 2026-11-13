@@ -341,7 +341,10 @@ s32 func_80023440(u16* pFlags) {
 
 // objdiff stops at 99.41% because its table reference is `jtbl_80018664` and ours is `.rodata`;
 // `tools/scripts/check_bin.sh slus_006.64` prints OK, so this definition is byte-identical.
-s32 func_80023468(u_int index, s32 value) {
+// K&R style so func_80023FD8 can call it with the single argument retail passes.
+s32 func_80023468(index, value) u_int index;
+s32 value;
+{
     s32 result = value;
 
     switch (index) {
@@ -522,6 +525,84 @@ AnimTask* func_80023A48(s32 arg0, s32 type, void* pAnimPackage, s32 size, void* 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80023B84);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80023FD8);
+/* Best attempt: 85.83% (704 bytes; the original is 700). The body below is structurally right --
+   every load, store, mask and call is in place and in order; what is left is register allocation.
+   (1) The original gives pAnimFile s1 and jointTaskSize s0, this C the other way round, and that
+   one swap renames s0/s1 in every later instruction. (2) The original keeps pSpriteData in t0 from
+   `addiu t0,s0,0x38` to the end and reuses the dead s1 for pVramData (`lw s1,0x24(t0)`); this C
+   uses a3 for the sprite pointer and t1 for pVramData. (3) The original materialises the 0x7FF80
+   mask (lui a3,0x7 / ori a3,a3,0xff80) in the delay slot of the first beqz, this C loads it inline.
+   Tried: indexed vs pointer table access, `(offset + base)` spelled as an int sum (this is what
+   fixes the addu operand order, worth 77.05 -> 85.83), a `taskSize` local for the 4th argument.
+   The call to func_80023468 passes ONE argument in retail (no `move a1,...` before the jal), which
+   is why func_80023468 is defined K&R above; with a prototype the call costs an extra `move`.
+
+extern u32 D_800591A8;
+extern void* D_800C3E1C;
+extern u8 D_800591AD;
+
+AnimTask* func_80023FD8(s32 index, void* pAnimFile, ActorRotation* pOffset, s32 jointTaskSize) {
+    u8* pAnimationOffsets;
+    void* pAnimEntry;
+    AnimTask* pAnimTask;
+    SpriteData* pSpriteData;
+    SpriteData* pTemplate;
+    void* pVramData;
+    s32 numDirections;
+    s32 type;
+    u32 flags;
+
+    pAnimationOffsets = *(u8**)((u8*)pAnimFile + 0x10);
+    pAnimEntry = (void*)(((u16*)pAnimationOffsets)[index + 1] + (mem_addr)pAnimationOffsets);
+    numDirections = func_80023440((u16*)pAnimEntry);
+    type = func_80023468(numDirections);
+    pAnimTask = func_80023A48(numDirections, type, pAnimFile, jointTaskSize, NULL);
+    *(u32*)((u8*)pAnimTask + 0x14) |= 0x20000000;
+    pSpriteData = &pAnimTask->spriteData;
+    pVramData = pSpriteData->pVramData;
+    pSpriteData->field_0x70 = NULL;
+    pSpriteData->pTargetEntitySprite = NULL;
+    if (D_800591AD) {
+        pTemplate = D_800C3E1C;
+        if (pTemplate) {
+            pSpriteData->pCurAnimFile = pTemplate->pCurAnimFile;
+            pSpriteData->pDefaultAnimFile = pTemplate->pDefaultAnimFile;
+            pSpriteData->pTargetEntitySprite = pTemplate->pTargetEntitySprite;
+            pSpriteData->moveSpeed = pTemplate->moveSpeed;
+            pSpriteData->direction = pTemplate->direction;
+            pSpriteData->field_0x40 = (pSpriteData->field_0x40 & ~0x1F00) | (pTemplate->field_0x40 & 0x1F00);
+            (*(u32*)((u8*)pSpriteData + 0x3C)) = ((*(u32*)((u8*)pSpriteData + 0x3C)) & ~8) | ((*(u32*)((u8*)pTemplate + 0x3C)) & 8);
+            (*(u32*)((u8*)pSpriteData + 0x3C)) = ((*(u32*)((u8*)pSpriteData + 0x3C)) & ~0x10) | ((*(u32*)((u8*)pTemplate + 0x3C)) & 0x10);
+            *(u8*)((u8*)pSpriteData + 0x3D) = *(u8*)((u8*)pTemplate + 0x3D);
+            pSpriteData->scale = pTemplate->scale;
+            (*(u32*)((u8*)pSpriteData + 0x3C)) = ((*(u32*)((u8*)pSpriteData + 0x3C)) | 0x4000000) & ~4;
+            pSpriteData->flags_0xAC = (pSpriteData->flags_0xAC & ~4) | (pTemplate->flags_0xAC & 4);
+            pSpriteData->flags_0xAC =
+                (pSpriteData->flags_0xAC & 0xFFF8007F) | (pTemplate->flags_0xAC & 0x7FF80);
+            pSpriteData->field_0x7C = pTemplate->field_0x7C;
+            pSpriteData->field_0x7C = pTemplate->field_0x7C;
+            flags = ((u32)pTemplate->flags_0xA8 >> 30) | ((pTemplate->flags_0xAC & 3) << 2);
+            pSpriteData->flags_0xA8 = (pSpriteData->flags_0xA8 & 0x3FFFFFFF) | (flags << 30);
+            pSpriteData->flags_0xAC = (pSpriteData->flags_0xAC & ~3) | (flags >> 2);
+            pSpriteData->field_0x50 = pTemplate->field_0x50;
+            *(u8*)((u8*)pSpriteData + 0x8D) = *(u8*)((u8*)pTemplate + 0xAF);
+        }
+    }
+    pSpriteData->pCurAnimFile = NULL;
+    pSpriteData->pDefaultAnimFile = NULL;
+    pSpriteData->curSpriteFrame = 0;
+    pSpriteData->pVramData = pVramData;
+    pSpriteData->field_0x40 = (pSpriteData->field_0x40 & 0xFFFE1FFF) | ((numDirections & 0xF) << 13);
+    (*(u32*)((u8*)pSpriteData + 0x3C)) = ((*(u32*)((u8*)pSpriteData + 0x3C)) & ~3) | (type & 3);
+    pSpriteData->field_0x82 = *(u16*)&D_800591A8;
+    pSpriteData->position.x = pOffset->vx << 16;
+    pSpriteData->position.y = pOffset->vy << 16;
+    pSpriteData->position.z = pOffset->vz << 16;
+    func_80023538(pSpriteData, pAnimEntry);
+    func_80024730(pAnimTask);
+    return pAnimTask;
+}
+*/
 
 extern void func_80024524(s32 arg0, s16 arg1, s16 arg2, s16 arg3, s16 arg4, s16 arg5);
 
