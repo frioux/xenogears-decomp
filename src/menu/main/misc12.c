@@ -28,6 +28,8 @@ void func_801E6F5C(u8 index, u8* pEntry);
 void func_801E71B4(s32 index, u8* pEntry, s32 arg2);
 void func_801E733C(void);
 
+extern s32 D_801EA1EC[];
+extern s32 D_801EA1F0[];
 extern u8 D_801EA578[];
 extern u8 D_801EA5C4[];
 extern s32 SystemRenderStringEntry(u8* pSrc, void* pDst, s32 len, s32 mode);
@@ -35,7 +37,7 @@ extern u8 D_801EA590[];
 extern u8 D_801EA5DC[];
 extern void func_80033B34(u16* pInput, u8* pOutput, int count);
 extern s32 func_8002675C(MenuResourceDirectory* pDir, u32 index, POLY_FT4* pPrims, s32 context, u16 x, u16 y, u16 scale);
-extern void func_801D1EE0(u_char arg0, s32 arg1);
+extern void func_801D1EE0(s32 arg0, s32 arg1);
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E6CFC);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E6F5C);
@@ -245,6 +247,63 @@ void func_801E8044(u_char count, u_char* pBuffer) {
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E8070);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E8474);
+void func_801C7BF4(void);
+
+/* Best: 91.12%. Both loops are instruction-for-instruction identical to retail
+   apart from two allocator/hoisting effects: retail keeps selected in s3, the
+   D_801EA1EC base in s4 and (base+4) in s5 with a single "addiu s5,s4,4" in the
+   OUTER preheader; gcc 2.6 gives selected s4, the base s5 and re-forms
+   D_801EA1EC+4 as a fresh lui/addiu in the inner preheader (s3). Loop 2's table
+   element is D_801EA1EC[idx + 1] (retail reuses the idx*4 from the compare).
+void func_801E86C8(u_char selected) {
+    s32 i;
+    s32 n;
+    s32 allValid;
+    u32 off;
+
+    allValid = 1;
+    g_Menu->unk354->unk1400 = 0;
+    g_Menu->unk354->unk1404 = 0;
+    g_Menu->pManager->unkA = 1;
+    for (n = 1; n < 5; n++) {
+        g_Menu->unk354->unk1400 = 0;
+        g_Menu->subMenuNumChoices = 0;
+        for (i = 0; i < n; i++) {
+            if (D_801EA1EC[(selected + g_Menu->mainMenuChoice) * 8 + i * 2] != 0xFFFF) {
+                g_Menu->unk354->unk1400 = func_8002675C(g_Menu->resources,
+                    D_801EA1EC[(selected + g_Menu->mainMenuChoice) * 8 + i * 2],
+                    (POLY_FT4*)(g_Menu->unk354->unk1400 * 0x50 + (s32)g_Menu->unk354),
+                    g_Menu->renderContext, 0xA0, 0x96, 0x1000) + g_Menu->unk354->unk1400;
+                g_Menu->subMenuNumChoices++;
+            } else {
+                allValid = 0;
+            }
+        }
+        g_Menu->unk354->unk1408 = *(u8*)&g_Menu->renderContext;
+        if (allValid) {
+            for (i = 0; i < 2; i++) {
+                func_801C7BF4();
+            }
+        }
+        g_Menu->unk354->unk1404 = 0;
+        for (i = 0; i < n; i++) {
+            if (D_801EA1EC[(selected + g_Menu->mainMenuChoice) * 8 + i * 2 + 1] != 0xFFFF) {
+                off = g_Menu->unk354->unk1404 * 0x50 + 0x500;
+                g_Menu->unk354->unk1404 = func_8002675C(g_Menu->resources,
+                    D_801EA1EC[(selected + g_Menu->mainMenuChoice) * 8 + i * 2 + 1],
+                    (POLY_FT4*)(off + (s32)g_Menu->unk354),
+                    g_Menu->renderContext, 0xA0, 0x96, 0x1000) + g_Menu->unk354->unk1404;
+            }
+        }
+        g_Menu->unk354->unk1409 = *(u8*)&g_Menu->renderContext;
+        if (allValid) {
+            for (i = 0; i < 2; i++) {
+                func_801C7BF4();
+            }
+        }
+    }
+}
+*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E86C8);
 void func_801E8978(u_char count, u_char selected, s32* pEntries) {
     s32 i;
@@ -273,7 +332,33 @@ void func_801E8978(u_char count, u_char selected, s32* pEntries) {
     func_801D1EE0(selected, 1);
     g_Menu->pManager->unk4 = 1;
 }
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E8B4C);
+void func_801E8B4C(u_char selected) {
+    s32 i;
+    u32 index;
+    u32 off;
+
+    g_Menu->unk354->unk1400 = 0;
+    g_Menu->unk354->unk1404 = 0;
+    for (i = 0; i < g_Menu->subMenuNumChoices; i++) {
+        if (i == g_Menu->subMenuChoice) {
+            index = D_801EA1EC[(selected + g_Menu->mainMenuChoice) * 8 + i * 2] + 0xD;
+        } else {
+            index = D_801EA1EC[(selected + g_Menu->mainMenuChoice) * 8 + i * 2];
+        }
+        g_Menu->unk354->unk1400 = func_8002675C(g_Menu->resources, index,
+            (POLY_FT4*)(g_Menu->unk354->unk1400 * 0x50 + (s32)g_Menu->unk354),
+            g_Menu->renderContext, 0xA0, 0x96, 0x1000) + g_Menu->unk354->unk1400;
+        off = g_Menu->unk354->unk1404 * 0x50 + 0x500;
+        g_Menu->unk354->unk1404 = func_8002675C(g_Menu->resources,
+            D_801EA1F0[(selected + g_Menu->mainMenuChoice) * 8 + i * 2],
+            (POLY_FT4*)(off + (s32)g_Menu->unk354),
+            g_Menu->renderContext, 0xA0, 0x96, 0x1000) + g_Menu->unk354->unk1404;
+    }
+    g_Menu->unk354->unk1408 = *(u8*)&g_Menu->renderContext;
+    g_Menu->unk354->unk1409 = *(u8*)&g_Menu->renderContext;
+    func_801D1EE0(g_Menu->subMenuChoice + 7, 1);
+    g_Menu->pManager->unk4 = 1;
+}
 void func_801E8DA8(s32 arg0, s32 arg1) {
     RECT rect;
     u8* pBuf;
@@ -313,6 +398,50 @@ void func_801E8EAC(POLY_FT4* pPoly, u_char mode) {
         break;
     }
 }
+/* Best: 85.90% and the instruction stream is IDENTICAL modulo two allocator
+   swaps: retail has arg0 in s2 / (arg0&0xFF)*4 in s3 / pWindow in a2, mine the
+   mirror. Same 536 bytes, same insns. The address grouping that retail uses is
+   "addiu a0,a0,off" on the multiply result then "addu a0,a0,a2": that needs the
+   offset in a named local (offset + (u32)pWindow), the inline form folds to
+   (pWindow + off) + x. `s32 mode` (not u8) is required for the per-call
+   `andi a1,s1,0xFF`.
+void func_801E8F60(u8 arg0, u8 arg1) {
+    MenuWindow* pWindow;
+    s32 mode;
+    u32 offset;
+    s32 i;
+
+    mode = arg1 ? 3 : 2;
+    for (i = 0; i < 4; i++) {
+        pWindow = g_Menu->windows[arg0];
+        offset = (i * 2 + pWindow->renderContext) * 0x28 + 0x140;
+        func_801E8EAC((POLY_FT4*)(offset + (u32)pWindow), mode);
+    }
+    for (i = 0; i < 4; i++) {
+        pWindow = g_Menu->windows[arg0];
+        offset = (i * 2 + pWindow->renderContext) * 0x28 + 0x1E0;
+        func_801E8EAC((POLY_FT4*)(offset + (u32)pWindow), mode);
+    }
+    for (i = 0; i < 4; i++) {
+        pWindow = g_Menu->windows[arg0];
+        offset = (i * 2 + pWindow->renderContext) * 0x28 + 0x280;
+        func_801E8EAC((POLY_FT4*)(offset + (u32)pWindow), mode);
+    }
+    for (i = 0; i < 4; i++) {
+        pWindow = g_Menu->windows[arg0];
+        offset = (i * 2 + pWindow->renderContext) * 0x28 + 0x320;
+        func_801E8EAC((POLY_FT4*)(offset + (u32)pWindow), mode);
+    }
+    for (i = 0; i < 2; i++) {
+        pWindow = g_Menu->windows[arg0];
+        offset = (i * 2 + pWindow->renderContext) * 0x28 + 0x410;
+        func_801E8EAC((POLY_FT4*)(offset + (u32)pWindow), mode);
+    }
+    pWindow = g_Menu->windows[arg0];
+    offset = pWindow->renderContext * 0x28 + 0x3C0;
+    func_801E8EAC((POLY_FT4*)(offset + (u32)pWindow), mode);
+}
+*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E8F60);
 void func_801E91C4(P_TAG* pTag) {
     SetSemiTrans(pTag, 1);
