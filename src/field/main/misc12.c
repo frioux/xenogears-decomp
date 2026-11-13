@@ -702,15 +702,20 @@ void func_8009B338(void) {
 }
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc12", func_8009B398);
-/* 95.05%, same instruction count (179). Only the 2D-actor arm differs: gcc
-   schedules the `D_800B21CE = 1` store (which takes a0 for the constant, pushing
-   the D_8005A444 pointer, the loop counter and the 0xFF/-0x8000 constants into
-   a1/a2/t0/a3) between the `lhu` and the `sh` of scriptInstructionPointer; the
-   original emits `sh 204(v0)` first and materialises the 1 into v0 after it.
-   Reversing the two source statements changes nothing - -fschedule-insns2
-   decides this. Everything from the else arm onwards matches instruction for
-   instruction. Bit idiom `| ~0x7FFF` is the house spelling (see func_8009F4CC
-   in misc6.c): `| 0x8000` on the short field gives lh/ori instead of lhu/or. */
+/* 95.05%, same instruction count (179). Everything from the else arm onwards
+   matches instruction for instruction; only the 2D-actor arm differs, and it
+   differs by one register: our compile materialises the `D_800B21CE = 1`
+   constant into a0 and schedules its `sb` before the `sh` of
+   scriptInstructionPointer, which pushes the D_8005A444 pointer, the loop
+   counter, the 0xFF and the -0x8000 constants from a0-a3 out into a1/a2/a3/t0
+   and shifts the whole arm by one register. The original materialises the 1
+   into v0 *after* `sh 204(v0)` (the pointer register it just freed) and keeps
+   a0-a3 for the loop. Attempts made: reversing the two source statements,
+   writing the += 0x14 out in full, and a block-scoped pCurActor pointer local -
+   all identical, because global.c's choice of a0 for the short-lived constant
+   (and sched2's hoist of the sb) does not depend on source order. Bit idiom
+   `| ~0x7FFF` is the house spelling (see func_8009F4CC in misc6.c): `| 0x8000`
+   on the short field gives lh/ori instead of lhu/or. */
 /*
 void func_8009B398(void) {
     ActorData* pActor;
@@ -864,23 +869,32 @@ void func_8009BA0C(void) {
 }
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc12", func_8009BA7C);
-/* 96.94%: only difference is gcc CSEs the two `direction << 9` and folds
-   (angle<<9)<<16 into sll 25; the original emits sll v0,v0,9 / sll v1,v0,9 /
-   sll v0,v0,16. Tried: both statement orders, * 0x200 / * 0x10000, u_long
-   temp for unk7C - all fold. */
+/* 96.94% (140 bytes, original 144). Everything matches instruction for
+   instruction except the direction shifts: the original evaluates
+   `(direction << 9)` twice - `sll v1,v0,9` for the sceneAngle.vy halfword and
+   `sll v0,v0,9` for the unk7C word - and then shifts that same word by 16
+   (`sll v0,v0,16`) for unk60, so it emits three shifts where gcc emits two.
+   gcc folds the chain: an `int angle = direction << 9` local reused by both
+   stores still comes out as `sll v1,v0,9` + `sll v0,v0,25`, because cse's
+   fold_rtx merges (x<<9)<<16. Attempts made: both statement orders, * 0x200 /
+   * 0x10000, u_long temp for unk7C, an int angle local for the two word
+   stores, and 2.7.2-cdk (56.72%). The only way out would be a memory
+   round-trip for unk7C, which the original does not have. */
 /*
 void func_8009BA7C(void) {
     int direction;
+    int angle;
+    int z;
 
     g_Scene.sceneDIP = FieldScriptVMGetArgument(3);
     direction = (FieldScriptVMGetArgument(1) + 4) & 7;
-    g_Scene.unk7C = direction * 0x200;
+    angle = direction << 9;
+    g_Scene.unk7C = angle;
     g_Scene.sceneAngle.vy = direction << 9;
-    g_Scene.unk60 = g_Scene.unk7C * 0x10000;
-    g_Scene.sceneScrZ = FieldScriptVMGetArgument(5);
-    SetGeomScreen(g_Scene.sceneScrZ);
+    g_Scene.unk60 = angle << 16;
+    z = FieldScriptVMGetArgument(5);
+    g_Scene.sceneScrZ = z;
+    SetGeomScreen(z);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 7;
 }
 */
-
-
