@@ -94,14 +94,15 @@ extern int ControllerGetType(int controllerIndex);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc7", func_8007F854);
 
-/* 96.25%: everything matches except the currency allocation, which is mirrored
-   - the original loads/stores D_80098800 side through a1/v1 and D_800970E4
-   through a0/v0, ours picks the pair the other way round, so both value and
-   address registers are swapped (and the two lw/ori/sw groups with them).
-   Also tried: statement order reversed (95.42), no tmp array (96.08).
-   The D_80098800[]/D_800970E4[] open-array declarations below are what got it
-   this far: a scalar s32 extern is small data under -G8, and then gcc
-   rematerialises each address instead of holding it in a register. */
+/* 96.25%: the register assignment is NOT mirrored - D_80098800 is (a1,v1) and
+   D_800970E4 is (a0,v0) in both the original and our compile. The only
+   difference is group order: retail runs the D_80098800 load/ori/store first
+   and the D_800970E4 one second, ours always schedules the v0 chain (D_800970E4)
+   first even with the statements written the other way round, and `lw ra` sits
+   between the two stores in both. sched2 priority tie, not a source shape.
+   Also tried: statements reversed (95.42), no tmp[] (96.08), two s32 locals
+   for the loads (96.08, and it also drops the 8-byte frame slot). */
+
 /* void func_8007F854(void) {
     s32 tmp[2];
 
@@ -429,6 +430,10 @@ void func_8008040C(void) {
     }
 }
 
+/* Not convertible without moving the unit's rodata to C: the body is two
+   switches over jtbl_8006FFAC / jtbl_8007001C, which live in the asm-owned
+   [0x0, rodata] segment of config/battling.yaml. An if/else spelling cannot
+   reproduce the `jr $v0` dispatch. */
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc7", func_80080570);
 
 void func_80080644(s32 idx0, s32 idx1) {
