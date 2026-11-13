@@ -203,11 +203,11 @@ u32 func_800828C4(s32* p) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc9", func_800828F8);
 
-/* best 94.16%: frame, local layout (v/v2/vSq/m/mT/n at 0x10/0x20/0x30/0x40/
-   0x60/0x80) and the whole matrix block line up. Two residuals: gcc picks
-   the opposite registers for the two SVECTOR normal loads (lhu 128/132), and
-   it folds the loop update into v.vz - ((r - radius) - 8) instead of the
-   original's (v.vz + 8) - (r - radius).
+/* best 97.57%: frame, local layout and the whole matrix block line up. Only
+   residual: gcc swaps the two SVECTOR normal load registers (n.vx in v1 here,
+   a2 in the original) and the two following halfword store order. Field-name
+   reads (n.vx / n.vz) beat ((u16*)&n)[i]: 94.16 -> 97.57. Splitting the loop
+   update into "v.vz += 8; v.vz -= ofs;" also helped.
 void func_800828F8(VECTOR* p0, VECTOR* p1, s32 radius) {
     VECTOR v;
     VECTOR v2;
@@ -228,10 +228,10 @@ void func_800828F8(VECTOR* p0, VECTOR* p1, s32 radius) {
         m.m[1][0] = 0;
         m.m[0][1] = 0;
         m.m[1][1] = 0x1000;
-        m.m[2][0] = ((u16*)&n)[0];
-        m.m[2][2] = ((u16*)&n)[2];
-        m.m[0][0] = ((u16*)&n)[2];
-        m.m[0][2] = -((u16*)&n)[0];
+        m.m[0][0] = n.vz;
+        m.m[0][2] = -n.vx;
+        m.m[2][0] = n.vx;
+        m.m[2][2] = n.vz;
         ApplyMatrixLV(&m, p1, &v);
         TransposeMatrix(&m, &mT);
         SetRotMatrix(&mT);
@@ -246,11 +246,13 @@ void func_800828F8(VECTOR* p0, VECTOR* p1, s32 radius) {
                 break;
             }
             ofs = r - radius;
-            v.vz = v.vz + 8 - ofs;
+            v.vz += 8;
+            v.vz -= ofs;
         }
     }
 }
 */
+
 
 extern u8 D_800928B4;
 extern u8 D_8009178C[];
