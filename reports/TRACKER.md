@@ -2164,3 +2164,74 @@ diff <(git show <pre-round>:src/X.c | grep -o 'INCLUDE_ASM([^;]*' | sort) \
 
 Anything that disappears from that set and is not a function you deliberately converted
 is a lost stub.
+
+# Session 9: the cdk split generalises to single functions, +12
+
+Start: **3067 / 4568 functions (67.14%)**, 1455 `INCLUDE_ASM` stubs, eleven outputs OK.
+Now: **3079 / 4568 (67.40%)**, **1443 stubs**, eleven outputs OK. Fuzzy 35.30 -> 35.47.
+
+## The split that works and the split that does not
+
+Three units were split onto the new **`XenoCdk`** preset (plain gcc-2.7.2-cdk, Default
+maspsx) or onto an existing one, and the parked bodies un-parked for **+5 with no C
+written**:
+
+| unit | split | why |
+|---|---|---|
+| `battle/misc6` | 3 files (`misc6`, `misc6_r1` cdk, `misc6_r2`) | the AD6C/ADB0/ADF4 run is 100.0 under cdk, 97.x on the unit's 2.6.0 |
+| `battle/misc5` | 2 files (`misc5`, `misc5_r1` cdk) | `func_8007ABD8` is the unit's last function, so the cheapest split in the repo |
+| `menu/misc8` | 3 files (`misc8`, `misc8_r1` cdk, `misc8_r2`) | `func_801D9C84` is 100.0 under cdk, 92.55 on Default (loop rotation) |
+
+**The recipe's hard limit, found the expensive way: a unit that has `.rodata`,
+`.data` or `.bss` subsegments in its `config/<bin>.yaml` cannot be split this way.**
+`linker/<bin>.ld` places `build/src/<unit>.c.o(.rodata)` (and `.data`, `.bss`) by the
+*old* file name, so the split objects' data is unplaced and the overlay shifts even
+though every function still reads objdiff 100.00%. `field/main/misc` and
+`system/sound` are both in that class; both splits were built, failed `make check`
+by 301 bytes, and were reverted. To split those the yaml's data subsegments have to
+be reassigned to the new file (and the new file must be the one that owns them),
+which is a different job from the text split.
+
+`tools/scripts/split_unit.py` still cuts park blocks: it computes chunk boundaries
+from `DEF_HEAD`/`INCLUDE_ASM` matches, and a park block's `/*` sits *before* its
+`DEF_HEAD`, so the previous chunk keeps the `/*` and the new file starts with a
+dangling body; it also copies the head up to the first mark, which for a file that
+opens with stubs or a prototype list is *not* the file's preamble (three files got
+a duplicate `INCLUDE_ASM`). The working script (/tmp, 130 lines, worth checking in)
+takes the earliest of {INCLUDE_ASM line, park block start (matched only when the
+block really contains that function's definition), definition} as each function's
+chunk start, and builds the new files' preamble as head + `#define`s + the typedefs
+and `extern` lines from the rest of the file, dropping a declaration the body or the
+head already carries. Two more traps it had to learn: a mid-file `typedef` used by an
+`extern` in the preamble must come *before* the extern, and a declaration that only
+appears inside a park block (a comment) does not count as present.
+
+## Round 26 (14 workers, +7)
+
+| unit | result |
+|---|---|
+| `psyq/libgpu_c` | +1 `func_80047638` (TMD object-table patcher); `SetFogNearFar` parked at 98.66 with the shift-splitting idiom |
+| `battling/misc11` | +1 `func_8008820C` (worker timed out before committing; gated here) |
+| `battling/misc14` | +1 `func_8008A63C` |
+| `battling/misc18` | +1 `func_8008F5B4` |
+| `world_map/misc8` | +1 `func_8008355C` |
+| `menu/misc7` | +1 `func_801D5794` (uncommitted by a timed-out worker; gated here) |
+| `menu/misc10` | +1 `func_801E1014` (same) |
+| `psyq/libgte_b` | 0, and the negative is now proven: **16 of its 18 stubs are unlinkable** (1-3 filler `nop`s after `.size`) |
+| `battle/{misc9,misc3,misc12}`, `battling/{misc14}`, `world_map/misc10`, `system/temp1`, `field/misc6` | park notes only |
+
+`psyq/libgte_b`'s two "convertible" stubs are `TransposeMatrix` (92.81, allocator) and
+`RotAverageNclip4` (59.52, handwritten asm), so that unit is finished: do not brief it
+again. Same shape as `libgte`'s earlier finding - in `psyq/`, `convertible.py` and the
+trailing-`nop` check are the whole story.
+
+## Park surgery, third form
+
+`battle/misc12`'s worker closed a parked body with `}` where the block needed `*/`, so
+the comment ran from `func_80084750`'s park to `func_80084D28`'s and swallowed
+`func_80084854`'s `INCLUDE_ASM` line: the only symptom was `undefined reference to
+func_80084854` at link, with both `lint_sources.py` and the definition/stub-set diff
+from session 8 reporting clean (the stub line was still *in the file*, it was just
+inside a comment). The definition-set check does catch it when the swallowed function
+is C-defined; for a swallowed *stub* neither check fires, so **the gate for a round
+that touches park blocks is `make check`, not the set diffs**.
