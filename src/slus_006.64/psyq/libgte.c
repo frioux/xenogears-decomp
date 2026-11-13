@@ -100,7 +100,61 @@ long VectorNormalSS(SVECTOR *v0, SVECTOR *v1) {
     return ret;
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", func_80048DD8);
+/* The private convention VectorNormal/VectorNormalS/VectorNormalSS call: the
+   vector arrives in $8-$10 and comes back normalised in $8-$10. */
+void func_80048DD8(void) {
+    __asm__ volatile (".set\tnoreorder\n\t"
+                      "mtc2\t$8, $9\n\t"
+                      "mtc2\t$9, $10\n\t"
+                      "mtc2\t$10, $11\n\t"
+                      "nop\n\t"
+                      ".word\t0x4aa00428\n\t"
+                      "mfc2\t$11, $25\n\t"
+                      "mfc2\t$12, $26\n\t"
+                      "mfc2\t$13, $27\n\t"
+                      "add\t$11, $11, $12\n\t"
+                      "add\t$2, $11, $13\n\t"
+                      "mtc2\t$2, $30\n\t"
+                      "nop\n\t"
+                      "nop\n\t"
+                      "mfc2\t$3, $31\n\t"
+                      "addiu\t$at, $zero, -2\n\t"
+                      "and\t$3, $3, $at\n\t"
+                      "addiu\t$14, $zero, 31\n\t"
+                      "sub\t$14, $14, $3\n\t"
+                      "addi\t$11, $3, -24\n\t"
+                      "bltz\t$11, .L80048E34\n\t"
+                      "sra\t$14, $14, 1\n\t"
+                      "b\t.L80048E40\n\t"
+                      "sllv\t$12, $2, $11\n\t"
+                      ".L80048E34:\n\t"
+                      "addiu\t$11, $zero, 24\n\t"
+                      "sub\t$11, $11, $3\n\t"
+                      "srav\t$12, $2, $11\n\t"
+                      ".L80048E40:\n\t"
+                      "addi\t$12, $12, -64\n\t"
+                      "sll\t$12, $12, 1\n\t"
+                      "lui\t$13, %%hi(D_80056B94)\n\t"
+                      "addu\t$13, $13, $12\n\t"
+                      "lh\t$13, %%lo(D_80056B94)($13)\n\t"
+                      "nop\n\t"
+                      "mtc2\t$13, $8\n\t"
+                      "mtc2\t$8, $9\n\t"
+                      "mtc2\t$9, $10\n\t"
+                      "mtc2\t$10, $11\n\t"
+                      "nop\n\t"
+                      "nop\n\t"
+                      ".word\t0x4b90003d\n\t"
+                      "mfc2\t$8, $25\n\t"
+                      "mfc2\t$9, $26\n\t"
+                      "mfc2\t$10, $27\n\t"
+                      "srav\t$8, $8, $14\n\t"
+                      "srav\t$9, $9, $14\n\t"
+                      "srav\t$10, $10, $14\n\t"
+                      ".set\treorder"
+                      : : : "$1", "$2", "$3", "$8", "$9", "$10", "$11", "$12",
+                          "$13", "$14", "memory");
+}
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", MatrixNormal);
 
