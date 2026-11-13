@@ -1717,3 +1717,25 @@
 	"lwc2	$8, %0"						\
 	:							\
 	: "m"( r0 ) )
+
+/* MAC1-MAC3 read back through $8-$10 and copied straight into IR1-IR3. The
+   battling light routines do this by hand between a MVMVA and a GPF so the
+   GPF sees an unsaturated, un-shifted vector. */
+#define gte_stmac123_gpr_ldir123() __asm__ volatile (		\
+	"mfc2	$8, $25;"					\
+	"mfc2	$9, $26;"					\
+	"mfc2	$10, $27;"					\
+	"mtc2	$8, $9;"					\
+	"mtc2	$9, $10;"					\
+	"mtc2	$10, $11"					\
+	:							\
+	:							\
+	: "$8", "$9", "$10" )
+
+/* IR1-IR3 read back into three C values, for a caller that stores them itself
+   (the store then ends up in the return's delay slot). */
+#define gte_stir123_gpr( r0, r1, r2 ) __asm__ volatile (	\
+	"mfc2	%0, $9;"					\
+	"mfc2	%1, $10;"					\
+	"mfc2	%2, $11"					\
+	: "=r"( r0 ), "=r"( r1 ), "=r"( r2 ) )
