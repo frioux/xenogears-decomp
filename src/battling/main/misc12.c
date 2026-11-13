@@ -141,6 +141,19 @@ extern void func_8002DFF0(s32, s32);
 extern void func_80089210(s32, s32);
 extern void func_800898BC(void*, SVECTOR*, SVECTOR*, SVECTOR*);
 
+extern s32 D_8009A0C8;
+extern s32 D_8009A0CC;
+extern s32 D_8009A0D0;
+extern s32 D_8009A918;
+extern s32 D_8009A91C;
+extern s32 D_8009A920;
+extern s32 D_80096F98;
+extern s32 D_80096F9C;
+extern s32 D_80096FA0;
+extern s32 D_80097000;
+extern s32 D_80097004;
+extern s32 D_80097008;
+
 void func_80088940(void) {
     s32 value;
     s32* pFlags;
@@ -361,6 +374,45 @@ void func_800897AC(BattleSprite* p, s32 x, s32 y, s32 w, s32 h, s32 v) {
 }
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc12", func_800898BC);
+
+/* Best attempt: objdiff 50.18%. The statement order and the four VectorNormal/
+   OuterProduct12 calls are right, but gcc 2.7.2 hoists the materialisation of all
+   four base addresses (&D_8009A0C8, &D_80096F98, &D_8009A918, &D_80097000) to the
+   top of the function, while retail materialises each one right before its first
+   use, after the three D_8009A0C8/CC/D0 difference stores. That shifts every later
+   block. Signatures: (MATRIX*, SVECTOR* pFrom, SVECTOR* pTo, SVECTOR* pScale);
+   pMat->m rows come from the D_80097000 / D_8009A918 / D_80096F98 triples loaded
+   as words and stored as halves, pMat->t = negated D_8009A0C8/CC/D0. */
+/*
+void func_800898BC(MATRIX* pMat, SVECTOR* pFrom, SVECTOR* pTo, SVECTOR* pScale) {
+    D_8009A0C8 = pTo->vx - pFrom->vx;
+    D_8009A0CC = pTo->vy - pFrom->vy;
+    D_8009A0D0 = pTo->vz - pFrom->vz;
+    D_8009A918 = pScale->vx;
+    D_8009A91C = pScale->vy;
+    D_8009A920 = pScale->vz;
+    VectorNormal((VECTOR*)&D_8009A0C8, (VECTOR*)&D_80096F98);
+    OuterProduct12((VECTOR*)&D_8009A918, (VECTOR*)&D_80096F98, (VECTOR*)&D_8009A0C8);
+    VectorNormal((VECTOR*)&D_8009A0C8, (VECTOR*)&D_80097000);
+    OuterProduct12((VECTOR*)&D_80096F98, (VECTOR*)&D_80097000, (VECTOR*)&D_8009A0C8);
+    VectorNormal((VECTOR*)&D_8009A0C8, (VECTOR*)&D_8009A918);
+    pMat->m[0][0] = D_80097000;
+    pMat->m[0][1] = D_80097004;
+    pMat->m[0][2] = D_80097008;
+    pMat->m[1][0] = D_8009A918;
+    pMat->m[1][1] = D_8009A91C;
+    pMat->m[1][2] = D_8009A920;
+    pMat->m[2][0] = D_80096F98;
+    pMat->m[2][1] = D_80096F9C;
+    pMat->m[2][2] = D_80096FA0;
+    ApplyMatrix(pMat, pFrom, (VECTOR*)&D_8009A0C8);
+    MulMatrix2((MATRIX*)&D_80096FE0, pMat);
+    pMat->t[0] = -D_8009A0C8;
+    pMat->t[1] = -D_8009A0CC;
+    pMat->t[2] = -D_8009A0D0;
+}
+*/
+
 
 /*@func_80089A98*/
 void func_80089A98(BattleMisc12Owner* pOwner, VECTOR* pFrom, VECTOR* pTo) {
