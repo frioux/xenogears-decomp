@@ -2371,3 +2371,45 @@ container if it matters.
 - 156 of the remaining 1423 stubs (11%) reference a `jtbl_` symbol and cannot be converted
   without moving the unit's whole rodata to C; per binary that is battle 58, world_map 42,
   battling 15, menu 13, slus_006.64 12, field 6, movie 5.
+| 31 | `battle/{misc4,misc9,misc20}`, `battling/{misc14,misc15,misc16,misc7,misc9}`, `menu/{misc11_r2,misc3}`, `world_map/misc16`, `field/main/misc`, `psyq/libgte` | +11 | 1405 | battle/misc4 3 (`79674 792F8 78B34`), battling/misc7 3 (`F8E4 80780 FBEC`), psyq/libgte 2 (`VectorNormal VectorNormalSS` on the PSY-Q preset), battling/misc14 1 (`8ACB8`), misc16 1 (`8DDFC`), misc9 1 (`82A70`). All 13 workers committed; two of them also added GTE macros to `include/psyq/inline_c.h` |
+
+### Round 31's harvest: the tailored brief is what moved the needle
+
+The same harness, same model, same 30-minute kill: round 29 (units picked by stub count)
+returned 3, round 30 (units picked by *insns per fresh stub*) 10, round 31 (the same
+ranking, plus an explicit exclusion list per unit from `atfree.py` and `grep -l jtbl` and a
+per-unit note) 11. Two things did it:
+
+- **Give the worker the reachable subset, not the unit.** `battle/main/misc4` has 8 fresh
+  stubs and all 8 were listed; `battle/main/misc9` has 15 stubs but only 4 that are not
+  already 95%+ parks, and the brief named those 4. Workers stop burning 10 minutes per
+  stub on functions the repo has already declared dead.
+- **The tiny-stub tail really is the pool.** 6 of the 11 came from stubs under 100
+  instructions (`8ACB8` 89, `8DDFC` 20, `FBEC` 166->half, `79674/792F8/78B34` 66-95).
+
+### `gte_gpf12()` and `gte_gpf0()` were literal data (fixed)
+
+`battling/misc16`'s worker found that both macros expanded to `.word 0x000012bf` /
+`0x000012ff`, which maspsx passes through untouched and GAS assembles as *data*, not a
+COP2 command - so any function using them was unmatched by construction. The canonical
+3.x form (two nops plus the `0x4b9_003d` COP2 word, exactly what `gte_gpf12_b()` emits)
+is now what the two macros expand to. Nothing used them yet, so the fix is byte-neutral
+(`make check` green), but it was a trap for every future GTE function.
+
+### Also banked this round
+
+- **A call in its own statement keeps the address computation after the calls.** Putting
+  `value = f(buf[g(...)])` on its own line *before* computing
+  `pOut = (u16*)((arg1 & 0xFF) * 0x40 + (s32)D_800D3420)` is what stops gcc hoisting the
+  address into a callee-saved register, and the `(s32)` cast on the symbol stops it
+  folding to `%lo(sym)(reg)` (the `$at` form retail does not have). 75.6 -> 89.33 in
+  `battle/misc9`'s `func_8007DE78`, and the family tail is now reproducible.
+- **Swapping `if`/`else` arms** is the lever for a `bnez`-vs-`beqz`-only mismatch: two of
+  `battle/misc4`'s three matches needed nothing else.
+- **`register s16 v fill asm("$8")`-style pins** are required when a GTE read-back must
+  land in a specific GPR: `"=r"` outputs get `a3/v0/v1`. `battling/misc16` added
+  `gte_stmac123_gpr_ldir123()` and `gte_stir123_gpr(r0,r1,r2)` to `inline_c.h` for this.
+- The `battling` GTE bodies are largely hand-written or need `mfc2` of `$12-$14`/`$24`
+  into arbitrary GPRs (`misc15`'s `8C4B0`/`8C620`), and `misc15`'s `func_8008BC04` is a
+  full register dump - `convertible.py` says OK for all of them, so it does not catch
+  this class either.

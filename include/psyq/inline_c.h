@@ -870,15 +870,18 @@
 	"nop;"							\
 	".word 0x0000127f" )
 
+/* GPF's .word form below was literal DATA, not a COP2 command (maspsx does not
+ * rewrite it and GAS only expands the c2/cop2 spelling). The canonical 3.x word
+ * with two leading nops is what retail has, and is what gte_gpf12_b() emits. */
 #define gte_gpf12() __asm__ volatile (				\
 	"nop;"							\
 	"nop;"							\
-	".word 0x000012bf" )
+	".word 0x4b98003d" )
 
 #define gte_gpf0() __asm__ volatile (				\
 	"nop;"							\
 	"nop;"							\
-	".word 0x000012ff" )
+	".word 0x4b90003d" )
 
 #define gte_gpl12() __asm__ volatile (				\
 	"nop;"							\
