@@ -271,7 +271,6 @@ build_variables = {
 # there); they moved here from XenoBattleDiv.
 paths = [
     "battle/main/misc21.",
-    "battle/main/misc23.",
     "battle/main/misc25.",
     "battle/main/misc22.",
     "battle/main/misc24."
@@ -373,4 +372,21 @@ paths = [
     "battle/main/misc6_r1.",
     "battle/main/misc5_r1.",
     "menu/main/misc8_r1.",
+]
+
+
+# battle/misc23 needs the same 2.6.0 + --expand-div AND -G0: all eleven of its
+# C-defined functions stay 100.00 under `try_flags.sh battle/main/misc23 --all --gp
+# -G0`, and its parked func_800A6F98 is 84.20 under -G8 and 96.96 under -G0 (the
+# original keeps &D_800D3628 in s0 across LoadImage/DrawSync, which -G8 forbids).
+# Must come after XenoBattle260Div, which no longer lists the path.
+[[build_preset]]
+name = "XenoBattle260Div0"
+build_variables = {
+    gcc = "gcc-2.6.0-psx",
+    gp_flag = "-G0",
+    maspsx_flags = "--expand-div --use-comm-section --run-assembler"
+}
+paths = [
+    "battle/main/misc23.",
 ]
