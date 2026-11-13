@@ -225,6 +225,7 @@ void func_800A1B50(BattleSprite* pSprites, BattleAnimData* pData) {
     }
 }
 */
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_800A1CF4);
 
 void func_800A216C(BattleBlockPool* pPool, BattleSprite* pSprites, s32 index, u32 flags) {
     BattleSprite* pSprite;
