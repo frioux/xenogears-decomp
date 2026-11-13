@@ -106,6 +106,7 @@ extern u16 D_8006F954;
 extern u32 D_8009BBC4;
 extern u16 D_8009A5CC[];
 extern void func_80072BB0(void);
+extern void func_800894C8(s32);
 extern void func_80072DB4(int, int, int, int);
 extern int ArchiveDataSync(void);
 extern void func_80076954(void);
@@ -123,6 +124,9 @@ extern void func_8001B66C(void);
 extern s16 D_8009A5B4[];
 extern s16 D_8009A5B6[];
 extern s16 D_8009A5B8[];
+extern s16 D_8009A674[];
+extern s16 D_8009A678[];
+extern void func_8007EBBC(WorldMapGroup *, void *, int, int);
 extern void func_80084580(void);
 extern void func_8008440C(void);
 extern void func_800979C8(void);
@@ -160,7 +164,7 @@ extern int func_8007DE14(int);
 extern void func_8007DE98(int);
 extern int func_8007E450(int);
 extern void func_8007E4E4(int);
-extern void func_8007ECA4(int);
+extern int func_8007ECA4(int);
 extern void func_8007EE34(int);
 extern void func_8007F8AC(int);
 extern void func_8007F968(int);
@@ -192,7 +196,39 @@ int func_8007D414(int index) {
     return 1;
 }
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007D4A4);
+int func_8007D4A4(int index) {
+    WorldMapActor *pActor = &D_8009BE24[index];
+    WorldMapRoot *pRoot = D_8009C620;
+
+    if (pActor->unk04 == 1) {
+        SVECTOR *pScratch = (SVECTOR *)((u8 *)PSX_SCRATCH + 0xA0);
+
+        pActor->unk04 = 0;
+        pRoot->unk000[12].unk00 = 1;
+        pRoot->unk000[15].unk00 = 1;
+        func_800894C8(0x18);
+        pScratch->vx = pActor->unk28 >> 12;
+        pScratch->vy = pActor->unk2C >> 12;
+        pScratch->vz = pActor->unk30 >> 12;
+        func_80089160(0x1D, pScratch, 0);
+        return 3;
+    }
+    {
+    SVECTOR *pScratch = (SVECTOR *)((u8 *)PSX_SCRATCH + 0xA0);
+
+    pActor->unk30 += pActor->unk40;
+    func_80093354((VECTOR *)&pActor->unk28);
+    pActor->unk2C = func_80093A5C(pActor->unk28, pActor->unk30) - 0x4000;
+    pRoot->unk000[12].unk08 = pActor->unk28 >> 12;
+    pRoot->unk000[12].unk0C = pActor->unk2C >> 12;
+    pRoot->unk000[12].unk10 = pActor->unk30 >> 12;
+    pScratch->vx = pActor->unk28 >> 12;
+    pScratch->vy = pActor->unk2C >> 12;
+    pScratch->vz = pActor->unk30 >> 12;
+    func_80089160(0x18, pScratch, 0);
+    }
+    return 1;
+}
 
 int func_8007D600(int index) {
     WorldMapGroup *pGroup;
@@ -480,6 +516,48 @@ void func_8007EBBC(WorldMapGroup *pGroup, u8 *pPrim, int count, int abr) {
 }
 */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007ECA4);
+/* 78.97%: instruction multiset identical (400 bytes both), only the tail block
+   after RotMatrixYXZ differs in evaluation order and register choice. Retail
+   evaluates the first 109*unk38 multiply after the D_8009A678 lh, keeps the
+   index in $v1 and the return constant ($v0=1) in the middle of the block;
+   gcc hoists the multiply and puts the return constant first. Tried: pActor
+   assigned before/after the func_800848B4 calls (after is right - it is what
+   puts the index in $s2 and moves addu into the first func_8007EBBC delay
+   slot), nIndex declared first vs last.
+int func_8007ECA4(int index) {
+    int nIndex;
+    WorldMapActor *pActor;
+    WorldMapRoot *pRoot;
+    WorldMapGroup *pGroup;
+    SVECTOR *pRot;
+    MATRIX *pMatrix;
+
+    func_800848B4(1, 2);
+    func_800848B4(1, 3);
+    pRoot = D_8009C620;
+    pActor = &D_8009BE24[index];
+    func_8007EBBC(&pRoot->unk000[1], pRoot->unk000[1].unk48, *(u16 *)((u8 *)pRoot->unk000[1].unk40 + 4), 3);
+    func_8007EBBC(&pRoot->unk000[2], pRoot->unk000[2].unk48, *(u16 *)((u8 *)pRoot->unk000[2].unk40 + 4), 3);
+    func_8007EBBC(&pRoot->unk000[3], pRoot->unk000[3].unk48, *(u16 *)((u8 *)pRoot->unk000[3].unk40 + 4), 1);
+    pGroup = &D_8009C620->unk000[1];
+    pRot = &pGroup->unk18;
+    pMatrix = &pGroup->unk20;
+    pGroup->unk00 = 0;
+    pRot->vx = pRot->vy = pRot->vz = 0;
+    RotMatrixYXZ(pRot, pMatrix);
+    nIndex = D_8009D3D4;
+    pActor->unk38 = -0x85A;
+    pActor->unk20 = 0;
+    pActor->unk3C = 0;
+    pActor->unk40 = 0xDA6;
+    pActor->unk50 = D_8009A674[nIndex * 4] << 12;
+    pActor->unk54 = (void *)(D_8009A678[nIndex * 4] << 12);
+    pActor->unk28 = D_8009C5AC - pActor->unk38 * 13952;
+    pActor->unk2C = D_8009C5B0;
+    pActor->unk30 = D_8009C5B4 - pActor->unk40 * 13952;
+    return 1;
+}
+*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007EE34);
 // 100.00% in objdiff under -G0 (99.4 under the unit preset) but the C is 45 bytes
 // the wrong length at link time, so -G0 is NOT the answer for this overlay (its
