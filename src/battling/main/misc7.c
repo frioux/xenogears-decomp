@@ -51,6 +51,28 @@ extern u8 D_8006FF74[];
 extern s32 D_8009130C[];
 extern s32 D_8009292C;
 extern u16 D_80099DA4[];
+extern u8* D_800928D8;
+extern s32 D_80092940;
+extern s16 D_800916E2;
+extern s16 D_8009171E;
+extern u8 D_80091369;
+extern u8 D_80091391;
+extern s32 D_80092718;
+extern s32 D_8009271C;
+extern s32 D_80092724;
+extern s32 D_80092728;
+extern u8 D_800916D8[];
+extern u8* D_800916DC;
+extern s16 D_800916EA;
+extern u8 D_80091714[];
+extern u8* D_80091718;
+extern s16 D_80091726;
+extern s32 D_8009272C;
+extern s32 D_80092730;
+extern s32 D_80092754;
+extern s32 D_80092938;
+extern u8 D_8006FF80[];
+extern u8 D_8006FF90[];
 
 void func_8007EE08(s32 arg);
 void func_8007F834(void);
@@ -65,17 +87,22 @@ void func_8008509C(s32 index, s32 value);
 void func_80085134(s32 index);
 s32 ArchiveReadFileFromCdSector(s32 sector, void* pDestBuffer, s32 fileSize, s32 arg3, u32 flags);
 s32 func_8007FF70(s32 value, s32 max, s32 flags);
+void func_80080964(s32 arg);
+void func_8007EC54(u8* pText);
+void func_8007F258(void* pOt, s32 arg);
+extern int ControllerGetType(int controllerIndex);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc7", func_8007F854);
 
-/* 96.25%: everything matches except the currency allocation, which is mirrored
-   - the original loads/stores D_80098800 side through a1/v1 and D_800970E4
-   through a0/v0, ours picks the pair the other way round, so both value and
-   address registers are swapped (and the two lw/ori/sw groups with them).
-   Also tried: statement order reversed (95.42), no tmp array (96.08).
-   The D_80098800[]/D_800970E4[] open-array declarations below are what got it
-   this far: a scalar s32 extern is small data under -G8, and then gcc
-   rematerialises each address instead of holding it in a register. */
+/* 96.25%: the register assignment is NOT mirrored - D_80098800 is (a1,v1) and
+   D_800970E4 is (a0,v0) in both the original and our compile. The only
+   difference is group order: retail runs the D_80098800 load/ori/store first
+   and the D_800970E4 one second, ours always schedules the v0 chain (D_800970E4)
+   first even with the statements written the other way round, and `lw ra` sits
+   between the two stores in both. sched2 priority tie, not a source shape.
+   Also tried: statements reversed (95.42), no tmp[] (96.08), two s32 locals
+   for the loads (96.08, and it also drops the 8-byte frame slot). */
+
 /* void func_8007F854(void) {
     s32 tmp[2];
 
@@ -95,22 +122,24 @@ void func_8007F8B4(void) {
     func_8007F834();
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc7", func_8007F8E4);
+void func_8007F8E4(void) {
+    s32 mode;
+    s32 current;
 
-/* 87%: gcc hoists the merged `li a0,3` into the bnez delay slot and folds the
-   second test into a beq to the shared call; the original keeps `j; li a0,3`
-   as a middle block. Also tried: mode local, `if (A == 0 && B != 1)`. */
-/* void func_8007F8E4(void) {
     func_80080C48(0);
-    if (D_80099D9F != 0) {
-        func_80083C0C(3);
-    } else if (D_80092950 == 1) {
-        func_80083C0C(3);
+    if (D_80099D9F[0] != 0) {
+        mode = 3;
     } else {
-        D_80092950--;
-        func_80083C0C(6);
+        current = D_80092950;
+        if (current == 1) {
+            mode = 3;
+        } else {
+            D_80092950 = current - 1;
+            mode = 6;
+        }
     }
-} */
+    func_80083C0C(mode);
+}
 
 typedef struct {
     /* 0x0 */ u8 unk0[0x12];
@@ -182,7 +211,53 @@ void func_8007FB0C(Misc7Struct* p) {
     func_8007EE08(0);
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc7", func_8007FBEC);
+void func_8007FBEC(void) {
+    s32 tmp[2]; // reproduces the original's unused 8-byte stack slot
+    Misc7Struct* pPad;
+    s32 flag;
+
+    func_8007E894(0xA0, 0x8C);
+    pPad = (Misc7Struct*)D_800916D8;
+    flag = !(D_80092710 & 1);
+    if (flag && D_800916EA == 0) {
+        D_8009272C = 1;
+    } else {
+        D_8009272C = 0;
+    }
+    func_8007E894(0x50, 0x8C);
+    if (ControllerGetType(0) == 4 && D_80099D9D[0] == 0) {
+        if (flag) {
+            func_8007F948(pPad, 1);
+        }
+        func_8007EC54((D_80099D9B[0] & 1) ? D_8006FF80 : D_8006FF90);
+        D_800916DC[0x14] &= ~4;
+    } else {
+        D_800916DC[0x14] |= 4;
+    }
+    func_8007EE08(0);
+    flag = !(D_80092710 & 2);
+    if (flag && D_80092754 == 0) {
+        flag = 0;
+    }
+    pPad = (Misc7Struct*)D_80091714;
+    if (flag && D_80091726 == 0) {
+        D_80092730 = 1;
+    } else {
+        D_80092730 = 0;
+    }
+    func_8007E894(0xF0, 0x8C);
+    if (ControllerGetType(1) == 4 && D_80099D9E[0] == 0) {
+        if (flag) {
+            func_8007F948(pPad, 1);
+        }
+        func_8007EC54((D_80099D9C[0] & 1) ? D_8006FF80 : D_8006FF90);
+        D_80091718[0x14] &= ~4;
+    } else {
+        D_80091718[0x14] |= 4;
+    }
+    func_8007EE08(0);
+    func_8007F258(D_80092938, 1);
+}
 
 void func_8007FE48(Misc7Struct* p) {
     u8 buf[0x10];
@@ -355,6 +430,10 @@ void func_8008040C(void) {
     }
 }
 
+/* Not convertible without moving the unit's rodata to C: the body is two
+   switches over jtbl_8006FFAC / jtbl_8007001C, which live in the asm-owned
+   [0x0, rodata] segment of config/battling.yaml. An if/else spelling cannot
+   reproduce the `jr $v0` dispatch. */
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc7", func_80080570);
 
 void func_80080644(s32 idx0, s32 idx1) {
@@ -381,4 +460,38 @@ void func_80080644(s32 idx0, s32 idx1) {
     HeapDelayedFree(pBuf, 2);
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc7", func_80080780);
+void func_80080780(s32 mode) {
+    u8* pSprite;
+    s32 i;
+
+    if (D_80092940 == 0) {
+        ArchiveCdDataSync(0);
+        pSprite = D_8009270C;
+        for (i = 0; i < 0x31; i++) {
+            LoadImage((RECT*)pSprite, (u_long*)(D_800928D8 + i * 0x1000));
+            LoadImage((RECT*)(pSprite + 8), (u_long*)(D_800928D8 + i * 0x1000 + 0x100));
+            pSprite += 0x14;
+        }
+        HeapFree(D_800928D8);
+        D_80092940 = 1;
+    }
+    D_800928C8 = mode;
+    D_800916E2 = (mode == 4) ? 3 : 4;
+    D_8009171E = 5;
+    if (mode == 3) {
+        D_80091369 = 0x27;
+        D_80091391 = 0x28;
+    } else {
+        D_80091369 = 0x25;
+        D_80091391 = 0x26;
+    }
+    func_80083C0C(1);
+    D_80092710 = 0;
+    D_80092728 = 0;
+    D_80092724 = 0;
+    D_8009271C = 0;
+    D_80092718 = 0;
+    D_80092714 = D_80092700;
+    D_80092720 = D_80092704;
+    func_80080964(5);
+}
