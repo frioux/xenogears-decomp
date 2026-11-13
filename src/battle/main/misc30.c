@@ -16,6 +16,7 @@ typedef struct {
 extern BattleState* D_800C3610;
 extern u8 D_800C3664;
 extern u8 D_800C3EB0[];
+extern u8* D_800D3368[];
 extern s32 D_80050100;
 extern MATRIX D_800D30BC;
 extern u_long* g_GfxCurOT;
@@ -326,4 +327,33 @@ void func_800BB080(s32 arg0) {
     func_800B14CC(arg0);
 }
 */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800BB13C);
+void func_800BB13C(u8* pTask) {
+    SpriteData* pSprite;
+    u8* pScript;
+    s32 mode;
+    s32 index;
+    u32 unused[2]; // unused: reproduces retail's 0x28 frame
+
+    pSprite = *(SpriteData**)(pTask + 0x4);
+    mode = *(u32*)((u8*)pSprite + 0xA8) >> 30;
+    index = ((*(u32*)((u8*)pSprite + 0xAC) & 3) << 2) | mode;
+    pScript = D_800D3368[index];
+    if (pScript == NULL) {
+        return;
+    }
+    if (pSprite->animScriptWaitTimer == 0) {
+        pSprite->pSpriteBytecode = NULL;
+    }
+    if (pSprite->pSpriteBytecode != NULL) {
+        AnimScriptTick(pSprite);
+        func_80022CDC(pSprite);
+        if (((u32)pSprite->flags_0xAC >> 6) & 1) {
+            AnimScriptTick(pSprite);
+            func_80022CDC(pSprite);
+        }
+    }
+    pSprite->position.x = *(u32*)(*(u32*)(pScript + 0x4) + 0x5C) << 16;
+    pSprite->position.y = *(u32*)(*(u32*)(pScript + 0x4) + 0x60) << 16;
+    pSprite->position.z = *(u32*)(*(u32*)(pScript + 0x4) + 0x64) << 16;
+}
+
