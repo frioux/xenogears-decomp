@@ -2053,6 +2053,8 @@ Results, all gated by `make check`:
 | 24 | 9 more whole-unit switches (battle/misc6, misc8, misc17, misc22, misc24, misc33, misc28, misc34, field/misc2, battling/misc9) | +19 | 1482 |
 | 24 | menu/misc11 split (2 bodies on 2.6.0), battle/misc1 stale un-park | +3 | 1479 |
 | 24 | 14 workers (one unit each) | +13 | 1462 |
+| 25 | `battle/misc16` split (unit -> 2.6.0, func_8008FA60 into a new plain-2.7.2 TU) | +1 | 1461 |
+| 25 | 13 workers on the next tier of units | +6 | 1455 |
 
 Whole-unit switches, with the new presets they needed: `XenoBattle260` gains
 battle/{misc1 (round 18), misc6, misc8, misc15, misc17, misc18, misc20} and
@@ -2134,3 +2136,31 @@ PY
 - Workers burn 10-15 minutes of a 22-minute writing budget per function on these units
   now: 14 workers produced 13 matches in round 24 and 9 in round 23, i.e. ~0.8 per
   worker, against ~1.2 for the two preset rounds that wrote no C at all.
+
+## Round 25 (13 workers) and the second form of the park-surgery hazard
+
+Yield 6 from 13 workers, and 9 of them committed nothing at all: the units left in the
+pool (battle/misc3, misc4, misc30, world_map/misc8/10/16, field/misc2,
+system/archive, menu/misc11_r2) are the "every remaining stub already carries a 95-98%
+park" class. Conversion per worker is now ~0.5, against 1.2-1.5 per *preset* round
+that writes no C at all.
+
+The park-surgery hazard now has **two** forms and `lint_sources.py` catches neither:
+
+1. a parked body's `/* ... */` block is rebuilt by slicing and the slice runs past its
+   end, swallowing the *next function's definition* (battling/misc17 lost three
+   matched functions, battle/misc1 lost one);
+2. the same slice swallows the next function's `INCLUDE_ASM` *line*, leaving a stub
+   that no longer exists (battle/misc21 lost `func_800A1CF4`, which battle/misc24
+   calls - the only symptom is `undefined reference` at link).
+
+Both were restored from the pre-round commit. The definition-set check above catches
+form 1; form 2 needs the stub set as well:
+
+```sh
+diff <(git show <pre-round>:src/X.c | grep -o 'INCLUDE_ASM([^;]*' | sort) \
+     <(grep -o 'INCLUDE_ASM([^;]*' src/X.c | sort)
+```
+
+Anything that disappears from that set and is not a function you deliberately converted
+is a lost stub.
