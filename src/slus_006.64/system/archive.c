@@ -25,6 +25,10 @@ extern s32 D_8005A4DC;
 extern void func_8002B084(u_char status);
 extern void func_8002B2F0(u_char status);
 extern void func_8002BA58();
+extern void func_8002BA40();
+extern void func_8002AC24();
+extern void ArchiveCdDataSync(int);
+extern int ArchiveDecodeSizeAligned(int);
 extern s32 g_ArchiveCurFileSector;
 extern char D_80018944[];
 extern char D_80018954[];
@@ -37,6 +41,7 @@ extern CdlLOC D_80059EF8;
 extern u8 D_800596F8[];
 extern s32 D_8004FDE4;
 extern s32 D_8004FDEC;
+extern s32 D_8004FE3C;
 extern s16 D_80059F40;
 extern s16 D_80059F44;
 extern s16 D_80059F48;
@@ -193,7 +198,147 @@ int ArchiveReadFile(u32 dbgEntryIndex, u8* pDestBuffer, s32 arg2, s32 flags) {
     return 0;
 }
 
+/* Best attempt: objdiff 81.29% (952 bytes vs retail 940), first draft, decoded
+ * from the .s. Structure confirmed: count entries (nCount = index of the first
+ * entry whose archiveIndex is 0), selection-sort pQueue[0..nCount-2] by
+ * archiveIndex (both fields swapped; the outer bound really is nCount-1), then
+ * the CD setup copied from ArchiveReadFile and either the PCopen/PCread/PCclose
+ * debug loop over all nCount entries or the streaming callback path
+ * (CdDataCallback(func_8002BA40), CdReadyCallback(func_8002AC24), CdlSetloc).
+ * Signature should be `int func_80029AFC(StreamDataQueueEntry*, int)` - retail
+ * returns -3 / 0 (callers in src/battle/main/misc23.c, world_map/main/misc1.c
+ * and archive_b.c pass (pQueue, 0, 0), so a third unused parameter is fine).
+ * Known deltas of this draft:
+ *  1. the header declares StreamDataQueueEntry.archiveIndex as `short`, retail
+ *     loads it with lhu and compares with sltu -> the field is really u16.
+ *     Do not flip the shared header type blindly; index through
+ *     ((u16*)pQueue)[i * 4] or check the other users first.
+ *  2. frame 0x50 vs retail 0x40 and one extra saved register: too many live
+ *     locals across the debug loop (pFilePath/hFile/nRetry/pLoc). Retail keeps
+ *     pEntry in s4, pFilePath in s3, hFile in s2, i in s0 and re-reads nothing.
+ *  3. retail returns via `bnez nCount,1f; j epilogue; li v0,-3`.
+ */
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_80029AFC);
+/*
+ * void func_80029AFC(StreamDataQueueEntry* pQueue, int channel) {
+ *     StreamDataQueueEntry* pEntry;
+ *     StreamDataQueueEntry* pMinor;
+ *     s32* pWord;
+ *     void* pTempData;
+ *     char* pFilePath;
+ *     int hFile;
+ *     int nCount;
+ *     int i;
+ *     int j;
+ *     int nMinIndex;
+ *     int nRetry;
+ *     CdlLOC* pLoc;
+ *     u16 nTempIndex;
+ *
+ *     if (pQueue == NULL) {
+ *         return -3;
+ *     }
+ *
+ *     nCount = 0;
+ *     if (pQueue->archiveIndex != 0) {
+ *         pEntry = pQueue;
+ *         do {
+ *             pEntry++;
+ *             nCount++;
+ *         } while (pEntry->archiveIndex != 0);
+ *     }
+ *
+ *     if (nCount == 0) {
+ *         return -3;
+ *     }
+ *
+ *     for (i = 0; i < nCount - 1; i++) {
+ *         nMinIndex = i;
+ *         nTempIndex = pQueue[i].archiveIndex;
+ *         for (j = i + 1; j < nCount; j++) {
+ *             if (pQueue[j].archiveIndex < nTempIndex) {
+ *                 nMinIndex = j;
+ *                 nTempIndex = pQueue[j].archiveIndex;
+ *             }
+ *         }
+ *         pTempData = pQueue[i].pData;
+ *         pQueue[i].archiveIndex = pQueue[nMinIndex].archiveIndex;
+ *         pQueue[i].pData = pQueue[nMinIndex].pData;
+ *         pQueue[nMinIndex].archiveIndex = nTempIndex;
+ *         pQueue[nMinIndex].pData = pTempData;
+ *     }
+ *
+ *     ArchiveCdDataSync(0);
+ *     D_8004FE18 = g_CurArchiveOffset;
+ *     for (i = 2, pWord = &D_80059F00; i >= 0; i--) {
+ *         *pWord-- = 0;
+ *     }
+ *
+ *     D_8004FE10 = 0;
+ *     D_8004FE0C = pQueue;
+ *     D_8004FDFC = nCount;
+ *     D_8004FE00 = nCount;
+ *     D_8004FE08 = pQueue->pData;
+ *
+ *     if (pQueue->archiveIndex == 0 || pQueue->pData == NULL) {
+ *         ArchiveCdSeekToFile(channel);
+ *     } else {
+ *         D_80059F0C = pQueue->archiveIndex;
+ *         g_ArchiveCurFileSector = ArchiveDecodeSector(pQueue->archiveIndex);
+ *         g_ArchiveCurFileSize = ArchiveDecodeSizeAligned(pQueue->archiveIndex);
+ *         D_8004FE38 = channel & 0xFFFF;
+ *         D_8004FE3C = 0;
+ *         D_8004FE34 = 0;
+ *         D_8005A4DC = 0;
+ *         pLoc = &g_ArchiveCdCurLocation;
+ *         CdIntToPos(g_ArchiveCurFileSector, pLoc);
+ *
+ *         if (g_ArchiveDebugTable != 0) {
+ *             for (i = 0, pEntry = pQueue; i < nCount; i++, pEntry++) {
+ *                 D_80059F0C = pEntry->archiveIndex;
+ *                 pFilePath = ArchiveGetFilePath(pEntry->archiveIndex);
+ *                 for (nRetry = 0; nRetry < RETRY_COUNT; nRetry++) {
+ *                     hFile = PCopen(pFilePath, 0, 0);
+ *                     if (hFile == -1) {
+ *                         func_8002804C(nRetry, 0xFF, 0, 0);
+ *                     } else {
+ *                         break;
+ *                     }
+ *                 }
+ *
+ *                 if (pEntry->pData != NULL) {
+ *                     for (nRetry = 0; nRetry < RETRY_COUNT; nRetry++) {
+ *                         if (PCread(hFile, pEntry->pData, ArchiveDecodeSizeAligned(pEntry->archiveIndex)) != 0) {
+ *                             break;
+ *                         }
+ *                         func_8002804C(nRetry, 0, 0xFF, 0);
+ *                     }
+ *                 }
+ *
+ *                 for (nRetry = 0; nRetry < RETRY_COUNT; nRetry++) {
+ *                     if (PCclose(hFile) == 0) {
+ *                         break;
+ *                     }
+ *                     func_8002804C(nRetry, 0, 0, 0xFF);
+ *                 }
+ *             }
+ *         } else {
+ *             g_ArchiveCdDriveState = ARCHIVE_CD_DRIVE_READ_SECTOR;
+ *             CdDataCallback(&func_8002BA40);
+ *             CdSyncCallback(&ArchiveCdDriveCommandHandler);
+ *             CdReadyCallback(&func_8002AC24);
+ *             D_8005A488 += 1;
+ *             CdControlF(CdlSetloc, (void*)pLoc);
+ *             return 0;
+ *         }
+ *     }
+ *
+ *     g_ArchiveCurFileSize = 0;
+ *     D_8004FDFC = 0;
+ *     return 0;
+ * }
+ */
+
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_80029EB0);
 
 int* ArchiveAllocStreamFile(int numEntries, int allocMode) {
@@ -742,53 +887,57 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002B2F0);
  */
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002B5D0);
 
+/* Best attempt: objdiff 91.80% (was 87.60%). 396 bytes, instruction multiset
+ * identical to retail; all remaining deltas are sched2 ordering + one register
+ * copy. What this version fixed vs the old park: numSections and pSection are
+ * read through the globals *inside* the loop body so gcc 2.6 loop.c hoists
+ * them into the post-entry-test preheader exactly like retail (lw D_8004FE40,
+ * blez, move s0,zero, lw D_8004FE2C, move a0,v0); and the sector offset is a
+ * local (`nSectorOffset`) rather than `entryIndex * CD_SECTOR_SIZE` inside the
+ * call.
+ * Remaining: (a) retail has `lw v0,D_8004FE10; nop; move a1,v0` (a copy of the
+ * loaded entry index before addiu/sll) while we allocate the load directly;
+ * (b) inside the found block retail emits `li v0,0x1; sh v0,0(p)` before
+ * `lhu v0,D_8004FE26` and its `addiu v1,v0,1` before the id store, ours emits
+ * them after (same registers otherwise). Measured: `pCurrent->id =
+ * D_8004FE26++` 90.19%; old park 87.60%.
+ */
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002B8B0);
-/* Best attempt: objdiff 87.60%. The section-search loop's register allocation is
- * identical to the original (a0 = section count, a1 = entry index, a2 = pCurrent,
- * a3 = pSection base, v0/v1 temporaries); the remaining deltas are scheduling
- * only: the original stores pCurrent->state = 1 before loading D_8004FE26 and
- * computes `entryIndex * CD_SECTOR_SIZE` between the two, and it increments
- * D_8004FE26 in a separate register before the id store.
- * void func_8002B8B0(void) {
- *     ArchiveStreamFileSectionHeader* pSection;
+/* void func_8002B8B0(void) {
+ *     ArchiveStreamFileSectionHeader* pCurrent;
  *     s16 i;
  *     int entryIndex;
- *     int numSections;
- *     ArchiveStreamFileSectionHeader* pCurrent;
+ *     int nSectorOffset;
  *
- *     if (g_ArchiveCurFileSize <= 0) {
- *         g_ArchiveCurFileSize = 0;
- *         return;
- *     }
- *
- *     pSection = D_8004FE2C;
- *     numSections = D_8004FE40;
- *     for (i = 0; i < numSections; i++) {
- *         entryIndex = D_8004FE10;
- *         pCurrent = &pSection[entryIndex];
- *         D_8004FE10 = entryIndex + 1;
- *         if (D_8004FE10 >= numSections) {
- *             D_8004FE10 = 0;
- *         }
- *         if (pCurrent->state == 0) {
- *             break;
- *         }
- *     }
- *
- *     if (pCurrent->state == 0) {
- *         pCurrent->state = 1;
- *         pCurrent->id = D_8004FE26;
- *         D_8004FE26 += 1;
- *         for (i = 0; i < RETRY_COUNT; i++) {
- *             if (PCread(D_80059F04, D_8004FE08 + entryIndex * CD_SECTOR_SIZE, CD_SECTOR_SIZE) != 0) {
+ *     if (g_ArchiveCurFileSize > 0) {
+ *         for (i = 0; i < D_8004FE40; i++) {
+ *             entryIndex = D_8004FE10;
+ *             pCurrent = &D_8004FE2C[entryIndex];
+ *             D_8004FE10 = entryIndex + 1;
+ *             if (D_8004FE10 >= D_8004FE40) {
+ *                 D_8004FE10 = 0;
+ *             }
+ *             if (pCurrent->state == 0) {
  *                 break;
  *             }
- *             func_8002804C(i, 0, 0xFF, 0);
  *         }
- *         g_ArchiveCurFileSize -= CD_SECTOR_SIZE;
- *         g_ArchiveCurFileSector += 1;
- *     } else {
- *         g_ArchiveCurFileSize = 0;
+ *
+ *         if (pCurrent->state == 0) {
+ *             pCurrent->state = 1;
+ *             pCurrent->id = D_8004FE26;
+ *             D_8004FE26 += 1;
+ *             nSectorOffset = entryIndex * CD_SECTOR_SIZE;
+ *             for (i = 0; i < RETRY_COUNT; i++) {
+ *                 if (PCread(D_80059F04, D_8004FE08 + nSectorOffset, CD_SECTOR_SIZE) != 0) {
+ *                     break;
+ *                 }
+ *                 func_8002804C(i, 0, 0xFF, 0);
+ *             }
+ *             g_ArchiveCurFileSize -= CD_SECTOR_SIZE;
+ *             g_ArchiveCurFileSector += 1;
+ *         } else {
+ *             g_ArchiveCurFileSize = 0;
+ *         }
  *     }
  *
  *     if (g_ArchiveCurFileSize <= 0) {
