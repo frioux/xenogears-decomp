@@ -35,7 +35,7 @@ extern u8 D_801EA590[];
 extern u8 D_801EA5DC[];
 extern void func_80033B34(u16* pInput, u8* pOutput, int count);
 extern s32 func_8002675C(MenuResourceDirectory* pDir, u32 index, POLY_FT4* pPrims, s32 context, u16 x, u16 y, u16 scale);
-extern void func_801D1EE0(u_char arg0, s32 arg1);
+extern void func_801D1EE0(s32 arg0, s32 arg1);
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E6CFC);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E6F5C);
@@ -273,7 +273,36 @@ void func_801E8978(u_char count, u_char selected, s32* pEntries) {
     func_801D1EE0(selected, 1);
     g_Menu->pManager->unk4 = 1;
 }
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E8B4C);
+extern s32 D_801EA1EC[];
+extern s32 D_801EA1F0[];
+
+void func_801E8B4C(u_char selected) {
+    s32 i;
+    u32 index;
+    u32 off;
+
+    g_Menu->unk354->unk1400 = 0;
+    g_Menu->unk354->unk1404 = 0;
+    for (i = 0; i < g_Menu->subMenuNumChoices; i++) {
+        if (i == g_Menu->subMenuChoice) {
+            index = D_801EA1EC[(selected + g_Menu->mainMenuChoice) * 8 + i * 2] + 0xD;
+        } else {
+            index = D_801EA1EC[(selected + g_Menu->mainMenuChoice) * 8 + i * 2];
+        }
+        g_Menu->unk354->unk1400 = func_8002675C(g_Menu->resources, index,
+            (POLY_FT4*)(g_Menu->unk354->unk1400 * 0x50 + (s32)g_Menu->unk354),
+            g_Menu->renderContext, 0xA0, 0x96, 0x1000) + g_Menu->unk354->unk1400;
+        off = g_Menu->unk354->unk1404 * 0x50 + 0x500;
+        g_Menu->unk354->unk1404 = func_8002675C(g_Menu->resources,
+            D_801EA1F0[(selected + g_Menu->mainMenuChoice) * 8 + i * 2],
+            (POLY_FT4*)(off + (s32)g_Menu->unk354),
+            g_Menu->renderContext, 0xA0, 0x96, 0x1000) + g_Menu->unk354->unk1404;
+    }
+    g_Menu->unk354->unk1408 = *(u8*)&g_Menu->renderContext;
+    g_Menu->unk354->unk1409 = *(u8*)&g_Menu->renderContext;
+    func_801D1EE0(g_Menu->subMenuChoice + 7, 1);
+    g_Menu->pManager->unk4 = 1;
+}
 void func_801E8DA8(s32 arg0, s32 arg1) {
     RECT rect;
     u8* pBuf;
@@ -313,7 +342,42 @@ void func_801E8EAC(POLY_FT4* pPoly, u_char mode) {
         break;
     }
 }
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E8F60);
+void func_801E8F60(u8 arg0, u8 arg1) {
+    MenuWindow* pWindow;
+    s32 mode;
+    u32 offset;
+    s32 i;
+
+    mode = arg1 ? 3 : 2;
+    for (i = 0; i < 4; i++) {
+        pWindow = g_Menu->windows[arg0];
+        offset = (i * 2 + pWindow->renderContext) * 0x28 + 0x140;
+        func_801E8EAC((POLY_FT4*)(offset + (u32)pWindow), mode);
+    }
+    for (i = 0; i < 4; i++) {
+        pWindow = g_Menu->windows[arg0];
+        offset = (i * 2 + pWindow->renderContext) * 0x28 + 0x1E0;
+        func_801E8EAC((POLY_FT4*)(offset + (u32)pWindow), mode);
+    }
+    for (i = 0; i < 4; i++) {
+        pWindow = g_Menu->windows[arg0];
+        offset = (i * 2 + pWindow->renderContext) * 0x28 + 0x280;
+        func_801E8EAC((POLY_FT4*)(offset + (u32)pWindow), mode);
+    }
+    for (i = 0; i < 4; i++) {
+        pWindow = g_Menu->windows[arg0];
+        offset = (i * 2 + pWindow->renderContext) * 0x28 + 0x320;
+        func_801E8EAC((POLY_FT4*)(offset + (u32)pWindow), mode);
+    }
+    for (i = 0; i < 2; i++) {
+        pWindow = g_Menu->windows[arg0];
+        offset = (i * 2 + pWindow->renderContext) * 0x28 + 0x410;
+        func_801E8EAC((POLY_FT4*)(offset + (u32)pWindow), mode);
+    }
+    pWindow = g_Menu->windows[arg0];
+    offset = pWindow->renderContext * 0x28 + 0x3C0;
+    func_801E8EAC((POLY_FT4*)(offset + (u32)pWindow), mode);
+}
 void func_801E91C4(P_TAG* pTag) {
     SetSemiTrans(pTag, 1);
     SetShadeTex(pTag, 0);
