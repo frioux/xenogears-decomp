@@ -182,6 +182,69 @@ void func_80071B9C(s32 arg0, s32 arg1) {
 */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80071B9C);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80071CDC);
+/* best: 84.51% (508 bytes vs 500). Every decoded fact matches and loop 1 is
+   byte-identical; only loop 2's register shape differs. Retail keeps TWO
+   running pointers advanced by 8 (a2 = index ptr = &D_8009D3F8, a1 = pData ptr =
+   &D_8009D3FC with a2 = a1-4, both incremented right after their own store),
+   nCount in $s1 and the loop index in $a0; gcc keeps ONE queue pointer (v1,
+   +8) with a `sw v0,4(v1)` displacement, nCount in $a2 and the index in $s1.
+   Retail also has no `andi 0xff` after the partyMembers lbu (gcc 2.7.2 masks it
+   because the u8 feeds a short store). Tried with no change: s32 locals for the
+   ids (breaks loop 1), pData stored before archiveIndex, nCount++ folded into
+   `pQueue[nCount++].pData`, terminator stores through the absolute symbols
+   D_8009D3F8/D_8009D3FC (grows the frame to 0x38).
+*/
+/*
+extern void* D_8009CD34[3];
+extern void* D_8009BDF8[3];
+extern s32 D_8009C170;
+
+void func_80071CDC(void) {
+    StreamDataQueueEntry* pQueue;
+    s32 i;
+    s32 nCount;
+    u8 nCharacterId;
+    u8 nGearId;
+
+    for (i = 0; i < 3; i++) {
+        nCharacterId = g_GameState.partyMembers[i];
+        if (nCharacterId != CHARACTER_ID_NONE) {
+            D_8009CD34[i] = HeapAlloc(ArchiveDecodeAlignedSize(nCharacterId + 2), 0);
+            nGearId = g_GameState.characters[nCharacterId].gearId;
+            if (nGearId != GEAR_ID_NONE) {
+                D_8009BDF8[i] = HeapAlloc(ArchiveDecodeAlignedSize(nGearId + 0x13), 0);
+            } else {
+                D_8009BDF8[i] = 0;
+            }
+        } else {
+            D_8009BDF8[i] = 0;
+            D_8009CD34[i] = 0;
+        }
+    }
+    pQueue = (StreamDataQueueEntry*)&D_8009D3F8;
+    D_8009C170 = 0;
+    nCount = 0;
+    for (i = 0; i < 3; i++) {
+        nCharacterId = g_GameState.partyMembers[i];
+        if (nCharacterId != CHARACTER_ID_NONE) {
+            pQueue[nCount].archiveIndex = nCharacterId + 2;
+            pQueue[nCount].pData = D_8009CD34[i];
+            D_8009C170++;
+            nCount++;
+            nGearId = g_GameState.characters[nCharacterId].gearId;
+            if (nGearId != GEAR_ID_NONE) {
+                pQueue[nCount].archiveIndex = nGearId + 0x13;
+                pQueue[nCount].pData = D_8009BDF8[i];
+                nCount++;
+            }
+        }
+    }
+    pQueue[nCount].archiveIndex = 0;
+    pQueue[nCount].pData = 0;
+    func_80029AFC(pQueue, 0, 0);
+}
+*/
+
 
 /* best: 98.00%. Only the D_8009D3F8 store differs: the original reuses the
    $a0 that already holds the address for the func_80029AFC call and emits a
@@ -293,7 +356,180 @@ void func_800721E4(void) {
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80072238);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_8007299C);
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80072BB0);
+/* best: 98.37%, 532 bytes (same size). Everything matches except the four
+   insns of `D_8006F954 |= 0x8000`: retail materialises the address once
+   (lui v1,%hi / addiu v1,v1,%lo) and loads and stores through v1, gcc folds the
+   address into each access (lui v0,%hi + lhu %lo, then lui $at + sh %lo).
+   Tried with no change: a u16* local, a two-statement pointer load/store, and
+   `volatile u16`. Second note: the first loop's `addu` needed the index first,
+   i.e. `(u8*)(i * 0x80 + (s32)D_8009BE24)`; the ptr-first spelling gives the
+   reversed addu. Sibling teardown func_80074594 has the same 98.55% class.
+*/
+/*
+extern void* D_80062528;
+extern void* D_8009BE24;
+extern void* D_8009BC3C;
+extern void* D_8009BCB4;
+extern u16 D_8006F954;
+extern s32 D_8009D7CC;
+extern void* D_8009CD34[3];
+extern void* D_8009BDF8[3];
+
+extern void func_8003A89C(void* p, s32 arg1, s32 arg2);
+extern void func_80039FF8(void);
+extern void func_8003852C(void* p);
+extern void func_800230A8(void* p);
+extern void func_80075460(void);
+extern void func_80092DD0(void);
+extern void func_800931B0(void);
+extern void func_80084818(void);
+extern void func_80086124(void);
+extern void GfxFreeWorkBuffers(void);
+extern void func_80086568(void);
+extern void func_800866C8(void);
+extern void func_8007474C(void);
+extern void func_80074F04(void);
+extern void func_800750DC(void);
+extern void func_80088FF4(void);
+extern void func_80089128(void);
+extern void func_80097D64(void);
+extern void func_800976A0(void);
+extern void func_800960BC(void);
+
+void func_8007299C(void) {
+    u8* p;
+    s32 i;
+
+    if (D_8009D7CC == 0) {
+        func_8003A89C(D_80062528, 0, 0xF0);
+    }
+    func_80039FF8();
+    func_8003852C(D_8006259C);
+    HeapFree(D_8006259C);
+    for (i = 0; i < 0x40; i++) {
+        p = (u8*)(i * 0x80 + (s32)D_8009BE24);
+        if (*(void**)(p + 0x4C) != NULL) {
+            func_800230A8(*(void**)(p + 0x4C));
+            *(void**)((u8*)D_8009BE24 + i * 0x80 + 0x4C) = NULL;
+        }
+    }
+    if (D_8009D7CC == 1) {
+        func_80075460();
+        D_8006F954 |= 0x8000;
+    }
+    func_80092DD0();
+    func_800931B0();
+    func_80084818();
+    func_80086124();
+    GfxFreeWorkBuffers();
+    func_80086568();
+    func_800866C8();
+    func_8007474C();
+    func_80074F04();
+    func_800750DC();
+    func_80088FF4();
+    func_80089128();
+    func_80097D64();
+    HeapFree(D_8009BC38);
+    HeapFree(D_8009BCB0);
+    HeapFree(D_8009BC3C);
+    HeapFree(D_8009BCB4);
+    HeapFree(D_8009C180);
+    for (i = 0; i < 3; i++) {
+        if (D_8009CD34[i] != NULL) {
+            HeapFree(D_8009CD34[i]);
+        }
+        if (D_8009BDF8[i] != NULL) {
+            HeapFree(D_8009BDF8[i]);
+        }
+    }
+    func_800976A0();
+    func_800960BC();
+}
+*/
+
+typedef struct {
+    /* 0x00 */ DRAWENV drawEnv; // Size: 0x5C
+    /* 0x5C */ DISPENV dispEnv; // Size: 0x14
+    /* 0x70 */ u8 pad70[8];
+} WorldMapGfxEnv; // Size: 0x78
+
+extern WorldMapGfxEnv D_8009BBC8[2];
+extern u8 D_8009BB48;
+extern u8 D_8009BB49;
+extern u8 D_8009BB4A;
+extern u8 D_8009BBDE;
+extern u8 D_8009BBE0;
+extern u8 D_8009BBE1;
+extern u8 D_8009BBE2;
+extern u8 D_8009BBE3;
+extern u8 D_8009BC56;
+extern u8 D_8009BC58;
+extern u8 D_8009BC59;
+extern u8 D_8009BC5A;
+extern u8 D_8009BC5B;
+extern u16 D_8009BC2C;
+extern u16 D_8009BC2E;
+extern u16 D_8009BC30;
+extern u16 D_8009BC32;
+extern u16 D_8009BCA4;
+extern u16 D_8009BCA6;
+extern u16 D_8009BCA8;
+extern u16 D_8009BCAA;
+extern s32 D_8009BCDC;
+extern s32 D_8009D7CC;
+
+extern void SetNearColor(long rfc, long gfc, long bfc);
+
+void func_80072BB0(void) {
+    WorldMapGfxEnv* pEnv;
+    s32 nNear;
+
+    ResetGraph(1);
+    D_8009BCDC = 0x100;
+    SetGeomScreen(0x100);
+    pEnv = D_8009BBC8;
+    SetDefDrawEnv(&pEnv[0].drawEnv, 0, 0, 0x140, 0xD8);
+    SetDefDrawEnv(&pEnv[1].drawEnv, 0, 0xD8, 0x140, 0xD8);
+    SetDefDispEnv(&pEnv[0].dispEnv, 0, 0xD8, 0x140, 0xD8);
+    SetDefDispEnv(&pEnv[1].dispEnv, 0, 0, 0x140, 0xD8);
+    D_8009BC58 = 1;
+    D_8009BBE0 = 1;
+    D_8009BC56 = 1;
+    D_8009BBDE = 1;
+    if (D_8009D7CC == 2) {
+        D_8009BBE1 = 0;
+        D_8009BBE2 = 0;
+        D_8009BBE3 = 0;
+        D_8009BC59 = 0;
+        D_8009BC5A = 0;
+        D_8009BC5B = 0;
+    } else {
+        D_8009BBE1 = 0;
+        D_8009BBE2 = 0;
+        D_8009BBE3 = 0x70;
+        D_8009BC59 = 0;
+        D_8009BC5A = 0;
+        D_8009BC5B = 0x70;
+    }
+    D_8009BCA6 = 0xA;
+    D_8009BC2E = 0xA;
+    D_8009BCA8 = 0x100;
+    D_8009BC30 = 0x100;
+    D_8009BCA4 = 0;
+    D_8009BC2C = 0;
+    D_8009BCAA = 0xD8;
+    D_8009BC32 = 0xD8;
+    SetNearColor(0x80, 0x80, 0x80);
+    SetBackColor(0x80, 0x80, 0x80);
+    SetFarColor(D_8009BB48, D_8009BB49, D_8009BB4A);
+    nNear = 0x800;
+    if (D_8009D7CC == 2) {
+        nNear = 0xB00;
+    }
+    SetFogNearFar(nNear, 0xE80, D_8009BCDC);
+}
+
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80072DB4);
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80073300);
@@ -546,7 +782,54 @@ void func_800736DC(void) {
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_800736DC);
 
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_800737EC);
+extern u16 D_8009BD3A;
+extern MATRIX D_8009C808;
+extern SVECTOR D_8009A280[16];
+extern u8 D_8009D194;
+extern s32 D_8009D7F0;
+extern s32 D_80050100;
+
+extern long RotTransPers4(SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, SVECTOR* v3, long* p0, long* p1,
+                          long* p2, long* p3, long* xy0, long* xy1);
+extern MATRIX* RotMatrixYXZ(SVECTOR* r, MATRIX* m);
+extern MATRIX* CompMatrix(MATRIX* m0, MATRIX* m1, MATRIX* m2);
+extern void SetRotMatrix(MATRIX* m);
+extern void SetTransMatrix(MATRIX* m);
+
+void func_800737EC(void) {
+    SVECTOR* pRot;
+    SVECTOR* pVec;
+    u8* pBase;
+    u8* pPrim;
+    s32 i;
+    s32 nOtz;
+
+    pRot = (SVECTOR*)0x1F800000;
+    *(u16*)0x1F800004 = 0;
+    pRot->vx = 0;
+    *(u16*)0x1F800002 = D_8009BD3A;
+    RotMatrixYXZ(pRot, (MATRIX*)0x1F800028);
+    *(s32*)0x1F800044 = 0;
+    *(s32*)0x1F800040 = 0;
+    *(s32*)0x1F80003C = 0;
+    CompMatrix(&D_8009C808, (MATRIX*)0x1F800028, (MATRIX*)0x1F800008);
+    SetRotMatrix((MATRIX*)0x1F800008);
+    SetTransMatrix((MATRIX*)0x1F800008);
+    pVec = D_8009A280;
+    for (i = 0; i < 4; i++, pVec += 4) {
+        pBase = (u8*)&D_8009D194 + D_8009D7F0 * 0x24;
+        pPrim = (u8*)(i * 0x48 + (s32)pBase);
+        nOtz = RotTransPers4(pVec, pVec + 1, pVec + 2, pVec + 3,
+                             (long*)(pPrim + 0x8), (long*)(pPrim + 0x10),
+                             (long*)(pPrim + 0x18), (long*)(pPrim + 0x20),
+                             (long*)((u8*)pRot + 0x48), (long*)((u8*)pRot + 0x4C));
+        if (*(s32*)((u8*)pRot + 0x4C) >= 0) {
+            addPrim((P_TAG*)((u32*)*(u32*)((u8*)D_8009BE3C + 0x70) + (nOtz >> D_80050100)),
+                    (P_TAG*)pPrim);
+        }
+    }
+}
+
 extern u32 D_8009C744[];
 extern DR_MODE D_8009D3D8[];
 
