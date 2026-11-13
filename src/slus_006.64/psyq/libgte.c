@@ -17,18 +17,25 @@
 // `Handwritten function` and flags every GTE op inside it `handwritten
 // instruction`. What is left does not convert, for one of these reasons
 // (tools/scripts/convertible.py reports the first two):
-//   - nops after `.size`, which C cannot emit and whose removal shifts the rest
-//     of the unit's .text: MatrixNormal, TransMatrix, ApplyMatrixSV,
-//     LoadAverageCol, InitGeom, SquareRoot0, MulMatrix0, MulMatrix, MulMatrix2,
-//     ScaleMatrixL, ScaleMatrix, ApplyRotMatrixLV
-//   - dead code: InvSquareRoot's `andi $t0,$v0,1` (never read) and
-//     ApplyMatrixLV's `sra $t3,$t0,15` at 0x800494D0, which is jumped over
+//   - nops after `.size`, which C cannot emit: the padding sits after gcc's own
+//     `jr $ra`, so it can be reproduced neither by real C nor by a trailing asm
+//     block (gcc appends its epilogue after every asm): MatrixNormal,
+//     TransMatrix, ApplyMatrixSV, LoadAverageCol, InitGeom, SquareRoot0,
+//     MulMatrix0, MulMatrix, MulMatrix2, ScaleMatrixL, ScaleMatrix,
+//     ApplyRotMatrixLV
+//   - dead code: InvSquareRoot's `andi $t0,$v0,1` (never read), and handwritten
+//     `nop`s in the `beq`/`bltz` delay slots where reorder mode puts the next
+//     instruction
 //   - a private calling convention, operands and results in $t0-$t2 with $ra
 //     parked in $a3: MatrixNormal, and VectorNormalS, which branches into the
 //     middle of VectorNormalSS (the label lives in the C) and so cannot carry an
 //     epilogue of its own.
-//   - GTE registers packed by hand around three MVMVAs (lhu + lw + lui 0xFFFF0000
-//     then and/or): CompMatrix
+//
+// GTE registers packed by hand around three MVMVAs (lhu + lw + lui 0xFFFF0000
+// then and/or) are not a barrier: CompMatrix is the same shape as SetMulMatrix
+// and transcribes. When the original's return value move sits in the `jr` delay
+// slot, pin the asm output to the argument register (`__asm__("$6")`) so gcc
+// emits the copy itself; pinning it to $2 lets gcc place it at entry instead.
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", InitGeom);
 
