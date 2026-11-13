@@ -1,4 +1,5 @@
 #include "common.h"
+#include "psyq/libgte.h"
 #include "psyq/inline_c.h"
 
 extern u8 D_800C37C8;
@@ -67,7 +68,18 @@ typedef struct {
 
 extern BattleFrame D_800C3BD0;
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800AF2C4);
+s16 func_800AF2C4(s32 *pAxis, VECTOR *pV0, VECTOR *pV1, s32 divisor) {
+    s32 vec[3];
+    s32 dot;
+    s32 len;
+
+    OuterProduct12(pV0, pV1, (VECTOR *)vec);
+    dot = vec[0] * pAxis[0] + vec[1] * pAxis[1] + vec[2] * pAxis[2];
+    len = SquareRoot0(vec[0] * vec[0] + vec[1] * vec[1] + vec[2] * vec[2]) + 1;
+    dot = (dot << 4) / len;
+    dot = (dot << 8) / divisor;
+    return dot;
+}
 
 s32 func_800AF400(void) {
     s32 i;
@@ -98,7 +110,38 @@ s32 func_800AF438(u8 *p, u32 id, u16 *pOut) {
     *pOut = 1 << (id & 0xFF);
     return id & 0xFF;
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800AF518);
+extern u8 D_800CCD1E;
+extern u8 func_8009C050(u8);
+
+s32 func_800AF518(u8 *p, u32 id, s32 *pOut) {
+    u32 sel = id;
+    u8 kind;
+
+    *pOut = 0;
+    if ((sel & 0xFF) >= 0xFE) {
+        if ((sel & 0xFF) == 0xFF) {
+            kind = func_8009C050(p[0x20]);
+            if ((kind & 4) && (*(u16 *)(p + 0x4A) & 0x100)) {
+                p[0x2A] = 0x1B;
+            } else if ((kind & 2) && (*(u16 *)(p + 0x4A) & 0x80)) {
+                if (!(*(u16 *)((u8 *)&D_800CCD1E + p[0x20] * 0x170) & 1)) {
+                    p[0x2A] = 6;
+                }
+            } else if (!(*(u16 *)(p + 0x4A) & 0x400)) {
+                p[0x2A] = 1;
+            }
+            if (kind & 1) {
+                p[0x2A] |= 0x80;
+            }
+        }
+        sel = p[0x2A] & 0x7F;
+        *pOut = p[0x2A] & 0x80;
+    }
+    if ((sel & 0xFF) < 0x40) {
+        return ((s32 *)*(u32 *)(p + 0x14))[(sel & 0xFF) + 1];
+    }
+    return ((s32 *)*(u32 *)(p + 0x18))[(sel & 0xFF) - 0x3F];
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800AF678);
 void func_800AFA98(BattleModel *pModel, BattleModelNode *pNode, s32 flags) {
     BattleModelNode *pChild;
@@ -186,6 +229,62 @@ void func_800AFC68(u8 *p) {
 */
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800AFD98);
+/* 98.68% (516 bytes, identical instruction multiset): the whole body, the three
+   mode blocks, the two sb writes and the child walk are exact; only the
+   callee-saved assignment of the pModel and flags pseudos differs (original
+   pModel=s6 / flags=s7, ours pModel=s7 / flags=s3; original keeps a second copy
+   of flags in a2 for the three `flags & 0x20` tests, which needs the source to
+   hold flags in two variables - not reproduced). Tried: s32 vs u8 vs unsigned
+   flags, recursive call with and without `& 0xFF`, s16 vs s32 x/y/z with casts,
+   mode/i/pChild declaration orders - all leave the ranking untouched.
+void func_800AFD98(BattleModel *pModel, BattleModelNode *pNode, s32 flags, s16 x, s16 y, s16 z) {
+    BattleModelNode *pChild;
+    s32 mode;
+    s32 i;
+
+    mode = flags & 7;
+    if (mode == 0) {
+        if (flags & 0x20) {
+            *(u16 *)((u8 *)pNode + 0x54) += x;
+            *(u16 *)((u8 *)pNode + 0x56) += y;
+            *(u16 *)((u8 *)pNode + 0x58) += z;
+        } else {
+            *(u16 *)((u8 *)pNode + 0x54) = x;
+            *(u16 *)((u8 *)pNode + 0x56) = y;
+            *(u16 *)((u8 *)pNode + 0x58) = z;
+        }
+    } else if (mode == 1) {
+        if (flags & 0x20) {
+            *(s32 *)((u8 *)pNode + 0x5C) += x;
+            *(s32 *)((u8 *)pNode + 0x60) += y;
+            *(s32 *)((u8 *)pNode + 0x64) += z;
+        } else {
+            *(s32 *)((u8 *)pNode + 0x5C) = x;
+            *(s32 *)((u8 *)pNode + 0x60) = y;
+            *(s32 *)((u8 *)pNode + 0x64) = z;
+        }
+    } else if (flags & 0x20) {
+        *(u16 *)((u8 *)pNode + 0x4C) += x;
+        *(u16 *)((u8 *)pNode + 0x4E) += y;
+        *(u16 *)((u8 *)pNode + 0x50) += z;
+    } else {
+        *(u16 *)((u8 *)pNode + 0x4C) = x;
+        *(u16 *)((u8 *)pNode + 0x4E) = y;
+        *(u16 *)((u8 *)pNode + 0x50) = z;
+    }
+    *(u8 *)((u8 *)pNode + 4) = 1;
+    *(u8 *)((u8 *)pNode + 5) = 1;
+    if (flags & 0x80) {
+        pChild = pModel->pNodes;
+        for (i = 1; i < pModel->pNodes->unkA; i++) {
+            pChild++;
+            if (pChild->pParent == pNode) {
+                func_800AFD98(pModel, pChild, flags & 0xFF, x, y, z);
+            }
+        }
+    }
+}
+*/
 
 void func_800AFF9C(u8 *p) {
     u8 unk10[0x10];
@@ -290,7 +389,60 @@ s32 func_800B0AB4(s16 *pPos) {
     }
     return 0;
 }
+extern u16 D_800D3354;
+extern s16 D_800D3356;
+extern u16 D_800D3358;
+extern u16 D_800D335C;
+extern s16 D_800D335E;
+extern u16 D_800D3360;
+extern s16 D_800C3542;
+extern u16 D_800C3544;
+extern s16 D_800C3546;
+
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800B0B14);
+/* 74.97% (588 bytes vs 584): the control flow - the two-condition test, the
+   func_800A5914/func_800A579C retry, the D_800C3546/D_800C3542/D_800C3544
+   bookkeeping - is in place; what is left is the head: retail loads
+   D_800D335C and D_800D335E first, then reads D_800D3354/3356/3358 through one
+   base pointer s5 (= &D_800D3354) both for the deltas and for the vec sums, and
+   it ranks dx in s1 / dy in s2 where ours swaps them. Tried: dy-first vs dx-first,
+   s16 vec[3] vs vec[4], direct globals vs one base pointer local.
+s16 func_800B0B14(s32 index) {
+    u8 work[0x10];
+    s16 vec[4];
+    s32 dx;
+    s32 dy;
+    s32 dz;
+    s32 len;
+    s32 result;
+
+    dy = (D_800D335E - D_800D3356) / 4;
+    dx = (s16)(D_800D335C - D_800D3354);
+    dz = (s16)(D_800D3360 - D_800D3358);
+    len = SquareRoot0(dx * dx + dy * dy + dz * dz) + 1;
+    vec[0] = D_800D3354 + (dx << 9) / len;
+    vec[1] = D_800D3356 + (dy << 9) / len;
+    vec[2] = D_800D3358 + (dz << 9) / len;
+    result = -1;
+    if (func_800B0AB4(vec) != 0 && index != D_800C3546) {
+        D_800C3546 = index;
+        result = func_800A5914(vec, D_800C3542, 5);
+        if (result < 0) {
+            result = func_800A579C(vec);
+        }
+        if (result >= 0) {
+            D_800C3542 = result;
+        }
+    }
+    if (result < 0) {
+        vec[1] = D_800C3544;
+    } else {
+        func_800A5870(vec, D_800C3542, work);
+        D_800C3544 = vec[1];
+    }
+    return vec[1];
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800B0D70);
 void func_800B0FF4(u16 *pA, u16 *pB) {
     s16 vec[3];
@@ -303,7 +455,33 @@ void func_800B0FF4(u16 *pA, u16 *pB) {
     vec[2] = (vec[2] << 9) / len;
     func_800B0D70(vec, pB);
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800B10EC);
+void func_800B10EC(s32 index, s32 x, s32 z, s32 dist) {
+    u8 **pBase = D_800D3368;
+    u8 **pp = &pBase[index];
+    u8 *pModel;
+    s32 dx;
+    s32 dz;
+    s32 len;
+    s32 rem;
+    s32 angle;
+    u32 diff;
+
+    pModel = *(u8 **)(*pp + 4);
+    dx = x - *(s32 *)(pModel + 0x5C);
+    dz = z - *(s32 *)(pModel + 0x64);
+    len = SquareRoot0(dx * dx + dz * dz) + 1;
+    if (len >= dist) {
+        return;
+    }
+    angle = ratan2(dz, -dx);
+    diff = (u32)((*(s16 *)(*(u8 **)(*pp + 4) + 0x56) - angle) & 0xFFF) - 0x401;
+    if (diff < 0x7FF) {
+        angle += 0x800;
+    }
+    rem = dist - len;
+    *(s32 *)(*(u8 **)(*pp + 4) + 0x5C) = x - dx * dist / len - rcos(angle) * rem / 4096;
+    *(s32 *)(*(u8 **)(*pp + 4) + 0x64) = z - dz * dist / len - rsin(angle) * rem / 4096;
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800B12D0);
 /* 99.74% (156 bytes, identical instruction stream): only the switch's jump
    table operand differs (the original names jtbl_800707C4). It cannot be
