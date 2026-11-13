@@ -73,6 +73,12 @@ extern void *D_800658C8;
 extern void func_800A2234(u8 *, s32);
 extern void func_800A2CA4(u8 *, s32);
 extern void func_800B00D0(void);
+extern void func_8009F794(void *, s32);
+extern void func_8003852C(void *);
+extern void func_800A2ACC(u8 *);
+extern void func_800A2BB8(u8 *, void *, s32);
+extern void func_8009F708(void *);
+extern void func_800B0060(void *);
 
 extern s32 D_800D3344;
 extern s32 D_800D3348;
@@ -472,6 +478,85 @@ void func_800A9F94(void) {
 }
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A9FF0);
+/* 91.39%: first attempt on this stub. Shape recovered from the disassembly:
+   arg0 is an index into D_800D3368; the body is a null-checked chain of
+   HeapFree/func_8009F794/func_8003852C/func_800A2ACC+func_800A2BB8 on fields
+   0x00,0x04,0xA8,0xAC,0xB0 of the unit, then the 0x13..0x1E range test
+   "(u32)(arg0 - 0x13) < 0xC", then two counted loops (unk10E * 0x30 through
+   unk118 with func_800A429C, unk10D * 0x24 through unk114 with func_800A8A88),
+   then HeapFree(unit)/unit = NULL, and finally the recursion into units
+   arg0*2+0xD and arg0*2+0xE when arg0 < 3.
+   What moved 82.96 -> 91.39: do NOT keep &D_800D3368[arg0] in a local - retail
+   re-forms the slot address (lui/addiu + sll/addiu) at every use, so index
+   D_800D3368[arg0] inline at each access. Still open: retail saves $s5 and a
+   0x48 frame (mine 0x38), keeps the loop pointer in $s2/$s0 pairs, and
+   re-emits "addiu v0,s4,-0x13" both in the beqz delay slot and after the
+   HeapFree call, so the range test and the two loop induction variables are
+   not yet the retail shape. */
+/*
+void func_800A9FF0(s32 arg0) {
+    u8 *pSlot;
+    s32 i;
+    s32 count;
+    s32 offset;
+
+    if (D_800D3368[arg0] != NULL) {
+        if (*(void **)(D_800D3368[arg0] + 0xA8) != NULL) {
+            HeapFree(*(void **)(D_800D3368[arg0] + 0xA8));
+            func_8009F794(*(void **)D_800D3368[arg0], 1);
+        }
+        if (*(u8 *)(D_800D3368[arg0] + 0x62) != 0) {
+            func_8003852C(*(void **)(*(u8 **)(D_800D3368[arg0] + 0xB0) + 8));
+        }
+        if (*(void **)(D_800D3368[arg0] + 0xAC) != NULL) {
+            HeapFree(*(void **)(D_800D3368[arg0] + 0xAC));
+        }
+        if ((u32)(arg0 - 0x13) >= 0xC) {
+            if (*(void **)(D_800D3368[arg0] + 4) != NULL) {
+                func_800A2ACC(D_800C3D0C);
+                func_800A2BB8(D_800C3D0C, *(void **)(D_800D3368[arg0] + 4), 0xFF);
+                func_8009F708(*(void **)(D_800D3368[arg0] + 4));
+                *(void **)(D_800D3368[arg0] + 0) = NULL;
+                *(void **)(D_800D3368[arg0] + 4) = NULL;
+            }
+            func_800B0060(*(void **)&D_800D3368[arg0]);
+        } else if (*(void **)(D_800D3368[arg0] + 4) != NULL) {
+            func_800A2ACC(D_800C3D0C);
+            func_800A2BB8(D_800C3D0C, *(void **)(D_800D3368[arg0] + 4), 0xFF);
+            HeapFree(*(void **)(D_800D3368[arg0] + 4));
+        }
+            if (*(u8 *)(D_800D3368[arg0] + 0x10C) != 0) {
+            HeapFree(*(void **)(D_800D3368[arg0] + 0x110));
+        }
+        count = *(u8 *)(D_800D3368[arg0] + 0x10E);
+        if (count != 0) {
+            offset = 0;
+            for (i = 0; i < count; i++) {
+                func_800A429C((u8 *)*(void **)(D_800D3368[arg0] + 0x118) + offset);
+                count = *(u8 *)(D_800D3368[arg0] + 0x10E);
+                offset += 0x30;
+            }
+            HeapFree(*(void **)(D_800D3368[arg0] + 0x118));
+        }
+        count = *(u8 *)(D_800D3368[arg0] + 0x10D);
+        if (count != 0) {
+            offset = 0;
+            for (i = 0; i < count; i++) {
+                func_800A8A88((Misc23Block *)((u8 *)*(void **)(D_800D3368[arg0] + 0x114) + offset));
+                count = *(u8 *)(D_800D3368[arg0] + 0x10D);
+                offset += 0x24;
+            }
+            HeapFree(*(void **)(D_800D3368[arg0] + 0x114));
+        }
+        HeapFree(*(void **)&D_800D3368[arg0]);
+        *(void **)&D_800D3368[arg0] = NULL;
+    }
+    if (arg0 < 3) {
+        func_800A9FF0(arg0 * 2 + 0xD);
+        func_800A9FF0(arg0 * 2 + 0xE);
+    }
+}
+*/
 
 void func_800AA320(u16 arg0, u16 arg1, void *arg2) {
     D_800C3D40 = arg0;
