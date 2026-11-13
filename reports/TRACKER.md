@@ -2270,3 +2270,33 @@ is how `menu/misc2`'s body was recovered after `clone.sh merge` discarded the un
 file). And `try_flags.sh --all` under load returns `compile-failed` or an empty score
 list for roughly half the units while a 14-clone round is building; always re-run a
 surprising row before believing it.
+
+## Round 28 (8 workers, +5): the two preset switches paid exactly as predicted
+
+| unit | result |
+|---|---|
+| `menu/main/misc2` (new `XenoMenu260`) | **+3**: `func_801C7F34` (the stale note's divisor chain ends at **60**, not 120), `func_801C80B8` (store the quotient directly instead of through a `digit` temp), `func_801C7D78` (input parsing; `input = MENU_INPUT_IDLE;` must sit after the unplugged loop and the shared tail over inputs 0-3 + L1/R1 is what cross-jumps six case blocks into one) |
+| `battle/main/misc23` (new `XenoBattle260Div0`) | **+1** `func_800A6F98` — the park reused `p` for the `&D_800D3628` value, so gcc shared one allocno and gave the loop pointer a callee-saved register; `u8 *pRect` splits it. `func_800A9540` went 77.73 -> 90.14 for free on the -G0 preset |
+| `world_map/main/misc15` | **+1** `func_80097070` (matrix to scratchpad); `func_800979C8` 92.13 -> 96.83 with three separate pointer locals |
+| `battle/misc19`, `battling/misc5`, `world_map/misc16`, `psyq/libgpu_b` | parks only; `menu/misc3` timed out with an uncommitted non-match and was dropped |
+
+Banked idioms: `g_Menu->digits[i] = number / divisor;` with no quotient temp keeps
+`number` in `$a0`; splitting one pointer local into per-loop copies is what stops gcc
+sharing an allocno across two lifetimes; `count` must be an `s32` read from a `u8`
+array (not a `u8` local) to get `slt`/bare `beqz` instead of `sltu`/`andi 0xff`.
+
+`world_map/misc16`'s `func_80099708` reached 78.20 and is **provably not finishable in
+C**: retail's tail has `addiu t0,t0,%lo(D_1F800008)`, a splat reloc naming `pPkt++`'s
++8 that no C can emit, so objdiff can never reach 100 there.
+
+### The remaining split candidate, measured (not done)
+
+`battle/main/misc19` is mixed and its head run is clean under gcc-2.6.0: `func_8009A9D0`
+is **100.00 under 2.6.0** (99.66 on the unit's 2.7.2, the only diff being the `mfhi`
+destination) and the already-matched `A0DC/A1AC/A7B8/A7E4/B098/B104/C0E0` all stay
+100.00 — but `AA44/AB00/AC48` break, so it needs a **5-run** split (offsets are
+`0x2A5EC / 0x2AEE0 / 0x2AF54 / 0x2B2B0 / 0x2B40C` in `config/battle.yaml`). One function
+for five files; worth doing only if someone is walking the unit anyway.
+
+Session 9 total: **1455 -> 1435 stubs (+20)**, 3067 -> 3088 functions (67.6%), eleven
+outputs byte-identical throughout, progress page republished twice.
