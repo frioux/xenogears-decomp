@@ -20,11 +20,19 @@ extern volatile u_long D_800569D4;
 extern volatile u_long D_800569D8;
 extern u_long D_800569E4;
 
-extern void func_8004696C(void);
+extern int func_8004696C(void);
 extern int func_80046F30(void);
 
 extern u_char D_8005A27C[];
-extern u_char D_8006BE34[];
+
+/* The GPU command queue: 64 entries of 0x60 bytes, whose three used words are
+   carved up as three separate symbols by splat. */
+extern void (*D_8006BE34[][0x18])(u_long *p0, u_long *p1);
+extern u_long *D_8006BE38[][0x18];
+extern u_long *D_8006BE3C[][0x18];
+extern u_long g_DrawSyncCallbackPending;
+extern u_long g_SavedIntrMask;
+extern void (*g_DrawSyncCallbackFn)();
 
 extern u_long *D_8005A380;
 extern u_long *D_8005A384;
@@ -48,6 +56,7 @@ extern int func_80047518(u_long *p, TIM_IMAGE *tim);
 extern u_long func_80047638(u_long *tmd, int obj_no, u_long *pPrim, u_long *pVert, u_long *pNorm);
 
 extern int SetIntrMask(int newMask);
+extern int DMACallback(int id, void (*func)());
 
 extern void SetDQA(long dqa);
 extern void SetDQB(long dqb);
@@ -55,6 +64,57 @@ extern void SetDQB(long dqb);
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_c", func_8004668C);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_c", func_8004696C);
+
+/* best 81.20% (720 of retail's 724 bytes): everything up to and including the
+   call matches, as does the guard/rotation (the explicit if + do/while is what
+   makes gcc place the &D_800569C4 pointer in s0 after the guard). Two diffs are
+   left. (1) The three word stores after the call: retail interleaves
+   load-index / scale / load / store for each of D_800569C4, C8, CC, gcc hoists
+   all three volatile loads of D_800569D8 above the first store. (2) The call
+   sets its first argument from a2 instead of a1. Tried: the queue as one
+   0x60-stride struct (wrong offsets), separate statements, storing C4 last, and
+   a plain while loop instead of if+do/while (that loses the s0 pointer and
+   drops to 76.50%).
+int func_8004696C(void) {
+    u_long *pQue;
+    u_long *pPending;
+
+    if (*D_800569B0 & 0x1000000)
+        return 1;
+
+    g_SavedIntrMask = SetIntrMask(0);
+
+    if (D_800569D4 != D_800569D8 && !(*D_800569B0 & 0x1000000)) {
+        pQue = &D_800569C4;
+        do {
+            if (((D_800569D8 + 1) & 0x3F) == D_800569D4) {
+                if (!g_DrawSyncCallbackFn)
+                    DMACallback(2, 0);
+            }
+
+            while (!(*D_800569A4 & 0x4000000))
+                ;
+
+            D_8006BE34[D_800569D8][0](D_8006BE38[D_800569D8][0], D_8006BE3C[D_800569D8][0]);
+            *pQue = (u_long)D_8006BE34[D_800569D8][0];
+            D_800569C8 = (u_long)D_8006BE38[D_800569D8][0];
+            D_800569CC = (u_long)D_8006BE3C[D_800569D8][0];
+            D_800569D8 = (D_800569D8 + 1) & 0x3F;
+        } while (D_800569D4 != D_800569D8 && !(*D_800569B0 & 0x1000000));
+    }
+
+    SetIntrMask(g_SavedIntrMask);
+
+    if (D_800569D4 == D_800569D8 && !(*D_800569B0 & 0x1000000)) {
+        pPending = &g_DrawSyncCallbackPending;
+        if (*pPending && g_DrawSyncCallbackFn) {
+            *pPending = 0;
+            g_DrawSyncCallbackFn();
+        }
+    }
+
+    return (D_800569D4 - D_800569D8) & 0x3F;
+} */
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_c", func_80046C58);
 
