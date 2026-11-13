@@ -59,6 +59,7 @@ segments:
       - [0x6FD8, c, main/misc3]
       - [0x8D8C, c, main/misc4]
       - [0xA328, c, main/misc5]
+      - [0xB0E8, c, main/misc5_r1]
       - [0xB140, c, main/misc6]
       - [0xB27C, c, main/misc6_r1]
       - [0xB348, c, main/misc6_r2]

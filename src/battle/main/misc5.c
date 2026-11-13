@@ -276,25 +276,3 @@ void func_8007ABA0(u8 **arg0, u8 arg1) {
 
     pRow[p[1]] ^= p[2];
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc5", func_8007ABD8);
-/* 96.36% - every instruction and its position is right; the only difference is
-   that retail puts the D_800D3420 base (and p[3], which reuses it) in v0 and
-   p[1]/p[2] in v1, ours mirrors it exactly (la into v1, p[1]/p[2] in v0). Pure
-   allocator tie between two 1-ref pseudos. Proof the shape is right:
-   tools/scripts/try_flags.sh battle/main/misc5 func_8007ABD8 --gcc
-   gcc-2.7.2-cdk-psx scores 100.0 with this exact body (the cdk la being two RTL
-   insns breaks the tie retail's way); 2.6.0 rejects it. The unit cannot be
-   switched to cdk: func_80079E18/4C, A6C8, A744, A9A8, A9D0, AA1C and the
-   AAB8-ABA0 family all drop to 38-89% under cdk though they match under 2.7.2.
-   Tried: pRow declared before/after p, u8* row + ((u16*)pRow)[p[1]], u8 idx
-   local, mem_addr/s32 row local, address spelled twice (82.73%). Best 96.36%.
-void func_8007ABD8(u8 **arg0, u8 arg1) {
-    u8 *p = *arg0;
-    u16 *pRow = (u16 *)(D_800D3420 + arg1 * 0x40);
-    s32 v = pRow[p[1]] + ((p[3] << 8) + p[2]);
-
-    if (v > 0xFFFF) {
-        v = 0xFFFF;
-    }
-    pRow[p[1]] = v;
-} */

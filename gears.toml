@@ -371,4 +371,6 @@ build_variables = {
 }
 paths = [
     "battle/main/misc6_r1.",
+    "battle/main/misc5_r1.",
+    "menu/main/misc8_r1.",
 ]
