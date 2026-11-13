@@ -19,6 +19,12 @@ extern s32 D_8009284C;
 extern s32 func_8008F5B4(u8* p, s32 arg1);
 extern void func_8008FFEC(u8* p, u8* arg1);
 extern void func_80076424(u8* p);
+extern u8 D_80099D98;
+extern void func_8008FCC8(u8* p, u8* arg1);
+extern void func_8009031C(u8* p, u8* arg1);
+extern void func_80090580(u8* p, u8* arg1);
+extern void func_80090990(u8* p, u8* arg1);
+extern void func_8008EE1C(u8* p, s32 arg1, s32 arg2);
 
 s32 func_8008F530(u8* pArg0, s32 arg1) {
     if (arg1 != 0) {
@@ -298,4 +304,32 @@ void func_80090C88(u8* pArg0) {
     *(s32*)(p0 + 0x18) = *(u8*)(p1 + 0x8);
     *(s32*)(p0 + 0x1C) = *(u8*)(p1 + 0x9);
 }INCLUDE_ASM("asm/battling/nonmatchings/main/misc18", func_80090CC0);
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc18", func_80090E10);
+void func_80090E10(u8* pArg0) {
+    u8* p;
+
+    if ((*(u32*)(pArg0 + 0xD0) & 0x40) != 0) {
+        p = *(u8**)(pArg0 + 0x15FC);
+        p[0xF] = D_80099D98;
+        switch (p[0x8]) {
+        case 0:
+            func_8008FCC8(pArg0, p);
+            break;
+        case 1:
+            func_8009031C(pArg0, p);
+            break;
+        case 2:
+            func_80090990(pArg0, p);
+            break;
+        case 3:
+            func_80090580(pArg0, p);
+            break;
+        }
+        if (p[0xE] != 0) {
+            *(u32*)(pArg0 + 0xD0) |= 0x8000;
+        }
+        if ((*(u32*)(p + 0x2C) & 0x2000) != 0) {
+            *(u32*)(pArg0 + 0xD0) |= 2;
+        }
+        func_8008EE1C(pArg0, *(s16*)(p + 0xA), *(s16*)(p + 0xC));
+    }
+}
