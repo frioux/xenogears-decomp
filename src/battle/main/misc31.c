@@ -1,4 +1,6 @@
 #include "common.h"
+#include "field/actor.h"
+#include "psyq/libgpu.h"
 
 extern s32 D_800C367C;
 extern s16 D_800C3740;
@@ -11,8 +13,53 @@ extern void TimerWorkListRemoveTask(void *pEntry);
 extern void func_8001F6B0(u8 *pEntry);
 extern s32 rcos(s32 a);
 extern s32 rsin(s32 a);
+extern void func_80021B14(IVEC3 *pVector, s32 x, s32 y, s32 z);
+extern s32 func_800AA600(s32 arg0);
+extern s32 D_80050100;
+extern MATRIX D_800D30BC;
 extern void TimerWorkListSetTaskCallback(void *pEntry, void *pCallback);
 
+/* best 94.51%: everything but three details. (a) retail re-reads field 0x36
+   from memory (lhu) before shifting it into 0x38 while gcc folds the just-stored
+   value (`andi v0,v0,0xffff`), even when the store goes through a u16* local and
+   the read through another one. (b) retail loads the three SVECTOR halves with
+   `lh` (SImode temp) into one register; ours needs a per-field s32 temp to avoid
+   a narrowing HImode load and lands them in $v1. (c) the %hi/%lo of D_800D30BC
+   lands two instructions later than retail's, which is reorg filling the
+   SetRotMatrix jal slot. The mode expression needs its high bits pulled into a
+   local first (`mode = ... >> 30`) to get retail's `or a0,a0,v0` operand order. */
+/* void func_800BB248(u8 *pTask) {
+    u8 *pSpriteData;
+    SVECTOR vec;
+    long sxy;
+    long flag;
+    s32 nOTOffset;
+    s32 mode;
+    u16 *pField;
+    u16 *pRead;
+    s32 v;
+
+    pSpriteData = *(u8 **)(pTask + 4);
+    mode = *(u32 *)(pSpriteData + 0xA8) >> 30;
+    pField = (u16 *)(pSpriteData + 0x36);
+    *pField = func_800AA600(((*(u32 *)(pSpriteData + 0xAC) & 3) << 2) | mode);
+    pRead = (u16 *)(pSpriteData + 0x36);
+    *(u16 *)(pSpriteData + 0x38) = *pRead >> 1;
+    v = *(s16 *)(pSpriteData + 0x2);
+    vec.vx = v;
+    v = *(s16 *)(pSpriteData + 0x6);
+    vec.vy = v;
+    v = *(s16 *)(pSpriteData + 0xA);
+    vec.vz = v;
+    SetRotMatrix(&D_800D30BC);
+    SetTransMatrix(&D_800D30BC);
+    nOTOffset = (RotTransPers(&vec, &sxy, (u_long *)&sxy, &flag) >> D_80050100) +
+                *(s16 *)(pSpriteData + 0x30);
+    if (flag & 0x8000) {
+        nOTOffset = 0;
+    }
+    *(u16 *)(pSpriteData + 0x2E) = nOTOffset;
+} */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BB248);
 
 void func_800BB314(u8 *pEntry) {
@@ -28,6 +75,44 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BB690);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BB6E0);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BB760);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BB7F8);
+/* best 94.60%: the layout, the four VECTOR slots (0x10/0x20/0x30/0x40) and
+   every call are exact; the only difference is the matrix copy at the end.
+   Retail reads the three rows as halfwords at stride 4 (lhu 48/52/56(sp)) with
+   the assembler's load-delay nop after each, while gcc 2.7.2 merges each pair of
+   loads across the row boundary and drops the nops, so our object is 16 bytes
+   short. Reading through a u16 pointer or a u16* local changes nothing;
+   `(u16)` casts on the field form give lw + sh instead of lhu. */
+/* void func_800BB844(MATRIX *pMatrix, SVECTOR *pA, SVECTOR *pB, SVECTOR *pC) {
+    VECTOR vTmp;
+    VECTOR vB;
+    VECTOR vC;
+    VECTOR vD;
+
+    func_80021B14((IVEC3 *)&vTmp, pB->vx - pA->vx, pB->vy - pA->vy, pB->vz - pA->vz);
+    vD.vx = pC->vx;
+    vD.vy = pC->vy;
+    vD.vz = pC->vz;
+    VectorNormal(&vTmp, &vB);
+    OuterProduct12(&vD, &vB, &vTmp);
+    VectorNormal(&vTmp, &vC);
+    OuterProduct12(&vB, &vC, &vTmp);
+    VectorNormal(&vTmp, &vD);
+    pMatrix->m[0][0] = vC.vx;
+    pMatrix->m[0][1] = vC.vy;
+    pMatrix->m[0][2] = vC.vz;
+    pMatrix->m[1][0] = vD.vx;
+    pMatrix->m[1][1] = vD.vy;
+    pMatrix->m[1][2] = vD.vz;
+    pMatrix->m[2][0] = vB.vx;
+    pMatrix->m[2][1] = vB.vy;
+    pMatrix->m[2][2] = vB.vz;
+    PushMatrix();
+    ApplyMatrix(pMatrix, pA, &vTmp);
+    pMatrix->t[0] = -vTmp.vx;
+    pMatrix->t[1] = -vTmp.vy;
+    pMatrix->t[2] = -vTmp.vz;
+    PopMatrix();
+} */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BB844);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BB9D4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BBAB8);
