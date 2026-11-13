@@ -7,6 +7,35 @@ typedef struct {
     /* 0xC */ s32 w;
 } Vec4; // Size: 0x10
 
+typedef struct {
+    /* 0x00 */ u8* unk0;
+    /* 0x04 */ s16 unk4;
+    /* 0x06 */ u16 pad6;
+    /* 0x08 */ u8 unk8;
+    /* 0x09 */ u8 unk9;
+    /* 0x0A */ s16 unkA;
+    /* 0x0C */ s16 unkC;
+    /* 0x0E */ u8 unkE;
+    /* 0x0F */ u8 unkF;
+    /* 0x10 */ s32 unk10;
+    /* 0x14 */ s32 unk14;
+    /* 0x18 */ s32 unk18;
+    /* 0x1C */ s32 unk1C;
+    /* 0x20 */ s32 unk20;
+    /* 0x24 */ s32 unk24;
+    /* 0x28 */ s32 unk28;
+    /* 0x2C */ u32 unk2C_0 : 8;
+    /* 0x2C */ u32 unk2C_8 : 1;
+    /* 0x2C */ u32 unk2C_9 : 1;
+    /* 0x2C */ u32 unk2C_10 : 1;
+    /* 0x2C */ u32 unk2C_11 : 1;
+    /* 0x2C */ u32 unk2C_12 : 1;
+    /* 0x2C */ u32 unk2C_13 : 1;
+    /* 0x2C */ u32 pad2C : 18;
+    /* 0x30 */ u16 unk30;
+    /* 0x32 */ u16 pad32;
+} BattleWork; // Size: 0x34
+
 extern s32 func_80073DE4(u8* p, s32 arg1);
 extern void func_800767C8(u8* p);
 extern void func_8007639C(u8* p, s32 arg1);
@@ -19,6 +48,12 @@ extern s32 D_8009284C;
 extern s32 func_8008F5B4(u8* p, s32 arg1);
 extern void func_8008FFEC(u8* p, u8* arg1);
 extern void func_80076424(u8* p);
+extern u8 D_80099D98;
+extern void func_8008FCC8(u8* p, u8* arg1);
+extern void func_8009031C(u8* p, u8* arg1);
+extern void func_80090580(u8* p, u8* arg1);
+extern void func_80090990(u8* p, u8* arg1);
+extern void func_8008EE1C(u8* p, s32 arg1, s32 arg2);
 
 s32 func_8008F530(u8* pArg0, s32 arg1) {
     if (arg1 != 0) {
@@ -56,7 +91,18 @@ s32 func_8008F720(u8* pArg0, s32 arg1) {
         return 1;
     }
     return ((rand() & 0xFF) < *(s32*)(p1 + 0x1C));
-}INCLUDE_ASM("asm/battling/nonmatchings/main/misc18", func_8008F7B8);
+}void func_8008F7B8(u8* pArg0) {
+    BattleWork* p;
+
+    p = (BattleWork*)pArg0;
+    p->unk2C_9 = (rand() & 0xFF) < p->unk10;
+    p->unk2C_10 = (rand() & 0xFF) < p->unk14;
+    p->unk2C_12 = rand() & 1;
+    p->unk2C_11 = (rand() & 0xFF) < p->unk18;
+    p->unk2C_8 = ((rand() & 0xFF) < p->unk10) && ((rand() % 10) < 3);
+    p->unk2C_0 = rand();
+    p->unk30 = *(u16*)(p->unk0 + 0x1668);
+}
 void func_8008F900(u8* pArg0) {
     if (((*(u32*)(*(u8**)(pArg0 + 0xD8) + 0xD0)) & 0x60000000) == 0x20000000) {
         if ((rand() & 3) != 0) {
@@ -298,4 +344,32 @@ void func_80090C88(u8* pArg0) {
     *(s32*)(p0 + 0x18) = *(u8*)(p1 + 0x8);
     *(s32*)(p0 + 0x1C) = *(u8*)(p1 + 0x9);
 }INCLUDE_ASM("asm/battling/nonmatchings/main/misc18", func_80090CC0);
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc18", func_80090E10);
+void func_80090E10(u8* pArg0) {
+    u8* p;
+
+    if ((*(u32*)(pArg0 + 0xD0) & 0x40) != 0) {
+        p = *(u8**)(pArg0 + 0x15FC);
+        p[0xF] = D_80099D98;
+        switch (p[0x8]) {
+        case 0:
+            func_8008FCC8(pArg0, p);
+            break;
+        case 1:
+            func_8009031C(pArg0, p);
+            break;
+        case 2:
+            func_80090990(pArg0, p);
+            break;
+        case 3:
+            func_80090580(pArg0, p);
+            break;
+        }
+        if (p[0xE] != 0) {
+            *(u32*)(pArg0 + 0xD0) |= 0x8000;
+        }
+        if ((*(u32*)(p + 0x2C) & 0x2000) != 0) {
+            *(u32*)(pArg0 + 0xD0) |= 2;
+        }
+        func_8008EE1C(pArg0, *(s16*)(p + 0xA), *(s16*)(p + 0xC));
+    }
+}
