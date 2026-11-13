@@ -2235,3 +2235,38 @@ from session 8 reporting clean (the stub line was still *in the file*, it was ju
 inside a comment). The definition-set check does catch it when the swallowed function
 is C-defined; for a swallowed *stub* neither check fires, so **the gate for a round
 that touches park blocks is `make check`, not the set diffs**.
+
+## Round 27 (14 workers, +2) and two preset wins it produced
+
+Round 27 briefed five psyq units and nine overlay units. Only `psyq/libsn` converted
+(`PCread`, `PCwrite`; the idiom is a single `register char *pBuff asm("$19");` pin plus a
+plain `nLeft = len;` copy, which is the minimum that reproduces retail's save block).
+The seventeen timer expiries and the twelve parks are worth less than what the round
+proved:
+
+- **`psyq/libapi`, `psyq/libcard`, `psyq/libcard_b` are entirely hand-written BIOS gates**
+  (`addiu t2,0xB0; jr t2; addiu t1,<index>` with pad `nop`s after `.size`, and `$ra`
+  saved into a global). Zero convertible stubs in each. Do not brief those three again.
+  Together with `libgte_b` (16 of 18 unlinkable, trailing nops) and `libcard`'s sibling
+  finding, the whole `psyq` card/pad/SN corner of the binary is now classified.
+- `world_map/main/misc15` has a **third** jtbl owner, `func_80096A6C`, besides
+  `func_800968E0`/`func_80097800`.
+
+Then two preset decisions taken from worker reports, both gated by `make check`:
+
+| unit | change | value |
+|---|---|---|
+| `menu/main/misc2` | joins `XenoMenu260` (gcc 2.6.0) | all 19 matched functions stay 100.00; `func_801C7BF4` (96 insns) is 100.00 only there -> converted, +1 |
+| `battle/misc23` | new `XenoBattle260Div0` (2.6.0 + `--expand-div` + **-G0**) | all 11 C functions stay 100.00 and its park `func_800A6F98` goes 84.20 -> 96.96, handed to round 28 |
+
+`world_map` also gained the `D_8009BB48` label (inside its data segment, missing from
+`undefined_syms_auto`), which is what kept `misc15`'s `func_800979C8` park from ever
+linking - naming a label that lives inside another unit's data blob is enough, no
+`config/*.yaml` change needed.
+
+Two process notes: a timed-out worker's C body is **not** lost if it was written in an
+edit tool call - `worker_transcript.jsonl` under `subagent-artifacts/` still has it (that
+is how `menu/misc2`'s body was recovered after `clone.sh merge` discarded the uncommitted
+file). And `try_flags.sh --all` under load returns `compile-failed` or an empty score
+list for roughly half the units while a 14-clone round is building; always re-run a
+surprising row before believing it.
