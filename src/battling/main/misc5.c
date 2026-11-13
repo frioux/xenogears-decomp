@@ -303,6 +303,18 @@ void func_8007D65C(s32 arg0, s32 arg1, s32 arg2) {
     }
 }
 
+INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007D6B8);
+
+/* Best attempt: objdiff 84.85%. Indexed form reproduces retail's registers
+   exactly (a0 = i*0xC, a1 = entry base, a2 = i, a3 = 0x6880B0F0, t0 = 2) and
+   the six entry stores in retail order, but retail keeps a second induction
+   register v1 = entry + 4 (used for the +4/+2/+6 stores, -2(v1)/(v1)/2(v1))
+   and gcc anchors every store on the base instead. The pointer form
+   (pEntry->unkX with pEntry++) does create the +4 biv and the right
+   displacements, but shifts the whole register allocation up by one
+   (i -> a3, offset -> a1) and compiles 4 instructions long: 83.82%. */
+
+/*
 void func_8007D6B8(void) {
     BattlePrimTemplate *pTemplate;
     BattleSpriteEntry *pEntry;
@@ -325,6 +337,7 @@ void func_8007D6B8(void) {
         pEntry[i].unk0 = 0;
     }
 }
+*/
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007D7A8);
 
