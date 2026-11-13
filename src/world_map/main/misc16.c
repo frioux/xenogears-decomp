@@ -60,16 +60,27 @@ void func_80098044(void) {
 }
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc16", func_800980D4);
-/* 93.90%
+/* 93.98%, body is 240 bytes like retail: only the register names of the 0x800000
+   constant and of the y local are swapped (retail y=a2, const=a0; ours y=a0,
+   const=a2), an allocator tie - 4 decl/init orders all give the same pairing.
+   Shapes that are now right and must stay: x and y are BOTH locals loaded before
+   the D_8009D558 store (that is the retail top: unk0 load, unk8 load, li, sh);
+   the x branch writes p->unk0 = x + / - 0x800000 (a += reloads and emits a
+   per-branch flag store); the y branch reads the y local but reloads p->unk8 for
+   the store; the tail reloads through a y temp (y = p->unk0; D_8009C838 = (y >> 23) + 2;
+   y = p->unk8; D_8009C83C = (y >> 23) + 2;) - the direct form instead lets gcc hoist
+   the second load into the first load's delay slot and defer both stores (59 insns, 236 bytes).
 void func_800980D4(WorldMapMisc16Struct* p) {
     s32 y;
-    D_8009D558 = 0;
+    s32 x;
+    x = p->unk0;
     y = p->unk8;
-    if (p->unk0 < -0x800000) {
-        p->unk0 += 0x800000;
+    D_8009D558 = 0;
+    if (x < -0x800000) {
+        p->unk0 = x + 0x800000;
         D_8009D558 = 4;
-    } else if (p->unk0 > 0x800000) {
-        p->unk0 -= 0x800000;
+    } else if (x > 0x800000) {
+        p->unk0 = x - 0x800000;
         D_8009D558 = 8;
     }
     if (y < -0x800000) {
@@ -79,9 +90,10 @@ void func_800980D4(WorldMapMisc16Struct* p) {
         p->unk8 -= 0x800000;
         D_8009D558 |= 2;
     }
-    y = p->unk0 >> 23;
-    D_8009C838 = y + 2;
-    D_8009C83C = (p->unk8 >> 23) + 2;
+    y = p->unk0;
+    D_8009C838 = (y >> 23) + 2;
+    y = p->unk8;
+    D_8009C83C = (y >> 23) + 2;
 }
 */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc16", func_800981C8);
