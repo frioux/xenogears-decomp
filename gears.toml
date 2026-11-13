@@ -249,7 +249,8 @@ paths = [
     "battle/main/misc15.",
     "battle/main/misc6.",
     "battle/main/misc8.",
-    "battle/main/misc17."
+    "battle/main/misc17.",
+    "battle/main/misc16."
 ]
 
 # battle/main/misc21 is a gcc-2.6.0 unit AND a div-expansion unit, proven the way
@@ -343,3 +344,14 @@ build_variables = {
 }
 paths = [ "field/main/misc2." ]
 
+
+# The plain 2.7.2 preset for a TU split out of a 2.6.0 unit (battle/misc16's
+# func_8008FA60 is 100.0 only under 2.7.2 and 99.33 under the unit's 2.6.0).
+[[build_preset]]
+name = "XenoBattle272"
+build_variables = {
+    gcc = "gcc-2.7.2-psx"
+}
+paths = [
+    "battle/main/misc16_r1.",
+]

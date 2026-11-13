@@ -70,6 +70,8 @@ segments:
       - [0x18EA0, c, main/misc14]
       - [0x1AF84, c, main/misc15]
       - [0x1D2F4, c, main/misc16]
+      - [0x1FF70, c, main/misc16_r1]
+      - [0x1FFE8, c, main/misc16_r2]
       - [0x21574, c, main/misc17]
       - [0x25F88, c, main/misc18]
       - [0x2A5EC, c, main/misc19]
