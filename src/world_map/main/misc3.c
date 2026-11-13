@@ -555,7 +555,39 @@ s32 func_8007756C(s32 arg0) {
 }
 */
 
+extern u16 D_8009BD10;
+extern u16 D_8009CD4C;
+extern s32 D_8009BCDC;
+extern s32 D_8009BD48;
+
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc3", func_800776E0);
+/* Best attempt: 92.93% (632 bytes; retail is 628). Everything is decoded and
+   every relocation is right. Retail keeps TWO callee-saved roles: s1 =
+   (u8*)0x1F800000 (set by the first insn of the prologue, used for the two
+   scratch deltas AND the two 0x1F8000A0 name words after the call) and s0 =
+   &D_8009BD40 (loaded mid-function just before func_80096F18, then used for
+   both lwl/lwr+swl/swr name swaps). Notes from the attempts below:
+   - gcc only keeps 0x1F800000 in a saved register when the 0x1F8000A0 name
+     access is spelled (pScratch + 0xA0) - a literal (WorldMapName8*)0x1F8000A0
+     makes gcc rematerialise lui/ori and the base lands in t0.
+   - the clamp is `if (nPos < -0x180000) ... else if (nPos > 0x18000) ...`,
+     both stores through one register (retail reuses v1), and nPos must be a
+     local (a0) - it also reproduces the branch-delay subu.
+   - the four key tests reload D_8009CD4C each time (u16; 0x1000 add 0x8000,
+     0x4000 sub 0x8000 on +0x28; 0x8004 add 0xFFFF0000 and 0x2008 add 0x10000
+     on +0x2C). 0x8000 must stay a literal so gcc materialises it with
+     ori v1,zero,0x8000 + addu.
+   - the compare is `(unk38 != unk28) | (unk3C != unk2C)` (xor/sltu/or) and the
+     body reloads 0x1F800000/0x1F800004 for the >>3 steps.
+   - retail keeps &D_8009BD38 in a3 for the single `sh v0,0(a3)` while the
+     D_8009BD3A store goes through %lo($at); not reproduced yet.
+   - preset screen: 2 other functions in this unit match at 100 under the
+     unit's XenoWorldMap preset, so the compiler is right.
+   Open problem: with pName assigned right before the call gcc drops s1 (only
+   s0 is saved, sp-24 frame); with pName initialised at the top it saves s1 but
+   assigns the scratch base s0 and pName s1, the opposite of retail, and puts
+   the BD40 la in the prologue. Nothing has produced s1 = scratch with s0 =
+   pName.
 
 s32 func_80077954(void) {
     return 1;
@@ -642,3 +674,52 @@ void func_80077A64(void) {
     func_8008901C();
     func_800865A0();
 }
+
+/*
+s32 func_800776E0(s32 arg0) {
+    u8* pScratch = (u8*)0x1F800000;
+    u8* pSlot = (u8*)D_8009BE24 + (arg0 << 7);
+    WorldMapName8* pName;
+    s32 nPos;
+
+    if (D_8009BD10 & 0x40) {
+        D_8009D554 = 0;
+        D_8009D7CC = 0;
+    }
+    if (D_8009CD4C & 0x1000) {
+        *(s32*)(pSlot + 0x28) += 0x8000;
+    }
+    if (D_8009CD4C & 0x4000) {
+        *(s32*)(pSlot + 0x28) -= 0x8000;
+    }
+    nPos = *(s32*)(pSlot + 0x28);
+    if (nPos < -0x180000) {
+        *(s32*)(pSlot + 0x28) = -0x180000;
+    } else if (nPos > 0x18000) {
+        *(s32*)(pSlot + 0x28) = 0x18000;
+    }
+    if (D_8009CD4C & 0x8004) {
+        *(s32*)(pSlot + 0x2C) += 0xFFFF0000;
+    }
+    if (D_8009CD4C & 0x2008) {
+        *(s32*)(pSlot + 0x2C) += 0x10000;
+    }
+    if ((*(s32*)(pSlot + 0x38) != *(s32*)(pSlot + 0x28)) |
+        (*(s32*)(pSlot + 0x3C) != *(s32*)(pSlot + 0x2C))) {
+        *(s32*)pScratch = *(s32*)(pSlot + 0x28) - *(s32*)(pSlot + 0x38);
+        *(s32*)(pScratch + 4) = *(s32*)(pSlot + 0x2C) - *(s32*)(pSlot + 0x3C);
+        *(s32*)(pSlot + 0x38) += *(s32*)pScratch >> 3;
+        *(s32*)(pSlot + 0x3C) += *(s32*)(pScratch + 4) >> 3;
+    }
+    D_8009BD38 = *(s32*)(pSlot + 0x38) >> 12;
+    D_8009BD3A = *(s32*)(pSlot + 0x3C) >> 12;
+    pName = (WorldMapName8*)&D_8009BD40;
+    func_80096F18(pName, &D_8009BE28, D_8009D3F0);
+    *(WorldMapName8*)(pScratch + 0xA0) = *pName;
+    *pName = *(WorldMapName8*)&D_8009BD48;
+    *(WorldMapName8*)&D_8009BD48 = *(WorldMapName8*)(pScratch + 0xA0);
+    D_8009BD3A = (D_8009BD3A + 0x800) & 0xFFF;
+    SetGeomScreen(D_8009BCDC);
+    return 1;
+}
+*/
