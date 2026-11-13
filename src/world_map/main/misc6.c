@@ -106,6 +106,7 @@ extern u16 D_8006F954;
 extern u32 D_8009BBC4;
 extern u16 D_8009A5CC[];
 extern void func_80072BB0(void);
+extern void func_800894C8(s32);
 extern void func_80072DB4(int, int, int, int);
 extern int ArchiveDataSync(void);
 extern void func_80076954(void);
@@ -123,6 +124,11 @@ extern void func_8001B66C(void);
 extern s16 D_8009A5B4[];
 extern s16 D_8009A5B6[];
 extern s16 D_8009A5B8[];
+extern s16 D_8009A674[];
+extern s16 D_8009A678[];
+extern s32 D_8009D7F0;
+extern void func_800809EC(u8 *, s32, s32, s32, s32);
+extern void func_8007EBBC(WorldMapGroup *, void *, int, int);
 extern void func_80084580(void);
 extern void func_8008440C(void);
 extern void func_800979C8(void);
@@ -160,12 +166,12 @@ extern int func_8007DE14(int);
 extern void func_8007DE98(int);
 extern int func_8007E450(int);
 extern void func_8007E4E4(int);
-extern void func_8007ECA4(int);
+extern int func_8007ECA4(int);
 extern void func_8007EE34(int);
 extern void func_8007F8AC(int);
 extern void func_8007F968(int);
 extern void func_8007FC8C(int);
-extern void func_8007FD30(int);
+extern int func_8007FD30(int);
 extern void func_80078948(void);
 extern void func_80078950(void);
 
@@ -192,7 +198,39 @@ int func_8007D414(int index) {
     return 1;
 }
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007D4A4);
+int func_8007D4A4(int index) {
+    WorldMapActor *pActor = &D_8009BE24[index];
+    WorldMapRoot *pRoot = D_8009C620;
+
+    if (pActor->unk04 == 1) {
+        SVECTOR *pScratch = (SVECTOR *)((u8 *)PSX_SCRATCH + 0xA0);
+
+        pActor->unk04 = 0;
+        pRoot->unk000[12].unk00 = 1;
+        pRoot->unk000[15].unk00 = 1;
+        func_800894C8(0x18);
+        pScratch->vx = pActor->unk28 >> 12;
+        pScratch->vy = pActor->unk2C >> 12;
+        pScratch->vz = pActor->unk30 >> 12;
+        func_80089160(0x1D, pScratch, 0);
+        return 3;
+    }
+    {
+    SVECTOR *pScratch = (SVECTOR *)((u8 *)PSX_SCRATCH + 0xA0);
+
+    pActor->unk30 += pActor->unk40;
+    func_80093354((VECTOR *)&pActor->unk28);
+    pActor->unk2C = func_80093A5C(pActor->unk28, pActor->unk30) - 0x4000;
+    pRoot->unk000[12].unk08 = pActor->unk28 >> 12;
+    pRoot->unk000[12].unk0C = pActor->unk2C >> 12;
+    pRoot->unk000[12].unk10 = pActor->unk30 >> 12;
+    pScratch->vx = pActor->unk28 >> 12;
+    pScratch->vy = pActor->unk2C >> 12;
+    pScratch->vz = pActor->unk30 >> 12;
+    func_80089160(0x18, pScratch, 0);
+    }
+    return 1;
+}
 
 int func_8007D600(int index) {
     WorldMapGroup *pGroup;
@@ -480,6 +518,48 @@ void func_8007EBBC(WorldMapGroup *pGroup, u8 *pPrim, int count, int abr) {
 }
 */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007ECA4);
+/* 78.97%: instruction multiset identical (400 bytes both), only the tail block
+   after RotMatrixYXZ differs in evaluation order and register choice. Retail
+   evaluates the first 109*unk38 multiply after the D_8009A678 lh, keeps the
+   index in $v1 and the return constant ($v0=1) in the middle of the block;
+   gcc hoists the multiply and puts the return constant first. Tried: pActor
+   assigned before/after the func_800848B4 calls (after is right - it is what
+   puts the index in $s2 and moves addu into the first func_8007EBBC delay
+   slot), nIndex declared first vs last.
+int func_8007ECA4(int index) {
+    int nIndex;
+    WorldMapActor *pActor;
+    WorldMapRoot *pRoot;
+    WorldMapGroup *pGroup;
+    SVECTOR *pRot;
+    MATRIX *pMatrix;
+
+    func_800848B4(1, 2);
+    func_800848B4(1, 3);
+    pRoot = D_8009C620;
+    pActor = &D_8009BE24[index];
+    func_8007EBBC(&pRoot->unk000[1], pRoot->unk000[1].unk48, *(u16 *)((u8 *)pRoot->unk000[1].unk40 + 4), 3);
+    func_8007EBBC(&pRoot->unk000[2], pRoot->unk000[2].unk48, *(u16 *)((u8 *)pRoot->unk000[2].unk40 + 4), 3);
+    func_8007EBBC(&pRoot->unk000[3], pRoot->unk000[3].unk48, *(u16 *)((u8 *)pRoot->unk000[3].unk40 + 4), 1);
+    pGroup = &D_8009C620->unk000[1];
+    pRot = &pGroup->unk18;
+    pMatrix = &pGroup->unk20;
+    pGroup->unk00 = 0;
+    pRot->vx = pRot->vy = pRot->vz = 0;
+    RotMatrixYXZ(pRot, pMatrix);
+    nIndex = D_8009D3D4;
+    pActor->unk38 = -0x85A;
+    pActor->unk20 = 0;
+    pActor->unk3C = 0;
+    pActor->unk40 = 0xDA6;
+    pActor->unk50 = D_8009A674[nIndex * 4] << 12;
+    pActor->unk54 = (void *)(D_8009A678[nIndex * 4] << 12);
+    pActor->unk28 = D_8009C5AC - pActor->unk38 * 13952;
+    pActor->unk2C = D_8009C5B0;
+    pActor->unk30 = D_8009C5B4 - pActor->unk40 * 13952;
+    return 1;
+}
+*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007EE34);
 // 100.00% in objdiff under -G0 (99.4 under the unit preset) but the C is 45 bytes
 // the wrong length at link time, so -G0 is NOT the answer for this overlay (its
@@ -544,6 +624,71 @@ int func_8007FC8C(int index) {
 */
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007FD30);
+/* 90.00%: every store, call and relocation is right and only 4 bytes short of
+   retail's 0x240; the deltas are the two group pointers (retail keeps
+   &D_8009C620->unk000[9] in $s2 - computed in the bne delay slot - and
+   unk000[10] in $s3 - computed in the beqz delay slot - and stores through
+   $s1 displacements), plus gcc hoisting the unk50/unk54 loads of the scratchpad
+   block and picking different registers than retail's all-in-$v0. Note unk54
+   and unk58 are void* in the struct: comparing them needs the (s32) casts below
+   or gcc drops the clamp (sltu) and the whole unk58 branch.
+int func_8007FD30(int index) {
+    WorldMapActor *pActor = &D_8009BE24[index];
+    WorldMapRoot *pRoot = D_8009C620;
+    WorldMapGroup *pGroup9 = &pRoot->unk000[9];
+    WorldMapGroup *pGroup10 = &pRoot->unk000[10];
+    s32 nX;
+    s32 nY;
+    s32 nZ;
+
+    if (pActor->unk04 == 1) {
+        pActor->unk04 = 0;
+    }
+    nX = pActor->unk28 >> 12;
+    pGroup10->unk08 = nX;
+    pGroup9->unk08 = nX;
+    nY = pActor->unk2C >> 12;
+    pGroup10->unk0C = nY;
+    pGroup9->unk0C = nY;
+    nZ = pActor->unk30 >> 12;
+    pGroup10->unk10 = nZ;
+    pGroup9->unk10 = nZ;
+    pGroup10->unk20 = D_8009A180;
+    pGroup9->unk20 = pGroup10->unk20;
+    nX = pActor->unk50;
+    *(s32 *)0x1F800008 = nX;
+    *(s32 *)0x1F800000 = nX;
+    *(s32 *)0x1F800014 = 0x1000;
+    *(s32 *)0x1F800004 = 0x1000;
+    nY = (s32)pActor->unk54;
+    *(s32 *)0x1F800018 = nY;
+    *(s32 *)0x1F800010 = nY;
+    ScaleMatrix(&pGroup9->unk20, (VECTOR *)0x1F800000);
+    ScaleMatrix(&pGroup10->unk20, (VECTOR *)0x1F800010);
+    nX = pActor->unk50 + 0x180;
+    pActor->unk50 = nX;
+    if (nX > 0x7FFF) {
+        pActor->unk50 = 0x7FFF;
+    }
+    nY = (s32)pActor->unk54 + 0x180;
+    pActor->unk54 = (void *)nY;
+    if (nY > 0x7FFF) {
+        pActor->unk54 = (void *)0x7FFF;
+    }
+    func_800809EC(*(u8 **)((u8 *)pGroup9 + D_8009D7F0 * 4 + 0x48), *(u16 *)((u8 *)pGroup9->unk40 + 4),
+                  pActor->unk58, pActor->unk58, pActor->unk58);
+    func_800809EC(*(u8 **)((u8 *)pGroup10 + D_8009D7F0 * 4 + 0x48), *(u16 *)((u8 *)pGroup10->unk40 + 4),
+                  pActor->unk58, pActor->unk58, pActor->unk58);
+    nZ = (s32)pActor->unk58 - 3;
+    pActor->unk58 = (void *)nZ;
+    if (nZ < 0) {
+        pActor->unk58 = NULL;
+        return 3;
+    }
+    return 1;
+}
+*/
+
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007FF70);
 void func_80080218(void) {
     u16 unkValue;
