@@ -588,6 +588,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc3", func_800776E0);
    assigns the scratch base s0 and pName s1, the opposite of retail, and puts
    the BD40 la in the prologue. Nothing has produced s1 = scratch with s0 =
    pName.
+*/
 
 s32 func_80077954(void) {
     return 1;
