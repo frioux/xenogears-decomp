@@ -127,6 +127,50 @@ void func_801D3DB0(u_char index, u_short x, u_short y, u_short width, u_short he
     }
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D3FF8);
+/* Best: 99.89% (836 bytes, the right size). Only difference: retail emits the
+   first call's `addiu a1,s4,0x8` (x + 8) and then `addiu s2,a2,-0x8` (the shared
+   top), gcc emits the s2 one 8 slots earlier. The 16 UV byte stores off
+   `g_Menu->renderContext * 0x28 + (u8*)pWindow` and the rest of the decode are
+   exact (see func_801D433C's note for why the stores must be written that way).
+   Tried: `top` local assigned before/after halfWidth (99.89), `y - 8` inline in
+   both calls (99.89, but then the `andi a1,a1,0xFFFF`/store-lw pair swaps
+   instead), halfWidth inline (99.89), `(u16)(x + 8)` cast (98.09), `x += 8` then
+   `x += halfWidth` (97.01, loses retail's `addiu s0,s0,8`). So it is an emission
+   order tie, not a source shape. Note the second call's x must be written back
+   into the `x` parameter (`x = halfWidth + 8 + x;`) - a separate local costs a
+   register and 4 bytes.
+   void func_801D3FF8(u_char index, u_short x, u_short y, u_short width) {
+       MenuWindow* pWindow = g_Menu->windows[index];
+       u16 top;
+       s32 halfWidth;
+       s32 i;
+   
+       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x14C) = 0;
+       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x14D) = 0x84;
+       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x154) = 7;
+       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x155) = 0x84;
+       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x15C) = 0;
+       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x15D) = 0x94;
+       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x164) = 7;
+       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x165) = 0x94;
+       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x19C) = 0;
+       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x19D) = 0x84;
+       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x1A4) = 7;
+       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x1A5) = 0x84;
+       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x1AC) = 0;
+       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x1AD) = 0x94;
+       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x1B4) = 7;
+       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x1B5) = 0x94;
+       halfWidth = (width - 0x10) / 2;
+       top = y - 8;
+       func_801C851C(pWindow->vertsWindowBorderTop1, x + 8, top, halfWidth, 0x10);
+       x = halfWidth + 8 + x;
+       func_801C851C(pWindow->vertsWindowBorderTop2, x, top, halfWidth, 0x10);
+       for (i = 0; i < 2; i++) {
+           func_801E91C4((P_TAG*)&pWindow->polysWindowBorderTop[i * 2 + g_Menu->renderContext]);
+       }
+   }
+*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D433C);
 /* Best: 99.00%. The sibling of func_801D3DB0 (bottom border instead of the
    corners) and the decode is complete: 16 UV stores to polysWindowBorderBottom
@@ -173,6 +217,51 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D433C);
    }
 */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D4688);
+/* Best: 94.26% (844 bytes; retail is 836). Decode is complete - the vertical
+   border sibling of func_801D3FF8 (see its note): 16 UV byte stores to
+   polysWindowBorderLeft[ctx] / [ctx+2] (0x28C..0x2F5, values 0x10/0x84/0x20/0x84
+   then 0x10/0x8B/0x20/0x8B, repeated for the second prim pair), then
+   func_801C851C(vertsWindowBorderLeft1, x - 8, y + 8, 0x10, halfHeight) and
+   func_801C851C(vertsWindowBorderLeft2, x - 8, halfHeight + 8 + y, 0x10,
+   halfHeight) where halfHeight = (height - 0x10) / 2, then a 2-iteration
+   func_801E91C4 loop over polysWindowBorderLeft[i * 2 + renderContext].
+   The 4th param is the border HEIGHT (it is the func_801C851C height arg), and
+   the accumulated param must be written back into it (`y = halfHeight + 8 + y;`)
+   - retail keeps it in s3. Remaining diff: gcc copies a2 to s3 in the prologue
+   and needs one extra g_Menu reload (2 instructions), and the constant
+   registers come out t1/t2 vs a2/t1.
+void func_801D4688(u_char index, u_short x, u_short y, u_short height) {
+       MenuWindow* pWindow = g_Menu->windows[index];
+       u16 left;
+       s32 halfHeight;
+       s32 i;
+   
+       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x28C) = 0x10;
+       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x28D) = 0x84;
+       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x294) = 0x20;
+       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x295) = 0x84;
+       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x29C) = 0x10;
+       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x29D) = 0x8B;
+       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x2A4) = 0x20;
+       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x2A5) = 0x8B;
+       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x2DC) = 0x10;
+       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x2DD) = 0x84;
+       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x2E4) = 0x20;
+       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x2E5) = 0x84;
+       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x2EC) = 0x10;
+       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x2ED) = 0x8B;
+       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x2F4) = 0x20;
+       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x2F5) = 0x8B;
+       left = x - 8;
+       halfHeight = (height - 0x10) / 2;
+       func_801C851C(pWindow->vertsWindowBorderLeft1, left, y + 8, 0x10, halfHeight);
+       y = halfHeight + 8 + y;
+       func_801C851C(pWindow->vertsWindowBorderLeft2, left, y, 0x10, halfHeight);
+       for (i = 0; i < 2; i++) {
+           func_801E91C4((P_TAG*)&pWindow->polysWindowBorderLeft[i * 2 + g_Menu->renderContext]);
+       }
+   }
+*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D49D0);
 void func_801D4D1C(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4, u_char a5, s32 a6, u_char a7) {
     MenuWindow* pWindow = g_Menu->windows[a0];
