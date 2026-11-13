@@ -10,6 +10,7 @@ extern void WorkListRemoveTask(void *pEntry);
 extern void TimerWorkListRemoveTask(void *pEntry);
 extern void func_8001F6B0(u8 *pEntry);
 extern s32 rcos(s32 a);
+extern s32 rsin(s32 a);
 extern void TimerWorkListSetTaskCallback(void *pEntry, void *pCallback);
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BB248);
@@ -92,4 +93,32 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BCB54);
         D_800C3748 = NULL;
     }
 } */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BCBB4);
+void func_800BCBB4(u8 *pEntry) {
+    s32 color;
+    s32 angle;
+    u8 *pData;
+    /* the incoming $a0 only survives the angle load; the rest reads a saved copy */
+    u8 *pSaved = pEntry;
+
+    angle = *(s32 *)(pEntry + 0x20) << 6;
+    pData = *(u8 **)(pSaved + 0x1C);
+    color = rcos(angle);
+    color += 0x1000;
+    color >>= 6;
+    color += 0x80;
+    if (color >= 0x100) {
+        color = 0xFF;
+    }
+    pData[0x28] = color;
+    color = rsin(angle);
+    color += 0x1000;
+    color >>= 6;
+    color += 0x80;
+    if (color >= 0x100) {
+        color = 0xFF;
+    }
+    pData[0x29] = color;
+    pData[0x2A] = color;
+    func_8001F6B0(pData);
+    *(s32 *)(pSaved + 0x20) += 1;
+}
