@@ -1,6 +1,7 @@
 #include "common.h"
 #include "psyq/libgpu.h"
 #include "psyq/libgte.h"
+#include "psyq/inline_c.h"
 #include "system/memory.h"
 
 extern s32 D_80092790;
@@ -202,11 +203,11 @@ u32 func_800828C4(s32* p) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc9", func_800828F8);
 
-/* best 94.16%: frame, local layout (v/v2/vSq/m/mT/n at 0x10/0x20/0x30/0x40/
-   0x60/0x80) and the whole matrix block line up. Two residuals: gcc picks
-   the opposite registers for the two SVECTOR normal loads (lhu 128/132), and
-   it folds the loop update into v.vz - ((r - radius) - 8) instead of the
-   original's (v.vz + 8) - (r - radius).
+/* best 97.57%: frame, local layout and the whole matrix block line up. Only
+   residual: gcc swaps the two SVECTOR normal load registers (n.vx in v1 here,
+   a2 in the original) and the two following halfword store order. Field-name
+   reads (n.vx / n.vz) beat ((u16*)&n)[i]: 94.16 -> 97.57. Splitting the loop
+   update into "v.vz += 8; v.vz -= ofs;" also helped.
 void func_800828F8(VECTOR* p0, VECTOR* p1, s32 radius) {
     VECTOR v;
     VECTOR v2;
@@ -227,10 +228,10 @@ void func_800828F8(VECTOR* p0, VECTOR* p1, s32 radius) {
         m.m[1][0] = 0;
         m.m[0][1] = 0;
         m.m[1][1] = 0x1000;
-        m.m[2][0] = ((u16*)&n)[0];
-        m.m[2][2] = ((u16*)&n)[2];
-        m.m[0][0] = ((u16*)&n)[2];
-        m.m[0][2] = -((u16*)&n)[0];
+        m.m[0][0] = n.vz;
+        m.m[0][2] = -n.vx;
+        m.m[2][0] = n.vx;
+        m.m[2][2] = n.vz;
         ApplyMatrixLV(&m, p1, &v);
         TransposeMatrix(&m, &mT);
         SetRotMatrix(&mT);
@@ -245,13 +246,99 @@ void func_800828F8(VECTOR* p0, VECTOR* p1, s32 radius) {
                 break;
             }
             ofs = r - radius;
-            v.vz = v.vz + 8 - ofs;
+            v.vz += 8;
+            v.vz -= ofs;
         }
     }
 }
 */
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc9", func_80082A70);
+
+extern u8 D_800928B4;
+extern u8 D_8009178C[];
+extern s32 D_8009291C;
+extern s32 D_80092910;
+extern s32 D_80092908;
+extern u8 D_80095584;
+extern u8 D_80095585;
+extern u8 D_80095586;
+extern u16 D_8009558C;
+extern u8 D_8009558E;
+extern u16 D_80095594;
+extern u8 D_80095596;
+extern u16 D_8009559C;
+extern u8 D_8009559E;
+extern u8 D_800955A8;
+extern u8 D_800955A9;
+extern u8 D_800955AA;
+extern u16 D_800955B0;
+extern u8 D_800955B2;
+extern u16 D_800955B8;
+extern u8 D_800955BA;
+extern u16 D_800955C0;
+extern u8 D_800955C2;
+extern u8 D_8009A1C4;
+extern u8 D_8009A1C5;
+extern u8 D_8009A1C6;
+extern u8 D_8009A2BC;
+extern u8 D_8009A2BD;
+extern u8 D_8009A2BE;
+extern u32 D_80059598;
+
+void func_80082A70(void) {
+    u8* p;
+    s32 farR;
+    s32 farG;
+    s32 farB;
+    s32 nearR;
+    s32 nearG;
+    s32 nearB;
+    s32 nearRG;
+    s32 farRG;
+
+    p = &D_8009178C[D_800928B4 * 17];
+    D_8009288C = p;
+    nearR = p[0];
+    nearG = p[1];
+    nearB = p[2];
+    D_8009291C = p[4];
+    D_80092910 = p[5];
+    D_80092908 = p[6];
+    farR = p[8];
+    farG = p[9];
+    farB = p[10];
+    SetNearColor(p[0xC], p[0xD], p[0xE]);
+    SetFarColor(farR, farG, farB);
+    D_80095585 = nearG;
+    D_800955A9 = nearG;
+    nearRG = nearR | (nearG << 8);
+    D_80095584 = nearR;
+    D_800955A8 = nearR;
+    farRG = farR | (farG << 8);
+    D_80095586 = nearB;
+    D_800955AA = nearB;
+    D_8009558C = nearRG;
+    D_8009558E = nearB;
+    D_800955B0 = nearRG;
+    D_800955B2 = nearB;
+    D_80095594 = farRG;
+    D_80095596 = farB;
+    D_800955B8 = farRG;
+    D_800955BA = farB;
+    D_8009559C = farRG;
+    D_8009559E = farB;
+    D_800955C0 = farRG;
+    D_800955C2 = farB;
+    D_8009A1C4 = farR;
+    D_8009A1C5 = farG;
+    D_8009A1C6 = farB;
+    D_8009A2BC = farR;
+    D_8009A2BD = farG;
+    D_8009A2BE = farB;
+    SetFogNearFar(0x800, 0x1800, 0xC0);
+    D_80059598 = (D_80059598 & 0xFFFFFF) | 0x28000000;
+    gte_ldrgb(&D_80059598);
+}
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc9", func_80082C4C);
 
