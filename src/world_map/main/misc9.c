@@ -54,6 +54,34 @@ typedef struct {
     /* 0x4 */ s32 unk4;
 } WorldMapTableEntry; // Size: 0x8
 
+// 0x10-byte tile position entry in the D_8009AF30 / D_8009AF38 tables
+typedef struct {
+    /* 0x0 */ s32 unk0;
+    /* 0x4 */ s32 unk4;
+    /* 0x8 */ s32 unk8;
+    /* 0xC */ s32 unkC;
+} WorldMapTilePos; // Size: 0x10
+
+// 0x10-byte vertex built in D_8009D150
+typedef struct {
+    /* 0x0 */ s32 unk0;
+    /* 0x4 */ s32 unk4;
+    /* 0x8 */ s32 unk8;
+    /* 0xC */ s32 unkC;
+} WorldMapTileVertex; // Size: 0x10
+
+// 0x8-byte path entry built in D_8009CEB4
+typedef struct {
+    /* 0x0 */ s16 unk0;
+    /* 0x2 */ s16 unk2;
+    /* 0x4 */ s16 unk4;
+    /* 0x6 */ s16 pad6;
+} WorldMapPathEntry; // Size: 0x8
+
+extern WorldMapTilePos D_8009AF30[];
+extern WorldMapTilePos D_8009AF38[];
+extern int rand(void);
+
 void func_80085F58(void) {
     WorldMapTableEntry* pEntry;
     u_char* pBase;
@@ -71,13 +99,105 @@ void func_80085F58(void) {
     }
 }
 
+// Best: 92.27%. Everything matches except how &D_8009D7E8 is materialised:
+// retail computes it into s0 before the second HeapAlloc, stores HeapAlloc #1's
+// result through it there (delay slot) and reloads it after the call (lw v1,0(s0));
+// we store and reload through the symbolic address (lui $at / fresh lui), which is
+// the same 4 instructions, so the diff is register/reloc shape only. Taking the
+// address into a `u_char** ppHeap` local is folded straight back by fold_rtx.
+// Shape below is the natural one and stays at 92.27%. The address-in-register
+// idiom is the only thing missing; both neighbours share it.
+// func_800865A0 shows the identical idiom with D_8009D7F8. The 0x200-iteration
+// POLY_FT4 loop and the trailing copy are byte-exact (the copy must be typed:
+// memcpy of `u_char*` globals emits lwl/lwr and scores 60%).
+// Screen: cdk 92.21, 2.6.0 92.27, best 92.27 here - not a compiler miss.
+/*
+void func_80085FE0(void) {
+    POLY_FT4* pPrim;
+    POLY_FT4* pDst;
+    POLY_FT4* pSrc;
+    s32 i;
+
+    D_8009D7E8 = HeapAlloc(0x5000, 1);
+    D_8009D7EC = HeapAlloc(0x5000, 1);
+    pPrim = (POLY_FT4*)D_8009D7E8;
+    for (i = 0; i < 0x200; i++, pPrim++) {
+        setPolyFT4(pPrim);
+        setRGB0(pPrim, 0x80, 0x80, 0x80);
+        pPrim->u0 = 0;
+        pPrim->v0 = 0x40;
+        pPrim->u1 = 0x1F;
+        pPrim->v1 = 0x40;
+        pPrim->u2 = 0;
+        pPrim->v2 = 0x6F;
+        pPrim->u3 = 0x1F;
+        pPrim->v3 = 0x6F;
+        setClut(pPrim, 0xF0, 0x1FF);
+        setTPage(pPrim, 0, 0, 0x380, 0x100);
+    }
+    pSrc = (POLY_FT4*)D_8009D7E8;
+    pDst = (POLY_FT4*)D_8009D7EC;
+    memcpy(pDst, pSrc, 0x5000);
+}
+*/
+
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_80085FE0);
 void func_80086124(void) {
     HeapFree(D_8009D7EC);
     HeapFree(D_8009D7E8);
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_8008615C);
+// Best: 91.94%. Both loops are instruction-for-instruction identical to retail;
+// the only difference is which callee-saved register holds what: retail keeps the
+// D_8009D150 destination pointer in s3 and the x counter in s2, we take the reverse,
+// and in the second loop retail holds the `(rand() & 3) + 1` value in s2 while we
+// use v1. That exchange also moves the `x = 0` init out of the y-loop back-edge
+// delay slot (retail has `bnez ...; move s2,zero`, we emit `bnez ...; nop`).
+// Declaration order, x/y swap, pointer-last and separate idx/value locals all leave
+// the allocator tie untouched (91.94 at best, 89.23 with a separate loop-2 temp).
+// Note D_8009AF30/D_8009AF38 are separate absolute symbols 8 bytes apart, each read
+// as a word at stride 0x10.
+// Screen: not screened under another gcc - the shape is exact, only regs differ.
+/*
+void func_800863E0(void) {
+    s32 xoff;
+    s32 yoff;
+    s32 x;
+    s32 y;
+    s32 i;
+    s32 value;
+    WorldMapTileVertex* pVertex;
+    WorldMapPathEntry* pPath;
+
+    D_8009D150 = HeapAlloc(0x500, 0);
+    D_8009CEB4 = HeapAlloc(0x280, 0);
+    pVertex = (WorldMapTileVertex*)D_8009D150;
+    for (y = 0; y < 4; y++) {
+        yoff = y << 11;
+        for (x = 0; x < 4; x++) {
+            xoff = x << 11;
+            for (i = 0; i < 5; i++) {
+                pVertex->unk0 = (D_8009AF30[i].unk0 + xoff) << 12;
+                pVertex->unk8 = (D_8009AF38[i].unk0 + yoff) << 12;
+                value = -(rand() >> 10);
+                pVertex->unk4 = ((value << 3) - 0x200) << 12;
+                pVertex++;
+            }
+        }
+    }
+    pPath = (WorldMapPathEntry*)D_8009CEB4;
+    for (i = 0; i < 0x50; i++) {
+        value = (rand() & 3) + 1;
+        pPath->unk0 = value * 3547;
+        pPath->unk4 = -(value << 11);
+        pPath->unk2 = rand() & 1;
+        pPath++;
+    }
+}
+*/
+
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_800863E0);
+
 void func_80086568(void) {
     HeapFree(D_8009CEB4);
     HeapFree(D_8009D150);
