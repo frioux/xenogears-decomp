@@ -108,23 +108,24 @@ u32 func_80084108(u8 arg0, u8 arg1) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_800841E0);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80084548);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80084750);
-/* 81.43%: this unit's gcc does NOT reverse loops (func_80085350's `for (i=0;i<11;i++)`
-   keeps `slti`), so the second loop's countdown `addiu s3,s3,-1 / bgez s3` is
-   SOURCE-WRITTEN, not check_dbra_loop: it is `for (i = 3, k = 8; --k >= 0; i++)`.
-   First loop matches (single-store loop IS reversed by check_dbra_loop).
-   The 79.72% variant below is the shape retail actually emits (`li s3,0x8` early, then
-   `addiu s3,s3,-1` + `bltz s3` entry guard, then `li s2,0x3`): it only appears when
-   `k = 8;` is a separate statement BEFORE the first loop, because jump.c then cannot
-   fold `8-1<0` away (different basic block). What is still off in that variant is
-   instruction order (retail: move s4,zero / addiu s3,-1 / stores / bltz / li s2,3)
-   and one extra callee-saved register: retail keeps `i` in s1 AND s2 because reorg
-   stuffed `i++` into the beqz delay slot. 78.20% was the original indexed spelling.
+/* 81.43%. Loop 1 (the backward 0xFF fill) matches. What is left is the entry
+   shape of loop 2 and one callee-saved register: retail keeps `k = 8` in s3 from
+   function entry (`li s3,0x8` in the prologue), `n` in s4, `i` in s2, a COPY of
+   `i` in s1 (`addu s1,s2,zero` at the loop top, then `andi s0,s1,0xFF`), and
+   arg0 in s5; this gcc gives arg0 s3, and merges the `j = i` copy away (6 saved
+   registers, 40-byte frame vs retail's 48). Retail's entry block is
+   `move s4,zero / addiu s3,-1 / sb D_800D3274 / sh D_800C3D64 / bltz s3 / li s2,0x3`.
+   Tried: `for (i=3, k=8; --k>=0; i++)` (81.43); `k = 8;` before the fill loop plus
+   a `j = i` copy in the body (79.72 - entry-block order now matches); indexed
+   spelling (78.20); u8 copy of the loop var. This body is the 81.43 variant.
 u8 func_80084750(u8 arg0) {
     s32 i;
+    s32 j;
     s32 n;
     s32 k;
     u8 *p;
 
+    k = 8;
     p = D_800C3E9B;
     for (i = 0; i < 12; i++) {
         *p-- = 0xFF;
@@ -132,16 +133,18 @@ u8 func_80084750(u8 arg0) {
     n = 0;
     D_800D3274 = 0;
     D_800C3D64 = 0;
-    for (i = 3, k = 8; --k >= 0; i++) {
-        if (func_80083FF4(arg0, i) != 0) {
-            D_800C3E90[n] = i;
-            D_800C3D64 |= func_80089C08(i);
+    for (i = 3; --k >= 0; i++) {
+        j = i;
+        if (func_80083FF4(arg0, j) != 0) {
+            D_800C3E90[n] = j;
+            D_800C3D64 |= func_80089C08(j);
             D_800D3274++;
         }
     }
     return D_800C3E90[0];
 }
-*/
+}
+
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80084854);
 void func_80084A7C(u8 arg0) {
     s32 off;
@@ -164,21 +167,22 @@ void func_80084A7C(u8 arg0) {
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80084B40);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80084D28);
-/* 95.21%: the 2D-array type fixes the phantom frame the u8[] + [i*0x1C] spelling caused.
-   Left over: the original keeps `i++` in the beqz delay slot and duplicates the
-   `slti $s0,0xB` loop test into the bne delay slot; gcc puts both in the latch. A do-while
-   spelling (idx = i++) drops to 80.00% because i stops being an induction variable.
+/* 95.21%: instruction multiset identical; the only two differences are reorg's
+   delay-slot steals. The original moves `i++` into the beqz delay slot at the
+   loop head and copies `slti v0,s0,0xB` into the bne delay slot; this gcc leaves
+   both slots as nop and keeps `addiu s0,s0,1` in the latch. Indexing with the
+   s32 `i` (not a u8 copy) is what produces the original's `s2` biv (+0x1C) and
+   the shared `andi s1,s0,0xFF`. Tried: u8 idx local (77.21), -G0, cdk (77.91),
+   gcc-2.6.0 (compile-failed).
 u16 func_80084D28(void) {
     s32 i;
     u16 ret;
-    u8 idx;
 
     ret = 0;
     for (i = 0; i < 0xB; i++) {
-        idx = i;
-        if (func_80089C9C(D_800C3D64, idx) != 0) {
-            if (D_800C3EB4[D_800C3E2C][0] == D_800C3EB4[idx][0]) {
-                ret |= func_80089C08(idx);
+        if (func_80089C9C(D_800C3D64, i) != 0) {
+            if (D_800C3EB4[D_800C3E2C][0] == D_800C3EB4[i][0]) {
+                ret |= func_80089C08(i);
             }
         }
     }
