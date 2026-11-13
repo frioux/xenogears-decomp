@@ -1,6 +1,8 @@
 #include "common.h"
 #include "psyq/libgpu.h"
 #include "psyq/libgte.h"
+#include "psyq/gtemac.h"
+#include "psyq/inline_c.h"
 #include "system/memory.h"
 
 typedef struct Misc16Work Misc16Work;
@@ -407,7 +409,23 @@ void func_8008DCA8(s32 arg0) {
 }
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc16", func_8008DCB8);
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc16", func_8008DDFC);
+void func_8008DDFC(SVECTOR* pIn, SVECTOR* pOut, s32 depth) {
+    register s16 vx asm("$8");
+    register s16 vy asm("$9");
+    register s16 vz asm("$10");
+
+    gte_ldv0(pIn);
+    gte_lddp_a2(depth);
+    gte_mvmva(1, 0, 0, 3, 0);
+    gte_stmac123_gpr_ldir123();
+    gte_nop();
+    gte_nop();
+    gte_gpf12_b();
+    gte_stir123_gpr(vx, vy, vz);
+    pOut->vx = vx;
+    pOut->vy = vy;
+    pOut->vz = vz;
+}
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc16", func_8008DE54);
 
 void func_8008DF30(void) {
