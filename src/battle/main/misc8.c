@@ -61,6 +61,7 @@ void func_8007C33C(u8 **arg0, u8 arg1) {
         ((u16 *)(D_800D3420 + arg1 * 0x40))[(*arg0)[1]] = func_80089C08(buf[func_8001BD40(0, count - 1)]);
     }
 }
+*/
 void func_8007C4A0(u8 **arg0, u8 arg1) {
     u16 *pRow;
     u16 result;
