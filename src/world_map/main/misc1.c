@@ -477,6 +477,7 @@ extern u16 D_8009BCA6;
 extern u16 D_8009BCA8;
 extern u16 D_8009BCAA;
 extern s32 D_8009BCDC;
+extern s32 D_8009D7CC;
 
 extern void SetNearColor(long rfc, long gfc, long bfc);
 
