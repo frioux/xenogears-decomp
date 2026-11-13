@@ -17,6 +17,11 @@ extern u8 D_800C3D0C[];
 extern s32 func_800AF400(void);
 extern void func_800AA934(u8 *arg0, u8 *arg1, void *arg2, s32 arg3);
 extern void func_800AAD54(void *arg0, void *arg1, s32 arg2, s32 arg3, s32 arg4);
+extern void func_800AFF9C(u8 *arg0);
+extern s32 func_8009F1C4(u32 arg0, s16 arg1);
+extern s32 func_8009EF3C(u32 arg0, s16 arg1);
+extern s32 func_800A0838(u8 *arg0, u32 arg1, u16 arg2, s16 arg3);
+extern void func_800AE2A4(u8 *arg0, u8 *arg1, u8 *arg2);
 
 u8 func_800AA514(s16 arg0, s16 arg1, s32 arg2) {
     s16 v;
@@ -27,7 +32,19 @@ u8 func_800AA514(s16 arg0, s16 arg1, s32 arg2) {
     }
     return v;
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AA564);
+void func_800AA564(u8 *arg0, u16 arg1, u16 arg2, void *arg3) {
+    u8 *p;
+
+    p = (u8 *)D_800D3368[arg1];
+    D_800C3D40 = arg1;
+    D_800C3E30 = arg2;
+    *(u8 *)(p + 0x35) = 0;
+    if (D_800D3368[arg1] != 0) {
+        if (!(arg1 == func_800AF400())) {
+            func_800AA934((u8 *)D_800D3368[arg1], arg0, D_800C3D0C, arg3);
+        }
+    }
+}
 s32 func_800AA600(s32 arg0) {
     u8 *p;
 
@@ -222,7 +239,28 @@ void func_800AA934(u8 *arg0, u8 *arg1, void *arg2, s32 arg3) {
     }
 }
 */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AAA20);
+s32 func_800AAA20(u8 *arg0, u8 *arg1, s32 arg2, u8 *arg3, s32 arg4) {
+    s32 r;
+    s32 i;
+
+    if (*(u32 *)arg0 != 0) {
+        r = 0;
+        if (*(u8 *)(arg0 + 0x34) != 0) {
+            func_800AFF9C(arg0);
+            if (*(u8 *)(arg0 + 0x37) != 0) {
+                func_8009F1C4(*(u32 *)(arg0 + 4), *(s16 *)(arg0 + 0x1C));
+            } else {
+                func_8009EF3C(*(u32 *)(arg0 + 4), *(s16 *)(arg0 + 0x1C));
+            }
+            for (i = 0; i < arg2; i++) {
+                r |= func_800A0838(arg1, *(u32 *)(arg0 + 4), *(u16 *)(arg0 + 0x3C), *(s16 *)(arg0 + 0x1C));
+                func_800AE2A4(arg0, arg1, arg3);
+            }
+        }
+        func_800AAD54(arg0, arg1, r, arg2, arg4);
+    }
+    return r;
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AAB34);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AAD54);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800ADF1C);
@@ -276,6 +314,43 @@ s32 func_800AEEF8(u8 *arg0) {
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AEF68);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AF180);
+/* 97.43% - instruction multiset identical; the only difference is two swapped
+   register pairs in the allocator: original has s0=p/s1=i and s3=arg0/s4=arg2,
+   this emits s0=i/s1=p and s3=arg2/s4=arg0 (and the two operands of the two
+   "addu" address sums come out base-first). Tried: 6 declaration orders for the
+   locals (identical), q=p order swapped (80.40), while-loop form (97.43),
+   n loaded before p/q (97.43), "arg1*0x7C + ptr" instead of "ptr + arg1*0x7C"
+   (97.43, gcc canonicalises either way). Allocator tie, same class as the notes
+   above.
+extern s32 func_800A23E8(u8 *arg0, u8 *arg1);
+void func_800AF180(u8 *arg0, s32 arg1, u8 *arg2, u8 *arg3) {
+    u8 *p;
+    u8 *q;
+    u8 *pChild;
+    s32 n;
+    s32 i;
+
+    p = arg1 * 0x7C + arg2;
+    q = arg1 * 0x7C + arg3;
+    n = *(u16 *)(arg2 + 0xA);
+    *(u8 *)(p + 7) = 0;
+    *(u8 *)(q + 7) = 1;
+    func_800A23E8(arg0, *(s32 *)(p + 0x70));
+    *(s32 *)(p + 0x70) = 0;
+    func_800A23E8(arg0, *(s32 *)(p + 0x74));
+    *(s32 *)(p + 0x74) = 0;
+    func_800A23E8(arg0, *(s32 *)(p + 0x78));
+    *(s32 *)(p + 0x78) = 0;
+    pChild = arg2;
+    for (i = 1; i < n; i++) {
+        pChild += 0x7C;
+        if (*(u8 **)pChild == p) {
+            func_800AF180(arg0, *(u16 *)(pChild + 0xA), arg2, arg3);
+        }
+    }
+}
+
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AF270);
 /* 85.71% - instruction multiset identical, only the preheader order differs:
    the original emits the hoisted "li a3,1" before "addiu a0,a0,7", here the
