@@ -30,6 +30,10 @@ extern u8 *GetStringEntry(u8 *, s32);
 extern s32 SystemRenderStringEntry(u8 *, void *, s32, s32);
 extern void func_800769E8(RECT *, u_long *);
 extern void bzero(void *p, s32 n);
+extern void func_8008F8F4(s32 arg0, u16 arg1, u16 arg2, u16 arg3, u16 arg4, u8 arg5, u8 arg6);
+extern void *func_8008AC00(s32 arg0);
+extern u8 D_800D36C0[];
+extern u8 D_800D36C8[];
 
 void func_80076AC8(u8 *p) {
     SetSemiTrans(p, 1);
@@ -242,6 +246,46 @@ void func_800780A8(u8 *pInfo, s32 arg) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_800780A8);
+/* 94.68%: structure, every call and every field offset is right, and both
+   objects are the same size; only the three addresses that sit 0x60 above
+   D_800D36C0 / D_800D3720 / D_800D3718 differ. Retail keeps ONE bare offset
+   register (0x60 + 0xC0k) shared by all three uses - two `lui $at,%hi(sym);
+   addu $at,$at,s3; sw %lo(sym)($at)` stores and one `addu v0,s3,s5` for the
+   RECT copy destination - so a gcc that wanted that shape would need the
+   0x60 in the register, not in a displacement. With i * 0x60 + 0x60 inline
+   gcc turns the D_800D36C0 store into an absolute pointer giv (s3 =
+   D_800D36C0 + 0x60, incremented) and folds the other two as displacements.
+   Tried: explicit offset/offset2 locals incremented in the loop (89.73 - it
+   does keep the $at shape for both stores, but the RECT destination then
+   becomes a third pointer giv, 7 saved regs vs retail's 6); offset2 =
+   offset + 0x60 inside the loop (90.42); u8 *pBase local as the base
+   (89.68); (s32) cast sum, index-first (89.73); RECT destination as
+   ((u8 *)pRect) + 0x60 (90.54).
+   Parked body (94.68):
+void func_8007819C(void) {
+    RECT *pRect;
+    u8 *pBuf;
+    s32 i;
+
+    func_8008F8F4(5, 8, 0x2A, 0x70, 0x12, 0, 0);
+    D_800D2D28[0xB5] = 0;
+    func_8008F8F4(4, 0x20, 0xC8, 0xF4, 0x12, 0, 0);
+    D_800D2D28[0xB4] = 0;
+    for (i = 0; i < 8; i += 2) {
+        pBuf = func_8008AC00(0x39);
+        *(u8 **)(D_800D36C0 + i * 0x60 + 0x60) = pBuf;
+        *(u8 **)(D_800D3720 + i * 0x60 + 0x60) = pBuf;
+        pRect = (RECT *)(D_800D3718 + i * 0x60);
+        pRect->x = 0x3C0;
+        pRect->y = (i / 2) * 13;
+        pRect->w = 0x3C;
+        pRect->h = 0xD;
+        *(RECT *)(D_800D3718 + i * 0x60 + 0x60) = *pRect;
+        func_800780A8(D_800D3718 - 0x50 + i * 0x60, i);
+        func_800780A8(D_800D3718 + i * 0x60 + 0x10, i + 1);
+    }
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_8007819C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_80078310);
 /* 99.80%: only the two `sh` in the then-branch are swapped (original stores
