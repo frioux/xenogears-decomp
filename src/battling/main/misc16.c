@@ -253,11 +253,14 @@ void func_8008D580(Misc16Work* pWork) {
 }
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc16", func_8008D5C0);
-/* 98.19% - only the s1/s2 tie-break for pWork vs the loop counter differs.
+/* 98.19% - byte-identical except that retail keeps pWork in $s1 and the loop
+   counter in $s2 while gcc swaps them (s2/s1).  Tried: three declaration
+   orders for i/pEntry/pInitEntry.  gcc-2.7.2-cdk scores 93.71, so it is not a
+   preset question.
 void func_8008D5C0(Misc16Work* pWork, s32 count) {
-    s32 i;
     u8* pEntry;
     void (*pInitEntry)(u8*, Misc16Work*);
+    s32 i;
 
     if (pWork->unk10 != NULL) {
         HeapDelayedFree(pWork->unk10, 3);
@@ -378,11 +381,13 @@ void func_8008DBC0(u8* pArg0, s16 arg1, u8* pArg1) {
     *(Misc16Oct*)pArg1 = *(Misc16Oct*)(pObj + 0x4C);
 }
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc16", func_8008DC28);
-/* 93.22% - the original materialises the 4 into v1 before the two 0x60
-   stores and stores it last; gcc rematerialises the literal at each store.
-   A source local holding 4 does not survive constant folding.
+/* 93.22% - chained assignment is what makes retail's single `li` serve both
+   stores (`unk4A = unk44 = 0x60` now matches exactly).  The remaining gap is
+   that retail materialises the 4 into $v1 BEFORE the two 0x60 stores and
+   stores it after them, while gcc loads it at its first use in $v0.
+   Tried: chained `unk48 = unk0 = 4`, separate `= 4` statements, the 4 pair
+   placed before the 0x60 pair, and the original `s16 four` local.
 void func_8008DC28(void) {
-    s16 four;
     Misc16Work* pWork;
 
     pWork = func_8008D3F4(1, NULL);
@@ -390,11 +395,8 @@ void func_8008DC28(void) {
     pWork->unk75 = 0xA0;
     pWork->unk76 = 0x70;
     func_8008D5C0(pWork, 0x100);
-    four = 4;
-    pWork->unk44 = 0x60;
-    pWork->unk4A = 0x60;
-    pWork->unk0 = four;
-    pWork->unk48 = four;
+    pWork->unk4A = pWork->unk44 = 0x60;
+    pWork->unk48 = pWork->unk0 = 4;
     pWork->unk68 = 0;
     pWork->unk6A = 0x20;
     D_80092834 = (s32)pWork;
