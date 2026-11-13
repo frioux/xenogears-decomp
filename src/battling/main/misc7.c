@@ -51,6 +51,16 @@ extern u8 D_8006FF74[];
 extern s32 D_8009130C[];
 extern s32 D_8009292C;
 extern u16 D_80099DA4[];
+extern u8* D_800928D8;
+extern s32 D_80092940;
+extern s16 D_800916E2;
+extern s16 D_8009171E;
+extern u8 D_80091369;
+extern u8 D_80091391;
+extern s32 D_80092718;
+extern s32 D_8009271C;
+extern s32 D_80092724;
+extern s32 D_80092728;
 
 void func_8007EE08(s32 arg);
 void func_8007F834(void);
@@ -65,6 +75,7 @@ void func_8008509C(s32 index, s32 value);
 void func_80085134(s32 index);
 s32 ArchiveReadFileFromCdSector(s32 sector, void* pDestBuffer, s32 fileSize, s32 arg3, u32 flags);
 s32 func_8007FF70(s32 value, s32 max, s32 flags);
+void func_80080964(s32 arg);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc7", func_8007F854);
 
@@ -95,22 +106,24 @@ void func_8007F8B4(void) {
     func_8007F834();
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc7", func_8007F8E4);
+void func_8007F8E4(void) {
+    s32 mode;
+    s32 current;
 
-/* 87%: gcc hoists the merged `li a0,3` into the bnez delay slot and folds the
-   second test into a beq to the shared call; the original keeps `j; li a0,3`
-   as a middle block. Also tried: mode local, `if (A == 0 && B != 1)`. */
-/* void func_8007F8E4(void) {
     func_80080C48(0);
-    if (D_80099D9F != 0) {
-        func_80083C0C(3);
-    } else if (D_80092950 == 1) {
-        func_80083C0C(3);
+    if (D_80099D9F[0] != 0) {
+        mode = 3;
     } else {
-        D_80092950--;
-        func_80083C0C(6);
+        current = D_80092950;
+        if (current == 1) {
+            mode = 3;
+        } else {
+            D_80092950 = current - 1;
+            mode = 6;
+        }
     }
-} */
+    func_80083C0C(mode);
+}
 
 typedef struct {
     /* 0x0 */ u8 unk0[0x12];
@@ -381,4 +394,38 @@ void func_80080644(s32 idx0, s32 idx1) {
     HeapDelayedFree(pBuf, 2);
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc7", func_80080780);
+void func_80080780(s32 mode) {
+    u8* pSprite;
+    s32 i;
+
+    if (D_80092940 == 0) {
+        ArchiveCdDataSync(0);
+        pSprite = D_8009270C;
+        for (i = 0; i < 0x31; i++) {
+            LoadImage((RECT*)pSprite, (u_long*)(D_800928D8 + i * 0x1000));
+            LoadImage((RECT*)(pSprite + 8), (u_long*)(D_800928D8 + i * 0x1000 + 0x100));
+            pSprite += 0x14;
+        }
+        HeapFree(D_800928D8);
+        D_80092940 = 1;
+    }
+    D_800928C8 = mode;
+    D_800916E2 = (mode == 4) ? 3 : 4;
+    D_8009171E = 5;
+    if (mode == 3) {
+        D_80091369 = 0x27;
+        D_80091391 = 0x28;
+    } else {
+        D_80091369 = 0x25;
+        D_80091391 = 0x26;
+    }
+    func_80083C0C(1);
+    D_80092710 = 0;
+    D_80092728 = 0;
+    D_80092724 = 0;
+    D_8009271C = 0;
+    D_80092718 = 0;
+    D_80092714 = D_80092700;
+    D_80092720 = D_80092704;
+    func_80080964(5);
+}
