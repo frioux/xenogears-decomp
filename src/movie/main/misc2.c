@@ -45,7 +45,33 @@ extern s32 D_80077044;
 extern s32 D_8007704C;
 extern s16 D_800770B0;
 extern s16 D_800770B2;
-extern s32 D_800770B8[];
+extern s16 D_80077070;
+extern s16 D_80077072;
+extern s16 D_80077074;
+extern s16 D_80077076;
+extern s16 D_80077078;
+extern s16 D_8007707A;
+extern s16 D_8007707C;
+extern s16 D_8007707E;
+extern s16 D_80077080;
+extern s16 D_80077090;
+extern s16 D_80077092;
+extern s16 D_80077094;
+extern s16 D_80077096;
+extern s16 D_80077098;
+extern s16 D_8007709A;
+extern s16 D_8007709C;
+extern s16 D_8007709E;
+extern s16 D_800770A0;
+extern s16 D_800770B8;
+extern s16 D_800770BA;
+extern s16 D_800770BC;
+extern s16 D_800770BE;
+extern s16 D_800770C0;
+extern s16 D_800770C2;
+extern s16 D_800770C4;
+extern s16 D_800770C6;
+extern s16 D_800770C8;
 extern s32 D_800770CC;
 extern s32 D_800770D0;
 extern s32 D_800770D4;
@@ -53,7 +79,15 @@ extern s32 D_800770D8[];
 extern s32 D_800770EC;
 extern s32 D_800770F0;
 extern s32 D_800770F4;
-extern s32 D_800770F8[];
+extern s16 D_800770F8;
+extern s16 D_800770FA;
+extern s16 D_800770FC;
+extern s16 D_800770FE;
+extern s16 D_80077100;
+extern s16 D_80077102;
+extern s16 D_80077104;
+extern s16 D_80077106;
+extern s16 D_80077108;
 extern s32 D_8007711C;
 extern u8 D_8007713C;
 extern u8 D_80077191;
@@ -229,6 +263,64 @@ void func_800769A4(void) {
 }
 
 INCLUDE_ASM("asm/movie/nonmatchings/main/misc2", func_80076AF0);
+
+/* best 98.87% - identical except the D_80077070 store: the original keeps
+   &D_80077070 in $a0 (loaded right after SetGeomOffset) and stores through it,
+   ours emits lui $at/sh %lo. Shapes tried: plain global store + &sym call arg,
+   s16* local, u32 cast through an int local, MATRIX* local with member access,
+   cast-of-struct-pointer. gcc folds every pointer form back to the symbol.
+void func_80076AF0(void) {
+    MATRIX* pColorMatrix;
+
+    SetGeomScreen(0x200);
+    SetGeomOffset(0xA0, 0x78);
+    pColorMatrix = (MATRIX*)&D_80077070;
+
+    D_800770B8 = 0x1000;
+    D_800770C0 = 0x1000;
+    D_800770C8 = 0x1000;
+    D_800770F8 = 0x1000;
+    D_80077100 = 0x1000;
+    D_80077108 = 0x1000;
+
+    D_80077090 = 0x93D;
+    D_80077092 = -0x93D;
+    D_80077094 = -0x93D;
+
+    D_800770BA = 0;
+    D_800770BC = 0;
+    D_800770BE = 0;
+    D_800770C2 = 0;
+    D_800770C4 = 0;
+    D_800770C6 = 0;
+    D_800770FA = 0;
+    D_800770FC = 0;
+    D_800770FE = 0;
+    D_80077102 = 0;
+    D_80077104 = 0;
+    D_80077106 = 0;
+    D_80077096 = 0;
+    D_80077098 = 0;
+    D_8007709A = 0;
+    D_8007709C = 0;
+    D_8007709E = 0;
+    D_800770A0 = 0;
+
+    *(s16*)&pColorMatrix->m[0][0] = 0x969;
+    D_80077072 = 0;
+    D_80077074 = 0;
+    D_80077076 = 0x969;
+    D_80077078 = 0;
+    D_8007707A = 0;
+    D_8007707C = 0x969;
+    D_8007707E = 0;
+    D_80077080 = 0;
+
+    SetColorMatrix(pColorMatrix);
+    SetBackColor(0x60, 0x60, 0x60);
+}
+
+*/
 
 void func_80076C68(void) {
     long pad[6];
