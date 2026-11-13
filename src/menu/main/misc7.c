@@ -35,7 +35,13 @@ extern s32 D_801E9B54;
 extern s32 D_801E9B2C;
 extern s32 D_801E9B30;
 extern s32 D_801E9B34;
+extern s32 D_801E9B18;
+extern s32 D_801E9B1C;
+extern s32 D_801E9B20;
+extern s32 D_801E9B24;
 extern u16 D_801E9B58;
+extern u16 D_801E9D38;
+extern u16 D_801E9D3C;
 extern u16 D_801E9B5C;
 extern s32 D_801EA578[];
 extern u8 D_801EA5C4[];
@@ -363,7 +369,45 @@ void func_801D55B4(u_char a0, u_char a1, s32 a2, s32 a3) {
         }
     }
 }
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D5794);
+void func_801D5794(u_char a0, u_char a1, s32 a2, s32 a3) {
+    u8* pWindow = (u8*)g_Menu->unk39C[a0];
+    s32 i;
+
+    func_801C80B8(g_GameState.characters[a1].level);
+    pWindow[0x1271] = 0;
+    for (i = 0; i < 3; i++) {
+        if (g_Menu->digits[6 + i] != 0xFF) {
+            pWindow[0x1271] += func_8002675C(
+                g_Menu->resources, g_Menu->digits[6 + i],
+                (POLY_FT4*)((u8*)pWindow + (pWindow[0x1271] * 0x50 + 0x910)),
+                g_Menu->renderContext, a2 + D_801E9B18 + i * 8, a3 + D_801E9B1C,
+                0x1000);
+        }
+    }
+    func_801C80B8(g_GameState.characters[a1].unk63);
+    pWindow[0x1272] = 0;
+    for (i = 0; i < 3; i++) {
+        if (g_Menu->digits[6 + i] != 0xFF) {
+            pWindow[0x1272] += func_8002675C(
+                g_Menu->resources, g_Menu->digits[6 + i],
+                (POLY_FT4*)((u8*)pWindow + (pWindow[0x1272] * 0x50 + 0xA00)),
+                g_Menu->renderContext, a2 + D_801E9B20 + i * 8, a3 + D_801E9B24,
+                0x1000);
+        }
+    }
+    for (i = 0; i < pWindow[0x1272]; i++) {
+        SetShadeTex(
+            (POLY_FT4*)((u8*)pWindow +
+                        ((i * 2 + g_Menu->renderContext) * 0x28 + 0xA00)),
+            0);
+        *(u8*)((u8*)pWindow +
+               ((g_Menu->renderContext + i * 2) * 0x28 + 0xA04)) = 0;
+        *(u8*)((u8*)pWindow +
+               ((g_Menu->renderContext + i * 2) * 0x28 + 0xA05)) = 0x80;
+        *(u8*)((u8*)pWindow +
+               ((g_Menu->renderContext + i * 2) * 0x28 + 0xA06)) = 0;
+    }
+}
 void func_801D5A50(u_char a0, u_char a1) {
     s32* pData;
     u8* pWindow;
@@ -446,6 +490,65 @@ void func_801D5CF8(s32 a0, s32 a1) {
     *(u8*)((u8*)g_Menu->unk344 + 0x370) = *(u8*)&g_Menu->renderContext;
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D5ED4);
+/* Best: 87.38%, frame 0x38 as retail. Decode is complete (this is the sibling of
+   func_801D4F2C: same texture/TPage/palette/UV sequence). Facts worth keeping:
+   (1) the palette condition is `a1 == 0` and the two paths read
+   pManager->currentCharacterIDs[a0] & 1 and
+   (g_GameState.characters[ids[a0]].gearId + 0xB) & 1;
+   (2) `rowOffset = a1 ? 0x18 : 0` is shared by the 5th arg of func_8002675C
+   (0x18 - rowOffset) and by the y of the last func_801C851C (D_801E9D38 -
+   rowOffset), which is why retail materialises it branchlessly in the prologue
+   (sltu/negu/andi) into s4;
+   (3) D_801EA5C4 is read at a *4 stride, i.e. index ((3 * a1 + a0) * 4), while
+   D_801EA578 uses the plain s32 index - the original table is 4-byte entries
+   under two names 0x4C apart;
+   (4) width = 0x18 * a1 + 0x48 is assigned just before its first use (after the
+   palette if/else), not at the top, and shared by func_801E920C and the last
+   func_801C851C.
+   Left: retail hoists the 0x5E store base (unk358 + renderContext * 0x28) out
+   of the *then* branch but recomputes it in the else branch; a shared pBase
+   local gets 87.38%, inline in both branches 85.93%, and the remaining diffs are
+   two addu operand orders and a register pick. Also tried: flipping the operand
+   order of the unk358+ctx*0x28 sums (no change at all).
+   void func_801D5ED4(u_char a0, u_char a1) {
+       s32 rowOffset = a1 ? 0x18 : 0;
+       u8* pBase;
+       u16 width;
+   
+       func_8002675C(g_Menu->resources, a0 + 0x14B, (POLY_FT4*)g_Menu->unk358,
+                     g_Menu->renderContext, 0x18 - rowOffset, 0xE, 0x1000);
+       func_801C851C((SVECTOR*)((u8*)g_Menu->unk358 + 0x1EA0),
+                     *(u16*)((g_Menu->renderContext * 0x28 + (u8*)g_Menu->unk358) + 0x8),
+                     *(u16*)((g_Menu->renderContext * 0x28 + (u8*)g_Menu->unk358) + 0xA),
+                     0x30, 0x30);
+       func_801E927C((POLY_FT4*)((g_Menu->renderContext * 0x28 + 0x50) +
+                                 (u8*)g_Menu->unk358));
+       *(u16*)((u8*)g_Menu->unk358 + g_Menu->renderContext * 0x28 + 0x66) =
+           GetTPage(0, 0, 0x180, 0);
+       pBase = (u8*)g_Menu->unk358 + g_Menu->renderContext * 0x28;
+       if (a1 == 0) {
+           if (g_Menu->pManager->currentCharacterIDs[a0] & 1) {
+               *(u16*)(pBase + 0x5E) = g_SystemPalette2;
+           } else {
+               *(u16*)(pBase + 0x5E) = g_SystemPalette1;
+           }
+       } else {
+           if ((g_GameState.characters[g_Menu->pManager->currentCharacterIDs[a0]].gearId +
+                0xB) & 1) {
+               *(u16*)(pBase + 0x5E) = g_SystemPalette2;
+           } else {
+               *(u16*)(pBase + 0x5E) = g_SystemPalette1;
+           }
+       }
+       width = 0x18 * a1 + 0x48;
+       func_801E920C((POLY_FT4*)((g_Menu->renderContext * 0x28 + 0x50) +
+                                 (u8*)g_Menu->unk358),
+                     0, 0, (D_801EA578[3 * a1 + a0] << 2) & 0xFC,
+                     D_801EA5C4[(3 * a1 + a0) * 4], width, 0xD);
+       func_801C851C((SVECTOR*)((u8*)g_Menu->unk358 + 0x1EC0),
+                     D_801E9D38 - rowOffset, D_801E9D3C, width, 0xD);
+   }
+*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D6194);
 /* Best: 93.40%. Two diffs left. (1) retail has `addiu s0,s0,1` in the delay
    slot of the `digit == 0xFFFF` beq and then does the render; gcc puts the
