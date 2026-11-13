@@ -98,7 +98,90 @@ void func_8007DA1C(u8 **arg0, s32 arg1) {
 } */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007DA1C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007DB78);
+/* best: 80.29%. func_8007DB78/DE78 with i starting at 3, the loop bound 0xB and
+   a D_800D32A1[offset] gate whose offset starts at 0x18 and steps +8 (written as
+   a for-increment so the original's addiu s4,s4,8 lands in the bnez delay
+   slot). The tail store uses the same fix as func_8007DE78's note (value
+   local + int-built base + pointer local). Remaining: idx = i at the loop top
+   is propagated away by gcc (retail keeps move s3,s1 and an extra saved
+   register, frame 0x40 vs my 0x38), plus DE78's nits (1) and (3).
+void func_8007DCF8(u8 **arg0, s32 arg1) {
+    u8 buf[8];
+    s32 i = 3;
+    s32 count = 0;
+    s32 offset = 0x18;
+    s32 idx;
+    u16 *pRow = (u16 *)(D_800D3420 + (arg1 & 0xFF) * 0x40);
+
+    pRow[(*arg0)[2]] = 0;
+    for (; i < 0xB; i++, offset += 8) {
+        idx = i;
+        if (func_8007A628(idx, 0) != 0) {
+            if (D_800D32A1[offset] != 0) {
+                if (pRow[(*arg0)[3]] & func_8007A280(idx, (*arg0)[1], 0, 1)) {
+                    buf[count] = idx;
+                    count++;
+                }
+            }
+        }
+    }
+    if (count != 0) {
+        u16 value = func_80089C08(buf[func_8001BD40(0, count - 1)]);
+        u16 *pOut = (u16 *)((arg1 & 0xFF) * 0x40 + (s32)D_800D3420);
+
+        pOut[(*arg0)[2]] = value;
+    }
+} */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007DCF8);
+/* best: 89.33% (336 bytes; mine 340). This is the func_8007D8C0/DA1C
+   family and the family's documented blocker (the tail store re-forming the row
+   base) IS SOLVED here: write the tail as a u16 value local, then a pointer
+   local whose base is built in INT arithmetic, then the store:
+
+       u16 value = func_80089C08(buf[func_8001BD40(0, count - 1)]);
+       u16 *pOut = (u16 *)((arg1 & 0xFF) * 0x40 + (s32)D_800D3420);
+       pOut[(*arg0)[2]] = value;
+
+   That reproduces retail's andi/sll/lw p/lui a1/addiu a1/lbu p[2]/addu a0,a0,a1/
+   sll/addu/sh exactly (the (s32) cast stops gcc folding the symbol into the
+   store as %lo(sym)(reg), and the separate `value` statement keeps the address
+   computation after the two jal's instead of hoisting it). Remaining, 3 insns:
+   (1) retail keeps a temp copy of the row base (addu v1,v1,v0 then move s5,v1,
+   and the la lands in v0 before the remaining saves) where gcc computes
+   addu s5,v1,a0 with the la in a0 after them - tried the plain pointer form,
+   (arg1 & 0xFF) * 0x40 + (s32)D_800D3420, and an s32 base local converted to
+   u16* (all 89.33%, gcc coalesces the copy away).
+   (2) sw s6/move s6,a1 is emitted before the i/count zero-inits here, after
+   them in retail (declaration order i then count already matches retail's
+   s1-then-s2 zeroing).
+   (3) retail steals addiu s1,s1,1 into the beqz delay slot after the
+   func_8007A628 call; with idx = i++ the whole loop body is byte-exact
+   otherwise, and that shape is required (idx must stay a separate register;
+   idx = i inside the body makes gcc propagate it and lose s3).
+void func_8007DE78(u8 **arg0, s32 arg1) {
+    u8 buf[8];
+    s32 i = 0;
+    s32 count = 0;
+    s32 idx;
+    u16 *pRow = (u16 *)(D_800D3420 + (arg1 & 0xFF) * 0x40);
+
+    pRow[(*arg0)[2]] = 0;
+    do {
+        idx = i++;
+        if (func_8007A628(idx, 1) != 0) {
+            if (pRow[(*arg0)[3]] & func_8007A280(idx, (*arg0)[1], 0, 1)) {
+                buf[count] = idx;
+                count++;
+            }
+        }
+    } while (i < 3);
+    if (count != 0) {
+        u16 value = func_80089C08(buf[func_8001BD40(0, count - 1)]);
+        u16 *pOut = (u16 *)((arg1 & 0xFF) * 0x40 + (s32)D_800D3420);
+
+        pOut[(*arg0)[2]] = value;
+    }
+} */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007DE78);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007DFD4);
 void func_8007E154(u8 **arg0, s32 arg1) {
