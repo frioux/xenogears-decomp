@@ -31,6 +31,12 @@ extern u8 D_800D2DE4[];
 extern BattleTableEntry D_800CCD64[];
 extern u8 D_800D2E5F[];
 extern u8 D_800D2E61[];
+extern u8 D_800D32A1[];
+extern u8 D_800D366C;
+extern s32* D_8005917C;
+extern char D_8006FB08[];
+extern char D_8006FB0C[];
+extern char D_8006FB24[];
 // A 0x48-byte row of the per-battle-slot table at D_800C3FFE.
 typedef u16 BattleSlotRow[36]; // Size: 0x48
 
@@ -134,9 +140,50 @@ void func_80079270(u8 arg0, u8 arg1) {
     D_800C3FFE[D_800C3EAC[0x2DA]][0] = *(u16*)(D_800D2E62 + arg1 * 8);
     func_800785D4(arg0, arg1);
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc4", func_800792F8);
+void func_800792F8(u8 arg0, u8 arg1) {
+    s32 i;
+    s32 j;
+    s32 k;
+    s32 off;
+    u8 value;
+
+    value = 0xFF;
+    for (off = 0x8B8; off >= 0; off -= 0x48) {
+        D_800C402F[off] = value;
+    }
+    j = 0;
+    i = 0;
+    if (*D_8005917C != -1) {
+        for (;;) {
+            for (k = 0; k < i; k++) {
+                FontPrintf(D_8006FB08);
+            }
+            FontPrintf(D_8006FB0C);
+            j++;
+            FontPrintf(D_8006FB24, arg0, arg1);
+            func_800716D8();
+            if (j < 3) {
+                continue;
+            }
+            i++;
+            if (i >= 0x15) {
+                i = 0;
+            }
+            j = 0;
+        }
+    }
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc4", func_800793F0);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc4", func_80079674);
+void func_80079674(u8 arg0) {
+    if (D_800D32A1[arg0 * 8] != 0) {
+        D_800C400B[D_800C3EAC[0x2DA] * 72] = arg0;
+        D_800C402F[D_800C3EAC[0x2DA] * 72] = 0x1B;
+        D_800C3EAC[0x2DA] = D_800C3EAC[0x2DA] + 1;
+    }
+    D_800C400B[D_800C3EAC[0x2DA] * 72] = arg0;
+    D_800C402F[D_800C3EAC[0x2DA] * 72] = 0xFE;
+    D_800D366C = 0;
+}
 void func_80079778(u8 arg0) {
     D_800C3EAC[0x2DA] = 0;
     func_80085350();
