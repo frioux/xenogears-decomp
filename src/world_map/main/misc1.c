@@ -293,7 +293,88 @@ void func_800721E4(void) {
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80072238);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_8007299C);
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80072BB0);
+typedef struct {
+    /* 0x00 */ DRAWENV drawEnv; // Size: 0x5C
+    /* 0x5C */ DISPENV dispEnv; // Size: 0x14
+    /* 0x70 */ u8 pad70[8];
+} WorldMapGfxEnv; // Size: 0x78
+
+extern WorldMapGfxEnv D_8009BBC8[2];
+extern u8 D_8009BB48;
+extern u8 D_8009BB49;
+extern u8 D_8009BB4A;
+extern u8 D_8009BBDE;
+extern u8 D_8009BBE0;
+extern u8 D_8009BBE1;
+extern u8 D_8009BBE2;
+extern u8 D_8009BBE3;
+extern u8 D_8009BC56;
+extern u8 D_8009BC58;
+extern u8 D_8009BC59;
+extern u8 D_8009BC5A;
+extern u8 D_8009BC5B;
+extern u16 D_8009BC2C;
+extern u16 D_8009BC2E;
+extern u16 D_8009BC30;
+extern u16 D_8009BC32;
+extern u16 D_8009BCA4;
+extern u16 D_8009BCA6;
+extern u16 D_8009BCA8;
+extern u16 D_8009BCAA;
+extern s32 D_8009BCDC;
+extern s32 D_8009D7CC;
+
+extern void SetNearColor(long rfc, long gfc, long bfc);
+
+void func_80072BB0(void) {
+    WorldMapGfxEnv* pEnv;
+    s32 nNear;
+
+    ResetGraph(1);
+    D_8009BCDC = 0x100;
+    SetGeomScreen(0x100);
+    pEnv = D_8009BBC8;
+    SetDefDrawEnv(&pEnv[0].drawEnv, 0, 0, 0x140, 0xD8);
+    SetDefDrawEnv(&pEnv[1].drawEnv, 0, 0xD8, 0x140, 0xD8);
+    SetDefDispEnv(&pEnv[0].dispEnv, 0, 0xD8, 0x140, 0xD8);
+    SetDefDispEnv(&pEnv[1].dispEnv, 0, 0, 0x140, 0xD8);
+    D_8009BC58 = 1;
+    D_8009BBE0 = 1;
+    D_8009BC56 = 1;
+    D_8009BBDE = 1;
+    if (D_8009D7CC == 2) {
+        D_8009BBE1 = 0;
+        D_8009BBE2 = 0;
+        D_8009BBE3 = 0;
+        D_8009BC59 = 0;
+        D_8009BC5A = 0;
+        D_8009BC5B = 0;
+    } else {
+        D_8009BBE1 = 0;
+        D_8009BBE2 = 0;
+        D_8009BBE3 = 0x70;
+        D_8009BC59 = 0;
+        D_8009BC5A = 0;
+        D_8009BC5B = 0x70;
+    }
+    D_8009BCA6 = 0xA;
+    D_8009BC2E = 0xA;
+    D_8009BCA8 = 0x100;
+    D_8009BC30 = 0x100;
+    D_8009BCA4 = 0;
+    D_8009BC2C = 0;
+    D_8009BCAA = 0xD8;
+    D_8009BC32 = 0xD8;
+    SetNearColor(0x80, 0x80, 0x80);
+    SetBackColor(0x80, 0x80, 0x80);
+    SetFarColor(D_8009BB48, D_8009BB49, D_8009BB4A);
+    nNear = 0x800;
+    if (D_8009D7CC == 2) {
+        nNear = 0xB00;
+    }
+    SetFogNearFar(nNear, 0xE80, D_8009BCDC);
+}
+
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80072DB4);
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80073300);
@@ -546,7 +627,54 @@ void func_800736DC(void) {
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_800736DC);
 
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_800737EC);
+extern u16 D_8009BD3A;
+extern MATRIX D_8009C808;
+extern SVECTOR D_8009A280[16];
+extern u8 D_8009D194;
+extern s32 D_8009D7F0;
+extern s32 D_80050100;
+
+extern long RotTransPers4(SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, SVECTOR* v3, long* p0, long* p1,
+                          long* p2, long* p3, long* xy0, long* xy1);
+extern MATRIX* RotMatrixYXZ(SVECTOR* r, MATRIX* m);
+extern MATRIX* CompMatrix(MATRIX* m0, MATRIX* m1, MATRIX* m2);
+extern void SetRotMatrix(MATRIX* m);
+extern void SetTransMatrix(MATRIX* m);
+
+void func_800737EC(void) {
+    SVECTOR* pRot;
+    SVECTOR* pVec;
+    u8* pBase;
+    u8* pPrim;
+    s32 i;
+    s32 nOtz;
+
+    pRot = (SVECTOR*)0x1F800000;
+    *(u16*)0x1F800004 = 0;
+    pRot->vx = 0;
+    *(u16*)0x1F800002 = D_8009BD3A;
+    RotMatrixYXZ(pRot, (MATRIX*)0x1F800028);
+    *(s32*)0x1F800044 = 0;
+    *(s32*)0x1F800040 = 0;
+    *(s32*)0x1F80003C = 0;
+    CompMatrix(&D_8009C808, (MATRIX*)0x1F800028, (MATRIX*)0x1F800008);
+    SetRotMatrix((MATRIX*)0x1F800008);
+    SetTransMatrix((MATRIX*)0x1F800008);
+    pVec = D_8009A280;
+    for (i = 0; i < 4; i++, pVec += 4) {
+        pBase = (u8*)&D_8009D194 + D_8009D7F0 * 0x24;
+        pPrim = (u8*)(i * 0x48 + (s32)pBase);
+        nOtz = RotTransPers4(pVec, pVec + 1, pVec + 2, pVec + 3,
+                             (long*)(pPrim + 0x8), (long*)(pPrim + 0x10),
+                             (long*)(pPrim + 0x18), (long*)(pPrim + 0x20),
+                             (long*)((u8*)pRot + 0x48), (long*)((u8*)pRot + 0x4C));
+        if (*(s32*)((u8*)pRot + 0x4C) >= 0) {
+            addPrim((P_TAG*)((u32*)*(u32*)((u8*)D_8009BE3C + 0x70) + (nOtz >> D_80050100)),
+                    (P_TAG*)pPrim);
+        }
+    }
+}
+
 extern u32 D_8009C744[];
 extern DR_MODE D_8009D3D8[];
 
