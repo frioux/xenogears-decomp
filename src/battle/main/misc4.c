@@ -32,6 +32,10 @@ extern BattleTableEntry D_800CCD64[];
 extern u8 D_800D2E5F[];
 extern u8 D_800D2E61[];
 extern u8 D_800D32A1[];
+extern u8 D_800D2E5E[];
+extern u16 D_800D2C94;
+extern void func_80085CCC(u8 arg0, u16 arg1, u8 arg2);
+extern void func_80085C88(u8 arg0);
 extern u8 D_800D366C;
 extern s32* D_8005917C;
 extern char D_8006FB08[];
@@ -80,6 +84,39 @@ void func_8007893C(u8 arg0, u8 arg1) {
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc4", func_80078998);
+/* Best: 68.28%, one pass. The control flow below is decoded from the asm and
+   believed right (note func_8007893C takes arg1 first, and the 0xFD scan loop
+   walks D_800C402F in 0x48 strides). The gap is register allocation: retail keeps
+   `arg1 * 8` in $s0 and re-forms `lui $at,%hi(D_800D2E62); addu $at,$at,$s0` at
+   every use, while this shape makes gcc CSE those addresses into pointer locals
+   (a third callee-saved register appears, frame 0x30 instead of 0x28). Try
+   indexing off a u8/u16 table type or splitting the accesses across the calls.
+
+void func_80078998(u8 arg0, u8 arg1) {
+    s32 i;
+    s32 n;
+
+    func_8007893C(arg1, arg0);
+    D_800C3EAC[0x2DC] = D_800D2E5D[arg1 * 8] + 1;
+    func_80085CCC(arg0, *(u16*)(D_800D2E62 + arg1 * 8), D_800D2E5E[arg1 * 8]);
+    func_80085C88(D_800C3EAC[0x2DA]);
+    D_800C402F[D_800C3EAC[0x2DA] * 72] = D_800D2E5E[arg1 * 8];
+    D_800C3FFE[D_800C3EAC[0x2DA]][0] = D_800D2C94;
+    func_800785D4(arg0, arg1);
+    if (*(u16*)(D_800D2E62 + arg1 * 8) != D_800D2C94) {
+        i = 0;
+        n = 0;
+        while (n < D_800C3EAC[0x2DA]) {
+            if (D_800C402F[i] == 0xFD) {
+                *(u16*)(D_800C3FFE + i) = D_800D2C94;
+                break;
+            }
+            n++;
+            i += 0x48;
+        }
+    }
+}
+*/
 void func_80078B34(u8 arg0, u8 arg1, u8 arg2) {
     D_800C402F[D_800C3EAC[0x2DA] * 72] = 0xFD;
     D_800C4022[D_800C3EAC[0x2DA]][0] = 0;
