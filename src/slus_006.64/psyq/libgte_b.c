@@ -336,6 +336,10 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte_b", TransposeMatrix);
    The 3-temp ordering below is the one that reaches 92.81%. The earlier 65.00%
    attempts used 4 temp variables; with 3, gcc reuses the p[0] temp for p[3] and
    the p[1] temp for the 0x10 halfword exactly like the original.
+   Tried again this round: writing the same stores as plain q1[i]=q0[j] /
+   s1[i]=q0[j] expressions drops to 0.00% (108 bytes, no CSE reuse, lhu);
+   carrying the destination in two aliases (d for the stores, r for the return)
+   is CSE'd back to one pseudo and stays 92.81%.
 MATRIX *TransposeMatrix(MATRIX *m0, MATRIX *m1) {
     MATRIX *r = m1;
     long *q = (long *)m1;
@@ -359,7 +363,6 @@ MATRIX *TransposeMatrix(MATRIX *m0, MATRIX *m1) {
     return r;
 }
 */
-
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte_b", RotMatrixYXZ);
 
