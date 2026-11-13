@@ -29,11 +29,11 @@ trampolines, which is why two of the stubs look like nonsense as code:
 - func_8004E880 (0x3F080) is a trampoline header -- lui, addiu of D_8004E894,
   `jr $v0` to the very next instruction, two nops -- and D_8004E894 is the real
   hook body: it takes its base pointer in $v1, which gcc never uses for an
-  argument. It tests bit 0x80 of +0x1074, waits for bit 0x80 of +0x1044, then
-  jumps through the RAM pointer jtbl_800593E8.
-- func_8004E8D8 copies those 5 words out of the B0-0x56 work struct at +0x28 over
-  func_8004E880 and stores the end pointer in jtbl_800593E8, so the body above is
-  the pre-patch original.
+  argument. It returns unless bit 0x80 of +0x1074 is set, spins while bit 0x80 of
+  +0x1044 is set, then jumps through the RAM pointer jtbl_800593E8.
+- func_8004E8D8 copies those same 5 words the other way: from func_8004E880 into
+  the B0-0x56 work struct at +0x28, and stores the end pointer in
+  jtbl_800593E8, so the body above is the pre-patch original.
 - func_8004E960 (0x3F160) is the other trampoline header, a `jalr` to itself,
   followed by a 200-iteration delay loop whose bnez delay slot is a bare nop
   (gcc always fills it).
