@@ -248,6 +248,7 @@ paths = [
     "battle/main/misc1.",
     "battle/main/misc15.",
     "battle/main/misc6.",
+    "battle/main/misc6_r2.",
     "battle/main/misc8.",
     "battle/main/misc17.",
     "battle/main/misc16."
@@ -354,4 +355,20 @@ build_variables = {
 }
 paths = [
     "battle/main/misc16_r1.",
+]
+
+
+# The plain cdk preset for a TU split out of a unit whose own compiler is 2.6.0 or
+# 2.7.2: cdk emits `lui %hi` / `addiu %lo` as two RTL instructions, so reorg can put
+# the addiu in a `jal` delay slot (see battle/misc27). Every function that needs it
+# was screened with `try_flags.sh <unit> <Func> --gcc gcc-2.7.2-cdk-psx`, and the
+# unit's own matched functions were verified to stay 100.0 on their own preset
+# before the run was split off.
+[[build_preset]]
+name = "XenoCdk"
+build_variables = {
+    gcc = "gcc-2.7.2-cdk-psx"
+}
+paths = [
+    "battle/main/misc6_r1.",
 ]
