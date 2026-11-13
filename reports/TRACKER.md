@@ -2300,3 +2300,74 @@ for five files; worth doing only if someone is walking the unit anyway.
 
 Session 9 total: **1455 -> 1435 stubs (+20)**, 3067 -> 3088 functions (67.6%), eleven
 outputs byte-identical throughout, progress page republished twice.
+
+# Session 10: the park sweep over cdk / 2.6.0 / -G0, and two rounds
+
+Start: **3088 / 4568 functions (67.6%)**, 1435 `INCLUDE_ASM` stubs, eleven outputs OK.
+Now: **1416 stubs**, eleven outputs byte-identical.
+
+## The park sweep, now checked in: `tools/rounds/park_sweep.py`
+
+Session 8's park sweep scored every parked body under the **maspsx** axes
+(`--expand-div`, `--dont-expand-li`, `-G4`, `-O1`) and found nothing left. It did not
+score them under the three **compiler** axes that have produced every other recent
+win - `gcc-2.7.2-cdk`, `gcc-2.6.0`, `-G0`. `try_flags.sh --all` cannot see a parked
+body at all (a park is a comment), which is why this needed a tool:
+
+    tools/rounds/park_sweep.py                 # every unit that has a park: own + cdk + 260 + g0
+    tools/rounds/park_sweep.py --one --own-only <unit>...   # one body at a time, own preset only
+
+It un-parks every body of a unit, compiles the unit once per candidate, prints one row
+per parked function, and `git checkout`s the file. 106 units in ~70 minutes on a busy
+box (the container is shared with a worker round; expect `compile-failed` rows and
+re-run them).
+
+**The three compiler axes are now exhausted at park level too.** The whole sweep's
+nonzero harvest is four units:
+
+| unit | parked body | own preset | verdict |
+|---|---|---|---|
+| `battle/misc20` | `func_8009D948` | **100.00** | stale park - un-parked |
+| `battle/misc33` | `BED30 BEDE8 BF354 BF3A4` | 73.6/68.1/57.5/71.4 | **100.00 under cdk + -G0** -> unit moved to `XenoBattleTailCdk0`, all four un-parked |
+| `battle/misc12` | `func_80084D28` | 95.21 | 100.00 under 2.6.0, and every C function in the unit stays 100.00 there -> **unit switched to `XenoBattle260`**, un-parked |
+| `battle/misc19` | `A9D0`, `ADA0` | 99.66/88.68 | 100.00 under 2.6.0 but `AA44/AB00/AC48` drop to 99.57/95.71/99.77, so it needs the **5-run split**; left undone (2 functions for 4 new files) |
+
+Nothing else, in any unit, under any of the three. Combined with session 8's maspsx
+result, **a parked body that is not 100.0 under some preset is now a dead park** and
+the only way forward in that unit is new C.
+
+Coverage caveat: 44 units produced `failed` rows (un-parking *every* body at once does
+not compile, because one parked body is not standalone-valid C). The `--one --own-only`
+mode exists for exactly those; it found no stale park in the 40 rows it managed to score,
+but under a full worker round most rows come back `compile-failed` - run it on an idle
+container if it matters.
+
+## Log
+
+| # | Units | Functions | Stubs left | Notes |
+|---|---|---|---|---|
+| 29 | `battle/{misc18,misc13,misc23,misc20,misc14}`, `battling/{misc5,misc4}`, `menu/{misc12,misc3}`, `world_map/{misc16,misc13}`, `movie/{misc1,misc2}` | +3 | 1432 | battle/misc14 `func_80088990`, battle/misc18 `func_80099CF0`, menu/misc12 `func_801E8B4C`. Nine of thirteen workers returned park notes only; four timed out with uncommitted tails that merge (correctly) discarded |
+| - (sweep) | park sweep over 106 units, cdk/2.6.0/-G0 | +6 | 1426 | misc33 +4 (preset switch, no C written), misc20 +1 (stale park), misc12 +1 (preset switch) |
+| 30 | `battle/{misc24,misc25,misc3,misc8}`, `battling/misc3`, `menu/{misc7,misc4}`, `world_map/{misc9,misc7,misc1}`, `field/{misc8,misc6}`, `psyq/libgpu_c` | +10 | 1416 | battle/misc24 +4 (`AA564 AAA20 ADF1C AE098` - tiny 42-104 insn functions), battle/misc25 +3 (`AF2C4 AF518 B10EC`), world_map/misc1 +2 (`72BB0 737EC`), battle/misc3 +1 (`77454`). Two workers timed out after committing; nothing lost |
+
+## What rounds 29-30 taught
+
+- **`battle/misc24` and `misc25` (2.6.0 + `--expand-div`) convert at 4 and 3 per worker**
+  because most of their stubs are 42-172 instructions. The tiny-stub tail of `battle`
+  is the highest-yield C-writing pool left: `misc24`, `misc25`, `misc34`, `misc28`,
+  `misc7` (605 insns over 14 stubs) and `battling/misc14` (965 over 10).
+- **`func_80085310`'s "8-byte phantom frame" is not a compiler wall**: it is 100.00 under
+  gcc 2.6.0 in `battle/misc12` and 100.00 under 2.7.2 in the units that already match.
+  The round-10 conclusion ("two register-indexed loads of the same global always give an
+  8-byte frame") is real, but it does not stop a match when the frame is what retail has.
+- A wrong *parameter type on a callee* costs a delay slot: `func_801D1EE0`'s first
+  parameter must be `s32`, not `u_char`, or every call site gets an extra
+  `andi a0,a0,0xff` and reorg cannot put the following `addiu` in the `jal` slot
+  (`menu/misc12`'s `func_801E8B4C`). Check a callee's prototype before blaming your caller.
+- `battle/main/misc24` was listed in **both** `XenoBattleDiv` and `XenoBattle260Div` in
+  `gears.toml` - the round-8 hash-order hazard, with two identical path keys instead of a
+  directory key. Removed from the 2.7.2 preset; two consecutive `objdiff-config` runs now
+  agree that the unit's gcc is 2.6.0.
+- 156 of the remaining 1423 stubs (11%) reference a `jtbl_` symbol and cannot be converted
+  without moving the unit's whole rodata to C; per binary that is battle 58, world_map 42,
+  battling 15, menu 13, slus_006.64 12, field 6, movie 5.

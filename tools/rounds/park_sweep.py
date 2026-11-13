@@ -89,8 +89,12 @@ def score(unit, flags):
 
 
 def main():
+    flags = [a for a in sys.argv[1:] if a.startswith("-")]
     args = [a for a in sys.argv[1:] if not a.startswith("-")]
-    cands = list(CANDIDATES)
+    # --own-only: just the unit's own preset (the cheapest question - "is this park stale?")
+    # --one: un-park one body at a time, for units where un-parking all of them does not compile
+    cands = [] if "--own-only" in flags else list(CANDIDATES)
+    one = "--one" in flags
     units = args or sorted(
         os.path.relpath(p, os.path.join(ROOT, "src"))[:-2]
         for d, _, fs in os.walk(os.path.join(ROOT, "src")) for p in [os.path.join(d, f) for f in fs]
@@ -101,13 +105,28 @@ def main():
         funcs = parked_funcs(src)
         if not funcs:
             continue
-        unpark_all(src, funcs)
-        try:
-            cols = {"own": score(unit, [])}
+        if one:
+            cols = {"own": {}}
+            for name, line in funcs:
+                park = load_park()
+                out = park.unpark(open(src).read(), name, line)
+                if out is None:
+                    continue
+                open(src, "w").write(out)
+                try:
+                    cols["own"].update(score(unit, []))
+                finally:
+                    subprocess.run(["git", "checkout", "--", src], cwd=ROOT)
             for c in cands:
-                cols[c] = score(unit, CANDIDATES[c])
-        finally:
-            subprocess.run(["git", "checkout", "--", src], cwd=ROOT)
+                cols[c] = {}
+        else:
+            unpark_all(src, funcs)
+            try:
+                cols = {"own": score(unit, [])}
+                for c in cands:
+                    cols[c] = score(unit, CANDIDATES[c])
+            finally:
+                subprocess.run(["git", "checkout", "--", src], cwd=ROOT)
         for name, _ in funcs:
             row = [unit, name] + ["%.2f" % cols[c][name] if name in cols[c] else "failed"
                                   for c in ["own"] + cands]
