@@ -56,6 +56,7 @@ extern void func_80090990(u8* p, u8* arg1);
 extern void func_8008EE1C(u8* p, s32 arg1, s32 arg2);
 extern s32 func_8008F4F4(u8* p, s32 arg1);
 
+
 s32 func_8008F530(u8* pArg0, s32 arg1) {
     if (arg1 != 0) {
         return func_80073DE4(pArg0, *(s16*)(pArg0 + 0xBE));
@@ -304,6 +305,53 @@ void func_8008FF24(u8* pArg0, u8* pArg1) {
 }
 */
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc18", func_8008FFEC);
+/* 95.41%: frame, saved regs (s0..s3) and both call-site chains already match.
+   Two differences: (a) gcc keeps the loop counter`n` in $a1 whereas retail uses
+   $s0, and so fills the `bnez` delay slot with `addiu s0,s0,-1` where retail has
+   a nop plus a separate block; (b) the tail reassociates A + (rand() % 20 + 1)
+   into (A + 1) + rand() % 20 - the same expression, and the same blocker, as
+   func_8008FF24 below. Also tried: the tail as a separate `r = rand() % 20 + 1`
+   statement (85.61%, the 0xF load moves after the division) and the sum written
+   call-first (87.81%). Note the divisor is a local (`c`) so the 0x911 byte is
+   loaded once, as retail does.
+s32 func_8008FFEC(u8* pArg0, u8* pArg1) {
+    s32 n;
+    s32 i;
+    s32 off;
+    s32 c;
+
+    c = *(u8*)(pArg0 + 0x911);
+    if (c == 0) {
+        return 1;
+    }
+    n = rand() % c;
+    for (i = 0, off = 0; i < 0xE; i++, off += 3) {
+        if (*(u8*)(*(u8**)(pArg0 + 0x1600) + (i + 0xA)) == 0) {
+            continue;
+        }
+        if (*(u8*)(*(u8**)(pArg0 + 0x80) + i * 4 + 3) == 0) {
+            continue;
+        }
+        if (n != 0) {
+            n--;
+            continue;
+        }
+        if (D_800925A4[off] != 0) {
+            func_8007639C(pArg0, D_800925A4[off]);
+        }
+        if (D_800925A5[off] != 0) {
+            func_8007639C(pArg0, D_800925A5[off]);
+        }
+        if (D_800925A6[off] != 0) {
+            func_8007639C(pArg0, D_800925A6[off]);
+        }
+        break;
+    }
+    *(s16*)(pArg1 + 0x4) = (2 - *(u8*)(pArg1 + 0xF)) * 20 + (rand() % 20 + 1);
+    func_8008F7B8(pArg1);
+    return 0;
+}
+*/
 void func_80090174(u8* pArg0) {
     u8* p;
     u8 v;
@@ -385,7 +433,51 @@ void func_80090C88(u8* pArg0) {
     *(s32*)(p0 + 0x14) = *(u8*)(p1 + 0x7);
     *(s32*)(p0 + 0x18) = *(u8*)(p1 + 0x8);
     *(s32*)(p0 + 0x1C) = *(u8*)(p1 + 0x9);
-}INCLUDE_ASM("asm/battling/nonmatchings/main/misc18", func_80090CC0);
+}
+
+INCLUDE_ASM("asm/battling/nonmatchings/main/misc18", func_80090CC0);
+/* 97.38%: only the D_80099D98 load is off. gcc hoists it above the store of the
+   func_8008F570 result; retail keeps store-then-load and reuses $v0 for both.
+   The two func_80090894/func_80090504 call sites and func_8008F570 need a trailing
+   argument retail passes and nobody reads (a1=0 / a1=p) - adding it to those three
+   matched definitions is byte-neutral but was reverted with this park.
+void func_80090CC0(u8* pArg0) {
+    BattleWork* p;
+
+    p = &D_80096F30;
+    if ((*(u32*)(pArg0 + 0xD0) & 0x8000000) != 0) {
+        p = &D_80096F64;
+    }
+    *(u8**)(pArg0 + 0x15FC) = (u8*)p;
+    p->unk6 = 0x10;
+    p->unk0 = pArg0;
+    p->unk4 = 0;
+    p->unk7 = 0xA;
+    p->unkA = 0;
+    p->unkC = 0;
+    p->unk8 = 0;
+    p->unk9 = 0;
+    *(s32*)(pArg0 + 0x48) = 0;
+    p->unk24 = func_8008F570(pArg0, p);
+    p->unkF = D_80099D98;
+    func_80090C88(pArg0);
+    switch (rand() % 3) {
+    case 0:
+        func_8008FC7C(pArg0);
+        break;
+    case 1:
+        func_80090174(pArg0);
+        break;
+    case 2:
+        func_80090894(pArg0, 0);
+        break;
+    case 3:
+        func_80090504(pArg0, 0);
+        break;
+    }
+    func_80076424(pArg0);
+}
+*/
 void func_80090E10(u8* pArg0) {
     u8* p;
 
