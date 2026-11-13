@@ -32,12 +32,15 @@ extern u_char D_80076FDD[];
 extern u_char D_80076FDE[];
 extern s32 D_80076FAC[];
 extern s32 D_80076FBC[];
-extern u_char D_80076F8C[];
-extern u_char D_80076F8D[];
-extern u_char D_80076F8E[];
-extern u_char D_80076F9C[];
-extern u_char D_80076F9D[];
-extern u_char D_80076F9E[];
+typedef struct {
+    /* 0x0 */ u_char r;
+    /* 0x1 */ u_char g;
+    /* 0x2 */ u_char b;
+    /* 0x3 */ u_char pad3;
+} MovieColour; // Size: 0x4
+
+extern MovieColour D_80076F8C[];
+extern MovieColour D_80076F9C[];
 extern s32 D_80076FEC[];
 extern s32 D_80076FFC[];
 
@@ -133,6 +136,63 @@ void func_80072D84(POLY_G4* pPoly0, POLY_G4* pPoly1, s32 x, s32 y, s32 w, s32 h)
 }
 */
 
+// Best attempt (89.02%): the loop, the lerp and the tag swap all come out; the
+// gap is that retail spills the &D_80076FBC[i] byte offset to the stack and
+// re-forms the address, while gcc here keeps it in a register giv.
+/*
+void func_80072F98(POLY_G4* pPoly0, POLY_G4* pPoly1, s32 x, s32 y, s32 w, s32 h) {
+    s32 i;
+    s32 r;
+    s32 g;
+    s32 b;
+
+    setXY4(pPoly1, x, y, x + w, y, x, y + h, x + w, y + h);
+
+    for (i = 0; i < 4; i++) {
+        if (++D_80076FAC[i] > D_80076FBC[i]) {
+            D_80076FAC[i] = 0;
+            D_80076FBC[i] = (func_80074AF0() & 0xFF) + 0x20;
+            D_80076F8C[i].r = D_80076F9C[i].r;
+            D_80076F8C[i].g = D_80076F9C[i].g;
+            D_80076F8C[i].b = D_80076F9C[i].b;
+            D_80076F9C[i].r = (func_80074AF0() & 0xFF) / 32 + 8;
+            D_80076F9C[i].g = 8;
+            D_80076F9C[i].b = (func_80074AF0() & 0xFF) / 3 + 0x10;
+        }
+
+        r = D_80076F8C[i].r + (D_80076F9C[i].r - D_80076F8C[i].r) * D_80076FAC[i] / D_80076FBC[i];
+        g = D_80076F8C[i].g + (D_80076F9C[i].g - D_80076F8C[i].g) * D_80076FAC[i] / D_80076FBC[i];
+        b = D_80076F8C[i].b + (D_80076F9C[i].b - D_80076F8C[i].b) * D_80076FAC[i] / D_80076FBC[i];
+
+        switch (i) {
+        case 0:
+            pPoly1->r0 = r;
+            pPoly1->g0 = g;
+            pPoly1->b0 = b;
+            break;
+        case 1:
+            pPoly1->r1 = r;
+            pPoly1->g1 = g;
+            pPoly1->b1 = b;
+            break;
+        case 2:
+            pPoly1->r2 = r;
+            pPoly1->g2 = g;
+            pPoly1->b2 = b;
+            break;
+        case 3:
+            pPoly1->r3 = r;
+            pPoly1->g3 = g;
+            pPoly1->b3 = b;
+            break;
+        }
+    }
+
+    pPoly1->tag = (pPoly1->tag & 0xFF000000) | (pPoly0->tag & 0xFFFFFF);
+    pPoly0->tag = (pPoly0->tag & 0xFF000000) | ((u32)pPoly1 & 0xFFFFFF);
+}
+*/
+
 INCLUDE_ASM("asm/movie/nonmatchings/main/misc1", func_80072F98);
 
 void func_80073328(POLY_G4* pPoly0, POLY_G4* pPoly1, s32 x, s32 y, s32 w, s32 h) {
@@ -163,6 +223,68 @@ void func_80073328(POLY_G4* pPoly0, POLY_G4* pPoly1, s32 x, s32 y, s32 w, s32 h)
     SetPolyG4(pPoly1);
     setXY4(pPoly1, x, y, x + w, y, x, y + h, x + w, y + h);
 }
+
+// Best attempt (85.80%): the loop, the lerp and the tag swap come out, but retail
+// keeps six separate byte-channel pointers (base+2 with -1/-2 offsets) and spills
+// two of them, i.e. it wants more live values than this shape produces.
+/*
+void func_800734B8(POLY_G4* pPoly0, POLY_G4* pPoly1, s32 x, s32 y, s32 w, s32 h) {
+    s32 i;
+    s32 r;
+    s32 g;
+    s32 b;
+    MovieColour* pCol;
+    MovieColour* pTarget;
+
+    pCol = (MovieColour*)D_80076FCC;
+    pTarget = (MovieColour*)D_80076FDC;
+
+    setXY4(pPoly1, x, y, x + w, y, x, y + h, x + w, y + h);
+
+    for (i = 0; i < 4; i++) {
+        if (++D_80076FEC[i] > D_80076FFC[i]) {
+            D_80076FEC[i] = 0;
+            D_80076FFC[i] = (func_80074AF0() & 0xFF) + 0x20;
+            pCol[i].r = pTarget[i].r;
+            pCol[i].g = pTarget[i].g;
+            pCol[i].b = pTarget[i].b;
+            pTarget[i].r = 0xFF;
+            pTarget[i].g = 0xFF;
+            pTarget[i].b = (func_80074AF0() & 0x3F) - 0x42;
+        }
+
+        r = pCol[i].r + (pTarget[i].r - pCol[i].r) * D_80076FEC[i] / D_80076FFC[i];
+        g = pCol[i].g + (pTarget[i].g - pCol[i].g) * D_80076FEC[i] / D_80076FFC[i];
+        b = pCol[i].b + (pTarget[i].b - pCol[i].b) * D_80076FEC[i] / D_80076FFC[i];
+
+        switch (i) {
+        case 0:
+            pPoly1->r0 = r;
+            pPoly1->g0 = g;
+            pPoly1->b0 = b;
+            break;
+        case 1:
+            pPoly1->r1 = r;
+            pPoly1->g1 = g;
+            pPoly1->b1 = b;
+            break;
+        case 2:
+            pPoly1->r2 = r;
+            pPoly1->g2 = g;
+            pPoly1->b2 = b;
+            break;
+        case 3:
+            pPoly1->r3 = r;
+            pPoly1->g3 = g;
+            pPoly1->b3 = b;
+            break;
+        }
+    }
+
+    pPoly1->tag = (pPoly1->tag & 0xFF000000) | (pPoly0->tag & 0xFFFFFF);
+    pPoly0->tag = (pPoly0->tag & 0xFF000000) | ((u32)pPoly1 & 0xFFFFFF);
+}
+*/
 
 INCLUDE_ASM("asm/movie/nonmatchings/main/misc1", func_800734B8);
 
