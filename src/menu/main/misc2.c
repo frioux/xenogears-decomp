@@ -106,16 +106,6 @@ void func_801C7BF4(void) {
     func_801C8EE8();
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc2", func_801C7D78);
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc2", func_801C7F34);
-/* Best: 83.02% (388 bytes, same size). The divisors below are decoded from the
-   multiply-back shifts in the assembly and are certainly right (21600000,
-   2160000, 216000, 36000, 3600, 600, 120 in a running-remainder chain, stored to
-   g_Menu->unk2EC[0..6] as 32-bit words). What is left is allocation plus the
-   scheduler: retail keeps all seven quotients in t0/a3/t2/t1/a2/a1/v0 and
-   batches the six stores after the last `multu`, and each `mfhi` lands in the
-   same register its `srl` reads, where gcc gives mfhi its own temp
-   (`mfhi t3; srl t2,t3,0x16`) and stores as it goes. Tried: plain
-   store-after-each-division form with a running `value %= k` (this one).
 void func_801C7F34(u32 value) {
     ((u32*)g_Menu->unk2EC)[0] = value / 21600000;
     value %= 21600000;
@@ -129,33 +119,17 @@ void func_801C7F34(u32 value) {
     value %= 3600;
     ((u32*)g_Menu->unk2EC)[5] = value / 600;
     value %= 600;
-    ((u32*)g_Menu->unk2EC)[6] = value / 120;
+    ((u32*)g_Menu->unk2EC)[6] = value / 60;
 }
-*/
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc2", func_801C80B8);
-/* Best: 82.91%. Instruction multiset and structure are right; only two things
-   differ, and they are the same cause: the original has `srl` (the second half
-   of `divisor /= 10`) before the `sb`, with the `sb` in the bnez delay slot,
-   and allocates digit->a1, i->a2, divisor->a3, magic->t0 where gcc gives
-   digit->v1, i->a1, divisor->a2, magic->a3. The original matches plain
-   global_alloc priority order (digit 1 ref/2 insns, i and divisor 1, magic 0),
-   so it looks like `digit` is a global allocno there and a local one here.
-   Tried since: digit/u32 vs s32, u_char digit (80.35), `digit = 0` init (the
-   dead init is removed, no change), declaration orders, `store first` and
-   `store before divisor /= 10` (80.35), `number = number % divisor`, separate
-   `value` copy of the parameter, u_char* pDigits (58.00), register on each
-   local. None moves the allocation.
 void func_801C80B8(u32 number) {
     s32 i;
-    u32 digit;
     u32 divisor;
 
     divisor = 100000000;
     for (i = 0; i < 9; i++) {
-        digit = number / divisor;
+        g_Menu->digits[i] = number / divisor;
         number %= divisor;
         divisor /= 10;
-        g_Menu->digits[i] = digit;
     }
 
     for (i = 1; i < 9; i++) {
@@ -168,7 +142,6 @@ void func_801C80B8(u32 number) {
         g_Menu->digits[i - 1] = 0xFF;
     }
 }
-*/
 void func_801C8164(POLY_G4* pPoly, u_char r, u_char g, u_char b) {
     SetPolyG4(pPoly);
     pPoly->r0 = r;
