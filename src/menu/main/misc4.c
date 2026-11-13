@@ -237,6 +237,75 @@ void func_801CE660(void) {
 }
 */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc4", func_801CE860);
+/* 88.90% (804 vs 792 bytes): every expression and call is right; the only
+   delta is that loop.c strength-reduces `i * 0x20` and `i * 0x80` here, so gcc
+   allocates two extra induction registers ($s4/$s5: +0x20 and +0x80 at the
+   latch) and computes the verts base as addiu(pData,K) + biv instead of
+   retail's `sll; addiu; addu`.  Retail has no mult-giv registers at all - it
+   re-emits `sll $a0,$s0,5` in both blocks - so its givs must have kept a
+   non-zero add_val (0x31E0 vs 0x3100) and each stayed below the benefit
+   threshold.  Tried: the base as a local pointer, `(pData + i)[K]` for the
+   byte indexes (that fixed the addu operand order), a shared `rowOfs = i*0x20`
+   local, and -O1 (55.6, so not a preset problem).  Same 88.90 in all shapes.
+void func_801CE860(void) {
+    s32 i;
+    s32 offset0 = 0;
+    s32 offset1 = 0x2030;
+    s32 offset2 = 0x2228;
+    long interpolated;
+    long flag;
+    SVECTOR* pVerts;
+    s32 rowOfs;
+
+    for (i = 0; i < 7; i++) {
+        rowOfs = i * 0x20;
+        if ((((u8*)g_Menu->unk35C) + i)[0x32EA]) {
+            if (((u8*)g_Menu->unk35C)[0x32F2]) {
+                pVerts = (SVECTOR*)((rowOfs + 0x31E0) + (u32)g_Menu->unk35C);
+                RotTransPers4(&pVerts[0], &pVerts[1], &pVerts[2], &pVerts[3],
+                              (long*)(offset2 + (u32)g_Menu->unk35C +
+                                      (((u8*)g_Menu->unk35C) + i)[0x32E3] * 36 + 8),
+                              (long*)(offset2 + (u32)g_Menu->unk35C +
+                                      (((u8*)g_Menu->unk35C) + i)[0x32E3] * 36 + 0x10),
+                              (long*)(offset2 + (u32)g_Menu->unk35C +
+                                      (((u8*)g_Menu->unk35C) + i)[0x32E3] * 36 + 0x18),
+                              (long*)(offset2 + (u32)g_Menu->unk35C +
+                                      (((u8*)g_Menu->unk35C) + i)[0x32E3] * 36 + 0x20),
+                              &interpolated, &flag);
+                AddPrim(&g_Menu->pGfxEnv->ot[4],
+                        (void*)(offset2 + (u32)g_Menu->unk35C +
+                                (((u8*)g_Menu->unk35C) + i)[0x32E3] * 36));
+                func_801CE198((((u8*)g_Menu->unk35C) + i)[0x32CE],
+                              (SVECTOR*)((rowOfs * 4 + 0x2D80) + (u32)g_Menu->unk35C),
+                              (POLY_FT4*)((offset0 + 0x1770) + (u32)g_Menu->unk35C),
+                              (((u8*)g_Menu->unk35C) + i)[0x32D5]);
+            }
+            pVerts = (SVECTOR*)((rowOfs + 0x3100) + (u32)g_Menu->unk35C);
+            RotTransPers4(&pVerts[0], &pVerts[1], &pVerts[2], &pVerts[3],
+                          (long*)(offset1 + (u32)g_Menu->unk35C +
+                                  (((u8*)g_Menu->unk35C) + i)[0x32DC] * 36 + 8),
+                          (long*)(offset1 + (u32)g_Menu->unk35C +
+                                  (((u8*)g_Menu->unk35C) + i)[0x32DC] * 36 + 0x10),
+                          (long*)(offset1 + (u32)g_Menu->unk35C +
+                                  (((u8*)g_Menu->unk35C) + i)[0x32DC] * 36 + 0x18),
+                          (long*)(offset1 + (u32)g_Menu->unk35C +
+                                  (((u8*)g_Menu->unk35C) + i)[0x32DC] * 36 + 0x20),
+                          &interpolated, &flag);
+            AddPrim(&g_Menu->pGfxEnv->ot[4],
+                    (void*)(offset1 + (u32)g_Menu->unk35C +
+                            (((u8*)g_Menu->unk35C) + i)[0x32DC] * 36));
+            func_801CE198((((u8*)g_Menu->unk35C) + i)[0x32C0],
+                          (SVECTOR*)((rowOfs * 4 + 0x2A00) + (u32)g_Menu->unk35C),
+                          (POLY_FT4*)((offset0 + 0xEB0) + (u32)g_Menu->unk35C),
+                          (((u8*)g_Menu->unk35C) + i)[0x32C7]);
+        }
+        offset0 += 0x140;
+        offset1 += 0x48;
+        offset2 += 0x48;
+    }
+}
+*/
+
 void func_801CEB5C(void) {
     u8* pData;
 
