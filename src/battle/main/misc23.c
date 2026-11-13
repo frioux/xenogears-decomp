@@ -225,17 +225,9 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A64E4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A6884);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A6AE8);
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A6F98);
-/* PRESET_G0 LEAD: 84.20% under this unit's -G8 flags, **96.96% under --gp -G0**,
-   and all seven already-matched functions of this unit score 100.00 under -G0
-   (verified with try_flags.sh --all --gp -G0), so this unit may want the -G0
-   preset. Under -G8 the original keeps &D_800D3628 in s0 across
-   LoadImage/DrawSync while gcc rematerialises lui/addiu each time - the
-   classic small-data/-G8 rematerialisation. Remaining diff under -G0 not yet
-   inspected (needs the -G0 object kept). Tried under -G8: RECT *pRect, u8 *pBuf,
-   reusing the loop pointer, all identical code.
 void func_800A6F98(void) {
     u8 *p;
+    u8 *pRect;
     s32 i;
 
     if (D_800D361A != 0) {
@@ -246,16 +238,15 @@ void func_800A6F98(void) {
             }
             p += 0x30;
         }
-        p = (u8 *)&D_800D3628;
-        LoadImage((RECT *)p, D_800D3604);
+        pRect = (u8 *)&D_800D3628;
+        LoadImage((RECT *)pRect, D_800D3604);
         DrawSync(0);
-        func_800A429C(p - 0x28);
+        func_800A429C(pRect - 0x28);
     }
     func_800A64E4();
     HeapFree(D_800C3AC4);
     HeapFree(D_800C3AC8);
 }
-*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A7064);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A7948);
 
