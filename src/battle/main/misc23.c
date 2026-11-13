@@ -225,17 +225,9 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A64E4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A6884);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A6AE8);
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A6F98);
-/* PRESET_G0 LEAD: 84.20% under this unit's -G8 flags, **96.96% under --gp -G0**,
-   and all seven already-matched functions of this unit score 100.00 under -G0
-   (verified with try_flags.sh --all --gp -G0), so this unit may want the -G0
-   preset. Under -G8 the original keeps &D_800D3628 in s0 across
-   LoadImage/DrawSync while gcc rematerialises lui/addiu each time - the
-   classic small-data/-G8 rematerialisation. Remaining diff under -G0 not yet
-   inspected (needs the -G0 object kept). Tried under -G8: RECT *pRect, u8 *pBuf,
-   reusing the loop pointer, all identical code.
 void func_800A6F98(void) {
     u8 *p;
+    u8 *pRect;
     s32 i;
 
     if (D_800D361A != 0) {
@@ -246,16 +238,15 @@ void func_800A6F98(void) {
             }
             p += 0x30;
         }
-        p = (u8 *)&D_800D3628;
-        LoadImage((RECT *)p, D_800D3604);
+        pRect = (u8 *)&D_800D3628;
+        LoadImage((RECT *)pRect, D_800D3604);
         DrawSync(0);
-        func_800A429C(p - 0x28);
+        func_800A429C(pRect - 0x28);
     }
     func_800A64E4();
     HeapFree(D_800C3AC4);
     HeapFree(D_800C3AC8);
 }
-*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A7064);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A7948);
 
@@ -375,17 +366,22 @@ extern u8 D_800CCDE8[];
 extern u8 D_800C3509[];
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A9540);
-/* 77.73%: structure and instruction sequence understood; remaining differences:
-   (a) the original hoists the D_800C3509 symbol constant into $s0 ("lui/addiu"
-   + "addu $v0,$s0,$s1" for the second, -1-displaced read) because BOTH the
-   "D_800C3509[index]" and the "D_800C3509[index-1]" accesses share one symbol
-   constant, while gcc 2.7.2 folds the -1 into the symbol and emits
-   "%lo(D_800C3509-1)($reg)" with $at, so the base never reaches a saved
-   register; (b) that costs the original a fifth saved register ($s0-s$4 vs
-   $s0-$s3 here) and shifts every register after it. Also fixed by this shape:
-   the count compare is "slt" in the original, "sltu" here, so count is a
-   signed-or-int compare against a u8 field. Tried: s32 nameLen (removed the
-   andi that a u16 gave), pTable as a local (gcc folds it away, one use).
+/* 90.14% (under the unit's gcc 2.6.0 --expand-div -G0; was 77.73 when this was
+   first attempted under -G8). Fixed by this shape vs the old attempt:
+   - count is an s32 loaded from a u8 array (lbu), NOT a u8 local: that turns
+     the compare into "slt" (was sltu) and removes the "andi 0xff" before both
+     "beqz count" and "addu nameLen,count".
+   - pTable = D_800C3509 assigned BEFORE the if, so "lui/addiu s0" is emitted
+     before the branch and &D_800C3509 lives in a callee-saved register across
+     HeapAlloc ("addu v0,s0,s1; lbu s0,-1(v0)"); with the assignment after the
+     call gcc 2.6 folds the -1 into %lo(D_800C3509-1) and uses $at.
+   Remaining differences: (a) the original has an extra "move s3,s2" (a second
+   register holding pEntry, used for the unk0/unk4 stores while s2 keeps the
+   later ones) - a pHead = (u8 *)pEntry alias is CSE'd back into pEntry, so gcc
+   2.6 will not produce the copy; (b) that costs $s3 to pTail and pushes count
+   into $s4 (mine has count in $s3, pTail in $v1); (c) my index gets a "move"
+   copy out of the sll while the original shifts straight into $s1. Structurally
+   complete otherwise: every instruction and operand order matches.
 void func_800A9540(s32 arg0) {
     Misc23ArchiveEntry *pEntry;
     u8 *pTable;
@@ -394,7 +390,7 @@ void func_800A9540(s32 arg0) {
     s32 remainder;
     u32 index;
     s32 nameLen;
-    u8 count;
+    s32 count;
     u8 base;
 
     ArchiveGetArchiveOffsetIndices(&alignedIndex, &remainder);
@@ -402,11 +398,11 @@ void func_800A9540(s32 arg0) {
     HeapChangeCurrentUser(4, NULL);
     index = D_800CCD88[arg0 * 0x170] * 2;
     count = D_800CCDE8[arg0 * 0x170];
+    pTable = D_800C3509;
     if (D_800C3509[index] < count) {
         count = 0;
     }
     pEntry = HeapAlloc(0x20, 1);
-    pTable = D_800C3509;
     D_800C3B78 = pEntry;
     base = pTable[index - 1];
     nameLen = base + 1;
@@ -429,14 +425,15 @@ void func_800A9540(s32 arg0) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A96B4);
-/* 99.10%: identical instruction multiset; the only difference is which of
-   $s1/$s2 holds the (arg0 * 2) index and which holds index + 1 - the original
-   puts the index in $s1 (reusing the saved parameter register: "sll s1,s1,1")
-   and gcc 2.7.2 puts it in $s2, so both the prologue saves and the three
-   "move a0,sN" swaps follow. Tried: computing index before the HeapAlloc
+/* 99.10% under both presets (2.7.2 as parked, and 2.6.0 -G0 --expand-div now):
+   identical instruction multiset; the only difference is which of $s1/$s2
+   holds the (arg0 * 2) index and which holds index + 1 - the original puts the
+   index in $s1 (reusing the saved parameter register: "sll s1,s1,1", and
+   "addiu s2,s1,2") and gcc puts it in $s2, so both the prologue saves and the
+   three "move a0,sN" swaps follow. Tried: computing index before the HeapAlloc
    calls (45.83%), after them (99.10%), naming index + 1 as its own local,
    reordering all five declarations, rewriting it as "arg0 *= 2" so the scale
-   happens in place (99.10%), and gcc 2.6.0 (99.1, so not a preset problem).
+   happens in place (99.10%). Allocator tie-break class.
 void func_800A96B4(s32 arg0) {
     Misc23ArchiveEntry *pEntry;
     s32 alignedIndex;
