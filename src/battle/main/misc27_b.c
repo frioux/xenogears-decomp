@@ -13,7 +13,6 @@ extern void func_800B51B0();
 extern void func_800B5CC0();
 extern void func_800B5DF4();
 extern void func_800B6004();
-extern void func_800B59BC();
 extern void func_800B5854();
 extern u8* TimerWorkListAllocateTask();
 
@@ -25,6 +24,12 @@ typedef struct {
     /* 0x4 */ u8 unk4;
     /* 0x5 */ u8 unk5;
 } BattleScriptOp;
+
+typedef struct {
+    /* 0x0 */ u16 x;
+    /* 0x2 */ u16 y;
+} BattlePoint;
+
 
 // Split out of main/misc27 (see config/battle.yaml): compiled with gcc 2.7.2-cdk.
 u8* func_800B5924(u8* pActor, s32 arg1, s32 arg2) {
@@ -40,12 +45,28 @@ u8* func_800B5924(u8* pActor, s32 arg1, s32 arg2) {
     *(u32*)(pActor + 0xAC) |= 0x20;
     return pTask;
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc27_b", func_800B59BC);
-typedef struct {
-    /* 0x0 */ u16 x;
-    /* 0x2 */ u16 y;
-} BattlePoint;
+BattlePoint* func_800B59BC(BattlePoint* pOut, u8* pActor, s32 index) {
+    DVECTOR rot;
 
+    if (*(u8**)(pActor + 0x20) == NULL) {
+        return pOut;
+    }
+    if ((*(s32*)(pActor + 0x3C) & 3) != 1) {
+        return pOut;
+    }
+    if (*(u8**)(*(u8**)(pActor + 0x20) + 0x34) == NULL) {
+        return pOut;
+    }
+    rot.vy = (s8)*(u8*)(*(u8**)(*(u8**)(pActor + 0x20) + 0x34) + index * 8 + 1);
+    rot.vx = (s8)*(u8*)(*(u8**)(*(u8**)(pActor + 0x20) + 0x34) + index * 8);
+    if ((*(u32*)(pActor + 0xAC) >> 2) & 1) {
+        rot.vx = -rot.vx;
+    }
+    rot.vy = rot.vy * *(s16*)(pActor + 0x2C) / 4096;
+    rot.vx = rot.vx * *(s16*)(pActor + 0x2C) / 4096;
+    *(DVECTOR*)pOut = rot;
+    return pOut;
+}
 BattlePoint* func_800B5AC4(BattlePoint* pOut, u8* pActor, s32 index) {
     BattlePoint point;
     int ofs;
@@ -59,8 +80,45 @@ BattlePoint* func_800B5AC4(BattlePoint* pOut, u8* pActor, s32 index) {
     return pOut;
 }
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc27_b", func_800B5B3C);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc27_b", func_800B5C18);
+void func_800B5B3C(u8* pWork) {
+    BattlePoint a;
+    BattlePoint b;
+    DVECTOR d;
+    u8* pSprite;
+    s32 mode;
+
+    pSprite = *(u8**)(*(u8**)(pWork + 0x1C) + 0x74);
+    func_800B5AC4(&a, *(u8**)(pWork + 0x1C), *(s32*)(pWork + 0x24));
+    func_800B5AC4(&b, pSprite, *(s32*)(pWork + 0x28));
+    d.vx = a.x - b.x;
+    d.vy = a.y - b.y;
+    *(s32*)pSprite += d.vx << 16;
+    *(s32*)(pSprite + 4) += d.vy << 16;
+    if (*(s32*)(pWork + 0x30) == *(s8*)(*(u8**)(pWork + 0x1C) + 0xAF)) {
+        mode = (*(u32*)(*(u8**)(pWork + 0x1C) + 0xA8) >> 28) & 3;
+        if (mode != 0) {
+            if (mode != 1) {
+                return;
+            }
+        }
+    }
+    ((void (*)(u8*))*(void**)(pWork + 0xC))(pWork);
+}
+
+void* func_800B5C18(u8* pActor, u8* pScript) {
+    u8* pTask;
+
+    pTask = TimerWorkListAllocateTask(*(void**)(pActor + 0x6C), 0x18);
+    TimerWorkListSetTaskCallback(pTask, func_800B5B3C);
+    *(u8**)(pTask + 0x1C) = pActor;
+    *(s32*)(pTask + 0x20) = *(s32*)(pActor + 0x74);
+    *(s32*)(pTask + 0x2C) = *(u16*)(pActor + 0x34);
+    *(s32*)(pTask + 0x30) = *(s8*)(pActor + 0xAF);
+    *(s32*)(pTask + 0x24) = pScript[0] & 0xF;
+    *(s32*)(pTask + 0x28) = pScript[0] >> 4;
+    func_800B5B3C(pTask);
+    return pTask;
+}
 /*
 void func_800B5CC0(u8* pWork) {
     MATRIX m;
