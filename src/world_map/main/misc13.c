@@ -110,6 +110,50 @@ void func_800931B0(void) {
 }
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_800931D8);
+/* best: 69.59% (316 bytes vs 380). 16-row CLUT fade: 2 nested loops,
+   t = (i << 12) / count, s = 0x1000 - t, per u16 entry
+   out = (v & 0x8000) | ((cr*s + fr*t) >> 15) | (((cg*s + fg*t) >> 15) << 5)
+         | (((cb*s + fb*t) >> 15) << 10), cr/cg/cb = (v&0x1F)<<3, (v>>2)&0xF8,
+   (v>>7)&0xF8. Retail facts for the next attempt: the three pFactors lbu's are
+   hoisted to the entry block (s0/t9/t8) yet the three fr*t products are NOT
+   hoisted out of the inner loop (ours are); cr/cg/cb are byte-wide pseudo
+   spills to 0(sp)/1(sp)/2(sp) (so they are u8 locals); the >> 15 is srl, so
+   the sums are unsigned; the frame also saves s3 with no use in the body.
+void func_800931D8(u8* pSrc, u8* pDst, s32 count, u8* pFactors) {
+    s32 i;
+    s32 j;
+    s32 t;
+    s32 s;
+    u16* pIn;
+    u16* pOut;
+    u32 v;
+    u8 cr;
+    u8 cg;
+    u8 cb;
+
+    pOut = (u16*)pDst;
+    for (i = 0; i < count; i++) {
+        t = (i << 12) / count;
+        s = 0x1000 - t;
+        pIn = (u16*)pSrc;
+        for (j = 0; j < 0x100; j++) {
+            v = *pIn;
+            if (v == 0) {
+                *pOut = v;
+            } else {
+                cr = (v & 0x1F) << 3;
+                cg = (v >> 2) & 0xF8;
+                cb = (v >> 7) & 0xF8;
+                *pOut = (v & 0x8000) | ((u32)(cr * s + pFactors[0] * t) >> 15) |
+                        (((u32)(cg * s + pFactors[1] * t) >> 15) << 5) |
+                        (((u32)(cb * s + pFactors[2] * t) >> 15) << 10);
+            }
+            pIn++;
+            pOut++;
+        }
+    }
+}
+*/
 void func_80093354(WorldMapPos* p) {
     if (p->x >= D_8009D160 * 0x800000) {
         p->x -= D_8009D160 * 0x800000;
