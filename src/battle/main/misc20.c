@@ -9,6 +9,10 @@ extern u8 *D_800C34B0;
 extern u8 *D_800D2DC8;
 extern u8 *D_800D2D6C;
 extern u8 D_800C3E50;
+extern u8 D_800C3E04;
+extern u8 D_800D2DC4;
+extern u8 *D_800C3D3C;
+extern s32 D_800C34DC[];
 extern u8 D_800CCD3E[];
 extern u8 D_800CCD8C[];
 extern u8 D_800CCCE8[];
@@ -16,6 +20,8 @@ extern u8 D_800CCE4A[];
 extern u16 D_800D2C94;
 extern s8 func_8009DBFC();
 extern s32 func_80097610();
+extern void func_8009AC48(u8);
+extern void func_80096824(void);
 
 void func_8009C134(void) {
     u8 i = 0;
@@ -31,6 +37,82 @@ void func_8009C134(void) {
         }
     }
 }
+/* best 93.97% under gcc 2.6.0 (XenoBattle260): head (both branches, incl. the
+   addiu/addiu placement and index-first addu, which needs the parenthesised
+   `base + (a*0x690 + 0x2228) + b*0x28` form), the D_800C34DC table call, the
+   0x5FA0 block (needs the `goto skip` shape or gcc emits two jals/sltu) and the
+   loop tail all match. Four hunk remain, all allocator/store-order: (1) the
+   D_800C3D3C block, where the original puts the next statement's `lw D_800C3DFC`
+   + `lhu 0xA` between the index chain and the final addu (mine keeps the
+   statement together and gains a nop); (2) `li s0,1` is not sunk into the two
+   bne delay slots (it lands after the sb D_800C3E50); (3) the D_800C3E34 /
+   D_800D2DC8 store pair comes out in the opposite order with q and q+0xA4 in
+   swapped registers, whatever the source order of the two stores; (4) the
+   0x5FA0 check reloads D_800C34B0 into v0 (then lbu D_800C3E50), mine into v1.
+   Six shapes tried. Keep the externs below when retrying.
+void func_8009C198(void) {
+    u8 *q;
+    u16 f;
+    u16 mask;
+    u8 a;
+
+    if (D_800C3E04 < 3) {
+        D_800C3DFC = D_800C34B0 +
+                     (D_800C34B0[0x5FC1] * 0x690 + 0x2228) +
+                     D_800C34B0[0x5FC2] * 0x28;
+    } else {
+        D_800C3DFC = D_800C34B0 + (D_800C34B0[0x5FC2] * 0x28 + 0x35D8);
+    }
+    func_8009AC48(D_800C3E04);
+    D_800D2DC4 = 0;
+    D_800C3D3C = D_800C34B0 + D_800C34B0[0x5FC1] * 0x170 + 0x148;
+    f = *(u16 *)(D_800C3DFC + 0xA);
+    if (f & 0x100) {
+        if (D_800C3E00[0x56] == 1) {
+            func_80096824();
+        }
+    }
+    if (D_800C3E00[0xA0] == 5 || D_800C3E00[0xA0] == 0xD) {
+        if (D_800C34B0[0x5FC2] == 1) {
+            D_800C3DFC[0x22] = D_800D2D6C[0x1A];
+        }
+    }
+    D_800C3E50 = 0;
+    mask = 1;
+    do {
+        if (*(u16 *)(D_800C34B0 + 0x5FAC) & mask) {
+            q = D_800C34B0 + D_800C3E50 * 0x170;
+            D_800D2DC8 = q + 0xA4;
+            D_800C3E34 = q;
+            D_800C3D60 = q + 0x148;
+            func_8009CA90();
+            ((void (*)(void))D_800C34DC[D_800C3DFC[0x16]])();
+            q = D_800C34B0;
+            if (q[D_800C3E50 + 0x5FA0] == 0) {
+                a = 1;
+                f = *(u16 *)(D_800C3DFC + 0xA);
+                if (!(f & 0x800)) {
+                    a = 0;
+                    if (!(f & 0x4000)) {
+                        goto skip;
+                    }
+                }
+                func_8009DBFC(a);
+            }
+skip:
+            *(u16 *)(D_800C34B0 + 0x5FB0) = *(u16 *)(D_800C3DFC + 2);
+            func_8009C4B4();
+            func_8009CB68(D_800C3E50);
+        }
+        D_800C3E50++;
+        mask <<= 1;
+    } while (D_800C3E50 < 0xB);
+    if (D_800C3E00[0x56] == 4) {
+        func_8009E788();
+    }
+    func_8009C9C4();
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc20", func_8009C198);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc20", func_8009C4B4);
 void func_8009C9C4(void) {
