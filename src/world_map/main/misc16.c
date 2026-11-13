@@ -188,7 +188,6 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc16", func_8009932C);
    0x40 frame (11 slots) and reorders the k++/col++ epilogue. 6 shapes not tried yet.
    Next: try col/k as a single flat counter, and read D_8009D650[k] into locals before
    the coords so the OR chain does not force the base register.
-*/
 void func_8009932C(u8* p0, u8* p1, WorldMapMisc16Struct* p) {
     s32 i;
     s32 row;
