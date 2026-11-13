@@ -1,4 +1,6 @@
 #include "common.h"
+#include "psyq/libetc.h"
+#include "psyq/libgpu.h"
 
 extern s32 D_8009D554;
 extern s32 D_8009D7CC;
@@ -15,7 +17,7 @@ extern void func_80089160(s32 arg0, void* arg1, s32 arg2);
 extern void func_80039E60(s32 arg0);
 extern void func_8003A3B8(s32 arg0, s32 arg1, s32 arg2);
 
-extern s32 D_8009C5AC;
+extern u8 D_8009C5AC[];
 extern s32 D_8009C5B0;
 extern s32 D_8009C5B4;
 extern s32 D_8009D3F0;
@@ -197,7 +199,7 @@ s32 func_80076C18(s32 arg0, s32 arg1, s32 arg2) {
 }
 
 s32 func_80076C3C(s32 arg0, s32 arg1, s32 arg2, s32 arg3) {
-    D_8009C5AC = arg1 << 12;
+    *(s32*)D_8009C5AC = arg1 << 12;
     D_8009C5B0 = arg2 << 12;
     D_8009C5B4 = arg3 << 12;
     return 4;
@@ -379,7 +381,112 @@ s32 func_800771D8(s32 arg0, s32 arg1, s32 arg2) {
 }
 */
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc3", func_80077214);
+extern MATRIX D_8009A180;
+extern MATRIX D_8009BE4C;
+extern s32 D_8009D804;
+extern void (*D_8009CD40)(void);
+extern void func_80086700(void);
+extern void func_80072BB0(void);
+extern void func_80072DB4(s32 arg0, s32 arg1, s32 arg2, s32 arg3);
+extern s32 ArchiveDataSync(void);
+extern void func_80076954(void);
+extern void func_80073530(void);
+extern void func_8009766C(void);
+extern void func_80098044(void);
+extern s32 ArchiveCdDataSync(s32 arg0);
+extern void func_800721E4(void);
+extern void func_8008440C(void);
+extern void func_80084580(void);
+extern void func_800979C8(void);
+extern void func_800736DC(void);
+extern void func_80085F58(void);
+extern void func_80085FE0(void);
+extern void func_800863E0(void);
+extern void func_80074E58(void);
+extern void func_80075030(void);
+extern void func_800739B8(void);
+extern void func_80088F64(void);
+extern void SoundAddSedsEntry(void* pSeds);
+extern s32 ArchiveSetIndex(s32 arg0, s32 arg1);
+extern void func_80097718(void* p0, void* p1);
+extern void func_800978FC(void);
+extern void func_8008901C(void);
+extern void func_800865A0(void);
+extern void func_80075228(void);
+extern void func_800923A8(void);
+extern void func_800925A0(void);
+extern void func_80087710(void);
+extern void func_80087734(void);
+extern void func_80071A50(void);
+extern void func_80071A58(void);
+extern void func_80078948(void);
+extern void func_80078950(void);
+extern void func_8007828C(void);
+extern void func_800783E8(void);
+extern void func_80077DC8(void);
+extern void func_80077E68(void);
+extern void func_80097BC0(void* p);
+extern void func_800967E4(void);
+extern s32 func_80096668(void);
+extern s32 func_8007756C(s32 arg0);
+extern s32 func_800776E0(s32 arg0);
+
+void func_80077214(void) {
+    RECT rect;
+    s32* pPos;
+
+    func_80072BB0();
+    rect.x = 0;
+    rect.y = 0;
+    rect.w = 0x140;
+    rect.h = 0xD8;
+    MoveImage(&rect, 0x2C0, 0x100);
+    DrawSync(0);
+    func_80072DB4(0x40, 0, 4, 2);
+    while (ArchiveDataSync() >= 3) {
+    }
+    func_80073530();
+    func_8009766C();
+    D_8009BE4C = D_8009A180;
+    D_8009CCA4 = 2;
+    D_8009D3CC = 4;
+    D_8009D804 = 0;
+    D_8009D144 = 0;
+    D_8009CD40 = func_80086700;
+    func_80098044();
+    ArchiveCdDataSync(0);
+    pPos = (s32*)D_8009C5AC;
+    *pPos = 0x7702000;
+    D_8009C5B0 = 0xFFD00000;
+    D_8009C5B4 = 0x27C0000;
+    func_80084580();
+    func_8008440C();
+    func_800979C8();
+    func_800736DC();
+    func_80085F58();
+    func_800863E0();
+    func_80074E58();
+    func_80075030();
+    func_800739B8();
+    func_80088F64();
+    ArchiveSetIndex(0x24, 0);
+    func_80097BC0(pPos);
+    do {
+        func_800967E4();
+        Vsync(0);
+    } while (func_80096668() > 0);
+    func_80097718((void*)func_800923A8, (void*)func_800925A0);
+    func_80097718((void*)func_8007756C, (void*)func_800776E0);
+    func_80097718((void*)func_80087710, (void*)func_80087734);
+    func_80097718((void*)func_80071A50, (void*)func_80071A58);
+    func_800978FC();
+    func_8008901C();
+    func_800865A0();
+    func_80085FE0();
+    func_80075228();
+    func_80089160(0xE, NULL, 0);
+}
+
 s32 func_80077480(void) {
     u16 v;
 
@@ -481,4 +588,57 @@ s32 func_8007795C(void) {
     func_80086798();
     return 1;
 }
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc3", func_80077A64);
+void func_80077A64(void) {
+    RECT rect;
+    s32* pPos;
+
+    func_80072BB0();
+    rect.x = 0;
+    rect.y = 0;
+    rect.w = 0x140;
+    rect.h = 0xD8;
+    MoveImage(&rect, 0x2C0, 0x100);
+    DrawSync(0);
+    func_80072DB4(0x40, 0, 4, 1);
+    while (ArchiveDataSync() >= 3) {
+    }
+    func_80076954();
+    func_8009766C();
+    D_8009BE4C = D_8009A180;
+    D_8009CCA4 = 1;
+    D_8009D3CC = 4;
+    D_8009D804 = 0;
+    D_8009D144 = 0;
+    D_8009CD40 = func_80086700;
+    func_80098044();
+    ArchiveCdDataSync(0);
+    func_800721E4();
+    pPos = (s32*)D_8009C5AC;
+    *pPos = 0x2000000;
+    D_8009C5B0 = 0xFFE00000;
+    D_8009C5B4 = 0x2000000;
+    func_80084580();
+    func_8008440C();
+    func_800979C8();
+    func_800736DC();
+    func_800863E0();
+    func_80074E58();
+    func_80075030();
+    func_800739B8();
+    func_80088F64();
+    ArchiveCdDataSync(0);
+    SoundAddSedsEntry(D_8006259C);
+    ArchiveSetIndex(0x24, 0);
+    func_80097BC0(pPos);
+    do {
+        func_800967E4();
+        Vsync(0);
+    } while (func_80096668() > 0);
+    func_80097718((void*)func_800923A8, (void*)func_800925A0);
+    func_80097718((void*)func_80077DC8, (void*)func_80077E68);
+    func_80097718((void*)func_8007828C, (void*)func_800783E8);
+    func_80097718((void*)func_80078948, (void*)func_80078950);
+    func_800978FC();
+    func_8008901C();
+    func_800865A0();
+}
