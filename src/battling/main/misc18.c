@@ -54,6 +54,7 @@ extern void func_8009031C(u8* p, u8* arg1);
 extern void func_80090580(u8* p, u8* arg1);
 extern void func_80090990(u8* p, u8* arg1);
 extern void func_8008EE1C(u8* p, s32 arg1, s32 arg2);
+extern s32 func_8008F4F4(u8* p, s32 arg1);
 
 s32 func_8008F530(u8* pArg0, s32 arg1) {
     if (arg1 != 0) {
@@ -75,7 +76,45 @@ s32 func_8008F580(u8* pArg0) {
     return (v0 - 0x200 < v1) ? !(v0 < v1) : 2;
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc18", func_8008F5B4);
+s32 func_8008F5B4(u8* pArg0, s32 arg1) {
+    u8* p;
+
+    p = *(u8**)(pArg0 + 0x15FC);
+    if ((rand() & 0xFF) < ((*(s32*)(p + 0x10) * 5) << 6) >> 4) {
+        if (func_8008F530(pArg0, 0) != 0) {
+            goto tail;
+        }
+        if (func_8008F4F4(pArg0, 0xC0) != 0) {
+            goto tail;
+        }
+        if ((rand() & 0xFF) < ((*(s32*)(p + 0x1C) * 3) << 6) >> 4) {
+            goto tail;
+        }
+        if (func_8008F4F4(pArg0, 0x80) == 0) {
+            return 0;
+        }
+        if (*(s16*)(*(u8**)(pArg0 + 0xD8) + 0xB4) < *(s16*)(pArg0 + 0xB4)) {
+            goto tail;
+        }
+        return 0;
+    }
+    if ((rand() & 0xFF) >= ((*(s32*)(p + 0x1C) * 5) << 6) >> 4) {
+        return 0;
+    }
+tail:
+    if ((rand() & 0xFF) < *(s32*)(p + 0x18)) {
+        if (*(u8*)(*(u8**)(pArg0 + 0xD8) + 0xC4) == 4) {
+            return 0;
+        }
+        if (func_8008F4F4(*(u8**)(pArg0 + 0xD8), 0x20) != 0) {
+            return 1;
+        }
+        if (*(s16*)(*(u8**)(pArg0 + 0xD8) + 0xB4) < *(s16*)(pArg0 + 0xB4)) {
+            return 0;
+        }
+    }
+    return 1;
+}
 s32 func_8008F720(u8* pArg0, s32 arg1) {
     u8* p1;
 
