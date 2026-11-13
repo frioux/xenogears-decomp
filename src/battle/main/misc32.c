@@ -1,10 +1,12 @@
 #include "common.h"
+#include "psyq/libgte.h"
 
 extern void func_800BDF1C(u8 *pEntry);
 extern void func_8001F6B0(u8 *pObj);
 extern void func_80025180(u8 *pData);
 extern void func_8001CE74(u8 *pTask);
 extern void TimerWorkListRemoveTask(u8 *pTask);
+extern MATRIX D_800D30BC;
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BCC60);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BCD8C);
@@ -101,8 +103,73 @@ void func_800BD7A0(u8 *pEntry) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BD810);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BD974);
+
+void func_800BD974(SVECTOR *pVec, s32 *pOut) {
+    SVECTOR vec; // unused: reproduces retail's 0x40 frame
+    s16 sxy[4];
+    s32 p;
+    s32 flag;
+    s32 ofx;
+    s32 ofy;
+
+    SetRotMatrix(&D_800D30BC);
+    SetTransMatrix(&D_800D30BC);
+    RotTransPers(pVec, (s32 *)sxy, &p, &flag);
+    ReadGeomOffset(&ofx, &ofy);
+    pOut[0] = (sxy[0] - ofx) * 2;
+    pOut[1] = (sxy[1] - ofy) * 2;
+    pOut[2] = ReadGeomScreen();
+}
+/* best 89.20%: three families of difference left.
+   1. gcc 2.7.2 folds the geom-state store into one address (`lui; addiu %lo+0x1C`)
+      or, through a pointer local, into `$at`; retail keeps the plain base symbol
+      in $s0 and stores with `sw $v0,0x1C($s0)`, reusing $s0 for CompMatrix.
+      Tried: a struct type on the extern, `u8 D_800C3760[]` + offset, a
+      BattleGeomState* and a MATRIX* local (`&pGeom->t[2]`): 77.95 at worst.
+   2. retail loads the three SVECTOR halves with `lh`, gcc with `lhu`.
+   3. retail's `i = 0` lands after the ShadeTriangle-free prologue block, gcc
+      hoists it to the ReadGeomScreen delay slot.
+   Everything else (matrix chain, the 0x18-stride loop, frame) is exact.
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BDA1C);
+typedef struct {
+    // 0x00
+    u8 unk0[0x1C];
+    // 0x1C
+    s32 geomScreen;
+} BattleGeomState;
+
+extern BattleGeomState D_800C3760;
+extern void func_800BD810(u8 *pEntry, u8 *pData);
+
+void func_800BDA1C(u8 *pTask) {
+    u8 *pData;
+    MATRIX mtx;
+    SVECTOR vec;
+    s32 sxy[3];
+    s32 i;
+    u8 *pEntry;
+
+    pData = *(u8 **)(pTask + 0x4);
+    D_800C3760.geomScreen = ReadGeomScreen();
+    vec.vx = *(s16 *)(pData + 0x4A);
+    vec.vy = *(s16 *)(pData + 0x4E);
+    vec.vz = *(s16 *)(pData + 0x52);
+    func_800BD974(&vec, sxy);
+    RotMatrix((SVECTOR *)(pData + 0x40), &mtx);
+    TransMatrix(&mtx, sxy);
+    CompMatrix((MATRIX *)&D_800C3760, &mtx, &mtx);
+    ScaleMatrix(&mtx, (VECTOR *)(pData + 0x58));
+    SetRotMatrix(&mtx);
+    SetTransMatrix(&mtx);
+    i = 0;
+    pEntry = pData + 0x90;
+    while (i != *(s32 *)(pData + 0x8C)) {
+        func_800BD810(pEntry, *(u8 **)(pData + 0x80));
+        i++;
+        pEntry += 0x18;
+    }
+}
+*/
 
 void func_800BDB08(u8 *pTask) {
     void (*pCallback)(u8 *);
@@ -117,7 +184,30 @@ void func_800BDB08(u8 *pTask) {
     }
 }
 
+/* best 86.00%: two differences, both compiler properties.
+   1. cse forwards the `sb` of call 1's result into call 2's argument
+      (`andi $a0,$v0,0xff`, and the `sb` is deferred into call 2's delay slot);
+      retail reloads with `lbu $a0,0x80($s0)` as if the field were volatile.
+   2. retail copies the task into $s1 (`move $s1,$s0` after the third call) and
+      calls the callback through it; gcc uses $s0 directly for both `lw 0xC`
+      and `move $a0`.
+   gcc-2.7.2-cdk scores 90.5 but cannot be used: the preset is per-file.
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BDB74);
+extern u8 func_80021AD8(u8 arg0, s16 arg1);
+
+void func_800BDB74(u8 *pTask) {
+    void (*pCallback)(u8 *);
+
+    func_800BDF1C(pTask);
+    pTask[0x80] = func_80021AD8(pTask[0x80], -8);
+    pTask[0x81] = func_80021AD8(pTask[0x80], -8);
+    pTask[0x82] = func_80021AD8(pTask[0x80], -8);
+    if (--*(s32 *)(pTask + 0x88) < 0 || (pTask[0x80] | pTask[0x81] | pTask[0x82]) == 0) {
+        pCallback = *(void (**)(u8 *))(pTask + 0xC);
+        pCallback(pTask);
+    }
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BDC14);
 /* best 83.40%: only the base register of the four accesses in the `if` body
    differs. gcc hoists the call's `move $4,$16` to the top of the block and
@@ -144,7 +234,30 @@ void func_800BDC14(Misc32Task *pTask) {
     }
 }
 */
+/* best 87.50%: the whole body matches; only the callback address is ordered
+   differently. Retail emits `lui a1,%hi; move a0,s0; jal; addiu a1,%lo`, i.e.
+   the %hi/%lo pair is split around the move - the cdk two-insn `la`. gcc 2.7.2
+   emits `la` as one macro that maspsx expands adjacently, so reorg steals the
+   `move a0,s0` into the slot instead. gcc-2.7.2-cdk scores 93.75, still not
+   100 (the addiu stays next to the lui there too). Tried: the address in a
+   function-pointer local assigned last.
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BDC78);
+extern void TimerWorkListSetTaskCallback(u8 *pTask, void (*pCallback)(u8 *));
+extern void func_800BDC14(u8 *pTask);
+
+void func_800BDC78(u8 *pTask) {
+    func_800BDF1C(pTask);
+    if (pTask[0x7C] != 0) {
+        *(s32 *)(pTask + 0x48) += 0xC0000;
+    } else {
+        *(s32 *)(pTask + 0x48) -= 0xC0000;
+    }
+    if (--*(s32 *)(pTask + 0x88) < 0) {
+        *(s32 *)(pTask + 0x88) = 0x10;
+        TimerWorkListSetTaskCallback(pTask, func_800BDC14);
+    }
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BDCF8);
 /* best 81.60%: same $at macro-store problem as func_800BCD8C. Retail hoists
    `lui v0,%hi(D_800D2D68)`, expands the store with $v0 and reorg fills the
