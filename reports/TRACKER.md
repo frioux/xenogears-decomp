@@ -2483,3 +2483,19 @@ after the round-31 precedent. Two macros' worth of knowledge, now in the file's 
   inside the block.
 - `VectorNormalS` (5 insns) branches into the *middle* of `VectorNormalSS`; no C
   definition can, so it stays a stub.
+| 33 | `slus_006.64/psyq/libgte` (2nd), `battle/{misc30,misc4,misc29}`, `battling/{misc14,misc12,misc17,misc18,misc1}`, `world_map/{misc5,misc6,misc15,misc3}` | +13 | 1373 | battle/misc30 3 (`AB0C ADD4 ACBC`? see its file), psyq/libgte 2 more, world_map/misc3 2, battling/misc1 2, misc17 1, misc18 1, world_map/misc5 1, misc6 1; one conversion (`func_80090CC0`) was reverted to its stub. All thirteen committed, overlay green on the first try |
+
+Session 10 total: **1435 -> 1373 stubs (+62)**, eleven outputs byte-identical throughout,
+and three durable tools/findings that outlive the matches:
+
+1. `tools/rounds/park_sweep.py` - the cdk / 2.6.0 / -G0 park sweep, run over 106 units. The
+   three compiler axes are now exhausted at park level, exactly as session 8's maspsx
+   sweep was, so **a parked body that is not 100.0 under some preset is a dead park**.
+2. `tools/scripts/sizes.py` - names the function whose compiled size is wrong, instead of
+   bisecting a 334-symbol `culprit.sh` diff. Zero flagged in the tree as of this commit.
+3. The short-caller failure mode (`battle/misc27_b`): converting a callee can shrink an
+   already-matched caller by dropping a callee-saved pair, and objdiff reports 100.00 for
+   both. Only the overlay checksum sees it; `sizes.py` names it.
+
+Still open, with evidence: `battle/misc19`'s 5-run split (2 functions, 4 new files) and the
+`field/main/*` units whose `.rodata`/`.data` subsegments keep them unsplittable.
