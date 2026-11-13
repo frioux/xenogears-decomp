@@ -322,8 +322,102 @@ void func_801CF37C(void) {
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc4", func_801CF5E4);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc4", func_801CF8D8);
+/* 70.72% (548 vs 620 bytes): the two func_8002675C calls and the AddPrim
+   loop are in place; what is still wrong is the register/stack-arg layout of
+   the six loop-invariant constants (retail hoists 0x1E/0x1B/0x36/0x1000/0x4D94
+   into $s4/$s6/$fp/$s7/$s3 with i in $s1, mine allocates differently) and the
+   `rendered[2]` flag array, so the whole prologue and most operands differ.
+void func_801CF8D8(void) {
+    s32 x0 = 0x1E;
+    s32 x1 = 0x1B;
+    s32 y = 0x36;
+    s32 scale = 0x1000;
+    s32 base = 0x4D94;
+    u8 rendered[2] = { 0, 0 };
+    u8* pData;
+    s32 count;
+    s32 i;
+    s32 j;
+
+    for (i = 0; i < 2; i++) {
+        pData = (u8*)g_Menu->menuUnk2;
+        if (pData[0x4FE4 + i] && g_Menu->pManager->unk63[5]) {
+            func_8002675C(g_Menu->resources,
+                          (((u8*)g_Menu->pManager)[0x2F] && i == D_801E981C[pData[0x4F7C]] / 16)
+                              ? 0x122
+                              : 0x115,
+                          (POLY_FT4*)(pData + base), g_Menu->renderContext, x0, y, scale);
+            count = func_8002675C(g_Menu->resources, i + 0x162, (POLY_FT4*)(pData + base + 0x50),
+                                  g_Menu->renderContext, x1, y, scale);
+            rendered[i] = 1;
+        }
+        if (rendered[i]) {
+            for (j = 0; j < count; j++) {
+                AddPrim(&g_Menu->pGfxEnv->ot[4],
+                        (void*)((u32)((u8*)g_Menu->menuUnk2 + base) +
+                                ((2 * j + g_Menu->renderContext) * sizeof(POLY_FT4) + 0x50)));
+            }
+            AddPrim(&g_Menu->pGfxEnv->ot[4],
+                    (void*)((u32)((u8*)g_Menu->menuUnk2 + base) +
+                            g_Menu->renderContext * sizeof(POLY_FT4)));
+        }
+        base += 0xF0;
+        x0 += 0x90;
+        x1 += 0x90;
+    }
+}
+*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc4", func_801CFB48);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc4", func_801CFF64);
+typedef struct {
+    /* 0x00 */ u8 unk0[0x8];
+    /* 0x08 */ s16 unk8;
+    /* 0x0A */ s16 unkA;
+    /* 0x0C */ s16 unkC;
+    /* 0x0E */ s16 unkE;
+    /* 0x10 */ s16 unk10;
+    /* 0x12 */ s16 unk12;
+    /* 0x14 */ s16 unk14;
+    /* 0x16 */ s16 unk16;
+} MenuUnk44CEntry; // Size: 0x18
+/* 97.97%: identical instruction multiset; the only deltas are the div-by-6
+   magic.  Retail materialises the constant's lui one instruction early (inside
+   the last store's address computation) and so keeps 0x68 in $a2, putting
+   unk2D8 in $a0 and the magic in $a1; gcc materialises lui+ori both after the
+   store, so 0x68 takes $a1 and the div lands in $v1/$v0/$t0.
+   The condition must be written `rem >= 4` (sltiu+beqz), not `< 4`.
+
+void func_801CFF64(void) {
+    s32 value;
+
+    if (((u8*)g_Menu->pManager)[0x52] == 0) {
+        return;
+    }
+    ((MenuUnk44CEntry*)(((u8**)g_Menu->unk44C)[0] + ((u8**)g_Menu->unk44C)[0][0x7B8] * 0x18))->unk8 = 0x20;
+    ((MenuUnk44CEntry*)(((u8**)g_Menu->unk44C)[0] + ((u8**)g_Menu->unk44C)[0][0x7B8] * 0x18))->unkA = 0x61;
+    ((MenuUnk44CEntry*)(((u8**)g_Menu->unk44C)[0] + ((u8**)g_Menu->unk44C)[0][0x7B8] * 0x18))->unkC =
+        *(u16*)(((u8**)g_Menu->unk44C)[0] + 0x7B0) + 0x20;
+    ((MenuUnk44CEntry*)(((u8**)g_Menu->unk44C)[0] + ((u8**)g_Menu->unk44C)[0][0x7B8] * 0x18))->unkE = 0x61;
+    ((MenuUnk44CEntry*)(((u8**)g_Menu->unk44C)[0] + ((u8**)g_Menu->unk44C)[0][0x7B8] * 0x18))->unk10 = 0x20;
+    ((MenuUnk44CEntry*)(((u8**)g_Menu->unk44C)[0] + ((u8**)g_Menu->unk44C)[0][0x7B8] * 0x18))->unk12 = 0x68;
+    ((MenuUnk44CEntry*)(((u8**)g_Menu->unk44C)[0] + ((u8**)g_Menu->unk44C)[0][0x7B8] * 0x18))->unk14 =
+        *(u16*)(((u8**)g_Menu->unk44C)[0] + 0x7B0) + 0x20;
+    ((MenuUnk44CEntry*)(((u8**)g_Menu->unk44C)[0] + ((u8**)g_Menu->unk44C)[0][0x7B8] * 0x18))->unk16 = 0x68;
+    if (g_Menu->unk2D8 % 6 >= 4 || ((u8*)g_Menu->pManager)[0x52] == 2) {
+        func_801CE2B4(2, (POLY_FT4*)(((u8**)g_Menu->unk44C)[0] + 0x3F0), ((u8**)g_Menu->unk44C)[0][0x7B8]);
+    }
+    func_801CE2B4(0xC, (POLY_FT4*)(((u8**)g_Menu->unk44C)[0] + 0x30), ((u8**)g_Menu->unk44C)[0][0x7B8]);
+    AddPrim(&g_Menu->pGfxEnv->ot[4],
+            (void*)(((u8**)g_Menu->unk44C)[0] + ((u8**)g_Menu->unk44C)[0][0x7B8] * 0x18));
+    if (((u8*)g_Menu->pManager)[0x52] == 1) {
+        value = *(s32*)(((u8**)g_Menu->unk44C)[0] + 0x7B0) + *(s32*)(((u8**)g_Menu->unk44C)[0] + 0x7B4);
+        *(s32*)(((u8**)g_Menu->unk44C)[0] + 0x7B0) = value;
+        if (value >= 0x101) {
+            *(s32*)(((u8**)g_Menu->unk44C)[0] + 0x7B0) = 0;
+        }
+    }
+}
+*/
 void func_801D01D0(void) {
     func_801CF37C();
     func_801CF5E4(0, 0, 0x10);
