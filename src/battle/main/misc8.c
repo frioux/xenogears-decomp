@@ -22,6 +22,7 @@ extern u8 D_800D3420[];
 extern u8 D_800D3430[];
 extern u8 func_8007A628(u8 arg0, u8 arg1);
 extern u16 func_80089C08(u8 arg0);
+extern u8 func_80079E7C(u16 arg0);
 extern u8 D_800D2E06[];
 extern u8 *D_800D3364;
 extern u8 D_800CCD34[];
@@ -137,6 +138,39 @@ void func_8007C9D4(u8 **arg0, u8 arg1) {
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007C9D4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007CB20);
+/* best: 93.49%. Prologue, loop and the count!=0 guard match instruction for
+   instruction; only the final row store differs. Retail materialises the
+   base+arg1*0x40 sum in a caller-saved temp (lui a1,%hi / addiu / addu
+   a0,a0,a1) and then adds the index, gcc folds the whole address into $at
+   (lui at / addu at,at,a0), and using a second pointer local for that store
+   instead makes cse hoist the base into a callee-saved register before the
+   call (85.07%). Tried: inline base+index, index-first with a cast,
+   `(u16 *)(base) + (*arg0)[1]` (this one), a second pointer local.
+*/
+void func_8007CB20(u8 **arg0, u8 arg1) {
+    u8 buf[8];
+    s32 i = 3;
+    s32 count = 0;
+    s32 record = 0x18;
+    u8 *pBuf = buf;
+    u16 *pField = (u16 *)(D_800D3420 + arg1 * 0x40);
+
+    pField[(*arg0)[1]] = 0;
+    for (; i < 0xB; i++, record += 8) {
+        u8 idx = i;
+
+        if (func_8007A628(idx, (*arg0)[2]) != 0 && D_800D32A1[record] != 0) {
+            *pBuf++ = idx;
+            count++;
+        }
+    }
+    if (count != 0) {
+        u16 result = func_80089C08(buf[func_8001BD40(0, count - 1)]);
+        u16 *pDst = (u16 *)(D_800D3420 + arg1 * 0x40) + (*arg0)[1];
+
+        *pDst = result;
+    }
+}
 void func_8007CC50(u8 **arg0, u8 arg1) {
     u8 *pRow;
     s32 count = 0;
@@ -218,7 +252,24 @@ void func_8007CEA4(u8 **arg0, u8 arg1) {
     pCount[(*arg0)[1]] = count;
 }
 */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007CFB8);
+void func_8007CFB8(u8 **arg0, u8 arg1) {
+    u8 *pRow;
+    s32 count = 0;
+    s32 i = 3;
+    u16 *pField = (u16 *)(D_800D3420 + arg1 * 0x40);
+    s32 offset = 0x54;
+
+    for (; i < 0xB; offset += 0x1C, i++) {
+        if (func_8007A628(i, 0) != 0) {
+            s32 other = func_80079E7C(pField[(*arg0)[2]]) * 0x1C;
+            if (D_800C3EB4[offset] == D_800C3EB4[other]) {
+                count++;
+            }
+        }
+    }
+    pRow = &D_800D3430[arg1 * 0x40];
+    pRow[(*arg0)[1]] = count;
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007D0CC);
 /* best: 85.97%. Loop body and the D_800D2CE0/D_800D2CB0 at-register lookups
    match exactly; the prologue order does not - the original forms the
