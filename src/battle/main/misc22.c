@@ -50,6 +50,32 @@ typedef struct {
     /* 0xD */ u8 padD;
 } BattleMisc22Entry; // Size: 0xE
 
+typedef struct {
+    /* 0x00 */ s16 unk0;
+    /* 0x02 */ u8 unk2;
+    /* 0x03 */ u8 unk3;
+    /* 0x04 */ void *unk4;
+    /* 0x08 */ s32 unk8;
+    /* 0x0C */ s16 unkC;
+    /* 0x0E */ s16 unkE;
+    /* 0x10 */ s16 unk10;
+    /* 0x12 */ s16 pad12;
+    /* 0x14 */ s16 unk14;
+    /* 0x16 */ s16 unk16;
+    /* 0x18 */ s16 unk18;
+    /* 0x1A */ u8 pad1A[0x42];
+    /* 0x5C */ s16 unk5C;
+    /* 0x5E */ s16 unk5E;
+    /* 0x60 */ s16 unk60;
+    /* 0x62 */ u16 unk62;
+    /* 0x64 */ s16 unk64;
+    /* 0x66 */ s16 unk66;
+    /* 0x68 */ s16 unk68;
+    /* 0x6A */ s16 unk6A;
+    /* 0x6C */ s16 unk6C;
+    /* 0x6E */ s16 unk6E;
+} BattleMisc22Cmd; // Size: 0x70
+
 extern s32 D_800D3344;
 extern s32 D_800D39CC;
 extern s32 D_800D3348;
@@ -106,6 +132,43 @@ s32 func_800A2F94(BattleMisc22Unk *pArg, u8 *pEnd) {
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A2FD8);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A32D8);
+/* 74.17%, identical registers and exactly 428 bytes; the one difference is that
+   gcc forwards the stored angle into the dividend instead of reloading the
+   field (original: sh 0x64 ... lh 0x64, div). Making unk64/66/68 volatile
+   forces the reload but costs a lhu + sll/sra pair: 86.36%, 452 bytes.
+s32 func_800A32D8(BattleMisc22Cmd *pCmd, void *pData, s16 arg2, u8 arg3, s16 count,
+                  u16 divisor, u8 a, u8 b, u8 c, u8 d, u8 e, u8 f,
+                  u16 w0, u16 w1, u16 w2, u16 w3, u16 w4, u16 w5, u16 b3) {
+    if (pCmd != 0) {
+        pCmd->unk3 = b3;
+        pCmd->unk5E = -1;
+        pCmd->unk0 = arg2;
+        pCmd->unk2 = arg3;
+        pCmd->unk4 = pData;
+        pCmd->unkC = w0;
+        pCmd->unkE = w1;
+        pCmd->unk10 = w2;
+        pCmd->unk14 = w3;
+        pCmd->unk16 = w4;
+        pCmd->unk18 = w5;
+        pCmd->unk5C = 0;
+        if (count < 7) {
+            pCmd->unk60 = count;
+        } else {
+            pCmd->unk60 = 7;
+        }
+        pCmd->unk64 = a * 64;
+        pCmd->unk6A = (pCmd->unk64 - d * 64) / (s16)divisor;
+        pCmd->unk66 = b * 64;
+        pCmd->unk6C = (pCmd->unk66 - e * 64) / (s16)divisor;
+        pCmd->unk68 = c * 64;
+        pCmd->unk6E = (pCmd->unk68 - f * 64) / (s16)divisor;
+        pCmd->unk62 = divisor;
+        pCmd->unk8 = 0;
+        return 0;
+    }
+}
+*/
 void func_800A3484(s16 *pArg) {
     *pArg = -1;
 }
@@ -222,7 +285,28 @@ void func_800A4820(void) {
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A48EC);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A4B3C);
+s32 func_800A4B3C(u16 *pPos, s16 *pTarget) {
+    s32 result = 0;
+    u16 *pSrc = D_800D2FD0;
+    s32 i;
+
+    for (i = 0; i < D_800D2FC8; i++) {
+        s32 dx = *pSrc++ - pPos[0];
+        s32 dz = *pSrc++ - pPos[2];
+        s16 limit = *pSrc++;
+        s32 d0 = pTarget[0] - (s16)dx;
+        s32 d1 = pTarget[2] - (s16)dz;
+        s32 dist = SquareRoot0(d0 * d0 + d1 * d1) + 1;
+
+        if (dist < limit) {
+            pTarget[0] = dx + d0 * limit / dist;
+            pTarget[2] = dz + d1 * limit / dist;
+            result = 1;
+            break;
+        }
+    }
+    return result;
+}
 void func_800A4CF8(void *pArg) {
     s16 a;
     s16 b;
