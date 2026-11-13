@@ -15,8 +15,10 @@
 //   - dead code: InvSquareRoot's `andi $t0,$v0,1` (never read) and
 //     ApplyMatrixLV's `sra $t3,$t0,15` at 0x800494D0, which is jumped over
 //   - a private calling convention, operands and results in $t0-$t2 with $ra
-//     parked in $a3: func_80048DD8, MatrixNormal, VectorNormal, VectorNormalSS,
-//     and VectorNormalS, which branches into the middle of VectorNormalSS
+//     parked in $a3: func_80048DD8, MatrixNormal, and VectorNormalS, which
+//     branches into the middle of VectorNormalSS (the label lives in the C).
+//     VectorNormal and VectorNormalSS do match: they are transcribed above as
+//     the asm Sony wrote, and maspsx supplies the jal delay-slot nop.
 //   - GTE registers packed by hand around three MVMVAs (lhu + lw + lui 0xFFFF0000
 //     then and/or): SetMulMatrix, CompMatrix
 //   - $ra spilled to the global D_80056D20 around a printf and the stack depth
@@ -87,6 +89,8 @@ long VectorNormalSS(SVECTOR *v0, SVECTOR *v1) {
                       "lh\t$10, 4( $4 )\n\t"
                       "nop\n\t"
                       "addu\t$7, $31, $zero\n\t"
+                      /* VectorNormalS branches here instead of repeating the body. */
+                      ".L80048DBC:\n\t"
                       "jal\tfunc_80048DD8\n\t"
                       "addu\t$31, $7, $zero"
                       : "=r"(t0), "=r"(t1), "=r"(t2) : : "$7", "memory");
