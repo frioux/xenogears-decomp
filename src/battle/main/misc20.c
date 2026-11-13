@@ -99,13 +99,6 @@ void func_8009D354(void) {
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc20", func_8009D3A0);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc20", func_8009D948);
-/* best 95.32%: head, loop and both stores match exactly. Only the last
-   return-value mask is emitted after the `lw ra` of the epilogue instead of
-   in the join block, and the stack restore takes the jr delay slot (the
-   original leaves it as a nop). Three declarations/mask shapes (u16 vs s32
-   return, two returns, explicit `& 0xFFFF`) all reproduce the same epilogue.
-   Note the call returns int (declaring it u16 moves the mask to the call).
 u16 func_8009D948(void) {
     u16 ret = func_80096FBC();
     u16 f;
@@ -126,7 +119,6 @@ u16 func_8009D948(void) {
     }
     return ret;
 }
-*/
 /* best 98.21%: arm order, both divide-by-100 sites, the shared guard add and
    the return mask all match. Remaining: the guard add comes out as
    `addu a1,a1,v0` after the branch instead of the original's speculative

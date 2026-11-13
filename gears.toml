@@ -321,8 +321,7 @@ build_variables = {
 # 2.7.2-cdk, and their parked bodies are 100.0 there against 63-99% under 2.7.2).
 paths = [
     "battle/main/misc27.",
-    "battle/main/misc27_b.",
-    "battle/main/misc33."
+    "battle/main/misc27_b."
 ]
 
 # The park sweep's -G0 units: a parked body that is 100.0 only with -G0, while every
@@ -335,7 +334,7 @@ build_variables = {
     gp_flag = "-G0",
     maspsx_flags = "--dont-expand-li --use-comm-section --run-assembler"
 }
-paths = [ "battle/main/misc28.", "battle/main/misc34." ]
+paths = [ "battle/main/misc28.", "battle/main/misc33.", "battle/main/misc34." ]
 
 [[build_preset]]
 name = "XenoFieldNoGp"

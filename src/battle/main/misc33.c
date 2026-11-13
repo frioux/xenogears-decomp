@@ -142,26 +142,18 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BE790);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BEB04);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BEBC4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BEC18);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BED30);
-/* best 73.57%: retail expands the bare zero stores with lui $v0 as the scratch,
-   maspsx leaves them to GNU as, which always uses $at. Unfixable in C.
 void func_800BED30(void) {
     D_800C3E20 = 0;
     D_800C3610 = NULL;
     D_800D2E54 = 0;
 }
-*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BED4C);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BEDE8);
-/* untested: same bare global stores as func_800BED30, so the $at expansion
-   probably blocks it too.
 void func_800BEDE8(void) {
     HeapFree(D_800C3610);
     D_80059464 = 0;
     D_800C3610 = NULL;
     D_800591AC = 0;
 }
-*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BEE2C);
 s32 func_800BEEB4(u16 mask, void **pOut, s32 arg2) {
     u8 *pBase;
@@ -227,9 +219,6 @@ void func_800BF0B4(s32 arg0) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BF0C4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BF1EC);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BF2B8);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BF354);
-/* untested: retail keeps the flag address in s0 across the call; gcc 2.7.2
-   rematerialises it from %hi instead, which costs the saved register.
 s32 func_800BF354(void) {
     s32 ret;
 
@@ -239,14 +228,10 @@ s32 func_800BF354(void) {
     }
     return ret;
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BF3A4);
-/* best 71.35%: same rematerialisation as func_800BF354.
 void func_800BF3A4(void) {
     if (D_800D3350 != 0) {
         func_800C1140(D_800C3618);
         D_800D3350 = 0;
     }
 }
-*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BF3E8);
