@@ -226,41 +226,42 @@ s32 func_800889C8(void) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc12", func_80088A40);
 
-/* Best attempt: objdiff 61.85% (up from 47.28% with the pointer-local shape that
-   func_80088940 needs; the store address now stays in a register instead of
-   being rematerialised into $at). What is left is the original's five DEFERRED
-   stores: it loads D_8006F980 once, keeps all five statement values live in
-   $a2,$a1,$a0,$v1,$t0 and stores them together after the last field load, while
-   gcc stores each value as it is computed and reuses one register. The masks,
-   the five field loads and the shifts all match. Unclear how C source defers
-   stores past the following global loads (they must alias), so this may not be
-   reachable from C at all. */
+/* Best attempt: objdiff 86.96% (the same body written as five plain locals with
+   a cached s32 was 61.85%; gcc 2.7.2-cdk scores 84.13 and 2.6.0 does not
+   compile it). Writing the read-modify-write as bitfield stores on
+   (BattleFlagBits*)&D_8006F980 reproduces everything: the single lw, the five
+   clearing masks (~0xF, ~0x10, ~0x20, ~0xFFFFE03F, ~0xFFFF1FFF), the five value
+   registers ($a2,$a1,$a0,$v1,$t0) and the lbu/andi/sll/or chain. The only
+   difference left is store placement: retail defers the first four stores until
+   after the fourth lbu and issues them together (sw a2/a1/a0/v1), gcc stores
+   each value as its bitfield assignment completes (sw a2 after the first lbu,
+   ...). No C shape found that holds a store back past a load, so this may be
+   unreachable; the typedef is kept here because the body is otherwise exact. */
 /*
+typedef struct {
+    u32 mode : 4;
+    u32 flagB : 1;
+    u32 flagC : 1;
+    u32 value : 7;
+    u32 scale : 3;
+    u32 pad : 16;
+} BattleFlagBits;
+
 void func_80088A40(void) {
-    s32* pFlags;
-    s32 v0;
-    s32 v1;
-    s32 v2;
-    s32 v3;
-    s32 v4;
+    BattleFlagBits* pFlags;
 
     if (D_8005061C == 0) {
         return;
     }
-    pFlags = &D_8006F980;
-    v0 = *pFlags;
-    v0 = (v0 & 0xFFFFFFF0) | 1;
-    v1 = (v0 & 0xFFFFFFEF) | ((D_80099D9B & 1) << 4);
-    v2 = (v1 & 0xFFFFFFDF) | ((D_80099D9C & 1) << 5);
-    v3 = (v2 & 0xFFFFE03F) | ((D_80099D9F & 0x7F) << 6);
-    v4 = (v3 & 0xFFFF1FFF) | ((D_80099D98 & 7) << 13);
-    *pFlags = v0;
-    *pFlags = v1;
-    *pFlags = v2;
-    *pFlags = v3;
-    *pFlags = v4;
+    pFlags = (BattleFlagBits*)&D_8006F980;
+    pFlags->mode = 1;
+    pFlags->flagB = D_80099D9B & 1;
+    pFlags->flagC = D_80099D9C & 1;
+    pFlags->value = D_80099D9F & 0x7F;
+    pFlags->scale = D_80099D98 & 7;
 }
 */
+
 void func_80088AF8(void) {
     u32 flags;
     u32* pFlags;
@@ -333,7 +334,60 @@ void func_80088CBC(s32 slot) {
     pEntry->unk82 = GetClut(0x3F0, 0xC0);
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc12", func_80088D1C);
+extern u8 func_80088BFC[];
+extern u8 D_80091BB0[];
+extern s32 D_80010000;
+extern void* D_80092868;
+extern void* D_80092870;
+extern s32 D_800928CC;
+extern u16 D_80092898;
+extern s32 D_8009289C;
+extern u16 D_800928D0;
+extern s32 D_800928E8;
+extern s32 D_80092930;
+extern u8 D_800928A0;
+extern u8 D_80092920;
+extern void* FontLoadFont(s32, s32, s32, s32, s32, u32, s32, s32, s32, s32, void*);
+extern void func_8008A110(s32, s32);
+extern void func_8008A128(s32, s32);
+extern void func_8008E620(void);
+
+void func_80088D1C(void) {
+    RECT rect;
+
+
+    DrawSyncCallback((void (*)())((u8*)func_80088BFC + 4));
+    InitGeom();
+    HeapChangeCurrentUser(6, (char**)D_80091BB0);
+    ArchiveSetIndex(0x30, 0);
+    FontLoadFont(4, 2, 0x138, 0xDA, 0x14, 1, 0x3C0, 0x1F0, 0x3C0, 0x1EF, 0);
+    func_80088CBC(0);
+    func_80088CBC(1);
+    switch (D_80010000) {
+    case -1:
+        D_800928CC = 2;
+        break;
+    case 0:
+        D_800928CC = 1;
+        break;
+    default:
+        D_800928CC = 0;
+        break;
+    }
+    D_80092868 = D_8009A0D8;
+    D_80092870 = &D_8009A0D8[1];
+    func_8008A110(-1, -1);
+    func_8008A128(-1, -1);
+    D_80092898 = 2;
+    D_8009289C = 1;
+    D_80092930 = 0;
+    D_800928E8 = 0;
+    D_800928A0 = 0;
+    D_80092920 = 0;
+    D_80092930 = 0;
+    D_800928D0 = 7;
+    func_8008E620();
+}
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc12", func_80088E90);
 
