@@ -143,7 +143,7 @@ u8 func_80084750(u8 arg0) {
     }
     return D_800C3E90[0];
 }
-}
+*/
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80084854);
 void func_80084A7C(u8 arg0) {
