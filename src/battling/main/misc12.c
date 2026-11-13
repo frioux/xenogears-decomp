@@ -31,6 +31,39 @@ typedef struct {
     /* 0x84 */ u8 unk84[0x74];
 } BattleEntry; // Size: 0xF8
 
+// 0x10-byte GPU tile packet: tag word (with its length byte), the primitive
+// code word, then the position and size halfwords.
+typedef struct {
+    /* 0x0 */ u8 tag[3];
+    /* 0x3 */ u8 len;
+    /* 0x4 */ u32 code;
+    /* 0x8 */ u16 x;
+    /* 0xA */ u16 y;
+    /* 0xC */ u16 w;
+    /* 0xE */ u16 h;
+} BattleTilePacket; // Size: 0x10
+
+// Sprite set up by func_800897AC: four drawing-mode packets and two tiles.
+typedef struct {
+    /* 0x00 */ u8 unk0[0x16];
+    /* 0x16 */ u8 unk16;
+    /* 0x17 */ u8 unk17;
+    /* 0x18 */ DR_MODE unk18;
+    /* 0x24 */ DR_MODE unk24;
+    /* 0x30 */ DR_MODE unk30;
+    /* 0x3C */ DR_MODE unk3C;
+    /* 0x48 */ BattleTilePacket unk48;
+    /* 0x58 */ BattleTilePacket unk58;
+} BattleSprite; // Size: 0x68
+
+// 0x10-byte block moved around inside the object built by func_80089B44.
+typedef struct {
+    /* 0x0 */ u32 unk0;
+    /* 0x4 */ u32 unk4;
+    /* 0x8 */ u32 unk8;
+    /* 0xC */ u32 unkC;
+} BattleBlk16; // Size: 0x10
+
 // 0x20-byte template copied wholesale into the two env globals below.
 typedef struct {
     /* 0x00 */ u32 unk0;
@@ -42,6 +75,34 @@ typedef struct {
     /* 0x18 */ u32 unk18;
     /* 0x1C */ u32 unk1C;
 } BattleEnv; // Size: 0x20
+
+// The 0x9C-byte object func_80089C54 allocates and func_80089B44 clears.
+typedef struct {
+    /* 0x00 */ u32 unk0;
+    /* 0x04 */ u32 unk4;
+    /* 0x08 */ u32 unk8;
+    /* 0x0C */ BattleBlk16 unkC;
+    /* 0x1C */ BattleBlk16 unk1C;
+    /* 0x2C */ u16 unk2C;
+    /* 0x2E */ u16 unk2E;
+    /* 0x30 */ u16 unk30;
+    /* 0x32 */ u16 unk32;
+    /* 0x34 */ u32 unk34;
+    /* 0x38 */ u32 unk38;
+    /* 0x3C */ u32 unk3C;
+    /* 0x40 */ u32 unk40;
+    /* 0x44 */ u16 unk44;
+    /* 0x46 */ u16 unk46;
+    /* 0x48 */ u16 unk48;
+    /* 0x4A */ u16 unk4A;
+    /* 0x4C */ BattleBlk16 unk4C;
+    /* 0x5C */ BattleBlk16 unk5C;
+    /* 0x6C */ BattleEnv unk6C;
+    /* 0x8C */ u32 unk8C;
+    /* 0x90 */ u32 unk90;
+    /* 0x94 */ u32 unk94;
+    /* 0x98 */ u32 unk98;
+} BattleMisc12Obj; // Size: 0x9C
 
 extern BattleEnv D_80091C0C;
 extern BattleEnv D_80096FE0;
@@ -66,6 +127,8 @@ extern u8** D_800928EC;
 extern BattleEntry D_8009A0D8[];
 
 extern void ArchiveReadFileToBuffer(s32 index, void* pBuffer, u32 arg2, u32 flags);
+extern void func_800453E8(void* pDrmode, void* pRect);
+extern void func_8004546C(void* pDrmode, void* pRect);
 
 extern void func_800888B0(void);
 extern s32 func_800888E4(s32 slot);
@@ -73,10 +136,23 @@ extern void func_8008895C(void);
 extern s32 func_800889C8(void);
 extern void func_80089330(s32, s32);
 extern void func_80089534(s32, s32);
-extern void func_80089B44(void* p);
+extern BattleMisc12Obj* func_80089B44(BattleMisc12Obj* p);
 extern void func_8002DFF0(s32, s32);
 extern void func_80089210(s32, s32);
 extern void func_800898BC(void*, SVECTOR*, SVECTOR*, SVECTOR*);
+
+extern s32 D_8009A0C8;
+extern s32 D_8009A0CC;
+extern s32 D_8009A0D0;
+extern s32 D_8009A918;
+extern s32 D_8009A91C;
+extern s32 D_8009A920;
+extern s32 D_80096F98;
+extern s32 D_80096F9C;
+extern s32 D_80096FA0;
+extern s32 D_80097000;
+extern s32 D_80097004;
+extern s32 D_80097008;
 
 void func_80088940(void) {
     s32 value;
@@ -271,22 +347,72 @@ void func_8008976C(s32 a0, s32 a1) {
     func_80089534(a0, a1);
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc12", func_800897AC);
+void func_800897AC(BattleSprite* p, s32 x, s32 y, s32 w, s32 h, s32 v) {
+    RECT rect;
+    RECT rect2;
 
-/* Not attempted (68 insns, decoded but not written). Signature is
-   (sprite, s16 x, s16 y, s16 w, s16 h, s16 v) with x..v taken from a1,a2,a3 and
-   the two stack slots at 0x50/0x54. Body: RECT at sp+0x10 gets x,y,w,h and
-   func_800453E8(&p->0x18) and (&p->0x24) are called with rect.y = y + v on the
-   second call; a second RECT at sp+0x18 gets only x and y and feeds
-   func_8004546C(&p->0x30) and (&p->0x3C). Then p->0x4B = 3,
-   p->0x4C = 0x60000000, p->0x50 = p->0x52 = 0, p->0x54 = w, p->0x56 = h,
-   a 0x10-byte struct copy from p+0x48 to p+0x58, and p->0x16 |= 0xC.
-   func_800453E8/func_8004546C are (DR_MODE*, RECT*) from psyq/libgpu_b.c, and
-   DR_MODE is 0xC bytes, so p holds four consecutive DR_MODEs at 0x18, 0x24,
-   0x30, 0x3C. Needs a new sprite struct in this unit; the 0x48 block is
-   u32,u32,u16,u16,u16,u16 so it can be copied as a 0x10 struct. */
+    rect.x = x;
+    rect.y = y;
+    rect.w = w;
+    rect.h = h;
+    func_800453E8(&p->unk18, &rect);
+    rect.y = y + v;
+    func_800453E8(&p->unk24, &rect);
+    rect2.x = x;
+    rect2.y = y;
+    func_8004546C(&p->unk30, &rect2);
+    rect2.y = y + v;
+    func_8004546C(&p->unk3C, &rect2);
+    p->unk48.len = 3;
+    p->unk48.code = 0x60000000;
+    p->unk48.x = 0;
+    p->unk48.y = 0;
+    p->unk48.w = w;
+    p->unk48.h = h;
+    p->unk58 = p->unk48;
+    p->unk16 |= 0xC;
+}
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc12", func_800898BC);
+
+/* Best attempt: objdiff 50.18%. The statement order and the four VectorNormal/
+   OuterProduct12 calls are right, but gcc 2.7.2 hoists the materialisation of all
+   four base addresses (&D_8009A0C8, &D_80096F98, &D_8009A918, &D_80097000) to the
+   top of the function, while retail materialises each one right before its first
+   use, after the three D_8009A0C8/CC/D0 difference stores. That shifts every later
+   block. Signatures: (MATRIX*, SVECTOR* pFrom, SVECTOR* pTo, SVECTOR* pScale);
+   pMat->m rows come from the D_80097000 / D_8009A918 / D_80096F98 triples loaded
+   as words and stored as halves, pMat->t = negated D_8009A0C8/CC/D0. */
+/*
+void func_800898BC(MATRIX* pMat, SVECTOR* pFrom, SVECTOR* pTo, SVECTOR* pScale) {
+    D_8009A0C8 = pTo->vx - pFrom->vx;
+    D_8009A0CC = pTo->vy - pFrom->vy;
+    D_8009A0D0 = pTo->vz - pFrom->vz;
+    D_8009A918 = pScale->vx;
+    D_8009A91C = pScale->vy;
+    D_8009A920 = pScale->vz;
+    VectorNormal((VECTOR*)&D_8009A0C8, (VECTOR*)&D_80096F98);
+    OuterProduct12((VECTOR*)&D_8009A918, (VECTOR*)&D_80096F98, (VECTOR*)&D_8009A0C8);
+    VectorNormal((VECTOR*)&D_8009A0C8, (VECTOR*)&D_80097000);
+    OuterProduct12((VECTOR*)&D_80096F98, (VECTOR*)&D_80097000, (VECTOR*)&D_8009A0C8);
+    VectorNormal((VECTOR*)&D_8009A0C8, (VECTOR*)&D_8009A918);
+    pMat->m[0][0] = D_80097000;
+    pMat->m[0][1] = D_80097004;
+    pMat->m[0][2] = D_80097008;
+    pMat->m[1][0] = D_8009A918;
+    pMat->m[1][1] = D_8009A91C;
+    pMat->m[1][2] = D_8009A920;
+    pMat->m[2][0] = D_80096F98;
+    pMat->m[2][1] = D_80096F9C;
+    pMat->m[2][2] = D_80096FA0;
+    ApplyMatrix(pMat, pFrom, (VECTOR*)&D_8009A0C8);
+    MulMatrix2((MATRIX*)&D_80096FE0, pMat);
+    pMat->t[0] = -D_8009A0C8;
+    pMat->t[1] = -D_8009A0CC;
+    pMat->t[2] = -D_8009A0D0;
+}
+*/
+
 
 /*@func_80089A98*/
 void func_80089A98(BattleMisc12Owner* pOwner, VECTOR* pFrom, VECTOR* pTo) {
@@ -308,16 +434,29 @@ void func_80089A98(BattleMisc12Owner* pOwner, VECTOR* pFrom, VECTOR* pTo) {
 }
 /*@@*/
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc12", func_80089B44);
-
-/* Not attempted (68 insns). Zeroes a 0x9C-byte object (see func_80089C54:
-   HeapAlloc(0x9C)) in the order words 0x0,0x8C,0x94,0x90,0x8,0x4; words
-   0x3C,0x38,0x34; halves 0x48,0x46,0x44; halves 0x30,0x2E,0x2C, then copies the
-   0x20-byte template D_80091C0C to p+0x6C, copies p+0x6C..0x7C to p+0x4C,
-   p+0x7C..0x8C to p+0x5C, p+0x4C..0x5C to p+0x0C and p+0x5C..0x6C to p+0x1C
-   (four 0x10-byte struct copies). The odd zeroing order is a source-order
-   question; func_80089210 shows D_80091C0C is a 0x20-byte 4-word-aligned
-   template, so the 0x10 blocks are plausible members of it. */
+BattleMisc12Obj* func_80089B44(BattleMisc12Obj* p) {
+    p->unk0 = 0;
+    p->unk8C = 0;
+    p->unk94 = 0;
+    p->unk90 = 0;
+    p->unk8 = 0;
+    p->unk4 = 0;
+    p->unk3C = 0;
+    p->unk38 = 0;
+    p->unk34 = 0;
+    p->unk48 = 0;
+    p->unk46 = 0;
+    p->unk44 = 0;
+    p->unk30 = 0;
+    p->unk2E = 0;
+    p->unk2C = 0;
+    p->unk6C = D_80091C0C;
+    p->unk4C = *(BattleBlk16*)&p->unk6C;
+    p->unk5C = *((BattleBlk16*)&p->unk6C + 1);
+    p->unkC = p->unk4C;
+    p->unk1C = p->unk5C;
+    return p;
+}
 
 void func_80089C54(void) {
     void* p;
