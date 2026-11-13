@@ -157,42 +157,26 @@ void func_80087AB0(BattlingPacketOwner *arg0) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc11", func_80087B74);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc11", func_80087E38);
-/* Best 98.08%: the only difference is which register gets the sum. The original
-   keeps the base in a0 and the result in v0 (addu v0,v0,a0); gcc reuses the dead
-   base register (addu a0,v0,a0) and the i+1 temp then moves to v0. Tried: p += i,
-   p = p + i, p = &p[i], p = base + i, u8* + i*0x68, n = i + 1, decls outside the
-   if (all 98.08 or worse), &D_8009A988[i] and i + D_8009A988 (84.04).
 void func_80087E38(s32 *arg0) {
     s32 i = D_800928F8;
 
     if (i < 0x1F) {
-        BattlingEntry68 *p = D_8009A988;
+        BattlingEntry68 *p = &D_8009A988[i];
 
-        p += i;
         p->unk0 = arg0[0];
         p->unk2 = arg0[1];
         p->unk4 = arg0[2];
         D_800928F8 = i + 1;
     }
 }
-*/
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc11", func_80087EA0);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc11", func_8008820C);
-/* Best 40.72%: instruction multiset is right, only the addressing base differs.
-   The original keeps p in a2 and stores at 0x30/0x20/... off it; gcc picks
-   p+0x2C as the canonical base and reaches the rest with negative offsets, so
-   the loop induction var and the return copy land in different registers.
-   Tried: p++ in the for-increment (this shape, 40.72).
 void *func_8008820C(s32 *arg0, s32 *arg1, s32 arg2) {
-    BattlingSlot *p = D_80095938;
-    s32 dim14 = (arg2 & 2) * 0x7F;
-    s32 dim15 = (arg2 & 4) * 0x3F;
-    s32 dim16 = (arg2 & 1) * 0xFF;
     s32 i;
 
-    for (i = 0; i < 0x64; i++, p++) {
+    for (i = 0; i < 0x64; i++) {
+        BattlingSlot *p = &D_80095938[i];
+
         if (p->unk30 == 0) {
             p->unk30 = 1;
             p->unk20 = arg0[0];
@@ -200,19 +184,18 @@ void *func_8008820C(s32 *arg0, s32 *arg1, s32 arg2) {
             p->unk24 = arg0[2];
             p->unk28 = arg1[0];
             p->unk2A = arg1[1];
-            p->unk4 = dim14;
-            p->unk5 = dim15;
-            p->unk6 = dim16;
-            p->unk14 = dim14;
-            p->unk15 = dim15;
-            p->unk16 = dim16;
             p->unk2C = arg1[2];
+            p->unk4 = (arg2 & 2) * 0x7F;
+            p->unk5 = (arg2 & 4) * 0x3F;
+            p->unk6 = (arg2 & 1) * 0xFF;
+            p->unk14 = (arg2 & 2) * 0x7F;
+            p->unk15 = (arg2 & 4) * 0x3F;
+            p->unk16 = (arg2 & 1) * 0xFF;
             return p;
         }
     }
     return NULL;
 }
-*/
 void func_800882D4(s32 arg0, s32 *arg1, s32 arg2, s16 arg3) {
     u8 *p = func_8008820C(arg0, arg1, arg2);
 
