@@ -2,6 +2,7 @@
 #include "system/memory.h"
 #include "psyq/libgte.h"
 #include "psyq/libcd.h"
+#include "psyq/libgpu.h"
 
 typedef struct {
     /* 0x00 */ u16 unk0;
@@ -197,7 +198,29 @@ void func_80096F18(Misc15Xform *pOut, u8 *pSrc, s32 height, u8 *pAngles) {
     ApplyMatrix((MATRIX *)0x1F8000F0, (SVECTOR *)0x1F8000A0, (VECTOR *)((u8 *)pOut + 0x10));
 }
 */
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_80097070);
+typedef struct {
+    /* 0x0 */ s16 unk0;
+    /* 0x2 */ s16 unk2;
+    /* 0x4 */ s16 unk4;
+} Misc15Rot; // Size: 0x6
+
+void func_80097070(MATRIX *pMtx, Misc15Rot *pRot) {
+    u16 *pAngles = (u16 *)pMtx;
+
+    if ((pAngles[6] | pAngles[8]) == 0) {
+        return;
+    }
+    pRot->unk2 = ratan2((s16)pAngles[6], (s16)pAngles[8]) & 0xFFF;
+    *(MATRIX *)0x1F8000F0 = *pMtx;
+    *(MATRIX *)0x1F800110 = D_8009A180;
+    RotMatrixY(pRot->unk2, (MATRIX *)0x1F800110);
+    MulMatrix0((MATRIX *)0x1F8000F0, (MATRIX *)0x1F800110, (MATRIX *)0x1F800130);
+    pRot->unk0 = ratan2(*(s16 *)0x1F80013A, *(s16 *)0x1F800138);
+    *(MATRIX *)0x1F800110 = D_8009A180;
+    RotMatrixX(pRot->unk0, (MATRIX *)0x1F800110);
+    MulMatrix0((MATRIX *)0x1F800130, (MATRIX *)0x1F800110, (MATRIX *)0x1F8000F0);
+    pRot->unk4 = -ratan2(*(s16 *)0x1F8000F6, *(s16 *)0x1F8000F8);
+}
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_80097244);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_80097440);
 
@@ -322,42 +345,45 @@ void func_800978FC(void) {
 }
 */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_800979C8);
-// Best: 92.13%. Body, both rects, both GetClut/GetTPage loops and the frame
-// (0x38, ra + s0-s5) are instruction-identical; the only diff is register
-// NUMBERING in the second half - retail puts the loop counter i in s2 and the
-// D_8009CCB4/CD54/CD5C pointer in s3, we get the reverse, which also moves the
-// prologue's `sw <i>` + `move <i>,zero` pair and the counter of the two tpage
-// loops. Swapping the declarations of i and pClut does not move it.
-// Before un-parking: add #include "psyq/libgpu.h" (RECT/StoreImage/GetTPage),
-// and D_8009BB48 (the func_800931D8 factor table) is a label INSIDE
-// asm/world_map/data/2A39C.data.s, absent from
-// linker/undefined_syms_auto.world_map.txt, so it must be added to
-// config/symbol_addrs.world_map.txt (D_8009BB48 = 0x8009BB48;) and splat re-run
-// or the overlay link fails.
-/*
+// Best: 96.83%. Instruction-identical except the prologue: retail emits the
+// `sw s2,0x20(sp)` + `move s2,zero` (i = 0 from the declaration) AFTER the
+// LZSSHeapDecompress argument setup (lui/lw a0, li a1) and before `sw ra`; we
+// emit that pair first, at the very top of the entry block. Same 2-insn class
+// as the parked func_8008440C in world_map/main/misc8 (98.71%), not a register
+// numbering problem. What DID close this from 92.13%: three separate pointer
+// locals (pClut for loop 1, pClut2 for loop 2, pClut3 for loop 3 - one shared
+// pClut put i in s3 and the pointer in s2, the reverse of retail), assigning
+// `i = 0`/`i = 4` before the `pClut2/pClut3 = ...` address formation, and
+// `for (; i < N; x += 0x80, i++, pClut++)` so x += 0x80 precedes i++.
 extern void *LZSSHeapDecompress(void *pCompressedData, int flags);
 extern void func_8002DD20(void *pBlock);
 extern void func_800931D8(u8 *pSrc, u8 *pDst, s32 count, u8 *pFactors);
+
 extern u8 *D_8009C59C;
 extern u8 D_8009BB48[];
 extern u16 D_8009CCB4[];
 extern u16 D_8009CD54[];
 extern u16 D_8009CD5C[];
 
+/*
 void func_800979C8(void) {
     RECT rect;
     u8 *pData;
     u8 *pDst;
+    u8 *pFactors;
     s32 i = 0;
-    u16 *pClut;
     s32 x;
     s32 y;
+    u16 *pClut;
+    u16 *pClut2;
+    u16 *pClut3;
 
     pData = LZSSHeapDecompress(D_8009C59C, 1);
     func_8002DD20(pData);
     DrawSync(0);
     HeapFree(pData);
     HeapFree(D_8009C59C);
+    pClut = D_8009CCB4;
     pData = HeapAlloc(0x400, 1);
     pDst = HeapAlloc(0x8000, 1);
     rect.x = 0;
@@ -366,34 +392,37 @@ void func_800979C8(void) {
     rect.h = 2;
     StoreImage(&rect, (u_long *)pData);
     DrawSync(0);
-    func_800931D8(pData, pDst, 0x20, D_8009BB48);
-    func_800931D8(pData + 0x200, pDst + 0x4000, 0x20, D_8009BB48);
+    pFactors = D_8009BB48;
+    func_800931D8(pData, pDst, 0x20, pFactors);
+    func_800931D8(pData + 0x200, pDst + 0x4000, 0x20, pFactors);
     rect.x = 0;
     rect.y = 0x1B0;
     rect.w = 0x100;
     rect.h = 0x40;
     LoadImage(&rect, (u_long *)pDst);
     DrawSync(0);
-    pClut = D_8009CCB4;
     for (; i < 0x40; i++, pClut++) {
         *pClut = GetClut(rect.x, rect.y);
         rect.y++;
     }
     x = 0x200;
     y = 0;
-    pClut = D_8009CD54;
-    for (i = 0; i < 4; i++, x += 0x80, pClut++) {
-        *pClut = GetTPage(1, 0, x, y);
+    i = 0;
+    pClut2 = D_8009CD54;
+    for (; i < 4; x += 0x80, i++, pClut2++) {
+        *pClut2 = GetTPage(1, 0, x, y);
     }
     x = 0x180;
     y = 0x100;
-    pClut = D_8009CD5C;
-    for (i = 4; i < 7; i++, x += 0x80, pClut++) {
-        *pClut = GetTPage(1, 0, x, y);
+    i = 4;
+    pClut3 = D_8009CD5C;
+    for (; i < 7; x += 0x80, i++, pClut3++) {
+        *pClut3 = GetTPage(1, 0, x, y);
     }
     HeapFree(pDst);
     HeapFree(pData);
 }
+
 */
 // Best: 63.31%. Same shape as the parked 94.28% note class: cc1 2.7.2 sinks
 // both masked `and`+store pairs to the end of the block and hoists the mask's
