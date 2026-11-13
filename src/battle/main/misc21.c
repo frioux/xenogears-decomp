@@ -26,13 +26,28 @@ typedef struct {
 typedef struct {
     /* 0x00 */ u8 unk00[0xA];
     /* 0x0A */ u16 count;
-    /* 0x0C */ u8 unk0C[0x5C];
+    /* 0x0C */ MATRIX localTransform;
+    /* 0x2C */ MATRIX globalTransform;
+    /* 0x4C */ u8 unk4C[0x8];
+    /* 0x54 */ s16 rot[3];
+    /* 0x5A */ u16 pad5A;
+    /* 0x5C */ s32 pos[3];
     /* 0x68 */ void* p68;
     /* 0x6C */ void* p6C;
     /* 0x70 */ BattleBlock* p70;
     /* 0x74 */ BattleBlock* p74;
     /* 0x78 */ BattleBlock* p78;
 } BattleSprite; // Size: 0x7C
+
+typedef struct {
+    /* 0x00 */ u8 unk00[0x4];
+    /* 0x04 */ u16 flags;
+    /* 0x06 */ s16 unk06;
+    /* 0x08 */ u8 unk08[0x4];
+    /* 0x0C */ u16 countA;
+    /* 0x0E */ u16 countB;
+    /* 0x10 */ u8 unk10[0x8];
+} BattleAnimData; // Size: 0x18
 
 extern void* HeapAlloc(u_int allocSize, u_int allocFlags);
 extern u_int HeapFree(void* pMem);
@@ -42,6 +57,7 @@ extern void func_800A2D5C(BattleSpritePool* pPool);
 extern s32 func_800A23E8(BattleBlockPool* pPool, BattleBlock* pBlock);
 extern u32 ModelResolvePointers(void* pModel);
 extern void ModelPartFreeLightData(void* pLightData);
+extern void ModelRenderPacket(void* pPart, void* pPacket, u_long* pOT, int flags);
 
 BattleModelPartList* func_8009EBA8(u8* pModel, BattleModelPartList* pList) {
     u32 count;
@@ -63,7 +79,38 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_8009EF3C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_8009F1C4);
 void func_8009F5B0(void) {
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_8009F5B8);
+void func_8009F5B8(BattleModelPartList* pMesh, BattleSprite* pSkeleton, MATRIX* pLightMatrix,
+                   MATRIX* pViewMatrix, s32 arg4, s32 arg5, s32 packetIndex) {
+    MATRIX* pRotMatrix = (MATRIX*)((u8*)PSX_SCRATCH + 0x20);
+    MATRIX* pTransMatrix = (MATRIX*)((u8*)PSX_SCRATCH + 0x40);
+    MATRIX* pMatrix = (MATRIX*)PSX_SCRATCH;
+    u_int numChildren;
+    u_int i;
+
+    MulMatrix0(pViewMatrix, &pSkeleton->globalTransform, pRotMatrix);
+    CompMatrix(pLightMatrix, &pSkeleton->localTransform, pTransMatrix);
+
+    numChildren = pSkeleton->count;
+    pSkeleton++;
+
+    for (i = 1; i < numChildren; i++) {
+        if (*(u16*)(pSkeleton->unk00 + 8) != 0xFFFF) {
+            void* pPart;
+            void* pPacket;
+
+            MulMatrix0(pRotMatrix, &pSkeleton->globalTransform, pMatrix);
+            SetLightMatrix(pMatrix);
+            CompMatrix(pTransMatrix, &pSkeleton->globalTransform, pMatrix);
+            SetRotMatrix(pMatrix);
+            SetTransMatrix(pMatrix);
+
+            pPart = pMesh->pParts[*(u16*)(pSkeleton->unk00 + 8)];
+            pPacket = ((void**)&pSkeleton->p68)[packetIndex];
+            ModelRenderPacket(pPart, pPacket, (u_long*)arg5, arg4);
+        }
+        pSkeleton++;
+    }
+}
 void func_8009F708(BattleSprite* pSprites) {
     BattleSprite* pSprite;
     s32 i;
@@ -99,7 +146,86 @@ void func_8009F794(BattleModelPartList* pList, s32 freeLight) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_8009F844);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_800A0838);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_800A1B50);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_800A1CF4);
+/* 65.26% (468 vs 420 bytes): offsets recovered - pSprite stride 0x7C, rot[3] s16
+   at 0x54, pos[3] s32 at 0x5C, p70 for the first block and p74 for the second,
+   flags&1 / flags&2 select the blocks, frame cursor walks 3 s16 per block. What
+   is still off: retail increments the sprite base (rebased to sprite+4) by 0x7C
+   in the DELAY SLOT of the loop's first branch (increment at the top of the
+   body) and starts the base at pSprites+4, while this version folds the +0x80
+   into the entry and increments at the latch; retail also loads the frame words
+   with lh (we emit lhu + sll/sra) and keeps flags&1 / flags&2 in t8/t7 across
+   the loop.
+void func_800A1B50(BattleSprite* pSprites, BattleAnimData* pData) {
+    u16 numA;
+    u16 numB;
+    u_int countA;
+    u_int countB;
+    u_int flags;
+    u16 numSprites;
+    BattleSprite* pSprite;
+    s16* pFrame;
+    s32 i;
+
+    numA = 0;
+    numB = 0;
+    countA = pData->countA;
+    countB = pData->countB;
+    flags = pData->flags;
+    pFrame = (s16*)((u8*)pData + 0x18);
+    if (pData->unk06 == 0) {
+        pFrame += (countA + 1) * 3;
+    }
+    numSprites = pSprites->count - 1;
+    if (numSprites <= 0) {
+        return;
+    }
+    pSprite = pSprites + 1;
+    for (i = 0; i < numSprites; i++, pSprite++) {
+        if (!(flags & 1)) {
+            if (numA < countA) {
+                s16 v0;
+                s16 v1;
+                s16 v2;
+
+                v0 = *pFrame++;
+                v1 = *pFrame++;
+                v2 = *pFrame++;
+                numA++;
+                if (pSprite->rot[0] != v0 || pSprite->rot[1] != v1 || pSprite->rot[2] != v2) {
+                    if (pSprite->p70 == NULL || *(u8*)((u8*)pSprite->p70 + 3) != 0xFF) {
+                        pSprite->rot[0] = v0;
+                        pSprite->rot[1] = v1;
+                        pSprite->rot[2] = v2;
+                        pSprite->unk00[4] = 1;
+                        pSprite->unk00[5] = 1;
+                    }
+                }
+            }
+        }
+        if (!(flags & 2)) {
+            if (numB < countB) {
+                s16 v0;
+                s16 v1;
+                s16 v2;
+
+                v0 = *pFrame++;
+                v1 = *pFrame++;
+                v2 = *pFrame++;
+                numB++;
+                if (pSprite->pos[0] != v0 || pSprite->pos[1] != v1 || pSprite->pos[2] != v2) {
+                    if (pSprite->p74 == NULL || *(u8*)((u8*)pSprite->p74 + 3) != 0xFF) {
+                        pSprite->pos[0] = v0;
+                        pSprite->pos[1] = v1;
+                        pSprite->pos[2] = v2;
+                        pSprite->unk00[4] = 1;
+                    }
+                }
+            }
+        }
+    }
+}
+*/
+
 void func_800A216C(BattleBlockPool* pPool, BattleSprite* pSprites, s32 index, u32 flags) {
     BattleSprite* pSprite;
 
