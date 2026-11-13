@@ -83,6 +83,8 @@ extern s32 rand(void);
 extern void func_80031870(u8* pLink, u32 addr);
 
 Misc16Work* func_8008D3F4(s32 arg0, s32 arg1);
+void func_8008DA48(Misc16Work* pWork, u8* pArg1, MATRIX* pMat);
+void func_8008D680(Misc16Work* pWork, MATRIX* pMat, s32 count);
 
 void func_8008CED4(void) {
 }
@@ -408,7 +410,33 @@ void func_8008DCA8(s32 arg0) {
     D_80092838 = arg0;
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc16", func_8008DCB8);
+void func_8008DCB8(u8* pArg0, u8* pArg1, MATRIX* pMat, Misc16Vec* pVec) {
+    MATRIX matZero;
+    MATRIX matWork;
+    Misc16Work* pWork;
+
+    pWork = (Misc16Work*)D_80092834;
+    if (D_80092838 >= 0x10) {
+        func_8008DBC0(pArg1, 0x27, (u8*)&matWork);
+        MatrixNormal(&matWork, &matZero);
+        matZero.t[2] = 0;
+        matZero.t[1] = 0;
+        matZero.t[0] = 0;
+        pWork->unk14 = pVec->unk0;
+        pWork->unk16 = pVec->unk4;
+        pWork->unk18 = pVec->unk8;
+        pWork->unk3C = 0;
+        pWork->unk3E = 0;
+        pWork->unk40 = 0;
+        pWork->unk34 = 0;
+        pWork->unk36 = 0;
+        pWork->unk38 = 0x800;
+        func_8008D680(pWork, &matZero, D_80092838 >> 4);
+        D_80092838 -= 4;
+    }
+    gte_SetTransRotMatrix_gpr(pMat);
+    func_8008DA48(pWork, pArg0, pMat);
+}
 void func_8008DDFC(SVECTOR* pIn, SVECTOR* pOut, s32 depth) {
     register s16 vx asm("$8");
     register s16 vy asm("$9");
