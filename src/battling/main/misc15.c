@@ -6,12 +6,14 @@
 // The block func_8008C0CC hangs off a heap node; func_8008C120 releases it.
 typedef struct WorkBlock WorkBlock;
 struct WorkBlock {
-    /* 0x0 */ u32 unk0;
+    /* 0x0 */ s16 count;
+    /* 0x2 */ u16 unk2;
     /* 0x4 */ u32 unk4;
     /* 0x8 */ void* pMem;
-    /* 0xC */ u32 unkC;
+    /* 0xC */ void* pData;
     /* 0x10 */ void* pDelayedMem;
-};
+    /* 0x14 */ void* pDelayedMemEnd;
+}; // Size: 0x18
 
 // A 16-byte heap node allocated by func_8008C0CC.
 typedef struct HeapNode {
@@ -26,7 +28,7 @@ extern void* D_80092828;
 extern void* func_8008C188(u8* pObj, void* pArg);
 extern s32 func_80089C54(void);
 extern void func_80089C88(s32 handle, void* pNode);
-extern void func_8008BE4C(void* pBlock, void* pData);
+extern void func_8008BE4C(WorkBlock* pBlock, u8* pData);
 extern s32 rand(void);
 extern u8 D_800928A0;
 extern s32 D_800928E4;
@@ -37,6 +39,7 @@ extern s32 D_800595C0;
 extern void* D_80059528;
 extern void func_8008BD70(u8* pData, void* pPacket, void* pUnk, void* pVertices);
 extern void func_8008C620(void* pNode, s16 n);
+extern void func_800732AC(void* pDst, void* pSrc, s32 n);
 extern void func_8008C4B0(void* pNode, s16 n);
 extern void func_800316C0(void* pOT, void* pPrim);
 extern void func_80031750(void* pOT, void* pPrim);
@@ -108,7 +111,70 @@ void func_8008BD70(u8* pData, void* pPacket, void* pUnk, void* pVertices) {
     }
 }
 */
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc15", func_8008BE4C);
+void func_8008BE4C(WorkBlock* pBlock, u8* pData) {
+    s32 i;
+    s32 j;
+    s32 n;
+    s32 sumA;
+    s32 sumB;
+    u8* pMem;
+    u8* pBuf;
+    u8* pNode;
+
+    pBlock->count = *(u16*)(pData + 2);
+    pBlock->unk2 = *(u16*)(pData + 4);
+    pBlock->unk4 = *(u32*)(pData + 8);
+    pBlock->pData = pData;
+    D_80059528 = *(void**)(pData + 0x10);
+    HeapSetCurrentContentType(0x13);
+    pMem = HeapAlloc(pBlock->count * 8, 2);
+    i = pBlock->count;
+    pBlock->pMem = pMem;
+    while (--i != -1) {
+        *(u16*)(pMem + 2) = 0;
+        pMem += 8;
+    }
+    HeapSetCurrentContentType(5);
+    sumA = 0;
+    sumB = 0;
+    i = *(u16*)(pData + 6);
+    while (--i != -1) {
+        pNode = D_80059528;
+        D_80059528 = pNode + 4;
+        if (pNode[0] & 8)
+            sumB += *(s16*)(pNode + 2);
+        else
+            sumA += *(s16*)(pNode + 2);
+        D_80059528 = (u8*)D_80059528 + (*(s16*)(pNode + 2) << 3);
+    }
+    i = sumA * 0x14 + sumB * 0x18;
+    pBuf = HeapAlloc(i * 2, 2);
+    pBlock->pDelayedMem = pBuf;
+    pBlock->pDelayedMemEnd = pBuf + i;
+    j = *(u16*)(pData + 6);
+    D_80059528 = *(void**)(pData + 0x10);
+    while (--j != -1) {
+        pNode = D_80059528;
+        D_80059528 = pNode + 4;
+        if (pNode[0] & 8) {
+            n = *(s16*)(pNode + 2);
+            while (--n != -1) {
+                pBuf[3] = 5;
+                *(u32*)(pBuf + 4) = 0x28403030;
+                pBuf += 0x18;
+            }
+        } else {
+            n = *(s16*)(pNode + 2);
+            while (--n != -1) {
+                pBuf[3] = 4;
+                *(u32*)(pBuf + 4) = 0x20403030;
+                pBuf += 0x14;
+            }
+        }
+        D_80059528 = (u8*)D_80059528 + (*(s16*)(pNode + 2) << 3);
+    }
+    func_800732AC(pBlock->pDelayedMemEnd, pBlock->pDelayedMem, i);
+}
 void func_8008C0BC(void* pObj, void* pValue) {
     *(s32*)pObj = 5;
     *((void**)pObj + 1) = pValue;
