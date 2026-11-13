@@ -2483,10 +2483,32 @@ after the round-31 precedent. Two macros' worth of knowledge, now in the file's 
   inside the block.
 - `VectorNormalS` (5 insns) branches into the *middle* of `VectorNormalSS`; no C
   definition can, so it stays a stub.
-| 33 | `slus_006.64/psyq/libgte` (2nd), `battle/{misc30,misc4,misc29}`, `battling/{misc14,misc12,misc17,misc18,misc1}`, `world_map/{misc5,misc6,misc15,misc3}` | +13 | 1373 | battle/misc30 3 (`AB0C ADD4 ACBC`? see its file), psyq/libgte 2 more, world_map/misc3 2, battling/misc1 2, misc17 1, misc18 1, world_map/misc5 1, misc6 1; one conversion (`func_80090CC0`) was reverted to its stub. All thirteen committed, overlay green on the first try |
+| 33 | `slus_006.64/psyq/libgte` (2nd), `battle/{misc30,misc4,misc29}`, `battling/{misc14,misc12,misc17,misc18,misc1}`, `world_map/{misc5,misc6,misc15,misc3}` | +13 | 1373 | world_map/misc5 **4** (`7C36C 7CD20 7B200 7B604`), psyq/libgte 2 (`CompMatrix ApplyMatrixLV`), battle/misc30 2 (`BAB0C BB13C`), world_map/misc3 2, battling/misc1 1 (`88D1C`), battling/misc12 1 (`...`), world_map/misc6 1 (`7D4A4`); 0 in battle/misc4, misc29, battling/misc14, misc17, misc18, world_map/misc15 (parks only). Overlay green on the first try |
 
 Session 10 total: **1435 -> 1373 stubs (+62)**, eleven outputs byte-identical throughout,
 and three durable tools/findings that outlive the matches:
+
+### Round 33's per-unit detail (from the workflow receipt)
+
+- `world_map/misc5` converted 4: the shape that gets 100% on `func_8007C36C` is a **field-pointer
+  local** (`u32 *pCount = &pPlayer->unk50; ... D_8009A4E8[*pCount]`), and `func_8007CD20` is a
+  legit `CHECK_BIN_OK` case - objdiff 99.94% only because the relocation spells
+  `addiu $s1,$s2,%lo(D_1F8000A0)` where we emit the immediate `160`, same encoded bytes.
+  Its `switch` compiled to a compare tree, so no jtbl was added.
+- `battle/misc30` (now cdk + -G0): both matches needed an **unused aggregate local**
+  (`RotTransPersOut.sxy/flag/pad[4]`, `u32 unused[2]`) because gcc places aggregate locals
+  before scalars - a plain `unused[]` cannot sit above `sxy`/`flag` in the frame.
+- `psyq/libgte`: `CompMatrix` and `ApplyMatrixLV` matched by **pinning the asm output to the
+  ARGUMENT register** (`register VECTOR *pRet __asm__("$6")`) rather than `$2`: that makes gcc
+  emit the `move v0,aN` itself, so reorg puts it in the `jr $ra` slot (98.18% the other way).
+  The unit's remaining 14 stubs all own trailing `nop`s after `.size` and are unconvertible -
+  `libgte` is finished.
+- `battling/misc12`'s `func_80088D1C` needed a 3-case `switch` (an if/else chain compiles
+  inverted) plus an unused `RECT rect;` for retail's 0x40 frame.
+- Dead ends re-confirmed: `battling/misc14`'s `func_8008A7E0`/`func_8008BB3C` are
+  `/* Handwritten function */` trampolines, `func_8008B13C` owns two jtbls, and
+  `func_80088BFC` starts with a dead absolute `lb` (the real callback body starts at
+  0x80088C00 - that needs a splat symbol, not C).
 
 1. `tools/rounds/park_sweep.py` - the cdk / 2.6.0 / -G0 park sweep, run over 106 units. The
    three compiler axes are now exhausted at park level, exactly as session 8's maspsx
