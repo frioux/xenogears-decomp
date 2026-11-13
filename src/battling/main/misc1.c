@@ -279,7 +279,53 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_80071AD0);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_80071DA4);
 
+extern s32 D_8009284C;
+extern s32 D_80092948;
+extern u8 D_8009872C[];
+extern u8 D_80097010[];
+extern void func_80039C4C(s32 arg);
+extern void func_80039FF8(void);
+extern void func_80071DA4(u8* p);
+
+/* 91.77%: case 3 is the only difference. retail materialises &D_80098720 into
+   $v1 and stores through it twice (lui v1/%hi; addiu v1/%lo; sw v0,0(v1));
+   ours keeps both stores as direct absolute references, which maspsx expands to
+   lui $at/%hi; sw %lo($at), and drops the load for the compare (the value is
+   already in $v0, as in retail). Tried: a pointer local, pTPage-style field
+   access, a s32 value local, and ((s32*)&D_8009871C)[1] so the address is a
+   symbol plus a constant offset - gcc folds every one of them back into a direct
+   symbol store.
+*/
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_80071F8C);
+
+/* 91.77% attempt:
+void func_80071F8C(s32 mode) {
+    switch (mode) {
+    case 0:
+        func_80039C4C(D_80092948);
+        func_80039FF8();
+        break;
+    case 1:
+        func_80071DA4(&D_8009872C[0]);
+        if (D_800970C4 * 0x100 / D_800970CC < D_800987E0 * 0x100 / D_800987E8) {
+            D_800925D4 = 0x43;
+        } else {
+            D_800925D4 = 0x44;
+        }
+        break;
+    case 2:
+        func_80071DA4(&D_80097010[0]);
+        break;
+    case 3:
+        D_80098720 = -D_8009284C;
+        if (D_80098720 < -0x600) {
+            D_80098720 = -0x600;
+        }
+        break;
+    }
+}
+*/
+
 
 extern u8 D_8009293C;
 
