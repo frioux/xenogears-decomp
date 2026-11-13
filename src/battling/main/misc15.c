@@ -46,6 +46,8 @@ extern s32 D_8009A2D0;
 extern void func_8008C3A8(void* pSrc, void* pDst, u16 n);
 extern void func_80031804(void* pOT, void* pPrim);
 extern u8* D_80092830;
+extern SVECTOR* D_8009282C;
+extern void func_80031708(void* pOT, void* pPrim);
 // An 8-byte, byte-aligned chunk: assigning one copies 8 bytes with lwl/lwr.
 typedef struct {
     u8 unk[8];
@@ -239,6 +241,39 @@ void func_8008CA00(u8* pObj, u8* pSrc) {
     *(Words2*)(pObj + 0x48) = *(Words2*)(pObj + 0x30);
 }
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc15", func_8008CA84);
+/* Best C match, 93.70%: the whole body lines up instruction for instruction,
+   the GTE block, the two 8-byte vertex copies and the double (otz >> 2) << 2
+   included.  Two structural differences remain, both in the packet address:
+   the original materialises pDst (addiu v0,v0,0x20; addu a2,a2,v0) and takes
+   the three SXY stores at +8/+0xC/+0x10 off it, while gcc folds the 0x20 into
+   those three offsets (+0x20/+0x28/+0x2C/+0x30) and bases them on pObj + the
+   scaled row index.  Typing the packet as u32* and indexing it, and using a
+   pTri pointer local instead of the global, both score the same.  The other
+   difference is cosmetic: retail keeps pOT in a1 and copies pObj to a2, gcc
+   copies pOT to a3 and keeps pObj in a0 (objdiff normalises it).
+void func_8008CA84(u8* pObj, u8* pOT) {
+    u32* pDst;
+    long otz;
+
+    D_8009282C[0].vx = *(u16*)(pObj + 0x0) - *(u16*)(D_80092830 + 0x0);
+    D_8009282C[0].vy = *(u16*)(pObj + 0x2) - *(u16*)(D_80092830 + 0x2);
+    D_8009282C[0].vz = *(u16*)(pObj + 0x4) - *(u16*)(D_80092830 + 0x4);
+    D_8009282C[1].vx = *(u16*)(pObj + 0x10) - *(u16*)(D_80092830 + 0x0);
+    D_8009282C[1].vy = *(u16*)(pObj + 0x12) - *(u16*)(D_80092830 + 0x2);
+    D_8009282C[1].vz = *(u16*)(pObj + 0x14) - *(u16*)(D_80092830 + 0x4);
+    D_8009282C[2].vx = *(u16*)(pObj + 0x18) - *(u16*)(D_80092830 + 0x0);
+    D_8009282C[2].vy = *(u16*)(pObj + 0x1A) - *(u16*)(D_80092830 + 0x2);
+    D_8009282C[2].vz = *(u16*)(pObj + 0x1C) - *(u16*)(D_80092830 + 0x4);
+    gte_ldv3c(D_8009282C);
+    gte_rtpt();
+    pDst = (u32*)(pObj + D_800928A0 * 0x18 + 0x20);
+    *(Bytes8*)(pObj + 0x18) = *(Bytes8*)(pObj + 0x10);
+    *(Bytes8*)(pObj + 0x10) = *(Bytes8*)pObj;
+    gte_stsxy3(&pDst[2], &pDst[3], &pDst[4]);
+    gte_stszotz(&otz);
+    func_80031708(pOT + ((otz >> 2) << 2), pDst);
+}
+*/
 void func_8008CC2C(u8* pObj) {
     *(Bytes8*)(pObj + 0x10) = *(Bytes8*)pObj;
 }
