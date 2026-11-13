@@ -98,24 +98,43 @@ void func_8007DA1C(u8 **arg0, s32 arg1) {
 } */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007DA1C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007DB78);
-/* best: 80.29%. func_8007DB78/DE78 with i starting at 3, the loop bound 0xB and
-   a D_800D32A1[offset] gate whose offset starts at 0x18 and steps +8 (written as
-   a for-increment so the original's addiu s4,s4,8 lands in the bnez delay
-   slot). The tail store uses the same fix as func_8007DE78's note (value
-   local + int-built base + pointer local). Remaining: idx = i at the loop top
-   is propagated away by gcc (retail keeps move s3,s1 and an extra saved
-   register, frame 0x40 vs my 0x38), plus DE78's nits (1) and (3).
-void func_8007DCF8(u8 **arg0, s32 arg1) {
+/* best: 85.10%. func_8007DFD4 is this function with func_8007A628's second
+   argument 1 (verified: the two stubs differ in exactly that instruction), and
+   func_8007DE78 is the same loop without the D_800D32A1 gate. Shape confirmed:
+   the row zero, the idx = i++ copy that keeps idx in its own register (s3) and
+   i in s1, the gate read as D_800D32A1[offset] with offset stepping +8, and the
+   tail store via DE78's solved recipe (u16 value local + int-built base with an
+   (s32) cast on the symbol + pointer local). The gate is indexed in BYTES:
+   D_800D32A1 is u8[] and the asm does lbu with at = %hi + s4.
+   Remaining deltas, none source-visible so far (376 bytes / 94 insns vs retail
+   336 / 84):
+   (1) retail computes the row base as a whole register sum before it loads
+   *arg0 (andi/sll/lui/addiu/addu into v0, then a separate move s6,v0); gcc
+   folds the sum into the first use, so mine emits lui/addiu only after
+   lw v0,0(s5) and adds straight into s6. Tried the plain pointer initialiser,
+   the (s32)-cast form and an s32 rowBase local: all 85.10%.
+   (2) retail duplicates slti v0,s1,3 into THREE places (delay slots of the
+   a628 beqz and of the gate/and beqzs, plus the latch); gcc emits it twice.
+   Tried do-while, while and a for-head loop: identical output.
+   (3) idx = i++ is emitted at the loop top; retail has the increment in the
+   delay slot of the beqz after the func_8007A628 call (DE78's nit 3).
+   (4) tail: retail puts addiu a1,s2,-1 in the beqz s2 delay slot and
+   move a0,zero after it; mine the other way round (an s32 last = count - 1
+   local does not move it).
+   gcc-2.7.2-cdk scores 76.66% here, so this is not a cdk unit; Default is
+   right.
+
+void func_8007DB78(u8 **arg0, s32 arg1) {
     u8 buf[8];
-    s32 i = 3;
+    s32 i = 0;
     s32 count = 0;
-    s32 offset = 0x18;
+    s32 offset = 0;
     s32 idx;
     u16 *pRow = (u16 *)(D_800D3420 + (arg1 & 0xFF) * 0x40);
 
     pRow[(*arg0)[2]] = 0;
-    for (; i < 0xB; i++, offset += 8) {
-        idx = i;
+    while (i < 3) {
+        idx = i++;
         if (func_8007A628(idx, 0) != 0) {
             if (D_800D32A1[offset] != 0) {
                 if (pRow[(*arg0)[3]] & func_8007A280(idx, (*arg0)[1], 0, 1)) {
@@ -124,6 +143,7 @@ void func_8007DCF8(u8 **arg0, s32 arg1) {
                 }
             }
         }
+        offset += 8;
     }
     if (count != 0) {
         u16 value = func_80089C08(buf[func_8001BD40(0, count - 1)]);
@@ -131,7 +151,8 @@ void func_8007DCF8(u8 **arg0, s32 arg1) {
 
         pOut[(*arg0)[2]] = value;
     }
-} */
+}
+ */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007DCF8);
 /* best: 89.33% (336 bytes; mine 340). This is the func_8007D8C0/DA1C
    family and the family's documented blocker (the tail store re-forming the row
@@ -184,6 +205,61 @@ void func_8007DE78(u8 **arg0, s32 arg1) {
 } */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007DE78);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007DFD4);
+/* best: 85.10%. func_8007DFD4 is this function with func_8007A628's second
+   argument 1 (verified: the two stubs differ in exactly that instruction), and
+   func_8007DE78 is the same loop without the D_800D32A1 gate. Shape confirmed:
+   the row zero, the idx = i++ copy that keeps idx in its own register (s3) and
+   i in s1, the gate read as D_800D32A1[offset] with offset stepping +8, and the
+   tail store via DE78's solved recipe (u16 value local + int-built base with an
+   (s32) cast on the symbol + pointer local). The gate is indexed in BYTES:
+   D_800D32A1 is u8[] and the asm does lbu with at = %hi + s4.
+   Remaining deltas, none source-visible so far (376 bytes / 94 insns vs retail
+   336 / 84):
+   (1) retail computes the row base as a whole register sum before it loads
+   *arg0 (andi/sll/lui/addiu/addu into v0, then a separate move s6,v0); gcc
+   folds the sum into the first use, so mine emits lui/addiu only after
+   lw v0,0(s5) and adds straight into s6. Tried the plain pointer initialiser,
+   the (s32)-cast form and an s32 rowBase local: all 85.10%.
+   (2) retail duplicates slti v0,s1,3 into THREE places (delay slots of the
+   a628 beqz and of the gate/and beqzs, plus the latch); gcc emits it twice.
+   Tried do-while, while and a for-head loop: identical output.
+   (3) idx = i++ is emitted at the loop top; retail has the increment in the
+   delay slot of the beqz after the func_8007A628 call (DE78's nit 3).
+   (4) tail: retail puts addiu a1,s2,-1 in the beqz s2 delay slot and
+   move a0,zero after it; mine the other way round (an s32 last = count - 1
+   local does not move it).
+   gcc-2.7.2-cdk scores 76.66% here, so this is not a cdk unit; Default is
+   right.
+
+void func_8007DFD4(u8 **arg0, s32 arg1) {
+    u8 buf[8];
+    s32 i = 0;
+    s32 count = 0;
+    s32 offset = 0;
+    s32 idx;
+    u16 *pRow = (u16 *)(D_800D3420 + (arg1 & 0xFF) * 0x40);
+
+    pRow[(*arg0)[2]] = 0;
+    while (i < 3) {
+        idx = i++;
+        if (func_8007A628(idx, 1) != 0) {
+            if (D_800D32A1[offset] != 0) {
+                if (pRow[(*arg0)[3]] & func_8007A280(idx, (*arg0)[1], 0, 1)) {
+                    buf[count] = idx;
+                    count++;
+                }
+            }
+        }
+        offset += 8;
+    }
+    if (count != 0) {
+        u16 value = func_80089C08(buf[func_8001BD40(0, count - 1)]);
+        u16 *pOut = (u16 *)((arg1 & 0xFF) * 0x40 + (s32)D_800D3420);
+
+        pOut[(*arg0)[2]] = value;
+    }
+}
+ */
 void func_8007E154(u8 **arg0, s32 arg1) {
     s32 idx = (arg1 & 0xFF) + 3;
 
