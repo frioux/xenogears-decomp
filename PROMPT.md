@@ -53,29 +53,37 @@ of a match, and it is cheap.
 
 - Workers end their report with `NAME func_800XXXXX NewName - evidence` for every
   function they matched (the rules are in `brief.js`). They never rename in their
-  clone; you apply the names after the merge with `tools/scripts/rename_sym.py`, which
-  rewrites `symbol_addrs`, `src/` and `include/` together and skips, with a reason, any
-  name that is taken or any function that is still a stub.
+  clone; you apply the names after the merge with `tools/scripts/rename_sym.py` then
+  `tools/scripts/name_addrs.py`, which rewrite `symbol_addrs`, `src/` and `include/`
+  together and skip, with a reason, any name that is taken, any function that is still
+  a stub, and any address that two files claim.
 - Accept a name when its evidence cites something in the body (a callee, global,
   field, string). Drop it when the evidence is a guess at story purpose. A plain true
   name (`MenuCopyRect16`) is better than none; a wrong name is worse than `func_`. Do
   not re-read the C to adjudicate; a bad name is one `rename_sym.py Old=New` to fix.
 - **Rename only while no clones are out.** A worker whose new C calls the old name
-  breaks the merge. `rename_sym.py` exits 1 on any skip, so read its SKIP block: about
-  two thirds of a naming round's names land here, because most `func_` in `field/` and
-  the overlays have no `symbol_addrs` entry at all. For those ("not in any symbol_addrs
-  file", and the function is C-defined, not a stub) a whole-word `sed` over `src/` and
-  `include/` is the same operation the tool performs; check the new name is unused
-  first. Leave the rest: a symbol that is `INCLUDE_ASM` in one overlay and C in
-  another must not be renamed, and so must not its twin.
-- **Backlog:** about 2,600 already-matched functions are still `func_`. While a
+  breaks the merge. A naming round is two commands, in this order:
+  `tools/scripts/rename_sym.py -f names.txt` (renames the symbols that already have an
+  entry) then `tools/scripts/name_addrs.py -f names.txt` (renames the rest and **adds**
+  `NewName = 0xADDR;` to the `symbol_addrs` file of every binary whose `src/` or `asm/`
+  refers to the address). The added entry is the point: splat names a binary's own calls
+  and `.data` function tables from `symbol_addrs`, so renaming only in `src/` gives
+  `undefined reference to func_<addr>` from every stub and table that points at it
+  (round 36: 449 of 502 names, an hour of link errors). Both tools exit 1 on a SKIP;
+  read the SKIP block. `name_addrs.py` deliberately leaves a name alone when its address
+  is a *different* function in another overlay (2+ `.c` files define it) and never
+  writes an entry into a file its yaml already loads ("Duplicate symbol detected" from
+  splat stops the whole build), so ~4-8 names a round stay `func_`; leave them.
+- **Backlog:** about 2,100 already-matched functions are still `func_`. While a
   matching round is out, run a naming round over them with
   `tools/rounds/name-brief.js` (`{workers: [{tree: <this repo>, file}, ...]}`). It is
   read-only, so workers share this tree and need no clones. Pick the files with the
   most unnamed definitions that are **not** in the current matching round, hold the
-  NAME lines, and apply them after the matching round has merged. Count definitions
-  with `/* ... */` blocks stripped: a bare `grep func_` counts `extern` prototypes and
-  parked bodies, and round 35 spent two duds on files with zero unnamed C functions.
+  NAME lines, and apply them after the matching round has merged, with the two commands
+  above. Count definitions with `/* ... */` blocks stripped: a bare `grep func_` counts
+  `extern` prototypes and parked bodies, and round 35 spent two duds on files with zero
+  unnamed C functions. Ten naming workers yield ~500 names, so this is the cheaper of
+  the two numbers to move.
 - Tracker row: `+N matched, +M named`.
 
 ## Choosing what to brief
