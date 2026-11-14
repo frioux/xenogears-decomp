@@ -76,6 +76,94 @@ BattleModelPartList* func_8009EBA8(u8* pModel, BattleModelPartList* pList) {
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_8009EC4C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_8009EF3C);
+/* 94.94% (648 vs 624 bytes). Everything is recovered: struct offsets (pos[3] s32 at
+   0x5C, rot[3] s16 at 0x54, scale[3] s16 at 0x4C, pParent void* at 0x0, dirty flags
+   u8 at 0x4/0x5, rot-order flag u8 at 0x6), the three calls and their exact argument
+   order, and both loops. Facts worth keeping:
+   - the scratch matrix at PSX_SCRATCH is a SCALE matrix (m[0][0], m[1][1], m[2][2]
+     = (scale * scale[i]) >> 12, other six elements 0); the pointer must be assigned
+     BEFORE the RotMatrix if/else or gcc rematerialises lui at,0x1f80 per store.
+   - prologue: RotMatrix(YXZ) writes pSprites->globalTransform (0x2C), MulMatrix0
+     (globalTransform, scaleMatrix, localTransform), then localTransform.t =
+     globalTransform.t. The loop instead rotates into localTransform (0x0C) and does
+     CompMatrix(pParent + 0x2C, &localTransform, &globalTransform) - i.e. the third
+     argument is the DESTINATION; the no-parent branch is globalTransform =
+     localTransform (a 32-byte copy).
+   - both loops are shape `for (i = 1; i < count; i++) { p++; ... }` with the pointer
+     pre-increment at the TOP of the body - that is what reproduces retail's
+     increments at the loop head and the store in the back-branch delay slot.
+   Remaining deltas are allocator only: retail keeps the sprite walker in $s2, the
+   base in $s4, i in $s1, count in $s6 and the constant 1 in $s7 (frame 0x38); this
+   version gets walker $s4/$s2, i $s2, count $s5, 1 in $s6 (frame 0x30), and derives
+   one of the three loop pointers with an extra addiu instead of retail's
+   `move s0,s5 / addiu s0,s0,0x7C`. Six declaration orders and the two-pointer vs
+   one-pointer walker shapes all land on the same tie.
+s32 func_8009EF3C(BattleSprite* pSprites, s32 scale) {
+
+    MATRIX* pScaleMatrix;
+    BattleSprite* pSprite;
+    BattleSprite* pWalk;
+    u32 count;
+    u32 i;
+
+    pSprite = pSprites;
+    pScaleMatrix = (MATRIX*)PSX_SCRATCH;
+    pSprite->globalTransform.t[0] = pSprite->pos[0];
+    pSprite->globalTransform.t[1] = pSprite->pos[1];
+    pSprite->globalTransform.t[2] = pSprite->pos[2];
+    count = pSprite->count;
+    if (((u8*)pSprite)[6] != 0) {
+        RotMatrixYXZ((SVECTOR*)pSprite->rot, &pSprite->globalTransform);
+    } else {
+        RotMatrix((SVECTOR*)pSprite->rot, &pSprite->globalTransform);
+    }
+    pScaleMatrix->m[0][0] = (scale * ((s16*)pSprite->unk4C)[0]) >> 12;
+    pScaleMatrix->m[0][1] = 0;
+    pScaleMatrix->m[0][2] = 0;
+    pScaleMatrix->m[1][0] = 0;
+    pScaleMatrix->m[1][1] = (scale * ((s16*)pSprite->unk4C)[1]) >> 12;
+    pScaleMatrix->m[1][2] = 0;
+    pScaleMatrix->m[2][0] = 0;
+    pScaleMatrix->m[2][1] = 0;
+    pScaleMatrix->m[2][2] = (scale * ((s16*)pSprite->unk4C)[2]) >> 12;
+    MulMatrix0(&pSprite->globalTransform, pScaleMatrix, &pSprite->localTransform);
+    pSprite->localTransform.t[0] = pSprite->globalTransform.t[0];
+    pSprite->localTransform.t[1] = pSprite->globalTransform.t[1];
+    pSprite->localTransform.t[2] = pSprite->globalTransform.t[2];
+    pWalk = pSprite;
+    for (i = 1; i < count; i++) {
+        pWalk++;
+        if (((u8*)pWalk)[5] != 0) {
+            if (((u8*)pWalk)[6] != 0) {
+                RotMatrixYXZ((SVECTOR*)pWalk->rot, &pWalk->localTransform);
+            } else {
+                RotMatrix((SVECTOR*)pWalk->rot, &pWalk->localTransform);
+            }
+            ((u8*)pWalk)[5] = 0;
+        }
+        if (((void**)pWalk)[0] != NULL && *((u8*)((void**)pWalk)[0] + 4) == 1) {
+            ((u8*)pWalk)[4] = 1;
+        }
+        if (((u8*)pWalk)[4] != 0) {
+            pWalk->localTransform.t[0] = pWalk->pos[0];
+            pWalk->localTransform.t[1] = pWalk->pos[1];
+            pWalk->localTransform.t[2] = pWalk->pos[2];
+            if (((void**)pWalk)[0] != NULL) {
+                CompMatrix((MATRIX*)((u8*)((void**)pWalk)[0] + 0x2C), &pWalk->localTransform,
+                           &pWalk->globalTransform);
+            } else {
+                pWalk->globalTransform = pWalk->localTransform;
+            }
+        }
+    }
+    pSprite = pSprites;
+    for (i = 1; i < count; i++) {
+        pSprite++;
+        ((u8*)pSprite)[4] = 0;
+    }
+    return count;
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_8009F1C4);
 void func_8009F5B0(void) {
 }
