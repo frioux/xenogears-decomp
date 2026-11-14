@@ -11,13 +11,31 @@ typedef struct {
     /* 0x06 */ u8 unk6[0x1A];
     /* 0x20 */ s16 unk20;
     /* 0x22 */ u16 pad22;
-    /* 0x24 */ u32 unk24;
+    /* 0x24 */ s16 unk24;
+    /* 0x26 */ u16 pad26;
     /* 0x28 */ s32 unk28;
     /* 0x2C */ s32 unk2C;
     /* 0x30 */ s32 unk30;
-    /* 0x34 */ u8 unk34[0x1C];
-    /* 0x50 */ u32 unk50;
-    /* 0x54 */ u8 unk54[0x2C];
+    /* 0x34 */ s32 unk34;
+    /* 0x38 */ s32 unk38;
+    /* 0x3C */ s32 unk3C;
+    /* 0x40 */ s32 unk40;
+    /* 0x44 */ s32 unk44;
+    /* 0x48 */ s16 unk48;
+    /* 0x4A */ u16 pad4A;
+    /* 0x4C */ void *unk4C;
+    /* 0x50 */ s32 unk50;
+    /* 0x54 */ s32 unk54;
+    /* 0x58 */ s32 unk58;
+    /* 0x5C */ s32 unk5C;
+    /* 0x60 */ s32 unk60;
+    /* 0x64 */ s32 unk64;
+    /* 0x68 */ s32 unk68;
+    /* 0x6C */ s32 unk6C;
+    /* 0x70 */ s32 unk70;
+    /* 0x74 */ s32 unk74;
+    /* 0x78 */ u32 unk78;
+    /* 0x7C */ s32 unk7C;
 } WorldMapActor; // Size: 0x80
 
 typedef struct {
@@ -171,31 +189,31 @@ void func_80082F64(WorldMapActor *pActor, WorldMapModelOut *pOut, WorldMapModel 
     {
         pModel->rot.vz = 0;
         pModel->rot.vx = 0;
-        pModel->rot.vy = ((s32 *)&pActor->unk50)[6];
-        pModel->scale.vx = ((s32 *)&pActor->unk50)[8] & 0x7FFF;
+        pModel->rot.vy = pActor->unk68;
+        pModel->scale.vx = pActor->unk70 & 0x7FFF;
         pModel->scale.vy = 0x1000;
-        pModel->scale.vz = rcos(((s32 *)&pActor->unk50)[7]) * 6;
+        pModel->scale.vz = rcos(pActor->unk6C) * 6;
         RotMatrix(&pModel->rot, &pModel->mat);
         ScaleMatrix(&pModel->mat, &pModel->scale);
         pOut->mat = pModel->mat;
-        ((s32 *)&pActor->unk50)[0] += ((s32 *)&pActor->unk50)[3];
-        ((s32 *)&pActor->unk50)[1] += ((s32 *)&pActor->unk50)[4];
-        if (((s32 *)&pActor->unk50)[0] >= 0x100) {
-            ((s32 *)&pActor->unk50)[0] = 0xFF;
-            ((s32 *)&pActor->unk50)[3] = -((s32 *)&pActor->unk50)[3];
-        } else if (((s32 *)&pActor->unk50)[0] < 0x40) {
-            ((s32 *)&pActor->unk50)[0] = 0x40;
-            ((s32 *)&pActor->unk50)[3] = -((s32 *)&pActor->unk50)[3];
+        pActor->unk50 += pActor->unk5C;
+        pActor->unk54 += pActor->unk60;
+        if (pActor->unk50 >= 0x100) {
+            pActor->unk50 = 0xFF;
+            pActor->unk5C = -pActor->unk5C;
+        } else if (pActor->unk50 < 0x40) {
+            pActor->unk50 = 0x40;
+            pActor->unk5C = -pActor->unk5C;
         }
-        if (((s32 *)&pActor->unk50)[1] >= 0x100) {
-            ((s32 *)&pActor->unk50)[1] = 0xFF;
-            ((s32 *)&pActor->unk50)[4] = -((s32 *)&pActor->unk50)[4];
-        } else if (((s32 *)&pActor->unk50)[1] < 0x80) {
-            ((s32 *)&pActor->unk50)[1] = 0x80;
-            ((s32 *)&pActor->unk50)[4] = -((s32 *)&pActor->unk50)[4];
+        if (pActor->unk54 >= 0x100) {
+            pActor->unk54 = 0xFF;
+            pActor->unk60 = -pActor->unk60;
+        } else if (pActor->unk54 < 0x80) {
+            pActor->unk54 = 0x80;
+            pActor->unk60 = -pActor->unk60;
         }
-        ((s32 *)&pActor->unk50)[7] = (((s32 *)&pActor->unk50)[7] + 8) & 0xFFF;
-        ((s32 *)&pActor->unk50)[8] += ((s32 *)&pActor->unk50)[9];
+        pActor->unk6C = (pActor->unk6C + 8) & 0xFFF;
+        pActor->unk70 += pActor->unk74;
     }
 }
 // Best: 98.71%. Instruction multiset and registers are identical bar one
@@ -215,31 +233,31 @@ void func_80082F64(WorldMapActor *pActor, WorldMapModelOut *pOut, WorldMapModel 
     {
         pModel->rot.vz = 0;
         pModel->rot.vx = 0;
-        pModel->rot.vy = ((s32 *)&pActor->unk50)[6];
-        pModel->scale.vx = ((s32 *)&pActor->unk50)[8] & 0x7FFF;
+        pModel->rot.vy = pActor->unk68;
+        pModel->scale.vx = pActor->unk70 & 0x7FFF;
         pModel->scale.vy = 0x1000;
-        pModel->scale.vz = rcos(((s32 *)&pActor->unk50)[7]) * 6;
+        pModel->scale.vz = rcos(pActor->unk6C) * 6;
         RotMatrix(&pModel->rot, &pModel->mat);
         ScaleMatrix(&pModel->mat, &pModel->scale);
         pOut->mat = pModel->mat;
-        ((s32 *)&pActor->unk50)[0] += ((s32 *)&pActor->unk50)[3];
-        ((s32 *)&pActor->unk50)[1] += ((s32 *)&pActor->unk50)[4];
-        if (((s32 *)&pActor->unk50)[0] >= 0x100) {
-            ((s32 *)&pActor->unk50)[0] = 0xFF;
-            ((s32 *)&pActor->unk50)[3] = -((s32 *)&pActor->unk50)[3];
-        } else if (((s32 *)&pActor->unk50)[0] < 0x40) {
-            ((s32 *)&pActor->unk50)[0] = 0x40;
-            ((s32 *)&pActor->unk50)[3] = -((s32 *)&pActor->unk50)[3];
+        pActor->unk50 += pActor->unk5C;
+        pActor->unk54 += pActor->unk60;
+        if (pActor->unk50 >= 0x100) {
+            pActor->unk50 = 0xFF;
+            pActor->unk5C = -pActor->unk5C;
+        } else if (pActor->unk50 < 0x40) {
+            pActor->unk50 = 0x40;
+            pActor->unk5C = -pActor->unk5C;
         }
-        if (((s32 *)&pActor->unk50)[1] >= 0x100) {
-            ((s32 *)&pActor->unk50)[1] = 0xFF;
-            ((s32 *)&pActor->unk50)[4] = -((s32 *)&pActor->unk50)[4];
-        } else if (((s32 *)&pActor->unk50)[1] < 0x80) {
-            ((s32 *)&pActor->unk50)[1] = 0x80;
-            ((s32 *)&pActor->unk50)[4] = -((s32 *)&pActor->unk50)[4];
+        if (pActor->unk54 >= 0x100) {
+            pActor->unk54 = 0xFF;
+            pActor->unk60 = -pActor->unk60;
+        } else if (pActor->unk54 < 0x80) {
+            pActor->unk54 = 0x80;
+            pActor->unk60 = -pActor->unk60;
         }
-        ((s32 *)&pActor->unk50)[7] = (((s32 *)&pActor->unk50)[7] + 8) & 0xFFF;
-        ((s32 *)&pActor->unk50)[8] += ((s32 *)&pActor->unk50)[9];
+        pActor->unk6C = (pActor->unk6C + 8) & 0xFFF;
+        pActor->unk70 += pActor->unk74;
     }
 }
 */
@@ -388,16 +406,17 @@ s32 WorldMapSetActorParams(s32 arg0) {
     return 1;
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_8008390C);
-// Best: 84.75%. Every instruction and relocation matches except that gcc
-// folds the stores to D_8009BD3A (0x400) and D_8009BD3C (0) into the later
-// reads of them (lui $v0,0x40 instead of lui/lh), so retail's compiler did
-// not forward store to load here. -O1 scores 67.46.
-// Tried: reading the flags as `*(volatile s16 *)&D_8009BD3A/3C` does force a
-// real load back, but gcc keeps the known value, so it emits
-// lhu + sll 0x10 + sra 0x4 instead of lh + sll 0xc and the allocation shifts
-// (72.84%). volatile on the stores alone changes nothing.
+// Best: 84.75% with the raw byte-pointer form below; the typed-struct form
+// (pActor->unk7C = 0x1000; D_8009BD3A = 0x400; ... v = D_8009BD3A;) scores
+// 30.52% because gcc reorders the whole straight-line block once it folds the
+// store-to-load pair into the constant. Every instruction and relocation of
+// the raw form matches except that folding: retail re-loads D_8009BD3A (lh)
+// and D_8009BD3C (lh) after storing them, we get lui $v0,0x40 instead.
+// -O1 scores 67.46. A volatile load forces the reload but emits
+// lhu + sll 0x10 + sra 0x4 instead of lh + sll 0xc (72.84%); volatile on the
+// stores alone changes nothing.
 /*
-s32 func_8008390C(s32 arg0) {
+void func_8008390C(s32 arg0) {
     WorldMapActor *pActor = &D_8009BE24[arg0];
     u8 *p = (u8 *)pActor;
     s32 v;
