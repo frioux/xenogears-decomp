@@ -96,13 +96,11 @@ void func_80085AC4(s32 arg0) {
         p -= 2;
     }
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80085B58);
-/* 92.25%: retail schedules the D_800C3EAC pointer load (lui/lw) into the lhu's
-   load-delay slot and leaves the sh after it; gcc puts the sh first and a nop.
 void func_80085B58(s32 arg0) {
     s32 buf[3];
     s32 i;
     u16 v;
+    u8 *p;
 
     buf[0] = buf[1] = buf[2] = 0;
     if (func_8009ADA0((u8)arg0, buf) != 0) {
@@ -112,14 +110,14 @@ void func_80085B58(s32 arg0) {
                 func_80085388();
                 D_800C4000[(u8)arg0] = i + 8;
                 v = buf[i];
+                p = D_800C3EAC;
                 *(u16 *)(D_800C3FE8 + (u8)arg0 * 2) = v;
-                func_80085618(D_800C3EAC[0x2DA]);
+                func_80085618(p[0x2DA]);
             }
         }
         func_800BE538((u8)arg0, buf[0], buf[1], buf[2]);
     }
 }
-*/
 void func_80085C48(s32 arg0, u16 arg1, u16 arg2) {
     u16 v = D_800D39DC;
 
@@ -318,10 +316,57 @@ void func_80087A38(u8 arg0) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80087AF0);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80087EDC);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_800881B8);
+/* 81.95% (476 of retail 500 bytes, shape right, registers wrong): keep the
+   `ofsA`/`ofsB` locals - spelling `arg0 * 0x1C` inline makes gcc build a
+   `lui/addiu` base pointer for D_800C3EB4 (62.92%), as in func_80088490.
+   Open: (1) retail recomputes `arg1 * 0x1C` after the sel if/else into $s2
+   (its masked arg1 lived in $a2, which sel overwrote) while we keep one
+   computation in $s2 from the top; (2) retail re-loads D_800C3EB4[ofsA]
+   twice for the two flag stores (lui/addu/lbu each) where gcc forwards the
+   value just stored - that is 6 of the 24 missing bytes; (3) sel: retail is
+   `beqz(arg1<3)->li a2,0x10` with `li a2,0x18` in the second beqz's delay
+   slot, i.e. `if (arg1 >= 3 && arg0 < 3) sel = 0x18; else sel = 0x10;`,
+   which was tried and did not change the rest.
+void func_800881B8(u8 arg0, u8 arg1) {
+    s32 ofsA;
+    s32 ofsB;
+    u8 sel;
+
+    ofsA = arg0 * 0x1C;
+    ofsB = arg1 * 0x1C;
+    if (D_800C3EB4[ofsA] == D_800C3EB4[ofsB]) {
+        return;
+    }
+    sel = 0x10;
+    if (arg1 >= 3 && arg0 < 3) {
+        sel = 0x18;
+    }
+    if (D_800D301C[(D_800C3EB4[ofsB] + sel) << 2] != 0) {
+        return;
+    }
+    func_800883AC(arg0);
+    ofsA = arg0 * 0x1C;
+    D_800C3EB5[ofsA] = 0;
+    D_800C3EB4[ofsA] = D_800C3EB4[ofsB];
+    D_800D301C[(D_800C3EB4[ofsA] + sel) << 2] = 1;
+    D_800D301D[(D_800C3EB4[ofsA] + sel) << 2] = 1;
+    if (arg0 >= 3) {
+        *(u16 *)(D_800C3EBE + ofsA) = *(u16 *)(D_800D3364 + D_800C3EB4[ofsA] * 8 + 0x100);
+        *(u16 *)(D_800C3EC0 + ofsA) = *(u16 *)(D_800D3364 + D_800C3EB4[ofsA] * 8 + 0x102);
+    } else {
+        *(u16 *)(D_800C3EBE + ofsA) = *(u16 *)(D_800D3364 + D_800C3EB4[ofsA] * 8 + 0x104);
+        *(u16 *)(D_800C3EC0 + ofsA) = *(u16 *)(D_800D3364 + D_800C3EB4[ofsA] * 8 + 0x106);
+    }
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_800883AC);
 /* 92.28%: instruction multiset identical; gcc hoists the func_80089C48 argument
-   load into the load-delay slot after the D_800D301C load while retail leaves a
-   nop there and loads the argument after the store.
+   (lui/addu/lbu off $s0) above the D_800D301C store, into the load-delay slot
+   after the D_800D301C lbu, while retail leaves a nop there and loads the
+   argument after the store. Round 45: not a preset question - gcc-2.7.2-cdk
+   scores 62.86% (register set differs). Not tried: spelling the store's index
+   as a local (needs a saved register across the call) - retail recomputes
+   `D_800C3EB4[ofs]` after the call, so no.
 void func_800883AC(u8 arg0) {
     s32 ofs;
     u8 sel;
