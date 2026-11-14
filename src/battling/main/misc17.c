@@ -43,12 +43,12 @@ extern void func_8007639C(u8*, u8);
 extern void func_800767C8(u8*, u8*);
 extern void func_8008E78C(u8*, u32, u8*, u32);
 extern s32 func_8008B650(s32, s16, s16);
-extern void func_80039FF8(void);
+extern void SoundStopAllElements(void);
 extern u32 func_8003A5D0(u32);
 extern void func_8003A20C(u8);
 extern void func_8008FE80(u8*, u8*, s32);
 extern void func_80090E10(u8*);
-extern void func_80039F9C(s32, s32, s32, s32);
+extern void SoundPlaySoundEffectOnPairWithLevels(s32, s32, s32, s32);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008E120);
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008E2B8);
@@ -79,7 +79,7 @@ void func_8008E620(void) {
     u32 i;
 
     timer = 0x300;
-    func_80039FF8();
+    SoundStopAllElements();
     pSlot = D_80096EA0;
     for (i = 0; i < 4; i++) {
         pSlot->unkC = timer;
@@ -96,7 +96,7 @@ void func_8008E620(void) {
     u32 i;
 
     timer = 0x300;
-    func_80039FF8();
+    SoundStopAllElements();
     pSlot = D_80096EA0;
     for (i = 0; i < 4; i++) {
         pSlot[i].unkC = timer;
@@ -184,7 +184,7 @@ void func_8008E78C(u8* p0, u32 idx, u8* pData, u32 flags) {
     }
     pSlot->unk4 = 0;
     if (idx == 0) {
-        func_80039F9C(pSlot->unk8, pSlot->unk2, 0x7F, 0x40);
+        SoundPlaySoundEffectOnPairWithLevels(pSlot->unk8, pSlot->unk2, 0x7F, 0x40);
     }
 }
 */

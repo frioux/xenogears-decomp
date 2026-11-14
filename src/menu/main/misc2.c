@@ -14,7 +14,7 @@ extern u8 D_801E9779;
 extern u8 D_80059460; // Index of the menu overlay the menu was entered with
 
 s32 MenuWaitForCardEvent(void);
-extern void func_80039DB8(s32 arg0);
+extern void SoundPlaySoundEffectOnLastPair(s32 arg0);
 extern int Vsync(int mode);
 
 void func_801C8A10(s32 arg0);
@@ -314,7 +314,7 @@ void MenuSetQuadVertices(SVECTOR* pVertices, u16 x, u16 y, u16 width, u16 height
 }
 void MenuPlaySoundEffect(u_char soundEffectId) {
     if (g_Menu->unk32A) {
-        func_80039DB8((g_Menu->unk2E4->sedId << 16) | soundEffectId);
+        SoundPlaySoundEffectOnLastPair((g_Menu->unk2E4->sedId << 16) | soundEffectId);
     }
 }
 u16 MenuGetBitMaskMsbFirst(u8 index) {

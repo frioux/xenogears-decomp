@@ -74,7 +74,7 @@ extern void func_800A2234(u8 *, s32);
 extern void func_800A2CA4(u8 *, s32);
 extern void func_800B00D0(void);
 extern void func_8009F794(void *, s32);
-extern void func_8003852C(void *);
+extern void SoundRemoveSedsEntry(void *);
 extern void func_800A2ACC(u8 *);
 extern void func_800A2BB8(u8 *, void *, s32);
 extern void func_8009F708(void *);
@@ -557,7 +557,7 @@ void func_800A9F94(void) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A9FF0);
 /* 91.39%: first attempt on this stub. Shape recovered from the disassembly:
    arg0 is an index into D_800D3368; the body is a null-checked chain of
-   HeapFree/func_8009F794/func_8003852C/func_800A2ACC+func_800A2BB8 on fields
+   HeapFree/func_8009F794/SoundRemoveSedsEntry/func_800A2ACC+func_800A2BB8 on fields
    0x00,0x04,0xA8,0xAC,0xB0 of the unit, then the 0x13..0x1E range test
    "(u32)(arg0 - 0x13) < 0xC", then two counted loops (unk10E * 0x30 through
    unk118 with func_800A429C, unk10D * 0x24 through unk114 with func_800A8A88),
@@ -583,7 +583,7 @@ void func_800A9FF0(s32 arg0) {
             func_8009F794(*(void **)D_800D3368[arg0], 1);
         }
         if (*(u8 *)(D_800D3368[arg0] + 0x62) != 0) {
-            func_8003852C(*(void **)(*(u8 **)(D_800D3368[arg0] + 0xB0) + 8));
+            SoundRemoveSedsEntry(*(void **)(*(u8 **)(D_800D3368[arg0] + 0xB0) + 8));
         }
         if (*(void **)(D_800D3368[arg0] + 0xAC) != NULL) {
             HeapFree(*(void **)(D_800D3368[arg0] + 0xAC));

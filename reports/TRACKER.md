@@ -2632,3 +2632,23 @@ Still open, with evidence: `battle/misc19`'s 5-run split (2 functions, 4 new fil
 - A re-park appended after a note line that already ends with ` */` makes the whole attempt
   plain code: the only symptom is ninja's `.i` failing with `parse error before '39'`, which
   `check_bin.sh` reports as a bare `make: *** [build] Error 33`.
+
+### Round 40: 8 workers close 3; the naming round is 84 names and needed a tool fix
+
+- **`name_addrs.py` skipped every main-exe function that an overlay calls.** Its guard demanded
+  that the address be mentioned by the `src/` of exactly ONE binary, which is never true for
+  `system/sound` (field/movie/world_map call it), so 26 of 83 names were dropped as
+  "no single owner binary". The owner is the binary whose C *defines* the function; a genuine
+  address twin is already caught by "2+ C definitions". Patched, and the 26 entries landed in
+  `symbol_addrs.slus_006.64.txt` with `make check` green - the per-binary add loop below it was
+  always written for this case.
+- Yield: 40 reachable stubs across 8 units closed 3. Every worker committed and gated, but each
+  spent its whole 30 minutes on ITS FIRST stub, because this round's reachable stubs averaged
+  150-250 instructions (round 39's averaged smaller). **Brief 2-3 stubs per worker when they are
+  over ~150 insns**; a 4-7 stub list only looks like capacity.
+- Mechanism found in `battling/misc2`: an argument global must be read into a first-declared local
+  (`s32 n = D_80092648;` as the first statement) to get retail's load-hoisted-above-the-prologue
+  shape; `func_8007334C` went 76.19 -> 100.00 on that alone.
+- `menu/misc1`'s pair (`func_801C55A0`/`func_801C58EC`, 96.86/97.66) needs the switch written in
+  *case address order* 4,1,3, not value order; the remaining wall there is retail's double `lbu`
+  of the tested `u_char` against our single live value.

@@ -267,8 +267,8 @@ void func_8008B0D8(u8 *pActor) {
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc14", func_8008B13C);
 
 extern u32 ModelResolvePointers(void *pModel);
-extern void *func_80089C54(void);
-extern void func_80089C88(void *pList, void *pNode);
+extern void *BattleCreateObject(void);
+extern void BattleAppendListEntry(void *pList, void *pNode);
 extern void BattleSetNodeModelPart(void *pNode, void *pData);
 extern void BattleSetNodeEntryList(void *pNode, void *pData);
 extern void *BattleCreateEntryList(void);
@@ -307,14 +307,14 @@ void *func_8008B38C(u8 *pArg) {
     HeapSetCurrentContentType(0x12);
     pBuf = HeapAlloc(count * 4, 0);
     pScale = BattleCreateEntryList();
-    pNode = func_80089C54();
+    pNode = BattleCreateObject();
     BattleSetNodeEntryList(pNode, pScale);
     *(u8 **)(pScale + 4) = pBuf;
     *(u16 *)pScale = count;
     *(u8 **)(pScale + 0x18) = pCur;
     pSlot = (u8 **)pBuf;
     for (i = 0; i < count; i++) {
-        pPart = func_80089C54();
+        pPart = BattleCreateObject();
         *pSlot = pPart;
         if (*(s16 *)(pCur + 2) != -1) {
             pListArg = BattleCreateModelPart();
@@ -326,7 +326,7 @@ void *func_8008B38C(u8 *pArg) {
         } else {
             pListArg = *(u8 **)(pBuf + *(s16 *)pCur * 4);
         }
-        func_80089C88(pListArg, pPart);
+        BattleAppendListEntry(pListArg, pPart);
         *(u16 *)(pPart + 0x44) = *(u16 *)(pCur + 4);
         *(u16 *)(pPart + 0x46) = *(u16 *)(pCur + 6);
         *(u16 *)(pPart + 0x48) = *(u16 *)(pCur + 8);

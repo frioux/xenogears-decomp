@@ -24,7 +24,7 @@ extern u_long* g_GfxCurOT;
 extern void AnimScriptTick(SpriteData* pSprite);
 extern void func_80022CDC(SpriteData* pSprite);
 extern void func_800245D8(SpriteData* pSprite, s8 arg1);
-extern void func_80021FE0(SpriteData* pSprite, s16 arg1);
+extern void SpriteSetDirection(SpriteData* pSprite, s16 arg1);
 extern void func_80022B2C(SpriteData* pSprite);
 extern s32 func_800BEF24(SpriteData* p0, SpriteData* p1);
 extern void func_800223B0(SpriteData* pSprite, s16 arg1);
@@ -63,10 +63,10 @@ void func_800B9B54(SpriteData* p0, SpriteData* p1) {
         return;
     }
     func_800223B0(p0, func_800BEF24(p0, p1));
-    func_80021FE0(p0, func_800BEF24(p0, p1));
+    SpriteSetDirection(p0, func_800BEF24(p0, p1));
     if (((s8*)p1)[0xAF] != 0x15) {
         func_800223B0(p1, func_800BEF24(p1, p0));
-        func_80021FE0(p1, func_800BEF24(p1, p0));
+        SpriteSetDirection(p1, func_800BEF24(p1, p0));
     }
 }
 void func_800B9C00(SpriteData* pSprite, s32 arg1) {
@@ -96,7 +96,7 @@ void BattleActorComputeFallDirection(SpriteData* pSprite) {
     s32 dy;
     s32 angle;
 
-    func_80021B04(&vec, pSprite->field_0xA0, pSprite->field_0xA2, pSprite->field_0xA4);
+    SpriteSetSVec(&vec, pSprite->field_0xA0, pSprite->field_0xA2, pSprite->field_0xA4);
     index = func_800A5914((s16*)&vec, pSprite->field_0x78, 4);
     if (index < 0) {
         index = func_800A579C((s16*)&vec);
@@ -140,7 +140,7 @@ void BattleActorUpdateFallMotion(SpriteData* pSprite) {
     } else {
         pSprite->moveSpeed = 0;
     }
-    func_80021B04(&vec, pSprite->field_0xA0, pSprite->field_0xA2, pSprite->field_0xA4);
+    SpriteSetSVec(&vec, pSprite->field_0xA0, pSprite->field_0xA2, pSprite->field_0xA4);
     index = func_800A5914((s16*)&vec, pSprite->field_0x78, 4);
     if (index < 0) {
         index = func_800A579C((s16*)&vec);
@@ -383,7 +383,7 @@ void BattleActorSetFacingFromSideFlag(s32 index) {
     pCounter = pBase + index * 0x1C;
     sfx = (pCounter[0xA] != 0) << 11;
     func_800223B0(pSprite, sfx);
-    func_80021FE0(pSprite, sfx);
+    SpriteSetDirection(pSprite, sfx);
 }
 /* 75.68%: the known 0x8C8C wall (same as misc28's func_800B64D4).  Retail keeps
    &D_800C3EB0 in $a1 and adds 0x8C8C with a separate li+addu; gcc always folds
@@ -402,7 +402,7 @@ void BattleActorSetFacingFromSideFlag(s32 index) {
     }
     sfx = (D_800C3EB0[index * 0x1C + 0xA] != 0) << 11;
     func_800223B0(pSprite, sfx);
-    func_80021FE0(pSprite, sfx);
+    SpriteSetDirection(pSprite, sfx);
 }
 */
 void func_800BAF40(void) {

@@ -494,14 +494,14 @@ extern s32 D_80062528;
 extern s32 D_8004F348;
 extern s32 D_8004F2FC;
 
-extern void func_80039C4C(s32);
-extern void func_800399D4(s32);
+extern void SoundStopAudioManager(s32);
+extern void SoundDestroyAudioManager(s32);
 
 void func_8001B5E8(void) {
     if (D_8004F35C == 1) {
-        func_80039C4C(D_80062528);
+        SoundStopAudioManager(D_80062528);
         if (D_8004F348 == 0) {
-            func_800399D4(D_80062528);
+            SoundDestroyAudioManager(D_80062528);
         } else {
             D_8004F2FC = D_80062528;
         }
@@ -749,7 +749,7 @@ extern u16 D_8006F9D4;
 extern void* D_8006F9D8;
 extern u8 D_8004F388[];
 extern void SoundAddSedsEntry(SoundFile* pSoundFile);
-extern void func_80039DB8(s32 arg0);
+extern void SoundPlaySoundEffectOnLastPair(s32 arg0);
 
 void func_8001BBAC(void) {
     int i;
@@ -784,7 +784,7 @@ void func_8001BBAC(void) {
             soundEffectId = D_8004F388[D_8005954C * 3 + i];
             i++;
             if (soundEffectId != 0xFF) {
-                func_80039DB8((D_800595D0->sedId << 16) | soundEffectId);
+                SoundPlaySoundEffectOnLastPair((D_800595D0->sedId << 16) | soundEffectId);
             }
         }
     }

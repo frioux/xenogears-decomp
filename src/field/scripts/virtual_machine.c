@@ -703,7 +703,7 @@ INCLUDE_ASM("asm/field/nonmatchings/scripts/virtual_machine", func_800A3474);
 // Best attempt: 86.75% (692 bytes vs 696). Everything structural already matches: the 0x74-byte
 // memcpy through `(u8*)&g_FieldNumActors - 0xB8` reproduces the original's two-loop
 // mips_expand_block_move verbatim (the (src|dst)&3 alignment test, the lwl/lwr loop, the lw loop and
-// the 4-byte tail), and both loops plus the func_80021D50 guard chain match instruction for
+// the 4-byte tail), and both loops plus the SpriteRestoreAnimState guard chain match instruction for
 // instruction. What is left is register roles and one missing reload:
 //  1. the original keeps &g_FieldNumActors in $a0 and derives $a3 = $a0 - 0xB8, and keeps
 //     &D_8005A4E4 in $a1 (addiu $v0,$a1,0x3C / move $a2,$v0); gcc here folds the -0xB8 into the
@@ -719,7 +719,7 @@ extern u8* D_800AFC50;
 extern s32 D_8005A408[3];
 extern s32 D_800ADBFC;
 extern s32 D_800B2268;
-extern void func_80021D50(void*, u8*);
+extern void SpriteRestoreAnimState(void*, u8*);
 void func_800A3C8C(void) {
     int i;
     int nDiff;
@@ -752,7 +752,7 @@ void func_800A3C8C(void) {
         pActorData = g_FieldActors[i].pActorData;
         if (!(pActorData->flags & 0x1000000) &&
             (D_800B2268 == 0 || !(pActorData->scriptFlags.flags & 0x600) || nDiff == 0)) {
-            func_80021D50(g_FieldActors[i].pSpriteData, D_800AFC50);
+            SpriteRestoreAnimState(g_FieldActors[i].pSpriteData, D_800AFC50);
         }
 
         pActorData = g_FieldActors[i].pActorData;

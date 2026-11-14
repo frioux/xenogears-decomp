@@ -21,7 +21,7 @@ extern DISPENV D_800C4A7C;
 extern void *D_800C3618;
 extern void func_800BE790(void);
 extern void func_800245D8(void *, s32);
-extern void func_80021BF8(void *, void *);
+extern void SpriteSetCallback(void *, void *);
 extern void func_8002A498(s32);
 
 void func_800B73EC(void) {
@@ -123,8 +123,8 @@ extern void func_80029AFC(void *pRequest, s32 arg1, s32 arg2);
 extern void SoundAddSedsEntry(void *pEntry);
 extern void *SoundLoadWdsFile(void *pBuffer, s32 arg1);
 extern void SoundFreeWdsEntry(void *pWds);
-extern void func_8003852C(void *pBuffer);
-extern void func_80039E60(s32 arg0);
+extern void SoundRemoveSedsEntry(void *pBuffer);
+extern void SoundPlaySoundEffectOnFreePair(s32 arg0);
 extern s32 func_8003A5D0(s32 arg0);
 extern s16 func_8003BDFC(s32 arg0);
 
@@ -174,11 +174,11 @@ void func_800B838C(s32 arg0, s32 arg1) {
         func_800BE790();
     }
     id = pEntry->unk2 + arg1 + (*(u16 *)((u8 *)pBuffer1 + 0x14) << 16);
-    func_80039E60(id);
+    SoundPlaySoundEffectOnFreePair(id);
     while (func_8003A5D0(id) != 0) {
         func_800BE790();
     }
-    func_8003852C(pBuffer1);
+    SoundRemoveSedsEntry(pBuffer1);
     SoundFreeWdsEntry(pWds);
     HeapFree(pBuffer2);
     HeapFree(pBuffer1);
@@ -224,5 +224,5 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B8EBC);
 
 void func_800B9020(u8 *pSprite) {
     func_800245D8(pSprite, *(s8 *)(pSprite + 0xB0));
-    func_80021BF8(pSprite, 0);
+    SpriteSetCallback(pSprite, 0);
 }

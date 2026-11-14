@@ -93,7 +93,7 @@ extern s16 D_80092698;
 extern s16 D_8009269C;
 extern VECTOR D_80096FA8;
 
-// 0xC-byte entry table func_8007DB28 allocates at D_800926C8.
+// 0xC-byte entry table BattleInitSpriteBuffers allocates at D_800926C8.
 typedef struct {
     /* 0x0 */ u16 unk0;
     /* 0x2 */ u16 unk2;
@@ -104,7 +104,7 @@ typedef struct {
     /* 0xA */ u16 unkA;
 } BattleSpriteSlot; // Size: 0xC
 
-// 0x10-byte primitive template func_8007DB28 allocates at D_800926CC/D_800926D0.
+// 0x10-byte primitive template BattleInitSpriteBuffers allocates at D_800926CC/D_800926D0.
 typedef struct {
     /* 0x0 */ u8 unk0[3];
     /* 0x3 */ u8 unk3;
@@ -405,7 +405,7 @@ void func_8007D7A8(VECTOR *pSrc, s32 count) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007D918);
 
-void func_8007DB28(void) {
+void BattleInitSpriteBuffers(void) {
     u8 *pTemplateBuf;
     BattleSpriteSlot *pSlot;
     BattlePrimTemplate16 *pTemplate;

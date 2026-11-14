@@ -629,7 +629,7 @@ extern void func_8008110C(void);
 extern void func_80073230(void);
 extern void func_80281B00(const char* pName);
 extern void func_800223B0(SpriteData* pSpriteData, s16 direction);
-extern void func_80021FE0(SpriteData* pSpriteData, s16 direction);
+extern void SpriteSetDirection(SpriteData* pSpriteData, s16 direction);
 extern long FieldGetVec2Magnitude(long x, long z);
 
 // The stack is switched into the scratchpad around three calls ($sp saved at
@@ -736,7 +736,7 @@ void func_800739C0(void) {
                     (s16)((u_short)g_CamInterpolation.curAngleY
                         + (u_short)pActorData->rotation.vz));
             } else {
-                func_80021FE0((SpriteData*)pActor->pSpriteData, pActorData->rotation.vz);
+                SpriteSetDirection((SpriteData*)pActor->pSpriteData, pActorData->rotation.vz);
             }
         }
     }
@@ -758,7 +758,7 @@ void func_80073E38(void) {
         }
 
         pModel = pActor->pModelData;
-        func_800AA9DC(pModel);
+        FieldActorModelComputeCenterAndSize(pModel);
 
         if (D_800B218E != 0) {
             if (pActor->status & 0x10) {

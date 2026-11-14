@@ -77,8 +77,8 @@ extern s16 D_8006F954;
 extern s32 D_8009BBC4;
 extern void WorldMapSetSpriteSetParent(int, int);
 extern void HeapFree(void *pMem);
-extern void func_80039FF8(void);
-extern void func_8003852C(void *p);
+extern void SoundStopAllElements(void);
+extern void SoundRemoveSedsEntry(void *p);
 extern void WorldMapFreeSpriteSets(void);
 extern void func_80086568(void);
 extern void func_800866C8(void);
@@ -373,8 +373,8 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007BF50);
 void func_8007C260(void) {
     u16 v;
 
-    func_80039FF8();
-    func_8003852C(D_8006259C);
+    SoundStopAllElements();
+    SoundRemoveSedsEntry(D_8006259C);
     HeapFree(D_8006259C);
     WorldMapFreeSpriteSets();
     func_80086568();

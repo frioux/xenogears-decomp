@@ -1867,7 +1867,7 @@ void GearShopMenuRender(void) {
 
 void GearShopMenuPlaySoundEffect(s32 arg0) {
     if (g_Menu->unk32A) {
-        func_80039DB8((g_Menu->unk2E4->sedId << 0x10) | (arg0 & 0xFF), arg0);
+        SoundPlaySoundEffectOnLastPair((g_Menu->unk2E4->sedId << 0x10) | (arg0 & 0xFF), arg0);
     }
 }
 
@@ -2503,9 +2503,9 @@ void GearShopMenuFree(void) {
     HeapFree(g_Menu->unk2E0);
     HeapFree(g_Menu->unk4E0[0].pVramBuffer);
     if (g_MenuDebugEnabled) {
-        func_8003A094(g_Menu->unk2E4);
+        SoundStopElementsForSoundFile(g_Menu->unk2E4);
         GearShopMenuUpdateAndRender();
-        func_8003852C(g_Menu->unk2E4);
+        SoundRemoveSedsEntry(g_Menu->unk2E4);
         GearShopMenuUpdateAndRender();
         HeapFree(g_Menu->unk2E4);
     }

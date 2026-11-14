@@ -70,9 +70,10 @@ of a match, and it is cheap.
   and `.data` function tables from `symbol_addrs`, so renaming only in `src/` gives
   `undefined reference to func_<addr>` from every stub and table that points at it
   (round 36: 449 of 502 names, an hour of link errors). Both tools exit 1 on a SKIP;
-  read the SKIP block. `name_addrs.py` deliberately leaves a name alone when its address
-  is a *different* function in another overlay (2+ `.c` files define it) and never
-  writes an entry into a file its yaml already loads ("Duplicate symbol detected" from
+  read the SKIP block. `name_addrs.py` owns a symbol by the binary whose C *defines* it (so a
+  main-exe function that five overlays call names fine), leaves a name alone when its address
+  is a *different* function in another overlay (2+ `.c` files define it) and never writes an
+  entry into a file its yaml already loads ("Duplicate symbol detected" from
   splat stops the whole build), so ~4-8 names a round stay `func_`; leave them.
 - **Backlog:** about 2,100 already-matched functions are still `func_`. While a
   matching round is out, run a naming round over them with

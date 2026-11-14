@@ -28,7 +28,7 @@ void BattleIncFrameCounter(void) {
 }
 
 extern void func_800B7C34(s32);
-extern void func_80021BF8(u8 *pActor, void *pCallback);
+extern void SpriteSetCallback(u8 *pActor, void *pCallback);
 extern void func_800245D8(u8 *pActor, s32 arg1);
 extern void func_800BE790(void);
 
@@ -39,7 +39,7 @@ void BattleActorWaitFramesWithCallback(s32 arg0, u8 *pActor) {
     }
     D_800C3CE8 = 0;
     if (*(s8 *)(pActor + 0xAF) != 0) {
-        func_80021BF8(pActor, BattleIncFrameCounter);
+        SpriteSetCallback(pActor, BattleIncFrameCounter);
         func_800245D8(pActor, *(s8 *)(pActor + 0xAF));
     }
     func_800B7C34(arg0);
@@ -47,7 +47,7 @@ void BattleActorWaitFramesWithCallback(s32 arg0, u8 *pActor) {
         while (D_800C3CE8 == 0) {
             func_800BE790();
         }
-        func_80021BF8(pActor, 0);
+        SpriteSetCallback(pActor, 0);
     }
 }
 

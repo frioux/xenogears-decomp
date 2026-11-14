@@ -33,9 +33,9 @@ typedef struct {
 
 extern s16 func_80023124(DVECTOR, DVECTOR);
 extern s32 func_800C0FAC(s32);
-extern u8 func_80021AD8(u8, s16);
+extern u8 SpriteColorAddClamp(u8, s16);
 extern s32 func_800C07CC(DVECTOR vec0, DVECTOR vec1);
-extern void func_80021FE0(Misc33Point *p, s16 arg1);
+extern void SpriteSetDirection(Misc33Point *p, s16 arg1);
 extern void func_800223B0(Misc33Point *p, s16 arg1);
 extern void func_800245D8(Misc33Point *p, s32 arg1);
 
@@ -63,9 +63,9 @@ void func_800BE11C(BattleMisc33Actor *p) {
     p->unk40 += 0x330;
     p->unk44 += 0x330;
     p->unk48 += 0x330;
-    p->unk68 = func_80021AD8(p->unk68, -4);
-    p->unk69 = func_80021AD8(p->unk69, -4);
-    p->unk6A = func_80021AD8(p->unk6A, -4);
+    p->unk68 = SpriteColorAddClamp(p->unk68, -4);
+    p->unk69 = SpriteColorAddClamp(p->unk69, -4);
+    p->unk6A = SpriteColorAddClamp(p->unk6A, -4);
     if (--p->unk60 == 0) {
         p->unkC(p);
     }
@@ -239,7 +239,7 @@ void func_800BF1EC(Misc33Point *p, s32 arg1) {
     c3 = p->unkA4;
     vec1.vy = c3;
     D_800C3610->unk44 = func_800C07CC(vec0, vec1);
-    func_80021FE0(p, func_800BEF8C(p));
+    SpriteSetDirection(p, func_800BEF8C(p));
     func_800223B0(p, func_800BEF8C(p));
     func_800245D8(p, arg1);
     func_800BF0B4(6);

@@ -220,7 +220,7 @@ void func_80025258(WorkListEntry* pTask) {
 
     flags = *(u32*)((u8*)pSpriteData + 0x3C);
     if ((flags >> 24) & 1) {
-        func_80022038(pSpriteData);
+        SpriteUpdateTransformMatrix(pSpriteData);
         vecTrans[0] = pSpriteData->position.x >> 16;
         vecTrans[1] = pSpriteData->position.y >> 16;
         vecTrans[2] = pSpriteData->position.z >> 16;
@@ -385,7 +385,7 @@ void func_80025544(WorkListEntry* pTask) {
 
 void func_80025710(void) {}
 
-extern void func_80022038(SpriteData* pSpriteData);
+extern void SpriteUpdateTransformMatrix(SpriteData* pSpriteData);
 extern void ModelRenderPacket(void* pDirTransforms, void* pFramesData, u_long* pOT, int flags);
 
 // Draws the sprite through its transform matrix, then its model parts.
@@ -395,7 +395,7 @@ void func_80025718(WorkListEntry* pTask) {
     SpriteData* pSpriteData;
 
     pSpriteData = pTask->unk4;
-    func_80022038(pSpriteData);
+    SpriteUpdateTransformMatrix(pSpriteData);
     if (pSpriteData->pBase->pDirTransforms) {
         vec.vx = pSpriteData->position.x >> 16;
         vec.vy = pSpriteData->position.y >> 16;
@@ -431,7 +431,7 @@ void func_800257F0(WorkListEntry* pTask) {
     s32 oldShift;
 
     pSpriteData = pTask->unk4;
-    func_80022038(pSpriteData);
+    SpriteUpdateTransformMatrix(pSpriteData);
     if (pSpriteData->pBase->pDirTransforms) {
         if ((*(u32*)((u8*)pSpriteData + 0x40) >> 1) & 1) {
             PushMatrix();
@@ -498,7 +498,7 @@ void func_80025A88(WorkListEntry* pTask) {
     s32 oldShift;
 
     pSpriteData = pTask->unk4;
-    func_80022038(pSpriteData);
+    SpriteUpdateTransformMatrix(pSpriteData);
     if (pSpriteData->pBase->pDirTransforms) {
         vec.vx = pSpriteData->position.x >> 16;
         vec.vy = pSpriteData->position.y >> 16;

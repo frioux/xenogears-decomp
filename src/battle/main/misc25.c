@@ -20,7 +20,7 @@ extern void func_800A23E8(s32, u8 *);
 extern s16 func_800A579C(s16 *);
 extern void func_800A5870(s16 *, s16, void *);
 extern s32 func_800A5914(s16 *, s16, s32);
-extern void func_8003852C(s32);
+extern void SoundRemoveSedsEntry(s32);
 extern void func_800B00D0(void);
 extern u8 D_800C3D0C[];
 extern u8 *D_800D3368[];
@@ -159,7 +159,7 @@ void func_800AFA98(BattleModel *pModel, BattleModelNode *pNode, s32 flags) {
     }
 }
 extern u8 *func_80023FD8(s32, s32, s32, s32);
-extern void func_80021FE0(void *, s16);
+extern void SpriteSetDirection(void *, s16);
 extern void func_800223B0(void *, s16);
 extern void SpriteSetScale(void *, s16);
 extern s32 WorkListTaskGetTaskCallback(void *);
@@ -173,7 +173,7 @@ void func_800AFB4C(s32 arg0, s32 arg1, s32 arg2, s32 arg3, s32 arg4, u8 *arg5, s
 
     p = func_80023FD8(arg1, arg0, arg2, 0x18);
     pSub = p + 0x38;
-    func_80021FE0(pSub, arg3);
+    SpriteSetDirection(pSub, arg3);
     func_800223B0(pSub, arg3);
     SpriteSetScale(pSub, arg4);
     pNode = p + *(s16 *)(p + 0xBE);
@@ -310,7 +310,7 @@ void func_800AFF9C(u8 *p) {
 void func_800B0060(u8 *p) {
     if (*(s32 *)(p + 0xC) != 0) {
         if (*(u8 *)(p + 0x63) != 0) {
-            func_8003852C(*(s32 *)(*(u8 **)(p + 0xB4) + 8));
+            SoundRemoveSedsEntry(*(s32 *)(*(u8 **)(p + 0xB4) + 8));
             *(u8 *)(p + 0x63) = 0;
         }
         HeapFree(*(void **)(p + 0xC));

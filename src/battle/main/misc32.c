@@ -207,15 +207,15 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BDB74);
    result into call 2's argument (`andi $a0,$v0,0xff`, with the store deferred
    into the next call's delay slot) and the score drops to 86.00; retail reloads
    the byte. With them the instruction multiset is identical.
-extern u8 func_80021AD8(u8 arg0, s16 arg1);
+extern u8 SpriteColorAddClamp(u8 arg0, s16 arg1);
 
 void func_800BDB74(u8 *pTask) {
     void (*pCallback)(u8 *);
 
     func_800BDF1C(pTask);
-    pTask[0x80] = func_80021AD8(pTask[0x80], -8);
-    pTask[0x81] = func_80021AD8(*(volatile u8 *)(pTask + 0x80), -8);
-    pTask[0x82] = func_80021AD8(*(volatile u8 *)(pTask + 0x80), -8);
+    pTask[0x80] = SpriteColorAddClamp(pTask[0x80], -8);
+    pTask[0x81] = SpriteColorAddClamp(*(volatile u8 *)(pTask + 0x80), -8);
+    pTask[0x82] = SpriteColorAddClamp(*(volatile u8 *)(pTask + 0x80), -8);
     if (--*(s32 *)(pTask + 0x88) < 0 || (pTask[0x80] | pTask[0x81] | pTask[0x82]) == 0) {
         pCallback = *(void (**)(u8 *))(pTask + 0xC);
         pCallback(pTask);

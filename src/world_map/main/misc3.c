@@ -12,9 +12,9 @@ extern void func_80089514(s32 arg0);
 extern void func_80097770(s32 arg0, s32 arg1);
 extern s32* D_80062528;
 
-extern void func_8003A89C(s32* pManager);
+extern void SoundSetAudioManagerVolumeWithFade(s32* pManager);
 extern void func_80089160(s32 arg0, void* arg1, s32 arg2);
-extern void func_80039E60(s32 arg0);
+extern void SoundPlaySoundEffectOnFreePair(s32 arg0);
 extern void func_8003A3B8(s32 arg0, s32 arg1, s32 arg2);
 
 extern u8 D_8009C5AC[];
@@ -228,12 +228,12 @@ s32 WorldMapScriptOp07ClearGroupEntries(s32 arg0, s32 arg1) {
 }
 
 s32 WorldMapScriptOp08FadeMasterVolume(void) {
-    func_8003A89C(D_80062528);
+    SoundSetAudioManagerVolumeWithFade(D_80062528);
     return 4;
 }
 
 s32 WorldMapScriptOp09PlaySound(s32 arg0, s32 arg1) {
-    func_80039E60((*(u16*)((u8*)D_8006259C + 0x14) << 16) | arg1);
+    SoundPlaySoundEffectOnFreePair((*(u16*)((u8*)D_8006259C + 0x14) << 16) | arg1);
     return 2;
 }
 

@@ -392,7 +392,7 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80023804);
    Only the AC flag word differs: the original keeps the 0xFFF8007F mask in v0 and the loaded
    value in v1, gcc allocates the pair the other way round (and mirrors the 0xA8 word with it).
    The 0x8000 is anim index 0x100 in the bitfield at bit 7, so the original is probably a bitfield
-   store, not this and/or. func_80021BCC in animation_scripts.c compiles the same expression to
+   store, not this and/or. SpriteSetSpeedScale in animation_scripts.c compiles the same expression to
    mask=v1/value=v0 too, so the shape is right and the swap is context-driven allocation.
    Tried: statement swap (93.37%), A8 statement first (93.37%), constant-first operand order,
    mask in a declared local, `u32 maskAC = ...` initialised at the top of the function, `maskAC`
@@ -625,7 +625,7 @@ void SpriteInitFromAnimFileWithClut(SpriteData* pSpriteData, void* pAnimFile, s1
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_8002435C);
 /* Best attempt: 89.07%. Every operation, load, store and call is in place and in order; what is
    left is register allocation only. The original keeps pAnimFile in s6 for the tail (the 0x48
-   store and the func_800222BC call) and a second copy in s1 for the 0x8 offset load, so it saves
+   store and the SpriteSetAnimFile call) and a second copy in s1 for the 0x8 offset load, so it saves
    seven callee-saved registers; this C uses one register throughout. The 0x3C/0x40 flag block
    also lands in the wrong registers (mask in a0, D_800591AD in v1 instead of the reverse).
    Returns pSpriteData in v0, so the prototype above should be SpriteData* once defined.
@@ -673,7 +673,7 @@ SpriteData* func_8002435C(SpriteData* pSpriteData, void* pAnimFile, s16 arg2, s1
     ((SpriteAnimPackage*)pSpriteData->pVramData)->clut.x = arg2;
     ((SpriteAnimPackage*)pSpriteData->pVramData)->clut.y = arg3;
     pSpriteData->pDefaultAnimFile = pAnimFile;
-    func_800222BC(pSpriteData, pAnimFile);
+    SpriteSetAnimFile(pSpriteData, pAnimFile);
     pAnimations = ((SpriteAnimPackage*)pSpriteData->pVramData)->pAnimations;
     pSpriteData->field_0x60 = (u32)pAnimations + ((*(u16*)pAnimations & 0x3F) + 1) * 2;
     func_800245D8(pSpriteData, 0);
@@ -689,7 +689,7 @@ void func_80024524(s32 arg0, s16 arg1, s16 arg2, s16 arg3, s16 arg4, s16 arg5) {
     func_8002435C(pSpriteData, (void*)arg0, arg1, arg2, arg3, arg4, arg5);
 }
 
-extern void func_800222BC(SpriteData* pSpriteData, void* pAnimFile);
+extern void SpriteSetAnimFile(SpriteData* pSpriteData, void* pAnimFile);
 extern s32 func_8001EE68(void* pFrames);
 extern void func_800223B0(SpriteData* pSpriteData, s16 arg1);
 extern void func_80023538(SpriteData* pSpriteData, void* pAnimEntry);
@@ -709,13 +709,13 @@ void func_800245D8(SpriteData* pSpriteData, s32 animId) {
         pSpriteData->flags_0xB0 |= 0x400;
     }
     if (animId < 0) {
-        func_800222BC(pSpriteData, pSpriteData->pSpecialAnimFile);
+        SpriteSetAnimFile(pSpriteData, pSpriteData->pSpecialAnimFile);
         if (D_800591AD && func_8001EE68(((SpriteAnimPackage*)pSpriteData->pVramData)->pFrames) == 0) {
             ((SpriteAnimPackage*)pSpriteData->pVramData)->tex.y = 0x100;
             ((SpriteAnimPackage*)pSpriteData->pVramData)->tex.x = 0x300;
         }
     } else {
-        func_800222BC(pSpriteData, pSpriteData->pDefaultAnimFile);
+        SpriteSetAnimFile(pSpriteData, pSpriteData->pDefaultAnimFile);
         if (D_800591AD) {
             ((SpriteAnimPackage*)pSpriteData->pVramData)->tex = *(SVEC2*)((u8*)pSpriteData->field_0x7C + 0xE);
         }

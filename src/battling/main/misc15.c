@@ -26,8 +26,8 @@ typedef struct HeapNode {
 extern s32 D_80092824;
 extern void* D_80092828;
 extern void* func_8008C188(u8* pObj, void* pArg);
-extern s32 func_80089C54(void);
-extern void func_80089C88(s32 handle, void* pNode);
+extern s32 BattleCreateObject(void);
+extern void BattleAppendListEntry(s32 handle, void* pNode);
 extern void func_8008BE4C(WorkBlock* pBlock, u8* pData);
 extern s32 rand(void);
 extern u8 D_800928A0;
@@ -213,7 +213,7 @@ void* func_8008C188(u8* pObj, void* pArg) {
     u8* pChild;
 
     HeapSetCurrentContentType(6);
-    pWork = (void*)func_80089C54();
+    pWork = (void*)BattleCreateObject();
     pNode = func_8008C0CC(pObj);
     func_8008C0BC(pWork, pNode);
     if (pNode->type == 1) {
@@ -226,9 +226,9 @@ void* func_8008C188(u8* pObj, void* pArg) {
     pChild = *(u8**)(pObj + 0x94);
     D_80092824++;
     if (pChild != NULL)
-        func_80089C88((s32)pWork, func_8008C188(pChild, pWork));
+        BattleAppendListEntry((s32)pWork, func_8008C188(pChild, pWork));
     if (*(void**)(pObj + 0x90) != NULL)
-        func_80089C88((s32)pArg, func_8008C188(*(u8**)(pObj + 0x90), pArg));
+        BattleAppendListEntry((s32)pArg, func_8008C188(*(u8**)(pObj + 0x90), pArg));
     return pWork;
 }
 void func_8008C298(void* pWork) {

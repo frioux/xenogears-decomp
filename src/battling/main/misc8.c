@@ -47,7 +47,7 @@ extern s32 D_80092940;
 extern void func_8007F834(void);
 extern void func_800719F0(void);
 extern void BattleLoadSlotEntry(s32 a0, s32 a1);
-extern void func_80039FF8(void);
+extern void SoundStopAllElements(void);
 extern void func_8007313C(void *pDst, void *pSrc);
 extern void func_8008EB4C(s32 arg);
 extern void func_80083C0C(s32 mode);
@@ -82,7 +82,7 @@ extern void func_80081A44(void);
 extern void func_80080F04(void);
 extern void *GetStringEntry(void *pStringData, u32 entry);
 extern s32 SystemRenderStringEntry(void *pCur, void *pCharBuffer, s32 mode, s32 flag);
-extern s32 func_800891C0(s32 a0);
+extern s32 BattleLoadArchiveEntry(s32 a0);
 extern void ArchiveCdDataSync(s32 mode);
 
 void func_800808F4(void) {
@@ -111,7 +111,7 @@ s32 func_800809BC(void) {
 }
 
 void func_800809D8(void) {
-    func_80039FF8();
+    SoundStopAllElements();
     D_80092734 = 0;
     func_80080964(3);
     D_80091672 = 0;
@@ -122,7 +122,7 @@ void func_800809D8(void) {
     D_80092924 = 0;
     func_80080AA0(0);
     D_80092940 = 0;
-    D_800928D8 = func_800891C0(6);
+    D_800928D8 = BattleLoadArchiveEntry(6);
 }
 
 void func_80080A58(void) {
@@ -189,7 +189,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc8", func_80080C48);
    `s32 mode = 0` local.  gcc 2.7.2-cdk scores worse (85.36%), so the unit
    preset is right.
 void func_80080C48(s32 a0) {
-    func_80039FF8();
+    SoundStopAllElements();
     func_8008EB4C(0x1F);
     if (a0 == 1) {
         D_80092734 = 0;

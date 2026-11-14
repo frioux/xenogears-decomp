@@ -21,7 +21,7 @@ extern s32 func_801E563C(void);
 extern void func_801E879C(s32);
 extern void func_8028022C(void);
 extern void func_800BE790(void);
-extern void func_8003A89C(s32 *, s32, s32);
+extern void SoundSetAudioManagerVolumeWithFade(s32 *, s32, s32);
 extern void ArchiveReadFileToBuffer(s32, void *, u32, u32);
 extern u8 D_800D2CAF;
 extern u16 D_800D2C94;
@@ -101,7 +101,7 @@ void func_80070EDC(void) {
         result = func_801E563C();
     }
     if (result == 0 && D_800C48EA == 0x81) {
-        func_8003A89C(D_800C3E54, 0, 0xF0);
+        SoundSetAudioManagerVolumeWithFade(D_800C3E54, 0, 0xF0);
     }
 }
 

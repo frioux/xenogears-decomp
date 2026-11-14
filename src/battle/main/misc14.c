@@ -30,7 +30,7 @@ extern u8* D_800D2DB4;
 extern s32 func_80076A10(s32 arg0, s32 arg1, s16 arg2, s16 arg3);
 extern void func_80076B68(u8* p);
 extern Temp8* D_8005919C;
-extern void func_80039DB8(s32 arg0);
+extern void SoundPlaySoundEffectOnLastPair(s32 arg0);
 extern void func_8008860C(void);
 extern void func_80089038(void);
 extern void func_80089110(void);
@@ -416,5 +416,5 @@ void func_8008A9C0(u8 arg0) {
     }
 }
 void func_8008AA40(u8 arg0) {
-    func_80039DB8((D_8005919C->unk14 << 16) | arg0);
+    SoundPlaySoundEffectOnLastPair((D_8005919C->unk14 << 16) | arg0);
 }

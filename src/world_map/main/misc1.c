@@ -379,9 +379,9 @@ extern s32 D_8009D7CC;
 extern void* D_8009CD34[3];
 extern void* D_8009BDF8[3];
 
-extern void func_8003A89C(void* p, s32 arg1, s32 arg2);
-extern void func_80039FF8(void);
-extern void func_8003852C(void* p);
+extern void SoundSetAudioManagerVolumeWithFade(void* p, s32 arg1, s32 arg2);
+extern void SoundStopAllElements(void);
+extern void SoundRemoveSedsEntry(void* p);
 extern void func_800230A8(void* p);
 extern void func_80075460(void);
 extern void func_80092DD0(void);
@@ -405,10 +405,10 @@ void func_8007299C(void) {
     s32 i;
 
     if (D_8009D7CC == 0) {
-        func_8003A89C(D_80062528, 0, 0xF0);
+        SoundSetAudioManagerVolumeWithFade(D_80062528, 0, 0xF0);
     }
-    func_80039FF8();
-    func_8003852C(D_8006259C);
+    SoundStopAllElements();
+    SoundRemoveSedsEntry(D_8006259C);
     HeapFree(D_8006259C);
     for (i = 0; i < 0x40; i++) {
         p = (u8*)(i * 0x80 + (s32)D_8009BE24);

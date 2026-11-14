@@ -327,7 +327,7 @@ void func_80081F80(SpriteData* pSprite, s16 angle, FieldActor* pActor) {
         pSprite->step.z = (-(rcos(a) * scale) >> 12) * (s16)pActor->pActorData->scaleZ;
         pSprite->moveSpeed = 0x4000000 / pActor->pActorData->moveSpeed;
     } else {
-        func_80021FE0(pSprite, angle);
+        SpriteSetDirection(pSprite, angle);
     }
     pSprite->step.x &= -0x1000;
     pSprite->step.z &= -0x1000;
@@ -527,7 +527,7 @@ void FieldConvertIVec3ToSVector(SVECTOR* pDst, IVEC3* pSrc) {
 }
 
 extern void* D_801E8670[];
-void func_80021FE0(SpriteData*, s16);
+void SpriteSetDirection(SpriteData*, s16);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800831F4);
 /* 92.68% (148 vs 144 bytes): frame and every other insn match, two residuals.
@@ -668,7 +668,7 @@ void FieldStartArchiveStream(int archiveIndex, int allocMode, void* pCallback) {
 }
 
 void func_8003A20C(int);
-void func_80039F9C(void*, int, int, int);
+void SoundPlaySoundEffectOnPairWithLevels(void*, int, int, int);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800855C8);
 /* 85.56%: the original keeps `arg3 & 7` in s0 and shifts at each use
@@ -685,7 +685,7 @@ void func_800855C8(int arg0, int arg1, int arg2, int arg3) {
     int offset = arg3 & 7;
 
     func_8003A20C(offset * 2);
-    func_80039F9C(arg0, offset * 2, (s16)arg1, (s16)arg2);
+    SoundPlaySoundEffectOnPairWithLevels(arg0, offset * 2, (s16)arg1, (s16)arg2);
 }
 */
 
@@ -707,7 +707,7 @@ extern s32 D_800C3A64;
 extern s32 D_800B06A0;
 extern s16 D_800C3A38;
 extern SoundFile* D_800B235C;
-void func_80039EC4(s32 arg0, s32 arg1);
+void SoundPlaySoundEffectOnPair(s32 arg0, s32 arg1);
 
 typedef struct {
     /* 0x0 */ u_short unk0;
@@ -731,15 +731,15 @@ loop:
         return;
     }
     value = pValue[D_800C3A64 * 2];
-    func_80039EC4((value & 0xFF) | (D_800B235C->sedId << 16), (value >> 7) & 0xE);
+    SoundPlaySoundEffectOnPair((value & 0xFF) | (D_800B235C->sedId << 16), (value >> 7) & 0xE);
     D_800C3A64++;
     goto loop;
 }
 
 void FieldStopSedsPlayback(void) {
     if (D_800C3A38 != 0xFF) {
-        func_80039FF8();
-        func_8003852C(D_800B235C);
+        SoundStopAllElements();
+        SoundRemoveSedsEntry(D_800B235C);
         HeapFree(D_800B235C);
     }
 }
@@ -760,7 +760,7 @@ void func_80085788(void) {
     if (streamId == 0xFF) {
         return;
     }
-    func_80039FF8();
+    SoundStopAllElements();
     ArchiveSetIndex(0x1C, 0);
     D_800B235C = HeapAlloc(ArchiveDecodeAlignedSize(streamId + 0x115), 1);
     ArchiveReadFileToBuffer(streamId + 0x115, D_800B235C, 0, 0x80);
@@ -809,7 +809,7 @@ void FieldLoadSedsFile(void) {
 }
 
 void FieldFreeSedsFile(void) {
-    func_8003852C(D_8006259C);
+    SoundRemoveSedsEntry(D_8006259C);
     HeapUnpinBlock(D_8006259C);
     HeapFree(D_8006259C);
     D_8004F32C = -1;
@@ -833,7 +833,7 @@ extern void func_8001B66C(void);
 void func_8002945C(void* pData);
 void func_8003BDFC(int arg0);
 void SoundTransferWdsPart(void* pBuffer, int size);
-SoundWDSEntry* func_800380D0(void* pBuffer, int size, int arg2);
+SoundWDSEntry* SoundLoadPartialWdsFile(void* pBuffer, int size, int arg2);
 void FieldStartArchiveStream(int archiveIndex, int unused, void* pCallback);
 
 void FieldWdsStreamCallback(FieldWdsBlock* pBlock) {
@@ -848,7 +848,7 @@ void FieldWdsStreamCallback(FieldWdsBlock* pBlock) {
             D_800B2370++;
             func_8002945C(pBlock);
             if (D_800B2370 == 4) {
-                g_GameCurLoadedWDS = func_800380D0(D_800C3A1C, 0x2000, 0);
+                g_GameCurLoadedWDS = SoundLoadPartialWdsFile(D_800C3A1C, 0x2000, 0);
             }
             break;
         case 4:
@@ -916,10 +916,10 @@ void FieldBeginWdsFileLoad(void);
 int FieldFinishWdsFileLoad(void);
 int ArchiveDataSync(void);
 void ArchiveReadFileToBuffer(int fileIndex, void* pBuffer, int arg2, int size);
-AudioManager* func_80039850(void* pData);
-void func_80039A80(AudioManager* pManager, s32 arg1, s32 arg2);
-void func_8003A89C(AudioManager* pManager, s32 arg1, s32 arg2);
-void func_80039B68(AudioManager* pManager, s32 arg1, s32 arg2);
+AudioManager* SoundCreateAudioManagerOnHeap(void* pData);
+void SoundPlayAudioManager(AudioManager* pManager, s32 arg1, s32 arg2);
+void SoundSetAudioManagerVolumeWithFade(AudioManager* pManager, s32 arg1, s32 arg2);
+void SoundReloadAudioManagerSamples(AudioManager* pManager, s32 arg1, s32 arg2);
 
 int FieldUpdateWdsAndAudioLoad(s32 arg0) {
     s32 state = D_8004F354;
@@ -960,16 +960,16 @@ int FieldUpdateWdsAndAudioLoad(s32 arg0) {
     }
     if (D_8004F358 == 1) {
         if (D_8004F348 == 0) {
-            D_80062528 = func_80039850(D_80062648);
+            D_80062528 = SoundCreateAudioManagerOnHeap(D_80062648);
             if (D_8004F340 == -1) {
-                func_80039A80(D_80062528, 0x7F, 0);
+                SoundPlayAudioManager(D_80062528, 0x7F, 0);
             } else {
-                func_80039A80(D_80062528, 0, 0);
-                func_8003A89C(D_80062528, 0, 0);
+                SoundPlayAudioManager(D_80062528, 0, 0);
+                SoundSetAudioManagerVolumeWithFade(D_80062528, 0, 0);
             }
         } else {
             D_80062528 = D_8004F2FC;
-            func_80039B68(D_8004F2FC, 0x7F, 0xF0);
+            SoundReloadAudioManagerSamples(D_8004F2FC, 0x7F, 0xF0);
             D_8004F348 = 0;
             D_8004F2FC = NULL;
         }
@@ -984,8 +984,8 @@ int FieldUpdateWdsAndAudioLoad(s32 arg0) {
 
 void FieldFreePendingAudioManager(void) {
     if (D_8004F2FC != NULL) {
-        func_80039C4C(D_8004F2FC);
-        func_800399D4(D_8004F2FC);
+        SoundStopAudioManager(D_8004F2FC);
+        SoundDestroyAudioManager(D_8004F2FC);
         D_8004F2FC = NULL;
     }
 }
@@ -1148,7 +1148,7 @@ void FieldAssignActorSoundSlot(int arg0, int arg1, int arg2, int arg3, int actor
             }
             scaled = screenX * 0x6666 >> 16;
             func_8003A20C(i * 2);
-            func_80039F9C((void*)arg0, (short)(i * 2), value, scaled);
+            SoundPlaySoundEffectOnPairWithLevels((void*)arg0, (short)(i * 2), value, scaled);
             break;
         }
     }

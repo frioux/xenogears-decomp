@@ -74,11 +74,11 @@ extern void func_8007A06C(s32, u8 *, s32);
 extern u8 *D_8006259C;
 extern void func_80093354(void *);
 extern s32 func_80093A5C(s32, s32);
-extern void func_80039E60(s32);
+extern void SoundPlaySoundEffectOnFreePair(s32);
 
 extern void HeapFree(void *pMem);
-extern void func_80039FF8(void);
-extern void func_8003852C(void *p);
+extern void SoundStopAllElements(void);
+extern void SoundRemoveSedsEntry(void *p);
 extern void WorldMapFreeSpriteSets(void);
 extern void func_80086568(void);
 extern void func_800866C8(void);
@@ -124,8 +124,8 @@ extern void WorldMapSetSpriteSetParent(s32 arg0, s32 arg1);
 void WorldMapExitToMap10E(void) {
     u16 v;
 
-    func_80039FF8();
-    func_8003852C(D_8006259C);
+    SoundStopAllElements();
+    SoundRemoveSedsEntry(D_8006259C);
     HeapFree(D_8006259C);
     WorldMapFreeSpriteSets();
     func_80086568();
@@ -173,7 +173,7 @@ s32 func_80077DC8(s32 index) {
     D_8009BD3A = 0;
     D_8009BD38 = 0;
     D_8009D144 = 1;
-    func_80039E60((((u16 *)q)[0xA] << 16) | 0xA4);
+    SoundPlaySoundEffectOnFreePair((((u16 *)q)[0xA] << 16) | 0xA4);
     p->unk22 = 0x18;
     return 1;
 }
@@ -247,8 +247,8 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_80078A60);
 void WorldMapExitToMap110(void) {
     u16 v;
 
-    func_80039FF8();
-    func_8003852C(D_8006259C);
+    SoundStopAllElements();
+    SoundRemoveSedsEntry(D_8006259C);
     HeapFree(D_8006259C);
     WorldMapFreeSpriteSets();
     func_80086568();
@@ -363,7 +363,7 @@ s32 WorldMapInitActorAtScrollPositionWithSound(s32 index) {
     ((s16 *)s)[0xC] = -0x100;
     ((s16 *)s)[0xD] = 0;
     ((s16 *)s)[0xE] = -0x40;
-    func_80039E60((q[0xA] << 16) | 0x36);
+    SoundPlaySoundEffectOnFreePair((q[0xA] << 16) | 0x36);
     return 1;
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_80079778);
@@ -506,8 +506,8 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_8007A5DC);
 void func_8007A8AC(void) {
     u16 v;
 
-    func_80039FF8();
-    func_8003852C(D_8006259C);
+    SoundStopAllElements();
+    SoundRemoveSedsEntry(D_8006259C);
     HeapFree(D_8006259C);
     WorldMapFreeSpriteSets();
     func_80086568();

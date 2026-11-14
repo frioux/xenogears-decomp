@@ -1787,7 +1787,7 @@ typedef struct {
 
 // Allocates a work list task plus a LibGearJointTask; returns the task
 extern void* func_80023FD8(s32 index, void* pAnimFile, s32 arg2, s32 jointTaskSize);
-extern void func_80021FE0(SpriteData* pSpriteData, s16 direction);
+extern void SpriteSetDirection(SpriteData* pSpriteData, s16 direction);
 extern void func_800223B0(SpriteData* pSpriteData, s16 direction);
 extern void SpriteSetScale(SpriteData* pSpriteData, s16 scale);
 extern WorkListCallback_t WorkListTaskGetTaskCallback(WorkListEntry* pTask);
@@ -1801,7 +1801,7 @@ void LibGearCreateJointTask(void* pAnimFile, s32 animIndex, s32 arg2, s16 direct
 
     pTask = func_80023FD8(animIndex, pAnimFile, arg2, 0x18);
     pSpriteData = &pTask->spriteData;
-    func_80021FE0(pSpriteData, direction);
+    SpriteSetDirection(pSpriteData, direction);
     func_800223B0(pSpriteData, direction);
     SpriteSetScale(pSpriteData, scale);
 
@@ -2052,7 +2052,7 @@ void func_801E8030(s32 modelIndex) {
     }
 
     if (g_LibGearModels[modelIndex]->unk62[0] != 0) {
-        func_8003852C(((Temp8*)g_LibGearModels[modelIndex]->unkB0)->pUnk8);
+        SoundRemoveSedsEntry(((Temp8*)g_LibGearModels[modelIndex]->unkB0)->pUnk8);
     }
 
     if (g_LibGearModels[modelIndex]->unkAC != NULL) {

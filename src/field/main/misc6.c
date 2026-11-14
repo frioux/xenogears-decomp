@@ -175,7 +175,7 @@ void FieldScriptVMHandlerSetActorMoveSpeed(void) {
 
     nMoveSpeed = FieldScriptVMGetArgument(1);
     g_FieldScriptVMCurActor->moveSpeed = nMoveSpeed;
-    func_80021BCC(g_FieldActors[D_800AFD1C].pSpriteData, nMoveSpeed);
+    SpriteSetSpeedScale(g_FieldActors[D_800AFD1C].pSpriteData, nMoveSpeed);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
 

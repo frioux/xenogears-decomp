@@ -847,9 +847,9 @@ extern s32 D_801E89E0;
 extern void GameCheckAndHandleSoftReset(void);
 extern void FieldClearAndSwapOTagInternal(void);
 extern void func_800AC99C(void);
-extern void func_800ACB90(void);
-extern void func_800ACCB0(void);
-extern void func_800ACCF4(void);
+extern void FieldLoadFontTIMAndClearRect(void);
+extern void FieldFreeTextRender(void);
+extern void FieldUpdateTextRender(void);
 
 s32 func_800A7948(void) {
     RECT rect;
@@ -886,7 +886,7 @@ s32 func_800A7948(void) {
     rect.w = 0x200;
     rect.h = 0x100;
     ClearImage(&rect, 0, 0, 0);
-    func_800ACB90();
+    FieldLoadFontTIMAndClearRect();
     Vsync(0);
     DrawSync(0);
 
@@ -902,7 +902,7 @@ s32 func_800A7948(void) {
         PutDispEnv(&g_FieldCurRenderContext->dispEnv);
         PutDrawEnv(&g_FieldCurRenderContext->drawEnvs[0]);
         DrawOTag(g_FieldCurRenderContext->ot3 + 7);
-        func_800ACCF4();
+        FieldUpdateTextRender();
         FieldStepStreamPlayback(5);
     }
 
@@ -918,7 +918,7 @@ s32 func_800A7948(void) {
     g_FieldRenderContexts[0].dispEnv.isrgb24 = 1;
     g_FieldRenderContexts[1].dispEnv.isinter = 0;
     g_FieldRenderContexts[0].dispEnv.isinter = 0;
-    func_800ACCB0();
+    FieldFreeTextRender();
 }
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A7C58);

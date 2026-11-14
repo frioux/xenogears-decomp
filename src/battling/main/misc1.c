@@ -283,8 +283,8 @@ extern s32 D_8009284C;
 extern s32 D_80092948;
 extern u8 D_8009872C[];
 extern u8 D_80097010[];
-extern void func_80039C4C(s32 arg);
-extern void func_80039FF8(void);
+extern void SoundStopAudioManager(s32 arg);
+extern void SoundStopAllElements(void);
 extern void func_80071DA4(u8* p);
 
 /* 91.77%: case 3 is the only difference. retail materialises &D_80098720 into
@@ -302,8 +302,8 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_80071F8C);
 void func_80071F8C(s32 mode) {
     switch (mode) {
     case 0:
-        func_80039C4C(D_80092948);
-        func_80039FF8();
+        SoundStopAudioManager(D_80092948);
+        SoundStopAllElements();
         break;
     case 1:
         func_80071DA4(&D_8009872C[0]);
@@ -403,7 +403,7 @@ void func_800725B0(u8* p) {
     id = *(s32*)(p + 0x5C);
     D_800910F0 = pAnim;
     D_80092610 = func_8008C2C0(id);
-    func_8008976C(0x280, 0xDA);
+    BattleSetScreenResolution(0x280, 0xDA);
     SetGeomScreen(0x400);
     D_800928D0 = 0;
     D_80092614 = p;
@@ -432,7 +432,7 @@ extern void func_8007F834(void);
 extern void func_80030988(s32 a0, s32 a1, s32 a2, s32 a3);
 extern void BattleFreeLightGroup(void* p);
 extern void BattleFreeNodeTree(void* p);
-extern void func_8008976C(s32 a0, s32 a1);
+extern void BattleSetScreenResolution(s32 a0, s32 a1);
 extern void func_80083C0C(s32 mode);
 extern void func_8007E954(s32 value);
 extern void func_80080D10(void);
@@ -445,7 +445,7 @@ void func_800726B4(void) {
     func_80030988(1, 1, 0x40, 0x40);
     BattleFreeLightGroup(D_800910F0);
     BattleFreeNodeTree(D_80092610);
-    func_8008976C(0x140, 0xDA);
+    BattleSetScreenResolution(0x140, 0xDA);
     SetGeomScreen(0xC0);
     func_80083C0C(3);
     func_8007E954(0x100);

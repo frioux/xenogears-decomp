@@ -5,7 +5,7 @@
 Matches on GCC 2.7.2-970404, ASPSX 2.67
 Co-Authored-By: eagleflo <eagleflo@users.noreply.github.com>
 */
-void* func_8001FBA4(SpriteData* pSpriteData, u8* pIndex) {
+void* AnimScriptResolveVariablePointer(SpriteData* pSpriteData, u8* pIndex) {
     u8 index = *pIndex;
     if (!(index & 0x80)) {
         s32 signedIndex = (s8)index;
@@ -16,7 +16,7 @@ void* func_8001FBA4(SpriteData* pSpriteData, u8* pIndex) {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/animation_scripts", func_8001FBE4);
 
-s32 func_80021AD8(s32 color, s32 value) {
+s32 SpriteColorAddClamp(s32 color, s32 value) {
     color += value;
     if (color >= 0x100) {
         color = 0xFF;
@@ -26,31 +26,31 @@ s32 func_80021AD8(s32 color, s32 value) {
     return color;
 }
 
-void func_80021B04(SVEC* pVector, s16 x, s16 y, s16 z) {
+void SpriteSetSVec(SVEC* pVector, s16 x, s16 y, s16 z) {
     pVector->x = x;
     pVector->y = y;
     pVector->z = z;
 }
 
-void func_80021B14(IVEC3* pVector, s32 x, s32 y, s32 z) {
+void SpriteSetIVec3(IVEC3* pVector, s32 x, s32 y, s32 z) {
     pVector->x = x;
     pVector->y = y;
     pVector->z = z;
 }
 
-void func_80021B24(SVEC* pDest, SVEC* pSrc) {
+void SpriteCopySVec(SVEC* pDest, SVEC* pSrc) {
     pDest->x = pSrc->x;
     pDest->y = pSrc->y;
     pDest->z = pSrc->z;
 }
 
-void func_80021B48(IVEC3* pDest, IVEC3* pSrc) {
+void SpriteCopyIVec3(IVEC3* pDest, IVEC3* pSrc) {
     pDest->x = pSrc->x;
     pDest->y = pSrc->y;
     pDest->z = pSrc->z;
 }
 
-void func_80021B6C(SpriteData* pSpriteData) {
+void SpriteSetSemiTransparent(SpriteData* pSpriteData) {
     pSpriteData->prim |= 1;
     func_8001F6B0(pSpriteData);
 }
@@ -63,7 +63,7 @@ void SpriteSetColor(SpriteData *pSpriteData, u8 red, u8 green, u8 blue) {
     func_8001F6B0(pSpriteData);
 }
 
-void func_80021BCC(SpriteData* pSpriteData, u32 animIndex) {
+void SpriteSetSpeedScale(SpriteData* pSpriteData, u32 animIndex) {
     pSpriteData->flags_0xAC = (pSpriteData->flags_0xAC & 0xFFF8007F) | ((animIndex & 0xFFF) << 7);
 }
 
@@ -71,11 +71,11 @@ void SpriteSetSpecialAnimFile(SpriteData* pSpriteData, void* pAnimFile) {
     pSpriteData->pSpecialAnimFile = pAnimFile;
 }
 
-void func_80021BF8(SpriteData* pSpriteData, void* pCallback) {
+void SpriteSetCallback(SpriteData* pSpriteData, void* pCallback) {
     pSpriteData->field_0x68 = pCallback;
 }
 
-void func_80021C00(SpriteData* pSpriteData, u32 value) {
+void SpriteSetCoordShift(SpriteData* pSpriteData, u32 value) {
     pSpriteData->field_0x40 = (pSpriteData->field_0x40 & 0xFFFFE0FF) | ((value & 0x1F) << 8);
 }
 
@@ -128,12 +128,12 @@ void AnimScriptStackPushU24(SpriteData* pSpriteData, s32 value) {
     pSpriteData->stack[(s8)pSpriteData->stackIndex + 2] = value >> 16;
 }
 
-void func_80021D3C(SpriteData* pSpriteData, s32 x, s32 z) {
+void SpriteSetPositionXZ(SpriteData* pSpriteData, s32 x, s32 z) {
     pSpriteData->position.z = z << 16;
     pSpriteData->position.x = x << 16;
 }
 
-// Animation state copied in and out of a script suspension record (see func_80021D50).
+// Animation state copied in and out of a script suspension record (see SpriteRestoreAnimState).
 typedef struct {
     /* 0x0  */ s32 positionX;
     /* 0x4  */ s32 positionY;
@@ -157,7 +157,7 @@ extern s32 D_80059198;
 extern void AnimScriptTick(SpriteData* pSpriteData);
 extern void func_800245D8(SpriteData* pSpriteData, s32 animId);
 
-void func_80021D50(SpriteData* pSpriteData, SpriteAnimState* pState) {
+void SpriteRestoreAnimState(SpriteData* pSpriteData, SpriteAnimState* pState) {
     s32 savedRenderContext = D_80059198;
 
     D_80059198 = 0;
@@ -185,7 +185,7 @@ void func_80021D50(SpriteData* pSpriteData, SpriteAnimState* pState) {
     D_80059198 = savedRenderContext;
 }
 
-void func_80021EBC(SpriteData* pSpriteData, SpriteAnimState* pState) {
+void SpriteSaveAnimState(SpriteData* pSpriteData, SpriteAnimState* pState) {
     pState->positionX = pSpriteData->position.x;
     pState->positionY = pSpriteData->position.y;
     pState->positionZ = pSpriteData->position.z;
@@ -203,18 +203,18 @@ void func_80021EBC(SpriteData* pSpriteData, SpriteAnimState* pState) {
     pState->field_0x2C = (u16)pSpriteData->scale;
 }
 
-void func_80021FB8(SpriteData* pSpriteData, u8 value) {
+void SpriteSetFieldB0(SpriteData* pSpriteData, u8 value) {
     *(u8*)((u8*)pSpriteData + 0xB0) = value;
 }
 
-void func_80021FC0(SpriteData* pSpriteData, s32 moveSpeed) {
+void SpriteSetMoveSpeed(SpriteData* pSpriteData, s32 moveSpeed) {
     pSpriteData->moveSpeed = moveSpeed;
-    func_80022974(pSpriteData);
+    SpriteUpdateMoveStep(pSpriteData);
 }
 
-void func_80021FE0(SpriteData* pSpriteData, s16 direction) {
+void SpriteSetDirection(SpriteData* pSpriteData, s16 direction) {
     pSpriteData->direction = direction;
-    func_80022974(pSpriteData);
+    SpriteUpdateMoveStep(pSpriteData);
 }
 
 void SpriteSetScale(SpriteData* pSpriteData, short scale) {
@@ -229,7 +229,7 @@ void SpriteSetScale(SpriteData* pSpriteData, short scale) {
 }
 
 // Recompute transform matrix if flag is set
-void func_80022038(SpriteData* pSpriteData) {
+void SpriteUpdateTransformMatrix(SpriteData* pSpriteData) {
     if (pSpriteData->field_0x3C_6 & 0x1) {
         SpriteComputeTransformMatrix(pSpriteData);
         pSpriteData->field_0x3C_6 = 0x0;
@@ -273,7 +273,7 @@ extern u8 D_800591AD;
 extern u8 D_800591B0;
 extern u8 D_800591B3;
 
-void func_80022224(SpriteAnimPackage* pAnimPackage, SpriteAnimPackageFileHeader* pAnimPackageFile, SVEC2 tex,
+void SpriteSetupAnimPackage(SpriteAnimPackage* pAnimPackage, SpriteAnimPackageFileHeader* pAnimPackageFile, SVEC2 tex,
                    SVEC2 clut, u32 field_0x3C_1) {
     s32 numAnimations;
 
@@ -294,16 +294,16 @@ void func_80022224(SpriteAnimPackage* pAnimPackage, SpriteAnimPackageFileHeader*
 }
 
 extern s32 func_8001EE68(void*);
-extern void func_80022224(SpriteAnimPackage*, SpriteAnimPackageFileHeader*, SVEC2, SVEC2, u32);
+extern void SpriteSetupAnimPackage(SpriteAnimPackage*, SpriteAnimPackageFileHeader*, SVEC2, SVEC2, u32);
 
-void func_800222BC(SpriteData* pSprite, SpriteAnimPackageFileHeader* pAnimPackageFile) {
+void SpriteSetAnimFile(SpriteData* pSprite, SpriteAnimPackageFileHeader* pAnimPackageFile) {
     SpriteAnimPackage* pAnimPackage;
     SVEC2 unused[2];
 
     pAnimPackage = pSprite->pVramData;
     if (pAnimPackageFile) {
         if (pAnimPackageFile != pSprite->pCurAnimFile) {
-            func_80022224(pAnimPackage, pAnimPackageFile, pAnimPackage->tex, pAnimPackage->clut, pSprite->field_0x3C_1);
+            SpriteSetupAnimPackage(pAnimPackage, pAnimPackageFile, pAnimPackage->tex, pAnimPackage->clut, pSprite->field_0x3C_1);
             pSprite->pCurAnimFile = pAnimPackageFile;
             pSprite->field_0x3C_3 = 1;
         }
@@ -327,7 +327,7 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/animation_scripts", func_800223
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/animation_scripts", func_80022660);
 
 // Recompute animation speed
-void func_80022974(SpriteData* pSpriteData) {
+void SpriteUpdateMoveStep(SpriteData* pSpriteData) {
     s32 speed;
     s32 scale;
 
@@ -337,6 +337,6 @@ void func_80022974(SpriteData* pSpriteData) {
     pSpriteData->step.z = -((rcos(pSpriteData->direction) >> 2) * scale) >> 6;
 }
 
-s32 func_80022A00(SpriteData* pSpriteData) {
+s32 SpriteGetPositionX(SpriteData* pSpriteData) {
     return pSpriteData->position.x;
 }

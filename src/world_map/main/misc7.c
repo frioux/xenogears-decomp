@@ -82,13 +82,13 @@ extern s32 D_8009BC3C;
 extern s32 D_8009BCB4;
 extern s32 D_8009C180;
 extern void HeapFree(void *pMem);
-extern void func_80039FF8(void);
+extern void SoundStopAllElements(void);
 extern void func_80086124(void);
 extern s32 D_8009D7F0;
 extern u8 *D_8009D158;
 extern u8 *D_8009D15C;
 extern u8 *D_8009D148;
-extern void func_8003852C(void *p);
+extern void SoundRemoveSedsEntry(void *p);
 extern void func_80074F04(void);
 extern void func_800750DC(void);
 extern void WorldMapFreeSpriteSets(void);
@@ -191,8 +191,8 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_80080D00);
 void func_8008106C(void) {
     u16 v;
 
-    func_80039FF8();
-    func_8003852C(D_8006259C);
+    SoundStopAllElements();
+    SoundRemoveSedsEntry(D_8006259C);
     HeapFree(D_8006259C);
     WorldMapFreeSpriteSets();
     func_80086568();
@@ -470,8 +470,8 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_80082324);
 s32 func_800826B4(void) {
     u16 v;
 
-    func_80039FF8();
-    func_8003852C(D_8006259C);
+    SoundStopAllElements();
+    SoundRemoveSedsEntry(D_8006259C);
     HeapFree(D_8006259C);
     WorldMapFreeSpriteSets();
     func_80086124();

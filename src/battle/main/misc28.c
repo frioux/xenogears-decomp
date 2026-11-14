@@ -23,9 +23,9 @@ extern void func_800B7364(u8 *p);
 extern s32 func_80023124(s32 arg0, s32 arg1);
 extern s32 func_80022CAC(u8 *pActor, s32 arg1);
 extern void func_801FC4C4(s32 arg0, s32 arg1, void *pArg2, s32 arg3, s32 arg4, s32 arg5, s32 arg6, s32 arg7);
-extern void func_80021FE0(u8 *pActor, s16 arg1);
+extern void SpriteSetDirection(u8 *pActor, s16 arg1);
 extern void func_800223B0(u8 *pActor, s16 arg1);
-extern void func_80021B04(SVECTOR *pVector, s16 x, s16 y, s16 z);
+extern void SpriteSetSVec(SVECTOR *pVector, s16 x, s16 y, s16 z);
 extern void func_801FC53C(void *pArg, s32 arg1, s32 arg2, s32 arg3, s32 arg4, s32 arg5, s32 arg6);
 
 void func_800B63F0(s32 arg0, u8 *p) {
@@ -102,7 +102,7 @@ void func_800B6518(u8 *pActor) {
     b[1] = *(u16 *)(pActor + 0xA4);
     angle = func_80023124(((u16 *)b)[1] << 16 | ((u16 *)b)[0],
                           ((u16 *)a)[1] << 16 | ((u16 *)a)[0]);
-    func_80021FE0(pActor, angle);
+    SpriteSetDirection(pActor, angle);
     func_800223B0(pActor, angle);
 }
 */
@@ -127,7 +127,7 @@ void func_800B6808(u8 *p) {
     rot[2] = ratan2(diff.vy, len);
     rot[0] = 0;
     *(u16 *)(p + 0x32) = rot[1];
-    func_80021B04(&vec, (*(s32 *)(p + 0x18) << 9) >> 16, zero, zero);
+    SpriteSetSVec(&vec, (*(s32 *)(p + 0x18) << 9) >> 16, zero, zero);
     RotMatrix((SVECTOR *)rot, &mtx);
     ApplyMatrix(&mtx, &vec, &out);
     *(s32 *)(p + 0xC) = out.vx << 7;
@@ -261,7 +261,7 @@ void func_800B6E84(u8 *pActor, s8 *p) {
 
     zero = 0;
     z = p[0] << 4;
-    func_80021B04(&rotation, zero, zero, z);
+    SpriteSetSVec(&rotation, zero, zero, z);
     RotMatrix(&rotation, &mtx);
     ApplyMatrixLV(&mtx, (VECTOR *)(pActor + 0xC), &vec);
     *(s32 *)(pActor + 0xC) = vec.vx;

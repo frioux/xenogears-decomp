@@ -1,7 +1,7 @@
 #include "common.h"
 
 extern void SoundFreeWdsEntry(void *);
-extern void func_8003852C(void *);
+extern void SoundRemoveSedsEntry(void *);
 extern s32 *D_800C3A6C;
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc35", func_800C0828);
@@ -31,7 +31,7 @@ void func_800C1140(s32 *pArg) {
         s32 *pChunk = (s32 *)(pEntry[0] + (s32)pArg);
 
         if (*pChunk == 0x73646573) {
-            func_8003852C(pChunk);
+            SoundRemoveSedsEntry(pChunk);
         }
         pEntry++;
     }

@@ -342,7 +342,7 @@ SoundWDSEntry* SoundLoadWdsFile(SoundWDSEntry* pWdsFile, void* pUnk) {
 }
 
 // Loads part of a WDS file, basically a sized SoundLoadWdsFile?
-SoundWDSEntry* func_800380D0(SoundWDSEntry* pWdsFile, int size, int mode) {
+SoundWDSEntry* SoundLoadPartialWdsFile(SoundWDSEntry* pWdsFile, int size, int mode) {
     SoundWDSEntry* pEntry;
     SoundWDSEntry** ppLink;
     int spuAddress;
@@ -503,7 +503,7 @@ void SoundAddSedsEntry(SoundFile* pSoundFile) {
 }
 
 
-void func_8003852C(SoundFile* pSoundFile) {
+void SoundRemoveSedsEntry(SoundFile* pSoundFile) {
     SoundFile* pCurrent = g_SoundSedsLinkedList;
     SoundFile* pPrev = NULL;
     SoundFile* pTarget = pSoundFile;
@@ -519,7 +519,7 @@ void func_8003852C(SoundFile* pSoundFile) {
         return;
     }
 
-    func_8003A094(pSoundFile);
+    SoundStopElementsForSoundFile(pSoundFile);
     DisableEvent(g_unk_SoundEvent);
 
     if (pPrev != NULL) {
@@ -540,7 +540,7 @@ void func_8003852C(SoundFile* pSoundFile) {
 
 //----------------------------------------------------------------------------------------------------------------------
 void SoundClearSedsList(void) {
-    func_80039FF8();
+    SoundStopAllElements();
     g_SoundSedsLinkedList = 0;
 }
 
@@ -562,8 +562,8 @@ SoundFile* SoundFindSedsEntry(SoundFile* pSoundFile, s16 sedId) {
 
 //----------------------------------------------------------------------------------------------------------------------
 void SoundStopAllPlayback(void) {
-    func_80039CC4();
-    func_80039FF8();
+    SoundStopAllAudioManagers();
+    SoundStopAllElements();
 }
 
 //----------------------------------------------------------------------------------------------------------------------
@@ -1414,13 +1414,13 @@ SoundSpuMemoryBlock* SoundSpuMemoryFindBlock(int targetAddress) {
 }
 
 AudioManager* SoundCreateAndPlayAudioManager(SoundFile* pFile, s32 arg1, s32 arg2) {
-    AudioManager* pManager = func_80039850(pFile);
+    AudioManager* pManager = SoundCreateAudioManagerOnHeap(pFile);
 
-    func_80039A80(pManager, arg1, arg2);
+    SoundPlayAudioManager(pManager, arg1, arg2);
     return pManager;
 }
 
-AudioManager* func_80039850(AudioManager* pManager) {
+AudioManager* SoundCreateAudioManagerOnHeap(AudioManager* pManager) {
     AudioManager* pSource = pManager;
     AudioManager* pNew;
     s16 status;
@@ -1484,9 +1484,9 @@ AudioManager* SoundCreateAudioManagerInPlace(AudioManager* pManager, AudioManage
     return pNew;
 }
 
-void func_800399D4(AudioManager* pManager) {
+void SoundDestroyAudioManager(AudioManager* pManager) {
     if (pManager->unk_Flags & 0x8000) {
-        func_80039C4C(pManager);
+        SoundStopAudioManager(pManager);
     }
 
     if ((s16)SoundUnkDebug0(pManager->unk_0x8) != 0) {
@@ -1506,7 +1506,7 @@ void func_800399D4(AudioManager* pManager) {
     }
 }
 
-void func_80039A80(AudioManager* pManager, s32 volume, s32 frames) {
+void SoundPlayAudioManager(AudioManager* pManager, s32 volume, s32 frames) {
     s16 status;
 
     if (pManager == NULL) {
@@ -1522,20 +1522,20 @@ void func_80039A80(AudioManager* pManager, s32 volume, s32 frames) {
     }
 
     if (pManager->unk_Flags & 0x8000) {
-        func_80039C4C(pManager);
+        SoundStopAudioManager(pManager);
     }
 
     DisableEvent(g_unk_SoundEvent);
     SoundLoadAudioManagerSequenceHeader(pManager);
     func_8003B424(pManager);
     pManager->unk_Interpolator_0x70.currentValue = 0;
-    func_8003A89C(pManager, volume, frames);
+    SoundSetAudioManagerVolumeWithFade(pManager, volume, frames);
 
     pManager->unk_Flags |= 0x8000;
     EnableEvent(g_unk_SoundEvent);
 }
 
-void func_80039B68(AudioManager* pManager, s32 volume, s32 frames) {
+void SoundReloadAudioManagerSamples(AudioManager* pManager, s32 volume, s32 frames) {
     AudioElement* pElement;
     SoundWDSEntry* pWds;
     SoundWdsTone* pTone;
@@ -1563,11 +1563,11 @@ void func_80039B68(AudioManager* pManager, s32 volume, s32 frames) {
 
     pManager->unk_Interpolator_0x70.currentValue = 0;
     pManager->unk_Flags |= 0x100;
-    func_8003A89C(pManager, volume, frames);
+    SoundSetAudioManagerVolumeWithFade(pManager, volume, frames);
 }
 
 //----------------------------------------------------------------------------------------------------------------------
-void func_80039C4C(AudioManager* manager) {
+void SoundStopAudioManager(AudioManager* manager) {
     if (manager == NULL) {
         SoundHandleError(5);
         return;
@@ -1582,11 +1582,11 @@ void SoundFadeOutAudioManager(AudioManager* manager, s32 arg1) {
         SoundHandleError(5);
         return;
     }
-    func_8003A89C(manager, 0, arg1);
+    SoundSetAudioManagerVolumeWithFade(manager, 0, arg1);
 }
 
 //----------------------------------------------------------------------------------------------------------------------
-void func_80039CC4(void) {
+void SoundStopAllAudioManagers(void) {
     AudioManager* pManager;
 
     pManager = g_SoundAudioManagerListHead;
@@ -1609,7 +1609,7 @@ void SoundSetControlFlag800(s32 bIn) {
     if (bIn != 0) {
         g_SoundControlFlags |= (1 << 11);
     } else {
-        func_80039FF8();
+        SoundStopAllElements();
         g_SoundControlFlags &= ~(1 << 11);
     }
 }
@@ -1628,7 +1628,7 @@ s32 SoundSetSoundEffectChannelCount(s32 count) {
     return D_80059544;
 }
 
-void func_80039DB8(s32 arg0) {
+void SoundPlaySoundEffectOnLastPair(s32 arg0) {
     if (g_SoundControlFlags & 0x800) {
         s32 value = D_80059478;
 
@@ -1648,7 +1648,7 @@ void SoundSendCommandConstant(s32 arg0) {
 }
 
 //----------------------------------------------------------------------------------------------------------------------
-void func_80039E60(s32 arg0) {
+void SoundPlaySoundEffectOnFreePair(s32 arg0) {
     if (g_SoundControlFlags & 0x800) {
         s32 value = func_8003A65C(arg0, 2);
 
@@ -1658,7 +1658,7 @@ void func_80039E60(s32 arg0) {
 }
 
 //----------------------------------------------------------------------------------------------------------------------
-void func_80039EC4(s32 arg0, s32 arg1) {
+void SoundPlaySoundEffectOnPair(s32 arg0, s32 arg1) {
     if (g_SoundControlFlags & (1 << 11)) {
         D_80059404 = 2;
         func_8003B644(
@@ -1680,14 +1680,14 @@ void SoundSendCommandByIdWithLevels(s32 arg0, s32 arg1, s32 arg2) {
     }
 }
 
-void func_80039F9C(s32 arg0, s32 arg1, s32 arg2, s32 arg3) {
+void SoundPlaySoundEffectOnPairWithLevels(s32 arg0, s32 arg1, s32 arg2, s32 arg3) {
     if (g_SoundControlFlags & 0x800) {
         D_80059404 = 2;
         func_8003B644(((arg1 & 0xFE) ^ 0x8) | 0x2000, arg0, (s16)(arg2 << 8), (s16)(arg3 << 8));
     }
 }
 
-void func_80039FF8(void) {
+void SoundStopAllElements(void) {
     AudioManager* pManager = D_800595D8;
     AudioElement* pElement = &pManager->elements[0];
     u32 cnt = D_80059478;
@@ -1705,7 +1705,7 @@ void func_80039FF8(void) {
     EnableEvent(g_unk_SoundEvent);
 }
 
-void func_8003A094(SoundFile* pSoundFile) {
+void SoundStopElementsForSoundFile(SoundFile* pSoundFile) {
     AudioManager* pManager = D_800595D8;
     AudioElement* pElement = &pManager->elements[0];
     u32 cnt = D_80059478;
@@ -1956,7 +1956,7 @@ s32 SoundAudioManagerIsActive(AudioManager* pManager) {
     return (u16)pManager->unk_Flags >> 15;
 }
 
-void func_8003A838(AudioManager* pManager, s32 volume, s32 frames) {
+void SoundSetAudioManagerMasterVolumeWithFade(AudioManager* pManager, s32 volume, s32 frames) {
     s32 delta;
 
     if (volume == 0) {
@@ -1980,7 +1980,7 @@ void func_8003A838(AudioManager* pManager, s32 volume, s32 frames) {
     }
 }
 
-void func_8003A89C(AudioManager* pManager, s32 volume, s32 frames) {
+void SoundSetAudioManagerVolumeWithFade(AudioManager* pManager, s32 volume, s32 frames) {
     s32 delta;
 
     pManager->unk_Interpolator_0x70.targetValue = volume << 8;
@@ -2003,7 +2003,7 @@ void func_8003A89C(AudioManager* pManager, s32 volume, s32 frames) {
     }
 }
 
-void func_8003A948(AudioManager* pManager, s16 volume, s32 frames) {
+void SoundFadeAudioManagerInterpolator7c(AudioManager* pManager, s16 volume, s32 frames) {
     s32 delta;
 
     pManager->unk_Interpolator_0x7c.targetValue = volume << 8;
@@ -2021,7 +2021,7 @@ void func_8003A948(AudioManager* pManager, s16 volume, s32 frames) {
     }
 }
 
-void func_8003A9BC(AudioManager* pManager, s16 volume, s32 frames) {
+void SoundFadeAudioManagerInterpolator88(AudioManager* pManager, s16 volume, s32 frames) {
     s32 delta;
 
     pManager->unk_Interpolator_0x88.targetValue = volume << 8;
@@ -2053,7 +2053,7 @@ void SoundActivateAudioManager(AudioManager* pManager) {
 }
 
 // Mutes or unmutes the voices selected by `flags`, one bit per element.
-void func_8003AAC4(AudioManager* pManager, u32 flags) {
+void SoundMuteElementsByFlags(AudioManager* pManager, u32 flags) {
     AudioElement* pElement;
     s32 count;
 
@@ -4404,6 +4404,6 @@ void SoundHandleError(s16 errorId) {
         SoundLoadWdsFile(D_80050940, NULL);
         SoundAddSedsEntry((SoundFile*)D_80050910);
         func_8003BDFC(0x10);
-        func_80039E60(((u32)D_80050924 << 16) | 1);
+        SoundPlaySoundEffectOnFreePair(((u32)D_80050924 << 16) | 1);
     }
 }

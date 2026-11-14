@@ -1414,7 +1414,7 @@ void MemberChangeMenuRender(void) {
 }
 
 void MemberChangeMenuPlaySoundEffect(u_char soundEffectId) {
-    func_80039DB8((g_Menu->unk2E4->sedId << 16) | soundEffectId);
+    SoundPlaySoundEffectOnLastPair((g_Menu->unk2E4->sedId << 16) | soundEffectId);
 }
 
 void MemberChangeMenuPollInput(void) {
@@ -1613,8 +1613,8 @@ void MemberChangeMenuFree(void) {
     HeapFree(g_Menu->unk2E0);
     HeapFree(g_Menu->unk4E0[0].pVramBuffer);
     if (g_MenuDebugEnabled != 0) {
-        func_8003A094(g_Menu->unk2E4);
-        func_8003852C(g_Menu->unk2E4);
+        SoundStopElementsForSoundFile(g_Menu->unk2E4);
+        SoundRemoveSedsEntry(g_Menu->unk2E4);
         HeapFree(g_Menu->unk2E4);
     }
     MemberChangeMenuSetCharacters(MENU_DATA_FREE);

@@ -52,7 +52,7 @@ void func_8001E148(SpriteData* pSpriteData) {
     s32 xOffset;
 
     if ((D_800591AD != 0) || (D_800591AE != 0)) {
-        func_80022038(pSpriteData);
+        SpriteUpdateTransformMatrix(pSpriteData);
     }
 
     n = (pSpriteData->field_0x40 >> 8) & 0x1F;

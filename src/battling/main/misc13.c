@@ -356,10 +356,10 @@ Misc13Group* BattleCreateLightGroup(Misc13Node* pParent) {
     pGroup->pNode1 = pNode1;
     pGroup->pNode2 = pNode2;
     pGroup->pNode3 = pNode3;
-    func_80089B44(pNode0);
-    func_80089B44(pNode1);
-    func_80089B44(pNode2);
-    func_80089B44(pNode3);
+    BattleResetObject(pNode0);
+    BattleResetObject(pNode1);
+    BattleResetObject(pNode2);
+    BattleResetObject(pNode3);
     BattleSetNodeLight(pGroup->pNode1, BattleCreateLight());
     BattleSetNodeLight(pGroup->pNode2, BattleCreateLight());
     BattleSetNodeLight(pGroup->pNode3, BattleCreateLight());

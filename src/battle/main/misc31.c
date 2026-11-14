@@ -13,7 +13,7 @@ extern void TimerWorkListRemoveTask(void *pEntry);
 extern void func_8001F6B0(u8 *pEntry);
 extern s32 rcos(s32 a);
 extern s32 rsin(s32 a);
-extern void func_80021B14(IVEC3 *pVector, s32 x, s32 y, s32 z);
+extern void SpriteSetIVec3(IVEC3 *pVector, s32 x, s32 y, s32 z);
 extern s32 func_800AA600(s32 arg0);
 extern s32 D_80050100;
 extern MATRIX D_800D30BC;
@@ -143,7 +143,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BB7F8);
     VECTOR vC;
     VECTOR vD;
 
-    func_80021B14((IVEC3 *)&vTmp, pB->vx - pA->vx, pB->vy - pA->vy, pB->vz - pA->vz);
+    SpriteSetIVec3((IVEC3 *)&vTmp, pB->vx - pA->vx, pB->vy - pA->vy, pB->vz - pA->vz);
     vD.vx = pC->vx;
     vD.vy = pC->vy;
     vD.vz = pC->vz;

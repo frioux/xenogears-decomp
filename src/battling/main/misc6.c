@@ -30,7 +30,7 @@ s32 func_8007EB6C(u8* pText);
 extern s32 D_800926DC;
 
 void func_8008EB4C(s32 arg);
-void func_8008895C(void);
+void BattleAppendExtraQueueEntry(void);
 
 extern u8* D_800926D4[];
 extern u16 D_800926E0;
@@ -438,7 +438,7 @@ void func_8007EEE8(s32 arg) {
         }
     }
     if (arg != 0) {
-        func_8008895C();
+        BattleAppendExtraQueueEntry();
     }
 }
  */

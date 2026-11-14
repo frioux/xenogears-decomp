@@ -43,7 +43,7 @@ typedef struct {
     /* 0xE */ u16 h;
 } BattleTilePacket; // Size: 0x10
 
-// Sprite set up by func_800897AC: four drawing-mode packets and two tiles.
+// Sprite set up by BattleInitSpritePrims: four drawing-mode packets and two tiles.
 typedef struct {
     /* 0x00 */ u8 unk0[0x16];
     /* 0x16 */ u8 unk16;
@@ -56,7 +56,7 @@ typedef struct {
     /* 0x58 */ BattleTilePacket unk58;
 } BattleSprite; // Size: 0x68
 
-// 0x10-byte block moved around inside the object built by func_80089B44.
+// 0x10-byte block moved around inside the object built by BattleResetObject.
 typedef struct {
     /* 0x0 */ u32 unk0;
     /* 0x4 */ u32 unk4;
@@ -76,7 +76,7 @@ typedef struct {
     /* 0x1C */ u32 unk1C;
 } BattleEnv; // Size: 0x20
 
-// The 0x9C-byte object func_80089C54 allocates and func_80089B44 clears.
+// The 0x9C-byte object BattleCreateObject allocates and BattleResetObject clears.
 typedef struct {
     /* 0x00 */ u32 unk0;
     /* 0x04 */ u32 unk4;
@@ -162,13 +162,13 @@ extern u8 D_8009A2B8[];
 
 extern void func_800888B0(void);
 extern s32 func_800888E4(s32 slot);
-extern void func_8008895C(void);
-extern s32 func_800889C8(void);
+extern void BattleAppendExtraQueueEntry(void);
+extern s32 BattleSetFlag10000IfAllSlotBitsSet(void);
 extern void func_80089330(s32, s32);
-extern void func_80089534(s32, s32);
-extern BattleMisc12Obj* func_80089B44(BattleMisc12Obj* p);
+extern void BattleInitDrawEnvs(s32, s32);
+extern BattleMisc12Obj* BattleResetObject(BattleMisc12Obj* p);
 extern void func_8002DFF0(s32, s32);
-extern void func_80089210(s32, s32);
+extern void BattleSetScaleMatrix(s32, s32);
 extern void func_800898BC(void*, SVECTOR*, SVECTOR*, SVECTOR*);
 
 extern s32 D_8009A0C8;
@@ -184,7 +184,7 @@ extern s32 D_80097000;
 extern s32 D_80097004;
 extern s32 D_80097008;
 
-void func_80088940(void) {
+void BattleSetFlag10000(void) {
     s32 value;
     s32* pFlags;
 
@@ -193,7 +193,7 @@ void func_80088940(void) {
     *pFlags = value | 0x10000;
 }
 
-void func_8008895C(void) {
+void BattleAppendExtraQueueEntry(void) {
     if ((D_8006F980 & 0x10000) == 0) {
         return;
     }
@@ -204,7 +204,7 @@ void func_8008895C(void) {
     D_800928EC[D_80092888++] = D_80091A6C;
 }
 
-s32 func_800889C8(void) {
+s32 BattleSetFlag10000IfAllSlotBitsSet(void) {
     s32 slot;
     s32 value;
     s32* pFlags;
@@ -219,7 +219,7 @@ s32 func_800889C8(void) {
     pFlags = &D_8006F980;
     value = *pFlags;
     *pFlags = value | 0x10000;
-    func_8008895C();
+    BattleAppendExtraQueueEntry();
     return 0;
 }
 
@@ -262,7 +262,7 @@ void func_80088A40(void) {
 }
 */
 
-void func_80088AF8(void) {
+void BattleApplyOptionWord(void) {
     u32 flags;
     u32* pFlags;
     s32 i;
@@ -295,9 +295,9 @@ void func_80088AF8(void) {
     }
 }
 
-void func_80088BD4(void) {
+void BattleMarkSlotAndQueueIfAllMarked(void) {
     func_800888B0();
-    func_800889C8();
+    BattleSetFlag10000IfAllSlotBitsSet();
 }
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc12", func_80088BFC);
@@ -308,7 +308,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc12", func_80088BFC);
    `D_800927F0 = Vsync(1)`. No C statement produces that dead load, so the stub
    is probably not convertible as a single function. */
 
-void func_80088C28(void) {
+void BattleDebugScrollHeapDump(void) {
     u16 buttons;
 
     buttons = g_C1ButtonState;
@@ -324,7 +324,7 @@ void func_80088C28(void) {
     HeapDebugDump(1, D_800927F4, 0xA, 0x80AD);
 }
 
-void func_80088CBC(s32 slot) {
+void BattleInitSlotDrawEntry(s32 slot) {
     BattleEntry* pEntry;
 
     pEntry = &D_8009A0D8[slot];
@@ -352,7 +352,7 @@ extern void BattleSetTpage(s32, s32);
 extern void BattleSetClut(s32, s32);
 extern void func_8008E620(void);
 
-void func_80088D1C(void) {
+void BattleInitGraphics(void) {
     RECT rect;
 
 
@@ -361,8 +361,8 @@ void func_80088D1C(void) {
     HeapChangeCurrentUser(6, (char**)D_80091BB0);
     ArchiveSetIndex(0x30, 0);
     FontLoadFont(4, 2, 0x138, 0xDA, 0x14, 1, 0x3C0, 0x1F0, 0x3C0, 0x1EF, 0);
-    func_80088CBC(0);
-    func_80088CBC(1);
+    BattleInitSlotDrawEntry(0);
+    BattleInitSlotDrawEntry(1);
     switch (D_80010000) {
     case -1:
         D_800928CC = 2;
@@ -391,7 +391,7 @@ void func_80088D1C(void) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc12", func_80088E90);
 
-void* func_800891C0(s32 entryIndex) {
+void* BattleLoadArchiveEntry(s32 entryIndex) {
     void* pBuffer;
 
     pBuffer = HeapAlloc(ArchiveDecodeSize(entryIndex), 1);
@@ -399,7 +399,7 @@ void* func_800891C0(s32 entryIndex) {
     return pBuffer;
 }
 
-void func_80089210(s32 w, s32 h) {
+void BattleSetScaleMatrix(s32 w, s32 h) {
     s32 scaleW;
     s32 scaleH;
 
@@ -417,7 +417,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc12", func_80089330);
    store matches, including the retail store order (0x1C3, 0x1C4, 0x1CC, 0x1C8,
    0x1CA, 0x1CE). Two things are left and both come from one cause: gcc hoists
    the trailing 16-byte struct copy of D_8009A1C0 -> D_8009A2B8 up to just after
-   the func_80089210 call (retail emits it last), and because that copy occupies
+   the BattleSetScaleMatrix call (retail emits it last), and because that copy occupies
    $v0/$v1 earlier, the tile stores use $s2/$s1 directly where retail copies
    them into $v0 first (move $v0,$s2 ; sh $v0,0x1CC / move $v0,$s1 ; sh $v0,0x1CE).
    Tried: struct copy vs four u32 copies (u32 form hoists the loads and uses
@@ -458,7 +458,7 @@ void func_80089330(s32 w, s32 h) {
     }
     D_8009285C = w;
     D_8009286C = h;
-    func_80089210((s16)w, (s16)h);
+    BattleSetScaleMatrix((s16)w, (s16)h);
     D_8009A1C3 = 3;
     D_8009A1C4 = 0x60000000;
     D_8009A1CC = w;
@@ -469,7 +469,7 @@ void func_80089330(s32 w, s32 h) {
 }
 */
 
-void func_80089534(s32 w, s32 h) {
+void BattleInitDrawEnvs(s32 w, s32 h) {
     DRAWENV* pEnv;
     u8* pBase;
     u16 tpage;
@@ -504,23 +504,23 @@ void func_80089534(s32 w, s32 h) {
     func_8004546C((DR_MODE*)(pBase + 0x1BE), (RECT*)(pBase + 0xEA));
 }
 
-void func_800896C4(s32 a0, s32 a1) {
+void BattleSetViewport(s32 a0, s32 a1) {
     SetGeomOffset(a0 / 2, a1 / 2);
     SetGeomScreen((a0 << 8) / a0);
     func_8002DFF0(a0, a1);
-    func_80089210(a0, a1);
+    BattleSetScaleMatrix(a0, a1);
 }
 
-void func_8008973C(void) {
-    func_80089534(D_8009285C, D_8009286C);
+void BattleRestoreDrawEnvs(void) {
+    BattleInitDrawEnvs(D_8009285C, D_8009286C);
 }
 
-void func_8008976C(s32 a0, s32 a1) {
+void BattleSetScreenResolution(s32 a0, s32 a1) {
     func_80089330(a0, a1);
-    func_80089534(a0, a1);
+    BattleInitDrawEnvs(a0, a1);
 }
 
-void func_800897AC(BattleSprite* p, s32 x, s32 y, s32 w, s32 h, s32 v) {
+void BattleInitSpritePrims(BattleSprite* p, s32 x, s32 y, s32 w, s32 h, s32 v) {
     RECT rect;
     RECT rect2;
 
@@ -587,8 +587,8 @@ void func_800898BC(MATRIX* pMat, SVECTOR* pFrom, SVECTOR* pTo, SVECTOR* pScale) 
 */
 
 
-/*@func_80089A98*/
-void func_80089A98(BattleMisc12Owner* pOwner, VECTOR* pFrom, VECTOR* pTo) {
+/*@BattleSetMatrixFromPoints*/
+void BattleSetMatrixFromPoints(BattleMisc12Owner* pOwner, VECTOR* pFrom, VECTOR* pTo) {
     SVECTOR scale;
     SVECTOR offset;
     SVECTOR zero;
@@ -607,7 +607,7 @@ void func_80089A98(BattleMisc12Owner* pOwner, VECTOR* pFrom, VECTOR* pTo) {
 }
 /*@@*/
 
-BattleMisc12Obj* func_80089B44(BattleMisc12Obj* p) {
+BattleMisc12Obj* BattleResetObject(BattleMisc12Obj* p) {
     p->unk0 = 0;
     p->unk8C = 0;
     p->unk94 = 0;
@@ -631,15 +631,15 @@ BattleMisc12Obj* func_80089B44(BattleMisc12Obj* p) {
     return p;
 }
 
-void func_80089C54(void) {
+void BattleCreateObject(void) {
     void* p;
 
     HeapSetCurrentContentType(8);
     p = HeapAlloc(0x9C, 0);
-    func_80089B44(p);
+    BattleResetObject(p);
 }
 
-void func_80089C88(BattleListNode* pList, BattleListNode* pNode) {
+void BattleAppendListEntry(BattleListNode* pList, BattleListNode* pNode) {
     BattleListNode* pTail;
     BattleListNode* pCur;
 
@@ -656,7 +656,7 @@ void func_80089C88(BattleListNode* pList, BattleListNode* pNode) {
     pCur->unk90 = pNode;
 }
 
-void func_80089CD8(BattleListNode* pNode) {
+void BattleRemoveListEntry(BattleListNode* pNode) {
     BattleListNode* pList;
     BattleListNode* pPrev;
     BattleListNode* pCur;

@@ -32,23 +32,23 @@ extern void func_8007F258(void* pOt, s32 arg);
 extern void func_80080D20(void* pOt);
 extern void func_8008E3CC(void* pOt, s32 arg1, s32 arg2);
 extern void func_8008BC04(void);
-extern void func_8003A838(s32 arg0, s32 arg1, s32 arg2);
+extern void SoundSetAudioManagerMasterVolumeWithFade(s32 arg0, s32 arg1, s32 arg2);
 extern void func_8008E064(void);
 extern void func_80083BB4(s32 arg);
 extern void func_80083C0C(s32 arg);
-extern void func_8003852C(s32 arg);
-extern void func_80039C4C(s32 arg);
-extern void func_800399D4(s32 arg);
+extern void SoundRemoveSedsEntry(s32 arg);
+extern void SoundStopAudioManager(s32 arg);
+extern void SoundDestroyAudioManager(s32 arg);
 extern void func_80088A40(void);
 extern void ChangeGameState(s32 state);
 extern void Vsync(s32 mode);
 extern void MainLoop(s32 arg);
-extern s32 func_80089C54(void);
+extern s32 BattleCreateObject(void);
 extern s32 BattleCreateModelPart(void);
 extern void BattleSetNodeModelPart(void* pA, void* pB);
 extern void BattleAttachModelPart(void* pA, void* pB);
-extern void func_80089C88(s32 handle, void* pB);
-extern void* func_800891C0(s32 arg);
+extern void BattleAppendListEntry(s32 handle, void* pB);
+extern void* BattleLoadArchiveEntry(s32 arg);
 extern void func_8008AE1C(void* pData);
 extern s32 func_8008F530(s32 arg0, s32 arg1);
 void BattleAddSharedPrim(void);
@@ -128,7 +128,7 @@ void func_80084B48(void) {
         if ((s32)timer <= 0) {
             D_80092780 = 0;
             D_80092784 = 0;
-            func_8003A838(D_80092948, 0x100, 0);
+            SoundSetAudioManagerMasterVolumeWithFade(D_80092948, 0x100, 0);
             D_8009292C = 0x100;
             func_8008E064();
         } else {
@@ -150,11 +150,11 @@ void BattleActorCreateRotatedPart(Misc10Actor* pActor) {
     pScript = *(u8**)(pScript + 4);
     pScript = *(u8**)(pScript + 4);
     arg0 = *(s32*)(pScript + 0x30);
-    pDraw = (Misc10Draw*)func_80089C54();
+    pDraw = (Misc10Draw*)BattleCreateObject();
     pBuf = (u8*)BattleCreateModelPart();
     BattleSetNodeModelPart(pDraw, pBuf);
     BattleAttachModelPart(pBuf, D_80091FB0);
-    func_80089C88(arg0, pDraw);
+    BattleAppendListEntry(arg0, pDraw);
     pDraw->unk46 = 0xC00;
     pDraw->unk44 = 0;
     pDraw->unk48 = 0x400;
@@ -196,7 +196,7 @@ void BattleLoadSlotEntry(s32 index, s32 value) {
         D_800927B4[index] = NULL;
     }
     ArchiveSetIndex(0x30, 1);
-    D_800927B4[index] = func_800891C0(value + 2);
+    D_800927B4[index] = BattleLoadArchiveEntry(value + 2);
     ArchiveSetIndex(0x30, 0);
 }
 
@@ -213,10 +213,10 @@ void BattleAllocResourceBuffer(Misc10Resource* pResource, u_int allocFlags) {
 }
 
 void BattleReturnToMainLoop(void) {
-    func_8003852C(D_800927C4);
+    SoundRemoveSedsEntry(D_800927C4);
     if (D_800917F0 != 0) {
-        func_80039C4C(D_80092948);
-        func_800399D4(D_80092948);
+        SoundStopAudioManager(D_80092948);
+        SoundDestroyAudioManager(D_80092948);
     }
     func_80088A40();
     ChangeGameState(1);

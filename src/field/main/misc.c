@@ -74,17 +74,17 @@ void FieldScriptHandleSpriteOperations(void) {
     switch (SCRIPT_READ_U8_REL(1)) {
         case 0:
             // Initialize Sprite List
-            func_800AAC08();
+            FieldInitSpriteList();
             g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
             return;
         case 2:
             // Free Sprite List
-            func_800AABD8();
+            FieldFreeSpriteList();
             g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
             return;
         case 1:
             // Set X, Y of Sprite and add it to OT for drawing
-            func_800AAE4C(
+            FieldDrawSprite(
                 FieldScriptVMGetArgument(2), // Sprite Index
                 FieldScriptVMGetArgument(4), // X
                 FieldScriptVMGetArgument(6), // Y
@@ -94,7 +94,7 @@ void FieldScriptHandleSpriteOperations(void) {
             return;
         case 3:
             // Set Sprite Color
-            func_800AADC8(
+            FieldSetSpriteColor(
                 FieldScriptVMGetArgument(2), // Sprite Index
                 FieldScriptVMGetArgument(4), // Red
                 FieldScriptVMGetArgument(6), // Green
@@ -1796,14 +1796,14 @@ void FieldScriptFreeActorFile(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 1;
 }
 
-extern void func_8003A89C(s32, int, int);
+extern void SoundSetAudioManagerVolumeWithFade(s32, int, int);
 extern s32 D_8004F36C;
 extern s32 D_8004F324;
 extern s32 D_80062528;
 
 void FieldScriptSetAudioInterpolator70(void) {
     if (D_8004F36C != 0) {
-        func_8003A89C(D_80062528, FieldScriptVMGetArgument(1), FieldScriptVMGetArgument(3));
+        SoundSetAudioManagerVolumeWithFade(D_80062528, FieldScriptVMGetArgument(1), FieldScriptVMGetArgument(3));
         g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
     } else if (D_8004F324 == CHARACTER_ID_NONE) {
         g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
@@ -1815,11 +1815,11 @@ void FieldScriptSetAudioInterpolator70(void) {
     D_800B00C0 = 1;
 }
 
-extern void func_8003A948(s32, int, int);
+extern void SoundFadeAudioManagerInterpolator7c(s32, int, int);
 
 void FieldScriptSetAudioInterpolator7C(void) {
     if (D_8004F36C != 0) {
-        func_8003A948(D_80062528, FieldScriptArgument1(1, SCRIPT_READ_U8_REL(5)),
+        SoundFadeAudioManagerInterpolator7c(D_80062528, FieldScriptArgument1(1, SCRIPT_READ_U8_REL(5)),
                       FieldScriptArgument2(3, SCRIPT_READ_U8_REL(5)));
         g_FieldScriptVMCurActor->scriptInstructionPointer += 6;
     } else if (D_8004F324 == CHARACTER_ID_NONE) {
@@ -1832,11 +1832,11 @@ void FieldScriptSetAudioInterpolator7C(void) {
     D_800B00C0 = 1;
 }
 
-extern void func_8003A838(int, int, int);
+extern void SoundSetAudioManagerMasterVolumeWithFade(int, int, int);
 
 void FieldScriptSetAudioInterpolator64(void) {
     if (D_8004F36C != 0) {
-        func_8003A838(D_80062528, FieldScriptVMGetArgument(1), FieldScriptVMGetArgument(3));
+        SoundSetAudioManagerMasterVolumeWithFade(D_80062528, FieldScriptVMGetArgument(1), FieldScriptVMGetArgument(3));
         g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
     } else if (D_8004F324 == CHARACTER_ID_NONE) {
         g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
@@ -1848,11 +1848,11 @@ void FieldScriptSetAudioInterpolator64(void) {
     D_800B00C0 = 1;
 }
 
-extern void func_8003A9BC(int, int, int);
+extern void SoundFadeAudioManagerInterpolator88(int, int, int);
 
 void FieldScriptSetAudioInterpolator88(void) {
     if (D_8004F36C != 0) {
-        func_8003A9BC(D_80062528, FieldScriptArgument1(1, SCRIPT_READ_U8_REL(5)),
+        SoundFadeAudioManagerInterpolator88(D_80062528, FieldScriptArgument1(1, SCRIPT_READ_U8_REL(5)),
                       FieldScriptArgument2(3, SCRIPT_READ_U8_REL(5)));
         g_FieldScriptVMCurActor->scriptInstructionPointer += 6;
     } else if (D_8004F324 == CHARACTER_ID_NONE) {
@@ -1865,11 +1865,11 @@ void FieldScriptSetAudioInterpolator88(void) {
     D_800B00C0 = 1;
 }
 
-extern void func_8003AAC4(int, int);
+extern void SoundMuteElementsByFlags(int, int);
 
 void FieldScriptSetAudioMuteFlags(void) {
     if (D_8004F36C != 0) {
-        func_8003AAC4(D_80062528, FieldScriptVMGetArgument(1));
+        SoundMuteElementsByFlags(D_80062528, FieldScriptVMGetArgument(1));
         g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
     } else if (D_8004F324 == CHARACTER_ID_NONE) {
         g_FieldScriptVMCurActor->scriptInstructionPointer += 3;

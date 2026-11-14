@@ -59,7 +59,7 @@ extern u8 *func_8008D3F4(s32, s32);
 extern void func_8008D5C0(u8 *, s32);
 extern u8 *D_80092644;
 
-void func_800732CC(void) {
+void BattleEffectInitContext(void) {
     u8 *p = func_8008D3F4(3, 0);
 
     p[0x74] = 0x80;
@@ -83,7 +83,7 @@ extern u8 D_80091C0C[];
 extern void func_8008D680(u8 *, u8 *, s32);
 extern void BattleEffectUpdateEntries(u8 *, u8 *, u8 *);
 
-void func_8007334C(u8 *p0, u8 *p1) {
+void BattleEffectSetMatrix(u8 *p0, u8 *p1) {
     s32 n = D_80092648;
     u8 *p = D_80092644;
 
@@ -169,7 +169,7 @@ void func_80073424(VECTOR *p0, VECTOR *p1, u8 *p2, s32 arg3, s32 arg4, s32 arg5)
 } */
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80073644);
 
-void func_80073B7C(u8 *p0, s32 arg1, s32 arg2, VECTOR *pOut) {
+void BattleTransformEntryVertex(u8 *p0, s32 arg1, s32 arg2, VECTOR *pOut) {
     u32 **pArray;
     u32 *pEntry;
     u8 *pSrc;
@@ -300,7 +300,7 @@ s32 func_80073E2C(u8 *p0, s32 arg1, s32 arg2) {
 /* 97.87% (428 bytes against the original's 432): the body is right but one
    instruction is scheduled differently. The original hoists `addiu a3,sp,0x10`
    (the vecA argument) to just after `move a0,s2`, which leaves
-   `move s3,v0` free for the func_80073B7C delay slot; ours emits it as the last
+   `move s3,v0` free for the BattleTransformEntryVertex delay slot; ours emits it as the last
    argument, it takes that delay slot, and `move s3,v0` then falls into the
    func_8007D25C delay slot, losing one `nop`. Also `lbu a2,1(s1)` in the
    original against `lbu v1,1(s1)` here. Tried a `s32 *pVecA` temp (coalesced
@@ -308,7 +308,7 @@ s32 func_80073E2C(u8 *p0, s32 arg1, s32 arg2) {
    direct one is 89.81). gcc 2.7.2-cdk rejects the unit. The frame layout
    (locals at sp+0x10 and sp+0x20, 0x10 unused below) matches with two s32[4]. */
 /* extern s32 func_8007CD14(s32, u8, s16, s32);
-extern s32 func_80073B7C(u8 *, u8, s16, void *);
+extern s32 BattleTransformEntryVertex(u8 *, u8, s16, void *);
 extern s32 func_8007D25C(u8);
 extern void func_8007CD44(s32, void *, void *, s32);
 extern void func_8007D65C(void *, void *);
@@ -322,11 +322,11 @@ void func_80073F34(u8 *p0, u8 *p1) {
     s32 r;
 
     func_8007CD14((*(u32 *)(p0 + 0xD0) >> 27) & 1, *(u8 *)(p1 + 2), *(s16 *)(p1 + 4), 1);
-    r = func_80073B7C(p0, *(u8 *)(p1 + 2), *(s16 *)(p1 + 4), vecA);
+    r = BattleTransformEntryVertex(p0, *(u8 *)(p1 + 2), *(s16 *)(p1 + 4), vecA);
     if (func_8007D25C(*(u8 *)(p1 + 1)) != 0) {
         s32 *pVecB = vecB;
 
-        func_80073B7C(p0, *(u8 *)(p1 + 3), *(s16 *)(p1 + 6), pVecB);
+        BattleTransformEntryVertex(p0, *(u8 *)(p1 + 3), *(s16 *)(p1 + 6), pVecB);
         if (*(u8 *)(p1 + 1) == 0x10) {
             func_8007CD44((*(u32 *)(p0 + 0xD0) >> 27) & 1, vecA, pVecB, r);
         } else {
@@ -335,7 +335,7 @@ void func_80073F34(u8 *p0, u8 *p1) {
         return;
     }
     if (*(u8 *)(p1 + 2) != *(u8 *)(p1 + 3) || *(s16 *)(p1 + 4) != *(s16 *)(p1 + 6)) {
-        func_80073B7C(p0, *(u8 *)(p1 + 3), *(s16 *)(p1 + 6), vecB);
+        BattleTransformEntryVertex(p0, *(u8 *)(p1 + 3), *(s16 *)(p1 + 6), vecB);
         vecA[0] = (vecA[0] + vecB[0]) / 2;
         vecA[1] = (vecA[1] + vecB[1]) / 2;
         vecA[2] = (vecA[2] + vecB[2]) / 2;

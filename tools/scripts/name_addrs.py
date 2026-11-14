@@ -81,16 +81,15 @@ def main():
                 and re.search(r"\b" + new + r"\b", blob):
             skipped.append((old, new, "new name already used"))
         else:
-            bins = {p.parts[-3] for p in src if re.search(r"\b" + old + r"\b", src[p])}
             defs = [p for p in src if re.search(r"\b" + old + r"\s*\([^;]*?\)\s*\{", src[p], re.S)]
+            # A main-exe function is normally called from several overlays, so the owner
+            # is the binary that DEFINES it in C, not the set of binaries that mention it.
             if len(defs) > 1:
                 skipped.append((old, new, f"address twin, defined in {[str(p) for p in defs]}"))
-            elif len(bins) != 1:
-                skipped.append((old, new, f"no single owner binary: {sorted(bins)}"))
-            elif sum(1 for b in files if re.search(r"\b" + new + r"\b", src_bins[b])) > 1:
-                skipped.append((old, new, "new name would cover 2+ binaries"))
+            elif not defs:
+                skipped.append((old, new, "no C definition of the old name"))
             else:
-                rename.append((old, new, bins.pop()))
+                rename.append((old, new, defs[0].parts[-3]))
 
     added = {}
     for old, new, owner in rename:

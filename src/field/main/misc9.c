@@ -10,7 +10,7 @@
 #include "field/particles.h"
 
 
-s32 func_800AA9DC(FieldActorModelData* pModel) {
+s32 FieldActorModelComputeCenterAndSize(FieldActorModelData* pModel) {
     s32 minX;
     s32 minY;
     s32 minZ;
@@ -44,7 +44,7 @@ extern s32 D_800C3A5C;
 extern s32 D_800C3A60;
 
 // Project the two silhouette points of a model and check they are on screen
-s32 func_800AAA74(FieldActorModelData* pModel) {
+s32 FieldActorModelIsOnScreen(FieldActorModelData* pModel) {
     VECTOR vec;
     SVECTOR point;
     long flag;
@@ -86,12 +86,12 @@ s32 func_800AAA74(FieldActorModelData* pModel) {
 
 extern SpriteList* D_800AFC68;
 
-void func_800AABD8(void) {
+void FieldFreeSpriteList(void) {
     HeapFree(D_800AFC68);
     DrawSync(0);
 }
 
-void func_800AAC08(void) {
+void FieldInitSpriteList(void) {
     RECT rect;
     SPRT* pSprite;
     SPRT* pSprite2;
@@ -126,12 +126,12 @@ void func_800AAC08(void) {
 }
 
 // Set RGB of sprites
-void func_800AADC8(int index, int red, int green, int blue) {
+void FieldSetSpriteColor(int index, int red, int green, int blue) {
     setRGB0(&D_800AFC68->sprites[index][0], red, green, blue);
     setRGB0(&D_800AFC68->sprites[index][1], red, green, blue);
 }
 
-void func_800AAE4C(int index, int x, int y, int type) {
+void FieldDrawSprite(int index, int x, int y, int type) {
     switch (type) {
         case 0:
             y -= 0xC;
@@ -152,7 +152,7 @@ void func_800AAE4C(int index, int x, int y, int type) {
 extern SpriteList2* D_800B1DF0;
 extern PolyList2* D_800C3A3C;
 
-void func_800AAF80(void) {
+void FieldInitScreenOverlayPrims(void) {
     RECT rect;
     POLY_FT4* pPoly;
     POLY_FT4* pPoly2;
@@ -211,7 +211,7 @@ void func_800AAF80(void) {
 }
 
 // Check whether the inventory holds at least one of the given item
-s32 func_800AB328(int itemId) {
+s32 FieldInventoryHasItem(int itemId) {
     int i;
 
     for (i = 0; i < MAX_INVENTORY_ITEMS; i++) {
@@ -231,7 +231,7 @@ extern s32 g_PlayerActorIndex;
 extern s32 D_800C3914;
 extern s32 D_800C3A18;
 
-void func_800AB378(s8 color) {
+void FieldDrawScreenOverlayPrims(s8 color) {
     ActorData* pActor;
     int i;
     int y;
@@ -262,7 +262,7 @@ void func_800AB378(s8 color) {
     }
 }
 
-s32 func_800AB748(s32 index) {
+s32 FieldCheckSpriteSlotFlag(s32 index) {
     switch (index) {
         case 0:
             if (g_pGameState->unk1930[0x73] & 0x8) {
@@ -317,7 +317,7 @@ void func_800AB808(void) {
     OpenTIM(pFile);
     if (ReadTIM(&tim) != 0) {
         for (i = 0; i < 5; i++) {
-            if (func_800AB748(i) != -1) {
+            if (FieldCheckSpriteSlotFlag(i) != -1) {
                 continue;
             }
             if (tim.paddr == 0) {
@@ -391,7 +391,7 @@ void func_800ABA98(void) {
         }
     }
 
-    if (func_800AB328(pTable[index].itemId) != -1) {
+    if (FieldInventoryHasItem(pTable[index].itemId) != -1) {
         rect.x = 0x300;
         rect.y = 0x100;
         rect.w = 0xA0;
@@ -417,24 +417,24 @@ void func_800ABA98(void) {
         if (pTable[index].unk1C == 1) {
             func_800AB808();
         }
-        func_800AAF80();
+        FieldInitScreenOverlayPrims();
 
         for (index = 0; index < 0x10; index++) {
             FieldClearAndSwapOTag();
-            func_800AB378(index << 3);
+            FieldDrawScreenOverlayPrims(index << 3);
             FieldDisplay();
         }
 
         while (!(D_800C3900 & 0x100)) {
             FieldClearAndSwapOTag();
-            func_800AB378(0x80);
+            FieldDrawScreenOverlayPrims(0x80);
             FieldDisplay();
             FieldPollControllers();
         }
 
         for (index = 0x10; index > 0; index--) {
             FieldClearAndSwapOTag();
-            func_800AB378(index << 3);
+            FieldDrawScreenOverlayPrims(index << 3);
             FieldDisplay();
         }
 
@@ -450,7 +450,7 @@ void func_800ABA98(void) {
 
 extern SpriteList3 D_800B0188;
 
-void func_800ABD18(void) {
+void FieldInitScreenStripSprites(void) {
     int i;
     RECT rect;
     
@@ -475,7 +475,7 @@ void func_800ABD18(void) {
 
 extern s16 D_800ADB54;
 
-void func_800ABEC8(void) {
+void FieldDrawScreenStripSprites(void) {
     int i;
 
     if (D_800ADB54) {
@@ -486,7 +486,7 @@ void func_800ABEC8(void) {
     }
 }
 
-s32 func_800ABFDC(u_char* pData, s32* pIsGlyph) {
+s32 FieldDecodeFontGlyph(u_char* pData, s32* pIsGlyph) {
     u_short code;
 
     code = (pData[0] << 8) | pData[1];
@@ -500,7 +500,7 @@ s32 func_800ABFDC(u_char* pData, s32* pIsGlyph) {
 
 // Expand the 15 16-bit rows of a 16x16 glyph bitmap into 18-byte rows of
 // 0x00/0xFF mask bytes. A -1 source address means "blank glyph".
-void func_800AC03C(u_char* pDst, u_short* pSrc) {
+void FieldExpandGlyphBitmap(u_char* pDst, u_short* pSrc) {
     int i = 0;
     int bit;
 
@@ -528,7 +528,7 @@ void func_800AC03C(u_char* pDst, u_short* pSrc) {
 
 extern s32 D_800AF780;
 
-void* func_800AC0F0(void* pData, s32 x, s32 frameIndex) {
+void* FieldDrawTextRow(void* pData, s32 x, s32 frameIndex) {
     u_char glyph[0x120];
     RECT rect;
     RECT srcRect;
@@ -560,7 +560,7 @@ void* func_800AC0F0(void* pData, s32 x, s32 frameIndex) {
                 index++;
                 break;
             }
-            glyphCode = func_800ABFDC(&text[index], &isGlyph);
+            glyphCode = FieldDecodeFontGlyph(&text[index], &isGlyph);
             index += 2;
             if (isGlyph == 1) {
                 srcRect.w = 9;
@@ -569,7 +569,7 @@ void* func_800AC0F0(void* pData, s32 x, s32 frameIndex) {
                 srcRect.y = glyphCode / 7 * 0x10 + 0x100;
                 MoveImage(&srcRect, x + line * 9, frameIndex << 4);
             } else {
-                func_800AC03C(glyph, glyphCode);
+                FieldExpandGlyphBitmap(glyph, glyphCode);
                 rect.x = x + line * 9;
                 LoadImage(&rect, glyph);
             }
@@ -603,7 +603,7 @@ extern s32 D_800AF77C;
 extern s32 D_800AF784;
 
 // Load the two archive files this effect needs
-void func_800AC308(void) {
+void FieldLoadTextRenderFiles(void) {
     ArchiveSetIndex(4, 0);
     D_800AF780 = ArchiveDecodeSize(0xAB);
     D_800AF76C = HeapAlloc(ArchiveDecodeAlignedSize(0xAB), 1);
@@ -676,7 +676,7 @@ void func_800AC99C(void) {
 }
 */
 
-void func_800ACB90(void) {
+void FieldLoadFontTIMAndClearRect(void) {
     RECT rect;
     s32* pBuffer;
     s32 empty;
@@ -701,14 +701,14 @@ void func_800ACB90(void) {
     HeapFree(pBuffer);
 }
 
-extern void func_800AC308();
+extern void FieldLoadTextRenderFiles();
 extern void func_800AC3AC();
 
-void func_800ACC58(void) {
+void FieldInitTextRender(void) {
     RECT rect; // unused, but the original frame has this 8-byte slot
 
     if (D_8004F300) {
-        func_800AC308();
+        FieldLoadTextRenderFiles();
         func_800AC3AC();
         D_800AF77C = 0;
         D_800AF778 = 0xF;
@@ -718,19 +718,19 @@ void func_800ACC58(void) {
 
 extern s32 D_800AF770;
 
-void func_800ACCB0(void) {
+void FieldFreeTextRender(void) {
     if (D_8004F300) {
         HeapFree(D_800AF76C);
         HeapFree(D_800AF770);
     }
 }
 
-void* func_800AC0F0(void* pData, s32 offset, s32 frame);
+void* FieldDrawTextRow(void* pData, s32 offset, s32 frame);
 
-void func_800ACCF4(void) {
+void FieldUpdateTextRender(void) {
     if (D_8004F300) {
         if ((D_800AF77C & 0xF) == 0) {
-            D_800AF774 = func_800AC0F0(D_800AF774, 0x300, D_800AF778 & 0xF);
+            D_800AF774 = FieldDrawTextRow(D_800AF774, 0x300, D_800AF778 & 0xF);
             D_800AF778++;
         }
         D_800AF77C++;

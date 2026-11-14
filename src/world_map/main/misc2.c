@@ -7,10 +7,10 @@
 
 extern int Vsync(int mode);
 extern int rand(void);
-extern void func_80039CC4(void);
-extern void func_800399D4(s32* pFile);
-extern void* func_80039850(void* pFile);
-extern void func_80039A80(s32* pFile, s32 volume, s32 frames);
+extern void SoundStopAllAudioManagers(void);
+extern void SoundDestroyAudioManager(s32* pFile);
+extern void* SoundCreateAudioManagerOnHeap(void* pFile);
+extern void SoundPlayAudioManager(s32* pFile, s32 volume, s32 frames);
 extern int ArchiveDecodeAlignedSize(unsigned int entryIndex);
 
 typedef struct {
@@ -716,11 +716,11 @@ void func_80076594(void) {
 void func_800767D4(u8* pSrc, s32 index) {
     u8* pBuffer;
 
-    func_80039CC4();
-    func_800399D4(D_80062528);
+    SoundStopAllAudioManagers();
+    SoundDestroyAudioManager(D_80062528);
     memcpy(D_80062648, pSrc, ArchiveDecodeAlignedSize(index));
-    D_80062528 = func_80039850(D_80062648);
-    func_80039A80(D_80062528, 0x7F, 0);
+    D_80062528 = SoundCreateAudioManagerOnHeap(D_80062648);
+    SoundPlayAudioManager(D_80062528, 0x7F, 0);
 }
 void func_80076858(s32 arg0, s16* pRow0, s16* pRow1, s16* pRow2, s32* pOut) {
     s32 s;

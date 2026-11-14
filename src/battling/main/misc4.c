@@ -75,7 +75,7 @@ extern s32 D_8009263C;
 extern s32 D_8009294C;
 extern s32 D_80092648;
 
-extern void func_800732CC(void);
+extern void BattleEffectInitContext(void);
 extern s32 rand(void);
 extern void func_8007E24C();
 extern void func_8008D580();
@@ -90,7 +90,7 @@ extern void func_800720C4(void);
 extern void SystemStringReset();
 extern u8 D_8009868C[];
 extern void func_80074678();
-extern void func_80073B7C();
+extern void BattleTransformEntryVertex();
 extern void func_8007C100();
 extern s32 func_8007CD44();
 extern void func_8007D190();
@@ -101,7 +101,7 @@ extern u32 func_800828C4();
 extern void func_800828F8();
 extern void func_800776A8();
 extern s32 func_80083CD8();
-extern void func_80088AF8(void);
+extern void BattleApplyOptionWord(void);
 extern void func_8008DC28(void);
 extern void func_8008EBD0();
 extern void func_8008EB88();
@@ -279,8 +279,8 @@ void func_8007920C(Actor* p) {
     s32 flag;
     s32 state;
 
-    func_80073B7C(p, pScript->unk1, pScript->unk4, pos[0]);
-    func_80073B7C(p, pScript->unk2, pScript->unk6, pos[1]);
+    BattleTransformEntryVertex(p, pScript->unk1, pScript->unk4, pos[0]);
+    BattleTransformEntryVertex(p, pScript->unk2, pScript->unk6, pos[1]);
     p->unk93C = (pos[0][0] + pos[1][0]) / 2;
     p->unk940 = (pos[0][1] + pos[1][1]) / 2;
     p->unk944 = (pos[0][2] + pos[1][2]) / 2;
@@ -315,7 +315,7 @@ void func_8007920C(Actor* p) {
 
     p->unk96E = pos[0][1];
     p->unk96C = pos[1][1];
-    func_80073B7C(p, pScript->unk0, pScript->unk8, &p->unk92C);
+    BattleTransformEntryVertex(p, pScript->unk0, pScript->unk8, &p->unk92C);
 
     p->unk930 -= 0x38;
     p->unk94C = (p->unk93C + p->unk92C) / 2;
@@ -374,9 +374,9 @@ void func_8007920C(Actor* p) {
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_800796B8);
 
 void BattleInitOptionDefaults(void) {
-    func_800732CC();
+    BattleEffectInitContext();
     func_8008DC28();
-    func_80088AF8();
+    BattleApplyOptionWord();
     D_80099D9D = 1;
     D_80099DA1 = 3;
     D_8009292C = 0x100;

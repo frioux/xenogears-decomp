@@ -4,9 +4,9 @@
 
 #define ARCHIVE_HEADER_ENTRY_SIZE 0x7
 
-extern void func_80039A80(void* pManager, s32 volume, s32 frames);
+extern void SoundPlayAudioManager(void* pManager, s32 volume, s32 frames);
 extern s32 func_8003BDFC(u32 flags);
-extern void* func_80039850(void* pFile);
+extern void* SoundCreateAudioManagerOnHeap(void* pFile);
 extern char* ArchiveReadHddFile(char* pFilePath, int* pFileSize);
 extern void SoundLoadWdsFile(void* pWdsFile, void* pUnk);
 extern void HeapFree(void* pMem);
@@ -146,11 +146,11 @@ void func_8007548C(void) {
     while ((func_8003BDFC(0) << 16) != 0) {
     }
     HeapFree(pWdsFile);
-    D_8007700C = func_80039850(ArchiveReadHddFile(D_80070394, 0));
+    D_8007700C = SoundCreateAudioManagerOnHeap(ArchiveReadHddFile(D_80070394, 0));
 }
 
 void func_80075508(void) {
-    func_80039A80(D_8007700C, 0x7F, 0);
+    SoundPlayAudioManager(D_8007700C, 0x7F, 0);
 }
 
 INCLUDE_ASM("asm/movie/nonmatchings/main/misc2", func_80075534);
