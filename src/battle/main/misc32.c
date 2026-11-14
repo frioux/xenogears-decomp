@@ -8,6 +8,15 @@ extern void func_8001CE74(u8 *pTask);
 extern void TimerWorkListRemoveTask(u8 *pTask);
 extern MATRIX D_800D30BC;
 
+/* 16 of this unit's 21 stubs are atfree (tools/scripts/atfree.py): retail's
+   aspsx picks a free register for a one-instruction %lo access where our
+   assembler always emits $at, so no preset can match them. The 5 survivors
+   are all parked below and every one scores higher under gcc-2.7.2-cdk
+   (BCFAC 87.20, BDA1C 89.20 -> 96.95, BDB74 90.50, BDC14 83.60 -> 91.40,
+   BDC78 87.50 -> 93.75) while every function already matched here stays
+   100.00 there, with and without -G0: the unit is a XenoBattleTailCdk
+   candidate. */
+
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BCC60);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BCD8C);
 /* best 45.00%: retail's aspsx expands the bare `sh $zero,SYM` macro into
@@ -29,6 +38,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BCFAC);
    leaves the 0x58 group late. Tried: ++field inline in the call, a separate
    ++ statement plus a re-read, a timer local read before the stores, unk6/unkA
    locals (needed - without them gcc reloads both and it drops to 70%).
+   gcc-2.7.2-cdk scores the same 87.20, so this one is not a preset problem.
 extern void func_800BCAFC(u8 *pSrc, s32 arg1, s32 arg2);
 
 void func_800BCFAC(u8 *pEntry) {
@@ -131,6 +141,8 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BDA1C);
    3. retail's `i = 0` lands after the ShadeTriangle-free prologue block, gcc
       hoists it to the ReadGeomScreen delay slot.
    Everything else (matrix chain, the 0x18-stride loop, frame) is exact.
+   Under gcc-2.7.2-cdk this body is 96.95 (against 89.20 on the unit
+   preset), and -G0 changes nothing: the rest is the three items above.
 typedef struct {
     // 0x00
     u8 unk0[0x1C];
@@ -189,7 +201,8 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BDB74);
    task into $s1 (`move $s1,$s0`) and reaches the callback through it - `lw $v0,
    0xC($s1)`, `move $a0,$s1` - while gcc uses $s0 for both. gcc 2.7.2 refuses to
    keep a second copy: an `u8 *pEntry = pTask` local used only in the `if` gets
-   coalesced away, and cdk scores the same 90.5.
+   coalesced away. gcc-2.7.2-cdk scores the same 90.50, so this one is not a
+   preset problem either.
    The two `volatile` reads ARE needed: without them cse forwards call 1's stored
    result into call 2's argument (`andi $a0,$v0,0xff`, with the store deferred
    into the next call's delay slot) and the score drops to 86.00; retail reloads
@@ -214,7 +227,8 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BDC14);
    differs. gcc hoists the call's `move $4,$16` to the top of the block and
    addresses through $4; retail emits the copy at the call and stays on $16.
    Tried: u8* with pEntry+0x88 casts, a struct type, a pTask copy, a callback
-   local, indexed and offset forms - all give $4.
+   local, indexed and offset forms - all give $4. The same body on
+   gcc-2.7.2-cdk is 91.40 (83.60 here): cdk moves the `lui a1,%hi` up front.
 extern void func_800BDF1C(u8 *pEntry);
 extern void TimerWorkListSetTaskCallback(void *pEntry, void *pCallback);
 extern void func_800BDB74(void);
@@ -240,9 +254,13 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BDC78);
    differently. Retail emits `lui a1,%hi; move a0,s0; jal; addiu a1,%lo`, i.e.
    the %hi/%lo pair is split around the move - the cdk two-insn `la`. gcc 2.7.2
    emits `la` as one macro that maspsx expands adjacently, so reorg steals the
-   `move a0,s0` into the slot instead. gcc-2.7.2-cdk scores 93.75, still not
-   100 (the addiu stays next to the lui there too). Tried: the address in a
-   function-pointer local assigned last.
+   `move a0,s0` into the slot instead.
+   gcc-2.7.2-cdk scores 93.75 and DOES put the addiu in the delay slot: its
+   whole remaining difference is the pre-reorg order, retail `lui a1; move
+   a0,s0; jal; addiu a1,%lo` against cdk `move a0,s0; lui a1; jal; addiu`.
+   gcc expands call arguments left to right, so shaping the source to get
+   arg1's %hi emitted before arg0's copy is what is left. Tried: the address
+   in a function-pointer local assigned last (sunk to the call either way).
 extern void TimerWorkListSetTaskCallback(u8 *pTask, void (*pCallback)(u8 *));
 extern void func_800BDC14(u8 *pTask);
 
