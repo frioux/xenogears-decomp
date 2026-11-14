@@ -166,6 +166,18 @@ extern s32 WorldMapGetQueuedLoadCount(void);
 extern void func_800967E4(void);
 extern s32 Vsync(s32);
 extern void func_80097718();
+extern s32 WorldMapStartActorScript(s32);
+extern void func_8007A9F8(void);
+extern void func_8007ADD4(void);
+extern void func_8007B394(void);
+extern void func_8007B798(void);
+extern void func_8007BBEC(void);
+extern s32 WorldMapInitActorScrollScale(s32);
+extern s32 WorldMapSetupGroup4And5ScaledPrims(s32);
+extern s32 WorldMapSetupGroup6And7ScaledPrims(s32);
+extern s32 WorldMapInitReturnThree(s32);
+extern s32 WorldMapInitGroup0Actor(s32);
+extern s32 WorldMapActivateSpriteGroup9Timed(s32);
 extern void func_80078E2C(void);
 extern void func_80078EA4(void);
 extern void func_80079778(void);
@@ -673,7 +685,63 @@ s32 WorldMapUpdateObjectAPosition(s32 index) {
     return 3;
 }
 */
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_8007A5DC);
+void func_8007A5DC(void) {
+    RECT rect;
+
+    WorldMapInitGfxEnv();
+    rect.x = 0;
+    rect.y = 0;
+    rect.w = 0x140;
+    rect.h = 0xD8;
+    MoveImage(&rect, 0x2C0, 0x100);
+    DrawSync(0);
+    func_80072DB4(0x40, 0, 4, 2);
+    do {
+    } while (ArchiveDataSync() >= 3);
+    WorldMapDecompressMapData();
+    func_8009766C();
+    D_8009BE4C = D_8009A180;
+    D_8009CCA4 = 2;
+    D_8009D3CC = 0x10;
+    D_8009D804 = 0;
+    D_8009D144 = 0;
+    D_8009CD40 = (s32)func_80086700;
+    func_80098044();
+    ArchiveCdDataSync(0);
+    WorldMapLoadSedsBank();
+    D_8009C5AC.x = 0x5BED000;
+    D_8009C5B0 = -0xA0000;
+    D_8009C5B4 = 0x62A8000;
+    func_80084580();
+    func_8008440C();
+    func_800979C8();
+    func_800736DC();
+    func_800863E0();
+    WorldMapInitTileAnimEntries();
+    WorldMapInitFrameAnimEntries();
+    WorldMapSetupMapPrims();
+    WorldMapInitSpriteGroupTables();
+    ArchiveCdDataSync(0);
+    SoundAddSedsEntry(D_8006259C);
+    ArchiveSetIndex(0x24, 0);
+    func_80097BC0(&D_8009C5AC);
+    do {
+        func_800967E4();
+        Vsync(0);
+    } while (WorldMapGetQueuedLoadCount() > 0);
+    func_80097718(func_800923A8, func_800925A0);
+    func_80097718(WorldMapStartActorScript, func_8007A9F8);
+    func_80097718(WorldMapInitActorScrollScale, func_8007ADD4);
+    func_80097718(WorldMapSetupGroup4And5ScaledPrims, func_8007B394);
+    func_80097718(WorldMapSetupGroup6And7ScaledPrims, func_8007B798);
+    func_80097718(WorldMapInitReturnThree, WorldMapActivateSpriteGroup9Timed);
+    func_80097718(WorldMapInitGroup0Actor, func_8007BBEC);
+    func_80097718(WorldMapEnterNop, WorldMapUpdateFrameWithParticles);
+    func_800978FC();
+    func_8008901C();
+    func_800865A0();
+    func_80075228();
+}
 void func_8007A8AC(void) {
     u16 v;
 
