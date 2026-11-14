@@ -228,7 +228,9 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc11", func_80087E38);
    keeps the base in a0 and the result in v0 (addu v0,v0,a0); gcc reuses the dead
    base register (addu a0,v0,a0) and the i+1 temp then moves to v0. Tried: p += i,
    p = p + i, p = &p[i], p = base + i, u8* + i*0x68, n = i + 1, decls outside the
-   if (all 98.08 or worse), &D_8009A988[i] and i + D_8009A988 (84.04).
+   if (all 98.08 or worse), &D_8009A988[i] and i + D_8009A988 (84.04),
+   and the indexed D_8009A988[i].unkN form (66.81: it re-forms the base with
+   $at instead of keeping it in a0).
 void func_80087E38(s32 *arg0) {
     s32 i = D_800928F8;
 
