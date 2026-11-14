@@ -15,6 +15,15 @@ extern u32 g_ArchiveTable;
 extern int ControllerGetButtonState(int controllerIndex);
 extern void SoundSetCdVolumeWithFade(s32 volume, s32 frames);
 extern void Vsync(s32 mode);
+extern char* ArchiveGetFilePath(int entryIndex);
+extern u32 ArchiveGetDebugTable(void);
+extern s32 ArchiveDecodeAlignedSize(u32 entryIndex);
+extern s32 ArchiveReadFileFromCdSector(s32 sector, void* pDestBuffer, s32 fileSize, s32 arg3, u32 flags);
+extern void ArchiveCdDataSync(int mode);
+extern int PCopen(char* name, int flags, int perms);
+extern int PClseek(int fd, int offset, int mode);
+extern int PCread(int fd, char* buff, int len);
+extern int PCclose(int fd);
 
 // .rodata
 extern char D_80070304[];
@@ -91,6 +100,13 @@ extern s16 D_80077106;
 extern s16 D_80077108;
 extern s32 D_8007711C;
 typedef struct {
+    /* 0x0 */ u16 magic;
+    /* 0x2 */ u16 unk2;
+    /* 0x4 */ s32 unk4;
+    /* 0x8 */ s32 unk8;
+} MovieFileHeader; // Size: 0xC
+
+typedef struct {
     /* 0x0 */ u8 unk0;
     /* 0x1 */ u8 pad1[0x54];
     /* 0x55 */ u8 unk55;
@@ -121,6 +137,73 @@ void func_80074B58(void) {
 INCLUDE_ASM("asm/movie/nonmatchings/main/misc2", func_80074BA4);
 
 INCLUDE_ASM("asm/movie/nonmatchings/main/misc2", func_8007519C);
+
+/* best 91.70% - same size as retail (544 bytes); needs the state header read
+   twice (debug-table path and CD path) and the local/register order fixed: our
+   `result` lands in $s3 where retail has $s4. Everything else in the two paths
+   matches. Rewritten from the assembly, no earlier park note existed.
+s32 func_8007519C(void) {
+    u8 buffer[0x1000];
+    MovieFileHeader* pHeader;
+    s32 state;
+    s32 nFileIndex;
+    s32 nSectorSize;
+    s32 nHeaderSize;
+    s32 nHeaderSkip;
+    char* pPath;
+    s32 nHandle;
+    s32 nSize;
+    s32 result;
+
+    state = D_80077448;
+    result = -1;
+    if (state == 0) {
+        ArchiveSetIndex(0x18, 0);
+        if (D_8007711C >= (s16)ArchiveDecodeSizeAbsolute(2)) {
+            return result;
+        }
+        nFileIndex = D_8007711C + 3;
+        pPath = ArchiveGetFilePath(nFileIndex);
+        nSectorSize = 0x800;
+        nHeaderSize = 0x20;
+        nHeaderSkip = 0;
+    } else if (state == 1) {
+        ArchiveSetIndex(0x18, 1);
+        if (D_8007711C >= (s16)ArchiveDecodeSizeAbsolute(1)) {
+            return result;
+        }
+        nFileIndex = D_8007711C + 2;
+        pPath = ArchiveGetFilePath(nFileIndex);
+        nSectorSize = 0x920;
+        nHeaderSize = 0x28;
+        nHeaderSkip = 8;
+    } else if (state == 2) {
+        return result;
+    }
+
+    if (ArchiveGetDebugTable() != 0) {
+        nHandle = PCopen(pPath, 0, 0);
+        nSize = PClseek(nHandle, 0, 2);
+        PClseek(nHandle, 0, 0);
+        PClseek(nHandle, nSize - nSectorSize, 0);
+        PCread(nHandle, buffer, nHeaderSize);
+        pHeader = (MovieFileHeader*)(buffer + nHeaderSkip);
+        if (pHeader->magic == 0x160) {
+            result = pHeader->unk8;
+        }
+        PCclose(nHandle);
+    } else {
+        nSize = (ArchiveDecodeAlignedSize(nFileIndex) + nSectorSize - 1) / nSectorSize;
+        ArchiveReadFileFromCdSector(ArchiveDecodeSector(nFileIndex) + nSize - 1, buffer, 0x800, 0, 0);
+        ArchiveCdDataSync(0);
+        pHeader = (MovieFileHeader*)buffer;
+        if (pHeader->magic == 0x160) {
+            result = pHeader->unk8;
+        }
+    }
+    return result;
+}
+*/
 
 void func_800753B8(void) {
     char* pWdsFile;
@@ -218,6 +301,42 @@ void func_8007625C(void) {
 
 INCLUDE_ASM("asm/movie/nonmatchings/main/misc2", func_800763BC);
 
+/* best 89.61% - the whole mnemonic stream matches (200 bytes both) except where
+   the two `li v0,1` of the reset block land: retail fills the `j` delay slot and
+   leaves a nop after each branch, ours fills each branch's delay slot and leaves
+   the nop in the `j` slot. Everything up to the shared size-check tail matches,
+   including the cross-jumped ArchiveDecodeSizeAbsolute(2)/ArchiveDecodeSizeAbsolute(1)
+   tail, which proves the original wrote the size check inside each branch.
+   Earlier 82.33% shape: shared size check with a nIndex local (gcc reorders the
+   ==2 test before the size check).
+void func_800763BC(u8 mode) {
+    long pad[6];
+    s32 state;
+
+    state = D_80077448;
+    D_80077028 = mode;
+    D_800773AC = -1;
+    if (state == 0) {
+        ArchiveSetIndex(0x18, 0);
+        if (D_8007711C >= (s16)ArchiveDecodeSizeAbsolute(2)) {
+            return;
+        }
+    } else if (state == 1) {
+        ArchiveSetIndex(0x18, 1);
+        if (D_8007711C >= (s16)ArchiveDecodeSizeAbsolute(1)) {
+            return;
+        }
+    } else if (state == 2) {
+        return;
+    }
+    D_8007713C[0].unk0 = 0;
+    D_8007713C[1].unk0 = 0;
+    D_8007713C[0].unk55 = 1;
+    D_8007713C[1].unk55 = 1;
+    func_80076488();
+}
+*/
+
 /* best 82.33% - frame needs `long pad[6]`; only the form of the D_80077448==1
    test differs (original branches on != 1 and falls into the SetIndex block).
    The state>2 path repeats the reset block and gcc cross-jumps it, which
@@ -245,8 +364,9 @@ void func_800763BC(u8 mode) {
 reset:
     D_8007713C[0].unk0 = 0;
     D_8007713C[1].unk0 = 0;
-    D_8007713C[0].unk55 = 1;
-    D_8007713C[1].unk55 = 1;
+    enabled = 1;
+    D_8007713C[0].unk55 = enabled;
+    D_8007713C[1].unk55 = enabled;
     func_80076488();
 }
 */
@@ -308,17 +428,19 @@ void func_800769A4(void) {
 
 INCLUDE_ASM("asm/movie/nonmatchings/main/misc2", func_80076AF0);
 
-/* best 98.87% - identical except the D_80077070 store: the original keeps
-   &D_80077070 in $a0 (loaded right after SetGeomOffset) and stores through it,
-   ours emits lui $at/sh %lo. Shapes tried: plain global store + &sym call arg,
-   s16* local, u32 cast through an int local, MATRIX* local with member access,
-   cast-of-struct-pointer. gcc folds every pointer form back to the symbol.
+/* best 98.87% - the matrix diagonal store is the only difference: retail keeps
+   &D_80077070 in $a0 (loaded right after SetGeomOffset) and stores through it
+   with `sh $v0,0($a0)`, ours folds the address back to $at/%lo even with the
+   pointer local present (the `la $4,D_80077070` is emitted at the right place
+   and survives to the SetColorMatrix call, but cse/flow folds the store).
+   Shapes tried: MATRIX* local + m[0][0], s16* local, u32 cast through an int
+   local, cast-of-struct-pointer.
 void func_80076AF0(void) {
-    MATRIX* pColorMatrix;
+    s16* pDiag;
 
     SetGeomScreen(0x200);
     SetGeomOffset(0xA0, 0x78);
-    pColorMatrix = (MATRIX*)&D_80077070;
+    pDiag = (s16*)&D_80077070;
 
     D_800770B8 = 0x1000;
     D_800770C0 = 0x1000;
@@ -350,7 +472,7 @@ void func_80076AF0(void) {
     D_8007709E = 0;
     D_800770A0 = 0;
 
-    *(s16*)&pColorMatrix->m[0][0] = 0x969;
+    pDiag[0] = 0x969;
     D_80077072 = 0;
     D_80077074 = 0;
     D_80077076 = 0x969;
@@ -360,10 +482,9 @@ void func_80076AF0(void) {
     D_8007707E = 0;
     D_80077080 = 0;
 
-    SetColorMatrix(pColorMatrix);
+    SetColorMatrix((MATRIX*)pDiag);
     SetBackColor(0x60, 0x60, 0x60);
 }
-
 */
 
 void WorldMapScriptOp04SetScratchPosition(void) {
