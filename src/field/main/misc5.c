@@ -481,27 +481,10 @@ void FieldAddParticlePrims(void) {
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A6E70);
 
-/* PARKED, best 99.56% and 500 bytes (the original is 500 too). Everything
-   matches - instruction sequence, store order, offsets, every other register -
-   except which of the two UV temporaries lands in v0:
-     original: j*16 in v0, u0/u2 = (v0 & 0x3F) reusing v0 after j*16 dies,
-               u1/u3 = that + 0x10 in v1
-     ours:     j*16 and the mask in v1 (same reuse), the +0x10 in v0
-   So gcc's allocno priority ranks the +0x10 temp above the j*16/mask group and
-   we need the opposite. Measured, none of these work:
-     - temp as a named local, int / u_short / u_char: the temp is allocated
-       LAST (v1 then a0), nX takes v0 and nU does not reuse it, and the
-       andi/addiu are emitted before the x0/x2 sh -> 94.92%.
-     - cast the temp at the store, (u_char)(nU + 0x10): same 94.92%.
-     - no UV locals at all (u0 = nX & 0x3F inline): same 94.92%.
-     - mask or x local as a narrow type: adds a truncation andi -> 94.91%.
-   Settled: 0xE x 0x14 grid of 16x16 tiles, i outer / j inner,
-   nIndex = i*0x14 + j, polygons is 560 POLY_GT4 (two copies of 280, next copy
-   at +0x38E0), the four u_short attribute arrays at 0x71C0/0x73F0/0x7620/
-   0x7850 set to 0x80, y0/y1 = i*16 in s5, y2/y3 = i*16 + 0x10 in s3,
-   x1/x3 = j*16 + 0x10 strength-reduced to an s4 counter,
-   tpage = GetTPage(2, 1, j / 4 * 0x40 + 0x2C0, 0x100), SetSemiTrans, then
-   *pPolyNext = *pPoly (0x34 bytes: a 4x lw/sw unrolled loop plus one word).
+/* Re-attempt at 99.56% / 500 bytes (the original size). Identical to the
+   original instruction for instruction except the two UV temporaries swap
+   registers: retail has j*16 and (j*16 & 0x3F) in v0 with +0x10 in v1, ours
+   the other way round. See the note below for the shapes already measured.
     void func_800A6E70(void) {
         FieldParticlePrimitiveSet* pPrims;
         POLY_GT4* pPoly;
@@ -561,6 +544,29 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A6E70);
             }
         }
     }
+*/
+
+/* PARKED-NOTE (previous attempt was 99.56% / 500 bytes, the original's size). Everything
+   matches - instruction sequence, store order, offsets, every other register -
+   except which of the two UV temporaries lands in v0:
+     original: j*16 in v0, u0/u2 = (v0 & 0x3F) reusing v0 after j*16 dies,
+               u1/u3 = that + 0x10 in v1
+     ours:     j*16 and the mask in v1 (same reuse), the +0x10 in v0
+   So gcc's allocno priority ranks the +0x10 temp above the j*16/mask group and
+   we need the opposite. Measured, none of these work:
+     - temp as a named local, int / u_short / u_char: the temp is allocated
+       LAST (v1 then a0), nX takes v0 and nU does not reuse it, and the
+       andi/addiu are emitted before the x0/x2 sh -> 94.92%.
+     - cast the temp at the store, (u_char)(nU + 0x10): same 94.92%.
+     - no UV locals at all (u0 = nX & 0x3F inline): same 94.92%.
+     - mask or x local as a narrow type: adds a truncation andi -> 94.91%.
+   Settled: 0xE x 0x14 grid of 16x16 tiles, i outer / j inner,
+   nIndex = i*0x14 + j, polygons is 560 POLY_GT4 (two copies of 280, next copy
+   at +0x38E0), the four u_short attribute arrays at 0x71C0/0x73F0/0x7620/
+   0x7850 set to 0x80, y0/y1 = i*16 in s5, y2/y3 = i*16 + 0x10 in s3,
+   x1/x3 = j*16 + 0x10 strength-reduced to an s4 counter,
+   tpage = GetTPage(2, 1, j / 4 * 0x40 + 0x2C0, 0x100), SetSemiTrans, then
+   *pPolyNext = *pPoly (0x34 bytes: a 4x lw/sw unrolled loop plus one word).
 */
 void func_800A7064(void) {
     HeapFree(D_800B00C4);
