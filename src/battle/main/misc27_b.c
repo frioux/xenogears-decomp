@@ -46,10 +46,12 @@ u8* BattleCreateActorDistanceWaitTask(u8* pActor, s32 arg1, s32 arg2) {
     *(u32*)(pActor + 0xAC) |= 0x20;
     return pTask;
 }
-// PARKED: the body below is 100.00% as C (264 bytes), but with its definition visible
-// BattleGetActorJointPoint compiles 112 bytes against retail 120 (82.67%): gcc then merges the two
-// `lhu point.x / addu / sh` chains that retail keeps separate. The old-style `void`
-// declaration is what reproduces retail, and it cannot coexist with the definition.
+// PARKED: the body below is 100.00% as C under cdk -G8 and cdk -G0 (264 bytes; 97.35 under 2.6.0),
+// but with its definition visible BattleGetActorJointPoint compiles 112 bytes against retail 120
+// (82.67%) under all three presets: gcc merges the two `lhu point.x / addu / sh` chains that retail
+// keeps separate, and lifting the second load moves the lwl/lwr pair onto v1. The old-style `void`
+// declaration is what reproduces retail, and it cannot coexist with the definition (conflicting
+// types), so this park needs its caller re-expressed before it can be harvested.
 /*
 BattlePoint* func_800B59BC(BattlePoint* pOut, u8* pActor, s32 index) {
     DVECTOR rot;
