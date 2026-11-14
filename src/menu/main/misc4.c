@@ -97,15 +97,16 @@ void MenuBuildCharacterPrims(MenuCharacter* pCharacter, u_char arg1, u_char arg2
     pCharacter->renderContext = ((u_char*)g_Menu)[0x308];
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc4", func_801CE198);
-/* 96.06%: only ordering of the compiler-made induction variables differs.  The
-   4th argument must be s32 (a u_char parameter adds an andi and loses 8%).
-   Retail initialises the poly index IV before the loop-invariant li's and
-   updates it first in the latch; gcc 2.7.2 does both last.  Tried: index as a
-   local recomputed from i (best), index hoisted before the loop with += 2 in
-   the body and in the for-increment, u_char vs s32 parameter, a pPoly local
-   computed first in the body (same 96.06).  The emitted IV order is the
-   reverse of the RTL discovery order, so the poly-index expression would have
-   to be expanded after the four pVertices ones; no shape yet achieves it.
+/* 96.06%: this body is the giv set retail used - registers land identically
+   (s1 = poly index, s5/s6/s7 = vertex byte offsets 8/0x10/0x18, s4 = arg0
+   pointer, s3 = i) and the whole loop body is byte-identical.  The ONLY delta
+   is the order gcc emits the five increments in the latch and the preheader:
+   retail s1,s7,s6,s5,[g_Menu],s4,s3; ours s7,s6,s5,s4,[g_Menu],s1,s3.  So it is
+   the givs-list order, not a source shape: retail's index giv was recorded
+   first, ours last.  Tried: index as a local recomputed from i (best), index
+   hoisted with += 2 in body and for-increment, u_char vs s32 4th parameter
+   (u_char costs 8%), a pPoly local computed first in the body (same 96.06).
+   Parked as a GIV_TIE-style ordering wall - do not re-spend on it.
 void func_801CE198(s32 count, SVECTOR* pVertices, POLY_FT4* pPolys, s32 renderContext) {
     s32 index;
     s32 i;
@@ -119,8 +120,7 @@ void func_801CE198(s32 count, SVECTOR* pVertices, POLY_FT4* pPolys, s32 renderCo
                       (long*)&pPolys[index].x2, (long*)&pPolys[index].x3, &interpolated, &flag);
         AddPrim(&g_Menu->pGfxEnv->ot[4], &pPolys[index]);
     }
-}
-*/
+}*/
 void MenuRenderString(int length, POLY_FT4* pPolys, int renderContext) {
     s32 i;
 
@@ -199,8 +199,9 @@ void func_801CE540(void) {
 }
 */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc4", func_801CE660);
-/* 99.80%: only the register holding the g_Menu pointer in the prologue differs
-   (retail $v1, gcc $a1; 4 instructions).  Same 99.80 under 2.7.2-cdk, -O3 and
+/* 99.80%: the 128-instruction body is byte-identical; the ONLY delta is the
+   register that holds g_Menu in the first block (retail $v1, gcc $a1, 4
+   instructions incl. the %hi/%lo pair).  Same 99.80 under 2.7.2-cdk, -O3 and
    -G0, so it is an allocator pick, not the preset.  Tried: the shared-header
    cast ((u8*)g_Menu->pManager)[0x7], the named field pManager->unk5[2], an
    explicit SystemMenu* pMenu local, and a u8 flag local read before the if.
@@ -234,8 +235,7 @@ void func_801CE660(void) {
         pData = (u8*)g_Menu->unk358;
         func_801CE198(pData[0x2AEB], (SVECTOR*)(pData + 0x2A00), (POLY_FT4*)(pData + 0x1C70), pData[0x2AE0]);
     }
-}
-*/
+}*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc4", func_801CE860);
 /* 88.90% (804 vs 792 bytes): every expression and call is right; the only
    delta is that loop.c strength-reduces `i * 0x20` and `i * 0x80` here, so gcc
