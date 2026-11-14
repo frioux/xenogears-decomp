@@ -169,7 +169,7 @@ extern void BattleInitDrawEnvs(s32, s32);
 extern BattleMisc12Obj* BattleResetObject(BattleMisc12Obj* p);
 extern void ModelSetScreenSize(s32, s32);
 extern void BattleSetScaleMatrix(s32, s32);
-extern void func_800898BC(void*, SVECTOR*, SVECTOR*, SVECTOR*);
+extern void func_800898BC(MATRIX*, SVECTOR*, SVECTOR*, SVECTOR*);
 
 extern s32 D_8009A0C8;
 extern s32 D_8009A0CC;
@@ -432,7 +432,9 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc12", func_80089330);
    them into $v0 first (move $v0,$s2 ; sh $v0,0x1CC / move $v0,$s1 ; sh $v0,0x1CE).
    Tried: struct copy vs four u32 copies (u32 form hoists the loads and uses
    per-symbol stores), statement order copy-first vs copy-last, and volatile on
-   the copy destination (that makes gcc call memcpy). */
+   the copy destination (that makes gcc call memcpy). Round 50: not a preset
+   question either - -O1 scores 75.40, gcc-2.7.2-cdk 61.58, -O3 does not compile
+   (cc1 exits 33 on this unit). */
 /*
 void func_80089330(s32 w, s32 h) {
     DISPENV* pDisp;
@@ -478,7 +480,6 @@ void func_80089330(s32 w, s32 h) {
     *(BattleBlk16*)&D_8009A2B8 = *(BattleBlk16*)&D_8009A1C0;
 }
 */
-
 void BattleInitDrawEnvs(s32 w, s32 h) {
     DRAWENV* pEnv;
     u8* pBase;
@@ -558,14 +559,16 @@ void BattleInitSpritePrims(BattleSprite* p, s32 x, s32 y, s32 w, s32 h, s32 v) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc12", func_800898BC);
 
-/* Best attempt: objdiff 50.18%. The statement order and the four VectorNormal/
+/* Best attempt: objdiff 50.18%. The statement order and the five VectorNormal/
    OuterProduct12 calls are right, but gcc 2.7.2 hoists the materialisation of all
-   four base addresses (&D_8009A0C8, &D_80096F98, &D_8009A918, &D_80097000) to the
-   top of the function, while retail materialises each one right before its first
-   use, after the three D_8009A0C8/CC/D0 difference stores. That shifts every later
-   block. Signatures: (MATRIX*, SVECTOR* pFrom, SVECTOR* pTo, SVECTOR* pScale);
-   pMat->m rows come from the D_80097000 / D_8009A918 / D_80096F98 triples loaded
-   as words and stored as halves, pMat->t = negated D_8009A0C8/CC/D0. */
+   four base addresses (&D_8009A0C8, &D_80096F98, &D_8009A918, &D_80097000) into
+   the prologue - it even interleaves their lui/addiu with the register saves -
+   while retail materialises each one right before its first use, after the three
+   D_8009A0C8/CC/D0 difference stores. Retail's first store also reuses $s2
+   (&D_8009A0C8) that way. Signatures: (MATRIX*, SVECTOR* pFrom, SVECTOR* pTo,
+   SVECTOR* pScale); pMat->m rows come from the D_80097000 / D_8009A918 /
+   D_80096F98 triples loaded as words and stored as halves, pMat->t = negated
+   D_8009A0C8/CC/D0. */
 /*
 void func_800898BC(MATRIX* pMat, SVECTOR* pFrom, SVECTOR* pTo, SVECTOR* pScale) {
     D_8009A0C8 = pTo->vx - pFrom->vx;
@@ -595,8 +598,6 @@ void func_800898BC(MATRIX* pMat, SVECTOR* pFrom, SVECTOR* pTo, SVECTOR* pScale) 
     pMat->t[2] = -D_8009A0D0;
 }
 */
-
-
 /*@BattleSetMatrixFromPoints*/
 void BattleSetMatrixFromPoints(BattleMisc12Owner* pOwner, VECTOR* pFrom, VECTOR* pTo) {
     SVECTOR scale;
@@ -613,7 +614,7 @@ void BattleSetMatrixFromPoints(BattleMisc12Owner* pOwner, VECTOR* pFrom, VECTOR*
     zero.vz = 0;
     zero.vx = 0;
     zero.vy = 0;
-    func_800898BC((u8*)pOwner->unk4 + 0xC, &offset, &zero, &scale);
+    func_800898BC((MATRIX*)((u8*)pOwner->unk4 + 0xC), &offset, &zero, &scale);
 }
 /*@@*/
 
