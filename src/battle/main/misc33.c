@@ -2,12 +2,30 @@
 #include "system/memory.h"
 #include "psyq/libgte.h"
 
+// One battle sprite: the transform steps at 0x40..0x48 that BattleStepActorFadeOut
+// advances, the clip colour at 0x68..0x6A, the model parts at 0x74/0x7C and the
+// direction/target pair at 0xA0..0xA4 that BattleAngleToTarget measures. Every
+// function in this unit drives one of these.
 typedef struct {
     /* 0x00 */ u8 unk0[0x2];
     /* 0x02 */ s16 unk2;
     /* 0x04 */ u8 unk4[0x6];
     /* 0x0A */ s16 unkA;
-    /* 0x0C */ u8 unkC[0x68];
+    /* 0x0C */ void (*unkC)();
+    /* 0x10 */ u8 unk10[0x2C];
+    /* 0x3C */ u16 unk3C;
+    /* 0x3E */ u8 unk3E[0x2];
+    /* 0x40 */ s32 unk40;
+    /* 0x44 */ s32 unk44;
+    /* 0x48 */ s32 unk48;
+    /* 0x4C */ u8 unk4C[0x14];
+    /* 0x60 */ s32 unk60;
+    /* 0x64 */ u16 unk64;
+    /* 0x66 */ u8 unk66[0x2];
+    /* 0x68 */ u8 unk68;
+    /* 0x69 */ u8 unk69;
+    /* 0x6A */ u8 unk6A;
+    /* 0x6B */ u8 unk6B[0x9];
     /* 0x74 */ void *unk74;
     /* 0x78 */ u8 unk78[0x4];
     /* 0x7C */ s32 *unk7C;
@@ -17,13 +35,18 @@ typedef struct {
     /* 0xA4 */ u16 unkA4;
     /* 0xA6 */ u8 unkA6[0x2];
     /* 0xA8 */ u32 unkA8;
-    /* 0xAC */ u32 unkAC;
+    // func_800BF3E8 reads byte 3 as a signed byte (\`lb 0xAF\`), so the 0xAC word and
+    // the 0xAF byte are one storage read at two widths.
+    /* 0xAC */ union {
+        /* 0xAC */ u32 word;
+        /* 0xAC */ u8 bytes[0x4];
+    } unkAC;
     /* 0xB0 */ s8 unkB0;
-} Misc33Point; // Size: 0xB4
+} BattleActorSprite; // Size: 0xB4
 
 typedef struct {
     /* 0x00 */ u8 unk0[0x4];
-    /* 0x04 */ Misc33Point *unk4;
+    /* 0x04 */ BattleActorSprite *unk4;
     /* 0x08 */ void (*unk8)();
     /* 0x0C */ u8 unkC[0x10];
     /* 0x1C */ s32 unk1C;
@@ -59,27 +82,10 @@ extern s16 SpriteComputeAngleFromPoints(DVECTOR, DVECTOR);
 extern s32 func_800C0FAC(s32);
 extern u8 SpriteColorAddClamp(u8, s16);
 extern s32 BattleComputeVectorDistance2D(DVECTOR vec0, DVECTOR vec1);
-extern void SpriteSetDirection(Misc33Point *p, s16 arg1);
-extern void func_800223B0(Misc33Point *p, s16 arg1);
-extern void SpritePlayAnimation(Misc33Point *p, s32 arg1);
+extern void SpriteSetDirection(BattleActorSprite *p, s16 arg1);
+extern void func_800223B0(BattleActorSprite *p, s16 arg1);
+extern void SpritePlayAnimation(BattleActorSprite *p, s32 arg1);
 
-typedef struct {
-    /* 0x00 */ u8 unk0[0xC];
-    /* 0x0C */ void (*unkC)(void *);
-    /* 0x10 */ u8 unk10[0x2C];
-    /* 0x3C */ u16 unk3C;
-    /* 0x3E */ u8 unk3E[0x2];
-    /* 0x40 */ s32 unk40;
-    /* 0x44 */ s32 unk44;
-    /* 0x48 */ s32 unk48;
-    /* 0x4C */ u8 unk4C[0x14];
-    /* 0x60 */ s32 unk60;
-    /* 0x64 */ u16 unk64;
-    /* 0x66 */ u8 unk66[0x2];
-    /* 0x68 */ u8 unk68;
-    /* 0x69 */ u8 unk69;
-    /* 0x6A */ u8 unk6A;
-} BattleMisc33Actor;
 extern void func_800C1140(s32);
 extern void func_800B8D7C();
 extern int ArchiveSetIndex(int directoryIndex, int entryIndex);
@@ -88,7 +94,7 @@ extern void ArchiveReadFileToBuffer(s32 index, void *pBuffer, u32 arg2, u32 flag
 extern void *D_800C3618;
 extern u32 D_800C361C;
 
-void BattleStepActorFadeOut(BattleMisc33Actor *p) {
+void BattleStepActorFadeOut(BattleActorSprite *p) {
     p->unk3C = p->unk3C + p->unk64;
     p->unk40 += 0x330;
     p->unk44 += 0x330;
@@ -103,15 +109,15 @@ void BattleStepActorFadeOut(BattleMisc33Actor *p) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BE1C4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BE330);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BE538);
-void BattleWriteHexDigits(s32 arg0, u8 *p, s32 n, s32 arg3) {
+void BattleWriteHexDigits(s32 value, u8 *pBuf, s32 n, s32 base) {
     s32 i;
 
     for (i = 0; i != n; i++) {
         s32 last = n - 1;
 
-        p[i + 1] = D_800C3784[(arg0 >> ((last - i) * 4)) & 0xF] + arg3;
+        pBuf[i + 1] = D_800C3784[(value >> ((last - i) * 4)) & 0xF] + base;
     }
-    p[0] = n;
+    pBuf[0] = n;
 }
 /* best 88.33%: everything matches but the loop-entry order.  Retail emits
    `beqz a2` with `i = 0` in its delay slot, so its RTL had the `last = n - 1`
@@ -293,7 +299,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BEE2C);
    system/graphics.  No C produces it. */
 s32 BattleCollectMaskedSlotActors(u16 mask, void **pOut, s32 arg2) {
     u8 *pBase;
-    u8 *pEntity;
+    BattleActorSprite *pSprite;
     s32 i;
     s32 count;
 
@@ -302,10 +308,10 @@ s32 BattleCollectMaskedSlotActors(u16 mask, void **pOut, s32 arg2) {
     count = 0;
     do {
         if ((mask & 1) != 0) {
-            pEntity = *(u32 **)(pBase + i * 4 + 0x8C8C);
-            if (pEntity != NULL) {
-                *(s32 *)(pEntity + 0x74) = arg2;
-                pOut[count] = pEntity;
+            pSprite = *(BattleActorSprite **)(pBase + i * 4 + 0x8C8C);
+            if (pSprite != NULL) {
+                pSprite->unk74 = (void *)arg2;
+                pOut[count] = pSprite;
                 count++;
             }
         }
@@ -315,7 +321,7 @@ s32 BattleCollectMaskedSlotActors(u16 mask, void **pOut, s32 arg2) {
     pOut[count] = NULL;
     return count;
 }
-s16 BattleAngleToPoint(Misc33Point *p0, Misc33Point *p1) {
+s16 BattleAngleToPoint(BattleActorSprite *p0, BattleActorSprite *p1) {
     DVECTOR vec0;
     DVECTOR vec1;
     s32 c0;
@@ -333,7 +339,7 @@ s16 BattleAngleToPoint(Misc33Point *p0, Misc33Point *p1) {
     vec1.vy = c3;
     return SpriteComputeAngleFromPoints(vec1, vec0);
 }
-s16 BattleAngleToTarget(Misc33Point *p) {
+s16 BattleAngleToTarget(BattleActorSprite *p) {
     DVECTOR vec0;
     DVECTOR vec1;
     s32 c0;
@@ -356,10 +362,10 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BEFF4);
    new sprite pointer in $a2 and copies it with `move a0,a2` in the SpritePlayAnimation
    jal delay slot; ours allocates it straight to $a0 (so the slot gets a nop) and the
    sensor-table base lands in $a1 instead of $v1.  The sprite-table entry is the same
-   0x1C-byte stride D_800C3EB0 table that func_800BF3EB8 walks, and the 4-bit key is
-   the (unkA8>>30) | ((unkAC&3)<<2) pairing seen in BattleLoadActorArchiveFile.  A permuter job.
+   0x1C-byte stride D_800C3EB0 table that func_800BF3E8 walks, and the 4-bit key is
+   the (unkA8>>30) | ((unkAC.word&3)<<2) pairing seen in BattleLoadActorArchiveFile.  A permuter job.
 void func_800BEFF4(s32 actorIndex) {
-    Misc33Point *pSprite;
+    BattleActorSprite *pSprite;
     u8 *pBase;
     u32 part;
 
@@ -367,7 +373,7 @@ void func_800BEFF4(s32 actorIndex) {
     if (pSprite != NULL && D_800C3610->unk24 != actorIndex) {
         part = pSprite->unkA8 >> 30;
         pBase = D_800C3EB0;
-        if (*(u8 *)(pBase + (((pSprite->unkAC & 3) << 2) | part) * 0x1C + 0x7) == 0) {
+        if (*(u8 *)(pBase + (((pSprite->unkAC.word & 3) << 2) | part) * 0x1C + 0x7) == 0) {
             SpritePlayAnimation(pSprite, pSprite->unkB0);
         }
     }
@@ -382,7 +388,7 @@ void BattleSetStateStep(s32 arg0) {
 }
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BF0C4);
-void BattleFaceTargetAndMeasureDistance(Misc33Point *p, s32 arg1) {
+void BattleFaceTargetAndMeasureDistance(BattleActorSprite *p, s32 arg1) {
     DVECTOR vec0;
     DVECTOR vec1;
     s32 c0;
@@ -404,7 +410,7 @@ void BattleFaceTargetAndMeasureDistance(Misc33Point *p, s32 arg1) {
     SpritePlayAnimation(p, arg1);
     BattleSetStateStep(6);
 }
-void BattleLoadActorArchiveFile(Misc33Point *pSprite) {
+void BattleLoadActorArchiveFile(BattleActorSprite *pSprite) {
     s32 entry;
     void *pBuffer;
     u32 part;
@@ -416,7 +422,7 @@ void BattleLoadActorArchiveFile(Misc33Point *pSprite) {
     ArchiveReadFileToBuffer(entry, pBuffer, 0, 0x80);
     D_800C3618 = pBuffer;
     part = pSprite->unkA8 >> 30;
-    D_800C361C = ((pSprite->unkAC & 3) << 2) | part;
+    D_800C361C = ((pSprite->unkAC.word & 3) << 2) | part;
 }
 s32 BattleLoadSoundSeds(void) {
     s32 ret;
