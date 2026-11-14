@@ -251,28 +251,14 @@ void BattleResetStateGlobals(void) {
     D_800C3610 = NULL;
     D_800D2E54 = 0;
 }
-void func_800BED4C(void) {
-    BattleMisc33State *pState;
-
-    pState = HeapAlloc(0x50, 0);
-    pState->unk8 = func_800B9F78;
-    D_800C3610 = pState;
-    D_800C360C = 0;
-    pState->unk4A = 0;
-    D_800C3610->unk48 = 1;
-    D_800C3610->unk30 = 0;
-    D_800C3610->unk49 = 0;
-    D_800C3610->unk2C = 1;
-    D_800C3610->unk4 = NULL;
-    D_800C3610->unk34 = 0;
-    BattleSetStateStep(0);
-    pState = D_800C3610;
-    D_80059464 = 0;
-    D_800591AC = 1;
-}
-/* best 85.18%: retail reloads D_800C3610 four times and keeps one load after
-   the BattleSetStateStep call (dead in C, so gcc deletes it and the pointer base
-   stays in a call-clobbered register instead of $s0).
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BED4C);
+/* best 85.18% (144 bytes, retail 156).  The 12 missing bytes are one extra reload:
+   after the BattleSetStateStep call retail does `lw v0,%lo(D_800C3610)($s0)` and never
+   uses it, so its D_800C3610 address pseudo is live across the call and lands in $s0
+   (with the constant 1 in $s1 where ours uses $s0); ours keeps the address in $a1.
+   A plain dead `pState = D_800C3610;` after the call is deleted by gcc, so what retail
+   actually read is still unknown.  Retail store order: unk8, D_800C3610, D_800C360C,
+   unk4A, unk48, unk30, unk49, unk2C, unk4, unk34 (in the call's delay slot).
 void func_800BED4C(void) {
     BattleMisc33State *pState;
 
