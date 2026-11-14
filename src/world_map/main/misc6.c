@@ -57,7 +57,7 @@ typedef struct {
 
 extern WorldMapActor *D_8009BE24;
 extern WorldMapRoot *D_8009C620;
-extern u32 D_8009C5AC;
+extern u8 D_8009C5AC[];
 extern u32 D_8009C5B0;
 extern u32 D_8009C5B4;
 extern u16 D_8009A698;
@@ -174,6 +174,27 @@ extern void func_8007FC8C(int);
 extern int func_8007FD30(int);
 extern void WorldMapEnterNop(void);
 extern void WorldMapUpdateFrameWithParticles(void);
+extern void WorldMapLoadSedsBank(void);
+extern void func_80085F58(void);
+extern void func_80085FE0(void);
+extern void WorldMapInitNop(void);
+extern void WorldMapUpdateFrame(void);
+extern void func_80080900(void);
+extern void func_80080944(void);
+extern void func_80080A28(void);
+extern void func_80080AC4(void);
+extern void func_80080370(void);
+extern void func_80080578(void);
+extern int func_80080600(int);
+extern int WorldMapInitActorScript(int);
+extern s16 D_8009BD38;
+extern u16 D_8009BD3C;
+extern u16 D_8009BD40;
+extern u16 D_8009BD42;
+extern u16 D_8009BD4A;
+extern s32 D_8009D3F0;
+extern int rand(void);
+extern void func_80096F18(void *, void *, s32, void *);
 
 int WorldMapInitGroup12Actor(int index) {
     WorldMapGroup *pGroup;
@@ -333,8 +354,12 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007D918);
    in $s0 (lui/addiu before the first store, sw v0,0(s0), then move a0,s0 at the
    func_80097BC0 call); gcc folds every use to %hi/%lo. Tried: a pPos local used
    for the store and the call, pPos[0], and plain D_8009C5AC plus &D_8009C5AC
-   (all three compile identically). Also note the ArchiveDataSync loop is
-   while (ArchiveDataSync() >= 3), which is what gives the slti/beqz shape.
+   (all three compile identically). SOLVED since: declare the symbol as an
+   array (extern u8 D_8009C5AC[]), then `pPos = (u32*)D_8009C5AC;` keeps the
+   address in $s0 - func_8007FF70 below has the same group and is 100.00%.
+   That is also why the value reads here are *(u32*)D_8009C5AC. Also note the
+   ArchiveDataSync loop is while (ArchiveDataSync() >= 3), which is what gives
+   the slti/beqz shape.
 void func_8007D918(void) {
     RECT rect;
     s32 nIndex;
@@ -361,7 +386,7 @@ void func_8007D918(void) {
     ArchiveCdDataSync(0);
     func_8001B66C();
     nIndex = D_8009D3D4;
-    D_8009C5AC = D_8009A5B4[nIndex * 4] << 12;
+    *(u32 *)D_8009C5AC = D_8009A5B4[nIndex * 4] << 12;
     D_8009C5B0 = D_8009A5B6[nIndex * 4] << 12;
     D_8009C5B4 = D_8009A5B8[nIndex * 4] << 12;
     func_80084580();
@@ -377,7 +402,7 @@ void func_8007D918(void) {
     ArchiveCdDataSync(0);
     g_GameCurLoadedWDS = SoundLoadWdsFile(D_8009C88C, 0);
     ArchiveSetIndex(0x24, 0);
-    func_80097BC0(&D_8009C5AC);
+    func_80097BC0((u32 *)D_8009C5AC);
     do {
         func_800967E4();
         Vsync(0);
@@ -478,7 +503,7 @@ int func_8007E450(int index) {
 
     D_8009D144 = 0;
     pActor->unk7C = nScale;
-    unkAc = D_8009C5AC;
+    unkAc = *(u32 *)D_8009C5AC;
     unkB0 = D_8009C5B0;
     unkB4 = D_8009C5B4;
     D_8009BE0C = 0x78;
@@ -554,7 +579,7 @@ int func_8007ECA4(int index) {
     pActor->unk40 = 0xDA6;
     pActor->unk50 = D_8009A674[nIndex * 4] << 12;
     pActor->unk54 = (void *)(D_8009A678[nIndex * 4] << 12);
-    pActor->unk28 = D_8009C5AC - pActor->unk38 * 13952;
+    pActor->unk28 = *(u32 *)D_8009C5AC - pActor->unk38 * 13952;
     pActor->unk2C = D_8009C5B0;
     pActor->unk30 = D_8009C5B4 - pActor->unk40 * 13952;
     return 1;
@@ -689,7 +714,68 @@ int func_8007FD30(int index) {
 }
 */
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007FF70);
+void func_8007FF70(void) {
+    RECT rect;
+    u32 *pPos;
+
+    WorldMapInitGfxEnv();
+    rect.x = 0;
+    rect.y = 0;
+    rect.w = 0x140;
+    rect.h = 0xD8;
+    MoveImage(&rect, 0x2C0, 0x100);
+    DrawSync(0);
+    func_80072DB4(0x40, 0, 4, 2);
+    while (ArchiveDataSync() >= 3) {
+    }
+    WorldMapDecompressMapData();
+    func_8009766C();
+    D_8009BE4C = D_8009A180;
+    D_8009CCA4 = 2;
+    D_8009D3CC = 0x10;
+    D_8009D804 = 0;
+    D_8009D144 = 0;
+    D_8009CD40 = func_80086700;
+    func_80098044();
+    ArchiveCdDataSync(0);
+    WorldMapLoadSedsBank();
+    /* declared as an array (see the extern above): the pointer then stays in
+       $s0 across the body, where a scalar's &D_8009C5AC is folded into every
+       use. Value reads are *(u32*)D_8009C5AC. */
+    pPos = (u32 *)D_8009C5AC;
+    *pPos = 0x4100000;
+    D_8009C5B0 = 0xFFF80000;
+    D_8009C5B4 = 0x13C0000;
+    func_80084580();
+    func_8008440C();
+    func_800979C8();
+    func_800736DC();
+    func_80085F58();
+    func_800863E0();
+    WorldMapInitTileAnimEntries();
+    WorldMapInitFrameAnimEntries();
+    WorldMapSetupMapPrims();
+    func_80088F64();
+    ArchiveCdDataSync(0);
+    SoundAddSedsEntry(D_8006259C);
+    ArchiveSetIndex(0x24, 0);
+    func_80097BC0(pPos);
+    do {
+        func_800967E4();
+        Vsync(0);
+    } while (WorldMapGetQueuedLoadCount() > 0);
+    func_80097718(func_800923A8, func_800925A0);
+    func_80097718(WorldMapInitActorScript, func_80080370);
+    func_80097718(func_80080578, func_80080600);
+    func_80097718(func_80080900, func_80080944);
+    func_80097718(func_80080A28, func_80080AC4);
+    func_80097718(WorldMapInitNop, WorldMapUpdateFrame);
+    func_800978FC();
+    func_8008901C();
+    func_800865A0();
+    func_80085FE0();
+    func_80075228();
+}
 void WorldMapExitToMap84(void) {
     u16 unkValue;
 
@@ -747,7 +833,7 @@ int func_80080578(int index) {
 
     D_8009D144 = 0;
     pActor->unk7C = nScale;
-    unkAc = D_8009C5AC;
+    unkAc = *(u32 *)D_8009C5AC;
     unkB0 = D_8009C5B0;
     unkB4 = D_8009C5B4;
     D_8009BE0C = 0x78;
@@ -765,3 +851,112 @@ int func_80080578(int index) {
 */
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_80080600);
+/* 79.99% (732 bytes vs retail's 764). Structure found so far: two switches.
+   switch (unk04) {1,2,3} = the init the other group actors get (unk20, unk50,
+   unk54/0x58 and unk5C[0]/unk5C[1] from D_8009BD38/D_8009BD3A << 12,
+   D_8009D3F0 = 0x800000); then `if (D_8009D144 == 0)
+   func_80096F18(&D_8009BD40, &D_8009BE28, D_8009D3F0, &D_8009BD38)` (4 args);
+   then switch (unk20) {case 1: camera follow on unk50/unk54/unk5C[0] with
+   clamps at 0x300000 / 0x2E0000 / -0x100000 and D_8009BD38/BD3A = pos >> 12;
+   case 3: unk7C -= 0x4000, floor 0x1000, then unk20 = 0}; then
+   `sh (rand() % (unk7C >> 12) - (unk7C >> 13))` to 0x1F8000A2 and
+   D_8009BD42 += it, D_8009BD4A += *(u16*)0x1F8000A2 (u16: retail reloads the
+   halfword with lhu instead of reusing the stored s16), return 1.
+   The wall is the case-1 prologue: retail stores D_8009BD38 = 0x10 through a
+   pointer held in $a0 and then READS IT BACK with lh 0(a0); our cse forwards
+   the store to the load and folds both the address and the value (0x10 << 12
+   becomes a constant 0x10000), which then reorders the whole case block.
+   Tried: plain globals, a `s16 *pAngle = &D_8009BD38` local (identical RTL
+   after cse), array declaration. Volatile on the store/load is the obvious
+   next thing to try (retail has no lw/sw of a pointer, so it is source-level).
+   Note the same `extern u8 D_8009C5AC[]` trick that fixed func_8007FF70 may be
+   what retail used here too: 0x1F8000A2 is addressed as a displacement off a
+   register holding 0x1F800000, i.e. `u8 *pScratch = (u8 *)PSX_SCRATCH` is right.
+int func_80080600(int index) {
+    WorldMapActor *pActor = &D_8009BE24[index];
+    u8 *pScratch = (u8 *)PSX_SCRATCH;
+    s16 *pAngle;
+    s32 nValue;
+    s32 nDelta;
+
+    switch (pActor->unk04) {
+    case 1:
+        pActor->unk20 = 1;
+        pActor->unk04 = 0;
+        pAngle = &D_8009BD38;
+        *pAngle = 0x10;
+        D_8009BD3A = 0x8E0;
+        D_8009BD3C = 0;
+        pActor->unk50 = 0x800000;
+        nValue = *pAngle << 12;
+        pActor->unk58 = nValue;
+        pActor->unk54 = nValue;
+        D_8009D3F0 = 0x800000;
+        nValue = D_8009BD3A << 12;
+        pActor->unk5C[1] = nValue;
+        pActor->unk5C[0] = nValue;
+        break;
+    case 2:
+        pActor->unk20 = 2;
+        pActor->unk04 = 0;
+        pActor->unk7C = 0x8000;
+        break;
+    case 3:
+        pActor->unk20 = 3;
+        pActor->unk04 = 0;
+        pActor->unk7C = 0x80000;
+        break;
+    }
+    if (D_8009D144 == 0) {
+        func_80096F18(&D_8009BD40, &D_8009BE28, D_8009D3F0, &D_8009BD38);
+    }
+    switch (pActor->unk20) {
+    case 1:
+        nDelta = pActor->unk50 - 0x10000;
+        pActor->unk50 = nDelta;
+        if (nDelta <= 0x2FFFFF) {
+            pActor->unk50 = 0x300000;
+        }
+        nDelta = pActor->unk50 - D_8009D3F0;
+        if (nDelta != 0) {
+            D_8009D3F0 += nDelta >> 5;
+        }
+        nDelta = pActor->unk54 - 0x4000;
+        pActor->unk54 = nDelta;
+        if (nDelta < -0x100000) {
+            pActor->unk54 = -0x100000;
+        }
+        nDelta = pActor->unk54 - pActor->unk58;
+        if (nDelta != 0) {
+            nValue = pActor->unk58 + (nDelta >> 4);
+            pActor->unk58 = nValue;
+            D_8009BD38 = nValue >> 12;
+        }
+        nDelta = pActor->unk5C[0] - 0x10000;
+        pActor->unk5C[0] = nDelta;
+        if (nDelta <= 0x2DFFFF) {
+            pActor->unk5C[0] = 0x2E0000;
+        }
+        nDelta = pActor->unk5C - pActor->unk5C[1];
+        if (nDelta != 0) {
+            nValue = pActor->unk5C[1] + (nDelta >> 5);
+            pActor->unk5C[1] = nValue;
+            D_8009BD3A = nValue >> 12;
+        }
+        break;
+    case 3:
+        pActor->unk7C -= 0x4000;
+        if (pActor->unk7C < 0x1000) {
+            pActor->unk7C = 0x1000;
+            pActor->unk20 = 0;
+        }
+        break;
+    }
+    nValue = rand() % ((s32)pActor->unk7C >> 12);
+    nValue -= (s32)pActor->unk7C >> 13;
+    *(s16 *)(pScratch + 0xA2) = nValue;
+    D_8009BD42 += nValue;
+    D_8009BD4A += *(u16 *)(pScratch + 0xA2);
+    return 1;
+}
+*/
