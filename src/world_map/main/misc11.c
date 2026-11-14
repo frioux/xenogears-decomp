@@ -104,6 +104,10 @@ extern WorldMapTrail D_8009CEC4[];
 extern u16 D_8009D52C;
 extern u16 D_8009D154;
 
+/* BLOCKED (JTBL): func_8008A72C, func_8008B2BC, func_8008B644, func_8008BB40,
+   func_8008C364, func_8008C844 and func_8008D678 each jr through jtbl_800707AC,
+   so a C switch would emit a second copy of the table and shift the overlay.
+   The only convertible functions left in this unit are the parked ones below. */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008A72C);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008B2BC);
 int func_8008B498(int index) {
@@ -121,7 +125,8 @@ int func_8008B498(int index) {
     return result;
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008B54C);
-/* 93.37% (re-diffed under the current XenoWorldMap flags; cdk 83.19%, plain -G0/-O
+/* 93.37% (also tried a void *pSprite temp assigned then used by both calls, as in
+   func_8008C28C: no change, still 93.37 with the same three head insns). (re-diffed under the current XenoWorldMap flags; cdk 83.19%, plain -G0/-O
    variants lower). Everything is byte-identical except three insns in the prologue:
    the original computes index*0x80 in v1 BEFORE the 0x100 push and stores the
    0x40 stack argument just before the jal, while gcc emits the store right after
