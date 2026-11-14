@@ -115,4 +115,13 @@ typedef struct {
     /* 0x002 */ u8 unk02[0x16E];
 } BattleTableEntry; // Size: 0x170
 
+// One 0x28-byte row of the per-actor action tables the battle-work block holds
+// at +0x1058 (0x5F0 bytes per actor) and +0x2228 (0x690 bytes per actor). The
+// row currently in use is pointed to by D_800C3DFC. Only the flag word at +0 is
+// named; +0x14 is read as a byte and +0x27 as an s8 by other units.
+typedef struct {
+    /* 0x00 */ u16 flags;
+    /* 0x02 */ u8 unk02[0x26];
+} BattleRow; // Size: 0x28
+
 #endif
