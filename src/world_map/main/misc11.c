@@ -135,6 +135,12 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008B54C);
    the trigger is something in this function's tail, not the call: the tail below is
    itself byte-identical. Tried: flat tail without the unk48 temp (83.05), pointer
    built as (u8*)D_8009BE24 + index*0x80 (93.37), cdk (83.19).
+   Round 56: re-diffed live, exactly the same 93.37 - the whole diff is the position
+   of the "sw v0,0x14(sp)" for the 0x40 arg (retail: just before the jal, so v1 holds
+   the sll and v0 the constant; ours: right after "li v0,0x40", sll into v0) plus the
+   matching addu register. The matched WorldMapInitPartyActorSprite0 has retail's
+   exact shape, so it is a scheduling/allocator artifact of this function's tail, not
+   the call: no hand shape moved it. Permuter is blocked on this unit (see func_8008C040).
 int func_8008B54C(int index) {
     WorldMapActor *pActor = &D_8009BE24[index];
 
@@ -250,6 +256,9 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008C040);
    pointer only has ~2 refs (loop.c moves the body's loads onto the pEntry+0x14 biv,
    which is why retail's base register is entry+0x14 with negative displacements)
    against the index's 3, which is what puts the index in the lower register.
+   Round 56: re-diffed live with this exact body, still 99.37% (the s1/s2 tie); the
+   permuter cannot run on this unit (permute.py's base.c keeps the trailing comment
+   terminator of a later parked block and fails to parse - fix permute.py first).
 void func_8008C040(WorldMapPos *pPos, s32 arg1, s32 arg2, u8 *pOut, u8 *pOut2) {
     WorldMapEntry *pEntry = D_8009BE6C;
     s32 i;
@@ -433,6 +442,8 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008D3F0);
    that variant scores 80.07% but has the original's exact instruction multiset,
    with only the position of the two blocks differing, so it is the base to
    continue from rather than the text below.
+   Round 56: re-diffed with the body below live, still 81.33%; the whole diff is
+   the positions of the three zero stores and the sh/lh pair, nothing else.
 int func_8008D3F0(int index) {
     WorldMapActor *pActor = &D_8009BE24[index];
     s32 result = func_8008C364(pActor, 1);
@@ -464,7 +475,8 @@ int func_8008D3F0(int index) {
     g_GameState.unk1930[0x1A] = pActor->unk30 >> 12;
     *(u16 *)&g_GameState.unk1826[2] = pActor->unk48;
     return result;
-}*/
+}
+*/
 
 
 int WorldMapModeInitPartyActor1(int index) {
