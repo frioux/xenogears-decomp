@@ -227,14 +227,14 @@ typedef struct {
     /* 0x7C  */ AudioElementRamp ramp;
     /* 0x84  */ s32 unk_0x84;
     /* 0x88  */ s32 unk_0x88;
-    /* 0x8C  */ s16 unk_0x8C;
-    /* 0x8E  */ s16 unk_0x8E;
-    /* 0x90  */ s16 unk_0x90; // Step per frame
-    /* 0x92  */ s16 unk_0x92; // Total delta
+    /* 0x8C  */ u16 unk_0x8C;
+    /* 0x8E  */ u16 unk_0x8E;
+    /* 0x90  */ u16 unk_0x90; // Step per frame
+    /* 0x92  */ u16 unk_0x92; // Total delta
     /* 0x94  */ u16 unk_0x94;
     /* 0x96  */ u16 unk_0x96;
     /* 0x98  */ u16 unk_0x98; // Frames
-    /* 0x9A  */ s16 unk_0x9A;
+    /* 0x9A  */ u16 unk_0x9A;
     /* 0x9C  */ AudioLoop loops[NUM_SOUND_LOOPS];
     /* 0xCC  */ u16 unk_0xCC;
     /* 0xCE  */ u16 unk_0xCE;
@@ -280,8 +280,8 @@ typedef struct AudioManager {
     /* 0x54 */ s32 unk_0x54;
     /* 0x58 */ s32 unk_0x58;                          
     /* 0x5C */ s32 unk_0x5c;
-    /* 0x60 */ s16 unk_0x60;
-    /* 0x62 */ s16 unk_0x62;
+    /* 0x60 */ u16 unk_0x60;
+    /* 0x62 */ u16 unk_0x62;
     /* 0x64 */ AudioInterpolator unk_Interpolator_0x64;
     /* 0x70 */ AudioInterpolator unk_Interpolator_0x70;
     /* 0x7C */ AudioInterpolator unk_Interpolator_0x7c;
