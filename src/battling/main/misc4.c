@@ -470,6 +470,9 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_80079D6C);
    tried here gives gcc's canonical `sll 17; srl 31` (a local, a u32 local, a
    multiply, `!= 0` on the masked sign bit, and the direct expression all fold
    the same way), and `li a1,-5` lands one slot earlier than the original.
+   Follow-up: `(p->unk15CC->unk6 << 17) < 0` (no mask, s32 flag) also compiles to
+   sll/srl 31 - gcc canonicalises any "negative?" test of a left shift into a bit
+   test, so the original's slti needs a value gcc cannot see the shift of.
 void func_80079D6C(Actor* p) {
     u32 flag;
 
@@ -535,6 +538,11 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_8007A768);
    D_80098680 store, and `p->unk4 - 0x400 - D_80092670` reassociates into
    `p->unk4 - (D_80092670 + 0x400)` (addiu on the loaded global). A `y` local
    keeps the addiu on p->unk4 but lengthens its live range and still batches.
+   Follow-up: the second `p->unk4` is a RELOAD (gcc will not CSE a load through
+   the parameter across the global stores, which may alias `*p`), so the
+   original's single `lw v1,4(s0)` needs a `s32 y` local holding p->unk4; with y
+   the block still comes out as p->unk4 - (D_80092670 + 0x400) (90.89%-92.44%),
+   i.e. the shared value and the subtraction order have to hold at once.
 void func_8007A768(Actor* p) {
     ActorScript* pScript = p->unk8FC;
     s32 r;
