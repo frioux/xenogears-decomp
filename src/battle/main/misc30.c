@@ -50,7 +50,7 @@ extern void SpriteApplyMovementStep(SpriteData* pSprite);
 extern void SpritePlayAnimation(SpriteData* pSprite, s32 arg1);
 void BattleActorTickAnimScript(u8* pTask);
 void BattleActorDrawProjected(u8* pTask);
-void func_800BABDC(u8* pTask);
+void func_800BABDC(AnimTask* pTask);
 extern void SpriteSetDirection(SpriteData* pSprite, s16 arg1);
 extern void func_80022B2C(SpriteData* pSprite);
 extern s32 BattleAngleToPoint(SpriteData* p0, SpriteData* p1);
@@ -67,6 +67,13 @@ extern s32 BattleFindTriangleContainingPoint(s16* pVec);
 extern void BattleProjectPointOntoIndexedTriangle(s16* pVec, s32 arg1, u8* pOut);
 extern void SpriteDrawFrame(SpriteData* pSprite, u_long* pOT);
 extern void* func_800BFC80(void* pArg0, s32 arg1, s32 arg2);
+extern s32 D_80059464;
+extern u8 D_800591AC;
+extern void func_800B136C(void);
+extern void func_800B8D7C(void);
+extern void func_800BFBA0(void);
+extern void func_800BC454(s32 arg0);
+extern void BattleLoadActorArchiveFile(SpriteData* pSprite);
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800B905C);
 
@@ -106,7 +113,29 @@ void BattleActorSnapToTargetAndFace(SpriteData* pSprite, s32 arg1) {
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800B9C78);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800B9F78);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800BA4E0);
+void func_800BA4E0(s32 index) {
+    SpriteData* pSprite;
+    u8* pBase;
+    s32 slotOffset;
+
+    D_80059464 = 0;
+    D_800591AC = 0;
+    func_800B136C();
+    pBase = D_800C3EB0;
+    slotOffset = 0x8C8C;
+    if (pBase[index * 0x1C + 8] != 0) {
+        func_800B8D7C();
+        func_800BFBA0();
+    } else if (index < 3) {
+        pSprite = *(SpriteData**)(pBase + index * 4 + slotOffset);
+        if (pSprite != NULL) {
+            BattleLoadActorArchiveFile(pSprite);
+        }
+    } else {
+        func_800B8D7C();
+    }
+    func_800BC454(0xC0);
+}
 void BattleActorSetStepFromAngle(SpriteData* pSprite, s16 angle) {
     s32 scale = pSprite->moveSpeed >> 3;
 
@@ -266,44 +295,29 @@ void BattleActorDrawProjected(u8* pTask) {
     }
 }
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800BABDC);
-/* 92.48% (tried: pTask + 0x58 for the block read so pPayload is only used by
-   the call; gcc still defers "addiu s1,s0,0x38" into the branch delay slot
-   instead of the prologue, and both shapes score the same).
-void func_800BABDC(u8* pTask) {
-    u8* pPayload = pTask + 0x38;
+void func_800BABDC(AnimTask* pTask) {
+    AnimTask* pSelf;
+    SpriteData* pSprite;
+    SpriteData* pSpriteCopy;
+    SpriteData* pLoadSprite;
+    WorkListEntry* pTaskEntry2;
     void* pBlock;
 
-    pBlock = *(void**)(pPayload + 0x20);
-    pBlock = *(void**)((u8*)pBlock + 0x2C);
+    pSelf = pTask;
+    pSprite = &pSelf->spriteData;
+    pSpriteCopy = pSprite;
+    pLoadSprite = pSpriteCopy;
+    pBlock = pLoadSprite->pBase->pFramesData;
     if (pBlock != NULL) {
         HeapFree(pBlock);
     }
-    WorkListsRemoveEntriesForData(pTask);
-    SpriteAnimFrameListRemove(pPayload);
-    WorkListRemoveTask(pTask + 0x1C);
-    TimerWorkListRemoveTask(pTask);
-    HeapFree(pTask);
+    pTaskEntry2 = &pSelf->task2;
+    WorkListsRemoveEntriesForData(pSelf);
+    SpriteAnimFrameListRemove(pLoadSprite);
+    WorkListRemoveTask(pTaskEntry2);
+    TimerWorkListRemoveTask(pSelf);
+    HeapFree(pSelf);
 }
-*/
-/* 92.48%: gcc rematerialises pTask + 0x38 as a 0x58 offset from pTask instead of
-   holding it in $s1 like the original, which shifts the whole register shape.
-void func_800BABDC(u8* pTask) {
-    u8* pPayload = pTask + 0x38;
-    void* pBlock;
-
-    pBlock = *(void**)(pPayload + 0x20);
-    pBlock = *(void**)((u8*)pBlock + 0x2C);
-    if (pBlock != NULL) {
-        HeapFree(pBlock);
-    }
-    WorkListsRemoveEntriesForData(pTask);
-    SpriteAnimFrameListRemove(pPayload);
-    WorkListRemoveTask(pTask + 0x1C);
-    TimerWorkListRemoveTask(pTask);
-    HeapFree(pTask);
-}
-*/
 
 void BattleActorTickAnimScript(u8* pTask) {
     SpriteData* pSprite = *(SpriteData**)(pTask + 0x4);
