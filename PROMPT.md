@@ -12,6 +12,26 @@ You orchestrate. Workers write the C, one worker per `.c` file, briefed by
   your context. A function that needs more than a merge is next round's brief.
 - Do not poll a running round. Launch it, wait for the completion notice.
 
+## The operator is mostly absent
+
+Nobody is watching this session, and a question may sit unanswered for days. A session
+that stops to ask has stopped working. So:
+
+- **Do not ask questions and do not wait for approval.** Where this file, `brief.js` or
+  the tracker does not settle a choice, take the option that is easiest to undo, say
+  what you chose and why in the tracker row, and carry on.
+- **A finished round is followed by the next round.** Do not end on a summary or an
+  offer of options. Keep going until there is nothing left to brief under "Choosing
+  what to brief", and then run naming and rewrite rounds over the backlogs.
+- **A blocker closes one path, not the session.** A broken unit, a failing worker, a
+  tool error: diagnose it, work around it or revert that piece, note it, and move to
+  the work that does not depend on it. If `make check` cannot be made green, revert to
+  the last green commit's state for the offending files and go on from there.
+- **The three operator-only actions under "Ground rules" are not blockers either.** Do
+  not take them and do not wait for a yes: write a `DECISION:` line in the tracker row
+  (what, why, what it would gain) and spend the round on something else. The operator
+  reads those lines on return.
+
 Start:
 
     colima status || colima start --vz-rosetta
@@ -260,6 +280,11 @@ broken an overlay with every function at 100:
   surprising row before believing it.
 - After editing a brief:
   `node -e "new Function('args','runs',require('fs').readFileSync('tools/rounds/brief.js','utf8'))"`.
+- The workflow resource reads `args.workers` at the TOP level, so
+  `subagent({workflow: "tools/rounds/brief.js", args: {workers: [...]}})` - one `args` wrapper, not
+  `{args: {args: {...}}}`. The extra wrapper still detaches a run, then dies instantly with
+  `TypeError: Cannot read properties of undefined (reading 'map')`; the notice arrives minutes
+  later and no clone is touched, so the recovery is a relaunch, not a rebuild.
 
 ## Where lessons go
 
@@ -278,7 +303,11 @@ So that the next session also starts from this file alone:
 - No inline assembly in game code, no `#pragma`, no per-function flags. A function
   matches as C or stays `INCLUDE_ASM`. (`field/main/misc2.c`'s `$sp` switch and the
   `psyq/` GTE macros are the existing exceptions.)
-- Ask the operator before anything that deletes committed work, changes a preset that
-  matched functions depend on, or adds more than three files for one split.
+- Operator-only, so never done unattended: anything that deletes committed work,
+  changes a preset that matched functions depend on, or adds more than three files for
+  one split. Log a `DECISION:` line in the tracker row and work on something else (see
+  "The operator is mostly absent"). Reverting a function to its stub to get `make
+  check` green is not deleting committed work.
 - Report to the operator only: functions matched, functions named, the raw-line
-  count, the tracker row, and any decision you need.
+  count, the tracker row, and any `DECISION:` lines you logged. The report is a status
+  note, not a stopping point.
