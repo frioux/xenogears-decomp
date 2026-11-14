@@ -75,7 +75,28 @@ void func_800732CC(void) {
     D_80092644 = p;
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_8007334C);
+extern s32 D_80092648;
+extern s32 D_80092A24;
+extern s32 D_80092A28;
+extern s32 D_80092A2C;
+extern u8 D_80091C0C[];
+extern void func_8008D680(u8 *, u8 *, s32);
+extern void BattleEffectUpdateEntries(u8 *, u8 *, u8 *);
+
+void func_8007334C(u8 *p0, u8 *p1) {
+    s32 n = D_80092648;
+    u8 *p = D_80092644;
+
+    *(s16 *)(p + 0x14) = D_80092A24;
+    *(s16 *)(p + 0x16) = D_80092A28;
+    *(s16 *)(p + 0x18) = D_80092A2C;
+    *(s16 *)(p + 0x34) = 0;
+    *(s16 *)(p + 0x36) = 0;
+    *(s16 *)(p + 0x38) = 0;
+    func_8008D680(p, D_80091C0C, n);
+    gte_SetTransRotMatrix_gpr(p1);
+    BattleEffectUpdateEntries(p, p0, p1);
+}
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80073424);
 /* 98.09%: the loop's induction shape. The original keeps BOTH a walking
