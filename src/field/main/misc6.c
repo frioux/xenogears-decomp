@@ -293,17 +293,31 @@ typedef struct {
     /* 0xE */ u16 f7;
 } FieldScriptArgs; // Size: 0x10
 
-// 73.71% (632 vs 664 bytes), first shape tried on this stub (no prior park).
-// Frame (0xA0, seven saves), the loop bounds and both calls match. What is left:
-// (a) retail does not keep &g_FieldActors[D_800AFD1C] in a register - it
-// re-derives the address at each of the six transform/childMatrix stores, so the
-// source probably spells g_FieldActors[D_800AFD1C].transformMatrix.t[n] inline
-// and keeps only pSpriteData in a local; my extra live pointer shifts the args
-// to s5/s6 and pSpriteData to s4 (retail: s4/s5 and s3).
-// (b) loop body: retail computes i * 2 for walkmeshTriIds[i] after the call and
-// bumps the points pointer in the bnez delay slot; gcc hoists both.
-// Next: inline the g_FieldActors[...] expressions, and give the call result a
-// temp before the walkmeshTriIds store.
+// 79.89% (684 vs 632 bytes). Structure is right - frame (0xA0, seven saves),
+// both calls, the copy loop bounds, the three MATRIX store pairs and the whole
+// zeroing tail line up. Three fixes that this attempt established (all now in the
+// parked body below):
+//  - the transform/child pairs need the pointer-local REASSIGNED before each
+//    pair: `pFieldActor = (FieldActor*)(offset + (s32)g_FieldActors);` then two
+//    stores through it. g_FieldActors is `FieldActor* volatile`, so an inline
+//    `g_FieldActors[D_800AFD1C].transformMatrix.t[n] = x;` reloads the pointer for
+//    every store (6 `lui/lw g_FieldActors` where retail has 3); with the local,
+//    the pair shares one base (`sw s4,32(v0)` + `sw s4,64(v0)`) exactly as retail.
+//    `offset` must be one local, gcc CSEs the `D_800AFD1C * sizeof(FieldActor)`.
+//  - the flag written last is scriptFlags.flags at +0x0, NOT ActorData::flags at
+//    +0x4: retail does `lw v1,0(a1) ... and ~0x40000 ... or 0x400000 ... sw v1,0(a1)`.
+//  - curYPos at +0x72 is written TWICE: first `points[walkmeshId].vy` (sh right
+//    after the position stores), then `((s16*)&position)[3]` (lh 0x26 - signed
+//    read, `lhu` in the old attempt was wrong).
+// What is still left, and why this is parked:
+//  (a) loop body schedule only. Retail keeps `sh v0,8(a0)` where the address is
+//      computed and lets `addiu s1,s1,8` (the points pointer) fill the `bnez`
+//      delay slot; gcc 2.7.2 sched2 sinks the store into the delay slot and hoists
+//      s1's bump to the top of the body. Same insn multiset, no size change, so this
+//      is reorg/sched2, not source order (the C already reads in retail's order).
+//  (b) allocator: retail keeps pActor in $a1 and &normals[0] in $a0, gcc swaps them
+//      ($a0 / $a2). Tried two declaration orders (pActor/pSprite/pFieldActor/
+//      offset permuted): byte-identical 79.89%.
 /*
 extern s16 D_800AFB54;
 extern int func_8007B1C4(int x, int z, int walkmeshId, SVECTOR* pOut, VECTOR* pNormal);
@@ -312,26 +326,29 @@ extern u_int func_80080968(ActorData* pActor);
 void func_8009E574(s32 nX, s32 nY) {
     VECTOR normals[4];
     SVECTOR points[4];
-    SpriteData* pSprite;
-    FieldActor* pFieldActor;
     ActorData* pActor;
+    SpriteData* pSprite;
     int i;
+    FieldActor* pFieldActor;
+    s32 offset;
 
-    pFieldActor = &g_FieldActors[D_800AFD1C];
-    pSprite = (SpriteData*)pFieldActor->pSpriteData;
+    pSprite = (SpriteData*)g_FieldActors[D_800AFD1C].pSpriteData;
     for (i = 0; i < D_800AFB54 - 1; i++) {
         g_FieldScriptVMCurActor->walkmeshTriIds[i] = func_8007B1C4(nX, nY, i, &points[i], &normals[i]);
     }
-
     g_FieldScriptVMCurActor->curWalkmeshTriMaterial = func_80080968(g_FieldScriptVMCurActor);
     pActor = g_FieldScriptVMCurActor;
     pActor->curTriNormal.vx = normals[pActor->walkmeshId].vx;
     pActor->curTriNormal.vy = normals[pActor->walkmeshId].vy;
     pActor->curTriNormal.vz = normals[pActor->walkmeshId].vz;
+    offset = D_800AFD1C * sizeof(FieldActor);
+    pFieldActor = (FieldActor*)(offset + (s32)g_FieldActors);
     pFieldActor->transformMatrix.t[0] = nX;
     pFieldActor->childMatrix.t[0] = nX;
+    pFieldActor = (FieldActor*)(offset + (s32)g_FieldActors);
     pFieldActor->transformMatrix.t[1] = points[pActor->walkmeshId].vy;
     pFieldActor->childMatrix.t[1] = points[pActor->walkmeshId].vy;
+    pFieldActor = (FieldActor*)(offset + (s32)g_FieldActors);
     pFieldActor->transformMatrix.t[2] = nY;
     pFieldActor->childMatrix.t[2] = nY;
     pSprite->field_0x84 = points[pActor->walkmeshId].vy;
@@ -351,19 +368,20 @@ void func_8009E574(s32 nX, s32 nY) {
     pActor->unkD0.vx = 0;
     pActor->unkD0.vy = 0;
     pActor->unkD0.vz = 0;
-    pActor->unk60.vx = 0;
     pActor->unk60.vy = 0;
+    pActor->unk60.vx = 0;
     pActor->unk60.vz = 0;
     pSprite->step.x = 0;
     pSprite->step.y = 0;
     pSprite->step.z = 0;
     pActor->unkF0 = 0;
     pActor->unkEC = 0;
-    pActor->curYPos = ((u16*)&pActor->position)[3];
-    pActor->flags = (pActor->flags & ~0x40000) | 0x400000;
+    pActor->curYPos = ((s16*)&pActor->position)[3];
+    pActor->scriptFlags.flags = (pActor->scriptFlags.flags & ~0x40000) | 0x400000;
 }
 */
 INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_8009E574);
+
 
 // Writes the actor's Y position (fixed point) and the cached short copies
 void FieldScriptSetActorYPosition(short nY) {
