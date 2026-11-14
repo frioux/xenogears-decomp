@@ -112,27 +112,35 @@ s32 func_80080900(s32 index) {
     pSlot->pos.z = D_8009C5AC.z;
     return 1;
 }
-// Best: 76.71%. Structure is right (the branch, the three >>12 halfword
-// stores and the three func_80089160 calls); the original addresses the
-// scratchpad with raw absolute immediates (lui $a1,0x1F80 / ori ...0xA0, and
-// `sh $v0,0xA0($at)` with no relocation), while naming D_1F8000A0 in C emits
-// %hi/%lo relocations and makes gcc keep the base in a saved register.
-// Reaching 100% therefore needs the literal 0x1F8000A0 in the source.
-// Preset screen: cdk 66.67, gcc-2.6.0 76.48.
+// Best: 84.76%. The branch, every immediate, every relocation and the three
+// func_80089160 calls match once the three scratchpad stores use the literal
+// address 0x1F8000A0: retail writes them as `lui $at,0x1F80` + `sh $v0,0xA0($at)`
+// with no relocation, while naming D_1F8000A0 emits %hi/%lo and forces the base
+// into a saved register (that shape scores 76.71%). A 36-row try_flags sweep
+// (gcc 2.6.0/2.7.2/cdk x -O1..-O3 x -G0/-G4/-G8 x mcpu 3000/r8000) tops out at
+// 84.76, so the preset is not the problem. Residues: gcc sinks `sh zero,0x4(base)`
+// below the pos.x/pos.z loads and hoists the pos.z load where retail keeps
+// statement order, and the slot base lands in $a3 instead of $a2. Addressing the
+// slot as D_8009BE24[index] per statement scores 81.95; moving the unk4 store to
+// either end of the three stays at 84.76.
 /*
 s32 func_80080944(s32 index) {
     WorldMapSlot *pSlot = &D_8009BE24[index];
+    s32 v;
 
     if (pSlot->unk4 != 1) {
         return 1;
     }
     pSlot->unk4 = 0;
-    D_1F8000A0[0] = pSlot->pos.x >> 12;
-    D_1F8000A0[1] = pSlot->pos.y >> 12;
-    D_1F8000A0[2] = pSlot->pos.z >> 12;
-    func_80089160(0x28, (u8 *)D_1F8000A0, 0);
-    func_80089160(0x29, (u8 *)D_1F8000A0, 0);
-    func_80089160(0x2A, (u8 *)D_1F8000A0, 0);
+    v = pSlot->pos.x >> 12;
+    *(s16 *)0x1F8000A0 = v;
+    v = pSlot->pos.y >> 12;
+    *(s16 *)0x1F8000A2 = v;
+    v = pSlot->pos.z >> 12;
+    *(s16 *)0x1F8000A4 = v;
+    func_80089160(0x28, (s16 *)0x1F8000A0, 0);
+    func_80089160(0x29, (s16 *)0x1F8000A0, 0);
+    func_80089160(0x2A, (s16 *)0x1F8000A0, 0);
     return 1;
 }
 */
@@ -155,6 +163,10 @@ void func_800809EC(u8 *p, s32 count, s32 a, s32 b, s32 c) {
 // between the two pos stores, gcc emits it just before them; writing the slot
 // stores in retail's emission order (x, y, unk54, unk50, unk58, z) gives this
 // shape, the x/y/z-first order gives the same 92.64%.
+// The parameter shift cannot be re-created either: `index *= 0x80` followed by
+// `(u8 *)D_8009BE24 + index`, `index << 7`, and a u32/int local all still give
+// `sll a1,a0,0x7`; retail's `sll a0,a0,0x7` needs gcc to hand the sum pseudo the
+// dying argument register, which no source spelling reached.
 // Preset screen: cdk 87.51, gcc-2.6.0 87.15.
 /*
 s32 func_80080A28(s32 index) {
@@ -207,6 +219,10 @@ void func_8008106C(void) {
 // differs: retail keeps the base in $v1 and the index in $a0, gcc puts the base
 // in $v0 and reuses $a0 for the index. A pointer local restores $v1 but
 // reorders the statements (65.26%); the post-increment spelling scores 56.84%.
+// A pointer local (WorldMapSlot *pSlot = D_8009BE24 + index, or &D_8009BE24[index])
+// does get retail's registers ($v1 for the base, $a0 for the index temp) but lets
+// gcc hoist the D_8009A6C0 load above the address formation (65.26%), so the
+// direct-index form below remains the best shape.
 // Preset screen: cdk 48.89, gcc-2.6.0 95.26.
 /*
 s32 func_80081174(s32 index) {
