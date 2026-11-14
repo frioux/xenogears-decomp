@@ -600,80 +600,67 @@ void func_8001F6B0(SpriteData* pSpriteData) {
 }
 */
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001F750);
-/* Best attempt: 89.74% (404 bytes, the original's size). The whole structure is
-   right -- flags/0x3F count split, the 4 + 2*count entry stride, the
-   SpriteDirectionTransform stores, the loop tail (i++, break, pEntry += 3, which
-   only reproduces the original's delay slot with a for(;;) + break) -- and every
-   callee-saved register lands where the original has it. What is left is pure
-   instruction scheduling: the original loads the entry flags byte before the
-   pBase/pDirTransforms loads in the 0x10 rotationZ arm, keeps `pEntry++` in the
-   delay slot of the `beqz (flags & 0x40)`, and sinks the `pEntry = pBlock + ...`
-   add into the delay slot of the entry test. Address arithmetic is written with
-   mem_addr because that is the only way it emits `addu offset,base` rather than
-   `addu base,offset`.
-
 void func_8001F750(SpriteData* pSpriteData, s32 index, SpriteAnimPackage* pAnimPackage) {
     u8* pFrames;
     u8* pBlock;
     u8* pEntry;
-    u32 flags;
-    u32 unkFlag;
+    u8 flags;
+    u8 unkFlag;
     u32 count;
     u8 entryFlags;
+    s16 rotZ;
     s32 dir;
     s32 i;
 
     pFrames = pAnimPackage->pFrames;
-    pBlock = pFrames + ((u16*)pFrames)[index];
+    pBlock = (u8*)((mem_addr)((u16*)pFrames)[index] + (mem_addr)pFrames);
     flags = *pBlock;
+    i = 0;
     unkFlag = flags & 0x80;
     count = flags & 0x3F;
     pEntry = pBlock + (count * 2 + 4);
-    i = 0;
     if (count != 0) {
         for (;;) {
-        entryFlags = *pEntry;
-        if (entryFlags & 0x80) {
-            if (entryFlags & 0x40) {
+            entryFlags = *pEntry;
+            if (entryFlags & 0x80) {
                 pEntry++;
-                dir = entryFlags & 7;
-                if (pSpriteData->pBase->pDirTransforms == 0) {
-                    pSpriteData->pBase->pDirTransforms = HeapAlloc(sizeof(SpriteDirectionTransforms), 0);
-                    SpriteClearDirTransforms(pSpriteData);
-                }
-                if (entryFlags & 0x20) {
-                    *(u8*)((mem_addr)pSpriteData->pBase->pDirTransforms + dir * 8) = *pEntry++;
-                    *(u8*)((mem_addr)pSpriteData->pBase->pDirTransforms + (dir * 8 + 1)) = *pEntry++;
-                }
-                if (entryFlags & 0x10) {
-                    *(s16*)((mem_addr)pSpriteData->pBase->pDirTransforms + (dir * 8 + 6)) = *pEntry++ << 4;
+                if (entryFlags & 0x40) {
+                    dir = entryFlags & 7;
+                    if (pSpriteData->pBase->pDirTransforms == 0) {
+                        pSpriteData->pBase->pDirTransforms = HeapAlloc(sizeof(SpriteDirectionTransforms), 0);
+                        SpriteClearDirTransforms(pSpriteData);
+                    }
+                    if (entryFlags & 0x20) {
+                        *(u8*)((mem_addr)pSpriteData->pBase->pDirTransforms + dir * 8) = *pEntry++;
+                        *(u8*)((mem_addr)pSpriteData->pBase->pDirTransforms + (dir * 8 + 1)) = *pEntry++;
+                    }
+                    if (entryFlags & 0x10) {
+                        rotZ = *pEntry++ << 4;
+                        *(s16*)((mem_addr)pSpriteData->pBase->pDirTransforms + (dir * 8 + 6)) = rotZ;
+                    } else {
+                        *(s16*)((mem_addr)pSpriteData->pBase->pDirTransforms + (dir * 8 + 6)) = 0;
+                    }
                 } else {
-                    *(s16*)((mem_addr)pSpriteData->pBase->pDirTransforms + (dir * 8 + 6)) = 0;
+                    if (entryFlags & 1) {
+                        pEntry++;
+                    }
+                    if (entryFlags & 2) {
+                        pEntry++;
+                    }
                 }
             } else {
-                if (entryFlags & 1) {
-                    pEntry++;
+                if (unkFlag != 0) {
+                    pEntry += 2;
                 }
-                if (entryFlags & 2) {
-                    pEntry++;
+                i++;
+                if (i == count) {
+                    break;
                 }
+                pEntry += 3;
             }
-        } else {
-            if (unkFlag != 0) {
-                pEntry += 2;
-            }
-            i++;
-            if (i == count) {
-                break;
-            }
-            pEntry += 3;
-        }
         }
     }
 }
-
-*/
 
 // Animation frame and tile data stuff
 /* Best attempt: 95.23% (456 bytes, same instruction count as the original).
