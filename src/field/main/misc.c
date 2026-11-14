@@ -1554,6 +1554,101 @@ void FieldScriptSetCameraRotation(void) {
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008B5D4);
 
+/* 93.62%: the whole instruction stream is right, only the saved-register
+   allocation differs (retail keeps pBounds in s0, pData s1, pPrev s2, pCur s3,
+   du s4; gcc picks s0/s1=pPrev/s2=pCur/s3=pData) and gcc elides the sll/sra
+   truncation of the two FieldScriptVMGetInstructionArgumentS16 results because
+   the prototype returns short. Declaration orders tried: pBounds,pData,pCur,
+   pPrev (93.62%) and pBounds,pData,pPrev,pCur (88.80%, gcc re-associates the
+   unk8[ctx] address sums).
+void func_8008B5D4(void) {
+    FieldActorModelData* pModel;
+    FieldActorModelBounds* pBounds;
+    u32* pData;
+    u8* pCur;
+    u8* pPrev;
+    POLY_FT3* pPoly3;
+    POLY_FT3* pPrevPoly3;
+    POLY_FT4* pPoly4;
+    POLY_FT4* pPrevPoly4;
+    s32 ctx;
+    s16 du;
+    s16 dv;
+    s32 n;
+    s32 i;
+    s32 j;
+    u32 code;
+    u32 w;
+
+    pModel = g_FieldActors[D_800AFD1C].pModelData;
+    pBounds = pModel->pBounds;
+    ctx = g_FieldCurRenderContextIndex;
+    pCur = ((u8**)pModel->unk8)[ctx];
+    pPrev = ((u8**)pModel->unk8)[(ctx + 1) & 1];
+    pData = ((u32**)pBounds->unk0)[4];
+    du = FieldScriptVMGetInstructionArgumentS16(1);
+    dv = FieldScriptVMGetInstructionArgumentS16(3);
+    for (i = ((u16*)pBounds->unk0)[3]; i > 0; i--) {
+        w = *pData;
+        code = w & 0xFF;
+        n = w >> 16;
+        if (code == 0xC4 || code == 0xC8) {
+            pData++;
+            continue;
+        }
+        pData++;
+        if (!(w & 8)) {
+            pPoly3 = (POLY_FT3*)pCur;
+            pPrevPoly3 = (POLY_FT3*)pPrev;
+            for (j = 0; j < n; j++, pData += 2) {
+                pPoly3->u0 += du;
+                pPoly3->u1 += du;
+                pPoly3->u2 += du;
+                pPoly3->v0 += dv;
+                pPoly3->v1 += dv;
+                pPoly3->v2 += dv;
+                pPrevPoly3->u0 = pPoly3->u0;
+                pPrevPoly3->u1 = pPoly3->u1;
+                pPrevPoly3->u2 = pPoly3->u2;
+                pPrevPoly3->v0 = pPoly3->v0;
+                pPrevPoly3->v1 = pPoly3->v1;
+                pPrevPoly3->v2 = pPoly3->v2;
+                pPoly3++;
+                pPrevPoly3++;
+            }
+            pCur = (u8*)pPoly3;
+            pPrev = (u8*)pPrevPoly3;
+        } else {
+            pPoly4 = (POLY_FT4*)pCur;
+            pPrevPoly4 = (POLY_FT4*)pPrev;
+            for (j = 0; j < n; j++, pData += 2) {
+                pPoly4->u0 += du;
+                pPoly4->u1 += du;
+                pPoly4->u2 += du;
+                pPoly4->u3 += du;
+                pPoly4->v0 += dv;
+                pPoly4->v1 += dv;
+                pPoly4->v2 += dv;
+                pPoly4->v3 += dv;
+                pPrevPoly4->u0 = pPoly4->u0;
+                pPrevPoly4->u1 = pPoly4->u1;
+                pPrevPoly4->u2 = pPoly4->u2;
+                pPrevPoly4->u3 = pPoly4->u3;
+                pPrevPoly4->v0 = pPoly4->v0;
+                pPrevPoly4->v1 = pPoly4->v1;
+                pPrevPoly4->v2 = pPoly4->v2;
+                pPrevPoly4->v3 = pPoly4->v3;
+                pPoly4++;
+                pPrevPoly4++;
+            }
+            pCur = (u8*)pPoly4;
+            pPrev = (u8*)pPrevPoly4;
+        }
+    }
+    g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
+}
+*/
+
 extern void* g_PartyDataBuffers[];
 extern void* D_800ADBC0;
 extern s32 D_800ADBC4;
