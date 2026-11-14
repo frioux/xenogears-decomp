@@ -176,6 +176,7 @@ void func_80085E78(void) {
     D_800C3EAC[0x2D6] = 0;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80085EB4);
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80086028);
 /* 88.08%: instruction multiset is identical (same size, same prologue save
    order, same delay-slot placement); every difference is the s-register NUMBER
    gcc hands to each call-crossing value. Retail: s0=q s1=arg0 s2=arg2 s3=arg1
@@ -185,7 +186,6 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80085EB4);
    `arg1 * 0x50 + 0x5550 + D_800D2DB4` (symbol added last) is what puts the
    `addu` in the func_80076D58 jal delay slot. The three masks 0xFFFC/0xFFF8/
    0xF8 on the func_80076C78 coordinates are literal in the source.
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80086028);
 s32 func_80086028(u8 arg0, s32 arg1, s32 arg2, u8 arg3, u32 **arg4, u8 arg5) {
     s32 q;
     s32 r;
@@ -234,6 +234,7 @@ u8 func_80086B88(s32 arg0, u8 arg1) {
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80086C88);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80086F98);
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_800877E0);
 /* 59.15%: retail recomputes `D_800C3EB4[a*0x1C] * 0x40` and `[b*0x1C] * 8`
    inside the loop on every one of the three blocks, while gcc hoists them into
    the loop preheader as loop invariants (the difference is ~60 bytes). Spelling
@@ -242,7 +243,6 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80086F98);
    lui `%hi` + addu + `%lo`. Also open: retail materialises `+ 0x140` with an
    explicit addiu before the `+ i` in the first block (it re-reads through the
    same $a0) while ours folds 0x140 into the load displacement.
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_800877E0);
 s32 func_800877E0(s32 arg0, s32 arg1) {
     s32 i;
     s32 o;
