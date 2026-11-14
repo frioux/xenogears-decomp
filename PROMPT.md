@@ -267,6 +267,16 @@ broken an overlay with every function at 100:
 - Workers hit the 30-minute kill constantly. Fine if they committed; `merge` refuses
   uncommitted work. A lost body is still in `worker_transcript.jsonl` under
   `subagent-artifacts/`.
+- **Every child fails to start with `Background children require the host npm package`** and a
+  list of `@earendil-works/*` specifiers pointing at `/opt/homebrew/lib/node_modules/...`: pi
+  moved to a managed install (`~/.pi/agent/install/releases/<ver>`, what `~/.pi/agent/bin/pi`
+  execs) and the extension still resolves the host package from the old npm global path. The
+  symptom is 22 `Failed to start async run` children in one second, with no clone touched, so
+  nothing is lost. Fix, no reinstall and nothing to undo in the repo:
+  `ln -sfn ~/.pi/agent/install/releases/$(cat ~/.pi/agent/install/current-version)/node_modules/@earendil-works/pi-coding-agent /opt/homebrew/lib/node_modules/@earendil-works/pi-coding-agent`
+  then confirm with one one-line child before relaunching the round. `@earendil-works/chord` in
+  the error is a red herring: the extension only aliases it when the host manifest declares it,
+  and pi 1.2.0+ does not ship it.
 - **A pool branch is based on `main`, not `master`.** `git log master..HEAD` in a clone
   reports 0 commits for a worker that committed fine; use `main..HEAD` (round 48 read
   eleven merges as lost work that way).
