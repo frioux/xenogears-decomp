@@ -1,4 +1,6 @@
 #include "common.h"
+#include "psyq/libgte.h"
+#include "psyq/inline_c.h"
 
 typedef struct {
     /* 0x0 */ u32 unk0;
@@ -257,7 +259,69 @@ void func_800A43F8(BattleMisc22Image *pArg, s16 scale) {
         }
     }
 }
+extern u8 D_800D3304[];
+extern u8 D_800D3306[];
+extern u8 D_800D3308[];
+extern u8 D_800D330A[];
+extern u8 D_800D330C[];
+extern u8 D_800D330E[];
+extern u8 D_800D3310[];
+extern u8 D_800D3314[];
+extern u8 D_800D3316[];
+extern u8 D_800D3330[];
+
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A44C0);
+/* 99.46% (404 bytes, identical instruction multiset): prologue, frame, loop,
+   GTE block and both branches are exact; the only difference is the register
+   rotation in the CompMatrix argument setup - original keeps pMat in $v1 and the
+   "n * 124" chain in $a1 (lw v1 / lh v0 / addiu a0,v1 / sll a1,v0), ours puts
+   pMat in $a1 and the chain in $v0 (lw a1 / lh v1 / addiu a0,a1 / sll v0,v1).
+   Tried: separate s16 and s32 locals for the 0x3316 index, both operand orders of
+   "pMat + offset" and "offset + pMat", a prepass offset local. Allocator tie.
+void func_800A44C0(u8 **pArg) {
+    u16 *pZ;
+    u16 *pY;
+    u16 *pX;
+    void *pMatrix;
+    s32 i;
+
+    pMatrix = PSX_SCRATCH;
+    pZ = (u16 *)D_800D3308;
+    pY = pZ - 1;
+    pX = pZ - 2;
+    i = 0;
+    do {
+        if (*(s16 *)(D_800D330A + i) != 0) {
+            s16 index = *(s16 *)(D_800D3314 + i);
+            u8 *pEntry;
+
+            if (index >= 0 && (pEntry = pArg[index]) != 0) {
+                u8 *pMat = *(u8 **)(pEntry + 4);
+                s32 offset = *(s16 *)(D_800D3316 + i) * 124;
+                s32 vec[4];
+
+                CompMatrix(pMat + 0xC, pMat + offset + 0xA8, pMatrix);
+                SetRotMatrix(pMatrix);
+                SetTransMatrix(pMatrix);
+                gte_ldv0((SVECTOR *)(i + D_800D330C));
+                gte_mvmva(1, 0, 0, 0, 0);
+                gte_stlvnl(vec);
+                *pX = *(u16 *)&vec[0];
+                *pY = *(u16 *)&vec[1];
+                *pZ = *(u16 *)&vec[2];
+            } else {
+                *pX = *(u16 *)(D_800D330C + i);
+                *pY = *(u16 *)(D_800D330E + i);
+                *pZ = *(u16 *)(D_800D3310 + i);
+            }
+        }
+        pZ += 10;
+        pY += 10;
+        pX += 10;
+        i += 0x14;
+    } while ((s32)pZ < (s32)D_800D3330);
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A4654);
 void func_800A4820(void) {
     s32 i;
