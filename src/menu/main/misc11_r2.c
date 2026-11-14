@@ -159,7 +159,64 @@ void func_801E5B3C(void) {
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc11_r2", func_801E5B88);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc11_r2", func_801E5E4C);
+extern s32 D_801E9F98[];
+extern s32 D_801E9FBC[];
+extern s32 D_801EA494[];
+extern u32 D_801EA590[];
+extern u8 D_801EA5DC[];
+extern u16 g_SystemPalette1;
+void func_801E920C(POLY_FT4* pPoly, u_short x, u_short y, u_char u, u_char v, s32 width, s32 height);
+
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc11_r2", func_801E61B0);
+/* Best: 85.05% (656 vs 660 bytes).  Confirmed shape: outer loop is TWO
+   counters in one for ("j = 0, offset = 0; offset < 0x1974; j++, offset +=
+   0x87C") which is what makes retail test the 0x87C-scaled IV (s2) and keep
+   four separate givs s2/s3/s4/s5 = offset, j*0x50, 0xA98+offset, j*4 with no
+   register for j itself.  `primOffset` must be a real s32 local, otherwise
+   gcc folds 0xA98 into 0x50 (0xAE8) at the prim address and into 0x820 at the
+   two func_801E92{7C,0C} calls; and the prim pointer has to be a u8* local or
+   the same fold moves 0x820 onto it.  *(u16*)D_801E9F98 / *(u16*)D_801E9FBC
+   are needed to get retail's lhu (a plain D_801E9F98[0] gives lw).
+   Left, four instructions: (1) retail's primOffset lands in $s4 and j*0x50 in
+   $s3, ours swaps them; (2) retail emits "addiu s5,s5,4" (j++) right after
+   the D_801EA5DC load and ours after the call; (3) the func_801E920C argument
+   setup order differs (retail forms the 0x820 sum after loading base/ctx);
+   (4) retail reads the byte it stores to 0x130E/0x1311 with "lbu 776(v1)",
+   ours with "lw" - (u_char), (u8) and (s8) casts on g_Menu->renderContext all
+   leave the lw.  Same allocator-tie class as func_801E56E8/func_801E68AC.
+   void func_801E61B0(void) {
+       s32 i;
+       s32 j;
+       s32 offset;
+       s32 primOffset;
+       u8* pPrim;
+
+       for (j = 0, offset = 0; offset < 0x1974; j++, offset += 0x87C) {
+           primOffset = offset + 0xA98;
+           ((u8*)g_Menu->unk34C + offset)[0x1312] = 0;
+           for (i = 0; i < 9; i++) {
+               if (D_801EA494[i] != 0xFFFF) {
+                   ((u8*)g_Menu->unk34C + offset)[0x1312] += func_8002675C(
+                       g_Menu->resources, D_801EA494[i],
+                       (POLY_FT4*)(primOffset + (u32)g_Menu->unk34C +
+                                   (((u8*)g_Menu->unk34C + offset)[0x1312] * 0x50 + 0x50)),
+                       g_Menu->renderContext, j * 0x50 + D_801E9F98[i], D_801E9FBC[i], 0x1000);
+               }
+           }
+           ((u8*)g_Menu->unk34C + offset)[0x130E] = (u_char)g_Menu->renderContext;
+           pPrim = (u8*)(primOffset + (u32)g_Menu->unk34C);
+           func_801E927C((POLY_FT4*)(pPrim + (g_Menu->renderContext * 0x28 + 0x820)));
+           *(u16*)((u8*)g_Menu->unk34C + (g_Menu->renderContext * 0x28 + offset) + 0x12CE) =
+               GetTPage(0, 0, 0x180, 0);
+           *(u16*)((u8*)g_Menu->unk34C + (g_Menu->renderContext * 0x28 + offset) + 0x12C6) =
+               g_SystemPalette1;
+           func_801E920C((POLY_FT4*)(pPrim + (g_Menu->renderContext * 0x28 + 0x820)),
+                         *(u16*)D_801E9F98 + j * 0x50, *(u16*)D_801E9FBC + 7,
+                         (u_char)(D_801EA590[j] << 2), D_801EA5DC[j * 4], 0x48, 0xD);
+           ((u8*)g_Menu->unk34C + offset)[0x1311] = (u_char)g_Menu->renderContext;
+       }
+   }
+*/
 void func_801E6450(void) {
     void* pMem;
     u32 unk[2]; // unused: the original frame has 8 bytes of locals we cannot express
