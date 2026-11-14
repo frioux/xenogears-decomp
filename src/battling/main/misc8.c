@@ -505,4 +505,99 @@ void BattleSetScreenTileBlack(void) {
     D_8009A2C6 = v;
 }
 
+typedef struct {
+    /* 0x0 */ s16 unk0;
+    /* 0x2 */ s16 unk2;
+} Misc8BattleGrid; // Size: 0x4
+
+typedef struct {
+    /* 0x00 */ SPRT sprt;
+    /* 0x14 */ SPRT copies[5];
+} Misc8DimSprites; // Size: 0x78
+
+extern Misc8BattleGrid D_800928DC[];
+extern POLY_G4 D_80095580[2];
+extern DR_TPAGE D_800955C8[4];
+extern Misc8DimSprites D_800955F8;
+extern void BattleInitDrawEnvPair(void);
+extern void func_800732AC(void *pDst, void *pSrc, s32 n);
+extern void func_80087830(void);
+
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc8", func_80081ECC);
+/* PARK 70.16% (752 bytes vs retail 684).  The whole geometry of the function
+   is recovered and every block matches except the store WIDTHS of the first
+   two packets: retail combines adjacent field writes into wider stores and our
+   gcc 2.7.2 does not.  Retail writes the quad colours as
+   `li v0,0x6010 ; sh v0,D_8009558C` (r1,g1 merged), `li v0,0x7F7F ; sh` for
+   (r2,g2) and (r3,g3), `sw $zero,D_80095588` for (x0,y0), `sw 0x140` for
+   (x1,y1), `sw 0x600000` for (x2,y2) and `sw 0x600140` for (x3,y3); the same
+   on the sprite template, where `sw 0x64707070,D_800955FC` is r0,g0,b0 and the
+   setSprt code byte merged, and `sw 0xDB0080,D_80095608` is w,h.  We emit two
+   `sh`/`sb` per pair instead, so the instruction stream is ~68 bytes longer -
+   a per-pair difference, not a scheduling one (reordering the source does not
+   merge them).  Everything else is byte-exact: the prologue/epilogue, the
+   0x24-byte block move of D_80095580[0] into D_80095580[1] (loop of 4 words
+   plus one trailing word), the four GetTPage/SetDrawTPage pairs with
+   D_800955C8 in $s0, the header stores, the func_800732AC copy of the 0x14-byte
+   sprite template into five 0x14-byte copies, the eight copy fixups, the
+   0x4000-entry x12 scale loop on D_800928DC and the func_80087830 tail.
+   Tried: per-vertex interleaved field writes (70.16%), all four setRGB first
+   then setXYWH(0,0,0x140,0x60) (67.89% - setXYWH is what makes retail's
+   x3,y3 come out as the single 0x600140 constant, so it is probably the right
+   shape and only the store merging is missing).  Next lever: find the source
+   form that makes cc1 emit the wider stores, e.g. writing the colour pairs
+   through a u16 lvalue and the coordinate pairs through a u32 lvalue.
+   NOTE the x3,y3 store must stay absolute (retail uses %lo(D_800955A0)($at),
+   ours re-used the copy's base register as `sh a0,32(a2)`).
+void func_80081ECC(void) {
+    s32 i;
+
+    BattleInitDrawEnvPair();
+
+    setPolyG4(&D_80095580[0]);
+    setRGB0(&D_80095580[0], 0x10, 0x60, 0x7F);
+    D_80095580[0].x0 = 0;
+    D_80095580[0].y0 = 0;
+    setRGB1(&D_80095580[0], 0x10, 0x60, 0x7F);
+    D_80095580[0].x1 = 0x140;
+    D_80095580[0].y1 = 0;
+    setRGB2(&D_80095580[0], 0x7F, 0x7F, 0x7F);
+    D_80095580[0].x2 = 0;
+    D_80095580[0].y2 = 0x60;
+    setRGB3(&D_80095580[0], 0x7F, 0x7F, 0x7F);
+    D_80095580[0].x3 = 0x140;
+    D_80095580[0].y3 = 0x60;
+    D_80095580[1] = D_80095580[0];
+
+    SetDrawTPage(&D_800955C8[0], 0, 0, GetTPage(2, 2, 0, 0x100));
+    SetDrawTPage(&D_800955C8[1], 0, 0, GetTPage(2, 2, 0, 0));
+    SetDrawTPage(&D_800955C8[2], 0, 0, GetTPage(2, 2, 0x100, 0x100));
+    SetDrawTPage(&D_800955C8[3], 0, 0, GetTPage(2, 2, 0x100, 0));
+
+    setSprt(&D_800955F8.sprt);
+    setRGB0(&D_800955F8.sprt, 0x70, 0x70, 0x70);
+    D_800955F8.sprt.x0 = 0;
+    D_800955F8.sprt.y0 = 0;
+    D_800955F8.sprt.u0 = 0;
+    D_800955F8.sprt.v0 = 0;
+    D_800955F8.sprt.w = 0x80;
+    D_800955F8.sprt.h = 0xDB;
+    setSemiTrans(&D_800955F8.sprt, 1);
+
+    func_800732AC(&D_800955F8.copies[0], &D_800955F8.sprt, 0x64);
+
+    D_800955F8.copies[1].x0 = 0x80;
+    D_800955F8.copies[1].u0 = 0x80;
+    D_800955F8.copies[2].x0 = 0x80;
+    D_800955F8.copies[2].u0 = 0x80;
+    D_800955F8.copies[3].x0 = 0x100;
+    D_800955F8.copies[3].w = 0x40;
+    D_800955F8.copies[4].x0 = 0x100;
+    D_800955F8.copies[4].w = 0x40;
+
+    for (i = 0; i < 0x4000; i++) {
+        D_800928DC[i].unk0 = D_800928DC[i].unk0 * 12;
+    }
+    func_80087830();
+}
+*/
