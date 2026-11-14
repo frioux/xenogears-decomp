@@ -27,4 +27,4 @@ if [ "$(uname -s)-$(uname -m)" = "Linux-x86_64" ]; then
     exec python3 tools/scripts/permute.py "$@"
 fi
 exec docker run --rm -i --platform=linux/amd64 -v"$PWD":/xenogears-decomp ethos:latest \
-    /bin/bash -c "tools/scripts/permute.sh $(printf '%q ' "$@")"
+    /bin/bash -c "tools/scripts/permute.sh $(printf '%q ' "$@")" </dev/null

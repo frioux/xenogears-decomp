@@ -98,7 +98,48 @@ def function_source(unit, func):
     out = park.unpark(text, func, m.group(0))
     if out is None:
         die("%s is a stub with no parked C body next to it: the permuter needs C to start from" % func)
-    return out, found[0]
+    # The declarations go directly above the body: they use types the includes define.
+    decls = park_declarations(text, func)
+    body = re.search(park.DEF % re.escape(func), out, re.M)
+    return out[:body.start()] + decls + out[body.start():], found[0]
+
+
+def park_declarations(text, func):
+    """Declarations a park carries inside its comment block, above the body.
+
+    Workers park the externs, typedefs and structs a body needs in the same block, and
+    park.unpark() takes only the function. Prose notes share the block, so keep just the
+    chunks that start like a declaration and run to a `;` at brace depth 0.
+    """
+    sys.path.insert(0, os.path.join(ROOT, "tools", "scripts"))
+    import park
+
+    for m in park.BLOCK.finditer(text):
+        body = re.search(park.DEF % re.escape(func), m.group(1), re.M)
+        if not body:
+            continue
+        head, keep, pos = m.group(1)[:body.start()], [], 0
+        start = re.compile(r"^(?:typedef|extern|struct|union|enum|static|#define)\b", re.M)
+        while True:
+            s = start.search(head, pos)
+            if not s:
+                break
+            if head.startswith("#define", s.start()):
+                end = head.find("\n", s.start())
+                end = len(head) if end < 0 else end
+            else:
+                depth, end = 0, s.start()
+                while end < len(head):
+                    c = head[end]
+                    depth += (c == "{") - (c == "}")
+                    if c == ";" and depth == 0:
+                        break
+                    end += 1
+                end += 1
+            keep.append(head[s.start():end])
+            pos = end
+        return "\n".join(keep) + "\n" if keep else ""
+    return ""
 
 
 def run(cmd, **kw):
@@ -137,11 +178,12 @@ def setup(unit, func):
     compile_sh = os.path.join(d, "compile.sh")
     open(compile_sh, "w").write("""#!/bin/bash
 # permuter calls: compile.sh <in.c> -o <out.o>
+# maspsx reads stdin to EOF; without </dev/null it hangs whenever the caller's stdin is an open pipe.
 set -e
 cd %(root)s
 tools/%(gcc)s/cc1 %(opt)s %(gp)s %(cc)s -quiet -o "$3.s" "$1"
 python3 tools/maspsx/maspsx.py %(msx)s %(endian)s -Iinclude -I build %(opt)s %(gp)s \\
-    -march=r3000 -mtune=r3000 -no-pad-sections -o "$3" "$3.s" 2>/dev/null
+    -march=r3000 -mtune=r3000 -no-pad-sections -o "$3" "$3.s" </dev/null 2>/dev/null
 rm -f "$3.s"
 """ % dict(f, root=ROOT))
     os.chmod(compile_sh, 0o755)
@@ -212,7 +254,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("unit", help="path under src/ without .c, e.g. battle/main/misc8")
     ap.add_argument("function")
-    ap.add_argument("--minutes", type=float, default=5)
+    ap.add_argument("--minutes", type=float, default=5, help="search time; 0 = only score the body as written")
     ap.add_argument("-j", type=int, default=4, help="parallel compiles (the build VM has 6 cores)")
     ap.add_argument("--keep", type=int, default=3, help="how many of the best output dirs to keep")
     a = ap.parse_args()
@@ -222,20 +264,33 @@ def main():
     d = setup(a.unit, a.function)
     log = os.path.join(d, "log.txt")
     env = dict(os.environ, PATH=os.path.join(d, "bin") + os.pathsep + os.environ["PATH"])
-    cmd = [sys.executable, os.path.abspath(__file__), "--permuter-main", d, "-j", str(a.j),
-           "--stop-on-zero", "--best-only", "--algorithm", "difflib"]
+    # -u, not PYTHONUNBUFFERED: the variable would reach maspsx through compile.sh, which hangs it.
+    cmd = [sys.executable, "-u", os.path.abspath(__file__), "--permuter-main", d, "-j", str(a.j),
+           "--stop-on-zero", "--best-only", "--algorithm", "difflib",
+           # Branch targets count: a back edge that lands one nop off is a real mismatch
+           # (archive_b func_80037878), and the permuter ignores targets by default.
+           "--no-ignore-branch-targets"]
     start = time.time()
     with open(log, "w") as out:
         p = subprocess.Popen(cmd, cwd=ROOT, env=env, stdout=out, stderr=subprocess.STDOUT, start_new_session=True)
-        try:
-            p.wait(timeout=a.minutes * 60)
-        except subprocess.TimeoutExpired:
-            os.killpg(p.pid, signal.SIGINT)
-            try:
-                p.wait(timeout=10)
-            except subprocess.TimeoutExpired:
-                os.killpg(p.pid, signal.SIGKILL)
-                p.wait()
+        # The clock starts when the base has compiled and scored, not at launch: under a
+        # loaded build VM that alone can take a minute. --minutes 0 stops right there.
+        deadline = None
+        while p.poll() is None:
+            time.sleep(0.5)
+            now = time.time()
+            if deadline is None:
+                if "base score = " in open(log, errors="replace").read():
+                    deadline = now + a.minutes * 60
+                elif now - start > 300:
+                    deadline = now
+            if deadline is not None and now >= deadline:
+                os.killpg(p.pid, signal.SIGINT)
+                try:
+                    p.wait(timeout=10)
+                except subprocess.TimeoutExpired:
+                    os.killpg(p.pid, signal.SIGKILL)
+                    p.wait()
     elapsed = time.time() - start
 
     text = open(log, errors="replace").read()

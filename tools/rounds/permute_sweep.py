@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Run decomp-permuter over every parked body, closest first. CPU only, no model tokens.
 
-    nohup tools/rounds/permute_sweep.py --min-pct 95 --minutes 3 >> ~/xw/permute-sweep.log 2>&1 &
+    nohup tools/rounds/permute_sweep.py --minutes 3 >> ~/xw/permute-sweep.log 2>&1 &
     tools/rounds/permute_sweep.py --report            # what it has found so far
     tools/rounds/permute_sweep.py --report --briefs   # the same, as permute-brief.js workers
 
@@ -17,6 +17,8 @@ A function is skipped when its current parked body (by hash) already has a resul
 restarting is cheap and a re-parked body is tried again. Only one sweep runs at a time
 (~/xw/permute-sweep.pid).
 
+SCORED only the body's score as parked is known (pass 1); the search has not run yet.
+ERROR  the body does not compile or parse on its own (stale park, GTE macro, inline asm).
 ZERO   a candidate is byte-identical by the permuter's measure: hand it to an apply
        worker (tools/rounds/permute-brief.js), which ports the diff and gates it.
 BETTER closer but not identical: the diff is a lead for the same worker.
@@ -98,6 +100,33 @@ def refresh_clone():
                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
+def run_one(unit, func, minutes, j):
+    """One permute.sh run in the clone -> (tag, base, best, iterations, seconds)."""
+    p = subprocess.run(["tools/scripts/permute.sh", unit, func, "--minutes", str(minutes), "-j", str(j), "--keep", "1"],
+                       cwd=CLONE, env=dict(os.environ, PWD=CLONE), stdin=subprocess.DEVNULL, capture_output=True, text=True)
+    m = re.search(r"^RESULT PERMUTER_(\w+) \S+ \S+ base=(\d+) best=(\d+) iterations=(\S+) seconds=(\d+) dir=(\S+)", p.stdout, re.M)
+    if m:
+        tag, base, best, iters, secs, d = m.groups()
+        outs = [x for x in os.listdir(os.path.join(CLONE, d)) if x.startswith("output-")]
+        if outs and int(best) < int(base):
+            shutil.copy(os.path.join(CLONE, d, outs[0], "diff.txt"), os.path.join(OUT, func + ".diff"))
+            shutil.copy(os.path.join(CLONE, d, outs[0], "source.c"), os.path.join(OUT, func + ".c"))
+        result = (tag, base, best, iters, secs)
+    else:
+        # Did not parse or compile: GTE macros, inline asm, a body that no longer builds.
+        open(os.path.join(OUT, func + ".error"), "w").write((p.stdout + p.stderr)[-4000:])
+        result = ("ERROR", "-", "-", "-", "0")
+    shutil.rmtree(os.path.join(CLONE, "permuter", func), ignore_errors=True)
+    return result
+
+
+def record(row):
+    row = row + [datetime.date.today().isoformat()]
+    with open(RESULTS, "a") as f:
+        f.write("\t".join(row) + "\n")
+    print("\t".join(row), flush=True)
+
+
 def sweep(a):
     os.makedirs(OUT, exist_ok=True)
     if os.path.exists(PID):
@@ -109,31 +138,28 @@ def sweep(a):
     open(PID, "w").write(str(os.getpid()))
     try:
         refresh_clone()
-        done = {(r["func"], r["body"]) for r in results()}
+        done = {(r["func"], r["body"]) for r in results() if r["tag"] != "SCORED"}
         queue = [p for p in parks(CLONE) if p[0] >= a.min_pct and (a.retry or (p[2], p[3]) not in done)]
         if a.unit:
             queue = [p for p in queue if any(p[1].startswith(u) for u in a.unit)]
+
+        # Pass 1: the permuter's own score for each body as parked (a few seconds each).
+        # A note's percentage is unreliable for ordering (it is often a neighbour's), and
+        # the score is what the search minimises: ~40 is one register off, 800 is far.
+        scored = {(r["func"], r["body"]): r["base"] for r in results() if r["base"].isdigit()}
+        todo = [p for p in queue if (p[2], p[3]) not in scored]
+        print("sweep: scoring %d parked bodies" % len(todo), flush=True)
+        for pct, unit, func, digest in todo:
+            tag, base = run_one(unit, func, 0, a.j)[:2]
+            record([func, unit, "%.2f" % pct, "SCORED" if tag != "ERROR" else tag, base, base, "-", "0", digest])
+            scored[(func, digest)] = base
+        queue = sorted((p for p in queue if scored[(p[2], p[3])].isdigit() and 0 < int(scored[(p[2], p[3])]) <= a.max_base),
+                       key=lambda p: int(scored[(p[2], p[3])]))
         queue = queue[:a.limit] if a.limit else queue
-        print("sweep: %d parked bodies at >= %.1f%% to try, %.1f min each" % (len(queue), a.min_pct, a.minutes), flush=True)
+        print("sweep: %d parked bodies with base score <= %d to search, %.1f min each" % (len(queue), a.max_base, a.minutes), flush=True)
         for pct, unit, func, digest in queue:
-            p = subprocess.run(["tools/scripts/permute.sh", unit, func, "--minutes", str(a.minutes), "-j", str(a.j), "--keep", "1"],
-                               cwd=CLONE, env=dict(os.environ, PWD=CLONE), capture_output=True, text=True)
-            m = re.search(r"^RESULT PERMUTER_(\w+) \S+ \S+ base=(\d+) best=(\d+) iterations=(\S+) seconds=(\d+) dir=(\S+)", p.stdout, re.M)
-            if m:
-                tag, base, best, iters, secs, d = m.groups()
-                outs = [x for x in os.listdir(os.path.join(CLONE, d)) if x.startswith("output-")]
-                if outs and int(best) < int(base):
-                    shutil.copy(os.path.join(CLONE, d, outs[0], "diff.txt"), os.path.join(OUT, func + ".diff"))
-                    shutil.copy(os.path.join(CLONE, d, outs[0], "source.c"), os.path.join(OUT, func + ".c"))
-            else:
-                # Did not parse or compile: GTE macros, inline asm, a body that no longer builds.
-                tag, base, best, iters, secs = "ERROR", "-", "-", "-", "0"
-                open(os.path.join(OUT, func + ".error"), "w").write((p.stdout + p.stderr)[-4000:])
-            shutil.rmtree(os.path.join(CLONE, "permuter", func), ignore_errors=True)
-            row = [func, unit, "%.2f" % pct, tag, base, best, iters, secs, digest, datetime.date.today().isoformat()]
-            with open(RESULTS, "a") as f:
-                f.write("\t".join(row) + "\n")
-            print("\t".join(row), flush=True)
+            tag, base, best, iters, secs = run_one(unit, func, a.minutes, a.j)
+            record([func, unit, "%.2f" % pct, tag, base, best, iters, secs, digest])
     finally:
         os.remove(PID)
 
@@ -142,7 +168,8 @@ def report(a):
     live = {(func, digest): (pct, unit) for pct, unit, func, digest in parks(ROOT)}
     latest = {}
     for r in results():
-        latest[r["func"]] = r
+        if r["tag"] != "SCORED" or r["func"] not in latest or latest[r["func"]]["body"] != r["body"]:
+            latest[r["func"]] = r
     rows = [r for r in latest.values() if (r["func"], r["body"]) in live]
     stale = len(latest) - len(rows)
     count = {}
@@ -177,7 +204,8 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--report", action="store_true", help="print results instead of running")
     ap.add_argument("--briefs", action="store_true", help="with --report: emit permute-brief.js worker args")
-    ap.add_argument("--min-pct", type=float, default=95, help="only parks whose note claims at least this (0 = all)")
+    ap.add_argument("--min-pct", type=float, default=0, help="only parks whose note claims at least this percentage")
+    ap.add_argument("--max-base", type=int, default=300, help="only bodies whose permuter score as parked is at most this")
     ap.add_argument("--minutes", type=float, default=3)
     ap.add_argument("-j", type=int, default=4)
     ap.add_argument("--limit", type=int, default=0)
