@@ -879,6 +879,106 @@ void WorldMapSetupMapPrims(void) {
     func_800453AC(&D_8009D3D8[1], &tw);
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80073B04);
+
+// The two POLY_FT4 primitives at D_8009C5C0; retail names every field store
+// by its own address (D_8009C5C3 = tag.len, D_8009C5C7 = tag.code, ...), so the
+// fields are declared individually and only the base is typed.
+extern POLY_FT4 D_8009C5C0[2];
+extern u8 D_8009C5C3;
+extern u8 D_8009C5C4;
+extern u8 D_8009C5C5;
+extern u8 D_8009C5C6;
+extern u8 D_8009C5C7;
+extern s16 D_8009C5C8;
+extern s16 D_8009C5CA;
+extern u8 D_8009C5CC;
+extern u8 D_8009C5CD;
+extern u16 D_8009C5CE;
+extern s16 D_8009C5D0;
+extern s16 D_8009C5D2;
+extern u8 D_8009C5D4;
+extern u8 D_8009C5D5;
+extern u16 D_8009C5D6;
+extern s16 D_8009C5D8;
+extern s16 D_8009C5DA;
+extern u8 D_8009C5DC;
+extern u8 D_8009C5DD;
+extern s16 D_8009C5E0;
+extern s16 D_8009C5E2;
+extern u8 D_8009C5E4;
+extern u8 D_8009C5E5;
+extern DR_TPAGE D_8009C5A0;
+extern POLY_G3 D_8009C664[8];
+extern TILE D_8009C898[0x40];
+
+/* best: 97.23%. The store order and every per-field symbol are right; only the
+   constant register allocation differs. Retail keeps 0x80 in $v0 for the whole
+   first block and therefore parks 0xD0 in $t0 and 0x137 in $v1 (then reuses $t0
+   for 0x7F and $v1 for 0xFF), while gcc reuses $v0 for 0xD0/0x137 since their
+   live ranges do not overlap retail's. Six source orders tried (address order,
+   retail store order, colours first, columns first); retail store order is the
+   best. The last mismatch is the TILE loop's base: retail forms
+   lui/addiu %hi(D_8009C8A6) (the array seen through tile->h) and stores at
+   -0xB..0, ours forms D_8009C898+0xE, which links identically but shows as an
+   addend difference.
+void func_80073E30(void) {
+    POLY_FT4* pPrim;
+    POLY_G3* pPoly;
+    TILE* pTile;
+    s32 i;
+
+    pPrim = D_8009C5C0;
+    D_8009C5C3 = 9;
+    D_8009C5C7 = 0x2C;
+    D_8009C5CA = 0x78;
+    D_8009C5D2 = 0x78;
+    D_8009C5DA = 0xD7;
+    D_8009C5E2 = 0xD7;
+    D_8009C5C8 = 0xD0;
+    D_8009C5D8 = 0xD0;
+    D_8009C5D0 = 0x137;
+    D_8009C5E0 = 0x137;
+    D_8009C5CC = 0;
+    D_8009C5CD = 0x80;
+    D_8009C5D4 = 0x7F;
+    D_8009C5D5 = 0x80;
+    D_8009C5DC = 0;
+    D_8009C5DD = 0xFF;
+    D_8009C5E4 = 0x7F;
+    D_8009C5E5 = 0xFF;
+    D_8009C5C4 = 0x80;
+    D_8009C5C5 = 0x80;
+    D_8009C5C6 = 0x80;
+    D_8009C5D6 = GetTPage(0, 0, 0x380, 0x100);
+    D_8009C5CE = GetClut(0x100, 0x1FE);
+    SetSemiTrans(pPrim, 1);
+    pPrim[1] = pPrim[0];
+    SetDrawTPage(&D_8009C5A0, 1, 0, GetTPage(0, 1, 0x380, 0x100));
+    pPoly = D_8009C664;
+    for (i = 0; i < 8; i++, pPoly++) {
+        setPolyG3(pPoly);
+        pPoly->r0 = 0xFF;
+        pPoly->g0 = 0x40;
+        pPoly->b0 = 0x40;
+        pPoly->r1 = 0;
+        pPoly->g1 = 0;
+        pPoly->b1 = 0;
+        pPoly->r2 = 0;
+        pPoly->g2 = 0;
+        pPoly->b2 = 0;
+        SetSemiTrans(pPoly, 1);
+    }
+    pTile = D_8009C898;
+    for (i = 0; i < 0x40; i++, pTile++) {
+        setTile(pTile);
+        pTile->r0 = 0x80;
+        pTile->g0 = 0x80;
+        pTile->b0 = 0x10;
+        pTile->w = 2;
+        pTile->h = 2;
+    }
+}
+*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80073E30);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_800740B8);
 extern void* D_8009D30C;
