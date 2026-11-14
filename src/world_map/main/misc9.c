@@ -147,16 +147,18 @@ void func_80086124(void) {
     HeapFree(D_8009D7E8);
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_8008615C);
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_800863E0);
 // Best: 91.94%. Both loops are instruction-for-instruction identical to retail;
-// the only difference is which callee-saved register holds what: retail keeps the
-// D_8009D150 destination pointer in s3 and the x counter in s2, we take the reverse,
-// and in the second loop retail holds the `(rand() & 3) + 1` value in s2 while we
-// use v1. That exchange also moves the `x = 0` init out of the y-loop back-edge
-// delay slot (retail has `bnez ...; move s2,zero`, we emit `bnez ...; nop`).
-// Declaration order, x/y swap, pointer-last and separate idx/value locals all leave
-// the allocator tie untouched (91.94 at best, 89.23 with a separate loop-2 temp).
+// the only differences are register picks: retail keeps the D_8009D150 destination
+// pointer in s3 and the x counter in s2 (we take the reverse), and holds
+// `-(rand() >> 10)` / `(rand() & 3) + 1` in v0/s2 where we use v1. Retail also keeps
+// a second `x = 0` (move s2,zero) in the entry block that gcc folds away here, and
+// emits the x-loop preheader `sll s5,s2,0xb; addiu s1,s3,4` before `move s0,zero`.
+// An extra `x = 0;` before the y loop does not survive cse (same 91.94).
+// Declaration order, x/y swap, pointer-last, indexed pVertex[k] and separate
+// idx/value locals all leave the tie untouched (89.23 with a separate loop-2 temp).
 // Note D_8009AF30/D_8009AF38 are separate absolute symbols 8 bytes apart, each read
-// as a word at stride 0x10.
+// as a word at stride 0x10 (retail keeps that stride in s0 and compares it to 0x50).
 // Screen: not screened under another gcc - the shape is exact, only regs differ.
 /*
 void func_800863E0(void) {
@@ -196,8 +198,6 @@ void func_800863E0(void) {
 }
 */
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_800863E0);
-
 void func_80086568(void) {
     HeapFree(D_8009CEB4);
     HeapFree(D_8009D150);
@@ -235,22 +235,14 @@ void func_800866C8(void) {
     HeapFree(D_8009D7F8);
 }
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_80086700);
-// Best: 92.29%. Verified shape: 0x50 iterations, s16 deltas at 0/4 of a 0x8-byte
-// entry added to the two s32 angles at 0/8 of a 0x10-byte entry, each wrapped by
-// (+-0x2000000). Retail keeps one destination pointer (`lw/sw 8(a2)`); gcc gives
-// the y field its own induction pointer and shifts the three wrap constants up a
-// register. Struct access, raw *(s32*)(pDst+8), pointer and index forms all agree.
-// Screen: cdk 92.29, 2.6.0 86.50, best 92.29 here - not a compiler miss.
-/*
 void func_80086700(void) {
-    u8* pDst = D_8009D150;
-    s16* pSrc = (s16*)D_8009CEB4;
+    WorldMapTileVertex* pDst = (WorldMapTileVertex*)D_8009D150;
+    WorldMapPathEntry* pSrc = (WorldMapPathEntry*)D_8009CEB4;
     s32 i;
 
     for (i = 0; i < 0x50; i++) {
-        s32 x = *(s32*)pDst + pSrc[0];
-        s32 y = *(s32*)(pDst + 8) + pSrc[2];
+        s32 x = pDst[i].unk0 + pSrc[i].unk0;
+        s32 y = pDst[i].unk8 + pSrc[i].unk4;
 
         if (x > 0x1FFFFFF) {
             x -= 0x2000000;
@@ -264,14 +256,10 @@ void func_80086700(void) {
         if (y < 0) {
             y += 0x2000000;
         }
-        *(s32*)pDst = x;
-        *(s32*)(pDst + 8) = y;
-        pDst += 0x10;
-        pSrc += 4;
+        pDst[i].unk0 = x;
+        pDst[i].unk8 = y;
     }
 }
-*/
-
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_80086798);
 s32 func_80087710(s32 index) {
     WorldMapSlot* pSlot = (WorldMapSlot*)(D_8009BE24 + index * 0x80);
@@ -351,20 +339,24 @@ s32 func_80087804(s32 index) {
 */
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_80087904);
-// Best: 92.44%. Loop body, GetTPage(0, abr, 0x1A0, 0xA0), the |2 on the byte at
-// p+7 and the trailing memcpy(pDst[0x4C], pDst[0x48], count*0x28) are exact. Only
-// the prologue differs: retail leaves `p = pSrc + 7` out of the entry block (blez,
-// `sw s0` in its delay slot, then `addiu s0,a1,7`), gcc sets s0 up before `sw ra`
-// and steals `sw ra` into the delay slot instead.
-// Screen: cdk 92.05, 2.6.0 92.44, best 92.44 here - not a compiler miss.
+// Best: 98.83%. Everything matches (frame 0x30, all six saves in the right slots,
+// `bleq` delay slot holding sw s0, pSrc+7 materialised after the branch) except the
+// position of the s1 pair: retail emits sw s1/move s1,zero before the s2/s3 param
+// copies, gcc here emits it after them. Same instructions, different order.
+// Screen: cdk 92.05, 2.6.0 92.44 with the older shape; this shape is 98.83.
 /*
 void func_80087904(u8* pDst, u8* pSrc, s32 count, s32 abr) {
+    long tmp[2]; // unused: reproduces retail's 0x30-byte stack frame
     u8* p;
-    s32 i;
+    s32 i = 0;
 
-    for (i = 0, p = pSrc + 7; i < count; i++, p += 0x28) {
-        *(u16*)(p + 0xF) = GetTPage(0, abr, 0x1A0, 0xA0);
-        *p |= 2;
+    if (count > 0) {
+        p = pSrc + 7;
+        do {
+            *(u16*)(p + 0xF) = GetTPage(0, abr, 0x1A0, 0xA0);
+            *p |= 2;
+            p += 0x28;
+        } while (++i < count);
     }
     memcpy(*(u8**)(pDst + 0x4C), *(u8**)(pDst + 0x48), count * 0x28);
 }
