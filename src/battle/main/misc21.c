@@ -312,6 +312,120 @@ s32 func_800A23E8(BattleBlockPool* pPool, BattleBlock* pBlock) {
     return index;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_800A2434);
+/* 83.63% (740 vs 720 bytes). Everything is recovered except two shapes:
+   1. the 5th parameter (tag, u8 at 0x58(sp)) is reloaded by retail in each
+      init block (`lbu t0,0x58(sp)`) while this version copies it once into a
+      frame slot, which costs 8 bytes of frame (0x50 vs retail's 0x48) - that
+      alone ends every diff; 2. retail stores `limit` (u16 at 0x10(sp)) twice,
+      once before the branch, and tests it with blez, this version stores it
+      only in the taken path and uses beqz. Struct view used below: block 0x00
+      flag, 0x01, 0x02, 0x03 tag, 0x04/0x08 pointers, 0x10/0x12 s16; data 0x02
+      u16, 0x04 flags, 0x06 u16, 0x0C countA, 0x0E countB, 0x18 frame records
+      of 6 bytes (u16 idxA, u16 idxB, u8 byteA, u8 byteB). Note func_800A2ACC
+      and func_800A2BB8 match ONLY with `unk1[2]` - naming that byte (e.g.
+      `tag`) changes their induction variable and drops them to 91%.
+s32 func_800A2434(BattleBlockPool* pPool, BattleSprite* pSprites, BattleAnimData* pData, u32 flags,
+                   u8 tag) {
+    BattleBlock* pBlock;
+    u16* pIdx;
+    u8* pBytes;
+    u8* pTable;
+    u16 numSprites;
+    u16 countA;
+    u16 countB;
+    u16 limit;
+    u16 animFlags;
+    s16 unk12;
+    u32 flagA;
+    u8* pB;
+    s32 i;
+
+    if (pData->unk06 != 0) {
+        func_800A2ACC(pPool, pSprites);
+        func_800A1B50(pSprites, pData);
+        return 1;
+    }
+    countA = pData->countA;
+    numSprites = pSprites->count;
+    limit = numSprites;
+    if (countA + 1 < numSprites) {
+        limit = countA + 1;
+    }
+    countB = pData->countB;
+    flagA = flags & 1;
+    unk12 = *(u16*)(pData->unk00 + 2);
+    if (flagA == 0) {
+        unk12--;
+    }
+    animFlags = pData->flags;
+    pIdx = (u16*)(pData + 1);
+    pTable = (u8*)pIdx + (countA + 1) * 6;
+    if (!(animFlags & 1)) {
+        pTable += countA * 6;
+    }
+    if (!(animFlags & 2)) {
+        pTable += countB * 6;
+    }
+    if (limit <= 0) {
+        return 0;
+    }
+    for (i = 0; i < limit; pIdx += 2, i++, pSprites++) {
+        pBytes = (u8*)(pIdx + 2);
+        if (*pIdx != 0xFFFF) {
+            pBlock = pSprites->p70;
+            if (pBlock == NULL) {
+                pBlock = func_800A2330(pPool);
+            } else if (pBlock->unk1[2] == 0xFF) {
+                pBlock = NULL;
+            }
+            if (pBlock != NULL) {
+                pB = pBlock->unk1;
+                pBlock->flag = 1;
+                pB[0] = flagA;
+                pB[2] = tag;
+                pB[1] = pBytes[0];
+                *(s16*)(pB + 0xF) = 0;
+                *(s16*)(pB + 0x11) = unk12;
+                *(u8**)(pB + 3) = *(u8**)(pB + 7) = pTable + *pIdx;
+                pSprites->p70 = pBlock;
+            }
+        } else {
+            pBlock = pSprites->p70;
+            if (pBlock != NULL && i != 0 && pBlock->unk1[2] != 0xFF) {
+                func_800A23E8(pPool, pBlock);
+                pSprites->p70 = NULL;
+            }
+        }
+        pIdx++;
+        if (*pIdx != 0xFFFF) {
+            pBlock = pSprites->p74;
+            if (pBlock == NULL) {
+                pBlock = func_800A2330(pPool);
+            } else if (pBlock->unk1[2] == 0xFF) {
+                pBlock = NULL;
+            }
+            if (pBlock != NULL) {
+                pB = pBlock->unk1;
+                pBlock->flag = 1;
+                pB[0] = flagA;
+                pB[2] = tag;
+                pB[1] = pBytes[1];
+                *(s16*)(pB + 0xF) = 0;
+                *(s16*)(pB + 0x11) = unk12;
+                *(u8**)(pB + 3) = *(u8**)(pB + 7) = pTable + *pIdx;
+                pSprites->p74 = pBlock;
+            }
+        } else {
+            pBlock = pSprites->p74;
+            if (pBlock != NULL && i != 0 && pBlock->unk1[2] != 0xFF) {
+                func_800A23E8(pPool, pBlock);
+                pSprites->p74 = NULL;
+            }
+        }
+    }
+    return 0;
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_800A2704);
 void func_800A2ACC(BattleBlockPool* pPool, BattleSprite* pSprites) {
     BattleBlock* pBlock;
