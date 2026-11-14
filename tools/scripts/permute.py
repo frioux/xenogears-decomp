@@ -197,6 +197,8 @@ rm -f "$3.s"
     if a.returncode:
         die("assembling the original failed:\n" + a.stderr[-2000:])
 
+    import json
+    json.dump(f, open(os.path.join(d, "flags.json"), "w"))
     open(os.path.join(d, "settings.toml"), "w").write('func_name = "%s"\ncompiler_type = "gcc"\n' % func)
     return d
 
@@ -226,10 +228,65 @@ def patch_scoring():
     objdump.process_mips_reloc = fold
 
 
+def patch_compiler(d):
+    """Compile candidates without a shell or a second Python per candidate.
+
+    compile.sh costs ~0.55 s a candidate, of which ~0.25 s is bash plus maspsx's
+    interpreter start-up. Running cc1 directly and maspsx's own main() in this process
+    gives the same object (the matched-function check in AGENTS.md is the proof) at
+    roughly twice the candidates per second. compile.sh stays as the readable reference.
+    """
+    import importlib.util
+    import io
+    import json
+    import tempfile
+    from src import compiler
+
+    f = json.load(open(os.path.join(d, "flags.json")))
+    sys.path.insert(0, os.path.join(ROOT, "tools", "maspsx"))
+    spec = importlib.util.spec_from_file_location("maspsx_cli", os.path.join(ROOT, "tools", "maspsx", "maspsx.py"))
+    cli = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(cli)
+    cc1 = [os.path.join("tools", f["gcc"], "cc1")] + f["opt"].split() + f["gp"].split() + f["cc"].split() + ["-quiet"]
+    msx = (["maspsx.py"] + f["msx"].split() + [f["endian"], "-Iinclude", "-I", "build"] + f["opt"].split()
+           + f["gp"].split() + ["-march=r3000", "-mtune=r3000", "-no-pad-sections"])
+
+    def compile(self, source, *, show_errors=False):
+        show = show_errors or self.show_errors or self.debug_mode
+        with tempfile.NamedTemporaryFile(prefix="permuter", suffix=".c", mode="w", delete=False) as c:
+            c.write(source)
+        s_name, o_name = c.name[:-2] + ".s", c.name[:-2] + ".o"
+        saved = sys.argv, sys.stdin, sys.stderr
+        try:
+            err = None if show else subprocess.DEVNULL
+            if subprocess.call(cc1 + ["-o", s_name, c.name], cwd=ROOT, stdin=subprocess.DEVNULL, stdout=err, stderr=err):
+                return None
+            sys.argv, sys.stdin, sys.stderr = msx + ["-o", o_name], io.StringIO(open(s_name).read()), io.StringIO()
+            try:
+                cli.main()
+            except SystemExit as e:
+                if e.code:
+                    return None
+            if not os.path.exists(o_name) or not os.path.getsize(o_name):
+                return None
+            return o_name
+        finally:
+            sys.argv, sys.stdin, sys.stderr = saved
+            for name in (c.name, s_name):
+                try:
+                    os.remove(name)
+                except OSError:
+                    pass
+
+    compiler.Compiler.compile = compile
+
+
 def permuter_main(argv):
     sys.path.insert(0, TOOL)
     sys.path.insert(0, os.path.join(TOOL, ".deps"))
+    os.chdir(ROOT)
     patch_scoring()
+    patch_compiler(argv[0])
     from src.main import main
     sys.argv = ["permuter.py"] + argv
     main()

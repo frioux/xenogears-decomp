@@ -334,19 +334,10 @@ s32 BattleGearHasWeaponId(u8 arg0) {
     }
     return g_GameState.gears[id].weaponData[2].unk5 == v;
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc20", func_8009E5C8);
-/* best 99.91%: head, the three weapon compares, both pointers and the loop
-   all match instruction for instruction. One instruction differs: the last
-   store in the loop body adds the row offset to the reloaded base as
-   `addu v0,a3,v0` here vs the original's `addu v0,v0,a3` (same registers,
-   commutative operand order only); the four stores above it do come out
-   base-first because their index is a gcc-CSEd temporary. Shapes tried for
-   that one store: array form, pointer arith, parenthesised row sum, the
-   product first, a cast to u8 (*)[0x170] - all flip both adds or the
-   schedule and lose bytes. 8 shapes.
 void func_8009E5C8(u8 arg0) {
     u8 *p = &D_800C34B0[arg0 * 0x14 + 0x5750];
     u8 v = p[0xF];
+    s32 rowOffset;
     u8 id = g_GameState.characters[4].gearId;
     u8 sel;
     u8 i;
@@ -367,15 +358,15 @@ void func_8009E5C8(u8 arg0) {
     g_GameState.gears[id].unk4[sel] = arg0;
     g_GameState.gearPartsIds[0x6C + arg0] = p[0xC];
     for (i = 0; i < 3; i++) {
-        if (D_800C34B0[i * 0x170 + 0x56] == 4) {
-            *(u8 *)(D_800C34B0 + (i * 0x170 + sel * 8) + 0xB6) = p[0xE];
-            *(u8 *)(D_800C34B0 + (i * 0x170 + sel * 8) + 0xB8) = p[0x11];
-            *(u8 *)(D_800C34B0 + (i * 0x170 + sel * 8) + 0xB7) = p[0x10];
-            *(u8 *)(D_800C34B0 + (i * 0x170 + sel * 8) + 0xB8) = p[0x11];
-            *(u8 *)(D_800C34B0 + i * 0x170 + sel + 0xA8) = arg0;
+        rowOffset = i * 0x170;
+        if (D_800C34B0[rowOffset + 0x56] == 4) {
+            *(u8 *)(D_800C34B0 + (rowOffset + sel * 8) + 0xB6) = p[0xE];
+            *(u8 *)(D_800C34B0 + (rowOffset + sel * 8) + 0xB8) = p[0x11];
+            *(u8 *)(D_800C34B0 + (rowOffset + sel * 8) + 0xB7) = p[0x10];
+            *(u8 *)(D_800C34B0 + (rowOffset + sel * 8) + 0xB8) = p[0x11];
+            *(u8 *)(D_800C34B0 + rowOffset + sel + 0xA8) = arg0;
         }
     }
 }
-*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc20", func_8009E788);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc20", func_8009E868);

@@ -196,7 +196,7 @@ def report(a):
           % (", ".join("%s %d" % kv for kv in sorted(count.items())) or "none", stale))
     for r in useful:
         print("%-6s %-34s %-28s park %6s%%  score %s -> %s" % (r["tag"], r["unit"], r["func"], r["pct"], r["base"], r["best"]))
-    untried = sum(1 for k in live if k[0] not in latest or latest[k[0]]["body"] != k[1])
+    untried = sum(1 for k in live if k[0] not in latest or latest[k[0]]["body"] != k[1] or latest[k[0]]["tag"] == "SCORED")
     print("parked bodies not yet tried in their current form: %d" % untried)
 
 
