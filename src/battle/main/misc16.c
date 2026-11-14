@@ -5,6 +5,7 @@
 extern u8 D_800D2CE0[];
 extern u8 *D_800D329C;
 extern u8 *D_800C3EA4;
+extern u8 *D_800C3EAC;
 extern s32 D_800CCB34;
 extern u8 *D_800D2D28;
 extern u8 *D_800D2E38[];
@@ -106,6 +107,46 @@ u8 func_8008CDE4(u8 arg0, u8 arg1) {
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008CFB8);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008D328);
+/* 93.85% (was 57.0 with a count local and 66.0 with an s32 k local): the loop
+   shapes, both guards, the two SetX calls and the three byte stores all match.
+   What is left: gcc CSEs 'D_800C3EA4 + j * 0xFA0' as one address base across the
+   |-0x20 store and the following byte load (the original reloads the pointer and
+   re-adds it), and the inner loop's back-branch delay slot takes the 'li a1,1'
+   of the SetSemiTrans call (the original has that constant as the first insn of
+   the body and a nop in the slot). Tried: count local plus two continue guards
+   (57.0), s32 k local (66.0), the offset sum before the pointer, and three
+   declaration orders. The count must stay a live re-read of the global in the
+   for-condition - that is what makes the original reload it at the loop tail.
+void func_8008D328(void) {
+    u8 found;
+    s32 j;
+    s32 i;
+
+    found = 0;
+    for (j = 0; j < 2; j++) {
+        if (*(s32 *)(D_800D2D28 + j * 4 + 0xD0) != 0) {
+            for (i = 0; i < *(s32 *)(D_800D2D28 + j * 4 + 0xD0) * 2; i += 2) {
+                u8 c;
+
+                SetSemiTrans(D_800C3EA4 + 0x641C + j * 0xFA0 + (i + D_800D2D28[0xA3]) * 0x28, 1);
+                SetShadeTex(D_800C3EA4 + 0x641C + j * 0xFA0 + (i + D_800D2D28[0xA3]) * 0x28, 0);
+                *(u16 *)(D_800C3EA4 + j * 0xFA0 + 0x6432 + (i + D_800D2D28[0xA3]) * 0x28) |= 0x20;
+                c = *(u8 *)(D_800C3EA4 + j * 0xFA0 + 0x6420 + (i + D_800D2D28[0xA3]) * 0x28);
+                if (c != 0) {
+                    found = 1;
+                    *(u8 *)(D_800C3EA4 + j * 0xFA0 + 0x6420 + (i + D_800D2D28[0xA3]) * 0x28) = c - (*(u8 *)(D_800C3EAC + 0x2E0) << 4);
+                    *(u8 *)(D_800C3EA4 + j * 0xFA0 + 0x6421 + (i + D_800D2D28[0xA3]) * 0x28) = c - (*(u8 *)(D_800C3EAC + 0x2E0) << 4);
+                    *(u8 *)(D_800C3EA4 + j * 0xFA0 + 0x6422 + (i + D_800D2D28[0xA3]) * 0x28) = c - (*(u8 *)(D_800C3EAC + 0x2E0) << 4);
+                }
+            }
+        }
+    }
+    if (found == 0) {
+        D_800D2D28[0xCB] = 0;
+    }
+}
+
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008D598);
 /* 99.91%: identical except ONE word -- the original ends the dy computation
    with addu s0,s4,s6 (arg2's register first) and gcc emits addu s0,s6,s4.
