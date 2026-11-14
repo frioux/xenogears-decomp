@@ -64,8 +64,77 @@ extern void func_8008CD28(u8);
 extern void BattlePlaySoundIfEnabled(u8);
 extern void BattleSetPolyFT4Rect(POLY_FT4 *, s16, s16, u8, u8, s16, s16);
 
+typedef struct {
+    /* 0x0 */ u16 x;
+    /* 0x2 */ u16 y;
+    /* 0x4 */ u16 unk4;
+    /* 0x6 */ u16 unk6;
+    /* 0x8 */ u16 w;
+    /* 0xA */ u16 h;
+    /* 0xC */ u8 slot;
+    /* 0xD */ u8 padD;
+} BattleSlotRect; // Size: 0xE
+
+
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16_r2", func_8008FAD8);
+/* 100.00% under gcc-2.6.0 (-O2 -G8): UN-PARK BY DELETING THIS COMMENT'S MARKERS.
+   Reported as PRESET_260 for the unit: 90.53% under the unit's current Default
+   (2.7.2-psx) and 74.70% under cdk. The whole remaining gap on 2.7.2 is one
+   compiler behaviour: retail reloads each field inside the clamp arms
+   (`lhu v0,8(a0); nop; addiu v0,v0,0x20` and `lhu v0,4(a0)`), i.e. the compare's
+   operands are dead across the branch; 2.7.2 CSEs them into the compare registers
+   (a2 = w, a1 = unk4) and the two `sh v0,8(a0)` stores can no longer cross-jump
+   into one. gcc 2.6.0 emits retail's exact reload shape with this source, and the
+   four functions already matched in this unit stay 100.00 under 2.6.0
+   (try_flags.sh --all), so the unit belongs on the same 2.6.0 preset as its
+   parent battle/main/misc16.
+   Two shapes are load-bearing: the `>=` polarity (gcc then emits retail's
+   `bnez -> += 0x20` arm with `w = bound; count++` as the fall-through), and the
+   base-first pointer spelling `*(pFlags + i + 0xB8)` / `*(D_800D2D28 + i + 0xBF)`
+   (the array spellings `pFlags[i + 0xB8]` emit `addu a1,s0,v0`, index first, and
+   cost 0.25%). `count` is u8 (`andi v1,a1,0xFF` before the == 2 test); x and y
+   are u16 locals, so the centre sums truncate once at the assignment.
+void func_8008FAD8(void) {
+    BattleSlotRect *p;
+    u8 *pFlags;
+    u8 count;
+    u16 x;
+    u16 y;
+    s32 i;
+
+    for (i = 0; i < 7; i++) {
+        pFlags = D_800D2D28;
+        p = (BattleSlotRect *)D_800D2D90[i];
+        if (*(pFlags + i + 0xB8) == 0) {
+            continue;
+        }
+        if (*(pFlags + i + 0xBF) != 0) {
+            continue;
+        }
+        count = 0;
+        if (p->w + 0x20 >= p->unk4) {
+            p->w = p->unk4;
+            count++;
+        } else {
+            p->w += 0x20;
+        }
+        if (p->h + 0x20 >= p->unk6) {
+            p->h = p->unk6;
+            count++;
+        } else {
+            p->h += 0x20;
+        }
+        if (count == 2) {
+            *(D_800D2D28 + i + 0xBF) = 1;
+        }
+        x = p->x + (p->unk4 >> 1) - (p->w >> 1);
+        y = p->y + (p->unk6 >> 1) - (p->h >> 1);
+        func_8008F6E4(p->slot, x, y, p->w, p->h);
+    }
+}
+*/
+
 /* 66.32%: the two BattleDrawSpritePackage loops and the accumulates match; the whole
    gap is the 9-arg func_800263E4 call block. The original keeps &D_800CCB34
    in s1 across the call (`lw a3,0(s1)` for the context arg, `lbu v0,0(s1)`
