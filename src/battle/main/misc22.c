@@ -4,9 +4,9 @@
 #include "psyq/inline_c.h"
 
 typedef struct {
-    /* 0x0 */ u32 unk0;
-    /* 0x4 */ s16 unk4;
-    /* 0x6 */ s16 unk6;
+    /* 0x0 */ struct _BattleMisc22Spr *pSprites;
+    /* 0x4 */ s16 capacity;
+    /* 0x6 */ s16 curIndex;
 } BattleMisc22Unk; // Size: 0x8
 
 typedef struct {
@@ -23,7 +23,7 @@ typedef struct {
     /* 0x6 */ s16 h;
 } BattleMisc22Rect; // Size: 0x8
 
-typedef struct {
+struct _BattleMisc22Spr {
     // NOTE: These first four blocks are sometimes used as SVECTORs, but they
     // can't be defined as such since the padding field is actually used.
     /* 0x00 */ u_short x0;
@@ -49,7 +49,9 @@ typedef struct {
     /* 0x28 */ s16 greenDelta;
     /* 0x2A */ s16 blueDelta;
     /* 0x2C */ POLY_FT4 polys[2];
-} BattleMisc22Spr; // Size: 0x7C
+}; // Size: 0x7C
+
+typedef struct _BattleMisc22Spr BattleMisc22Spr;
 
 typedef struct {
     /* 0x0 */ u8 pad0[0x4];
@@ -124,32 +126,32 @@ s32 BattleAllocSpriteSlot(BattleMisc22Unk *pArg, s16 arg1) {
     BattleMisc22Spr *pSpr;
     s16 i;
 
-    i = pArg->unk6;
-    if (i < pArg->unk4) {
-        pSpr = (BattleMisc22Spr *)(i * 124 + pArg->unk0);
+    i = pArg->curIndex;
+    if (i < pArg->capacity) {
+        pSpr = &pArg->pSprites[i];
         if (pSpr->unk16 == -1) {
-            pArg->unk6 = i + 1;
-            while (pArg->unk6 < pArg->unk4) {
-                BattleMisc22Spr *pNext = (BattleMisc22Spr *)(pArg->unk6 * 124 + pArg->unk0);
+            pArg->curIndex = i + 1;
+            while (pArg->curIndex < pArg->capacity) {
+                BattleMisc22Spr *pNext = &pArg->pSprites[pArg->curIndex];
 
                 if (pNext->unk16 == -1) {
                     break;
                 }
-                pArg->unk6++;
+                pArg->curIndex++;
             }
             SetSemiTrans(&pSpr->polys[0], arg1);
             SetSemiTrans(&pSpr->polys[1], arg1);
             return (s32)pSpr;
         }
     }
-    return pArg->unk4 * 124 + pArg->unk0;
+    return (s32)&pArg->pSprites[pArg->capacity];
 }
 
 s32 BattleEndSpriteSlotList(BattleMisc22Unk *pArg, BattleMisc22Spr *pEnd) {
-    s32 count = ((mem_addr)pEnd - pArg->unk0) / sizeof(BattleMisc22Spr);
+    s32 count = ((mem_addr)pEnd - (mem_addr)pArg->pSprites) / sizeof(BattleMisc22Spr);
 
-    if (pArg->unk6 >= count) {
-        pArg->unk6 = count;
+    if (pArg->curIndex >= count) {
+        pArg->curIndex = count;
     }
     pEnd->unk16 = -1;
     return count;
@@ -163,8 +165,8 @@ void func_800A2FD8(BattleMisc22Unk *pBuffer, MATRIX *pMatrix, s32 step, u_long *
     SetRotMatrix(pMatrix);
     SetTransMatrix(pMatrix);
 
-    pSpr = (BattleMisc22Spr *)pBuffer->unk0;
-    for (i = 0; i < pBuffer->unk4; i++, pSpr++) {
+    pSpr = pBuffer->pSprites;
+    for (i = 0; i < pBuffer->capacity; i++, pSpr++) {
         if (pSpr->unk16 == -1) {
             continue;
         }
