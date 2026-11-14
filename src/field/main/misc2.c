@@ -465,7 +465,110 @@ void func_80072A38(VECTOR* pPos, int param) {
 */
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80072D74);
+// 89.60% (1240 bytes, the original is 1236 - the extra is a slot in a delay-slot/register
+// difference, not a missing statement). Everything up to the shake block is exact except
+// the $a0 that holds &D_800B21D8 and the $s0 that holds &D_800AF8E0 in the original: both
+// are pointer locals here already. The camera-step macro reproduces retail's shape exactly
+// (`lw cur / lw tgt / sra sra beq / subu diff in the delay slot / mult slt bnez / div mflo /
+// addu cur+quot`), so the remaining diff is in the shake tail: retail keeps the reload of
+// D_800AF8E0 and the three `rand() * clamp` products in $v1 with slt-style compares where
+// this form uses a memory reload each time.
+// screens/D_800AF8E0/E4/E8 are a 3-long shake-offset vector (x at 0, y at 4, z at 8) that
+// the frame adds into g_Scene's +0xA0 block; g_Scene.unk98[0]/[1]/[2] are its three s16
+// counters and +0x8/+0x14 its offset/delta pairs.
+/*
+extern VECTOR g_CameraEye;
+extern VECTOR g_CameraEye2;
+extern VECTOR g_CameraAt;
+extern VECTOR g_CameraAt2;
+extern s32 D_800AF8E0;
+extern s32 D_800AF8E4;
+extern s32 D_800AF8E8;
+extern s32 D_800B21D8;
+extern int rand(void);
 
+// A camera coordinate only takes a step when the step cannot overshoot it.
+#define FIELD_CAMERA_STEP(cur, tgt, step, stepSq)                       \
+    {                                                                   \
+        s32 value = (cur);                                              \
+        s32 diff = (tgt)-value;                                         \
+        if ((value >> 16) != ((tgt) >> 16) &&                           \
+            ((diff >> 16) * (diff >> 16)) >= (stepSq)) {                \
+            (cur) = value + diff / (step);                              \
+        }                                                               \
+    }
+
+void func_80072D74(void) {
+    s32* pSnapFrames;
+    s32* pShakeOffset;
+    s32 atStepSq;
+    s32 eyeStepSq;
+
+    if (g_Scene.unk48 & FIELD_SCENE_INTERPOLATING_SCREEN_Z) {
+        if (g_Scene.unk80 != 0) {
+            g_Scene.unk84 += g_Scene.unk88;
+            g_Scene.sceneScrZ = g_Scene.unk84 >> 16;
+        }
+        if (--g_Scene.unk80 < 0) {
+            g_Scene.unk48 &= 0xFFEF;
+            g_Scene.unk80 = 0;
+        }
+    }
+
+    pSnapFrames = &D_800B21D8;
+    if (*pSnapFrames != 0) {
+        g_CamInterpolation.atStepDistance = 1;
+        g_CamInterpolation.eyeStepDistance = 1;
+        (*pSnapFrames)--;
+    }
+
+    atStepSq = g_CamInterpolation.atStepDistance * g_CamInterpolation.atStepDistance;
+    eyeStepSq = g_CamInterpolation.eyeStepDistance * g_CamInterpolation.eyeStepDistance;
+
+    FIELD_CAMERA_STEP(g_CameraEye.vx, g_CameraEye2.vx, g_CamInterpolation.eyeStepDistance, eyeStepSq);
+    FIELD_CAMERA_STEP(g_CameraEye.vz, g_CameraEye2.vz, g_CamInterpolation.eyeStepDistance, eyeStepSq);
+    FIELD_CAMERA_STEP(g_CameraEye.vy, g_CameraEye2.vy, g_CamInterpolation.eyeStepDistance, eyeStepSq);
+    FIELD_CAMERA_STEP(g_CameraAt.vx, g_CameraAt2.vx, g_CamInterpolation.atStepDistance, atStepSq);
+    FIELD_CAMERA_STEP(g_CameraAt.vz, g_CameraAt2.vz, g_CamInterpolation.atStepDistance, atStepSq);
+    FIELD_CAMERA_STEP(g_CameraAt.vy, g_CameraAt2.vy, g_CamInterpolation.atStepDistance, atStepSq);
+
+    pShakeOffset = &D_800AF8E0;
+    *pShakeOffset = 0;
+    D_800AF8E4 = 0;
+    D_800AF8E8 = 0;
+    if (((s16*)g_Scene.unk98)[0] != 0) {
+        if (((s16*)g_Scene.unk98)[1] != 0) {
+            ((s32*)g_Scene.unk98)[2] += ((s32*)g_Scene.unk98)[5];
+            ((s32*)g_Scene.unk98)[3] += ((s32*)g_Scene.unk98)[6];
+            ((s32*)g_Scene.unk98)[4] += ((s32*)g_Scene.unk98)[7];
+        } else if (((s16*)g_Scene.unk98)[2] != 0) {
+            ((s32*)g_Scene.unk98)[4] = 0;
+            ((s32*)g_Scene.unk98)[3] = 0;
+            ((s32*)g_Scene.unk98)[2] = 0;
+            ((s16*)g_Scene.unk98)[0] = 0;
+            ((s16*)g_Scene.unk98)[2] = 0;
+        }
+        *pShakeOffset = rand() * ((s16*)g_Scene.unk98)[5];
+        D_800AF8E4 = rand() * ((s16*)g_Scene.unk98)[7];
+        D_800AF8E8 = rand() * ((s16*)g_Scene.unk98)[9];
+        if (*pShakeOffset < 0) {
+            *pShakeOffset = 0;
+            ((s32*)g_Scene.unk98)[2] = 0;
+        }
+        if (D_800AF8E4 < 0) {
+            D_800AF8E4 = 0;
+            ((s32*)g_Scene.unk98)[3] = 0;
+        }
+        if (D_800AF8E8 < 0) {
+            D_800AF8E8 = 0;
+            ((s32*)g_Scene.unk98)[4] = 0;
+        }
+        if (((s16*)g_Scene.unk98)[1] > 0) {
+            ((s16*)g_Scene.unk98)[1]--;
+        }
+    }
+}
+*/
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80073230);
 
 void FieldRotateEyeAboutAt(VECTOR* pEye, VECTOR* pAt) {
