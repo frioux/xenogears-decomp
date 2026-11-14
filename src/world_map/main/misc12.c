@@ -15,9 +15,13 @@ extern s32 D_8009B214[];
 extern u16 D_1F8000A8;
 extern void func_80096F18(s16 *pOut, s32 *pSrc, s32 nHeight, u16 *pAngles);
 extern void WorldMapWrapPosition(void *p);
+extern u16 D_8009BD10;
+extern s16 D_8009CE68;
+extern s32 D_8009D804;
 extern u8 *func_80093660(s32 x, s32 z);
 extern u8 D_8009BD60;
 extern s16 D_8009BD24;
+extern u16 D_8009BD3A;
 extern u8 D_8009D738;
 extern void *D_8009D7D8;
 extern u32 D_8009B6C4[3];
@@ -32,7 +36,6 @@ extern s32 D_8009BE0C;
 extern s32 D_8009BE10;
 extern s32 D_8009D3F0;
 extern s16 D_8009BD38;
-extern s16 D_8009BD3A;
 extern s16 D_8009BD3C;
 extern u16 D_8009D52C;
 extern u32 D_8009D55C[];
@@ -57,7 +60,7 @@ typedef struct {
     /* 0x3C */ u32 unk3C;
     /* 0x40 */ u32 unk40;
     /* 0x44 */ u32 unk44;
-    /* 0x48 */ u16 unk48;
+    /* 0x48 */ s16 unk48;
     /* 0x4A */ u16 unk4A;
     /* 0x4C */ u8 unk4C[0x4];
     /* 0x50 */ s32 unk50;
@@ -296,22 +299,158 @@ void WorldMapUpdateL2R2PressEdge(void) {
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_80090A84);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_80090C68);
+/* best: 99.91%, same 428/416-byte size and every instruction identical; only the
+   switch table operand differs (jtbl_ vs .rodata) plus the .L label relocs.
+   PARKED FOR A LAYOUT REASON, not a codegen one: gcc emits the C jump table
+   8-byte aligned, so it lands at .rodata+0x190 where retail packs it at
+   .rodata+0x18C (4 bytes of pad at 0x18C), which shifts all of
+   world_map.bin by 4 and fails check_bin. The tables before it belong to
+   the BLOCKED stubs (func_8008E190/8008E4F4/8008E76C/80090A84), so the unit
+   cannot be re-laid-out for one function: converting the whole switch family
+   of this unit at once is the way in. diff_func.sh says 99.9%, the bytes
+   match, and unk48 must be s16 (rcos argument reads lh) and D_8009BD3A u16
+   (lhu in every case body).
+
+s32 func_80090C68(WorldMapPlayer *pPlayer) {
+    switch (D_8009CD4C >> 12) {
+    case 1:
+        pPlayer->unk48 = D_8009BD3A;
+        break;
+    case 2:
+        pPlayer->unk48 = (D_8009BD3A + 0x400) & 0xFFF;
+        break;
+    case 3:
+        pPlayer->unk48 = (D_8009BD3A + 0x200) & 0xFFF;
+        break;
+    case 4:
+        pPlayer->unk48 = (D_8009BD3A + 0x800) & 0xFFF;
+        break;
+    case 6:
+        pPlayer->unk48 = (D_8009BD3A + 0x600) & 0xFFF;
+        break;
+    case 8:
+        pPlayer->unk48 = (D_8009BD3A - 0x400) & 0xFFF;
+        break;
+    case 9:
+        pPlayer->unk48 = (D_8009BD3A - 0x200) & 0xFFF;
+        break;
+    case 12:
+        pPlayer->unk48 = (D_8009BD3A - 0x600) & 0xFFF;
+        break;
+    }
+    if (D_8009CD4C & 0xF000) {
+        pPlayer->unk38 = rcos(pPlayer->unk48);
+        pPlayer->unk40 = -rsin(pPlayer->unk48);
+    }
+    if (D_8009BD10 & 0x20) {
+        if (D_8009D738 != 0) {
+            return 3;
+        }
+        if (D_8009BD24 != -1) {
+            return 1;
+        }
+    }
+    if (D_8009BD10 & 0x10) {
+        if ((D_8009CE68 == -1) && (D_8009BD24 == D_8009CE68)) {
+            D_8009D804 = 1;
+        }
+    }
+    WorldMapUpdateL2R2PressEdge();
+    return 0;
+}
+*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_80090E14);
+/* best: 99.90%, same 428/416-byte size and every instruction identical; only the
+   switch table operand differs (jtbl_ vs .rodata) plus the .L label relocs.
+   PARKED FOR A LAYOUT REASON, not a codegen one: gcc emits the C jump table
+   8-byte aligned, so it lands at .rodata+0x190 where retail packs it at
+   .rodata+0x18C (4 bytes of pad at 0x18C), which shifts all of
+   world_map.bin by 4 and fails check_bin. The tables before it belong to
+   the BLOCKED stubs (func_8008E190/8008E4F4/8008E76C/80090A84), so the unit
+   cannot be re-laid-out for one function: converting the whole switch family
+   of this unit at once is the way in. diff_func.sh says 99.9%, the bytes
+   match, and unk48 must be s16 (rcos argument reads lh) and D_8009BD3A u16
+   (lhu in every case body).
+
+s32 func_80090E14(WorldMapPlayer *pPlayer) {
+    switch (D_8009CD4C >> 12) {
+    case 1:
+        pPlayer->unk48 = D_8009BD3A;
+        break;
+    case 2:
+        pPlayer->unk48 = (D_8009BD3A + 0x400) & 0xFFF;
+        break;
+    case 3:
+        pPlayer->unk48 = (D_8009BD3A + 0x200) & 0xFFF;
+        break;
+    case 4:
+        pPlayer->unk48 = (D_8009BD3A + 0x800) & 0xFFF;
+        break;
+    case 6:
+        pPlayer->unk48 = (D_8009BD3A + 0x600) & 0xFFF;
+        break;
+    case 8:
+        pPlayer->unk48 = (D_8009BD3A - 0x400) & 0xFFF;
+        break;
+    case 9:
+        pPlayer->unk48 = (D_8009BD3A - 0x200) & 0xFFF;
+        break;
+    case 12:
+        pPlayer->unk48 = (D_8009BD3A - 0x600) & 0xFFF;
+        break;
+    }
+    if (D_8009CD4C & 0xF000) {
+        pPlayer->unk38 = rcos(pPlayer->unk48);
+        pPlayer->unk40 = -rsin(pPlayer->unk48);
+    }
+    if (D_8009BD10 & 0x20) {
+        if (D_8009BD24 != -1) {
+            return 1;
+        }
+    }
+    if (D_8009BD10 & 0x40) {
+        return 4;
+    }
+    if (D_8009BD10 & 0x10) {
+        if ((D_8009CE68 == -1) && (D_8009BD24 == D_8009CE68)) {
+            D_8009D804 = 1;
+        }
+    }
+    return 0;
+}
+*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_80090FB4);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_80091430);
-/* best: 91.20%. Retail keeps the address of D_8009BD3A in one register (sh then
-   lh off the same base); gcc forwards the stored value so the address is used
-   once. A volatile STORE kills the forwarding (88.22 -> 91.20) but the address
-   still splits: `lui $at/%lo` for the store plus a fresh lui for the load, and
-   it also hoists the D_8009BE10 load. Also tried: volatile load (78.10, lhu +
-   sll16/sra4), s16 pointer local for both accesses (same split), `extern
-   volatile s16 D_8009BD3A` plus a volatile pointer local (78.10, lhu + the
-   split), cdk 75.97, -O3/-G0 85.22. maspsx fuses any single-use symbol address
-   into `%lo(sym)($at)`, so both memory refs must survive cse AND share the
-   lazily-loaded address - a plain store lets cse forward the value, volatile
-   stops cse pooling the address. Untried: a shape where the two refs cannot be
-   value-numbered for another reason.
-*/
+/* best: 88.22%. Retail has TWO accesses to D_8009BD3A (sh from an lhu'd
+   D_8009D52C, then `lh` re-read for unk58), so the address stays in $v1 and is
+   reused; this compile forwards the stored value across the `sw 0x50(a2)` store
+   and folds the second read away (the address then goes through $at). Tried:
+   unk50 = (s16)nAngle + unk58 = D_8009BD3A<<12, both reads on the global
+   (89.60, the BE10 load also hoists), s16 pointer local for both accesses,
+   volatile s32 store for unk50, volatile s16 read for unk58 (85.00, lhu +
+   sll/sra pair), gcc-2.7.2-cdk (78.97). The trigger for retail's reload is
+   inside the single basic block, so it is not CSE-across-jump.
+
+s32 func_80091430(s32 idx) {
+    WorldMapPlayer *pPlayer;
+    s32 nMode;
+    u16 nAngle;
+
+    pPlayer = D_8009BE24 + idx;
+    *(Quad *)&pPlayer->unk28 = *(Quad *)D_8009D55C;
+    nAngle = D_8009D52C;
+    D_8009BD3C = 0;
+    D_8009BD3A = nAngle;
+    *(volatile s32 *)&pPlayer->unk50 = D_8009BD3A;
+    pPlayer->unk58 = D_8009BD3A << 12;
+    nMode = D_8009BE10;
+    if (nMode < 8) {
+        if (nMode >= 6) {
+            pPlayer->unk20 = 3;
+        }
+    }
+    return 1;
+}*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_800914D0);
 s32 WorldMapModeInitActorAngleSets(s32 idx) {
     WorldMapPlayer *pPlayer;
