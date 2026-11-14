@@ -1059,6 +1059,69 @@ void func_80026F44(s32 count, s32 level, u16* pDst, u16* pSrc) {
 */
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_80026FE8);
+/*
+Best 64.58% (184 bytes against 176). The content is right - the clamp, the
+gte_lddp(level << 7), the per-field diff into IR1-IR3, gte_gpf12, the masked
+re-add and the shared store. Two walls, both shared with func_80026F44 and
+func_80025C04 above/below (same four-stub GPF family, the only stubs of the
+unit the disassembler marks "Handwritten function"):
+1. LOOP SHAPE. Retail enters the loop with no pre-loop test:
+       addiu a0,a0,1                 <- preheader
+   .L: addiu a0,a0,-1
+       beqz a0,.Lend
+       body
+       j .L ; addi a2,a2,2
+   so the decrement lives in a0 itself. Every spelling tried
+   (for (i=count;i!=0;i--), i=count+1; while(--i!=0), and the shapes parked
+   under func_80026F44) makes gcc's duplicate_loop_exit_test rotate it into a
+   pre-loop dec+test plus a bottom test, which is 2 instructions more than
+   retail. Identical under gcc 2.6.0 / 2.7.2 / 2.7.2-cdk at -O2 (all 64.58),
+   so it is not the preset.
+2. Retail's result sum is `add` (signed), ours `addu`, and retail re-masks
+   *in* from memory per field (andi v1,t4,0x1F / 0x3E0 / 0x7C00 each time)
+   instead of keeping the three masked copies, so the register allocation of
+   the nine body values differs on top of the loop.
+
+void func_80026FE8(s32 count, s32 level, u16* pDst, u16* pSrc, u16* pSrc2) {
+    s32 i;
+    u16 in;
+    u16 base;
+    s32 b1;
+    s32 b2;
+    s32 b3;
+    s32 ir1;
+    s32 ir2;
+    s32 ir3;
+    s32 rgb;
+
+    if (level >= 0x21) {
+        level = 0x20;
+    }
+    gte_lddp(level << 7);
+    i = count + 1;
+    while (--i != 0) {
+        in = *pSrc2++;
+        base = *pSrc;
+        b1 = base & 0x1F;
+        b2 = base & 0x3E0;
+        b3 = base & 0x7C00;
+        ir1 = (in & 0x1F) - b1;
+        ir2 = (in & 0x3E0) - b2;
+        ir3 = (in & 0x7C00) - b3;
+        gte_ldir123(ir1, ir2, ir3);
+        gte_gpf12();
+        gte_stir123_gpr(ir1, ir2, ir3);
+        ir1 = (ir1 & 0x1F) + b1;
+        ir2 = (ir2 & 0x3E0) + b2;
+        ir3 = (ir3 & 0x7C00) + b3;
+        rgb = ir1 | ir2;
+        rgb |= ir3;
+        *pDst = rgb;
+        pSrc++;
+        pDst++;
+    }
+}
+*/
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_8002709C);
 /*
