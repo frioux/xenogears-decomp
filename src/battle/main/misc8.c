@@ -32,6 +32,54 @@ extern u8 BattleSlotFlagsC002Clear(u8 arg0, u8 arg1);
 extern u8 func_8001BD40(s32 arg0, u8 arg1);
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007C1A4);
+/* best: 83.91% (408 bytes vs retail 392). Structure is certain (same body as
+   func_8007C9D4 plus the D_800C3EB4[actor slot tag] reject test): buf[0..2]
+   zeroed, row word zeroed, `while ((buf[0] & buf[1] & buf[2]) == 0)` picking a
+   random 0..2 entry, three tests, then the row word = bitmask and break.
+   Two blockers, both about how gcc 2.6 treats the D_800C3EB4 tag reads:
+   (1) retail keeps the invariant offset (arg1 + 3) * 0x1C in s4 and issues
+   each tag read as lui at/%hi + addu at,at,reg + lbu %lo(at) - the
+   single-use lo_sum form BattleTableEntryFlag8000 also has. gcc instead
+   hoists D_800C3EB4 + offset into s5 AND materialises the base into s6
+   (cse sees the symbol twice), so the frame carries one extra saved register
+   and the load pair becomes `addu v0,v0,s6` + two 0(reg) loads.
+   (2) retail computes arg1 * 0x40 into a2 right before the first store and
+   copies it to s5 at the loop preheader (`move s5,a2`); a `s32 row` local is
+   instead born in the prologue (sll s4,a1,0x6 sits above the frame stores).
+   Tried: inline (arg1+3)*0x1C (83.91%, this), s32 record local for the
+   invariant offset (78.65%), both row stores inlined (77.96%), an
+   element-typed BattleSlotRecord cast so gcc generates the * 0x1C scaling,
+   field indexing `[arg1 + 3].tag`/`[idx].tag`, and a plain u8* pRow for both
+   stores. Also screened the preset: gcc 2.7.2 gives the same 83.91, cdk
+   79.49, -O3 83.91 - so this is a source/cse question, not a compiler one.
+
+void func_8007C1A4(u8 **arg0, u8 arg1) {
+    u8 buf[3];
+    s32 row = arg1 * 0x40;
+    u16 *pRow = (u16 *)(D_800D3420 + row);
+
+    buf[0] = buf[1] = buf[2] = 0;
+    pRow[(*arg0)[1]] = 0;
+    while ((buf[0] & buf[1] & buf[2]) == 0) {
+        s32 slot = func_8001BD40(0, 2);
+        u8 idx = slot;
+
+        if (buf[idx] == 0) {
+            if (func_8007A628(idx, (*arg0)[2]) != 0
+                && D_800C3EB4[(arg1 + 3) * 0x1C] != D_800C3EB4[idx * 0x1C]
+                && D_800D32A1[idx * 8] == 0) {
+                u16 result = BattleSlotBitMask(idx);
+                s32 index = (*arg0)[1];
+                u16 *pTail = (u16 *)(D_800D3420 + row);
+
+                pTail[index] = result;
+                break;
+            }
+            buf[idx] = 1;
+        }
+    }
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007C33C);
 /* best: 89.69% (364 bytes vs retail 356). The whole structure matches: the
    prologue builds (arg1 + 3) * 0x1C into s5, the "record" offset 0x54, the
