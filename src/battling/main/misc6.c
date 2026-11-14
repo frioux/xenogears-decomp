@@ -23,13 +23,17 @@ extern u8 D_80099037;
 extern u8 D_800954E0[];
 extern s32 D_800928E8;
 
-void func_8007E964(u8 c);
-u8* func_8007E8AC(u8 c);
+void func_8007E964(s32 c);
+u8* func_8007E8AC(s32 c);
 s32 func_8007EB6C(u8* pText);
 extern s32 D_800926DC;
 
 void func_8008EB4C(s32 arg);
 void func_8008895C(void);
+
+extern u8* D_800926D4[];
+extern u16 D_800926E0;
+extern u16 D_800926E4;
 
 // 0x20-byte entry of the D_80092874 table; func_8007EEE8 reads only the s16 at 0x4.
 typedef struct {
@@ -179,6 +183,64 @@ void func_8007E954(s32 value) {
 }
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007E964);
+/* best 84.08%. Body shape is right: the 0x28-byte POLY_FT4 glyph quad, the
+   UV slot widths (u1 = u0 + (glyph[2]|3), v2/v3 = v1 + glyph[3] + 1), the
+   colour word and the x advance all reproduce. Four residual differences, all
+   in gcc's hands:
+   1. prologue: retail loads D_800926DC into v1 BEFORE addiu sp and multiplies
+      the packet index with v0; ours loads it into a0, multiplies into v1 and
+      therefore needs an extra `move a0,s1` before the jal (c must survive the
+      call in s1 either way). Tried: an s32 i local, D_800926DC read twice, a
+      pBase local, (POLY_FT4*)D_800926D4[idx] + i and + i*0x28 - all identical
+      or worse.
+   2. the lbu of glyph[2] is hoisted above the first sw in retail and not here
+      (retail also keeps (glyph[2]|3) in s1 across the stores).
+   3. the tail wants lhu for D_800926E8 and keeps x+2 in v0; ours emits lh and
+      a fresh register even with an explicit (u16) cast.
+   4. no extra stack slot: the 0x20 frame with s0/s1/ra is exact.
+   Also proved here: func_8007E8AC takes an s32, not a u8 - retail does no andi
+   on a0 in its own body or at these call sites, and func_8007EB6C still matches
+   100.00% with the s32 prototype.
+void func_8007E964(s32 c) {
+    POLY_FT4* pPkt;
+    POLY_FT4* pBase;
+    u8* pGlyph;
+    s16 x;
+    s16 y;
+    s32 gw;
+    s32 dx;
+
+    if (D_800926DC >= 0x65) {
+        return;
+    }
+    pBase = (POLY_FT4*)D_800926D4[D_800928A0];
+    pPkt = pBase + D_800926DC;
+    pGlyph = func_8007E8AC(c);
+    if (pGlyph == 0) {
+        return;
+    }
+    if (c != 0x28) {
+        y = D_800926EC;
+        x = D_800926E8;
+        *(u_long*)&pPkt->x0 = x | (y << 16);
+        gw = pGlyph[2] | 3;
+        dx = (gw * D_800912DC) >> 8;
+        *(u_long*)&pPkt->x1 = (x + dx) | (y << 16);
+        *(u_long*)&pPkt->x2 = x | ((y + pGlyph[3]) << 16);
+        *(u_long*)&pPkt->x3 = (x + dx) | ((y + pGlyph[3]) << 16);
+        *(u_short*)&pPkt->u0 = pGlyph[0] | (pGlyph[1] << 8);
+        *(u_short*)&pPkt->u1 = (pGlyph[0] + gw) | (pGlyph[1] << 8);
+        *(u_short*)&pPkt->u2 = pGlyph[0] | ((pGlyph[1] + (pGlyph[3] + 1)) << 8);
+        *(u_short*)&pPkt->u3 = (pGlyph[0] + gw) | ((pGlyph[1] + (pGlyph[3] + 1)) << 8);
+        pPkt->tpage = D_800926E0;
+        pPkt->clut = D_800926E4;
+        setlen(pPkt, 9);
+        *(u_long*)&pPkt->r0 = D_800926F0 | (D_800926F4 << 8) | (D_800926F8 << 16) | 0x2C000000;
+        D_800926DC++;
+    }
+    D_800926E8 = (u16)D_800926E8 + 2 + ((pGlyph[2] * D_800912DC) >> 8);
+}
+ */
 
 s32 func_8007EB6C(u8* pText) {
     s32 width = 0;
