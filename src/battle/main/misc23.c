@@ -229,6 +229,17 @@ void BattleSetActorRectParams(s32 arg0, s32 arg1, s32 arg2, s32 arg3, s32 arg4, 
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A64E4);
 
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A6884);
+/* 99.74%: the switch and every instruction match; the function is 612 bytes
+   like retail and the ONLY difference is the table operand (original names
+   jtbl_80070554, ours says .rodata). DO NOT CONVERT: the stub's .s owns the
+   unit's whole .rodata range (0xA64..0xA78 = 6 words, five case entries plus a
+   trailing 0), and a C switch emits only the five entries, so the overlay comes
+   out 4 bytes short and check_bin fails (285k bytes differ). unk3/unk4/unk5 are
+   read with `lb` (s8 * 8), unk0 is the enable flag, unk1 the blend mode and
+   unk2 the weight/32. The array spelling D_800C3AAx[index * 6] is retail's own:
+   a struct-pointer local folds the six loads into one base + displacements and
+   drops the per-field lui/addu pair.
 void func_800A6884(u8 *pDst, s32 index, u8 *pSrc) {
     s32 r;
     s32 g;
@@ -301,6 +312,7 @@ void func_800A6884(u8 *pDst, s32 index, u8 *pSrc) {
     pDst[1] = pSrc[1];
     pDst[2] = pSrc[2];
 }
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A6AE8);
 /* 84.16% (gcc 2.6.0 -G0 --expand-div): full structure recovered and every call,
    store and branch shape matches. What is left is loop strength reduction: the
@@ -513,6 +525,12 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A9540);
      before the branch and &D_800C3509 lives in a callee-saved register across
      HeapAlloc ("addu v0,s0,s1; lbu s0,-1(v0)"); with the assignment after the
      call gcc 2.6 folds the -1 into %lo(D_800C3509-1) and uses $at.
+   A 4-minute permuter run found base=1055 best=356 (PERMUTER_BETTER) on two
+   changes: "nameLen = 2; nameLen = base + nameLen;" for the second name length,
+   and moving func_80029AFC(D_800C3B78, 0, 0) BEFORE the two pTail zero stores
+   (that one is semantically wrong - retail has the sh before the jal and the sw
+   in its delay slot - so port only the nameLen split and re-run the permuter
+   from there, up to three times while the score falls).
    Remaining differences: (a) the original has an extra "move s3,s2" (a second
    register holding pEntry, used for the unk0/unk4 stores while s2 keeps the
    later ones) - a pHead = (u8 *)pEntry alias is CSE'd back into pEntry, so gcc
