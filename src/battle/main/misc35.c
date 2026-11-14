@@ -1,10 +1,25 @@
 #include "common.h"
+#include "psyq/libgte.h"
 
 extern void SoundFreeWdsEntry(void *);
 extern void SoundRemoveSedsEntry(void *);
 extern s32 *D_800C3A6C;
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc35", func_800C0828);
+void func_800C0828(SVECTOR *pFrom, SVECTOR *pTo, u16 *pRot) {
+    MATRIX mtx;
+    VECTOR diff;
+    VECTOR sq;
+    s32 len;
+
+    diff.vx = pFrom->vx - pTo->vx;
+    diff.vy = pFrom->vy - pTo->vy;
+    diff.vz = pFrom->vz - pTo->vz;
+    Square0(&diff, &sq);
+    len = SquareRoot0(sq.vx + sq.vz);
+    pRot[1] = ratan2(diff.vz, diff.vx);
+    pRot[2] = ratan2(diff.vy, len);
+    pRot[0] = 0;
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc35", func_800C08CC);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc35", func_800C0D18);
 
