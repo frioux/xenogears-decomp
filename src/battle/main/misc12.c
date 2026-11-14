@@ -361,7 +361,113 @@ u16 func_80084D28(void) {
     }
     return ret;
 }
+extern u16 func_80089C48(u8);
+extern u8 D_800C3E9A[];
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80084DE4);
+/* 98.35%: every instruction and the frame (0x30, 7 saved regs) match; the only
+   difference is the register the tail fill loop got - retail keeps the 0xFF
+   constant in a0 and the counter in s1, gcc 2.6.0 here gives the constant a1 and
+   the counter a0 (the pointer is v1 in both). Tried: counter as a separate local
+   (best, this one), counter reusing n, pointer local vs D_800C3E90[i], constant
+   as a literal vs a u8 local, four declaration orders of i/j/n/off/off8/val.
+   Everything else is exact, including the first loop's tail order
+   (s3 += 0x170, i++, slti, then off8 += 8 stolen into the bnez delay slot) and
+   the 0x8000/0x1000/0x2000 group tests.
+   Note for an un-park: the two offsets must stay explicit source variables
+   (off = 0x170 * i, off8 = 8 * i, both from 0); writing D_800CCD64[i].unk0 and
+   D_800D32A1[i * 8] instead makes gcc fold the D_800D32A1 base into the pointer
+   (lui/addiu in the preheader instead of move s5,zero) and it loses 5%.
+u16 func_80084DE4(u16 arg0, u16 arg1, u8 arg2, u8 arg3, u8 arg4) {
+    s32 i;
+    s32 j;
+    s32 n;
+    s32 off;
+    s32 off8;
+    u16 flags;
+    u16 mask;
+    u8 grp;
+    u8 first;
+    u8 *p;
+    u8 val;
+    s32 hi;
+
+    flags = arg0;
+    hi = 0;
+    switch (arg3) {
+    case 0:
+        flags = arg1;
+        break;
+    case 1:
+        flags = 0x3000;
+        break;
+    case 2:
+        flags = 0x2001;
+        break;
+    }
+    if ((flags & 0x8000) != 0) {
+        hi = 1;
+    }
+    if ((flags & 0x1000) != 0) {
+        first = 0;
+        grp = 0;
+        mask = 0xFFF8;
+    } else {
+        first = 1;
+        grp = 1;
+        mask = 7;
+    }
+    if ((flags & 0x2000) != 0) {
+        grp = 2;
+        mask = 0xFFFF;
+    }
+    if (arg4 != 0) {
+        D_800C3E2C = func_80084750(arg2);
+    } else {
+        D_800C3E2C = func_80084548(grp, hi, first);
+    }
+    D_800C3D64 &= mask;
+    if ((flags & 0x8000) != 0) {
+        D_800C3E2C = 0xFF;
+        n = 0;
+        for (i = 0, off = 0, off8 = 0; i < 0xB; i++, off8 += 8) {
+            if (func_80089C9C(D_800C3D64, i) != 0) {
+                if (D_800D32A1[off8] == 0) {
+                    if ((*(u16 *)((u8 *)D_800CCD64 + off) & 0x8000) != 0) {
+                        D_800C3E2C = i;
+                        D_800C3E90[n] = i;
+                        n++;
+                    } else {
+                        D_800C3D64 &= func_80089C48(i);
+                    }
+                } else {
+                    if ((*(u16 *)((u8 *)D_800CCE08 + off) & 0x8000) != 0) {
+                        D_800C3E2C = i;
+                        D_800C3E90[n] = i;
+                        n++;
+                    } else {
+                        D_800C3D64 &= func_80089C48(i);
+                    }
+                }
+            }
+            off += 0x170;
+        }
+        while (n < 0xB) {
+            D_800C3E90[n] = 0xFF;
+            n++;
+        }
+    } else if ((flags & 0x4000) != 0) {
+        D_800C3E2C = arg2;
+        D_800C3D64 = func_80089C08(arg2);
+        val = 0xFF;
+        j = 10;
+        p = D_800C3E9A;
+        for (; j >= 0; j--) {
+            *p-- = val;
+        }
+    }
+    return flags & 0xFFFF;
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80085084);
 u32 func_80085310(u8 arg0, u8 arg1) {
     return D_800C3EBE[arg0].unk0 > D_800C3EBE[arg1].unk0;
