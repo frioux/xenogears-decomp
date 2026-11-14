@@ -298,6 +298,49 @@ void func_80076544(void) {
 }
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_800765C4);
+/* 59.87%: first real attempt (this stub had no park). Shape recovered from the
+   asm: pEntry = &D_800C3254[(D_800D3280 * 3 + arg0)] kept in one register;
+   D_800D2D28 fields 0x44/0x34 written twice, the second time when
+   (&D_800D32A1)[arg0 * 8] != 0 && D_800D2D24[arg0] != 7; then 0x3C=0x10,
+   0x4C=0x98, a dead store of the divisor to 0x5C followed by 0x5C=0x100,
+   0x54 = 0x34-5-0x3C, u16 0x104=0x800, u8 0xA9=6, 0x64/0x6C/0x106 = 0,
+   0x54 = (height << 8) / divisor, u8 0xAB=1, D_800D2D28[0x90 + arg0]--.
+   Ours reassociates the arithmetic (bare `div` where retail has `divu`, and the
+   height/divisor temps land in different registers) and reloads D_800D2D28
+   fewer times than retail, which rematerialises it three times in the tail.
+   Retail's divisor is non-negative by construction: try unsigned types for the
+   height/divisor pair first. */
+/*
+void func_800765C4(s32 arg0) {
+    u16 *pEntry;
+    s32 divisor;
+    s32 height;
+
+    pEntry = (u16 *)((D_800D3280 * 3 + arg0) * 2 + (s32)D_800C3254);
+    *(s32 *)(D_800D2D28 + 0x44) = 0x1C;
+    *(s32 *)(D_800D2D28 + 0x34) = arg0 * 0x60 + (*pEntry + 0x48);
+    if ((&D_800D32A1)[arg0 * 8] != 0 && D_800D2D24[arg0] != 7) {
+        *(s32 *)(D_800D2D28 + 0x44) = 0x24;
+        *(s32 *)(D_800D2D28 + 0x34) = arg0 * 0x60 + (*pEntry + 0x44);
+    }
+
+    *(s32 *)(D_800D2D28 + 0x3C) = 0x10;
+    *(s32 *)(D_800D2D28 + 0x4C) = 0x98;
+    divisor = *(s32 *)(D_800D2D28 + 0x4C) - (*(s32 *)(D_800D2D28 + 0x44) + 5);
+    *(s32 *)(D_800D2D28 + 0x5C) = divisor;
+    *(s32 *)(D_800D2D28 + 0x5C) = 0x100;
+    height = *(s32 *)(D_800D2D28 + 0x34) - 5 - *(s32 *)(D_800D2D28 + 0x3C);
+    *(s32 *)(D_800D2D28 + 0x54) = height;
+    *(u16 *)(D_800D2D28 + 0x104) = 0x800;
+    *(u8 *)(D_800D2D28 + 0xA9) = 6;
+    *(s32 *)(D_800D2D28 + 0x64) = 0;
+    *(s32 *)(D_800D2D28 + 0x6C) = 0;
+    *(u16 *)(D_800D2D28 + 0x106) = 0;
+    *(s32 *)(D_800D2D28 + 0x54) = (height << 8) / divisor;
+    D_800D2D28[0xAB] = 1;
+    D_800D2D28[0x90 + arg0]--;
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_80076710);
 
 void func_800769E8(RECT *pRect, u_long *pData) {
