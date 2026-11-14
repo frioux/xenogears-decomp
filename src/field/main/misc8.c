@@ -671,6 +671,17 @@ void func_8003A20C(int);
 void SoundPlaySoundEffectOnPairWithLevels(void*, int, int, int);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800855C8);
+/* 85.56%: re-tried with the mask written out at both call sites, i.e.
+   `func_8003A20C((arg3 & 7) * 2)` and `OnPairWithLevels(arg0, (arg3 & 7) * 2,
+   ...)`. Same 85.56%: gcc still folds the two shifts into one value in s0 and
+   copies it (`move a0,s0` / `move a1,s0`), where retail recomputes
+   `sll a0,s0,1` (in the jal delay slot) and `sll a1,s0,1`. So the source needs
+   two shifts gcc cannot CSE; see the note below for the shapes already tried.
+void func_800855C8(int arg0, int arg1, int arg2, int arg3) {
+    func_8003A20C((arg3 & 7) * 2);
+    SoundPlaySoundEffectOnPairWithLevels(arg0, (arg3 & 7) * 2, (s16)arg1, (s16)arg2);
+}
+*/
 /* 85.56%: the original keeps `arg3 & 7` in s0 and shifts at each use
    (`andi s0,a3,7`, `sll a0,s0,1`, `sll a1,s0,1`); gcc CSEs the doubled value
    into s0 and copies it (`move a0,s0` / `move a1,s0`), which also keeps it out
@@ -745,16 +756,25 @@ void FieldStopSedsPlayback(void) {
 }
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80085788);
-/* 85.42%: the inner scan matches (pointer + index incremented together) but
-   gcc inverts the inner loop (test at both ends, `bne` back edge) where the
-   original keeps the test at the top and a `j` back edge; that also makes gcc
-   hoist `streamId + 1` out of the outer loop into s0 and shuffle the base
-   pointer/0xFFFF into t0/a3 instead of a3/a2.
+/* 93.00% (252 vs 280 bytes). Two changes took this from 85.42% to here:
+   (1) the inner scan must be an infinite loop with a break - `while (1) {
+   if (pEntry->unk0 == 0xFFFF) break; pEntry++; i++; }` - which is what makes
+   retail keep the test at the top with a `j` back edge and the pointer and
+   index increments in the two delay slots (a plain `while (cond)` gets
+   inverted: test at both ends, `bne` back edge); (2) the stream id must be
+   one local (`s16 streamId = D_800C3A38;`) - reading the global inline at
+   each use makes gcc reload it three times, since it does not CSE a global
+   across the calls. Residues: retail copies the loaded id into s1 right
+   after the first call (`move s1,s0`) and reuses s0 for `streamId + 0x115`,
+   ours keeps the load in s1 and computes `addiu s0,s1,0x115`; and retail
+   recomputes the loop bound at the head and in the back-edge
+   (`addiu v0,s1,1; slt v0,a1,v0`), ours hoists it into s0 before the loop.
 void func_80085788(void) {
-    int count;
-    int i;
-    int streamId;
+    s16 streamId;
+    s32 count;
+    s32 i;
     FieldUnk800AE060* pEntry;
+    SoundFile* pSoundFile;
 
     streamId = D_800C3A38;
     if (streamId == 0xFF) {
@@ -762,8 +782,9 @@ void func_80085788(void) {
     }
     SoundStopAllElements();
     ArchiveSetIndex(0x1C, 0);
-    D_800B235C = HeapAlloc(ArchiveDecodeAlignedSize(streamId + 0x115), 1);
-    ArchiveReadFileToBuffer(streamId + 0x115, D_800B235C, 0, 0x80);
+    pSoundFile = HeapAlloc(ArchiveDecodeAlignedSize(streamId + 0x115), 1);
+    D_800B235C = pSoundFile;
+    ArchiveReadFileToBuffer(streamId + 0x115, pSoundFile, 0, 0x80);
     ArchiveCdDataSync(0);
     SoundAddSedsEntry(D_800B235C);
     func_8003BDFC(0x10);
@@ -771,7 +792,10 @@ void func_80085788(void) {
     i = 0;
     for (count = 0; count < streamId + 1; count++) {
         pEntry = &D_800AE060[i];
-        while (pEntry->unk0 != 0xFFFF) {
+        while (1) {
+            if (pEntry->unk0 == 0xFFFF) {
+                break;
+            }
             pEntry++;
             i++;
         }
