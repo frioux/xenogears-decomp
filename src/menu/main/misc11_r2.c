@@ -56,6 +56,13 @@ typedef struct {
     /* 0x00 */ u8 unk0[0xA38];
 } MenuSaveBlob0xA38; // Size: 0xA38
 
+// Cell position in the menu glyph atlas: 21 cells per row, the row's y in
+// D_801E99E8.
+typedef struct {
+    /* 0x0 */ u16 unk0;
+    /* 0x2 */ u16 unk2;
+} MenuGlyphCellPos; // Size: 0x4
+
 typedef struct {
     /* 0x0000 */ u32 unk0[0x9];
     /* 0x0024 */ MenuSaveNamesA namesA;
@@ -404,7 +411,45 @@ void MenuFreeCellPrimBlocks(void) {
         HeapFree(g_Menu->unk3A8[i]);
     }
 }
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc11_r2", func_801E5B88);
+extern MenuGlyphCellPos D_801E9994[0x15];
+extern MenuGlyphCellPos D_801E99E8[2];
+
+void func_801E5B88(void) {
+    MenuGlyphCellPos* pCellX;
+    MenuGlyphCellPos* pCellY;
+    s32 offset;
+    s32 i;
+    s32 j;
+
+    for (i = 0, pCellX = D_801E9994, pCellY = D_801E99E8; i < 0x20; i++) {
+        for (j = 0; j < 2; j++) {
+            offset = (i * 2 + j) * 0x28;
+            MenuInitializePolyFt4((POLY_FT4*)(offset + (u32)g_Menu->unk34C));
+            ((POLY_FT4*)(offset + (u32)g_Menu->unk34C))->x0 =
+                pCellX[i % 0x15].unk0 + (i / 0x15) * 8;
+            ((POLY_FT4*)(offset + (u32)g_Menu->unk34C))->y0 = pCellY[i / 0x15].unk0;
+            ((POLY_FT4*)(offset + (u32)g_Menu->unk34C))->x1 =
+                pCellX[i % 0x15].unk0 + (i / 0x15) * 8 + 0xC;
+            ((POLY_FT4*)(offset + (u32)g_Menu->unk34C))->y1 = pCellY[i / 0x15].unk0;
+            ((POLY_FT4*)(offset + (u32)g_Menu->unk34C))->x2 =
+                pCellX[i % 0x15].unk0 + (i / 0x15) * 8;
+            ((POLY_FT4*)(offset + (u32)g_Menu->unk34C))->y2 = pCellY[i / 0x15].unk0 + 0x10;
+            ((POLY_FT4*)(offset + (u32)g_Menu->unk34C))->x3 =
+                pCellX[i % 0x15].unk0 + (i / 0x15) * 8 + 0xC;
+            ((POLY_FT4*)(offset + (u32)g_Menu->unk34C))->y3 = pCellY[i / 0x15].unk0 + 0x10;
+            ((POLY_FT4*)(offset + (u32)g_Menu->unk34C))->u0 = (i % 0x10) * 0x10;
+            ((POLY_FT4*)(offset + (u32)g_Menu->unk34C))->v0 = (i / 0x10) * 0x10 - 0x20;
+            ((POLY_FT4*)(offset + (u32)g_Menu->unk34C))->u1 = (i % 0x10) * 0x10 + 0xC;
+            ((POLY_FT4*)(offset + (u32)g_Menu->unk34C))->v1 = (i / 0x10) * 0x10 - 0x20;
+            ((POLY_FT4*)(offset + (u32)g_Menu->unk34C))->u2 = (i % 0x10) * 0x10;
+            ((POLY_FT4*)(offset + (u32)g_Menu->unk34C))->v2 = (i / 0x10) * 0x10 - 0x11;
+            ((POLY_FT4*)(offset + (u32)g_Menu->unk34C))->u3 = (i % 0x10) * 0x10 + 0xC;
+            ((POLY_FT4*)(offset + (u32)g_Menu->unk34C))->v3 = (i / 0x10) * 0x10 - 0x11;
+            ((POLY_FT4*)((u8*)g_Menu->unk34C + offset))->tpage = GetTPage(0, 0, 0x140, 0x80);
+            ((POLY_FT4*)((u8*)g_Menu->unk34C + offset))->clut = GetClut(0, 0x1C0);
+        }
+    }
+}
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc11_r2", func_801E5E4C);
 extern s32 D_801E9F98[];
 extern s32 D_801E9FBC[];
