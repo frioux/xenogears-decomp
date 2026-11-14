@@ -9,6 +9,7 @@
 #include "system/archive.h"
 #include "psyq/pc.h"
 #include "psyq/libcd.h"
+#include "psyq/libgpu.h"
 
 extern s8* D_8004FE08;
 extern s32 D_8004FE0C;
@@ -47,6 +48,12 @@ extern s16 D_80059F44;
 extern s16 D_80059F48;
 extern u16* D_80059F4C;
 extern s32 D_80059F50;
+extern s16 D_80059F24;
+extern u16 D_80059F28;
+extern u16 D_80059F2C;
+extern s16 D_80059F30;
+extern u16 D_80059F34;
+extern u16 D_80059F38;
 
 // Only matches on GCC 2.7.2
 int ArchiveReadFile(u32 dbgEntryIndex, u8* pDestBuffer, s32 arg2, s32 flags) {
@@ -980,6 +987,144 @@ void func_8002BA58(void) {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002BB50);
 
+/* Best attempt: objdiff 82.06% (1020 bytes vs retail 996). Structure is fully
+ * decoded; every remaining delta is a register/block-placement tie, no missing
+ * or extra instruction class. The function is a CD data callback: it finds the
+ * stream-file section whose id matches D_80059F28's counter (state 1), marks it
+ * state 2, then either feeds one queued LoadImage chunk from the sector or
+ * parses the sector's 0x1200/0x1201 command block (position + size, scaling by
+ * D_80059F24/D_80059F28-D_80059F2C for command 0x1200 and D_80059F30/
+ * D_80059F34-D_80059F38 for 0x1201) and arms D_80059F4C/D_80059F50 for the
+ * chunk loop.
+ *
+ * What is confirmed against retail:
+ *  - the branch on D_80059F50 is `if (D_80059F50 == 0)` with the command path as
+ *    the THEN block (retail bnez's out of line to the LoadImage block);
+ *  - `nCommand >= 0x1200 && nCommand <= 0x1201` is retail's sltiu range check,
+ *    and the two command bodies are two sequential ifs, not a switch with
+ *    fallthrough (retail re-tests `nCommand != 0x1201` before the second body);
+ *  - the inner dispatch on D_80059F24 / D_80059F30 is a 3-way switch whose
+ *    case 1 and default share their tail (gcc cross-jumps them);
+ *  - the section-clearing loop must be `pIter[j].state` (indexed) with a pointer
+ *    local, not `pIter++`;
+ *  - `pBuf = (u_long*)(i * CD_SECTOR_SIZE + (mem_addr)D_8004FE08);` (index first
+ *    gives retail's addu operand order).
+ * Remaining deltas: retail keeps i in a0 and the loop bound in v1 (ours the
+ * other way round), keeps pBuf in a2 and the u16 alias in a3 (ours swapped), and
+ * tests D_80059F3C with bgtz to the shared state=0 tail where ours emits blez to
+ * the error block (same blocks, opposite fallthrough). Tried: both tail shapes
+ * (one shared `state = 0; D_8004FE28++` after the if, and two copies that
+ * cross-jump); gcc emits the same 82.06% for both.
+ *
+ * void func_8002BB50(void) {
+ *     ArchiveStreamFileSectionHeader* pSection;
+ *     ArchiveStreamFileSectionHeader* pIter;
+ *     u_long* pBuf;
+ *     u16* pData;
+ *     u16* pChunk;
+ *     RECT rect;
+ *     s16 i;
+ *     s16 j;
+ *     s32 nCommand;
+ *     s32 nChunks;
+ *
+ *     pSection = D_8004FE2C;
+ *     for (i = 0; i < D_8004FE40; i++, pSection++) {
+ *         if (pSection->state == 1 && pSection->id == D_8004FE28)
+ *             break;
+ *     }
+ *
+ *     if (i == D_8004FE40)
+ *         return;
+ *
+ *     pSection->state = 2;
+ *     pBuf = (u_long*)(i * CD_SECTOR_SIZE + (mem_addr)D_8004FE08);
+ *
+ *     if (D_80059F50 == 0) {
+ *         nCommand = *pBuf++;
+ *         pData = (u16*)pBuf;
+ *         if (nCommand >= 0x1200 && nCommand <= 0x1201) {
+ *             if (nCommand == 0x1200) {
+ *                 switch (D_80059F24) {
+ *                 case 1:
+ *                     D_80059F40 = D_80059F28 + pData[2];
+ *                     D_80059F44 = D_80059F2C + pData[3];
+ *                     break;
+ *                 case 2:
+ *                     D_80059F40 = D_80059F28 + pData[0] + pData[2];
+ *                     D_80059F44 = D_80059F2C + pData[1] + pData[3];
+ *                     break;
+ *                 default:
+ *                     D_80059F40 = pData[0] + pData[2];
+ *                     D_80059F44 = pData[1] + pData[3];
+ *                     break;
+ *                 }
+ *             }
+ *             if (nCommand == 0x1201) {
+ *                 switch (D_80059F30) {
+ *                 case 1:
+ *                     D_80059F40 = D_80059F34 + pData[2];
+ *                     D_80059F44 = D_80059F38 + pData[3];
+ *                     break;
+ *                 case 2:
+ *                     D_80059F40 = D_80059F34 + pData[0] + pData[2];
+ *                     D_80059F44 = D_80059F38 + pData[1] + pData[3];
+ *                     break;
+ *                 default:
+ *                     D_80059F40 = pData[0] + pData[2];
+ *                     D_80059F44 = pData[1] + pData[3];
+ *                     break;
+ *                 }
+ *             }
+ *             pData += 4;
+ *             D_80059F48 = pData[0];
+ *             pData += 4;
+ *             if (D_80059F3C == 0)
+ *                 D_80059F3C = *(u32*)pData;
+ *             pData += 2;
+ *             nChunks = *(u32*)pData;
+ *             pData += 2;
+ *             D_80059F4C = pData;
+ *             D_80059F50 = nChunks;
+ *             D_8004FE28 += 1;
+ *             return;
+ *         }
+ *     } else {
+ *         rect.x = D_80059F40;
+ *         rect.y = D_80059F44;
+ *         rect.w = D_80059F48;
+ *         rect.h = D_80059F4C[0];
+ *         LoadImage(&rect, pBuf);
+ *         pChunk = D_80059F4C;
+ *         D_80059F4C = pChunk + 1;
+ *         D_80059F50 -= 1;
+ *         D_80059F44 += pChunk[0];
+ *         if (D_80059F50 <= 0) {
+ *             D_80059F3C -= 1;
+ *             D_80059F50 = 0;
+ *             pIter = D_8004FE2C;
+ *             for (j = 0; j < D_8004FE40; j++) {
+ *                 pIter[j].state = 0;
+ *                 pIter[j].id = 0;
+ *             }
+ *             if (D_80059F3C > 0) {
+ *                 pSection->state = 0;
+ *                 D_8004FE28 += 1;
+ *                 return;
+ *             }
+ *         } else {
+ *             pSection->state = 0;
+ *             D_8004FE28 += 1;
+ *             return;
+ *         }
+ *     }
+ *
+ *     g_ArchiveCurFileSize = 0;
+ *     CdDataCallback(NULL);
+ *     ArchiveCdSeekToFile(D_8004FE38);
+ *     D_8004FDFC = 0;
+ * }
+ */
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002BF38);
 
 void func_8002C310(void) {
