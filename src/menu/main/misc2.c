@@ -353,6 +353,20 @@ void func_801C8324(u8 index) {
     }
 }
 */
+void MenuSetQuadVertices(SVECTOR* pVertices, u16 x, u16 y, u16 width, u16 height) {
+    pVertices[0].vx = x + 0xFF60;
+    pVertices[0].vy = y + 0xFF90;
+    pVertices[0].vz = 0;
+    pVertices[1].vx = x + width - 0xA0;
+    pVertices[1].vy = y + 0xFF90;
+    pVertices[1].vz = 0;
+    pVertices[2].vx = x + 0xFF60;
+    pVertices[2].vy = y + height - 0x70;
+    pVertices[2].vz = 0;
+    pVertices[3].vx = x + width - 0xA0;
+    pVertices[3].vy = y + height - 0x70;
+    pVertices[3].vz = 0;
+}
 void MenuPlaySoundEffect(u_char soundEffectId) {
     if (g_Menu->unk32A) {
         SoundPlaySoundEffectOnLastPair((g_Menu->unk2E4->sedId << 16) | soundEffectId);
