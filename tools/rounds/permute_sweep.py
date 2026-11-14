@@ -93,7 +93,9 @@ def refresh_clone():
     for d in ("disc/disc1", "disc/disc2", "permuter"):
         shutil.rmtree(os.path.join(CLONE, d), ignore_errors=True)
     print("sweep: building the clone in report mode", flush=True)
-    subprocess.check_call(["make", "objdiff-config"], cwd=CLONE, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    # The Makefile mounts $(PWD) into the container, and cwd= alone leaves the parent's PWD in place.
+    subprocess.check_call(["make", "objdiff-config"], cwd=CLONE, env=dict(os.environ, PWD=CLONE),
+                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
 def sweep(a):
@@ -115,7 +117,7 @@ def sweep(a):
         print("sweep: %d parked bodies at >= %.1f%% to try, %.1f min each" % (len(queue), a.min_pct, a.minutes), flush=True)
         for pct, unit, func, digest in queue:
             p = subprocess.run(["tools/scripts/permute.sh", unit, func, "--minutes", str(a.minutes), "-j", str(a.j), "--keep", "1"],
-                               cwd=CLONE, capture_output=True, text=True)
+                               cwd=CLONE, env=dict(os.environ, PWD=CLONE), capture_output=True, text=True)
             m = re.search(r"^RESULT PERMUTER_(\w+) \S+ \S+ base=(\d+) best=(\d+) iterations=(\S+) seconds=(\d+) dir=(\S+)", p.stdout, re.M)
             if m:
                 tag, base, best, iters, secs, d = m.groups()
