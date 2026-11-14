@@ -1184,6 +1184,53 @@ fills above, diff, and only then chase the pColors add/re-add shape.
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_800273C4);
 
+// Derivation only, never diffed (no percentage yet); kept so the next worker
+// does not have to re-read 274 instructions.
+//
+// Signature, from its only caller func_800273C4 (jal at 0x80027600):
+//   (pBlock, s32 a1, s32 a2, s16 a3, u_long* pOT, s32 bank)
+// a0 is the 0x34C block func_8002709C allocates; a3 is 0..0x100 from the
+// caller's clamp and is the divisor's base everywhere below; arg6 is 0 or 1
+// and picks which 0x140-byte half of the block is written. Every division is a
+// real div (with the divide-by-zero and INT_MIN override sequences), so all
+// divisors are runtime values. Frame 0x50, locals at 0x10 (u16), and y/a2/pOT
+// are spilled to 0x18/0x1C/0x20 around the one call.
+//
+// 1. q  = (pBlock->unk328 << 8) / (a3 + 0x100)
+//    h  = (0x140 - q) / 2
+//    x  = h + (h * a3) / 0x100
+//    d  = (s16)(a1 - x);
+//    s3 = d % pBlock->unk328; if (s3 < 0) s3 += pBlock->unk328;
+//    unk328 is loaded with lw here and with lhu at the modulo fixup, so the
+//    source narrows it on one side. The signed remainder path (mfhi plus the
+//    +unk328 fixup) is the same shape the caller spells at 0x80027570.
+// 2. y = 0; x0 = 0;
+//    if (a2 >= 0 && a2 <= pBlock->unk32C + 0xF0) y = (pBlock->unk32C << 8) / (a3 + 0x100);
+//    One pre-test (bltz a2) plus one slt against unk32C+0xF0, and both paths
+//    run addu x0,zero,zero, so it is a single if with an else, not two.
+// 3. pPrimBase = (u8*)pBlock + (arg6 & 1) * 0x140;   a step of 0x28 * 8
+//    if (y <= 0) return;   the test is sll/sra on y, so y is s16.
+// 4. hoisted before the loop: u0 = (s16)pBlock->unk334 >> (2 - pBlock->unk338),
+//    truncated to u16 in the 0x10(sp) local (sh and lhu of that slot).
+// 5. loop for (i = 0; i < 8; i++, pPrim++), exit test slti i,8 with both
+//    increments (0x28 each) in the delay slots. Per iteration the vertex
+//    stores are sh +0x8, sh +0xA, sb +0xC, sb +0xD, sh +0x10, sh +0x12,
+//    sb +0x14, sb +0x15, then the area +0x18/+0x1A/+0x1C/+0x1D and
+//    +0x20/+0x22/+0x24/+0x25, with the u16 tpage result at +0x16.
+//    So the 0x28-byte record is four vertices of { s16 x; s16 y; u8 u; u8 v }
+//    at 0x8/0x10/0x18/0x20 plus a u16 tpage at 0x16 -- not a POLY_FT4; the
+//    coordinates are 16-bit, which is why every coordinate store is sh.
+//    Vertex u = the masked/wrapped column, v = (u8)pBlock->unk33A plus
+//    (u8)pBlock->unk32C for the two lower vertices (both reread per use).
+// 6. tpage = GetTPage((s16)pBlock->unk338, 0, ((s16)col / 64) * 64,
+//                     ((s16)pBlock->unk336 / 256) * 256);
+//    the (v < 0 ? v + 0x3F : v) >> 6 << 6 and (v < 0 ? v + 0xFF : v) >> 8 << 8
+//    sequences are signed divide-then-multiply, so write the division out.
+//    unk338 is lh (s16) and is used both as the tp argument and as the shift
+//    amount of item 4; unk334 is lhu, unk336 is lh.
+// 7. AddPrim(pOT, pPrim): the retail lw/lw/and 0xFF000000/and 0xFFFFFF/or/sw
+//    pair IS libgs' AddPrim macro, so arg5 is a u_long* OT slot (reloaded from
+//    the stack around GetTPage because it is call-clobbered).
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_800278F8);
 
 void HeapFreeIfNotNull(void* pData) {
