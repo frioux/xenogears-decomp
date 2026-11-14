@@ -33,32 +33,39 @@ extern u8 func_8001BD40(s32 arg0, u8 arg1);
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007C1A4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007C33C);
-/* best: 77.91%. Structure read from the asm: u8 buf[8] at sp+0x10, loop
-   3..0xB with `record += 0x1C` from 0x54, the arg1-derived operand index
-   (arg1 + 3) * 0x1C hoisted into s5 in the prologue, i++ copied to a u8
-   (move s1,s0) for the predicate and the buffer, and the final row store
-   spelled INLINE (retail re-forms it from the saved arg1 after the call, so
-   unlike func_8007CB20 there is no pRow local). This attempt only covers the
-   skeleton; the loop body order and the `!=` operand order were not tuned.
+/* best: 89.69% (364 bytes vs retail 356). The whole structure matches: the
+   prologue builds (arg1 + 3) * 0x1C into s5, the "record" offset 0x54, the
+   three-condition body, `buf[count++] = idx`, and the tail store with a local
+   index + row pointer. Two remaining differences: (1) gcc strength-reduces
+   D_800D32A1[i * 8] into an induction pointer (&D_800D32A1 + 0x18 stored in a
+   saved register) where retail keeps `sll a0,s0,3` and the at-form load, which
+   also costs the extra saved register; (2) with that block shared by three
+   predecessors retail keeps a nop in the `beqz` delay slot and increments i in
+   the fall-through block, gcc steals the addiu into the slot.
 
 void func_8007C33C(u8 **arg0, u8 arg1) {
     u8 buf[8];
     s32 i = 3;
     s32 count = 0;
+    s32 slot = (arg1 + 3) * 0x1C;
     s32 record = 0x54;
+    u16 *pField = (u16 *)(D_800D3420 + arg1 * 0x40);
 
-    ((u16 *)(D_800D3420 + arg1 * 0x40))[(*arg0)[1]] = 0;
+    pField[(*arg0)[1]] = 0;
     for (; i < 0xB; i++, record += 0x1C) {
         u8 idx = i;
 
-        if (func_8007A628(idx, (*arg0)[2]) != 0
-            && D_800C3EB4[(arg1 + 3) * 0x1C] != D_800C3EB4[record]
+        if (func_8007A628(idx, (*arg0)[2]) != 0 && D_800C3EB4[slot] != D_800C3EB4[record]
             && D_800D32A1[i * 8] == 0) {
             buf[count++] = idx;
         }
     }
     if (count != 0) {
-        ((u16 *)(D_800D3420 + arg1 * 0x40))[(*arg0)[1]] = func_80089C08(buf[func_8001BD40(0, count - 1)]);
+        u16 result = func_80089C08(buf[func_8001BD40(0, count - 1)]);
+        s32 index = (*arg0)[1];
+        u16 *pRow = (u16 *)(D_800D3420 + arg1 * 0x40);
+
+        pRow[index] = result;
     }
 }
 */
@@ -134,25 +141,23 @@ void func_8007C75C(u8 **arg0, u8 arg1) {
     pRow[(*arg0)[1]] = result;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007C840);
-/* best: 87.25% (340 bytes vs retail 336). Whole structure recovered: a while
-   loop inverted by gcc (guard test at the top, back-edge at the bottom), the
-   3-byte "seen" array zeroed with a chained assignment (that is what gives
-   retail's 0x12/0x11/0x10 store order), and the eligible slot stored into the
-   row. Four insns of difference left, all allocation: (1) gcc hoists
-   &D_800D32A1 into a callee-saved s5 (frame 0x38 vs 0x30, one extra saved
-   reg) where retail re-forms it per use as lui at/%hi + addu at,at,v0 +
-   lbu %lo(at); (2) gcc reassociates the zeroing store as (idx*2 + arg1*0x40) +
-   symbol instead of retail's (arg1*0x40 + symbol) + idx*2; (3) the
-   slot/idx copy pair comes out `andi s1,v0; move s0,s1` instead of
-   `move s1,v0; andi s0,s1`. Tried: local row pointer vs the inline expression
-   (this version: chained zeros + inline zeroing store), separate zero stores.
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007C9D4);
+/* best: 91.53% (340 bytes vs retail 336). Everything matches except two
+   allocation details: (1) gcc computes the row base straight into s4
+   (`addu s4,a1,v1`) where retail forms it in a caller-saved temp and copies it
+   into s4 at the loop preheader (`addu a1,a1,v1` / `move s4,a1`); (2) gcc hoists
+   `&D_800D32A1` into s5 (frame 0x38 vs 0x30) where retail re-forms it per use
+   as lui at/%hi + addu at,at,v0 + lbu %lo(at).
+   Tried: inline ((u16 *)(D_800D3420 + arg1 * 0x40))[(*arg0)[1]] for both stores
+   (92.07%, 344 bytes: two copies of the base), for the zeroing store only
+   (92.07%/344), and the plain u8 *pRow + pRow[i] form (this one).
 
 void func_8007C9D4(u8 **arg0, u8 arg1) {
     u8 buf[3];
     u16 *pRow = (u16 *)(D_800D3420 + arg1 * 0x40);
 
     buf[0] = buf[1] = buf[2] = 0;
-    ((u16 *)(D_800D3420 + arg1 * 0x40))[(*arg0)[1]] = 0;
+    pRow[(*arg0)[1]] = 0;
     while ((buf[0] & buf[1] & buf[2]) == 0) {
         s32 slot = func_8001BD40(0, 2);
         u8 idx = slot;
@@ -167,7 +172,6 @@ void func_8007C9D4(u8 **arg0, u8 arg1) {
     }
 }
 */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007C9D4);
 void func_8007CB20(u8 **arg0, u8 arg1) {
     u8 buf[8];
     s32 i = 3;
@@ -278,11 +282,12 @@ void func_8007CFB8(u8 **arg0, u8 arg1) {
     pRow[(*arg0)[1]] = count;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007D0CC);
-/* best: 85.97%. Loop body and the D_800D2CE0/D_800D2CB0 at-register lookups
-   match exactly; the prologue order does not - the original forms the
-   D_800D3430 base before the p[1] load and its i = 0 lands after it, gcc
-   hoists i = 0 to the top and loads p first. Also tried i = 0 between the
-   store and the loop, and a separate pDst local; both give the same order.
+/* best: 85.97% (identical instruction multiset, 4 insns of ordering). Retail
+   forms the D_800D3430 base in a caller-saved temp and keeps it in a1 for the
+   loop body, with `lui/addiu` before the p[1] load and `i = 0` after it; gcc
+   hoists `i = 0` to the top and loads p first. Tried: the inline
+   *(D_800D3430 + arg1 * 0x40 + (*arg0)[1]) spelling (folds into $at and grows
+   the frame to 8), i = 0 between the store and the loop.
 
 void func_8007D0CC(u8 **arg0, u8 arg1) {
     u8 *pRow = D_800D3430 + arg1 * 0x40;
