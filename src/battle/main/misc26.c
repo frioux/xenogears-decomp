@@ -1,19 +1,22 @@
 #include "common.h"
 
 extern u8 *D_800C3558;
+extern u32 D_800C3548;
+extern u8 D_800C355C;
+extern u32 D_800C3560;
 
 extern u8 *func_800B35C0();
 extern void func_800B3358(u8 *pArg0);
+extern void func_800B39C0(s32, s32, u8, u8, u8);
 extern void BattleSetActorRectParams(s32, s32, s32, s32, s32, s32);
+extern void WorkListRemoveTask(void *pEntry);
+extern void TimerWorkListRemoveTask(void *pEntry);
+extern void BattleUploadAndFreeImageResources(void);
 
 u8 *func_800B168C(u8 *pBase, s32 n) {
     return &pBase[n * 0x1C + 0xC];
 }
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc26", func_800B16A4);
-/* best 99.74%: one instruction - retail's `addu a2,a1,zero` (the second zero
-   init copies the counter's register) where we get `addu a2,zero,zero`. Tried
-   decl inits, statement inits, a for-init, and `total = count`.
 s32 func_800B16A4(u8 *pBase) {
     s32 count;
     s32 total;
@@ -30,14 +33,11 @@ s32 func_800B16A4(u8 *pBase) {
     }
     return total;
 }
-*/
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc26", func_800B16F0);
-/* best 16.67%: gcc re-forms each global's address instead of keeping the
-   `lui a1,%hi` retail shares between the load and the store.
-extern s32 D_800C3BF0;
-extern u8 *D_800C3BEC;
-
+// best 62.50% under cdk -G0 (16.67% under 2.7.2 and 2.6.0): same instruction
+// multiset, but gcc loads the counter global first where retail loads the
+// pointer global first, into the register it reuses for the final store.
+/*
 void func_800B16F0(void) {
     u8 *pCmd = D_800C3BEC;
 
@@ -45,6 +45,7 @@ void func_800B16F0(void) {
     D_800C3BEC = pCmd + (pCmd[1] + 1) * 4;
 }
 */
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc26", func_800B16F0);
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc26", func_800B1720);
 void BattleModelScaleParts(u8 *pBase, s32 shift) {
@@ -65,14 +66,10 @@ void BattleModelScaleParts(u8 *pBase, s32 shift) {
     }
 }
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc26", func_800B1F0C);
-/* best 53.95%: ATFREE - the `sw` of the advanced work pointer needs an
-   absolute-address store whose base register is not $at. Retail reuses the
-   `lui a0` it loaded through; our assembler always emits `sw at` here.
-extern u8 *g_GfxCurWorkBuffer;
-extern u8 *g_GfxCurWorkBufferEnd;
-extern u32 D_800C3BF8[];
-
+// best 71.75% under cdk -G0 (59.46% under 2.7.2): -G0 gives retail's absolute
+// store, but gcc re-forms &D_800C3BF8 for the second word where retail keeps one
+// base register and reads it at +4.
+/*
 void func_800B1F0C(u8 *pOt) {
     u8 *pBuf = g_GfxCurWorkBuffer;
 
@@ -84,6 +81,7 @@ void func_800B1F0C(u8 *pOt) {
     }
 }
 */
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc26", func_800B1F0C);
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc26", func_800B1F6C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc26", func_800B2AEC);
@@ -96,18 +94,11 @@ void func_800B3350(void) {
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc26", func_800B3358);
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc26", func_800B3588);
-/* best 99.29%: retail stores through `lui v0,%hi`, gcc+maspsx through `$at`.
-extern u32 D_800C3548;
-extern void TimerWorkListRemoveTask(void *pEntry);
-extern void HeapFree(void *pMem);
-
 void func_800B3588(void *pEntry) {
     TimerWorkListRemoveTask(pEntry);
     HeapFree(pEntry);
     D_800C3548 = 0;
 }
-*/
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc26", func_800B35C0);
 void BattleCreateTimedScaleTask(u8 *pSrc, s32 n) {
@@ -122,34 +113,19 @@ void BattleCreateTimedScaleTask(u8 *pSrc, s32 n) {
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc26", func_800B36BC);
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc26", func_800B383C);
-/* best 99.33%: same $at store as func_800B3588.
-extern u8 *D_800C3558;
-extern void WorkListRemoveTask(void *pEntry);
-extern void TimerWorkListRemoveTask(void *pEntry);
-
 void func_800B383C(u8 *pEntry) {
     WorkListRemoveTask(pEntry + 0x1C);
     TimerWorkListRemoveTask(pEntry);
     D_800C3558 = NULL;
 }
-*/
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc26", func_800B3878);
-
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc26", func_800B397C);
-/* best 66.12%: retail keeps the flag address in a saved register across the
-   call where gcc re-forms it into $at twice, and its `li v0,1` is an addiu
-   where maspsx expands the li to ori.
-extern u8 D_800C355C;
-extern void func_800B39C0(s32, s32, u8, u8, u8);
 
 void func_800B397C(s32 a0, s32 a1, u8 a2, u8 a3, u8 a4) {
     D_800C355C = 1;
     func_800B39C0(a0, a1, a2, a3, a4);
     D_800C355C = 0;
 }
-*/
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc26", func_800B39C0);
 
@@ -160,10 +136,11 @@ s32 BattleGetActorFlag41(void) {
     return 1;
 }
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc26", func_800B3B94);
-/* best 88.68%: same instruction multiset; retail keeps the branch delay slot
-   empty because its else path still reads the argument from $a0 (ours reads it
-   from $a1, which lets reorg move the `addiu ...,-1` into the slot).
+// best 88.68% under cdk -G0, cdk -G8 and 2.6.0: register-only differences (which
+// of the two $a0/$a1 copies feeds each load), same instruction multiset. Retail's
+// else path reads the argument from $a0, leaving the branch delay slot empty
+// where reorg fills ours.
+/*
 void func_800B3B94(u8 *pArg) {
     s32 n;
     s32 num;
@@ -182,14 +159,7 @@ void func_800B3B94(u8 *pArg) {
     }
 }
 */
-
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc26", func_800B3C2C);
-/* best 90.83%: same $at store as func_800B3588.
-extern u32 D_800C3560;
-extern void WorkListRemoveTask(void *pEntry);
-extern void TimerWorkListRemoveTask(void *pEntry);
-extern void HeapFree(void *pMem);
-extern void BattleUploadAndFreeImageResources(void);
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc26", func_800B3B94);
 
 void func_800B3C2C(u8 *pEntry) {
     WorkListRemoveTask(pEntry + 0x1C);
@@ -198,13 +168,11 @@ void func_800B3C2C(u8 *pEntry) {
     D_800C3560 = 0;
     BattleUploadAndFreeImageResources();
 }
-*/
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc26", func_800B3C74);
-/* best 56.38%: retail reads 0x46 three times - `lh` twice (compare and the
-   0x20-x argument) and `lhu` for the 0x44 store - and keeps the result in
-   $v1 across the branch; cse merges our two 0x46 loads into one. Retail's frame
-   is also 0x20 where ours is 0x28.
+// best 60.58% under cdk -G0 (56.38% under 2.7.2): retail keeps 0x46 in $t0 and
+// loads 0x48/0x4a/0x4c/0x4e after the branch; gcc hoists those loads above it
+// and spills two of them.
+/*
 void func_800B3C74(u8 *pArg) {
     u8 *p = *(u8 **)(pArg + 4);
     s16 prev;
@@ -219,6 +187,7 @@ void func_800B3C74(u8 *pArg) {
     }
 }
 */
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc26", func_800B3C74);
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc26", func_800B3CD4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc26", func_800B3E04);
