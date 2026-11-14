@@ -502,8 +502,135 @@ void func_800762FC(void) {
     FlushCache();
     ExitCriticalSection();
 }
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc2", func_8007634C);
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc2", func_80076594);
+extern int D_80059488;
+extern s32 D_8009D7F0;
+extern DISPENV D_8009BC9C;
+extern DISPENV D_8009BC24;
+extern DRAWENV D_8009BC40;
+extern u16 D_8009BD10;
+extern u16 D_8009BD14;
+extern u16 D_8009BD18;
+extern u16 D_8009BD1C;
+extern u16 D_8009CD4C;
+extern u16 D_8009CD50;
+extern u_short g_C1ButtonState;
+extern u_short g_C1ButtonStatePressedOnce;
+extern u_short g_C1ButtonStateReleased;
+extern u_short g_C2ButtonState;
+extern u_short g_C2ButtonStatePressedOnce;
+extern u_short g_C2ButtonStateReleased;
+extern int ControllerPopState(void);
+extern void GraphicsDrawPauseLetters(int x, int y);
+extern void SoundMuteAllSpuChannels(void);
+extern void SoundEnableAllSpuChannels(void);
+
+void func_8007634C(void) {
+    RECT rect;
+    DISPENV* pDispEnv;
+    s32 savedValue;
+
+    savedValue = D_80059488;
+    DrawSync(0);
+    Vsync(0);
+    if (D_8009D7F0 == 0) {
+        rect.x = 0;
+        rect.y = 0xD8;
+        rect.w = 0x140;
+        rect.h = 0xD8;
+        MoveImage(&rect, 0, 0);
+    }
+    pDispEnv = &D_8009BC9C;
+    PutDispEnv(pDispEnv);
+    PutDrawEnv((DRAWENV*)((u8*)pDispEnv - 0x5C));
+    SoundMuteAllSpuChannels();
+    do {
+        DrawSync(0);
+        Vsync(0);
+        GraphicsDrawPauseLetters(0x88, 0x64);
+        D_8009BD1C = 0;
+        D_8009BD14 = 0;
+        D_8009CD50 = 0;
+        D_8009BD18 = 0;
+        D_8009BD10 = 0;
+        D_8009CD4C = 0;
+        while (ControllerPopState() != 0) {
+            D_8009CD4C |= g_C1ButtonState;
+            D_8009CD50 |= g_C2ButtonState;
+            D_8009BD10 |= g_C1ButtonStateReleased;
+            D_8009BD14 |= g_C2ButtonStateReleased;
+            D_8009BD18 |= g_C1ButtonStatePressedOnce;
+            D_8009BD1C |= g_C2ButtonStatePressedOnce;
+        }
+    } while ((D_8009BD10 & 0x800) == 0);
+    SoundEnableAllSpuChannels();
+    DrawSync(0);
+    Vsync(0);
+    rect.x = 0;
+    rect.y = 0;
+    rect.w = 0x140;
+    rect.h = 0xD8;
+    MoveImage(&rect, 0, 0xD8);
+    pDispEnv = &D_8009BC24;
+    PutDispEnv((DISPENV*)((u8*)pDispEnv + D_8009D7F0 * 0x78));
+    pDispEnv = (DISPENV*)((u8*)pDispEnv - 0x5C);
+    PutDrawEnv((DRAWENV*)((u8*)pDispEnv + D_8009D7F0 * 0x78));
+    D_80059488 = savedValue;
+}
+
+extern int ControllerGetType(int controllerIndex);
+
+void func_80076594(void) {
+    RECT rect;
+    DISPENV* pDispEnv;
+    s32 savedValue;
+
+    savedValue = D_80059488;
+    DrawSync(0);
+    Vsync(0);
+    if (D_8009D7F0 == 0) {
+        rect.x = 0;
+        rect.y = 0xD8;
+        rect.w = 0x140;
+        rect.h = 0xD8;
+        MoveImage(&rect, 0, 0);
+    }
+    pDispEnv = &D_8009BC9C;
+    PutDispEnv(pDispEnv);
+    PutDrawEnv((DRAWENV*)((u8*)pDispEnv - 0x5C));
+    SoundMuteAllSpuChannels();
+    do {
+        DrawSync(0);
+        Vsync(0);
+        GraphicsDrawPauseLetters(0x88, 0x64);
+        D_8009BD1C = 0;
+        D_8009BD14 = 0;
+        D_8009CD50 = 0;
+        D_8009BD18 = 0;
+        D_8009BD10 = 0;
+        D_8009CD4C = 0;
+        while (ControllerPopState() != 0) {
+            D_8009CD4C |= g_C1ButtonState;
+            D_8009CD50 |= g_C2ButtonState;
+            D_8009BD10 |= g_C1ButtonStateReleased;
+            D_8009BD14 |= g_C2ButtonStateReleased;
+            D_8009BD18 |= g_C1ButtonStatePressedOnce;
+            D_8009BD1C |= g_C2ButtonStatePressedOnce;
+        }
+    } while (ControllerGetType(0) == 0);
+    SoundEnableAllSpuChannels();
+    DrawSync(0);
+    Vsync(0);
+    rect.x = 0;
+    rect.y = 0;
+    rect.w = 0x140;
+    rect.h = 0xD8;
+    MoveImage(&rect, 0, 0xD8);
+    pDispEnv = &D_8009BC24;
+    PutDispEnv((DISPENV*)((u8*)pDispEnv + D_8009D7F0 * 0x78));
+    pDispEnv = (DISPENV*)((u8*)pDispEnv - 0x5C);
+    PutDrawEnv((DRAWENV*)((u8*)pDispEnv + D_8009D7F0 * 0x78));
+    D_80059488 = savedValue;
+}
 void func_800767D4(u8* pSrc, s32 index) {
     u8* pBuffer;
 
