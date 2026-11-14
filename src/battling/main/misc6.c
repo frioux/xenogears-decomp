@@ -181,6 +181,11 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007E3CC);
    quad base), a literal 0x3000000 in the link store with a long sz[4] local
    (89.17 but frame 0x18), declaring the copies through BattleQuad->v0/v1.
    Note gte_stsz1/gte_stsz2 were added to include/psyq/inline_c.h for this.
+   Re-checked round 51: still 88.67%. a3 is &quad->y (0xC) and retail advances
+   BOTH pointers by hand (t0 in the bnez delay slot, a3 in the body), so the
+   original source had two pointer locals stepping 0x20 - not one base plus a
+   folded offset. The permuter refuses this body (its C parser rejects the GTE
+   __asm__ blocks), so the shape has to be found by hand.
 void func_8007E3CC(u32* pOt) {
     u8* pScratch;
     BattleQuad* pQuad;
