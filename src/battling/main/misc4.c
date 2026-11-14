@@ -533,16 +533,16 @@ void BattleActorSetModelIndex9(Actor* p) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_8007A768);
 
-/* Best attempt: 92.44%. Only the D_80098680/D_8009867C/D_80098720 block differs:
-   post-reload scheduling batches the p->unk0 and D_80092670 loads ahead of the
-   D_80098680 store, and `p->unk4 - 0x400 - D_80092670` reassociates into
-   `p->unk4 - (D_80092670 + 0x400)` (addiu on the loaded global). A `y` local
-   keeps the addiu on p->unk4 but lengthens its live range and still batches.
-   Follow-up: the second `p->unk4` is a RELOAD (gcc will not CSE a load through
-   the parameter across the global stores, which may alias `*p`), so the
-   original's single `lw v1,4(s0)` needs a `s32 y` local holding p->unk4; with y
-   the block still comes out as p->unk4 - (D_80092670 + 0x400) (90.89%-92.44%),
-   i.e. the shared value and the subtraction order have to hold at once.
+/* Best attempt: 92.44%. The D_80098680/9867C/98720 block is the only difference.
+   Retail loads p->unk4 once into $v1 and reuses it for both the D_80098680 store
+   and the '- 0x400' (addiu lands in $v1), while a plain 'p->unk4' reloads it after
+   the global store (gcc will not CSE a load through the parameter across a store
+   to a global) and reassociates '(x - 0x400) - D_80092670' into 'x - (D_80092670 + 0x400)'.
+   A 's32 y = p->unk4' local removes the reload and keeps the subtraction grouped
+   ('t = y - 0x400; D_80098720 = t - D_80092670;' gives retail's store order and
+   addu $v0,$v0,-0x400) but reaches only 92.31%: gcc then also keeps 0x400 out of
+   the addu and the register tie moves. Holding y and t in separate locals that
+   let gcc see both uses at once drops to 84.83%.
 void func_8007A768(Actor* p) {
     ActorScript* pScript = p->unk8FC;
     s32 r;
@@ -555,7 +555,7 @@ void func_8007A768(Actor* p) {
     r = rand();
     D_80098680 = p->unk4;
     D_8009867C = p->unk0;
-    D_80098720 = (p->unk4 - 0x400) - D_80092670;
+    D_80098720 = p->unk4 - 0x400 - D_80092670;
     D_80098684 = p->unk8;
     D_8009871C = D_8009867C + (((rcos(r) << 2) * D_80092674) >> 12);
     D_80098724 = D_80098684 + (((rsin(r) << 2) * D_80092674) >> 12);
