@@ -330,8 +330,8 @@ void func_80078A60(void) {
     MoveImage(&rect, 0x2C0, 0x100);
     DrawSync(0);
     func_80072DB4(0x40, 0, 4, 2);
-    do {
-    } while (ArchiveDataSync() >= 3);
+    while (ArchiveDataSync() >= 3) {
+    }
     WorldMapDecompressMapData();
     func_8009766C();
     D_8009BE4C = D_8009A180;
@@ -696,8 +696,8 @@ void func_8007A5DC(void) {
     MoveImage(&rect, 0x2C0, 0x100);
     DrawSync(0);
     func_80072DB4(0x40, 0, 4, 2);
-    do {
-    } while (ArchiveDataSync() >= 3);
+    while (ArchiveDataSync() >= 3) {
+    }
     WorldMapDecompressMapData();
     func_8009766C();
     D_8009BE4C = D_8009A180;
