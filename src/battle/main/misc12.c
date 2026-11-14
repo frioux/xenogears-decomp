@@ -51,13 +51,8 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80083340);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80083580);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80083748);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80083948);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80083FF4);
-/* 95.58%: nested ifs + `else if (...) ret = 1;` + paren-grouped index sum match the original
-   exactly except the last block: original does `sltiu v0,v0,1` then copies to ret in the j
-   delay slot (`move t0,v0`); gcc always coalesces the copy into `sltiu t0,v0,1`.
-   Also tried: `if (!=0) {ret=1;}` (same), `? 1 : 0` (same).
 u8 func_80083FF4(u8 arg0, u8 arg1) {
-    u32 ret;
+    u8 ret;
 
     ret = 0;
     if (D_800D2DCC[arg1] != 0) {
@@ -74,22 +69,17 @@ u8 func_80083FF4(u8 arg0, u8 arg1) {
     }
     return ret;
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80084108);
-/* 95.93% (spelled with the old u8[] + [i*0x1C] types): one instruction class off - gcc emits `sltiu a2,v0,1` in the j delay slot where the
-   original keeps `sltiu v0,v0,1` + `move a2,v0` (ret copy not coalesced). `== 0` spelled
-   explicitly instead of `? 0 : 1` gives 94.35% with the same sltiu-into-a2 shape.
-u32 func_80084108(u8 arg0, u8 arg1) {
-    u32 ret;
+u8 func_80084108(u8 arg0, u8 arg1) {
+    u8 ret;
 
     ret = 0;
-    if (D_800D2DCC[arg0] == 0) {
+    if (D_800D2DCC[arg0] != 0) {
         if (D_800C3EB7[arg0][0] == 0) {
             if (D_800D32A1[arg0 * 8] == 0) {
-                if (arg1 != 0) {
-                    ret = 1;
+                if (arg1 == 0) {
+                    ret = (D_800CCD64[arg0].unk0 & 0xC001) == 0;
                 } else {
-                    ret = (D_800CCD64[arg0].unk0 & 0xC001) ? 0 : 1;
+                    ret = 1;
                 }
             } else {
                 if (arg1 == 0) {
@@ -104,31 +94,22 @@ u32 func_80084108(u8 arg0, u8 arg1) {
     }
     return ret;
 }
-*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_800841E0);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80084548);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80084750);
-/* 81.43%. Loop 1 (the backward 0xFF fill) matches. What is left is the entry
-   shape of loop 2 and one callee-saved register: retail keeps `k = 8` in s3 from
-   function entry (`li s3,0x8` in the prologue), `n` in s4, `i` in s2, a COPY of
-   `i` in s1 (`addu s1,s2,zero` at the loop top, then `andi s0,s1,0xFF`), and
-   arg0 in s5; this gcc gives arg0 s3, and merges the `j = i` copy away (6 saved
-   registers, 40-byte frame vs retail's 48). Retail's entry block is
-   `move s4,zero / addiu s3,-1 / sb D_800D3274 / sh D_800C3D64 / bltz s3 / li s2,0x3`.
-   Tried: `for (i=3, k=8; --k>=0; i++)` (81.43); `k = 8;` before the fill loop plus
-   a `j = i` copy in the body (79.72 - entry-block order now matches); indexed
-   spelling (78.20); u8 copy of the loop var. This body is the 81.43 variant.
 u8 func_80084750(u8 arg0) {
     s32 i;
     s32 j;
     s32 n;
     s32 k;
     u8 *p;
+    u8 val;
 
     k = 8;
+    val = 0xFF;
+    i = 11;
     p = D_800C3E9B;
-    for (i = 0; i < 12; i++) {
-        *p-- = 0xFF;
+    for (; i >= 0; i--) {
+        *p-- = val;
     }
     n = 0;
     D_800D3274 = 0;
@@ -138,12 +119,12 @@ u8 func_80084750(u8 arg0) {
         if (func_80083FF4(arg0, j) != 0) {
             D_800C3E90[n] = j;
             D_800C3D64 |= func_80089C08(j);
+            n++;
             D_800D3274++;
         }
     }
     return D_800C3E90[0];
 }
-*/
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80084854);
 void func_80084A7C(u8 arg0) {
