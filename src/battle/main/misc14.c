@@ -55,7 +55,7 @@ extern s32 D_800D3288;
 extern u16 D_800D2C2A;
 extern void func_8007171C(void);
 extern void func_80089CCC(s32 arg0);
-extern void func_8008AAA0(s32 arg0);
+extern void BattleParseNumberToDigits(s32 arg0);
 extern void BattleSetPrimGrey80BlendSub(u8 *p);
 
 void BattleStepTwoAxisInterpolation(void) {
@@ -160,7 +160,7 @@ void func_80089348(void) {
     s32 pitch = 0x11A << 16;
     s32 off;
 
-    func_8008AAA0(D_800D2C2A);
+    BattleParseNumberToDigits(D_800D2C2A);
     for (i = 0; i < 5; i++) {
         if (D_800C3CF8[i] != 0xFF) {
             off = D_800D2DB4[0x5D78] * 0x50 + 0x4E70;
@@ -189,7 +189,7 @@ void func_8008963C(void) {
     s32 pitch = 0x11A << 16;
     s32 off;
 
-    func_8008AAA0(D_800D2C36);
+    BattleParseNumberToDigits(D_800D2C36);
     for (i = 0; i < 3; i++) {
         if (D_800C3CFA[i] != 0xFF) {
             off = D_800D2DB4[0x5D7A] * 0x50 + 0x50A0;
@@ -217,7 +217,7 @@ void func_800897CC(void) {
     s32 pitch = 0x11A << 16;
     s32 off;
 
-    func_8008AAA0(D_800D2C35);
+    BattleParseNumberToDigits(D_800D2C35);
     for (i = 0; i < 2; i++) {
         if (D_800C3CFB[i] != 0xFF) {
             off = D_800D2DB4[0x5D7B] * 0x50 + 0x51E0;
@@ -246,7 +246,7 @@ void func_800898F0(u8 arg0) {
     s32 off;
 
     D_800D2DB4[0x5D7C] = 0;
-    func_8008AAA0(*(u16*)(D_800CCDC4 + arg0 * 0x170));
+    BattleParseNumberToDigits(*(u16*)(D_800CCDC4 + arg0 * 0x170));
     for (i = 0; i < 4; i++) {
         if (D_800C3CF9[i] != 0xFF) {
             off = D_800D2DB4[0x5D7C] * 0x50 + 0x5280;
@@ -256,7 +256,7 @@ void func_800898F0(u8 arg0) {
     }
     D_800D2DB4[0x5D8B] = D_800CCB34;
     D_800D2DB4[0x5D7D] = 0;
-    func_8008AAA0(*(u16*)(D_800CCDC6 + arg0 * 0x170));
+    BattleParseNumberToDigits(*(u16*)(D_800CCDC6 + arg0 * 0x170));
     pitch = 0x48 << 16;
     for (i = 0; i < 4; i++) {
         if (D_800C3CF9[i] != 0xFF) {

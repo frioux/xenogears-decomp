@@ -69,7 +69,7 @@ extern u16 D_800D2E1C[];
 extern u8 D_800C3CF9[];
 extern u8 D_800D32A0[];
 extern u16 D_800CCDC4[];
-extern void func_8008AAA0(s32);
+extern void BattleParseNumberToDigits(s32);
 
 void func_80070E2C(void) {
     s32 first;
@@ -464,7 +464,7 @@ void func_80073380(s32 arg0) {
     } else {
         amount = *(u16 *)((u8 *)D_800CCDC4 + arg0 * 0x170);
     }
-    func_8008AAA0(amount);
+    BattleParseNumberToDigits(amount);
 
     for (i = 0; i < 4; i++) {
         if (D_800C3CF9[i] != 0xFF) {

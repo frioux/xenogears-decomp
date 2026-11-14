@@ -32,7 +32,7 @@ void func_8008AA74(u8 arg0) {
         BattlePlaySoundWithBaseId(arg0);
     }
 }
-void func_8008AAA0(u32 arg0) {
+void BattleParseNumberToDigits(u32 arg0) {
     s32 i;
     u32 divisor;
 

@@ -30,7 +30,7 @@ extern void *D_800D367C;
 void BattleReleaseEffectSlotIfChar4(void);
 void func_8009AC48(u8, s32);
 void func_800916D4(u8, u8, s32);
-void func_8008AAA0(u32);
+void BattleParseNumberToDigits(u32);
 void BattleSetPolyFT4RectH13(POLY_FT4 *, s16, s16, u8, u8, s16);
 void BattleSetPolyFT4Rect(POLY_FT4 *, s16, s16, u8, u8, s16, s16);
 s32 func_8009A258(u8, s32);
@@ -98,7 +98,7 @@ void func_800916D4(u8 arg0, u8 arg1, s32 arg2) {
         0x20, 0xA4, (s - s / 2 * 2) * 0x78 & 0xF8, s / 2 * 16, 0x60, 0x10);
     (*(u8 **)(D_800C3EA4 + 0xA230))[0x66E] = 0;
     if (D_800D2D24[(u8)arg2] == 1) {
-        func_8008AAA0(func_8009A258((u8)arg2, s + 0x16));
+        BattleParseNumberToDigits(func_8009A258((u8)arg2, s + 0x16));
         for (i = 0, k = 0x8C; i < 3; i++, k += 8) {
             c = D_800C3CFA[i];
             if (c == 0xFF) {
