@@ -7,6 +7,14 @@ extern u8 D_8006F978[];
 extern u8 *D_800927CC;
 extern u8 *D_800927D0;
 extern u8 D_80095968[];
+extern u8 D_800928A0;
+extern VECTOR D_80096FA8;
+extern void func_800316C0(void *pOt, void *pPrim);
+
+// An 8-byte, byte-aligned chunk: assigning one copies 8 bytes with lwl/lwr.
+typedef struct {
+    u8 unk[8];
+} Bytes8;
 
 typedef struct {
     /* 0x00 */ u8 pad0[0x4];
@@ -220,7 +228,9 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc11", func_80087E38);
    keeps the base in a0 and the result in v0 (addu v0,v0,a0); gcc reuses the dead
    base register (addu a0,v0,a0) and the i+1 temp then moves to v0. Tried: p += i,
    p = p + i, p = &p[i], p = base + i, u8* + i*0x68, n = i + 1, decls outside the
-   if (all 98.08 or worse), &D_8009A988[i] and i + D_8009A988 (84.04).
+   if (all 98.08 or worse), &D_8009A988[i] and i + D_8009A988 (84.04),
+   and the indexed D_8009A988[i].unkN form (66.81: it re-forms the base with
+   $at instead of keeping it in a0).
 void func_80087E38(s32 *arg0) {
     s32 i = D_800928F8;
 
@@ -278,7 +288,34 @@ void func_80088308(void) {
     }
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc11", func_8008832C);
+void func_8008832C(void *arg0) {
+    Bytes8 work[2];
+    u8 *pSlot;
+    s32 i;
+    s32 off;
+
+    for (i = 0; i < 0x64; i++) {
+        off = i * 0x34;
+        if (*(s16 *)(D_80095968 + off) != 0) {
+            pSlot = (u8 *)D_80095938 + off;
+            *(u16 *)(pSlot + 0x30) -= 1;
+            work[0] = *(Bytes8 *)(pSlot + 0x20);
+            work[1] = *(Bytes8 *)(pSlot + 0x28);
+            ((u16 *)work)[0] -= D_80096FA8.vx;
+            ((u16 *)work)[1] -= D_80096FA8.vy;
+            ((u16 *)work)[2] -= D_80096FA8.vz;
+            ((u16 *)work)[4] -= D_80096FA8.vx;
+            ((u16 *)work)[5] -= D_80096FA8.vy;
+            ((u16 *)work)[6] -= D_80096FA8.vz;
+            gte_ldv01(work, (u8 *)work + 8);
+            gte_rtpt();
+            gte_stsxy01((u8 *)pSlot + D_800928A0 * 0x10 + 8, (u8 *)pSlot + D_800928A0 * 0x10 + 0xC);
+            *(u8 *)((u8 *)pSlot + D_800928A0 * 0x10 + 3) = 3;
+            *(u8 *)((u8 *)pSlot + D_800928A0 * 0x10 + 7) = 0x40;
+            func_800316C0(arg0, (u8 *)pSlot + D_800928A0 * 0x10);
+        }
+    }
+}
 
 void func_800884E0(VECTOR *arg0, VECTOR *arg1) {
     VECTOR normal;
