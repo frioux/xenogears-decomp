@@ -217,24 +217,20 @@ void func_8007CC50(u8 **arg0, u8 arg1) {
     pRow = &D_800D3430[arg1 * 0x40];
     pRow[(*arg0)[1]] = count;
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007CD10);
-/* best: 87.29%. func_8007CC50 with the loop bounds 3..0xB; same miss (the
-   D_800C3EB4 offset induction and the i++ delay slot).
-
 void func_8007CD10(u8 **arg0, u8 arg1) {
     u8 *pRow;
     s32 count = 0;
-    s32 i;
+    s32 i = 3;
+    s32 offset = 0x54;
 
-    for (i = 3; i < 0xB; i++) {
-        if (func_8007A628(i, 0) != 0 && D_800C3EB4[i * 0x1C] == (*arg0)[2]) {
+    for (; i < 0xB; offset += 0x1C, i++) {
+        if (func_8007A628(i, 0) != 0 && D_800C3EB4[offset] == (*arg0)[2]) {
             count++;
         }
     }
     pRow = &D_800D3430[arg1 * 0x40];
     pRow[(*arg0)[1]] = count;
 }
-*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007CDD0);
 /* best: 78.26%. Every instruction of the loop/tail is present; only the
    callee-saved set and two intra-block orders differ: the original keeps the
@@ -255,35 +251,24 @@ void func_8007CDD0(u8 **arg0, u8 arg1) {
     pRow[(*arg0)[1]] = D_800D3364[operator * 8 + row * 0x40 + 0x140];
 }
 */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007CEA4);
-/* best: 72.38%. Structure, register set and the slti-in-bne-delay-slot all
-   come out right with the func_8007A628(i++, 0) spelling and func_80079E7C
-   declared u8 (it returns u8, misc5.c defines it; the s32 extern here was
-   wrong). Two things still miss: (1) gcc hoists &D_800C3EB4 into a callee-
-   saved s6 for the two lookups, so the frame grows to 0x30+s6 and the second
-   lookup is lbu 0(v1) instead of retail's per-use lui at/%hi + addu at,at,v1 +
-   lbu %lo(at); (2) with i++ in the call argument gcc emits i++ BEFORE the jal
-   and puts slti in the beqz delay slot, retail has i++ in the beqz slot and
-   the test in the bne slot. Also tried the plain 'for(...; i < 3; i++, offset
-   += 0x1C)' form with i (71.96%, i++ lands in the latch).
-
 void func_8007CEA4(u8 **arg0, u8 arg1) {
-    u16 *pRow = (u16 *)(D_800D3420 + arg1 * 0x40);
-    u8 *pCount;
     s32 count = 0;
-    s32 i;
-    s32 offset;
+    s32 i = 0;
+    u16 *pField = (u16 *)(D_800D3420 + arg1 * 0x40);
+    s32 offset = 0;
+    u8 *pRow;
 
-    for (i = 0, offset = 0; i < 3; offset += 0x1C) {
-        if (func_8007A628(i++, 0) != 0
-            && D_800C3EB4[offset] == D_800C3EB4[func_80079E7C(pRow[(*arg0)[2]]) * 0x1C]) {
-            count++;
+    for (; i < 3; offset += 0x1C, i++) {
+        if (func_8007A628(i, 0) != 0) {
+            s32 other = func_80079E7C(pField[(*arg0)[2]]) * 0x1C;
+            if (D_800C3EB4[offset] == D_800C3EB4[other]) {
+                count++;
+            }
         }
     }
-    pCount = &D_800D3430[arg1 * 0x40];
-    pCount[(*arg0)[1]] = count;
+    pRow = &D_800D3430[arg1 * 0x40];
+    pRow[(*arg0)[1]] = count;
 }
-*/
 void func_8007CFB8(u8 **arg0, u8 arg1) {
     u8 *pRow;
     s32 count = 0;
