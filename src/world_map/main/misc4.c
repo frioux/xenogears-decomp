@@ -178,7 +178,7 @@ extern s32 WorldMapSetupGroup6And7ScaledPrims(s32);
 extern s32 WorldMapInitReturnThree(s32);
 extern s32 WorldMapInitGroup0Actor(s32);
 extern s32 WorldMapActivateSpriteGroup9Timed(s32);
-extern void func_80078E2C(void);
+extern s32 func_80078E2C(s32 index);
 extern void func_80078EA4(void);
 extern void func_80079778(void);
 extern void func_8007A1B4(void);
@@ -404,13 +404,22 @@ void WorldMapExitToMap110(void) {
 }
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_80078E2C);
-/* 35.90%: the whole WorldMapActor store cluster is scheduled to the end of the
+/* NOTE: the extern at the top of this file must read `s32 func_80078E2C(s32
+   index)`, not `void func_80078E2C(void)`, or cc1 exits 33 with "conflicting
+   types" and diff_func prints 0.00% with no diff at all.
+   35.90%: the whole WorldMapActor store cluster is scheduled to the end of the
    block, with the D_8009BE24 load sunk just before it, instead of interleaved
    with the global stores as the original has it. 12 source shapes tried
    (pointer local, repeated array-index casts, every statement permutation,
    `index *= 0x80` vs `D_8009BE24 + index` vs `&index`): 19.97-35.90%. Source
    order does not matter, the scheduler owns the block. -O1 gives 45. Same
-   scheduler class as func_80077DC8.
+   scheduler class as func_80077DC8. Round 51 re-tried the exact retail store
+   order with the pointer local both before and after the global stores: both
+   compile byte-identically to 19.97%, which confirms the block order comes from
+   cc1's priority scheduler (every `li+store` pair is hoisted ahead of each
+   `$0`-store, and the pointer store cluster lands after them), not from the C.
+   What retail's stream shows is the same scheduler with the `$0` stores kept in
+   place, so the source must create a dependency this shape does not.
 s32 func_80078E2C(s32 index) {
     ((WorldMapActor *)D_8009BE24)[index].unk20 = 0x10;
     D_8009BE0C = 0x78;
