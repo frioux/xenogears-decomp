@@ -155,7 +155,14 @@ by stub count, 10 to 16 with the method below).
 1. Rank units by **instructions per fresh stub**, smallest first:
    `python3 tools/scripts/select_target.py --json` (ignore its `attempt` flag). Stubs
    under ~120 instructions are where the matches are.
-   **A stub is fresh only if no percentage sits within ~25 lines of its `INCLUDE_ASM`.**
+   **A stub is fresh only if no percentage sits within ~60 lines above its `INCLUDE_ASM`
+   AND the function's own name does not appear in those 60 lines.** A park note belongs to
+   the stub *above* the parked body, so it sits as far above as the note is long plus the
+   body: 25 lines caught only half the parks and round 45 briefed a dozen parked stubs
+   (`battle/misc16`'s `func_8008F8F4` had its note 47 lines up and a `/* body */` in
+   between). Measured with 60 lines + the name test: **400 fresh stubs in 108 units**
+   (`tools/scripts/fresh_stubs.py`; it applies the atfree/jtbl filters below too).
+   Round 45 with this test: 14 workers, 3 committed matches before the kill.
    Parks are written `// Best: 84.76%` far more often than as `/* ... */`, so `grep
    '^/\*'` over-reports badly: round 36 briefed 11 units picked that way and 9 of them
    were 100% parked (7 matches from 11 workers). Measured round 37 with that test: 1338
@@ -219,6 +226,12 @@ broken an overlay with every function at 100:
 
 ## Harness facts
 
+- **Two orchestrator sessions can be live in this repo.** `tools/rounds/clone.sh new`
+  starts with `rm -rf ~/xw/r-<tag>`, so a colliding tag silently destroys another
+  session's live clone (round 45 lost a `temp2` worker that way). Before `new`: check
+  `ls -d ~/xw/r-*` and `intercom list`, and prefer tags that carry a round number
+  (`m45-temp2`). Two sessions merging, renaming or running `make check` in the same
+  tree at the same time is the one thing `make check` cannot catch.
 - Workers hit the 30-minute kill constantly. Fine if they committed; `merge` refuses
   uncommitted work. A lost body is still in `worker_transcript.jsonl` under
   `subagent-artifacts/`.

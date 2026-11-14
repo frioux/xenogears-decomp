@@ -2694,3 +2694,4 @@ Still open, with evidence: `battle/misc19`'s 5-run split (2 functions, 4 new fil
   `battle/misc24`'s `func_800AAA20` "retail 820 ours 276" - a matched function whose bytes are
   right (`make check` green). Its retail size is `next symbol_addrs address - this one`, so it is only valid where the symbol file is
   contiguous; treat a flag as a hint, not a finding, until that is fixed.
+| 45 | 14 workers + 10 naming workers | +5 | 2680 | `SoundInitialize` (system/sound, 2.6.0), `func_80085B58` (battle/misc13), `func_801C5FE4`/MenuFreeMenuData (menu/misc1), +2 un-parked when menu/main/misc1 switched to XenoMenu260 (func_801C55A0, func_801C58EC both 100.0 under 2.6.0). 83 of 97 names applied, 14 skipped (addresses in no symbol_addrs file). 11 of 14 workers died on the 30-minute kill with a live park. See the freshness-test note below. |
