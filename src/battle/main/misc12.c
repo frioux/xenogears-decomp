@@ -51,13 +51,8 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80083340);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80083580);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80083748);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80083948);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80083FF4);
-/* 95.58%: nested ifs + `else if (...) ret = 1;` + paren-grouped index sum match the original
-   exactly except the last block: original does `sltiu v0,v0,1` then copies to ret in the j
-   delay slot (`move t0,v0`); gcc always coalesces the copy into `sltiu t0,v0,1`.
-   Also tried: `if (!=0) {ret=1;}` (same), `? 1 : 0` (same).
 u8 func_80083FF4(u8 arg0, u8 arg1) {
-    u32 ret;
+    u8 ret;
 
     ret = 0;
     if (D_800D2DCC[arg1] != 0) {
@@ -74,22 +69,17 @@ u8 func_80083FF4(u8 arg0, u8 arg1) {
     }
     return ret;
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80084108);
-/* 95.93% (spelled with the old u8[] + [i*0x1C] types): one instruction class off - gcc emits `sltiu a2,v0,1` in the j delay slot where the
-   original keeps `sltiu v0,v0,1` + `move a2,v0` (ret copy not coalesced). `== 0` spelled
-   explicitly instead of `? 0 : 1` gives 94.35% with the same sltiu-into-a2 shape.
-u32 func_80084108(u8 arg0, u8 arg1) {
-    u32 ret;
+u8 func_80084108(u8 arg0, u8 arg1) {
+    u8 ret;
 
     ret = 0;
-    if (D_800D2DCC[arg0] == 0) {
+    if (D_800D2DCC[arg0] != 0) {
         if (D_800C3EB7[arg0][0] == 0) {
             if (D_800D32A1[arg0 * 8] == 0) {
-                if (arg1 != 0) {
-                    ret = 1;
+                if (arg1 == 0) {
+                    ret = (D_800CCD64[arg0].unk0 & 0xC001) == 0;
                 } else {
-                    ret = (D_800CCD64[arg0].unk0 & 0xC001) ? 0 : 1;
+                    ret = 1;
                 }
             } else {
                 if (arg1 == 0) {
@@ -104,7 +94,6 @@ u32 func_80084108(u8 arg0, u8 arg1) {
     }
     return ret;
 }
-*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_800841E0);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80084548);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80084750);
