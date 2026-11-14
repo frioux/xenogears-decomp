@@ -113,6 +113,75 @@ void FieldScriptSetGearStateFlag(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
 }
 
+// 97.81% (532 bytes, same instruction multiset). Remaining differences: the four
+// rect stores go through D_800AFC58..D_800AFC5E as four separate s16 globals in the
+// original (a RECT-typed D_800AFC58 gives addends 0/2/4/6 against one symbol), the
+// original reuses the StoreImage argument register for the offset-0 store
+// (`sh zero,0(a0)`) where ours re-forms `lui at`, and case 1's shift is emitted
+// after the second GetArgument call in the original but folded into its delay slot
+// by ours. Splitting case 1's shift onto its own statement costs 4 bytes (95.55%).
+// NOTE the command dispatch must be a switch: an if/else chain compiles to a linear
+// compare chain (77.68%) and the original has gcc's comparison tree. It does not
+// generate a jump table (no jtbl_ relocation, 532 bytes).
+/*
+extern s32 D_800C3A48;
+extern s32 D_800AF87C;
+extern s16 D_800AFC58;
+extern s16 D_800AFC5A;
+extern s16 D_800AFC5C;
+extern s16 D_800AFC5E;
+extern s32 D_800ADBB4;
+extern void func_80026F44(s32 count, s32 level, u16* pDst, u16* pSrc);
+
+// Captures or restores the screen region described by the script instruction: 0
+// grabs it into two freshly allocated buffers, 1 copies one back with
+// func_80026F44, 2 frees the buffers and 3 only advances the pointer.
+void func_800871B0(void) {
+    u8 command = SCRIPT_READ_U8_REL(1);
+
+    switch (command) {
+    case 0: {
+        s32 h;
+        s32 y;
+
+        g_FieldScriptMaxInstructionCount += 0x20;
+        y = FieldScriptVMGetArgument(2);
+        h = FieldScriptVMGetArgument(4);
+        D_800C3A48 = HeapAlloc(h << 9, 0);
+        D_800AF87C = HeapAlloc(h << 9, 0);
+        D_800AFC58 = 0;
+        D_800AFC5A = y;
+        D_800AFC5C = 0x100;
+        D_800AFC5E = h;
+        StoreImage((RECT*)&D_800AFC58, (void*)D_800C3A48);
+        g_FieldScriptVMCurActor->scriptInstructionPointer += 6;
+        D_800B00C0 = 1;
+        break;
+    }
+    case 1: {
+        s32 offset;
+
+        g_FieldScriptMaxInstructionCount += 0x20;
+        offset = FieldScriptVMGetArgument(2) << 9;
+        func_80026F44(0x100, FieldScriptVMGetArgument(4), (u16*)(D_800AF87C + offset),
+                      (u16*)(D_800C3A48 + offset));
+        D_800ADBB4 = 1;
+        g_FieldScriptVMCurActor->scriptInstructionPointer += 6;
+        break;
+    }
+    case 2:
+        HeapFree((void*)D_800C3A48);
+        HeapFree((void*)D_800AF87C);
+        g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
+        D_800B00C0 = 1;
+        break;
+    case 3:
+        g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
+        D_800B00C0 = 1;
+        break;
+    }
+}
+*/
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_800871B0);
 
 extern u8 D_800B225F[];
