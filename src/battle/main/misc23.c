@@ -230,6 +230,103 @@ void BattleSetActorRectParams(s32 arg0, s32 arg1, s32 arg2, s32 arg3, s32 arg4, 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A64E4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A6884);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A6AE8);
+/* 84.16% (gcc 2.6.0 -G0 --expand-div): full structure recovered and every call,
+   store and branch shape matches. What is left is loop strength reduction: the
+   original keeps D_800C3AAE[i*6] in $s7 and derives $s8 = $s7 - 1 for
+   D_800C3AAD[i*6] (combine_givs on two separate symbol bivs), while gcc 2.6 here
+   derives every per-unit field from the single i*6 offset biv ($at + %lo), and
+   spends a saved register on a D_800C3D50 base instead, so the frame is 0x48 vs
+   retail 0x50 and the $s5/$s6 numbering shifts.
+   Fixed vs the first attempt (81.99 -> 84.16): the AAD dispatch is a `switch` with
+   case 0..3 and case 4 (that is what emits retail's bltz range check plus the
+   slti/beq tree -- an if/else chain gives sltiu), D_800C3AAF/AB0/AB1 are `s8` (retail
+   loads them with lb), the buffer copy is 0x88 bytes not 0x80 (retail's movstrsi
+   loop of 0x80 plus a two-word tail), pData advances 4 bytes per call, the final
+   LoadImage source is D_800D3608, and &D_800D3611 lives in a pointer local so the
+   memcpy argument register is reused for the "= 0" store.
+   Tried for the bivs: two pointer locals (pKind/pRec -> both fold back to
+   $at+s6, 83.73%), pRec[0]/pRec[-1] (84.16%, the parked form), plain symbol
+   accesses (82.84%). Also note func_800A6884 is re-declared here as
+   (mem_addr, s32, u8 *) and D_800C3AAD/AAE are u8 while AAF..AB1 are s8.
+/*
+extern void *D_800C3EA0;
+extern void *D_800C3D50[];
+extern s16 D_800D2D2C;
+extern s16 D_800C3EA8;
+extern void *D_800D3608;
+extern void func_800A6884(mem_addr, s32, u8 *);
+extern void func_80025D4C(s32, void *, void *, void *, s32, s32, s32, s32, s32);
+extern void func_80026F44(s32, s32, void *, void *);
+
+void func_800A6AE8(void) {
+    u8 *pFlag;
+    u8 *pData;
+    s32 i;
+    s32 j;
+
+    pFlag = &D_800D3611;
+    if (*pFlag == 0) {
+        return;
+    }
+    if (D_800D361A == 0) {
+        return;
+    }
+    *pFlag = 0;
+    memcpy(D_800D3608, D_800D3604, D_800D2D2C * D_800C3EA8 * 2);
+    memcpy(D_800C3AC8, D_800C3AC4, 0x88);
+    for (i = 0; i < 4; i++) {
+        u8 *pRec;
+
+        pRec = &D_800C3AAE[i * 6];
+        if (D_800C3AAC[i * 6] == 0) {
+            continue;
+        }
+        switch (pRec[-1]) {
+        case 0:
+        case 1:
+        case 2:
+        case 3:
+            func_80025D4C(D_800D2D2C * D_800C3EA8, D_800D3608, D_800D3608, D_800D3608,
+                          D_800C3AAF[i * 6], D_800C3AB0[i * 6], D_800C3AB1[i * 6],
+                          pRec[-1], pRec[0]);
+            break;
+        case 4:
+            func_80026F44(D_800D2D2C * D_800C3EA8, pRec[0], D_800D3608, D_800D3604);
+            break;
+        }
+        pData = D_800C3AC8;
+        for (j = 0; j < 4; j++) {
+            if (D_800C3EA0 != NULL) {
+                func_800A6884((mem_addr)D_800C3EA0 + 0x173C + j * 0x24 + 4, i, pData += 4);
+                func_800A6884((mem_addr)D_800C3EA0 + 0x173C + j * 0x24 + 0xC, i, pData += 4);
+                func_800A6884((mem_addr)D_800C3EA0 + 0x173C + j * 0x24 + 0x14, i, pData += 4);
+                func_800A6884((mem_addr)D_800C3EA0 + 0x173C + j * 0x24 + 0x1C, i, pData += 4);
+                func_800A6884((mem_addr)D_800C3EA0 + 0x16DC + j * 0x18 + 4, i, pData += 4);
+            } else {
+                pData += 0x14;
+            }
+            if (D_800C3D50[0] != NULL) {
+                func_800A6884((mem_addr)D_800C3D50[0] + 0x280 + j * 0x18 + 4, i, pData += 4);
+            } else {
+                pData += 4;
+            }
+        }
+        for (j = 0; j < 2; j++) {
+            if (D_800C3D50[0] != NULL) {
+                func_800A6884((mem_addr)D_800C3D50[0] + 0x2E0 + j * 0x24 + 4, i, pData += 4);
+                func_800A6884((mem_addr)D_800C3D50[0] + 0x2E0 + j * 0x24 + 0xC, i, pData += 4);
+                func_800A6884((mem_addr)D_800C3D50[0] + 0x2E0 + j * 0x24 + 0x14, i, pData += 4);
+                func_800A6884((mem_addr)D_800C3D50[0] + 0x2E0 + j * 0x24 + 0x1C, i, pData += 4);
+            } else {
+                pData += 0x10;
+            }
+        }
+        func_800A6884(D_800D2D40, i, pData += 4);
+        func_800A6884(D_800D2D48, i, pData);
+    }
+    LoadImage(&D_800D3628, D_800D3608);
+}
+*/
 
 void BattleUploadAndFreeImageResources(void) {
     u8 *p;
