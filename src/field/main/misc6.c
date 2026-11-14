@@ -321,7 +321,7 @@ typedef struct {
 /*
 extern s16 D_800AFB54;
 extern int func_8007B1C4(int x, int z, int walkmeshId, SVECTOR* pOut, VECTOR* pNormal);
-extern u_int func_80080968(ActorData* pActor);
+extern u_int FieldActorGetWalkmeshTriMaterial(ActorData* pActor);
 
 void func_8009E574(s32 nX, s32 nY) {
     VECTOR normals[4];
@@ -336,7 +336,7 @@ void func_8009E574(s32 nX, s32 nY) {
     for (i = 0; i < D_800AFB54 - 1; i++) {
         g_FieldScriptVMCurActor->walkmeshTriIds[i] = func_8007B1C4(nX, nY, i, &points[i], &normals[i]);
     }
-    g_FieldScriptVMCurActor->curWalkmeshTriMaterial = func_80080968(g_FieldScriptVMCurActor);
+    g_FieldScriptVMCurActor->curWalkmeshTriMaterial = FieldActorGetWalkmeshTriMaterial(g_FieldScriptVMCurActor);
     pActor = g_FieldScriptVMCurActor;
     pActor->curTriNormal.vx = normals[pActor->walkmeshId].vx;
     pActor->curTriNormal.vy = normals[pActor->walkmeshId].vy;

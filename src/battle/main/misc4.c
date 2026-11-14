@@ -57,11 +57,11 @@ extern u8 D_800C402F[];
 extern void func_800785D4(u8 arg0, u8 arg1);
 extern void func_80078658(u8 arg0, u8 arg1);
 extern void func_800787E0(u8 arg0, u8 arg1);
-extern void func_8007887C(u8 arg0);
+extern void BattleQueueCommandF8(u8 arg0);
 extern s32 func_8007A280(u8 arg0, u8 arg1, s32 arg2, s32 arg3);
 extern void func_800716D8(void);
 extern void func_800793F0(u8 arg0);
-extern void func_80079674(u8 arg0);
+extern void BattleQueueCommand1BAndFE(u8 arg0);
 extern void func_80085350(void);
 extern void func_80085388(void);
 extern s32 func_80080AE4(u8 arg0);
@@ -73,7 +73,7 @@ extern u8 D_800D340C[];
 extern u8 D_800CCD1C[];
 extern void func_80070EB0(u8 arg0);
 
-void func_8007887C(u8 arg0) {
+void BattleQueueCommandF8(u8 arg0) {
     if (D_800C3E8C != 0) {
         D_800C400B[D_800C3EAC[0x2DA] * 72] = arg0;
         D_800C402F[D_800C3EAC[0x2DA] * 72] = 0xF8;
@@ -81,16 +81,16 @@ void func_8007887C(u8 arg0) {
         D_800C3EAC[0x2DA] = D_800C3EAC[0x2DA] + 1;
     }
 }
-void func_8007893C(u8 arg0, u8 arg1) {
+void BattleQueueCommandF8IfFlagged(u8 arg0, u8 arg1) {
     if (D_800D2E5F[arg0 * 8] != 0) {
         func_80078658(arg0, arg1);
         func_800787E0(0x1E, arg1);
-        func_8007887C(arg1);
+        BattleQueueCommandF8(arg1);
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc4", func_80078998);
 /* Best: 68.28%, one pass. The control flow below is decoded from the asm and
-   believed right (note func_8007893C takes arg1 first, and the 0xFD scan loop
+   believed right (note BattleQueueCommandF8IfFlagged takes arg1 first, and the 0xFD scan loop
    walks D_800C402F in 0x48 strides). The gap is register allocation: retail keeps
    `arg1 * 8` in $s0 and re-forms `lui $at,%hi(D_800D2E62); addu $at,$at,$s0` at
    every use, while this shape makes gcc CSE those addresses into pointer locals
@@ -101,7 +101,7 @@ void func_80078998(u8 arg0, u8 arg1) {
     s32 i;
     s32 n;
 
-    func_8007893C(arg1, arg0);
+    BattleQueueCommandF8IfFlagged(arg1, arg0);
     D_800C3EAC[0x2DC] = D_800D2E5D[arg1 * 8] + 1;
     func_80085CCC(arg0, *(u16*)(D_800D2E62 + arg1 * 8), D_800D2E5E[arg1 * 8]);
     func_80085C88(D_800C3EAC[0x2DA]);
@@ -122,7 +122,7 @@ void func_80078998(u8 arg0, u8 arg1) {
     }
 }
 */
-void func_80078B34(u8 arg0, u8 arg1, u8 arg2) {
+void BattleQueueCommandFD(u8 arg0, u8 arg1, u8 arg2) {
     D_800C402F[D_800C3EAC[0x2DA] * 72] = 0xFD;
     D_800C4022[D_800C3EAC[0x2DA]][0] = 0;
     D_800C3FFE[D_800C3EAC[0x2DA]][0] = *(u16*)(D_800D2E62 + arg1 * 8);
@@ -137,16 +137,16 @@ void func_80078B34(u8 arg0, u8 arg1, u8 arg2) {
     func_800BC404(func_80089C08(arg0) | *(u16*)(D_800D2E62 + arg1 * 8));
     func_800785D4(arg0, arg1);
 }
-void func_80078C9C(u8 arg0, u8 arg1) {
+void BattleQueueCommandFC(u8 arg0, u8 arg1) {
     D_800C402F[D_800C3EAC[0x2DA] * 72] = 0xFC;
     func_800785D4(arg0, arg1);
 }
-void func_80078CEC(u8 arg0, u8 arg1) {
+void BattleQueueCommandFromRecordByte(u8 arg0, u8 arg1) {
     D_800C402F[D_800C3EAC[0x2DA] * 72] = D_800D2E60[arg1 * 8];
     func_800785D4(arg0, arg1);
 }
 
-void func_80078D48(u8 arg0, u8 arg1) {
+void BattleSetPendingActorMask(u8 arg0, u8 arg1) {
     *(u16*)&D_800D39E0 = *(u16*)(D_800D2E62 + arg1 * 8);
 }
 
@@ -167,10 +167,10 @@ void func_80078D6C(u8 arg0, u8 arg1) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc4", func_80078E24);
-void func_80079054(u8 arg0, u8 arg1) {
+void BattleApplyCommandByteVar(u8 arg0, u8 arg1) {
     func_80079ED8(arg0, D_800D2E5D[arg1 * 8], D_800D2E60[arg1 * 8], 0);
 }
-void func_80079098(u8 arg0, u8 arg1) {
+void BattleAddCommandByteVar(u8 arg0, u8 arg1) {
     s32 idx;
     s32 value;
 
@@ -178,10 +178,10 @@ void func_80079098(u8 arg0, u8 arg1) {
     value = func_80079ED8(arg0, D_800D2E5D[idx], 0, 1);
     func_80079ED8(arg0, D_800D2E5D[idx], D_800D2E60[idx] + value, 0);
 }
-void func_80079114(u8 arg0, u8 arg1) {
+void BattleApplyCommandWordVar(u8 arg0, u8 arg1) {
     func_8007A280(arg0, D_800D2E5D[arg1 * 8], D_800D2E60[arg1 * 8] | (D_800D2E61[arg1 * 8] << 8), 0);
 }
-void func_8007916C(u8 arg0, u8 arg1) {
+void BattleAddCommandWordVar(u8 arg0, u8 arg1) {
     s32 idx;
     s32 value;
 
@@ -190,17 +190,17 @@ void func_8007916C(u8 arg0, u8 arg1) {
     func_8007A280(arg0, D_800D2E5D[idx],
                   (u16)(D_800D2E60[idx] + (value + (D_800D2E61[idx] << 8))), 0);
 }
-void func_800791FC(u8 arg0, u8 arg1) {
-    func_8007893C(arg1, arg0);
+void BattleQueueCommandF4(u8 arg0, u8 arg1) {
+    BattleQueueCommandF8IfFlagged(arg1, arg0);
     D_800C402F[D_800C3EAC[0x2DA] * 72] = 0xF4;
     func_800785D4(arg0, arg1);
 }
-void func_80079270(u8 arg0, u8 arg1) {
+void BattleQueueCommandF6(u8 arg0, u8 arg1) {
     D_800C402F[D_800C3EAC[0x2DA] * 72] = 0xF6;
     D_800C3FFE[D_800C3EAC[0x2DA]][0] = *(u16*)(D_800D2E62 + arg1 * 8);
     func_800785D4(arg0, arg1);
 }
-void func_800792F8(u8 arg0, u8 arg1) {
+void BattlePrintLanguageErrorLoop(u8 arg0, u8 arg1) {
     s32 i;
     s32 j;
     s32 k;
@@ -234,7 +234,7 @@ void func_800792F8(u8 arg0, u8 arg1) {
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc4", func_800793F0);
-void func_80079674(u8 arg0) {
+void BattleQueueCommand1BAndFE(u8 arg0) {
     if (D_800D32A1[arg0 * 8] != 0) {
         D_800C400B[D_800C3EAC[0x2DA] * 72] = arg0;
         D_800C402F[D_800C3EAC[0x2DA] * 72] = 0x1B;
@@ -252,7 +252,7 @@ void func_80079778(u8 arg0) {
     func_800716D8();
     func_800B89FC(1, arg0, 0, func_80080AE4(arg0));
     func_800793F0(arg0);
-    func_80079674(arg0);
+    BattleQueueCommand1BAndFE(arg0);
     while (D_800C3EAC[0x2DB] == 0) {
         func_800716D8();
     }
@@ -286,15 +286,15 @@ void func_80079840(u8 arg0, u8 arg1) {
         }
     }
 }
-*/void func_80079934(u8** pCursor) {
+*/void BattleScriptCursorSkipWord(u8** pCursor) {
     *pCursor += 4;
 }
-void func_80079948(u8** pCursor) {
+void BattleScriptSkipUnknownOpcodeWords(u8** pCursor) {
     while (**pCursor >= 0x80) {
-        func_80079934(pCursor);
+        BattleScriptCursorSkipWord(pCursor);
     }
     while ((u32)((**pCursor - 0x80) & 0xFF) >= 0x70) {
-        func_80079934(pCursor);
+        BattleScriptCursorSkipWord(pCursor);
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc4", func_800799C8);
@@ -336,7 +336,7 @@ void func_800799C8(u8 arg0) {
                 cmd = *pCursor;
                 continue;
             }
-            func_80079948(&pCursor);
+            BattleScriptSkipUnknownOpcodeWords(&pCursor);
         } else {
             value = func_8007EF6C(&pCursor, slot, value);
         }
@@ -393,7 +393,7 @@ s32 func_80079AB0(u8 arg0) {
                 if ((func_8007F8C0(&pCursor, slot) & 0xFF) != 0) {
                     continue;
                 }
-                func_80079948(&pCursor);
+                BattleScriptSkipUnknownOpcodeWords(&pCursor);
             } else {
                 if (cmd == 0x62) {
                     result = 1;
@@ -474,7 +474,7 @@ void func_80079C24(void) {
                     cmd = *pCursor;
                     continue;
                 }
-                func_80079948(&pCursor);
+                BattleScriptSkipUnknownOpcodeWords(&pCursor);
             } else {
                 value = func_8007EF6C(&pCursor, i, value);
             }

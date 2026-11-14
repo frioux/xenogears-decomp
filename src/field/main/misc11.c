@@ -785,7 +785,7 @@ void FieldScriptVMHandlerStepActorRotationOn(void) {
         if (!(g_FieldScriptVMCurActor->flags12C_0x5)) {
             g_FieldScriptVMCurActor->flags12C_0x5 = 1;
             g_FieldScriptVMCurActor->curDoorStep = 0;
-            func_80085634(8, 3);
+            FieldSetSoundSlotElement(8, 3);
         } else {
             g_FieldScriptVMCurActor->curDoorStep++;
             if (g_FieldScriptVMCurActor->curDoorStep < 0x1F) {
@@ -813,7 +813,7 @@ void FieldScriptVMHandlerStepActorRotationOff(void) {
         if (!(g_FieldScriptVMCurActor->flags12C_0x5)) {
             g_FieldScriptVMCurActor->flags12C_0x5 = 1;
             g_FieldScriptVMCurActor->curDoorStep = 0;
-            func_80085634(8, 3);
+            FieldSetSoundSlotElement(8, 3);
         } else {
             g_FieldScriptVMCurActor->curDoorStep++;
             if (g_FieldScriptVMCurActor->curDoorStep < 0x1F) {
@@ -836,7 +836,7 @@ void FieldScriptVMHandlerStepActorRotationOff(void) {
 }
 
 extern void func_80072254(int);
-extern void func_80085634(int,int);
+extern void FieldSetSoundSlotElement(int,int);
 extern s32 D_800AFD1C;
 extern FieldActor* D_800B06B8;
 
@@ -849,7 +849,7 @@ void FieldScriptVMHandlerStepActorMoveOn() {
         if (!g_FieldScriptVMCurActor->flags12C_0x5) {
             g_FieldScriptVMCurActor->flags12C_0x5 = 0x1;
             g_FieldScriptVMCurActor->curDoorStep = 0;
-            func_80085634(8, 3);
+            FieldSetSoundSlotElement(8, 3);
             g_FieldScriptVMCurActor->unkD0.vx = g_FieldScriptVMCurActor->position.vx;
             g_FieldScriptVMCurActor->unkD0.vy = g_FieldScriptVMCurActor->position.vy;
             g_FieldScriptVMCurActor->unkD0.vz = g_FieldScriptVMCurActor->position.vz;
@@ -896,7 +896,7 @@ void FieldScriptVMHandlerStepActorMoveOff(void) {
         if (!g_FieldScriptVMCurActor->flags12C_0x5) {
             g_FieldScriptVMCurActor->flags12C_0x5 = 0x1;
             g_FieldScriptVMCurActor->curDoorStep = 0x0;
-            func_80085634(8, 3);
+            FieldSetSoundSlotElement(8, 3);
         } else {
             g_FieldScriptVMCurActor->curDoorStep++;
             if (g_FieldScriptVMCurActor->curDoorStep < FieldScriptVMGetArgument(3)) {

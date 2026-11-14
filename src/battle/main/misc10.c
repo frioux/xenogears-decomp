@@ -176,7 +176,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc10", func_8007F8C0);
      s32 func_8007E954(u8 **arg0, u8 arg1);
      s32 func_8007E98C(u8 **arg0, u8 arg1);
      s32 func_8007E9D0(u8 **arg0, u8 arg1);
-     void func_80079934(u8 **pCursor);
+     void BattleScriptCursorSkipWord(u8 **pCursor);
 
 s32 func_8007F8C0(u8 **arg0, u8 arg1) {
     s32 ret = 0;
@@ -269,7 +269,7 @@ s32 func_8007F8C0(u8 **arg0, u8 arg1) {
             ret = func_8007EF44(arg1);
             break;
         }
-        func_80079934(arg0);
+        BattleScriptCursorSkipWord(arg0);
         if (!(cont & 0xFF)) {
             break;
         }

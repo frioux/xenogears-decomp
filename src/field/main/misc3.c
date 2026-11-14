@@ -171,7 +171,7 @@ extern void WorkListsFreeAllEntries(void);
 extern void func_80025044(void);
 extern void func_800250E0(int context);
 extern void GfxFreeWorkBuffers(void);
-extern void func_8008083C(int actorIndex);
+extern void FieldFreeActorData(int actorIndex);
 extern void func_800306D0(void* pBackup);
 extern void ModelPartFreeLightData(void* pModelPart);
 extern void FieldDistortionFree(void);
@@ -179,7 +179,7 @@ extern void GfxLineScrollFree(void* pLineScroll);
 extern void FontFree(void);
 extern void LibGearShutdown(void);
 extern void FieldRenderSyncAndFlush(void);
-extern void func_800A83B4(void);
+extern void FieldFreeSpritePrimitives(void);
 extern void func_80027D40(void* pData);
 
 typedef struct {
@@ -213,7 +213,7 @@ void FieldFree(void) {
     } while (i < 2);
 
     for (i = 0; i < g_FieldNumActors; i++) {
-        func_8008083C(i);
+        FieldFreeActorData(i);
         pActor = (FieldActor*)(i * sizeof(FieldActor) + (int)g_FieldActors);
         status = *(u_short*)&pActor->status;
         if (!(status & 0x40)) {
@@ -256,7 +256,7 @@ void FieldFree(void) {
     }
     *pCount = 0;
     HeapFreeBlocksWithFlag(3);
-    func_800A83B4();
+    FieldFreeSpritePrimitives();
 }
 */
 

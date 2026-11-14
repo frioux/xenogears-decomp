@@ -419,9 +419,9 @@ void FieldRestoreAllGearHpAndFuel(void) {
 
 void FieldScriptStoreOrRestoreScreenImage(void) {
     if (SCRIPT_READ_U8_REL(1) == 0) {
-        func_800A915C();
+        FieldStoreScreenImage();
     } else {
-        func_800A91F0();
+        FieldRestoreScreenImage();
     }
     g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
 }
@@ -1721,14 +1721,14 @@ void FieldScriptSetAudioMuteFlags(void) {
     D_800B00C0 = 1;
 }
 
-extern void func_800863E8(s32);
+extern void FieldReleaseActorSoundSlot(s32);
 
 void FieldScriptSetActorSoundParams0(void) {
     g_FieldScriptVMCurActor->unk10A = FieldScriptVMGetArgument(1);
     g_FieldScriptVMCurActor->unk10D = 0;
     g_FieldScriptVMCurActor->unk10C = FieldScriptVMGetArgument(3);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
-    func_800863E8(D_800AFD1C);
+    FieldReleaseActorSoundSlot(D_800AFD1C);
     if (g_FieldScriptVMCurActor->unk10A == 0) {
         g_FieldScriptVMCurActor->unk10D = 0xFF;
     }
@@ -1739,7 +1739,7 @@ void FieldScriptSetActorSoundParams80(void) {
     g_FieldScriptVMCurActor->unk10D = 0x80;
     g_FieldScriptVMCurActor->unk10C = FieldScriptVMGetArgument(3);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
-    func_800863E8(D_800AFD1C);
+    FieldReleaseActorSoundSlot(D_800AFD1C);
     if (g_FieldScriptVMCurActor->unk10A == 0) {
         g_FieldScriptVMCurActor->unk10D = 0xFF;
     }
@@ -2549,7 +2549,7 @@ void FieldScriptSetSoundElementVolume(void) {
 }
 
 void FieldScriptSetSoundSlotVolume(void) {
-    func_80085634(FieldScriptVMGetArgument(1), FieldScriptVMGetArgument(3));
+    FieldSetSoundSlotElement(FieldScriptVMGetArgument(1), FieldScriptVMGetArgument(3));
     g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
 }
 
@@ -2576,10 +2576,10 @@ void FieldScriptWaitSoundElementStopped(void) {
     D_800B00C0 = 1;
 }
 
-extern void func_80085634(int, int);
+extern void FieldSetSoundSlotElement(int, int);
 
 void FieldScriptSetSoundSlotVolume3(void) {
-    func_80085634(FieldScriptVMGetArgument(1), 3);
+    FieldSetSoundSlotElement(FieldScriptVMGetArgument(1), 3);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
 
@@ -2612,9 +2612,9 @@ void FieldScriptLoadCharacterDataMinus1(void) {
 }
 
 extern s32 D_8004F354;
-extern void func_80085EEC(void);
+extern void FieldFreePendingAudioManager(void);
 extern void func_8001B66C(void);
-extern void func_80085B20(int, int);
+extern void FieldStartWdsBankLoad(int, int);
 
 // 92.24%: the two guards match as `!=` conjunctions (both `beq` jump forward to
 // the shared `D_800B00C0 = 1`), but then gcc merges that store with the one for
@@ -2628,7 +2628,7 @@ void func_8008F7B8(void) {
     int characterId = FieldScriptVMGetArgument(1);
 
     if (D_800ADB1C == 0) {
-        func_80085EEC();
+        FieldFreePendingAudioManager();
         if (characterId != D_8004F324) {
             func_8001B66C();
             D_8004F308 = -1;
@@ -2642,7 +2642,7 @@ void func_8008F7B8(void) {
             func_8001B66C();
             D_8004F324 = characterId;
             D_8004F308 = -1;
-            func_80085B20(characterId, 0);
+            FieldStartWdsBankLoad(characterId, 0);
         }
         g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
     } else {

@@ -51,7 +51,7 @@ extern void func_80089C88(s32 handle, void* pB);
 extern void* func_800891C0(s32 arg);
 extern void func_8008AE1C(void* pData);
 extern s32 func_8008F530(s32 arg0, s32 arg1);
-void func_80086E24(void);
+void BattleAddSharedPrim(void);
 
 typedef struct {
     /* 0x000 */ u8 unk000[0x284];
@@ -88,17 +88,17 @@ typedef struct {
 
 extern Misc10Prim D_8009A300[];
 
-s32 func_80084A64(Misc10Actor* pActor) {
+s32 BattleQueueActorPrims(Misc10Actor* pActor) {
     u32* pData = pActor->unk284;
 
     func_8008E3CC((u8*)pData[D_800928A0 + 1] + 8, 0xC0, 0);
     func_80080D20((u8*)pData[D_800928A0 + 1] + 4);
     func_8008AE1C(pData);
-    func_80086E24();
+    BattleAddSharedPrim();
     return 0;
 }
 
-void func_80084AE0(void) {
+void BattleDrawEffectFrame(void) {
     if (D_80092780 != 0) {
         func_8008E120();
         func_8007F258(D_80092938, 0);
@@ -140,7 +140,7 @@ void func_80084B48(void) {
 }
 */
 
-void func_80084BEC(Misc10Actor* pActor) {
+void BattleActorCreateRotatedPart(Misc10Actor* pActor) {
     u8* pScript;
     s32 arg0;
     Misc10Draw* pDraw;
@@ -162,13 +162,13 @@ void func_80084BEC(Misc10Actor* pActor) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_80084C88);
 
-void func_80084FD0(void) {
+void BattleUpdateEffectImage(void) {
     if (D_80092784 != NULL && (D_80059488 & 0x1)) {
         func_8008E120();
     }
 }
 
-void func_80085014(void) {
+void BattleSetBothSidesCom(void) {
     D_80092920 &= 0xFE;
     func_80083BB4(0);
     func_80083C0C(5);
@@ -177,7 +177,7 @@ void func_80085014(void) {
     D_800928C8 = 6;
 }
 
-void func_80085070(void) {
+void BattleSetBothSidesUser(void) {
     u8 flags = D_80092920;
 
     D_80099D9E = 0;
@@ -185,7 +185,7 @@ void func_80085070(void) {
     D_80092920 = flags | 0x1;
 }
 
-void func_8008509C(s32 index, s32 value) {
+void BattleLoadSlotEntry(s32 index, s32 value) {
     if (index != 0) {
         D_80097919 = value;
     } else {
@@ -200,7 +200,7 @@ void func_8008509C(s32 index, s32 value) {
     ArchiveSetIndex(0x30, 0);
 }
 
-void func_80085134(s32 index) {
+void BattleFreeSlotEntry(s32 index) {
     ArchiveCdDataSync(0);
     if (D_800927B4[index] != NULL) {
         HeapFree(D_800927B4[index]);
@@ -208,11 +208,11 @@ void func_80085134(s32 index) {
     }
 }
 
-void func_8008518C(Misc10Resource* pResource, u_int allocFlags) {
+void BattleAllocResourceBuffer(Misc10Resource* pResource, u_int allocFlags) {
     pResource->unk4 = (s32)HeapAlloc(ArchiveDecodeAlignedSize(pResource->unk0), allocFlags);
 }
 
-void func_800851D4(void) {
+void BattleReturnToMainLoop(void) {
     func_8003852C(D_800927C4);
     if (D_800917F0 != 0) {
         func_80039C4C(D_80092948);
@@ -226,7 +226,7 @@ void func_800851D4(void) {
     MainLoop(0);
 }
 
-s32 func_80085264(void) {
+s32 BattleCheckModeOver(void) {
     s32 result = 0;
 
     if (D_80092794 == 5 || D_80092794 == 7) {
@@ -239,19 +239,19 @@ s32 func_80085264(void) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_800852C4);
 
-void func_80085E34(u16* pSrc, u16* pDst) {
+void BattleCopyVertexOffsetAdd(u16* pSrc, u16* pDst) {
     pDst[0] = pSrc[0] + 0x18;
     pDst[1] = pSrc[1] + 0x6;
     pDst[0] += 0x4F;
 }
 
-void func_80085E60(u16* pSrc, u16* pDst) {
+void BattleCopyVertexOffsetFlip(u16* pSrc, u16* pDst) {
     pDst[0] = 0x8B - pSrc[0];
     pDst[1] = 0x20 - pSrc[1];
     pDst[0] += 0x4F;
 }
 
-void func_80085E90(s32 flag, u16* pDst, s32 value) {
+void BattleSetVertexXForFlipped(s32 flag, u16* pDst, s32 value) {
     if (flag != 0) {
         *pDst = 0xDA - value;
     } else {
@@ -259,7 +259,7 @@ void func_80085E90(s32 flag, u16* pDst, s32 value) {
     }
 }
 
-void func_80085EAC(s32 flag, u16* pDst, s32 value) {
+void BattleSetVertexYForFlipped(s32 flag, u16* pDst, s32 value) {
     if (flag != 0) {
         *pDst = 0x20 - value;
     } else {
@@ -334,7 +334,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_800866D4);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_800868E0);
 
-void func_80086E24(void) {
+void BattleAddSharedPrim(void) {
     AddPrim(D_80092938, &D_8009A300[D_800928A0]);
 }
 

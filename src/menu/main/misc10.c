@@ -10,9 +10,9 @@ extern u8 D_801E9811;
 extern u8 D_801E9EA0[];
 
 void func_801E8018(u8, u8*, u8*, void*);
-void func_801E41C0(MenuDressingRoom*, u8);
-void func_801E4258(MenuDressingRoom*, u8);
-void func_801E42AC(MenuDressingRoom*, u8);
+void MenuApplyGearFrame(MenuDressingRoom*, u8);
+void MenuApplyGearArmor(MenuDressingRoom*, u8);
+void MenuApplyGearEngine(MenuDressingRoom*, u8);
 void func_801C72BC(u8);
 void func_801D3674(void);
 void func_801D4EA0(u8);
@@ -29,12 +29,12 @@ void func_801DE400(void);
 void func_801D25E4(void);
 void MenuPlaySoundEffect(u8);
 u8 func_801D9704(u8, u8, u8);
-void func_801E1014(void);
+void MenuInitializeUnk438Panel(void);
 void func_801E1AC8(u8);
 void func_801E8070(s32, void*, void*, void*, void*, u8, u8, u8);
 void func_801D397C(u_char, u_char, u_char, u_char, u16, u_char, u_char, u32, u_char);
 
-int func_801E0F78(u8 arg0, u8 arg1) {
+int MenuInitializeUnk35CPanel(u8 arg0, u8 arg1) {
     g_Menu->unk35C = HeapAlloc(0x32F4, 0);
     bzero(g_Menu->unk35C, 0x32F4);
     g_Menu->unk360 = HeapAlloc(0x2AC, 0);
@@ -44,7 +44,7 @@ int func_801E0F78(u8 arg0, u8 arg1) {
     func_801C72BC(0x13);
     return 1;
 }
-void func_801E1014(void) {
+void MenuInitializeUnk438Panel(void) {
     MenuManager* pManager;
     int i;
     /* One variable for both the count and the inner POLY_G4 index below: it has
@@ -92,7 +92,7 @@ void func_801E1014(void) {
         }
     }
 }
-void func_801E1398(void) {
+void MenuFreeUnk438Panel(void) {
     func_801D3674();
     g_Menu->pManager->unk4A[3] = 0;
     func_801D4EA0(2);
@@ -176,7 +176,7 @@ u32 func_801E1418(u8 slot, u8 index) {
 */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E1544);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E1AC8);
-u8 func_801E20C8(u8 slot) {
+u8 MenuRunUnk438PanelLoop(u8 slot) {
     u8 active;
     u8 lastSlot;
 
@@ -186,7 +186,7 @@ u8 func_801E20C8(u8 slot) {
         MenuPlaySoundEffect(4);
         return 1;
     }
-    func_801E1014();
+    MenuInitializeUnk438Panel();
     do {
         MenuRenderFrame();
         if (slot != lastSlot) {
@@ -209,11 +209,11 @@ u8 func_801E20C8(u8 slot) {
             break;
         }
     } while (active != 0);
-    func_801E1398();
+    MenuFreeUnk438Panel();
     return 1;
 }
 
-u8 func_801E2250(void) {
+u8 MenuInitializeGearScreenBuffers(void) {
     u32 i;
 
     g_Menu->unk358 = HeapAlloc(0x2AF0, 0);
@@ -233,17 +233,17 @@ u8 func_801E2250(void) {
     func_801D3488(0, 1);
     return i;
 }
-void func_801E2324(u8 arg0) {
+void MenuLoadUnk18E0Strings(u8 arg0) {
     func_801E8018(6, (u8*)g_Menu + 0x18E0, D_801EA568 + arg0, (u8*)g_Menu->pManager + 0x54);
 }
-void func_801E2368(void) {
+void MenuFreeGearScreenBuffers(void) {
     HeapFree(g_Menu->unk358);
     HeapFree(g_Menu->unk35C);
     HeapFree(g_Menu->unk360);
     func_801C72BC(0x13);
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E23CC);
-void func_801E2AE0(void) {
+void MenuInitializeCharacterScreenBuffers(void) {
     func_801D249C(1);
     g_Menu->unk358 = HeapAlloc(0x2AF0, 0);
     bzero(g_Menu->unk358, 0x2AF0);
@@ -254,7 +254,7 @@ void func_801E2AE0(void) {
     func_801C72BC(3);
     func_801D3488(0, 0);
 }
-void func_801E2B80(void) {
+void MenuFreeCharacterScreenBuffers(void) {
     HeapFree(g_Menu->unk358);
     HeapFree(g_Menu->unk35C);
     HeapFree(g_Menu->unk360);
@@ -282,7 +282,7 @@ void func_801E3088(u8 arg0) {
         g_Menu->pManager->unk5[2] = 0;
         g_Menu->pManager->unk8 = 0;
         g_Menu->pManager->unk4A[1] = 0;
-        func_801E2368();
+        MenuFreeGearScreenBuffers();
         break;
     case 3:
         func_801DC2CC(0);
@@ -299,7 +299,7 @@ void func_801E3088(u8 arg0) {
         g_Menu->pManager->unk8 = 0;
         g_Menu->pManager->unk4A[1] = 0;
         func_801D25E4();
-        func_801E2B80();
+        MenuFreeCharacterScreenBuffers();
         break;
     }
 }
@@ -351,7 +351,7 @@ void func_801E35BC(MenuDressingRoom* pDressingRoom, u8 charIndex, u8 targetIndex
 }
 */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E36D4);
-void func_801E3A80(MenuDressingRoom* pDressingRoom, u8 charIndex) {
+void MenuComputeCharacterStats(MenuDressingRoom* pDressingRoom, u8 charIndex) {
     GameCharacter* pChar;
 
     pChar = &g_GameState.characters[charIndex];
@@ -389,7 +389,7 @@ void func_801E3A80(MenuDressingRoom* pDressingRoom, u8 charIndex) {
     }
 }
 
-void func_801E3C2C(MenuDressingRoom* pDressingRoom, u8 gearIndex) {
+void MenuFillDressingRoomGearStats(MenuDressingRoom* pDressingRoom, u8 gearIndex) {
     GameCharacter* pChar;
     GameGear* pGear;
     s32 value;
@@ -430,13 +430,13 @@ void func_801E3C2C(MenuDressingRoom* pDressingRoom, u8 gearIndex) {
     pDressingRoom->unkB6 = pGear->unk9C;
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E3ECC);
-void func_801E4170(MenuDressingRoom* pDressingRoom, u8 gearIndex) {
-    func_801E41C0(pDressingRoom, gearIndex);
-    func_801E42AC(pDressingRoom, gearIndex);
-    func_801E4258(pDressingRoom, gearIndex);
+void MenuRecalculateGearStats(MenuDressingRoom* pDressingRoom, u8 gearIndex) {
+    MenuApplyGearFrame(pDressingRoom, gearIndex);
+    MenuApplyGearEngine(pDressingRoom, gearIndex);
+    MenuApplyGearArmor(pDressingRoom, gearIndex);
 }
 
-void func_801E41C0(MenuDressingRoom* pDressingRoom, u8 gearIndex) {
+void MenuApplyGearFrame(MenuDressingRoom* pDressingRoom, u8 gearIndex) {
     GameGear* pGear;
     GearFrame* pFrame;
     u8 frameId;
@@ -458,7 +458,7 @@ void func_801E41C0(MenuDressingRoom* pDressingRoom, u8 gearIndex) {
 }
 
 
-void func_801E4258(MenuDressingRoom* pDressingRoom, u8 gearIndex) {
+void MenuApplyGearArmor(MenuDressingRoom* pDressingRoom, u8 gearIndex) {
     GameGear* pGear;
     GearArmor* pArmorList;
     GearArmor* pArmor;
@@ -471,7 +471,7 @@ void func_801E4258(MenuDressingRoom* pDressingRoom, u8 gearIndex) {
     pGear->baseEtherDefense = pArmor->unkA;
 }
 
-void func_801E42AC(MenuDressingRoom* pDressingRoom, u8 gearIndex) {
+void MenuApplyGearEngine(MenuDressingRoom* pDressingRoom, u8 gearIndex) {
     GameGear* pGear;
     GearEngine* pEngine;
     u16 fuel;

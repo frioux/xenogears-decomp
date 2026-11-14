@@ -906,7 +906,7 @@ void func_8007520C(void) {
     if (D_8004F380 == 0) {
         pGear = &D_800B2264;
         if (*pGear != 0) {
-            func_80086BA8();
+            FieldUpdateMotionSlots();
             SetBackColor(D_800B225C, D_800B225D, D_800B225E);
             LibGearRenderFrame(&g_Scene.worldToScreenMatrix, (u8*)(pGear - 18),
                 &g_FieldCurRenderContext->ot1, g_FieldCurRenderContextIndex, 1);

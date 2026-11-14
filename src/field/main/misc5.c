@@ -10,7 +10,7 @@
 #include "main/game.h"
 
 //
-void func_800A55B8(int* pData, int a, int b, int c) {
+void FieldSetStructWords14To1C(int* pData, int a, int b, int c) {
     pData[5] = a;
     pData[6] = b;
     pData[7] = c;
@@ -19,13 +19,13 @@ void func_800A55B8(int* pData, int a, int b, int c) {
 extern void* D_800AFE80;
 extern void* D_800B069C;
 
-void func_800A55C8(void) {
+void FieldFreeTwoHeapBuffers(void) {
     HeapFree(D_800AFE80);
     HeapFree(D_800B069C);
 }
 
 // Set PolyFT4 color for PolyFT4s of next swap chain
-void func_800A5600(int color) {
+void FieldZoomFadeEffectSetPolygonColor(int color) {
     int i;
     POLY_FT4* pPoly;
     int nOffset;
@@ -40,7 +40,7 @@ void func_800A5600(int color) {
 
 // Field Fade Effect
 // ---------------------------------------------------
-void func_800A56A8(int duration) {
+void FieldStartFadeFromWhite(int duration) {
     g_FieldEffects.fades[0].b0 = 0xFF00;
     g_FieldEffects.fades[0].g0 = 0xFF00;
     g_FieldEffects.fades[0].r0 = 0xFF00;
@@ -52,7 +52,7 @@ void func_800A56A8(int duration) {
     g_FieldEffects.fades[0].redDelta = -0x10000 / duration;
 }
 
-void func_800A5710(int duration) {
+void FieldStartFadeToWhite(int duration) {
     g_FieldEffects.fades[0].b0 = 0x0;
     g_FieldEffects.fades[0].g0 = 0x0;
     g_FieldEffects.fades[0].r0 = 0x0;
@@ -65,7 +65,7 @@ void func_800A5710(int duration) {
 }
 // ---------------------------------------------------
 
-void func_800A5774(int x, int y, int h) {
+void FieldSetVRAMTextureSemiTrans(int x, int y, int h) {
     RECT rect;
     int nSize;
     int i;
@@ -100,7 +100,7 @@ void func_800A5774(int x, int y, int h) {
 }
 
 // Zoom fade effect stuff
-void func_800A5884(void) {
+void FieldZoomFadeEffectLoadTextures(void) {
     int i;
     int nCurX;
 
@@ -113,7 +113,7 @@ void func_800A5884(void) {
 
     nCurX = 0x2C0;
     for (i = 0; i < 5; i++) {
-        func_800A5774(nCurX, 0x100, 0xE0);
+        FieldSetVRAMTextureSemiTrans(nCurX, 0x100, 0xE0);
         nCurX += 0x40;
     }
 
@@ -141,15 +141,15 @@ extern void func_80078B5C(void);
 extern void func_80077544(void);
 extern void func_800A6E70(void);
 extern void func_800A7064(void);
-extern void func_800A915C(void);
-extern void func_800A91F0(void);
+extern void FieldStoreScreenImage(void);
+extern void FieldRestoreScreenImage(void);
 extern void FieldZoomFadeEffectInitialize(int nSemiTrans, int nABR);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A5924);
 
 /* Best attempt, 49.06%. The whole body decompiles cleanly - every call, both
    16.16 fixed-point fade loops (the color starts at 0x800000 and moves by
-   0x800000 / D_800ADB3C per frame), the func_800A5774 tile loop and the
+   0x800000 / D_800ADB3C per frame), the FieldSetVRAMTextureSemiTrans tile loop and the
    "wait until D_800ADB38 leaves 3" loop - but gcc lays the four switch case
    bodies out in a different order, which costs ~1500 of the 1600 bytes of
    branches. Body order in the original is [case 4][case 1,2][case 3]
@@ -159,9 +159,9 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A5924);
    dispatch tree itself (== 3, then < 4, then == 4, then <= 0) is identical.
    Worth trying: a case label order or a switch spelling that reproduces the
    original layout, or a jump-table-looking enum range.
-   Side fact recovered from the original call sites: func_800A5600 takes an
+   Side fact recovered from the original call sites: FieldZoomFadeEffectSetPolygonColor takes an
    int (its u_char parameter used to force an `andi 0xff` on the argument),
-   and both func_800A5884 call sites pass (1, 1).
+   and both FieldZoomFadeEffectLoadTextures call sites pass (1, 1).
     void func_800A5924(void) {
         int i;
         int nColor;
@@ -171,7 +171,7 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A5924);
         }
         FontFree();
         func_80070C84();
-        func_800A915C();
+        FieldStoreScreenImage();
         if (D_800ADB38 == 1 || D_800ADB38 == 4) {
             func_800A4748();
             DrawSync(0);
@@ -186,30 +186,30 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A5924);
                 FieldZoomFadeEffectInitialize(1, 1);
                 nColor = 0x2C0;
                 for (i = 0; i < 5; i++) {
-                    func_800A5774(nColor, 0x100, 0xE0);
+                    FieldSetVRAMTextureSemiTrans(nColor, 0x100, 0xE0);
                     nColor += 0x40;
                 }
                 FieldFadeToWhite(D_800ADB3C);
-                func_800A5600(0);
+                FieldZoomFadeEffectSetPolygonColor(0);
                 nColor = 0;
                 for (i = 0; i < D_800ADB3C; i++) {
                     func_80077DAC();
                     FieldZoomFadeEffectUpdate();
                     func_8007554C();
                     func_80078B5C();
-                    func_800A5600(nColor >> 16);
+                    FieldZoomFadeEffectSetPolygonColor(nColor >> 16);
                     nColor += 0x800000 / D_800ADB3C;
                 }
                 break;
             case 4:
-                ((void (*)(int, int))func_800A5884)(1, 1);
+                ((void (*)(int, int))FieldZoomFadeEffectLoadTextures)(1, 1);
                 func_800A6E70();
                 D_800ADC08 = 1;
                 FieldFadeToBlack(D_800ADB3C);
                 D_800C3A40 = 0;
                 for (i = 0; i < D_800ADB3C; i++) {
                     func_80077DAC();
-                    func_800A6C40();
+                    FieldAddParticlePrims();
                     func_8007554C();
                     func_80078B5C();
                     D_800C3A40 += 6;
@@ -219,7 +219,7 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A5924);
                 goto end;
             case 1:
             case 2:
-                ((void (*)(int, int))func_800A5884)(1, 1);
+                ((void (*)(int, int))FieldZoomFadeEffectLoadTextures)(1, 1);
                 D_800ADC08 = 1;
                 FieldFadeToBlack(D_800ADB3C);
                 nColor = 0x800000;
@@ -228,7 +228,7 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A5924);
                     FieldZoomFadeEffectUpdate();
                     func_8007554C();
                     func_80078B5C();
-                    func_800A5600(nColor >> 16);
+                    FieldZoomFadeEffectSetPolygonColor(nColor >> 16);
                     nColor -= 0x800000 / D_800ADB3C;
                     if (nColor < 0) {
                         nColor = 0;
@@ -249,7 +249,7 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A5924);
 
     end:
         D_800ADB38 = 0;
-        func_800A91F0();
+        FieldRestoreScreenImage();
         func_80077544();
     }
 */
@@ -459,7 +459,7 @@ typedef struct {
 
 extern u_char D_800B1E24[];
 
-void func_800A6C40(void) {
+void FieldAddParticlePrims(void) {
     POLY_GT4* pPoly;
     int i;
     int j;
@@ -572,7 +572,7 @@ extern u_short D_800C3A36;
 extern int D_801D68B4;
 extern void func_801D3538(int, int, int, int, int, int, int);
 
-void func_800A708C(void) {
+void FieldInitializeStreamPlayer(void) {
     HeapChangeCurrentUser(HEAP_USER_MASA, NULL);
     if (D_800ADB74 == 2) {
         D_801D68B4 = 1;
@@ -591,7 +591,7 @@ extern s32 D_800B06A0;
 
 typedef void (*FieldRenderContextCallback)(u_short, int, u_short);
 
-void func_800A7120(u_short arg0, int arg1, u_short arg2) {
+void FieldSelectStreamRenderContext(u_short arg0, int arg1, u_short arg2) {
     D_800B06A0 = arg0;
     D_800B00E4 = 0;
     if (arg2 == 0) {
@@ -603,7 +603,7 @@ void func_800A7120(u_short arg0, int arg1, u_short arg2) {
     if (D_800ADB74 == 0 && D_800AFE74 == 0) {
         DrawSync(0);
         g_FieldCurRenderContext = &g_FieldRenderContexts[D_800ADB78];
-        // Read as signed here, unsigned in func_800A708C, matching the original loads
+        // Read as signed here, unsigned in FieldInitializeStreamPlayer, matching the original loads
         if (*(s16*)&D_800C3A36 == 1) {
             g_FieldRenderContexts[D_800ADB78 & 1].dispEnv.isrgb24 = 1;
         }
@@ -623,7 +623,7 @@ extern u16 D_800C3A3A;
 extern s16 D_800C3A38;
 extern void func_801D37CC(int, int, int, int, int, int, int, int, int, int, int, int, FieldRenderContextCallback);
 
-void func_800A7218(void) {
+void FieldPlayStreamedSequence(void) {
     int nMode;
 
     D_800B06A0 = 0;
@@ -635,7 +635,7 @@ void func_800A7218(void) {
             nMode = 3;
         }
         func_801D37CC(D_800C3A20 + 2, D_800C3A2A, D_800C3A2C, D_800C3A2E, 1, nMode,
-            D_800C3A3A, D_800C3A22, D_800C3A24, D_800C3A26, D_800C3A28, 0xE0, func_800A7120);
+            D_800C3A3A, D_800C3A22, D_800C3A24, D_800C3A26, D_800C3A28, 0xE0, FieldSelectStreamRenderContext);
         ArchiveSetIndex(4, 0);
     }
     HeapChangeCurrentUser(HEAP_USER_YOSI, NULL);
@@ -643,16 +643,16 @@ void func_800A7218(void) {
 
 extern int D_800ADB6C;
 extern void func_801D3F7C(void);
-extern void func_80085678(void);
+extern void FieldAdvanceSedsSequence(void);
 
-void func_800A732C(int nFrames) {
+void FieldStepStreamPlayback(int nFrames) {
     int i;
 
     GameCheckAndHandleSoftReset();
     if (D_800ADB6C == 0) {
         for (i = 0; i < nFrames; i++) {
             func_801D3F7C();
-            func_80085678();
+            FieldAdvanceSedsSequence();
         }
     }
 }
@@ -661,7 +661,7 @@ extern void func_80077DAC(void);
 extern void func_8007554C(void);
 extern int ArchiveDataSync(void);
 
-void func_800A7394(void) {
+void FieldWaitForArchiveAndFrameSync(void) {
     do {
         func_80077DAC();
         func_8007554C();
@@ -672,7 +672,7 @@ void func_800A7394(void) {
 extern void* D_8005A418[];
 extern void* D_8005A41C;
 
-void func_800A73E8(void) {
+void FieldRestoreFramebuffers(void) {
     RECT rect;
 
     if (D_800ADB74 == 2) {
@@ -708,7 +708,7 @@ extern void ArchiveCdDataSync(int mode);
 extern void LZSSDecompress(void*, void*);
 extern void func_80029AFC(StreamDataQueueEntry*, int, int);
 
-void func_800A74F8(void) {
+void FieldSaveFramebuffers(void) {
     int i;
     int entryIndex;
     RECT rect;
@@ -903,7 +903,7 @@ s32 func_800A7948(void) {
         PutDrawEnv(&g_FieldCurRenderContext->drawEnvs[0]);
         DrawOTag(g_FieldCurRenderContext->ot3 + 7);
         func_800ACCF4();
-        func_800A732C(5);
+        FieldStepStreamPlayback(5);
     }
 
     D_800AFE74 = 0;
@@ -928,7 +928,7 @@ extern void ArchiveCdDataSync(int mode);
 extern void ArchiveReadFileToBuffer(s32 index, void* pBuffer, u32 arg2, u32 flags);
 extern void FieldLoadTIMWithClut(u_long* pTimData, short x, short y, short clutX, short clutY, short clutWidth, short clutHeight);
 
-void func_800A8314(void) {
+void FieldLoadSpriteSheetTIM(void) {
     u_long* pTimData;
 
     HeapChangeCurrentUser(HEAP_USER_YOSI, NULL);
@@ -945,7 +945,7 @@ extern int D_800AF278;
 extern POLY_FT4* D_800AFC60[];
 extern void* D_800AFC64;
 
-void func_800A83B4(void) {
+void FieldFreeSpritePrimitives(void) {
     if (D_800AF278 != 0) {
         D_800AF278 = 0;
         DrawSync(0);
@@ -960,7 +960,7 @@ extern u_short D_800AEB6A[];
 extern u_short D_800AEB6C[];
 extern u_short D_800AEB6E[];
 
-void func_800A8408(int nQuad, int x, int y) {
+void FieldSetSpriteUVs(int nQuad, int x, int y) {
     u_long unk[6];
     POLY_FT4* pPoly;
     int nRect;
@@ -1022,7 +1022,7 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A8BA4);
        int nSrcY;
        int nABR;
 
-       func_800A8314();
+       FieldLoadSpriteSheetTIM();
        D_800AEB64 = 0;
        HeapChangeCurrentUser(HEAP_USER_YOSI, NULL);
        D_800AFC60[0] = HeapAlloc(0x1108, 0);
@@ -1186,7 +1186,7 @@ typedef struct {
     /* 0x0 */ u_long unk0[0x2000];
 } FieldStoredImage; // Size: 0x8000
 
-void func_800A90B4(int nHeapType) {
+void FieldMoveStoredImageToHeap(int nHeapType) {
     u_long* pImage;
 
     if (D_800ADB34 == 1) {
@@ -1200,7 +1200,7 @@ void func_800A90B4(int nHeapType) {
 
 extern RECT g_FieldStoredImageDest[];
 
-void func_800A915C(void) {
+void FieldStoreScreenImage(void) {
     if (D_800ADB34 != 1) {
         D_800ADB34 = 1;
         HeapChangeCurrentUser(HEAP_USER_YOSI, NULL);
@@ -1211,7 +1211,7 @@ void func_800A915C(void) {
     }
 }
 
-void func_800A91F0(void) {
+void FieldRestoreScreenImage(void) {
     if (D_800ADB34 != 0) {
         D_800ADB34 = 0;
         setRECT(&g_FieldStoredImageDest[0], 0x3C0, 0x100, 0x40, 0x100);

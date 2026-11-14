@@ -46,15 +46,15 @@ extern s32 D_80092940;
 
 extern void func_8007F834(void);
 extern void func_800719F0(void);
-extern void func_8008509C(s32 a0, s32 a1);
+extern void BattleLoadSlotEntry(s32 a0, s32 a1);
 extern void func_80039FF8(void);
 extern void func_8007313C(void *pDst, void *pSrc);
 extern void func_8008EB4C(s32 arg);
 extern void func_80083C0C(s32 mode);
-extern void func_8007F8B4(void);
+extern void BattleResetTextListState(void);
 extern void func_800812BC(u8 *p);
 extern void func_8007E894(s16 a, s16 b);
-extern void func_8007F948(void *p, s32 arg);
+extern void BattleSetRowTextColor(void *p, s32 arg);
 extern void func_8007EBE0(u8 *p);
 extern void func_8007ED84(u8 *p, s32 dy);
 extern void func_80036420(void);
@@ -93,8 +93,8 @@ void func_800808F4(void) {
 void func_80080920(void) {
     D_80092924 = 1;
     func_800719F0();
-    func_8008509C(0, 0);
-    func_8008509C(1, 1);
+    BattleLoadSlotEntry(0, 0);
+    BattleLoadSlotEntry(1, 1);
 }
 
 void func_80080964(s32 a0) {
@@ -211,7 +211,7 @@ void func_80080C48(s32 a0) {
         D_8009275C = 1;
         func_80080B58();
     } else {
-        func_8007F8B4();
+        BattleResetTextListState();
     }
 }
 */
@@ -431,7 +431,7 @@ void func_8008151C(BattleTextList *p) {
     }
     i = 0;
     for (off = 0; i < p->count; i++) {
-        func_8007F948(p, i);
+        BattleSetRowTextColor(p, i);
         if (p->unk0 != 0) {
             func_8007EBE0((u8 *)*(u32 *)(off + p->pEntries + 4));
         } else {

@@ -44,7 +44,7 @@ typedef struct {
 
 extern u8 D_800591AF;
 extern void func_80022DF4();
-extern void func_80022EB8();
+extern void AnimTaskFree();
 extern void* g_GfxWorkBuffer2;
 extern MATRIX D_8004FBB8;
 extern Image* g_GfxImageList[2];

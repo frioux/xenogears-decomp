@@ -27,7 +27,7 @@ void func_801D3488(s32 arg0, s32 arg1);
 void func_801E3ECC(MenuDressingRoom* pDressingRoom, s32 gearId);
 void func_801D397C(u_char a0, u_char a1, u_char a2, u_char a3, u16 a4, u_char a5, u_char a6, u32 a7, u_char a8);
 void func_801E8070(s32 arg0, void* pArg1, void* pArg2, void* pArg3, void* pArg4, u8 arg5, u8 arg6, u8 arg7);
-void func_801E3C2C(MenuDressingRoom* pDressingRoom, s32 gearId);
+void MenuFillDressingRoomGearStats(MenuDressingRoom* pDressingRoom, s32 gearId);
 void func_801E8EAC(POLY_FT4* pPoly, u_char mode);
 void func_801E8F60(s32 mode, u_char index);
 
@@ -363,7 +363,7 @@ void func_801DFE2C(u_char arg0) {
     charId = g_Menu->pManager->currentCharacterIDs[arg0];
     func_801E3ECC(g_Menu->pDressingRoom, g_GameState.characters[charId].gearId);
     charId = g_Menu->pManager->currentCharacterIDs[arg0];
-    func_801E3C2C(g_Menu->pDressingRoom, g_GameState.characters[charId].gearId);
+    MenuFillDressingRoomGearStats(g_Menu->pDressingRoom, g_GameState.characters[charId].gearId);
     g_Menu->pDressingRoom->unkB8[0] = g_Menu->pDressingRoom->unkB0;
     g_Menu->pDressingRoom->unkB8[1] = g_Menu->pDressingRoom->totalDefense;
     g_Menu->pDressingRoom->unkB8[2] = g_Menu->pDressingRoom->totalEtherDefense;

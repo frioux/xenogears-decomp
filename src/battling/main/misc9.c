@@ -88,7 +88,7 @@ extern void func_800725B0(s16* p);
 extern void func_80081E6C(void);
 extern void func_80080D20(void* p);
 extern void func_8008AE1C(u8* p);
-extern void func_80086E24(void);
+extern void BattleAddSharedPrim(void);
 extern void func_80087698(s32 x0, s32 y0, s32 x1, s32 y1);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc9", func_80082178);
@@ -507,7 +507,7 @@ s32 func_800849E0(u8* p) {
     p3 = *(void**)(p2 + D_800928A0 * 4 + 4);
     func_80080D20(p3 + 4);
     func_8008AE1C(p2);
-    func_80086E24();
+    BattleAddSharedPrim();
     return 0;
 }
 

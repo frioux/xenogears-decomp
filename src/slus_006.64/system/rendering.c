@@ -8,7 +8,7 @@ extern void func_8001E9BC(SpriteData* pSpriteData, void* pArg);
 extern void func_8001EE88(SpriteData* pSpriteData, void* pArg1, void* pArg2);
 extern void func_8001F1D4(SpriteData* pSpriteData, void* pArg1, void* pArg2);
 extern void func_8001F750(SpriteData* pSpriteData, s32 index, SpriteAnimPackage* pAnimPackage);
-extern void func_800234AC(SpriteData* pSpriteData);
+extern void SpriteClearDirTransforms(SpriteData* pSpriteData);
 
 // Rendering-related stuff
 
@@ -16,7 +16,7 @@ extern void func_800234AC(SpriteData* pSpriteData);
 void func_8001D4E8(SpriteData* pSpriteData) {
     if (pSpriteData->pBase->pDirTransforms == 0) {
         pSpriteData->pBase->pDirTransforms = HeapAlloc(sizeof(SpriteDirectionTransforms), 0);
-        func_800234AC(pSpriteData);
+        SpriteClearDirTransforms(pSpriteData);
     }
 }
 
@@ -640,7 +640,7 @@ void func_8001F750(SpriteData* pSpriteData, s32 index, SpriteAnimPackage* pAnimP
                 dir = entryFlags & 7;
                 if (pSpriteData->pBase->pDirTransforms == 0) {
                     pSpriteData->pBase->pDirTransforms = HeapAlloc(sizeof(SpriteDirectionTransforms), 0);
-                    func_800234AC(pSpriteData);
+                    SpriteClearDirTransforms(pSpriteData);
                 }
                 if (entryFlags & 0x20) {
                     *(u8*)((mem_addr)pSpriteData->pBase->pDirTransforms + dir * 8) = *pEntry++;
@@ -688,7 +688,7 @@ void func_8001F750(SpriteData* pSpriteData, s32 index, SpriteAnimPackage* pAnimP
       local such as `MATRIX unused;` is dropped by gcc, so the extra 0x10 looks
       like a larger outgoing-args area in the original rather than a local.
       Round r12 checked that: the largest call in the body takes 3 arguments
-      (func_8001F750), then HeapAlloc(2) and func_800234AC(1), so the outgoing
+      (func_8001F750), then HeapAlloc(2) and SpriteClearDirTransforms(1), so the outgoing
       area can only be 0x10, and no instruction in the 115 accesses any stack
       word in 0x00-0x1F. So the extra 0x10 is not outgoing args; it behaves like
       incoming-parameter / pretend-arg space (a callee that declares more
@@ -733,7 +733,7 @@ void func_8001F8E8(SpriteData* pSpriteData, s32 index, SpriteAnimPackage* pAnimP
                     if (entryFlags & 0x40) {
                         if (pSpriteData->pBase->pDirTransforms == 0) {
                             pSpriteData->pBase->pDirTransforms = HeapAlloc(sizeof(SpriteDirectionTransforms), 0);
-                            func_800234AC(pSpriteData);
+                            SpriteClearDirTransforms(pSpriteData);
                         }
                         dir = entryFlags & 7;
                         if (entryFlags & 0x20) {

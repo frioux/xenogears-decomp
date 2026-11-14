@@ -90,7 +90,7 @@ void func_80022CDC(SpriteData* pSpriteData) {
 // non-prototype on purpose: the second argument is a frame index, not in the header's prototype
 extern void func_8001D2B0();
 
-void func_80022D44(SpriteData* pSpriteData) {
+void SpriteSetFrameFromAnimIndex(SpriteData* pSpriteData) {
     s32 animIndex;
     u16 animFlags;
     s32 frameIndex;
@@ -117,7 +117,7 @@ void func_80022D44(SpriteData* pSpriteData) {
 
 extern void AnimScriptTick(SpriteData* pSpriteData);
 
-// K&R definition: func_80022E8C below calls it with no arguments, as the original does.
+// K&R definition: AnimTaskCountedTimerTick below calls it with no arguments, as the original does.
 void func_80022DF4(pEntry) WorkListEntry* pEntry;
 {
     SpriteData* pSpriteData = pEntry->unk4;
@@ -135,7 +135,7 @@ void func_80022DF4(pEntry) WorkListEntry* pEntry;
     }
 }
 
-void func_80022E8C(void) {
+void AnimTaskCountedTimerTick(void) {
     D_800592EC++;
     func_80022DF4();
 }
@@ -144,7 +144,7 @@ extern void func_80025180(void* pData);
 extern void func_8001CE74(WorkListEntry* pTask);
 extern void func_8001D034(WorkListEntry* pTask);
 
-void func_80022EB8(AnimTask* pAnimTask) {
+void AnimTaskFree(AnimTask* pAnimTask) {
     WorkListEntry* pTask = &pAnimTask->task1;
     SpriteData* pSpriteData = pTask->unk4;
 
@@ -172,7 +172,7 @@ void func_80022EB8(AnimTask* pAnimTask) {
     HeapFree(pAnimTask);
 }
 
-void func_80022FC4(SpriteData* pSpriteData, s32 count, u_int allocFlags) {
+void SpriteAllocFramesData(SpriteData* pSpriteData, s32 count, u_int allocFlags) {
     SpriteDataI1* pBase;
     void* pFramesData;
 
@@ -226,7 +226,7 @@ s32 func_80023124(SLineEnds line) {
     return -ratan2(deltas[1].x, deltas[0].x) & 0xFFF;
 }
 
-void func_80023170(SpriteData* pSpriteData, s32 arg1, s32 arg2, s32 arg3) {
+void SpriteSetFrameAndFlips(SpriteData* pSpriteData, s32 arg1, s32 arg2, s32 arg3) {
     u32 flags = *(u32*)((u8*)pSpriteData + 0x3C);
 
     flags &= ~0x10;
@@ -248,13 +248,13 @@ typedef struct {
     /* 0xC */ u32 dataOffset;
 } AnimScriptLoopBlock;
 
-u32 func_800231E0(AnimScriptLoopBlock* pBlock) {
+u32 AnimScriptGetBlockTarget(AnimScriptLoopBlock* pBlock) {
     mem_addr offset = pBlock->dataOffset;
 
     return *(u32*)(offset + (mem_addr)pBlock);
 }
 
-u32 func_800231F8(AnimScriptLoopBlock* pBlock) {
+u32 AnimScriptGetBlockCount(AnimScriptLoopBlock* pBlock) {
     mem_addr offset = pBlock->dataOffset;
 
     return *(u32*)(offset + (mem_addr)pBlock + 4) + 1;
@@ -299,7 +299,7 @@ void func_80023290(SpriteData* pSpriteData, s32 direction) {
     }
 }
 
-void func_80023340(SpriteData* pSpriteData, s32 count) {
+void SpriteReallocFramesData(SpriteData* pSpriteData, s32 count) {
     SpriteDataI1* pBase;
     void* pFramesData;
 
@@ -311,7 +311,7 @@ void func_80023340(SpriteData* pSpriteData, s32 count) {
 }
 
 // Allocate struct stuff
-AnimTask* func_800233A4(void* pData, int dataSize) {
+AnimTask* AnimTaskAlloc(void* pData, int dataSize) {
     AnimTask* pEntry;
     WorkListEntry* pTask1;
     WorkListEntry* pTask2;
@@ -325,11 +325,11 @@ AnimTask* func_800233A4(void* pData, int dataSize) {
     pTask1->unk4 = &pEntry->spriteData;
     pTask2->unk4 = &pEntry->spriteData;
     TimerWorkListSetTaskCallback(pEntry, &func_80022DF4);
-    WorkListTaskSetOnFreeCallback(pEntry, &func_80022EB8);
+    WorkListTaskSetOnFreeCallback(pEntry, &AnimTaskFree);
     return pEntry;
 }
 
-s32 func_80023440(u16* pFlags) {
+s32 AnimEntryGetNumDirections(u16* pFlags) {
     u32 flags = *pFlags;
     s32 numDirections = (flags >> 8) & 0x7;
 
@@ -373,7 +373,7 @@ s32 value;
     return result;
 }
 
-void func_800234AC(SpriteData* pSpriteData) {
+void SpriteClearDirTransforms(SpriteData* pSpriteData) {
     s32 i;
 
     for (i = 0; i != NUM_8DIR_MOVEMENT_DIRECTIONS; i++) {
@@ -444,37 +444,37 @@ void func_80023804(SpriteData* pSpriteData) {
 }
 */
 
-void func_8002393C(SpriteDataI1* pBase) {
+void SpriteResetBase(SpriteDataI1* pBase) {
     pBase->rotation.x = 0;
     pBase->rotation.y = 0;
     pBase->rotation.z = 0;
     pBase->pFramesData = NULL;
 }
 
-void func_80023950(SpriteData* pSpriteData) {
+void SpriteClearBase(SpriteData* pSpriteData) {
     pSpriteData->pBase = NULL;
 }
 
-void func_80023958(SpriteData* pSpriteData) {
+void SpriteInitBaseAndClearInner3(SpriteData* pSpriteData) {
     pSpriteData->pBase = &pSpriteData->inner1;
-    func_8002393C(&pSpriteData->inner1);
+    SpriteResetBase(&pSpriteData->inner1);
     pSpriteData->pBase->pDirTransforms = NULL;
     // the store 0x40 into pBase lands on the first word of inner3
     *(u32*)((u8*)pSpriteData->pBase + 0x40) = 0;
 }
 
-void func_800239A0(SpriteData* pSpriteData) {
+void SpriteInitBaseWithInternalStorage(SpriteData* pSpriteData) {
     pSpriteData->pBase = &pSpriteData->inner1;
-    func_8002393C(&pSpriteData->inner1);
+    SpriteResetBase(&pSpriteData->inner1);
     pSpriteData->field_0x7C = &pSpriteData->inner3;
     pSpriteData->pBase->pDirTransforms = &pSpriteData->directionTransforms;
     pSpriteData->pVramData = &pSpriteData->i2CurPackage;
     pSpriteData->pBase->pNextSpriteData = NULL;
 }
 
-void func_800239F4(SpriteData* pSpriteData) {
+void SpriteInitBaseWithRenderFrames(SpriteData* pSpriteData) {
     pSpriteData->pBase = &pSpriteData->inner1;
-    func_8002393C(&pSpriteData->inner1);
+    SpriteResetBase(&pSpriteData->inner1);
     pSpriteData->pBase->pCurRenderFramesData = &pSpriteData->inner3;
     pSpriteData->pBase->pDirTransforms = NULL;
     pSpriteData->pBase->pNextSpriteData = NULL;
@@ -484,7 +484,7 @@ extern u8 D_8006BE10[];
 extern u8 D_8005A474[];
 extern s32 func_8001EE74(u16* pFlags);
 
-AnimTask* func_80023A48(s32 arg0, s32 type, void* pAnimPackage, s32 size, void* pData) {
+AnimTask* AnimTaskCreate(s32 arg0, s32 type, void* pAnimPackage, s32 size, void* pData) {
     AnimTask* pEntry;
     SpriteData* pSpriteData;
     s32 dataSize;
@@ -492,8 +492,8 @@ AnimTask* func_80023A48(s32 arg0, s32 type, void* pAnimPackage, s32 size, void* 
     switch (type) {
     case 0:
         dataSize = 0;
-        pEntry = func_800233A4(pData, dataSize + size);
-        func_80023950(&pEntry->spriteData);
+        pEntry = AnimTaskAlloc(pData, dataSize + size);
+        SpriteClearBase(&pEntry->spriteData);
         break;
     case 1:
         // indexed, not plain &D_8006BE10: the index makes gcc build the address as
@@ -505,13 +505,13 @@ AnimTask* func_80023A48(s32 arg0, s32 type, void* pAnimPackage, s32 size, void* 
             pAnimPackage = &D_8005A474[0];
         }
         dataSize = (func_8001EE74(*(u16**)pAnimPackage) - 1) * 24 + 0x58;
-        pEntry = func_800233A4(pData, dataSize + size);
-        func_800239F4(&pEntry->spriteData);
+        pEntry = AnimTaskAlloc(pData, dataSize + size);
+        SpriteInitBaseWithRenderFrames(&pEntry->spriteData);
         break;
     case 2:
         dataSize = 0x54;
-        pEntry = func_800233A4(pData, dataSize + size);
-        func_80023958(&pEntry->spriteData);
+        pEntry = AnimTaskAlloc(pData, dataSize + size);
+        SpriteInitBaseAndClearInner3(&pEntry->spriteData);
         break;
     }
     pSpriteData = &pEntry->spriteData;
@@ -554,9 +554,9 @@ AnimTask* func_80023FD8(s32 index, void* pAnimFile, ActorRotation* pOffset, s32 
 
     pAnimationOffsets = *(u8**)((u8*)pAnimFile + 0x10);
     pAnimEntry = (void*)(((u16*)pAnimationOffsets)[index + 1] + (mem_addr)pAnimationOffsets);
-    numDirections = func_80023440((u16*)pAnimEntry);
+    numDirections = AnimEntryGetNumDirections((u16*)pAnimEntry);
     type = func_80023468(numDirections);
-    pAnimTask = func_80023A48(numDirections, type, pAnimFile, jointTaskSize, NULL);
+    pAnimTask = AnimTaskCreate(numDirections, type, pAnimFile, jointTaskSize, NULL);
     *(u32*)((u8*)pAnimTask + 0x14) |= 0x20000000;
     pSpriteData = &pAnimTask->spriteData;
     pVramData = pSpriteData->pVramData;
@@ -606,7 +606,7 @@ AnimTask* func_80023FD8(s32 index, void* pAnimFile, ActorRotation* pOffset, s32 
 
 extern void func_80024524(s32 arg0, s16 arg1, s16 arg2, s16 arg3, s16 arg4, s16 arg5);
 
-void func_80024294(s32 arg0, s16 arg1, s16 arg2, s16 arg3, s16 arg4, s16 arg5, s32 arg6) {
+void SpriteAllocFromAnimFileWithClut(s32 arg0, s16 arg1, s16 arg2, s16 arg3, s16 arg4, s16 arg5, s32 arg6) {
     D_800591B8 = arg6;
     func_80024524(arg0, arg1, arg2, arg3, arg4, arg5);
     D_800591B8 = 0;
@@ -615,7 +615,7 @@ void func_80024294(s32 arg0, s16 arg1, s16 arg2, s16 arg3, s16 arg4, s16 arg5, s
 extern void func_8002435C(SpriteData* pSpriteData, void* pAnimFile, s16 arg2, s16 arg3, s16 arg4, s16 arg5,
                           s16 arg6);
 
-void func_800242F4(SpriteData* pSpriteData, void* pAnimFile, s16 arg2, s16 arg3, s16 arg4, s16 arg5,
+void SpriteInitFromAnimFileWithClut(SpriteData* pSpriteData, void* pAnimFile, s16 arg2, s16 arg3, s16 arg4, s16 arg5,
                    s16 arg6, s32 arg7) {
     D_800591B8 = arg7;
     func_8002435C(pSpriteData, pAnimFile, arg2, arg3, arg4, arg5, arg6);
@@ -642,7 +642,7 @@ SpriteData* func_8002435C(SpriteData* pSpriteData, void* pAnimFile, s16 arg2, s1
     u32 flags;
 
     func_80023804(pSpriteData);
-    func_800239A0(pSpriteData);
+    SpriteInitBaseWithInternalStorage(pSpriteData);
     SpriteSetScale(pSpriteData, 0x1000);
     *(u32*)((u8*)pSpriteData + 0x3C) = (*(u32*)((u8*)pSpriteData + 0x3C) & ~3) | 1;
     pSpriteData->field_0x40 &= 0xFFFE1FFF;
@@ -779,7 +779,7 @@ void func_80024730(AnimTask* pAnimTask) {
         pSpriteData->position = D_8006F9AC;
         break;
     case 7:
-        TimerWorkListSetTaskCallback(pAnimTask, &func_80022E8C);
+        TimerWorkListSetTaskCallback(pAnimTask, &AnimTaskCountedTimerTick);
         break;
     case 8:
         pSpriteData->prim = 0x68;

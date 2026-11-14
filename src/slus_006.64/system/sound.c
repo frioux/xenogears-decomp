@@ -3,9 +3,9 @@
 #include "psyq/kernel.h"
 #include "psyq/libspu.h"
 
-s32 func_8003E290(s32 value, s16 divisor, s16 mode);
-s32 func_8003F240(AudioEnvelope* pEnvelope);
-s32 func_8003F2A0(AudioEnvelope* pEnvelope);
+s32 SoundCalculateEnvelopeDelta(s32 value, s16 divisor, s16 mode);
+s32 SoundEnvelopeStepTriangle(AudioEnvelope* pEnvelope);
+s32 SoundEnvelopeStepTriangleHalfRate(AudioEnvelope* pEnvelope);
 
 //----------------------------------------------------------------------------------------------------------------------
 // SPU DECLARATIONS
@@ -290,14 +290,14 @@ void SoundMuteAllSpuChannels(void) {
     }
 }
 
-void func_80037F44(void) {
+void SoundEnableEvent(void) {
     if (!(g_SoundControlFlags & 1)) {
         g_SoundControlFlags |= 1;
         EnableEvent(g_unk_SoundEvent);
     }
 }
 
-void func_80037F88(void) {
+void SoundDisableEvent(void) {
     if (g_SoundControlFlags & 1) {
         DisableEvent(g_unk_SoundEvent);
         g_SoundControlFlags &= ~1;
@@ -319,7 +319,7 @@ SoundWDSEntry* SoundLoadWdsFile(SoundWDSEntry* pWdsFile, void* pUnk) {
 
     SoundQueueSpuWriteCommand(spuAddress, (u8*)pWdsFile + pWdsFile->adpcmDataOffset, pWdsFile->adpcmDataSize, NULL);
 
-    pEntry = (SoundWDSEntry*)func_80039024(pWdsFile->headerSizeMby);
+    pEntry = (SoundWDSEntry*)SoundHeapAllocateFromEnd(pWdsFile->headerSizeMby);
     if (pEntry == NULL) {
         SoundSpuMemoryFreeBlock(spuAddress);
         SoundHandleError(0x1E);
@@ -361,7 +361,7 @@ SoundWDSEntry* func_800380D0(SoundWDSEntry* pWdsFile, int size, int mode) {
     SoundWdsSetTransferParamters(spuAddress, pWdsFile->adpcmDataSize);
     SoundTransferWdsPart((u8*)pWdsFile + pWdsFile->adpcmDataOffset, size - pWdsFile->headerSizeMby);
 
-    pEntry = (SoundWDSEntry*)func_80039024(pWdsFile->headerSizeMby);
+    pEntry = (SoundWDSEntry*)SoundHeapAllocateFromEnd(pWdsFile->headerSizeMby);
     if (pEntry == NULL) {
         SoundSpuMemoryFreeBlock(spuAddress);
         SoundHandleError(0x1E);
@@ -539,13 +539,13 @@ void func_8003852C(SoundFile* pSoundFile) {
 }
 
 //----------------------------------------------------------------------------------------------------------------------
-void func_80038624(void) {
+void SoundClearSedsList(void) {
     func_80039FF8();
     g_SoundSedsLinkedList = 0;
 }
 
 //----------------------------------------------------------------------------------------------------------------------
-SoundFile* func_8003864C(SoundFile* pSoundFile, s16 sedId) {
+SoundFile* SoundFindSedsEntry(SoundFile* pSoundFile, s16 sedId) {
     SoundFile* pEntry;
 
     if (pSoundFile != NULL) {
@@ -561,7 +561,7 @@ SoundFile* func_8003864C(SoundFile* pSoundFile, s16 sedId) {
 }
 
 //----------------------------------------------------------------------------------------------------------------------
-void func_8003869C(void) {
+void SoundStopAllPlayback(void) {
     func_80039CC4();
     func_80039FF8();
 }
@@ -688,7 +688,7 @@ void SoundSetupCdMix(s32 vol) {
 }
 
 //----------------------------------------------------------------------------------------------------------------------
-void func_800388D4(s32 arg0) {
+void SoundSetReverbEnabled(s32 arg0) {
 
     if (arg0 != 0) {
         g_SoundControlFlags |= (1 << 12);
@@ -698,7 +698,7 @@ void func_800388D4(s32 arg0) {
 }
 
 //----------------------------------------------------------------------------------------------------------------------
-void func_8003890C(AudioManager* manager, s32 bIn) {
+void SoundSetAudioManagerFlag1(AudioManager* manager, s32 bIn) {
     if (bIn != 0) {
         manager->unk_Flags &= ~(1 << 0);
     } else {
@@ -977,7 +977,7 @@ void* SoundHeapAllocate(unsigned int allocSize) {
 
 // SoundHeapAllocate, but slightly different
 // SoundHeapAllocate, but slightly different
-void* func_80039024(int size) {
+void* SoundHeapAllocateFromEnd(int size) {
     SoundHeapBlockHeader* pHeapBlock;
     SoundHeapBlockHeader* pTargetBlock;
     SoundHeapBlockHeader* pNewBlock;
@@ -1062,7 +1062,7 @@ void SoundHeapFree(void* pMemory) {
 }
 */
 
-u32 func_800391CC(void) {
+u32 SoundHeapGetLargestFreeBlockSize(void) {
     SoundHeapBlockHeader* pHeapBlock;
     s32 nMaxSize;
     s32 nSize;
@@ -1370,7 +1370,7 @@ int SoundSpuMemoryFreeBlock(int targetAddress) {
     }
 }
 
-void func_80039748(int targetAddress, u_char value) {
+void SoundSpuMemorySetBlockType(int targetAddress, u_char value) {
     SoundSpuMemoryBlock *pBlock;
 
     pBlock = SoundSpuMemoryFindBlock(targetAddress);
@@ -1379,7 +1379,7 @@ void func_80039748(int targetAddress, u_char value) {
     }
 }
 
-s32 func_8003977C(void) { return 0; }
+s32 SoundUnkDebug1(void) { return 0; }
 
 int SoundSpuMemoryGetFreeBlock() {
     int i = 0;
@@ -1413,7 +1413,7 @@ SoundSpuMemoryBlock* SoundSpuMemoryFindBlock(int targetAddress) {
     }
 }
 
-AudioManager* func_800397FC(SoundFile* pFile, s32 arg1, s32 arg2) {
+AudioManager* SoundCreateAndPlayAudioManager(SoundFile* pFile, s32 arg1, s32 arg2) {
     AudioManager* pManager = func_80039850(pFile);
 
     func_80039A80(pManager, arg1, arg2);
@@ -1445,9 +1445,9 @@ AudioManager* func_80039850(AudioManager* pManager) {
 
     pNew->unk_0x8 = (s32)pSource;
     if (pSource->unk_0x15 != 0) {
-        func_8003B0AC(pNew, pSource);
+        SoundCopyPercussionTable(pNew, pSource);
     }
-    func_8003B22C(pNew);
+    SoundLoadAudioManagerSequenceHeader(pNew);
     func_8003B424(pNew);
     pNew->unk_0x4c = 0;
     SoundAddAudioManagerToList(pNew);
@@ -1455,7 +1455,7 @@ AudioManager* func_80039850(AudioManager* pManager) {
     return pNew;
 }
 
-AudioManager* func_80039910(AudioManager* pManager, AudioManager* pNew) {
+AudioManager* SoundCreateAudioManagerInPlace(AudioManager* pManager, AudioManager* pNew) {
     s16 status;
     s32 size;
 
@@ -1473,9 +1473,9 @@ AudioManager* func_80039910(AudioManager* pManager, AudioManager* pNew) {
 
     pNew->unk_0x8 = (s32)pManager;
     if (pManager->unk_0x15 != 0) {
-        func_8003B0AC(pNew, pManager);
+        SoundCopyPercussionTable(pNew, pManager);
     }
-    func_8003B22C(pNew);
+    SoundLoadAudioManagerSequenceHeader(pNew);
     func_8003B424(pNew);
     pNew->unk_0x4c = 0;
     SoundAddAudioManagerToList(pNew);
@@ -1499,7 +1499,7 @@ void func_800399D4(AudioManager* pManager) {
         return;
     }
 
-    func_8003B930(pManager);
+    SoundFreeAudioManagerBackups(pManager);
 
     if (!(pManager->unk_Flags & 0x4000)) {
         SoundHeapFree(pManager);
@@ -1526,7 +1526,7 @@ void func_80039A80(AudioManager* pManager, s32 volume, s32 frames) {
     }
 
     DisableEvent(g_unk_SoundEvent);
-    func_8003B22C(pManager);
+    SoundLoadAudioManagerSequenceHeader(pManager);
     func_8003B424(pManager);
     pManager->unk_Interpolator_0x70.currentValue = 0;
     func_8003A89C(pManager, volume, frames);
@@ -1577,7 +1577,7 @@ void func_80039C4C(AudioManager* manager) {
 }
 
 //----------------------------------------------------------------------------------------------------------------------
-void func_80039C8C(AudioManager* manager, s32 arg1) {
+void SoundFadeOutAudioManager(AudioManager* manager, s32 arg1) {
     if (manager == NULL) {
         SoundHandleError(5);
         return;
@@ -1602,10 +1602,10 @@ void func_80039CC4(void) {
 }
 
 //----------------------------------------------------------------------------------------------------------------------
-void func_80039D24(void) {}
+void SoundNop(void) {}
 
 //----------------------------------------------------------------------------------------------------------------------
-void func_80039D2C(s32 bIn) {
+void SoundSetControlFlag800(s32 bIn) {
     if (bIn != 0) {
         g_SoundControlFlags |= (1 << 11);
     } else {
@@ -1614,7 +1614,7 @@ void func_80039D2C(s32 bIn) {
     }
 }
 
-s32 func_80039D78(s32 count) {
+s32 SoundSetSoundEffectChannelCount(s32 count) {
     if (count) {
         if (count > 0x10) {
             count = 0x10;
@@ -1640,7 +1640,7 @@ void func_80039DB8(s32 arg0) {
 
 //----------------------------------------------------------------------------------------------------------------------
 // Wowoweewa flag central
-void func_80039E18(s32 arg0) {
+void SoundSendCommandConstant(s32 arg0) {
     if (g_SoundControlFlags & (1 << 11)) {
         D_80059404 = 2;
         func_8003B644((1 << 2) | (1 << 3) | (1 << 13) | (1 << 14), arg0, (1 << 13) | ( 1 << 14), (1 << 14));
@@ -1671,7 +1671,7 @@ void func_80039EC4(s32 arg0, s32 arg1) {
 }
 
 //----------------------------------------------------------------------------------------------------------------------
-void func_80039F18(s32 arg0, s32 arg1, s32 arg2) {
+void SoundSendCommandByIdWithLevels(s32 arg0, s32 arg1, s32 arg2) {
     if (g_SoundControlFlags & 0x800) {
         s32 value = func_8003A65C(arg0, 2);
 
@@ -1724,7 +1724,7 @@ void func_8003A094(SoundFile* pSoundFile) {
     } while (cnt);
 }
 
-void func_8003A14C(s32 sedId) {
+void SoundStopElementsById(s32 sedId) {
     AudioManager* pManager = D_800595D8;
     AudioElement* pElement = &pManager->elements[0];
     u32 cnt = D_80059478;
@@ -1768,11 +1768,11 @@ void func_8003A20C(s32 index) {
 }
 */
 
-void func_8003A2D4(void) {}
+void SoundNop2(void) {}
 
-void func_8003A2DC(void) {}
+void SoundNop3(void) {}
 
-void func_8003A2E4(s32 id, s32 value) {
+void SoundSetElementVolumeById(s32 id, s32 value) {
     AudioManager* pManager = D_800595D8;
     AudioElement* pElement = &pManager->elements[0];
     u32 cnt = D_80059478;
@@ -1880,7 +1880,7 @@ void func_8003A450(s32 elementIndex, s32 value, s32 frames) {
     } while (cnt);
 } */
 
-void func_8003A4FC(s32 id, s32 value) {
+void SoundSetElementPanById(s32 id, s32 value) {
     AudioManager* pManager = D_800595D8;
     AudioElement* pElement = &pManager->elements[0];
     u32 cnt = D_80059478;
@@ -1952,7 +1952,7 @@ s32 func_8003A5D0(s32 id) {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003A65C);
 
-s32 func_8003A82C(AudioManager* pManager) {
+s32 SoundAudioManagerIsActive(AudioManager* pManager) {
     return (u16)pManager->unk_Flags >> 15;
 }
 
@@ -1999,7 +1999,7 @@ void func_8003A89C(AudioManager* pManager, s32 volume, s32 frames) {
     }
 
     if ((pManager->unk_Flags & 0x100) && volume != 0) {
-        func_8003AA30(pManager);
+        SoundActivateAudioManager(pManager);
     }
 }
 
@@ -2039,7 +2039,7 @@ void func_8003A9BC(AudioManager* pManager, s16 volume, s32 frames) {
     }
 }
 
-void func_8003AA30(AudioManager* pManager) {
+void SoundActivateAudioManager(AudioManager* pManager) {
     DisableEvent(g_unk_SoundEvent);
 
     if (g_SoundControlFlags & 0x1000) {
@@ -2047,7 +2047,7 @@ void func_8003AA30(AudioManager* pManager) {
     }
 
     SoundSetFlagsOnActiveVoices(pManager, 0xFFFF);
-    func_8003AFA0(pManager);
+    SoundSetElementsStatusFlag1(pManager);
     pManager->unk_Flags = (pManager->unk_Flags & ~0x100) | 0x8000;
     EnableEvent(g_unk_SoundEvent);
 }
@@ -2089,11 +2089,11 @@ void func_8003AAC4(AudioManager* pManager, u32 flags) {
     } while (--count != 0);
 }
 
-void func_8003ABE8(AudioManager* pManager, u8 value) {
+void SoundSetAudioManagerUnk1B(AudioManager* pManager, u8 value) {
     pManager->unk_0x1b = value;
 }
 
-void func_8003ABF0(AudioManager* pManager, u16* pOut) {
+void SoundGetAudioManagerPlayTime(AudioManager* pManager, u16* pOut) {
     u32 total = (u32)pManager->unk_0x28 >> 8;
     u32 field = total / 240;
     u32 index = field / 60;
@@ -2104,7 +2104,7 @@ void func_8003ABF0(AudioManager* pManager, u16* pOut) {
     pOut[4] = index;
 }
 
-u16* func_8003AC58(AudioManager* pManager) {
+u16* SoundGetLowestActiveElementCounter(AudioManager* pManager) {
     AudioElement* pElement = pManager->elements;
     u16 count = pManager->elementCount;
     u16* pResult = (u16*)&pManager->unk_0x30;
@@ -2124,7 +2124,7 @@ u16* func_8003AC58(AudioManager* pManager) {
     return pResult;
 }
 
-s32 func_8003ACC8(AudioManager* pManager) {
+s32 SoundGetAudioManagerSeqOffsetPointer(AudioManager* pManager) {
     AudioManager* pCurrent = g_SoundAudioManagerListHead;
     s32 result;
 
@@ -2145,28 +2145,28 @@ s32 func_8003ACC8(AudioManager* pManager) {
     return result;
 }
 
-void func_8003AD20(AudioManager* pManager, s32 mode) {
+void SoundSetAudioManagerBackupState(AudioManager* pManager, s32 mode) {
     switch (mode) {
     case 0:
-        func_8003AD98(pManager);
+        SoundDiscardAudioManagerBackup(pManager);
         break;
     case 1:
-        func_8003ADCC(pManager);
+        SoundSaveAudioManagerBackup(pManager);
         break;
     case 2:
-        func_8003AE84(pManager);
+        SoundRestoreAudioManagerBackup(pManager);
         break;
     }
 }
 
-void func_8003AD98(AudioManager* pManager) {
+void SoundDiscardAudioManagerBackup(AudioManager* pManager) {
     if (pManager->unk_Flags & 0x10) {
         pManager->unk_Flags &= ~0x10;
-        func_8003B930(pManager);
+        SoundFreeAudioManagerBackups(pManager);
     }
 }
 
-void func_8003ADCC(AudioManager* pManager) {
+void SoundSaveAudioManagerBackup(AudioManager* pManager) {
     AudioManager* pCopy;
     s32 size;
 
@@ -2189,7 +2189,7 @@ void func_8003ADCC(AudioManager* pManager) {
     EnableEvent(g_unk_SoundEvent);
 }
 
-void func_8003AE84(AudioManager* pManager) {
+void SoundRestoreAudioManagerBackup(AudioManager* pManager) {
     s32 savedValue;
 
     if (pManager->unk_Manager_0x4 != NULL && (pManager->unk_Flags & 0x10)) {
@@ -2199,12 +2199,12 @@ void func_8003AE84(AudioManager* pManager) {
         SoundCopyAudioManagerData(pManager, pManager->unk_Manager_0x4);
         pManager->unk_0x2c = savedValue;
         SoundSetFlagsOnActiveVoices(pManager, 0xFFFF);
-        func_8003AFA0(pManager);
+        SoundSetElementsStatusFlag1(pManager);
         EnableEvent(g_unk_SoundEvent);
     }
 }
 
-void func_8003AF24(AudioManager* pManager, u16 volume) {
+void SoundSetAudioManagerMaxVolume(AudioManager* pManager, u16 volume) {
     s32 newVolume = 0x7F00;
     u_long event = g_unk_SoundEvent;
 
@@ -2223,7 +2223,7 @@ Attempt (87.10%, same size): every instruction is right; only the first eight ar
 ordered differently. The original schedules `lui/lw a0` (DisableEvent's argument)
 before `sw ra`/`lhu`/`sh a1,30(pManager)`, gcc puts them after. Statement order of the
 two field updates does not change it.
-void func_8003AF24(AudioManager* pManager, u16 volume) {
+void SoundSetAudioManagerMaxVolume(AudioManager* pManager, u16 volume) {
     s32 newVolume = 0x7F00;
 
     pManager->unk_Flags |= 0x20;
@@ -2239,7 +2239,7 @@ void func_8003AF24(AudioManager* pManager, u16 volume) {
 */
 
 //----------------------------------------------------------------------------------------------------------------------
-void func_8003AFA0(AudioManager* manager) {
+void SoundSetElementsStatusFlag1(AudioManager* manager) {
     AudioElement* pElement;
     u32 cnt;
 
@@ -2292,7 +2292,7 @@ void SoundReleaseAllVoices(AudioManager* manager) {
     } while (cnt);
 }
 
-void func_8003B0AC(AudioManager* pManager, AudioManager* pSrc) {
+void SoundCopyPercussionTable(AudioManager* pManager, AudioManager* pSrc) {
     u32* pTable;
     u8* pData;
     u32 cnt;
@@ -2312,7 +2312,7 @@ void func_8003B0AC(AudioManager* pManager, AudioManager* pSrc) {
     } while (cnt);
 }
 
-AudioManager* func_8003B148(s32 elementCount) {
+AudioManager* SoundCreateAudioManagerForElementCount(s32 elementCount) {
     s32 count = elementCount & ~1;
     AudioManager* pManager;
     AudioElement* pElement;
@@ -2327,7 +2327,7 @@ AudioManager* func_8003B148(s32 elementCount) {
         return NULL;
     }
 
-    func_8003B32C(pManager);
+    SoundResetAudioManager(pManager);
 
     pElement = &pManager->elements[0];
     voiceNumber = NUM_VOICES - count;
@@ -2346,12 +2346,12 @@ AudioManager* func_8003B148(s32 elementCount) {
     return pManager;
 }
 
-void func_8003B1FC(AudioManager* pManager) {
+void SoundFreeAudioManager(AudioManager* pManager) {
     SoundRemoveAudioManagerFromList(pManager);
     SoundHeapFree(pManager);
 }
 
-void func_8003B22C(AudioManager* pManager) {
+void SoundLoadAudioManagerSequenceHeader(AudioManager* pManager) {
     u8* pSeqData = (u8*)pManager->unk_0x8;
     s16 status;
 
@@ -2378,7 +2378,7 @@ void func_8003B22C(AudioManager* pManager) {
     SoundInitializeAudioManager(pManager);
 }
 
-void func_8003B32C(AudioManager* pManager) {
+void SoundResetAudioManager(AudioManager* pManager) {
     pManager->unk_Flags = 2;
     pManager->unk_0x12 = 0x7FFF;
     pManager->unk_0x16 = 0;
@@ -2390,7 +2390,7 @@ void func_8003B32C(AudioManager* pManager) {
 //----------------------------------------------------------------------------------------------------------------------
 // TODO(jperos): Boy, we really need some names of this stuff
 void SoundInitializeAudioManager(AudioManager* manager) {
-    func_8003B930(manager);
+    SoundFreeAudioManagerBackups(manager);
 
     manager->unk_0x32 = 1;
     manager->unk_0x1a = 0;
@@ -2428,7 +2428,7 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003B424);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003B644);
 
-void func_8003B930(AudioManager* pManager) {
+void SoundFreeAudioManagerBackups(AudioManager* pManager) {
     AudioManager* pEntry = pManager->unk_Manager_0x4;
 
     if (pEntry != NULL) {
@@ -2509,7 +2509,7 @@ s32 SoundRemoveAudioManagerFromList(AudioManager* manager) {
 }
 
 //----------------------------------------------------------------------------------------------------------------------
-void func_8003BB08(u16 flags, AudioManager* pManager) {
+void SoundSetElementActiveFlags(u16 flags, AudioManager* pManager) {
     AudioElement* pElement = &pManager->elements[0];
     u32 cnt = pManager->elementCount;
 
@@ -2553,12 +2553,12 @@ void SoundQueueSpuReadCommand(u32 transferAddress, void* pData, u_long dataSize,
 }
 
 // Queue SPU ReadDecodedData SPU_ALL Command
-void func_8003BC58(u32 transferAddress, void* pData, u_long dataSize, SoundCommandCallback_t pCallback) {
+void SoundQueueSpuReadDecodedDataAll(u32 transferAddress, void* pData, u_long dataSize, SoundCommandCallback_t pCallback) {
     SoundQueueTransferCommand(transferAddress, pData, dataSize, pCallback, 3);
 }
 
 // Queue SPU ReadDecodedData SPU_CDONLY Command
-void func_8003BC7C(u32 transferAddress, void* pData, u_long dataSize, SoundCommandCallback_t pCallback) {
+void SoundQueueSpuReadDecodedDataCdOnly(u32 transferAddress, void* pData, u_long dataSize, SoundCommandCallback_t pCallback) {
     SoundQueueTransferCommand(transferAddress, pData, dataSize, pCallback, 4);
 }
 
@@ -2605,7 +2605,7 @@ int SoundTransferQueueSync() {
     return (nWriteIndex - g_SoundTransferQueueReadIndex < 6) ^ 1;
 }
 
-void func_8003BDF4(void) {}
+void SoundNop4(void) {}
 
 // Waits for the transfer queue to finish (arg & 0x10) and returns the mode of the
 // command at the read index, or 0 when the queue is idle.
@@ -2698,7 +2698,7 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003C4C4);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003C6E8);
 
-void func_8003CC84(AudioManager* pAudioManager, AudioElement* pElement, u8 percussionIndex) {
+void SoundSetElementPercussionTone(AudioManager* pAudioManager, AudioElement* pElement, u8 percussionIndex) {
     u8* pPercussionData;
     s32 note;
     u16 statusFlags;
@@ -2719,7 +2719,7 @@ u8* SoundScriptDefaultHandler(u8* pScript, AudioManager* pAudioManager, AudioEle
 }
 
 // Rest note handler?
-u8* func_8003CD08(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
+u8* SoundScriptRestNote(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     pAudioElements->fermataDuration = *pScript;
     pAudioElements->active_flag |= SOUND_CHANNEL_REST_NOTE;
     pAudioElements->status_flags |= SOUND_STATUS_REST_NOTE;
@@ -2738,7 +2738,7 @@ u8* SoundScriptNop3(u8* pScript, AudioManager* pAudioManager, AudioElement* pAud
     return pScript;
 }
 
-u8* func_8003CD54(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
+u8* SoundScriptConditionalSaveIP(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     u8 value = *pScript++;
 
     if (value == pAudioManager->unk_0x1b) {
@@ -2757,7 +2757,7 @@ u8* SoundScriptNop4(u8* pScript, AudioManager* pAudioManager, AudioElement* pAud
     return pScript;
 }
 
-u8* func_8003CD8C(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
+u8* SoundScriptRepeatOrEnd(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     u8* pSavedScript = pAudioElements->savedScriptIP;
 
     if (pSavedScript) {
@@ -2795,7 +2795,7 @@ u8* SoundScriptLowerOctave(u8* pScript, AudioManager* pAudioManager, AudioElemen
 }
 
 // Time signature handler?
-u8* func_8003CE68(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
+u8* SoundScriptSetTimeSignature(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     u8 divisor = pScript[1];
     u16 step = 0xC0 / divisor;
     u16 value = *pScript;
@@ -2808,7 +2808,7 @@ u8* func_8003CE68(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
     return pScript + 2;
 }
 
-u8* func_8003CE9C(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
+u8* SoundScriptSetManagerUnk32And34(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     pAudioManager->unk_0x32 = pScript[0];
     pAudioManager->unk_0x34 = pScript[1];
     pAudioManager->unk_0x36 = pAudioManager->unk_0x3a;
@@ -2826,7 +2826,7 @@ u8* SoundScriptAddManagerUnk1a(u8* pScript, AudioManager* pAudioManager, AudioEl
 }
 
 // Loop start handler?
-u8* func_8003CEF0(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
+u8* SoundScriptLoopStart(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     AudioLoop* pLoop;
 
     pAudioElements->unk_0x72++;
@@ -2838,7 +2838,7 @@ u8* func_8003CEF0(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
 }
 
 // Loop end handler?
-u8* func_8003CF38(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
+u8* SoundScriptLoopEnd(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     AudioLoop* pLoop = &pAudioElements->loops[pAudioElements->unk_0x72];
     u8* pResult = pScript;
 
@@ -2854,7 +2854,7 @@ u8* func_8003CF38(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
     return pResult;
 }
 
-u8* func_8003CFA4(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
+u8* SoundScriptLoopExitIfDone(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     AudioLoop* pLoop = &pAudioElements->loops[pAudioElements->unk_0x72];
     u8* pResult = pScript;
 
@@ -2867,17 +2867,17 @@ u8* func_8003CFA4(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
     return pResult;
 }
 
-u8* func_8003CFF0(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
-    func_80039F18(pScript[0] | (pScript[1] << 8), 0x7F, 0x40);
+u8* SoundScriptSendCommandByIdWithLevels(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
+    SoundSendCommandByIdWithLevels(pScript[0] | (pScript[1] << 8), 0x7F, 0x40);
     return pScript + 3;
 }
 
-u8* func_8003D034(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
-    func_8003A14C(pScript[0] | (pScript[1] << 8));
+u8* SoundScriptStopElementsById(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
+    SoundStopElementsById(pScript[0] | (pScript[1] << 8));
     return pScript + 2;
 }
 
-u8* func_8003D070(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
+u8* SoundScriptJumpToInstrumentScript(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     SoundFile* pSoundFile = g_SoundSedsLinkedList;
     s16 sedId = *(s16*)((u8*)pAudioElements + 0xA);
     s16 instrument = pScript[0] | (pScript[1] << 8);
@@ -2897,7 +2897,7 @@ u8* func_8003D070(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
 }
 
 // Set tempo handler?
-u8* func_8003D0E8(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
+u8* SoundScriptSetTempo(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     u8 value = *pScript++;
 
     pAudioManager->unk_0x58 = value << 16;
@@ -2905,7 +2905,7 @@ u8* func_8003D0E8(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
     return pScript;
 }
 
-u8* func_8003D110(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
+u8* SoundScriptAddTempo(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     s32 pad[2]; // unused: reproduces the original's 0x8-byte frame
     s8 value = *pScript;
 
@@ -2917,7 +2917,7 @@ u8* func_8003D110(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
 Attempt (67.27%): the original has an unused 0x8-byte stack frame
 (`addiu sp,sp,-0x8` ... `addiu sp,sp,0x8`) and computes the return value before the
 epilogue, so its source had something that forces a frame this form does not.
-u8* func_8003D110(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
+u8* SoundScriptAddTempo(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     s8 value = *pScript;
 
     pAudioManager->unk_0x58 += value << 16;
@@ -2926,7 +2926,7 @@ u8* func_8003D110(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
 }
 */
 
-u8* func_8003D13C(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
+u8* SoundScriptRampTempo(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     s16 unk0 = pScript[0];
     u8 unk1 = pScript[1];
     s32 delta;
@@ -2940,13 +2940,13 @@ u8* func_8003D13C(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
     return pScript + 2;
 }
 
-u8* func_8003D17C(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
+u8* SoundScriptSetVolume(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     pAudioManager->unk_Interpolator_0x70.currentValue = *pScript++ << 24;
     unk_SoundSetFlagsOnActiveVoices(0x100, pAudioManager);
     return pScript;
 }
 
-u8* func_8003D1BC(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
+u8* SoundScriptRampVolume(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     u8 step = pScript[0];
     u8 target = pScript[1];
     u16 counter = step << 5;
@@ -2965,7 +2965,7 @@ u8* SoundScriptSetUnk62(u8* pScript, AudioManager* pAudioManager, AudioElement* 
     return pScript + 1;
 }
 
-u8* func_8003D21C(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
+u8* SoundScriptSetVoice(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     s32 note;
 
     note = *pScript++;
@@ -2978,12 +2978,12 @@ u8* func_8003D21C(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
     return pScript;
 }
 
-u8* func_8003D298(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
+u8* SoundScriptSetTone(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     func_8003E5BC(*pScript++, pAudioElements);
     return pScript;
 }
 
-u8* func_8003D2D0(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
+u8* SoundScriptAddUnk60(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     u8 value = *pScript++;
 
     if (value) {
@@ -2996,7 +2996,7 @@ u8* func_8003D2D0(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
 }
 
 // Percussion On handler?
-u8* func_8003D300(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
+u8* SoundScriptPercussionOn(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     if (pAudioManager->unk_0xc) {
         pAudioElements->active_flag |= SOUND_CHANNEL_PERCUSSION_ACTIVE;
     }
@@ -3019,7 +3019,7 @@ u8* SoundScriptClearActiveFlag800(u8* pScript, AudioManager* pAudioManager, Audi
     return pScript;
 }
 
-u8* func_8003D370(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
+u8* SoundScriptSetVoiceFlags1000AndMode(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     if (pAudioElements->voice_number & 0x1) {
         pAudioElements->voice_data.flags |= 0x1000;
         pAudioElements->voice_data.modeFlags |= 0x10;
@@ -3028,7 +3028,7 @@ u8* func_8003D370(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
     return pScript;
 }
 
-u8* func_8003D3A4(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
+u8* SoundScriptSetVoiceFlags1000ClearMode(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     if (pAudioElements->voice_number & 0x1) {
         pAudioElements->voice_data.flags |= 0x1000;
         pAudioElements->voice_data.modeFlags &= ~0x10;
@@ -3037,7 +3037,7 @@ u8* func_8003D3A4(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
     return pScript;
 }
 
-u8* func_8003D3D8(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
+u8* SoundScriptSetNoiseClock(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     pAudioManager->unk_0x1c = *pScript++;
     SpuSetNoiseClock(pAudioManager->unk_0x1c);
     pAudioElements->voice_data.flags |= 0x2000;
@@ -3045,7 +3045,7 @@ u8* func_8003D3D8(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
     return pScript;
 }
 
-u8* func_8003D438(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
+u8* SoundScriptAddNoiseClock(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     pAudioManager->unk_0x1c = (pAudioManager->unk_0x1c + *pScript++) & 0x3F;
     SpuSetNoiseClock(pAudioManager->unk_0x1c);
     pAudioElements->voice_data.flags |= 0x2000;
@@ -3065,7 +3065,7 @@ u8* SoundScriptSetVoiceFlags2000ClearMode(u8* pScript, AudioManager* pAudioManag
     return pScript;
 }
 
-u8* func_8003D4E4(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
+u8* SoundScriptSetReverb(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     s16 depth;
     s32 delay;
     s32 feedback;
@@ -3126,7 +3126,7 @@ u8* SoundScriptCallE5BC(u8* pScript, AudioManager* pAudioManager, AudioElement* 
     return pScript;
 }
 
-u8* func_8003D60C(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
+u8* SoundScriptSetAdsrModes(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     pAudioElements->voice_data.unkAdsr1 = pScript[0];
     pAudioElements->voice_data.unkAdsr2 = pScript[1];
     pAudioElements->voice_data.unkAdsr3 = pScript[2];
@@ -3212,19 +3212,19 @@ u8* SoundScriptAddUnk6E(u8* pScript, AudioManager* pAudioManager, AudioElement* 
     return pScript + 1;
 }
 
-u8* func_8003D79C(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
+u8* SoundScriptAddUnk6EFine(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     pAudioElements->unk_0x6E += (s8)*pScript << 3;
     pAudioElements->status_flags |= SOUND_STATUS_PLAYING_NTOE;
     return pScript + 1;
 }
 
-u8* func_8003D7C8(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
+u8* SoundScriptAddUnk6EWord(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     pAudioElements->unk_0x6E += pScript[1] + ((s8)pScript[0] << 8);
     pAudioElements->status_flags |= SOUND_STATUS_PLAYING_NTOE;
     return pScript + 2;
 }
 
-u8* func_8003D7FC(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
+u8* SoundScriptSetUnk84Ramp(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     u16 value = pScript[0];
     s32 delta = (s8)pScript[1] << 24;
 
@@ -3248,7 +3248,7 @@ u8* SoundScriptClearUnk04Bit1(u8* pScript, AudioManager* pAudioManager, AudioEle
     return pScript;
 }
 
-u8* func_8003D884(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
+u8* SoundScriptSetUnk70(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     u8 value = *pScript++;
 
     pAudioElements->unk_0x70 = value;
@@ -3287,17 +3287,17 @@ u8* func_8003D8B8(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
                 pitch = note * note;
             }
             volume = velocity + ((s16)velocity * (s16)velocity) / 64;
-            pAudioElements->envelopes[0].delta = func_8003E290(pitch << 14, volume, 3);
+            pAudioElements->envelopes[0].delta = SoundCalculateEnvelopeDelta(pitch << 14, volume, 3);
             pAudioElements->envelopes[0].reload = volume;
             unk16 = pScript[2] << 2;
             pAudioElements->envelopes[0].unk_0x1A = 0x400;
-            pAudioElements->envelopes[0].unk_0x0 = (undefined32)func_8003F2A0;
+            pAudioElements->envelopes[0].unk_0x0 = (undefined32)SoundEnvelopeStepTriangleHalfRate;
             pAudioElements->envelopes[0].unk_0x1D = 3;
             pAudioElements->envelopes[0].flags = 3;
             pAudioElements->envelopes[0].unk_0x1C = 0;
             pAudioElements->envelopes[0].unk_0x16 = unk16;
             pAudioElements->unk_0xCE |= 0x1;
-            func_8003E3E0(&pAudioElements->envelopes[0]);
+            SoundResetEnvelope(&pAudioElements->envelopes[0]);
         }
     }
 
@@ -3332,7 +3332,7 @@ u8* func_8003D9A4(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
             pitch = note * note;
         }
         volume = velocity + (velocity * velocity) / 64;
-        pAudioElements->envelopes[0].delta = func_8003E290(pitch << 14, (s16)volume, mode & 0xF);
+        pAudioElements->envelopes[0].delta = SoundCalculateEnvelopeDelta(pitch << 14, (s16)volume, mode & 0xF);
         pAudioElements->envelopes[0].unk_0x1A = 0x400;
         pAudioElements->envelopes[0].reload = volume;
         pAudioElements->envelopes[0].unk_0x16 = 0;
@@ -3341,14 +3341,14 @@ u8* func_8003D9A4(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
         pAudioElements->envelopes[0].flags = ((mode & 0x10) == 0) * 2 + 1;
         pAudioElements->envelopes[0].unk_0x0 = D_800508A4[mode & 0xF];
         pAudioElements->unk_0xCE |= 0x1;
-        func_8003E3E0(&pAudioElements->envelopes[0]);
+        SoundResetEnvelope(&pAudioElements->envelopes[0]);
     }
 
     return pScript + 3;
 }
 */
 
-u8* func_8003DAB0(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
+u8* SoundScriptSetEnvelope0Rate(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     s32 divisor = (u8)(*pScript + 1);
     s16 step;
 
@@ -3376,7 +3376,7 @@ u8* SoundScriptClearUnkCEAndF6(u8* pScript, AudioManager* pAudioManager, AudioEl
 }
 
 // Set volume handler / Dynamic?
-u8* func_8003DB2C(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
+u8* SoundScriptSetElementVolume(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     pAudioElements->unk_0x78 = *pScript << 24;
     pAudioElements->status_flags |= SOUND_STATUS_VOLUME_CHANGE;
     pAudioElements->unk_0x04 &= ~0x108;
@@ -3384,14 +3384,14 @@ u8* func_8003DB2C(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
 }
 
 // Crescendo?
-u8* func_8003DB58(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
+u8* SoundScriptAddElementVolume(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     pAudioElements->unk_0x78 = (pAudioElements->unk_0x78 + ((s8)*pScript << 24)) & 0x7FFFFFFF;
     pAudioElements->status_flags |= SOUND_STATUS_VOLUME_CHANGE;
     pAudioElements->unk_0x04 &= ~0x108;
     return pScript + 1;
 }
 
-u8* func_8003DB98(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
+u8* SoundScriptSetElementVolumeRamp(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     u16 frames = *pScript;
     s32 delta = ((s8)pScript[1] << 24) - pAudioElements->unk_0x78;
 
@@ -3404,7 +3404,7 @@ u8* func_8003DB98(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
     return pScript + 2;
 }
 
-u8* func_8003DBE4(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
+u8* SoundScriptSetElementRamp(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     s32 start = pScript[0] << 24;
     s32 target = pScript[2] << 24;
     s16 frames = pScript[1];
@@ -3444,17 +3444,17 @@ u8* func_8003DC50(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
     if (note != 0) {
         if (velocity != 0) {
             volume = velocity + (velocity * velocity) / 64;
-            pAudioElements->envelopes[1].delta = func_8003E290(note << 24, (s16)volume, 2);
+            pAudioElements->envelopes[1].delta = SoundCalculateEnvelopeDelta(note << 24, (s16)volume, 2);
             pAudioElements->envelopes[1].reload = volume;
             unk16 = pScript[2] << 2;
             pAudioElements->envelopes[1].unk_0x1A = 0x400;
-            pAudioElements->envelopes[1].unk_0x0 = (undefined32)func_8003F240;
+            pAudioElements->envelopes[1].unk_0x0 = (undefined32)SoundEnvelopeStepTriangle;
             pAudioElements->envelopes[1].unk_0x1D = 2;
             pAudioElements->envelopes[1].unk_0x1C = 1;
             pAudioElements->envelopes[1].flags = 3;
             pAudioElements->envelopes[1].unk_0x16 = unk16;
             pAudioElements->unk_0xCE |= 0x2;
-            func_8003E3E0(&pAudioElements->envelopes[1]);
+            SoundResetEnvelope(&pAudioElements->envelopes[1]);
         }
     }
 
@@ -3486,7 +3486,7 @@ single register; separate velocity/volume locals come out at 59.39% in exactly 2
 //             volume += (volume * volume) / 64;
 //             value = unk2 & 0xF;
 //             unk10 = !(unk2 & 0x10);
-//             pAudioElements->envelopes[1].delta = func_8003E290(note << 24, (s16)volume, value);
+//             pAudioElements->envelopes[1].delta = SoundCalculateEnvelopeDelta(note << 24, (s16)volume, value);
 //             pAudioElements->envelopes[1].unk_0x1A = 0x400;
 //             pAudioElements->envelopes[1].reload = volume;
 //             pAudioElements->envelopes[1].unk_0x16 = 0;
@@ -3495,7 +3495,7 @@ single register; separate velocity/volume locals come out at 59.39% in exactly 2
 //             pAudioElements->envelopes[1].unk_0x0 = D_800508A4[value];
 //             pAudioElements->envelopes[1].unk_0x1D = value;
 //             pAudioElements->unk_0xCE |= 0x2;
-//             func_8003E3E0(&pAudioElements->envelopes[1]);
+//             SoundResetEnvelope(&pAudioElements->envelopes[1]);
 //         }
 //     }
 
@@ -3511,7 +3511,7 @@ much earlier. `flags = ((value & 0x10) == 0) * 2 + 1` does produce the original'
 branchless sltiu/sll/addiu, and `(s16)volume` the sll/sra pair.
 */
 
-u8* func_8003DE18(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
+u8* SoundScriptSetEnvelope1Rate(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     s32 divisor = (u8)(*pScript + 1);
     s16 step;
 
@@ -3545,7 +3545,7 @@ u8* SoundScriptSetUnk74(u8* pScript, AudioManager* pAudioManager, AudioElement* 
     return pScript + 1;
 }
 
-u8* func_8003DEB4(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
+u8* SoundScriptAddElementPan(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     pAudioElements->unk_0x74 += (s8)*pScript << 8;
     pAudioElements->unk_0x74 &= 0x7FFF;
     pAudioElements->status_flags |= SOUND_STATUS_VOLUME_CHANGE;
@@ -3592,7 +3592,7 @@ u8* func_8003DEE4(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
 }
 */
 
-u8* func_8003DF3C(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
+u8* SoundScriptSetEnvelope2Rate(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     s32 divisor = (u8)(*pScript + 1);
     s16 step;
 
@@ -3620,8 +3620,8 @@ the same velocity square. (2) the callee-saved pair comes out swapped: gcc puts 
 volume total in s0 and pAudioElements in s1, the original the other way round, and the
 prologue save order follows (sw s2, sw s0, sw ra, sw s1). The rest of the shape is
 exact: envelopes index 2, delta then reload, unk_0x16 from pScript[2] shifted left 2
-loaded early, callback func_8003F2A0, unk_0x1D 3, unk_0x1C 2, flags 3, unk_0xCE or 4,
-then func_8003E3E0 on the envelope.
+loaded early, callback SoundEnvelopeStepTriangleHalfRate, unk_0x1D 3, unk_0x1C 2, flags 3, unk_0xCE or 4,
+then SoundResetEnvelope on the envelope.
 u8* func_8003DF78(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     s8 note = pScript[1];
     s16 velocity = pScript[0];
@@ -3631,17 +3631,17 @@ u8* func_8003DF78(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
     if (note != 0) {
         if (velocity != 0) {
             volume = velocity + ((s16)velocity * (s16)velocity) / 64;
-            pAudioElements->envelopes[2].delta = func_8003E290(note << 24, (s16)volume, 3);
+            pAudioElements->envelopes[2].delta = SoundCalculateEnvelopeDelta(note << 24, (s16)volume, 3);
             pAudioElements->envelopes[2].reload = volume;
             unk16 = pScript[2] << 2;
             pAudioElements->envelopes[2].unk_0x1A = 0x400;
-            pAudioElements->envelopes[2].unk_0x0 = (undefined32)func_8003F2A0;
+            pAudioElements->envelopes[2].unk_0x0 = (undefined32)SoundEnvelopeStepTriangleHalfRate;
             pAudioElements->envelopes[2].unk_0x1D = 3;
             pAudioElements->envelopes[2].unk_0x1C = 2;
             pAudioElements->envelopes[2].flags = 3;
             pAudioElements->envelopes[2].unk_0x16 = unk16;
             pAudioElements->unk_0xCE |= 0x4;
-            func_8003E3E0(&pAudioElements->envelopes[2]);
+            SoundResetEnvelope(&pAudioElements->envelopes[2]);
         }
     }
 
@@ -3672,7 +3672,7 @@ u8* func_8003E04C(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
             volume = velocity + (velocity * velocity) / 64;
             flags = ((value & 0x10) == 0) * 2;
             value &= 0xF;
-            pAudioElements->envelopes[2].delta = func_8003E290(note << 24, (s16)volume, value);
+            pAudioElements->envelopes[2].delta = SoundCalculateEnvelopeDelta(note << 24, (s16)volume, value);
             pAudioElements->envelopes[2].unk_0x1A = 0x400;
             pAudioElements->envelopes[2].reload = volume;
             pAudioElements->envelopes[2].unk_0x16 = 0;
@@ -3681,7 +3681,7 @@ u8* func_8003E04C(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
             pAudioElements->envelopes[2].flags = flags + 1;
             pAudioElements->envelopes[2].unk_0x0 = D_800508A4[value];
             pAudioElements->unk_0xCE |= 0x4;
-            func_8003E3E0(&pAudioElements->envelopes[2]);
+            SoundResetEnvelope(&pAudioElements->envelopes[2]);
         }
     }
 
@@ -3695,13 +3695,13 @@ u8* SoundScriptSetUnkCEAndUnk136(u8* pScript, AudioManager* pAudioManager, Audio
     return pScript;
 }
 
-u8* func_8003E160(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
+u8* SoundScriptClearUnkCEAndUnk136(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     pAudioElements->unk_0xCE &= ~0x4;
     pAudioElements->envelopes[2].flags &= ~0x1;
     return pScript;
 }
 
-u8* func_8003E180(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
+u8* SoundScriptSelectEnvelope(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     AudioEnvelope* pEnvelope;
     u8 value;
     u8 last;
@@ -3741,13 +3741,13 @@ u8* func_8003E1F8(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
 
     pEnvelope = &pAudioElements->envelopes[pAudioElements->unk_0xCC];
     value = pScript[0] + (pScript[0] * pScript[0]) / 64;
-    pEnvelope->delta = func_8003E290(((s8)pScript[1] << 24) | (pScript[2] << 16), value, pEnvelope->unk_0x1D);
+    pEnvelope->delta = SoundCalculateEnvelopeDelta(((s8)pScript[1] << 24) | (pScript[2] << 16), value, pEnvelope->unk_0x1D);
     pEnvelope->reload = value;
     return pScript + 3;
 }
 */
 
-s32 func_8003E290(s32 value, s16 divisor, s16 mode) {
+s32 SoundCalculateEnvelopeDelta(s32 value, s16 divisor, s16 mode) {
     if (value != 0 && divisor != 0) {
         switch (mode) {
             case 2:
@@ -3765,7 +3765,7 @@ s32 func_8003E290(s32 value, s16 divisor, s16 mode) {
     return value;
 }
 
-u8* func_8003E308(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
+u8* SoundScriptSetCurrentEnvelopeRate(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     u8 divisor = pScript[1] + 1;
     AudioEnvelope* pEnvelope = &pAudioElements->envelopes[pAudioElements->unk_0xCC];
     s16 step;
@@ -3803,7 +3803,7 @@ u8* func_8003E360(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
     u8 index = pScript[0];
     AudioEnvelope* pEnvelope = &pAudioElements->envelopes[index];
 
-    func_8003E3E0(pEnvelope);
+    SoundResetEnvelope(pEnvelope);
     pEnvelope->flags |= 0x1;
     pScript += 1;
     pAudioElements->unk_0xCE |= 1 << index;
@@ -3811,7 +3811,7 @@ u8* func_8003E360(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
 }
 */
 
-void func_8003E3E0(AudioEnvelope* pEnvelope) {
+void SoundResetEnvelope(AudioEnvelope* pEnvelope) {
     pEnvelope->count = 1;
     pEnvelope->value = 0;
     pEnvelope->flags &= ~0xC;
@@ -3819,7 +3819,7 @@ void func_8003E3E0(AudioEnvelope* pEnvelope) {
     pEnvelope->unk_0x18 = pEnvelope->unk_0x1A;
 }
 
-u8* func_8003E40C(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
+u8* SoundScriptDisableEnvelope(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     u8 index = *pScript;
 
     pAudioElements->envelopes[index].flags &= ~0x1;
@@ -3827,7 +3827,7 @@ u8* func_8003E40C(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
     return pScript + 1;
 }
 
-u8* func_8003E44C(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
+u8* SoundScriptSetInstrumentAndTone(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     u8 instrument = *pScript;
     u8 value = pScript[1];
     SoundWDSEntry* pWds;
@@ -3842,7 +3842,7 @@ u8* func_8003E44C(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
     return pScript + 2;
 }
 
-u8* func_8003E4BC(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
+u8* SoundScriptSetExpression(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     s32 value = *pScript++;
 
     if (value != 0) {
@@ -3852,7 +3852,7 @@ u8* func_8003E4BC(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
     return pScript;
 }
 
-u8* func_8003E4F0(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
+u8* SoundScriptSetInstrument(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     u8 instrument = *pScript++;
     SoundWDSEntry* pWds;
 
@@ -3865,7 +3865,7 @@ u8* func_8003E4F0(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
     return pScript;
 }
 
-u8* func_8003E54C(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
+u8* SoundScriptReleaseVoiceIfEnvelopeEnded(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     long keyStatus;
     short envx;
 
@@ -4094,7 +4094,7 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003EBF0);
 extern u8 D_80050B78[];
 extern s16 D_80050BF0[];
 
-s16 func_8003EEA0(u32 tone) {
+s16 SoundGetTonePitch(u32 tone) {
     s32 entry = D_80050B78[(tone & 0x7FFF) >> 8];
     s32 shift = 6 - (entry >> 4);
     s32 value = D_80050BF0[(tone & 0xFF) + ((entry & 0xF) << 8)];
@@ -4147,11 +4147,11 @@ void SoundStopVoiceOnChannel(SoundVoiceData* voiceData, u32 channelIndex) {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003EFE4);
 
-void func_8003F190(AudioEnvelope* pEnvelope) {
+void SoundClearEnvelopeFlags(AudioEnvelope* pEnvelope) {
     pEnvelope->flags &= ~0x1;
 }
 
-s32 func_8003F1A4(AudioEnvelope* pEnvelope) {
+s32 SoundEnvelopeStepPulse(AudioEnvelope* pEnvelope) {
     if (--pEnvelope->count == 0) {
         pEnvelope->count = pEnvelope->reload;
         pEnvelope->value = pEnvelope->value ? 0 : pEnvelope->delta;
@@ -4160,7 +4160,7 @@ s32 func_8003F1A4(AudioEnvelope* pEnvelope) {
     return pEnvelope->value;
 }
 
-s32 func_8003F1EC(AudioEnvelope* pEnvelope) {
+s32 SoundEnvelopeStepSquare(AudioEnvelope* pEnvelope) {
     if (--pEnvelope->count == 0) {
         s32 delta = pEnvelope->delta;
 
@@ -4175,7 +4175,7 @@ s32 func_8003F1EC(AudioEnvelope* pEnvelope) {
     return pEnvelope->value;
 }
 
-s32 func_8003F240(AudioEnvelope* pEnvelope) {
+s32 SoundEnvelopeStepTriangle(AudioEnvelope* pEnvelope) {
     if (--pEnvelope->count == 0) {
         s32 delta = pEnvelope->delta;
 
@@ -4191,7 +4191,7 @@ s32 func_8003F240(AudioEnvelope* pEnvelope) {
     return pEnvelope->value;
 }
 
-s32 func_8003F2A0(AudioEnvelope* pEnvelope) {
+s32 SoundEnvelopeStepTriangleHalfRate(AudioEnvelope* pEnvelope) {
     s32 count = pEnvelope->count;
 
     count--;
@@ -4217,7 +4217,7 @@ s32 func_8003F2A0(AudioEnvelope* pEnvelope) {
     return pEnvelope->value;
 }
 
-s32 func_8003F308(AudioEnvelope* pEnvelope) {
+s32 SoundEnvelopeStepSawtooth(AudioEnvelope* pEnvelope) {
     if (--pEnvelope->count == 0) {
         pEnvelope->count = pEnvelope->reload;
         pEnvelope->value = 0;
@@ -4228,25 +4228,25 @@ s32 func_8003F308(AudioEnvelope* pEnvelope) {
     return pEnvelope->value;
 }
 
-s32 func_8003F354(AudioEnvelope* pEnvelope) {
-    s32 random = func_8003F43C();
+s32 SoundEnvelopeStepRandom(AudioEnvelope* pEnvelope) {
+    s32 random = SoundRandomNext();
 
     if (--pEnvelope->count == 0) {
         pEnvelope->count = pEnvelope->reload;
-        random = func_8003F43C();
+        random = SoundRandomNext();
         pEnvelope->value = (pEnvelope->delta >> 15) * random;
     }
 
     return pEnvelope->value;
 }
 
-s32 func_8003F3C0(AudioEnvelope* pEnvelope) {
+s32 SoundEnvelopeStepRandomBipolar(AudioEnvelope* pEnvelope) {
     if (--pEnvelope->count == 0) {
         s32 delta;
         s32 random;
 
         pEnvelope->count = pEnvelope->reload;
-        random = func_8003F43C();
+        random = SoundRandomNext();
         delta = pEnvelope->delta;
         pEnvelope->value = (delta >> 14) * random - delta;
     }
@@ -4254,11 +4254,11 @@ s32 func_8003F3C0(AudioEnvelope* pEnvelope) {
     return pEnvelope->value;
 }
 
-void func_8003F42C(s32 seed) {
+void SoundSetRandomSeed(s32 seed) {
     D_800594E4 = seed;
 }
 
-s32 func_8003F43C(void) {
+s32 SoundRandomNext(void) {
     s32 seed = D_800594E4;
 
     seed ^= seed << 17;

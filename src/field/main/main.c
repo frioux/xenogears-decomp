@@ -146,7 +146,7 @@ extern void* D_800ADB20;
 extern s32 D_800ADB30;
 extern s32 D_8004F370;
 extern void FieldWaitForArchiveSync(void);
-extern void func_800A90B4(int nHeapType);
+extern void FieldMoveStoredImageToHeap(int nHeapType);
 extern void func_80029AFC(StreamDataQueueEntry* pQueue, int arg1, int arg2);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/main", func_80077884);
@@ -181,14 +181,14 @@ void func_80077884(void) {
 
     FieldWaitForArchiveSync();
     ArchiveSetIndex(ARCHIVE_DIR_FIELD, 0);
-    func_800A90B4(0);
+    FieldMoveStoredImageToHeap(0);
 
     nSize = (D_800ADB30 & 0xFFFFFF) + 0xFFE23FF8;
     if (D_8004F370 != 0) {
         nSize = ArchiveDecodeAlignedSize(0x6B9);
     }
     D_800ADB20 = HeapAlloc(nSize, 1);
-    func_800A90B4(1);
+    FieldMoveStoredImageToHeap(1);
 
     pSoundList = (FieldSoundList*)((u8*)&D_800B2264 - 0x88);
     for (i = 0; i < pSoundList->count; i++) {

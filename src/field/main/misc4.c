@@ -11,7 +11,7 @@
 #include "psyq/libcd.h"
 #include "psyq/inline_c.h"
 
-extern int func_80085C90(s32 arg0);
+extern int FieldUpdateWdsAndAudioLoad(s32 arg0);
 extern s32 D_8004F308;
 extern s32 D_8004F324;
 extern s32 D_800ADC18;
@@ -22,7 +22,7 @@ int func_80078B5C(void) {
 
     rand();
     if (D_8004F308 == -1) {
-        D_8004F308 = func_80085C90(D_8004F324);
+        D_8004F308 = FieldUpdateWdsAndAudioLoad(D_8004F324);
     }
     nCount = D_800ADC18;
     if (nCount != 0) {
@@ -239,8 +239,8 @@ extern s32 g_GamePartySkinsInitialized;
 extern s32 D_800B0064;
 extern void func_800A30FC(void);
 extern void func_8001B66C(void);
-extern void func_80085FB8(void);
-extern void func_80085F30(void);
+extern void FieldBeginWdsFileLoad(void);
+extern void FieldFinishWdsFileLoad(void);
 extern void func_8001BB50(void);
 extern void ArchiveCdDataSync(int);
 extern void ChangeGameState(int);
@@ -266,9 +266,9 @@ void func_8007954C(int state) {
     case 1:
         if (D_8004F384 == state) {
             func_8001B66C();
-            func_80085FB8();
+            FieldBeginWdsFileLoad();
             ArchiveCdDataSync(0);
-            func_80085F30();
+            FieldFinishWdsFileLoad();
             func_8001B66C();
         }
         if (D_8004F370 != 0) {

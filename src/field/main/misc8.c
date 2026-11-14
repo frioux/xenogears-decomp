@@ -13,7 +13,7 @@
 #include "field/particles.h"
 
 extern int D_800ADBFC;
-void func_8008083C(int actorIndex) {
+void FieldFreeActorData(int actorIndex) {
     ActorData* pActor;
 
     if (actorIndex < D_800ADBFC) {
@@ -45,7 +45,7 @@ typedef struct {
 extern FieldWalkmeshTriangle* D_800AFB24[];
 extern u_int* D_800AFB20;
 
-u_int func_80080968(ActorData* pActor) {
+u_int FieldActorGetWalkmeshTriMaterial(ActorData* pActor) {
     if ((pActor->flags >> (pActor->walkmeshId + 3)) & 1) {
         return 0;
     }
@@ -54,7 +54,7 @@ u_int func_80080968(ActorData* pActor) {
 
 extern u_short D_800B14AC;
 
-s32 func_800809D0(s32* pData) {
+s32 FieldSumRampSteps(s32* pData) {
     s32 value = -0x14D000;
     s32 step = pData[7];
     s32 acc = 0;
@@ -73,7 +73,7 @@ s32 func_800809D0(s32* pData) {
 extern s32 D_800ADB58;
 extern s32 D_800ADB5C;
 
-u_int func_80080A18(void) {
+u_int FieldPopActorScriptWorkWord(void) {
     ActorData* pActor = g_FieldActors[D_800ADB58].pActorData;
 
     return ((u_int*)pActor->unk118)[D_800ADB5C++];
@@ -125,7 +125,7 @@ void func_80080F44(int actorIndex) {
             pActor->unk118 = HeapAlloc(0x80, 0);
             if (pModelData->pScripts != NULL) {
                 for (i = 0; i < pModelData->pScripts->numScripts; i++) {
-                    pModelData->pScripts->pScripts[i].pCallback = func_80080A18;
+                    pModelData->pScripts->pScripts[i].pCallback = FieldPopActorScriptWorkWord;
                     ((u_int*)pActor->unk118)[i] = 0;
                 }
             }
@@ -162,7 +162,7 @@ void func_80080F44(int actorIndex) {
             pActor->unk118 = HeapAlloc(0x80, 0);
             if (pModelData->pScripts != NULL) {
                 for (i = 0; i < pModelData->pScripts->numScripts; i++) {
-                    pModelData->pScripts->pScripts[i].pCallback = func_80080A18;
+                    pModelData->pScripts->pScripts[i].pCallback = FieldPopActorScriptWorkWord;
                     ((u_int*)pActor->unk118)[i] = 0;
                 }
             }
@@ -272,7 +272,7 @@ void func_80081C54(int actorIndex) {
 }
 */
 
-int func_80081F5C(ActorData* pActor) {
+int FieldActorTestMaterialScriptMask(ActorData* pActor) {
     u_int actorType = (pActor->scriptFlags.flags >> 9) & 3;
 
     return -((actorType & (pActor->curWalkmeshTriMaterial >> 3)) != 0);
@@ -411,7 +411,7 @@ typedef struct {
 
 void func_80281678(FieldExtentZone* pZone);
 
-int func_8008237C(int z, int x, FieldExtentZone* pZone, int radius) {
+int FieldCheckPointInExtentZone(int z, int x, FieldExtentZone* pZone, int radius) {
     long actorPosition2D;
     long triggerPos1;
     long triggerPos2;
@@ -453,7 +453,7 @@ typedef struct {
     /* 0xE */ s16 x3;
 } FieldZone2D; // Size: 0x10
 
-int func_80082494(IVEC3* pOffset, ActorData* pActor) {
+int FieldCheckActorInZone2D(IVEC3* pOffset, ActorData* pActor) {
     long actorPosition2D;
     long triggerPos1;
     long triggerPos2;
@@ -482,7 +482,7 @@ int func_80082494(IVEC3* pOffset, ActorData* pActor) {
 
 long FieldGetVec2Magnitude(long, long);
 
-int func_800825AC(int actorIndexA, int actorIndexB) {
+int FieldGetActorDistance2D(int actorIndexA, int actorIndexB) {
     FieldActor* pActors = g_FieldActors;
     ActorData* pActorB = pActors[actorIndexB].pActorData;
     ActorData* pActorA = pActors[actorIndexA].pActorData;
@@ -498,7 +498,7 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80082620);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80082BB8);
 
-int func_80083178(int angle, int limit) {
+int FieldClampAngleDelta(int angle, int limit) {
     if (angle < 0) {
         angle += 0x4000;
         limit = -limit;
@@ -520,7 +520,7 @@ int func_80083178(int angle, int limit) {
     return angle;
 }
 
-void func_800831D0(SVECTOR* pDst, IVEC3* pSrc) {
+void FieldConvertIVec3ToSVector(SVECTOR* pDst, IVEC3* pSrc) {
     pDst->vx = pSrc->x >> 0x10;
     pDst->vy = pSrc->y >> 0x10;
     pDst->vz = pSrc->z >> 0x10;
@@ -569,7 +569,7 @@ void func_800831F4(SpriteData* pSprite, ActorData* pActorData, FieldActor* pActo
 */
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80083288);
 
-void func_80083994(void) {
+void FieldNoOp(void) {
 }
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_8008399C);
@@ -638,7 +638,7 @@ int func_80028B14(void);
 int* ArchiveAllocStreamFile(int numEntries, int allocMode);
 void ArchiveReadFileToBuffer(int fileIndex, void* pBuffer, int arg2, int size);
 
-int func_800854D0(void) {
+int FieldStepArchiveStream(void) {
     int result = func_80028B14();
 
     D_800ADBBC = result;
@@ -657,7 +657,7 @@ int func_800854D0(void) {
     return -1;
 }
 
-void func_80085560(int archiveIndex, int allocMode, void* pCallback) {
+void FieldStartArchiveStream(int archiveIndex, int allocMode, void* pCallback) {
     int* pStreamFile;
 
     D_800ADB2C = 1;
@@ -691,7 +691,7 @@ void func_800855C8(int arg0, int arg1, int arg2, int arg3) {
 
 extern s32 D_800B21B8;
 
-void func_80085634(int arg0, int arg1) {
+void FieldSetSoundSlotElement(int arg0, int arg1) {
     int offset = arg1 & 7;
 
     if (arg0 == 0) {
@@ -716,7 +716,7 @@ typedef struct {
 
 extern FieldUnk800AE060 D_800AE060[];
 
-void func_80085678(void) {
+void FieldAdvanceSedsSequence(void) {
     u_short* pDuration;
     u_short* pValue;
     u_short value;
@@ -736,7 +736,7 @@ loop:
     goto loop;
 }
 
-void func_80085738(void) {
+void FieldStopSedsPlayback(void) {
     if (D_800C3A38 != 0xFF) {
         func_80039FF8();
         func_8003852C(D_800B235C);
@@ -787,7 +787,7 @@ extern void* D_8005A4BC;
 void func_8003BDFC(int arg0);
 void SoundAddSedsEntry(SoundFile* pSoundFile);
 
-void func_80085890(void) {
+void FieldLoadSedsFile(void) {
     int size;
 
     ArchiveSetIndex(4, 0);
@@ -808,7 +808,7 @@ void func_80085890(void) {
     D_8004F32C = -1;
 }
 
-void func_80085988(void) {
+void FieldFreeSedsFile(void) {
     func_8003852C(D_8006259C);
     HeapUnpinBlock(D_8006259C);
     HeapFree(D_8006259C);
@@ -834,9 +834,9 @@ void func_8002945C(void* pData);
 void func_8003BDFC(int arg0);
 void SoundTransferWdsPart(void* pBuffer, int size);
 SoundWDSEntry* func_800380D0(void* pBuffer, int size, int arg2);
-void func_80085560(int archiveIndex, int unused, void* pCallback);
+void FieldStartArchiveStream(int archiveIndex, int unused, void* pCallback);
 
-void func_800859DC(FieldWdsBlock* pBlock) {
+void FieldWdsStreamCallback(FieldWdsBlock* pBlock) {
     int bankIndex = D_800B2370;
 
     switch (bankIndex) {
@@ -860,7 +860,7 @@ void func_800859DC(FieldWdsBlock* pBlock) {
     }
 }
 
-void func_80085B20(int arg0) {
+void FieldStartWdsBankLoad(int arg0) {
     u_short streamId;
     int index;
 
@@ -872,13 +872,13 @@ void func_80085B20(int arg0) {
     }
     ArchiveSetIndex(0x1C, 0);
     if (D_800ADFCD[arg0 * 2] == 1) {
-        func_80086024();
+        FieldReleaseWdsEntry();
     }
     streamId = D_800ADFCD[arg0 * 2 - 1];
     if (streamId != 0xFF) {
         index = streamId * 2 + 0x13;
         if (D_8004F33C != streamId) {
-            func_80085560(index, 1, (void*)func_800859DC);
+            FieldStartArchiveStream(index, 1, (void*)FieldWdsStreamCallback);
             D_8004F354 = 1;
             D_800B2370 = 0;
             D_800C3A1C = HeapAlloc(0x2000, 1);
@@ -889,11 +889,11 @@ void func_80085B20(int arg0) {
     D_800AFC54 = 1;
 }
 
-int func_80085C3C(void) {
+int FieldRunArchiveStreamSteps(void) {
     int i;
 
     for (i = 0; i < 5; i++) {
-        if (func_800854D0() == -1) {
+        if (FieldStepArchiveStream() == -1) {
             return 0;
         }
     }
@@ -912,8 +912,8 @@ extern u8 D_800ADFCC[];
 extern u8 D_80062648[];
 extern AudioManager* D_80062528;
 extern AudioManager* D_8004F2FC;
-void func_80085FB8(void);
-int func_80085F30(void);
+void FieldBeginWdsFileLoad(void);
+int FieldFinishWdsFileLoad(void);
 int ArchiveDataSync(void);
 void ArchiveReadFileToBuffer(int fileIndex, void* pBuffer, int arg2, int size);
 AudioManager* func_80039850(void* pData);
@@ -921,11 +921,11 @@ void func_80039A80(AudioManager* pManager, s32 arg1, s32 arg2);
 void func_8003A89C(AudioManager* pManager, s32 arg1, s32 arg2);
 void func_80039B68(AudioManager* pManager, s32 arg1, s32 arg2);
 
-int func_80085C90(s32 arg0) {
+int FieldUpdateWdsAndAudioLoad(s32 arg0) {
     s32 state = D_8004F354;
 
     if (state == 1) {
-        if (func_80085C3C() == -1) {
+        if (FieldRunArchiveStreamSteps() == -1) {
             return -1;
         }
         func_8003BDFC(0x10);
@@ -936,11 +936,11 @@ int func_80085C90(s32 arg0) {
     }
     if (D_800ADFCD[arg0 * 2] == 0) {
         if (D_8004F364 == 0) {
-            func_80085FB8();
+            FieldBeginWdsFileLoad();
             return -1;
         }
         if (D_8004F364 & 0x80) {
-            if (func_80085F30() == -1) {
+            if (FieldFinishWdsFileLoad() == -1) {
                 return -1;
             }
         }
@@ -982,7 +982,7 @@ int func_80085C90(s32 arg0) {
     return 0;
 }
 
-void func_80085EEC(void) {
+void FieldFreePendingAudioManager(void) {
     if (D_8004F2FC != NULL) {
         func_80039C4C(D_8004F2FC);
         func_800399D4(D_8004F2FC);
@@ -997,7 +997,7 @@ extern s32 D_80059560;
 extern SoundWDSEntry* D_8006251C;
 extern void* D_800B00E0; // WDS File Buffer
 
-int func_80085F30(void) {
+int FieldFinishWdsFileLoad(void) {
     void* pWdsEntry;
 
     if (ArchiveDataSync()) {
@@ -1015,7 +1015,7 @@ int func_80085F30(void) {
     return 0;
 }
 
-void func_80085FB8(void) {
+void FieldBeginWdsFileLoad(void) {
     void* pWdsFileBuffer;
 
     ArchiveSetIndex(0x1C, 0x0);
@@ -1026,7 +1026,7 @@ void func_80085FB8(void) {
     D_8004F364 = 0x80;
 }
 
-void func_80086024(void) {
+void FieldReleaseWdsEntry(void) {
     if (D_8004F368 == 0) {
         D_8004F384 = 1;
         SoundFreeWdsEntry(D_8006251C);
@@ -1048,7 +1048,7 @@ extern FieldUnk800AFE88 D_800AFE8A[3];
 
 extern s16 D_800B21AC;
 
-void func_80086078(int arg0, int* pOut, int arg2) {
+void FieldGetDistanceScaledValue(int arg0, int* pOut, int arg2) {
     int limit = D_800B21AC;
     int factor;
     u_int diff;
@@ -1067,7 +1067,7 @@ extern void func_8003A344(int, int);
 extern void func_8003A55C(int, int);
 void FieldActorWorldToScreenPosition(int, int*, int*);
 
-void func_800860F0(int arg0, int arg1, int arg2, int arg3, int actorIndex) {
+void FieldUpdateActorSoundSlot(int arg0, int arg1, int arg2, int arg3, int actorIndex) {
     int i;
     int value;
     int screenX;
@@ -1076,7 +1076,7 @@ void func_800860F0(int arg0, int arg1, int arg2, int arg3, int actorIndex) {
 
     for (i = 0; i < 3; i++) {
         if (D_800AFE88[i].unk0 == actorIndex) {
-            func_80086078(arg3, &value, arg1);
+            FieldGetDistanceScaledValue(arg3, &value, arg1);
             FieldActorWorldToScreenPosition(actorIndex, &screenX, &screenY);
             if (screenX >= 0x141) {
                 screenX = 0x13F;
@@ -1127,7 +1127,7 @@ void FieldActorWorldToScreenPosition(int actorIndex, int* pScreenX, int* pScreen
 }
 */
 
-void func_800862CC(int arg0, int arg1, int arg2, int arg3, int actorIndex) {
+void FieldAssignActorSoundSlot(int arg0, int arg1, int arg2, int arg3, int actorIndex) {
     short value;
     int screenX;
     int screenY;
@@ -1138,7 +1138,7 @@ void func_800862CC(int arg0, int arg1, int arg2, int arg3, int actorIndex) {
         if (D_800AFE8A[i].unk0 == 0xFFFF) {
             D_800AFE8A[i].unk0 = arg0;
             D_800AFE88[i].unk0 = actorIndex;
-            func_80086078(arg3, (int*)&value, arg1);
+            FieldGetDistanceScaledValue(arg3, (int*)&value, arg1);
             FieldActorWorldToScreenPosition(actorIndex, &screenX, &screenY);
             if (screenX >= 0x141) {
                 screenX = 0x13F;
@@ -1154,7 +1154,7 @@ void func_800862CC(int arg0, int arg1, int arg2, int arg3, int actorIndex) {
     }
 }
 
-void func_800863E8(u_int arg0) {
+void FieldReleaseActorSoundSlot(u_int arg0) {
     int i;
 
     for (i = 0; i < 3; i++) {
@@ -1167,7 +1167,7 @@ void func_800863E8(u_int arg0) {
     }
 }
 
-int func_80086470(int arg0, u_int arg1) {
+int FieldFindActorSoundSlot(int arg0, u_int arg1) {
     int i;
 
     if (arg0 == -1) {
@@ -1192,7 +1192,7 @@ void func_800864B4(void) {
 
 extern u_short D_800B233C;
 
-void func_800864F0(void) {
+void FieldResetActorSoundSlots(void) {
     u_short* pFlags;
     int i;
 
@@ -1224,7 +1224,7 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80086590);
    (2) gcc hoists the g_FieldActors reload above the actorIndex/distance
    stores; retail stores first. (3) the slot*8 and distance-slot base land in
    a1/a0 the other way round. (4) the last loop: retail duplicates the
-   increments after the func_800860F0 call (addiu s0,s0,8 in the jal delay
+   increments after the FieldUpdateActorSoundSlot call (addiu s0,s0,8 in the jal delay
    slot, addiu s1,s1,1 in the j delay slot) and keeps them again at the shared
    continue block; gcc merges them into one copy, 8 bytes short.
 typedef struct {
@@ -1284,7 +1284,7 @@ void func_80086590(VECTOR* pPosition) {
     }
 
     for (i = 0; i < 3; i++) {
-        slot = func_80086470(slots.unk10[i], slots.actorIndex[i]);
+        slot = FieldFindActorSoundSlot(slots.unk10[i], slots.actorIndex[i]);
         if (slot != -1) {
             slots.inUse[slot] = 1;
             slots.unk40[i] = 1;
@@ -1307,10 +1307,10 @@ void func_80086590(VECTOR* pPosition) {
             continue;
         }
         if (slots.unk40[i] == 1) {
-            func_800860F0(slots.unk10[i], slots.unk20[i], pDelta[0], slots.distance[i],
+            FieldUpdateActorSoundSlot(slots.unk10[i], slots.unk20[i], pDelta[0], slots.distance[i],
                 slots.actorIndex[i]);
         } else {
-            func_800862CC(slots.unk10[i], slots.unk20[i], pDelta[0], slots.distance[i],
+            FieldAssignActorSoundSlot(slots.unk10[i], slots.unk20[i], pDelta[0], slots.distance[i],
                 slots.actorIndex[i]);
         }
     }
@@ -1322,7 +1322,7 @@ extern VECTOR g_CameraAt;
 extern s16 D_800B22E0;
 extern s32 g_PlayerActorIndex;
 
-void func_80086908(void) {
+void FieldUpdateProximitySoundSlots(void) {
     switch (D_800B22E0) {
         case 0:
             func_80086590(&g_FieldActors[g_PlayerActorIndex].pActorData->position);
@@ -1358,7 +1358,7 @@ extern s16 D_800B2326[];
 extern s16 D_800B2328[];
 long FieldGetVec3Magnitude(long x, long y, long z);
 
-void func_80086A1C(int index, VECTOR* pPosition) {
+void FieldUpdateMotionSlotSteps(int index, VECTOR* pPosition) {
     s16* pPos = (s16*)pPosition;
     s32 stepX = ((D_800B22E8[index * 4] - D_800B2300[index * 4]) << 16) / D_800B2318[index];
     s32 stepY = ((D_800B22EA[index * 4] - D_800B2302[index * 4]) << 16) / D_800B2318[index];
@@ -1375,12 +1375,12 @@ void func_80086A1C(int index, VECTOR* pPosition) {
     ((s16*)D_800B2318)[index - 0x68] = (stepZ * remaining) >> 16;
 }
 
-void func_80086BA8(void) {
+void FieldUpdateMotionSlots(void) {
     int i;
 
     for (i = 0; i < 3; i++) {
         if (D_800B22E2[i] != -1) {
-            func_80086A1C(i, &g_FieldActors[D_800B22E2[i]].pActorData->position);
+            FieldUpdateMotionSlotSteps(i, &g_FieldActors[D_800B22E2[i]].pActorData->position);
         }
     }
 }
@@ -1389,7 +1389,7 @@ extern s32 D_800AFD1C;
 void FieldInitializeDefaultParticleBanks(int targetActorID);
 int FieldInitializeParticleBanks(int actorIndex);
 
-void func_80086C34(void) {
+void FieldScriptConfigureDefaultParticleBank(void) {
     int arg0;
     int arg1;
     int arg2;
@@ -1418,7 +1418,7 @@ void func_80086C34(void) {
 
 void GameSoftReset(void);
 
-void func_80086D4C(void) {
+void FieldScriptSoftReset(void) {
     GameSoftReset();
     D_800B00C0 = 1;
     g_FieldScriptVMCurActor->scriptInstructionPointer += 1;

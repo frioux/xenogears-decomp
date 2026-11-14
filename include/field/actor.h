@@ -351,7 +351,7 @@ typedef struct {
 } FieldActorModelBounds; // Size: 0x30
 
 // One entry of FieldActorModelScriptTable; pCallback's return value is read
-// through ActorData::unk118 by func_80080A18
+// through ActorData::unk118 by FieldPopActorScriptWorkWord
 typedef struct {
     /* 0x0  */ u_int (*pCallback)(void);
     /* 0x4  */ undefined8 unk4[0x1C];
