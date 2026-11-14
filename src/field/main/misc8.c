@@ -530,7 +530,7 @@ extern void* D_801E8670[];
 void SpriteSetDirection(SpriteData*, s16);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800831F4);
-/* 92.68% (148 vs 144 bytes): frame and every other insn match, two residuals.
+/* 92.51% (148 vs 140 bytes): frame and every other insn match, two residuals.
    The branch shape only comes out right when the ternary sits *inside* the
    arithmetic: `angle = (rotation.vy + ((direction & 1) ? -0x400 : 0x400)) &
    0xFFF` gives the original's `bnez $v0,.L; addiu $v0,$v1,-0x400` cond-add with
@@ -549,14 +549,18 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800831F4);
    func_80081F80` delay slot because the reload `lh $a1,0x104($s0)` is moved
    before it; the original stores both halves, reloads, and keeps a nop in the
    slot.
+   Re-tried: an `s16 current = pActorData->rotation.vy;` local used for both the
+   test and the addiu gives the identical 92.51%.
 void func_80081F80(SpriteData*, s16, FieldActor*);
 
 void func_800831F4(SpriteData* pSprite, ActorData* pActorData, FieldActor* pActor, int direction) {
     s16 angle;
+    s16 current;
 
     if (pActorData->moveModified.vx != 0 || pActorData->moveModified.vz != 0) {
-        if (!(pActorData->rotation.vy & 0x8000)) {
-            angle = (pActorData->rotation.vy + ((direction & 1) ? -0x400 : 0x400)) & 0xFFF;
+        current = pActorData->rotation.vy;
+        if (!(current & 0x8000)) {
+            angle = (current + ((direction & 1) ? -0x400 : 0x400)) & 0xFFF;
             pActorData->rotation.vx = angle;
             pActorData->rotation.vy = angle;
             func_80081F80(pSprite, pActorData->rotation.vx, pActor);
@@ -692,11 +696,15 @@ void func_800855C8(int arg0, int arg1, int arg2, int arg3) {
    plus two `move`s) and `offset*2` + `offset+offset` (85.56%, same shape - the
    front end canonicalises `+` to a shift before cse, so the two uses still
    merge); the 100% shape needs a second `offset * 2` that gcc cannot CSE.
+   Re-tried (85.56%): `offset * 2` for the first call and `offset << 1` for the
+   second still merges into one `sll s0,s0,1` hoisted before the first call with
+   two `move`s - the front end folds both to the same tree, so no source spelling
+   gives retail's two separate `sll`.
 void func_800855C8(int arg0, int arg1, int arg2, int arg3) {
     int offset = arg3 & 7;
 
     func_8003A20C(offset * 2);
-    SoundPlaySoundEffectOnPairWithLevels(arg0, offset * 2, (s16)arg1, (s16)arg2);
+    SoundPlaySoundEffectOnPairWithLevels(arg0, offset << 1, (s16)arg1, (s16)arg2);
 }
 */
 
@@ -1130,16 +1138,25 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc8", FieldActorWorldToScreenPosition
    local pointer, in a `u_int` local, or writing `&g_FieldActors - 0xAC`
    directly all give 95.25%: gcc const-propagates and never reuses the base
    register for both addresses.
+   Re-tried: taking the matrix straight from g_Scene.worldToScreenMatrix (the
+   address -0xAC resolves to) is also 95.25% and the same 204 bytes - ours then
+   emits `lui a0,%hi(g_Scene); addiu a0,a0,0xD4` plus a separate
+   `lui a1,%hi(g_FieldActors); lw a1,0(a1)` where retail has `lui v1,%hi
+   (g_FieldActors); addiu v1,%lo; addiu a0,v1,-0xAC; lw a1,0(v1)`. So the
+   instruction count is identical and only the base register differs: retail
+   anchors BOTH accesses on &g_FieldActors, which needs the matrix at a NEGATIVE
+   offset from that symbol (one parent struct with the matrix at 0x0 and the
+   actor-pointer array at 0xAC). Any parent struct declared here would make gcc
+   base on the parent symbol with `+0xAC`, i.e. the mirrored shape.
 void FieldActorWorldToScreenPosition(int actorIndex, int* pScreenX, int* pScreenY) {
     SVECTOR vertex;
     MATRIX transformMatrix;
     long sxy;
     long p;
     long flag;
-    FieldActor** pActorSlot = &g_FieldActors;
 
-    CompMatrix((MATRIX*)((u_char*)pActorSlot - 0xAC), &(*pActorSlot)[actorIndex].transformMatrix, &transformMatrix);
     FieldScriptVMGetActorIndex(1);
+    CompMatrix(&g_Scene.worldToScreenMatrix, &g_FieldActors[actorIndex].transformMatrix, &transformMatrix);
     vertex.vx = 0;
     vertex.vy = 0;
     vertex.vz = 0;
