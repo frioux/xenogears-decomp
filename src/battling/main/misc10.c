@@ -94,10 +94,6 @@ typedef struct {
     /* 0x0C */ Misc10TexRect* unk0C;
 } Misc10TagSrc; // Size: 0x10
 
-typedef struct {
-    /* 0x00 */ u32 unk00[0xA];
-} Misc10TagPair; // Size: 0x28
-
 extern Misc10Prim D_8009A300[];
 
 s32 BattleQueueActorPrims(Misc10Actor* pActor) {
@@ -270,19 +266,9 @@ void BattleSetVertexYForFlipped(s32 flag, u16* pDst, s32 value) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_80085EC8);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_800864B4);
-
-/* 87.29% (556 vs 544 bytes). Structure below is right; left over: the s2/s3/s4
-   rotation (mode/scale/arg1 -- global-alloc tie-break), and `x + unk4 * scale`
-   must be hoisted into a local before the `scale == 2` if so gcc keeps the
-   `mult` and the two stores instead of strength-reducing *2 inside the arm.
-   Field access goes through u8* + offset because the two source structs
-   (p->unk04, p->unk0C) are read with mixed widths (lh/lbu/lhu at the same
-   offsets). The 0x28-byte tail copy is a struct assignment of a u32[0xA] type:
-   a u8[0x28] one makes gcc emit an alignment-check path, the original has none.
-void func_800864B4(Misc10TagSrc* p, s32 x, s32 y, u8* pOut, s32 mode) {
+void func_800864B4(Misc10TagSrc* p, s32 x, s32 y, POLY_FT4* pPoly, s32 mode) {
     s32 scale;
-    u16 value;
+    s32 right;
 
     switch (mode) {
     case 0:
@@ -296,40 +282,27 @@ void func_800864B4(Misc10TagSrc* p, s32 x, s32 y, u8* pOut, s32 mode) {
         break;
     }
 
-    pOut[3] = 9;
-    pOut[7] = 0x2D;
-    *(u16*)(pOut + 0xE) = GetClut(*(s16*)(p->unk04 + 0), *(s16*)(p->unk04 + 2));
-    *(u16*)(pOut + 0x16) = GetTPage(mode, 0, *(s16*)(p->unk0C + 0), *(s16*)(p->unk0C + 2));
-    *(u16*)(pOut + 0x18) = x;
-    *(u16*)(pOut + 0x08) = x;
+    ((u8*)pPoly)[3] = 9;
+    pPoly->code = 0x2D;
+    pPoly->clut = GetClut(p->unk04->x, p->unk04->y);
+    pPoly->tpage = GetTPage(mode, 0, p->unk0C->x, p->unk0C->y);
+    pPoly->x0 = pPoly->x2 = x;
+    right = x + p->unk0C->w * scale;
     if (scale == 2) {
-        *(u16*)(pOut + 0x20) = x + *(s16*)(p->unk0C + 4) * scale + 1;
+        pPoly->x3 = right + 1;
     } else {
-        *(u16*)(pOut + 0x20) = x + *(s16*)(p->unk0C + 4) * scale;
+        pPoly->x3 = right;
     }
-    value = *(u16*)(pOut + 0x20);
-    *(u16*)(pOut + 0x12) = y;
-    *(u16*)(pOut + 0x0A) = y;
-    *(u16*)(pOut + 0x20) = value;
-    *(u16*)(pOut + 0x10) = value;
-    value = *(u16*)(p->unk0C + 6) + y;
-    *(u16*)(pOut + 0x22) = value;
-    *(u16*)(pOut + 0x1A) = value;
-    value = *(s16*)(p->unk0C + 0) * scale;
-    pOut[0x1C] = value;
-    pOut[0x0C] = value;
-    value = (*(s16*)(p->unk0C + 0) + *(s16*)(p->unk0C + 4)) * scale;
-    pOut[0x24] = value;
-    pOut[0x14] = value;
-    value = *(u8*)(p->unk0C + 2);
-    pOut[0x15] = value;
-    pOut[0x0D] = value;
-    value = *(u8*)(p->unk0C + 2) + *(u8*)(p->unk0C + 6);
-    pOut[0x25] = value;
-    pOut[0x1D] = value;
-    *(Misc10TagPair*)(pOut + 0x28) = *(Misc10TagPair*)pOut;
+    pPoly->y0 = pPoly->y1 = y;
+    pPoly->x1 = pPoly->x3 = pPoly->x3;
+    pPoly->y2 = pPoly->y3 = y + p->unk0C->h;
+    pPoly->u0 = pPoly->u2 = p->unk0C->x * scale;
+    pPoly->u1 = pPoly->u3 = (p->unk0C->x + p->unk0C->w) * scale;
+    pPoly->v0 = pPoly->v1 = p->unk0C->y;
+    pPoly->v2 = pPoly->v3 = p->unk0C->y + p->unk0C->h;
+    pPoly[1] = pPoly[0];
 }
-*/
+
 
 void func_800866D4(Misc10TagSrc* p, s32 x, s32 y, POLY_FT4* pPoly, s32 mode) {
     s32 scale;
