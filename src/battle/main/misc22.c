@@ -1,4 +1,5 @@
 #include "common.h"
+#include "psyq/libgpu.h"
 #include "psyq/libgte.h"
 #include "psyq/inline_c.h"
 
@@ -23,11 +24,31 @@ typedef struct {
 } BattleMisc22Rect; // Size: 0x8
 
 typedef struct {
-    /* 0x00 */ u8 pad0[0x16];
+    // NOTE: These first four blocks are sometimes used as SVECTORs, but they
+    // can't be defined as such since the padding field is actually used.
+    /* 0x00 */ u_short x0;
+    /* 0x02 */ u_short y0;
+    /* 0x04 */ u_short z0;
+    /* 0x06 */ u16 unk6;
+    /* 0x08 */ u_short x1;
+    /* 0x0A */ u_short y1;
+    /* 0x0C */ u_short z1;
+    /* 0x0E */ s16 unkE;
+    /* 0x10 */ u_short x2;
+    /* 0x12 */ u_short y2;
+    /* 0x14 */ u_short z2;
     /* 0x16 */ s16 unk16;
-    /* 0x18 */ u8 pad18[0x14];
-    /* 0x2C */ u8 unk2C[0x28];
-    /* 0x54 */ u8 unk54[0x28];
+    /* 0x18 */ u_short x3;
+    /* 0x1A */ u_short y3;
+    /* 0x1C */ u_short z3;
+    /* 0x1E */ s16 unk1E;
+    /* 0x20 */ u_short red;
+    /* 0x22 */ u_short green;
+    /* 0x24 */ u_short blue;
+    /* 0x26 */ s16 redDelta;
+    /* 0x28 */ s16 greenDelta;
+    /* 0x2A */ s16 blueDelta;
+    /* 0x2C */ POLY_FT4 polys[2];
 } BattleMisc22Spr; // Size: 0x7C
 
 typedef struct {
@@ -79,11 +100,11 @@ typedef struct {
 } BattleMisc22Cmd; // Size: 0x70
 
 extern s32 D_800D3344;
+extern s32 D_80050100;
 extern s32 D_800D39CC;
 extern s32 D_800D3348;
 extern s32 BattleTestPointInTriangle(void *, void *, void *, s32);
 extern void BattleProjectPointOntoTriangle(void *, void *, void *, s32, s32);
-extern int LoadImage(void *pRect, void *p);
 extern s16 D_800D2FC8;
 extern u16 *D_800D2FD0;
 extern s32 D_800C3E38;
@@ -116,24 +137,71 @@ s32 BattleAllocSpriteSlot(BattleMisc22Unk *pArg, s16 arg1) {
                 }
                 pArg->unk6++;
             }
-            SetSemiTrans(&pSpr->unk2C, arg1);
-            SetSemiTrans(&pSpr->unk54, arg1);
+            SetSemiTrans(&pSpr->polys[0], arg1);
+            SetSemiTrans(&pSpr->polys[1], arg1);
             return (s32)pSpr;
         }
     }
     return pArg->unk4 * 124 + pArg->unk0;
 }
 
-s32 BattleEndSpriteSlotList(BattleMisc22Unk *pArg, u8 *pEnd) {
-    s32 count = ((u32)pEnd - pArg->unk0) / 124;
+s32 BattleEndSpriteSlotList(BattleMisc22Unk *pArg, BattleMisc22Spr *pEnd) {
+    s32 count = ((mem_addr)pEnd - pArg->unk0) / sizeof(BattleMisc22Spr);
 
     if (pArg->unk6 >= count) {
         pArg->unk6 = count;
     }
-    ((s16 *)pEnd)[0xB] = -1;
+    pEnd->unk16 = -1;
     return count;
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A2FD8);
+
+void func_800A2FD8(BattleMisc22Unk *pBuffer, MATRIX *pMatrix, s32 step, u_long *pOt, s32 packet) {
+    BattleMisc22Spr *pSpr;
+    long otz;
+    s32 i;
+
+    SetRotMatrix(pMatrix);
+    SetTransMatrix(pMatrix);
+
+    pSpr = (BattleMisc22Spr *)pBuffer->unk0;
+    for (i = 0; i < pBuffer->unk4; i++, pSpr++) {
+        if (pSpr->unk16 == -1) {
+            continue;
+        }
+        if (pSpr->unk16 >= pSpr->unk1E) {
+            BattleEndSpriteSlotList(pBuffer, pSpr);
+            continue;
+        }
+
+        pSpr->polys[packet].r0 = pSpr->red >> 6;
+        pSpr->polys[packet].g0 = pSpr->green >> 6;
+        pSpr->polys[packet].b0 = pSpr->blue >> 6;
+
+        if (pSpr->unkE == 0) {
+            setXY4(&pSpr->polys[packet], pSpr->x0, pSpr->y0, pSpr->x1, pSpr->y1, pSpr->x2, pSpr->y2,
+                   pSpr->x3, pSpr->y3);
+            addPrim(pOt, &pSpr->polys[packet]);
+        } else {
+            gte_ldv3((SVECTOR *)&pSpr->x0, (SVECTOR *)&pSpr->x1, (SVECTOR *)&pSpr->x2);
+            gte_rtpt();
+            gte_stsxy3((long *)&pSpr->polys[packet].x0, (long *)&pSpr->polys[packet].x1,
+                       (long *)&pSpr->polys[packet].x2);
+            gte_stszotz(&otz);
+            otz >>= D_80050100;
+
+            gte_ldv0((SVECTOR *)&pSpr->x3);
+            gte_rtps();
+            gte_stsxy((long *)&pSpr->polys[packet].x3);
+
+            addPrim(&pOt[otz], &pSpr->polys[packet]);
+        }
+
+        pSpr->unk16 += step;
+        pSpr->red -= pSpr->redDelta * step;
+        pSpr->green -= pSpr->greenDelta * step;
+        pSpr->blue -= pSpr->blueDelta * step;
+    }
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A32D8);
 /* 74.17%, identical registers and exactly 428 bytes; the one difference is that
    gcc forwards the stored angle into the dividend instead of reloading the
@@ -380,8 +448,6 @@ typedef struct {
     /* 0x0 */ void **pParts;
     /* 0x4 */ u32 count;
 } BattleMisc22Mesh; // Size: 0x8
-
-extern s32 D_80050100;
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A48EC);
 /* 78.13% (556 bytes, retail 588) first attempt, built from the sibling
