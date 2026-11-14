@@ -1,6 +1,7 @@
 #include "common.h"
 #include "system/menu.h"
 #include "system/animation.h"
+#include "psyq/inline_c.h"
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_800248D4);
 
@@ -1008,6 +1009,54 @@ s32 func_80026DCC(MenuResourceDirectory* dir, u32 index, MenuResourceSprite* out
 }
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_80026F44);
+/*
+Best 72.66% (160 bytes against 168). The body content is right - the masks,
+the gte_ldir123/gte_gpf12/gte_stir123_gpr order, the c != 0 && rgb == 0 -> |= 1
+fix-up and the 0x8000 passthrough all line up with the original. What is left is
+the loop shape: retail is an UNROTATED top-tested loop
+    .L80026F60: addiu a0,a0,-1; beq a0,t2(-1) -> out; body; j .L80026F60 ; nop
+with `li t2,-1` hoisted once before the loop, while every spelling tried here
+produces gcc's duplicated exit test (pre-loop dec+test, body, dec, bne) and
+spends two extra instructions on it:
+  while (--count != -1)                      72.54%
+  for (;;) { if (--count == -1) break; ... } 72.54%
+  for (i = count - 1; i != -1; i--)          72.66%
+  for (i = count; i != limit; i--) w/ limit 70.59%
+-O3 and gcc 2.6.0 both give 72.54, so this is not the preset. The unit's own
+func_80025C04 has the ROTATED shape of the same loop, which is what gcc gives,
+so these two siblings were probably not built from this source shape.
+void func_80026F44(s32 count, s32 level, u16* pDst, u16* pSrc) {
+    u16 color;
+    s32 i;
+    s32 ir1;
+    s32 ir2;
+    s32 ir3;
+    s32 rgb;
+
+    if (level >= 0x20) {
+        level = 0x20;
+    }
+    gte_lddp(level << 7);
+    for (i = count - 1; i != -1; i--) {
+        color = *pSrc++;
+        ir1 = color & 0x1F;
+        ir2 = color & 0x3E0;
+        ir3 = color & 0x7C00;
+        gte_ldir123(ir1, ir2, ir3);
+        gte_gpf12();
+        gte_stir123_gpr(ir1, ir2, ir3);
+        ir1 &= 0x1F;
+        ir2 &= 0x3E0;
+        ir3 &= 0x7C00;
+        rgb = ir1 | ir2;
+        rgb = ir3 | rgb;
+        if (color != 0 && rgb == 0) {
+            rgb |= 1;
+        }
+        *pDst++ = (color & 0x8000) | rgb;
+    }
+}
+*/
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_80026FE8);
 
