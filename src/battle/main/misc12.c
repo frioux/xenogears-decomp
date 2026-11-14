@@ -191,9 +191,15 @@ u8 func_80084750(u8 arg0) {
     return D_800C3E90[0];
 }
 
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80084854);
+/* 73.70%: body shape matches (do-while over D_800C3E90..D_800C3E9B, switch on
+   arg1, squared-distance minimum); remaining diff is register allocation -
+   retail keeps 7 saved registers, this keeps 9, because gcc hoisted the
+   D_800C3EC0 base and D_800C3E90 base into saved registers that retail
+   rematerialises per use. Tried: idx local, for-loop, do-while with
+   ++p in the condition, nested if vs continue.
 u8 func_80084854(u8 arg0, u8 arg1) {
     u8 *p;
-    u8 idx;
     u8 result;
     s32 mode;
     s32 angle;
@@ -207,61 +213,58 @@ u8 func_80084854(u8 arg0, u8 arg1) {
     mode = arg1;
     best = 0xFFFFFF;
     p = D_800C3E90;
-    for (; p < D_800C3E9B; p++) {
-        idx = *p;
-        if (idx == 0xFF) {
-            continue;
-        }
-        if (idx == arg0) {
-            continue;
-        }
-        angle = ratan2(D_800C3EC0[idx * 14] - D_800C3EC0[arg0 * 14],
-                       D_800C3EBE[idx].unk0 - D_800C3EBE[arg0].unk0);
-        flag = 0;
-        switch (mode) {
-        case 0:
-            if ((u16)(angle + 0x200) < 0x400) {
-                flag = 1;
+    do {
+        if (*p != 0xFF && *p != arg0) {
+            angle = ratan2(D_800C3EC0[*p * 14] - D_800C3EC0[arg0 * 14],
+                           D_800C3EBE[*p].unk0 - D_800C3EBE[arg0].unk0);
+            flag = 0;
+            switch (mode) {
+            case 0:
+                if ((u16)(angle + 0x200) < 0x400) {
+                    flag = 1;
+                }
+                break;
+            case 1:
+                if ((u16)(angle + 0x600) < 0x400) {
+                    flag = 1;
+                }
+                break;
+            case 2:
+                if ((u16)(angle + 0x800) < 0x200) {
+                    flag = 1;
+                }
+                if ((u16)(angle - 0x600) < 0x201) {
+                    flag = 1;
+                }
+                break;
+            case 3:
+                if ((u16)(angle - 0x200) < 0x400) {
+                    flag = 1;
+                }
+                break;
             }
-            break;
-        case 1:
-            if ((u16)(angle + 0x600) < 0x400) {
-                flag = 1;
+            if (flag != 0) {
+                dx = D_800C3EC0[*p * 14] - D_800C3EC0[arg0 * 14];
+                if (dx < 0) {
+                    dx = -dx;
+                }
+                dist = dx * dx;
+                dy = D_800C3EBE[*p].unk0 - D_800C3EBE[arg0].unk0;
+                if (dy < 0) {
+                    dy = -dy;
+                }
+                dist += dy * dy;
+                if (dist < best) {
+                    best = dist;
+                    result = *p;
+                }
             }
-            break;
-        case 2:
-            if ((u16)(angle + 0x800) < 0x200) {
-                flag = 1;
-            }
-            if ((u16)(angle - 0x600) < 0x201) {
-                flag = 1;
-            }
-            break;
-        case 3:
-            if ((u16)(angle - 0x200) < 0x400) {
-                flag = 1;
-            }
-            break;
         }
-        if (flag == 0) {
-            continue;
-        }
-        dx = D_800C3EC0[idx * 14] - D_800C3EC0[arg0 * 14];
-        dy = D_800C3EBE[idx].unk0 - D_800C3EBE[arg0].unk0;
-        if (dx < 0) {
-            dx = -dx;
-        }
-        if (dy < 0) {
-            dy = -dy;
-        }
-        dist = dx * dx + dy * dy;
-        if (dist < best) {
-            best = dist;
-            result = *p;
-        }
-    }
+    } while (++p < D_800C3E9B);
     return result;
 }
+*/
+
 void func_80084A7C(u8 arg0) {
     s32 off;
     s32 found;
