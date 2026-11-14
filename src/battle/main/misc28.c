@@ -67,6 +67,21 @@ void func_800B6464(u8 *pActor, u8 *p) {
     }
 }
 */
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc28", func_800B64D4);
+/* best 95.88%: only remaining difference is a v0/v1 swap - retail keeps the
+   symbol base in v1 and the shifted byte in v0, gcc does the reverse.  The
+   's32 off = 0x8C8C' local is what stops gcc folding 0x8C8C into the symbol
+   address (a literal gives lui at,0x1 / lw a0,-29556(at)).  Also tried:
+   idx local, u32 base, pointer local, reordered stores, gcc-2.6.0.
+void func_800B64D4(s32 arg0, u8 *p) {
+    u8 *pEntry;
+    s32 off;
+
+    pEntry = (u8 *)((u32)D_800C3EB0 + (p[1] << 2));
+    off = 0x8C8C;
+    func_800245D8(*(u32 *)(pEntry + off), p[0]);
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc28", func_800B6518);
 /* best 91.71%: the array form gets the lhu read-back and the two-word
    recombination right; what is left is the two actor loads coming out as
