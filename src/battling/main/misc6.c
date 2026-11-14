@@ -181,6 +181,11 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007E3CC);
    quad base), a literal 0x3000000 in the link store with a long sz[4] local
    (89.17 but frame 0x18), declaring the copies through BattleQuad->v0/v1.
    Note gte_stsz1/gte_stsz2 were added to include/psyq/inline_c.h for this.
+   Re-checked round 51: still 88.67%. a3 is &quad->y (0xC) and retail advances
+   BOTH pointers by hand (t0 in the bnez delay slot, a3 in the body), so the
+   original source had two pointer locals stepping 0x20 - not one base plus a
+   folded offset. The permuter refuses this body (its C parser rejects the GTE
+   __asm__ blocks), so the shape has to be found by hand.
 void func_8007E3CC(u32* pOt) {
     u8* pScratch;
     BattleQuad* pQuad;
@@ -421,31 +426,20 @@ void BattleDrawTextRightOffset(u8* pText, s32 dy) {
     D_800926EC += 0x14;
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007EE08);
-/* best 95.83%, one instruction short. The original materialises 0xFF twice per
-   path: the else arm's li sits in the beqz delay slot and the then arm keeps its
-   own li after the D_80059488 load. gcc 2.7.2 cse-hoists one QImode 0xFF to
-   before the branch, reorg drops it in the delay slot, and both arms then read
-   it, so the then arm loses its li. Everything else (load first, sb order
-   F4/F8/F0, x*20 as sll/addu/sll, both branch targets) is exact.
-   Tried and identical or worse: an s32 local for the then arm's 0xFF (two li,
-   but cse still hoists the SImode one into the delay slot and leaves the else
-   arm's li in place - 91.46%, the two li swapped); the same for the else arm
-   (same bytes); chained `D_800926F8 = D_800926F4 = D_800926F0 = 0xFF;` in the
-   else arm (correct store order, still 95.83%). The delay slot is already
-   occupied by the hoisted li, so reorg never gets to steal the else arm's li.
 void func_8007EE08(s32 arg) {
+    s32 white = 0xFF;
+
     if (arg != 0) {
         D_800926F4 = 0xFF;
         D_800926F8 = 0;
         D_800926F0 = D_80059488 * 20;
     } else {
-        D_800926F0 = 0xFF;
-        D_800926F4 = 0xFF;
-        D_800926F8 = 0xFF;
+        D_800926F0 = white;
+        D_800926F4 = white;
+        D_800926F8 = white;
     }
 }
- */
+
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007EE68);
 /* best 72.66%: the original loads D_80059488 TWICE into two registers (v1 for
