@@ -252,11 +252,22 @@ extern s16 D_8009C818;
 // ApplyMatrix/TransMatrix). What differs is cc1's scheduling of the nine 32-bit
 // loads against the nine halfword stores: retail batches all nine lw before the
 // first sh and keeps the three lhu/negu/sh of the SVECTOR after them, while this
-// compile needs two more temporaries (t4/t5), interleaves the negates, and reads
-// each subtraction pair in the opposite order. Not a type or frame problem.
+// compile keeps the store order but interleaves the SVECTOR negates into the load
+// sequence and needs two extra temporaries (t4/t5). Not a type or frame problem:
+// loading all nine words into s32 locals before the first store (round 40) gives
+// the same 83.39%, and gcc-2.7.2-cdk drops it to 39.61%.
 /*
 void func_80097244(Misc15Frame *p) {
     MATRIX *pMtx;
+    s32 m0;
+    s32 m1;
+    s32 m2;
+    s32 m3;
+    s32 m4;
+    s32 m5;
+    s32 m6;
+    s32 m7;
+    s32 m8;
 
     ((VECTOR *)0x1F800000)->vx = p->unk8 - p->unk0;
     ((VECTOR *)0x1F800000)->vy = p->unkA - p->unk2;
@@ -267,15 +278,24 @@ void func_80097244(Misc15Frame *p) {
     OuterProduct12((VECTOR *)0x1F800030, (VECTOR *)0x1F800010, (VECTOR *)0x1F800000);
     VectorNormal((VECTOR *)0x1F800000, (VECTOR *)0x1F800020);
     pMtx = &D_8009C808;
-    pMtx->m[0][0] = ((VECTOR *)0x1F800010)->vx;
-    D_8009C80A = ((VECTOR *)0x1F800010)->vy;
-    D_8009C80C = ((VECTOR *)0x1F800010)->vz;
-    D_8009C80E = ((VECTOR *)0x1F800020)->vx;
-    D_8009C810 = ((VECTOR *)0x1F800020)->vy;
-    D_8009C812 = ((VECTOR *)0x1F800020)->vz;
-    D_8009C814 = ((VECTOR *)0x1F800030)->vx;
-    D_8009C816 = ((VECTOR *)0x1F800030)->vy;
-    D_8009C818 = ((VECTOR *)0x1F800030)->vz;
+    m0 = ((VECTOR *)0x1F800010)->vx;
+    m1 = ((VECTOR *)0x1F800010)->vy;
+    m2 = ((VECTOR *)0x1F800010)->vz;
+    m3 = ((VECTOR *)0x1F800020)->vx;
+    m4 = ((VECTOR *)0x1F800020)->vy;
+    m5 = ((VECTOR *)0x1F800020)->vz;
+    m6 = ((VECTOR *)0x1F800030)->vx;
+    m7 = ((VECTOR *)0x1F800030)->vy;
+    m8 = ((VECTOR *)0x1F800030)->vz;
+    pMtx->m[0][0] = m0;
+    D_8009C80A = m1;
+    D_8009C80C = m2;
+    D_8009C80E = m3;
+    D_8009C810 = m4;
+    D_8009C812 = m5;
+    D_8009C814 = m6;
+    D_8009C816 = m7;
+    D_8009C818 = m8;
     ((SVECTOR *)0x1F800040)->vx = -(u16)p->unk0;
     ((SVECTOR *)0x1F800040)->vy = -(u16)p->unk2;
     ((SVECTOR *)0x1F800040)->vz = -(u16)p->unk4;
