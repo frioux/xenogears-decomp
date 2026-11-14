@@ -2771,6 +2771,104 @@ void SoundTickInterpolator(AudioInterpolator* interpolator) {
 
 //----------------------------------------------------------------------------------------------------------------------
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003C4C4);
+/*
+Attempt (96.45%, 544 bytes vs the original's 540): the whole element walk is instruction for
+instruction right - the flag masks, the two 16-bit counters packed in the word at 0x5C, the
+ramp accumulators, the key-off tail. Three deltas left, all allocator/scheduler: (a) the -1
+constant occupies t3 here and t4 in the original while activeFlags takes the other one,
+(b) the original puts `addiu t2,t2,-1` in the bne's delay slot and keeps `sh a3,2(a0)`
+before it, this emits the store into the slot and the addiu after the key-off block (+4
+bytes), (c) the loop tail: original `addiu v0,a2,-1 / move a2,v0 / sll v0,v0,16`, this
+`addu a2,a2,t3 / andi v0,a2,0xffff` (gcc 2.6 combine turns the u16 decrement into +0xFFFF).
+Local declaration order, s32/u16 counters and `while(--count)` vs `count--; while(count)`
+all leave the same allocation. The header's AudioManager unk_0x60/0x62 and AudioElement
+unk_0x8C-0x9A are u16 (the original loads them with lhu, not lh).
+void func_8003C4C4(AudioManager* pManager, AudioElement* pElement, u32 elementCount) {
+    u16 activeFlags;
+    u16 count = elementCount;
+    u16 tickCounter = pManager->unk_0x60;
+    u32 fermataTimer;
+    s32 fermataTicks;
+    s32 restTicks;
+    u16 statusFlags;
+    u16 elementFlags;
+
+    if (tickCounter != 0) {
+        tickCounter--;
+        if (tickCounter != 0) {
+            pManager->unk_0x58 += pManager->unk_0x5c;
+        } else {
+            pManager->unk_0x58 = pManager->unk_0x62 << 16;
+        }
+        pManager->unk_0x54 = (s16)(pManager->unk_0x58 >> 16) * (s16)(pManager->unk_Interpolator_0x64.currentValue >> 16);
+        pManager->unk_0x60 = tickCounter;
+    }
+
+    do {
+        activeFlags = pElement->active_flag;
+        if (activeFlags != 0) {
+            fermataTimer = *(u32*)&pElement->fermataDuration;
+            fermataTicks = fermataTimer & 0xFFFF;
+            restTicks = fermataTimer >> 16;
+            statusFlags = pElement->status_flags;
+
+            if (fermataTicks != 0) {
+                elementFlags = pElement->unk_0x04;
+
+                if (elementFlags & 0x8) {
+                    statusFlags |= SOUND_STATUS_VOLUME_CHANGE;
+                    if (--pElement->unk_0x96 == 0) {
+                        elementFlags &= ~0x8;
+                    }
+                    pElement->unk_0x78 += pElement->unk_0x88;
+                }
+                if (elementFlags & 0x1) {
+                    statusFlags |= SOUND_STATUS_PLAYING_NTOE;
+                    if (!(elementFlags & 0x2)) {
+                        if (--pElement->unk_0x94 == 0) {
+                            elementFlags &= ~0x1;
+                        }
+                    }
+                    pElement->unk68 += pElement->unk_0x84;
+                }
+                if (elementFlags & 0x10) {
+                    if (--pElement->unk_0x98 == 0) {
+                        pElement->unk_0x74 = pElement->unk_0x92;
+                        elementFlags &= ~0x10;
+                    } else {
+                        pElement->unk_0x74 += pElement->unk_0x90;
+                    }
+                    statusFlags |= SOUND_STATUS_VOLUME_CHANGE;
+                }
+                if (elementFlags & 0x20) {
+                    if (--pElement->unk_0x9A == 0) {
+                        pElement->unk_0x76 = pElement->unk_0x8E;
+                        elementFlags &= ~0x20;
+                    } else {
+                        pElement->unk_0x76 += pElement->unk_0x8C;
+                    }
+                    statusFlags |= SOUND_STATUS_VOLUME_CHANGE;
+                }
+                pElement->unk_0x04 = elementFlags;
+                if (--fermataTicks == 1) {
+                    if (activeFlags & 0x1000) {
+                        pElement->voice_data.unkAdsr6 = 6;
+                        pElement->voice_data.flags |= 0x80;
+                    }
+                }
+                if (--restTicks == 0) {
+                    pElement->active_flag |= SOUND_CHANNEL_REST_NOTE;
+                    statusFlags |= SOUND_STATUS_REST_NOTE;
+                }
+                *(u32*)&pElement->fermataDuration = fermataTicks + (restTicks << 16);
+            }
+            pElement->status_flags = statusFlags;
+        }
+        pElement++;
+        count--;
+    } while (count != 0);
+}
+*/
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003C6E8);
 
