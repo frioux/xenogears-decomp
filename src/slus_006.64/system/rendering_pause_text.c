@@ -19,4 +19,8 @@ void GraphicsDrawPauseLetters(int x, int y) {
 }
 
 // 800592E4 -> EA is bss local
+// Unmatchable as C: a hand-written stack switch. The HeapAlloc'd 0x2000 block
+// replaces $sp for the upload call (sw $sp,0($t0) / lw $sp,0($sp)), and no C
+// construct emits that. Its twin GfxLoadImageAccelerated in system/graphics
+// reproduces only with the inline asm the project forbids.
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering_pause_text", func_8001FB30);
