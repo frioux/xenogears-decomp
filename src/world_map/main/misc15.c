@@ -588,4 +588,62 @@ void func_80097D64(void) {
     }
 }
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_80097DC0);
+extern s32 D_8009BCD8;
+extern s16 D_8009D570[];
+extern s32 ArchiveDecodeSector(s32 entryIndex);
+extern u8 *ArchiveGetFilePath(s32 entryIndex);
+extern s32 WorldMapAddCdRequest(s32 x, s32 y, s32 z);
+extern s32 WorldMapAddFileLoadRequest(s32 x, s32 y, s32 z, s32 w);
+extern s32 WorldMapSubmitCdRequests(void);
+extern s32 WorldMapSubmitFileLoads(void);
+
+void func_80097DC0(void) {
+    u32 first;
+    u32 second;
+    s32 i;
+    s32 j;
+    s16 id;
+    u8 *pSector;
+    u8 *pPath;
+
+    first = ArchiveGetDebugTable();
+    second = ArchiveGetDebugTable();
+    if ((first == 0) | (second == 0xFFFFFFFF)) {
+        pSector = (u8 *)ArchiveDecodeSector(D_8009BCD8);
+        for (i = 3; i < 6; i++) {
+            for (j = 3; j < 6; j++) {
+                id = D_8009D570[i * 9 + j];
+                if (D_8009C184[id] == NULL) {
+                    D_8009C184[id] = HeapAlloc(0x710, 0);
+                    WorldMapAddCdRequest((s32)(pSector + id), 0x710, (s32)D_8009C184[id]);
+                }
+            }
+        }
+        WorldMapAddCdRequest(0, 0, 0);
+        WorldMapSubmitCdRequests();
+        for (i = 0; i < 9; i++) {
+            for (j = 0; j < 9; j++) {
+                id = D_8009D570[i * 9 + j];
+                if (D_8009C184[id] == NULL) {
+                    D_8009C184[id] = HeapAlloc(0x710, 0);
+                    WorldMapAddCdRequest((s32)(pSector + id), 0x710, (s32)D_8009C184[id]);
+                }
+            }
+        }
+        WorldMapAddCdRequest(0, 0, 0);
+        WorldMapSubmitCdRequests();
+    } else {
+        pPath = ArchiveGetFilePath(D_8009BCD8);
+        for (i = 0; i < 9; i++) {
+            for (j = 0; j < 9; j++) {
+                id = D_8009D570[i * 9 + j];
+                if (D_8009C184[id] == NULL) {
+                    D_8009C184[id] = HeapAlloc(0x710, 0);
+                    WorldMapAddFileLoadRequest((s32)pPath, id << 11, 0x710, (s32)D_8009C184[id]);
+                }
+            }
+        }
+        WorldMapAddFileLoadRequest(0, 0, 0, 0);
+        WorldMapSubmitFileLoads();
+    }
+}
