@@ -266,7 +266,8 @@ void func_80071CDC(void) {
    lui $at. A local StreamDataQueueEntry* does not stop that folding, and neither
    does routing the address through an s32 local: cse replaces the store's
    (mem (symbol_ref)) with %hi/%lo regardless, because the address pseudo is
-   created after the store. Dead end unless the address comes from a runtime base.
+   created after the store. Dead end unless the address comes from a runtime base. *//*
+
 
 void func_80071EF0(void) {
     void* pBuffer;
@@ -287,8 +288,10 @@ void func_80071EF0(void) {
     D_8009D40C = D_8009BD20;
     func_80029AFC(pQueue, 0, 0);
 }
+
 */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80071EF0);
+
 void func_80071FEC(void) {
     void* pBuffer;
 
@@ -609,6 +612,10 @@ void func_80073398(void) {
    block (into $v1) whatever the source order, so our block is 4 bytes shorter.
    Tried, no help: two separate temps, x-first / B0-first statement orders,
    direct stores through the globals, s32* pointer stores.
+ */
+   Round 39: a volatile cast on the p->z read DOES hold it in place and keeps
+   the load-delay nop (97.16%) but turns the lh into lhu + sll 16 / sra 4. */
+/*
 void func_80073448(s32 arg0) {
     WorldMapPoint* p;
     s32 nPos;
