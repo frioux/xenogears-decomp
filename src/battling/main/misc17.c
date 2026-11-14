@@ -2,6 +2,9 @@
 #include "psyq/libgpu.h"
 
 extern s32 D_80059488;
+extern s32 D_8009283C;
+extern s32 D_80092840;
+extern s32 D_80092844;
 extern s32 D_8009284C;
 extern u8 D_800928A0;
 extern u8 D_80096DE0[];
@@ -49,8 +52,81 @@ extern void func_8003A20C(u8);
 extern void BattleQueueRandomMessages(u8*, u8*, s32);
 extern void BattleDispatchWorkState(u8*);
 extern void SoundPlaySoundEffectOnPairWithLevels(s32, s32, s32, s32);
+extern void BattleEffectCopyBuffers(void);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008E120);
+/* best: objdiff 87.18% - 392 vs 320 bytes. Frame (0x30, s5 = mfhi), the
+   five 16-bit grid taps, the /5 magic and the outer 3-IV tail all match.
+   Still off by: (1) loop 1, retail fills the beq delay slot with a copy of
+   the persistent value (`move v0,s2`) and stores through v0 in both rows,
+   gcc stores s2 directly (tried: switch vs if/else-if, nested if, temp
+   local); (2) loop 2, retail keeps the shared row offset in ELEMENT units
+   (t4 = y*0x70, s1 = t4+1, sll by 1) and forms the five tap bases in the
+   reverse of declaration order, gcc scales the offset into bytes and drops
+   the sll (tried: inline y*0x70+1 per pointer, reversed declarations, plain
+   indexed taps - 78-87%, the local `s32 off` + five base pointers is the
+   best 87.18%).
+void func_8008E120(void) {
+    s16* pGridA;
+    s16* pGridB;
+    s16* pUpBase;
+    s16* pMidRBase;
+    s16* pMidLBase;
+    s16* pDnRBase;
+    s16* pDnLBase;
+    s16* pRow;
+    s32 value;
+    s32 sum;
+    s32 i;
+    s32 x;
+    s32 y;
+
+    if (D_80092844 == 0) {
+        return;
+    }
+    pGridB = (s16*)D_80092840;
+    value = 0;
+    pRow = pGridB + 0x1490;
+    for (i = 0; i < 0x70; i++) {
+        switch (rand() & 3) {
+        case 0:
+            value = 0x180;
+            break;
+        case 1:
+            value = 0;
+            break;
+        }
+        pRow[0x70] = value;
+        pRow[0] = value;
+        pRow++;
+    }
+    pGridA = (s16*)D_8009283C;
+    pUpBase = pGridA - 0x70;
+    pMidRBase = pGridA + 1;
+    pMidLBase = pGridA - 1;
+    pDnRBase = pGridA + 0x71;
+    pDnLBase = pGridA + 0x6F;
+    for (y = 0x2F; y >= 2; y--) {
+        s32 off = y * 0x70 + 1;
+        s16* pUp = pUpBase + off;
+        s16* pMidR = pMidRBase + off;
+        s16* pMidL = pMidLBase + off;
+        s16* pDnR = pDnRBase + off;
+        s16* pDnL = pDnLBase + off;
+        s16* pOut = &pGridB[(y - 1) * 0x70 + 1];
+
+        for (x = 1; x < 0x70; x++) {
+            sum = *pUp++ + *pMidR++ + *pMidL++ + *pDnR++ + *pDnL++;
+            value = sum / 5;
+            if (value >= 4) {
+                value -= 3;
+            }
+            *pOut++ = value;
+        }
+    }
+    BattleEffectCopyBuffers();
+}
+*/
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008E2B8);
 /* best: objdiff 89.48% - first half exact; retail expands the `flag ? 2 : 1` argument as an if/else that repeats
    `addu a0,zero,zero` in both arms and joins with a jump, and re-forms &D_80096E00 with a fresh lui/addiu for the
