@@ -340,7 +340,44 @@ void WorldMapSaveState(void) {
     *(s32*)(pSave + 0x22F4) = D_8009BE30;
 }
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc2", func_8007565C);
+typedef struct {
+    /* 0x0 */ s32 w0;
+    /* 0x4 */ s32 w1;
+    /* 0x8 */ s32 w2;
+    /* 0xC */ s32 w3;
+} WorldMapQuad; // Size: 0x10
+
+typedef struct {
+    /* 0x0 */ s16 h0;
+    /* 0x2 */ s16 h2;
+    /* 0x4 */ s16 h4;
+    /* 0x6 */ s16 h6;
+} WorldMapShortQuad; // Size: 0x8
+
+extern s32 D_8009C5AC;
+
+void func_8007565C(void) {
+    u8* pSave;
+
+    pSave = (u8*)D_8005A4E4;
+    *(ActorBlock*)D_8009BE24 = *(ActorBlock*)pSave;
+    *(WorldMapQuad*)&D_8009C5AC = *(WorldMapQuad*)(pSave + 0x2000);
+    *(WorldMapQuad*)&D_8009D55C = *(WorldMapQuad*)(pSave + 0x2000);
+    *(SlotBlock*)D_8009C854 = *(SlotBlock*)(pSave + 0x2020);
+    D_8009D52C = *(s32*)(pSave + 0x2010);
+    D_8009BE40 = *(s32*)(pSave + 0x2014);
+    D_8009BCC4 = *(s32*)(pSave + 0x2018);
+    D_8009D64C = *(s32*)(pSave + 0x201C);
+    *(UnkBlock*)D_8009CEC4 = *(UnkBlock*)(pSave + 0x2040);
+    *(WorldMapShortQuad*)&D_8009BD38 = *(WorldMapShortQuad*)(pSave + 0x22C4);
+    *(WorldMapQuad*)&D_8009BBB4 = *(WorldMapQuad*)(pSave + 0x22D4);
+    *(WorldMapShortQuad*)&D_8009C838 = *(WorldMapShortQuad*)(pSave + 0x22E4);
+    *(WorldMapQuad*)&D_8009BE28 = *(WorldMapQuad*)(pSave + 0x22EC);
+    D_8009D154 = *(s32*)(pSave + 0x22C0);
+    D_8009D3F0 = *(s32*)(pSave + 0x22CC);
+    D_8009BE0C = *(s32*)(pSave + 0x22D0);
+}
+
 extern s32 D_8009D7F0;
 extern u16 D_8009BD3A;
 extern s16 D_8006F950;
