@@ -310,8 +310,41 @@ void MenuClearBytes(u_char count, u_char* pBuffer) {
     }
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E8070);
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E8474);
 void MenuRenderFrame(void);
+
+void func_801E8474(s32 count, s32* pEntries) {
+    s32 i;
+    s32 j;
+    u32 off;
+
+    g_Menu->pSelectionMenu->unk1192 = 0;
+    g_Menu->pSelectionMenu->unk1193 = 0;
+    g_Menu->pManager->shouldRenderSelectionMenu = 1;
+    for (i = 1; i <= count; i++) {
+        if (i != count) {
+            g_Menu->pSelectionMenu->numCursors = 0;
+            for (j = 0; j < i; j++) {
+                g_Menu->pSelectionMenu->numCursors = func_8002675C(g_Menu->resources, pEntries[j * 2],
+                    (POLY_FT4*)(g_Menu->pSelectionMenu->numCursors * 0x50 + (s32)g_Menu->pSelectionMenu),
+                    g_Menu->renderContext, 0xA0, 0x96, 0x1000) + g_Menu->pSelectionMenu->numCursors;
+            }
+            g_Menu->pSelectionMenu->cursorsRenderCtx = *(u8*)&g_Menu->renderContext;
+        }
+        g_Menu->pSelectionMenu->numTexts = 0;
+        if (i != 1) {
+            for (j = 0; j < i - 1; j++) {
+                off = g_Menu->pSelectionMenu->numTexts * 0x50 + 0x8C0;
+                g_Menu->pSelectionMenu->numTexts = func_8002675C(g_Menu->resources, pEntries[j * 2 + 1],
+                    (POLY_FT4*)(off + (s32)g_Menu->pSelectionMenu),
+                    g_Menu->renderContext, 0xA0, 0x96, 0x1000) + g_Menu->pSelectionMenu->numTexts;
+            }
+            g_Menu->pSelectionMenu->textsRenderCtx = *(u8*)&g_Menu->renderContext;
+        }
+        for (j = 0; j < 2; j++) {
+            MenuRenderFrame();
+        }
+    }
+}
 
 /* Best: 99.79% (688 bytes, exact instruction multiset, only the two table
    bases swap). The missing structural piece: loop 2's guard tests the CURSOR
