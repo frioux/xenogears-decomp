@@ -93,15 +93,41 @@ extern s16 D_80092698;
 extern s16 D_8009269C;
 extern VECTOR D_80096FA8;
 
+// 0xC-byte entry table func_8007DB28 allocates at D_800926C8.
+typedef struct {
+    /* 0x0 */ u16 unk0;
+    /* 0x2 */ u16 unk2;
+    /* 0x4 */ u16 unk4;
+    /* 0x6 */ s16 unk6;
+    /* 0x8 */ s8 unk8;
+    /* 0x9 */ s8 unk9;
+    /* 0xA */ u16 unkA;
+} BattleSpriteSlot; // Size: 0xC
+
+// 0x10-byte primitive template func_8007DB28 allocates at D_800926CC/D_800926D0.
+typedef struct {
+    /* 0x0 */ u8 unk0[3];
+    /* 0x3 */ u8 unk3;
+    /* 0x4 */ u32 unk4;
+    /* 0x8 */ u8 unk8[4];
+    /* 0xC */ u16 unkC;
+    /* 0xE */ u16 unkE;
+} BattlePrimTemplate16; // Size: 0x10
+
 extern u8 *D_800926BC;
 extern u8 *D_800926C0;
 extern u8 *D_800926C4;
+extern u8 *D_800926C8;
+extern u8 *D_800926CC;
+extern u8 *D_800926D0;
 extern u8 *D_800928DC;
+extern u8 D_800928A0;
 
 extern int rand(void);
 
 extern void func_8007E3CC(s32);
 extern void func_8007D334(s32, s32, s32);
+extern void func_800732AC(void *, void *, s32);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007B270);
 
@@ -379,6 +405,32 @@ void func_8007D7A8(VECTOR *pSrc, s32 count) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007D918);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007DB28);
+void func_8007DB28(void) {
+    u8 *pTemplateBuf;
+    BattleSpriteSlot *pSlot;
+    BattlePrimTemplate16 *pTemplate;
+    s32 i;
+
+    D_800926C8 = HeapAlloc(0x1950, 0);
+    pTemplateBuf = HeapAlloc(0x21C0, 0);
+    D_800926CC = pTemplateBuf;
+    D_800926D0 = HeapAlloc(0x21C0, 0);
+    pSlot = (BattleSpriteSlot *)D_800926C8;
+    pTemplate = (BattlePrimTemplate16 *)pTemplateBuf;
+    for (i = 0; i < 0x21C; i++, pSlot++, pTemplate++) {
+        pTemplate->unk3 = 3;
+        pTemplate->unk4 = 0x60FFD0A0;
+        pTemplate->unkC = rand() % 3 + 2;
+        pTemplate->unkE = rand() % 3 + 2;
+        pSlot->unk4 = 0;
+        pSlot->unk2 = 0;
+        pSlot->unk0 = 0;
+        pSlot->unk6 = 0;
+        pSlot->unk9 = 0;
+        pSlot->unkA = 0;
+        pSlot->unk8 = 0;
+    }
+    func_800732AC(D_800926D0, D_800926CC, 0x21C0);
+}
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007DC74);
