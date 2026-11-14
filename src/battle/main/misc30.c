@@ -25,6 +25,7 @@ extern void AnimScriptTick(SpriteData* pSprite);
 extern void func_80022CDC(SpriteData* pSprite);
 extern void func_800245D8(SpriteData* pSprite, s8 arg1);
 extern void func_80021FE0(SpriteData* pSprite, s16 arg1);
+extern void func_80022B2C(SpriteData* pSprite);
 extern s32 func_800BEF24(SpriteData* p0, SpriteData* p1);
 extern void func_800223B0(SpriteData* pSprite, s16 arg1);
 extern void func_800BF0B4(s32 arg0);
@@ -86,8 +87,75 @@ void func_800BA59C(SpriteData* pSprite, s16 angle) {
     pSprite->step.x = ((rsin(angle) >> 1) * scale) >> 8;
     pSprite->step.z = -(((rcos(pSprite->direction) >> 1) * scale)) >> 8;
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800BA614);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800BA768);
+void func_800BA614(SpriteData* pSprite) {
+    VECTOR diff;
+    SVECTOR vec;
+    u8 out[0x10];
+    s32 index;
+    s32 len;
+    s32 dy;
+    s32 angle;
+
+    func_80021B04(&vec, pSprite->field_0xA0, pSprite->field_0xA2, pSprite->field_0xA4);
+    index = func_800A5914((s16*)&vec, pSprite->field_0x78, 4);
+    if (index < 0) {
+        index = func_800A579C((s16*)&vec);
+    }
+    func_800A5870((s16*)&vec, index, out);
+    if (vec.vy > pSprite->field_0xA2) {
+        *(u16*)&vec.vy = *(u16*)&pSprite->field_0xA2;
+    }
+    dy = ((vec.vy << 16) - *(s32*)((u8*)pSprite + 0x4)) >> 16;
+    diff.vx = pSprite->field_0xA0 - *(s16*)((u8*)pSprite + 0x2);
+    diff.vz = pSprite->field_0xA4 - *(s16*)((u8*)pSprite + 0xA);
+    angle = -ratan2(diff.vz, diff.vx);
+    Square0(&diff, &diff);
+    len = SquareRoot0(diff.vx + diff.vz);
+    pSprite->step.y = ((-(s32)pSprite->gravity * len) << 4) / (pSprite->moveSpeed >> 11) +
+                      (pSprite->moveSpeed * dy) / len;
+    func_800BA59C(pSprite, angle);
+}
+void func_800BA768(SpriteData* pSprite) {
+    VECTOR diff;
+    SVECTOR vec;
+    u8 out[0x10];
+    s32 index;
+    s32 divisor;
+    s32 angle;
+    s32 len;
+    s32 num;
+
+    divisor = -((pSprite->step.y << 1) / (s32)pSprite->gravity);
+    pSprite->position.x &= 0xFFFF0000;
+    pSprite->position.y &= 0xFFFF0000;
+    pSprite->position.z &= 0xFFFF0000;
+    diff.vx = pSprite->field_0xA0 - *(s16*)((u8*)pSprite + 0x2);
+    diff.vz = pSprite->field_0xA4 - *(s16*)((u8*)pSprite + 0xA);
+    diff.vy = 0;
+    angle = -ratan2(diff.vz, diff.vx);
+    Square0(&diff, &diff);
+    len = SquareRoot0(diff.vx + diff.vz);
+    if (divisor != 0) {
+        pSprite->moveSpeed = (len << 16) / divisor;
+    } else {
+        pSprite->moveSpeed = 0;
+    }
+    func_80021B04(&vec, pSprite->field_0xA0, pSprite->field_0xA2, pSprite->field_0xA4);
+    index = func_800A5914((s16*)&vec, pSprite->field_0x78, 4);
+    if (index < 0) {
+        index = func_800A579C((s16*)&vec);
+    }
+    func_800A5870((s16*)&vec, index, out);
+    if (vec.vy > pSprite->field_0xA2) {
+        *(u16*)&vec.vy = *(u16*)&pSprite->field_0xA2;
+    }
+    num = (vec.vy << 16) - *(s32*)((u8*)pSprite + 0x4);
+    if (divisor != 0) {
+        pSprite->step.y += num / divisor;
+    }
+    func_800BA59C(pSprite, angle);
+    func_80022B2C(pSprite);
+}
 void func_800BA8F4(u8* pSprite) {
     s16 vec[3];
     u8 out[0x10];
@@ -232,7 +300,37 @@ void func_800BACBC(s32 index, s16* p0, s16* p1, s16* p2, s16* p3, s16* p4, s16* 
     PopMatrix();
 }
 */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800BADD4);
+void func_800BADD4(s32 index) {
+    u8* pBase = D_800C3EB0;
+    u8* pBlock;
+    u8* pTail;
+    SpriteData* pSprite;
+    void* pPayload;
+    u32* pSlot;
+    u32* pSlot2;
+
+    pSlot = (u32*)(pBase + index * 4 + 0x8CB8);
+    pSprite = *(SpriteData**)pSlot;
+    if (pSprite == NULL) {
+        return;
+    }
+    func_800BFC80(pSprite, 0, 2);
+    if (index < 3) {
+        pBlock = pBase + index * 0xC + 0x8000;
+        pPayload = *(void**)(pBlock + 0xD24);
+        if (pPayload != NULL) {
+            HeapFree(pPayload);
+        }
+        *(u32*)(pBlock + 0xD24) = 0;
+    }
+    (*(void (**)(SpriteData*))((u8*)pSprite + 0xC))(pSprite);
+    func_8001CE74(pSprite);
+    pTail = D_800C3EB0;
+    pSlot = (u32*)(pTail + index * 4 + 0x8C8C);
+    *pSlot = 0;
+    pSlot2 = (u32*)(pTail + index * 4 + 0x8CB8);
+    *pSlot2 = 0;
+}
 /* 92.04%: the 0x8C8C constant-fold wall, second shape.  With pBase a local the
    tail's instruction stream is retail's exactly (`li v0,0x8C8C; addu; sw 0` and
    the same for 0x8CB8), but gcc then keeps pBase live in $s3 across the calls
@@ -269,7 +367,24 @@ void func_800BADD4(s32 index) {
     *(u32*)(pBase + index * 4 + 0x8CB8) = 0;
 }
 */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800BAEB8);
+void func_800BAEB8(s32 index) {
+    u8* pBase = D_800C3EB0;
+    u8* pEntry = pBase + index * 4;
+    u8* pCounter;
+    SpriteData** ppSlot;
+    SpriteData* pSprite;
+    s32 sfx;
+
+    ppSlot = (SpriteData**)(pEntry + 0x8C8C);
+    pSprite = *ppSlot;
+    if (((s8*)pSprite)[0xAF] == 0x15) {
+        return;
+    }
+    pCounter = pBase + index * 0x1C;
+    sfx = (pCounter[0xA] != 0) << 11;
+    func_800223B0(pSprite, sfx);
+    func_80021FE0(pSprite, sfx);
+}
 /* 75.68%: the known 0x8C8C wall (same as misc28's func_800B64D4).  Retail keeps
    &D_800C3EB0 in $a1 and adds 0x8C8C with a separate li+addu; gcc always folds
    the constant into the symbolic address as lui at,0x1 / lw -29556(at).
@@ -301,6 +416,9 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800BB080);
    access, which also drags the loop-bound `3` into a register (li s3,3).
    The call through pSprite->field_0x6C+0xC, the three break tests and the
    func_800B14CC tail are otherwise identical.
+   Also tried: named pointer locals for the two zero stores (the ppSlot trick
+   that closed func_800BAEB8 and func_800BADD4 here); loop.c then hoists BOTH
+   0x8C8C and 0x8CB8 into callee-saved registers and the frame grows to 0x30.
 void func_800BB080(s32 arg0) {
     u8* pEntry = D_800C3EB0;
     SpriteData* pSprite;
