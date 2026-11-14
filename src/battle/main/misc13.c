@@ -32,7 +32,7 @@ extern u8 D_800C48EC[];
 extern u8 D_800C48EE[];
 extern u8 D_800C48F0[];
 
-extern void func_80085454(u8);
+extern void BattleApplySlotCurve(u8);
 extern void func_80085618(u8);
 extern void func_80098C6C(u16);
 extern void func_800941A4(void);
@@ -131,7 +131,7 @@ void func_80085C48(s32 arg0, u16 arg1, u16 arg2) {
 void func_80085C88(u8 arg0) {
     u8 v = arg0;
 
-    func_80085454(v);
+    BattleApplySlotCurve(v);
     func_80085618(v);
     D_800D2D28[0xAD] = 0;
 }

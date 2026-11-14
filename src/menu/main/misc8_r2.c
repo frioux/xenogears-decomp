@@ -27,7 +27,7 @@ extern s32 D_801E977C[]; // String IDs of the menu scroll bar textures
 
 void MenuSetupPointerCursors(s32 arg0);
 void MenuFreeScrollHandle(void);
-void func_801D4EA0(s32 arg0);
+void MenuFreeWindow(s32 arg0);
 void func_801C72BC(s32 arg0);
 void func_801D7F50(s32 arg0, s32 arg1, u_char arg2);
 void func_801D8644(u_char arg0, s32 arg1, s32 arg2, u_char arg3, u_char arg4);
@@ -99,8 +99,8 @@ void func_801DA4A8(void) {
 
 void func_801DA518(void) {
     MenuFreeScrollHandle();
-    func_801D4EA0(3);
-    func_801D4EA0(4);
+    MenuFreeWindow(3);
+    MenuFreeWindow(4);
     g_Menu->pManager->unk48 = 0;
     func_801C72BC(0x10);
     HeapFree(g_Menu->unk42C->pVramBuffer);

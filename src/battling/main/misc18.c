@@ -42,10 +42,10 @@ extern void func_8007639C(u8* p, s32 arg1);
 extern u8 D_80092884;
 extern u32 func_800828C4(s32* p);
 extern void func_8008F7B8(u8* p);
-extern s32 func_8008F720(u8* p, s32 arg1);
-extern s32 func_8008F580(u8* p);
+extern s32 BattleRollActorFlag8000(u8* p, s32 arg1);
+extern s32 BattleGetActorBreakProximity(u8* p);
 extern s32 D_8009284C;
-extern s32 func_8008F5B4(u8* p, s32 arg1);
+extern s32 BattleRollActorActionChance(u8* p, s32 arg1);
 extern void func_8008FFEC(u8* p, u8* arg1);
 extern void func_80076424(u8* p);
 extern u8 D_80099D98;
@@ -57,18 +57,18 @@ extern void BattleUpdateActorApproach(u8* p, s32 arg1, s32 arg2);
 extern s32 BattleCheckValueAboveScaledMax(u8* p, s32 arg1);
 
 
-s32 func_8008F530(u8* pArg0, s32 arg1) {
+s32 BattleCheckActorBelowBreakThreshold(u8* pArg0, s32 arg1) {
     if (arg1 != 0) {
         return func_80073DE4(pArg0, *(s16*)(pArg0 + 0xBE));
     }
     return *(s16*)(pArg0 + 0xB6) < 0x1000 - *(s16*)(pArg0 + 0xBE);
 }
 
-s32 func_8008F570(u8* pArg0) {
+s32 BattleGetActorBreakThreshold(u8* pArg0) {
     return 0x1000 - *(s16*)(pArg0 + 0xBE);
 }
 
-s32 func_8008F580(u8* pArg0) {
+s32 BattleGetActorBreakProximity(u8* pArg0) {
     s32 v1;
     s32 v0;
 
@@ -78,12 +78,12 @@ s32 func_8008F580(u8* pArg0) {
 }
 
 // retail spells each limit as (x * k) << 6 >> 4; folding it to x * (4 * k) is 2 insns shorter
-s32 func_8008F5B4(u8* pArg0, s32 arg1) {
+s32 BattleRollActorActionChance(u8* pArg0, s32 arg1) {
     u8* p;
 
     p = *(u8**)(pArg0 + 0x15FC);
     if ((rand() & 0xFF) < ((*(s32*)(p + 0x10) * 5) << 6) >> 4) {
-        if (func_8008F530(pArg0, 0) != 0) {
+        if (BattleCheckActorBelowBreakThreshold(pArg0, 0) != 0) {
             goto tail;
         }
         if (BattleCheckValueAboveScaledMax(pArg0, 0xC0) != 0) {
@@ -117,7 +117,7 @@ tail:
     }
     return 1;
 }
-s32 func_8008F720(u8* pArg0, s32 arg1) {
+s32 BattleRollActorFlag8000(u8* pArg0, s32 arg1) {
     u8* p1;
 
     p1 = *(u8**)(pArg0 + 0x15FC);
@@ -128,7 +128,7 @@ s32 func_8008F720(u8* pArg0, s32 arg1) {
             }
         }
     }
-    if (func_8008F580(pArg0) != 0) {
+    if (BattleGetActorBreakProximity(pArg0) != 0) {
         return 1;
     }
     return ((rand() & 0xFF) < *(s32*)(p1 + 0x1C));
@@ -144,7 +144,7 @@ s32 func_8008F720(u8* pArg0, s32 arg1) {
     p->unk2C_0 = rand();
     p->unk30 = *(u16*)(p->unk0 + 0x1668);
 }
-void func_8008F900(u8* pArg0) {
+void BattleQueueMessages4Then3(u8* pArg0) {
     if (((*(u32*)(*(u8**)(pArg0 + 0xD8) + 0xD0)) & 0x60000000) == 0x20000000) {
         if ((rand() & 3) != 0) {
             return;
@@ -162,7 +162,7 @@ void func_8008F900(u8* pArg0) {
     }
     func_8007639C(pArg0, 4);
     func_8007639C(pArg0, 3);
-}s32 func_8008F9B0(s32* pArg0) {
+}s32 BattleCheckPositionPastMapCenter(s32* pArg0) {
     s32 sp[4];
     s32 a;
     s32 b;
@@ -179,7 +179,7 @@ void func_8008F900(u8* pArg0) {
 }extern long ratan2(long y, long x);
 extern s32 D_80092934;
 
-s32 func_8008FA2C(s32* pArg0, u8* pArg1) {
+s32 BattleSetFacingFromPosition(s32* pArg0, u8* pArg1) {
     s32 sp[4];
     s32 a;
     s32 b;
@@ -200,7 +200,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc18", func_8008FACC);
    at the end of the function instead of merging them before the body, and puts
    li v0,1 in a branch delay slot. Also tried: one combined condition (same),
    splitting the two early returns (same), and hoisting the 0x8F4 load before the
-   second func_8008F9B0 call (worse: 78%, costs an extra saved register).
+   second BattleCheckPositionPastMapCenter call (worse: 78%, costs an extra saved register).
 extern u8 D_800928C4;
 
 s32 func_8008FACC(s32* pArg0, u8* pArg1) {
@@ -212,11 +212,11 @@ s32 func_8008FACC(s32* pArg0, u8* pArg1) {
     if ((*(u32*)((u8*)pArg0 + 0xD0) & 0x8000000) == 0) {
         return 0;
     }
-    if (func_8008F9B0(pArg0) != 0) {
-        func_8008FA2C(pArg0, pArg1);
+    if (BattleCheckPositionPastMapCenter(pArg0) != 0) {
+        BattleSetFacingFromPosition(pArg0, pArg1);
         return 1;
     }
-    if (func_8008F9B0(*(s32**)((u8*)pArg0 + 0xD8)) == 0) {
+    if (BattleCheckPositionPastMapCenter(*(s32**)((u8*)pArg0 + 0xD8)) == 0) {
         return 0;
     }
     v = *(s32*)(*(u8**)((u8*)pArg0 + 0xD8) + 0x8F4);
@@ -238,7 +238,7 @@ s32 func_8008FACC(s32* pArg0, u8* pArg1) {
     return 1;
 }
 */
-void func_8008FBD8(u8* pArg0, u8* pArg1) {
+void BattleSetActorFlag2AndClearQueue(u8* pArg0, u8* pArg1) {
     u8 v;
 
     v = *(u8*)(pArg1 + 0xF);
@@ -258,7 +258,7 @@ void func_8008FBD8(u8* pArg0, u8* pArg1) {
     func_80076424(pArg0);
 }
 
-void func_8008FC7C(u8* pArg0) {
+void BattleEnterWorkState0(u8* pArg0) {
     u8* p;
 
     p = *(u8**)(pArg0 + 0x15FC);
@@ -267,7 +267,7 @@ void func_8008FC7C(u8* pArg0) {
     *(s16*)(p + 0x4) = (2 - *(u8*)(p + 0xF)) * 30 + 0x5A;
     func_8008F7B8(p);
 }INCLUDE_ASM("asm/battling/nonmatchings/main/misc18", func_8008FCC8);
-void func_8008FE80(u8* pArg0) {
+void BattleQueueRandomMessages(u8* pArg0) {
     s32 n;
     s32 v;
 
@@ -294,11 +294,11 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc18", func_8008FF24);
 void func_8008FF24(u8* pArg0, u8* pArg1) {
     if (*(u8*)(*(u8**)(pArg0 + 0xD8) + 0xC4) == 4) {
         if ((*(u32*)(pArg1 + 0x2C) & 0xA00) == 0x200) {
-            func_8008F900(pArg0);
+            BattleQueueMessages4Then3(pArg0);
             *(s16*)(pArg1 + 0x4) = 3;
         }
     } else {
-        func_8008FE80(pArg0);
+        BattleQueueRandomMessages(pArg0);
         *(s16*)(pArg1 + 0x4) = (2 - *(u8*)(pArg1 + 0xF)) * 20 + (rand() % 20 + 1);
     }
     func_8008F7B8(pArg1);
@@ -352,7 +352,7 @@ s32 func_8008FFEC(u8* pArg0, u8* pArg1) {
     return 0;
 }
 */
-void func_80090174(u8* pArg0) {
+void BattleEnterWorkState1(u8* pArg0) {
     u8* p;
     u8 v;
 
@@ -372,13 +372,13 @@ void func_80090174(u8* pArg0) {
     func_8008F7B8(p);
 }
 
-s32 func_80090258(u8* pArg0, u8* pArg1) {
+s32 BattleDecideActorAction(u8* pArg0, u8* pArg1) {
     if (*(u8*)(pArg0 + 0x911) != 0) {
         if ((rand() & 1) == 0) {
             return 1;
         }
-        if ((rand() & 1) != 0 && func_8008F5B4(pArg0, 0) != 0) {
-            func_8008F900(pArg0);
+        if ((rand() & 1) != 0 && BattleRollActorActionChance(pArg0, 0) != 0) {
+            BattleQueueMessages4Then3(pArg0);
             return 0;
         }
         if (D_8009284C < 0x1001) {
@@ -387,14 +387,14 @@ s32 func_80090258(u8* pArg0, u8* pArg1) {
         }
         return 1;
     }
-    if (func_8008F5B4(pArg0, 0) != 0) {
-        func_8008F900(pArg0);
+    if (BattleRollActorActionChance(pArg0, 0) != 0) {
+        BattleQueueMessages4Then3(pArg0);
         return 0;
     }
     return 1;
 }
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc18", func_8009031C);
-void func_80090504(u8* pArg0) {
+void BattleEnterWorkState3(u8* pArg0) {
     u8* p;
     s32 r;
 
@@ -404,10 +404,10 @@ void func_80090504(u8* pArg0) {
     *(u8*)(p + 0x9) = r % 4 + 1;
     *(s16*)(p + 0x4) = 0;
     func_8008F7B8(p);
-    *(u8*)(p + 0xE) = func_8008F720(pArg0, 1);
+    *(u8*)(p + 0xE) = BattleRollActorFlag8000(pArg0, 1);
     *(u8*)(p + 0x2E) = 0;
 }INCLUDE_ASM("asm/battling/nonmatchings/main/misc18", func_80090580);
-void func_80090894(u8* pArg0) {
+void BattleEnterWorkState2(u8* pArg0) {
     u8* p;
 
     p = *(u8**)(pArg0 + 0x15FC);
@@ -419,11 +419,11 @@ void func_80090894(u8* pArg0) {
     *(s16*)(p + 0x4) = 0;
     p[0x9] = rand() % 5 + 3;
     func_8008F7B8(p);
-    p[0xE] = func_8008F720(pArg0, 0);
+    p[0xE] = BattleRollActorFlag8000(pArg0, 0);
     p[0x2E] = 0;
 }
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc18", func_80090990);
-void func_80090C88(u8* pArg0) {
+void BattleLoadWorkActionChances(u8* pArg0) {
     u8* p1;
     u8* p0;
 
@@ -437,8 +437,8 @@ void func_80090C88(u8* pArg0) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc18", func_80090CC0);
 /* 97.38%: only the D_80099D98 load is off. gcc hoists it above the store of the
-   func_8008F570 result; retail keeps store-then-load and reuses $v0 for both.
-   The two func_80090894/func_80090504 call sites and func_8008F570 need a trailing
+   BattleGetActorBreakThreshold result; retail keeps store-then-load and reuses $v0 for both.
+   The two BattleEnterWorkState2/BattleEnterWorkState3 call sites and BattleGetActorBreakThreshold need a trailing
    argument retail passes and nobody reads (a1=0 / a1=p) - adding it to those three
    matched definitions is byte-neutral but was reverted with this park.
 void func_80090CC0(u8* pArg0) {
@@ -458,27 +458,27 @@ void func_80090CC0(u8* pArg0) {
     p->unk8 = 0;
     p->unk9 = 0;
     *(s32*)(pArg0 + 0x48) = 0;
-    p->unk24 = func_8008F570(pArg0, p);
+    p->unk24 = BattleGetActorBreakThreshold(pArg0, p);
     p->unkF = D_80099D98;
-    func_80090C88(pArg0);
+    BattleLoadWorkActionChances(pArg0);
     switch (rand() % 3) {
     case 0:
-        func_8008FC7C(pArg0);
+        BattleEnterWorkState0(pArg0);
         break;
     case 1:
-        func_80090174(pArg0);
+        BattleEnterWorkState1(pArg0);
         break;
     case 2:
-        func_80090894(pArg0, 0);
+        BattleEnterWorkState2(pArg0, 0);
         break;
     case 3:
-        func_80090504(pArg0, 0);
+        BattleEnterWorkState3(pArg0, 0);
         break;
     }
     func_80076424(pArg0);
 }
 */
-void func_80090E10(u8* pArg0) {
+void BattleDispatchWorkState(u8* pArg0) {
     u8* p;
 
     if ((*(u32*)(pArg0 + 0xD0) & 0x40) != 0) {

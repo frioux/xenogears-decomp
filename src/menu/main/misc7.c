@@ -6,17 +6,17 @@
 
 void MenuParseNumberToDigits(u32 number);
 void func_801D3C4C(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4);
-void func_801D3DB0(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4);
+void MenuInitializeWindowBorderCorners(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4);
 void func_801D3FF8(u_char a0, u_short a1, u_short a2, u_short a3);
 void func_801D433C(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4);
 void func_801D4688(u_char a0, u_short a1, u_short a2, u_short a3);
 void func_801D49D0(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4);
 void func_801D4F2C(u_char a0, u_char a1, s32 a2, s32 a3);
-void func_801D50EC(u_char a0, s32 a1, s32 a2);
+void MenuSetCharacterWindowIcons(u_char a0, s32 a1, s32 a2);
 void func_801D51EC(u_char a0, u_char a1, s32 a2, s32 a3);
 void func_801D53D0(u_char a0, u_char a1, s32 a2, s32 a3);
-void func_801D55B4(u_char a0, u_char a1, s32 a2, s32 a3);
-void func_801D5794(u_char a0, u_char a1, s32 a2, s32 a3);
+void MenuSetCharacterWideNumberDigits(u_char a0, u_char a1, s32 a2, s32 a3);
+void MenuSetCharacterLevelDigits(u_char a0, u_char a1, s32 a2, s32 a3);
 extern s32 D_801E9A78[];
 extern s32 D_801E9AC8[];
 extern s32 D_801E9B60[];
@@ -70,7 +70,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D3C4C);
    must be declared with wide (s32) x/y/scale - a u16 there adds an andi 0xFFFF
    after the -8 and drops to 87%. Tried: s32 scale local, u16 x/y/scale for
    func_800263E4 (87.70%). Also gcc-2.7.2-cdk: 93.33 (and the matched
-   func_801D55B4 drops to 82.14 under cdk, so this is not a cdk unit). The tie
+   MenuSetCharacterWideNumberDigits drops to 82.14 under cdk, so this is not a cdk unit). The tie
    is priority(0x1000) > priority(height) in retail, the reverse in 2.7.2; both
    are live across the same two calls with 3 uses each.
    void func_801D3C4C(u_char index, u_short x, u_short y, u_short width, u_short height) {
@@ -89,7 +89,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D3C4C);
    }
 */
 void func_801E91C4(P_TAG* pTag);
-void func_801D3DB0(u_char index, u_short x, u_short y, u_short width, u_short height) {
+void MenuInitializeWindowBorderCorners(u_char index, u_short x, u_short y, u_short width, u_short height) {
     MenuWindow* pWindow = g_Menu->windows[index];
     u16 left;
     u16 top;
@@ -172,7 +172,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D3FF8);
    }
 */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D433C);
-/* Best: 99.00%. The sibling of func_801D3DB0 (bottom border instead of the
+/* Best: 99.00%. The sibling of MenuInitializeWindowBorderCorners (bottom border instead of the
    corners) and the decode is complete: 16 UV stores to polysWindowBorderBottom
    [ctx] and [ctx+2], two MenuSetQuadVertices quads, then a 2-iteration
    func_801E91C4 loop. Three codegen facts already worked out here: the UV
@@ -308,12 +308,12 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D49D0);
        }
    }
 */
-void func_801D4D1C(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4, u_char a5, s32 a6, u_char a7) {
+void MenuSetWindow(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4, u_char a5, s32 a6, u_char a7) {
     MenuWindow* pWindow = g_Menu->windows[a0];
 
     g_Menu->pManager->shouldRenderWindow[a0] = 0;
     MenuSetQuadVertices(pWindow->vertsBackground, a1, a2, a3, a4);
-    func_801D3DB0(a0, a1, a2, a3, a4);
+    MenuInitializeWindowBorderCorners(a0, a1, a2, a3, a4);
     func_801D3FF8(a0, a1, a2, a3);
     func_801D433C(a0, a1, a2, a3, a4);
     func_801D4688(a0, a1, a2, a4);
@@ -327,7 +327,7 @@ void func_801D4D1C(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4, u_
     pWindow->renderContext = *(u8*)&g_Menu->renderContext;
     g_Menu->pManager->shouldRenderWindow[a0] = 1;
 }
-void func_801D4EA0(u_char a0) {
+void MenuFreeWindow(u_char a0) {
     g_Menu->pManager->shouldRenderWindow[a0] = 0;
     g_Menu->pManager->unk27[a0] = 0;
     HeapFree(g_Menu->windows[a0]);
@@ -362,7 +362,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D4F2C);
                      (D_801EA578[a0] << 2) & 0xFC, D_801EA5C4[a0], 0x48, 0xD);
    }
 */
-void func_801D50EC(u_char a0, s32 a1, s32 a2) {
+void MenuSetCharacterWindowIcons(u_char a0, s32 a1, s32 a2) {
     u8* pWindow;
     s32 i;
 
@@ -476,7 +476,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D53D0);
        }
    }
 */
-void func_801D55B4(u_char a0, u_char a1, s32 a2, s32 a3) {
+void MenuSetCharacterWideNumberDigits(u_char a0, u_char a1, s32 a2, s32 a3) {
     u8* pWindow = (u8*)g_Menu->unk39C[a0];
     s32 i;
 
@@ -503,7 +503,7 @@ void func_801D55B4(u_char a0, u_char a1, s32 a2, s32 a3) {
         }
     }
 }
-void func_801D5794(u_char a0, u_char a1, s32 a2, s32 a3) {
+void MenuSetCharacterLevelDigits(u_char a0, u_char a1, s32 a2, s32 a3) {
     u8* pWindow = (u8*)g_Menu->unk39C[a0];
     s32 i;
 
@@ -542,7 +542,7 @@ void func_801D5794(u_char a0, u_char a1, s32 a2, s32 a3) {
                ((g_Menu->renderContext + i * 2) * 0x28 + 0xA06)) = 0;
     }
 }
-void func_801D5A50(u_char a0, u_char a1) {
+void MenuSetCharacterWindowContents(u_char a0, u_char a1) {
     s32* pData;
     u8* pWindow;
     s32 x;
@@ -556,11 +556,11 @@ void func_801D5A50(u_char a0, u_char a1) {
     x = pData[6] / 256 + pData[0];
     y = pData[7] / 256 + pData[2];
     func_801D4F2C(a0, a1, x, y);
-    func_801D50EC(a0, x, y);
+    MenuSetCharacterWindowIcons(a0, x, y);
     func_801D51EC(a0, a1, x, y);
     func_801D53D0(a0, a1, x, y);
-    func_801D55B4(a0, a1, x, y);
-    func_801D5794(a0, a1, x, y);
+    MenuSetCharacterWideNumberDigits(a0, a1, x, y);
+    MenuSetCharacterLevelDigits(a0, a1, x, y);
     g_Menu->pManager->unk0[a0] = 1;
     *(u8*)(pWindow + 0x1270) = *(u8*)&g_Menu->renderContext;
 }
@@ -597,7 +597,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D5BA4);
        *(u8*)((u8*)g_Menu->unk340 + 0x324) = *(u8*)&g_Menu->renderContext;
    }
 */
-void func_801D5CF8(s32 a0, s32 a1) {
+void MenuSetPlayTimeDigitPrims(s32 a0, s32 a1) {
     s32 i;
 
     for (i = 0; i < 3; i++) {
@@ -801,7 +801,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D7154);
 */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D74EC);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D7884);
-void func_801D7C3C(u_char a0, u_char a1) {
+void MenuSetGearWindowContents(u_char a0, u_char a1) {
     func_801D5ED4(a0, a1);
     func_801D6194(a1);
     func_801D6338(a0, a1);

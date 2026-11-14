@@ -748,3 +748,4 @@ FieldLoadFontTIMAndClearRect = 0x800ACB90;
 FieldInitTextRender = 0x800ACC58;
 FieldFreeTextRender = 0x800ACCB0;
 FieldUpdateTextRender = 0x800ACCF4;
+FieldScriptAddPartyMemberShort = 0x8008BDD8;

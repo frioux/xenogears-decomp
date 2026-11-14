@@ -4,7 +4,7 @@ extern u8 *D_800C3558;
 
 extern u8 *func_800B35C0();
 extern void func_800B3358(u8 *pArg0);
-extern void func_800A6444(s32, s32, s32, s32, s32, s32);
+extern void BattleSetActorRectParams(s32, s32, s32, s32, s32, s32);
 
 u8 *func_800B168C(u8 *pBase, s32 n) {
     return &pBase[n * 0x1C + 0xC];
@@ -189,14 +189,14 @@ extern u32 D_800C3560;
 extern void WorkListRemoveTask(void *pEntry);
 extern void TimerWorkListRemoveTask(void *pEntry);
 extern void HeapFree(void *pMem);
-extern void func_800A6F98(void);
+extern void BattleUploadAndFreeImageResources(void);
 
 void func_800B3C2C(u8 *pEntry) {
     WorkListRemoveTask(pEntry + 0x1C);
     TimerWorkListRemoveTask(pEntry);
     HeapFree(pEntry);
     D_800C3560 = 0;
-    func_800A6F98();
+    BattleUploadAndFreeImageResources();
 }
 */
 
@@ -214,7 +214,7 @@ void func_800B3C74(u8 *pArg) {
     cur = *(s16 *)(p + 0x46);
     if (prev != cur) {
         *(u16 *)(p + 0x44) = *(u16 *)(p + 0x46);
-        func_800A6444(0, *(s16 *)(p + 0x48), 0x20 - cur, *(s16 *)(p + 0x4A),
+        BattleSetActorRectParams(0, *(s16 *)(p + 0x48), 0x20 - cur, *(s16 *)(p + 0x4A),
                       *(s16 *)(p + 0x4C), *(s16 *)(p + 0x4E));
     }
 }

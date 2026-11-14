@@ -388,7 +388,7 @@ extern u16 D_800D2C54[][2];
 extern u8 D_800D2C88[];
 extern u8 D_800D2D5C[];
 extern u16 D_800D2D70[];
-void func_80085454(u8 arg0) {
+void BattleApplySlotCurve(u8 arg0) {
     s32 i;
 
     for (i = 0; i < 0xB; i++) {

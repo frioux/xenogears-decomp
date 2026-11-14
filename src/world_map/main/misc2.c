@@ -356,7 +356,7 @@ typedef struct {
 
 extern s32 D_8009C5AC;
 
-void func_8007565C(void) {
+void WorldMapLoadState(void) {
     u8* pSave;
 
     pSave = (u8*)D_8005A4E4;

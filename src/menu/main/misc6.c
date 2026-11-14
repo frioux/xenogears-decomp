@@ -15,15 +15,15 @@ s32 func_8002675C(MenuResourceDirectory* pDir, u32 index, POLY_FT4* pPrims, s32 
 void MenuPlaySoundEffect(u_char soundEffectId);
 void MenuCreateWindow(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4, u_char a5, u_char a6, s32 a7, u_char a8);
 void func_801E53CC(u_char a0);
-void func_801D4EA0(u_char a0);
+void MenuFreeWindow(u_char a0);
 void func_801D5BA4(u_char a0, u_char a1);
-void func_801D5CF8(u_char a0, u_char a1);
-void func_801D7C3C(u_char a0, u_char a1);
+void MenuSetPlayTimeDigitPrims(u_char a0, u_char a1);
+void MenuSetGearWindowContents(u_char a0, u_char a1);
 void func_801D7CFC(u_char a0, u_char a1, u_char a2);
 void func_801D8DE4(u_char a0, s32 a1, s32 a2, u_char a3);
 void func_801D8EA4(u_char a0, s32 a1, s32 a2, u_char a3);
 
-void func_801D4D1C(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4, u_char a5, s32 a6, u_char a7);
+void MenuSetWindow(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4, u_char a5, s32 a6, u_char a7);
 void func_801D29A8(s32 a0, s32 a1);
 void func_801E8DA8(u_char a0, u_char a1);
 void func_801E8474(s32 a0, u32* a1);
@@ -211,13 +211,13 @@ void MenuCreateGoldWindow(void) {
 }
 void MenuCreatePlayTimeWindow(void) {
     MenuCreateWindow(1, 0xCC, 0xC6, 0x50, 0x10, 0, 0, 4, 0);
-    func_801D5CF8(0xD0, 0xCA);
+    MenuSetPlayTimeDigitPrims(0xD0, 0xCA);
     // volatile keeps reorg from sinking this store past the epilogue restores
     *(volatile u8*)&g_Menu->pManager->unk5[1] = 1;
 }
 void MenuUpdatePlayTimeDigits(void) {
     if (g_Menu->pManager->unk5[1] != 0) {
-        func_801D5CF8(0xD0, 0xCA);
+        MenuSetPlayTimeDigitPrims(0xD0, 0xCA);
     }
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc6", func_801D29A8);
@@ -281,7 +281,7 @@ void func_801D2D38(void) {
 }
 */
 void MenuDrawGearScreen(u_char a0, u_char a1) {
-    func_801D7C3C(a0, a1);
+    MenuSetGearWindowContents(a0, a1);
     func_801D7CFC(a0, a1, g_GameState.gearRide[a0]);
     MenuRenderFrame();
     func_801D8DE4(a0, 0, 0, a1);
@@ -293,7 +293,7 @@ void MenuFreeWindow2Strings(void) {
     s32 i;
 
     if (g_Menu->pManager->shouldRenderWindow[2] != 0) {
-        func_801D4EA0(2);
+        MenuFreeWindow(2);
         g_Menu->pManager->unk2B = 0;
         for (i = 0; i < 4; i++) {
             HeapFree(g_Menu->unk1DE0[i]);
@@ -395,7 +395,7 @@ void MenuCreateWindow(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4,
         return;
     }
 
-    func_801D4D1C(a0, a1, a2, a3, a4, a6, a7, a8);
+    MenuSetWindow(a0, a1, a2, a3, a4, a6, a7, a8);
 }
 
 void MenuUpdateWindowAnimations(void) {
@@ -426,7 +426,7 @@ void MenuUpdateWindowAnimations(void) {
                 pWindowInfo->unk11 = 1;
             }
 
-            func_801D4D1C(
+            MenuSetWindow(
                 pWindowInfo->index,
                 (pWindowInfo->x + (pWindowInfo->width / 2)) - (pWindowInfo->unk8 / 2),
                 (pWindowInfo->y + (pWindowInfo->height / 2)) - (pWindowInfo->unkA / 2),

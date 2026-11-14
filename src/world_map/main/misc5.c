@@ -154,7 +154,7 @@ extern void WorldMapUpdateFrameWithParticles(void);
 extern void func_8007A06C(void *pBlock, s32 arg, s32 arg2);
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007A9F8);
-int func_8007AD34(int idx) {
+int WorldMapInitActorScrollScale(int idx) {
     WorldMapPlayer *pPlayer;
     s32 a;
     s32 b;

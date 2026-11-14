@@ -41,7 +41,7 @@ extern u8 D_800C3AAF[];
 extern u8 D_800C3AB0[];
 extern u8 D_800C3AB1[];
 
-// Allocation block owned by the structure passed to func_800A8A88.
+// Allocation block owned by the structure passed to BattleFreeModelListEntryBuffers.
 typedef struct {
     /* 0x0  */ u8 unk0[0x14];
     /* 0x14 */ void *unk14;
@@ -84,9 +84,9 @@ extern s32 D_800D3344;
 extern s32 D_800D3348;
 extern s32 D_800D39CC;
 extern u8 D_800D2F64;
-extern s32 func_800A5D54(s32, s32, s32);
+extern s32 BattleSearchTriangleTree(s32, s32, s32);
 
-s32 func_800A5914(s32 arg0, s32 arg1, s32 arg2) {
+s32 BattleFindGroundTriangle(s32 arg0, s32 arg1, s32 arg2) {
     s32 result;
     s32 i;
 
@@ -100,7 +100,7 @@ s32 func_800A5914(s32 arg0, s32 arg1, s32 arg2) {
         return -1;
     }
     for (i = 0; i < arg2; i++) {
-        result = func_800A5D54(arg0, arg1, arg2);
+        result = BattleSearchTriangleTree(arg0, arg1, arg2);
         if (result >= 0) {
             break;
         }
@@ -115,7 +115,7 @@ s32 func_800A5914(s32 arg0, s32 arg1, s32 arg2) {
     }
     return result;
 }
-s32 func_800A5A48(SVECTOR *pBase, SVECTOR *pA, SVECTOR *pB, SVECTOR *pC) {
+s32 BattleTestPointInTriangle(SVECTOR *pBase, SVECTOR *pA, SVECTOR *pB, SVECTOR *pC) {
     VECTOR d1;
     VECTOR d2;
     VECTOR n;
@@ -149,7 +149,7 @@ s32 func_800A5A48(SVECTOR *pBase, SVECTOR *pA, SVECTOR *pB, SVECTOR *pC) {
     OuterProduct0(&d1, &d2, &n);
     return -(n.vy >= 0);
 }
-void func_800A5BE8(SVECTOR *pBase, SVECTOR *pA, SVECTOR *pB, SVECTOR *pOut, VECTOR *pNormal) {
+void BattleProjectPointOntoTriangle(SVECTOR *pBase, SVECTOR *pA, SVECTOR *pB, SVECTOR *pOut, VECTOR *pNormal) {
     VECTOR nA;
     VECTOR nB;
     long d[3];
@@ -169,7 +169,7 @@ void func_800A5BE8(SVECTOR *pBase, SVECTOR *pA, SVECTOR *pB, SVECTOR *pOut, VECT
         pOut->vy = pBase->vy + (-((pOut->vx - pBase->vx) * pNormal->vx) - (pOut->vz - pBase->vz) * pNormal->vz) / pNormal->vy;
     }
 }
-s32 func_800A5D54(s32 arg0, s32 index, s32 depth) {
+s32 BattleSearchTriangleTree(s32 arg0, s32 index, s32 depth) {
     s32 result;
     s32 res2;
     s32 res3;
@@ -179,7 +179,7 @@ s32 func_800A5D54(s32 arg0, s32 index, s32 depth) {
     }
     if (((Misc23TreeEntry *)(index * 14 + D_800D39CC))->unkD != D_800D2F64) {
         ((Misc23TreeEntry *)(index * 14 + D_800D39CC))->unkD = D_800D2F64;
-        result = func_800A5A48((void *)(((Misc23TreeEntry *)(index * 14 + D_800D39CC))->unk0 * 8 + D_800D3344),
+        result = BattleTestPointInTriangle((void *)(((Misc23TreeEntry *)(index * 14 + D_800D39CC))->unk0 * 8 + D_800D3344),
                                (void *)(((Misc23TreeEntry *)(index * 14 + D_800D39CC))->unk2 * 8 + D_800D3344),
                                (void *)(((Misc23TreeEntry *)(index * 14 + D_800D39CC))->unk4 * 8 + D_800D3344), arg0);
         if (result == -1) {
@@ -189,29 +189,29 @@ s32 func_800A5D54(s32 arg0, s32 index, s32 depth) {
     if (depth <= 0) {
         return -1;
     }
-    result = func_800A5D54(arg0, ((Misc23TreeEntry *)(index * 14 + D_800D39CC))->unk6, depth - 1);
+    result = BattleSearchTriangleTree(arg0, ((Misc23TreeEntry *)(index * 14 + D_800D39CC))->unk6, depth - 1);
     if (result >= 0) {
         return result;
     }
-    res2 = func_800A5D54(arg0, ((Misc23TreeEntry *)(index * 14 + D_800D39CC))->unk8, depth - 1);
+    res2 = BattleSearchTriangleTree(arg0, ((Misc23TreeEntry *)(index * 14 + D_800D39CC))->unk8, depth - 1);
     if (res2 >= 0) {
         return res2;
     }
-    res3 = func_800A5D54(arg0, ((Misc23TreeEntry *)(index * 14 + D_800D39CC))->unkA, depth - 1);
+    res3 = BattleSearchTriangleTree(arg0, ((Misc23TreeEntry *)(index * 14 + D_800D39CC))->unkA, depth - 1);
     if (res3 < 0) {
         res3 = -1;
     }
     return res3;
 }
 
-void func_800A5E9C(s32 arg0, s32 arg1) {
+void BattleSetColorSources(s32 arg0, s32 arg1) {
     D_800D2D40 = arg0;
     D_800D2D48 = arg1;
 }
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A5EB4);
 
-void func_800A6444(s32 arg0, s32 arg1, s32 arg2, s32 arg3, s32 arg4, s32 arg5) {
+void BattleSetActorRectParams(s32 arg0, s32 arg1, s32 arg2, s32 arg3, s32 arg4, s32 arg5) {
     if (arg0 < 4) {
         if (arg1 >= 0) {
             D_800D3611 = 1;
@@ -231,7 +231,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A64E4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A6884);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A6AE8);
 
-void func_800A6F98(void) {
+void BattleUploadAndFreeImageResources(void) {
     u8 *p;
     u8 *pRect;
     s32 i;
@@ -256,7 +256,7 @@ void func_800A6F98(void) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A7064);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A7948);
 
-void func_800A8A88(Misc23Block *pBlock) {
+void BattleFreeModelListEntryBuffers(Misc23Block *pBlock) {
     if (pBlock->unk14 != NULL) {
         HeapFree(pBlock->unk14);
         HeapFree(*(void **)pBlock->unk1C);
@@ -544,7 +544,7 @@ void func_800A979C(s32 arg0, s16 arg1, s16 arg2, s16 arg3, s16 arg4) {
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A9A50);
 
-void func_800A9F94(void) {
+void BattleFreeAllModelSlots(void) {
     s32 i;
 
     for (i = 0; i < 0x1F; i++) {
@@ -560,7 +560,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A9FF0);
    HeapFree/func_8009F794/SoundRemoveSedsEntry/func_800A2ACC+func_800A2BB8 on fields
    0x00,0x04,0xA8,0xAC,0xB0 of the unit, then the 0x13..0x1E range test
    "(u32)(arg0 - 0x13) < 0xC", then two counted loops (unk10E * 0x30 through
-   unk118 with func_800A429C, unk10D * 0x24 through unk114 with func_800A8A88),
+   unk118 with func_800A429C, unk10D * 0x24 through unk114 with BattleFreeModelListEntryBuffers),
    then HeapFree(unit)/unit = NULL, and finally the recursion into units
    arg0*2+0xD and arg0*2+0xE when arg0 < 3.
    What moved 82.96 -> 91.39: do NOT keep &D_800D3368[arg0] in a local - retail
@@ -619,7 +619,7 @@ void func_800A9FF0(s32 arg0) {
         if (count != 0) {
             offset = 0;
             for (i = 0; i < count; i++) {
-                func_800A8A88((Misc23Block *)((u8 *)*(void **)(D_800D3368[arg0] + 0x114) + offset));
+                BattleFreeModelListEntryBuffers((Misc23Block *)((u8 *)*(void **)(D_800D3368[arg0] + 0x114) + offset));
                 count = *(u8 *)(D_800D3368[arg0] + 0x10D);
                 offset += 0x24;
             }
@@ -635,7 +635,7 @@ void func_800A9FF0(s32 arg0) {
 }
 */
 
-void func_800AA320(u16 arg0, u16 arg1, void *arg2) {
+void BattleQueueActorCommand(u16 arg0, u16 arg1, void *arg2) {
     D_800C3D40 = arg0;
     D_800C3E30 = arg1;
     ((u8 *)D_800D3368[arg0])[0x35] = 0;
@@ -644,7 +644,7 @@ void func_800AA320(u16 arg0, u16 arg1, void *arg2) {
     }
 }
 
-void func_800AA384(u16 arg0, u16 arg1, void *arg2) {
+void BattleSwitchActorAndQueueCommand(u16 arg0, u16 arg1, void *arg2) {
     D_800C3D40 = arg0;
     D_800C3E30 = arg1;
     D_800C3D68 = 1;
@@ -658,7 +658,7 @@ void func_800AA384(u16 arg0, u16 arg1, void *arg2) {
         func_800AA934(D_800D3368[arg0], D_800D3368[arg0], D_800C3D0C, arg2);
     }
 }
-void func_800AA454(u16 arg0, u16 arg1, void *arg2) {
+void BattleQueueActorCommandPreservingSelection(u16 arg0, u16 arg1, void *arg2) {
     u16 savedIdx;
     u16 savedUnk;
 

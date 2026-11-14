@@ -50,7 +50,7 @@ extern void BattleAttachModelPart(void* pA, void* pB);
 extern void BattleAppendListEntry(s32 handle, void* pB);
 extern void* BattleLoadArchiveEntry(s32 arg);
 extern void BattleAttachActorPrims(void* pData);
-extern s32 func_8008F530(s32 arg0, s32 arg1);
+extern s32 BattleCheckActorBelowBreakThreshold(s32 arg0, s32 arg1);
 void BattleAddSharedPrim(void);
 
 typedef struct {
@@ -352,11 +352,11 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_80086FF8);
 s32 func_80086FF8(s32 arg0, u8* pOut) {
     s32 value;
 
-    if (func_8008F530(arg0, 0) != 0) {
+    if (BattleCheckActorBelowBreakThreshold(arg0, 0) != 0) {
         return 0;
     }
     value = 0x28000000;
-    if (func_8008F530(arg0, 1) != 0) {
+    if (BattleCheckActorBelowBreakThreshold(arg0, 1) != 0) {
         value |= 0xFFFF;
     } else {
         value |= 0xFF;

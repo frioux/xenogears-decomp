@@ -35,7 +35,7 @@ extern void func_8001CE74(void* pTask);
 extern void func_8001D3F4(void* pPayload);
 extern void WorkListRemoveTask(void* pTask);
 extern void TimerWorkListRemoveTask(void* pTask);
-extern s32 func_800A5914(s16* pVec, s32 arg1, s32 arg2);
+extern s32 BattleFindGroundTriangle(s16* pVec, s32 arg1, s32 arg2);
 extern s32 func_800A579C(s16* pVec);
 extern void func_800A5870(s16* pVec, s32 arg1, u8* pOut);
 extern void func_8001E298(SpriteData* pSprite, u_long* pOT);
@@ -97,7 +97,7 @@ void BattleActorComputeFallDirection(SpriteData* pSprite) {
     s32 angle;
 
     SpriteSetSVec(&vec, pSprite->field_0xA0, pSprite->field_0xA2, pSprite->field_0xA4);
-    index = func_800A5914((s16*)&vec, pSprite->field_0x78, 4);
+    index = BattleFindGroundTriangle((s16*)&vec, pSprite->field_0x78, 4);
     if (index < 0) {
         index = func_800A579C((s16*)&vec);
     }
@@ -141,7 +141,7 @@ void BattleActorUpdateFallMotion(SpriteData* pSprite) {
         pSprite->moveSpeed = 0;
     }
     SpriteSetSVec(&vec, pSprite->field_0xA0, pSprite->field_0xA2, pSprite->field_0xA4);
-    index = func_800A5914((s16*)&vec, pSprite->field_0x78, 4);
+    index = BattleFindGroundTriangle((s16*)&vec, pSprite->field_0x78, 4);
     if (index < 0) {
         index = func_800A579C((s16*)&vec);
     }
@@ -168,7 +168,7 @@ void func_800BA8F4(u8* pSprite) {
     vec[1] = coord;
     coord = *(s16*)(pSprite + 0xA);
     vec[2] = coord;
-    index = func_800A5914(vec, *(s32*)(pSprite + 0x78), 4);
+    index = BattleFindGroundTriangle(vec, *(s32*)(pSprite + 0x78), 4);
     if (index < 0) {
         index = func_800A579C(vec);
     }

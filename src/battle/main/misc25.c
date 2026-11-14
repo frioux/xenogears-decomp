@@ -19,7 +19,7 @@ extern s32 func_800A2330(void);
 extern void func_800A23E8(s32, u8 *);
 extern s16 func_800A579C(s16 *);
 extern void func_800A5870(s16 *, s16, void *);
-extern s32 func_800A5914(s16 *, s16, s32);
+extern s32 BattleFindGroundTriangle(s16 *, s16, s32);
 extern void SoundRemoveSedsEntry(s32);
 extern void func_800B00D0(void);
 extern u8 D_800C3D0C[];
@@ -294,7 +294,7 @@ void func_800AFF9C(u8 *p) {
     vec[0] = *(u16 *)(*(u8 **)(p + 4) + 0x5C);
     vec[1] = *(u16 *)(*(u8 **)(p + 4) + 0x60);
     vec[2] = *(u16 *)(*(u8 **)(p + 4) + 0x64);
-    index = func_800A5914(vec, *(s16 *)(p + 0x1E), 4);
+    index = BattleFindGroundTriangle(vec, *(s16 *)(p + 0x1E), 4);
     *(s16 *)(p + 0x1E) = index;
     if (index < 0) {
         index = func_800A579C(vec);
@@ -401,7 +401,7 @@ extern s16 D_800C3546;
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800B0B14);
 /* 74.97% (588 bytes vs 584): the control flow - the two-condition test, the
-   func_800A5914/func_800A579C retry, the D_800C3546/D_800C3542/D_800C3544
+   BattleFindGroundTriangle/func_800A579C retry, the D_800C3546/D_800C3542/D_800C3544
    bookkeeping - is in place; what is left is the head: retail loads
    D_800D335C and D_800D335E first, then reads D_800D3354/3356/3358 through one
    base pointer s5 (= &D_800D3354) both for the deltas and for the vec sums, and
@@ -426,7 +426,7 @@ s16 func_800B0B14(s32 index) {
     result = -1;
     if (func_800B0AB4(vec) != 0 && index != D_800C3546) {
         D_800C3546 = index;
-        result = func_800A5914(vec, D_800C3542, 5);
+        result = BattleFindGroundTriangle(vec, D_800C3542, 5);
         if (result < 0) {
             result = func_800A579C(vec);
         }

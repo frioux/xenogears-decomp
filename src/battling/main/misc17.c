@@ -46,8 +46,8 @@ extern s32 func_8008B650(s32, s16, s16);
 extern void SoundStopAllElements(void);
 extern u32 func_8003A5D0(u32);
 extern void func_8003A20C(u8);
-extern void func_8008FE80(u8*, u8*, s32);
-extern void func_80090E10(u8*);
+extern void BattleQueueRandomMessages(u8*, u8*, s32);
+extern void BattleDispatchWorkState(u8*);
 extern void SoundPlaySoundEffectOnPairWithLevels(s32, s32, s32, s32);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008E120);
@@ -322,7 +322,7 @@ void BattleCheckStateAndSetDelay60(u8* p0, u8* p1) {
     *(u16*)(p1 + 4) = 0x3C;
 }
 void BattleQueueRandomMessagesAndDelay(u8* p0, u8* p1, s32 flag) {
-    func_8008FE80(p0, p1, flag);
+    BattleQueueRandomMessages(p0, p1, flag);
     *(u16*)(p1 + 4) = flag ? 0x1E : 0xA;
 }
 void BattleQueueMessage3AndDelay60(u8* p0, u8* p1) {
@@ -388,7 +388,7 @@ void BattleSetRandomFacingAround0(u8* p0, u8* p1) {
 }
 void BattleSetActionFieldFAndDispatch(u8* p0, u8* p1, u8 value) {
     p1[0xF] = value;
-    func_80090E10(p0);
+    BattleDispatchWorkState(p0);
 }
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008F280);
 s32 BattleCheckValueAboveScaledMax(u8* p, s32 arg1) {

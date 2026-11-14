@@ -15,7 +15,7 @@ void MenuApplyGearArmor(MenuDressingRoom*, u8);
 void MenuApplyGearEngine(MenuDressingRoom*, u8);
 void func_801C72BC(u8);
 void MenuFreeShoulderButtonUi(void);
-void func_801D4EA0(u8);
+void MenuFreeWindow(u8);
 void MenuRenderFrame(void);
 void func_801E8044(u8, u8*);
 void MenuLoadSubMenuChoiceStrings(u8);
@@ -95,7 +95,7 @@ void MenuInitializeUnk438Panel(void) {
 void MenuFreeUnk438Panel(void) {
     MenuFreeShoulderButtonUi();
     g_Menu->pManager->unk4A[3] = 0;
-    func_801D4EA0(2);
+    MenuFreeWindow(2);
     MenuRenderFrame();
     func_801E8044(2, &g_Menu->pManager->unk4A[4]);
     func_801C72BC(0x14);

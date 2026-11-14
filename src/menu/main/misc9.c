@@ -16,7 +16,7 @@ extern u8 D_801E9EA0[];
 void func_801DDF24(u_char arg0, u_char arg1, s32 arg2);
 void MenuRenderFrame(void);
 void MenuHidePointerCursors(void);
-void func_801D4EA0(s32 arg0);
+void MenuFreeWindow(s32 arg0);
 void func_801C72BC(s32 arg0);
 void MenuFreeScrollHandle(void);
 void func_801E8044(s32 arg0, void* pArg1);
@@ -124,10 +124,10 @@ void func_801DC1D4(u32 arg0) {
 void func_801DC2CC(u_char arg0) {
     s32 kind;
 
-    func_801D4EA0(3);
-    func_801D4EA0(4);
-    func_801D4EA0(5);
-    func_801D4EA0(6);
+    MenuFreeWindow(3);
+    MenuFreeWindow(4);
+    MenuFreeWindow(5);
+    MenuFreeWindow(6);
     MenuHidePointerCursors();
     g_Menu->pManager->unk4A[0] = 0;
     MenuRenderFrame();
@@ -206,10 +206,10 @@ void func_801DE2C8(u32 arg0) {
 
 void func_801DE36C(void) {
     g_Menu->pManager->unk4A[2] = 0;
-    func_801D4EA0(2);
-    func_801D4EA0(3);
-    func_801D4EA0(4);
-    func_801D4EA0(5);
+    MenuFreeWindow(2);
+    MenuFreeWindow(3);
+    MenuFreeWindow(4);
+    MenuFreeWindow(5);
     MenuRenderFrame();
     func_801E8044(6, &g_Menu->pManager->unk38[8]);
     func_801C72BC(0x17);
@@ -253,7 +253,7 @@ void func_801DE474(u_char arg0, u_char arg1) {
     }
 
     if (g_Menu->pManager->shouldRenderWindow[4] != 0) {
-        func_801D4EA0(4);
+        MenuFreeWindow(4);
     }
 
     MenuCreateWindow(4, 0x10, 0xC, 0x80, label, 0, 1, 4, 0);

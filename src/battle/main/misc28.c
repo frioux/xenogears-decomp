@@ -16,10 +16,10 @@ extern long ratan2(long y, long x);
 extern void func_8002DDE4(void *pImg, s32 arg1, s32 arg2, s32 arg3);
 extern s32 WorkListsAddTasks(s32 arg0, s32 arg1, void *pFn1, void *pFn2, void *pFn3);
 extern void func_800B7424(s32 arg0);
-extern void func_800B73A0(void);
+extern void BattleCreateWorkTask(void);
 extern void func_800B6F0C(void);
-extern void func_800B7134(void);
-extern void func_800B7364(u8 *p);
+extern void BattleStoreGfxOrderingTable(void);
+extern void BattleDestroyWorkTask(u8 *p);
 extern s32 func_80023124(s32 arg0, s32 arg1);
 extern s32 func_80022CAC(u8 *pActor, s32 arg1);
 extern void func_801FC4C4(s32 arg0, s32 arg1, void *pArg2, s32 arg3, s32 arg4, s32 arg5, s32 arg6, s32 arg7);
@@ -28,7 +28,7 @@ extern void func_800223B0(u8 *pActor, s16 arg1);
 extern void SpriteSetSVec(SVECTOR *pVector, s16 x, s16 y, s16 z);
 extern void func_801FC53C(void *pArg, s32 arg1, s32 arg2, s32 arg3, s32 arg4, s32 arg5, s32 arg6);
 
-void func_800B63F0(s32 arg0, u8 *p) {
+void BattleScriptLoadDataAtWordOffset(s32 arg0, u8 *p) {
     s32 pad[3];
     u8 *pData;
 
@@ -38,7 +38,7 @@ void func_800B63F0(s32 arg0, u8 *p) {
     pad[2] = 0;
     func_8002DDE4(pData, 0, 0, 0);
 }
-void func_800B6438(u8 *p) {
+void BattleSetTaskCallback(u8 *p) {
     WorkListSetTaskCallback((u8 *)*(u32 *)(p + 0x6C) + 0x1C, D_80025A88);
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc28", func_800B6464);
@@ -107,7 +107,7 @@ void func_800B6518(u8 *pActor) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc28", func_800B65B0);
-void func_800B6808(u8 *p) {
+void BattleActorSetDirectionTowardPosition(u8 *p) {
     u16 rot[3];
     VECTOR diff;
     VECTOR sq;
@@ -164,14 +164,14 @@ void BattleScriptAddHalfwords3(u16 *pOut, s8 *p) {
     v = (p[5] << 8) | (u8)p[4];
     pOut[2] += v;
 }
-void func_800B6A50(u8 *p) {
+void BattleActorCopyVectorFromSource(u8 *p) {
     u8 *pSrc = *(u8 **)(p + 0x70);
 
     *(u32 *)(p + 0xC) = *(u32 *)(pSrc + 0xC);
     *(u32 *)(p + 0x10) = *(u32 *)(pSrc + 0x10);
     *(u32 *)(p + 0x14) = *(u32 *)(pSrc + 0x14);
 }
-void func_800B6A7C(u8 *pActor, s8 *pArg) {
+void BattleScriptCall8001FC4C4WithActorState(u8 *pActor, s8 *pArg) {
     s32 x2;
     s8 *p;
     s32 x1;
@@ -193,11 +193,11 @@ void func_800B6A7C(u8 *pActor, s8 *pArg) {
     *(u32 *)(*(u32 *)(pActor + 0x20) + 0x2C) = 0;
     *(u32 *)(*(u32 *)(pActor + 0x20) + 0x30) = 0;
 }
-void func_800B6B98(u8 *pArg, s8 *p) {
+void BattleScriptCall8001FC53CWithScaledBytes(u8 *pArg, s8 *p) {
     p += (p[1] << 8) | (u8)p[0];
     func_801FC53C(pArg, (u8)p[0] << 4, (u8)p[1], p[2] << 3, (u8)p[3] << 3, p[4] << 3, (u8)p[5]);
 }
-void func_800B6BFC(void) {
+void BattleMoveScreenImageToVram(void) {
     RECT rect;
 
     rect.x = 0;
@@ -205,17 +205,17 @@ void func_800B6BFC(void) {
     rect.w = 0x140;
     rect.h = 0xE0;
     MoveImage(&rect, 0x2C0, 0x100);
-    func_800B73A0();
+    BattleCreateWorkTask();
 }
-void func_800B6C44(u8 *p) {
+void BattleSetRotationZFromVelocity(u8 *p) {
     *(u16 *)(*(u32 *)(p + 0x20) + 4) = ratan2(*(s32 *)(p + 0x10) >> 8, *(s32 *)(p + 0xC) >> 8);
     *(u32 *)(p + 0x3C) |= 0x10000000;
 }
-void func_800B6C98(u8 *p) {
+void BattleSetRotationXFromVelocity(u8 *p) {
     *(u16 *)(*(u32 *)(p + 0x20) + 0) = ratan2(*(s32 *)(p + 0x14) >> 8, *(s32 *)(p + 0xC) >> 8);
     *(u32 *)(p + 0x3C) |= 0x10000000;
 }
-void func_800B6CEC(u8 *p) {
+void BattleSetRotationFromVelocity(u8 *p) {
     VECTOR vec;
     VECTOR sq;
     s32 len;
@@ -233,7 +233,7 @@ void func_800B6CEC(u8 *p) {
     *(s16 *)(*(u32 *)(p + 0x20) + 0x0) = 0;
     *(u32 *)(p + 0x3C) |= 0x10000000;
 }
-void func_800B6DC0(u8 *p) {
+void BattleClearRecordTable8(u8 *p) {
     s32 i;
 
     if (*(u32 *)(p + 0x20) == 0) {
@@ -252,7 +252,7 @@ void func_800B6DC0(u8 *p) {
     *(u8 *)(*(u32 *)(p + 0x20) + 0x3C) = 0;
     *(u8 *)(*(u32 *)(p + 0x20) + 0x3D) = 0;
 }
-void func_800B6E84(u8 *pActor, s8 *p) {
+void BattleActorRotateVectorZ(u8 *pActor, s8 *p) {
     SVECTOR rotation;
     MATRIX mtx;
     VECTOR vec;
@@ -269,20 +269,20 @@ void func_800B6E84(u8 *pActor, s8 *p) {
     *(s32 *)(pActor + 0x14) = vec.vz;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc28", func_800B6F0C);
-void func_800B7134(void) {
+void BattleStoreGfxOrderingTable(void) {
     D_800C3CB4 = g_GfxCurOT;
     func_800B7160();
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc28", func_800B7160);
-void func_800B7330(void *p) {
+void BattleDrawSyncAndFree(void *p) {
     DrawSync(0);
     HeapFree(p);
 }
-void func_800B7364(u8 *p) {
+void BattleDestroyWorkTask(u8 *p) {
     WorkListRemoveTask(p + 0x1C);
     TimerWorkListRemoveTask(p);
     func_80025180(p);
 }
-void func_800B73A0(void) {
-    func_800B7424(WorkListsAddTasks(0x10F7C, 0, func_800B6F0C, func_800B7134, func_800B7364));
+void BattleCreateWorkTask(void) {
+    func_800B7424(WorkListsAddTasks(0x10F7C, 0, func_800B6F0C, BattleStoreGfxOrderingTable, BattleDestroyWorkTask));
 }

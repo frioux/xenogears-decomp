@@ -1618,7 +1618,7 @@ void FieldScriptAddPartyMember(void) {
 // fixed - no compiler fixes it. As parked the body does not compile:
 // func_8008A7DC() is declared with two params, and passing
 // SCRIPT_READ_U8_REL(1) and partyIndex gives the numbers above.
-void func_8008BDD8(void) {
+void FieldScriptAddPartyMemberShort(void) {
     int partyIndex;
     u8 characterId;
 
