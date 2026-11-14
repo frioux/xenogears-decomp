@@ -88,8 +88,11 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BE1C4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BE330);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BE538);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BE6A0);
-/* best 69.67%: the table address must be materialised once into t2 before the
-   loop, which only happens for D_800C3784 itself, not for a pointer local.
+/* best 88.33%: everything matches but the loop-entry order.  Retail emits
+   `beqz a2` with `i = 0` in its delay slot, so its RTL had the `last = n - 1`
+   local hoisted AFTER the entry test; declaring `last` before the loop puts it
+   in front, and inlining `n - 1 - i` instead makes gcc hoist `n - 1` badly
+   (73.06%).  Two instructions differ, no missing or extra insn.
 void func_800BE6A0(s32 arg0, u8 *p, s32 n, s32 arg3) {
     s32 i;
     s32 last;
