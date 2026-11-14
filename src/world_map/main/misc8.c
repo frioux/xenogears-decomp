@@ -179,7 +179,7 @@ extern void func_8001E298(void *p, u32 *pTbl);
 extern void GfxSetBaseMatrix(MATRIX *p);
 extern void AnimScriptTick(void *p);
 
-void func_80082F64(WorldMapActor *pActor, WorldMapModelOut *pOut, WorldMapModel *pModel) {
+void WorldMapBuildActorModelMatrix(WorldMapActor *pActor, WorldMapModelOut *pOut, WorldMapModel *pModel) {
     if (pActor->unk20 == 0) {
         return;
     }
@@ -223,7 +223,7 @@ void func_80082F64(WorldMapActor *pActor, WorldMapModelOut *pOut, WorldMapModel 
 // The guard is two tests in retail (beqz x==0 then bne x!=1), i.e. two
 // early returns, not one `if (x == 1)`.
 /*
-void func_80082F64(WorldMapActor *pActor, WorldMapModelOut *pOut, WorldMapModel *pModel) {
+void WorldMapBuildActorModelMatrix(WorldMapActor *pActor, WorldMapModelOut *pOut, WorldMapModel *pModel) {
     if (pActor->unk20 == 0) {
         return;
     }

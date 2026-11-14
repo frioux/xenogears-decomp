@@ -108,7 +108,7 @@ void BattleDrawEffectFrame(void) {
     }
 }
 
-void func_80084B48(void) {
+void BattleUpdateEffectTimer(void) {
     s16 timer;
 
     timer = D_80092780;
