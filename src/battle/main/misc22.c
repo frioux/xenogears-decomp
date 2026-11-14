@@ -87,6 +87,7 @@ extern int LoadImage(void *pRect, void *p);
 extern s16 D_800D2FC8;
 extern u16 *D_800D2FD0;
 extern s32 D_800C3E38;
+extern void ModelRenderPacket(void *pPart, void *pPacket, u_long *pOt, s32 flags);
 extern void *D_800658C8;
 extern void *D_800C3D50[2];
 extern void *D_800C3EA0;
@@ -348,7 +349,107 @@ void BattleFreeSceneResources(void) {
         GfxLineScrollFree(&D_800C3DA0[i * 0x18]);
     }
 }
+typedef struct {
+    /* 0x00 */ u8 unk00[0xA];
+    /* 0x0A */ u16 count;
+    /* 0x0C */ MATRIX localTransform;
+    /* 0x2C */ MATRIX globalTransform;
+    /* 0x4C */ u8 unk4C[0x8];
+    /* 0x54 */ s16 rot[3];
+    /* 0x5A */ u16 pad5A;
+    /* 0x5C */ s32 pos[3];
+    /* 0x68 */ void *p68;
+    /* 0x6C */ void *p6C;
+    /* 0x70 */ u8 *p70;
+    /* 0x74 */ u8 *p74;
+    /* 0x78 */ u8 *p78;
+} BattleMisc22Sprite; // Size: 0x7C
+
+typedef struct {
+    /* 0x0 */ void **pParts;
+    /* 0x4 */ u32 count;
+} BattleMisc22Mesh; // Size: 0x8
+
+extern s32 D_80050100;
+
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A48EC);
+/* 78.13% (556 bytes, retail 588) first attempt, built from the sibling
+   func_8009F5B8 in battle/main/misc21 which has the same skeleton walk:
+   numChildren = pSkeleton->count (0xA), pSkeleton++, then
+   for (i = 1; i < numChildren; i++) over 0x7C-byte BattleSprite entries.
+   Remaining diff: retail keeps TWO sprite cursors (s1 = s2 + 8, the
+   unk00+8 field, and s2 = s2 + 0x7C) and a separate i in s4, and its frame is
+   0x40 against our 0x38; the loop tail is also 4 insns longer. Also untested:
+   the 4..7 flags dispatch (delta a3 = state - 2) and whether the state-1/2
+   test is written as a switch rather than (u16)(state - 1) < 2.
+void func_800A48EC(BattleMisc22Mesh *pMesh, BattleMisc22Sprite *pSkeleton, MATRIX *pMatrix,
+                   s32 arg3, s32 arg4, s32 arg5, s32 arg6, s32 arg7, s32 arg8,
+                   u_long *pOt, s32 packetIndex, s32 otIndex) {
+    MATRIX *pMat = (MATRIX *)((u8 *)PSX_SCRATCH + 0x40);
+    s32 oldShift;
+    u_int numChildren;
+    u_int i;
+    s16 state;
+    s32 flags;
+
+    oldShift = D_80050100;
+    numChildren = pSkeleton->count;
+    pSkeleton++;
+    for (i = 1; i < numChildren; i++) {
+        if (*(u16 *)(pSkeleton->unk00 + 8) != 0xFFFF && pSkeleton->unk00[7] != 0) {
+            state = *(s16 *)(pSkeleton->unk4C + 6);
+            CompMatrix(pMatrix, &pSkeleton->globalTransform, pMat);
+            if ((u16)(state - 1) < 2) {
+                pMat->m[0][0] = 0x1000;
+                pMat->m[0][2] = 0;
+                pMat->m[1][0] = 0;
+                pMat->m[1][2] = 0;
+                pMat->m[2][0] = 0;
+                pMat->m[2][2] = 0x1000;
+                if (state == 1) {
+                    pMat->m[0][1] = pMatrix->m[0][1];
+                    pMat->m[1][1] = pMatrix->m[1][1];
+                    pMat->m[2][1] = pMatrix->m[2][1];
+                } else {
+                    pMat->m[0][1] = 0;
+                    pMat->m[1][1] = 0x1000;
+                    pMat->m[2][1] = 0;
+                }
+            }
+            SetRotMatrix(pMat);
+            SetTransMatrix(pMat);
+            switch (state) {
+            case 4:
+                flags = 2;
+                break;
+            case 5:
+                flags = 3;
+                break;
+            case 6:
+                flags = 4;
+                break;
+            case 7:
+                flags = 5;
+                break;
+            default:
+                flags = 0;
+                break;
+            }
+            if (state == 0) {
+                D_80050100 = 0x10;
+                ModelRenderPacket(pMesh->pParts[*(u16 *)(pSkeleton->unk00 + 8)],
+                                  ((void **)&pSkeleton->p68)[packetIndex], &pOt[otIndex - 1], flags);
+            } else {
+                D_80050100 = oldShift;
+                ModelRenderPacket(pMesh->pParts[*(u16 *)(pSkeleton->unk00 + 8)],
+                                  ((void **)&pSkeleton->p68)[packetIndex], pOt, flags);
+            }
+        }
+        pSkeleton++;
+    }
+    D_80050100 = oldShift;
+}
+*/
 s32 BattlePushTargetOutOfCircles(u16 *pPos, s16 *pTarget) {
     s32 result = 0;
     u16 *pSrc = D_800D2FD0;
