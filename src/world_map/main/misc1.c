@@ -612,7 +612,6 @@ void func_80073398(void) {
    block (into $v1) whatever the source order, so our block is 4 bytes shorter.
    Tried, no help: two separate temps, x-first / B0-first statement orders,
    direct stores through the globals, s32* pointer stores.
- */
    Round 39: a volatile cast on the p->z read DOES hold it in place and keeps
    the load-delay nop (97.16%) but turns the lh into lhu + sll 16 / sra 4. */
 /*
