@@ -32,9 +32,25 @@ extern s32 D_800926DC;
 void func_8008EB4C(s32 arg);
 void BattleAppendExtraQueueEntry(void);
 
-extern u8* D_800926D4[];
+extern POLY_FT4* D_800926D4[];
 extern u16 D_800926E0;
 extern u16 D_800926E4;
+
+// Battle setup state; 0x3C and 0x64 point at the two TIM archives loaded here.
+typedef struct {
+    /* 0x00 */ u8 unk0[0x3C];
+    /* 0x3C */ u_long* unk3C;
+    /* 0x40 */ u8 unk40[0x24];
+    /* 0x64 */ u_long* unk64;
+} BattleTimState;
+
+// 0x1C-byte draw record: a DR_TPAGE followed by the SPRT func_8007E574 queues.
+typedef struct {
+    /* 0x00 */ DR_TPAGE tpage;
+    /* 0x08 */ SPRT sprt;
+} BattleDrawRecord; // Size: 0x1C
+
+extern BattleDrawRecord D_800954D8[];
 
 // 0x20-byte entry of the D_80092874 table; func_8007EEE8 reads only the s16 at 0x4.
 typedef struct {
@@ -228,6 +244,63 @@ s32 func_8007E624(void) {
 }
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007E634);
+/* best 96.74% (620 bytes, same size as the original), ONE instruction differs:
+   the second ReadTIM block's `((s16*)tim.caddr)[0] = 0;` loads caddr into v0
+   here while the original loads it into v1 (everything else in all 620 bytes is
+   byte-identical, including the 0x38 frame - the unused RECT below is what pads
+   it). Tried for that register: an s16* / u_short* local, `*(s16*)tim.caddr`,
+   the same local assigned in both blocks, s16 vs s32 for the u0 width temp
+   (s16 also breaks the lh into lbu), and cdk/-O3 (76.22 / 96.74). The whole
+   shape below is recovered from the assembly:
+   - D_800926D4[0]/[1] are 100-POLY_FT4 buffers (0xFA0 bytes each) that the
+     setup zeroes the length byte of;
+   - D_800954D8 is an array of 0x1C-byte records (DR_TPAGE then the SPRT that
+     func_8007E574 queues), and the tail copies record 0 into record 1;
+   - GetTPage(0,1,prect->x,prect->y) is passed through u_short to SetDrawTPage,
+     which is the andi a3,v0,0xFFFF in its jal delay slot.
+void func_8007E634(BattleTimState* pState) {
+    TIM_IMAGE tim;
+    RECT pad; // unused: reproduces the original's 8-byte frame slot
+    BattleDrawRecord* pRec;
+    s32 w;
+    s32 i;
+
+    D_800926D4[0] = HeapAlloc(0xFA0, 0);
+    D_800926D4[1] = HeapAlloc(0xFA0, 0);
+    for (i = 0; i < 100; i++) {
+        setlen(&D_800926D4[0][i], 0);
+        setlen(&D_800926D4[1][i], 0);
+    }
+    OpenTIM(pState->unk3C);
+    ReadTIM(&tim);
+    ((s16*)tim.caddr)[2] = -0x6F9D;
+    ((s16*)tim.caddr)[0] = 0;
+    ((s16*)tim.caddr)[3] = -1;
+    LoadImage(tim.crect, tim.caddr);
+    LoadImage(tim.prect, tim.paddr);
+    D_800926E4 = GetClut(tim.crect->x, tim.crect->y);
+    D_800926E0 = GetTPage(0, 1, tim.prect->x, tim.prect->y);
+    D_800926DC = 0;
+    OpenTIM(pState->unk64);
+    ReadTIM(&tim);
+    ((s16*)tim.caddr)[0] = 0;
+    LoadImage(tim.crect, tim.caddr);
+    LoadImage(tim.prect, tim.paddr);
+    pRec = D_800954D8;
+    setlen(&pRec->sprt, 4);
+    pRec->sprt.code = 0x65;
+    SetDrawTPage(&pRec->tpage, 0, 0, GetTPage(0, 1, tim.prect->x, tim.prect->y));
+    pRec->sprt.clut = GetClut(tim.crect->x, tim.crect->y);
+    pRec->sprt.x0 = 0x40;
+    pRec->sprt.y0 = 0xBE;
+    pRec->sprt.w = 0xC4;
+    pRec->sprt.h = 0xD;
+    w = tim.prect->x;
+    pRec->sprt.u0 = w << 2;
+    pRec->sprt.v0 = tim.prect->y;
+    D_800954D8[1] = *pRec;
+}
+ */
 
 void func_8007E894(s16 a, s16 b) {
     D_800926E8 = a;
