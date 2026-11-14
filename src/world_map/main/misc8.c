@@ -45,6 +45,25 @@ typedef struct {
     /* 0x3 */ u8 a;
 } FadeParams; // Size: 0x4, alignment 1
 
+// 12.4 fixed point world map position; a normal (x, y, z) shares this layout.
+typedef struct {
+    /* 0x0 */ s32 x;
+    /* 0x4 */ s32 y;
+    /* 0x8 */ s32 z;
+} WorldMapPos; // Size: 0xC
+
+// One triangle of a sprite set's mesh: three indices into WorldMapMesh::unk4.
+typedef struct {
+    /* 0x0 */ s16 vert[3];
+    /* 0x6 */ u8 unk6[0x8];
+} WorldMapTriangle; // Size: 0xE
+
+typedef struct {
+    /* 0x0 */ s32 unk0;
+    /* 0x4 */ SVECTOR *unk4;
+    /* 0x8 */ WorldMapTriangle tris[1];
+} WorldMapMesh; // Size: 0x16
+
 typedef struct WorldMapEntry {
     /* 0x00 */ s16 unk0;
     /* 0x02 */ u16 pad2;
@@ -53,9 +72,10 @@ typedef struct WorldMapEntry {
     /* 0x08 */ s32 unk8;
     /* 0x0C */ s32 unkC;
     /* 0x10 */ s32 unk10;
-    /* 0x14 */ u8 unk14[0x2C];
+    /* 0x14 */ u8 unk14[0xC];
+    /* 0x20 */ MATRIX mat;
     /* 0x40 */ u8 *unk40;
-    /* 0x44 */ u32 unk44;
+    /* 0x44 */ WorldMapMesh *unk44;
     /* 0x48 */ u8 *unk48;
     /* 0x4C */ u8 *unk4C;
     /* 0x50 */ struct WorldMapEntry *unk50;
@@ -168,6 +188,7 @@ extern void WorldMapEnterNop(void);
 extern void WorldMapUpdateFrameWithParticles(void);
 extern s32 WorldMapSetActorParams(s32);
 extern s32 func_8008390C(s32);
+extern s32 WorldMapInterpolatePlaneHeight(WorldMapPos *p0, WorldMapPos *p1, WorldMapPos *p2);
 extern s32 func_80083A00(s32);
 extern s32 WorldMapSetActorPosition(s32);
 extern s32 func_80084068(s32);
@@ -558,7 +579,67 @@ s32 WorldMapFindSpriteSet(void *pArg, s16 *pOut) {
 }
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_80084DB8);
+
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_80085158);
+// Best: 91.97% (708 bytes vs 716). Every call, argument, offset and the whole
+// tail (three RotTrans, the two edge vectors, OuterProduct0, the three >>2, the
+// VectorNormal and the WorldMapInterpolatePlaneHeight at the end) already match
+// instruction for instruction; what is left is register allocation: retail
+// keeps pEntry in s0 and the triangle index in s1 so the triangle pointer and
+// the vertex base reuse those two, giving six saved registers, while gcc gives
+// us pEntry s1 / index s2 and needs a seventh (s6) for pNormal. Tried: pVerts
+// read once into a local (that fixed the repeated `lw 0x4(...)`), pTri before
+// pVerts, the scale stores as three literal `*(s32*)0x1F8000xx = 0x800` (82%,
+// gcc hoists all four scratchpad addresses into saved registers), the scale
+// stores in retail's vz/vy/vx order, and pEntry assigned late. This is the
+// allocator-tie class, not a source-shape problem.
+/*
+void func_80085158(WorldMapPos *pPos, WorldMapPos *pOut, WorldMapPos *pNormal, u16 setIndex,
+                   u16 triIndex) {
+    WorldMapEntry *pEntry;
+    MATRIX *pMat = (MATRIX *)0x1F8000F0;
+    VECTOR *pA = (VECTOR *)0x1F800000;
+    VECTOR *pB = (VECTOR *)0x1F800010;
+    VECTOR *pC = (VECTOR *)0x1F800020;
+    WorldMapMesh *pMesh;
+    WorldMapTriangle *pTri;
+    SVECTOR *pVerts;
+    long flag;
+
+    pEntry = &D_8009C620[setIndex];
+    pOut->x = (pPos->x >> 12) - pEntry->unk8;
+    pOut->z = pEntry->unk10 - (pPos->z >> 12);
+    *pMat = pEntry->mat;
+    pMat->t[0] = 0;
+    pMat->t[2] = 0;
+    pB->vz = 0x800;
+    pB->vy = 0x800;
+    pB->vx = 0x800;
+    pMat->t[1] = pEntry->unkC;
+    ScaleMatrix(pMat, pB);
+    SetRotMatrix(pMat);
+    SetTransMatrix(pMat);
+
+    pMesh = pEntry->unk44;
+    pTri = &pMesh->tris[triIndex];
+    pVerts = pMesh->unk4;
+    RotTrans(&pVerts[pTri->vert[0]], pA, &flag);
+    RotTrans(&pVerts[pTri->vert[1]], pB, &flag);
+    RotTrans(&pVerts[pTri->vert[2]], pC, &flag);
+    pB->vx -= pA->vx;
+    pB->vy -= pA->vy;
+    pB->vz -= pA->vz;
+    pC->vx -= pA->vx;
+    pC->vy -= pA->vy;
+    pC->vz -= pA->vz;
+    OuterProduct0(pC, pB, pC);
+    pC->vx >>= 2;
+    pC->vy >>= 2;
+    pC->vz >>= 2;
+    VectorNormal(pC, (VECTOR *)pNormal);
+    WorldMapInterpolatePlaneHeight(pOut, (WorldMapPos *)pA, pNormal);
+}
+*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_80085418);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_80085760);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_80085CDC);
