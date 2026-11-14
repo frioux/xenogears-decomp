@@ -27,7 +27,7 @@ extern u16 D_800D2C30;
 extern s32 BattleMaskHasStatusBit(s32 mask, u8 idx);
 extern u8 D_800CCB34;
 extern u8* D_800D2DB4;
-extern s32 func_80076A10(s32 arg0, s32 arg1, s16 arg2, s16 arg3);
+extern s32 BattleDrawSpritePackage(s32 arg0, s32 arg1, s16 arg2, s16 arg3);
 extern void BattleSetPrimGrey80BlendAdd(u8* p);
 extern Temp8* D_8005919C;
 extern void SoundPlaySoundEffectOnLastPair(s32 arg0);
@@ -99,7 +99,7 @@ void BattleBuildFlaggedSlotSpriteColumn(void) {
     for (i = 0; i < 5; i++) {
         if ((u16)BattleMaskHasStatusBit(D_800D2C30, i) != 0) {
             off = D_800D2DB4[0x5DA1] * 0x50 + 0x4CE0;
-            D_800D2DB4[0x5DA1] += func_80076A10(i + 0xC4, (s32)(off + (s32)D_800D2DB4), 0xE0, pitch >> 16);
+            D_800D2DB4[0x5DA1] += BattleDrawSpritePackage(i + 0xC4, (s32)(off + (s32)D_800D2DB4), 0xE0, pitch >> 16);
             pitch += 0xA0000;
         }
     }
@@ -115,7 +115,7 @@ void BattleBuildBlendedSprite(void) {
     if (D_800D2C38 != 0) {
         arg0 = 0xA1;
     }
-    D_800D2DB4[0x5D75] = func_80076A10(arg0, (s32)(D_800D2DB4 + 0x3AC0), 0xA0, 0x64);
+    D_800D2DB4[0x5D75] = BattleDrawSpritePackage(arg0, (s32)(D_800D2DB4 + 0x3AC0), 0xA0, 0x64);
     D_800D2DB4[0x5D84] = D_800CCB34;
     for (i = 0; i < D_800D2DB4[0x5D75]; i++) {
         pEntry = (i * 2 + D_800D2DB4[0x5D84]) * 0x28 + 0x3AC0;
@@ -131,9 +131,9 @@ void func_800891E4(void) {
     s32 off;
 
     v = D_800D2C34;
-    D_800D2DB4[0x5D77] = func_80076A10((u8)(v - 0x5D), (s32)(D_800D2DB4 + 0x3E80), 0xA0, 0x64);
+    D_800D2DB4[0x5D77] = BattleDrawSpritePackage((u8)(v - 0x5D), (s32)(D_800D2DB4 + 0x3E80), 0xA0, 0x64);
     D_800D2DB4[0x5D86] = D_800CCB34;
-    D_800D2DB4[0x5D7F] = func_80076A10((u8)(v - 0x25), (s32)(D_800D2DB4 + 0x43D0), 0xA0, 0x64);
+    D_800D2DB4[0x5D7F] = BattleDrawSpritePackage((u8)(v - 0x25), (s32)(D_800D2DB4 + 0x43D0), 0xA0, 0x64);
     D_800D2DB4[0x5D8E] = D_800CCB34;
     for (i = 0; i < D_800D2DB4[0x5D77]; i++) {
         off = (i * 2 + D_800D2DB4[0x5D86]) * 0x28 + 0x3E80;
@@ -164,7 +164,7 @@ void func_80089348(void) {
     for (i = 0; i < 5; i++) {
         if (D_800C3CF8[i] != 0xFF) {
             off = D_800D2DB4[0x5D78] * 0x50 + 0x4E70;
-            D_800D2DB4[0x5D78] += func_80076A10(D_800C3CF8[i] + 0x92, (s32)(off + (s32)D_800D2DB4), pitch >> 16, 0x46);
+            D_800D2DB4[0x5D78] += BattleDrawSpritePackage(D_800C3CF8[i] + 0x92, (s32)(off + (s32)D_800D2DB4), pitch >> 16, 0x46);
             pitch += 0x60000;
         }
     }
@@ -178,7 +178,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc14", func_8008946C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc14", func_8008963C);
 // Best attempt: objdiff 89.89%. Tail loop chain matches with "&D_800D2DB4[...]" but the
 // final addu comes out base-first (addu a0,a1,a0) where the original is offset-first;
-// the two func_80076A10 call sites put the base in $a1 and the offset chain in $v0
+// the two BattleDrawSpritePackage call sites put the base in $a1 and the offset chain in $v0
 // (original: base $v1, chain $a1), and reorg fills the beq delay slot with the arg0
 // addiu instead of the loop increment. The "n" counter is real (the tail call's a2 is
 // (s16)(0x11A + n*6), NOT pitch>>16).
@@ -193,13 +193,13 @@ void func_8008963C(void) {
     for (i = 0; i < 3; i++) {
         if (D_800C3CFA[i] != 0xFF) {
             off = D_800D2DB4[0x5D7A] * 0x50 + 0x50A0;
-            D_800D2DB4[0x5D7A] += func_80076A10(D_800C3CFA[i] + 0x92, (s32)&D_800D2DB4[off], pitch >> 16, 0x56);
+            D_800D2DB4[0x5D7A] += BattleDrawSpritePackage(D_800C3CFA[i] + 0x92, (s32)&D_800D2DB4[off], pitch >> 16, 0x56);
             pitch += 0x60000;
             n++;
         }
     }
     off = D_800D2DB4[0x5D7A] * 0x50 + 0x50A0;
-    D_800D2DB4[0x5D7A] += func_80076A10(0x9D, (s32)&D_800D2DB4[off], 0x11A + n * 6, 0x56);
+    D_800D2DB4[0x5D7A] += BattleDrawSpritePackage(0x9D, (s32)&D_800D2DB4[off], 0x11A + n * 6, 0x56);
     D_800D2DB4[0x5D89] = D_800CCB34;
     for (i = 0; i < D_800D2DB4[0x5D7A]; i++) {
         BattleSetPrimGrey80BlendAdd(&D_800D2DB4[(i * 2 + D_800D2DB4[0x5D89]) * 0x28 + 0x50A0]);
@@ -221,7 +221,7 @@ void func_800897CC(void) {
     for (i = 0; i < 2; i++) {
         if (D_800C3CFB[i] != 0xFF) {
             off = D_800D2DB4[0x5D7B] * 0x50 + 0x51E0;
-            D_800D2DB4[0x5D7B] += func_80076A10(D_800C3CFB[i] + 0x92, (s32)(off + (s32)D_800D2DB4), pitch >> 16, 0x5E);
+            D_800D2DB4[0x5D7B] += BattleDrawSpritePackage(D_800C3CFB[i] + 0x92, (s32)(off + (s32)D_800D2DB4), pitch >> 16, 0x5E);
             pitch += 0x60000;
         }
     }
@@ -233,7 +233,7 @@ void func_800897CC(void) {
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc14", func_800898F0);
 // Best attempt: objdiff 91.38% (528 bytes, the original size). Only two classes of diff,
-// both shared with the rest of the func_80076A10 family in this unit: every call site puts
+// both shared with the rest of the BattleDrawSpritePackage family in this unit: every call site puts
 // the D_800D2DB4 base in $a1 and the offset chain in $v0 where the original has base $v1 /
 // chain $a1 (the final addu is the mirror image), and the second loop's "pitch = 0x48 << 16"
 // plus its 0x80000 increment are scheduled a few instructions differently. Pitch values are
@@ -250,7 +250,7 @@ void func_800898F0(u8 arg0) {
     for (i = 0; i < 4; i++) {
         if (D_800C3CF9[i] != 0xFF) {
             off = D_800D2DB4[0x5D7C] * 0x50 + 0x5280;
-            D_800D2DB4[0x5D7C] += func_80076A10(D_800C3CF9[i] + 0x92, (s32)(off + (s32)D_800D2DB4), pitch >> 16, 0xCC);
+            D_800D2DB4[0x5D7C] += BattleDrawSpritePackage(D_800C3CF9[i] + 0x92, (s32)(off + (s32)D_800D2DB4), pitch >> 16, 0xCC);
         }
         pitch += 0x80000;
     }
@@ -261,12 +261,12 @@ void func_800898F0(u8 arg0) {
     for (i = 0; i < 4; i++) {
         if (D_800C3CF9[i] != 0xFF) {
             off = D_800D2DB4[0x5D7D] * 0x50 + 0x53C0;
-            D_800D2DB4[0x5D7D] += func_80076A10(D_800C3CF9[i] + 0x92, (s32)(off + (s32)D_800D2DB4), pitch >> 16, 0xCC);
+            D_800D2DB4[0x5D7D] += BattleDrawSpritePackage(D_800C3CF9[i] + 0x92, (s32)(off + (s32)D_800D2DB4), pitch >> 16, 0xCC);
         }
         pitch += 0x80000;
     }
     off = D_800D2DB4[0x5D7D] * 0x50 + 0x53C0;
-    D_800D2DB4[0x5D7D] += func_80076A10(0x9C, (s32)(off + (s32)D_800D2DB4), 0x41, 0xCC);
+    D_800D2DB4[0x5D7D] += BattleDrawSpritePackage(0x9C, (s32)(off + (s32)D_800D2DB4), 0x41, 0xCC);
     D_800D2DB4[0x5D8C] = D_800CCB34;
 }
 */

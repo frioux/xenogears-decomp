@@ -157,7 +157,7 @@ void func_801E4D10(MenuSaveSlot* pSlot, MenuDressingRoom* pDressingRoom) {
     memcpy((u8*)&g_GameState + 0x1920, (u8*)pSlot + 0x1124, size);
 }
 */
-void func_801E5058(void) {
+void MenuFillInventoryTables(void) {
     u8 i;
 
     for (i = 1; i < 0x48; i++) {
@@ -342,7 +342,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc11_r2", func_801E56E8);
        SetDrawMode((DR_MODE*)(pBase + 0x14C), 0, 0, GetTPage(0, 2, 0x140, 0x80), &rect);
    }
 */
-void func_801E5924(s32 index) {
+void MenuInitializeCellLinePrims(s32 index) {
     u8* pBase;
     u16* pX;
     u16* pY;
@@ -380,7 +380,7 @@ void func_801E5924(s32 index) {
         MenuSetQuadVertices((SVECTOR*)(pBase + 0x120), pX[0], pY[0], 0x10, 0x10);
     }
 }
-void func_801E5ACC(void) {
+void MenuCreateCellPrimBlocks(void) {
     void* pMem;
     int i;
 
@@ -389,7 +389,7 @@ void func_801E5ACC(void) {
         g_Menu->unk3A8[i] = pMem;
         bzero(pMem, 0x158);
         func_801E56E8(i);
-        func_801E5924(i);
+        MenuInitializeCellLinePrims(i);
     }
 }
 extern u16 D_801EA5D0[];
@@ -397,7 +397,7 @@ extern u32 D_801EA004[];
 extern u32 D_801EA010[];
 extern u8 D_801EA8C0;
 
-void func_801E5B3C(void) {
+void MenuFreeCellPrimBlocks(void) {
     int i;
 
     for (i = 0; i < 32; i++) {
@@ -464,7 +464,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc11_r2", func_801E61B0);
        }
    }
 */
-void func_801E6450(void) {
+void MenuAllocatePrimBuffer(void) {
     void* pMem;
     u32 unk[2]; // unused: the original frame has 8 bytes of locals we cannot express
 
@@ -474,7 +474,7 @@ void func_801E6450(void) {
     func_801E5B88();
     func_801E5E4C();
 }
-void func_801E649C(void) {
+void MenuFreePrimBuffer(void) {
     void* pMem;
     MenuManager* pManager;
 
@@ -483,7 +483,7 @@ void func_801E649C(void) {
     pManager = g_Menu->pManager;
     *(volatile u8*)&pManager->unkB = 0;
 }
-void func_801E64E0(void) {
+void MenuClearGlyphTexture(void) {
     RECT rect;
 
     rect.x = 0x140;
@@ -493,7 +493,7 @@ void func_801E64E0(void) {
     ClearImage(&rect, 0, 0, 0);
     *(volatile u8*)&g_Menu->pManager->unkB = 0;
 }
-void func_801E6544(u8* p) {
+void MenuCompressGlyphRows(u8* p) {
     int i;
 
     for (i = 0; i < 0x10; i++) {
@@ -511,7 +511,7 @@ void func_801E6544(u8* p) {
         p[i * 0x10 + 0xB] = p[i * 0x10 + 0xF];
     }
 }
-s32 func_801E65E4(u8* p) {
+s32 MenuGetGlyphKromAddress(u8* p) {
     u8 hi;
     u8 lo;
 
@@ -534,8 +534,8 @@ s32 func_801E65E4(u8* p) {
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc11_r2", func_801E6668);
 /* Best: 98.90% (584 bytes, same size as retail).  Decoded shape: index selects a
    0x200-byte MenuUnk2ImageChunk; the 0x40-entry byte table at chunk+4 is walked one
-   entry per glyph (two bytes when func_801E65E4 sets D_801EA8C0), each entry is
-   unpacked to 0x100 bits, func_801E6544 compresses a row, and the bits are OR ed into
+   entry per glyph (two bytes when MenuGetGlyphKromAddress sets D_801EA8C0), each entry is
+   unpacked to 0x100 bits, MenuCompressGlyphRows compresses a row, and the bits are OR ed into
    a 0x1000-byte 4bpp texture at (i/16)*0x400 + (i%16)*4 + row*0x40 + col/4 before
    LoadImage of the 0x140,0xE0 RECT.  Everything matches except ONE insn: retail
    keeps addiu a0,sp,16 (the RECT address) in BOTH branch delay slots that reach the
@@ -566,7 +566,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc11_r2", func_801E6668);
                break;
            }
            pGlyphBits = pBits;
-           pGlyph = (u16*)func_801E65E4(pSrc);
+           pGlyph = (u16*)MenuGetGlyphKromAddress(pSrc);
            if (pGlyph != (u16*)-1) {
                for (row = 0; row < 0x10; row++) {
                    for (col = 7; col >= 0; col--) {
@@ -577,7 +577,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc11_r2", func_801E6668);
                    }
                    pGlyph++;
                }
-               func_801E6544(pBits);
+               MenuCompressGlyphRows(pBits);
                for (row = 0; row < 0x10; row++) {
                    for (col = 0; col < 0xC; col++) {
                        ((u16*)pTexture)[row * 0x40 + col / 4 + (i % 0x10) * 4 +
@@ -659,7 +659,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc11_r2", func_801E68AC);
 */
 
 
-void func_801E6AE8(u8 arg0, u8* pArg1) {
+void MenuDrawSlotSprite(u8 arg0, u8* pArg1) {
     u8* pPrims;
     u32 offset;
 

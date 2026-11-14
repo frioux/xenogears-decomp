@@ -1238,7 +1238,7 @@ extern s32 D_800ADBC4;
 extern void* D_800ADBC8;
 extern s32 D_800ADBCC;
 
-void func_8008A7DC(int characterId, int partyIndex) {
+void FieldPartyLoadMemberSkin(int characterId, int partyIndex) {
     int size;
     void* pBuffer;
     int characterIndex;
@@ -1579,7 +1579,7 @@ void FieldScriptFinishPartyModelLoad(void) {
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008B978);
 
-extern void func_8008A7DC(int characterId, int partyIndex);
+extern void FieldPartyLoadMemberSkin(int characterId, int partyIndex);
 
 void FieldScriptAddPartyMember(void) {
     int characterId;
@@ -1592,7 +1592,7 @@ void FieldScriptAddPartyMember(void) {
             if (FieldPartyAllocSlot(characterId, &partyIndex) == 0) {
                 g_pGameState->gearRide[partyIndex] = 0;
                 g_GamePartyMembers[partyIndex] = characterId;
-                func_8008A7DC(characterId, partyIndex);
+                FieldPartyLoadMemberSkin(characterId, partyIndex);
                 g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
             } else {
                 g_pGameState->unk1D30 |= 1 << characterId;
@@ -1613,7 +1613,7 @@ void FieldScriptAddPartyMember(void) {
 // way and picks $v0/$v1 the opposite way round).
 // preset screen: 2.7.2 94.89%, cdk 84.77%, 2.6.0 94.89%, all with the call below
 // fixed - no compiler fixes it. As parked the body does not compile:
-// func_8008A7DC() is declared with two params, and passing
+// FieldPartyLoadMemberSkin() is declared with two params, and passing
 // SCRIPT_READ_U8_REL(1) and partyIndex gives the numbers above.
 void FieldScriptAddPartyMemberShort(void) {
     int partyIndex;
@@ -1625,7 +1625,7 @@ void FieldScriptAddPartyMemberShort(void) {
             g_pGameState->gearRide[partyIndex] = 0;
             characterId = SCRIPT_READ_U8_REL(1);
             g_GamePartyMembers[partyIndex] = characterId;
-            func_8008A7DC(characterId, partyIndex);
+            FieldPartyLoadMemberSkin(characterId, partyIndex);
             g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
         } else {
             g_pGameState->unk1D30 |= 1 << SCRIPT_READ_U8_REL(1);
@@ -2607,6 +2607,7 @@ void func_8008EA58(void) {
         g_FieldScriptVMCurActor->scriptInstructionPointer += 0xC;
     }
 }
+ */
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008EC30);
 

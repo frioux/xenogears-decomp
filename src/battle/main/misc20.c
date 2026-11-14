@@ -21,7 +21,7 @@ extern u16 D_800D2C94;
 extern s8 func_8009DBFC();
 extern s32 func_80097610();
 extern void func_8009AC48(u8);
-extern void func_80096824(void);
+extern void BattleRollPercentAndSetState38(void);
 
 void BattleSetActorMaskForSlotRecord3(void) {
     u8 i = 0;
@@ -69,7 +69,7 @@ void func_8009C198(void) {
     f = *(u16 *)(D_800C3DFC + 0xA);
     if (f & 0x100) {
         if (D_800C3E00[0x56] == 1) {
-            func_80096824();
+            BattleRollPercentAndSetState38();
         }
     }
     if (D_800C3E00[0xA0] == 5 || D_800C3E00[0xA0] == 0xD) {

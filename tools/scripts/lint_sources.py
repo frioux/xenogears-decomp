@@ -4,7 +4,7 @@
     tools/scripts/lint_sources.py            # scan src/
     tools/scripts/lint_sources.py -q         # only failures
 
-Two checks, both of which have cost real time in this repo:
+Three checks, all of which have cost real time in this repo:
 
 1. A function that is both `INCLUDE_ASM`'d and defined in C. maspsx then fails
    with "symbol `X' is already defined", but `build.ninja` sends maspsx's stderr
@@ -13,6 +13,9 @@ Two checks, both of which have cost real time in this repo:
 2. A block comment that closes early, usually a parked attempt containing `*/`
    (`Normal*/Color`) or two attempt blocks nested, leaving code (often a stray
    `}`) outside the comment.
+3. A stub swallowed by a comment that does close, just too late: a parked body
+   above it missing its `*/` eats the next `INCLUDE_ASM` line, and the only
+   symptom is `ld: undefined reference to func_X` from an asm data table.
 
 Exit status is 1 if anything is found, so it can gate a commit.
 """
@@ -64,6 +67,10 @@ def main():
             problems += 1
             print(f"{rel}: a /* block comment never closes")
         stubs = set(STUB_RE.findall(code))
+        for name in sorted(set(STUB_RE.findall(text)) - stubs):
+            problems += 1
+            print(f"{rel}: {name}'s INCLUDE_ASM is inside a comment "
+                  f"(a parked body above it never closed)")
         for name in sorted(stubs & set(DEF_RE.findall(code))):
             problems += 1
             print(f"{rel}: {name} is both INCLUDE_ASM'd and defined in C "

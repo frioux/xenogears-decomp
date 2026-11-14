@@ -24,7 +24,7 @@ extern void func_800995A0(u8, u8, u16, s32);
 extern void func_80098D2C(u8, u8);
 extern void func_80094D24(void);
 
-void func_80095A78(void) {
+void BattleApplyScriptConditionTimer(void) {
     s8 ret = func_80097964(D_800C3DFC[0x1C], D_800C3DFC[0x1D],
                            *(u16 *)(D_800C3DFC + 0x1E));
 
@@ -40,7 +40,7 @@ void func_80095A78(void) {
         }
     }
 }
-void func_80095B44(void) {
+void BattleApplyActorConditionTimer(void) {
     u8 *p = D_800C3E00;
 
     if (func_80097964(p[2], p[3], *(u16 *)p) == 1) {
@@ -49,7 +49,7 @@ void func_80095B44(void) {
         func_800995A0(D_800C3E50, q[0x1D], *(u16 *)(q + 0x1E), 5);
     }
 }
-void func_80095BAC(void) {
+void BattleRollAndClearTargetConditions(void) {
     u8 t = D_800C3DFC[0x1C];
 
     if (t < rand() % 100) {
@@ -78,7 +78,7 @@ void func_80095BAC(void) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80095D4C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80096018);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80096494);
-void func_80096824(void) {
+void BattleRollPercentAndSetState38(void) {
     s32 t = D_800C3E00[0x5B] + D_800C3DFC[0x14];
 
     if (rand() % 100 >= t) {
@@ -158,10 +158,10 @@ void func_800968C0(void) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80096AB8);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80096FBC);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80097610);
-void func_8009795C(void) {
+void BattleNop(void) {
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80097964);
-void func_80097D08(void) {
+void BattleClearAllSlotStates(void) {
     s16 i;
 
     for (i = 0xB; i != -1; i--) {
@@ -298,11 +298,11 @@ u8 func_80098AF8(u8 sel) {
     return v;
 }
 */
-void func_80098C6C(u8 sel) {
+void BattleInitActiveSlotActions(u8 sel) {
     u8 i;
     u16 mask;
 
-    func_80097D08();
+    BattleClearAllSlotStates();
 
     mask = 1;
     for (i = 0; i < 11; i++) {
@@ -319,7 +319,7 @@ void func_80098C6C(u8 sel) {
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80098D2C);
-s32 func_80099498(void) {
+s32 BattleTestActorSlotFlagsC002ByMode(void) {
     u8 i;
     u8 n;
     s32 ret = 0;
@@ -361,7 +361,7 @@ s32 func_80099498(void) {
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_800995A0);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80099890);
-void func_80099CF0(u8 *p, u8 *pOther, u8 *pCnt) {
+void BattleDecrementConditionTimers(u8 *p, u8 *pOther, u8 *pCnt) {
     if (*(u16 *)(p + 0x7C) & 0x200) {
         pCnt[1] = pCnt[1] + 0xFF;
         if (pCnt[1] == 0) {
@@ -424,7 +424,7 @@ void func_80099CF0(u8 *p, u8 *pOther, u8 *pCnt) {
         }
     }
 }
-void func_80099FB0(void) {
+void BattleSaveScriptCommandOperandsFromActor(void) {
     u16 ab = *(u16 *)(D_800C3E00 + 0x8C) | *(u16 *)(D_800C3E00 + 0x8E);
 
     D_800C34B0[0x5FBC] = D_800C3DFC[0x20];
@@ -438,7 +438,7 @@ void func_80099FB0(void) {
         D_800C34B0[0x5FBE] |= ab;
     }
 }
-void func_8009A074(void) {
+void BattleFilterSlotMaskByGroup(void) {
     if (*(u16 *)(D_800C34B0 + 0x5FAC) & 7) {
         *(u16 *)(D_800C34B0 + 0x5FAC) = *(u16 *)(D_800C34B0 + 0x5FAE) & 7;
     }

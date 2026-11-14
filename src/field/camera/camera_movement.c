@@ -50,7 +50,7 @@ void FieldScriptWaitForCameraMovement(void) {
 }
 
 
-void func_8008FABC(void) {
+void FieldScriptSetSceneAngleY(void) {
     s16 angleY;
 
     angleY = FieldScriptArgument1(1, SCRIPT_READ_U8_REL(3));
@@ -96,7 +96,7 @@ void func_8008FB28(void) {
 }
 */
 
-void func_8008FB98(void) {
+void FieldScriptSetCameraInterpolationMode(void) {
     g_FieldCameraMode = 1;
     g_FieldScriptMaxInstructionCount += 4;
     g_FieldScriptVMCurActor->scriptInstructionPointer += 1;
@@ -293,7 +293,7 @@ void FieldScriptWriteCameraTweenPosition(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 7;
 }
 
-void func_80090C20(void) {
+void FieldScriptWriteOrSetCameraAngleY(void) {
     if (SCRIPT_READ_U8_REL(3) == 0) {
         FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(1), D_800AF938);
     } else {
@@ -303,7 +303,7 @@ void func_80090C20(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 4;
 }
 
-void func_80090CB8(void) {
+void FieldScriptWriteOrSetCameraDIP(void) {
     if (SCRIPT_READ_U8_REL(3) == 0) {
         FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(1), D_800AF936);
     } else {
@@ -313,7 +313,7 @@ void func_80090CB8(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 4;
 }
 
-void func_80090D50(void) {
+void FieldScriptWriteOrSetCameraDistance(void) {
     if (SCRIPT_READ_U8_REL(3) == 0) {
         FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(1), D_800AF930);
     } else {
@@ -323,7 +323,7 @@ void func_80090D50(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 4;
 }
 
-void func_80090DEC(void) {
+void FieldScriptWriteCameraDistanceDipAndAngle(void) {
     FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(1), D_800AF938);
     FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(2), D_800AF936);
     FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(3), D_800AF930);
@@ -331,7 +331,7 @@ void func_80090DEC(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 7;
 }
 
-void func_80090E70(void) {
+void FieldScriptWriteCameraMovementDestAnglesAndDistance(void) {
     VECTOR camAtDest;
     VECTOR camEyeDest;
     s32 yaw;
@@ -380,7 +380,7 @@ void func_80090E70(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 7;
 }
 
-void func_80091008(VECTOR* pTarget, VECTOR* pParameter, s32 angle) {
+void FieldRotateVectorAroundPointY(VECTOR* pTarget, VECTOR* pParameter, s32 angle) {
     MATRIX matrix;
     VECTOR difference;
     VECTOR vecResult;
@@ -400,7 +400,7 @@ void func_80091008(VECTOR* pTarget, VECTOR* pParameter, s32 angle) {
     PopMatrix();
 }
 
-void func_800910C0(void) {
+void FieldScriptWriteRotatedCirclePointFromArgs(void) {
     VECTOR parameter;
     VECTOR vecResult;
     s32 angle;
@@ -423,7 +423,7 @@ void func_800910C0(void) {
     vecResult.vz = ((((rcos(angle) * factor) << 5) >> 0x10) * D_800AF93A[0] * 0x10) + parameter.vz;
     vecResult.vx = parameter.vx;
 
-    func_80091008(&vecResult, &parameter, yAngle);
+    FieldRotateVectorAroundPointY(&vecResult, &parameter, yAngle);
 
     FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG_ALIGNED(7), vecResult.vx >> 0x10);
     FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG_ALIGNED(8), vecResult.vz >> 0x10);
@@ -433,7 +433,7 @@ void func_800910C0(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 0x14;
 }
 
-void func_80091318(void) {
+void FieldScriptWriteRotatedCirclePointFromMovement(void) {
     VECTOR parameter;
     VECTOR vecResult;
     s32 angle;
@@ -480,7 +480,7 @@ void func_80091318(void) {
 
     // Rotate difference between parameter value and the result vector by Y angle,
     // then we add it to parameter and set our result vector to it
-    func_80091008(&vecResult, &parameter, yAngle);
+    FieldRotateVectorAroundPointY(&vecResult, &parameter, yAngle);
     
     FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(5), vecResult.vx >> 0x10);
     FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(6), vecResult.vz >> 0x10);

@@ -62,7 +62,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80082F7C);
    as one job. Same blocker on func_800829F4 (jtbl_80070110) and func_80082BB0
    (jtbl_80070130) -- 11 of this unit's 16 stubs name a jtbl.
    Shape notes for that job: the store constant lands in the branch delay slot
-   only when the if/else puts the func_8008AA74(0x4F) call in the shared tail,
+   only when the if/else puts the BattlePlaySoundIfEnabled(0x4F) call in the shared tail,
    and retail's addu is base-first, so the field reads want a p/off pair.
 
 void func_80082F7C(u8 arg0) {
@@ -81,14 +81,14 @@ void func_80082F7C(u8 arg0) {
         break;
     case 0:
         if (*(u16 *)(D_800C3EAC + a * 0x40 + 0x2E) != 0) {
-            func_8008AA74(0x4F);
+            BattlePlaySoundIfEnabled(0x4F);
         } else {
             D_800C3EAC[0x2DD] = 0x10;
         }
         break;
     case 1:
         if (*(u16 *)(D_800C3EAC + a * 0x40 + 0x34) != 0) {
-            func_8008AA74(0x4F);
+            BattlePlaySoundIfEnabled(0x4F);
         } else {
             D_800C3EAC[0x2DD] = 0x11;
         }
@@ -98,7 +98,7 @@ void func_80082F7C(u8 arg0) {
         break;
     case 3:
         if (*(u16 *)(D_800C3EAC + a * 0x40 + 0x24) != 0) {
-            func_8008AA74(0x4F);
+            BattlePlaySoundIfEnabled(0x4F);
         } else {
             D_800C3EAC[0x2DD] = 0x18;
         }
@@ -110,7 +110,7 @@ extern u8 D_800D3014;
 extern void BattleLoadStringTableAE(u8);
 extern u8 func_8008B478(u8);
 extern void func_8008ADD0(u8);
-extern void func_8008AA74(u8);
+extern void BattlePlaySoundIfEnabled(u8);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_800830A8);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80083340);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80083580);

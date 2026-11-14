@@ -27,7 +27,7 @@ extern s32 func_8002675C(void *pDir, s32 index, void *pPrims, s32 context, s16 x
 extern void BattleSetPolyFT4RectH13(POLY_FT4 *p, u16 x, s16 y, u8 u, u8 v, u8 dx);
 extern void func_800728B8(u8 *pDst, s32 arg1, s32 arg2);
 extern void func_80072A9C(s32 index, u8 arg1);
-extern void func_80072DA8(s32 index, u8 arg1);
+extern void BattleRenderActorStatDigits(s32 index, u8 arg1);
 extern s32 func_80072F38(s32 index, u8 arg1);
 extern void func_80073380(s32 index);
 extern s32 func_80025FA8(void *pDir, s32 id, u8 *pPrim, s32 context, u16 x, u16 y, u16 u, u16 v, u16 w);
@@ -121,7 +121,7 @@ void func_80073B64(void) {
 }
  */
 
-void func_80073E88(void) {
+void BattleAddTwoPrimLists(void) {
     s32 i;
     s32 offset;
     u8 *p;
@@ -140,7 +140,7 @@ void func_80073E88(void) {
     } while (i < 2);
 }
 
-void func_80073F08(void) {
+void BattleAddThreeFlaggedPrimLists(void) {
     if (D_800D2D28[0x9C] != 0) {
         func_800728B8(D_800C3EA4 + 0xBA8, *(s32 *)(D_800D2D28 + 0xF8), D_800D2D28[0xA5]);
     }
@@ -175,7 +175,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_800742A0);
                 func_80073380(i);
                 value = func_80072F38(i, *(u8 *)((s32)&D_800D32A1 + i * 8));
                 if (*(u8 *)((s32)&D_800D32A1 + i * 8) != 0) {
-                    func_80072DA8(i, value);
+                    BattleRenderActorStatDigits(i, value);
                 } else {
                     func_80072A9C(i, value);
                 }
@@ -204,7 +204,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_800743A4);
 /* 79.68% (82.84% with the offset left inline). Splitting the offset into a
    named local and adding the prim pointer last fixes the final addu's operand
    order (addu a1,v0,a1, the original's addu a1,a1,v1) - the trick that matched
-   func_80074F70. What is left is allocation only: gcc puts p in a1 and the sum
+   BattleAddPrimAndRenderObject. What is left is allocation only: gcc puts p in a1 and the sum
    in v0 where the original builds the sum in a1 and keeps p in v1, and gcc
    re-forms %hi/%lo(D_800CCB04) per call instead of keeping &D_800CCB04 in s0
    and reloading through it. func_800743A4 and func_80074554 are identical. */
@@ -269,7 +269,7 @@ void BattleUpdateRotationBuffer(void) {
         i++;
     } while (i < 4);
 }
-void func_80074EEC(void) {
+void BattleAddThreePrimLists(void) {
     if (D_800D2D28[0xA8] == 0) {
         return;
     }
@@ -279,7 +279,7 @@ void func_80074EEC(void) {
     func_800728B8(D_800D2DB4 + 0x5C80, D_800D2DB4[0x5D82], D_800D2DB4[0x5D91]);
 }
 
-void func_80074F70(void) {
+void BattleAddPrimAndRenderObject(void) {
     u8 *p;
     s32 off;
 
@@ -332,7 +332,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_8007500C);
     }*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_80075168);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_80075938);
-void func_80076418(void) {
+void BattleDrawFrameScreenMode1(void) {
     if (D_800C492A == 0) {
         func_8008FAD8();
         func_800742A0();
@@ -340,10 +340,10 @@ void func_80076418(void) {
         func_80073538();
         func_80073A58();
         func_80073B64();
-        func_80073E88();
-        func_80073F08();
+        BattleAddTwoPrimLists();
+        BattleAddThreeFlaggedPrimLists();
         func_8007500C();
-        func_80074EEC();
+        BattleAddThreePrimLists();
         func_800745EC();
         BattleUpdateRotationBuffer();
         func_80073FB8();
@@ -360,27 +360,27 @@ void func_800764B4(void) {
     func_80073FB8();
 }
 
-void func_800764EC(void) {
+void BattleDrawFrameScreenMode2(void) {
     func_8008FAD8();
     func_80073538();
-    func_80073F08();
+    BattleAddThreeFlaggedPrimLists();
     func_8007500C();
-    func_80074F70();
+    BattleAddPrimAndRenderObject();
     func_80073FB8();
     func_80088B80();
     func_80074AB8();
 }
 
-void func_80076544(void) {
+void BattleDrawFrameByScreenMode(void) {
     switch (D_800C3E4C) {
     case 0:
         func_800764B4();
         break;
     case 1:
-        func_80076418();
+        BattleDrawFrameScreenMode1();
         break;
     case 2:
-        func_800764EC();
+        BattleDrawFrameScreenMode2();
         break;
     }
 }
@@ -498,16 +498,16 @@ void func_80076710(s32 arg0) {
 }
 */
 
-void func_800769E8(RECT *pRect, u_long *pData) {
+void BattleLoadImageAndSync(RECT *pRect, u_long *pData) {
     LoadImage(pRect, pData);
     DrawSync(0);
 }
 
-void func_80076A10(s32 arg0, s32 arg1, s16 arg2, s16 arg3) {
+void BattleDrawSpritePackage(s32 arg0, s32 arg1, s16 arg2, s16 arg3) {
     func_8002675C(D_800D2F5C, arg0, arg1, D_800CCB34, arg2, arg3, 0x1000);
 }
 
-void func_80076A6C(s32 arg0, s32 arg1, s16 arg2, s16 arg3) {
+void BattleDrawSpritePackageHalfScale(s32 arg0, s32 arg1, s16 arg2, s16 arg3) {
     func_8002675C(D_800D2F5C, arg0, arg1, D_800CCB34, arg2, arg3, 0x800);
 }
 

@@ -385,8 +385,8 @@ extern void* D_8009BC3C;
 extern void* D_8009BCB4;
 extern void* D_8009D528;
 extern void WorldMapWaitForQueuedLoads(void);
-extern void func_80086124(void);
-extern void func_800866C8(void);
+extern void WorldMapFreeSpritePrimBuffers(void);
+extern void WorldMapFreeSemiTransPrimBuffers(void);
 extern void WorldMapFreePrimTemplateBuffers(void);
 extern void WorldMapQueueTwoFileLoads(void);
 extern int ArchiveDataSync(void);
@@ -413,8 +413,8 @@ void WorldMapEnterMenuMode(void) {
         D_80059179 = 1;
     }
     WorldMapWaitForQueuedLoads();
-    func_80086124();
-    func_800866C8();
+    WorldMapFreeSpritePrimBuffers();
+    WorldMapFreeSemiTransPrimBuffers();
     WorldMapFreePrimTemplateBuffers();
     HeapFree(D_8009BC3C);
     HeapFree(D_8009BCB4);

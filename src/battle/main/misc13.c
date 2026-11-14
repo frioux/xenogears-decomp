@@ -34,7 +34,7 @@ extern u8 D_800C48F0[];
 
 extern void BattleApplySlotCurve(u8);
 extern void func_80085618(u8);
-extern void func_80098C6C(u16);
+extern void BattleInitActiveSlotActions(u16);
 extern void func_800941A4(void);
 extern u16 BattleSlotBitMask(u8);
 extern void func_80085D34(void);
@@ -57,7 +57,7 @@ extern s32 GetStringEntryFromBank(s32, s32);
 extern void func_80076D58(u8 *, u8, u8);
 extern void BattleSetPolyFT4RectH13(POLY_FT4 *, s16, s16, u8, u8, u8);
 extern s32 SystemRenderStringEntry(u8 *, void *, s32, s32);
-extern s32 func_80076A10(s32, s32, s16, s16);
+extern s32 BattleDrawSpritePackage(s32, s32, s16, s16);
 extern u8 D_800D2C34[];
 extern u8 D_800D2D24[];
 extern u8 D_800C34CC[];
@@ -126,7 +126,7 @@ void BattleBeginAction(s32 arg0, u16 arg1, u16 arg2) {
     D_800C48E8 = 0;
     D_800D2C94 = arg1;
     D_800D2C96 = v;
-    func_80098C6C(arg2);
+    BattleInitActiveSlotActions(arg2);
 }
 void BattleApplySlotCurveAndStep(u8 arg0) {
     u8 v = arg0;
@@ -151,7 +151,7 @@ void BattleBeginActorAction(u8 arg0, u16 arg1, u16 arg2) {
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80085D34);
 /* 95.68%: since the round-45 un-park the instruction stream is identical
-   except (a) the three `addu a1,?,?` that reorg places in the func_80076A10
+   except (a) the three `addu a1,?,?` that reorg places in the BattleDrawSpritePackage
    jal delay slot - retail `addu a1,a1,v0` (offset in the destination), gcc
    `addu a1,v0,a1`; and (b) the epilogue, where retail has `nop; sb
    D_800D2D28+0xA4; lw $ra` and gcc hoists `lw $ra` into the lbu load-delay
@@ -167,11 +167,11 @@ void func_80085D34(void) {
     s32 v;
 
     D_800D2D28[0x7B] = 0;
-    v = func_80076A10(D_800C3EAC[0x2D4] + 0xF, (s32)(D_800C3EA4 + (D_800D2D28[0x7B] * 0x50 + 0x9C8)), 0x2A, 0xD0);
+    v = BattleDrawSpritePackage(D_800C3EAC[0x2D4] + 0xF, (s32)(D_800C3EA4 + (D_800D2D28[0x7B] * 0x50 + 0x9C8)), 0x2A, 0xD0);
     D_800D2D28[0x7B] += v;
-    v = func_80076A10(0x19, (s32)(D_800C3EA4 + (D_800D2D28[0x7B] * 0x50 + 0x9C8)), 0x32, 0xD0);
+    v = BattleDrawSpritePackage(0x19, (s32)(D_800C3EA4 + (D_800D2D28[0x7B] * 0x50 + 0x9C8)), 0x32, 0xD0);
     D_800D2D28[0x7B] += v;
-    v = func_80076A10(D_800C3EAC[0x2D5] + 0xF, (s32)(D_800C3EA4 + (D_800D2D28[0x7B] * 0x50 + 0x9C8)), 0x3A, 0xD0);
+    v = BattleDrawSpritePackage(D_800C3EAC[0x2D5] + 0xF, (s32)(D_800C3EA4 + (D_800D2D28[0x7B] * 0x50 + 0x9C8)), 0x3A, 0xD0);
     D_800D2D28[0x7B] += v;
     D_800D2D28[0xA4] = D_800CCB34;
 }
@@ -479,7 +479,7 @@ u8 BattleIsCharSlot18InUse(u8 arg0) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_8008860C);
 /* 97.74%: instruction count and size are exact (624 bytes); the remaining
    differences are (a) retail keeps `la $s0,D_800CCB34` in a register across the
-   func_80076A10 call and reads both bytes with `lbu 0($s0)` (we rematerialise
+   BattleDrawSpritePackage call and reads both bytes with `lbu 0($s0)` (we rematerialise
    `lui/%hi; lbu %lo` per use) and (b) the five pointer+offset `addu`s come out
    base-first where retail has the offset in the destination. Spelling the
    offset operand as an `s32` local (`off + (s32)D_800D2DB4`,
@@ -494,10 +494,10 @@ void func_8008860C(void) {
     s32 i;
 
     for (i = 0; i < 2; i++) {
-        D_800D2DB4[0x5D74] += func_80076A10(D_800C33B0[i], (s32)(D_800D2DB4[0x5D74] * 0x50 + 0x1720 + D_800D2DB4), 0xA0, 0x64);
+        D_800D2DB4[0x5D74] += BattleDrawSpritePackage(D_800C33B0[i], (s32)(D_800D2DB4[0x5D74] * 0x50 + 0x1720 + D_800D2DB4), 0xA0, 0x64);
     }
     D_800D2DB4[0x5D83] = D_800CCB34;
-    D_800D2DB4[0x5D70] = func_80076A10(0xA8, (s32)(D_800D2DB4[0x5D70] * 0x50 + D_800D2DB4), 0xA0, 0x64);
+    D_800D2DB4[0x5D70] = BattleDrawSpritePackage(0xA8, (s32)(D_800D2DB4[0x5D70] * 0x50 + D_800D2DB4), 0xA0, 0x64);
     D_800D2DB4[0x5D92] = D_800CCB34;
     for (i = 0; i < D_800D2DB4[0x5D74]; i++) {
         BattleSetPrimGrey80BlendAdd((u8 *)((i * 2 + D_800D2DB4[0x5D83]) * 0x28 + 0x1720 + D_800D2DB4));
@@ -506,7 +506,7 @@ void func_8008860C(void) {
         BattleSetPrimGrey80BlendAdd((u8 *)((i * 2 + D_800D2DB4[0x5D92]) * 0x28 + D_800D2DB4));
     }
     for (i = 2; i < 4; i++) {
-        D_800D2DB4[0x5D7E] += func_80076A10(D_800C33B0[i], (s32)(D_800D2DB4[0x5D7E] * 0x50 + 0x2530 + D_800D2DB4), 0xA0, 0x64);
+        D_800D2DB4[0x5D7E] += BattleDrawSpritePackage(D_800C33B0[i], (s32)(D_800D2DB4[0x5D7E] * 0x50 + 0x2530 + D_800D2DB4), 0xA0, 0x64);
     }
     D_800D2DB4[0x5D8D] = D_800CCB34;
     for (i = 0; i < D_800D2DB4[0x5D7E]; i++) {

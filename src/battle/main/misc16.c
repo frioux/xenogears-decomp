@@ -22,18 +22,18 @@ extern u8 D_800D2F81;
 extern u8 D_800D2F82;
 extern u8 D_800D2F83;
 
-extern void func_800716D8(void);
+extern void BattleUpdateFrame(void);
 extern void HeapFree(void *pMem);
 extern void func_8008FC1C(s32, s32, s32, s32, u8);
-extern s32 func_80076A10(s32, s32, s16, s16);
+extern s32 BattleDrawSpritePackage(s32, s32, s16, s16);
 extern void BattleSetPolyFT4RectH13(POLY_FT4 *p, s16 x, s16 y, u8 u, u8 v, s16 dx);
-extern void func_800769E8(RECT *pRect, u_long *pData);
-extern void *func_8008AC00(s32);
+extern void BattleLoadImageAndSync(RECT *pRect, u_long *pData);
+extern void *BattleAllocTextBuffer(s32);
 extern void bzero(void *p, s32 n);
 extern u8 *GetStringEntry(u8 *, s32);
 extern s32 SystemRenderStringEntry(u8 *, void *, s32, s32);
 extern u8 D_800C3D70[];
-extern void *func_8008ABB8(s32, s32);
+extern void *BattleAllocHeapBlock(s32, s32);
 extern void BattleInitSlotPrims(s32);
 extern void func_8008F6E4(u8, s32, s32, s32, s32);
 extern void func_8008DC34(u8, s32, s32, s32, u16);
@@ -59,9 +59,9 @@ extern u8 D_800CCD62[];
 extern u8 D_800D2D24[];
 extern s32 BattleMaskHasStatusBit(s32, u8);
 extern u8 func_80085084(u16, u8, s32);
-extern void func_8008CCCC(u8);
+extern void BattleClearPrimFlagsThreeSlots(u8);
 extern void func_8008CD28(u8);
-extern void func_8008AA74(u8);
+extern void BattlePlaySoundIfEnabled(u8);
 extern void BattleSetPolyFT4Rect(POLY_FT4 *, s16, s16, u8, u8, s16, s16);
 
 u8 func_8008CDE4(u8 arg0, u8 arg1) {
@@ -88,7 +88,7 @@ u8 func_8008CDE4(u8 arg0, u8 arg1) {
     if (cur >= trigger &&
         (u16)BattleMaskHasStatusBit((u16)g_GameState.unk16BC[D_800D2D24[arg0]].unk1E, arg1) != 0 &&
         (*(u16 *)(D_800CCD62 + ofs) & hdr[arg1]) == 0) {
-        func_8008CCCC(1);
+        BattleClearPrimFlagsThreeSlots(1);
         D_800D2D28[0xC6] = 1;
         if (func_80085084(dmg, arg0, 0) != 0) {
             *(u16 *)(D_800CCDC4 + ofs) -= trigger;
@@ -100,7 +100,7 @@ u8 func_8008CDE4(u8 arg0, u8 arg1) {
         flag = 0;
     }
     if (flag != 0) {
-        func_8008AA74(0x4F);
+        BattlePlaySoundIfEnabled(0x4F);
     }
     return ret;
 }
@@ -114,7 +114,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008D598);
    implicit narrowing instead of the (s16) cast, an (s32) cast on arg4, a split
    s32 sum temp, and gcc-2.7.2-cdk (84.94, so the preset is right). Everything
    else in the 464-byte body matches byte for byte: the codes[] branch pair, the
-   four func_80076A10 calls with the 0x5A0 accumulate operand order, dx between
+   four BattleDrawSpritePackage calls with the 0x5A0 accumulate operand order, dx between
    calls 1 and 2, dy between calls 2 and 3, and the 4-iteration BattleSetPrimGrey80BlendModeFromGlobal
    loop.
 void func_8008DC34(u8 arg0, s32 arg1, s32 arg2, s32 arg3, u16 arg4) {
@@ -138,12 +138,12 @@ void func_8008DC34(u8 arg0, s32 arg1, s32 arg2, s32 arg3, u16 arg4) {
         codes[3] = 0xF7;
     }
     *(s32 *)(p + 0x5A0) = 0;
-    *(s32 *)(p + 0x5A0) = func_80076A10(codes[0], (s32)(p + *(s32 *)(p + 0x5A0) * 0x50), (s16)arg1, (s16)arg2) + *(s32 *)(p + 0x5A0);
+    *(s32 *)(p + 0x5A0) = BattleDrawSpritePackage(codes[0], (s32)(p + *(s32 *)(p + 0x5A0) * 0x50), (s16)arg1, (s16)arg2) + *(s32 *)(p + 0x5A0);
     dx = arg1 + arg3 - 8;
-    *(s32 *)(p + 0x5A0) = func_80076A10(codes[1], (s32)(p + *(s32 *)(p + 0x5A0) * 0x50), dx, (s16)arg2) + *(s32 *)(p + 0x5A0);
+    *(s32 *)(p + 0x5A0) = BattleDrawSpritePackage(codes[1], (s32)(p + *(s32 *)(p + 0x5A0) * 0x50), dx, (s16)arg2) + *(s32 *)(p + 0x5A0);
     dy = (s16)(arg2 + arg4 - 8);
-    *(s32 *)(p + 0x5A0) = func_80076A10(codes[2], (s32)(p + *(s32 *)(p + 0x5A0) * 0x50), (s16)arg1, dy) + *(s32 *)(p + 0x5A0);
-    *(s32 *)(p + 0x5A0) = func_80076A10(codes[3], (s32)(p + *(s32 *)(p + 0x5A0) * 0x50), dx, dy) + *(s32 *)(p + 0x5A0);
+    *(s32 *)(p + 0x5A0) = BattleDrawSpritePackage(codes[2], (s32)(p + *(s32 *)(p + 0x5A0) * 0x50), (s16)arg1, dy) + *(s32 *)(p + 0x5A0);
+    *(s32 *)(p + 0x5A0) = BattleDrawSpritePackage(codes[3], (s32)(p + *(s32 *)(p + 0x5A0) * 0x50), dx, dy) + *(s32 *)(p + 0x5A0);
     for (i = 0; i < 4; i++) {
         BattleSetPrimGrey80BlendModeFromGlobal(p + (i * 2 + D_800CCB34) * 0x28);
     }
@@ -205,10 +205,10 @@ void func_8008F8F4(s32 arg0, u16 arg1, u16 arg2, u16 arg3, u16 arg4, u8 arg5, u8
 
     index = arg0;
     if (*(D_800D2D28 + index + 0xB0) == 0) {
-        q = func_8008ABB8(0x5A8, 0);
+        q = BattleAllocHeapBlock(0x5A8, 0);
         D_800D2E38[index] = q;
         bzero(q, 0x5A8);
-        q = func_8008ABB8(0xE, 0);
+        q = BattleAllocHeapBlock(0xE, 0);
         D_800D2D90[index] = q;
         bzero(q, 0xE);
         BattleInitSlotPrims(index);
@@ -229,7 +229,7 @@ void func_8008F8F4(s32 arg0, u16 arg1, u16 arg2, u16 arg3, u16 arg4, u8 arg5, u8
     } else {
         func_8008F6E4(index, arg1, arg2, arg3, arg4);
         if (arg6 != 0) {
-            func_800716D8();
+            BattleUpdateFrame();
         }
     }
 }

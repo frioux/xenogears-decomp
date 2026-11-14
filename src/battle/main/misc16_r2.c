@@ -22,18 +22,18 @@ extern u8 D_800D2F81;
 extern u8 D_800D2F82;
 extern u8 D_800D2F83;
 
-extern void func_800716D8(void);
+extern void BattleUpdateFrame(void);
 extern void HeapFree(void *pMem);
 extern void func_8008FC1C(s32, s32, s32, s32, u8);
-extern s32 func_80076A10(s32, s32, s16, s16);
+extern s32 BattleDrawSpritePackage(s32, s32, s16, s16);
 extern void BattleSetPolyFT4RectH13(POLY_FT4 *p, s16 x, s16 y, u8 u, u8 v, s16 dx);
-extern void func_800769E8(RECT *pRect, u_long *pData);
-extern void *func_8008AC00(s32);
+extern void BattleLoadImageAndSync(RECT *pRect, u_long *pData);
+extern void *BattleAllocTextBuffer(s32);
 extern void bzero(void *p, s32 n);
 extern u8 *GetStringEntry(u8 *, s32);
 extern s32 SystemRenderStringEntry(u8 *, void *, s32, s32);
 extern u8 D_800C3D70[];
-extern void *func_8008ABB8(s32, s32);
+extern void *BattleAllocHeapBlock(s32, s32);
 extern void BattleInitSlotPrims(s32);
 extern void func_8008F6E4(u8, s32, s32, s32, s32);
 extern void func_8008DC34(u8, s32, s32, s32, u16);
@@ -59,14 +59,14 @@ extern u8 D_800CCD62[];
 extern u8 D_800D2D24[];
 extern s32 BattleMaskHasStatusBit(s32, u8);
 extern u8 func_80085084(u16, u8, s32);
-extern void func_8008CCCC(u8);
+extern void BattleClearPrimFlagsThreeSlots(u8);
 extern void func_8008CD28(u8);
-extern void func_8008AA74(u8);
+extern void BattlePlaySoundIfEnabled(u8);
 extern void BattleSetPolyFT4Rect(POLY_FT4 *, s16, s16, u8, u8, s16, s16);
 
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16_r2", func_8008FAD8);
-/* 66.32%: the two func_80076A10 loops and the accumulates match; the whole
+/* 66.32%: the two BattleDrawSpritePackage loops and the accumulates match; the whole
    gap is the 9-arg func_800263E4 call block. The original keeps &D_800CCB34
    in s1 across the call (`lw a3,0(s1)` for the context arg, `lbu v0,0(s1)`
    after it) and needs no extra saved register (0x50 frame, s0-s5 + ra); gcc
@@ -85,12 +85,12 @@ void func_8008FC1C(s32 arg0, s32 arg1, s32 arg2, s32 arg3, u8 arg4) {
     *(s32 *)(D_800D2D28 + 0xFC) = 0;
     i = 0;
     for (offset = arg3; i < arg4; i++) {
-        size = func_80076A10(0x65, D_800C3EA4 + (*(s32 *)(D_800D2D28 + 0xFC) * 0x50 + 0x1E68), arg0, offset);
+        size = BattleDrawSpritePackage(0x65, D_800C3EA4 + (*(s32 *)(D_800D2D28 + 0xFC) * 0x50 + 0x1E68), arg0, offset);
         *(s32 *)(D_800D2D28 + 0xFC) = size + *(s32 *)(D_800D2D28 + 0xFC);
         offset += 8;
     }
     pPal = (u8 *)&D_800CCB34;
-    size = func_80076A10(0x64, D_800C3EA4 + (*(s32 *)(D_800D2D28 + 0xFC) * 0x50 + 0x1E68), arg0, arg1);
+    size = BattleDrawSpritePackage(0x64, D_800C3EA4 + (*(s32 *)(D_800D2D28 + 0xFC) * 0x50 + 0x1E68), arg0, arg1);
     *(s32 *)(D_800D2D28 + 0xFC) = size + *(s32 *)(D_800D2D28 + 0xFC);
     size = func_800263E4(D_800D2F5C, 0x64,
         (POLY_FT4 *)(D_800C3EA4 + (*(s32 *)(D_800D2D28 + 0xFC) * 0x50 + 0x1E68)),
@@ -124,7 +124,7 @@ void func_8009023C(s32 arg0) {
     *(s32 *)(D_800D2D28 + 0xF8) = 0;
     i = 0;
     for (offset = 0x68; i < 9; i++) {
-        size = func_80076A10(0x66, D_800C3EA4 + (*(s32 *)(D_800D2D28 + 0xF8) * 0x50 + 0xBA8), 0x20, arg0 - 4 + offset);
+        size = BattleDrawSpritePackage(0x66, D_800C3EA4 + (*(s32 *)(D_800D2D28 + 0xF8) * 0x50 + 0xBA8), 0x20, arg0 - 4 + offset);
         *(s32 *)(D_800D2D28 + 0xF8) = size + *(s32 *)(D_800D2D28 + 0xF8);
         offset += 8;
     }
@@ -253,14 +253,14 @@ void BattleDrawMenuEntryString(u8 arg0, u8 arg1) {
     s32 palIndex;
 
     index = D_800D2CE0[arg1 * 2 + arg0];
-    pBuf = (u8 *)func_8008AC00(0x39);
+    pBuf = (u8 *)BattleAllocTextBuffer(0x39);
     bzero(pBuf, 0x618);
     len = SystemRenderStringEntry(GetStringEntry(D_800D329C, index), pBuf, 0x39, 0);
     rect.x = 0x3C0;
     rect.y = 0;
     rect.w = 0x3C;
     rect.h = 0xD;
-    func_800769E8(&rect, pBuf);
+    BattleLoadImageAndSync(&rect, pBuf);
     pBase = *(u8 **)(D_800C3EA4 + 0xA230);
     palIndex = D_800CCB34;
     ofs = palIndex * 0x28 + 0x280;
@@ -334,7 +334,7 @@ void BattleStepAnimatedCursorPrim(s32 arg0, s32 arg1, s32 *pIndex, u8 *pCount) {
         }
         *pCount = 0;
     }
-    *(s32 *)(D_800D2D28 + 0x100) = func_80076A10(*pIndex + 0xE0, D_800C3EA4 + 0x27C8, arg0, arg1);
+    *(s32 *)(D_800D2D28 + 0x100) = BattleDrawSpritePackage(*pIndex + 0xE0, D_800C3EA4 + 0x27C8, arg0, arg1);
     p = D_800D2D28;
     p[0xA7] = *(u8 *)&D_800CCB34;
     *(volatile u8 *)(D_800D2D28 + 0x9E) = 1;

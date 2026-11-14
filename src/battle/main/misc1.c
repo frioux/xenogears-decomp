@@ -13,9 +13,9 @@ extern s32 *D_8005917C;
 extern u8 *D_800CCB04;
 extern u8 *D_800C3EA4;
 
-extern void func_8008AB4C(void);
-extern s32 func_8008ABB8(s32, s32);
-extern void func_8008AC50(void);
+extern void BattleSetArchive20Entry0(void);
+extern s32 BattleAllocHeapBlock(s32, s32);
+extern void BattleWaitForArchiveSync(void);
 extern void func_801E5160(void);
 extern s32 func_801E563C(void);
 extern void func_801E879C(s32);
@@ -56,7 +56,7 @@ extern u8 D_800D2D88[];
 extern u8 D_800D3280;
 extern u16 D_800C3076[];
 extern u16 D_800C3254[];
-extern s32 func_80076A10(s32, s32, s16, s16);
+extern s32 BattleDrawSpritePackage(s32, s32, s16, s16);
 extern void func_80072938(POLY_FT4 *, s32, s32, s32);
 extern u8 D_800D3298;
 extern u8 D_800D2DCC[];
@@ -71,29 +71,29 @@ extern u8 D_800D32A0[];
 extern u16 D_800CCDC4[];
 extern void BattleParseNumberToDigits(s32);
 
-void func_80070E2C(void) {
+void BattleLoadOverlay(void) {
     s32 first;
     s32 second;
 
     if (D_800C3D48 != 0) {
-        func_8008AB4C();
-        first = func_8008ABB8(4, 1);
+        BattleSetArchive20Entry0();
+        first = BattleAllocHeapBlock(4, 1);
         D_800D3284 = first;
-        second = func_8008ABB8(first + 0x7FE1B000, 1);
+        second = BattleAllocHeapBlock(first + 0x7FE1B000, 1);
         D_800D328C = second;
         ArchiveReadFileToBuffer(1, (void *)0x801E5000, 0, 0x80);
-        func_8008AC50();
+        BattleWaitForArchiveSync();
         func_801E5160();
     }
 }
 
-void func_80070EB0(u8 arg0) {
+void BattleSetOverlayArg(u8 arg0) {
     if (D_800C3D48 != 0) {
         func_801E879C(arg0);
     }
 }
 
-void func_80070EDC(void) {
+void BattleFadeOutAudioIfOverlayIdle(void) {
     u8 result;
 
     result = 0;
@@ -107,7 +107,7 @@ void func_80070EDC(void) {
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80070F40);
 
-s32 func_800716D8(void) {
+s32 BattleUpdateFrame(void) {
     if (D_8005917C[0] != -1) {
         func_8028022C();
     }
@@ -185,7 +185,7 @@ void func_8007171C(void) {
     }
 }
 */
-void func_800718BC(void) {
+void BattleResetActorCountdown(void) {
     u8 index;
 
     index = D_800C3EAC[0x2D3];
@@ -212,12 +212,12 @@ void func_80071964(void) {
         D_800D39C6 = SystemRenderStringEntry(pEntry, D_800D39C0[0], 0x39, 1);
         LoadImage((RECT *)&D_800D39C0[-2], (u_long *)D_800D39C0[0]);
         for (i = 3; i != 0; i--) {
-            func_800716D8();
+            BattleUpdateFrame();
         }
     }
 }
 */
-void func_80071A08(void) {
+void BattleClearCharRedrawFlags(void) {
     s32 i;
     u8 *p;
 
@@ -227,7 +227,7 @@ void func_80071A08(void) {
     }
 }
 
-void func_80071A38(void) {
+void BattleApplyCharRedrawFlags(void) {
     s32 i;
     u8 *pDst;
     u8 *pSrc;
@@ -239,10 +239,10 @@ void func_80071A38(void) {
         pSrc = D_800C3EAC;
         *(pDst + i + 0x7C) = *(pSrc + i + 0x2EB);
     }
-    func_800716D8();
+    BattleUpdateFrame();
 }
 
-void func_80071A8C(void) {
+void BattleClearAllSlotFlagB4(void) {
     s32 i;
 
     for (i = 0x2A0; i >= 0; i -= 0x60) {
@@ -250,24 +250,24 @@ void func_80071A8C(void) {
     }
     D_800D2D28[0xB5] = 0;
     D_800D2D28[0xB4] = 0;
-    func_800716D8();
+    BattleUpdateFrame();
 }
 
-void func_80071AE0(void) {
+void BattleWaitWhileStateIs8(void) {
     s32 i;
 
     if (D_800D2CAF != 0 && (D_800D2C94 & D_800C48E8) == 0) {
         BattleSetSlotFlagB4(7);
         D_800C3EAC[0x2DB] = 0;
         for (i = 0x3B; i != 0; i--) {
-            func_800716D8();
+            BattleUpdateFrame();
             if (D_800D3014 != 8) {
                 break;
             }
         }
         D_800C3EAC[0x2DB] = 1;
         BattleClearSlotFlagB4(7);
-        func_800716D8();
+        BattleUpdateFrame();
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80071B94);
@@ -307,7 +307,7 @@ void func_80072270(void) {
 }
 */
 
-void func_80072324(void) {
+void BattleResetActorCommandSlots(void) {
     u8 *pBuf;
     u8 *p;
     u8 *pEnd;
@@ -344,7 +344,7 @@ void func_800723E0(void) {
     s32 i;
 
     if (D_800D39E0 != 0) {
-        func_80072324();
+        BattleResetActorCommandSlots();
         return;
     }
 
@@ -421,14 +421,14 @@ void func_80072938(POLY_FT4 *pPrim, s32 first, s32 last, s32 mode) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80072A9C);
-void func_80072DA8(s32 arg0, u8 arg1) {
+void BattleRenderActorStatDigits(s32 arg0, u8 arg1) {
     s32 first;
     s32 i;
 
     first = *(s32 *)(D_800D2D28 + arg0 * 4 + 0xE0);
     for (i = 0; i < 5; i++) {
         if (D_800D2D88[i] != 0xFF) {
-            *(s32 *)(D_800D2D28 + arg0 * 4 + 0xE0) += func_80076A10(
+            *(s32 *)(D_800D2D28 + arg0 * 4 + 0xE0) += BattleDrawSpritePackage(
                 D_800D2D88[i] + 0x67,
                 (s32)(D_800C3EA4 + (arg0 * 3200 + 0x3A88)) + *(s32 *)(D_800D2D28 + arg0 * 4 + 0xE0) * 80,
                 (s16)(D_800C3076[arg0 * 24 + i] + D_800C3254[D_800D3280 * 3 + arg0]),
@@ -447,7 +447,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80073380);
    D_800C3EA4, then `addu at,v1,at` for the 0x10000); gcc's commutative-operand
    precedence puts the `arg0 * 484` product first, so it emits `addu v0,v0,v1`
    and `addu at,v0,at`. Everything else - the 484-byte stride, the 0x853D
-   displacement, the two amount sources, the func_80076A10 loop (80-stride,
+   displacement, the two amount sources, the BattleDrawSpritePackage loop (80-stride,
    *i*6 accumulate, 0x25) and the final byte store - is exact. Tried: the
    expression inline as `D_800C3EA4 + (arg0*484 + 0x853D)`, a `u8 *pFlags` local,
    and a separate `off = arg0 * 484` temp; all give the same 99.82%.
@@ -468,7 +468,7 @@ void func_80073380(s32 arg0) {
 
     for (i = 0; i < 4; i++) {
         if (D_800C3CF9[i] != 0xFF) {
-            *(s32 *)(D_800D2D28 + arg0 * 4 + 0xEC) += func_80076A10(
+            *(s32 *)(D_800D2D28 + arg0 * 4 + 0xEC) += BattleDrawSpritePackage(
                 D_800C3CF9[i] + 0x83,
                 (s32)(D_800C3EA4 + (arg0 * 320 + 0x6008)) + *(s32 *)(D_800D2D28 + arg0 * 4 + 0xEC) * 80,
                 (s16)(arg0 * 96 + (D_800C3254[D_800D3280 * 3 + arg0] + 0x4A) + i * 6),

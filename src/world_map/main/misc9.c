@@ -43,7 +43,7 @@ extern s32 D_8009D7F0;
 
 void WorldMapSetSpriteSetParent(s32 arg0, s32 arg1);
 void func_80087904(u8* pDst, u8* pSrc, s32 count, s32 abr);
-s32 func_800879E0(s32 arg0);
+s32 WorldMapSetSceneLayerTPages(s32 arg0);
 void func_80099BFC(u8* pSrc, s32 count, u32 arg2, u8* pPrim);
 
 // 0x80-byte slot in the D_8009BE24 table
@@ -101,7 +101,7 @@ extern WorldMapTilePos D_8009AF30[];
 extern WorldMapTilePos D_8009AF38[];
 extern int rand(void);
 
-void func_80085F58(void) {
+void WorldMapRelocateMapEntryOffsets(void) {
     WorldMapTableEntry* pEntry;
     u_char* pBase;
     s32 i;
@@ -161,7 +161,7 @@ void func_80085FE0(void) {
 */
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_80085FE0);
-void func_80086124(void) {
+void WorldMapFreeSpritePrimBuffers(void) {
     HeapFree(D_8009D7EC);
     HeapFree(D_8009D7E8);
 }
@@ -282,7 +282,7 @@ void func_800863E0(void) {
 }
 */
 
-void func_80086568(void) {
+void WorldMapFreeTileVertexBuffers(void) {
     HeapFree(D_8009CEB4);
     HeapFree(D_8009D150);
 }
@@ -314,12 +314,12 @@ void func_800865A0(void) {
     memcpy(D_8009D7FC, pSrc, 0x2D00);
 }*/
 
-void func_800866C8(void) {
+void WorldMapFreeSemiTransPrimBuffers(void) {
     HeapFree(D_8009D7FC);
     HeapFree(D_8009D7F8);
 }
 
-void func_80086700(void) {
+void WorldMapWrapTileVertexPositions(void) {
     WorldMapTileVertex* pDst = (WorldMapTileVertex*)D_8009D150;
     WorldMapPathEntry* pSrc = (WorldMapPathEntry*)D_8009CEB4;
     s32 i;
@@ -345,7 +345,7 @@ void func_80086700(void) {
     }
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_80086798);
-s32 func_80087710(s32 index) {
+s32 WorldMapInitSlotAngleStep8(s32 index) {
     WorldMapSlot* pSlot = (WorldMapSlot*)(D_8009BE24 + index * 0x80);
 
     pSlot->unk50 = 0;
@@ -450,10 +450,10 @@ s32 BattleInitSlotRowsForActor(s32 index) {
 
     pSlot->unk50 = 0;
     pSlot->unk54 = 0x10;
-    func_800879E0(index);
+    WorldMapSetSceneLayerTPages(index);
     return 1;
 }
-s32 func_800879E0(s32 index) {
+s32 WorldMapSetSceneLayerTPages(s32 index) {
     u8* pBase = D_8009C620;
     u8* pEntry;
     u8* pEntry2;
@@ -498,7 +498,7 @@ s32 func_80087A8C(s32 index) {
 }
 */
 
-void func_80087B84(VECTOR* pVec, VECTOR* pWork, MATRIX* pMat) {
+void WorldMapBuildBasisMatrix(VECTOR* pVec, VECTOR* pWork, MATRIX* pMat) {
     s16* pOut = (s16*)pMat;
 
     pWork->vz = 0;
@@ -520,7 +520,7 @@ void func_80087B84(VECTOR* pVec, VECTOR* pWork, MATRIX* pMat) {
     TransposeMatrix(pMat, pMat);
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_80087C6C);
-s32 func_80087F60(void) {
+s32 WorldMapSetSceneSpriteSetParents(void) {
     s32 value = D_8009B674[D_8009C610];
 
     WorldMapSetSpriteSetParent(value, value - 4);

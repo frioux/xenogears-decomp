@@ -59,7 +59,7 @@ extern void func_80078658(u8 arg0, u8 arg1);
 extern void BattleQueueCommandF7(u8 arg0, u8 arg1);
 extern void BattleQueueCommandF8(u8 arg0);
 extern s32 func_8007A280(u8 arg0, u8 arg1, s32 arg2, s32 arg3);
-extern void func_800716D8(void);
+extern void BattleUpdateFrame(void);
 extern void func_800793F0(u8 arg0);
 extern void BattleQueueCommand1BAndFE(u8 arg0);
 extern void func_80085350(void);
@@ -71,7 +71,7 @@ extern u8 D_800C3D19[];
 extern u8 D_800C3D1A[];
 extern u8 D_800D340C[];
 extern u8 D_800CCD1C[];
-extern void func_80070EB0(u8 arg0);
+extern void BattleSetOverlayArg(u8 arg0);
 
 void BattleQueueCommandF8(u8 arg0) {
     if (D_800C3E8C != 0) {
@@ -221,7 +221,7 @@ void BattlePrintLanguageErrorLoop(u8 arg0, u8 arg1) {
             FontPrintf(D_8006FB0C);
             j++;
             FontPrintf(D_8006FB24, arg0, arg1);
-            func_800716D8();
+            BattleUpdateFrame();
             if (j < 3) {
                 continue;
             }
@@ -249,12 +249,12 @@ void func_80079778(u8 arg0) {
     func_80085350();
     func_80085388();
     D_800C400B[D_800C3EAC[0x2DA] * 72] = arg0;
-    func_800716D8();
+    BattleUpdateFrame();
     func_800B89FC(1, arg0, 0, BattleFindMinValueOtherSlot(arg0));
     func_800793F0(arg0);
     BattleQueueCommand1BAndFE(arg0);
     while (D_800C3EAC[0x2DB] == 0) {
-        func_800716D8();
+        BattleUpdateFrame();
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc4", func_80079840);
@@ -482,7 +482,7 @@ void func_80079C24(void) {
         }
         D_800C3EAC[0x2DB] = 0;
         func_80079778(idx);
-        func_80070EB0(0);
+        BattleSetOverlayArg(0);
     }
     D_800C3EAC[0x2D3] = saved;
 }

@@ -20,10 +20,10 @@ extern u8 D_800C3202[];
 extern u8 *D_800C3EA4;
 extern volatile s32 D_800CCB34;
 
-extern s32 func_8008ABB8(s32, s32);
-extern void func_8008AB94(void);
+extern s32 BattleAllocHeapBlock(s32, s32);
+extern void BattleSetArchive20Entry3(void);
 extern void BattleReleaseEffectSlotIfChar4(u8);
-extern void func_8008AC50(void);
+extern void BattleWaitForArchiveSync(void);
 extern int ArchiveDecodeAlignedSize(unsigned int entryIndex);
 extern void ArchiveReadFileToBuffer(s32 index, void *pBuffer, u32 arg2, u32 flags);
 extern void HeapFree(void *pMem);
@@ -51,7 +51,7 @@ extern u8 D_800D2C0C[];
 extern void func_8009A2D4(u8 arg0);
 extern void BattleBuildSpritePrimLists(u8 arg0);
 extern void func_800898F0(u8 arg0);
-extern void func_800716D8(void);
+extern void BattleUpdateFrame(void);
 extern u8 BattlePairTargetable(u8 arg0, u8 arg1);
 extern void func_8009AB00(u8 arg0);
 extern void func_8009BAC4(u8 arg0, u8 *pInfo, u8 *pField);
@@ -117,16 +117,16 @@ void BattleLoadStringTableAE(u8 arg0) {
     if (D_800D2D28[0xAE] != 0) {
         return;
     }
-    func_8008AC50();
+    BattleWaitForArchiveSync();
     if (D_800D32A1[arg0 * 8] == 0) {
         type = 1;
     } else {
         type = 2;
     }
-    func_8008AB94();
-    D_800D367C = (void *)func_8008ABB8(ArchiveDecodeAlignedSize(type), 0);
+    BattleSetArchive20Entry3();
+    D_800D367C = (void *)BattleAllocHeapBlock(ArchiveDecodeAlignedSize(type), 0);
     ArchiveReadFileToBuffer(type, D_800D367C, 0, 0x80);
-    func_8008AC50();
+    BattleWaitForArchiveSync();
     D_800D2D28[0xAE] = 1;
 }
 
@@ -141,12 +141,12 @@ void BattleLoadStringTable96(void) {
     s32 pBuffer;
 
     if (D_800D2D28[0x96] == 0) {
-        func_8008AC50();
-        func_8008AB94();
-        pBuffer = func_8008ABB8(ArchiveDecodeAlignedSize(3), 0);
+        BattleWaitForArchiveSync();
+        BattleSetArchive20Entry3();
+        pBuffer = BattleAllocHeapBlock(ArchiveDecodeAlignedSize(3), 0);
         D_800C3DE8 = (u8 *)pBuffer;
         ArchiveReadFileToBuffer(3, (void *)pBuffer, 0, 0x80);
-        func_8008AC50();
+        BattleWaitForArchiveSync();
         D_800D2D28[0x96] = 1;
     }
 }
@@ -154,7 +154,7 @@ void BattleLoadStringTable96(void) {
 void BattleAllocDrawBuffer(void) {
     u8 *pBuffer;
 
-    pBuffer = (u8 *)func_8008ABB8(0x5DA4, 0);
+    pBuffer = (u8 *)BattleAllocHeapBlock(0x5DA4, 0);
     D_800D2DB4 = pBuffer;
     bzero(pBuffer, 0x5DA4);
     *(volatile u16 *)(D_800D2DB4 + 0x5D9C) = 0xA0;
@@ -204,9 +204,9 @@ void func_8007FF14(u8 arg0) {
     BattleAllocDrawBuffer();
     if (D_800D2D24[arg0] != 7) {
         BattleBuildSpritePrimLists(arg0);
-        func_800716D8();
+        BattleUpdateFrame();
         func_800898F0(arg0);
-        func_800716D8();
+        BattleUpdateFrame();
         D_800D2D28[0xAD] = 1;
         D_800D2D28[0xC7] = 1;
     }
@@ -292,7 +292,7 @@ u8 func_80080C94(u8 arg0) {
     s32 i;
     s32 sel;
 
-    func_800716D8();
+    BattleUpdateFrame();
     for (i = 0xA; i >= 0; i--) {
         buf[i] = 0xFF;
     }
@@ -319,7 +319,7 @@ u8 func_80080C94(u8 arg0) {
     idx = arg0 * 0x40;
     (D_800C3EAC + idx)[0x3C] = D_800C3E2C;
     func_800BC404(BattleSlotBitMask(arg0) | BattleSlotBitMask((D_800C3EAC + idx)[0x3C]));
-    func_800716D8();
+    BattleUpdateFrame();
     D_800C204C = 1;
     switch (info[0]) {
     case 1:
@@ -366,7 +366,7 @@ u8 func_80080C94(u8 arg0) {
         D_800C3EAC[0x2DE] = 1;
     }
     while (D_800C3EAC[0x2DE] == 0 && D_800C48EA == 0 && D_800C3EAC[0x2DB] != 0) {
-        func_800716D8();
+        BattleUpdateFrame();
     }
     D_800C204C = 0;
     return ret;

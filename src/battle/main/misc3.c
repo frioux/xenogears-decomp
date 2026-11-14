@@ -22,17 +22,17 @@ extern u8 D_800D3726[];
 extern u16 g_SystemPalette1;
 extern u16 g_SystemPalette2;
 
-extern s32 func_8008ABB8(s32, s32);
+extern s32 BattleAllocHeapBlock(s32, s32);
 extern s32 GetStringEntryFromBank12(s32);
 extern u16 func_80098AF8(s32, s32);
 extern void BattleInitPacketPrimitives(void);
 extern void HeapFree(void *pMem);
 extern u8 *GetStringEntry(u8 *, s32);
 extern s32 SystemRenderStringEntry(u8 *, void *, s32, s32);
-extern void func_800769E8(RECT *, u_long *);
+extern void BattleLoadImageAndSync(RECT *, u_long *);
 extern void bzero(void *p, s32 n);
 extern void func_8008F8F4(s32 arg0, u16 arg1, u16 arg2, u16 arg3, u16 arg4, u8 arg5, u8 arg6);
-extern void *func_8008AC00(s32 arg0);
+extern void *BattleAllocTextBuffer(s32 arg0);
 extern u8 D_800D36C0[];
 extern u8 D_800D36C8[];
 extern u8 *D_800D2E38[];
@@ -210,7 +210,7 @@ void func_80076EA4(void) {
     h = 0xD;
     off = 0x2C;
     for (; i < 11; i++) {
-        pBuf[i] = func_8008AC00(0x1B);
+        pBuf[i] = BattleAllocTextBuffer(0x1B);
         bzero(pBuf[i], 0x30C);
         D_800D2F3C[off] = SystemRenderStringEntry(GetStringEntryFromBank12(i + 0xA), pBuf[i], 0x1B, 0);
         result = SystemRenderStringEntry(GetStringEntryFromBank12(i + 0x15), pBuf[i], 0x1B, 1);
@@ -224,7 +224,7 @@ void func_80076EA4(void) {
         rect.y = y;
         rect.w = 0x1E;
         rect.h = 0xD;
-        func_800769E8(&rect, pBuf[i]);
+        BattleLoadImageAndSync(&rect, pBuf[i]);
         y += 0xD;
         h += 0xD;
         off += 4;
@@ -238,7 +238,7 @@ void func_80076EA4(void) {
         rect.y = 0x100;
         rect.w = 6;
         rect.h = 0xD;
-        func_800769E8(&rect, *(u8 **)((u8 *)D_800C3E5C + off2));
+        BattleLoadImageAndSync(&rect, *(u8 **)((u8 *)D_800C3E5C + off2));
         off2 += 4;
     }
 }
@@ -317,7 +317,7 @@ void BattleInitSlotPrims(u8 index) {
 }
 
 void BattleAllocPacketPrimitives(void) {
-    u8 *p = (u8 *)func_8008ABB8(0x670, 0);
+    u8 *p = (u8 *)BattleAllocHeapBlock(0x670, 0);
 
     *(u8 **)(D_800C3EA4 + 0xA230) = p;
     bzero(p, 0x670);
@@ -325,7 +325,7 @@ void BattleAllocPacketPrimitives(void) {
 }
 
 void BattleFreePacketPrimitives(void) {
-    func_800716D8();
+    BattleUpdateFrame();
     HeapFree(*(u8 **)(D_800C3EA4 + 0xA230));
 }
 
@@ -402,7 +402,7 @@ void func_8007819C(void) {
     func_8008F8F4(4, 0x20, 0xC8, 0xF4, 0x12, 0, 0);
     D_800D2D28[0xB4] = 0;
     for (i = 0; i < 8; i += 2) {
-        pBuf = func_8008AC00(0x39);
+        pBuf = BattleAllocTextBuffer(0x39);
         *(u8 **)(D_800D36C0 + i * 0x60 + 0x60) = pBuf;
         *(u8 **)(D_800D3720 + i * 0x60 + 0x60) = pBuf;
         pRect = (RECT *)(D_800D3718 + i * 0x60);
@@ -515,7 +515,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_800785D4);
                SystemRenderStringEntry(GetStringEntry(D_800C3DDC, D_800D2E5F[index * 8]),
                                        *(u8 **)((u8 *)&D_800D3720 + D_800C3E8C * 0x60), 0x39,
                                        D_800C3E8C & 1);
-           func_800769E8((RECT *)((u8 *)&D_800D3718 + D_800C3E8C * 0x60),
+           BattleLoadImageAndSync((RECT *)((u8 *)&D_800D3718 + D_800C3E8C * 0x60),
                          *(u_long **)((u8 *)&D_800D3720 + D_800C3E8C * 0x60));
            D_800C400B[D_800C3EAC[0x2DA] * 0x48] = color;
            D_800C402F[D_800C3EAC[0x2DA] * 0x48] = 0xFA;

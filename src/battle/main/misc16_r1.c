@@ -22,18 +22,18 @@ extern u8 D_800D2F81;
 extern u8 D_800D2F82;
 extern u8 D_800D2F83;
 
-extern void func_800716D8(void);
+extern void BattleUpdateFrame(void);
 extern void HeapFree(void *pMem);
 extern void func_8008FC1C(s32, s32, s32, s32, u8);
-extern s32 func_80076A10(s32, s32, s16, s16);
+extern s32 BattleDrawSpritePackage(s32, s32, s16, s16);
 extern void BattleSetPolyFT4RectH13(POLY_FT4 *p, s16 x, s16 y, u8 u, u8 v, s16 dx);
-extern void func_800769E8(RECT *pRect, u_long *pData);
-extern void *func_8008AC00(s32);
+extern void BattleLoadImageAndSync(RECT *pRect, u_long *pData);
+extern void *BattleAllocTextBuffer(s32);
 extern void bzero(void *p, s32 n);
 extern u8 *GetStringEntry(u8 *, s32);
 extern s32 SystemRenderStringEntry(u8 *, void *, s32, s32);
 extern u8 D_800C3D70[];
-extern void *func_8008ABB8(s32, s32);
+extern void *BattleAllocHeapBlock(s32, s32);
 extern void BattleInitSlotPrims(s32);
 extern void func_8008F6E4(u8, s32, s32, s32, s32);
 extern void func_8008DC34(u8, s32, s32, s32, u16);
@@ -59,9 +59,9 @@ extern u8 D_800CCD62[];
 extern u8 D_800D2D24[];
 extern s32 BattleMaskHasStatusBit(s32, u8);
 extern u8 func_80085084(u16, u8, s32);
-extern void func_8008CCCC(u8);
+extern void BattleClearPrimFlagsThreeSlots(u8);
 extern void func_8008CD28(u8);
-extern void func_8008AA74(u8);
+extern void BattlePlaySoundIfEnabled(u8);
 extern void BattleSetPolyFT4Rect(POLY_FT4 *, s16, s16, u8, u8, s16, s16);
 
 
@@ -72,7 +72,7 @@ void func_8008FA60(u8 arg0) {
     p[0xB0] = 0;
     p = D_800D2D28 + arg0;
     p[0xB8] = 0;
-    func_800716D8();
+    BattleUpdateFrame();
     HeapFree(D_800D2E38[arg0]);
     HeapFree(D_800D2D90[arg0]);
 }

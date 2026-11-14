@@ -38,12 +38,12 @@ void func_8009187C(u8, u8, u8);
 void func_80091B38(u8, u8, u8);
 void func_80093578(u8, u8);
 void func_8009382C(u8, u8);
-s32 func_80076A10(s32, u8 *, s32, s16);
+s32 BattleDrawSpritePackage(s32, u8 *, s32, s16);
 s32 BattleMaskHasStatusBit(s32, u8);
-extern void *func_8008AC00(s32);
+extern void *BattleAllocTextBuffer(s32);
 extern u8 *GetStringEntry(u8 *, s32);
 extern s32 SystemRenderStringEntry(u8 *, void *, s32, s32);
-extern void func_800769E8(RECT *, u_long *);
+extern void BattleLoadImageAndSync(RECT *, u_long *);
 extern u8 *D_800C3DE8;
 extern u8 D_800CCD88[];
 
@@ -65,7 +65,7 @@ void func_80091604(s16 arg0) {
 
     *(s32 *)(D_800D2D28 + 0xF8) = 0;
     for (i = 0, offset = 0x38; i < 8; i++, offset += 8) {
-        *(s32 *)(D_800D2D28 + 0xF8) += func_80076A10(0x66,
+        *(s32 *)(D_800D2D28 + 0xF8) += BattleDrawSpritePackage(0x66,
             D_800C3EA4 + 0xBA8 + *(s32 *)(D_800D2D28 + 0xF8) * 80, 0x20,
             (s16)(offset + arg0));
     }
@@ -139,7 +139,7 @@ void func_80091B38(u8 arg0, u8 arg1, u8 arg2) {
     } else {
         index = g_GameState.characters[D_800D2D24[arg0]].gearId * 0x20 + (arg2 * 2 + arg1) * 2;
     }
-    pBuf = (u8 *)func_8008AC00(0x39);
+    pBuf = (u8 *)BattleAllocTextBuffer(0x39);
     bzero(pBuf, 0x618);
     len1 = SystemRenderStringEntry(GetStringEntry(D_800D367C, index), pBuf, 0x39, 0);
     len2 = SystemRenderStringEntry(GetStringEntry(D_800D367C, index | 1), pBuf, 0x39, 1);
@@ -147,7 +147,7 @@ void func_80091B38(u8 arg0, u8 arg1, u8 arg2) {
     rect.y = 0;
     rect.w = 0x3C;
     rect.h = 0xD;
-    func_800769E8(&rect, pBuf);
+    BattleLoadImageAndSync(&rect, pBuf);
     BattleSetPolyFT4RectH13((POLY_FT4 *)(*(u8 **)(D_800C3EA4 + 0xA230) + D_800CCB34 * 0x28 + 0x280), 0x30, 0xB6, 0, 0, len1 & 0xFF);
     BattleSetPolyFT4RectH13((POLY_FT4 *)(*(u8 **)(D_800C3EA4 + 0xA230) + D_800CCB34 * 0x28 + 0x2D0), 0x30, 0xC6, 0, 0, len2 & 0xFF);
     HeapFree(pBuf);
@@ -230,7 +230,7 @@ void func_8009382C(u8 arg0, u8 arg1) {
     s32 len2;
 
     index = (D_800CCD88[arg0 * 0x170] * 4 + arg1) * 2;
-    pBuf = (u8 *)func_8008AC00(0x39);
+    pBuf = (u8 *)BattleAllocTextBuffer(0x39);
     bzero(pBuf, 0x618);
     len1 = SystemRenderStringEntry(GetStringEntry(D_800C3DE8, index), pBuf, 0x39, 0);
     len2 = SystemRenderStringEntry(GetStringEntry(D_800C3DE8, index | 1), pBuf, 0x39, 1);
@@ -238,7 +238,7 @@ void func_8009382C(u8 arg0, u8 arg1) {
     rect.y = 0;
     rect.w = 0x3C;
     rect.h = 0xD;
-    func_800769E8(&rect, pBuf);
+    BattleLoadImageAndSync(&rect, pBuf);
     BattleSetPolyFT4RectH13((POLY_FT4 *)(*(u8 **)(D_800C3EA4 + 0xA230) + D_800CCB34 * 0x28 + 0x280),
                   0x88, 0xB6, 0, 0, len1 & 0xFF);
     BattleSetPolyFT4RectH13((POLY_FT4 *)(*(u8 **)(D_800C3EA4 + 0xA230) + D_800CCB34 * 0x28 + 0x2D0),

@@ -11,7 +11,7 @@ extern u_char ArchiveCdSetMode(u_char mode);
 extern u32 ArchiveGetDebugTable(void);
 extern void func_8002A498(int mode);
 
-void func_801E64E0(void);
+void MenuClearGlyphTexture(void);
 void func_801E6668(s32 arg0);
 void func_801E76EC(s32 arg0);
 void func_801E7C50(MenuString* pStringList, s32 index, s32 yOffset, s32 flags);
@@ -21,7 +21,7 @@ extern u16 g_SystemPalette2;
 void func_801E7E68(MenuString* pStringList, u_char* pStringIdList, s32 yOffset, s32 count);
 void func_801E61B0(void);
 void func_801E68AC(u8* pEntry);
-void func_801E6AE8(u8 index, u8* pEntry);
+void MenuDrawSlotSprite(u8 index, u8* pEntry);
 void func_801E6B70(u8 index, u8* pEntry);
 void func_801E6CFC(u8 index, u8* pEntry);
 void func_801E6F5C(u8 index, u8* pEntry);
@@ -171,7 +171,7 @@ void func_801E76EC(s32 arg0) {
     for (; i < 3; i++) {
         if (*(pEntry + i + 0x1C) != 0xFF) {
             *(u8*)((u8*)g_Menu->unk34C + offset + 0x1310) = 1;
-            func_801E6AE8(i, pEntry);
+            MenuDrawSlotSprite(i, pEntry);
             func_801E6B70(i, pEntry);
             func_801E6CFC(i, pEntry);
             func_801E6F5C(i, pEntry);
@@ -188,7 +188,7 @@ void func_801E76EC(s32 arg0) {
 */
 
 void MenuUpdateCharacterWindow(s32 arg0, u_char arg1) {
-    func_801E64E0();
+    MenuClearGlyphTexture();
     if (arg0 != 0xFF) {
         if (arg1 != 0) {
             func_801E76EC(arg0);
