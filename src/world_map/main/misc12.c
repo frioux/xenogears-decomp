@@ -298,6 +298,19 @@ void WorldMapUpdateL2R2PressEdge(void) {
     D_8009C7E8 = state;
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_80090A84);
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_80090C68);
+/* best: 99.91%, same 428/416-byte size and every instruction identical; only the
+   switch table operand differs (jtbl_ vs .rodata) plus the .L label relocs.
+   PARKED FOR A LAYOUT REASON, not a codegen one: gcc emits the C jump table
+   8-byte aligned, so it lands at .rodata+0x190 where retail packs it at
+   .rodata+0x18C (4 bytes of pad at 0x18C), which shifts all of
+   world_map.bin by 4 and fails check_bin. The tables before it belong to
+   the BLOCKED stubs (func_8008E190/8008E4F4/8008E76C/80090A84), so the unit
+   cannot be re-laid-out for one function: converting the whole switch family
+   of this unit at once is the way in. diff_func.sh says 99.9%, the bytes
+   match, and unk48 must be s16 (rcos argument reads lh) and D_8009BD3A u16
+   (lhu in every case body).
+
 s32 func_80090C68(WorldMapPlayer *pPlayer) {
     switch (D_8009CD4C >> 12) {
     case 1:
@@ -345,6 +358,20 @@ s32 func_80090C68(WorldMapPlayer *pPlayer) {
     WorldMapUpdateL2R2PressEdge();
     return 0;
 }
+*/
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_80090E14);
+/* best: 99.90%, same 428/416-byte size and every instruction identical; only the
+   switch table operand differs (jtbl_ vs .rodata) plus the .L label relocs.
+   PARKED FOR A LAYOUT REASON, not a codegen one: gcc emits the C jump table
+   8-byte aligned, so it lands at .rodata+0x190 where retail packs it at
+   .rodata+0x18C (4 bytes of pad at 0x18C), which shifts all of
+   world_map.bin by 4 and fails check_bin. The tables before it belong to
+   the BLOCKED stubs (func_8008E190/8008E4F4/8008E76C/80090A84), so the unit
+   cannot be re-laid-out for one function: converting the whole switch family
+   of this unit at once is the way in. diff_func.sh says 99.9%, the bytes
+   match, and unk48 must be s16 (rcos argument reads lh) and D_8009BD3A u16
+   (lhu in every case body).
+
 s32 func_80090E14(WorldMapPlayer *pPlayer) {
     switch (D_8009CD4C >> 12) {
     case 1:
@@ -391,6 +418,7 @@ s32 func_80090E14(WorldMapPlayer *pPlayer) {
     }
     return 0;
 }
+*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_80090FB4);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_80091430);
 /* best: 88.22%. Retail has TWO accesses to D_8009BD3A (sh from an lhu'd
