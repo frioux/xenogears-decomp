@@ -44,16 +44,6 @@ void MenuSwapInventoryItems(s32 index0, s32 index1) {
     g_GameState.itemQuantities[index1] = tmp;
 }
 
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DBDB4);
-/* Best: 94.47% (gcc-2.6.0, the unit preset). Only difference: gcc turns this
-   counted loop into a countdown (li a0,0x95 / addiu -1 / bgez) while retail
-   keeps slti a0,0x96 / bnez. Swept gcc 2.6.0/2.7.2/2.7.2-cdk x -O1..-O3 x
-   -G4/-G8/-G0 x 3000/r8000: every combination gives 94.47 or less, so no preset
-   produces the slti shape. `while`/`do-while`/`for`, count++ before or after the
-   if, count++ at the top of the body, `0x96 > count` all identical. `last` is
-   genuinely uninitialised in retail (a1 is never set up front). Shape below
-   reproduces retail's increment placement exactly (count++ in the beqz delay
-   slot, index++ in the bnez delay slot).
 void func_801DBDB4(void) {
     s32 count;
     s32 index;
@@ -67,6 +57,8 @@ void func_801DBDB4(void) {
         }
         count++;
         index++;
+        do {
+        } while (0);
     }
 
     if (last < 0x10) {
@@ -82,7 +74,6 @@ void func_801DBDB4(void) {
         D_801EA72C = q;
     }
 }
-*/
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DBE54);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DC1D4);
