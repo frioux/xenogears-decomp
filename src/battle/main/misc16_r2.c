@@ -390,50 +390,24 @@ void func_80090C44(u8 arg0) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16_r2", func_80090C44);
-/* 64.78%: call/arg order, the four u16 hdr[] stack slots and the
-   (arg1+0x25)*0x28 + arg0*0x690 / arg0*0x170 index chains are right (those two
-   strided tables are why the byte-offset `*(u16 *)(SYM + ofs)` shape works).
-   Remaining gap: the original keeps `&D_800CCB34` in s0 (`lui/addiu` once,
-   `lw v1,0(s0)` at each of the 5 uses) and holds the incoming arg0 in s1; gcc
-   2.7.2 emits a fresh `lui/lw` pair per use instead (0x20 frame here vs 0x28)
-   and puts arg0 in s0. A `u8 *pPal = (u8 *)&D_800CCB34;` local plus
-   `*(s32 *)pPal` gets the `la` form only once and re-materialises it after each
-   call. Same wall as func_80090C44/func_8009023C/func_80090310; gcc 2.6.0
-   scores the same 64.43, so it is not the compiler version.
-void func_80090E7C(s32 arg0) {
-    u8 *pBase;
-    u8 *pPal;
-    s32 ofs;
-    u16 pal;
-
-    pPal = (u8 *)&D_800CCB34;
-    pBase = *(u8 **)(D_800C3EA4 + 0xA230);
-    ofs = *(s32 *)pPal * 0x28;
-    func_80076C78((POLY_FT4 *)((ofs + 0x3C0) + (s32)pBase), 0xA8, 0xA6, D_800D2F82, D_800D2F83, D_800D2F80);
-    ofs = *(s32 *)pPal * 0x28;
-    pBase = *(u8 **)(D_800C3EA4 + 0xA230);
-    if (D_800D2F81 != 0) {
-        pal = g_SystemPalette2;
-    } else {
-        pal = g_SystemPalette1;
-    }
-    *(u16 *)(pBase + ofs + 0x3CE) = pal;
-    ofs = *(s32 *)pPal * 0x28;
-    pBase = *(u8 **)(D_800C3EA4 + 0xA230);
-    func_80076C78((POLY_FT4 *)((ofs + 0x410) + (s32)pBase), 0xEC, 0xC6, D_800D2F7E, D_800D2F7F, D_800D2F7C);
-    ofs = *(s32 *)pPal * 0x28;
-    pBase = *(u8 **)(D_800C3EA4 + 0xA230);
-    if (D_800D2F7D != 0) {
-        pal = g_SystemPalette2;
-    } else {
-        pal = g_SystemPalette1;
-    }
-    *(u16 *)(pBase + ofs + 0x41E) = pal;
-    func_80090C44(arg0);
-    pBase = *(u8 **)(D_800C3EA4 + 0xA230);
-    func_80076A10(0x71, (s32)pBase + 0x5A0, 0x118, 0xD1);
-    pBase = *(u8 **)(D_800C3EA4 + 0xA230);
-    pBase[0x66C] = *(u8 *)&D_800CCB34;
-}
-*/
+/* 64.02% (round 36 parked this function at 64.78 with a u8 *pPal form):
+   the four draw/palette blocks, the branch/join palette picks, the
+   func_80090C44(arg0) call in the last store's delay slot and the trailing
+   direct `lbu D_800CCB34` all have retail's shape. The gap is the mode read:
+   retail materialises `lui s0,%hi; addiu s0,s0,%lo D_800CCB34` once and does
+   `lw t0,0(s0)` at each of the 4 uses; gcc 2.7.2 copy-propagates the pointer
+   initialiser into the loads and emits `lw D_800CCB34` (lui+lw, 2 insns) at 3
+   of them, keeping the `la` only for the one use it cannot fold. Four source
+   variants compiled to the same instruction stream: `s32 *pMode =
+   &D_800CCB34` + `*pMode`, `u8 *pPal = (u8 *)&D_800CCB34` + casts,
+   `volatile s32 *pMode`, and pBase-before-ofs vs ofs-before-pBase ordering.
+   So the round-37 note that such a local reproduces retail's `la` + `lw 0(sN)`
+   does not hold for straight-line code: every `la $sN,glob` + `lw 0($sN)` in
+   build/src sits on a LOOP-INVARIANT address (battle/misc22 func_800A4820,
+   shop_menu ShopMenuUpdateBuyMenuExplanationGraphics, system/temp3, field
+   misc/misc2/misc5). Also left: retail adds the constant to the PRODUCT
+   (`sll/addu/sll; addiu a0,a0,0x3C0; addu a0,a0,t1`) where ours forms
+   `pBase+0x3C0` first and adds the product -- probably a side effect of the
+   same propagation, since func_8009070C's identical `ofs = idx*0x28 + K`
+   phrasing matches in this unit. gcc-2.7.2-cdk compile-fails on this unit (mixed declarations).  */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16_r2", func_80090E7C);
