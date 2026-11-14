@@ -672,6 +672,13 @@ typedef struct {
     /* 0x13 */ u8 unk13;
 } SystemMenuArchiveData; /* size: 0x14 */
 
+// Play time display prims, allocated in misc1: 11 slots of one prim per render context.
+typedef struct {
+    /* 0x000 */ POLY_FT4 polys[11][2];
+    /* 0x370 */ u_char renderContext;
+    /* 0x371 */ u8 _pad371[0x3];
+} MenuPlayTimeDigits; // Size: 0x374
+
 typedef struct {
     /* 0x0    */ u8 unk0[108];
     /* 0x6C   */ GfxEnvironment gfxEnvs[2];
@@ -715,7 +722,7 @@ typedef struct {
     /* 0x2E0  */ void* unk2E0; // Pointer to resources (bin 3)
     /* 0x2E4  */ SoundFile* unk2E4; // Pointer to SEDS file
     /* 0x2E8  */ undefined32 unk2E8;
-    /* 0x2EC  */ u8 unk2EC[0x1C];
+    /* 0x2EC  */ s32 unk2EC[7]; // Texture ids of the play time digits
     /* 0x308  */ int renderContext;
     /* 0x30C  */ u_char availableCharacters[0x10];
     /* 0x31C  */ u_char digits[0x9]; // Buffer for numbers parsed into a string
@@ -738,7 +745,7 @@ typedef struct {
     /* 0x33B  */ u8 unk33B;
     /* 0x33C */ MenuManager* pManager;
     /* 0x340  */ void* unk340;
-    /* 0x344  */ void* unk344;
+    /* 0x344  */ MenuPlayTimeDigits* unk344;
     /* 0x348  */ MenuUnk1* unk348;
     /* 0x34C  */ void* unk34C;
     /* 0x350  */ MenuSelectionMenu* pSelectionMenu;
