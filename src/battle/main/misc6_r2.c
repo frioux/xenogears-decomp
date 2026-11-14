@@ -3,7 +3,7 @@
 extern u8 D_800D3420[];
 extern u8 D_800D3430[];
 
-void func_8007AE38(u8 **p, u8 index) {
+void BattleByteRegAddClamp(u8 **p, u8 index) {
     u8 *pTable = D_800D3430 + index * 0x40;
     u8 *pArgs = *p;
     s32 value = pTable[pArgs[1]] + pTable[pArgs[2]];
@@ -14,7 +14,7 @@ void func_8007AE38(u8 **p, u8 index) {
     }
     pTable[pArgs[3]] = result;
 }
-void func_8007AE98(u8 **p, u8 index) {
+void BattleByteRegSubClamp(u8 **p, u8 index) {
     u8 *pTable = D_800D3430 + index * 0x40;
     u8 *pArgs = *p;
     s32 value = pTable[pArgs[1]] - pTable[pArgs[2]];

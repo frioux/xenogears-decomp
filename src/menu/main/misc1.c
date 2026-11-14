@@ -8,14 +8,14 @@ extern u_char D_801EA524[]; // String IDs of the menu strings
 void func_801E7E68(MenuString* pStringList, u_char* pStringIdList, s32 yOffset, s32 count);
 
 void func_801C531C(u_char arg0);
-void func_801C7BF4(void);
-void func_801C8694(u_char arg0);
+void MenuRenderFrame(void);
+void MenuWaitForDiscChange(u_char arg0);
 s32 func_801CACF8(u_char a0, u_char a1, u_char a2);
 void func_801D1E80(void);
 void func_801D22F4(s32 arg0);
 void func_801D2484(void);
 void func_801D2D38(void);
-void func_801C7B0C(void);
+void MenuSetupScreen(void);
 extern int ArchiveDecodeAlignedSize(unsigned int entryIndex);
 extern void ArchiveCdDataSync(int mode);
 extern void ArchiveReadFileToBuffer(s32 index, void* pBuffer, u32 arg2, u32 flags);
@@ -39,7 +39,7 @@ void func_801C57A4(void) {
     func_801D1E80();
     shouldReset = 1;
     while (g_Menu->transitionEffectState != 0) {
-        func_801C7BF4();
+        MenuRenderFrame();
     }
     func_801D22F4(0);
     if ((u_char)func_801CACF8(0x7D, 0xFF, 1) != 0 || D_801EA8FC != 0) {
@@ -57,7 +57,7 @@ void func_801C57A4(void) {
     }
     g_Menu->pManager->unk4 = 0;
     g_Menu->pManager->unk3 = 0;
-    func_801C8694(D_80059171);
+    MenuWaitForDiscChange(D_80059171);
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc1", func_801C58EC);
 
@@ -172,7 +172,7 @@ void func_801C5F10(void) {
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc1", func_801C5FE4);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc1", func_801C62A8);
 
-/* Best: 92.33% - only the placement of the two func_801C8694 call blocks differs: the
+/* Best: 92.33% - only the placement of the two MenuWaitForDiscChange call blocks differs: the
    original lays the outer test's then-block out of line (beqz $v0 -> call block) and
    falls through to the second test, then to a "j end".  Tried: else-if, `!=`/else
    (87.67%), 2-way switch with default (92.33%), early break + separate if (92.33%),
@@ -182,7 +182,7 @@ void func_801C62A8(void) {
     u8 menuIndex;
 
     func_801C5F10();
-    func_801C7B0C();
+    MenuSetupScreen();
     g_Menu->shouldDrawMenu = 1;
     g_Menu->unk32A = 1;
     menuIndex = D_80059460;
@@ -198,9 +198,9 @@ void func_801C62A8(void) {
             g_Menu->pManager->unk4 = 0;
             g_Menu->pManager->unk3 = 0;
             if (D_800594D0 == 0) {
-                func_801C8694(0);
+                MenuWaitForDiscChange(0);
             } else if (D_800594D0 == menuIndex) {
-                func_801C8694(((u8*)g_GameState.unk1930)[0xA4]);
+                MenuWaitForDiscChange(((u8*)g_GameState.unk1930)[0xA4]);
             }
             break;
         case 6:

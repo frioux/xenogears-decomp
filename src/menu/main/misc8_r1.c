@@ -42,15 +42,15 @@ void func_801E64E0(void);
 void func_801E5B3C(void);
 void func_801E649C(void);
 void Vsync(s32 mode);
-void func_801C8960(void);
-void func_801C7BF4(void);
+void MenuCloseCardEvents(void);
+void MenuRenderFrame(void);
 u_char func_801C93A8(void);
 void func_801D2F4C(s32 arg0);
 void func_801D32B4(void);
 void func_801E8EAC(POLY_FT4* pPoly, u_char mode);
 void func_801E8F60(s32 mode, u_char index);
 s32 func_8002675C(MenuResourceDirectory* pDir, u32 index, POLY_FT4* pPrims, s32 context, s32 x, s32 y, s32 scale);
-void func_801C851C(SVECTOR* pVertices, u16 x, u16 y, u16 width, u16 height);
+void MenuSetQuadVertices(SVECTOR* pVertices, u16 x, u16 y, u16 width, u16 height);
 void func_801E91C4(P_TAG* pTag);
 
 s32 func_801D9C84(void) {
@@ -59,10 +59,10 @@ s32 func_801D9C84(void) {
 
     func_801D2F4C(0x20);
     g_Menu->pManager->_pad33 = 1;
-    for (; g_Menu->transitionEffectState != 0; func_801C7BF4()) {
+    for (; g_Menu->transitionEffectState != 0; MenuRenderFrame()) {
     }
     g_Menu->menuUnk2->unk4FE7[0] = 1;
-    func_801C7BF4();
+    MenuRenderFrame();
     func_801D9B08();
     DrawSync(0);
     Vsync(0);
@@ -78,8 +78,8 @@ s32 func_801D9C84(void) {
     g_Menu->menuUnk2->unk4F84[5] = 0;
     g_Menu->menuUnk2->unk4FE6 = 2;
     g_Menu->unk326 = 0x3C;
-    func_801C7BF4();
-    func_801C7BF4();
+    MenuRenderFrame();
+    MenuRenderFrame();
     if (func_801C93A8() == 0) {
         result = 0;
         if (g_Menu->pManager->_pad33 != 0) {

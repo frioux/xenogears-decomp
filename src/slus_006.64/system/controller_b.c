@@ -69,7 +69,7 @@ void func_80035E44(void) {
         D_800501F8 = 1;
 }
 
-void func_80035F1C(RECT* pRect, char* pPath) {
+void ControllerDumpVramToTim(RECT* pRect, char* pPath) {
     TimHeader header;
     int fd;
 
@@ -212,7 +212,7 @@ void func_8003633C(u_char value) {
     D_8005938C = value;
 }
 
-void func_8003634C(void) {
+void ControllerUpdate(void) {
     s32 pad[10]; // unused: reproduces the original's 0x40-byte frame
     D_80059488++;
     ControllerPoll();
@@ -225,11 +225,11 @@ void func_8003634C(void) {
         asm("break 0x400");
 }
 
-void func_800363E0(int value) {
+void ControllerSetDebugBreak(int value) {
     D_80059390 = value;
 }
 
-void func_800363F0(int value) {
+void ControllerSetFrameCallback(int value) {
     D_800501FC = value;
 }
 
@@ -237,7 +237,7 @@ void func_80036400(int value) {
     D_80050200 = value;
 }
 
-int func_80036410(void) {
+int ControllerIsStateStackFull(void) {
     return g_ControllerIsStateStackFull;
 }
 

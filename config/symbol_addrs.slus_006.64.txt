@@ -1022,7 +1022,7 @@ func_800379D8 = 0x800379D8;
 
 // system/controller_b
 func_80035E44 = 0x80035E44;
-func_80035F1C = 0x80035F1C;
+ControllerDumpVramToTim = 0x80035F1C;
 func_80035FF8 = 0x80035FF8;
 func_8003611C = 0x8003611C;
 func_80036188 = 0x80036188;
@@ -1030,11 +1030,11 @@ func_80036220 = 0x80036220;
 func_80036258 = 0x80036258;
 func_80036270 = 0x80036270;
 func_8003633C = 0x8003633C;
-func_8003634C = 0x8003634C;
-func_800363E0 = 0x800363E0;
-func_800363F0 = 0x800363F0;
+ControllerUpdate = 0x8003634C;
+ControllerSetDebugBreak = 0x800363E0;
+ControllerSetFrameCallback = 0x800363F0;
 func_80036400 = 0x80036400;
-func_80036410 = 0x80036410;
+ControllerIsStateStackFull = 0x80036410;
 
 // system/controller_c
 func_80036420 = 0x80036420;

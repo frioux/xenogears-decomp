@@ -14,7 +14,7 @@ extern u16 D_801EA72C;
 extern u8 D_801E9EA0[];
 
 void func_801DDF24(u_char arg0, u_char arg1, s32 arg2);
-void func_801C7BF4(void);
+void MenuRenderFrame(void);
 void func_801D2484(void);
 void func_801D4EA0(s32 arg0);
 void func_801C72BC(s32 arg0);
@@ -130,7 +130,7 @@ void func_801DC2CC(u_char arg0) {
     func_801D4EA0(6);
     func_801D2484();
     g_Menu->pManager->unk4A[0] = 0;
-    func_801C7BF4();
+    MenuRenderFrame();
     switch (arg0 & 0xFF) {
     case 0:
         kind = 2;
@@ -210,7 +210,7 @@ void func_801DE36C(void) {
     func_801D4EA0(3);
     func_801D4EA0(4);
     func_801D4EA0(5);
-    func_801C7BF4();
+    MenuRenderFrame();
     func_801E8044(6, &g_Menu->pManager->unk38[8]);
     func_801C72BC(0x17);
     HeapFree(g_Menu->unk434);
@@ -220,7 +220,7 @@ void func_801DE36C(void) {
 void func_801DE400(void) {
     g_Menu->pManager->unk5[3] = 0;
     g_Menu->pManager->unk4A[1] = 0;
-    func_801C7BF4();
+    MenuRenderFrame();
     HeapFree(g_Menu->unk35C);
     HeapFree(g_Menu->unk360);
 }

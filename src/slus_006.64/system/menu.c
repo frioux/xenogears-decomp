@@ -76,7 +76,7 @@ void func_8001BEEC(void) {
 
 void MenuProcessControllerInput(void) {
     u_char input = MENU_INPUT_IDLE;
-    if (func_80036410() != 0) {
+    if (ControllerIsStateStackFull() != 0) {
         ControllerResetState();
         g_Menu->input = input;
         return;

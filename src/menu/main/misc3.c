@@ -16,7 +16,7 @@ extern u_char func_801CAA38(u_char);
 extern int func_801D32B4(void);
 extern void func_801CB184(void);
 extern int func_801C8D78(u_char);
-extern void func_801C7BF4(void);
+extern void MenuRenderFrame(void);
 extern u_char func_801CACF8(u_char, u_char, u_char);
 extern void func_80033B34(u16* pInput, u8* pOutput, int count);
 
@@ -358,7 +358,7 @@ u_char func_801CB8AC(u_char a0) {
     result = 0;
     changed = 0;
     while (g_Menu->input == 8) {
-        func_801C7BF4();
+        MenuRenderFrame();
         pMenu = g_Menu->menuUnk2;
         if (prev[0] != pMenu->unk4FE4 || prev[1] != pMenu->unk4FE5) {
             changed = 1;

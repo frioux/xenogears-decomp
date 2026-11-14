@@ -207,7 +207,7 @@ void func_8007C9D4(u8 **arg0, u8 arg1) {
     }
 }
 */
-void func_8007CB20(u8 **arg0, u8 arg1) {
+void BattlePickSlotByFlagTable(u8 **arg0, u8 arg1) {
     u8 buf[8];
     s32 i = 3;
     s32 count = 0;
@@ -339,14 +339,14 @@ void func_8007D0CC(u8 **arg0, u8 arg1) {
     }
 }
 */
-void func_8007D148(u8 **arg0, u8 *arg1, u8 arg2, u8 arg3) {
+void BattleWriteRowFieldBytes(u8 **arg0, u8 *arg1, u8 arg2, u8 arg3) {
     u16 *pField = (u16 *)(D_800D3420 + arg2 * 0x40);
     u16 value = pField[(*arg0)[2]];
 
     arg1[arg3 * 8 + (*arg0)[1]] = value;
     *(arg1 + (arg3 * 8 + (*arg0)[1]) + 1) = value >> 8;
 }
-void func_8007D1A8(u8 **arg0, u8 arg1) {
+void BattleStoreGoldWord32(u8 **arg0, u8 arg1) {
     u32 *pRow = (u32 *)(D_800D3410 + arg1 * 0x40);
     u8 *p = *arg0;
 
@@ -377,7 +377,7 @@ void func_8007D1DC(u8 **arg0, u8 arg1) {
         pRow[index] = result;
     }
 }
-void func_8007D30C(u8 **arg0, u8 arg1) {
+void BattleStoreStatWord32(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
     u32 *pRow = (u32 *)(D_800D3410 + arg1 * 0x40);
 

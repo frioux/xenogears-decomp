@@ -13,16 +13,16 @@ extern s32 D_801E9768[]; // Card result to error code
 extern u8 D_801E9779;
 extern u8 D_80059460; // Index of the menu overlay the menu was entered with
 
-s32 func_801C881C(void);
+s32 MenuWaitForCardEvent(void);
 extern void func_80039DB8(s32 arg0);
 extern int Vsync(int mode);
 
 void func_801C8A10(s32 arg0);
-extern void func_801C7D78(void);
+extern void MenuPollInput(void);
 extern void func_801D1D40(void);
 extern void func_801D2968(void);
 extern void func_801D1CA0(void);
-extern void func_801C8BEC(void);
+extern void MenuUpdateCardStatus(void);
 extern void func_801C8EE8(void);
 extern void func_8001BD40(s32 arg0, u8 arg1);
 extern void GameCheckAndHandleSoftReset(void);
@@ -35,7 +35,7 @@ extern int ControllerPopState(void);
 extern void ControllerResetState(void);
 extern void SoundEnableAllSpuChannels(void);
 extern void SoundMuteAllSpuChannels(void);
-extern int func_80036410(void);
+extern int ControllerIsStateStackFull(void);
 void func_801D1E80(void);
 void func_801D22F4(s32 arg0);
 void func_801D2484(void);
@@ -51,7 +51,7 @@ void func_801C6E0C(void);
 void func_801C6E68(void);
 void func_801C6F70(void);
 
-void func_801C7B0C(void) {
+void MenuSetupScreen(void) {
     g_Menu->pSelectionMenu->unk1180.x = 0x2C0;
     g_Menu->pSelectionMenu->unk1180.y = 0x100;
     g_Menu->pSelectionMenu->unk1180.w = 0x140;
@@ -73,7 +73,7 @@ void func_801C7B0C(void) {
         break;
     }
 }
-void func_801C7BF4(void) {
+void MenuRenderFrame(void) {
     GfxEnvironment* pNextGfxEnv;
     int renderContext;
 
@@ -82,7 +82,7 @@ void func_801C7BF4(void) {
         asm("break 0x400");
     }
 
-    func_801C7D78();
+    MenuPollInput();
 
     if (D_801E9784) {
         GameCheckAndHandleSoftReset();
@@ -99,7 +99,7 @@ void func_801C7BF4(void) {
     func_8001BD40(0, 0xFF);
     func_801D1D40();
     g_Menu->unk2D8++;
-    func_801C7F34(D_80059488);
+    MenuSetPlayTimeDigits(D_80059488);
     func_801D2968();
     func_801D1CA0();
     renderContext = g_Menu->renderContext == 0;
@@ -109,10 +109,10 @@ void func_801C7BF4(void) {
     PutDispEnv(&g_Menu->pGfxEnv->dispEnv);
     MoveImage(&g_Menu->pSelectionMenu->unk1180, 0, renderContext * 0xE0);
     DrawOTag(&g_Menu->pGfxEnv->ot[0xF]);
-    func_801C8BEC();
+    MenuUpdateCardStatus();
     func_801C8EE8();
 }
-void func_801C7D78(void) {
+void MenuPollInput(void) {
     u8 wasControllerUnplugged;
     u8 isLooping;
     s32 savedVolume;
@@ -139,38 +139,38 @@ void func_801C7D78(void) {
     }
 
     input = MENU_INPUT_IDLE;
-    if (func_80036410()) {
+    if (ControllerIsStateStackFull()) {
         ControllerResetState();
     } else {
         while (ControllerPopState()) {
             if (g_C1ButtonStatePressedOnce & CTRL_BTN_RIGHT) {
                 input = 0;
-                func_801C8574(1);
+                MenuPlaySoundEffect(1);
                 break;
             }
             if (g_C1ButtonStatePressedOnce & CTRL_BTN_DOWN) {
                 input = 1;
-                func_801C8574(1);
+                MenuPlaySoundEffect(1);
                 break;
             }
             if (g_C1ButtonStatePressedOnce & CTRL_BTN_LEFT) {
                 input = 2;
-                func_801C8574(1);
+                MenuPlaySoundEffect(1);
                 break;
             }
             if (g_C1ButtonStatePressedOnce & CTRL_BTN_UP) {
                 input = 3;
-                func_801C8574(1);
+                MenuPlaySoundEffect(1);
                 break;
             }
             if (g_C1ButtonStateReleased & CTRL_BTN_CIRCLE) {
                 input = 4;
-                func_801C8574(2);
+                MenuPlaySoundEffect(2);
                 break;
             }
             if (g_C1ButtonStateReleased & CTRL_BTN_CROSS) {
                 input = 5;
-                func_801C8574(3);
+                MenuPlaySoundEffect(3);
                 break;
             }
             if (g_C1ButtonStateReleased & CTRL_BTN_SQUARE) {
@@ -183,12 +183,12 @@ void func_801C7D78(void) {
             }
             if (g_C1ButtonStatePressedOnce & CTRL_BTN_L1) {
                 input = 10;
-                func_801C8574(1);
+                MenuPlaySoundEffect(1);
                 break;
             }
             if (g_C1ButtonStatePressedOnce & CTRL_BTN_R1) {
                 input = 9;
-                func_801C8574(1);
+                MenuPlaySoundEffect(1);
                 break;
             }
             if (g_C1ButtonStateReleased & CTRL_BTN_SELECT) {
@@ -199,7 +199,7 @@ void func_801C7D78(void) {
     }
     g_Menu->input = input;
 }
-void func_801C7F34(u32 value) {
+void MenuSetPlayTimeDigits(u32 value) {
     ((u32*)g_Menu->unk2EC)[0] = value / 21600000;
     value %= 21600000;
     ((u32*)g_Menu->unk2EC)[1] = value / 2160000;
@@ -214,7 +214,7 @@ void func_801C7F34(u32 value) {
     value %= 600;
     ((u32*)g_Menu->unk2EC)[6] = value / 60;
 }
-void func_801C80B8(u32 number) {
+void MenuParseNumberToDigits(u32 number) {
     s32 i;
     u32 divisor;
 
@@ -235,7 +235,7 @@ void func_801C80B8(u32 number) {
         g_Menu->digits[i - 1] = 0xFF;
     }
 }
-void func_801C8164(POLY_G4* pPoly, u_char r, u_char g, u_char b) {
+void MenuSetPolyG4Gradient(POLY_G4* pPoly, u_char r, u_char g, u_char b) {
     SetPolyG4(pPoly);
     pPoly->r0 = r;
     pPoly->g0 = g;
@@ -298,7 +298,7 @@ void func_801C81E0(s32 arg0, s32 arg1, s32 arg2, s32 arg3, u8 arg4, u8 index) {
 }
 */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc2", func_801C8324);
-void func_801C851C(SVECTOR* pVertices, u16 x, u16 y, u16 width, u16 height) {
+void MenuSetQuadVertices(SVECTOR* pVertices, u16 x, u16 y, u16 width, u16 height) {
     pVertices[0].vx = x + 0xFF60;
     pVertices[0].vy = y + 0xFF90;
     pVertices[0].vz = 0;
@@ -312,40 +312,40 @@ void func_801C851C(SVECTOR* pVertices, u16 x, u16 y, u16 width, u16 height) {
     pVertices[3].vy = y + height - 0x70;
     pVertices[3].vz = 0;
 }
-void func_801C8574(u_char soundEffectId) {
+void MenuPlaySoundEffect(u_char soundEffectId) {
     if (g_Menu->unk32A) {
         func_80039DB8((g_Menu->unk2E4->sedId << 16) | soundEffectId);
     }
 }
-u16 func_801C85C0(u8 index) {
+u16 MenuGetBitMaskMsbFirst(u8 index) {
     return D_801E96C8[index];
 }
-u16 func_801C85DC(u8 index) {
+u16 MenuGetBitMaskLsbFirst(u8 index) {
     return D_801E96A8[index];
 }
-u16 func_801C85F8(u8 index) {
+u16 MenuGetInvertedBitMaskMsbFirst(u8 index) {
     return ~D_801E96C8[index];
 }
-u16 func_801C861C(u8 index) {
+u16 MenuGetInvertedBitMaskLsbFirst(u8 index) {
     return ~D_801E96A8[index];
 }
-u32 func_801C8640(u32 mask, u8 index) {
+u32 MenuAndBitMaskMsbFirst(u32 mask, u8 index) {
     return D_801E96C8[index] & mask;
 }
-u32 func_801C865C(u32 mask, u8 index) {
+u32 MenuAndBitMaskLsbFirst(u32 mask, u8 index) {
     return D_801E96A8[index] & mask;
 }
-u32 func_801C8678(u32 mask, u8 index) {
+u32 MenuAndBitMaskLsbFirst32(u32 mask, u8 index) {
     return mask & D_801E96E8[index];
 }
-void func_801C8694(u8 index) {
+void MenuWaitForDiscChange(u8 index) {
     u_char flag;
     u_char counter;
 
     func_801D1E80();
     flag = 1;
     while (g_Menu->transitionEffectState) {
-        func_801C7BF4();
+        MenuRenderFrame();
     }
     func_801D22F4(0);
     while (flag) {
@@ -358,10 +358,10 @@ void func_801C8694(u8 index) {
                 func_801D32B4();
                 func_801D2F4C(0x89);
                 for (counter = 0x1D; counter != 0; counter--) {
-                    func_801C7BF4();
+                    MenuRenderFrame();
                 }
                 func_801D32B4();
-                func_801C7BF4();
+                MenuRenderFrame();
             } else {
                 func_801D32B4();
                 flag = 0;
@@ -370,40 +370,40 @@ void func_801C8694(u8 index) {
     }
     func_801D2484();
 }
-void func_801C87C4(void) {
+void MenuClearCardEvents(void) {
     UnDeliverEvent(0xF4000001, 0x4);
     UnDeliverEvent(0xF4000001, 0x8000);
     UnDeliverEvent(0xF4000001, 0x100);
     UnDeliverEvent(0xF4000001, 0x2000);
 }
-s32 func_801C881C(void) {
+s32 MenuWaitForCardEvent(void) {
     while (1) {
         if (TestEvent(((s32*)&g_Menu->menuUnk2->unk4FE4)[5]) == 1) {
-            func_801C87C4();
+            MenuClearCardEvents();
             return 3;
         }
         if (TestEvent(((s32*)&g_Menu->menuUnk2->unk4FE4)[3]) == 1) {
-            func_801C87C4();
+            MenuClearCardEvents();
             return 1;
         }
         if (TestEvent(((s32*)&g_Menu->menuUnk2->unk4FE4)[2]) == 1) {
-            func_801C87C4();
+            MenuClearCardEvents();
             return 0;
         }
         if (TestEvent(((s32*)&g_Menu->menuUnk2->unk4FE4)[4]) == 1) {
-            func_801C87C4();
+            MenuClearCardEvents();
             return 2;
         }
     }
 }
-s32 func_801C891C(long chan) {
+s32 MenuGetCardErrorCode(long chan) {
     if (_card_info(chan)) {
-        return D_801E9768[func_801C881C() & 0xFF];
+        return D_801E9768[MenuWaitForCardEvent() & 0xFF];
     }
     return -1;
 }
-void func_801C8960(void) {
-    func_801C7BF4();
+void MenuCloseCardEvents(void) {
+    MenuRenderFrame();
     EnterCriticalSection();
     CloseEvent(((s32*)&g_Menu->menuUnk2->unk4FE4)[2]);
     CloseEvent(((s32*)&g_Menu->menuUnk2->unk4FE4)[3]);
@@ -412,7 +412,7 @@ void func_801C8960(void) {
     ExitCriticalSection();
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc2", func_801C8A10);
-void func_801C8BEC(void) {
+void MenuUpdateCardStatus(void) {
     u_char count;
 
     if (g_Menu->menuUnk2->unk4FE6) {
@@ -427,18 +427,18 @@ void func_801C8BEC(void) {
         }
     }
 }
-void func_801C8CA4(u8 index) {
+void MenuWaitCardOperationFrames(u8 index) {
     s32 i;
 
     if (g_Menu->menuUnk2->unk4F74[index] != -2) {
         g_Menu->menuUnk2->unk4FE6 = 2;
         for (i = 0x3B; i != 0; i--) {
-            func_801C7BF4();
+            MenuRenderFrame();
         }
         g_Menu->menuUnk2->unk4FE6 = 0;
     }
 }
-void func_801C8D1C(u8 index) {
+void MenuWaitCardOperationVsyncs(u8 index) {
     s32 i;
 
     if (g_Menu->menuUnk2->unk4F74[index] != -2) {

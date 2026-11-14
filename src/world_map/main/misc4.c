@@ -121,7 +121,7 @@ extern void func_80086798(void);
 extern void func_800894C8(s32 arg0);
 extern void WorldMapSetSpriteSetParent(s32 arg0, s32 arg1);
 
-void func_80077CC0(void) {
+void WorldMapExitToMap10E(void) {
     u16 v;
 
     func_80039FF8();
@@ -179,7 +179,7 @@ s32 func_80077DC8(s32 index) {
 }
 */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_80077E68);
-s32 func_8007828C(s32 index) {
+s32 WorldMapInitActorAtScrollPosition(s32 index) {
     WorldMapActor *p;
     s32 *pSlot;
 
@@ -211,11 +211,11 @@ s32 func_8007828C(s32 index) {
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_800783E8);
 
-s32 func_80078948(void) {
+s32 WorldMapEnterNop(void) {
     return 1;
 }
 
-s32 func_80078950(void) {
+s32 WorldMapUpdateFrameWithParticles(void) {
     u8 *p;
     s32 *pState;
 
@@ -244,7 +244,7 @@ s32 func_80078950(void) {
     return 1;
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_80078A60);
-void func_80078D24(void) {
+void WorldMapExitToMap110(void) {
     u16 v;
 
     func_80039FF8();
@@ -296,7 +296,7 @@ s32 func_80078E2C(s32 index) {
 }
 */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_80078EA4);
-s32 func_800794D8(s32 index) {
+s32 WorldMapInitActorRotationMatrix(s32 index) {
     WorldMapActor *p;
     WorldMapState *s;
 
@@ -313,7 +313,7 @@ s32 func_800794D8(s32 index) {
     RotMatrixYXZ(&s->unk558, &s->unk560);
     return 1;
 }
-s32 func_80079538(s32 index) {
+s32 WorldMapUpdateActorTerrainHeight(s32 index) {
     WorldMapActor *p;
 
     p = D_8009BE24 + index;
@@ -328,7 +328,7 @@ s32 func_80079538(s32 index) {
     D_8009C620->unk550 = p->unk30 >> 12;
     return 1;
 }
-s32 func_800795E4(s32 index) {
+s32 WorldMapInitActorAtScrollPositionWithSound(s32 index) {
     WorldMapActor *p;
     WorldMapState *s;
     u16 *q;
@@ -393,7 +393,7 @@ void func_8007A06C(s32 arg0, u8 *pDst, s32 count) {
 }
 */
 
-s32 func_8007A144(s32 index) {
+s32 WorldMapSetupGroup14And15Prims(s32 index) {
     WorldMapActor *p;
 
     p = D_8009BE24 + index;
@@ -408,7 +408,7 @@ s32 func_8007A144(s32 index) {
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_8007A1B4);
 
-s32 func_8007A410(s32 index) {
+s32 WorldMapSetActorTimer60(s32 index) {
     WorldMapActor *p;
 
     index *= 0x80;
@@ -460,11 +460,11 @@ s32 func_8007A430(s32 index) {
 }
 */
 
-s32 func_8007A568(void) {
+s32 WorldMapReturnThree(void) {
     return 3;
 }
 
-s32 func_8007A570(s32 index) {
+s32 WorldMapUpdateObjectAPosition(s32 index) {
     WorldMapActor *p;
     WorldMapState *s;
     SVECTOR *pScratch;
@@ -486,7 +486,7 @@ s32 func_8007A570(s32 index) {
    reach the right addresses. Only difference left: gcc hoists the 2nd load
    before the 1st store (and puts the 1st value in $a0), so the three
    load/store pairs are not adjacent as in the original.
-s32 func_8007A570(s32 index) {
+s32 WorldMapUpdateObjectAPosition(s32 index) {
     WorldMapActor *p;
     WorldMapState *s;
     s16 *dst;
@@ -529,7 +529,7 @@ void func_8007A8AC(void) {
     D_8009BBC4 = 1;
     D_8006F950 = v;
 }
-s32 func_8007A9B4(s32 index) {
+s32 WorldMapStartActorScript(s32 index) {
     WorldMapActor *p;
 
     p = D_8009BE24;

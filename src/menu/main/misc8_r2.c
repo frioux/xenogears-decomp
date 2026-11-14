@@ -42,15 +42,15 @@ void func_801E64E0(void);
 void func_801E5B3C(void);
 void func_801E649C(void);
 void Vsync(s32 mode);
-void func_801C8960(void);
-void func_801C7BF4(void);
+void MenuCloseCardEvents(void);
+void MenuRenderFrame(void);
 u_char func_801C93A8(void);
 void func_801D2F4C(s32 arg0);
 void func_801D32B4(void);
 void func_801E8EAC(POLY_FT4* pPoly, u_char mode);
 void func_801E8F60(s32 mode, u_char index);
 s32 func_8002675C(MenuResourceDirectory* pDir, u32 index, POLY_FT4* pPrims, s32 context, s32 x, s32 y, s32 scale);
-void func_801C851C(SVECTOR* pVertices, u16 x, u16 y, u16 width, u16 height);
+void MenuSetQuadVertices(SVECTOR* pVertices, u16 x, u16 y, u16 width, u16 height);
 void func_801E91C4(P_TAG* pTag);
 
 void func_801D9E3C(void) {
@@ -120,7 +120,7 @@ void func_801DB02C(u_char index) {
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc8_r2", func_801DB0A8);
 
-/* 98.80%. Only difference: the func_801C851C argument setup. Original emits
+/* 98.80%. Only difference: the MenuSetQuadVertices argument setup. Original emits
    `addu a1,v1,s2; addu a2,t0,s1; andi a1,0xffff; andi a2,0xffff` (both sums,
    then both truncations); gcc folds each sum into its argument position and
    emits `addu a1; andi a1; addu a2; andi a2`. Every other line is identical.
@@ -187,7 +187,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc8_r2", func_801DB0A8);
            ly1 = *(u16*)(pPoly + 0x22);
            y = ly0 + ofsY;
            x = lx0 + ofsX;
-           func_801C851C(pCursor->vertices, x, y, lx1 - lx0, ly1 - ly0);
+           MenuSetQuadVertices(pCursor->vertices, x, y, lx1 - lx0, ly1 - ly0);
            pCursor->renderContext = *(u8*)&g_Menu->renderContext;
            g_Menu->pManager->shouldRenderArrowCursor[arg3] = 1;
        } else {

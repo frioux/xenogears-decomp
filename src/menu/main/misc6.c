@@ -5,14 +5,14 @@
 
 extern u8 D_80059460;
 
-void func_801C7BF4(void);
-void func_801C851C(SVECTOR* pVertices, u16 x, u16 y, u16 width, u16 height);
+void MenuRenderFrame(void);
+void MenuSetQuadVertices(SVECTOR* pVertices, u16 x, u16 y, u16 width, u16 height);
 void MenuAddDimEffectPrims(void);
 void MenuAddScreen0Prims(void);
 void MenuAddScreen2Prims(void);
 void MenuAddScreen6Prims(void);
 s32 func_8002675C(MenuResourceDirectory* pDir, u32 index, POLY_FT4* pPrims, s32 context, s32 x, s32 y, s32 scale);
-void func_801C8574(u_char soundEffectId);
+void MenuPlaySoundEffect(u_char soundEffectId);
 void func_801D397C(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4, u_char a5, u_char a6, s32 a7, u_char a8);
 void func_801E53CC(u_char a0);
 void func_801D4EA0(u_char a0);
@@ -95,11 +95,11 @@ void func_801D1D40(void) {
 }
 void func_801D1E80(void) {
     g_Menu->transitionEffectState = MENU_OPEN_ANIMATION_START;
-    func_801C8574(0x5B);
+    MenuPlaySoundEffect(0x5B);
 }
 void func_801D1EB0(void) {
     g_Menu->transitionEffectState = MENU_CLOSE_ANIMATION_START;
-    func_801C8574(0x5C);
+    MenuPlaySoundEffect(0x5C);
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc6", func_801D1EE0);
 void func_801D22C4(void) {
@@ -146,7 +146,7 @@ void func_801D249C(u_char a0) {
     if (a0 != 0) {
         func_801E7E68(g_Menu->unkAE0, D_801EA534, 4, 6);
         for (i = 0; i < 3; i++) {
-            func_801C851C(g_Menu->unkAE0[i + 3].vertices, D_801E9E4C[i * 2], D_801E9E58[i * 2], g_Menu->unkAE0[i + 3].width, 0xD);
+            MenuSetQuadVertices(g_Menu->unkAE0[i + 3].vertices, D_801E9E4C[i * 2], D_801E9E58[i * 2], g_Menu->unkAE0[i + 3].width, 0xD);
             g_Menu->unkAE0[i + 3].renderContext = *(u_char*)&g_Menu->renderContext;
             g_Menu->unkAE0[i + 3].unk7F = 1;
             g_Menu->pManager->unk14[i + 3] = 1;
@@ -263,7 +263,7 @@ void func_801D2D38(void) {
             bzero(g_Menu->windowParameters[i], 0x18);
             func_801E53CC(i);
         }
-        func_801C8574(0x5E);
+        MenuPlaySoundEffect(0x5E);
     }
 
     for (j = 0; j < 3; j++) {
@@ -283,9 +283,9 @@ void func_801D2D38(void) {
 void func_801D2EC0(u_char a0, u_char a1) {
     func_801D7C3C(a0, a1);
     func_801D7CFC(a0, a1, g_GameState.gearRide[a0]);
-    func_801C7BF4();
+    MenuRenderFrame();
     func_801D8DE4(a0, 0, 0, a1);
-    func_801C7BF4();
+    MenuRenderFrame();
     func_801D8EA4(a0, 0, 0, a1);
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc6", func_801D2F4C);
@@ -299,7 +299,7 @@ void func_801D32B4(void) {
             HeapFree(g_Menu->unk1DE0[i]);
         }
     }
-    func_801C7BF4();
+    MenuRenderFrame();
 }
 void func_801D3344(s32 a0, s32 a1, s32 a2) {
     if (g_Menu->pManager->scrollHandleActive == 0) {
@@ -307,7 +307,7 @@ void func_801D3344(s32 a0, s32 a1, s32 a2) {
         bzero(g_Menu->pScrollHandle, 0x74);
     }
     func_8002675C(g_Menu->resources, 0x107, (POLY_FT4*)g_Menu->pScrollHandle, g_Menu->renderContext, a0, a1, 0x1000);
-    func_801C851C(g_Menu->pScrollHandle->vertices, a0, a1, 8, a2);
+    MenuSetQuadVertices(g_Menu->pScrollHandle->vertices, a0, a1, 8, a2);
     // the original reads renderContext as a byte here, but as a word for the arg above
     g_Menu->pScrollHandle->renderContext = *(u_char*)&g_Menu->renderContext;
     g_Menu->pManager->scrollHandleActive = 1;
@@ -320,7 +320,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc6", func_801D3488);
 /* PARKED 98.90% (492 bytes, identical instruction multiset). The first loop, the
    early-return ternary (write it as "a1 == 0 ? unk32B : unk33B", not the other way
    round), the HeapAlloc/bzero block and the tail all match exactly. The only
-   difference left is in the 4-iteration func_801C851C loop, and it is NOT an
+   difference left is in the 4-iteration MenuSetQuadVertices loop, and it is NOT an
    allocator tie - the add operand ORDER differs.  Retail loads pUi into v1 and forms
    the poly address with 'addu v1,v1,v0' (base first, idx*0x28 already in v0); ours
    forms the same address as 'addu $2,$2,$5' (offset first, pUi second), i.e. our RTL
@@ -352,7 +352,7 @@ void func_801D3488(u_char a0, u_char a1) {
     for (i = 0; i < 4; i++) {
         s32 polyIndex = i * 2 + g_Menu->renderContext;
         POLY_FT4* pPoly = &g_Menu->pShoulderButtonUi->polys[polyIndex];
-        func_801C851C(&g_Menu->pShoulderButtonUi->vertices[i * 4], pPoly->x0, pPoly->y0, pPoly->x1 - pPoly->x0, pPoly->y3 - pPoly->y0);
+        MenuSetQuadVertices(&g_Menu->pShoulderButtonUi->vertices[i * 4], pPoly->x0, pPoly->y0, pPoly->x1 - pPoly->x0, pPoly->y3 - pPoly->y0);
     }
 
     // the original reads renderContext as a byte here, but as a word for the arg above

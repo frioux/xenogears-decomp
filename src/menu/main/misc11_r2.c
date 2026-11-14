@@ -32,7 +32,7 @@ void func_801E5058(void) {
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc11_r2", func_801E5178);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc11_r2", func_801E53CC);
 void func_801E927C(POLY_FT4* pPoly);
-void func_801C851C(SVECTOR* pVertices, u16 x, u16 y, u16 width, u16 height);
+void MenuSetQuadVertices(SVECTOR* pVertices, u16 x, u16 y, u16 width, u16 height);
 
 extern u16 D_801E9894[];
 extern u16 D_801E9914[];
@@ -85,7 +85,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc11_r2", func_801E56E8);
            ((POLY_F4*)(pBase + i * 0x18 + 0xB0))->x3 = pX[0] + 0x10;
            ((POLY_F4*)(pBase + i * 0x18 + 0xB0))->y3 = pY[0] + 0x10;
            offset += 0x18;
-           func_801C851C((SVECTOR*)(pBase + 0xE0), pX[0], pY[0], 0x10, 0x10);
+           MenuSetQuadVertices((SVECTOR*)(pBase + 0xE0), pX[0], pY[0], 0x10, 0x10);
        }
        rect.y = 0;
        rect.x = 0;
@@ -119,7 +119,7 @@ void func_801E5924(s32 index) {
         ((LINE_F3*)(pBase + i * 0x18 + 0x50))->y1 = pY[0];
         ((LINE_F3*)(pBase + i * 0x18 + 0x50))->x2 = pX[0] + 0x10;
         ((LINE_F3*)(pBase + i * 0x18 + 0x50))->y2 = pY[0] + 0x10;
-        func_801C851C((SVECTOR*)(pBase + 0x100), pX[0], pY[0], 0x10, 0x10);
+        MenuSetQuadVertices((SVECTOR*)(pBase + 0x100), pX[0], pY[0], 0x10, 0x10);
         SetLineF3((LINE_F3*)(pBase + offB));
         ((LINE_F3*)(pBase + i * 0x18 + 0x80))->r0 = 0;
         ((LINE_F3*)(pBase + i * 0x18 + 0x80))->g0 = 0xFF;
@@ -130,7 +130,7 @@ void func_801E5924(s32 index) {
         ((LINE_F3*)(pBase + i * 0x18 + 0x80))->y1 = pY[0] + 0x10;
         ((LINE_F3*)(pBase + i * 0x18 + 0x80))->x2 = pX[0] + 0x10;
         ((LINE_F3*)(pBase + i * 0x18 + 0x80))->y2 = pY[0] + 0x10;
-        func_801C851C((SVECTOR*)(pBase + 0x120), pX[0], pY[0], 0x10, 0x10);
+        MenuSetQuadVertices((SVECTOR*)(pBase + 0x120), pX[0], pY[0], 0x10, 0x10);
     }
 }
 void func_801E5ACC(void) {
@@ -229,7 +229,7 @@ s32 func_801E65E4(u8* p) {
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc11_r2", func_801E6668);
 s32 func_8002675C(MenuResourceDirectory* pDir, u32 index, POLY_FT4* pPrims, s32 context, s32 x, s32 y, s32 scale);
-void func_801C7F34(u32 value);
+void MenuSetPlayTimeDigits(u32 value);
 
 extern s32 D_801E9FE0[];
 extern s32 D_801E9FE4[];
@@ -256,7 +256,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc11_r2", func_801E68AC);
        func_8002675C(g_Menu->resources, 0xEE,
                      (POLY_FT4*)((u8*)g_Menu->unk34C + 0x24AC),
                      g_Menu->renderContext, D_801E9FE4[0], 0x7A, 0x1000);
-       func_801C7F34(*(u32*)pArg);
+       MenuSetPlayTimeDigits(*(u32*)pArg);
        for (i = 0; i < 7; i++) {
            func_8002675C(g_Menu->resources, ((u32*)g_Menu->unk2EC)[i],
                          (POLY_FT4*)((u8*)g_Menu->unk34C + 0x254C + i * 0x50),
@@ -291,7 +291,7 @@ void func_801E6AE8(u8 arg0, u8* pArg1) {
                   g_Menu->renderContext, D_801EA004[arg0], D_801EA010[arg0], 0x1000);
 }
 
-void func_801C80B8(u32 number);
+void MenuParseNumberToDigits(u32 number);
 
 extern u32 D_801EA01C;
 extern u32 D_801EA020;
@@ -312,7 +312,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc11_r2", func_801E6B70);
    void func_801E6B70(u8 arg0, u8* pArg1) {
        int i;
 
-       func_801C80B8((pArg1 + arg0)[0x16]);
+       MenuParseNumberToDigits((pArg1 + arg0)[0x16]);
        ((u8*)g_Menu->unk34C)[arg0 * 0x87C + 0x1308] = 0;
        for (i = 0; i < 3; i++) {
            if (((u8*)g_Menu)[i + 0x322] == 0xFF) {
@@ -325,7 +325,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc11_r2", func_801E6B70);
                g_Menu->renderContext, D_801EA01C + arg0 * 0x50 + i * 8,
                D_801EA020, 0x1000);
        }
-       func_801C80B8((pArg1 + arg0)[0x19]);
+       MenuParseNumberToDigits((pArg1 + arg0)[0x19]);
        ((u8*)g_Menu->unk34C)[arg0 * 0x87C + 0x1309] = 0;
    }
 */

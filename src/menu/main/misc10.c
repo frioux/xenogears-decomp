@@ -16,7 +16,7 @@ void func_801E42AC(MenuDressingRoom*, u8);
 void func_801C72BC(u8);
 void func_801D3674(void);
 void func_801D4EA0(u8);
-void func_801C7BF4(void);
+void MenuRenderFrame(void);
 void func_801E8044(u8, u8*);
 void func_801D249C(u8);
 void func_801D3488(u8, u8);
@@ -27,7 +27,7 @@ void func_801DA518(void);
 void func_801DE36C(void);
 void func_801DE400(void);
 void func_801D25E4(void);
-void func_801C8574(u8);
+void MenuPlaySoundEffect(u8);
 u8 func_801D9704(u8, u8, u8);
 void func_801E1014(void);
 void func_801E1AC8(u8);
@@ -96,7 +96,7 @@ void func_801E1398(void) {
     func_801D3674();
     g_Menu->pManager->unk4A[3] = 0;
     func_801D4EA0(2);
-    func_801C7BF4();
+    MenuRenderFrame();
     func_801E8044(2, &g_Menu->pManager->unk4A[4]);
     func_801C72BC(0x14);
     HeapFree(g_Menu->unk438);
@@ -183,12 +183,12 @@ u8 func_801E20C8(u8 slot) {
     active = 1;
     lastSlot = 0xFF;
     if ((u8)(g_Menu->pManager->currentCharacterIDs[slot] - 7) < 2) {
-        func_801C8574(4);
+        MenuPlaySoundEffect(4);
         return 1;
     }
     func_801E1014();
     do {
-        func_801C7BF4();
+        MenuRenderFrame();
         if (slot != lastSlot) {
             func_801E1AC8(slot);
             lastSlot = slot;

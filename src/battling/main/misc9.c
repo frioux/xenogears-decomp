@@ -82,7 +82,7 @@ extern u8* D_8009288C;
 extern s32 func_8008AC0C();
 extern void func_80030A30(s32 index, Poly9* pPoly);
 extern s32 func_80083310();
-extern void func_8007A21C(s32);
+extern void BattleSaveActorVectors(s32);
 extern void func_8007AC3C(void);
 extern void func_800725B0(s16* p);
 extern void func_80081E6C(void);
@@ -409,7 +409,7 @@ void func_80083C0C(s32 mode) {
         func_80081E6C();
         break;
     case 4:
-        func_8007A21C(D_8009294C);
+        BattleSaveActorVectors(D_8009294C);
         break;
     case 8:
         func_8007AC3C();

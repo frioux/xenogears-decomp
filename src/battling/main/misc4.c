@@ -207,7 +207,7 @@ struct Actor {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_80078920);
 
-void func_80078D20(Actor* p) {
+void BattleActorUpdateGroundMovement(Actor* p) {
     s32 tmp[4]; // unused: reproduces the original's 0x10-byte frame slot
 
     p->unkB0 = func_80082488(p, 1);
@@ -240,7 +240,7 @@ void func_80078D20(Actor* p) {
     p->unk8 += p->unk18;
 }
 
-void func_80078E94(Actor* p) {
+void BattleActorSetPartTransform(Actor* p) {
     p->unk5C->unk34 = p->unk0;
     p->unk5C->unk38 = p->unk4;
     p->unk5C->unk3C = p->unk8;
@@ -257,7 +257,7 @@ typedef struct {
     /* 0xC */ s16 unkC;
 } UnkStruct1; // Size: 0xE
 
-void func_80078ED4(UnkStruct1* p) {
+void BattleActorResetUnk15D8(UnkStruct1* p) {
     p->unk0 = 0x100;
     p->unk4 = 0x10;
     p->unk2 = 0;
@@ -373,7 +373,7 @@ void func_8007920C(Actor* p) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_800796B8);
 
-void func_80079A8C(void) {
+void BattleInitOptionDefaults(void) {
     func_800732CC();
     func_8008DC28();
     func_80088AF8();
@@ -386,10 +386,10 @@ void func_80079A8C(void) {
     D_80099DA4 = 0x100;
 }
 
-void func_80079B04(void) {
+void BattleNoop(void) {
 }
 
-void func_80079B0C(void) {
+void BattleResetState(void) {
     D_80092950 = 0;
     D_8009881E = 0;
     D_80097102 = 0;
@@ -457,7 +457,7 @@ void func_80079B44(void) {
 }
 */
 
-void func_80079D08(Actor* p) {
+void BattleActorSetUnk15CCFlags(Actor* p) {
     p->unk15CC->unkA = (p->unk15CC->unkA & 0xFEFF) | ((p->unkD0 << 6) & 0x100);
     p->unk15CC->unk6 = (p->unk15CC->unk6 & 0xDFFF) | ((p->unkD0 >> 2) & 0x2000);
     p->unk15CC->unk6 = (p->unk15CC->unk6 & 0xBFFF) | ((p->unkD0 >> 5) & 0x4000);
@@ -480,13 +480,13 @@ void func_80079D6C(Actor* p) {
 }
 */
 
-void func_80079DE0(void) {
+void BattleResetUnk92640(void) {
     D_80092640 = 0;
 }
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_80079DF0);
 
-void func_8007A21C(s32 unk0) {
+void BattleSaveActorVectors(s32 unk0) {
     if (unk0 < 0xFF) {
         D_800928AC = unk0 - 2;
         D_800928C0 -= unk0;
@@ -505,7 +505,7 @@ void func_8007A21C(s32 unk0) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_8007A344);
 
-void func_8007A6D0(Actor* p) {
+void BattleActorSetModelByTimer(Actor* p) {
     D_8009292C = 0x100;
     if (D_800928AC < 0x78) {
         p->unk4F = 0x10;
@@ -520,7 +520,7 @@ void func_8007A6D0(Actor* p) {
     }
 }
 
-void func_8007A730(Actor* p) {
+void BattleActorSetModelIndex9(Actor* p) {
     D_8009292C = 0x100;
     p->unk4F = 0x10;
     p->unk52 = 0;
@@ -554,7 +554,7 @@ void func_8007A768(Actor* p) {
 }
 */
 
-void func_8007A884(void) {
+void BattleResetScratchState(void) {
     UnkA884* p;
     s32 v;
 
@@ -585,7 +585,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_8007AC3C);
 /* Best attempt: 78.58%. All 120 instructions are present; only two shapes differ.
    (a) Each 16-byte copy: the original groups three word loads then three word
    stores, then a separate fourth load/store with a delay nop; gcc 2.7.2 emits
-   2/2/2/2 for a 16-byte block move (the shape func_8007A21C matches with) and
+   2/2/2/2 for a 16-byte block move (the shape BattleSaveActorVectors matches with) and
    2/2 + 1/1 for a 12-byte copy, so the original's copies are not plain VECTOR
    assignments. (b) The original materialises the destination address before the
    source and keeps D_8009872C/D_80097010 in t0/a3 across the function; ours
@@ -616,7 +616,7 @@ void func_8007AC3C(void) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_8007AE10);
 
-void func_8007B210(Actor* p, u8 unk4C) {
+void BattleActorInitModelState(Actor* p, u8 unk4C) {
     p->unk15CC = (ActorSub*)((u8*)p + 0x9CC);
     p->unk4F = 0x10;
     p->unk4C = unk4C;

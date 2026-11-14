@@ -62,7 +62,7 @@ typedef struct {
     /* 0x6 */ u16 pad6;
 } Vector16; // Size: 0x8
 
-extern void func_80072BB0(void);
+extern void WorldMapInitGfxEnv(void);
 extern void func_80072DB4(s32 arg0, s32 arg1, s32 arg2, s32 arg3);
 extern void func_8008440C(void);
 extern void func_800978FC(void);
@@ -355,7 +355,7 @@ void func_80075B58(void) {
     ArchiveSetIndex(0x24, 0);
     HeapFree(D_8005945C);
     HeapFree(D_8009C7E4);
-    func_80072BB0();
+    WorldMapInitGfxEnv();
     pBuffer = HeapAlloc(ArchiveDecodeAlignedSize(D_8009C174), 1);
     D_8009BD20 = pBuffer;
     ArchiveReadFileToBuffer(D_8009C174, pBuffer, 0, 0);

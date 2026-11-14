@@ -49,7 +49,7 @@ extern WorldMapPoint* D_8009D3F4;
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_800712D0);
 
-int func_80071A50(void) {
+int WorldMapModeInitNop(void) {
     return 1;
 }
 
@@ -80,7 +80,7 @@ extern void func_800737EC(void);
 extern void func_80086798(void);
 extern void func_800740B8(void);
 
-s32 func_80071A58(void) {
+s32 WorldMapUpdateFrameWithSlotProjection(void) {
     u8* p;
     s32* pState;
     s32 pad[2];
@@ -331,7 +331,7 @@ extern void* D_8009D41C;
 extern u16 D_8009D420;
 extern s32 D_8009D424;
 
-void func_80072090(void) {
+void WorldMapQueueFileLoads(void) {
     void* pBuffer;
 
     D_8004F304++;
@@ -360,7 +360,7 @@ void func_80072090(void) {
     func_80029AFC((StreamDataQueueEntry*)&D_8009D3F8, 0, 0);
 }
 
-void func_800721E4(void) {
+void WorldMapLoadSedsBank(void) {
     s32 nSize;
 
     nSize = ArchiveDecodeAlignedSize(D_8009D3C8);
@@ -495,7 +495,7 @@ extern s32 D_8009D7CC;
 
 extern void SetNearColor(long rfc, long gfc, long bfc);
 
-void func_80072BB0(void) {
+void WorldMapInitGfxEnv(void) {
     WorldMapGfxEnv* pEnv;
     s32 nNear;
 
@@ -708,7 +708,7 @@ void func_80073530(void) {
 */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80073530);
 
-void func_8007369C(void) {
+void WorldMapAllocWorkBuffers(void) {
     D_8009BC38 = HeapAlloc(0x1000, 0);
     D_8009BCB0 = HeapAlloc(0x1000, 0);
 }
@@ -847,7 +847,7 @@ void func_800737EC(void) {
 extern u32 D_8009C744[];
 extern DR_MODE D_8009D3D8[];
 
-void func_800739B8(void) {
+void WorldMapSetupMapPrims(void) {
     POLY_FT4* pPrim;
     RECT tw;
     u16 tpage;
@@ -913,7 +913,7 @@ typedef struct {
    here: countdown counter (i = 0xF; i != -1; i--) plus a forward slot pointer,
    fields written unk4/unk2/unk0 (that is what reproduces retail's base = slot+2
    and its 2(v0)/0(v0)/0(v1) order), and the copy as a 16-byte struct assignment
-   over a pointer end compare. Sibling of func_800739B8.
+   over a pointer end compare. Sibling of WorldMapSetupMapPrims.
 
 void func_80074594(void) {
     WorldMapSlot* pSlot;

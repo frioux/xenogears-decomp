@@ -105,7 +105,7 @@ extern u16 D_8006F950;
 extern u16 D_8006F954;
 extern u32 D_8009BBC4;
 extern u16 D_8009A5CC[];
-extern void func_80072BB0(void);
+extern void WorldMapInitGfxEnv(void);
 extern void func_800894C8(s32);
 extern void func_80072DB4(int, int, int, int);
 extern int ArchiveDataSync(void);
@@ -132,12 +132,12 @@ extern void func_8007EBBC(WorldMapGroup *, void *, int, int);
 extern void func_80084580(void);
 extern void func_8008440C(void);
 extern void func_800979C8(void);
-extern void func_80072090(void);
+extern void WorldMapQueueFileLoads(void);
 extern void func_800736DC(void);
 extern void func_800863E0(void);
 extern void func_80074E58(void);
 extern void func_80075030(void);
-extern void func_800739B8(void);
+extern void WorldMapSetupMapPrims(void);
 extern void func_80088F64(void);
 extern void *g_GameCurLoadedWDS;
 extern void *SoundLoadWdsFile(void *, void *);
@@ -172,8 +172,8 @@ extern void func_8007F8AC(int);
 extern void func_8007F968(int);
 extern void func_8007FC8C(int);
 extern int func_8007FD30(int);
-extern void func_80078948(void);
-extern void func_80078950(void);
+extern void WorldMapEnterNop(void);
+extern void WorldMapUpdateFrameWithParticles(void);
 
 int WorldMapInitGroup12Actor(int index) {
     WorldMapGroup *pGroup;
@@ -339,7 +339,7 @@ void func_8007D918(void) {
     RECT rect;
     s32 nIndex;
 
-    func_80072BB0();
+    WorldMapInitGfxEnv();
     rect.x = 0;
     rect.y = 0;
     rect.w = 0x140;
@@ -367,12 +367,12 @@ void func_8007D918(void) {
     func_80084580();
     func_8008440C();
     func_800979C8();
-    func_80072090();
+    WorldMapQueueFileLoads();
     func_800736DC();
     func_800863E0();
     func_80074E58();
     func_80075030();
-    func_800739B8();
+    WorldMapSetupMapPrims();
     func_80088F64();
     ArchiveCdDataSync(0);
     g_GameCurLoadedWDS = SoundLoadWdsFile(D_8009C88C, 0);
@@ -399,7 +399,7 @@ void func_8007D918(void) {
     func_80097718(func_8007F8AC, func_8007F968);
     func_80097718(func_8007F8AC, func_8007F968);
     func_80097718(func_8007FC8C, func_8007FD30);
-    func_80097718(func_80078948, func_80078950);
+    func_80097718(WorldMapEnterNop, WorldMapUpdateFrameWithParticles);
     func_800978FC();
     func_8008901C();
     func_800865A0();

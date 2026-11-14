@@ -42,15 +42,15 @@ void func_801E64E0(void);
 void func_801E5B3C(void);
 void func_801E649C(void);
 void Vsync(s32 mode);
-void func_801C8960(void);
-void func_801C7BF4(void);
+void MenuCloseCardEvents(void);
+void MenuRenderFrame(void);
 u_char func_801C93A8(void);
 void func_801D2F4C(s32 arg0);
 void func_801D32B4(void);
 void func_801E8EAC(POLY_FT4* pPoly, u_char mode);
 void func_801E8F60(s32 mode, u_char index);
 s32 func_8002675C(MenuResourceDirectory* pDir, u32 index, POLY_FT4* pPrims, s32 context, s32 x, s32 y, s32 scale);
-void func_801C851C(SVECTOR* pVertices, u16 x, u16 y, u16 width, u16 height);
+void MenuSetQuadVertices(SVECTOR* pVertices, u16 x, u16 y, u16 width, u16 height);
 void func_801E91C4(P_TAG* pTag);
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801D7CFC);
@@ -59,7 +59,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801D7CFC);
    guards the whole body. ((u8*)g_Menu->unk358)[0x2AED] = 0, then two
    windows: func_8002675C(g_Menu->resources, D_801E977C[i], 0x1E00 + i*0x50
    + unk358, g_Menu->renderContext, 0x78 + i*0x20, 0x5A, 0x1000) and
-   func_801C851C(0x2AA0 + i*0x20 + unk358, x, y, right - x, bottom - y) with
+   MenuSetQuadVertices(0x2AA0 + i*0x20 + unk358, x, y, right - x, bottom - y) with
    a u8* pEntry = unk358 + (renderContext + i*2)*0x28 and fields +0x1E08,
    +0x1E0A, +0x1E10, +0x1E22 (i.e. 0x1E00-relative 40-byte records).
    Then func_801E91C4(unk358 + (renderContext + 2*(arg2 == 0))*0x28),
@@ -76,7 +76,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801D7CFC);
    it into a1 and again into v0 for the width subtraction) and loads x/y
    straight into a1/a2, where gcc emits move a1,v0 / move a2,v1.
    func_8002675C args must be s32 x,y,scale (u16 costs an extra andi).
-   Also declared: func_801C851C, func_801E91C4, D_801E977C.
+   Also declared: MenuSetQuadVertices, func_801E91C4, D_801E977C.
 void func_801D7CFC(s32 arg0, u_char arg1, u_char arg2) {
     s32 selected = (arg2 == 0);
     u8* pEntry;
@@ -89,7 +89,7 @@ void func_801D7CFC(s32 arg0, u_char arg1, u_char arg2) {
                           (POLY_FT4*)((u8*)g_Menu->unk358 + 0x1E00 + i * 0x50),
                           g_Menu->renderContext, 0x78 + i * 0x20, 0x5A, 0x1000);
             pEntry = (u8*)g_Menu->unk358 + (g_Menu->renderContext + i * 2) * 0x28;
-            func_801C851C((SVECTOR*)((u8*)g_Menu->unk358 + 0x2AA0 + i * 0x20),
+            MenuSetQuadVertices((SVECTOR*)((u8*)g_Menu->unk358 + 0x2AA0 + i * 0x20),
                           *(u16*)(pEntry + 0x1E08), *(u16*)(pEntry + 0x1E0A),
                           *(u16*)(pEntry + 0x1E10) - *(u16*)(pEntry + 0x1E08),
                           *(u16*)(pEntry + 0x1E22) - *(u16*)(pEntry + 0x1E0A));
@@ -330,7 +330,7 @@ s32 func_801D9808(void) {
     s32 choice;
 
     do {
-        func_801C7BF4();
+        MenuRenderFrame();
         if (firstPass != 0) {
             func_801E8018(4, g_Menu->unk1BE0, D_801EA574, g_Menu->pManager->unk5C);
             func_801E86C8(0);
@@ -396,7 +396,7 @@ s32 func_801D9808(void) {
 }
 */
 void func_801D9B08(void) {
-    func_801C8960();
+    MenuCloseCardEvents();
     Vsync(0);
     InitCARD(1);
     StartCARD();

@@ -23,7 +23,7 @@ extern void TimerWorkListSetTaskCallback(void *pTask, void *pCallback);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800BF4F0);
 
 // 55.00%: our assembler picks $at where retail picked a free register (atfree).
-void func_800BF5E8(void) {
+void BattleIncFrameCounter(void) {
     D_800C3CE8++;
 }
 
@@ -32,14 +32,14 @@ extern void func_80021BF8(u8 *pActor, void *pCallback);
 extern void func_800245D8(u8 *pActor, s32 arg1);
 extern void func_800BE790(void);
 
-void func_800BF600(s32 arg0, u8 *pActor) {
+void BattleActorWaitFramesWithCallback(s32 arg0, u8 *pActor) {
     if (*(s32 *)(pActor + 0x48) == 0) {
         func_800B7C34(arg0);
         return;
     }
     D_800C3CE8 = 0;
     if (*(s8 *)(pActor + 0xAF) != 0) {
-        func_80021BF8(pActor, func_800BF5E8);
+        func_80021BF8(pActor, BattleIncFrameCounter);
         func_800245D8(pActor, *(s8 *)(pActor + 0xAF));
     }
     func_800B7C34(arg0);
@@ -155,7 +155,7 @@ extern int ArchiveDecodeAlignedSize(u32 entryIndex);
 extern void ArchiveReadFileToBuffer(s32 index, void *pBuffer, u32 arg2, u32 flags);
 extern void func_8002DDE4(void *p0, s32 a1, s32 a2, s32 a3, s32 a4, s32 a5, s32 a6);
 
-void func_800BF9EC(void) {
+void BattleLoadArchiveEntryFile(void) {
     void *pBuffer;
 
     if (D_800C3621 != 0) {

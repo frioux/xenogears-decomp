@@ -3,7 +3,7 @@
 #include "main/game.h"
 #include "system/menu.h"
 
-void func_801C80B8(u32 number);
+void MenuParseNumberToDigits(u32 number);
 s32 func_8002675C(MenuResourceDirectory* pDir, u32 index, POLY_FT4* pPrims, s32 context, s32 x, s32 y, s32 scale);
 
 extern u8 D_80059460;
@@ -70,7 +70,7 @@ void func_801CDB1C(MenuCharacter* pCharacter, u_char characterIndex, u_char loca
     s32 i;
     u_char digit;
 
-    func_801C80B8(g_GameState.characters[characterIndex].level);
+    MenuParseNumberToDigits(g_GameState.characters[characterIndex].level);
     pCharacter->levelStringLength = 0;
     for (i = 0; i < 3; i++) {
         digit = g_Menu->digits[i + 6];
@@ -84,7 +84,7 @@ void func_801CDB1C(MenuCharacter* pCharacter, u_char characterIndex, u_char loca
                 0x1000);
         }
     }
-    func_801C80B8(g_GameState.characters[characterIndex].unk63);
+    MenuParseNumberToDigits(g_GameState.characters[characterIndex].unk63);
     pCharacter->unkBE1 = 0;
 }
 

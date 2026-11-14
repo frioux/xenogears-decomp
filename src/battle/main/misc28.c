@@ -134,13 +134,13 @@ void func_800B6808(u8 *p) {
     *(s32 *)(p + 0x10) = out.vy << 7;
     *(s32 *)(p + 0x14) = out.vz << 7;
 }
-void func_800B6930(u32 *pOut, s8 *p) {
+void BattleScriptLoadFixed3(u32 *pOut, s8 *p) {
     p += (p[1] << 8) | (u8)p[0];
     pOut[0] = ((p[1] << 8) | (u8)p[0]) << 16;
     pOut[1] = ((p[3] << 8) | (u8)p[2]) << 16;
     pOut[2] = ((p[5] << 8) | (u8)p[4]) << 16;
 }
-void func_800B6990(u16 *pOut, s8 *p) {
+void BattleReadScriptHalfwords3(u16 *pOut, s8 *p) {
     s32 v0;
     s32 v1;
     s32 v2;
@@ -153,7 +153,7 @@ void func_800B6990(u16 *pOut, s8 *p) {
     v2 = (p[5] * 256) | (u8)p[4];
     pOut[2] = v2;
 }
-void func_800B69E4(u16 *pOut, s8 *p) {
+void BattleScriptAddHalfwords3(u16 *pOut, s8 *p) {
     s32 v;
 
     p += (p[1] << 8) | (u8)p[0];

@@ -2485,8 +2485,32 @@ after the round-31 precedent. Two macros' worth of knowledge, now in the file's 
   definition can, so it stays a stub.
 | 33 | `slus_006.64/psyq/libgte` (2nd), `battle/{misc30,misc4,misc29}`, `battling/{misc14,misc12,misc17,misc18,misc1}`, `world_map/{misc5,misc6,misc15,misc3}` | +13 | 1373 | world_map/misc5 **4** (`7C36C 7CD20 7B200 7B604`), psyq/libgte 2 (`CompMatrix ApplyMatrixLV`), battle/misc30 2 (`BAB0C BB13C`), world_map/misc3 2, battling/misc1 1 (`88D1C`), battling/misc12 1 (`...`), world_map/misc6 1 (`7D4A4`); 0 in battle/misc4, misc29, battling/misc14, misc17, misc18, world_map/misc15 (parks only). Overlay green on the first try |
 | 34 | `battle/{misc8,misc30,misc7,misc19,misc13,misc2,misc26}`, `battling/misc15`, `world_map/{misc1,misc10}` + a 6-worker naming round | +11 | 1354 | battle/misc8 **5** (`7CD10 7CEA4 7CB20 7D1DC 7D344`), battle/misc30 **4** (`BA614 BA768 BAEB8 BADD4`, the last two were parks), battling/misc15 1 (`8CA84`), battle/misc2 1 (`74D4C`); 0 new in misc7, misc19, misc13, world_map/misc1, world_map/misc10 (parks improved instead); battle/misc26's worker timed out with an uncommitted body and was dropped. 73 names applied, 27 skipped (lib_gear has no symbol_addrs entries for them) |
+| 35 | 13 workers: `battle/{misc32,misc34,misc28,misc8,misc4,misc5,misc6,misc6_r2,misc27_b}`, `battling/misc16`, `slus_006.64/system/{archive_b,controller_b,work_list}` + a 10-worker naming round | +9 | 1345 | `controller_b` **2** (`80035F1C 8003634C`, the unit is now 3 stubs from done), `battle/misc34` **2** (`BF600 BF9EC`), `battle/misc6_r2` **2** (`7AE38 7AE98`, via the new clamp-copy idiom), `battle/misc27_b` 1 (`B5CC0`), `battle/misc28` 1 (`B6990`), `battling/misc16` 1 (`8DA48`); 0 in misc32 (16/21 atfree), misc8, misc4, misc5, misc6, archive_b, work_list (parks improved instead). 244 names applied |
 
-Session 10 total: **1435 -> 1373 stubs (+62)**, eleven outputs byte-identical throughout,
+
+### Round 35's per-unit detail
+
+- `battle/misc6_r2`'s `func_8007AE38`/`func_8007AE98` (93.33/94.55 -> 100.00, first try) are the
+  **clamp-copy idiom**: retail's `addu v1,v0,zero; slti v1,v1,0x100` is a separate narrow
+  variable, so write `s32 value = sum; u8 result = value; if (value > 0xFF) result = 0xFF;`.
+  One variable gives a test-in-place. Now in `brief.js`.
+- `atfree.py` OVER-reports: it flags any `%lo(sym)(reg)` where reg is neither `$at` nor the
+  destination, but a function that reads the same global twice matches fine (retail reuses the
+  register). The real wall is an address used exactly ONCE. `misc34` matched 2 of the 9 stubs
+  the script flagged; `misc32` is genuinely 16/21 atfree and yielded 0.
+- `battle/misc6`/`misc6_r2`/`misc28` share one dead shape: retail's table base `la D_800D3420`
+  lands in `$v1` where gcc insists on `$v0`, everything else byte-identical (97.0-99.0%, 19
+  source shapes plus `-O3 -G0`). `misc5`'s parks are the same class (`mult v1,v0` vs `v0,v1`).
+- `battle/misc4`'s `func_800799C8` went 87.14 -> 98.71 with `cmd = *pCursor; while (cmd != 0xFD)`,
+  leaving only branch polarity, which is a cdk question - candidates `try_flags.sh --gcc
+  gcc-2.7.2-cdk-psx` / `func_80078E24` (the unit's only unparked stub); `misc34`'s
+  `func_800BF4F0` and `func_800BF85C` are also still unattempted.
+- Naming: 244 of 252 names applied. `rename_sym.py` skipped 178 for having no `symbol_addrs`
+  entry at all (most `field/` and overlay `func_` have none); a whole-word `sed` over `src/`
+  and `include/` applied those, which is the same edit the tool makes. 8 left alone: 5 symbols
+  that are `INCLUDE_ASM` in a second overlay, 1 name collision, 2 still-stub functions.
+
+Session 10 total: **1435 -> 1345 stubs (+90)**, eleven outputs byte-identical throughout,
 and three durable tools/findings that outlive the matches:
 
 ### Round 33's per-unit detail (from the workflow receipt)

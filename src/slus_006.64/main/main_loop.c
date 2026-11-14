@@ -97,7 +97,7 @@ void MainLoop(int errorCode) {
     pGameState = &g_MainGameStates[g_CurGameState];
     ResetGraph(1);
     DrawSyncCallback(NULL);
-    func_800363F0(0);
+    ControllerSetFrameCallback(0);
     DrawSync(0);
     Vsync(2);
     HeapRelocate(pGameState->pHeapStart + 0x800);
@@ -155,7 +155,7 @@ void GameSoftReset(void) {
     ArchiveReset();
     SoundReset();
     SpuQuit();
-    func_800363F0(0);
+    ControllerSetFrameCallback(0);
     DrawSyncCallback(0);
     func_8004B7D0(0);
     CdFlush();
@@ -265,7 +265,7 @@ void GameHandleError(unsigned int errorCode, unsigned int sourceAddress) {
     SetDefDrawEnv(&drawEnvs[1], 0, 0xF0, 0x180, 0xF0);
     SetDefDispEnv(&dispEnvs[1], 0, 0, 0x180, 0xF0);
     DrawSyncCallback(0);
-    func_800363F0(0);
+    ControllerSetFrameCallback(0);
     FontLoadFont(0x10, 0x10, 0x120, 0xF0, 0x1F4, 0, 0x3C0, 0x100, 0x3C0, 0x1FF, 0);
     drawEnvs[1].isbg = 1;
     drawEnvs[0].isbg = 1;

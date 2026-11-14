@@ -83,7 +83,7 @@ extern s32 rand(void);
 extern void func_80031870(u8* pLink, u32 addr);
 
 Misc16Work* func_8008D3F4(s32 arg0, s32 arg1);
-void func_8008DA48(Misc16Work* pWork, u8* pArg1, MATRIX* pMat);
+void BattleEffectUpdateEntries(Misc16Work* pWork, u8* pArg1, MATRIX* pMat);
 void func_8008D680(Misc16Work* pWork, MATRIX* pMat, s32 count);
 
 void func_8008CED4(void) {
@@ -340,7 +340,7 @@ void func_8008D9F0(Misc16Work* pWork) {
     }
 }
 */
-void func_8008DA48(Misc16Work* pWork, u8* pArg1, MATRIX* pMat) {
+void BattleEffectUpdateEntries(Misc16Work* pWork, u8* pArg1, MATRIX* pMat) {
     u8 pad[0x28];
     s32 i;
     s32 value;
@@ -440,7 +440,7 @@ void func_8008DCB8(u8* pArg0, u8* pArg1, MATRIX* pMat, Misc16Vec* pVec) {
         D_80092838 -= 4;
     }
     gte_SetTransRotMatrix_gpr(pMat);
-    func_8008DA48(pWork, pArg0, pMat);
+    BattleEffectUpdateEntries(pWork, pArg0, pMat);
 }
 void func_8008DDFC(SVECTOR* pIn, SVECTOR* pOut, s32 depth) {
     register s16 vx asm("$8");

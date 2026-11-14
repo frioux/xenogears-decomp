@@ -1444,7 +1444,7 @@ void MemberChangeMenuPollInput(void) {
         }
     }
 
-    if (func_80036410()) {
+    if (ControllerIsStateStackFull()) {
         ControllerResetState();
     } else {
         while (ControllerPopState()) {

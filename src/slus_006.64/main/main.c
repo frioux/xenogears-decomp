@@ -22,7 +22,7 @@ extern u_char D_8004FE47;
 extern u_char D_80010004[];
 extern u_char D_80018004[];
 
-extern void func_8003634C(void);
+extern void ControllerUpdate(void);
 extern int func_8002DFE0(void);
 extern void func_8004B7D0(void*);
 extern void func_8003BDFC(int);
@@ -72,7 +72,7 @@ void func_80019578(void) {
     InitCARD(1);
     StartCARD();
     _bu_init();
-    func_8004B7D0(func_8003634C);
+    func_8004B7D0(ControllerUpdate);
     HeapInit((void*)func_8002DFE0(), 0x801FC000);
     SpuInit();
     ArchiveInit(D_80010004, D_80018004, D_80010000);

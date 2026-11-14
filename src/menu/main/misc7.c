@@ -4,7 +4,7 @@
 #include "system/memory.h"
 #include "system/menu.h"
 
-void func_801C80B8(u32 number);
+void MenuParseNumberToDigits(u32 number);
 void func_801D3C4C(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4);
 void func_801D3DB0(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4);
 void func_801D3FF8(u_char a0, u_short a1, u_short a2, u_short a3);
@@ -50,7 +50,7 @@ extern u16 g_SystemPalette2;
 void func_801E920C(POLY_FT4* pPoly, u_short x, u_short y, u_char u, u_char v, s32 width, s32 height);
 void func_801E927C(POLY_FT4* pPoly);
 
-void func_801C851C(SVECTOR* pVertices, u16 x, u16 y, u16 width, u16 height);
+void MenuSetQuadVertices(SVECTOR* pVertices, u16 x, u16 y, u16 width, u16 height);
 s32 func_800263E4(MenuResourceDirectory* pDir, u32 index, POLY_FT4* pPrims, s32 context, s32 x, s32 y, s32 scale, s32 mirrorX, s32 mirrorY);
 s32 func_8002675C(MenuResourceDirectory* pDir, u32 index, POLY_FT4* pPrims, s32 context, s32 x, s32 y, s32 scale);
 void func_801D5ED4(u_char a0, u_char a1);
@@ -83,9 +83,9 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D3C4C);
                      x, y + height - 8, 0x1000, 0, 1);
        func_8002675C(g_Menu->resources, MENU_TEX_SCROLL_BAR_EMPTY,
                      pWindow->polysScrollBarEmpty, g_Menu->renderContext, x, y + 8, 0x1000);
-       func_801C851C(pWindow->vertsScrollBarEnds, x, y, 8, 8);
-       func_801C851C(&pWindow->vertsScrollBarEnds[4], x, y + height, 8, -8);
-       func_801C851C(pWindow->vertsScrollBarEmpty, x, y + 8, 8, height - 8);
+       MenuSetQuadVertices(pWindow->vertsScrollBarEnds, x, y, 8, 8);
+       MenuSetQuadVertices(&pWindow->vertsScrollBarEnds[4], x, y + height, 8, -8);
+       MenuSetQuadVertices(pWindow->vertsScrollBarEmpty, x, y + 8, 8, height - 8);
    }
 */
 void func_801E91C4(P_TAG* pTag);
@@ -116,12 +116,12 @@ void func_801D3DB0(u_char index, u_short x, u_short y, u_short width, u_short he
                     + pWindow->unk710;
     left = x - 8;
     top = y + 8;
-    func_801C851C(pWindow->vertsWindowBorderCorners, left, top, 0x10, 0xFFF0);
+    MenuSetQuadVertices(pWindow->vertsWindowBorderCorners, left, top, 0x10, 0xFFF0);
     right = x + width + 8;
-    func_801C851C(&pWindow->vertsWindowBorderCorners[4], right, top, 0xFFF0, 0xFFF0);
+    MenuSetQuadVertices(&pWindow->vertsWindowBorderCorners[4], right, top, 0xFFF0, 0xFFF0);
     bottom = y + height - 8;
-    func_801C851C(&pWindow->vertsWindowBorderCorners[8], left, bottom, 0x10, 0x10);
-    func_801C851C(&pWindow->vertsWindowBorderCorners[12], right, bottom, 0xFFF0, 0x10);
+    MenuSetQuadVertices(&pWindow->vertsWindowBorderCorners[8], left, bottom, 0x10, 0x10);
+    MenuSetQuadVertices(&pWindow->vertsWindowBorderCorners[12], right, bottom, 0xFFF0, 0x10);
     for (i = 0; i < 4; i++) {
         func_801E91C4((P_TAG*)&pWindow->polysWindowBorderCorners[i * 2 + g_Menu->renderContext]);
     }
@@ -163,9 +163,9 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D3FF8);
        *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x1B5) = 0x94;
        halfWidth = (width - 0x10) / 2;
        top = y - 8;
-       func_801C851C(pWindow->vertsWindowBorderTop1, x + 8, top, halfWidth, 0x10);
+       MenuSetQuadVertices(pWindow->vertsWindowBorderTop1, x + 8, top, halfWidth, 0x10);
        x = halfWidth + 8 + x;
-       func_801C851C(pWindow->vertsWindowBorderTop2, x, top, halfWidth, 0x10);
+       MenuSetQuadVertices(pWindow->vertsWindowBorderTop2, x, top, halfWidth, 0x10);
        for (i = 0; i < 2; i++) {
            func_801E91C4((P_TAG*)&pWindow->polysWindowBorderTop[i * 2 + g_Menu->renderContext]);
        }
@@ -174,7 +174,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D3FF8);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D433C);
 /* Best: 99.00%. The sibling of func_801D3DB0 (bottom border instead of the
    corners) and the decode is complete: 16 UV stores to polysWindowBorderBottom
-   [ctx] and [ctx+2], two func_801C851C quads, then a 2-iteration
+   [ctx] and [ctx+2], two MenuSetQuadVertices quads, then a 2-iteration
    func_801E91C4 loop. Three codegen facts already worked out here: the UV
    stores must be byte offsets off a raw pointer with the context product FIRST
    (`g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x1EC`); a struct access
@@ -209,8 +209,8 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D433C);
        *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x255) = 0x94;
        bottom = y + height - 8;
        halfWidth = (width - 0x10) / 2;
-       func_801C851C(pWindow->vertsWindowBorderBottom1, x + 8, bottom, halfWidth, 0x10);
-       func_801C851C(pWindow->vertsWindowBorderBottom2, halfWidth + 8 + x, bottom, halfWidth, 0x10);
+       MenuSetQuadVertices(pWindow->vertsWindowBorderBottom1, x + 8, bottom, halfWidth, 0x10);
+       MenuSetQuadVertices(pWindow->vertsWindowBorderBottom2, halfWidth + 8 + x, bottom, halfWidth, 0x10);
        for (i = 0; i < 2; i++) {
            func_801E91C4((P_TAG*)&pWindow->polysWindowBorderBottom[i * 2 + g_Menu->renderContext]);
        }
@@ -221,11 +221,11 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D4688);
    border sibling of func_801D3FF8 (see its note): 16 UV byte stores to
    polysWindowBorderLeft[ctx] / [ctx+2] (0x28C..0x2F5, values 0x10/0x84/0x20/0x84
    then 0x10/0x8B/0x20/0x8B, repeated for the second prim pair), then
-   func_801C851C(vertsWindowBorderLeft1, x - 8, y + 8, 0x10, halfHeight) and
-   func_801C851C(vertsWindowBorderLeft2, x - 8, halfHeight + 8 + y, 0x10,
+   MenuSetQuadVertices(vertsWindowBorderLeft1, x - 8, y + 8, 0x10, halfHeight) and
+   MenuSetQuadVertices(vertsWindowBorderLeft2, x - 8, halfHeight + 8 + y, 0x10,
    halfHeight) where halfHeight = (height - 0x10) / 2, then a 2-iteration
    func_801E91C4 loop over polysWindowBorderLeft[i * 2 + renderContext].
-   The 4th param is the border HEIGHT (it is the func_801C851C height arg), and
+   The 4th param is the border HEIGHT (it is the MenuSetQuadVertices height arg), and
    the accumulated param must be written back into it (`y = halfHeight + 8 + y;`)
    - retail keeps it in s3. Remaining diff: gcc copies a2 to s3 in the prologue
    and needs one extra g_Menu reload (2 instructions), and the constant
@@ -254,9 +254,9 @@ void func_801D4688(u_char index, u_short x, u_short y, u_short height) {
        *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x2F5) = 0x8B;
        left = x - 8;
        halfHeight = (height - 0x10) / 2;
-       func_801C851C(pWindow->vertsWindowBorderLeft1, left, y + 8, 0x10, halfHeight);
+       MenuSetQuadVertices(pWindow->vertsWindowBorderLeft1, left, y + 8, 0x10, halfHeight);
        y = halfHeight + 8 + y;
-       func_801C851C(pWindow->vertsWindowBorderLeft2, left, y, 0x10, halfHeight);
+       MenuSetQuadVertices(pWindow->vertsWindowBorderLeft2, left, y, 0x10, halfHeight);
        for (i = 0; i < 2; i++) {
            func_801E91C4((P_TAG*)&pWindow->polysWindowBorderLeft[i * 2 + g_Menu->renderContext]);
        }
@@ -267,7 +267,7 @@ void func_801D4D1C(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4, u_
     MenuWindow* pWindow = g_Menu->windows[a0];
 
     g_Menu->pManager->shouldRenderWindow[a0] = 0;
-    func_801C851C(pWindow->vertsBackground, a1, a2, a3, a4);
+    MenuSetQuadVertices(pWindow->vertsBackground, a1, a2, a3, a4);
     func_801D3DB0(a0, a1, a2, a3, a4);
     func_801D3FF8(a0, a1, a2, a3);
     func_801D433C(a0, a1, a2, a3, a4);
@@ -346,7 +346,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D51EC);
    hoists the `n = 0` biv init to the TOP of the fall-through block, so reorg
    steals it into loop 1's back-branch slot and a1 has to keep a register of its
    own (frame 0x40). Writing `i = 0;` as a statement BEFORE the second
-   func_801C80B8 call (and `n = 0` after the counter store) makes `i = 0` the
+   MenuParseNumberToDigits call (and `n = 0` after the counter store) makes `i = 0` the
    block's first insn - reorg rejects it because s1 is live at loop 1's head -
    so reorg takes the `andi v1,s2,0xFF` of the second characters[] chain instead,
    exactly like retail, and a1 then dies before n is born. Re-read since: retail
@@ -363,7 +363,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D51EC);
        s32 i;
        s32 n;
 
-       func_801C80B8(g_GameState.characters[a1].hp);
+       MenuParseNumberToDigits(g_GameState.characters[a1].hp);
        pWindow[0x1273] = 0;
        for (i = 0; i < 3; i++) {
            if (g_Menu->digits[6 + i] != 0xFF) {
@@ -375,7 +375,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D51EC);
            }
        }
        i = 0;
-       func_801C80B8(g_GameState.characters[a1].maxHp);
+       MenuParseNumberToDigits(g_GameState.characters[a1].maxHp);
        pWindow[0x1274] = 0;
        n = 0;
        for (; i < 3; i++) {
@@ -392,7 +392,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D51EC);
 */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D53D0);
 /* Best: 98.31%. Same shape as func_801D51EC, which see: `i = 0;` written
-   before the second func_801C80B8 call and `n = 0;` after the counter store
+   before the second MenuParseNumberToDigits call and `n = 0;` after the counter store
    reproduces retail's loop-1 exit block (`andi v1,s2,0xFF` in the back-branch
    delay slot, `addu s2,zero,zero` in the jal delay slot) and drops the extra
    callee-saved register, frame 0x38. The one remaining diff is loop 2's
@@ -404,7 +404,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D53D0);
        s32 i;
        s32 n;
 
-       func_801C80B8(g_GameState.characters[a1].mp);
+       MenuParseNumberToDigits(g_GameState.characters[a1].mp);
        pWindow[0x1275] = 0;
        for (i = 0; i < 2; i++) {
            if (g_Menu->digits[7 + i] != 0xFF) {
@@ -416,7 +416,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D53D0);
            }
        }
        i = 0;
-       func_801C80B8(g_GameState.characters[a1].maxMp);
+       MenuParseNumberToDigits(g_GameState.characters[a1].maxMp);
        pWindow[0x1276] = 0;
        n = 0;
        for (; i < 2; i++) {
@@ -435,7 +435,7 @@ void func_801D55B4(u_char a0, u_char a1, s32 a2, s32 a3) {
     u8* pWindow = (u8*)g_Menu->unk39C[a0];
     s32 i;
 
-    func_801C80B8(*(s32*)((u8*)&g_GameState.characters[a1] + 0x44));
+    MenuParseNumberToDigits(*(s32*)((u8*)&g_GameState.characters[a1] + 0x44));
     pWindow[0x1277] = 0;
     for (i = 0; i < 7; i++) {
         if (g_Menu->digits[2 + i] != 0xFF) {
@@ -446,7 +446,7 @@ void func_801D55B4(u_char a0, u_char a1, s32 a2, s32 a3) {
                 a3 + D_801E9B4C, 0x1000);
         }
     }
-    func_801C80B8(*(s32*)((u8*)&g_GameState.characters[a1] + 0x48));
+    MenuParseNumberToDigits(*(s32*)((u8*)&g_GameState.characters[a1] + 0x48));
     pWindow[0x1278] = 0;
     for (i = 0; i < 7; i++) {
         if (g_Menu->digits[2 + i] != 0xFF) {
@@ -462,7 +462,7 @@ void func_801D5794(u_char a0, u_char a1, s32 a2, s32 a3) {
     u8* pWindow = (u8*)g_Menu->unk39C[a0];
     s32 i;
 
-    func_801C80B8(g_GameState.characters[a1].level);
+    MenuParseNumberToDigits(g_GameState.characters[a1].level);
     pWindow[0x1271] = 0;
     for (i = 0; i < 3; i++) {
         if (g_Menu->digits[6 + i] != 0xFF) {
@@ -473,7 +473,7 @@ void func_801D5794(u_char a0, u_char a1, s32 a2, s32 a3) {
                 0x1000);
         }
     }
-    func_801C80B8(g_GameState.characters[a1].unk63);
+    MenuParseNumberToDigits(g_GameState.characters[a1].unk63);
     pWindow[0x1272] = 0;
     for (i = 0; i < 3; i++) {
         if (g_Menu->digits[6 + i] != 0xFF) {
@@ -528,7 +528,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D5BA4);
    void func_801D5BA4(s32 a0, s32 a1) {
        s32 i;
 
-       func_801C80B8(g_GameState.gold);
+       MenuParseNumberToDigits(g_GameState.gold);
        *(s32*)((u8*)g_Menu->unk340 + 0x320) = 0;
        for (i = 0; i < 9; i++) {
            if (g_Menu->digits[i] != 0xFF) {
@@ -585,7 +585,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D5ED4);
    pManager->currentCharacterIDs[a0] & 1 and
    (g_GameState.characters[ids[a0]].gearId + 0xB) & 1;
    (2) `rowOffset = a1 ? 0x18 : 0` is shared by the 5th arg of func_8002675C
-   (0x18 - rowOffset) and by the y of the last func_801C851C (D_801E9D38 -
+   (0x18 - rowOffset) and by the y of the last MenuSetQuadVertices (D_801E9D38 -
    rowOffset), which is why retail materialises it branchlessly in the prologue
    (sltu/negu/andi) into s4;
    (3) D_801EA5C4 is read at a *4 stride, i.e. index ((3 * a1 + a0) * 4), while
@@ -593,7 +593,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D5ED4);
    under two names 0x4C apart;
    (4) width = 0x18 * a1 + 0x48 is assigned just before its first use (after the
    palette if/else), not at the top, and shared by func_801E920C and the last
-   func_801C851C.
+   MenuSetQuadVertices.
    Left: retail hoists the 0x5E store base (unk358 + renderContext * 0x28) out
    of the *then* branch but recomputes it in the else branch; a shared pBase
    local gets 87.38%, inline in both branches 85.93%, and the remaining diffs are
@@ -606,7 +606,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D5ED4);
    
        func_8002675C(g_Menu->resources, a0 + 0x14B, (POLY_FT4*)g_Menu->unk358,
                      g_Menu->renderContext, 0x18 - rowOffset, 0xE, 0x1000);
-       func_801C851C((SVECTOR*)((u8*)g_Menu->unk358 + 0x1EA0),
+       MenuSetQuadVertices((SVECTOR*)((u8*)g_Menu->unk358 + 0x1EA0),
                      *(u16*)((g_Menu->renderContext * 0x28 + (u8*)g_Menu->unk358) + 0x8),
                      *(u16*)((g_Menu->renderContext * 0x28 + (u8*)g_Menu->unk358) + 0xA),
                      0x30, 0x30);
@@ -634,7 +634,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D5ED4);
                                  (u8*)g_Menu->unk358),
                      0, 0, (D_801EA578[3 * a1 + a0] << 2) & 0xFC,
                      D_801EA5C4[(3 * a1 + a0) * 4], width, 0xD);
-       func_801C851C((SVECTOR*)((u8*)g_Menu->unk358 + 0x1EC0),
+       MenuSetQuadVertices((SVECTOR*)((u8*)g_Menu->unk358 + 0x1EC0),
                      D_801E9D38 - rowOffset, D_801E9D3C, width, 0xD);
    }
 */
@@ -671,7 +671,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D6194);
        {
            for (i = 0; i < ((u8*)g_Menu->unk358)[0x2AEC]; i++) {
                pEntry = (u8*)g_Menu->unk358 + (g_Menu->renderContext + i * 2) * 0x28;
-               func_801C851C((SVECTOR*)((u8*)g_Menu->unk358 + 0x1EE0 + i * 0x20),
+               MenuSetQuadVertices((SVECTOR*)((u8*)g_Menu->unk358 + 0x1EE0 + i * 0x20),
                              *(u16*)(pEntry + 0xA8),
                              *(u16*)(pEntry + 0xAA),
                              *(u16*)(pEntry + 0xB0) - *(u16*)(pEntry + 0xA8),

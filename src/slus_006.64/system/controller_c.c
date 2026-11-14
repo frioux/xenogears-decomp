@@ -6,7 +6,7 @@ typedef void (*ControllerPrintFunc)(int);
 
 extern ControllerPrintFunc D_80050594;
 
-extern int func_80036410(void);
+extern int ControllerIsStateStackFull(void);
 extern void ControllerResetState(void);
 
 void func_80036420(void) {
@@ -24,7 +24,7 @@ void func_80036420(void) {
     nC2ButtonState = 0;
     nC1ButtonState = 0;
 
-    if (func_80036410()) {
+    if (ControllerIsStateStackFull()) {
         ControllerResetState();
     } else {
         while (ControllerPopState()) {

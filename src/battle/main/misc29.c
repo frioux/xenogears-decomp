@@ -201,7 +201,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B89FC);
 /*
 void func_800B8D04(void) {
     func_800B8354();
-    func_800BF9EC();
+    BattleLoadArchiveEntryFile();
     while (D_80059464 != func_800BF720()) {
         func_800BE790();
     }

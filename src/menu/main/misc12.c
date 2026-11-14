@@ -247,7 +247,7 @@ void func_801E8044(u_char count, u_char* pBuffer) {
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E8070);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E8474);
-void func_801C7BF4(void);
+void MenuRenderFrame(void);
 
 /* Best: 91.12%. Both loops are instruction-for-instruction identical to retail
    apart from two allocator/hoisting effects: retail keeps selected in s3, the
@@ -282,7 +282,7 @@ void func_801E86C8(u_char selected) {
         g_Menu->unk354->unk1408 = *(u8*)&g_Menu->renderContext;
         if (allValid) {
             for (i = 0; i < 2; i++) {
-                func_801C7BF4();
+                MenuRenderFrame();
             }
         }
         g_Menu->unk354->unk1404 = 0;
@@ -298,7 +298,7 @@ void func_801E86C8(u_char selected) {
         g_Menu->unk354->unk1409 = *(u8*)&g_Menu->renderContext;
         if (allValid) {
             for (i = 0; i < 2; i++) {
-                func_801C7BF4();
+                MenuRenderFrame();
             }
         }
     }

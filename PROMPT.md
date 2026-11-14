@@ -61,13 +61,21 @@ of a match, and it is cheap.
   name (`MenuCopyRect16`) is better than none; a wrong name is worse than `func_`. Do
   not re-read the C to adjudicate; a bad name is one `rename_sym.py Old=New` to fix.
 - **Rename only while no clones are out.** A worker whose new C calls the old name
-  breaks the merge.
+  breaks the merge. `rename_sym.py` exits 1 on any skip, so read its SKIP block: about
+  two thirds of a naming round's names land here, because most `func_` in `field/` and
+  the overlays have no `symbol_addrs` entry at all. For those ("not in any symbol_addrs
+  file", and the function is C-defined, not a stub) a whole-word `sed` over `src/` and
+  `include/` is the same operation the tool performs; check the new name is unused
+  first. Leave the rest: a symbol that is `INCLUDE_ASM` in one overlay and C in
+  another must not be renamed, and so must not its twin.
 - **Backlog:** about 2,600 already-matched functions are still `func_`. While a
   matching round is out, run a naming round over them with
   `tools/rounds/name-brief.js` (`{workers: [{tree: <this repo>, file}, ...]}`). It is
   read-only, so workers share this tree and need no clones. Pick the files with the
   most unnamed definitions that are **not** in the current matching round, hold the
-  NAME lines, and apply them after the matching round has merged.
+  NAME lines, and apply them after the matching round has merged. Count definitions
+  with `/* ... */` blocks stripped: a bare `grep func_` counts `extern` prototypes and
+  parked bodies, and round 35 spent two duds on files with zero unnamed C functions.
 - Tracker row: `+N matched, +M named`.
 
 ## Choosing what to brief
