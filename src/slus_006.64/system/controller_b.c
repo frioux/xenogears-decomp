@@ -3,6 +3,7 @@
 #include "psyq/libapi.h"
 #include "psyq/libgpu.h"
 #include "psyq/pc.h"
+#include "system/memory.h"
 
 extern u_char D_8005938C;
 extern int D_80010000;
@@ -86,7 +87,55 @@ void func_80035F1C(RECT* pRect, char* pPath) {
     PCclose(fd);
 }
 
+extern u_char D_80600000[];
+extern u_char D_80700000[];
+extern char D_80018ABC[];
+
+typedef struct {
+    /* 0x0 */ u_short red : 5;
+    /* 0x0 */ u_short green : 5;
+    /* 0x0 */ u_short blue : 5;
+} Pixel16; // Size: 0x2
+
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/controller_b", func_80035FF8);
+/* Best: 93.97%. The loop body and the rest of the function match exactly; the only
+difference is how the two pointer bases are formed. The original loads only
+lui %hi(D_80600000)/lui %hi(D_80700000) and reaches the bytes through
+%lo(sym+k)(base) displacements, while any C that walks a pointer over the
+symbol compiles to `la` (lui+addiu), two instructions the original does not have.
+Tried: pointer locals from the array (la), &sym[0], u_char* base, direct subscript
+(needs addu), and gcc-2.7.2-cdk (88.34%).
+int func_80035FF8(RECT* pRect, char* pPath) {
+    char buffer[0x100];
+    Pixel16* pSrc;
+    u_char* pDst;
+    int count;
+    int i;
+    int fd;
+
+    StoreImage(pRect, (u_long*)0x80600000);
+    DrawSync(0);
+    Sprintf(buffer, D_80018ABC, pRect->w, pRect->h);
+
+    count = pRect->w * pRect->h;
+    pSrc = (Pixel16*)D_80600000;
+    pDst = D_80700000;
+    for (i = count; i != 0; i--) {
+        *pDst++ = pSrc->red << 3;
+        *pDst++ = pSrc->green << 3;
+        *pDst++ = pSrc->blue << 3;
+        pSrc++;
+    }
+
+    fd = PCcreate(pPath, 0);
+    if (fd == -1)
+        return -1;
+    PCwrite(fd, buffer, strlen(buffer));
+    PCwrite(fd, (char*)0x80700000, count * 3);
+    PCclose(fd);
+    return 0;
+}
+*/
 
 void func_8003611C(void) {
     D_8005A1BC[0].unk0 = 0;
@@ -191,3 +240,4 @@ void func_80036400(int value) {
 int func_80036410(void) {
     return g_ControllerIsStateStackFull;
 }
+
