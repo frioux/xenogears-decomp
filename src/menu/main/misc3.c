@@ -66,7 +66,56 @@ int func_801C9038(u8* pPath, u8* pBuffer) {
     return 0;
 }
 
+typedef struct {
+    /* 0x0 */ u32 unk0;
+    /* 0x4 */ u16 unk4;
+} MenuCardPrefix; // Size: 0x6
+
+extern MenuCardPrefix D_801C50A8;
+extern MenuCardPrefix D_801C50B0;
+extern void MenuWaitCardOperationFrames(u_char index);
+
+/* Best attempt: 99.11%. Instruction multiset identical, byte count equal (448);
+   the only difference is the operand order of the two `addu`s that add a hoisted
+   offset to `g_Menu->menuUnk2`: retail emits `addu a1,s0,a1` (offset first) where
+   this emits `addu a1,a1,s0`. Tried: with/without the (char*) cast on the strcat
+   argument, `memcpy(&prefix, &D_801C50A8, 6)` vs two field assignments (the two
+   statements get cross-jumped), and the `.pad0` vs `&chunks[idx]` spelling.
+   Learned: the 6-byte prefix copy is `memcpy(&prefix, &D_801C50A8, 6)` -- a 6-byte
+   aggregate copy is impossible in C (a {u32;s16;} struct is 8 bytes and copies 8),
+   and two field assignments are merged by -fcross-jumping. func_801CB304 and
+   misc4's func_801CD2AC use the same idiom. Also: unk4F84 is a s32 write cursor
+   here (lw/addiu/sw), so it is reached through a cast over the header's u8[8]. */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801C90B0);
+/*
+void func_801C90B0(u_char a0, u_char a1) {
+    MenuCardPrefix prefix;
+    char path[0x40];
+    s32 retry = 1;
+    s32 i;
+
+    if (a0 == 0) {
+        memcpy(&prefix, &D_801C50A8, 6);
+    } else {
+        memcpy(&prefix, &D_801C50B0, 6);
+    }
+    strcpy(path, (char*)&prefix);
+    strcat(path, g_Menu->menuUnk2->records[a0 * 0x10 + a1].ids);
+    while (1) {
+        if (func_801C9038((u8*)path, g_Menu->menuUnk2->chunks[a0 * 0x10 + a1].pad0) != -1) {
+            break;
+        }
+        if (--retry == 0) {
+            break;
+        }
+        MenuWaitCardOperationFrames(a0);
+    }
+    for (i = 0; i < g_Menu->menuUnk2->chunks[a0 * 0x10 + a1].pad0[3]; i++) {
+        g_Menu->menuUnk2->unk4FAE[a0 * 0x10 + ((s32*)g_Menu->menuUnk2->unk4F84)[0]] = a0 * 0x10 + a1;
+        ((s32*)g_Menu->menuUnk2->unk4F84)[0]++;
+    }
+}
+*/
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801C9270);
 
@@ -170,7 +219,59 @@ u_char func_801C9BCC(s32 a0) {
 }
 */
 
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801C9D34);
+s32 func_801C9D34(s32 a0) {
+    s32 result = 0xFF;
+    s32 searching = 1;
+    s32 start;
+    s32 limit;
+    s32 i;
+    s32 j;
+
+    start = (g_Menu->menuUnk2->unk4FE4 == 0) ? 0xF : 0;
+    limit = 0x1E;
+    if (g_Menu->menuUnk2->unk4FE5 == 0) {
+        limit = 0xF;
+    }
+    for (i = start; i < limit; i++) {
+        if (!searching) {
+            break;
+        }
+        switch (a0) {
+        case 0:
+            if (*(s32*)&g_Menu->menuUnk2->unk4F84[4] & 0xFFFF0000) {
+                j = D_801E981C[i];
+                if (((MenuUnk2Flags*)g_Menu->menuUnk2)->flags[j / 16] != 0 && g_Menu->menuUnk2->unk4FAE[j] != 0xFF) {
+                    result = i;
+                    searching = 0;
+                }
+            } else {
+                searching = 0;
+            }
+            break;
+        case 1:
+            if (*(s32*)&g_Menu->menuUnk2->unk4F84[4] & 0xFFFF0000) {
+                j = D_801E981C[i];
+                if (((MenuUnk2Flags*)g_Menu->menuUnk2)->flags[j / 16] != 0 && g_Menu->menuUnk2->unk4FAE[j] != 0xFF &&
+                    g_Menu->menuUnk2->unk4F8E[j] != 0) {
+                    result = i;
+                    searching = 0;
+                }
+            } else {
+                searching = 0;
+            }
+            break;
+        case 2:
+            j = D_801E981C[i];
+            if (((MenuUnk2Flags*)g_Menu->menuUnk2)->flags[j / 16] != 0) {
+                result = i;
+                searching = 0;
+            }
+            break;
+        }
+    }
+    g_Menu->unk4D8 = 2;
+    return result;
+}
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801C9EF4);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CA1D4);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CA480);
