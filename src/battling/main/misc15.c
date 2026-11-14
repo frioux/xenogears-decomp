@@ -3,7 +3,7 @@
 #include "psyq/inline_c.h"
 #include "system/memory.h"
 
-// The block func_8008C0CC hangs off a heap node; func_8008C120 releases it.
+// The block BattleCreateWorkNode hangs off a heap node; BattleFreeWorkBlock releases it.
 typedef struct WorkBlock WorkBlock;
 struct WorkBlock {
     /* 0x0 */ s16 count;
@@ -15,7 +15,7 @@ struct WorkBlock {
     /* 0x14 */ void* pDelayedMemEnd;
 }; // Size: 0x18
 
-// A 16-byte heap node allocated by func_8008C0CC.
+// A 16-byte heap node allocated by BattleCreateWorkNode.
 typedef struct HeapNode {
     /* 0x0 */ s32 type;
     /* 0x4 */ void* pOwner;
@@ -25,10 +25,10 @@ typedef struct HeapNode {
 
 extern s32 D_80092824;
 extern void* D_80092828;
-extern void* func_8008C188(u8* pObj, void* pArg);
+extern void* BattleCreateObjectTree(u8* pObj, void* pArg);
 extern s32 BattleCreateObject(void);
 extern void BattleAppendListEntry(s32 handle, void* pNode);
-extern void func_8008BE4C(WorkBlock* pBlock, u8* pData);
+extern void BattleInitWorkBlock(WorkBlock* pBlock, u8* pData);
 extern s32 rand(void);
 extern u8 D_800928A0;
 extern s32 D_800928E4;
@@ -70,7 +70,7 @@ typedef struct {
 } Words2; // Size: 0x8
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc15", func_8008BC04);
-void func_8008BCC8(u8* pObj, u8* pDst) {
+void BattleProjectShadowVerts(u8* pObj, u8* pDst) {
     VECTOR vec;
     VECTOR vecUnused;
 
@@ -111,7 +111,7 @@ void func_8008BD70(u8* pData, void* pPacket, void* pUnk, void* pVertices) {
     }
 }
 */
-void func_8008BE4C(WorkBlock* pBlock, u8* pData) {
+void BattleInitWorkBlock(WorkBlock* pBlock, u8* pData) {
     s32 i;
     s32 j;
     s32 n;
@@ -175,11 +175,11 @@ void func_8008BE4C(WorkBlock* pBlock, u8* pData) {
     }
     func_800732AC(pBlock->pDelayedMemEnd, pBlock->pDelayedMem, i);
 }
-void func_8008C0BC(void* pObj, void* pValue) {
+void BattleAttachWorkNode(void* pObj, void* pValue) {
     *(s32*)pObj = 5;
     *((void**)pObj + 1) = pValue;
 }
-HeapNode* func_8008C0CC(void* pOwner) {
+HeapNode* BattleCreateWorkNode(void* pOwner) {
     HeapNode* pNode;
     s32 type;
     void* pWork;
@@ -194,7 +194,7 @@ HeapNode* func_8008C0CC(void* pOwner) {
     pNode->pWork = pWork;
     return pNode;
 }
-void func_8008C120(HeapNode* pNode) {
+void BattleFreeWorkBlock(HeapNode* pNode) {
     WorkBlock* pBlock = pNode->pBlock;
 
     if (pBlock != NULL) {
@@ -205,7 +205,7 @@ void func_8008C120(HeapNode* pNode) {
         HeapFree(pBlock);
     }
 }
-void* func_8008C188(u8* pObj, void* pArg) {
+void* BattleCreateObjectTree(u8* pObj, void* pArg) {
     void* pWork;
     HeapNode* pNode;
     void* pBlock;
@@ -214,32 +214,32 @@ void* func_8008C188(u8* pObj, void* pArg) {
 
     HeapSetCurrentContentType(6);
     pWork = (void*)BattleCreateObject();
-    pNode = func_8008C0CC(pObj);
-    func_8008C0BC(pWork, pNode);
+    pNode = BattleCreateWorkNode(pObj);
+    BattleAttachWorkNode(pWork, pNode);
     if (pNode->type == 1) {
         pData = *(void**)(*(u8**)(pObj + 4) + 0x14);
         HeapSetCurrentContentType(5);
         pBlock = HeapAlloc(0x18, 2);
         pNode->pBlock = pBlock;
-        func_8008BE4C(pBlock, pData);
+        BattleInitWorkBlock(pBlock, pData);
     }
     pChild = *(u8**)(pObj + 0x94);
     D_80092824++;
     if (pChild != NULL)
-        BattleAppendListEntry((s32)pWork, func_8008C188(pChild, pWork));
+        BattleAppendListEntry((s32)pWork, BattleCreateObjectTree(pChild, pWork));
     if (*(void**)(pObj + 0x90) != NULL)
-        BattleAppendListEntry((s32)pArg, func_8008C188(*(u8**)(pObj + 0x90), pArg));
+        BattleAppendListEntry((s32)pArg, BattleCreateObjectTree(*(u8**)(pObj + 0x90), pArg));
     return pWork;
 }
-void func_8008C298(void* pWork) {
+void BattleResetObjectCountAndCreateTree(void* pWork) {
     D_80092824 = 0;
-    func_8008C188(pWork, NULL);
+    BattleCreateObjectTree(pWork, NULL);
 }
-void func_8008C2C0(void* pWork) {
+void BattleInitObjectTree(void* pWork) {
     D_80092828 = pWork;
-    func_8008C298(pWork);
+    BattleResetObjectCountAndCreateTree(pWork);
 }
-void func_8008C2E8(u8* pObj) {
+void BattleQueueNodePrims(u8* pObj) {
     u8* pData;
     u8* pChk;
     u8* pBase;
@@ -254,9 +254,9 @@ void func_8008C2E8(u8* pObj) {
         }
     }
     if (*(u8**)(pObj + 0x94) != NULL)
-        func_8008C2E8(*(u8**)(pObj + 0x94));
+        BattleQueueNodePrims(*(u8**)(pObj + 0x94));
     if (*(u8**)(pObj + 0x90) != NULL)
-        func_8008C2E8(*(u8**)(pObj + 0x90));
+        BattleQueueNodePrims(*(u8**)(pObj + 0x90));
 }
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc15", func_8008C3A8);
 /* Best C match, 73.52% (272 bytes vs retail 280). Two shapes are already right
@@ -306,12 +306,12 @@ void func_8008C3A8(SVECTOR* pSrc, SVECTOR* pDst, s32 n) {
 */
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc15", func_8008C4B0);
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc15", func_8008C620);
-void func_8008C7C0(u8* pObj) {
+void BattleShiftQuad4Verts(u8* pObj) {
     *(Bytes8*)(pObj + 0x20) = *(Bytes8*)pObj;
     *(Bytes8*)(pObj + 0x18) = *(Bytes8*)(pObj + 0x20);
     *(Bytes8*)(pObj + 0x10) = *(Bytes8*)(pObj + 0x18);
 }
-void func_8008C828(u8* pObj, u8* pSrc) {
+void BattleInitQuad4Prim(u8* pObj, u8* pSrc) {
     pObj[0x2F] = 0x4C;
     pObj[0x2B] = 6;
     *(u32*)(pObj + 0x40) = 0x55555555;
@@ -322,7 +322,7 @@ void func_8008C828(u8* pObj, u8* pSrc) {
     *(Words4*)(pObj + 0x44) = *(Words4*)(pObj + 0x28);
     *(Words3*)(pObj + 0x54) = *(Words3*)(pObj + 0x38);
 }
-void func_8008C8B4(u8* pObj, u8* pOT) {
+void BattleAddQuad4Prim(u8* pObj, u8* pOT) {
     long local[2];
     u8* pBase;
     s32 otz;
@@ -336,11 +336,11 @@ void func_8008C8B4(u8* pObj, u8* pOT) {
     *(Bytes8*)(pObj + 0x10) = *(Bytes8*)pObj;
     func_80031750(pOT + ((otz >> 2) << 2), pBase);
 }
-void func_8008C9B8(u8* pObj) {
+void BattleShiftTri3Verts(u8* pObj) {
     *(Bytes8*)(pObj + 0x18) = *(Bytes8*)pObj;
     *(Bytes8*)(pObj + 0x10) = *(Bytes8*)(pObj + 0x18);
 }
-void func_8008CA00(u8* pObj, u8* pSrc) {
+void BattleInitTri3Prim(u8* pObj, u8* pSrc) {
     pObj[0x27] = 0x48;
     pObj[0x23] = 5;
     *(u32*)(pObj + 0x34) = 0x55555555;
@@ -377,10 +377,10 @@ void BattleAddTri3Prim(u8* pObj, u8* pOT) {
     gte_stszotz(&otz);
     func_80031708(pOT + ((otz >> 2) << 2), pPkt);
 }
-void func_8008CC2C(u8* pObj) {
+void BattleShiftLine2Verts(u8* pObj) {
     *(Bytes8*)(pObj + 0x10) = *(Bytes8*)pObj;
 }
-void func_8008CC54(u8* pObj, u8* pSrc) {
+void BattleInitLine2Prim(u8* pObj, u8* pSrc) {
     pObj[0x1B] = 3;
     pObj[0x1F] = 0x42;
     pObj[0x1C] = pSrc[0x74];
@@ -388,7 +388,7 @@ void func_8008CC54(u8* pObj, u8* pSrc) {
     pObj[0x1E] = pSrc[0x76];
     *(Words4*)(pObj + 0x28) = *(Words4*)(pObj + 0x18);
 }
-void func_8008CCB0(u8* pObj, u8* pOT) {
+void BattleAddLine2Prim(u8* pObj, u8* pOT) {
     long local[2];
     u8* pBase;
     s32 otz;
@@ -400,9 +400,9 @@ void func_8008CCB0(u8* pObj, u8* pOT) {
     *(Bytes8*)(pObj + 0x10) = *(Bytes8*)pObj;
     func_800316C0(pOT + ((otz >> 2) << 2), pBase);
 }
-void func_8008CD54(void) {
+void BattleNoOpVertexShift(void) {
 }
-void func_8008CD5C(u8* pObj, u8* pSrc) {
+void BattleInitSpritePrim(u8* pObj, u8* pSrc) {
     s16 n;
 
     pObj[0x13] = 3;
@@ -415,7 +415,7 @@ void func_8008CD5C(u8* pObj, u8* pSrc) {
     pObj[0x16] = pSrc[0x76];
     *(Words4*)(pObj + 0x20) = *(Words4*)(pObj + 0x10);
 }
-void func_8008CE0C(u8* pSrc, u8* pOT) {
+void BattleAddSpritePrim(u8* pSrc, u8* pOT) {
     SVECTOR vec;
     u8* pRef;
     u8* pDst;

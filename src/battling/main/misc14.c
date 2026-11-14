@@ -33,17 +33,17 @@ typedef struct {
     /* 0x12 */ u16 pad12;
 } Misc14Entry; // Size: 0x14
 
-void func_8008A618(void) {
+void BattleEnableBackColor(void) {
     D_80092810 = 1;
 }
 
-void func_8008A62C(void) {
+void BattleDisableBackColor(void) {
     D_80092810 = 0;
 }
 
 extern void ModelRenderPacket(void *pPart, void *pPacket, u_long *pOT, s32 flags);
 
-void func_8008A63C(u8 *pActor) {
+void BattleRenderActorModel(u8 *pActor) {
     D_80050104 = 0;
     if (D_80092810 != 0) {
         if (*(u32 *)pActor & 0x10) {
@@ -60,7 +60,7 @@ typedef struct {
     u8 b[4];
 } Misc14Quad; // Size: 0x4
 
-void func_8008A6F8(u8 *pSrc) {
+void BattleSetColorIfChanged(u8 *pSrc) {
     u8 *pDst = (u8 *)&D_80092818[D_800928A0];
 
     if (pSrc[0] == pDst[0] && pSrc[1] == pDst[1] && pSrc[2] == pDst[2]) {
@@ -72,7 +72,7 @@ void func_8008A6F8(u8 *pSrc) {
     }
 }
 
-void func_8008A78C(u8 *pActor) {
+void BattleSetEntryColor(u8 *pActor) {
     s32 index = D_800928A0;
     u8 *pModel = *(u8 **)(pActor + 4);
     u8 *pData = *(u8 **)(pModel + 0xC);
@@ -88,13 +88,13 @@ void func_8008A78C(u8 *pActor) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc14", func_8008A7E0);
 
-void func_8008ABAC(u8 *pActor) {
+void BattleSetModelLights(u8 *pActor) {
     func_80030A30(0, *(u8 **)(*(u8 **)pActor + 4));
     func_80030A30(1, *(u8 **)(*(u8 **)(pActor + 4) + 4));
     func_80030A30(2, *(u8 **)(*(u8 **)(pActor + 8) + 4));
 }
 
-void func_8008AC0C(u8 *pActor) {
+void BattleClearOrderingTable(u8 *pActor) {
     s32 n = *(s16 *)(pActor + 0x14);
 
     ClearOTagR(*(u_long **)(pActor + D_800928A0 * 4 + 4), n);
@@ -102,15 +102,15 @@ void func_8008AC0C(u8 *pActor) {
     D_80050100 = *(u8 *)(pActor + 0x17);
 }
 
-void func_8008AC7C(s32 arg0) {
+void BattleSetOrderingTableTarget(s32 arg0) {
     D_80091C30 = arg0;
 }
 
-void func_8008AC8C(void) {
+void BattleCaptureTimerCount(void) {
     D_80092820 = GetRCnt(0xF2000001);
 }
 
-void func_8008ACB8(s32 arg0) {
+void BattleCompactOrderingTable(s32 arg0) {
     u8 *pCtx = (u8 *)D_80091C30;
     s32 timeout;
     s32 start;
@@ -162,8 +162,8 @@ void func_8008ACB8(s32 arg0) {
 extern void func_800453E8(void *pDrmode, void *pRect);
 extern void func_8004546C(void *pDrmode, void *pRect);
 
-void func_8008AE1C(u8 *pActor) {
-    func_8008AC7C((s32)pActor);
+void BattleAttachActorPrims(u8 *pActor) {
+    BattleSetOrderingTableTarget((s32)pActor);
     AddPrims(D_80092938, *(void **)(pActor + D_800928A0 * 4 + 0xC), *(void **)(pActor + D_800928A0 * 4 + 4));
     if ((*(u8 *)(pActor + 0x16) & 4) == 0) {
         func_800453E8(pActor + (D_800928A0 * 12 + 0x18), D_80092868);
@@ -193,7 +193,7 @@ typedef struct {
 
 extern void BattleLoadImageWithTpageClut(void *pImg);
 
-Misc14Reloc *func_8008AF6C(Misc14Reloc *pData) {
+Misc14Reloc *BattleRelocateBlockPointers(Misc14Reloc *pData) {
     s32 delta = (s32)pData - (s32)pData->unk1C;
     u32 *pSlot;
     u32 i;
@@ -222,14 +222,14 @@ Misc14Reloc *func_8008AF6C(Misc14Reloc *pData) {
     return pData;
 }
 
-void func_8008B070(s32 entryIndex) {
+void BattleLoadRelocatedArchiveEntry(s32 entryIndex) {
     void *pBuffer;
 
     HeapSetCurrentContentType(0xA);
     pBuffer = HeapAlloc(ArchiveDecodeSize(entryIndex), 0);
     ArchiveReadFileToBuffer(entryIndex, pBuffer, 0, 0);
     ArchiveCdDataSync(0);
-    func_8008AF6C(pBuffer);
+    BattleRelocateBlockPointers(pBuffer);
 }
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc14", func_8008B0D8);
@@ -389,11 +389,11 @@ typedef struct {
 
 extern s32 func_8008B730(Misc14Anim *pAnim, s32 arg1, s32 arg2);
 
-void func_8008B5DC(void *pA, s32 arg1) {
+void BattleSetAnimPosition(void *pA, s32 arg1) {
     func_8008B730(pA, arg1, 1);
 }
 
-s16 func_8008B5FC(s32 arg0, s32 arg1, s32 arg2) {
+s16 BattleInterpolateAngle(s32 arg0, s32 arg1, s32 arg2) {
     s32 value;
     s32 diff;
 
@@ -514,7 +514,7 @@ s32 func_8008B730(Misc14Anim *pAnim, s32 arg1, s32 arg2) {
             u16 value = *pEntry->unk0;
 
             if (pEntry->unk6 != 0) {
-                *pEntry->unk0 = func_8008B5FC((s16)value, (s16)pEntry->unk4, arg2);
+                *pEntry->unk0 = BattleInterpolateAngle((s16)value, (s16)pEntry->unk4, arg2);
             } else {
                 *pEntry->unk0 = value + ((s16)pEntry->unk4 - (s16)value) / arg2;
             }
@@ -551,7 +551,7 @@ s32 func_8008B730(Misc14Anim *pAnim, s32 arg1, s32 arg2) {
             u16 value = *pTrack->unk8;
 
             if (pTrack->unk12 != 0) {
-                *pTrack->unk8 = func_8008B5FC((s16)value, (s16)pTrack->unkE, arg2);
+                *pTrack->unk8 = BattleInterpolateAngle((s16)value, (s16)pTrack->unkE, arg2);
             } else {
                 *pTrack->unk8 = value + ((s16)pTrack->unkE - (s16)value) / arg2;
             }
@@ -568,7 +568,7 @@ typedef struct {
     /* 0x80 */ u32 unk80;
 } Misc14Work; // Size: 0x84
 
-Misc14Work *func_8008BA2C(u32 arg0, u32 arg1, u32 arg2, s32 arg3) {
+Misc14Work *BattleCreateWorkBlock(u32 arg0, u32 arg1, u32 arg2, s32 arg3) {
     Misc14Work *p;
     s32 i;
     u32 value;
@@ -589,7 +589,7 @@ Misc14Work *func_8008BA2C(u32 arg0, u32 arg1, u32 arg2, s32 arg3) {
     return p;
 }
 
-void func_8008BAE0(void *pMem) {
+void BattleFreeWorkBuffer(void *pMem) {
     HeapFree(pMem);
 }
 

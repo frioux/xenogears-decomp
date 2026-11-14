@@ -53,8 +53,8 @@ extern void func_8008FCC8(u8* p, u8* arg1);
 extern void func_8009031C(u8* p, u8* arg1);
 extern void func_80090580(u8* p, u8* arg1);
 extern void func_80090990(u8* p, u8* arg1);
-extern void func_8008EE1C(u8* p, s32 arg1, s32 arg2);
-extern s32 func_8008F4F4(u8* p, s32 arg1);
+extern void BattleUpdateActorApproach(u8* p, s32 arg1, s32 arg2);
+extern s32 BattleCheckValueAboveScaledMax(u8* p, s32 arg1);
 
 
 s32 func_8008F530(u8* pArg0, s32 arg1) {
@@ -86,13 +86,13 @@ s32 func_8008F5B4(u8* pArg0, s32 arg1) {
         if (func_8008F530(pArg0, 0) != 0) {
             goto tail;
         }
-        if (func_8008F4F4(pArg0, 0xC0) != 0) {
+        if (BattleCheckValueAboveScaledMax(pArg0, 0xC0) != 0) {
             goto tail;
         }
         if ((rand() & 0xFF) < ((*(s32*)(p + 0x1C) * 3) << 6) >> 4) {
             goto tail;
         }
-        if (func_8008F4F4(pArg0, 0x80) == 0) {
+        if (BattleCheckValueAboveScaledMax(pArg0, 0x80) == 0) {
             return 0;
         }
         if (*(s16*)(*(u8**)(pArg0 + 0xD8) + 0xB4) < *(s16*)(pArg0 + 0xB4)) {
@@ -108,7 +108,7 @@ tail:
         if (*(u8*)(*(u8**)(pArg0 + 0xD8) + 0xC4) == 4) {
             return 0;
         }
-        if (func_8008F4F4(*(u8**)(pArg0 + 0xD8), 0x20) != 0) {
+        if (BattleCheckValueAboveScaledMax(*(u8**)(pArg0 + 0xD8), 0x20) != 0) {
             return 1;
         }
         if (*(s16*)(*(u8**)(pArg0 + 0xD8) + 0xB4) < *(s16*)(pArg0 + 0xB4)) {
@@ -504,6 +504,6 @@ void func_80090E10(u8* pArg0) {
         if ((*(u32*)(p + 0x2C) & 0x2000) != 0) {
             *(u32*)(pArg0 + 0xD0) |= 2;
         }
-        func_8008EE1C(pArg0, *(s16*)(p + 0xA), *(s16*)(p + 0xC));
+        BattleUpdateActorApproach(pArg0, *(s16*)(p + 0xA), *(s16*)(p + 0xC));
     }
 }

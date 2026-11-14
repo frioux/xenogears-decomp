@@ -360,7 +360,7 @@ extern u8 D_80092920;
 extern void* FontLoadFont(s32, s32, s32, s32, s32, u32, s32, s32, s32, s32, void*);
 extern void BattleSetTpage(s32, s32);
 extern void BattleSetClut(s32, s32);
-extern void func_8008E620(void);
+extern void BattleInitSoundSlots(void);
 
 void BattleInitGraphics(void) {
     RECT rect;
@@ -396,7 +396,7 @@ void BattleInitGraphics(void) {
     D_80092920 = 0;
     D_80092930 = 0;
     D_800928D0 = 7;
-    func_8008E620();
+    BattleInitSoundSlots();
 }
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc12", func_80088E90);

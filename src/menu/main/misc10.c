@@ -14,11 +14,11 @@ void MenuApplyGearFrame(MenuDressingRoom*, u8);
 void MenuApplyGearArmor(MenuDressingRoom*, u8);
 void MenuApplyGearEngine(MenuDressingRoom*, u8);
 void func_801C72BC(u8);
-void func_801D3674(void);
+void MenuFreeShoulderButtonUi(void);
 void func_801D4EA0(u8);
 void MenuRenderFrame(void);
 void func_801E8044(u8, u8*);
-void func_801D249C(u8);
+void MenuLoadSubMenuChoiceStrings(u8);
 void func_801D3488(u8, u8);
 void func_801E05D0(u8, u8, u8);
 void func_801D9E3C(void);
@@ -26,13 +26,13 @@ void func_801DC2CC(u8);
 void func_801DA518(void);
 void func_801DE36C(void);
 void func_801DE400(void);
-void func_801D25E4(void);
+void MenuClearSubMenuChoiceFlags(void);
 void MenuPlaySoundEffect(u8);
 u8 func_801D9704(u8, u8, u8);
 void MenuInitializeUnk438Panel(void);
 void func_801E1AC8(u8);
 void func_801E8070(s32, void*, void*, void*, void*, u8, u8, u8);
-void func_801D397C(u_char, u_char, u_char, u_char, u16, u_char, u_char, u32, u_char);
+void MenuCreateWindow(u_char, u_char, u_char, u_char, u16, u_char, u_char, u32, u_char);
 
 int MenuInitializeUnk35CPanel(u8 arg0, u8 arg1) {
     g_Menu->unk35C = HeapAlloc(0x32F4, 0);
@@ -57,7 +57,7 @@ void MenuInitializeUnk438Panel(void) {
     func_801C72BC(4);
     func_801E8018(2, (u8*)g_Menu + 0x17E0, D_801EA564, (u8*)g_Menu->pManager + 0x4E);
     func_801E8070(2, (u8*)g_Menu + 0x17E0, D_801EA564, D_801E9EA0, (u8*)g_Menu->pManager + 0x4E, 0, 0, 4);
-    func_801D397C(2, 0x44, 0xA, 0xE4, 0xC4, 0, 1, 4, 0);
+    MenuCreateWindow(2, 0x44, 0xA, 0xE4, 0xC4, 0, 1, 4, 0);
     g_Menu->pManager->unk5[1] = 0;
     g_Menu->pManager->shouldRenderWindow[1] = 0;
     pManager = g_Menu->pManager;
@@ -93,7 +93,7 @@ void MenuInitializeUnk438Panel(void) {
     }
 }
 void MenuFreeUnk438Panel(void) {
-    func_801D3674();
+    MenuFreeShoulderButtonUi();
     g_Menu->pManager->unk4A[3] = 0;
     func_801D4EA0(2);
     MenuRenderFrame();
@@ -244,7 +244,7 @@ void MenuFreeGearScreenBuffers(void) {
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E23CC);
 void MenuInitializeCharacterScreenBuffers(void) {
-    func_801D249C(1);
+    MenuLoadSubMenuChoiceStrings(1);
     g_Menu->unk358 = HeapAlloc(0x2AF0, 0);
     bzero(g_Menu->unk358, 0x2AF0);
     g_Menu->unk35C = HeapAlloc(0x32F4, 0);
@@ -298,7 +298,7 @@ void func_801E3088(u8 arg0) {
         g_Menu->pManager->unk5[2] = 0;
         g_Menu->pManager->unk8 = 0;
         g_Menu->pManager->unk4A[1] = 0;
-        func_801D25E4();
+        MenuClearSubMenuChoiceFlags();
         MenuFreeCharacterScreenBuffers();
         break;
     }

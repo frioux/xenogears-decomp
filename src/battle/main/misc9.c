@@ -284,7 +284,7 @@ void func_8007E234(u8 **arg0, u8 arg1) {
 
     // the slot table is walked downwards from D_800D32B1
     for (i = 2; i >= 0; i--) {
-        if ((u8)func_8007A744((u8)i) != 0) {
+        if ((u8)BattleSlotFlagsC000Clear((u8)i) != 0) {
             switch ((*arg0)[2]) {
             case 1:
                 if (D_800D32B1[(i - 2) * 8] != 0) {
@@ -319,7 +319,7 @@ void func_8007E334(u8 **arg0, u8 arg1) {
 
     // the slot table is walked downwards from D_800D32F1
     for (i = 0xA; i >= 3; i--) {
-        if ((u8)func_8007A744((u8)i) != 0) {
+        if ((u8)BattleSlotFlagsC000Clear((u8)i) != 0) {
             switch ((*arg0)[2]) {
             case 1:
                 if (D_800D32F1[(i - 0xA) * 8] != 0) {
@@ -357,8 +357,8 @@ void func_8007E438(u8 **arg0, u8 arg1) {
     u16 *pRow;
 
     for (i = 2; i >= 0; i--) {
-        if ((u8)func_8007A744((u8)i) != 0) {
-            if (D_800C3EB4[(u8)func_80079E7C(*(u16 *)(D_800D3420 + arg1 * 0x40 + (*arg0)[2] * 2)) * 0x1C] ==
+        if ((u8)BattleSlotFlagsC000Clear((u8)i) != 0) {
+            if (D_800C3EB4[(u8)BattleFindFirstFlagTableMatch(*(u16 *)(D_800D3420 + arg1 * 0x40 + (*arg0)[2] * 2)) * 0x1C] ==
                 D_800C3EB4[offset]) {
                 acc |= 1;
             }
@@ -372,7 +372,7 @@ void func_8007E438(u8 **arg0, u8 arg1) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007E438);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007E554);
 /* best: 89.08%. Structure: for (i = 0xA; i >= 3; i--) over the operator slots,
-   comparing D_800C3EB4[(u8)func_80079E7C(pField[p[2]]) * 0x1C] against
+   comparing D_800C3EB4[(u8)BattleFindFirstFlagTableMatch(pField[p[2]]) * 0x1C] against
    D_800C3EB4[offset] with offset = 0x118 stepping -0x1C, then storing
    `acc << 2` into the row. The row base MUST be a local pointer computed before
    the loop (inline gives 74.68%: gcc hoists &D_800D3420 and the <<6 separately
@@ -393,8 +393,8 @@ void func_8007E554(u8 **arg0, u8 arg1) {
     u16 *pRow;
 
     for (i = 0xA; i >= 3; i--) {
-        if ((u8)func_8007A744((u8)i) != 0) {
-            if (D_800C3EB4[(u8)func_80079E7C(pField[(*arg0)[2]]) * 0x1C] ==
+        if ((u8)BattleSlotFlagsC000Clear((u8)i) != 0) {
+            if (D_800C3EB4[(u8)BattleFindFirstFlagTableMatch(pField[(*arg0)[2]]) * 0x1C] ==
                 D_800C3EB4[offset]) {
                 acc |= 1;
             }
@@ -506,7 +506,7 @@ void func_8007E8E0(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
     u16 *pField = (u16 *)(D_800D3420 + arg1 * 0x40);
 
-    D_800D2DC0 = func_80079E7C(pField[p[1]]) + 1;
+    D_800D2DC0 = BattleFindFirstFlagTableMatch(pField[p[1]]) + 1;
 }
 void func_8007E934(void) {
     u8 buf[0x10];

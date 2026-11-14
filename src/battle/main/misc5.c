@@ -11,12 +11,12 @@ extern u8 D_800CCD64[];
 extern u8 D_800CCD6C[];
 extern u8 D_800C3EB7[];
 
-void func_80079E18(u8 arg0) {
+void BattleSetSlotFlagB4(u8 arg0) {
     D_800D2D28[0xB4] = 1;
     D_800D3725[arg0 * 0x60] = 1;
 }
 
-void func_80079E4C(u8 arg0) {
+void BattleClearSlotFlagB4(u8 arg0) {
     D_800D2D28[0xB4] = 0;
     D_800D3725[arg0 * 0x60] = 0;
 }
@@ -24,7 +24,7 @@ void func_80079E4C(u8 arg0) {
 extern u16 func_80089C9C(u16, u8);
 
 
-u8 func_80079E7C(u16 arg0) {
+u8 BattleFindFirstFlagTableMatch(u16 arg0) {
     s32 i;
 
     for (i = 0; i < 0xB; i++) {
@@ -40,7 +40,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc5", func_8007A628);
 /* 99.12% - identical instruction sequence, only the two register choices
    differ: the original keeps res in a2 and the row offset arg0*0x170 in v1
    (sll v1,v0,4 / addu at,at,v1 / addu at,at,v1), ours puts res in v1 and the
-   offset in a0. Same body as func_8007A6C8 (which matches 100% with res in v1,
+   offset in a0. Same body as BattleSlotFlagsC002Clear (which matches 100% with res in v1,
    offset in a0), so the two differ only in allocation: this one needs res out of
    v1. Tried: res declared before/after off, off/f as top-level declarations,
    u32/u8 res. The u8 res is what produces the sltiu v0 + move (a2,v0) copy.
@@ -67,7 +67,7 @@ u32 func_8007A628(u8 arg0, u8 arg1) {
     }
     return res;
 } */
-u32 func_8007A6C8(u8 arg0, u8 arg1) {
+u32 BattleSlotFlagsC002Clear(u8 arg0, u8 arg1) {
     u8 res = 0;
 
     if (D_800D2DCC[arg0] != 0) {
@@ -84,7 +84,7 @@ u32 func_8007A6C8(u8 arg0, u8 arg1) {
     }
     return res;
 }
-u32 func_8007A744(u8 arg0) {
+u32 BattleSlotFlagsC000Clear(u8 arg0) {
     u8 res = 0;
 
     if (D_800D2DCC[arg0] != 0 && D_800C3EB7[arg0 * 0x1C] == 0) {
@@ -92,7 +92,7 @@ u32 func_8007A744(u8 arg0) {
     }
     return res;
 }
-u8 func_8007A7BC(u8 **arg0, u8 *arg1, u8 arg2, u8 arg3) {
+u8 BattleGridWriteOpcodeRow(u8 **arg0, u8 *arg1, u8 arg2, u8 arg3) {
     u8 *pRow = (u8 *)(arg3 * 8 + (mem_addr)arg1);
 
     pRow[0] = 0x80;
@@ -103,7 +103,7 @@ u8 func_8007A7BC(u8 **arg0, u8 *arg1, u8 arg2, u8 arg3) {
     arg3++;
     return arg3;
 }
-u8 func_8007A828(u8 **arg0, u8 *arg1, u8 arg2) {
+u8 BattleGridWriteByteAdvanceRow(u8 **arg0, u8 *arg1, u8 arg2) {
     u8 *p = *arg0;
 
     arg1[arg2 * 8 + p[1]] = p[2];
@@ -112,14 +112,14 @@ u8 func_8007A828(u8 **arg0, u8 *arg1, u8 arg2) {
     }
     return arg2;
 }
-void func_8007A874(u8 **arg0, u8 *arg1, u8 arg2, u8 arg3) {
+void BattleGridWriteByteReg(u8 **arg0, u8 *arg1, u8 arg2, u8 arg3) {
     u8 *p = *arg0;
     s32 idx = arg3 * 8 + p[1];
     u8 *pRow = D_800D3430 + arg2 * 0x40;
 
     arg1[idx] = pRow[p[2]];
 }
-void func_8007A8B4(u8 **arg0, u8 *arg1) {
+void BattleGridCopyRow(u8 **arg0, u8 *arg1) {
     u8 *p;
     s32 i;
 
@@ -128,7 +128,7 @@ void func_8007A8B4(u8 **arg0, u8 *arg1) {
         arg1[p[2] * 8 + i] = arg1[p[1] * 8 + i];
     }
 }
-void func_8007A900(u8 **arg0, u8 arg1) {
+void BattleByteRegSetImm(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
     u8 *pRow = D_800D3430 + arg1 * 0x40;
 
@@ -176,10 +176,10 @@ void func_8007A968(u8 **arg0, u8 arg1) {
 
     ((u32 *)D_800D3410)[idx] = val;
 } */
-void func_8007A9A8(u8 **arg0) {
+void BattleWordTableStoreImm(u8 **arg0) {
     D_8005A3A0[(*arg0)[1]] = (*arg0)[2];
 }
-void func_8007A9D0(u8 **arg0, u8 arg1) {
+void BattleByteRegAddImmClamp(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
     u8 *pRow = D_800D3430 + arg1 * 0x40;
     s32 v = pRow[p[1]] + p[2];
@@ -196,7 +196,7 @@ void func_8007A9D0(u8 **arg0, u8 arg1) {
    D_800D3430 lui/addiu after the pointer load; gcc puts the sum straight in v1
    and the base 2 insns early. Tried: if/else with a res local (47.26%,
    branchless/min form), ternary, if-without-else, separate base/idx locals.
-void func_8007A9D0(u8 **arg0, u8 arg1) {
+void BattleByteRegAddImmClamp(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
     u8 *pRow = D_800D3430 + arg1 * 0x40;
     s32 v = pRow[p[1]] + p[2];
@@ -206,7 +206,7 @@ void func_8007A9D0(u8 **arg0, u8 arg1) {
     }
     pRow[p[1]] = v;
 } */
-void func_8007AA1C(u8 **arg0, u8 arg1) {
+void BattleByteRegSubImmClamp(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
     u8 *pRow = D_800D3430 + arg1 * 0x40;
     s32 v = pRow[p[1]] - p[2];
@@ -217,12 +217,12 @@ void func_8007AA1C(u8 **arg0, u8 arg1) {
     }
     pRow[p[1]] = res;
 }
-/* 67.00% - clamp at 0. Same miss as func_8007A9D0: the original keeps
+/* 67.00% - clamp at 0. Same miss as BattleByteRegAddImmClamp: the original keeps
    mem-p[2] in v0 and copies it into the store register v1 (move v1,v0 in the
    bgez delay slot), and forms the D_800D3430 base after the pointer load.
    Tried: if/else with a res local (60.24%, branchless add/subu/sra/and form),
    v-first declaration orders.
-void func_8007AA1C(u8 **arg0, u8 arg1) {
+void BattleByteRegSubImmClamp(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
     u8 *pRow = D_800D3430 + arg1 * 0x40;
     s32 v = pRow[p[1]] - p[2];
@@ -261,31 +261,31 @@ void func_8007AA60(u8 **arg0, u8 arg1) {
     }
     pRow[p[1]] = res;
 } */
-void func_8007AAB8(u8 **arg0, u8 arg1) {
+void BattleByteRegDivImm(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
     u8 *pRow = D_800D3430 + arg1 * 0x40;
 
     pRow[p[1]] /= p[2];
 }
-void func_8007AAF4(u8 **arg0, u8 arg1) {
+void BattleByteRegModImm(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
     u8 *pRow = D_800D3430 + arg1 * 0x40;
 
     pRow[p[1]] %= p[2];
 }
-void func_8007AB30(u8 **arg0, u8 arg1) {
+void BattleByteRegAndImm(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
     u8 *pRow = D_800D3430 + arg1 * 0x40;
 
     pRow[p[1]] &= p[2];
 }
-void func_8007AB68(u8 **arg0, u8 arg1) {
+void BattleByteRegOrImm(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
     u8 *pRow = D_800D3430 + arg1 * 0x40;
 
     pRow[p[1]] |= p[2];
 }
-void func_8007ABA0(u8 **arg0, u8 arg1) {
+void BattleByteRegXorImm(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
     u8 *pRow = D_800D3430 + arg1 * 0x40;
 

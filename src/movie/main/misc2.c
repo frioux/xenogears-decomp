@@ -155,7 +155,7 @@ void func_80075508(void) {
 
 INCLUDE_ASM("asm/movie/nonmatchings/main/misc2", func_80075534);
 
-int func_80075D4C(u32 entryIndex) {
+int WorldMapSyncGearRideActors(u32 entryIndex) {
     u8* pArchiveEntry;
     u32 nOffset;
     int nFileSize;

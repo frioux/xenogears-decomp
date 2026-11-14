@@ -405,7 +405,7 @@ extern u8 D_8009872C[];
 extern s32 D_80099D8C;
 extern s32 D_80099D88;
 extern u8 D_80050622;
-extern s32 func_8008F4F4(u8 *, s32);
+extern s32 BattleCheckValueAboveScaledMax(u8 *, s32);
 
 void func_80075060(s32 arg0) {
     u8 *p = D_8009872C;
@@ -415,11 +415,11 @@ void func_80075060(s32 arg0) {
     s32 b;
 
     if (arg0 != 0) {
-        if (func_8008F4F4(p, 0xE0) != 0) {
+        if (BattleCheckValueAboveScaledMax(p, 0xE0) != 0) {
             D_80050622 = 2;
             return;
         }
-        if (func_8008F4F4(p, 0x10) != 0) {
+        if (BattleCheckValueAboveScaledMax(p, 0x10) != 0) {
             D_80050622 = 1;
             return;
         }
@@ -450,11 +450,11 @@ void func_80075060(s32 arg0) {
         return;
     }
     pDst = *(u8 **)(p + 0xD8);
-    if (func_8008F4F4(pDst, 0xE0) != 0) {
+    if (BattleCheckValueAboveScaledMax(pDst, 0xE0) != 0) {
         D_80050622 = 0x86;
         return;
     }
-    if (func_8008F4F4(pDst, 0x10) != 0) {
+    if (BattleCheckValueAboveScaledMax(pDst, 0x10) != 0) {
         D_80050622 = 0x81;
         return;
     }

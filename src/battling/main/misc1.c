@@ -370,7 +370,7 @@ void func_800725A8(void) {
 
 extern void* BattleCreateOrderingTablePair(s32 a0);
 extern void* BattleCreateLightGroup(void* p);
-extern void* func_8008C2C0(s32 a0);
+extern void* BattleInitObjectTree(s32 a0);
 extern void func_80078F00(void* p);
 extern s16 D_800928D0;
 extern void* D_80092614;
@@ -402,7 +402,7 @@ void func_800725B0(u8* p) {
     pAnim = BattleCreateLightGroup(BattleCreateOrderingTablePair(0x10));
     id = *(s32*)(p + 0x5C);
     D_800910F0 = pAnim;
-    D_80092610 = func_8008C2C0(id);
+    D_80092610 = BattleInitObjectTree(id);
     BattleSetScreenResolution(0x280, 0xDA);
     SetGeomScreen(0x400);
     D_800928D0 = 0;
@@ -435,7 +435,7 @@ extern void BattleFreeNodeTree(void* p);
 extern void BattleSetScreenResolution(s32 a0, s32 a1);
 extern void func_80083C0C(s32 mode);
 extern void func_8007E954(s32 value);
-extern void func_80080D10(void);
+extern void BattleResetTextPrimQueue(void);
 extern void* D_800910F0;
 extern void* D_80092610;
 
@@ -449,7 +449,7 @@ void func_800726B4(void) {
     SetGeomScreen(0xC0);
     func_80083C0C(3);
     func_8007E954(0x100);
-    func_80080D10();
+    BattleResetTextPrimQueue();
 }
 
 extern MATRIX D_80091C0C;

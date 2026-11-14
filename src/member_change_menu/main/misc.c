@@ -71,7 +71,7 @@ u_short MemberChangeMenuIsCharacterFlagSet(u_short value, u_char maskIndex) {
     return D_801CB57C[maskIndex] & value;
 }
 
-void func_801C5034(u_char isInitialization) {
+void MemberChangeMenuUnk32CManager(u_char isInitialization) {
     if (isInitialization) {
         g_Menu->menuUnk2 = HeapAlloc(sizeof(MenuUnk2), 0);
         bzero(g_Menu->menuUnk2, sizeof(MenuUnk2));
@@ -99,7 +99,7 @@ void MemberChangeMenuSetSelectionMenu(u_char bIsInitialization) {
     HeapFree(g_Menu->pSelectionMenu);
 }
 
-void func_801C5160(u_char isInitialization) {
+void MemberChangeMenuUnk354Manager(u_char isInitialization) {
     if (isInitialization) {
         g_Menu->unk354 = HeapAlloc(sizeof(MenuUnk5), 0);
         bzero(g_Menu->unk354, sizeof(MenuUnk5));
@@ -108,7 +108,7 @@ void func_801C5160(u_char isInitialization) {
     HeapFree(g_Menu->unk354);
 }
 
-void func_801C51C4(u_char isInitialization) {
+void MemberChangeMenuDressingRoomManager(u_char isInitialization) {
     if (isInitialization) {
         g_Menu->pDressingRoom = HeapAlloc(sizeof(MenuDressingRoom), 0);
         bzero(g_Menu->pDressingRoom, sizeof(MenuDressingRoom));
@@ -117,7 +117,7 @@ void func_801C51C4(u_char isInitialization) {
     HeapFree(g_Menu->pDressingRoom);
 }
 
-void func_801C5228(u_char isInitialization) {
+void MemberChangeMenuUnk348Manager(u_char isInitialization) {
     if (isInitialization) {
         g_Menu->unk348 = HeapAlloc(sizeof(MenuUnk1), 0);
         bzero(g_Menu->unk348, sizeof(MenuUnk1));
@@ -234,7 +234,7 @@ void MemberChangeMenuResetRenderContext(void) {
     g_Menu->renderContext = 0;
 }
 
-void func_801C5724(void) {
+void MemberChangeMenuFillVramRectWhite(void) {
     RECT rect;
     u_short* pVramData;
     u8 _unused[0x8];
@@ -251,7 +251,7 @@ void func_801C5724(void) {
     HeapFree(pVramData);
 }
 
-void func_801C57A0(MenuString* pString, int index, s32 arg2, u32 attributes) {
+void MemberChangeMenuInitializeMenuStringPolys(MenuString* pString, int index, s32 arg2, u32 attributes) {
     s32 var_s1;
     int i;
     POLY_FT4* pPoly;
@@ -311,7 +311,7 @@ void func_801C57A0(MenuString* pString, int index, s32 arg2, u32 attributes) {
     pString->unk7F = 0;
 }
 
-void func_801C59E0(MenuString* pStringList, u_char* pStringIdList, s32 arg2, s32 count) {
+void MemberChangeMenuRenderMenuStringsToVram(MenuString* pStringList, u_char* pStringIdList, s32 arg2, s32 count) {
     s32 i;
     RECT *pRect;
     MenuString *pString;
@@ -336,19 +336,19 @@ void func_801C59E0(MenuString* pStringList, u_char* pStringIdList, s32 arg2, s32
         );
         memcpy(&pString[1].vramDest, pRect, sizeof(RECT));
 
-        func_801C57A0(&pStringList[i], i, arg2, 0);
-        func_801C57A0(&pStringList[i + 1], i + 1, arg2, 0);
+        MemberChangeMenuInitializeMenuStringPolys(&pStringList[i], i, arg2, 0);
+        MemberChangeMenuInitializeMenuStringPolys(&pStringList[i + 1], i + 1, arg2, 0);
 
         LoadImage(pRect, g_Menu->unk4E0[0].pVramBuffer);
         DrawSync(0);
     }
 }
 
-void func_801C5B90(void) {
+void MemberChangeMenuInitializeMenuStrings(void) {
     SystemTransferPaletteToVRAM(0, 0x1D1);
     g_Menu->unk4E0[0].pVramBuffer = HeapAlloc(0x38E, 0);
-    func_801C59E0(&g_Menu->unk4E0[0], D_801CB400, 0, 4);
-    func_801C5724();
+    MemberChangeMenuRenderMenuStringsToVram(&g_Menu->unk4E0[0], D_801CB400, 0, 4);
+    MemberChangeMenuFillVramRectWhite();
 }
 
 void MemberChangeMenuInitializeWindowBorders(void) {
@@ -384,13 +384,13 @@ void MemberChangeMenuInitializeWindowBorders(void) {
     );
 }
 
-void func_801C5CF4(void) {
+void MemberChangeMenuResetSelectionCursor(void) {
     g_Menu->pManager->unk4 = FALSE;
     g_Menu->pManager->unk3 = FALSE;
 }
 
 // Initialize POLY_G4
-void func_801C5D24(POLY_G4* pPoly, u_char red, u_char green, u_char blue) {
+void MemberChangeMenuSetPolyGradientColor(POLY_G4* pPoly, u_char red, u_char green, u_char blue) {
     SetPolyG4(pPoly);
     setRGB0(pPoly, red, green, blue);
     setRGB1(pPoly, red, green, blue);
@@ -407,11 +407,11 @@ void MemberChangeMenuInitializeBackground(void) {
     rect.h = 256;
     rect.w = 256;
 
-    func_801C5CF4();
+    MemberChangeMenuResetSelectionCursor();
 
     for (i = 0; i < 2; i++) {
         // Unknown effect, seems to be unused
-        func_801C5D24(&g_Menu->unk348->polyG4s[i], 128, 128, 0);
+        MemberChangeMenuSetPolyGradientColor(&g_Menu->unk348->polyG4s[i], 128, 128, 0);
         SetSemiTrans(&g_Menu->unk348->polyG4s[i], 1);
 
         SetLineF3(&g_Menu->unk348->lines1[i]);
@@ -935,7 +935,7 @@ void MemberChangeMenuDrawCursors(void) {
     }
 }
 
-void func_801C7DA8(void) {
+void MemberChangeMenuRenderStrings4E0(void) {
     int i;
 
     for (i = 0; i < 4; i++) {
@@ -945,7 +945,7 @@ void func_801C7DA8(void) {
     }
 }
 
-void func_801C7E38(void) {
+void MemberChangeMenuRenderStrings6E0(void) {
     int i;
 
     for (i = 0; i < 8; i++) {
@@ -955,7 +955,7 @@ void func_801C7E38(void) {
     }
 }
 
-void func_801C7EC8(void) {
+void MemberChangeMenuRenderStringsAE0(void) {
     long interpolated;
     long flag;
     int i;
@@ -1070,10 +1070,10 @@ void MemberChangeMenuRenderCharacters(void) {
     }
 }
 
-void func_801C846C(void) {
-    func_801C7DA8();
-    func_801C7E38();
-    func_801C7EC8();
+void MemberChangeMenuRenderStringLayers(void) {
+    MemberChangeMenuRenderStrings4E0();
+    MemberChangeMenuRenderStrings6E0();
+    MemberChangeMenuRenderStringsAE0();
 }
 
 void MemberChangeMenuRenderTopWindowBorder(int index) {
@@ -1406,7 +1406,7 @@ void MemberChangeMenuRender(void) {
     if (g_Menu->shouldDrawMenu) {
         MemberChangeMenuUpdateWindows();
         MemberChangeMenuDrawCursors();
-        func_801C846C();
+        MemberChangeMenuRenderStringLayers();
         MemberChangeMenuRenderCharacters();
         MemberChangeMenuRenderWindows();
     }
@@ -1532,7 +1532,7 @@ void MemberChangeMenuUpdateAndRender(void) {
     DrawOTag(&g_Menu->pGfxEnv->ot[0xF]);
 }
 
-void func_801C95A0(u_char characterIndex, u_char texIndex) {
+void MemberChangeMenuLoadCharacterNameTexture(u_char characterIndex, u_char texIndex) {
     RECT rect;
     u_char* pBuffer;
     u_char uvIndex;
@@ -1602,12 +1602,12 @@ void MemberChangeMenuFree(void) {
         MemberChangeMenuUpdateAndRender();
     } while (g_Menu->renderContext != 0);
 
-    func_801C5034(MENU_DATA_FREE);
+    MemberChangeMenuUnk32CManager(MENU_DATA_FREE);
     MemberChangeMenuSetManager(MENU_DATA_FREE);
     MemberChangeMenuSetSelectionMenu(MENU_DATA_FREE);
-    func_801C5160(MENU_DATA_FREE);
-    func_801C51C4(MENU_DATA_FREE);
-    func_801C5228(MENU_DATA_FREE);
+    MemberChangeMenuUnk354Manager(MENU_DATA_FREE);
+    MemberChangeMenuDressingRoomManager(MENU_DATA_FREE);
+    MemberChangeMenuUnk348Manager(MENU_DATA_FREE);
 
     HeapFree(g_Menu->resources);
     HeapFree(g_Menu->unk2E0);
@@ -1621,7 +1621,7 @@ void MemberChangeMenuFree(void) {
     HeapFree(g_Menu);
 }
 
-void func_801C9908(void) {
+void MemberChangeMenuBuildBenchedCharacterList(void) {
     int numAvailableCharacters;
     unsigned char characterNotInParty;
     int i, j;
@@ -1651,11 +1651,11 @@ void func_801C9908(void) {
 
     for (i = 0; i < MAX_GAME_CHARACTERS; i += 2) {
         numAvailableCharacters = i & 0xFF;
-        func_801C95A0(numAvailableCharacters, numAvailableCharacters);
+        MemberChangeMenuLoadCharacterNameTexture(numAvailableCharacters, numAvailableCharacters);
     }
 }
 
-void func_801C9A08(MenuCharacter* pCharacter, u_char characterIndex, u_char localIndex, int* pPositionsX, int* pPositionsY, int verticalSpacing) {
+void MemberChangeMenuBuildCharacterLabelsAndPortrait(MenuCharacter* pCharacter, u_char characterIndex, u_char localIndex, int* pPositionsX, int* pPositionsY, int verticalSpacing) {
     int i;
     u_char uvIndex;
     int height;
@@ -1830,7 +1830,7 @@ void MemberChangeMenuSetCharacterHpAndMpStrings(MenuCharacter* pCharacter, u_cha
 // localIndex here refers to the order / position of the character
 // in either the current party or the benched members list
 void MemberChangeMenuUpdateCharacter(MenuCharacter* pCharacter, u_char characterIndex, u_char localIndex, int* pPositionsX, int* pPositionsY, int verticalSpacing, u_char isPartyCharacter) {
-    func_801C9A08(pCharacter, characterIndex, localIndex, pPositionsX, pPositionsY, verticalSpacing);
+    MemberChangeMenuBuildCharacterLabelsAndPortrait(pCharacter, characterIndex, localIndex, pPositionsX, pPositionsY, verticalSpacing);
     MemberChangeMenuSetCharacterLevelStrings(pCharacter, characterIndex, localIndex, pPositionsX, pPositionsY, verticalSpacing);
     MemberChangeMenuSetCharacterHpAndMpStrings(pCharacter, characterIndex, localIndex, pPositionsX, pPositionsY, verticalSpacing);
     pCharacter->unkBE9 = 0;
@@ -2057,7 +2057,7 @@ void MemberChangeMenuMainLoop(void) {
     curCharIndex = 0;
     curCharOffset = 0;
 
-    func_801C9908();
+    MemberChangeMenuBuildBenchedCharacterList();
     MemberChangeMenuInitializeWindow(2, 0x78, 6, 0xB8, 0xC8, 1, 0, 4, 0);
     MemberChangeMenuInitializeCursors(1);
 
@@ -2215,12 +2215,12 @@ void MemberChangeMenuMainLoop(void) {
 }
 
 void MemberChangeMenuMain(void) {
-    func_801C5034(MENU_DATA_INITIALIZE);
+    MemberChangeMenuUnk32CManager(MENU_DATA_INITIALIZE);
     MemberChangeMenuSetManager(MENU_DATA_INITIALIZE);
     MemberChangeMenuSetSelectionMenu(MENU_DATA_INITIALIZE);
-    func_801C5160(MENU_DATA_INITIALIZE);
-    func_801C51C4(MENU_DATA_INITIALIZE);
-    func_801C5228(MENU_DATA_INITIALIZE);
+    MemberChangeMenuUnk354Manager(MENU_DATA_INITIALIZE);
+    MemberChangeMenuDressingRoomManager(MENU_DATA_INITIALIZE);
+    MemberChangeMenuUnk348Manager(MENU_DATA_INITIALIZE);
     MemberChangeMenuSetCharacters(MENU_DATA_INITIALIZE);
     g_Menu->pSelectionMenu->unk1180.x = 0x2C0;
     g_Menu->pSelectionMenu->unk1180.y = 0x100;
@@ -2229,7 +2229,7 @@ void MemberChangeMenuMain(void) {
     g_Menu->unk348->unk15B = 0x40;
     MemberChangeMenuInitialize();
     MemberChangeMenuResetRenderContext();
-    func_801C5B90();
+    MemberChangeMenuInitializeMenuStrings();
     MemberChangeMenuInitializeBackground();
     MemberChangeMenuInitializeWindowBorders();
     g_Menu->shouldDrawMenu = TRUE;

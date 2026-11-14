@@ -22,13 +22,13 @@ extern u8 D_800D3420[];
 extern u8 D_800D3430[];
 extern u8 func_8007A628(u8 arg0, u8 arg1);
 extern u16 func_80089C08(u8 arg0);
-extern u8 func_80079E7C(u16 arg0);
-extern u8 func_8007A744(u8 arg0);
+extern u8 BattleFindFirstFlagTableMatch(u16 arg0);
+extern u8 BattleSlotFlagsC000Clear(u8 arg0);
 extern u8 D_800CCD3E[];
 extern u8 D_800D2E06[];
 extern u8 *D_800D3364;
 extern u8 D_800CCD34[];
-extern u8 func_8007A6C8(u8 arg0, u8 arg1);
+extern u8 BattleSlotFlagsC002Clear(u8 arg0, u8 arg1);
 extern u8 func_8001BD40(s32 arg0, u8 arg1);
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007C1A4);
@@ -263,7 +263,7 @@ void func_8007CD10(u8 **arg0, u8 arg1) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007CDD0);
 /* best: 78.26%. Every instruction of the loop/tail is present; only the
    callee-saved set and two intra-block orders differ: the original keeps the
-   D_800D3420 base in s0 across the func_80079E7C call (4 saved regs), gcc
+   D_800D3420 base in s0 across the BattleFindFirstFlagTableMatch call (4 saved regs), gcc
    folds the whole row base into s1 before the call (3 saved regs), and it
    emits the two D_800C3EB4 loads in the opposite order. Tried: pRow/pField as
    separate locals, slot = arg1 + 3 assigned after the call, and the two table
@@ -272,7 +272,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007CDD0);
 void func_8007CDD0(u8 **arg0, u8 arg1) {
     u16 *pField = (u16 *)(D_800D3420 + arg1 * 0x40);
     u8 *pRow = D_800D3420 + 0x10 + arg1 * 0x40;
-    u8 value = func_80079E7C(pField[(*arg0)[2]]);
+    u8 value = BattleFindFirstFlagTableMatch(pField[(*arg0)[2]]);
     s32 slot = arg1 + 3;
     u8 operator = D_800C3EB4[value * 0x1C];
     u8 row = D_800C3EB4[slot * 0x1C];
@@ -289,7 +289,7 @@ void func_8007CEA4(u8 **arg0, u8 arg1) {
 
     for (; i < 3; offset += 0x1C, i++) {
         if (func_8007A628(i, 0) != 0) {
-            s32 other = func_80079E7C(pField[(*arg0)[2]]) * 0x1C;
+            s32 other = BattleFindFirstFlagTableMatch(pField[(*arg0)[2]]) * 0x1C;
             if (D_800C3EB4[offset] == D_800C3EB4[other]) {
                 count++;
             }
@@ -307,7 +307,7 @@ void func_8007CFB8(u8 **arg0, u8 arg1) {
 
     for (; i < 0xB; offset += 0x1C, i++) {
         if (func_8007A628(i, 0) != 0) {
-            s32 other = func_80079E7C(pField[(*arg0)[2]]) * 0x1C;
+            s32 other = BattleFindFirstFlagTableMatch(pField[(*arg0)[2]]) * 0x1C;
             if (D_800C3EB4[offset] == D_800C3EB4[other]) {
                 count++;
             }
@@ -364,7 +364,7 @@ void func_8007D1DC(u8 **arg0, u8 arg1) {
     for (; i < 0xB; i++, record += 0x170) {
         u8 idx = i;
 
-        if (func_8007A744(idx) != 0 && D_800CCD3E[record] == (*arg0)[2]) {
+        if (BattleSlotFlagsC000Clear(idx) != 0 && D_800CCD3E[record] == (*arg0)[2]) {
             *pBuf++ = idx;
             count++;
         }
@@ -395,7 +395,7 @@ void func_8007D344(u8 **arg0, u8 arg1) {
     for (; i < 0xB; i++, record += 0x1C) {
         u8 idx = i;
 
-        if (func_8007A6C8(idx, (*arg0)[2]) != 0 && (D_800C3EB7[record] & 0x80) != 0) {
+        if (BattleSlotFlagsC002Clear(idx, (*arg0)[2]) != 0 && (D_800C3EB7[record] & 0x80) != 0) {
             *pBuf++ = idx;
             count++;
         }

@@ -27,7 +27,7 @@ u8 func_8001BD40(int, u8);
 u16 func_80089B50(int, u16);
 u8 func_8007A628(u8, u8);
 u16 func_80089C08(u8);
-s32 func_80079E7C(u16);
+s32 BattleFindFirstFlagTableMatch(u16);
 s32 func_80079ED8(u8, u8, u8, s32);
 s32 func_8007A280(u8, u8, s32, s32);
 
@@ -47,7 +47,7 @@ s32 func_8007A280(u8, u8, s32, s32);
 void func_8007B424(u8 **p, u8 index) {
     u16 *pField = (u16 *)(D_800D3420 + index * 0x40);
     u8 *pTable = (u8 *)pField + 0x10;
-    u8 value = func_80079E7C(pField[(*p)[3]]);
+    u8 value = BattleFindFirstFlagTableMatch(pField[(*p)[3]]);
 
     pTable[(*p)[1]] = func_80079ED8(value, (*p)[2], 0, 1);
 }
@@ -63,7 +63,7 @@ u8 func_8007B4B8(u8 **p, u8 index, u8 arg2) {
     s32 slot = index * 0x40;
     u16 *pField = (u16 *)(D_800D3420 + slot);
     u8 ret = arg2;
-    u8 value = func_80079E7C(pField[(*p)[3]]);
+    u8 value = BattleFindFirstFlagTableMatch(pField[(*p)[3]]);
 
     if (value < 3) {
         D_800D2E5C = 0x20;
@@ -77,14 +77,14 @@ u8 func_8007B4B8(u8 **p, u8 index, u8 arg2) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007B4B8);
 void func_8007B578(u8 **p, u8 index) {
     u16 *pTable = (u16 *)(D_800D3420 + index * 0x40);
-    u8 value = func_80079E7C(pTable[(*p)[3]]);
+    u8 value = BattleFindFirstFlagTableMatch(pTable[(*p)[3]]);
 
     pTable[(*p)[1]] = func_8007A280(value, (*p)[2], 0, 1);
 }
 u8 func_8007B608(u8 **p, u8 index, u8 arg2) {
     u16 *pField = (u16 *)(D_800D3420 + index * 0x40);
     u8 ret = arg2;
-    u8 value = func_80079E7C(pField[(*p)[3]]);
+    u8 value = BattleFindFirstFlagTableMatch(pField[(*p)[3]]);
 
     if (value < 3) {
         D_800D2E5C = 0x20;
@@ -106,7 +106,7 @@ void func_8007B6C0(u8 **p, u8 index) {
     case 1: {
         u16 *pField = (u16 *)(D_800D3420 + index * 0x40);
         u32 *pField32 = (u32 *)((u8 *)pField - 0x10);
-        u8 value = func_80079E7C(pField[(*p)[3]]);
+        u8 value = BattleFindFirstFlagTableMatch(pField[(*p)[3]]);
 
         pField32[(*p)[1]] = *(u32 *)(D_800CCDEC + value * 0x170);
         break;
@@ -134,7 +134,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007B6C0);
 u8 func_8007B7B0(u8 **p, u8 index, u8 arg2) {
     u16 *pField = (u16 *)(D_800D3420 + index * 0x40);
     u8 ret = arg2;
-    u8 value = func_80079E7C(pField[(*p)[3]]);
+    u8 value = BattleFindFirstFlagTableMatch(pField[(*p)[3]]);
 
     if (value < 3) {
         D_800D2E5C = 0x20;

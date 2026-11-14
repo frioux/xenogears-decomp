@@ -13,7 +13,7 @@ void MenuAddScreen2Prims(void);
 void MenuAddScreen6Prims(void);
 s32 func_8002675C(MenuResourceDirectory* pDir, u32 index, POLY_FT4* pPrims, s32 context, s32 x, s32 y, s32 scale);
 void MenuPlaySoundEffect(u_char soundEffectId);
-void func_801D397C(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4, u_char a5, u_char a6, s32 a7, u_char a8);
+void MenuCreateWindow(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4, u_char a5, u_char a6, s32 a7, u_char a8);
 void func_801E53CC(u_char a0);
 void func_801D4EA0(u_char a0);
 void func_801D5BA4(u_char a0, u_char a1);
@@ -37,7 +37,7 @@ extern u32 D_801EA16C[];
 extern u32 D_801E9A58[];
 extern u32 D_801E9A68[];
 
-void func_801D1CA0(void) {
+void MenuAddScreenPrims(void) {
     if (g_Menu->shouldDrawMenu) {
         switch (D_80059460) {
             case 0:
@@ -53,7 +53,7 @@ void func_801D1CA0(void) {
     }
     MenuAddDimEffectPrims();
 }
-void func_801D1D40(void) {
+void MenuUpdateTransitionEffect(void) {
     SystemMenu *pMenu = g_Menu;
 
     switch (pMenu->transitionEffectState) {
@@ -93,20 +93,20 @@ void func_801D1D40(void) {
     SetRotMatrix(&g_Menu->matTransform);
     SetTransMatrix(&g_Menu->matTransform);
 }
-void func_801D1E80(void) {
+void MenuStartOpenAnimation(void) {
     g_Menu->transitionEffectState = MENU_OPEN_ANIMATION_START;
     MenuPlaySoundEffect(0x5B);
 }
-void func_801D1EB0(void) {
+void MenuStartCloseAnimation(void) {
     g_Menu->transitionEffectState = MENU_CLOSE_ANIMATION_START;
     MenuPlaySoundEffect(0x5C);
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc6", func_801D1EE0);
-void func_801D22C4(void) {
+void MenuResetSelectionCursorFlags(void) {
     g_Menu->pManager->unk4 = 0;
     g_Menu->pManager->unk3 = 0;
 }
-void func_801D22F4(u_char a0) {
+void MenuSetupPointerCursors(u_char a0) {
     s32 i;
 
     g_Menu->pManager->shouldRenderCursors = 0;
@@ -131,7 +131,7 @@ void func_801D22F4(u_char a0) {
             break;
     }
 }
-void func_801D2484(void) {
+void MenuHidePointerCursors(void) {
     g_Menu->pManager->shouldRenderCursors = 0;
 }
 extern u_char D_801EA534[]; // String IDs of the menu strings
@@ -140,7 +140,7 @@ extern u16 D_801E9E58[];
 
 void func_801E7E68(MenuString* pStringList, u_char* pStringIdList, s32 yOffset, s32 count);
 
-void func_801D249C(u_char a0) {
+void MenuLoadSubMenuChoiceStrings(u_char a0) {
     s32 i;
 
     if (a0 != 0) {
@@ -158,7 +158,7 @@ void func_801D249C(u_char a0) {
     }
 }
 
-void func_801D25E4(void) {
+void MenuClearSubMenuChoiceFlags(void) {
     int i;
 
     for (i = 0; i < 6; i++) {
@@ -191,7 +191,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc6", func_801D261C);
 */
 /* Best attempt (86.91%): the body below is what the note above was measured with.
 void func_801D261C(void) {
-    func_801D249C(0);
+    MenuLoadSubMenuChoiceStrings(0);
 
     g_Menu->unkAE0[g_Menu->subMenuChoice].polys[g_Menu->renderContext].x0 = D_801E9A1C[g_Menu->subMenuChoice][0] + (D_801E9E94[g_Menu->subMenuChoice][0] + 0x16);
     g_Menu->unkAE0[g_Menu->subMenuChoice].polys[g_Menu->renderContext].y0 = D_801E9A48[g_Menu->subMenuChoice][0] - 0x22;
@@ -205,17 +205,17 @@ void func_801D261C(void) {
     g_Menu->pManager->unk14[g_Menu->subMenuChoice] = 1;
 }
 */
-void func_801D28A8(void) {
-    func_801D397C(0, 0xD4, 0xB2, 0x60, 0x10, 0, 0, 4, 0);
+void MenuCreateGoldWindow(void) {
+    MenuCreateWindow(0, 0xD4, 0xB2, 0x60, 0x10, 0, 0, 4, 0);
     func_801D5BA4(0xD8, 0xB6);
 }
-void func_801D28FC(void) {
-    func_801D397C(1, 0xCC, 0xC6, 0x50, 0x10, 0, 0, 4, 0);
+void MenuCreatePlayTimeWindow(void) {
+    MenuCreateWindow(1, 0xCC, 0xC6, 0x50, 0x10, 0, 0, 4, 0);
     func_801D5CF8(0xD0, 0xCA);
     // volatile keeps reorg from sinking this store past the epilogue restores
     *(volatile u8*)&g_Menu->pManager->unk5[1] = 1;
 }
-void func_801D2968(void) {
+void MenuUpdatePlayTimeDigits(void) {
     if (g_Menu->pManager->unk5[1] != 0) {
         func_801D5CF8(0xD0, 0xCA);
     }
@@ -277,10 +277,10 @@ void func_801D2D38(void) {
     }
     func_801E8474(8, D_801EA19C);
     func_801D29A8(1, 0);
-    func_801D28FC();
+    MenuCreatePlayTimeWindow();
 }
 */
-void func_801D2EC0(u_char a0, u_char a1) {
+void MenuDrawGearScreen(u_char a0, u_char a1) {
     func_801D7C3C(a0, a1);
     func_801D7CFC(a0, a1, g_GameState.gearRide[a0]);
     MenuRenderFrame();
@@ -289,7 +289,7 @@ void func_801D2EC0(u_char a0, u_char a1) {
     func_801D8EA4(a0, 0, 0, a1);
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc6", func_801D2F4C);
-void func_801D32B4(void) {
+void MenuFreeWindow2Strings(void) {
     s32 i;
 
     if (g_Menu->pManager->shouldRenderWindow[2] != 0) {
@@ -301,7 +301,7 @@ void func_801D32B4(void) {
     }
     MenuRenderFrame();
 }
-void func_801D3344(s32 a0, s32 a1, s32 a2) {
+void MenuCreateScrollHandle(s32 a0, s32 a1, s32 a2) {
     if (g_Menu->pManager->scrollHandleActive == 0) {
         g_Menu->pScrollHandle = HeapAlloc(0x74, 0);
         bzero(g_Menu->pScrollHandle, 0x74);
@@ -312,7 +312,7 @@ void func_801D3344(s32 a0, s32 a1, s32 a2) {
     g_Menu->pScrollHandle->renderContext = *(u_char*)&g_Menu->renderContext;
     g_Menu->pManager->scrollHandleActive = 1;
 }
-void func_801D3444(void) {
+void MenuFreeScrollHandle(void) {
     g_Menu->pManager->scrollHandleActive = 0;
     HeapFree(g_Menu->pScrollHandle);
 }
@@ -360,7 +360,7 @@ void func_801D3488(u_char a0, u_char a1) {
     g_Menu->pManager->shoulderButtonUiActive = 1;
 }
 */
-void func_801D3674(void) {
+void MenuFreeShoulderButtonUi(void) {
     if (g_Menu->pManager->unk5C[0xB] != 0) {
         g_Menu->pManager->shoulderButtonUiActive = 0;
         g_Menu->pManager->unk5C[0xB] = 0;
@@ -368,7 +368,7 @@ void func_801D3674(void) {
     }
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc6", func_801D36E0);
-void func_801D397C(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4, u_char a5, u_char a6, s32 a7, u_char a8) {
+void MenuCreateWindow(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4, u_char a5, u_char a6, s32 a7, u_char a8) {
     MenuWindowParameters* pParams;
 
     if (a0 >= 2) {
@@ -398,7 +398,7 @@ void func_801D397C(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4, u_
     func_801D4D1C(a0, a1, a2, a3, a4, a6, a7, a8);
 }
 
-void func_801D3B00(void) {
+void MenuUpdateWindowAnimations(void) {
     u_char flag;
     int i;
     MenuWindowParameters* pWindowInfo;

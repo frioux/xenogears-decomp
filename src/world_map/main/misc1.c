@@ -383,7 +383,7 @@ extern void SoundSetAudioManagerVolumeWithFade(void* p, s32 arg1, s32 arg2);
 extern void SoundStopAllElements(void);
 extern void SoundRemoveSedsEntry(void* p);
 extern void func_800230A8(void* p);
-extern void func_80075460(void);
+extern void WorldMapSaveState(void);
 extern void func_80092DD0(void);
 extern void func_800931B0(void);
 extern void WorldMapFreeSpriteSets(void);
@@ -391,9 +391,9 @@ extern void func_80086124(void);
 extern void GfxFreeWorkBuffers(void);
 extern void func_80086568(void);
 extern void func_800866C8(void);
-extern void func_8007474C(void);
-extern void func_80074F04(void);
-extern void func_800750DC(void);
+extern void WorldMapFreePrimBuffers(void);
+extern void WorldMapFreeTileAnimEntries(void);
+extern void WorldMapFreeFrameAnimEntries(void);
 extern void func_80088FF4(void);
 extern void func_80089128(void);
 extern void func_80097D64(void);
@@ -418,7 +418,7 @@ void func_8007299C(void) {
         }
     }
     if (D_8009D7CC == 1) {
-        func_80075460();
+        WorldMapSaveState();
         D_8006F954 |= 0x8000;
     }
     func_80092DD0();
@@ -428,9 +428,9 @@ void func_8007299C(void) {
     GfxFreeWorkBuffers();
     func_80086568();
     func_800866C8();
-    func_8007474C();
-    func_80074F04();
-    func_800750DC();
+    WorldMapFreePrimBuffers();
+    WorldMapFreeTileAnimEntries();
+    WorldMapFreeFrameAnimEntries();
     func_80088FF4();
     func_80089128();
     func_80097D64();
@@ -664,7 +664,7 @@ extern s32 D_8009D73C[];
    fixups (loads through the local, stores through the reloaded global) all
    match. Tried: pEntry computed before vs after the header stores, indexed vs
    pointer-walk loop, explicit walker copy. Allocator tie, not source order.
-   Sibling func_80076954 in misc2 is the same function without the loop.
+   Sibling WorldMapDecompressMapData in misc2 is the same function without the loop.
 
 void func_80073530(void) {
     s32* pHeader;

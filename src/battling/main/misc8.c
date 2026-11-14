@@ -85,19 +85,19 @@ extern s32 SystemRenderStringEntry(void *pCur, void *pCharBuffer, s32 mode, s32 
 extern s32 BattleLoadArchiveEntry(s32 a0);
 extern void ArchiveCdDataSync(s32 mode);
 
-void func_800808F4(void) {
+void BattleRequestStateAdvance(void) {
     D_80092924 = 1;
     func_8007F834();
 }
 
-void func_80080920(void) {
+void BattleStartTutorial(void) {
     D_80092924 = 1;
     func_800719F0();
     BattleLoadSlotEntry(0, 0);
     BattleLoadSlotEntry(1, 1);
 }
 
-void func_80080964(s32 a0) {
+void BattleSetCurrentTextList(s32 a0) {
     if (a0 == 0xFF) {
         D_80092734 = D_80092738;
     } else {
@@ -106,26 +106,26 @@ void func_80080964(s32 a0) {
     }
 }
 
-s32 func_800809BC(void) {
+s32 BattleIsDefaultTextList(void) {
     return D_80092734 == (s32 *)D_80091660;
 }
 
-void func_800809D8(void) {
+void BattleInitTextWindow(void) {
     SoundStopAllElements();
     D_80092734 = 0;
-    func_80080964(3);
+    BattleSetCurrentTextList(3);
     D_80091672 = 0;
     D_800916AE = 0;
     D_800928C8 = 0;
     D_80092758 = 0;
     func_8007F834();
     D_80092924 = 0;
-    func_80080AA0(0);
+    BattleFreeScreenBuffer(0);
     D_80092940 = 0;
     D_800928D8 = BattleLoadArchiveEntry(6);
 }
 
-void func_80080A58(void) {
+void BattleFreeTextArchive(void) {
     if (D_80092940 == 0) {
         ArchiveCdDataSync(0);
         HeapFree(D_800928D8);
@@ -133,7 +133,7 @@ void func_80080A58(void) {
     }
 }
 
-void func_80080AA0(s32 a0) {
+void BattleFreeScreenBuffer(s32 a0) {
     if (a0 != 0) {
         D_80092760 = 0;
     }
@@ -143,7 +143,7 @@ void func_80080AA0(s32 a0) {
     }
 }
 
-void func_80080AE8(void) {
+void BattleRestoreScreenImage(void) {
     RECT rect;
 
     if (D_80092760 != 0) {
@@ -157,7 +157,7 @@ void func_80080AE8(void) {
     }
 }
 
-void func_80080B58(void) {
+void BattleSaveScreenImage(void) {
     RECT rect;
 
     if (D_80092760 == 0) {
@@ -193,30 +193,30 @@ void func_80080C48(s32 a0) {
     func_8008EB4C(0x1F);
     if (a0 == 1) {
         D_80092734 = 0;
-        func_80080964(0);
+        BattleSetCurrentTextList(0);
         D_800915BE = 0;
         D_80091636 = 1;
         func_80083C0C(0);
         D_80092758 = 1;
         D_800926FC = 0;
         D_8009275C = 1;
-        func_80080B58();
+        BattleSaveScreenImage();
     } else if (a0 == 2) {
         D_80092734 = 0;
-        func_80080964(7);
+        BattleSetCurrentTextList(7);
         D_80091762 = 1;
         func_80083C0C(0);
         D_80092758 = 1;
         D_800926FC = 0;
         D_8009275C = 1;
-        func_80080B58();
+        BattleSaveScreenImage();
     } else {
         BattleResetTextListState();
     }
 }
 */
 
-void func_80080D10(void) {
+void BattleResetTextPrimQueue(void) {
     D_800926DC = 0;
 }
 
@@ -226,7 +226,7 @@ extern u8 D_80095498[];
 extern u8 D_800954C8[];
 extern u8 D_8009A0DA[];
 
-void func_80080D20(u8 *p) {
+void BattleDrawTextPrims(u8 *p) {
     s32 i;
     u8 *pEntry;
     RECT rect;
@@ -318,7 +318,7 @@ extern u16 D_8009556C;
 extern u16 D_8009556E;
 extern u8 D_80095570[];
 
-void func_80081094(Misc8Text *p, s32 entry, s32 flag) {
+void BattleRenderCenteredText(Misc8Text *p, s32 entry, s32 flag) {
     s32 len;
 
     len = SystemRenderStringEntry(GetStringEntry(D_80092880, entry), p->pData, 0x3F, flag);
@@ -326,7 +326,7 @@ void func_80081094(Misc8Text *p, s32 entry, s32 flag) {
     p->x = (0x140 - len) / 2;
 }
 
-void func_80081100(s32 entry, s32 mode) {
+void BattleSetTextSpriteEntry(s32 entry, s32 mode) {
     RECT rect;
 
     if (mode == 0) {
@@ -334,13 +334,13 @@ void func_80081100(s32 entry, s32 mode) {
             return;
         }
         D_8009273C = entry;
-        func_80081094(&D_80095510[0], entry, 0);
+        BattleRenderCenteredText(&D_80095510[0], entry, 0);
     } else {
         if (entry == D_80092740) {
             return;
         }
         D_80092740 = entry;
-        func_80081094(&D_80095540, entry, 1);
+        BattleRenderCenteredText(&D_80095540, entry, 1);
     }
     rect.x = 0x140;
     rect.y = 0x30;
@@ -387,7 +387,7 @@ void func_800811AC(u8 *p) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc8", func_800812BC);
 
-void func_800814AC(void) {
+void BattleInitTextLists(void) {
     u32 i;
     u8 *p;
 
@@ -449,12 +449,12 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc8", func_8008162C);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc8", func_80081A44);
 
-void func_80081D2C(void) {
+void BattleUpdateTextWindow(void) {
     s32 unk[2]; /* retail reserves 8 bytes of locals here */
     s32 *p;
 
     if (D_8009275C != 0) {
-        func_80080AE8();
+        BattleRestoreScreenImage();
         D_8009275C = 0;
     }
     func_80036420();
@@ -466,7 +466,7 @@ void func_80081D2C(void) {
             if (g_C1ButtonStateReleased & 1) {
                 if (D_800926FC < 5) {
                     D_800926FC++;
-                    func_80080AE8();
+                    BattleRestoreScreenImage();
                 }
             }
             func_8008162C(p, D_800928FC);
@@ -475,7 +475,7 @@ void func_80081D2C(void) {
     }
 }
 
-void func_80081E00(void) {
+void BattleSetScreenTileGrey(void) {
     u16 v = D_8009286C;
 
     D_8009A1CA = 0x60;
@@ -490,7 +490,7 @@ void func_80081E00(void) {
     D_8009A2C6 = v - 0x60;
 }
 
-void func_80081E6C(void) {
+void BattleSetScreenTileBlack(void) {
     u16 v = D_8009286C;
 
     D_8009A1CA = 0;

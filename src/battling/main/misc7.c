@@ -80,14 +80,14 @@ void func_80080C48(s32 arg);
 void func_80083C0C(s32 mode);
 void func_8007E894(s32 a, s32 b);
 void func_8007ECF0(u8* pText);
-void func_80081100(s32 entry, s32 mode);
+void BattleSetTextSpriteEntry(s32 entry, s32 mode);
 void func_8008EB4C(s32 arg);
 void ArchiveCdDataSync(int mode);
 void BattleLoadSlotEntry(s32 index, s32 value);
 void BattleFreeSlotEntry(s32 index);
 s32 ArchiveReadFileFromCdSector(s32 sector, void* pDestBuffer, s32 fileSize, s32 arg3, u32 flags);
 s32 func_8007FF70(s32 value, s32 max, s32 flags);
-void func_80080964(s32 arg);
+void BattleSetCurrentTextList(s32 arg);
 void BattleByteRegTestReg(u8* pText);
 void func_8007F258(void* pOt, s32 arg);
 extern int ControllerGetType(int controllerIndex);
@@ -204,7 +204,7 @@ void BattleDrawOptionRows0To2(Misc7Struct* p) {
     func_8007ECF0(D_8006FF7C);
     BattleSetRowTextColor(p, 1);
     func_8007ECF0(D_8009132C[D_80099DA2[0]]);
-    func_80081100(D_80099DA2[0] + 0x15, 1);
+    BattleSetTextSpriteEntry(D_80099DA2[0] + 0x15, 1);
     BattleSetRowTextColor(p, 2);
     Sprintf(buf, D_8006FF60, D_80091300[D_80099D9A[0]]);
     func_8007ECF0(buf);
@@ -493,5 +493,5 @@ void BattleInitOptionsScreen(s32 mode) {
     D_80092718 = 0;
     D_80092714 = D_80092700;
     D_80092720 = D_80092704;
-    func_80080964(5);
+    BattleSetCurrentTextList(5);
 }

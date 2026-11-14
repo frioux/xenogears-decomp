@@ -130,7 +130,7 @@ void BattleFreeNodeTree(Misc13Node* pNode) {
         BattleFreeEntryList(pNode->pData);
         break;
     case 5:
-        func_8008C120(pNode->pData);
+        BattleFreeWorkBlock(pNode->pData);
         break;
     }
     if (pNode->pData != NULL) {
@@ -391,7 +391,7 @@ Misc13Group* BattleCreateLightGroup(Misc13Node* pParent) {
     pGroup->unk28A = 0x10;
     pGroup->unk289 = 0x10;
     pGroup->unk288 = 0x10;
-    func_8008ABAC(&pGroup->pNode1);
+    BattleSetModelLights(&pGroup->pNode1);
     return pGroup;
 }
 

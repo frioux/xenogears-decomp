@@ -81,7 +81,7 @@ extern void func_8007E24C();
 extern void func_8008D580();
 extern void func_8007BB7C();
 extern void func_8007F834();
-extern void func_8008E620();
+extern void BattleInitSoundSlots();
 extern void func_80074BA4(void);
 extern void func_80078F00();
 extern void func_800831C8(void);
@@ -104,7 +104,7 @@ extern s32 func_80083CD8();
 extern void BattleApplyOptionWord(void);
 extern void func_8008DC28(void);
 extern void func_8008EBD0();
-extern void func_8008EB88();
+extern void BattlePlaySoundEffectByIdx();
 extern void func_8008ED6C();
 
 typedef struct ActorScript ActorScript;
@@ -310,7 +310,7 @@ void func_8007920C(Actor* p) {
 
     if (func_80083CD8() != 7 && (p->unkD0 & 0x60000000) == 0x20000000 && p->unk940 >= 0x81 &&
         p->unk960 < 0x80) {
-        func_8008EB88(p, 0x3A, &p->unk93C, 2);
+        BattlePlaySoundEffectByIdx(p, 0x3A, &p->unk93C, 2);
     }
 
     p->unk96E = pos[0][1];
@@ -434,7 +434,7 @@ void func_80079B44(void) {
     D_80092648 = 0;
     func_8007F834();
     D_80050622 = 0;
-    func_8008E620();
+    BattleInitSoundSlots();
     func_800720C4();
     D_800928D4 = 0;
     D_800928F0 = 0;
@@ -562,7 +562,7 @@ void BattleResetScratchState(void) {
     func_8008D580(D_80092644);
     func_8007BB7C();
     func_8007F834();
-    func_8008E620();
+    BattleInitSoundSlots();
     p = (D_80092890 != 0) ? D_8009790C : D_80099028;
     if (p->unk2C != 0) {
         D_80091150 = 1;

@@ -20,9 +20,9 @@ extern int Vsync(int mode);
 
 s32 func_801C8A10(u8 index);
 extern void MenuPollInput(void);
-extern void func_801D1D40(void);
-extern void func_801D2968(void);
-extern void func_801D1CA0(void);
+extern void MenuUpdateTransitionEffect(void);
+extern void MenuUpdatePlayTimeDigits(void);
+extern void MenuAddScreenPrims(void);
 extern void MenuUpdateCardStatus(void);
 extern void func_801C8EE8(void);
 extern void func_8001BD40(s32 arg0, u8 arg1);
@@ -37,11 +37,11 @@ extern void ControllerResetState(void);
 extern void SoundEnableAllSpuChannels(void);
 extern void SoundMuteAllSpuChannels(void);
 extern int ControllerIsStateStackFull(void);
-void func_801D1E80(void);
-void func_801D22F4(s32 arg0);
-void func_801D2484(void);
+void MenuStartOpenAnimation(void);
+void MenuSetupPointerCursors(s32 arg0);
+void MenuHidePointerCursors(void);
 s32 func_801D2F4C(u8 arg0);
-s32 func_801D32B4(void);
+s32 MenuFreeWindow2Strings(void);
 void func_801E92CC(void);
 s32 func_801E93A0(s32 arg0);
 void func_801C6400(void);
@@ -98,11 +98,11 @@ void MenuRenderFrame(void) {
     g_Menu->renderContext = g_Menu->renderContext == 0;
     ClearOTagR(g_Menu->pGfxEnv->ot, 0x10);
     func_8001BD40(0, 0xFF);
-    func_801D1D40();
+    MenuUpdateTransitionEffect();
     g_Menu->unk2D8++;
     MenuSetPlayTimeDigits(D_80059488);
-    func_801D2968();
-    func_801D1CA0();
+    MenuUpdatePlayTimeDigits();
+    MenuAddScreenPrims();
     renderContext = g_Menu->renderContext == 0;
     DrawSync(0);
     Vsync(0);
@@ -397,12 +397,12 @@ void MenuWaitForDiscChange(u8 index) {
     u_char flag;
     u_char counter;
 
-    func_801D1E80();
+    MenuStartOpenAnimation();
     flag = 1;
     while (g_Menu->transitionEffectState) {
         MenuRenderFrame();
     }
-    func_801D22F4(0);
+    MenuSetupPointerCursors(0);
     while (flag) {
         if (ArchiveGetDiscNumber() == index + 1) {
             flag = 0;
@@ -410,20 +410,20 @@ void MenuWaitForDiscChange(u8 index) {
             func_801E92CC();
             func_801D2F4C(index * 3 - 0x7D);
             if (func_801E93A0(index + 1)) {
-                func_801D32B4();
+                MenuFreeWindow2Strings();
                 func_801D2F4C(0x89);
                 for (counter = 0x1D; counter != 0; counter--) {
                     MenuRenderFrame();
                 }
-                func_801D32B4();
+                MenuFreeWindow2Strings();
                 MenuRenderFrame();
             } else {
-                func_801D32B4();
+                MenuFreeWindow2Strings();
                 flag = 0;
             }
         }
     }
-    func_801D2484();
+    MenuHidePointerCursors();
 }
 void MenuClearCardEvents(void) {
     UnDeliverEvent(0xF4000001, 0x4);

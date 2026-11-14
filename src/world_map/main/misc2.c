@@ -142,13 +142,13 @@ extern s32 D_8009CD64;
 extern u8 D_8009A250[];
 extern u8 D_80062648[];
 
-void func_8007474C(void) {
+void WorldMapFreePrimBuffers(void) {
     HeapFree(D_8009BE18);
     HeapFree(D_8009BE14);
     HeapFree(D_8009D30C);
 }
 
-void func_80074794(s16 arg0, s32* pVec) {
+void WorldMapAddSlotPosition(s16 arg0, s32* pVec) {
     Vector16* pEntry;
     s32 index;
 
@@ -161,7 +161,7 @@ void func_80074794(s16 arg0, s32* pVec) {
 }
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc2", func_800747DC);
-void func_80074E58(void) {
+void WorldMapInitTileAnimEntries(void) {
     WorldMapEntry* pEntry;
     s32 count;
     s32 i;
@@ -178,11 +178,11 @@ void func_80074E58(void) {
     }
 }
 
-void func_80074F04(void) {
+void WorldMapFreeTileAnimEntries(void) {
     HeapFree(D_8009D780);
 }
 
-void func_80074F2C(void) {
+void WorldMapUpdateTileAnimEntries(void) {
     WorldMapEntry* pEntry;
     s32 i;
 
@@ -202,7 +202,7 @@ void func_80074F2C(void) {
     }
 }
 
-void func_80075030(void) {
+void WorldMapInitFrameAnimEntries(void) {
     WorldMapEntry* pEntry;
     s32 count;
     s32 i;
@@ -219,11 +219,11 @@ void func_80075030(void) {
     }
 }
 
-void func_800750DC(void) {
+void WorldMapFreeFrameAnimEntries(void) {
     HeapFree(D_8009D7D0);
 }
 
-void func_80075104(void) {
+void WorldMapUpdateFrameAnimEntries(void) {
     WorldMapEntry* pEntry;
     s32 offset;
     s32 i;
@@ -281,7 +281,7 @@ void func_80075228(void) {
 }
 */
 
-void func_8007528C(void) {
+void WorldMapUpdateRandomTimers(void) {
     s32 value;
     s32 j;
     s32 i;
@@ -311,7 +311,7 @@ void func_8007528C(void) {
         }
     }
 }
-void func_80075460(void) {
+void WorldMapSaveState(void) {
     u8* pSave;
 
     pSave = D_8005A4E4;
@@ -355,7 +355,7 @@ extern void WorldMapQueueTwoFileLoads(void);
 extern int ArchiveDataSync(void);
 extern void LZSSDecompress(void* pSrc, void* pDst);
 
-void func_800758C0(void) {
+void WorldMapEnterMenuMode(void) {
     RECT rect;
     void* pTemp;
     u_int size;
@@ -425,7 +425,7 @@ void func_800758C0(void) {
     DrawSync(0);
     ArchiveCdDataSync(0);
 }
-void func_80075B58(void) {
+void WorldMapExitMenuMode(void) {
     RECT rect;
     void* pBuffer;
     s32 mode;
@@ -476,10 +476,10 @@ void func_80075B58(void) {
     D_8009D804 = 0;
     g_GameState.unk1836 = 0;
     D_80059179 = mode;
-    func_80075D4C();
+    WorldMapSyncGearRideActors();
 }
 
-void func_80075D4C(void) {
+void WorldMapSyncGearRideActors(void) {
     WorldMapActor* pActors;
     u8 ride;
     s32 count;
@@ -576,7 +576,7 @@ s32 func_80075E7C(s32 arg0, s32 arg1) {
 }
 */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc2", func_80076098);
-void func_800762FC(void) {
+void WorldMapFlushDrawAndCache(void) {
     DrawSync(0);
     Vsync(0);
     EnterCriticalSection();
@@ -606,7 +606,7 @@ extern void GraphicsDrawPauseLetters(int x, int y);
 extern void SoundMuteAllSpuChannels(void);
 extern void SoundEnableAllSpuChannels(void);
 
-void func_8007634C(void) {
+void WorldMapWaitForButtonRelease(void) {
     RECT rect;
     DISPENV* pDispEnv;
     s32 savedValue;
@@ -661,7 +661,7 @@ void func_8007634C(void) {
 
 extern int ControllerGetType(int controllerIndex);
 
-void func_80076594(void) {
+void WorldMapWaitForControllerConnected(void) {
     RECT rect;
     DISPENV* pDispEnv;
     s32 savedValue;
@@ -713,7 +713,7 @@ void func_80076594(void) {
     PutDrawEnv((DRAWENV*)((u8*)pDispEnv + D_8009D7F0 * 0x78));
     D_80059488 = savedValue;
 }
-void func_800767D4(u8* pSrc, s32 index) {
+void WorldMapPlayBgmFromBuffer(u8* pSrc, s32 index) {
     u8* pBuffer;
 
     SoundStopAllAudioManagers();
@@ -722,7 +722,7 @@ void func_800767D4(u8* pSrc, s32 index) {
     D_80062528 = SoundCreateAudioManagerOnHeap(D_80062648);
     SoundPlayAudioManager(D_80062528, 0x7F, 0);
 }
-void func_80076858(s32 arg0, s16* pRow0, s16* pRow1, s16* pRow2, s32* pOut) {
+void WorldMapInterpolateQuadraticVector(s32 arg0, s16* pRow0, s16* pRow1, s16* pRow2, s32* pOut) {
     s32 s;
     s32 iz;
     s32 zv;
@@ -736,7 +736,7 @@ void func_80076858(s32 arg0, s16* pRow0, s16* pRow1, s16* pRow2, s32* pOut) {
     pOut[1] = pRow0[1] * iz + pRow1[1] * zv + pRow2[1] * xs;
     pOut[2] = pRow0[2] * iz + pRow1[2] * zv + pRow2[2] * xs;
 }
-void func_80076954(void) {
+void WorldMapDecompressMapData(void) {
     s32* pHeader;
     u8* pBase;
 
@@ -754,6 +754,6 @@ void func_80076954(void) {
     D_8009D7C8 = (s32)(pBase + pHeader[9]);
 }
 
-int func_80076A14(void) {
+int WorldMapInitNop(void) {
     return 1;
 }

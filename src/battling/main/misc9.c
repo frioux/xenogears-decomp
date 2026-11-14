@@ -79,15 +79,15 @@ typedef struct {
 
 extern u8* D_8009288C;
 
-extern s32 func_8008AC0C();
+extern s32 BattleClearOrderingTable();
 extern void func_80030A30(s32 index, Poly9* pPoly);
 extern s32 func_80083310();
 extern void BattleSaveActorVectors(s32);
 extern void func_8007AC3C(void);
 extern void func_800725B0(s16* p);
-extern void func_80081E6C(void);
-extern void func_80080D20(void* p);
-extern void func_8008AE1C(u8* p);
+extern void BattleSetScreenTileBlack(void);
+extern void BattleDrawTextPrims(void* p);
+extern void BattleAttachActorPrims(u8* p);
 extern void BattleAddSharedPrim(void);
 extern void func_80087698(s32 x0, s32 y0, s32 x1, s32 y1);
 
@@ -474,7 +474,7 @@ void func_80083C0C(s32 mode) {
     D_80092794 = mode;
     switch (mode) {
     case 3:
-        func_80081E6C();
+        BattleSetScreenTileBlack();
         break;
     case 4:
         BattleSaveActorVectors(D_8009294C);
@@ -571,14 +571,14 @@ s32 func_800849E0(u8* p) {
     void* p3;
 
     p2 = *(u8**)(p + 0x284);
-    func_8008AC0C(p2);
+    BattleClearOrderingTable(p2);
     p3 = *(void**)(p2 + D_800928A0 * 4 + 4);
-    func_80080D20(p3 + 4);
-    func_8008AE1C(p2);
+    BattleDrawTextPrims(p3 + 4);
+    BattleAttachActorPrims(p2);
     BattleAddSharedPrim();
     return 0;
 }
 
 s32 func_80084A40(u8* p) {
-    return func_8008AC0C(*(s32*)(p + 0x284));
+    return BattleClearOrderingTable(*(s32*)(p + 0x284));
 }

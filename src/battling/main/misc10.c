@@ -29,7 +29,7 @@ extern int ArchiveDecodeAlignedSize(unsigned int entryIndex);
 extern void ArchiveCdDataSync(s32 mode);
 extern void func_8008E120(void);
 extern void func_8007F258(void* pOt, s32 arg);
-extern void func_80080D20(void* pOt);
+extern void BattleDrawTextPrims(void* pOt);
 extern void func_8008E3CC(void* pOt, s32 arg1, s32 arg2);
 extern void func_8008BC04(void);
 extern void SoundSetAudioManagerMasterVolumeWithFade(s32 arg0, s32 arg1, s32 arg2);
@@ -49,7 +49,7 @@ extern void BattleSetNodeModelPart(void* pA, void* pB);
 extern void BattleAttachModelPart(void* pA, void* pB);
 extern void BattleAppendListEntry(s32 handle, void* pB);
 extern void* BattleLoadArchiveEntry(s32 arg);
-extern void func_8008AE1C(void* pData);
+extern void BattleAttachActorPrims(void* pData);
 extern s32 func_8008F530(s32 arg0, s32 arg1);
 void BattleAddSharedPrim(void);
 
@@ -92,8 +92,8 @@ s32 BattleQueueActorPrims(Misc10Actor* pActor) {
     u32* pData = pActor->unk284;
 
     func_8008E3CC((u8*)pData[D_800928A0 + 1] + 8, 0xC0, 0);
-    func_80080D20((u8*)pData[D_800928A0 + 1] + 4);
-    func_8008AE1C(pData);
+    BattleDrawTextPrims((u8*)pData[D_800928A0 + 1] + 4);
+    BattleAttachActorPrims(pData);
     BattleAddSharedPrim();
     return 0;
 }
@@ -102,7 +102,7 @@ void BattleDrawEffectFrame(void) {
     if (D_80092780 != 0) {
         func_8008E120();
         func_8007F258(D_80092938, 0);
-        func_80080D20(D_80092938);
+        BattleDrawTextPrims(D_80092938);
         func_8008E3CC(D_80092938, 0xC0, 1);
         func_8008BC04();
     }

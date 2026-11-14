@@ -73,7 +73,7 @@ void func_8008E2B8(u8* p0, s32 color, s32 flag) {
 */
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008E3CC);
 /* best: objdiff 99.39% - only difference: gcc folds the address of the loop body's last store into the induction pointer (base = &unk2, offsets 10/-1/2/0) instead of using &unk0 with 12/1/4/2. Statement order does not change the choice; the base always follows the last store. An indexed form (D_80096EA0[i].unkC) loses the strength reduction entirely (45%).
-void func_8008E620(void) {
+void BattleInitSoundSlots(void) {
     BattleSlot* pSlot;
     s32 timer;
     u32 i;
@@ -90,7 +90,7 @@ void func_8008E620(void) {
         pSlot++;
     }
 }*/
-void func_8008E620(void) {
+void BattleInitSoundSlots(void) {
     BattleSlot* pSlot;
     s32 timer;
     u32 i;
@@ -106,7 +106,7 @@ void func_8008E620(void) {
         pSlot[i].unk2 = i * 2;
     }
 }
-void func_8008E67C(void) {
+void BattleIncrementSoundSlotTimers(void) {
     if (D_80096EA0[0].unk4 != 0xFFFF) {
         D_80096EA0[0].unk4++;
     }
@@ -120,7 +120,7 @@ void func_8008E67C(void) {
         D_80096F10++;
     }
 }
-u8* func_8008E6F8(u8* p) {
+u8* BattleSetActorSoundTable(u8* p) {
     u8* pTable;
 
     switch (*(u8*)(p + 0x909)) {
@@ -171,7 +171,7 @@ void func_8008E78C(u8* p0, u32 idx, u8* pData, u32 flags) {
             pSel = pSlot;
         }
     }
-    func_8008E67C();
+    BattleIncrementSoundSlotTimers();
     pSlot = pSel;
     pSlot->unk0 = idx;
     pSlot->unk8 = (u32)p0;
@@ -189,7 +189,7 @@ void func_8008E78C(u8* p0, u32 idx, u8* pData, u32 flags) {
 }
 */
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008E8B0);
-void func_8008EADC(void) {
+void BattleReleaseFinishedSoundSlots(void) {
     BattleSlot* pSlot;
     s32 i;
 
@@ -199,7 +199,7 @@ void func_8008EADC(void) {
             pSlot[i].unk1 = 0;
         }
     }
-    func_8008E67C();
+    BattleIncrementSoundSlotTimers();
 }
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008EB4C);
 /* best: objdiff 73.33% - identical instruction multiset; retail emits lui a0,(0x60000 >> 16), then the arg-4
@@ -211,7 +211,7 @@ void func_8008EB4C(u8* p) {
         func_8008E78C(p + 0x60000, 0, NULL, D_80059488);
     }
 }*/
-void func_8008EB88(u8* p, s32 idx, u8* pData, s32 flags) {
+void BattlePlaySoundEffectByIdx(u8* p, s32 idx, u8* pData, s32 flags) {
     if (idx != 0) {
         func_8008E78C((u8*)(idx + 0x60000), flags, pData,
                       (idx & 0x7F) | ((*(u32*)(p + 0xD0) >> 20) & 0x80));
@@ -249,7 +249,7 @@ void func_8008EBD0(u8* p, s32 idx, u8* pData, s32 flags) {
                       ((*(u32*)(p + 0xD0) >> 20) & 0x80) | (b & 0x7F));
     }
 }*/
-void func_8008ECEC(u8 kind) {
+void BattleStopSoundSlotsByFlags(u8 kind) {
     BattleSlot* pSlot;
     s32 i;
 
@@ -280,13 +280,13 @@ void func_8008ED6C(u8* p, s32 idx) {
     i = v << 1;
     pTable = D_80091EE0;
     if (D_80091EE0[i] != 0) {
-        func_8008ECEC(((*(u32*)(p + 0xD0) >> 20) & 0x80) | (D_80091EE0[i] & 0x7F));
+        BattleStopSoundSlotsByFlags(((*(u32*)(p + 0xD0) >> 20) & 0x80) | (D_80091EE0[i] & 0x7F));
     }
     if (pTable[i + 1] != 0) {
-        func_8008ECEC(((*(u32*)(p + 0xD0) >> 20) & 0x80) | (pTable[i + 1] & 0x7F));
+        BattleStopSoundSlotsByFlags(((*(u32*)(p + 0xD0) >> 20) & 0x80) | (pTable[i + 1] & 0x7F));
     }
 }*/
-void func_8008EE1C(u8* p, s16 arg1, s16 arg2) {
+void BattleUpdateActorApproach(u8* p, s16 arg1, s16 arg2) {
     s32 pad[4];
     s32 v98;
     s32 v9C;
@@ -317,19 +317,19 @@ void func_8008EE1C(u8* p, s16 arg1, s16 arg2) {
     *(s32*)(p + 0x58) = func_8008B650(*(s32*)(p + 0x58), arg1, 0x40);
     *(u16*)(p + 0xCE) = 0;
 }
-void func_8008EF00(u8* p0, u8* p1) {
+void BattleCheckStateAndSetDelay60(u8* p0, u8* p1) {
     func_800767C8(p0, p1);
     *(u16*)(p1 + 4) = 0x3C;
 }
-void func_8008EF30(u8* p0, u8* p1, s32 flag) {
+void BattleQueueRandomMessagesAndDelay(u8* p0, u8* p1, s32 flag) {
     func_8008FE80(p0, p1, flag);
     *(u16*)(p1 + 4) = flag ? 0x1E : 0xA;
 }
-void func_8008EF74(u8* p0, u8* p1) {
+void BattleQueueMessage3AndDelay60(u8* p0, u8* p1) {
     func_8007639C(p0, 3);
     *(u16*)(p1 + 4) = 0x3C;
 }
-void func_8008EFA8(u8* p0, u8* p1) {
+void BattleToggleActionFlag2000(u8* p0, u8* p1) {
     u32 flags;
 
     flags = *(u32*)(p1 + 0x2C);
@@ -343,16 +343,16 @@ void func_8008EFA8(u8* p0, u8* p1) {
         *(u16*)(p1 + 4) = 0x1E;
     }
 }
-void func_8008F014(u8* p0, u8* p1) {
+void BattleQueueMessages4Then3Delay60(u8* p0, u8* p1) {
     func_8007639C(p0, 4);
     func_8007639C(p0, 3);
     *(u16*)(p1 + 4) = 0x3C;
 }
-void func_8008F060(u8* p0, u8* p1) {
+void BattleQueueMessage4AndDelay60(u8* p0, u8* p1) {
     func_8007639C(p0, 4);
     *(u16*)(p1 + 4) = 0x3C;
 }
-void func_8008F094(u8* p0, u8* p1) {
+void BattleSetRandomFacingAround800(u8* p0, u8* p1) {
     u16 timer;
 
     if (D_8009284C >= 0x801) {
@@ -369,7 +369,7 @@ void func_8008F094(u8* p0, u8* p1) {
     *(u16*)(p1 + 0xC) = 0xFF;
     *(u16*)(p1 + 0x4) = timer;
 }
-void func_8008F17C(u8* p0, u8* p1) {
+void BattleSetRandomFacingAround0(u8* p0, u8* p1) {
     u16 timer;
 
     if (D_8009284C < 0x100) {
@@ -386,11 +386,11 @@ void func_8008F17C(u8* p0, u8* p1) {
     *(u16*)(p1 + 0xC) = 0xFF;
     *(u16*)(p1 + 0x4) = timer;
 }
-void func_8008F260(u8* p0, u8* p1, u8 value) {
+void BattleSetActionFieldFAndDispatch(u8* p0, u8* p1, u8 value) {
     p1[0xF] = value;
     func_80090E10(p0);
 }
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008F280);
-s32 func_8008F4F4(u8* p, s32 arg1) {
+s32 BattleCheckValueAboveScaledMax(u8* p, s32 arg1) {
     return (*(s16*)(p + 0xBC) * arg1) / 255 < *(s16*)(p + 0xB4);
 }

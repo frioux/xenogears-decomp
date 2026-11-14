@@ -48,8 +48,8 @@ extern u8 D_800D2E60;
 extern void func_80085AC4(u8);
 extern void func_80071B94(s32);
 extern u16 func_80098AF8(s32, s32);
-extern void func_80079E18(s32);
-extern void func_80079E4C(s32);
+extern void BattleSetSlotFlagB4(s32);
+extern void BattleClearSlotFlagB4(s32);
 extern s32 SystemRenderStringEntry(u8 *, s32, s32, s32);
 extern s32 D_800CCB34;
 extern u8 D_800D2D88[];
@@ -257,7 +257,7 @@ void func_80071AE0(void) {
     s32 i;
 
     if (D_800D2CAF != 0 && (D_800D2C94 & D_800C48E8) == 0) {
-        func_80079E18(7);
+        BattleSetSlotFlagB4(7);
         D_800C3EAC[0x2DB] = 0;
         for (i = 0x3B; i != 0; i--) {
             func_800716D8();
@@ -266,7 +266,7 @@ void func_80071AE0(void) {
             }
         }
         D_800C3EAC[0x2DB] = 1;
-        func_80079E4C(7);
+        BattleClearSlotFlagB4(7);
         func_800716D8();
     }
 }

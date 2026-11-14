@@ -13,7 +13,7 @@ extern int D_80059488;
 extern int func_801E4D10(u32*, void*);
 extern int func_801D2F4C(u_char);
 extern u_char func_801CAA38(u_char);
-extern int func_801D32B4(void);
+extern int MenuFreeWindow2Strings(void);
 extern void func_801CB184(void);
 extern int func_801C8D78(u_char);
 extern void MenuRenderFrame(void);
@@ -302,12 +302,12 @@ u_char func_801CACF8(u_char a0, u_char a1, u_char a2) {
     func_801D2F4C(a0);
     g_Menu->pCursors->shouldRender[3] = 1;
     result = func_801CAA38(a2);
-    func_801D32B4();
+    MenuFreeWindow2Strings();
     if (a1 != 0xFF && result != 0) {
         func_801D2F4C(a1);
         g_Menu->pCursors->shouldRender[3] = 1;
         result = func_801CAA38(a2);
-        func_801D32B4();
+        MenuFreeWindow2Strings();
     }
     return result;
 }
@@ -392,7 +392,7 @@ u_char func_801CB8AC(u_char a0) {
             break;
         }
     }
-    func_801D32B4();
+    MenuFreeWindow2Strings();
     if (changed == 0) {
         result = func_801CACF8(0x2F, 0xFF, 1);
     }

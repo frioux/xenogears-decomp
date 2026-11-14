@@ -10,7 +10,7 @@ void func_801E7E68(MenuString* pStringList, u_char* pStringIdList, s32 yOffset, 
 u_char func_801C531C(u_char arg0);
 void MenuRenderFrame(void);
 void MenuPlaySoundEffect(u_char soundEffectId);
-void func_801D22C4(void);
+void MenuResetSelectionCursorFlags(void);
 void func_801E8044(s32 arg0, void* pArg1);
 void func_801E8070(s32 arg0, void* pArg1, void* pArg2, void* pArg3, void* pArg4, u_char arg5,
     u_char arg6, u_char arg7);
@@ -20,8 +20,8 @@ void func_801E8474(s32 arg0, void* pArg1);
 extern int ArchiveGetDiscNumber(void);
 void MenuWaitForDiscChange(u_char arg0);
 s32 func_801CACF8(u_char a0, u_char a1, u_char a2);
-void func_801D1E80(void);
-void func_801D22F4(s32 arg0);
+void MenuStartOpenAnimation(void);
+void MenuSetupPointerCursors(s32 arg0);
 
 extern u8 D_801EA19C[];
 extern u8 D_801EA528[];
@@ -30,7 +30,7 @@ extern u8 D_801EA1D4[];
 extern u8 D_801EA530[];
 extern u8 D_801E9E84[];
 extern u8 D_801E9784;
-void func_801D2484(void);
+void MenuHidePointerCursors(void);
 void func_801D2D38(void);
 void MenuSetupScreen(void);
 extern int ArchiveDecodeAlignedSize(unsigned int entryIndex);
@@ -70,7 +70,7 @@ void func_801C55A0(void) {
                 }
                 if (isHandled) {
                     g_Menu->pSelectionMenu->unk1192 = 1;
-                    func_801D22C4();
+                    MenuResetSelectionCursorFlags();
                     func_801E8044(8, (u8*)g_Menu->pManager + 0xC);
                     shouldContinue = func_801C531C(0);
                 }
@@ -106,18 +106,18 @@ void func_801C57A4(void) {
 
     D_80059171 = 1;
     D_801E977A = 0;
-    func_801D1E80();
+    MenuStartOpenAnimation();
     shouldReset = 1;
     while (g_Menu->transitionEffectState != 0) {
         MenuRenderFrame();
     }
-    func_801D22F4(0);
+    MenuSetupPointerCursors(0);
     if ((u_char)func_801CACF8(0x7D, 0xFF, 1) != 0 || D_801EA8FC != 0) {
         if (func_801CACF8(0x80, 0xFF, 1) != 0) {
             shouldReset = 0;
         }
     }
-    func_801D2484();
+    MenuHidePointerCursors();
     if (shouldReset) {
         D_801E96A5 = 1;
         D_801E96A4 = 1;
@@ -148,7 +148,7 @@ void func_801C58EC(void) {
         switch (g_Menu->input) {
             case 4:
                 g_Menu->pSelectionMenu->unk1192 = 1;
-                func_801D22C4();
+                MenuResetSelectionCursorFlags();
                 func_801E8044(8, (u8*)g_Menu->pManager + 0xC);
                 g_Menu->unk348->unk15B = 0x40;
                 shouldContinue = func_801C531C(7);

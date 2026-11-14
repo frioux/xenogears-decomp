@@ -23,15 +23,15 @@ extern void func_801CF5E4(s32 arg0, s32 arg1, s32 arg2);
 extern void func_801CF8D8(void);
 extern void func_801CFB48(void);
 extern void func_801CFF64(void);
-extern void func_801D22F4(s32 arg0);
-extern void func_801D2484(void);
+extern void MenuSetupPointerCursors(s32 arg0);
+extern void MenuHidePointerCursors(void);
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc4", func_801CD2AC);
 s32 func_801CD710(u_char arg0) {
     u_char result = 1;
     u8 choice;
 
-    func_801D22F4(0);
+    MenuSetupPointerCursors(0);
     ((u8*)g_Menu->pManager)[0x2F] = 0;
     choice = g_Menu->subMenuChoice;
     switch (choice) {
@@ -61,7 +61,7 @@ s32 func_801CD710(u_char arg0) {
             }
             break;
     }
-    func_801D2484();
+    MenuHidePointerCursors();
     return result;
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc4", func_801CD81C);

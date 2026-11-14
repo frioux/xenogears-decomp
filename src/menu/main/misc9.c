@@ -15,17 +15,17 @@ extern u8 D_801E9EA0[];
 
 void func_801DDF24(u_char arg0, u_char arg1, s32 arg2);
 void MenuRenderFrame(void);
-void func_801D2484(void);
+void MenuHidePointerCursors(void);
 void func_801D4EA0(s32 arg0);
 void func_801C72BC(s32 arg0);
-void func_801D3444(void);
+void MenuFreeScrollHandle(void);
 void func_801E8044(s32 arg0, void* pArg1);
 void func_801E8018(s32 arg0, void* pArg1, void* pArg2, void* pArg3);
-void func_801D22F4(s32 arg0);
+void MenuSetupPointerCursors(s32 arg0);
 void func_801DB02C(s32 arg0);
 void func_801D3488(s32 arg0, s32 arg1);
 void func_801E3ECC(MenuDressingRoom* pDressingRoom, s32 gearId);
-void func_801D397C(u_char a0, u_char a1, u_char a2, u_char a3, u16 a4, u_char a5, u_char a6, u32 a7, u_char a8);
+void MenuCreateWindow(u_char a0, u_char a1, u_char a2, u_char a3, u16 a4, u_char a5, u_char a6, u32 a7, u_char a8);
 void func_801E8070(s32 arg0, void* pArg1, void* pArg2, void* pArg3, void* pArg4, u8 arg5, u8 arg6, u8 arg7);
 void MenuFillDressingRoomGearStats(MenuDressingRoom* pDressingRoom, s32 gearId);
 void func_801E8EAC(POLY_FT4* pPoly, u_char mode);
@@ -116,7 +116,7 @@ void func_801DC1D4(u32 arg0) {
     }
     func_801E8018(8, g_Menu->unk10E0, &D_801EA548[index * 8], g_Menu->pManager->unk38);
     func_801C72BC((u8)kind);
-    func_801D22F4(2);
+    MenuSetupPointerCursors(2);
     func_801D3488(2, arg0 & 0xFF);
 }
 */
@@ -128,7 +128,7 @@ void func_801DC2CC(u_char arg0) {
     func_801D4EA0(4);
     func_801D4EA0(5);
     func_801D4EA0(6);
-    func_801D2484();
+    MenuHidePointerCursors();
     g_Menu->pManager->unk4A[0] = 0;
     MenuRenderFrame();
     switch (arg0 & 0xFF) {
@@ -199,7 +199,7 @@ void func_801DE2C8(u32 arg0) {
     pManager = g_Menu->pManager;
     func_801E8018(6, (u8*)g_Menu + 0x14E0, &D_801EA558[(arg0 & 0xFF) * 6], &pManager->unk38[8]);
     func_801C72BC(7);
-    func_801D22F4(3);
+    MenuSetupPointerCursors(3);
     func_801DB02C(0);
     func_801D3488(1, arg0 & 0xFF);
 }
@@ -214,7 +214,7 @@ void func_801DE36C(void) {
     func_801E8044(6, &g_Menu->pManager->unk38[8]);
     func_801C72BC(0x17);
     HeapFree(g_Menu->unk434);
-    func_801D3444();
+    MenuFreeScrollHandle();
 }
 
 void func_801DE400(void) {
@@ -256,7 +256,7 @@ void func_801DE474(u_char arg0, u_char arg1) {
         func_801D4EA0(4);
     }
 
-    func_801D397C(4, 0x10, 0xC, 0x80, label, 0, 1, 4, 0);
+    MenuCreateWindow(4, 0x10, 0xC, 0x80, label, 0, 1, 4, 0);
 }
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DE5CC);

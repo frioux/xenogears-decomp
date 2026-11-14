@@ -26,7 +26,7 @@ extern void MenuAddSpriteGroupPrims(void);
 extern void func_801CE338(void);
 extern void func_801CE3C8(void);
 extern void func_801CEC40(void);
-extern void func_801D3B00(void);
+extern void MenuUpdateWindowAnimations(void);
 extern void func_801CE540(void);
 extern void func_801CE660(void);
 extern void func_801CEB5C(void);
@@ -422,7 +422,7 @@ void MenuAddArrowCursorPrims(void) {
     }
 }
 void MenuAddScreen0Prims(void) {
-    func_801D3B00();
+    MenuUpdateWindowAnimations();
     MenuAddSpriteGroupPrims();
     func_801CE3C8();
     func_801CE338();
@@ -447,7 +447,7 @@ void MenuAddScreen0Prims(void) {
 }
 
 void MenuAddScreen2Prims(void) {
-    func_801D3B00();
+    MenuUpdateWindowAnimations();
     MenuAddSpriteGroupPrims();
     func_801CE3C8();
     func_801CE338();
@@ -459,7 +459,7 @@ void MenuAddScreen2Prims(void) {
 }
 
 void MenuAddScreen6Prims(void) {
-    func_801D3B00();
+    MenuUpdateWindowAnimations();
     func_801CE3C8();
     MenuAddSpriteGroupPrims();
     func_801CE338();
