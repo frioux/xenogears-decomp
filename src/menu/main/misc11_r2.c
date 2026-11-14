@@ -3,8 +3,160 @@
 #include "system/menu.h"
 
 
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc11_r2", func_801E4A28);
+// The save-slot record this unit writes: a packed copy of the parts of
+// g_GameState that live in a save file.  Everything is word-aligned so the
+// copies compile to lw/sw.
+typedef struct {
+    /* 0x00 */ u32 unk0[0x29];
+} MenuSaveCharacter; // Size: 0xA4
+
+typedef struct {
+    /* 0x00 */ u32 unk0[0x8];
+} MenuSaveGearHead20; // Size: 0x20
+
+typedef struct {
+    /* 0x00 */ u32 unk0[0x2];
+} MenuSaveGearHead08; // Size: 0x08
+
+typedef struct {
+    /* 0x00 */ MenuSaveGearHead20 head;
+    /* 0x20 */ MenuSaveGearHead08 headTail;
+    /* 0x28 */ u32 unk28;
+    /* 0x2C */ u32 unk2C;
+    /* 0x30 */ u32 unk30;
+    /* 0x34 */ u16 unk34;
+    /* 0x36 */ u16 unk36;
+    /* 0x38 */ u8 unk38;
+    /* 0x39 */ u8 unk39;
+    /* 0x3A */ u8 unk3A;
+    /* 0x3B */ u8 unk3B;
+} MenuSaveGear; // Size: 0x3C
+
+typedef struct {
+    /* 0x00 */ StringEntry entry[0xB];
+} MenuSaveNamesA; // Size: 0xDC
+
+typedef struct {
+    /* 0x00 */ StringEntry entry[0x14];
+} MenuSaveNamesB; // Size: 0x190
+
+typedef struct {
+    /* 0x00 */ u32 unk0[0x1E];
+} MenuSaveBlob0x78; // Size: 0x78
+
+typedef struct {
+    /* 0x00 */ u32 unk0[0x58];
+} MenuSaveBlob0x160; // Size: 0x160
+
+typedef struct {
+    /* 0x00 */ u32 unk0[0x40];
+} MenuSaveBlob0x100; // Size: 0x100
+
+typedef struct {
+    /* 0x00 */ u8 unk0[0xA38];
+} MenuSaveBlob0xA38; // Size: 0xA38
+
+typedef struct {
+    /* 0x0000 */ u32 unk0[0x9];
+    /* 0x0024 */ MenuSaveNamesA namesA;
+    /* 0x0100 */ MenuSaveNamesB namesB;
+    /* 0x0290 */ MenuSaveCharacter characters[MAX_GAME_CHARACTERS];
+    /* 0x099C */ MenuSaveGear gears[MAX_GAME_GEARS];
+    /* 0x0E4C */ MenuSaveBlob0x78 unk1648;
+    /* 0x0EC4 */ MenuSaveBlob0x160 unk16C0;
+    /* 0x1024 */ MenuSaveBlob0x100 unk1820;
+    /* 0x1124 */ MenuSaveBlob0xA38 unk1920;
+} MenuSaveSlot; // Size: 0x1B5C
+
+void func_801E4A28(MenuSaveSlot* pSlot) {
+    GameGear* pGear;
+    MenuSaveGear* pSaveGear;
+    u8 i;
+    s32 offset;
+    u32 size;
+
+    for (i = 0; i < MAX_GAME_CHARACTERS; i++) {
+        offset = i * 0xA4 + 0x290;
+        *(MenuSaveCharacter*)((mem_addr)pSlot + offset) =
+            *(MenuSaveCharacter*)&g_GameState.characters[i];
+    }
+    for (i = 0; i < MAX_GAME_GEARS; i++) {
+        s32 gearOffset = i * 0x3C + 0x99C;
+        pSaveGear = (MenuSaveGear*)((mem_addr)pSlot + gearOffset);
+        pGear = &g_GameState.gears[i];
+        pSaveGear->head = *(MenuSaveGearHead20*)pGear;
+        pSaveGear->headTail = *(MenuSaveGearHead08*)((u32*)pGear + 8);
+        pSaveGear->unk28 = *(u32*)pGear->unk5C;
+        pSaveGear->unk34 = pGear->fuel;
+        pSaveGear->unk2C = pGear->hp;
+        pSaveGear->unk38 = pGear->unk99;
+        pSaveGear->unk39 = pGear->attackPower;
+        pSaveGear->unk3A = pGear->unk75;
+    }
+    pSlot->namesA = *(MenuSaveNamesA*)((u32*)&g_GameState);
+    pSlot->namesB = *(MenuSaveNamesB*)((u32*)&g_GameState + 0xDC / 4);
+    pSlot->unk1648 = *(MenuSaveBlob0x78*)((u32*)&g_GameState + 0x1648 / 4);
+    pSlot->unk16C0 = *(MenuSaveBlob0x160*)((u32*)&g_GameState + 0x16C0 / 4);
+    pSlot->unk1820 = *(MenuSaveBlob0x100*)((u32*)&g_GameState + 0x1820 / 4);
+    size = 0xA38;
+    memcpy((u8*)pSlot + 0x1124, (u8*)&g_GameState + 0x1920, size);
+}
+
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc11_r2", func_801E4D10);
+/* Best: 91.40% (840 vs 744 bytes), the inverse of func_801E4A28 (which
+   matches): same record layout, same copy shapes, and the four
+   MenuApplyGear* calls per gear land in the right order with s2 = i & 0xFF
+   shared across them.  What is left is one allocator tie that swaps the two
+   loop bases: retail keeps the g_GameState gear pointer in $s1 and the slot
+   pointer in $s0, gcc gives $s1 to the slot pointer (the whole 0x28 head
+   copy and the five field stores are mirror-imaged, which is why the byte
+   count grows).  Tried: pGear/pSaveGear assignment in both orders, and the
+   loop body with the head copies first (no change).  The 0x160 copy before
+   the loop, the 0xDC/0x190/0x78/0x100 copies after it and the trailing
+   memcpy of 0xA38 all match retail.
+/*
+void MenuApplyGearFrame(MenuDressingRoom*, u8);
+void MenuApplyGearArmor(MenuDressingRoom*, u8);
+void MenuApplyGearEngine(MenuDressingRoom*, u8);
+void func_801E433C(MenuDressingRoom*, u8);
+
+void func_801E4D10(MenuSaveSlot* pSlot, MenuDressingRoom* pDressingRoom) {
+    GameGear* pGear;
+    MenuSaveGear* pSaveGear;
+    u8 i;
+    u32 size;
+
+    for (i = 0; i < MAX_GAME_CHARACTERS; i++) {
+        s32 charOffset = i * 0xA4 + 0x290;
+        *(MenuSaveCharacter*)&g_GameState.characters[i] =
+            *(MenuSaveCharacter*)((mem_addr)pSlot + charOffset);
+    }
+    *(MenuSaveBlob0x160*)((u32*)&g_GameState + 0x16C0 / 4) = *(MenuSaveBlob0x160*)((u32*)pSlot + 0xEC4 / 4);
+    for (i = 0; i < MAX_GAME_GEARS; i++) {
+        s32 gearOffset = i * 0x3C + 0x99C;
+        pGear = &g_GameState.gears[i];
+        pSaveGear = (MenuSaveGear*)((mem_addr)pSlot + gearOffset);
+        *(MenuSaveGearHead20*)pGear = pSaveGear->head;
+        *(MenuSaveGearHead08*)((u32*)pGear + 8) = pSaveGear->headTail;
+        *(u32*)pGear->unk5C = pSaveGear->unk28;
+        MenuApplyGearFrame(pDressingRoom, i);
+        MenuApplyGearArmor(pDressingRoom, i);
+        MenuApplyGearEngine(pDressingRoom, i);
+        func_801E433C(pDressingRoom, i);
+        pGear->fuel = pSaveGear->unk34;
+        pGear->hp = pSaveGear->unk2C;
+        pGear->unk99 = pSaveGear->unk38;
+        pGear->attackPower = pSaveGear->unk39;
+        pGear->unk75 = pSaveGear->unk3A;
+    }
+    *(MenuSaveNamesA*)((u32*)&g_GameState) = pSlot->namesA;
+    *(MenuSaveNamesB*)((u32*)&g_GameState + 0xDC / 4) = pSlot->namesB;
+    *(MenuSaveBlob0x78*)((u32*)&g_GameState + 0x1648 / 4) = pSlot->unk1648;
+    *(MenuSaveBlob0x100*)((u32*)&g_GameState + 0x1820 / 4) = pSlot->unk1820;
+    size = 0xA38;
+    memcpy((u8*)&g_GameState + 0x1920, (u8*)pSlot + 0x1124, size);
+}
+*/
 void func_801E5058(void) {
     u8 i;
 
