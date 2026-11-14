@@ -286,24 +286,15 @@ void func_80097244(Misc15Frame *p) {
 */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_80097244);
 
-// Best: 95.06%. Instruction-identical and the same 0x20 frame; the only
-// difference is the callee-saved numbering: retail has &D_8009C808 in s0, the
-// 0x1F8000F0 matrix in s1 and the parameter in s2, this compile has p in s0,
-// &D_8009C808 in s1 and 0x1F8000F0 in s2 (so objdiff reports 95.06 and the bytes
-// differ). Five shapes tried: no pointer local, a local pointer, three separate
-// pointers for 0x1F8000F0/110/130, a u16* view of the parameter, and an extra
-// dummy local to shift the declaration order - all land on the same allocation.
-// gcc-2.7.2-cdk gives 81.27, so the preset is right.
-/*
-void func_80097440(Misc15Frame *p) {
+void func_80097440(Misc15Rot *p) {
     MATRIX *pMtx = (MATRIX *)0x1F8000F0;
 
     *pMtx = D_8009A180;
     *(MATRIX *)0x1F800110 = *pMtx;
     *(MATRIX *)0x1F800130 = *pMtx;
-    RotMatrixX(-(u16)p->unk0, pMtx);
-    RotMatrixY(-(u16)p->unk2, (MATRIX *)0x1F800110);
-    RotMatrixZ(-(u16)p->unk4, (MATRIX *)0x1F800130);
+    RotMatrixX(-D_8009BD38, pMtx);
+    RotMatrixY(-D_8009BD3A, (MATRIX *)0x1F800110);
+    RotMatrixZ(-D_8009BD3C, (MATRIX *)0x1F800130);
     MulMatrix0(pMtx, (MATRIX *)0x1F800110, (MATRIX *)0x1F800150);
     MulMatrix0((MATRIX *)0x1F800130, (MATRIX *)0x1F800150, &D_8009C808);
     ((SVECTOR *)0x1F8000A0)->vx = -(u16)p->unk0;
@@ -313,9 +304,6 @@ void func_80097440(Misc15Frame *p) {
     ApplyMatrix(pMtx, (SVECTOR *)0x1F8000A0, (VECTOR *)0x1F800000);
     TransMatrix(&D_8009C808, (VECTOR *)0x1F800000);
 }
-*/
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_80097440);
-
 
 void func_8009766C(void) {
     D_8009BE24 = HeapAlloc(0x2000, 0);
@@ -517,22 +505,20 @@ void func_800979C8(void) {
 }
 
 */
-// Best: 63.31%. Same shape as the parked 94.28% note class: cc1 2.7.2 sinks
-// both masked `and`+store pairs to the end of the block and hoists the mask's
-// (high) half alone, so the original's interleaved order (lui+ori together, then
-// plain stores, then and+store, then second load) is unreachable from any
-// source order tried; 2.6.0 gives 72% for this function but drops the already
-// matched func_80097CB8 to 97.21%, so the preset is right.
-// Round 19: confirmed at the RTL level (build/src/world_map/main/misc15.c.s).
-// cc1 2.7.2 emits
-// `li $4,0x7f0000` right after the clear loop and the `ori $4,$4,0xffff` ten
-// insns later, and hoists the two `li $2,2` / C838,C83C stores above the BBBx
-// stores; retail has one `li $a0,0x7FFFFF` and keeps source order, so the
-// instruction multiset is identical and only the order differs (52.66% for the
-// direct form, 63.31% for this parked x/z form). A `u32 mask = 0x7FFFFF;`
-// local changes nothing; the x/z loads-as-statements form makes the hoisting
-// worse. This is the documented allocator/scheduler-tie class. -O1/-O3/cdk
-// could not be scored: try_flags.sh compile-fails on every row in this tree.
+
+// Best: 63.31%. Same instruction multiset, different order: cc1 2.7.2's sched2
+// hoists the C618/C838/C83C stores above the two loads and splits the mask into
+// `li $4,0x7F0000` (kept at the top) + `ori $4,$4,0xFFFF` (emitted 8 insns
+// later, just before the ands); retail keeps lui+ori adjacent at the top and the
+// stores in source order, which is ASPSX 2.6x's reorder of the same RTL - we
+// assemble with GAS, which only inserts load-delay nops and never moves an insn.
+// Round 19 confirmed this on build/src/world_map/main/misc15.c.s. Also checked:
+// writing the statements in retail's own order changes nothing (sched2 re-does
+// it), the direct `p[0] & 0x7FFFFF` form gives 52.66%, and maspsx with li
+// expansion on (--maspsx "--use-comm-section --run-assembler", i.e. the Default
+// preset's flags) scores 72.42 here while dropping 6 already-matched functions
+// in this unit (func_80097770 91.43, func_800977A8 91.43, func_8009766C 95.38),
+// so the unit preset is right.
 /*
 void func_80097BC0(s32 *p) {
     u32 *pEnd;
@@ -547,9 +533,9 @@ void func_80097BC0(s32 *p) {
         *pEnd-- = 0;
     }
     x = p[0];
+    D_8009C618 = 0x400;
     D_8009BBB8 = 0;
     D_8009C5BC = 0;
-    D_8009C618 = 0x400;
     D_8009BBB4 = x & 0x7FFFFF;
     z = p[2];
     D_8009C838 = 2;
@@ -588,4 +574,62 @@ void func_80097D64(void) {
     }
 }
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_80097DC0);
+extern s32 D_8009BCD8;
+extern s16 D_8009D570[];
+extern s32 ArchiveDecodeSector(s32 entryIndex);
+extern u8 *ArchiveGetFilePath(s32 entryIndex);
+extern s32 WorldMapAddCdRequest(s32 x, s32 y, s32 z);
+extern s32 WorldMapAddFileLoadRequest(s32 x, s32 y, s32 z, s32 w);
+extern s32 WorldMapSubmitCdRequests(void);
+extern s32 WorldMapSubmitFileLoads(void);
+
+void func_80097DC0(void) {
+    u32 first;
+    u32 second;
+    s32 i;
+    s32 j;
+    s16 id;
+    u8 *pSector;
+    u8 *pPath;
+
+    first = ArchiveGetDebugTable();
+    second = ArchiveGetDebugTable();
+    if ((first == 0) | (second == 0xFFFFFFFF)) {
+        pSector = (u8 *)ArchiveDecodeSector(D_8009BCD8);
+        for (i = 3; i < 6; i++) {
+            for (j = 3; j < 6; j++) {
+                id = D_8009D570[i * 9 + j];
+                if (D_8009C184[id] == NULL) {
+                    D_8009C184[id] = HeapAlloc(0x710, 0);
+                    WorldMapAddCdRequest((s32)(pSector + id), 0x710, (s32)D_8009C184[id]);
+                }
+            }
+        }
+        WorldMapAddCdRequest(0, 0, 0);
+        WorldMapSubmitCdRequests();
+        for (i = 0; i < 9; i++) {
+            for (j = 0; j < 9; j++) {
+                id = D_8009D570[i * 9 + j];
+                if (D_8009C184[id] == NULL) {
+                    D_8009C184[id] = HeapAlloc(0x710, 0);
+                    WorldMapAddCdRequest((s32)(pSector + id), 0x710, (s32)D_8009C184[id]);
+                }
+            }
+        }
+        WorldMapAddCdRequest(0, 0, 0);
+        WorldMapSubmitCdRequests();
+    } else {
+        pPath = ArchiveGetFilePath(D_8009BCD8);
+        for (i = 0; i < 9; i++) {
+            for (j = 0; j < 9; j++) {
+                id = D_8009D570[i * 9 + j];
+                if (D_8009C184[id] == NULL) {
+                    D_8009C184[id] = HeapAlloc(0x710, 0);
+                    WorldMapAddFileLoadRequest((s32)pPath, id << 11, 0x710, (s32)D_8009C184[id]);
+                }
+            }
+        }
+        WorldMapAddFileLoadRequest(0, 0, 0, 0);
+        WorldMapSubmitFileLoads();
+    }
+}
