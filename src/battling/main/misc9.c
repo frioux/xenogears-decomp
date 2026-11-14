@@ -342,6 +342,74 @@ void func_80082A70(void) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc9", func_80082C4C);
 
+/* best 68.73%: structure recovered but three allocator/CSE differences remain.
+   - retail uses setPolyFT4 (tag length byte at offset 3, code 0x2C at 7) and
+     the 64 quads of 0x28 bytes are POLY_FT4; the store order u0,u1,v0,u2,v1,
+     u3,v2,clut,tpage,v3 is the original's.
+   - D_800927A8 is read both as a byte (lbu, for v0/v2) and a halfword (lhu,
+     for v1/v3) at the same address; the setup store into it is a sh. A union
+     of u16/u8 members reproduces both loads without hoisting an address.
+   - retail reloads the D_800927A8 address with a fresh lui per access, ours
+     CSEs the eight uses into one callee-saved register (s0) - that is the
+     blocker; and retail keeps &D_80092788 in a callee-saved register across
+     the two HeapAlloc calls and stores through it in the jal delay slot.
+   - the CLUT loop wants an s32 -0x8000 local (or v0,v0,a0) and drop its
+     counter in a2, ours picks a1; D_800927A8 needs a union of u16/u8
+     members to get both loads.
+
+/*
+void func_80082C4C(u8* pArg) {
+    TIM_IMAGE tim;
+    POLY_FT4* p;
+    u_short* pClut;
+    s32 i;
+    s32 mask;
+
+    OpenTIM(*(s32*)(pArg + 0x6C));
+    ReadTIM(&tim);
+    mask = -0x8000;
+    pClut = (u_short*)tim.caddr;
+    for (i = 0; i < 0x100; i++) {
+        *pClut++ |= mask;
+    }
+    LoadImage(tim.crect, tim.caddr);
+    LoadImage(tim.prect, tim.paddr);
+    D_800927A0 = GetClut(tim.crect->x, tim.crect->y);
+    D_800927A4 = GetTPage(1, 0, tim.prect->x, tim.prect->y);
+    D_800927A8.w = *(u8*)&tim.prect->y;
+    D_80092788 = HeapAlloc(0xA00, 0);
+    D_8009278C = HeapAlloc(0xA00, 0);
+    p = (POLY_FT4*)D_80092788;
+    for (i = 0; i < 0x40; i += 2) {
+        setPolyFT4(p);
+        p->u0 = 0x7F;
+        p->u1 = 0x7F;
+        p->v0 = D_800927A8.b + 0x3F;
+        p->u2 = 0x3F;
+        p->v1 = D_800927A8.w;
+        p->u3 = 0x3F;
+        p->v2 = D_800927A8.b + 0x3F;
+        p->clut = D_800927A0;
+        p->tpage = D_800927A4;
+        p->v3 = D_800927A8.w;
+        p++;
+        setPolyFT4(p);
+        p->u0 = 0x3F;
+        p->u1 = 0x3F;
+        p->v0 = D_800927A8.b + 0x3F;
+        p->u2 = 0;
+        p->v1 = D_800927A8.w;
+        p->u3 = 0;
+        p->v2 = D_800927A8.b + 0x3F;
+        p->clut = D_800927A0;
+        p->tpage = D_800927A4;
+        p->v3 = D_800927A8.w;
+        p++;
+    }
+    func_800732AC(D_8009278C, D_80092788, 0xA00);
+}
+*/
+
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc9", func_80082E60);
 
 void func_800831C8(void) {
