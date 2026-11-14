@@ -146,79 +146,72 @@ void func_8009F794(BattleModelPartList* pList, s32 freeLight) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_8009F844);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_800A0838);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_800A1B50);
-/* 65.26% (468 vs 420 bytes): offsets recovered - pSprite stride 0x7C, rot[3] s16
-   at 0x54, pos[3] s32 at 0x5C, p70 for the first block and p74 for the second,
-   flags&1 / flags&2 select the blocks, frame cursor walks 3 s16 per block. What
-   is still off: retail increments the sprite base (rebased to sprite+4) by 0x7C
-   in the DELAY SLOT of the loop's first branch (increment at the top of the
-   body) and starts the base at pSprites+4, while this version folds the +0x80
-   into the entry and increments at the latch; retail also loads the frame words
-   with lh (we emit lhu + sll/sra) and keeps flags&1 / flags&2 in t8/t7 across
-   the loop.
+/* 90.08% (424 vs 416 bytes), s32 rot f2f3 values + u16 counters. Offsets
+   confirmed: rot[3] s16 at 0x54, pos[3] s32 at 0x5C, p70/p74 at 0x70/0x74,
+   set-bytes at 0x4/0x5, frame records 3 s16 each; the guard is `andi
+   count-1,0xFFFF` then `blez` (this version emits beqz) and retail keeps the
+   sprite pointer rebased to sprite+4 with the 0x7C increment in the loop's
+   first branch delay slot (increment at the top of the body) while every shape
+   tried here folds the +0x80 into the entry. Remaining deltas: guard beqz vs
+   blez, the fold, and two register assignments. BLOCK_ROTATION-shaped.
 void func_800A1B50(BattleSprite* pSprites, BattleAnimData* pData) {
+    s16* pFrame;
+    BattleSprite* pSprite;
+    BattleBlock* pBlock;
     u16 numA;
     u16 numB;
-    u_int countA;
-    u_int countB;
-    u_int flags;
+    u16 countA;
+    u16 countB;
+    u16 animFlags;
     u16 numSprites;
-    BattleSprite* pSprite;
-    s16* pFrame;
     s32 i;
+    s32 v0;
+    s32 v1;
+    s32 v2;
 
     numA = 0;
     numB = 0;
-    countA = pData->countA;
-    countB = pData->countB;
-    flags = pData->flags;
     pFrame = (s16*)((u8*)pData + 0x18);
     if (pData->unk06 == 0) {
-        pFrame += (countA + 1) * 3;
+        pFrame += (pData->countA + 1) * 3;
     }
+    countA = pData->countA;
+    countB = pData->countB;
+    animFlags = pData->flags;
     numSprites = pSprites->count - 1;
-    if (numSprites <= 0) {
+    if (numSprites < 1) {
         return;
     }
     pSprite = pSprites + 1;
     for (i = 0; i < numSprites; i++, pSprite++) {
-        if (!(flags & 1)) {
-            if (numA < countA) {
-                s16 v0;
-                s16 v1;
-                s16 v2;
-
-                v0 = *pFrame++;
-                v1 = *pFrame++;
-                v2 = *pFrame++;
-                numA++;
-                if (pSprite->rot[0] != v0 || pSprite->rot[1] != v1 || pSprite->rot[2] != v2) {
-                    if (pSprite->p70 == NULL || *(u8*)((u8*)pSprite->p70 + 3) != 0xFF) {
-                        pSprite->rot[0] = v0;
-                        pSprite->rot[1] = v1;
-                        pSprite->rot[2] = v2;
-                        pSprite->unk00[4] = 1;
-                        pSprite->unk00[5] = 1;
-                    }
+        if (!(animFlags & 1) && numA < countA) {
+            v0 = *pFrame++;
+            v1 = *pFrame++;
+            v2 = *pFrame++;
+            numA++;
+            if (pSprite->rot[0] != v0 || pSprite->rot[1] != v1 || pSprite->rot[2] != v2) {
+                pBlock = pSprite->p70;
+                if (pBlock == NULL || pBlock->unk1[2] != 0xFF) {
+                    pSprite->rot[0] = v0;
+                    pSprite->rot[1] = v1;
+                    pSprite->rot[2] = v2;
+                    pSprite->unk00[4] = 1;
+                    pSprite->unk00[5] = 1;
                 }
             }
         }
-        if (!(flags & 2)) {
-            if (numB < countB) {
-                s16 v0;
-                s16 v1;
-                s16 v2;
-
-                v0 = *pFrame++;
-                v1 = *pFrame++;
-                v2 = *pFrame++;
-                numB++;
-                if (pSprite->pos[0] != v0 || pSprite->pos[1] != v1 || pSprite->pos[2] != v2) {
-                    if (pSprite->p74 == NULL || *(u8*)((u8*)pSprite->p74 + 3) != 0xFF) {
-                        pSprite->pos[0] = v0;
-                        pSprite->pos[1] = v1;
-                        pSprite->pos[2] = v2;
-                        pSprite->unk00[4] = 1;
-                    }
+        if (!(animFlags & 2) && numB < countB) {
+            v0 = *pFrame++;
+            v1 = *pFrame++;
+            v2 = *pFrame++;
+            numB++;
+            if (pSprite->pos[0] != v0 || pSprite->pos[1] != v1 || pSprite->pos[2] != v2) {
+                pBlock = pSprite->p74;
+                if (pBlock == NULL || pBlock->unk1[2] != 0xFF) {
+                    pSprite->pos[0] = v0;
+                    pSprite->pos[1] = v1;
+                    pSprite->pos[2] = v2;
+                    pSprite->unk00[4] = 1;
                 }
             }
         }
