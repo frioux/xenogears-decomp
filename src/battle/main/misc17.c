@@ -39,7 +39,7 @@ void func_80091B38(u8, u8, u8);
 void func_80093578(u8, u8);
 void func_8009382C(u8, u8);
 s32 func_80076A10(s32, u8 *, s32, s16);
-s32 func_80089C6C(s32, u8);
+s32 BattleMaskHasStatusBit(s32, u8);
 extern void *func_8008AC00(s32);
 extern u8 *GetStringEntry(u8 *, s32);
 extern s32 SystemRenderStringEntry(u8 *, void *, s32, s32);
@@ -165,10 +165,10 @@ void func_80091D38(u8 arg0, s32 arg1, u8 arg2) {
     u8 ret = 0;
 
     if (D_800D32A1[arg0 * 8] == 0) {
-        ret = (u16)func_80089C6C(
+        ret = (u16)BattleMaskHasStatusBit(
                   (u16)g_GameState.unk16BC[D_800D2D24[arg0]].unk6,
                   arg1 + arg2 * 2) != 0;
-    } else if ((u16)func_80089C6C(
+    } else if ((u16)BattleMaskHasStatusBit(
                    (u16)g_GameState.unk16BC[D_800D2D24[arg0]].unkA,
                    arg1 + arg2 * 2) != 0) {
         ret = 1;
@@ -212,7 +212,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80092B74);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_800930AC);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80093578);
 /* 72.03%: RECT/bzero/GetStringEntry/SystemRenderStringEntry order, both stack
-   args and the frame all match. Same blocker as misc16's func_8009070C
+   args and the frame all match. Same blocker as misc16's BattleDrawMenuEntryString
    (78.72%): the original loads *(D_800C3EA4+0xA230) FIRST, keeps &D_800CCB34
    in a saved reg (lw 0(s3)) and does `addiu a0,a0,0x280` before the base addu;
    gcc loads the D_800CCB34 index first, re-forms its address per call and sinks
@@ -257,7 +257,7 @@ void func_800939CC(u8 arg0, u8 arg1) {
     tbl[1] = D_800C3250;
     tbl[2] = D_800C3252;
     tbl[3] = D_800C323A;
-    if ((u16)func_80089C6C((u16)g_GameState.unk16BC[D_800D2D24[arg0]].unk1E,
+    if ((u16)BattleMaskHasStatusBit((u16)g_GameState.unk16BC[D_800D2D24[arg0]].unk1E,
                            arg1)) {
         o = arg0 * 0x170;
         if ((*(u16 *)(D_800CCD62 + o) & tbl[arg1]) == 0) {

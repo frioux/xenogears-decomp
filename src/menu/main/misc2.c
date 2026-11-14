@@ -42,7 +42,7 @@ void MenuSetupPointerCursors(s32 arg0);
 void MenuHidePointerCursors(void);
 s32 func_801D2F4C(u8 arg0);
 s32 MenuFreeWindow2Strings(void);
-void func_801E92CC(void);
+void MenuPauseCdDrive(void);
 s32 func_801E93A0(s32 arg0);
 void func_801C6400(void);
 void func_801C6AA0(void);
@@ -407,7 +407,7 @@ void MenuWaitForDiscChange(u8 index) {
         if (ArchiveGetDiscNumber() == index + 1) {
             flag = 0;
         } else {
-            func_801E92CC();
+            MenuPauseCdDrive();
             func_801D2F4C(index * 3 - 0x7D);
             if (func_801E93A0(index + 1)) {
                 MenuFreeWindow2Strings();

@@ -31,11 +31,11 @@ void MenuFreeWindow(s32 arg0);
 void func_801C72BC(s32 arg0);
 void func_801D7F50(s32 arg0, s32 arg1, u_char arg2);
 void func_801D8644(u_char arg0, s32 arg1, s32 arg2, u_char arg3, u_char arg4);
-void func_801E8018(s32 count, void* pStrings, void* pStringIds, void* pFlags);
+void MenuLoadStringsFromIds(s32 count, void* pStrings, void* pStringIds, void* pFlags);
 void func_801E8070(s32 arg0, void* pArg1, void* pArg2, void* pArg3, void* pArg4, u8 arg5, u8 arg6, u8 arg7);
 void func_801E86C8(s32 arg0);
-void func_801E8B4C(s32 arg0);
-void func_801E8044(s32 arg0, void* pArg1);
+void MenuSetSubMenuChoicePrims(s32 arg0);
+void MenuClearBytes(s32 arg0, void* pArg1);
 s32 func_80038824(void);
 void func_800386C4(s32 arg0);
 void func_801E64E0(void);
@@ -47,11 +47,11 @@ void MenuRenderFrame(void);
 u_char func_801C93A8(void);
 void func_801D2F4C(s32 arg0);
 void MenuFreeWindow2Strings(void);
-void func_801E8EAC(POLY_FT4* pPoly, u_char mode);
+void MenuSetPrimShadingMode(POLY_FT4* pPoly, u_char mode);
 void func_801E8F60(s32 mode, u_char index);
 s32 func_8002675C(MenuResourceDirectory* pDir, u32 index, POLY_FT4* pPrims, s32 context, s32 x, s32 y, s32 scale);
 void MenuSetQuadVertices(SVECTOR* pVertices, u16 x, u16 y, u16 width, u16 height);
-void func_801E91C4(P_TAG* pTag);
+void MenuSetPolySemiTransGrey(P_TAG* pTag);
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801D7CFC);
 
@@ -62,7 +62,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801D7CFC);
    MenuSetQuadVertices(0x2AA0 + i*0x20 + unk358, x, y, right - x, bottom - y) with
    a u8* pEntry = unk358 + (renderContext + i*2)*0x28 and fields +0x1E08,
    +0x1E0A, +0x1E10, +0x1E22 (i.e. 0x1E00-relative 40-byte records).
-   Then func_801E91C4(unk358 + (renderContext + 2*(arg2 == 0))*0x28),
+   Then MenuSetPolySemiTransGrey(unk358 + (renderContext + 2*(arg2 == 0))*0x28),
    *(u16*)(pEntry+0x1E16) |= 0x20, *(u8*)(pEntry+0x1E04/05/06) = 0x20,
    ((u8*)unk358)[0x2AEE] = *(u8*)&g_Menu->renderContext,
    ((u8*)unk358)[0x2AED] = 2. Post-call statements must repeat the whole
@@ -76,7 +76,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801D7CFC);
    it into a1 and again into v0 for the width subtraction) and loads x/y
    straight into a1/a2, where gcc emits move a1,v0 / move a2,v1.
    func_8002675C args must be s32 x,y,scale (u16 costs an extra andi).
-   Also declared: MenuSetQuadVertices, func_801E91C4, D_801E977C.
+   Also declared: MenuSetQuadVertices, MenuSetPolySemiTransGrey, D_801E977C.
 void func_801D7CFC(s32 arg0, u_char arg1, u_char arg2) {
     s32 selected = (arg2 == 0);
     u8* pEntry;
@@ -94,7 +94,7 @@ void func_801D7CFC(s32 arg0, u_char arg1, u_char arg2) {
                           *(u16*)(pEntry + 0x1E10) - *(u16*)(pEntry + 0x1E08),
                           *(u16*)(pEntry + 0x1E22) - *(u16*)(pEntry + 0x1E0A));
         }
-        func_801E91C4((P_TAG*)((u8*)g_Menu->unk358 + (g_Menu->renderContext + selected * 2) * 0x28));
+        MenuSetPolySemiTransGrey((P_TAG*)((u8*)g_Menu->unk358 + (g_Menu->renderContext + selected * 2) * 0x28));
         *(u16*)((u8*)g_Menu->unk358 + (g_Menu->renderContext + selected * 2) * 0x28 + 0x1E16) |= 0x20;
         *(u8*)((u8*)g_Menu->unk358 + (g_Menu->renderContext + selected * 2) * 0x28 + 0x1E04) = 0x20;
         *(u8*)((u8*)g_Menu->unk358 + (g_Menu->renderContext + selected * 2) * 0x28 + 0x1E05) = 0x20;
@@ -332,7 +332,7 @@ s32 func_801D9808(void) {
     do {
         MenuRenderFrame();
         if (firstPass != 0) {
-            func_801E8018(4, g_Menu->unk1BE0, D_801EA574, g_Menu->pManager->unk5C);
+            MenuLoadStringsFromIds(4, g_Menu->unk1BE0, D_801EA574, g_Menu->pManager->unk5C);
             func_801E86C8(0);
             g_Menu->subMenuPrevChoice = 0xFF;
             switch (func_80038824()) {
@@ -352,7 +352,7 @@ s32 func_801D9808(void) {
         if (g_Menu->subMenuChoice != g_Menu->subMenuPrevChoice) {
             func_801E8070(6, g_Menu->unk1BE0, D_801EA578, D_801E9F88, g_Menu->pManager->unk5C,
                           g_Menu->subMenuChoice, 7, 0);
-            func_801E8B4C(0);
+            MenuSetSubMenuChoicePrims(0);
             g_Menu->subMenuPrevChoice = g_Menu->subMenuChoice;
         }
         switch (g_Menu->input) {
@@ -389,7 +389,7 @@ s32 func_801D9808(void) {
         }
         func_800386C4(choice);
     }
-    func_801E8044(4, g_Menu->pManager->unk5C);
+    MenuClearBytes(4, g_Menu->pManager->unk5C);
     g_Menu->pManager->unk4 = 0;
     g_Menu->pManager->unk3 = 0;
     return 1;

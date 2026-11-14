@@ -18,7 +18,7 @@ extern u8 D_800C3EB4[];
 extern u8 func_8007A628(u8 arg0, u8 arg1);
 extern s32 func_8007A280(u8 arg0, u8 arg1, s32 arg2, s32 arg3);
 extern u8 func_8001BD40(s32 arg0, u8 arg1);
-extern u16 func_80089C08(u8 arg0);
+extern u16 BattleSlotBitMask(u8 arg0);
 
 /* best: 80.37%. Same family as func_8007DA1C/DB78/DCF8/DE78/DFD4 (all still
    stubs). Structure recovered from the asm: zero the row slot, then a do-while
@@ -55,7 +55,7 @@ void func_8007D8C0(u8 **arg0, s32 arg1) {
     if (count != 0) {
         u8 *pBase = D_800D3420 + (arg1 & 0xFF) * 0x40;
 
-        *(u16 *)(pBase + (*arg0)[2] * 2) = func_80089C08(buf[func_8001BD40(0, count - 1)]);
+        *(u16 *)(pBase + (*arg0)[2] * 2) = BattleSlotBitMask(buf[func_8001BD40(0, count - 1)]);
     }
 } */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007D8C0);
@@ -93,7 +93,7 @@ void func_8007DA1C(u8 **arg0, s32 arg1) {
     if (count != 0) {
         u8 *pBase = D_800D3420 + (arg1 & 0xFF) * 0x40;
 
-        *(u16 *)(pBase + (*arg0)[2] * 2) = func_80089C08(buf[func_8001BD40(0, count - 1)]);
+        *(u16 *)(pBase + (*arg0)[2] * 2) = BattleSlotBitMask(buf[func_8001BD40(0, count - 1)]);
     }
 } */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007DA1C);
@@ -146,7 +146,7 @@ void func_8007DB78(u8 **arg0, s32 arg1) {
         offset += 8;
     }
     if (count != 0) {
-        u16 value = func_80089C08(buf[func_8001BD40(0, count - 1)]);
+        u16 value = BattleSlotBitMask(buf[func_8001BD40(0, count - 1)]);
         u16 *pOut = (u16 *)((arg1 & 0xFF) * 0x40 + (s32)D_800D3420);
 
         pOut[(*arg0)[2]] = value;
@@ -159,7 +159,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007DCF8);
    base) IS SOLVED here: write the tail as a u16 value local, then a pointer
    local whose base is built in INT arithmetic, then the store:
 
-       u16 value = func_80089C08(buf[func_8001BD40(0, count - 1)]);
+       u16 value = BattleSlotBitMask(buf[func_8001BD40(0, count - 1)]);
        u16 *pOut = (u16 *)((arg1 & 0xFF) * 0x40 + (s32)D_800D3420);
        pOut[(*arg0)[2]] = value;
 
@@ -197,7 +197,7 @@ void func_8007DE78(u8 **arg0, s32 arg1) {
         }
     } while (i < 3);
     if (count != 0) {
-        u16 value = func_80089C08(buf[func_8001BD40(0, count - 1)]);
+        u16 value = BattleSlotBitMask(buf[func_8001BD40(0, count - 1)]);
         u16 *pOut = (u16 *)((arg1 & 0xFF) * 0x40 + (s32)D_800D3420);
 
         pOut[(*arg0)[2]] = value;
@@ -253,7 +253,7 @@ void func_8007DFD4(u8 **arg0, s32 arg1) {
         offset += 8;
     }
     if (count != 0) {
-        u16 value = func_80089C08(buf[func_8001BD40(0, count - 1)]);
+        u16 value = BattleSlotBitMask(buf[func_8001BD40(0, count - 1)]);
         u16 *pOut = (u16 *)((arg1 & 0xFF) * 0x40 + (s32)D_800D3420);
 
         pOut[(*arg0)[2]] = value;
@@ -271,7 +271,7 @@ void func_8007E154(u8 **arg0, s32 arg1) {
     }
 }
 void func_8007E1D0(u8 **arg0, s32 arg1) {
-    u16 value = func_80089C08((arg1 + 3) & 0xFF);
+    u16 value = BattleSlotBitMask((arg1 + 3) & 0xFF);
     u8 *p = *arg0;
     u16 *pField = (u16 *)(D_800D3420 + (arg1 & 0xFF) * 0x40);
 
@@ -481,9 +481,9 @@ void func_8007E7E4(u8 **arg0) {
 
     do {
         if ((u8)flag) {
-            *(u16 *)addr |= func_80089BEC((u8)((*arg0)[1] + 7));
+            *(u16 *)addr |= BattleStatusBitMask((u8)((*arg0)[1] + 7));
         } else {
-            *(u16 *)addr &= ~func_80089BEC((u8)((*arg0)[1] + 7));
+            *(u16 *)addr &= ~BattleStatusBitMask((u8)((*arg0)[1] + 7));
         }
         addr += 0x170;
     } while (addr < (s32)D_800CD1B2);

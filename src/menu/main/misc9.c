@@ -19,8 +19,8 @@ void MenuHidePointerCursors(void);
 void MenuFreeWindow(s32 arg0);
 void func_801C72BC(s32 arg0);
 void MenuFreeScrollHandle(void);
-void func_801E8044(s32 arg0, void* pArg1);
-void func_801E8018(s32 arg0, void* pArg1, void* pArg2, void* pArg3);
+void MenuClearBytes(s32 arg0, void* pArg1);
+void MenuLoadStringsFromIds(s32 arg0, void* pArg1, void* pArg2, void* pArg3);
 void MenuSetupPointerCursors(s32 arg0);
 void MenuInitializeArrowCursor(s32 arg0);
 void func_801D3488(s32 arg0, s32 arg1);
@@ -28,7 +28,7 @@ void func_801E3ECC(MenuDressingRoom* pDressingRoom, s32 gearId);
 void MenuCreateWindow(u_char a0, u_char a1, u_char a2, u_char a3, u16 a4, u_char a5, u_char a6, u32 a7, u_char a8);
 void func_801E8070(s32 arg0, void* pArg1, void* pArg2, void* pArg3, void* pArg4, u8 arg5, u8 arg6, u8 arg7);
 void MenuFillDressingRoomGearStats(MenuDressingRoom* pDressingRoom, s32 gearId);
-void func_801E8EAC(POLY_FT4* pPoly, u_char mode);
+void MenuSetPrimShadingMode(POLY_FT4* pPoly, u_char mode);
 void func_801E8F60(s32 mode, u_char index);
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DB920);
@@ -114,7 +114,7 @@ void func_801DC1D4(u32 arg0) {
         index = 1;
         break;
     }
-    func_801E8018(8, g_Menu->unk10E0, &D_801EA548[index * 8], g_Menu->pManager->unk38);
+    MenuLoadStringsFromIds(8, g_Menu->unk10E0, &D_801EA548[index * 8], g_Menu->pManager->unk38);
     func_801C72BC((u8)kind);
     MenuSetupPointerCursors(2);
     func_801D3488(2, arg0 & 0xFF);
@@ -167,19 +167,19 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DD5E8);
            pStrings = g_Menu->unk430;
            pPoly = &pStrings[i].polys[pStrings[i].renderContext];
            if (pPoly->r0 != 0x20) {
-               func_801E8EAC(pPoly, arg0);
+               MenuSetPrimShadingMode(pPoly, arg0);
                pStrings = g_Menu->unk430;
                pPoly = &pStrings[i + 0xE].polys[pStrings[i + 0xE].renderContext];
-               func_801E8EAC(pPoly, arg0);
+               MenuSetPrimShadingMode(pPoly, arg0);
            }
        }
-       func_801E8EAC(&g_Menu->arrowCursors[0]->polys[g_Menu->arrowCursors[0]->renderContext], arg0);
+       MenuSetPrimShadingMode(&g_Menu->arrowCursors[0]->polys[g_Menu->arrowCursors[0]->renderContext], arg0);
        pStrings = g_Menu->unk430;
-       func_801E8EAC(&pStrings[0x1C].polys[pStrings[0x1C].renderContext], arg0);
+       MenuSetPrimShadingMode(&pStrings[0x1C].polys[pStrings[0x1C].renderContext], arg0);
        for (i = 0; i < 2; i++) {
            pStrings = g_Menu->unk430;
            pPoly = &pStrings[0x1E + i].polys[pStrings[0x1E + i].renderContext];
-           func_801E8EAC(pPoly, arg0);
+           MenuSetPrimShadingMode(pPoly, arg0);
        }
    }
 */
@@ -197,7 +197,7 @@ void func_801DE2C8(u32 arg0) {
     g_Menu->unk434 = HeapAlloc(0xA1C, 0);
     bzero(g_Menu->unk434, 0xA1C);
     pManager = g_Menu->pManager;
-    func_801E8018(6, (u8*)g_Menu + 0x14E0, &D_801EA558[(arg0 & 0xFF) * 6], &pManager->unk38[8]);
+    MenuLoadStringsFromIds(6, (u8*)g_Menu + 0x14E0, &D_801EA558[(arg0 & 0xFF) * 6], &pManager->unk38[8]);
     func_801C72BC(7);
     MenuSetupPointerCursors(3);
     MenuInitializeArrowCursor(0);
@@ -211,7 +211,7 @@ void func_801DE36C(void) {
     MenuFreeWindow(4);
     MenuFreeWindow(5);
     MenuRenderFrame();
-    func_801E8044(6, &g_Menu->pManager->unk38[8]);
+    MenuClearBytes(6, &g_Menu->pManager->unk38[8]);
     func_801C72BC(0x17);
     HeapFree(g_Menu->unk434);
     MenuFreeScrollHandle();

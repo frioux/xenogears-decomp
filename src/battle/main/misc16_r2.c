@@ -43,7 +43,7 @@ extern void func_8008EA70(u8, s32, s32, s32);
 extern void func_8008F0A8(u8, s32, s32, s32, u16);
 extern void func_80090310(u8, u8);
 extern void func_800904A0(u8, u8);
-extern void func_8009070C(u8, u8);
+extern void BattleDrawMenuEntryString(u8, u8);
 extern void *D_800D2F5C;
 extern u8 D_800C3E4C;
 extern void BattleSetPrimGrey80BlendModeFromGlobal(void *);
@@ -57,7 +57,7 @@ extern u8 D_800CEF10[];
 extern u8 D_800CCDC4[];
 extern u8 D_800CCD62[];
 extern u8 D_800D2D24[];
-extern s32 func_80089C6C(s32, u8);
+extern s32 BattleMaskHasStatusBit(s32, u8);
 extern u8 func_80085084(u16, u8, s32);
 extern void func_8008CCCC(u8);
 extern void func_8008CD28(u8);
@@ -101,7 +101,7 @@ void func_8008FC1C(s32 arg0, s32 arg1, s32 arg2, s32 arg3, u8 arg4) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16_r2", func_8008FC1C);
-void func_8008FDE4(void) {
+void BattleInitMenuColumnPrims(void) {
     func_8008FC1C(0x20, 0x5C, 0xCC, 0x60, 0xE);
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16_r2", func_8008FE18);
@@ -243,7 +243,7 @@ void func_800904A0(u8 arg0, u8 arg1) {
     *(u16 *)(pRec + 0x37E) = pal;
 }
 */
-void func_8009070C(u8 arg0, u8 arg1) {
+void BattleDrawMenuEntryString(u8 arg0, u8 arg1) {
     RECT rect;
     u8 *pBuf;
     u8 *pBase;
@@ -269,7 +269,7 @@ void func_8009070C(u8 arg0, u8 arg1) {
 }
 
 
-void func_8009080C(u8 arg0, u8 arg1, u8 arg2) {
+void BattleDrawMenuCell(u8 arg0, u8 arg1, u8 arg2) {
     u8 flag;
     u8 *p;
 
@@ -281,7 +281,7 @@ void func_8009080C(u8 arg0, u8 arg1, u8 arg2) {
     *(u8 *)(*(u8 **)(D_800C3EA4 + 0xA230) + 0x66D) = 0;
     func_80090310(arg0, arg1);
     if (flag != 0 && arg2 == 0) {
-        func_8009070C(arg0, arg1);
+        BattleDrawMenuEntryString(arg0, arg1);
         func_800904A0(arg0, arg1);
         p = *(u8 **)(D_800C3EA4 + 0xA230);
         p[0x66D] = 1;
@@ -325,7 +325,7 @@ void func_8009093C(s32 arg0) {
     *(u8 *)(*(u8 **)(D_800C3EA4 + 0xA230) + 0x668) = D_800CCB34;
 }
 */
-void func_80090B90(s32 arg0, s32 arg1, s32 *pIndex, u8 *pCount) {
+void BattleStepAnimatedCursorPrim(s32 arg0, s32 arg1, s32 *pIndex, u8 *pCount) {
     u8 *p;
 
     if (++*pCount >= 3) {
@@ -408,6 +408,6 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc16_r2", func_80090C44);
    misc/misc2/misc5). Also left: retail adds the constant to the PRODUCT
    (`sll/addu/sll; addiu a0,a0,0x3C0; addu a0,a0,t1`) where ours forms
    `pBase+0x3C0` first and adds the product -- probably a side effect of the
-   same propagation, since func_8009070C's identical `ofs = idx*0x28 + K`
+   same propagation, since BattleDrawMenuEntryString's identical `ofs = idx*0x28 + K`
    phrasing matches in this unit. gcc-2.7.2-cdk compile-fails on this unit (mixed declarations).  */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16_r2", func_80090E7C);

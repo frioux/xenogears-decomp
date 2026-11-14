@@ -13,10 +13,10 @@ extern u_char func_801CBD90(u_char arg0);
 extern u_char func_801CC6D8(void);
 extern u_char func_801CD2AC(void);
 extern void func_801CD81C(MenuCharacter* pCharacter, u_char arg1, u_char arg2, s32 arg3, s32 arg4, u_char arg5);
-extern void func_801CDB1C(MenuCharacter* pCharacter, u_char arg1, u_char arg2, s32 arg3, s32 arg4);
+extern void MenuBuildCharacterLevelDigits(MenuCharacter* pCharacter, u_char arg1, u_char arg2, s32 arg3, s32 arg4);
 extern void func_801CDC6C(MenuCharacter* pCharacter, u_char arg1, u_char arg2, s32 arg3, s32 arg4, u_char arg5);
 extern void func_801CE198(s32 count, SVECTOR* pVertices, POLY_FT4* pPolys, s32 renderContext);
-extern void func_801CE2B4(int length, POLY_FT4* pPolys, int renderContext);
+extern void MenuRenderString(int length, POLY_FT4* pPolys, int renderContext);
 extern void func_801CE860(void);
 extern void func_801CF37C(void);
 extern void func_801CF5E4(s32 arg0, s32 arg1, s32 arg2);
@@ -27,7 +27,7 @@ extern void MenuSetupPointerCursors(s32 arg0);
 extern void MenuHidePointerCursors(void);
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc4", func_801CD2AC);
-s32 func_801CD710(u_char arg0) {
+s32 MenuUpdateSubMenuChoice(u_char arg0) {
     u_char result = 1;
     u8 choice;
 
@@ -65,7 +65,7 @@ s32 func_801CD710(u_char arg0) {
     return result;
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc4", func_801CD81C);
-void func_801CDB1C(MenuCharacter* pCharacter, u_char characterIndex, u_char localIndex, s32 arg3, s32 arg4) {
+void MenuBuildCharacterLevelDigits(MenuCharacter* pCharacter, u_char characterIndex, u_char localIndex, s32 arg3, s32 arg4) {
     s32* pPositionsY = (s32*)arg4;
     s32 i;
     u_char digit;
@@ -89,9 +89,9 @@ void func_801CDB1C(MenuCharacter* pCharacter, u_char characterIndex, u_char loca
 }
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc4", func_801CDC6C);
-void func_801CE0CC(MenuCharacter* pCharacter, u_char arg1, u_char arg2, s32 arg3, s32 arg4, u_char arg5) {
+void MenuBuildCharacterPrims(MenuCharacter* pCharacter, u_char arg1, u_char arg2, s32 arg3, s32 arg4, u_char arg5) {
     func_801CD81C(pCharacter, arg1, arg2, arg3, arg4, arg5);
-    func_801CDB1C(pCharacter, arg1, arg2, arg3, arg4);
+    MenuBuildCharacterLevelDigits(pCharacter, arg1, arg2, arg3, arg4);
     func_801CDC6C(pCharacter, arg1, arg2, arg3, arg4, arg5);
     pCharacter->unkBE7 = 1;
     pCharacter->renderContext = ((u_char*)g_Menu)[0x308];
@@ -121,14 +121,14 @@ void func_801CE198(s32 count, SVECTOR* pVertices, POLY_FT4* pPolys, s32 renderCo
     }
 }
 */
-void func_801CE2B4(int length, POLY_FT4* pPolys, int renderContext) {
+void MenuRenderString(int length, POLY_FT4* pPolys, int renderContext) {
     s32 i;
 
     for (i = 0; i < length; i++) {
         AddPrim(&g_Menu->pGfxEnv->ot[4], &pPolys[2 * i + renderContext]);
     }
 }
-void func_801CE338(void) {
+void MenuRenderSelectionCursor(void) {
     u32 offset;
 
     offset = g_Menu->unk348->unk159 * sizeof(DR_MODE) + 0x128;
@@ -138,7 +138,7 @@ void func_801CE338(void) {
         AddPrim(&g_Menu->pGfxEnv->ot[4], (void*)(offset + (u32)g_Menu->unk348));
     }
 }
-void func_801CE3C8(void) {
+void MenuRenderPointerCursors(void) {
     s32 i;
     u32 offset;
     MenuPointerCursors* pCursors;
@@ -153,18 +153,18 @@ void func_801CE3C8(void) {
         }
     }
 }
-void func_801CE464(void) {
+void MenuAddGoldAndPlayTimePrims(void) {
     u32 offset;
 
     if (((u8*)g_Menu->pManager)[0x5]) {
-        func_801CE2B4(*(s32*)((u8*)g_Menu->unk340 + 0x320), (POLY_FT4*)g_Menu->unk340,
+        MenuRenderString(*(s32*)((u8*)g_Menu->unk340 + 0x320), (POLY_FT4*)g_Menu->unk340,
                       ((u8*)g_Menu->unk340)[0x324]);
         offset = ((u8*)g_Menu->unk340)[0x324] * sizeof(POLY_FT4) + 0x2D0;
         AddPrim(&g_Menu->pGfxEnv->ot[4], (void*)(offset + (u32)g_Menu->unk340));
     }
     if (((u8*)g_Menu->pManager)[0x6]) {
-        func_801CE2B4(7, (POLY_FT4*)g_Menu->unk344, ((u8*)g_Menu->unk344)[0x370]);
-        func_801CE2B4(4, (POLY_FT4*)((u8*)g_Menu->unk344 + 0x230), ((u8*)g_Menu->unk344)[0x370]);
+        MenuRenderString(7, (POLY_FT4*)g_Menu->unk344, ((u8*)g_Menu->unk344)[0x370]);
+        MenuRenderString(4, (POLY_FT4*)((u8*)g_Menu->unk344 + 0x230), ((u8*)g_Menu->unk344)[0x370]);
     }
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc4", func_801CE540);
@@ -187,13 +187,13 @@ void func_801CE540(void) {
             AddPrim(&g_Menu->pGfxEnv->ot[4], (void*)(pData + pData[0x1270] * sizeof(POLY_FT4)));
             AddPrim(&g_Menu->pGfxEnv->ot[4],
                     (void*)(pData + pData[0x1270] * sizeof(POLY_FT4) + 0x50));
-            func_801CE2B4(pData[0x1279], (POLY_FT4*)(pData + 0xA0), pData[0x1270]);
-            func_801CE2B4(pData[0x1273], (POLY_FT4*)(pData + 0xAF0), pData[0x1270]);
-            func_801CE2B4(pData[0x1274], (POLY_FT4*)(pData + 0xBE0), pData[0x1270]);
-            func_801CE2B4(pData[0x1275], (POLY_FT4*)(pData + 0xCD0), pData[0x1270]);
-            func_801CE2B4(pData[0x1276], (POLY_FT4*)(pData + 0xD70), pData[0x1270]);
-            func_801CE2B4(pData[0x1277], (POLY_FT4*)(pData + 0xE10), pData[0x1270]);
-            func_801CE2B4(pData[0x1271], (POLY_FT4*)(pData + 0x910), pData[0x1270]);
+            MenuRenderString(pData[0x1279], (POLY_FT4*)(pData + 0xA0), pData[0x1270]);
+            MenuRenderString(pData[0x1273], (POLY_FT4*)(pData + 0xAF0), pData[0x1270]);
+            MenuRenderString(pData[0x1274], (POLY_FT4*)(pData + 0xBE0), pData[0x1270]);
+            MenuRenderString(pData[0x1275], (POLY_FT4*)(pData + 0xCD0), pData[0x1270]);
+            MenuRenderString(pData[0x1276], (POLY_FT4*)(pData + 0xD70), pData[0x1270]);
+            MenuRenderString(pData[0x1277], (POLY_FT4*)(pData + 0xE10), pData[0x1270]);
+            MenuRenderString(pData[0x1271], (POLY_FT4*)(pData + 0x910), pData[0x1270]);
         }
     }
 }
@@ -306,7 +306,7 @@ void func_801CE860(void) {
 }
 */
 
-void func_801CEB5C(void) {
+void MenuAddUnk35CPrims(void) {
     u8* pData;
 
     if (g_Menu->pManager->unk8) {
@@ -315,7 +315,7 @@ void func_801CEB5C(void) {
         func_801CE860();
     }
 }
-void func_801CEBB4(void) {
+void MenuAddUnk360Prims(void) {
     s32 i;
     u8* pData;
     u8* pFlag;
@@ -333,10 +333,10 @@ void func_801CEBB4(void) {
     }
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc4", func_801CEC40);
-void func_801CF308(void) {
+void MenuAddUnk5StringPrims(void) {
     if (g_Menu->pManager->unkA) {
-        func_801CE2B4(g_Menu->unk354->unk1404, g_Menu->unk354->polys500, g_Menu->unk354->unk1409);
-        func_801CE2B4(g_Menu->unk354->unk1400, g_Menu->unk354->polys0, g_Menu->unk354->unk1408);
+        MenuRenderString(g_Menu->unk354->unk1404, g_Menu->unk354->polys500, g_Menu->unk354->unk1409);
+        MenuRenderString(g_Menu->unk354->unk1400, g_Menu->unk354->polys0, g_Menu->unk354->unk1408);
     }
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc4", func_801CF37C);
@@ -473,9 +473,9 @@ void func_801CFF64(void) {
         *(u16*)(((u8**)g_Menu->unk44C)[0] + 0x7B0) + 0x20;
     ((MenuUnk44CEntry*)(((u8**)g_Menu->unk44C)[0] + ((u8**)g_Menu->unk44C)[0][0x7B8] * 0x18))->unk16 = 0x68;
     if (g_Menu->unk2D8 % 6 >= 4 || ((u8*)g_Menu->pManager)[0x52] == 2) {
-        func_801CE2B4(2, (POLY_FT4*)(((u8**)g_Menu->unk44C)[0] + 0x3F0), ((u8**)g_Menu->unk44C)[0][0x7B8]);
+        MenuRenderString(2, (POLY_FT4*)(((u8**)g_Menu->unk44C)[0] + 0x3F0), ((u8**)g_Menu->unk44C)[0][0x7B8]);
     }
-    func_801CE2B4(0xC, (POLY_FT4*)(((u8**)g_Menu->unk44C)[0] + 0x30), ((u8**)g_Menu->unk44C)[0][0x7B8]);
+    MenuRenderString(0xC, (POLY_FT4*)(((u8**)g_Menu->unk44C)[0] + 0x30), ((u8**)g_Menu->unk44C)[0][0x7B8]);
     AddPrim(&g_Menu->pGfxEnv->ot[4],
             (void*)(((u8**)g_Menu->unk44C)[0] + ((u8**)g_Menu->unk44C)[0][0x7B8] * 0x18));
     if (((u8*)g_Menu->pManager)[0x52] == 1) {
@@ -487,7 +487,7 @@ void func_801CFF64(void) {
     }
 }
 */
-void func_801D01D0(void) {
+void MenuAddCellGridPrims(void) {
     func_801CF37C();
     func_801CF5E4(0, 0, 0x10);
     func_801CF5E4(0x10, 0x10, 0x20);
@@ -515,7 +515,7 @@ void func_801D01D0(void) {
     }
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc4", func_801D02D8);
-void func_801D0954(SVECTOR* pVertices, POLY_FT4* pPolys, s32 polyIndex, s32 otIndex) {
+void MenuRenderQuad(SVECTOR* pVertices, POLY_FT4* pPolys, s32 polyIndex, s32 otIndex) {
     long interpolated;
     long flag;
     u32 offset;

@@ -31,11 +31,11 @@ void MenuFreeWindow(s32 arg0);
 void func_801C72BC(s32 arg0);
 void func_801D7F50(s32 arg0, s32 arg1, u_char arg2);
 void func_801D8644(u_char arg0, s32 arg1, s32 arg2, u_char arg3, u_char arg4);
-void func_801E8018(s32 count, void* pStrings, void* pStringIds, void* pFlags);
+void MenuLoadStringsFromIds(s32 count, void* pStrings, void* pStringIds, void* pFlags);
 void func_801E8070(s32 arg0, void* pArg1, void* pArg2, void* pArg3, void* pArg4, u8 arg5, u8 arg6, u8 arg7);
 void func_801E86C8(s32 arg0);
-void func_801E8B4C(s32 arg0);
-void func_801E8044(s32 arg0, void* pArg1);
+void MenuSetSubMenuChoicePrims(s32 arg0);
+void MenuClearBytes(s32 arg0, void* pArg1);
 s32 func_80038824(void);
 void func_800386C4(s32 arg0);
 void func_801E64E0(void);
@@ -47,11 +47,11 @@ void MenuRenderFrame(void);
 u_char func_801C93A8(void);
 void func_801D2F4C(s32 arg0);
 void MenuFreeWindow2Strings(void);
-void func_801E8EAC(POLY_FT4* pPoly, u_char mode);
+void MenuSetPrimShadingMode(POLY_FT4* pPoly, u_char mode);
 void func_801E8F60(s32 mode, u_char index);
 s32 func_8002675C(MenuResourceDirectory* pDir, u32 index, POLY_FT4* pPrims, s32 context, s32 x, s32 y, s32 scale);
 void MenuSetQuadVertices(SVECTOR* pVertices, u16 x, u16 y, u16 width, u16 height);
-void func_801E91C4(P_TAG* pTag);
+void MenuSetPolySemiTransGrey(P_TAG* pTag);
 
 s32 func_801D9C84(void) {
     MenuUnk2* pMenu;

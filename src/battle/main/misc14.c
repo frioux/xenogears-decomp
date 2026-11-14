@@ -24,7 +24,7 @@ extern u8 D_800D2C36;
 extern u8 D_800C3CFA[];
 extern u8 D_800D2C38;
 extern u16 D_800D2C30;
-extern s32 func_80089C6C(s32 mask, u8 idx);
+extern s32 BattleMaskHasStatusBit(s32 mask, u8 idx);
 extern u8 D_800CCB34;
 extern u8* D_800D2DB4;
 extern s32 func_80076A10(s32 arg0, s32 arg1, s16 arg2, s16 arg3);
@@ -32,15 +32,15 @@ extern void BattleSetPrimGrey80BlendAdd(u8* p);
 extern Temp8* D_8005919C;
 extern void SoundPlaySoundEffectOnLastPair(s32 arg0);
 extern void func_8008860C(void);
-extern void func_80089038(void);
-extern void func_80089110(void);
+extern void BattleBuildFlaggedSlotSpriteColumn(void);
+extern void BattleBuildBlendedSprite(void);
 extern void func_800891E4(void);
 extern void func_80089348(void);
 extern void func_8008946C(void);
 extern void func_8008963C(void);
 extern void func_800897CC(void);
 extern void func_8008A3EC(u8 arg0);
-extern void func_8008A274(u8 arg0);
+extern void BattleUpdateImageUpload(u8 arg0);
 extern void func_8008A684(u8 arg0);
 extern int rand(void);
 extern u8 *D_800C3EA4;
@@ -58,7 +58,7 @@ extern void func_80089CCC(s32 arg0);
 extern void func_8008AAA0(s32 arg0);
 extern void BattleSetPrimGrey80BlendSub(u8 *p);
 
-void func_80088990(void) {
+void BattleStepTwoAxisInterpolation(void) {
     s32 i = 0;
 
     for (i = 0; i < D_800C3A9C; i++) {
@@ -90,14 +90,14 @@ void func_80088990(void) {
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc14", func_80088B80);
-void func_80089038(void) {
+void BattleBuildFlaggedSlotSpriteColumn(void) {
     s32 i = 0;
     s32 pitch = 0x6E << 16;
     s32 off;
 
     D_800D2DB4[0x5DA1] = 0;
     for (i = 0; i < 5; i++) {
-        if ((u16)func_80089C6C(D_800D2C30, i) != 0) {
+        if ((u16)BattleMaskHasStatusBit(D_800D2C30, i) != 0) {
             off = D_800D2DB4[0x5DA1] * 0x50 + 0x4CE0;
             D_800D2DB4[0x5DA1] += func_80076A10(i + 0xC4, (s32)(off + (s32)D_800D2DB4), 0xE0, pitch >> 16);
             pitch += 0xA0000;
@@ -106,7 +106,7 @@ void func_80089038(void) {
     D_800D2DB4[0x5DA0] = D_800CCB34;
     *(u16*)(D_800D2DB4 + 0x5DA2) = 0;
 }
-void func_80089110(void) {
+void BattleBuildBlendedSprite(void) {
     s32 arg0;
     s32 pEntry;
     s32 i;
@@ -270,10 +270,10 @@ void func_800898F0(u8 arg0) {
     D_800D2DB4[0x5D8C] = D_800CCB34;
 }
 */
-void func_80089AF8(void) {
+void BattleBuildSpritePrimLists(void) {
     func_8008860C();
-    func_80089038();
-    func_80089110();
+    BattleBuildFlaggedSlotSpriteColumn();
+    BattleBuildBlendedSprite();
     func_800891E4();
     func_80089348();
     func_8008946C();
@@ -312,19 +312,19 @@ u16 func_80089B50(u16 arg0, u16 arg1) {
     return (u16)(arg0 + rem);
 }
 */
-u16 func_80089BEC(u8 idx) {
+u16 BattleStatusBitMask(u8 idx) {
     return D_800C3468[idx];
 }
-u16 func_80089C08(u8 idx) {
+u16 BattleSlotBitMask(u8 idx) {
     return D_800C3448[idx];
 }
-u16 func_80089C24(u8 idx) {
+u16 BattleStatusBitMaskInverted(u8 idx) {
     return ~D_800C3468[idx];
 }
-u16 func_80089C48(u8 idx) {
+u16 BattleSlotBitMaskInverted(u8 idx) {
     return ~D_800C3448[idx];
 }
-s32 func_80089C6C(s32 mask, u8 idx) {
+s32 BattleMaskHasStatusBit(s32 mask, u8 idx) {
     s32 flags;
 
     if (idx < 0x10) {
@@ -334,7 +334,7 @@ s32 func_80089C6C(s32 mask, u8 idx) {
     }
     return flags;
 }
-s32 func_80089C9C(s32 mask, u8 idx) {
+s32 BattleMaskHasSlotBit(s32 mask, u8 idx) {
     s32 flags;
 
     if (idx < 0x10) {
@@ -364,7 +364,7 @@ void func_8008A144(void) {
     }
 }
 */
-void func_8008A274(u8 arg0) {
+void BattleUpdateImageUpload(u8 arg0) {
     if (D_800CCC58 != 0) {
         func_8007171C();
     }
@@ -402,19 +402,19 @@ void func_8008A274(u8 arg0) {
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc14", func_8008A3EC);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc14", func_8008A684);
-void func_8008A9C0(u8 arg0) {
+void BattleUpdateEffectByScreenMode(u8 arg0) {
     switch (D_800C3E4C) {
     case 0:
         func_8008A684(arg0);
         break;
     case 1:
-        func_8008A274(arg0);
+        BattleUpdateImageUpload(arg0);
         break;
     case 2:
         func_8008A3EC(arg0);
         break;
     }
 }
-void func_8008AA40(u8 arg0) {
+void BattlePlaySoundWithBaseId(u8 arg0) {
     SoundPlaySoundEffectOnLastPair((D_8005919C->unk14 << 16) | arg0);
 }

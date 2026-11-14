@@ -5,16 +5,16 @@ extern u8 D_800C3CF4[];
 extern u8 *D_800D2D28;
 extern u8 D_800D366C;
 extern int ArchiveDataSync(void);
-extern void func_8008AA40(u8 arg0);
+extern void BattlePlaySoundWithBaseId(u8 arg0);
 extern void func_800716D8(void);
 extern void BattleFreePacketPrimitives(void);
 extern void BattleClearFlagC6(void);
 extern void func_8008FA60(s32 arg0);
-extern u16 func_80089C08(u8 arg0);
+extern u16 BattleSlotBitMask(u8 arg0);
 extern void func_800BC404(u16 arg0);
 extern void func_800BCD98(u16 arg0);
-extern u16 func_80089C9C(u16 arg0, u8 arg1);
-extern u16 func_80089C48(u8 arg0);
+extern u16 BattleMaskHasSlotBit(u16 arg0, u8 arg1);
+extern u16 BattleSlotBitMaskInverted(u8 arg0);
 extern u8 D_800C400B[];
 extern u16 D_800C4022[];
 extern u8 D_800C402F[];
@@ -29,7 +29,7 @@ extern void func_8009A854(u8 arg0);
 
 void func_8008AA74(u8 arg0) {
     if (D_800D366C != 0) {
-        func_8008AA40(arg0);
+        BattlePlaySoundWithBaseId(arg0);
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008AAA0);
@@ -99,9 +99,9 @@ void func_8008AC88(u16 arg0, u8 arg1) {
     mask = arg0 & 0xFFF8;
     for (i = 0, off = 0x450; i < 8; i++) {
         idx = i + 3;
-        if (func_80089C9C(mask, idx) != 0) {
+        if (BattleMaskHasSlotBit(mask, idx) != 0) {
             if ((*(u16 *)(D_800CCD1C + off) & 0x800) == 0) {
-                mask &= func_80089C48(idx);
+                mask &= BattleSlotBitMaskInverted(idx);
             }
         }
         off += 0x170;
@@ -136,9 +136,9 @@ void func_8008B168(u8 arg0) {
     D_800D2D28[0x9C] = D_800D2D28[0x9D] = D_800D2D28[0x9E] = 1;
     D_800D2D28[0xB0] = D_800D2D28[0xB1] = D_800D2D28[0xB2] = D_800D2D28[0xB3] = 1;
     D_800D2D28[0xB7] = 1;
-    value = func_80089C08(arg0) | func_80089C08((D_800C3EAC + arg0 * 0x40)[0x3C]);
+    value = BattleSlotBitMask(arg0) | BattleSlotBitMask((D_800C3EAC + arg0 * 0x40)[0x3C]);
     func_800BC404(value);
-    func_800BCD98(func_80089C08((D_800C3EAC + arg0 * 0x40)[0x3C]));
+    func_800BCD98(BattleSlotBitMask((D_800C3EAC + arg0 * 0x40)[0x3C]));
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008B224);
@@ -165,9 +165,9 @@ void func_8008BC98(u8 arg0) {
     D_800D2D28[0x9C] = D_800D2D28[0x9D] = D_800D2D28[0x9E] = 1;
     D_800D2D28[0xB0] = D_800D2D28[0xB1] = 1;
     D_800D2D28[0xB7] = 2;
-    value = func_80089C08(arg0) | func_80089C08((D_800C3EAC + arg0 * 0x40)[0x3C]);
+    value = BattleSlotBitMask(arg0) | BattleSlotBitMask((D_800C3EAC + arg0 * 0x40)[0x3C]);
     func_800BC404(value);
-    func_800BCD98(func_80089C08((D_800C3EAC + arg0 * 0x40)[0x3C]));
+    func_800BCD98(BattleSlotBitMask((D_800C3EAC + arg0 * 0x40)[0x3C]));
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008BD50);
@@ -252,9 +252,9 @@ void func_8008C3F0(u8 arg0) {
     D_800D2D28[0x9C] = D_800D2D28[0x9D] = D_800D2D28[0x9E] = 1;
     D_800D2D28[0xB7] = 3;
     D_800D2D28[0xB0] = D_800D2D28[0xB1] = 1;
-    value = func_80089C08(arg0) | func_80089C08((D_800C3EAC + arg0 * 0x40)[0x3C]);
+    value = BattleSlotBitMask(arg0) | BattleSlotBitMask((D_800C3EAC + arg0 * 0x40)[0x3C]);
     func_800BC404(value);
-    func_800BCD98(func_80089C08((D_800C3EAC + arg0 * 0x40)[0x3C]));
+    func_800BCD98(BattleSlotBitMask((D_800C3EAC + arg0 * 0x40)[0x3C]));
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008C4A8);
@@ -279,9 +279,9 @@ void func_8008CD28(u8 arg0) {
     D_800D2D28[0x9C] = D_800D2D28[0x9D] = D_800D2D28[0x9E] = 1;
     D_800D2D28[0xB0] = D_800D2D28[0xB1] = D_800D2D28[0xB2] = 1;
     D_800D2D28[0xB7] = 4;
-    value = func_80089C08(arg0) | func_80089C08((D_800C3EAC + arg0 * 0x40)[0x3C]);
+    value = BattleSlotBitMask(arg0) | BattleSlotBitMask((D_800C3EAC + arg0 * 0x40)[0x3C]);
     func_800BC404(value);
-    func_800BCD98(func_80089C08((D_800C3EAC + arg0 * 0x40)[0x3C]));
+    func_800BCD98(BattleSlotBitMask((D_800C3EAC + arg0 * 0x40)[0x3C]));
 }
 */
 

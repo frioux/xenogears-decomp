@@ -11,11 +11,11 @@ u_char func_801C531C(u_char arg0);
 void MenuRenderFrame(void);
 void MenuPlaySoundEffect(u_char soundEffectId);
 void MenuResetSelectionCursorFlags(void);
-void func_801E8044(s32 arg0, void* pArg1);
+void MenuClearBytes(s32 arg0, void* pArg1);
 void func_801E8070(s32 arg0, void* pArg1, void* pArg2, void* pArg3, void* pArg4, u_char arg5,
     u_char arg6, u_char arg7);
-void func_801E8978(u_char count, u_char selected, s32* pEntries);
-void func_801E8018(s32 arg0, void* pArg1, void* pArg2, void* pArg3);
+void MenuSetSelectionMenuPrims(u_char count, u_char selected, s32* pEntries);
+void MenuLoadStringsFromIds(s32 arg0, void* pArg1, void* pArg2, void* pArg3);
 void func_801E8474(s32 arg0, void* pArg1);
 extern int ArchiveGetDiscNumber(void);
 void MenuWaitForDiscChange(u_char arg0);
@@ -66,7 +66,7 @@ void func_801C55A0(void) {
                 if (isHandled) {
                     g_Menu->pSelectionMenu->unk1192 = 1;
                     MenuResetSelectionCursorFlags();
-                    func_801E8044(8, (u8*)g_Menu->pManager + 0xC);
+                    MenuClearBytes(8, (u8*)g_Menu->pManager + 0xC);
                     shouldContinue = func_801C531C(0);
                 }
                 break;
@@ -87,7 +87,7 @@ void func_801C55A0(void) {
                 break;
         }
         if (g_Menu->mainMenuChoice != g_Menu->mainMenuPrevChoice) {
-            func_801E8978(7, g_Menu->mainMenuChoice, (s32*)D_801EA19C);
+            MenuSetSelectionMenuPrims(7, g_Menu->mainMenuChoice, (s32*)D_801EA19C);
             func_801E8070(8, g_Menu->unk6E0, D_801EA528, D_801E9E64,
                 (u8*)g_Menu->pManager + 0xC, g_Menu->mainMenuChoice, 0, 0);
             g_Menu->mainMenuPrevChoice = g_Menu->mainMenuChoice;
@@ -128,7 +128,7 @@ void func_801C58EC(void) {
 
     shouldContinue = 1;
     func_801E8474(4, D_801EA1D4);
-    func_801E8018(8, (u8*)g_Menu + 0x6E0, D_801EA530, (u8*)g_Menu->pManager + 0xC);
+    MenuLoadStringsFromIds(8, (u8*)g_Menu + 0x6E0, D_801EA530, (u8*)g_Menu->pManager + 0xC);
     g_Menu->unk2D8 = 0;
     do {
         MenuRenderFrame();
@@ -136,7 +136,7 @@ void func_801C58EC(void) {
             case 4:
                 g_Menu->pSelectionMenu->unk1192 = 1;
                 MenuResetSelectionCursorFlags();
-                func_801E8044(8, (u8*)g_Menu->pManager + 0xC);
+                MenuClearBytes(8, (u8*)g_Menu->pManager + 0xC);
                 g_Menu->unk348->unk15B = 0x40;
                 shouldContinue = func_801C531C(7);
                 D_801E9784 = 0;
@@ -158,7 +158,7 @@ void func_801C58EC(void) {
                 break;
         }
         if (g_Menu->mainMenuChoice != g_Menu->mainMenuPrevChoice) {
-            func_801E8978(3, g_Menu->mainMenuChoice, (s32*)D_801EA1D4);
+            MenuSetSelectionMenuPrims(3, g_Menu->mainMenuChoice, (s32*)D_801EA1D4);
             func_801E8070(8, g_Menu->unk6E0, D_801EA530, D_801E9E84,
                 (u8*)g_Menu->pManager + 0xC, g_Menu->mainMenuChoice, 0, 0);
             g_Menu->mainMenuPrevChoice = g_Menu->mainMenuChoice;
@@ -168,7 +168,7 @@ void func_801C58EC(void) {
             D_800594D0 = 1;
         }
     } while (shouldContinue);
-    func_801E8044(8, (u8*)g_Menu->pManager + 0xC);
+    MenuClearBytes(8, (u8*)g_Menu->pManager + 0xC);
 }
 
 void MenuMenuUnk2Manager(u_char isInitialization) {

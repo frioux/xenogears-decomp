@@ -361,7 +361,7 @@ void func_80087904(u8* pDst, u8* pSrc, s32 count, s32 abr) {
     memcpy(*(u8**)(pDst + 0x4C), *(u8**)(pDst + 0x48), count * 0x28);
 }
 */
-s32 func_800879A8(s32 index) {
+s32 BattleInitSlotRowsForActor(s32 index) {
     WorldMapSlot* pSlot = (WorldMapSlot*)(D_8009BE24 + index * 0x80);
 
     pSlot->unk50 = 0;

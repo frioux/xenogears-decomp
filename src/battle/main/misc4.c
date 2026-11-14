@@ -26,7 +26,7 @@ extern u8 D_800D342E[];
 extern u8 D_800D3439[];
 extern u8 D_800D343E[];
 extern u16 D_800C48E8;
-extern s32 func_80089C08(u8 arg0);
+extern s32 BattleSlotBitMask(u8 arg0);
 extern u8 D_800D2DE4[];
 extern BattleTableEntry D_800CCD64[];
 extern u8 D_800D2E5F[];
@@ -34,8 +34,8 @@ extern u8 D_800D2E61[];
 extern u8 D_800D32A1[];
 extern u8 D_800D2E5E[];
 extern u16 D_800D2C94;
-extern void func_80085CCC(u8 arg0, u16 arg1, u8 arg2);
-extern void func_80085C88(u8 arg0);
+extern void BattleBeginActorAction(u8 arg0, u16 arg1, u8 arg2);
+extern void BattleApplySlotCurveAndStep(u8 arg0);
 extern u8 D_800D366C;
 extern s32* D_8005917C;
 extern char D_8006FB08[];
@@ -64,7 +64,7 @@ extern void func_800793F0(u8 arg0);
 extern void BattleQueueCommand1BAndFE(u8 arg0);
 extern void func_80085350(void);
 extern void func_80085388(void);
-extern s32 func_80080AE4(u8 arg0);
+extern s32 BattleFindMinValueOtherSlot(u8 arg0);
 extern void func_800B89FC(s32 arg0, u8 arg1, s32 arg2, s32 arg3);
 extern s32 func_80079ED8(u8 arg0, u8 arg1, u8 arg2, s32 arg3);
 extern u8 D_800C3D19[];
@@ -103,8 +103,8 @@ void func_80078998(u8 arg0, u8 arg1) {
 
     BattleQueueCommandF8IfFlagged(arg1, arg0);
     D_800C3EAC[0x2DC] = D_800D2E5D[arg1 * 8] + 1;
-    func_80085CCC(arg0, *(u16*)(D_800D2E62 + arg1 * 8), D_800D2E5E[arg1 * 8]);
-    func_80085C88(D_800C3EAC[0x2DA]);
+    BattleBeginActorAction(arg0, *(u16*)(D_800D2E62 + arg1 * 8), D_800D2E5E[arg1 * 8]);
+    BattleApplySlotCurveAndStep(D_800C3EAC[0x2DA]);
     D_800C402F[D_800C3EAC[0x2DA] * 72] = D_800D2E5E[arg1 * 8];
     D_800C3FFE[D_800C3EAC[0x2DA]][0] = D_800D2C94;
     func_800785D4(arg0, arg1);
@@ -134,7 +134,7 @@ void BattleQueueCommandFD(u8 arg0, u8 arg1, u8 arg2) {
             func_800881B8(arg0, arg2);
         }
     }
-    func_800BC404(func_80089C08(arg0) | *(u16*)(D_800D2E62 + arg1 * 8));
+    func_800BC404(BattleSlotBitMask(arg0) | *(u16*)(D_800D2E62 + arg1 * 8));
     func_800785D4(arg0, arg1);
 }
 void BattleQueueCommandFC(u8 arg0, u8 arg1) {
@@ -250,7 +250,7 @@ void func_80079778(u8 arg0) {
     func_80085388();
     D_800C400B[D_800C3EAC[0x2DA] * 72] = arg0;
     func_800716D8();
-    func_800B89FC(1, arg0, 0, func_80080AE4(arg0));
+    func_800B89FC(1, arg0, 0, BattleFindMinValueOtherSlot(arg0));
     func_800793F0(arg0);
     BattleQueueCommand1BAndFE(arg0);
     while (D_800C3EAC[0x2DB] == 0) {
@@ -274,12 +274,12 @@ void func_80079840(u8 arg0, u8 arg1) {
 
     if (arg1 >= 3) {
         slot = arg1 - 3;
-        *(u16*)&D_800D342E[slot * 0x40] = func_80089C08(arg0);
+        *(u16*)&D_800D342E[slot * 0x40] = BattleSlotBitMask(arg0);
         for (i = 0; i < 5; i++) {
             D_800D3439[slot * 0x40 + i] = D_800D2CA4[i];
         }
         pBuf = D_800C3EAC + (arg0 & 0xFF) * 0x40;
-        if (D_800C48E8 & func_80089C08(pBuf[0x3C])) {
+        if (D_800C48E8 & BattleSlotBitMask(pBuf[0x3C])) {
             D_800D343E[slot * 0x40] = 1;
         } else {
             D_800D343E[slot * 0x40] = 0;

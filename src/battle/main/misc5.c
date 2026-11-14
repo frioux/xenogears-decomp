@@ -21,14 +21,14 @@ void BattleClearSlotFlagB4(u8 arg0) {
     D_800D3725[arg0 * 0x60] = 0;
 }
 
-extern u16 func_80089C9C(u16, u8);
+extern u16 BattleMaskHasSlotBit(u16, u8);
 
 
 u8 BattleFindFirstFlagTableMatch(u16 arg0) {
     s32 i;
 
     for (i = 0; i < 0xB; i++) {
-        if (func_80089C9C(arg0, i) != 0) {
+        if (BattleMaskHasSlotBit(arg0, i) != 0) {
             break;
         }
     }

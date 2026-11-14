@@ -25,7 +25,7 @@ void func_801E6AE8(u8 index, u8* pEntry);
 void func_801E6B70(u8 index, u8* pEntry);
 void func_801E6CFC(u8 index, u8* pEntry);
 void func_801E6F5C(u8 index, u8* pEntry);
-void func_801E71B4(s32 index, u8* pEntry, s32 arg2);
+void MenuLoadSlotCharacterNameTexture(s32 index, u8* pEntry, s32 arg2);
 void func_801E733C(void);
 
 extern s32 D_801EA1EC[];
@@ -105,7 +105,7 @@ void func_801E6CFC(s32 index, u8* pEntry) {
     }
 }
 */
-void func_801E71B4(s32 index, u8* pEntry, s32 arg2) {
+void MenuLoadSlotCharacterNameTexture(s32 index, u8* pEntry, s32 arg2) {
     RECT rect;
     u8 pairs[0x14];
     u8 text[0x18];
@@ -175,7 +175,7 @@ void func_801E76EC(s32 arg0) {
             func_801E6B70(i, pEntry);
             func_801E6CFC(i, pEntry);
             func_801E6F5C(i, pEntry);
-            func_801E71B4(i, pEntry, arg0);
+            MenuLoadSlotCharacterNameTexture(i, pEntry, arg0);
         } else {
             *(u8*)((u8*)g_Menu->unk34C + offset + 0x1310) = 0;
         }
@@ -187,7 +187,7 @@ void func_801E76EC(s32 arg0) {
 }
 */
 
-void func_801E781C(s32 arg0, u_char arg1) {
+void MenuUpdateCharacterWindow(s32 arg0, u_char arg1) {
     func_801E64E0();
     if (arg0 != 0xFF) {
         if (arg1 != 0) {
@@ -227,7 +227,7 @@ void func_801E7C50(MenuString* pStringList, s32 index, s32 yOffset, s32 flags) {
     for (i = 0; i < 2; i++) {
         color = 0;
         pPoly = &pStringList->polys[i];
-        func_801E927C(pPoly);
+        MenuInitializePolyFt4(pPoly);
         if ((flags & 0xFF) == 0) {
             pStringList->unk7C = column;
             pPoly->tpage = GetTPage(0, 0, 0x140, 0);
@@ -295,11 +295,11 @@ void func_801E7E68(MenuString* pStringList, u_char* pStringIdList, s32 yOffset, 
 }
 */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E7E68);
-void func_801E8018(u_char count, MenuString* pStringList, u_char* pStringIdList, void* pUnused) {
+void MenuLoadStringsFromIds(u_char count, MenuString* pStringList, u_char* pStringIdList, void* pUnused) {
     func_801E7E68(pStringList, pStringIdList, 4, count);
 }
 
-void func_801E8044(u_char count, u_char* pBuffer) {
+void MenuClearBytes(u_char count, u_char* pBuffer) {
     s32 end;
 
     if (count != 0) {
@@ -378,7 +378,7 @@ void func_801E86C8(u_char selected) {
    }
 */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E86C8);
-void func_801E8978(u_char count, u_char selected, s32* pEntries) {
+void MenuSetSelectionMenuPrims(u_char count, u_char selected, s32* pEntries) {
     s32 i;
     u32 index;
     u32 off;
@@ -405,7 +405,7 @@ void func_801E8978(u_char count, u_char selected, s32* pEntries) {
     MenuMovePointerCursor(selected, 1);
     g_Menu->pManager->unk4 = 1;
 }
-void func_801E8B4C(u_char selected) {
+void MenuSetSubMenuChoicePrims(u_char selected) {
     s32 i;
     u32 index;
     u32 off;
@@ -432,7 +432,7 @@ void func_801E8B4C(u_char selected) {
     MenuMovePointerCursor(g_Menu->subMenuChoice + 7, 1);
     g_Menu->pManager->unk4 = 1;
 }
-void func_801E8DA8(s32 arg0, s32 arg1) {
+void MenuLoadCharacterNameTexture(s32 arg0, s32 arg1) {
     RECT rect;
     u8* pBuf;
     s32 offset;
@@ -453,7 +453,7 @@ void func_801E8DA8(s32 arg0, s32 arg1) {
     HeapFree(pBuf);
 }
 
-void func_801E8EAC(POLY_FT4* pPoly, u_char mode) {
+void MenuSetPrimShadingMode(POLY_FT4* pPoly, u_char mode) {
     SetShadeTex(pPoly, 0);
     switch (mode) {
     case 1:
@@ -496,39 +496,39 @@ void func_801E8F60(u8 arg0, u8 arg1) {
     mode = arg1 ? 3 : 2;
     for (i = 0; i < 4; i++) {
         pWindow = g_Menu->windows[arg0];
-        func_801E8EAC((POLY_FT4*)((u32)pWindow + (i * 2 + pWindow->renderContext) * 0x28), mode);
+        MenuSetPrimShadingMode((POLY_FT4*)((u32)pWindow + (i * 2 + pWindow->renderContext) * 0x28), mode);
     }
     for (i = 0; i < 4; i++) {
         pWindow = g_Menu->windows[arg0];
-        func_801E8EAC((POLY_FT4*)((u32)pWindow + (i * 2 + pWindow->renderContext) * 0x28 + 0x140), mode);
+        MenuSetPrimShadingMode((POLY_FT4*)((u32)pWindow + (i * 2 + pWindow->renderContext) * 0x28 + 0x140), mode);
     }
     for (i = 0; i < 4; i++) {
         pWindow = g_Menu->windows[arg0];
-        func_801E8EAC((POLY_FT4*)((i * 2 + pWindow->renderContext) * 0x28 + 0x1E0 + (u32)pWindow), mode);
+        MenuSetPrimShadingMode((POLY_FT4*)((i * 2 + pWindow->renderContext) * 0x28 + 0x1E0 + (u32)pWindow), mode);
     }
     for (i = 0; i < 4; i++) {
         pWindow = g_Menu->windows[arg0];
-        func_801E8EAC((POLY_FT4*)((i * 2 + pWindow->renderContext) * 0x28 + 0x280 + (u32)pWindow), mode);
+        MenuSetPrimShadingMode((POLY_FT4*)((i * 2 + pWindow->renderContext) * 0x28 + 0x280 + (u32)pWindow), mode);
     }
     for (i = 0; i < 4; i++) {
         pWindow = g_Menu->windows[arg0];
-        func_801E8EAC((POLY_FT4*)((i * 2 + pWindow->renderContext) * 0x28 + 0x320 + (u32)pWindow), mode);
+        MenuSetPrimShadingMode((POLY_FT4*)((i * 2 + pWindow->renderContext) * 0x28 + 0x320 + (u32)pWindow), mode);
     }
     for (i = 0; i < 2; i++) {
         pWindow = g_Menu->windows[arg0];
-        func_801E8EAC((POLY_FT4*)((i * 2 + pWindow->renderContext) * 0x28 + 0x410 + (u32)pWindow), mode);
+        MenuSetPrimShadingMode((POLY_FT4*)((i * 2 + pWindow->renderContext) * 0x28 + 0x410 + (u32)pWindow), mode);
     }
     pWindow = g_Menu->windows[arg0];
-    func_801E8EAC((POLY_FT4*)(pWindow->renderContext * 0x28 + 0x3C0 + (u32)pWindow), mode);
+    MenuSetPrimShadingMode((POLY_FT4*)(pWindow->renderContext * 0x28 + 0x3C0 + (u32)pWindow), mode);
 }
 */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E8F60);
-void func_801E91C4(P_TAG* pTag) {
+void MenuSetPolySemiTransGrey(P_TAG* pTag) {
     SetSemiTrans(pTag, 1);
     SetShadeTex(pTag, 0);
     setRGB0(pTag, 128, 128, 128);
 }
-void func_801E920C(POLY_FT4* pPoly, short x, short y, u_char u, u_char v, s32 width, s32 height) {
+void MenuSetFt4QuadVertices(POLY_FT4* pPoly, short x, short y, u_char u, u_char v, s32 width, s32 height) {
     pPoly->x0 = x;
     pPoly->y0 = y;
     pPoly->y1 = y;
@@ -546,13 +546,13 @@ void func_801E920C(POLY_FT4* pPoly, short x, short y, u_char u, u_char v, s32 wi
     pPoly->u3 = u + width;
     pPoly->v3 = v + height;
 }
-void func_801E927C(POLY_FT4* pPoly) {
+void MenuInitializePolyFt4(POLY_FT4* pPoly) {
     SetPolyFT4(pPoly);
     SetSemiTrans(pPoly, 0);
     SetShadeTex(pPoly, 0);
     setRGB0(pPoly, 128, 128, 128);
 }
-void func_801E92CC(void) {
+void MenuPauseCdDrive(void) {
     if (ArchiveGetDebugTable() == 0) {
         func_8002A498(0);
         ArchiveCdDataSync(0);
@@ -567,7 +567,7 @@ void func_801E92CC(void) {
         }
     }
 }
-void func_801E9340(char* pName, char* pBuffer, int len) {
+void MenuReadPcFile(char* pName, char* pBuffer, int len) {
     int fd;
 
     fd = PCopen(pName, 0, 0);
@@ -577,7 +577,7 @@ void func_801E9340(char* pName, char* pBuffer, int len) {
 /* Best: 96.65% under gcc-2.6.0 (764 bytes vs retail's 772). Recovered shape:
    a 16-byte sector header struct copied from the zero datum D_801C5294 (that
    copy reproduces exactly), ArchiveCdDataSync(0), then either the PC-file path
-   when ArchiveGetDebugTable() != 0 (three func_801E9340 reads, cdrom*.mdg/fid/
+   when ArchiveGetDebugTable() != 0 (three MenuReadPcFile reads, cdrom*.mdg/fid/
    fnd chosen by `disc == 1`, merged tail by -fcross-jumping) or the CD path:
    CdIntToPos(0,&pos) then three CdControlB(1,0,&D_801EA8F4) status loops, the
    0x13/2/0x15 sector-17 header read loop, then ArchiveCdSetMode(0xA0) and the
@@ -623,13 +623,13 @@ s32 func_801E93A0(s32 disc) {
     if (ArchiveGetDebugTable() != 0) {
         result = 0;
         if (disc == 1) {
-            func_801E9340(D_801C52A4, (char*)g_ArchiveTable, 0x8000);
-            func_801E9340(D_801C52B8, (char*)g_ArchiveHeader, 0x7A);
-            func_801E9340(D_801C52CC, (char*)g_ArchiveDebugTable, 0x40000);
+            MenuReadPcFile(D_801C52A4, (char*)g_ArchiveTable, 0x8000);
+            MenuReadPcFile(D_801C52B8, (char*)g_ArchiveHeader, 0x7A);
+            MenuReadPcFile(D_801C52CC, (char*)g_ArchiveDebugTable, 0x40000);
         } else {
-            func_801E9340(D_801C52E0, (char*)g_ArchiveTable, 0x8000);
-            func_801E9340(D_801C52F4, (char*)g_ArchiveHeader, 0x7A);
-            func_801E9340(D_801C5308, (char*)g_ArchiveDebugTable, 0x40000);
+            MenuReadPcFile(D_801C52E0, (char*)g_ArchiveTable, 0x8000);
+            MenuReadPcFile(D_801C52F4, (char*)g_ArchiveHeader, 0x7A);
+            MenuReadPcFile(D_801C5308, (char*)g_ArchiveDebugTable, 0x40000);
         }
         return result;
     }

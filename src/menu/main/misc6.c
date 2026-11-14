@@ -25,7 +25,7 @@ void func_801D8EA4(u_char a0, s32 a1, s32 a2, u_char a3);
 
 void MenuSetWindow(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4, u_char a5, s32 a6, u_char a7);
 void func_801D29A8(s32 a0, s32 a1);
-void func_801E8DA8(u_char a0, u_char a1);
+void MenuLoadCharacterNameTexture(u_char a0, u_char a1);
 void func_801E8474(s32 a0, u32* a1);
 
 extern u32 D_801EA19C[];
@@ -258,7 +258,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc6", func_801D29A8);
       into a0 (andi a0,v0,0xff).  Repeating the memory access in the ternary instead of
       a local, and declaring the local first/last, both leave it in v0.
    What got 97.09 -> 99.18: put the whole ternary in the call argument
-   (func_801E8DA8((characterId == 0xFF) ? 0xFF : (u_char)(characterId + 0xB), 6 + (i << 1)))
+   (MenuLoadCharacterNameTexture((characterId == 0xFF) ? 0xFF : (u_char)(characterId + 0xB), 6 + (i << 1)))
    instead of assigning it back to the u_char local - that reproduces retail's
    beq/j/andi-in-the-delay-slot shape exactly.
 */
@@ -297,9 +297,9 @@ void func_801D2D38(void) {
         menuCharacterId = g_Menu->pManager->currentCharacterIDs[j];
         if (menuCharacterId != 0xFF) {
             characterIndex = j;
-            func_801E8DA8(menuCharacterId, characterIndex * 2);
+            MenuLoadCharacterNameTexture(menuCharacterId, characterIndex * 2);
             characterId = g_GameState.characters[g_Menu->pManager->currentCharacterIDs[j]].gearId;
-            func_801E8DA8((u_char)((characterId == 0xFF) ? 0xFF : characterId + 0xB), 6 + (j << 1));
+            MenuLoadCharacterNameTexture((u_char)((characterId == 0xFF) ? 0xFF : characterId + 0xB), 6 + (j << 1));
         }
     }
     func_801E8474(8, D_801EA19C);

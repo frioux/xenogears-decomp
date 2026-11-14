@@ -36,12 +36,12 @@ extern void BattleApplySlotCurve(u8);
 extern void func_80085618(u8);
 extern void func_80098C6C(u16);
 extern void func_800941A4(void);
-extern u16 func_80089C08(u8);
+extern u16 BattleSlotBitMask(u8);
 extern void func_80085D34(void);
 extern s32 func_800877E0(s32, s32);
-extern s32 func_80080AE4(s32);
+extern s32 BattleFindMinValueOtherSlot(s32);
 extern void func_800B89FC(s32, s32, s32, s32);
-extern u8 func_80089C48(u8);
+extern u8 BattleSlotBitMaskInverted(u8);
 extern s32 func_8009ADA0(u8, s32 *);
 extern void func_80085388(void);
 extern void func_800BE538(u8, s32, s32, s32);
@@ -61,7 +61,7 @@ extern s32 func_80076A10(s32, s32, s16, s16);
 extern u8 D_800D2C34[];
 extern u8 D_800D2D24[];
 extern u8 D_800C34CC[];
-extern s32 func_80089C6C(s32, u8);
+extern s32 BattleMaskHasStatusBit(s32, u8);
 extern s32 D_800C3A7C;
 extern s32 D_800C3A80;
 extern s32 D_800C3A84;
@@ -77,7 +77,7 @@ extern u8 D_800C207C;
 extern u8 func_8001BD40(s32, u8);
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80085618);
-void func_80085AC4(s32 arg0) {
+void BattleResetActorStatDisplay(s32 arg0) {
     s32 i = 2;
     s16 *p;
 
@@ -96,7 +96,7 @@ void func_80085AC4(s32 arg0) {
         p -= 2;
     }
 }
-void func_80085B58(s32 arg0) {
+void BattleBeginActorStatAnimation(s32 arg0) {
     s32 buf[3];
     s32 i;
     u16 v;
@@ -118,7 +118,7 @@ void func_80085B58(s32 arg0) {
         func_800BE538((u8)arg0, buf[0], buf[1], buf[2]);
     }
 }
-void func_80085C48(s32 arg0, u16 arg1, u16 arg2) {
+void BattleBeginAction(s32 arg0, u16 arg1, u16 arg2) {
     u16 v = D_800D39DC;
 
     D_800C48E8 = 0;
@@ -126,14 +126,14 @@ void func_80085C48(s32 arg0, u16 arg1, u16 arg2) {
     D_800D2C96 = v;
     func_80098C6C(arg2);
 }
-void func_80085C88(u8 arg0) {
+void BattleApplySlotCurveAndStep(u8 arg0) {
     u8 v = arg0;
 
     BattleApplySlotCurve(v);
     func_80085618(v);
     D_800D2D28[0xAD] = 0;
 }
-void func_80085CCC(u8 arg0, u16 arg1, u16 arg2) {
+void BattleBeginActorAction(u8 arg0, u16 arg1, u16 arg2) {
     u8 *p = D_800C3EAC;
     u16 v = D_800D39DC;
     u8 c;
@@ -173,7 +173,7 @@ void func_80085D34(void) {
     D_800D2D28[0xA4] = D_800CCB34;
 }
 */
-void func_80085E78(void) {
+void BattleClearCommandSlots(void) {
     s32 i;
 
     for (i = 0; i < 7; i++) {
@@ -220,7 +220,7 @@ s32 func_80086028(u8 arg0, s32 arg1, s32 arg2, u8 arg3, u32 **arg4, u8 arg5) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_800861D0);
-u8 func_80086B88(s32 arg0, u8 arg1) {
+u8 BattleCheckActorCommandAvailable(s32 arg0, u8 arg1) {
     s32 ok = 1;
     s32 idx;
 
@@ -229,7 +229,7 @@ u8 func_80086B88(s32 arg0, u8 arg1) {
         if (D_800D2C34[0] == 4) {
             idx = arg0 + 0xC;
         }
-        if ((u16)func_80089C6C(*(u16 *)&g_GameState.unk16BC[D_800D2D24[arg1]].unk8,
+        if ((u16)BattleMaskHasStatusBit(*(u16 *)&g_GameState.unk16BC[D_800D2D24[arg1]].unk8,
                                D_800C34CC[idx & 0xFF]) != 0) {
             if (D_800C3EAC[0x2CC] != 0xFF && D_800D2C34[0] != 4 && D_800D2C34[0] < D_800C3EAC[0x2CC] + 1) {
                 ok = 0;
@@ -289,7 +289,7 @@ s32 func_800877E0(s32 arg0, s32 arg1) {
     return res;
 }
 */
-void func_800879A8(s32 arg0, s32 arg1) {
+void BattleInitSlotRowsForActor(s32 arg0, s32 arg1) {
     s32 i;
     s32 o;
 
@@ -297,19 +297,19 @@ void func_800879A8(s32 arg0, s32 arg1) {
         o = i * 0x48;
         D_800C402F[o] = 0xFF;
         D_800C400B[o] = arg0;
-        *(u16 *)(D_800C3FFE + o) = func_80089C08(arg1);
+        *(u16 *)(D_800C3FFE + o) = BattleSlotBitMask(arg1);
     }
 }
-void func_80087A38(u8 arg0) {
+void BattleSetupActorSlotDisplay(u8 arg0) {
     s32 idx;
     s32 r;
 
     func_80085D34();
     idx = arg0 * 0x40;
-    func_800879A8(arg0, (D_800C3EAC + idx)[0x3C]);
+    BattleInitSlotRowsForActor(arg0, (D_800C3EAC + idx)[0x3C]);
     D_800D366C = 0;
     r = func_800877E0(arg0, (D_800C3EAC + idx)[0x3C]);
-    func_800B89FC(r, arg0, (D_800C3EAC + idx)[0x3C], func_80080AE4(arg0));
+    func_800B89FC(r, arg0, (D_800C3EAC + idx)[0x3C], BattleFindMinValueOtherSlot(arg0));
     D_800D366C = 1;
     D_800C3E18 = 0;
 }
@@ -360,7 +360,7 @@ void func_800881B8(u8 arg0, u8 arg1) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_800883AC);
-/* 92.28%: instruction multiset identical; gcc hoists the func_80089C48 argument
+/* 92.28%: instruction multiset identical; gcc hoists the BattleSlotBitMaskInverted argument
    (lui/addu/lbu off $s0) above the D_800D301C store, into the load-delay slot
    after the D_800D301C lbu, while retail leaves a nop there and loads the
    argument after the store. Round 45: not a preset question - gcc-2.7.2-cdk
@@ -378,7 +378,7 @@ void func_800883AC(u8 arg0) {
     }
     ofs = arg0 * 28;
     D_800D301C[(D_800C3EB4[ofs] + sel) << 2]--;
-    ret = func_80089C48(D_800C3EB5[ofs]);
+    ret = BattleSlotBitMaskInverted(D_800C3EB5[ofs]);
     D_800D301D[(D_800C3EB4[ofs] + sel) << 2] &= ret;
 }
 */
@@ -395,7 +395,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80088490);
    it either). `* 4` instead of `<< 2` scores 68.19% but folds the +0x10 into
    `%lo` (`lbu v0,64(at)`) instead of retail's `addiu`/`sll` pair, i.e. it is a
    wrong instruction choice that the fuzzy score likes; `<< 2` reproduces the
-   shape func_800885D0 matched with. Dropping the `ofs` local and spelling
+   shape BattleIsCharSlot18InUse matched with. Dropping the `ofs` local and spelling
    `arg0 * 0x1C` inline is worse (56.81%: gcc switches to a `la` base pointer and
    loads `D_800D3364` twice).
 void func_80088490(u8 arg0) {
@@ -421,7 +421,7 @@ void func_80088490(u8 arg0) {
     *(u16 *)(D_800C3EC0 + ofs) = *(u16 *)(D_800D3364 + D_800C3EB4[ofs] * 8 + 0x102);
 }
 */
-u8 func_800885D0(u8 arg0) {
+u8 BattleIsCharSlot18InUse(u8 arg0) {
     return D_800D301C[(D_800C3EB4[arg0 * 28] + 0x18) << 2];
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_8008860C);
@@ -431,7 +431,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_8008860C);
    `lui/%hi; lbu %lo` per use) and (b) the five pointer+offset `addu`s come out
    base-first where retail has the offset in the destination. Spelling the
    offset operand as an `s32` local (`off + (s32)D_800D2DB4`,
-   func_80089038's shape in misc14) fixes (b) on the two calls but makes gcc fold
+   BattleBuildFlaggedSlotSpriteColumn's shape in misc14) fixes (b) on the two calls but makes gcc fold
    `+0x1720`/`+0x2530` onto the base in the two BattleSetPrimGrey80BlendAdd/BF0 loops (90.24%),
    and the `off` local for those loops regresses to 86.14% (636 bytes). The `off`
    local form used everywhere is 94.79%; a `u8 *pSel = &D_800CCB34` local is
@@ -462,7 +462,7 @@ void func_8008860C(void) {
     }
 }
 */
-void func_8008887C(s32 arg0, s32 arg1, s32 arg2, s32 arg3) {
+void BattleSetupLinearMove(s32 arg0, s32 arg1, s32 arg2, s32 arg3) {
     s32 dx;
     s32 dy;
 

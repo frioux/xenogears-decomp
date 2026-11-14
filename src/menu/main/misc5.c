@@ -4,12 +4,12 @@
 
 extern void func_801CE198(s32 count, SVECTOR* pVertices, POLY_FT4* pPolys, u_char renderContext);
 extern void MenuAddCharacterPrims(MenuCharacter* pCharacter, s32 flag);
-extern void func_801CE2B4(u_char length, void* pPolys, u_char renderContext);
-extern void func_801D0954(SVECTOR* pVertices, POLY_FT4* pPolys, s32 polyIndex, s32 otIndex);
+extern void MenuRenderString(u_char length, void* pPolys, u_char renderContext);
+extern void MenuRenderQuad(SVECTOR* pVertices, POLY_FT4* pPolys, s32 polyIndex, s32 otIndex);
 extern void func_801D09F0(s32 menuIndex, u_char hasScrollBar);
 
-extern void func_801CF308(void);
-extern void func_801D01D0(void);
+extern void MenuAddUnk5StringPrims(void);
+extern void MenuAddCellGridPrims(void);
 extern void func_801D02D8(void);
 extern void MenuRenderWindows(void);
 extern void MenuAddUnk4E0Prims(void);
@@ -23,15 +23,15 @@ extern void MenuAddUnk1DE0Prims(void);
 extern void MenuAddUnk18E0Prims(void);
 extern void MenuAddUnk1BE0Prims(void);
 extern void MenuAddSpriteGroupPrims(void);
-extern void func_801CE338(void);
-extern void func_801CE3C8(void);
+extern void MenuRenderSelectionCursor(void);
+extern void MenuRenderPointerCursors(void);
 extern void func_801CEC40(void);
 extern void MenuUpdateWindowAnimations(void);
 extern void func_801CE540(void);
 extern void func_801CE660(void);
-extern void func_801CEB5C(void);
-extern void func_801CEBB4(void);
-extern void func_801CE464(void);
+extern void MenuAddUnk35CPrims(void);
+extern void MenuAddUnk360Prims(void);
+extern void MenuAddGoldAndPlayTimePrims(void);
 extern void MenuAddUnk42CPrims(void);
 extern void MenuAddUnk430Prims(void);
 extern void MenuAddUnk434Prims(void);
@@ -48,32 +48,32 @@ void func_801D09F0(s32 menuIndex, u_char hasScrollBar) {
 
     pWindow = g_Menu->windows[menuIndex];
     for (i = 0; i < 4; i++) {
-        func_801D0954(&pWindow->vertsWindowBorderCorners[i * 4], &pWindow->polysWindowBorderCorners[i * 2],
+        MenuRenderQuad(&pWindow->vertsWindowBorderCorners[i * 4], &pWindow->polysWindowBorderCorners[i * 2],
                       pWindow->renderContext, pWindow->zIndex);
     }
     if (hasScrollBar & 0xFF) {
         for (i = 0; i < 2; i++) {
-            func_801D0954(&pWindow->vertsScrollBarEnds[i * 4], &pWindow->polysScrollBarEnds[i * 2],
+            MenuRenderQuad(&pWindow->vertsScrollBarEnds[i * 4], &pWindow->polysScrollBarEnds[i * 2],
                           pWindow->renderContext, pWindow->zIndex);
         }
-        func_801D0954(&pWindow->vertsScrollBarEmpty[0], &pWindow->polysScrollBarEmpty[0], pWindow->renderContext,
+        MenuRenderQuad(&pWindow->vertsScrollBarEmpty[0], &pWindow->polysScrollBarEmpty[0], pWindow->renderContext,
                       pWindow->zIndex);
     }
-    func_801D0954(&pWindow->vertsWindowBorderTop1[0], &pWindow->polysWindowBorderTop[0], pWindow->renderContext,
+    MenuRenderQuad(&pWindow->vertsWindowBorderTop1[0], &pWindow->polysWindowBorderTop[0], pWindow->renderContext,
                   pWindow->zIndex);
-    func_801D0954(&pWindow->vertsWindowBorderTop2[0], &pWindow->polysWindowBorderTop[2], pWindow->renderContext,
+    MenuRenderQuad(&pWindow->vertsWindowBorderTop2[0], &pWindow->polysWindowBorderTop[2], pWindow->renderContext,
                   pWindow->zIndex);
-    func_801D0954(&pWindow->vertsWindowBorderBottom1[0], &pWindow->polysWindowBorderBottom[0],
+    MenuRenderQuad(&pWindow->vertsWindowBorderBottom1[0], &pWindow->polysWindowBorderBottom[0],
                   pWindow->renderContext, pWindow->zIndex);
-    func_801D0954(&pWindow->vertsWindowBorderBottom2[0], &pWindow->polysWindowBorderBottom[2],
+    MenuRenderQuad(&pWindow->vertsWindowBorderBottom2[0], &pWindow->polysWindowBorderBottom[2],
                   pWindow->renderContext, pWindow->zIndex);
-    func_801D0954(&pWindow->vertsWindowBorderLeft1[0], &pWindow->polysWindowBorderLeft[0], pWindow->renderContext,
+    MenuRenderQuad(&pWindow->vertsWindowBorderLeft1[0], &pWindow->polysWindowBorderLeft[0], pWindow->renderContext,
                   pWindow->zIndex);
-    func_801D0954(&pWindow->vertsWindowBorderLeft2[0], &pWindow->polysWindowBorderLeft[2], pWindow->renderContext,
+    MenuRenderQuad(&pWindow->vertsWindowBorderLeft2[0], &pWindow->polysWindowBorderLeft[2], pWindow->renderContext,
                   pWindow->zIndex);
-    func_801D0954(&pWindow->vertsWindowBorderRight1[0], &pWindow->polysWindowBorderRight[0],
+    MenuRenderQuad(&pWindow->vertsWindowBorderRight1[0], &pWindow->polysWindowBorderRight[0],
                   pWindow->renderContext, pWindow->zIndex);
-    func_801D0954(&pWindow->vertsWindowBorderRight2[0], &pWindow->polysWindowBorderRight[2],
+    MenuRenderQuad(&pWindow->vertsWindowBorderRight2[0], &pWindow->polysWindowBorderRight[2],
                   pWindow->renderContext, pWindow->zIndex);
     RotTransPers4(&pWindow->vertsBackground[0], &pWindow->vertsBackground[1], &pWindow->vertsBackground[2],
                   &pWindow->vertsBackground[3], (long*)&pWindow->polysBackground[pWindow->renderContext].x0,
@@ -250,15 +250,15 @@ void MenuAddCharacterPrims(MenuCharacter* pCharacter, s32 flag) {
     }
     AddPrim(&g_Menu->pGfxEnv->ot[4], &pCharacter->polysPortraitSmall[pCharacter->renderContext]);
     AddPrim(&g_Menu->pGfxEnv->ot[4], &pCharacter->polys4B0[pCharacter->renderContext]);
-    func_801CE2B4(pCharacter->descriptionStringsLength, pCharacter, pCharacter->renderContext);
-    func_801CE2B4(pCharacter->levelStringLength, pCharacter->polysLevelString, pCharacter->renderContext);
-    func_801CE2B4(pCharacter->unkBE1, pCharacter->polys5F0, pCharacter->renderContext);
-    func_801CE2B4(pCharacter->hpStringLength, pCharacter->polysHpString, pCharacter->renderContext);
-    func_801CE2B4(pCharacter->maxHpStringLength, pCharacter->polysMaxHpString, pCharacter->renderContext);
-    func_801CE2B4(pCharacter->mpStringLength, pCharacter->polysMpString, pCharacter->renderContext);
-    func_801CE2B4(pCharacter->maxMpStringLength, pCharacter->polysMaxMpString, pCharacter->renderContext);
+    MenuRenderString(pCharacter->descriptionStringsLength, pCharacter, pCharacter->renderContext);
+    MenuRenderString(pCharacter->levelStringLength, pCharacter->polysLevelString, pCharacter->renderContext);
+    MenuRenderString(pCharacter->unkBE1, pCharacter->polys5F0, pCharacter->renderContext);
+    MenuRenderString(pCharacter->hpStringLength, pCharacter->polysHpString, pCharacter->renderContext);
+    MenuRenderString(pCharacter->maxHpStringLength, pCharacter->polysMaxHpString, pCharacter->renderContext);
+    MenuRenderString(pCharacter->mpStringLength, pCharacter->polysMpString, pCharacter->renderContext);
+    MenuRenderString(pCharacter->maxMpStringLength, pCharacter->polysMaxMpString, pCharacter->renderContext);
     if (flag & 0xFF) {
-        func_801CE2B4(5, pCharacter->polys2D0, pCharacter->renderContext);
+        MenuRenderString(5, pCharacter->polys2D0, pCharacter->renderContext);
     }
 }
 void MenuAddCurrentCharacterPrims(void) {
@@ -402,7 +402,7 @@ void MenuAddUnk438Prims(void) {
     func_801CE198(1, (SVECTOR*)((u32)g_Menu->unk438 + 0xD50), (POLY_FT4*)((u32)g_Menu->unk438 + 0xD00),
                   ((u8*)g_Menu->unk438)[0xD7D]);
     for (i = 0, offset4 = 0x21D0, offset3 = 0xD80; i < 13; offset3 += 0x190, i++, offset4 += 0x48) {
-        func_801CE2B4(((u8*)((u32)g_Menu->unk438 + i))[0x257C], (void*)(offset3 + (u32)g_Menu->unk438),
+        MenuRenderString(((u8*)((u32)g_Menu->unk438 + i))[0x257C], (void*)(offset3 + (u32)g_Menu->unk438),
                       ((u8*)((u32)g_Menu->unk438 + i))[0x2589]);
         if (((u8*)((u32)g_Menu->unk438 + i))[0x25A3]) {
             AddPrim(&g_Menu->pGfxEnv->ot[4],
@@ -424,15 +424,15 @@ void MenuAddArrowCursorPrims(void) {
 void MenuAddScreen0Prims(void) {
     MenuUpdateWindowAnimations();
     MenuAddSpriteGroupPrims();
-    func_801CE3C8();
-    func_801CE338();
+    MenuRenderPointerCursors();
+    MenuRenderSelectionCursor();
     func_801D02D8();
-    func_801D01D0();
+    MenuAddCellGridPrims();
     func_801CE540();
     func_801CE660();
-    func_801CEB5C();
-    func_801CEBB4();
-    func_801CE464();
+    MenuAddUnk35CPrims();
+    MenuAddUnk360Prims();
+    MenuAddGoldAndPlayTimePrims();
     MenuAddCurrentCharacterPrims();
     MenuAddArrowCursorPrims();
     MenuAddUnk42CPrims();
@@ -443,28 +443,28 @@ void MenuAddScreen0Prims(void) {
     MenuAddShoulderButtonPrims();
     MenuRenderWindows();
     func_801CEC40();
-    func_801CF308();
+    MenuAddUnk5StringPrims();
 }
 
 void MenuAddScreen2Prims(void) {
     MenuUpdateWindowAnimations();
     MenuAddSpriteGroupPrims();
-    func_801CE3C8();
-    func_801CE338();
+    MenuRenderPointerCursors();
+    MenuRenderSelectionCursor();
     func_801D02D8();
-    func_801D01D0();
+    MenuAddCellGridPrims();
     func_801CEC40();
-    func_801CF308();
+    MenuAddUnk5StringPrims();
     MenuRenderWindows();
 }
 
 void MenuAddScreen6Prims(void) {
     MenuUpdateWindowAnimations();
-    func_801CE3C8();
+    MenuRenderPointerCursors();
     MenuAddSpriteGroupPrims();
-    func_801CE338();
+    MenuRenderSelectionCursor();
     func_801D02D8();
-    func_801D01D0();
+    MenuAddCellGridPrims();
     MenuRenderWindows();
-    func_801CF308();
+    MenuAddUnk5StringPrims();
 }

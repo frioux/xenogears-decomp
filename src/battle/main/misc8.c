@@ -21,7 +21,7 @@ extern u8 D_800D3410[];
 extern u8 D_800D3420[];
 extern u8 D_800D3430[];
 extern u8 func_8007A628(u8 arg0, u8 arg1);
-extern u16 func_80089C08(u8 arg0);
+extern u16 BattleSlotBitMask(u8 arg0);
 extern u8 BattleFindFirstFlagTableMatch(u16 arg0);
 extern u8 BattleSlotFlagsC000Clear(u8 arg0);
 extern u8 D_800CCD3E[];
@@ -61,7 +61,7 @@ void func_8007C33C(u8 **arg0, u8 arg1) {
         }
     }
     if (count != 0) {
-        u16 result = func_80089C08(buf[func_8001BD40(0, count - 1)]);
+        u16 result = BattleSlotBitMask(buf[func_8001BD40(0, count - 1)]);
         s32 index = (*arg0)[1];
         u16 *pRow = (u16 *)(D_800D3420 + arg1 * 0x40);
 
@@ -82,7 +82,7 @@ void func_8007C4A0(u8 **arg0, u8 arg1) {
             bestIndex = i;
         }
     }
-    result = func_80089C08(bestIndex);
+    result = BattleSlotBitMask(bestIndex);
     pRow = (u16 *)(D_800D3420 + arg1 * 0x40);
     pRow[(*arg0)[1]] = result;
 }
@@ -100,7 +100,7 @@ void func_8007C580(u8 **arg0, u8 arg1) {
             bestIndex = i;
         }
     }
-    result = func_80089C08(bestIndex);
+    result = BattleSlotBitMask(bestIndex);
     pRow = (u16 *)(D_800D3420 + arg1 * 0x40);
     pRow[(*arg0)[1]] = result;
 }
@@ -118,7 +118,7 @@ void func_8007C678(u8 **arg0, u8 arg1) {
             bestIndex = i;
         }
     }
-    result = func_80089C08(bestIndex);
+    result = BattleSlotBitMask(bestIndex);
     pRow = (u16 *)(D_800D3420 + arg1 * 0x40);
     pRow[(*arg0)[1]] = result;
 }
@@ -136,7 +136,7 @@ void func_8007C75C(u8 **arg0, u8 arg1) {
             bestIndex = i;
         }
     }
-    result = func_80089C08(bestIndex);
+    result = BattleSlotBitMask(bestIndex);
     pRow = (u16 *)(D_800D3420 + arg1 * 0x40);
     pRow[(*arg0)[1]] = result;
 }
@@ -164,7 +164,7 @@ void func_8007C840(u8 **arg0, u8 arg1) {
         if (buf[idx] == 0) {
             if (func_8007A628(idx, (*arg0)[2]) != 0 && D_800D32A1[idx * 8] != 0
                 && D_800C3EB4[(arg1 + 3) * 0x1C] == D_800C3EB4[idx * 0x1C]) {
-                u16 result = func_80089C08(idx);
+                u16 result = BattleSlotBitMask(idx);
                 s32 index = (*arg0)[1];
                 u16 *pTail = (u16 *)(D_800D3420 + arg1 * 0x40);
 
@@ -199,7 +199,7 @@ void func_8007C9D4(u8 **arg0, u8 arg1) {
 
         if (buf[idx] == 0) {
             if (func_8007A628(idx, (*arg0)[2]) != 0 && D_800D32A1[idx * 8] != 0) {
-                pRow[(*arg0)[1]] = func_80089C08(idx);
+                pRow[(*arg0)[1]] = BattleSlotBitMask(idx);
                 break;
             }
             buf[idx] = 1;
@@ -225,7 +225,7 @@ void BattlePickSlotByFlagTable(u8 **arg0, u8 arg1) {
         }
     }
     if (count != 0) {
-        u16 result = func_80089C08(buf[func_8001BD40(0, count - 1)]);
+        u16 result = BattleSlotBitMask(buf[func_8001BD40(0, count - 1)]);
         s32 index = (*arg0)[1];
         u16 *pRow = (u16 *)(D_800D3420 + arg1 * 0x40);
 
@@ -370,7 +370,7 @@ void func_8007D1DC(u8 **arg0, u8 arg1) {
         }
     }
     if (count != 0) {
-        u16 result = func_80089C08(buf[func_8001BD40(0, count - 1)]);
+        u16 result = BattleSlotBitMask(buf[func_8001BD40(0, count - 1)]);
         s32 index = (*arg0)[1];
         u16 *pRow = (u16 *)(D_800D3420 + arg1 * 0x40);
 
@@ -401,7 +401,7 @@ void func_8007D344(u8 **arg0, u8 arg1) {
         }
     }
     if (count != 0) {
-        u16 result = func_80089C08(buf[func_8001BD40(0, count - 1)]);
+        u16 result = BattleSlotBitMask(buf[func_8001BD40(0, count - 1)]);
 
         s32 index = (*arg0)[1];
         u16 *pRow = (u16 *)(D_800D3420 + arg1 * 0x40);
@@ -434,7 +434,7 @@ void func_8007D478(u8 **arg0, u8 arg1) {
 
         if (buf[idx] == 0) {
             if ((D_800CCD64[idx].flags & 0x8000) && (D_800CCD64[idx].flags & 0x4002) == 0) {
-                pRow[(*arg0)[1]] = func_80089C08(idx);
+                pRow[(*arg0)[1]] = BattleSlotBitMask(idx);
                 break;
             }
             buf[idx] = 1;
@@ -485,7 +485,7 @@ void func_8007D6A8(u8 **arg0, u8 arg1) {
             bestIndex = i;
         }
     }
-    result = func_80089C08(bestIndex);
+    result = BattleSlotBitMask(bestIndex);
     pRow = (u16 *)(D_800D3420 + arg1 * 0x40);
     pRow[(*arg0)[1]] = result;
 }
@@ -504,7 +504,7 @@ void func_8007D7B4(u8 **arg0, u8 arg1) {
             bestIndex = i;
         }
     }
-    result = func_80089C08(bestIndex);
+    result = BattleSlotBitMask(bestIndex);
     pRow = (u16 *)(D_800D3420 + arg1 * 0x40);
     pRow[(*arg0)[1]] = result;
 }

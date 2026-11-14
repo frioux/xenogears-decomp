@@ -26,7 +26,7 @@ extern u8 D_800CCE3E[];
 u8 func_8001BD40(int, u8);
 u16 func_80089B50(int, u16);
 u8 func_8007A628(u8, u8);
-u16 func_80089C08(u8);
+u16 BattleSlotBitMask(u8);
 s32 BattleFindFirstFlagTableMatch(u16);
 s32 func_80079ED8(u8, u8, u8, s32);
 s32 func_8007A280(u8, u8, s32, s32);
@@ -333,7 +333,7 @@ void func_8007BD5C(u8 **p, u8 index) {
         if (buf[idx] == 0) {
             if (func_8007A628(idx, (*p)[2]) != 0) {
                 if (D_800D32A1[idx * 8] == 0) {
-                    pField[(*p)[1]] = func_80089C08(idx);
+                    pField[(*p)[1]] = BattleSlotBitMask(idx);
                     break;
                 }
             }
@@ -364,7 +364,7 @@ void func_8007BEA8(u8 **p, u8 index) {
             if (func_8007A628(idx, (*p)[2]) != 0
                 && D_800C3EB4[(index + 3) * 0x1C] == D_800C3EB4[idx * 0x1C]
                 && D_800D32A1[idx * 8] == 0) {
-                ((u16 *)(D_800D3420 + index * 0x40))[(*p)[1]] = func_80089C08(idx);
+                ((u16 *)(D_800D3420 + index * 0x40))[(*p)[1]] = BattleSlotBitMask(idx);
                 break;
             }
             buf[idx] = 1;
@@ -396,7 +396,7 @@ void func_8007C040(u8 **p, u8 index) {
     }
     if (count != 0) {
         ((u16 *)(D_800D3420 + index * 0x40))[(*p)[1]] =
-            func_80089C08(buf[func_8001BD40(0, count - 1)]);
+            BattleSlotBitMask(buf[func_8001BD40(0, count - 1)]);
     }
 }
 */

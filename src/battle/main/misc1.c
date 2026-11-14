@@ -40,12 +40,12 @@ extern u16 D_800D2E04[];
 extern u16 D_800D2DF0[];
 extern u16 D_800D2E06[];
 extern u16 D_800D2C9E;
-extern u16 func_80089C9C(u16, u8);
+extern u16 BattleMaskHasSlotBit(u16, u8);
 extern u16 D_800D39E0;
 extern u8 D_800C402F[];
 extern u8 D_800D2E5C;
 extern u8 D_800D2E60;
-extern void func_80085AC4(u8);
+extern void BattleResetActorStatDisplay(u8);
 extern void func_80071B94(s32);
 extern u16 func_80098AF8(s32, s32);
 extern void BattleSetSlotFlagB4(s32);
@@ -294,7 +294,7 @@ void func_80072270(void) {
         pDst = D_800D2E06;
         pSrc = pDst - 0xB;
         for (i = 0; i < 3; i++) {
-            if (func_80089C9C(D_800D2C9E, i) != 0) {
+            if (BattleMaskHasSlotBit(D_800D2C9E, i) != 0) {
                 D_800D2DE4[i] = 0;
                 *pDst = *pSrc;
                 (D_800D2D28 + i)[0x7C] = 1;
@@ -315,7 +315,7 @@ void func_80072324(void) {
     s32 j;
 
     for (i = 3; i < 0xB; i++) {
-        if (func_80089C9C(D_800D39E0, i) != 0) {
+        if (BattleMaskHasSlotBit(D_800D39E0, i) != 0) {
             p = pBuf;
             pEnd = p + 0x100;
             do {
@@ -326,7 +326,7 @@ void func_80072324(void) {
             }
             D_800D2E5C = 4;
             D_800D2E60 = 0x17;
-            func_80085AC4(i);
+            BattleResetActorStatDisplay(i);
             func_80071B94(1);
         }
     }

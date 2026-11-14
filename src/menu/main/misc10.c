@@ -9,7 +9,7 @@ extern u8 D_801E9808[];
 extern u8 D_801E9811;
 extern u8 D_801E9EA0[];
 
-void func_801E8018(u8, u8*, u8*, void*);
+void MenuLoadStringsFromIds(u8, u8*, u8*, void*);
 void MenuApplyGearFrame(MenuDressingRoom*, u8);
 void MenuApplyGearArmor(MenuDressingRoom*, u8);
 void MenuApplyGearEngine(MenuDressingRoom*, u8);
@@ -17,7 +17,7 @@ void func_801C72BC(u8);
 void MenuFreeShoulderButtonUi(void);
 void MenuFreeWindow(u8);
 void MenuRenderFrame(void);
-void func_801E8044(u8, u8*);
+void MenuClearBytes(u8, u8*);
 void MenuLoadSubMenuChoiceStrings(u8);
 void func_801D3488(u8, u8);
 void func_801E05D0(u8, u8, u8);
@@ -55,7 +55,7 @@ void MenuInitializeUnk438Panel(void) {
     g_Menu->unk438 = HeapAlloc(0x25C0, 0);
     bzero(g_Menu->unk438, 0x25C0);
     func_801C72BC(4);
-    func_801E8018(2, (u8*)g_Menu + 0x17E0, D_801EA564, (u8*)g_Menu->pManager + 0x4E);
+    MenuLoadStringsFromIds(2, (u8*)g_Menu + 0x17E0, D_801EA564, (u8*)g_Menu->pManager + 0x4E);
     func_801E8070(2, (u8*)g_Menu + 0x17E0, D_801EA564, D_801E9EA0, (u8*)g_Menu->pManager + 0x4E, 0, 0, 4);
     MenuCreateWindow(2, 0x44, 0xA, 0xE4, 0xC4, 0, 1, 4, 0);
     g_Menu->pManager->unk5[1] = 0;
@@ -97,7 +97,7 @@ void MenuFreeUnk438Panel(void) {
     g_Menu->pManager->unk4A[3] = 0;
     MenuFreeWindow(2);
     MenuRenderFrame();
-    func_801E8044(2, &g_Menu->pManager->unk4A[4]);
+    MenuClearBytes(2, &g_Menu->pManager->unk4A[4]);
     func_801C72BC(0x14);
     HeapFree(g_Menu->unk438);
 }
@@ -234,7 +234,7 @@ u8 MenuInitializeGearScreenBuffers(void) {
     return i;
 }
 void MenuLoadUnk18E0Strings(u8 arg0) {
-    func_801E8018(6, (u8*)g_Menu + 0x18E0, D_801EA568 + arg0, (u8*)g_Menu->pManager + 0x54);
+    MenuLoadStringsFromIds(6, (u8*)g_Menu + 0x18E0, D_801EA568 + arg0, (u8*)g_Menu->pManager + 0x54);
 }
 void MenuFreeGearScreenBuffers(void) {
     HeapFree(g_Menu->unk358);

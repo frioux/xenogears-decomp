@@ -31,11 +31,11 @@ void MenuFreeWindow(s32 arg0);
 void func_801C72BC(s32 arg0);
 void func_801D7F50(s32 arg0, s32 arg1, u_char arg2);
 void func_801D8644(u_char arg0, s32 arg1, s32 arg2, u_char arg3, u_char arg4);
-void func_801E8018(s32 count, void* pStrings, void* pStringIds, void* pFlags);
+void MenuLoadStringsFromIds(s32 count, void* pStrings, void* pStringIds, void* pFlags);
 void func_801E8070(s32 arg0, void* pArg1, void* pArg2, void* pArg3, void* pArg4, u8 arg5, u8 arg6, u8 arg7);
 void func_801E86C8(s32 arg0);
-void func_801E8B4C(s32 arg0);
-void func_801E8044(s32 arg0, void* pArg1);
+void MenuSetSubMenuChoicePrims(s32 arg0);
+void MenuClearBytes(s32 arg0, void* pArg1);
 s32 func_80038824(void);
 void func_800386C4(s32 arg0);
 void func_801E64E0(void);
@@ -47,11 +47,11 @@ void MenuRenderFrame(void);
 u_char func_801C93A8(void);
 void func_801D2F4C(s32 arg0);
 void MenuFreeWindow2Strings(void);
-void func_801E8EAC(POLY_FT4* pPoly, u_char mode);
+void MenuSetPrimShadingMode(POLY_FT4* pPoly, u_char mode);
 void func_801E8F60(s32 mode, u_char index);
 s32 func_8002675C(MenuResourceDirectory* pDir, u32 index, POLY_FT4* pPrims, s32 context, s32 x, s32 y, s32 scale);
 void MenuSetQuadVertices(SVECTOR* pVertices, u16 x, u16 y, u16 width, u16 height);
-void func_801E91C4(P_TAG* pTag);
+void MenuSetPolySemiTransGrey(P_TAG* pTag);
 
 void MenuShutdown(void) {
     s32 i;
@@ -78,9 +78,9 @@ void MenuShutdown(void) {
 
 void MenuLoadUnkDE0Strings(void) {
     if (D_80059460 != 2) {
-        func_801E8018(6, g_Menu->unkDE0, D_801EA53C, g_Menu->pManager->unk1A);
+        MenuLoadStringsFromIds(6, g_Menu->unkDE0, D_801EA53C, g_Menu->pManager->unk1A);
     } else {
-        func_801E8018(6, g_Menu->unkDE0, D_801EA542, g_Menu->pManager->unk1A);
+        MenuLoadStringsFromIds(6, g_Menu->unkDE0, D_801EA542, g_Menu->pManager->unk1A);
     }
 }
 
@@ -90,7 +90,7 @@ void MenuInitializeUnk42CPanel(void) {
     MenuUnk9* pMenu;
 
     MenuSetupPointerCursors(2);
-    func_801E8018(8, g_Menu->unk10E0, D_801EA548, g_Menu->pManager->unk38);
+    MenuLoadStringsFromIds(8, g_Menu->unk10E0, D_801EA548, g_Menu->pManager->unk38);
     pMenu = HeapAlloc(0x1198, 0);
     g_Menu->unk42C = pMenu;
     bzero(pMenu, 0x1198);
@@ -216,29 +216,29 @@ void func_801DB39C(u_char arg0) {
     func_801E8F60(3, arg0);
     func_801E8F60(4, arg0);
     pPoly = &g_Menu->pScrollHandle->polys[g_Menu->pScrollHandle->renderContext];
-    func_801E8EAC(pPoly, arg0);
+    MenuSetPrimShadingMode(pPoly, arg0);
     for (i = 0; i < 0x10; i++) {
         pPoly = &((MenuString*)g_Menu->unk42C)[i].polys[((MenuString*)g_Menu->unk42C)[i].renderContext];
         if (pPoly->r0 != 0x20) {
-            func_801E8EAC(pPoly, arg0);
+            MenuSetPrimShadingMode(pPoly, arg0);
             pPoly = &((MenuString*)g_Menu->unk42C)[i + 0x10]
                          .polys[((MenuString*)g_Menu->unk42C)[i + 0x10].renderContext];
-            func_801E8EAC(pPoly, arg0);
+            MenuSetPrimShadingMode(pPoly, arg0);
         }
     }
     for (i = 0; i < 2; i++) {
         pPoly = &g_Menu->arrowCursors[i]->polys[g_Menu->arrowCursors[i]->renderContext];
-        func_801E8EAC(pPoly, arg0);
+        MenuSetPrimShadingMode(pPoly, arg0);
     }
     pPoly = &((MenuString*)g_Menu->unk42C)[0x20].polys[((MenuString*)g_Menu->unk42C)[0x20].renderContext];
-    func_801E8EAC(pPoly, arg0);
+    MenuSetPrimShadingMode(pPoly, arg0);
     pPoly = &((MenuString*)g_Menu->unk42C)[0x21].polys[((MenuString*)g_Menu->unk42C)[0x21].renderContext];
-    func_801E8EAC(pPoly, arg0);
+    MenuSetPrimShadingMode(pPoly, arg0);
     pPoly = &((MenuString*)g_Menu->unk42C)[0x22].polys[((MenuString*)g_Menu->unk42C)[0x22].renderContext];
-    func_801E8EAC(pPoly, arg0);
+    MenuSetPrimShadingMode(pPoly, arg0);
     for (i = 0; i < 8; i++) {
         pPoly = &g_Menu->unk10E0[i].polys[g_Menu->unk10E0[i].renderContext];
-        func_801E8EAC(pPoly, arg0);
+        MenuSetPrimShadingMode(pPoly, arg0);
     }
 }
 */

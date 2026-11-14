@@ -11,8 +11,8 @@ extern BattleUnk1C D_800C3EBE[];
 extern u8 D_800C3EB4[][0x1C];
 extern u16 D_800C3D64;
 extern u8 D_800C3E2C;
-extern u16 func_80089C9C(u16, u8);
-extern u16 func_80089C08(u8);
+extern u16 BattleMaskHasSlotBit(u16, u8);
+extern u16 BattleSlotBitMask(u8);
 extern u8 func_80083FF4(u8, u8);
 extern u8 *D_800C3EAC;
 extern u8 D_800C3E90[];
@@ -72,7 +72,7 @@ void func_80082F7C(u8 arg0) {
     case 4:
     case 6:
     case 7:
-        func_8007FD38(a);
+        BattleLoadStringTableAE(a);
         if (func_8008B478(a) != 0) {
             func_8008ADD0(a);
         } else {
@@ -107,7 +107,7 @@ void func_80082F7C(u8 arg0) {
 }
 */
 extern u8 D_800D3014;
-extern void func_8007FD38(u8);
+extern void BattleLoadStringTableAE(u8);
 extern u8 func_8008B478(u8);
 extern void func_8008ADD0(u8);
 extern void func_8008AA74(u8);
@@ -207,7 +207,7 @@ u8 func_80084548(u8 arg0, u8 arg1, u8 arg2) {
         j = i;
         if (func_80084108(j, arg1) != 0) {
             D_800C3E90[n] = j;
-            D_800C3D64 |= func_80089C08(j);
+            D_800C3D64 |= BattleSlotBitMask(j);
             n++;
             D_800D3274++;
         }
@@ -216,7 +216,7 @@ u8 func_80084548(u8 arg0, u8 arg1, u8 arg2) {
         j = i;
         if (func_80084108(j, arg1) != 0) {
             D_800C3E90[n] = j;
-            D_800C3D64 |= func_80089C08(j);
+            D_800C3D64 |= BattleSlotBitMask(j);
             n++;
             D_800D3274++;
         }
@@ -245,7 +245,7 @@ u8 func_80084750(u8 arg0) {
         j = i;
         if (func_80083FF4(arg0, j) != 0) {
             D_800C3E90[n] = j;
-            D_800C3D64 |= func_80089C08(j);
+            D_800C3D64 |= BattleSlotBitMask(j);
             n++;
             D_800D3274++;
         }
@@ -353,15 +353,15 @@ u16 func_80084D28(void) {
 
     ret = 0;
     for (i = 0; i < 0xB; i++) {
-        if (func_80089C9C(D_800C3D64, i) != 0) {
+        if (BattleMaskHasSlotBit(D_800C3D64, i) != 0) {
             if (D_800C3EB4[D_800C3E2C][0] == D_800C3EB4[i][0]) {
-                ret |= func_80089C08(i);
+                ret |= BattleSlotBitMask(i);
             }
         }
     }
     return ret;
 }
-extern u16 func_80089C48(u8);
+extern u16 BattleSlotBitMaskInverted(u8);
 extern u8 D_800C3E9A[];
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80084DE4);
 /* 98.35%: every instruction and the frame (0x30, 7 saved regs) match; the only
@@ -430,14 +430,14 @@ u16 func_80084DE4(u16 arg0, u16 arg1, u8 arg2, u8 arg3, u8 arg4) {
         D_800C3E2C = 0xFF;
         n = 0;
         for (i = 0, off = 0, off8 = 0; i < 0xB; i++, off8 += 8) {
-            if (func_80089C9C(D_800C3D64, i) != 0) {
+            if (BattleMaskHasSlotBit(D_800C3D64, i) != 0) {
                 if (D_800D32A1[off8] == 0) {
                     if ((*(u16 *)((u8 *)D_800CCD64 + off) & 0x8000) != 0) {
                         D_800C3E2C = i;
                         D_800C3E90[n] = i;
                         n++;
                     } else {
-                        D_800C3D64 &= func_80089C48(i);
+                        D_800C3D64 &= BattleSlotBitMaskInverted(i);
                     }
                 } else {
                     if ((*(u16 *)((u8 *)D_800CCE08 + off) & 0x8000) != 0) {
@@ -445,7 +445,7 @@ u16 func_80084DE4(u16 arg0, u16 arg1, u8 arg2, u8 arg3, u8 arg4) {
                         D_800C3E90[n] = i;
                         n++;
                     } else {
-                        D_800C3D64 &= func_80089C48(i);
+                        D_800C3D64 &= BattleSlotBitMaskInverted(i);
                     }
                 }
             }
@@ -457,7 +457,7 @@ u16 func_80084DE4(u16 arg0, u16 arg1, u8 arg2, u8 arg3, u8 arg4) {
         }
     } else if ((flags & 0x4000) != 0) {
         D_800C3E2C = arg2;
-        D_800C3D64 = func_80089C08(arg2);
+        D_800C3D64 = BattleSlotBitMask(arg2);
         val = 0xFF;
         j = 10;
         p = D_800C3E9A;

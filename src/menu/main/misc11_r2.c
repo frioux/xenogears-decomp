@@ -278,7 +278,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc11_r2", func_801E5178);
    }
 */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc11_r2", func_801E53CC);
-void func_801E927C(POLY_FT4* pPoly);
+void MenuInitializePolyFt4(POLY_FT4* pPoly);
 void MenuSetQuadVertices(SVECTOR* pVertices, u16 x, u16 y, u16 width, u16 height);
 
 extern u16 D_801E9894[];
@@ -308,7 +308,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc11_r2", func_801E56E8);
        pY = &D_801E9914[index * 2];
        offset = 0xB0;
        for (i = 0; i < 2; i++) {
-           func_801E927C((POLY_FT4*)(pBase + i * 0x28));
+           MenuInitializePolyFt4((POLY_FT4*)(pBase + i * 0x28));
            ((POLY_FT4*)(pBase + i * 0x28))->x0 = pX[0];
            ((POLY_FT4*)(pBase + i * 0x28))->y0 = pY[0];
            ((POLY_FT4*)(pBase + i * 0x28))->x1 = pX[0] + 0x10;
@@ -412,7 +412,7 @@ extern s32 D_801EA494[];
 extern u32 D_801EA590[];
 extern u8 D_801EA5DC[];
 extern u16 g_SystemPalette1;
-void func_801E920C(POLY_FT4* pPoly, u_short x, u_short y, u_char u, u_char v, s32 width, s32 height);
+void MenuSetFt4QuadVertices(POLY_FT4* pPoly, u_short x, u_short y, u_char u, u_char v, s32 width, s32 height);
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc11_r2", func_801E61B0);
 /* Best: 85.05% (656 vs 660 bytes).  Confirmed shape: outer loop is TWO
@@ -426,7 +426,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc11_r2", func_801E61B0);
    are needed to get retail's lhu (a plain D_801E9F98[0] gives lw).
    Left, four instructions: (1) retail's primOffset lands in $s4 and j*0x50 in
    $s3, ours swaps them; (2) retail emits "addiu s5,s5,4" (j++) right after
-   the D_801EA5DC load and ours after the call; (3) the func_801E920C argument
+   the D_801EA5DC load and ours after the call; (3) the MenuSetFt4QuadVertices argument
    setup order differs (retail forms the 0x820 sum after loading base/ctx);
    (4) retail reads the byte it stores to 0x130E/0x1311 with "lbu 776(v1)",
    ours with "lw" - (u_char), (u8) and (s8) casts on g_Menu->renderContext all
@@ -452,12 +452,12 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc11_r2", func_801E61B0);
            }
            ((u8*)g_Menu->unk34C + offset)[0x130E] = (u_char)g_Menu->renderContext;
            pPrim = (u8*)(primOffset + (u32)g_Menu->unk34C);
-           func_801E927C((POLY_FT4*)(pPrim + (g_Menu->renderContext * 0x28 + 0x820)));
+           MenuInitializePolyFt4((POLY_FT4*)(pPrim + (g_Menu->renderContext * 0x28 + 0x820)));
            *(u16*)((u8*)g_Menu->unk34C + (g_Menu->renderContext * 0x28 + offset) + 0x12CE) =
                GetTPage(0, 0, 0x180, 0);
            *(u16*)((u8*)g_Menu->unk34C + (g_Menu->renderContext * 0x28 + offset) + 0x12C6) =
                g_SystemPalette1;
-           func_801E920C((POLY_FT4*)(pPrim + (g_Menu->renderContext * 0x28 + 0x820)),
+           MenuSetFt4QuadVertices((POLY_FT4*)(pPrim + (g_Menu->renderContext * 0x28 + 0x820)),
                          *(u16*)D_801E9F98 + j * 0x50, *(u16*)D_801E9FBC + 7,
                          (u_char)(D_801EA590[j] << 2), D_801EA5DC[j * 4], 0x48, 0xD);
            ((u8*)g_Menu->unk34C + offset)[0x1311] = (u_char)g_Menu->renderContext;

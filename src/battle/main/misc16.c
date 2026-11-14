@@ -43,7 +43,7 @@ extern void func_8008EA70(u8, s32, s32, s32);
 extern void func_8008F0A8(u8, s32, s32, s32, u16);
 extern void func_80090310(u8, u8);
 extern void func_800904A0(s32, s32);
-extern void func_8009070C(u8, u8);
+extern void BattleDrawMenuEntryString(u8, u8);
 extern void *D_800D2F5C;
 extern u8 D_800C3E4C;
 extern void BattleSetPrimGrey80BlendModeFromGlobal(void *);
@@ -57,7 +57,7 @@ extern u8 D_800CEF10[];
 extern u8 D_800CCDC4[];
 extern u8 D_800CCD62[];
 extern u8 D_800D2D24[];
-extern s32 func_80089C6C(s32, u8);
+extern s32 BattleMaskHasStatusBit(s32, u8);
 extern u8 func_80085084(u16, u8, s32);
 extern void func_8008CCCC(u8);
 extern void func_8008CD28(u8);
@@ -86,7 +86,7 @@ u8 func_8008CDE4(u8 arg0, u8 arg1) {
     cur = *(u16 *)(D_800CCDC4 + ofs);
     dmg = *(u16 *)(D_800CEF10 + idx);
     if (cur >= trigger &&
-        (u16)func_80089C6C((u16)g_GameState.unk16BC[D_800D2D24[arg0]].unk1E, arg1) != 0 &&
+        (u16)BattleMaskHasStatusBit((u16)g_GameState.unk16BC[D_800D2D24[arg0]].unk1E, arg1) != 0 &&
         (*(u16 *)(D_800CCD62 + ofs) & hdr[arg1]) == 0) {
         func_8008CCCC(1);
         D_800D2D28[0xC6] = 1;

@@ -47,8 +47,8 @@ extern s32 D_801EA578[];
 extern u8 D_801EA5C4[];
 extern u16 g_SystemPalette1;
 extern u16 g_SystemPalette2;
-void func_801E920C(POLY_FT4* pPoly, u_short x, u_short y, u_char u, u_char v, s32 width, s32 height);
-void func_801E927C(POLY_FT4* pPoly);
+void MenuSetFt4QuadVertices(POLY_FT4* pPoly, u_short x, u_short y, u_char u, u_char v, s32 width, s32 height);
+void MenuInitializePolyFt4(POLY_FT4* pPoly);
 
 void MenuSetQuadVertices(SVECTOR* pVertices, u16 x, u16 y, u16 width, u16 height);
 s32 func_800263E4(MenuResourceDirectory* pDir, u32 index, POLY_FT4* pPrims, s32 context, s32 x, s32 y, s32 scale, s32 mirrorX, s32 mirrorY);
@@ -88,7 +88,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D3C4C);
        MenuSetQuadVertices(pWindow->vertsScrollBarEmpty, x, y + 8, 8, height - 8);
    }
 */
-void func_801E91C4(P_TAG* pTag);
+void MenuSetPolySemiTransGrey(P_TAG* pTag);
 void MenuInitializeWindowBorderCorners(u_char index, u_short x, u_short y, u_short width, u_short height) {
     MenuWindow* pWindow = g_Menu->windows[index];
     u16 left;
@@ -123,7 +123,7 @@ void MenuInitializeWindowBorderCorners(u_char index, u_short x, u_short y, u_sho
     MenuSetQuadVertices(&pWindow->vertsWindowBorderCorners[8], left, bottom, 0x10, 0x10);
     MenuSetQuadVertices(&pWindow->vertsWindowBorderCorners[12], right, bottom, 0xFFF0, 0x10);
     for (i = 0; i < 4; i++) {
-        func_801E91C4((P_TAG*)&pWindow->polysWindowBorderCorners[i * 2 + g_Menu->renderContext]);
+        MenuSetPolySemiTransGrey((P_TAG*)&pWindow->polysWindowBorderCorners[i * 2 + g_Menu->renderContext]);
     }
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D3FF8);
@@ -167,7 +167,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D3FF8);
        x = halfWidth + 8 + x;
        MenuSetQuadVertices(pWindow->vertsWindowBorderTop2, x, top, halfWidth, 0x10);
        for (i = 0; i < 2; i++) {
-           func_801E91C4((P_TAG*)&pWindow->polysWindowBorderTop[i * 2 + g_Menu->renderContext]);
+           MenuSetPolySemiTransGrey((P_TAG*)&pWindow->polysWindowBorderTop[i * 2 + g_Menu->renderContext]);
        }
    }
 */
@@ -175,7 +175,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D433C);
 /* Best: 99.00%. The sibling of MenuInitializeWindowBorderCorners (bottom border instead of the
    corners) and the decode is complete: 16 UV stores to polysWindowBorderBottom
    [ctx] and [ctx+2], two MenuSetQuadVertices quads, then a 2-iteration
-   func_801E91C4 loop. Three codegen facts already worked out here: the UV
+   MenuSetPolySemiTransGrey loop. Three codegen facts already worked out here: the UV
    stores must be byte offsets off a raw pointer with the context product FIRST
    (`g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x1EC`); a struct access
    (`pWindow->polysWindowBorderBottom[ctx].u0`) gives the reversed addu and an
@@ -212,7 +212,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D433C);
        MenuSetQuadVertices(pWindow->vertsWindowBorderBottom1, x + 8, bottom, halfWidth, 0x10);
        MenuSetQuadVertices(pWindow->vertsWindowBorderBottom2, halfWidth + 8 + x, bottom, halfWidth, 0x10);
        for (i = 0; i < 2; i++) {
-           func_801E91C4((P_TAG*)&pWindow->polysWindowBorderBottom[i * 2 + g_Menu->renderContext]);
+           MenuSetPolySemiTransGrey((P_TAG*)&pWindow->polysWindowBorderBottom[i * 2 + g_Menu->renderContext]);
        }
    }
 */
@@ -224,7 +224,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D4688);
    MenuSetQuadVertices(vertsWindowBorderLeft1, x - 8, y + 8, 0x10, halfHeight) and
    MenuSetQuadVertices(vertsWindowBorderLeft2, x - 8, halfHeight + 8 + y, 0x10,
    halfHeight) where halfHeight = (height - 0x10) / 2, then a 2-iteration
-   func_801E91C4 loop over polysWindowBorderLeft[i * 2 + renderContext].
+   MenuSetPolySemiTransGrey loop over polysWindowBorderLeft[i * 2 + renderContext].
    The 4th param is the border HEIGHT (it is the MenuSetQuadVertices height arg), and
    the accumulated param must be written back into it (`y = halfHeight + 8 + y;`)
    - retail keeps it in s3. Remaining diff: gcc copies a2 to s3 in the prologue
@@ -258,7 +258,7 @@ void func_801D4688(u_char index, u_short x, u_short y, u_short height) {
        y = halfHeight + 8 + y;
        MenuSetQuadVertices(pWindow->vertsWindowBorderLeft2, left, y, 0x10, halfHeight);
        for (i = 0; i < 2; i++) {
-           func_801E91C4((P_TAG*)&pWindow->polysWindowBorderLeft[i * 2 + g_Menu->renderContext]);
+           MenuSetPolySemiTransGrey((P_TAG*)&pWindow->polysWindowBorderLeft[i * 2 + g_Menu->renderContext]);
        }
    }
 */
@@ -268,7 +268,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D49D0);
    function matched as MemberChangeMenuSetWindowBorderRight, with UVs
    16/140/32/140/16/147/32/147 = the 0x10/0x8C/0x20/0x93 stores here and that
    file's source shape kept below. All 16 UV byte stores, both quad calls and the
-   2-iteration func_801E91C4 loop are exact (848 bytes, same insn multiset).
+   2-iteration MenuSetPolySemiTransGrey loop are exact (848 bytes, same insn multiset).
    The whole remaining diff is instruction ORDER inside the one basic block:
    retail interleaves the arg setup with the last 4 UV stores and has its
    `move s3,a2` (the y copy) at store 12, gcc emits source order and copies a2 in
@@ -304,7 +304,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D49D0);
        y = halfHeight + 8 + y;
        MenuSetQuadVertices(pWindow->vertsWindowBorderRight2, right, y, 0x10, halfHeight);
        for (i = 0; i < 2; i++) {
-           func_801E91C4((P_TAG*)&pWindow->polysWindowBorderRight[i * 2 + g_Menu->renderContext]);
+           MenuSetPolySemiTransGrey((P_TAG*)&pWindow->polysWindowBorderRight[i * 2 + g_Menu->renderContext]);
        }
    }
 */
@@ -337,10 +337,10 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D4F2C);
 /* Best: 87.79%. Structure and every called function/prototype is right; what is
    left is allocation and instruction order: (1) retail emits `addu v1,s1,v1`
    for the tpage-store address where gcc commutes it to `addu v1,v1,s1`, (2)
-   retail keeps a0 in s3 / a3 in s4, gcc the reverse, (3) in the func_801E920C
+   retail keeps a0 in s3 / a3 in s4, gcc the reverse, (3) in the MenuSetFt4QuadVertices
    arg setup retail does `andi a3,a3,0xFC` after the a1/a2 masks and keeps the
    7th stack store (`sw v0,0x18(sp)`) before the jal, gcc puts it in the delay
-   slot. func_801E920C must be declared `u_short x, u_short y` HERE (misc12.c
+   slot. MenuSetFt4QuadVertices must be declared `u_short x, u_short y` HERE (misc12.c
    defines it as `short`): with `short` the caller gets sll/sra 0x10 instead of
    retail's `andi 0xFFFF`.
    void func_801D4F2C(u_char a0, u_char a1, s32 a2, s32 a3) {
@@ -349,7 +349,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D4F2C);
    
        func_8002675C(g_Menu->resources, a0 + 0x14B, (POLY_FT4*)pWindow,
                      g_Menu->renderContext, a2, a3, 0x1000);
-       func_801E927C((POLY_FT4*)(pWindow + (g_Menu->renderContext * 0x28 + 0x50)));
+       MenuInitializePolyFt4((POLY_FT4*)(pWindow + (g_Menu->renderContext * 0x28 + 0x50)));
        *(u16*)(pWindow + g_Menu->renderContext * 0x28 + 0x66) = GetTPage(0, 0, 0x180, 0);
        pBase = pWindow + g_Menu->renderContext * 0x28;
        if (g_Menu->pManager->currentCharacterIDs[a0] & 1) {
@@ -357,7 +357,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D4F2C);
        } else {
            *(u16*)(pBase + 0x5E) = g_SystemPalette1;
        }
-       func_801E920C((POLY_FT4*)(pWindow + (g_Menu->renderContext * 0x28 + 0x50)),
+       MenuSetFt4QuadVertices((POLY_FT4*)(pWindow + (g_Menu->renderContext * 0x28 + 0x50)),
                      D_801E9B58 + a2, D_801E9B5C + a3,
                      (D_801EA578[a0] << 2) & 0xFC, D_801EA5C4[a0], 0x48, 0xD);
    }
@@ -637,7 +637,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D5ED4);
    D_801EA578 uses the plain s32 index - the original table is 4-byte entries
    under two names 0x4C apart;
    (4) width = 0x18 * a1 + 0x48 is assigned just before its first use (after the
-   palette if/else), not at the top, and shared by func_801E920C and the last
+   palette if/else), not at the top, and shared by MenuSetFt4QuadVertices and the last
    MenuSetQuadVertices.
    Left: retail hoists the 0x5E store base (unk358 + renderContext * 0x28) out
    of the *then* branch but recomputes it in the else branch; a shared pBase
@@ -655,7 +655,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D5ED4);
                      *(u16*)((g_Menu->renderContext * 0x28 + (u8*)g_Menu->unk358) + 0x8),
                      *(u16*)((g_Menu->renderContext * 0x28 + (u8*)g_Menu->unk358) + 0xA),
                      0x30, 0x30);
-       func_801E927C((POLY_FT4*)((g_Menu->renderContext * 0x28 + 0x50) +
+       MenuInitializePolyFt4((POLY_FT4*)((g_Menu->renderContext * 0x28 + 0x50) +
                                  (u8*)g_Menu->unk358));
        *(u16*)((u8*)g_Menu->unk358 + g_Menu->renderContext * 0x28 + 0x66) =
            GetTPage(0, 0, 0x180, 0);
@@ -675,7 +675,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D5ED4);
            }
        }
        width = 0x18 * a1 + 0x48;
-       func_801E920C((POLY_FT4*)((g_Menu->renderContext * 0x28 + 0x50) +
+       MenuSetFt4QuadVertices((POLY_FT4*)((g_Menu->renderContext * 0x28 + 0x50) +
                                  (u8*)g_Menu->unk358),
                      0, 0, (D_801EA578[3 * a1 + a0] << 2) & 0xFC,
                      D_801EA5C4[(3 * a1 + a0) * 4], width, 0xD);
