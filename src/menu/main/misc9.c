@@ -44,7 +44,7 @@ void MenuSwapInventoryItems(s32 index0, s32 index1) {
     g_GameState.itemQuantities[index1] = tmp;
 }
 
-void func_801DBDB4(void) {
+void MenuFitInventoryWindowToItems(void) {
     s32 count;
     s32 index;
     s32 last;

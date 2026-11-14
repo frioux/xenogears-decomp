@@ -30,7 +30,7 @@ extern void func_800728B8(u8 *pDst, s32 arg1, s32 arg2);
 extern void func_80072A9C(s32 index, u8 arg1);
 extern void BattleRenderActorStatDigits(s32 index, u8 arg1);
 extern s32 func_80072F38(s32 index, u8 arg1);
-extern void func_80073380(s32 index);
+extern void BattleRenderActorValueDigits(s32 index);
 extern s32 func_80025FA8(void *pDir, s32 id, u8 *pPrim, s32 context, u16 x, u16 y, u16 u, u16 v, u16 w);
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_80073B64);
@@ -173,7 +173,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_800742A0);
             *(s32 *)(D_800D2D28 + i * 4 + 0xE0) = 0;
             *(s32 *)(D_800D2D28 + i * 4 + 0xEC) = 0;
             if ((&D_800C3EB6)[offset] != 0x7F) {
-                func_80073380(i);
+                BattleRenderActorValueDigits(i);
                 value = func_80072F38(i, *(u8 *)((s32)&D_800D32A1 + i * 8));
                 if (*(u8 *)((s32)&D_800D32A1 + i * 8) != 0) {
                     BattleRenderActorStatDigits(i, value);

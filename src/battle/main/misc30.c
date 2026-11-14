@@ -50,7 +50,7 @@ extern void SpriteApplyMovementStep(SpriteData* pSprite);
 extern void SpritePlayAnimation(SpriteData* pSprite, s32 arg1);
 void BattleActorTickAnimScript(u8* pTask);
 void BattleActorDrawProjected(u8* pTask);
-void func_800BABDC(AnimTask* pTask);
+void BattleFreeActorAnimTask(AnimTask* pTask);
 extern void SpriteSetDirection(SpriteData* pSprite, s16 arg1);
 extern void func_80022B2C(SpriteData* pSprite);
 extern s32 BattleAngleToPoint(SpriteData* p0, SpriteData* p1);
@@ -113,7 +113,7 @@ void BattleActorSnapToTargetAndFace(SpriteData* pSprite, s32 arg1) {
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800B9C78);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800B9F78);
-void func_800BA4E0(s32 index) {
+void BattleLoadActorSlotAnimation(s32 index) {
     SpriteData* pSprite;
     u8* pBase;
     s32 slotOffset;
@@ -239,7 +239,7 @@ AnimTask* BattleCreateAnimTask(void* pAnimFile, s16 clutX, s16 clutY, s16 texX, 
     SpriteData* pSprite;
 
     pTask = WorkListsAddTasks(sizeof(AnimTask), NULL, BattleActorTickAnimScript,
-                              BattleActorDrawProjected, func_800BABDC);
+                              BattleActorDrawProjected, BattleFreeActorAnimTask);
     pSprite = &pTask->spriteData;
     pTask->task1.unk4 = pSprite;
     pTask->task2.unk4 = pSprite;
@@ -295,7 +295,7 @@ void BattleActorDrawProjected(u8* pTask) {
     }
 }
 
-void func_800BABDC(AnimTask* pTask) {
+void BattleFreeActorAnimTask(AnimTask* pTask) {
     AnimTask* pSelf;
     SpriteData* pSprite;
     SpriteData* pSpriteCopy;

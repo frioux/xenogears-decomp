@@ -441,7 +441,7 @@ void BattleRenderActorStatDigits(s32 arg0, u8 arg1) {
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80072F38);
-void func_80073380(s32 arg0) {
+void BattleRenderActorValueDigits(s32 arg0) {
     u8 *pFlags;
     s16 amount;
     s32 off;
