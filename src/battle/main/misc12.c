@@ -45,10 +45,72 @@ extern BattleUnk170 D_800CCD64[];
 extern BattleUnk170 D_800CCE08[];
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80082820);
+/* Same jtbl blocker as func_80082F7C below (table jtbl_80070110). */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_800829F4);
+/* Same jtbl blocker as func_80082F7C below (table jtbl_80070130). */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80082BB0);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80082D4C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80082F7C);
+/* BLOCKED by the jump table (round 41, objdiff 88.13%, one attempt):
+   retail dispatches through the shared rodata table jtbl_80070170 that
+   asm/battle/data/0.rodata.s owns. The switch below makes cc1 emit the same
+   eight words in the same order -- but into the unit object's own .rdata
+   section, i.e. a second copy next to the asm-owned one, so the overlay grows
+   and make build fails (this tree links clean without the switch, so the
+   switch is the cause). No source shape can fix that: the whole unit's jtbl
+   set has to move out of asm/battle/data/0.rodata.s into C in address order
+   as one job. Same blocker on func_800829F4 (jtbl_80070110) and func_80082BB0
+   (jtbl_80070130) -- 11 of this unit's 16 stubs name a jtbl.
+   Shape notes for that job: the store constant lands in the branch delay slot
+   only when the if/else puts the func_8008AA74(0x4F) call in the shared tail,
+   and retail's addu is base-first, so the field reads want a p/off pair.
+
+void func_80082F7C(u8 arg0) {
+    u8 a;
+    a = arg0;
+    switch (D_800D3014) {
+    case 4:
+    case 6:
+    case 7:
+        func_8007FD38(a);
+        if (func_8008B478(a) != 0) {
+            func_8008ADD0(a);
+        } else {
+            D_800C3EAC[0x2DD] = 0x13;
+        }
+        break;
+    case 0:
+        if (*(u16 *)(D_800C3EAC + a * 0x40 + 0x2E) != 0) {
+            func_8008AA74(0x4F);
+        } else {
+            D_800C3EAC[0x2DD] = 0x10;
+        }
+        break;
+    case 1:
+        if (*(u16 *)(D_800C3EAC + a * 0x40 + 0x34) != 0) {
+            func_8008AA74(0x4F);
+        } else {
+            D_800C3EAC[0x2DD] = 0x11;
+        }
+        break;
+    case 2:
+        D_800C3EAC[0x2DD] = 0x12;
+        break;
+    case 3:
+        if (*(u16 *)(D_800C3EAC + a * 0x40 + 0x24) != 0) {
+            func_8008AA74(0x4F);
+        } else {
+            D_800C3EAC[0x2DD] = 0x18;
+        }
+        break;
+    }
+}
+*/
+extern u8 D_800D3014;
+extern void func_8007FD38(u8);
+extern u8 func_8008B478(u8);
+extern void func_8008ADD0(u8);
+extern void func_8008AA74(u8);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_800830A8);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80083340);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80083580);
