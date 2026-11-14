@@ -23,9 +23,28 @@ extern u16 D_8009B64E[];
 extern u16 D_8009B624[];
 extern u16 D_8009B626[];
 
+typedef struct {
+    /* 0x0 */ s16 unk0;
+    /* 0x2 */ s16 unk2;
+    /* 0x4 */ s16 unk4;
+    /* 0x6 */ s16 unk6;
+} WorldMapGridOrigin; // Size: 0x8
+
+extern MATRIX D_8009C808;
+extern MATRIX D_8009A180;
+extern s16 D_8009BD3C;
+extern s16 D_8009BE04;
+extern u32* D_8009BE3C;
+extern s16 D_8009D618[];
+extern s16 D_8009D570[];
+extern WorldMapGridOrigin D_8009C838;
+extern s32 D_8009D7F0;
+
+
 void WorldMapSetSpriteSetParent(s32 arg0, s32 arg1);
 void func_80087904(u8* pDst, u8* pSrc, s32 count, s32 abr);
 s32 func_800879E0(s32 arg0);
+void func_80099BFC(u8* pSrc, s32 count, u32 arg2, u8* pPrim);
 
 // 0x80-byte slot in the D_8009BE24 table
 typedef struct {
@@ -146,7 +165,72 @@ void func_80086124(void) {
     HeapFree(D_8009D7EC);
     HeapFree(D_8009D7E8);
 }
+// Best: 95.40% (660 bytes vs retail's 640). The quad setup in the scratchpad, both
+// matrix copies (D_8009C808 and D_8009A180 into 0x1F800028/0x1F800048), RotMatrixZ
+// and the 0x10-halfword copy of D_8009D478 are instruction-for-instruction exact, and
+// the 5x5 tile loop matches too. The remaining 20 bytes are one register:
+// retail hoists D_8009C7EC (s3) and &D_8009C83C (s4) but re-forms D_8009D618's
+// address with `lui $at / addu $at,$at,v0` at each use; gcc here hoists that address
+// into a sixth callee-saved register (s5), which is the extra save/restore pair and
+// the 0x30 frame instead of 0x28. gcc also fills retail's `beq` delay slot (a nop)
+// with the row-origin load. Second delta, cosmetic only: retail's origin base is
+// &D_8009C83C with displacements 0 and -4, a struct at D_8009C838 gives 4 and 0 -
+// the same linked bytes, so check_bin cannot see it.
+// What got the score here (in order): two separate s16 externs 88.99, then ONE loop
+// counter shared by the copy loop and the inner column loop - that is what puts
+// retail's counter in s0 and forces `sw s0` before the save block - then the
+// struct-pointer origin, 95.40.
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_8008615C);
+/*
+void func_8008615C(void) {
+    WorldMapTableEntry* pEntry;
+    WorldMapGridOrigin* pOrigin;
+    u8* pTable;
+    u16* pSrc;
+    u16* pDst;
+    s32 row;
+    s32 id;
+    s32 i;
+
+    ((SVECTOR*)0x1F800000)->vx = -0x18;
+    ((SVECTOR*)0x1F800000)->vy = -0x48;
+    ((SVECTOR*)0x1F800000)->vz = 0;
+    ((SVECTOR*)0x1F800008)->vx = 0x18;
+    ((SVECTOR*)0x1F800008)->vy = -0x48;
+    ((SVECTOR*)0x1F800008)->vz = 0;
+    ((SVECTOR*)0x1F800010)->vx = -0x18;
+    ((SVECTOR*)0x1F800010)->vy = 0;
+    ((SVECTOR*)0x1F800010)->vz = 0;
+    ((SVECTOR*)0x1F800018)->vx = 0x18;
+    ((SVECTOR*)0x1F800018)->vy = 0;
+    ((SVECTOR*)0x1F800018)->vz = 0;
+    *(MATRIX*)0x1F800028 = D_8009C808;
+    *(MATRIX*)0x1F800048 = D_8009A180;
+    RotMatrixZ(-D_8009BD3C, (MATRIX*)0x1F800048);
+    pSrc = D_8009D478;
+    pDst = (u16*)0x1F800068;
+    for (i = 0; i < 0x10; i++) {
+        *pDst++ = *pSrc++;
+    }
+    D_8009BE04 = 0;
+    pTable = D_8009C7EC;
+    pOrigin = &D_8009C838;
+    for (row = 0; row < 5; row++) {
+        for (i = 0; i < 5; i++) {
+            if (D_8009D618[row * 5 + i] == -1) {
+                continue;
+            }
+            id = D_8009D570[(row + pOrigin->unk4) * 9 + i + pOrigin->unk0];
+            pEntry = (WorldMapTableEntry*)(pTable + id * 8);
+            if (pEntry->unk4 != 0) {
+                func_80099BFC((u8*)pEntry->offset, pEntry->unk4, D_8009BE3C[0x1C],
+                              ((u8**)&D_8009D7E8)[D_8009D7F0] + D_8009BE04 * 0x28);
+            }
+        }
+    }
+}
+*/
+
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_800863E0);
 // Best: 91.94%. Both loops are instruction-for-instruction identical to retail;
 // the only differences are register picks: retail keeps the D_8009D150 destination
