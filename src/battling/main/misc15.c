@@ -259,6 +259,51 @@ void func_8008C2E8(u8* pObj) {
         func_8008C2E8(*(u8**)(pObj + 0x90));
 }
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc15", func_8008C3A8);
+/* Best C match, 73.52% (272 bytes vs retail 280). Two shapes are already right
+   and must be kept when this is picked up again:
+     - the reference-VECTOR read is gte_ld3_gpr(tx, ty, tz, &D_8009A2C8): one
+       `la` plus 0/4/8 displacements. Written as `D_8009A2C8.vx/vy/vz` (or
+       through any pointer local) gcc folds each field into its own lui/lo
+       address and the whole register allocation shifts (67.33%).
+     - the loop is do/while over a signed count (`n--; while (n != 0)`); with a
+       u16 parameter gcc adds an `andi v0,a2,0xffff` retail does not have.
+   Still different: retail's MVMVA carries one nop before AND one after the
+   command (gte_mvmva emits two before, and the 3-instruction slot then shifts
+   everything after it); retail hoists `addiu a1,a1,8` above the first store and
+   addresses it as -8/-4(a1) while gcc stores at 0/4(a1) after both divisions;
+   retail's second numerator is `negu t7,t3` then addu then `negu` (i.e. it
+   negates MAC3 first), a plain `z * ty - tz * y` gives subu; and the MAC reads
+   land in t8/t9/t3 with the products in t0/t1 and the divisor in t2, against
+   ours in t0/v1/a0 + v0/v1/a3.
+void func_8008C3A8(SVECTOR* pSrc, SVECTOR* pDst, s32 n) {
+    s32 tx;
+    s32 ty;
+    s32 tz;
+    s32 x;
+    s32 y;
+    s32 z;
+    s32 den;
+
+    gte_ld3_gpr(tx, ty, tz, &D_8009A2C8);
+    gte_ldv0(pSrc);
+    pSrc++;
+    do {
+        gte_mvmva(1, 0, 0, 0, 0);
+        gte_ldv0(pSrc);
+        gte_stmac2_val(y);
+        gte_stmac1_val(x);
+        den = ty - y;
+        if (den != 0) {
+            gte_stmac3_val(z);
+            pDst->vx = (x * ty - tx * y) / den;
+            pDst->vz = (z * ty - tz * y) / den;
+        }
+        pDst++;
+        pSrc++;
+        n--;
+    } while (n != 0);
+}
+*/
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc15", func_8008C4B0);
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc15", func_8008C620);
 void func_8008C7C0(u8* pObj) {

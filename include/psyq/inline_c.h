@@ -1625,6 +1625,32 @@ the way retail's 3.x SetTransVector + SetRotMatrix pair comes out. */
 	"nop"							\
 	: "=r"( r0 ) )
 
+/* MAC1-MAC3 read back one at a time, so the source controls the order and the
+   allocator sees three independent values (the shadow projection reads MAC2,
+   then MAC1, and MAC3 only after its first compare). */
+#define gte_stmac1_val( r0 ) __asm__ volatile (			\
+	"mfc2	%0, $25"					\
+	: "=r"( r0 ) )
+
+#define gte_stmac2_val( r0 ) __asm__ volatile (			\
+	"mfc2	%0, $26"					\
+	: "=r"( r0 ) )
+
+#define gte_stmac3_val( r0 ) __asm__ volatile (			\
+	"mfc2	%0, $27"					\
+	: "=r"( r0 ) )
+
+/* Three consecutive words loaded through one base register. Retail's shadow
+   projection reads the reference VECTOR this way: a single `la` and then
+   displacements 0/4/8, which a scalar C read of the fields cannot reproduce
+   (gcc folds `sym+4` into its own address computation). */
+#define gte_ld3_gpr( r0, r1, r2, r3 ) __asm__ volatile (	\
+	"lw	%0, 0( %3 );"					\
+	"lw	%1, 4( %3 );"					\
+	"lw	%2, 8( %3 )"					\
+	: "=r"( r0 ), "=r"( r1 ), "=r"( r2 )			\
+	: "r"( r3 ) )
+
 /* The 3.x revision read a short vector through $8-$10 and copied those into
    IR1-IR3, instead of the three lwc2 the 4.3 macros above use. The lh form is
    for a packed vector, the lh4 form for one whose components sit 4 bytes
