@@ -396,7 +396,7 @@ extern void func_800230A8(void* p);
 extern void func_80075460(void);
 extern void func_80092DD0(void);
 extern void func_800931B0(void);
-extern void func_80084818(void);
+extern void WorldMapFreeSpriteSets(void);
 extern void func_80086124(void);
 extern void GfxFreeWorkBuffers(void);
 extern void func_80086568(void);
@@ -433,7 +433,7 @@ void func_8007299C(void) {
     }
     func_80092DD0();
     func_800931B0();
-    func_80084818();
+    WorldMapFreeSpriteSets();
     func_80086124();
     GfxFreeWorkBuffers();
     func_80086568();

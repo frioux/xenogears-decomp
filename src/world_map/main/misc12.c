@@ -4,7 +4,7 @@
 #include "psyq/libgte.h"
 
 extern s32 func_80095414(s32 *pPos, s32 *pRot, s32 *pOut, s32 nSpeed, s32 nMode);
-extern void func_800848B4(int, int);
+extern void WorldMapSetSpriteSetParent(int, int);
 extern s16 D_8009BD40;
 extern s16 D_8009BD44;
 extern s32 D_8009BE28;
@@ -181,8 +181,8 @@ s32 func_800906E0(s32 idx) {
     WorldMapPlayer *pPlayer;
     s32 nMode;
 
-    func_800848B4(0, 2);
-    func_800848B4(0, 3);
+    WorldMapSetSpriteSetParent(0, 2);
+    WorldMapSetSpriteSetParent(0, 3);
     pPlayer = D_8009BE24 + idx;
     pPlayer->unk20 = 0;
     *(Quad *)&pPlayer->unk28 = *(Quad *)D_8009C620->unk0B0;
@@ -201,8 +201,8 @@ s32 func_800906E0(s32 idx) {
 }
 
 int func_800907C4(void) {
-    func_800848B4(0, 2);
-    func_800848B4(0, 3);
+    WorldMapSetSpriteSetParent(0, 2);
+    WorldMapSetSpriteSetParent(0, 3);
     return 1;
 }
 

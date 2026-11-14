@@ -57,7 +57,7 @@ extern void func_8009932C(s32 arg0, s32 arg1, s32* p);
 extern void func_80073B04(void);
 extern void func_800737EC(void);
 extern void func_80086798(void);
-extern void func_80084818(void);
+extern void WorldMapFreeSpriteSets(void);
 extern void func_80086124(void);
 extern void func_80086568(void);
 extern void func_800866C8(void);
@@ -129,7 +129,7 @@ extern s16 D_8009BD38;
 extern s16 D_8009BD3A;
 extern s16 D_8009BD3C;
 
-s32 func_80076A1C(void) {
+s32 WorldMapUpdateFrame(void) {
     u8* p;
     s32* pState;
 
@@ -159,7 +159,7 @@ s32 func_80076A1C(void) {
     return 1;
 }
 
-s32 func_80076B34(s32 arg0) {
+s32 WorldMapRunSlotScript(s32 arg0) {
     u8* pSlot = (u8*)D_8009BE24 + (arg0 << 7);
     u8* pCmd;
     s32 cmd;
@@ -175,13 +175,13 @@ s32 func_80076B34(s32 arg0) {
     return 1;
 }
 
-s32 func_80076BC4(void) {
+s32 WorldMapScriptOp00End(void) {
     D_8009D554 = 0;
     D_8009D7CC = 0;
     return 0;
 }
 
-s32 func_80076BDC(u8* p, s32 arg1) {
+s32 WorldMapScriptOp01WaitFrames(u8* p, s32 arg1) {
     s16 timer = *(s16*)(p + 0x22);
 
     if (timer == 0) {
@@ -193,56 +193,56 @@ s32 func_80076BDC(u8* p, s32 arg1) {
     return (timer < 1) << 1;
 }
 
-s32 func_80076C18(s32 arg0, s32 arg1, s32 arg2) {
+s32 WorldMapScriptOp02StartSlot(s32 arg0, s32 arg1, s32 arg2) {
     func_80097770(arg1, arg2);
     return 4;
 }
 
-s32 func_80076C3C(s32 arg0, s32 arg1, s32 arg2, s32 arg3) {
+s32 WorldMapScriptOp03SetPosition(s32 arg0, s32 arg1, s32 arg2, s32 arg3) {
     *(s32*)D_8009C5AC = arg1 << 12;
     D_8009C5B0 = arg2 << 12;
     D_8009C5B4 = arg3 << 12;
     return 4;
 }
 
-s32 func_80076C68(s32 arg0, s32 arg1, s32 arg2, s32 arg3) {
+s32 WorldMapScriptOp04SetScratchPosition(s32 arg0, s32 arg1, s32 arg2, s32 arg3) {
     *(u16*)0x1F8000A0 = arg1;
     *(u16*)0x1F8000A2 = arg2;
     *(u16*)0x1F8000A4 = arg3;
     return 4;
 }
 
-s32 func_80076C88(s32 arg0, s32 arg1) {
+s32 WorldMapScriptOp05ActivateSpriteGroup(s32 arg0, s32 arg1) {
     func_80089160(arg1, (void*)0x1F8000A0, 0);
     return 2;
 }
 
-s32 func_80076CB4(s32 arg0, s32 arg1) {
+s32 WorldMapScriptOp06DeactivateSpriteGroup(s32 arg0, s32 arg1) {
     func_800894C8(arg1);
     return 2;
 }
 
-s32 func_80076CD4(s32 arg0, s32 arg1) {
+s32 WorldMapScriptOp07ClearGroupEntries(s32 arg0, s32 arg1) {
     func_80089514(arg1);
     return 2;
 }
 
-s32 func_80076CF4(void) {
+s32 WorldMapScriptOp08FadeMasterVolume(void) {
     func_8003A89C(D_80062528);
     return 4;
 }
 
-s32 func_80076D1C(s32 arg0, s32 arg1) {
+s32 WorldMapScriptOp09PlaySound(s32 arg0, s32 arg1) {
     func_80039E60((*(u16*)((u8*)D_8006259C + 0x14) << 16) | arg1);
     return 2;
 }
 
-s32 func_80076D50(s32 arg0, s32 arg1, s32 arg2, s32 arg3) {
+s32 WorldMapScriptOp10FadeSound(s32 arg0, s32 arg1, s32 arg2, s32 arg3) {
     func_8003A3B8((*(u16*)((u8*)D_8006259C + 0x14) << 16) | arg1, arg2, arg3);
     return 4;
 }
 
-s32 func_80076D8C(s32 arg0, s32 arg1, s32 arg2) {
+s32 WorldMapScriptOp11SetDrawMode(s32 arg0, s32 arg1, s32 arg2) {
     D_8009CCA4 = arg1;
     D_8009D3CC = arg2;
     return 4;
@@ -291,7 +291,7 @@ void func_80076DA4(WorldMapPlayer* pPlayer, WorldMapScrollDelta* pDelta) {
 }
 */
 
-void func_80076F54(u8* p) {
+void WorldMapApproachHeight(u8* p) {
     s32 cur = *(s32*)(p + 0x5C);
     s32 idx;
 
@@ -431,7 +431,7 @@ extern s32 func_80096668(void);
 extern s32 func_8007756C(s32 arg0);
 extern s32 func_800776E0(s32 arg0);
 
-void func_80077214(void) {
+void WorldMapInitializeMode(void) {
     RECT rect;
     s32* pPos;
 
@@ -487,10 +487,10 @@ void func_80077214(void) {
     func_80089160(0xE, NULL, 0);
 }
 
-s32 func_80077480(void) {
+s32 WorldMapExitMode(void) {
     u16 v;
 
-    func_80084818();
+    WorldMapFreeSpriteSets();
     func_80086124();
     func_80086568();
     func_800866C8();
@@ -590,11 +590,11 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc3", func_800776E0);
    pName.
 */
 
-s32 func_80077954(void) {
+s32 WorldMapSlotEnterNop(void) {
     return 1;
 }
 
-s32 func_8007795C(void) {
+s32 WorldMapUpdateFrameWithoutEffects(void) {
     u8* p;
     s32* pState;
 
@@ -621,7 +621,7 @@ s32 func_8007795C(void) {
     func_80086798();
     return 1;
 }
-void func_80077A64(void) {
+void WorldMapInitializeModeWithSound(void) {
     RECT rect;
     s32* pPos;
 

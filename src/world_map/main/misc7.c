@@ -91,7 +91,7 @@ extern u8 *D_8009D148;
 extern void func_8003852C(void *p);
 extern void func_80074F04(void);
 extern void func_800750DC(void);
-extern void func_80084818(void);
+extern void WorldMapFreeSpriteSets(void);
 extern void func_80086568(void);
 extern void func_800866C8(void);
 extern void func_80088FF4(void);
@@ -182,7 +182,7 @@ void func_8008106C(void) {
     func_80039FF8();
     func_8003852C(D_8006259C);
     HeapFree(D_8006259C);
-    func_80084818();
+    WorldMapFreeSpriteSets();
     func_80086568();
     func_800866C8();
     func_80074F04();
@@ -457,7 +457,7 @@ s32 func_800826B4(void) {
     func_80039FF8();
     func_8003852C(D_8006259C);
     HeapFree(D_8006259C);
-    func_80084818();
+    WorldMapFreeSpriteSets();
     func_80086124();
     func_80086568();
     func_800866C8();

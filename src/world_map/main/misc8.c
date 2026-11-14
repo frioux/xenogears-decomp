@@ -68,7 +68,7 @@ extern void func_800967E4(void);
 extern void func_80097BC0(void *p);
 extern s32 func_80096668(void);
 extern s16 func_80084DB8(void *pArg, s16 arg1);
-extern void func_80083108(WorldMapEntry *pEntry, u8 *pDst, s32 count, s32 arg3);
+extern void WorldMapBuildSpritePrims(WorldMapEntry *pEntry, u8 *pDst, s32 count, s32 arg3);
 extern s32 D_8009C5B0;
 extern s32 D_8009C5B4;
 extern s32 D_8009BE28;
@@ -104,7 +104,7 @@ extern void func_800750DC(void);
 extern void func_80088FF4(void);
 extern void func_80089128(void);
 extern void func_800976A0(void);
-extern void func_80084818(void);
+extern void WorldMapFreeSpriteSets(void);
 extern void func_8002DD20(void *pBlock);
 extern void func_800931D8(u8 *pSrc, u8 *pDst, s32 count, u8 *pFactors);
 extern void *D_8009BD20;
@@ -144,13 +144,13 @@ extern void func_800865A0(void);
 extern void func_80075228(void);
 extern void func_800923A8(void);
 extern void func_800925A0(void);
-extern void func_80076B34(void);
+extern void WorldMapRunSlotScript(void);
 extern void func_80078948(void);
 extern void func_80078950(void);
-extern s32 func_800838E8(s32);
+extern s32 WorldMapSetActorParams(s32);
 extern s32 func_8008390C(s32);
 extern s32 func_80083A00(s32);
-extern s32 func_80083FE4(s32);
+extern s32 WorldMapSetActorPosition(s32);
 extern s32 func_80084068(s32);
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_80082F64);
@@ -200,7 +200,7 @@ void func_80082F64(WorldMapActor *pActor, WorldMapModelOut *pOut, WorldMapModel 
 }
 */
 
-void func_80083108(WorldMapEntry *pEntry, u8 *pDst, s32 count, s32 arg3) {
+void WorldMapBuildSpritePrims(WorldMapEntry *pEntry, u8 *pDst, s32 count, s32 arg3) {
     s32 i;
 
     for (i = count - 1; i != -1; i--) {
@@ -216,7 +216,7 @@ void func_80083108(WorldMapEntry *pEntry, u8 *pDst, s32 count, s32 arg3) {
     memcpy(pEntry->unk4C, pEntry->unk48, count << 5);
 }
 
-void func_800831D8(u8 *pData, s32 count, u8 r, u8 g, s32 b) {
+void WorldMapSetSpritePrimColor(u8 *pData, s32 count, u8 r, u8 g, s32 b) {
     s32 i;
 
     for (i = count - 1; i != -1; i--) {
@@ -227,19 +227,19 @@ void func_800831D8(u8 *pData, s32 count, u8 r, u8 g, s32 b) {
     }
 }
 
-s32 func_80083214(s32 arg0) {
+s32 WorldMapSetupSpriteSetPrims(s32 arg0) {
     WorldMapEntry *pEntry = &D_8009C620[arg0 + 78];
 
-    func_80083108(pEntry, pEntry->unk48, *(u16 *)(pEntry->unk40 + 4), 3);
+    WorldMapBuildSpritePrims(pEntry, pEntry->unk48, *(u16 *)(pEntry->unk40 + 4), 3);
     return 1;
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_80083264);
 
-s32 func_800834D0(void) {
+s32 WorldMapReturnSuccess(void) {
     return 1;
 }
 
-s32 func_800834D8(s32 arg0) {
+s32 WorldMapWaitForQueueDrain(s32 arg0) {
     WorldMapActor *pActor = &D_8009BE24[arg0];
 
     if (pActor->unk4 == 1) {
@@ -255,7 +255,7 @@ s32 func_800834D8(s32 arg0) {
     }
     return 1;
 }
-void func_8008355C(void) {
+void WorldMapInitializeScene(void) {
     RECT rect;
     s32 *pVec;
 
@@ -302,22 +302,22 @@ void func_8008355C(void) {
         Vsync(0);
     } while (func_80096668() > 0);
     func_80097718((void *)func_800923A8, (void *)func_800925A0);
-    func_80097718((void *)func_800838E8, (void *)func_80076B34);
+    func_80097718((void *)WorldMapSetActorParams, (void *)WorldMapRunSlotScript);
     func_80097718((void *)func_8008390C, (void *)func_80083A00);
-    func_80097718((void *)func_80083FE4, (void *)func_80084068);
+    func_80097718((void *)WorldMapSetActorPosition, (void *)func_80084068);
     func_80097718((void *)func_80078948, (void *)func_80078950);
     func_800978FC();
     func_8008901C();
     func_800865A0();
     func_80075228();
 }
-s32 func_800837DC(void) {
+s32 WorldMapShutdownScene(void) {
     u16 v;
 
     func_80039FF8();
     func_8003852C(D_8006259C);
     HeapFree(D_8006259C);
-    func_80084818();
+    WorldMapFreeSpriteSets();
     func_80086568();
     func_800866C8();
     func_80074F04();
@@ -339,7 +339,7 @@ s32 func_800837DC(void) {
     return 1;
 }
 
-s32 func_800838E8(s32 arg0) {
+s32 WorldMapSetActorParams(s32 arg0) {
     D_8009BE24[arg0].unk50 = (u32)D_8009AC60;
     return 1;
 }
@@ -393,7 +393,7 @@ s32 func_8008390C(s32 arg0) {
 */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_80083A00);
 
-s32 func_80083FE4(s32 arg0) {
+s32 WorldMapSetActorPosition(s32 arg0) {
     WorldMapActor *pActor = &D_8009BE24[arg0];
     s32 x;
     s32 y;
@@ -464,7 +464,7 @@ void func_8008440C(void) {
 */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_80084580);
 
-void func_80084818(void) {
+void WorldMapFreeSpriteSets(void) {
     s32 i;
 
     for (i = 0; i < D_8009D7E0; i++) {
@@ -474,12 +474,12 @@ void func_80084818(void) {
     HeapFree(D_8009C620);
 }
 
-void func_800848B4(s32 arg0, s32 arg1) {
+void WorldMapSetSpriteSetParent(s32 arg0, s32 arg1) {
     D_8009C620[arg1].unk50 = &D_8009C620[arg0];
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_800848F4);
 
-s32 func_80084D00(void *pArg, s16 *pOut) {
+s32 WorldMapFindSpriteSet(void *pArg, s16 *pOut) {
     WorldMapEntry *pEntry = D_8009C620;
     s16 result;
     s16 i;

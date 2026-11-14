@@ -23,7 +23,7 @@ extern u16 D_8009B64E[];
 extern u16 D_8009B624[];
 extern u16 D_8009B626[];
 
-void func_800848B4(s32 arg0, s32 arg1);
+void WorldMapSetSpriteSetParent(s32 arg0, s32 arg1);
 void func_80087904(u8* pDst, u8* pSrc, s32 count, s32 abr);
 s32 func_800879E0(s32 arg0);
 
@@ -447,10 +447,10 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_80087C6C);
 s32 func_80087F60(void) {
     s32 value = D_8009B674[D_8009C610];
 
-    func_800848B4(value, value - 4);
-    func_800848B4(value, value - 3);
-    func_800848B4(value, value - 2);
-    func_800848B4(value, value - 1);
+    WorldMapSetSpriteSetParent(value, value - 4);
+    WorldMapSetSpriteSetParent(value, value - 3);
+    WorldMapSetSpriteSetParent(value, value - 2);
+    WorldMapSetSpriteSetParent(value, value - 1);
     return 1;
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_80087FD0);
@@ -520,7 +520,7 @@ s32 func_8008868C(void) {
             s32 vx = *pX;
             s32 vy = *pY;
 
-            func_800848B4(base + vx, base + vy);
+            WorldMapSetSpriteSetParent(base + vx, base + vy);
             pX += 2;
             pY += 2;
         } while (*pX != -1);

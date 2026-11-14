@@ -17,7 +17,7 @@ extern void* D_8009CD34;
 extern void HeapFree(void* pMem);
 extern void* func_80024524(void* pArg0, s16 arg1, s16 arg2, s16 arg3, s16 arg4, s16 arg5);
 extern void func_800245D8(void* pSprite, s32 arg1);
-extern void func_800848B4(s32 arg0, s32 arg1);
+extern void WorldMapSetSpriteSetParent(s32 arg0, s32 arg1);
 extern void SpriteSetScale(void* pSprite, s16 scale);
 extern void func_8008BFD4(s32 arg0, u32* pVec, s32 arg2, s32 arg3);
 
@@ -26,7 +26,7 @@ typedef struct {
 } Block16; // Size: 0x10
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc10", func_80088B40);
-/* 73.64%: structure confirmed (loop over D_8009AFDC calling func_800848B4(0x45,id),
+/* 73.64%: structure confirmed (loop over D_8009AFDC calling WorldMapSetSpriteSetParent(0x45,id),
    sh 0 at pDst+0x20, the 0x99 branch, then the >>12 tail shared with
    func_80088D00). Two walls, both seen elsewhere in this unit: (a) the tail
    folds +0x16A4 into the store displacements (0x16AC/0x16B0/0x16B4) where
@@ -42,7 +42,7 @@ s32 func_80088B40(s32 arg0) {
 
     pIds = D_8009AFDC;
     while (*pIds != -1) {
-        func_800848B4(0x45, *pIds);
+        WorldMapSetSpriteSetParent(0x45, *pIds);
         pIds++;
     }
     pDst = D_8009BE24 + (arg0 << 7);

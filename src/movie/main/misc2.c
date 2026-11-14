@@ -322,7 +322,7 @@ void func_80076AF0(void) {
 
 */
 
-void func_80076C68(void) {
+void WorldMapScriptOp04SetScratchPosition(void) {
     long pad[6];
     MATRIX* pMatrix;
 

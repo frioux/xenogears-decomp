@@ -149,7 +149,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_80074554);
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_800745EC);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_80074AB8);
-void func_80074D4C(void) {
+void BattleUpdateRotationBuffer(void) {
     s32 i;
 
     if (D_800D2D28[0xC6] == 0) {
@@ -257,7 +257,7 @@ void func_80076418(void) {
         func_8007500C();
         func_80074EEC();
         func_800745EC();
-        func_80074D4C();
+        BattleUpdateRotationBuffer();
         func_80073FB8();
         func_80088B80();
         func_80074AB8();

@@ -3,7 +3,7 @@
 #include "system/menu.h"
 
 extern void func_801CE198(s32 count, SVECTOR* pVertices, POLY_FT4* pPolys, u_char renderContext);
-extern void func_801D12D4(MenuCharacter* pCharacter, s32 flag);
+extern void MenuAddCharacterPrims(MenuCharacter* pCharacter, s32 flag);
 extern void func_801CE2B4(u_char length, void* pPolys, u_char renderContext);
 extern void func_801D0954(SVECTOR* pVertices, POLY_FT4* pPolys, s32 polyIndex, s32 otIndex);
 extern void func_801D09F0(s32 menuIndex, u_char hasScrollBar);
@@ -11,18 +11,18 @@ extern void func_801D09F0(s32 menuIndex, u_char hasScrollBar);
 extern void func_801CF308(void);
 extern void func_801D01D0(void);
 extern void func_801D02D8(void);
-extern void func_801D0C78(void);
-extern void func_801D0D90(void);
-extern void func_801D0E20(void);
-extern void func_801D0E38(void);
-extern void func_801D0EBC(void);
-extern void func_801D0ED4(void);
-extern void func_801D0F54(void);
-extern void func_801D0FD4(void);
-extern void func_801D1030(void);
-extern void func_801D10DC(void);
-extern void func_801D1160(void);
-extern void func_801D11F0(void);
+extern void MenuRenderWindows(void);
+extern void MenuAddUnk4E0Prims(void);
+extern void MenuDelayLoop8(void);
+extern void MenuAddSubMenuStringPrims(void);
+extern void MenuDelayLoop6(void);
+extern void MenuAddUnk10E0Prims(void);
+extern void MenuAddUnk14E0Prims(void);
+extern void MenuAddUnk17E0Prim(void);
+extern void MenuAddUnk1DE0Prims(void);
+extern void MenuAddUnk18E0Prims(void);
+extern void MenuAddUnk1BE0Prims(void);
+extern void MenuAddSpriteGroupPrims(void);
 extern void func_801CE338(void);
 extern void func_801CE3C8(void);
 extern void func_801CEC40(void);
@@ -32,10 +32,10 @@ extern void func_801CE660(void);
 extern void func_801CEB5C(void);
 extern void func_801CEBB4(void);
 extern void func_801CE464(void);
-extern void func_801D14FC(void);
-extern void func_801D1640(void);
-extern void func_801D17C4(void);
-extern void func_801D1914(void);
+extern void MenuAddUnk42CPrims(void);
+extern void MenuAddUnk430Prims(void);
+extern void MenuAddUnk434Prims(void);
+extern void MenuAddUnk438Prims(void);
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc5", func_801D09F0);
 /* Best attempt: 94.75%. Only the AddPrim argument setup differs (the original
@@ -85,7 +85,7 @@ void func_801D09F0(s32 menuIndex, u_char hasScrollBar) {
     AddPrim((void*)((u32)g_Menu->pGfxEnv + (0x70 + pWindow->zIndex * sizeof(u32))),
             &pWindow->drawModes[pWindow->renderContext]);
 }*/
-void func_801D0C78(void) {
+void MenuRenderWindows(void) {
     s32 i;
     SVECTOR rot;
     VECTOR trans;
@@ -112,7 +112,7 @@ void func_801D0C78(void) {
     }
 }
 
-void func_801D0D90(void) {
+void MenuAddUnk4E0Prims(void) {
     s32 i;
     u32 offset;
 
@@ -125,14 +125,14 @@ void func_801D0D90(void) {
     }
 }
 
-void func_801D0E20(void) {
+void MenuDelayLoop8(void) {
     s32 i;
 
     for (i = 7; i >= 0; i--) {
     }
 }
 
-void func_801D0E38(void) {
+void MenuAddSubMenuStringPrims(void) {
     s32 i;
     u32 offset;
 
@@ -145,14 +145,14 @@ void func_801D0E38(void) {
     }
 }
 
-void func_801D0EBC(void) {
+void MenuDelayLoop6(void) {
     s32 i;
 
     for (i = 5; i >= 0; i--) {
     }
 }
 
-void func_801D0ED4(void) {
+void MenuAddUnk10E0Prims(void) {
     s32 i;
     u32 offset;
 
@@ -165,7 +165,7 @@ void func_801D0ED4(void) {
     }
 }
 
-void func_801D0F54(void) {
+void MenuAddUnk14E0Prims(void) {
     s32 i;
     u32 offset;
 
@@ -178,7 +178,7 @@ void func_801D0F54(void) {
     }
 }
 
-void func_801D0FD4(void) {
+void MenuAddUnk17E0Prim(void) {
     u32 offset;
 
     if (g_Menu->pManager->unk4E) {
@@ -187,7 +187,7 @@ void func_801D0FD4(void) {
     }
 }
 
-void func_801D1030(void) {
+void MenuAddUnk1DE0Prims(void) {
     s32 i;
     MenuString* pString;
 
@@ -204,7 +204,7 @@ void func_801D1030(void) {
     }
 }
 
-void func_801D10DC(void) {
+void MenuAddUnk18E0Prims(void) {
     s32 i;
 
     for (i = 0; i < 6; i++) {
@@ -215,7 +215,7 @@ void func_801D10DC(void) {
     }
 }
 
-void func_801D1160(void) {
+void MenuAddUnk1BE0Prims(void) {
     s32 i;
     u32 offset;
 
@@ -227,24 +227,24 @@ void func_801D1160(void) {
     }
 }
 
-void func_801D11F0(void) {
-    func_801D0D90();
-    func_801D0E20();
-    func_801D0E38();
-    func_801D0EBC();
-    func_801D10DC();
-    func_801D1160();
-    func_801D0ED4();
-    func_801D0F54();
-    func_801D0FD4();
-    func_801D1030();
+void MenuAddSpriteGroupPrims(void) {
+    MenuAddUnk4E0Prims();
+    MenuDelayLoop8();
+    MenuAddSubMenuStringPrims();
+    MenuDelayLoop6();
+    MenuAddUnk18E0Prims();
+    MenuAddUnk1BE0Prims();
+    MenuAddUnk10E0Prims();
+    MenuAddUnk14E0Prims();
+    MenuAddUnk17E0Prim();
+    MenuAddUnk1DE0Prims();
 }
 
-void func_801D1258(void) {
+void MenuAddDimEffectPrims(void) {
     AddPrim(&g_Menu->pGfxEnv->ot[8], &g_Menu->unk348->polysDimEffect[g_Menu->renderContext]);
     AddPrim(&g_Menu->pGfxEnv->ot[8], &g_Menu->unk348->drawModeDimEffect[g_Menu->renderContext]);
 }
-void func_801D12D4(MenuCharacter* pCharacter, s32 flag) {
+void MenuAddCharacterPrims(MenuCharacter* pCharacter, s32 flag) {
     if (pCharacter->unkBE7 == 0) {
         return;
     }
@@ -261,31 +261,31 @@ void func_801D12D4(MenuCharacter* pCharacter, s32 flag) {
         func_801CE2B4(5, pCharacter->polys2D0, pCharacter->renderContext);
     }
 }
-void func_801D13F8(void) {
+void MenuAddCurrentCharacterPrims(void) {
     s32 i;
 
     if (g_Menu->pManager->unk46) {
         for (i = 0; i < 3; i++) {
-            func_801D12D4(g_Menu->currentCharacters[i], 1);
+            MenuAddCharacterPrims(g_Menu->currentCharacters[i], 1);
         }
     }
 }
 
-void func_801D1464(void) {
+void MenuAddScrollHandlePrims(void) {
     if (g_Menu->pManager->scrollHandleActive) {
         func_801CE198(1, g_Menu->pScrollHandle->vertices, g_Menu->pScrollHandle->polys,
                       g_Menu->pScrollHandle->renderContext);
     }
 }
 
-void func_801D14B0(void) {
+void MenuAddShoulderButtonPrims(void) {
     if (g_Menu->pManager->shoulderButtonUiActive) {
         func_801CE198(4, g_Menu->pShoulderButtonUi->vertices, g_Menu->pShoulderButtonUi->polys,
                       g_Menu->pShoulderButtonUi->renderContext);
     }
 }
 
-void func_801D14FC(void) {
+void MenuAddUnk42CPrims(void) {
     s32 i;
     u32 offset;
     u32 offset2;
@@ -314,7 +314,7 @@ void func_801D14FC(void) {
                       ((u8*)g_Menu->unk42C)[0x117D]);
     }
 }
-void func_801D1640(void) {
+void MenuAddUnk430Prims(void) {
     u32 offset;
     s32 i;
     u32 offset2;
@@ -348,7 +348,7 @@ void func_801D1640(void) {
     func_801CE198(1, (SVECTOR*)((u32)g_Menu->unk430 + 0x1050), (POLY_FT4*)((u32)g_Menu->unk430 + 0x1000),
                   ((u8*)g_Menu->unk430)[0x107D]);
 }
-void func_801D17C4(void) {
+void MenuAddUnk434Prims(void) {
     s32 i;
     u32 offset2;
     u32 offset;
@@ -378,7 +378,7 @@ void func_801D17C4(void) {
     }
 }
 
-void func_801D1914(void) {
+void MenuAddUnk438Prims(void) {
     u32 offset;
     s32 i;
     u32 offset2;
@@ -411,7 +411,7 @@ void func_801D1914(void) {
         }
     }
 }
-void func_801D1AAC(void) {
+void MenuAddArrowCursorPrims(void) {
     s32 i;
 
     for (i = 0; i < 2; i++) {
@@ -421,9 +421,9 @@ void func_801D1AAC(void) {
         }
     }
 }
-void func_801D1B20(void) {
+void MenuAddScreen0Prims(void) {
     func_801D3B00();
-    func_801D11F0();
+    MenuAddSpriteGroupPrims();
     func_801CE3C8();
     func_801CE338();
     func_801D02D8();
@@ -433,38 +433,38 @@ void func_801D1B20(void) {
     func_801CEB5C();
     func_801CEBB4();
     func_801CE464();
-    func_801D13F8();
-    func_801D1AAC();
-    func_801D14FC();
-    func_801D1640();
-    func_801D17C4();
-    func_801D1914();
-    func_801D1464();
-    func_801D14B0();
-    func_801D0C78();
+    MenuAddCurrentCharacterPrims();
+    MenuAddArrowCursorPrims();
+    MenuAddUnk42CPrims();
+    MenuAddUnk430Prims();
+    MenuAddUnk434Prims();
+    MenuAddUnk438Prims();
+    MenuAddScrollHandlePrims();
+    MenuAddShoulderButtonPrims();
+    MenuRenderWindows();
     func_801CEC40();
     func_801CF308();
 }
 
-void func_801D1BE8(void) {
+void MenuAddScreen2Prims(void) {
     func_801D3B00();
-    func_801D11F0();
+    MenuAddSpriteGroupPrims();
     func_801CE3C8();
     func_801CE338();
     func_801D02D8();
     func_801D01D0();
     func_801CEC40();
     func_801CF308();
-    func_801D0C78();
+    MenuRenderWindows();
 }
 
-void func_801D1C48(void) {
+void MenuAddScreen6Prims(void) {
     func_801D3B00();
     func_801CE3C8();
-    func_801D11F0();
+    MenuAddSpriteGroupPrims();
     func_801CE338();
     func_801D02D8();
     func_801D01D0();
-    func_801D0C78();
+    MenuRenderWindows();
     func_801CF308();
 }

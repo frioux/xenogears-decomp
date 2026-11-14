@@ -76,14 +76,14 @@ extern u32 D_8009D560;
 extern u32 D_8009D564;
 
 extern void func_8007A06C(void *, void *, int);
-extern void func_800848B4(int, int);
+extern void WorldMapSetSpriteSetParent(int, int);
 extern void func_80089160(int, void *, int);
 extern void func_80093354(VECTOR *);
 extern int func_80093A5C(int, int);
 extern void func_8003A89C(void *, int, int);
 extern void func_80039FF8(void);
 extern void func_8003852C(void *);
-extern void func_80084818(void);
+extern void WorldMapFreeSpriteSets(void);
 extern void func_80086124(void);
 extern void func_80086568(void);
 extern void func_800866C8(void);
@@ -162,7 +162,7 @@ extern void func_800865A0(void);
 extern void func_80075228(void);
 extern void func_800923A8(void);
 extern void func_800925A0(void);
-extern int func_8007DE14(int);
+extern int WorldMapSetActorScriptTables(int);
 extern void func_8007DE98(int);
 extern int func_8007E450(int);
 extern void func_8007E4E4(int);
@@ -175,13 +175,13 @@ extern int func_8007FD30(int);
 extern void func_80078948(void);
 extern void func_80078950(void);
 
-int func_8007D414(int index) {
+int WorldMapInitGroup12Actor(int index) {
     WorldMapGroup *pGroup;
     SVECTOR *pRot;
     MATRIX *pMatrix;
     WorldMapActor *pActor;
 
-    func_800848B4(0xC, 0xF);
+    WorldMapSetSpriteSetParent(0xC, 0xF);
     pGroup = &D_8009C620->unk000[12];
     pRot = &pGroup->unk18;
     pMatrix = &pGroup->unk20;
@@ -198,7 +198,7 @@ int func_8007D414(int index) {
     return 1;
 }
 
-int func_8007D4A4(int index) {
+int WorldMapUpdateGroup12Actor(int index) {
     WorldMapActor *pActor = &D_8009BE24[index];
     WorldMapRoot *pRoot = D_8009C620;
 
@@ -232,13 +232,13 @@ int func_8007D4A4(int index) {
     return 1;
 }
 
-int func_8007D600(int index) {
+int WorldMapInitGroup13Actor(int index) {
     WorldMapGroup *pGroup;
     SVECTOR *pRot;
     MATRIX *pMatrix;
     WorldMapActor *pActor;
 
-    func_800848B4(0xD, 0xE);
+    WorldMapSetSpriteSetParent(0xD, 0xE);
     pGroup = &D_8009C620->unk000[13];
     pRot = &pGroup->unk18;
     pMatrix = &pGroup->unk20;
@@ -255,7 +255,7 @@ int func_8007D600(int index) {
     return 1;
 }
 
-int func_8007D690(int index) {
+int WorldMapUpdateGroup13Actor(int index) {
     WorldMapActor *pActor = &D_8009BE24[index];
     WorldMapGroup *pGroup = &D_8009C620->unk000[13];
     SVECTOR *pScratch = (SVECTOR *)((u8 *)PSX_SCRATCH + 0xA0);
@@ -273,7 +273,7 @@ int func_8007D690(int index) {
     return 1;
 }
 
-int func_8007D774(int index) {
+int WorldMapInitGroup16Actor(int index) {
     WorldMapGroup *pGroup;
     SVECTOR *pRot;
     MATRIX *pMatrix;
@@ -295,7 +295,7 @@ int func_8007D774(int index) {
     return 3;
 }
 
-int func_8007D7FC(int index) {
+int WorldMapUpdateGroup16Actor(int index) {
     WorldMapGroup *pGroup = &D_8009C620->unk000[16];
     WorldMapActor *pActor = &D_8009BE24[index];
     s32 nPos;
@@ -390,7 +390,7 @@ void func_8007D918(void) {
     D_80062528 = func_80039850(D_80062648);
     func_80039A80(D_80062528, 0x7F, 0);
     func_80097718(func_800923A8, func_800925A0);
-    func_80097718(func_8007DE14, func_8007DE98);
+    func_80097718(WorldMapSetActorScriptTables, func_8007DE98);
     func_80097718(func_8007E450, func_8007E4E4);
     func_80097718(func_8007ECA4, func_8007EE34);
     func_80097718(func_8007F8AC, func_8007F968);
@@ -405,7 +405,7 @@ void func_8007D918(void) {
     func_800865A0();
     func_80075228();
 }
-*/void func_8007DCE0(void) {
+*/void WorldMapExitToMap1A1(void) {
     s32 nIndex;
     u16 unkWord;
     u16 unkValue;
@@ -414,7 +414,7 @@ void func_8007D918(void) {
     func_80039FF8();
     func_8003852C(D_8006259C);
     HeapFree(D_8006259C);
-    func_80084818();
+    WorldMapFreeSpriteSets();
     func_80086568();
     func_800866C8();
     func_80074F04();
@@ -436,7 +436,7 @@ void func_8007D918(void) {
     D_8006F954 = unkValue;
 }
 
-int func_8007DE14(int index) {
+int WorldMapSetActorScriptTables(int index) {
     WorldMapActor *pActor = &D_8009BE24[index];
     RECT rect;
 
@@ -523,7 +523,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007ECA4);
    evaluates the first 109*unk38 multiply after the D_8009A678 lh, keeps the
    index in $v1 and the return constant ($v0=1) in the middle of the block;
    gcc hoists the multiply and puts the return constant first. Tried: pActor
-   assigned before/after the func_800848B4 calls (after is right - it is what
+   assigned before/after the WorldMapSetSpriteSetParent calls (after is right - it is what
    puts the index in $s2 and moves addu into the first func_8007EBBC delay
    slot), nIndex declared first vs last.
 int func_8007ECA4(int index) {
@@ -534,8 +534,8 @@ int func_8007ECA4(int index) {
     SVECTOR *pRot;
     MATRIX *pMatrix;
 
-    func_800848B4(1, 2);
-    func_800848B4(1, 3);
+    WorldMapSetSpriteSetParent(1, 2);
+    WorldMapSetSpriteSetParent(1, 3);
     pRoot = D_8009C620;
     pActor = &D_8009BE24[index];
     func_8007EBBC(&pRoot->unk000[1], pRoot->unk000[1].unk48, *(u16 *)((u8 *)pRoot->unk000[1].unk40 + 4), 3);
@@ -690,13 +690,13 @@ int func_8007FD30(int index) {
 */
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007FF70);
-void func_80080218(void) {
+void WorldMapExitToMap84(void) {
     u16 unkValue;
 
     func_80039FF8();
     func_8003852C(D_8006259C);
     HeapFree(D_8006259C);
-    func_80084818();
+    WorldMapFreeSpriteSets();
     func_80086124();
     func_80086568();
     func_800866C8();
@@ -718,7 +718,7 @@ void func_80080218(void) {
     D_8006F950 = unkValue;
 }
 
-int func_8008032C(int index) {
+int WorldMapInitActorScript(int index) {
     WorldMapActor *pActor = &D_8009BE24[index];
 
     pActor->unk50 = 0;

@@ -87,7 +87,7 @@ void func_800BA59C(SpriteData* pSprite, s16 angle) {
     pSprite->step.x = ((rsin(angle) >> 1) * scale) >> 8;
     pSprite->step.z = -(((rcos(pSprite->direction) >> 1) * scale)) >> 8;
 }
-void func_800BA614(SpriteData* pSprite) {
+void BattleActorComputeFallDirection(SpriteData* pSprite) {
     VECTOR diff;
     SVECTOR vec;
     u8 out[0x10];
@@ -115,7 +115,7 @@ void func_800BA614(SpriteData* pSprite) {
                       (pSprite->moveSpeed * dy) / len;
     func_800BA59C(pSprite, angle);
 }
-void func_800BA768(SpriteData* pSprite) {
+void BattleActorUpdateFallMotion(SpriteData* pSprite) {
     VECTOR diff;
     SVECTOR vec;
     u8 out[0x10];
@@ -300,7 +300,7 @@ void func_800BACBC(s32 index, s16* p0, s16* p1, s16* p2, s16* p3, s16* p4, s16* 
     PopMatrix();
 }
 */
-void func_800BADD4(s32 index) {
+void BattleReleaseActorSlot(s32 index) {
     u8* pBase = D_800C3EB0;
     u8* pBlock;
     u8* pTail;
@@ -342,7 +342,7 @@ void func_800BADD4(s32 index) {
    into li 0x8000 + displacement (92.75%).  Everything else, frame and the
    0x8000/D24 if-block included, is exact.
 /*
-void func_800BADD4(s32 index) {
+void BattleReleaseActorSlot(s32 index) {
     u8* pBase = D_800C3EB0;
     SpriteData* pSprite;
     u8* pSlot;
@@ -367,7 +367,7 @@ void func_800BADD4(s32 index) {
     *(u32*)(pBase + index * 4 + 0x8CB8) = 0;
 }
 */
-void func_800BAEB8(s32 index) {
+void BattleActorSetFacingFromSideFlag(s32 index) {
     u8* pBase = D_800C3EB0;
     u8* pEntry = pBase + index * 4;
     u8* pCounter;
@@ -392,7 +392,7 @@ void func_800BAEB8(s32 index) {
    gcc 2.6.0, 2.7.2-cdk (cc1 rejects), -O3.  The second half (index*0x1C + 0xA
    access, the lb 0xAF compare and both calls) matches exactly under the base
    pointer form, so only this one address is wrong.
-void func_800BAEB8(s32 index) {
+void BattleActorSetFacingFromSideFlag(s32 index) {
     SpriteData* pSprite;
     s32 sfx;
 
@@ -409,7 +409,7 @@ void func_800BAF40(void) {
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800BAF48);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800BB080);
-/* 76.91%: same 0x8C8C fold as func_800BAEB8.  Retail keeps the raw
+/* 76.91%: same 0x8C8C fold as BattleActorSetFacingFromSideFlag.  Retail keeps the raw
    &D_800C3EB0 in $s0 and hoists 0x8C8C into $s4 (`li s4,0x8C8C; addu s2,s0,s4`),
    then adds 0x8CB8 with a second li+addu after the call; gcc folds 0x8CB8 into
    the symbol base (lui s0,0x1; addiu s0,-29512) and uses -0x2C for the other
@@ -417,7 +417,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800BB080);
    The call through pSprite->field_0x6C+0xC, the three break tests and the
    func_800B14CC tail are otherwise identical.
    Also tried: named pointer locals for the two zero stores (the ppSlot trick
-   that closed func_800BAEB8 and func_800BADD4 here); loop.c then hoists BOTH
+   that closed BattleActorSetFacingFromSideFlag and BattleReleaseActorSlot here); loop.c then hoists BOTH
    0x8C8C and 0x8CB8 into callee-saved registers and the frame grows to 0x30.
 void func_800BB080(s32 arg0) {
     u8* pEntry = D_800C3EB0;

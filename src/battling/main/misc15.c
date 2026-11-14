@@ -306,7 +306,7 @@ void func_8008CA00(u8* pObj, u8* pSrc) {
     *(Words4*)(pObj + 0x38) = *(Words4*)(pObj + 0x20);
     *(Words2*)(pObj + 0x48) = *(Words2*)(pObj + 0x30);
 }
-void func_8008CA84(u8* pObj, u8* pOT) {
+void BattleAddTri3Prim(u8* pObj, u8* pOT) {
     u8* pRef;
     u8* pPkt;
     s32 i;

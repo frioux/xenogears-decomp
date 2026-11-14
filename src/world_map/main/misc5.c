@@ -75,11 +75,11 @@ extern s16 D_8006F94E;
 extern s16 D_8006F950;
 extern s16 D_8006F954;
 extern s32 D_8009BBC4;
-extern void func_800848B4(int, int);
+extern void WorldMapSetSpriteSetParent(int, int);
 extern void HeapFree(void *pMem);
 extern void func_80039FF8(void);
 extern void func_8003852C(void *p);
-extern void func_80084818(void);
+extern void WorldMapFreeSpriteSets(void);
 extern void func_80086568(void);
 extern void func_800866C8(void);
 extern void func_80074F04(void);
@@ -237,9 +237,9 @@ int func_8007BB60(int idx) {
     WorldMapWork *pWork;
     WorldMapPlayer *pPlayer;
 
-    func_800848B4(0, 1);
-    func_800848B4(0, 2);
-    func_800848B4(0, 3);
+    WorldMapSetSpriteSetParent(0, 1);
+    WorldMapSetSpriteSetParent(0, 2);
+    WorldMapSetSpriteSetParent(0, 3);
     pWork = D_8009C620;
     pPlayer = D_8009BE24 + idx;
     pPlayer->unk50 = 0;
@@ -260,7 +260,7 @@ void func_8007C260(void) {
     func_80039FF8();
     func_8003852C(D_8006259C);
     HeapFree(D_8006259C);
-    func_80084818();
+    WorldMapFreeSpriteSets();
     func_80086568();
     func_800866C8();
     func_80074F04();
@@ -345,10 +345,10 @@ int func_8007CC6C(int idx) {
     WorldMapPlayer *pPlayer;
     WorldMapRotBlock *pBlock;
 
-    func_800848B4(4, 0);
-    func_800848B4(4, 2);
-    func_800848B4(4, 1);
-    func_800848B4(4, 3);
+    WorldMapSetSpriteSetParent(4, 0);
+    WorldMapSetSpriteSetParent(4, 2);
+    WorldMapSetSpriteSetParent(4, 1);
+    WorldMapSetSpriteSetParent(4, 3);
     pWork = D_8009C620;
     pBlock = (WorldMapRotBlock *)&((u8 *)pWork)[0x150];
     pBlock->unk0 = 0;
@@ -404,7 +404,7 @@ int func_8007CE84(int idx) {
     WorldMapPlayer *pPlayer;
     WorldMapRotBlock *pBlock;
 
-    func_800848B4(5, 6);
+    WorldMapSetSpriteSetParent(5, 6);
     pWork = D_8009C620;
     pBlock = (WorldMapRotBlock *)&((u8 *)pWork)[0x1A4];
     pBlock->unk0 = 0;
@@ -462,8 +462,8 @@ int func_8007D078(int idx) {
     WorldMapPlayer *pPlayer;
     WorldMapRotBlock *pBlock;
 
-    func_800848B4(9, 7);
-    func_800848B4(9, 8);
+    WorldMapSetSpriteSetParent(9, 7);
+    WorldMapSetSpriteSetParent(9, 8);
     pWork = D_8009C620;
     pBlock = (WorldMapRotBlock *)&((u8 *)pWork)[0x2F4];
     pBlock->unk0 = 0;
@@ -507,7 +507,7 @@ int func_8007D228(int idx) {
     WorldMapWork *pWork;
     WorldMapPlayer *pPlayer;
 
-    func_800848B4(0xA, 0xB);
+    WorldMapSetSpriteSetParent(0xA, 0xB);
     pWork = D_8009C620;
     pWork->unk348 = 0;
     pWork->unk360.vx = pWork->unk360.vy = pWork->unk360.vz = 0;
