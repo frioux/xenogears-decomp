@@ -176,27 +176,23 @@ void func_80076D58(u8 *pInfo, u8 flag, u8 mode) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_80076D58);
-/* 98.15%: ONE instruction left, the first loop's address addu: retail has
-   `addu s0,s5,s0` (base first, s5 = sp+0x10), ours `addu s0,s0,s5`. The
-   prologue save order (round 43) is gcc emitting the callee-saved save+init
-   pair in order of FIRST ASSIGNMENT, so `i = 0;` has to be the first statement
-   (with `for (; i < 11; i++)`) - retail saves s2/moves s2 zero before s4/s3/s1.
-   That alone took 96.80 -> 98.15. Everything else is byte-exact: both
-   SystemRenderStringEntry calls, the chained `D_800D2F3E[off] = pEntry[2] =
-   0x78;` / `D_800D2F3F[off] = pEntry[3] = h;` stores (the chained form is what
-   reproduces retail's shared `li v0,0x78` / `move v0,s3`), the rect stores, the
-   HeapFree loop, and the third loop driven by a byte offset
-   (`*(u8 **)((u8 *)D_800C3E5C + off2)`, off2 += 4 - the plain
-   `D_800C3E5C + off` form double-scales because the symbol is typed u8 *).
-   For the addu order, tried and NOT it: pSlot = pBuf + i (gives retail's
-   operand order but +4 bytes: the address math moves above the call, so
-   `li a0,0x1B` is no longer last before the jal and reorg also copies it into
-   the loop-back bnez delay slot, 468 bytes / 90.83), i[pBuf], `*(pBuf + i)`,
-   `*(u8 **)((u8 *)pBuf + i * 4)`, `*(u8 **)((s32)i * 4 + (s32)pBuf)`, and a
-   pValue temp for the call result - all give index-first. Operand order is
-   not source-driven here; it is a combine/allocator tie.
-*/
-/*
+/* 98.19%: every instruction but ONE operand order is byte-exact (464 bytes,
+   same frame, same save order). Retail's store into the local packet-pointer
+   array is `sll s0,s2,2 / addiu s5,sp,0x10 / addu s0,s5,s0` (base first), we
+   get `addu s0,s0,s5`. `pBuf[i]`, i[pBuf], *(pBuf+i), (u8 *)pBuf + i * 4,
+   (s32)i * 4 + (s32)pBuf and a `u8 **pBase = pBuf;` local all give index-first,
+   so the order is a combine/allocator choice, not source-driven. A separate
+   `pSlot = pBuf + i` statement does give retail's order, but the address is
+   then formed before the call (468 bytes, `li a0,0x1B` falls out of the jal
+   delay slot, 90.83).
+   Two things this body had to get right: `i = 0;` must be the first statement
+   (not the for-init) because the prologue's save+init pairs are emitted in
+   first-assignment order and retail saves s2 first (96.80 -> 98.15); and the
+   third loop's offset must be zeroed in the for-init clause
+   (`for (i = 0, off2 = 0; ...)`) so `move s1,zero` lands after `li s3,0xD`
+   where retail has it (98.15 -> 98.19). That third loop walks a byte offset
+   because D_800C3E5C is typed u8 *, so `D_800C3E5C + off` double-scales.
+   Parked body (98.19):
 void func_80076EA4(void) {
     u8 *pBuf[11];
     RECT rect;
@@ -237,8 +233,7 @@ void func_80076EA4(void) {
     for (i = 0; i < 11; i++) {
         HeapFree(*p++);
     }
-    off2 = 0;
-    for (i = 0; i < 0xA; i++) {
+    for (i = 0, off2 = 0; i < 0xA; i++) {
         rect.x = 0x3DE + i * 2;
         rect.y = 0x100;
         rect.w = 6;
