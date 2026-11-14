@@ -1021,19 +1021,19 @@ func_800379D0 = 0x800379D0;
 func_800379D8 = 0x800379D8;
 
 // system/controller_b
-func_80035E44 = 0x80035E44;
+ControllerUpdatePlayTime = 0x80035E44;
 ControllerDumpVramToTim = 0x80035F1C;
 func_80035FF8 = 0x80035FF8;
-func_8003611C = 0x8003611C;
-func_80036188 = 0x80036188;
-func_80036220 = 0x80036220;
-func_80036258 = 0x80036258;
-func_80036270 = 0x80036270;
-func_8003633C = 0x8003633C;
+ControllerResetActuators = 0x8003611C;
+ControllerUpdateActuatorState = 0x80036188;
+ControllerUpdateActuators = 0x80036220;
+ControllerSetActuatorDuration = 0x80036258;
+ControllerSetActuatorDisabled = 0x80036270;
+ControllerSetControllerFlag = 0x8003633C;
 ControllerUpdate = 0x8003634C;
 ControllerSetDebugBreak = 0x800363E0;
 ControllerSetFrameCallback = 0x800363F0;
-func_80036400 = 0x80036400;
+ControllerSetFlag80050200 = 0x80036400;
 ControllerIsStateStackFull = 0x80036410;
 
 // system/controller_c
@@ -1374,3 +1374,10 @@ SpriteAnimFrameListReset = 0x8001D298;
 SpriteAnimFrameListClear = 0x8001D2A4;
 SpriteAnimFrameListRemove = 0x8001D3F4;
 SpriteAnimFrameListFlush = 0x8001D468;
+SpriteEnsureDirTransforms = 0x8001D4E8;
+SpriteDrawFrame = 0x8001E298;
+SpriteDrawFrameKeepTop = 0x8001E2F8;
+SpriteDrawFrameKeepBottom = 0x8001E368;
+SpriteAnimPackageGetFrameCount = 0x8001EE74;
+SpriteNextVramSlot = 0x8001F530;
+SpriteApplyFrameDirTransforms = 0x8001F8E8;

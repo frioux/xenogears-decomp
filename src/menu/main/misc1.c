@@ -19,7 +19,7 @@ void MenuLoadStringsFromIds(s32 arg0, void* pArg1, void* pArg2, void* pArg3);
 void func_801E8474(s32 arg0, void* pArg1);
 extern int ArchiveGetDiscNumber(void);
 void MenuWaitForDiscChange(u_char arg0);
-s32 func_801CACF8(u_char a0, u_char a1, u_char a2);
+s32 MenuLoadWindow2Text(u_char a0, u_char a1, u_char a2);
 void MenuStartOpenAnimation(void);
 void MenuSetupPointerCursors(s32 arg0);
 
@@ -105,8 +105,8 @@ void MenuCdChangeMain(void) {
         MenuRenderFrame();
     }
     MenuSetupPointerCursors(0);
-    if ((u_char)func_801CACF8(0x7D, 0xFF, 1) != 0 || D_801EA8FC != 0) {
-        if (func_801CACF8(0x80, 0xFF, 1) != 0) {
+    if ((u_char)MenuLoadWindow2Text(0x7D, 0xFF, 1) != 0 || D_801EA8FC != 0) {
+        if (MenuLoadWindow2Text(0x80, 0xFF, 1) != 0) {
             shouldReset = 0;
         }
     }

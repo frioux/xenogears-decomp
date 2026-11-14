@@ -13,6 +13,7 @@ extern u8 D_800C3E04;
 extern u8 D_800C3E50;
 extern u8 D_800D2DC4;
 extern u8 *D_800D2D6C;
+extern u8 *D_800D2DC8;
 
 extern u8 D_800D220E[];
 extern u16 D_800D2C98;
@@ -78,6 +79,143 @@ void BattleRollAndClearTargetConditions(void) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80095D4C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80096018);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80096494);
+/* best: 93.04%. Same block layout and instruction multiset (226 vs 227); every
+   branch, the two duplicated (elemAtk & elem2) blocks, the element case tree,
+   the /10 pair and the two /5 tails line up instruction for instruction. Left:
+   register allocation (retail weak=t6, bitAtk=t5, elemDef=t2; ours weak=t5,
+   bitAtk=t2, elemDef=a0), retail's base-first `addu v0,a0,v0` on the
+   actor[sel].unk15A stride (both `pBase + sel * 0x170` and
+   `sel * 0x170 + (s32)pBase` give index-first), and one extra
+   `andi v0,t1,0xff` on the second `elemAtk & pair` (retail does the AND in
+   QImode because its result only feeds a compare against 0). Notes for the next
+   attempt: `weak`/`hitB` must be s32 (a u8 costs an andi at each test),
+   `hitA` is u8 (its test takes andi 0xff), and the switch needs a hoisted
+   `mask = elem2 << 8` local - that is what makes retail emit the single
+   `sll v1,t2,0x8` before the case chain. Tried: u8 vs s32 weak/hitB, nested vs
+   && for the elemAtk == 0 guard, declaration order, u16 vs u8 elemAtk.
+void func_80096494(u16 *pA, u16 *pB, u8 *pFlag) {
+    u8 *pBase;
+    u8 bitAtk;
+    u8 bitDef;
+    u8 elemAtk;
+    u8 elemDef;
+    u8 elem2;
+    s32 weak = 0;
+    u8 hitA = 0;
+    s32 hitB;
+    u16 pair;
+    u16 m;
+    u16 mask;
+    s8 mul;
+    u8 mul2;
+
+    pBase = D_800C34B0;
+    bitAtk = *(u8 *)(pBase + D_800C3E50 * 0x170 + 0x15A) >> 7;
+    elemAtk = D_800C3DFC[0x22] & 0x3F;
+    elemDef = D_800C3E34[0x38] & 0x3F;
+    bitDef = *(u8 *)(pBase + D_800C3E04 * 0x170 + 0x15A) >> 7;
+    if (bitDef == 0) {
+        pair = *(u16 *)(D_800C3E00 + 0x8C) | *(u16 *)(D_800C3E00 + 0x8E);
+    } else {
+        pair = *(u16 *)(D_800D2D6C + 0x84) | *(u16 *)(D_800D2D6C + 0x86);
+    }
+    pair >>= 12;
+    if (*(u16 *)(D_800C3DFC + 0xA) & 0x100) {
+        weak = 1;
+    }
+    if (elemAtk == 0) {
+        if (pair != 0) {
+            elemAtk = pair;
+        }
+    }
+    if (elemAtk & pair) {
+        hitA = 1;
+    }
+    mul = 10;
+    mul2 = 10;
+    if (elemAtk & elemDef) {
+        if (*(u16 *)(D_800C3E34 + 0x38) & 0x40) {
+            mul = 0x12;
+        } else {
+            mul = 0xF;
+        }
+        if (hitA) {
+            mul += 2;
+        }
+    }
+    if (bitAtk == 0) {
+        m = *(u16 *)(D_800C3E34 + 0x8C) | *(u16 *)(D_800C3E34 + 0x8E);
+        elem2 = (m & 0xF00) >> 8;
+        hitB = (m >> 1) & 1;
+    } else {
+        hitB = 0;
+        m = *(u16 *)(D_800D2DC8 + 0x84) | *(u16 *)(D_800D2DC8 + 0x86);
+        elem2 = (m & 0xF00) >> 8;
+        if (m & 2) {
+            hitB = 1;
+        }
+    }
+    if (elemAtk & elem2) {
+        if (weak) {
+            mul -= 3;
+            if (m & 4) {
+                mul -= 3;
+            }
+            if (m & 8) {
+                *pFlag = 4;
+            }
+        }
+    }
+    if (elemAtk & elem2) {
+        if (hitB) {
+            mul -= 3;
+            if (m & 4) {
+                mul -= 3;
+            }
+            if (m & 8) {
+                *pFlag = 4;
+            }
+        }
+    }
+    mask = elem2 << 8;
+    switch (elemAtk) {
+    case 1:
+        if (mask & 0x200) {
+            mul += 3;
+        }
+        break;
+    case 2:
+        if (mask & 0x100) {
+            mul += 3;
+        }
+        break;
+    case 4:
+        if (mask & 0x800) {
+            mul += 3;
+        }
+        break;
+    case 8:
+        if (mask & 0x400) {
+            mul += 3;
+        }
+        break;
+    }
+    if (mul < 1) {
+        mul = 1;
+    }
+    if (mul2 == 0) {
+        mul2 = 1;
+    }
+    *pA = *pA * mul / 10;
+    *pB = mul2 * *pB / 10;
+    if (*(u16 *)(D_800C3E00 + 0x32) & 0x10) {
+        *pA += *pA / 5;
+    }
+    if (*(u16 *)(D_800C3E34 + 0x32) & 0x10) {
+        *pB += *pB / 5;
+    }
+}
+*/
 void BattleRollPercentAndSetState38(void) {
     s32 t = D_800C3E00[0x5B] + D_800C3DFC[0x14];
 

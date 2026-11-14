@@ -3,13 +3,15 @@
 #include "psyq/libgte.h"
 
 typedef struct {
-    /* 0x00 */ u8 unk0[0x20];
-    /* 0x20 */ u16 unk20;
+    /* 0x00 */ u8 unk0[0x4];
+    /* 0x04 */ s16 unk4;
+    /* 0x06 */ u8 unk6[0x1A];
+    /* 0x20 */ s16 unk20;
     /* 0x22 */ u16 unk22;
     /* 0x24 */ u8 unk24[0x4];
-    /* 0x28 */ u32 unk28;
-    /* 0x2C */ u32 unk2C;
-    /* 0x30 */ u32 unk30;
+    /* 0x28 */ s32 unk28;
+    /* 0x2C */ s32 unk2C;
+    /* 0x30 */ s32 unk30;
     /* 0x34 */ u8 unk34[0x4];
     /* 0x38 */ u32 unk38;
     /* 0x3C */ u32 unk3C;
@@ -30,7 +32,8 @@ typedef struct {
 
 typedef struct {
     /* 0x00 */ s16 unk0;
-    /* 0x02 */ u8 unk2[0x16];
+    /* 0x02 */ u8 unk2[0x6];
+    /* 0x08 */ WorldMapPos pos;
     /* 0x18 */ SVECTOR rot;
     /* 0x20 */ MATRIX mat;
     /* 0x40 */ u8 unk40[0x14];
@@ -606,37 +609,37 @@ int WorldMapInitGroup4Actor(int idx) {
     return 1;
 }
 int WorldMapUpdateGroup4Actor(int idx) {
-    u8 *pPlayer = (u8 *)D_8009BE24 + (idx << 7);
-    u8 *pBlock = (u8 *)D_8009C620 + 0x150;
-    u16 *pScratch = (u16 *)0x1F800000;
+    WorldMapPlayer *pPlayer = D_8009BE24 + idx;
+    WorldMapRotBlock *pBlock = (WorldMapRotBlock *)&((u8 *)D_8009C620)[0x150];
+    u16 *pScratchPos = (u16 *)0x1F800000;
     s16 mode;
 
-    mode = *(s16 *)(pPlayer + 4);
+    mode = pPlayer->unk4;
     if (mode == 1) {
-        *(s16 *)(pPlayer + 4) = 0;
-        *(s16 *)(pPlayer + 0x20) = 1;
+        pPlayer->unk4 = 0;
+        pPlayer->unk20 = 1;
     } else if (mode == 2) {
-        *(s16 *)(pPlayer + 4) = 0;
-        *(s16 *)(pPlayer + 0x20) = 2;
+        pPlayer->unk4 = 0;
+        pPlayer->unk20 = 2;
     }
-    *(s32 *)(pPlayer + 0x30) += *(s32 *)(pPlayer + 0x40);
-    WorldMapWrapPosition(pPlayer + 0x28);
-    *(s32 *)(pBlock + 8) = *(s32 *)(pPlayer + 0x28) >> 12;
-    *(s32 *)(pBlock + 0xC) = *(s32 *)(pPlayer + 0x2C) >> 12;
-    *(s32 *)(pBlock + 0x10) = *(s32 *)(pPlayer + 0x30) >> 12;
-    pScratch[0x50] = *(s32 *)(pPlayer + 0x28) >> 12;
-    pScratch[0x51] = *(s32 *)(pPlayer + 0x2C) >> 12;
-    pScratch[0x52] = *(s32 *)(pPlayer + 0x30) >> 12;
-    func_80089160(0x13, (void *)&pScratch[0x50], 0);
-    switch (*(s16 *)(pPlayer + 0x20)) {
+    pPlayer->unk30 += pPlayer->unk40;
+    WorldMapWrapPosition(&pPlayer->unk28);
+    pBlock->pos.x = pPlayer->unk28 >> 12;
+    pBlock->pos.y = pPlayer->unk2C >> 12;
+    pBlock->pos.z = pPlayer->unk30 >> 12;
+    pScratchPos[0x50] = pPlayer->unk28 >> 12;
+    pScratchPos[0x51] = pPlayer->unk2C >> 12;
+    pScratchPos[0x52] = pPlayer->unk30 >> 12;
+    func_80089160(0x13, (void *)&pScratchPos[0x50], 0);
+    switch (pPlayer->unk20) {
     case 1:
-        func_80089160(0x1F, (void *)&pScratch[0x50], 0);
+        func_80089160(0x1F, (void *)&pScratchPos[0x50], 0);
         /* fallthrough */
     case 0:
-        D_8009D564 = *(s32 *)(pPlayer + 0x30);
+        D_8009D564 = pPlayer->unk30;
         break;
     case 2:
-        func_80089160(0x1F, (void *)&pScratch[0x50], 0);
+        func_80089160(0x1F, (void *)&pScratchPos[0x50], 0);
         break;
     }
     return 1;

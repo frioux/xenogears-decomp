@@ -17,12 +17,12 @@ extern int MenuFreeWindow2Strings(void);
 extern void func_801CB184(void);
 extern int func_801C8D78(u_char);
 extern void MenuRenderFrame(void);
-extern u_char func_801CACF8(u_char, u_char, u_char);
+extern u_char MenuLoadWindow2Text(u_char, u_char, u_char);
 extern void SystemDecodeGlyphCodesN(u16* pInput, u8* pOutput, int count);
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801C8D78);
 
-void func_801C8EE8(void) {
+void MenuRunCardSlotOperations(void) {
     switch (g_Menu->menuUnk2->unk4FE6) {
     case 1:
         if (g_Menu->menuUnk2->unk4F84[4] == 0) {
@@ -51,7 +51,7 @@ void func_801C8EE8(void) {
     }
 }
 
-int func_801C9038(u8* pPath, u8* pBuffer) {
+int MenuReadFileChunk(u8* pPath, u8* pBuffer) {
     int fd;
 
     fd = open(pPath, 3);
@@ -102,7 +102,7 @@ void func_801C90B0(u_char a0, u_char a1) {
     strcpy(path, (char*)&prefix);
     strcat(path, g_Menu->menuUnk2->records[a0 * 0x10 + a1].ids);
     while (1) {
-        if (func_801C9038((u8*)path, g_Menu->menuUnk2->chunks[a0 * 0x10 + a1].pad0) != -1) {
+        if (MenuReadFileChunk((u8*)path, g_Menu->menuUnk2->chunks[a0 * 0x10 + a1].pad0) != -1) {
             break;
         }
         if (--retry == 0) {
@@ -219,7 +219,7 @@ u_char func_801C9BCC(s32 a0) {
 }
 */
 
-s32 func_801C9D34(s32 a0) {
+s32 MenuFindFirstValidSlot(s32 a0) {
     s32 result = 0xFF;
     s32 searching = 1;
     s32 start;
@@ -397,7 +397,7 @@ void func_801CA8C0(u_char a0) {
 */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CA8C0);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CAA38);
-u_char func_801CACF8(u_char a0, u_char a1, u_char a2) {
+u_char MenuLoadWindow2Text(u_char a0, u_char a1, u_char a2) {
     u_char result;
 
     func_801D2F4C(a0);
@@ -413,7 +413,7 @@ u_char func_801CACF8(u_char a0, u_char a1, u_char a2) {
     return result;
 }
 
-void func_801CADB0(void) {
+void MenuResetSlotSelection(void) {
     g_Menu->menuUnk2->unk4F80 = 0xFF;
     g_Menu->menuUnk2->unk4F7C = 0;
     if (g_Menu->menuUnk2->unk4FE4 == 0 && g_Menu->menuUnk2->unk4FE5 != 0) {
@@ -460,7 +460,7 @@ void func_801CB184(void) {
 }
 */
 
-void func_801CB28C(u32* pSrc) {
+void MenuApplySaveSlot(u32* pSrc) {
     int i;
 
     func_801E4D10(pSrc, g_Menu->pDressingRoom);
@@ -472,7 +472,7 @@ void func_801CB28C(u32* pSrc) {
 }
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CB304);
-u_char func_801CB8AC(u_char a0) {
+u_char MenuWaitForCardStatusChange(u_char a0) {
     MenuUnk2* pMenu;
     u8 prev[2];
     u_char changed;
@@ -495,11 +495,11 @@ u_char func_801CB8AC(u_char a0) {
     }
     MenuFreeWindow2Strings();
     if (changed == 0) {
-        result = func_801CACF8(0x2F, 0xFF, 1);
+        result = MenuLoadWindow2Text(0x2F, 0xFF, 1);
     }
     return result;
 }
-u_char func_801CB9E8(u_char a0, u_char a1) {
+u_char MenuFindFreeChunkIndex(u_char a0, u_char a1) {
     u_char found;
     int i;
 

@@ -1,6 +1,11 @@
 #include "common.h"
 #include "psyq/libgpu.h"
 
+extern u8 *D_800C3E24;
+extern u8 D_800CCB34;
+extern u8 D_800D2D24[];
+extern u8 D_800D3294;
+extern u8 *D_800D2F5C;
 extern u8 *D_800C3EA4;
 extern u8 *D_800C3EAC;
 extern u8 *D_800D2D28;
@@ -30,6 +35,7 @@ extern void HeapFree(void *pMem);
 extern u8 *GetStringEntry(u8 *, s32);
 extern s32 SystemRenderStringEntry(u8 *, void *, s32, s32);
 extern void BattleLoadImageAndSync(RECT *, u_long *);
+extern void ResourceHelperGetTexCoords(void *, u32, s32 *, s32 *, s32 *, s32 *, s32 *, s32 *);
 extern void bzero(void *p, s32 n);
 extern void func_8008F8F4(s32 arg0, u16 arg1, u16 arg2, u16 arg3, u16 arg4, u8 arg5, u8 arg6);
 extern void *BattleAllocTextBuffer(s32 arg0);
@@ -329,7 +335,65 @@ void BattleFreePacketPrimitives(void) {
     HeapFree(*(u8 **)(D_800C3EA4 + 0xA230));
 }
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_80077698);
+void func_80077698(void) {
+    s32 i;
+    s32 j;
+
+    bzero(D_800C3E24, 0xEC);
+    for (i = 0; i < 4; i++) {
+        for (j = 0; j < 2; j++) {
+            SetPolyG3((POLY_G3 *)((i * 2 + j) * 0x1C + (mem_addr)D_800C3E24));
+            switch (i) {
+            case 0:
+                ((POLY_G3 *)(D_800C3E24 + (i * 2 + j) * 0x1C))->x0 = 0xC0;
+                ((POLY_G3 *)(D_800C3E24 + (i * 2 + j) * 0x1C))->y0 = 0x70;
+                ((POLY_G3 *)(D_800C3E24 + (i * 2 + j) * 0x1C))->x1 = 0xB0;
+                ((POLY_G3 *)(D_800C3E24 + (i * 2 + j) * 0x1C))->y1 = 0x78;
+                ((POLY_G3 *)(D_800C3E24 + (i * 2 + j) * 0x1C))->x2 = 0xB0;
+                ((POLY_G3 *)(D_800C3E24 + (i * 2 + j) * 0x1C))->y2 = 0x68;
+                break;
+            case 1:
+                ((POLY_G3 *)(D_800C3E24 + (i * 2 + j) * 0x1C))->x0 = 0xA0;
+                ((POLY_G3 *)(D_800C3E24 + (i * 2 + j) * 0x1C))->y0 = 0x90;
+                ((POLY_G3 *)(D_800C3E24 + (i * 2 + j) * 0x1C))->x1 = 0x98;
+                ((POLY_G3 *)(D_800C3E24 + (i * 2 + j) * 0x1C))->y1 = 0x80;
+                ((POLY_G3 *)(D_800C3E24 + (i * 2 + j) * 0x1C))->x2 = 0xA8;
+                ((POLY_G3 *)(D_800C3E24 + (i * 2 + j) * 0x1C))->y2 = 0x80;
+                break;
+            case 2:
+                ((POLY_G3 *)(D_800C3E24 + (i * 2 + j) * 0x1C))->x0 = 0x80;
+                ((POLY_G3 *)(D_800C3E24 + (i * 2 + j) * 0x1C))->y0 = 0x70;
+                ((POLY_G3 *)(D_800C3E24 + (i * 2 + j) * 0x1C))->x1 = 0x90;
+                ((POLY_G3 *)(D_800C3E24 + (i * 2 + j) * 0x1C))->y1 = 0x68;
+                ((POLY_G3 *)(D_800C3E24 + (i * 2 + j) * 0x1C))->x2 = 0x90;
+                ((POLY_G3 *)(D_800C3E24 + (i * 2 + j) * 0x1C))->y2 = 0x78;
+                break;
+            case 3:
+                ((POLY_G3 *)(D_800C3E24 + (i * 2 + j) * 0x1C))->x0 = 0xA0;
+                ((POLY_G3 *)(D_800C3E24 + (i * 2 + j) * 0x1C))->y0 = 0x50;
+                ((POLY_G3 *)(D_800C3E24 + (i * 2 + j) * 0x1C))->x1 = 0x98;
+                ((POLY_G3 *)(D_800C3E24 + (i * 2 + j) * 0x1C))->y1 = 0x60;
+                ((POLY_G3 *)(D_800C3E24 + (i * 2 + j) * 0x1C))->x2 = 0xA8;
+                ((POLY_G3 *)(D_800C3E24 + (i * 2 + j) * 0x1C))->y2 = 0x60;
+                break;
+            }
+            ((u8 *)D_800C3E24)[(i * 2 + j) * 0x1C + 4] = 0xFF;
+            ((u8 *)D_800C3E24)[(i * 2 + j) * 0x1C + 5] = 0;
+            ((u8 *)D_800C3E24)[(i * 2 + j) * 0x1C + 6] = 0;
+            ((u8 *)D_800C3E24)[(i * 2 + j) * 0x1C + 0xC] = 0x40;
+            ((u8 *)D_800C3E24)[(i * 2 + j) * 0x1C + 0xD] = 0;
+            ((u8 *)D_800C3E24)[(i * 2 + j) * 0x1C + 0xE] = 0;
+            ((u8 *)D_800C3E24)[(i * 2 + j) * 0x1C + 0x14] = 0x40;
+            ((u8 *)D_800C3E24)[(i * 2 + j) * 0x1C + 0x15] = 0;
+            ((u8 *)D_800C3E24)[(i * 2 + j) * 0x1C + 0x16] = 0;
+        }
+    }
+    *(s32 *)(D_800C3E24 + 0xE0) = 0xFF;
+    D_800C3E24[0xE5] = 1;
+    D_800C3E24[0xE4] = D_800CCB34;
+    D_800D2D28[0xC6] = 1;
+}
+
 void BattleClearFlagC6(void) {
     D_800D2D28[0xC6] = 0;
 }
@@ -417,55 +481,77 @@ void func_8007819C(void) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_8007819C);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_80078310);
-/* 99.80%: only the two `sh` in the then-branch are swapped (original stores
-   [i+0xB] first, then [i]); the prologue pointer derivation, both loop
-   increments and the whole else-branch are identical. The primary induction
-   register is chosen from the giv of the then-branch's FIRST store, so making
-   that store [i+0xB] (the original's order) turns the base into
-   %lo(D_800D2DF0+0x16) and derives the other pointers from it, which costs
-   3 addius. Tried: then [i],[i+0xB] / else [i+0xB],[i] (this one),
-   both branches [i],[i+0xB], both [i+0xB],[i].
-   The blocker is precise: gcc picks the base giv from the FIRST D_800D2DF0
-   store in the loop body, so with all four stores [i+0xB]-first the prologue
-   becomes `addiu v0,%lo+0x16` and needs a third addiu (91.04%); the original
-   keeps base+0 while its two `sh` are [i+0xB]-first, i.e. store order and giv
-   order disagree there. else-branch order does not influence it (99.57%).
+/* 56.44%: first attempt, body below. The locals are right and they are the
+   hard part: retail's frame is 0xC8 with a TIM_IMAGE at sp+0x20 (ReadTIM's
+   output) and a 3-element array at sp+0x38 of a 0x18-byte struct, whose SIX
+   s32 fields are exactly ResourceHelperGetTexCoords' six out-pointers
+   (count, texPageId, clutX, clutY, texPageX, texPageY - see
+   system/temp2.c:539 for that signature and member_change_menu/main/misc.c:357
+   for the call shape). Retail also keeps running offsets in two stack slots
+   (sp+0x90 += 6, sp+0x98 += 0x18) because it runs out of saved registers: six
+   address givs (array base and each field) plus i, n, arg0, arg1.
+   Unresolved when I ran out of time:
+   1. the tex entry stride is 0x460 (sll/subu/sll chain on the index byte) and
+      the TIM base is arg0, i.e. OpenTIM((u_long *)(pTimData + n * 0x460));
+   2. the two D_800D2D24[i] loads and the `D_800D3294 != 0` guard: retail's
+      second test is `sltiu s2,2` on a counter that starts at -1 and is the
+      D_800D2D24 index minus one, i.e. the guard is `i != 0` in some spelling
+      gcc re-based onto that biv (0xB replaces the index for the non-first
+      entries);
+   3. mine came out 356 bytes against retail's 504, so the loop was optimised
+      much harder than retail's - the six &coords[i].field arguments must be
+      taken through one index expression gcc keeps as six bivs, not as
+      coords[i].field.
+   Parked body (56.44):
+typedef struct {
+    s32 count;
+    s32 texPageId;
+    s32 clutX;
+    s32 clutY;
+    s32 texPageX;
+    s32 texPageY;
+} BattleTextureCoords;
 
-   99.80% body (everything identical but the then-branch's two sh swapped):
-void func_80078508(u8 *pOut) {
+void func_80078310(u8 *pTimData, u8 index) {
+    TIM_IMAGE tim;
+    BattleTextureCoords coords[3];
     s32 i;
-    u16 value;
+    s32 texPageYOffset;
+    s32 yOffset;
 
-    for (i = 0; i < 11; i++) {
-        if (D_800D2DCC[i] != 0) {
-            value = func_80098AF8(i, 0);
-            D_800D2DF0[i] = value;
-            D_800D2DF0[i + 0xB] = value;
-        } else {
-            D_800D2DF0[i + 0xB] = 0xFF;
-            D_800D2DF0[i] = 0xFF;
+    i = 0;
+    texPageYOffset = 0;
+    yOffset = 0;
+    for (; i < 3; i++) {
+        s32 n;
+
+        if (D_800D2D24[i] == 0x7F) {
+            continue;
         }
-        D_800D2DE4[i] = 0;
-        D_800D2DF0[i + 0x16] = 0;
-        pOut[i] = 0;
+        n = D_800D2D24[i];
+        if (D_800D3294 != 0 && i != 0) {
+            n = 0xB;
+        }
+        OpenTIM((u_long *)(pTimData + n * 0x460));
+        ReadTIM(&tim);
+        ResourceHelperGetTexCoords(D_800D2F5C, index + i,
+                                   &coords[i].count, &coords[i].texPageId,
+                                   &coords[i].clutX, &coords[i].clutY,
+                                   &coords[i].texPageX, &coords[i].texPageY);
+        tim.crect->x = coords[i].clutX;
+        tim.crect->y = coords[i].clutY;
+        tim.prect->x = coords[i].texPageX + texPageYOffset;
+        tim.prect->y = coords[i].texPageY;
+        LoadImage(tim.crect, tim.caddr);
+        LoadImage(tim.prect, tim.paddr);
+        DrawSync(0);
+        texPageYOffset += 6;
+        yOffset += 0x18;
     }
 }
-
-   91.04% body (all four stores [i+0xB] first): insn stream identical to
-   retail except gcc makes the add_val=22 giv the base, so the prologue is
-   `addiu v0,%lo+0x16; addiu s2,v0,-0x16; addiu s3,v0,0x16` instead of
-   `addiu v0,%lo; addiu s3,v0,0x2C; addiu s2,s1,0x16` and s1/s2 swap in the
-   store and increment slots. Tried this session on top of the above: three
-   explicit pointer givs (pLo/pHi/pEnd, 57.98 - base right but increments get
-   hoisted above the branch join), `pDst = D_800D2DF0 + i` indexed (75.06,
-   collapses to one base + displacements), declaration order of i/value,
-   gcc 2.6.0 (91.04), 2.7.2-cdk (54.04), -O1 -G0 (35.08). The base-register
-   pick is gcc's combine_givs; no source spelling found that keeps store order
-   [i+0xB],[i] and base add_val 0.
 */
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_80078310);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_80078508);
-
 /* 75.45%: with a pEntry local (one load of the global shared by the two uses
    after the sb) the first store and everything from the `sh` tail on is
    byte-identical; the ONLY difference is that retail's two tile `lbu`s are

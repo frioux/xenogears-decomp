@@ -420,7 +420,7 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/work_list", func_8001D2B0);
    (x >> 20) & 1 rather than x & 0x100000; curSpriteFrame is read as u16 (lhu).
    Reading the old head into a local pOldHead and storing it last reproduces the
    original's tail store order (0x34, head, 0x40, 0x38).
-void func_8001F8E8(SpriteData* pSpriteData, s32 index, void* pAnimPackage);
+void SpriteApplyFrameDirTransforms(SpriteData* pSpriteData, s32 index, void* pAnimPackage);
 void SpriteClearDirTransforms(SpriteData* pSpriteData);
 extern u8 D_8005A474[];
 extern u8 D_8006BE10[];
@@ -448,7 +448,7 @@ void func_8001D2B0(SpriteData* pSpriteData, u16 animFrame) {
                     pSpriteData->pVramData != &D_8006BE10[0] &&
                     ((pSpriteData->field_0x40 >> 19) & 1) == 0
                 ) {
-                    func_8001F8E8(pSpriteData, *(u16*)&pSpriteData->curSpriteFrame, pSpriteData->pVramData);
+                    SpriteApplyFrameDirTransforms(pSpriteData, *(u16*)&pSpriteData->curSpriteFrame, pSpriteData->pVramData);
                 }
                 pSpriteData->curSpriteFrame = animFrame;
                 return;

@@ -29,6 +29,9 @@
 
 #define MENU_TEX_POINTER_CURSOR 0x108
 
+// ':' between the fields of the play time display
+#define MENU_TEX_PLAY_TIME_COLON 0xEE
+
 // These are all the same ball cursor texture, the only difference
 // is their position on the screen
 #define MENU_TEX_BALL_CURSOR_1 0x109

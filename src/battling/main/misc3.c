@@ -353,7 +353,7 @@ void func_800776A8(u8* p, s32 mode) {
         }
         kind = 0;
     }
-    func_80036258(kind, mode);
+    ControllerSetActuatorDuration(kind, mode);
 }
 */
 

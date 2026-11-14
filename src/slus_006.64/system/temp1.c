@@ -482,7 +482,7 @@ void SpriteInitBaseWithRenderFrames(SpriteData* pSpriteData) {
 
 extern u8 D_8006BE10[];
 extern u8 D_8005A474[];
-extern s32 func_8001EE74(u16* pFlags);
+extern s32 SpriteAnimPackageGetFrameCount(u16* pFlags);
 
 AnimTask* AnimTaskCreate(s32 arg0, s32 type, void* pAnimPackage, s32 size, void* pData) {
     AnimTask* pEntry;
@@ -504,7 +504,7 @@ AnimTask* AnimTaskCreate(s32 arg0, s32 type, void* pAnimPackage, s32 size, void*
         if (arg0 == 6) {
             pAnimPackage = &D_8005A474[0];
         }
-        dataSize = (func_8001EE74(*(u16**)pAnimPackage) - 1) * 24 + 0x58;
+        dataSize = (SpriteAnimPackageGetFrameCount(*(u16**)pAnimPackage) - 1) * 24 + 0x58;
         pEntry = AnimTaskAlloc(pData, dataSize + size);
         SpriteInitBaseWithRenderFrames(&pEntry->spriteData);
         break;
@@ -630,7 +630,7 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_8002435C);
    also lands in the wrong registers (mask in a0, D_800591AD in v1 instead of the reverse).
    Returns pSpriteData in v0, so the prototype above should be SpriteData* once defined.
 extern void SpriteSetScale(SpriteData* pSpriteData, s16 scale);
-extern s32 func_8001EE74(u16* pFlags);
+extern s32 SpriteAnimPackageGetFrameCount(u16* pFlags);
 
 SpriteData* func_8002435C(SpriteData* pSpriteData, void* pAnimFile, s16 arg2, s16 arg3, s16 arg4,
                           s16 arg5, s16 arg6) {
@@ -664,7 +664,7 @@ SpriteData* func_8002435C(SpriteData* pSpriteData, void* pAnimFile, s16 arg2, s1
     pAnimFileData = pAnimFile;
     pAnimHeader = *(u32*)(pAnimFileData + 8);
     pFramesData =
-        HeapAlloc(func_8001EE74((u16*)(pAnimHeader + (mem_addr)pAnimFileData)) * sizeof(SpriteFrameData), 0);
+        HeapAlloc(SpriteAnimPackageGetFrameCount((u16*)(pAnimHeader + (mem_addr)pAnimFileData)) * sizeof(SpriteFrameData), 0);
     pBase = pSpriteData->pBase;
     pBase->pFramesData = pFramesData;
     pBase->pCurRenderFramesData = pFramesData;
