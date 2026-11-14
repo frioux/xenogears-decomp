@@ -314,43 +314,37 @@ void func_800BACBC(s32 index, s16* p0, s16* p1, s16* p2, s16* p3, s16* p4, s16* 
     PopMatrix();
 }
 */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800BADD4);
-/* 92.04%: the 0x8C8C constant-fold wall, second shape.  With pBase a local the
-   tail's instruction stream is retail's exactly (`li v0,0x8C8C; addu; sw 0` and
-   the same for 0x8CB8), but gcc then keeps pBase live in $s3 across the calls
-   and saves it, where retail re-forms lui/addiu for D_800C3EB0 and reuses $s1
-   for the if-block pointer.  Spelling the tail address with the global
-   (`D_800C3EB0 + index*4 + 0x8C8C`) instead makes gcc fold the constant into
-   the symbol (lui 0x1; addiu -29556; sw 0x2C) and reach 94.02%, and routing it
-   through a cast `(mem_addr)` pointer gets the frame right but splits the add
-   into li 0x8000 + displacement (92.75%).  Everything else, frame and the
-   0x8000/D24 if-block included, is exact.
-/*
 void func_800BADD4(s32 index) {
     u8* pBase = D_800C3EB0;
+    u8* pBlock;
+    u8* pTail;
     SpriteData* pSprite;
-    u8* pSlot;
     void* pPayload;
+    u32* pSlot;
+    u32* pSlot2;
 
-    pSprite = *(SpriteData**)(pBase + index * 4 + 0x8CB8);
+    pSlot = (u32*)(pBase + index * 4 + 0x8CB8);
+    pSprite = *(SpriteData**)pSlot;
     if (pSprite == NULL) {
         return;
     }
     func_800BFC80(pSprite, 0, 2);
     if (index < 3) {
-        pSlot = pBase + index * 0xC + 0x8000;
-        pPayload = *(void**)(pSlot + 0xD24);
+        pBlock = pBase + index * 0xC + 0x8000;
+        pPayload = *(void**)(pBlock + 0xD24);
         if (pPayload != NULL) {
             HeapFree(pPayload);
         }
-        *(u32*)(pSlot + 0xD24) = 0;
+        *(u32*)(pBlock + 0xD24) = 0;
     }
     (*(void (**)(SpriteData*))((u8*)pSprite + 0xC))(pSprite);
     func_8001CE74(pSprite);
-    *(u32*)(pBase + index * 4 + 0x8C8C) = 0;
-    *(u32*)(pBase + index * 4 + 0x8CB8) = 0;
+    pTail = D_800C3EB0;
+    pSlot = (u32*)(pTail + index * 4 + 0x8C8C);
+    *pSlot = 0;
+    pSlot2 = (u32*)(pTail + index * 4 + 0x8CB8);
+    *pSlot2 = 0;
 }
-*/
 void func_800BAEB8(s32 index) {
     u8* pBase = D_800C3EB0;
     u8* pEntry = pBase + index * 4;
@@ -372,16 +366,9 @@ void func_800BAEB8(s32 index) {
 void func_800BAF40(void) {
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800BAF48);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800BB080);
-/* 76.91%: same 0x8C8C fold as func_800BAEB8.  Retail keeps the raw
-   &D_800C3EB0 in $s0 and hoists 0x8C8C into $s4 (`li s4,0x8C8C; addu s2,s0,s4`),
-   then adds 0x8CB8 with a second li+addu after the call; gcc folds 0x8CB8 into
-   the symbol base (lui s0,0x1; addiu s0,-29512) and uses -0x2C for the other
-   access, which also drags the loop-bound `3` into a register (li s3,3).
-   The call through pSprite->field_0x6C+0xC, the three break tests and the
-   func_800B14CC tail are otherwise identical.
 void func_800BB080(s32 arg0) {
     u8* pEntry = D_800C3EB0;
+    u8* pSlot;
     SpriteData* pSprite;
     void* pObj;
     s32 i;
@@ -390,22 +377,23 @@ void func_800BB080(s32 arg0) {
         if (i == arg0) {
             break;
         }
-        pSprite = *(SpriteData**)(pEntry + 0x8C8C);
+        pSlot = pEntry + 0x8C8C;
+        pSprite = *(SpriteData**)pSlot;
         if (pSprite == NULL) {
             break;
         }
         if (pSprite->pDefaultAnimFile != NULL) {
             break;
         }
-        pObj = *(void**)((u8*)pSprite + 0x6C);
+        pObj = pSprite->field_0x6C;
         (*(void (**)(void*))((u8*)pObj + 0xC))(pObj);
-        *(u32*)(pEntry + 0x8C8C) = 0;
-        *(u32*)(pEntry + 0x8CB8) = 0;
+        *(u32*)pSlot = 0;
+        pSlot = pEntry + 0x8CB8;
+        *(u32*)pSlot = 0;
         pEntry += 4;
     }
     func_800B14CC(arg0);
 }
-*/
 void func_800BB13C(u8* pTask) {
     SpriteData* pSprite;
     u8* pScript;
