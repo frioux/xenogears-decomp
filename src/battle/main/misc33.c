@@ -3,12 +3,33 @@
 #include "psyq/libgte.h"
 
 typedef struct {
+    /* 0x00 */ u8 unk0[0x2];
+    /* 0x02 */ s16 unk2;
+    /* 0x04 */ u8 unk4[0x6];
+    /* 0x0A */ s16 unkA;
+    /* 0x0C */ u8 unkC[0x68];
+    /* 0x74 */ void *unk74;
+    /* 0x78 */ u8 unk78[0x4];
+    /* 0x7C */ s32 *unk7C;
+    /* 0x80 */ u8 unk80[0x20];
+    /* 0xA0 */ u16 unkA0;
+    /* 0xA2 */ u8 unkA2[0x2];
+    /* 0xA4 */ u16 unkA4;
+    /* 0xA6 */ u8 unkA6[0x2];
+    /* 0xA8 */ u32 unkA8;
+    /* 0xAC */ u32 unkAC;
+    /* 0xB0 */ s8 unkB0;
+} Misc33Point; // Size: 0xB4
+
+typedef struct {
     /* 0x00 */ u8 unk0[0x4];
-    /* 0x04 */ s32 unk4;
+    /* 0x04 */ Misc33Point *unk4;
     /* 0x08 */ void (*unk8)();
     /* 0x0C */ u8 unkC[0x10];
     /* 0x1C */ s32 unk1C;
-    /* 0x20 */ u8 unk20[0xC];
+    /* 0x20 */ u8 unk20[0x4];
+    /* 0x24 */ s32 unk24;
+    /* 0x28 */ u8 unk28[0x4];
     /* 0x2C */ s32 unk2C;
     /* 0x30 */ s32 unk30;
     /* 0x34 */ s32 unk34;
@@ -24,7 +45,6 @@ typedef struct {
 extern BattleMisc33State *D_800C3610;
 extern s32 D_800C360C;
 extern void func_800B9F78();
-extern s32 D_800C3618;
 extern s32 D_800C3E20;
 extern u16 D_800D2E54;
 extern u8 D_800D3350;
@@ -34,16 +54,6 @@ extern u32 D_800C37A4[];
 extern u8 D_800591AC;
 extern s32 D_80059464;
 
-typedef struct {
-    /* 0x00 */ u8 unk0[0x2];
-    /* 0x02 */ s16 unk2;
-    /* 0x04 */ u8 unk4[0x6];
-    /* 0x0A */ s16 unkA;
-    /* 0x0C */ u8 unkC[0x94];
-    /* 0xA0 */ u16 unkA0;
-    /* 0xA2 */ u8 unkA2[0x2];
-    /* 0xA4 */ u16 unkA4;
-} Misc33Point;
 
 extern s16 SpriteComputeAngleFromPoints(DVECTOR, DVECTOR);
 extern s32 func_800C0FAC(s32);
@@ -71,6 +81,12 @@ typedef struct {
     /* 0x6A */ u8 unk6A;
 } BattleMisc33Actor;
 extern void func_800C1140(s32);
+extern void func_800B8D7C();
+extern int ArchiveSetIndex(int directoryIndex, int entryIndex);
+extern int ArchiveDecodeAlignedSize(u32 entryIndex);
+extern void ArchiveReadFileToBuffer(s32 index, void *pBuffer, u32 arg2, u32 flags);
+extern void *D_800C3618;
+extern u32 D_800C361C;
 
 void BattleStepActorFadeOut(BattleMisc33Actor *p) {
     p->unk3C = p->unk3C + p->unk64;
@@ -87,7 +103,16 @@ void BattleStepActorFadeOut(BattleMisc33Actor *p) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BE1C4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BE330);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BE538);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BE6A0);
+void func_800BE6A0(s32 arg0, u8 *p, s32 n, s32 arg3) {
+    s32 i;
+
+    for (i = 0; i != n; i++) {
+        s32 last = n - 1;
+
+        p[i + 1] = D_800C3784[(arg0 >> ((last - i) * 4)) & 0xF] + arg3;
+    }
+    p[0] = n;
+}
 /* best 88.33%: everything matches but the loop-entry order.  Retail emits
    `beqz a2` with `i = 0` in its delay slot, so its RTL had the `last = n - 1`
    local hoisted AFTER the entry test; declaring `last` before the loop puts it
@@ -99,7 +124,7 @@ void func_800BE6A0(s32 arg0, u8 *p, s32 n, s32 arg3) {
 
     last = n - 1;
     for (i = 0; i != n; i++) {
-        (i + p)[1] = D_800C3784[(arg0 >> ((last - i) * 4)) & 0xF] + arg3;
+        p[i + 1] = D_800C3784[(arg0 >> ((last - i) * 4)) & 0xF] + arg3;
     }
     p[0] = n;
 }
@@ -227,9 +252,13 @@ void BattleResetStateGlobals(void) {
     D_800D2E54 = 0;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BED4C);
-/* best 85.18%: retail reloads D_800C3610 four times and keeps one load after
-   the BattleSetStateStep call (dead in C, so gcc deletes it and the pointer base
-   stays in a call-clobbered register instead of $s0).
+/* best 85.18% (144 bytes, retail 156).  The 12 missing bytes are one extra reload:
+   after the BattleSetStateStep call retail does `lw v0,%lo(D_800C3610)($s0)` and never
+   uses it, so its D_800C3610 address pseudo is live across the call and lands in $s0
+   (with the constant 1 in $s1 where ours uses $s0); ours keeps the address in $a1.
+   A plain dead `pState = D_800C3610;` after the call is deleted by gcc, so what retail
+   actually read is still unknown.  Retail store order: unk8, D_800C3610, D_800C360C,
+   unk4A, unk48, unk30, unk49, unk2C, unk4, unk34 (in the call's delay slot).
 void func_800BED4C(void) {
     BattleMisc33State *pState;
 
@@ -242,7 +271,7 @@ void func_800BED4C(void) {
     D_800C3610->unk30 = 0;
     D_800C3610->unk49 = 0;
     D_800C3610->unk2C = 1;
-    D_800C3610->unk4 = 0;
+    D_800C3610->unk4 = NULL;
     D_800C3610->unk34 = 0;
     BattleSetStateStep(0);
     pState = D_800C3610;
@@ -323,6 +352,30 @@ s16 BattleAngleToTarget(Misc33Point *p) {
     return SpriteComputeAngleFromPoints(vec1, vec0);
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BEFF4);
+/* best 94.02%: every instruction is right but one register tie.  Retail keeps the
+   new sprite pointer in $a2 and copies it with `move a0,a2` in the SpritePlayAnimation
+   jal delay slot; ours allocates it straight to $a0 (so the slot gets a nop) and the
+   sensor-table base lands in $a1 instead of $v1.  The sprite-table entry is the same
+   0x1C-byte stride D_800C3EB0 table that func_800BF3EB8 walks, and the 4-bit key is
+   the (unkA8>>30) | ((unkAC&3)<<2) pairing seen in func_800BF2B8.  A permuter job.
+void func_800BEFF4(s32 actorIndex) {
+    Misc33Point *pSprite;
+    u8 *pBase;
+    u32 part;
+
+    pSprite = D_800C3610->unk4;
+    if (pSprite != NULL && D_800C3610->unk24 != actorIndex) {
+        part = pSprite->unkA8 >> 30;
+        pBase = D_800C3EB0;
+        if (*(u8 *)(pBase + (((pSprite->unkAC & 3) << 2) | part) * 0x1C + 0x7) == 0) {
+            SpritePlayAnimation(pSprite, pSprite->unkB0);
+        }
+    }
+    D_800C3610->unk24 = actorIndex;
+    pBase = D_800C3EB0;
+    D_800C3610->unk4 = *(void **)(pBase + actorIndex * 4 + 0x8C8C);
+}
+*/
 
 void BattleSetStateStep(s32 arg0) {
     D_800C3610->unk1C = arg0;
@@ -351,7 +404,20 @@ void BattleFaceTargetAndMeasureDistance(Misc33Point *p, s32 arg1) {
     SpritePlayAnimation(p, arg1);
     BattleSetStateStep(6);
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BF2B8);
+void func_800BF2B8(Misc33Point *pSprite) {
+    s32 entry;
+    void *pBuffer;
+    u32 part;
+
+    func_800B8D7C();
+    ArchiveSetIndex(0x2C, 1);
+    entry = *pSprite->unk7C;
+    pBuffer = HeapAlloc(ArchiveDecodeAlignedSize(entry), 1);
+    ArchiveReadFileToBuffer(entry, pBuffer, 0, 0x80);
+    D_800C3618 = pBuffer;
+    part = pSprite->unkA8 >> 30;
+    D_800C361C = ((pSprite->unkAC & 3) << 2) | part;
+}
 s32 BattleLoadSoundSeds(void) {
     s32 ret;
 
