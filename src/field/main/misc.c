@@ -1618,16 +1618,17 @@ void FieldScriptAddPartyMember(void) {
 // fixed - no compiler fixes it. As parked the body does not compile:
 // func_8008A7DC() is declared with two params, and passing
 // SCRIPT_READ_U8_REL(1) and partyIndex gives the numbers above.
-/*
 void func_8008BDD8(void) {
     int partyIndex;
+    u8 characterId;
 
     if (D_800ADBC4 == CHARACTER_ID_NONE && D_800ADB2C == 0 && FieldArchiveTryDataSync() == 0) {
         ArchiveCdDataSync(0);
         if (FieldPartyAllocSlot(SCRIPT_READ_U8_REL(1), &partyIndex) == 0) {
             g_pGameState->gearRide[partyIndex] = 0;
-            g_GamePartyMembers[partyIndex] = SCRIPT_READ_U8_REL(1);
-            func_8008A7DC();
+            characterId = SCRIPT_READ_U8_REL(1);
+            g_GamePartyMembers[partyIndex] = characterId;
+            func_8008A7DC(characterId, partyIndex);
             g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
         } else {
             g_pGameState->unk1D30 |= 1 << SCRIPT_READ_U8_REL(1);
@@ -1638,8 +1639,6 @@ void func_8008BDD8(void) {
         g_FieldScriptVMCurActor->scriptInstructionPointer -= 1;
     }
 }
-*/
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008BDD8);
 
 extern void* D_8005A418[];
 extern s32 D_8005A448[];
@@ -2582,15 +2581,25 @@ extern s32 D_800ADB80;
 // ours puts the D_800ADB70 store before the actor load and the ip load after it.
 // preset screen: 2.7.2 79.22%, cdk 79.22%, 2.6.0 79.22% - no compiler
 // fixes it.
+// 81.16%: the whole body matches except the order of the last block. Retail
+// emits [lhu D_800C3A30][lw actor][sh D_800C3A36][andi/sh D_800C3A30]
+// [lhu ip][li 1][sw D_800ADB70][addiu/sh ip]; ours hoists the D_800ADB70 store
+// above the lhu and the ip lhu above the andi. All 24 statement orders of the
+// last four stores compile to the same schedule, and marking the globals
+// `volatile` keeps the order but loses every `li` in a jal delay slot (360
+// bytes). Was 79.22% with `u16 value = call(9)` (that hoists the 9th call to the
+// top); assigning it after argument 7 is what a `u16 value;` local fixes.
+// preset screen: 2.7.2 81.16%, cdk 79.22%, 2.6.0 81.16% - no compiler fixes it.
 /*
 void func_8008EE14(void) {
-    u16 value = FieldScriptVMGetArgument(9);
+    u16 value;
     s16 pos;
 
     D_800C3A20 = FieldScriptVMGetArgument(1);
     D_800C3A2A = FieldScriptVMGetArgument(3);
     D_800C3A2C = FieldScriptVMGetArgument(5);
     D_800C3A2E = FieldScriptVMGetArgument(7);
+    value = FieldScriptVMGetArgument(9);
     D_800C3A30 = value;
     if (value == 0xFE) {
         D_800C3A3A = 1;
