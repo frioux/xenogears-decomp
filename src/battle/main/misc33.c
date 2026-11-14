@@ -3,13 +3,27 @@
 #include "psyq/libgte.h"
 
 typedef struct {
-    /* 0x00 */ u8 unk0[0x1C];
+    /* 0x00 */ u8 unk0[0x4];
+    /* 0x04 */ s32 unk4;
+    /* 0x08 */ void (*unk8)();
+    /* 0x0C */ u8 unkC[0x10];
     /* 0x1C */ s32 unk1C;
-    /* 0x20 */ u8 unk20[0x24];
+    /* 0x20 */ u8 unk20[0xC];
+    /* 0x2C */ s32 unk2C;
+    /* 0x30 */ s32 unk30;
+    /* 0x34 */ s32 unk34;
+    /* 0x38 */ u8 unk38[0xC];
     /* 0x44 */ s32 unk44;
+    /* 0x48 */ u8 unk48;
+    /* 0x49 */ u8 unk49;
+    /* 0x4A */ u8 unk4A;
+    /* 0x4B */ u8 pad4B;
+    /* 0x4C */ u8 unk4C[0x4];
 } BattleMisc33State; // Size: 0x50
 
 extern BattleMisc33State *D_800C3610;
+extern s32 D_800C360C;
+extern void func_800B9F78();
 extern s32 D_800C3618;
 extern s32 D_800C3E20;
 extern u16 D_800D2E54;
@@ -135,7 +149,6 @@ s32 func_800BE6E8(s32 value, u8 *pBuf, s32 n, u8 started, s32 base) {
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BE790);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BEB04);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BEBC4);
 typedef struct {
     /* 0x00 */ u16 cur;
     /* 0x02 */ u16 pressed;
@@ -154,6 +167,22 @@ typedef struct {
 extern int ControllerGetButtonState(int controllerIndex);
 extern u16 D_800D30E4;
 
+extern u16 D_80059494;
+extern void Vsync(s32 mode);
+extern void func_800BEC18(void);
+
+void func_800BEBC4(void) {
+    u8 *pStateBase;
+    BattlePadState *pState;
+
+    func_800BEC18();
+    pStateBase = D_800C3EB0;
+    pState = (BattlePadState *)(pStateBase + 0x8000);
+    if (pState->cur[0] & 0x100) {
+        Vsync(8);
+        D_80059494 = 0;
+    }
+}
 void func_800BEC18(void) {
     u8 *pStateBase;
     BattlePadState *pState;
@@ -195,6 +224,29 @@ void func_800BED30(void) {
     D_800D2E54 = 0;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BED4C);
+/* best 85.18%: retail reloads D_800C3610 four times and keeps one load after
+   the func_800BF0B4 call (dead in C, so gcc deletes it and the pointer base
+   stays in a call-clobbered register instead of $s0).
+void func_800BED4C(void) {
+    BattleMisc33State *pState;
+
+    pState = HeapAlloc(0x50, 0);
+    pState->unk8 = func_800B9F78;
+    D_800C3610 = pState;
+    D_800C360C = 0;
+    pState->unk4A = 0;
+    D_800C3610->unk48 = 1;
+    D_800C3610->unk30 = 0;
+    D_800C3610->unk49 = 0;
+    D_800C3610->unk2C = 1;
+    D_800C3610->unk4 = 0;
+    D_800C3610->unk34 = 0;
+    func_800BF0B4(0);
+    pState = D_800C3610;
+    D_80059464 = 0;
+    D_800591AC = 1;
+}
+*/
 void func_800BEDE8(void) {
     HeapFree(D_800C3610);
     D_80059464 = 0;
