@@ -1,6 +1,56 @@
 #include "common.h"
 #include "psyq/libgpu.h"
 
+// 16.16 fixed point; the integer part is the high half of the word.
+typedef union {
+    /* 0x0 */ s32 value;
+    struct {
+        /* 0x0 */ s16 frac;
+        /* 0x2 */ s16 whole;
+    } parts;
+} BattleFixed16; // Size: 0x4
+
+typedef struct {
+    /* 0x0 */ u8 unk0[0x4];
+    /* 0x4 */ u8 r;
+    /* 0x5 */ u8 g;
+    /* 0x6 */ u8 b;
+    /* 0x7 */ u8 unk7[0x19];
+} BattleEffectColor; // Size: 0x20
+
+typedef struct {
+    /* 0x00 */ u16 unk00;
+    /* 0x02 */ u16 unk02;
+    /* 0x04 */ u16 unk04;
+    /* 0x06 */ u16 unk06;
+    /* 0x08 */ u16 unk08;
+    /* 0x0A */ u16 unk0A;
+    /* 0x0C */ u16 unk0C;
+    /* 0x0E */ u16 unk0E;
+    /* 0x10 */ s32 posX;
+    /* 0x14 */ s32 posY;
+    /* 0x18 */ s32 posZ;
+    /* 0x1C */ u8 unk1C[0x8];
+    /* 0x24 */ BattleEffectColor colors[2];
+    /* 0x64 */ s32 timer;
+    /* 0x68 */ BattleFixed16 velX;
+    /* 0x6C */ BattleFixed16 velY;
+    /* 0x70 */ BattleFixed16 velZ;
+    /* 0x74 */ u8 unk74[0x4];
+    /* 0x78 */ s32 grav;
+} BattleEffect; // Size: 0x7C
+
+typedef struct {
+    /* 0x00000 */ u8 unk00000[0x38];
+    /* 0x00038 */ s32 unk38;
+    /* 0x0003C */ BattleEffect entries[2][14][20];
+} BattleEffectTable; // Size: 0x10F7C
+
+typedef struct {
+    /* 0x0 */ u8 unk0[0x4];
+    /* 0x4 */ BattleEffectTable *pTable;
+} BattleEffectTask; // Size: 0x8
+
 extern void WorkListSetTaskCallback(void *pEntry, void *pCallback);
 extern void WorkListRemoveTask(void *pEntry);
 extern void TimerWorkListRemoveTask(void *pEntry);
@@ -27,7 +77,7 @@ extern void SpriteSetDirection(u8 *pActor, s16 arg1);
 extern void func_800223B0(u8 *pActor, s16 arg1);
 extern void SpriteSetSVec(SVECTOR *pVector, s16 x, s16 y, s16 z);
 extern void func_801FC53C(void *pArg, s32 arg1, s32 arg2, s32 arg3, s32 arg4, s32 arg5, s32 arg6);
-
+extern u8 SpriteColorAddClamp(u8 arg0, s16 arg1);
 void BattleScriptLoadDataAtWordOffset(s32 arg0, u8 *p) {
     s32 pad[3];
     u8 *pData;
@@ -269,6 +319,76 @@ void BattleActorRotateVectorZ(u8 *pActor, s8 *p) {
     *(s32 *)(pActor + 0x14) = vec.vz;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc28", func_800B6F0C);
+/* best 85.91% (540 vs 536 bytes).  Recovered shape: the work item's data pointer
+   (arg + 4) heads a 0x10F7C-byte table - s32 counter at 0x38, then
+   entries[2][14][20] of 0x7C-byte records from 0x3C (0x3C + 2*0x87A0 = 0x10F7C,
+   the size BattleCreateWorkTask passes to WorkListsAddTasks).  Record: u16
+   accumulators at 0x0/0x2/0x4 fed by 0x8/0xA/0xC, s32 pos XYZ at 0x10/0x14/0x18,
+   0x24 is an array of 0x20-byte color records (r/g/b at +4/+5/+6, faded by
+   SpriteColorAddClamp(x,-6)), s32 timer at 0x64, three 16.16 fixed velocities at
+   0x68/0x6C/0x70 (integer part read as the high half at 0x6A/0x6E/0x72), s32
+   gravity at 0x78 (added to 0x6C).  Damping order is 0x6C, 0x68, 0x70 - not
+   0x68 first - and `for (x = 0; x != N; x++)` with != is required, `<` gives
+   slti/bnez instead of retail's li+bne.
+   Three things left, see the parked notes on func_800B64D4 and misc30:
+   (1) the D_800C3EB0+0x8000+0xC84 read: retail materialises the symbol with
+   lui+addiu (addend 0), then li 0x8000 + addu, then lw 0xC84(base); gcc either
+   folds the whole 0x8C84 into one lui/addiu carry pair or, with pState a pointer
+   local, into lui 0x1/addiu -32768.  It also leaves a dead `lui v0,%hi
+   (D_800C3EB0)` in retail's entry block, which nothing in our compile produces.
+   (2) the three fixed-point reads: retail sign-extends at the load (lh 0x6A),
+   gcc emits lhu plus an explicit sll/sra pair; a plain s16[3] local gives lhu,
+   three separate s16 locals drop the frame to 0x40 (retail is 0x48 with the
+   three spills at sp+0x10/0x12/0x14), and casting the stored value to s32 keeps
+   the frame but not the lh.
+   (3) retail's prologue saves fp first and runs `move fp,zero` between two
+   stack stores; ours saves ra first and moves fp later.
+   Tried: pointer local for the table base, colors[2] vs pointer arithmetic,
+   velocity as a 16.16 union vs raw s16 casts vs three s16 locals, source-order
+   permutations of the six position/accumulator updates.
+void func_800B6F0C(BattleEffectTask *pTask) {
+    BattleEffectTable *pTable;
+    u8 *pState;
+    BattleEffect *pEntry;
+    BattleEffectColor *pColor;
+    s16 vel[3];
+    s32 i;
+    s32 j;
+    s32 k;
+
+    pTable = pTask->pTable;
+    pState = D_800C3EB0 + 0x8000;
+    pTable->unk38++;
+    for (i = 0; i != 2; i++) {
+        for (j = 0; j != 14; j++) {
+            for (k = 0; k != 20; k++) {
+                pEntry = &pTable->entries[i][j][k];
+                if (pEntry->timer != 0) {
+                    pEntry->timer--;
+                    continue;
+                }
+                pColor = &pEntry->colors[*(u32 *)(pState + 0xC84)];
+                pColor->r = SpriteColorAddClamp(pColor->r, -6);
+                pColor->g = SpriteColorAddClamp(pColor->g, -6);
+                pColor->b = SpriteColorAddClamp(pColor->b, -6);
+                vel[0] = (s32)pEntry->velX.parts.whole;
+                vel[1] = (s32)pEntry->velY.parts.whole;
+                vel[2] = (s32)pEntry->velZ.parts.whole;
+                pEntry->posX += vel[0];
+                pEntry->posY += vel[1];
+                pEntry->unk00 += pEntry->unk08;
+                pEntry->unk02 += pEntry->unk0A;
+                pEntry->unk04 += pEntry->unk0C;
+                pEntry->posZ += vel[2];
+                pEntry->velY.value -= pEntry->velY.value / 16;
+                pEntry->velX.value -= pEntry->velX.value / 16;
+                pEntry->velZ.value -= pEntry->velZ.value / 16;
+                pEntry->velY.value += pEntry->grav;
+            }
+        }
+    }
+}
+*/
 void BattleStoreGfxOrderingTable(void) {
     D_800C3CB4 = g_GfxCurOT;
     func_800B7160();
