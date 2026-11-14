@@ -2487,6 +2487,7 @@ after the round-31 precedent. Two macros' worth of knowledge, now in the file's 
 | 34 | `battle/{misc8,misc30,misc7,misc19,misc13,misc2,misc26}`, `battling/misc15`, `world_map/{misc1,misc10}` + a 6-worker naming round | +11 | 1354 | battle/misc8 **5** (`7CD10 7CEA4 7CB20 7D1DC 7D344`), battle/misc30 **4** (`BA614 BA768 BAEB8 BADD4`, the last two were parks), battling/misc15 1 (`8CA84`), battle/misc2 1 (`74D4C`); 0 new in misc7, misc19, misc13, world_map/misc1, world_map/misc10 (parks improved instead); battle/misc26's worker timed out with an uncommitted body and was dropped. 73 names applied, 27 skipped (lib_gear has no symbol_addrs entries for them) |
 | 36 | 11 workers: `world_map/{misc7,misc9,misc10}`, `battling/misc3`, `slus_006.64/system/sound`, `battle/{misc12,misc13,misc26,misc31}`, `field/misc8`, `menu/misc3` + a 10-worker naming round | +7 | 1338 | `battle/misc12` **3** (`83FF4 84108 84750`), `battle/misc26` **3** (`B3B6C B1EA0 B3658`), `world_map/misc9` 1 (`86700`); 0 in world_map/misc7, world_map/misc10, battling/misc3, system/sound, battle/misc13, battle/misc31, field/misc8, menu/misc3 (parks improved or walls re-measured; most of them were already parked). ~450 names applied |
 | 35 | 13 workers: `battle/{misc32,misc34,misc28,misc8,misc4,misc5,misc6,misc6_r2,misc27_b}`, `battling/misc16`, `slus_006.64/system/{archive_b,controller_b,work_list}` + a 10-worker naming round | +9 | 1345 | `controller_b` **2** (`80035F1C 8003634C`, the unit is now 3 stubs from done), `battle/misc34` **2** (`BF600 BF9EC`), `battle/misc6_r2` **2** (`7AE38 7AE98`, via the new clamp-copy idiom), `battle/misc27_b` 1 (`B5CC0`), `battle/misc28` 1 (`B6990`), `battling/misc16` 1 (`8DA48`); 0 in misc32 (16/21 atfree), misc8, misc4, misc5, misc6, archive_b, work_list (parks improved instead). 244 names applied |
+| 37 | 13 workers: `battle/{misc12,misc16_r2,misc21,misc23}`, `field/{misc,misc6}`, `world_map/{misc2,misc5}`, `menu/{misc7,misc12}`, `slus_006.64/system/temp2`, `lib_gear/main/main`, `battling/misc6` + a 10-worker naming round | +4 | 1334 | `world_map/misc2` **3** (`758C0 7634C 76594`, landed by a worker killed before its gate), `battle/misc12` 1 (`84548`); 0 in the other eleven - park notes only, or the worker timed out (misc12, field/misc, world_map/misc2 all hit the 30-minute kill). 252 names applied, 38 skipped (33 are addresses that are a different function in another overlay) |
 
 
 ### Round 36's per-unit detail
@@ -2578,3 +2579,18 @@ and three durable tools/findings that outlive the matches:
 
 Still open, with evidence: `battle/misc19`'s 5-run split (2 functions, 4 new files) and the
 `field/main/*` units whose `.rodata`/`.data` subsegments keep them unsplittable.
+
+### Round 37's per-unit detail
+
+- 77 reachable stubs across 13 of the freshest units closed 4. "Fresh" (no percentage near
+  the stub) is not "achievable": 11 of the 13 workers wrote park notes only, and three of
+  those did not finish. The three matches that did land came from a worker that committed
+  before its kill.
+- `battle/misc16_r2` corrected an old belief: `s32 *p = &D_800CCB34;` + `*p` DOES give
+  retail's `lui/addiu` + `lw` per use. The unit's other parks should be re-shot with it.
+- `menu/misc7`'s four window borders (`func_801D49D0/3FF8/433C/4688`) are one problem, not
+  four: `member_change_menu/main/misc.c` has all four **matched** as
+  `MemberChangeMenuSetWindowBorder{Top,Bottom,Left,Right}` - copy its phrasing.
+- Trap in `battle/misc21`: naming `BattleBlock`'s byte at 0x3 (`unk1[2]` -> `tag`) drops the
+  already-matched `func_800A2ACC`/`func_800A2BB8` from 100 to 91% (array-index spelling
+  changes gcc's induction). Struct-field renames are not free.

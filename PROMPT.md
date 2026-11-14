@@ -97,10 +97,12 @@ by stub count, 10 to 16 with the method below).
    **A stub is fresh only if no percentage sits within ~25 lines of its `INCLUDE_ASM`.**
    Parks are written `// Best: 84.76%` far more often than as `/* ... */`, so `grep
    '^/\*'` over-reports badly: round 36 briefed 11 units picked that way and 9 of them
-   were 100% parked (7 matches from 11 workers). The whole tree now has only ~49 units
-   with a genuinely unparked stub, and most of those have 2-6 of them, so the yield per
-   round is close to the size of that list: measure it before choosing, and prefer the
-   units with 5+.
+   were 100% parked (7 matches from 11 workers). Measured round 37 with that test: 1338
+   stubs in the tree, **425 with no percentage within 25 lines**; after the reachability
+   filter in item 2 the best 13 units held **77 reachable stubs and closed 4**. "No park
+   note" does not mean "achievable" - a stub can be fresh and still a wall - so budget
+   10-16 workers per round and expect single digits; the naming round is the reliable
+   half (+252 names from 10 workers, same round).
 2. **Give the worker the reachable subset, not the unit.** Leave out of `funcs`:
    - `python3 tools/scripts/atfree.py <bin>/<unit> asm/<bin>/nonmatchings/<unit>`
      (assembler ceiling, no preset matches them; most of `battle/main/misc26..35`);
