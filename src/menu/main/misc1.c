@@ -7,12 +7,29 @@ extern u_char D_801EA524[]; // String IDs of the menu strings
 
 void func_801E7E68(MenuString* pStringList, u_char* pStringIdList, s32 yOffset, s32 count);
 
-void func_801C531C(u_char arg0);
+u_char func_801C531C(u_char arg0);
 void MenuRenderFrame(void);
+void MenuPlaySoundEffect(u_char soundEffectId);
+void func_801D22C4(void);
+void func_801E8044(s32 arg0, void* pArg1);
+void func_801E8070(s32 arg0, void* pArg1, void* pArg2, void* pArg3, void* pArg4, u_char arg5,
+    u_char arg6, u_char arg7);
+void func_801E8978(u_char count, u_char selected, s32* pEntries);
+void func_801E8018(s32 arg0, void* pArg1, void* pArg2, void* pArg3);
+void func_801E8474(s32 arg0, void* pArg1);
+extern int ArchiveGetDiscNumber(void);
 void MenuWaitForDiscChange(u_char arg0);
 s32 func_801CACF8(u_char a0, u_char a1, u_char a2);
 void func_801D1E80(void);
 void func_801D22F4(s32 arg0);
+
+extern u8 D_801EA19C[];
+extern u8 D_801EA528[];
+extern u8 D_801E9E64[];
+extern u8 D_801EA1D4[];
+extern u8 D_801EA530[];
+extern u8 D_801E9E84[];
+extern u8 D_801E9784;
 void func_801D2484(void);
 void func_801D2D38(void);
 void MenuSetupScreen(void);
@@ -31,6 +48,59 @@ extern u8 D_800594D0;
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc1", func_801C531C);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc1", func_801C55A0);
 
+/* Best: 96.86% (508 bytes, same size).  Only the case 1 block differs: retail does not
+   share the mainMenuChoice load across the test branch, so its fallthrough block starts
+   with a fresh lbu and reorg fills the beqz delay slot from the branch target (li v0,6);
+   ours keeps the loaded value live, so the addiu goes in the delay slot.  Everything
+   else (dispatch tree, case 4/5 bodies, tail) is identical.  Tried: if/else both ways,
+   --, -= 1, 2-case switch on mainMenuChoice, case order 1,3,4,5 (64.92%) vs 4,5,1,3.
+void func_801C55A0(void) {
+    u_char shouldContinue;
+    u_char isHandled;
+
+    shouldContinue = 1;
+    do {
+        MenuRenderFrame();
+        switch (g_Menu->input) {
+            case 4:
+                isHandled = 1;
+                if (g_Menu->mainMenuChoice == 2 && g_Menu->unk33B == 0) {
+                    isHandled = 0;
+                    MenuPlaySoundEffect(4);
+                }
+                if (isHandled) {
+                    g_Menu->pSelectionMenu->unk1192 = 1;
+                    func_801D22C4();
+                    func_801E8044(8, (u8*)g_Menu->pManager + 0xC);
+                    shouldContinue = func_801C531C(0);
+                }
+                break;
+            case 5:
+                shouldContinue = 0;
+                break;
+            case 1:
+                if (g_Menu->mainMenuChoice != 0) {
+                    g_Menu->mainMenuChoice -= 1;
+                } else {
+                    g_Menu->mainMenuChoice = 6;
+                }
+                break;
+            case 3:
+                if (++g_Menu->mainMenuChoice >= 7) {
+                    g_Menu->mainMenuChoice = 0;
+                }
+                break;
+        }
+        if (g_Menu->mainMenuChoice != g_Menu->mainMenuPrevChoice) {
+            func_801E8978(7, g_Menu->mainMenuChoice, (s32*)D_801EA19C);
+            func_801E8070(8, g_Menu->unk6E0, D_801EA528, D_801E9E64,
+                (u8*)g_Menu->pManager + 0xC, g_Menu->mainMenuChoice, 0, 0);
+            g_Menu->mainMenuPrevChoice = g_Menu->mainMenuChoice;
+        }
+    } while (shouldContinue);
+}
+
+*/
 void func_801C57A4(void) {
     u_char shouldReset;
 
@@ -61,6 +131,61 @@ void func_801C57A4(void) {
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc1", func_801C58EC);
 
+/* Best: 97.66% (604 bytes, same size).  Whole function matches except the case 1 block:
+   retail does NOT share the mainMenuChoice load across the test branch, so its else arm
+   re-loads (lbu) instead of computing from the tested value, and the branch comes out
+   beqz with an unfilled delay slot.  Everything else (prologue, case 4/3, tail, disc
+   test) is identical.  Tried: if/else both ways, -= 1, (u_char) cast, 2-case switch.
+void func_801C58EC(void) {
+    u_char shouldContinue;
+
+    shouldContinue = 1;
+    func_801E8474(4, D_801EA1D4);
+    func_801E8018(8, (u8*)g_Menu + 0x6E0, D_801EA530, (u8*)g_Menu->pManager + 0xC);
+    g_Menu->unk2D8 = 0;
+    do {
+        MenuRenderFrame();
+        switch (g_Menu->input) {
+            case 4:
+                g_Menu->pSelectionMenu->unk1192 = 1;
+                func_801D22C4();
+                func_801E8044(8, (u8*)g_Menu->pManager + 0xC);
+                g_Menu->unk348->unk15B = 0x40;
+                shouldContinue = func_801C531C(7);
+                D_801E9784 = 0;
+                g_Menu->unk2D8 = 0;
+                break;
+            case 1:
+                if (g_Menu->mainMenuChoice != 0) {
+                    g_Menu->mainMenuChoice = g_Menu->mainMenuChoice - 1;
+                } else {
+                    g_Menu->mainMenuChoice = 2;
+                }
+                g_Menu->unk2D8 = 0;
+                break;
+            case 3:
+                if (++g_Menu->mainMenuChoice >= 3) {
+                    g_Menu->mainMenuChoice = 0;
+                }
+                g_Menu->unk2D8 = 0;
+                break;
+        }
+        if (g_Menu->mainMenuChoice != g_Menu->mainMenuPrevChoice) {
+            func_801E8978(3, g_Menu->mainMenuChoice, (s32*)D_801EA1D4);
+            func_801E8070(8, g_Menu->unk6E0, D_801EA530, D_801E9E84,
+                (u8*)g_Menu->pManager + 0xC, g_Menu->mainMenuChoice, 0, 0);
+            g_Menu->mainMenuPrevChoice = g_Menu->mainMenuChoice;
+        }
+        if (ArchiveGetDiscNumber() == 1 && g_Menu->unk2D8 >= 0x259) {
+            shouldContinue = 0;
+            D_800594D0 = 1;
+        }
+    } while (shouldContinue);
+    func_801E8044(8, (u8*)g_Menu->pManager + 0xC);
+}
+
+
+*/
 void func_801C5B54(u_char isInitialization) {
     if (isInitialization) {
         g_Menu->menuUnk2 = HeapAlloc(sizeof(MenuUnk2), 0);
