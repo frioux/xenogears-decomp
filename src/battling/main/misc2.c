@@ -36,6 +36,37 @@ void func_800730F4(SVECTOR *p0, SVECTOR *p1, s32 ir0) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_8007313C);
 
+/* Handwritten function: retail hand-schedules the sequence (it loads all three
+   halves of the incoming vector up front into $t4-$t6, starts the next MVMVA's
+   IR load between the previous group's read-back and its stores, and has a
+   single hand-placed nop), and its MVMVA carries no nops at all, so a macro
+   call cannot put the commands back in retail's order. Best C form gives
+   24.98%. */
+/* void func_800731F8(MATRIX *m, SVECTOR *v) {
+    s32 x;
+    s32 y;
+    s32 z;
+
+    gte_SetRotMatrix(m);
+    gte_ldir123(v->vx, 0, 0);
+    gte_mvmva_b(1, 0, 3, 3, 0);
+    gte_stir123_gpr(x, y, z);
+    m->m[0][0] = x;
+    m->m[1][0] = y;
+    m->m[2][0] = z;
+    gte_ldir123(0, v->vy, 0);
+    gte_mvmva_b(1, 0, 3, 3, 0);
+    gte_stir123_gpr(x, y, z);
+    m->m[0][1] = x;
+    m->m[1][1] = y;
+    m->m[2][1] = z;
+    gte_ldir123(0, 0, v->vz);
+    gte_mvmva_b(1, 0, 3, 3, 0);
+    gte_stir123_gpr(x, y, z);
+    m->m[0][2] = x;
+    m->m[1][2] = y;
+    m->m[2][2] = z;
+} */
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_800731F8);
 
 /* 98.75%: only the load temp differs, the original uses $t0 where gcc picks
@@ -246,7 +277,8 @@ void func_80073CEC(u8 *p0, u8 *p1, s32 arg2, u8 *p3, u8 *p4, s32 arg5, u8 *p6) {
    load - the sum pseudo never coalesces back into $a1. Also retried this
    session as `arg1 = *(s16 *)(p0 + 0xB6) + arg1` in place and with a `hw`
    local (both 97.78%, operands come out swapped as well); 2.6.0 gives 97.22
-   and 2.7.2-cdk 97.78, so the preset is not the lever. */
+   and 2.7.2-cdk 97.78, so the preset is not the lever. Retested this session:
+   2.7.2-cdk -O2 98.06, -O3 98.06, -G0 98.06, cdk -O3 compile-failed. */
 /* s32 func_80073DE4(u8 *p0, s32 arg1) {
     s32 t = *(s16 *)(p0 + 0xB6) + arg1;
 
