@@ -154,13 +154,15 @@ void func_80076438(u8* p) {
 extern s32 func_80083CD8(u8* p);
 extern void func_8007E894(s32 a0, s32 a1);
 extern s32 D_8009292C;
+extern u8 D_80099D9C;
+extern u8 D_80099D9B;
 extern u32 D_80091198[];
 extern u32 D_80096FB8[];
 extern u8 D_80096FBC[];
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_800764CC);
 
-/* 99.76%: two residuals. (1) gcc hoists the `lui v0,0x800` / `and v1,v1,v0`
+/* measured 95.12% (was 99.76% when this note was written): two residuals. (1) gcc hoists the `lui v0,0x800` / `and v1,v1,v0`
    pair for the `flags & 0x8000000` test up into the mult->mflo shadow (before
    the 0xD0 store); the original leaves both after the 0x15F2 store. Tried:
    test inline in the if, in-place `flags &=`, if/else on the two call shapes,
@@ -211,7 +213,7 @@ extern char D_8006FD10[];
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_8007661C);
 
-/* 97.90%: the instruction stream is identical apart from two things. (1) the
+/* measured 99.02% (written as 97.90%): the instruction stream is identical apart from two things. (1) the
    frame is 0x38 instead of 0x30 -- this source needs one 8-byte stack temp the
    original does not have (buf sits at sp+0x10 in both, only the total differs;
    `u8 buf[0x8]` moves it to 0x30 but then the buffer is too small for
@@ -288,6 +290,10 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80077584);
    the "p->unk14 = -0x82" clamp, where gcc always fills the slot with the addiu.
    Tried: plain if, empty else branch, pointer local for the field, s32 local
    holding the limit.
+NOTE: the definition has to be old-style (K&R, four parameters) or the unit
+   stops compiling: the already matched caller func_8007762C passes only p and
+   gcc rejects the prototyped definition ("too few arguments"). The measured
+   diff is exactly the missing nop, everything else lines up.
 void func_80077584(u8* p, s32 ang, s32 shift, s32 dec) {
     *(s32*)(p + 0x20) += rcos(ang) >> shift;
     *(s32*)(p + 0x28) += rsin(ang) >> shift;
