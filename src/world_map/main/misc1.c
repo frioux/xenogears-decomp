@@ -266,7 +266,8 @@ void func_80071CDC(void) {
    lui $at. A local StreamDataQueueEntry* does not stop that folding, and neither
    does routing the address through an s32 local: cse replaces the store's
    (mem (symbol_ref)) with %hi/%lo regardless, because the address pseudo is
-   created after the store. Dead end unless the address comes from a runtime base.
+   created after the store. Dead end unless the address comes from a runtime base. *//*
+
 
 void func_80071EF0(void) {
     void* pBuffer;
@@ -287,35 +288,24 @@ void func_80071EF0(void) {
     D_8009D40C = D_8009BD20;
     func_80029AFC(pQueue, 0, 0);
 }
+
 */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80071EF0);
-/* best: 94.98%. Store order now matches the original exactly; the only delta is
-   that the original materialises the 0x25 constant into $v1 before the two
-   pointer stores and keeps 0x26 in $v0 until its own store, while gcc emits
-   each constant at its store. Tried and no help: an s32 local for 0x25 folds
-   straight back; s32 locals for BOTH constants (fed to the two
-   ArchiveDecodeAlignedSize calls and to the two archiveIndex stores) still emit
-   each li at its store. sched2 will not hoist them, so this is a ready-list tie,
-   not a source-order one. Worth keeping: hoisting the queue pointer to the top
-   of the function DOES reproduce the original's early a0/a1 call setup, which
-   is what leaves only these two li insns differing.
 
 void func_80071FEC(void) {
     void* pBuffer;
 
     D_8005945C = HeapAlloc(ArchiveDecodeAlignedSize(0x26), 1);
     pBuffer = HeapAlloc(ArchiveDecodeAlignedSize(0x25), 1);
+    D_8009D3F8 = 0x25;
     D_8009D528 = pBuffer;
     D_8009D3FC = pBuffer;
-    D_8009D3F8 = 0x25;
     D_8009D400 = 0x26;
     D_8009D408 = 0;
     D_8009D40C = 0;
     D_8009D404 = D_8005945C;
     func_80029AFC((StreamDataQueueEntry*)&D_8009D3F8, 0, 0);
 }
-*/
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80071FEC);
 
 extern s32 D_8004F304;
 extern s32 D_8009CC98;
@@ -622,6 +612,9 @@ void func_80073398(void) {
    block (into $v1) whatever the source order, so our block is 4 bytes shorter.
    Tried, no help: two separate temps, x-first / B0-first statement orders,
    direct stores through the globals, s32* pointer stores.
+   Round 39: a volatile cast on the p->z read DOES hold it in place and keeps
+   the load-delay nop (97.16%) but turns the lh into lhu + sll 16 / sra 4. */
+/*
 void func_80073448(s32 arg0) {
     WorldMapPoint* p;
     s32 nPos;
@@ -907,14 +900,6 @@ typedef struct {
     /* 0xC */ u32 w3;
 } WorldMapChunk; // Size: 0x10
 
-/* best: 98.55%. All three loops match except one register in the clearing loop:
-   retail emits li v0,-1 and compares that, gcc 2.7.2 picks a0 (the loop body, the
-   prim loop and the 0x280-byte chunk copy are byte-identical). Shapes that got
-   here: countdown counter (i = 0xF; i != -1; i--) plus a forward slot pointer,
-   fields written unk4/unk2/unk0 (that is what reproduces retail's base = slot+2
-   and its 2(v0)/0(v0)/0(v1) order), and the copy as a 16-byte struct assignment
-   over a pointer end compare. Sibling of WorldMapSetupMapPrims.
-
 void func_80074594(void) {
     WorldMapSlot* pSlot;
     POLY_FT4* pPrim;
@@ -934,7 +919,7 @@ void func_80074594(void) {
         pSlot++;
     }
     pPrim = (POLY_FT4*)D_8009BE14;
-    for (i = 0xF; i >= 0; i--) {
+    for (i = 0xF; i != -1; i--) {
         setPolyFT4(pPrim);
         pPrim->r0 = 0x40;
         pPrim->g0 = 0x40;
@@ -960,5 +945,3 @@ void func_80074594(void) {
     } while (pSrc != pEnd);
     D_8009BE38 = 0;
 }
-*/
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80074594);
