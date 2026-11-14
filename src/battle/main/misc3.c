@@ -1,6 +1,8 @@
 #include "common.h"
 #include "psyq/libgpu.h"
 
+extern u8 *D_800C3E24;
+extern u8 D_800CCB34;
 extern u8 *D_800C3EA4;
 extern u8 *D_800C3EAC;
 extern u8 *D_800D2D28;
@@ -329,7 +331,65 @@ void BattleFreePacketPrimitives(void) {
     HeapFree(*(u8 **)(D_800C3EA4 + 0xA230));
 }
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_80077698);
+void func_80077698(void) {
+    s32 i;
+    s32 j;
+
+    bzero(D_800C3E24, 0xEC);
+    for (i = 0; i < 4; i++) {
+        for (j = 0; j < 2; j++) {
+            SetPolyG3((POLY_G3 *)((i * 2 + j) * 0x1C + (s32)D_800C3E24));
+            switch (i) {
+            case 0:
+                ((POLY_G3 *)(D_800C3E24 + (i * 2 + j) * 0x1C))->x0 = 0xC0;
+                ((POLY_G3 *)(D_800C3E24 + (i * 2 + j) * 0x1C))->y0 = 0x70;
+                ((POLY_G3 *)(D_800C3E24 + (i * 2 + j) * 0x1C))->x1 = 0xB0;
+                ((POLY_G3 *)(D_800C3E24 + (i * 2 + j) * 0x1C))->y1 = 0x78;
+                ((POLY_G3 *)(D_800C3E24 + (i * 2 + j) * 0x1C))->x2 = 0xB0;
+                ((POLY_G3 *)(D_800C3E24 + (i * 2 + j) * 0x1C))->y2 = 0x68;
+                break;
+            case 1:
+                ((POLY_G3 *)(D_800C3E24 + (i * 2 + j) * 0x1C))->x0 = 0xA0;
+                ((POLY_G3 *)(D_800C3E24 + (i * 2 + j) * 0x1C))->y0 = 0x90;
+                ((POLY_G3 *)(D_800C3E24 + (i * 2 + j) * 0x1C))->x1 = 0x98;
+                ((POLY_G3 *)(D_800C3E24 + (i * 2 + j) * 0x1C))->y1 = 0x80;
+                ((POLY_G3 *)(D_800C3E24 + (i * 2 + j) * 0x1C))->x2 = 0xA8;
+                ((POLY_G3 *)(D_800C3E24 + (i * 2 + j) * 0x1C))->y2 = 0x80;
+                break;
+            case 2:
+                ((POLY_G3 *)(D_800C3E24 + (i * 2 + j) * 0x1C))->x0 = 0x80;
+                ((POLY_G3 *)(D_800C3E24 + (i * 2 + j) * 0x1C))->y0 = 0x70;
+                ((POLY_G3 *)(D_800C3E24 + (i * 2 + j) * 0x1C))->x1 = 0x90;
+                ((POLY_G3 *)(D_800C3E24 + (i * 2 + j) * 0x1C))->y1 = 0x68;
+                ((POLY_G3 *)(D_800C3E24 + (i * 2 + j) * 0x1C))->x2 = 0x90;
+                ((POLY_G3 *)(D_800C3E24 + (i * 2 + j) * 0x1C))->y2 = 0x78;
+                break;
+            case 3:
+                ((POLY_G3 *)(D_800C3E24 + (i * 2 + j) * 0x1C))->x0 = 0xA0;
+                ((POLY_G3 *)(D_800C3E24 + (i * 2 + j) * 0x1C))->y0 = 0x50;
+                ((POLY_G3 *)(D_800C3E24 + (i * 2 + j) * 0x1C))->x1 = 0x98;
+                ((POLY_G3 *)(D_800C3E24 + (i * 2 + j) * 0x1C))->y1 = 0x60;
+                ((POLY_G3 *)(D_800C3E24 + (i * 2 + j) * 0x1C))->x2 = 0xA8;
+                ((POLY_G3 *)(D_800C3E24 + (i * 2 + j) * 0x1C))->y2 = 0x60;
+                break;
+            }
+            ((u8 *)D_800C3E24)[(i * 2 + j) * 0x1C + 4] = 0xFF;
+            ((u8 *)D_800C3E24)[(i * 2 + j) * 0x1C + 5] = 0;
+            ((u8 *)D_800C3E24)[(i * 2 + j) * 0x1C + 6] = 0;
+            ((u8 *)D_800C3E24)[(i * 2 + j) * 0x1C + 0xC] = 0x40;
+            ((u8 *)D_800C3E24)[(i * 2 + j) * 0x1C + 0xD] = 0;
+            ((u8 *)D_800C3E24)[(i * 2 + j) * 0x1C + 0xE] = 0;
+            ((u8 *)D_800C3E24)[(i * 2 + j) * 0x1C + 0x14] = 0x40;
+            ((u8 *)D_800C3E24)[(i * 2 + j) * 0x1C + 0x15] = 0;
+            ((u8 *)D_800C3E24)[(i * 2 + j) * 0x1C + 0x16] = 0;
+        }
+    }
+    *(s32 *)(D_800C3E24 + 0xE0) = 0xFF;
+    D_800C3E24[0xE5] = 1;
+    D_800C3E24[0xE4] = D_800CCB34;
+    D_800D2D28[0xC6] = 1;
+}
+
 void BattleClearFlagC6(void) {
     D_800D2D28[0xC6] = 0;
 }
