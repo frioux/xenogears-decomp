@@ -182,6 +182,101 @@ void func_801E5058(void) {
     }
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc11_r2", func_801E5178);
+/* Best: 94.34% (592 bytes, same size as retail).  The 66 stores are in retail order
+   and the field widths are right (four s16 at +0/+2/+4/+6, u8 at +0x17, u16 at
+   +0x1A; eleven records of 0x20 bytes at g_GameState+0x16C0).  What is left is only
+   the placement of the constant loads: retail emits the li for a constant several
+   statements before its first store (li a3,0xFF00 and li v1,0xFFF0 ride in front of
+   the 0x16C0 store and are first used at 0x16C2/0x16C4) and the allocator swaps my
+   a0/a1 pair for 7 and 0xFFC0; the store sequence itself matches instruction for
+   instruction.  The table overlaps the header fields unk16BC[10] and unk17FC.
+   // Per-gear stat limits reset by func_801E5178.  The table lives at
+   // g_GameState+0x16C0, eleven records of 0x20 bytes.
+   typedef struct {
+       // 0x00 u16 unk0;
+       // 0x02 u16 unk2;
+       // 0x04 u16 unk4;
+       // 0x06 u16 unk6;
+       // 0x08 u8 pad8[0xF];
+       // 0x17 u8 unk17;
+       // 0x18 u8 pad18[2];
+       // 0x1A u16 unk1A;
+       // 0x1C u8 pad1C[4];
+   } MenuGearLimits; // Size: 0x20
+
+   void func_801E5178(void) {
+       MenuGearLimits* pTable;
+
+       pTable = (MenuGearLimits*)((u8*)&g_GameState + 0x16C0);
+       g_GameState.unk1D30 = 0x7FF;
+       pTable[0].unk0 = 0xFFF8;
+       pTable[0].unk6 = 0xFE00;
+       pTable[1].unk1A = 0xC000;
+       pTable[0].unk2 = 0xFF00;
+       pTable[0].unk4 = 0xFFF0;
+       pTable[0].unk1A = 0xE000;
+       pTable[0].unk17 = 0x7;
+       pTable[1].unk0 = 0xFFE0;
+       pTable[1].unk2 = 0xFFF0;
+       pTable[1].unk4 = 0xFFF0;
+       pTable[1].unk6 = 0xFFF0;
+       pTable[1].unk17 = 0x7;
+       pTable[2].unk0 = 0xFFE0;
+       pTable[2].unk2 = 0xFFE0;
+       pTable[2].unk4 = 0xFFF0;
+       pTable[2].unk6 = 0xFF00;
+       pTable[2].unk1A = 0x8000;
+       pTable[2].unk17 = 0x7;
+       pTable[3].unk0 = 0xFFE0;
+       pTable[3].unk2 = 0xFFC0;
+       pTable[3].unk4 = 0xFFF0;
+       pTable[3].unk6 = 0xFF00;
+       pTable[3].unk1A = 0xC000;
+       pTable[3].unk17 = 0x7;
+       pTable[4].unk0 = 0xFFC0;
+       pTable[4].unk2 = 0xFFC0;
+       pTable[4].unk4 = 0xFFF0;
+       pTable[4].unk6 = 0xFFC0;
+       pTable[4].unk1A = 0xE000;
+       pTable[4].unk17 = 0x7;
+       pTable[5].unk0 = 0xFFC0;
+       pTable[5].unk2 = 0xC000;
+       pTable[5].unk4 = 0xFFF0;
+       pTable[5].unk6 = 0xC000;
+       pTable[5].unk1A = 0x8000;
+       pTable[5].unk17 = 0x7;
+       pTable[6].unk0 = 0xFFC0;
+       pTable[6].unk2 = 0xFF00;
+       pTable[6].unk4 = 0xFFF0;
+       pTable[6].unk6 = 0xFF00;
+       pTable[6].unk1A = 0x8000;
+       pTable[6].unk17 = 0x7;
+       pTable[7].unk0 = 0x0;
+       pTable[7].unk2 = 0xFF00;
+       pTable[7].unk4 = 0x0;
+       pTable[7].unk6 = 0xFF00;
+       pTable[7].unk1A = 0x0;
+       pTable[7].unk17 = 0x7;
+       pTable[8].unk0 = 0x0;
+       pTable[8].unk2 = 0xF800;
+       pTable[8].unk4 = 0xFFF0;
+       pTable[8].unk6 = 0x0;
+       pTable[8].unk1A = 0xE000;
+       pTable[8].unk17 = 0x7;
+       pTable[9].unk0 = 0xFFE0;
+       pTable[9].unk2 = 0xFFE0;
+       pTable[9].unk4 = 0xFFF0;
+       pTable[9].unk6 = 0xFFE0;
+       pTable[9].unk1A = 0x8000;
+       pTable[9].unk17 = 0x7;
+       pTable[10].unk0 = 0xFFC0;
+       pTable[10].unk2 = 0xFF00;
+       pTable[10].unk4 = 0xFFF0;
+       pTable[10].unk6 = 0xFF00;
+       pTable[10].unk1A = 0x8000;
+       pTable[10].unk17 = 0x7;
+   }
+*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc11_r2", func_801E53CC);
 void func_801E927C(POLY_FT4* pPoly);
 void MenuSetQuadVertices(SVECTOR* pVertices, u16 x, u16 y, u16 width, u16 height);
@@ -437,6 +532,80 @@ s32 func_801E65E4(u8* p) {
     return Krom2RawAdd((hi << 8) | lo);
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc11_r2", func_801E6668);
+/* Best: 98.90% (584 bytes, same size as retail).  Decoded shape: index selects a
+   0x200-byte MenuUnk2ImageChunk; the 0x40-entry byte table at chunk+4 is walked one
+   entry per glyph (two bytes when func_801E65E4 sets D_801EA8C0), each entry is
+   unpacked to 0x100 bits, func_801E6544 compresses a row, and the bits are OR ed into
+   a 0x1000-byte 4bpp texture at (i/16)*0x400 + (i%16)*4 + row*0x40 + col/4 before
+   LoadImage of the 0x140,0xE0 RECT.  Everything matches except ONE insn: retail
+   keeps addiu a0,sp,16 (the RECT address) in BOTH branch delay slots that reach the
+   epilogue and has none at the head of the epilogue block; gcc keeps it in the
+   epilogue block and fills only the loop-top beqz slot.  Tried: RECT declared
+   before/after the loops, one shared col variable for the bit loops and the repack
+   column (that fixed a v1/a0 register swap and took it from 98.34 to 98.90), the
+   s32-address form (adds a move a0,v1), LoadImage args reordered.
+   void func_801E6668(s32 index) {
+       u8* pGlyphBits;
+       u8* pBits;
+       u8* pTexture;
+       u8* pSrc;
+       u16* pGlyph;
+       RECT rect;
+       s32 i;
+       s32 count;
+       s32 row;
+       s32 col;
+
+       pBits = HeapAlloc(0x100, 1);
+       pTexture = HeapAlloc(0x1000, 1);
+       bzero(pTexture, 0x1000);
+       count = 0;
+       pSrc = &g_Menu->menuUnk2->chunks[index].pad0[4];
+       for (i = 0; i < 0x20; i++) {
+           if (*pSrc == 0) {
+               break;
+           }
+           pGlyphBits = pBits;
+           pGlyph = (u16*)func_801E65E4(pSrc);
+           if (pGlyph != (u16*)-1) {
+               for (row = 0; row < 0x10; row++) {
+                   for (col = 7; col >= 0; col--) {
+                       *pGlyphBits++ = (*pGlyph >> col) & 1;
+                   }
+                   for (col = 0xF; col >= 8; col--) {
+                       *pGlyphBits++ = (*pGlyph >> col) & 1;
+                   }
+                   pGlyph++;
+               }
+               func_801E6544(pBits);
+               for (row = 0; row < 0x10; row++) {
+                   for (col = 0; col < 0xC; col++) {
+                       ((u16*)pTexture)[row * 0x40 + col / 4 + (i % 0x10) * 4 +
+                                         (i / 0x10) * 0x400] |=
+                           pBits[row * 0x10 + col] << ((col % 4) * 4);
+                   }
+               }
+           }
+           pSrc++;
+           count++;
+           if (D_801EA8C0 != 0) {
+               pSrc++;
+               count++;
+           }
+           if (count >= 0x40) {
+               break;
+           }
+       }
+       rect.x = 0x140;
+       rect.y = 0xE0;
+       rect.w = 0x40;
+       rect.h = 0x20;
+       LoadImage(&rect, (u_long*)pTexture);
+       DrawSync(0);
+       HeapFree(pBits);
+       HeapFree(pTexture);
+   }
+*/
 s32 func_8002675C(MenuResourceDirectory* pDir, u32 index, POLY_FT4* pPrims, s32 context, s32 x, s32 y, s32 scale);
 void MenuSetPlayTimeDigits(u32 value);
 
