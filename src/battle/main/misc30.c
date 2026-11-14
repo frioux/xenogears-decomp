@@ -204,7 +204,7 @@ void BattleActorUpdateGroundHeightAndTriangle(u8* pSprite) {
     *(s32*)(pSprite + 0x78) = index;
 }
 // The two unused slots keep the caller's argument area at retail's offsets.
-AnimTask* func_800BA984(void* pAnimFile, s16 clutX, s16 clutY, s16 texX, s16 texY, s16 unk5, s16 posX,
+AnimTask* BattleCreateAnimTask(void* pAnimFile, s16 clutX, s16 clutY, s16 texX, s16 texY, s16 unk5, s16 posX,
                         s16 posY, s16 posZ, s16 animId, u16 direction, s32 unk84, s32 unk88, s32 clut) {
     AnimTask* pTask;
     SpriteData* pSprite;

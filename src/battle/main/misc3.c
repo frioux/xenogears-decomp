@@ -551,6 +551,7 @@ void func_80078310(u8 *pTimData, u8 index) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_80078310);
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_80078508);
 /* 75.45%: with a pEntry local (one load of the global shared by the two uses
    after the sb) the first store and everything from the `sh` tail on is
    byte-identical; the ONLY difference is that retail's two tile `lbu`s are
