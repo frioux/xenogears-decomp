@@ -46,7 +46,125 @@ extern s32 D_80076FFC[];
 
 INCLUDE_ASM("asm/movie/nonmatchings/main/misc1", func_800704E8);
 
+typedef struct {
+    /* 0x0 */ u16 unk0;
+    /* 0x2 */ u16 unk2;
+    /* 0x4 */ u32 unk4;
+} MovieStreamEntry; // Size: 0x8
+
+extern s32 D_80076E48;
+extern MovieStreamEntry* D_80076E7C;
+extern u32* D_80076E84;
+extern s32 D_80076E94;
+extern u32* D_80076E9C;
+extern s32 D_80076EA4;
+extern s32 D_80076EB4;
+extern s32 D_80076EB8;
+extern s32 D_80076EBC;
+extern s32 D_800773AC;
+extern s32 D_800773B4;
+extern u8 D_80076F7C[];
+extern s32 D_80076F80;
+extern u32* func_80028B14(void);
+extern s32 func_80028F30(u8* pArg0, s32* pArg1);
+extern void func_8002945C(u32* pStream);
+extern void func_800294B4(s32 arg0);
+extern s32 ArchiveDecodeAlignedSize(u32 entryIndex);
+extern void func_80071C34(s32 arg0);
+
 INCLUDE_ASM("asm/movie/nonmatchings/main/misc1", func_80070DCC);
+
+// Best attempt (99.78%): the whole stream matches bar one register. Retail loads the
+// entry field into a1 and copies it to a0 for the ArchiveDecodeAlignedSize call
+// with a move in the jal delay slot; gcc here loads straight into a0 and leaves
+// a nop. Shapes tried: the field expression twice, an s32 and a u16 local, the
+// parameter declared u32, and three local declaration orders - all identical.
+/*
+void func_80070DCC(void) {
+    s32 size;
+    s32 i;
+    u32 value;
+
+    if ((D_800773B4 & 0x20) == 0 && (D_800773AC & 0x20) != 0) {
+        func_80071C34(1);
+    }
+    if ((D_800773B4 & 0x10) == 0 && (D_800773AC & 0x10) != 0) {
+        func_80071C34(2);
+    }
+    if ((D_800773B4 & 0x80) == 0 && (D_800773AC & 0x80) != 0) {
+        func_80071C34(3);
+    }
+    if ((D_800773B4 & 0x40) == 0 && (D_800773AC & 0x40) != 0) {
+        D_80076EA4++;
+        func_8002A498(0);
+    }
+    if ((D_800773B4 & 0x1000) == 0 && (D_800773AC & 0x1000) != 0) {
+        func_80071C34(7);
+    }
+    if ((D_800773B4 & 0x4000) == 0 && (D_800773AC & 0x4000) != 0) {
+        func_80071C34(9);
+    }
+    if ((D_800773B4 & 0x8) == 0 && (D_800773AC & 0x8) != 0) {
+        D_80076EB8 = 1 - D_80076EB8;
+    }
+    if ((D_800773B4 & 0x4) == 0 && (D_800773AC & 0x4) != 0 && D_80076E48 < 0xB) {
+        func_80071BA0();
+    }
+
+    if (D_80076EB8 == 1) {
+        D_80076E9C = func_80028B14();
+        if (D_80076E9C != 0) {
+            if (D_80076E94 >= 0x801) {
+                for (i = 0; i < 0x200; i++) {
+                    *D_80076E84++ = D_80076E9C[i];
+                }
+            } else {
+                for (i = 0; i < D_80076E94 / 4; i++) {
+                    *D_80076E84++ = D_80076E9C[i];
+                }
+            }
+            D_80076E94 -= 0x800;
+            if (D_80076E94 <= 0) {
+                if (D_80076E48 == 0xC) {
+                    D_80076EB4++;
+                    size = D_80076E7C[D_80076EB4].unk0;
+                    if (size != 0) {
+                        D_80076E94 = ArchiveDecodeAlignedSize(size);
+                    }
+                    D_80076E84 = (u32*)D_80076E7C[D_80076EB4].unk4;
+                }
+            }
+            func_8002945C(D_80076E9C);
+        }
+    }
+    if (D_80076EB8 == 2) {
+        if (func_80028F30(D_80076F7C, &D_80076F80) == 0) {
+            func_800294B4(D_80076F80);
+        }
+    }
+
+    if ((D_800773B4 & 0x2000) == 0 && (D_800773AC & 0x2000) != 0) {
+        func_80071C34(0xB);
+    }
+    if ((D_800773B4 & 0x8000) == 0 && (D_800773AC & 0x8000) != 0) {
+        func_80071C34(0xD);
+    }
+    if (D_80076EBC != 0) {
+        value = func_80074AF0() & 0xFF;
+        if (value == 0) {
+            if (D_80076E48 < 0xB) {
+                func_80071BA0();
+            }
+        }
+        if (value - 1 < 0xC) {
+            func_80071C34(value);
+        }
+    }
+    if ((D_800773B4 & 0x100) == 0 && (D_800773AC & 0x100) != 0) {
+        D_80076EBC = 1 - D_80076EBC;
+    }
+}
+*/
 
 INCLUDE_ASM("asm/movie/nonmatchings/main/misc1", func_800712C4);
 
@@ -307,7 +425,69 @@ INCLUDE_ASM("asm/movie/nonmatchings/main/misc1", func_800734B8);
 
 INCLUDE_ASM("asm/movie/nonmatchings/main/misc1", func_800737EC);
 
-INCLUDE_ASM("asm/movie/nonmatchings/main/misc1", func_800747AC);
+extern int ControllerGetButtonState(int controllerIndex);
+extern s32 D_80077118;
+extern s32 D_80077394;
+extern s32 D_800773B0;
+extern s32 D_80076EEC;
+extern s32 D_80076EF0;
+
+s32 func_800747AC(s32 arg0, s32 arg1, s32* pOut) {
+    D_800773B4 = D_800773AC;
+    D_800773AC = ControllerGetButtonState(0);
+    if (D_800773B4 == D_800773AC) {
+        if (D_800773B4 != 0) {
+            D_80076EEC++;
+            if (D_80076EF0 < D_80076EEC) {
+                D_800773B4 = 0;
+                D_80076EF0 = 1;
+                D_80076EEC = 0;
+            }
+        } else {
+            D_80076EF0 = 0x10;
+            D_80076EEC = 0;
+        }
+    } else {
+        D_80076EF0 = 0x10;
+        D_80076EEC = 0;
+    }
+    if ((D_800773B4 & 0x1000) == 0 && (D_800773AC & 0x1000) != 0) {
+        if (--D_80077118 < arg0) {
+            D_80077118 = arg1;
+        }
+    }
+    if ((D_800773B4 & 0x4000) == 0 && (D_800773AC & 0x4000) != 0) {
+        if (++D_80077118 > arg1) {
+            D_80077118 = arg0;
+        }
+    }
+    *pOut = 0;
+    if ((D_800773B4 & 0x10) == 0 && (D_800773AC & 0x10) != 0) {
+        *pOut = 1;
+    }
+    if ((D_800773B4 & 0x20) == 0 && (D_800773AC & 0x20) != 0) {
+        *pOut = 2;
+    }
+    if ((D_800773B4 & 0x40) == 0 && (D_800773AC & 0x40) != 0) {
+        *pOut = 3;
+    }
+    if ((D_800773B4 & 0x80) == 0 && (D_800773AC & 0x80) != 0) {
+        *pOut = 4;
+    }
+    if ((D_800773B4 & 0x100) == 0 && (D_800773AC & 0x100) != 0) {
+        D_800773B0 = 1 - D_800773B0;
+    }
+    if ((D_800773B4 & 0x800) == 0 && (D_800773AC & 0x800) != 0) {
+        D_80077394 = 1 - D_80077394;
+    }
+    if ((D_800773B4 & 0x2000) == 0 && (D_800773AC & 0x2000) != 0) {
+        return 1;
+    }
+    if ((D_800773B4 & 0x8000) == 0 && (D_800773AC & 0x8000) != 0) {
+        return -1;
+    }
+    return 0;
+}
 
 s32 func_80074AF0(void) {
     s32 a;
