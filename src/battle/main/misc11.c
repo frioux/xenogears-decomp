@@ -53,27 +53,31 @@ extern void func_80089AF8(u8 arg0);
 extern void func_800898F0(u8 arg0);
 extern void func_800716D8(void);
 
-/* 74.02%: with `extern volatile s32 D_800CCB34` the loop body is exact (four
-   reloads of the counter between the four stores, and the two separate
-   `lbu 0(a1)` of pSrc[i]: the stores are plain, the counter is what reloads).
-   The remaining gap is that the original hoists `lw a3,D_800C3EA4` into the
-   preheader and hoists only the 0xC constant (`li t2,0xC`), leaving `li v1,0x12`
-   in the body; our gcc keeps the D_800C3EA4 load in the loop (CSE'd across the
-   four stores) and hoists both constants. Also allocation: original i=a2,
-   pSrc=a1, base=a3. A pDst local hoists the load but drops to 71.89.
-   Prologue is exact: (u8 arg0, u8 arg1), u8 count, compared as (u8)count. */
+/* 82.95%: best of 6 shapes. The loop body matches instruction for
+   instruction (four reloads of the volatile counter, the two separate
+   `lbu 0(a1)` of pSrc[i], the incrementing pSrc pointer in the branch delay
+   slot) and so do the prologue and the tail. What is left is loop.c's
+   invariant hoisting: retail hoists `lw a3,D_800C3EA4` and `li t2,0xC` into
+   the preheader and leaves `li v1,0x12` in the body, while our gcc hoists
+   neither (it keeps the base load and both constants in the body, 1 insn
+   shorter) and puts the `li 0xC` in the body. Writing pSrc as a pre-loop
+   local (74.02) puts its init before the loop test, which retail has after;
+   declaring it inside the loop body (this shape) fixes the order and the
+   incrementing pointer. A `u8 *pBase = D_800C3EA4;` pre-loop local does hoist
+   the load but reorders the preheader (71.44). -O3 / -G0 / cdk change nothing
+   material. */
 /*
 void func_8007FBE0(u8 arg0, u8 arg1) {
     u8 count;
     s32 i;
-    u8 *pSrc;
 
     count = arg1;
     if (arg0 == arg1) {
         count = arg1 - 1;
     }
-    pSrc = D_800C3202 + arg0 * 6;
     for (i = 0; i < arg0 - 1; i++) {
+        u8 *pSrc = D_800C3202 + arg0 * 6;
+
         *(u16 *)(D_800C3EA4 + (D_800CCB34 + i * 2) * 0x10 + 0x910) = 0xC;
         *(u16 *)(D_800C3EA4 + (D_800CCB34 + i * 2) * 0x10 + 0x912) = pSrc[i] + 0x5E;
         *(u16 *)(D_800C3EA4 + (D_800CCB34 + i * 2) * 0x10 + 0x914) = 0x12;
@@ -82,9 +86,9 @@ void func_8007FBE0(u8 arg0, u8 arg1) {
     D_800D2D28[0x97] = count;
     D_800D2D28[0x98] = *(u8 *)&D_800CCB34;
 }
+
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_8007FBE0);
-
 void func_8007FCE8(void) {
     if (D_800D2D28[0xAE] != 0) {
         HeapFree(D_800D367C);
@@ -316,25 +320,13 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_80081B58);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_800820A4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_800822C4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_80082504);
-/* 84.29%: everything after the D_800CCE42 update matches instruction for
-   instruction. What is left is that one statement: the original forms the
-   symbol base twice (`lui at,%hi(D_800CCE42); addu at,at,idx; lbu/sb %lo(at)`,
-   i.e. maspsx's $at form) because gcc emitted the `la` once per memory access,
-   while our gcc hoists one `la` out of the index chain and shares it, so the
-   pair stays as lui/addiu into a general register (5 fewer insns). Tried: plain
-   `|=`, index-first and base-first spellings, a load/store pair through a local,
-   and a volatile access (82.41, also loses the `move a0,s0` delay slot). Also two
-   allocation details behind it: `move a1,zero` belongs in the `beq` delay slot
-   and the D_800D32A1 store must stay above the D_800D2D24 load. The rest of the
-   function is exact, including the three-iteration g_GameState loop. */
-/*
 void func_800826CC(u8 arg0) {
     s32 i;
 
     func_80088490(arg0);
     func_8009AEFC(arg0);
     func_800BAF48(arg0);
-    *(u8 *)(D_800CCE42 + arg0 * 0x170) |= 0x80;
+    D_800CCE42[arg0 * 0x170] |= 0x80;
     func_800883AC(arg0);
     D_800D32A1[arg0 * 8] = 2;
     if (D_800D2D24[arg0] != 7) {
@@ -348,5 +340,3 @@ void func_800826CC(u8 arg0) {
         }
     }
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_800826CC);
