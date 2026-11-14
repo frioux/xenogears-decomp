@@ -1178,6 +1178,9 @@ s16 (*LibGearGetInterpolationFunc(s32 type))(s16, s16, s16) {
 // addiu at 5; 6th statement gives (5, 9). Store order = source order in every
 // shape, so the (0, 14) split needs a scheduling decision this gcc will not make.
 // Screened: 94.87 identical under 2.6.0 and 2.7.2-cdk - not a compiler problem.
+// Later: three bare `-1` literals (no negOne local) also give 74.36 - cse still
+// merges them into one register and sched2 parks that li 9 insns early (slot 5),
+// so the constant is not a source-shape question either.
 /*
 void func_801E3534(Model* pModel, s32 arg1, u32 arg2, u32 arg3) {
     s16 negOne = -1;
