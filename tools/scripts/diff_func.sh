@@ -29,8 +29,35 @@ base=build/src/$unit.c.o
 dump() {
     mips-linux-gnu-objdump -d -r --no-show-raw-insn "$1" \
         | awk -v f="<$2>:" '$0 ~ f {p=1; next} p && /^[0-9a-f]+ <.*>:$/ {exit} p' \
-        | sed -E 's/^ *[0-9a-f]+:\t//; s/^\t+//; s/^[0-9a-f]+: (R_MIPS)/\1/; s/\b0 <[^>]+>$//; s/[[:space:]][0-9a-f]+ <([^>]+)>/ <\1>/g; s/,[0-9a-f]+ </,</g' || true
+        | sed -E 's/^ *[0-9a-f]+:\t//; s/^\t+//; s/^[0-9a-f]+: (R_MIPS)/\1/; s/\b0 <[^>]+>$//; s/[[:space:]][0-9a-f]+ <([^>]+)>/ <\1>/g; s/,[0-9a-f]+ </,</g' \
+        | python3 -c "$fold_addends" || true
 }
+
+# A reference to D_<addr> is the same bytes after linking however the C spells it:
+# 'D_800D3420' and 'D_800D3400[i].unk20' (reloc D_800D3400, addend 0x20 in the
+# instruction) differ only in the object file. Fold each addend into the symbol so
+# that typed struct/array accesses compare equal to the splat-named address.
+fold_addends='
+import re, sys
+hi = {}
+out = []
+imm = re.compile(r"(-?(?:0x[0-9a-f]+|\d+))(\(\w+\))?$")
+for line in sys.stdin.read().splitlines():
+    m = re.match(r"R_MIPS_(HI16|LO16)\s+D_([0-9A-F]{8})$", line)
+    n = imm.search(out[-1]) if m and out and not out[-1].startswith("R_MIPS") else None
+    if n:
+        v = int(n.group(1), 0)
+        zero = "0x0" if m.group(1) == "HI16" else "0"
+        out[-1] = out[-1][:n.start()] + zero + (n.group(2) or "")
+        if m.group(1) == "HI16":
+            hi[m.group(2)] = v << 16
+            line = "R_MIPS_HI16\tD_*"
+        else:
+            v = (v & 0xFFFF) - ((v & 0x8000) << 1)
+            line = "R_MIPS_LO16\tD_%08X" % ((int(m.group(2), 16) + hi.get(m.group(2), 0) + v) & 0xFFFFFFFF)
+    out.append(line)
+print("\n".join(out))
+'
 
 # Inside the container (or on linux/x86_64): build the unit and emit the diff.
 if [ "$(uname -s)-$(uname -m)" = "Linux-x86_64" ]; then

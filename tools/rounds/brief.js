@@ -11,6 +11,8 @@ A function counts as matched when the output has BOTH a line starting \`MATCH:\`
 
 ONE EXCEPTION, and only for a jump table: if the diff is otherwise perfect but the only difference is the switch's table operand (the original names a \`jtbl_\` symbol, yours says \`.rodata\` or \`.L...\`), objdiff can never say 100% because the linker resolves both to the same address. In that case run \`tools/scripts/check_bin.sh ${w.overlay}\` (~35 s). If it prints \`OK\`, your function really does match - commit it and say CHECK_BIN_OK in your report. NOTE this leaves your tree in matching mode, so run \`make objdiff-config\` before you can diff again (~35 s); do it at most once, at the end of your batch.
 
+SECOND EXCEPTION, typed data access: \`D_800D3400[i].unk20\` assembles to the relocation \`D_800D3400\` with addend 0x20 where the original object names \`D_800D3420\`. The linked bytes are identical (make check verified this), diff_func.sh folds the addend and prints \`MATCH:\`, but objdiff stays at 99.x%. If \`MATCH:\` is printed, the byte count on the objdiff line equals the original's, and the ONLY thing you changed since a 100.00% version is how a D_ global is spelled, the function matches: report it as \`MATCH <name> RELOC\` and confirm the whole batch once at the end with \`tools/scripts/check_bin.sh ${w.overlay}\` (CHECK_BIN_OK), as above.
+
 RULES
 - NEVER run \`docker kill\`/\`docker rm\`/\`docker ps ... | xargs docker ...\` or otherwise touch containers: the build container is shared with every other worker tree on this host, and one worker once killed five other workers' builds with \`docker ps -q | xargs docker kill\`. If a build wedges, wait, re-run the diff script, or work from the assembly; do not touch docker.
 - Never run \`make\` (any target) except that one \`make objdiff-config\`: it does a full clean rebuild and takes 30 s. Use the diff script. Never run bare ninja outside it.
@@ -34,6 +36,15 @@ ${w.more || "If you get through the list, continue with the next smallest stubs 
 
 The assembly for each function is ${w.asm}/<Func>.s - read it before writing C. Matched functions already in your unit are the reference for struct layouts and idiom; read a few neighbours first.
 ${w.extra || ""}
+REALISTIC C - a match is step one, not the finish. The goal is source a 1998 Square programmer could have typed, and they never typed \`*(u8 *)(D_800CCE3D + slot * 0x170) = (*p)[1];\` or \`u8 *p = D_800D343F + index * 0x40;\`. Those say: there is an array of 0x170-byte (0x40-byte) structs and nobody has declared it.
+- Scaled global: \`D_X + i * 0x40\` is \`Table[i]\` of a 0x40-byte struct whose base is the lowest address the unit indexes that way (D_800D343F is field 0x3F of the table at D_800D3400). Declare the struct (offset comment per field, size comment, \`unk<offset>\` for unknown fields, a named field once its use shows what it is) and write \`D_800D3400[index].unk3F\`. Look in include/ and the unit's matched neighbours for an existing struct of that size first; extend it, never declare a second one for the same table.
+- Cast-and-offset: \`*(s16 *)(pNode + 6)\`, \`*(u16 *)((u8 *)pElement + 0xA)\` is \`pNode->unk6\`; type the pointer, including the parameter.
+- \`(*p)[1]\` on a \`u8 **\`: a pointer to a struct that holds a cursor, or a script/command pointer; give it a type and a name (\`pScript->pc[1]\`, \`pArgs[1]\`).
+- Also not realistic: a local that exists only to hold a cast, magic sizes repeated at each use (\`sizeof\` or the array bound), goto where a loop or if/else gives the same code, m2c names (temp_v0, var_a1, arg0, sp10).
+- Order of work: get MATCH any way you can, COMMIT, then rewrite toward the realistic form re-running the diff after each step; keep the realistic version if it still matches, otherwise keep the raw one. gcc usually emits the same code for the struct form; where it does not, try the field type (u8 vs s8, array vs scalar), an indexed access vs a typed pointer local, and the struct declared as an array (\`extern T D_X[];\`) vs a scalar.
+- A matched function that still has one of these forms is not finished. Report it as \`ROUGH <name> - <what is still raw and what you tried>\` so it is briefed again. Never trade a match for looks, and never invent a field NAME you cannot justify from the code; \`unk3F\` in a declared struct is realistic, a guessed name is not.
+- A REWRITE ROUND (the extra text below starts with REWRITE) assigns functions that already match: the job is only the above. Do not touch stubs; report \`CLEAN <name>\` or \`ROUGH <name> - reason\`.
+
 TECHNIQUES THAT PAY OFF
 - Signed vs unsigned: \`sll/sra\` pairs vs \`andi 0xff\` mean a parameter or field has the wrong type.
 - \`lhu\`/\`lbu\` in the original vs \`lw\` in yours tells you the true field width.
@@ -69,7 +80,7 @@ KNOWN BLOCKERS ALREADY FOUND IN THIS REPO - do not rediscover them
   system/rendering_pause_text, battle/misc33 func_800BEE2C). A stub of 8-12 insns that begins by loading
   a literal address is often not code at all (battling/misc12 func_80088BFC is a 4-byte pointer datum
   whose real code starts at +4): report DATUM.
-- Overlay units ('world_map', 'battle', 'menu', 'movie', 'battling') reach their globals through linker/undefined_syms_auto.<overlay>.txt, which defines them as ABSOLUTE addresses: spell the exact address the asm names (D_800926AA), never a base+index (D_800926A8[1]). Halfword stores only reach 100% with the exact address.
+- Overlay units ('world_map', 'battle', 'menu', 'movie', 'battling') reach their globals through linker/undefined_syms_auto.<overlay>.txt, which defines them as ABSOLUTE addresses: so a struct or array access off the table base (D_800926A8[1], D_800D3400[i].unk20) links to the same bytes as the exact address the asm names (D_800926AA). Prefer the typed form; diff_func.sh prints MATCH for it while objdiff reads 99.x% (see SECOND EXCEPTION). Fall back to the exact address only when the typed form changes an instruction, and then report the function ROUGH.
 - The world_map overlay is assembled with a different maspsx setting than the rest (XenoWorldMap preset: no li expansion, because its original object is addiu-dominant). gears.toml already has it; do not edit gears.toml.
 - The GTE macros in include/psyq/inline_c.h are the RIGHT SDK revision (3.x: one nop plus the canonical COP2 word; read-backs into $2/$8 via gte_*_gpr and gte_*_val). NormalColor, ColorCol, LocalLight, Square*, SetRot/Light/ColorMatrix, AverageSZ3/Z4 all match. Still blocked, do not retry blind: the *3 family (NormalColor3, ColorCol3, DpqColor3) where retail lazily loads incoming stack arguments after the GTE command, and functions whose .s is bare mtc2/ctc2 with no macro equivalent.
 - A macro whose scratch registers are declared as hard-coded clobbers ("$2","$3") beats "=r" outputs: that is what makes gcc copy a1/a2 into $v0 at the end instead of storing through $v0. If a GTE store/read-back is one register off, try the clobber form.
@@ -119,6 +130,6 @@ NAMES: every function you bring to 100.00% gets a real name, PROPOSED IN YOUR RE
 - In psyq/ units only a real SDK name counts (tools/scripts/psyq_names.py); otherwise write NAME_UNKNOWN <func>.
 - A NAME line for an already-matched func_ neighbour you had to read anyway is welcome, but spend no match time on it. Never name a function that is still INCLUDE_ASM.
 
-FINAL REPORT (the only thing I can see): one line per function you touched - \`MATCH <name> <pct>\` or \`FAIL <name> - one-line reason (best %)\` - then the NAME lines, plus any symbols/headers you added and anything a later agent should know about this unit. No diffs, no code.`;
+FINAL REPORT (the only thing I can see): one line per function you touched - \`MATCH <name> <pct>\` or \`FAIL <name> - one-line reason (best %)\` - then a \`ROUGH <name> - reason\` line for every match that still has raw pointer arithmetic or casts, then the NAME lines, plus any symbols/headers you added and anything a later agent should know about this unit. No diffs, no code.`;
 
 return runs.all(args.workers.map((w, i) => ({ key: "w" + i + "_" + w.unit.replace(/\//g, "-"), agent: "worker", task: HEADER(w), cwd: w.tree })));

@@ -18,9 +18,10 @@ Start:
     make check              # all ELEVEN outputs OK before you touch anything
     grep -rc '^INCLUDE_ASM' src | awk -F'[/:]' '{n[$2]+=$NF} END{for(b in n) print n[b], b}' | sort -rn
 
-That last line is the scoreboard (stubs per binary; 4568 functions in total). Two
-numbers go up in this job: **functions matched** and **matched functions with a real
-name**.
+That last line is the scoreboard (stubs per binary; 4568 functions in total). Three
+numbers move in this job: **functions matched** and **matched functions with a real
+name** go up, and **raw lines** (matched C that no programmer would have written; see
+"Realistic C") goes down.
 
 ## The round loop
 
@@ -90,7 +91,56 @@ of a match, and it is cheap.
   `extern` prototypes and parked bodies, and round 35 spent two duds on files with zero
   unnamed C functions. Ten naming workers yield ~500 names, so this is the cheaper of
   the two numbers to move.
-- Tracker row: `+N matched, +M named`.
+- Tracker row: `+N matched, +M named, raw R`.
+
+## Realistic C
+
+**A match is step one. The product is C that reads like the source Square compiled.**
+These two lines match and are not acceptable as the final form:
+
+    *(u8 *)(D_800CCE3D + slot * 0x170) = (*p)[1];
+    u8 *p = D_800D343F + index * 0x40;
+
+Nobody typed those. They say "there is an array of 0x170-byte structs based a little
+below `D_800CCE3D`, and `p` points at something with a cursor in it", and the finished
+function says so in its types: `g_Slots[slot].unk3D = pScript->pc[1];`. Raw pointer
+arithmetic on a global, cast-and-offset field access (`*(s16 *)(pNode + 6)`), `(*p)[n]`,
+m2c temporaries and locals that exist only to carry a cast are all the same defect: a
+missing struct. The rules a worker follows are in `brief.js` ("REALISTIC C").
+
+- **Starting raw is allowed, staying raw is not.** A worker gets the match however it
+  can, commits, then rewrites toward the typed form and keeps whichever version still
+  matches. What it could not clean it reports as `ROUGH <name> - reason`. A ROUGH
+  function counts as matched and is still owed work: it goes into a later rewrite
+  round, and again after that, until it is clean or the tracker records the specific
+  construct that only the raw spelling matches.
+- **The backlog** (2,663 lines in 103 files when this was written, parked bodies
+  included):
+
+      grep -rcE 'D_[0-9A-F]{8} \+ \w+ \* |\*\((const )?[us](8|16|32) ?\*+\)\(|\(\*\w+\)\[|\(\(?[us](8|16|32) ?\*\)\w+\)? \+ ' src | awk -F: '$2 {n+=$2; print} END {print "TOTAL:" n}' | sort -t: -k2 -rn | head -21
+
+  The first line is the total, the rest are the worst files. Put the total in the tracker row (`raw N`). It must not rise across a round: a
+  matching round that adds raw lines owes a rewrite round on the same files.
+- **Rewrite rounds.** Same `brief.js`, same clones, one worker per file, run alongside
+  matching rounds on files that are not in them. `funcs` lists matched functions that
+  the grep hits, and `extra` starts with the word `REWRITE` followed by the struct the
+  file needs (table base, element size, the header that should own it). Group by
+  table, not by file count: the functions that index one table want one struct, so
+  give them to one worker, and when several files share a table have the first round
+  land the struct in `include/` before other files are briefed against it. Two workers
+  declaring the same table differently is the "re-splitting a shared header" break
+  below.
+- **objdiff reads 99.x% for a typed global and that is fine.** `D_800D3400[i].unk20`
+  assembles to the relocation `D_800D3400` plus an addend where the original object
+  names `D_800D3420`; the linked bytes are identical (`make check` confirmed it on
+  `battle/misc6_r1`). `diff_func.sh` folds the addend and prints `MATCH`; the worker
+  reports `MATCH <name> RELOC` and confirms with `check_bin.sh`. So overlays are not
+  an excuse for the exact-address spelling, and `select_target.py` or a report that
+  ranks by objdiff percentage will show these a little under 100.
+- Do not accept invented field names to make a line look better. `unk3D` in a declared
+  struct is realistic; `hp` on a guess is a wrong name, and the Names rule applies.
+- Fix the cause when a round's reports show the same raw form coming back: one line in
+  `brief.js` with the typed spelling that matched.
 
 ## Choosing what to brief
 
@@ -193,5 +243,5 @@ So that the next session also starts from this file alone:
   `psyq/` GTE macros are the existing exceptions.)
 - Ask the operator before anything that deletes committed work, changes a preset that
   matched functions depend on, or adds more than three files for one split.
-- Report to the operator only: functions matched, functions named, the tracker row,
-  and any decision you need.
+- Report to the operator only: functions matched, functions named, the raw-line
+  count, the tracker row, and any decision you need.
