@@ -101,6 +101,10 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007A9F8);
    sw to D_8009BE24[idx].unk50 -- retail leaves it last, gcc hoists it
    next to the addiu that materialises 0x1000. Tried: literal, pointer
    local, s32 locals, plain globals (89.35%), address computed mid-block.
+   Also tried (round 44, no change): store moved mid-block before the
+   D_8009BE2C pair (68.60%), and the 0x1000 pre-loaded into an s32 local
+   right after D_8009D55C so only the store is last (94.72%, gcc still
+   sinks the sw into the li's slot).
 
 int func_8007AD34(int idx) {
     WorldMapPlayer *pPlayer;
@@ -127,7 +131,6 @@ int func_8007AD34(int idx) {
     return 1;
 }*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007AD34);
-
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007ADD4);
 int func_8007B200(int idx) {
     u8 *pPlayer = (u8 *)D_8009BE24 + (idx << 7);
@@ -163,6 +166,63 @@ int func_8007B200(int idx) {
     return 3;
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007B394);
+/* best 99.68%: 624 bytes, identical instruction multiset. Only the registers of the
+   two D_8009C5AC values differ: retail keeps the >>12 result in v0 and the -0x40
+   constant in v1, gcc gives the constant v0 (a global-alloc priority tie; 8 shapes
+   tried, including a separate local per value, swapping the store order, and
+   single-statement vs split shift). The vector block (0x1F800000/0x1F800010) needs
+   its own locals x/z/w or gcc reloads the 0x54 field twice (the $at-addressed
+   scratchpad store forces a reload) and the head allocation moves too.
+int func_8007B394(int idx) {
+    u8 *pPlayer = (u8 *)D_8009BE24 + (idx << 7);
+    u8 *pWork = (u8 *)D_8009C620;
+    u32 *pScratch = (u32 *)0x1F800000;
+    s32 x;
+    s32 y;
+    s32 z;
+    s32 w;
+
+    if (*(s16 *)(pPlayer + 4) != 0) {
+        *(s16 *)(pPlayer + 4) = 0;
+        *(s16 *)(pWork + 0x1A4) = 0;
+        *(s16 *)(pWork + 0x150) = 0;
+    }
+    x = D_8009C5AC >> 12;
+    *(s32 *)(pWork + 0x1AC) = x;
+    *(s32 *)(pWork + 0x158) = x;
+    y = -0x40;
+    *(s32 *)(pWork + 0x1B0) = y;
+    *(s32 *)(pWork + 0x15C) = y;
+    z = D_8009C5B4 >> 12;
+    *(s32 *)(pWork + 0x1B4) = z;
+    *(s32 *)(pWork + 0x160) = z;
+    *(s32 *)(pPlayer + 0x50) += 0x180;
+    if (*(s32 *)(pPlayer + 0x50) > 0x800) {
+        *(s32 *)(pPlayer + 0x54) += 0x180;
+    }
+    if (*(s32 *)(pPlayer + 0x50) > 0x7F00) {
+        *(s32 *)(pPlayer + 0x50) = 0x7F00;
+    }
+    if (*(s32 *)(pPlayer + 0x54) > 0x7F00) {
+        *(s32 *)(pPlayer + 0x54) = 0x7F00;
+    }
+    *(MATRIX *)&pScratch[0x3C] = D_8009A180;
+    *(MATRIX *)&pScratch[0x44] = *(MATRIX *)&pScratch[0x3C];
+    w = *(s32 *)(pPlayer + 0x50);
+    *(u32 *)0x1F800008 = w;
+    *(u32 *)0x1F800000 = w;
+    x = *(s32 *)(pPlayer + 0x54);
+    *(u32 *)0x1F800014 = 0x1000;
+    *(u32 *)0x1F800004 = 0x1000;
+    *(u32 *)0x1F800018 = x;
+    *(u32 *)0x1F800010 = x;
+    ScaleMatrix((MATRIX *)0x1F8000F0, (VECTOR *)0x1F800000);
+    ScaleMatrix((MATRIX *)0x1F800110, (VECTOR *)0x1F800010);
+    *(MATRIX *)(pWork + 0x170) = *(MATRIX *)0x1F8000F0;
+    *(MATRIX *)(pWork + 0x1C4) = *(MATRIX *)0x1F800110;
+    return 1;
+}
+*/
 int func_8007B604(int idx) {
     u8 *pPlayer = (u8 *)D_8009BE24 + (idx << 7);
     u8 *pWork = (u8 *)D_8009C620;
@@ -197,6 +257,62 @@ int func_8007B604(int idx) {
     return 3;
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007B798);
+/* best 99.68%: 624 bytes, identical instruction multiset. This is the +0xA8
+   sibling of func_8007B394 (blocks at 0x1F8/0x24C instead of 0x150/0x1A4); the
+   parked body below is that one with the offsets shifted. Same allocator tie:
+   retail keeps the D_8009C5AC>>12 result in v0 and the -0x40 constant in v1,
+   gcc always gives the constant v0. Everything else, including the two
+   0x1F8000F0/0x1F800110 matrix copies and both ScaleMatrix calls, is exact.
+int func_8007B798(int idx) {
+    u8 *pPlayer = (u8 *)D_8009BE24 + (idx << 7);
+    u8 *pWork = (u8 *)D_8009C620;
+    u32 *pScratch = (u32 *)0x1F800000;
+    s32 x;
+    s32 y;
+    s32 z;
+    s32 w;
+
+    if (*(s16 *)(pPlayer + 4) != 0) {
+        *(s16 *)(pPlayer + 4) = 0;
+        *(s16 *)(pWork + 0x24C) = 0;
+        *(s16 *)(pWork + 0x1F8) = 0;
+    }
+    x = D_8009C5AC >> 12;
+    *(s32 *)(pWork + 0x254) = x;
+    *(s32 *)(pWork + 0x200) = x;
+    y = -0x40;
+    *(s32 *)(pWork + 0x258) = y;
+    *(s32 *)(pWork + 0x204) = y;
+    z = D_8009C5B4 >> 12;
+    *(s32 *)(pWork + 0x25C) = z;
+    *(s32 *)(pWork + 0x208) = z;
+    *(s32 *)(pPlayer + 0x50) += 0x180;
+    if (*(s32 *)(pPlayer + 0x50) > 0x800) {
+        *(s32 *)(pPlayer + 0x54) += 0x180;
+    }
+    if (*(s32 *)(pPlayer + 0x50) > 0x7F00) {
+        *(s32 *)(pPlayer + 0x50) = 0x7F00;
+    }
+    if (*(s32 *)(pPlayer + 0x54) > 0x7F00) {
+        *(s32 *)(pPlayer + 0x54) = 0x7F00;
+    }
+    *(MATRIX *)&pScratch[0x3C] = D_8009A180;
+    *(MATRIX *)&pScratch[0x44] = *(MATRIX *)&pScratch[0x3C];
+    w = *(s32 *)(pPlayer + 0x50);
+    *(u32 *)0x1F800008 = w;
+    *(u32 *)0x1F800000 = w;
+    x = *(s32 *)(pPlayer + 0x54);
+    *(u32 *)0x1F800014 = 0x1000;
+    *(u32 *)0x1F800004 = 0x1000;
+    *(u32 *)0x1F800018 = x;
+    *(u32 *)0x1F800010 = x;
+    ScaleMatrix((MATRIX *)0x1F8000F0, (VECTOR *)0x1F800000);
+    ScaleMatrix((MATRIX *)0x1F800110, (VECTOR *)0x1F800010);
+    *(MATRIX *)(pWork + 0x218) = *(MATRIX *)0x1F8000F0;
+    *(MATRIX *)(pWork + 0x26C) = *(MATRIX *)0x1F800110;
+    return 1;
+}
+*/
 
 int func_8007BA08(void) {
     return 3;
