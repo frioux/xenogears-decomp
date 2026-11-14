@@ -469,41 +469,48 @@ void func_801E8EAC(POLY_FT4* pPoly, u_char mode) {
    offset in a named local (offset + (u32)pWindow), the inline form folds to
    (pWindow + off) + x. `s32 mode` (not u8) is required for the per-call
    `andi a1,s1,0xFF`.
+/* Best: 95.69% under gcc-2.6.0. Seventh (offset 0x0) loop was missing from
+   the previous attempt; the instruction multiset is now identical to retail's
+   and only the register allocation of the two operands of the final address add
+   differs. Retail: window pointer lands in a2 and the (i*2 + renderContext)*0x28
+   chain in a0, so the call delay slot is 'addu a0,a0,a2'; gcc gives the window
+   a0 (3 refs beats the chain temps' 2 in local-alloc's qty order) and the chain
+   v0, so mine is 'addu a0,v0,a0'. Also mine drops the final call's
+   'andi a1,s1,0xFF' (gcc proves mode is 2 or 3 there) where retail keeps it.
+   Tried: offset local + offset+pWindow, inline (chain + K + pWindow), and
+   pWindow + chain operand order; all 95.69. Pure allocator tie -> parked.
 void func_801E8F60(u8 arg0, u8 arg1) {
     MenuWindow* pWindow;
     s32 mode;
-    u32 offset;
     s32 i;
 
     mode = arg1 ? 3 : 2;
     for (i = 0; i < 4; i++) {
         pWindow = g_Menu->windows[arg0];
-        offset = (i * 2 + pWindow->renderContext) * 0x28 + 0x140;
-        func_801E8EAC((POLY_FT4*)(offset + (u32)pWindow), mode);
+        func_801E8EAC((POLY_FT4*)((u32)pWindow + (i * 2 + pWindow->renderContext) * 0x28), mode);
     }
     for (i = 0; i < 4; i++) {
         pWindow = g_Menu->windows[arg0];
-        offset = (i * 2 + pWindow->renderContext) * 0x28 + 0x1E0;
-        func_801E8EAC((POLY_FT4*)(offset + (u32)pWindow), mode);
+        func_801E8EAC((POLY_FT4*)((u32)pWindow + (i * 2 + pWindow->renderContext) * 0x28 + 0x140), mode);
     }
     for (i = 0; i < 4; i++) {
         pWindow = g_Menu->windows[arg0];
-        offset = (i * 2 + pWindow->renderContext) * 0x28 + 0x280;
-        func_801E8EAC((POLY_FT4*)(offset + (u32)pWindow), mode);
+        func_801E8EAC((POLY_FT4*)((i * 2 + pWindow->renderContext) * 0x28 + 0x1E0 + (u32)pWindow), mode);
     }
     for (i = 0; i < 4; i++) {
         pWindow = g_Menu->windows[arg0];
-        offset = (i * 2 + pWindow->renderContext) * 0x28 + 0x320;
-        func_801E8EAC((POLY_FT4*)(offset + (u32)pWindow), mode);
+        func_801E8EAC((POLY_FT4*)((i * 2 + pWindow->renderContext) * 0x28 + 0x280 + (u32)pWindow), mode);
+    }
+    for (i = 0; i < 4; i++) {
+        pWindow = g_Menu->windows[arg0];
+        func_801E8EAC((POLY_FT4*)((i * 2 + pWindow->renderContext) * 0x28 + 0x320 + (u32)pWindow), mode);
     }
     for (i = 0; i < 2; i++) {
         pWindow = g_Menu->windows[arg0];
-        offset = (i * 2 + pWindow->renderContext) * 0x28 + 0x410;
-        func_801E8EAC((POLY_FT4*)(offset + (u32)pWindow), mode);
+        func_801E8EAC((POLY_FT4*)((i * 2 + pWindow->renderContext) * 0x28 + 0x410 + (u32)pWindow), mode);
     }
     pWindow = g_Menu->windows[arg0];
-    offset = pWindow->renderContext * 0x28 + 0x3C0;
-    func_801E8EAC((POLY_FT4*)(offset + (u32)pWindow), mode);
+    func_801E8EAC((POLY_FT4*)(pWindow->renderContext * 0x28 + 0x3C0 + (u32)pWindow), mode);
 }
 */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E8F60);
@@ -558,4 +565,113 @@ void func_801E9340(char* pName, char* pBuffer, int len) {
     PCread(fd, pBuffer, len);
     PCclose(fd);
 }
+/* Best: 96.65% under gcc-2.6.0 (764 bytes vs retail's 772). Recovered shape:
+   a 16-byte sector header struct copied from the zero datum D_801C5294 (that
+   copy reproduces exactly), ArchiveCdDataSync(0), then either the PC-file path
+   when ArchiveGetDebugTable() != 0 (three func_801E9340 reads, cdrom*.mdg/fid/
+   fnd chosen by `disc == 1`, merged tail by -fcross-jumping) or the CD path:
+   CdIntToPos(0,&pos) then three CdControlB(1,0,&D_801EA8F4) status loops, the
+   0x13/2/0x15 sector-17 header read loop, then ArchiveCdSetMode(0xA0) and the
+   0x18/0x28 archive table reads; returns 2 if the header tag word is not
+   "_XEN" (0x4E45585F), 3 if header byte 3 is not `disc + 0x30`, else 0.
+   What is left: retail keeps &D_801EA8F4 in a saved register (s0) across the
+   first three status loops -- a `u_char* pStat = &D_801EA8F4;` local is what
+   took it 91.33 -> 96.65 -- and it re-forms the address with a fresh lui/addiu
+   for the 0x13 loop and again for the 0x15 call (mine reuses pStat in the 0x13
+   loop), so the frame is 8 bytes short and the register/loop-exit shapes differ
+   around the 0x13/0x15 retry: retail's is `if ((stat & 1) && (D_801EA8F5 &
+   0x40) && ret == 0) return 2; if (ret != 0) break;` inside the 0x13 loop.
+typedef struct {
+    u32 unk0;
+    u32 tag;
+    u32 unk8;
+    u32 unkC;
+} MenuSectorHeader; // Size: 0x10
+
+extern u8 D_801C5294[];
+extern char D_801C52A4[];
+extern char D_801C52B8[];
+extern char D_801C52CC[];
+extern char D_801C52E0[];
+extern char D_801C52F4[];
+extern char D_801C5308[];
+extern u_char D_801EA8F4;
+extern u_char D_801EA8F5;
+extern s32 g_ArchiveTable;
+extern s32 g_ArchiveHeader;
+extern s32 g_ArchiveDebugTable;
+extern s32 ArchiveReadFileFromCdSector(s32 sector, void* pDestBuffer, s32 fileSize, s32 arg3, u32 flags);
+
+s32 func_801E93A0(s32 disc) {
+    MenuSectorHeader header;
+    CdlLOC pos;
+    u_char* pStat;
+    s32 result;
+    s32 ret;
+
+    header = *(MenuSectorHeader*)D_801C5294;
+    ArchiveCdDataSync(0);
+    if (ArchiveGetDebugTable() != 0) {
+        result = 0;
+        if (disc == 1) {
+            func_801E9340(D_801C52A4, (char*)g_ArchiveTable, 0x8000);
+            func_801E9340(D_801C52B8, (char*)g_ArchiveHeader, 0x7A);
+            func_801E9340(D_801C52CC, (char*)g_ArchiveDebugTable, 0x40000);
+        } else {
+            func_801E9340(D_801C52E0, (char*)g_ArchiveTable, 0x8000);
+            func_801E9340(D_801C52F4, (char*)g_ArchiveHeader, 0x7A);
+            func_801E9340(D_801C5308, (char*)g_ArchiveDebugTable, 0x40000);
+        }
+        return result;
+    }
+    CdIntToPos(0, &pos);
+    pStat = &D_801EA8F4;
+    do {
+        Vsync(3);
+        CdControlB(1, 0, pStat);
+    } while ((*pStat & 0x10) == 0);
+    do {
+        Vsync(3);
+        CdControlB(1, 0, pStat);
+    } while ((*pStat & 0x10) != 0);
+    do {
+        Vsync(3);
+        ret = CdControlB(1, 0, pStat);
+    } while (((*pStat & 2) == 0) || (ret == 0));
+    for (;;) {
+        Vsync(3);
+        if (CdControlB(0x13, 0, &D_801EA8F4) == 0) {
+            continue;
+        }
+        do {
+            Vsync(3);
+        } while (CdControlB(2, (u_char*)&pos, &D_801EA8F4) == 0);
+        ret = CdControlB(0x15, 0, &D_801EA8F4);
+        if ((D_801EA8F4 & 1) && (D_801EA8F5 & 0x40) && (ret == 0)) {
+            return 2;
+        }
+        if (ret != 0) {
+            break;
+        }
+    }
+    ArchiveCdSetMode(0xA0);
+    ArchiveCdDataSync(0);
+    Vsync(3);
+    Vsync(3);
+    ArchiveReadFileFromCdSector(0x17, &header, 0x10, 0, 0);
+    ArchiveCdDataSync(0);
+    result = 2;
+    if (header.tag == 0x4E45585F) {
+        result = 3;
+        if (((u8*)&header)[3] == disc + 0x30) {
+            result = 0;
+            ArchiveReadFileFromCdSector(0x18, (void*)g_ArchiveTable, 0x8000, 0, 0);
+            ArchiveCdDataSync(0);
+            ArchiveReadFileFromCdSector(0x28, (void*)g_ArchiveHeader, 0x7A, 0, 0);
+            ArchiveCdDataSync(0);
+        }
+    }
+    return result;
+}
+*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E93A0);
