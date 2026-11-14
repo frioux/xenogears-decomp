@@ -34,8 +34,9 @@ typedef struct {
 // Split out of main/misc27 (see config/battle.yaml): compiled with gcc 2.7.2-cdk,
 // which the callback cluster in this function range needs.
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc27", func_800B3F04);
-// 84.19% under both gcc 2.7.2 and 2.7.2-cdk: the instruction set matches and the
-// list scheduler places one insn differently, so this is not a preset question.
+// 84.19% under gcc 2.7.2, 2.7.2-cdk, 2.7.2-cdk -G0 and 2.6.0 alike, and under every
+// -O/-G/-mcpu of the try_flags sweep (59.58 at -O1), so no preset fixes this: retail
+// hoists `li 8` and the rect.w/h stores ahead of the rect.x maths, we emit them after.
 /*
 void func_800B4EDC(u8* pArg) {
     RECT rect;
@@ -88,9 +89,9 @@ void func_800B4F88(u8* pActor, s32 index, MATRIX* pMatrix) {
     pMatrix->t[2] = *(s32*)(*(u8**)(pActor + 0x20) + 0x28);
     SetMulMatrix(pMatrix, (MATRIX*)(*(u8**)(pActor + 0x20) + 0xC));
 }
-// 90.55% under gcc 2.7.2-cdk: the instruction stream and the two combined induction
-// bases match; only the saved/temp register assignment differs (retail keeps pActor in
-// $t1 because its local allocator had already given $a0 to the x temporary).
+// 90.55% under gcc 2.7.2-cdk (-G8 and -G0) and every swept -O/-G/-mcpu, 73.07 under
+// 2.6.0, so no preset fixes this: the two combined induction bases match and only the
+// register assignment differs (retail keeps pActor in $t1, the frame index in $a3).
 /*
 void func_800B50D4(u8* pActor, u8* pArg) {
     s32 x;
