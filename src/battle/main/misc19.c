@@ -1,4 +1,5 @@
 #include "common.h"
+#include "battle/actor.h"
 #include "main/game.h"
 
 extern void* D_800C34B0;
@@ -249,29 +250,29 @@ void BattleSetSlotEntryFieldsTo1(u8 arg0) {
     r = (u8*)D_800C34B0 + arg0 * 0x170;
     if (r[0x15A] & 0x80) {
         s32 off = arg0 * 0x690 + 0x2228;
-        u8* q = (u8*)off + (u32)D_800C34B0;
+        BattleRow* pRow = (BattleRow*)((u8*)off + (u32)D_800C34B0);
 
-        *(u16*)(q + 0x348) = 1;
-        *(u16*)(q + 0x398) = 1;
-        *(u16*)(q + 0x3C0) = 1;
-        *(u16*)(q + 0x3E8) = 1;
-        *(u16*)(q + 0x410) = 1;
-        *(u16*)(q + 0x438) = 1;
-        *(u16*)(q + 0x460) = 1;
+        pRow[21].flags = 1;
+        pRow[23].flags = 1;
+        pRow[24].flags = 1;
+        pRow[25].flags = 1;
+        pRow[26].flags = 1;
+        pRow[27].flags = 1;
+        pRow[28].flags = 1;
     } else {
         s32 off = arg0 * 0x5F0 + 0x1058;
-        u8* q = (u8*)off + (u32)D_800C34B0;
+        BattleRow* pRow = (BattleRow*)((u8*)off + (u32)D_800C34B0);
 
-        *(u16*)(q + 0x370) = 1;
-        *(u16*)(q + 0x3C0) = 1;
-        *(u16*)(q + 0x3E8) = 1;
-        *(u16*)(q + 0x410) = 1;
-        *(u16*)(q + 0x438) = 1;
-        *(u16*)(q + 0x460) = 1;
-        *(u16*)(q + 0x488) = 1;
-        *(u16*)(q + 0x4B0) = 1;
-        *(u16*)(q + 0x4D8) = 1;
-        *(u16*)(q + 0x500) = 1;
+        pRow[22].flags = 1;
+        pRow[24].flags = 1;
+        pRow[25].flags = 1;
+        pRow[26].flags = 1;
+        pRow[27].flags = 1;
+        pRow[28].flags = 1;
+        pRow[29].flags = 1;
+        pRow[30].flags = 1;
+        pRow[31].flags = 1;
+        pRow[32].flags = 1;
     }
 }
 void BattleSetSlotEntryFieldsTo2000(u8 arg0, u8 arg1) {
@@ -296,30 +297,30 @@ void BattleSetSlotEntryFieldsTo2000(u8 arg0, u8 arg1) {
     r = (u8*)D_800C34B0 + arg0 * 0x170;
     if (r[0x15A] & 0x80) {
         s32 off = arg0 * 0x690 + 0x2228;
-        u8* q = (u8*)off + (u32)D_800C34B0;
+        BattleRow* pRow = (BattleRow*)((u8*)off + (u32)D_800C34B0);
 
-        *(u16*)(q + 0x348) = 0x2000;
-        *(u16*)(q + 0x398) = 0x2000;
-        *(u16*)(q + 0x3C0) = 0x2000;
-        *(u16*)(q + 0x3E8) = 0x2000;
-        *(u16*)(q + 0x410) = 0x2000;
-        *(u16*)(q + 0x438) = 0x2000;
-        *(u16*)(q + 0x460) = 0x2000;
+        pRow[21].flags = 0x2000;
+        pRow[23].flags = 0x2000;
+        pRow[24].flags = 0x2000;
+        pRow[25].flags = 0x2000;
+        pRow[26].flags = 0x2000;
+        pRow[27].flags = 0x2000;
+        pRow[28].flags = 0x2000;
         *(u16*)(r + 0x124) &= 0xDFFF;
     } else {
         s32 off = arg0 * 0x5F0 + 0x1058;
-        u8* q = (u8*)off + (u32)D_800C34B0;
+        BattleRow* pRow = (BattleRow*)((u8*)off + (u32)D_800C34B0);
 
-        *(u16*)(q + 0x370) = 0x2000;
-        *(u16*)(q + 0x3C0) = 0x2000;
-        *(u16*)(q + 0x3E8) = 0x2000;
-        *(u16*)(q + 0x410) = 0x2000;
-        *(u16*)(q + 0x438) = 0x2000;
-        *(u16*)(q + 0x460) = 0x2000;
-        *(u16*)(q + 0x488) = 0x2000;
-        *(u16*)(q + 0x4B0) = 0x2000;
-        *(u16*)(q + 0x4D8) = 0x2000;
-        *(u16*)(q + 0x500) = 0x2000;
+        pRow[22].flags = 0x2000;
+        pRow[24].flags = 0x2000;
+        pRow[25].flags = 0x2000;
+        pRow[26].flags = 0x2000;
+        pRow[27].flags = 0x2000;
+        pRow[28].flags = 0x2000;
+        pRow[29].flags = 0x2000;
+        pRow[30].flags = 0x2000;
+        pRow[31].flags = 0x2000;
+        pRow[32].flags = 0x2000;
         *(u16*)(r + 0x88) &= 0xFBFF;
     }
 }
