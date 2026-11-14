@@ -77,7 +77,7 @@ typedef struct {
 typedef struct {
     /* 0x00 */ u8 unk0;
     /* 0x01 */ u8 unk1[3];
-    /* 0x04 */ u32 pEntries;
+    /* 0x04 */ BattleTextEntry *pEntries;
     /* 0x08 */ s16 count;
     /* 0x0A */ u8 unkA[2];
     /* 0x0C */ void (*unkC)(void *p);
@@ -193,19 +193,18 @@ void BattleSaveScreenImage(void) {
 }
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc8", func_80080C48);
-/* 95.60%: the tail MUST be duplicated in both branches (that is what makes gcc
-   place it between branch 2 and the else block, matching retail's
-   [test1][A][j tail][test2][B][tail][else] layout).  Only difference left: the
-   BattleSetScreenMode argument setup.  Retail emits `addu a0,zero,zero` once, inside
-   the tail, in the jal delay slot and a plain `nop` in branch 1's `j` slot;
-   ours hoists it out of the merged tail in both copies - one lands in branch
-   1's `j` delay slot and one above branch 2's D_80091762 store, and the jal
-   delay slot is a `nop` (2 extra insns, all other insns identical).
-   Also tried: the tail written once after the if/else chain with the else
-   returning first (79.80% - gcc then puts the else block before the tail, so
-   branch 2 and the else both need a `j` epilogue), and the argument as an
-   `s32 mode = 0` local.  gcc 2.7.2-cdk scores worse (85.36%), so the unit
-   preset is right.
+/* PARK 95.60% (204 bytes vs retail 200).  Best body: the tail duplicated in
+   both arms, which cross-jumps to retail's block order
+   [test1][A][j tail][test2][B][tail][else].  Only difference: retail sets the
+   BattleSetScreenMode argument with one `addu a0,zero,zero` inside the shared
+   tail, in the jal delay slot, and leaves a plain nop in A's `j` slot; ours
+   emits it twice - once in A's `j` delay slot and once in B before its
+   D_80091762 store - and a nop in the jal slot (2 extra insns).
+   Also tried: a switch with break / default-return, which lays the case bodies
+   out before the shared tail and scores 66.70%; the tail written once after
+   the if/else-if chain with the else returning first (79.80%, gcc moves the
+   else above the tail); `s32 mode = 0` as the argument; gcc 2.7.2-cdk (85.36%).
+   The duplicated-tail shape below is the one to permute.
 void func_80080C48(s32 a0) {
     SoundStopAllElements();
     func_8008EB4C(0x1F);
@@ -368,17 +367,19 @@ void BattleSetTextSpriteEntry(s32 entry, s32 mode) {
 }
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc8", func_800811AC);
-/* 98.68%: only the `D_800928A0 * 0x14` chain's temp register differs - retail
-   keeps it in a1 for all three insns (sll/addu/sll) because `off` itself is
-   allocated to a1, ours gives the temp v0 and only the last sll a1.  Every
-   other insn, the base address in a2 and both addu operand orders match.
-   Tried: off as s32 and as u32, an intermediate `s32 n = D_800928A0` feeding
-   off, off/pBase declaration order swapped - identical output.  Inlining the
-   multiply in each address instead of an `off` local gives 90.15% (264 bytes,
-   recomputed), and gcc-2.7.2-cdk gives 95.29%, so Default + the `off` local is
-   the right shape.  Keeping the base pointer in a local and forming the
-   addresses as `pBase + off` / `pBase + (off + 4)` from it is what fixes the
-   a1/a2 tie-break (87.21% -> 98.68%).
+/* PARK 98.68% (264 bytes, retail 264).  Shape decoded: the AddPrim argument is
+   `&D_80095510[0].sprt[D_800928A0]` (0x14 = sizeof(SPRT), the stores are
+   clut/w of that sprite), likewise `&D_80095540.sprt[...]`, and
+   `&g_Tpage[D_800928A0]` for the last one.  Writing it with the SPRT pointer
+   type makes gcc fold the +4 into the symbol (`%lo(D_80095514)`) and re-base
+   every offset, 77.84%, so the u8* base + off spelling below is the right one.
+   Only difference: the D_800928A0 * 0x14 chain's temp register - retail keeps
+   it in a1 for all three insns (sll/addu/sll) because `off` is allocated to a1,
+   ours gives the temp v0 and only the last sll a1.  Every other insn matches,
+   including the base in a2 and both addu operand orders.
+   Tried: off as s32 and as u32, an intermediate `s32 n = D_800928A0`, off/base
+   declaration order swapped, the multiply inlined in each address (90.15%),
+   gcc-2.7.2-cdk (95.29%).  A GIV tie - permuter job.
 void func_800811AC(u8 *p) {
     u32 off;
     u8 *pBase;
@@ -478,7 +479,33 @@ void BattleInitTextLists(void) {
     func_80080F04();
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc8", func_8008151C);
+void func_8008151C(BattleTextList *p) {
+    s32 i;
+
+    if (p == 0) {
+        return;
+    }
+    D_80092734 = (s32 *)p;
+    if ((s32 *)p == (s32 *)D_800916D8) {
+        return;
+    }
+    if (p->unk0 != 0) {
+        BattleSetTextCursor(p->unk16, p->unk14);
+    } else {
+        BattleSetTextCursor(0xA0, p->unk14);
+    }
+    for (i = 0; i < p->count; i++) {
+        BattleSetRowTextColor(p, i);
+        if (p->unk0 != 0) {
+            BattleDrawTextLeft((u8 *)p->pEntries[i].unk4);
+        } else {
+            BattleDrawTextRightOffset((u8 *)p->pEntries[i].unk4, p->pEntries[i].unk12);
+        }
+    }
+    if (p->unkC != 0) {
+        p->unkC(p);
+    }
+}
 /* 99.63%: the duplicated call (one per arm of the unk0 test) is what makes
    gcc cross-jump the two `jal BattleSetTextCursor` tails into one and keep retail's
    `lh a1,0x14` in BOTH arms; assigning a1 in both arms and calling once merges
