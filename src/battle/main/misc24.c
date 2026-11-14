@@ -2,10 +2,11 @@
 #include "psyq/libgte.h"
 #include "psyq/inline_c.h"
 #include "system/memory.h"
+#include "battle/actor.h"
 
 extern u8 D_800C3B74;
 extern u8 D_800C402F[];
-extern s32 *D_800D3368[];
+extern BattleActor *D_800D3368[];
 extern u8 *D_8005919C;
 extern u8 *D_800C4924;
 extern s16 BattleOffsetBySin(s16 angle, s16 divisor, s16 base);
@@ -263,50 +264,50 @@ s32 BattleStepActorAnimation(u8 *arg0, u8 *arg1, s32 arg2, u8 *arg3, s32 arg4) {
     }
     return r;
 }
-void BattleSpriteUpdateWorldPosition(u8 *arg0) {
-    u8 *pMatrix;
-    u8 *pSprites;
+void BattleSpriteUpdateWorldPosition(BattleActor *pActor) {
+    BattleSprite *pSprites;
+    MATRIX *pMatrix;
     s32 index;
     SVECTOR vec;
 
-    pMatrix = PSX_SCRATCH;
-    if (D_800D3368[*(u8 *)(arg0 + 0x5C)] != NULL) {
-        if (!(*(u16 *)(arg0 + 0x4A) & 0x10)) {
-            *(u8 *)(arg0 + 0x34) = *((u8 *)D_800D3368[*(u8 *)(arg0 + 0x5C)] + 0x34);
+    pMatrix = (MATRIX *)PSX_SCRATCH;
+    if (D_800D3368[pActor->unk5C] != NULL) {
+        if (!(pActor->flags4A & 0x10)) {
+            pActor->unk34 = D_800D3368[pActor->unk5C]->unk34;
         }
-        if (*(u8 *)(arg0 + 0x34) != 0) {
-            if (*(u8 *)(arg0 + 0x5D) != 0) {
-                index = *(s16 *)(arg0 + 0x5E);
+        if (pActor->unk34 != 0) {
+            if (pActor->unk5D != 0) {
+                index = pActor->unk5E;
                 if (index != 0) {
-                    pSprites = *(u8 **)((u8 *)D_800D3368[*(u8 *)(arg0 + 0x5C)] + 4);
-                    MulMatrix0((MATRIX *)(pSprites + 0x2C),
+                    pSprites = D_800D3368[pActor->unk5C]->pSprites;
+                    MulMatrix0(&pSprites->globalTransform,
                                (MATRIX *)(index * 0x7C + (s32)pSprites + 0x2C), (MATRIX *)PSX_SCRATCH);
                 } else {
-                    pMatrix = *(u8 **)((u8 *)D_800D3368[*(u8 *)(arg0 + 0x5C)] + 4) + 0x2C;
+                    pMatrix = &D_800D3368[pActor->unk5C]->pSprites->globalTransform;
                 }
-                MulMatrix2((MATRIX *)pMatrix, (MATRIX *)(*(u8 **)(arg0 + 4) + 0xC));
-                MulMatrix2((MATRIX *)pMatrix, (MATRIX *)(*(u8 **)(arg0 + 4) + 0x2C));
+                MulMatrix2(pMatrix, &pActor->pSprites->localTransform);
+                MulMatrix2(pMatrix, &pActor->pSprites->globalTransform);
             }
-            index = *(s16 *)(arg0 + 0x5E);
+            index = pActor->unk5E;
             if (index != 0) {
-                pSprites = *(u8 **)((u8 *)D_800D3368[*(u8 *)(arg0 + 0x5C)] + 4);
-                CompMatrix((MATRIX *)(pSprites + 0xC),
-                           (MATRIX *)(index * 0x7C + (s32)pSprites + 0x2C), (MATRIX *)pMatrix);
+                pSprites = D_800D3368[pActor->unk5C]->pSprites;
+                CompMatrix(&pSprites->localTransform,
+                           (MATRIX *)(index * 0x7C + (s32)pSprites + 0x2C), pMatrix);
             } else {
-                pMatrix = *(u8 **)((u8 *)D_800D3368[*(u8 *)(arg0 + 0x5C)] + 4) + 0xC;
+                pMatrix = &D_800D3368[pActor->unk5C]->pSprites->localTransform;
             }
-            SetRotMatrix((MATRIX *)pMatrix);
-            SetTransMatrix((MATRIX *)pMatrix);
-            vec.vx = *(u16 *)(arg0 + 0x6A);
-            vec.vy = *(u16 *)(arg0 + 0x6C);
-            vec.vz = *(u16 *)(arg0 + 0x6E);
+            SetRotMatrix(pMatrix);
+            SetTransMatrix(pMatrix);
+            vec.vx = pActor->unk6A;
+            vec.vy = pActor->unk6C;
+            vec.vz = pActor->unk6E;
             gte_ldv0(&vec);
             gte_mvmva(1, 0, 0, 0, 0);
-            gte_stlvnl(*(u8 **)(arg0 + 4) + 0x20);
-            gte_stlvnl(*(u8 **)(arg0 + 4) + 0x5C);
+            gte_stlvnl((u8 *)pActor->pSprites + 0x20);
+            gte_stlvnl((u8 *)pActor->pSprites + 0x5C);
         }
     } else {
-        *(u8 *)(arg0 + 0x5C) = 0xFF;
+        pActor->unk5C = 0xFF;
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AAD54);
