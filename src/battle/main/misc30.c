@@ -36,8 +36,8 @@ extern void func_8001D3F4(void* pPayload);
 extern void WorkListRemoveTask(void* pTask);
 extern void TimerWorkListRemoveTask(void* pTask);
 extern s32 BattleFindGroundTriangle(s16* pVec, s32 arg1, s32 arg2);
-extern s32 func_800A579C(s16* pVec);
-extern void func_800A5870(s16* pVec, s32 arg1, u8* pOut);
+extern s32 BattleFindTriangleContainingPoint(s16* pVec);
+extern void BattleProjectPointOntoIndexedTriangle(s16* pVec, s32 arg1, u8* pOut);
 extern void func_8001E298(SpriteData* pSprite, u_long* pOT);
 extern void* func_800BFC80(void* pArg0, s32 arg1, s32 arg2);
 
@@ -99,9 +99,9 @@ void BattleActorComputeFallDirection(SpriteData* pSprite) {
     SpriteSetSVec(&vec, pSprite->field_0xA0, pSprite->field_0xA2, pSprite->field_0xA4);
     index = BattleFindGroundTriangle((s16*)&vec, pSprite->field_0x78, 4);
     if (index < 0) {
-        index = func_800A579C((s16*)&vec);
+        index = BattleFindTriangleContainingPoint((s16*)&vec);
     }
-    func_800A5870((s16*)&vec, index, out);
+    BattleProjectPointOntoIndexedTriangle((s16*)&vec, index, out);
     if (vec.vy > pSprite->field_0xA2) {
         *(u16*)&vec.vy = *(u16*)&pSprite->field_0xA2;
     }
@@ -143,9 +143,9 @@ void BattleActorUpdateFallMotion(SpriteData* pSprite) {
     SpriteSetSVec(&vec, pSprite->field_0xA0, pSprite->field_0xA2, pSprite->field_0xA4);
     index = BattleFindGroundTriangle((s16*)&vec, pSprite->field_0x78, 4);
     if (index < 0) {
-        index = func_800A579C((s16*)&vec);
+        index = BattleFindTriangleContainingPoint((s16*)&vec);
     }
-    func_800A5870((s16*)&vec, index, out);
+    BattleProjectPointOntoIndexedTriangle((s16*)&vec, index, out);
     if (vec.vy > pSprite->field_0xA2) {
         *(u16*)&vec.vy = *(u16*)&pSprite->field_0xA2;
     }
@@ -170,9 +170,9 @@ void func_800BA8F4(u8* pSprite) {
     vec[2] = coord;
     index = BattleFindGroundTriangle(vec, *(s32*)(pSprite + 0x78), 4);
     if (index < 0) {
-        index = func_800A579C(vec);
+        index = BattleFindTriangleContainingPoint(vec);
     }
-    func_800A5870(vec, index, out);
+    BattleProjectPointOntoIndexedTriangle(vec, index, out);
     *(u16*)(pSprite + 0x84) = vec[1];
     *(s32*)(pSprite + 0x78) = index;
 }

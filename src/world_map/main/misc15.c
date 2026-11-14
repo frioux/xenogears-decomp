@@ -457,7 +457,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_800979C8);
 // `i = 0`/`i = 4` before the `pClut2/pClut3 = ...` address formation, and
 // `for (; i < N; x += 0x80, i++, pClut++)` so x += 0x80 precedes i++.
 extern void *LZSSHeapDecompress(void *pCompressedData, int flags);
-extern void func_8002DD20(void *pBlock);
+extern void ModelLoadTextureBlock(void *pBlock);
 extern void func_800931D8(u8 *pSrc, u8 *pDst, s32 count, u8 *pFactors);
 
 extern u8 *D_8009C59C;
@@ -480,7 +480,7 @@ void func_800979C8(void) {
     u16 *pClut3;
 
     pData = LZSSHeapDecompress(D_8009C59C, 1);
-    func_8002DD20(pData);
+    ModelLoadTextureBlock(pData);
     DrawSync(0);
     HeapFree(pData);
     HeapFree(D_8009C59C);

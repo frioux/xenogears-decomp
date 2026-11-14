@@ -23,12 +23,12 @@ extern u_char D_80010004[];
 extern u_char D_80018004[];
 
 extern void ControllerUpdate(void);
-extern int func_8002DFE0(void);
+extern int ModelGetHeapStart(void);
 extern void func_8004B7D0(void*);
 extern void func_8003BDFC(int);
 extern void SystemResetGlobalState(void);
 extern void func_8001BB50(void);
-extern void func_80024F20(void);
+extern void GfxResetWorkLists(void);
 extern void func_800379B4(int);
 extern void SystemNop(void);
 extern void GameShowSplashScreen(void);
@@ -73,7 +73,7 @@ void func_80019578(void) {
     StartCARD();
     _bu_init();
     func_8004B7D0(ControllerUpdate);
-    HeapInit((void*)func_8002DFE0(), 0x801FC000);
+    HeapInit((void*)ModelGetHeapStart(), 0x801FC000);
     SpuInit();
     ArchiveInit(D_80010004, D_80018004, D_80010000);
     SoundInitialize(0);
@@ -118,7 +118,7 @@ void func_80019578(void) {
 
     SystemResetGlobalState();
     func_8001BB50();
-    func_80024F20();
+    GfxResetWorkLists();
     func_800379B4(0);
 
     g_CurGameStateOverlayID = -1;

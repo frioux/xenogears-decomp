@@ -8,10 +8,10 @@ extern u8 D_800C402F[];
 extern s32 *D_800D3368[];
 extern u8 *D_8005919C;
 extern u8 *D_800C4924;
-extern s16 func_800A3490(s16 angle, s16 divisor, s16 base);
-extern s16 func_800A3514(s16 angle, s16 divisor, s16 base);
-extern s16 func_800A3578(s16 angle, s16 divisor, s16 base);
-extern s16 func_800A35C8(s16 angle, s16 divisor, s16 base);
+extern s16 BattleOffsetBySin(s16 angle, s16 divisor, s16 base);
+extern s16 BattleOffsetByAngleClamped(s16 angle, s16 divisor, s16 base);
+extern s16 BattleOffsetByNegatedAngle(s16 angle, s16 divisor, s16 base);
+extern s16 BattleCountdownOffsetByAngle(s16 angle, s16 divisor, s16 base);
 extern u16 D_800C3D40;
 extern u16 D_800C3E30;
 extern u8 D_800C3D0C[];
@@ -137,13 +137,13 @@ u8 func_800AA7DC(s32 arg0) {
 s16 (*func_800AA820(s32 arg0))(s16 angle, s16 divisor, s16 base) {
     switch (arg0) {
     case 1:
-        return func_800A3514;
+        return BattleOffsetByAngleClamped;
     case 2:
-        return func_800A3578;
+        return BattleOffsetByNegatedAngle;
     case 3:
-        return func_800A35C8;
+        return BattleCountdownOffsetByAngle;
     }
-    return func_800A3490;
+    return BattleOffsetBySin;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AA898);
 /* 74.36% - every store and constant is identical and in the same order; the
@@ -263,7 +263,7 @@ s32 func_800AAA20(u8 *arg0, u8 *arg1, s32 arg2, u8 *arg3, s32 arg4) {
     }
     return r;
 }
-void func_800AAB34(u8 *arg0) {
+void BattleSpriteUpdateWorldPosition(u8 *arg0) {
     u8 *pMatrix;
     u8 *pSprites;
     s32 index;

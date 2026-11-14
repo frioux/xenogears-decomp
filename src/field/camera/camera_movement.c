@@ -184,7 +184,7 @@ void FieldScriptSetCameraTargetMovementFrom(void) {
 
 // Set initial camera target movement to position of an actor
 void FieldScriptSetCameraTargetMovementDestToActor(void) {
-    ActorData* pActor = g_FieldActors[func_8009CD7C(1)].pActorData;
+    ActorData* pActor = g_FieldActors[FieldScriptVMGetActorIndexOrDefault(1)].pActorData;
     g_CamAtMovementTo.vx = pActor->position.vx;
     g_CamAtMovementTo.vy = pActor->position.vy;
     g_CamAtMovementTo.vz = pActor->position.vz;  
@@ -218,7 +218,7 @@ void FieldScriptSetCameraPosMovementFrom(void) {
 }
 
 void FieldScriptSetCameraPosMovementDestToActor(void) {
-    ActorData* pActor = g_FieldActors[func_8009CD7C(1)].pActorData;
+    ActorData* pActor = g_FieldActors[FieldScriptVMGetActorIndexOrDefault(1)].pActorData;
     g_CamEyeMovementTo.vx = pActor->position.vx;
     g_CamEyeMovementTo.vy = pActor->position.vy;
     g_CamEyeMovementTo.vz = pActor->position.vz;  

@@ -106,7 +106,7 @@ extern void func_80088FF4(void);
 extern void func_80089128(void);
 extern void func_800976A0(void);
 extern void WorldMapFreeSpriteSets(void);
-extern void func_8002DD20(void *pBlock);
+extern void ModelLoadTextureBlock(void *pBlock);
 extern void func_800931D8(u8 *pSrc, u8 *pDst, s32 count, u8 *pFactors);
 extern void *D_8009BD20;
 extern u16 D_8009BCE0[];
@@ -158,7 +158,7 @@ extern MATRIX D_8009C808;
 extern void WorldMapWrapDelta(void *pDelta);
 extern void func_800223B0(void *p, s32 angle);
 extern void func_8001E298(void *p, u32 *pTbl);
-extern void func_80024FF4(MATRIX *p);
+extern void GfxSetBaseMatrix(MATRIX *p);
 extern void AnimScriptTick(void *p);
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_80082F64);
@@ -442,7 +442,7 @@ void func_8008440C(void) {
     s32 i = 0;
 
     pData = LZSSHeapDecompress(D_8009BD20, 1);
-    func_8002DD20(pData);
+    ModelLoadTextureBlock(pData);
     DrawSync(0);
     HeapFree(pData);
     HeapFree(D_8009BD20);
@@ -561,7 +561,7 @@ void func_80085CDC(void) {
             gte_stsz(&pScratch[i + 6]);
         }
     }
-    func_80024FF4(pMat);
+    GfxSetBaseMatrix(pMat);
     i = 0;
     pActor = D_8009BE24;
     for (; i < 0x40; i++, pActor++) {

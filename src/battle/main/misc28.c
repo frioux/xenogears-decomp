@@ -60,7 +60,7 @@ extern void func_800245D8(s32 arg0, s32 arg1);
 extern void func_800B7160(void);
 extern u_long *g_GfxCurOT;
 extern u_long *D_800C3CB4;
-extern u8 D_80025A88[];
+extern void SpriteDrawModelPartsInBaseMatrix(void *pTask);
 extern u8 D_800C3EB0[];
 extern long ratan2(long y, long x);
 extern void func_8002DDE4(void *pImg, s32 arg1, s32 arg2, s32 arg3);
@@ -89,7 +89,7 @@ void BattleScriptLoadDataAtWordOffset(s32 arg0, u8 *p) {
     func_8002DDE4(pData, 0, 0, 0);
 }
 void BattleSetTaskCallback(u8 *p) {
-    WorkListSetTaskCallback((u8 *)*(u32 *)(p + 0x6C) + 0x1C, D_80025A88);
+    WorkListSetTaskCallback((u8 *)*(u32 *)(p + 0x6C) + 0x1C, SpriteDrawModelPartsInBaseMatrix);
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc28", func_800B6464);
 /* best 59.79% (s32 b0/b1 locals below) / 58.00% (inline p[0], p[1]).

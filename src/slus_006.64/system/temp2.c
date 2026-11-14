@@ -11,7 +11,7 @@ extern u8 D_800591AD;
 extern u8 D_800591AE;
 extern void WorkListsReset(void);
 
-void func_80024F20(void) {
+void GfxResetWorkLists(void) {
     D_800591AD = 0;
     D_800591AE = 0;
     D_800591A8 = 0x2000;
@@ -61,7 +61,7 @@ void GfxSetCurrentOT(u_long* ot) {
 
 
 // Set D_8004FBB8 matrix
-void func_80024FF4(MATRIX* matrix) {
+void GfxSetBaseMatrix(MATRIX* matrix) {
     D_8004FBB8 = *matrix;
 }
 
@@ -75,7 +75,7 @@ void func_80024FF4(MATRIX* matrix) {
 // LoadImage on entries with an address, ClearImage otherwise.
 // Set the list to NULL afterwards.
 // GfxShapeTransfer
-void func_80025044(void) {
+void GfxFlushImageList(void) {
     Image* pListHead;
     Image* pImage;
 
@@ -154,7 +154,7 @@ void func_80025180(void* pData) {
 //
 // height is declared s16 so that cdk's gcc loads the incoming stack word
 // (lw v1,0x10(sp)) before the sltu instead of inside the branch.
-void func_800251C8(u_long* addr, int x, int y, int width, s16 height) {
+void GfxQueueImageTransfer(u_long* addr, int x, int y, int width, s16 height) {
     Image* pCurrent;
     Image* pNext;
 
@@ -173,13 +173,13 @@ void func_800251C8(u_long* addr, int x, int y, int width, s16 height) {
 }
 
 // Handler table of the sprite work task, indexed by its handler id:
-// func_80025258, func_80025710, func_80025718, NULL, NULL, func_80025258,
-// func_80025258, func_80025718, func_8002541C, func_80025544, NULL, NULL,
-// NULL, NULL, func_80025258, func_800257F0.
+// SpriteDrawProjected, SpriteTaskNoOp, SpriteDrawModelParts, NULL, NULL, SpriteDrawProjected,
+// SpriteDrawProjected, SpriteDrawModelParts, SpriteDrawTile, func_80025544, NULL, NULL,
+// NULL, NULL, SpriteDrawProjected, SpriteDrawLitModelParts.
 extern WorkListCallback_t D_8004FD40[];
 
 // Sets pStruct->unk8 callback
-void func_80025224(WorkListEntry* pTask, int handlerIndex) {
+void SpriteSetTaskHandler(WorkListEntry* pTask, int handlerIndex) {
     WorkListSetTaskCallback(pTask, D_8004FD40[handlerIndex]);
 }
 
@@ -190,7 +190,7 @@ extern void func_8001E298(SpriteData* pSpriteData, void* pArg);
 
 // Projects the sprite's position and queues it into the OT at its own depth
 // offset, either straight (bit 24) or through the model transform (bit 29).
-void func_80025258(WorkListEntry* pTask) {
+void SpriteDrawProjected(WorkListEntry* pTask) {
     SVECTOR vec;
     long vecTrans[3];
     long sxy;
@@ -245,7 +245,7 @@ void func_80025258(WorkListEntry* pTask) {
     }
 }
 
-void func_8002541C(WorkListEntry* pTask) {
+void SpriteDrawTile(WorkListEntry* pTask) {
     SVECTOR vec;
     int nFlag;
     int nOTOffset;
@@ -383,13 +383,13 @@ void func_80025544(WorkListEntry* pTask) {
 }
 */
 
-void func_80025710(void) {}
+void SpriteTaskNoOp(void) {}
 
 extern void SpriteUpdateTransformMatrix(SpriteData* pSpriteData);
 extern void ModelRenderPacket(void* pDirTransforms, void* pFramesData, u_long* pOT, int flags);
 
 // Draws the sprite through its transform matrix, then its model parts.
-void func_80025718(WorkListEntry* pTask) {
+void SpriteDrawModelParts(WorkListEntry* pTask) {
     MATRIX matrix;
     VECTOR vec;
     SpriteData* pSpriteData;
@@ -420,7 +420,7 @@ extern MATRIX D_8004FDA0;
 // Builds the sprite's color and light matrices from its base scale/rotation,
 // then draws its model parts; a negative flag word saves and restores the
 // geometry offset around the draw.
-void func_800257F0(WorkListEntry* pTask) {
+void SpriteDrawLitModelParts(WorkListEntry* pTask) {
     MATRIX matrix;
     VECTOR vec;
     MATRIX colorMatrix;
@@ -490,7 +490,7 @@ void func_800257F0(WorkListEntry* pTask) {
 
 // Draws the sprite through the matrix D_8004FBB8 composed with its own, then
 // hands the model parts to func_800B1F6C.
-void func_80025A88(WorkListEntry* pTask) {
+void SpriteDrawModelPartsInBaseMatrix(WorkListEntry* pTask) {
     MATRIX matrix;
     VECTOR vecResult;
     SVECTOR vec;
@@ -821,7 +821,7 @@ s32 func_8002675C(MenuResourceDirectory* dir, u32 index, POLY_FT4* pPrims,
 // Returns the record count plus one, the number of 2-sprite slots written.
 // i must be initialised at its declaration and the tail indexes with `i << 1`:
 // both are what make gcc 2.7.2-cdk emit the original's block order.
-s32 func_80026A0C(MenuResourceDirectory* dir, u32 index, SPRT* pSprites,
+s32 ResourceHelperBuildSprites(MenuResourceDirectory* dir, u32 index, SPRT* pSprites,
                   int context, u16 x, u16 y) {
     MenuResourceDirentTextureMetadata* pDirent;
     SPRT* pPrim;
@@ -864,7 +864,7 @@ s32 func_80026A0C(MenuResourceDirectory* dir, u32 index, SPRT* pSprites,
     return pDirent->count + 1;
 }
 
-void func_80026B9C(void) {
+void ResourceHelperNoOp(void) {
 }
 
 // Queues one semi-transparent textured quad per record of the dirent.
@@ -971,7 +971,7 @@ typedef struct {
 } MenuResourceSprite; // Size: 0x18
 
 // Converts the sprites of one dirent into out[]; returns the sprite count.
-s32 func_80026DCC(MenuResourceDirectory* dir, u32 index, MenuResourceSprite* out,
+s32 ResourceHelperGetSpriteList(MenuResourceDirectory* dir, u32 index, MenuResourceSprite* out,
                   u16 x, u16 y) {
     MenuResourceDirentTextureMetadata* pDirent;
     MenuResourceTextureMetadata* pData;
@@ -1183,7 +1183,7 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_800273C4);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_800278F8);
 
-void func_80027D40(void* pData) {
+void HeapFreeIfNotNull(void* pData) {
     if (pData) {
         HeapFree(pData);
     }

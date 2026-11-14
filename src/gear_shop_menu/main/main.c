@@ -221,7 +221,7 @@ void GearShopMenuLoadResources(void) {
     memmove(g_Menu->menuUnk2->unk4C14, (u8* ) g_Menu->menuUnk2->tim.paddr, 0x80);
     HeapFree(pData);
     pData = LZSSHeapDecompress((void *)pFileHandle[2], 1);
-    func_8002DD20(pData);
+    ModelLoadTextureBlock(pData);
     HeapFree(pData);
     g_Menu->resources = LZSSHeapDecompress((void *)pFileHandle[3], 0);
     g_Menu->unk2E0 = LZSSHeapDecompress((void *)pFileHandle[4], 0);

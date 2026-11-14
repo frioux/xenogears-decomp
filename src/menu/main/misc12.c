@@ -37,7 +37,7 @@ extern u8 D_801EA590[];
 extern u8 D_801EA5DC[];
 extern void SystemDecodeGlyphCodesN(u16* pInput, u8* pOutput, int count);
 extern s32 func_8002675C(MenuResourceDirectory* pDir, u32 index, POLY_FT4* pPrims, s32 context, u16 x, u16 y, u16 scale);
-extern void func_801D1EE0(s32 arg0, s32 arg1);
+extern void MenuMovePointerCursor(s32 arg0, s32 arg1);
 
 extern s32 D_801EA02C;
 extern s32 D_801EA030;
@@ -402,7 +402,7 @@ void func_801E8978(u_char count, u_char selected, s32* pEntries) {
     }
     g_Menu->pSelectionMenu->cursorsRenderCtx = *(u8*)&g_Menu->renderContext;
     g_Menu->pSelectionMenu->textsRenderCtx = *(u8*)&g_Menu->renderContext;
-    func_801D1EE0(selected, 1);
+    MenuMovePointerCursor(selected, 1);
     g_Menu->pManager->unk4 = 1;
 }
 void func_801E8B4C(u_char selected) {
@@ -429,7 +429,7 @@ void func_801E8B4C(u_char selected) {
     }
     g_Menu->unk354->unk1408 = *(u8*)&g_Menu->renderContext;
     g_Menu->unk354->unk1409 = *(u8*)&g_Menu->renderContext;
-    func_801D1EE0(g_Menu->subMenuChoice + 7, 1);
+    MenuMovePointerCursor(g_Menu->subMenuChoice + 7, 1);
     g_Menu->pManager->unk4 = 1;
 }
 void func_801E8DA8(s32 arg0, s32 arg1) {

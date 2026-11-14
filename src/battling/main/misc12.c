@@ -167,7 +167,7 @@ extern s32 BattleSetFlag10000IfAllSlotBitsSet(void);
 extern void func_80089330(s32, s32);
 extern void BattleInitDrawEnvs(s32, s32);
 extern BattleMisc12Obj* BattleResetObject(BattleMisc12Obj* p);
-extern void func_8002DFF0(s32, s32);
+extern void ModelSetScreenSize(s32, s32);
 extern void BattleSetScaleMatrix(s32, s32);
 extern void func_800898BC(void*, SVECTOR*, SVECTOR*, SVECTOR*);
 
@@ -486,7 +486,7 @@ void BattleInitDrawEnvs(s32 w, s32 h) {
 
     SetGeomOffset(w / 2, h / 2);
     SetGeomScreen(0x180);
-    func_8002DFF0(w, h);
+    ModelSetScreenSize(w, h);
     if (h >= 0x101) {
         pEnv = (DRAWENV*)D_8009A0D8;
         SetDefDrawEnv(pEnv, 0, 0, w, h);
@@ -517,7 +517,7 @@ void BattleInitDrawEnvs(s32 w, s32 h) {
 void BattleSetViewport(s32 a0, s32 a1) {
     SetGeomOffset(a0 / 2, a1 / 2);
     SetGeomScreen((a0 << 8) / a0);
-    func_8002DFF0(a0, a1);
+    ModelSetScreenSize(a0, a1);
     BattleSetScaleMatrix(a0, a1);
 }
 

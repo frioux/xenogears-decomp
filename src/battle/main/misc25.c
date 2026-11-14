@@ -17,8 +17,8 @@ extern void *D_800658C8;
 extern void HeapFree(void *pMem);
 extern s32 func_800A2330(void);
 extern void func_800A23E8(s32, u8 *);
-extern s16 func_800A579C(s16 *);
-extern void func_800A5870(s16 *, s16, void *);
+extern s16 BattleFindTriangleContainingPoint(s16 *);
+extern void BattleProjectPointOntoIndexedTriangle(s16 *, s16, void *);
 extern s32 BattleFindGroundTriangle(s16 *, s16, s32);
 extern void SoundRemoveSedsEntry(s32);
 extern void func_800B00D0(void);
@@ -297,10 +297,10 @@ void func_800AFF9C(u8 *p) {
     index = BattleFindGroundTriangle(vec, *(s16 *)(p + 0x1E), 4);
     *(s16 *)(p + 0x1E) = index;
     if (index < 0) {
-        index = func_800A579C(vec);
+        index = BattleFindTriangleContainingPoint(vec);
         *(s16 *)(p + 0x1E) = index;
     }
-    func_800A5870(vec, *(s16 *)(p + 0x1E), unk10);
+    BattleProjectPointOntoIndexedTriangle(vec, *(s16 *)(p + 0x1E), unk10);
     *(u16 *)(p + 0x60) = vec[1];
     if (*(u8 *)(p + 0x36) == 0) {
         *(s32 *)(*(u8 **)(p + 4) + 0x60) = vec[1];
@@ -401,7 +401,7 @@ extern s16 D_800C3546;
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800B0B14);
 /* 74.97% (588 bytes vs 584): the control flow - the two-condition test, the
-   BattleFindGroundTriangle/func_800A579C retry, the D_800C3546/D_800C3542/D_800C3544
+   BattleFindGroundTriangle/BattleFindTriangleContainingPoint retry, the D_800C3546/D_800C3542/D_800C3544
    bookkeeping - is in place; what is left is the head: retail loads
    D_800D335C and D_800D335E first, then reads D_800D3354/3356/3358 through one
    base pointer s5 (= &D_800D3354) both for the deltas and for the vec sums, and
@@ -428,7 +428,7 @@ s16 func_800B0B14(s32 index) {
         D_800C3546 = index;
         result = BattleFindGroundTriangle(vec, D_800C3542, 5);
         if (result < 0) {
-            result = func_800A579C(vec);
+            result = BattleFindTriangleContainingPoint(vec);
         }
         if (result >= 0) {
             D_800C3542 = result;
@@ -437,7 +437,7 @@ s16 func_800B0B14(s32 index) {
     if (result < 0) {
         vec[1] = D_800C3544;
     } else {
-        func_800A5870(vec, D_800C3542, work);
+        BattleProjectPointOntoIndexedTriangle(vec, D_800C3542, work);
         D_800C3544 = vec[1];
     }
     return vec[1];

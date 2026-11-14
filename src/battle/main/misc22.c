@@ -93,12 +93,12 @@ extern void *D_800C3EA0;
 extern u8 D_800C3DA0[];
 extern s32 func_800AA650(void *pArg);
 extern void func_800A9FF0(s32 arg0);
-extern void func_80027D40(void *p);
+extern void HeapFreeIfNotNull(void *p);
 extern void GfxLineScrollFree(void *pLineScroll);
 extern void func_800B10EC(void *pArg, s16 x, s16 y, s32 z);
 extern void HeapFree(void *pMem);
 
-s32 func_800A2E88(BattleMisc22Unk *pArg, s16 arg1) {
+s32 BattleAllocSpriteSlot(BattleMisc22Unk *pArg, s16 arg1) {
     BattleMisc22Spr *pSpr;
     s16 i;
 
@@ -123,7 +123,7 @@ s32 func_800A2E88(BattleMisc22Unk *pArg, s16 arg1) {
     return pArg->unk4 * 124 + pArg->unk0;
 }
 
-s32 func_800A2F94(BattleMisc22Unk *pArg, u8 *pEnd) {
+s32 BattleEndSpriteSlotList(BattleMisc22Unk *pArg, u8 *pEnd) {
     s32 count = ((u32)pEnd - pArg->unk0) / 124;
 
     if (pArg->unk6 >= count) {
@@ -171,13 +171,13 @@ s32 func_800A32D8(BattleMisc22Cmd *pCmd, void *pData, s16 arg2, u8 arg3, s16 cou
     }
 }
 */
-void func_800A3484(s16 *pArg) {
+void BattleStoreMinusOneS16(s16 *pArg) {
     *pArg = -1;
 }
-s16 func_800A3490(s16 angle, s16 divisor, s16 base) {
+s16 BattleOffsetBySin(s16 angle, s16 divisor, s16 base) {
     return base + (rsin(angle) + 0x1000) / divisor;
 }
-s16 func_800A3514(s16 angle, s16 divisor, s16 base) {
+s16 BattleOffsetByAngleClamped(s16 angle, s16 divisor, s16 base) {
     s16 value = base + angle / divisor;
 
     if (value >= 33) {
@@ -187,7 +187,7 @@ s16 func_800A3514(s16 angle, s16 divisor, s16 base) {
 }
 /* byte-exact under maspsx --expand-div; the Default preset does not pass it, so
    the div-by-zero trap sequence is missing from our object (99.41% otherwise).
-s16 func_800A3514(s16 angle, s16 divisor, s16 base) {
+s16 BattleOffsetByAngleClamped(s16 angle, s16 divisor, s16 base) {
     s16 result = base + angle / divisor;
 
     if (result >= 0x21) {
@@ -196,10 +196,10 @@ s16 func_800A3514(s16 angle, s16 divisor, s16 base) {
     return result;
 }
 */
-s16 func_800A3578(s16 angle, s16 divisor, s16 base) {
+s16 BattleOffsetByNegatedAngle(s16 angle, s16 divisor, s16 base) {
     return base - angle / divisor;
 }
-s16 func_800A35C8(s16 angle, s16 divisor, s16 base) {
+s16 BattleCountdownOffsetByAngle(s16 angle, s16 divisor, s16 base) {
     s16 value = 0x20 - angle / divisor;
 
     if (value < base) {
@@ -209,7 +209,7 @@ s16 func_800A35C8(s16 angle, s16 divisor, s16 base) {
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A3640);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A3E98);
-void func_800A429C(BattleMisc22Image *pArg) {
+void BattleFreeImageEntry(BattleMisc22Image *pArg) {
     if (pArg->unk1A != 0) {
         if (pArg->unk4 != 0) {
             if (pArg->unk10 < 4) {
@@ -229,7 +229,7 @@ void func_800A429C(BattleMisc22Image *pArg) {
         pArg->unk1A = 0;
     }
 }
-void func_800A4348(BattleMisc22Image *pArg, s16 scale) {
+void BattleScaleImageRegion(BattleMisc22Image *pArg, s16 scale) {
     s32 i;
     s32 j;
     u16 *pSrc = pArg->unk4;
@@ -243,7 +243,7 @@ void func_800A4348(BattleMisc22Image *pArg, s16 scale) {
         }
     }
 }
-void func_800A43F8(BattleMisc22Image *pArg, s16 scale) {
+void BattleBlendImageRegion(BattleMisc22Image *pArg, s16 scale) {
     s32 i;
     s32 j;
     u16 *pSrc1 = pArg->unk4;
@@ -323,7 +323,7 @@ void func_800A44C0(u8 **pArg) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A4654);
-void func_800A4820(void) {
+void BattleFreeSceneResources(void) {
     s32 i;
 
     func_800A9FF0(0x1F);
@@ -335,7 +335,7 @@ void func_800A4820(void) {
     D_800658C8 = 0;
     for (; i < 2;) {
         if (D_800C3D50[i] != 0) {
-            func_80027D40(D_800C3D50[i]);
+            HeapFreeIfNotNull(D_800C3D50[i]);
         }
         D_800C3D50[i++] = 0;
     }
@@ -349,7 +349,7 @@ void func_800A4820(void) {
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A48EC);
-s32 func_800A4B3C(u16 *pPos, s16 *pTarget) {
+s32 BattlePushTargetOutOfCircles(u16 *pPos, s16 *pTarget) {
     s32 result = 0;
     u16 *pSrc = D_800D2FD0;
     s32 i;
@@ -371,7 +371,7 @@ s32 func_800A4B3C(u16 *pPos, s16 *pTarget) {
     }
     return result;
 }
-void func_800A4CF8(void *pArg) {
+void BattleSteerActorTowardCircles(void *pArg) {
     s16 a;
     s16 b;
     s16 c;
@@ -386,15 +386,15 @@ void func_800A4CF8(void *pArg) {
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A4DB8);
-s32 func_800A577C(void) {
+s32 BattleGetTriangleVertexTable(void) {
     return D_800D3344;
 }
 
-s32 func_800A578C(void) {
+s32 BattleGetTriangleEntryTable(void) {
     return D_800D39CC;
 }
 
-s32 func_800A579C(s32 arg0) {
+s32 BattleFindTriangleContainingPoint(s32 arg0) {
     BattleMisc22Entry *pEntry;
     s32 i;
 
@@ -411,7 +411,7 @@ s32 func_800A579C(s32 arg0) {
     return -1;
 }
 
-s32 func_800A5870(s32 arg0, s32 index, s32 arg2) {
+s32 BattleProjectPointOntoIndexedTriangle(s32 arg0, s32 index, s32 arg2) {
     BattleMisc22Entry *pEntry;
 
     if (D_800D3344 == 0 || D_800D39CC == 0 || index < 0) {

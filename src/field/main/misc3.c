@@ -168,11 +168,11 @@ extern s16 D_800B00B2;
 extern s32 D_800B007C;
 
 extern void WorkListsFreeAllEntries(void);
-extern void func_80025044(void);
+extern void GfxFlushImageList(void);
 extern void func_800250E0(int context);
 extern void GfxFreeWorkBuffers(void);
 extern void FieldFreeActorData(int actorIndex);
-extern void func_800306D0(void* pBackup);
+extern void ModelRestorePartVertices(void* pBackup);
 extern void ModelPartFreeLightData(void* pModelPart);
 extern void FieldDistortionFree(void);
 extern void GfxLineScrollFree(void* pLineScroll);
@@ -180,7 +180,7 @@ extern void FontFree(void);
 extern void LibGearShutdown(void);
 extern void FieldRenderSyncAndFlush(void);
 extern void FieldFreeSpritePrimitives(void);
-extern void func_80027D40(void* pData);
+extern void HeapFreeIfNotNull(void* pData);
 
 typedef struct {
     s16 numLineScrolls;
@@ -204,10 +204,10 @@ void FieldFree(void) {
 
     i = 0;
     do {
-        func_80025044();
+        GfxFlushImageList();
         DrawSync(0);
         func_800250E0((g_FieldCurRenderContextIndex + ++i) & 1);
-        func_80025044();
+        GfxFlushImageList();
         DrawSync(0);
         GfxFreeWorkBuffers();
     } while (i < 2);
@@ -219,7 +219,7 @@ void FieldFree(void) {
         if (!(status & 0x40)) {
             pModelData = pActor->pModelData;
             if (status & 0x2000) {
-                func_800306D0(*(void**)((u8*)pModelData + 0x14));
+                ModelRestorePartVertices(*(void**)((u8*)pModelData + 0x14));
             }
             ModelPartFreeLightData(*(void**)((u8*)pModelData + 0x4));
             HeapFree(*(void**)((u8*)pModelData + 0x8));
@@ -237,7 +237,7 @@ void FieldFree(void) {
     HeapFree(g_FieldSpriteData);
 
     if (D_800B00B2 != 0) {
-        func_80027D40(D_800B007C);
+        HeapFreeIfNotNull(D_800B007C);
     }
 
     for (i = 0; i < D_800AFEA8.numLineScrolls; i++) {

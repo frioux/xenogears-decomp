@@ -947,7 +947,7 @@ void func_800752C8(void) {
 
     func_800250E0(g_FieldCurRenderContextIndex);
     GfxSetCurrentOT(g_FieldCurRenderContext->ot1);
-    func_80024FF4(&g_Scene.worldToScreenMatrix);
+    GfxSetBaseMatrix(&g_Scene.worldToScreenMatrix);
     func_8001D468();
     WorkListUpdate();
     TimerWorkListUpdate();

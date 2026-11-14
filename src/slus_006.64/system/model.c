@@ -58,7 +58,7 @@ int ModelResolvePointers(ModelFileHeader* pModelFile) {
     return numParts;
 }
 
-int func_8002C4BC(ModelFileHeader* pModelFile) {
+int ModelUnresolvePointers(ModelFileHeader* pModelFile) {
     int numParts;
     int i;
     int j;
@@ -94,7 +94,7 @@ int func_8002C4BC(ModelFileHeader* pModelFile) {
     return numParts;
 }
 
-void func_8002C59C(ModelPart* pModelPart) {
+void ModelPartResolvePointers(ModelPart* pModelPart) {
     u_short flags;
     ModelPacketInfo* pPacketInfo;
     int j;
@@ -118,7 +118,7 @@ void func_8002C59C(ModelPart* pModelPart) {
     }
 }
 
-int func_8002C644(ModelFileHeader* pModelFile) {
+int ModelFileTrimHeapBlock(ModelFileHeader* pModelFile) {
     u_int flags;
 
     flags = pModelFile->flags;
@@ -130,7 +130,7 @@ int func_8002C644(ModelFileHeader* pModelFile) {
     return 0;
 }
 
-int func_8002C68C(ModelPart* pModelPart) {
+int ModelPartTrimHeapBlock(ModelPart* pModelPart) {
     u_short flags;
 
     flags = pModelPart->flags;
@@ -181,7 +181,7 @@ void ModelPacketSetBaseTexPage(u_short x, u_short y) {
     g_ModelTextureMode = 1;
 }
 
-void func_8002CC54(u_short arg0) {
+void ModelPacketSetTexPageOverride(u_short arg0) {
     g_ModelBaseTexPage = arg0;
     g_ModelTextureMode = 2;
 }
@@ -191,7 +191,7 @@ void ModelPacketSetBaseClut(u_short x, u_short y) {
     g_ModelClutMode = 0;
 }
 
-void func_8002CCAC(void) {
+void ModelPacketClearTextureOverrides(void) {
     g_ModelTextureMode = 0;
     g_ModelClutMode = 1;
 }
@@ -429,7 +429,7 @@ u_int ModelPacketInitPolyGT4(TexturedQuadPrimitive* pPrim, short* pIndices, u_in
     return 1;
 }
 
-u_int func_8002D354(UntexturedPrimitive* pPrim, short* pIndices, u_int flags) {
+u_int ModelPacketInitPolyG4_2(UntexturedPrimitive* pPrim, short* pIndices, u_int flags) {
     POLY_G4* pPoly;
 
     pPoly = g_pCurModelPacket;
@@ -458,7 +458,7 @@ u_int func_8002D354(UntexturedPrimitive* pPrim, short* pIndices, u_int flags) {
     return 1;
 }
 
-u_int func_8002D420(TexturedQuadPrimitive* pPrim, short* pIndices, u_int flags) {
+u_int ModelPacketInitPolyGT4_2(TexturedQuadPrimitive* pPrim, short* pIndices, u_int flags) {
     POLY_GT4* pPoly;
 
     if (ModelPacketSetTextureData(pPrim) == PRIM_HAS_TEX_DATA) {
@@ -749,7 +749,7 @@ typedef struct {
     /* 0x4 */ u32 offsets[1]; // count entries
 } ModelTextureBlock;
 
-void func_8002DD20(ModelTextureBlock* pBlock) {
+void ModelLoadTextureBlock(ModelTextureBlock* pBlock) {
     TIM_IMAGE tim;
     int i;
 
@@ -768,11 +768,11 @@ void func_8002DD20(ModelTextureBlock* pBlock) {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/model", func_8002DDE4);
 
-void* func_8002DFE0(void) {
+void* ModelGetHeapStart(void) {
     return &D_8006FAF0;
 }
 
-void func_8002DFF0(u32 arg0, u32 arg1) {
+void ModelSetScreenSize(u32 arg0, u32 arg1) {
     D_800500FC = (arg1 - 1) << 0x10;
     D_800500F8 = arg0;
 }
@@ -816,7 +816,7 @@ typedef struct {
     /* 0xC */ s32 unkC;
 } ModelRampValue; // Size: 0x10
 
-s32 func_8003014C(ModelRampValue* pRamp) {
+s32 ModelStepRampValue(ModelRampValue* pRamp) {
     if (pRamp->unk8 > pRamp->unk4) {
         pRamp->unk8 -= pRamp->unkC;
         if (pRamp->unk8 < pRamp->unk4) {
@@ -841,7 +841,7 @@ typedef struct {
     /* 0x6 */ u16 pad6;
 } ModelVertex; // Size: 0x8
 
-void func_800301C8(ModelVertex* pDest, ModelVertex* pSrc, int count, short* pIndices) {
+void ModelCopyIndexedVertices(ModelVertex* pDest, ModelVertex* pSrc, int count, short* pIndices) {
     int i;
     int index;
 
@@ -862,7 +862,7 @@ typedef struct {
     /* 0x6 */ s16 index;
 } ModelVertexDelta; // Size: 0x8
 
-void func_80030228(ModelVertex* pDest, ModelVertexDelta* pDeltas, int count, int scale) {
+void ModelApplyVertexDeltas(ModelVertex* pDest, ModelVertexDelta* pDeltas, int count, int scale) {
     ModelVertex* pVertex;
 
     if (scale == 0) {
@@ -877,7 +877,7 @@ void func_80030228(ModelVertex* pDest, ModelVertexDelta* pDeltas, int count, int
     }
 }
 
-void func_800302D4(ModelVertex* pDest, ModelVertexDelta* pDeltas, int count, int scale) {
+void ModelApplyVertexDeltasNormalized(ModelVertex* pDest, ModelVertexDelta* pDeltas, int count, int scale) {
     ModelVertex* pVertex;
 
     if (scale == 0) {
@@ -920,7 +920,7 @@ typedef struct {
     /* 0x10 */ ModelLodWeight* pLodWeights;
 } ModelPoseState; // Size: 0x14
 
-void func_800305D8(ModelPoseState* pPose) {
+void ModelUpdatePartPose(ModelPoseState* pPose) {
     ModelPart* pModelPart;
     ModelLodDeltas* pDeltas;
     ModelLodWeight* pWeight;
@@ -935,14 +935,14 @@ void func_800305D8(ModelPoseState* pPose) {
     count = pPose->numLods;
     pDeltas = (ModelLodDeltas*)(pModelPart->unk1C + 1);
     pWeight = pPose->pLodWeights;
-    func_800301C8((ModelVertex*)pModelPart->pVertices, pPose->pBaseVertices,
+    ModelCopyIndexedVertices((ModelVertex*)pModelPart->pVertices, pPose->pBaseVertices,
                   pDeltas[count].count, (short*)pDeltas[count].pDeltas);
     for (i = 0; i < count; i++) {
         scale = pWeight->pGetWeight(pWeight);
-        func_80030228((ModelVertex*)pModelPart->pVertices, pDeltas[i].pDeltas,
+        ModelApplyVertexDeltas((ModelVertex*)pModelPart->pVertices, pDeltas[i].pDeltas,
                       pDeltas[i].count, scale);
         if (pModelPart->flags & 0x10) {
-            func_800302D4((ModelVertex*)pModelPart->unkC, pDeltas[i].pDeltasHigh,
+            ModelApplyVertexDeltasNormalized((ModelVertex*)pModelPart->unkC, pDeltas[i].pDeltasHigh,
                           pDeltas[i].count, scale);
         }
         pWeight++;
@@ -957,7 +957,7 @@ typedef struct {
     /* 0x8 */ u32 unkC;
 } ModelPartVertexBackup;
 
-void func_800306D0(ModelPartVertexBackup* pBackup) {
+void ModelRestorePartVertices(ModelPartVertexBackup* pBackup) {
     ModelPart* pModelPart;
 
     if (pBackup != NULL) {

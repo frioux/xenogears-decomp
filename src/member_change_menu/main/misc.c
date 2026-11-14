@@ -175,7 +175,7 @@ void MemberChangeMenuLoadResources(void) {
 
     // Menu TIM Textures
     pResourceEntry = LZSSHeapDecompress(pResources[2], 1);
-    func_8002DD20(pResourceEntry);
+    ModelLoadTextureBlock(pResourceEntry);
     HeapFree(pResourceEntry);
 
     // Table for where to find textures (UVs, sizes etc.) for the TIMs loaded above

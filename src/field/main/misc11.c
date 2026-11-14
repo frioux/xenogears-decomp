@@ -1457,7 +1457,7 @@ void FieldProjectActorOriginToScreen(int* pScreenX, int* pScreenY) {
     long p;
     long flag;
 
-    CompMatrix(&g_Scene.worldToScreenMatrix, &g_FieldActors[func_8009CD7C(1)].childMatrix, &transformMatrix);
+    CompMatrix(&g_Scene.worldToScreenMatrix, &g_FieldActors[FieldScriptVMGetActorIndexOrDefault(1)].childMatrix, &transformMatrix);
     origin.vx = 0;
     origin.vy = 0;
     origin.vz = 0;

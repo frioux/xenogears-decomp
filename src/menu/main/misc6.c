@@ -103,7 +103,7 @@ void MenuStartCloseAnimation(void) {
     g_Menu->transitionEffectState = MENU_CLOSE_ANIMATION_START;
     MenuPlaySoundEffect(0x5C);
 }
-void func_801D1EE0(s32 slot, u8 doInit) {
+void MenuMovePointerCursor(s32 slot, u8 doInit) {
     func_8002675C(g_Menu->resources, 0x108, g_Menu->unk348->polysPointerCursor, g_Menu->renderContext, D_801E9A00[slot], D_801E9A2C[slot], 0x1000);
     g_Menu->unk348->cursorRenderContext = (u8)g_Menu->renderContext;
 

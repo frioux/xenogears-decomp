@@ -266,7 +266,7 @@ void BattleAttachModelPart(Misc13ModelPart* pPart, ModelPart* pModelPart) {
     pPart->unk10 = func_800303C8(pModelPart, 1);
     ModelAllocatePackets(pPart->pModelPart, &pPart->pPacketBuffer, &pPart->pCurrentPacket);
     if (D_80092800 >= 0) {
-        func_8002CC54(GetTPage(0, 1, D_80092800, D_80092804) & 0xFFFF);
+        ModelPacketSetTexPageOverride(GetTPage(0, 1, D_80092800, D_80092804) & 0xFFFF);
     }
     if (D_80092808 >= 0) {
         ModelPacketSetBaseClut(D_80092808, D_8009280C);

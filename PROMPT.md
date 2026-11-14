@@ -91,6 +91,11 @@ of a match, and it is cheap.
   `extern` prototypes and parked bodies, and round 35 spent two duds on files with zero
   unnamed C functions. Ten naming workers yield ~500 names, so this is the cheaper of
   the two numbers to move.
+- **A rename leaves `D_<addr>` behind.** When the named function is also referenced from
+  another binary as a *data* symbol (`extern u8 D_80025A88[]` for a main-exe callback in
+  `battle/main/misc28`), neither tool touches that C: the overlay's asm relocations get the
+  new name, the old spelling has no definition, and `make check` fails with `undefined
+  reference to D_80025A88`. One grep per applied name over `src/` for both spellings.
 - Tracker row: `+N matched, +M named, raw R`.
 
 ## Realistic C

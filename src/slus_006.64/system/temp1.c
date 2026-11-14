@@ -743,7 +743,7 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80024730);
    the position copies come out load-all-then-store-all instead of the original's interleaved
    `lw %lo/%lo+4/%lo+8; sw` with `addiu $v0,$v0,%lo` in the delay slot.
 extern void func_800BC158(AnimTask* pAnimTask);
-extern void func_80025224(WorkListEntry* pTask, s32 animType);
+extern void SpriteSetTaskHandler(WorkListEntry* pTask, s32 animType);
 extern IVEC3 D_8006F99C;
 extern IVEC3 D_8006F9AC;
 
@@ -800,6 +800,6 @@ void func_80024730(AnimTask* pAnimTask) {
     case 14:
         break;
     }
-    func_80025224(pTask, animType);
+    SpriteSetTaskHandler(pTask, animType);
 }
 */

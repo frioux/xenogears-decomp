@@ -53,5 +53,5 @@ void FieldInitializeRenderContexts(void) {
     Vsync(0);
     PutDispEnv(&g_FieldRenderContexts[1].dispEnv);
     PutDrawEnv(&g_FieldRenderContexts[1].drawEnvs[0]);
-    func_8002DFF0(0x140, 0xF0);
+    ModelSetScreenSize(0x140, 0xF0);
 }

@@ -403,7 +403,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc16_r2", func_80090C44);
    `volatile s32 *pMode`, and pBase-before-ofs vs ofs-before-pBase ordering.
    So the round-37 note that such a local reproduces retail's `la` + `lw 0(sN)`
    does not hold for straight-line code: every `la $sN,glob` + `lw 0($sN)` in
-   build/src sits on a LOOP-INVARIANT address (battle/misc22 func_800A4820,
+   build/src sits on a LOOP-INVARIANT address (battle/misc22 BattleFreeSceneResources,
    shop_menu ShopMenuUpdateBuyMenuExplanationGraphics, system/temp3, field
    misc/misc2/misc5). Also left: retail adds the constant to the PRODUCT
    (`sll/addu/sll; addiu a0,a0,0x3C0; addu a0,a0,t1`) where ours forms

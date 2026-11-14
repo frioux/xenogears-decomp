@@ -16,7 +16,7 @@ extern void func_800A2D1C(u8 *);
 extern void func_800A9FF0(s32);
 extern void func_800AA934(void *, void *, void *, void *);
 extern s32 func_800AF400(void);
-extern void func_800A429C(void *);
+extern void BattleFreeImageEntry(void *);
 extern void func_800A64E4(void);
 extern void func_800BF85C(s32, s32);
 
@@ -247,7 +247,7 @@ void BattleUploadAndFreeImageResources(void) {
         pRect = (u8 *)&D_800D3628;
         LoadImage((RECT *)pRect, D_800D3604);
         DrawSync(0);
-        func_800A429C(pRect - 0x28);
+        BattleFreeImageEntry(pRect - 0x28);
     }
     func_800A64E4();
     HeapFree(D_800C3AC4);
@@ -560,7 +560,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A9FF0);
    HeapFree/func_8009F794/SoundRemoveSedsEntry/func_800A2ACC+func_800A2BB8 on fields
    0x00,0x04,0xA8,0xAC,0xB0 of the unit, then the 0x13..0x1E range test
    "(u32)(arg0 - 0x13) < 0xC", then two counted loops (unk10E * 0x30 through
-   unk118 with func_800A429C, unk10D * 0x24 through unk114 with BattleFreeModelListEntryBuffers),
+   unk118 with BattleFreeImageEntry, unk10D * 0x24 through unk114 with BattleFreeModelListEntryBuffers),
    then HeapFree(unit)/unit = NULL, and finally the recursion into units
    arg0*2+0xD and arg0*2+0xE when arg0 < 3.
    What moved 82.96 -> 91.39: do NOT keep &D_800D3368[arg0] in a local - retail
@@ -609,7 +609,7 @@ void func_800A9FF0(s32 arg0) {
         if (count != 0) {
             offset = 0;
             for (i = 0; i < count; i++) {
-                func_800A429C((u8 *)*(void **)(D_800D3368[arg0] + 0x118) + offset);
+                BattleFreeImageEntry((u8 *)*(void **)(D_800D3368[arg0] + 0x118) + offset);
                 count = *(u8 *)(D_800D3368[arg0] + 0x10E);
                 offset += 0x30;
             }

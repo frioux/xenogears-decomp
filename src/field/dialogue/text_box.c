@@ -10,7 +10,7 @@ extern s32 D_8005A448;
 extern s32 D_8005A44C;
 extern s32 D_800AFD1C;
 
-void func_8009BB0C(void) {
+void FieldScriptVMHandlerWaitForTextBoxClose(void) {
     int nTextBoxIndex;
     u32 lowerFlags;
     u32 upperFlags;
@@ -56,7 +56,7 @@ extern void SystemStringSetColor(FieldTextBoxString* pString, u8 red, u8 green, 
 #define TEXT_BOX_STRING(index) ((FieldTextBoxString*)g_FieldTextBoxes[index]._pad)
 
 // Script command: lay out the cursor columns of the text box from the script byte.
-void func_8009BC98(void) {
+void FieldScriptVMHandlerSetTextBoxCursorColumns(void) {
     int index;
     u8 columns;
 
@@ -82,12 +82,12 @@ void func_8009BC98(void) {
     D_800B00C0 = 1;
 }
 
-s32 func_8009BE58(void) {
+s32 FieldCheckActorFacingCamera(void) {
     return ((g_FieldScriptVMCurActor->direction - (FieldGetCameraDirection() & 0xffff)) & MASK_8DIR_MOVEMENT_NUM_DIRECTIONS) < 5;
 }
 
 // Reset text box?
-void func_8009BE9C(void) {
+void FieldScriptVMHandlerCloseTextBoxOrClearDialogParams(void) {
     int index;
     
     if (SCRIPT_READ_U8_REL(1) == 0) {
@@ -109,16 +109,16 @@ void func_8009BE9C(void) {
 }
 
 // modifies the face id.. is this changing out the portrait?
-void func_8009BF8C(void) {
+void FieldScriptVMHandlerSetFaceIdFromActor(void) {
     if (FieldScriptVMGetActorIndex(1) != ACTOR_ID_INVALID) {
         g_FieldScriptVMCurActor->faceId = g_FieldActors[FieldScriptVMGetActorIndex(1)].pActorData->faceId;
-        func_8009C01C();
+        FieldScriptVMHandlerOpenTextBoxForActor();
         return;
     }
     g_FieldScriptVMCurActor->scriptInstructionPointer += 6;
 }
 
-void func_8009C01C(void) {
+void FieldScriptVMHandlerOpenTextBoxForActor(void) {
     u32 nActorIndex;
 
     if (FieldScriptVMGetActorIndex(1) != ACTOR_ID_INVALID) {
@@ -132,19 +132,19 @@ void func_8009C01C(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 6;
 }
 
-void func_8009C0B4(void) {
+void FieldScriptVMHandlerOpenTextBoxMode0(void) {
     func_8009C5A8(D_800AFD1C, 0);
 }
 
-void func_8009C0DC(void) {
+void FieldScriptVMHandlerOpenTextBoxMode1(void) {
     func_8009C5A8(D_800AFD1C, 1);
 }
 
-void func_8009C104(void) {
+void FieldScriptVMHandlerOpenTextBoxMode2(void) {
     func_8009C5A8(D_800AFD1C, 2);
 }
 
-void func_8009C12C(void) {
+void FieldScriptVMHandlerOpenTextBoxMode3(void) {
     func_8009C5A8(D_800AFD1C, 3);
 }
 
@@ -152,7 +152,7 @@ void func_8009C12C(void) {
 INCLUDE_ASM("asm/field/nonmatchings/dialogue/text_box", func_8009C154);
 
 // Check if there is a portrait w/ targetId that's free to use?
-int func_8009C538(int targetId) {
+int FieldTextBoxCheckPortraitIdAvailable(int targetId) {
     int i;
     
     for (i = 0; i < 4; i++) {
@@ -173,7 +173,7 @@ INCLUDE_ASM("asm/field/nonmatchings/dialogue/text_box", func_8009C5A8);
 
 extern u16 D_800B2174[];
 
-void func_8009CCF8(int arg0) {
+void FieldTextBoxMarkInUse(int arg0) {
     D_800B2174[0] |= 1 << arg0;
 }
 // find_first_unused()?
@@ -190,7 +190,7 @@ int func_8009CD18(int* pTextBoxIndex) {
     return -1;
 }
 
-u32 func_8009CD7C(int bytecodeOffset) {
+u32 FieldScriptVMGetActorIndexOrDefault(int bytecodeOffset) {
     u32 nActorIndex = FieldScriptVMGetActorIndex(bytecodeOffset);
     if (nActorIndex == ACTOR_ID_INVALID) {
         return D_8005A444;
@@ -214,7 +214,7 @@ u32 FieldScriptVMGetActorIndex(int bytecodeOffset) {
 
 
 // Set up dialog window / text box
-void func_8009CE48(void) {
+void FieldScriptVMHandlerSetTextBoxLayoutFromBytes(void) {
     g_FieldScriptVMCurActor->dialogPixelWidth = SCRIPT_READ_U8_REL(1) * 2;
     g_FieldScriptVMCurActor->dialogPixelHeight = SCRIPT_READ_U8_REL(2);
     g_FieldScriptVMCurActor->dialogWidth = SCRIPT_READ_U8_REL(3) * 3;
@@ -224,7 +224,7 @@ void func_8009CE48(void) {
 
 
 // Set up dialog window / text box
-void func_8009CEE0(void) {
+void FieldScriptVMHandlerSetTextBoxLayoutFromArguments(void) {
     g_FieldScriptVMCurActor->dialogPixelWidth = FieldScriptVMGetArgument(1);
     g_FieldScriptVMCurActor->dialogPixelHeight = FieldScriptVMGetArgument(3);
     g_FieldScriptVMCurActor->dialogWidth = FieldScriptVMGetArgument(5) * 3;

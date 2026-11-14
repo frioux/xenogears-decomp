@@ -2493,6 +2493,7 @@ after the round-31 precedent. Two macros' worth of knowledge, now in the file's 
 | 41 | 10 workers: `battle/{main/misc12,misc13,misc19,misc29,misc33}`, `battling/main/{misc11,misc12,misc16}`, `world_map/main/misc15`, `menu/main/misc2` + an 8-worker naming round | +6 | 1320 | `battle/misc33` **2** (`BEC18 BEBC4`), `battle/misc19` 1 (`A9B38`), `battling/misc11` 1 (`8832C`), `menu/misc2` 1 (`1C8A10`), `battle/misc29` 1 (`B8284`, unlocked by the new XenoBattleTailCdk preset); 0 in `battling/misc12` (its stub is a 4-byte pointer datum, not code), `battling/misc16`, `world_map/misc15`, `battle/misc12`, `battle/misc13`. 145 names applied, 17 new `symbol_addrs.member_change_menu` entries |
 | 42 | 13 workers: `field/main/misc`, `lib_gear/main/main`, `slus_006.64/system/temp2`, `world_map/main/{misc1,misc2,misc5,misc15}`, `battle/main/{misc3,misc11,misc12,misc22,misc16_r2}`, `field/scripts/virtual_machine` + a 7-worker naming round | +4 | 1324 | `field/main/misc` 1 (`8BDD8`), `world_map/misc2` 1 (`7565C`), `world_map/misc5` 1 (`7AD34`), `battle/misc12` 1 (`85454`, CHECK_BIN_OK - the only diff is a `%hi/%lo(D_800D2D67)` relocation objdiff cannot resolve); 0 in the other nine. 57 of 59 names applied. Three naming files (`world_map/misc3/misc6/misc8`) had no unnamed C definition - the parked-body census over-reports even after stripping `/* */` |
 | 43 | 12 workers: `slus_006.64/system/{sound,rendering,animation_scripts}`, `battle/main/{misc2,misc3,misc11,misc12}`, `menu/main/{misc12,misc11_r2}`, `world_map/main/{misc1,misc6}`, `lib_gear/main/main` + an 8-worker naming round | +5 | 1329 | `system/sound` 1 (`3EFE4`, via a position-independent `for (i = NUM; i != 0; i--)` counter), `system/rendering` 1 (`1F750`, un-parked from 89.74 with a `u8` flag copy), `battle/misc3` 1 (`77074`, 18-call packet init, first try), `menu/misc11_r2` 1 (`1E4A28`), `world_map/misc6` 1 (`7FF70`); 0 in the other seven but `battle/misc11`'s `80C94` went cold -> 86.16 park and `menu/misc12`'s `1E8F60` 85.90 -> 95.69. 106 of 109 names applied |
+| 44 | 8 workers: `slus_006.64/system/rendering`, `battle/main/{misc3,misc24,misc28}`, `world_map/main/misc14`, `battling/main/misc8`, `menu/main/{misc6,misc12}` + a 4-worker naming round | +3 | 1308 | `system/rendering` 1 (`1F8E8`), `battle/misc24` 1 (`AAB34`, via the unit's new `psyq/inline_c.h` include), `menu/main/misc6` 1 (`1D1EE0`, byte-identical twin of `GearShopMenuSetSelectionCursor`); 0 in the other five - `battle/misc3`'s `76EA4` is a one-`addu`-operand-order wall (98.19), `battle/misc28`'s `B6F0C` 85.91, `world_map/misc14`'s `95CD4` 87.03 (scratchpad address CSE), `battling/misc8`'s `81ECC` 70.16 (retail merges field stores into wider ones), `menu/misc12`'s `1E86C8` 91.12 -> 99.79. 67 of 68 names applied |
 
 
 ### Round 36's per-unit detail
@@ -2673,3 +2674,23 @@ Still open, with evidence: `battle/misc19`'s 5-run split (2 functions, 4 new fil
   flags) for `func_800B8284`: 100.00 under cdk, 77.69 under 2.7.2, five matched functions unaffected.
 - Naming: 8 read-only workers, 145 names, 17 new `symbol_addrs.member_change_menu` entries. A
   two-column names file silently neuters `name_addrs.py` (see PROMPT.md, Names).
+
+### Round 44's per-unit detail
+
+- **A convert-once caller can be shortened by a rename, not by a conversion.** `battle/main/misc28`'s
+  matched `BattleSetTaskCallback` took its callback as `extern u8 D_80025A88[]`; naming that function
+  `SpriteDrawModelPartsInBaseMatrix` made battle's `undefined_syms_auto` carry the new name, so the C
+  spelling had no definition and the link failed with `undefined reference to D_80025A88`. Neither
+  `rename_sym.py` nor `name_addrs.py` touches `D_<addr>` spellings - grep for them (now in PROMPT.md).
+- gcc does **not** drop a declared-but-unused local: `system/rendering`'s `func_8001F8E8` got retail's
+  0x40 frame from an unused `VECTOR vec;`, against the parked note's claim. Its other lever was
+  `u8 unkFlag` (a 32-bit one lets reorg steal `andi s5` into a delay slot).
+- `for (x = 0; x != N; x++)` reproduces retail's `li v0,N; bne`; `<` gives `slti/bnez` (battle/misc28,
+  worth 6 instructions on its own). Both are now in `brief.js`.
+- Raw is **2663 -> 2678**, not a regression in old code: 3 new bodies, two of them ROUGH
+  (`battle/misc24`'s indexed matrix address, `system/rendering`'s `dirTransforms` operand order) and the
+  rest park-note text, which the raw grep counts. Those two owe a rewrite round.
+- `tools/scripts/sizes.py` now flags **177** functions, all in units this round did not touch, e.g.
+  `battle/misc24`'s `func_800AAA20` "retail 820 ours 276" - a matched function whose bytes are
+  right (`make check` green). Its retail size is `next symbol_addrs address - this one`, so it is only valid where the symbol file is
+  contiguous; treat a flag as a hint, not a finding, until that is fixed.
