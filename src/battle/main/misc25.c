@@ -16,7 +16,7 @@ extern u8 D_800C4000[];
 extern void *D_800658C8;
 
 extern void HeapFree(void *pMem);
-extern s32 BattleAllocBlock(void);
+extern BattleBlock *BattleAllocBlock(u8 *pPool);
 extern void BattleFreeBlock(s32, u8 *);
 extern s16 BattleFindTriangleContainingPoint(s16 *);
 extern void BattleProjectPointOntoIndexedTriangle(s16 *, s16, void *);
@@ -39,12 +39,22 @@ typedef struct {
 } BattleModel;
 
 struct BattleModelNode {
-    /* 0x0 */ BattleModelNode *pParent;
-    /* 0x4 */ u8 pad4[0x3];
-    /* 0x7 */ u8 unk7;
-    /* 0x8 */ u8 pad8[0x2];
-    /* 0xA */ u16 unkA;
-    /* 0xC */ u8 padC[0x70];
+    /* 0x00 */ BattleModelNode *pParent;
+    /* 0x04 */ u8 pad4[0x3];
+    /* 0x07 */ u8 unk7;
+    /* 0x08 */ u8 pad8[0x2];
+    /* 0x0A */ u16 unkA;
+    /* 0x0C */ MATRIX localTransform;
+    /* 0x2C */ MATRIX globalTransform;
+    /* 0x4C */ u16 scale[3];
+    /* 0x52 */ u16 pad52;
+    /* 0x54 */ u16 rot[3];
+    /* 0x5A */ u16 pad5A;
+    /* 0x5C */ s32 pos[3];
+    /* 0x68 */ u8 pad68[0x8];
+    /* 0x70 */ BattleBlock *p70;
+    /* 0x74 */ BattleBlock *p74;
+    /* 0x78 */ BattleBlock *p78;
 }; // Size: 0x7C
 
 // Current frame published to the rest of the battle code.
@@ -143,7 +153,126 @@ s32 BattleGetActorActionEntry(BattleActor *pActor, u32 id, s32 *pOut) {
     }
     return ((s32 *)(u32)pActor->unk18)[(sel & 0xFF) - 0x3F];
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800AF678);
+// Queues a transform command on pNode (and, with flag 0x80, on every child) and
+// applies the command's target transform to the node when it is issued directly
+// (command < 2). flags & 7 selects which component the command drives: 0 rotation,
+// 1 position, otherwise scale; flags & 0x20 / & 0x40 add the node's current
+// component to the target / reference vector.
+void func_800AF678(BattleModel *pModel, u8 *pPool, BattleModelNode *pNode, u8 flags, u8 command, u8 unk3,
+                   u8 unk1, s16 x, s16 y, s16 z, s16 dx, s16 dy, s16 dz, s16 duration) {
+    u8 mode;
+    BattleBlock *pBlock;
+    BattleModelNode *pChild;
+    u16 addX;
+    u16 addY;
+    u16 addZ;
+    u16 dstX;
+    u16 dstY;
+    u16 dstZ;
+    s32 i;
+
+    mode = flags & 7;
+    if (mode == 0) {
+        pBlock = pNode->p70;
+    } else if (mode == 1) {
+        pBlock = pNode->p74;
+    } else {
+        pBlock = pNode->p78;
+    }
+    if (pBlock == NULL) {
+        pBlock = BattleAllocBlock(pPool);
+    }
+    if (pBlock != NULL) {
+        pBlock->unk0 = 1;
+        pBlock->unk1 = unk1;
+        pBlock->unk2 = command + 3;
+        pBlock->unk3 = unk3;
+        if (flags & 0x20) {
+            if (mode == 0) {
+                addX = pNode->rot[0];
+                addY = pNode->rot[1];
+                addZ = pNode->rot[2];
+            } else if (mode == 1) {
+                addX = pNode->pos[0];
+                addY = pNode->pos[1];
+                addZ = pNode->pos[2];
+            } else {
+                addX = pNode->scale[0];
+                addY = pNode->scale[1];
+                addZ = pNode->scale[2];
+            }
+        } else {
+            addX = 0;
+            addY = 0;
+            addZ = 0;
+        }
+        if (flags & 0x40) {
+            if (mode == 0) {
+                dstX = pNode->rot[0];
+                dstY = pNode->rot[1];
+                dstZ = pNode->rot[2];
+            } else if (mode == 1) {
+                dstX = pNode->pos[0];
+                dstY = pNode->pos[1];
+                dstZ = pNode->pos[2];
+            } else {
+                dstX = pNode->scale[0];
+                dstY = pNode->scale[1];
+                dstZ = pNode->scale[2];
+            }
+        } else {
+            dstX = 0;
+            dstY = 0;
+            dstZ = 0;
+        }
+        pBlock->unk4 = x + addX;
+        pBlock->unk6 = y + addY;
+        pBlock->unk8 = z + addZ;
+        if (command == 0) {
+            pBlock->unkA = dx + dstX - pBlock->unk4;
+            pBlock->unkC = dy + dstY - pBlock->unk6;
+            pBlock->unkE = dz + dstZ - pBlock->unk8;
+        } else {
+            pBlock->unkA = dx + dstX;
+            pBlock->unkC = dy + dstY;
+            pBlock->unkE = dz + dstZ;
+        }
+        pBlock->unk10 = 0;
+        pBlock->unk12 = duration;
+        if (mode == 0) {
+            if (command < 2) {
+                pNode->rot[0] = pBlock->unk4;
+                pNode->rot[1] = pBlock->unk6;
+                pNode->rot[2] = pBlock->unk8;
+            }
+            pNode->p70 = pBlock;
+        } else if (mode == 1) {
+            if (command < 2) {
+                pNode->pos[0] = pBlock->unk4;
+                pNode->pos[1] = pBlock->unk6;
+                pNode->pos[2] = pBlock->unk8;
+            }
+            pNode->p74 = pBlock;
+        } else {
+            if (command < 2) {
+                pNode->scale[0] = pBlock->unk4;
+                pNode->scale[1] = pBlock->unk6;
+                pNode->scale[2] = pBlock->unk8;
+            }
+            pNode->p78 = pBlock;
+        }
+    }
+    if (flags & 0x80) {
+        pChild = pModel->pNodes;
+        for (i = 1; i < pModel->pNodes->unkA; i++) {
+            pChild++;
+            if (pChild->pParent == pNode) {
+                func_800AF678(pModel, pPool, pChild, flags & 0xFF, command, unk3, unk1, x, y, z, dx, dy, dz,
+                              duration);
+            }
+        }
+    }
+}
 void BattleSetModelNodeFlagRecursive(BattleModel *pModel, BattleModelNode *pNode, s32 flags) {
     BattleModelNode *pChild;
     s32 i;
