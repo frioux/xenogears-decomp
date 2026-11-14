@@ -21,16 +21,16 @@ extern s32 D_80050100;
 extern MATRIX D_800D30BC;
 extern u_long* g_GfxCurOT;
 
-// Work list entry and the anim task that wraps a SpriteData, as declared in
-// include/system/animation.h. Overlay units cannot include that header (it holds
-// unguarded tentative definitions of main-exe globals), so the layout is repeated here.
+// WorkListEntry/AnimTask of include/system/animation.h; overlay units cannot include
+// that header (it holds tentative definitions of main-exe globals), so the layout is
+// repeated. Its bitfields at 0x10/0x14 are whole words to this unit.
 typedef struct {
-    /* 0x00 */ void* pOwner;
-    /* 0x04 */ void* pData;
+    /* 0x00 */ void* unk0;
+    /* 0x04 */ void* unk4; // pSpriteData, at least in some cases
     /* 0x08 */ void* onTriggerCallback;
     /* 0x0C */ void* onFreeCallback;
-    /* 0x10 */ u32 flags10;
-    /* 0x14 */ u32 flags14;
+    /* 0x10 */ u32 unk10;
+    /* 0x14 */ u32 unk14;
     /* 0x18 */ struct WorkListEntry* pNext;
 } WorkListEntry; // Size: 0x1C
 
@@ -203,7 +203,8 @@ void BattleActorUpdateGroundHeightAndTriangle(u8* pSprite) {
     *(u16*)(pSprite + 0x84) = vec[1];
     *(s32*)(pSprite + 0x78) = index;
 }
-AnimTask* func_800BA984(void* pAnimFile, s16 arg1, s16 arg2, s16 arg3, s16 arg8, s16 arg9, s16 posX,
+// The two unused slots keep the caller's argument area at retail's offsets.
+AnimTask* func_800BA984(void* pAnimFile, s16 clutX, s16 clutY, s16 texX, s16 texY, s16 unk5, s16 posX,
                         s16 posY, s16 posZ, s16 animId, u16 direction, s32 unk84, s32 unk88, s32 clut) {
     AnimTask* pTask;
     SpriteData* pSprite;
@@ -211,15 +212,15 @@ AnimTask* func_800BA984(void* pAnimFile, s16 arg1, s16 arg2, s16 arg3, s16 arg8,
     pTask = WorkListsAddTasks(sizeof(AnimTask), NULL, BattleActorTickAnimScript,
                               BattleActorDrawProjected, func_800BABDC);
     pSprite = &pTask->spriteData;
-    pTask->task1.pData = pSprite;
-    pTask->task2.pData = pSprite;
-    pTask->task2.pOwner = NULL;
-    SpriteInitFromAnimFileWithClut(pSprite, pAnimFile, arg1, arg2, arg3, arg8, arg9, clut);
+    pTask->task1.unk4 = pSprite;
+    pTask->task2.unk4 = pSprite;
+    pTask->task2.unk0 = NULL;
+    SpriteInitFromAnimFileWithClut(pSprite, pAnimFile, clutX, clutY, texX, texY, unk5, clut);
     pSprite->field_0x6C = pTask;
     pSprite->position.x = posX << 16;
     pSprite->position.y = posY << 16;
     pSprite->position.z = posZ << 16;
-    ((u8*)pSprite)[0xB0] = animId;
+    *(u8*)((u8*)pSprite + 0xB0) = animId;
     *(u32*)((u8*)pSprite + 0x3C) |= 4;
     pSprite->direction = direction;
     SpriteSetScale(pSprite, 0x2000);
