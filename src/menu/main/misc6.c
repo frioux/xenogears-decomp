@@ -36,6 +36,8 @@ extern s16 D_801E9E94[][2];
 extern u32 D_801EA16C[];
 extern u32 D_801E9A58[];
 extern u32 D_801E9A68[];
+extern u32 D_801E9A00[9]; // Cursor x positions
+extern s32 D_801E9A2C[9]; // Cursor y positions
 
 void MenuAddScreenPrims(void) {
     if (g_Menu->shouldDrawMenu) {
@@ -101,7 +103,32 @@ void MenuStartCloseAnimation(void) {
     g_Menu->transitionEffectState = MENU_CLOSE_ANIMATION_START;
     MenuPlaySoundEffect(0x5C);
 }
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc6", func_801D1EE0);
+void func_801D1EE0(s32 slot, u8 doInit) {
+    func_8002675C(g_Menu->resources, 0x108, g_Menu->unk348->polysPointerCursor, g_Menu->renderContext, D_801E9A00[slot], D_801E9A2C[slot], 0x1000);
+    g_Menu->unk348->cursorRenderContext = (u8)g_Menu->renderContext;
+
+    if (doInit) {
+        // Shaded rectangle of unk15B width with green lines around it
+        setXY4(&g_Menu->unk348->polyG4s[g_Menu->renderContext],
+               D_801E9A00[slot] + 0x14, D_801E9A2C[slot] - 0x24,
+               D_801E9A00[slot] + (g_Menu->unk348->unk15B + 0x14), D_801E9A2C[slot] - 0x24,
+               D_801E9A00[slot] + 0x14, D_801E9A2C[slot] - 0x14,
+               D_801E9A00[slot] + (g_Menu->unk348->unk15B + 0x14), D_801E9A2C[slot] - 0x14);
+
+        setXY3(&g_Menu->unk348->lines1[g_Menu->renderContext],
+               D_801E9A00[slot] + 0x14, D_801E9A2C[slot] - 0x24,
+               D_801E9A00[slot] + (g_Menu->unk348->unk15B + 0x14), D_801E9A2C[slot] - 0x24,
+               D_801E9A00[slot] + (g_Menu->unk348->unk15B + 0x14), D_801E9A2C[slot] - 0x14);
+
+        setXY3(&g_Menu->unk348->lines2[g_Menu->renderContext],
+               D_801E9A00[slot] + 0x14, D_801E9A2C[slot] - 0x24,
+               D_801E9A00[slot] + 0x14, D_801E9A2C[slot] - 0x14,
+               D_801E9A00[slot] + (g_Menu->unk348->unk15B + 0x14), D_801E9A2C[slot] - 0x14);
+
+        g_Menu->unk348->unk159 = (u8)g_Menu->renderContext;
+        g_Menu->pManager->unk3 = 1;
+    }
+}
 void MenuResetSelectionCursorFlags(void) {
     g_Menu->pManager->unk4 = 0;
     g_Menu->pManager->unk3 = 0;
