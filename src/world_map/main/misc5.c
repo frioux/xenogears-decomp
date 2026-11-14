@@ -1,4 +1,5 @@
 #include "common.h"
+#include "psyq/libgpu.h"
 #include "psyq/libgte.h"
 
 typedef struct {
@@ -94,18 +95,65 @@ extern void func_800894C8(s32);
 extern void func_80089160(s32, void *, s32);
 extern s16 D_8009A488[];
 extern MATRIX D_8009A180;
+extern MATRIX D_8009BE4C;
+extern s32 D_8009CCA4;
+extern s32 D_8009D3CC;
+extern s32 D_8009D804;
+extern void (*D_8009CD40)(void);
+extern void func_80086700(void);
+extern void WorldMapInitGfxEnv(void);
+extern void func_80072DB4(s32 arg0, s32 arg1, s32 arg2, s32 arg3);
+extern s32 ArchiveDataSync(void);
+extern void WorldMapDecompressMapData(void);
+extern void func_8009766C(void);
+extern void func_80098044(void);
+extern s32 ArchiveCdDataSync(s32 arg0);
+extern void WorldMapLoadSedsBank(void);
+extern void func_80084580(void);
+extern void func_8008440C(void);
+extern void func_800979C8(void);
+extern void func_800736DC(void);
+extern void func_800863E0(void);
+extern void WorldMapInitTileAnimEntries(void);
+extern void WorldMapInitFrameAnimEntries(void);
+extern void WorldMapSetupMapPrims(void);
+extern void func_80088F64(void);
+extern void SoundAddSedsEntry(void *pSeds);
+extern s32 ArchiveSetIndex(s32 arg0, s32 arg1);
+extern void func_80097BC0(void *pPos);
+extern s32 WorldMapGetQueuedLoadCount(void);
+extern void func_800967E4(void);
+extern s32 Vsync(s32 arg0);
+extern void func_80097718(void *p0, void *p1);
+extern void func_800978FC(void);
+extern void func_8008901C(void);
+extern void func_800865A0(void);
+extern void func_80075228(void);
+extern void func_800923A8(void);
+extern void func_800925A0(void);
+extern int func_8007C36C(int idx);
+extern int func_8007C3B8(int idx);
+extern int func_8007C724(int idx);
+extern int func_8007C7D8(int idx);
+extern int func_8007CC6C(int idx);
+extern int func_8007CD20(int idx);
+extern int func_8007CE84(int idx);
+extern int func_8007CF18(int idx);
+extern int func_8007D078(int idx);
+extern int func_8007D110(int idx);
+extern int func_8007D228(int idx);
+extern int func_8007D2B8(int idx);
+extern void WorldMapInitGroup12Actor(void);
+extern void WorldMapUpdateGroup12Actor(void);
+extern void WorldMapInitGroup13Actor(void);
+extern void WorldMapUpdateGroup13Actor(void);
+extern void WorldMapInitGroup16Actor(void);
+extern void WorldMapUpdateGroup16Actor(void);
+extern void WorldMapEnterNop(void);
+extern void WorldMapUpdateFrameWithParticles(void);
 extern void func_8007A06C(void *pBlock, s32 arg, s32 arg2);
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007A9F8);
-/* best 94.72%: everything matches except the position of the final
-   sw to D_8009BE24[idx].unk50 -- retail leaves it last, gcc hoists it
-   next to the addiu that materialises 0x1000. Tried: literal, pointer
-   local, s32 locals, plain globals (89.35%), address computed mid-block.
-   Also tried (round 44, no change): store moved mid-block before the
-   D_8009BE2C pair (68.60%), and the 0x1000 pre-loaded into an s32 local
-   right after D_8009D55C so only the store is last (94.72%, gcc still
-   sinks the sw into the li's slot).
-
 int func_8007AD34(int idx) {
     WorldMapPlayer *pPlayer;
     s32 a;
@@ -127,10 +175,10 @@ int func_8007AD34(int idx) {
     D_8009D560 = b;
     D_8009BE30 = c;
     D_8009D564 = c;
-    pPlayer->unk50 = 0x1000;
+    // volatile store pins the sw after the six copies, as retail has it
+    *(volatile s32 *)&pPlayer->unk50 = 0x1000;
     return 1;
-}*/
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007AD34);
+}
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007ADD4);
 int func_8007B200(int idx) {
     u8 *pPlayer = (u8 *)D_8009BE24 + (idx << 7);
@@ -370,6 +418,84 @@ int func_8007BB60(int idx) {
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007BBEC);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007BF50);
+/* best 97.91% (784 bytes, size exact): every instruction of this long init
+   sequence is right -- the two loops, the 32-byte D_8009A180 -> D_8009BE4C
+   copy, all twenty func_80097718 pairs -- except the two-insn address setup for
+   D_8009C5AC (lui/addiu into $s0). Retail materialises it just before the store
+   at 0x783C and then reuses $s0 for the func_80097BC0 argument at 0x78C0; gcc
+   only allocates the register when the pointer local is initialised at the top
+   of the function, and then it emits the lui/addiu there instead.
+   With the assignment at retail's position gcc folds both uses to %hi/%lo
+   (97.22%): `lui v0,0xD00000; lui at,%hi; sw v0,0(at)` plus a fresh
+   `lui a0/addiu a0` for the call. Tried, all still folding: a pPos local used
+   for both the store and the call, (s32*)((u32)&D_8009C5AC), a volatile store.
+   The matched WorldMapInitializeMode in misc3 gets $s0 at the assignment point
+   only because it declares `extern u8 D_8009C5AC[]` and casts the array to a
+   pointer -- that spelling is not available here, the matched functions of this
+   unit read D_8009C5AC as an s32. gcc 2.7.2-cdk scores 78.67%, so no preset
+   lead.
+void func_8007BF50(void) {
+    RECT rect;
+    s32 *pPos = &D_8009C5AC;
+
+    WorldMapInitGfxEnv();
+    rect.x = 0;
+    rect.y = 0;
+    rect.w = 0x140;
+    rect.h = 0xD8;
+    MoveImage(&rect, 0x2C0, 0x100);
+    DrawSync(0);
+    func_80072DB4(0x40, 0, 4, 2);
+    while (ArchiveDataSync() >= 3) {
+    }
+    WorldMapDecompressMapData();
+    func_8009766C();
+    D_8009BE4C = D_8009A180;
+    D_8009CCA4 = 2;
+    D_8009D3CC = 0x10;
+    D_8009D804 = 0;
+    D_8009D144 = 0;
+    D_8009CD40 = func_80086700;
+    func_80098044();
+    ArchiveCdDataSync(0);
+    WorldMapLoadSedsBank();
+    *pPos = 0xD00000;
+    D_8009C5B0 = 0xFFF60000;
+    D_8009C5B4 = 0x400000;
+    func_80084580();
+    func_8008440C();
+    func_800979C8();
+    func_800736DC();
+    func_800863E0();
+    WorldMapInitTileAnimEntries();
+    WorldMapInitFrameAnimEntries();
+    WorldMapSetupMapPrims();
+    func_80088F64();
+    ArchiveCdDataSync(0);
+    SoundAddSedsEntry(D_8006259C);
+    ArchiveSetIndex(0x24, 0);
+    func_80097BC0(pPos);
+    do {
+        func_800967E4();
+        Vsync(0);
+    } while (WorldMapGetQueuedLoadCount() > 0);
+    func_80097718((void *)func_800923A8, (void *)func_800925A0);
+    func_80097718((void *)func_8007C36C, (void *)func_8007C3B8);
+    func_80097718((void *)func_8007C724, (void *)func_8007C7D8);
+    func_80097718((void *)func_8007CC6C, (void *)func_8007CD20);
+    func_80097718((void *)func_8007CE84, (void *)func_8007CF18);
+    func_80097718((void *)func_8007D078, (void *)func_8007D110);
+    func_80097718((void *)func_8007D228, (void *)func_8007D2B8);
+    func_80097718((void *)WorldMapInitGroup12Actor, (void *)WorldMapUpdateGroup12Actor);
+    func_80097718((void *)WorldMapInitGroup13Actor, (void *)WorldMapUpdateGroup13Actor);
+    func_80097718((void *)WorldMapInitGroup16Actor, (void *)WorldMapUpdateGroup16Actor);
+    func_80097718((void *)WorldMapEnterNop, (void *)WorldMapUpdateFrameWithParticles);
+    func_800978FC();
+    func_8008901C();
+    func_800865A0();
+    func_80075228();
+}
+*/
 void func_8007C260(void) {
     u16 v;
 
