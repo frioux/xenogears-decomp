@@ -9,11 +9,11 @@
 
 extern s32 D_80050100;
 
-// Interpolation helpers; func_801E34BC picks one for a type
-s16 func_801E0850(s16 angle, s16 divisor, s16 offset);
-s16 func_801E08D4(s16 a, s16 b, s16 c);
-s16 func_801E0938(s16 a, s16 b, s16 c);
-s16 func_801E0988(s16 a, s16 b, s16 c);
+// Interpolation helpers; LibGearGetInterpolationFunc picks one for a type
+s16 LibGearInterpolateSine(s16 angle, s16 divisor, s16 offset);
+s16 LibGearInterpolateRise(s16 a, s16 b, s16 c);
+s16 LibGearInterpolateFall(s16 a, s16 b, s16 c);
+s16 LibGearInterpolateFallClamped(s16 a, s16 b, s16 c);
 
 extern Temp8* D_8005919C;
 extern u32 D_801E85CC;
@@ -24,7 +24,7 @@ extern s16 D_801E869C;
 extern s16 D_801E8698;
 
 void func_801DCEC8(Model* pModel, MATRIX* pMatrix, s32 arg2, s32 arg3, s32 arg4, s32 arg5, s32 arg6);
-void func_801E37D0(Model* pModel);
+void LibGearUpdateModelAttachment(Model* pModel);
 extern VertexBuffer g_LibGearVertexBuffer;
 
 ModelMesh* LibGearInitializeMesh(ModelFileHeader* pModelFile, ModelMesh* pModel) {
@@ -239,7 +239,7 @@ unsigned LibGearComputeJointMatrices(ModelJoint* pJoint, int degrees) {
 
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801DC848);
 
-void func_801DCC34(void) {}
+void LibGearNoOp(void) {}
 
 void LibGearRenderModel(ModelMesh* pMesh, ModelJoint* pSkeleton, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32 arg4, s32 arg5, s32 packetIndex) {
     MATRIX* pRotMatrix = (MATRIX*)((u8*)PSX_SCRATCH + 0x20);
@@ -388,28 +388,28 @@ INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801DEF10);
 
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801DF0B4);
 
-void func_801DF52C(Temp4* pList, ModelJoint* pSkeleton, s32 index, s32 flags) {
+void LibGearReleaseJointObjects(Temp4* pList, ModelJoint* pSkeleton, s32 index, s32 flags) {
     if (index < pSkeleton->numChildren) {
         pSkeleton += index;
 
         if (pSkeleton->unk70 != NULL && (flags & 0x1)) {
-            func_801DF7A8(pList, (s8*)pSkeleton->unk70);
+            LibGearFreeJointObject(pList, (s8*)pSkeleton->unk70);
             pSkeleton->unk70 = 0;
         }
 
         if (pSkeleton->unk74 != NULL && (flags & 0x2)) {
-            func_801DF7A8(pList, (s8*)pSkeleton->unk74);
+            LibGearFreeJointObject(pList, (s8*)pSkeleton->unk74);
             pSkeleton->unk74 = 0;
         }
 
         if (pSkeleton->unk78 != NULL && (flags & 0x4)) {
-            func_801DF7A8(pList, (s8*)pSkeleton->unk78);
+            LibGearFreeJointObject(pList, (s8*)pSkeleton->unk78);
             pSkeleton->unk78 = 0;
         }
     }
 }
 
-void* func_801DF5F4(Temp4* pUnk, int numObjects) {
+void* LibGearInitializeJointObjectPool(Temp4* pUnk, int numObjects) {
     if (numObjects <= 0) {
         return NULL;
     }
@@ -418,14 +418,14 @@ void* func_801DF5F4(Temp4* pUnk, int numObjects) {
     HeapChangeCurrentUser(HEAP_USER_MASA, HEAP_CONTENT_NULL);
     pUnk->pObjects = HeapAlloc(numObjects * sizeof(Temp3), 0x0);
     if (pUnk->pObjects) {
-        func_801DF6A8(pUnk);
+        LibGearResetJointObjectPool(pUnk);
         return pUnk;
     }
     
     return NULL;
 }
 
-void func_801DF668(Temp4* pUnk) {
+void LibGearFreeJointObjectPool(Temp4* pUnk) {
     pUnk->unk4 = 0;
     if (pUnk->pObjects != NULL) {
         HeapFree(pUnk->pObjects);
@@ -433,7 +433,7 @@ void func_801DF668(Temp4* pUnk) {
     pUnk->pObjects = NULL;
 }
 
-void func_801DF6A8(Temp4* pUnk) {
+void LibGearResetJointObjectPool(Temp4* pUnk) {
     int i;
     Temp3* pCurObject;
 
@@ -450,7 +450,7 @@ void func_801DF6A8(Temp4* pUnk) {
     }
 }
 
-Temp3* func_801DF6F0(Temp4* pList) {
+Temp3* LibGearAllocJointObject(Temp4* pList) {
     Temp3* pObject;
 
     if (pList->unk4 < pList->numObjects) {
@@ -472,7 +472,7 @@ Temp3* func_801DF6F0(Temp4* pList) {
     return NULL;
 }
 
-int func_801DF7A8(Temp4* pUnk, s8* arg1) {
+int LibGearFreeJointObject(Temp4* pUnk, s8* arg1) {
     int index;
 
     if (arg1 == NULL) {
@@ -520,7 +520,7 @@ s32 func_801DF7F4(Temp4* pList, ModelJoint* pSkeleton, KeyframeBlock* pBlock, s3
     int i;
 
     if (pBlock->unk6 != 0) {
-        func_801DFE8C(pList, pSkeleton);
+        LibGearReleaseSkeletonObjects(pList, pSkeleton);
         func_801DEF10(pSkeleton, pBlock);
         return 1;
     }
@@ -555,7 +555,7 @@ s32 func_801DF7F4(Temp4* pList, ModelJoint* pSkeleton, KeyframeBlock* pBlock, s3
         if (pKeyframe[0] != 0xFFFF) {
             pObject = (Temp3*)pJoint->unk70;
             if (pObject == NULL) {
-                pObject = func_801DF6F0(pList);
+                pObject = LibGearAllocJointObject(pList);
             } else if (pObject->unk3 == 0xFF) {
                 goto next1;
             }
@@ -572,7 +572,7 @@ s32 func_801DF7F4(Temp4* pList, ModelJoint* pSkeleton, KeyframeBlock* pBlock, s3
         } else {
             pObject = (Temp3*)pJoint->unk70;
             if (pObject != NULL && i != 0 && pObject->unk3 != 0xFF) {
-                func_801DF7A8(pList, (s8*)pObject);
+                LibGearFreeJointObject(pList, (s8*)pObject);
                 pJoint->unk70 = 0;
             }
         }
@@ -583,7 +583,7 @@ s32 func_801DF7F4(Temp4* pList, ModelJoint* pSkeleton, KeyframeBlock* pBlock, s3
         if (pKeyframe[0] != 0xFFFF) {
             pObject = (Temp3*)pJoint->unk74;
             if (pObject == NULL) {
-                pObject = func_801DF6F0(pList);
+                pObject = LibGearAllocJointObject(pList);
             } else if (pObject->unk3 == 0xFF) {
                 goto next2;
             }
@@ -600,7 +600,7 @@ s32 func_801DF7F4(Temp4* pList, ModelJoint* pSkeleton, KeyframeBlock* pBlock, s3
         } else {
             pObject = (Temp3*)pJoint->unk74;
             if (pObject != NULL && i != 0 && pObject->unk3 != 0xFF) {
-                func_801DF7A8(pList, (s8*)pObject);
+                LibGearFreeJointObject(pList, (s8*)pObject);
                 pJoint->unk74 = 0;
             }
         }
@@ -621,7 +621,7 @@ INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801DF7F4);
 // numRotFrames guards, pObject fill order (unk0,unk1,unk3,unk2,unk10,unk12,
 // unk4=unk8=pVertexBase+pKeyframe[0]) and the 6-byte pKeyframe stride.
 // Remaining delta is allocation only: the original keeps flag1 in $fp and the
-// constant 1 in $a1 (spilled to 0x48(sp) around the two func_801DF6F0 calls),
+// constant 1 in $a1 (spilled to 0x48(sp) around the two LibGearAllocJointObject calls),
 // and reads the u8 `type` argument straight from its home slot 0x88(sp) each
 // use; gcc here spills flag1 to a slot and copies `type` into a slot at entry,
 // which costs the register that the other value needs. Also unmatched: the
@@ -648,7 +648,7 @@ s32 func_801DFAC4(Temp4* pList, ModelJoint* pSkeleton, KeyframeBlock* pBlock, s3
     s32 i;
 
     if (pBlock->unk6 != 0) {
-        func_801DFE8C(pList, pSkeleton);
+        LibGearReleaseSkeletonObjects(pList, pSkeleton);
         func_801DEF10(pSkeleton, pBlock);
         return 1;
     }
@@ -688,7 +688,7 @@ s32 func_801DFAC4(Temp4* pList, ModelJoint* pSkeleton, KeyframeBlock* pBlock, s3
                     goto skipRot;
                 }
             } else {
-                pObject = func_801DF6F0(pList);
+                pObject = LibGearAllocJointObject(pList);
             }
 
             if (!(blockFlags & 0x1) && i != 0 && (u16)rotFrame < numRotFrames) {
@@ -727,7 +727,7 @@ s32 func_801DFAC4(Temp4* pList, ModelJoint* pSkeleton, KeyframeBlock* pBlock, s3
                     goto skipTrans;
                 }
             } else {
-                pObject = func_801DF6F0(pList);
+                pObject = LibGearAllocJointObject(pList);
             }
 
             if (!(blockFlags & 0x2) && i != 0 && (u16)transFrame < numTransFrames) {
@@ -765,23 +765,23 @@ s32 func_801DFAC4(Temp4* pList, ModelJoint* pSkeleton, KeyframeBlock* pBlock, s3
 */
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801DFAC4);
 
-void func_801DFE8C(Temp4* pList, ModelJoint* pSkeleton) {
+void LibGearReleaseSkeletonObjects(Temp4* pList, ModelJoint* pSkeleton) {
     int i;
     u16 numChildren = pSkeleton->numChildren;
 
     for (i = 0; i < numChildren; i++) {
         if (pSkeleton->unk70 != 0 && ((Temp3*)pSkeleton->unk70)->unk3 != 0xFF) {
-            func_801DF7A8(pList, (s8*)pSkeleton->unk70);
+            LibGearFreeJointObject(pList, (s8*)pSkeleton->unk70);
             pSkeleton->unk70 = 0;
         }
 
         if (pSkeleton->unk74 != 0 && ((Temp3*)pSkeleton->unk74)->unk3 != 0xFF) {
-            func_801DF7A8(pList, (s8*)pSkeleton->unk74);
+            LibGearFreeJointObject(pList, (s8*)pSkeleton->unk74);
             pSkeleton->unk74 = 0;
         }
 
         if (pSkeleton->unk78 != 0 && ((Temp3*)pSkeleton->unk78)->unk3 != 0xFF) {
-            func_801DF7A8(pList, (s8*)pSkeleton->unk78);
+            LibGearFreeJointObject(pList, (s8*)pSkeleton->unk78);
             pSkeleton->unk78 = 0;
         }
 
@@ -789,23 +789,23 @@ void func_801DFE8C(Temp4* pList, ModelJoint* pSkeleton) {
     }
 }
 
-void func_801DFF78(Temp4* pList, ModelJoint* pSkeleton, u8 type) {
+void LibGearReleaseSkeletonObjectsByType(Temp4* pList, ModelJoint* pSkeleton, u8 type) {
     int i;
     u16 numChildren = pSkeleton->numChildren;
 
     for (i = 0; i < numChildren; i++) {
         if (pSkeleton->unk70 != 0 && ((Temp3*)pSkeleton->unk70)->unk3 == type) {
-            func_801DF7A8(pList, (s8*)pSkeleton->unk70);
+            LibGearFreeJointObject(pList, (s8*)pSkeleton->unk70);
             pSkeleton->unk70 = 0;
         }
 
         if (pSkeleton->unk74 != 0 && ((Temp3*)pSkeleton->unk74)->unk3 == type) {
-            func_801DF7A8(pList, (s8*)pSkeleton->unk74);
+            LibGearFreeJointObject(pList, (s8*)pSkeleton->unk74);
             pSkeleton->unk74 = 0;
         }
 
         if (pSkeleton->unk78 != 0 && ((Temp3*)pSkeleton->unk78)->unk3 == type) {
-            func_801DF7A8(pList, (s8*)pSkeleton->unk78);
+            LibGearFreeJointObject(pList, (s8*)pSkeleton->unk78);
             pSkeleton->unk78 = 0;
         }
 
@@ -866,7 +866,7 @@ void LibGearInitializeVertices(VertexBuffer* pVertexBuffer) {
     }
 }
 
-void* func_801E0248(VertexBuffer* pVertexBuffer, short isSemiTrans) {
+void* LibGearAllocVertex(VertexBuffer* pVertexBuffer, short isSemiTrans) {
     Vertex* pVertex;
     
     if (pVertexBuffer->curIndex < pVertexBuffer->capacity) {
@@ -891,7 +891,7 @@ void* func_801E0248(VertexBuffer* pVertexBuffer, short isSemiTrans) {
     return &pVertexBuffer->pVertices[pVertexBuffer->capacity];
 }
 
-int func_801E0354(VertexBuffer* pVertexBuffer, Vertex* pObject) {
+int LibGearFreeVertex(VertexBuffer* pVertexBuffer, Vertex* pObject) {
     int index;
 
     index = ((mem_addr)pObject - (mem_addr)pVertexBuffer->pVertices) / sizeof(Vertex);
@@ -903,7 +903,7 @@ int func_801E0354(VertexBuffer* pVertexBuffer, Vertex* pObject) {
     return index;
 }
 
-void func_801E0398(VertexBuffer* pVertexBuffer, MATRIX* pMatrix, s32 arg2, s32* pOT, s32 renderCtx) {
+void LibGearRenderVertices(VertexBuffer* pVertexBuffer, MATRIX* pMatrix, s32 arg2, s32* pOT, s32 renderCtx) {
     long otz;
     int i;
     Vertex* pVertex;
@@ -918,7 +918,7 @@ void func_801E0398(VertexBuffer* pVertexBuffer, MATRIX* pMatrix, s32 arg2, s32* 
         }
         
         if (pVertex->unk16 >= pVertex->unk1E) {
-            func_801E0354(pVertexBuffer, pVertex);
+            LibGearFreeVertex(pVertexBuffer, pVertex);
             continue;
         }
 
@@ -967,7 +967,7 @@ void func_801E0398(VertexBuffer* pVertexBuffer, MATRIX* pMatrix, s32 arg2, s32* 
     }
 }
 
-s32 func_801E0698(UnkInner1* pEntry, u32 arg1, u16 arg2, u8 arg3, s16 numFrames, u16 divisor, u8 arg6, u8 arg7, u8 arg8, u8 arg9, u8 arg10, u8 arg11, u16 arg12, u16 arg13, u16 arg14, u16 arg15, u16 arg16, u16 arg17, u16 arg18) {
+s32 LibGearInitializeColorEntry(UnkInner1* pEntry, u32 arg1, u16 arg2, u8 arg3, s16 numFrames, u16 divisor, u8 arg6, u8 arg7, u8 arg8, u8 arg9, u8 arg10, u8 arg11, u16 arg12, u16 arg13, u16 arg14, u16 arg15, u16 arg16, u16 arg17, u16 arg18) {
     s16 div;
 
     if (pEntry != NULL) {
@@ -1004,15 +1004,15 @@ s32 func_801E0698(UnkInner1* pEntry, u32 arg1, u16 arg2, u8 arg3, s16 numFrames,
     }
 }
 
-void func_801E0844(short* pValue) {
+void LibGearClearColorEntry(short* pValue) {
     *pValue = -1;
 }
 
-s16 func_801E0850(s16 angle, s16 divisor, s16 offset) {
+s16 LibGearInterpolateSine(s16 angle, s16 divisor, s16 offset) {
     return offset + (rsin(angle) + 0x1000) / divisor;
 }
 
-s16 func_801E08D4(s16 a, s16 b, s16 c) {
+s16 LibGearInterpolateRise(s16 a, s16 b, s16 c) {
     s16 result = c + a / b;
 
     if (result > 0x20) {
@@ -1022,11 +1022,11 @@ s16 func_801E08D4(s16 a, s16 b, s16 c) {
     }
 }
 
-s16 func_801E0938(s16 a, s16 b, s16 c) {
+s16 LibGearInterpolateFall(s16 a, s16 b, s16 c) {
     return c - a / b;
 }
 
-s16 func_801E0988(s16 a, s16 b, s16 c) {
+s16 LibGearInterpolateFallClamped(s16 a, s16 b, s16 c) {
     s16 result = 0x20 - a / b;
 
     if (result < c) {
@@ -1040,7 +1040,7 @@ INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E0A00);
 
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E1258);
 
-void func_801E165C(Temp8* pTexture) {
+void LibGearFlushTexture(Temp8* pTexture) {
     if (pTexture->unk1A != 0) {
         if (pTexture->pUnk4 != NULL) {
             if (pTexture->unk10 < 4) {
@@ -1064,7 +1064,7 @@ void func_801E165C(Temp8* pTexture) {
     }
 }
 
-void func_801E1708(Temp8* pTexture, s16 scale) {
+void LibGearFadeTexturePixels(Temp8* pTexture, s16 scale) {
     u16* pSrc = pTexture->pUnk4;
     s16* pDst;
     int y;
@@ -1079,7 +1079,7 @@ void func_801E1708(Temp8* pTexture, s16 scale) {
     }
 }
 
-void func_801E17B8(Temp8* pTexture, s16 scale) {
+void LibGearBlendTexturePixels(Temp8* pTexture, s16 scale) {
     u16* pSrc = pTexture->pUnk4;
     u16* pDelta = pTexture->pUnk8;
     s16* pDst;
@@ -1097,7 +1097,7 @@ void func_801E17B8(Temp8* pTexture, s16 scale) {
 }
 
 // Rotates each entry's source position by the model's joint matrix
-void func_801E1880(Model** pModels) {
+void LibGearRotateModelOffsets(Model** pModels) {
     MATRIX* pMatrix = (MATRIX*)PSX_SCRATCH;
     Model* pModel;
     u_short value[6];
@@ -1135,7 +1135,7 @@ INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E1A14);
 
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E22F8);
 
-void func_801E3438(Temp9* pEntry) {
+void LibGearFreeModelEntry(Temp9* pEntry) {
     if (pEntry->unk14 != NULL) {
         HeapFree(pEntry->unk14);
         HeapFree(pEntry->unk1C[0]);
@@ -1150,16 +1150,16 @@ void func_801E3438(Temp9* pEntry) {
     }
 }
 
-s16 (*func_801E34BC(s32 type))(s16, s16, s16) {
+s16 (*LibGearGetInterpolationFunc(s32 type))(s16, s16, s16) {
     switch (type) {
         case 1:
-            return func_801E08D4;
+            return LibGearInterpolateRise;
         case 2:
-            return func_801E0938;
+            return LibGearInterpolateFall;
         case 3:
-            return func_801E0988;
+            return LibGearInterpolateFallClamped;
         default:
-            return func_801E0850;
+            return LibGearInterpolateSine;
     }
 }
 
@@ -1219,7 +1219,7 @@ void func_801E3534(Model* pModel, s32 arg1, u32 arg2, u32 arg3) {
 }
 */
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E3534);
-void func_801E35D0(Model* pModel, Model* pSource, s32 arg2, s32 arg3) {
+void LibGearSetAnimation(Model* pModel, Model* pSource, s32 arg2, s32 arg3) {
     if ((pModel != NULL) && (pSource != NULL)) {
         if (pModel->unk2B != 0) {
             if (pModel->unk2B < 5) {
@@ -1247,7 +1247,7 @@ void func_801E35D0(Model* pModel, Model* pSource, s32 arg2, s32 arg3) {
     }
 }
 
-s32 func_801E36BC(Model* pModel, s32 arg1, s32 count, s32 arg3, s32 arg4) {
+s32 LibGearStepModelAnimation(Model* pModel, s32 arg1, s32 count, s32 arg3, s32 arg4) {
     int i;
     s32 result;
 
@@ -1255,7 +1255,7 @@ s32 func_801E36BC(Model* pModel, s32 arg1, s32 count, s32 arg3, s32 arg4) {
         result = 0;
 
         if (pModel->unk34) {
-            func_801E7298(pModel);
+            LibGearApplyGroundHeight(pModel);
 
             if (pModel->unk37) {
                 func_801DC848(pModel->pSkeleton, pModel->scale);
@@ -1275,7 +1275,7 @@ s32 func_801E36BC(Model* pModel, s32 arg1, s32 count, s32 arg3, s32 arg4) {
     return result;
 }
 
-void func_801E37D0(Model* pModel) {
+void LibGearUpdateModelAttachment(Model* pModel) {
     MATRIX* pMatrix = (MATRIX*)PSX_SCRATCH;
     SVECTOR vec;
 
@@ -1331,7 +1331,7 @@ void func_801E37D0(Model* pModel) {
 
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E39F0);
 
-void func_801E59D4(Temp4* pList, ModelJoint* pJoint, s32 numFrames, s32 x, s32 y, s32 z) {
+void LibGearSetJointRotation(Temp4* pList, ModelJoint* pJoint, s32 numFrames, s32 x, s32 y, s32 z) {
     Temp3* pObject;
 
     if (numFrames < 2) {
@@ -1347,7 +1347,7 @@ void func_801E59D4(Temp4* pList, ModelJoint* pJoint, s32 numFrames, s32 x, s32 y
     }
 
     if (pJoint->unk70 == NULL) {
-        pObject = func_801DF6F0(pList);
+        pObject = LibGearAllocJointObject(pList);
     } else {
         pObject = (Temp3*)pJoint->unk70;
     }
@@ -1386,14 +1386,14 @@ void func_801E59D4(Temp4* pList, ModelJoint* pJoint, s32 numFrames, s32 x, s32 y
     }
 }
 
-void func_801E5B50(Temp4* pList, ModelJoint* pJoint, s32 arg2, s32 arg3, s32 arg4, s32 arg5, s32 x, s32 y, s32 z) {
+void LibGearMoveJointToPoint(Temp4* pList, ModelJoint* pJoint, s32 arg2, s32 arg3, s32 arg4, s32 arg5, s32 x, s32 y, s32 z) {
     Temp3* pObject;
     int dx;
     int dy;
     int dz;
 
     if (pJoint->unk70 == NULL) {
-        pObject = func_801DF6F0(pList);
+        pObject = LibGearAllocJointObject(pList);
     } else {
         pObject = (Temp3*)pJoint->unk70;
     }
@@ -1421,7 +1421,7 @@ void func_801E5B50(Temp4* pList, ModelJoint* pJoint, s32 arg2, s32 arg3, s32 arg
     }
 }
 
-void func_801E5C74(Model* pModel, Temp7* pEntry, s32 arg2) {
+void LibGearPlayAnimationScript(Model* pModel, Temp7* pEntry, s32 arg2) {
     if (pEntry->unk12 != 0) {
         pModel->unk98 = 0;
         if (arg2 != 0) {
@@ -1479,11 +1479,11 @@ INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E5CD8);
 
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E5D44);
 
-void func_801E632C(Model* pModel) {
+void LibGearStopAnimationScript(Model* pModel) {
     pModel->unk98 = -1;
 }
 
-int func_801E6338(Model* pModel) {
+int LibGearGetModelDistance(Model* pModel) {
     int dx = pModel->unk70[0xC] - pModel->pSkeleton->translation.x;
     int dy = pModel->unk70[0xD] - pModel->pSkeleton->translation.y;
     int dz = pModel->unk70[0xE] - pModel->pSkeleton->translation.z;
@@ -1600,7 +1600,7 @@ INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E63A8);
 // Also tried since: `int i;` declared first with the pointers after (same swap,
 // pJoint still s1), and reversing the pointer declaration order (same).
 // A `while (i < numChildren) { i++; if (...) {...} pChild++; }` body (i = 1 before
-// the three func_801DF7A8 calls) reproduces the original's instruction sequence
+// the three LibGearFreeJointObject calls) reproduces the original's instruction sequence
 // exactly -- i++ in the bne delay slot, pChild++ in the loop-back delay slot, and
 // `li` in the first jal's delay slot -- so the loop shape is settled; it scores
 // 96.10% because the allocator then swaps BOTH pairs (pJoint s1/i s0 and pSkeleton
@@ -1624,11 +1624,11 @@ void func_801E6578(Temp4* pList, s32 jointIndex, ModelJoint* pSkeleton, ModelJoi
     pJoint->unk7 = 0;
     pTarget->unk7 = 1;
 
-    func_801DF7A8(pList, (s8*)pJoint->unk70);
+    LibGearFreeJointObject(pList, (s8*)pJoint->unk70);
     pJoint->unk70 = 0;
-    func_801DF7A8(pList, (s8*)pJoint->unk74);
+    LibGearFreeJointObject(pList, (s8*)pJoint->unk74);
     pJoint->unk74 = 0;
-    func_801DF7A8(pList, (s8*)pJoint->unk78);
+    LibGearFreeJointObject(pList, (s8*)pJoint->unk78);
     pJoint->unk78 = 0;
 
     for (i = 1; i < numChildren; i++) {
@@ -1657,7 +1657,7 @@ void func_801E6668(ModelJoint* pSkeleton, ModelJoint* pTargetSkeleton) {
     }
 }
 
-s16 func_801E66BC(VECTOR* pNormal, VECTOR* pVec0, VECTOR* pVec1, s32 divisor) {
+s16 LibGearComputeSignedAngle(VECTOR* pNormal, VECTOR* pVec0, VECTOR* pVec1, s32 divisor) {
     VECTOR outer;
     s32 dot;
     s32 length;
@@ -1668,7 +1668,7 @@ s16 func_801E66BC(VECTOR* pNormal, VECTOR* pVec0, VECTOR* pVec1, s32 divisor) {
     return ((dot << 4) / length << 8) / divisor;
 }
 
-int func_801E67F8(void) {
+int LibGearGetFirstModelIndex(void) {
     u_short bits = D_801E863C;
     int i;
 
@@ -1703,7 +1703,7 @@ void func_801E6830(Model* pModel, int type, s16* pMask) {
     u8 index = type;
 
     if (index == 0xFF) {
-        index = func_801E67F8();
+        index = LibGearGetFirstModelIndex();
     } else if (index == 0xFE) {
         index = *(u8*)&D_801E86B0;
     } else if (index == 0xFD || index == 0xF9) {
@@ -1723,7 +1723,7 @@ void func_801E6830(Model* pModel, int type, s16* pMask) {
 */
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E6830);
 
-void* func_801E6910(Model* pModel, u8 index, s32* pFlags) {
+void* LibGearGetAnimationEntry(Model* pModel, u8 index, s32* pFlags) {
     void* pResult;
 
     *pFlags = 0;
@@ -1745,7 +1745,7 @@ void* func_801E6910(Model* pModel, u8 index, s32* pFlags) {
 
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E6974);
 
-void func_801E6D94(Model* pModel, ModelJoint* pJoint, s32 flags) {
+void LibGearSetJointFlag(Model* pModel, ModelJoint* pJoint, s32 flags) {
     ModelJoint* pChild;
     int i;
 
@@ -1756,7 +1756,7 @@ void func_801E6D94(Model* pModel, ModelJoint* pJoint, s32 flags) {
         for (i = 1; i < pModel->pSkeleton->numChildren; i++) {
             pChild++;
             if (pChild->pParent == pJoint) {
-                func_801E6D94(pModel, pChild, flags);
+                LibGearSetJointFlag(pModel, pChild, flags);
             }
         }
     }
@@ -1766,14 +1766,14 @@ void func_801E6D94(Model* pModel, ModelJoint* pJoint, s32 flags) {
 // is the s16 at 0xBE of the task (spriteData.allocatedDataSize).
 typedef struct {
     /* 0x0  */ u8 unk0[0x4];
-    /* 0x4  */ WorkListCallback_t pChainCallback; // replaced by func_801E6F64
+    /* 0x4  */ WorkListCallback_t pChainCallback; // replaced by LibGearJointTaskCallback
     /* 0x8  */ Model* pModel;
     /* 0xC  */ s16 jointIndex;
     /* 0xE  */ s16 unkE; // non-zero: snap the rotated offset to the model's ground
     /* 0x10 */ SVECTOR offset;
 } LibGearJointTask; // Size: 0x18
 
-// Per-joint data func_801E6E48 copies into the LibGearJointTask
+// Per-joint data LibGearCreateJointTask copies into the LibGearJointTask
 typedef struct {
     /* 0x0  */ u8 unk0[0x5];
     /* 0x5  */ u8 jointIndex;
@@ -1782,7 +1782,7 @@ typedef struct {
     /* 0xA  */ u16 offsetZ;
     /* 0xC  */ u8 unkC;
     /* 0xD  */ u8 padD[0x6];
-    /* 0x13 */ u8 unk13; // non-zero: install func_801E6F64 as the task callback
+    /* 0x13 */ u8 unk13; // non-zero: install LibGearJointTaskCallback as the task callback
 } LibGearJointInfo; // Size: 0x14
 
 // Allocates a work list task plus a LibGearJointTask; returns the task
@@ -1792,9 +1792,9 @@ extern void func_800223B0(SpriteData* pSpriteData, s16 direction);
 extern void SpriteSetScale(SpriteData* pSpriteData, s16 scale);
 extern WorkListCallback_t WorkListTaskGetTaskCallback(WorkListEntry* pTask);
 extern void TimerWorkListSetTaskCallback(WorkListEntry* pTask, WorkListCallback_t callback);
-extern void func_801E6F64(void* pTask);
+extern void LibGearJointTaskCallback(void* pTask);
 
-void func_801E6E48(void* pAnimFile, s32 animIndex, s32 arg2, s16 direction, s16 scale, LibGearJointInfo* pInfo, Model* pModel) {
+void LibGearCreateJointTask(void* pAnimFile, s32 animIndex, s32 arg2, s16 direction, s16 scale, LibGearJointInfo* pInfo, Model* pModel) {
     AnimTask* pTask;
     SpriteData* pSpriteData;
     LibGearJointTask* pJointTask;
@@ -1811,7 +1811,7 @@ void func_801E6E48(void* pAnimFile, s32 animIndex, s32 arg2, s16 direction, s16 
 
     if (pInfo->unk13 != 0) {
         pJointTask->pChainCallback = WorkListTaskGetTaskCallback(&pTask->task1);
-        TimerWorkListSetTaskCallback(&pTask->task1, &func_801E6F64);
+        TimerWorkListSetTaskCallback(&pTask->task1, &LibGearJointTaskCallback);
         pJointTask->offset.vx = pInfo->offsetX;
         pJointTask->offset.vy = pInfo->offsetY;
         pJointTask->offset.vz = pInfo->offsetZ;
@@ -1819,7 +1819,7 @@ void func_801E6E48(void* pAnimFile, s32 animIndex, s32 arg2, s16 direction, s16 
     }
 }
 
-void func_801E6F64(void* pTaskRaw) {
+void LibGearJointTaskCallback(void* pTaskRaw) {
     AnimTask* pTask = pTaskRaw;
     LibGearJointTask* pJointTask;
     LVEC3 vec;
@@ -1856,7 +1856,7 @@ void func_801E6F64(void* pTaskRaw) {
     pJointTask->pChainCallback(pTask);
 }
 
-void func_801E7094(Model* pModel, ModelJoint* pJoint, u8 flags, s16 x, s16 y, s16 z) {
+void LibGearSetJointTransform(Model* pModel, ModelJoint* pJoint, u8 flags, s16 x, s16 y, s16 z) {
     ModelJoint* pChild;
     int i;
 
@@ -1900,13 +1900,13 @@ void func_801E7094(Model* pModel, ModelJoint* pJoint, u8 flags, s16 x, s16 y, s1
         for (i = 1; i < pModel->pSkeleton->numChildren; i++) {
             pChild++;
             if (pChild->pParent == pJoint) {
-                func_801E7094(pModel, pChild, flags, x, y, z);
+                LibGearSetJointTransform(pModel, pChild, flags, x, y, z);
             }
         }
     }
 }
 
-void func_801E7298(Model* pModel) {
+void LibGearApplyGroundHeight(Model* pModel) {
     VECTOR unk;
     SVECTOR offset;
 
@@ -1917,7 +1917,7 @@ void func_801E7298(Model* pModel) {
 }
 
 // Computes the global transform matrix for a certain joint?
-void func_801E72CC(MATRIX* pMatrix, void* _unk, int index, int jointIndex) {
+void LibGearGetJointMatrix(MATRIX* pMatrix, void* _unk, int index, int jointIndex) {
     MATRIX _mat;
     Model* pModel;
 
@@ -1938,7 +1938,7 @@ void func_801E72CC(MATRIX* pMatrix, void* _unk, int index, int jointIndex) {
     *pMatrix = pModel->pSkeleton[0].localTransform;
 }
 
-void func_801E7378(u32 shouldRender) {
+void LibGearSetDirectKeyframes(u32 shouldRender) {
     D_801E85CC = shouldRender & 0x1;
 }
 
@@ -1948,7 +1948,7 @@ void LibGearInitialize(int capacity) {
     D_801E8640 = 0;
     D_801E869C = 0;
     
-    func_801DF5F4(&D_801E86A8, capacity);
+    LibGearInitializeJointObjectPool(&D_801E86A8, capacity);
     LibGearInitializeVertexBuffer(&g_LibGearVertexBuffer, 0x10);
 
     for (i = 0; i < MAX_MODELS; i++) {
@@ -1966,7 +1966,7 @@ void LibGearInitialize(int capacity) {
 
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E742C);
 
-void func_801E7D14(MATRIX* pMatrix, s32 arg1, s32* pOT, s32 arg3, s32 arg4) {
+void LibGearRenderFrame(MATRIX* pMatrix, s32 arg1, s32* pOT, s32 arg3, s32 arg4) {
     int i;
     int count;
     u16 angle;
@@ -1992,17 +1992,17 @@ void func_801E7D14(MATRIX* pMatrix, s32 arg1, s32* pOT, s32 arg3, s32 arg4) {
             g_LibGearModels[i]->unk11C = g_LibGearModels[i]->pSkeleton->translation.x;
             g_LibGearModels[i]->unk120 = g_LibGearModels[i]->pSkeleton->translation.y;
             g_LibGearModels[i]->unk124 = g_LibGearModels[i]->pSkeleton->translation.z;
-            func_801E36BC(g_LibGearModels[i], (s32)&D_801E86A8, count, arg3, 1);
+            LibGearStepModelAnimation(g_LibGearModels[i], (s32)&D_801E86A8, count, arg3, 1);
         }
     }
 
     for (i = 0; i < MAX_MODELS; i++) {
         if (g_LibGearModels[i] != NULL && g_LibGearModels[i]->unk5C < 0xFF) {
-            func_801E37D0(g_LibGearModels[i]);
+            LibGearUpdateModelAttachment(g_LibGearModels[i]);
         }
     }
 
-    func_801E1880(g_LibGearModels);
+    LibGearRotateModelOffsets(g_LibGearModels);
     SetColorMatrix(D_801E8644);
 
     for (i = 0; i < MAX_MODELS; i++) {
@@ -2014,17 +2014,17 @@ void func_801E7D14(MATRIX* pMatrix, s32 arg1, s32* pOT, s32 arg3, s32 arg4) {
         }
     }
 
-    func_801E0398(&g_LibGearVertexBuffer, pMatrix, count, pOT, arg3);
+    LibGearRenderVertices(&g_LibGearVertexBuffer, pMatrix, count, pOT, arg3);
 }
 
-void func_801E7FD4(void) {
+void LibGearShutdown(void) {
     int i;
 
     for (i = 0; i < MAX_MODELS; i++) {
         func_801E8030(i);
     }
 
-    func_801DF668(&D_801E86A8);
+    LibGearFreeJointObjectPool(&D_801E86A8);
     LibGearFreeVertexBuffer(&g_LibGearVertexBuffer);
 }
 
@@ -2061,16 +2061,16 @@ void func_801E8030(s32 modelIndex) {
 
     if ((u32)(modelIndex - 8) >= 2) {
         if (g_LibGearModels[modelIndex]->pSkeleton != NULL) {
-            func_801DFE8C(&D_801E86A8, g_LibGearModels[modelIndex]->pSkeleton);
-            func_801DFF78(&D_801E86A8, g_LibGearModels[modelIndex]->pSkeleton, 0xFF);
+            LibGearReleaseSkeletonObjects(&D_801E86A8, g_LibGearModels[modelIndex]->pSkeleton);
+            LibGearReleaseSkeletonObjectsByType(&D_801E86A8, g_LibGearModels[modelIndex]->pSkeleton, 0xFF);
             LibGearFreeModelSkeleton(g_LibGearModels[modelIndex]->pSkeleton);
             g_LibGearModels[modelIndex]->pMesh = NULL;
             g_LibGearModels[modelIndex]->pSkeleton = NULL;
         }
     } else {
         if (g_LibGearModels[modelIndex]->pSkeleton != NULL) {
-            func_801DFE8C(&D_801E86A8, g_LibGearModels[modelIndex]->pSkeleton);
-            func_801DFF78(&D_801E86A8, g_LibGearModels[modelIndex]->pSkeleton, 0xFF);
+            LibGearReleaseSkeletonObjects(&D_801E86A8, g_LibGearModels[modelIndex]->pSkeleton);
+            LibGearReleaseSkeletonObjectsByType(&D_801E86A8, g_LibGearModels[modelIndex]->pSkeleton, 0xFF);
             HeapFree(g_LibGearModels[modelIndex]->pSkeleton);
         }
     }
@@ -2082,7 +2082,7 @@ void func_801E8030(s32 modelIndex) {
     if (g_LibGearModels[modelIndex]->unk10E != 0) {
         offset = 0;
         for (i = 0; i < g_LibGearModels[modelIndex]->unk10E; i++) {
-            func_801E165C((Temp8*)((u8*)g_LibGearModels[modelIndex]->unk118 + offset));
+            LibGearFlushTexture((Temp8*)((u8*)g_LibGearModels[modelIndex]->unk118 + offset));
             offset += 0x30;
         }
         HeapFree(g_LibGearModels[modelIndex]->unk118);
@@ -2091,7 +2091,7 @@ void func_801E8030(s32 modelIndex) {
     if (g_LibGearModels[modelIndex]->unk10D != 0) {
         offset = 0;
         for (i = 0; i < g_LibGearModels[modelIndex]->unk10D; i++) {
-            func_801E3438((Temp9*)((u8*)g_LibGearModels[modelIndex]->unk114 + offset));
+            LibGearFreeModelEntry((Temp9*)((u8*)g_LibGearModels[modelIndex]->unk114 + offset));
             offset += 0x24;
         }
         HeapFree(g_LibGearModels[modelIndex]->unk114);
@@ -2103,7 +2103,7 @@ void func_801E8030(s32 modelIndex) {
 */
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E8030);
 
-void func_801E8330(u16 modelIndex, u16 bits, s32 arg2) {
+void LibGearSetModelAnimation(u16 modelIndex, u16 bits, s32 arg2) {
     Model* pModel = g_LibGearModels[modelIndex];
 
     D_801E86B0 = modelIndex;
@@ -2111,23 +2111,23 @@ void func_801E8330(u16 modelIndex, u16 bits, s32 arg2) {
     pModel->unk35 = 0;
 
     if (g_LibGearModels[modelIndex] != NULL) {
-        func_801E35D0(g_LibGearModels[modelIndex], g_LibGearModels[modelIndex], &D_801E86A8, arg2);
+        LibGearSetAnimation(g_LibGearModels[modelIndex], g_LibGearModels[modelIndex], &D_801E86A8, arg2);
     }
 }
 
-void func_801E8394(s32 arg0, u16 modelIndex, u16 arg2, s32 arg3) {
+void LibGearSetModelAnimationFrom(s32 arg0, u16 modelIndex, u16 arg2, s32 arg3) {
     D_801E86B0 = modelIndex;
     D_801E863C = arg2;
     g_LibGearModels[modelIndex]->unk35 = 0;
 
     if (g_LibGearModels[modelIndex] != NULL) {
-        if (modelIndex != func_801E67F8()) {
-            func_801E35D0(g_LibGearModels[modelIndex], arg0, &D_801E86A8, arg3);
+        if (modelIndex != LibGearGetFirstModelIndex()) {
+            LibGearSetAnimation(g_LibGearModels[modelIndex], arg0, &D_801E86A8, arg3);
         }
     }
 }
 
-int func_801E8430(int modelIndex) {
+int LibGearGetModelHeight(int modelIndex) {
     Model* pModel = g_LibGearModels[modelIndex];
     int result = 0;
 
@@ -2138,7 +2138,7 @@ int func_801E8430(int modelIndex) {
     return result;
 }
 
-int func_801E8480(int modelIndex) {
+int LibGearGetModelWidth(int modelIndex) {
     int factor;
     int jointScale;
     int result = 0;
@@ -2158,7 +2158,7 @@ int func_801E8480(int modelIndex) {
     return result;
 }
 
-void func_801E8510(Model* pModel) {
+void LibGearAllocateColorEntries(Model* pModel) {
     int i;
     UnkInner1* pObjects;
 

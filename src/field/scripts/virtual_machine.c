@@ -447,7 +447,7 @@ void func_800A24C4(void) {
     func_800AD898();
 
     for (i = 0; i < D_800B2264; i++) {
-        func_801E8330(i, 0, ((s16*)((u8*)&D_800B2264 - 0x80))[i]);
+        LibGearSetModelAnimation(i, 0, ((s16*)((u8*)&D_800B2264 - 0x80))[i]);
     }
 
     pActorData = g_FieldActors[g_PlayerActorIndex].pActorData;

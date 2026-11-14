@@ -665,7 +665,7 @@ void func_8001B970(void) {
             pEven += 2;
             pOdd += 2;
         }
-        func_80033B34((u16*)inBuf, outBuf, j / 2);
+        SystemDecodeGlyphCodesN((u16*)inBuf, outBuf, j / 2);
         pOut = outBuf;
         pDst = pSrc + i;
         while (pDst < pSrc + i + 0x14) {

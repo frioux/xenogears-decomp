@@ -145,7 +145,7 @@ extern s32 D_800B2264;
 extern void* D_800ADB20;
 extern s32 D_800ADB30;
 extern s32 D_8004F370;
-extern void func_8008A520(void);
+extern void FieldWaitForArchiveSync(void);
 extern void func_800A90B4(int nHeapType);
 extern void func_80029AFC(StreamDataQueueEntry* pQueue, int arg1, int arg2);
 
@@ -179,7 +179,7 @@ void func_80077884(void) {
         return;
     }
 
-    func_8008A520();
+    FieldWaitForArchiveSync();
     ArchiveSetIndex(ARCHIVE_DIR_FIELD, 0);
     func_800A90B4(0);
 
@@ -211,7 +211,7 @@ void func_80077884(void) {
     D_800B2394[i * 2 + 1].archiveIndex = 0;
     D_800B2394[i * 2 + 1].pData = NULL;
 
-    func_8008A520();
+    FieldWaitForArchiveSync();
     func_80029AFC(D_800B2394, 0, 0);
 }
 */
@@ -249,7 +249,7 @@ void func_80077AB4(void) {
         return;
     }
 
-    func_8008A520();
+    FieldWaitForArchiveSync();
     FieldRenderSyncAndFlush();
     func_801E738C(D_800B234A);
     D_801E8644 = pCount - 10;

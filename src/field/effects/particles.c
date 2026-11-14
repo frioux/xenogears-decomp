@@ -409,7 +409,7 @@ void FieldParticleUpdateAndRender(ParticleBank* pParticleBank, ParticlePrimitive
                 pParticleBank->unk50 = 0x1000;
                 break;
             case 1:
-                func_801E72CC(&matrix, &transformMatrix, pParticleBank->unk72, pParticleBank->unk74);
+                LibGearGetJointMatrix(&matrix, &transformMatrix, pParticleBank->unk72, pParticleBank->unk74);
                 SetRotMatrix(&matrix);
                 SetTransMatrix(&matrix);
                 rotationVec.vx = pParticleBank->pos.vx;

@@ -18,7 +18,7 @@ extern void func_801CB184(void);
 extern int func_801C8D78(u_char);
 extern void MenuRenderFrame(void);
 extern u_char func_801CACF8(u_char, u_char, u_char);
-extern void func_80033B34(u16* pInput, u8* pOutput, int count);
+extern void SystemDecodeGlyphCodesN(u16* pInput, u8* pOutput, int count);
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801C8D78);
 
@@ -351,7 +351,7 @@ void func_801CB184(void) {
                 break;
             }
         }
-        func_80033B34((u16*)inBuf, outBuf, j / 2);
+        SystemDecodeGlyphCodesN((u16*)inBuf, outBuf, j / 2);
         for (j = 0; j < 0x14; j++) {
             pEntry[j] = outBuf[j];
         }

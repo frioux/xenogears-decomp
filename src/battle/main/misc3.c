@@ -23,7 +23,7 @@ extern u16 g_SystemPalette1;
 extern u16 g_SystemPalette2;
 
 extern s32 func_8008ABB8(s32, s32);
-extern s32 func_800338D8(s32);
+extern s32 GetStringEntryFromBank12(s32);
 extern u16 func_80098AF8(s32, s32);
 extern void func_80077074(void);
 extern void HeapFree(void *pMem);
@@ -204,8 +204,8 @@ void func_80076EA4(void) {
     for (i = 0; i < 11; i++) {
         pBuf[i] = func_8008AC00(0x1B);
         bzero(pBuf[i], 0x30C);
-        D_800D2F3C[off] = SystemRenderStringEntry(func_800338D8(i + 0xA), pBuf[i], 0x1B, 0);
-        D_800D2F68[off] = SystemRenderStringEntry(func_800338D8(i + 0x15), pBuf[i], 0x1B, 1);
+        D_800D2F3C[off] = SystemRenderStringEntry(GetStringEntryFromBank12(i + 0xA), pBuf[i], 0x1B, 0);
+        D_800D2F68[off] = SystemRenderStringEntry(GetStringEntryFromBank12(i + 0x15), pBuf[i], 0x1B, 1);
         pEntry = (u8 *)(D_800D2F68 + off);
         pEntry[2] = 0x78;
         D_800D2F3E[off] = 0x78;

@@ -338,7 +338,7 @@ extern s16 D_800B2344;
 extern s16 D_800B2346;
 extern u8 D_800ADFB8[];
 void func_800245D8(int, int);
-void func_801E8330(u16, u16, s32);
+void LibGearSetModelAnimation(u16, u16, s32);
 
 // This unit reads the 0x12C word whole; the ActorData bitfields there make gcc
 // narrow the load to a byte.
@@ -386,11 +386,11 @@ void func_800821F4(int arg0, int actorId, FieldActor* pActor) {
         return;
     }
     if (actorId < 0x10) {
-        func_801E8330((((ActorFlags12CView*)pActor->pActorData)->flags12C >> 13) & 7, 0, D_800ADFB8[actorId]);
+        LibGearSetModelAnimation((((ActorFlags12CView*)pActor->pActorData)->flags12C >> 13) & 7, 0, D_800ADFB8[actorId]);
         pTable[(((ActorFlags12CView*)pActor->pActorData)->flags12C >> 13) & 7] = D_800ADFB8[actorId];
     } else {
         actorId -= 0x10;
-        func_801E8330((((ActorFlags12CView*)pActor->pActorData)->flags12C >> 13) & 7, 0, actorId);
+        LibGearSetModelAnimation((((ActorFlags12CView*)pActor->pActorData)->flags12C >> 13) & 7, 0, actorId);
         pTable[(((ActorFlags12CView*)pActor->pActorData)->flags12C >> 13) & 7] = actorId;
     }
 }

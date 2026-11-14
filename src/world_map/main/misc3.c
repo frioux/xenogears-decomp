@@ -50,7 +50,7 @@ extern void func_8008615C(void);
 extern void func_800848F4(void);
 extern void func_800980D4(s32* p);
 extern void func_800981C8(s32* p);
-extern void func_80096130(void);
+extern void WorldMapWaitForLoadSlotFree(void);
 extern void func_80098CC0(void);
 extern void func_800983A0(s32* p);
 extern void func_8009932C(s32 arg0, s32 arg1, s32* p);
@@ -145,7 +145,7 @@ s32 WorldMapUpdateFrame(void) {
     func_800980D4(&D_8009BBB4);
     if (D_8009D558 != 0) {
         func_800981C8(&D_8009BE28);
-        func_80096130();
+        WorldMapWaitForLoadSlotFree();
         func_80098CC0();
     }
     pState = &D_8009BE28;
@@ -427,7 +427,7 @@ extern void func_80077DC8(void);
 extern void func_80077E68(void);
 extern void func_80097BC0(void* p);
 extern void func_800967E4(void);
-extern s32 func_80096668(void);
+extern s32 WorldMapGetQueuedLoadCount(void);
 extern s32 func_8007756C(s32 arg0);
 extern s32 func_800776E0(s32 arg0);
 
@@ -474,7 +474,7 @@ void WorldMapInitializeMode(void) {
     do {
         func_800967E4();
         Vsync(0);
-    } while (func_80096668() > 0);
+    } while (WorldMapGetQueuedLoadCount() > 0);
     func_80097718((void*)func_800923A8, (void*)func_800925A0);
     func_80097718((void*)func_8007756C, (void*)func_800776E0);
     func_80097718((void*)func_80087710, (void*)func_80087734);
@@ -608,7 +608,7 @@ s32 WorldMapUpdateFrameWithoutEffects(void) {
     func_800980D4(&D_8009BBB4);
     if (D_8009D558 != 0) {
         func_800981C8(&D_8009BE28);
-        func_80096130();
+        WorldMapWaitForLoadSlotFree();
         func_80098CC0();
     }
     pState = &D_8009BE28;
@@ -666,7 +666,7 @@ void WorldMapInitializeModeWithSound(void) {
     do {
         func_800967E4();
         Vsync(0);
-    } while (func_80096668() > 0);
+    } while (WorldMapGetQueuedLoadCount() > 0);
     func_80097718((void*)func_800923A8, (void*)func_800925A0);
     func_80097718((void*)func_80077DC8, (void*)func_80077E68);
     func_80097718((void*)WorldMapInitActorAtScrollPosition, (void*)func_800783E8);

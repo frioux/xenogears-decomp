@@ -66,7 +66,7 @@ extern int Vsync(int mode);
 extern void func_80097D64(void);
 extern void func_800967E4(void);
 extern void func_80097BC0(void *p);
-extern s32 func_80096668(void);
+extern s32 WorldMapGetQueuedLoadCount(void);
 extern s16 func_80084DB8(void *pArg, s16 arg1);
 extern void WorldMapBuildSpritePrims(WorldMapEntry *pEntry, u8 *pDst, s32 count, s32 arg3);
 extern s32 D_8009C5B0;
@@ -251,7 +251,7 @@ s32 WorldMapWaitForQueueDrain(s32 arg0) {
         do {
             func_800967E4();
             Vsync(0);
-        } while (func_80096668() > 0);
+        } while (WorldMapGetQueuedLoadCount() > 0);
     }
     return 1;
 }
@@ -300,7 +300,7 @@ void WorldMapInitializeScene(void) {
     do {
         func_800967E4();
         Vsync(0);
-    } while (func_80096668() > 0);
+    } while (WorldMapGetQueuedLoadCount() > 0);
     func_80097718((void *)func_800923A8, (void *)func_800925A0);
     func_80097718((void *)WorldMapSetActorParams, (void *)WorldMapRunSlotScript);
     func_80097718((void *)func_8008390C, (void *)func_80083A00);

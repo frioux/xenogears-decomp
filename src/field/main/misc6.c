@@ -19,7 +19,7 @@ extern int g_GameSceneMapNum;
 extern void GameWaitForCdData(void);
 extern void GamePartySyncSkinData(void);
 extern void GamePartySyncStreamedData(void);
-extern int func_8008CF3C(int);
+extern int FieldPartySlotToCharacter(int);
 extern void* g_PartyDataBuffers[];
 extern s32 D_800AFFEC;
 extern s16 D_800AFD20;
@@ -34,17 +34,17 @@ void FieldScriptVMHandlerEnableDialogActivation(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer++;
 }
 
-void func_8009DA70(void) {
+void FieldScriptVMHandlerSetScriptFlag16(void) {
     g_FieldScriptVMCurActor->scriptFlags.fields.scriptFlags_0x16 = 0x1;
     g_FieldScriptVMCurActor->scriptInstructionPointer++;
 }
 
-void func_8009DA98(void) {
+void FieldScriptVMHandlerClearScriptFlag16(void) {
     g_FieldScriptVMCurActor->scriptFlags.fields.scriptFlags_0x16 = 0;
     g_FieldScriptVMCurActor->scriptInstructionPointer++;
 }
 
-void func_8009DAC4(void) {
+void FieldScriptVMHandlerDisableAndHideActor(void) {
     int nTextBoxIndex;
     ActorData* pActor;
     FieldActor* pFieldActor;
@@ -72,7 +72,7 @@ void FieldScriptVMHandlerEnableActorVM(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
 }
 
-void func_8009DC4C(void) {
+void FieldScriptVMHandlerDisableActorAndResetMotion(void) {
     ActorData* pActor;
     int nTextBoxIndex;
     short nNewRotation;
@@ -147,7 +147,7 @@ void FieldScriptVMHandlerShowActor(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer++;
 }
 
-void func_8009DF78(void) {
+void FieldScriptVMHandlerSetActorFlags2000800ById(void) {
     FieldActor* pFieldActor;
 
     if (FieldScriptVMGetActorIndex(1) != ACTOR_ID_INVALID) {
@@ -158,7 +158,7 @@ void func_8009DF78(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
 }
 
-void func_8009E014(void) {
+void FieldScriptVMHandlerSetActorFlags2000800(void) {
     g_FieldScriptVMCurActor->flags |= 0x02000800;
     g_FieldScriptVMCurActor->scriptInstructionPointer++;
 }
@@ -170,7 +170,7 @@ void FieldScriptVMHandlerHideActor(void) {
 }
 
 // Update sprite movement or animation speed?
-void func_8009E094(void) {
+void FieldScriptVMHandlerSetActorMoveSpeed(void) {
     unsigned short nMoveSpeed;
 
     nMoveSpeed = FieldScriptVMGetArgument(1);
@@ -179,7 +179,7 @@ void func_8009E094(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
 
-void func_8009E10C(void) {
+void FieldScriptVMHandlerSetScriptFlagsFromArgument(void) {
     int nValue;
     int nFlags;
 
@@ -205,7 +205,7 @@ void func_8009E10C(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
 
-void func_8009E1A0(void) {
+void FieldScriptVMHandlerSetActorFlagsFromArgument(void) {
     u32 nValue;
 
     nValue = SCRIPT_READ_U8_REL(1) & 7;
@@ -219,7 +219,7 @@ void func_8009E1A0(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
 }
 
-void func_8009E208(void) {
+void FieldScriptVMHandlerCommitActorYPosition(void) {
     g_FieldScriptVMCurActor->unkEC = 0;
     g_FieldScriptVMCurActor->scriptFlags.fields.scriptFlags_0x10 = 0x0;
     g_FieldScriptVMCurActor->scriptFlags.fields.scriptFlags_0x15 = 0x1;
@@ -227,28 +227,28 @@ void func_8009E208(void) {
     g_FieldScriptVMCurActor->curYPos = CONV_TO_GTE(g_FieldScriptVMCurActor->position.vy);
 }
 
-void func_8009E248(void) {
+void FieldScriptVMHandlerMoveActorToPosition(void) {
     func_8009E574(
         FieldScriptVMGetInstructionArgumentS16(1),
         FieldScriptVMGetInstructionArgumentS16(3)
     );
-    func_8009E810(FieldScriptVMGetInstructionArgumentS16(5));
+    FieldScriptSetActorYPosition(FieldScriptVMGetInstructionArgumentS16(5));
     g_FieldScriptVMCurActor->scriptFlags.fields.scriptFlags_0x10 = 0x1;
     g_FieldScriptVMCurActor->scriptInstructionPointer += 7;
 }
 
-void func_8009E2C8(void) {
-    func_8009E810(FieldScriptArgument1(1, SCRIPT_READ_U8_REL(3)));
+void FieldScriptVMHandlerSetActorYFromArgument(void) {
+    FieldScriptSetActorYPosition(FieldScriptArgument1(1, SCRIPT_READ_U8_REL(3)));
     g_FieldScriptVMCurActor->scriptFlags.fields.scriptFlags_0x10 = 0x1;
     g_FieldScriptVMCurActor->scriptInstructionPointer += 4;
 }
 
 // Read short from bytecode, absolute offset
-short func_8009E330(int offset) {
+short FieldScriptReadInstructionS16(int offset) {
     return SCRIPT_READ_U8(offset) + (SCRIPT_READ_U8(offset + 1) << 8);
 }
 
-void func_8009E35C(void) {
+void FieldScriptVMHandlerMoveActorToIndirectPositionWithWalkmesh(void) {
     g_FieldScriptVMCurActor->walkmeshId = SCRIPT_READ_U8_REL(5);
     func_8009E574(
         FieldScriptArgument1(1, SCRIPT_READ_U8_REL(6)), 
@@ -259,7 +259,7 @@ void func_8009E35C(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 7;
 }
 
-void func_8009E428(void) {
+void FieldScriptVMHandlerSnapActorToWalkmesh(void) {
     ActorData* pActor;
 
     g_FieldScriptVMCurActor->walkmeshId = SCRIPT_READ_U8_REL(1);
@@ -271,7 +271,7 @@ void func_8009E428(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
 }
 
-void func_8009E4BC(void) {
+void FieldScriptVMHandlerMoveActorToIndirectPosition(void) {
     func_8009E574(
         FieldScriptArgument1(1, SCRIPT_READ_U8_REL(5)), 
         FieldScriptArgument2(3, SCRIPT_READ_U8_REL(5))
@@ -366,7 +366,7 @@ void func_8009E574(s32 nX, s32 nY) {
 INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_8009E574);
 
 // Writes the actor's Y position (fixed point) and the cached short copies
-void func_8009E810(short nY) {
+void FieldScriptSetActorYPosition(short nY) {
     u8 unused[0x18]; // original has an unused stack slot; reproduces the frame
 
     g_FieldScriptVMCurActor->position.vy = nY * 0x10000;
@@ -374,7 +374,7 @@ void func_8009E810(short nY) {
     g_FieldScriptVMCurActor->curYPos = nY;
 }
 
-void func_8009E83C(void) {
+void FieldScriptVMHandlerSetActorCollisionSize(void) {
     unsigned char width;
     unsigned char zWidth;
     unsigned char height;
@@ -403,7 +403,7 @@ void func_8009E83C(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
 }
 
-void func_8009E91C(void) {
+void FieldScriptVMHandlerSnapshotIndirectArguments(void) {
     if (!g_FieldScriptVMCurActor->flags12C_0xD) {
         g_FieldScriptVMCurActor->unk114 = HeapAlloc(0x10, 0x0);
     }
@@ -432,7 +432,7 @@ int FieldActorGetScriptStatus(ActorData* pActor, int targetId) {
     return 0;
 }
 
-void func_8009EB78(void) {
+void FieldScriptVMHandlerStartActorScript(void) {
     ActorData* pActor;
     int actorIndex;
     int i;
@@ -463,7 +463,7 @@ void func_8009EB78(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
 
-void func_8009ED68(void) {
+void FieldScriptVMHandlerStartActorScriptAndWait(void) {
     ActorData* pActor;
     int actorIndex;
     int i;
@@ -515,7 +515,7 @@ void func_8009ED68(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
 
-void func_8009F0A0(void) {
+void FieldScriptVMHandlerStartActorScriptAndWait2(void) {
     ActorData* pActor;
     s32 actorIndex;
     int i;
@@ -575,7 +575,7 @@ void func_8009F0A0(void) {
 }
 
 // Randomize X rotation
-void func_8009F424(void) {
+void FieldScriptVMHandlerRandomizeActorXRotation(void) {
     int nRotation;
     
     nRotation = g_FieldScriptVMCurActor->rotation.vy;
@@ -592,7 +592,7 @@ void func_8009F424(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer++;
 }
 
-void func_8009F4CC(void) {
+void FieldScriptVMHandlerRandomizeActorXRotation2(void) {
     short nSpecialRotation;
     int nRotation;
     int nRand;
@@ -622,7 +622,7 @@ void func_8009F4CC(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer++;
 }
 
-void func_8009F5A8(void) {
+void FieldScriptVMHandlerStartEncounter(void) {
     unsigned short nStoredIP = g_FieldScriptVMCurActor->scriptInstructionPointer;
     func_8009F5F4(); // Do Encounter
     D_800B00C0 = 1;
@@ -687,8 +687,8 @@ s32 func_8009FA54(s32 nInstructionOffset) {
     if (SCRIPT_READ_U8(0) == 0xFF) {
         nOffset = nInstructionOffset * 7;
         g_FieldScriptVMCurActor->walkmeshId = SCRIPT_READ_U8(nOffset + 5);
-        nX = (s16)func_8009E330(nOffset + 1);
-        nY = (s16)func_8009E330(nOffset + 3);
+        nX = (s16)FieldScriptReadInstructionS16(nOffset + 1);
+        nY = (s16)FieldScriptReadInstructionS16(nOffset + 3);
         func_8009E574(nX, nY);
 
         nAngleByte = SCRIPT_READ_U8(nOffset + 6);
@@ -742,7 +742,7 @@ void func_8009FB98(void) {
 INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_8009FB98);
 
 extern s32 D_8006F990[];
-int func_8009FC10(int actorIndex) {
+int FieldGetPartySlotByActorIndex(int actorIndex) {
     int i;
 
     for (i = 0; i < 3; i++) {
@@ -760,7 +760,7 @@ void FieldScriptPartyMemberRideGear(void) {
         index = 2;
     }
     g_pGameState->gearRide[index] = 1;
-    func_8009FD10(index);
+    FieldScriptResetPartyMemberPosition(index);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
 
@@ -770,11 +770,11 @@ void FieldScriptPartyMemberDisembarkGear(void) {
         index = 2;
     }
     g_pGameState->gearRide[index] = 0;
-    func_8009FD10(index);
+    FieldScriptResetPartyMemberPosition(index);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
 
-void func_8009FD10(int partyMemberIndex) {
+void FieldScriptResetPartyMemberPosition(int partyMemberIndex) {
     switch (partyMemberIndex) { 
         case 0:
             FieldScriptMemoryWriteU16(0x2A, g_GameSceneMapNum & 0xFFF);
@@ -797,10 +797,10 @@ void func_8009FD10(int partyMemberIndex) {
 extern void func_800AD4D4(int partyMemberIndex);
 
 // 99.50%: gcc puts the index in $v1, the original uses $a0 (`move a0,v0`).
-void func_8009FDD4(void) {
+void FieldScriptVMHandlerPartyMemberOnFoot(void) {
     int partyMemberIndex;
 
-    partyMemberIndex = func_8009FC10(D_800AFD1C);
+    partyMemberIndex = FieldGetPartySlotByActorIndex(D_800AFD1C);
     if (partyMemberIndex != 0xFF && g_pGameState->gearRide[partyMemberIndex] == 0) {
         func_800AD4D4(partyMemberIndex);
     }
@@ -809,7 +809,7 @@ void func_8009FDD4(void) {
 
 extern void func_800ACFD0(void);
 
-void func_8009FE4C(void) {
+void FieldScriptVMHandlerPartyMemberInGear(void) {
     u8 index;
 
     index = SCRIPT_READ_U8_REL(1);
@@ -871,7 +871,7 @@ void func_8009FEE4(int partyMemberIndex) {
 */
 INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_8009FEE4);
 
-void func_800A0158(s32 arg0, s32* arg1, s32* arg2, s32* arg3) {
+void FieldScriptReadPartyMemberPosition(s32 arg0, s32* arg1, s32* arg2, s32* arg3) {
     switch (arg0) {
         case 0:
             *arg1 = FieldScriptVMGetVariableValue(0x2A);
@@ -892,7 +892,7 @@ void func_800A0158(s32 arg0, s32* arg1, s32* arg2, s32* arg3) {
 }
 
 extern int GameCharacterGetGearID(int characterId);
-extern void func_800A0D3C(void);
+extern void FieldScriptVMHandlerSetActorModelFromSpriteIndex0(void);
 extern s32 D_8006F990[3];
 extern s16 D_800AFB54;
 
@@ -933,7 +933,7 @@ void func_800A0228(void) {
     nFlag = 1;
     if (g_GamePartyMembers[partyIndex] != CHARACTER_ID_NONE &&
         GameCharacterGetGearID(g_GamePartyMembers[partyIndex]) != CHARACTER_ID_NONE) {
-        func_800A0158(partyIndex, &nMapData, &nX, &nY);
+        FieldScriptReadPartyMemberPosition(partyIndex, &nMapData, &nX, &nY);
         pCurActor = g_FieldScriptVMCurActor;
         pCurActor->walkmeshId = (nMapData >> 14) & 3;
         if ((g_GameSceneMapNum & 0xFFF) != (nMapData & 0x3FFF)) {
@@ -958,7 +958,7 @@ void func_800A0228(void) {
             g_FieldActors[D_800AFD1C].status |= 0x20;
         }
     } else {
-        func_800A0D3C();
+        FieldScriptVMHandlerSetActorModelFromSpriteIndex0();
         g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
         g_FieldScriptVMCurActor->flags |= 0x800;
         return;
@@ -1019,7 +1019,7 @@ void func_800A0524(int dstActorIndex, int srcActorIndex) {
 */
 INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_800A0524);
 
-void func_800A06E8(void) {
+void FieldScriptVMHandlerSetActorModelFromPartyMember(void) {
     FieldActor* pFieldActor;
     u_short nStatus;
     FieldActor* pStatusActor;
@@ -1027,7 +1027,7 @@ void func_800A06E8(void) {
     int partyId;
 
     pFieldActor = &g_FieldActors[D_800AFD1C];
-    partyId = FieldCharacterIdToPartyId(func_8008CF3C(FieldScriptVMGetArgument(1)));
+    partyId = FieldCharacterIdToPartyId(FieldPartySlotToCharacter(FieldScriptVMGetArgument(1)));
     pFieldActor->status = (pFieldActor->status & 0xF07F) | 0x200;
     if (partyId != -1) {
         func_80076AC0(D_800AFD1C, partyId, g_PartyDataBuffers[partyId], 2, 0, partyId, 1);
@@ -1054,7 +1054,7 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_800A08B8);
 
 extern s32 g_PlayerActorIndex;
 
-void func_800A0C4C(void) {
+void FieldPlayerSetScriptFlag80(void) {
     g_FieldActors[g_PlayerActorIndex].pActorData->scriptFlags.flags |= 0x80;
 }
 
@@ -1126,7 +1126,7 @@ void func_800A0C94(void) {
 */
 INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_800A0C94);
 
-void func_800A0D3C(void) {
+void FieldScriptVMHandlerSetActorModelFromSpriteIndex0(void) {
     func_80076AC0(D_800AFD1C, 0, (void*)((*(s32*)(g_FieldSpriteData + 4)) + (s32)g_FieldSpriteData), 0, 0, 0x80, 1);
     func_800A0C94();
     g_FieldScriptVMCurActor->scriptFlags.fields.scriptFlags_0x8 = 0x1;
@@ -1137,12 +1137,12 @@ void func_800A0D3C(void) {
 typedef struct { s16 value; } FieldScriptGlobalS16;
 extern FieldScriptGlobalS16 D_800B234A;
 
-void func_800A0DC0(void) {
+void FieldScriptVMHandlerSetGlobalS16(void) {
     D_800B234A.value = FieldScriptVMGetArgument(1);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
 
-void func_800A0DFC(void) {
+void FieldScriptVMHandlerStoreDiscNumber(void) {
     int nAddress;
 
     nAddress = FieldScriptVMGetInstructionArgument(1) & 0xFFFF;
@@ -1152,7 +1152,7 @@ void func_800A0DFC(void) {
 
 extern int D_800ADB74;
 
-void func_800A0E54(void) {
+void FieldScriptVMHandlerWaitWhileFieldModeSet(void) {
     if (D_800ADB74 == 0) {
         g_FieldScriptVMCurActor->scriptInstructionPointer++;
     } else {
@@ -1163,7 +1163,7 @@ void func_800A0E54(void) {
 
 extern int D_800ADB84;
 
-void func_800A0EB0(void) {
+void FieldScriptVMHandlerIncrementCounter(void) {
     D_800B00C0 = 1;
     D_800ADB84++;
     g_FieldScriptVMCurActor->scriptInstructionPointer++;
@@ -1241,7 +1241,7 @@ void func_800A1364(void) {
 */
 INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_800A1364);
 
-void func_800A14F0(void) {
+void FieldScriptVMHandlerSetActorModelFromSpriteIndexWithFlags(void) {
     int arg;
     int arg3;
     FieldActor* pFieldActor;
@@ -1261,7 +1261,7 @@ void func_800A14F0(void) {
     g_FieldActors[D_800AFD1C].status &= ~ACTOR_STATUS_INVISIBLE;
 }
 
-void func_800A1624(void) {
+void FieldScriptVMHandlerSetActorModelFromSpriteIndex(void) {
     int arg;
     FieldActor* pFieldActor;
 

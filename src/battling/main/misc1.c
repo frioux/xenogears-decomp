@@ -4,11 +4,11 @@
 extern u8 D_80092954[];
 
 extern void func_80083C0C(int mode);
-extern void func_800346D4(void* pString);
+extern void SystemStringFree(void* pString);
 
 void func_800707A8(void) {
     func_80083C0C(3);
-    func_800346D4(&D_80092954[0]);
+    SystemStringFree(&D_80092954[0]);
 }
 
 s32 func_800707D8(s32 a0, s32 a1, s32 a2) {
@@ -256,7 +256,7 @@ extern s32 D_80092904;
 extern s32 D_80092900;
 extern u8 D_80090F38[];
 extern u8* GetStringEntry(u8* pData, s32 index);
-extern void func_80034714(void* pString, u8* pEntry);
+extern void SystemStringPushBuffer(void* pString, u8* pEntry);
 
 void func_800719F0(void) {
     D_80099D9D = 0;
@@ -265,7 +265,7 @@ void func_800719F0(void) {
     D_800928C8 = 5;
     D_80092884 = 0;
     func_80032F54(&D_80092954[0], 0x140, 0x70, 0xA2, 0x2A, 0x1C, 8);
-    func_80034714(&D_80092954[0], GetStringEntry(D_80092880, 0x42));
+    SystemStringPushBuffer(&D_80092954[0], GetStringEntry(D_80092880, 0x42));
     D_800929BC = 0x1E;
     D_800925DC = 0;
     func_80070F80(&D_80090F38[0]);
@@ -368,8 +368,8 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_80072170);
 void func_800725A8(void) {
 }
 
-extern void* func_8008A2B8(s32 a0);
-extern void* func_8008A3E0(void* p);
+extern void* BattleCreateOrderingTablePair(s32 a0);
+extern void* BattleCreateLightGroup(void* p);
 extern void* func_8008C2C0(s32 a0);
 extern void func_80078F00(void* p);
 extern s16 D_800928D0;
@@ -399,7 +399,7 @@ void func_800725B0(u8* p) {
     u16 v;
 
     func_80030988(5, 4, 0x40, 0x40);
-    pAnim = func_8008A3E0(func_8008A2B8(0x10));
+    pAnim = BattleCreateLightGroup(BattleCreateOrderingTablePair(0x10));
     id = *(s32*)(p + 0x5C);
     D_800910F0 = pAnim;
     D_80092610 = func_8008C2C0(id);
@@ -430,8 +430,8 @@ void func_800725B0(u8* p) {
 extern void func_8008BC04(void);
 extern void func_8007F834(void);
 extern void func_80030988(s32 a0, s32 a1, s32 a2, s32 a3);
-extern void func_8008A5BC(void* p);
-extern void func_80089D5C(void* p);
+extern void BattleFreeLightGroup(void* p);
+extern void BattleFreeNodeTree(void* p);
 extern void func_8008976C(s32 a0, s32 a1);
 extern void func_80083C0C(s32 mode);
 extern void func_8007E954(s32 value);
@@ -443,8 +443,8 @@ void func_800726B4(void) {
     func_8008BC04();
     func_8007F834();
     func_80030988(1, 1, 0x40, 0x40);
-    func_8008A5BC(D_800910F0);
-    func_80089D5C(D_80092610);
+    BattleFreeLightGroup(D_800910F0);
+    BattleFreeNodeTree(D_80092610);
     func_8008976C(0x140, 0xDA);
     SetGeomScreen(0xC0);
     func_80083C0C(3);

@@ -87,7 +87,7 @@ extern void func_80078F00();
 extern void func_800831C8(void);
 extern void func_8008DCA8();
 extern void func_800720C4(void);
-extern void func_800346A4();
+extern void SystemStringReset();
 extern u8 D_8009868C[];
 extern void func_80074678();
 extern void func_80073B7C();
@@ -442,7 +442,7 @@ void func_80079B44(void) {
     D_80091145 = 0;
     D_80092664 = 0;
     D_80092950++;
-    func_800346A4(D_8009868C);
+    SystemStringReset(D_8009868C);
     D_80099D9A = 0;
     if (D_8005061C != 0) {
         m = (D_80092950 - 1) % 5;

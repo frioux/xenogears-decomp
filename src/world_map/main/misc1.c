@@ -71,7 +71,7 @@ extern void func_800747DC(void);
 extern void func_800848F4(void);
 extern void func_800980D4(s32* p);
 extern void func_800981C8(s32* p);
-extern void func_80096130(void);
+extern void WorldMapWaitForLoadSlotFree(void);
 extern void func_80098CC0(void);
 extern void func_800983A0(s32* p);
 extern void func_8009932C(s32 arg0, s32 arg1, s32* p);
@@ -99,7 +99,7 @@ s32 WorldMapUpdateFrameWithSlotProjection(void) {
     func_800980D4(&D_8009BBB4);
     if (D_8009D558 != 0) {
         func_800981C8(&D_8009BE28);
-        func_80096130();
+        WorldMapWaitForLoadSlotFree();
         func_80098CC0();
     }
     pState = &D_8009BE28;
@@ -408,7 +408,7 @@ extern void func_80088FF4(void);
 extern void func_80089128(void);
 extern void func_80097D64(void);
 extern void func_800976A0(void);
-extern void func_800960BC(void);
+extern void WorldMapFreeLoadQueues(void);
 
 void func_8007299C(void) {
     u8* p;
@@ -458,7 +458,7 @@ void func_8007299C(void) {
         }
     }
     func_800976A0();
-    func_800960BC();
+    WorldMapFreeLoadQueues();
 }
 */
 

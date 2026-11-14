@@ -15,7 +15,7 @@ typedef struct {
     /* 0x50 */ s32 unk50;
 } WorldMapMenuSlot; // Size: 0x80
 
-extern void func_800346D4(void* pString);
+extern void SystemStringFree(void* pString);
 extern s32 func_80093E8C(WorldMapPos* p);
 extern u8* func_80093660(s32 x, s32 z);
 extern long SquareRoot0(long a);
@@ -41,8 +41,8 @@ extern u8 D_8009D500;
 extern s32 func_80032F54(void* pString, s16 a, s16 b, s16 c, s16 d, s16 e, s16 f);
 extern void func_80093740(WorldMapPos* p, s32 x, s32 z);
 extern s32 func_800935DC(WorldMapPos* p0, WorldMapPos* p1, WorldMapPos* p2);
-extern void func_80034614(void* pString);
-extern void func_80034714(void* pString, void* pData);
+extern void SystemStringResetIfIdle(void* pString);
+extern void SystemStringPushBuffer(void* pString, void* pData);
 extern void func_80034888(void* pString, u32 unk, u32 arg);
 extern u8* GetStringEntry(u8* pData, s32 index);
 extern u8* D_8009BE24;
@@ -92,7 +92,7 @@ s32 func_80092BE4(void) {
     func_80032F54(pBuffer, 0x3C0, 0x180, 0xA0, 0x78, 0x20, 1);
     D_8009D500 = 8;
     D_8009D4A8 |= 2;
-    func_80034614(pBuffer);
+    SystemStringResetIfIdle(pBuffer);
     return 1;
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_80092C70);
@@ -110,19 +110,19 @@ s32 func_80092C70(s32 index) {
     switch (pSlot->unk20) {
     case 0:
         if (D_8009BD24 != -1) {
-            func_80034614(D_8009D498);
-            func_80034714(D_8009D498, GetStringEntry(D_8009D784, D_8009BD24));
+            SystemStringResetIfIdle(D_8009D498);
+            SystemStringPushBuffer(D_8009D498, GetStringEntry(D_8009D784, D_8009BD24));
             pSlot->unk20 = 1;
             pSlot->unk50 = D_8009BD24;
         }
         break;
     case 1:
         if (D_8009BD24 == 1) {
-            func_80034614(D_8009D498);
+            SystemStringResetIfIdle(D_8009D498);
             pSlot->unk20 = 0;
         } else if (D_8009BD24 != pSlot->unk50) {
-            func_80034614(D_8009D498);
-            func_80034714(D_8009D498, GetStringEntry(D_8009D784, D_8009BD24));
+            SystemStringResetIfIdle(D_8009D498);
+            SystemStringPushBuffer(D_8009D498, GetStringEntry(D_8009D784, D_8009BD24));
             pSlot->unk50 = D_8009BD24;
         }
         break;
@@ -133,7 +133,7 @@ s32 func_80092C70(s32 index) {
 */
 
 void func_80092DD0(void) {
-    func_800346D4(&D_8009D498[0]);
+    SystemStringFree(&D_8009D498[0]);
 }
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_80092DF8);
@@ -150,7 +150,7 @@ s32 func_80092DF8(void) {
     flags = D_8009D4A8;
     D_8009BDCC = 8;
     D_8009D4A8 = flags | 2;
-    func_80034614(D_8009BD64);
+    SystemStringResetIfIdle(D_8009BD64);
     D_8009D2BB = 9;
     D_8009D2BF = 0x2C;
     D_8009D2C2 = 0x70;
@@ -194,19 +194,19 @@ s32 func_80092FD8(s32 index) {
     switch (pSlot->unk20) {
     case 0:
         if (D_8009CE68 != -1) {
-            func_80034614(D_8009BD64);
-            func_80034714(D_8009BD64, GetStringEntry(D_8009D784, D_8009CE68));
+            SystemStringResetIfIdle(D_8009BD64);
+            SystemStringPushBuffer(D_8009BD64, GetStringEntry(D_8009D784, D_8009CE68));
             pSlot->unk20 = 1;
             pSlot->unk50 = D_8009CE68;
         }
         break;
     case 1:
         if (D_8009CE68 == -1) {
-            func_80034614(D_8009BD64);
+            SystemStringResetIfIdle(D_8009BD64);
             pSlot->unk20 = 0;
         } else if (D_8009CE68 != pSlot->unk50) {
-            func_80034614(D_8009BD64);
-            func_80034714(D_8009BD64, GetStringEntry(D_8009D784, D_8009CE68));
+            SystemStringResetIfIdle(D_8009BD64);
+            SystemStringPushBuffer(D_8009BD64, GetStringEntry(D_8009D784, D_8009CE68));
             pSlot->unk50 = D_8009CE68;
         }
         break;
@@ -222,7 +222,7 @@ s32 func_80092FD8(s32 index) {
 */
 
 void func_800931B0(void) {
-    func_800346D4(&D_8009BD64[0]);
+    SystemStringFree(&D_8009BD64[0]);
 }
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_800931D8);

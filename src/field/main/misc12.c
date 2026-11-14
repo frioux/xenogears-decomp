@@ -714,7 +714,7 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc12", func_8009B398);
    writing the += 0x14 out in full, and a block-scoped pCurActor pointer local -
    all identical, because global.c's choice of a0 for the short-lived constant
    (and sched2's hoist of the sb) does not depend on source order. Bit idiom
-   `| ~0x7FFF` is the house spelling (see func_8009F4CC in misc6.c): `| 0x8000`
+   `| ~0x7FFF` is the house spelling (see FieldScriptVMHandlerRandomizeActorXRotation2 in misc6.c): `| 0x8000`
    on the short field gives lh/ori instead of lhu/or. */
 /*
 void func_8009B398(void) {

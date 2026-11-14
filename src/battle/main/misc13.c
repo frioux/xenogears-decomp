@@ -50,7 +50,7 @@ extern u8 D_800C3FE8[];
 extern u8 *D_800C3EA4;
 extern s32 D_800CCB34;
 extern u8 *D_800D2DB4;
-extern s32 func_80033784(s32, s32);
+extern s32 GetStringEntryFromBank(s32, s32);
 extern void func_80076D58(u8 *, u8, u8);
 extern void func_80076C78(POLY_FT4 *, s16, s16, u8, u8, u8);
 extern s32 SystemRenderStringEntry(u8 *, void *, s32, s32);
@@ -202,7 +202,7 @@ s32 func_80086028(u8 arg0, s32 arg1, s32 arg2, u8 arg3, u32 **arg4, u8 arg5) {
     q = arg1 / 2;
     r = arg1 % 2;
     func_80076D58((u8 *)(arg1 * 0x50 + 0x5550 + D_800D2DB4), r, 3);
-    len = SystemRenderStringEntry((u8 *)func_80033784(D_800D2D24[arg0], arg3), *arg4, 0x1B, r);
+    len = SystemRenderStringEntry((u8 *)GetStringEntryFromBank(D_800D2D24[arg0], arg3), *arg4, 0x1B, r);
     rect.x = q * 0x1E + 0x3C0;
     rect.y = 0x1A;
     rect.w = 0x1E;

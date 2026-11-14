@@ -52,7 +52,7 @@ typedef struct {
     /* 0x08 */ Misc13Entry* pEntries;
 } Misc13EntryList; // Size: unknown
 
-// The 0x28C-byte container allocated by func_8008A3E0: four 0x9C-byte nodes
+// The 0x28C-byte container allocated by BattleCreateLightGroup: four 0x9C-byte nodes
 // carved out of the block, plus the parent node it was built for.
 typedef struct {
     /* 0x000 */ s32 unk000;
@@ -74,7 +74,7 @@ typedef struct {
     /* 0x28B */ u8 pad28B;
 } Misc13Group; // Size: 0x28C
 
-// The 0x68-byte buffer allocated by func_8008A2B8: two parallel u32 arrays
+// The 0x68-byte buffer allocated by BattleCreateOrderingTablePair: two parallel u32 arrays
 // carved out of one block, plus pointers to their last elements.
 typedef struct {
     /* 0x00 */ s32 unk00;
@@ -88,7 +88,7 @@ typedef struct {
     /* 0x18 */ u8 unk18[0x50];
 } Misc13Buffer; // Size: 0x68
 
-// The 0x1C-byte payload allocated by func_80089E74.
+// The 0x1C-byte payload allocated by BattleCreateEntryList.
 typedef struct {
     /* 0x00 */ s32 unk00;
     /* 0x04 */ s32 unk04;
@@ -101,7 +101,7 @@ typedef struct {
     /* 0x18 */ s32 unk18;
 } Misc13Scale; // Size: 0x1C
 
-// The 0x14-byte payload allocated by func_8008A254.
+// The 0x14-byte payload allocated by BattleCreateLight.
 typedef struct {
     /* 0x00 */ s32 unk00;
     /* 0x04 */ s32 unk04;
@@ -116,18 +116,18 @@ extern void HeapSetCurrentContentType(u_short contentTag);
 extern void ModelPartFreeLightData(ModelPart* pModelPart);
 extern void HeapDelayedFree(void* pMem, u_int delay);
 
-void func_80089D5C(Misc13Node* pNode) {
+void BattleFreeNodeTree(Misc13Node* pNode) {
     if (pNode == NULL) {
         return;
     }
-    func_80089D5C(pNode->pChildB);
-    func_80089D5C(pNode->pChildA);
+    BattleFreeNodeTree(pNode->pChildB);
+    BattleFreeNodeTree(pNode->pChildA);
     switch (pNode->state) {
     case 1:
-        func_80089FF8(pNode->pData);
+        BattleFreeModelPart(pNode->pData);
         break;
     case 2:
-        func_80089EB4(pNode->pData);
+        BattleFreeEntryList(pNode->pData);
         break;
     case 5:
         func_8008C120(pNode->pData);
@@ -139,30 +139,30 @@ void func_80089D5C(Misc13Node* pNode) {
     HeapFree(pNode);
 }
 
-void func_80089E2C(Misc13Node* pNode, void* pData) {
+void BattleSetNodeModelPart(Misc13Node* pNode, void* pData) {
     pNode->pData = pData;
     pNode->state = 1;
 }
 
-void func_80089E3C(Misc13Node* pNode) {
+void BattleSetNodeState3(Misc13Node* pNode) {
     pNode->state = 3;
 }
 
-void func_80089E48(Misc13Node* pNode) {
+void BattleSetNodeState4(Misc13Node* pNode) {
     pNode->state = 4;
 }
 
-void func_80089E54(Misc13Node* pNode, void* pData) {
+void BattleSetNodeEntryList(Misc13Node* pNode, void* pData) {
     pNode->pData = pData;
     pNode->state = 2;
 }
 
-void func_80089E64(Misc13Node* pNode, void* pData) {
+void BattleSetNodeLight(Misc13Node* pNode, void* pData) {
     pNode->pData = pData;
     pNode->state = 6;
 }
 
-Misc13Scale* func_80089E74(void) {
+Misc13Scale* BattleCreateEntryList(void) {
     Misc13Scale* pSprite;
 
     HeapSetCurrentContentType(4);
@@ -175,7 +175,7 @@ Misc13Scale* func_80089E74(void) {
     return pSprite;
 }
 
-void func_80089EB4(Misc13EntryList* pList) {
+void BattleFreeEntryList(Misc13EntryList* pList) {
     s32 i;
 
     if (pList->pData != NULL) {
@@ -194,7 +194,7 @@ void func_80089EB4(Misc13EntryList* pList) {
     }
 }
 
-Misc13ModelPart* func_80089F8C(Misc13ModelPart* pPart) {
+Misc13ModelPart* BattleInitModelPart(Misc13ModelPart* pPart) {
     pPart->unk04 = 1;
     pPart->flags = 0;
     pPart->pPacketBuffer = NULL;
@@ -208,18 +208,18 @@ Misc13ModelPart* func_80089F8C(Misc13ModelPart* pPart) {
     return pPart;
 }
 
-Misc13ModelPart* func_80089FC4(void) {
+Misc13ModelPart* BattleCreateModelPart(void) {
     HeapSetCurrentContentType(1);
-    return func_80089F8C(HeapAlloc(0x20, 0));
+    return BattleInitModelPart(HeapAlloc(0x20, 0));
 }
 
-void func_80089FF8(Misc13ModelPart* pPart) {
+void BattleFreeModelPart(Misc13ModelPart* pPart) {
     if (pPart->pPacketBuffer != NULL) {
         HeapDelayedFree(pPart->pPacketBuffer, 2);
     }
     ModelPartFreeLightData(pPart->pModelPart);
 }
-void func_8008A040(void* pImg) {
+void BattleLoadImageWithTpageClut(void* pImg) {
     if (D_80092800 > 0) {
         func_8002DDE4(pImg, 1, D_80092800, D_80092804, 1, D_80092808, D_8009280C);
     } else {
@@ -227,41 +227,41 @@ void func_8008A040(void* pImg) {
     }
 }
 
-void func_8008A0B4(Misc13Node* pNode, s32 r, s32 g, s32 b) {
+void BattleSetNodeColor(Misc13Node* pNode, s32 r, s32 g, s32 b) {
     ((Misc13ModelPart*)pNode->pData)->r = r;
     ((Misc13ModelPart*)pNode->pData)->g = g;
     ((Misc13ModelPart*)pNode->pData)->b = b;
     ((Misc13ModelPart*)pNode->pData)->flags |= 0x10;
 }
 
-void func_8008A0F4(Misc13Node* pNode) {
+void BattleClearNodeColor(Misc13Node* pNode) {
     Misc13ModelPart* pPart = pNode->pData;
 
     pPart->flags &= ~0x10;
 }
 
-void func_8008A110(s16 x, s16 y) {
+void BattleSetTpage(s16 x, s16 y) {
     D_80092800 = x;
     D_80092804 = y;
 }
 
-void func_8008A128(s16 x, s16 y) {
+void BattleSetClut(s16 x, s16 y) {
     D_80092808 = x;
     D_8009280C = y;
 }
 
-void func_8008A140(s16 x, s16 y, s16 clutX, s16 clutY) {
+void BattleSetTpageAndClut(s16 x, s16 y, s16 clutX, s16 clutY) {
     D_80092800 = x;
     D_80092804 = y;
     D_80092808 = clutX;
     D_8009280C = clutY;
 }
 
-void func_8008A168(void) {
+void BattleClearTpageAndClut(void) {
     D_80092808 = -1;
     D_80092800 = -1;
 }
-void func_8008A184(Misc13ModelPart* pPart, ModelPart* pModelPart) {
+void BattleAttachModelPart(Misc13ModelPart* pPart, ModelPart* pModelPart) {
     pPart->pModelPart = pModelPart;
     pPart->unk10 = func_800303C8(pModelPart, 1);
     ModelAllocatePackets(pPart->pModelPart, &pPart->pPacketBuffer, &pPart->pCurrentPacket);
@@ -275,7 +275,7 @@ void func_8008A184(Misc13ModelPart* pPart, ModelPart* pModelPart) {
     func_800732AC(pPart->pCurrentPacket, pPart->pPacketBuffer, pPart->pModelPart->unk20[1].modelPacketSize);
     pPart->flags |= 0x2;
 }
-Misc13Sprite* func_8008A254(void) {
+Misc13Sprite* BattleCreateLight(void) {
     Misc13Sprite* pSprite;
     Misc13Sprite* pSprite2;
     Misc13Node* pA;
@@ -292,11 +292,11 @@ Misc13Sprite* func_8008A254(void) {
     pSprite->unk0C = 0;
     return pSprite;
 }
-void func_8008A298(void* pData) {
+void BattleFreeLight(void* pData) {
     HeapFree(pData);
 }
 
-Misc13Buffer* func_8008A2B8(u16 count) {
+Misc13Buffer* BattleCreateOrderingTablePair(u16 count) {
     Misc13Buffer* pBuffer;
     s32 i;
 
@@ -328,12 +328,12 @@ Misc13Buffer* func_8008A2B8(u16 count) {
 void func_8008A3A0(void) {
 }
 
-void func_8008A3A8(Misc13Node* pNode) {
+void BattleFreeNodeDelayed(Misc13Node* pNode) {
     HeapDelayedFree(pNode->pData, 3);
     HeapFree(pNode);
 }
 
-Misc13Group* func_8008A3E0(Misc13Node* pParent) {
+Misc13Group* BattleCreateLightGroup(Misc13Node* pParent) {
     Misc13Group* pGroup;
     Misc13Node* pNode0;
     Misc13Node* pNode1;
@@ -360,9 +360,9 @@ Misc13Group* func_8008A3E0(Misc13Node* pParent) {
     func_80089B44(pNode1);
     func_80089B44(pNode2);
     func_80089B44(pNode3);
-    func_80089E64(pGroup->pNode1, func_8008A254());
-    func_80089E64(pGroup->pNode2, func_8008A254());
-    func_80089E64(pGroup->pNode3, func_8008A254());
+    BattleSetNodeLight(pGroup->pNode1, BattleCreateLight());
+    BattleSetNodeLight(pGroup->pNode2, BattleCreateLight());
+    BattleSetNodeLight(pGroup->pNode3, BattleCreateLight());
     pA = pGroup->pNode1;
     pB = pGroup->pNode2;
     pC = pGroup->pNode3;
@@ -395,10 +395,10 @@ Misc13Group* func_8008A3E0(Misc13Node* pParent) {
     return pGroup;
 }
 
-void func_8008A5BC(Misc13Group* pGroup) {
+void BattleFreeLightGroup(Misc13Group* pGroup) {
     HeapFree(pGroup->pSprite1);
     HeapFree(pGroup->pSprite2);
     HeapFree(pGroup->pSprite3);
-    func_8008A3A8(pGroup->pParent);
+    BattleFreeNodeDelayed(pGroup->pParent);
     HeapFree(pGroup);
 }

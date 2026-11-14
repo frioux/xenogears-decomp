@@ -908,7 +908,7 @@ void func_8007520C(void) {
         if (*pGear != 0) {
             func_80086BA8();
             SetBackColor(D_800B225C, D_800B225D, D_800B225E);
-            func_801E7D14(&g_Scene.worldToScreenMatrix, (u8*)(pGear - 18),
+            LibGearRenderFrame(&g_Scene.worldToScreenMatrix, (u8*)(pGear - 18),
                 &g_FieldCurRenderContext->ot1, g_FieldCurRenderContextIndex, 1);
         }
         if (g_FieldSystemMode == SYSTEM_MODE_PC_HDD) {

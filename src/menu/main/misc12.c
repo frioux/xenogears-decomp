@@ -35,7 +35,7 @@ extern u8 D_801EA5C4[];
 extern s32 SystemRenderStringEntry(u8* pSrc, void* pDst, s32 len, s32 mode);
 extern u8 D_801EA590[];
 extern u8 D_801EA5DC[];
-extern void func_80033B34(u16* pInput, u8* pOutput, int count);
+extern void SystemDecodeGlyphCodesN(u16* pInput, u8* pOutput, int count);
 extern s32 func_8002675C(MenuResourceDirectory* pDir, u32 index, POLY_FT4* pPrims, s32 context, u16 x, u16 y, u16 scale);
 extern void func_801D1EE0(s32 arg0, s32 arg1);
 
@@ -68,7 +68,7 @@ void func_801E71B4(s32 index, u8* pEntry, s32 arg2) {
         pValue += 2;
         pKey += 2;
     }
-    func_80033B34((u16*)pairs, text, i / 2);
+    SystemDecodeGlyphCodesN((u16*)pairs, text, i / 2);
     pBuf = HeapAlloc(0x3F6, 0);
     bzero(pBuf, 0x3F6);
     SystemRenderStringEntry(text, pBuf, 0x24, 0);

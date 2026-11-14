@@ -23,7 +23,7 @@ extern SoundFile* D_8006259C;
 /*
  * this function doesn't seem to get called by anything, possibly dead code?
  */
-u16 func_801C511C(u16 arg0, u16 arg1) {
+u16 GearShopMenuGetRandomInRange(u16 arg0, u16 arg1) {
     s32 delta;
     s32 result;
 
@@ -47,7 +47,7 @@ u16 func_801C511C(u16 arg0, u16 arg1) {
     return result;
 }
 
-void func_801C51B8(POLY_FT4* pPoly, short x, short y, u_char u, u_char v, short width, short height) {
+void GearShopMenuSetPolyFT4Quad(POLY_FT4* pPoly, short x, short y, u_char u, u_char v, short width, short height) {
     setXY4(
         pPoly,
         x,         y,
@@ -73,7 +73,7 @@ u_short GearShopMenuGetCharacterBitMask(int index) {
     return D_801D6C68[index & 0xFF];
 }
 
-s32 func_801C5260(u8 count) {
+s32 GearShopMenuGetGearEquipFlags(u8 count) {
     return g_gearShopGearEquipFlags[count];
 }
 
@@ -319,7 +319,7 @@ void GearShopMenuResetRenderContext(void) {
     g_Menu->renderContext = 0;
 }
 
-void func_801C5CA8(MenuString* pMenuString, s32 arg1, s32 arg2, u8 attributes) {
+void GearShopMenuInitializeMenuStringPolys(MenuString* pMenuString, s32 arg1, s32 arg2, u8 attributes) {
     s32 tpage_offset;
     int i;
     POLY_FT4* quad;
@@ -406,15 +406,15 @@ void func_801C5EE8(MenuString* pStringList, u8* pStringIdList, s32 yOffset, s32 
         );
         memcpy(&pString[1].vramDest, pRect, sizeof(RECT));
 
-        func_801C5CA8(&pStringList[i], i, yOffset, 0);
-        func_801C5CA8(&pStringList[i + 1], i + 1, yOffset, 0);
+        GearShopMenuInitializeMenuStringPolys(&pStringList[i], i, yOffset, 0);
+        GearShopMenuInitializeMenuStringPolys(&pStringList[i + 1], i + 1, yOffset, 0);
 
         LoadImage(pRect, g_Menu->unk4E0[0].pVramBuffer);
         DrawSync(0);
     }
 }
 
-void func_801C6098(void) {
+void GearShopMenuFillVramRectWhite(void) {
     u32* pImg;
     RECT rect;
     u8 _unused[2];
@@ -434,11 +434,11 @@ void func_801C6098(void) {
 }
 
 /* initMenuGeometry() ? */
-void func_801C6114(void) {
+void GearShopMenuInitializeMenuStrings(void) {
     SystemTransferPaletteToVRAM(0, 0x1D1);
     g_Menu->unk4E0[0].pVramBuffer = HeapAlloc(0x38E, 0);
     func_801C5EE8(g_Menu->unk4E0, &D_801D6A80, 0, 4);
-    func_801C6098();
+    GearShopMenuFillVramRectWhite();
 }
 
 void GearShopMenuInitializeWindowBorders(void) {
@@ -458,7 +458,7 @@ void GearShopMenuInitializeWindowBorders(void) {
     ResourceHelperGetTexCoords(g_Menu->resources, MENU_TEX_WINDOW_BORDER_RIGHT, &g_Menu->texCount3, &g_Menu->texPage3, &g_Menu->clutX3, &g_Menu->clutY3, &g_Menu->texPageX3, &g_Menu->texPageY3);
 }
 
-void func_801C6278(s32 arg0, u8 doInit) {
+void GearShopMenuSetSelectionCursor(s32 arg0, u8 doInit) {
     func_8002675C(g_Menu->resources, 0x108, g_Menu->unk348->polysPointerCursor, g_Menu->renderContext, D_801D6BFC[arg0], D_801D6C20[arg0], 0x1000U);
     g_Menu->unk348->cursorRenderContext = (u8) g_Menu->renderContext;
 
@@ -487,7 +487,7 @@ void func_801C6278(s32 arg0, u8 doInit) {
     }
 }
 
-void func_801C665C(void) {
+void GearShopMenuResetSelectionCursor(void) {
     g_Menu->pManager->unk4 = 0;
     g_Menu->pManager->unk3 = 0;
 }
@@ -509,7 +509,7 @@ void GearShopMenuInitializeBackgrounds(void) {
     rect.h = 0x100;
     rect.w = 0x100;
     
-    func_801C665C();
+    GearShopMenuResetSelectionCursor();
 
     for(i = 0; i < 2; i++) {
         GearShopMenuSetPolyGradientColor(&g_Menu->unk348->polyG4s[i], 0x80, 0x80, 0);
@@ -593,7 +593,7 @@ void GearShopMenuShopDataManager(u8 mode) {
     }
 }
 
-void func_801C6E74(void) {
+void GearShopMenuLoadGearShopInventory(void) {
     int i, j;
     GearShopDefinition *pShopDef;
 
@@ -1298,7 +1298,7 @@ void GearShopMenuRenderScrollBarHandle(void) {
     }
 }
 
-void func_801C959C(void) {
+void GearShopMenuRenderSelectionCursor(void) {
     AddPrim(
         &g_Menu->pGfxEnv->ot[4], 
         &g_Menu->unk348->drModes1[g_Menu->unk348->unk159]
@@ -1663,7 +1663,7 @@ void GearShopMenuRenderPointerCursors(void) {
     }
 }
 
-void func_801CA754(void) {
+void GearShopMenuRenderStrings4E0(void) {
     int i;
     int renderContext;
 
@@ -1675,7 +1675,7 @@ void func_801CA754(void) {
     }
 }
 
-void func_801CA7E4(void) {
+void GearShopMenuRenderStrings6E0(void) {
     int i;
 
     for(i = 0; i < 8; i++) {
@@ -1688,7 +1688,7 @@ void func_801CA7E4(void) {
     }
 }
 // identical to func_801CA09C() in ShopMenu
-void func_801CA874(void) {
+void GearShopMenuRenderStringsAE0(void) {
     long interpolated;
     long flag;
     int i;
@@ -1723,7 +1723,7 @@ void func_801CA874(void) {
     }
 }
 
-void func_801CA9EC(void) {
+void GearShopMenuRenderStringsDE0(void) {
     int i;
     int renderContext;
 
@@ -1735,8 +1735,8 @@ void func_801CA9EC(void) {
     }
 }
 
-// identical to func_801CA22C in ShopMenu
-void func_801CAA7C(void) {
+// identical to ShopMenuAddUnk1DE0Prims in ShopMenu
+void GearShopMenuRenderModalStrings(void) {
     long interpolation;
     long code;
     MenuString* pMenuString;
@@ -1770,12 +1770,12 @@ void func_801CAA7C(void) {
 void GearShopMenuRenderBackgroundDim(void) {
 }
 
-void func_801CABE0(void) {
-    func_801CA754();
-    func_801CA7E4();
-    func_801CA874();
-    func_801CA9EC();
-    func_801CAA7C();
+void GearShopMenuRenderStringLayers(void) {
+    GearShopMenuRenderStrings4E0();
+    GearShopMenuRenderStrings6E0();
+    GearShopMenuRenderStringsAE0();
+    GearShopMenuRenderStringsDE0();
+    GearShopMenuRenderModalStrings();
 }
 
 void GearShopMenuRenderSelectionMenu(void) {
@@ -1825,7 +1825,7 @@ void GearShopMenuRenderSelectionMenu(void) {
     }
 }
 
-void func_801CB2E8(void) {
+void GearShopMenuRenderSubmenuStrings(void) {
     if (g_Menu->pManager->unkA) {
         GearShopMenuRenderString(g_Menu->unk354->unk1404, g_Menu->unk354->polys500, g_Menu->unk354->unk1409);
         GearShopMenuRenderString(g_Menu->unk354->unk1400, g_Menu->unk354->polys0, g_Menu->unk354->unk1408);
@@ -1847,20 +1847,20 @@ void GearShopMenuRenderArrowCursors(void) {
 void GearShopMenuRender(void) {
     if (g_Menu->shouldDrawMenu) {
         GearShopMenuUpdateWindows();
-        func_801CF33C();
+        GearShopMenuUpdateGearPanelAnimations();
         GearShopMenuRenderPointerCursors();
-        func_801CABE0();
-        func_801C959C();
+        GearShopMenuRenderStringLayers();
+        GearShopMenuRenderSelectionCursor();
         GearShopMenuRenderArrowCursors();
-        func_801CE32C();
+        GearShopMenuRenderShopUi();
         GearShopMenuRenderShoulderButtonUi();
         GearShopMenuRenderScrollBarHandle();
         GearShopMenuRenderSelectionMenu();
-        func_801CB2E8();
+        GearShopMenuRenderSubmenuStrings();
         GearShopMenuRenderWindows();
-        func_801CE82C();
+        GearShopMenuRenderGearPanelStrings();
         GearShopMenuRenderString(1, &g_Menu->menuUnk8->unk80, g_Menu->menuUnk8->unk1EE1);
-        func_801CE7E0();
+        GearShopMenuRenderGearModel();
     }
     GearShopMenuRenderBackgroundDim();
 }
@@ -1952,7 +1952,7 @@ void GearShopMenuPollInput(void) {
     g_Menu->input = input;
 }
 
-void func_801CB690(void) {
+void GearShopMenuComputeTransitionSteps(void) {
     u8 xTotal;
     u8 yTotal;
     int i;
@@ -2065,7 +2065,7 @@ void func_801CB690(void) {
  * This function checks for each of these flags, clearing them when they are done processing.
  */
 
-void func_801CBA2C(void) {
+void GearShopMenuUpdateCameraTransition(void) {
     int i;
 
     if (g_Menu->transitionEffectState & EFFECTSTATE_UPDATE_X) {
@@ -2135,8 +2135,8 @@ void func_801CBA2C(void) {
 }
 
 
-void func_801CBDA0(void) {
-    func_801CBA2C();
+void GearShopMenuUpdateCameraMatrices(void) {
+    GearShopMenuUpdateCameraTransition();
     RotMatrix(&g_Menu->unk218, &g_Menu->unk230);
     TransMatrix(&g_Menu->unk230, &g_Menu->cameraPosition);
     SetRotMatrix(& g_Menu->unk230);
@@ -2151,7 +2151,7 @@ void func_801CBDA0(void) {
 
 
 // Debug function drawing X, Y, Z, A, G, S values
-void func_801CBE60(void) {
+void GearShopMenuRenderDebugValues(void) {
     int values[6];
     int i;
     int j;
@@ -2230,8 +2230,8 @@ void GearShopMenuUpdateAndRender(void) {
     g_Menu->renderContext = g_Menu->renderContext == 0;
     ClearOTagR((u32 *)g_Menu->pGfxEnv->ot, 0x10);
     ClearOTagR((u32* )g_Menu->pGfxEnv->unkB0, 0x400);
-    func_801CBDA0();
-    func_801CBE60();
+    GearShopMenuUpdateCameraMatrices();
+    GearShopMenuRenderDebugValues();
     GearShopMenuRender();
     DrawSync(0);
     Vsync(0);
@@ -2334,7 +2334,7 @@ void GearShopMenuConfirmationWindowInitialize(u8 stringIndex) {
             GetStringEntry(g_Menu->unk2E0, stringIndex + i),
             pString->pVramBuffer, 0x36, i % 2
         );
-        func_801C5CA8(pString, i, 0, 0);
+        GearShopMenuInitializeMenuStringPolys(pString, i, 0, 0);
         GearShopMenuSetVertices(
             pString->vertices,
             xPosition,
@@ -2513,11 +2513,11 @@ void GearShopMenuFree(void) {
     HeapFree(g_Menu);
 }
 
-void func_801CCE90(s32 count, MenuString *menuString, s8 *arg2, s8 *unused) {
+void GearShopMenuRenderMenuStringsToVram(s32 count, MenuString *menuString, s8 *arg2, s8 *unused) {
     func_801C5EE8(menuString, arg2, 2, (u8)count);
 }
 
-void func_801CCEBC(u8 count, s8* buffer) {
+void GearShopMenuClearStringRenderFlags(u8 count, s8* buffer) {
     int i;
 
     for(i = 0; i < count; i++) {
@@ -2525,10 +2525,10 @@ void func_801CCEBC(u8 count, s8* buffer) {
     }
 }
 
-void func_801CCEE8(s32 arg0, MenuString *pStringList, s32 __unused, int* pPaddingOffsets, u8 *pUnkByteArray, u8 choice, u8 scrollOffset, u8 unkBoolean) {
+void GearShopMenuSetMenuStringPosition(s32 arg0, MenuString *pStringList, s32 __unused, int* pPaddingOffsets, u8 *pUnkByteArray, u8 choice, u8 scrollOffset, u8 unkBoolean) {
     switch(unkBoolean) {
         case FALSE:
-            func_801CCEBC(arg0, pUnkByteArray);
+            GearShopMenuClearStringRenderFlags(arg0, pUnkByteArray);
 
             setXY4(&pStringList[choice].polys[g_Menu->renderContext],
                 (D_801D6BFC[scrollOffset + choice]) + (22 + pPaddingOffsets[choice]), // x0
@@ -2682,7 +2682,7 @@ void GearShopMenuInitializeSubmenu(u_char offset) {
     }
 }
 
-void func_801CD838(u8 count, u8 currentChoice, s32* pTextureIds) {
+void GearShopMenuUpdateSelectionMenuTextures(u8 count, u8 currentChoice, s32* pTextureIds) {
     s32 i;
     s32* pTexturePair;
     int cursorTextureId;
@@ -2718,7 +2718,7 @@ void func_801CD838(u8 count, u8 currentChoice, s32* pTextureIds) {
     }
     g_Menu->pSelectionMenu->cursorsRenderCtx = g_Menu->renderContext;
     g_Menu->pSelectionMenu->textsRenderCtx = g_Menu->renderContext;
-    func_801C6278(currentChoice, 1);
+    GearShopMenuSetSelectionCursor(currentChoice, 1);
     g_Menu->pManager->unk4 = 1;
 }
 
@@ -2763,7 +2763,7 @@ void GearShopMenuUpdateSubmenuTextures(u_char offset) {
 
     g_Menu->unk354->unk1408 = g_Menu->renderContext;
     g_Menu->unk354->unk1409 = g_Menu->renderContext;
-    func_801C6278(g_Menu->subMenuChoice + 4, 1);
+    GearShopMenuSetSelectionCursor(g_Menu->subMenuChoice + 4, 1);
     g_Menu->pManager->unk4 = TRUE;
 }
 
@@ -2774,7 +2774,7 @@ u_char GearShopMenuShopModeMenuHandleSelectedOption(void) {
     isRunning = TRUE;
     if (g_Menu->mainMenuChoice) {
         // Always returns true?
-        selection = func_801D5828();
+        selection = GearShopMenuShopModeSubmenu();
     } else {
         // "Exit" option was selected
         isRunning = FALSE;
@@ -2783,7 +2783,7 @@ u_char GearShopMenuShopModeMenuHandleSelectedOption(void) {
     // intentionally using selection w/o intialization
     if (selection) {
         func_801CC528();
-        func_801CCE90(4, g_Menu->unk6E0, &D_801D6A20[0], g_Menu->pManager->unkC);
+        GearShopMenuRenderMenuStringsToVram(4, g_Menu->unk6E0, &D_801D6A20[0], g_Menu->pManager->unkC);
     }
 
     // Render selection menu as active agian
@@ -2803,14 +2803,14 @@ void GearShopMenuShopModeMain(void) {
     u_char isRunning;
 
     isRunning = TRUE;
-    func_801CFAB8(1, g_gearShopCurrentGearId);
+    GearShopMenuCreateGearModel(1, g_gearShopCurrentGearId);
     g_Menu->pManager->unk5C[7] = 1;
 
     // Options here are "Tune up", "Buy", "Sell", "Exit"
     g_Menu->mainMenuChoice = 2; // Start cursor at "Buy" option
     GearShopMenuInitializeShopModeSelectionMenu(5, &D_801D6980);
 
-    func_801CCE90(4, g_Menu->unk6E0, &D_801D6A20[0], g_Menu->pManager->unkC);
+    GearShopMenuRenderMenuStringsToVram(4, g_Menu->unk6E0, &D_801D6A20[0], g_Menu->pManager->unkC);
 
     if (g_gearShopAvailableCharacterCount >= 2) {
         g_Menu->pManager->shoulderButtonUiActive = TRUE;
@@ -2824,8 +2824,8 @@ void GearShopMenuShopModeMain(void) {
                 
                 g_Menu->pSelectionMenu->unk1192 = TRUE;
                 
-                func_801C665C();
-                func_801CCEBC(4, g_Menu->pManager->unkC);
+                GearShopMenuResetSelectionCursor();
+                GearShopMenuClearStringRenderFlags(4, g_Menu->pManager->unkC);
                 g_Menu->unk348->unk15B = 0x4C;
                 isRunning = GearShopMenuShopModeMenuHandleSelectedOption();
                 g_Menu->unk348->unk15B = 0x40;
@@ -2859,14 +2859,14 @@ void GearShopMenuShopModeMain(void) {
         }
         
         if (g_Menu->mainMenuChoice != g_Menu->mainMenuPrevChoice) {
-            func_801CD838(4, g_Menu->mainMenuChoice, &D_801D6980);
-            func_801CCEE8(4, g_Menu->unk6E0, &D_801D6A20[0], &D_801D6A30, g_Menu->pManager->unkC, g_Menu->mainMenuChoice, 0, 0);
+            GearShopMenuUpdateSelectionMenuTextures(4, g_Menu->mainMenuChoice, &D_801D6980);
+            GearShopMenuSetMenuStringPosition(4, g_Menu->unk6E0, &D_801D6A20[0], &D_801D6A30, g_Menu->pManager->unkC, g_Menu->mainMenuChoice, 0, 0);
             g_Menu->mainMenuPrevChoice = g_Menu->mainMenuChoice;
         }
     }
     
     D_801D697C = 0;
-    func_801D5EB8();
+    GearShopMenuFreeGearView();
     GearShopMenuShoulderButtonUiFree();
 }
 
@@ -2903,11 +2903,11 @@ void GearShopMenuMain(void) {
     g_gearShopTransitionState.stepFactor = 0x10;
     GearShopMenuFilterPartyMembers();
     GearShopMenuResetRenderContext();
-    func_801C6114(); // initMenuGeometry()?
+    GearShopMenuInitializeMenuStrings(); // initMenuGeometry()?
     GearShopMenuInitializeBackgrounds();
     GearShopMenuInitializeWindowBorders();
-    func_801C6E74();
-    func_801D5D38();
+    GearShopMenuLoadGearShopInventory();
+    GearShopMenuInitializeGearView();
     g_Menu->pShoulderButtonUi = HeapAlloc(sizeof(MenuShoulderButtonUi), 0);
     bzero(g_Menu->pShoulderButtonUi, sizeof(MenuShoulderButtonUi));
     GearShopMenuShoulderButtonUiInitialize();

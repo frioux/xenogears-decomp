@@ -348,8 +348,8 @@ extern s32 D_80092930;
 extern u8 D_800928A0;
 extern u8 D_80092920;
 extern void* FontLoadFont(s32, s32, s32, s32, s32, u32, s32, s32, s32, s32, void*);
-extern void func_8008A110(s32, s32);
-extern void func_8008A128(s32, s32);
+extern void BattleSetTpage(s32, s32);
+extern void BattleSetClut(s32, s32);
 extern void func_8008E620(void);
 
 void func_80088D1C(void) {
@@ -376,8 +376,8 @@ void func_80088D1C(void) {
     }
     D_80092868 = D_8009A0D8;
     D_80092870 = &D_8009A0D8[1];
-    func_8008A110(-1, -1);
-    func_8008A128(-1, -1);
+    BattleSetTpage(-1, -1);
+    BattleSetClut(-1, -1);
     D_80092898 = 2;
     D_8009289C = 1;
     D_80092930 = 0;

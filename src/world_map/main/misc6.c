@@ -145,7 +145,7 @@ extern void *D_8009C88C;
 extern void func_80097BC0(s32 *);
 extern void func_800967E4(void);
 extern int Vsync(int);
-extern int func_80096668(void);
+extern int WorldMapGetQueuedLoadCount(void);
 extern u16 g_SoundControlFlags;
 extern void SoundAddSedsEntry(void *);
 extern int ArchiveDecodeAlignedSize(u32);
@@ -381,7 +381,7 @@ void func_8007D918(void) {
     do {
         func_800967E4();
         Vsync(0);
-    } while (func_80096668() > 0);
+    } while (WorldMapGetQueuedLoadCount() > 0);
     while (g_SoundControlFlags & 0x10) {
     }
     HeapFree(D_8009C88C);

@@ -51,7 +51,7 @@ typedef struct {
 } FieldTextBoxString;
 
 extern int func_80033CD0(FieldTextBoxString* pString);
-extern void func_80034800(FieldTextBoxString* pString, u8 red, u8 green, u8 blue);
+extern void SystemStringSetColor(FieldTextBoxString* pString, u8 red, u8 green, u8 blue);
 
 #define TEXT_BOX_STRING(index) ((FieldTextBoxString*)g_FieldTextBoxes[index]._pad)
 
@@ -72,7 +72,7 @@ void func_8009BC98(void) {
             g_FieldTextBoxes[index].cursor.maxPosition = (SCRIPT_READ_U8_REL(1) & 0xF) - (columns >> 4) + 1;
             g_FieldTextBoxes[index].cursor.curPosition = 0;
 
-            func_80034800(TEXT_BOX_STRING(index), 0xEF, 0x1E, 0xF0);
+            SystemStringSetColor(TEXT_BOX_STRING(index), 0xEF, 0x1E, 0xF0);
             g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
         }
     } else {

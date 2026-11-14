@@ -121,7 +121,7 @@ extern int D_801D2230[]; // Buy menu explanation graphics Y positions
 extern int D_801D2240[]; // Sell menu explanation graphics Y positions
 
 
-void func_801C5040(POLY_FT4* pPoly, short x, short y, u_char u, u_char v, short width, short height) {
+void ShopMenuSetPolyFT4Coords(POLY_FT4* pPoly, short x, short y, u_char u, u_char v, short width, short height) {
     setXY4(
         pPoly,
         x,         y,
@@ -380,7 +380,7 @@ static inline void MenuSetSystemPalette(void* pPrim, u8 flag) {
     pPoly->clut = flag ? g_SystemPalette2 : g_SystemPalette1;
 }
 
-void func_801C5A7C(MenuString* pString, int index, s32 arg2, u32 attributes) {
+void ShopMenuSetStringPrimitives(MenuString* pString, int index, s32 arg2, u32 attributes) {
     s32 var_s1;
     int i;
     POLY_FT4* pPoly;
@@ -440,7 +440,7 @@ void func_801C5A7C(MenuString* pString, int index, s32 arg2, u32 attributes) {
     pString->unk7F = 0;
 }
 
-void func_801C5CBC(MenuString* pStringList, u8* pStringIdList, s32 yOffset, s32 count) {
+void ShopMenuRenderStringsToVram(MenuString* pStringList, u8* pStringIdList, s32 yOffset, s32 count) {
     s32 i;
     RECT *pRect;
     MenuString *pString;
@@ -465,15 +465,15 @@ void func_801C5CBC(MenuString* pStringList, u8* pStringIdList, s32 yOffset, s32 
         );
         memcpy(&pString[1].vramDest, pRect, sizeof(RECT));
 
-        func_801C5A7C(&pStringList[i], i, yOffset, 0);
-        func_801C5A7C(&pStringList[i + 1], i + 1, yOffset, 0);
+        ShopMenuSetStringPrimitives(&pStringList[i], i, yOffset, 0);
+        ShopMenuSetStringPrimitives(&pStringList[i + 1], i + 1, yOffset, 0);
 
         LoadImage(pRect, g_Menu->unk4E0[0].pVramBuffer);
         DrawSync(0);
     }
 }
 
-void func_801C5E6C(void) {
+void ShopMenuLoadWhiteVramRow(void) {
     RECT rect;
     u_short* pVramData;
     u8 _unused[0x8];
@@ -493,8 +493,8 @@ void func_801C5E6C(void) {
 void func_801C5EE8(void) {
     SystemTransferPaletteToVRAM(0, 0x1D1);
     g_Menu->unk4E0[0].pVramBuffer = HeapAlloc(0x38E, 0);
-    func_801C5CBC(g_Menu->unk4E0, D_801D2018, 0, 4);
-    func_801C5E6C();
+    ShopMenuRenderStringsToVram(g_Menu->unk4E0, D_801D2018, 0, 4);
+    ShopMenuLoadWhiteVramRow();
 }
 
 void ShopMenuInitializeWindowBorders(void) {
@@ -570,7 +570,7 @@ void ShopMenuMovePointerCursor(int index, u_char arg1) {
     }
 }
 
-void func_801C6430(void) {
+void ShopMenuHidePointerCursor(void) {
     g_Menu->pManager->unk4 = 0;
     g_Menu->pManager->unk3 = 0;
 }
@@ -593,7 +593,7 @@ void ShopMenuInitializeBackgrounds(void) {
     rect.h = 256;
     rect.w = 256;
 
-    func_801C6430();
+    ShopMenuHidePointerCursor();
 
     for (i = 0; i < 2; i++) {
         // Yellow -> Black gradient
@@ -1337,7 +1337,7 @@ void ShopMenuRenderScrollBarHandle(void) {
     }
 }
 
-void func_801C8E28(void) {
+void ShopMenuAddPointerCursorPrims(void) {
     AddPrim(
         &g_Menu->pGfxEnv->ot[4],
         &g_Menu->unk348->drModes1[g_Menu->unk348->unk159]
@@ -1704,7 +1704,7 @@ void ShopMenuRenderPointerCursors(void) {
     }
 }
 
-void func_801C9F7C(void) {
+void ShopMenuAddUnk4E0Prims(void) {
     int i;
 
     for (i = 0; i < 4; i++) {
@@ -1717,7 +1717,7 @@ void func_801C9F7C(void) {
     }
 }
 
-void func_801CA00C(void) {
+void ShopMenuAddUnk6E0Prims(void) {
     int i;
 
     for (i = 0; i < 8; i++) {
@@ -1765,14 +1765,14 @@ void func_801CA09C(void) {
     }
 }
 
-int func_801CA214(void) {
+int ShopMenuDelayLoop6(void) {
     int i;
     for (i = 5; i >= 0; i--) {}
     return i;
 }
 
 // Render confirmation window text?
-void func_801CA22C(void) {
+void ShopMenuAddUnk1DE0Prims(void) {
     long interpolated;
     long flag;
     MenuString* pString;
@@ -1809,12 +1809,12 @@ void ShopMenuRenderBackgroundDim(void) {
     AddPrim(&g_Menu->pGfxEnv->ot[8], &g_Menu->unk348->drawModeDimEffect[g_Menu->renderContext]);
 }
 
-void func_801CA404(void) {
-    func_801C9F7C();
-    func_801CA00C();
+void ShopMenuAddStringGroupPrims(void) {
+    ShopMenuAddUnk4E0Prims();
+    ShopMenuAddUnk6E0Prims();
     func_801CA09C();
-    func_801CA214();
-    func_801CA22C();
+    ShopMenuDelayLoop6();
+    ShopMenuAddUnk1DE0Prims();
 }
 
 void ShopMenuRenderSelectionMenu(void) {
@@ -1864,7 +1864,7 @@ void ShopMenuRenderSelectionMenu(void) {
     }
 }
 
-void func_801CAB0C(void) {
+void ShopMenuAddUnk354Prims(void) {
     if (g_Menu->pManager->unkA) {
         ShopMenuRenderString(g_Menu->unk354->unk1404, g_Menu->unk354->polys500, g_Menu->unk354->unk1409);
         ShopMenuRenderString(g_Menu->unk354->unk1400, g_Menu->unk354->polys0, g_Menu->unk354->unk1408);
@@ -1889,13 +1889,13 @@ void ShopMenuRender(void) {
     if (g_Menu->shouldDrawMenu) {
         ShopMenuUpdateWindows();
         ShopMenuRenderPointerCursors();
-        func_801CA404();
-        func_801C8E28();
+        ShopMenuAddStringGroupPrims();
+        ShopMenuAddPointerCursorPrims();
         ShopMenuRenderArrowCursors();
-        func_801CCFF4();
+        ShopMenuAddShopPrims();
         ShopMenuRenderScrollBarHandle();
         ShopMenuRenderSelectionMenu();
-        func_801CAB0C();
+        ShopMenuAddUnk354Prims();
         ShopMenuRenderWindows();
     }
     ShopMenuRenderBackgroundDim();
@@ -2177,7 +2177,7 @@ void ShopMenuConfirmationWindowInitialize(u_char stringIndex) {
             GetStringEntry(g_Menu->unk2E0, stringIndex + i),
             pString->pVramBuffer, 0x36, i % 2
         );
-        func_801C5A7C(pString, i, 0, 0);
+        ShopMenuSetStringPrimitives(pString, i, 0, 0);
         ShopMenuSetVertices(pString->vertices, xPosition, (i * 16) + 0x50, pString->width, FONT_LETTER_HEIGHT);
         setUV4(
             &pString->polys[g_Menu->renderContext],
@@ -2324,11 +2324,11 @@ void ShopMenuFree(void) {
     HeapFree(g_Menu);
 }
 
-void func_801CBC88(u_char mode, u_char numStrings, MenuString* pStrings, u_char* pStringIDs, u_char* pShouldRenderFlags) {
+void ShopMenuSetStringListVisible(u_char mode, u_char numStrings, MenuString* pStrings, u_char* pStringIDs, u_char* pShouldRenderFlags) {
     int i;
 
     if (mode) {
-        func_801C5CBC(pStrings, pStringIDs, 2, numStrings);
+        ShopMenuRenderStringsToVram(pStrings, pStringIDs, 2, numStrings);
         return;
     }
 
@@ -2337,10 +2337,10 @@ void func_801CBC88(u_char mode, u_char numStrings, MenuString* pStrings, u_char*
     }
 }
 
-void func_801CBCF0(u_char numStrings, MenuString* pStrings, u_char* pStringIDs, int* pXOffsets, u_char* pShouldRenderFlags, u_char index, u_char cursorOffset, u_char mode) {
+void ShopMenuPositionSelectedString(u_char numStrings, MenuString* pStrings, u_char* pStringIDs, int* pXOffsets, u_char* pShouldRenderFlags, u_char index, u_char cursorOffset, u_char mode) {
     switch (mode) {
         case 0:
-            func_801CBC88(0, numStrings, pStrings, pStringIDs, pShouldRenderFlags);
+            ShopMenuSetStringListVisible(0, numStrings, pStrings, pStringIDs, pShouldRenderFlags);
             setXYWH(
                 &pStrings[index].polys[g_Menu->renderContext],
                 D_801D2194[index + cursorOffset] + 0x16 + pXOffsets[index],
@@ -2416,7 +2416,7 @@ void ShopMenuInitializeShopModeSelectionMenu(int numTextures, int* pTextureIDs) 
     }
 }
 
-void func_801CC278(u_char arg0) {
+void ShopMenuInitializeSubmenu(u_char arg0) {
     int isValid;
     int i;
     int j;
@@ -2522,7 +2522,7 @@ void ShopMenuUpdateShopModeSelectionMenu(u_char numOptions, u_char selectedIndex
     g_Menu->pManager->unk4 = TRUE;
 }
 
-void func_801CC720(u_char menuOffset) {
+void ShopMenuUpdateSubmenuTextures(u_char menuOffset) {
     int i;
     int textureID;
 
@@ -2583,10 +2583,10 @@ u_char ShopMenuShopModeMenuHandleSelectedOption() {
 
     if (result) {
         ShopMenuStartCloseMenuTransition();
-        func_801CBC88(1, 4, g_Menu->unk6E0, &D_801D1FCC, g_Menu->pManager->unkC);
+        ShopMenuSetStringListVisible(1, 4, g_Menu->unk6E0, &D_801D1FCC, g_Menu->pManager->unkC);
     }
 
-    func_801D1F10();
+    ShopMenuClearBuyMenuGraphics();
 
     // Render the selection menu as active again
     g_Menu->pSelectionMenu->unk1192 = FALSE;
@@ -2609,7 +2609,7 @@ void ShopMenuShopModeMenuMain(void) {
 
     ShopMenuInitializeShopModeSelectionMenu(4, &D_801D1F54);
 
-    func_801CBC88(1, 4, g_Menu->unk6E0, &D_801D1FCC, g_Menu->pManager->unkC);
+    ShopMenuSetStringListVisible(1, 4, g_Menu->unk6E0, &D_801D1FCC, g_Menu->pManager->unkC);
 
     while (isRunning) {
         ShopMenuUpdateAndRender();
@@ -2621,8 +2621,8 @@ void ShopMenuShopModeMenuMain(void) {
                 // Render the selection menu as disabled
                 g_Menu->pSelectionMenu->unk1192 = TRUE;
 
-                func_801C6430();
-                func_801CBC88(0, 4, g_Menu->unk6E0, &D_801D1FCC, g_Menu->pManager->unkC);
+                ShopMenuHidePointerCursor();
+                ShopMenuSetStringListVisible(0, 4, g_Menu->unk6E0, &D_801D1FCC, g_Menu->pManager->unkC);
                 g_Menu->unk348->unk15B = 0x4C;
                 isRunning = ShopMenuShopModeMenuHandleSelectedOption();
                 g_Menu->unk348->unk15B = 0x40;
@@ -2650,7 +2650,7 @@ void ShopMenuShopModeMenuMain(void) {
         // Update the selected option to the active one if we need to
         if (g_Menu->mainMenuChoice != g_Menu->mainMenuPrevChoice) {
             ShopMenuUpdateShopModeSelectionMenu(3, g_Menu->mainMenuChoice, &D_801D1F54);
-            func_801CBCF0(4, g_Menu->unk6E0, &D_801D1FCC, &D_801D1FD8,
+            ShopMenuPositionSelectedString(4, g_Menu->unk6E0, &D_801D1FCC, &D_801D1FD8,
                 g_Menu->pManager->unkC, g_Menu->mainMenuChoice, 0, 0
             );
             g_Menu->mainMenuPrevChoice = g_Menu->mainMenuChoice;
@@ -2684,7 +2684,7 @@ void ShopMenuMain(void) {
     ShopMenuFree();
 }
 
-void func_801CCE1C(MenuDressingRoom* pDressingRoom, u8 characterIndex) {
+void ShopMenuComputeCharacterStats(MenuDressingRoom* pDressingRoom, u8 characterIndex) {
     GameCharacter* pCharacter;
 
     pCharacter = &g_GameState.characters[characterIndex];
@@ -2734,7 +2734,7 @@ void func_801CCE1C(MenuDressingRoom* pDressingRoom, u8 characterIndex) {
 }
 
 // Render Shop Stuff
-void func_801CCFF4(void) {
+void ShopMenuAddShopPrims(void) {
     int i;
 
     if (g_Menu->pManager->unk5A) {
@@ -2981,7 +2981,7 @@ u_short ShopMenuGetCharacterEquippedItemFlags(u_char itemID, u_char itemType) {
 INCLUDE_ASM("asm/shop_menu/nonmatchings/main/misc", func_801CDD14);
 
 INCLUDE_ASM("asm/shop_menu/nonmatchings/main/misc", func_801CE480);
-// 93.95%: shop twin of gear_shop_menu/main/render.c func_801D3558 (same signature and tail loop), but it
+// 93.95%: shop twin of gear_shop_menu/main/render.c GearShopMenuComputeEquipStatDelta (same signature and tail loop), but it
 // computes the two preview stat pairs inline instead of calling the DressingRoom helpers.
 // characterId is the 5th, stack argument; itemType 0 = weapon, 1 = accessory. The two s16[2] pairs are
 // zeroed with four sh stores in the order 10(sp), 8(sp), 2(sp), 0(sp).
@@ -3092,7 +3092,7 @@ void func_801CE480(s32* pDelta, s8* pIsImprovement, u8 itemId, u8 itemType, u8 c
 }
 */
 
-u_short func_801CE8D8(u_char* pIDs, u_char* pValues, int numIDs, u_char id) {
+u_short ShopMenuFindInventoryQuantity(u_char* pIDs, u_char* pValues, int numIDs, u_char id) {
     int i;
     u_char value;
 
@@ -3106,7 +3106,7 @@ u_short func_801CE8D8(u_char* pIDs, u_char* pValues, int numIDs, u_char id) {
     return value;
 }
 
-void func_801CE91C(u_char itemType, u_char itemID) {
+void ShopMenuSetQuantityHeldGraphics(u_char itemType, u_char itemID) {
     RECT rect;
     u_char digitBuffer[4];
     u_char stringBuffer[4];
@@ -3136,7 +3136,7 @@ void func_801CE91C(u_char itemType, u_char itemID) {
             break;
     }
 
-    quantityHeld = func_801CE8D8(pIDList, pQuantityList, listSize, itemID);
+    quantityHeld = ShopMenuFindInventoryQuantity(pIDList, pQuantityList, listSize, itemID);
     D_801D2260 = quantityHeld;
 
     pWorkspace = HeapAlloc(0x3F6, 0);
@@ -3145,13 +3145,13 @@ void func_801CE91C(u_char itemType, u_char itemID) {
     digitBuffer[0] = ((quantityHeld / 10) == 0) ? 0xC3 : (quantityHeld / 10) + 0x10;
     digitBuffer[2] = (quantityHeld % 10) + 0x10;
 
-    func_80033B34((u16*)digitBuffer, stringBuffer, 2);
+    SystemDecodeGlyphCodesN((u16*)digitBuffer, stringBuffer, 2);
     g_Menu->pShop->str45B0.width = SystemRenderStringEntry(stringBuffer, pWorkspace, 0x24, 1);
     setRECT(&rect, 0x198, 0xB4, 0x28, FONT_LETTER_HEIGHT);
     LoadImage(&rect, pWorkspace);
     DrawSync(0);
 
-    func_801C5A7C(&g_Menu->pShop->str45B0, 9, 0x80, 0x82);
+    ShopMenuSetStringPrimitives(&g_Menu->pShop->str45B0, 9, 0x80, 0x82);
     ShopMenuSetVertices(
         g_Menu->pShop->str45B0.vertices,
         0xF8, 0x8E,
@@ -3315,7 +3315,7 @@ u_char ShopMenuBuyMenu(void) {
     newGoldAmount = g_GameState.gold;
 
     for (i = 0; i < MAX_GAME_CHARACTERS; i++) {
-        func_801CCE1C(g_Menu->pDressingRoom, i);
+        ShopMenuComputeCharacterStats(g_Menu->pDressingRoom, i);
         g_Menu->pShop->unk46E0[i] = g_Menu->pDressingRoom->unkB8[0];
         g_Menu->pShop->unk4700[i] = g_Menu->pDressingRoom->unkB8[2];
     }
@@ -3344,8 +3344,8 @@ u_char ShopMenuBuyMenu(void) {
         ShopMenuUpdateArrowCursor(curChoice, scrollOffset, 0, 0);
 
         if (shouldInitialize) {
-            func_801CBC88(1, 2, g_Menu->unk6E0, &D_801D1FD4, g_Menu->pManager->unkC);
-            func_801CBCF0(2, g_Menu->unk6E0, &D_801D1FD4, &D_801D1FE8, g_Menu->pManager->unkC, 0, 0, 1);
+            ShopMenuSetStringListVisible(1, 2, g_Menu->unk6E0, &D_801D1FD4, g_Menu->pManager->unkC);
+            ShopMenuPositionSelectedString(2, g_Menu->unk6E0, &D_801D1FD4, &D_801D1FE8, g_Menu->pManager->unkC, 0, 0, 1);
             g_Menu->pManager->unkC[0] = FALSE;
             ShopMenuInitializeWindow(2, 0xC, 0x2A, 0xC4, 0x74, 0, 1, 4, 1);
             ShopMenuInitializeWindow(3, 0x20, 0xE, 0xFC, 0x14, 0, 1, 4, 0);
@@ -3480,11 +3480,11 @@ u_char ShopMenuBuyMenu(void) {
     return TRUE;
 }
 
-// Shop twin of gear_shop_menu/main/render.c func_801D1304: draws the item description
+// Shop twin of gear_shop_menu/main/render.c GearShopMenuBuildSellItemDetails: draws the item description
 // panel (name, half price and one portrait marker per character that can equip it) and
 // returns the item's sell price. unk28 is the 0x10-byte hole the original frame has
 // between the RECT and the digit buffer.
-s32 func_801CFF58(u_char itemId, u_char itemType) {
+s32 ShopMenuUpdateItemDescription(u_char itemId, u_char itemType) {
     RECT rect;
     u8 unk28[0x10];
     u_char digitBuffer[0xE];
@@ -3553,20 +3553,20 @@ s32 func_801CFF58(u_char itemId, u_char itemType) {
         }
     }
     digitBuffer[8] = (price % 10) + 0x10;
-    func_80033B34((u16*)digitBuffer, stringBuffer, 5);
+    SystemDecodeGlyphCodesN((u16*)digitBuffer, stringBuffer, 5);
 
     g_Menu->pShop->str44B0.width = SystemRenderStringEntry(stringBuffer, pWorkspace, 0x39, 1);
     setRECT(&rect, 0x140, 0x4E, 0x3C, 0xD);
     LoadImage(&rect, pWorkspace);
     DrawSync(0);
 
-    func_801C5A7C(&g_Menu->pShop->strItemDesc, 0, 0, 0);
-    func_801C5A7C(&g_Menu->pShop->str44B0, 0, 0, 0);
+    ShopMenuSetStringPrimitives(&g_Menu->pShop->strItemDesc, 0, 0, 0);
+    ShopMenuSetStringPrimitives(&g_Menu->pShop->str44B0, 0, 0, 0);
 
     g_Menu->pShop->str44B0.polys[g_Menu->renderContext].clut = g_SystemPalette2;
-    func_801C5040(&g_Menu->pShop->strItemDesc.polys[g_Menu->renderContext], 0x2C, 0x12, 0, 0x4E,
+    ShopMenuSetPolyFT4Coords(&g_Menu->pShop->strItemDesc.polys[g_Menu->renderContext], 0x2C, 0x12, 0, 0x4E,
         g_Menu->pShop->strItemDesc.width, FONT_LETTER_HEIGHT);
-    func_801C5040(&g_Menu->pShop->str44B0.polys[g_Menu->renderContext], 0x98, 0x12, 0, 0x4E,
+    ShopMenuSetPolyFT4Coords(&g_Menu->pShop->str44B0.polys[g_Menu->renderContext], 0x98, 0x12, 0, 0x4E,
         g_Menu->pShop->str44B0.width, FONT_LETTER_HEIGHT);
     ShopMenuSetVertices(g_Menu->pShop->strItemDesc.vertices, 0x2C, 0x12, g_Menu->pShop->strItemDesc.width,
         FONT_LETTER_HEIGHT);
@@ -3691,16 +3691,16 @@ void func_801D05BC(s32 scrollOffset, u8* pItemIds, u8* pItemTypes, u8* pItemSell
                 }
             }
             digitBuffer[8] = (qty % 10) + 0x10;
-            func_80033B34((u16*)digitBuffer, stringBuffer, 5);
+            SystemDecodeGlyphCodesN((u16*)digitBuffer, stringBuffer, 5);
             g_Menu->pShop->unk4030[i].width = SystemRenderStringEntry(stringBuffer, pWorkspace, 0x24, 1);
             setRECT(&rect, 0x180 + (i & 1) * 0x18, 0x80 + (i / 2) * FONT_LETTER_HEIGHT, 0x28, FONT_LETTER_HEIGHT);
             LoadImage(&rect, pWorkspace);
-            func_801C5A7C(&g_Menu->pShop->unk3C30[i], i, 0x80, 0x81);
+            ShopMenuSetStringPrimitives(&g_Menu->pShop->unk3C30[i], i, 0x80, 0x81);
             ShopMenuSetVertices(g_Menu->pShop->unk3C30[i].vertices, 0x24, 0x32 + FONT_LETTER_HEIGHT * i,
                 g_Menu->pShop->unk3C30[i].width, FONT_LETTER_HEIGHT);
             LoadImage(&rect, pWorkspace);
             DrawSync(0);
-            func_801C5A7C(&g_Menu->pShop->unk4030[i], i, 0x80, 0x82);
+            ShopMenuSetStringPrimitives(&g_Menu->pShop->unk4030[i], i, 0x80, 0x82);
             ShopMenuSetVertices(g_Menu->pShop->unk4030[i].vertices, 0x8C, 0x32 + FONT_LETTER_HEIGHT * i,
                 g_Menu->pShop->unk4030[i].width, FONT_LETTER_HEIGHT);
             g_Menu->pShop->unk3C30[i].renderContext = g_Menu->renderContext;
@@ -3864,7 +3864,7 @@ void ShopMenuSellMenu(s32 listLength, u8* pInventoryItemIds, u8* pInventoryQtys,
         }
 
         if ((rowIndex != newRowIndex) || (scrollOffset != newScrollOffset)) {
-            itemPrice = func_801CFF58(pItemIds[scrollOffset + rowIndex], pItemTypes[scrollOffset + rowIndex]);
+            itemPrice = ShopMenuUpdateItemDescription(pItemIds[scrollOffset + rowIndex], pItemTypes[scrollOffset + rowIndex]);
             newRowIndex = rowIndex;
             newScrollOffset = scrollOffset;
             g_Menu->pManager->unk5A = 1;
@@ -4112,7 +4112,7 @@ void ShopMenuSellItemsMenu(void) {
     );
 }
 
-void func_801D1968(u_char arg0, u_char arg1) {
+void ShopMenuClearShopGraphics(u_char arg0, u_char arg1) {
     int i;
 
     g_Menu->pManager->unk5A = 0;
@@ -4151,7 +4151,7 @@ void ShopMenuSellModeMenuHandleSelectedOption(void) {
     g_Menu->pManager->unk4 = 0;
     g_Menu->pManager->unk3 = 0;
     g_Menu->pManager->unkA = 0;
-    func_801CBC88(0, 4, g_Menu->unk6E0, &D_801D1FD0, g_Menu->pManager->unkC);
+    ShopMenuSetStringListVisible(0, 4, g_Menu->unk6E0, &D_801D1FD0, g_Menu->pManager->unkC);
 
     var_a0 = 1;
     switch (g_Menu->subMenuChoice) {
@@ -4172,11 +4172,11 @@ void ShopMenuSellModeMenuHandleSelectedOption(void) {
             break;
     }
 
-    func_801D1968(var_a0, 0);
+    ShopMenuClearShopGraphics(var_a0, 0);
     g_Menu->pManager->unkA = 1;
     g_Menu->pManager->unk4 = 1;
     g_Menu->pManager->unk3 = 1;
-    func_801CBC88(1, 4, g_Menu->unk6E0, &D_801D1FD0, g_Menu->pManager->unkC);
+    ShopMenuSetStringListVisible(1, 4, g_Menu->unk6E0, &D_801D1FD0, g_Menu->pManager->unkC);
 }
 
 // Items / Weapons / Accessories / Equipment
@@ -4193,15 +4193,15 @@ int ShopMenuSellModeMenu() {
         ShopMenuUpdateAndRender();
 
         if (shouldInitialize) {
-            func_801CBC88(1, 4, g_Menu->unk6E0, &D_801D1FD0, g_Menu->pManager->unkC);
+            ShopMenuSetStringListVisible(1, 4, g_Menu->unk6E0, &D_801D1FD0, g_Menu->pManager->unkC);
             ShopMenuStartOpenMenuTransition();
-            func_801CC278(0);
+            ShopMenuInitializeSubmenu(0);
             shouldInitialize = FALSE;
         }
 
         if (g_Menu->subMenuChoice != g_Menu->subMenuPrevChoice) {
-            func_801CBCF0(4, g_Menu->unk6E0, &D_801D1FD0, &D_801D1FE8, g_Menu->pManager->unkC, g_Menu->subMenuChoice, 3, 0);
-            func_801CC720(0);
+            ShopMenuPositionSelectedString(4, g_Menu->unk6E0, &D_801D1FD0, &D_801D1FE8, g_Menu->pManager->unkC, g_Menu->subMenuChoice, 3, 0);
+            ShopMenuUpdateSubmenuTextures(0);
             g_Menu->subMenuPrevChoice = g_Menu->subMenuChoice;
         }
 
@@ -4234,17 +4234,17 @@ int ShopMenuSellModeMenu() {
 
     g_Menu->pManager->unk4 = 0;
     g_Menu->pManager->unk3 = 0;
-    func_801CBC88(0, 4, g_Menu->unk6E0, &D_801D1FD0, g_Menu->pManager->unkC);
+    ShopMenuSetStringListVisible(0, 4, g_Menu->unk6E0, &D_801D1FD0, g_Menu->pManager->unkC);
     return TRUE;
 }
 
-void func_801D1F10(void) {
+void ShopMenuClearBuyMenuGraphics(void) {
     switch (g_Menu->mainMenuChoice) {
         case MENU_CHOICE_SELL:
             break;
 
         case MENU_CHOICE_BUY:
-            func_801D1968(1, 1);
+            ShopMenuClearShopGraphics(1, 1);
             break;
     }
 }

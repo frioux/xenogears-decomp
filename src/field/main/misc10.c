@@ -10,8 +10,8 @@ void func_80096214(void) {
 
     nItemId = FieldScriptVMGetArgument(1);
     nIndex = func_80095124(nItemId);
-    pQuantities = (u_char*)func_800950A0(nItemId);
-    func_8009501C(nItemId);
+    pQuantities = (u_char*)FieldInventoryGetQuantitiesArray(nItemId);
+    FieldInventoryGetIdsArray(nItemId);
     if (nIndex != -1) {
         FieldScriptMemoryWriteU16(FieldScriptVMGetInstructionArgument(3) & 0xFFFF, pQuantities[nIndex]);
     } else {
@@ -49,14 +49,14 @@ void func_8009635C(int nItemId) {
     u_char* pItems;
 
     nIndex = func_80095124(nItemId);
-    pQuantities = (u_char*)func_800950A0(nItemId);
-    pItems = (u_char*)func_8009501C(nItemId);
+    pQuantities = (u_char*)FieldInventoryGetQuantitiesArray(nItemId);
+    pItems = (u_char*)FieldInventoryGetIdsArray(nItemId);
     if (nIndex != -1) {
         if (pQuantities[nIndex] < 0x63) {
             pQuantities[nIndex] = pQuantities[nIndex] + 1;
         }
     } else {
-        nIndex = func_800951B8(nItemId);
+        nIndex = FieldInventoryFindEmptySlotById(nItemId);
         if (nIndex != -1) {
             pItems[nIndex] = nItemId;
             pQuantities[nIndex] = 1;
@@ -74,8 +74,8 @@ void func_8009640C(void) {
     nItemId = FieldScriptVMGetArgument(1);
     nIndex = func_80095124(nItemId);
     if (nIndex != -1) {
-        pItems = (u_char*)func_8009501C(nItemId);
-        pQuantities = (u_char*)func_800950A0(nItemId);
+        pItems = (u_char*)FieldInventoryGetIdsArray(nItemId);
+        pQuantities = (u_char*)FieldInventoryGetQuantitiesArray(nItemId);
         if (--pQuantities[nIndex] == 0) {
             pItems[nIndex] = 0xFF;
         }

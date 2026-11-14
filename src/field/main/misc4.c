@@ -133,7 +133,7 @@ extern s16 D_800B2290;
 extern u_char D_80065ADC[]; // per-skin selection weight
 extern u_char D_80059508;
 extern u_char D_800594F8;
-extern void func_8008E718(void);
+extern void FieldRandomizeSkinSlots(void);
 extern void LoadGameStateOverlay(int);
 extern void func_80281204(int);
 extern int rand(void);
@@ -177,7 +177,7 @@ void func_80079288(void) {
         return;
     }
     if (--D_800B2294 == 0) {
-        func_8008E718();
+        FieldRandomizeSkinSlots();
     }
     pSlots = (u16*)&pPeriod[2];
     for (i = 0; i < pPeriod[1]; i++) {

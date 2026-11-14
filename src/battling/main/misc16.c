@@ -124,7 +124,7 @@ void func_8008CF30(u8* pArg0, u8* pArg1) {
     offset = offset >> 2;
     func_80031870(pArg1 + offset * 4, (u32)pObj);
 }
-void func_8008CF9C(u8* pArg0, u8* pArg1) {
+void FieldScriptSetActorFaceId(u8* pArg0, u8* pArg1) {
     *(SVECTOR*)pArg1 = *(SVECTOR*)(pArg0 + 0x1C);
 }
 void func_8008CFC4(Misc16Work* pWork, s16* pOut) {

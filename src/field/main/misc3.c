@@ -144,7 +144,7 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc3", FieldFree);
 //     `addiu $s1,$s1,1` that gcc's scheduler then hoists into the earlier call's
 //     delay slot, so this is a combine/scheduling choice, not the expression.
 //  2. D_800B2264: the original materialises `&D_800B2264` into $s0 with
-//     lui+addiu once and reuses it across func_801E7FD4/HeapFree/
+//     lui+addiu once and reuses it across LibGearShutdown/HeapFree/
 //     FieldRenderSyncAndFlush, gcc rematerialises `lui` + `lw %lo` for the read
 //     and `lui at` + `sw %lo` for the store instead. An explicit pointer local,
 //     hoisting that local above FontFree, and plain symbol read/write all give
@@ -177,7 +177,7 @@ extern void ModelPartFreeLightData(void* pModelPart);
 extern void FieldDistortionFree(void);
 extern void GfxLineScrollFree(void* pLineScroll);
 extern void FontFree(void);
-extern void func_801E7FD4(void);
+extern void LibGearShutdown(void);
 extern void FieldRenderSyncAndFlush(void);
 extern void func_800A83B4(void);
 extern void func_80027D40(void* pData);
@@ -250,7 +250,7 @@ void FieldFree(void) {
     pCount = &D_800B2264;
     D_800AFEA8.numLineScrolls = 0;
     if (*pCount != 0) {
-        func_801E7FD4();
+        LibGearShutdown();
         HeapFree(D_800ADB20);
         FieldRenderSyncAndFlush();
     }

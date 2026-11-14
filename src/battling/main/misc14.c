@@ -191,7 +191,7 @@ typedef struct {
     /* 0x24 */ u32 unk24;
 } Misc14Reloc; // Size: 0x28
 
-extern void func_8008A040(void *pImg);
+extern void BattleLoadImageWithTpageClut(void *pImg);
 
 Misc14Reloc *func_8008AF6C(Misc14Reloc *pData) {
     s32 delta = (s32)pData - (s32)pData->unk1C;
@@ -208,7 +208,7 @@ Misc14Reloc *func_8008AF6C(Misc14Reloc *pData) {
     pData->unk24 += delta;
     if (pData->unkC != 0) {
         pData->unkC += delta;
-        func_8008A040((void *)pData->unkC);
+        BattleLoadImageWithTpageClut((void *)pData->unkC);
     }
     if (pData->unk8 != 0) {
         pData->unk8 += delta;
@@ -269,11 +269,11 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc14", func_8008B13C);
 extern u32 ModelResolvePointers(void *pModel);
 extern void *func_80089C54(void);
 extern void func_80089C88(void *pList, void *pNode);
-extern void func_80089E2C(void *pNode, void *pData);
-extern void func_80089E54(void *pNode, void *pData);
-extern void *func_80089E74(void);
-extern void *func_80089FC4(void);
-extern void func_8008A184(void *pPart, void *pModelPart);
+extern void BattleSetNodeModelPart(void *pNode, void *pData);
+extern void BattleSetNodeEntryList(void *pNode, void *pData);
+extern void *BattleCreateEntryList(void);
+extern void *BattleCreateModelPart(void);
+extern void BattleAttachModelPart(void *pPart, void *pModelPart);
 extern void func_8008B13C(void *pA, void *pB, void *pC);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc14", func_8008B38C);
@@ -286,7 +286,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc14", func_8008B38C);
    pBuf, pScale, pCur, pPart, pSlot and i in registers.
    Two things did help and should be kept: reading *(s16 *)(pCur + 2) inline
    twice instead of through an `idx` local (71.54 -> 77.11: retail reloads the
-   field after the func_80089E2C call), and *(s16 *)pCur inline. Dead ends:
+   field after the BattleSetNodeModelPart call), and *(s16 *)pCur inline. Dead ends:
    pSlot as ((u8 **)pBuf)[i] (71.80), every pointer declared before use (71.54). */
 /*
 void *func_8008B38C(u8 *pArg) {
@@ -306,9 +306,9 @@ void *func_8008B38C(u8 *pArg) {
     ModelResolvePointers(pData);
     HeapSetCurrentContentType(0x12);
     pBuf = HeapAlloc(count * 4, 0);
-    pScale = func_80089E74();
+    pScale = BattleCreateEntryList();
     pNode = func_80089C54();
-    func_80089E54(pNode, pScale);
+    BattleSetNodeEntryList(pNode, pScale);
     *(u8 **)(pScale + 4) = pBuf;
     *(u16 *)pScale = count;
     *(u8 **)(pScale + 0x18) = pCur;
@@ -317,9 +317,9 @@ void *func_8008B38C(u8 *pArg) {
         pPart = func_80089C54();
         *pSlot = pPart;
         if (*(s16 *)(pCur + 2) != -1) {
-            pListArg = func_80089FC4();
-            func_80089E2C(pPart, pListArg);
-            func_8008A184(pListArg, pData + (*(s16 *)(pCur + 2) * 8 - *(s16 *)(pCur + 2)) * 8 + 0x10);
+            pListArg = BattleCreateModelPart();
+            BattleSetNodeModelPart(pPart, pListArg);
+            BattleAttachModelPart(pListArg, pData + (*(s16 *)(pCur + 2) * 8 - *(s16 *)(pCur + 2)) * 8 + 0x10);
         }
         if (*(s16 *)pCur == -1) {
             pListArg = pNode;

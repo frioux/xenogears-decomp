@@ -11,8 +11,8 @@
 extern s32 D_80050100;
 extern s32 D_8005A4AC[2];
 
-s32 func_801C5260(u8);
-void func_801CB690();
+s32 GearShopMenuGetGearEquipFlags(u8);
+void GearShopMenuComputeTransitionSteps();
 void GearShopMenuUpdateAndRender();
 
 // TODO: remove once matched
@@ -56,7 +56,7 @@ void GearShopMenuShoulderButtonUiFree(void) {
     HeapFree(g_Menu->pShoulderButtonUi);
 }
 
-void func_801CE32C(void) {
+void GearShopMenuRenderShopUi(void) {
     int i;
 
     if (g_Menu->pManager->unk5A) {
@@ -123,14 +123,14 @@ void func_801CE32C(void) {
 /*
  This is the function in gear_shop_menu that calls into LibGear
  */
-void func_801CE7E0(void) {
+void GearShopMenuRenderGearModel(void) {
     // most likely: if helper library is loaded into memory
     if (g_Menu->pManager->unk5C[7]) {
-        func_801E7D14(&g_Menu->unk230, &g_Menu->unk298, g_Menu->pGfxEnv->unkB0, g_Menu->renderContext);
+        LibGearRenderFrame(&g_Menu->unk230, &g_Menu->unk298, g_Menu->pGfxEnv->unkB0, g_Menu->renderContext);
     }
 }
 
-void func_801CE82C(void) {
+void GearShopMenuRenderGearPanelStrings(void) {
     s32 i;
 
     if (g_Menu->pManager->unk5C[9] != 0) {
@@ -159,7 +159,7 @@ void func_801CE82C(void) {
     }
 }
 
-void func_801CEA68(void) {
+void GearShopMenuAnimateOptionMarkers(void) {
     u16 coords[2][4];
     u8 needsUpdate;
     s32 i;
@@ -235,7 +235,7 @@ void func_801CEA68(void) {
     }
 }
 
-void func_801CEEA8(void) {
+void GearShopMenuAnimateOptionHighlight(void) {
     u8 needsUpdate;
     u16 var_s1;
     u16 var_s2;
@@ -303,7 +303,7 @@ void func_801CEEA8(void) {
     }
 }
 
-void func_801CF184(void) {
+void GearShopMenuAnimatePanelSparkles(void) {
     MenuUnk8* pMenu;
     int i;
     short t1, t2;
@@ -340,16 +340,16 @@ void func_801CF184(void) {
     }
 }
 
-void func_801CF33C(void) {
+void GearShopMenuUpdateGearPanelAnimations(void) {
     if (g_Menu->pManager->unk5C[9]) {
-        func_801CEA68();
-        func_801CEEA8();
-        func_801CF184();
+        GearShopMenuAnimateOptionMarkers();
+        GearShopMenuAnimateOptionHighlight();
+        GearShopMenuAnimatePanelSparkles();
     }
 }
 
 // Render gear name
-void func_801CF38C(u_char stringIndex) {
+void GearShopMenuLoadGearNameTexture(u_char stringIndex) {
     RECT rect;
 
     D_801D9088 = HeapAlloc(0x3F6, 0x0);
@@ -366,7 +366,7 @@ void func_801CF38C(u_char stringIndex) {
 // 0x11, 0x19 = HP
 // 0xF, 0x1E, 0xE, 0x15 = FUEL
 // 0x20, 0xE, 0x12, 0x10, 0x11, 0x1D = WEIGHT
-void func_801CF448(void) {
+void GearShopMenuBuildGearStatsGraphics(void) {
     int i, j;
 
     for (j = 0; j < 0xE; j++) {
@@ -459,12 +459,12 @@ void func_801CF448(void) {
     }
 
     // Render the gear name
-    func_801CF38C((g_gearShopCurrentGearId + 0xB));
+    GearShopMenuLoadGearNameTexture((g_gearShopCurrentGearId + 0xB));
 
     g_Menu->menuUnk8->unk1EED = g_Menu->renderContext;
 }
 
-void func_801CF9BC(u_char gearId, u8 arg1) {
+void GearShopMenuLoadGearModelFiles(u_char gearId, u8 arg1) {
     ArchiveSetIndex(ARCHIVE_DIR_FIELD, 0);
 
     g_Menu->unk458[arg1]->unk0 = HeapAlloc(ArchiveDecodeAlignedSize(D_801D6D7C[gearId]), 0);
@@ -478,7 +478,7 @@ void func_801CF9BC(u_char gearId, u8 arg1) {
     ArchiveSetIndex(ARCHIVE_DIR_MENUS, 0);
 }
 
-void func_801CFAB8(u8 modelIndex, u8 gearId) {
+void GearShopMenuCreateGearModel(u8 modelIndex, u8 gearId) {
     u8 characterId = 0;
     s32 s3 = modelIndex;
     s3 &= 0xFF;
@@ -504,14 +504,14 @@ void func_801CFAB8(u8 modelIndex, u8 gearId) {
     if(gearId != 0xFF) {
         characterId = D_801D6DA0[gearId];
     }
-    func_801E8330((s3 & 0xFF), 0, characterId );
+    LibGearSetModelAnimation((s3 & 0xFF), 0, characterId );
     HeapFree(g_Menu->unk458[modelIndex]->unk4);
     g_Menu->unk458[modelIndex]->unk12 = 1;
-    func_801CF448();
+    GearShopMenuBuildGearStatsGraphics();
     g_Menu->pManager->unk5C[0xA] = 1;
 }
 
-void func_801CFC60(void) {
+void GearShopMenuOpenGearPanel(void) {
     s32 temp;
     g_gearShopTransitionState.start.cameraX = g_gearShopTransitionState.target.cameraX;
     g_gearShopTransitionState.start.cameraY = g_gearShopTransitionState.target.cameraY;
@@ -520,7 +520,7 @@ void func_801CFC60(void) {
     temp = ((g_Menu->mainMenuChoice + (g_gearShopCurrentGearId * 3)) * 4) + g_Menu->subMenuChoice;
     g_gearShopTransitionState.target.cameraY = D_801D6E18[temp];
     g_gearShopTransitionState.target.gearY = D_801D6FB0[(g_Menu->mainMenuChoice * 4) + g_Menu->subMenuChoice];
-    func_801CB690();
+    GearShopMenuComputeTransitionSteps();
     g_Menu->transitionEffectState = 7;
     g_Menu->menuUnk8->unk1ED8 = 1;
     g_Menu->menuUnk8->unk1ED9[0] = 1;
@@ -547,7 +547,7 @@ void func_801CFC60(void) {
     }
 }
 
-void func_801CFF18(void) {
+void GearShopMenuCloseGearPanel(void) {
     g_Menu->menuUnk8->unk1ED9[0] = 3;
     g_Menu->menuUnk8->unk1ED9[1] = 3;
     g_Menu->menuUnk8->unk1EDB = 3;
@@ -568,11 +568,11 @@ void func_801CFF18(void) {
 
     );
 
-    func_801CB690();
+    GearShopMenuComputeTransitionSteps();
     g_Menu->transitionEffectState = MENU_OPEN_ANIMATION|MENU_CLOSE_ANIMATION|MENU_CLOSE_ANIMATION_START;
 }
 
-void func_801D0054(int count, POLY_FT4 *pPolys, u_char mode) {
+void GearShopMenuSetStatDeltaColor(int count, POLY_FT4 *pPolys, u_char mode) {
     int i;
 
     for(i = 0; i < count; i++) {
@@ -662,15 +662,15 @@ void GearShopMenuChangeCurrentGear(u_char mode) {
         g_Menu->unk458[1]->unk12 = 0;
         func_801E8030(1);
         GearShopMenuUpdateAndRender();
-        func_801CF9BC(g_GameState.characters[characterIndex].gearId, 1);
+        GearShopMenuLoadGearModelFiles(g_GameState.characters[characterIndex].gearId, 1);
         g_gearShopCurrentGearId = g_GameState.characters[characterIndex].gearId;
-        func_801CFAB8(1, g_GameState.characters[characterIndex].gearId);
+        GearShopMenuCreateGearModel(1, g_GameState.characters[characterIndex].gearId);
         GearShopMenuUpdateAndRender();
     }
 }
 
 // GearShopMenuUpdate ??? MenuExplanationGraphics
-void func_801D04E8(u8 renderContext) {
+void GearShopMenuBuildPurchaseExplanations(u8 renderContext) {
     int i;
 
     g_Menu->pShop->explanationsLen = 0;
@@ -691,7 +691,7 @@ void func_801D04E8(u8 renderContext) {
 }
 
 // GearShopMenuUpdate ??? MenuExplanationGraphics
-void func_801D05EC(void) {
+void GearShopMenuBuildSellExplanations(void) {
     int i;
 
     g_Menu->pShop->explanationsLen = 0;
@@ -711,7 +711,7 @@ void func_801D05EC(void) {
     g_Menu->pShop->explanationsRenderCtx = g_Menu->renderContext;
 }
 
-void func_801D06D8(u32 startingBalance, u32 totalPrice, u32 newBalance, u32 salesTotal, u8 renderSalesTotal) {
+void GearShopMenuBuildTransactionSummary(u32 startingBalance, u32 totalPrice, u32 newBalance, u32 salesTotal, u8 renderSalesTotal) {
     int i;
 
     for(i = 0; i < 2; i++) {
@@ -801,7 +801,7 @@ void func_801D06D8(u32 startingBalance, u32 totalPrice, u32 newBalance, u32 sale
 }
 
 // GearShopMenuSetFinalPriceGraphics ?
-void func_801D0C20(int number, u8 arg1) {
+void GearShopMenuBuildFinalPriceGraphics(int number, u8 arg1) {
 
     s32 i;
     s32 var_s1;
@@ -834,7 +834,7 @@ void func_801D0C20(int number, u8 arg1) {
     g_Menu->pManager->unk5B = 2;
 }
 
-void func_801D0D4C(u32 value) {
+void GearShopMenuBuildGoldGraphics(u32 value) {
     int i;
 
     GearShopMenuParseNumberToString(value);
@@ -867,7 +867,7 @@ void func_801D0D4C(u32 value) {
     g_Menu->pManager->unk5C[8] = 1;
 }
 
-void func_801D0EC8(u8 arg0) {
+void GearShopMenuResetShopUi(u8 arg0) {
     int i;
 
     g_Menu->pManager->unk5A = 0;
@@ -896,7 +896,7 @@ void func_801D0EC8(u8 arg0) {
     }
 }
 
-s32 func_801D1078(u8 itemId, u8 itemType) {
+s32 GearShopMenuBuildEquippedCharacterMask(u8 itemId, u8 itemType) {
     int i;
     int j;
     u8 found;
@@ -952,7 +952,7 @@ s32 func_801D1078(u8 itemId, u8 itemType) {
                 }
             }
             if(found) {
-                result |= func_801C5260(g_GameState.characters[i].gearId);
+                result |= GearShopMenuGetGearEquipFlags(g_GameState.characters[i].gearId);
             }
         }
     }
@@ -960,7 +960,7 @@ s32 func_801D1078(u8 itemId, u8 itemType) {
     return result;
 }
 
-u32 func_801D1304(u8 arg0, u8 itemType) {
+u32 GearShopMenuBuildSellItemDetails(u8 arg0, u8 itemType) {
     RECT sp20;
     u8 _pad[0x10];
     u8 sp28[0xE];
@@ -993,20 +993,20 @@ u32 func_801D1304(u8 arg0, u8 itemType) {
     bzero(sp28, 0xE);
     if (itemType != ITEM_TYPE_GEAR_ACCESSORY) {
         if (itemType == ITEM_TYPE_GEAR_WEAPON) {
-            g_Menu->pShop->strItemDesc.width = SystemRenderStringEntry(func_80033A5C(arg0), temp_v0, 0x39U, 0U);
+            g_Menu->pShop->strItemDesc.width = SystemRenderStringEntry(GetGearWeaponName(arg0), temp_v0, 0x39U, 0U);
             var_s5 = g_Menu->pDressingRoom->pGearWeapons[arg0].equipFlags;
             var_s6 = g_Menu->pDressingRoom->pGearWeapons[arg0].price >> 1;
             price = var_s6;
         }
         // @bug if itemType != 3 or 4 then var_s6 is never set but still returned
     } else {
-        g_Menu->pShop->strItemDesc.width = SystemRenderStringEntry(func_80033A2C(arg0), temp_v0, 0x39U, 0U);
+        g_Menu->pShop->strItemDesc.width = SystemRenderStringEntry(GetGearAccessoryName(arg0), temp_v0, 0x39U, 0U);
         temp_v0_3 = &g_Menu->pDressingRoom->pGearAccessories[arg0];
         var_s5 = temp_v0_3->equipFlags;
         var_s6 = temp_v0_3->price >> 1;
         price = var_s6;
     }
-    temp_s4 = func_801D1078(arg0, itemType);
+    temp_s4 = GearShopMenuBuildEquippedCharacterMask(arg0, itemType);
     didRounding = FALSE;
     for(j = 4, k = 0; j > 0; k++, j--) {
         quotient = price / places[j];
@@ -1019,16 +1019,16 @@ u32 func_801D1304(u8 arg0, u8 itemType) {
         }
     }
     sp28[8] = (price % 10) + 0x10;
-    func_80033B34((u16* ) &sp28, sp38, 5);
+    SystemDecodeGlyphCodesN((u16* ) &sp28, sp38, 5);
     g_Menu->pShop->str44B0.width = SystemRenderStringEntry(&sp38, temp_v0, 0x39U, 1U);
     setRECT((RECT*)&sp20, 0x140, 0x4E, 0x3C, 0xD);
     LoadImage((RECT*)&sp20, (u32* ) temp_v0);
     DrawSync(0);
-    func_801C5CA8(&g_Menu->pShop->strItemDesc, 0, 0, 0U);
-    func_801C5CA8(&g_Menu->pShop->str44B0, 0, 0, 0U);
+    GearShopMenuInitializeMenuStringPolys(&g_Menu->pShop->strItemDesc, 0, 0, 0U);
+    GearShopMenuInitializeMenuStringPolys(&g_Menu->pShop->str44B0, 0, 0, 0U);
     g_Menu->pShop->str44B0.polys[g_Menu->renderContext].clut = g_SystemPalette2;
-    func_801C51B8(&g_Menu->pShop->strItemDesc.polys[g_Menu->renderContext], 0x2C, 0x12, 0U, 0x4EU, g_Menu->pShop->strItemDesc.width, 0xD);
-    func_801C51B8(&g_Menu->pShop->str44B0.polys[g_Menu->renderContext], 0x98, 0x12, 0U, 0x4EU, g_Menu->pShop->str44B0.width, 0xD);
+    GearShopMenuSetPolyFT4Quad(&g_Menu->pShop->strItemDesc.polys[g_Menu->renderContext], 0x2C, 0x12, 0U, 0x4EU, g_Menu->pShop->strItemDesc.width, 0xD);
+    GearShopMenuSetPolyFT4Quad(&g_Menu->pShop->str44B0.polys[g_Menu->renderContext], 0x98, 0x12, 0U, 0x4EU, g_Menu->pShop->str44B0.width, 0xD);
     GearShopMenuSetVertices(g_Menu->pShop->strItemDesc.vertices, 0x2C, 0x12, g_Menu->pShop->strItemDesc.width, 0xD);
     GearShopMenuSetVertices(g_Menu->pShop->str44B0.vertices, 0x98, 0x12, g_Menu->pShop->str44B0.width, 0xD);
     g_Menu->pShop->strItemDesc.renderContext = g_Menu->renderContext;
@@ -1113,10 +1113,10 @@ void func_801D18F8(s32 scrollOffset, u8* pItemIds, u8* pItemTypes, u8* pItemSell
             itemType = pItemTypes[scrollOffset + i];
             if (itemType != ITEM_TYPE_GEAR_ACCESSORY) {
                 if (itemType == ITEM_TYPE_GEAR_WEAPON) {
-                    g_Menu->pShop->unk3C30[i].width = SystemRenderStringEntry(func_80033A5C(pItemIds[scrollOffset + i]), pWorkspace, 0x24U, 0U);
+                    g_Menu->pShop->unk3C30[i].width = SystemRenderStringEntry(GetGearWeaponName(pItemIds[scrollOffset + i]), pWorkspace, 0x24U, 0U);
                 }
             } else {
-                g_Menu->pShop->unk3C30[i].width = SystemRenderStringEntry(func_80033A2C(pItemIds[scrollOffset + i]), pWorkspace, 0x24U, 0U);
+                g_Menu->pShop->unk3C30[i].width = SystemRenderStringEntry(GetGearAccessoryName(pItemIds[scrollOffset + i]), pWorkspace, 0x24U, 0U);
             }
             didRounding = FALSE;
             for (j = 4, k = 0; j > 0; k++, j--) {
@@ -1130,15 +1130,15 @@ void func_801D18F8(s32 scrollOffset, u8* pItemIds, u8* pItemTypes, u8* pItemSell
                 }
             }
             sp28[8] = (qty % 10) + 0x10;
-            func_80033B34((u16*)&sp28, sp38, 5);
+            SystemDecodeGlyphCodesN((u16*)&sp28, sp38, 5);
             g_Menu->pShop->unk4030[i].width = SystemRenderStringEntry(&sp38, pWorkspace, 0x24U, 1U);
             setRECT(&sp20, 0x180 + (i & 1) * 0x18, 0x80 + (i / 2) * FONT_LETTER_HEIGHT, 0x28, FONT_LETTER_HEIGHT);
             LoadImage((RECT*)&sp20, pWorkspace);
-            func_801C5CA8(&g_Menu->pShop->unk3C30[i], i, 0x80, 0x81);
+            GearShopMenuInitializeMenuStringPolys(&g_Menu->pShop->unk3C30[i], i, 0x80, 0x81);
             GearShopMenuSetVertices(g_Menu->pShop->unk3C30[i].vertices, 0x24, 0x32 + FONT_LETTER_HEIGHT * i, g_Menu->pShop->unk3C30[i].width, FONT_LETTER_HEIGHT);
             LoadImage((RECT*)&sp20, pWorkspace);
             DrawSync(0);
-            func_801C5CA8(&g_Menu->pShop->unk4030[i], i, 0x80, 0x82);
+            GearShopMenuInitializeMenuStringPolys(&g_Menu->pShop->unk4030[i], i, 0x80, 0x82);
             GearShopMenuSetVertices(g_Menu->pShop->unk4030[i].vertices, 0x8C, 0x32 + FONT_LETTER_HEIGHT * i, g_Menu->pShop->unk4030[i].width, FONT_LETTER_HEIGHT);
             g_Menu->pShop->unk3C30[i].renderContext = g_Menu->renderContext;
             g_Menu->pShop->unk3C30[i].renderContext = g_Menu->renderContext;
@@ -1270,7 +1270,7 @@ void GearShopMenuSellMenu(s32 listLength, u8* pInventoryItemIds, u8* pInventoryQ
         if ((rowIndex != newRowIndex) || (scrollOffset != newScrollOffset)) {
             newRowIndex = rowIndex;
             newScrollOffset = scrollOffset;
-            itemPrice = func_801D1304(pItemIds[scrollOffset+rowIndex], pItemTypes[scrollOffset+rowIndex]);
+            itemPrice = GearShopMenuBuildSellItemDetails(pItemIds[scrollOffset+rowIndex], pItemTypes[scrollOffset+rowIndex]);
             g_Menu->pManager->unk5A = 1;
         }
 
@@ -1280,11 +1280,11 @@ void GearShopMenuSellMenu(s32 listLength, u8* pInventoryItemIds, u8* pInventoryQ
             GearShopMenuInitializeWindow(2, 0xC, 0x2A, 0xC4, 0x74, 0, 1, 4, 1);
             GearShopMenuInitializeWindow(3, 0x20, 0xE, 0xFC, 0x14, 0, 1, 4, 0);
             GearShopMenuUpdateCharacterPortraits();
-            func_801D05EC();
+            GearShopMenuBuildSellExplanations();
             redrawWindows = FALSE;
         }
         if (redrawTransactionSummary) {
-            func_801D06D8(currentGold, cartTotal, projectedBalance, 0, 0);
+            GearShopMenuBuildTransactionSummary(currentGold, cartTotal, projectedBalance, 0, 0);
             redrawTransactionSummary = FALSE;
         }
 
@@ -1299,7 +1299,7 @@ void GearShopMenuSellMenu(s32 listLength, u8* pInventoryItemIds, u8* pInventoryQ
                     continueProcessing = FALSE;
                     g_Menu->pManager->shouldRenderArrowCursor[0] = 0;
                     GearShopMenuInitializePointerCursors(0);
-                    func_801D0C20(cartTotal, 0);
+                    GearShopMenuBuildFinalPriceGraphics(cartTotal, 0);
                     if(GearShopMenuShowModal(MENU_STRING_CONFIRM_SELL, MENU_STRING_NONE, TRUE)) {
 
                         GearShopMenuFinalizeSalesTransaction(projectedBalance, pItemIds, pItemSellQtys, listLength, pInventoryItemIds, pInventoryQtys, pItemTypes, flag1, flag2);
@@ -1409,7 +1409,7 @@ void GearShopMenuSellModeMenuHandleSelectedOption(u_char offset) {
     g_Menu->pManager->unk4 = 0;
     g_Menu->pManager->unk3 = 0;
     g_Menu->pManager->unkA = 0;
-    func_801CCEBC(4, g_Menu->pManager->unkC);
+    GearShopMenuClearStringRenderFlags(4, g_Menu->pManager->unkC);
 
     // Here, subMenuChoice 0 and 1 correspond to Weapons and Parts
     choice = g_Menu->subMenuChoice + (offset * 3);
@@ -1425,14 +1425,14 @@ void GearShopMenuSellModeMenuHandleSelectedOption(u_char offset) {
             break;
     }
 
-    func_801D0EC8(unkBool);
+    GearShopMenuResetShopUi(unkBool);
     g_Menu->pManager->unkA = 1;
     g_Menu->pManager->unk4 = 1;
     g_Menu->pManager->unk3 = 1;
-    func_801CCE90(4, g_Menu->unk6E0, &D_801D6A24, g_Menu->pManager->unkC);
+    GearShopMenuRenderMenuStringsToVram(4, g_Menu->unk6E0, &D_801D6A24, g_Menu->pManager->unkC);
 }
 
-void func_801D2950(u8 itemType) {
+void GearShopMenuBuildGearPartNameGraphics(u8 itemType) {
     RECT rect;
 
     u32* pWorkspace;
@@ -1461,7 +1461,7 @@ void func_801D2950(u8 itemType) {
 
     setRECT(&rect, 408, 180, 40, FONT_LETTER_HEIGHT);
     LoadImage((RECT* ) &rect, pWorkspace);
-    func_801C5CA8(&g_Menu->pShop->str4530, 9, 128, 129);
+    GearShopMenuInitializeMenuStringPolys(&g_Menu->pShop->str4530, 9, 128, 129);
     GearShopMenuSetVertices(g_Menu->pShop->str4530.vertices, 212, 142, g_Menu->pShop->str4530.width, FONT_LETTER_HEIGHT);
     DrawSync(0);
     g_Menu->pShop->str4530.renderContext = g_Menu->renderContext;
@@ -1471,7 +1471,7 @@ void func_801D2950(u8 itemType) {
 // https://decomp.me/scratch/5HauM
 INCLUDE_ASM("asm/gear_shop_menu/nonmatchings/main/render", func_801D2B74);
 
-void func_801D3558(s32* pDelta, s8* pIsImprovement, u8 itemId, u8 itemType, u8 characterId) {
+void GearShopMenuComputeEquipStatDelta(s32* pDelta, s8* pIsImprovement, u8 itemId, u8 itemType, u8 characterId) {
     s16 oldValue[2];
     s16 newValue[2];
     u8 itemSlots[8];
@@ -1544,8 +1544,8 @@ void func_801D3558(s32* pDelta, s8* pIsImprovement, u8 itemId, u8 itemType, u8 c
             break;
     }
 
-    func_801D6150(g_Menu->pDressingRoom, g_GameState.characters[characterId].gearId);
-    func_801D5F94(g_Menu->pDressingRoom, g_GameState.characters[characterId].gearId);
+    GearShopMenuRecalculateGearStats(g_Menu->pDressingRoom, g_GameState.characters[characterId].gearId);
+    GearShopMenuFillDressingRoomStats(g_Menu->pDressingRoom, g_GameState.characters[characterId].gearId);
 
     oldValue[0] = g_Menu->pDressingRoom->unkB0;
     oldValue[1] = g_Menu->pDressingRoom->totalDefense;
@@ -1571,10 +1571,10 @@ void func_801D3558(s32* pDelta, s8* pIsImprovement, u8 itemId, u8 itemType, u8 c
     g_GameState.gears[gearId].accessorySlots[1] = itemSlots[6];
     g_GameState.gears[gearId].accessorySlots[2] = itemSlots[7];
 
-    func_801D6150(g_Menu->pDressingRoom, g_GameState.characters[characterId].gearId);
+    GearShopMenuRecalculateGearStats(g_Menu->pDressingRoom, g_GameState.characters[characterId].gearId);
 }
 
-int func_801D3A3C(u8* index, u8* haystack, s32 size, u8 needle) {
+int GearShopMenuLookupItemQuantity(u8* index, u8* haystack, s32 size, u8 needle) {
     int i;
     u8 result = 0;
 
@@ -1588,7 +1588,7 @@ int func_801D3A3C(u8* index, u8* haystack, s32 size, u8 needle) {
     return result;
 }
 
-void func_801D3A80(u8 itemType, u8 itemId) {
+void GearShopMenuBuildItemQuantityHeld(u8 itemType, u8 itemId) {
     RECT rect; // sp18
     u8 digitBuffer[4]; // sp20
     u8 stringBuffer[4]; // sp28
@@ -1615,7 +1615,7 @@ void func_801D3A80(u8 itemType, u8 itemId) {
     }
 
     if (isValid) {
-        g_gearShopCurrentItemQuantityHeld = qtyHeld = func_801D3A3C(pIdList, pQtyList, listSize, itemId);
+        g_gearShopCurrentItemQuantityHeld = qtyHeld = GearShopMenuLookupItemQuantity(pIdList, pQtyList, listSize, itemId);
 
         pWorkspace = HeapAlloc(0x3F6U, 0U);
         digitBuffer[1] = 0;
@@ -1623,13 +1623,13 @@ void func_801D3A80(u8 itemType, u8 itemId) {
         digitBuffer[0] = ((qtyHeld / 10) == 0) ? 0xC3 : (qtyHeld / 10) + 0x10;
         digitBuffer[2] = (qtyHeld % 10) + 0x10;
 
-        func_80033B34((u16 *)digitBuffer, stringBuffer, 2);
+        SystemDecodeGlyphCodesN((u16 *)digitBuffer, stringBuffer, 2);
         g_Menu->pShop->str45B0.width = SystemRenderStringEntry(stringBuffer, pWorkspace, 0x24, 1);
         setRECT(&rect, 0x198, 0xB4, 0x28, FONT_LETTER_HEIGHT);
         LoadImage(&rect, pWorkspace);
         DrawSync(0);
 
-        func_801C5CA8(&g_Menu->pShop->str45B0, 9, 0x80, 0x82);
+        GearShopMenuInitializeMenuStringPolys(&g_Menu->pShop->str45B0, 9, 0x80, 0x82);
         GearShopMenuSetVertices(g_Menu->pShop->str45B0.vertices, 0xF8, 0x8E, g_Menu->pShop->str45B0.width, FONT_LETTER_HEIGHT);
         g_Menu->pShop->str45B0.renderContext = g_Menu->renderContext;
         g_Menu->pShop->unk4785 = 1;
@@ -1637,7 +1637,7 @@ void func_801D3A80(u8 itemType, u8 itemId) {
     }
 }
 
-s32 func_801D3C78(s32 rowIndex, s32 scrollOffset, u8 *unused) {
+s32 GearShopMenuBuildPurchaseItemDetails(s32 rowIndex, s32 scrollOffset, u8 *unused) {
     int currentItem = scrollOffset + rowIndex;
 
     u8 gearId;
@@ -1695,12 +1695,12 @@ s32 func_801D3C78(s32 rowIndex, s32 scrollOffset, u8 *unused) {
             break;
     }
 
-    totalPrice = func_801D1078(itemId, itemType);
+    totalPrice = GearShopMenuBuildEquippedCharacterMask(itemId, itemType);
     setRECT(&rect, 0x140, 0x4E, 0x3C, 0xD);
     LoadImage(&rect, (u32 *)pStringBuffer);
     DrawSync(0);
-    func_801C5CA8(&g_Menu->pShop->strItemDesc, 0, 0, 0U);
-    func_801C51B8(&g_Menu->pShop->strItemDesc.polys[g_Menu->renderContext], 0x2C, 0x12, 0, 0x4E, (s32) g_Menu->pShop->strItemDesc.width, 0xD);
+    GearShopMenuInitializeMenuStringPolys(&g_Menu->pShop->strItemDesc, 0, 0, 0U);
+    GearShopMenuSetPolyFT4Quad(&g_Menu->pShop->strItemDesc.polys[g_Menu->renderContext], 0x2C, 0x12, 0, 0x4E, (s32) g_Menu->pShop->strItemDesc.width, 0xD);
     GearShopMenuSetVertices(g_Menu->pShop->strItemDesc.vertices, 0x2C, 0x12, g_Menu->pShop->strItemDesc.width, 0xD);
 
     g_Menu->pShop->strItemDesc.renderContext = g_Menu->renderContext;
@@ -1739,7 +1739,7 @@ s32 func_801D3C78(s32 rowIndex, s32 scrollOffset, u8 *unused) {
             if( (u8)(itemType + 0xFD) < 2 && g_Menu->pShop->unk469C[currentSlot]) {
                 sp28[1] = 0;
                 sp28[0] = 0;
-                func_801D3558(&sp28[0], &sp30[0], itemId, itemType, (u8)i);
+                GearShopMenuComputeEquipStatDelta(&sp28[0], &sp30[0], itemId, itemType, (u8)i);
                 if(sp28[0]) {
                     GearShopMenuParseNumberToString(sp28[0]);
                     for(j = 0; j < 3; j++) {
@@ -1754,7 +1754,7 @@ s32 func_801D3C78(s32 rowIndex, s32 scrollOffset, u8 *unused) {
                                 0x1000U);
                         }
                     }
-                    func_801D0054(g_Menu->pShop->unk46BC[currentSlot], &g_Menu->pShop->polys27B0[currentSlot], sp30[0]);
+                    GearShopMenuSetStatDeltaColor(g_Menu->pShop->unk46BC[currentSlot], &g_Menu->pShop->polys27B0[currentSlot], sp30[0]);
                     g_Menu->pShop->unk46CE[currentSlot] = g_Menu->renderContext;
                 }
 
@@ -1772,7 +1772,7 @@ s32 func_801D3C78(s32 rowIndex, s32 scrollOffset, u8 *unused) {
                                 0x1000U);
                         }
                     }
-                    func_801D0054(g_Menu->pShop->unk46C5[currentSlot], &g_Menu->pShop->polys3020[currentSlot], sp30[1]);
+                    GearShopMenuSetStatDeltaColor(g_Menu->pShop->unk46C5[currentSlot], &g_Menu->pShop->polys3020[currentSlot], sp30[1]);
                     g_Menu->pShop->unk46D7[currentSlot] = g_Menu->renderContext;
                 }
             }
@@ -1781,11 +1781,11 @@ s32 func_801D3C78(s32 rowIndex, s32 scrollOffset, u8 *unused) {
 
     }
     g_Menu->pShop->unk46A8 = g_Menu->renderContext;
-    func_801D3A80(itemType, itemId);
+    GearShopMenuBuildItemQuantityHeld(itemType, itemId);
     return price;
 }
 
-void func_801D44FC(u32 newBalance) {
+void GearShopMenuFinalizePurchase(u32 newBalance) {
     s32 inventoryIndex;
     s32 itemIndex;
     u8 notFound;
@@ -1858,7 +1858,7 @@ void func_801D44FC(u32 newBalance) {
 }
 
 
-u8 func_801D4888(s32 itemId) {
+u8 GearShopMenuIsGearItemUpgrade(s32 itemId) {
     u8 equipped;
     u8 itemType = g_Menu->shopItemTypes[itemId];
     u8 result = TRUE;
@@ -1922,8 +1922,8 @@ s32 GearShopMenuPurchaseDialog(u8 arg0, u8 disableQuantitySelection) {
     unkWindowWidth = 0x40;
     for(i = 0; i < MAX_GAME_CHARACTERS; i++) {
         if(g_GameState.characters[i].gearId != GEAR_ID_NONE) {
-            func_801D6150(g_Menu->pDressingRoom, g_GameState.characters[i].gearId);
-            func_801D5F94(g_Menu->pDressingRoom, g_GameState.characters[i].gearId);
+            GearShopMenuRecalculateGearStats(g_Menu->pDressingRoom, g_GameState.characters[i].gearId);
+            GearShopMenuFillDressingRoomStats(g_Menu->pDressingRoom, g_GameState.characters[i].gearId);
             g_Menu->pShop->unk46E0[i] = g_Menu->pDressingRoom->unkB0;
             g_Menu->pShop->unk4700[i] = g_Menu->pDressingRoom->totalDefense;
         }
@@ -1957,7 +1957,7 @@ s32 GearShopMenuPurchaseDialog(u8 arg0, u8 disableQuantitySelection) {
 
         if ((rowIndex != newRowIndex) || (scrollOffset != newScrollOffset)) {
             newRowIndex = rowIndex;
-            itemPrice = func_801D3C78(rowIndex, scrollOffset, values);
+            itemPrice = GearShopMenuBuildPurchaseItemDetails(rowIndex, scrollOffset, values);
             newScrollOffset = scrollOffset;
             g_Menu->pManager->unk5A = 1;
             if (disableQuantitySelection) {
@@ -1984,18 +1984,18 @@ s32 GearShopMenuPurchaseDialog(u8 arg0, u8 disableQuantitySelection) {
                 GearShopMenuInitializeWindow(3, 0x20, 0xE, 0xFCU, 0x14U, 0U, 1, 4, 0);
                 GearShopMenuInitializeWindow(5, unkWindowX, 0x7A, unkWindowWidth, 0x24, FALSE, 1, 4, FALSE);
                 temp = D_801D6A2C;
-                func_801CCE90(2, g_Menu->unk6E0, (s8* ) temp, (s8* ) g_Menu->pManager->unkC);
-                func_801CCEE8(2, g_Menu->unk6E0, (s32) temp, D_801D6A40, g_Menu->pManager->unkC, disableQuantitySelection, 0, 1);
+                GearShopMenuRenderMenuStringsToVram(2, g_Menu->unk6E0, (s8* ) temp, (s8* ) g_Menu->pManager->unkC);
+                GearShopMenuSetMenuStringPosition(2, g_Menu->unk6E0, (s32) temp, D_801D6A40, g_Menu->pManager->unkC, disableQuantitySelection, 0, 1);
                 if (disableQuantitySelection) {
-                    func_801D2950(g_Menu->subMenuChoice + (arg0 * 3));
+                    GearShopMenuBuildGearPartNameGraphics(g_Menu->subMenuChoice + (arg0 * 3));
                 }
                 GearShopMenuUpdateCharacterPortraits();
-                func_801D04E8(disableQuantitySelection);
+                GearShopMenuBuildPurchaseExplanations(disableQuantitySelection);
                 redrawWindows = FALSE;
             }
 
         if (redrawTransactionSummary) {
-            func_801D06D8(current_gold, cartTotal, projectedRemainingFunds, salesTotal, disableQuantitySelection);
+            GearShopMenuBuildTransactionSummary(current_gold, cartTotal, projectedRemainingFunds, salesTotal, disableQuantitySelection);
             redrawTransactionSummary = FALSE;
         }
         switch (g_Menu->input) {
@@ -2012,21 +2012,21 @@ s32 GearShopMenuPurchaseDialog(u8 arg0, u8 disableQuantitySelection) {
                     continueProcessing = FALSE;
                     g_Menu->pManager->unkC[disableQuantitySelection] = FALSE;
                     if (disableQuantitySelection) {
-                        if (func_801D4888(scrollOffset + rowIndex) & 0xFF) {
+                        if (GearShopMenuIsGearItemUpgrade(scrollOffset + rowIndex) & 0xFF) {
                             purchaseConfirmStringId1 = MENU_STRING_CONFIRM_PURCHASE;
                         } else {
                             purchaseConfirmStringId1 = MENU_STRING_NOT_AN_UPGRADE;
                             purchaseConfirmStringId2 = MENU_STRING_BUY_ANYWAY;
                         }
                     } else {
-                        func_801D0C20(cartTotal, 0);
+                        GearShopMenuBuildFinalPriceGraphics(cartTotal, 0);
                     }
                     GearShopMenuInitializePointerCursors(0);
                     if (GearShopMenuShowModal(purchaseConfirmStringId1, purchaseConfirmStringId2, TRUE) != MENU_CHOICE_NO) {
                         if (disableQuantitySelection) {
                             g_Menu->pShop->curItemQuantities[scrollOffset + rowIndex] = 1;
                         }
-                        func_801D44FC(projectedRemainingFunds);
+                        GearShopMenuFinalizePurchase(projectedRemainingFunds);
                     } else {
                         continueProcessing = TRUE;
                         g_Menu->pManager->shouldRenderWindow[2] = TRUE;
@@ -2120,13 +2120,13 @@ s32 GearShopMenuPurchaseDialog(u8 arg0, u8 disableQuantitySelection) {
     }
     g_Menu->pShop->unk4785 = 0;
     GearShopMenuFreeWindow(5);
-    func_801CCEBC(2, (s8* ) g_Menu->pManager->unkC);
-    func_801D0EC8(1);
+    GearShopMenuClearStringRenderFlags(2, (s8* ) g_Menu->pManager->unkC);
+    GearShopMenuResetShopUi(1);
     return 1;
 }
 
 // Handles the logic for the "Fuel" option under "Tune up"
-void func_801D5398(void) {
+void GearShopMenuTuneUpFuel(void) {
     u8 var_s1;
     u8 var_s4;
     s32 var_s6;
@@ -2158,9 +2158,9 @@ void func_801D5398(void) {
     var_s0 = fuelUnits * 10;
 
     GearShopMenuInitializeWindow(5, 0xA2, 0xA6, 0x60, 0x14, 0, 1, 4, 0);
-    func_801D0D4C(g_GameState.gold);
+    GearShopMenuBuildGoldGraphics(g_GameState.gold);
     if (var_s1 != 0) {
-        func_801D0C20(var_s0, 1);
+        GearShopMenuBuildFinalPriceGraphics(var_s0, 1);
     }
     GearShopMenuUpdateAndRender();
     GearShopMenuInitializePointerCursors(0);
@@ -2203,35 +2203,35 @@ void func_801D5398(void) {
 }
 
 
-u_char func_801D573C(void) {
+u_char GearShopMenuResetTuneUpSubmenu(void) {
     g_Menu->pManager->unk4 = 0;
     g_Menu->pManager->unk3 = 0;
-    func_801CCEBC(4, g_Menu->pManager->unkC);
-    func_801D0EC8(0);
+    GearShopMenuClearStringRenderFlags(4, g_Menu->pManager->unkC);
+    GearShopMenuResetShopUi(0);
     return 2;
 }
 
 // Called if we chose "Tune up", dispatches into the correct menu based on
 // the submenu choice
-void func_801D57A8(void) {
+void GearShopMenuTuneUpMenuHandleSelectedOption(void) {
     switch(g_Menu->subMenuChoice) {
         case MENU_CHOICE_ARMOR:
         case MENU_CHOICE_FRAME:
         case MENU_CHOICE_ENGINE:
             GearShopMenuPurchaseDialog(0, 1);
-            func_801D6150(g_Menu->pDressingRoom, g_gearShopCurrentGearId);
+            GearShopMenuRecalculateGearStats(g_Menu->pDressingRoom, g_gearShopCurrentGearId);
             break;
         case MENU_CHOICE_FUEL:
-            func_801D5398();
+            GearShopMenuTuneUpFuel();
     }
 }
 
-s32 func_801D5828(void) {
+s32 GearShopMenuShopModeSubmenu(void) {
     u8 continueProcessing = TRUE;
     u8 redrawWindows = TRUE;
     u8 var_s0 = 0;
 
-    if ((g_Menu->mainMenuChoice == 3) && !func_801D573C()) return 1;
+    if ((g_Menu->mainMenuChoice == 3) && !GearShopMenuResetTuneUpSubmenu()) return 1;
 
     g_Menu->subMenuChoice = 0;
     g_Menu->subMenuPrevChoice = 0xFF;
@@ -2248,12 +2248,12 @@ s32 func_801D5828(void) {
                 }
             }
             if (redrawWindows) {
-                func_801CCE90(4, g_Menu->unk6E0, &D_801D6A24[var_s0], (s8* ) g_Menu->pManager->unkC);
+                GearShopMenuRenderMenuStringsToVram(4, g_Menu->unk6E0, &D_801D6A24[var_s0], (s8* ) g_Menu->pManager->unkC);
                 GearShopMenuInitializeSubmenu(0);
                 redrawWindows = FALSE;
             }
             if (g_Menu->subMenuChoice != g_Menu->subMenuPrevChoice) {
-                func_801CCEE8(4, g_Menu->unk6E0, (s32) &D_801D6A24[var_s0], &D_801D6A40[var_s0], g_Menu->pManager->unkC, g_Menu->subMenuChoice, 4, 0);
+                GearShopMenuSetMenuStringPosition(4, g_Menu->unk6E0, (s32) &D_801D6A24[var_s0], &D_801D6A40[var_s0], g_Menu->pManager->unkC, g_Menu->subMenuChoice, 4, 0);
                 GearShopMenuUpdateSubmenuTextures(0);
                 g_Menu->subMenuPrevChoice = g_Menu->subMenuChoice;
             }
@@ -2268,9 +2268,9 @@ s32 func_801D5828(void) {
                     g_Menu->pManager->unk3 = 0;
                     g_Menu->pManager->unkA = 0;
                     g_Menu->pManager->unk5C[0xA] = 0;
-                    func_801CCEBC(4, (s8* ) g_Menu->pManager->unkC);
+                    GearShopMenuClearStringRenderFlags(4, (s8* ) g_Menu->pManager->unkC);
                     GearShopMenuPlaySoundEffect(2);
-                    func_801CFC60();
+                    GearShopMenuOpenGearPanel();
                     g_Menu->pManager->shoulderButtonUiActive = 0;
                     switch (g_Menu->mainMenuChoice) {              /* switch 2; irregular */
                         case 1:
@@ -2280,17 +2280,17 @@ s32 func_801D5828(void) {
                             GearShopMenuPurchaseDialog(1, 0);
                             break;
                         case 3:
-                            func_801D57A8();
+                            GearShopMenuTuneUpMenuHandleSelectedOption();
                             break;
                     }
-                    func_801CFF18();
+                    GearShopMenuCloseGearPanel();
                     GearShopMenuUpdateAndRender();
-                    func_801CF448();
+                    GearShopMenuBuildGearStatsGraphics();
                     GearShopMenuUpdateAndRender();
                     g_Menu->pManager->unk4 = 1;
                     g_Menu->pManager->unk3 = 1;
                     g_Menu->pManager->unkA = 1;
-                    func_801CCE90(4, g_Menu->unk6E0, &D_801D6A24[var_s0], (s8* ) g_Menu->pManager->unkC);
+                    GearShopMenuRenderMenuStringsToVram(4, g_Menu->unk6E0, &D_801D6A24[var_s0], (s8* ) g_Menu->pManager->unkC);
                     g_Menu->subMenuPrevChoice = 0xFF;
                 case MENU_INPUT_LEFT:                             /* switch 1 */
                 case 6:                             /* switch 1 */
@@ -2322,12 +2322,12 @@ s32 func_801D5828(void) {
     }
     g_Menu->pManager->unk4 = 0;
     g_Menu->pManager->unk3 = 0;
-    func_801CCEBC(4, (s8* ) g_Menu->pManager->unkC);
+    GearShopMenuClearStringRenderFlags(4, (s8* ) g_Menu->pManager->unkC);
 
     return 1;
 }
 
-void func_801D5D38(void) {
+void GearShopMenuInitializeGearView(void) {
     s32 firstAvailable = 0;
 
     LibGearInitialize(0x40);
@@ -2370,11 +2370,11 @@ void func_801D5D38(void) {
 
     g_gearShopCurrentGearId = g_GameState.characters[firstAvailable].gearId;
 
-    func_801CF9BC(g_gearShopCurrentGearId, 1);
+    GearShopMenuLoadGearModelFiles(g_gearShopCurrentGearId, 1);
     GearShopMenuSetAvailableCharacterCount();
 }
 
-void func_801D5EB8(void) {
+void GearShopMenuFreeGearView(void) {
     while (g_Menu->transitionEffectState != 0) {
         GearShopMenuUpdateAndRender();
     }
@@ -2382,14 +2382,14 @@ void func_801D5EB8(void) {
     D_801D697C = 0;
     g_Menu->pManager->unk5C[7] = 0;
     GearShopMenuUpdateAndRender();
-    func_801E7FD4();
+    LibGearShutdown();
     g_Menu->unk458[0]->unk12 = 0;
     g_Menu->unk458[1]->unk12 = 0;
     HeapFree(g_Menu->unk458[0]);
     HeapFree(g_Menu->unk458[1]);
 }
 
-void func_801D5F94(MenuDressingRoom* pView, u_char gearId) {
+void GearShopMenuFillDressingRoomStats(MenuDressingRoom* pView, u_char gearId) {
     GameGear* pGear;
     GameCharacter* pPilot;
     u_short ether;
@@ -2428,15 +2428,15 @@ void func_801D5F94(MenuDressingRoom* pView, u_char gearId) {
     pView->unkB6 = pGear->unk9C;
 }
 
-void func_801D6150(MenuDressingRoom* arg0, u8 arg1) {
-    func_801D61B8(arg0, arg1);
-    func_801D62A4(arg0, arg1);
-    func_801D6250(arg0, arg1);
-    func_801D6334(arg0, arg1);
-    func_801D6738(arg0, arg1);
+void GearShopMenuRecalculateGearStats(MenuDressingRoom* arg0, u8 arg1) {
+    GearShopMenuApplyGearFrame(arg0, arg1);
+    GearShopMenuApplyGearEngine(arg0, arg1);
+    GearShopMenuApplyGearArmor(arg0, arg1);
+    GearShopMenuApplyGearAccessories(arg0, arg1);
+    GearShopMenuApplyGearWeapons(arg0, arg1);
 }
 
-void func_801D61B8(MenuDressingRoom* arg0, u_char gearIndex) {
+void GearShopMenuApplyGearFrame(MenuDressingRoom* arg0, u_char gearIndex) {
     GameGear* pGear;
     GearFrame* pPreview;
     u_char previewId;
@@ -2458,7 +2458,7 @@ void func_801D61B8(MenuDressingRoom* arg0, u_char gearIndex) {
     }
 }
 
-void func_801D6250(MenuDressingRoom* menu, u_char gearIndex) {
+void GearShopMenuApplyGearArmor(MenuDressingRoom* menu, u_char gearIndex) {
     GameGear* pGear;
     GearArmor* itemList;
     GearArmor* pItem;
@@ -2472,7 +2472,7 @@ void func_801D6250(MenuDressingRoom* menu, u_char gearIndex) {
     pGear->baseEtherDefense = pItem->unkA;
 }
 
-void func_801D62A4(MenuDressingRoom* shopInfo, u8 gearId) {
+void GearShopMenuApplyGearEngine(MenuDressingRoom* shopInfo, u8 gearId) {
     GameGear* pGear;
     GearEngine *item;
     u16 fuel;
@@ -2496,7 +2496,7 @@ void func_801D62A4(MenuDressingRoom* shopInfo, u8 gearId) {
 }
 
 
-void func_801D6334(MenuDressingRoom* dressingRoom, u8 gearId) {
+void GearShopMenuApplyGearAccessories(MenuDressingRoom* dressingRoom, u8 gearId) {
     GameGear* pGear;
     GearAccessory* pAccessory;
     u8 accessoryInd;
@@ -2598,7 +2598,7 @@ void func_801D6334(MenuDressingRoom* dressingRoom, u8 gearId) {
         }
     }
 
-    pGear->unk4A = func_801D690C(gearId);
+    pGear->unk4A = GearShopMenuComputeEquipWeightPenalty(gearId);
     if (pGear->unk4F) {
         *pFlags2 |= 0x8000;
     }
@@ -2607,7 +2607,7 @@ void func_801D6334(MenuDressingRoom* dressingRoom, u8 gearId) {
     }
 }
 
-void func_801D6738(MenuDressingRoom* dressingRoom, u8 gearId) {
+void GearShopMenuApplyGearWeapons(MenuDressingRoom* dressingRoom, u8 gearId) {
     GameGear* pGear = &g_GameState.gears[gearId];
     GearWeapon *pList = dressingRoom->pGearWeapons;
     GearWeapon *pWeapon;
@@ -2656,7 +2656,7 @@ void func_801D6738(MenuDressingRoom* dressingRoom, u8 gearId) {
     }
 }
 
-s32 func_801D690C(u8 index) {
+s32 GearShopMenuComputeEquipWeightPenalty(u8 index) {
     GameGear* pGear;
     s32 temp_v0;
     u8 result;

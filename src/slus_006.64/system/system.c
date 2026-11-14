@@ -224,11 +224,11 @@ u8 DialogGetHeight(u16* pDialogData, int dialogIndex) {
     return pDialog[1];
 }
 
-void* func_80033784(int groupIndex, int entryId) {
+void* GetStringEntryFromBank(int groupIndex, int entryId) {
     return GetStringEntry(g_SystemDataEntries->entries[groupIndex], entryId);
 }
 
-void* func_800337B8(int entryId) {
+void* GetStringEntryFromBank10(int entryId) {
     return GetStringEntry(g_SystemDataEntries->entries[0x10], entryId);
 }
 
@@ -244,56 +244,56 @@ void* GetWeaponName(int entryId) {
     return GetStringEntry(g_SystemDataEntries->entries[0x17], entryId);
 }
 
-void* func_80033878(int entryId) {
+void* GetStringEntryFromBank18(int entryId) {
     return GetStringEntry(g_SystemDataEntries->entries[0x18], entryId);
 }
 
-void* func_800338A8(int entryId) {
+void* GetStringEntryFromBank19(int entryId) {
     return GetStringEntry(g_SystemDataEntries->entries[0x19], entryId);
 }
 
-void* func_800338D8(int entryId) {
+void* GetStringEntryFromBank12(int entryId) {
     return GetStringEntry(g_SystemDataEntries->entries[0x12], entryId);
 }
 
-void* func_80033908(int entryId) {
+void* GetStringEntryFromBank14(int entryId) {
     return GetStringEntry(g_SystemDataEntries->entries[0x14], entryId);
 }
 
-void* func_80033938(int entryId) {
+void* GetStringEntryFromBank13(int entryId) {
     return GetStringEntry(g_SystemDataEntries->entries[0x13], entryId);
 }
 
-void* func_80033968(int entryId) {
+void* GetStringEntryFromBank15(int entryId) {
     return GetStringEntry(g_SystemDataEntries->entries[0x15], entryId);
 }
 
-void* func_80033998(int entryId) {
+void* GetStringEntryFromBank1B(int entryId) {
     return GetStringEntry(g_SystemDataEntries->entries[0x1B], entryId);
 }
 
-void* func_800339C8(int groupIndex, int entryId) {
+void* GetStringEntryFromBank1C(int groupIndex, int entryId) {
     return GetStringEntry(g_SystemDataEntries->entries[0x1C + groupIndex], entryId);
 }
 
-void* func_800339FC(int entryId) {
+void* GetStringEntryFromBank30(int entryId) {
     return GetStringEntry(g_SystemDataEntries->entries[0x30], entryId);
 }
 
-void* func_80033A2C(int entryId) {
+void* GetGearAccessoryName(int entryId) {
     return GetStringEntry(g_SystemDataEntries->entries[0x32], entryId);
 }
 
 // TODO: determine what strings are in bank 51 and give this function a better name
-void *func_80033A5C(s32 entryId) {
+void *GetGearWeaponName(s32 entryId) {
     return GetStringEntry(g_SystemDataEntries->entries[51], entryId);
 }
 
-void* func_80033A8C(int entryId) {
+void* GetStringEntryFromBank34(int entryId) {
     return GetStringEntry(g_SystemDataEntries->entries[0x34], entryId);
 }
 
-void func_80033ABC(u16* pInput) {
+void SystemDecodeGlyphCodes(u16* pInput) {
     u8* pEntry = g_SystemDataEntries->entries[0x1B];
     u8* pOutput = D_8005A0E4;
     u8* pPos;
@@ -313,7 +313,7 @@ void func_80033ABC(u16* pInput) {
     *pOutput = 0;
 }
 
-void func_80033B34(u16* pInput, u8* pOutput, int count) {
+void SystemDecodeGlyphCodesN(u16* pInput, u8* pOutput, int count) {
     int i;
     u8 *pEntry = g_SystemDataEntries->entries[0x1B];
     u8 *pPos;
@@ -335,7 +335,7 @@ void func_80033B34(u16* pInput, u8* pOutput, int count) {
     *pOutput = 0;
 }
 
-int func_80033BAC(u8 firstByte, u8 secondByte) {
+int SystemFindGlyphCode(u8 firstByte, u8 secondByte) {
     s16 i;
     u8* pGlyph = g_SystemDataEntries->entries[0x1B];
 
@@ -348,7 +348,7 @@ int func_80033BAC(u8 firstByte, u8 secondByte) {
     return 0x8000;
 }
 
-int func_80033C20(u8* pInput, u16* pOutput) {
+int SystemEncodeGlyphCodes(u8* pInput, u16* pOutput) {
     int c = *pInput++;
     int glyph;
     u8 arg0;
@@ -362,7 +362,7 @@ int func_80033C20(u8* pInput, u16* pOutput) {
             arg0 = c;
             arg1 = *pInput++;
         }
-        glyph = func_80033BAC(arg0, arg1);
+        glyph = SystemFindGlyphCode(arg0, arg1);
         *pOutput++ = glyph;
 
         if ((u16)glyph == 0x8000) {
@@ -453,11 +453,11 @@ scanDone:
         *--pScan = sign + glyphOffset;
     }
 
-    func_80033ABC(pScan);
+    SystemDecodeGlyphCodes(pScan);
 }
 */
 
-void func_80033DD4(SystemString* pString, void* pData) {
+void SystemStringSetCurrentData(SystemString* pString, void* pData) {
     void* pOld = pString->pCur;
 
     pString->pCur = pData;
@@ -467,7 +467,7 @@ void func_80033DD4(SystemString* pString, void* pData) {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/system", func_80033DF0);
 
-void func_800345E0(SystemString* pString) {
+void SystemStringClearStateFlags(SystemString* pString) {
     pString->flags &= ~0x8;
 
     if (pString->flags & 0x200) {
@@ -477,14 +477,14 @@ void func_800345E0(SystemString* pString) {
     }
 }
 
-void func_80034614(SystemString* pString) {
+void SystemStringResetIfIdle(SystemString* pString) {
     if (pString->unk84 == 0) {
         pString->unk6C = 0;
         pString->flags &= 0x2;
     }
 }
 
-void func_8003463C(SystemString* pString) {
+void SystemStringFreeBufferStack(SystemString* pString) {
     SystemStringNode* pNode;
     SystemStringNode* pOld;
 
@@ -504,20 +504,20 @@ void func_8003463C(SystemString* pString) {
     pString->unk82 = 0;
 }
 
-void func_800346A4(SystemString* pString) {
+void SystemStringReset(SystemString* pString) {
     pString->unk6C = 0;
     pString->unk84 = 0;
     pString->flags &= 0x2;
-    func_8003463C(pString);
+    SystemStringFreeBufferStack(pString);
 }
 
-void func_800346D4(SystemString* pString) {
-    func_800346A4(pString);
+void SystemStringFree(SystemString* pString) {
+    SystemStringReset(pString);
     HeapFree(pString->pChars);
     HeapFree(pString->pCharBuffer);
 }
 
-int func_80034714(SystemString* pString, void* pData) {
+int SystemStringPushBuffer(SystemString* pString, void* pData) {
     SystemStringNode* pCur = pString->pBufferStack;
     SystemStringNode* pNode;
 
@@ -541,11 +541,11 @@ int func_80034714(SystemString* pString, void* pData) {
     return pString->unk82;
 }
 
-int func_800347AC(SystemString* pString) {
+int SystemStringGetColumnOffset(SystemString* pString) {
     return pString->unk4 + pString->unk0 * 4;
 }
 
-int func_800347C0(SystemString* pString) {
+int SystemStringGetRowOffset(SystemString* pString) {
     int row = pString->unk2 - pString->unk16;
 
     if (row < 0) {
@@ -555,7 +555,7 @@ int func_800347C0(SystemString* pString) {
     return pString->unk6 + row * pString->unk14;
 }
 
-void func_80034800(SystemString* pString, u8 red, u8 green, u8 blue) {
+void SystemStringSetColor(SystemString* pString, u8 red, u8 green, u8 blue) {
     SystemStringChar* pChar;
     int i;
 
@@ -577,11 +577,11 @@ void func_80034800(SystemString* pString, u8 red, u8 green, u8 blue) {
     }
 }
 
-void func_80034874(SystemString* pString, u8 value) {
+void SystemStringSetLineOffset(SystemString* pString, u8 value) {
     pString->unk6E = value;
 }
 
-void func_8003487C(SystemString* pString) {
+void SystemStringClearLineOffset(SystemString* pString) {
     pString->unk6E = 0xFF;
 }
 
@@ -621,7 +621,7 @@ int SystemRenderStringEntry(void* pCur, void* pCharBuffer, int mode, int flag) {
 }
 */
 
-int func_80034F98(u16 first, u16 second) {
+int SystemGetGlyphWidth(u16 first, u16 second) {
     if (first == 0) {
         if (second - D_80059364 < D_80059354) {
             return 2;

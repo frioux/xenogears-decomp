@@ -74,7 +74,7 @@ extern s32 D_8009CCA0;
 extern void func_80096A6C(void);
 extern u32 ArchiveGetDebugTable(void);
 extern s32 func_800968E0(void);
-extern void func_800966CC(void *p);
+extern void WorldMapReadFileEntries(void *p);
 extern s32 D_8009BBB4;
 extern s32 D_8009BBB8;
 extern s32 D_8009BBBC;
@@ -98,7 +98,7 @@ s32 func_800967E4(void) {
         }
     } else {
         if (D_8009C624[D_8009BCB8] != NULL) {
-            func_800966CC(D_8009C624[D_8009BCB8]);
+            WorldMapReadFileEntries(D_8009C624[D_8009BCB8]);
             D_8009C624[D_8009BCB8] = NULL;
             D_8009BCB8 = (D_8009BCB8 + 1) & 0xF;
         }

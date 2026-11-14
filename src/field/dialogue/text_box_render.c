@@ -12,8 +12,8 @@
 
 // Same SystemString helpers as the group further down; the text box keeps its
 // string at _pad[0].
-extern void func_80034874(void* pString, int value);
-extern void func_8003487C(void* pString);
+extern void SystemStringSetLineOffset(void* pString, int value);
+extern void SystemStringClearLineOffset(void* pString);
 
 // Field's own pad button state, filled by FieldPollControllers.
 extern u_short D_800C3900;
@@ -36,10 +36,10 @@ void func_8007DCF8(int index) {
                         g_FieldTextBoxes[index].cursor.curPosition = g_FieldTextBoxes[index].cursor.maxPosition - 1;
                     }
                 }
-                func_80034874(&g_FieldTextBoxes[index]._pad[0],
+                SystemStringSetLineOffset(&g_FieldTextBoxes[index]._pad[0],
                     g_FieldTextBoxes[index].cursor.curPosition + g_FieldTextBoxes[index].cursor.startPosition);
             } else {
-                func_8003487C(&g_FieldTextBoxes[index]._pad[0]);
+                SystemStringClearLineOffset(&g_FieldTextBoxes[index]._pad[0]);
             }
         }
     }
@@ -292,16 +292,16 @@ extern int D_800B068C[4];
 
 // The string state helpers take a SystemString, which only system.c names; the
 // text box keeps one at _pad[0].
-extern void func_800345E0(void* pString);
-extern void func_80034614(void* pString);
-extern void func_800346D4(void* pString);
+extern void SystemStringClearStateFlags(void* pString);
+extern void SystemStringResetIfIdle(void* pString);
+extern void SystemStringFree(void* pString);
 
 // Bit per text box index, set while the box is in use.
 int func_8007F6F8(short index) {
     if (g_FieldTextBoxes[index].visibility == 0) {
-        func_80034614(&g_FieldTextBoxes[index]._pad[0]);
-        func_800345E0(&g_FieldTextBoxes[index]._pad[0]);
-        func_800346D4(&g_FieldTextBoxes[index]._pad[0]);
+        SystemStringResetIfIdle(&g_FieldTextBoxes[index]._pad[0]);
+        SystemStringClearStateFlags(&g_FieldTextBoxes[index]._pad[0]);
+        SystemStringFree(&g_FieldTextBoxes[index]._pad[0]);
 
         g_FieldTextBoxes[index].cursor.visibility = -1;
         g_FieldTextBoxes[index].visibility = -1;

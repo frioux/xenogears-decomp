@@ -40,8 +40,8 @@ extern WorldMapRect** D_8009BD00;
 extern void* D_8009D7D8;
 extern s16 D_8009BD24;
 extern s16 D_8009CE68;
-extern void func_800963E4(SVec* pRecord);
-extern void func_800964B0(SVec4* pRecord);
+extern void WorldMapSortCdRequestsBySector(SVec* pRecord);
+extern void WorldMapSortFileLoadsByOffset(SVec4* pRecord);
 extern void func_800967E4(void);
 extern void func_80093354(void* p);
 extern s32 func_80093F18(void* p);
@@ -49,8 +49,8 @@ extern s16 func_80094060(s16 row, s16 col);
 
 // Scratchpad probe at 0x1F800000: the near/far pair at 0x20/0x30 is projected
 // in place and the winning one is copied down to 0x00. v.x/v.z is a scratch
-// temp; 0x10 and 0x18 are the x- and z-references func_8009443C and
-// func_80094750 measure from. The three stores of a projection must keep the
+// temp; 0x10 and 0x18 are the x- and z-references WorldMapProbeCellEdgeXFromReference and
+// WorldMapProbeCellEdgeZFromReference measure from. The three stores of a projection must keep the
 // temp first: writing the scaled field first lets gcc forward the temp and drop
 // the reload of it that the original does.
 typedef struct {
@@ -63,7 +63,7 @@ typedef struct {
     /* 0x30 */ SVec4 far;
 } WorldMapProbe; // Size: 0x40
 
-s32 func_80094238(SVec* p, s32 index) {
+s32 WorldMapSelectAreaAtPosition(SVec* p, s32 index) {
     WorldMapRect* pRect;
     u16 x;
     u16 z;
@@ -93,7 +93,7 @@ s32 func_80094238(SVec* p, s32 index) {
     return 0;
 }
 
-s32 func_80094364(SVec* p, s32 index, s32 mode) {
+s32 WorldMapFindAreaOfModeAtPosition(SVec* p, s32 index, s32 mode) {
     WorldMapRect* pRect;
     u16 x;
     u16 z;
@@ -114,10 +114,10 @@ s32 func_80094364(SVec* p, s32 index, s32 mode) {
     return 0;
 }
 
-void func_80094434(void) {
+void WorldMapNop(void) {
 }
 
-s32 func_8009443C(SVec* pPos, SVec* pAim, WorldMapProbe* pProbe, s16 kind) {
+s32 WorldMapProbeCellEdgeXFromReference(SVec* pPos, SVec* pAim, WorldMapProbe* pProbe, s16 kind) {
     SVec4* pNear;
     SVec4* pFar;
     s32 scale;
@@ -143,7 +143,7 @@ s32 func_8009443C(SVec* pPos, SVec* pAim, WorldMapProbe* pProbe, s16 kind) {
     return func_80094060(kind, func_80093F18(pFar)) == 0 ? 3 : 0;
 }
 
-s32 func_800945C8(SVec* pPos, SVec* pAim, WorldMapProbe* pProbe, s16 kind) {
+s32 WorldMapProbeCellEdgeXFromPosition(SVec* pPos, SVec* pAim, WorldMapProbe* pProbe, s16 kind) {
     SVec4* pNear;
     SVec4* pFar;
     s32 scale;
@@ -169,7 +169,7 @@ s32 func_800945C8(SVec* pPos, SVec* pAim, WorldMapProbe* pProbe, s16 kind) {
     return func_80094060(kind, func_80093F18(pFar)) == 0 ? 3 : 0;
 }
 
-s32 func_80094750(SVec* pPos, SVec* pAim, WorldMapProbe* pProbe, s16 kind) {
+s32 WorldMapProbeCellEdgeZFromReference(SVec* pPos, SVec* pAim, WorldMapProbe* pProbe, s16 kind) {
     SVec4* pNear;
     SVec4* pFar;
     s32 scale;
@@ -195,7 +195,7 @@ s32 func_80094750(SVec* pPos, SVec* pAim, WorldMapProbe* pProbe, s16 kind) {
     return func_80094060(kind, func_80093F18(pFar)) == 0 ? 2 : 0;
 }
 
-s32 func_800948D8(SVec* pPos, SVec* pAim, WorldMapProbe* pProbe, s16 kind) {
+s32 WorldMapProbeCellEdgeZFromPosition(SVec* pPos, SVec* pAim, WorldMapProbe* pProbe, s16 kind) {
     SVec4* pNear;
     SVec4* pFar;
     s32 scale;
@@ -225,7 +225,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc14", func_80094A5C);
 extern s32 func_80094088(SVec* p0, SVec* p1, SVec* p2);
 extern s32 func_80094A5C(void* p0, SVec* p1, s32 mode, s16 kind);
 
-s32 func_800951A8(void* p0, SVec* p1, SVec* p2, s32 mode, s16 kind) {
+s32 WorldMapResolveStepAgainstTerrain(void* p0, SVec* p1, SVec* p2, s32 mode, s16 kind) {
     s32 ret;
     s32 state;
     s32 result;
@@ -260,7 +260,7 @@ s32 func_800951A8(void* p0, SVec* p1, SVec* p2, s32 mode, s16 kind) {
     return ret;
 }
 
-void func_800952B0(SVec* p0, SVec* p1, SVec* p2) {
+void WorldMapAlignDirectionToReference(SVec* p0, SVec* p1, SVec* p2) {
     s32 dot = p2->x * p0->x + p2->z * p0->z;
 
     if (dot < 0) {
@@ -276,7 +276,7 @@ void func_800952B0(SVec* p0, SVec* p1, SVec* p2) {
     p1->y = 0;
 }
 
-void func_80095324(void* pOut, SVec* pDir, SVec* pResult) {
+void WorldMapAlignPerpendicularToReference(void* pOut, SVec* pDir, SVec* pResult) {
     s32 dot;
     s32 nx;
 
@@ -306,7 +306,7 @@ extern void* D_8009C660;
 extern u8 D_8009C58F;
 extern s32 D_8009CD44;
 
-void func_80095F78(void) {
+void WorldMapInitLoadQueues(void) {
     u32 first = ArchiveGetDebugTable();
     u32 second = ArchiveGetDebugTable();
     void** pSlot;
@@ -348,7 +348,7 @@ void func_80095F78(void) {
     }
 }
 
-void func_800960BC(void) {
+void WorldMapFreeLoadQueues(void) {
     u32 first = ArchiveGetDebugTable();
     u32 second = ArchiveGetDebugTable();
     void* pDebugTable;
@@ -362,7 +362,7 @@ void func_800960BC(void) {
     HeapFree(D_8009D7D4);
 }
 
-void func_80096130(void) {
+void WorldMapWaitForLoadSlotFree(void) {
     u32 first = ArchiveGetDebugTable();
     u32 second = ArchiveGetDebugTable();
 
@@ -379,7 +379,7 @@ void func_80096130(void) {
     }
 }
 
-s32 func_8009623C(s32 x, s32 y, s32 z) {
+s32 WorldMapAddCdRequest(s32 x, s32 y, s32 z) {
     SVec* p;
     s32 index;
 
@@ -396,7 +396,7 @@ s32 func_8009623C(s32 x, s32 y, s32 z) {
     return -1;
 }
 
-s32 func_800962B0(s32 x, s32 y, s32 z, s32 w) {
+s32 WorldMapAddFileLoadRequest(s32 x, s32 y, s32 z, s32 w) {
     SVec4* p;
     s32 index;
 
@@ -414,12 +414,12 @@ s32 func_800962B0(s32 x, s32 y, s32 z, s32 w) {
     return -1;
 }
 
-s32 func_80096328(void) {
+s32 WorldMapSubmitCdRequests(void) {
     s32 index = D_8009BE44;
     SVec* p = &D_8009BE08[index * 0x58];
 
     if (p->x != 0 && D_8009D788[index] == NULL) {
-        func_800963E4(p);
+        WorldMapSortCdRequestsBySector(p);
         D_8009D808 = 0;
         D_8009D788[D_8009BE44] = p;
         D_8009BE44 = (D_8009BE44 + 1) & 0xF;
@@ -429,7 +429,7 @@ s32 func_80096328(void) {
     return -1;
 }
 
-void func_800963E4(SVec* pList) {
+void WorldMapSortCdRequestsBySector(SVec* pList) {
     SVec* pCur = pList;
     s32 tmp[3];
 
@@ -452,7 +452,7 @@ void func_800963E4(SVec* pList) {
         }
     }
 }
-void func_800964B0(SVec4* pList) {
+void WorldMapSortFileLoadsByOffset(SVec4* pList) {
     SVec4* pCur = pList;
     u32 tmp[4];
 
@@ -478,12 +478,12 @@ void func_800964B0(SVec4* pList) {
         }
     }
 }
-s32 func_800965A4(void) {
+s32 WorldMapSubmitFileLoads(void) {
     s32 index = D_8009BE44;
     SVec4* p = &D_8009D3C0[index * 0x58];
 
     if (p->x != 0 && D_8009C624[index] == NULL) {
-        func_800964B0(p);
+        WorldMapSortFileLoadsByOffset(p);
         D_8009D808 = 0;
         D_8009C624[D_8009BE44] = p;
         D_8009BE44 = (D_8009BE44 + 1) & 0xF;
@@ -493,7 +493,7 @@ s32 func_800965A4(void) {
     return -1;
 }
 
-s32 func_80096668(void) {
+s32 WorldMapGetQueuedLoadCount(void) {
     s32 diff = D_8009BE44 - D_8009BCB8;
 
     if (diff < 0) {
@@ -502,11 +502,11 @@ s32 func_80096668(void) {
     return diff;
 }
 
-void func_80096694(void) {
+void WorldMapWaitForQueuedLoads(void) {
     do {
         Vsync(0);
         func_800967E4();
-    } while (func_80096668() != 0);
+    } while (WorldMapGetQueuedLoadCount() != 0);
 }
 
 
@@ -526,7 +526,7 @@ extern s32 D_8009CCA0;
 extern s32 D_8009CCA8;
 extern s32 D_8009CCB0;
 
-void func_800966CC(WorldMapLoadEntry* pEntry) {
+void WorldMapReadFileEntries(WorldMapLoadEntry* pEntry) {
     s32 retry;
     s32 fd;
 
