@@ -176,25 +176,33 @@ void func_80076D58(u8 *pInfo, u8 flag, u8 mode) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_80076D58);
-/* 88.70%: three shapes left. (1) retail keeps the pEntry base (la D_800D2F68
-   + off) in a scratch register emitted BEFORE the D_800D2F68[off] `sb`, while
-   gcc emits it after the store here (putting the assignment first makes gcc
-   compute it before the call in a saved register instead). (2) `addu
-   s0,s5,s0` (base first) vs this body's `addu s0,s0,s5`. (3) the third loop's
-   `D_800C3E5C[i]` base: retail re-forms `lui at,%hi; addu at,at,s1; lw %lo(at)`
-   every iteration, gcc hoists `la` out of the loop (an explicit `off += 4`
-   byte-offset variable instead makes gcc emit a bogus 16-byte pointer stride,
-   i.e. the combine_givs double-scale bug). Tried: pEntry assigned before the
-   call (saved register, worse), `*(u8 **)(D_800C3E5C + off)` with off += 4
-   (miscompiles), `*(u8 **)(D_800C3E5C + i * 4)`, rect.x as `0x3DE + i * 2`.
-   Parked body (88.70):
+/* 96.80%: the whole stream is byte-identical except ONE instruction, the
+   first loop's address addu: retail has `addu s0,s5,s0` (base first, s5 =
+   sp+0x10), and every ARRAY_REF spelling tried - pBuf[i], *(pBuf + i),
+   *(u8 **)((u8 *)pBuf + i * 4) - gives `addu s0,s0,s5` (index first). The
+   PLUS_EXPR spelling `pSlot = pBuf + i;` DOES give retail's operand order,
+   but as a statement of its own gcc then hoists the sll/addiu above the
+   func_8008AC00 call, so `li a0,0x1B` stops being the last insn before the
+   jal and reorg steals it into the loop-back bnez delay slot instead (464 ->
+   468 bytes). Assigning pSlot after the store lets cse reuse the ARRAY_REF
+   address, so the order goes index-first again. Everything else is exact:
+   both SystemRenderStringEntry calls, the chained `D_800D2F3E[off] =
+   pEntry[2] = 0x78;` and `D_800D2F3F[off] = pEntry[3] = h;` stores (the chained
+   form is what reproduces retail's shared `li v0,0x78` / `move v0,s3` before
+   the two sb), the rect stores, the HeapFree loop, and the third loop driven
+   by a byte offset (`*(u8 **)((u8 *)D_800C3E5C + off2)`, off2 += 4 - the plain
+   `D_800C3E5C + off` form double-scales because the symbol is typed u8 *).
+   Also tried: pEntry assigned before the call (saved register, worse).
+   Parked body (96.80):
 void func_80076EA4(void) {
     u8 *pBuf[11];
     RECT rect;
     u8 **p;
     u8 *pEntry;
+    u8 result;
     s32 i;
     s32 off;
+    s32 off2;
     s32 y;
     s32 h;
 
@@ -205,12 +213,11 @@ void func_80076EA4(void) {
         pBuf[i] = func_8008AC00(0x1B);
         bzero(pBuf[i], 0x30C);
         D_800D2F3C[off] = SystemRenderStringEntry(GetStringEntryFromBank12(i + 0xA), pBuf[i], 0x1B, 0);
-        D_800D2F68[off] = SystemRenderStringEntry(GetStringEntryFromBank12(i + 0x15), pBuf[i], 0x1B, 1);
+        result = SystemRenderStringEntry(GetStringEntryFromBank12(i + 0x15), pBuf[i], 0x1B, 1);
+        D_800D2F68[off] = result;
         pEntry = (u8 *)(D_800D2F68 + off);
-        pEntry[2] = 0x78;
-        D_800D2F3E[off] = 0x78;
-        pEntry[3] = h;
-        D_800D2F3F[off] = h;
+        D_800D2F3E[off] = pEntry[2] = 0x78;
+        D_800D2F3F[off] = pEntry[3] = h;
         D_800D2F3D[off] = 0;
         D_800D2F69[off] = 1;
         rect.x = 0x3DE;
@@ -226,12 +233,14 @@ void func_80076EA4(void) {
     for (i = 0; i < 11; i++) {
         HeapFree(*p++);
     }
+    off2 = 0;
     for (i = 0; i < 0xA; i++) {
         rect.x = 0x3DE + i * 2;
         rect.y = 0x100;
         rect.w = 6;
         rect.h = 0xD;
-        func_800769E8(&rect, D_800C3E5C[i]);
+        func_800769E8(&rect, *(u8 **)((u8 *)D_800C3E5C + off2));
+        off2 += 4;
     }
 }
 */
