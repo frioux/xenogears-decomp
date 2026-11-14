@@ -3,36 +3,28 @@
 extern u8 D_800D3420[];
 extern u8 D_800D3430[];
 
-// best 93.33% under every compiler: retail keeps *p in $a0 and copies the sum to $v1
-// before slti, gcc renames *p to $a2 and tests the sum in place.
-/*
 void func_8007AE38(u8 **p, u8 index) {
     u8 *pTable = D_800D3430 + index * 0x40;
     u8 *pArgs = *p;
     s32 value = pTable[pArgs[1]] + pTable[pArgs[2]];
+    u8 result = value;
 
     if (value > 0xFF) {
-        value = 0xFF;
+        result = 0xFF;
     }
-    pTable[pArgs[3]] = value;
+    pTable[pArgs[3]] = result;
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc6_r2", func_8007AE38);
-// best 94.55% under every compiler: retail keeps *p in $a0 and copies the difference
-// to $v1 before bgez, gcc renames *p to $a2 and tests it in place.
-/*
 void func_8007AE98(u8 **p, u8 index) {
     u8 *pTable = D_800D3430 + index * 0x40;
     u8 *pArgs = *p;
     s32 value = pTable[pArgs[1]] - pTable[pArgs[2]];
+    u8 result = value;
 
     if (value < 0) {
-        value = 0;
+        result = 0;
     }
-    pTable[pArgs[3]] = value;
+    pTable[pArgs[3]] = result;
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc6_r2", func_8007AE98);
 // 100.0% under gcc 2.6.0-psx, 98.52% under 2.7.2-cdk and 96.5% under 2.7.2: needs a
 // 2.6.0 TU of its own.
 void func_8007AEF0(u8 **p, u8 index) {
