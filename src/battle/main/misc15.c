@@ -32,42 +32,27 @@ void func_8008AA74(u8 arg0) {
         BattlePlaySoundWithBaseId(arg0);
     }
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008AAA0);
-/* Best: 66.72%, 43 insns / 172 bytes = the original's exact size. `u8 digit`
-   is the key: it puts i=a1, divisor=a2, magic=a3, digit=v1 exactly as retail.
-   Two diffs left, both in the divmod: retail has `mfhi a0` for `arg0 %= divisor`
-   (the remainder reuses the parameter's a0) where gcc emits `mfhi v0; move
-   a0,v0`, and retail's `srl a2,v0,3` (divisor /= 10) sits before the sb while
-   gcc's reorg puts it in the bnez delay slot (retail has a nop there). u32/u16
-   digit give `mfhi a0` but move i to v1 and divisor to a1. Tried: u32 digit,
-   u16 digit, (u8) cast at the store, separate value local for the dividend,
-   explicit `arg0 = arg0 % divisor`, three declaration orders.
 void func_8008AAA0(u32 arg0) {
     s32 i;
     u32 divisor;
-    u8 digit;
-    u8 *p;
 
     divisor = 100000000;
     for (i = 0; i < 9; i++) {
-        digit = arg0 / divisor;
+        D_800C3CF4[i] = arg0 / divisor;
         arg0 %= divisor;
         divisor /= 10;
-        D_800C3CF4[i] = digit;
     }
-    p = D_800C3CF4;
-    for (i = 1; i < 9; i++, p++) {
+    for (i = 1; i < 9; i++) {
         if (D_800C3CF4[i] == 0) {
-            *p = 0xFF;
+            D_800C3CF4[i - 1] = 0xFF;
         } else {
-            if (*p == 0) {
-                *p = 0xFF;
+            if (D_800C3CF4[i - 1] == 0) {
+                D_800C3CF4[i - 1] = 0xFF;
             }
             break;
         }
     }
 }
-*/
 void func_8008AB4C(void) {
     ArchiveSetIndex(0x20, 0);
 }
