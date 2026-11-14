@@ -236,7 +236,12 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc12", func_80088A40);
    after the fourth lbu and issues them together (sw a2/a1/a0/v1), gcc stores
    each value as its bitfield assignment completes (sw a2 after the first lbu,
    ...). No C shape found that holds a store back past a load, so this may be
-   unreachable; the typedef is kept here because the body is otherwise exact. */
+   unreachable; the typedef is kept here because the body is otherwise exact.
+   Round 42: cc1 run with -fschedule-insns -fschedule-insns2 emits byte-identical
+   code to the plain preset, so the deferral is not our scheduler being off; a
+   chained s32 through a pointer local scores 70.96 and keeps the single load but
+   stores inline as well. Retail holds four values live at once, a shape no
+   source order tried so far produces. */
 /*
 typedef struct {
     u32 mode : 4;
@@ -306,7 +311,12 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc12", func_80088BFC);
    of RAM address 0x52C4, which has no symbol in symbol_addrs or
    undefined_syms_auto and is never used again); the rest is
    `D_800927F0 = Vsync(1)`. No C statement produces that dead load, so the stub
-   is probably not convertible as a single function. */
+   is probably not convertible as a single function.
+   Round 42: the dead word is 0x800852C4, i.e. the address of func_800852C4, and
+   func_80088E90 reads this label as an array of pointers through
+   %lo(func_80088BFC)($at). So 0x80088BFC is a pointer datum whose code starts at
+   +4; our build cannot define it (the bytes come from splat's asm range, and the
+   file already has an extern u8 func_80088BFC[] for the reader above). */
 
 void BattleDebugScrollHeapDump(void) {
     u16 buttons;
