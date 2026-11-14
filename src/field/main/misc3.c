@@ -298,7 +298,7 @@ extern s32 g_GameSceneMapNum;
 extern int* ArchiveAllocStreamFile(int numEntries, int allocMode);
 extern void func_80029EB0(int, int*, int, int, short, short, short, short, short, short);
 
-extern void func_80078C5C(void);
+extern void FieldOrVramStripPixels(void);
 
 void func_80070488(void) {
     int* pStreamFile;
@@ -319,7 +319,7 @@ void func_80070508(void) {
         D_800ADB60 = 0;
     }
 
-    func_80078C5C();
+    FieldOrVramStripPixels();
 }
 
 void func_80070560(VECTOR* pDest, SVECTOR* pSrc) {

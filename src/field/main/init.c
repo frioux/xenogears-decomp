@@ -9,10 +9,10 @@
 void FieldInitializeControllersAndMouse(void) {
     FieldSetControllerBuffers(g_C1Buffer, g_C1Buffer + 0x22);
     FieldSetMouseSpeed(3, 4);
-    func_8007ADA4(0, 0x140, 0, 0xE0);
+    FieldSetMouseLimits(0, 0x140, 0, 0xE0);
     FieldSetMousePosition(0, 0x50, 0x64);
     FieldSetMousePosition(1, 0xFA, 0x64);
-    func_8007ADA4(0, 0x12C, 0xA, 0xDC);
+    FieldSetMouseLimits(0, 0x12C, 0xA, 0xDC);
 }
 
 void FieldSetClipDimensions(short x, short y, short w, short h) {

@@ -88,7 +88,7 @@ void BattleFreeSlotEntry(s32 index);
 s32 ArchiveReadFileFromCdSector(s32 sector, void* pDestBuffer, s32 fileSize, s32 arg3, u32 flags);
 s32 func_8007FF70(s32 value, s32 max, s32 flags);
 void func_80080964(s32 arg);
-void func_8007EC54(u8* pText);
+void BattleByteRegTestReg(u8* pText);
 void func_8007F258(void* pOt, s32 arg);
 extern int ControllerGetType(int controllerIndex);
 
@@ -229,7 +229,7 @@ void BattleDrawVibrationOptions(void) {
         if (flag) {
             BattleSetRowTextColor(pPad, 1);
         }
-        func_8007EC54((D_80099D9B[0] & 1) ? D_8006FF80 : D_8006FF90);
+        BattleByteRegTestReg((D_80099D9B[0] & 1) ? D_8006FF80 : D_8006FF90);
         D_800916DC[0x14] &= ~4;
     } else {
         D_800916DC[0x14] |= 4;
@@ -250,7 +250,7 @@ void BattleDrawVibrationOptions(void) {
         if (flag) {
             BattleSetRowTextColor(pPad, 1);
         }
-        func_8007EC54((D_80099D9C[0] & 1) ? D_8006FF80 : D_8006FF90);
+        BattleByteRegTestReg((D_80099D9C[0] & 1) ? D_8006FF80 : D_8006FF90);
         D_80091718[0x14] &= ~4;
     } else {
         D_80091718[0x14] |= 4;

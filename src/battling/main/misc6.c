@@ -134,7 +134,7 @@ void func_8007E2D8(void) {
     D_800926B4 = 0;
 }
 
-void func_8007E31C(s32* pPos, s32* pPos2, u8* pColor) {
+void BattleQueueLineQuad(s32* pPos, s32* pPos2, u8* pColor) {
     BattleQuad* pQuad;
 
     if (D_800926B0 < 100) {
@@ -323,7 +323,7 @@ void func_8007EBE0(u8* pText) {
     D_800926EC += 0x14;
 }
 
-void func_8007EC54(u8* pText) {
+void BattleByteRegTestReg(u8* pText) {
     s32 y = D_800926E8;
 
     D_800926E8 -= func_8007EB6C(pText) / 2;

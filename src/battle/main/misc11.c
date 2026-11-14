@@ -22,7 +22,7 @@ extern volatile s32 D_800CCB34;
 
 extern s32 func_8008ABB8(s32, s32);
 extern void func_8008AB94(void);
-extern void func_8007FB70(u8);
+extern void BattleReleaseEffectSlotIfChar4(u8);
 extern void func_8008AC50(void);
 extern int ArchiveDecodeAlignedSize(unsigned int entryIndex);
 extern void ArchiveReadFileToBuffer(s32 index, void *pBuffer, u32 arg2, u32 flags);
@@ -187,7 +187,7 @@ void func_80080BD0(void) {
         func_8007FCE8();
         func_8007FDEC();
         func_800800E8(D_800C3EAC[0x2D3]);
-        func_8007FB70(D_800C3EAC[0x2D3]);
+        BattleReleaseEffectSlotIfChar4(D_800C3EAC[0x2D3]);
     }
 }
 

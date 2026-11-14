@@ -32,7 +32,7 @@ extern s32 D_8005A444[];
    `lui at,%hi(jtbl); addu at,at,v0; lw v0,%lo(jtbl)(at)`. That is why the
    function is 4 bytes short, so the jtbl-symbol exception does not apply.
    What got it this far: a local pointer for the shared tail (the original keeps
-   it in call-clobbered a2 and reloads the global after func_8007B694 and in the
+   it in call-clobbered a2 and reloads the global after FieldGetVec2Angle and in the
    block after the arrival arm, so those statements must name
    g_FieldScriptVMCurActor directly, not the local), plus separate block-scoped
    rotation variables per arm - a single shared `rotation` keeps the value in a1
@@ -50,7 +50,7 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc12", func_80099AC0);
    local hoists the load to the top of the arm (before the index chain, into s1 -
    worse); swapping the add operands does not move it. What got it this far: a
    local pointer for the shared tail (the original keeps it in call-clobbered a2
-   and reloads the global after func_8007B694 and in the block after the arrival
+   and reloads the global after FieldGetVec2Angle and in the block after the arrival
    arm, so those statements must name g_FieldScriptVMCurActor directly, not the
    local), plus separate block-scoped rotation variables per arm - a single
    shared `rotation` keeps the value in a1 and forces an extra move. */
@@ -137,7 +137,7 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc12", func_80099AC0);
         } else {
             int angle;
 
-            angle = func_8007B694(&delta);
+            angle = FieldGetVec2Angle(&delta);
             g_FieldScriptVMCurActor->rotation.vx = angle;
             g_FieldScriptVMCurActor->rotation.vy = angle;
         }
@@ -149,7 +149,7 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc12", func_80099AC0);
     }
 
     pTailActor->scripts[pTailActor->curScriptIndex].flags_0--;
-    rotation = func_8007B694(&delta);
+    rotation = FieldGetVec2Angle(&delta);
     D_800B00C0 = 1;
     g_FieldScriptVMCurActor->rotation.vx = rotation;
     g_FieldScriptVMCurActor->rotation.vy = rotation;
@@ -190,7 +190,7 @@ void FieldScriptVMHandlerGetActorPosition(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 8;
 }
 
-void func_8009A0FC(void) {
+void FieldScriptSetDefaultAnimationId(void) {
     u_char animationID = SCRIPT_READ_U8_REL(1);
 
     g_FieldScriptVMCurActor->defaultAnimationId = animationID;
@@ -206,19 +206,19 @@ void FieldScriptVMHandlerPlayAnimation(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
 }
 
-void func_8009A174(void) {
+void FieldScriptPlayAnimationAndClearFlag16(void) {
     FieldScriptVMHandlerPlayAnimation();
     g_FieldScriptVMCurActor->flags &= 0xFFFEFFFF;
 }
 
-void func_8009A1AC(void) {
+void FieldScriptClearAnimationOverrideIfFlag16(void) {
     if (g_FieldScriptVMCurActor->flags & 0x10000) {
         g_FieldScriptVMCurActor->unkAnimationId = 0xFF;
         g_FieldScriptVMCurActor->scriptInstructionPointer++;
     }
 }
 
-void func_8009A1E4(void) {
+void FieldScriptSetCurActorRotationTowardPartySlot(void) {
     int actorIndex = D_8005A444[SCRIPT_READ_U8_REL(1)];
 
     if (actorIndex != ACTOR_ID_INVALID) {
@@ -234,7 +234,7 @@ void func_8009A1E4(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
 }
 
-void func_8009A2A8(void) {
+void FieldScriptSetCurActorRotationTowardActor(void) {
     int actorIndex = FieldScriptVMGetActorIndex(1);
 
     if (actorIndex != ACTOR_ID_INVALID) {
@@ -250,7 +250,7 @@ void func_8009A2A8(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
 }
 
-void func_8009A34C(void) {
+void FieldScriptSetSceneScaleInterpolation(void) {
     g_Scene.unk8C = SCRIPT_READ_U8_REL(3);
     if (g_Scene.unk8C == 0) {
         D_800B21D8[0] += 2;
@@ -262,7 +262,7 @@ void func_8009A34C(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 4;
 }
 
-void func_8009A420(int start, int duration) {
+void FieldSceneStartDIPInterpolation(int start, int duration) {
     if (duration == 0) {
         D_800B21D8[0] = 2;
         duration = 1;
@@ -273,10 +273,10 @@ void func_8009A420(int start, int duration) {
     g_Scene.unk48 |= 8;
 }
 
-void func_8009A490(void) {
+void FieldScriptSetSceneDIPInterpolation(void) {
     int start = FieldScriptArgument1(1, SCRIPT_READ_U8_REL(3));
 
-    func_8009A420(start, SCRIPT_READ_U8_REL(3) & 0x7F);
+    FieldSceneStartDIPInterpolation(start, SCRIPT_READ_U8_REL(3) & 0x7F);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 4;
 }
 
@@ -292,7 +292,7 @@ void FieldScriptWriteCameraDirection(void) {
 }
 
 
-void func_8009A58C(void) {
+void FieldScriptVMWaitWhileSceneFlagSet(void) {
     if (!(g_Scene.unk48 & SCRIPT_READ_U8_REL(1))) {
         g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
     } else {
@@ -300,7 +300,7 @@ void func_8009A58C(void) {
     }
 }
 
-void func_8009A5E0(void) {
+void FieldScriptVMWaitWhileSceneFlagSet2(void) {
     if (!(g_Scene.unk48 & SCRIPT_READ_U8_REL(1))) {
         g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
     } else {
@@ -408,7 +408,7 @@ void FieldScriptSetActorRotation(int angle) {
 }
 
 
-void func_8009AA00(void) {
+void FieldScriptSetActorRotationTowardActor(void) {
     ActorData* pTargetActor;
     ActorData* pActor;
     short rotation;
@@ -434,7 +434,7 @@ void func_8009AA00(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
 
-void func_8009AB08(int rotation) {
+void FieldSetCurrentActorRotationFromCameraRelativeAngle(int rotation) {
     short rotationValue;
 
     rotationValue = PSX_ANGLE(rotation - g_CamInterpolation.targetAngleY) | 0x8000;
@@ -482,7 +482,7 @@ void FieldScriptSetActorDirection(void) {
     FieldScriptSetActorRotation(g_FieldAngleToDirectionLUT[directionIndex]);
 }
 
-void func_8009AC34(void) {
+void FieldScriptSetActorDirectionRelativeToCamera(void) {
     FieldScriptSetActorRotation(
         (g_FieldAngleToDirectionLUT[FieldScriptVMGetArgument(2)] - (u_short)g_CamInterpolation.targetAngleY) & 0xFFF
     );
@@ -493,12 +493,12 @@ void FieldScriptVMHandlerSetCurActorRotation(void) {
     FieldSetCurrentActorRotation(g_FieldAngleToDirectionLUT[directionIndex]);
 }
 
-void func_8009ACB4(void) {
+void FieldScriptSetCurActorDirectionRelativeToCamera(void) {
     int directionIndex = FieldScriptVMGetArgument(1);
-    func_8009AB08(g_FieldAngleToDirectionLUT[directionIndex]);
+    FieldSetCurrentActorRotationFromCameraRelativeAngle(g_FieldAngleToDirectionLUT[directionIndex]);
 }
 
-void func_8009ACEC(void) {
+void FieldScriptSetCurActorRotationFromTableRelativeToCamera(void) {
     short rotationValue = PSX_ANGLE(D_800AEA44[SCRIPT_READ_U8_REL(1)] - g_CamInterpolation.targetAngleY) | 0x8000;
 
     g_FieldScriptVMCurActor->rotation.vx = rotationValue;
@@ -512,7 +512,7 @@ void func_8009ACEC(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
 }
 
-void func_8009AD6C(void) {
+void FieldScriptSetCurActorRotationFromTable(void) {
     short rotationValue = D_800AEA54[SCRIPT_READ_U8_REL(1)] | 0x8000;
 
     g_FieldScriptVMCurActor->rotation.vx = rotationValue;
@@ -526,17 +526,17 @@ void func_8009AD6C(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
 }
 
-void func_8009ADDC(void) {
+void FieldScriptVMSetSceneFlag4000(void) {
     g_Scene.unk48 |= 0x4000;
     g_FieldScriptVMCurActor->scriptInstructionPointer++;
 }
 
-void func_8009AE0C(void) {
+void FieldScriptVMClearSceneFlag4000(void) {
     g_Scene.unk48 &= 0xBFFF;
     g_FieldScriptVMCurActor->scriptInstructionPointer++;
 }
 
-void func_8009AE3C(s32 start, s32 duration) {
+void FieldSceneStartScreenZInterpolation(s32 start, s32 duration) {
     if (duration != 0) {
         g_Scene.unk48 |= FIELD_SCENE_INTERPOLATING_SCREEN_Z;
         g_Scene.unk88 = -(s32)((g_Scene.sceneScrZ - start) << 16) / duration;
@@ -555,7 +555,7 @@ extern FieldScriptGlobalS16 D_800B2348;
 
 long FieldGetVec1Magnitude(long);
 long FieldGetVec2Magnitude(long, long);
-int func_8007B694(IVEC3*);
+int FieldGetVec2Angle(IVEC3*);
 void func_8009E574(int, int);
 extern s32 D_800AFD1C;
 INCLUDE_ASM("asm/field/nonmatchings/main/misc12", func_8009AEE0);
@@ -609,7 +609,7 @@ int func_8009AEE0(int actorSlotId, int x, int z, int direction) {
         } else {
             pActor->unk6E = 0;
         }
-        rotation = func_8007B694(&delta);
+        rotation = FieldGetVec2Angle(&delta);
         pActor->rotation.vx = rotation;
         pActor->rotation.vy = rotation;
         if ((short)pActor->unk6E < 0x41 && D_800B2348.value == 0) {
@@ -639,12 +639,12 @@ int func_8009AEE0(int actorSlotId, int x, int z, int direction) {
     return 0;
 } */
 
-void func_8009B15C(void) {
+void FieldScriptVMSetFlag21CF(void) {
     D_800B21CF[0] = 1;
     g_FieldScriptVMCurActor->scriptInstructionPointer++;
 }
 
-void func_8009B184(void) {
+void FieldScriptVMResetPartyMovement(void) {
     int i;
 
     D_800B21CF[0] = 0;
@@ -660,7 +660,7 @@ void func_8009B184(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer++;
 }
 
-void func_8009B210(void) {
+void FieldScriptVMMovePartyToLeader(void) {
     ActorData* pActor;
     int x;
     int z;
@@ -681,14 +681,14 @@ void func_8009B210(void) {
         g_FieldScriptVMCurActor->scriptInstructionPointer++;
         D_800B21CC[0] = 0;
         D_800B2348.value = 0;
-        func_8009B338();
+        FieldScriptVMResetActorHistory();
     } else {
         D_800B21CC[0] = 1;
         g_FieldScriptVMCurActor->scriptInstructionPointer--;
     }
 }
 
-void func_8009B338(void) {
+void FieldScriptVMResetActorHistory(void) {
     int i;
 
     D_800B2368 = 0;
@@ -772,20 +772,20 @@ void func_8009B398(void) {
 }
 */
 
-void func_8009B664(void) {
+void FieldScriptWriteSceneScreenZ(void) {
     FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(1), g_Scene.sceneScrZ);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
 
-void func_8009B6AC(void) {
+void FieldScriptSetSceneScreenZInterpolation(void) {
     int arg1 = FieldScriptVMGetArgument(1);
     int arg3 = FieldScriptVMGetArgument(3);
 
-    func_8009AE3C(arg1, arg3);
+    FieldSceneStartScreenZInterpolation(arg1, arg3);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
 }
 
-void func_8009B708(int direction, int duration) {
+void FieldSceneStartSceneAngleInterpolation(int direction, int duration) {
     int cameraDirection = FieldGetCameraDirection() & 0xFFFF;
 
     if (duration == 0) {
@@ -797,7 +797,7 @@ void func_8009B708(int direction, int duration) {
     g_Scene.unk7C = ((direction + 4) & 7) << 9;
 }
 
-void func_8009B7A8(int direction, int duration) {
+void FieldSceneStartSceneAngleRotation(int direction, int duration) {
     if (duration == 0) {
         D_800B21D8[0] += 2;
         duration = 1;
@@ -812,17 +812,17 @@ void func_8009B7A8(int direction, int duration) {
     g_Scene.unk66 = duration;
 }
 
-void func_8009B824(void) {
+void FieldScriptVMStartSceneAngleRotation(void) {
     if (g_Scene.unk66 == 0) {
-        func_8009B7A8(0, FieldScriptVMGetArgument(1));
+        FieldSceneStartSceneAngleRotation(0, FieldScriptVMGetArgument(1));
         g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
     }
     D_800B00C0 = 1;
 }
 
-void func_8009B884(void) {
+void FieldScriptVMStartSceneAngleRotation2(void) {
     if (g_Scene.unk66 == 0) {
-        func_8009B7A8(0, FieldScriptVMGetArgument(1));
+        FieldSceneStartSceneAngleRotation(0, FieldScriptVMGetArgument(1));
         g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
     }
     D_800B00C0 = 1;
@@ -844,13 +844,13 @@ void func_8009B8E4(void) {
         g_Scene.unk7C = angle;
         g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
     } else if (g_Scene.unk66 == 0) {
-        func_8009B708(direction, duration);
+        FieldSceneStartSceneAngleInterpolation(direction, duration);
         g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
     }
     D_800B00C0 = 1;
 } */
 
-void func_8009B9A0(void) {
+void FieldScriptSaveCameraState(void) {
     if (g_Scene.unk66 == 0) {
         g_Scene.unkB8 = FieldGetCameraDirection();
         g_Scene.unkBC = g_Scene.sceneScrZ;
@@ -859,11 +859,11 @@ void func_8009B9A0(void) {
     }
 }
 
-void func_8009BA0C(void) {
+void FieldScriptRestoreCameraState(void) {
     if (g_Scene.unk66 == 0) {
-        func_8009B708(g_Scene.unkB8, 0x20);
-        func_8009AE3C(g_Scene.unkBC, 0x20);
-        func_8009A420(g_Scene.unkC0, 0x20);
+        FieldSceneStartSceneAngleInterpolation(g_Scene.unkB8, 0x20);
+        FieldSceneStartScreenZInterpolation(g_Scene.unkBC, 0x20);
+        FieldSceneStartDIPInterpolation(g_Scene.unkC0, 0x20);
         g_FieldScriptVMCurActor->scriptInstructionPointer++;
     }
 }

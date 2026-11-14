@@ -137,7 +137,7 @@ extern void FieldFadeToBlack(int duration);
 extern void FieldFadeToWhite(int duration);
 extern void func_80077DAC(void);
 extern void func_8007554C(void);
-extern void func_80078B5C(void);
+extern void FieldTickSkipCounter(void);
 extern void func_80077544(void);
 extern void func_800A6E70(void);
 extern void func_800A7064(void);
@@ -196,7 +196,7 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A5924);
                     func_80077DAC();
                     FieldZoomFadeEffectUpdate();
                     func_8007554C();
-                    func_80078B5C();
+                    FieldTickSkipCounter();
                     FieldZoomFadeEffectSetPolygonColor(nColor >> 16);
                     nColor += 0x800000 / D_800ADB3C;
                 }
@@ -211,7 +211,7 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A5924);
                     func_80077DAC();
                     FieldAddParticlePrims();
                     func_8007554C();
-                    func_80078B5C();
+                    FieldTickSkipCounter();
                     D_800C3A40 += 6;
                 }
                 DrawSync(0);
@@ -227,7 +227,7 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A5924);
                     func_80077DAC();
                     FieldZoomFadeEffectUpdate();
                     func_8007554C();
-                    func_80078B5C();
+                    FieldTickSkipCounter();
                     FieldZoomFadeEffectSetPolygonColor(nColor >> 16);
                     nColor -= 0x800000 / D_800ADB3C;
                     if (nColor < 0) {
@@ -243,7 +243,7 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A5924);
                 func_80077DAC();
                 FieldZoomFadeEffectUpdate();
                 func_8007554C();
-                func_80078B5C();
+                FieldTickSkipCounter();
             }
         }
 

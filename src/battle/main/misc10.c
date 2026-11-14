@@ -10,49 +10,49 @@ extern u8 D_800D3410[];
 extern u8 D_800D3420[];
 extern u8 D_800D3430[];
 
-s32 func_8007EA08(u8 **arg0, u8 arg1) {
+s32 BattleWordRegLeImm(u8 **arg0, u8 arg1) {
     u16 value = (*arg0)[2] | ((*arg0)[3] << 8);
     u16 *pRow = (u16 *)(D_800D3420 + arg1 * 0x40);
 
     return value >= pRow[(*arg0)[1]];
 }
-s32 func_8007EA4C(u8 **arg0, u8 arg1) {
+s32 BattleByteRegGeImm(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
     u8 *pRow = D_800D3430 + arg1 * 0x40;
 
     return !(pRow[p[1]] < p[2]);
 }
-s32 func_8007EA84(u8 **arg0, u8 arg1) {
+s32 BattleWordRegGeImm(u8 **arg0, u8 arg1) {
     u16 value = (*arg0)[2] | ((*arg0)[3] << 8);
     u16 *pRow = (u16 *)(D_800D3420 + arg1 * 0x40);
 
     return pRow[(*arg0)[1]] >= value;
 }
-s32 func_8007EAC8(u8 **arg0, u8 arg1) {
+s32 BattleByteRegEqReg(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
     u8 *pRow = D_800D3430 + arg1 * 0x40;
 
     return pRow[p[1]] == pRow[p[2]];
 }
-s32 func_8007EB08(u8 **arg0, u8 arg1) {
+s32 BattleWordRegEqReg(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
     u16 *pRow = (u16 *)(D_800D3420 + arg1 * 0x40);
 
     return pRow[p[1]] == pRow[p[2]];
 }
-s32 func_8007EB50(u8 **arg0, u8 arg1) {
+s32 BattleByteRegLeReg(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
     u8 *pRow = D_800D3430 + arg1 * 0x40;
 
     return pRow[p[1]] <= pRow[p[2]];
 }
-s32 func_8007EB90(u8 **arg0, u8 arg1) {
+s32 BattleWordRegLeReg(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
     u16 *pRow = (u16 *)(D_800D3420 + arg1 * 0x40);
 
     return pRow[p[1]] <= pRow[p[2]];
 }
-s32 func_8007EBD8(u8 **arg0, u8 arg1) {
+s32 BattleByteRegTestImm(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
     u8 *pRow = D_800D3430 + arg1 * 0x40;
 
@@ -61,20 +61,20 @@ s32 func_8007EBD8(u8 **arg0, u8 arg1) {
     v &= p[2];
     return v != 0;
 }
-s32 func_8007EC10(u8 **arg0, u8 arg1) {
+s32 BattleWordRegTestImm(u8 **arg0, u8 arg1) {
     u16 value = (*arg0)[2] + ((*arg0)[3] << 8);
     u16 *pRow = (u16 *)(D_800D3420 + arg1 * 0x40);
 
     return (pRow[(*arg0)[1]] & value) != 0;
 }
-s32 func_8007EC54(u8 **arg0, u8 arg1) {
+s32 BattleByteRegTestReg(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
     u8 *pRow = D_800D3430 + arg1 * 0x40;
     u8 lhs = pRow[p[1]];
 
     return (pRow[p[2]] & lhs) != 0;
 }
-s32 func_8007EC94(u8 **arg0, u8 arg1) {
+s32 BattleWordRegTestReg(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
     u16 *pRow = (u16 *)(D_800D3420 + arg1 * 0x40);
     u16 a = pRow[p[1]];
@@ -82,53 +82,53 @@ s32 func_8007EC94(u8 **arg0, u8 arg1) {
 
     return (b & a) != 0;
 }
-s32 func_8007ECDC(u8 **arg0, u8 arg1) {
+s32 BattleByteRegNeImm(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
     u8 *pRow = D_800D3430 + arg1 * 0x40;
 
     return (pRow[p[1]] ^ p[2]) != 0;
 }
-s32 func_8007ED14(u8 **arg0, u8 arg1) {
+s32 BattleWordRegNeImm(u8 **arg0, u8 arg1) {
     u16 value = (*arg0)[2] | ((*arg0)[3] << 8);
     u16 *pRow = (u16 *)(D_800D3420 + arg1 * 0x40);
 
     return (pRow[(*arg0)[1]] ^ value) != 0;
 }
-s32 func_8007ED58(u8 **arg0, u8 arg1) {
+s32 BattleByteRegNeReg(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
     u8 *pRow = D_800D3430 + arg1 * 0x40;
 
     return (pRow[p[1]] ^ pRow[p[2]]) != 0;
 }
-s32 func_8007ED98(u8 **arg0, u8 arg1) {
+s32 BattleWordRegNeReg(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
     u16 *pRow = (u16 *)(D_800D3420 + arg1 * 0x40);
 
     return (pRow[p[1]] ^ pRow[p[2]]) != 0;
 }
-s32 func_8007EDE0(u8 **arg0, u8 arg1) {
+s32 BattleDwordRegEqReg(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
     u32 *pRow = (u32 *)(D_800D3410 + arg1 * 0x40);
 
     return (pRow[p[1]] ^ pRow[p[2]]) == 0;
 }
-s32 func_8007EE28(u8 **arg0, u8 arg1) {
+s32 BattleDwordRegLeReg(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
     u32 *pRow = (u32 *)(D_800D3410 + arg1 * 0x40);
 
     return pRow[p[1]] <= pRow[p[2]];
 }
-s32 func_8007EE70(u8 **arg0) {
+s32 BattleTableEntryFlag8000(u8 **arg0) {
     u8 *p = *arg0;
 
     return D_800CCD64[p[1] * 0xB8] >> 15;
 }
-s32 func_8007EEA8(u8 **arg0) {
+s32 BattleSlotCountIsZero(u8 **arg0) {
     u8 *p = *arg0;
 
     return D_800D301C[p[1] * 4] == 0;
 }
-s32 func_8007EED0(void) {
+s32 BattleStateWordLowBitsClear(void) {
     return (D_800D39DC & 3) == 0;
 }
 s32 func_8007EEE8(void) {
@@ -148,7 +148,7 @@ s32 func_8007EEE8(void) {
 
     return ret;
 }
-s32 func_8007EF44(u8 arg0) {
+s32 BattleActorSlotHasFlag80(u8 arg0) {
     s32 idx = arg0 + 3;
 
     return D_800C3EB7[idx * 28] >> 7;
@@ -200,64 +200,64 @@ s32 func_8007F8C0(u8 **arg0, u8 arg1) {
             ret = func_8007E9D0(arg0, arg1);
             break;
         case 0x84:
-            ret = func_8007EA08(arg0, arg1);
+            ret = BattleWordRegLeImm(arg0, arg1);
             break;
         case 0x85:
-            ret = func_8007EA4C(arg0, arg1);
+            ret = BattleByteRegGeImm(arg0, arg1);
             break;
         case 0x86:
-            ret = func_8007EA84(arg0, arg1);
+            ret = BattleWordRegGeImm(arg0, arg1);
             break;
         case 0x87:
-            ret = func_8007EAC8(arg0, arg1);
+            ret = BattleByteRegEqReg(arg0, arg1);
             break;
         case 0x88:
-            ret = func_8007EB08(arg0, arg1);
+            ret = BattleWordRegEqReg(arg0, arg1);
             break;
         case 0x89:
-            ret = func_8007EB50(arg0, arg1);
+            ret = BattleByteRegLeReg(arg0, arg1);
             break;
         case 0x8A:
-            ret = func_8007EB90(arg0, arg1);
+            ret = BattleWordRegLeReg(arg0, arg1);
             break;
         case 0x8B:
-            ret = func_8007EBD8(arg0, arg1);
+            ret = BattleByteRegTestImm(arg0, arg1);
             break;
         case 0x8C:
-            ret = func_8007EC10(arg0, arg1);
+            ret = BattleWordRegTestImm(arg0, arg1);
             break;
         case 0x8D:
-            ret = func_8007EC54(arg0, arg1);
+            ret = BattleByteRegTestReg(arg0, arg1);
             break;
         case 0x8E:
-            ret = func_8007EC94(arg0, arg1);
+            ret = BattleWordRegTestReg(arg0, arg1);
             break;
         case 0x8F:
-            ret = func_8007ECDC(arg0, arg1);
+            ret = BattleByteRegNeImm(arg0, arg1);
             break;
         case 0x90:
-            ret = func_8007ED14(arg0, arg1);
+            ret = BattleWordRegNeImm(arg0, arg1);
             break;
         case 0x91:
-            ret = func_8007ED58(arg0, arg1);
+            ret = BattleByteRegNeReg(arg0, arg1);
             break;
         case 0x92:
-            ret = func_8007ED98(arg0, arg1);
+            ret = BattleWordRegNeReg(arg0, arg1);
             break;
         case 0x93:
-            ret = func_8007EDE0(arg0, arg1);
+            ret = BattleDwordRegEqReg(arg0, arg1);
             break;
         case 0x94:
-            ret = func_8007EE28(arg0, arg1);
+            ret = BattleDwordRegLeReg(arg0, arg1);
             break;
         case 0x95:
-            ret = func_8007EE70(arg0);
+            ret = BattleTableEntryFlag8000(arg0);
             break;
         case 0x96:
-            ret = func_8007EEA8(arg0);
+            ret = BattleSlotCountIsZero(arg0);
             break;
         case 0x97:
-            ret = func_8007EED0();
+            ret = BattleStateWordLowBitsClear();
             break;
         case 0x98:
             ret = func_8007EEE8();
@@ -266,7 +266,7 @@ s32 func_8007F8C0(u8 **arg0, u8 arg1) {
             cont = 1;
             break;
         case 0x9B:
-            ret = func_8007EF44(arg1);
+            ret = BattleActorSlotHasFlag80(arg1);
             break;
         }
         BattleScriptCursorSkipWord(arg0);
@@ -285,7 +285,7 @@ s32 func_8007F8C0(u8 **arg0, u8 arg1) {
     return ret & 0xFF;
 }
  */
-void func_8007FB70(u8 arg0) {
+void BattleReleaseEffectSlotIfChar4(u8 arg0) {
     if (D_800D2D24[arg0] == 4 && D_800D2D28[0x8E] != 0) {
         func_8008FA60(0);
         func_8007765C();

@@ -104,7 +104,7 @@ extern s32 D_8009BE28;
 extern u8 *D_8009BE3C;
 extern s32 D_8009C5BC;
 extern WorldMapPos4 D_8009C5AC;
-extern void func_80097440(s32 *p);
+extern void WorldMapBuildRotationMatrix(s32 *p);
 extern void func_80097244(s32 *p);
 extern void func_80089748(void);
 extern void func_80089C78(void);
@@ -220,7 +220,7 @@ s32 WorldMapUpdateFrameWithParticles(void) {
     s32 *pState;
 
     if (D_8009D144 == 0) {
-        func_80097440(&D_8009BD40);
+        WorldMapBuildRotationMatrix(&D_8009BD40);
     } else {
         func_80097244(&D_8009BD40);
     }

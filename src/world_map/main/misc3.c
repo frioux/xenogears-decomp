@@ -42,7 +42,7 @@ extern s16 D_8006F950;
 extern s16 D_8006F954;
 extern s32 D_8009BBC4;
 
-extern void func_80097440(s32* p);
+extern void WorldMapBuildRotationMatrix(s32* p);
 extern void func_80097244(s32* p);
 extern void func_80089748(void);
 extern void func_80089C78(void);
@@ -134,7 +134,7 @@ s32 WorldMapUpdateFrame(void) {
     s32* pState;
 
     if (D_8009D144 == 0) {
-        func_80097440(&D_8009BD40);
+        WorldMapBuildRotationMatrix(&D_8009BD40);
     } else {
         func_80097244(&D_8009BD40);
     }
@@ -599,7 +599,7 @@ s32 WorldMapUpdateFrameWithoutEffects(void) {
     s32* pState;
 
     if (D_8009D144 == 0) {
-        func_80097440(&D_8009BD40);
+        WorldMapBuildRotationMatrix(&D_8009BD40);
     } else {
         func_80097244(&D_8009BD40);
     }

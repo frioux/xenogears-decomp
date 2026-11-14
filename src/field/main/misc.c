@@ -2154,7 +2154,7 @@ void FieldScriptJumpUnlessVariableBitSet(void) {
 
 // Writes the 0x12-byte script instruction at the current instruction pointer: a
 // verb byte, the three u16 operands it was handed, and a fixed tail.
-void func_8008D808(int value0, int value1, int value2) {
+void FieldScriptWriteScriptInstruction3U16(int value0, int value1, int value2) {
     SCRIPT_READ_U8_REL(0) = 0x57;
     SCRIPT_READ_U8_REL(1) = 0x81;
     FieldScriptWriteScriptU16(value0, g_FieldScriptVMCurActor->scriptInstructionPointer + 2);

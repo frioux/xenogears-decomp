@@ -27,7 +27,7 @@ extern u16 g_SystemPalette1;
 extern u8 D_800D32A1[];
 extern void *D_800D367C;
 
-void func_8007FB70(void);
+void BattleReleaseEffectSlotIfChar4(void);
 void func_8009AC48(u8, s32);
 void func_800916D4(u8, u8, s32);
 void func_8008AAA0(u32);
@@ -278,7 +278,7 @@ void func_8009413C(u8 arg0, u8 arg1) {
         D_800D2D28[0xB7] = 0;
         D_800D2D28[0xB0] = 0;
         if (arg1 != 0) {
-            func_8007FB70();
+            BattleReleaseEffectSlotIfChar4();
         }
     }
 }

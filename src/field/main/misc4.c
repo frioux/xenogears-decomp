@@ -17,7 +17,7 @@ extern s32 D_8004F324;
 extern s32 D_800ADC18;
 
 // Ticks down the countdown timer, returning the value it held after the tick
-int func_80078B5C(void) {
+int FieldTickSkipCounter(void) {
     int nCount;
 
     rand();
@@ -75,7 +75,7 @@ int func_80078BC8(void) {
 */
 
 extern s16 D_800B2344;
-void func_80078C5C(void) {
+void FieldOrVramStripPixels(void) {
     RECT rect;
     int i;
     u_int* pImage;
@@ -246,7 +246,7 @@ extern void ArchiveCdDataSync(int);
 extern void ChangeGameState(int);
 
 // Field game state machine: one case per transition
-void func_8007954C(int state) {
+void FieldAdvanceGameState(int state) {
     D_8005942C = 0;
     switch (state) {
     case 0: {
@@ -305,7 +305,7 @@ void func_8007954C(int state) {
     MainLoop(0);
 }
 
-void func_800796F4(void) {}
+void FieldNoOp2(void) {}
 
 void FieldSwapRenderContext(void) {
     g_FieldCurRenderContextIndex = (g_FieldCurRenderContextIndex + 1) % 2;
@@ -318,7 +318,7 @@ extern RECT D_800AFE4C;
 extern TILE D_800AFE54[];
 extern DR_MODE D_800AFE24[];
 	
-void func_80079784(int color) {
+void FieldRenderColorFill(int color) {
     FieldClearAndSwapOTag();
     setRGB(D_800AFE54[g_FieldCurRenderContextIndex], color * 4);
     addPrim(g_FieldCurRenderContext->ot1, &D_800AFE54[g_FieldCurRenderContextIndex]);
@@ -336,7 +336,7 @@ extern u_char D_80059179;
 extern s16 D_800B234C;
 extern s32 g_PlayerActorIndex;
 
-void func_800798BC(void) {
+void FieldUpdatePlayerWalkmeshMaterial(void) {
     if (D_800B2268 != 0 && (g_FieldActors[g_PlayerActorIndex].pActorData->curWalkmeshTriMaterial & 0xC0) == 0) {
         D_80059179 = 0;
     } else {
@@ -347,7 +347,7 @@ void func_800798BC(void) {
     }
 }
 
-void func_8007995C(short w, short h, short x, short y, int destX, int destY) {
+void FieldMoveImageAndSync(short w, short h, short x, short y, int destX, int destY) {
     RECT rect;
 
     rect.w = w;
@@ -462,7 +462,7 @@ extern short D_800ADE08[];
 extern short D_800ADE0A[];
 
 // Compass primitive initialization?
-void func_8007A7F4(Quad* pPart, int x, int y, int tex) {
+void FieldInitTableQuad(Quad* pPart, int x, int y, int tex) {
     int nIndexTex;
     POLY_FT4* pNextPoly;
     char _pad[0x88];
@@ -511,7 +511,7 @@ void func_8007A7F4(Quad* pPart, int x, int y, int tex) {
 }
 
 // Actor primitive initialization
-void func_8007AA44(Quad* pQuad) {
+void FieldInitShadowQuad(Quad* pQuad) {
     POLY_FT4* pPoly;
     POLY_FT4* pPoly2;
 
@@ -577,7 +577,7 @@ void FieldRenderQuad(u_long* ot, Quad* pQuad, MATRIX* pMatTransform, int renderC
     PopMatrix();
 }
 
-void func_8007AC58(u_long* ot, Quad* pQuad, MATRIX* pMatTransform, int renderContext) {
+void FieldRenderQuadScreenRect(u_long* ot, Quad* pQuad, MATRIX* pMatTransform, int renderContext) {
     int nInterpolation;
     int nFlag;
     int nPosY;
@@ -637,7 +637,7 @@ void FieldSetControllerBuffers(void* controllerBuffer1, void* controllerBuffer2)
     g_pFieldControllerBuffer2 = controllerBuffer2;
 }
 
-void func_8007ADA4(int arg0, int arg1, int arg2, int arg3) {
+void FieldSetMouseLimits(int arg0, int arg1, int arg2, int arg3) {
     D_800C3A44 = arg0 * g_FieldMouseSpeedX;
     D_800C3A50 = arg1 * g_FieldMouseSpeedX;
     D_800C3A4C = arg2 * g_FieldMouseSpeedY;
@@ -654,7 +654,7 @@ void FieldSetMousePosition(int mouseIndex, int xMovement, int yMovement) {
     g_FieldMousePositionsY[mouseIndex] = yMovement * g_FieldMouseSpeedY;
 }
 
-void func_8007AF74(int controllerIndex);
+void FieldUpdateMousePosition(int controllerIndex);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007AE78);
 /* Best attempt: 93.65%. Only difference is scheduling around the byte-1 test:
@@ -670,7 +670,7 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007AE78);
    object; the original's 252 bytes exist only with the load emitted first, so
    the block has to start with a non-movable insn.
 void func_8007AE78(int controllerIndex, int* pOut) {
-    func_8007AF74(controllerIndex);
+    FieldUpdateMousePosition(controllerIndex);
     pOut[0] = g_FieldMousePositionsX[controllerIndex] / g_FieldMouseSpeedX;
     pOut[1] = g_FieldMousePositionsY[controllerIndex] / g_FieldMouseSpeedY;
     pOut[2] = -0x100;
@@ -683,7 +683,7 @@ void func_8007AE78(int controllerIndex, int* pOut) {
 }
 */
 
-void func_8007AF74(int controllerIndex) {
+void FieldUpdateMousePosition(int controllerIndex) {
     if (((s8**)&g_pFieldControllerBuffer1)[controllerIndex][0] == 0
         && ((s8**)&g_pFieldControllerBuffer1)[controllerIndex][1] == 0x12) {
         g_FieldMousePositionsX[controllerIndex] += ((s8**)&g_pFieldControllerBuffer1)[controllerIndex][4];
@@ -838,7 +838,7 @@ int func_8007B1C4(int x, int z, int nWalkmesh, SVECTOR* pOut, VECTOR* pNormal) {
 */
 
 // 1 when the triangle pA/pB/pC winds consistently seen from pRef, -1 when it folds back
-int func_8007B478(SVECTOR* pA, SVECTOR* pB, SVECTOR* pC, SVECTOR* pRef) {
+int FieldGetTriangleWindingSign(SVECTOR* pA, SVECTOR* pB, SVECTOR* pC, SVECTOR* pRef) {
     VECTOR v;
     VECTOR edge;
     VECTOR cross;
@@ -893,7 +893,7 @@ void func_8007B614(IVEC3* pVec, int scale, int angle) {
 }
 */
 
-int func_8007B694(IVEC3* pVec) {
+int FieldGetVec2Angle(IVEC3* pVec) {
     return -ratan2(pVec->z, pVec->x) & 0xFFF;
 }
 
@@ -1024,7 +1024,7 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007BAC0);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007BEF4);
 
-int func_8007C670(int* pCur, int* pNext, int n) {
+int FieldSetRangeByDelta(int* pCur, int* pNext, int n) {
     int value = *pCur;
 
     if (n < 0) {
@@ -1043,14 +1043,14 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007C694);
 extern int D_800ADC10;
 
 // Pointer into the scratchpad area for the script VM
-int func_8007CD3C(int size) {
+int FieldAllocScratchpad(int size) {
     int offset = D_800ADC10;
 
     D_800ADC10 = offset + size;
     return 0x1F800000 + offset * 4;
 }
 
-void func_8007CD60(int size) {
+void FieldFreeScratchpad(int size) {
     D_800ADC10 -= size;
 }
 
@@ -1058,12 +1058,12 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007CD80);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007D3D4);
 
-int func_8007D8B4(int x, int y, int z);
+int FieldGetDominantComponent(int x, int y, int z);
 
-void func_8007D818(VECTOR* pVec, VECTOR* pOut) {
+void FieldNormalizeVecByDominantAxis(VECTOR* pVec, VECTOR* pOut) {
     int nDominantAxis;
 
-    nDominantAxis = func_8007D8B4(pVec->vx, pVec->vy, pVec->vz);
+    nDominantAxis = FieldGetDominantComponent(pVec->vx, pVec->vy, pVec->vz);
     pVec->vx >>= 12;
     pVec->vy >>= 12;
     pVec->vz >>= 12;
@@ -1076,7 +1076,7 @@ void func_8007D818(VECTOR* pVec, VECTOR* pOut) {
 }
 
 // Returns whichever component has the largest absolute value
-int func_8007D8B4(int x, int y, int z) {
+int FieldGetDominantComponent(int x, int y, int z) {
     int nAbsX = x;
     int nAbsY = y;
     int nAbsZ = z;

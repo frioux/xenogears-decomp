@@ -351,7 +351,7 @@ extern void WorldMapWaitForQueuedLoads(void);
 extern void func_80086124(void);
 extern void func_800866C8(void);
 extern void func_80089128(void);
-extern void func_80071FEC(void);
+extern void WorldMapQueueTwoFileLoads(void);
 extern int ArchiveDataSync(void);
 extern void LZSSDecompress(void* pSrc, void* pDst);
 
@@ -386,7 +386,7 @@ void func_800758C0(void) {
     pTemp = (void*)((u32)pTemp & 0xFFFFFF);
     size = (u32)pTemp + 0xFFE3B004;
     D_8009C7E4 = HeapAlloc(size, 1);
-    func_80071FEC();
+    WorldMapQueueTwoFileLoads();
     D_8009C800 = HeapAlloc(0x10000, 0);
     D_8009C890 = HeapAlloc(0xC800, 0);
     rect.x = 0x180;

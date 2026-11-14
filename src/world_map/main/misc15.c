@@ -57,7 +57,7 @@ extern s32 D_8009CD44;
 extern void *D_8009D788[16];
 extern void *D_8009C624[16];
 extern void func_800981C8(s32);
-extern void func_80097DC0(void);
+extern void WorldMapSubmitGridImageLoads(void);
 
 extern void func_800976C8(void);
 extern CdlLOC D_8009CEBC;
@@ -286,7 +286,7 @@ void func_80097244(Misc15Frame *p) {
 */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_80097244);
 
-void func_80097440(Misc15Rot *p) {
+void WorldMapBuildRotationMatrix(Misc15Rot *p) {
     MATRIX *pMtx = (MATRIX *)0x1F8000F0;
 
     *pMtx = D_8009A180;
@@ -543,7 +543,7 @@ void func_80097BC0(s32 *p) {
     D_8009C83C = 2;
     D_8009BBBC = z & 0x7FFFFF;
     func_800981C8((s32)p);
-    func_80097DC0();
+    WorldMapSubmitGridImageLoads();
 }
 */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_80097BC0);
@@ -561,7 +561,7 @@ void func_80097CB8(s32 arg0) {
     D_8009C5BC = 0;
     D_8009C618 = 0x400;
     func_800981C8(arg0);
-    func_80097DC0();
+    WorldMapSubmitGridImageLoads();
 }
 
 void func_80097D64(void) {
@@ -583,7 +583,7 @@ extern s32 WorldMapAddFileLoadRequest(s32 x, s32 y, s32 z, s32 w);
 extern s32 WorldMapSubmitCdRequests(void);
 extern s32 WorldMapSubmitFileLoads(void);
 
-void func_80097DC0(void) {
+void WorldMapSubmitGridImageLoads(void) {
     u32 first;
     u32 second;
     s32 i;

@@ -61,7 +61,7 @@ extern s32 D_8009BE28;
 extern u8* D_8009BE3C;
 extern s32 D_8009C5BC;
 
-extern void func_80097440(s32* p);
+extern void WorldMapBuildRotationMatrix(s32* p);
 extern void func_80097244(s32* p);
 extern void func_80089748(void);
 extern void func_80089C78(void);
@@ -86,7 +86,7 @@ s32 WorldMapUpdateFrameWithSlotProjection(void) {
     s32 pad[2];
 
     if (D_8009D144 == 0) {
-        func_80097440(&D_8009BD40);
+        WorldMapBuildRotationMatrix(&D_8009BD40);
     } else {
         func_80097244(&D_8009BD40);
     }
@@ -292,7 +292,7 @@ void func_80071EF0(void) {
 */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80071EF0);
 
-void func_80071FEC(void) {
+void WorldMapQueueTwoFileLoads(void) {
     void* pBuffer;
 
     D_8005945C = HeapAlloc(ArchiveDecodeAlignedSize(0x26), 1);
@@ -367,7 +367,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_8007299C);
    Tried with no change: a u16* local, a two-statement pointer load/store, and
    `volatile u16`. Second note: the first loop's `addu` needed the index first,
    i.e. `(u8*)(i * 0x80 + (s32)D_8009BE24)`; the ptr-first spelling gives the
-   reversed addu. Sibling teardown func_80074594 has the same 98.55% class.
+   reversed addu. Sibling teardown WorldMapAllocPrimBuffers has the same 98.55% class.
 */
 /*
 extern void* D_80062528;
@@ -900,7 +900,7 @@ typedef struct {
     /* 0xC */ u32 w3;
 } WorldMapChunk; // Size: 0x10
 
-void func_80074594(void) {
+void WorldMapAllocPrimBuffers(void) {
     WorldMapSlot* pSlot;
     POLY_FT4* pPrim;
     WorldMapChunk* pSrc;

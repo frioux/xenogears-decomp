@@ -52,7 +52,7 @@ s32 func_8009A0DC(u8 arg0) {
     }
     return *(u16*)(p + 0x4C) < (*(u16*)(p + 0x4E) >> 3) ? 5 : 0;
 }
-u16 func_8009A1AC(u8 arg0) {
+u16 FieldScriptClearAnimationOverrideIfFlag16(u8 arg0) {
     u8* p = (u8*)(arg0 * 0x170 + (u32)D_800C34B0);
     u16 f7C = *(u16*)(p + 0x7C);
     u16 ret = 0;

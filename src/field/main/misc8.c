@@ -101,7 +101,7 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80080F44);
    where gcc CSEs the index scaling and emits `lui at; sw %lo(at)`.
 extern int D_800B2180;
 void func_80080A74(int actorIndex);
-void func_8007AA44(Quad* pQuad);
+void FieldInitShadowQuad(Quad* pQuad);
 
 void func_80080F44(int actorIndex) {
     int numWords = sizeof(ActorData) / sizeof(u_int);
@@ -132,13 +132,13 @@ void func_80080F44(int actorIndex) {
         }
         func_80080A74(actorIndex);
         g_FieldActors[actorIndex].pShadow = HeapAlloc(0x70, 0);
-        func_8007AA44((Quad*)g_FieldActors[actorIndex].pShadow);
+        FieldInitShadowQuad((Quad*)g_FieldActors[actorIndex].pShadow);
     }
 }
 
 extern int D_800B2180;
 void func_80080A74(int actorIndex);
-void func_8007AA44(Quad* pQuad);
+void FieldInitShadowQuad(Quad* pQuad);
 
 void func_80080F44(int actorIndex) {
     int numWords = sizeof(ActorData) / sizeof(u_int);
@@ -169,7 +169,7 @@ void func_80080F44(int actorIndex) {
         }
         func_80080A74(actorIndex);
         g_FieldActors[actorIndex].pShadow = HeapAlloc(0x70, 0);
-        func_8007AA44((Quad*)g_FieldActors[actorIndex].pShadow);
+        FieldInitShadowQuad((Quad*)g_FieldActors[actorIndex].pShadow);
     }
 }
 */

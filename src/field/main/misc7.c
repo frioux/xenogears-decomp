@@ -11,7 +11,7 @@ extern FieldActor* D_800B06B8;
 extern s32 D_800AFD1C;
 extern s32 g_PlayerActorIndex;
 // .rodata
-// Debug string for the variable print in func_800985BC. Sized to the 0x14 bytes
+// Debug string for the variable print in FieldScriptVMHandlerDebugPrintVariable. Sized to the 0x14 bytes
 // splat assigned this unit's rodata subsegment, so the next unit's rodata still
 // starts at 0x240.
 const char D_8006FD1C[0x14] = "DEB=%xh %d \n";
@@ -22,7 +22,7 @@ extern s16 D_800B21B2;
 extern u8 D_800B21D2;
 
 
-void func_800972F4(void) {
+void FieldScriptVMHandlerStopVM(void) {
     D_800B00C0 = 1;
     g_FieldScriptVMCurActor->scriptInstructionPointer++;
 }
@@ -42,13 +42,13 @@ void FieldScriptFadeIn(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
 
-void func_800973A4(void) {
+void FieldScriptVMHandlerWaitForFileLoad(void) {
     if (func_8001B484(FieldScriptVMGetInstructionArgument(2) & 0xFFFF, SCRIPT_READ_U8_REL(1)) == 0) {
         g_FieldScriptVMCurActor->scriptInstructionPointer += 4;
     }
 }
 
-void func_80097410(void) {
+void FieldScriptVMHandlerSkipInstructions(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += FieldScriptVMGetArgument(1) * 3 + 3;
 }
 
@@ -58,7 +58,7 @@ int FieldGetPlayerActorDirection(void) {
         & MASK_8DIR_MOVEMENT_NUM_DIRECTIONS;
 }
 
-void func_8009749C(void) {
+void FieldScriptVMHandlerMoveToActor(void) {
     ActorData* pActorData;
 
     g_FieldScriptVMCurActor->scripts[g_FieldScriptVMCurActor->curScriptIndex].flags_0x17 = 2;
@@ -74,7 +74,7 @@ void func_8009749C(void) {
     }
 }
 
-void func_800975C0(void) {
+void FieldScriptVMHandlerMoveToActorUnbounded(void) {
     ActorData* pActorData;
 
     g_FieldScriptVMCurActor->scripts[g_FieldScriptVMCurActor->curScriptIndex].flags_0x17 = 2;
@@ -88,7 +88,7 @@ void func_800975C0(void) {
     }
 }
 
-void func_800976A8(void) {
+void FieldScriptVMHandlerMoveByOffset(void) {
     if (g_FieldScriptVMCurActor->scripts[g_FieldScriptVMCurActor->curScriptIndex].flags_0x17 == 0) {
         g_FieldScriptVMCurActor->scripts[g_FieldScriptVMCurActor->curScriptIndex].flags_0x17 = 1;
         g_FieldScriptVMCurActor->unkD0.vx = CONV_TO_GTE(g_FieldScriptVMCurActor->position.vx);
@@ -103,7 +103,7 @@ void func_800976A8(void) {
     }
 }
 
-void func_800977A4(void) {
+void FieldScriptVMHandlerMoveByOffsetUnbounded(void) {
     if (g_FieldScriptVMCurActor->scripts[g_FieldScriptVMCurActor->curScriptIndex].flags_0x17 == 0) {
         g_FieldScriptVMCurActor->scripts[g_FieldScriptVMCurActor->curScriptIndex].flags_0x17 = 1;
         g_FieldScriptVMCurActor->unkD0.vx = CONV_TO_GTE(g_FieldScriptVMCurActor->position.vx);
@@ -116,7 +116,7 @@ void func_800977A4(void) {
     }
 }
 
-void func_80097864(void) {
+void FieldScriptVMHandlerMoveInDirection(void) {
     if (g_FieldScriptVMCurActor->scripts[g_FieldScriptVMCurActor->curScriptIndex].flags_0x17 == 0) {
         g_FieldScriptVMCurActor->scripts[g_FieldScriptVMCurActor->curScriptIndex].flags_0x17 = 3;
         g_FieldScriptVMCurActor->unkD0.vx = CONV_TO_GTE(g_FieldScriptVMCurActor->position.vx);
@@ -131,7 +131,7 @@ void func_80097864(void) {
     }
 }
 
-void func_80097954(void) {
+void FieldScriptVMHandlerContinueMovement(void) {
     if (g_FieldScriptVMCurActor->scripts[g_FieldScriptVMCurActor->curScriptIndex].flags_0 == 0xFFFF) {
         g_FieldScriptVMCurActor->scripts[g_FieldScriptVMCurActor->curScriptIndex].flags_0 = FieldScriptVMGetArgument(8);
     }
@@ -140,7 +140,7 @@ void func_80097954(void) {
     }
 }
 
-void func_800979F0(void) {
+void FieldScriptVMHandlerContinueMovementUnbounded(void) {
     g_FieldScriptVMCurActor->scripts[g_FieldScriptVMCurActor->curScriptIndex].flags_0 = 0xFFFF;
     if (func_80097A50(0xFFFF) == 0) {
         g_FieldScriptVMCurActor->scriptInstructionPointer += 8;
@@ -149,7 +149,7 @@ void func_800979F0(void) {
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc7", func_80097A50);
 
-void func_80098038(void) {
+void FieldScriptVMHandlerWalkToActor(void) {
     g_FieldScriptVMCurActor->scripts[g_FieldScriptVMCurActor->curScriptIndex].flags_0x17 = 2;
     if (g_FieldScriptVMCurActor->scripts[g_FieldScriptVMCurActor->curScriptIndex].flags_0 == 0xFFFF) {
         g_FieldScriptVMCurActor->scripts[g_FieldScriptVMCurActor->curScriptIndex].flags_0 = FieldScriptVMGetArgument(2);
@@ -159,7 +159,7 @@ void func_80098038(void) {
     }
 }
 
-void func_800980FC(void) {
+void FieldScriptVMHandlerWalkToActorUnbounded(void) {
     g_FieldScriptVMCurActor->scripts[g_FieldScriptVMCurActor->curScriptIndex].flags_0x17 = 2;
     g_FieldScriptVMCurActor->scripts[g_FieldScriptVMCurActor->curScriptIndex].flags_0 = 0xFFFF;
     if (func_80099AC0(0xFFFF) == 0) {
@@ -167,7 +167,7 @@ void func_800980FC(void) {
     }
 }
 
-void func_80098184(void) {
+void FieldScriptVMHandlerWalkInDirection(void) {
     if (g_FieldScriptVMCurActor->scripts[g_FieldScriptVMCurActor->curScriptIndex].flags_0x17 == 0) {
         g_FieldScriptVMCurActor->scripts[g_FieldScriptVMCurActor->curScriptIndex].flags_0x17 = 3;
         g_FieldScriptVMCurActor->unkD0.vx = CONV_TO_GTE(g_FieldScriptVMCurActor->position.vx);
@@ -182,7 +182,7 @@ void func_80098184(void) {
     }
 }
 
-void func_80098274(void) {
+void FieldScriptVMHandlerWalkByOffset(void) {
     if (g_FieldScriptVMCurActor->scripts[g_FieldScriptVMCurActor->curScriptIndex].flags_0x17 == 0) {
         g_FieldScriptVMCurActor->scripts[g_FieldScriptVMCurActor->curScriptIndex].flags_0x17 = 1;
         g_FieldScriptVMCurActor->unkD0.vx = CONV_TO_GTE(g_FieldScriptVMCurActor->position.vx);
@@ -197,7 +197,7 @@ void func_80098274(void) {
     }
 }
 
-void func_80098370(void) {
+void FieldScriptVMHandlerWalkByOffsetUnbounded(void) {
     if (g_FieldScriptVMCurActor->scripts[g_FieldScriptVMCurActor->curScriptIndex].flags_0x17 == 0) {
         g_FieldScriptVMCurActor->scripts[g_FieldScriptVMCurActor->curScriptIndex].flags_0x17 = 1;
         g_FieldScriptVMCurActor->unkD0.vx = CONV_TO_GTE(g_FieldScriptVMCurActor->position.vx);
@@ -210,7 +210,7 @@ void func_80098370(void) {
     }
 }
 
-void func_80098430(void) {
+void FieldScriptVMHandlerWalkToPosition(void) {
     g_FieldScriptVMCurActor->scripts[g_FieldScriptVMCurActor->curScriptIndex].flags_0x17 = 0;
     if (g_FieldScriptVMCurActor->scripts[g_FieldScriptVMCurActor->curScriptIndex].flags_0 == 0xFFFF) {
         g_FieldScriptVMCurActor->scripts[g_FieldScriptVMCurActor->curScriptIndex].flags_0 = FieldScriptVMGetArgument(6);
@@ -233,7 +233,7 @@ void func_800984EC(void) {
 }
 */
 
-void func_800985BC(void) {
+void FieldScriptVMHandlerDebugPrintVariable(void) {
     if (g_FieldSystemMode == 0) {
         int nValue = FieldScriptVMGetVariableValue(FieldScriptVMGetInstructionArgument(1) & 0xFFFF);
 
@@ -242,7 +242,7 @@ void func_800985BC(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
 
-void func_8009861C(void) {
+void FieldScriptVMHandlerWriteDistance2D(void) {
     s32 x0;
     s32 z0;
     s32 x1;
@@ -258,7 +258,7 @@ void func_8009861C(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 0xC;
 }
 
-void func_80098738(void) {
+void FieldScriptVMHandlerWriteDistance3D(void) {
     s32 x0;
     s32 z0;
     s32 y0;
@@ -278,7 +278,7 @@ void func_80098738(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 0x10;
 }
 
-void func_800988B8(void) {
+void FieldScriptVMHandlerWriteInterpolatedAngle(void) {
     s32 angle0;
     s32 angle1;
     s32 angle2;
@@ -292,7 +292,7 @@ void func_800988B8(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 0xA;
 }
 
-void func_8009899C(void) {
+void FieldScriptVMHandlerWriteActorRotation(void) {
     FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(1), g_FieldScriptVMCurActor->rotation.vy & 0xFFF);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
@@ -320,7 +320,7 @@ void func_800989F0(void) {
 }
 */
 
-void func_80098A7C(void) {
+void FieldScriptVMHandlerTeleportActor(void) {
     SpriteData* pSpriteData;
 
     pSpriteData = g_FieldActors[D_800AFD1C].pSpriteData;
@@ -338,22 +338,22 @@ void func_80098A7C(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 8;
 }
 
-void func_80098C00(void) {
+void FieldScriptVMHandlerMoveActorAtSpeedUnbounded(void) {
     g_FieldScriptVMCurActor->scripts[g_FieldScriptVMCurActor->curScriptIndex].flags_0 = 0xFFFF;
-    func_80098CAC(0);
+    FieldScriptVMHandlerMoveActorAtSpeed(0);
 }
 
-void func_80098C3C(void) {
+void FieldScriptVMHandlerMoveActorAtSpeedWithFrameCount(void) {
     if (g_FieldScriptVMCurActor->scripts[g_FieldScriptVMCurActor->curScriptIndex].flags_0 == 0xFFFF) {
         g_FieldScriptVMCurActor->scripts[g_FieldScriptVMCurActor->curScriptIndex].flags_0 = FieldScriptVMGetArgument(0xB);
     }
-    func_80098CAC(1);
+    FieldScriptVMHandlerMoveActorAtSpeed(1);
 }
 
 extern s32 D_800AFD1C;
 extern s32 D_800B00C0;
 
-void func_80098CAC(s32 arg0) {
+void FieldScriptVMHandlerMoveActorAtSpeed(s32 arg0) {
     IVEC3 prevPosition;
     s16 rotation;
     s32 animationId;
@@ -462,7 +462,7 @@ void func_80098CAC(s32 arg0) {
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc7", func_80099214);
 
-void func_80099980(void) {
+void FieldScriptVMHandlerWalkToPositionUnbounded(void) {
     g_FieldScriptVMCurActor->scripts[g_FieldScriptVMCurActor->curScriptIndex].flags_0x17 = 0;
     g_FieldScriptVMCurActor->scripts[g_FieldScriptVMCurActor->curScriptIndex].flags_0 = 0xFFFF;
     if (func_80099AC0(0xFFFF) == 0) {
