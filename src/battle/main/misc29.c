@@ -58,34 +58,38 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B8068);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B8098);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B81BC);
 
-// 77.69% under the unit preset, gcc 2.6.0 and gcc 2.7.2-cdk. The four SetDef*Env
-// calls and the 0xE0 local already reproduce retail (retail keeps pEnv in $s0 and
-// the 0xE0 in $s1, ours swaps the two). What is left is the tail: retail does one
-// addiu $s0,$s0,-0xBCC (D_800C4A7C -> D_800C3EB0) and then eight sh with the
-// displacements 0xBD4-0xBDA and 0x4C44-0x4C4A; our gcc folds that address to
-// D_800C4A7C+0x4078 at expand time and maspsx then expands every one-shot absolute
-// store through $at, so the tail costs 16 insns instead of 11 (+20 bytes).
+// 100.00% under gcc-2.7.2-cdk-psx and 77.69% under the unit preset (77.69 under
+// gcc 2.6.0 too): a PRESET_CDK function, not a source problem. Retail rebases the
+// tail once (addiu $s0,$s0,-0xBCC off the DISPENV base = D_800C3EB0) and then does
+// eight sh at 0xBD4-0xBDA and 0x4C44-0x4C4A off that register; plain 2.7.2 folds
+// base+offset into one absolute symbol address per store and maspsx expands each
+// through $at (16 insns instead of 11), whereas cdk emits the lui/addiu pair as two
+// RTL insns and gets retail's shape exactly, tail included. The pBase assignment
+// must stay after the SetGeomOffset call: that is what puts the three prologue
+// saves in retail's order. All five already-matched functions of this unit stay
+// 100.0 under cdk (try_flags.sh), so the unit can move presets; un-park this body
+// as-is when it does.
 /*
 void func_800B8284(void) {
     u8 *pBase;
-    s32 h = 0xE0;
+    u8 *pWork;
 
-    pBase = (u8 *)&D_800C4A7C;
     SetGeomOffset(0xA0, 0xA4);
-    SetDefDispEnv((DISPENV *)pBase, 0, h, 0x140, h);
-    SetDefDispEnv((DISPENV *)(pBase + 0x4070), 0, 0, 0x140, h);
-    SetDefDrawEnv((DRAWENV *)pBase - 1, 0, 0, 0x140, h);
-    SetDefDrawEnv((DRAWENV *)(pBase + 0x4014), 0, h, 0x140, h);
+    pBase = (u8 *)&D_800C4A7C;
+    SetDefDispEnv((DISPENV *)pBase, 0, 0xE0, 0x140, 0xE0);
+    SetDefDispEnv((DISPENV *)(pBase + 0x4070), 0, 0, 0x140, 0xE0);
+    SetDefDrawEnv((DRAWENV *)(pBase - 0x5C), 0, 0, 0x140, 0xE0);
+    SetDefDrawEnv((DRAWENV *)(pBase + 0x4014), 0, 0xE0, 0x140, 0xE0);
 
-    pBase -= 0xBCC;
-    *(s16 *)(pBase + 0xBD6) = 0xA;
-    *(s16 *)(pBase + 0x4C46) = 0xA;
-    *(s16 *)(pBase + 0xBD8) = 0x100;
-    *(s16 *)(pBase + 0x4C48) = 0x100;
-    *(s16 *)(pBase + 0xBD4) = 0;
-    *(s16 *)(pBase + 0x4C44) = 0;
-    *(s16 *)(pBase + 0xBDA) = 0xD8;
-    *(s16 *)(pBase + 0x4C4A) = 0xD8;
+    pWork = pBase - 0xBCC;
+    *(s16 *)(pWork + 0x4C46) = 0xA;
+    *(s16 *)(pWork + 0xBD6) = 0xA;
+    *(s16 *)(pWork + 0x4C48) = 0x100;
+    *(s16 *)(pWork + 0xBD8) = 0x100;
+    *(s16 *)(pWork + 0x4C44) = 0;
+    *(s16 *)(pWork + 0xBD4) = 0;
+    *(s16 *)(pWork + 0x4C4A) = 0xD8;
+    *(s16 *)(pWork + 0xBDA) = 0xD8;
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B8284);
