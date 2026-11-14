@@ -86,23 +86,21 @@ void func_801DBDB4(void) {
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DBE54);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DC1D4);
-/* Best: 91.94%, same size (228 bytes). Everything matches except the case
-   dispatch: retail built a balanced decision tree (beq x,1 / slti x,2 / beqz x,0
-   / beq x,2) where gcc 2.6.0 emits a sequential compare chain for this switch.
-   The tree IS reachable from gcc 2.6.0: the sibling MenuFreeUnk430Panel above emits
-   exactly it for an identical `switch (arg0 & 0xFF)` over the same 3 cases, so
-   the trigger is some other property of this function, not the compiler. Tried:
-   2.6.0/2.7.2/2.7.2-cdk x -O1..-O3 x -G0/-G4/-G8 (all 94.47 or less on the
-   older parked shape, 91.94 here), while/for/do-while, index init before/after
-   the switch, case order. `kind` and `index` are genuinely uninitialised /
-   zeroed by retail's own code; the default path passes a garbage `kind`.
+/* Best: 98.31%, 252 bytes (retail's size). The dispatch tree retail uses needs the
+   switch operand to be a u8 VARIABLE: `switch (arg0 & 0xFF)` makes gcc 2.6.0 emit a
+   flat compare chain (91.94%), `u8 mode = arg0; switch (mode)` gives retail's
+   beq 1 / slti 2 / beqz / beqz 0 tree. The only remaining delta is one instruction:
+   the u8 local costs `move v0,s2` before `andi v1,v0,0xff`, where retail masks s2
+   in place (so both would be the same bytes). Not tried: an s32 local switched as
+   `(u8)mode`, a u_char parameter (drops retail's trailing andi a1,s2,0xff instead).
 void func_801DC1D4(u32 arg0) {
     s32 kind;
     s32 index = 0;
+    u8 mode = arg0;
 
     g_Menu->unk430 = HeapAlloc(0x1094, 0);
     bzero(g_Menu->unk430, 0x1094);
-    switch (arg0 & 0xFF) {
+    switch (mode) {
     case 0:
         kind = 2;
         break;
