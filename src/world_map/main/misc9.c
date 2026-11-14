@@ -147,16 +147,18 @@ void func_80086124(void) {
     HeapFree(D_8009D7E8);
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_8008615C);
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_800863E0);
 // Best: 91.94%. Both loops are instruction-for-instruction identical to retail;
-// the only difference is which callee-saved register holds what: retail keeps the
-// D_8009D150 destination pointer in s3 and the x counter in s2, we take the reverse,
-// and in the second loop retail holds the `(rand() & 3) + 1` value in s2 while we
-// use v1. That exchange also moves the `x = 0` init out of the y-loop back-edge
-// delay slot (retail has `bnez ...; move s2,zero`, we emit `bnez ...; nop`).
-// Declaration order, x/y swap, pointer-last and separate idx/value locals all leave
-// the allocator tie untouched (91.94 at best, 89.23 with a separate loop-2 temp).
+// the only differences are register picks: retail keeps the D_8009D150 destination
+// pointer in s3 and the x counter in s2 (we take the reverse), and holds
+// `-(rand() >> 10)` / `(rand() & 3) + 1` in v0/s2 where we use v1. Retail also keeps
+// a second `x = 0` (move s2,zero) in the entry block that gcc folds away here, and
+// emits the x-loop preheader `sll s5,s2,0xb; addiu s1,s3,4` before `move s0,zero`.
+// An extra `x = 0;` before the y loop does not survive cse (same 91.94).
+// Declaration order, x/y swap, pointer-last, indexed pVertex[k] and separate
+// idx/value locals all leave the tie untouched (89.23 with a separate loop-2 temp).
 // Note D_8009AF30/D_8009AF38 are separate absolute symbols 8 bytes apart, each read
-// as a word at stride 0x10.
+// as a word at stride 0x10 (retail keeps that stride in s0 and compares it to 0x50).
 // Screen: not screened under another gcc - the shape is exact, only regs differ.
 /*
 void func_800863E0(void) {
@@ -195,8 +197,6 @@ void func_800863E0(void) {
     }
 }
 */
-
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_800863E0);
 
 void func_80086568(void) {
     HeapFree(D_8009CEB4);
