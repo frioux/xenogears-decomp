@@ -202,6 +202,90 @@ void MenuUpdateCharacterWindow(s32 arg0, u_char arg1) {
     }
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E78C8);
+/* Best: 84.42% (948 vs 904 bytes), first full shape. Decoded: a 0x20-byte CLUT
+   (16 entries) is memmoved out of MenuUnk2ImageChunk.pad0[0x60] into the buffer at
+   D_801EA8C4 and uploaded with LoadImage to the RECT at D_801EA8EC
+   (x = index*0x10, y = index/0x10 + 0x1C1, w = 0x10, h = 1); then three 0x80-byte
+   texture blocks are uploaded to the RECT at D_801EA8E4
+   (x = index*4 + 0x140 - (index/0x10)*0x40, y = i*0x20 + (index/0x10)*0x10 + 0x80,
+   w = 4, h = 0x10), and finally the chunk's type byte (chunks[index].pad0[2],
+   values 0x11/0x12/0x13) selects six 32-bit UV words in menuUnk2->records[index]
+   (those six words live inside MenuUnk2Record.unk0, hence the indexed form),
+   chunks[index].pad0[3] is added to D_801EA900[index/0x10], and
+   records[index].unk58 is cleared when the type was unexpected.
+   What is still wrong, in retail's order of appearance:
+   - retail materialises &D_801EA8E4 (offset 0) in s0, derives s7 = s0+2 and uses
+     a0 = s7-2 for the loop LoadImage; this shape materialises s7 (= D_801EA8E4+2)
+     and derives offset 0 instead, so every plain D_801EA8E4.y/x store re-forms its
+     address with lui at (11 instructions of overrun). Tried: plain struct stores,
+     a RECT pointer local for the base, and the pos/neg offset swapped.
+   - retail keeps the D_801EA8C4 buffer address in s1 across the memmove so the
+     LoadImage argument is a plain move; this shape reloads it with la.
+   - the x expression must be written index*4 + 0x140 - (index/0x10)*0x40 to get
+     retail's addiu v0,v0,-0x140 then subu (the other association emits addiu +320).
+   - shouldClear = 1 must be the FIRST statement (retail emits li s6,1 in the
+     prologue, before the rect stores).
+/*
+extern u8 D_801EA8C4[0x20];
+extern RECT D_801EA8E4;
+extern RECT D_801EA8EC;
+extern s32 D_801EA900[];
+
+void func_801E78C8(s32 index) {
+    s32 i;
+    u_char shouldClear;
+
+    shouldClear = 1;
+    D_801EA8E4.x = index * 4 + 0x140 - (index / 0x10) * 0x40;
+    D_801EA8E4.w = 4;
+    D_801EA8E4.h = 0x10;
+    D_801EA8EC.x = index * 0x10;
+    D_801EA8EC.y = index / 0x10 + 0x1C1;
+    D_801EA8EC.w = 0x10;
+    D_801EA8EC.h = 1;
+    memmove(D_801EA8C4, &g_Menu->menuUnk2->chunks[index].pad0[0x60], 0x20);
+    LoadImage(&D_801EA8EC, (u_long*)D_801EA8C4);
+    DrawSync(0);
+    for (i = 0; i < 3; i++) {
+        D_801EA8E4.y = i * 0x20 + (index / 0x10) * 0x10 + 0x80;
+        LoadImage(&D_801EA8E4, (u_long*)&g_Menu->menuUnk2->chunks[index].pad0[0x80 + i * 0x80]);
+        DrawSync(0);
+    }
+    switch (g_Menu->menuUnk2->chunks[index].pad0[2]) {
+        case 0x11:
+            ((s32*)g_Menu->menuUnk2->records[index].unk0)[0] = (index / 0x10) * 0x10 + 0x80;
+            ((s32*)g_Menu->menuUnk2->records[index].unk0)[1] = (index / 0x10) * 0x10 + 0x80;
+            ((s32*)g_Menu->menuUnk2->records[index].unk0)[2] = (index / 0x10) * 0x10 + 0x80;
+            ((s32*)g_Menu->menuUnk2->records[index].unk0)[3] = (index / 0x10) * 0x10 + 0x80;
+            ((s32*)g_Menu->menuUnk2->records[index].unk0)[4] = (index / 0x10) * 0x10 + 0x80;
+            shouldClear = 0;
+            ((s32*)g_Menu->menuUnk2->records[index].unk0)[5] = (index / 0x10) * 0x10 + 0x80;
+            break;
+        case 0x12:
+            ((s32*)g_Menu->menuUnk2->records[index].unk0)[0] = (index / 0x10) * 0x10 + 0x80;
+            ((s32*)g_Menu->menuUnk2->records[index].unk0)[1] = (index / 0x10) * 0x10 + 0xA0;
+            ((s32*)g_Menu->menuUnk2->records[index].unk0)[2] = (index / 0x10) * 0x10 + 0x80;
+            ((s32*)g_Menu->menuUnk2->records[index].unk0)[3] = (index / 0x10) * 0x10 + 0xA0;
+            ((s32*)g_Menu->menuUnk2->records[index].unk0)[4] = (index / 0x10) * 0x10 + 0x80;
+            shouldClear = 0;
+            ((s32*)g_Menu->menuUnk2->records[index].unk0)[5] = (index / 0x10) * 0x10 + 0xA0;
+            break;
+        case 0x13:
+            ((s32*)g_Menu->menuUnk2->records[index].unk0)[0] = (index / 0x10) * 0x10 + 0x80;
+            ((s32*)g_Menu->menuUnk2->records[index].unk0)[1] = (index / 0x10) * 0x10 + 0xA0;
+            ((s32*)g_Menu->menuUnk2->records[index].unk0)[2] = (index / 0x10) * 0x10 + 0xC0;
+            ((s32*)g_Menu->menuUnk2->records[index].unk0)[3] = (index / 0x10) * 0x10 + 0x80;
+            ((s32*)g_Menu->menuUnk2->records[index].unk0)[4] = (index / 0x10) * 0x10 + 0xA0;
+            shouldClear = 0;
+            ((s32*)g_Menu->menuUnk2->records[index].unk0)[5] = (index / 0x10) * 0x10 + 0xC0;
+            break;
+    }
+    D_801EA900[index / 0x10] += g_Menu->menuUnk2->chunks[index].pad0[3];
+    if (shouldClear) {
+        g_Menu->menuUnk2->records[index].unk58 = 0;
+    }
+}
+*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E7C50);
 /* Best: 72.41% under gcc-2.6.0 (62.66% under 2.7.2). Shape recovered from the asm:
    row = index / 2 and column = index & 1 are separate locals (retail keeps row in
