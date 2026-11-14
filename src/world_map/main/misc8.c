@@ -3,6 +3,7 @@
 #include "psyq/libgpu.h"
 #include "psyq/memory.h"
 #include "psyq/libgte.h"
+#include "psyq/inline_c.h"
 
 typedef struct {
     /* 0x00 */ u32 unk0;
@@ -152,6 +153,13 @@ extern s32 func_8008390C(s32);
 extern s32 func_80083A00(s32);
 extern s32 WorldMapSetActorPosition(s32);
 extern s32 func_80084068(s32);
+extern u8 *D_8009BE3C;
+extern MATRIX D_8009C808;
+extern void func_80093484(void *pDelta);
+extern void func_800223B0(void *p, s32 angle);
+extern void func_8001E298(void *p, u32 *pTbl);
+extern void func_80024FF4(MATRIX *p);
+extern void AnimScriptTick(void *p);
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_80082F64);
 // Best: 98.71%. Instruction multiset and registers are identical bar one
@@ -499,3 +507,93 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_80085158);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_80085418);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_80085760);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_80085CDC);
+// Best: 87.17% (620 bytes vs 636). Three loops over the 0x40 actors: project
+// each active actor through the camera delta (func_80093484 wraps it), run
+// RTPS per actor and store SZ3 into the scratch slot at 0x1F800018+4*i, then
+// depth-index func_8001E298 and slew each actor's 0x5C angle toward its 0x48
+// target. Diffs found but not yet fixed, in the order they appear:
+//  1. retail keeps &D_8009BE28 in $s3 and reads D_8009BE30 as +8 off it, so
+//     the frame is 0x28 not 0x20 (this also costs the s3 save/restore pair).
+//  2. the delta passed to func_80093484 is &pScratch[2] (0x1F800008), i.e.
+//     addiu a0,$s2,8 - not $s2.
+//  3. D_8009C808 is a MATRIX, not a MATRIX*: &D_8009C808 (lui+addiu) is what
+//     retail holds in $s0 for both SetRotMatrix/SetTransMatrix.
+//  4. the three scratch halfword writes read the actor's 0x4C pointer as
+//     *s16 and must emit lh; a s16 array index gives lhu. Use byte casts.
+//  5. in the third loop retail loads the 0x48 angle (lh a1,-4(s0)) BEFORE the
+//     0x5C current angle (lw a0,16(s0)); the substraction is ang - cur.
+//  6. retail's slew is `v1 = (d < 0x100) ? ang : cur + 0x100` with the THEN
+//     value in the bnez delay slot and the ELSE after a j; and the `i = 0`
+//     that starts loop 2 is emitted after the SetTransMatrix call, not before.
+/*
+void func_80085CDC(void) {
+    WorldMapActor *pActor;
+    MATRIX *pMat;
+    s32 *pScratch;
+    s32 i;
+    s32 d;
+    s32 cur;
+    s16 ang;
+
+    pScratch = (s32 *)0x1F800000;
+    pActor = D_8009BE24;
+    for (i = 0; i < 0x40; i++, pActor++) {
+        if ((*(s16 *)((u8 *)pActor + 0x24) == 0) & (*(s32 *)((u8 *)pActor + 0x4C) != 0)) {
+            pScratch[2] = *(s32 *)((u8 *)pActor + 0x28) - D_8009BE28;
+            pScratch[4] = *(s32 *)((u8 *)pActor + 0x30) - D_8009BE30;
+            func_80093484((WorldMapPos *)pScratch);
+            ((s32 *)*(void **)((u8 *)pActor + 0x4C))[0] = pScratch[2] << 4;
+            ((s32 *)*(void **)((u8 *)pActor + 0x4C))[2] = -(pScratch[4]) << 4;
+            ((s32 *)*(void **)((u8 *)pActor + 0x4C))[1] = *(s32 *)((u8 *)pActor + 0x2C) << 4;
+        }
+    }
+    pMat = &D_8009C808;
+    SetRotMatrix(pMat);
+    SetTransMatrix(pMat);
+    pActor = D_8009BE24;
+    for (i = 0; i < 0x40; i++, pActor++) {
+        if ((*(s16 *)((u8 *)pActor + 0x24) == 0) & (*(s32 *)((u8 *)pActor + 0x4C) != 0)) {
+            ((s16 *)pScratch)[0] = ((s16 *)*(void **)((u8 *)pActor + 0x4C))[1];
+            ((s16 *)pScratch)[1] = ((s16 *)*(void **)((u8 *)pActor + 0x4C))[3];
+            ((s16 *)pScratch)[2] = ((s16 *)*(void **)((u8 *)pActor + 0x4C))[5];
+            gte_ldv0(pScratch);
+            gte_rtps();
+            gte_stsz(&pScratch[i + 6]);
+        }
+    }
+    func_80024FF4(pMat);
+    i = 0;
+    pActor = D_8009BE24;
+    for (; i < 0x40; i++, pActor++) {
+        d = pScratch[i + 6];
+        if ((*(s16 *)((u8 *)pActor + 0x24) == 0) & (*(s32 *)((u8 *)pActor + 0x4C) != 0) & (d < 0xB00)) {
+            func_8001E298(*(void **)((u8 *)pActor + 0x4C),
+                          (u32 *)(((u32 *)D_8009BE3C)[0x1C]) + (d >> 4));
+            ang = *(s16 *)((u8 *)pActor + 0x48);
+            cur = *(s32 *)((u8 *)pActor + 0x5C);
+            d = ang - cur;
+            if (d < 0) {
+                d += 0x1000;
+            }
+            if (d < 0x801) {
+                if (d < 0x100) {
+                    cur = ang;
+                } else {
+                    cur = cur + 0x100;
+                }
+            } else {
+                d -= 0x1000;
+                if (d < -0xFF) {
+                    cur = cur - 0x100;
+                } else {
+                    cur = ang;
+                }
+            }
+            *(s32 *)((u8 *)pActor + 0x5C) = cur;
+            func_800223B0(*(void **)((u8 *)pActor + 0x4C),
+                          (cur - *(u16 *)&D_8009BD3A - 0x400) & 0xFFF);
+            AnimScriptTick(*(void **)((u8 *)pActor + 0x4C));
+        }
+    }
+}
+*/
