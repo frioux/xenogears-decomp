@@ -401,6 +401,16 @@ void BattleInitGraphics(void) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc12", func_80088E90);
 
+/* Not attempted. 204 instructions: the battle draw loop. Calls BattleInitGraphics,
+   then BattleCreateWorkBlock(handlers[D_80050618], 0, 0x801FE000, 0x400) and
+   Vsync(1) in a loop that toggles D_800928E8 and re-points D_80092868/70 at
+   D_8009A0D8 + D_800928E8 * 0x70, then TermPrim, FontDrawLetters,
+   BattleReleaseFinishedSoundSlots, AddPrim, BattleDebugScrollHeapDump,
+   FontPrintf x3, BattleCompactOrderingTable, DrawSync, PutDispEnv, DrawOTagEnv.
+   The 4-word copies at +0x5C..+0x6B use lwl/lwr (unaligned 32-bit struct
+   assignment into a stack local, so a `BattleBlk16` local copied field by field
+   will not reproduce it). Needs a session of its own. */
+
 void* BattleLoadArchiveEntry(s32 entryIndex) {
     void* pBuffer;
 
