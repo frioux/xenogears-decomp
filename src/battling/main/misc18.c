@@ -36,7 +36,32 @@ typedef struct {
     /* 0x32 */ u16 pad32;
 } BattleWork; // Size: 0x34
 
-extern s32 func_80073DE4(u8* p, s32 arg1);
+// The record the actor's four action probabilities are copied from.
+typedef struct {
+    /* 0x0 */ u8 unk0[0x6];
+    /* 0x6 */ u8 unk6[0x4];
+} BattleActionData; // Size: 0xA
+
+// A battle participant as this unit drives it. Only the fields this unit
+// touches are named; 0x1604 is a lower bound on the real size.
+typedef struct BattleActor {
+    /* 0x000 */ u8 unk0[0xB4];
+    /* 0x0B4 */ s16 unkB4;
+    /* 0x0B6 */ s16 unkB6;
+    /* 0x0B8 */ u8 unkB8[0xC];
+    /* 0x0C4 */ u8 unkC4;
+    /* 0x0C5 */ u8 unkC5[0xB];
+    /* 0x0D0 */ u32 flags;
+    /* 0x0D4 */ u8 unkD4[0x4];
+    /* 0x0D8 */ struct BattleActor* pTarget;
+    /* 0x0DC */ u8 unkDC[0x835];
+    /* 0x911 */ u8 unk911;
+    /* 0x912 */ u8 unk912[0xCEA];
+    /* 0x15FC */ BattleWork* pWork;
+    /* 0x1600 */ BattleActionData* pActionData;
+} BattleActor; // Size: 0x1604
+
+extern s32 func_80073DE4(BattleActor* p, s32 arg1);
 extern void func_800767C8(u8* p);
 extern void BattleQueueMessage(u8* p, s32 arg1);
 extern u8 D_80092884;
@@ -45,7 +70,7 @@ extern void func_8008F7B8(u8* p);
 extern s32 BattleRollActorFlag8000(u8* p, s32 arg1);
 extern s32 BattleGetActorBreakProximity(u8* p);
 extern s32 D_8009284C;
-extern s32 BattleRollActorActionChance(u8* p, s32 arg1);
+extern s32 BattleRollActorActionChance(BattleActor* p, s32 arg1);
 extern void func_8008FFEC(u8* p, u8* arg1);
 extern void BattleResetMessageQueue(u8* p);
 extern u8 D_80099D98;
@@ -57,23 +82,23 @@ extern void BattleUpdateActorApproach(u8* p, s32 arg1, s32 arg2);
 extern s32 BattleCheckValueAboveScaledMax(u8* p, s32 arg1);
 
 
-s32 BattleCheckActorBelowBreakThreshold(u8* pArg0, s32 arg1) {
+s32 BattleCheckActorBelowBreakThreshold(BattleActor* pActor, s32 arg1) {
     if (arg1 != 0) {
-        return func_80073DE4(pArg0, *(s16*)(pArg0 + 0xBE));
+        return func_80073DE4(pActor, pActor->unkBE);
     }
-    return *(s16*)(pArg0 + 0xB6) < 0x1000 - *(s16*)(pArg0 + 0xBE);
+    return pActor->unkB6 < 0x1000 - pActor->unkBE;
 }
 
-s32 BattleGetActorBreakThreshold(u8* pArg0) {
-    return 0x1000 - *(s16*)(pArg0 + 0xBE);
+s32 BattleGetActorBreakThreshold(BattleActor* pActor) {
+    return 0x1000 - pActor->unkBE;
 }
 
-s32 BattleGetActorBreakProximity(u8* pArg0) {
+s32 BattleGetActorBreakProximity(BattleActor* pActor) {
     s32 v1;
     s32 v0;
 
-    v1 = *(s16*)(pArg0 + 0xB6);
-    v0 = *(s32*)(*(u8**)(pArg0 + 0x15FC) + 0x24);
+    v1 = pActor->unkB6;
+    v0 = pActor->pWork->unk24;
     return (v0 - 0x200 < v1) ? !(v0 < v1) : 2;
 }
 
