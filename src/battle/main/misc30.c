@@ -21,9 +21,36 @@ extern s32 D_80050100;
 extern MATRIX D_800D30BC;
 extern u_long* g_GfxCurOT;
 
+// Work list entry and the anim task that wraps a SpriteData, as declared in
+// include/system/animation.h. Overlay units cannot include that header (it holds
+// unguarded tentative definitions of main-exe globals), so the layout is repeated here.
+typedef struct {
+    /* 0x00 */ void* pOwner;
+    /* 0x04 */ void* pData;
+    /* 0x08 */ void* onTriggerCallback;
+    /* 0x0C */ void* onFreeCallback;
+    /* 0x10 */ u32 flags10;
+    /* 0x14 */ u32 flags14;
+    /* 0x18 */ struct WorkListEntry* pNext;
+} WorkListEntry; // Size: 0x1C
+
+typedef struct {
+    /* 0x00 */ WorkListEntry task1;
+    /* 0x1C */ WorkListEntry task2;
+    /* 0x38 */ SpriteData spriteData;
+} AnimTask; // Size: 0x19C
+
+extern void SpriteSetScale(SpriteData* pSprite, s16 scale);
+extern void SpriteInitFromAnimFileWithClut(SpriteData* pSprite, void* pAnimFile, s16 arg2, s16 arg3,
+                                           s16 arg4, s16 arg5, s16 arg6, s32 arg7);
+extern AnimTask* WorkListsAddTasks(u32 allocSize, void* pData, void* pTimerCallback,
+                                  void* pWorkCallback, void* pOnFreeCallback);
 extern void AnimScriptTick(SpriteData* pSprite);
 extern void SpriteApplyMovementStep(SpriteData* pSprite);
-extern void SpritePlayAnimation(SpriteData* pSprite, s8 arg1);
+extern void SpritePlayAnimation(SpriteData* pSprite, s32 arg1);
+void BattleActorTickAnimScript(u8* pTask);
+void BattleActorDrawProjected(u8* pTask);
+void func_800BABDC(u8* pTask);
 extern void SpriteSetDirection(SpriteData* pSprite, s16 arg1);
 extern void func_80022B2C(SpriteData* pSprite);
 extern s32 BattleAngleToPoint(SpriteData* p0, SpriteData* p1);
@@ -176,7 +203,31 @@ void BattleActorUpdateGroundHeightAndTriangle(u8* pSprite) {
     *(u16*)(pSprite + 0x84) = vec[1];
     *(s32*)(pSprite + 0x78) = index;
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800BA984);
+AnimTask* func_800BA984(void* pAnimFile, s16 arg1, s16 arg2, s16 arg3, s16 arg8, s16 arg9, s16 posX,
+                        s16 posY, s16 posZ, s16 animId, u16 direction, s32 unk84, s32 unk88, s32 clut) {
+    AnimTask* pTask;
+    SpriteData* pSprite;
+
+    pTask = WorkListsAddTasks(sizeof(AnimTask), NULL, BattleActorTickAnimScript,
+                              BattleActorDrawProjected, func_800BABDC);
+    pSprite = &pTask->spriteData;
+    pTask->task1.pData = pSprite;
+    pTask->task2.pData = pSprite;
+    pTask->task2.pOwner = NULL;
+    SpriteInitFromAnimFileWithClut(pSprite, pAnimFile, arg1, arg2, arg3, arg8, arg9, clut);
+    pSprite->field_0x6C = pTask;
+    pSprite->position.x = posX << 16;
+    pSprite->position.y = posY << 16;
+    pSprite->position.z = posZ << 16;
+    ((u8*)pSprite)[0xB0] = animId;
+    *(u32*)((u8*)pSprite + 0x3C) |= 4;
+    pSprite->direction = direction;
+    SpriteSetScale(pSprite, 0x2000);
+    pSprite->field_0x82 = 0x2000;
+    pSprite->field_0x78 = 0;
+    SpritePlayAnimation(pSprite, animId);
+    return pTask;
+}
 // RotTransPers output block; the tail is unused but reproduces retail's 0x40 frame.
 typedef struct {
     s32 sxy;
