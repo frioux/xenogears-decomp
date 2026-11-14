@@ -85,7 +85,7 @@ typedef struct {
     /* 0x06A */ u16 unk6A;
     /* 0x06C */ u16 unk6C;
     /* 0x06E */ u16 unk6E;
-    /* 0x070 */ u16 unk70[0x18];
+    /* 0x070 */ u16 unk70[0xC];
     /* 0x088 */ s16 unk88;
     /* 0x08A */ s16 unk8A;
     /* 0x08C */ s16 unk8C;
@@ -107,5 +107,12 @@ typedef struct {
     /* 0x110 */ mem_addr unk110;
     /* 0x114 */ u8 unk114[0x8C];
 } BattleActor; // Size: 0x1A0
+
+// One 0x170-byte slot of the per-battle-slot table family; only the flag word
+// at +0 is read by this unit.
+typedef struct {
+    /* 0x000 */ u16 flags;
+    /* 0x002 */ u8 unk02[0x16E];
+} BattleTableEntry; // Size: 0x170
 
 #endif

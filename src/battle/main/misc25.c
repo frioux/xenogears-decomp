@@ -1,6 +1,7 @@
 #include "common.h"
 #include "psyq/libgte.h"
 #include "psyq/inline_c.h"
+#include "battle/actor.h"
 
 extern u8 D_800C37C8;
 extern u16 D_800C3E30;
@@ -23,7 +24,7 @@ extern s32 BattleFindGroundTriangle(s16 *, s16, s32);
 extern void SoundRemoveSedsEntry(s32);
 extern void BattleClearBlockSlots(void);
 extern u8 D_800C3D0C[];
-extern u8 *D_800D3368[];
+extern BattleActor *D_800D3368[];
 extern void func_800A9FF0(s32);
 extern void func_800AA934(void *, void *, void *, void *);
 extern void func_800BE790(void);
@@ -91,56 +92,56 @@ s32 BattleFindFirstActorInMask(void) {
     }
     return i;
 }
-s32 BattleResolveTargetSlot(u8 *p, u32 id, u16 *pOut) {
+s32 BattleResolveTargetSlot(BattleActor *pActor, u32 id, u16 *pOut) {
     if ((id & 0xFF) == 0xFF) {
         id = BattleFindFirstActorInMask();
     } else if ((id & 0xFF) == 0xFE) {
         id = D_800C3D40;
     } else if ((id & 0xFF) == 0xFD || (id & 0xFF) == 0xF9) {
-        id = p[0x20];
+        id = pActor->unk20[0];
     } else if ((id & 0xFF) == 0xFC) {
-        id = p[0x21];
+        id = pActor->unk20[1];
     } else if ((id & 0xFF) == 0xFA) {
         id = 0x1F;
     } else if ((id & 0xFF) == 0xF8) {
-        id = p[0x20] * 2 + 0xD;
+        id = pActor->unk20[0] * 2 + 0xD;
     } else if ((id & 0xFF) == 0xF7) {
-        id = p[0x20] * 2 + 0xE;
+        id = pActor->unk20[0] * 2 + 0xE;
     }
     *pOut = 1 << (id & 0xFF);
     return id & 0xFF;
 }
-extern u8 D_800CCD1E;
+extern BattleTableEntry D_800CCD1E[];
 extern u8 func_8009C050(u8);
 
-s32 BattleGetActorActionEntry(u8 *p, u32 id, s32 *pOut) {
+s32 BattleGetActorActionEntry(BattleActor *pActor, u32 id, s32 *pOut) {
     u32 sel = id;
     u8 kind;
 
     *pOut = 0;
     if ((sel & 0xFF) >= 0xFE) {
         if ((sel & 0xFF) == 0xFF) {
-            kind = func_8009C050(p[0x20]);
-            if ((kind & 4) && (*(u16 *)(p + 0x4A) & 0x100)) {
-                p[0x2A] = 0x1B;
-            } else if ((kind & 2) && (*(u16 *)(p + 0x4A) & 0x80)) {
-                if (!(*(u16 *)((u8 *)&D_800CCD1E + p[0x20] * 0x170) & 1)) {
-                    p[0x2A] = 6;
+            kind = func_8009C050(pActor->unk20[0]);
+            if ((kind & 4) && (pActor->flags4A & 0x100)) {
+                pActor->unk2A[0] = 0x1B;
+            } else if ((kind & 2) && (pActor->flags4A & 0x80)) {
+                if (!(D_800CCD1E[pActor->unk20[0]].flags & 1)) {
+                    pActor->unk2A[0] = 6;
                 }
-            } else if (!(*(u16 *)(p + 0x4A) & 0x400)) {
-                p[0x2A] = 1;
+            } else if (!(pActor->flags4A & 0x400)) {
+                pActor->unk2A[0] = 1;
             }
             if (kind & 1) {
-                p[0x2A] |= 0x80;
+                pActor->unk2A[0] |= 0x80;
             }
         }
-        sel = p[0x2A] & 0x7F;
-        *pOut = p[0x2A] & 0x80;
+        sel = pActor->unk2A[0] & 0x7F;
+        *pOut = pActor->unk2A[0] & 0x80;
     }
     if ((sel & 0xFF) < 0x40) {
-        return ((s32 *)*(u32 *)(p + 0x14))[(sel & 0xFF) + 1];
+        return ((s32 *)(u32)pActor->unk14)[(sel & 0xFF) + 1];
     }
-    return ((s32 *)*(u32 *)(p + 0x18))[(sel & 0xFF) - 0x3F];
+    return ((s32 *)(u32)pActor->unk18)[(sel & 0xFF) - 0x3F];
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800AF678);
 void BattleSetModelNodeFlagRecursive(BattleModel *pModel, BattleModelNode *pNode, s32 flags) {
@@ -286,36 +287,36 @@ void func_800AFD98(BattleModel *pModel, BattleModelNode *pNode, s32 flags, s16 x
 }
 */
 
-void BattleSnapActorToGround(u8 *p) {
+void BattleSnapActorToGround(BattleActor *pActor) {
     u8 unk10[0x10];
     s16 vec[3];
     s16 index;
 
-    vec[0] = *(u16 *)(*(u8 **)(p + 4) + 0x5C);
-    vec[1] = *(u16 *)(*(u8 **)(p + 4) + 0x60);
-    vec[2] = *(u16 *)(*(u8 **)(p + 4) + 0x64);
-    index = BattleFindGroundTriangle(vec, *(s16 *)(p + 0x1E), 4);
-    *(s16 *)(p + 0x1E) = index;
+    vec[0] = ((u16 *)pActor->pSprites->pos)[0];
+    vec[1] = ((u16 *)pActor->pSprites->pos)[2];
+    vec[2] = ((u16 *)pActor->pSprites->pos)[4];
+    index = BattleFindGroundTriangle(vec, pActor->unk1E, 4);
+    pActor->unk1E = index;
     if (index < 0) {
         index = BattleFindTriangleContainingPoint(vec);
-        *(s16 *)(p + 0x1E) = index;
+        pActor->unk1E = index;
     }
-    BattleProjectPointOntoIndexedTriangle(vec, *(s16 *)(p + 0x1E), unk10);
-    *(u16 *)(p + 0x60) = vec[1];
-    if (*(u8 *)(p + 0x36) == 0) {
-        *(s32 *)(*(u8 **)(p + 4) + 0x60) = vec[1];
+    BattleProjectPointOntoIndexedTriangle(vec, pActor->unk1E, unk10);
+    ((u16 *)pActor->unk60)[0] = vec[1];
+    if (pActor->unk36 == 0) {
+        pActor->pSprites->pos[1] = vec[1];
     }
 }
 
-void BattleFreeActorBuffer(u8 *p) {
-    if (*(s32 *)(p + 0xC) != 0) {
-        if (*(u8 *)(p + 0x63) != 0) {
-            SoundRemoveSedsEntry(*(s32 *)(*(u8 **)(p + 0xB4) + 8));
-            *(u8 *)(p + 0x63) = 0;
+void BattleFreeActorBuffer(BattleActor *pActor) {
+    if (pActor->unkC != 0) {
+        if (pActor->unk60[3] != 0) {
+            SoundRemoveSedsEntry(((s32 *)pActor->unkB4)[2]);
+            pActor->unk60[3] = 0;
         }
-        HeapFree(*(void **)(p + 0xC));
-        *(s32 *)(p + 0xC) = 0;
-        *(s32 *)(p + 0x18) = 0;
+        HeapFree((void *)pActor->unkC);
+        pActor->unkC = 0;
+        pActor->unk18 = 0;
     }
 }
 
@@ -456,9 +457,9 @@ void BattleSteerActorsTowardPoint(u16 *pA, u16 *pB) {
     func_800B0D70(vec, pB);
 }
 void BattlePushActorOutOfCircle(s32 index, s32 x, s32 z, s32 dist) {
-    u8 **pBase = D_800D3368;
-    u8 **pp = &pBase[index];
-    u8 *pModel;
+    BattleActor **pBase = D_800D3368;
+    BattleActor **pp = &pBase[index];
+    BattleSprite *pSprite;
     s32 dx;
     s32 dz;
     s32 len;
@@ -466,21 +467,21 @@ void BattlePushActorOutOfCircle(s32 index, s32 x, s32 z, s32 dist) {
     s32 angle;
     u32 diff;
 
-    pModel = *(u8 **)(*pp + 4);
-    dx = x - *(s32 *)(pModel + 0x5C);
-    dz = z - *(s32 *)(pModel + 0x64);
+    pSprite = (*pp)->pSprites;
+    dx = x - pSprite->pos[0];
+    dz = z - pSprite->pos[2];
     len = SquareRoot0(dx * dx + dz * dz) + 1;
     if (len >= dist) {
         return;
     }
     angle = ratan2(dz, -dx);
-    diff = (u32)((*(s16 *)(*(u8 **)(*pp + 4) + 0x56) - angle) & 0xFFF) - 0x401;
+    diff = (u32)(((*pp)->pSprites->rot[1] - angle) & 0xFFF) - 0x401;
     if (diff < 0x7FF) {
         angle += 0x800;
     }
     rem = dist - len;
-    *(s32 *)(*(u8 **)(*pp + 4) + 0x5C) = x - dx * dist / len - rcos(angle) * rem / 4096;
-    *(s32 *)(*(u8 **)(*pp + 4) + 0x64) = z - dz * dist / len - rsin(angle) * rem / 4096;
+    (*pp)->pSprites->pos[0] = x - dx * dist / len - rcos(angle) * rem / 4096;
+    (*pp)->pSprites->pos[2] = z - dz * dist / len - rsin(angle) * rem / 4096;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800B12D0);
 /* 99.74% (156 bytes, identical instruction stream): only the switch's jump
@@ -603,7 +604,7 @@ void BattleSetExtraMatrixFlag(void) {
 void BattleWaitForOtherActorAnimations(s32 arg0) {
     s32 i;
     s32 flag;
-    u8 *pEntry;
+    BattleActor *pActor;
 
     for (i = 0; i < 3; i++) {
         if (i != arg0) {
@@ -614,8 +615,8 @@ void BattleWaitForOtherActorAnimations(s32 arg0) {
         flag = 0;
         for (i = 0; i < 3; i++) {
             if (i != arg0) {
-                pEntry = D_800D3368[i];
-                if (pEntry != NULL && (pEntry[0x34] != 0 || pEntry[0x38] != 0)) {
+                pActor = D_800D3368[i];
+                if (pActor != NULL && (pActor->unk34 != 0 || pActor->unk38 != 0)) {
                     flag = 1;
                 }
             }
