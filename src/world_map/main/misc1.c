@@ -115,18 +115,6 @@ s32 func_80071A58(void) {
     }
     return 1;
 }
-/* best: 89.50% (308 bytes, same size). Decoded: if arg0 < 8 an 8-entry u16
-   level table at D_8009B566 is scanned while arg1 >= entry, and nLevel-1 (1 plus
-   the count) goes to D_8009C610; then pEntry = (WorldMapTableEntry*)(arg0 * 8 +
-   &D_8009B57C) for arg0 < 8 and &D_8009B58C otherwise, and 13 globals are set
-   from pEntry. The whole 13-store tail already matches byte for byte (the source
-   order is +1,+2,+3...,+0xA with unk2/unk4/unk6 stored last; the scheduler is
-   what swaps each pair into +1,+3,+2,+5,+4...), so only the level loop and the
-   pEntry address formation are wrong: retail materialises D_8009B564 first and
-   then adds 2 (so the pointer came from an address with a runtime base, i.e.
-   &D_8009B564 + 1 or a struct member), which also costs it one extra addiu,
-   and it forms pEntry before the D_8009C610 store instead of after.
-
 typedef struct {
     s16 unk0;
     s16 unk2;
@@ -134,6 +122,7 @@ typedef struct {
     s16 unk6;
 } WorldMapTableEntry; // Size: 0x8
 
+extern u16 D_8009B564;
 extern u16 D_8009B566;
 extern WorldMapTableEntry D_8009B57C;
 extern WorldMapTableEntry D_8009B58C;
@@ -148,6 +137,28 @@ extern s32 D_8009D160;
 extern s32 D_8009BD08;
 extern s32 D_8009D7CC;
 
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80071B9C);
+/* best: 96.74% (308 bytes, same size). Everything matches except the placement
+   of the D_8009B564 base: retail materialises it in the block BEFORE the pre-check
+   (lui v1 / addiu %lo(B564) with addend 0) and then adds 2 inside the if, while
+   gcc folds the +2 into a rematerialised la inside the if and leaves a nop in the
+   pre-block. Instruction count and every other insn are identical, so the only
+   remaining lever is keeping that address in a register across the branch; gcc
+   cse always rematerialises it. Shapes that got here:
+   - pre-check tests the SYMBOL D_8009B566 (not *pTable), so gcc folds that load
+     to a fresh lui v0 (matches retail);
+   - the pointer is &D_8009B564 (NOT &D_8009B566) plus a separate increment, which
+     is what produces retail's la-with-addend-0 + addiu 2 pattern;
+   - the loop is a do/while with the increment first, which reproduces retail's
+     rotated body exactly;
+   - the table index after the loop is nLevel (retail does sll v0,a0,3 after
+     addiu a0,a0,1, so the entry index and D_8009C610 both use the counter), and
+     pEntry is formed BEFORE the D_8009C610 store.
+   Tried with no change: pTable = &D_8009B564 + nLevel, (u16*)((u8*)pTable + 2),
+   the increment statement before vs after the if, and pTable[1] as the pre-check
+   (that one loads through the base register instead of folding).
+*/
+/*
 void func_80071B9C(s32 arg0, s32 arg1) {
     WorldMapTableEntry* pEntry;
     u16* pTable;
@@ -155,13 +166,16 @@ void func_80071B9C(s32 arg0, s32 arg1) {
 
     if (arg0 < 8) {
         nLevel = 1;
-        pTable = &D_8009B566;
-        while (arg1 >= *pTable) {
+        pTable = &D_8009B564;
+        if (arg1 >= D_8009B566) {
             pTable++;
-            nLevel++;
+            do {
+                pTable++;
+                nLevel++;
+            } while (arg1 >= *pTable);
         }
+        pEntry = (WorldMapTableEntry*)(nLevel * 8 + (s32)&D_8009B57C);
         D_8009C610 = nLevel - 1;
-        pEntry = (WorldMapTableEntry*)(arg0 * 8 + (s32)&D_8009B57C);
     } else {
         pEntry = (WorldMapTableEntry*)(arg0 * 8 + (s32)&D_8009B58C);
     }
@@ -180,7 +194,7 @@ void func_80071B9C(s32 arg0, s32 arg1) {
     D_8009D7CC = pEntry->unk6;
 }
 */
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80071B9C);
+
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80071CDC);
 /* best: 84.51% (508 bytes vs 500). Every decoded fact matches and loop 1 is
    byte-identical; only loop 2's register shape differs. Retail keeps TWO
