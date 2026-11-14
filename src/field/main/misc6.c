@@ -1006,6 +1006,9 @@ extern void FieldMatrixCopyTranslation(MATRIX* pDest, MATRIX* pSrc);
 // the local pointer is assigned and leaves `lw a1,0(s2)` where the original has
 // it; the saved-$s2 slot then also moves. Tried: macro/inline cast per use
 // (volatile, 74.12%), plain `g_FieldActors[...]` (74.12%).
+// Also tried: `pActors = g_FieldActors;` for the head plus a separate
+// `pActorAddr = &g_FieldActors;` assigned AFTER the copy loop (74.12%, 404 bytes):
+// gcc then rematerialises the constant address per use and drops $s2 entirely.
 /*
 void func_800A0524(int dstActorIndex, int srcActorIndex) {
     FieldActor** pFieldActors;
