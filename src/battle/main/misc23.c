@@ -228,7 +228,79 @@ void BattleSetActorRectParams(s32 arg0, s32 arg1, s32 arg2, s32 arg3, s32 arg4, 
 }
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A64E4);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A6884);
+
+void func_800A6884(u8 *pDst, s32 index, u8 *pSrc) {
+    s32 r;
+    s32 g;
+    s32 b;
+    s32 t;
+    s32 k;
+
+    r = ((s8 *)D_800C3AAF)[index * 6] * 8;
+    g = ((s8 *)D_800C3AB0)[index * 6] * 8;
+    b = ((s8 *)D_800C3AB1)[index * 6] * 8;
+    if (D_800C3AAC[index * 6] != 0) {
+        switch (D_800C3AAD[index * 6]) {
+        case 0:
+            r += pSrc[0];
+            g += pSrc[1];
+            b += pSrc[2];
+            break;
+        case 1:
+            r += pSrc[0] >> 1;
+            g += pSrc[1] >> 1;
+            b += pSrc[2] >> 1;
+            break;
+        case 2:
+            r += pSrc[0] >> 2;
+            g += pSrc[1] >> 2;
+            b += pSrc[2] >> 2;
+            break;
+        case 3:
+            t = (pSrc[0] + pSrc[1] + pSrc[2]) / 3;
+            r += t;
+            g += t;
+            b += t;
+            break;
+        case 4:
+            r = 0;
+            g = 0;
+            b = 0;
+            break;
+        }
+    }
+    k = D_800C3AAE[index * 6];
+    t = pSrc[0] - r;
+    r += t * k / 32;
+    t = pSrc[1] - g;
+    g += t * k / 32;
+    t = pSrc[2] - b;
+    b += t * k / 32;
+    if (r >= 0x100) {
+        pSrc[0] = 0xFF;
+    } else if (r < 0) {
+        pSrc[0] = 0;
+    } else {
+        pSrc[0] = r;
+    }
+    if (g >= 0x100) {
+        pSrc[1] = 0xFF;
+    } else if (g < 0) {
+        pSrc[1] = 0;
+    } else {
+        pSrc[1] = g;
+    }
+    if (b >= 0x100) {
+        pSrc[2] = 0xFF;
+    } else if (b < 0) {
+        pSrc[2] = 0;
+    } else {
+        pSrc[2] = b;
+    }
+    pDst[0] = pSrc[0];
+    pDst[1] = pSrc[1];
+    pDst[2] = pSrc[2];
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A6AE8);
 /* 84.16% (gcc 2.6.0 -G0 --expand-div): full structure recovered and every call,
    store and branch shape matches. What is left is loop strength reduction: the
@@ -370,12 +442,12 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A8B0C);
 /* 99.12% (gcc 2.6.0, the unit preset): only the first clear loop's two live
    values are swapped - the original has the counter in $v1 and the pointer in
    $v0, gcc gives the counter $v0 and the pointer $v1, so "bgez" and the delay
-   slot follow. Everything else, including the pBuf la / li+sb ordering that a
-   parked 2.7.2 attempt got wrong, is byte-identical. What fixed the first part:
-   the call argument is an s32 local loaded before the "= 1" store (an s16 local
-   makes gcc emit lhu + sll/sra). Tried for the loop: pointer/counter source
-   order both ways, for-init vs separate statement, mem_addr + *(u32 *)pWord vs
-   u32 *pWord--, declaration order both ways - all 99.12.
+   slot follow. Everything else is byte-identical. What fixed the rest: the call
+   argument is an s32 local loaded before the "= 1" store (an s16 local makes gcc
+   emit lhu + sll/sra). Tried for the loop: pointer/counter source order both
+   ways, for-init vs separate statement, mem_addr + *(u32 *)pWord vs
+   u32 *pWord--, declaration order both ways, and a 4-minute permuter run
+   (1497 iterations, base=50 best=50, no find). Allocator tie-break class.
     u8 *pBuf;
     s32 i;
     mem_addr pWord;
@@ -397,43 +469,6 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A8B0C);
     for (; i >= 0; i--) {
         *(u32 *)pWord = 0;
         pWord -= 4;
-    }
-    for (i = 0x98; i >= 0; i -= 8) {
-        *(u32 *)(D_800C3ACC + i) = 0;
-    }
-    for (i = 0x14; i >= 0; i -= 0x14) {
-        *(u16 *)(D_800D330A + i) = 0;
-    }
-*/
-
-/* 86.40%: three differences only - (a) gcc hoists "li v1,1" into the load-delay
-   slot of "lw v0,D_800658C8" and emits the pBuf "lui a0,%hi(D_800C3D0C)" late,
-   the original does the reverse (pBuf la early, "ori v0,zero,1" immediately
-   before the sb); (b) the first clear loop gets the pointer in $v1 and the
-   counter in $v0, the original has pointer $v0 / counter $v1; (c) therefore the
-   D_800C3B74=1 store is "sb v1" instead of "sb v0". Everything else, including
-   the other two clear loops, is byte-identical. Tried: pBuf as an assignment or
-   as a declaration initializer (identical), pWord/i declaration order both ways,
-   "u8 D_800C3ACC[]" indexed stores (unchanged). The bgez/branch shapes and the
-   instruction multiset already match, so this is the allocator/scheduler-pick
-   class, not source reachable.
-    u8 *pBuf;
-    u32 *pWord;
-    s32 i;
-
-    pBuf = D_800C3D0C;
-    D_800C3E88 = 0;
-    D_800C3CF0 = 0;
-    D_800C3D6C = 0;
-    D_800C3D68 = 0;
-    D_800C3B7C = 0;
-    D_800C3B74 = 1;
-    BattleCreateBlockPool(pBuf, *(s16 *)(D_800658C8 + 0x348));
-    BattleCreateSpritePool(D_800C3D04, *(s16 *)(D_800658C8 + 0x34A));
-    BattleClearBlockSlots();
-    pWord = (u32 *)&D_800D33E4;
-    for (i = 0x1F; i >= 0; i--) {
-        *pWord-- = 0;
     }
     for (i = 0x98; i >= 0; i -= 8) {
         *(u32 *)(D_800C3ACC + i) = 0;
