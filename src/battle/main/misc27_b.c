@@ -46,9 +46,10 @@ u8* func_800B5924(u8* pActor, s32 arg1, s32 arg2) {
     *(u32*)(pActor + 0xAC) |= 0x20;
     return pTask;
 }
-// PARKED: with 59BC defined in C, its caller func_800B5AC4 compiles 8 bytes SHORT (112
-// against retail 120) because the visible definition lets gcc drop a callee-saved pair.
-// Keeping the old-style void declaration is what reproduces retail.
+// PARKED: the body below is 100.00% as C (264 bytes), but with its definition visible
+// func_800B5AC4 compiles 112 bytes against retail 120 (82.67%): gcc then merges the two
+// `lhu point.x / addu / sh` chains that retail keeps separate. The old-style `void`
+// declaration is what reproduces retail, and it cannot coexist with the definition.
 /*
 BattlePoint* func_800B59BC(BattlePoint* pOut, u8* pActor, s32 index) {
     DVECTOR rot;
