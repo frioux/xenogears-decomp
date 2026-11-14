@@ -301,6 +301,75 @@ void WorldMapAlignPerpendicularToReference(void* pOut, SVec* pDir, SVec* pResult
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc14", func_80095414);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc14", func_80095CD4);
+/* best: 87.03% (688 bytes vs 704). The whole body matches except the probe
+   scratchpad at 0x1F800060/64/68: retail re-materialises each constant address
+   (`lui $at,0x1F80` + `sw ...0x60($at)`, `lui $v0,0x1F80` + `lw ...0x64($v0)`),
+   while gcc folds every 2+-use literal MEM address into a callee-saved register
+   (`li $17,0x1F800000; ori $17,$17,0x60` then `sw $2,0($17)`), which also takes
+   the s-registers retail gives to i/found/the sprite table. Tried: single
+   `*(s32*)0x1F8000xx` literals, a typed SVec* probe local, `((SVec*)0x1F800060)`
+   member accesses (75%), `volatile` on the scratch accesses, and the symbolic
+   `D_1F800060.x` spelling (that one emits %hi/%lo relocations retail does not
+   have). A one-store/one-load probe test still makes a const register, so the
+   trigger is two MEM uses of the same literal address, not the argument uses.
+   Also open: the 5th argument arrives as a word (`lw $t0,0x60($sp)`,
+   `sw $t0,0x10($sp)`) but WorldMapResolveStepAgainstTerrain takes an s16, so
+   ours sign-extends into $v0 first; retail never narrows.
+
+s32 func_80095CD4(SVec* pBase, SVec* pDelta, SVec* pOut, s32 scale, s32 kind) {
+    s32 height;
+    s32 count;
+    s32 i;
+    s32 found;
+    s32 ret;
+    u16 spriteIndex;
+
+    *(s32*)0x1F800060 = pBase->x + ((pDelta->x * scale) >> 12);
+    *(s32*)0x1F800064 = pBase->y + ((pDelta->y * scale) >> 12);
+    *(s32*)0x1F800068 = pBase->z + ((pDelta->z * scale) >> 12);
+    WorldMapWrapPosition((void*)0x1F800060);
+
+    pOut->x = pBase->x + ((pDelta->x * scale) >> 12);
+    pOut->y = pBase->y + ((pDelta->y * scale) >> 12);
+    pOut->z = pBase->z + ((pDelta->z * scale) >> 12);
+    WorldMapWrapPosition(pOut);
+
+    height = WorldMapGetTilePlaneHeight(*(s32*)0x1F800060, *(s32*)0x1F800068) - 0x20000;
+    if (height > 0x20000) {
+        height = 0x20000;
+    }
+    if (height < *(s32*)0x1F800064 || height < -0x280000) {
+        *(s32*)0x1F800064 = height;
+        pOut->y = height;
+    }
+    if (height < -0x280000 && *(s32*)0x1F800064 < -0x280000) {
+        *(s32*)0x1F800064 = -0x280000;
+        pOut->y = -0x280000;
+    }
+
+    count = WorldMapFindSpriteSet((void*)0x1F800060, (s16*)&spriteIndex);
+    if (count == 0) {
+        ret = WorldMapResolveStepAgainstTerrain(pBase, pDelta, pOut, scale, kind);
+    } else {
+        found = 0;
+        for (i = 0; i < count; i += 2) {
+            if (func_80085418(&D_1F800060, 0x70, spriteIndex, D_8009D718[i]) == 0) {
+                D_8009D718[i] = -1;
+                found += 2;
+            }
+        }
+        if (found == count) {
+            ret = WorldMapResolveStepAgainstTerrain(pBase, pDelta, pOut, scale, kind);
+        } else {
+            pOut->x = -pDelta->x >> 1;
+            pOut->y = -pDelta->y >> 1;
+            pOut->z = -pDelta->z >> 1;
+            ret = 0;
+        }
+    }
+    return ret;
+}
+*/
 extern void* D_8009D7C4;
 extern void* D_8009C660;
 extern u8 D_8009C58F;
