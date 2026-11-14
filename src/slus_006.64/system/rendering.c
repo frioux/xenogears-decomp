@@ -601,6 +601,67 @@ void func_8001F6B0(SpriteData* pSpriteData) {
 */
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001F750);
+void func_8001F750(SpriteData* pSpriteData, s32 index, SpriteAnimPackage* pAnimPackage) {
+    u8* pFrames;
+    u8* pBlock;
+    u8* pEntry;
+    u8 flags;
+    u8 unkFlag;
+    u32 count;
+    u8 entryFlags;
+    s16 rotZ;
+    s32 dir;
+    s32 i;
+
+    pFrames = pAnimPackage->pFrames;
+    pBlock = (u8*)((mem_addr)((u16*)pFrames)[index] + (mem_addr)pFrames);
+    flags = *pBlock;
+    i = 0;
+    unkFlag = flags & 0x80;
+    count = flags & 0x3F;
+    pEntry = pBlock + (count * 2 + 4);
+    if (count != 0) {
+        for (;;) {
+            entryFlags = *pEntry;
+            if (entryFlags & 0x80) {
+                pEntry++;
+                if (entryFlags & 0x40) {
+                    dir = entryFlags & 7;
+                    if (pSpriteData->pBase->pDirTransforms == 0) {
+                        pSpriteData->pBase->pDirTransforms = HeapAlloc(sizeof(SpriteDirectionTransforms), 0);
+                        SpriteClearDirTransforms(pSpriteData);
+                    }
+                    if (entryFlags & 0x20) {
+                        *(u8*)((mem_addr)pSpriteData->pBase->pDirTransforms + dir * 8) = *pEntry++;
+                        *(u8*)((mem_addr)pSpriteData->pBase->pDirTransforms + (dir * 8 + 1)) = *pEntry++;
+                    }
+                    if (entryFlags & 0x10) {
+                        rotZ = *pEntry++ << 4;
+                        *(s16*)((mem_addr)pSpriteData->pBase->pDirTransforms + (dir * 8 + 6)) = rotZ;
+                    } else {
+                        *(s16*)((mem_addr)pSpriteData->pBase->pDirTransforms + (dir * 8 + 6)) = 0;
+                    }
+                } else {
+                    if (entryFlags & 1) {
+                        pEntry++;
+                    }
+                    if (entryFlags & 2) {
+                        pEntry++;
+                    }
+                }
+            } else {
+                if (unkFlag != 0) {
+                    pEntry += 2;
+                }
+                i++;
+                if (i == count) {
+                    break;
+                }
+                pEntry += 3;
+            }
+        }
+    }
+}
 /* Best attempt: 89.74% (404 bytes, the original's size). The whole structure is
    right -- flags/0x3F count split, the 4 + 2*count entry stride, the
    SpriteDirectionTransform stores, the loop tail (i++, break, pEntry += 3, which
