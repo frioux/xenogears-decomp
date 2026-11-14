@@ -313,60 +313,69 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E8070);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E8474);
 void MenuRenderFrame(void);
 
-/* Best: 91.12%. Both loops are instruction-for-instruction identical to retail
-   apart from two allocator/hoisting effects: retail keeps selected in s3, the
-   D_801EA1EC base in s4 and (base+4) in s5 with a single "addiu s5,s4,4" in the
-   OUTER preheader; gcc 2.6 gives selected s4, the base s5 and re-forms
-   D_801EA1EC+4 as a fresh lui/addiu in the inner preheader (s3). Loop 2's table
-   element is D_801EA1EC[idx + 1] (retail reuses the idx*4 from the compare).
+/* Best: 99.79% (688 bytes, exact instruction multiset, only the two table
+   bases swap). The missing structural piece: loop 2's guard tests the CURSOR
+   word of the same entry, not the text word -- retail compares
+   D_801EA1EC[idx] (computed off s4) but passes D_801EA1EC[idx+1] to
+   func_8002675C. That is why retail keeps the byte offset in a register and
+   materialises the second base once in the entry block as `addiu s5,s4,4`.
+   What is left is only how the two bases are formed: retail has
+   lui/addiu of D_801EA1EC into s4 then `addiu s5,s4,4`; this body has
+   lui/addiu of D_801EA1EC+4 into s5 then `addiu s4,s5,-4`. Two pointer locals
+   (`pCursor = D_801EA1EC; pText = pCursor + 1;` or the +1 form) get the right
+   pair but gcc then hoists both inits to the top of the entry block, ahead of
+   the s2/s1/s3 saves (88.09%); initialising pText inside the outer loop gives
+   90.16%. Swapping the pText init between the two unk354 stores does not
+   change the order either.
 void func_801E86C8(u_char selected) {
-    s32 i;
-    s32 n;
-    s32 allValid;
-    u32 off;
-
-    allValid = 1;
-    g_Menu->unk354->unk1400 = 0;
-    g_Menu->unk354->unk1404 = 0;
-    g_Menu->pManager->unkA = 1;
-    for (n = 1; n < 5; n++) {
-        g_Menu->unk354->unk1400 = 0;
-        g_Menu->subMenuNumChoices = 0;
-        for (i = 0; i < n; i++) {
-            if (D_801EA1EC[(selected + g_Menu->mainMenuChoice) * 8 + i * 2] != 0xFFFF) {
-                g_Menu->unk354->unk1400 = func_8002675C(g_Menu->resources,
-                    D_801EA1EC[(selected + g_Menu->mainMenuChoice) * 8 + i * 2],
-                    (POLY_FT4*)(g_Menu->unk354->unk1400 * 0x50 + (s32)g_Menu->unk354),
-                    g_Menu->renderContext, 0xA0, 0x96, 0x1000) + g_Menu->unk354->unk1400;
-                g_Menu->subMenuNumChoices++;
-            } else {
-                allValid = 0;
-            }
-        }
-        g_Menu->unk354->unk1408 = *(u8*)&g_Menu->renderContext;
-        if (allValid) {
-            for (i = 0; i < 2; i++) {
-                MenuRenderFrame();
-            }
-        }
-        g_Menu->unk354->unk1404 = 0;
-        for (i = 0; i < n; i++) {
-            if (D_801EA1EC[(selected + g_Menu->mainMenuChoice) * 8 + i * 2 + 1] != 0xFFFF) {
-                off = g_Menu->unk354->unk1404 * 0x50 + 0x500;
-                g_Menu->unk354->unk1404 = func_8002675C(g_Menu->resources,
-                    D_801EA1EC[(selected + g_Menu->mainMenuChoice) * 8 + i * 2 + 1],
-                    (POLY_FT4*)(off + (s32)g_Menu->unk354),
-                    g_Menu->renderContext, 0xA0, 0x96, 0x1000) + g_Menu->unk354->unk1404;
-            }
-        }
-        g_Menu->unk354->unk1409 = *(u8*)&g_Menu->renderContext;
-        if (allValid) {
-            for (i = 0; i < 2; i++) {
-                MenuRenderFrame();
-            }
-        }
-    }
-}
+       s32 i;
+       s32 n;
+       s32 allValid;
+       u32 off;
+       s32* pText;
+       allValid = 1;
+       g_Menu->unk354->unk1400 = 0;
+       g_Menu->unk354->unk1404 = 0;
+       g_Menu->pManager->unkA = 1;
+       pText = D_801EA1EC + 1;
+       for (n = 1; n < 5; n++) {
+           g_Menu->unk354->unk1400 = 0;
+           g_Menu->subMenuNumChoices = 0;
+           for (i = 0; i < n; i++) {
+               if (D_801EA1EC[(selected + g_Menu->mainMenuChoice) * 8 + i * 2] != 0xFFFF) {
+                   g_Menu->unk354->unk1400 = func_8002675C(g_Menu->resources,
+                       D_801EA1EC[(selected + g_Menu->mainMenuChoice) * 8 + i * 2],
+                       (POLY_FT4*)(g_Menu->unk354->unk1400 * 0x50 + (s32)g_Menu->unk354),
+                       g_Menu->renderContext, 0xA0, 0x96, 0x1000) + g_Menu->unk354->unk1400;
+                   g_Menu->subMenuNumChoices++;
+               } else {
+                   allValid = 0;
+               }
+           }
+           g_Menu->unk354->unk1408 = *(u8*)&g_Menu->renderContext;
+           if (allValid) {
+               for (i = 0; i < 2; i++) {
+                   MenuRenderFrame();
+               }
+           }
+           g_Menu->unk354->unk1404 = 0;
+           for (i = 0; i < n; i++) {
+               if (D_801EA1EC[(selected + g_Menu->mainMenuChoice) * 8 + i * 2] != 0xFFFF) {
+                   off = g_Menu->unk354->unk1404 * 0x50 + 0x500;
+                   g_Menu->unk354->unk1404 = func_8002675C(g_Menu->resources,
+                       pText[(selected + g_Menu->mainMenuChoice) * 8 + i * 2],
+                       (POLY_FT4*)(off + (s32)g_Menu->unk354),
+                       g_Menu->renderContext, 0xA0, 0x96, 0x1000) + g_Menu->unk354->unk1404;
+               }
+           }
+           g_Menu->unk354->unk1409 = *(u8*)&g_Menu->renderContext;
+           if (allValid) {
+               for (i = 0; i < 2; i++) {
+                   MenuRenderFrame();
+               }
+           }
+       }
+   }
 */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E86C8);
 void func_801E8978(u_char count, u_char selected, s32* pEntries) {
