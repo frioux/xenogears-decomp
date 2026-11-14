@@ -228,18 +228,19 @@ void func_8008C360(u8 arg0) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008C3F0);
 /* Best: 99.36%. Same tail as func_8008BC98: the two `D_800C3EAC + arg0*0x40`
    base adds come out index-first (`addu v1,s1,v1`, `addu s1,s1,v0`) where the
-   original has base-first (`addu v1,v1,s1`, `addu v0,v0,s1`). Both operands die
-   at each add, so it is a global.c tie-break. Tried: subscript vs pointer
-   arithmetic for the entry address. Everything else is identical.
+   original has base-first (`addu v1,v1,s1`, `addu v0,v0,s1`). Tried: subscript,
+   opt to the add, explicit u8* pEntry/pBase locals (worse), u32 integer
+   arithmetic, a typed 0x40 struct pointer, and gcc 2.7.2 / 2.7.2-cdk / -O1 /
+   -O3: every one emits the same index-first addu, so it is cc1, not source.
 void func_8008C3F0(u8 arg0) {
     u16 value;
 
     D_800D2D28[0x9C] = D_800D2D28[0x9D] = D_800D2D28[0x9E] = 1;
     D_800D2D28[0xB7] = 3;
     D_800D2D28[0xB0] = D_800D2D28[0xB1] = 1;
-    value = BattleSlotBitMask(arg0) | BattleSlotBitMask((D_800C3EAC + arg0 * 0x40)[0x3C]);
+    value = BattleSlotBitMask(arg0) | BattleSlotBitMask(D_800C3EAC[arg0 * 0x40 + 0x3C]);
     func_800BC404(value);
-    func_800BCD98(BattleSlotBitMask((D_800C3EAC + arg0 * 0x40)[0x3C]));
+    func_800BCD98(BattleSlotBitMask(D_800C3EAC[arg0 * 0x40 + 0x3C]));
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008C4A8);
