@@ -25,6 +25,7 @@ extern void AnimScriptTick(SpriteData* pSprite);
 extern void func_80022CDC(SpriteData* pSprite);
 extern void func_800245D8(SpriteData* pSprite, s8 arg1);
 extern void func_80021FE0(SpriteData* pSprite, s16 arg1);
+extern void func_80022B2C(SpriteData* pSprite);
 extern s32 func_800BEF24(SpriteData* p0, SpriteData* p1);
 extern void func_800223B0(SpriteData* pSprite, s16 arg1);
 extern void func_800BF0B4(s32 arg0);
@@ -86,8 +87,75 @@ void func_800BA59C(SpriteData* pSprite, s16 angle) {
     pSprite->step.x = ((rsin(angle) >> 1) * scale) >> 8;
     pSprite->step.z = -(((rcos(pSprite->direction) >> 1) * scale)) >> 8;
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800BA614);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800BA768);
+void func_800BA614(SpriteData* pSprite) {
+    VECTOR diff;
+    SVECTOR vec;
+    u8 out[0x10];
+    s32 index;
+    s32 len;
+    s32 dy;
+    s32 angle;
+
+    func_80021B04(&vec, pSprite->field_0xA0, pSprite->field_0xA2, pSprite->field_0xA4);
+    index = func_800A5914((s16*)&vec, pSprite->field_0x78, 4);
+    if (index < 0) {
+        index = func_800A579C((s16*)&vec);
+    }
+    func_800A5870((s16*)&vec, index, out);
+    if (vec.vy > pSprite->field_0xA2) {
+        *(u16*)&vec.vy = *(u16*)&pSprite->field_0xA2;
+    }
+    dy = ((vec.vy << 16) - *(s32*)((u8*)pSprite + 0x4)) >> 16;
+    diff.vx = pSprite->field_0xA0 - *(s16*)((u8*)pSprite + 0x2);
+    diff.vz = pSprite->field_0xA4 - *(s16*)((u8*)pSprite + 0xA);
+    angle = -ratan2(diff.vz, diff.vx);
+    Square0(&diff, &diff);
+    len = SquareRoot0(diff.vx + diff.vz);
+    pSprite->step.y = ((-(s32)pSprite->gravity * len) << 4) / (pSprite->moveSpeed >> 11) +
+                      (pSprite->moveSpeed * dy) / len;
+    func_800BA59C(pSprite, angle);
+}
+void func_800BA768(SpriteData* pSprite) {
+    VECTOR diff;
+    SVECTOR vec;
+    u8 out[0x10];
+    s32 index;
+    s32 divisor;
+    s32 angle;
+    s32 len;
+    s32 num;
+
+    divisor = -((pSprite->step.y << 1) / (s32)pSprite->gravity);
+    pSprite->position.x &= 0xFFFF0000;
+    pSprite->position.y &= 0xFFFF0000;
+    pSprite->position.z &= 0xFFFF0000;
+    diff.vx = pSprite->field_0xA0 - *(s16*)((u8*)pSprite + 0x2);
+    diff.vz = pSprite->field_0xA4 - *(s16*)((u8*)pSprite + 0xA);
+    diff.vy = 0;
+    angle = -ratan2(diff.vz, diff.vx);
+    Square0(&diff, &diff);
+    len = SquareRoot0(diff.vx + diff.vz);
+    if (divisor != 0) {
+        pSprite->moveSpeed = (len << 16) / divisor;
+    } else {
+        pSprite->moveSpeed = 0;
+    }
+    func_80021B04(&vec, pSprite->field_0xA0, pSprite->field_0xA2, pSprite->field_0xA4);
+    index = func_800A5914((s16*)&vec, pSprite->field_0x78, 4);
+    if (index < 0) {
+        index = func_800A579C((s16*)&vec);
+    }
+    func_800A5870((s16*)&vec, index, out);
+    if (vec.vy > pSprite->field_0xA2) {
+        *(u16*)&vec.vy = *(u16*)&pSprite->field_0xA2;
+    }
+    num = (vec.vy << 16) - *(s32*)((u8*)pSprite + 0x4);
+    if (divisor != 0) {
+        pSprite->step.y += num / divisor;
+    }
+    func_800BA59C(pSprite, angle);
+    func_80022B2C(pSprite);
+}
 void func_800BA8F4(u8* pSprite) {
     s16 vec[3];
     u8 out[0x10];
@@ -146,7 +214,21 @@ void func_800BAB0C(u8* pTask) {
     }
 }
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800BABDC);
+void func_800BABDC(u8* pTask) {
+    u8* pPayload = pTask + 0x38;
+    void* pBlock;
+
+    pBlock = *(void**)(pPayload + 0x20);
+    pBlock = *(void**)((u8*)pBlock + 0x2C);
+    if (pBlock != NULL) {
+        HeapFree(pBlock);
+    }
+    func_8001CE74(pTask);
+    func_8001D3F4(pPayload);
+    WorkListRemoveTask(pTask + 0x1C);
+    TimerWorkListRemoveTask(pTask);
+    HeapFree(pTask);
+}
 /* 92.48% (tried: pTask + 0x58 for the block read so pPayload is only used by
    the call; gcc still defers "addiu s1,s0,0x38" into the branch delay slot
    instead of the prologue, and both shapes score the same).
