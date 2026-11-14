@@ -17,6 +17,9 @@ extern u8 func_80083FF4(u8, u8);
 extern u8 *D_800C3EAC;
 extern u8 D_800C3E90[];
 extern u8 D_800C3E9B[];
+extern u16 D_800C3EC0[];
+extern long ratan2(long y, long x);
+extern u8 D_800C3E9B[];
 extern u8 D_800D3274;
 extern void func_800841E0(void);
 
@@ -95,7 +98,69 @@ u8 func_80084108(u8 arg0, u8 arg1) {
     return ret;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_800841E0);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80084548);
+u8 func_80084548(u8 arg0, u8 arg1, u8 arg2) {
+    s32 i;
+    s32 j;
+    s32 n;
+    s32 count1;
+    u8 start1;
+    s32 count2 = 0;
+    u8 start2;
+    u8 *p;
+    u8 val;
+
+    val = 0xFF;
+    i = 0xB;
+    p = D_800C3E9B;
+    for (; i >= 0; i--) {
+        *p-- = val;
+    }
+    switch (arg0) {
+    case 0:
+        start1 = 3;
+        count1 = 8;
+        break;
+    case 1:
+        start1 = 0;
+        count1 = 3;
+        break;
+    case 2:
+        if (arg2 == 0) {
+            start1 = 3;
+            count1 = 8;
+            start2 = 0;
+            count2 = 3;
+        } else {
+            start1 = 0;
+            count1 = 3;
+            start2 = 3;
+            count2 = 8;
+        }
+        break;
+    }
+    n = 0;
+    D_800D3274 = 0;
+    D_800C3D64 = 0;
+    for (i = start1; --count1 >= 0; i++) {
+        j = i;
+        if (func_80084108(j, arg1) != 0) {
+            D_800C3E90[n] = j;
+            D_800C3D64 |= func_80089C08(j);
+            n++;
+            D_800D3274++;
+        }
+    }
+    for (i = start2; --count2 >= 0; i++) {
+        j = i;
+        if (func_80084108(j, arg1) != 0) {
+            D_800C3E90[n] = j;
+            D_800C3D64 |= func_80089C08(j);
+            n++;
+            D_800D3274++;
+        }
+    }
+    return D_800C3E90[0];
+}
 u8 func_80084750(u8 arg0) {
     s32 i;
     s32 j;
@@ -126,7 +191,77 @@ u8 func_80084750(u8 arg0) {
     return D_800C3E90[0];
 }
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80084854);
+u8 func_80084854(u8 arg0, u8 arg1) {
+    u8 *p;
+    u8 idx;
+    u8 result;
+    s32 mode;
+    s32 angle;
+    s32 flag;
+    s32 dx;
+    s32 dy;
+    s32 dist;
+    u32 best;
+
+    result = arg0;
+    mode = arg1;
+    best = 0xFFFFFF;
+    p = D_800C3E90;
+    for (; p < D_800C3E9B; p++) {
+        idx = *p;
+        if (idx == 0xFF) {
+            continue;
+        }
+        if (idx == arg0) {
+            continue;
+        }
+        angle = ratan2(D_800C3EC0[idx * 14] - D_800C3EC0[arg0 * 14],
+                       D_800C3EBE[idx].unk0 - D_800C3EBE[arg0].unk0);
+        flag = 0;
+        switch (mode) {
+        case 0:
+            if ((u16)(angle + 0x200) < 0x400) {
+                flag = 1;
+            }
+            break;
+        case 1:
+            if ((u16)(angle + 0x600) < 0x400) {
+                flag = 1;
+            }
+            break;
+        case 2:
+            if ((u16)(angle + 0x800) < 0x200) {
+                flag = 1;
+            }
+            if ((u16)(angle - 0x600) < 0x201) {
+                flag = 1;
+            }
+            break;
+        case 3:
+            if ((u16)(angle - 0x200) < 0x400) {
+                flag = 1;
+            }
+            break;
+        }
+        if (flag == 0) {
+            continue;
+        }
+        dx = D_800C3EC0[idx * 14] - D_800C3EC0[arg0 * 14];
+        dy = D_800C3EBE[idx].unk0 - D_800C3EBE[arg0].unk0;
+        if (dx < 0) {
+            dx = -dx;
+        }
+        if (dy < 0) {
+            dy = -dy;
+        }
+        dist = dx * dx + dy * dy;
+        if (dist < best) {
+            best = dist;
+            result = *p;
+        }
+    }
+    return result;
+}
 void func_80084A7C(u8 arg0) {
     s32 off;
     s32 found;
