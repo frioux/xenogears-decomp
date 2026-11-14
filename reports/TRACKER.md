@@ -2485,8 +2485,40 @@ after the round-31 precedent. Two macros' worth of knowledge, now in the file's 
   definition can, so it stays a stub.
 | 33 | `slus_006.64/psyq/libgte` (2nd), `battle/{misc30,misc4,misc29}`, `battling/{misc14,misc12,misc17,misc18,misc1}`, `world_map/{misc5,misc6,misc15,misc3}` | +13 | 1373 | world_map/misc5 **4** (`7C36C 7CD20 7B200 7B604`), psyq/libgte 2 (`CompMatrix ApplyMatrixLV`), battle/misc30 2 (`BAB0C BB13C`), world_map/misc3 2, battling/misc1 1 (`88D1C`), battling/misc12 1 (`...`), world_map/misc6 1 (`7D4A4`); 0 in battle/misc4, misc29, battling/misc14, misc17, misc18, world_map/misc15 (parks only). Overlay green on the first try |
 | 34 | `battle/{misc8,misc30,misc7,misc19,misc13,misc2,misc26}`, `battling/misc15`, `world_map/{misc1,misc10}` + a 6-worker naming round | +11 | 1354 | battle/misc8 **5** (`7CD10 7CEA4 7CB20 7D1DC 7D344`), battle/misc30 **4** (`BA614 BA768 BAEB8 BADD4`, the last two were parks), battling/misc15 1 (`8CA84`), battle/misc2 1 (`74D4C`); 0 new in misc7, misc19, misc13, world_map/misc1, world_map/misc10 (parks improved instead); battle/misc26's worker timed out with an uncommitted body and was dropped. 73 names applied, 27 skipped (lib_gear has no symbol_addrs entries for them) |
+| 36 | 11 workers: `world_map/{misc7,misc9,misc10}`, `battling/misc3`, `slus_006.64/system/sound`, `battle/{misc12,misc13,misc26,misc31}`, `field/misc8`, `menu/misc3` + a 10-worker naming round | +7 | 1338 | `battle/misc12` **3** (`83FF4 84108 84750`), `battle/misc26` **3** (`B3B6C B1EA0 B3658`), `world_map/misc9` 1 (`86700`); 0 in world_map/misc7, world_map/misc10, battling/misc3, system/sound, battle/misc13, battle/misc31, field/misc8, menu/misc3 (parks improved or walls re-measured; most of them were already parked). ~450 names applied |
 | 35 | 13 workers: `battle/{misc32,misc34,misc28,misc8,misc4,misc5,misc6,misc6_r2,misc27_b}`, `battling/misc16`, `slus_006.64/system/{archive_b,controller_b,work_list}` + a 10-worker naming round | +9 | 1345 | `controller_b` **2** (`80035F1C 8003634C`, the unit is now 3 stubs from done), `battle/misc34` **2** (`BF600 BF9EC`), `battle/misc6_r2` **2** (`7AE38 7AE98`, via the new clamp-copy idiom), `battle/misc27_b` 1 (`B5CC0`), `battle/misc28` 1 (`B6990`), `battling/misc16` 1 (`8DA48`); 0 in misc32 (16/21 atfree), misc8, misc4, misc5, misc6, archive_b, work_list (parks improved instead). 244 names applied |
 
+
+### Round 36's per-unit detail
+
+- `world_map/misc9`'s `func_80086700` (`WorldMapStepTileVertices`) needed the **indexed** form
+  (`pDst[i].unk0`) where the pointer form stayed at 92.29: the biv stays on the symbol base and
+  the displacements become the literal struct offsets. `func_80087904` went 92.44 -> 98.83 with an
+  unused `long tmp[2]` (frame 0x30) and `i = 0;` before the `if (count > 0)` guard.
+- `battle/misc12` converted 3: its parks were **wrong**, not just incomplete - `func_80083FF4`/
+  `func_80084108` had the branch polarity inverted and `func_80084750` was missing the `n++`,
+  so `backup/`'s parked C is not evidence. New idiom (now in `brief.js`): when retail emits
+  `sltiu v0 / addu t0,v0,zero` in the `j` delay slot, the boolean local is **`u8`**, not `u32`.
+- `battle/misc26` matched 3 (`B3B6C B1EA0 B3658`); the parked `func_800B3B6C` note (94.00) was
+  stale - under this tail unit's `--dont-expand-li` the `li 1` is `addiu v0,zero,1`, as retail.
+- Parks only (measured, re-parked): `world_map/misc7` 8 walls (its 36-row `try_flags --sweep`
+  tops out at the default's 84.76, preset settled), `world_map/misc10` (SCALAR_ADDR confirmed,
+  `-G0` gives the same 90.66), `battling/misc3` (8 delay-slot walls; **`func_80077584` cannot take
+  a prototype** - its matched caller `func_8007762C` passes one argument), `system/sound` (all 22
+  already parked 60-98.91; `func_8003D53C` is 100.0 under gcc 2.7.2, a per-file preset case that
+  cannot be split out of `sound`), `battle/misc13` (`func_80085D34` 90.42 -> 95.68, its second
+  `func_80076A10` arg is the constant `0x19`), `battle/misc31`, `field/misc8`, `menu/misc3`.
+- **Naming (: ~450 of 502 applied).** `rename_sym.py` only renames symbols that already have a
+  `symbol_addrs` entry, which most `field/` and overlay `func_` do not. A plain sed is NOT enough:
+  splat names a binary's own relocations (calls and `.data` function tables) from `symbol_addrs`,
+  so the entry has to be *added* - `NewName = 0xADDR;` (the address is in the old name) - not just
+  rewritten in `src/`. Where to put it: the file of every binary whose `asm/` references the
+  address, and never in a file that the same yaml already loads (`gear_shop_menu` loads
+  `lib_gear`'s; `slus_006.64`'s is loaded by every overlay), or splat aborts with "Duplicate
+  symbol detected" and the whole round stops linking. Adding a function symbol inside another
+  binary's rodata range also makes splat carve it (`.L8...` undefined references in shop_menu, from
+  two `GearShopMenu*` names that a global sed had put at `shop_menu` addresses). 4 address twins
+  across overlays were reverted to `func_`.
 
 ### Round 35's per-unit detail
 
