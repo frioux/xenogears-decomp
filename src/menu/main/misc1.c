@@ -44,6 +44,8 @@ extern u8 D_801E96A5;
 
 extern u8 D_80059171;
 extern u8 D_800594D0;
+extern u8 D_800594CC;
+void func_801D29A8(s32 arg0, s32 arg1);
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc1", func_801C531C);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc1", func_801C55A0);
@@ -294,15 +296,72 @@ void MenuInitializeMenuData(void) {
             break;
     }
 }
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc1", func_801C5FE4);
+void func_801C5FE4(void) {
+    switch (D_80059460) {
+        case 0:
+            MenuResetSelectionCursorFlags();
+            func_801D29A8(0, 0);
+            g_Menu->pManager->unk5[1] = 0;
+            g_Menu->pManager->unk5[0] = 0;
+            if (D_80059171 == 0) {
+                D_800594CC = g_Menu->mainMenuChoice;
+            }
+            break;
+        case 2:
+        case 6:
+            break;
+    }
+    MenuRenderFrame();
+    MenuRenderFrame();
+    g_Menu->shouldDrawMenu = FALSE;
+    MenuRenderFrame();
+    do {
+        MenuRenderFrame();
+    } while (g_Menu->renderContext != 0);
+    MenuMenuManagerManager(MENU_DATA_FREE);
+    MenuSelectionMenuManager(MENU_DATA_FREE);
+    MenuMenuUnk5Manager(MENU_DATA_FREE);
+    MenuDressingRoomManager(MENU_DATA_FREE);
+    MenuMenuUnk1Manager(MENU_DATA_FREE);
+    HeapFree(g_Menu->pCursors);
+    HeapFree(g_Menu->resources);
+    HeapFree(g_Menu->unk2E0);
+    HeapFree(g_Menu->unk4E0[0].pVramBuffer);
+    if (g_MenuDebugEnabled) {
+        SoundStopElementsForSoundFile(g_Menu->unk2E4);
+        MenuRenderFrame();
+        SoundRemoveSedsEntry(g_Menu->unk2E4);
+        MenuRenderFrame();
+        HeapFree(g_Menu->unk2E4);
+    }
+    switch (D_80059460) {
+        case 0:
+            MenuMenuUnk2Manager(MENU_DATA_FREE);
+            MenuUnk340Manager(MENU_DATA_FREE);
+            MenuUnk344Manager(MENU_DATA_FREE);
+            MenuUnk39CManager(MENU_DATA_FREE);
+            HeapFree(g_Menu->windows[0]);
+            HeapFree(g_Menu->windowParameters[0]);
+            HeapFree(g_Menu->windows[1]);
+            HeapFree(g_Menu->windowParameters[1]);
+            break;
+        case 2:
+        case 6:
+            MenuMenuUnk2Manager(MENU_DATA_FREE);
+            break;
+    }
+    HeapFree(g_Menu);
+}
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc1", func_801C62A8);
 
 /* Best: 92.33% - only the placement of the two MenuWaitForDiscChange call blocks differs: the
    original lays the outer test's then-block out of line (beqz $v0 -> call block) and
    falls through to the second test, then to a "j end".  Tried: else-if, `!=`/else
    (87.67%), 2-way switch with default (92.33%), early break + separate if (92.33%),
-   nested if (92.33%), 2-way switch (92.33%).  Instruction multiset is identical; this is
-   a bb-reorder tie-break.
+   nested if (92.33%), 2-way switch (92.33%), switch on D_800594D0 (92.33%), two
+   independent ifs (90.47%, 340 bytes), case order 2 before 0 (86.98%), gcc-2.6.0 (92.33%).
+   Instruction multiset is identical; this is a bb-reorder tie-break: retail keeps both
+   compare insns adjacent at the top and puts both call blocks after a `j end`.
 void func_801C62A8(void) {
     u8 menuIndex;
 
