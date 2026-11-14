@@ -14,6 +14,7 @@ extern s32 ArchiveDecodeSizeAbsolute(int entryIndex);
 extern u32 g_ArchiveTable;
 extern int ControllerGetButtonState(int controllerIndex);
 extern void SoundSetCdVolumeWithFade(s32 volume, s32 frames);
+extern void Vsync(s32 mode);
 
 // .rodata
 extern char D_80070304[];
@@ -89,14 +90,20 @@ extern s16 D_80077104;
 extern s16 D_80077106;
 extern s16 D_80077108;
 extern s32 D_8007711C;
-extern u8 D_8007713C;
-extern u8 D_80077191;
-extern u8 D_80077274;
-extern u8 D_800772C9;
+typedef struct {
+    /* 0x0 */ u8 unk0;
+    /* 0x1 */ u8 pad1[0x54];
+    /* 0x55 */ u8 unk55;
+    /* 0x56 */ u8 pad56[0xE2];
+} MovieSlot; // Size: 0x138
+
+extern MovieSlot D_8007713C[2];
 extern s32 D_8007739C;
 extern s32 D_800773AC;
 extern s32 D_800773B4;
 extern s32 D_80077438;
+extern s32 D_80077454;
+extern RECT D_800704E0; // .rodata
 extern s32 D_80077448;
 extern s32 D_801D68B4;
 
@@ -168,7 +175,46 @@ int WorldMapSyncGearRideActors(u32 entryIndex) {
 
 INCLUDE_ASM("asm/movie/nonmatchings/main/misc2", func_80075D8C);
 
-INCLUDE_ASM("asm/movie/nonmatchings/main/misc2", func_8007625C);
+void func_8007625C(void) {
+    long pad[6];
+    RECT rect;
+
+    rect = D_800704E0;
+    D_80077028 = 0;
+    D_800773AC = -1;
+    if (D_80077448 == 0) {
+        ArchiveSetIndex(0x18, 0);
+        if (D_8007711C >= (s16)ArchiveDecodeSizeAbsolute(2)) {
+            return;
+        }
+        SetDispMask(0);
+    } else if (D_80077448 == 1) {
+        ArchiveSetIndex(0x18, 1);
+        if (D_8007711C >= (s16)ArchiveDecodeSizeAbsolute(1)) {
+            return;
+        }
+        SetDispMask(0);
+    } else if (D_80077448 == 2) {
+        return;
+    }
+    D_8007713C[0].unk0 = 0;
+    D_8007713C[1].unk0 = 0;
+    if (D_80077454 != 0) {
+        D_8007713C[0].unk55 = 1;
+        D_8007713C[1].unk55 = 1;
+    }
+    func_80076488();
+    Vsync(0);
+    ClearImage(&rect, 0, 0, 0);
+    DrawSync(0);
+    Vsync(0);
+    D_8007713C[0].unk0 = 1;
+    D_8007713C[1].unk0 = 1;
+    if (D_80077454 != 0) {
+        D_8007713C[0].unk55 = 0;
+        D_8007713C[1].unk55 = 0;
+    }
+}
 
 INCLUDE_ASM("asm/movie/nonmatchings/main/misc2", func_800763BC);
 
@@ -190,19 +236,17 @@ void func_800763BC(u8 mode) {
     } else if (D_80077448 == 1) {
         ArchiveSetIndex(0x18, 1);
         nIndex = 1;
-    } else if (D_80077448 != 2) {
-        goto reset;
-    } else {
+    } else if (D_80077448 == 2) {
         return;
     }
     if (D_8007711C >= (s16)ArchiveDecodeSizeAbsolute(nIndex)) {
         return;
     }
 reset:
-    D_8007713C = 0;
-    D_80077274 = 0;
-    D_80077191 = 1;
-    D_800772C9 = 1;
+    D_8007713C[0].unk0 = 0;
+    D_8007713C[1].unk0 = 0;
+    D_8007713C[0].unk55 = 1;
+    D_8007713C[1].unk55 = 1;
     func_80076488();
 }
 */
