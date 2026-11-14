@@ -267,6 +267,33 @@ void func_801CA5F0(s32 a0, s32 a1) {
 */
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CA750);
+/* Best attempt: 96.91%. The template copy into 0x4B98 is 0x1B bytes in retail
+   (lw x6, then lh at source+0x18 and lb at source+0x1A storing sh/sb = a 3-byte
+   block move at alignment 2). A C aggregate of size 3 cannot exist, and a
+   0x1C-byte struct (u32[6] + s16 + s8) copies a seventh word; splitting the
+   tail into two statements makes gcc rematerialise &D_801C50E0 and emit
+   lhu/lbu with a fresh lui instead of reusing the copy's a3 base. Second diff:
+   mfhi lands in a3 here vs v1 in retail. Tried: single 0x1C struct copy,
+   0x18-byte head copy + two u16/s8 statements (77.87%), pointer locals for
+   source and destination.
+void func_801CA8C0(u_char a0) {
+    s32 n;
+    s32 tens;
+
+    n = a0 + 1;
+    *(MenuUnk2Text*)g_Menu->menuUnk2->unk4B98 = D_801C50E0;
+    tens = n / 10;
+    ((u8*)g_Menu->menuUnk2->unk4B98)[0x1A] = 0x82;
+    ((u8*)g_Menu->menuUnk2->unk4B98)[0x1B] = tens + 0x4F;
+    ((u8*)g_Menu->menuUnk2->unk4B98)[0x1C] = 0x82;
+    ((u8*)g_Menu->menuUnk2->unk4B98)[0x1D] = n % 10 + 0x4F;
+    ((u8*)g_Menu->menuUnk2->unk4B98)[0x1E] = 0x81;
+    ((u8*)g_Menu->menuUnk2->unk4B98)[0x1F] = 0x40;
+    ((u8*)g_Menu->menuUnk2->unk4B98)[0x20] = 0;
+    ((u8*)g_Menu->menuUnk2->unk4B98)[0x21] = 0;
+    strcat(g_Menu->menuUnk2->unk4B98, &g_Menu->menuUnk2->unk4FE7[0x15]);
+}
+*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CA8C0);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CAA38);
 u_char func_801CACF8(u_char a0, u_char a1, u_char a2) {
