@@ -474,6 +474,13 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_800785D4);
    the frame is the only difference). Tried: pStr temp for GetStringEntry
    (same), inlining GetStringEntry (same), splitting `D_800C3E8C++` into a
    load + separate increment (87.44 - breaks the store/increment order).
+   Round 42 narrowed the 8 bytes down: `.frame # vars= 8`, with no stack
+   reference anywhere in the final RTL, so it is a slot whose pseudo died.
+   Bisected with cut-down bodies: one call alone -> vars=0; the nested
+   SystemRenderStringEntry(GetStringEntry(...)) PLUS any later call in the same
+   block -> vars=8, regardless of the arguments (constant, symbol or index
+   expressions all give 8) and regardless of call order. gcc-2.6.0 gives the
+   same 99.94, gcc-2.7.2-cdk 69.22, so it is not a version question.
    The D_800D3718/D_800D3720/D_800D3726 arrays are one struct of 0x60
    (RECT rect @0, u_long *pBuf @8, u8 @0xE, POLY_FT4 prim[2] @0x10); the
    spellings below use byte offsets instead of that struct so no shared
