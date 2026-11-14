@@ -321,6 +321,105 @@ void SpriteSetAnimFile(SpriteData* pSprite, SpriteAnimPackageFileHeader* pAnimPa
     }
 }
 
+/* Best: 63.58% (656 vs 668 bytes). Everything except the dispatch is a few register
+   choices away; the dispatch is the wall. Retail's switch on (flags_0xA8 >> 20) & 3 is a
+   gcc CASE TREE, not a chain: `beq v1,1 -> case1; slti v0,v1,2; beqz v0,L; li v0,2;
+   beqz v1 -> case0; j AFTER; L: beq v1,2 -> case2`. A C switch with cases 0,1,2 (+ empty
+   case 3 or default) compiles to a linear chain here (`beq 1; beqz 0; beq 2`), and writing
+   the tree out as `if (m==1) ... else if (m<2) { if (m==0) ... } else if (m==2) ...` gets
+   the slti but inverts the first test (53.69%). Bodies are emitted in source order 0,1,2,
+   which matches a switch, so only the tree/chain choice is unexplained.
+   Facts recovered: arg is s32 (s16 arg is what temp1.c declares) - field_0x80 = arg (sh),
+   then ((s16)arg + 0x400) & 1 sets/clears flags_0xAC bit 2; savedGroup = (flags_0xA8 >> 17)
+   & 7 is read before that branch and compared again after the switch. Case 0 uses the RAW
+   arg: (arg + 0x400) & 0xFFF >= 0x801 sets bit 2, then flags_0xA8 &= 0xFFF1FFFF,
+   field_0x5C = anim + 6, field_0x54 = anim + 4 + u16(anim + 4). Case 1 index =
+   (((s16)arg + 0x600) >> 10) & 3: index < 3 indexes the u16 offset table at anim + 4,
+   index 3 uses the single entry at anim + 6 with bit 2 set. Case 2 index =
+   (((s16)arg + 0x500) >> 9) & 7: < 5 same table, 5..7 remap to 3,2,1 via `(index - 5) ^ 3`
+   and set bit 2. Cases 1/2 then write flags_0xA8 = (flags_0xA8 & 0xFFF1FFFF) |
+   ((index & 7) << 17); each arm loads pCurAnimation itself. Tail: if the group changed,
+   flags_0xA8 = (flags_0xA8 | 0x1F800) & 0xF03FFFFF, pSpriteBytecode = anim + 2 +
+   u16(anim + 2), func_80022660(pSpriteData, old pSpriteBytecode, (u32)flags_0xA8 >> 22 &
+   0x3F) with the wait timer (0x9E) saved across the call, then the field_0x3C bit-3 xor
+   update (same expression as SpriteSetFrameFromAnimIndex in temp1.c).
+extern void func_80022660(SpriteData* pSpriteData, void* pEnd, s32 scriptIndex);
+void func_800223B0(SpriteData* pSpriteData, s32 animId) {
+    u8* pAnimation;
+    s32 savedGroup;
+    s32 index;
+
+    pSpriteData->field_0x80 = animId;
+    savedGroup = ((u32)pSpriteData->flags_0xA8 >> 17) & 7;
+    if (((s16)animId + 0x400) & 1) {
+        pSpriteData->flags_0xAC |= 4;
+    } else {
+        pSpriteData->flags_0xAC &= ~4;
+    }
+    if (pSpriteData->pDefaultAnimFile == NULL) {
+        return;
+    }
+    switch (((u32)pSpriteData->flags_0xA8 >> 20) & 3) {
+    case 0:
+        if ((((s16)animId + 0x400) & 0xFFF) >= 0x801) {
+            pSpriteData->flags_0xAC |= 4;
+        } else {
+            pSpriteData->flags_0xAC &= ~4;
+        }
+        pAnimation = pSpriteData->pCurAnimation;
+        pSpriteData->flags_0xA8 &= 0xFFF1FFFF;
+        pSpriteData->field_0x5C = (u32)(pAnimation + 6);
+        pSpriteData->field_0x54 = (u32)(pAnimation + 4) + *(u16*)(pAnimation + 4);
+        break;
+    case 1:
+        index = (((s16)animId + 0x600) >> 10) & 3;
+        if (index < 3) {
+            pAnimation = pSpriteData->pCurAnimation;
+            pSpriteData->flags_0xAC &= ~4;
+            pSpriteData->field_0x54 = (u32)(pAnimation + index * 2 + 4) + *(u16*)(pAnimation + index * 2 + 4);
+        } else {
+            pAnimation = pSpriteData->pCurAnimation;
+            pSpriteData->flags_0xAC |= 4;
+            pSpriteData->field_0x54 = (u32)(pAnimation + 6) + *(u16*)(pAnimation + 6);
+        }
+        pSpriteData->flags_0xA8 = (pSpriteData->flags_0xA8 & 0xFFF1FFFF) | ((index & 7) << 17);
+        break;
+    case 2:
+        index = (((s16)animId + 0x500) >> 9) & 7;
+        if (index < 5) {
+            pAnimation = pSpriteData->pCurAnimation;
+            pSpriteData->flags_0xAC &= ~4;
+            pSpriteData->field_0x54 = (u32)(pAnimation + index * 2 + 4) + *(u16*)(pAnimation + index * 2 + 4);
+        } else {
+            index = (index - 5) ^ 3;
+            pAnimation = pSpriteData->pCurAnimation;
+            pSpriteData->flags_0xAC |= 4;
+            pSpriteData->field_0x54 = (u32)(pAnimation + index * 2 + 4) + *(u16*)(pAnimation + index * 2 + 4);
+        }
+        pSpriteData->flags_0xA8 = (pSpriteData->flags_0xA8 & 0xFFF1FFFF) | ((index & 7) << 17);
+        break;
+    }
+    if (savedGroup != (((u32)pSpriteData->flags_0xA8 >> 17) & 7)) {
+        s16 waitTimer;
+        s32 scriptIndex;
+        void* pOldBytecode;
+
+        waitTimer = pSpriteData->animScriptWaitTimer;
+        pAnimation = pSpriteData->pCurAnimation;
+        pOldBytecode = pSpriteData->pSpriteBytecode;
+        scriptIndex = ((u32)pSpriteData->flags_0xA8 >> 22) & 0x3F;
+        pSpriteData->flags_0xA8 = (pSpriteData->flags_0xA8 | 0x1F800) & 0xF03FFFFF;
+        pSpriteData->pSpriteBytecode = (u32)(pAnimation + 2) + *(u16*)(pAnimation + 2);
+        func_80022660(pSpriteData, pOldBytecode, scriptIndex);
+        pSpriteData->animScriptWaitTimer = waitTimer;
+    }
+    *(u32*)((u8*)pSpriteData + 0x3C) = (*(u32*)((u8*)pSpriteData + 0x3C) & ~8) |
+                                       (((((u32)pSpriteData->flags_0xAC >> 3) & 1) ^
+                                         (((u32)pSpriteData->flags_0xAC >> 2) & 1))
+                                        << 3);
+}
+*/
+
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/animation_scripts", func_800223B0);
 
 // Run Sprite Animation VM
