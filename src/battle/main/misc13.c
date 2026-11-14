@@ -75,6 +75,8 @@ extern s32 D_800C2080;
 extern s32 D_800C2084;
 extern u8 D_800C207C;
 extern u8 func_8001BD40(s32, u8);
+extern s32 BattleMaskHasSlotBit(s32, u8);
+extern void func_800883AC(u8);
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80085618);
 void BattleResetActorStatDisplay(s32 arg0) {
@@ -148,18 +150,19 @@ void BattleBeginActorAction(u8 arg0, u16 arg1, u16 arg2) {
     func_800941A4();
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80085D34);
-/* 95.68%: the three calls and all address arithmetic are byte-identical; only
-   the composed pointer operand order differs - retail has the table offset in
-   $a1 and the base in $v0 (`addu $a1,$a1,$v0`), gcc's `base + ofs` gives
-   `addu $a1,$v0,$a1` - and the epilogue, where retail keeps
-   `nop; sb; lw $ra; addiu $sp; jr; nop` while gcc hoists `lw $ra` into the
-   lbu's load-delay slot and reorg moves `addiu $sp` into the jr slot (2 insns
-   short). Fixed while un-parking: the SECOND call's first argument is the
-   constant 0x19, not `D_800C3EAC[0x2D4] + 0xF` (retail: `ori $a0,$zero,0x19`);
-   and this site reads D_800CCB34 with `lbu` (95.68% needs `extern u8
-   D_800CCB34`; with the unit's `extern s32` it is 94.94%). Tried: `ofs + base` for the addu order
-   (70.30%), an `ofs` local (66.62%, gcc then CSEs the two D_800D2D28 loads
-   retail keeps separate).
+/* 95.68%: since the round-45 un-park the instruction stream is identical
+   except (a) the three `addu a1,?,?` that reorg places in the func_80076A10
+   jal delay slot - retail `addu a1,a1,v0` (offset in the destination), gcc
+   `addu a1,v0,a1`; and (b) the epilogue, where retail has `nop; sb
+   D_800D2D28+0xA4; lw $ra` and gcc hoists `lw $ra` into the lbu load-delay
+   slot then stores after it (316 bytes, same count). Round 47 re-tried
+   `ofs + base` (operand order in the source) for (a): still 95.68%, gcc
+   canonicalises the commutative addu, so this is an allocator/schedule tie,
+   not a source shape. Tried: `ofs + base` (70.30% before the round-47 fixes,
+   95.68% now), an `ofs` local (66.62%: gcc CSEs the two D_800D2D28 loads that
+   retail keeps separate). Reads D_800CCB34 with lbu, so the extern must stay
+   `u8` (with `s32` it is 94.94%). The SECOND call's first argument is the
+   constant 0x19, not D_800C3EAC[0x2D4] + 0xF.
 void func_80085D34(void) {
     s32 v;
 
@@ -315,6 +318,55 @@ void BattleSetupActorSlotDisplay(u8 arg0) {
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80087AF0);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80087EDC);
+/* 85.48%: retail keeps neither table offset in a register across the first
+   compare (both `arg * 0x1C` are scratch there) and reuses ONE saved register
+   ($s1) for ofsB in the middle and ofsA at the end; with ofsA/ofsB as locals
+   gcc keeps both live in $s1/$s3 from the top (692 vs 684 bytes, same
+   instruction multiset). Spelling the offsets inline instead makes gcc hoist
+   `la D_800C3EB4` as a base pointer (67.96%, 0x30 frame). Also open: the sel
+   test order - retail computes `sltiu(arg0,3)` in the compare's delay slot,
+   `xori/sll 3`, then `sltiu(arg1,3)` + `beqz`/`move sel,0`/`move sel,v1`;
+   `(arg1 < 3) ? (arg0 >= 3) * 8 : 0` (82.50%), `sel = (arg0>=3)*8; if
+   (arg1>=3) sel = 0;` (85.48%) both put the arg1 test first. The tail's
+   `slot*4 + char*0x20 D_800D3364` operand order and the `if (arg0 < 3)` layout
+   (then = <3 at offsets 4/6, else = >=3 at 0x10/0x12) are right.
+void func_80087EDC(u8 arg0, u8 arg1) {
+    s32 ofsA;
+    s32 ofsB;
+    s32 sel;
+    s32 i;
+
+    ofsA = arg0 * 0x1C;
+    ofsB = arg1 * 0x1C;
+    if (D_800C3EB4[ofsA] == D_800C3EB4[ofsB]) {
+        return;
+    }
+    sel = (arg0 >= 3) * 8;
+    if (arg1 >= 3) {
+        sel = 0;
+    }
+    if (D_800D301C[(D_800C3EB4[ofsB] + sel) << 2] >= 4) {
+        return;
+    }
+    func_800883AC(arg0);
+    D_800D301C[(D_800C3EB4[ofsB] + sel) << 2]++;
+    for (i = 0; i < 4; i++) {
+        if (BattleMaskHasSlotBit(D_800D301D[(D_800C3EB4[ofsB] + sel) << 2], i) == 0) {
+            break;
+        }
+    }
+    D_800C3EB5[ofsA] = i;
+    D_800C3EB4[ofsA] = D_800C3EB4[ofsB];
+    D_800D301D[(D_800C3EB4[ofsA] + sel) << 2] |= BattleSlotBitMask(D_800C3EB5[ofsA]);
+    if (arg0 < 3) {
+        *(u16 *)(D_800C3EBE + ofsA) = *(u16 *)(D_800C3EB5[ofsA] * 4 + D_800C3EB4[ofsA] * 0x20 + D_800D3364 + 4);
+        *(u16 *)(D_800C3EC0 + ofsA) = *(u16 *)(D_800C3EB5[ofsA] * 4 + D_800C3EB4[ofsA] * 0x20 + D_800D3364 + 6);
+    } else {
+        *(u16 *)(D_800C3EBE + ofsA) = *(u16 *)(D_800C3EB5[ofsA] * 4 + D_800C3EB4[ofsA] * 0x20 + D_800D3364 + 0x10);
+        *(u16 *)(D_800C3EC0 + ofsA) = *(u16 *)(D_800C3EB5[ofsA] * 4 + D_800C3EB4[ofsA] * 0x20 + D_800D3364 + 0x12);
+    }
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_800881B8);
 /* 81.95% (476 of retail 500 bytes, shape right, registers wrong): keep the
    `ofsA`/`ofsB` locals - spelling `arg0 * 0x1C` inline makes gcc build a
