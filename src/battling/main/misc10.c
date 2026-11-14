@@ -76,10 +76,22 @@ typedef struct {
 } Misc10Prim; // Size: 0x310
 
 typedef struct {
+    /* 0x0 */ s16 x;
+    /* 0x2 */ s16 y;
+} Misc10Point; // Size: 0x4
+
+typedef struct {
+    /* 0x0 */ s16 x;
+    /* 0x2 */ s16 y;
+    /* 0x4 */ s16 w;
+    /* 0x6 */ u16 h;
+} Misc10TexRect; // Size: 0x8
+
+typedef struct {
     /* 0x00 */ u8 unk00[0x04];
-    /* 0x04 */ u8* unk04;
+    /* 0x04 */ Misc10Point* unk04;
     /* 0x08 */ u8 unk08[0x04];
-    /* 0x0C */ u8* unk0C;
+    /* 0x0C */ Misc10TexRect* unk0C;
 } Misc10TagSrc; // Size: 0x10
 
 typedef struct {
@@ -319,7 +331,35 @@ void func_800864B4(Misc10TagSrc* p, s32 x, s32 y, u8* pOut, s32 mode) {
 }
 */
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_800866D4);
+void func_800866D4(Misc10TagSrc* p, s32 x, s32 y, POLY_FT4* pPoly, s32 mode) {
+    s32 scale;
+
+    switch (mode) {
+    case 0:
+        scale = 4;
+        break;
+    case 1:
+        scale = 2;
+        break;
+    case 2:
+        scale = 1;
+        break;
+    }
+
+    ((u8*)pPoly)[3] = 9;
+    pPoly->code = 0x2D;
+    pPoly->clut = GetClut(p->unk04->x, p->unk04->y);
+    pPoly->tpage = GetTPage(mode, 0, p->unk0C->x, p->unk0C->y);
+    pPoly->x0 = pPoly->x2 = x + p->unk0C->w * scale;
+    pPoly->x1 = pPoly->x3 = x;
+    pPoly->u0 = pPoly->u2 = p->unk0C->x * scale - 1;
+    pPoly->u1 = pPoly->u3 = (p->unk0C->x + p->unk0C->w) * scale - 1;
+    pPoly->y0 = pPoly->y1 = y;
+    pPoly->y2 = pPoly->y3 = y + p->unk0C->h;
+    pPoly->v0 = pPoly->v1 = p->unk0C->y;
+    pPoly->v2 = pPoly->v3 = p->unk0C->y + p->unk0C->h;
+    pPoly[1] = pPoly[0];
+}
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_800868E0);
 
