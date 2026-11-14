@@ -446,7 +446,6 @@ void func_80073380(s32 arg0) {
     s16 amount;
     s32 off;
     s32 i;
-    s32 pos;
 
     off = arg0 * 484;
     pFlags = D_800C3EA4;
@@ -459,11 +458,10 @@ void func_80073380(s32 arg0) {
     BattleParseNumberToDigits(amount);
 
     for (i = 0; i < 4; i++) {
-        pos = 0xEC;
         if (D_800C3CF9[i] != 0xFF) {
-            *(s32 *)(D_800D2D28 + arg0 * 4 + pos) += BattleDrawSpritePackage(
+            *(s32 *)(D_800D2D28 + arg0 * 4 + 0xEC) += BattleDrawSpritePackage(
                 D_800C3CF9[i] + 0x83,
-                (s32)(D_800C3EA4 + (arg0 * 320 + 0x6008)) + *(s32 *)(D_800D2D28 + arg0 * 4 + pos) * 80,
+                (s32)(D_800C3EA4 + (arg0 * 320 + 0x6008)) + *(s32 *)(D_800D2D28 + arg0 * 4 + 0xEC) * 80,
                 (s16)(arg0 * 96 + (D_800C3254[D_800D3280 * 3 + arg0] + 0x4A) + i * 6),
                 0x25);
         }
