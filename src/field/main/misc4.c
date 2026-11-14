@@ -1028,6 +1028,123 @@ int func_8007B814(VECTOR* pVec, ActorData* pActor, SVECTOR* pPoints, s16 angle) 
 */
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007BAC0);
+/* Best attempt: 76.42% (1036 vs 1032 bytes). The probe sequence, the second
+   func_8007BEF4 call and the tail (v.vy, pVec stores, curYPos) are
+   instruction-identical; four deltas remain:
+   1. the shared fallback (copy *pVec, func_8007B6C4) loses retail's leading
+      dead `lw a3,0x70(sp)`, so every later label sits 4 bytes low. Retail's
+      call passes nFlags as a 4th argument that func_8007B6C4 never reads;
+      spelling it needs a 4-argument prototype of func_8007B6C4, which the
+      file already declares with three.
+   2. the retry dispatch is laid out inverted: retail puts the recompute body
+      FIRST (cond1 inverts to the rest of the chain, which sits after the body
+      and jumps back to it) and the restore last, while the || chain below
+      compiles body-last. Duplicating the body per arm so cross-jumping can
+      merge it does not work: gcc keeps all four copies (1264 bytes, 62.19%).
+   3. (nDirection - 0x100) & 0xFFF must be two statements, else gcc masks into
+      the local through v0 instead of computing into s0.
+   4. the restore copies sit in temporaries (t0..t4) instead of r-tail regs,
+      i.e. downstream of 1 and 2.
+   nPosY is retail's `lh 0x26(pActor)`, the high half of position.vy, which no
+   field of ActorData names.
+int func_8007BEF4(VECTOR* pVec, VECTOR* pPos, ActorData* pActor, SVECTOR* pPoints, SVECTOR* pOut, int nMode, s32* pFlags);
+
+int func_8007BAC0(VECTOR* pVec, ActorData* pActor, SVECTOR* pPoints, int angle) {
+    VECTOR v;
+    VECTOR savedV;
+    SVECTOR out;
+    SVECTOR savedOut;
+    VECTOR dir;
+    VECTOR normal;
+    s32 nFlags;
+    s16 nDirection;
+    int nPosY;
+    long nMagnitude;
+    int nAngle;
+
+    nDirection = angle;
+    nAngle = nDirection - 0x100;
+    nAngle &= 0xFFF;
+    v.vx = pVec->vx + rsin(nAngle) * 64;
+    v.vz = pVec->vz - rcos(nAngle) * 64;
+    if (func_8007BEF4(&v, &pActor->position, pActor, pPoints, &out, -1, &nFlags) == -1) {
+        v.vx = pVec->vx;
+        v.vy = pVec->vy;
+        v.vz = pVec->vz;
+        func_8007B6C4(nDirection, pPoints, &v);
+    } else {
+        nAngle = nDirection + 0x100;
+        nAngle &= 0xFFF;
+        v.vx = pVec->vx + rsin(nAngle) * 64;
+        v.vz = pVec->vz - rcos(nAngle) * 64;
+        if (func_8007BEF4(&v, &pActor->position, pActor, pPoints, &out, -1, &nFlags) == -1) {
+            v.vx = pVec->vx;
+            v.vy = pVec->vy;
+            v.vz = pVec->vz;
+            func_8007B6C4(nDirection, pPoints, &v);
+        } else {
+            nAngle = angle & 0xFFF;
+            v.vx = pVec->vx + rsin(nAngle) * 64;
+            v.vz = pVec->vz - rcos(nAngle) * 64;
+            if (func_8007BEF4(&v, &pActor->position, pActor, pPoints, &out, -1, &nFlags) == -1) {
+                v.vx = pVec->vx;
+                v.vy = pVec->vy;
+                v.vz = pVec->vz;
+                func_8007B6C4(nDirection, pPoints, &v);
+            } else {
+                v.vx = pVec->vx;
+                v.vy = pVec->vy;
+                v.vz = pVec->vz;
+            }
+        }
+    }
+
+    if (func_8007BEF4(&v, &pActor->position, pActor, pPoints, &out, 0, &nFlags) == -1) {
+        return -1;
+    }
+
+    // Keep the probe's result so a retry that fails leaves it untouched
+    savedV.vx = v.vx;
+    savedV.vy = v.vy;
+    savedV.vz = v.vz;
+    savedOut.vx = out.vx;
+    savedOut.vy = out.vy;
+    savedOut.vz = out.vz;
+    nPosY = ((s16*)&pActor->position.vy)[1];
+
+    if (out.vy < nPosY
+        || (nFlags & 0x200000) != 0
+        || ((nFlags & 0x420000) != 0 && (pActor->curWalkmeshTriMaterial & 0x420000) != 0)
+        || out.vy < nPosY + 0x40) {
+        dir.vx = -v.vx >> 8;
+        dir.vz = -v.vz >> 8;
+        dir.vy = ((out.vy << 16) - pActor->position.vy) >> 8;
+        VectorNormal(&dir, &normal);
+        nMagnitude = FieldGetVec2Magnitude(v.vx >> 8, v.vz >> 8);
+        v.vx = -(normal.vx * nMagnitude) >> 4;
+        v.vy = (normal.vy * nMagnitude) >> 4;
+        v.vz = -(normal.vz * nMagnitude) >> 4;
+        if (func_8007BEF4(&v, &pActor->position, pActor, pPoints, &out, 0, &nFlags) == -1) {
+            return -1;
+        }
+        pActor->scriptFlags.flags |= 0x4000000;
+    } else {
+        v.vx = savedV.vx;
+        v.vy = savedV.vy;
+        v.vz = savedV.vz;
+        out.vx = savedOut.vx;
+        out.vy = savedOut.vy;
+        out.vz = savedOut.vz;
+    }
+
+    v.vy = (out.vy << 16) - pActor->position.vy;
+    pVec->vx = v.vx;
+    pVec->vy = v.vy;
+    pVec->vz = v.vz;
+    pActor->curYPos = (pActor->position.vy + pVec->vy) >> 16;
+    return 0;
+}
+*/
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007BEF4);
 
