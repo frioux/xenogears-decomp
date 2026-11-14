@@ -341,7 +341,90 @@ void func_80075460(void) {
 }
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc2", func_8007565C);
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc2", func_800758C0);
+extern s32 D_8009D7F0;
+extern u16 D_8009BD3A;
+extern s16 D_8006F950;
+extern void* D_8009BC3C;
+extern void* D_8009BCB4;
+extern void* D_8009D528;
+extern void WorldMapWaitForQueuedLoads(void);
+extern void func_80086124(void);
+extern void func_800866C8(void);
+extern void func_80089128(void);
+extern void func_80071FEC(void);
+extern int ArchiveDataSync(void);
+extern void LZSSDecompress(void* pSrc, void* pDst);
+
+void func_800758C0(void) {
+    RECT rect;
+    void* pTemp;
+    u_int size;
+    s16* pOut;
+    u16* pFlags;
+    s32 i;
+
+    i = 0;
+    pFlags = &g_GameState.unk1836;
+    pOut = (s16*)(pFlags + 3);
+    *pFlags = 1;
+    D_8006F950 = (D_8009BD3A + 0x2000) & 0x3FFF;
+    for (; i < 3; i++, pOut++) {
+        *pOut = g_GameState.gearRide[i];
+    }
+    D_8009D14C = D_80059179;
+    if ((s16)func_80093F18((s32)&D_8009D55C) == 4) {
+        D_80059179 = 1;
+    }
+    WorldMapWaitForQueuedLoads();
+    func_80086124();
+    func_800866C8();
+    func_80089128();
+    HeapFree(D_8009BC3C);
+    HeapFree(D_8009BCB4);
+    pTemp = HeapAlloc(4, 1);
+    HeapFree(pTemp);
+    pTemp = (void*)((u32)pTemp & 0xFFFFFF);
+    size = (u32)pTemp + 0xFFE3B004;
+    D_8009C7E4 = HeapAlloc(size, 1);
+    func_80071FEC();
+    D_8009C800 = HeapAlloc(0x10000, 0);
+    D_8009C890 = HeapAlloc(0xC800, 0);
+    rect.x = 0x180;
+    rect.y = 0x100;
+    rect.w = 0x80;
+    rect.h = 0x100;
+    StoreImage(&rect, D_8009C800);
+    rect.x = 0;
+    rect.y = 0x1B0;
+    rect.w = 0x140;
+    rect.h = 0x50;
+    StoreImage(&rect, D_8009C890);
+    if (D_8009D7F0 == 0) {
+        rect.x = 0;
+        rect.y = 0xD8;
+        rect.w = 0x140;
+        rect.h = 0xD8;
+        MoveImage(&rect, 0, 0);
+    }
+    rect.x = 0;
+    rect.y = 0;
+    rect.w = 0x140;
+    rect.h = 0xD8;
+    MoveImage(&rect, 0x2C0, 0x100);
+    DrawSync(0);
+    func_80072DB4(0x10, 0, 8, 2);
+    do {
+    } while (ArchiveDataSync() >= 2);
+    LZSSDecompress(D_8009D528, D_8009C7E4);
+    HeapFree(D_8009D528);
+    rect.x = 0;
+    rect.y = 0;
+    rect.w = 0x140;
+    rect.h = 0xD8;
+    MoveImage(&rect, 0, 0xE0);
+    DrawSync(0);
+    ArchiveCdDataSync(0);
+}
 void func_80075B58(void) {
     RECT rect;
     void* pBuffer;
@@ -503,7 +586,6 @@ void func_800762FC(void) {
     ExitCriticalSection();
 }
 extern int D_80059488;
-extern s32 D_8009D7F0;
 extern DISPENV D_8009BC9C;
 extern DISPENV D_8009BC24;
 extern DRAWENV D_8009BC40;
