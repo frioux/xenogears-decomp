@@ -13,6 +13,7 @@ extern u8 D_800D2E5C;
 extern u8 D_800D32A1[];
 extern u8 D_800C3EB4[];
 extern u8 D_800CCDEC[];
+extern u8 D_800CCDF0[];
 extern u8 D_800CCE34[];
 extern u8 D_800CCE38[];
 extern u8 D_800CCE39[];
@@ -120,6 +121,34 @@ void func_8007B6C0(u8 **p, u8 index) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007B6C0);
+// best: 87.67%. Body recovered from the .s (u8 return: ret = arg2, the
+// D_800D2E5C = 0x20 / arg2+1 path for value < 3, then a two-way store of
+// ((u32 *)((u8 *)pField - 0x10))[(*p)[1]] into D_800CCDF0 / D_800CCDEC +
+// value * 0x170 selected by (*p)[2]). Sole gap: retail keeps D_800D3420 in one
+// saved register (s3) and index * 0x40 in another (s0) across the call and
+// re-forms base-0x10 with `addiu s3,-0x10` in each branch, gcc forms the whole
+// pField sum once (frame 0x20 instead of 0x28) and folds the -0x10 into the
+// load displacement. Spelling D_800D3420 - 0x10 inline instead of pField makes
+// the frame 0x30 and drops it to 76.07%; a hoisted pField32 local gives 82.36%.
+/*
+u8 func_8007B7B0(u8 **p, u8 index, u8 arg2) {
+    u16 *pField = (u16 *)(D_800D3420 + index * 0x40);
+    u8 ret = arg2;
+    u8 value = func_80079E7C(pField[(*p)[3]]);
+
+    if (value < 3) {
+        D_800D2E5C = 0x20;
+        ret = arg2 + 1;
+    } else if ((*p)[2] == 0) {
+        *(u32 *)(D_800CCDF0 + value * 0x170) =
+            ((u32 *)((u8 *)pField - 0x10))[(*p)[1]];
+    } else {
+        *(u32 *)(D_800CCDEC + value * 0x170) =
+            ((u32 *)((u8 *)pField - 0x10))[(*p)[1]];
+    }
+    return ret;
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007B7B0);
 // best: 73.75%. Instruction multiset identical; the original loads *p into v0
 // and puts the D_800D3420 base in a0, gcc emits the base first instead. Same
