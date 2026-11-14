@@ -49,6 +49,7 @@ FieldFadeDraw = 0x8007DA44;
 FieldTextBoxInitialize = 0x8007DECC;
 FieldTextBoxInitializePrimitives = 0x8007EE0C;
 FieldActorWorldToScreenPosition = 0x80086200;
+FieldClearActorSoundSlots = 0x800864B4;
 FieldScriptVM2Run = 0x800869B8;
 FieldSetScreenDimensions = 0x80086D8C;
 FieldScriptCopyGear = 0x80087580;

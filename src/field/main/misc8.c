@@ -1181,7 +1181,7 @@ int FieldFindActorSoundSlot(int arg0, u_int arg1) {
     return -1;
 }
 
-void func_800864B4(void) {
+void FieldClearActorSoundSlots(void) {
     int i;
 
     for (i = 0; i < 3; i++) {
