@@ -495,6 +495,174 @@ void BattleSetResultCode(s32 arg0) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_800751C8);
 
+/* 92.66% (1352 bytes, the original's size): the whole body is right - every
+   call, every global store and the tail match instruction for instruction. What
+   is left: (a) the two loads of p0/p1's x/z for ratan2 come out one instruction
+   later than retail's (retail hoists them above the D_8009284C store, gcc
+   stores first), (b) the D_8009263C cascade's three BattleGetScreenMode blocks
+   are ordered/scheduled differently, and (c) the `mode = 4 / if (== 2) mode = 2`
+   pair: retail has the 4 in the bne's delay slot. Written from the assembly in
+   one pass; the structure (if/else-if cascade over p0/p1's +0xD0 flags, then the
+   0x1E/0x3C timer cascade on D_8009263C, then the distance/angle tail) is
+   believed correct. */
+/* extern s32 D_8009294C;
+extern u8 D_800928C4;
+extern u8 D_80091144;
+extern u8 D_80091145;
+extern s32 D_80092638;
+extern s32 D_80092640;
+extern s32 D_80092890;
+extern s32 D_80092918;
+extern u8 D_800928D4;
+extern u16 D_80097102;
+extern u8 D_800928FC;
+extern s32 D_800928C8;
+extern u16 D_8009881E;
+extern s32 D_8009263C;
+extern u8 D_80092884;
+extern s32 D_80092950;
+extern s32 D_80092850;
+extern s32 D_8009284C;
+extern s32 D_80092934;
+extern u8 D_8006FC30[];
+extern u8 D_8006FC34[];
+extern u8 D_8006FC3C[];
+extern u8 D_8006FC48[];
+extern u8 D_8006FC54[];
+extern u8 D_8006FC58[];
+extern u8 D_8006FC5C[];
+extern u8 D_8006FC64[];
+extern u8 D_8006FC6C[];
+extern u8 D_8006FC74[];
+extern u8 D_8006FC78[];
+extern u8 D_8006FC8C[];
+extern u8 D_8006FC94[];
+extern u8 D_8006FCA8[];
+extern u8 D_8006FCB4[];
+extern void BattleSetTextCursor(s32, s32);
+extern s32 BattleCheckPositionPastMapCenter(u8 *);
+extern void BattleInitOnce(void);
+extern void BattleSetScreenMode(s32);
+extern void BattleByteRegTestReg(u8 *);
+extern void BattleMarkSlotAndQueueIfAllMarked(s32);
+extern s32 BattleGetScreenMode(void);
+extern s32 Sprintf(char *, char *, ...);
+extern s32 BattleVectorDistance(u8 *, u8 *);
+extern s32 BattleVectorDistance2D(u8 *, u8 *);
+
+void func_800751C8(u8 *p0, u8 *p1) {
+    char buf[0x10];
+    s32 mode;
+
+    D_8009294C++;
+    BattleSetTextCursor(0xA0, 0x64);
+    if (!BattleCheckValueAboveScaledMax(p0, 0x60) || !BattleCheckValueAboveScaledMax(p1, 0x60)) {
+        if (D_800928C4 != 0 && !BattleCheckPositionPastMapCenter(p0) &&
+            !BattleCheckPositionPastMapCenter(p1)) {
+            D_80091144 = 1;
+            D_80091145 = 0xA;
+            BattleInitOnce();
+        }
+    }
+    if (D_80092638 != 0) {
+        mode = 4;
+        if (D_80092640++ >= 0x3D) {
+            if (D_80092890 == 2) {
+                mode = 2;
+            }
+            BattleSetScreenMode(mode);
+            printf(D_8006FC30);
+            HeapAlloc(1, 0);
+            printf(D_8006FC34);
+        }
+        if (D_80092890 == 2) {
+            BattleByteRegTestReg(D_8006FC3C);
+        } else {
+            BattleByteRegTestReg(D_8006FC48);
+        }
+    } else if (*(u32 *)(p0 + 0xD0) & 0x800000) {
+        if (*(u32 *)(p1 + 0xD0) & 0x800000) {
+            D_80092638 = 1;
+            D_800928D4 = 0;
+            D_80092890 = 2;
+            D_80092918++;
+        } else {
+            D_80097102++;
+            D_80092638 = 1;
+            D_800928D4 = 0;
+            D_80092890 = 1;
+            if (*(u32 *)(p1 + 0xD0) & 0x40) {
+                D_800928FC = 0;
+            } else {
+                D_800928FC = 1;
+            }
+            BattleSetResultCode(0);
+        }
+    } else if (*(u32 *)(p1 + 0xD0) & 0x800000) {
+        D_8009881E++;
+        D_80092638 = 1;
+        D_800928D4 = 0;
+        D_80092890 = 0;
+        D_800928FC = 0;
+        BattleSetResultCode(1);
+        if ((*(u32 *)(p1 + 0xD0) & 0x40) && D_800928C8 != 3) {
+            printf(D_8006FC54);
+            HeapAlloc(1, 2);
+            printf(D_8006FC34);
+            BattleMarkSlotAndQueueIfAllMarked(*(u8 *)(p1 + 0x909));
+            printf(D_8006FC58);
+            HeapAlloc(1, 2);
+            printf(D_8006FC5C);
+        }
+    }
+    if (D_8009263C != 0) {
+        if (D_8009263C < 0x1E) {
+            if (BattleGetScreenMode() != 7 && D_800928C8 != 4) {
+                BattleByteRegTestReg(D_8006FC64);
+            }
+            D_800928D4 = 1;
+        } else if (D_8009263C < 0x3C) {
+            if (BattleGetScreenMode() != 7) {
+                if (D_800928C8 == 4) {
+                    BattleByteRegTestReg(D_8006FC6C);
+                    if (D_80092884 != 0) {
+                        BattleByteRegTestReg(D_8006FC74);
+                        BattleByteRegTestReg(D_8006FC78);
+                    }
+                } else {
+                    BattleByteRegTestReg(D_8006FC8C);
+                    if (D_80092884 != 0) {
+                        BattleByteRegTestReg(D_8006FC74);
+                        BattleByteRegTestReg(D_8006FC94);
+                    }
+                }
+            }
+        } else {
+            if (BattleGetScreenMode() != 7) {
+                if (D_800928C8 == 4) {
+                    BattleByteRegTestReg(D_8006FCA8);
+                    if (D_80092884 != 0) {
+                        BattleByteRegTestReg(D_8006FC74);
+                        BattleByteRegTestReg(D_8006FC78);
+                    }
+                } else {
+                    Sprintf(buf, D_8006FCB4, D_80092950);
+                    BattleByteRegTestReg(buf);
+                    if (D_80092884 != 0) {
+                        BattleByteRegTestReg(D_8006FC74);
+                        BattleByteRegTestReg(D_8006FC94);
+                    }
+                }
+            }
+        }
+        D_8009263C--;
+    }
+    D_80092850 = BattleVectorDistance(p0, p1);
+    D_8009284C = BattleVectorDistance2D(p0, p1);
+    D_80092934 = ratan2(*(s32 *)(p0 + 0x0) - *(s32 *)(p1 + 0x0), *(s32 *)(p0 + 0x8) - *(s32 *)(p1 + 0x8));
+} */
+
+
 s32 BattleComputeScaledFieldDelta(u8 *p0, u8 *p1, s32 scale) {
     return (*(s16 *)(p1 + 0x15EC) * scale) / 32 - *(s16 *)(p0 + 0x15EE);
 }
