@@ -23,9 +23,24 @@ extern u8 D_800D2CE0[];
 extern u8 D_800D2204[];
 extern u8 D_800D3688[];
 extern u8 D_800C3D70[];
+extern u8 D_800C3FFE[];
 extern u8 func_80085084(u16 arg0, u8 arg1, s32 arg2);
 extern s32 BattleIsCharacterInParty(u8 arg0);
 extern void func_8009A854(u8 arg0);
+extern u16 D_800D2C94;
+extern u8 D_800D2C98;
+extern u8 D_800D32A1[];
+extern u16 D_800C3D64;
+extern u8 D_800C3E2C;
+extern u8 D_800CDD40[];
+extern u8 D_800CEF10[];
+extern void func_80085388(void);
+extern void func_80079840(u8 arg0, u8 arg1);
+extern void BattleQueueCommandFE(u8 arg0);
+extern void BattleApplySlotCurveAndStep(u8 arg0);
+extern void BattleBeginActorAction(u8 arg0, u16 arg1, u16 arg2);
+extern s32 BattleFindMinValueOtherSlot(u8 arg0);
+extern void func_800B89FC(s32 arg0, u8 arg1, s32 arg2, s32 arg3);
 
 void BattlePlaySoundIfEnabled(u8 arg0) {
     if (D_800D366C != 0) {
@@ -101,6 +116,71 @@ void BattleQueueCommandF3WithSlotMask(u16 arg0, u8 arg1) {
 }
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008ADD0);
+/* Best: 96.69% under the unit flags (816 bytes vs the original's 796), but
+   99.73% under -G0 -- report PRESET_G0. Two matched neighbours
+   (BattleParseNumberToDigits, BattleClearPrimFlagsTwoSlots) stay at 100.0 under
+   -G0, so this unit probably wants XenoBattle260 with -G0.
+   Under -G8 the whole diff traces to one instruction: retail materialises
+   D_800D2C94 into a callee-saved register once (`lui s1,%hi; addiu s1,s1,%lo`)
+   and reads it twice across three calls (`lhu a0,0(s1)`, later `lhu v1,0(s1)`),
+   which also gives the loop counter `i` its own register (retail `li s2,3` sits
+   in the delay slot right after `jal func_80085388`) and arg0 $s3. gcc 2.6 folds
+   the constant address into each load (`lui a0,%hi; lhu a0,0(a0)`), which leaves
+   3 saved registers instead of 4, so every later saved-register name shifts by
+   one and the diff can never reach 100. Tried: u16 *pMask local assigned at the
+   load site and at the top of the function, `register u16 *pMask`, volatile
+   pointer-to-const, pMask[0], -O1 (83.43), -O3 (cc1 fails).
+void func_8008ADD0(u8 arg0) {
+    u16 *pMask;
+    s32 off;
+    s32 i;
+    u16 mask;
+    u16 sel;
+    u8 value;
+
+    D_800D366C = 0;
+    func_800BCD98(0);
+    value = 0xFF;
+    for (off = 0x8B8; off >= 0; off -= 0x48) {
+        D_800C402F[off] = value;
+    }
+    if (D_800D32A1[arg0 * 8] == 0) {
+        D_800C3EAC[0x2DC] = D_800C3EAC[0x2E6] + 0x17;
+        off = (D_800C3EAC[0x2E6] + 0x16) * 40 + arg0 * 1520;
+        sel = *(u16 *)(D_800CDD40 + off) & 7;
+    } else {
+        D_800C3EAC[0x2DC] = D_800C3EAC[0x2E6] + 0x16;
+        off = (D_800C3EAC[0x2E6] + 0x15) * 40 + arg0 * 1680;
+        sel = *(u16 *)(D_800CEF10 + off) & 7;
+    }
+    if (sel != 0) {
+        mask = D_800C3D64;
+    } else {
+        mask = BattleSlotBitMask(D_800C3E2C);
+    }
+    pMask = &D_800D2C94;
+    BattleQueueCommandF3WithSlotMask(mask, arg0);
+    func_80085388();
+    BattleBeginActorAction(arg0, mask, D_800C3EAC[0x2DC] - 1);
+    BattleApplySlotCurveAndStep(D_800C3EAC[0x2DA]);
+    mask = BattleSlotBitMask(arg0);
+    func_800BC404(*pMask | mask);
+    func_800B89FC(1, arg0, D_800C3EAC[arg0 * 0x40 + 0x3C], BattleFindMinValueOtherSlot(arg0));
+    D_800C402F[D_800C3EAC[0x2DA] * 72] = D_800D2C98;
+    D_800C400B[D_800C3EAC[0x2DA] * 72] = arg0;
+    *(u16 *)(D_800C3FFE + D_800C3EAC[0x2DA] * 72) = *pMask;
+    for (i = 3; i < 11; i++) {
+        if (BattleMaskHasSlotBit(D_800D2C94, i) != 0) {
+            func_80079840(arg0, i);
+        }
+    }
+    D_800C3EAC[0x2DA] = D_800C3EAC[0x2DA] + 1;
+    BattleQueueCommandFE(arg0);
+    while (D_800C3EAC[0x2DB] == 0) {
+        BattleUpdateFrame();
+    }
+}
+*/
 void BattleClearPrimFlagsFourSlots(u8 arg0) {
     D_800D2D28[0x9C] = D_800D2D28[0x9D] = D_800D2D28[0x9E] = 0;
     D_800D2D28[0xB0] = D_800D2D28[0xB1] = D_800D2D28[0xB2] = D_800D2D28[0xB3] = 0;
