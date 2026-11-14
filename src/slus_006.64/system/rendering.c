@@ -663,42 +663,19 @@ void SpriteApplyDirTransforms(SpriteData* pSpriteData, s32 index, SpriteAnimPack
 }
 
 // Animation frame and tile data stuff
-/* Best attempt: 95.23% (456 bytes, same instruction count as the original).
-   What this attempt fixed over the 91.88% one: pBlock is built with integer
-   (mem_addr) addition so the original's `addu v1,v1,a0` operand order comes out;
-   `pEntry++` belongs BEFORE the `entryFlags & 0x40` test (the original keeps it
-   in that branch's delay slot and the else arm then only adds 1 + (f&1) + (f&2)).
-   What is still wrong:
-   1. frame: the original reserves 0x40 (saves at 0x20-0x38) with 0x20 bytes of
-      unused stack; this C gets 0x30 (the default 0x10 outgoing-args area + the 7
-      saves). SpriteApplyDirTransforms, the sibling, has a tight 0x30 frame, and an unused
-      local such as `MATRIX unused;` is dropped by gcc, so the extra 0x10 looks
-      like a larger outgoing-args area in the original rather than a local.
-      Round r12 checked that: the largest call in the body takes 3 arguments
-      (SpriteApplyDirTransforms), then HeapAlloc(2) and SpriteClearDirTransforms(1), so the outgoing
-      area can only be 0x10, and no instruction in the 115 accesses any stack
-      word in 0x00-0x1F. So the extra 0x10 is not outgoing args; it behaves like
-      incoming-parameter / pretend-arg space (a callee that declares more
-      parameters than the callers pass), which source C cannot express without
-      changing the signature.
-   2. the original emits `andi s5,v0,0x80` (unkFlag) BEFORE `andi s4,v0,0x3f`
-      (count) and both before the `beqz count`; this C gets count first and
-      unkFlag folded down into the loop head (its only use), which then takes the
-      `beqz count` delay slot and pushes the pEntry `addu` above the branch.
-   3. the `entryFlags & 0x10` arm: the original loads the entry byte and does
-      `pEntry++` before the pBase/pDirTransforms loads; this C computes the store
-      address first (same 9 instructions, different order).
-
 void func_8001F8E8(SpriteData* pSpriteData, s32 index, SpriteAnimPackage* pAnimPackage) {
     u8* pFrames;
     u8* pBlock;
     u8* pEntry;
     u16 header;
-    u32 unkFlag;
+    u8 flags;
+    u8 unkFlag;
     u32 count;
     u8 entryFlags;
     s32 dir;
     s32 i;
+    s16 rotZ;
+    VECTOR vec; /* unused: retail keeps these 0x10 stack bytes */
 
     pFrames = pAnimPackage->pFrames;
     header = *(u16*)pFrames;
@@ -708,9 +685,10 @@ void func_8001F8E8(SpriteData* pSpriteData, s32 index, SpriteAnimPackage* pAnimP
             return;
         }
         pBlock = (u8*)((mem_addr)((u16*)pFrames)[index] + (mem_addr)pFrames);
+        flags = *pBlock;
         i = 0;
-        unkFlag = *pBlock & 0x80;
-        count = *pBlock & 0x3F;
+        unkFlag = flags & 0x80;
+        count = flags & 0x3F;
         pEntry = pBlock + (count * 4 + 6);
         if (count != 0) {
             for (;;) {
@@ -724,13 +702,14 @@ void func_8001F8E8(SpriteData* pSpriteData, s32 index, SpriteAnimPackage* pAnimP
                         }
                         dir = entryFlags & 7;
                         if (entryFlags & 0x20) {
-                            *(u8*)((mem_addr)pSpriteData->pBase->pDirTransforms + dir * 8) = *pEntry++;
-                            *(u8*)((mem_addr)pSpriteData->pBase->pDirTransforms + (dir * 8 + 1)) = *pEntry++;
+                            (dir + pSpriteData->pBase->pDirTransforms->dirTransforms)->translationX = *pEntry++;
+                            (dir + pSpriteData->pBase->pDirTransforms->dirTransforms)->translationY = *pEntry++;
                         }
                         if (entryFlags & 0x10) {
-                            *(s16*)((mem_addr)pSpriteData->pBase->pDirTransforms + (dir * 8 + 6)) = *pEntry++ << 4;
+                            rotZ = *pEntry++ << 4;
+                            (dir + pSpriteData->pBase->pDirTransforms->dirTransforms)->rotationZ = rotZ;
                         } else {
-                            *(s16*)((mem_addr)pSpriteData->pBase->pDirTransforms + (dir * 8 + 6)) = 0;
+                            (dir + pSpriteData->pBase->pDirTransforms->dirTransforms)->rotationZ = 0;
                         }
                     } else {
                         if (entryFlags & 1) {
@@ -754,8 +733,6 @@ void func_8001F8E8(SpriteData* pSpriteData, s32 index, SpriteAnimPackage* pAnimP
         }
     }
 }
-*/
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001F8E8);
 
 // GraphicsDrawPauseLetters and func_8001FB30 were built by a cdk-compiler TU;
 // they live in system/rendering_pause_text.c, which carries that preset.
