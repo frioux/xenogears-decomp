@@ -109,15 +109,15 @@ void BattleStepActorFadeOut(BattleActorSprite *p) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BE1C4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BE330);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BE538);
-void BattleWriteHexDigits(s32 arg0, u8 *p, s32 n, s32 arg3) {
+void BattleWriteHexDigits(s32 value, u8 *pBuf, s32 n, s32 base) {
     s32 i;
 
     for (i = 0; i != n; i++) {
         s32 last = n - 1;
 
-        p[i + 1] = D_800C3784[(arg0 >> ((last - i) * 4)) & 0xF] + arg3;
+        pBuf[i + 1] = D_800C3784[(value >> ((last - i) * 4)) & 0xF] + base;
     }
-    p[0] = n;
+    pBuf[0] = n;
 }
 /* best 88.33%: everything matches but the loop-entry order.  Retail emits
    `beqz a2` with `i = 0` in its delay slot, so its RTL had the `last = n - 1`
@@ -299,7 +299,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BEE2C);
    system/graphics.  No C produces it. */
 s32 BattleCollectMaskedSlotActors(u16 mask, void **pOut, s32 arg2) {
     u8 *pBase;
-    u8 *pEntity;
+    BattleActorSprite *pSprite;
     s32 i;
     s32 count;
 
@@ -308,10 +308,10 @@ s32 BattleCollectMaskedSlotActors(u16 mask, void **pOut, s32 arg2) {
     count = 0;
     do {
         if ((mask & 1) != 0) {
-            pEntity = *(u32 **)(pBase + i * 4 + 0x8C8C);
-            if (pEntity != NULL) {
-                *(s32 *)(pEntity + 0x74) = arg2;
-                pOut[count] = pEntity;
+            pSprite = *(BattleActorSprite **)(pBase + i * 4 + 0x8C8C);
+            if (pSprite != NULL) {
+                pSprite->unk74 = (void *)arg2;
+                pOut[count] = pSprite;
                 count++;
             }
         }
@@ -362,7 +362,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BEFF4);
    new sprite pointer in $a2 and copies it with `move a0,a2` in the SpritePlayAnimation
    jal delay slot; ours allocates it straight to $a0 (so the slot gets a nop) and the
    sensor-table base lands in $a1 instead of $v1.  The sprite-table entry is the same
-   0x1C-byte stride D_800C3EB0 table that func_800BF3EB8 walks, and the 4-bit key is
+   0x1C-byte stride D_800C3EB0 table that func_800BF3E8 walks, and the 4-bit key is
    the (unkA8>>30) | ((unkAC.word&3)<<2) pairing seen in BattleLoadActorArchiveFile.  A permuter job.
 void func_800BEFF4(s32 actorIndex) {
     BattleActorSprite *pSprite;
