@@ -142,15 +142,14 @@ extern void func_8007D334(s32, s32, s32);
 extern void func_800732AC(void *, void *, s32);
 extern void func_8007E020(s32);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007B270);
-
-/* Best attempt: objdiff 95.11%. Only the load order of the first three bytes
-   differs (the original computes b = p[2] - 0x80 between the two loads); the
-   instruction multiset and registers are identical. Re-confirmed: writing the
-   three loads in the same order (r, b, g) still gives gcc `lbu p[0]; addiu r;
-   lbu p[2]; lbu p[1];` while retail has `lbu p[0]; lbu p[2]; addiu r; lbu
-   p[1];` - an allocator tie, not a source shape. */
 /*
+Best attempt: objdiff 81.41% (a stale note here claimed 95.11%; that body does not
+reproduce it - re-measured at 81.41%, and the permuter's own scoring agrees it is
+not the closest shape). Retail loads r then b then g and interleaves the -0x80
+adds (lbu r; lbu b; addiu r; lbu g; addiu b; bgez r; addiu g); every source shape
+tried emits the loads in a different order or routes one of the three through
+$t0. permute.sh 4 min: base=1156 best=675, its best candidate splits the load
+from the add (g = p1[2]; b = g - 0x80) and scores worse under objdiff (86.33%).
 void func_8007B270(u8 *p0, u8 *p1) {
     s32 r;
     s32 b;
@@ -189,6 +188,8 @@ void func_8007B270(u8 *p0, u8 *p1) {
     D_800926A0 = LoadClut2((u_long *)D_800926A8, D_80092698, D_8009269C);
 }
 */
+
+INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007B270);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007B388);
 
@@ -465,25 +466,23 @@ void BattleEffectQueuePrims(s32 arg0) {
     func_8007E3CC(arg0);
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007D0B4);
-
-/* Best attempt: objdiff 76.82%. The instruction multiset and the registers are
-   identical; the only difference is which side the -0x18 lands on. Original:
-   `lhu; addiu -0x18; ... addu vx,r` i.e. (vx - 0x18) + rand() % 0x30. Every
-   source shape tried folds to (vx + r) - 0x18, which schedules the addiu after
-   the modulo: `vx - 0x18 + rand() % 0x30` (73.11%, folds to vx + (r - 0x18)),
-   `vx + rand() % 0x30 - 0x18` (76.82%), `vx -= 0x18 - rand() % 0x30`, and a
-   `u16 v = pVec->vx;` temp (65.42%, keeps -0x18 in a saved reg). Same 76.82%
-   under gcc-2.6.0 and gcc-2.7.2-cdk, so it is not a compiler-version fold.
-   Also tried: `s32 vx = pVec->vx - 0x18; pVec->vx = vx + rand() % 0x30;` as two
-   statements per field (74.65%) - the load then sits before the rand() call. */
 /*
+Best attempt: objdiff 76.82%. Retail computes (vx - 0x18) INSIDE the modulo's
+divide sequence (mult; lhu vx; addiu -0x18; mfhi; ...; addu), i.e. the load and
+the subtract are emitted before mfhi; every shape tried puts the addiu after the
+whole `rand() % 0x30` expansion. Tried: `vx - 0x18 + rand() % 0x30` (73.11%),
+`vx + rand() % 0x30 - 0x18` (76.82%), `(s16)(vx - 0x18) + rand() % 0x30` (76.82%,
+the cast is folded away), a `u16 v = pVec->vx` temp (65.42%), and two statements
+per field (74.65%, the load then hoists above the call). Same under gcc-2.6.0 and
+gcc-2.7.2-cdk. Not run through the permuter yet.
 void func_8007D0B4(SVector *pVec) {
-    pVec->vx = pVec->vx + rand() % 0x30 - 0x18;
-    pVec->vy = pVec->vy + rand() % 0x30 - 0x18;
-    pVec->vz = pVec->vz + rand() % 0x30 - 0x18;
+    pVec->vx = (s16)(pVec->vx - 0x18) + rand() % 0x30;
+    pVec->vy = (s16)(pVec->vy - 0x18) + rand() % 0x30;
+    pVec->vz = (s16)(pVec->vz - 0x18) + rand() % 0x30;
 }
 */
+
+INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007D0B4);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007D190);
 
