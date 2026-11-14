@@ -167,26 +167,51 @@ extern s32 WorkListTaskGetTaskCallback(void *);
 extern void TimerWorkListSetTaskCallback(void *, void *);
 extern void func_800AFC68();
 
-void BattleCreateModelPartTask(s32 arg0, s32 arg1, s32 arg2, s32 arg3, s32 arg4, u8 *arg5, s32 arg6) {
-    u8 *p;
-    u8 *pSub;
-    u8 *pNode;
+// Appended block of the per-part task func_80023FD8 allocates (same layout as
+// lib_gear's LibGearJointTask). Its byte offset is the s16 at +0xBE of the task,
+// which is the sprite's allocatedDataSize.
+typedef struct {
+    /* 0x0 */ u8 unk0[0x4];
+    /* 0x4 */ void *pChainCallback;
+    /* 0x8 */ s32 unk8;
+    /* 0xC */ s16 partIndex;
+    /* 0xE */ s16 unkE;
+    /* 0x10 */ u16 offset[3];
+} BattlePartNode; // Size: 0x18
 
-    p = func_80023FD8(arg1, arg0, arg2, 0x18);
-    pSub = p + 0x38;
-    SpriteSetDirection(pSub, arg3);
-    func_800223B0(pSub, arg3);
-    SpriteSetScale(pSub, arg4);
-    pNode = p + *(s16 *)(p + 0xBE);
-    *(s32 *)(pNode + 0x8) = arg6;
-    *(u16 *)(pNode + 0xC) = arg5[5];
-    if (arg5[0x13] != 0) {
-        *(s32 *)(pNode + 0x4) = WorkListTaskGetTaskCallback(p);
-        TimerWorkListSetTaskCallback(p, func_800AFC68);
-        *(u16 *)(pNode + 0x10) = *(u16 *)(arg5 + 0x6);
-        *(u16 *)(pNode + 0x12) = *(u16 *)(arg5 + 0x8);
-        *(u16 *)(pNode + 0x14) = *(u16 *)(arg5 + 0xA);
-        *(u16 *)(pNode + 0xE) = arg5[0xC];
+// Per-part data BattleCreateModelPartTask copies into the node it creates.
+typedef struct {
+    /* 0x0 */ u8 unk0[0x5];
+    /* 0x5 */ u8 partIndex;
+    /* 0x6 */ u16 offsetX;
+    /* 0x8 */ u16 offsetY;
+    /* 0xA */ u16 offsetZ;
+    /* 0xC */ u8 unkC;
+    /* 0xD */ u8 padD[0x6];
+    /* 0x13 */ u8 unk13; // non-zero: installs func_800AFC68 as the task callback
+} BattlePartInfo; // Size: 0x14
+
+void BattleCreateModelPartTask(s32 arg0, s32 arg1, s32 arg2, s32 arg3, s32 arg4, BattlePartInfo *pInfo,
+                               s32 arg6) {
+    u8 *pTask;
+    u8 *pSprite;
+    BattlePartNode *pNode;
+
+    pTask = func_80023FD8(arg1, arg0, arg2, 0x18);
+    pSprite = pTask + 0x38;
+    SpriteSetDirection(pSprite, arg3);
+    func_800223B0(pSprite, arg3);
+    SpriteSetScale(pSprite, arg4);
+    pNode = (BattlePartNode *)(pTask + *(s16 *)(pTask + 0xBE));
+    pNode->unk8 = arg6;
+    pNode->partIndex = pInfo->partIndex;
+    if (pInfo->unk13 != 0) {
+        pNode->pChainCallback = (void *)WorkListTaskGetTaskCallback(pTask);
+        TimerWorkListSetTaskCallback(pTask, func_800AFC68);
+        pNode->offset[0] = pInfo->offsetX;
+        pNode->offset[1] = pInfo->offsetY;
+        pNode->offset[2] = pInfo->offsetZ;
+        pNode->unkE = pInfo->unkC;
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800AFC68);
@@ -330,14 +355,11 @@ void BattleClearBlockSlots(void) {
 }
 
 void BattleReleaseBlockSlots(s32 arg0) {
-    s32 i = 0;
-    u8 **p = D_800C3BAC;
-    u8 *pEntry;
+    s32 i;
 
-    for (; i < 9; i++) {
-        pEntry = *p++;
-        if (pEntry != NULL) {
-            BattleFreeBlock(arg0, pEntry);
+    for (i = 0; i < 9; i++) {
+        if (D_800C3BAC[i] != NULL) {
+            BattleFreeBlock(arg0, D_800C3BAC[i]);
         }
     }
     BattleClearBlockSlots();
