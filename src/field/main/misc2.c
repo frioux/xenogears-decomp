@@ -278,7 +278,16 @@ void func_8007254C(void) {
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_8007254C);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_800726E8);
-// 93.36% (856 bytes vs the original's 844): field camera dolly. The structure,
+// 93.36% (856 bytes vs the original's 844). Re-checked under the unit's
+// XenoFieldNoGp (-G0) preset: still 93.36. Retail's frame is 0x18 with ONE saved
+// register ($ra at 0x14, $s0 at 0x10), so exactly one of the two addresses the
+// block touches twice can live in a register across the func_8007234C call;
+// retail keeps &g_Scene.dollyStop (+0x65) and re-forms %hi/%lo for
+// g_Scene.sceneAngle.vy on each use, gcc keeps the vy address (materialised
+// first, for the table index) and re-forms dollyStop. That is a CSE winner
+// choice, not a source shape: the vy address is created first in every spelling
+// tried, and forcing dollyStop (a u_char* local, 89.89%) loses the frame.
+// field camera dolly. The structure,
 // the calls and every store match; what is left is (1) block 2 (the dollyStop
 // mask + the two func_800723* calls): the original holds &g_Scene.dollyStop in
 // $s0 and re-forms %hi/%lo for sceneAngle.vy on each use, gcc here holds
