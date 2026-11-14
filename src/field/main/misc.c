@@ -1238,12 +1238,7 @@ extern s32 D_800ADBC4;
 extern void* D_800ADBC8;
 extern s32 D_800ADBCC;
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008A7DC);
-/*
- * func_8008A7DC 98.73% - only difference is $s0/$s1 assignment
- * (archiveIndex vs characterId); instruction multiset identical.
 void func_8008A7DC(int characterId, int partyIndex) {
-    int archiveIndex;
     int size;
     void* pBuffer;
     int characterIndex;
@@ -1255,13 +1250,16 @@ void func_8008A7DC(int characterId, int partyIndex) {
         ArchiveCdDataSync(0);
     }
     if ((g_GameSceneMapNum & 0xC000) == 0) {
-        archiveIndex = characterId + 5;
+        int archiveIndex = characterId + 5;
+
         size = ArchiveDecodeAlignedSize(archiveIndex);
         g_GamePartyMemberSkins[D_800ADBCC] = characterId;
         pBuffer = HeapAlloc(size, 0);
         D_800ADBC0 = pBuffer;
         ArchiveReadFileToBuffer(archiveIndex, pBuffer, 0, 0x80);
     } else {
+        int archiveIndex;
+
         characterIndex = GameCharacterGetGearID(characterId);
         if (characterIndex == 0xFF) {
             characterIndex = 0;
@@ -1279,7 +1277,6 @@ void func_8008A7DC(int characterId, int partyIndex) {
     }
     D_800ADBC4 = 1;
 }
- */
 
 void FieldScriptSetInvertedAnimationId(void) {
     g_FieldScriptVMCurActor->unkAnimationId = ~SCRIPT_READ_U8_REL(1);
