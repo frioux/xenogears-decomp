@@ -141,6 +141,41 @@ void func_8007C75C(u8 **arg0, u8 arg1) {
     pRow[(*arg0)[1]] = result;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007C840);
+/* best: 82.94% (408 bytes vs retail 396). Whole structure is right (pre-test
+   rotation, the (arg1+3)*0x1C preheader value, s5 = arg1*0x40 reused by the
+   tail store, the sh/andi/sb tail). Two blockers: (1) gcc hoists the invariant
+   ADDRESS D_800C3EB4 + (arg1+3)*0x1C into s4 and keeps &D_800C3EB4 in an extra
+   saved register s6 (frame 0x40 vs 0x38), where retail keeps the OFFSET in s4
+   and re-forms `lui at/%hi + addu at,at,s4 + lbu %lo(at)` per use; (2) the tail
+   store's base/index land in the opposite registers (v1/a0 vs a0/v1).
+   Tried: the offset inline in the loop (this, 82.94%) and as a pre-loop s32
+   `record` local (78.44%: the multiply stops being strength-reduced).
+
+void func_8007C840(u8 **arg0, u8 arg1) {
+    u8 buf[3];
+    u16 *pRow = (u16 *)(D_800D3420 + arg1 * 0x40);
+
+    buf[0] = buf[1] = buf[2] = 0;
+    pRow[(*arg0)[1]] = 0;
+    while ((buf[0] & buf[1] & buf[2]) == 0) {
+        s32 slot = func_8001BD40(0, 2);
+        u8 idx = slot;
+
+        if (buf[idx] == 0) {
+            if (func_8007A628(idx, (*arg0)[2]) != 0 && D_800D32A1[idx * 8] != 0
+                && D_800C3EB4[(arg1 + 3) * 0x1C] == D_800C3EB4[idx * 0x1C]) {
+                u16 result = func_80089C08(idx);
+                s32 index = (*arg0)[1];
+                u16 *pTail = (u16 *)(D_800D3420 + arg1 * 0x40);
+
+                pTail[index] = result;
+                break;
+            }
+            buf[idx] = 1;
+        }
+    }
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007C9D4);
 /* best: 91.53% (340 bytes vs retail 336). Everything matches except two
    allocation details: (1) gcc computes the row base straight into s4
@@ -283,11 +318,13 @@ void func_8007CFB8(u8 **arg0, u8 arg1) {
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007D0CC);
 /* best: 85.97% (identical instruction multiset, 4 insns of ordering). Retail
-   forms the D_800D3430 base in a caller-saved temp and keeps it in a1 for the
-   loop body, with `lui/addiu` before the p[1] load and `i = 0` after it; gcc
-   hoists `i = 0` to the top and loads p first. Tried: the inline
-   *(D_800D3430 + arg1 * 0x40 + (*arg0)[1]) spelling (folds into $at and grows
-   the frame to 8), i = 0 between the store and the loop.
+   forms the D_800D3430 base in a1, then orders
+   [sll][lui/addiu][lw *arg0][addu base][lbu idx][move i=0][addu][sb];
+   gcc emits [move i=0][sll][lw *arg0][lui/addiu][lbu][addu base][addu][sb] -
+   i.e. the scheduler hoists `i = 0` to the very top and interleaves the two
+   address chains the other way round. Tried: i = 0 between store and loop,
+   the inline *(D_800D3430 + arg1*0x40 + (*arg0)[1]) spelling (folds into $at,
+   frame 8), index local. This is the scheduler-priority tie class.
 
 void func_8007D0CC(u8 **arg0, u8 arg1) {
     u8 *pRow = D_800D3430 + arg1 * 0x40;
