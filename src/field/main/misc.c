@@ -1238,12 +1238,7 @@ extern s32 D_800ADBC4;
 extern void* D_800ADBC8;
 extern s32 D_800ADBCC;
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008A7DC);
-/*
- * func_8008A7DC 98.73% - only difference is $s0/$s1 assignment
- * (archiveIndex vs characterId); instruction multiset identical.
 void func_8008A7DC(int characterId, int partyIndex) {
-    int archiveIndex;
     int size;
     void* pBuffer;
     int characterIndex;
@@ -1255,13 +1250,16 @@ void func_8008A7DC(int characterId, int partyIndex) {
         ArchiveCdDataSync(0);
     }
     if ((g_GameSceneMapNum & 0xC000) == 0) {
-        archiveIndex = characterId + 5;
+        int archiveIndex = characterId + 5;
+
         size = ArchiveDecodeAlignedSize(archiveIndex);
         g_GamePartyMemberSkins[D_800ADBCC] = characterId;
         pBuffer = HeapAlloc(size, 0);
         D_800ADBC0 = pBuffer;
         ArchiveReadFileToBuffer(archiveIndex, pBuffer, 0, 0x80);
     } else {
+        int archiveIndex;
+
         characterIndex = GameCharacterGetGearID(characterId);
         if (characterIndex == 0xFF) {
             characterIndex = 0;
@@ -1279,7 +1277,6 @@ void func_8008A7DC(int characterId, int partyIndex) {
     }
     D_800ADBC4 = 1;
 }
- */
 
 void FieldScriptSetInvertedAnimationId(void) {
     g_FieldScriptVMCurActor->unkAnimationId = ~SCRIPT_READ_U8_REL(1);
@@ -2553,10 +2550,6 @@ void FieldScriptWaitForFlagADB7C(void) {
     D_800B00C0 = 1;
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008EA58);
-
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008EC30);
-
 extern s16 D_800C3A20;
 extern s16 D_800C3A22;
 extern s16 D_800C3A24;
@@ -2574,6 +2567,48 @@ extern u16 D_800C3A3A;
 extern s32 D_800ADB70;
 extern s32 D_800ADB74;
 extern s32 D_800ADB80;
+
+INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008EA58);
+/*
+ * func_8008EA58 74.57% (456 bytes, same instruction count as retail). Every
+ * segment matches except where the store of the previous argument lands: retail
+ * emits [lw actor][sh D_800C3A20][lhu 0xCC][lui/lw scriptData][addu][lbu], we
+ * emit [lw actor][lui/lw scriptData][lhu 0xCC][sh D_800C3A20][addu][lbu] - the
+ * scheduler refuses to put the lui/sh pair before the scriptData load, so the
+ * ip read takes $v1 instead of retail's $v0. Same shape as the matched
+ * FieldScriptSetGameState184E, which stores through a loaded pointer
+ * (sh 0x184E(reg)) and schedules correctly; the absolute lui/sh pair here does
+ * not. Tried: direct assignment, an s16 value local stored before the next call,
+ * pActor loaded before the store with SCRIPT_READ_U8(pActor->ip + 0xB),
+ * including the load once (all 74.57%).
+void func_8008EA58(void) {
+    if (D_800ADBDC.value == 0) {
+        D_800B00C0 = 1;
+        g_FieldScriptVMCurActor->scriptInstructionPointer -= 1;
+    } else {
+        D_800C3A20 = FieldScriptArgument1(1, SCRIPT_READ_U8_REL(0xB));
+        D_800C3A2A = FieldScriptArgument2(3, SCRIPT_READ_U8_REL(0xB));
+        D_800C3A2C = FieldScriptArgument3(5, SCRIPT_READ_U8_REL(0xB));
+        D_800C3A2E = FieldScriptArgument4(7, SCRIPT_READ_U8_REL(0xB));
+        D_800C3A38 = FieldScriptArgument5(9, SCRIPT_READ_U8_REL(0xB));
+        D_800C3A32 = 0x140;
+        D_800ADB80 = 0x40;
+        D_800C3A36 = 1;
+        D_800C3A30 &= 0xF;
+        D_800C3A34 = 0x100;
+        D_800C3A26 = 0;
+        D_800C3A24 = 0;
+        D_800C3A22 = 0;
+        D_800C3A28 = 0x100;
+        D_800C3A3A = 0;
+        D_800ADB74 = 0;
+        D_800ADB70 = 1;
+        D_800B00C0 = 1;
+        g_FieldScriptVMCurActor->scriptInstructionPointer += 0xC;
+    }
+}
+
+INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008EC30);
 
 // 79.22%: everything up to the last four stores matches. The original's
 // post-reload scheduler emits them as [lhu D_800C3A30][lw g_FieldScriptVMCurActor]
