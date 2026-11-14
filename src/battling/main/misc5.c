@@ -192,7 +192,7 @@ void func_8007B270(u8 *p0, u8 *p1) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007B388);
 
-void func_8007BACC(void) {
+void BattleEffectUpdateSlots(void) {
     BattleSlot *p = D_80092AD8;
     s32 i;
     u32 n;
@@ -218,7 +218,7 @@ void func_8007BACC(void) {
     D_800926B4 = v;
 }
 
-void func_8007BB7C(void) {
+void BattleEffectClearSlots(void) {
     u8 *p = (u8 *)D_80092AD8;
     s32 i = 0x3B;
 
@@ -231,11 +231,11 @@ void func_8007BB7C(void) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007BBA0);
 
-void func_8007C100(Color4 *pColor) {
+void BattleEffectSetColor(Color4 *pColor) {
     D_800926B8 = *pColor;
 }
 
-void func_8007C124(SVector *pVec, s32 action) {
+void BattleEffectAddSlot(SVector *pVec, s32 action) {
     BattleSlot *pSlot = D_80092AD8;
     BattleAction *pAction;
     SlotMotion *pMotion;
@@ -358,7 +358,7 @@ void func_8007C880(s32 arg0, VECTOR *pVec, u32 arg2, s32 arg3) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007CAA4);
 
-s32 func_8007CD14(s32 a0, s32 a1, s32 a2, s32 a3) {
+s32 BattleEffectPackKey(s32 a0, s32 a1, s32 a2, s32 a3) {
     return (a3 & 0x7F) | ((a0 << 7) & 0x80) | (a1 << 24) | ((a2 << 8) & 0xFFFF00);
 }
 
@@ -446,7 +446,7 @@ void func_8007CD44(s32 arg0, VECTOR *pPos, VECTOR *pVec, u32 arg3) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007CD44);
 
-void func_8007CF78(MATRIX *pMat, s32 arg1) {
+void BattleEffectQueueMatrixPrims(MATRIX *pMat, s32 arg1) {
     MATRIX transposed;
 
     *(VECTOR *)PSX_SCRATCH = D_80096FA8;
@@ -460,7 +460,7 @@ void func_8007CF78(MATRIX *pMat, s32 arg1) {
     func_8007E3CC(arg1);
 }
 
-void func_8007D068(s32 arg0) {
+void BattleEffectQueuePrims(s32 arg0) {
     *(VECTOR *)PSX_SCRATCH = D_80096FA8;
     func_8007E3CC(arg0);
 }
@@ -487,14 +487,14 @@ void func_8007D0B4(SVector *pVec) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007D190);
 
-s32 func_8007D25C(s32 arg0) {
+s32 BattleEffectIsTwoVertexType(s32 arg0) {
     if (arg0 < 0x10) {
         return 0;
     }
     return arg0 < 0x20;
 }
 
-void func_8007D274(VECTOR *pSrc, VECTOR *pDst) {
+void BattleEffectJitterVector(VECTOR *pSrc, VECTOR *pDst) {
     pDst->vx = pSrc->vx + rand() % 64 - 32;
     pDst->vy = pSrc->vy + rand() % 64 - 32;
     pDst->vz = pSrc->vz + rand() % 64 - 32;
@@ -502,7 +502,7 @@ void func_8007D274(VECTOR *pSrc, VECTOR *pDst) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007D334);
 
-void func_8007D65C(s32 arg0, s32 arg1, s32 arg2) {
+void BattleEffectQueueLineByType(s32 arg0, s32 arg1, s32 arg2) {
     switch (arg2) {
     case 0x11:
         func_8007D334(arg0, arg1, 0);

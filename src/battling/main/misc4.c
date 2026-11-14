@@ -79,7 +79,7 @@ extern void BattleEffectInitContext(void);
 extern s32 rand(void);
 extern void BattleClearSpriteTables();
 extern void BattleEffectClearEntrySlots();
-extern void func_8007BB7C();
+extern void BattleEffectClearSlots();
 extern void BattleClearTextSpriteEntries();
 extern void BattleInitSoundSlots();
 extern void func_80074BA4(void);
@@ -91,7 +91,7 @@ extern void SystemStringReset();
 extern u8 D_8009868C[];
 extern void func_80074678();
 extern void BattleTransformEntryVertex();
-extern void func_8007C100();
+extern void BattleEffectSetColor();
 extern s32 func_8007CD44();
 extern void func_8007D190();
 extern void func_8007D7A8();
@@ -323,7 +323,7 @@ void func_8007920C(Actor* p) {
     p->unk950 = (p->unk940 + p->unk930) / 2;
 
     if ((p->unkD0 & 0x8000) && p->unkC5 == 0 && (p->unkC4 & 1)) {
-        func_8007C100(&p->unk15D4);
+        BattleEffectSetColor(&p->unk15D4);
         flag = (p->unkD0 >> 27) & 1;
         func_8007CD44(flag, &p->unk92C, &p->unk93C, flag);
         if (!(p->unkD0 & 0x10000)) {
@@ -421,7 +421,7 @@ void func_80079B44(void) {
     func_80078F00((Actor*)((u8*)pB - 0xCC));
     BattleEffectClearEntrySlots(D_80092644);
     BattleClearSpriteTables();
-    func_8007BB7C();
+    BattleEffectClearSlots();
     BattleRandomizeCameraPosition();
     D_800928F4 = 1;
     D_8009290C = -1;
@@ -568,7 +568,7 @@ void BattleResetScratchState(void) {
 
     BattleClearSpriteTables();
     BattleEffectClearEntrySlots(D_80092644);
-    func_8007BB7C();
+    BattleEffectClearSlots();
     BattleClearTextSpriteEntries();
     BattleInitSoundSlots();
     p = (D_80092890 != 0) ? D_8009790C : D_80099028;

@@ -38,7 +38,7 @@ typedef struct {
     /* 0xC */ RECT rect;
 } TimHeader; // Size: 0x14
 
-extern void func_80036188(ControllerBState* pState);
+extern void ControllerUpdateActuatorState(ControllerBState* pState);
 extern void func_80040C3C(void* pDest, int destSize, void* pSrc, int srcSize);
 
 extern u_char D_800501F8;
@@ -47,7 +47,7 @@ extern u_char D_80059418;
 extern u_char D_80059420;
 extern u_char D_80059484;
 
-void func_80035E44(void) {
+void ControllerUpdatePlayTime(void) {
     int limit;
 
     limit = 0x3C;
@@ -137,7 +137,7 @@ int func_80035FF8(RECT* pRect, char* pPath) {
 }
 */
 
-void func_8003611C(void) {
+void ControllerResetActuators(void) {
     D_8005A1BC[0].unk0 = 0;
     D_8005A1BC[0].unk4 = 0;
     D_8005A1BC[0].unk6 = 0;
@@ -146,7 +146,7 @@ void func_8003611C(void) {
     func_80040C3C(&D_8005A1BC[0], 4, &D_8005A1BC[1], 4);
 }
 
-void func_80036188(ControllerBState* pState) {
+void ControllerUpdateActuatorState(ControllerBState* pState) {
     if (pState->unk7) {
         return;
     }
@@ -169,18 +169,18 @@ void func_80036188(ControllerBState* pState) {
     }
 }
 
-void func_80036220(void) {
+void ControllerUpdateActuators(void) {
     ControllerBState* pState = D_8005A1BC;
 
-    func_80036188(&pState[0]);
-    func_80036188(&pState[1]);
+    ControllerUpdateActuatorState(&pState[0]);
+    ControllerUpdateActuatorState(&pState[1]);
 }
 
-void func_80036258(int index, u_short value) {
+void ControllerSetActuatorDuration(int index, u_short value) {
     D_8005A1C0[index * 4] = value;
 }
 
-void func_80036270(int index, u_char value) {
+void ControllerSetActuatorDisabled(int index, u_char value) {
     D_8005A1C3[index * 8] = value;
 }
 
@@ -192,7 +192,7 @@ void ControllerInit(void) {
     StartPAD();
     ChangeClearPAD(0);
     ControllerResetState();
-    func_8003611C();
+    ControllerResetActuators();
 
     D_80050204 = 0;
     D_8005938C = 1;
@@ -208,7 +208,7 @@ void ControllerInit(void) {
     g_ControllerButtonMappings[3] = 2;
 }
 
-void func_8003633C(u_char value) {
+void ControllerSetControllerFlag(u_char value) {
     D_8005938C = value;
 }
 
@@ -217,8 +217,8 @@ void ControllerUpdate(void) {
     D_80059488++;
     ControllerPoll();
     ControllerPushState();
-    func_80035E44();
-    func_80036220();
+    ControllerUpdatePlayTime();
+    ControllerUpdateActuators();
     if (D_800501FC != 0)
         ((void (*)(void))D_800501FC)();
     if (D_80010000 != -1 && D_80059390 != 0)
@@ -233,7 +233,7 @@ void ControllerSetFrameCallback(int value) {
     D_800501FC = value;
 }
 
-void func_80036400(int value) {
+void ControllerSetFlag80050200(int value) {
     D_80050200 = value;
 }
 

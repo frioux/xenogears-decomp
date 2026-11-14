@@ -186,7 +186,7 @@ void SpriteSetTaskHandler(WorkListEntry* pTask, int handlerIndex) {
 extern s32 D_80050100;
 extern u8 D_800C3664;
 extern void func_8001E3D8(SpriteData* pSpriteData, void* pArg);
-extern void func_8001E298(SpriteData* pSpriteData, void* pArg);
+extern void SpriteDrawFrame(SpriteData* pSpriteData, void* pArg);
 
 // Projects the sprite's position and queues it into the OT at its own depth
 // offset, either straight (bit 24) or through the model transform (bit 29).
@@ -240,7 +240,7 @@ void SpriteDrawProjected(WorkListEntry* pTask) {
             nOTOffset = ((SpriteData*)pSpriteData->field_0x70)->field_0x2e;
         }
         if ((u32)(nOTOffset - 1) < 0xFFF) {
-            func_8001E298(pSpriteData, &g_GfxCurOT[nOTOffset]);
+            SpriteDrawFrame(pSpriteData, &g_GfxCurOT[nOTOffset]);
         }
     }
 }

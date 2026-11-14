@@ -13,7 +13,7 @@ extern void SpriteClearDirTransforms(SpriteData* pSpriteData);
 // Rendering-related stuff
 
 // Allocate directions array
-void func_8001D4E8(SpriteData* pSpriteData) {
+void SpriteEnsureDirTransforms(SpriteData* pSpriteData) {
     if (pSpriteData->pBase->pDirTransforms == 0) {
         pSpriteData->pBase->pDirTransforms = HeapAlloc(sizeof(SpriteDirectionTransforms), 0);
         SpriteClearDirTransforms(pSpriteData);
@@ -82,7 +82,7 @@ void func_8001E148(SpriteData* pSpriteData) {
 */
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001E148);
 
-void func_8001E298(SpriteData* pSpriteData, void* pArg) {
+void SpriteDrawFrame(SpriteData* pSpriteData, void* pArg) {
     func_8001E148(pSpriteData);
     func_8001E3D8(pSpriteData, pArg);
 
@@ -91,7 +91,7 @@ void func_8001E298(SpriteData* pSpriteData, void* pArg) {
     }
 }
 
-void func_8001E2F8(SpriteData* pSpriteData, void* pArg1, void* pArg2) {
+void SpriteDrawFrameKeepTop(SpriteData* pSpriteData, void* pArg1, void* pArg2) {
     func_8001E148(pSpriteData);
     func_8001EE88(pSpriteData, pArg1, pArg2);
 
@@ -100,7 +100,7 @@ void func_8001E2F8(SpriteData* pSpriteData, void* pArg1, void* pArg2) {
     }
 }
 
-void func_8001E368(SpriteData* pSpriteData, void* pArg1, void* pArg2) {
+void SpriteDrawFrameKeepBottom(SpriteData* pSpriteData, void* pArg1, void* pArg2) {
     func_8001E148(pSpriteData);
     func_8001F1D4(pSpriteData, pArg1, pArg2);
 
@@ -117,7 +117,7 @@ s32 func_8001EE68(u8* pFlags) {
     return pFlags[1] >> 7;
 }
 
-s32 func_8001EE74(u16* pFlags) {
+s32 SpriteAnimPackageGetFrameCount(u16* pFlags) {
     return (*pFlags >> 9) & 0x3F;
 }
 
@@ -486,7 +486,7 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001F1D4);
 s16 D_80059194;
 s16 D_80059196;
 
-SVEC2* func_8001F530(SVEC2* pDest, s32 amount) {
+SVEC2* SpriteNextVramSlot(SVEC2* pDest, s32 amount) {
     SVEC2 pos;
     u16 offset;
 
@@ -546,9 +546,9 @@ void func_8001F5BC(SpriteData* pSpriteData, s32 unusedIndex, s32* pOutX, s32* pO
 
 /* Best attempt: 96.50%. UPDATE: this C scores 97.12% under gcc-2.7.2-cdk-psx,
    so the preset is not the answer; the miss is the allocator. Round r12: cdk is
-   ruled out for the whole unit -- under gcc-2.7.2-cdk-psx func_8001E2F8 and
-   func_8001E368 (both matched at 100% under 2.7.2) drop to 88.57%,
-   func_8001D4E8 to 97.14%, and func_8001E298/func_8001EE68/func_8001F530 fail
+   ruled out for the whole unit -- under gcc-2.7.2-cdk-psx SpriteDrawFrameKeepTop and
+   SpriteDrawFrameKeepBottom (both matched at 100% under 2.7.2) drop to 88.57%,
+   SpriteEnsureDirTransforms to 97.14%, and SpriteDrawFrame/func_8001EE68/SpriteNextVramSlot fail
    to compile at all.
    Instruction stream is identical; only the temp
    assignment differs (original: pSpriteData->t1, texPageBits->a3, color->a1,
@@ -663,7 +663,7 @@ void SpriteApplyDirTransforms(SpriteData* pSpriteData, s32 index, SpriteAnimPack
 }
 
 // Animation frame and tile data stuff
-void func_8001F8E8(SpriteData* pSpriteData, s32 index, SpriteAnimPackage* pAnimPackage) {
+void SpriteApplyFrameDirTransforms(SpriteData* pSpriteData, s32 index, SpriteAnimPackage* pAnimPackage) {
     u8* pFrames;
     u8* pBlock;
     u8* pEntry;

@@ -24,7 +24,7 @@ extern void MenuUpdateTransitionEffect(void);
 extern void MenuUpdatePlayTimeDigits(void);
 extern void MenuAddScreenPrims(void);
 extern void MenuUpdateCardStatus(void);
-extern void func_801C8EE8(void);
+extern void MenuRunCardSlotOperations(void);
 extern void func_8001BD40(s32 arg0, u8 arg1);
 extern void GameCheckAndHandleSoftReset(void);
 extern s32* D_8005917C; // -1 when no debugger is attached
@@ -111,7 +111,7 @@ void MenuRenderFrame(void) {
     MoveImage(&g_Menu->pSelectionMenu->unk1180, 0, renderContext * 0xE0);
     DrawOTag(&g_Menu->pGfxEnv->ot[0xF]);
     MenuUpdateCardStatus();
-    func_801C8EE8();
+    MenuRunCardSlotOperations();
 }
 void MenuPollInput(void) {
     u8 wasControllerUnplugged;

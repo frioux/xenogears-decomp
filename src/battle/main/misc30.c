@@ -65,7 +65,7 @@ extern void TimerWorkListRemoveTask(void* pTask);
 extern s32 BattleFindGroundTriangle(s16* pVec, s32 arg1, s32 arg2);
 extern s32 BattleFindTriangleContainingPoint(s16* pVec);
 extern void BattleProjectPointOntoIndexedTriangle(s16* pVec, s32 arg1, u8* pOut);
-extern void func_8001E298(SpriteData* pSprite, u_long* pOT);
+extern void SpriteDrawFrame(SpriteData* pSprite, u_long* pOT);
 extern void* func_800BFC80(void* pArg0, s32 arg1, s32 arg2);
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800B905C);
@@ -262,7 +262,7 @@ void BattleActorDrawProjected(u8* pTask) {
     }
     *(s16*)((u8*)pSprite + 0x2E) = otz;
     if ((u32)(otz - 1) < 0xFFF) {
-        func_8001E298(pSprite, g_GfxCurOT + otz);
+        SpriteDrawFrame(pSprite, g_GfxCurOT + otz);
     }
 }
 

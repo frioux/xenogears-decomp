@@ -1167,11 +1167,11 @@ int FieldArchiveTryDataSync(void) {
     return 0;
 }
 
-extern void func_8003633C(int);
+extern void ControllerSetControllerFlag(int);
 
 void FieldScriptClearControllerFlag(void) {
     if (SCRIPT_READ_U8_REL(1) == 0) {
-        func_8003633C(0);
+        ControllerSetControllerFlag(0);
     }
     g_FieldScriptVMCurActor->scriptInstructionPointer += 1;
 }

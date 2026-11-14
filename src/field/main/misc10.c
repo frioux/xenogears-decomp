@@ -3,7 +3,7 @@
 #include "field/actor.h"
 #include "field/script_vm.h"
 
-void func_80096214(void) {
+void FieldScriptWriteInventoryItemQuantity(void) {
     int nItemId;
     int nIndex;
     u_char* pQuantities;
@@ -20,7 +20,7 @@ void func_80096214(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
 }
 
-void func_800962C0(void) {
+void FieldScriptJumpIfInventoryHasItem(void) {
     if (func_80095124(FieldScriptVMGetArgument(1)) != -1) {
         g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
     } else {
@@ -28,7 +28,7 @@ void func_800962C0(void) {
     }
 }
 
-void func_8009631C(void) {
+void FieldScriptAddInventoryItem(void) {
     func_8009635C(FieldScriptVMGetArgument(1));
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
@@ -65,7 +65,7 @@ void func_8009635C(int nItemId) {
 }
 */
 
-void func_8009640C(void) {
+void FieldScriptRemoveInventoryItem(void) {
     int nItemId;
     int nIndex;
     u_char* pItems;
@@ -96,7 +96,7 @@ void FieldScriptCheckPartyMember(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer = FieldScriptVMGetInstructionArgument(2);
 }
 
-void func_80096534(void) {
+void FieldScriptJumpIfCharacterBit1D30(void) {
     if ((g_pGameState->unk1D30 >> SCRIPT_READ_U8_REL(1)) & 1) {
         g_FieldScriptVMCurActor->scriptInstructionPointer += 4;
     } else {
@@ -104,12 +104,12 @@ void func_80096534(void) {
     }
 }
 
-void func_800965A8(void) {
+void FieldScriptSetCharacterBit1D30(void) {
     g_pGameState->unk1D30 |= 1 << SCRIPT_READ_U8_REL(1);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
 }
 
-void func_800965F4(void) {
+void FieldScriptClearCharacterBit1D30(void) {
     g_pGameState->unk1D30 &= ~(1 << SCRIPT_READ_U8_REL(1));
     g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
 }

@@ -123,7 +123,7 @@ extern RECT D_800704E0; // .rodata
 extern s32 D_80077448;
 extern s32 D_801D68B4;
 
-void func_80074B58(void) {
+void MovieClearFrameBuffer(void) {
     RECT rect;
 
     rect.w = 0x280;
@@ -205,7 +205,7 @@ s32 func_8007519C(void) {
 }
 */
 
-void func_800753B8(void) {
+void MovieLoadSoundBanks(void) {
     char* pWdsFile;
 
     pWdsFile = ArchiveReadHddFile(D_80070304, 0);
@@ -227,7 +227,7 @@ void func_800753B8(void) {
     HeapFree(pWdsFile);
 }
 
-void func_8007548C(void) {
+void MovieCreateAudioManager(void) {
     char* pWdsFile;
 
     pWdsFile = ArchiveReadHddFile(D_80070370, 0);
@@ -239,7 +239,7 @@ void func_8007548C(void) {
     D_8007700C = SoundCreateAudioManagerOnHeap(ArchiveReadHddFile(D_80070394, 0));
 }
 
-void func_80075508(void) {
+void MoviePlayAudioManager(void) {
     SoundPlayAudioManager(D_8007700C, 0x7F, 0);
 }
 
@@ -258,7 +258,7 @@ int WorldMapSyncGearRideActors(u32 entryIndex) {
 
 INCLUDE_ASM("asm/movie/nonmatchings/main/misc2", func_80075D8C);
 
-void func_8007625C(void) {
+void MovieResetPlaybackAndClearScreen(void) {
     long pad[6];
     RECT rect;
 
@@ -373,7 +373,7 @@ reset:
 
 INCLUDE_ASM("asm/movie/nonmatchings/main/misc2", func_80076488);
 
-void func_800768D8(u16 arg0, s32 arg1, u16 arg2) {
+void MovieRequestFrame(u16 arg0, s32 arg1, u16 arg2) {
     D_80077010 = arg0;
     if (D_801D68B4 == 1) {
         if (arg2 != D_80077024) {
@@ -397,7 +397,7 @@ void func_800768D8(u16 arg0, s32 arg1, u16 arg2) {
     D_80077014 = 1;
 }
 
-void func_800769A4(void) {
+void MovieFadeAudioOnPadPress(void) {
     D_800773B4 = D_800773AC;
     D_800773AC = ControllerGetButtonState(0);
     if (D_800773B4 == D_800773AC) {
