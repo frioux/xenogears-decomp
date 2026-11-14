@@ -39,8 +39,72 @@ extern void SystemDecodeGlyphCodesN(u16* pInput, u8* pOutput, int count);
 extern s32 func_8002675C(MenuResourceDirectory* pDir, u32 index, POLY_FT4* pPrims, s32 context, u16 x, u16 y, u16 scale);
 extern void func_801D1EE0(s32 arg0, s32 arg1);
 
+extern s32 D_801EA02C;
+extern s32 D_801EA030;
+extern s32 D_801EA034;
+extern s32 D_801EA038;
+extern s32 D_801EA03C;
+extern s32 D_801EA040;
+extern s32 D_801EA044;
+extern s32 D_801EA048;
+
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E6CFC);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E6F5C);
+/* Best: 68.99% (556 vs 484 bytes). Shape is certain (it is the func_801D51EC
+   idiom from misc7: MenuParseNumberToDigits, then a counter byte at
+   unk34C + index*0x87C + 0x130A, then two loops over g_Menu->digits[6+i] that
+   accumulate func_8002675C return values, the second one with an n counter for
+   the x spacing). What is still wrong:
+   - gcc 2.6 hoists `(u_char)index * 0x50` (the x spacing term) out of loop 1
+     into the preheader; retail recomputes it in the body every iteration
+     (`sll v0,s2,2; addu v0,v0,s2; sll v0,v0,4`, first insn in the beq delay
+     slot). Tried: naming the sum in an s32 local (still hoisted), i*8 first,
+     (u_char)index inline. This is the blocker.
+   - retail keeps `(u_char)index` in s2 across both calls (`addu s2,v1,zero` in
+     the jal delay slot) and i in s0 initialised in the PROLOGUE (move s0,zero
+     right after sw s0,32(sp)); mine recomputes the andi after the call and puts
+     `move i,0` in the jal delay slot.
+   - retail's two addresses off the base differ in order: counter is
+     addu a0,unk34C,offset (base first) but the poly base is
+     addiu v0,offset,0xA98 then addu v0,v0,unk34C.
+   - x/y need s32 (not u16) in the func_8002675C prototype or gcc narrows the
+     load to `lhu` of the global; with u16 at 66.5%, with s32 68.99%.
+   func_801E6F5C is the same body with: lbu fields pEntry[index+0x10] and
+   pEntry[index+0x13], counter bytes 0x130C/0x130D, tables D_801EA03C/40/44/48,
+   poly offsets 0x6E0/0x780, loop bound 2, digits[7+i].
+void func_801E6CFC(s32 index, u8* pEntry) {
+    s32 i = 0;
+    s32 n;
+    u32 offset;
+
+    MenuParseNumberToDigits(*(u16*)(pEntry + (u_char)index * 2 + 4));
+    offset = (u_char)index * 0x87C;
+    ((u8*)g_Menu->unk34C + offset)[0x130A] = 0;
+    for (; i < 3; i++) {
+        if (g_Menu->digits[6 + i] != 0xFF) {
+            ((u8*)g_Menu->unk34C + offset)[0x130A] += func_8002675C(g_Menu->resources,
+                g_Menu->digits[6 + i],
+                (POLY_FT4*)((u8*)g_Menu->unk34C + offset + 0xA98
+                    + (((u8*)g_Menu->unk34C + offset)[0x130A] * 0x50 + 0x500)),
+                g_Menu->renderContext, D_801EA02C + (u_char)index * 0x50 + i * 8, D_801EA030, 0x1000);
+        }
+    }
+    i = 0;
+    MenuParseNumberToDigits(*(u16*)(pEntry + (u_char)index * 2 + 0xA));
+    ((u8*)g_Menu->unk34C + offset)[0x130B] = 0;
+    n = 0;
+    for (; i < 3; i++) {
+        if (g_Menu->digits[6 + i] != 0xFF) {
+            ((u8*)g_Menu->unk34C + offset)[0x130B] += func_8002675C(g_Menu->resources,
+                g_Menu->digits[6 + i],
+                (POLY_FT4*)((u8*)g_Menu->unk34C + offset + 0xA98
+                    + (((u8*)g_Menu->unk34C + offset)[0x130B] * 0x50 + 0x5F0)),
+                g_Menu->renderContext, D_801EA034 + (u_char)index * 0x50 + n * 8, D_801EA038, 0x1000);
+            n++;
+        }
+    }
+}
+*/
 void func_801E71B4(s32 index, u8* pEntry, s32 arg2) {
     RECT rect;
     u8 pairs[0x14];
