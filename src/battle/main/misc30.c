@@ -29,7 +29,7 @@ extern void func_80022B2C(SpriteData* pSprite);
 extern s32 func_800BEF24(SpriteData* p0, SpriteData* p1);
 extern void func_800223B0(SpriteData* pSprite, s16 arg1);
 extern void func_800BF0B4(s32 arg0);
-extern void func_800B14CC(s32 arg0);
+extern void BattleWaitForOtherActorAnimations(s32 arg0);
 extern void func_800B9B54(SpriteData* p0, SpriteData* p1);
 extern void func_8001CE74(void* pTask);
 extern void func_8001D3F4(void* pPayload);
@@ -415,7 +415,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800BB080);
    the symbol base (lui s0,0x1; addiu s0,-29512) and uses -0x2C for the other
    access, which also drags the loop-bound `3` into a register (li s3,3).
    The call through pSprite->field_0x6C+0xC, the three break tests and the
-   func_800B14CC tail are otherwise identical.
+   BattleWaitForOtherActorAnimations tail are otherwise identical.
    Also tried: named pointer locals for the two zero stores (the ppSlot trick
    that closed BattleActorSetFacingFromSideFlag and BattleReleaseActorSlot here); loop.c then hoists BOTH
    0x8C8C and 0x8CB8 into callee-saved registers and the frame grows to 0x30.
@@ -442,7 +442,7 @@ void func_800BB080(s32 arg0) {
         *(u32*)(pEntry + 0x8CB8) = 0;
         pEntry += 4;
     }
-    func_800B14CC(arg0);
+    BattleWaitForOtherActorAnimations(arg0);
 }
 */
 void func_800BB13C(u8* pTask) {

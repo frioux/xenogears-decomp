@@ -21,7 +21,7 @@ extern s16 BattleFindTriangleContainingPoint(s16 *);
 extern void BattleProjectPointOntoIndexedTriangle(s16 *, s16, void *);
 extern s32 BattleFindGroundTriangle(s16 *, s16, s32);
 extern void SoundRemoveSedsEntry(s32);
-extern void func_800B00D0(void);
+extern void BattleClearBlockSlots(void);
 extern u8 D_800C3D0C[];
 extern u8 *D_800D3368[];
 extern void func_800A9FF0(s32);
@@ -68,7 +68,7 @@ typedef struct {
 
 extern BattleFrame D_800C3BD0;
 
-s16 func_800AF2C4(s32 *pAxis, VECTOR *pV0, VECTOR *pV1, s32 divisor) {
+s16 BattleComputeScaledSine(s32 *pAxis, VECTOR *pV0, VECTOR *pV1, s32 divisor) {
     s32 vec[3];
     s32 dot;
     s32 len;
@@ -81,7 +81,7 @@ s16 func_800AF2C4(s32 *pAxis, VECTOR *pV0, VECTOR *pV1, s32 divisor) {
     return dot;
 }
 
-s32 func_800AF400(void) {
+s32 BattleFindFirstActorInMask(void) {
     s32 i;
 
     for (i = 0; i < 13; i++) {
@@ -91,9 +91,9 @@ s32 func_800AF400(void) {
     }
     return i;
 }
-s32 func_800AF438(u8 *p, u32 id, u16 *pOut) {
+s32 BattleResolveTargetSlot(u8 *p, u32 id, u16 *pOut) {
     if ((id & 0xFF) == 0xFF) {
-        id = func_800AF400();
+        id = BattleFindFirstActorInMask();
     } else if ((id & 0xFF) == 0xFE) {
         id = D_800C3D40;
     } else if ((id & 0xFF) == 0xFD || (id & 0xFF) == 0xF9) {
@@ -113,7 +113,7 @@ s32 func_800AF438(u8 *p, u32 id, u16 *pOut) {
 extern u8 D_800CCD1E;
 extern u8 func_8009C050(u8);
 
-s32 func_800AF518(u8 *p, u32 id, s32 *pOut) {
+s32 BattleGetActorActionEntry(u8 *p, u32 id, s32 *pOut) {
     u32 sel = id;
     u8 kind;
 
@@ -143,7 +143,7 @@ s32 func_800AF518(u8 *p, u32 id, s32 *pOut) {
     return ((s32 *)*(u32 *)(p + 0x18))[(sel & 0xFF) - 0x3F];
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800AF678);
-void func_800AFA98(BattleModel *pModel, BattleModelNode *pNode, s32 flags) {
+void BattleSetModelNodeFlagRecursive(BattleModel *pModel, BattleModelNode *pNode, s32 flags) {
     BattleModelNode *pChild;
     s32 i;
 
@@ -153,7 +153,7 @@ void func_800AFA98(BattleModel *pModel, BattleModelNode *pNode, s32 flags) {
         for (i = 1; i < pModel->pNodes->unkA; i++) {
             pChild++;
             if (pChild->pParent == pNode) {
-                func_800AFA98(pModel, pChild, flags);
+                BattleSetModelNodeFlagRecursive(pModel, pChild, flags);
             }
         }
     }
@@ -166,7 +166,7 @@ extern s32 WorkListTaskGetTaskCallback(void *);
 extern void TimerWorkListSetTaskCallback(void *, void *);
 extern void func_800AFC68();
 
-void func_800AFB4C(s32 arg0, s32 arg1, s32 arg2, s32 arg3, s32 arg4, u8 *arg5, s32 arg6) {
+void BattleCreateModelPartTask(s32 arg0, s32 arg1, s32 arg2, s32 arg3, s32 arg4, u8 *arg5, s32 arg6) {
     u8 *p;
     u8 *pSub;
     u8 *pNode;
@@ -286,7 +286,7 @@ void func_800AFD98(BattleModel *pModel, BattleModelNode *pNode, s32 flags, s16 x
 }
 */
 
-void func_800AFF9C(u8 *p) {
+void BattleSnapActorToGround(u8 *p) {
     u8 unk10[0x10];
     s16 vec[3];
     s16 index;
@@ -307,7 +307,7 @@ void func_800AFF9C(u8 *p) {
     }
 }
 
-void func_800B0060(u8 *p) {
+void BattleFreeActorBuffer(u8 *p) {
     if (*(s32 *)(p + 0xC) != 0) {
         if (*(u8 *)(p + 0x63) != 0) {
             SoundRemoveSedsEntry(*(s32 *)(*(u8 **)(p + 0xB4) + 8));
@@ -319,7 +319,7 @@ void func_800B0060(u8 *p) {
     }
 }
 
-void func_800B00D0(void) {
+void BattleClearBlockSlots(void) {
     s32 i = 8;
     s32 *p = D_800C3BCC;
 
@@ -328,7 +328,7 @@ void func_800B00D0(void) {
     }
 }
 
-void func_800B00F4(s32 arg0) {
+void BattleReleaseBlockSlots(s32 arg0) {
     s32 i = 0;
     u8 **p = D_800C3BAC;
     u8 *pEntry;
@@ -339,7 +339,7 @@ void func_800B00F4(s32 arg0) {
             func_800A23E8(arg0, pEntry);
         }
     }
-    func_800B00D0();
+    BattleClearBlockSlots();
 }
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800B0164);
@@ -380,7 +380,7 @@ void func_800B0164(s32 arg0, s32 index, u8 arg2, u8 arg3, u16 arg4, u16 arg5, u1
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800B026C);
 
-s32 func_800B0AB4(s16 *pPos) {
+s32 BattleIsPointWithinBounds(s16 *pPos) {
     BattleStreamData *pData = D_800658C8;
 
     if (pPos[0] > pData->unk34E && pPos[0] < pData->unk34C && pPos[2] > pData->unk350 &&
@@ -424,7 +424,7 @@ s16 func_800B0B14(s32 index) {
     vec[1] = D_800D3356 + (dy << 9) / len;
     vec[2] = D_800D3358 + (dz << 9) / len;
     result = -1;
-    if (func_800B0AB4(vec) != 0 && index != D_800C3546) {
+    if (BattleIsPointWithinBounds(vec) != 0 && index != D_800C3546) {
         D_800C3546 = index;
         result = BattleFindGroundTriangle(vec, D_800C3542, 5);
         if (result < 0) {
@@ -444,7 +444,7 @@ s16 func_800B0B14(s32 index) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800B0D70);
-void func_800B0FF4(u16 *pA, u16 *pB) {
+void BattleSteerActorsTowardPoint(u16 *pA, u16 *pB) {
     s16 vec[3];
     s32 len;
 
@@ -455,7 +455,7 @@ void func_800B0FF4(u16 *pA, u16 *pB) {
     vec[2] = (vec[2] << 9) / len;
     func_800B0D70(vec, pB);
 }
-void func_800B10EC(s32 index, s32 x, s32 z, s32 dist) {
+void BattlePushActorOutOfCircle(s32 index, s32 x, s32 z, s32 dist) {
     u8 **pBase = D_800D3368;
     u8 **pp = &pBase[index];
     u8 *pModel;
@@ -585,7 +585,7 @@ void func_800B136C(void) {
             for (i = 0, pp = ppBase; i < 11; i++) {
                 pEntry = *pp++;
                 if (pEntry != NULL && *(s32 *)(pEntry + 0xC) != 0) {
-                    func_800B0060(pEntry);
+                    BattleFreeActorBuffer(pEntry);
                 }
             }
             flagA = 0;
@@ -597,10 +597,10 @@ void func_800B136C(void) {
     }
 }
 */
-void func_800B14B8(void) {
+void BattleSetExtraMatrixFlag(void) {
     D_800C3D6C = 1;
 }
-void func_800B14CC(s32 arg0) {
+void BattleWaitForOtherActorAnimations(s32 arg0) {
     s32 i;
     s32 flag;
     u8 *pEntry;

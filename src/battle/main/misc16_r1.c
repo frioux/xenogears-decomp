@@ -26,7 +26,7 @@ extern void func_800716D8(void);
 extern void HeapFree(void *pMem);
 extern void func_8008FC1C(s32, s32, s32, s32, u8);
 extern s32 func_80076A10(s32, s32, s16, s16);
-extern void func_80076C78(POLY_FT4 *p, s16 x, s16 y, u8 u, u8 v, s16 dx);
+extern void BattleSetPolyFT4RectH13(POLY_FT4 *p, s16 x, s16 y, u8 u, u8 v, s16 dx);
 extern void func_800769E8(RECT *pRect, u_long *pData);
 extern void *func_8008AC00(s32);
 extern void bzero(void *p, s32 n);
@@ -34,7 +34,7 @@ extern u8 *GetStringEntry(u8 *, s32);
 extern s32 SystemRenderStringEntry(u8 *, void *, s32, s32);
 extern u8 D_800C3D70[];
 extern void *func_8008ABB8(s32, s32);
-extern void func_80077454(s32);
+extern void BattleInitSlotPrims(s32);
 extern void func_8008F6E4(u8, s32, s32, s32, s32);
 extern void func_8008DC34(u8, s32, s32, s32, u16);
 extern void func_8008DE04(u8, s32, s32, s32);
@@ -46,7 +46,7 @@ extern void func_800904A0(s32, s32);
 extern void func_8009070C(u8, u8);
 extern void *D_800D2F5C;
 extern u8 D_800C3E4C;
-extern void func_80076B00(void *);
+extern void BattleSetPrimGrey80BlendModeFromGlobal(void *);
 extern s32 func_800263E4(void *, s32, void *, s32, s16, s16, s32, s32, s32);
 extern u16 D_800C324E;
 extern u16 D_800C3250;
@@ -62,7 +62,7 @@ extern u8 func_80085084(u16, u8, s32);
 extern void func_8008CCCC(u8);
 extern void func_8008CD28(u8);
 extern void func_8008AA74(u8);
-extern void func_80076CE8(POLY_FT4 *, s16, s16, u8, u8, s16, s16);
+extern void BattleSetPolyFT4Rect(POLY_FT4 *, s16, s16, u8, u8, s16, s16);
 
 
 void func_8008FA60(u8 arg0) {

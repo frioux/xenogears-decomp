@@ -28,7 +28,7 @@ extern s32 func_80089C6C(s32 mask, u8 idx);
 extern u8 D_800CCB34;
 extern u8* D_800D2DB4;
 extern s32 func_80076A10(s32 arg0, s32 arg1, s16 arg2, s16 arg3);
-extern void func_80076B68(u8* p);
+extern void BattleSetPrimGrey80BlendAdd(u8* p);
 extern Temp8* D_8005919C;
 extern void SoundPlaySoundEffectOnLastPair(s32 arg0);
 extern void func_8008860C(void);
@@ -56,7 +56,7 @@ extern u16 D_800D2C2A;
 extern void func_8007171C(void);
 extern void func_80089CCC(s32 arg0);
 extern void func_8008AAA0(s32 arg0);
-extern void func_80076BF0(u8 *p);
+extern void BattleSetPrimGrey80BlendSub(u8 *p);
 
 void func_80088990(void) {
     s32 i = 0;
@@ -119,7 +119,7 @@ void func_80089110(void) {
     D_800D2DB4[0x5D84] = D_800CCB34;
     for (i = 0; i < D_800D2DB4[0x5D75]; i++) {
         pEntry = (i * 2 + D_800D2DB4[0x5D84]) * 0x28 + 0x3AC0;
-        func_80076B68((u8*)(pEntry + (s32)D_800D2DB4));
+        BattleSetPrimGrey80BlendAdd((u8*)(pEntry + (s32)D_800D2DB4));
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc14", func_800891E4);
@@ -137,11 +137,11 @@ void func_800891E4(void) {
     D_800D2DB4[0x5D8E] = D_800CCB34;
     for (i = 0; i < D_800D2DB4[0x5D77]; i++) {
         off = (i * 2 + D_800D2DB4[0x5D86]) * 0x28 + 0x3E80;
-        func_80076B68((u8*)(off + (s32)D_800D2DB4));
+        BattleSetPrimGrey80BlendAdd((u8*)(off + (s32)D_800D2DB4));
     }
     for (i = 0; i < D_800D2DB4[0x5D7F]; i++) {
         off = (i * 2 + D_800D2DB4[0x5D8E]) * 0x28 + 0x43D0;
-        func_80076BF0((u8*)(off + (s32)D_800D2DB4));
+        BattleSetPrimGrey80BlendSub((u8*)(off + (s32)D_800D2DB4));
     }
 }
 */
@@ -170,7 +170,7 @@ void func_80089348(void) {
     }
     D_800D2DB4[0x5D87] = D_800CCB34;
     for (i = 0; i < D_800D2DB4[0x5D78]; i++) {
-        func_80076B68((u8*)((i * 2 + D_800D2DB4[0x5D87]) * 0x28 + 0x4E70 + (s32)D_800D2DB4));
+        BattleSetPrimGrey80BlendAdd((u8*)((i * 2 + D_800D2DB4[0x5D87]) * 0x28 + 0x4E70 + (s32)D_800D2DB4));
     }
 }
 */
@@ -202,7 +202,7 @@ void func_8008963C(void) {
     D_800D2DB4[0x5D7A] += func_80076A10(0x9D, (s32)&D_800D2DB4[off], 0x11A + n * 6, 0x56);
     D_800D2DB4[0x5D89] = D_800CCB34;
     for (i = 0; i < D_800D2DB4[0x5D7A]; i++) {
-        func_80076B68(&D_800D2DB4[(i * 2 + D_800D2DB4[0x5D89]) * 0x28 + 0x50A0]);
+        BattleSetPrimGrey80BlendAdd(&D_800D2DB4[(i * 2 + D_800D2DB4[0x5D89]) * 0x28 + 0x50A0]);
     }
 }
 */
@@ -227,7 +227,7 @@ void func_800897CC(void) {
     }
     D_800D2DB4[0x5D8A] = D_800CCB34;
     for (i = 0; i < D_800D2DB4[0x5D7B]; i++) {
-        func_80076B68((u8*)((i * 2 + D_800D2DB4[0x5D8A]) * 0x28 + 0x51E0 + (s32)D_800D2DB4));
+        BattleSetPrimGrey80BlendAdd((u8*)((i * 2 + D_800D2DB4[0x5D8A]) * 0x28 + 0x51E0 + (s32)D_800D2DB4));
     }
 }
 */

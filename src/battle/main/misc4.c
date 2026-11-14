@@ -56,7 +56,7 @@ extern u8* D_800C3EAC;
 extern u8 D_800C402F[];
 extern void func_800785D4(u8 arg0, u8 arg1);
 extern void func_80078658(u8 arg0, u8 arg1);
-extern void func_800787E0(u8 arg0, u8 arg1);
+extern void BattleQueueCommandF7(u8 arg0, u8 arg1);
 extern void BattleQueueCommandF8(u8 arg0);
 extern s32 func_8007A280(u8 arg0, u8 arg1, s32 arg2, s32 arg3);
 extern void func_800716D8(void);
@@ -84,7 +84,7 @@ void BattleQueueCommandF8(u8 arg0) {
 void BattleQueueCommandF8IfFlagged(u8 arg0, u8 arg1) {
     if (D_800D2E5F[arg0 * 8] != 0) {
         func_80078658(arg0, arg1);
-        func_800787E0(0x1E, arg1);
+        BattleQueueCommandF7(0x1E, arg1);
         BattleQueueCommandF8(arg1);
     }
 }

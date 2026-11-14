@@ -94,8 +94,8 @@ extern void WorldMapFreeFrameAnimEntries(void);
 extern void WorldMapFreeSpriteSets(void);
 extern void func_80086568(void);
 extern void func_800866C8(void);
-extern void func_80088FF4(void);
-extern void func_80089128(void);
+extern void WorldMapFreeSpriteGroupTable(void);
+extern void WorldMapFreePrimTemplateBuffers(void);
 extern void func_800976A0(void);
 extern void func_80097D64(void);
 
@@ -199,8 +199,8 @@ void func_8008106C(void) {
     func_800866C8();
     WorldMapFreeTileAnimEntries();
     WorldMapFreeFrameAnimEntries();
-    func_80088FF4();
-    func_80089128();
+    WorldMapFreeSpriteGroupTable();
+    WorldMapFreePrimTemplateBuffers();
     func_80097D64();
     HeapFree(D_8009BC38);
     HeapFree(D_8009BCB0);
@@ -479,8 +479,8 @@ s32 func_800826B4(void) {
     func_800866C8();
     WorldMapFreeTileAnimEntries();
     WorldMapFreeFrameAnimEntries();
-    func_80088FF4();
-    func_80089128();
+    WorldMapFreeSpriteGroupTable();
+    WorldMapFreePrimTemplateBuffers();
     func_80097D64();
     HeapFree(D_8009BC38);
     HeapFree(D_8009BCB0);

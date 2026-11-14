@@ -134,7 +134,7 @@ s32 func_80088D00(s32 arg0) {
 }
 */
 
-s32 func_80088D64(s32 arg0) {
+s32 WorldMapSetActorPosFromSpriteSetWithHeightOffset(s32 arg0) {
     u8* pDst;
     u8* pSrc;
 
@@ -146,12 +146,12 @@ s32 func_80088D64(s32 arg0) {
     return 1;
 }
 
-s32 func_80088DE4(s32 arg0) {
+s32 WorldMapQueueZoneEntryHeight60(s32 arg0) {
     func_8008BFD4(arg0, (u32*)(D_8009BE24 + (arg0 << 7) + 0x28), 0x68, 0x60);
     return 1;
 }
 
-s32 func_80088E1C(s32 arg0) {
+s32 WorldMapSetActorPosFromSpriteSet75(s32 arg0) {
     u8* pDst;
     s32* pSrc;
 
@@ -163,12 +163,12 @@ s32 func_80088E1C(s32 arg0) {
     return 1;
 }
 
-s32 func_80088E68(s32 arg0) {
+s32 WorldMapQueueZoneEntryHeight1A6(s32 arg0) {
     func_8008BFD4(arg0, (u32*)(D_8009BE24 + (arg0 << 7) + 0x28), 0x10C, 0x1A6);
     return 1;
 }
 
-s32 func_80088EA0(s32 arg0) {
+s32 WorldMapSetActorPosFromSpriteSet(s32 arg0) {
     u8* pDst;
     u8* pSrc;
 
@@ -180,20 +180,20 @@ s32 func_80088EA0(s32 arg0) {
     return 1;
 }
 
-s32 func_80088F1C(s32 arg0) {
+s32 WorldMapQueueZoneEntryHeight392(s32 arg0) {
     func_8008BFD4(arg0, (u32*)(D_8009BE24 + (arg0 << 7) + 0x28), 0xC9, 0x392);
     return 1;
 }
 
-s32 func_80088F54(void) {
+s32 WorldMapReturnThreeA(void) {
     return 3;
 }
 
-s32 func_80088F5C(void) {
+s32 WorldMapReturnThreeB(void) {
     return 3;
 }
 
-void func_80088F64(void) {
+void WorldMapInitSpriteGroupTables(void) {
     s32 i;
     u8* p;
 
@@ -219,7 +219,7 @@ void func_80088F64(void) {
     }
 }
 
-void func_80088FF4(void) {
+void WorldMapFreeSpriteGroupTable(void) {
     HeapFree(D_8009BDF4);
 }
 
@@ -259,7 +259,7 @@ void func_8008901C(void) {
 }
 */
 
-void func_80089128(void) {
+void WorldMapFreePrimTemplateBuffers(void) {
     HeapFree(D_8009BE1C);
     HeapFree(D_8009BE20);
 }
@@ -312,7 +312,7 @@ void func_800893E0(s32 arg0, u8* arg1, u8* arg2) {
 }
 */
 
-void func_800894C8(s32 arg0) {
+void WorldMapDeactivateSpriteGroup(s32 arg0) {
     u8* p;
     s32 i;
 
@@ -323,7 +323,7 @@ void func_800894C8(s32 arg0) {
     }
 }
 
-void func_80089514(s32 arg0) {
+void WorldMapClearGroupEntryFlag(s32 arg0) {
     s16* pEntry;
     s32 i;
     s32 j;

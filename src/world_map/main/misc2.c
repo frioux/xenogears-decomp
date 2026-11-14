@@ -387,7 +387,7 @@ extern void* D_8009D528;
 extern void WorldMapWaitForQueuedLoads(void);
 extern void func_80086124(void);
 extern void func_800866C8(void);
-extern void func_80089128(void);
+extern void WorldMapFreePrimTemplateBuffers(void);
 extern void WorldMapQueueTwoFileLoads(void);
 extern int ArchiveDataSync(void);
 extern void LZSSDecompress(void* pSrc, void* pDst);
@@ -415,7 +415,7 @@ void WorldMapEnterMenuMode(void) {
     WorldMapWaitForQueuedLoads();
     func_80086124();
     func_800866C8();
-    func_80089128();
+    WorldMapFreePrimTemplateBuffers();
     HeapFree(D_8009BC3C);
     HeapFree(D_8009BCB4);
     pTemp = HeapAlloc(4, 1);

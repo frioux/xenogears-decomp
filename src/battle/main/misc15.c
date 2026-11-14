@@ -7,8 +7,8 @@ extern u8 D_800D366C;
 extern int ArchiveDataSync(void);
 extern void func_8008AA40(u8 arg0);
 extern void func_800716D8(void);
-extern void func_8007765C(void);
-extern void func_80077980(void);
+extern void BattleFreePacketPrimitives(void);
+extern void BattleClearFlagC6(void);
 extern void func_8008FA60(s32 arg0);
 extern u16 func_80089C08(u8 arg0);
 extern void func_800BC404(u16 arg0);
@@ -234,8 +234,8 @@ void func_8008C360(u8 arg0) {
         func_8008FA60(0);
         func_8008FA60(1);
         func_800716D8();
-        func_8007765C();
-        func_80077980();
+        BattleFreePacketPrimitives();
+        BattleClearFlagC6();
     } else {
         D_800D2D28[0xB0] = D_800D2D28[0xB1] = 0;
     }

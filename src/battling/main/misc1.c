@@ -6,12 +6,12 @@ extern u8 D_80092954[];
 extern void func_80083C0C(int mode);
 extern void SystemStringFree(void* pString);
 
-void func_800707A8(void) {
+void BattleFreeMessageString(void) {
     func_80083C0C(3);
     SystemStringFree(&D_80092954[0]);
 }
 
-s32 func_800707D8(s32 a0, s32 a1, s32 a2) {
+s32 BattleRoundDivAwayFromZero(s32 a0, s32 a1, s32 a2) {
     s32 d;
 
     d = a0 - a1;
@@ -46,9 +46,9 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_80070808);
 void func_80070808(s32* p, s32 step) {
     s32* pX = &D_8009867C;
 
-    *pX += func_800707D8(p[0], *pX, step);
-    D_80098684 += func_800707D8(p[2], D_80098684, step);
-    D_80098680 += func_800707D8(p[1], D_80098680 + D_800925F4, step);
+    *pX += BattleRoundDivAwayFromZero(p[0], *pX, step);
+    D_80098684 += BattleRoundDivAwayFromZero(p[2], D_80098684, step);
+    D_80098680 += BattleRoundDivAwayFromZero(p[1], D_80098680 + D_800925F4, step);
 }
 */
 
@@ -67,9 +67,9 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_800708C4);
 void func_800708C4(s32* p, s32 step) {
     s32 values[3];
 
-    values[0] = func_800707D8(p[0], D_8009871C, step);
-    values[1] = func_800707D8(p[1], D_80098720, step);
-    values[2] = func_800707D8(p[2], D_80098724, step);
+    values[0] = BattleRoundDivAwayFromZero(p[0], D_8009871C, step);
+    values[1] = BattleRoundDivAwayFromZero(p[1], D_80098720, step);
+    values[2] = BattleRoundDivAwayFromZero(p[2], D_80098724, step);
     func_800828F8(&D_8009871C, values, 0x3D00);
     D_8009871C += values[0];
     D_80098720 += values[1];
@@ -81,7 +81,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_8007099C);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_80070C7C);
 
-void func_80070F80(s32 value) {
+void BattleSetValueAndClearFlags(s32 value) {
     D_800925F8 = value;
     D_80098774 = 0;
     D_80097058 = 0;
@@ -92,7 +92,7 @@ void func_80070F80(s32 value) {
 
 extern s32 D_80092934;
 
-s32 func_80070FD8(u8* p) {
+s32 BattleSetFacingAngleFromVector(u8* p) {
     VECTOR vec;
     s32 angle;
 
@@ -118,7 +118,7 @@ extern void* D_80092868;
 extern u8 D_800928A0;
 extern u8 D_800929E4[];
 
-void func_80071724(void* pOt) {
+void BattleQueueSpriteAndTpagePrims(void* pOt) {
     u8* p;
 
     p = D_80092868;
@@ -194,7 +194,7 @@ extern s32 D_800925D8;
 extern u8 D_8009868C[];
 extern s32 func_80032F54(void* pString, s16 a, s16 b, s16 c, s16 d, s16 e, s16 f);
 
-void func_800718C0(void) {
+void BattleInitMessageWindow(void) {
     D_800925D8 = -1;
     D_800925D4 = 0;
     func_80032F54(&D_8009868C[0], 0x140, 0x30, 0x1C, 0x9A, 0x40, 4);
@@ -233,7 +233,7 @@ void func_8007191C(u32 idx) {
         value = 0x9A;
     }
     D_80098692 = value;
-    func_80070F80(D_8009105C[idx]);
+    BattleSetValueAndClearFlags(D_8009105C[idx]);
     D_800925E8 = 0xA0;
     D_800925E0 = 0xA0;
     D_800925EC = 0x6D;
@@ -258,7 +258,7 @@ extern u8 D_80090F38[];
 extern u8* GetStringEntry(u8* pData, s32 index);
 extern void SystemStringPushBuffer(void* pString, u8* pEntry);
 
-void func_800719F0(void) {
+void BattleInitTutorialMessage(void) {
     D_80099D9D = 0;
     D_80099D9E = 0;
     func_80083C0C(7);
@@ -268,7 +268,7 @@ void func_800719F0(void) {
     SystemStringPushBuffer(&D_80092954[0], GetStringEntry(D_80092880, 0x42));
     D_800929BC = 0x1E;
     D_800925DC = 0;
-    func_80070F80(&D_80090F38[0]);
+    BattleSetValueAndClearFlags(&D_80090F38[0]);
     D_80092604 = 0;
     D_80092904 = 0;
     D_80092900 = 0;
@@ -329,7 +329,7 @@ void func_80071F8C(s32 mode) {
 
 extern u8 D_8009293C;
 
-void func_800720C4(void) {
+void BattleClearInitFlag(void) {
     D_8009293C = 0;
 }
 
@@ -344,11 +344,11 @@ extern s32 D_80092A20;
 extern s32 D_800970F8;
 extern s32 D_80098814;
 
-void func_800720D4(void) {
+void BattleInitOnce(void) {
     if (D_8009293C != 0) {
         return;
     }
-    func_80070F80((s32)&D_800910C4);
+    BattleSetValueAndClearFlags((s32)&D_800910C4);
     D_8009293C = 1;
     D_800928D4 = 0;
     D_80099D9D = 0;
@@ -365,7 +365,7 @@ void func_800720D4(void) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_80072170);
 
-void func_800725A8(void) {
+void BattleEmptyFunction(void) {
 }
 
 extern void* BattleCreateOrderingTablePair(s32 a0);
@@ -387,7 +387,7 @@ extern s16 D_80092632;
 extern void* D_800910F0;
 extern void* D_80092610;
 
-void func_800725B0(u8* p) {
+void BattleInitRenderScene(u8* p) {
     u8* pSrc;
     void* pAnim;
     s32 id;
@@ -439,7 +439,7 @@ extern void BattleResetTextPrimQueue(void);
 extern void* D_800910F0;
 extern void* D_80092610;
 
-void func_800726B4(void) {
+void BattleFreeRenderScene(void) {
     func_8008BC04();
     func_8007F834();
     func_80030988(1, 1, 0x40, 0x40);
@@ -454,7 +454,7 @@ void func_800726B4(void) {
 
 extern MATRIX D_80091C0C;
 
-void func_8007273C(u8* p, MATRIX* pIn, MATRIX* pOut) {
+void BattleComposeCameraMatrix(u8* p, MATRIX* pIn, MATRIX* pOut) {
     MATRIX mtx;
 
     *pOut = *pIn;

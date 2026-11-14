@@ -316,7 +316,7 @@ void func_80077DAC(void) {
     if (g_FieldSystemMode == SYSTEM_MODE_PC_HDD) {
         func_80281B00(D_8006FB80);
     }
-    func_800A31E8();
+    FieldScriptUpdateMemoryEachFrame();
 }
 
 // FieldMain-related predicate used by callers in misc6; returns -1 while the

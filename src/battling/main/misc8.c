@@ -45,7 +45,7 @@ extern s32 D_80092924;
 extern s32 D_80092940;
 
 extern void func_8007F834(void);
-extern void func_800719F0(void);
+extern void BattleInitTutorialMessage(void);
 extern void BattleLoadSlotEntry(s32 a0, s32 a1);
 extern void SoundStopAllElements(void);
 extern void func_8007313C(void *pDst, void *pSrc);
@@ -92,7 +92,7 @@ void BattleRequestStateAdvance(void) {
 
 void BattleStartTutorial(void) {
     D_80092924 = 1;
-    func_800719F0();
+    BattleInitTutorialMessage();
     BattleLoadSlotEntry(0, 0);
     BattleLoadSlotEntry(1, 1);
 }

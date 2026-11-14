@@ -15,10 +15,10 @@ extern s16 BattleCountdownOffsetByAngle(s16 angle, s16 divisor, s16 base);
 extern u16 D_800C3D40;
 extern u16 D_800C3E30;
 extern u8 D_800C3D0C[];
-extern s32 func_800AF400(void);
+extern s32 BattleFindFirstActorInMask(void);
 extern void func_800AA934(u8 *arg0, u8 *arg1, void *arg2, s32 arg3);
 extern void func_800AAD54(void *arg0, void *arg1, s32 arg2, s32 arg3, s32 arg4);
-extern void func_800AFF9C(u8 *arg0);
+extern void BattleSnapActorToGround(u8 *arg0);
 extern s32 func_8009F1C4(u32 arg0, s16 arg1);
 extern s32 func_8009EF3C(u32 arg0, s16 arg1);
 extern s32 func_800A0838(u8 *arg0, u32 arg1, u16 arg2, s16 arg3);
@@ -42,7 +42,7 @@ void func_800AA564(u8 *arg0, u16 arg1, u16 arg2, void *arg3) {
     D_800C3E30 = arg2;
     *(u8 *)(p + 0x35) = 0;
     if (D_800D3368[arg1] != 0) {
-        if (!(arg1 == func_800AF400())) {
+        if (!(arg1 == BattleFindFirstActorInMask())) {
             func_800AA934((u8 *)D_800D3368[arg1], arg0, D_800C3D0C, arg3);
         }
     }
@@ -248,7 +248,7 @@ s32 func_800AAA20(u8 *arg0, u8 *arg1, s32 arg2, u8 *arg3, s32 arg4) {
     if (*(u32 *)arg0 != 0) {
         r = 0;
         if (*(u8 *)(arg0 + 0x34) != 0) {
-            func_800AFF9C(arg0);
+            BattleSnapActorToGround(arg0);
             if (*(u8 *)(arg0 + 0x37) != 0) {
                 func_8009F1C4(*(u32 *)(arg0 + 4), *(s16 *)(arg0 + 0x1C));
             } else {

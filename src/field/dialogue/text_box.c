@@ -33,7 +33,7 @@ void FieldScriptVMHandlerWaitForTextBoxClose(void) {
         
         if (!(lowerFlags & 0x1)) {
             if (g_FieldScriptVMCurActor->scripts[g_FieldScriptVMCurActor->curScriptIndex].flags_0x12 != 7) {
-                func_800A1B70();
+                FieldScriptVMHandlerEndScript();
             }
             g_FieldTextBoxes[nTextBoxIndex].status = 0;
         }

@@ -46,12 +46,12 @@ extern u8 D_800D2F69[];
 extern u8 *D_800C3E5C[];
 
 
-void func_80076AC8(u8 *p) {
+void BattleSetPrimSemiTransTexture(u8 *p) {
     SetSemiTrans(p, 1);
     SetShadeTex(p, 0);
 }
-void func_80076B00(u8 *p) {
-    func_80076AC8(p);
+void BattleSetPrimGrey80BlendModeFromGlobal(u8 *p) {
+    BattleSetPrimSemiTransTexture(p);
     p[4] = 0x80;
     p[5] = 0x80;
     p[6] = 0x80;
@@ -61,39 +61,39 @@ void func_80076B00(u8 *p) {
         *(u16 *)(p + 0x16) &= ~0x40;
     }
 }
-void func_80076B68(u8 *p) {
-    func_80076AC8(p);
+void BattleSetPrimGrey80BlendAdd(u8 *p) {
+    BattleSetPrimSemiTransTexture(p);
     p[4] = 0x80;
     p[5] = 0x80;
     p[6] = 0x80;
     *(u16 *)(p + 0x16) |= 0x20;
 }
 
-void func_80076BAC(u8 *p) {
-    func_80076AC8(p);
+void BattleSetPrimGrey40BlendAdd(u8 *p) {
+    BattleSetPrimSemiTransTexture(p);
     p[4] = 0x40;
     p[5] = 0x40;
     p[6] = 0x40;
     *(u16 *)(p + 0x16) |= 0x20;
 }
 
-void func_80076BF0(u8 *p) {
-    func_80076AC8(p);
+void BattleSetPrimGrey80BlendSub(u8 *p) {
+    BattleSetPrimSemiTransTexture(p);
     p[4] = 0x80;
     p[5] = 0x80;
     p[6] = 0x80;
     *(u16 *)(p + 0x16) |= 0x40;
 }
 
-void func_80076C34(u8 *p) {
-    func_80076AC8(p);
+void BattleSetPrimGrey40BlendSub(u8 *p) {
+    BattleSetPrimSemiTransTexture(p);
     p[4] = 0x40;
     p[5] = 0x40;
     p[6] = 0x40;
     *(u16 *)(p + 0x16) |= 0x40;
 }
 
-void func_80076C78(POLY_FT4 *p, s16 x, s16 y, u8 u, u8 v, u8 dx) {
+void BattleSetPolyFT4RectH13(POLY_FT4 *p, s16 x, s16 y, u8 u, u8 v, u8 dx) {
     p->x0 = x;
     p->y0 = y;
     p->y1 = y;
@@ -111,7 +111,7 @@ void func_80076C78(POLY_FT4 *p, s16 x, s16 y, u8 u, u8 v, u8 dx) {
     p->u3 = u + dx;
     p->v3 = v + 13;
 }
-void func_80076CE8(POLY_FT4 *p, s16 x, s16 y, u8 u, u8 v, s16 dx, s16 dy) {
+void BattleSetPolyFT4Rect(POLY_FT4 *p, s16 x, s16 y, u8 u, u8 v, s16 dx, s16 dy) {
     p->x0 = x;
     p->y0 = y;
     p->y1 = y;
@@ -267,7 +267,7 @@ void BattleInitPacketPrimitives(void) {
     func_80076D58(*(u8 **)(D_800C3EA4 + 0xA230) + 0x500, 0, 2);
     func_80076D58(*(u8 **)(D_800C3EA4 + 0xA230) + 0x550, 0, 2);
 }
-void func_80077364(POLY_FT4 *p, u8 index) {
+void BattleInitTilePrims(POLY_FT4 *p, u8 index) {
     s32 i;
     s32 offset;
 
@@ -285,7 +285,7 @@ void func_80077364(POLY_FT4 *p, u8 index) {
                             *(s32 *)(D_800C3EA4 + offset + 0xA240));
     }
 }
-void func_80077454(u8 index) {
+void BattleInitSlotPrims(u8 index) {
     u8 *pBase;
     u8 i;
 
@@ -310,13 +310,13 @@ void func_80077454(u8 index) {
                              *(s32 *)(D_800C3EA4 + 0xA260)),
                     (RECT *)D_800D2D28);
     }
-    func_80077364((POLY_FT4 *)&pBase[0x140], 1);
-    func_80077364((POLY_FT4 *)&pBase[0x1E0], 2);
-    func_80077364((POLY_FT4 *)&pBase[0x280], 3);
-    func_80077364((POLY_FT4 *)&pBase[0x320], 4);
+    BattleInitTilePrims((POLY_FT4 *)&pBase[0x140], 1);
+    BattleInitTilePrims((POLY_FT4 *)&pBase[0x1E0], 2);
+    BattleInitTilePrims((POLY_FT4 *)&pBase[0x280], 3);
+    BattleInitTilePrims((POLY_FT4 *)&pBase[0x320], 4);
 }
 
-void func_80077610(void) {
+void BattleAllocPacketPrimitives(void) {
     u8 *p = (u8 *)func_8008ABB8(0x670, 0);
 
     *(u8 **)(D_800C3EA4 + 0xA230) = p;
@@ -324,13 +324,13 @@ void func_80077610(void) {
     BattleInitPacketPrimitives();
 }
 
-void func_8007765C(void) {
+void BattleFreePacketPrimitives(void) {
     func_800716D8();
     HeapFree(*(u8 **)(D_800C3EA4 + 0xA230));
 }
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_80077698);
-void func_80077980(void) {
+void BattleClearFlagC6(void) {
     D_800D2D28[0xC6] = 0;
 }
 
@@ -526,7 +526,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_800785D4);
    }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_80078658);
-void func_800787E0(u8 color, u8 flag) {
+void BattleQueueCommandF7(u8 color, u8 flag) {
     u8 *pEntry;
 
     D_800C400B[D_800C3EAC[0x2DA] * 0x48] = flag;

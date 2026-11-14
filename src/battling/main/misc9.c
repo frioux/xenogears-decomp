@@ -84,7 +84,7 @@ extern void func_80030A30(s32 index, Poly9* pPoly);
 extern s32 func_80083310();
 extern void BattleSaveActorVectors(s32);
 extern void func_8007AC3C(void);
-extern void func_800725B0(s16* p);
+extern void BattleInitRenderScene(s16* p);
 extern void BattleSetScreenTileBlack(void);
 extern void BattleDrawTextPrims(void* p);
 extern void BattleAttachActorPrims(u8* p);
@@ -487,7 +487,7 @@ void func_80083C0C(s32 mode) {
         pB = &D_80097102;
         vA = *pA;
         vB = *pB;
-        func_800725B0(vA < vB ? pB - 0x79 : pA - 0x79);
+        BattleInitRenderScene(vA < vB ? pB - 0x79 : pA - 0x79);
         break;
     }
 }

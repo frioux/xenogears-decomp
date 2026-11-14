@@ -18,7 +18,7 @@ extern void func_800379C8(char*, ...);
 extern char D_8006FD44; // "STACKERR ACT=%d\n"
 
 // Store instruction pointer + 5 on stack
-void func_800A1730(void) {
+void FieldScriptVMHandlerCallScript(void) {
     if (g_FieldScriptVMCurActor->flags12C_0x6 != SCRIPT_MAX_STACK_SIZE) {
         g_FieldScriptVMCurActor->scriptPointersStack[g_FieldScriptVMCurActor->flags12C_0x6] = g_FieldScriptVMCurActor->scriptInstructionPointer + 5;
         g_FieldScriptVMCurActor->scriptInstructionPointer = FieldScriptVMGetInstructionArgument(1);
@@ -34,7 +34,7 @@ void func_800A1730(void) {
 }
 
 // Store instruction pointer + 3 on stack
-void func_800A17F4(void) {
+void FieldScriptVMHandlerCallScriptShort(void) {
     if (g_FieldScriptVMCurActor->flags12C_0x6 != SCRIPT_MAX_STACK_SIZE) {
         g_FieldScriptVMCurActor->scriptPointersStack[g_FieldScriptVMCurActor->flags12C_0x6] = g_FieldScriptVMCurActor->scriptInstructionPointer + 3;
         g_FieldScriptVMCurActor->scriptInstructionPointer = FieldScriptVMGetInstructionArgument(1);
@@ -50,7 +50,7 @@ void func_800A17F4(void) {
 }
 
 // Restore instruction pointer from stack
-void func_800A18B8(void) {
+void FieldScriptVMHandlerReturn(void) {
     // Error, invalid stack value
     if (!g_FieldScriptVMCurActor->flags12C_0x6) {
         if (g_FieldSystemMode == 0) {
@@ -67,7 +67,7 @@ void func_800A18B8(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer = g_FieldScriptVMCurActor->scriptPointersStack[g_FieldScriptVMCurActor->flags12C_0x6];
 }
 
-void func_800A19B0(void) {
+void FieldScriptVMHandlerResetScriptSlots(void) {
     int i;
     
     for (i = 0; i < ACTOR_MAX_NUM_SCRIPTS; i++) {
@@ -89,7 +89,7 @@ void func_800A19B0(void) {
 }
 
 // Yield / Stop, but change IP conditionally
-void func_800A1A8C(void) {
+void FieldScriptVMHandlerStopAndRetargetQueuedScripts(void) {
     int i;
 
     for (i = 0; i < ACTOR_MAX_NUM_SCRIPTS; i++) {
@@ -104,7 +104,7 @@ void func_800A1A8C(void) {
 }
 
 // Yield / Stop Handler
-void func_800A1B70(void) {
+void FieldScriptVMHandlerEndScript(void) {
     g_FieldScriptVMCurActor->scripts[g_FieldScriptVMCurActor->curScriptIndex].flags_0x12 = 0xFF;
     g_FieldScriptVMCurActor->scripts[g_FieldScriptVMCurActor->curScriptIndex].scriptId = 0xFF;
     D_800AFFEC = 1;
@@ -207,7 +207,7 @@ void FieldScriptVMHandlerJmp(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer = FieldScriptVMGetInstructionArgument(1);
 }
 
-void func_800A1E9C(void) {
+void FieldScriptVMHandlerExtendInstructionLimit(void) {
     g_FieldScriptMaxInstructionCount += 0x20;
     g_FieldScriptVMCurActor->scriptInstructionPointer++;
 }
@@ -374,7 +374,7 @@ INCLUDE_ASM("asm/field/nonmatchings/scripts/virtual_machine", func_800A2030);
 // Changes current actor to the top of the field actor array and runs a script routine on it
 extern FieldActor* D_800B06B8;
 extern s32 D_800ADB1C;
-void func_800A22AC(int scriptRoutineIndex) {
+void FieldScriptRunFirstActorRoutine(int scriptRoutineIndex) {
     int i;
     ActorData* pNewActor;
 
@@ -414,9 +414,9 @@ void func_800A22AC(int scriptRoutineIndex) {
 
 extern s32 D_800ADB8C;
 extern void func_800ACE24();
-void func_800A2488(void) {
+void FieldScriptRunFirstActorRoutine3(void) {
     D_800ADB8C = 1;
-    func_800A22AC(3);
+    FieldScriptRunFirstActorRoutine(3);
     func_800ACE24();
     D_800ADB8C = 0;
 }
@@ -468,7 +468,7 @@ void func_800A24C4(void) {
         return;
     }
 
-    func_800A22AC(2);
+    FieldScriptRunFirstActorRoutine(2);
     func_800AD898();
 
     for (i = 0; i < D_800B2264; i++) {
@@ -505,7 +505,7 @@ INCLUDE_ASM("asm/field/nonmatchings/scripts/virtual_machine", func_800A24C4);
 
 extern s32 g_GamePartySkinsInitialized;
 extern s32 D_800ADBFC;
-void func_800A2714(void) {
+void FieldLoadActorAnimationFiles(void) {
     ActorData* pActor;
     FieldActor* pFieldActors;
     int i;
@@ -610,7 +610,7 @@ extern s32 D_8004F324;
 extern s32 g_GameSceneMapNum;
 extern int FieldGetPlayerActorDirection(void);
 extern int FieldGetCameraDirection(void);
-void func_800A30FC(void) {
+void FieldScriptSyncMemoryWithGameState(void) {
     int i;
 
     g_pGameState->unk231A = g_GameSceneMapNum;
@@ -643,7 +643,7 @@ extern s32 D_8004F2F4;
 extern void func_8009FEE4(int actorIndex);
 
 // Refreshes the script memory from the field state, and every 0x1F calls walks the map position pair
-void func_800A31E8(void) {
+void FieldScriptUpdateMemoryEachFrame(void) {
     int i;
     int nValue;
     int nLow;
@@ -658,7 +658,7 @@ void func_800A31E8(void) {
         g_pGameState->partyMembers[i] = g_GamePartyMembers[i];
     }
 
-    func_800A30FC();
+    FieldScriptSyncMemoryWithGameState();
     D_8004F2F4 = 0;
     D_8004F318++;
 
@@ -781,11 +781,11 @@ INCLUDE_ASM("asm/field/nonmatchings/scripts/virtual_machine", func_800A3C8C);
 
 INCLUDE_ASM("asm/field/nonmatchings/scripts/virtual_machine", func_800A3F4C);
 
-void func_800A4748(void) {
-    func_800A476C(0x2c0,0x100);
+void FieldCopyScreenToFadeTexture(void) {
+    FieldCopyScreenToVram(0x2c0,0x100);
 }
 
-void func_800A476C(int x, int y) {
+void FieldCopyScreenToVram(int x, int y) {
     RECT rect;
 
     rect.w = 0x140;

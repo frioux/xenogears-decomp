@@ -85,13 +85,13 @@ extern void func_80086568(void);
 extern void func_800866C8(void);
 extern void WorldMapFreeTileAnimEntries(void);
 extern void WorldMapFreeFrameAnimEntries(void);
-extern void func_80088FF4(void);
-extern void func_80089128(void);
+extern void WorldMapFreeSpriteGroupTable(void);
+extern void WorldMapFreePrimTemplateBuffers(void);
 extern void func_80097D64(void);
 extern void func_800976A0(void);
 extern void WorldMapWrapPosition(void *p);
 extern s32 func_80093A5C(s32, s32);
-extern void func_800894C8(s32);
+extern void WorldMapDeactivateSpriteGroup(s32);
 extern void func_80089160(s32, void *, s32);
 extern s16 D_8009A488[];
 extern MATRIX D_8009A180;
@@ -117,7 +117,7 @@ extern void func_800863E0(void);
 extern void WorldMapInitTileAnimEntries(void);
 extern void WorldMapInitFrameAnimEntries(void);
 extern void WorldMapSetupMapPrims(void);
-extern void func_80088F64(void);
+extern void WorldMapInitSpriteGroupTables(void);
 extern void SoundAddSedsEntry(void *pSeds);
 extern s32 ArchiveSetIndex(s32 arg0, s32 arg1);
 extern void func_80097BC0(void *pPos);
@@ -131,18 +131,18 @@ extern void func_800865A0(void);
 extern void func_80075228(void);
 extern void func_800923A8(void);
 extern void func_800925A0(void);
-extern int func_8007C36C(int idx);
+extern int WorldMapInitActorParamsFromTable(int idx);
 extern int func_8007C3B8(int idx);
 extern int func_8007C724(int idx);
 extern int func_8007C7D8(int idx);
-extern int func_8007CC6C(int idx);
-extern int func_8007CD20(int idx);
-extern int func_8007CE84(int idx);
+extern int WorldMapInitGroup4Actor(int idx);
+extern int WorldMapUpdateGroup4Actor(int idx);
+extern int WorldMapInitGroup5Actor(int idx);
 extern int func_8007CF18(int idx);
-extern int func_8007D078(int idx);
-extern int func_8007D110(int idx);
-extern int func_8007D228(int idx);
-extern int func_8007D2B8(int idx);
+extern int WorldMapInitGroup9Actor(int idx);
+extern int WorldMapUpdateGroup9Actor(int idx);
+extern int WorldMapInitGroup10Actor(int idx);
+extern int WorldMapUpdateGroup10Actor(int idx);
 extern void WorldMapInitGroup12Actor(void);
 extern void WorldMapUpdateGroup12Actor(void);
 extern void WorldMapInitGroup13Actor(void);
@@ -180,7 +180,7 @@ int WorldMapInitActorScrollScale(int idx) {
     return 1;
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007ADD4);
-int func_8007B200(int idx) {
+int WorldMapSetupGroup4And5ScaledPrims(int idx) {
     u8 *pPlayer = (u8 *)D_8009BE24 + (idx << 7);
     u8 *pWork = (u8 *)D_8009C620;
     u8 *pBlock = pWork + 0x150;
@@ -271,7 +271,7 @@ int func_8007B394(int idx) {
     return 1;
 }
 */
-int func_8007B604(int idx) {
+int WorldMapSetupGroup6And7ScaledPrims(int idx) {
     u8 *pPlayer = (u8 *)D_8009BE24 + (idx << 7);
     u8 *pWork = (u8 *)D_8009C620;
     u8 *pBlock = pWork + 0x1F8;
@@ -362,11 +362,11 @@ int func_8007B798(int idx) {
 }
 */
 
-int func_8007BA08(void) {
+int WorldMapInitReturnThree(void) {
     return 3;
 }
 
-int func_8007BA10(int idx) {
+int WorldMapActivateSpriteGroup9Timed(int idx) {
     u8 *pPlayer = (u8 *)D_8009BE24 + (idx << 7);
     s16 timer;
     int nResult = 1;
@@ -391,13 +391,13 @@ int func_8007BA10(int idx) {
     } else {
         *(s16 *)(pPlayer + 0x22) = 0x3C;
         *(WorldMapPos *)(pPlayer + 0x28) = *(WorldMapPos *)&D_8009C5AC;
-        func_800894C8(9);
+        WorldMapDeactivateSpriteGroup(9);
         nResult = 3;
     }
     return nResult;
 }
 
-int func_8007BB60(int idx) {
+int WorldMapInitGroup0Actor(int idx) {
     WorldMapWork *pWork;
     WorldMapPlayer *pPlayer;
 
@@ -470,7 +470,7 @@ void func_8007BF50(void) {
     WorldMapInitTileAnimEntries();
     WorldMapInitFrameAnimEntries();
     WorldMapSetupMapPrims();
-    func_80088F64();
+    WorldMapInitSpriteGroupTables();
     ArchiveCdDataSync(0);
     SoundAddSedsEntry(D_8006259C);
     ArchiveSetIndex(0x24, 0);
@@ -480,12 +480,12 @@ void func_8007BF50(void) {
         Vsync(0);
     } while (WorldMapGetQueuedLoadCount() > 0);
     func_80097718((void *)func_800923A8, (void *)func_800925A0);
-    func_80097718((void *)func_8007C36C, (void *)func_8007C3B8);
+    func_80097718((void *)WorldMapInitActorParamsFromTable, (void *)func_8007C3B8);
     func_80097718((void *)func_8007C724, (void *)func_8007C7D8);
-    func_80097718((void *)func_8007CC6C, (void *)func_8007CD20);
-    func_80097718((void *)func_8007CE84, (void *)func_8007CF18);
-    func_80097718((void *)func_8007D078, (void *)func_8007D110);
-    func_80097718((void *)func_8007D228, (void *)func_8007D2B8);
+    func_80097718((void *)WorldMapInitGroup4Actor, (void *)WorldMapUpdateGroup4Actor);
+    func_80097718((void *)WorldMapInitGroup5Actor, (void *)func_8007CF18);
+    func_80097718((void *)WorldMapInitGroup9Actor, (void *)WorldMapUpdateGroup9Actor);
+    func_80097718((void *)WorldMapInitGroup10Actor, (void *)WorldMapUpdateGroup10Actor);
     func_80097718((void *)WorldMapInitGroup12Actor, (void *)WorldMapUpdateGroup12Actor);
     func_80097718((void *)WorldMapInitGroup13Actor, (void *)WorldMapUpdateGroup13Actor);
     func_80097718((void *)WorldMapInitGroup16Actor, (void *)WorldMapUpdateGroup16Actor);
@@ -496,7 +496,7 @@ void func_8007BF50(void) {
     func_80075228();
 }
 */
-void func_8007C260(void) {
+void WorldMapExitToMap111(void) {
     u16 v;
 
     SoundStopAllElements();
@@ -507,8 +507,8 @@ void func_8007C260(void) {
     func_800866C8();
     WorldMapFreeTileAnimEntries();
     WorldMapFreeFrameAnimEntries();
-    func_80088FF4();
-    func_80089128();
+    WorldMapFreeSpriteGroupTable();
+    WorldMapFreePrimTemplateBuffers();
     func_80097D64();
     HeapFree(D_8009BC38);
     HeapFree(D_8009BCB0);
@@ -529,7 +529,7 @@ void func_8007C260(void) {
    65.26% with the same multiset, and a pointer local plus an s32 index
    local (i = pPlayer->unk50 before the D_8009A4D8 read) gives 49.68%.
 */
-int func_8007C36C(int idx) {
+int WorldMapInitActorParamsFromTable(int idx) {
     WorldMapPlayer *pPlayer = D_8009BE24;
     u32 *pCount;
 
@@ -582,7 +582,7 @@ int func_8007C724(int idx) {
 */
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007C7D8);
-int func_8007CC6C(int idx) {
+int WorldMapInitGroup4Actor(int idx) {
     WorldMapWork *pWork;
     WorldMapPlayer *pPlayer;
     WorldMapRotBlock *pBlock;
@@ -605,7 +605,7 @@ int func_8007CC6C(int idx) {
     pPlayer->unk30 = 0x400000;
     return 1;
 }
-int func_8007CD20(int idx) {
+int WorldMapUpdateGroup4Actor(int idx) {
     u8 *pPlayer = (u8 *)D_8009BE24 + (idx << 7);
     u8 *pBlock = (u8 *)D_8009C620 + 0x150;
     u16 *pScratch = (u16 *)0x1F800000;
@@ -641,7 +641,7 @@ int func_8007CD20(int idx) {
     }
     return 1;
 }
-int func_8007CE84(int idx) {
+int WorldMapInitGroup5Actor(int idx) {
     WorldMapWork *pWork;
     WorldMapPlayer *pPlayer;
     WorldMapRotBlock *pBlock;
@@ -669,7 +669,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007CF18);
    re-materialises them as absolute `lui $at / sh` for all but one, so our
    frame is 0x30 not 0x28 and s5 replaces retail's single s3-held constant 1.
    Tried: volatile on the six stores (76.84%, 364 bytes), keeping the
-   literal 1 in each comparison. The same six stores in func_8007D2B8 (this
+   literal 1 in each comparison. The same six stores in WorldMapUpdateGroup10Actor (this
    file, matched) do compile to the $at form, so this is an allocator tie
    triggered by the extra `0x20` test, not a source-shape error.
 int func_8007CF18(int idx) {
@@ -699,7 +699,7 @@ int func_8007CF18(int idx) {
     return 1;
 }
 */
-int func_8007D078(int idx) {
+int WorldMapInitGroup9Actor(int idx) {
     WorldMapWork *pWork;
     WorldMapPlayer *pPlayer;
     WorldMapRotBlock *pBlock;
@@ -720,7 +720,7 @@ int func_8007D078(int idx) {
     pPlayer->unk30 = 0;
     return 1;
 }
-int func_8007D110(int idx) {
+int WorldMapUpdateGroup9Actor(int idx) {
     u8 *pPlayer = (u8 *)D_8009BE24 + (idx << 7);
     u8 *pWork = (u8 *)D_8009C620;
 
@@ -729,7 +729,7 @@ int func_8007D110(int idx) {
         *(s16 *)(pWork + 0x2F4) = 1;
         *(s16 *)(pWork + 0x24C) = 1;
         *(s16 *)(pWork + 0x2A0) = 1;
-        func_800894C8(0x16);
+        WorldMapDeactivateSpriteGroup(0x16);
         return 3;
     }
     *(s32 *)(pPlayer + 0x30) += *(s32 *)(pPlayer + 0x40);
@@ -745,7 +745,7 @@ int func_8007D110(int idx) {
     return 1;
 }
 
-int func_8007D228(int idx) {
+int WorldMapInitGroup10Actor(int idx) {
     WorldMapWork *pWork;
     WorldMapPlayer *pPlayer;
 
@@ -764,7 +764,7 @@ int func_8007D228(int idx) {
     return 1;
 }
 
-int func_8007D2B8(int idx) {
+int WorldMapUpdateGroup10Actor(int idx) {
     u8 *pPlayer = (u8 *)D_8009BE24 + (idx << 7);
     u8 *pWork = (u8 *)D_8009C620;
 
@@ -772,7 +772,7 @@ int func_8007D2B8(int idx) {
         *(s16 *)(pPlayer + 4) = 0;
         *(s16 *)(pWork + 0x348) = 1;
         *(s16 *)(pWork + 0x39C) = 1;
-        func_800894C8(0x17);
+        WorldMapDeactivateSpriteGroup(0x17);
         *(u16 *)0x1F8000A0 = *(s32 *)(pPlayer + 0x28) >> 12;
         *(u16 *)0x1F8000A2 = *(s32 *)(pPlayer + 0x2C) >> 12;
         *(u16 *)0x1F8000A4 = *(s32 *)(pPlayer + 0x30) >> 12;

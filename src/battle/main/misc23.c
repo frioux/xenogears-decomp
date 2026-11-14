@@ -15,7 +15,7 @@ extern void func_800A22A8(u8 *);
 extern void func_800A2D1C(u8 *);
 extern void func_800A9FF0(s32);
 extern void func_800AA934(void *, void *, void *, void *);
-extern s32 func_800AF400(void);
+extern s32 BattleFindFirstActorInMask(void);
 extern void BattleFreeImageEntry(void *);
 extern void func_800A64E4(void);
 extern void func_800BF85C(s32, s32);
@@ -72,13 +72,13 @@ extern u8 D_800D330A[];
 extern void *D_800658C8;
 extern void func_800A2234(u8 *, s32);
 extern void func_800A2CA4(u8 *, s32);
-extern void func_800B00D0(void);
+extern void BattleClearBlockSlots(void);
 extern void func_8009F794(void *, s32);
 extern void SoundRemoveSedsEntry(void *);
 extern void func_800A2ACC(u8 *);
 extern void func_800A2BB8(u8 *, void *, s32);
 extern void func_8009F708(void *);
-extern void func_800B0060(void *);
+extern void BattleFreeActorBuffer(void *);
 
 extern s32 D_800D3344;
 extern s32 D_800D3348;
@@ -294,7 +294,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A8B0C);
     D_800C3B74 = 1;
     func_800A2234(pBuf, arg1);
     func_800A2CA4(D_800C3D04, *(s16 *)(D_800658C8 + 0x34A));
-    func_800B00D0();
+    BattleClearBlockSlots();
     i = 0x1F;
     pWord = (mem_addr)&D_800D33E4;
     for (; i >= 0; i--) {
@@ -333,7 +333,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A8B0C);
     D_800C3B74 = 1;
     func_800A2234(pBuf, *(s16 *)(D_800658C8 + 0x348));
     func_800A2CA4(D_800C3D04, *(s16 *)(D_800658C8 + 0x34A));
-    func_800B00D0();
+    BattleClearBlockSlots();
     pWord = (u32 *)&D_800D33E4;
     for (i = 0x1F; i >= 0; i--) {
         *pWord-- = 0;
@@ -596,7 +596,7 @@ void func_800A9FF0(s32 arg0) {
                 *(void **)(D_800D3368[arg0] + 0) = NULL;
                 *(void **)(D_800D3368[arg0] + 4) = NULL;
             }
-            func_800B0060(*(void **)&D_800D3368[arg0]);
+            BattleFreeActorBuffer(*(void **)&D_800D3368[arg0]);
         } else if (*(void **)(D_800D3368[arg0] + 4) != NULL) {
             func_800A2ACC(D_800C3D0C);
             func_800A2BB8(D_800C3D0C, *(void **)(D_800D3368[arg0] + 4), 0xFF);
@@ -651,9 +651,9 @@ void BattleSwitchActorAndQueueCommand(u16 arg0, u16 arg1, void *arg2) {
     ((u8 *)D_800D3368[arg0])[0x35] = 1;
     D_80059464 = 0;
     D_800591AC = 1;
-    func_800BF85C(arg0, func_800AF400());
+    func_800BF85C(arg0, BattleFindFirstActorInMask());
     D_800C360C = 1;
-    D_800C4000[func_800AF400()] = 0;
+    D_800C4000[BattleFindFirstActorInMask()] = 0;
     if (D_800D3368[arg0] != NULL) {
         func_800AA934(D_800D3368[arg0], D_800D3368[arg0], D_800C3D0C, arg2);
     }
@@ -668,7 +668,7 @@ void BattleQueueActorCommandPreservingSelection(u16 arg0, u16 arg1, void *arg2) 
     D_800C3E30 = arg1;
     ((u8 *)D_800D3368[arg0])[0x35] = 0;
     if (D_800D3368[arg0] != NULL) {
-        if ((s32)arg0 != func_800AF400()) {
+        if ((s32)arg0 != BattleFindFirstActorInMask()) {
             func_800AA934(D_800D3368[arg0], D_800D3368[arg0], D_800C3D0C, arg2);
         }
     }

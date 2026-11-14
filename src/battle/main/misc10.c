@@ -288,7 +288,7 @@ s32 func_8007F8C0(u8 **arg0, u8 arg1) {
 void BattleReleaseEffectSlotIfChar4(u8 arg0) {
     if (D_800D2D24[arg0] == 4 && D_800D2D28[0x8E] != 0) {
         func_8008FA60(0);
-        func_8007765C();
+        BattleFreePacketPrimitives();
         D_800D2D28[0x8E] = 0;
     }
 }

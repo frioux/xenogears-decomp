@@ -95,7 +95,7 @@ extern s32 func_800AA650(void *pArg);
 extern void func_800A9FF0(s32 arg0);
 extern void HeapFreeIfNotNull(void *p);
 extern void GfxLineScrollFree(void *pLineScroll);
-extern void func_800B10EC(void *pArg, s16 x, s16 y, s32 z);
+extern void BattlePushActorOutOfCircle(void *pArg, s16 x, s16 y, s32 z);
 extern void HeapFree(void *pMem);
 
 s32 BattleAllocSpriteSlot(BattleMisc22Unk *pArg, s16 arg1) {
@@ -382,7 +382,7 @@ void BattleSteerActorTowardCircles(void *pArg) {
         a = *pSrc++;
         b = *pSrc++;
         c = *pSrc++;
-        func_800B10EC(pArg, a, b, func_800AA650(pArg) + c);
+        BattlePushActorOutOfCircle(pArg, a, b, func_800AA650(pArg) + c);
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A4DB8);

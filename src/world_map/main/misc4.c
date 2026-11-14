@@ -84,8 +84,8 @@ extern void func_80086568(void);
 extern void func_800866C8(void);
 extern void WorldMapFreeTileAnimEntries(void);
 extern void WorldMapFreeFrameAnimEntries(void);
-extern void func_80088FF4(void);
-extern void func_80089128(void);
+extern void WorldMapFreeSpriteGroupTable(void);
+extern void WorldMapFreePrimTemplateBuffers(void);
 extern void func_80097D64(void);
 extern void func_800976A0(void);
 extern s32 D_8009BC38;
@@ -118,7 +118,7 @@ extern void func_8009932C(s32 arg0, s32 arg1, s32 *p);
 extern void func_80073B04(void);
 extern void func_800737EC(void);
 extern void func_80086798(void);
-extern void func_800894C8(s32 arg0);
+extern void WorldMapDeactivateSpriteGroup(s32 arg0);
 extern void WorldMapSetSpriteSetParent(s32 arg0, s32 arg1);
 
 void WorldMapExitToMap10E(void) {
@@ -132,8 +132,8 @@ void WorldMapExitToMap10E(void) {
     func_800866C8();
     WorldMapFreeTileAnimEntries();
     WorldMapFreeFrameAnimEntries();
-    func_80088FF4();
-    func_80089128();
+    WorldMapFreeSpriteGroupTable();
+    WorldMapFreePrimTemplateBuffers();
     func_80097D64();
     HeapFree(D_8009BC38);
     HeapFree(D_8009BCB0);
@@ -255,8 +255,8 @@ void WorldMapExitToMap110(void) {
     func_800866C8();
     WorldMapFreeTileAnimEntries();
     WorldMapFreeFrameAnimEntries();
-    func_80088FF4();
-    func_80089128();
+    WorldMapFreeSpriteGroupTable();
+    WorldMapFreePrimTemplateBuffers();
     func_80097D64();
     HeapFree(D_8009BC38);
     HeapFree(D_8009BCB0);
@@ -453,7 +453,7 @@ s32 func_8007A430(s32 index) {
         p->unk22 = 0x60;
         pSrc = &D_8009C5AC;
         *(WorldMapPos4 *)&p->unk28 = *pSrc;
-        func_800894C8(9);
+        WorldMapDeactivateSpriteGroup(9);
         result = 3;
     }
     return result;
@@ -514,8 +514,8 @@ void func_8007A8AC(void) {
     func_800866C8();
     WorldMapFreeTileAnimEntries();
     WorldMapFreeFrameAnimEntries();
-    func_80088FF4();
-    func_80089128();
+    WorldMapFreeSpriteGroupTable();
+    WorldMapFreePrimTemplateBuffers();
     func_80097D64();
     HeapFree(D_8009BC38);
     HeapFree(D_8009BCB0);

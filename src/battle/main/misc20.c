@@ -23,7 +23,7 @@ extern s32 func_80097610();
 extern void func_8009AC48(u8);
 extern void func_80096824(void);
 
-void func_8009C134(void) {
+void BattleSetActorMaskForSlotRecord3(void) {
     u8 i = 0;
     s32 target = 3; /* local, not a literal: the compare constant must live in a
                        register outside the loop */
@@ -102,7 +102,7 @@ void func_8009C198(void) {
 skip:
             *(u16 *)(D_800C34B0 + 0x5FB0) = *(u16 *)(D_800C3DFC + 2);
             func_8009C4B4();
-            func_8009CB68(D_800C3E50);
+            BattleSetSlotBit20FromStatusBit200(D_800C3E50);
         }
         D_800C3E50++;
         mask <<= 1;
@@ -110,12 +110,12 @@ skip:
     if (D_800C3E00[0x56] == 4) {
         func_8009E788();
     }
-    func_8009C9C4();
+    BattleSaveScriptCommandOperands();
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc20", func_8009C198);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc20", func_8009C4B4);
-void func_8009C9C4(void) {
+void BattleSaveScriptCommandOperands(void) {
     u16 a = *(u16 *)(D_800D2D6C + 0x84);
     u16 b = *(u16 *)(D_800C3E00 + 0x8A);
     u16 c;
@@ -156,7 +156,7 @@ void func_8009CA90(void) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc20", func_8009CA90);
-void func_8009CB68(u8 arg0) {
+void BattleSetSlotBit20FromStatusBit200(u8 arg0) {
     s32 o = arg0 * 0x170;
     u8 *p = D_800CCD8C + o;
     u8 *q = D_800CCD8C + -0xA4 + o;
@@ -170,7 +170,7 @@ void func_8009CB68(u8 arg0) {
     *(u16 *)(q + 0x84) = v;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc20", func_8009CBC4);
-void func_8009D354(void) {
+void BattleSetCurrentSlotState6(void) {
     u8 *p;
     u8 i;
 
@@ -181,7 +181,7 @@ void func_8009D354(void) {
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc20", func_8009D3A0);
-u16 func_8009D948(void) {
+u16 BattleScaleValueByMultiplierByte(void) {
     u16 ret = func_80096FBC();
     u16 f;
     u32 b;
@@ -266,10 +266,10 @@ s32 func_8009DB54(s32 arg0) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc20", func_8009DBFC);
-void func_8009E268(void) {
+void BattleClearActorPercent99(void) {
     D_800D2DC8[0x99] = 0;
 }
-void func_8009E278(void) {
+void BattleSetSlotState2FromActorField4F(void) {
     u8 *p = D_800D2DC8;
     u32 v = p[0x4F] * *(s32 *)(p + 0x64);
     u32 q = v / 10;
@@ -278,7 +278,7 @@ void func_8009E278(void) {
     (base + D_800C3E50)[0x5FA0] = 2;
     *(s32 *)(D_800C3E50 * 4 + D_800C34B0 + 0x5F6C) = q;
 }
-void func_8009E2EC(void) {
+void BattleSetSlotState2FromScriptField11Div20(void) {
     u32 v = D_800C3DFC[0x11] * *(s32 *)(D_800D2DC8 + 0x64);
     u32 q = v / 20;
     u8 *base = D_800C34B0;
@@ -286,20 +286,20 @@ void func_8009E2EC(void) {
     (base + D_800C3E50)[0x5FA0] = 2;
     *(s32 *)(D_800C3E50 * 4 + D_800C34B0 + 0x5F6C) = q;
 }
-void func_8009E364(void) {
+void BattleSetSlotState2FromActorField5B(void) {
     s32 v = D_800C3E00[0x5B] * D_800C3DFC[0x11];
 
     (D_800C34B0 + D_800C3E50)[0x5FA0] = 2;
     *(s32 *)(D_800C3E50 * 4 + D_800C34B0 + 0x5F6C) = v;
 }
-void func_8009E3C8(void) {
+void BattleSetSlotFields148And10C(void) {
     s32 o;
 
     D_800C3D60[0] = 4;
     o = D_800C3E50 * 0x170;
     D_800CCE4A[o] = 3;
 }
-void func_8009E410(void) {
+void BattleSetSlotState0AFromActorWord3ADiv20(void) {
     u8 *base;
     s32 v = *(u16 *)(D_800D2DC8 + 0x3A) * D_800C3DFC[0x11];
     s32 q = v / 20;
@@ -308,7 +308,7 @@ void func_8009E410(void) {
     (base + D_800C3E50)[0x5FA0] = 0xA;
     *(s32 *)(D_800C3E50 * 4 + D_800C34B0 + 0x5F6C) = q;
 }
-void func_8009E48C(void) {
+void BattleSetSlotState0BFromActorWord3ADiv20(void) {
     u8 *base;
     s32 v = *(u16 *)(D_800D2DC8 + 0x3A) * D_800C3DFC[0x11];
     s32 q = v / 20;
@@ -317,14 +317,14 @@ void func_8009E48C(void) {
     (base + D_800C3E50)[0x5FA0] = 0xB;
     *(s32 *)(D_800C3E50 * 4 + D_800C34B0 + 0x5F6C) = q;
 }
-void func_8009E508(void) {
+void BattleClearSlotConditionBits(void) {
     u8 *p = D_800D2DC8;
     u8 *q = D_800C3E34;
 
     *(u16 *)(p + 0x7C) &= 0xF80B;
     *(u16 *)(q + 0x7A) &= 0xFFDF;
 }
-s32 func_8009E53C(u8 arg0) {
+s32 BattleGearHasWeaponId(u8 arg0) {
     u8 id = g_GameState.characters[4].gearId;
     u8 v = D_800C34B0[arg0 * 0x14 + 0x5B47];
 

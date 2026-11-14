@@ -86,7 +86,7 @@ extern void func_80074BA4(void);
 extern void func_80078F00();
 extern void func_800831C8(void);
 extern void BattleEffectSetSpawnTimer();
-extern void func_800720C4(void);
+extern void BattleClearInitFlag(void);
 extern void SystemStringReset();
 extern u8 D_8009868C[];
 extern void func_80074678();
@@ -435,7 +435,7 @@ void func_80079B44(void) {
     func_8007F834();
     D_80050622 = 0;
     BattleInitSoundSlots();
-    func_800720C4();
+    BattleClearInitFlag();
     D_800928D4 = 0;
     D_800928F0 = 0;
     D_80091144 = 0;

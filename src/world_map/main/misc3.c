@@ -7,8 +7,8 @@ extern s32 D_8009D7CC;
 extern s32 D_8009CCA4;
 extern s32 D_8009D3CC;
 
-extern void func_800894C8(s32 arg0);
-extern void func_80089514(s32 arg0);
+extern void WorldMapDeactivateSpriteGroup(s32 arg0);
+extern void WorldMapClearGroupEntryFlag(s32 arg0);
 extern void func_80097770(s32 arg0, s32 arg1);
 extern s32* D_80062528;
 
@@ -63,8 +63,8 @@ extern void func_80086568(void);
 extern void func_800866C8(void);
 extern void WorldMapFreeTileAnimEntries(void);
 extern void WorldMapFreeFrameAnimEntries(void);
-extern void func_80088FF4(void);
-extern void func_80089128(void);
+extern void WorldMapFreeSpriteGroupTable(void);
+extern void WorldMapFreePrimTemplateBuffers(void);
 extern void func_80097D64(void);
 extern void func_800976A0(void);
 extern void HeapFree(void* pMem);
@@ -218,12 +218,12 @@ s32 WorldMapScriptOp05ActivateSpriteGroup(s32 arg0, s32 arg1) {
 }
 
 s32 WorldMapScriptOp06DeactivateSpriteGroup(s32 arg0, s32 arg1) {
-    func_800894C8(arg1);
+    WorldMapDeactivateSpriteGroup(arg1);
     return 2;
 }
 
 s32 WorldMapScriptOp07ClearGroupEntries(s32 arg0, s32 arg1) {
-    func_80089514(arg1);
+    WorldMapClearGroupEntryFlag(arg1);
     return 2;
 }
 
@@ -405,7 +405,7 @@ extern void func_800863E0(void);
 extern void WorldMapInitTileAnimEntries(void);
 extern void WorldMapInitFrameAnimEntries(void);
 extern void WorldMapSetupMapPrims(void);
-extern void func_80088F64(void);
+extern void WorldMapInitSpriteGroupTables(void);
 extern void SoundAddSedsEntry(void* pSeds);
 extern s32 ArchiveSetIndex(s32 arg0, s32 arg1);
 extern void func_80097718(void* p0, void* p1);
@@ -468,7 +468,7 @@ void WorldMapInitializeMode(void) {
     WorldMapInitTileAnimEntries();
     WorldMapInitFrameAnimEntries();
     WorldMapSetupMapPrims();
-    func_80088F64();
+    WorldMapInitSpriteGroupTables();
     ArchiveSetIndex(0x24, 0);
     func_80097BC0(pPos);
     do {
@@ -496,8 +496,8 @@ s32 WorldMapExitMode(void) {
     func_800866C8();
     WorldMapFreeTileAnimEntries();
     WorldMapFreeFrameAnimEntries();
-    func_80088FF4();
-    func_80089128();
+    WorldMapFreeSpriteGroupTable();
+    WorldMapFreePrimTemplateBuffers();
     func_80097D64();
     HeapFree(D_8009BC38);
     HeapFree(D_8009BCB0);
@@ -658,7 +658,7 @@ void WorldMapInitializeModeWithSound(void) {
     WorldMapInitTileAnimEntries();
     WorldMapInitFrameAnimEntries();
     WorldMapSetupMapPrims();
-    func_80088F64();
+    WorldMapInitSpriteGroupTables();
     ArchiveCdDataSync(0);
     SoundAddSedsEntry(D_8006259C);
     ArchiveSetIndex(0x24, 0);

@@ -24,7 +24,7 @@ extern u8 D_800D3725[];
 extern u8 D_800D3726[];
 
 extern s32 func_8002675C(void *pDir, s32 index, void *pPrims, s32 context, s16 x, s16 y, s16 scale);
-extern void func_80076C78(POLY_FT4 *p, u16 x, s16 y, u8 u, u8 v, u8 dx);
+extern void BattleSetPolyFT4RectH13(POLY_FT4 *p, u16 x, s16 y, u8 u, u8 v, u8 dx);
 extern void func_800728B8(u8 *pDst, s32 arg1, s32 arg2);
 extern void func_80072A9C(s32 index, u8 arg1);
 extern void func_80072DA8(s32 index, u8 arg1);
@@ -316,10 +316,10 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_8007500C);
         do {
             if (D_800D3725[off] != 0) {
                 if (i == 0) {
-                    func_80076C78((POLY_FT4 *)((s32)&D_800D36C8 + D_800CCB34 * 40),
+                    BattleSetPolyFT4RectH13((POLY_FT4 *)((s32)&D_800D36C8 + D_800CCB34 * 40),
                                   0x40 - (D_800D3726[off] >> 1), 0x2C, 0, 0, D_800D3726[off]);
                 } else {
-                    func_80076C78((POLY_FT4 *)(off + ((s32)&D_800D36C8 + D_800CCB34 * 40)),
+                    BattleSetPolyFT4RectH13((POLY_FT4 *)(off + ((s32)&D_800D36C8 + D_800CCB34 * 40)),
                                   0x9A - (D_800D3726[off] >> 1), 0xCA, 0,
                                   (13 * (i / 2)) & 0xFF, D_800D3726[off]);
                 }

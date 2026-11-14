@@ -441,7 +441,7 @@ void FieldScriptVMHandlerSetFieldEntryState(void) {
         return;
     }
 
-    func_800A31E8();
+    FieldScriptUpdateMemoryEachFrame();
     g_FieldControl.isRandomEncountersEnabled = -1;
     D_800ADBE4 = 0;
     g_pGameState->unk231A = FieldScriptArgument1(1, SCRIPT_READ_U8_REL(9));

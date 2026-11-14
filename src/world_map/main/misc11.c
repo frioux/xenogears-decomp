@@ -87,7 +87,7 @@ extern s32 SquareRoot0(s32);
 
 extern s32 func_8008C364(WorldMapActor *, s32);
 extern void func_80089160(s32, void *, void *);
-extern void func_800894C8(s32);
+extern void WorldMapDeactivateSpriteGroup(s32);
 extern s16 WorldMapGetTileHalfIndex(void *);
 extern s32 WorldMapGetTilePlaneHeight(s32, s32);
 extern void *D_8009BDFC[];
@@ -294,7 +294,7 @@ void func_8008C1DC(s32 arg0, WorldMapActor *pActor, WorldMapScreenPos *pPos) {
         pPos->unk0AA = pActor->unk5C;
         func_80089160(arg0, &pPos->unk0A0, &pPos->unk0A8);
     } else {
-        func_800894C8(arg0);
+        WorldMapDeactivateSpriteGroup(arg0);
     }
 }
 void func_8008C28C(WorldMapActor *pActor, int index) {

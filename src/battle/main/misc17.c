@@ -31,8 +31,8 @@ void BattleReleaseEffectSlotIfChar4(void);
 void func_8009AC48(u8, s32);
 void func_800916D4(u8, u8, s32);
 void func_8008AAA0(u32);
-void func_80076C78(POLY_FT4 *, s16, s16, u8, u8, s16);
-void func_80076CE8(POLY_FT4 *, s16, s16, u8, u8, s16, s16);
+void BattleSetPolyFT4RectH13(POLY_FT4 *, s16, s16, u8, u8, s16);
+void BattleSetPolyFT4Rect(POLY_FT4 *, s16, s16, u8, u8, s16, s16);
 s32 func_8009A258(u8, s32);
 void func_8009187C(u8, u8, u8);
 void func_80091B38(u8, u8, u8);
@@ -92,7 +92,7 @@ void func_800916D4(u8 arg0, u8 arg1, s32 arg2) {
     u16 k;
 
     s = arg1 * 2 + arg0;
-    func_80076CE8(
+    BattleSetPolyFT4Rect(
         (POLY_FT4 *)(D_800CCB34 * 0x28 + 0x140 +
                      (s32)(*(u8 **)(D_800C3EA4 + 0xA230))),
         0x20, 0xA4, (s - s / 2 * 2) * 0x78 & 0xF8, s / 2 * 16, 0x60, 0x10);
@@ -104,7 +104,7 @@ void func_800916D4(u8 arg0, u8 arg1, s32 arg2) {
             if (c == 0xFF) {
                 continue;
             }
-            func_80076C78(
+            BattleSetPolyFT4RectH13(
                 (POLY_FT4 *)((*(u8 **)(D_800C3EA4 + 0xA230)) +
                              (*(u8 *)(*(u8 **)(D_800C3EA4 + 0xA230) + 0x66E) *
                                   2 +
@@ -120,7 +120,7 @@ void func_800916D4(u8 arg0, u8 arg1, s32 arg2) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_800916D4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_8009187C);
 /* 87.45%: the whole shape (index branch, RECT, two string draws, two
-   func_80076C78 calls, HeapFree) reproduces; the leftovers are the
+   BattleSetPolyFT4RectH13 calls, HeapFree) reproduces; the leftovers are the
    &D_800CCB34 wall (retail holds `lui s3/addiu s3` once and does `lw 0(s3)`
    twice, gcc rematerialises `lui/lw` per call) and the `andi s0,s0,0xffff`
    retail emits at index's first use (gcc proves the u8-derived range here and
@@ -148,8 +148,8 @@ void func_80091B38(u8 arg0, u8 arg1, u8 arg2) {
     rect.w = 0x3C;
     rect.h = 0xD;
     func_800769E8(&rect, pBuf);
-    func_80076C78((POLY_FT4 *)(*(u8 **)(D_800C3EA4 + 0xA230) + D_800CCB34 * 0x28 + 0x280), 0x30, 0xB6, 0, 0, len1 & 0xFF);
-    func_80076C78((POLY_FT4 *)(*(u8 **)(D_800C3EA4 + 0xA230) + D_800CCB34 * 0x28 + 0x2D0), 0x30, 0xC6, 0, 0, len2 & 0xFF);
+    BattleSetPolyFT4RectH13((POLY_FT4 *)(*(u8 **)(D_800C3EA4 + 0xA230) + D_800CCB34 * 0x28 + 0x280), 0x30, 0xB6, 0, 0, len1 & 0xFF);
+    BattleSetPolyFT4RectH13((POLY_FT4 *)(*(u8 **)(D_800C3EA4 + 0xA230) + D_800CCB34 * 0x28 + 0x2D0), 0x30, 0xC6, 0, 0, len2 & 0xFF);
     HeapFree(pBuf);
 }
 */
@@ -185,7 +185,7 @@ void func_80091D38(u8 arg0, s32 arg1, u8 arg2) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80091D38);
-/* 64.13%: shape is right (two palette stores, four func_80076CE8 calls with
+/* 64.13%: shape is right (two palette stores, four BattleSetPolyFT4Rect calls with
    the arg0/0x60/0x10 stack args, trailing 0x668 store) but retail keeps
    `&D_800CCB34` in s0 (`lui/addiu` once) where gcc rematerialises
    `lui/lw D_800CCB34` at each use and a `lui/lbu` at the end; that also costs
@@ -197,10 +197,10 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80091D38);
 void func_80091EC4(u8 arg0) {
     *(u16 *)(*(u8 **)(D_800C3EA4 + 0xA230) + D_800CCB34 * 0x28 + 0xE) = g_SystemPalette1;
     *(u16 *)(*(u8 **)(D_800C3EA4 + 0xA230) + D_800CCB34 * 0x28 + 0x5E) = g_SystemPalette1;
-    func_80076CE8((POLY_FT4 *)(*(u8 **)(D_800C3EA4 + 0xA230) + D_800CCB34 * 0x28), 0x34, 0x34, 0, arg0, 0x60, 0x60);
-    func_80076CE8((POLY_FT4 *)(*(u8 **)(D_800C3EA4 + 0xA230) + D_800CCB34 * 0x28 + 0x50), 0xB8, 0x34, 0x78, arg0, 0x60, 0x60);
-    func_80076CE8((POLY_FT4 *)(*(u8 **)(D_800C3EA4 + 0xA230) + D_800CCB34 * 0x28 + 0xA0), 0x9C, 0x34, 0, arg0, 0x10, 0x60);
-    func_80076CE8((POLY_FT4 *)(*(u8 **)(D_800C3EA4 + 0xA230) + D_800CCB34 * 0x28 + 0xF0), 0x120, 0x34, 0x40, arg0, 0x10, 0x60);
+    BattleSetPolyFT4Rect((POLY_FT4 *)(*(u8 **)(D_800C3EA4 + 0xA230) + D_800CCB34 * 0x28), 0x34, 0x34, 0, arg0, 0x60, 0x60);
+    BattleSetPolyFT4Rect((POLY_FT4 *)(*(u8 **)(D_800C3EA4 + 0xA230) + D_800CCB34 * 0x28 + 0x50), 0xB8, 0x34, 0x78, arg0, 0x60, 0x60);
+    BattleSetPolyFT4Rect((POLY_FT4 *)(*(u8 **)(D_800C3EA4 + 0xA230) + D_800CCB34 * 0x28 + 0xA0), 0x9C, 0x34, 0, arg0, 0x10, 0x60);
+    BattleSetPolyFT4Rect((POLY_FT4 *)(*(u8 **)(D_800C3EA4 + 0xA230) + D_800CCB34 * 0x28 + 0xF0), 0x120, 0x34, 0x40, arg0, 0x10, 0x60);
     *(u8 *)(*(u8 **)(D_800C3EA4 + 0xA230) + 0x668) = *(u8 *)&D_800CCB34;
 }
 */
@@ -239,9 +239,9 @@ void func_8009382C(u8 arg0, u8 arg1) {
     rect.w = 0x3C;
     rect.h = 0xD;
     func_800769E8(&rect, pBuf);
-    func_80076C78((POLY_FT4 *)(*(u8 **)(D_800C3EA4 + 0xA230) + D_800CCB34 * 0x28 + 0x280),
+    BattleSetPolyFT4RectH13((POLY_FT4 *)(*(u8 **)(D_800C3EA4 + 0xA230) + D_800CCB34 * 0x28 + 0x280),
                   0x88, 0xB6, 0, 0, len1 & 0xFF);
-    func_80076C78((POLY_FT4 *)(*(u8 **)(D_800C3EA4 + 0xA230) + D_800CCB34 * 0x28 + 0x2D0),
+    BattleSetPolyFT4RectH13((POLY_FT4 *)(*(u8 **)(D_800C3EA4 + 0xA230) + D_800CCB34 * 0x28 + 0x2D0),
                   0x88, 0xC6, 0, 0, len2 & 0xFF);
     HeapFree(pBuf);
 }

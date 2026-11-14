@@ -45,7 +45,7 @@ extern u8 D_800D2D24[];
 extern u8 D_80059179;
 extern u8 D_800C4022[];
 extern u8 D_800C3FFE[];
-extern void func_80077980(void);
+extern void BattleClearFlagC6(void);
 extern void func_8009413C(u8 arg0, u8 arg1);
 extern u8 D_800D2C0C[];
 extern void func_8009A2D4(u8 arg0);
@@ -418,7 +418,7 @@ void func_800819A4(u8 arg0) {
     *(u8 *)((u32)D_800C3EAC + arg0 * 0x40 + 0x3C) = D_800C3EAC[0x2E8];
     func_8007FCE8();
     func_8007FDEC();
-    func_80077980();
+    BattleClearFlagC6();
     orBits = func_80089C08(arg0) | func_80089C08(D_800C3EAC[arg0 * 0x40 + 0x3C]);
     func_800BC404(orBits);
     if (D_800D2D24[arg0] != 4) {

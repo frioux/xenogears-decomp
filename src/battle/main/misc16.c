@@ -26,7 +26,7 @@ extern void func_800716D8(void);
 extern void HeapFree(void *pMem);
 extern void func_8008FC1C(s32, s32, s32, s32, u8);
 extern s32 func_80076A10(s32, s32, s16, s16);
-extern void func_80076C78(POLY_FT4 *p, s16 x, s16 y, u8 u, u8 v, s16 dx);
+extern void BattleSetPolyFT4RectH13(POLY_FT4 *p, s16 x, s16 y, u8 u, u8 v, s16 dx);
 extern void func_800769E8(RECT *pRect, u_long *pData);
 extern void *func_8008AC00(s32);
 extern void bzero(void *p, s32 n);
@@ -34,7 +34,7 @@ extern u8 *GetStringEntry(u8 *, s32);
 extern s32 SystemRenderStringEntry(u8 *, void *, s32, s32);
 extern u8 D_800C3D70[];
 extern void *func_8008ABB8(s32, s32);
-extern void func_80077454(s32);
+extern void BattleInitSlotPrims(s32);
 extern void func_8008F6E4(u8, s32, s32, s32, s32);
 extern void func_8008DC34(u8, s32, s32, s32, u16);
 extern void func_8008DE04(u8, s32, s32, s32);
@@ -46,7 +46,7 @@ extern void func_800904A0(s32, s32);
 extern void func_8009070C(u8, u8);
 extern void *D_800D2F5C;
 extern u8 D_800C3E4C;
-extern void func_80076B00(void *);
+extern void BattleSetPrimGrey80BlendModeFromGlobal(void *);
 extern s32 func_800263E4(void *, s32, void *, s32, s16, s16, s32, s32, s32);
 extern u16 D_800C324E;
 extern u16 D_800C3250;
@@ -62,7 +62,7 @@ extern u8 func_80085084(u16, u8, s32);
 extern void func_8008CCCC(u8);
 extern void func_8008CD28(u8);
 extern void func_8008AA74(u8);
-extern void func_80076CE8(POLY_FT4 *, s16, s16, u8, u8, s16, s16);
+extern void BattleSetPolyFT4Rect(POLY_FT4 *, s16, s16, u8, u8, s16, s16);
 
 u8 func_8008CDE4(u8 arg0, u8 arg1) {
     u16 hdr[4];
@@ -115,7 +115,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008D598);
    s32 sum temp, and gcc-2.7.2-cdk (84.94, so the preset is right). Everything
    else in the 464-byte body matches byte for byte: the codes[] branch pair, the
    four func_80076A10 calls with the 0x5A0 accumulate operand order, dx between
-   calls 1 and 2, dy between calls 2 and 3, and the 4-iteration func_80076B00
+   calls 1 and 2, dy between calls 2 and 3, and the 4-iteration BattleSetPrimGrey80BlendModeFromGlobal
    loop.
 void func_8008DC34(u8 arg0, s32 arg1, s32 arg2, s32 arg3, u16 arg4) {
     u8 codes[4];
@@ -145,7 +145,7 @@ void func_8008DC34(u8 arg0, s32 arg1, s32 arg2, s32 arg3, u16 arg4) {
     *(s32 *)(p + 0x5A0) = func_80076A10(codes[2], (s32)(p + *(s32 *)(p + 0x5A0) * 0x50), (s16)arg1, dy) + *(s32 *)(p + 0x5A0);
     *(s32 *)(p + 0x5A0) = func_80076A10(codes[3], (s32)(p + *(s32 *)(p + 0x5A0) * 0x50), dx, dy) + *(s32 *)(p + 0x5A0);
     for (i = 0; i < 4; i++) {
-        func_80076B00(p + (i * 2 + D_800CCB34) * 0x28);
+        BattleSetPrimGrey80BlendModeFromGlobal(p + (i * 2 + D_800CCB34) * 0x28);
     }
 }
 
@@ -211,7 +211,7 @@ void func_8008F8F4(s32 arg0, u16 arg1, u16 arg2, u16 arg3, u16 arg4, u8 arg5, u8
         q = func_8008ABB8(0xE, 0);
         D_800D2D90[index] = q;
         bzero(q, 0xE);
-        func_80077454(index);
+        BattleInitSlotPrims(index);
     }
     if (arg5 != 0) {
         p = D_800D2D90[index];

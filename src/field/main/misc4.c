@@ -239,7 +239,7 @@ extern s16 D_8004F384;
 extern s32 D_8004F310;
 extern s32 g_GamePartySkinsInitialized;
 extern s32 D_800B0064;
-extern void func_800A30FC(void);
+extern void FieldScriptSyncMemoryWithGameState(void);
 extern void SoundFreeLoadedWdsAndAudioManager(void);
 extern void FieldBeginWdsFileLoad(void);
 extern void FieldFinishWdsFileLoad(void);
@@ -254,7 +254,7 @@ void FieldAdvanceGameState(int state) {
     case 0: {
         u16 nSaved;
 
-        func_800A30FC();
+        FieldScriptSyncMemoryWithGameState();
         nSaved = g_pGameState->unk1930[1];
         D_8004F324 = D_800AFC78;
         g_pGameState->unk2322 = D_800AFC78;
