@@ -470,6 +470,29 @@
 	: "r"( r0 )						\
 	: "$12", "$13", "$14" )
 
+/* Rotation rows then translation of a MATRIX, interleaved through $12-$14;
+   gte_SetRotMatrix + gte_SetTransVector use $8-$12 and a different interleave. */
+#define gte_SetRotMatrix_gpr( r0 ) __asm__ volatile ( \
+	"lw\t$12, 0( %0 );" \
+	"lw\t$13, 4( %0 );" \
+	"ctc2\t$12, $0;" \
+	"ctc2\t$13, $1;" \
+	"lw\t$12, 8( %0 );" \
+	"lw\t$13, 12( %0 );" \
+	"lw\t$14, 16( %0 );" \
+	"ctc2\t$12, $2;" \
+	"ctc2\t$13, $3;" \
+	"ctc2\t$14, $4;" \
+	"lw\t$12, 20( %0 );" \
+	"lw\t$13, 24( %0 );" \
+	"ctc2\t$12, $5;" \
+	"lw\t$14, 28( %0 );" \
+	"ctc2\t$13, $6;" \
+	"ctc2\t$14, $7" \
+	: \
+	: "r"( r0 ) \
+	: "$12", "$13", "$14" )
+
 /* Translation then rotation rows of a MATRIX, interleaved through $12-$14
 the way retail's 3.x SetTransVector + SetRotMatrix pair comes out. */
 #define gte_SetTransRotMatrix_gpr( r0 ) __asm__ volatile (	\

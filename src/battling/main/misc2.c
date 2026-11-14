@@ -148,7 +148,30 @@ void func_80073424(VECTOR *p0, VECTOR *p1, u8 *p2, s32 arg3, s32 arg4, s32 arg5)
 } */
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80073644);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80073B7C);
+void func_80073B7C(u8 *p0, s32 arg1, s32 arg2, VECTOR *pOut) {
+    u32 **pArray;
+    u32 *pEntry;
+    u8 *pSrc;
+    u8 *pVerts;
+
+    pArray = *(u32 ***)(*(u8 **)(*(u8 **)(p0 + 0x5C) + 0x4) + 0x4);
+    pEntry = *(u32 **)(arg1 + pArray);
+    if (arg2 != 0 && pEntry[0] == 1) {
+        gte_SetRotMatrix_gpr((u8 *)pEntry + 0x4C);
+        pSrc = *(u8 **)(*(u8 **)((u8 *)pEntry + 0x4) + 0x14);
+        pVerts = *(u8 **)(pSrc + 0x8);
+        gte_ldv0((SVECTOR *)(pVerts + (arg2 * 8 - 8)));
+        gte_mvmva(1, 0, 0, 0, 0);
+        gte_stlvnl(pOut);
+        pOut->vx += *(s32 *)(p0 + 0x0);
+        pOut->vy += *(s32 *)(p0 + 0x4);
+        pOut->vz += *(s32 *)(p0 + 0x8);
+    } else {
+        pOut->vx = *(s32 *)((u8 *)pEntry + 0x60) + *(s32 *)(p0 + 0x0);
+        pOut->vy = *(s32 *)((u8 *)pEntry + 0x64) + *(s32 *)(p0 + 0x4);
+        pOut->vz = *(s32 *)((u8 *)pEntry + 0x68) + *(s32 *)(p0 + 0x8);
+    }
+}
 
 void func_80073CA4(u8 *p0) {
     s32 i;
