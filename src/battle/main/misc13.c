@@ -147,18 +147,25 @@ void func_80085CCC(u8 arg0, u16 arg1, u16 arg2) {
     func_800941A4();
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80085D34);
-/* 90.42%: the three calls are byte-identical except that retail's
-   `addu $a1,$a1,$v0` (offset first, base second) comes out base-first, and the
-   epilogue differs (retail keeps `sb` after `lw $ra` with a nop in the jr slot).
-   Tried: parenthesised offset, array-index form, an s32 ofs local, and the
-   swapped operand order (that one makes gcc fold the +0x9C8 onto the base).
+/* 95.68%: the three calls and all address arithmetic are byte-identical; only
+   the composed pointer operand order differs - retail has the table offset in
+   $a1 and the base in $v0 (`addu $a1,$a1,$v0`), gcc's `base + ofs` gives
+   `addu $a1,$v0,$a1` - and the epilogue, where retail keeps
+   `nop; sb; lw $ra; addiu $sp; jr; nop` while gcc hoists `lw $ra` into the
+   lbu's load-delay slot and reorg moves `addiu $sp` into the jr slot (2 insns
+   short). Fixed while un-parking: the SECOND call's first argument is the
+   constant 0x19, not `D_800C3EAC[0x2D4] + 0xF` (retail: `ori $a0,$zero,0x19`);
+   and this site reads D_800CCB34 with `lbu` (95.68% needs `extern u8
+   D_800CCB34`; with the unit's `extern s32` it is 94.94%). Tried: `ofs + base` for the addu order
+   (70.30%), an `ofs` local (66.62%, gcc then CSEs the two D_800D2D28 loads
+   retail keeps separate).
 void func_80085D34(void) {
     s32 v;
 
     D_800D2D28[0x7B] = 0;
     v = func_80076A10(D_800C3EAC[0x2D4] + 0xF, (s32)(D_800C3EA4 + (D_800D2D28[0x7B] * 0x50 + 0x9C8)), 0x2A, 0xD0);
     D_800D2D28[0x7B] += v;
-    v = func_80076A10(D_800C3EAC[0x2D4] + 0xF, (s32)(D_800C3EA4 + (D_800D2D28[0x7B] * 0x50 + 0x9C8)), 0x32, 0xD0);
+    v = func_80076A10(0x19, (s32)(D_800C3EA4 + (D_800D2D28[0x7B] * 0x50 + 0x9C8)), 0x32, 0xD0);
     D_800D2D28[0x7B] += v;
     v = func_80076A10(D_800C3EAC[0x2D5] + 0xF, (s32)(D_800C3EA4 + (D_800D2D28[0x7B] * 0x50 + 0x9C8)), 0x3A, 0xD0);
     D_800D2D28[0x7B] += v;
