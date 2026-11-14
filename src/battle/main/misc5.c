@@ -44,6 +44,12 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc5", func_8007A628);
    offset in a0), so the two differ only in allocation: this one needs res out of
    v1. Tried: res declared before/after off, off/f as top-level declarations,
    u32/u8 res. The u8 res is what produces the sltiu v0 + move (a2,v0) copy.
+   Round 35: everything (three branches, both delay-slot stores of res, all
+   loads, the arg0*0x170 sequence) is identical; the ONLY difference is res
+   landing in v1 instead of a2 while off lands in a0 instead of v1 - a global.c
+   priority tie. Also tried: the offset written inline twice (cse makes one
+   pseudo, same 99.12%) and dropping the `u32 f` local (89.10%, it turns the
+   andi+sltiu into srl+xori).
 u32 func_8007A628(u8 arg0, u8 arg1) {
     s32 off;
     u32 f;
@@ -138,7 +144,11 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc5", func_8007A92C);
    lui/addiu above the p[] loads (18.33%); `u8 idx = p[1]` with one local gives
    the perfect val/lbu order but hoists the base the same way; an array form
    `((u16*)(sym + arg1*0x40))[p[1]]` and the fully inline sum both become the
-   %at address (28.33%). Tried: 8 shapes (84.67% best).
+   %at address (28.33%).
+   Round 35: 10 shapes. A named base local ((u8*)(rowOff + sym) then
+   *(u16*)(pBase + (p[1] << 1))) DOES fix the association - the two addus become
+   (rowOff+base) then +idx2, as retail - but gcc then emits the lui/addiu group
+   and the `lw p` two statements early (17.00%). 84.67% is still the best.
 void func_8007A92C(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
     s32 rowOff = arg1 * 0x40;
@@ -235,6 +245,11 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc5", func_8007AA60);
    operand locals before/after the row pointer (71.50%).
    Round 20: still 99.55% and also exactly 99.55% under gcc-2.7.2-cdk, so this
    one is not the cdk-flippable tie that func_8007ABD8 is.
+   Round 35: the last difference is only the mult operand order (mult v0,v1 vs
+   v1,v0); every other insn, including both lbu orders, is identical. gcc spells
+   'mult <first source operand>,<second>' and always defers the SECOND operand's
+   lbu to the mult point, so 'pRow[p[1]] * p[2]' buys the mult order and loses
+   the p[2] load (71.50%). The two are mutually exclusive.
 void func_8007AA60(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
     u8 *pRow = D_800D3430 + arg1 * 0x40;
