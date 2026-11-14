@@ -67,6 +67,13 @@ extern s32 BattleFindTriangleContainingPoint(s16* pVec);
 extern void BattleProjectPointOntoIndexedTriangle(s16* pVec, s32 arg1, u8* pOut);
 extern void SpriteDrawFrame(SpriteData* pSprite, u_long* pOT);
 extern void* func_800BFC80(void* pArg0, s32 arg1, s32 arg2);
+extern s32 D_80059464;
+extern u8 D_800591AC;
+extern void func_800B136C(void);
+extern void func_800B8D7C(void);
+extern void func_800BFBA0(void);
+extern void func_800BC454(s32 arg0);
+extern void BattleLoadActorArchiveFile(SpriteData* pSprite);
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800B905C);
 
@@ -106,7 +113,29 @@ void BattleActorSnapToTargetAndFace(SpriteData* pSprite, s32 arg1) {
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800B9C78);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800B9F78);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800BA4E0);
+void func_800BA4E0(s32 index) {
+    SpriteData* pSprite;
+    u8* pBase;
+    s32 slotOffset;
+
+    D_80059464 = 0;
+    D_800591AC = 0;
+    func_800B136C();
+    pBase = D_800C3EB0;
+    slotOffset = 0x8C8C;
+    if (pBase[index * 0x1C + 8] != 0) {
+        func_800B8D7C();
+        func_800BFBA0();
+    } else if (index < 3) {
+        pSprite = *(SpriteData**)(pBase + index * 4 + slotOffset);
+        if (pSprite != NULL) {
+            BattleLoadActorArchiveFile(pSprite);
+        }
+    } else {
+        func_800B8D7C();
+    }
+    func_800BC454(0xC0);
+}
 void BattleActorSetStepFromAngle(SpriteData* pSprite, s16 angle) {
     s32 scale = pSprite->moveSpeed >> 3;
 
