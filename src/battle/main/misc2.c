@@ -1,5 +1,6 @@
 #include "common.h"
 #include "psyq/libgpu.h"
+#include "battle/battle_work.h"
 
 extern u8 D_8005959C;
 extern u8 *D_800C3EA4;
@@ -7,10 +8,10 @@ extern u8 D_800C3E4C;
 extern u8 D_800C492A;
 extern u8 *D_800CCB04;
 extern s32 D_800D2DAC;
-extern u8 *D_800D3278;
+extern BattlePrimPool *D_800D3278;
 extern s32 D_800CCB34;
 extern void *D_800D2F5C;
-extern u8 *D_800D2D28;
+extern BattleWork *D_800D2D28;
 extern u8 *D_800C3E24;
 extern u16 D_800C3254[];
 extern u8 D_800D3280;
@@ -124,33 +125,33 @@ void func_80073B64(void) {
 void BattleAddTwoPrimLists(void) {
     s32 i;
     s32 offset;
-    u8 *p;
+    BattleWork *pWork;
 
-    if (D_800D2D28[0xCB] == 0) {
+    if (D_800D2D28->unkCB == 0) {
         return;
     }
 
     i = 0;
     offset = 0x641C;
     do {
-        p = D_800D2D28;
-        func_800728B8((u8 *)(offset + (s32)D_800C3EA4), *(s32 *)(p + i * 4 + 0xD0), p[0xA3]);
+        pWork = D_800D2D28;
+        func_800728B8((u8 *)(offset + (s32)D_800C3EA4), pWork->unkD0[i], pWork->unkA3);
         offset += 0xFA0;
         i++;
     } while (i < 2);
 }
 
 void BattleAddThreeFlaggedPrimLists(void) {
-    if (D_800D2D28[0x9C] != 0) {
-        func_800728B8(D_800C3EA4 + 0xBA8, *(s32 *)(D_800D2D28 + 0xF8), D_800D2D28[0xA5]);
+    if (D_800D2D28->unk9C != 0) {
+        func_800728B8(D_800C3EA4 + 0xBA8, D_800D2D28->unkF8, D_800D2D28->unkA5);
     }
 
-    if (D_800D2D28[0x9E] != 0) {
-        func_800728B8(D_800C3EA4 + 0x27C8, *(s32 *)(D_800D2D28 + 0x100), D_800D2D28[0xA7]);
+    if (D_800D2D28->unk9E != 0) {
+        func_800728B8(D_800C3EA4 + 0x27C8, D_800D2D28->unk100, D_800D2D28->unkA7);
     }
 
-    if (D_800D2D28[0x9D] != 0) {
-        func_800728B8(D_800C3EA4 + 0x1E68, *(s32 *)(D_800D2D28 + 0xFC), D_800D2D28[0xA6]);
+    if (D_800D2D28->unk9D != 0) {
+        func_800728B8(D_800C3EA4 + 0x1E68, D_800D2D28->unkFC, D_800D2D28->unkA6);
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_80073FB8);
@@ -240,7 +241,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_80074AB8);
 void BattleUpdateRotationBuffer(void) {
     s32 i;
 
-    if (D_800D2D28[0xC6] == 0) {
+    if (D_800D2D28->unkC6 == 0) {
         return;
     }
 
@@ -270,7 +271,7 @@ void BattleUpdateRotationBuffer(void) {
     } while (i < 4);
 }
 void BattleAddThreePrimLists(void) {
-    if (D_800D2D28[0xA8] == 0) {
+    if (D_800D2D28->unkA8 == 0) {
         return;
     }
 
@@ -280,16 +281,16 @@ void BattleAddThreePrimLists(void) {
 }
 
 void BattleAddPrimAndRenderObject(void) {
-    u8 *p;
+    BattlePrimPool *pPool;
     s32 off;
 
-    if (D_800D2D28[0xC8] != 0) {
-        p = D_800D3278;
-        off = p[0x7F4] * 40 + 0x7A4;
-        AddPrim(D_800CCB04 + 4, (u8 *)(off + (s32)p));
+    if (D_800D2D28->unkC8 != 0) {
+        pPool = D_800D3278;
+        off = pPool->unk7F4 * sizeof(POLY_FT4) + 0x7A4;
+        AddPrim(D_800CCB04 + 4, (u8 *)(off + (s32)pPool));
     }
 
-    if (D_800D2D28[0xC9] != 0) {
+    if (D_800D2D28->unkC9 != 0) {
         func_80034888(D_800D2DAC, D_800CCB04 + 4, D_800CCB34);
     }
 }
