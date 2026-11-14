@@ -53,7 +53,7 @@ s32 func_8002675C(MenuResourceDirectory* pDir, u32 index, POLY_FT4* pPrims, s32 
 void MenuSetQuadVertices(SVECTOR* pVertices, u16 x, u16 y, u16 width, u16 height);
 void MenuSetPolySemiTransGrey(P_TAG* pTag);
 
-s32 func_801D9C84(void) {
+s32 MenuBeginCardOperation(void) {
     MenuUnk2* pMenu;
     s32 result = 1;
 

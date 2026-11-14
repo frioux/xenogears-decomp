@@ -14,7 +14,7 @@ extern void func_8001F6B0(u8 *pEntry);
 extern s32 rcos(s32 a);
 extern s32 rsin(s32 a);
 extern void SpriteSetIVec3(IVEC3 *pVector, s32 x, s32 y, s32 z);
-extern s32 func_800AA600(s32 arg0);
+extern s32 BattleGetActorHeight(s32 arg0);
 extern s32 D_80050100;
 extern MATRIX D_800D30BC;
 extern void TimerWorkListSetTaskCallback(void *pEntry, void *pCallback);
@@ -33,7 +33,7 @@ extern s32 D_800C3CBC;
 
 /* best 94.51%: everything matches except two things, and both come from the
    same place - retail splits D_800D30BC's address across five instructions
-   (lui $s0 right after the func_800AA600 call, addiu $s0 five insns later);
+   (lui $s0 right after the BattleGetActorHeight call, addiu $s0 five insns later);
    gcc 2.7.2 emits "la" as ONE macro that maspsx expands adjacently, so the
    pair can never be split (gcc-2.7.2-cdk, which does split it, scores 93.33
    overall here). Same for the register the three "lh" loads land in. The
@@ -55,7 +55,7 @@ extern s32 D_800C3CBC;
     pSpriteData = *(u8 **)(pTask + 4);
     mode = *(u32 *)(pSpriteData + 0xA8) >> 30;
     pField = (u16 *)(pSpriteData + 0x36);
-    *pField = func_800AA600(((*(u32 *)(pSpriteData + 0xAC) & 3) << 2) | mode);
+    *pField = BattleGetActorHeight(((*(u32 *)(pSpriteData + 0xAC) & 3) << 2) | mode);
     pRead = (u16 *)(pSpriteData + 0x36);
     *(u16 *)(pSpriteData + 0x38) = *pRead >> 1;
     v = *(s16 *)(pSpriteData + 0x2);

@@ -805,7 +805,7 @@ void FieldScriptVMHandlerStepActorRotationOn(void) {
         g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
     }
     
-    func_80072254(D_800AFD1C);
+    FieldActorApplyRotationAndScale(D_800AFD1C);
 }
 
 void FieldScriptVMHandlerStepActorRotationOff(void) {
@@ -832,10 +832,10 @@ void FieldScriptVMHandlerStepActorRotationOff(void) {
     } else {
         g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
     }
-    func_80072254(D_800AFD1C);
+    FieldActorApplyRotationAndScale(D_800AFD1C);
 }
 
-extern void func_80072254(int);
+extern void FieldActorApplyRotationAndScale(int);
 extern void FieldSetSoundSlotElement(int,int);
 extern s32 D_800AFD1C;
 extern FieldActor* D_800B06B8;
@@ -884,7 +884,7 @@ void FieldScriptVMHandlerStepActorMoveOn() {
     } else {
         g_FieldScriptVMCurActor->scriptInstructionPointer += 7;
     }
-    func_80072254(D_800AFD1C);
+    FieldActorApplyRotationAndScale(D_800AFD1C);
 }
 
 void FieldScriptVMHandlerStepActorMoveOff(void) {
@@ -928,7 +928,7 @@ void FieldScriptVMHandlerStepActorMoveOff(void) {
     } else {
         g_FieldScriptVMCurActor->scriptInstructionPointer += 7;
     }
-    func_80072254(D_800AFD1C);
+    FieldActorApplyRotationAndScale(D_800AFD1C);
 }
 
 extern s32 D_8004F318;
@@ -973,7 +973,7 @@ void FieldScriptVMHandlerSetActorHideMode3(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
 
-extern void func_80072254(int);
+extern void FieldActorApplyRotationAndScale(int);
 
 // Set/Increase/Decrease the X, Y or Z rotation of the actor named by the instruction
 void FieldScriptVMHandlerRotateActor(void) {
@@ -1000,7 +1000,7 @@ void FieldScriptVMHandlerRotateActor(void) {
                 pActor->rotation.z -= FieldScriptVMGetArgument(3);
                 break;
         }
-        func_80072254(FieldScriptVMGetActorIndex(2));
+        FieldActorApplyRotationAndScale(FieldScriptVMGetActorIndex(2));
     }
     g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
 }
@@ -1019,49 +1019,49 @@ void FieldScriptVMHandlerSetCurrentActorRotation(void) {
             break;
     }
     g_FieldScriptVMCurActor->scriptInstructionPointer += 4;
-    func_80072254(D_800AFD1C);
+    FieldActorApplyRotationAndScale(D_800AFD1C);
 }
 
 // Increase X Rotation of Actor D_800AFD1C
 void func_80094A5C(void) {
     (&g_FieldActors[D_800AFD1C])->rotation.x += FieldScriptVMGetArgument(1);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
-    func_80072254(D_800AFD1C);
+    FieldActorApplyRotationAndScale(D_800AFD1C);
 }
 
 // Decrease X Rotation of Actor D_800AFD1C
 void FieldScriptVMHandlerSubCurrentActorRotX(void) {
     (&g_FieldActors[D_800AFD1C])->rotation.x -= FieldScriptVMGetArgument(1);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
-    func_80072254(D_800AFD1C);
+    FieldActorApplyRotationAndScale(D_800AFD1C);
 }
 
 // Increase Y Rotation of Actor D_800AFD1C
 void FieldScriptVMHandlerAddCurrentActorRotY(void) {
     (&g_FieldActors[D_800AFD1C])->rotation.y += FieldScriptVMGetArgument(1);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
-    func_80072254(D_800AFD1C);
+    FieldActorApplyRotationAndScale(D_800AFD1C);
 }
 
 // Decrease Y Rotation of Actor D_800AFD1C
 void FieldScriptVMHandlerSubCurrentActorRotY(void) {
     (&g_FieldActors[D_800AFD1C])->rotation.y -= FieldScriptVMGetArgument(1);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
-    func_80072254(D_800AFD1C);
+    FieldActorApplyRotationAndScale(D_800AFD1C);
 }
 
 // Increase Z Rotation of Actor D_800AFD1C
 void FieldScriptVMHandlerAddCurrentActorRotZ(void) {
     (&g_FieldActors[D_800AFD1C])->rotation.z += FieldScriptVMGetArgument(1);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
-    func_80072254(D_800AFD1C);
+    FieldActorApplyRotationAndScale(D_800AFD1C);
 }
 
 // Decrease Z Rotation of Actor D_800AFD1C
 void FieldScriptVMHandlerSubCurrentActorRotZ(void) {
     (&g_FieldActors[D_800AFD1C])->rotation.z -= FieldScriptVMGetArgument(1);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
-    func_80072254(D_800AFD1C);
+    FieldActorApplyRotationAndScale(D_800AFD1C);
 }
 
 // Find the first inventory item slot that is unused

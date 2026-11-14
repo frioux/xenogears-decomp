@@ -108,7 +108,7 @@ void func_80070DCC(void) {
         D_80076EB8 = 1 - D_80076EB8;
     }
     if ((D_800773B4 & 0x4) == 0 && (D_800773AC & 0x4) != 0 && D_80076E48 < 0xB) {
-        func_80071BA0();
+        MovieStartStreamRead();
     }
 
     if (D_80076EB8 == 1) {
@@ -153,7 +153,7 @@ void func_80070DCC(void) {
         value = func_80074AF0() & 0xFF;
         if (value == 0) {
             if (D_80076E48 < 0xB) {
-                func_80071BA0();
+                MovieStartStreamRead();
             }
         }
         if (value - 1 < 0xC) {
@@ -168,7 +168,7 @@ void func_80070DCC(void) {
 
 INCLUDE_ASM("asm/movie/nonmatchings/main/misc1", func_800712C4);
 
-void func_80071BA0(void) {
+void MovieStartStreamRead(void) {
     if (D_80076EA0 == NULL) {
         D_80076EA0 = HeapAlloc(0x2000, 0);
     }
@@ -432,7 +432,7 @@ extern s32 D_800773B0;
 extern s32 D_80076EEC;
 extern s32 D_80076EF0;
 
-s32 func_800747AC(s32 arg0, s32 arg1, s32* pOut) {
+s32 MovieUpdatePadCursor(s32 arg0, s32 arg1, s32* pOut) {
     D_800773B4 = D_800773AC;
     D_800773AC = ControllerGetButtonState(0);
     if (D_800773B4 == D_800773AC) {

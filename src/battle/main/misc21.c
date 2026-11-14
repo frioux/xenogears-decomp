@@ -52,14 +52,14 @@ typedef struct {
 extern void* HeapAlloc(u_int allocSize, u_int allocFlags);
 extern u_int HeapFree(void* pMem);
 extern void HeapChangeCurrentUser(u_int userTag, char** pContentTypes);
-extern void func_800A22E8(BattleBlockPool* pPool);
+extern void BattleResetBlockPool(BattleBlockPool* pPool);
 extern void func_800A2D5C(BattleSpritePool* pPool);
-extern s32 func_800A23E8(BattleBlockPool* pPool, BattleBlock* pBlock);
+extern s32 BattleFreeBlock(BattleBlockPool* pPool, BattleBlock* pBlock);
 extern u32 ModelResolvePointers(void* pModel);
 extern void ModelPartFreeLightData(void* pLightData);
 extern void ModelRenderPacket(void* pPart, void* pPacket, u_long* pOT, int flags);
 
-BattleModelPartList* func_8009EBA8(u8* pModel, BattleModelPartList* pList) {
+BattleModelPartList* BattleInitializeMesh(u8* pModel, BattleModelPartList* pList) {
     u32 count;
     u32 i;
 
@@ -92,7 +92,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_8009EF3C);
    - both loops are shape `for (i = 1; i < count; i++) { p++; ... }` with the pointer
      pre-increment at the TOP of the body - that is what reproduces retail's
      increments at the loop head and the store in the back-branch delay slot.
-   - signature is (BattleSprite* pSprites, s32 scale): misc24's func_800AAA20 calls it
+   - signature is (BattleSprite* pSprites, s32 scale): misc24's BattleStepActorAnimation calls it
      as func_8009EF3C(*(u32 *)(arg0 + 4), *(s16 *)(arg0 + 0x1C)), and the sibling that
      takes the same two arguments is func_8009F1C4 (rot-order flag 0x37 there).
    Remaining deltas (6 excess instructions, so not purely a tie): retail keeps the sprite walker in $s2, the
@@ -168,9 +168,9 @@ s32 func_8009EF3C(BattleSprite* pSprites, s32 scale) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_8009F1C4);
-void func_8009F5B0(void) {
+void BattleNoOp(void) {
 }
-void func_8009F5B8(BattleModelPartList* pMesh, BattleSprite* pSkeleton, MATRIX* pLightMatrix,
+void BattleRenderModel(BattleModelPartList* pMesh, BattleSprite* pSkeleton, MATRIX* pLightMatrix,
                    MATRIX* pViewMatrix, s32 arg4, s32 arg5, s32 packetIndex) {
     MATRIX* pRotMatrix = (MATRIX*)((u8*)PSX_SCRATCH + 0x20);
     MATRIX* pTransMatrix = (MATRIX*)((u8*)PSX_SCRATCH + 0x40);
@@ -202,7 +202,7 @@ void func_8009F5B8(BattleModelPartList* pMesh, BattleSprite* pSkeleton, MATRIX* 
         pSkeleton++;
     }
 }
-void func_8009F708(BattleSprite* pSprites) {
+void BattleFreeModelSkeleton(BattleSprite* pSprites) {
     BattleSprite* pSprite;
     s32 i;
 
@@ -219,7 +219,7 @@ void func_8009F708(BattleSprite* pSprites) {
         HeapFree(pSprites);
     }
 }
-void func_8009F794(BattleModelPartList* pList, s32 freeLight) {
+void BattleFreeModelMesh(BattleModelPartList* pList, s32 freeLight) {
     u32 i;
 
     if (pList != NULL) {
@@ -311,27 +311,27 @@ void func_800A1B50(BattleSprite* pSprites, BattleAnimData* pData) {
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_800A1CF4);
 
-void func_800A216C(BattleBlockPool* pPool, BattleSprite* pSprites, s32 index, u32 flags) {
+void BattleFreeSpriteBlocksByFlags(BattleBlockPool* pPool, BattleSprite* pSprites, s32 index, u32 flags) {
     BattleSprite* pSprite;
 
     pSprite = pSprites;
     if (index < pSprite->count) {
         pSprite += index;
         if (pSprite->p70 != NULL && (flags & 1)) {
-            func_800A23E8(pPool, pSprite->p70);
+            BattleFreeBlock(pPool, pSprite->p70);
             pSprite->p70 = NULL;
         }
         if (pSprite->p74 != NULL && (flags & 2)) {
-            func_800A23E8(pPool, pSprite->p74);
+            BattleFreeBlock(pPool, pSprite->p74);
             pSprite->p74 = NULL;
         }
         if (pSprite->p78 != NULL && (flags & 4)) {
-            func_800A23E8(pPool, pSprite->p78);
+            BattleFreeBlock(pPool, pSprite->p78);
             pSprite->p78 = NULL;
         }
     }
 }
-BattleBlockPool* func_800A2234(BattleBlockPool* pPool, s32 count) {
+BattleBlockPool* BattleCreateBlockPool(BattleBlockPool* pPool, s32 count) {
     if (count <= 0) {
         return NULL;
     }
@@ -339,12 +339,12 @@ BattleBlockPool* func_800A2234(BattleBlockPool* pPool, s32 count) {
     HeapChangeCurrentUser(4, NULL);
     pPool->pBlocks = HeapAlloc(count * 0x14, 0);
     if (pPool->pBlocks != NULL) {
-        func_800A22E8(pPool);
+        BattleResetBlockPool(pPool);
         return pPool;
     }
     return NULL;
 }
-void func_800A22A8(BattleBlockPool* pPool) {
+void BattleFreeBlockPool(BattleBlockPool* pPool) {
     u8* pBlocks = pPool->pBlocks;
 
     pPool->usedCount = 0;
@@ -353,7 +353,7 @@ void func_800A22A8(BattleBlockPool* pPool) {
     }
     pPool->pBlocks = NULL;
 }
-void func_800A22E8(BattleBlockPool* pPool) {
+void BattleResetBlockPool(BattleBlockPool* pPool) {
     BattleBlock* pBlock;
     s32 i;
 
@@ -366,7 +366,7 @@ void func_800A22E8(BattleBlockPool* pPool) {
         }
     }
 }
-BattleBlock* func_800A2330(BattleBlockPool* pPool) {
+BattleBlock* BattleAllocBlock(BattleBlockPool* pPool) {
     BattleBlock* pBlock;
 
     if (pPool->usedCount < pPool->capacity) {
@@ -382,7 +382,7 @@ BattleBlock* func_800A2330(BattleBlockPool* pPool) {
     }
     return NULL;
 }
-s32 func_800A23E8(BattleBlockPool* pPool, BattleBlock* pBlock) {
+s32 BattleFreeBlock(BattleBlockPool* pPool, BattleBlock* pBlock) {
     s32 index;
 
     if (pBlock == NULL) {
@@ -405,8 +405,8 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_800A2434);
       only in the taken path and uses beqz. Struct view used below: block 0x00
       flag, 0x01, 0x02, 0x03 tag, 0x04/0x08 pointers, 0x10/0x12 s16; data 0x02
       u16, 0x04 flags, 0x06 u16, 0x0C countA, 0x0E countB, 0x18 frame records
-      of 6 bytes (u16 idxA, u16 idxB, u8 byteA, u8 byteB). Note func_800A2ACC
-      and func_800A2BB8 match ONLY with `unk1[2]` - naming that byte (e.g.
+      of 6 bytes (u16 idxA, u16 idxB, u8 byteA, u8 byteB). Note BattleFreeAllSpriteBlocks
+      and BattleFreeSpriteBlocksByTag match ONLY with `unk1[2]` - naming that byte (e.g.
       `tag`) changes their induction variable and drops them to 91%.
 s32 func_800A2434(BattleBlockPool* pPool, BattleSprite* pSprites, BattleAnimData* pData, u32 flags,
                    u8 tag) {
@@ -425,7 +425,7 @@ s32 func_800A2434(BattleBlockPool* pPool, BattleSprite* pSprites, BattleAnimData
     s32 i;
 
     if (pData->unk06 != 0) {
-        func_800A2ACC(pPool, pSprites);
+        BattleFreeAllSpriteBlocks(pPool, pSprites);
         func_800A1B50(pSprites, pData);
         return 1;
     }
@@ -458,7 +458,7 @@ s32 func_800A2434(BattleBlockPool* pPool, BattleSprite* pSprites, BattleAnimData
         if (*pIdx != 0xFFFF) {
             pBlock = pSprites->p70;
             if (pBlock == NULL) {
-                pBlock = func_800A2330(pPool);
+                pBlock = BattleAllocBlock(pPool);
             } else if (pBlock->unk1[2] == 0xFF) {
                 pBlock = NULL;
             }
@@ -476,7 +476,7 @@ s32 func_800A2434(BattleBlockPool* pPool, BattleSprite* pSprites, BattleAnimData
         } else {
             pBlock = pSprites->p70;
             if (pBlock != NULL && i != 0 && pBlock->unk1[2] != 0xFF) {
-                func_800A23E8(pPool, pBlock);
+                BattleFreeBlock(pPool, pBlock);
                 pSprites->p70 = NULL;
             }
         }
@@ -484,7 +484,7 @@ s32 func_800A2434(BattleBlockPool* pPool, BattleSprite* pSprites, BattleAnimData
         if (*pIdx != 0xFFFF) {
             pBlock = pSprites->p74;
             if (pBlock == NULL) {
-                pBlock = func_800A2330(pPool);
+                pBlock = BattleAllocBlock(pPool);
             } else if (pBlock->unk1[2] == 0xFF) {
                 pBlock = NULL;
             }
@@ -502,7 +502,7 @@ s32 func_800A2434(BattleBlockPool* pPool, BattleSprite* pSprites, BattleAnimData
         } else {
             pBlock = pSprites->p74;
             if (pBlock != NULL && i != 0 && pBlock->unk1[2] != 0xFF) {
-                func_800A23E8(pPool, pBlock);
+                BattleFreeBlock(pPool, pBlock);
                 pSprites->p74 = NULL;
             }
         }
@@ -511,7 +511,7 @@ s32 func_800A2434(BattleBlockPool* pPool, BattleSprite* pSprites, BattleAnimData
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_800A2704);
-void func_800A2ACC(BattleBlockPool* pPool, BattleSprite* pSprites) {
+void BattleFreeAllSpriteBlocks(BattleBlockPool* pPool, BattleSprite* pSprites) {
     BattleBlock* pBlock;
     BattleSprite* pSprite;
     s32 i;
@@ -522,22 +522,22 @@ void func_800A2ACC(BattleBlockPool* pPool, BattleSprite* pSprites) {
     for (i = 0; i < count; i++, pSprite++) {
         pBlock = pSprite->p70;
         if (pBlock != NULL && pBlock->unk1[2] != 0xFF) {
-            func_800A23E8(pPool, pBlock);
+            BattleFreeBlock(pPool, pBlock);
             pSprite->p70 = NULL;
         }
         pBlock = pSprite->p74;
         if (pBlock != NULL && pBlock->unk1[2] != 0xFF) {
-            func_800A23E8(pPool, pBlock);
+            BattleFreeBlock(pPool, pBlock);
             pSprite->p74 = NULL;
         }
         pBlock = pSprite->p78;
         if (pBlock != NULL && pBlock->unk1[2] != 0xFF) {
-            func_800A23E8(pPool, pBlock);
+            BattleFreeBlock(pPool, pBlock);
             pSprite->p78 = NULL;
         }
     }
 }
-void func_800A2BB8(BattleBlockPool* pPool, BattleSprite* pSprites, u8 tag) {
+void BattleFreeSpriteBlocksByTag(BattleBlockPool* pPool, BattleSprite* pSprites, u8 tag) {
     BattleBlock* pBlock;
     BattleSprite* pSprite;
     s32 i;
@@ -548,22 +548,22 @@ void func_800A2BB8(BattleBlockPool* pPool, BattleSprite* pSprites, u8 tag) {
     for (i = 0; i < count; i++, pSprite++) {
         pBlock = pSprite->p70;
         if (pBlock != NULL && pBlock->unk1[2] == tag) {
-            func_800A23E8(pPool, pBlock);
+            BattleFreeBlock(pPool, pBlock);
             pSprite->p70 = NULL;
         }
         pBlock = pSprite->p74;
         if (pBlock != NULL && pBlock->unk1[2] == tag) {
-            func_800A23E8(pPool, pBlock);
+            BattleFreeBlock(pPool, pBlock);
             pSprite->p74 = NULL;
         }
         pBlock = pSprite->p78;
         if (pBlock != NULL && pBlock->unk1[2] == tag) {
-            func_800A23E8(pPool, pBlock);
+            BattleFreeBlock(pPool, pBlock);
             pSprite->p78 = NULL;
         }
     }
 }
-BattleSpritePool* func_800A2CA4(BattleSpritePool* pPool, s32 count) {
+BattleSpritePool* BattleCreateSpritePool(BattleSpritePool* pPool, s32 count) {
     HeapChangeCurrentUser(4, NULL);
     pPool->count = count;
     pPool->unk6 = 0;
@@ -574,7 +574,7 @@ BattleSpritePool* func_800A2CA4(BattleSpritePool* pPool, s32 count) {
     }
     return NULL;
 }
-void func_800A2D1C(BattleBlockPool* pPool) {
+void BattleFreeSpritePool(BattleBlockPool* pPool) {
     u8* pBlocks = pPool->pBlocks;
 
     pPool->usedCount = 0;

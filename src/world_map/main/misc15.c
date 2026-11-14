@@ -59,7 +59,7 @@ extern void *D_8009C624[16];
 extern void func_800981C8(s32);
 extern void WorldMapSubmitGridImageLoads(void);
 
-extern void func_800976C8(void);
+extern void WorldMapClearSlotPool(void);
 extern CdlLOC D_8009CEBC;
 extern u8 *D_8009D3BC;
 extern s32 D_8009D7F4;
@@ -82,7 +82,7 @@ extern s16 D_8009C838;
 extern s16 D_8009C83A;
 extern s16 D_8009C83C;
 
-s32 func_800967E4(void) {
+s32 WorldMapUpdateLoadQueue(void) {
     s32 result = 0;
     u32 first;
     u32 second;
@@ -93,7 +93,7 @@ s32 func_800967E4(void) {
         result = func_800968E0();
         if (result == 0) {
             if (D_8009D788[D_8009BCB8] != NULL) {
-                func_8009699C((Misc15CdRequest *)D_8009D788[D_8009BCB8]);
+                WorldMapStartCdRead((Misc15CdRequest *)D_8009D788[D_8009BCB8]);
             }
         }
     } else {
@@ -135,7 +135,7 @@ s32 func_800968E0(void) {
 }
  */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_800968E0);
-void func_8009699C(Misc15CdRequest *p) {
+void WorldMapStartCdRead(Misc15CdRequest *p) {
     CdlLOC *pLoc;
     s32 lba;
     u32 size;
@@ -204,7 +204,7 @@ typedef struct {
     /* 0x4 */ s16 unk4;
 } Misc15Rot; // Size: 0x6
 
-void func_80097070(MATRIX *pMtx, Misc15Rot *pRot) {
+void WorldMapExtractRotationFromMatrix(MATRIX *pMtx, Misc15Rot *pRot) {
     u16 *pAngles = (u16 *)pMtx;
 
     if ((pAngles[6] | pAngles[8]) == 0) {
@@ -325,16 +325,16 @@ void WorldMapBuildRotationMatrix(Misc15Rot *p) {
     TransMatrix(&D_8009C808, (VECTOR *)0x1F800000);
 }
 
-void func_8009766C(void) {
+void WorldMapAllocSlotPool(void) {
     D_8009BE24 = HeapAlloc(0x2000, 0);
-    func_800976C8();
+    WorldMapClearSlotPool();
 }
 
-void func_800976A0(void) {
+void WorldMapFreeSlotPool(void) {
     HeapFree(D_8009BE24);
 }
 
-void func_800976C8(void) {
+void WorldMapClearSlotPool(void) {
     s32 i;
 
     for (i = 0; i < 0x40; i++) {
@@ -344,12 +344,12 @@ void func_800976C8(void) {
     }
 }
 
-void func_800976FC(s32 value, s32 index) {
+void WorldMapSetSlotEnterHandler(s32 value, s32 index) {
     D_8009BE24[index].unk0 = 0;
     D_8009BE24[index].unk18 = value;
 }
 
-void func_80097718(s32 value18, s32 value1C) {
+void WorldMapAddSlot(s32 value18, s32 value1C) {
     s32 i;
 
     for (i = 0; i < 0x40; i++) {
@@ -366,7 +366,7 @@ void func_80097718(s32 value18, s32 value1C) {
     }
 }
 
-s32 func_80097770(s32 index, s16 value) {
+s32 WorldMapStartSlot(s32 index, s16 value) {
     Misc15Slot *pSlot = &D_8009BE24[index];
 
     if (pSlot->unk4 != 0) {
@@ -377,15 +377,15 @@ s32 func_80097770(s32 index, s16 value) {
     return 1;
 }
 
-void func_800977A8(s32 index) {
+void WorldMapSetSlotState3(s32 index) {
     *(u16 *)((u8 *)D_8009BE24 + (index << 7)) = 3;
 }
 
-void func_800977C4(s32 index) {
+void WorldMapSetSlotState4(s32 index) {
     *(u16 *)((u8 *)D_8009BE24 + (index << 7)) = 4;
 }
 
-void func_800977E0(s32 index, u16 value) {
+void WorldMapSetSlotWaitFrames(s32 index, u16 value) {
     u8 *pSlot = (u8 *)D_8009BE24 + (index << 7);
 
     *(u16 *)pSlot = 2;
@@ -393,8 +393,8 @@ void func_800977E0(s32 index, u16 value) {
 }
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_80097800);
-// try_flags: --gp -G0 gives 88.53 but drops the matched func_80097CB8 to
-// 97.21 and func_8009699C to 91.63, so the unit preset is right; gcc 2.6.0
+// try_flags: --gp -G0 gives 88.53 but drops the matched WorldMapRefreshGrid to
+// 97.21 and WorldMapStartCdRead to 91.63, so the unit preset is right; gcc 2.6.0
 // gives 79.25 with the parked shape.
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_800978FC);
 // Best: 82.47%. Everything matches except that the original holds s0 =
@@ -537,7 +537,7 @@ void func_800979C8(void) {
 // it), the direct `p[0] & 0x7FFFFF` form gives 52.66%, and maspsx with li
 // expansion on (--maspsx "--use-comm-section --run-assembler", i.e. the Default
 // preset's flags) scores 72.42 here while dropping 6 already-matched functions
-// in this unit (func_80097770 91.43, func_800977A8 91.43, func_8009766C 95.38),
+// in this unit (WorldMapStartSlot 91.43, WorldMapSetSlotState3 91.43, WorldMapAllocSlotPool 95.38),
 // so the unit preset is right.
 // Round 42: the -O2 schedule is source-order-insensitive here (four statement
 // orders, retail's own included, give a byte-identical .s), and a try_flags
@@ -572,7 +572,7 @@ void func_80097BC0(s32 *p) {
 */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_80097BC0);
 
-void func_80097CB8(s32 arg0) {
+void WorldMapRefreshGrid(s32 arg0) {
     u32 *pEnd;
     s32 i;
 
@@ -588,7 +588,7 @@ void func_80097CB8(s32 arg0) {
     WorldMapSubmitGridImageLoads();
 }
 
-void func_80097D64(void) {
+void WorldMapFreeGridImages(void) {
     s32 i;
 
     for (i = 0; i < 0x100; i++) {

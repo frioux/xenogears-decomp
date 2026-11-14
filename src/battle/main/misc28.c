@@ -56,7 +56,7 @@ extern void WorkListRemoveTask(void *pEntry);
 extern void TimerWorkListRemoveTask(void *pEntry);
 extern void HeapFree(void *pMem);
 extern void func_80025180(void *pArg);
-extern void func_800245D8(s32 arg0, s32 arg1);
+extern void SpritePlayAnimation(s32 arg0, s32 arg1);
 extern void func_800B7160(void);
 extern u_long *g_GfxCurOT;
 extern u_long *D_800C3CB4;
@@ -70,8 +70,8 @@ extern void BattleCreateWorkTask(void);
 extern void func_800B6F0C(void);
 extern void BattleStoreGfxOrderingTable(void);
 extern void BattleDestroyWorkTask(u8 *p);
-extern s32 func_80023124(s32 arg0, s32 arg1);
-extern s32 func_80022CAC(u8 *pActor, s32 arg1);
+extern s32 SpriteComputeAngleFromPoints(s32 arg0, s32 arg1);
+extern s32 SpriteScaleValue(u8 *pActor, s32 arg1);
 extern void func_801FC4C4(s32 arg0, s32 arg1, void *pArg2, s32 arg3, s32 arg4, s32 arg5, s32 arg6, s32 arg7);
 extern void SpriteSetDirection(u8 *pActor, s16 arg1);
 extern void func_800223B0(u8 *pActor, s16 arg1);
@@ -129,7 +129,7 @@ void func_800B64D4(s32 arg0, u8 *p) {
 
     pEntry = (u8 *)((u32)D_800C3EB0 + (p[1] << 2));
     off = 0x8C8C;
-    func_800245D8(*(u32 *)(pEntry + off), p[0]);
+    SpritePlayAnimation(*(u32 *)(pEntry + off), p[0]);
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc28", func_800B6518);
@@ -150,7 +150,7 @@ void func_800B6518(u8 *pActor) {
     a[1] = *(s16 *)(pActor + 0xA);
     b[0] = *(u16 *)(pActor + 0xA0);
     b[1] = *(u16 *)(pActor + 0xA4);
-    angle = func_80023124(((u16 *)b)[1] << 16 | ((u16 *)b)[0],
+    angle = SpriteComputeAngleFromPoints(((u16 *)b)[1] << 16 | ((u16 *)b)[0],
                           ((u16 *)a)[1] << 16 | ((u16 *)a)[0]);
     SpriteSetDirection(pActor, angle);
     func_800223B0(pActor, angle);
@@ -229,9 +229,9 @@ void BattleScriptCall8001FC4C4WithActorState(u8 *pActor, s8 *pArg) {
 
     p = pArg + ((pArg[1] << 8) | (u8)pArg[0]);
     if (*(u16 *)(pActor + 0x3A) != 0) {
-        x1 = func_80022CAC(pActor, (p[1] << 3) | (u8)p[0]) << 8;
-        x2 = func_80022CAC(pActor, (u8)p[2]) << 16;
-        x3 = func_80022CAC(pActor, (u8)p[3]) << 16;
+        x1 = SpriteScaleValue(pActor, (p[1] << 3) | (u8)p[0]) << 8;
+        x2 = SpriteScaleValue(pActor, (u8)p[2]) << 16;
+        x3 = SpriteScaleValue(pActor, (u8)p[3]) << 16;
     } else {
         x1 = ((p[1] << 3) | (u8)p[0]) << 5;
         x2 = (u8)p[2] << 13;

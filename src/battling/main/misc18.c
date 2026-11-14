@@ -40,7 +40,7 @@ extern s32 func_80073DE4(u8* p, s32 arg1);
 extern void func_800767C8(u8* p);
 extern void func_8007639C(u8* p, s32 arg1);
 extern u8 D_80092884;
-extern u32 func_800828C4(s32* p);
+extern u32 BattleGetGridCellAtPosition(s32* p);
 extern void func_8008F7B8(u8* p);
 extern s32 BattleRollActorFlag8000(u8* p, s32 arg1);
 extern s32 BattleGetActorBreakProximity(u8* p);
@@ -175,7 +175,7 @@ void BattleQueueMessages4Then3(u8* pArg0) {
     if (a > 0 && b > 0) {
         return 1;
     }
-    return ((func_800828C4(pArg0) & 0x3000000) ^ 0x1000000) < 1;
+    return ((BattleGetGridCellAtPosition(pArg0) & 0x3000000) ^ 0x1000000) < 1;
 }extern long ratan2(long y, long x);
 extern s32 D_80092934;
 

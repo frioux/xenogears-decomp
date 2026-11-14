@@ -545,7 +545,7 @@ void FieldLoadActorAnimationFiles(void) {
 
         // Apply rotation and scale
         for (i = 0; i < D_800ADBFC; i++) {
-            func_80072254(i);
+            FieldActorApplyRotationAndScale(i);
         }
     }
 }

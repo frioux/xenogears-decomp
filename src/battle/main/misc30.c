@@ -22,13 +22,13 @@ extern MATRIX D_800D30BC;
 extern u_long* g_GfxCurOT;
 
 extern void AnimScriptTick(SpriteData* pSprite);
-extern void func_80022CDC(SpriteData* pSprite);
-extern void func_800245D8(SpriteData* pSprite, s8 arg1);
+extern void SpriteApplyMovementStep(SpriteData* pSprite);
+extern void SpritePlayAnimation(SpriteData* pSprite, s8 arg1);
 extern void SpriteSetDirection(SpriteData* pSprite, s16 arg1);
 extern void func_80022B2C(SpriteData* pSprite);
-extern s32 func_800BEF24(SpriteData* p0, SpriteData* p1);
+extern s32 BattleAngleToPoint(SpriteData* p0, SpriteData* p1);
 extern void func_800223B0(SpriteData* pSprite, s16 arg1);
-extern void func_800BF0B4(s32 arg0);
+extern void BattleSetStateStep(s32 arg0);
 extern void BattleWaitForOtherActorAnimations(s32 arg0);
 extern void func_800B9B54(SpriteData* p0, SpriteData* p1);
 extern void func_8001CE74(void* pTask);
@@ -62,19 +62,19 @@ void func_800B9B54(SpriteData* p0, SpriteData* p1) {
     if (p0 == p1) {
         return;
     }
-    func_800223B0(p0, func_800BEF24(p0, p1));
-    SpriteSetDirection(p0, func_800BEF24(p0, p1));
+    func_800223B0(p0, BattleAngleToPoint(p0, p1));
+    SpriteSetDirection(p0, BattleAngleToPoint(p0, p1));
     if (((s8*)p1)[0xAF] != 0x15) {
-        func_800223B0(p1, func_800BEF24(p1, p0));
-        SpriteSetDirection(p1, func_800BEF24(p1, p0));
+        func_800223B0(p1, BattleAngleToPoint(p1, p0));
+        SpriteSetDirection(p1, BattleAngleToPoint(p1, p0));
     }
 }
 void func_800B9C00(SpriteData* pSprite, s32 arg1) {
     pSprite->position.x = pSprite->field_0xA0 << 16;
     pSprite->position.z = pSprite->field_0xA4 << 16;
     D_800C3610->unk48 = 1;
-    func_800BF0B4(4);
-    func_800245D8(pSprite, ((s8*)pSprite)[0xB0]);
+    BattleSetStateStep(4);
+    SpritePlayAnimation(pSprite, ((s8*)pSprite)[0xB0]);
     func_800B9B54(pSprite, arg1);
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800B9C78);
@@ -258,10 +258,10 @@ void func_800BAC50(u8* pTask) {
 
     if (D_800C3664 == 0) {
         AnimScriptTick(pSprite);
-        func_80022CDC(pSprite);
+        SpriteApplyMovementStep(pSprite);
         if (((u32)pSprite->flags_0xAC >> 6) & 1) {
             AnimScriptTick(pSprite);
-            func_80022CDC(pSprite);
+            SpriteApplyMovementStep(pSprite);
         }
     }
 }
@@ -464,10 +464,10 @@ void func_800BB13C(u8* pTask) {
     }
     if (pSprite->pSpriteBytecode != NULL) {
         AnimScriptTick(pSprite);
-        func_80022CDC(pSprite);
+        SpriteApplyMovementStep(pSprite);
         if (((u32)pSprite->flags_0xAC >> 6) & 1) {
             AnimScriptTick(pSprite);
-            func_80022CDC(pSprite);
+            SpriteApplyMovementStep(pSprite);
         }
     }
     pSprite->position.x = *(u32*)(*(u32*)(pScript + 0x4) + 0x5C) << 16;

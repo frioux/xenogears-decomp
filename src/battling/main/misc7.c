@@ -75,11 +75,11 @@ extern u8 D_8006FF80[];
 extern u8 D_8006FF90[];
 
 void func_8007EE08(s32 arg);
-void func_8007F834(void);
+void BattleClearTextSpriteEntries(void);
 void func_80080C48(s32 arg);
-void func_80083C0C(s32 mode);
-void func_8007E894(s32 a, s32 b);
-void func_8007ECF0(u8* pText);
+void BattleSetScreenMode(s32 mode);
+void BattleSetTextCursor(s32 a, s32 b);
+void BattleDrawTextRight(u8* pText);
 void BattleSetTextSpriteEntry(s32 entry, s32 mode);
 void func_8008EB4C(s32 arg);
 void ArchiveCdDataSync(int mode);
@@ -107,9 +107,9 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc7", func_8007F854);
     s32 tmp[2];
 
     D_800912F0 = 1;
-    func_80083C0C(1);
+    BattleSetScreenMode(1);
     D_80092734 = 0;
-    func_8007F834();
+    BattleClearTextSpriteEntries();
     D_80098800[0] |= 0xC;
     D_800970E4[0] |= 0xC;
 } */
@@ -117,9 +117,9 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc7", func_8007F854);
 void BattleResetTextListState(void) {
     s32 tmp[2]; // reproduces the original's unused 8-byte stack slot
 
-    func_80083C0C(1);
+    BattleSetScreenMode(1);
     D_80092734 = 0;
-    func_8007F834();
+    BattleClearTextSpriteEntries();
 }
 
 void BattleExitOptionsScreen(void) {
@@ -138,7 +138,7 @@ void BattleExitOptionsScreen(void) {
             mode = 6;
         }
     }
-    func_80083C0C(mode);
+    BattleSetScreenMode(mode);
 }
 
 typedef struct {
@@ -168,46 +168,46 @@ void BattleDrawOptionRows0To4(Misc7Struct* p) {
     u8* pText;
     s32 value;
 
-    func_8007E894(p->unk24 + p->unk28 - 0xA, p->unk14);
+    BattleSetTextCursor(p->unk24 + p->unk28 - 0xA, p->unk14);
     func_8007EE08(0);
     BattleSetRowTextColor(p, 0);
-    func_8007ECF0((u8*)BattleGetDifficultyText());
+    BattleDrawTextRight((u8*)BattleGetDifficultyText());
     BattleSetRowTextColor(p, 1);
     Sprintf(buf, D_8006FF5C, D_80099DA1[0] + 1);
     value = D_8009130C[D_80099DA1[0]];
     D_8009292C = value;
     D_80099DA4[0] = value;
-    func_8007ECF0(buf);
+    BattleDrawTextRight(buf);
     BattleSetRowTextColor(p, 2);
     Sprintf(buf, D_8006FF60, D_80091300[D_80099D9A[0]]);
-    func_8007ECF0(buf);
+    BattleDrawTextRight(buf);
     BattleSetRowTextColor(p, 3);
     pText = D_8006FF6C;
     if (D_80099D9D[0] != 0) {
         pText = D_8006FF68;
     }
-    func_8007ECF0(pText);
+    BattleDrawTextRight(pText);
     BattleSetRowTextColor(p, 4);
     pText = D_8006FF74;
     if (D_80099D9E[0] != 0) {
         pText = D_8006FF68;
     }
-    func_8007ECF0(pText);
+    BattleDrawTextRight(pText);
     func_8007EE08(0);
 }
 
 void BattleDrawOptionRows0To2(Misc7Struct* p) {
     u8 buf[0x8];
 
-    func_8007E894(p->unk24 + p->unk28 - 0xA, p->unk14);
+    BattleSetTextCursor(p->unk24 + p->unk28 - 0xA, p->unk14);
     func_8007EE08(0);
-    func_8007ECF0(D_8006FF7C);
+    BattleDrawTextRight(D_8006FF7C);
     BattleSetRowTextColor(p, 1);
-    func_8007ECF0(D_8009132C[D_80099DA2[0]]);
+    BattleDrawTextRight(D_8009132C[D_80099DA2[0]]);
     BattleSetTextSpriteEntry(D_80099DA2[0] + 0x15, 1);
     BattleSetRowTextColor(p, 2);
     Sprintf(buf, D_8006FF60, D_80091300[D_80099D9A[0]]);
-    func_8007ECF0(buf);
+    BattleDrawTextRight(buf);
     func_8007EE08(0);
 }
 
@@ -216,7 +216,7 @@ void BattleDrawVibrationOptions(void) {
     Misc7Struct* pPad;
     s32 flag;
 
-    func_8007E894(0xA0, 0x8C);
+    BattleSetTextCursor(0xA0, 0x8C);
     pPad = (Misc7Struct*)D_800916D8;
     flag = !(D_80092710 & 1);
     if (flag && D_800916EA == 0) {
@@ -224,7 +224,7 @@ void BattleDrawVibrationOptions(void) {
     } else {
         D_8009272C = 0;
     }
-    func_8007E894(0x50, 0x8C);
+    BattleSetTextCursor(0x50, 0x8C);
     if (ControllerGetType(0) == 4 && D_80099D9D[0] == 0) {
         if (flag) {
             BattleSetRowTextColor(pPad, 1);
@@ -245,7 +245,7 @@ void BattleDrawVibrationOptions(void) {
     } else {
         D_80092730 = 0;
     }
-    func_8007E894(0xF0, 0x8C);
+    BattleSetTextCursor(0xF0, 0x8C);
     if (ControllerGetType(1) == 4 && D_80099D9E[0] == 0) {
         if (flag) {
             BattleSetRowTextColor(pPad, 1);
@@ -265,11 +265,11 @@ void BattleDrawOptionRows4To6(Misc7Struct* p) {
     u8 flag;
 
     func_8007EE08(0);
-    func_8007E894(p->unk24 + p->unk28 - 0xA, p->unk14);
-    func_8007ECF0(D_8006FF7C);
-    func_8007ECF0(D_8006FF7C);
-    func_8007ECF0(D_8006FF7C);
-    func_8007ECF0(D_8006FF7C);
+    BattleSetTextCursor(p->unk24 + p->unk28 - 0xA, p->unk14);
+    BattleDrawTextRight(D_8006FF7C);
+    BattleDrawTextRight(D_8006FF7C);
+    BattleDrawTextRight(D_8006FF7C);
+    BattleDrawTextRight(D_8006FF7C);
     BattleSetRowTextColor(p, 4);
     flag = D_80099D9F[0];
     if (flag != 0) {
@@ -278,15 +278,15 @@ void BattleDrawOptionRows4To6(Misc7Struct* p) {
     } else {
         pText = D_8006FFA0;
     }
-    func_8007ECF0(pText);
+    BattleDrawTextRight(pText);
     BattleSetRowTextColor(p, 5);
-    func_8007ECF0((u8*)D_800912F4[D_80099D98[0]]);
+    BattleDrawTextRight((u8*)D_800912F4[D_80099D98[0]]);
     BattleSetRowTextColor(p, 6);
     pText = D_8006FFA8;
     if (D_80092884 != 0) {
         pText = D_8006FFA4;
     }
-    func_8007ECF0(pText);
+    BattleDrawTextRight(pText);
     func_8007EE08(0);
 }
 
@@ -485,7 +485,7 @@ void BattleInitOptionsScreen(s32 mode) {
         D_80091369 = 0x25;
         D_80091391 = 0x26;
     }
-    func_80083C0C(1);
+    BattleSetScreenMode(1);
     D_80092710 = 0;
     D_80092728 = 0;
     D_80092724 = 0;

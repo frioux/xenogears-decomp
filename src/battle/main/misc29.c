@@ -20,7 +20,7 @@ extern s32 D_80059464;
 extern DISPENV D_800C4A7C;
 extern void *D_800C3618;
 extern void func_800BE790(void);
-extern void func_800245D8(void *, s32);
+extern void SpritePlayAnimation(void *, s32);
 extern void SpriteSetCallback(void *, void *);
 extern void func_8002A498(s32);
 
@@ -198,10 +198,10 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B89FC);
 void func_800B8D04(void) {
     func_800B8354();
     BattleLoadArchiveEntryFile();
-    while (D_80059464 != func_800BF720()) {
+    while (D_80059464 != BattleIsTimerTaskActive()) {
         func_800BE790();
     }
-    func_800BF3A4();
+    BattleFreeSoundSeds();
     if (D_800C3618 != NULL) {
         HeapFree(D_800C3618);
         D_800C3618 = NULL;
@@ -219,6 +219,6 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B8DA4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B8EBC);
 
 void func_800B9020(u8 *pSprite) {
-    func_800245D8(pSprite, *(s8 *)(pSprite + 0xB0));
+    SpritePlayAnimation(pSprite, *(s8 *)(pSprite + 0xB0));
     SpriteSetCallback(pSprite, 0);
 }

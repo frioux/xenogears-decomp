@@ -92,8 +92,8 @@ extern s16 WorldMapGetTileHalfIndex(void *);
 extern s32 WorldMapGetTilePlaneHeight(s32, s32);
 extern void *D_8009BDFC[];
 extern void *D_8009BE00[];
-extern void *func_80024524(void *, s16, s16, s16, s16, s16);
-extern void func_800245D8(void *, s32);
+extern void *SpriteAllocFromAnimFile(void *, s16, s16, s16, s16, s16);
+extern void SpritePlayAnimation(void *, s32);
 extern void SpriteSetScale(void *, s16);
 extern void WorldMapWrapPosition(void *);
 extern s32 D_8009C5AC;
@@ -111,8 +111,8 @@ int func_8008B498(int index) {
     s32 result = 1;
 
     if (g_GameState.partyMembers[1] != 0xFF) {
-        pActor->unk4C = func_80024524(D_8009CD38, 0x110, 0x1E0, 0x150, 0x100, 0x40);
-        func_800245D8(pActor->unk4C, 0);
+        pActor->unk4C = SpriteAllocFromAnimFile(D_8009CD38, 0x110, 0x1E0, 0x150, 0x100, 0x40);
+        SpritePlayAnimation(pActor->unk4C, 0);
         SpriteSetScale(pActor->unk4C, 0x1800);
         *(u32 *)((u8 *)pActor->unk4C + 0x3C) &= ~4;
     } else {
@@ -133,8 +133,8 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008B54C);
 int func_8008B54C(int index) {
     WorldMapActor *pActor = &D_8009BE24[index];
 
-    pActor->unk4C = func_80024524(D_8009CD38, 0x110, 0x1E0, 0x150, 0x100, 0x40);
-    func_800245D8(pActor->unk4C, 0);
+    pActor->unk4C = SpriteAllocFromAnimFile(D_8009CD38, 0x110, 0x1E0, 0x150, 0x100, 0x40);
+    SpritePlayAnimation(pActor->unk4C, 0);
     SpriteSetScale(pActor->unk4C, 0x1800);
     *(u32 *)((u8 *)pActor->unk4C + 0x3C) &= ~4;
     pActor->unk28 = g_GameState.unk1820 << 12;
@@ -161,8 +161,8 @@ int func_8008BD1C(int index) {
     s32 result = 1;
 
     if (g_GameState.partyMembers[2] != 0xFF) {
-        pActor->unk4C = func_80024524(D_8009CD3C, 0x120, 0x1E0, 0x160, 0x100, 0x40);
-        func_800245D8(pActor->unk4C, 0);
+        pActor->unk4C = SpriteAllocFromAnimFile(D_8009CD3C, 0x120, 0x1E0, 0x160, 0x100, 0x40);
+        SpritePlayAnimation(pActor->unk4C, 0);
         SpriteSetScale(pActor->unk4C, 0x1800);
         *(u32 *)((u8 *)pActor->unk4C + 0x3C) &= ~4;
     } else {
@@ -178,8 +178,8 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008BDD0);
 int func_8008BDD0(int index) {
     WorldMapActor *pActor = &D_8009BE24[index];
 
-    pActor->unk4C = func_80024524(D_8009CD3C, 0x120, 0x1E0, 0x160, 0x100, 0x40);
-    func_800245D8(pActor->unk4C, 0);
+    pActor->unk4C = SpriteAllocFromAnimFile(D_8009CD3C, 0x120, 0x1E0, 0x160, 0x100, 0x40);
+    SpritePlayAnimation(pActor->unk4C, 0);
     SpriteSetScale(pActor->unk4C, 0x1800);
     *(u32 *)((u8 *)pActor->unk4C + 0x3C) &= ~4;
     pActor->unk28 = g_GameState.unk1820 << 12;
@@ -300,13 +300,13 @@ void func_8008C1DC(s32 arg0, WorldMapActor *pActor, WorldMapScreenPos *pPos) {
 void func_8008C28C(WorldMapActor *pActor, int index) {
     void *pSprite;
 
-    pSprite = func_80024524(D_8009BDF8[index], D_8009B18C[index], D_8009B194[index], D_8009B19C[index],
+    pSprite = SpriteAllocFromAnimFile(D_8009BDF8[index], D_8009B18C[index], D_8009B194[index], D_8009B19C[index],
                             D_8009B1A4[index], 0x40);
     pActor->unk4C = pSprite;
     if (g_GameState.gearRide[index] == 1) {
-        func_800245D8(pSprite, 0);
+        SpritePlayAnimation(pSprite, 0);
     } else {
-        func_800245D8(pSprite, 3);
+        SpritePlayAnimation(pSprite, 3);
     }
     SpriteSetScale(pActor->unk4C, 0x2000);
     *(u32 *)((u8 *)pActor->unk4C + 0x3C) &= ~4;
@@ -394,8 +394,8 @@ int func_8008C6EC(int index) {
 int func_8008C75C(int index) {
     WorldMapActor *pActor = &D_8009BE24[index];
 
-    pActor->unk4C = func_80024524(D_8009BDF8[0], 0x100, 0x1FD, 0x140, 0x140, 0x40);
-    func_800245D8(pActor->unk4C, 0);
+    pActor->unk4C = SpriteAllocFromAnimFile(D_8009BDF8[0], 0x100, 0x1FD, 0x140, 0x140, 0x40);
+    SpritePlayAnimation(pActor->unk4C, 0);
     SpriteSetScale(pActor->unk4C, 0x2000);
     *(u32 *)((u8 *)pActor->unk4C + 0x3C) &= ~4;
     pActor->unk28 = g_GameState.unk1930[0x16] << 12;
@@ -481,8 +481,8 @@ int func_8008D520(int index) {
 int func_8008D590(int index) {
     WorldMapActor *pActor = &D_8009BE24[index];
 
-    pActor->unk4C = func_80024524(D_8009BDFC[0], 0x100, 0x1FC, 0x160, 0x140, 0x40);
-    func_800245D8(pActor->unk4C, 0);
+    pActor->unk4C = SpriteAllocFromAnimFile(D_8009BDFC[0], 0x100, 0x1FC, 0x160, 0x140, 0x40);
+    SpritePlayAnimation(pActor->unk4C, 0);
     SpriteSetScale(pActor->unk4C, 0x2000);
     *(u32 *)((u8 *)pActor->unk4C + 0x3C) &= ~4;
     pActor->unk28 = g_GameState.unk1930[0x19] << 12;
@@ -557,8 +557,8 @@ int func_8008DE9C(int index) {
 int func_8008DF0C(int index) {
     WorldMapActor *pActor = &D_8009BE24[index];
 
-    pActor->unk4C = func_80024524(D_8009BE00[0], 0x100, 0x1FB, 0x280, 0x100, 0x40);
-    func_800245D8(pActor->unk4C, 0);
+    pActor->unk4C = SpriteAllocFromAnimFile(D_8009BE00[0], 0x100, 0x1FB, 0x280, 0x100, 0x40);
+    SpritePlayAnimation(pActor->unk4C, 0);
     SpriteSetScale(pActor->unk4C, 0x2000);
     *(u32 *)((u8 *)pActor->unk4C + 0x3C) &= ~4;
     pActor->unk28 = g_GameState.unk1930[0x1C] << 12;

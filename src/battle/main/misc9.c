@@ -513,7 +513,7 @@ void func_8007E934(void) {
 
     func_80078508(buf);
 }
-s32 func_8007E954(u8 **arg0, u8 arg1) {
+s32 BattleSetTextScale(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
     u8 *pRow = D_800D3430 + arg1 * 0x40;
 

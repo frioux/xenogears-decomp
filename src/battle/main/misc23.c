@@ -11,8 +11,8 @@ extern u16 D_800C3E30;
 extern u8 D_800D3611;
 extern u8 *D_800D3368[];
 
-extern void func_800A22A8(u8 *);
-extern void func_800A2D1C(u8 *);
+extern void BattleFreeBlockPool(u8 *);
+extern void BattleFreeSpritePool(u8 *);
 extern void func_800A9FF0(s32);
 extern void func_800AA934(void *, void *, void *, void *);
 extern s32 BattleFindFirstActorInMask(void);
@@ -70,14 +70,14 @@ extern u8 D_800C3B74;
 extern u8 D_800C3ACC[];
 extern u8 D_800D330A[];
 extern void *D_800658C8;
-extern void func_800A2234(u8 *, s32);
-extern void func_800A2CA4(u8 *, s32);
+extern void BattleCreateBlockPool(u8 *, s32);
+extern void BattleCreateSpritePool(u8 *, s32);
 extern void BattleClearBlockSlots(void);
-extern void func_8009F794(void *, s32);
+extern void BattleFreeModelMesh(void *, s32);
 extern void SoundRemoveSedsEntry(void *);
-extern void func_800A2ACC(u8 *);
-extern void func_800A2BB8(u8 *, void *, s32);
-extern void func_8009F708(void *);
+extern void BattleFreeAllSpriteBlocks(u8 *);
+extern void BattleFreeSpriteBlocksByTag(u8 *, void *, s32);
+extern void BattleFreeModelSkeleton(void *);
 extern void BattleFreeActorBuffer(void *);
 
 extern s32 D_800D3344;
@@ -389,8 +389,8 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A8B0C);
     D_800C3B7C = 0;
     arg1 = *(s16 *)(D_800658C8 + 0x348);
     D_800C3B74 = 1;
-    func_800A2234(pBuf, arg1);
-    func_800A2CA4(D_800C3D04, *(s16 *)(D_800658C8 + 0x34A));
+    BattleCreateBlockPool(pBuf, arg1);
+    BattleCreateSpritePool(D_800C3D04, *(s16 *)(D_800658C8 + 0x34A));
     BattleClearBlockSlots();
     i = 0x1F;
     pWord = (mem_addr)&D_800D33E4;
@@ -428,8 +428,8 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A8B0C);
     D_800C3D68 = 0;
     D_800C3B7C = 0;
     D_800C3B74 = 1;
-    func_800A2234(pBuf, *(s16 *)(D_800658C8 + 0x348));
-    func_800A2CA4(D_800C3D04, *(s16 *)(D_800658C8 + 0x34A));
+    BattleCreateBlockPool(pBuf, *(s16 *)(D_800658C8 + 0x348));
+    BattleCreateSpritePool(D_800C3D04, *(s16 *)(D_800658C8 + 0x34A));
     BattleClearBlockSlots();
     pWord = (u32 *)&D_800D33E4;
     for (i = 0x1F; i >= 0; i--) {
@@ -647,14 +647,14 @@ void BattleFreeAllModelSlots(void) {
     for (i = 0; i < 0x1F; i++) {
         func_800A9FF0(i);
     }
-    func_800A22A8(D_800C3D0C);
-    func_800A2D1C(D_800C3D04);
+    BattleFreeBlockPool(D_800C3D0C);
+    BattleFreeSpritePool(D_800C3D04);
 }
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A9FF0);
 /* 91.39%: first attempt on this stub. Shape recovered from the disassembly:
    arg0 is an index into D_800D3368; the body is a null-checked chain of
-   HeapFree/func_8009F794/SoundRemoveSedsEntry/func_800A2ACC+func_800A2BB8 on fields
+   HeapFree/BattleFreeModelMesh/SoundRemoveSedsEntry/BattleFreeAllSpriteBlocks+BattleFreeSpriteBlocksByTag on fields
    0x00,0x04,0xA8,0xAC,0xB0 of the unit, then the 0x13..0x1E range test
    "(u32)(arg0 - 0x13) < 0xC", then two counted loops (unk10E * 0x30 through
    unk118 with BattleFreeImageEntry, unk10D * 0x24 through unk114 with BattleFreeModelListEntryBuffers),
@@ -677,7 +677,7 @@ void func_800A9FF0(s32 arg0) {
     if (D_800D3368[arg0] != NULL) {
         if (*(void **)(D_800D3368[arg0] + 0xA8) != NULL) {
             HeapFree(*(void **)(D_800D3368[arg0] + 0xA8));
-            func_8009F794(*(void **)D_800D3368[arg0], 1);
+            BattleFreeModelMesh(*(void **)D_800D3368[arg0], 1);
         }
         if (*(u8 *)(D_800D3368[arg0] + 0x62) != 0) {
             SoundRemoveSedsEntry(*(void **)(*(u8 **)(D_800D3368[arg0] + 0xB0) + 8));
@@ -687,16 +687,16 @@ void func_800A9FF0(s32 arg0) {
         }
         if ((u32)(arg0 - 0x13) >= 0xC) {
             if (*(void **)(D_800D3368[arg0] + 4) != NULL) {
-                func_800A2ACC(D_800C3D0C);
-                func_800A2BB8(D_800C3D0C, *(void **)(D_800D3368[arg0] + 4), 0xFF);
-                func_8009F708(*(void **)(D_800D3368[arg0] + 4));
+                BattleFreeAllSpriteBlocks(D_800C3D0C);
+                BattleFreeSpriteBlocksByTag(D_800C3D0C, *(void **)(D_800D3368[arg0] + 4), 0xFF);
+                BattleFreeModelSkeleton(*(void **)(D_800D3368[arg0] + 4));
                 *(void **)(D_800D3368[arg0] + 0) = NULL;
                 *(void **)(D_800D3368[arg0] + 4) = NULL;
             }
             BattleFreeActorBuffer(*(void **)&D_800D3368[arg0]);
         } else if (*(void **)(D_800D3368[arg0] + 4) != NULL) {
-            func_800A2ACC(D_800C3D0C);
-            func_800A2BB8(D_800C3D0C, *(void **)(D_800D3368[arg0] + 4), 0xFF);
+            BattleFreeAllSpriteBlocks(D_800C3D0C);
+            BattleFreeSpriteBlocksByTag(D_800C3D0C, *(void **)(D_800D3368[arg0] + 4), 0xFF);
             HeapFree(*(void **)(D_800D3368[arg0] + 4));
         }
             if (*(u8 *)(D_800D3368[arg0] + 0x10C) != 0) {

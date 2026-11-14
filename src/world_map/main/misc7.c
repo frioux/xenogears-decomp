@@ -96,8 +96,8 @@ extern void func_80086568(void);
 extern void func_800866C8(void);
 extern void WorldMapFreeSpriteGroupTable(void);
 extern void WorldMapFreePrimTemplateBuffers(void);
-extern void func_800976A0(void);
-extern void func_80097D64(void);
+extern void WorldMapFreeSlotPool(void);
+extern void WorldMapFreeGridImages(void);
 
 // Preset screen: every body parked below was also compiled with this unit's
 // maspsx flags under gcc-2.7.2-cdk and gcc-2.6.0, and none reaches 100% (best
@@ -201,13 +201,13 @@ void func_8008106C(void) {
     WorldMapFreeFrameAnimEntries();
     WorldMapFreeSpriteGroupTable();
     WorldMapFreePrimTemplateBuffers();
-    func_80097D64();
+    WorldMapFreeGridImages();
     HeapFree(D_8009BC38);
     HeapFree(D_8009BCB0);
     HeapFree(D_8009BC3C);
     HeapFree(D_8009BCB4);
     HeapFree(D_8009C180);
-    func_800976A0();
+    WorldMapFreeSlotPool();
     v = *(u16 *)&D_8009BD3A;
     D_8006F94E = 0x1FA;
     D_8006F954 = 0;
@@ -481,13 +481,13 @@ s32 func_800826B4(void) {
     WorldMapFreeFrameAnimEntries();
     WorldMapFreeSpriteGroupTable();
     WorldMapFreePrimTemplateBuffers();
-    func_80097D64();
+    WorldMapFreeGridImages();
     HeapFree(D_8009BC38);
     HeapFree(D_8009BCB0);
     HeapFree(D_8009BC3C);
     HeapFree(D_8009BCB4);
     HeapFree(D_8009C180);
-    func_800976A0();
+    WorldMapFreeSlotPool();
     v = *(u16 *)&D_8009BD3A;
     D_8006F94E = 0x269;
     D_8006F954 = 2;

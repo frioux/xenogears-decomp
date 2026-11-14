@@ -311,7 +311,7 @@ s32 func_80073E2C(u8 *p0, s32 arg1, s32 arg2) {
     if (q >= *(s16 *)(p0 + 0xB4)) {
         *(s16 *)(p0 + 0xB6) = t - arg1;
         *(s16 *)(p0 + 0xBA) = 0;
-        if (func_80083CD8() != 4) {
+        if (BattleGetScreenMode() != 4) {
             func_8008EB4C(0x2E);
         }
         return 0;

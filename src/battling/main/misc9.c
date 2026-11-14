@@ -37,7 +37,7 @@ extern int rand(void);
 
 extern s32 D_80092944;
 extern char D_800701B0[];
-extern void func_8007EBE0(char* p);
+extern void BattleDrawTextLeft(char* p);
 
 typedef struct {
     /* 0x00 */ s32 unk0;
@@ -171,13 +171,13 @@ void func_80082300(s32 arg0, s32 arg1, s32 arg2) {
 }
 */
 
-void func_80082458(Unk8* p) {
+void BattleCopyPlaneNormal(Unk8* p) {
     *p = D_80092768;
 }
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc9", func_80082488);
 
-s16 func_80082880(u8* p) {
+s16 BattleGetGridValueAtPosition(u8* p) {
     s32 tmp[12];
     s32 a;
     s32 b;
@@ -192,7 +192,7 @@ s16 func_80082880(u8* p) {
     return *(s16*)&D_800928DC[hi + lo];
 }
 
-u32 func_800828C4(s32* p) {
+u32 BattleGetGridCellAtPosition(s32* p) {
     s32 a;
     s32 b;
 
@@ -285,7 +285,7 @@ extern u8 D_8009A2BD;
 extern u8 D_8009A2BE;
 extern u32 D_80059598;
 
-void func_80082A70(void) {
+void BattleSetStageFogColors(void) {
     u8* p;
     s32 farR;
     s32 farG;
@@ -412,7 +412,7 @@ void func_80082C4C(u8* pArg) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc9", func_80082E60);
 
-void func_800831C8(void) {
+void BattleRandomizeCameraPosition(void) {
     s32 ang;
     s32 scale;
 
@@ -427,7 +427,7 @@ void func_800831C8(void) {
     D_8009290C = 0x400;
 }
 
-void func_800832C0(s32 flags) {
+void BattleRotateCamera(s32 flags) {
     if (flags & 0x8000) {
         D_800927AC += 0x20;
     }
@@ -438,7 +438,7 @@ void func_800832C0(s32 flags) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc9", func_80083310);
 
-void func_8008369C(void) {
+void BattleRandomizeCameraSpin(void) {
     D_800927AC = rand();
     D_800927B0 = rand() % 12 + 4;
     if (rand() & 1) {
@@ -449,12 +449,12 @@ void func_8008369C(void) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc9", func_80083738);
 
-void func_80083B54(Unk16* p0, Unk16* p1) {
+void BattleGetCameraPoints(Unk16* p0, Unk16* p1) {
     *p0 = *(Unk16*)&D_8009871C;
     *p1 = *(Unk16*)&D_8009867C;
 }
 
-void func_80083BB4(s32 arg) {
+void BattleClearScreen(s32 arg) {
     RECT rect;
 
     rect.x = 0;
@@ -465,7 +465,7 @@ void func_80083BB4(s32 arg) {
     DrawSync(0);
 }
 
-void func_80083C0C(s32 mode) {
+void BattleSetScreenMode(s32 mode) {
     s16* pA;
     s16* pB;
     s16 vA;
@@ -492,7 +492,7 @@ void func_80083C0C(s32 mode) {
     }
 }
 
-s32 func_80083CD8(void) {
+s32 BattleGetScreenMode(void) {
     return D_80092790;
 }
 
@@ -509,11 +509,11 @@ void func_80083CE8(void) {
 
     n = D_80092944;
     Sprintf(buf, D_800701B0, n / 1800, (n % 1800) / 30, (n % 30) * 99 / 30);
-    func_8007EBE0(buf);
+    BattleDrawTextLeft(buf);
 }
 */
 
-void func_80083DCC(PolyTable* pTable, Battler9* pActor, s32 idx) {
+void BattleFadeActorLights(PolyTable* pTable, Battler9* pActor, s32 idx) {
     PolyOwner* pOwner;
     u8 alpha;
     u8 next;
@@ -566,7 +566,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc9", func_800840CC);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc9", func_800846A0);
 
-s32 func_800849E0(u8* p) {
+s32 BattleClearAndQueueActorPrims(u8* p) {
     u8* p2;
     void* p3;
 

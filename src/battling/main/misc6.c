@@ -26,7 +26,7 @@ extern s32 D_800928E8;
 
 void func_8007E964(s32 c);
 u8* func_8007E8AC(s32 c);
-s32 func_8007EB6C(u8* pText);
+s32 BattleGetTextWidth(u8* pText);
 extern s32 D_800926DC;
 
 void func_8008EB4C(s32 arg);
@@ -44,7 +44,7 @@ typedef struct {
     /* 0x64 */ u_long* unk64;
 } BattleTimState;
 
-// 0x1C-byte draw record: a DR_TPAGE followed by the SPRT func_8007E574 queues.
+// 0x1C-byte draw record: a DR_TPAGE followed by the SPRT BattleDrawTimedSpritePrims queues.
 typedef struct {
     /* 0x00 */ DR_TPAGE tpage;
     /* 0x08 */ SPRT sprt;
@@ -101,7 +101,7 @@ extern BattleQuad D_80094818[100];
 extern s32 D_800926B0;
 extern s32 D_800926B4;
 
-// 0x14-byte sprite record of the 7x7 table func_8007EFB4 allocates at D_8009270C.
+// 0x14-byte sprite record of the 7x7 table BattleInitSpriteRectTable allocates at D_8009270C.
 typedef struct {
     /* 0x00 */ u16 unk0;
     /* 0x02 */ u16 unk2;
@@ -119,7 +119,7 @@ extern BattleSprite* D_8009270C;
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007E020);
 
-void func_8007E24C(void) {
+void BattleClearSpriteTables(void) {
     s32 i;
 
     for (i = 0; i < 0x21C; i++) {
@@ -138,7 +138,7 @@ void func_8007E24C(void) {
     }
 }
 
-void func_8007E2D8(void) {
+void BattleResetLineQuadQueue(void) {
     BattleQuad* pQuad = D_80094818;
     s32 i;
 
@@ -222,14 +222,14 @@ void func_8007E3CC(u32* pOt) {
 }
  */
 
-void func_8007E528(s32 mode) {
+void BattleSetSpriteTimer(s32 mode) {
     if (D_80092708 == 0 && mode == 0xA) {
         func_8008EB4C(0x24);
     }
     D_80092708 = mode;
 }
 
-void func_8007E574(void* pOt) {
+void BattleDrawTimedSpritePrims(void* pOt) {
     if (D_80092708 != 0) {
         if (D_800928E8 & 2) {
             AddPrim(pOt, &D_800954E0[D_800928A0 * 0x1C]);
@@ -239,7 +239,7 @@ void func_8007E574(void* pOt) {
     }
 }
 
-s32 func_8007E624(void) {
+s32 BattleGetTextPrimCount(void) {
     return D_800926DC;
 }
 
@@ -255,7 +255,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007E634);
    - D_800926D4[0]/[1] are 100-POLY_FT4 buffers (0xFA0 bytes each) that the
      setup zeroes the length byte of;
    - D_800954D8 is an array of 0x1C-byte records (DR_TPAGE then the SPRT that
-     func_8007E574 queues), and the tail copies record 0 into record 1;
+     BattleDrawTimedSpritePrims queues), and the tail copies record 0 into record 1;
    - GetTPage(0,1,prect->x,prect->y) is passed through u_short to SetDrawTPage,
      which is the andi a3,v0,0xFFFF in its jal delay slot.
 void func_8007E634(BattleTimState* pState) {
@@ -302,14 +302,14 @@ void func_8007E634(BattleTimState* pState) {
 }
  */
 
-void func_8007E894(s16 a, s16 b) {
+void BattleSetTextCursor(s16 a, s16 b) {
     D_800926E8 = a;
     D_800926EC = b;
 }
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007E8AC);
 
-void func_8007E954(s32 value) {
+void BattleSetTextScale(s32 value) {
     D_800912DC = value;
 }
 
@@ -330,7 +330,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007E964);
       a fresh register even with an explicit (u16) cast.
    4. no extra stack slot: the 0x20 frame with s0/s1/ra is exact.
    Also proved here: func_8007E8AC takes an s32, not a u8 - retail does no andi
-   on a0 in its own body or at these call sites, and func_8007EB6C still matches
+   on a0 in its own body or at these call sites, and BattleGetTextWidth still matches
    100.00% with the s32 prototype.
 void func_8007E964(s32 c) {
     POLY_FT4* pPkt;
@@ -373,7 +373,7 @@ void func_8007E964(s32 c) {
 }
  */
 
-s32 func_8007EB6C(u8* pText) {
+s32 BattleGetTextWidth(u8* pText) {
     s32 width = 0;
 
     while (*pText != 0) {
@@ -385,7 +385,7 @@ s32 func_8007EB6C(u8* pText) {
     return width;
 }
 
-void func_8007EBE0(u8* pText) {
+void BattleDrawTextLeft(u8* pText) {
     s32 y = D_800926E8;
 
     while (*pText != 0) {
@@ -399,7 +399,7 @@ void func_8007EBE0(u8* pText) {
 void BattleByteRegTestReg(u8* pText) {
     s32 y = D_800926E8;
 
-    D_800926E8 -= func_8007EB6C(pText) / 2;
+    D_800926E8 -= BattleGetTextWidth(pText) / 2;
     while (*pText != 0) {
         func_8007E964(*pText);
         pText++;
@@ -408,10 +408,10 @@ void BattleByteRegTestReg(u8* pText) {
     D_800926EC += 0x14;
 }
 
-void func_8007ECF0(u8* pText) {
+void BattleDrawTextRight(u8* pText) {
     s32 y = D_800926E8;
 
-    D_800926E8 -= func_8007EB6C(pText);
+    D_800926E8 -= BattleGetTextWidth(pText);
     while (*pText != 0) {
         func_8007E964(*pText);
         pText++;
@@ -420,7 +420,7 @@ void func_8007ECF0(u8* pText) {
     D_800926EC += 0x14;
 }
 
-void func_8007ED84(u8* pText, s32 dy) {
+void BattleDrawTextRightOffset(u8* pText, s32 dy) {
     s32 tmp[2]; // unused: reproduces the original's 8-byte frame slot
     s32 y = D_800926E8;
 
@@ -516,7 +516,7 @@ void func_8007EEE8(s32 arg) {
 }
  */
 
-void func_8007EFB4(void) {
+void BattleInitSpriteRectTable(void) {
     s32 tmp[12]; // unused: reproduces the original's 0x48 frame
     BattleSprite* pSprite;
     s32 count;
@@ -549,7 +549,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007F05C);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007F258);
 
-void func_8007F834(void) {
+void BattleClearTextSpriteEntries(void) {
     D_80092740 = 0;
     D_8009273C = 0;
     D_80092744 = 0;

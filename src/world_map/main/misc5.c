@@ -87,8 +87,8 @@ extern void WorldMapFreeTileAnimEntries(void);
 extern void WorldMapFreeFrameAnimEntries(void);
 extern void WorldMapFreeSpriteGroupTable(void);
 extern void WorldMapFreePrimTemplateBuffers(void);
-extern void func_80097D64(void);
-extern void func_800976A0(void);
+extern void WorldMapFreeGridImages(void);
+extern void WorldMapFreeSlotPool(void);
 extern void WorldMapWrapPosition(void *p);
 extern s32 func_80093A5C(s32, s32);
 extern void WorldMapDeactivateSpriteGroup(s32);
@@ -105,7 +105,7 @@ extern void WorldMapInitGfxEnv(void);
 extern void func_80072DB4(s32 arg0, s32 arg1, s32 arg2, s32 arg3);
 extern s32 ArchiveDataSync(void);
 extern void WorldMapDecompressMapData(void);
-extern void func_8009766C(void);
+extern void WorldMapAllocSlotPool(void);
 extern void func_80098044(void);
 extern s32 ArchiveCdDataSync(s32 arg0);
 extern void WorldMapLoadSedsBank(void);
@@ -122,14 +122,14 @@ extern void SoundAddSedsEntry(void *pSeds);
 extern s32 ArchiveSetIndex(s32 arg0, s32 arg1);
 extern void func_80097BC0(void *pPos);
 extern s32 WorldMapGetQueuedLoadCount(void);
-extern void func_800967E4(void);
+extern void WorldMapUpdateLoadQueue(void);
 extern s32 Vsync(s32 arg0);
-extern void func_80097718(void *p0, void *p1);
+extern void WorldMapAddSlot(void *p0, void *p1);
 extern void func_800978FC(void);
 extern void func_8008901C(void);
 extern void func_800865A0(void);
 extern void func_80075228(void);
-extern void func_800923A8(void);
+extern void WorldMapModeInitFadeRect(void);
 extern void func_800925A0(void);
 extern int WorldMapInitActorParamsFromTable(int idx);
 extern int func_8007C3B8(int idx);
@@ -420,7 +420,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007BBEC);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007BF50);
 /* best 97.91% (784 bytes, size exact): every instruction of this long init
    sequence is right -- the two loops, the 32-byte D_8009A180 -> D_8009BE4C
-   copy, all twenty func_80097718 pairs -- except the two-insn address setup for
+   copy, all twenty WorldMapAddSlot pairs -- except the two-insn address setup for
    D_8009C5AC (lui/addiu into $s0). Retail materialises it just before the store
    at 0x783C and then reuses $s0 for the func_80097BC0 argument at 0x78C0; gcc
    only allocates the register when the pointer local is initialised at the top
@@ -449,7 +449,7 @@ void func_8007BF50(void) {
     while (ArchiveDataSync() >= 3) {
     }
     WorldMapDecompressMapData();
-    func_8009766C();
+    WorldMapAllocSlotPool();
     D_8009BE4C = D_8009A180;
     D_8009CCA4 = 2;
     D_8009D3CC = 0x10;
@@ -476,20 +476,20 @@ void func_8007BF50(void) {
     ArchiveSetIndex(0x24, 0);
     func_80097BC0(pPos);
     do {
-        func_800967E4();
+        WorldMapUpdateLoadQueue();
         Vsync(0);
     } while (WorldMapGetQueuedLoadCount() > 0);
-    func_80097718((void *)func_800923A8, (void *)func_800925A0);
-    func_80097718((void *)WorldMapInitActorParamsFromTable, (void *)func_8007C3B8);
-    func_80097718((void *)func_8007C724, (void *)func_8007C7D8);
-    func_80097718((void *)WorldMapInitGroup4Actor, (void *)WorldMapUpdateGroup4Actor);
-    func_80097718((void *)WorldMapInitGroup5Actor, (void *)func_8007CF18);
-    func_80097718((void *)WorldMapInitGroup9Actor, (void *)WorldMapUpdateGroup9Actor);
-    func_80097718((void *)WorldMapInitGroup10Actor, (void *)WorldMapUpdateGroup10Actor);
-    func_80097718((void *)WorldMapInitGroup12Actor, (void *)WorldMapUpdateGroup12Actor);
-    func_80097718((void *)WorldMapInitGroup13Actor, (void *)WorldMapUpdateGroup13Actor);
-    func_80097718((void *)WorldMapInitGroup16Actor, (void *)WorldMapUpdateGroup16Actor);
-    func_80097718((void *)WorldMapEnterNop, (void *)WorldMapUpdateFrameWithParticles);
+    WorldMapAddSlot((void *)WorldMapModeInitFadeRect, (void *)func_800925A0);
+    WorldMapAddSlot((void *)WorldMapInitActorParamsFromTable, (void *)func_8007C3B8);
+    WorldMapAddSlot((void *)func_8007C724, (void *)func_8007C7D8);
+    WorldMapAddSlot((void *)WorldMapInitGroup4Actor, (void *)WorldMapUpdateGroup4Actor);
+    WorldMapAddSlot((void *)WorldMapInitGroup5Actor, (void *)func_8007CF18);
+    WorldMapAddSlot((void *)WorldMapInitGroup9Actor, (void *)WorldMapUpdateGroup9Actor);
+    WorldMapAddSlot((void *)WorldMapInitGroup10Actor, (void *)WorldMapUpdateGroup10Actor);
+    WorldMapAddSlot((void *)WorldMapInitGroup12Actor, (void *)WorldMapUpdateGroup12Actor);
+    WorldMapAddSlot((void *)WorldMapInitGroup13Actor, (void *)WorldMapUpdateGroup13Actor);
+    WorldMapAddSlot((void *)WorldMapInitGroup16Actor, (void *)WorldMapUpdateGroup16Actor);
+    WorldMapAddSlot((void *)WorldMapEnterNop, (void *)WorldMapUpdateFrameWithParticles);
     func_800978FC();
     func_8008901C();
     func_800865A0();
@@ -509,13 +509,13 @@ void WorldMapExitToMap111(void) {
     WorldMapFreeFrameAnimEntries();
     WorldMapFreeSpriteGroupTable();
     WorldMapFreePrimTemplateBuffers();
-    func_80097D64();
+    WorldMapFreeGridImages();
     HeapFree(D_8009BC38);
     HeapFree(D_8009BCB0);
     HeapFree(D_8009BC3C);
     HeapFree(D_8009BCB4);
     HeapFree(D_8009C180);
-    func_800976A0();
+    WorldMapFreeSlotPool();
     v = D_8009BD3A;
     D_8006F94E = 0x111;
     D_8006F954 = 2;

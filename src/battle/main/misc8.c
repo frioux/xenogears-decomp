@@ -69,7 +69,7 @@ void func_8007C33C(u8 **arg0, u8 arg1) {
     }
 }
 */
-void func_8007C4A0(u8 **arg0, u8 arg1) {
+void BattlePickCharSlotByLowestSlotWord(u8 **arg0, u8 arg1) {
     u16 *pRow;
     u16 result;
     u8 best = 0xFF;
@@ -86,7 +86,7 @@ void func_8007C4A0(u8 **arg0, u8 arg1) {
     pRow = (u16 *)(D_800D3420 + arg1 * 0x40);
     pRow[(*arg0)[1]] = result;
 }
-void func_8007C580(u8 **arg0, u8 arg1) {
+void BattlePickActorSlotByLowestSlotWord(u8 **arg0, u8 arg1) {
     u16 *pRow;
     u16 result;
     u8 best = 0xFF;
@@ -104,7 +104,7 @@ void func_8007C580(u8 **arg0, u8 arg1) {
     pRow = (u16 *)(D_800D3420 + arg1 * 0x40);
     pRow[(*arg0)[1]] = result;
 }
-void func_8007C678(u8 **arg0, u8 arg1) {
+void BattlePickCharSlotByLowestEntryWord(u8 **arg0, u8 arg1) {
     u16 *pRow;
     u16 result;
     u16 best = 0xFFFF;
@@ -122,7 +122,7 @@ void func_8007C678(u8 **arg0, u8 arg1) {
     pRow = (u16 *)(D_800D3420 + arg1 * 0x40);
     pRow[(*arg0)[1]] = result;
 }
-void func_8007C75C(u8 **arg0, u8 arg1) {
+void BattlePickActorSlotByLowestEntryWord(u8 **arg0, u8 arg1) {
     u16 *pRow;
     u16 result;
     u16 best = 0xFFFF;
@@ -232,7 +232,7 @@ void BattlePickSlotByFlagTable(u8 **arg0, u8 arg1) {
         pRow[index] = result;
     }
 }
-void func_8007CC50(u8 **arg0, u8 arg1) {
+void BattleStoreCharSlotTagCount(u8 **arg0, u8 arg1) {
     u8 *pRow;
     s32 count = 0;
     s32 i;
@@ -246,7 +246,7 @@ void func_8007CC50(u8 **arg0, u8 arg1) {
     pRow = &D_800D3430[arg1 * 0x40];
     pRow[(*arg0)[1]] = count;
 }
-void func_8007CD10(u8 **arg0, u8 arg1) {
+void BattleStoreActorSlotTagCount(u8 **arg0, u8 arg1) {
     u8 *pRow;
     s32 count = 0;
     s32 i = 3;
@@ -280,7 +280,7 @@ void func_8007CDD0(u8 **arg0, u8 arg1) {
     pRow[(*arg0)[1]] = D_800D3364[operator * 8 + row * 0x40 + 0x140];
 }
 */
-void func_8007CEA4(u8 **arg0, u8 arg1) {
+void BattleStoreCharSlotMatchedTagCount(u8 **arg0, u8 arg1) {
     s32 count = 0;
     s32 i = 0;
     u16 *pField = (u16 *)(D_800D3420 + arg1 * 0x40);
@@ -298,7 +298,7 @@ void func_8007CEA4(u8 **arg0, u8 arg1) {
     pRow = &D_800D3430[arg1 * 0x40];
     pRow[(*arg0)[1]] = count;
 }
-void func_8007CFB8(u8 **arg0, u8 arg1) {
+void BattleStoreActorSlotMatchedTagCount(u8 **arg0, u8 arg1) {
     u8 *pRow;
     s32 count = 0;
     s32 i = 3;
@@ -352,7 +352,7 @@ void BattleStoreGoldWord32(u8 **arg0, u8 arg1) {
 
     pRow[p[1]] = g_GameState.gold;
 }
-void func_8007D1DC(u8 **arg0, u8 arg1) {
+void BattlePickSlotByActorTag(u8 **arg0, u8 arg1) {
     u8 buf[0x10];
     s32 i = 0;
     s32 count = 0;
@@ -383,7 +383,7 @@ void BattleStoreStatWord32(u8 **arg0, u8 arg1) {
 
     pRow[p[1]] = D_800D2C8B[arg1];
 }
-void func_8007D344(u8 **arg0, u8 arg1) {
+void BattlePickActorSlotWithFlag80(u8 **arg0, u8 arg1) {
     u8 buf[8];
     s32 i = 3;
     s32 count = 0;
@@ -442,7 +442,7 @@ void func_8007D478(u8 **arg0, u8 arg1) {
     }
 }
 */
-void func_8007D5B0(u8 **arg0, u8 arg1) {
+void BattleStoreCharSlotFlagsC000ClearCount(u8 **arg0, u8 arg1) {
     u8 *pRow;
     s32 count = 0;
     s32 i;
@@ -455,7 +455,7 @@ void func_8007D5B0(u8 **arg0, u8 arg1) {
     pRow = &D_800D3430[arg1 * 0x40];
     pRow[(*arg0)[1]] = count;
 }
-void func_8007D610(u8 **arg0, u8 arg1) {
+void BattleStoreActorSlotFlagsC000ClearCount(u8 **arg0, u8 arg1) {
     u8 *pRow;
     s32 count = 0;
     s32 i;
@@ -470,7 +470,7 @@ void func_8007D610(u8 **arg0, u8 arg1) {
     pRow = &D_800D3430[arg1 * 0x40];
     pRow[(*arg0)[1]] = count;
 }
-void func_8007D6A8(u8 **arg0, u8 arg1) {
+void BattlePickCharSlotByLowestEntryDwordInUse(u8 **arg0, u8 arg1) {
     u16 *pRow;
     u16 result;
     u32 best = -1;
@@ -489,7 +489,7 @@ void func_8007D6A8(u8 **arg0, u8 arg1) {
     pRow = (u16 *)(D_800D3420 + arg1 * 0x40);
     pRow[(*arg0)[1]] = result;
 }
-void func_8007D7B4(u8 **arg0, u8 arg1) {
+void BattlePickActorSlotByLowestEntryWordInUse(u8 **arg0, u8 arg1) {
     u16 *pRow;
     u16 result;
     u32 best = -1;

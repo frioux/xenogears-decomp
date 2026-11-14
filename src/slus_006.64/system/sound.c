@@ -1895,7 +1895,7 @@ void func_8003A344(s32 elementIndex, s32 value) {
 }
 */
 
-void func_8003A3B8(s32 id, s32 value, s32 frames) {
+void SoundFadeElementVolumeById(s32 id, s32 value, s32 frames) {
     AudioManager* pManager = D_800595D8;
     AudioElement* pElement = &pManager->elements[0];
     u32 cnt = D_80059478;
@@ -1926,7 +1926,7 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003A450);
 /*
 Screened under gcc-2.7.2-cdk / gcc-2.7.2 / this unit's gcc-2.6.0: 90.47 / 90.47 / 90.70 - not
 a compiler-only match; the current preset is the best of the three.
-Attempt (90.70%, correct size): identical to func_8003A3B8 except that gcc hoists
+Attempt (90.70%, correct size): identical to SoundFadeElementVolumeById except that gcc hoists
 the `andi a0,0xFE` / `xori a0,0x8` index pair into the loop preheader (after
 `li t0,2` / `sll a1,8`) while the original keeps them in the entry block. Same
 blocker as func_8003A344 and func_8003A55C; u8/u16 index types and declaration

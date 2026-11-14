@@ -9,13 +9,13 @@ extern s32 D_8009D3CC;
 
 extern void WorldMapDeactivateSpriteGroup(s32 arg0);
 extern void WorldMapClearGroupEntryFlag(s32 arg0);
-extern void func_80097770(s32 arg0, s32 arg1);
+extern void WorldMapStartSlot(s32 arg0, s32 arg1);
 extern s32* D_80062528;
 
 extern void SoundSetAudioManagerVolumeWithFade(s32* pManager);
 extern void func_80089160(s32 arg0, void* arg1, s32 arg2);
 extern void SoundPlaySoundEffectOnFreePair(s32 arg0);
-extern void func_8003A3B8(s32 arg0, s32 arg1, s32 arg2);
+extern void SoundFadeElementVolumeById(s32 arg0, s32 arg1, s32 arg2);
 
 extern u8 D_8009C5AC[];
 extern s32 D_8009C5B0;
@@ -65,8 +65,8 @@ extern void WorldMapFreeTileAnimEntries(void);
 extern void WorldMapFreeFrameAnimEntries(void);
 extern void WorldMapFreeSpriteGroupTable(void);
 extern void WorldMapFreePrimTemplateBuffers(void);
-extern void func_80097D64(void);
-extern void func_800976A0(void);
+extern void WorldMapFreeGridImages(void);
+extern void WorldMapFreeSlotPool(void);
 extern void HeapFree(void* pMem);
 
 typedef s32 (*WorldMapScriptHandler)(u8* pSlot, s32 arg1, s16 arg2, s16 arg3);
@@ -194,7 +194,7 @@ s32 WorldMapScriptOp01WaitFrames(u8* p, s32 arg1) {
 }
 
 s32 WorldMapScriptOp02StartSlot(s32 arg0, s32 arg1, s32 arg2) {
-    func_80097770(arg1, arg2);
+    WorldMapStartSlot(arg1, arg2);
     return 4;
 }
 
@@ -238,7 +238,7 @@ s32 WorldMapScriptOp09PlaySound(s32 arg0, s32 arg1) {
 }
 
 s32 WorldMapScriptOp10FadeSound(s32 arg0, s32 arg1, s32 arg2, s32 arg3) {
-    func_8003A3B8((*(u16*)((u8*)D_8006259C + 0x14) << 16) | arg1, arg2, arg3);
+    SoundFadeElementVolumeById((*(u16*)((u8*)D_8006259C + 0x14) << 16) | arg1, arg2, arg3);
     return 4;
 }
 
@@ -391,7 +391,7 @@ extern void func_80072DB4(s32 arg0, s32 arg1, s32 arg2, s32 arg3);
 extern s32 ArchiveDataSync(void);
 extern void WorldMapDecompressMapData(void);
 extern void func_80073530(void);
-extern void func_8009766C(void);
+extern void WorldMapAllocSlotPool(void);
 extern void func_80098044(void);
 extern s32 ArchiveCdDataSync(s32 arg0);
 extern void WorldMapLoadSedsBank(void);
@@ -408,12 +408,12 @@ extern void WorldMapSetupMapPrims(void);
 extern void WorldMapInitSpriteGroupTables(void);
 extern void SoundAddSedsEntry(void* pSeds);
 extern s32 ArchiveSetIndex(s32 arg0, s32 arg1);
-extern void func_80097718(void* p0, void* p1);
+extern void WorldMapAddSlot(void* p0, void* p1);
 extern void func_800978FC(void);
 extern void func_8008901C(void);
 extern void func_800865A0(void);
 extern void func_80075228(void);
-extern void func_800923A8(void);
+extern void WorldMapModeInitFadeRect(void);
 extern void func_800925A0(void);
 extern void func_80087710(void);
 extern void func_80087734(void);
@@ -426,7 +426,7 @@ extern void func_800783E8(void);
 extern void func_80077DC8(void);
 extern void func_80077E68(void);
 extern void func_80097BC0(void* p);
-extern void func_800967E4(void);
+extern void WorldMapUpdateLoadQueue(void);
 extern s32 WorldMapGetQueuedLoadCount(void);
 extern s32 func_8007756C(s32 arg0);
 extern s32 func_800776E0(s32 arg0);
@@ -446,7 +446,7 @@ void WorldMapInitializeMode(void) {
     while (ArchiveDataSync() >= 3) {
     }
     func_80073530();
-    func_8009766C();
+    WorldMapAllocSlotPool();
     D_8009BE4C = D_8009A180;
     D_8009CCA4 = 2;
     D_8009D3CC = 4;
@@ -472,13 +472,13 @@ void WorldMapInitializeMode(void) {
     ArchiveSetIndex(0x24, 0);
     func_80097BC0(pPos);
     do {
-        func_800967E4();
+        WorldMapUpdateLoadQueue();
         Vsync(0);
     } while (WorldMapGetQueuedLoadCount() > 0);
-    func_80097718((void*)func_800923A8, (void*)func_800925A0);
-    func_80097718((void*)func_8007756C, (void*)func_800776E0);
-    func_80097718((void*)func_80087710, (void*)func_80087734);
-    func_80097718((void*)WorldMapModeInitNop, (void*)WorldMapUpdateFrameWithSlotProjection);
+    WorldMapAddSlot((void*)WorldMapModeInitFadeRect, (void*)func_800925A0);
+    WorldMapAddSlot((void*)func_8007756C, (void*)func_800776E0);
+    WorldMapAddSlot((void*)func_80087710, (void*)func_80087734);
+    WorldMapAddSlot((void*)WorldMapModeInitNop, (void*)WorldMapUpdateFrameWithSlotProjection);
     func_800978FC();
     func_8008901C();
     func_800865A0();
@@ -498,13 +498,13 @@ s32 WorldMapExitMode(void) {
     WorldMapFreeFrameAnimEntries();
     WorldMapFreeSpriteGroupTable();
     WorldMapFreePrimTemplateBuffers();
-    func_80097D64();
+    WorldMapFreeGridImages();
     HeapFree(D_8009BC38);
     HeapFree(D_8009BCB0);
     HeapFree(D_8009BC3C);
     HeapFree(D_8009BCB4);
     HeapFree(D_8009C180);
-    func_800976A0();
+    WorldMapFreeSlotPool();
     v = *(u16*)&D_8009BD3A;
     D_8006F94E = 0x11;
     D_8006F954 = 7;
@@ -636,7 +636,7 @@ void WorldMapInitializeModeWithSound(void) {
     while (ArchiveDataSync() >= 3) {
     }
     WorldMapDecompressMapData();
-    func_8009766C();
+    WorldMapAllocSlotPool();
     D_8009BE4C = D_8009A180;
     D_8009CCA4 = 1;
     D_8009D3CC = 4;
@@ -664,13 +664,13 @@ void WorldMapInitializeModeWithSound(void) {
     ArchiveSetIndex(0x24, 0);
     func_80097BC0(pPos);
     do {
-        func_800967E4();
+        WorldMapUpdateLoadQueue();
         Vsync(0);
     } while (WorldMapGetQueuedLoadCount() > 0);
-    func_80097718((void*)func_800923A8, (void*)func_800925A0);
-    func_80097718((void*)func_80077DC8, (void*)func_80077E68);
-    func_80097718((void*)WorldMapInitActorAtScrollPosition, (void*)func_800783E8);
-    func_80097718((void*)WorldMapEnterNop, (void*)WorldMapUpdateFrameWithParticles);
+    WorldMapAddSlot((void*)WorldMapModeInitFadeRect, (void*)func_800925A0);
+    WorldMapAddSlot((void*)func_80077DC8, (void*)func_80077E68);
+    WorldMapAddSlot((void*)WorldMapInitActorAtScrollPosition, (void*)func_800783E8);
+    WorldMapAddSlot((void*)WorldMapEnterNop, (void*)WorldMapUpdateFrameWithParticles);
     func_800978FC();
     func_8008901C();
     func_800865A0();

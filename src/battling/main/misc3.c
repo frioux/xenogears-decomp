@@ -151,8 +151,8 @@ void func_80076438(u8* p) {
     func_800379C8(D_8006FCC8);
 }
 
-extern s32 func_80083CD8(u8* p);
-extern void func_8007E894(s32 a0, s32 a1);
+extern s32 BattleGetScreenMode(u8* p);
+extern void BattleSetTextCursor(s32 a0, s32 a1);
 extern s32 D_8009292C;
 extern u8 D_80099D9C;
 extern u8 D_80099D9B;
@@ -176,7 +176,7 @@ void func_800764CC(u8* p) {
 
     *(s32*)(p + 0x40) = 0;
     *(s32*)(p + 0x100) = 0;
-    if (func_80083CD8(p) != 7) {
+    if (BattleGetScreenMode(p) != 7) {
         flags = *(u32*)(p + 0xD0);
         flags &= 0xFFFF7FFF;
         flags &= ~2;
@@ -189,9 +189,9 @@ void func_800764CC(u8* p) {
     *(s16*)(p + 0x15F2) = prod >> 8;
     flags &= 0x8000000;
     if (!flags) {
-        func_8007E894(0x28, 0x28);
+        BattleSetTextCursor(0x28, 0x28);
     } else {
-        func_8007E894(0xF0, 0x28);
+        BattleSetTextCursor(0xF0, 0x28);
     }
     if (p[0x9C3] != 0) {
         ((u32*)D_80096FB8)[((*(u32*)(p + 0xD0) >> 27) & 1) * 5] = ((u32*)D_80091198)[p[0x9C3]];
@@ -201,8 +201,8 @@ void func_800764CC(u8* p) {
 }
 */
 
-extern void func_8007E954(s32 color);
-extern void func_8007EBE0(char* pStr);
+extern void BattleSetTextScale(s32 color);
+extern void BattleDrawTextLeft(char* pStr);
 extern s32 D_800928C8;
 extern s32 D_8009112C;
 extern s32 D_80096FC4[];
@@ -234,17 +234,17 @@ void func_8007661C(u8* p) {
     if (D_800928C8 != 4) {
         h = 0xB2;
     }
-    func_8007E894(w, h);
+    BattleSetTextCursor(w, h);
     Sprintf(buf, D_8006FD04, D_80096FB8[((*(u32*)(p + 0xD0) >> 27) & 1) * 5]);
-    func_8007E954(D_80096FB8[((*(u32*)(p + 0xD0) >> 27) & 1) * 5] == D_8009112C ? 0xE7 : 0x100);
-    func_8007EBE0(buf);
-    func_8007E954(0x100);
-    func_8007E894(w + 0x34, h);
+    BattleSetTextScale(D_80096FB8[((*(u32*)(p + 0xD0) >> 27) & 1) * 5] == D_8009112C ? 0xE7 : 0x100);
+    BattleDrawTextLeft(buf);
+    BattleSetTextScale(0x100);
+    BattleSetTextCursor(w + 0x34, h);
     Sprintf(buf, D_8006FD08, ((u8*)D_80096FBC)[((*(u32*)(p + 0xD0) >> 27) & 1) * 20]);
-    func_8007EBE0(buf);
-    func_8007E894(w, h + 0x14);
+    BattleDrawTextLeft(buf);
+    BattleSetTextCursor(w, h + 0x14);
     Sprintf(buf, D_8006FD10, D_80096FC4[((*(u32*)(p + 0xD0) >> 27) & 1) * 5] >> 4, D_80096FC8[((*(u32*)(p + 0xD0) >> 27) & 1) * 5] >> 4);
-    func_8007EBE0(buf);
+    BattleDrawTextLeft(buf);
 }
 */
 
@@ -329,7 +329,7 @@ void func_800776A8(u8* p, s32 mode) {
     u32 flags;
     s32 kind;
 
-    if (func_80083CD8(p) == 4) {
+    if (BattleGetScreenMode(p) == 4) {
         return;
     }
     flags = *(u32*)(p + 0xD0);

@@ -45,13 +45,13 @@ typedef struct {
     /* 0xA4 */ u16 unkA4;
 } Misc33Point;
 
-extern s16 func_80023124(DVECTOR, DVECTOR);
+extern s16 SpriteComputeAngleFromPoints(DVECTOR, DVECTOR);
 extern s32 func_800C0FAC(s32);
 extern u8 SpriteColorAddClamp(u8, s16);
-extern s32 func_800C07CC(DVECTOR vec0, DVECTOR vec1);
+extern s32 BattleComputeVectorDistance2D(DVECTOR vec0, DVECTOR vec1);
 extern void SpriteSetDirection(Misc33Point *p, s16 arg1);
 extern void func_800223B0(Misc33Point *p, s16 arg1);
-extern void func_800245D8(Misc33Point *p, s32 arg1);
+extern void SpritePlayAnimation(Misc33Point *p, s32 arg1);
 
 typedef struct {
     /* 0x00 */ u8 unk0[0xC];
@@ -72,7 +72,7 @@ typedef struct {
 } BattleMisc33Actor;
 extern void func_800C1140(s32);
 
-void func_800BE11C(BattleMisc33Actor *p) {
+void BattleStepActorFadeOut(BattleMisc33Actor *p) {
     p->unk3C = p->unk3C + p->unk64;
     p->unk40 += 0x330;
     p->unk44 += 0x330;
@@ -172,13 +172,13 @@ extern u16 D_800D30E4;
 
 extern u16 D_80059494;
 extern void Vsync(s32 mode);
-extern void func_800BEC18(void);
+extern void BattleUpdatePadState(void);
 
-void func_800BEBC4(void) {
+void BattlePollPadAndSkipWaitOnStart(void) {
     u8 *pStateBase;
     BattlePadState *pState;
 
-    func_800BEC18();
+    BattleUpdatePadState();
     pStateBase = D_800C3EB0;
     pState = (BattlePadState *)(pStateBase + 0x8000);
     if (pState->cur[0] & 0x100) {
@@ -186,7 +186,7 @@ void func_800BEBC4(void) {
         D_80059494 = 0;
     }
 }
-void func_800BEC18(void) {
+void BattleUpdatePadState(void) {
     u8 *pStateBase;
     BattlePadState *pState;
     s32 cur;
@@ -221,14 +221,14 @@ void func_800BEC18(void) {
     pState->history[0].unk6 = D_800D30E4;
 }
 
-void func_800BED30(void) {
+void BattleResetStateGlobals(void) {
     D_800C3E20 = 0;
     D_800C3610 = NULL;
     D_800D2E54 = 0;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BED4C);
 /* best 85.18%: retail reloads D_800C3610 four times and keeps one load after
-   the func_800BF0B4 call (dead in C, so gcc deletes it and the pointer base
+   the BattleSetStateStep call (dead in C, so gcc deletes it and the pointer base
    stays in a call-clobbered register instead of $s0).
 void func_800BED4C(void) {
     BattleMisc33State *pState;
@@ -244,13 +244,13 @@ void func_800BED4C(void) {
     D_800C3610->unk2C = 1;
     D_800C3610->unk4 = 0;
     D_800C3610->unk34 = 0;
-    func_800BF0B4(0);
+    BattleSetStateStep(0);
     pState = D_800C3610;
     D_80059464 = 0;
     D_800591AC = 1;
 }
 */
-void func_800BEDE8(void) {
+void BattleDestroyState(void) {
     HeapFree(D_800C3610);
     D_80059464 = 0;
     D_800C3610 = NULL;
@@ -262,7 +262,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BEE2C);
    addu $sp,$t0, then addiu $sp,4; lw $sp,0($sp)), which the original source
    wrote as inline asm -- the same shape as GfxLoadImageAccelerated in
    system/graphics.  No C produces it. */
-s32 func_800BEEB4(u16 mask, void **pOut, s32 arg2) {
+s32 BattleCollectMaskedSlotActors(u16 mask, void **pOut, s32 arg2) {
     u8 *pBase;
     u8 *pEntity;
     s32 i;
@@ -286,7 +286,7 @@ s32 func_800BEEB4(u16 mask, void **pOut, s32 arg2) {
     pOut[count] = NULL;
     return count;
 }
-s16 func_800BEF24(Misc33Point *p0, Misc33Point *p1) {
+s16 BattleAngleToPoint(Misc33Point *p0, Misc33Point *p1) {
     DVECTOR vec0;
     DVECTOR vec1;
     s32 c0;
@@ -302,9 +302,9 @@ s16 func_800BEF24(Misc33Point *p0, Misc33Point *p1) {
     vec1.vx = c2;
     c3 = p1->unkA;
     vec1.vy = c3;
-    return func_80023124(vec1, vec0);
+    return SpriteComputeAngleFromPoints(vec1, vec0);
 }
-s16 func_800BEF8C(Misc33Point *p) {
+s16 BattleAngleToTarget(Misc33Point *p) {
     DVECTOR vec0;
     DVECTOR vec1;
     s32 c0;
@@ -320,16 +320,16 @@ s16 func_800BEF8C(Misc33Point *p) {
     vec1.vx = c2;
     c3 = p->unkA4;
     vec1.vy = c3;
-    return func_80023124(vec1, vec0);
+    return SpriteComputeAngleFromPoints(vec1, vec0);
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BEFF4);
 
-void func_800BF0B4(s32 arg0) {
+void BattleSetStateStep(s32 arg0) {
     D_800C3610->unk1C = arg0;
 }
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BF0C4);
-void func_800BF1EC(Misc33Point *p, s32 arg1) {
+void BattleFaceTargetAndMeasureDistance(Misc33Point *p, s32 arg1) {
     DVECTOR vec0;
     DVECTOR vec1;
     s32 c0;
@@ -345,14 +345,14 @@ void func_800BF1EC(Misc33Point *p, s32 arg1) {
     vec1.vx = c2;
     c3 = p->unkA4;
     vec1.vy = c3;
-    D_800C3610->unk44 = func_800C07CC(vec0, vec1);
-    SpriteSetDirection(p, func_800BEF8C(p));
-    func_800223B0(p, func_800BEF8C(p));
-    func_800245D8(p, arg1);
-    func_800BF0B4(6);
+    D_800C3610->unk44 = BattleComputeVectorDistance2D(vec0, vec1);
+    SpriteSetDirection(p, BattleAngleToTarget(p));
+    func_800223B0(p, BattleAngleToTarget(p));
+    SpritePlayAnimation(p, arg1);
+    BattleSetStateStep(6);
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BF2B8);
-s32 func_800BF354(void) {
+s32 BattleLoadSoundSeds(void) {
     s32 ret;
 
     if (D_800D3350 == 0) {
@@ -361,7 +361,7 @@ s32 func_800BF354(void) {
     }
     return ret;
 }
-void func_800BF3A4(void) {
+void BattleFreeSoundSeds(void) {
     if (D_800D3350 != 0) {
         func_800C1140(D_800C3618);
         D_800D3350 = 0;

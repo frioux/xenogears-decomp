@@ -42,7 +42,7 @@ extern s16 D_8009BD24;
 extern s16 D_8009CE68;
 extern void WorldMapSortCdRequestsBySector(SVec* pRecord);
 extern void WorldMapSortFileLoadsByOffset(SVec4* pRecord);
-extern void func_800967E4(void);
+extern void WorldMapUpdateLoadQueue(void);
 extern void WorldMapWrapPosition(void* p);
 extern s32 WorldMapGetTileHalfIndex(void* p);
 extern s16 WorldMapGetTileKindValue(s16 row, s16 col);
@@ -438,12 +438,12 @@ void WorldMapWaitForLoadSlotFree(void) {
     if ((first == 0) | (second == 0xFFFFFFFF)) {
         while (D_8009D788[D_8009BE44] != NULL) {
             Vsync(0);
-            func_800967E4();
+            WorldMapUpdateLoadQueue();
         }
     } else {
         while (D_8009C624[D_8009BE44] != NULL) {
             Vsync(0);
-            func_800967E4();
+            WorldMapUpdateLoadQueue();
         }
     }
 }
@@ -574,7 +574,7 @@ s32 WorldMapGetQueuedLoadCount(void) {
 void WorldMapWaitForQueuedLoads(void) {
     do {
         Vsync(0);
-        func_800967E4();
+        WorldMapUpdateLoadQueue();
     } while (WorldMapGetQueuedLoadCount() != 0);
 }
 

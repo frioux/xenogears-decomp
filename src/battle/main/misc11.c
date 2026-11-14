@@ -52,7 +52,7 @@ extern void func_8009A2D4(u8 arg0);
 extern void BattleBuildSpritePrimLists(u8 arg0);
 extern void func_800898F0(u8 arg0);
 extern void func_800716D8(void);
-extern u8 func_80083FF4(u8 arg0, u8 arg1);
+extern u8 BattlePairTargetable(u8 arg0, u8 arg1);
 extern void func_8009AB00(u8 arg0);
 extern void func_8009BAC4(u8 arg0, u8 *pInfo, u8 *pField);
 extern u8 func_8001BD40(s32 arg0, u8 arg1);
@@ -271,7 +271,7 @@ void BattleSetActorFlag34(u8 index) {
     pEntry[0x34] = 1;
 }
 /* 86.16%: first full reconstruction, every block present and in retail's
-   order. Remaining: (a) the func_80083FF4 fill loop - retail copies i to a
+   order. Remaining: (a) the BattlePairTargetable fill loop - retail copies i to a
    second reg (`move s1,s0`) and increments i in the beqz delay slot so the
    store uses the old i, we store i directly, 1 insn short; (b) case 1 reuses
    the D_800C3EAC load from the D_800C4022 store for the +0x3C read (we
@@ -304,7 +304,7 @@ u8 func_80080C94(u8 arg0) {
         i = 0;
         pBuf = buf;
         for (i = 0; i < 0xB; i++) {
-            if (func_80083FF4(arg0, i) != 0) {
+            if (BattlePairTargetable(arg0, i) != 0) {
                 *pBuf++ = i;
             }
         }

@@ -33,7 +33,7 @@ void func_801E8F60(s32 mode, u_char index);
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DB920);
 
-void func_801DBD4C(s32 index0, s32 index1) {
+void MenuSwapInventoryItems(s32 index0, s32 index1) {
     u_char tmp;
 
     tmp = g_GameState.itemIDs[index0];
@@ -89,7 +89,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DC1D4);
 /* Best: 91.94%, same size (228 bytes). Everything matches except the case
    dispatch: retail built a balanced decision tree (beq x,1 / slti x,2 / beqz x,0
    / beq x,2) where gcc 2.6.0 emits a sequential compare chain for this switch.
-   The tree IS reachable from gcc 2.6.0: the sibling func_801DC2CC above emits
+   The tree IS reachable from gcc 2.6.0: the sibling MenuFreeUnk430Panel above emits
    exactly it for an identical `switch (arg0 & 0xFF)` over the same 3 cases, so
    the trigger is some other property of this function, not the compiler. Tried:
    2.6.0/2.7.2/2.7.2-cdk x -O1..-O3 x -G0/-G4/-G8 (all 94.47 or less on the
@@ -121,7 +121,7 @@ void func_801DC1D4(u32 arg0) {
 }
 */
 
-void func_801DC2CC(u_char arg0) {
+void MenuFreeUnk430Panel(u_char arg0) {
     s32 kind;
 
     MenuFreeWindow(3);
@@ -186,12 +186,12 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DD5E8);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DD790);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DDF24);
 
-s32 func_801DE29C(u_char arg0, u_char arg1) {
+s32 MenuRunUnk430Panel(u_char arg0, u_char arg1) {
     func_801DDF24(arg0, arg1, 0);
     return 1;
 }
 
-void func_801DE2C8(u32 arg0) {
+void MenuInitializeCharacterSpriteRecords(u32 arg0) {
     MenuManager* pManager;
 
     g_Menu->unk434 = HeapAlloc(0xA1C, 0);
@@ -204,7 +204,7 @@ void func_801DE2C8(u32 arg0) {
     func_801D3488(1, arg0 & 0xFF);
 }
 
-void func_801DE36C(void) {
+void MenuFreeCharacterSpriteRecords(void) {
     g_Menu->pManager->unk4A[2] = 0;
     MenuFreeWindow(2);
     MenuFreeWindow(3);
@@ -217,7 +217,7 @@ void func_801DE36C(void) {
     MenuFreeScrollHandle();
 }
 
-void func_801DE400(void) {
+void MenuFreeUnk35CPanel(void) {
     g_Menu->pManager->unk5[3] = 0;
     g_Menu->pManager->unk4A[1] = 0;
     MenuRenderFrame();
@@ -225,7 +225,7 @@ void func_801DE400(void) {
     HeapFree(g_Menu->unk360);
 }
 
-void func_801DE474(u_char arg0, u_char arg1) {
+void MenuCreateListWindow(u_char arg0, u_char arg1) {
     s32 i;
     s32 start;
     s32 count;
@@ -261,7 +261,7 @@ void func_801DE474(u_char arg0, u_char arg1) {
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DE5CC);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DF0D4);
-void func_801DF5D0(u_char arg0, u_char arg1) {
+void MenuCopyEquipmentToPanel(u_char arg0, u_char arg1) {
     s32 i;
 
     for (i = 0; i < 9; i++) {
@@ -289,7 +289,7 @@ void func_801DF5D0(u_char arg0, u_char arg1) {
     }
 }
 
-void func_801DF890(u_char arg0, u_char arg1) {
+void MenuCopyEquipmentFromPanel(u_char arg0, u_char arg1) {
     s32 i;
 
     if (arg1 == 0) {
@@ -316,7 +316,7 @@ void func_801DF890(u_char arg0, u_char arg1) {
         }
     }
 }
-void func_801DFB68(u_char arg0, s32 arg1, s32 arg2, s32 arg3, u_char arg4, u_char arg5) {
+void MenuSetEquipmentSlotValue(u_char arg0, s32 arg1, s32 arg2, s32 arg3, u_char arg4, u_char arg5) {
     if (arg5 == 0) {
         if (arg4 == 0) {
             if (arg1 == 0) {
@@ -357,7 +357,7 @@ void func_801DFB68(u_char arg0, s32 arg1, s32 arg2, s32 arg3, u_char arg4, u_cha
         }
     }
 }
-void func_801DFE2C(u_char arg0) {
+void MenuUpdateDressingRoomTotals(u_char arg0) {
     u8 charId;
 
     charId = g_Menu->pManager->currentCharacterIDs[arg0];
@@ -372,7 +372,7 @@ void func_801DFE2C(u_char arg0) {
     g_Menu->pDressingRoom->unkB8[5] = g_Menu->pDressingRoom->unkB4;
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DFF5C);
-void func_801E0434(u_char arg0, u_char arg1) {
+void MenuReturnWeaponToInventory(u_char arg0, u_char arg1) {
     u_char* pIds;
     u_char* pQuantities;
     u_char characterId;

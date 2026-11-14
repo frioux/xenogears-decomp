@@ -3,11 +3,11 @@
 
 extern u8 D_80092954[];
 
-extern void func_80083C0C(int mode);
+extern void BattleSetScreenMode(int mode);
 extern void SystemStringFree(void* pString);
 
 void BattleFreeMessageString(void) {
-    func_80083C0C(3);
+    BattleSetScreenMode(3);
     SystemStringFree(&D_80092954[0]);
 }
 
@@ -261,7 +261,7 @@ extern void SystemStringPushBuffer(void* pString, u8* pEntry);
 void BattleInitTutorialMessage(void) {
     D_80099D9D = 0;
     D_80099D9E = 0;
-    func_80083C0C(7);
+    BattleSetScreenMode(7);
     D_800928C8 = 5;
     D_80092884 = 0;
     func_80032F54(&D_80092954[0], 0x140, 0x70, 0xA2, 0x2A, 0x1C, 8);
@@ -428,27 +428,27 @@ void BattleInitRenderScene(u8* p) {
 }
 
 extern void func_8008BC04(void);
-extern void func_8007F834(void);
+extern void BattleClearTextSpriteEntries(void);
 extern void func_80030988(s32 a0, s32 a1, s32 a2, s32 a3);
 extern void BattleFreeLightGroup(void* p);
 extern void BattleFreeNodeTree(void* p);
 extern void BattleSetScreenResolution(s32 a0, s32 a1);
-extern void func_80083C0C(s32 mode);
-extern void func_8007E954(s32 value);
+extern void BattleSetScreenMode(s32 mode);
+extern void BattleSetTextScale(s32 value);
 extern void BattleResetTextPrimQueue(void);
 extern void* D_800910F0;
 extern void* D_80092610;
 
 void BattleFreeRenderScene(void) {
     func_8008BC04();
-    func_8007F834();
+    BattleClearTextSpriteEntries();
     func_80030988(1, 1, 0x40, 0x40);
     BattleFreeLightGroup(D_800910F0);
     BattleFreeNodeTree(D_80092610);
     BattleSetScreenResolution(0x140, 0xDA);
     SetGeomScreen(0xC0);
-    func_80083C0C(3);
-    func_8007E954(0x100);
+    BattleSetScreenMode(3);
+    BattleSetTextScale(0x100);
     BattleResetTextPrimQueue();
 }
 

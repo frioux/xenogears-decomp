@@ -34,8 +34,8 @@ extern void func_8008E3CC(void* pOt, s32 arg1, s32 arg2);
 extern void func_8008BC04(void);
 extern void SoundSetAudioManagerMasterVolumeWithFade(s32 arg0, s32 arg1, s32 arg2);
 extern void BattleEffectFreeResources(void);
-extern void func_80083BB4(s32 arg);
-extern void func_80083C0C(s32 arg);
+extern void BattleClearScreen(s32 arg);
+extern void BattleSetScreenMode(s32 arg);
 extern void SoundRemoveSedsEntry(s32 arg);
 extern void SoundStopAudioManager(s32 arg);
 extern void SoundDestroyAudioManager(s32 arg);
@@ -167,8 +167,8 @@ void BattleUpdateEffectImage(void) {
 
 void BattleSetBothSidesCom(void) {
     D_80092920 &= 0xFE;
-    func_80083BB4(0);
-    func_80083C0C(5);
+    BattleClearScreen(0);
+    BattleSetScreenMode(5);
     D_80099D9E = 1;
     D_80099D9D = 1;
     D_800928C8 = 6;
@@ -304,7 +304,7 @@ void func_800864B4(Misc10TagSrc* p, s32 x, s32 y, POLY_FT4* pPoly, s32 mode) {
 }
 
 
-void func_800866D4(Misc10TagSrc* p, s32 x, s32 y, POLY_FT4* pPoly, s32 mode) {
+void BattleBuildFlippedTexturedQuad(Misc10TagSrc* p, s32 x, s32 y, POLY_FT4* pPoly, s32 mode) {
     s32 scale;
 
     switch (mode) {

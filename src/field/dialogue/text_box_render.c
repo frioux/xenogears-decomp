@@ -108,7 +108,7 @@ void FieldTextBoxInitialize(void) {
 */
 
 // _pad[0x4A] is possibly a RECT?
-void func_8007E114(int index, int arg1, int arg2, int arg3, s32 arg4) {
+void FieldTextBoxSetRect(int index, int arg1, int arg2, int arg3, s32 arg4) {
     g_FieldTextBoxes[index]._pad[0x4A] = arg1;
     g_FieldTextBoxes[index]._pad[0x4B] = arg2;
     g_FieldTextBoxes[index]._pad[0x4C] = arg3;
@@ -117,7 +117,7 @@ void func_8007E114(int index, int arg1, int arg2, int arg3, s32 arg4) {
 
 // Place a portrait quad: x - 1 and x + width when facing right, mirrored when
 // flipped.
-void func_8007E16C(POLY_FT4* pPoly, int x, int y, int width, int height, int flip) {
+void FieldTextBoxSetPortraitQuad(POLY_FT4* pPoly, int x, int y, int width, int height, int flip) {
     if (!flip) {
         x--;
         pPoly->x0 = x;
@@ -265,7 +265,7 @@ extern u_char D_800ADF34[];
 // The V half of the table needs its own base local: with a single base gcc
 // attaches the +2 to the scaled index instead of the base and the addiu lands on
 // the wrong register.
-void func_8007F5AC(int index, int portraitID) {
+void FieldTextBoxSetPortraitUV(int index, int portraitID) {
     FieldTextBox* pBox = &g_FieldTextBoxes[index];
     u_char* pUVTable = D_800ADF34;
     u_char* pU = &pUVTable[portraitID * 4];
@@ -297,7 +297,7 @@ extern void SystemStringResetIfIdle(void* pString);
 extern void SystemStringFree(void* pString);
 
 // Bit per text box index, set while the box is in use.
-int func_8007F6F8(short index) {
+int FieldTextBoxFree(short index) {
     if (g_FieldTextBoxes[index].visibility == 0) {
         SystemStringResetIfIdle(&g_FieldTextBoxes[index]._pad[0]);
         SystemStringClearStateFlags(&g_FieldTextBoxes[index]._pad[0]);
@@ -319,7 +319,7 @@ int func_8007F6F8(short index) {
 }
 
 // Project (0, Y, 0) from actor's model/local space to screen
-void func_8007F814(int actorIndex, int* pScreenX, int* pScreenY, int height) {
+void FieldProjectActorPointToScreen(int actorIndex, int* pScreenX, int* pScreenY, int height) {
     SVECTOR vertex;
     MATRIX transformMatrix;
     long sxy;
@@ -339,29 +339,29 @@ void func_8007F814(int actorIndex, int* pScreenX, int* pScreenY, int height) {
 
 INCLUDE_ASM("asm/field/nonmatchings/dialogue/text_box_render", func_8007F8DC);
 
-void func_8007FFE8(void) {
+void FieldTextBoxFreeAll(void) {
     int i;
 
     for (i = 0; i < 4; i++) {
         if (!g_FieldTextBoxes[i].visibility) {
-            func_8007F6F8((s16) i); // TODO: Clean up cast w/ function sig
+            FieldTextBoxFree((s16) i); // TODO: Clean up cast w/ function sig
         }
     }
 }
 
 INCLUDE_ASM("asm/field/nonmatchings/dialogue/text_box_render", func_8008004C);
 
-void func_800805F4(void) {
+void FieldTextBoxUpdate(void) {
     int i;
 
     for (i = 0; i < 4; i++) {
         if (!g_FieldTextBoxes[i].visibility) {
             // TODO: _pad[0x8] is probably a short holding some flags
             if (g_FieldTextBoxes[i].windowOpenTimer == 0 && !(g_FieldTextBoxes[i]._pad[0x8] & 4)) {
-                func_8007F6F8( (i*0x10000) >> 0x10);
+                FieldTextBoxFree( (i*0x10000) >> 0x10);
             }
             if (g_FieldTextBoxes[i].status == 0) {
-                func_8007F6F8( (i*0x10000) >> 0x10);
+                FieldTextBoxFree( (i*0x10000) >> 0x10);
             }
             if (g_FieldTextBoxes[i].windowOpenTimer) {
                 g_FieldTextBoxes[i].windowOpenTimer--;
@@ -371,7 +371,7 @@ void func_800805F4(void) {
 }
 
 // Get index of textbox with order 0
-int func_800806E4(void) {
+int FieldTextBoxGetTopIndex(void) {
     int i;
     
     for (i = 0; i < 4; i++) {
@@ -384,7 +384,7 @@ int func_800806E4(void) {
 
 
 // Is textbox free to use?
-int func_80080720(void) {
+int FieldTextBoxHasFreeSlot(void) {
     int i;
 
     for (i = 0; i < 4; i++) {
@@ -396,7 +396,7 @@ int func_80080720(void) {
 }
 
 // Get index of textbox with lowest order
-int func_80080760(void) {
+int FieldTextBoxGetBottomIndex(void) {
     int i;
     int nResult;
     int lowestOrder;
@@ -414,7 +414,7 @@ int func_80080760(void) {
 }
 
 // Update textbox order
-int func_800807B4(void) {
+int FieldTextBoxAllocateTop(void) {
     int i;
 
     for (i = 0; i < 4; i++) {

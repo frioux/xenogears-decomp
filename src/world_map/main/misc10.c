@@ -15,8 +15,8 @@ extern u8* D_8009C620;
 extern void* D_8009CD34;
 
 extern void HeapFree(void* pMem);
-extern void* func_80024524(void* pArg0, s16 arg1, s16 arg2, s16 arg3, s16 arg4, s16 arg5);
-extern void func_800245D8(void* pSprite, s32 arg1);
+extern void* SpriteAllocFromAnimFile(void* pArg0, s16 arg1, s16 arg2, s16 arg3, s16 arg4, s16 arg5);
+extern void SpritePlayAnimation(void* pSprite, s32 arg1);
 extern void WorldMapSetSpriteSetParent(s32 arg0, s32 arg1);
 extern void SpriteSetScale(void* pSprite, s16 scale);
 extern void func_8008BFD4(s32 arg0, u32* pVec, s32 arg2, s32 arg3);
@@ -363,9 +363,9 @@ s32 func_8008A52C(s32 arg0) {
     u8* pActor;
 
     pActor = D_8009BE24 + (arg0 << 7);
-    pSprite = func_80024524(D_8009CD34, 0x100, 0x1E0, 0x140, 0x100, 0x40);
+    pSprite = SpriteAllocFromAnimFile(D_8009CD34, 0x100, 0x1E0, 0x140, 0x100, 0x40);
     *(u8**)(pActor + 0x4C) = pSprite;
-    func_800245D8(pSprite, 0);
+    SpritePlayAnimation(pSprite, 0);
     SpriteSetScale(*(u8**)(pActor + 0x4C), 0x1800);
     *(u32*)(*(u8**)(pActor + 0x4C) + 0x3C) &= ~4;
     return 1;

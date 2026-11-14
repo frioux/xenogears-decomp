@@ -13,7 +13,7 @@ extern u16 D_800C3D64;
 extern u8 D_800C3E2C;
 extern u16 BattleMaskHasSlotBit(u16, u8);
 extern u16 BattleSlotBitMask(u8);
-extern u8 func_80083FF4(u8, u8);
+extern u8 BattlePairTargetable(u8, u8);
 extern u8 *D_800C3EAC;
 extern u8 D_800C3E90[];
 extern u8 D_800C3E9B[];
@@ -116,7 +116,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80083340);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80083580);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80083748);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80083948);
-u8 func_80083FF4(u8 arg0, u8 arg1) {
+u8 BattlePairTargetable(u8 arg0, u8 arg1) {
     u8 ret;
 
     ret = 0;
@@ -134,7 +134,7 @@ u8 func_80083FF4(u8 arg0, u8 arg1) {
     }
     return ret;
 }
-u8 func_80084108(u8 arg0, u8 arg1) {
+u8 BattleActorTargetableWithOverride(u8 arg0, u8 arg1) {
     u8 ret;
 
     ret = 0;
@@ -205,7 +205,7 @@ u8 func_80084548(u8 arg0, u8 arg1, u8 arg2) {
     D_800C3D64 = 0;
     for (i = start1; --count1 >= 0; i++) {
         j = i;
-        if (func_80084108(j, arg1) != 0) {
+        if (BattleActorTargetableWithOverride(j, arg1) != 0) {
             D_800C3E90[n] = j;
             D_800C3D64 |= BattleSlotBitMask(j);
             n++;
@@ -214,7 +214,7 @@ u8 func_80084548(u8 arg0, u8 arg1, u8 arg2) {
     }
     for (i = start2; --count2 >= 0; i++) {
         j = i;
-        if (func_80084108(j, arg1) != 0) {
+        if (BattleActorTargetableWithOverride(j, arg1) != 0) {
             D_800C3E90[n] = j;
             D_800C3D64 |= BattleSlotBitMask(j);
             n++;
@@ -223,7 +223,7 @@ u8 func_80084548(u8 arg0, u8 arg1, u8 arg2) {
     }
     return D_800C3E90[0];
 }
-u8 func_80084750(u8 arg0) {
+u8 BattleBuildTargetCandidateList(u8 arg0) {
     s32 i;
     s32 j;
     s32 n;
@@ -243,7 +243,7 @@ u8 func_80084750(u8 arg0) {
     D_800C3D64 = 0;
     for (i = 3; --k >= 0; i++) {
         j = i;
-        if (func_80083FF4(arg0, j) != 0) {
+        if (BattlePairTargetable(arg0, j) != 0) {
             D_800C3E90[n] = j;
             D_800C3D64 |= BattleSlotBitMask(j);
             n++;
@@ -421,7 +421,7 @@ u16 func_80084DE4(u16 arg0, u16 arg1, u8 arg2, u8 arg3, u8 arg4) {
         mask = 0xFFFF;
     }
     if (arg4 != 0) {
-        D_800C3E2C = func_80084750(arg2);
+        D_800C3E2C = BattleBuildTargetCandidateList(arg2);
     } else {
         D_800C3E2C = func_80084548(grp, hi, first);
     }

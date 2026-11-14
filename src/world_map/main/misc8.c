@@ -102,8 +102,8 @@ extern u8 D_8009C5AC[];
 
 extern void ModelPartFreeLightData(void *pModelPart);
 extern int Vsync(int mode);
-extern void func_80097D64(void);
-extern void func_800967E4(void);
+extern void WorldMapFreeGridImages(void);
+extern void WorldMapUpdateLoadQueue(void);
 extern void func_80097BC0(void *p);
 extern s32 WorldMapGetQueuedLoadCount(void);
 extern s16 func_80084DB8(void *pArg, s16 arg1);
@@ -142,7 +142,7 @@ extern void WorldMapFreeTileAnimEntries(void);
 extern void WorldMapFreeFrameAnimEntries(void);
 extern void WorldMapFreeSpriteGroupTable(void);
 extern void WorldMapFreePrimTemplateBuffers(void);
-extern void func_800976A0(void);
+extern void WorldMapFreeSlotPool(void);
 extern void WorldMapFreeSpriteSets(void);
 extern void ModelLoadTextureBlock(void *pBlock);
 extern void func_800931D8(u8 *pSrc, u8 *pDst, s32 count, u8 *pFactors);
@@ -161,7 +161,7 @@ extern void WorldMapInitGfxEnv(void);
 extern void func_80072DB4(int, int, int, int);
 extern int ArchiveDataSync(void);
 extern void WorldMapDecompressMapData(void);
-extern void func_8009766C(void);
+extern void WorldMapAllocSlotPool(void);
 extern void func_80098044(void);
 extern int ArchiveCdDataSync(int);
 extern void WorldMapLoadSedsBank(void);
@@ -176,12 +176,12 @@ extern void WorldMapSetupMapPrims(void);
 extern void WorldMapInitSpriteGroupTables(void);
 extern void SoundAddSedsEntry(void *);
 extern int ArchiveSetIndex(int, int);
-extern void func_80097718(void *, void *);
+extern void WorldMapAddSlot(void *, void *);
 extern void func_800978FC(void);
 extern void func_8008901C(void);
 extern void func_800865A0(void);
 extern void func_80075228(void);
-extern void func_800923A8(void);
+extern void WorldMapModeInitFadeRect(void);
 extern void func_800925A0(void);
 extern void WorldMapRunSlotScript(void);
 extern void WorldMapEnterNop(void);
@@ -329,10 +329,10 @@ s32 WorldMapWaitForQueueDrain(s32 arg0) {
         pActor->unk4 = 0;
         DrawSync(0);
         Vsync(0);
-        func_80097D64();
+        WorldMapFreeGridImages();
         func_80097BC0(D_8009C5AC);
         do {
-            func_800967E4();
+            WorldMapUpdateLoadQueue();
             Vsync(0);
         } while (WorldMapGetQueuedLoadCount() > 0);
     }
@@ -353,7 +353,7 @@ void WorldMapInitializeScene(void) {
     while (ArchiveDataSync() >= 3) {
     }
     WorldMapDecompressMapData();
-    func_8009766C();
+    WorldMapAllocSlotPool();
     D_8009BE4C = D_8009A180;
     D_8009CCA4 = 2;
     D_8009D3CC = 0x10;
@@ -381,14 +381,14 @@ void WorldMapInitializeScene(void) {
     ArchiveSetIndex(0x24, 0);
     func_80097BC0(pVec);
     do {
-        func_800967E4();
+        WorldMapUpdateLoadQueue();
         Vsync(0);
     } while (WorldMapGetQueuedLoadCount() > 0);
-    func_80097718((void *)func_800923A8, (void *)func_800925A0);
-    func_80097718((void *)WorldMapSetActorParams, (void *)WorldMapRunSlotScript);
-    func_80097718((void *)func_8008390C, (void *)func_80083A00);
-    func_80097718((void *)WorldMapSetActorPosition, (void *)func_80084068);
-    func_80097718((void *)WorldMapEnterNop, (void *)WorldMapUpdateFrameWithParticles);
+    WorldMapAddSlot((void *)WorldMapModeInitFadeRect, (void *)func_800925A0);
+    WorldMapAddSlot((void *)WorldMapSetActorParams, (void *)WorldMapRunSlotScript);
+    WorldMapAddSlot((void *)func_8008390C, (void *)func_80083A00);
+    WorldMapAddSlot((void *)WorldMapSetActorPosition, (void *)func_80084068);
+    WorldMapAddSlot((void *)WorldMapEnterNop, (void *)WorldMapUpdateFrameWithParticles);
     func_800978FC();
     func_8008901C();
     func_800865A0();
@@ -407,13 +407,13 @@ s32 WorldMapShutdownScene(void) {
     WorldMapFreeFrameAnimEntries();
     WorldMapFreeSpriteGroupTable();
     WorldMapFreePrimTemplateBuffers();
-    func_80097D64();
+    WorldMapFreeGridImages();
     HeapFree(D_8009BC38);
     HeapFree(D_8009BCB0);
     HeapFree(D_8009BC3C);
     HeapFree(D_8009BCB4);
     HeapFree(D_8009C180);
-    func_800976A0();
+    WorldMapFreeSlotPool();
     v = *(u16 *)&D_8009BD3A;
     D_8006F94E = 0x269;
     D_8006F954 = 4;

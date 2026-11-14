@@ -77,14 +77,14 @@ extern s32 D_80092648;
 
 extern void BattleEffectInitContext(void);
 extern s32 rand(void);
-extern void func_8007E24C();
+extern void BattleClearSpriteTables();
 extern void BattleEffectClearEntrySlots();
 extern void func_8007BB7C();
-extern void func_8007F834();
+extern void BattleClearTextSpriteEntries();
 extern void BattleInitSoundSlots();
 extern void func_80074BA4(void);
 extern void func_80078F00();
-extern void func_800831C8(void);
+extern void BattleRandomizeCameraPosition(void);
 extern void BattleEffectSetSpawnTimer();
 extern void BattleClearInitFlag(void);
 extern void SystemStringReset();
@@ -97,10 +97,10 @@ extern void func_8007D190();
 extern void func_8007D7A8();
 extern void func_8007DC74();
 extern s32 func_80082488();
-extern u32 func_800828C4();
+extern u32 BattleGetGridCellAtPosition();
 extern void func_800828F8();
 extern void func_800776A8();
-extern s32 func_80083CD8();
+extern s32 BattleGetScreenMode();
 extern void BattleApplyOptionWord(void);
 extern void func_8008DC28(void);
 extern void func_8008EBD0();
@@ -211,7 +211,7 @@ void BattleActorUpdateGroundMovement(Actor* p) {
     s32 tmp[4]; // unused: reproduces the original's 0x10-byte frame slot
 
     p->unkB0 = func_80082488(p, 1);
-    p->unkD0 = (p->unkD0 & 0x9FFFFFFF) | (((func_800828C4(p) >> 24) & 3) << 29);
+    p->unkD0 = (p->unkD0 & 0x9FFFFFFF) | (((BattleGetGridCellAtPosition(p) >> 24) & 3) << 29);
     if ((p->unkD0 & 0x60000000) == 0x60000000) {
         p->unk90B = 0xF;
     }
@@ -308,7 +308,7 @@ void func_8007920C(Actor* p) {
         func_8007DC74(&p->unk93C, &p->unk95C);
     }
 
-    if (func_80083CD8() != 7 && (p->unkD0 & 0x60000000) == 0x20000000 && p->unk940 >= 0x81 &&
+    if (BattleGetScreenMode() != 7 && (p->unkD0 & 0x60000000) == 0x20000000 && p->unk940 >= 0x81 &&
         p->unk960 < 0x80) {
         BattlePlaySoundEffectByIdx(p, 0x3A, &p->unk93C, 2);
     }
@@ -420,9 +420,9 @@ void func_80079B44(void) {
     func_80078F00((Actor*)((u8*)pA - 0xCC));
     func_80078F00((Actor*)((u8*)pB - 0xCC));
     BattleEffectClearEntrySlots(D_80092644);
-    func_8007E24C();
+    BattleClearSpriteTables();
     func_8007BB7C();
-    func_800831C8();
+    BattleRandomizeCameraPosition();
     D_800928F4 = 1;
     D_8009290C = -1;
     BattleEffectSetSpawnTimer(0);
@@ -432,7 +432,7 @@ void func_80079B44(void) {
     D_8009263C = 0x5A;
     D_8009294C = 0;
     D_80092648 = 0;
-    func_8007F834();
+    BattleClearTextSpriteEntries();
     D_80050622 = 0;
     BattleInitSoundSlots();
     BattleClearInitFlag();
@@ -566,10 +566,10 @@ void BattleResetScratchState(void) {
     UnkA884* p;
     s32 v;
 
-    func_8007E24C();
+    BattleClearSpriteTables();
     BattleEffectClearEntrySlots(D_80092644);
     func_8007BB7C();
-    func_8007F834();
+    BattleClearTextSpriteEntries();
     BattleInitSoundSlots();
     p = (D_80092890 != 0) ? D_8009790C : D_80099028;
     if (p->unk2C != 0) {

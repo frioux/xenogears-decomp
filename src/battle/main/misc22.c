@@ -92,7 +92,7 @@ extern void *D_800658C8;
 extern void *D_800C3D50[2];
 extern void *D_800C3EA0;
 extern u8 D_800C3DA0[];
-extern s32 func_800AA650(void *pArg);
+extern s32 BattleGetActorRadius(void *pArg);
 extern void func_800A9FF0(s32 arg0);
 extern void HeapFreeIfNotNull(void *p);
 extern void GfxLineScrollFree(void *pLineScroll);
@@ -374,7 +374,7 @@ extern s32 D_80050100;
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A48EC);
 /* 78.13% (556 bytes, retail 588) first attempt, built from the sibling
-   func_8009F5B8 in battle/main/misc21 which has the same skeleton walk:
+   BattleRenderModel in battle/main/misc21 which has the same skeleton walk:
    numChildren = pSkeleton->count (0xA), pSkeleton++, then
    for (i = 1; i < numChildren; i++) over 0x7C-byte BattleSprite entries.
    Remaining diff: retail keeps TWO sprite cursors (s1 = s2 + 8, the
@@ -483,7 +483,7 @@ void BattleSteerActorTowardCircles(void *pArg) {
         a = *pSrc++;
         b = *pSrc++;
         c = *pSrc++;
-        BattlePushActorOutOfCircle(pArg, a, b, func_800AA650(pArg) + c);
+        BattlePushActorOutOfCircle(pArg, a, b, BattleGetActorRadius(pArg) + c);
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A4DB8);

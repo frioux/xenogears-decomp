@@ -6,7 +6,7 @@ extern void TimerWorkListSetTaskCallback();
 extern void WorkListSetTaskCallback();
 extern void func_8001E148();
 extern void AnimScriptTick(void* pSprite);
-extern s32 func_80022CAC(void* pSprite, s32 value);
+extern s32 SpriteScaleValue(void* pSprite, s32 value);
 extern void func_800C08CC();
 extern void func_800B3CD4();
 extern void func_800B51B0();
@@ -139,7 +139,7 @@ void func_800B5CC0(u8* pWork) {
     rot2.vy = *(s32*)(pSprite + 0x10) >> 13;
     rot2.vz = *(s32*)(pSprite + 0x14) >> 13;
     rot2.vx = 0;
-    rot.vx = func_80022CAC(pSprite, *(s32*)(pSprite + 0xC) >> 13);
+    rot.vx = SpriteScaleValue(pSprite, *(s32*)(pSprite + 0xC) >> 13);
     rot.vy = 0;
     rot.vz = 0;
     RotMatrix(&rot2, &m);

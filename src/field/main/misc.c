@@ -746,7 +746,7 @@ void FieldScriptInitializeParticleSystemByActorIndex(void) {
 // preset screen: 2.7.2 81.13%, cdk 81.13%, 2.6.0 81.13% - no compiler
 // fixes it.
 /*
-extern void func_8002303C(SpriteData*, int, int);
+extern void SpriteAllocClutRect(SpriteData*, int, int);
 
 void func_800888A4(void) {
     SpriteData* pSpriteData;
@@ -756,7 +756,7 @@ void func_800888A4(void) {
     pSpriteData = g_FieldActors[D_800AFD1C].pSpriteData;
     type = FieldScriptVMGetArgument(1) & 0xF;
     value = ((FieldScriptVMGetArgument(1) >> 4) << 8) + FieldScriptVMGetArgument(3);
-    func_8002303C(pSpriteData, 2, 0);
+    SpriteAllocClutRect(pSpriteData, 2, 0);
     ((u_short*)((SpriteDataI3*)pSpriteData->field_0x7C)->field_0x18)[2] = type << 6;
     g_FieldScriptVMCurActor->flags12C_0x12 = type << 6;
     ((u_short*)((SpriteDataI3*)pSpriteData->field_0x7C)->field_0x18)[3] = value;
@@ -1972,7 +1972,7 @@ void FieldScriptSetFlag800(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
 
-extern void func_80072254(int);
+extern void FieldActorApplyRotationAndScale(int);
 
 void FieldScriptSetActorScaleUniform(void) {
     unsigned int scale = FieldScriptVMGetArgument(1);
@@ -1981,7 +1981,7 @@ void FieldScriptSetActorScaleUniform(void) {
     g_FieldScriptVMCurActor->scaleX = scale;
     g_FieldScriptVMCurActor->scaleY = scale;
     g_FieldScriptVMCurActor->scaleZ = scale;
-    func_80072254(D_800AFD1C);
+    FieldActorApplyRotationAndScale(D_800AFD1C);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
 
@@ -1994,7 +1994,7 @@ void FieldScriptSetActorScale(void) {
     g_FieldScriptVMCurActor->scaleX = scaleX;
     g_FieldScriptVMCurActor->scaleY = scaleY;
     g_FieldScriptVMCurActor->scaleZ = scaleZ;
-    func_80072254(D_800AFD1C);
+    FieldActorApplyRotationAndScale(D_800AFD1C);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 7;
 }
 

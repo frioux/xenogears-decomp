@@ -13,7 +13,7 @@ extern s32 D_800C3CE8;
 extern s32 D_800D2D68;
 
 extern void func_800A9FF0(s32);
-s32 func_800BF720(void);
+s32 BattleIsTimerTaskActive(void);
 extern void func_800BD2E4(void);
 extern void *func_800BFC80(void *, s32, s32);
 extern long func_800B57E4(u8 *pActor);
@@ -29,7 +29,7 @@ void BattleIncFrameCounter(void) {
 
 extern void func_800B7C34(s32);
 extern void SpriteSetCallback(u8 *pActor, void *pCallback);
-extern void func_800245D8(u8 *pActor, s32 arg1);
+extern void SpritePlayAnimation(u8 *pActor, s32 arg1);
 extern void func_800BE790(void);
 
 void BattleActorWaitFramesWithCallback(s32 arg0, u8 *pActor) {
@@ -40,7 +40,7 @@ void BattleActorWaitFramesWithCallback(s32 arg0, u8 *pActor) {
     D_800C3CE8 = 0;
     if (*(s8 *)(pActor + 0xAF) != 0) {
         SpriteSetCallback(pActor, BattleIncFrameCounter);
-        func_800245D8(pActor, *(s8 *)(pActor + 0xAF));
+        SpritePlayAnimation(pActor, *(s8 *)(pActor + 0xAF));
     }
     func_800B7C34(arg0);
     if (*(s8 *)(pActor + 0xAF) != 0) {
@@ -51,26 +51,26 @@ void BattleActorWaitFramesWithCallback(s32 arg0, u8 *pActor) {
     }
 }
 
-void func_800BF6CC(void) {
+void BattleUpdateActorSlotsIfStateExists(void) {
     if (D_800C3610 != 0) {
         func_800BD2E4();
     }
 }
 
-s32 func_800BF6F8(void) {
-    return D_80059464 - func_800BF720();
+s32 BattleGetAdjustedWaitCountdown(void) {
+    return D_80059464 - BattleIsTimerTaskActive();
 }
 
-s32 func_800BF720(void) {
+s32 BattleIsTimerTaskActive(void) {
     return D_800D2D68 != 0;
 }
 
 // 45.00%: our assembler picks $at where retail picked a free register (atfree).
-void func_800BF730(s32 arg0) {
+void BattleSetPendingCommand(s32 arg0) {
     D_800C3628 = arg0;
 }
 
-void func_800BF73C(u8 *pArg) {
+void BattleUpdateDistanceTask(u8 *pArg) {
     u8 *pTask;
     s32 prev;
     s32 dist;
@@ -85,11 +85,11 @@ void func_800BF73C(u8 *pArg) {
     }
 }
 
-void func_800BF7C8(u8 *pActor, s32 arg1, s32 arg2) {
+void BattleCreateActorDistanceTask(u8 *pActor, s32 arg1, s32 arg2) {
     u8 *pTask;
 
     pTask = TimerWorkListAllocateTask(*(void**)(pActor + 0x6C), 0x14);
-    TimerWorkListSetTaskCallback(pTask, func_800BF73C);
+    TimerWorkListSetTaskCallback(pTask, BattleUpdateDistanceTask);
     *(s32*)(pTask + 0x2C) = arg2;
     *(u8**)(pTask + 0x1C) = pActor;
     *(s32*)(pTask + 0x20) = *(s8*)(pActor + 0xAF);
@@ -123,7 +123,7 @@ void func_800BF8CC(u8 *pActor) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800BF8CC);
-s32 func_800BF954(s32 arg0) {
+s32 BattleFindTableEntryIndex(s32 arg0) {
     s16 count = D_800D3678;
     s32 i = 0;
 
@@ -139,7 +139,7 @@ s32 func_800BF954(s32 arg0) {
     return i;
 }
 // 79.76%: frame differs (gcc reserves an extra slot); allocator tie.
-void func_800BF998(void) {
+void BattleTickCountersAndFreeUnitSlot(void) {
     s16 first = D_800D2D4C + 1;
     s16 second = D_800D36BC + 1;
 
@@ -174,7 +174,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800BFA9C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800BFBA0);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800BFC80);
 
-void func_800BFD88(void *arg0, s32 arg1) {
+void BattleInvokeSpriteCallbackForActor(void *arg0, s32 arg1) {
     func_800BFC80(arg0, arg1, 1);
 }
 
@@ -216,7 +216,7 @@ void func_800BFDA8(u8 *pActor, s32 arg1) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800BFE48);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800C0314);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800C0564);
-s32 func_800C06E4(VECTOR *pVec0, VECTOR *pVec1) {
+s32 BattleComputeVectorDistance(VECTOR *pVec0, VECTOR *pVec1) {
     VECTOR v;
 
     v.vx = pVec0->vx - pVec1->vx;
@@ -226,7 +226,7 @@ s32 func_800C06E4(VECTOR *pVec0, VECTOR *pVec1) {
     return SquareRoot0(v.vy + v.vz + v.vx);
 }
 
-s32 func_800C0758(SVECTOR *pVec0, SVECTOR *pVec1) {
+s32 BattleComputeShortVectorDistance(SVECTOR *pVec0, SVECTOR *pVec1) {
     VECTOR v;
 
     v.vx = pVec0->vx - pVec1->vx;
@@ -236,7 +236,7 @@ s32 func_800C0758(SVECTOR *pVec0, SVECTOR *pVec1) {
     return SquareRoot0(v.vy + v.vz + v.vx);
 }
 
-s32 func_800C07CC(DVECTOR vec0, DVECTOR vec1) {
+s32 BattleComputeVectorDistance2D(DVECTOR vec0, DVECTOR vec1) {
     VECTOR v;
 
     v.vx = vec0.vx - vec1.vx;

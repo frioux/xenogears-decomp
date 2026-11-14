@@ -173,7 +173,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc10", func_8007F8C0);
    the retail's `andi v0,s4,0xff` (92.62, the andi is right, the tail ordering
    is not).
    Needs these declarations, kept out of the file until it is matched:
-     s32 func_8007E954(u8 **arg0, u8 arg1);
+     s32 BattleSetTextScale(u8 **arg0, u8 arg1);
      s32 func_8007E98C(u8 **arg0, u8 arg1);
      s32 func_8007E9D0(u8 **arg0, u8 arg1);
      void BattleScriptCursorSkipWord(u8 **pCursor);
@@ -191,7 +191,7 @@ s32 func_8007F8C0(u8 **arg0, u8 arg1) {
             ret = 1;
             break;
         case 0x81:
-            ret = func_8007E954(arg0, arg1);
+            ret = BattleSetTextScale(arg0, arg1);
             break;
         case 0x82:
             ret = func_8007E98C(arg0, arg1);

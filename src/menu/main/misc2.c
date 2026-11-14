@@ -18,7 +18,7 @@ s32 MenuWaitForCardEvent(void);
 extern void SoundPlaySoundEffectOnLastPair(s32 arg0);
 extern int Vsync(int mode);
 
-s32 func_801C8A10(u8 index);
+s32 MenuCheckCardSlot(u8 index);
 extern void MenuPollInput(void);
 extern void MenuUpdateTransitionEffect(void);
 extern void MenuUpdatePlayTimeDigits(void);
@@ -466,7 +466,7 @@ void MenuCloseCardEvents(void) {
     CloseEvent(((s32*)&g_Menu->menuUnk2->unk4FE4)[5]);
     ExitCriticalSection();
 }
-s32 func_801C8A10(u8 index) {
+s32 MenuCheckCardSlot(u8 index) {
     s32 cardResult;
     s32 result;
     s32 i;
@@ -505,8 +505,8 @@ void MenuUpdateCardStatus(void) {
     if (g_Menu->menuUnk2->unk4FE6) {
         count = ++g_Menu->unk326;
         if (D_801E9779 < count) {
-            func_801C8A10(0);
-            func_801C8A10(1);
+            MenuCheckCardSlot(0);
+            MenuCheckCardSlot(1);
             if (g_Menu->menuUnk2->unk4F74[0] == -1 && g_Menu->menuUnk2->unk4F74[1] == -1) {
                 g_Menu->unk334 = 0;
             }

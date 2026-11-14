@@ -23,7 +23,7 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80022B2C);
    block starts with the load and reorg stops there). Hoisting the shift into a local
    (s32 step = step.y >> 4) is folded away and does not change the order.
 
-extern s32 func_80022CAC(SpriteData* pSpriteData, s32 value);
+extern s32 SpriteScaleValue(SpriteData* pSpriteData, s32 value);
 extern void func_800BA8F4(void);
 
 void func_80022B2C(SpriteData* pSpriteData) {
@@ -35,7 +35,7 @@ void func_80022B2C(SpriteData* pSpriteData) {
         speed = pSpriteData->step.y;
         if (speed > 0 && (s32)pSpriteData->gravity > 0) {
             if (*(s16*)((u8*)pSpriteData + 0x6) != pSpriteData->field_0x84) {
-                pSpriteData->position.y += func_80022CAC(pSpriteData, speed >> 4) << 4;
+                pSpriteData->position.y += SpriteScaleValue(pSpriteData, speed >> 4) << 4;
                 if ((pSpriteData->position.y >> 16) < pSpriteData->field_0x84) {
                     pSpriteData->step.y += pSpriteData->gravity;
                     return;
@@ -57,19 +57,19 @@ void func_80022B2C(SpriteData* pSpriteData) {
             }
             return;
         }
-        pSpriteData->position.y += func_80022CAC(pSpriteData, speed >> 4) << 4;
+        pSpriteData->position.y += SpriteScaleValue(pSpriteData, speed >> 4) << 4;
         if ((pSpriteData->position.y >> 16) >= pSpriteData->field_0x84) {
             pSpriteData->position.y = pSpriteData->field_0x84 << 16;
         }
         pSpriteData->step.y += pSpriteData->gravity;
     } else {
-        pSpriteData->position.y += func_80022CAC(pSpriteData, pSpriteData->step.y >> 4) << 4;
+        pSpriteData->position.y += SpriteScaleValue(pSpriteData, pSpriteData->step.y >> 4) << 4;
         pSpriteData->step.y += pSpriteData->gravity;
     }
 }
 */
 
-s32 func_80022CAC(SpriteData* pSpriteData, s32 value) {
+s32 SpriteScaleValue(SpriteData* pSpriteData, s32 value) {
     s32 scale = pSpriteData->field_0x3A;
     s32 result = value;
 
@@ -81,9 +81,9 @@ s32 func_80022CAC(SpriteData* pSpriteData, s32 value) {
     return result;
 }
 
-void func_80022CDC(SpriteData* pSpriteData) {
-    pSpriteData->position.x += func_80022CAC(pSpriteData, pSpriteData->step.x >> 4) << 4;
-    pSpriteData->position.z += func_80022CAC(pSpriteData, pSpriteData->step.z >> 4) << 4;
+void SpriteApplyMovementStep(SpriteData* pSpriteData) {
+    pSpriteData->position.x += SpriteScaleValue(pSpriteData, pSpriteData->step.x >> 4) << 4;
+    pSpriteData->position.z += SpriteScaleValue(pSpriteData, pSpriteData->step.z >> 4) << 4;
     func_80022B2C(pSpriteData);
 }
 
@@ -123,12 +123,12 @@ void func_80022DF4(pEntry) WorkListEntry* pEntry;
     SpriteData* pSpriteData = pEntry->unk4;
 
     AnimScriptTick(pSpriteData);
-    func_80022CDC(pSpriteData);
+    SpriteApplyMovementStep(pSpriteData);
     if (pSpriteData->pSpriteBytecode == NULL) {
         pEntry->onFreeCallback(pEntry);
     } else if (((u32)pSpriteData->flags_0xAC >> 6) & 1) {
         AnimScriptTick(pSpriteData);
-        func_80022CDC(pSpriteData);
+        SpriteApplyMovementStep(pSpriteData);
         if (pSpriteData->pSpriteBytecode == NULL) {
             pEntry->onFreeCallback(pEntry);
         }
@@ -185,7 +185,7 @@ void SpriteAllocFramesData(SpriteData* pSpriteData, s32 count, u_int allocFlags)
     pBase->pCurRenderFramesData = pFramesData;
 }
 
-void func_8002303C(SpriteData* pSpriteData, s32 count, u_int allocFlags) {
+void SpriteAllocClutRect(SpriteData* pSpriteData, s32 count, u_int allocFlags) {
     ((SpriteDataI3*)pSpriteData->field_0x7C)->field_0x18 = HeapAlloc(count * 4, allocFlags);
     ((RECT*)((SpriteDataI3*)pSpriteData->field_0x7C)->field_0x18)->y = ((RECT*)pSpriteData->pVramData)->h;
     ((RECT*)((SpriteDataI3*)pSpriteData->field_0x7C)->field_0x18)->x = ((RECT*)pSpriteData->pVramData)->w;
@@ -193,7 +193,7 @@ void func_8002303C(SpriteData* pSpriteData, s32 count, u_int allocFlags) {
 
 extern void func_8001D3F4(SpriteData* pSpriteData);
 
-void func_800230A8(SpriteData* pSpriteData) {
+void SpriteDestroy(SpriteData* pSpriteData) {
     switch (pSpriteData->flags_0xA8 & 1) {
     case 1:
         if (((SpriteDataI3*)pSpriteData->field_0x7C)->field_0x18) {
@@ -218,7 +218,7 @@ typedef struct {
     /* 0x4 */ s32 y;
 } SDelta;
 
-s32 func_80023124(SLineEnds line) {
+s32 SpriteComputeAngleFromPoints(SLineEnds line) {
     SDelta deltas[2];
 
     deltas[0].x = line.xStart - line.xEnd;
@@ -604,11 +604,11 @@ AnimTask* func_80023FD8(s32 index, void* pAnimFile, ActorRotation* pOffset, s32 
 }
 */
 
-extern void func_80024524(s32 arg0, s16 arg1, s16 arg2, s16 arg3, s16 arg4, s16 arg5);
+extern void SpriteAllocFromAnimFile(s32 arg0, s16 arg1, s16 arg2, s16 arg3, s16 arg4, s16 arg5);
 
 void SpriteAllocFromAnimFileWithClut(s32 arg0, s16 arg1, s16 arg2, s16 arg3, s16 arg4, s16 arg5, s32 arg6) {
     D_800591B8 = arg6;
-    func_80024524(arg0, arg1, arg2, arg3, arg4, arg5);
+    SpriteAllocFromAnimFile(arg0, arg1, arg2, arg3, arg4, arg5);
     D_800591B8 = 0;
 }
 
@@ -676,12 +676,12 @@ SpriteData* func_8002435C(SpriteData* pSpriteData, void* pAnimFile, s16 arg2, s1
     SpriteSetAnimFile(pSpriteData, pAnimFile);
     pAnimations = ((SpriteAnimPackage*)pSpriteData->pVramData)->pAnimations;
     pSpriteData->field_0x60 = (u32)pAnimations + ((*(u16*)pAnimations & 0x3F) + 1) * 2;
-    func_800245D8(pSpriteData, 0);
+    SpritePlayAnimation(pSpriteData, 0);
     return pSpriteData;
 }
 */
 
-void func_80024524(s32 arg0, s16 arg1, s16 arg2, s16 arg3, s16 arg4, s16 arg5) {
+void SpriteAllocFromAnimFile(s32 arg0, s16 arg1, s16 arg2, s16 arg3, s16 arg4, s16 arg5) {
     SpriteData* pSpriteData;
 
     pSpriteData = HeapAlloc(sizeof(SpriteData), 0);
@@ -695,7 +695,7 @@ extern void func_800223B0(SpriteData* pSpriteData, s16 arg1);
 extern void func_80023538(SpriteData* pSpriteData, void* pAnimEntry);
 extern u8 D_800591AD;
 
-void func_800245D8(SpriteData* pSpriteData, s32 animId) {
+void SpritePlayAnimation(SpriteData* pSpriteData, s32 animId) {
     u8* pAnimations;
     u16 animOffset;
 

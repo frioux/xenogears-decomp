@@ -15,8 +15,8 @@ extern u8 D_800C4000[];
 extern void *D_800658C8;
 
 extern void HeapFree(void *pMem);
-extern s32 func_800A2330(void);
-extern void func_800A23E8(s32, u8 *);
+extern s32 BattleAllocBlock(void);
+extern void BattleFreeBlock(s32, u8 *);
 extern s16 BattleFindTriangleContainingPoint(s16 *);
 extern void BattleProjectPointOntoIndexedTriangle(s16 *, s16, void *);
 extern s32 BattleFindGroundTriangle(s16 *, s16, s32);
@@ -336,7 +336,7 @@ void BattleReleaseBlockSlots(s32 arg0) {
     for (; i < 9; i++) {
         pEntry = *p++;
         if (pEntry != NULL) {
-            func_800A23E8(arg0, pEntry);
+            BattleFreeBlock(arg0, pEntry);
         }
     }
     BattleClearBlockSlots();
@@ -358,7 +358,7 @@ void func_800B0164(s32 arg0, s32 index, u8 arg2, u8 arg3, u16 arg4, u16 arg5, u1
         pBase = D_800C3BAC;
         pp = &pBase[index];
         if (*pp == NULL) {
-            *pp = (u8 *)func_800A2330();
+            *pp = (u8 *)BattleAllocBlock();
         }
         p = *pp;
         if (p != NULL) {
@@ -524,7 +524,7 @@ s32 func_800B12D0(s32 arg0, s32 arg1) {
     return result;
 }
 */
-extern s32 func_800BF6F8(void);
+extern s32 BattleGetAdjustedWaitCountdown(void);
 extern s32 ArchiveDataSync(void);
 extern void func_8002A498(s32);
 
@@ -538,7 +538,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800B136C);
    Tried: D_800D3368[i] and *(pp++) walkers, one base pointer local (pBase) vs
    two (pBase + ppBase), comma for-init, flagA declared before/after the base.
    Shape notes for whoever retries: phase 1 is
-     for (;;) { poll 11 entries; if (func_800BF6F8()) flagA = 1;
+     for (;;) { poll 11 entries; if (BattleGetAdjustedWaitCountdown()) flagA = 1;
                 if (flagA) { func_800BE790(); flagA = 0; continue; } break; }
    phase 2 needs BOTH a base local (loaded once into $s2 before the while) and a
    walker reset from it each pass, and a `if (flagA == 0) break;` after the
@@ -564,7 +564,7 @@ void func_800B136C(void) {
                 }
             }
         }
-        if (func_800BF6F8() != 0) {
+        if (BattleGetAdjustedWaitCountdown() != 0) {
             flagA = 1;
         }
         if (flagA != 0) {

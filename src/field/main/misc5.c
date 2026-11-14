@@ -138,7 +138,7 @@ extern void FieldFadeToWhite(int duration);
 extern void func_80077DAC(void);
 extern void func_8007554C(void);
 extern void FieldTickSkipCounter(void);
-extern void func_80077544(void);
+extern void FieldLoadFont(void);
 extern void func_800A6E70(void);
 extern void func_800A7064(void);
 extern void FieldStoreScreenImage(void);
@@ -250,7 +250,7 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A5924);
     end:
         D_800ADB38 = 0;
         FieldRestoreScreenImage();
-        func_80077544();
+        FieldLoadFont();
     }
 */
 

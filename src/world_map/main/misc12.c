@@ -101,19 +101,19 @@ typedef struct {
     /* 0x40 */ u8 unk40[0x14];
 } WorldMapRot; // Size: 0x54
 
-void func_8008DFF4(s32 *pOut) {
+void WorldMapGetGameStatePosition(s32 *pOut) {
     pOut[0] = g_GameState.unk182C << 12;
     pOut[1] = g_GameState.unk182E << 12;
     pOut[2] = g_GameState.unk1830 << 12;
 }
 
-void func_8008E034(s32 *pIn) {
+void WorldMapSetGameStatePosition(s32 *pIn) {
     g_GameState.unk182C = pIn[0] >> 12;
     g_GameState.unk182E = pIn[1] >> 12;
     g_GameState.unk1830 = pIn[2] >> 12;
 }
 
-void func_8008E078(void) {
+void WorldMapSelectAreaRectByState(void) {
     u16 nEntry;
     void *pRect;
 
@@ -135,7 +135,7 @@ void func_8008E078(void) {
     D_8009D7D8 = pRect;
     D_8009BD24 = nEntry;
 }
-s32 func_8008E0F0(s32 *pPos, s32 *pDir, s32 nSpeed) {
+s32 WorldMapFindStepDirection(s32 *pPos, s32 *pDir, s32 nSpeed) {
     s32 nAngle;
     s32 out[4];
     s32 rot[4];
@@ -151,12 +151,12 @@ s32 func_8008E0F0(s32 *pPos, s32 *pDir, s32 nSpeed) {
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_8008E190);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_8008E4F4);
-s32 func_8008E680(s32 idx) {
+s32 WorldMapInitActorAtGameStatePosition(s32 idx) {
     WorldMapPlayer *pPlayer;
     u16 nAngle;
 
     pPlayer = D_8009BE24 + idx;
-    func_8008DFF4(&pPlayer->unk28);
+    WorldMapGetGameStatePosition(&pPlayer->unk28);
     pPlayer->unk2C = 0x80000;
     nAngle = g_GameState.unk1832;
     pPlayer->unk4A = 0x20;
@@ -177,7 +177,7 @@ s32 func_8008E680(s32 idx) {
     return 1;
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_8008E76C);
-s32 func_800906E0(s32 idx) {
+s32 WorldMapModeInitActorRotation(s32 idx) {
     WorldMapPlayer *pPlayer;
     s32 nMode;
 
@@ -200,7 +200,7 @@ s32 func_800906E0(s32 idx) {
     return 1;
 }
 
-int func_800907C4(void) {
+int WorldMapModeInitSpriteSets2And3(void) {
     WorldMapSetSpriteSetParent(0, 2);
     WorldMapSetSpriteSetParent(0, 3);
     return 1;
@@ -280,7 +280,7 @@ s32 func_800907F4(s32 idx) {
     RotMatrixZYX((SVECTOR *)0x1F8000A8, &pRotB->matrix);
     return 1;
 }*/
-void func_80090A18(void) {
+void WorldMapUpdateL2R2PressEdge(void) {
     u16 keys;
     s32 state;
 
@@ -313,7 +313,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_80091430);
    value-numbered for another reason.
 */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_800914D0);
-s32 func_80091B54(s32 idx) {
+s32 WorldMapModeInitActorAngleSets(s32 idx) {
     WorldMapPlayer *pPlayer;
     s32 nMode;
 
@@ -422,7 +422,7 @@ s32 func_80091FF8(s32 nLimit, u16 *pIn, s16 *pOfs) {
 }
 */
 
-s32 func_80092234(s32 idx) {
+s32 WorldMapModeInitValue50(s32 idx) {
     WorldMapPlayer *pPlayer;
     s32 nMode;
 
@@ -439,7 +439,7 @@ s32 func_80092234(s32 idx) {
     pPlayer->unk50 = D_8009BE0C << 12;
     return 1;
 }
-s32 func_800922AC(s32 idx) {
+s32 WorldMapModeUpdateValue50(s32 idx) {
     WorldMapPlayer *pPlayer;
     s32 nRet;
 
@@ -514,7 +514,7 @@ extern u16 D_8009CEB2;
 extern DR_TPAGE D_8009D310;
 extern s32 D_8009CCA4;
 
-s32 func_800923A8(s32 idx) {
+s32 WorldMapModeInitFadeRect(s32 idx) {
     WorldMapPlayer *pPlayer;
     WorldMapG4 *pG4;
     u_short nTpage;

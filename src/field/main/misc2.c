@@ -66,7 +66,7 @@ void FieldComputeSceneMatrices(void) {
 // below: every one of this unit's convertible stubs is parked on it.
 // screened: Default 85.50 (best), cdk 85.50, 2.6.0 84.62 - not the preset; still the $s1 rematerialisation wall.
 
-void func_80072254(int actorIndex) {
+void FieldActorApplyRotationAndScale(int actorIndex) {
     long scale[3];
     FieldActor** ppActors;
 
@@ -108,7 +108,7 @@ void func_80072254(int actorIndex) {
 // (frame 0x30 vs our 0x28). gcc rematerialises the symbol address instead of saving it,
 // so the whole function hinges on defeating that rematerialisation.
 /*
-void func_80072254(int actorIndex) {
+void FieldActorApplyRotationAndScale(int actorIndex) {
     VECTOR scale;
 
     {
@@ -138,7 +138,7 @@ void FieldMatrixCreateWorldToScreen(void) {
     }
 }
 
-int func_8007234C(u_int mask, int dir) {
+int FieldFindClearDirectionForward(u_int mask, int dir) {
     int i;
     int offset;
 
@@ -150,7 +150,7 @@ int func_8007234C(u_int mask, int dir) {
     return 0;
 }
 
-int func_80072398(u_int mask, int dir) {
+int FieldFindClearDirectionBackward(u_int mask, int dir) {
     int i;
     int offset;
 
@@ -162,7 +162,7 @@ int func_80072398(u_int mask, int dir) {
     return 0;
 }
 
-void func_800723E4(SVec4* pA, SVec4* pB, SVec4* pOut) {
+void FieldMathIntersectLines(SVec4* pA, SVec4* pB, SVec4* pOut) {
     VECTOR nA;
     VECTOR nB;
     VECTOR v;
@@ -199,7 +199,7 @@ void func_800723E4(SVec4* pA, SVec4* pB, SVec4* pOut) {
 // from a u_char* base gets the pre-call part exactly (register difference only) but
 // gcc rematerialises the constant address after the call instead of saving it, so
 // the post-call block is one lui-at/%lo pair per store. Defeating that
-// rematerialisation is the whole remaining problem (same wall as func_80072254).
+// rematerialisation is the whole remaining problem (same wall as FieldActorApplyRotationAndScale).
 // screened: Default 62.01, cdk 65.16 (best), 2.6.0 62.01 - no preset harvests it; the $s0 &g_CamInterpolation base wall.
 /*
 extern VECTOR g_CameraEye;
@@ -281,7 +281,7 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_800726E8);
 // 93.36% (856 bytes vs the original's 844). Re-checked under the unit's
 // XenoFieldNoGp (-G0) preset: still 93.36. Retail's frame is 0x18 with ONE saved
 // register ($ra at 0x14, $s0 at 0x10), so exactly one of the two addresses the
-// block touches twice can live in a register across the func_8007234C call;
+// block touches twice can live in a register across the FieldFindClearDirectionForward call;
 // retail keeps &g_Scene.dollyStop (+0x65) and re-forms %hi/%lo for
 // g_Scene.sceneAngle.vy on each use, gcc keeps the vy address (materialised
 // first, for the table index) and re-forms dollyStop. That is a CSE winner
@@ -317,9 +317,9 @@ void func_800726E8(void) {
         }
 
         if (D_800ADC1C[((u_int)g_Scene.sceneAngle.vy & 0xFFF) >> 9] & g_Scene.dollyStop) {
-            offset = func_8007234C(g_Scene.dollyStop,
+            offset = FieldFindClearDirectionForward(g_Scene.dollyStop,
                 ((u_int)g_Scene.sceneAngle.vy & 0xFFF) >> 9);
-            if (func_80072398(g_Scene.dollyStop,
+            if (FieldFindClearDirectionBackward(g_Scene.dollyStop,
                     ((u_int)g_Scene.sceneAngle.vy & 0xFFF) >> 9) < offset) {
                 g_Scene.unk5C = -0x400000;
                 g_Scene.unk7C -= 0x200;
@@ -382,7 +382,7 @@ void func_800726E8(void) {
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80072A38);
 /*
 extern int func_8007CD80(VECTOR* pPos, SVECTOR* pPoints, SVec4* pOut);
-extern void func_80073684(VECTOR* pEye, VECTOR* pAt);
+extern void FieldRotateEyeAboutAt(VECTOR* pEye, VECTOR* pAt);
 extern VECTOR g_CameraEye2;
 extern VECTOR g_CameraAt2;
 extern int D_800ADBA8;
@@ -406,7 +406,7 @@ void func_80072A38(VECTOR* pPos, int param) {
         line.y = points[0].vz;
         line.z = points[1].vx;
         line.w = points[1].vz;
-        func_800723E4(&line, &cross, &result);
+        FieldMathIntersectLines(&line, &cross, &result);
 
         g_CameraAt2.vx = result.x << 16;
         g_CameraAt2.vz = result.y << 16;
@@ -440,7 +440,7 @@ void func_80072A38(VECTOR* pPos, int param) {
         offset = ((((rcos(((*pSceneDIP * 91) >> 3) + 0xC00) * (s32)g_Scene.sceneScrZ) << 5) >> 0x10) * g_Scene.sceneScale * 0x10);
         g_CameraEye2.vz = offset + g_CameraAt2.vz;
         pEye->vx = pAt->vx;
-        func_80073684(pEye, pAt);
+        FieldRotateEyeAboutAt(pEye, pAt);
     }
 
     if (g_Scene.unk48 & 0x1) {
@@ -468,7 +468,7 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80072D74);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80073230);
 
-void func_80073684(VECTOR* pEye, VECTOR* pAt) {
+void FieldRotateEyeAboutAt(VECTOR* pEye, VECTOR* pAt) {
     MATRIX matSceneRotation;
     VECTOR distance;
     VECTOR transformed;
@@ -485,7 +485,7 @@ void func_80073684(VECTOR* pEye, VECTOR* pAt) {
 }
 
 // Widens the high half of each of the three words into the word itself
-void func_80073734(long* pValues) {
+void FieldSignExtendHighHalves(long* pValues) {
     int value0 = ((s16*)pValues)[1];
     int value1 = ((s16*)pValues)[3];
     int value2 = ((s16*)pValues)[5];
@@ -830,7 +830,7 @@ void FieldMatrixCopyTransform(MATRIX* dest, MATRIX* source) {
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80074108);
 
 // Returns 1 if an actor wants its position reported to the script VM
-int func_8007469C(void) {
+int FieldAnyActorHasFlag8000(void) {
     int i;
     FieldActor* pActors;
 
@@ -1001,7 +1001,7 @@ extern s32 D_800ADB50;
 extern s32 D_800B007C;
 extern s16 D_800B21D4;
 
-void func_80075484(void) {
+void FieldRenderScreenEffect(void) {
     SVec4 eye;
     SVec4 at;
 
@@ -1030,12 +1030,12 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_8007554C);
 
 extern s32 D_800ADB78;
 
-void func_80075910(void) {
+void FieldRenderFrame(void) {
     RECT rect;
 
     FieldPollControllers();
     func_800A2030();
-    func_800805F4();
+    FieldTextBoxUpdate();
     func_8008004C(g_FieldCurRenderContext->ot3, g_FieldCurRenderContextIndex);
     DrawSync(0);
     Vsync(0);
@@ -1061,7 +1061,7 @@ void func_80075910(void) {
 // order, each moving its own constant into C (see the note above func_800752C8).
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_800759E4);
 
-void func_80075B08(SpriteData* pSpriteData, u_char* pColor) {
+void FieldSetSpriteColorRGB(SpriteData* pSpriteData, u_char* pColor) {
     if (D_800B218E == 0) {
         SpriteSetColor(pSpriteData, pColor[0], pColor[1], pColor[2]);
     }
@@ -1071,7 +1071,7 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80075B44);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_800764B4);
 
-u_int func_80076A74(SpriteData* pSpriteData) {
+u_int FieldSetActorFlag10000(SpriteData* pSpriteData) {
     ActorData* pActorData;
 
     pActorData = g_FieldActors[((SpriteDataI3*)pSpriteData->field_0x7C)->entityId].pActorData;
@@ -1081,7 +1081,7 @@ u_int func_80076A74(SpriteData* pSpriteData) {
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80076AC0);
 
-void func_800771B0(u_int* pPrim, int size) {
+void FieldSetHalfwordFlag8000(u_int* pPrim, int size) {
     int i = size / 2;
 
     while (i--) {
@@ -1262,7 +1262,7 @@ void func_80077268(void) {
 }
 */
 
-void func_80077544(void) {
+void FieldLoadFont(void) {
     if (g_FieldSystemMode == 0) {
         func_8003747C((void*)0x80270000);
         FontLoadFont(0x10, 0x10, 0x130, 0xE0, 0x400, 4, 0x3C0, 0x100, 0x100, 0x1FF, 0);

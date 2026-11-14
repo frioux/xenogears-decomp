@@ -32,7 +32,7 @@ void FieldFreeActorData(int actorIndex) {
         }
         HeapFree(pActor);
         HeapFree(g_FieldActors[actorIndex].pShadow);
-        func_800230A8(g_FieldActors[actorIndex].pSpriteData);
+        SpriteDestroy(g_FieldActors[actorIndex].pSpriteData);
     }
 }
 
@@ -337,7 +337,7 @@ void func_80081F80(SpriteData* pSprite, s16 angle, FieldActor* pActor) {
 extern s16 D_800B2344;
 extern s16 D_800B2346;
 extern u8 D_800ADFB8[];
-void func_800245D8(int, int);
+void SpritePlayAnimation(int, int);
 void LibGearSetModelAnimation(u16, u16, s32);
 
 // This unit reads the 0x12C word whole; the ActorData bitfields there make gcc
@@ -382,7 +382,7 @@ void func_800821F4(int arg0, int actorId, FieldActor* pActor) {
         if (pActor->pActorData->flags & 0x1000000) {
             return;
         }
-        func_800245D8(arg0, actorId);
+        SpritePlayAnimation(arg0, actorId);
         return;
     }
     if (actorId < 0x10) {

@@ -44,18 +44,18 @@ extern s32 D_800928D8;
 extern s32 D_80092924;
 extern s32 D_80092940;
 
-extern void func_8007F834(void);
+extern void BattleClearTextSpriteEntries(void);
 extern void BattleInitTutorialMessage(void);
 extern void BattleLoadSlotEntry(s32 a0, s32 a1);
 extern void SoundStopAllElements(void);
 extern void func_8007313C(void *pDst, void *pSrc);
 extern void func_8008EB4C(s32 arg);
-extern void func_80083C0C(s32 mode);
+extern void BattleSetScreenMode(s32 mode);
 extern void BattleResetTextListState(void);
-extern void func_8007E894(s16 a, s16 b);
+extern void BattleSetTextCursor(s16 a, s16 b);
 extern void BattleSetRowTextColor(void *p, s32 arg);
-extern void func_8007EBE0(u8 *p);
-extern void func_8007ED84(u8 *p, s32 dy);
+extern void BattleDrawTextLeft(u8 *p);
+extern void BattleDrawTextRightOffset(u8 *p, s32 dy);
 extern void func_80036420(void);
 typedef struct {
     /* 0x0  */ u8 unk0[4];
@@ -95,7 +95,7 @@ extern void func_800812BC(BattleTextList *p);
 extern void func_8008151C(BattleTextList *p);
 extern void func_8008162C(s32 *p, s32 a1);
 extern void func_80081A44(void);
-extern s32 func_8007EB6C(u32 a0);
+extern s32 BattleGetTextWidth(u32 a0);
 extern void func_8007EE08(s32 a0);
 extern void func_80080F04(void);
 extern void *GetStringEntry(void *pStringData, u32 entry);
@@ -105,7 +105,7 @@ extern void ArchiveCdDataSync(s32 mode);
 
 void BattleRequestStateAdvance(void) {
     D_80092924 = 1;
-    func_8007F834();
+    BattleClearTextSpriteEntries();
 }
 
 void BattleStartTutorial(void) {
@@ -136,7 +136,7 @@ void BattleInitTextWindow(void) {
     D_800916AE = 0;
     D_800928C8 = 0;
     D_80092758 = 0;
-    func_8007F834();
+    BattleClearTextSpriteEntries();
     D_80092924 = 0;
     BattleFreeScreenBuffer(0);
     D_80092940 = 0;
@@ -196,7 +196,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc8", func_80080C48);
 /* 95.60%: the tail MUST be duplicated in both branches (that is what makes gcc
    place it between branch 2 and the else block, matching retail's
    [test1][A][j tail][test2][B][tail][else] layout).  Only difference left: the
-   func_80083C0C argument setup.  Retail emits `addu a0,zero,zero` once, inside
+   BattleSetScreenMode argument setup.  Retail emits `addu a0,zero,zero` once, inside
    the tail, in the jal delay slot and a plain `nop` in branch 1's `j` slot;
    ours hoists it out of the merged tail in both copies - one lands in branch
    1's `j` delay slot and one above branch 2's D_80091762 store, and the jal
@@ -214,7 +214,7 @@ void func_80080C48(s32 a0) {
         BattleSetCurrentTextList(0);
         D_800915BE = 0;
         D_80091636 = 1;
-        func_80083C0C(0);
+        BattleSetScreenMode(0);
         D_80092758 = 1;
         D_800926FC = 0;
         D_8009275C = 1;
@@ -223,7 +223,7 @@ void func_80080C48(s32 a0) {
         D_80092734 = 0;
         BattleSetCurrentTextList(7);
         D_80091762 = 1;
-        func_80083C0C(0);
+        BattleSetScreenMode(0);
         D_80092758 = 1;
         D_800926FC = 0;
         D_8009275C = 1;
@@ -406,7 +406,7 @@ void func_800811AC(u8 *p) {
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc8", func_800812BC);
 /* 77.44% (492 bytes vs retail 496).  Shape fully decoded from the asm and
    verified: two loops over p->count at 0x14 stride through p->pEntries;
-   loop 1 does entry->unk12 = func_8007EB6C(entry->unk4) / 2 and keeps the
+   loop 1 does entry->unk12 = BattleGetTextWidth(entry->unk4) / 2 and keeps the
    running max, loop 2 stores max into entry->unk12 for the entries whose
    unk0 byte has bit 1; then the frame header stores, the p->unk0 width
    fixups, a 16-byte copy of the frame at 0x1C into 0x2C (p->saved =
@@ -434,7 +434,7 @@ void func_800812BC(BattleTextList *p) {
     max = 0;
     for (i = 0, off = 0; i < p->count; i++, off += 0x14) {
         pEntry = (BattleTextEntry *)(p->pEntries + off);
-        w = func_8007EB6C(pEntry->unk4) / 2;
+        w = BattleGetTextWidth(pEntry->unk4) / 2;
         pEntry->unk12 = w;
         if (max < w) {
             max = w;
@@ -480,11 +480,11 @@ void BattleInitTextLists(void) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc8", func_8008151C);
 /* 99.63%: the duplicated call (one per arm of the unk0 test) is what makes
-   gcc cross-jump the two `jal func_8007E894` tails into one and keep retail's
+   gcc cross-jump the two `jal BattleSetTextCursor` tails into one and keep retail's
    `lh a1,0x14` in BOTH arms; assigning a1 in both arms and calling once merges
    the load instead (95.15%).
    Only difference left: retail sets i=0 before the count load (so `move s1,zero`
-   lands in the func_8007E894 jal delay slot) and sinks off=0 after the `blez`
+   lands in the BattleSetTextCursor jal delay slot) and sinks off=0 after the `blez`
    (in the fall-through, after the `move a0,s0` that fills the blez slot); ours
    emits off=0 first (into the jal delay slot) and i=0 into the blez delay slot.
    Tried: `i = 0;` before the for, `i = 0;` immediately after the call with
@@ -503,17 +503,17 @@ void func_8008151C(BattleTextList *p) {
         return;
     }
     if (p->unk0 != 0) {
-        func_8007E894(p->unk16, p->unk14);
+        BattleSetTextCursor(p->unk16, p->unk14);
     } else {
-        func_8007E894(0xA0, p->unk14);
+        BattleSetTextCursor(0xA0, p->unk14);
     }
     i = 0;
     for (off = 0; i < p->count; i++) {
         BattleSetRowTextColor(p, i);
         if (p->unk0 != 0) {
-            func_8007EBE0((u8 *)*(u32 *)(off + p->pEntries + 4));
+            BattleDrawTextLeft((u8 *)*(u32 *)(off + p->pEntries + 4));
         } else {
-            func_8007ED84((u8 *)*(u32 *)(off + p->pEntries + 4), *(s16 *)(off + p->pEntries + 0x12));
+            BattleDrawTextRightOffset((u8 *)*(u32 *)(off + p->pEntries + 4), *(s16 *)(off + p->pEntries + 0x12));
         }
         off += 0x14;
     }

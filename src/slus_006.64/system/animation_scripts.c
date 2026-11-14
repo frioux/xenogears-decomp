@@ -155,7 +155,7 @@ typedef struct {
 
 extern s32 D_80059198;
 extern void AnimScriptTick(SpriteData* pSpriteData);
-extern void func_800245D8(SpriteData* pSpriteData, s32 animId);
+extern void SpritePlayAnimation(SpriteData* pSpriteData, s32 animId);
 
 void SpriteRestoreAnimState(SpriteData* pSpriteData, SpriteAnimState* pState) {
     s32 savedRenderContext = D_80059198;
@@ -169,7 +169,7 @@ void SpriteRestoreAnimState(SpriteData* pSpriteData, SpriteAnimState* pState) {
     pSpriteData->pBase->scale.z = pState->scaleZ;
     pSpriteData->field_0x82 = pState->field_0x82;
     pSpriteData->scale = pState->field_0x2C;
-    func_800245D8(pSpriteData, (s8)*(u8*)((u8*)pSpriteData + 0xAF));
+    SpritePlayAnimation(pSpriteData, (s8)*(u8*)((u8*)pSpriteData + 0xAF));
     while (((u32)pSpriteData->flags_0xA8 >> 22 & 0x3F) != pState->scriptIndex) {
         AnimScriptTick(pSpriteData);
         pSpriteData->position.x += pSpriteData->step.x;

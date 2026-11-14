@@ -7,11 +7,11 @@
 extern int ArchiveDecodeAlignedSize(unsigned int entryIndex);
 extern void ArchiveReadFileToBuffer(s32 index, void* pBuffer, u32 arg2, u32 flags);
 extern void func_80029AFC(StreamDataQueueEntry* pQueue, int arg1, int arg2);
-extern void func_8008DFF4(void* pVector);
+extern void WorldMapGetGameStatePosition(void* pVector);
 
 // D_8009D3F8 .. D_8009D414 are the 3-entry StreamDataQueueEntry stream request
 // table; D_8009C5AC/B0/B4 are the 12.4 fixed point position written by
-// func_8008DFF4.
+// WorldMapGetGameStatePosition.
 extern void* D_8005945C;
 extern void* D_8006259C;
 extern void* D_8009BC38;
@@ -382,7 +382,7 @@ extern void* D_8009BDF8[3];
 extern void SoundSetAudioManagerVolumeWithFade(void* p, s32 arg1, s32 arg2);
 extern void SoundStopAllElements(void);
 extern void SoundRemoveSedsEntry(void* p);
-extern void func_800230A8(void* p);
+extern void SpriteDestroy(void* p);
 extern void WorldMapSaveState(void);
 extern void WorldMapFreeAreaNameString(void);
 extern void WorldMapFreeMode4AreaNameString(void);
@@ -396,8 +396,8 @@ extern void WorldMapFreeTileAnimEntries(void);
 extern void WorldMapFreeFrameAnimEntries(void);
 extern void WorldMapFreeSpriteGroupTable(void);
 extern void WorldMapFreePrimTemplateBuffers(void);
-extern void func_80097D64(void);
-extern void func_800976A0(void);
+extern void WorldMapFreeGridImages(void);
+extern void WorldMapFreeSlotPool(void);
 extern void WorldMapFreeLoadQueues(void);
 
 void func_8007299C(void) {
@@ -413,7 +413,7 @@ void func_8007299C(void) {
     for (i = 0; i < 0x40; i++) {
         p = (u8*)(i * 0x80 + (s32)D_8009BE24);
         if (*(void**)(p + 0x4C) != NULL) {
-            func_800230A8(*(void**)(p + 0x4C));
+            SpriteDestroy(*(void**)(p + 0x4C));
             *(void**)((u8*)D_8009BE24 + i * 0x80 + 0x4C) = NULL;
         }
     }
@@ -433,7 +433,7 @@ void func_8007299C(void) {
     WorldMapFreeFrameAnimEntries();
     WorldMapFreeSpriteGroupTable();
     WorldMapFreePrimTemplateBuffers();
-    func_80097D64();
+    WorldMapFreeGridImages();
     HeapFree(D_8009BC38);
     HeapFree(D_8009BCB0);
     HeapFree(D_8009BC3C);
@@ -447,7 +447,7 @@ void func_8007299C(void) {
             HeapFree(D_8009BDF8[i]);
         }
     }
-    func_800976A0();
+    WorldMapFreeSlotPool();
     WorldMapFreeLoadQueues();
 }
 */
@@ -597,7 +597,7 @@ void func_80073398(void) {
     case 4:
     case 5:
     case 7:
-        func_8008DFF4(&D_8009C5AC);
+        WorldMapGetGameStatePosition(&D_8009C5AC);
         D_8009C584 = g_GameState.unk1832;
         break;
     }
@@ -621,7 +621,7 @@ void func_80073448(s32 arg0) {
 
     if (g_GameState.unk1834 & 0x2000) {
         g_GameState.unk1834 &= ~0x2000;
-        func_8008DFF4(&D_8009C5AC);
+        WorldMapGetGameStatePosition(&D_8009C5AC);
         D_8009C584 = g_GameState.unk1832;
     } else {
         p = D_8009D3F4;

@@ -22,10 +22,10 @@ void MenuLoadSubMenuChoiceStrings(u8);
 void func_801D3488(u8, u8);
 void func_801E05D0(u8, u8, u8);
 void MenuShutdown(void);
-void func_801DC2CC(u8);
+void MenuFreeUnk430Panel(u8);
 void MenuFreeUnk42CPanel(void);
-void func_801DE36C(void);
-void func_801DE400(void);
+void MenuFreeCharacterSpriteRecords(void);
+void MenuFreeUnk35CPanel(void);
 void MenuClearSubMenuChoiceFlags(void);
 void MenuPlaySoundEffect(u8);
 u8 func_801D9704(u8, u8, u8);
@@ -285,14 +285,14 @@ void func_801E3088(u8 arg0) {
         MenuFreeGearScreenBuffers();
         break;
     case 3:
-        func_801DC2CC(0);
+        MenuFreeUnk430Panel(0);
         break;
     case 4:
         MenuFreeUnk42CPanel();
         break;
     case 5:
-        func_801DE36C();
-        func_801DE400();
+        MenuFreeCharacterSpriteRecords();
+        MenuFreeUnk35CPanel();
         break;
     case 6:
         g_Menu->pManager->unk5[2] = 0;
