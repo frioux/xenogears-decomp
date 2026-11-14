@@ -500,6 +500,32 @@ typedef struct {
     /* 0xBEA */ u8 unkBEA[0x2];
 } MenuCharacter; // Size: 0xBEC
 
+// Character info window prims, one prim per render context and digit (allocated in misc1).
+typedef struct {
+    /* 0x0000 */ u8 unk0[0xA0];
+    /* 0x00A0 */ POLY_FT4 polysIcons[0x14][2];
+    /* 0x06E0 */ u8 unk6E0[0x230];
+    /* 0x0910 */ POLY_FT4 polysLevel[3][2];
+    /* 0x0A00 */ POLY_FT4 unk0A00[3][2];
+    /* 0x0AF0 */ POLY_FT4 polysHp[3][2];
+    /* 0x0BE0 */ POLY_FT4 polysMaxHp[3][2];
+    /* 0x0CD0 */ POLY_FT4 polysMp[2][2];
+    /* 0x0D70 */ POLY_FT4 polysMaxMp[2][2];
+    /* 0x0E10 */ POLY_FT4 polysWideNumber[7][2];
+    /* 0x1040 */ POLY_FT4 polysWideNumber2[7][2];
+    /* 0x1270 */ u_char renderContext;
+    /* 0x1271 */ u_char levelPrimCount;
+    /* 0x1272 */ u_char unk1272PrimCount;
+    /* 0x1273 */ u_char hpPrimCount;
+    /* 0x1274 */ u_char maxHpPrimCount;
+    /* 0x1275 */ u_char mpPrimCount;
+    /* 0x1276 */ u_char maxMpPrimCount;
+    /* 0x1277 */ u_char wideNumberPrimCount;
+    /* 0x1278 */ u_char wideNumber2PrimCount;
+    /* 0x1279 */ u_char iconsPrimCount;
+    /* 0x127A */ u8 _pad127A[0x2];
+} MenuCharacterWindow; // Size: 0x127C
+
 typedef struct {
     /* 0x0   */ POLY_FT4 polysWindowBorderCorners[8];
     /* 0x140 */ POLY_FT4 polysWindowBorderTop[4]; // First 2 = 1st half, Second 2 = 2nd half
@@ -672,6 +698,13 @@ typedef struct {
     /* 0x13 */ u8 unk13;
 } SystemMenuArchiveData; /* size: 0x14 */
 
+// Play time display prims, allocated in misc1: 11 slots of one prim per render context.
+typedef struct {
+    /* 0x000 */ POLY_FT4 polys[11][2];
+    /* 0x370 */ u_char renderContext;
+    /* 0x371 */ u8 _pad371[0x3];
+} MenuPlayTimeDigits; // Size: 0x374
+
 typedef struct {
     /* 0x0    */ u8 unk0[108];
     /* 0x6C   */ GfxEnvironment gfxEnvs[2];
@@ -715,7 +748,7 @@ typedef struct {
     /* 0x2E0  */ void* unk2E0; // Pointer to resources (bin 3)
     /* 0x2E4  */ SoundFile* unk2E4; // Pointer to SEDS file
     /* 0x2E8  */ undefined32 unk2E8;
-    /* 0x2EC  */ u8 unk2EC[0x1C];
+    /* 0x2EC  */ s32 unk2EC[7]; // Texture ids of the play time digits
     /* 0x308  */ int renderContext;
     /* 0x30C  */ u_char availableCharacters[0x10];
     /* 0x31C  */ u_char digits[0x9]; // Buffer for numbers parsed into a string
@@ -738,7 +771,7 @@ typedef struct {
     /* 0x33B  */ u8 unk33B;
     /* 0x33C */ MenuManager* pManager;
     /* 0x340  */ void* unk340;
-    /* 0x344  */ void* unk344;
+    /* 0x344  */ MenuPlayTimeDigits* unk344;
     /* 0x348  */ MenuUnk1* unk348;
     /* 0x34C  */ void* unk34C;
     /* 0x350  */ MenuSelectionMenu* pSelectionMenu;
@@ -748,7 +781,7 @@ typedef struct {
     /* 0x360  */ void* unk360;
     /* 0x364  */ MenuWindow* windows[MENU_MAX_NUM_WINDOWS];
     /* 0x380  */ MenuWindowParameters* windowParameters[MENU_MAX_NUM_WINDOWS];
-    /* 0x39C  */ void* unk39C[3];
+    /* 0x39C  */ MenuCharacterWindow* unk39C[3];
     /* 0x3A8  */ void* unk3A8[32];
     /* 0x428  */ MenuPointerCursors* pCursors;
     /* 0x42C  */ MenuUnk9* unk42C;

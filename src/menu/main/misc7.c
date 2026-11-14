@@ -98,20 +98,20 @@ void MenuInitializeWindowBorderCorners(u_char index, u_short x, u_short y, u_sho
     s32 i;
 
     pWindow->unk710 = 0;
-    pWindow->unk710 = func_8002675C(g_Menu->resources, 0xFD,
+    pWindow->unk710 = func_8002675C(g_Menu->resources, MENU_TEX_WINDOW_BORDER_TOP_LEFT,
                                     pWindow->polysWindowBorderCorners,
                                     g_Menu->renderContext, 0, 0, 0x1000)
                     + pWindow->unk710;
-    pWindow->unk710 = func_8002675C(g_Menu->resources, 0xFF,
-                                    (POLY_FT4*)((u8*)pWindow + pWindow->unk710 * 0x50),
+    pWindow->unk710 = func_8002675C(g_Menu->resources, MENU_TEX_WINDOW_BORDER_TOP_RIGHT,
+                                    &pWindow->polysWindowBorderCorners[2 * pWindow->unk710],
                                     g_Menu->renderContext, 0, 0, 0x1000)
                     + pWindow->unk710;
-    pWindow->unk710 = func_8002675C(g_Menu->resources, 0x102,
-                                    (POLY_FT4*)((u8*)pWindow + pWindow->unk710 * 0x50),
+    pWindow->unk710 = func_8002675C(g_Menu->resources, MENU_TEX_WINDOW_BORDER_BOTTOM_LEFT,
+                                    &pWindow->polysWindowBorderCorners[2 * pWindow->unk710],
                                     g_Menu->renderContext, 0, 0, 0x1000)
                     + pWindow->unk710;
-    pWindow->unk710 = func_8002675C(g_Menu->resources, 0x104,
-                                    (POLY_FT4*)((u8*)pWindow + pWindow->unk710 * 0x50),
+    pWindow->unk710 = func_8002675C(g_Menu->resources, MENU_TEX_WINDOW_BORDER_BOTTOM_RIGHT,
+                                    &pWindow->polysWindowBorderCorners[2 * pWindow->unk710],
                                     g_Menu->renderContext, 0, 0, 0x1000)
                     + pWindow->unk710;
     left = x - 8;
@@ -363,17 +363,17 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D4F2C);
    }
 */
 void MenuSetCharacterWindowIcons(u_char a0, s32 a1, s32 a2) {
-    u8* pWindow;
+    MenuCharacterWindow* pWindow;
     s32 i;
 
-    pWindow = (u8*)g_Menu->unk39C[a0];
-    pWindow[0x1279] = 0;
+    pWindow = g_Menu->unk39C[a0];
+    pWindow->iconsPrimCount = 0;
     for (i = 0; i < 0x14; i++) {
         if (D_801EA34C[i] != 0xFFFF) {
-            pWindow[0x1279] += func_8002675C(
+            pWindow->iconsPrimCount += func_8002675C(
                 g_Menu->resources,
                 D_801EA34C[i],
-                (POLY_FT4*)(pWindow + (pWindow[0x1279] * 0x50 + 0xA0)),
+                pWindow->polysIcons[pWindow->iconsPrimCount],
                 g_Menu->renderContext,
                 a1 + D_801E9A78[i],
                 a2 + D_801E9AC8[i],
@@ -597,31 +597,27 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D5BA4);
        *(u8*)((u8*)g_Menu->unk340 + 0x324) = *(u8*)&g_Menu->renderContext;
    }
 */
-void MenuSetPlayTimeDigitPrims(s32 a0, s32 a1) {
+void MenuSetPlayTimeDigitPrims(s32 x, s32 y) {
     s32 i;
 
+    // Hours, minutes and seconds, each with its own x spacing.
     for (i = 0; i < 3; i++) {
-        func_8002675C(g_Menu->resources, ((s32*)g_Menu->unk2EC)[i],
-                      (POLY_FT4*)(i * 0x50 + (s32)g_Menu->unk344),
-                      g_Menu->renderContext, a0 + i * 8, a1, 0x1000);
+        func_8002675C(g_Menu->resources, g_Menu->unk2EC[i], (POLY_FT4*)(i * 0x50 + (s32)g_Menu->unk344),
+                      g_Menu->renderContext, x + i * 8, y, 0x1000);
     }
     for (i = 3; i < 5; i++) {
-        func_8002675C(g_Menu->resources, ((s32*)g_Menu->unk2EC)[i],
-                      (POLY_FT4*)(i * 0x50 + (s32)g_Menu->unk344),
-                      g_Menu->renderContext, a0 + i * 8 + 8, a1, 0x1000);
+        func_8002675C(g_Menu->resources, g_Menu->unk2EC[i], (POLY_FT4*)(i * 0x50 + (s32)g_Menu->unk344),
+                      g_Menu->renderContext, x + i * 8 + 8, y, 0x1000);
     }
     for (i = 5; i < 7; i++) {
-        func_8002675C(g_Menu->resources, ((s32*)g_Menu->unk2EC)[i],
-                      (POLY_FT4*)(i * 0x50 + (s32)g_Menu->unk344),
-                      g_Menu->renderContext, a0 + i * 8 + 0x10, a1, 0x1000);
+        func_8002675C(g_Menu->resources, g_Menu->unk2EC[i], (POLY_FT4*)(i * 0x50 + (s32)g_Menu->unk344),
+                      g_Menu->renderContext, x + i * 8 + 0x10, y, 0x1000);
     }
-    func_8002675C(g_Menu->resources, 0xEE,
-                  (POLY_FT4*)((u8*)g_Menu->unk344 + 0x230),
-                  g_Menu->renderContext, a0 + 0x18, a1, 0x1000);
-    func_8002675C(g_Menu->resources, 0xEE,
-                  (POLY_FT4*)((u8*)g_Menu->unk344 + 0x2D0),
-                  g_Menu->renderContext, a0 + 0x30, a1, 0x1000);
-    *(u8*)((u8*)g_Menu->unk344 + 0x370) = *(u8*)&g_Menu->renderContext;
+    func_8002675C(g_Menu->resources, MENU_TEX_PLAY_TIME_COLON, g_Menu->unk344->polys[7],
+                  g_Menu->renderContext, x + 0x18, y, 0x1000);
+    func_8002675C(g_Menu->resources, MENU_TEX_PLAY_TIME_COLON, g_Menu->unk344->polys[9],
+                  g_Menu->renderContext, x + 0x30, y, 0x1000);
+    g_Menu->unk344->renderContext = *(u8*)&g_Menu->renderContext;
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D5ED4);
 /* Best: 87.38%, frame 0x38 as retail. Decode is complete (this is the sibling of
