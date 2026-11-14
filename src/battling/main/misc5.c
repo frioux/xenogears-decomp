@@ -58,10 +58,11 @@ typedef struct {
     /* 0x66 */ u16 unk66;
     /* 0x68 */ u16 unk68;
     /* 0x6A */ u16 unk6A;
-    /* 0x6C */ s16 unk6C;
-    /* 0x6E */ u16 unk6E;
-    /* 0x70 */ u32 unk70;
-    /* 0x74 */ u8 unk74[0x8];
+    /* 0x6C */ u32 unk6C;
+    /* 0x70 */ u16 unk70;
+    /* 0x72 */ s16 unk72;
+    /* 0x74 */ s32 unk74;
+    /* 0x78 */ u32 unk78;
 } BattleSlot; // Size: 0x7C
 
 // 0xC-byte primitive template func_8007D6B8 allocates at D_800926C0/D_800926C4.
@@ -96,6 +97,7 @@ extern u16 D_800926AC;
 extern u16 D_800926AE;
 extern u16 D_80092694;
 extern u16 D_800926A0;
+extern s16 D_80091228[];
 // CLUT x (0x80092698) and y (0x8009269C). func_8007B270 reads each of them as a
 // short, this unit's other callers only want the low byte.
 extern u8 D_80092698[];
@@ -276,6 +278,84 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007C280);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007C880);
 
+/* Best attempt: objdiff 85.17%, same size as retail (548 bytes) and the same
+   instruction multiset; the remaining 15% is gcc putting the D_80092698 /
+   arg0*4 scaling, the t2/t1/t3 motion-copy address setup and the
+   D_800928E8 / D_800926A4 / 0x70 / 0x72 pair a few slots away from retail.
+   Store order matches retail exactly (0x54, 0x56, 0x72, 0x78, 0x6C, 0x70,
+   0x58, 0x74), so it is scheduler/allocator, not source order. Same
+   85.17 under -O3 and -G0, and 80.59 under gcc-2.7.2-cdk. */
+/*
+void func_8007C880(s32 arg0, VECTOR *pVec, u32 arg2, s32 arg3) {
+    BattleSlot *pSlot;
+    BattleSlot *pEntry;
+    SlotMotion *pMotion;
+    u16 id;
+    s32 u;
+    s32 v;
+    s32 i;
+
+    pEntry = D_80092AD8;
+    for (i = 0; i < 0x3C; i++, pEntry++) {
+        if (pEntry->unk50 != 0) {
+            if (pEntry->unk78 == arg2) {
+                if (pEntry->unk72 == D_800928E8) {
+                    return;
+                }
+            }
+        }
+    }
+
+    pSlot = D_80092AD8;
+    for (i = 0; i < 0x3C; i++, pSlot++) {
+        if (pSlot->unk50 == 0) {
+            break;
+        }
+    }
+    if (i == 0x3C) {
+        return;
+    }
+
+    u = D_80092698[0] * 4 + 8;
+    pMotion = &pSlot->unk0;
+    u += arg0 * 4;
+    pMotion->unk18[0xC] = u;
+    pMotion->unk18[4] = u;
+    pMotion->unk10[4] = u;
+    pMotion->unk8[4] = u;
+    v = D_8009269C[0];
+    pMotion->unk18[0xD] = v;
+    pMotion->unk18[5] = v;
+    pMotion->unk10[5] = v;
+    pMotion->unk8[5] = v;
+    pMotion->unk16 = D_80092694;
+    pMotion->unk7 &= 0xFE;
+    pMotion->unkE = D_800926A0;
+    pSlot->unk28 = *pMotion;
+
+    pSlot->unk52 = 7;
+    pSlot->unk53 = 1;
+    pSlot->unk50 = 1;
+    pSlot->unk51 = 0;
+    pSlot->unk54 = pVec->vx;
+    pSlot->unk56 = pVec->vy;
+    pSlot->unk72 = D_800928E8;
+    pSlot->unk78 = arg2;
+    pSlot->unk6C = 0;
+    pSlot->unk70 = D_800926A4;
+    pSlot->unk58 = pVec->vz;
+    pSlot->unk74 = D_80091228[arg3];
+
+    id = D_800926A4 - 1;
+    pEntry = D_80092AD8;
+    for (i = 0; i < 0x3C; i++, pEntry++) {
+        if (pEntry->unk50 != 0 && pEntry->unk78 == arg2 && pEntry != pSlot && pEntry->unk53 == 1 && pEntry->unk70 == id) {
+            pSlot->unk6C = (u32)pEntry;
+        }
+    }
+}
+*/
+
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007CAA4);
 
 s32 func_8007CD14(s32 a0, s32 a1, s32 a2, s32 a3) {
@@ -394,7 +474,9 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007D0B4);
    the modulo: `vx - 0x18 + rand() % 0x30` (73.11%, folds to vx + (r - 0x18)),
    `vx + rand() % 0x30 - 0x18` (76.82%), `vx -= 0x18 - rand() % 0x30`, and a
    `u16 v = pVec->vx;` temp (65.42%, keeps -0x18 in a saved reg). Same 76.82%
-   under gcc-2.6.0 and gcc-2.7.2-cdk, so it is not a compiler-version fold. */
+   under gcc-2.6.0 and gcc-2.7.2-cdk, so it is not a compiler-version fold.
+   Also tried: `s32 vx = pVec->vx - 0x18; pVec->vx = vx + rand() % 0x30;` as two
+   statements per field (74.65%) - the load then sits before the rand() call. */
 /*
 void func_8007D0B4(SVector *pVec) {
     pVec->vx = pVec->vx + rand() % 0x30 - 0x18;
