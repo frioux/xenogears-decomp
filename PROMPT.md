@@ -43,6 +43,35 @@ numbers move in this job: **functions matched** and **matched functions with a r
 name** go up, and **raw lines** (matched C that no programmer would have written; see
 "Realistic C") goes down.
 
+## Order of work
+
+Rounds 45-51 spent about 90 matching workers on 19 matches. The stubs a 30-minute worker
+can write from nothing are used up, and re-briefing the same units does not bring them
+back. Every large gain in this project came from removing a blocker for many functions
+at once (the round-34 splits, the gcc 2.6.0 and cdk presets), so that is the work now.
+Take the first item below that has work; 1-3 are finite queues that three tools opened
+on 2026-11-14, and each is described under its own heading further down.
+
+1. **Preset harvest, cdk with -G0** ("Presets"). The "atfree / assembler ceiling" wall
+   was a wrong preset. Five `battle` units switch with no regressions and their parked
+   bodies were written against the wrong compiler. Cheapest matches in the repo.
+2. **Permuter harvest** ("The permuter"). A CPU-only search over every parked body runs
+   in the background; when its report lists ZERO or BETTER results, an apply round ports
+   them. Start the sweep at session start if it is not running.
+3. **Jump-table stubs** ("Jump tables"). About 110 stubs that were excluded because a C
+   `switch` broke the link are ordinary stubs now. They are larger than average, so
+   brief them in the deep shape ("The round loop").
+4. **Naming and rewrite rounds** ("Names", "Realistic C"), alongside any of the above.
+   These are the reliable product: run one with every matching round.
+5. **Fresh-stub matching rounds** ("Choosing what to brief"), on what `fresh_stubs.py`
+   still lists.
+
+**Stop rule for matching rounds.** A matching round that lands fewer than 3 functions
+is a signal, not bad luck. After two in a row from the same kind of brief, do not launch
+a third: move down or up this list, and if 1-3 are empty and 5 is yielding nothing, run
+only naming and rewrite rounds and say so in the tracker row. Tokens spent re-attempting
+a saturated pool are the one thing this file exists to prevent.
+
 ## The round loop
 
 One worker = one clone = **one `.c` file**.
@@ -60,6 +89,15 @@ One worker = one clone = **one `.c` file**.
     make check
     git commit, git push, one row in reports/TRACKER.md
     rm -rf ~/xw/r-<tags>                         # fresh `new` clones next round
+
+**Two worker shapes.** The default is the 30-minute worker with a list of small stubs.
+For functions over ~150 instructions (most of what is left, and nearly every jump-table
+stub) use the **deep shape**: 1-3 functions per worker, `minutes: 60` in the worker's
+args and the same limit on the launch -
+`subagent({workflow: "tools/rounds/brief.js", async: true, options: {timeoutMs: 3600000}, args: {workers: [...]}})` -
+and at most 8 workers, because each one also runs the permuter (`-j 2`) on the 6-core
+build VM. The brief tells a worker to commit after every match, so a kill at 60 loses
+little. Judge the deep shape by matched instructions, not function count.
 
 If `make check` fails: `tools/scripts/culprit.sh <bin>` names the differing functions
 and `tools/scripts/sizes.py` names a function whose size is wrong. Revert that
@@ -175,6 +213,63 @@ missing struct. The rules a worker follows are in `brief.js` ("REALISTIC C").
 - Fix the cause when a round's reports show the same raw form coming back: one line in
   `brief.js` with the typed spelling that matched.
 
+## The permuter
+
+`tools/scripts/permute.sh <unit> <Func> [--minutes N] [-j N]` runs decomp-permuter on one
+function: thousands of small random edits to its C (new temporaries, reordered
+declarations and statements, swapped operands, changed integer types), each compiled
+with the unit's real compiler and scored against the original. It reads the body from
+the source, parked or live, and needs report mode. A score of 0 is identical; a body one
+register off scores about 40. This is the tool for the parks this file used to call dead:
+the reason they were dead is that hand-written shapes do not move an allocator tie, and
+a search that tries several shapes a second does. Workers have it in every brief.
+
+**The sweep** runs it over every parked body (494 when this was written), CPU only:
+
+    pgrep -f permute_sweep.py || nohup tools/rounds/permute_sweep.py --minutes 3 >> ~/xw/permute-sweep.log 2>&1 </dev/null &
+    tools/rounds/permute_sweep.py --report             # ZERO / BETTER results for bodies still parked
+    tools/rounds/permute_sweep.py --report --briefs    # the same as permute-brief.js worker args
+
+- It works in its own clone (`~/xw/r-permute`, rebuilt from this tree at each start; never
+  `clone.sh clean` it away mid-sweep, and never use the tag `permute`), scores every body
+  first, then searches the closest first (`--max-base 300`). Results are in
+  `~/xw/permuter-results.tsv` and `~/xw/permuter-out/<Func>.diff`, keyed by a hash of the
+  parked body, so a restart skips what is done and a re-parked body is tried again.
+- Start it at session start and after any round that adds or changes parks. It may run
+  during a round (`-j 4` of 6 cores; drop to `-j 2` while a deep round is out).
+- **Apply round:** when `--report` lists results, `clone.sh new` one clone per unit, fill
+  `tree` into the `--briefs` JSON and launch `tools/rounds/permute-brief.js` with it.
+  ZERO results are a port-and-gate job; BETTER results are leads the worker continues
+  from with its own permuter runs. Merge and gate exactly like a matching round.
+- `ERROR` rows are bodies that no longer compile on their own, or that use GTE macros or
+  inline asm the permuter's C parser rejects; `~/xw/permuter-out/<Func>.error` says which.
+  A stale body is worth one line in a normal brief ("the park does not compile"); the
+  rest are not permuter work.
+- A jump-table function never reaches 0 (the original names `jtbl_X`, the candidate
+  `.rodata`); a low BETTER score there is the result, and `check_bin.sh` is the judge.
+- After a sweep has covered everything at 3 minutes, a second pass with `--minutes 10
+  --retry --max-base 120` on what stayed NONE is worth one night of CPU. Record in the
+  tracker how many ZERO results a pass produced, so the next session knows whether a
+  longer pass paid.
+
+## Jump tables
+
+`tools/scripts/own_rodata.py` gives a unit its own switch tables (AGENTS.md, "Switch jump
+tables in overlays"), and it has been applied to 49 units of `battle`, `battling`,
+`world_map` and `menu` with `make check` green. In those units a C `switch` links; the
+brief explains to the worker how a jump-table match reads in `diff_func.sh` and that
+`check_bin.sh` decides. `fresh_stubs.py` now lists those stubs.
+
+- Not covered: `battling/main/misc2`, `menu/main/misc1`, `movie/main/misc1` (a string
+  sits inside the table range; `own_rodata.py --report <bin>` says FOREIGN). Their
+  jump-table stubs stay out of `funcs`. `field` and `slus_006.64` units already had
+  per-unit `.rodata`.
+- Run `own_rodata.py` on a unit BEFORE any of its jump-table stubs is converted; it
+  finds the tables through the stubs' `.s`. For a unit split after today, run it on the
+  new unit, then `make check` with no C change.
+- Untested corner: a converted function that also has its own string literals. If
+  `check_bin.sh` fails on one, revert it and note the unit.
+
 ## Choosing what to brief
 
 Measured over ten sessions; the brief decides the yield (3 per round with units picked
@@ -189,7 +284,9 @@ by stub count, 10 to 16 with the method below).
    body: 25 lines caught only half the parks and round 45 briefed a dozen parked stubs
    (`battle/misc16`'s `func_8008F8F4` had its note 47 lines up and a `/* body */` in
    between). Measured with 60 lines + the name test: **400 fresh stubs in 108 units**
-   (`tools/scripts/fresh_stubs.py`; it applies the atfree/jtbl filters below too).
+   (`tools/scripts/fresh_stubs.py`; it applies the atfree/jtbl filters below too, and
+   since 2026-11-14 keeps jump-table stubs of units that own their tables and atfree
+   stubs of cdk -G0 units: 455 fresh stubs in 111 units).
    Round 45 with this test: 14 workers, 3 committed matches before the kill.
    Parks are written `// Best: 84.76%` far more often than as `/* ... */`, so `grep
    '^/\*'` over-reports badly: round 36 briefed 11 units picked that way and 9 of them
@@ -200,17 +297,19 @@ by stub count, 10 to 16 with the method below).
    10-16 workers per round and expect single digits; the naming round is the reliable
    half (+252 names from 10 workers, same round).
 2. **Give the worker the reachable subset, not the unit.** Leave out of `funcs`:
-   - `python3 tools/scripts/atfree.py <bin>/<unit> asm/<bin>/nonmatchings/<unit>`
-     (assembler ceiling, no preset matches them; most of `battle/main/misc26..35`);
-   - `grep -l jtbl asm/<bin>/nonmatchings/<unit>/*.s` (a C `switch` there shifts the
-     overlay while objdiff says 100);
+   - `python3 tools/scripts/atfree.py <bin>/<unit> asm/<bin>/nonmatchings/<unit>` hits in
+     a unit that is NOT on a cdk -G0 preset. They are not a wall (see "Presets"): they
+     are evidence the unit wants that preset, so screen the unit instead of briefing them;
+   - `grep -l jtbl asm/<bin>/nonmatchings/<unit>/*.s` only in a unit that does not own
+     its tables ("Jump tables");
    - `python3 tools/scripts/convertible.py <bin>/<unit>` BLOCKED entries;
    - stubs with `sw $sp`/`lw $sp` (stack switch; the alloca bodies it catches are
      `grep -l 'sw \$sp, 0x0' asm/*/nonmatchings/`, a dozen in `system/` and the battle tail);
    - stubs of <15 insns that start by loading a literal address: often a data word, not a
      function (`battling/misc12` `func_80088BFC` is a 4-byte pointer datum, code starts at +4);
-   - parks at 95%+ with a list of things tried. **Every park has been swept under every
-     preset; a park that is not 100 is dead.** Only new C closes it, and it is worth ~0.
+   - parks, from a worker's hand-writing list. Every park has been swept under every
+     preset except cdk -G0, and hand iteration on one is worth ~0. A park is permuter
+     work ("The permuter"): the sweep and the apply round own it.
 3. Put what the tracker says about the unit (one or two lines) in `extra`. **No raw
    backtick in `extra`** — `brief.js` is a template literal.
 4. Finished, never brief: `slus_006.64/system/model`, `psyq/{libgte,libgte_b,libapi,
@@ -225,8 +324,32 @@ Workers never edit `gears.toml`; they report `PRESET_260` / `PRESET_G0` /
 `PRESET_CDK` with both percentages and the scores of every already-matched function,
 and you decide.
 
-- All maspsx axes and all compiler axes (2.6.0, cdk, `-G0`) have been swept at unit
-  and park level. Do not run a repo-wide sweep again. After a round,
+- **cdk with -G0 is the `battle` tail's compiler, and it was never swept.** gcc
+  2.7.2-cdk's cc1 splits an absolute address itself under `-G0` (`lui $v0,%hi(sym)` /
+  `sw $zero,%lo(sym)($v0)`, base register chosen by the allocator); under `-G8`, and
+  in plain 2.7.2 and 2.6.0 at any `-G`, it emits the `sw $zero,sym` macro and the
+  assembler goes through `$at`. That is the whole "atfree / assembler ceiling" class
+  (verified on `battle/misc32`: four parks 45% -> 100.0, the four matched functions
+  unchanged, `make check` green, unit now on `XenoBattleTailCdk0`). The queue:
+  - **Switch, zero regressions measured** (every already-matched function stays 100.0
+    under `--gcc gcc-2.7.2-cdk-psx --gp -G0`): `battle/main/misc26`, `misc31` (both on
+    `XenoBattleTail`), `misc29`, `misc27`, `misc27_b` (on `XenoBattleTailCdk`). Run an
+    `unpark-brief.js` round on these five (it now scores cdk -G0 and reports `CDK0` and
+    `KEEP` lines), move each unit whose `KEEP` lines are all 100.00 into
+    `XenoBattleTailCdk0`'s `paths` (and out of its old entry; `misc29` has its own
+    entry near the end of `gears.toml`), then the usual two identical `make
+    objdiff-config` runs, `make check`, and re-diff the unit's parks. Parks there that
+    say ATFREE were written against the wrong compiler and several park blocks carry
+    externs that conflict once un-parked (dedupe them).
+  - **Already on cdk -G0, parks mis-diagnosed:** `misc28`, `misc30`, `misc32`, `misc33`,
+    `misc34`. Their "ATFREE" stubs are ordinary stubs; `fresh_stubs.py` lists them.
+  - **Mixed:** `misc35` (its one matched function regresses): a `split_unit.py` case.
+  - **Not cdk -G0** (matched functions break): `battle/misc25`, `system/animation_scripts`,
+    `controller_b`, `rendering`, `temp1`, `temp2`. Their few atfree hits need another
+    explanation; leave them.
+  - `try_flags.sh` runs share `build/.try_flags.*`: never two at once in one tree.
+- All maspsx axes and the other compiler axes (2.6.0, cdk at `-G8`, `-G0` on plain
+  2.7.2) have been swept at unit and park level. Do not run a repo-wide sweep again. After a round,
   `tools/rounds/park_sweep.py <unit>...` on the units that gained parks is enough.
 - Every matched function stays 100.0 under the variant and a park reaches 100.0:
   switch the unit. Some break: split it with `tools/scripts/split_unit.py` (AGENTS.md,
@@ -245,7 +368,7 @@ and you decide.
 broken an overlay with every function at 100:
 
 - a body a few bytes off in size, or functions out of address order;
-- a C `switch` in a unit whose tables are asm-owned `jtbl_` symbols;
+- a C `switch` in a unit that does not own its tables ("Jump tables");
 - converting a callee, which let gcc shorten an already-matched **caller** by 8 bytes
   (keep the stub and the old `extern void f();`);
 - park surgery that swallowed the next function or the next `INCLUDE_ASM` line (the
@@ -253,6 +376,15 @@ broken an overlay with every function at 100:
 - a worker re-splitting an opaque field of a shared header.
 
 ## Harness facts
+
+- **A stuck build container eats a core.** `docker ps` showed a `make objdiff-config`
+  for `~/xw/r-b17` still at 100% CPU two days after its round (2026-11-14). Workers are
+  forbidden to touch docker; you are not. At session start, `docker ps --format
+  '{{.RunningFor}}\t{{.Mounts}}'` and `docker kill` any container older than two hours
+  whose clone is not in your current round or `r-permute`.
+- **`maspsx` reads stdin to EOF.** Any script that runs it (`try_flags.sh`, `permute.sh`)
+  hangs when stdin is an open pipe; they redirect `</dev/null` themselves now, and a new
+  one must too.
 
 - **Two orchestrator sessions can be live in this repo.** `tools/rounds/clone.sh new`
   starts with `rm -rf ~/xw/r-<tag>`, so a colliding tag silently destroys another
@@ -314,8 +446,9 @@ So that the next session also starts from this file alone:
   matches as C or stays `INCLUDE_ASM`. (`field/main/misc2.c`'s `$sp` switch and the
   `psyq/` GTE macros are the existing exceptions.)
 - Operator-only, so never done unattended: anything that deletes committed work,
-  changes a preset that matched functions depend on, or adds more than three files for
-  one split. Log a `DECISION:` line in the tracker row and work on something else (see
+  changes a preset in a way that takes an already-matched function below 100.0, or adds
+  more than three files for one split. (A whole-unit switch under which every matched
+  function stays 100.0 and `make check` is green is the "Presets" procedure, not this.) Log a `DECISION:` line in the tracker row and work on something else (see
   "The operator is mostly absent"). Reverting a function to its stub to get `make
   check` green is not deleting committed work.
 - Report to the operator only: functions matched, functions named, the raw-line

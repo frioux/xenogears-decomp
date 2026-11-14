@@ -17,12 +17,15 @@ STEPS
 3. The file must still compile under the unit's current preset. Check with
      tools/scripts/diff_func.sh ${w.unit} <Func> || true
    which prints MATCH/MISMATCH plus an \`objdiff: NN.NN%\` score. A few of these will already be 100% under the current preset - report those as \`CURRENT <Func> 100.00\`, they are free matches nobody noticed.
-4. Score the whole file's C functions under the two alternative compilers, one compile each:
+4. Score the whole file's C functions under the three alternative compilers, one compile each:
      tools/scripts/try_flags.sh ${w.unit} --all --gcc gcc-2.7.2-cdk-psx </dev/null
      tools/scripts/try_flags.sh ${w.unit} --all --gcc gcc-2.6.0-psx </dev/null
+     tools/scripts/try_flags.sh ${w.unit} --all --gcc gcc-2.7.2-cdk-psx --gp -G0 </dev/null
+   Run them ONE AT A TIME (they share build/.try_flags.* and two at once corrupt each other's scores). The third is the battle-tail compiler: cdk with -G0 splits absolute addresses itself, which is what retail's 'lui $v0,%hi(sym)' + 'sw $zero,%lo(sym)($v0)' is.
    Each prints one line per C function with its match percentage. They occasionally print \`compile-failed\` or \`absent\` for no good reason (container churn) - re-run the same command before believing it; if gcc-2.6.0 rejects the file (exit 33, mixed declarations) just say so and skip that compiler. If \`try_flags.sh\` says 'missing expected/asm/...', the tree is not in report mode: run \`make objdiff-config\` ONCE (\~35 s) and continue.
 5. For every un-parked function:
    - 100.00 under \`gcc-2.7.2-cdk-psx\`  -> LEAVE IT UN-PARKED. It is a match once the orchestrator switches this unit to cdk. Report \`CDK <Func> 100.00\`.
+   - 100.00 under cdk with -G0 only     -> LEAVE IT UN-PARKED and report \`CDK0 <Func> 100.00\`.
    - 100.00 under \`gcc-2.6.0-psx\`     -> LEAVE IT UN-PARKED only if it is NOT 100 under cdk, and report \`V260 <Func> 100.00\`. (2.6.0 and cdk are different presets; if a function is 100 under both, cdk wins - the orchestrator decides, so just report both numbers.)
    - otherwise re-park it with
        python3 tools/scripts/park.py repark ${w.file} ${w.asm} <Func> --note "<one or two // comment lines: best %, under which compiler, and the one thing that differs>"
@@ -37,6 +40,6 @@ RULES
 - Never write \`*/\` or \`/*\` inside a parked body's text and never nest two blocks.
 - Commit before you hit 25 minutes; the orchestrator merges commits only.
 
-REPORT (the only thing I can see): one line per function - \`CDK <Func> <pct>\`, \`V260 <Func> <pct>\`, \`CURRENT <Func> 100.00\`, or \`PARKED <Func> <best pct under current preset> - <one-line reason>\` - then a one-paragraph summary of what the unit looks like under each compiler, and the exact list of functions you left un-parked.`;
+REPORT (the only thing I can see): FIRST the scores of every function that was ALREADY matched before you started, under each of the three compilers (\`KEEP <Func> <cdk> <2.6.0> <cdk -G0>\`; the orchestrator can only switch the unit if these all stay 100.00). Then one line per function - \`CDK <Func> <pct>\`, \`CDK0 <Func> <pct>\`, \`V260 <Func> <pct>\`, \`CURRENT <Func> 100.00\`, or \`PARKED <Func> <best pct under current preset> - <one-line reason>\` - then a one-paragraph summary of what the unit looks like under each compiler, and the exact list of functions you left un-parked.`;
 
 return runs.all(args.workers.map((w, i) => ({ key: "u" + i + "_" + w.unit.replace(/\//g, "-"), agent: "worker", task: HEADER(w), cwd: w.tree })));

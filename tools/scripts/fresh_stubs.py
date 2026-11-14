@@ -7,6 +7,16 @@ def atfree(unit):
     try: out=subprocess.run(["python3","tools/scripts/atfree.py",unit,d],capture_output=True,text=True).stdout
     except Exception: return set()
     return set(re.findall(r'\S+ (func_\w+):',out))
+# Units on gcc 2.7.2-cdk with -G0: there the "atfree" pattern is what the compiler emits, not a wall.
+cdk0=set()
+for blk in open("gears.toml").read().split("[[build_preset]]"):
+    if "gcc-2.7.2-cdk-psx" in blk and re.search(r'gp_flag\s*=\s*"-G0"',blk):
+        cdk0.update(x.rstrip(".") for x in re.findall(r'"([\w./]+?\.)"',blk))
+def owns_tables(unit):
+    # own_rodata.py gave the unit its jump tables: a C switch there links (AGENTS.md).
+    b,rest=unit.split("/",1)
+    try: return re.search(r"\.rodata, %s\]"%re.escape(rest),open("config/%s.yaml"%b).read()) is not None
+    except OSError: return False
 res={}
 for path,fs in byfile.items():
     if not os.path.exists(path): continue
@@ -15,7 +25,8 @@ for path,fs in byfile.items():
     L=open(path).read().split("\n")
     b=unit.split("/")[0]; d="asm/%s/nonmatchings/%s"%(b,"/".join(unit.split("/")[1:]))
     jt=set(os.path.basename(p)[:-2] for p in glob.glob(d+"/*.s") if "jtbl" in open(p,errors="ignore").read())
-    af=atfree(unit)
+    af=set() if unit in cdk0 else atfree(unit)
+    if owns_tables(unit): jt=set()
     for f in fs:
         n=f["function"]
         if n in jt or n in af: continue
