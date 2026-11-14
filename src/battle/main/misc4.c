@@ -298,28 +298,26 @@ void func_80079948(u8** pCursor) {
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc4", func_800799C8);
-/* Best: 87.14%. Whole structure, both clear loops (the *p++ / p < pEnd do-while
-   and the 0x8B8 / -0x48 loop) and the if/else layout are right. Left: gcc merges
-   the while test and the 0xFF break into two compares at the top of the body
-   (0xFD, then 0xFF parked in a callee-saved $s2, hence the extra sw/lw s2) where
-   the original has the 0xFD test only at the bottom and materialises 0xFF in the
-   bne delay slot. `cmd` must be u32 (u8 gives an andi per use, s32 gives slti)
-   and the >= 0x80 test must come first or the arms swap order.
-   Tried: while with the load in the condition, for(;;) with two breaks, break vs
-   return for the 0xFF exit, u8/u32/s32 cmd, u8 value.
+/* Best: 98.71% (232 bytes, identical instruction multiset). The only difference
+   is the 0x8B8 clear loop's exit test: it comes out `bltz <exit>; nop; j <loop>`
+   where retail has `bgez <loop>; nop; j <exit>`. for/while/do-while all give the
+   inverted polarity; nothing else is left. The win (87.14% -> 98.71%) came from
+   the `cmd = *pCursor; while (cmd != 0xFD) { ...; cmd = *pCursor; }` form: it
+   collapses retail's single shared 0xFD/0xFF test block and keeps 0xFF
+   rematerialised in the branch delay slot instead of hoisting it into $s2.
 
 void func_800799C8(u8 arg0) {
-    u8 *p;
-    u8 *pEnd;
-    u8 *pCursor;
-    u8 slot;
+    u8* pCursor;
     u8 value;
+    u8 slot;
     u32 cmd;
     s32 i;
+    u8* p;
+    u8* pEnd;
 
     value = 0;
     slot = arg0 - 3;
-    pCursor = *(u8 **)(D_800D3400 + slot * 0x40);
+    pCursor = *(u8**)(D_800D3400 + slot * 0x40);
     p = D_800D2E5C;
     pEnd = p + 0x100;
     do {
@@ -328,22 +326,21 @@ void func_800799C8(u8 arg0) {
     for (i = 0x8B8; i >= 0; i -= 0x48) {
         D_800C402F[i] = 0xFF;
     }
-    for (;;) {
-        cmd = *pCursor;
-        if (cmd == 0xFD) {
-            break;
-        }
+    cmd = *pCursor;
+    while (cmd != 0xFD) {
         if (cmd == 0xFF) {
             break;
         }
         if (cmd >= 0x80) {
             if ((func_8007F8C0(&pCursor, slot) & 0xFF) != 0) {
+                cmd = *pCursor;
                 continue;
             }
             func_80079948(&pCursor);
         } else {
             value = func_8007EF6C(&pCursor, slot, value);
         }
+        cmd = *pCursor;
     }
 }
 */
