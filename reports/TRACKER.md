@@ -2489,6 +2489,7 @@ after the round-31 precedent. Two macros' worth of knowledge, now in the file's 
 | 35 | 13 workers: `battle/{misc32,misc34,misc28,misc8,misc4,misc5,misc6,misc6_r2,misc27_b}`, `battling/misc16`, `slus_006.64/system/{archive_b,controller_b,work_list}` + a 10-worker naming round | +9 | 1345 | `controller_b` **2** (`80035F1C 8003634C`, the unit is now 3 stubs from done), `battle/misc34` **2** (`BF600 BF9EC`), `battle/misc6_r2` **2** (`7AE38 7AE98`, via the new clamp-copy idiom), `battle/misc27_b` 1 (`B5CC0`), `battle/misc28` 1 (`B6990`), `battling/misc16` 1 (`8DA48`); 0 in misc32 (16/21 atfree), misc8, misc4, misc5, misc6, archive_b, work_list (parks improved instead). 244 names applied |
 | 37 | 13 workers: `battle/{misc12,misc16_r2,misc21,misc23}`, `field/{misc,misc6}`, `world_map/{misc2,misc5}`, `menu/{misc7,misc12}`, `slus_006.64/system/temp2`, `lib_gear/main/main`, `battling/misc6` + a 10-worker naming round | +4 | 1334 | `world_map/misc2` **3** (`758C0 7634C 76594`, landed by a worker killed before its gate), `battle/misc12` 1 (`84548`); 0 in the other eleven - park notes only, or the worker timed out (misc12, field/misc, world_map/misc2 all hit the 30-minute kill). 252 names applied, 38 skipped (33 are addresses that are a different function in another overlay) |
 | 38 | 15 workers: `battle/{misc3,misc16,misc27,misc27_b,misc28,misc29,misc31,misc33}`, `battling/{misc11,misc15,misc16}`, `menu/misc2`, `field/misc6`, `world_map/misc15`, `slus_006.64/system/rendering` + a 10-worker naming round | +0 | 1334 | **every one of the 25 children was killed at 30 min**; 21 made no file edit at all and the four that did only un-parked a neighbour's 90-96% park. One name landed (`field/misc8` `func_800864B4` -> `FieldClearActorSoundSlots`) |
+| 39 | 8 workers: `field/{main/misc,main/misc6}`, `battle/main/misc3`, `battling/main/{misc6,misc15}`, `world_map/main/{misc1,misc15}`, `menu/main/misc11_r2` + a 4-worker naming round | +5 | 1329 | `world_map/misc15` **2** (`97DC0 97440`), `world_map/misc1` **2** (`71FEC 74594`), `field/main/misc` 1 (`8D808`); 0 in the other five - park notes only, but this 8-child round did not starve: all eight committed and gated. 104 of 105 names applied |
 
 
 ### Round 36's per-unit detail
@@ -2611,3 +2612,23 @@ Still open, with evidence: `battle/misc19`'s 5-run split (2 functions, 4 new fil
   `grep -c func_` counts `extern` prototypes (world_map/misc3: 5 stubs, 174 `func_`
   mentions, 0 unnamed C definitions). Count *definition* lines (return type + `{`) with
   comments stripped, or ask `objdiff`'s matched set.
+
+### Round 39: the 8+4 cap works, and "fresh" now means *reachable*
+
+- 36 reachable stubs across 8 units closed 5, and **every child committed and passed its gate** -
+  the 8 matching + 4 naming split did not starve (contrast round 38's 25 children, +0).
+- Ranking by instructions per fresh stub is only half the filter: the *highest* rows were
+  `battle/misc33` (11 of 15 stubs atfree) and `misc31` (16 of 20), which would have burned two
+  workers. `atfree.py` per candidate unit before briefing, always.
+- The reachable set is cheap to compute: strict "no `NN.NN%` within 25 lines of the stub" gave
+  430 of 1334 stubs; after atfree + jtbl + `convertible.py`, the top 8 units held 36.
+- Naming is still the cheap number: 4 read-only workers on `field/misc12` (31 unnamed C defs),
+  `field/misc7` (26), `battle/misc10` (23), `field/misc4` (19) proposed 99 names, 98 applied.
+- Naming fallout to expect: `func_8009A1AC` is a *different* function in `field` and in `battle`
+  at the same address, so a global rename names both and field's asm data table
+  (`g_FieldScriptVMHandlers`) then links undefined - add the entry to
+  `symbol_addrs.field.txt` by hand. One name (`func_8007EEE8`) was proposed for a stub and
+  correctly skipped.
+- A re-park appended after a note line that already ends with ` */` makes the whole attempt
+  plain code: the only symptom is ninja's `.i` failing with `parse error before '39'`, which
+  `check_bin.sh` reports as a bare `make: *** [build] Error 33`.
