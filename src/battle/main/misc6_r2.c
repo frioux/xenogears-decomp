@@ -111,14 +111,15 @@ void func_8007B264(u8 **p, u8 index) {
 }
 // best 99.00% (2.7.2 and 2.6.0; 96.50 cdk): 22 instructions, the only miss is the
 // D_800D3420 base register - retail $a2, gcc $v1.
+/*
 void func_8007B2C0(u8 **p, u8 index) {
     u16 *pField = (u16 *)(D_800D3420 + index * 0x40);
     u8 *pArgs = *p;
-    u16 value;
 
-    value = pField[pArgs[1]] & pField[pArgs[2]];
-    pField[pArgs[3]] = value;
+    pField[pArgs[3]] = pField[pArgs[1]] & pField[pArgs[2]];
 }
+*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc6_r2", func_8007B2C0);
 // best 99.00% (2.7.2 and 2.6.0; 96.50 cdk): same one-register miss as func_8007B2C0
 // (D_800D3420 base in $v1 instead of $a2).
 /*
