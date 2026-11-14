@@ -2490,6 +2490,7 @@ after the round-31 precedent. Two macros' worth of knowledge, now in the file's 
 | 37 | 13 workers: `battle/{misc12,misc16_r2,misc21,misc23}`, `field/{misc,misc6}`, `world_map/{misc2,misc5}`, `menu/{misc7,misc12}`, `slus_006.64/system/temp2`, `lib_gear/main/main`, `battling/misc6` + a 10-worker naming round | +4 | 1334 | `world_map/misc2` **3** (`758C0 7634C 76594`, landed by a worker killed before its gate), `battle/misc12` 1 (`84548`); 0 in the other eleven - park notes only, or the worker timed out (misc12, field/misc, world_map/misc2 all hit the 30-minute kill). 252 names applied, 38 skipped (33 are addresses that are a different function in another overlay) |
 | 38 | 15 workers: `battle/{misc3,misc16,misc27,misc27_b,misc28,misc29,misc31,misc33}`, `battling/{misc11,misc15,misc16}`, `menu/misc2`, `field/misc6`, `world_map/misc15`, `slus_006.64/system/rendering` + a 10-worker naming round | +0 | 1334 | **every one of the 25 children was killed at 30 min**; 21 made no file edit at all and the four that did only un-parked a neighbour's 90-96% park. One name landed (`field/misc8` `func_800864B4` -> `FieldClearActorSoundSlots`) |
 | 39 | 8 workers: `field/{main/misc,main/misc6}`, `battle/main/misc3`, `battling/main/{misc6,misc15}`, `world_map/main/{misc1,misc15}`, `menu/main/misc11_r2` + a 4-worker naming round | +5 | 1329 | `world_map/misc15` **2** (`97DC0 97440`), `world_map/misc1` **2** (`71FEC 74594`), `field/main/misc` 1 (`8D808`); 0 in the other five - park notes only, but this 8-child round did not starve: all eight committed and gated. 104 of 105 names applied |
+| 41 | 10 workers: `battle/{main/misc12,misc13,misc19,misc29,misc33}`, `battling/main/{misc11,misc12,misc16}`, `world_map/main/misc15`, `menu/main/misc2` + an 8-worker naming round | +6 | 1320 | `battle/misc33` **2** (`BEC18 BEBC4`), `battle/misc19` 1 (`A9B38`), `battling/misc11` 1 (`8832C`), `menu/misc2` 1 (`1C8A10`), `battle/misc29` 1 (`B8284`, unlocked by the new XenoBattleTailCdk preset); 0 in `battling/misc12` (its stub is a 4-byte pointer datum, not code), `battling/misc16`, `world_map/misc15`, `battle/misc12`, `battle/misc13`. 145 names applied, 17 new `symbol_addrs.member_change_menu` entries |
 
 
 ### Round 36's per-unit detail
@@ -2652,3 +2653,21 @@ Still open, with evidence: `battle/misc19`'s 5-run split (2 functions, 4 new fil
 - `menu/misc1`'s pair (`func_801C55A0`/`func_801C58EC`, 96.86/97.66) needs the switch written in
   *case address order* 4,1,3, not value order; the remaining wall there is retail's double `lbu`
   of the tested `u_char` against our single live value.
+
+### Round 41: 10 workers close 6, and the jtbl blocker has a fatal variant
+
+- The yield came from the selection filters, not from the briefs: of 15 "fresh" stubs three were
+  `sw $sp`/`lw $sp` alloca bodies (`system/graphics`, `system/rendering_pause_text`, `battle/misc33`
+  `func_800BEE2C`) and one (`battling/misc12` `func_80088BFC`) is a 4-byte pointer datum whose real
+  code starts at +4, so the reachable list was 14 before the round started. Both filters are now in
+  PROMPT.md item 2.
+- `battle/misc12` proved the fatal jtbl variant: 11 of its 16 stubs dispatch with `jr $v0` through
+  tables owned by `asm/battle/data/0.rodata.s`, so an if/else chain cannot match and a C `switch`
+  emits a *second* copy of the table - `make build` fails at link instead of shifting bytes. The same
+  holds for `world_map/misc15`'s `func_80096A6C`/`func_80097800` (table `jtbl_80070CB8`/`CE8`).
+  `convertible.py` reports all of them convertible: `grep -l jtbl` is the only gate. One
+  address-ordered migration of those tables would unlock 11 battle functions at once - a config job.
+- `battle/misc29` split into its own preset (`XenoBattleTailCdk`, 2.7.2-cdk + XenoBattleTail's maspsx
+  flags) for `func_800B8284`: 100.00 under cdk, 77.69 under 2.7.2, five matched functions unaffected.
+- Naming: 8 read-only workers, 145 names, 17 new `symbol_addrs.member_change_menu` entries. A
+  two-column names file silently neuters `name_addrs.py` (see PROMPT.md, Names).

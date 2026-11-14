@@ -75,6 +75,11 @@ of a match, and it is cheap.
   is a *different* function in another overlay (2+ `.c` files define it) and never writes an
   entry into a file its yaml already loads ("Duplicate symbol detected" from
   splat stops the whole build), so ~4-8 names a round stay `func_`; leave them.
+- **The names file must keep the three-column form**, `NAME func_ADDR NewName - evidence`. A file
+  stripped to two columns still renames (rename_sym.py parses it) but makes `name_addrs.py` a silent
+  no-op, so every function whose address has no `symbol_addrs` entry - all of `member_change_menu` -
+  stays `func_` with no error. Round 41 lost nothing only because it noticed the "renamed 0 pairs"
+  line; keep the evidence text in the file you feed both tools.
 - **Backlog:** about 2,100 already-matched functions are still `func_`. While a
   matching round is out, run a naming round over them with
   `tools/rounds/name-brief.js` (`{workers: [{tree: <this repo>, file}, ...]}`). It is
@@ -110,7 +115,10 @@ by stub count, 10 to 16 with the method below).
    - `grep -l jtbl asm/<bin>/nonmatchings/<unit>/*.s` (a C `switch` there shifts the
      overlay while objdiff says 100);
    - `python3 tools/scripts/convertible.py <bin>/<unit>` BLOCKED entries;
-   - stubs with `sw $sp`/`lw $sp` (stack switch);
+   - stubs with `sw $sp`/`lw $sp` (stack switch; the alloca bodies it catches are
+     `grep -l 'sw \$sp, 0x0' asm/*/nonmatchings/`, a dozen in `system/` and the battle tail);
+   - stubs of <15 insns that start by loading a literal address: often a data word, not a
+     function (`battling/misc12` `func_80088BFC` is a 4-byte pointer datum, code starts at +4);
    - parks at 95%+ with a list of things tried. **Every park has been swept under every
      preset; a park that is not 100 is dead.** Only new C closes it, and it is worth ~0.
 3. Put what the tracker says about the unit (one or two lines) in `extra`. **No raw

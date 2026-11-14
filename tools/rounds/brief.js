@@ -64,6 +64,11 @@ KNOWN BLOCKERS ALREADY FOUND IN THIS REPO - do not rediscover them
 - An 8-byte phantom frame (two register-indexed loads of the same global give a prologue/epilogue that stores nothing) is NOT a wall: matched functions in this repo have it because retail has it too. Do not fight the frame, fight the instruction stream.
 - In \`psyq/\`, objdiff 100% is not proof: several stubs own trailing nops after \`.size\` that no C definition emits. If the stub's .s has instructions after \`.size\`, do not convert it.
 - Never change the signature or return type of a function that is already matched; it is someone else's signed-off 100% and it usually costs bytes at link time.
+- A stub whose first words touch the stack pointer oddly ('sw $sp, 0x0($t0)' then 'lw $sp, 0x0($sp)')
+  is an alloca-shaped body no C reproduces: report ALLOCA and move on (system/graphics,
+  system/rendering_pause_text, battle/misc33 func_800BEE2C). A stub of 8-12 insns that begins by loading
+  a literal address is often not code at all (battling/misc12 func_80088BFC is a 4-byte pointer datum
+  whose real code starts at +4): report DATUM.
 - Overlay units ('world_map', 'battle', 'menu', 'movie', 'battling') reach their globals through linker/undefined_syms_auto.<overlay>.txt, which defines them as ABSOLUTE addresses: spell the exact address the asm names (D_800926AA), never a base+index (D_800926A8[1]). Halfword stores only reach 100% with the exact address.
 - The world_map overlay is assembled with a different maspsx setting than the rest (XenoWorldMap preset: no li expansion, because its original object is addiu-dominant). gears.toml already has it; do not edit gears.toml.
 - The GTE macros in include/psyq/inline_c.h are the RIGHT SDK revision (3.x: one nop plus the canonical COP2 word; read-backs into $2/$8 via gte_*_gpr and gte_*_val). NormalColor, ColorCol, LocalLight, Square*, SetRot/Light/ColorMatrix, AverageSZ3/Z4 all match. Still blocked, do not retry blind: the *3 family (NormalColor3, ColorCol3, DpqColor3) where retail lazily loads incoming stack arguments after the GTE command, and functions whose .s is bare mtc2/ctc2 with no macro equivalent.
@@ -89,8 +94,12 @@ WHERE THE VALUE IS (measured over four sessions, do not re-derive)
   grep -l jtbl ${w.asm}/*.s. The original table is a shared object in the overlay's data segment; a C
   switch makes cc1 emit its own table into the unit's .rodata, which lands BEFORE the asm-owned tables,
   so the overlay shifts by the table's size and make check fails while every function still shows
-  objdiff 100.00%. Spell those as an if/else chain. Signature when it happens: the first differing
-  byte in the linked overlay falls inside a jtbl_ region.
+  objdiff 100.00%. Spell those as an if/else chain ONLY if retail dispatches without the table.
+  If retail does 'jr $v0' off it (the table entry is executed, not just referenced), an if/else chain
+  cannot match and a C switch emits a SECOND copy of the table next to the asm-owned one, so
+  'make build' fails at link instead of shifting bytes: leave the stub, report JTBL, and say how many
+  stubs of the unit share the table (battle/misc12: 11 of 16, all unlockable by one data migration).
+  Signature when it happens: the first differing byte in the linked overlay falls inside a jtbl_ region.
 - FINISH WITH THE GATES, IN THIS ORDER: commit your matches, then run lint_sources and check_bin.sh.
   Work committed after the gate was never gated, and that is what a merge then breaks.
 - The 95-99.6% class is DEAD. Nine workers spent a full round on the closest remaining stubs and moved several up (96.40 to 96.81, 91.88 to 95.23) without closing one: the instruction multiset is already identical and only an allocator tie-break in gcc's global.c differs (func_801E6578 has allocnos with identical def/use counts and live ranges; 20+ source shapes leave the tie untouched; func_800A0C94 has 24 declaration orders byte-identical; func_80023804's sibling compiles the identical expression the other way round). If a parked note says the function is 95% or more and lists >=6 things already tried, do NOT spend more than 10 minutes on it. Report it and move to the next stub, and prefer a stub with no parked note at all.
