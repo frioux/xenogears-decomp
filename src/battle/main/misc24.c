@@ -1,5 +1,6 @@
 #include "common.h"
 #include "psyq/libgte.h"
+#include "psyq/inline_c.h"
 #include "system/memory.h"
 
 extern u8 D_800C3B74;
@@ -262,7 +263,52 @@ s32 func_800AAA20(u8 *arg0, u8 *arg1, s32 arg2, u8 *arg3, s32 arg4) {
     }
     return r;
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AAB34);
+void func_800AAB34(u8 *arg0) {
+    u8 *pMatrix;
+    u8 *pSprites;
+    s32 index;
+    SVECTOR vec;
+
+    pMatrix = PSX_SCRATCH;
+    if (D_800D3368[*(u8 *)(arg0 + 0x5C)] != NULL) {
+        if (!(*(u16 *)(arg0 + 0x4A) & 0x10)) {
+            *(u8 *)(arg0 + 0x34) = *((u8 *)D_800D3368[*(u8 *)(arg0 + 0x5C)] + 0x34);
+        }
+        if (*(u8 *)(arg0 + 0x34) != 0) {
+            if (*(u8 *)(arg0 + 0x5D) != 0) {
+                index = *(s16 *)(arg0 + 0x5E);
+                if (index != 0) {
+                    pSprites = *(u8 **)((u8 *)D_800D3368[*(u8 *)(arg0 + 0x5C)] + 4);
+                    MulMatrix0((MATRIX *)(pSprites + 0x2C),
+                               (MATRIX *)(index * 0x7C + (s32)pSprites + 0x2C), (MATRIX *)PSX_SCRATCH);
+                } else {
+                    pMatrix = *(u8 **)((u8 *)D_800D3368[*(u8 *)(arg0 + 0x5C)] + 4) + 0x2C;
+                }
+                MulMatrix2((MATRIX *)pMatrix, (MATRIX *)(*(u8 **)(arg0 + 4) + 0xC));
+                MulMatrix2((MATRIX *)pMatrix, (MATRIX *)(*(u8 **)(arg0 + 4) + 0x2C));
+            }
+            index = *(s16 *)(arg0 + 0x5E);
+            if (index != 0) {
+                pSprites = *(u8 **)((u8 *)D_800D3368[*(u8 *)(arg0 + 0x5C)] + 4);
+                CompMatrix((MATRIX *)(pSprites + 0xC),
+                           (MATRIX *)(index * 0x7C + (s32)pSprites + 0x2C), (MATRIX *)pMatrix);
+            } else {
+                pMatrix = *(u8 **)((u8 *)D_800D3368[*(u8 *)(arg0 + 0x5C)] + 4) + 0xC;
+            }
+            SetRotMatrix((MATRIX *)pMatrix);
+            SetTransMatrix((MATRIX *)pMatrix);
+            vec.vx = *(u16 *)(arg0 + 0x6A);
+            vec.vy = *(u16 *)(arg0 + 0x6C);
+            vec.vz = *(u16 *)(arg0 + 0x6E);
+            gte_ldv0(&vec);
+            gte_mvmva(1, 0, 0, 0, 0);
+            gte_stlvnl(*(u8 **)(arg0 + 4) + 0x20);
+            gte_stlvnl(*(u8 **)(arg0 + 4) + 0x5C);
+        }
+    } else {
+        *(u8 *)(arg0 + 0x5C) = 0xFF;
+    }
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AAD54);
 void func_800ADF1C(u8 *arg0, u8 *arg1, s32 arg2, s32 arg3, s32 arg4, s32 arg5) {
     u8 *pNode;
