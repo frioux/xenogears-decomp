@@ -320,6 +320,16 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_80081B58);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_800820A4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_800822C4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_80082504);
+/* 84.29%: every instruction after the flag update matches. The blocker is the
+   flag update itself: retail has the gas `sym+reg` form twice
+   (`lui at,%hi(D_800CCE42); addu at,at,v0; lbu/sb %lo(at)`, i.e. the base
+   rematerialised into $at for each access, 4 more insns) while cse in our gcc
+   makes one `la $3,D_800CCE42` and shares it (`addu v0,v0,v1`), 8 bytes
+   shorter, so the size cannot match either. gcc does emit the `sym+reg` macro
+   form for D_800D32A1/D_800D2D24 in this same function; it registers an
+   address only where it is used twice. Tried: plain `|=`, array-ref, pointer
+   local, volatile. */
+/*
 void func_800826CC(u8 arg0) {
     s32 i;
 
@@ -340,3 +350,5 @@ void func_800826CC(u8 arg0) {
         }
     }
 }
+*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_800826CC);
