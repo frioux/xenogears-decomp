@@ -90,8 +90,15 @@ of a match, and it is cheap.
   above. Count definitions with `/* ... */` blocks stripped AND column-0
   `extern s32 func_X();` prototypes dropped: a bare `grep func_` counts both, which cost
   round 35 two duds and round 47 three (world_map/misc3, misc6, misc5 top the count with
-  zero unnamed C functions). Ten naming workers yield ~500 names, so this is the cheaper of
-  the two numbers to move.
+  zero unnamed C functions). A naming worker yields ~10 names on a well-picked file and 0
+  on a dud, so budget for a few dozen, not a few hundred.
+- **Feed the tools the union of every NAME line ever reported.** Both tools self-skip
+  (already applied, name taken, still a stub, address twin), so `grep -h '^NAME func_'`
+  over every `*_worker_output.md` in `~/.pi/agent/sessions/<project>/subagent-artifacts/`
+  is safe, and it collects the proposals earlier rounds never landed: round 49 applied 177
+  names from a 1753-line union, ~94 of them from earlier rounds. Keep duplicates out by
+  one line per address (a coin toss between two evidence-backed names is fine; the loser
+  is one `rename_sym.py Old=New`).
 - **A rename leaves `D_<addr>` behind.** When the named function is also referenced from
   another binary as a *data* symbol (`extern u8 D_80025A88[]` for a main-exe callback in
   `battle/main/misc28`), neither tool touches that C: the overlay's asm relocations get the
