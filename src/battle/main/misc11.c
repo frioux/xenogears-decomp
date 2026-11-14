@@ -47,6 +47,11 @@ extern u8 D_800C4022[];
 extern u8 D_800C3FFE[];
 extern void func_80077980(void);
 extern void func_8009413C(u8 arg0, u8 arg1);
+extern u8 D_800D2C0C[];
+extern void func_8009A2D4(u8 arg0);
+extern void func_80089AF8(u8 arg0);
+extern void func_800898F0(u8 arg0);
+extern void func_800716D8(void);
 
 /* 74.02%: with `extern volatile s32 D_800CCB34` the loop body is exact (four
    reloads of the counter between the four stores, and the two separate
@@ -139,6 +144,56 @@ void func_8007FEC4(void) {
 
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_8007FF14);
+/* 91.69%: shapes exhausted (12 tries). The instruction multiset is nearly
+   identical; what is left is a rotation of the loop's register assignment -
+   retail has v=$a1, digits=$a0, i*4=$a2, quotient=$a3, mfhi=$v0, while gcc
+   gives v=$a2, digits=$a1, i*4=$a3, quotient=$a0, mfhi=$t3 (because $a3 is
+   taken by the strength-reduced i*4 biv). Declaration order, a base local,
+   u8 digits and s32 v all change nothing or make it worse (90.97/90.75/89.62).
+   Under gcc-2.7.2-cdk it is 93.74 (still not 100), so not a preset question.
+   Two instruction-order details remain: retail puts the division-by-10
+   dividend's andi after the magic-constant lui/ori and hoists sll v0,v1,2
+   into the bnez delay slot. */
+/*
+void func_8007FF14(u8 arg0) {
+    s32 i;
+    u8 v;
+    s32 n;
+    s32 digits;
+
+    func_8009A2D4(arg0);
+    for (i = 2; i < 5; i++) {
+        v = D_800D2C0C[(i - 2) * 2];
+        *(u8 *)(D_800C3EAC + (arg0 << 6) + i * 4 + 8) = 0xFF;
+        *(u8 *)(D_800C3EAC + (arg0 << 6) + i * 4 + 9) = 0xFF;
+        *(u8 *)(D_800C3EAC + (arg0 << 6) + i * 4 + 0xA) = 0xFF;
+        n = v / 100;
+        digits = 0;
+        if (n != 0) {
+            v -= n * 100;
+            *(u8 *)(D_800C3EAC + (arg0 << 6) + i * 4 + 8) = n + 0x83;
+            digits = 1;
+        }
+        n = v / 10;
+        if (n != 0 || digits != 0) {
+            v -= n * 10;
+            *(u8 *)(D_800C3EAC + (arg0 << 6) + (i * 4 + digits) + 8) = n + 0x83;
+            digits++;
+        }
+        *(u8 *)(D_800C3EAC + (arg0 << 6) + (i * 4 + digits) + 8) = v + 0x83;
+    }
+    func_8007FEC4();
+    if (D_800D2D24[arg0] != 7) {
+        func_80089AF8(arg0);
+        func_800716D8();
+        func_800898F0(arg0);
+        func_800716D8();
+        D_800D2D28[0xAD] = 1;
+        D_800D2D28[0xC7] = 1;
+    }
+}
+*/
+
 
 void func_800800E8(u8 arg0) {
     s32 index;
