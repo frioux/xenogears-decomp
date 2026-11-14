@@ -670,12 +670,16 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007AE78);
    per use is required: it reproduces the three reloads of the buffer pointer.
    A version that loaded both bytes into locals (95.87%) gets li after lb but
    hoists both loads above the bnez.
-   Round 42: confirmed the mechanism - gcc emits the constant before the load
-   inside the && block, and reorg then steals the li into the bnez delay slot,
-   which forces a real load-delay nop after the lb. Nested if, a local for byte
-   1 only, and swapping the comparison operands all give the identical 252-byte
-   object; the original's 252 bytes exist only with the load emitted first, so
-   the block has to start with a non-movable insn.
+   Round 51: the delta is reorg, not the constant - this attempt compiles to
+   `bnez v0; lb v1,1(s0)` (the byte-1 load FILLED INTO the branch delay slot),
+   then li, a load-delay nop and bne, while the original has `bnez v0; nop;
+   lb v1,1(s0); li v0,0x12; bne` (its li is the load-delay filler for lb). Same
+   instruction multiset; blocking reorg from stealing that load is the only
+   lever left, and no source shape tried so far does it.
+   Also 77.30 under gcc-2.7.2-cdk, so this is not a preset question; the unit
+   stays on Default (every already-matched function of misc4 breaks under cdk:
+   FieldInitTableQuad 64.14, FieldOrVramStripPixels 88.10, FieldRenderColorFill
+   83.40, FieldGetDominantComponent 81.91).
 void func_8007AE78(int controllerIndex, int* pOut) {
     FieldUpdateMousePosition(controllerIndex);
     pOut[0] = g_FieldMousePositionsX[controllerIndex] / g_FieldMouseSpeedX;
@@ -888,6 +892,9 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007B614);
    multiplies, split temporaries, split shift, s16/u16 angle and x/z temps all
    reproduce exactly this allocation; the y store must come last in the source so
    it lands after the rcos multiply.
+   Round 51: re-diffed at 97.88% and confirmed the instruction stream is the
+   original's exactly, with s0/s1/s2 permuted - an allocator tie. cdk scores the
+   same 97.88. D_800B218C still needs a symbol_addrs.field.txt entry.
 extern s16 D_800B218C;
 
 void func_8007B614(IVEC3* pVec, int scale, int angle) {
