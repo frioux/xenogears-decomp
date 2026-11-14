@@ -56,6 +56,13 @@ typedef struct {
     /* 0x00 */ u8 unk0[0xA38];
 } MenuSaveBlob0xA38; // Size: 0xA38
 
+// Cell position in the menu glyph atlas: 21 cells per row, the row's y in
+// D_801E99E8.
+typedef struct {
+    /* 0x0 */ u16 unk0;
+    /* 0x2 */ u16 unk2;
+} MenuGlyphCellPos; // Size: 0x4
+
 typedef struct {
     /* 0x0000 */ u32 unk0[0x9];
     /* 0x0024 */ MenuSaveNamesA namesA;
@@ -404,7 +411,59 @@ void MenuFreeCellPrimBlocks(void) {
         HeapFree(g_Menu->unk3A8[i]);
     }
 }
+extern MenuGlyphCellPos D_801E9994[0x15];
+extern MenuGlyphCellPos D_801E99E8[2];
+
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc11_r2", func_801E5B88);
+/* Best: 99.63% (708 bytes, same size as retail, instruction stream identical: the
+   only differing words are register names).  Shape is settled: nested loops
+   i = 0..0x1F, j = 0..1, prim at g_Menu->unk34C + (i * 2 + j) * 0x28; the atlas cell
+   is D_801E9994[i % 0x15] plus row offset (i / 0x15) * 8 in x and D_801E99E8[i / 0x15]
+   in y, so the two tables have to be pointer locals (with the plain array form gcc
+   folds the address through $at); the uv comes from (i % 0x10) * 0x10 and
+   (i / 0x10) * 0x10 - 0x20, and putting `i = 0` FIRST in the outer for-init is what
+   fixed the prologue save order (97.31 -> 99.63).  Left: register ties only -
+   retail forms the byte offset through a v1 temporary and keeps g_Menu's loaded
+   pointer in a0 where gcc folds both into s0/v1, mfhi lands in a1 vs t1, and
+   i is copied to t1 vs t2.  Permuter job (live body, report mode).
+
+void func_801E5B88(void) {
+    MenuGlyphCellPos* pCellX;
+    MenuGlyphCellPos* pCellY;
+    s32 offset;
+    s32 i;
+    s32 j;
+
+    for (i = 0, pCellX = D_801E9994, pCellY = D_801E99E8; i < 0x20; i++) {
+        for (j = 0; j < 2; j++) {
+            offset = (i * 2 + j) * 0x28;
+            MenuInitializePolyFt4((POLY_FT4*)(offset + (u32)g_Menu->unk34C));
+            ((POLY_FT4*)(offset + (u32)g_Menu->unk34C))->x0 =
+                pCellX[i % 0x15].unk0 + (i / 0x15) * 8;
+            ((POLY_FT4*)(offset + (u32)g_Menu->unk34C))->y0 = pCellY[i / 0x15].unk0;
+            ((POLY_FT4*)(offset + (u32)g_Menu->unk34C))->x1 =
+                pCellX[i % 0x15].unk0 + (i / 0x15) * 8 + 0xC;
+            ((POLY_FT4*)(offset + (u32)g_Menu->unk34C))->y1 = pCellY[i / 0x15].unk0;
+            ((POLY_FT4*)(offset + (u32)g_Menu->unk34C))->x2 =
+                pCellX[i % 0x15].unk0 + (i / 0x15) * 8;
+            ((POLY_FT4*)(offset + (u32)g_Menu->unk34C))->y2 = pCellY[i / 0x15].unk0 + 0x10;
+            ((POLY_FT4*)(offset + (u32)g_Menu->unk34C))->x3 =
+                pCellX[i % 0x15].unk0 + (i / 0x15) * 8 + 0xC;
+            ((POLY_FT4*)(offset + (u32)g_Menu->unk34C))->y3 = pCellY[i / 0x15].unk0 + 0x10;
+            ((POLY_FT4*)(offset + (u32)g_Menu->unk34C))->u0 = (i % 0x10) * 0x10;
+            ((POLY_FT4*)(offset + (u32)g_Menu->unk34C))->v0 = (i / 0x10) * 0x10 - 0x20;
+            ((POLY_FT4*)(offset + (u32)g_Menu->unk34C))->u1 = (i % 0x10) * 0x10 + 0xC;
+            ((POLY_FT4*)(offset + (u32)g_Menu->unk34C))->v1 = (i / 0x10) * 0x10 - 0x20;
+            ((POLY_FT4*)(offset + (u32)g_Menu->unk34C))->u2 = (i % 0x10) * 0x10;
+            ((POLY_FT4*)(offset + (u32)g_Menu->unk34C))->v2 = (i / 0x10) * 0x10 - 0x11;
+            ((POLY_FT4*)(offset + (u32)g_Menu->unk34C))->u3 = (i % 0x10) * 0x10 + 0xC;
+            ((POLY_FT4*)(offset + (u32)g_Menu->unk34C))->v3 = (i / 0x10) * 0x10 - 0x11;
+            ((POLY_FT4*)((u8*)g_Menu->unk34C + offset))->tpage = GetTPage(0, 0, 0x140, 0x80);
+            ((POLY_FT4*)((u8*)g_Menu->unk34C + offset))->clut = GetClut(0, 0x1C0);
+        }
+    }
+}
+*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc11_r2", func_801E5E4C);
 extern s32 D_801E9F98[];
 extern s32 D_801E9FBC[];
