@@ -363,17 +363,17 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D4F2C);
    }
 */
 void MenuSetCharacterWindowIcons(u_char a0, s32 a1, s32 a2) {
-    u8* pWindow;
+    MenuCharacterWindow* pWindow;
     s32 i;
 
-    pWindow = (u8*)g_Menu->unk39C[a0];
-    pWindow[0x1279] = 0;
+    pWindow = g_Menu->unk39C[a0];
+    pWindow->iconsPrimCount = 0;
     for (i = 0; i < 0x14; i++) {
         if (D_801EA34C[i] != 0xFFFF) {
-            pWindow[0x1279] += func_8002675C(
+            pWindow->iconsPrimCount += func_8002675C(
                 g_Menu->resources,
                 D_801EA34C[i],
-                (POLY_FT4*)(pWindow + (pWindow[0x1279] * 0x50 + 0xA0)),
+                pWindow->polysIcons[pWindow->iconsPrimCount],
                 g_Menu->renderContext,
                 a1 + D_801E9A78[i],
                 a2 + D_801E9AC8[i],
