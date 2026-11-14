@@ -464,7 +464,84 @@ void func_800A96B4(s32 arg0) {
     ArchiveSetIndex(alignedIndex, remainder);
 }
 */
+// Payload reached through Misc23ArchiveEntry::unk14: a count-prefixed list of
+// 16-bit entries plus the pixel block bounded by unk8..unkC.
+typedef struct {
+    /* 0x0 */ s32 unk0;
+    /* 0x4 */ u8 *unk4;
+    /* 0x8 */ u8 *unk8;
+    /* 0xC */ u8 *unkC;
+} Misc23ArchiveData;
+
+extern void ResolveArchiveEntryPointers(u32 *);
+extern void func_8002DDE4(void *, s32, s32, s32, s32, s32, s32);
+extern void func_800A8BF0(s32, u16, void *, void *, s32, s32, s32, s32, s32);
+
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A979C);
+/* 85.47% (gcc 2.6.0, the unit preset, -G0 --expand-div). Shape is right -
+   every call, every store and the loop are in retail order; what is left is
+   allocator: retail keeps arg0 in $s7 / arg2 in $s6 / arg3 in $s2 (reused as
+   the loop counter) / pData in $s4 / count in $s3 and holds the raw 5th
+   argument in $s8, gcc picks arg0 $s8 / arg2 $s7 / arg3 $s3 / pData $s2 /
+   count $s4, which spills pData into a 0x38 slot (frame 0x70 vs retail 0x68)
+   and re-sign-extends the 5th argument from its halfword spill instead of
+   $s8. Also gcc folds the loop index constant into the table displacement
+   ("addiu v0,v0,52" off %hi(D_800D3368) vs retail's "sll/addu" of 0xD at
+   runtime). Tried: if/else both senses (the count == 0 sense costs 12 points
+   and an extra slot: 73.72 vs 85.47), repeating the index expression inline
+   at all seven uses instead of a local (that is what gained 85.47 - a "slot"
+   local made gcc hoist arg0 << 1 and spill it), declaration order reordered
+   to retail's register order (85.47 unchanged).
+/*
+void func_800A979C(s32 arg0, s16 arg1, s16 arg2, s16 arg3, s16 arg4) {
+    u8 *pSrc;
+    s32 i;
+    s32 count;
+    Misc23ArchiveData *pData;
+    u8 *pBuf;
+    s32 size;
+    s32 flags;
+
+    func_800A8BF0(arg0, 0, D_800C3B78->unkC, D_800C3B78->unk4, arg1, arg2, arg3, arg4, 0);
+    D_800D3368[arg0][0x38] = 1;
+    D_800D3368[arg0][0x22] = 1;
+    if (D_800C3B78->unk14 != 0) {
+        pData = (Misc23ArchiveData *)D_800C3B78->unk14;
+        ResolveArchiveEntryPointers((u32 *)pData);
+        pSrc = pData->unk4;
+        count = *(s16 *)pSrc;
+        if (count != 0) {
+            pSrc += 4;
+            size = pData->unkC - pData->unk8;
+            pBuf = HeapAlloc(size, 0);
+            memcpy(pBuf, pData->unk8, size);
+            for (i = 0; i < count; i++) {
+                flags = (i != 0) ? 7 : 2;
+                if (i == count - 1) {
+                    flags -= 2;
+                }
+                func_800A8BF0((arg0 << 1) + (i + 0xD), flags, pBuf, pData->unkC, arg1, arg2, arg3, arg4, 0);
+                *(u16 *)(D_800D3368[(arg0 << 1) + (i + 0xD)] + 0x5E) = *(u16 *)pSrc;
+                D_800D3368[(arg0 << 1) + (i + 0xD)][0x5C] = arg0;
+                D_800D3368[(arg0 << 1) + (i + 0xD)][0x5D] = 2;
+                pSrc += 2;
+                *(u16 *)(D_800D3368[(arg0 << 1) + (i + 0xD)] + 0x6A) = *(u16 *)pSrc;
+                pSrc += 2;
+                *(u16 *)(D_800D3368[(arg0 << 1) + (i + 0xD)] + 0x6C) = *(u16 *)pSrc;
+                pSrc += 2;
+                *(u16 *)(D_800D3368[(arg0 << 1) + (i + 0xD)] + 0x6E) = *(u16 *)pSrc;
+                pSrc += 2;
+            }
+        } else {
+            func_8002DDE4(pData->unk8, 1, arg1, arg2, 1, arg3, arg4);
+        }
+        HeapFree((void *)D_800C3B78->unk14);
+    }
+    HeapFree(D_800C3B78);
+    DrawSync(0);
+    HeapFree(D_800C3B78->unk4);
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A9A50);
 
 void func_800A9F94(void) {
