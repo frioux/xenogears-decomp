@@ -11,13 +11,14 @@ extern u16 D_801E96C8[]; // Bit masks, MSB first
 extern u32 D_801E96E8[];
 extern s32 D_801E9768[]; // Card result to error code
 extern u8 D_801E9779;
+extern s32 D_801EA900[];
 extern u8 D_80059460; // Index of the menu overlay the menu was entered with
 
 s32 MenuWaitForCardEvent(void);
 extern void SoundPlaySoundEffectOnLastPair(s32 arg0);
 extern int Vsync(int mode);
 
-void func_801C8A10(s32 arg0);
+s32 func_801C8A10(u8 index);
 extern void MenuPollInput(void);
 extern void func_801D1D40(void);
 extern void func_801D2968(void);
@@ -298,6 +299,60 @@ void func_801C81E0(s32 arg0, s32 arg1, s32 arg2, s32 arg3, u8 arg4, u8 index) {
 }
 */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc2", func_801C8324);
+/* Best: 77.69% (452 bytes, same instruction multiset) under XenoMenu260.
+   Loop, tail compares and both step accumulators all line up; the only
+   residual is the `addu` operand order on the three
+   `g_Menu->unk0 + index * 0x24` address forms in the loop: retail emits
+   `addu a1,a1,v0` (base first), gcc 2.6 emits `addu a1,v0,a1` (scaled index
+   first). Writing the same address as an array subscript
+   (`((MenuTween*)g_Menu->unk0)[index]`, tried with a local typedef) makes
+   the pre-loop and the y-pair sites base-first too but drops the whole
+   function to 70.55%. A hoisted `s32 offset = index * 0x24;` local or a
+   loop-body `u8* pBase = g_Menu->unk0;` local is 68.17% (the multiply gets
+   hoisted and retail recomputes it per site).
+void func_801C8324(u8 index) {
+    s32 i;
+    s32 position;
+    u8* pEntry;
+    u8* pBase;
+
+    pEntry = g_Menu->unk0 + index * 0x24;
+    for (i = 0; i < g_Menu->unk0[index * 0x24 + 0x22]; i++) {
+        pBase = g_Menu->unk0;
+        if (pBase[index * 0x24 + 0x20]) {
+            ((s32*)(pBase + index * 0x24))[6] -= ((s32*)(pBase + index * 0x24))[4];
+        } else {
+            ((s32*)(pBase + index * 0x24))[6] += ((s32*)(pBase + index * 0x24))[4];
+        }
+        if (pEntry[0x21]) {
+            ((s32*)pEntry)[7] -= ((s32*)pEntry)[5];
+        } else {
+            ((s32*)pEntry)[7] += ((s32*)pEntry)[5];
+        }
+    }
+    if (((s32*)(g_Menu->unk0 + index * 0x24))[4] == 0x100) {
+        position = ((s32*)(g_Menu->unk0 + index * 0x24))[6] / 256;
+        if (g_Menu->unk0[index * 0x24 + 0x20]) {
+            if (((s32*)(g_Menu->unk0 + index * 0x24))[0] + position < ((s32*)(g_Menu->unk0 + index * 0x24))[1]) {
+                g_Menu->unk0[index * 0x24 + 0x23] = 1;
+            }
+        } else if (((s32*)(g_Menu->unk0 + index * 0x24))[1] <
+                   ((s32*)(g_Menu->unk0 + index * 0x24))[0] + position) {
+            g_Menu->unk0[index * 0x24 + 0x23] = 1;
+        }
+    } else {
+        position = ((s32*)(g_Menu->unk0 + index * 0x24))[7] / 256;
+        if (g_Menu->unk0[index * 0x24 + 0x21]) {
+            if (((s32*)(g_Menu->unk0 + index * 0x24))[2] + position < ((s32*)(g_Menu->unk0 + index * 0x24))[3]) {
+                g_Menu->unk0[index * 0x24 + 0x23] = 1;
+            }
+        } else if (((s32*)(g_Menu->unk0 + index * 0x24))[3] <
+                   ((s32*)(g_Menu->unk0 + index * 0x24))[2] + position) {
+            g_Menu->unk0[index * 0x24 + 0x23] = 1;
+        }
+    }
+}
+*/
 void MenuSetQuadVertices(SVECTOR* pVertices, u16 x, u16 y, u16 width, u16 height) {
     pVertices[0].vx = x + 0xFF60;
     pVertices[0].vy = y + 0xFF90;
@@ -411,7 +466,39 @@ void MenuCloseCardEvents(void) {
     CloseEvent(((s32*)&g_Menu->menuUnk2->unk4FE4)[5]);
     ExitCriticalSection();
 }
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc2", func_801C8A10);
+s32 func_801C8A10(u8 index) {
+    s32 cardResult;
+    s32 result;
+    s32 i;
+
+    result = 1;
+    ((u8*)g_Menu->menuUnk2 + index)[0x4FE4] = result;
+    cardResult = MenuGetCardErrorCode((index != 0) << 4);
+    if (cardResult == 0 && g_Menu->menuUnk2->unk4F74[index] == -1) {
+        cardResult = 1;
+        g_Menu->menuUnk2->unk4F74[index] = 0;
+    } else {
+        g_Menu->menuUnk2->unk4F74[index] = cardResult;
+    }
+    if (cardResult == -1) {
+        ((u8*)g_Menu->menuUnk2 + index)[0x4F8A] = 0;
+        ((u8*)g_Menu->menuUnk2 + index)[0x4FE4] = 0;
+        D_801EA900[index] = 0;
+        for (i = 0; i < 0x10; i++) {
+            ((u8*)g_Menu->menuUnk2 + (index * 0x10 + i))[0x4FAE] = 0xFF;
+            ((u8*)g_Menu->menuUnk2 + (index * 0x10 + i))[0x4F8E] = 0;
+            g_Menu->menuUnk2->records[index * 0x10 + i].unk58 = 0;
+        }
+    }
+    if (cardResult == -2) {
+        result = 0;
+    }
+    if (((u8*)g_Menu->menuUnk2 + index)[0x4FE8] != ((u8*)g_Menu->menuUnk2 + index)[0x4FE4]) {
+        ((u8*)g_Menu->menuUnk2 + index)[0x4F88] = 0;
+        ((u8*)g_Menu->menuUnk2 + index)[0x4FE8] = ((u8*)g_Menu->menuUnk2 + index)[0x4FE4];
+    }
+    return result;
+}
 void MenuUpdateCardStatus(void) {
     u_char count;
 
