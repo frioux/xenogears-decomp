@@ -168,16 +168,6 @@ void func_8007C9D4(u8 **arg0, u8 arg1) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007C9D4);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007CB20);
-/* best: 93.49%. Prologue, loop and the count!=0 guard match instruction for
-   instruction; only the final row store differs. Retail materialises the
-   base+arg1*0x40 sum in a caller-saved temp (lui a1,%hi / addiu / addu
-   a0,a0,a1) and then adds the index, gcc folds the whole address into $at
-   (lui at / addu at,at,a0), and using a second pointer local for that store
-   instead makes cse hoist the base into a callee-saved register before the
-   call (85.07%). Tried: inline base+index, index-first with a cast,
-   `(u16 *)(base) + (*arg0)[1]` (this one), a second pointer local.
-
 void func_8007CB20(u8 **arg0, u8 arg1) {
     u8 buf[8];
     s32 i = 3;
@@ -197,12 +187,12 @@ void func_8007CB20(u8 **arg0, u8 arg1) {
     }
     if (count != 0) {
         u16 result = func_80089C08(buf[func_8001BD40(0, count - 1)]);
-        u16 *pDst = (u16 *)(D_800D3420 + arg1 * 0x40) + (*arg0)[1];
+        s32 index = (*arg0)[1];
+        u16 *pRow = (u16 *)(D_800D3420 + arg1 * 0x40);
 
-        *pDst = result;
+        pRow[index] = result;
     }
 }
-*/
 void func_8007CC50(u8 **arg0, u8 arg1) {
     u8 *pRow;
     s32 count = 0;
@@ -320,16 +310,6 @@ void func_8007D1A8(u8 **arg0, u8 arg1) {
 
     pRow[p[1]] = g_GameState.gold;
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007D1DC);
-/* best: 93.49%. Twin of func_8007CB20 (same body, loop 0..0xB over
-   D_800CCD3E with stride 0x170 and the one-arg predicate func_8007A744).
-   Prologue, loop and the count!=0 guard match exactly with `u8 buf[0x10]`
-   (retail's buffer is 0x10 bytes: the frame is 0x40 and sp+0x18 is unused
-   padding, not a spill). The tail row store is the same allocator tie as
-   func_8007CB20: retail groups it as (arg1*0x40 + base) + index*2 with the
-   base in a caller-saved temp, gcc groups it as arg1*0x40 + (index*2 + base)
-   or folds the whole address into $at.
-
 void func_8007D1DC(u8 **arg0, u8 arg1) {
     u8 buf[0x10];
     s32 i = 0;
@@ -349,52 +329,44 @@ void func_8007D1DC(u8 **arg0, u8 arg1) {
     }
     if (count != 0) {
         u16 result = func_80089C08(buf[func_8001BD40(0, count - 1)]);
-        u16 *pDst = (u16 *)(D_800D3420 + arg1 * 0x40) + (*arg0)[1];
+        s32 index = (*arg0)[1];
+        u16 *pRow = (u16 *)(D_800D3420 + arg1 * 0x40);
 
-        *pDst = result;
+        pRow[index] = result;
     }
 }
-*/
 void func_8007D30C(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
     u32 *pRow = (u32 *)(D_800D3410 + arg1 * 0x40);
 
     pRow[p[1]] = D_800D2C8B[arg1];
 }
-/* best: 77.48%. Tail store (result temp + pRow local) and the whole
-   post-loop block match exactly; retail additionally keeps a copy of i in s0
-   (`move s0,s1` at the loop head, `sb s0` for the buffer) with `i++` stolen
-   into the post-call beqz delay slot, and it hoists the D_800D3420 base in the
-   zeroing store instead of the prologue (retail uses s0-s6, gcc s0-s5).
-   Tried: `s32 idx = i++` in the body (72.30%, copy appears but gcc emits i++
-   before the jal), `idx = i; ... i++;` (72.26%, copy folded), and the plain
-   i(i,(*arg0)[2]) spelling (this one, 77.48%).
-
 void func_8007D344(u8 **arg0, u8 arg1) {
     u8 buf[8];
-    u16 *pRow;
-    u8 *pBuf = buf;
+    s32 i = 3;
     s32 count = 0;
-    s32 i;
-    s32 record;
+    s32 record = 0x54;
+    u8 *pBuf = buf;
+    u16 *pField = (u16 *)(D_800D3420 + arg1 * 0x40);
 
-    ((u16 *)(D_800D3420 + arg1 * 0x40))[(*arg0)[1]] = 0;
-    for (i = 3, record = 0x54; i < 0xB; i++, record += 0x1C) {
-        if (func_8007A6C8(i, (*arg0)[2]) != 0 && (D_800C3EB7[record] & 0x80) != 0) {
-            *pBuf++ = i;
+    pField[(*arg0)[1]] = 0;
+    for (; i < 0xB; i++, record += 0x1C) {
+        u8 idx = i;
+
+        if (func_8007A6C8(idx, (*arg0)[2]) != 0 && (D_800C3EB7[record] & 0x80) != 0) {
+            *pBuf++ = idx;
             count++;
         }
     }
     if (count != 0) {
         u16 result = func_80089C08(buf[func_8001BD40(0, count - 1)]);
 
-        pRow = (u16 *)(D_800D3420 + arg1 * 0x40);
-        pRow[(*arg0)[1]] = result;
+        s32 index = (*arg0)[1];
+        u16 *pRow = (u16 *)(D_800D3420 + arg1 * 0x40);
+
+        pRow[index] = result;
     }
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007D344);
-
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007D478);
 /* best: 98.05%. Every instruction matches except the saved-register numbering
    and one preheader copy: retail defines the row base in a caller-saved temp
