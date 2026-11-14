@@ -15,9 +15,9 @@ extern u8 D_800CCD68[];
 
 extern int rand(void);
 extern void func_8009BE0C(void);
-extern void func_8009B104(u8 arg0, u8* arg1);
+extern void BattleSetActorScaledHp(u8 arg0, u8* arg1);
 
-s32 func_8009A0DC(u8 arg0) {
+s32 BattleGetActorConditionCode(u8 arg0) {
     u8* p = (u8*)(arg0 * 0x170 + (u32)D_800C34B0);
     u16 f7C = *(u16*)(p + 0x7C);
     u16 f80;
@@ -109,11 +109,11 @@ u8 func_8009A258(u8 arg0, u8 arg1) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009A258);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009A2D4);
 
-u8 func_8009A7B8(u8 arg0) {
+u8 BattleGetGameCharacterField5(u8 arg0) {
     return g_GameState.characters[arg0].unk0[5];
 }
 
-s32 func_8009A7E4(u8 arg0) {
+s32 BattleIsCharacterInParty(u8 arg0) {
     u8 id = *(u8*)((u8*)D_800C34B0 + arg0 * 16 + 0x581E);
 
     s32 ret;
@@ -140,7 +140,7 @@ Best attempt: 76.74% (round 18, first attempt on this stub). The 4-way
    constant folded into the relocation, while gcc CSEs the first
    `g_GameState+0x502` load into a register (emitting `lui a0; addiu a0,1282;
    lbu 0(a0)`, i.e. an `la`, instead of the folded `lbu %lo(g_GameState+0x502)`)
-   and then reuses it as `a0-2/-3/-4` for the stores. func_8009A7E4 in this same
+   and then reuses it as `a0-2/-3/-4` for the stores. BattleIsCharacterInParty in this same
    unit uses the identical `g_GameState.characters[4].unk0[6]` expression and
    DOES fold, so the trigger is the store block coexisting with the loads; raw
    `((u8*)&g_GameState)[N]` and struct spellings both give 76.74%.
@@ -208,7 +208,7 @@ s32 func_8009A9D0(void) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009A9D0);
 
 
-void func_8009AA44(u8 arg0) {
+void BattleSetSlotFlag15A1(u8 arg0) {
     u8* p;
     u8* q;
 
@@ -225,7 +225,7 @@ void func_8009AA44(u8 arg0) {
     }
 }
 
-u8 func_8009AB00(u8 arg0) {
+u8 BattleClearSlotFlag15A1(u8 arg0) {
     u8* p = (u8*)D_800C34B0 + arg0 * 0x170;
     u8 flags = p[0x15A] & 0xFE;
 
@@ -233,7 +233,7 @@ u8 func_8009AB00(u8 arg0) {
     return flags;
 }
 
-void func_8009AB38(u8 arg0) {
+void BattleSetSlotEntryFieldsTo1(u8 arg0) {
     u8* p = (u8*)D_800C34B0 + arg0 * 0x170;
     u8* r;
     u16 f;
@@ -274,7 +274,7 @@ void func_8009AB38(u8 arg0) {
         *(u16*)(q + 0x500) = 1;
     }
 }
-void func_8009AC48(u8 arg0, u8 arg1) {
+void BattleSetSlotEntryFieldsTo2000(u8 arg0, u8 arg1) {
     u8* p;
     u8* r;
     u16 f;
@@ -378,7 +378,7 @@ Best attempt: 88.27%. Everything matches except the 3..11 loop: the original
    the invariant), which then CSEs the address and drops 7 insns. Tried: plain
    `*(u16*)(D_800CCD68 + i*0x170) &= 0xFFDF`, the `((u16*)(...))[0] &=` spelling
    (86.36%), `u8 t` vs `s32 t` for the 0x56 temp. Everything else (two D_800C34B0
-   loads, the four zero stores, the `f & 0x2000` store and the func_8009B104 call)
+   loads, the four zero stores, the `f & 0x2000` store and the BattleSetActorScaledHp call)
    lines up exactly.
 void func_8009AEFC(u8 arg0) {
     u8* p;
@@ -395,7 +395,7 @@ void func_8009AEFC(u8 arg0) {
     *(u16*)(p + 0x8C) = 0;
     *(u16*)(p + 0x80) = f & 0x2000;
     if (t == 7) {
-        func_8009B104(arg0, p);
+        BattleSetActorScaledHp(arg0, p);
     }
     if (p[0x56] == 3) {
         u8 i;
@@ -460,7 +460,7 @@ void func_8009AFD8(void) {
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009AFD8);
 
-void func_8009B098(void) {
+void BattleResetActorStats(void) {
     u8 i;
 
     for (i = 1; i < 3; i++) {
@@ -475,7 +475,7 @@ void func_8009B098(void) {
     }
 }
 
-void func_8009B104(u8 arg0, u8* arg1) {
+void BattleSetActorScaledHp(u8 arg0, u8* arg1) {
     u8* p = arg0 * 0x170 + (u32)D_800C34B0;
     u8* q = p + 0xA4;
 
@@ -508,7 +508,7 @@ Best attempt: 93.87%. Every instruction from the `p[0x56] == 3` test onward
    `((u8*)&D_800CCE42)[(u32)i*0x170]`, `((u8*)&D_800CCE42)[i*0x170]`,
    `*(volatile u8*)((u32)D_800CCE42 + (u32)i*0x170)`, gcc-2.7.2-cdk (94.10%),
    -O3 (93.87%) and -G0 (93.87%) -- all identical. Established from the matched
-   functions in this overlay (func_8009A7B8 here, func_80085310 in misc12) that
+   functions in this overlay (BattleGetGameCharacterField5 here, func_80085310 in misc12) that
    gcc emits the $at form only when the symbol's address is credited to no
    pseudo at all; here the same `sym + i*0x170` value occurs in both blocks, so
    CSE credits it and the loop hoists it. Not source-reachable without changing
@@ -637,7 +637,7 @@ u8 func_8009C050(u8 arg0) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009C050);
-void func_8009C0E0(u8 arg0) {
+void BattleSetSlotFields148And162(u8 arg0) {
     s32 off = arg0 * 0x170;
 
     D_800CCE30[off] = 4;

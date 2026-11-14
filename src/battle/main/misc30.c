@@ -30,9 +30,9 @@ extern s32 BattleAngleToPoint(SpriteData* p0, SpriteData* p1);
 extern void func_800223B0(SpriteData* pSprite, s16 arg1);
 extern void BattleSetStateStep(s32 arg0);
 extern void BattleWaitForOtherActorAnimations(s32 arg0);
-extern void func_800B9B54(SpriteData* p0, SpriteData* p1);
-extern void func_8001CE74(void* pTask);
-extern void func_8001D3F4(void* pPayload);
+extern void BattleFaceActorsTowardEachOther(SpriteData* p0, SpriteData* p1);
+extern void WorkListsRemoveEntriesForData(void* pTask);
+extern void SpriteAnimFrameListRemove(void* pPayload);
 extern void WorkListRemoveTask(void* pTask);
 extern void TimerWorkListRemoveTask(void* pTask);
 extern s32 BattleFindGroundTriangle(s16* pVec, s32 arg1, s32 arg2);
@@ -43,7 +43,7 @@ extern void* func_800BFC80(void* pArg0, s32 arg1, s32 arg2);
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800B905C);
 
-void func_800B9258(void) {
+void BattleIncrementStateTimer(void) {
     BattleState* pState = D_800C3610;
 
     if (pState != NULL) {
@@ -54,11 +54,11 @@ void func_800B9258(void) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800B9284);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800B9508);
 
-void func_800B9B30(void) {
+void BattleApplyStateStep(void) {
     D_800C3610->unk48 = 1;
     D_800C3610->unk49 = ((u8*)D_800C3610)[0x1C];
 }
-void func_800B9B54(SpriteData* p0, SpriteData* p1) {
+void BattleFaceActorsTowardEachOther(SpriteData* p0, SpriteData* p1) {
     if (p0 == p1) {
         return;
     }
@@ -69,18 +69,18 @@ void func_800B9B54(SpriteData* p0, SpriteData* p1) {
         SpriteSetDirection(p1, BattleAngleToPoint(p1, p0));
     }
 }
-void func_800B9C00(SpriteData* pSprite, s32 arg1) {
+void BattleActorSnapToTargetAndFace(SpriteData* pSprite, s32 arg1) {
     pSprite->position.x = pSprite->field_0xA0 << 16;
     pSprite->position.z = pSprite->field_0xA4 << 16;
     D_800C3610->unk48 = 1;
     BattleSetStateStep(4);
     SpritePlayAnimation(pSprite, ((s8*)pSprite)[0xB0]);
-    func_800B9B54(pSprite, arg1);
+    BattleFaceActorsTowardEachOther(pSprite, arg1);
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800B9C78);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800B9F78);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800BA4E0);
-void func_800BA59C(SpriteData* pSprite, s16 angle) {
+void BattleActorSetStepFromAngle(SpriteData* pSprite, s16 angle) {
     s32 scale = pSprite->moveSpeed >> 3;
 
     pSprite->direction = angle;
@@ -113,7 +113,7 @@ void BattleActorComputeFallDirection(SpriteData* pSprite) {
     len = SquareRoot0(diff.vx + diff.vz);
     pSprite->step.y = ((-(s32)pSprite->gravity * len) << 4) / (pSprite->moveSpeed >> 11) +
                       (pSprite->moveSpeed * dy) / len;
-    func_800BA59C(pSprite, angle);
+    BattleActorSetStepFromAngle(pSprite, angle);
 }
 void BattleActorUpdateFallMotion(SpriteData* pSprite) {
     VECTOR diff;
@@ -153,10 +153,10 @@ void BattleActorUpdateFallMotion(SpriteData* pSprite) {
     if (divisor != 0) {
         pSprite->step.y += num / divisor;
     }
-    func_800BA59C(pSprite, angle);
+    BattleActorSetStepFromAngle(pSprite, angle);
     func_80022B2C(pSprite);
 }
-void func_800BA8F4(u8* pSprite) {
+void BattleActorUpdateGroundHeightAndTriangle(u8* pSprite) {
     s16 vec[3];
     u8 out[0x10];
     s32 coord;
@@ -184,7 +184,7 @@ typedef struct {
     s32 pad[4];
 } RotTransPersOut;
 
-void func_800BAB0C(u8* pTask) {
+void BattleActorDrawProjected(u8* pTask) {
     SpriteData* pSprite;
     SVECTOR vec;
     s32 coord;
@@ -227,8 +227,8 @@ void func_800BABDC(u8* pTask) {
     if (pBlock != NULL) {
         HeapFree(pBlock);
     }
-    func_8001CE74(pTask);
-    func_8001D3F4(pPayload);
+    WorkListsRemoveEntriesForData(pTask);
+    SpriteAnimFrameListRemove(pPayload);
     WorkListRemoveTask(pTask + 0x1C);
     TimerWorkListRemoveTask(pTask);
     HeapFree(pTask);
@@ -245,15 +245,15 @@ void func_800BABDC(u8* pTask) {
     if (pBlock != NULL) {
         HeapFree(pBlock);
     }
-    func_8001CE74(pTask);
-    func_8001D3F4(pPayload);
+    WorkListsRemoveEntriesForData(pTask);
+    SpriteAnimFrameListRemove(pPayload);
     WorkListRemoveTask(pTask + 0x1C);
     TimerWorkListRemoveTask(pTask);
     HeapFree(pTask);
 }
 */
 
-void func_800BAC50(u8* pTask) {
+void BattleActorTickAnimScript(u8* pTask) {
     SpriteData* pSprite = *(SpriteData**)(pTask + 0x4);
 
     if (D_800C3664 == 0) {
@@ -324,7 +324,7 @@ void BattleReleaseActorSlot(s32 index) {
         *(u32*)(pBlock + 0xD24) = 0;
     }
     (*(void (**)(SpriteData*))((u8*)pSprite + 0xC))(pSprite);
-    func_8001CE74(pSprite);
+    WorkListsRemoveEntriesForData(pSprite);
     pTail = D_800C3EB0;
     pSlot = (u32*)(pTail + index * 4 + 0x8C8C);
     *pSlot = 0;
@@ -362,7 +362,7 @@ void BattleReleaseActorSlot(s32 index) {
         *(u32*)(pSlot + 0xD24) = 0;
     }
     (*(void (**)(SpriteData*))((u8*)pSprite + 0xC))(pSprite);
-    func_8001CE74(pSprite);
+    WorkListsRemoveEntriesForData(pSprite);
     *(u32*)(pBase + index * 4 + 0x8C8C) = 0;
     *(u32*)(pBase + index * 4 + 0x8CB8) = 0;
 }
@@ -405,7 +405,7 @@ void BattleActorSetFacingFromSideFlag(s32 index) {
     SpriteSetDirection(pSprite, sfx);
 }
 */
-void func_800BAF40(void) {
+void BattleNoOpCallback(void) {
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800BAF48);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800BB080);
@@ -445,7 +445,7 @@ void func_800BB080(s32 arg0) {
     BattleWaitForOtherActorAnimations(arg0);
 }
 */
-void func_800BB13C(u8* pTask) {
+void BattleActorSyncPositionFromModel(u8* pTask) {
     SpriteData* pSprite;
     u8* pScript;
     s32 mode;

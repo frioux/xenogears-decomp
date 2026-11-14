@@ -11,7 +11,7 @@ extern void func_800C08CC();
 extern void func_800B3CD4();
 extern void func_800B51B0();
 extern void func_800B59BC();
-extern void func_800B5CC0();
+extern void BattleIntegrateSpriteVelocityTask();
 extern void func_800B5DF4();
 extern void func_800B6004();
 extern void func_800B5854();
@@ -33,7 +33,7 @@ typedef struct {
 
 
 // Split out of main/misc27 (see config/battle.yaml): compiled with gcc 2.7.2-cdk.
-u8* func_800B5924(u8* pActor, s32 arg1, s32 arg2) {
+u8* BattleCreateActorDistanceWaitTask(u8* pActor, s32 arg1, s32 arg2) {
     u8* pTask;
 
     pTask = TimerWorkListAllocateTask(*(void**)(pActor + 0x6C), 0x18);
@@ -47,7 +47,7 @@ u8* func_800B5924(u8* pActor, s32 arg1, s32 arg2) {
     return pTask;
 }
 // PARKED: the body below is 100.00% as C (264 bytes), but with its definition visible
-// func_800B5AC4 compiles 112 bytes against retail 120 (82.67%): gcc then merges the two
+// BattleGetActorJointPoint compiles 112 bytes against retail 120 (82.67%): gcc then merges the two
 // `lhu point.x / addu / sh` chains that retail keeps separate. The old-style `void`
 // declaration is what reproduces retail, and it cannot coexist with the definition.
 /*
@@ -75,7 +75,7 @@ BattlePoint* func_800B59BC(BattlePoint* pOut, u8* pActor, s32 index) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc27_b", func_800B59BC);
-BattlePoint* func_800B5AC4(BattlePoint* pOut, u8* pActor, s32 index) {
+BattlePoint* BattleGetActorJointPoint(BattlePoint* pOut, u8* pActor, s32 index) {
     BattlePoint point;
     int ofs;
 
@@ -88,7 +88,7 @@ BattlePoint* func_800B5AC4(BattlePoint* pOut, u8* pActor, s32 index) {
     return pOut;
 }
 
-void func_800B5B3C(u8* pWork) {
+void BattleUpdateSpriteFollowTask(u8* pWork) {
     BattlePoint a;
     BattlePoint b;
     DVECTOR d;
@@ -96,8 +96,8 @@ void func_800B5B3C(u8* pWork) {
     s32 mode;
 
     pSprite = *(u8**)(*(u8**)(pWork + 0x1C) + 0x74);
-    func_800B5AC4(&a, *(u8**)(pWork + 0x1C), *(s32*)(pWork + 0x24));
-    func_800B5AC4(&b, pSprite, *(s32*)(pWork + 0x28));
+    BattleGetActorJointPoint(&a, *(u8**)(pWork + 0x1C), *(s32*)(pWork + 0x24));
+    BattleGetActorJointPoint(&b, pSprite, *(s32*)(pWork + 0x28));
     d.vx = a.x - b.x;
     d.vy = a.y - b.y;
     *(s32*)pSprite += d.vx << 16;
@@ -113,21 +113,21 @@ void func_800B5B3C(u8* pWork) {
     ((void (*)(u8*))*(void**)(pWork + 0xC))(pWork);
 }
 
-void* func_800B5C18(u8* pActor, u8* pScript) {
+void* BattleCreateSpriteFollowTask(u8* pActor, u8* pScript) {
     u8* pTask;
 
     pTask = TimerWorkListAllocateTask(*(void**)(pActor + 0x6C), 0x18);
-    TimerWorkListSetTaskCallback(pTask, func_800B5B3C);
+    TimerWorkListSetTaskCallback(pTask, BattleUpdateSpriteFollowTask);
     *(u8**)(pTask + 0x1C) = pActor;
     *(s32*)(pTask + 0x20) = *(s32*)(pActor + 0x74);
     *(s32*)(pTask + 0x2C) = *(u16*)(pActor + 0x34);
     *(s32*)(pTask + 0x30) = *(s8*)(pActor + 0xAF);
     *(s32*)(pTask + 0x24) = pScript[0] & 0xF;
     *(s32*)(pTask + 0x28) = pScript[0] >> 4;
-    func_800B5B3C(pTask);
+    BattleUpdateSpriteFollowTask(pTask);
     return pTask;
 }
-void func_800B5CC0(u8* pWork) {
+void BattleIntegrateSpriteVelocityTask(u8* pWork) {
     MATRIX m;
     SVECTOR rot;
     SVECTOR rot2;
@@ -154,18 +154,18 @@ void func_800B5CC0(u8* pWork) {
         ((void (*)(u8*))*(void**)(pWork + 0xC))(pWork);
     }
 }
-void func_800B5DC4(u8* pWork) {
+void BattleStartSpriteMotionTask(u8* pWork) {
     *(u16*)(pWork + 0x34) = 1;
-    TimerWorkListSetTaskCallback(*(void**)(pWork + 0x6C), func_800B5CC0);
+    TimerWorkListSetTaskCallback(*(void**)(pWork + 0x6C), BattleIntegrateSpriteVelocityTask);
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc27_b", func_800B5DF4);
-void func_800B5FBC(u8* pWork) {
+void BattleSetSpriteDrawWorkCallback(u8* pWork) {
     *(u16*)(pWork + 0x34) = 1;
     WorkListSetTaskCallback(*(u8**)(pWork + 0x6C) + 0x1C, func_800B5DF4);
     pWork[0x2B] = 0x40;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc27_b", func_800B6004);
-void func_800B61B0(u8* pWork) {
+void BattleSetLinkedSpriteDrawWorkCallback(u8* pWork) {
     *(u16*)(pWork + 0x34) = 1;
     WorkListSetTaskCallback(*(u8**)(pWork + 0x6C) + 0x1C, func_800B6004);
     pWork[0x2B] = 0x40;
@@ -173,7 +173,7 @@ void func_800B61B0(u8* pWork) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc27_b", func_800B61F8);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc27_b", func_800B626C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc27_b", func_800B62C8);
-void func_800B639C(u8* arg0, u8* pScript) {
+void BattleScriptApplyRectParams(u8* arg0, u8* pScript) {
     BattleScriptOp* pOp;
 
     pOp = (BattleScriptOp*)(pScript + ((*(s8*)(pScript + 1) << 8) | pScript[0]));

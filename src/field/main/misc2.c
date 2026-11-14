@@ -1060,7 +1060,7 @@ void func_800752C8(void) {
     func_800250E0(g_FieldCurRenderContextIndex);
     GfxSetCurrentOT(g_FieldCurRenderContext->ot1);
     GfxSetBaseMatrix(&g_Scene.worldToScreenMatrix);
-    func_8001D468();
+    SpriteAnimFrameListFlush();
     WorkListUpdate();
     TimerWorkListUpdate();
     func_80075B44(g_FieldCurRenderContext->ot1, g_FieldCurRenderContextIndex);

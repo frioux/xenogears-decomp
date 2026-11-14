@@ -110,7 +110,7 @@ extern u16 D_8009D154;
    The only convertible functions left in this unit are the parked ones below. */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008A72C);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008B2BC);
-int func_8008B498(int index) {
+int WorldMapModeInitCharacterSprite1(int index) {
     WorldMapActor *pActor = &D_8009BE24[index];
     s32 result = 1;
 
@@ -126,12 +126,12 @@ int func_8008B498(int index) {
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008B54C);
 /* 93.37% (also tried a void *pSprite temp assigned then used by both calls, as in
-   func_8008C28C: no change, still 93.37 with the same three head insns). (re-diffed under the current XenoWorldMap flags; cdk 83.19%, plain -G0/-O
+   WorldMapInitActorSpriteBySlot: no change, still 93.37 with the same three head insns). (re-diffed under the current XenoWorldMap flags; cdk 83.19%, plain -G0/-O
    variants lower). Everything is byte-identical except three insns in the prologue:
    the original computes index*0x80 in v1 BEFORE the 0x100 push and stores the
    0x40 stack argument just before the jal, while gcc emits the store right after
    li 0x40 and puts the shift in v0 after it. The SAME call shape with the SAME
-   neighbours (func_8008C75C, matched) reproduces the original prologue exactly, so
+   neighbours (WorldMapInitPartyActorSprite0, matched) reproduces the original prologue exactly, so
    the trigger is something in this function's tail, not the call: the tail below is
    itself byte-identical. Tried: flat tail without the unk48 temp (83.05), pointer
    built as (u8*)D_8009BE24 + index*0x80 (93.37), cdk (83.19).
@@ -161,7 +161,7 @@ int func_8008B54C(int index) {
 */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008B644);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008BB40);
-int func_8008BD1C(int index) {
+int WorldMapModeInitCharacterSprite2(int index) {
     WorldMapActor *pActor = &D_8009BE24[index];
     s32 result = 1;
 
@@ -204,7 +204,7 @@ int func_8008BDD0(int index) {
     return 1;
 }
 */
-int func_8008BEC8(WorldMapActor *pActor) {
+int WorldMapMoveActorTowardTarget(WorldMapActor *pActor) {
     s32 dx;
     s32 dz;
     s32 result = 0;
@@ -225,7 +225,7 @@ int func_8008BEC8(WorldMapActor *pActor) {
     pActor->unk2C = WorldMapGetTilePlaneHeight(pActor->unk28, pActor->unk30);
     return result;
 }
-void func_8008BFD4(s16 arg0, s32 *pArray, s16 arg2, s16 arg3) {
+void WorldMapQueueZoneEntry(s16 arg0, s32 *pArray, s16 arg2, s16 arg3) {
     WorldMapEntry *pEntry = &D_8009BE6C[D_8009BD04];
 
     pEntry->unk00 = arg0;
@@ -289,7 +289,7 @@ void func_8008C040(WorldMapPos *pPos, s32 arg1, s32 arg2, u8 *pOut, u8 *pOut2) {
     }
 }
 */
-void func_8008C1DC(s32 arg0, WorldMapActor *pActor, WorldMapScreenPos *pPos) {
+void WorldMapUpdateSpriteGroupFromActor(s32 arg0, WorldMapActor *pActor, WorldMapScreenPos *pPos) {
     if (WorldMapGetTileHalfIndex(&pActor->unk28) == 3) {
         pPos->unk0A0 = pActor->unk28 >> 12;
         pPos->unk0A2 = pActor->unk2C >> 12;
@@ -302,7 +302,7 @@ void func_8008C1DC(s32 arg0, WorldMapActor *pActor, WorldMapScreenPos *pPos) {
         WorldMapDeactivateSpriteGroup(arg0);
     }
 }
-void func_8008C28C(WorldMapActor *pActor, int index) {
+void WorldMapInitActorSpriteBySlot(WorldMapActor *pActor, int index) {
     void *pSprite;
 
     pSprite = SpriteAllocFromAnimFile(D_8009BDF8[index], D_8009B18C[index], D_8009B194[index], D_8009B19C[index],
@@ -380,7 +380,7 @@ s32 func_8008C530(int index) {
 }
 
 */
-int func_8008C6EC(int index) {
+int WorldMapModeInitPartyActor0(int index) {
     WorldMapActor *pActor = &D_8009BE24[index];
     s32 result = func_8008C364(pActor, 0);
     s32 mode = D_8009BE10;
@@ -396,7 +396,7 @@ int func_8008C6EC(int index) {
     return result;
 }
 
-int func_8008C75C(int index) {
+int WorldMapInitPartyActorSprite0(int index) {
     WorldMapActor *pActor = &D_8009BE24[index];
 
     pActor->unk4C = SpriteAllocFromAnimFile(D_8009BDF8[0], 0x100, 0x1FD, 0x140, 0x140, 0x40);
@@ -467,7 +467,7 @@ int func_8008D3F0(int index) {
 }*/
 
 
-int func_8008D520(int index) {
+int WorldMapModeInitPartyActor1(int index) {
     WorldMapActor *pActor = &D_8009BE24[index];
     s32 result = func_8008C364(pActor, 1);
     s32 mode = D_8009BE10;
@@ -483,7 +483,7 @@ int func_8008D520(int index) {
     return result;
 }
 
-int func_8008D590(int index) {
+int WorldMapInitPartyActorSprite1(int index) {
     WorldMapActor *pActor = &D_8009BE24[index];
 
     pActor->unk4C = SpriteAllocFromAnimFile(D_8009BDFC[0], 0x100, 0x1FC, 0x160, 0x140, 0x40);
@@ -544,7 +544,7 @@ int func_8008DD6C(int index) {
     return result;
 }
 */
-int func_8008DE9C(int index) {
+int WorldMapModeInitPartyActor2(int index) {
     WorldMapActor *pActor = &D_8009BE24[index];
     s32 result = func_8008C364(pActor, 2);
     s32 mode = D_8009BE10;
@@ -559,7 +559,7 @@ int func_8008DE9C(int index) {
     }
     return result;
 }
-int func_8008DF0C(int index) {
+int WorldMapInitPartyActorSprite2(int index) {
     WorldMapActor *pActor = &D_8009BE24[index];
 
     pActor->unk4C = SpriteAllocFromAnimFile(D_8009BE00[0], 0x100, 0x1FB, 0x280, 0x100, 0x40);

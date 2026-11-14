@@ -20,7 +20,7 @@ extern u8 D_800CCE4A[];
 extern u16 D_800D2C94;
 extern s8 func_8009DBFC();
 extern s32 func_80097610();
-extern void func_8009AC48(u8);
+extern void BattleSetSlotEntryFieldsTo2000(u8);
 extern void BattleRollPercentAndSetState38(void);
 
 void BattleSetActorMaskForSlotRecord3(void) {
@@ -63,7 +63,7 @@ void func_8009C198(void) {
     } else {
         D_800C3DFC = D_800C34B0 + (D_800C34B0[0x5FC2] * 0x28 + 0x35D8);
     }
-    func_8009AC48(D_800C3E04);
+    BattleSetSlotEntryFieldsTo2000(D_800C3E04);
     D_800D2DC4 = 0;
     D_800C3D3C = D_800C34B0 + D_800C34B0[0x5FC1] * 0x170 + 0x148;
     f = *(u16 *)(D_800C3DFC + 0xA);

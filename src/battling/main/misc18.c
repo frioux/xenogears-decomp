@@ -38,7 +38,7 @@ typedef struct {
 
 extern s32 func_80073DE4(u8* p, s32 arg1);
 extern void func_800767C8(u8* p);
-extern void func_8007639C(u8* p, s32 arg1);
+extern void BattleQueueMessage(u8* p, s32 arg1);
 extern u8 D_80092884;
 extern u32 BattleGetGridCellAtPosition(s32* p);
 extern void func_8008F7B8(u8* p);
@@ -47,7 +47,7 @@ extern s32 BattleGetActorBreakProximity(u8* p);
 extern s32 D_8009284C;
 extern s32 BattleRollActorActionChance(u8* p, s32 arg1);
 extern void func_8008FFEC(u8* p, u8* arg1);
-extern void func_80076424(u8* p);
+extern void BattleResetMessageQueue(u8* p);
 extern u8 D_80099D98;
 extern void func_8008FCC8(u8* p, u8* arg1);
 extern void func_8009031C(u8* p, u8* arg1);
@@ -152,16 +152,16 @@ void BattleQueueMessages4Then3(u8* pArg0) {
     }
     if (D_80092884 != 0) {
         func_800767C8(pArg0);
-        func_8007639C(pArg0, 4);
-        func_8007639C(pArg0, 3);
+        BattleQueueMessage(pArg0, 4);
+        BattleQueueMessage(pArg0, 3);
         return;
     }
     if (((*(u32*)(pArg0 + 0xD0)) & 0x60000000) != 0x20000000) {
-        func_8007639C(pArg0, 3);
+        BattleQueueMessage(pArg0, 3);
         return;
     }
-    func_8007639C(pArg0, 4);
-    func_8007639C(pArg0, 3);
+    BattleQueueMessage(pArg0, 4);
+    BattleQueueMessage(pArg0, 3);
 }s32 BattleCheckPositionPastMapCenter(s32* pArg0) {
     s32 sp[4];
     s32 a;
@@ -244,7 +244,7 @@ void BattleSetActorFlag2AndClearQueue(u8* pArg0, u8* pArg1) {
     v = *(u8*)(pArg1 + 0xF);
     if (v >= 2) {
         *(u32*)(pArg0 + 0xD0) |= 2;
-        func_80076424(pArg0);
+        BattleResetMessageQueue(pArg0);
         return;
     }
     if (v != 0) {
@@ -255,7 +255,7 @@ void BattleSetActorFlag2AndClearQueue(u8* pArg0, u8* pArg1) {
         return;
     }
     *(u32*)(pArg0 + 0xD0) |= 2;
-    func_80076424(pArg0);
+    BattleResetMessageQueue(pArg0);
 }
 
 void BattleEnterWorkState0(u8* pArg0) {
@@ -280,7 +280,7 @@ void BattleQueueRandomMessages(u8* pArg0) {
         n++;
     }
     for (; n != 0; n--) {
-        func_8007639C(pArg0, (rand() & 1) + 1);
+        BattleQueueMessage(pArg0, (rand() & 1) + 1);
     }
 }
 
@@ -337,13 +337,13 @@ s32 func_8008FFEC(u8* pArg0, u8* pArg1) {
             continue;
         }
         if (D_800925A4[off] != 0) {
-            func_8007639C(pArg0, D_800925A4[off]);
+            BattleQueueMessage(pArg0, D_800925A4[off]);
         }
         if (D_800925A5[off] != 0) {
-            func_8007639C(pArg0, D_800925A5[off]);
+            BattleQueueMessage(pArg0, D_800925A5[off]);
         }
         if (D_800925A6[off] != 0) {
-            func_8007639C(pArg0, D_800925A6[off]);
+            BattleQueueMessage(pArg0, D_800925A6[off]);
         }
         break;
     }
@@ -475,7 +475,7 @@ void func_80090CC0(u8* pArg0) {
         BattleEnterWorkState3(pArg0, 0);
         break;
     }
-    func_80076424(pArg0);
+    BattleResetMessageQueue(pArg0);
 }
 */
 void BattleDispatchWorkState(u8* pArg0) {

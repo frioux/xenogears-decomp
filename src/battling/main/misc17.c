@@ -39,7 +39,7 @@ extern u8 D_80091F80[];
 extern u8 D_80091F90[];
 extern u8 D_80091FA0[];
 
-extern void func_8007639C(u8*, u8);
+extern void BattleQueueMessage(u8*, u8);
 extern void func_800767C8(u8*, u8*);
 extern void func_8008E78C(u8*, u32, u8*, u32);
 extern s32 func_8008B650(s32, s16, s16);
@@ -326,7 +326,7 @@ void BattleQueueRandomMessagesAndDelay(u8* p0, u8* p1, s32 flag) {
     *(u16*)(p1 + 4) = flag ? 0x1E : 0xA;
 }
 void BattleQueueMessage3AndDelay60(u8* p0, u8* p1) {
-    func_8007639C(p0, 3);
+    BattleQueueMessage(p0, 3);
     *(u16*)(p1 + 4) = 0x3C;
 }
 void BattleToggleActionFlag2000(u8* p0, u8* p1) {
@@ -344,12 +344,12 @@ void BattleToggleActionFlag2000(u8* p0, u8* p1) {
     }
 }
 void BattleQueueMessages4Then3Delay60(u8* p0, u8* p1) {
-    func_8007639C(p0, 4);
-    func_8007639C(p0, 3);
+    BattleQueueMessage(p0, 4);
+    BattleQueueMessage(p0, 3);
     *(u16*)(p1 + 4) = 0x3C;
 }
 void BattleQueueMessage4AndDelay60(u8* p0, u8* p1) {
-    func_8007639C(p0, 4);
+    BattleQueueMessage(p0, 4);
     *(u16*)(p1 + 4) = 0x3C;
 }
 void BattleSetRandomFacingAround800(u8* p0, u8* p1) {

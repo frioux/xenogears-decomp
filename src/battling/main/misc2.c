@@ -7,7 +7,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80072D18);
 
 /* The depth is consumed out of $a2 by gte_ldir123_dp_a2, so the third
    parameter must stay in place. */
-void func_80073064(SVECTOR *p0, SVECTOR *p1, s32 ir0) {
+void BattleScaleSVectorGpf12(SVECTOR *p0, SVECTOR *p1, s32 ir0) {
     gte_ldir123_lh(p0);
     gte_ldir123_dp_a2(ir0);
     gte_nop();
@@ -16,7 +16,7 @@ void func_80073064(SVECTOR *p0, SVECTOR *p1, s32 ir0) {
     gte_stir123_lh(p1);
 }
 
-void func_800730AC(SVECTOR *p0, SVECTOR *p1, s32 ir0) {
+void BattleScaleSVectorGpf0(SVECTOR *p0, SVECTOR *p1, s32 ir0) {
     gte_ldir123_lh(p0);
     gte_ldir123_dp_a2(ir0);
     gte_nop();
@@ -25,7 +25,7 @@ void func_800730AC(SVECTOR *p0, SVECTOR *p1, s32 ir0) {
     gte_stir123_lh(p1);
 }
 
-void func_800730F4(SVECTOR *p0, SVECTOR *p1, s32 ir0) {
+void BattleScaleStridedSVectorGpf12(SVECTOR *p0, SVECTOR *p1, s32 ir0) {
     gte_ldir123_lh4(p0);
     gte_ldir123_dp_a2(ir0);
     gte_nop();
@@ -193,7 +193,7 @@ void func_80073424(VECTOR *p0, VECTOR *p1, u8 *p2, s32 arg3, s32 arg4, s32 arg5)
     if (*(u8 *)(pEntry + 0x6) != 0) {
         func_8008EBD0(p2, *(u8 *)(pEntry + 0x6), pSlot, 2);
     }
-    func_80073064((SVECTOR *)(pSlot + 0x28), (SVECTOR *)(pSlot + 0x20), *(u8 *)(pSlot + 0x31));
+    BattleScaleSVectorGpf12((SVECTOR *)(pSlot + 0x28), (SVECTOR *)(pSlot + 0x20), *(u8 *)(pSlot + 0x31));
     *(VECTOR *)pSlot = *p0;
     *(VECTOR *)(pSlot + 0x10) = *(VECTOR *)pSlot;
     *(u8 *)(pSlot + 0x30) = 1;
@@ -225,7 +225,7 @@ void BattleTransformEntryVertex(u8 *p0, s32 arg1, s32 arg2, VECTOR *pOut) {
     }
 }
 
-void func_80073CA4(u8 *p0) {
+void BattleCommitSlotStates(u8 *p0) {
     s32 i;
 
     for (i = 0; i < 16; i++) {
@@ -248,7 +248,7 @@ typedef struct {
     /* 0xC */ s32 w;
 } Quad; // Size: 0x10
 
-void func_80073CEC(u8 *p0, u8 *p1, s32 arg2, u8 *p3, u8 *p4, s32 arg5, u8 *p6) {
+void BattleStoreSlotPositions(u8 *p0, u8 *p1, s32 arg2, u8 *p3, u8 *p4, s32 arg5, u8 *p6) {
     u32 flags;
 
     arg2 &= 1;
@@ -292,7 +292,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80073DE4);
 extern s32 D_800928C8;
 extern void func_8008EB4C(s32);
 
-s32 func_80073E2C(u8 *p0, s32 arg1, s32 arg2) {
+s32 BattleAccumulateGaugePoints(u8 *p0, s32 arg1, s32 arg2) {
     s16 t;
     s32 q;
 
@@ -385,7 +385,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_800740E4);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80074678);
 
-void func_80074998(u8 *p0) {
+void BattleUpdatePartDrawFlags(u8 *p0) {
     u32 **pArray = *(u32 ***)(*(u8 **)(*(u8 **)(p0 + 0x5C) + 0x4) + 0x4);
     s32 i;
 
@@ -410,7 +410,7 @@ extern void func_80074678(u8 *, s32, u8);
 extern void func_8008B0D8(u8 *);
 extern void func_8008B730(u8 *, s32, s32);
 
-void func_80074AB4(u8 *p0) {
+void BattleActorApplyAnimationCommand(u8 *p0) {
     u8 *pState = *(u8 **)(p0 + 0x15CC);
     u8 *pData = *(u8 **)(p0 + 0x15D0);
     u8 *pEntry;
@@ -422,7 +422,7 @@ void func_80074AB4(u8 *p0) {
     *(s32 *)(p0 + 0x54) = (*(u16 *)(pState + 0x6) << 20) >> 20;
     pEntry = *(u8 **)(*(u8 **)(*(u8 **)(p0 + 0x5C) + 0x4) + 0x8) + *(u8 *)(pData + 0x8) * 0x14;
     if (*(u16 *)(pData + 0x6) & 0x1000) {
-        func_80074998(p0);
+        BattleUpdatePartDrawFlags(p0);
         func_8008B0D8(pEntry);
     }
     func_80074678(p0, *(s16 *)(pEntry + 0x12), *(u8 *)(*(u8 **)(p0 + 0x15D0) + 0x9));
@@ -439,7 +439,7 @@ extern s32 D_80099D88;
 extern u8 D_80050622;
 extern s32 BattleCheckValueAboveScaledMax(u8 *, s32);
 
-void func_80075060(s32 arg0) {
+void BattleSetResultCode(s32 arg0) {
     u8 *p = D_8009872C;
     u8 *pDst;
     s16 v;
@@ -495,6 +495,6 @@ void func_80075060(s32 arg0) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_800751C8);
 
-s32 func_8007570C(u8 *p0, u8 *p1, s32 scale) {
+s32 BattleComputeScaledFieldDelta(u8 *p0, u8 *p1, s32 scale) {
     return (*(s16 *)(p1 + 0x15EC) * scale) / 32 - *(s16 *)(p0 + 0x15EE);
 }

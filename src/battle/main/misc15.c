@@ -24,7 +24,7 @@ extern u8 D_800D2204[];
 extern u8 D_800D3688[];
 extern u8 D_800C3D70[];
 extern u8 func_80085084(u16 arg0, u8 arg1, s32 arg2);
-extern s32 func_8009A7E4(u8 arg0);
+extern s32 BattleIsCharacterInParty(u8 arg0);
 extern void func_8009A854(u8 arg0);
 
 void BattlePlaySoundIfEnabled(u8 arg0) {
@@ -197,7 +197,7 @@ s32 func_8008BD50(u8 arg0, u8 arg1, u8 arg2, u8 arg3) {
             func_8008BC98(arg0);
         }
     } else {
-        if (func_8009A7E4(value - 0x32) != 0) {
+        if (BattleIsCharacterInParty(value - 0x32) != 0) {
             func_8009A854(value);
             value = D_800D3688[arg2 * 2 + arg1] - 1;
             D_800D3688[arg2 * 2 + arg1] = value;

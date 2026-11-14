@@ -10,11 +10,11 @@ extern s32 D_8009284C;
 extern u8 D_80091178[];
 extern u8 D_80091179[];
 
-s32 func_80075738(u8* p0, u8* p1) {
+s32 BattleActorDeltaUnk15E8(u8* p0, u8* p1) {
     return *(s16*)(p1 + 0x15EA) - *(s16*)(p0 + 0x15E8);
 }
 
-void func_80075748(void) {
+void BattleNoop2(void) {
 }
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80075750);
@@ -104,7 +104,7 @@ s32 func_80075A4C(u8* p, s32 a, s32 b, s32 c) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80075B50);
 
-void func_8007639C(u8* p, u8 value) {
+void BattleQueueMessage(u8* p, u8 value) {
     u8 idx;
     u8* pSlot;
 
@@ -117,7 +117,7 @@ void func_8007639C(u8* p, u8 value) {
     }
 }
 
-u8 func_800763E4(u8* p) {
+u8 BattleDequeueMessage(u8* p) {
     u8 idx;
     u8* pSlot;
     u8 value;
@@ -132,14 +132,14 @@ u8 func_800763E4(u8* p) {
     return value;
 }
 
-void func_80076424(u8* p) {
+void BattleResetMessageQueue(u8* p) {
     p[0x9C2] = 0;
     p[0x9C0] = 0;
     p[0x9C1] = 0;
     p[0x9C3] = 0;
 }
 
-void func_80076438(u8* p) {
+void BattlePrintMessageQueue(u8* p) {
     s32 i;
     s32 idx;
 
@@ -274,8 +274,8 @@ void func_800767C8(u8* p) {
         return;
     }
     if ((flags & 0x60000000) != 0x20000000 || (p[0x90A] & 2)) {
-        func_80076424(p);
-        func_8007639C(p, 5);
+        BattleResetMessageQueue(p);
+        BattleQueueMessage(p, 5);
     }
 }
 */
@@ -291,7 +291,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80077584);
    Tried: plain if, empty else branch, pointer local for the field, s32 local
    holding the limit.
 NOTE: the definition has to be old-style (K&R, four parameters) or the unit
-   stops compiling: the already matched caller func_8007762C passes only p and
+   stops compiling: the already matched caller BattleActorBeginMove passes only p and
    gcc rejects the prototyped definition ("too few arguments"). The measured
    diff is exactly the missing nop, everything else lines up.
 void func_80077584(u8* p, s32 ang, s32 shift, s32 dec) {
@@ -306,7 +306,7 @@ void func_80077584(u8* p, s32 ang, s32 shift, s32 dec) {
 }
 */
 
-void func_8007762C(u8* p) {
+void BattleActorBeginMove(u8* p) {
     *(u32*)(p + 0xD0) |= 0x1000;
     p[0x4C] = 8;
     p[0x4E] = 0xFF;
@@ -359,7 +359,7 @@ void func_800776A8(u8* p, s32 mode) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80077770);
 
-u8* func_80077A38(u8* p, s32 flag) {
+u8* BattleActorSelectActionEntry(u8* p, s32 flag) {
     s32 idx;
 
     idx = p[0x9C3] * 2;
@@ -371,7 +371,7 @@ u8* func_80077A38(u8* p, s32 flag) {
     return (u8*)(*(u32*)(p + 0x80) + p[0x9C3] * 4);
 }
 
-void func_80077A88(u8* p) {
+void BattleActorSetFlag80000(u8* p) {
     *(u32*)(p + 0xD0) |= 0x80000;
 }
 
@@ -384,7 +384,7 @@ typedef struct {
     /* 0xC */ s32 w;
 } Vec4;
 
-void func_80078154(u8* p) {
+void BattleActorApplyCenterPosition(u8* p) {
     *(Vec4*)p = *(Vec4*)(p + 0x93C);
     p[0x4C] = 0;
     p[0xC4] = 0;

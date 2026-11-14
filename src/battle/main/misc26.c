@@ -47,7 +47,7 @@ void func_800B16F0(void) {
 */
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc26", func_800B1720);
-void func_800B1EA0(u8 *pBase, s32 shift) {
+void BattleModelScaleParts(u8 *pBase, s32 shift) {
     s16 *p;
     s32 n;
     s32 i;
@@ -110,7 +110,7 @@ void func_800B3588(void *pEntry) {
 */
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc26", func_800B35C0);
-void func_800B3658(u8 *pSrc, s32 n) {
+void BattleCreateTimedScaleTask(u8 *pSrc, s32 n) {
     u8 *p = func_800B35C0();
 
     *(u16 *)(p + 0x2C) = *(u16 *)(pSrc + 0);
@@ -153,7 +153,7 @@ void func_800B397C(s32 a0, s32 a1, u8 a2, u8 a3, u8 a4) {
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc26", func_800B39C0);
 
-s32 func_800B3B6C(void) {
+s32 BattleGetActorFlag41(void) {
     if (D_800C3558 != NULL) {
         return D_800C3558[0x41];
     }

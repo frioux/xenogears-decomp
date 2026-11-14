@@ -47,7 +47,7 @@ typedef struct {
 
 extern WorldMapSlot *D_8009BE24;
 extern WorldMapEntry *D_8009C620;
-extern void func_800816DC(WorldMapEntry *pEntry, u8 *pDst, s32 count, s32 abr);
+extern void WorldMapInitPolyFt4Prims(WorldMapEntry *pEntry, u8 *pDst, s32 count, s32 abr);
 extern u8 D_8009A758[];
 // externs used by the parked attempts below
 extern Vec3 D_8009C5AC;
@@ -104,7 +104,7 @@ extern void WorldMapFreeGridImages(void);
 // alternative 95.26, equal to its current score), so the parks are C problems
 // and not this unit's compiler. Per-function alternative scores are in the
 // notes beside each park.
-s32 func_80080900(s32 index) {
+s32 WorldMapInitSlotAtScrollPosition(s32 index) {
     WorldMapSlot *pSlot = &D_8009BE24[index];
 
     pSlot->pos.x = D_8009C5AC.x;
@@ -146,7 +146,7 @@ s32 func_80080944(s32 index) {
 */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_80080944);
 
-void func_800809EC(u8 *p, s32 count, s32 a, s32 b, s32 c) {
+void WorldMapSetPrimColors(u8 *p, s32 count, s32 a, s32 b, s32 c) {
     s32 i;
 
     for (i = 0; i < count; i++, p += 0x28) {
@@ -188,7 +188,7 @@ s32 func_80080A28(s32 index) {
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_80080A28);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_80080AC4);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_80080D00);
-void func_8008106C(void) {
+void WorldMapExitToMap1FA(void) {
     u16 v;
 
     SoundStopAllElements();
@@ -271,7 +271,7 @@ s32 func_800813E8(s32 index) {
 */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_800813E8);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_80081470);
-void func_800816DC(WorldMapEntry *pEntry, u8 *pDst, s32 count, s32 abr) {
+void WorldMapInitPolyFt4Prims(WorldMapEntry *pEntry, u8 *pDst, s32 count, s32 abr) {
     s32 i;
 
     for (i = 0; i < count; i++) {
@@ -302,7 +302,7 @@ s32 func_800817A0(s32 index) {
     pSlot->unk50 = 0;
     pSlot->unk54 = 0;
     pSlot->unk58 = 0;
-    func_800816DC(pEntry, pEntry->unk48, *(u16 *)(pEntry->unk40 + 4), 1);
+    WorldMapInitPolyFt4Prims(pEntry, pEntry->unk48, *(u16 *)(pEntry->unk40 + 4), 1);
     pEntry->unk8 = pSlot->pos.x >> 12;
     pEntry->unkC = pSlot->pos.y >> 12;
     pEntry->unk10 = pSlot->pos.z >> 12;
@@ -310,7 +310,7 @@ s32 func_800817A0(s32 index) {
 }
 */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_800817A0);
-s32 func_80081868(s32 index) {
+s32 WorldMapUpdateSlotColorFade(s32 index) {
     WorldMapSlot *pSlot = &D_8009BE24[index];
     WorldMapEntry *pEntry = &D_8009C620[2];
     u8 *p;
@@ -346,14 +346,14 @@ s32 func_80081868(s32 index) {
             }
         }
     }
-    func_800809EC(*(u8 **)((u8 *)pEntry + D_8009D7F0 * 4 + 0x48),
+    WorldMapSetPrimColors(*(u8 **)((u8 *)pEntry + D_8009D7F0 * 4 + 0x48),
                   *(u16 *)(pEntry->unk40 + 4),
                   pSlot->unk50, pSlot->unk54, pSlot->unk58);
     return 1;
 }
 // Best: 87.03%. Every call, offset and relocation is right (the 8-word matrix
 // copy from D_8009A180, the three scratchpad words, ScaleMatrix with the
-// 0x1F800000 scale vector, the matrix copy to +0x74, both func_800816DC
+// 0x1F800000 scale vector, the matrix copy to +0x74, both WorldMapInitPolyFt4Prims
 // calls). The only delta is the block of pSlot stores: gcc hoists the
 // D_8009C5B0/D_8009C5B4 loads and the lui 0x1F80 to the top of the block and
 // sinks the D_8009C5AC store below the three zero stores, while retail keeps
@@ -379,15 +379,15 @@ s32 func_800819C8(s32 index) {
     *(s32 *)0x1F800004 = 0x7000;
     ScaleMatrix((MATRIX *)(pEntry + 0x20), (VECTOR *)0x1F800000);
     *(MATRIX *)(pEntry + 0x74) = *(MATRIX *)(pEntry + 0x20);
-    func_800816DC((WorldMapEntry *)pEntry, *(u8 **)(pEntry + 0x48),
+    WorldMapInitPolyFt4Prims((WorldMapEntry *)pEntry, *(u8 **)(pEntry + 0x48),
                   *(u16 *)(*(u8 **)(pEntry + 0x40) + 4), 3);
     pEntry += 0x54;
-    func_800816DC((WorldMapEntry *)pEntry, *(u8 **)(pEntry + 0x48),
+    WorldMapInitPolyFt4Prims((WorldMapEntry *)pEntry, *(u8 **)(pEntry + 0x48),
                   *(u16 *)(*(u8 **)(pEntry + 0x40) + 4), 3);
     return 1;
 }
 */
-s32 func_80081B24(s32 index) {
+s32 WorldMapUpdateSlotColorFadeFast(s32 index) {
     WorldMapSlot *pSlot = &D_8009BE24[index];
     u8 *pEntry = (u8 *)D_8009C620;
 
@@ -406,11 +406,11 @@ s32 func_80081B24(s32 index) {
             }
         }
     }
-    func_800809EC(*(u8 **)(pEntry + D_8009D7F0 * 4 + 0x48),
+    WorldMapSetPrimColors(*(u8 **)(pEntry + D_8009D7F0 * 4 + 0x48),
                   *(u16 *)(*(u8 **)(pEntry + 0x40) + 4),
                   pSlot->unk50, pSlot->unk54, pSlot->unk58);
     pEntry += 0x54;
-    func_800809EC(*(u8 **)(pEntry + D_8009D7F0 * 4 + 0x48),
+    WorldMapSetPrimColors(*(u8 **)(pEntry + D_8009D7F0 * 4 + 0x48),
                   *(u16 *)(*(u8 **)(pEntry + 0x40) + 4),
                   pSlot->unk50, pSlot->unk54, pSlot->unk58);
     return 1;
@@ -457,7 +457,7 @@ s32 func_80081C3C(void) {
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_80081C3C);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_80081D80);
 
-s32 func_80081FB4(s32 index) {
+s32 WorldMapResetSlotColorFade(s32 index) {
     WorldMapSlot *pSlot = &D_8009BE24[index];
 
     pSlot->unk20 = 0;
@@ -467,7 +467,7 @@ s32 func_80081FB4(s32 index) {
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_80081FD8);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_80082324);
-s32 func_800826B4(void) {
+s32 WorldMapExitToMap269(void) {
     u16 v;
 
     SoundStopAllElements();
@@ -505,7 +505,7 @@ s32 func_800826B4(void) {
 // two separate statements, a s32 value temp, `D_8009BE24 + index`, and an
 // explicit offset local.
 /*
-s32 func_800827C8(s32 index) {
+s32 WorldMapSetSlotScriptTable(s32 index) {
     u8 *pData = D_8009A758;
     WorldMapSlot *pSlot = &D_8009BE24[index];
 
@@ -513,7 +513,7 @@ s32 func_800827C8(s32 index) {
     return 1;
 }
 */
-s32 func_800827C8(s32 index) {
+s32 WorldMapSetSlotScriptTable(s32 index) {
     D_8009BE24[index].unk50 = (u32)D_8009A758;
     return 1;
 }

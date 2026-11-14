@@ -15,7 +15,7 @@ extern void func_800B5588();
 extern u8 D_800C356C[];
 extern u8* WorkListsAddTasks(s32 allocSize, void* pData, void* pTimerCallback, void* pWorkCallback,
                              void* pOnFreeCallback);
-extern void func_800B5CC0();
+extern void BattleIntegrateSpriteVelocityTask();
 extern void func_800B5DF4();
 extern void func_800B6004();
 extern void func_800B59BC();

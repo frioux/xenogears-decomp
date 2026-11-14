@@ -16,13 +16,13 @@ void GfxResetWorkLists(void) {
     D_800591AE = 0;
     D_800591A8 = 0x2000;
     WorkListsReset();
-    func_8001D298();
+    SpriteAnimFrameListReset();
 }
 
 
 
-extern void func_8001D298(void);
-extern void func_8001D2A4(void);
+extern void SpriteAnimFrameListReset(void);
+extern void SpriteAnimFrameListClear(void);
 
 // Defined here so that the compiler places it in .sbss (%gp_rel)
 Image* g_GfxImageList[2];
@@ -37,12 +37,12 @@ void GfxAllocateWorkBuffers(int workBufferSize, unsigned int allocFlag) {
     D_80059304 = 0;
     D_80059300 = 0;
     g_GfxImageList[0] = NULL;
-    func_8001D298();
+    SpriteAnimFrameListReset();
 }
 
 void GfxFreeWorkBuffers(void) {
     HeapFree(g_GfxWorkBuffers);
-    func_8001D2A4();
+    SpriteAnimFrameListClear();
 }
 
 void GfxSetCurrentOT(u_long* ot) {

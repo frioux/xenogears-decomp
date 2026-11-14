@@ -127,7 +127,7 @@ extern s16 D_8009A5B8[];
 extern s16 D_8009A674[];
 extern s16 D_8009A678[];
 extern s32 D_8009D7F0;
-extern void func_800809EC(u8 *, s32, s32, s32, s32);
+extern void WorldMapSetPrimColors(u8 *, s32, s32, s32, s32);
 extern void func_8007EBBC(WorldMapGroup *, void *, int, int);
 extern void func_80084580(void);
 extern void func_8008440C(void);
@@ -179,7 +179,7 @@ extern void WorldMapRelocateMapEntryOffsets(void);
 extern void func_80085FE0(void);
 extern void WorldMapInitNop(void);
 extern void WorldMapUpdateFrame(void);
-extern void func_80080900(void);
+extern void WorldMapInitSlotAtScrollPosition(void);
 extern void func_80080944(void);
 extern void func_80080A28(void);
 extern void func_80080AC4(void);
@@ -700,9 +700,9 @@ int func_8007FD30(int index) {
     if (nY > 0x7FFF) {
         pActor->unk54 = (void *)0x7FFF;
     }
-    func_800809EC(*(u8 **)((u8 *)pGroup9 + D_8009D7F0 * 4 + 0x48), *(u16 *)((u8 *)pGroup9->unk40 + 4),
+    WorldMapSetPrimColors(*(u8 **)((u8 *)pGroup9 + D_8009D7F0 * 4 + 0x48), *(u16 *)((u8 *)pGroup9->unk40 + 4),
                   pActor->unk58, pActor->unk58, pActor->unk58);
-    func_800809EC(*(u8 **)((u8 *)pGroup10 + D_8009D7F0 * 4 + 0x48), *(u16 *)((u8 *)pGroup10->unk40 + 4),
+    WorldMapSetPrimColors(*(u8 **)((u8 *)pGroup10 + D_8009D7F0 * 4 + 0x48), *(u16 *)((u8 *)pGroup10->unk40 + 4),
                   pActor->unk58, pActor->unk58, pActor->unk58);
     nZ = (s32)pActor->unk58 - 3;
     pActor->unk58 = (void *)nZ;
@@ -767,7 +767,7 @@ void WorldMapInitializeModeWithActors(void) {
     WorldMapAddSlot(WorldMapModeInitFadeRect, func_800925A0);
     WorldMapAddSlot(WorldMapInitActorScript, func_80080370);
     WorldMapAddSlot(func_80080578, func_80080600);
-    WorldMapAddSlot(func_80080900, func_80080944);
+    WorldMapAddSlot(WorldMapInitSlotAtScrollPosition, func_80080944);
     WorldMapAddSlot(func_80080A28, func_80080AC4);
     WorldMapAddSlot(WorldMapInitNop, WorldMapUpdateFrame);
     func_800978FC();

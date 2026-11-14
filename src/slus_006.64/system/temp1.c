@@ -24,14 +24,14 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80022B2C);
    (s32 step = step.y >> 4) is folded away and does not change the order.
 
 extern s32 SpriteScaleValue(SpriteData* pSpriteData, s32 value);
-extern void func_800BA8F4(void);
+extern void BattleActorUpdateGroundHeightAndTriangle(void);
 
 void func_80022B2C(SpriteData* pSpriteData) {
     s32 speed;
     s32 gravity;
 
     if (((*(u32*)((u8*)pSpriteData + 0x3C) >> 26) & 1) == 0) {
-        func_800BA8F4();
+        BattleActorUpdateGroundHeightAndTriangle();
         speed = pSpriteData->step.y;
         if (speed > 0 && (s32)pSpriteData->gravity > 0) {
             if (*(s16*)((u8*)pSpriteData + 0x6) != pSpriteData->field_0x84) {
@@ -141,8 +141,8 @@ void AnimTaskCountedTimerTick(void) {
 }
 
 extern void func_80025180(void* pData);
-extern void func_8001CE74(WorkListEntry* pTask);
-extern void func_8001D034(WorkListEntry* pTask);
+extern void WorkListsRemoveEntriesForData(WorkListEntry* pTask);
+extern void TimerWorkListClearDataField70(WorkListEntry* pTask);
 
 void AnimTaskFree(AnimTask* pAnimTask) {
     WorkListEntry* pTask = &pAnimTask->task1;
@@ -159,13 +159,13 @@ void AnimTaskFree(AnimTask* pAnimTask) {
         }
     }
     if (((u32)pSpriteData->flags_0xAC >> 5) & 1) {
-        func_8001CE74(pTask);
+        WorkListsRemoveEntriesForData(pTask);
     }
     if (((u32)pSpriteData->flags_0xB0 >> 11) & 1) {
-        func_8001D034(pTask);
+        TimerWorkListClearDataField70(pTask);
     }
     if ((*(u32*)((u8*)pSpriteData + 0x3C) & 3) == 1) {
-        func_8001D3F4(pSpriteData);
+        SpriteAnimFrameListRemove(pSpriteData);
     }
     TimerWorkListRemoveTask(pTask);
     WorkListRemoveTask(pTask + 1);
@@ -191,7 +191,7 @@ void SpriteAllocClutRect(SpriteData* pSpriteData, s32 count, u_int allocFlags) {
     ((RECT*)((SpriteDataI3*)pSpriteData->field_0x7C)->field_0x18)->x = ((RECT*)pSpriteData->pVramData)->w;
 }
 
-extern void func_8001D3F4(SpriteData* pSpriteData);
+extern void SpriteAnimFrameListRemove(SpriteData* pSpriteData);
 
 void SpriteDestroy(SpriteData* pSpriteData) {
     switch (pSpriteData->flags_0xA8 & 1) {
@@ -201,7 +201,7 @@ void SpriteDestroy(SpriteData* pSpriteData) {
         }
         break;
     }
-    func_8001D3F4(pSpriteData);
+    SpriteAnimFrameListRemove(pSpriteData);
     HeapFree(pSpriteData->pBase->pFramesData);
     HeapFree(pSpriteData);
 }

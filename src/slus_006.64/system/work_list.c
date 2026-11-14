@@ -264,7 +264,7 @@ void TimerWorkListDeleteTask(WorkListEntry* pTask) {
 }
 
 // Unlink target entry from lists if certain flags are met
-void func_8001CE74(WorkListEntry* pTargetEntry) {
+void WorkListsRemoveEntriesForData(WorkListEntry* pTargetEntry) {
     WorkListCallback_t pFnOnDeleteCallback;
     WorkListEntry* pCurEntry;
     WorkListEntry* pPrevEntry;
@@ -322,7 +322,7 @@ void func_8001CE74(WorkListEntry* pTargetEntry) {
 
 // Set pCurEntry->unk4->unk70 of target entry if unk14_1 flag is set
 // Set pCurEntry->unk4->unk70 of target entry if unk14_1 flag is set
-void func_8001D034(WorkListEntry* pTargetEntry) {
+void TimerWorkListClearDataField70(WorkListEntry* pTargetEntry) {
     WorkListEntry* pCurEntry;
 
     for (pCurEntry = g_TimerWorkList; pCurEntry != NULL; pCurEntry = pCurEntry->pNext) {
@@ -335,7 +335,7 @@ void func_8001D034(WorkListEntry* pTargetEntry) {
 }
 
 // Find a timer entry started for pTargetEntry whose callback matches
-WorkListEntry* func_8001D0A4(WorkListEntry* pTargetEntry, WorkListCallback_t pCallback) {
+WorkListEntry* TimerWorkListFindEntryForDataAndCallback(WorkListEntry* pTargetEntry, WorkListCallback_t pCallback) {
     WorkListEntry* pCurEntry;
 
     for (pCurEntry = g_TimerWorkList; pCurEntry != NULL; pCurEntry = pCurEntry->pNext) {
@@ -351,7 +351,7 @@ WorkListEntry* func_8001D0A4(WorkListEntry* pTargetEntry, WorkListCallback_t pCa
 }
 
 // Find the timer entry started for pTargetEntry
-WorkListEntry* func_8001D10C(WorkListEntry* pTargetEntry) {
+WorkListEntry* TimerWorkListFindEntryForData(WorkListEntry* pTargetEntry) {
     WorkListEntry* pCurEntry;
 
     for (pCurEntry = g_TimerWorkList; pCurEntry != NULL; pCurEntry = pCurEntry->pNext) {
@@ -363,7 +363,7 @@ WorkListEntry* func_8001D10C(WorkListEntry* pTargetEntry) {
 }
 
 // Find the timer entry running pCallback
-WorkListEntry* func_8001D164(WorkListCallback_t pCallback) {
+WorkListEntry* TimerWorkListFindEntryByCallback(WorkListCallback_t pCallback) {
     WorkListEntry* pCurEntry;
 
     for (pCurEntry = g_TimerWorkList; pCurEntry != NULL; pCurEntry = pCurEntry->pNext) {
@@ -402,11 +402,11 @@ WorkListEntry* WorkListsAddTasks(u_int allocSize, void* pData, WorkListCallback_
 }
 
 // This may be the start of a new TU
-void func_8001D298(void) {
+void SpriteAnimFrameListReset(void) {
     D_80059190 = 0;
 }
 
-void func_8001D2A4(void) {
+void SpriteAnimFrameListClear(void) {
     D_80059190 = 0;
 }
 
@@ -465,7 +465,7 @@ void func_8001D2B0(SpriteData* pSpriteData, u16 animFrame) {
 
 
 // Unlink SpriteData entry from list
-void func_8001D3F4(SpriteData* pSpriteData) {
+void SpriteAnimFrameListRemove(SpriteData* pSpriteData) {
     SpriteData* pCurSpriteData;
     SpriteData* pPrevSpriteData;
 
@@ -486,7 +486,7 @@ void func_8001D3F4(SpriteData* pSpriteData) {
 
 void func_8001DAE8(SpriteData* pSpriteData, u16 animFrame, void* pVramData);
 
-void func_8001D468(void) {
+void SpriteAnimFrameListFlush(void) {
     SpriteData* pSpriteData;
 
     pSpriteData = D_80059190;

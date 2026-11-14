@@ -19,7 +19,7 @@ extern void* SpriteAllocFromAnimFile(void* pArg0, s16 arg1, s16 arg2, s16 arg3, 
 extern void SpritePlayAnimation(void* pSprite, s32 arg1);
 extern void WorldMapSetSpriteSetParent(s32 arg0, s32 arg1);
 extern void SpriteSetScale(void* pSprite, s16 scale);
-extern void func_8008BFD4(s32 arg0, u32* pVec, s32 arg2, s32 arg3);
+extern void WorldMapQueueZoneEntry(s32 arg0, u32* pVec, s32 arg2, s32 arg3);
 extern s32 WorldMapGetTilePlaneHeight(s32 x, s32 z);
 
 typedef struct {
@@ -243,7 +243,7 @@ s32 WorldMapSetActorPosFromSpriteSetWithHeightOffset(s32 arg0) {
 }
 
 s32 WorldMapQueueZoneEntryHeight60(s32 arg0) {
-    func_8008BFD4(arg0, (u32*)(D_8009BE24 + (arg0 << 7) + 0x28), 0x68, 0x60);
+    WorldMapQueueZoneEntry(arg0, (u32*)(D_8009BE24 + (arg0 << 7) + 0x28), 0x68, 0x60);
     return 1;
 }
 
@@ -260,7 +260,7 @@ s32 WorldMapSetActorPosFromSpriteSet75(s32 arg0) {
 }
 
 s32 WorldMapQueueZoneEntryHeight1A6(s32 arg0) {
-    func_8008BFD4(arg0, (u32*)(D_8009BE24 + (arg0 << 7) + 0x28), 0x10C, 0x1A6);
+    WorldMapQueueZoneEntry(arg0, (u32*)(D_8009BE24 + (arg0 << 7) + 0x28), 0x10C, 0x1A6);
     return 1;
 }
 
@@ -277,7 +277,7 @@ s32 WorldMapSetActorPosFromSpriteSet(s32 arg0) {
 }
 
 s32 WorldMapQueueZoneEntryHeight392(s32 arg0) {
-    func_8008BFD4(arg0, (u32*)(D_8009BE24 + (arg0 << 7) + 0x28), 0xC9, 0x392);
+    WorldMapQueueZoneEntry(arg0, (u32*)(D_8009BE24 + (arg0 << 7) + 0x28), 0xC9, 0x392);
     return 1;
 }
 

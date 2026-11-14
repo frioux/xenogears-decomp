@@ -53,7 +53,7 @@ extern void BattleBuildSpritePrimLists(u8 arg0);
 extern void func_800898F0(u8 arg0);
 extern void BattleUpdateFrame(void);
 extern u8 BattlePairTargetable(u8 arg0, u8 arg1);
-extern void func_8009AB00(u8 arg0);
+extern void BattleClearSlotFlag15A1(u8 arg0);
 extern void func_8009BAC4(u8 arg0, u8 *pInfo, u8 *pField);
 extern u8 func_8001BD40(s32 arg0, u8 arg1);
 extern void BattleInitSlotRowsForActor(s32 arg0, s32 arg1);
@@ -61,7 +61,7 @@ extern s32 func_800877E0(s32 arg0, s32 arg1);
 extern void func_800B89FC(s32 arg0, s32 arg1, s32 arg2, s32 arg3);
 extern void func_80087AF0(u8 arg0, u8 arg1);
 extern void func_8008ADD0(u8 arg0);
-extern void func_8009AA44(u8 arg0);
+extern void BattleSetSlotFlag15A1(u8 arg0);
 extern u8 D_800C3E18;
 extern u8 D_800C3E2C;
 extern u8 D_800C48EA;
@@ -298,7 +298,7 @@ u8 func_80080C94(u8 arg0) {
     }
     D_800C3EAC[0x2EA] = 1;
     D_800C3EAC[0x2DE] = 0;
-    func_8009AB00(arg0);
+    BattleClearSlotFlag15A1(arg0);
     func_8009BAC4(arg0, info, D_800C3EAC + arg0 * 0x40 + 0x2A);
     if (info[0] == 1 || info[0] == 2) {
         i = 0;
@@ -361,7 +361,7 @@ u8 func_80080C94(u8 arg0) {
         break;
     }
     if (ret != 0) {
-        func_8009AA44(arg0);
+        BattleSetSlotFlag15A1(arg0);
         D_800C3EAC[0x2EA] = 0;
         D_800C3EAC[0x2DE] = 1;
     }

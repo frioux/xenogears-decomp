@@ -4,7 +4,7 @@
 extern void func_800BDF1C(u8 *pEntry);
 extern void func_8001F6B0(u8 *pObj);
 extern void func_80025180(u8 *pData);
-extern void func_8001CE74(u8 *pTask);
+extern void WorkListsRemoveEntriesForData(u8 *pTask);
 extern void TimerWorkListRemoveTask(u8 *pTask);
 extern MATRIX D_800D30BC;
 
@@ -72,7 +72,7 @@ void func_800BD024(u8 *pTask) {
     pObj[0x2B] |= 1;
     func_8001F6B0(pObj);
     func_80025180(*(u8 **)(pData + 0x5C));
-    func_8001CE74(pTask);
+    WorkListsRemoveEntriesForData(pTask);
     TimerWorkListRemoveTask(pTask);
     HeapFree(pData);
 }

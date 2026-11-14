@@ -260,7 +260,7 @@ void func_8007DFD4(u8 **arg0, s32 arg1) {
     }
 }
  */
-void func_8007E154(u8 **arg0, s32 arg1) {
+void BattleSetSlotRecordByteAndRelease(u8 **arg0, s32 arg1) {
     s32 idx = (arg1 & 0xFF) + 3;
 
     D_800C3EB7[idx * 0x1C] = (*arg0)[1];
@@ -270,14 +270,14 @@ void func_8007E154(u8 **arg0, s32 arg1) {
         func_800883AC((u8)(arg1 + 3));
     }
 }
-void func_8007E1D0(u8 **arg0, s32 arg1) {
+void BattleWordRegSetSlotBitMask(u8 **arg0, s32 arg1) {
     u16 value = BattleSlotBitMask((arg1 + 3) & 0xFF);
     u8 *p = *arg0;
     u16 *pField = (u16 *)(D_800D3420 + (arg1 & 0xFF) * 0x40);
 
     pField[p[1]] = value;
 }
-void func_8007E234(u8 **arg0, u8 arg1) {
+void BattleStoreCharSlotFlagMask(u8 **arg0, u8 arg1) {
     s32 acc = 0;
     s32 i;
     u16 *pRow;
@@ -306,7 +306,7 @@ void func_8007E234(u8 **arg0, u8 arg1) {
     pRow = (u16 *)(D_800D3420 + arg1 * 0x40);
     pRow[(*arg0)[1]] = (u16)acc >> 1;
 }
-/* best: 95.31%. Same family as func_8007E234 (walk the slot table downwards,
+/* best: 95.31%. Same family as BattleStoreCharSlotFlagMask (walk the slot table downwards,
    `(i - 0xA) * 8` keeps D_800D32F1 as the base symbol). Only difference: the
    original doubles the accumulator into a temp and copies it back (sll a1,s0,1
    / move s0,a1) and reuses a1 for the final shift, gcc does it in place
@@ -405,7 +405,7 @@ void func_8007E554(u8 **arg0, u8 arg1) {
     pRow = (u16 *)(D_800D3420 + arg1 * 0x40);
     pRow[(*arg0)[1]] = acc << 2;
 } */
-void func_8007E674(u8 arg0) {
+void BattleClearSlotDwordAndSetStat4(u8 arg0) {
     ((u32 *)D_800D2C60)[arg0] = 0;
     D_800D2C8B[arg0] = 4;
 }
@@ -420,7 +420,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007E6A0);
    and `D_800D3410 + ((arg1 & 0xFF) << 6)` (99.00%). Also tried before: pRow/p in
    both orders, `s32 arg1` + explicit mask, element-unit base, all references
    inline. No try_flags.sh row reaches 100 (2.6.0 99.0, cdk 96.5, -O1 51.9), and
-   the unit cannot move to cdk at all: func_8007E154 79.68%, func_8007E674 10.45%
+   the unit cannot move to cdk at all: BattleSetSlotRecordByteAndRelease 79.68%, BattleClearSlotDwordAndSetStat4 10.45%
    under cdk while matched under Default.
 void func_8007E6A0(u8 **arg0, s32 arg1) {
     u8 *p = *arg0;
@@ -445,9 +445,9 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007E740);
    mirror image (base v1, row v0, mflo a2). Same allocator tie as func_8007E8AC
    and the misc6 D_800D34x0 family. Tried: s32 vs u32 element, pRow before/after
    pArgs, product written as p[2] * pRow[p[1]] (this variant, operand order
-   right), compound assignment, and func_8007E780's exact shape copied verbatim
+   right), compound assignment, and BattleDwordRegDivImm's exact shape copied verbatim
    with `p` declared first (95.00%, the mult operands then swap to `mult v1,a0`).
-   Decisive: the MATCHED divide sibling func_8007E780 has byte-identical asm
+   Decisive: the MATCHED divide sibling BattleDwordRegDivImm has byte-identical asm
    (same base v0 / slot v1 allocation) under the same C shape, so the split is
    the multiply's HI/LO pseudo shifting the allocator, not the source.
 void func_8007E740(u8 **arg0, u8 arg1) {
@@ -456,13 +456,13 @@ void func_8007E740(u8 **arg0, u8 arg1) {
 
     pRow[p[1]] = p[2] * pRow[p[1]];
 } */
-void func_8007E780(u8 **arg0, u8 arg1) {
+void BattleDwordRegDivImm(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
     u32 *pRow = (u32 *)(D_800D3410 + arg1 * 0x40);
 
     pRow[p[1]] /= p[2];
 }
-void func_8007E7C0(u8 **arg0) {
+void BattleWriteWorkBufferWord(u8 **arg0) {
     u8 *p = *arg0;
 
     *(u16 *)(D_800D3278 + p[1] * 2 + 0x394) = p[2];
@@ -502,13 +502,13 @@ void func_8007E8AC(u8 **arg0) {
 
     D_800D3364[idx + 0x140] = p[3];
 } */
-void func_8007E8E0(u8 **arg0, u8 arg1) {
+void BattleSetPendingCharIndex(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
     u16 *pField = (u16 *)(D_800D3420 + arg1 * 0x40);
 
     D_800D2DC0 = BattleFindFirstFlagTableMatch(pField[p[1]]) + 1;
 }
-void func_8007E934(void) {
+void BattleResetDisplayValues(void) {
     u8 buf[0x10];
 
     func_80078508(buf);
@@ -534,7 +534,7 @@ s32 func_8007E98C(u8 **arg0, s32 arg1) {
 
     return pField[p[1]] == value;
 } */
-s32 func_8007E9D0(u8 **arg0, u8 arg1) {
+s32 BattleByteRegLeImm(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
     u8 *pRow = D_800D3430 + arg1 * 0x40;
 
