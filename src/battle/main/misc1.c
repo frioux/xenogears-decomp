@@ -441,16 +441,6 @@ void BattleRenderActorStatDigits(s32 arg0, u8 arg1) {
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80072F38);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80073380);
-/* 99.82% under 2.6.0: only two `addu` operand orders differ in the first block.
-   Retail does `addu v1,v1,v0` (the sum lands in the register that held
-   D_800C3EA4, then `addu at,v1,at` for the 0x10000); gcc's commutative-operand
-   precedence puts the `arg0 * 484` product first, so it emits `addu v0,v0,v1`
-   and `addu at,v0,at`. Everything else - the 484-byte stride, the 0x853D
-   displacement, the two amount sources, the BattleDrawSpritePackage loop (80-stride,
-   *i*6 accumulate, 0x25) and the final byte store - is exact. Tried: the
-   expression inline as `D_800C3EA4 + (arg0*484 + 0x853D)`, a `u8 *pFlags` local,
-   and a separate `off = arg0 * 484` temp; all give the same 99.82%.
 void func_80073380(s32 arg0) {
     u8 *pFlags;
     s16 amount;
@@ -458,7 +448,8 @@ void func_80073380(s32 arg0) {
     s32 i;
 
     off = arg0 * 484;
-    pFlags = D_800C3EA4 + off;
+    pFlags = D_800C3EA4;
+    pFlags = pFlags + off;
     if (*(u8 *)(pFlags + 0x853D) == 1) {
         amount = *(u8 *)(D_800D32A0 + arg0 * 8);
     } else {
@@ -477,7 +468,6 @@ void func_80073380(s32 arg0) {
     }
     *(u8 *)(D_800D2D28 + arg0 + 0x99) = *(u8 *)&D_800CCB34;
 }
-*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80073538);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80073A58);
 /* 91.30% - the three colour stores, the `lbu 0x6415` guard, the reload-after-store
