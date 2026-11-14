@@ -52,6 +52,21 @@ extern void func_8009A2D4(u8 arg0);
 extern void func_80089AF8(u8 arg0);
 extern void func_800898F0(u8 arg0);
 extern void func_800716D8(void);
+extern u8 func_80083FF4(u8 arg0, u8 arg1);
+extern void func_8009AB00(u8 arg0);
+extern void func_8009BAC4(u8 arg0, u8 *pInfo, u8 *pField);
+extern u8 func_8001BD40(s32 arg0, u8 arg1);
+extern void func_800879A8(s32 arg0, s32 arg1);
+extern s32 func_800877E0(s32 arg0, s32 arg1);
+extern void func_800B89FC(s32 arg0, s32 arg1, s32 arg2, s32 arg3);
+extern void func_80087AF0(u8 arg0, u8 arg1);
+extern void func_8008ADD0(u8 arg0);
+extern void func_8009AA44(u8 arg0);
+extern u8 D_800C3E18;
+extern u8 D_800C3E2C;
+extern u8 D_800C48EA;
+extern u8 D_800CCD38[];
+extern u8 D_800CDD53[];
 
 /* 82.95%: best of 6 shapes. The loop body matches instruction for
    instruction (four reloads of the volatile counter, the two separate
@@ -255,6 +270,108 @@ void func_80080C6C(u8 index) {
 
     pEntry[0x34] = 1;
 }
+/* 86.16%: first full reconstruction, every block present and in retail's
+   order. Remaining: (a) the func_80083FF4 fill loop - retail copies i to a
+   second reg (`move s1,s0`) and increments i in the beqz delay slot so the
+   store uses the old i, we store i directly, 1 insn short; (b) case 1 reuses
+   the D_800C3EAC load from the D_800C4022 store for the +0x3C read (we
+   reload, +2 insns); (c) case 2: retail keeps (info[1]+0x16)*0x28 undistributed
+   and re-forms D_800CDD53/D_800CCD38 as sym+reg memory operands twice each,
+   our cse folds the 0x16*0x28 into the symbol and shares the address in a
+   register (the same cse-address-sharing wall as func_800826CC); (d) arg0
+   lives in s3 in retail, s2 here. */
+/*
+u8 func_80080C94(u8 arg0) {
+    u8 info[8];
+    u8 buf[0xB];
+    u8 *pBuf;
+    u8 ret = 1;
+    u8 cost;
+    s32 idx;
+    s32 r;
+    s32 i;
+    s32 sel;
+
+    func_800716D8();
+    for (i = 0xA; i >= 0; i--) {
+        buf[i] = 0xFF;
+    }
+    D_800C3EAC[0x2EA] = 1;
+    D_800C3EAC[0x2DE] = 0;
+    func_8009AB00(arg0);
+    func_8009BAC4(arg0, info, D_800C3EAC + arg0 * 0x40 + 0x2A);
+    if (info[0] == 1 || info[0] == 2) {
+        i = 0;
+        pBuf = buf;
+        for (i = 0; i < 0xB; i++) {
+            if (func_80083FF4(arg0, i) != 0) {
+                *pBuf++ = i;
+            }
+        }
+        do {
+            do {
+                sel = buf[func_8001BD40(0, 0xA)];
+                D_800C3E2C = sel;
+            } while (sel == 0xFF);
+        } while (sel == arg0);
+    }
+    func_800879A8(arg0, D_800C3E2C);
+    idx = arg0 * 0x40;
+    (D_800C3EAC + idx)[0x3C] = D_800C3E2C;
+    func_800BC404(func_80089C08(arg0) | func_80089C08((D_800C3EAC + idx)[0x3C]));
+    func_800716D8();
+    D_800C204C = 1;
+    switch (info[0]) {
+    case 1:
+        D_800C3E18 = 0;
+        if (D_800D2D24[arg0] != 4) {
+            D_800C400B[D_800C3EAC[0x2DA] * 0x48] = arg0;
+            D_800C402F[D_800C3EAC[0x2DA] * 0x48] = 0xFD;
+            *(u16 *)(D_800C4022 + D_800C3EAC[0x2DA] * 0x48) = 0;
+            *(u16 *)(D_800C3FFE + D_800C3EAC[0x2DA] * 0x48) =
+                func_80089C08((D_800C3EAC + idx)[0x3C]);
+            D_800C3EAC[0x2DA]++;
+        }
+        if (D_800D32A1[arg0 * 8] == 0) {
+            D_800C3EAC[0x2DC] = 0;
+        } else {
+            D_800C3EAC[0x2DC] = info[1];
+        }
+        ret = 0;
+        r = func_800877E0(arg0, (D_800C3EAC + idx)[0x3C]);
+        func_800B89FC(r, arg0, (D_800C3EAC + idx)[0x3C], func_80080AE4(arg0));
+        func_80087AF0(arg0, info[1] + 1);
+        func_80080B64(arg0);
+        break;
+    case 2:
+        cost = D_800CDD53[(info[1] + 0x16) * 0x28 + arg0 * 0x5F0];
+        if (*(u16 *)(D_800CCD38 + arg0 * 0x170) >= cost) {
+            *(u16 *)(D_800CCD38 + arg0 * 0x170) -= cost;
+            ret = 0;
+            D_800C3EAC[0x2E6] = info[1];
+            func_8008ADD0(arg0);
+        }
+        break;
+    case 4:
+        func_800826CC(arg0);
+        ret = 0;
+        D_800C3EAC[0x2DE] = 1;
+        break;
+    default:
+        break;
+    }
+    if (ret != 0) {
+        func_8009AA44(arg0);
+        D_800C3EAC[0x2EA] = 0;
+        D_800C3EAC[0x2DE] = 1;
+    }
+    while (D_800C3EAC[0x2DE] == 0 && D_800C48EA == 0 && D_800C3EAC[0x2DB] != 0) {
+        func_800716D8();
+    }
+    D_800C204C = 0;
+    return ret;
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_80080C94);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_8008115C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_80081318);
