@@ -1010,24 +1010,23 @@ s32 ResourceHelperGetSpriteList(MenuResourceDirectory* dir, u32 index, MenuResou
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_80026F44);
 /*
-Best 72.66% (160 bytes against 168). The body content is right - the masks,
-the gte_ldir123/gte_gpf12/gte_stir123_gpr order, the c != 0 && rgb == 0 -> |= 1
-fix-up and the 0x8000 passthrough all line up with the original. What is left is
-the loop shape: retail is an UNROTATED top-tested loop
-    .L80026F60: addiu a0,a0,-1; beq a0,t2(-1) -> out; body; j .L80026F60 ; nop
-with `li t2,-1` hoisted once before the loop, while every spelling tried here
-produces gcc's duplicated exit test (pre-loop dec+test, body, dec, bne) and
-spends two extra instructions on it:
-  while (--count != -1)                      72.54%
-  for (;;) { if (--count == -1) break; ... } 72.54%
-  for (i = count - 1; i != -1; i--)          72.66%
-  for (i = count; i != limit; i--) w/ limit 70.59%
--O3 and gcc 2.6.0 both give 72.54, so this is not the preset. The unit's own
-func_80025C04 has the ROTATED shape of the same loop, which is what gcc gives,
-so these two siblings were probably not built from this source shape.
+Best 74.63% (160 bytes, exactly the original's size). The LOOP SHAPE IS SOLVED:
+retail's unrotated top test with `li t2,-1` hoisted once before the loop is
+`while (1) { if (--count == limit) break; ... }` with `s32 limit = -1;` - a
+literal -1 in the compare makes gcc rematerialise it, a limit local is what
+hoists it, and the while (1) break keeps gcc from duplicating the exit test
+(160 bytes instead of 168). Shapes that do NOT work: while (--count != -1) and
+for (;;) { if (--count == -1) break; } 72.54, for (i = count - 1; i != -1; i--)
+72.66, for (i = count; i != limit; i--) 70.59.
+What is left is register allocation of the nine body values only: retail keeps
+color in t6 and ir1/ir2/ir3 in t5/t4/t3, this shape gets v0/t0/v1/a1, so the
+final `rgb |= 1` comes out `ori t5,t5,1` there and `li v1,1; or` here, the two
+`or`s differ in operand order, and the clamp prologue fills the beqz delay slot
+with the level<<7 shift where retail has a nop and shifts after. A separate
+`s32 dqp; dqp = level << 7; gte_lddp(dqp);` local changed nothing.
 void func_80026F44(s32 count, s32 level, u16* pDst, u16* pSrc) {
     u16 color;
-    s32 i;
+    s32 limit;
     s32 ir1;
     s32 ir2;
     s32 ir3;
@@ -1037,7 +1036,11 @@ void func_80026F44(s32 count, s32 level, u16* pDst, u16* pSrc) {
         level = 0x20;
     }
     gte_lddp(level << 7);
-    for (i = count - 1; i != -1; i--) {
+    limit = -1;
+    while (1) {
+        if (--count == limit) {
+            break;
+        }
         color = *pSrc++;
         ir1 = color & 0x1F;
         ir2 = color & 0x3E0;
