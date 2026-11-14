@@ -305,7 +305,6 @@ void func_80097440(Misc15Rot *p) {
     TransMatrix(&D_8009C808, (VECTOR *)0x1F800000);
 }
 
-
 void func_8009766C(void) {
     D_8009BE24 = HeapAlloc(0x2000, 0);
     func_800976C8();
@@ -548,7 +547,6 @@ void func_80097BC0(s32 *p) {
 }
 */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_80097BC0);
-
 
 void func_80097CB8(s32 arg0) {
     u32 *pEnd;
