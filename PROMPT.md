@@ -87,9 +87,10 @@ of a match, and it is cheap.
   read-only, so workers share this tree and need no clones. Pick the files with the
   most unnamed definitions that are **not** in the current matching round, hold the
   NAME lines, and apply them after the matching round has merged, with the two commands
-  above. Count definitions with `/* ... */` blocks stripped: a bare `grep func_` counts
-  `extern` prototypes and parked bodies, and round 35 spent two duds on files with zero
-  unnamed C functions. Ten naming workers yield ~500 names, so this is the cheaper of
+  above. Count definitions with `/* ... */` blocks stripped AND column-0
+  `extern s32 func_X();` prototypes dropped: a bare `grep func_` counts both, which cost
+  round 35 two duds and round 47 three (world_map/misc3, misc6, misc5 top the count with
+  zero unnamed C functions). Ten naming workers yield ~500 names, so this is the cheaper of
   the two numbers to move.
 - **A rename leaves `D_<addr>` behind.** When the named function is also referenced from
   another binary as a *data* symbol (`extern u8 D_80025A88[]` for a main-exe callback in
@@ -232,6 +233,10 @@ broken an overlay with every function at 100:
   `ls -d ~/xw/r-*` and `intercom list`, and prefer tags that carry a round number
   (`m45-temp2`). Two sessions merging, renaming or running `make check` in the same
   tree at the same time is the one thing `make check` cannot catch.
+- **No untracked files in the main tree while clones are out.** A worker's
+  `git commit -a` sweeps them onto its branch and the merge then dies with "untracked
+  working tree files would be overwritten" (round 47: five of twelve merges, until
+  `tools/pi/` was committed). Commit them or remove them before `new`.
 - Workers hit the 30-minute kill constantly. Fine if they committed; `merge` refuses
   uncommitted work. A lost body is still in `worker_transcript.jsonl` under
   `subagent-artifacts/`.
