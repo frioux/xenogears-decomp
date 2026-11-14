@@ -38,7 +38,6 @@ void FieldRenderSync(void) {
 
 extern s32 D_8004F344;
 extern void* D_8005A4A0;
-extern s16 D_800ADC44[];
 extern s16 D_800C2690;
 extern s16 D_800C2692;
 extern s16 D_800C38FC;
@@ -52,27 +51,38 @@ extern void ResolveArchiveEntryPointers(u32* header);
 extern void FieldLoadTIMWithClut(u_long* pTimData, short x, short y, short clutX, short clutY,
                                  short clutWidth, short clutHeight);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/main", FieldLoadUITextures);
-// 85.72%: D_800ADC44 is 8 entries of six shorts (x, y, clutX, clutY, clutWidth, clutHeight).
-// The original walks the table twice with pointer variables (one at offset 0 for x, one at
-// 0xA for clutHeight) AND re-derives `&D_800ADC44 + i * 12` from the symbol for the middle
-// four arguments - four separate `addu $v0,$s2,$s0` with offsets 2/4/6/8, i.e. it does not
-// CSE the base. Every C form tried (flat s16 array indexed i*6+k, struct array indexed,
-// pointer locals for all six) makes gcc either fold +2 into the base register or merge the
-// index into the pointer, and the RECT stores below come out as %hi(D_800B004C)+2 instead
-// of the original's separate D_800B004E/50/52. Frame and prologue match.
-/*
 typedef struct {
     s16 x; s16 y; s16 clutX; s16 clutY; s16 clutWidth; s16 clutHeight;
 } FieldUITextureRect; // Size: 0xC
 
 extern FieldUITextureRect D_800ADC44[];
 
+INCLUDE_ASM("asm/field/nonmatchings/main/main", FieldLoadUITextures);
+// 87.32% (432 bytes vs 428; the frame is now exact: 0x40 with s0-s5+ra, and the
+// loop prologue's `move s5,zero` / `lui s2,%hi(D_800ADC44)` order matches). The
+// remaining gap is the middle four arguments of FieldLoadTIMWithClut: the original
+// computes `addu $vN,$s2,$s0` FOUR times (destinations v0/v1/a0/t0) and reads
+// `lh 2/4/6/8($vN)`, i.e. it keeps the table base in a register and re-creates the
+// base+offset sum per argument; every C form tried here makes cse merge them into
+// one `addu` (this version: `addu v1,s5,s3` then all four loads off v1), which is
+// 3 insns short and shifts every later offset. Tried: struct array indexed
+// (pTable[i].y, 85.72%, also made the base walk), byte base + s32 offset variable
+// and `*(s16*)(pBase + offset + K)` (this one), `D_800ADC44[i*6+K]` flat s16, and
+// pointer locals for all six. NOTE for the next attempt: D_800ADC44 must be
+// declared once (a struct array; the old `extern s16 D_800ADC44[];` at the top of
+// the file conflicts with it, cc1 exits 33), and the height walker starts at
+// table + 0xA (`(s16*)D_800ADC44 + 5`), not at entry 5.
+// Also still open: the D_800B004C RECT stores - the original writes x through the
+// a0 it reuses for StoreImage and y/w/h through `lui at`, in that order; this body
+// gets the same relocations but emits the x store after w.
+/*
 void FieldLoadUITextures(void) {
-    FieldUITextureRect* pTable;
-    s16* pRect;
+    u8* pBase;
+    u8* pBase;
+    s16* pX;
     s16* pHeight;
     s32* pEntry;
+    s32 offset;
     int i;
 
     if (D_8004F344 == 0) {
@@ -88,14 +98,17 @@ void FieldLoadUITextures(void) {
     D_800C38FE = 0;
     D_800C38FC = 0;
     ResolveArchiveEntryPointers(D_8005A4A0);
-    pTable = D_800ADC44;
-    pRect = D_800ADC44;
-    pHeight = &D_800ADC44[5];
+    pBase = (u8*)D_800ADC44;
+    pX = (s16*)pBase;
+    pHeight = (s16*)pBase + 5;
     pEntry = (s32*)((u8*)D_8005A4A0 + 4);
+    offset = 0;
     for (i = 0; i < 8; i++) {
-        FieldLoadTIMWithClut((u_long*)pEntry[i], *pRect, pTable[i].y, pTable[i].clutX,
-            pTable[i].clutY, pTable[i].clutWidth, *pHeight);
-        pRect += 6;
+        FieldLoadTIMWithClut((u_long*)pEntry[i], *pX, *(s16*)(pBase + offset + 2),
+            *(s16*)(pBase + offset + 4), *(s16*)(pBase + offset + 6),
+            *(s16*)(pBase + offset + 8), *pHeight);
+        pX += 6;
+        offset += 0xC;
         pHeight += 6;
         DrawSync(0);
     }
