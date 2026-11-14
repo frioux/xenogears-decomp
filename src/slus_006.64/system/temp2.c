@@ -527,12 +527,119 @@ void SpriteDrawModelPartsInBaseMatrix(WorkListEntry* pTask) {
 }
 
 // splat marks 80025C04, 80025D4C, 80026F44 and 80026FE8 "Handwritten
-// function": raw mtc2/mfc2/lwc2/GTE sequences against fixed GTE registers,
-// i.e. Psy-Q Lite assembly, not gcc output. No C reproduces the fixed
-// $9/$10/$11 traffic, so these are not reachable from C.
+// function": GTE sequences against fixed GTE registers, i.e. Psy-Q Lite
+// assembly, not gcc output. 80025D4C's lwc2/swc2 traffic does have macros
+// (gte_ldlvl / gte_stlvl_gpr, see its park note), but the bare mtc2/mfc2
+// forms of the other three have no source spelling.
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_80025C04);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_80025D4C);
+/*
+Un-park screen: best 87.89% (604 bytes, the original's exact size). This stub
+is NOT one of the unreachable "handwritten function" ones: gte_ldlvl (lwc2
+$9/$10/$11 off the long[3] scratch) and gte_stlvl_gpr (swc2 back into the same
+two words) from include/psyq/inline_c.h reproduce the GTE traffic exactly, and
+gte_gpf12 supplies the two nops plus GPF, so the instruction multiset is right.
+What is left is one allocator permutation plus the frame. Retail keeps redBias
+in s0, the shifted green/blue biases in t9/t8, mode in t6, and does the
+mode-3 mfhi into s1 (frame 0x18, two saved registers); this body needs a third
+saved register (s0 = greenBias, s1 = redBias, s2 = mfhi), hence a 0x20 frame,
+ships greenIn/blueIn in t6/t5 where retail has t3/t2, and puts the clamped red
+in t3 where retail has a0. Tried and no move: shifts inline in the body vs
+mutating the bias parameters, *pSrc++ vs a tail pSrc++, folding the average
+local into redIn, hoisted redValue/greenValue/blueValue locals (81.21%),
+a pDelta u16* local instead of the (u16*)d casts (81.65%, 624 bytes).
+Signature from the only caller, func_800A6AE8 in battle/main/misc23:
+(count = w * h, pSrc, pSrc2, pDst, redBias, greenBias, blueBias, mode, depth),
+src/src2/dst the same buffer there, mode 0..3, depth from the same record.
+Return: the blended colour is written only when the source colour is non-zero,
+and always with bit 15 set.
+// Shades count 16-bit colours of pSrc into pDst: the source colour is divided
+// down (mode 0 keeps it, 1 halves it, 2 quarters it, 3 replaces it with the
+// average of R, G and B) and biased per channel, then the GPF interpolates the
+// difference against pSrc2's colour by depth and the result is added back.
+void func_80025D4C(s32 count, u16* pSrc, u16* pSrc2, u16* pDst,
+                       s32 redBias, s32 greenBias, s32 blueBias, s32 mode,
+                       s32 depth) {
+    long d[3];
+    s16 red;
+    s16 green;
+    s16 blue;
+    s32 redIn;
+    s32 greenIn;
+    s32 blueIn;
+    s32 average;
+    u16 color;
+
+    if (depth >= 0x21) {
+        depth = 0x20;
+    }
+    gte_lddp(depth << 7);
+    greenBias <<= 5;
+    blueBias <<= 10;
+    while (--count != -1) {
+        color = *pSrc++;
+        switch (mode) {
+        case 0:
+            redIn = color & 0x1F;
+            greenIn = color & 0x3E0;
+            blueIn = color & 0x7C00;
+            break;
+        case 1:
+            redIn = (color & 0x1E) >> 1;
+            greenIn = (color & 0x3C0) >> 1;
+            blueIn = (color & 0x7800) >> 1;
+            break;
+        case 2:
+            redIn = (color & 0x1C) >> 2;
+            greenIn = (color & 0x380) >> 2;
+            blueIn = (color & 0x7000) >> 2;
+            break;
+        case 3:
+            average = ((color & 0x1F) + ((color & 0x3E0) >> 5) +
+                       ((color & 0x7C00) >> 10)) / 3;
+            redIn = average;
+            greenIn = average << 5;
+            blueIn = average << 10;
+            break;
+        }
+        red = redIn + redBias;
+        if (red < 0) {
+            red = 0;
+        }
+        green = greenIn + greenBias;
+        if (green < 0) {
+            green = 0;
+        }
+        blue = blueIn + blueBias;
+        if (blue < 0) {
+            blue = 0;
+        }
+        if (red >= 0x20) {
+            red = 0x1F;
+        }
+        if (green >= 0x3E1) {
+            green = 0x3E0;
+        }
+        if (blue >= 0x7C01) {
+            blue = 0x7C00;
+        }
+        d[0] = (*pSrc2 & 0x1F) - red;
+        d[1] = (*pSrc2 & 0x3E0) - green;
+        d[2] = (*pSrc2 & 0x7C00) - blue;
+        gte_ldlvl(d);
+        gte_gpf12();
+        gte_stlvl_gpr(d);
+        if (color != 0) {
+            *pDst = 0x8000 | (red + (((u16*)d)[0] & 0x1F)) |
+                    (green + (((u16*)d)[2] & 0x3E0)) |
+                    (blue + (((u16*)d)[4] & 0x7C00));
+        }
+        pSrc2++;
+        pDst++;
+    }
+}
+*/
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_80025FA8);
 
