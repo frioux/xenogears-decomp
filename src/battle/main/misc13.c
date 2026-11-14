@@ -1,5 +1,6 @@
 #include "common.h"
 #include "main/game.h"
+#include "psyq/libgpu.h"
 
 extern u8 *D_800C3EAC;
 extern u8 *D_800D2D28;
@@ -27,6 +28,9 @@ extern u8 D_800D301D[];
 extern u8 D_800C3EBE[];
 extern u8 D_800C3EC0[];
 extern u8 *D_800D3364;
+extern u8 D_800C48EC[];
+extern u8 D_800C48EE[];
+extern u8 D_800C48F0[];
 
 extern void func_80085454(u8);
 extern void func_80085618(u8);
@@ -44,7 +48,12 @@ extern void func_800BE538(u8, s32, s32, s32);
 extern u8 D_800C4000[];
 extern u8 D_800C3FE8[];
 extern u8 *D_800C3EA4;
-extern u8 D_800CCB34;
+extern s32 D_800CCB34;
+extern u8 *D_800D2DB4;
+extern s32 func_80033784(s32, s32);
+extern void func_80076D58(u8 *, u8, u8);
+extern void func_80076C78(POLY_FT4 *, s16, s16, u8, u8, u8);
+extern s32 SystemRenderStringEntry(u8 *, void *, s32, s32);
 extern s32 func_80076A10(s32, s32, s16, s16);
 extern u8 D_800D2C34[];
 extern u8 D_800D2D24[];
@@ -168,6 +177,40 @@ void func_80085E78(void) {
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80085EB4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80086028);
+/* 88.08%: instruction multiset is identical (same size, same prologue save
+   order, same delay-slot placement); every difference is the s-register NUMBER
+   gcc hands to each call-crossing value. Retail: s0=q s1=arg0 s2=arg2 s3=arg1
+   s4=r s5=arg3 s6=arg5 s7=arg4 fp=arg1*4; ours: s0=arg5 s1=q s2=arg0 s3=r
+   s4=arg1 s5=arg3 s6=arg1*4 s7=arg4 s8=arg2. The copies happen in the same
+   order, so it is an allocator priority tie, not a shape difference.
+   `arg1 * 0x50 + 0x5550 + D_800D2DB4` (symbol added last) is what puts the
+   `addu` in the func_80076D58 jal delay slot. The three masks 0xFFFC/0xFFF8/
+   0xF8 on the func_80076C78 coordinates are literal in the source.
+s32 func_80086028(u8 arg0, s32 arg1, s32 arg2, u8 arg3, u32 **arg4, u8 arg5) {
+    s32 q;
+    s32 r;
+    s32 len;
+    RECT rect;
+
+    q = arg1 / 2;
+    r = arg1 % 2;
+    func_80076D58((u8 *)(arg1 * 0x50 + 0x5550 + D_800D2DB4), r, 3);
+    len = SystemRenderStringEntry((u8 *)func_80033784(D_800D2D24[arg0], arg3), *arg4, 0x1B, r);
+    rect.x = q * 0x1E + 0x3C0;
+    rect.y = 0x1A;
+    rect.w = 0x1E;
+    rect.h = 0xD;
+    LoadImage(&rect, *arg4);
+    func_80076C78((POLY_FT4 *)((D_800CCB34 + arg1 * 2) * 0x28 + 0x5550 + D_800D2DB4),
+                  ((arg2 + arg5 + 1) * 0x10 + 0x50 + arg1 * 4) & 0xFFFC,
+                  (0xC8 - arg1 * 0x10) & 0xFFF8,
+                  (q * 0x78) & 0xF8,
+                  0x1A,
+                  len);
+    D_800D2DB4[0x5D80]++;
+    return arg1 + 1;
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_800861D0);
 u8 func_80086B88(s32 arg0, u8 arg1) {
     s32 ok = 1;
@@ -192,6 +235,52 @@ u8 func_80086B88(s32 arg0, u8 arg1) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80086C88);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80086F98);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_800877E0);
+/* 59.15%: retail recomputes `D_800C3EB4[a*0x1C] * 0x40` and `[b*0x1C] * 8`
+   inside the loop on every one of the three blocks, while gcc hoists them into
+   the loop preheader as loop invariants (the difference is ~60 bytes). Spelling
+   the index inline (`D_800C3EB4[a * 0x1C]`, no ofsA/ofsB locals, 62.57%) makes
+   gcc form `la D_800C3EB4` base pointers instead of retail's per-access
+   lui `%hi` + addu + `%lo`. Also open: retail materialises `+ 0x140` with an
+   explicit addiu before the `+ i` in the first block (it re-reads through the
+   same $a0) while ours folds 0x140 into the load displacement.
+s32 func_800877E0(s32 arg0, s32 arg1) {
+    s32 i;
+    s32 o;
+    u8 a;
+    u8 b;
+    s32 ofsA;
+    s32 ofsB;
+    s32 res;
+
+    res = 0;
+    for (i = 0, o = 0; i < 9; i++, o += 6) {
+        *(u16 *)(D_800C48EC + o) = 0xFFFF;
+        *(u16 *)(D_800C48EE + o) = 0xFFFF;
+    }
+    a = arg0;
+    ofsA = a * 0x1C;
+    b = arg1;
+    ofsB = b * 0x1C;
+    *(u16 *)(D_800C48EC + 0) = *(u16 *)(D_800C3EBE + ofsA);
+    *(u16 *)(D_800C48EE + 0) = *(u16 *)(D_800C3EC0 + ofsA);
+    D_800C48F0[0] = 0;
+    o = 6;
+    for (i = 1; i < 8; i++, o += 6) {
+        if (*(u8 *)(D_800D3364 + D_800C3EB4[ofsA] * 0x40 + D_800C3EB4[ofsB] * 8 + 0x140 + i) == 0xFF) {
+            break;
+        }
+        *(u16 *)(D_800C48EC + o) =
+            *(u16 *)(D_800D3364 + ((*(u8 *)(D_800D3364 + D_800C3EB4[ofsA] * 0x40 + D_800C3EB4[ofsB] * 8 + 0x140 + i) & 7) << 5));
+        *(u16 *)(D_800C48EE + o) =
+            *(u16 *)(D_800D3364 + ((*(u8 *)(D_800D3364 + D_800C3EB4[ofsA] * 0x40 + D_800C3EB4[ofsB] * 8 + 0x140 + i) & 7) << 5) + 2);
+        D_800C48F0[o] = *(u8 *)(D_800D3364 + D_800C3EB4[ofsA] * 0x40 + D_800C3EB4[ofsB] * 8 + 0x140 + i) & 0x80;
+    }
+    if (D_800D2D24[a] == 4) {
+        res = 1;
+    }
+    return res;
+}
+*/
 void func_800879A8(s32 arg0, s32 arg1) {
     s32 i;
     s32 o;
