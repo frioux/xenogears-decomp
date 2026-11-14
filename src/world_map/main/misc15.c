@@ -539,6 +539,10 @@ void func_800979C8(void) {
 // preset's flags) scores 72.42 here while dropping 6 already-matched functions
 // in this unit (func_80097770 91.43, func_800977A8 91.43, func_8009766C 95.38),
 // so the unit preset is right.
+// Round 42: the -O2 schedule is source-order-insensitive here (four statement
+// orders, retail's own included, give a byte-identical .s), and a try_flags
+// --sweep peaks at 74.19% (-O1, every gcc) / 67.66% (cdk -O1), so retail's
+// order is not reachable under the unit's -O2.
 /*
 void func_80097BC0(s32 *p) {
     u32 *pEnd;
