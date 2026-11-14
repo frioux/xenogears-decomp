@@ -2484,6 +2484,7 @@ after the round-31 precedent. Two macros' worth of knowledge, now in the file's 
 - `VectorNormalS` (5 insns) branches into the *middle* of `VectorNormalSS`; no C
   definition can, so it stays a stub.
 | 33 | `slus_006.64/psyq/libgte` (2nd), `battle/{misc30,misc4,misc29}`, `battling/{misc14,misc12,misc17,misc18,misc1}`, `world_map/{misc5,misc6,misc15,misc3}` | +13 | 1373 | world_map/misc5 **4** (`7C36C 7CD20 7B200 7B604`), psyq/libgte 2 (`CompMatrix ApplyMatrixLV`), battle/misc30 2 (`BAB0C BB13C`), world_map/misc3 2, battling/misc1 1 (`88D1C`), battling/misc12 1 (`...`), world_map/misc6 1 (`7D4A4`); 0 in battle/misc4, misc29, battling/misc14, misc17, misc18, world_map/misc15 (parks only). Overlay green on the first try |
+| 34 | `battle/{misc8,misc30,misc7,misc19,misc13,misc2,misc26}`, `battling/misc15`, `world_map/{misc1,misc10}` + a 6-worker naming round | +11 | 1354 | battle/misc8 **5** (`7CD10 7CEA4 7CB20 7D1DC 7D344`), battle/misc30 **4** (`BA614 BA768 BAEB8 BADD4`, the last two were parks), battling/misc15 1 (`8CA84`), battle/misc2 1 (`74D4C`); 0 new in misc7, misc19, misc13, world_map/misc1, world_map/misc10 (parks improved instead); battle/misc26's worker timed out with an uncommitted body and was dropped. 73 names applied, 27 skipped (lib_gear has no symbol_addrs entries for them) |
 
 Session 10 total: **1435 -> 1373 stubs (+62)**, eleven outputs byte-identical throughout,
 and three durable tools/findings that outlive the matches:
