@@ -370,14 +370,25 @@ void BattleFreeModelMesh(BattleModelPartList* pList, s32 freeLight) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_8009F844);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_800A0838);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_800A1B50);
-/* 90.08% (424 vs 416 bytes), s32 rot f2f3 values + u16 counters. Offsets
-   confirmed: rot[3] s16 at 0x54, pos[3] s32 at 0x5C, p70/p74 at 0x70/0x74,
-   set-bytes at 0x4/0x5, frame records 3 s16 each; the guard is `andi
-   count-1,0xFFFF` then `blez` (this version emits beqz) and retail keeps the
-   sprite pointer rebased to sprite+4 with the 0x7C increment in the loop's
-   first branch delay slot (increment at the top of the body) while every shape
-   tried here folds the +0x80 into the entry. Remaining deltas: guard beqz vs
-   blez, the fold, and two register assignments. BLOCK_ROTATION-shaped.
+/* 96.05% (420 vs 424 bytes). The instruction multiset is identical; the only
+   delta is that gcc's sched2 emits `lh v0,6(a1)` third (after countA/countB)
+   where retail has it first, which also swaps v0/v1 with a1 in the skip-block
+   arithmetic. Shapes tried: every statement order of the four field reads (with
+   and without a unk06 local), countA inline vs a local, and both pointer/walker
+   forms. Facts this cost a round to establish, keep them:
+   - `pFrame += (countA + 1) * 3` MUST go through a temp: the temp is what puts
+     `move t1,zero` back at the top of the prologue (94.95 -> 96.05).
+   - the sprite pointer MUST be pre-incremented at the TOP of the body
+     (`pSprite = pSprites; for (...) { pSprite++; ... }`): that is what makes
+     retail's 0x7C increment sit in the loop-head branch delay slot and the
+     andi/move stay in the tail's.
+   - there MUST be no `if (limit <= 0) return;`: retail's `andi; blez; move
+     t0,zero` entry test IS the `for` loop's own entry test.
+   - records are read with `*pFrame++` (stride 2), and the sprite base is
+     rebased to sprite+4 (doTransform) by gcc, as retail's 0x50/0x58/0x6C
+     displacements show.
+   permuter: 2 runs / 1364 iterations, base 555 best 555 - it cannot break the
+   load-order tie either.
 void func_800A1B50(BattleSprite* pSprites, BattleAnimData* pData) {
     s16* pFrame;
     BattleSprite* pSprite;
@@ -388,6 +399,7 @@ void func_800A1B50(BattleSprite* pSprites, BattleAnimData* pData) {
     u16 countB;
     u16 animFlags;
     u16 numSprites;
+    s16 unk06;
     s32 i;
     s32 v0;
     s32 v1;
@@ -395,19 +407,19 @@ void func_800A1B50(BattleSprite* pSprites, BattleAnimData* pData) {
 
     numA = 0;
     numB = 0;
-    pFrame = (s16*)((u8*)pData + 0x18);
-    if (pData->unk06 == 0) {
-        pFrame += (pData->countA + 1) * 3;
-    }
+    unk06 = pData->unk06;
+    pFrame = (s16*)(pData + 1);
     countA = pData->countA;
     countB = pData->countB;
     animFlags = pData->flags;
-    numSprites = pSprites->count - 1;
-    if (numSprites < 1) {
-        return;
+    if (unk06 == 0) {
+        v2 = countA + 1;
+        pFrame += v2 * 3;
     }
-    pSprite = pSprites + 1;
-    for (i = 0; i < numSprites; i++, pSprite++) {
+    numSprites = pSprites->count - 1;
+    pSprite = pSprites;
+    for (i = 0; i < numSprites; i++) {
+        pSprite++;
         if (!(animFlags & 1) && numA < countA) {
             v0 = *pFrame++;
             v1 = *pFrame++;
@@ -419,8 +431,8 @@ void func_800A1B50(BattleSprite* pSprites, BattleAnimData* pData) {
                     pSprite->rot[0] = v0;
                     pSprite->rot[1] = v1;
                     pSprite->rot[2] = v2;
-                    pSprite->unk00[4] = 1;
-                    pSprite->unk00[5] = 1;
+                    pSprite->doTransform = 1;
+                    pSprite->doRotate = 1;
                 }
             }
         }
@@ -435,7 +447,7 @@ void func_800A1B50(BattleSprite* pSprites, BattleAnimData* pData) {
                     pSprite->pos[0] = v0;
                     pSprite->pos[1] = v1;
                     pSprite->pos[2] = v2;
-                    pSprite->unk00[4] = 1;
+                    pSprite->doTransform = 1;
                 }
             }
         }
