@@ -42,7 +42,7 @@ extern void func_8008E430(u8, s32, s32, s32, u16);
 extern void func_8008EA70(u8, s32, s32, s32);
 extern void func_8008F0A8(u8, s32, s32, s32, u16);
 extern void func_80090310(u8, u8);
-extern void func_800904A0(s32, s32);
+extern void func_800904A0(u8, u8);
 extern void func_8009070C(u8, u8);
 extern void *D_800D2F5C;
 extern u8 D_800C3E4C;
@@ -167,6 +167,82 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc16_r2", func_8009023C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16_r2", func_80090310);
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16_r2", func_800904A0);
+/* 73.99%: the structure is right -- flags = *(u16 *)(D_800D2204 +
+   D_800D2CE0[idx] * 0x10), the 0x4000/0x1000 row pick (9/7/8), the 3-case
+   switch on flags & 0xF giving col (0xC/0xD/0x15, no default case), the two
+   func_80076C78 blocks (record offsets 0x320 and 0x370, u = D_800D2F6A[ofs],
+   v = D_800D2F6B[ofs], dx = D_800D2F68[ofs], ofs = row * 4 then
+   (col & 0xFF) * 4) and the two palette stores at +0x32E/+0x37E selected by
+   D_800D2F69[ofs]. D_800CCB34 must be reached through a `s32 *pMode =
+   &D_800CCB34` local -- that is what produces the retail `lui/addiu` + `lw`
+   pair per call instead of a folded `lui/lw sym`.
+   Remaining gaps: (1) retail keeps row in s0 (`li s0,9`) and shifts it once
+   after the switch, gcc puts row in a0 and reorg duplicates `sll s0,a0,2` into
+   the switch compares' delay slots; (2) retail precomputes pBase + mode*0x28 in
+   the beqz delay slot of the palette test (`addu v1,v1,v0` then
+   `sh v0,0x32E(v1)`), ours computes it after the branch; (3) the call argument
+   is `addu a0,a0,t0` in retail (index term first) and `addu a0,t0,a0` here --
+   casting the base to (s32) to flip it instead moves the multiply earlier
+   (sll a0,0x3 before the +0x320) and drops to 70%; col lands in s1 here, s2 in
+   retail. Tried: a `u8 *pRec` local for the palette address (in the parked body
+   below, 73.99), both parentheses associativities for the call argument, and
+   the (s32)-cast sum form.
+void func_800904A0(u8 arg0, u8 arg1) {
+    u8 *pBase;
+    u8 *pRec;
+    s32 *pMode;
+    u16 flags;
+    u16 pal;
+    s32 row;
+    s32 col;
+    s32 ofs;
+
+    flags = *(u16 *)(D_800D2204 + D_800D2CE0[arg1 * 2 + arg0] * 0x10);
+    if (flags & 0x4000) {
+        row = 9;
+    } else if (flags & 0x1000) {
+        row = 7;
+    } else {
+        row = 8;
+    }
+    switch (flags & 0xF) {
+    case 0:
+        col = 0xC;
+        break;
+    case 1:
+        col = 0xD;
+        break;
+    case 2:
+        col = 0x15;
+        break;
+    }
+    pMode = &D_800CCB34;
+    ofs = row * 4;
+    pBase = *(u8 **)(D_800C3EA4 + 0xA230);
+    func_80076C78((POLY_FT4 *)(pBase + (*pMode * 0x28 + 0x320)), 0xA8, 0x33,
+        D_800D2F6A[ofs], D_800D2F6B[ofs], D_800D2F68[ofs]);
+    pBase = *(u8 **)(D_800C3EA4 + 0xA230);
+    pRec = pBase + *pMode * 0x28;
+    if (D_800D2F69[ofs] != 0) {
+        pal = g_SystemPalette2;
+    } else {
+        pal = g_SystemPalette1;
+    }
+    *(u16 *)(pRec + 0x32E) = pal;
+    ofs = (col & 0xFF) * 4;
+    pBase = *(u8 **)(D_800C3EA4 + 0xA230);
+    func_80076C78((POLY_FT4 *)(pBase + (*pMode * 0x28 + 0x370)), 0xD0, 0x33,
+        D_800D2F6A[ofs], D_800D2F6B[ofs], D_800D2F68[ofs]);
+    pBase = *(u8 **)(D_800C3EA4 + 0xA230);
+    pRec = pBase + *pMode * 0x28;
+    if (D_800D2F69[ofs] != 0) {
+        pal = g_SystemPalette2;
+    } else {
+        pal = g_SystemPalette1;
+    }
+    *(u16 *)(pRec + 0x37E) = pal;
+}
+*/
 void func_8009070C(u8 arg0, u8 arg1) {
     RECT rect;
     u8 *pBuf;
