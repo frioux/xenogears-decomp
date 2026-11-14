@@ -240,6 +240,13 @@ broken an overlay with every function at 100:
 - Workers hit the 30-minute kill constantly. Fine if they committed; `merge` refuses
   uncommitted work. A lost body is still in `worker_transcript.jsonl` under
   `subagent-artifacts/`.
+- **A pool branch is based on `main`, not `master`.** `git log master..HEAD` in a clone
+  reports 0 commits for a worker that committed fine; use `main..HEAD` (round 48 read
+  eleven merges as lost work that way).
+- **Intercom entries outlive their orchestrator.** A dead session's worker clones still
+  show in `intercom list` with no process behind them (`ps` has no worker, only this
+  session); the truth is `git -C ~/xw/r-<tag>/xenogears-decomp log --oneline main..HEAD`.
+  Adopting such a round is just: check that, then merge as usual.
 - pi-subagents "needs attention / no activity for 300s" notices are noise. A real
   failure reads `error:Subagent timed out`.
 - `try_flags.sh` and `park_sweep.py` return `compile-failed` under load; re-run a
