@@ -234,7 +234,83 @@ typedef union {
 extern SpuUnion* g_pSoundSpuRegisters;
 //----------------------------------------------------------------------------------------------------------------------
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", SoundInitialize);
+// SPU / sequencer setup entry point. Callees live further down this unit.
+extern char g_SoundSpuMemoryTableStart[];
+extern u8 D_80065B0C[];
+extern s32 D_80059504;
+extern void* D_80059518;
+extern AudioManager* D_800595D8;
+
+void func_8003C020(void);
+void SoundSpuIRQHandler(void);
+void SoundOnTransferCallback(void);
+void func_800386C4(s32 mode);
+void SoundHeapInitialize(void* startAddress, unsigned int size);
+void SoundSpuMemoryInitialize(void);
+void* SoundHeapAllocate(unsigned int allocSize);
+void SoundClearVoiceDataPointers(void);
+void SoundSetCdAttr(long reverb, long mix);
+void SoundSetMasterVolumeWithFade(s32 volume, s32 frames);
+void SoundSetCdVolumeWithFade(s32 targetVolume, s32 fadeFrames);
+void SoundSetupCdMix(s32 vol);
+int SoundSpuMemoryAllocateBlockAtAddress(int size, int address, int unkArg);
+AudioManager* SoundCreateAudioManagerForElementCount(s32 elementCount);
+void SoundSetReverbModeWithAllocation(s32 reverbType, s32 reverbDepth, s32 reverbDelay, s32 reverbFeedback);
+
+void SoundInitialize(s32 flags) {
+    if (g_SoundControlFlags < 0) {
+        SoundHandleError(0x28);
+        return;
+    }
+
+    g_SoundControlFlags = flags | 0xB801;
+    SpuInitMalloc(4, g_SoundSpuMemoryTableStart);
+    SoundHeapInitialize(D_80065B0C, 0x6300);
+    SoundSpuMemoryInitialize();
+    g_SoundTransferQueue = SoundHeapAllocate(0xA0);
+    SoundClearVoiceDataPointers();
+    D_800594E4 = 0x12345678;
+    g_SoundAudioManagerListHead = NULL;
+    D_800595D8 = NULL;
+    g_SoundSedsLinkedList = NULL;
+    g_SoundWdsLinkedList = NULL;
+    D_80059518 = NULL;
+    g_SoundKeyOnFlags = 0;
+    g_SoundKeyOffFlags = 0;
+    g_unk_VoicesNeedingProcessing = 0;
+    g_SoundVolumeController.commonAttr.mvolmode.left = 0;
+    g_SoundVolumeController.commonAttr.mvolmode.right = 0;
+    g_SoundVolumeController.commonAttr.mask = 0xC;
+
+    EnterCriticalSection();
+    g_unk_SoundEvent = OpenEvent(RCntCNT2, EvSpINT, RCntMdINTR, func_8003C020);
+    SetRCnt(RCntCNT2, 0x44E8, RCntMdINTR);
+    StartRCnt(RCntCNT2);
+    SpuSetTransferCallback(&SoundOnTransferCallback);
+    SpuSetIRQCallback(&SoundSpuIRQHandler);
+    SpuSetIRQ(0);
+    D_80059504 = 0;
+    g_SoundSpuIRQCount = 0;
+    ExitCriticalSection();
+
+    SoundSpuMemoryAllocateBlockAtAddress(0x2000, 0x10000, 4);
+    func_800386C4(1);
+    SoundSetCdAttr(0, 1);
+    SoundSetMasterVolumeWithFade(0x3FFF, 0);
+    SoundSetCdVolumeWithFade(0x7FFF, 0);
+    if (g_SoundControlFlags & 0x4000) {
+        SoundSetupCdMix(0x80);
+    }
+
+    D_800595D8 = SoundCreateAudioManagerForElementCount(0x10);
+    D_80059544 = 8;
+    g_SoundReverbMemoryHandle = -1;
+    g_SoundUploadDestBuffer = 0;
+    g_SoundReverbType = 0xFF;
+    SoundSetReverbModeWithAllocation(4, 0, 0, 0);
+    SpuSetReverb(1);
+    g_SoundSpuErrorId = 0;
+}
 
 void SoundReset(void) {
     int i;
@@ -4054,6 +4130,13 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003EB5C);
 /*
 Screened under gcc-2.7.2-cdk / gcc-2.7.2 / this unit's gcc-2.6.0: 81.05 / 81.05 / 85.11 - not
 a compiler-only match; the current preset is the best of the three.
+Round 45 adds: the do-while pointer-walk shape (below) is exact for the body, the loop tail
+(i++ in the beqz delay slot, pVoice++ in the bnez delay slot) and both slti/bnez; an indexed
+`pVoice[i]` body drops to 81.14 and never biv-replaces into the pointer walk. Remaining deltas
+are (a) the allocator shuffle - retail mask->v1/pVoice->a0/i->a1, gcc pVoice->v1/i->a0/mask->a1,
+(b) gcc sinks the `addiu pVoice,a2+0xA` preheader into the beqz delay slot where retail has a
+nop and forms it after `li a3,1`, (c) at the tail retail ORs into v1 and puts `srl v0,v1,0x10`
+in the beqz delay slot, gcc ORs into v0 and strips the shift after the first sh.
 Attempt (85.11%, same size): the loop body and the key-off tail are instruction for
 instruction right. gcc picks a different register for the loop-carried voice mask
 (a1/v0 here, v1 in the original) and therefore a different s/ptr register, and it
