@@ -8,27 +8,17 @@ extern void WorkListsRemoveEntriesForData(u8 *pTask);
 extern void TimerWorkListRemoveTask(u8 *pTask);
 extern MATRIX D_800D30BC;
 
-/* 16 of this unit's 21 stubs are atfree (tools/scripts/atfree.py): retail's
-   aspsx picks a free register for a one-instruction %lo access where our
-   assembler always emits $at, so no preset can match them. The 5 survivors
-   are all parked below and every one scores higher under gcc-2.7.2-cdk
-   (BCFAC 87.20, BDA1C 89.20 -> 96.95, BDB74 90.50, BDC14 83.60 -> 91.40,
-   BDC78 87.50 -> 93.75) while every function already matched here stays
-   100.00 there, with and without -G0: the unit is a XenoBattleTailCdk
-   candidate. */
+/* Built with XenoBattleTailCdk0 (gcc-2.7.2-cdk, -G0). With -G0 the cdk cc1 splits
+   every absolute symbol access itself (`lui $r,%hi(sym)` / `%lo(sym)($r)`, any free
+   register), which is what retail's "atfree" stubs contain; at -G8 it leaves the
+   bare macro to the assembler and emits `lui $at`. */
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BCC60);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BCD8C);
-/* best 45.00%: retail's aspsx expands the bare `sh $zero,SYM` macro into
-   `lui v0,%hi; sh $zero,%lo(v0)` and fills the jr delay slot with the store.
-   gcc leaves the macro to GNU as, which emits `lui $at` + `sh 0($at)`: two
-   insns, so the delay slot stays empty and the register differs.
 extern s16 D_800C3D14;
 
 void func_800BCD8C(void) {
     D_800C3D14 = 0;
 }
-*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BCD98);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BCEAC);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BCFAC);
@@ -277,30 +267,19 @@ void func_800BDC78(u8 *pTask) {
     }
 }
 */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BDCF8);
-/* best 81.60%: same $at macro-store problem as func_800BCD8C. Retail hoists
-   `lui v0,%hi(D_800D2D68)`, expands the store with $v0 and reorg fills the
-   first jal delay slot with it; GNU as' `lui $at` expansion cannot be stolen.
 extern u8 *D_800D2D68;
 extern void WorkListRemoveTask(void *pEntry);
-extern void TimerWorkListRemoveTask(void *pEntry);
 
 void func_800BDCF8(u8 *pEntry) {
     D_800D2D68 = 0;
     WorkListRemoveTask(pEntry + 0x1C);
     TimerWorkListRemoveTask(pEntry);
 }
-*/
 void func_800BDD34(void) {
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BDD3C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BDE58);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BDF1C);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BE0DC);
-/* best 99.09%: the load's macro expansion only. Retail has
-   `lui v0,%hi; lw a0,%lo(v0)`; GNU as puts the address in the destination
-   register (`lui a0; lw a0,0(a0)`).
-extern u8 *D_800D2D68;
 extern void func_800BDCF8(u8 *pEntry);
 
 void func_800BE0DC(void) {
@@ -308,15 +287,9 @@ void func_800BE0DC(void) {
         func_800BDCF8(D_800D2D68);
     }
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BE108);
-/* best 65.00%: same $at macro-store problem, two stores; retail uses $v0 twice
-   and fills the jr delay slot with the second.
-extern u8 *D_800D2D68;
 extern s32 D_800C374C;
 
 void func_800BE108(void) {
     D_800D2D68 = NULL;
     D_800C374C = 0;
 }
-*/
