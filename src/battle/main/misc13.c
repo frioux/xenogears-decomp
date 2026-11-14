@@ -48,8 +48,11 @@ extern void func_800BE538(u8, s32, s32, s32);
 extern u8 D_800C4000[];
 extern u8 D_800C3FE8[];
 extern u8 *D_800C3EA4;
-extern s32 D_800CCB34;
+extern u8 D_800CCB34;
 extern u8 *D_800D2DB4;
+extern u8 D_800C33B0[];
+extern void func_80076B68(u8 *);
+extern void func_80076BF0(u8 *);
 extern s32 GetStringEntryFromBank(s32, s32);
 extern void func_80076D58(u8 *, u8, u8);
 extern void func_80076C78(POLY_FT4 *, s16, s16, u8, u8, u8);
@@ -377,6 +380,43 @@ u8 func_800885D0(u8 arg0) {
     return D_800D301C[(D_800C3EB4[arg0 * 28] + 0x18) << 2];
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_8008860C);
+/* 97.74%: instruction count and size are exact (624 bytes); the remaining
+   differences are (a) retail keeps `la $s0,D_800CCB34` in a register across the
+   func_80076A10 call and reads both bytes with `lbu 0($s0)` (we rematerialise
+   `lui/%hi; lbu %lo` per use) and (b) the five pointer+offset `addu`s come out
+   base-first where retail has the offset in the destination. Spelling the
+   offset operand as an `s32` local (`off + (s32)D_800D2DB4`,
+   func_80089038's shape in misc14) fixes (b) on the two calls but makes gcc fold
+   `+0x1720`/`+0x2530` onto the base in the two func_80076B68/BF0 loops (90.24%),
+   and the `off` local for those loops regresses to 86.14% (636 bytes). The `off`
+   local form used everywhere is 94.79%; a `u8 *pSel = &D_800CCB34` local is
+   folded by cse back to the symbol (94.79%) or hoisted into a second saved
+   register if initialised before the first loop (92.59%, 632 bytes).
+/*
+void func_8008860C(void) {
+    s32 i;
+
+    for (i = 0; i < 2; i++) {
+        D_800D2DB4[0x5D74] += func_80076A10(D_800C33B0[i], (s32)(D_800D2DB4[0x5D74] * 0x50 + 0x1720 + D_800D2DB4), 0xA0, 0x64);
+    }
+    D_800D2DB4[0x5D83] = D_800CCB34;
+    D_800D2DB4[0x5D70] = func_80076A10(0xA8, (s32)(D_800D2DB4[0x5D70] * 0x50 + D_800D2DB4), 0xA0, 0x64);
+    D_800D2DB4[0x5D92] = D_800CCB34;
+    for (i = 0; i < D_800D2DB4[0x5D74]; i++) {
+        func_80076B68((u8 *)((i * 2 + D_800D2DB4[0x5D83]) * 0x28 + 0x1720 + D_800D2DB4));
+    }
+    for (i = 0; i < D_800D2DB4[0x5D70]; i++) {
+        func_80076B68((u8 *)((i * 2 + D_800D2DB4[0x5D92]) * 0x28 + D_800D2DB4));
+    }
+    for (i = 2; i < 4; i++) {
+        D_800D2DB4[0x5D7E] += func_80076A10(D_800C33B0[i], (s32)(D_800D2DB4[0x5D7E] * 0x50 + 0x2530 + D_800D2DB4), 0xA0, 0x64);
+    }
+    D_800D2DB4[0x5D8D] = D_800CCB34;
+    for (i = 0; i < D_800D2DB4[0x5D7E]; i++) {
+        func_80076BF0((u8 *)((i * 2 + D_800D2DB4[0x5D8D]) * 0x28 + 0x2530 + D_800D2DB4));
+    }
+}
+*/
 void func_8008887C(s32 arg0, s32 arg1, s32 arg2, s32 arg3) {
     s32 dx;
     s32 dy;
