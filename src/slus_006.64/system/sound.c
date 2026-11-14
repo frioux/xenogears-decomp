@@ -1119,6 +1119,7 @@ match; the original copies the loop variable to v0 (`move v0,s0`) and iterates o
 gcc keeps iterating on s0. Adding a separate loop variable or an explicit
 `if (pCurrent != pBlock) { do ... } while (pEntry != pBlock)` guard coalesces back to
 s0 (96.62%), while(1)/break drops to 91.26%, reversed compare operands to 96.18%.
+`pEntry = pPrev->pNext` in the body removes the copy entirely (gcc iterates on s0), 96.62%.
 void SoundHeapFree(void* pMemory) {
     SoundHeapBlockHeader* pBlock;
     SoundHeapBlockHeader* pCurrent = g_SoundHeapHead;
