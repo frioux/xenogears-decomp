@@ -27,7 +27,29 @@ void func_800BF5E8(void) {
     D_800C3CE8++;
 }
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800BF600);
+extern void func_800B7C34(s32);
+extern void func_80021BF8(u8 *pActor, void *pCallback);
+extern void func_800245D8(u8 *pActor, s32 arg1);
+extern void func_800BE790(void);
+
+void func_800BF600(s32 arg0, u8 *pActor) {
+    if (*(s32 *)(pActor + 0x48) == 0) {
+        func_800B7C34(arg0);
+        return;
+    }
+    D_800C3CE8 = 0;
+    if (*(s8 *)(pActor + 0xAF) != 0) {
+        func_80021BF8(pActor, func_800BF5E8);
+        func_800245D8(pActor, *(s8 *)(pActor + 0xAF));
+    }
+    func_800B7C34(arg0);
+    if (*(s8 *)(pActor + 0xAF) != 0) {
+        while (D_800C3CE8 == 0) {
+            func_800BE790();
+        }
+        func_80021BF8(pActor, 0);
+    }
+}
 
 void func_800BF6CC(void) {
     if (D_800C3610 != 0) {
@@ -127,7 +149,27 @@ void func_800BF998(void) {
         func_800A9FF0(0xB);
     }
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800BF9EC);
+extern u8 D_800C3621;
+extern void func_800B8354(void);
+extern int ArchiveDecodeAlignedSize(u32 entryIndex);
+extern void ArchiveReadFileToBuffer(s32 index, void *pBuffer, u32 arg2, u32 flags);
+extern void func_8002DDE4(void *p0, s32 a1, s32 a2, s32 a3, s32 a4, s32 a5, s32 a6);
+
+void func_800BF9EC(void) {
+    void *pBuffer;
+
+    if (D_800C3621 != 0) {
+        func_800B8354();
+        ArchiveSetIndex(0x2C, 0);
+        pBuffer = HeapAlloc(ArchiveDecodeAlignedSize(1), 0);
+        ArchiveReadFileToBuffer(1, pBuffer, 0, 0x80);
+        func_800B8354();
+        func_8002DDE4(pBuffer, 0, 0, 0, 0, 0, 0);
+        func_800BE790();
+        HeapFree(pBuffer);
+        D_800C3621 = 0;
+    }
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800BFA9C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800BFBA0);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800BFC80);
@@ -136,7 +178,41 @@ void func_800BFD88(void *arg0, s32 arg1) {
     func_800BFC80(arg0, arg1, 1);
 }
 
+// 90.75%: everything matches except the D_8006BE10+0x10 load. Retail's ASPSX emits
+// lui/addiu/%lo(sym) then lw 16; gcc folds the address into the load
+// (lui %hi + lw 16(%hi_reg)), one instruction shorter - no C shape materialises it.
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800BFDA8);
+/*
+extern u8 D_800591AC;
+extern u8 D_8006BE10[];
+extern u8 *func_80023B84(u8 *pActor, u8 *pEntry);
+
+void func_800BFDA8(u8 *pActor, s32 arg1) {
+    u8 *pBase;
+    u8 *pTable;
+    u8 saved;
+    u8 *pNew;
+    s32 flags;
+
+    if (*(s32 *)(pActor + 0x48) == 0) {
+        return;
+    }
+    if (func_800BFC80(pActor, arg1, 0) != 0) {
+        return;
+    }
+    pTable = &D_8006BE10[0];
+    pBase = *(u8 **)(pTable + 0x10);
+    saved = D_800591AC;
+    D_800591AC = 0;
+    pNew = func_80023B84(pActor, (u8 *)((s32)(arg1 + (u16 *)pBase)[1] + (s32)pBase));
+    flags = *(s32 *)(pNew + 0xB0);
+    *(s8 *)(pNew + 0xAF) = arg1;
+    *(u8 **)(pNew + 0x74) = pActor;
+    D_800591AC = saved;
+    flags |= 0x100;
+    *(s32 *)(pNew + 0xB0) = flags;
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800BFE48);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800C0314);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800C0564);
