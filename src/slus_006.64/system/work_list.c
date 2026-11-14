@@ -96,12 +96,15 @@ void WorkListUpdate(void) {
 }
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/work_list", WorkListAddTask);
-/* Best: 89.34% (same instruction multiset, 38 insns). Two residuals: the two
-   pEntry bitfield read-modify-writes (0x10/0x14) are hoisted above the
-   D_80059184 and g_WorkList gp loads (original loads counter, g_WorkList,
-   0x14(a1), 0x10(a1) in that order), and the values land in v1/a2/a3 where the
-   original has them in a3/a2/v1. Swapping the unk10 and unk14 statements drops
-   to 73.37.
+/* Best: 89.34% (identical instruction multiset, 38 insns, same frame). Only the
+   order of the four hoisted loads differs - original: counter, g_WorkList,
+   0x14(a1), 0x10(a1); this: 0x14(a1), 0x10(a1), g_WorkList, counter - and the
+   register assignment follows it (original has the unk10 word in v1, the unk14
+   word in a2, the counter in a3, the old head in t1). Looks like a sched2
+   ready-list order, not source order: 9 statement orderings tried (unk10 first
+   73.34, id local 86.03, count before unk10 79.76, flags first 38.74,
+   callbacks early 73.39, head local 89.34, unk0 last 82.47, unk14 first
+   43.42). gcc 2.6.0 gives 89.87, 2.7.2-cdk 84.03, so it is not the preset.
 void WorkListAddTask(WorkListEntry* pData, WorkListEntry* pEntry) {
     pEntry->unk0 = pData;
     pEntry->pNext = g_WorkList;
@@ -167,15 +170,18 @@ void WorkListDeleteTask(WorkListEntry* pTask) {
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/work_list", TimerWorkListAddTask);
 /*
 void TimerWorkListAddTask(WorkListEntry* pData, WorkListEntry* pEntry) {
+    s32 id;
+
+    id = D_80059184++;
     pEntry->unk0 = pData;
     pEntry->pNext = g_TimerWorkList;
     g_TimerWorkList = pEntry;
-    pEntry->unk10 = D_80059184++;
     pEntry->onTriggerCallback = NULL;
     pEntry->onFreeCallback = TimerWorkListRemoveTask;
     pEntry->unk14 = pData->unk10;
     pEntry->unk14_1 = 0;
     pEntry->unk14_2 = 0;
+    pEntry->unk10 = id;
     if (D_800591AC != 0) {
         D_80059464++;
         pEntry->unk14_3 = 1;
@@ -184,6 +190,12 @@ void TimerWorkListAddTask(WorkListEntry* pData, WorkListEntry* pEntry) {
     }
     g_NumTimerWorkListEntries++;
 }
+   Does not match yet: the same load-order/register-allocation problem as
+   WorkListAddTask above (original loads the counter into a3 first, keeps the
+   unk10 word in v1 and the unk14 word in v0, and copies pEntry to t3 because a1
+   becomes the 0xE0000000 mask; here pEntry lands in t4 and a1 takes the unk10
+   word). Four orderings tried, 31.6-58.6%. The D_800591AC arm itself does
+   reproduce (lbu, lw plus at-store of D_80059464, or 0x80000000).
 */
 
 WorkListEntry* TimerWorkListAllocateTask(void* pData, int dataSize) {
