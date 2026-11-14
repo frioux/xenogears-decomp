@@ -168,6 +168,39 @@ void FieldScriptCopyGear(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
 }
 
+// Copies a character record (0xA4, word aligned) and the 0x20 bytes that start 4
+// bytes into unk16BC[] from the same slot of the first argument.
+// 93.49%: same size (440 bytes), same instruction multiset. Only ordering differs -
+// the original emits `sll v1,t1,0x5` before the `lui/lw` of g_pGameState and hoists
+// that load above the `bne` for destIndex == 9. Pointer locals for the 0x20-byte copy
+// add 8 bytes (91.95%), a plain `characters[i] = characters[j]` assignment loses the
+// word alignment and compiles to an alignment test plus two loops (62.52%).
+/*
+typedef struct {
+    u32 words[0x29];
+} CharacterRecordCopy;
+
+typedef struct {
+    u8 bytes[0x20];
+} UnkGearStateShiftCopy;
+
+void func_8008764C(void) {
+    int sourceIndex = FieldScriptVMGetArgument(1);
+    int destIndex = FieldScriptVMGetArgument(3);
+
+    *(CharacterRecordCopy*)&g_pGameState->characters[destIndex] =
+        *(CharacterRecordCopy*)&g_pGameState->characters[sourceIndex];
+    *(UnkGearStateShiftCopy*)((u8*)&g_pGameState->unk16BC[destIndex] + 4) =
+        *(UnkGearStateShiftCopy*)((u8*)&g_pGameState->unk16BC[sourceIndex] + 4);
+    if (destIndex == 9) {
+        g_pGameState->unk22B6 |= 0x2000;
+    }
+    if (destIndex == 0xA) {
+        g_pGameState->unk22B6 |= 0x1000;
+    }
+    g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
+}
+*/
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008764C);
 
 extern u8 D_80050622;
@@ -974,6 +1007,64 @@ void FieldScriptWriteByteB06A0(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
 
+// 98.33% (504 bytes, same instruction multiset): the only difference is which
+// instruction fills the ArchiveSetIndex jal delay slot - the original keeps the
+// `move s0,v0` of the FieldScriptArgument1 result there and emits `move a1,zero`
+// before the call; ours is the other way round. Splitting the result into a second
+// local and computing `value + 0x7FB` after the call gives 508 bytes / 97.38%.
+// FieldLoadTIMWithClut is declared with int parameters here: the shared prototype's
+// shorts cost an sll/sra pair on each of x, y and clutY (92.09%).
+/*
+extern void* D_800B1F74;
+extern void FieldStoreScreenImage(void);
+extern void FieldLoadTIMWithClut(u_long* pTimData, int x, int y, int clutX, int clutY, int clutWidth,
+                                 int clutHeight);
+
+// Loads a TIM (or, for the non-zero command byte, re-blits the one already loaded)
+// into the field's screen image buffer and yields the script for one frame.
+void func_8008A2E8(void) {
+    s32 clutY;
+    s32 x;
+    s32 y;
+    s32 value;
+    s32 archiveIndex;
+    u8 command;
+    void* pBuffer;
+
+    if (FieldArchiveTryDataSync() == -1) {
+        g_FieldScriptVMCurActor->scriptInstructionPointer -= 1;
+        D_800B00C0 = 1;
+        return;
+    }
+    command = SCRIPT_READ_U8_REL(1);
+    if (command == 0) {
+        archiveIndex = FieldScriptArgument1(5, SCRIPT_READ_U8_REL(0xD));
+        ArchiveSetIndex(4, 0);
+        archiveIndex += 0x7FB;
+        pBuffer = HeapAlloc(ArchiveDecodeAlignedSize(archiveIndex), 0);
+        D_800B1F74 = pBuffer;
+        ArchiveReadFileToBuffer(archiveIndex, pBuffer, 0, 0x80);
+        g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
+    } else if (command == 1) {
+        value = FieldScriptArgument4(8, SCRIPT_READ_U8_REL(0xA));
+        clutY = value + 0xE8;
+        if (value == 0xFF) {
+            clutY = -1;
+        }
+        x = FieldScriptArgument2(4, SCRIPT_READ_U8_REL(0xA));
+        y = FieldScriptArgument3(6, SCRIPT_READ_U8_REL(0xA));
+        if (y >= 0x100 && x >= 0x2C0) {
+            FieldStoreScreenImage();
+        }
+        FieldLoadTIMWithClut(D_800B1F74, x, y, 0, clutY, 0, 0);
+        g_FieldScriptVMCurActor->scriptInstructionPointer += 0xB;
+    } else {
+        HeapFree(D_800B1F74);
+        g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
+    }
+    D_800B00C0 = 1;
+}
+*/
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008A2E8);
 
 void FieldScriptNoOpHandler1(void) {}
@@ -1992,7 +2083,24 @@ void FieldScriptJumpUnlessVariableBitSet(void) {
     }
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008D808);
+// Writes the 0x12-byte script instruction at the current instruction pointer: a
+// verb byte, the three u16 operands it was handed, and a fixed tail.
+void func_8008D808(int value0, int value1, int value2) {
+    SCRIPT_READ_U8_REL(0) = 0x57;
+    SCRIPT_READ_U8_REL(1) = 0x81;
+    FieldScriptWriteScriptU16(value0, g_FieldScriptVMCurActor->scriptInstructionPointer + 2);
+    FieldScriptWriteScriptU16(value1, g_FieldScriptVMCurActor->scriptInstructionPointer + 4);
+    FieldScriptWriteScriptU16(value2, g_FieldScriptVMCurActor->scriptInstructionPointer + 6);
+    FieldScriptWriteScriptU16(0xC, g_FieldScriptVMCurActor->scriptInstructionPointer + 8);
+    SCRIPT_READ_U8_REL(0xA) = 0xFF;
+    SCRIPT_READ_U8_REL(0xB) = 0x57;
+    SCRIPT_READ_U8_REL(0xC) = 0x8F;
+    SCRIPT_READ_U8_REL(0xD) = 0x26;
+    SCRIPT_READ_U8_REL(0xE) = 0x1;
+    SCRIPT_READ_U8_REL(0xF) = 0x80;
+    SCRIPT_READ_U8_REL(0x10) = 0x57;
+    SCRIPT_READ_U8_REL(0x11) = 0xF;
+}
 
 void FieldScriptPatchJumpInstruction(int value1, int value2) {
     SCRIPT_READ_U8_REL(0xC) = 0x4B;
