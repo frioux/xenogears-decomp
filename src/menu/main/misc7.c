@@ -263,6 +263,51 @@ void func_801D4688(u_char index, u_short x, u_short y, u_short height) {
    }
 */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D49D0);
+/* Best: 94.60%. This is the RIGHT border, the sibling of the parked
+   func_801D3FF8/433C/4688 above: member_change_menu/main/misc.c has the same
+   function matched as MemberChangeMenuSetWindowBorderRight, with UVs
+   16/140/32/140/16/147/32/147 = the 0x10/0x8C/0x20/0x93 stores here and that
+   file's source shape kept below. All 16 UV byte stores, both quad calls and the
+   2-iteration func_801E91C4 loop are exact (848 bytes, same insn multiset).
+   The whole remaining diff is instruction ORDER inside the one basic block:
+   retail interleaves the arg setup with the last 4 UV stores and has its
+   `move s3,a2` (the y copy) at store 12, gcc emits source order and copies a2 in
+   the entry block. Because retail keeps a2 live until mid-block it allocates
+   0x10 to t1 and 0x20 to t2; ours frees a2 at once and uses a2/t1.
+   Tried: this shape, u16 right + `y = halfHeight + 8 + y` write-back (the best
+   one, kept below) and member_change_menu's exact expressions (94.36).
+   void func_801D49D0(u_char index, u_short x, u_short y, u_short width, u_short height) {
+       MenuWindow* pWindow = g_Menu->windows[index];
+       u16 right;
+       s32 halfHeight;
+       s32 i;
+
+       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x32C) = 0x10;
+       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x32D) = 0x8C;
+       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x334) = 0x20;
+       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x335) = 0x8C;
+       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x33C) = 0x10;
+       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x33D) = 0x93;
+       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x344) = 0x20;
+       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x345) = 0x93;
+       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x37C) = 0x10;
+       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x37D) = 0x8C;
+       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x384) = 0x20;
+       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x385) = 0x8C;
+       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x38C) = 0x10;
+       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x38D) = 0x93;
+       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x394) = 0x20;
+       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x395) = 0x93;
+       right = x + width - 8;
+       halfHeight = (height - 0x10) / 2;
+       MenuSetQuadVertices(pWindow->vertsWindowBorderRight1, right, y + 8, 0x10, halfHeight);
+       y = halfHeight + 8 + y;
+       MenuSetQuadVertices(pWindow->vertsWindowBorderRight2, right, y, 0x10, halfHeight);
+       for (i = 0; i < 2; i++) {
+           func_801E91C4((P_TAG*)&pWindow->polysWindowBorderRight[i * 2 + g_Menu->renderContext]);
+       }
+   }
+*/
 void func_801D4D1C(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4, u_char a5, s32 a6, u_char a7) {
     MenuWindow* pWindow = g_Menu->windows[a0];
 
@@ -683,7 +728,77 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D6194);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D6338);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D680C);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D6CF4);
+extern s32 D_801E9D10;
+extern s32 D_801E9D14;
+extern s32 D_801E9D18;
+extern s32 D_801E9D1C;
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D7154);
+/* Best: 93.29% (912 bytes, retail frame 0x48 and both loops decoded). Second of
+   the two-block gear-stat renders (the sibling func_801D6194 above is the same
+   shape one field over). Block A: MenuParseNumberToDigits of the word at
+   g_GameState.characters[pManager->currentCharacterIDs[a0]] + 0x44
+   (weightFromEquipment|unk46), count byte g_Menu->unk358 + 0x2AE3, then an
+   8-iteration loop over g_Menu->digits[1 + i] (!= 0xFF) calling func_8002675C
+   with 0x50-byte prims at +0xCD0, x = D_801E9D10 + i * 8 - 0x18 * a1, y =
+   D_801E9D14, then a count-time loop of MenuSetQuadVertices over SVECTORs at
+   +0x23C0 + i * 0x20 reading u16s at entry + 0xCD8/0xCDA/0xCE0/0xCF2 (POLY_FT4
+   x0/y0/x1/y3 of the +0xCD0 prim at context (renderContext + 2 * i)). Block B
+   repeats it with 0x48, +0x2AE4, +0xF50, D_801E9D18/1C, SVECTORs at +0x24C0 and
+   u16s at +0xF58/0xF5A/0xF60/0xF72.
+   Remaining diff: (1) retail loads entry+0xCD8 and entry+0xCDA TWICE (once for
+   the x/y args, once for the width/height subtraction) and gcc CSEs them into
+   one load plus two `move`s - the same un-CSE-able twin `lhu` as the parked
+   func_801D6194, so the source must read the fields through two spellings that
+   gcc cannot prove identical; (2) the second loop keeps the SVECTOR pointer in
+   s1 and the counter in s0 in retail, the reverse here, and retail forms the
+   entry address as `addu v1,a0,v1` off unk358 where gcc uses a third register
+   (t0). Not an allocator tie: fix (1) first, it changes the whole block.
+    void func_801D7154(u_char a0, u_char a1) {
+        u8* pEntry;
+        s32 offset;
+        s32 i;
+
+        MenuParseNumberToDigits(
+            *(s32*)((u8*)&g_GameState.characters[g_Menu->pManager->currentCharacterIDs[a0]] + 0x44));
+        offset = a1 * 0x18;
+        ((u8*)g_Menu->unk358)[0x2AE3] = 0;
+        for (i = 0; i < 8; i++) {
+            if (g_Menu->digits[1 + i] != 0xFF) {
+                ((u8*)g_Menu->unk358)[0x2AE3] += func_8002675C(
+                    g_Menu->resources, g_Menu->digits[1 + i],
+                    (POLY_FT4*)((u8*)g_Menu->unk358 +
+                                (((u8*)g_Menu->unk358)[0x2AE3] * 0x50 + 0xCD0)),
+                    g_Menu->renderContext, D_801E9D10 + i * 8 - offset, D_801E9D14, 0x1000);
+            }
+        }
+        for (i = 0; i < ((u8*)g_Menu->unk358)[0x2AE3]; i++) {
+            pEntry = (u8*)g_Menu->unk358 + (g_Menu->renderContext + i * 2) * 0x28;
+            MenuSetQuadVertices((SVECTOR*)((u8*)g_Menu->unk358 + 0x23C0 + i * 0x20),
+                                *(u16*)(pEntry + 0xCD8), *(u16*)(pEntry + 0xCDA),
+                                *(u16*)(pEntry + 0xCE0) - *(u16*)(pEntry + 0xCD8),
+                                *(u16*)(pEntry + 0xCF2) - *(u16*)(pEntry + 0xCDA));
+        }
+        MenuParseNumberToDigits(
+            *(s32*)((u8*)&g_GameState.characters[g_Menu->pManager->currentCharacterIDs[a0]] + 0x48));
+        ((u8*)g_Menu->unk358)[0x2AE4] = 0;
+        for (i = 0; i < 8; i++) {
+            if (g_Menu->digits[1 + i] != 0xFF) {
+                ((u8*)g_Menu->unk358)[0x2AE4] += func_8002675C(
+                    g_Menu->resources, g_Menu->digits[1 + i],
+                    (POLY_FT4*)((u8*)g_Menu->unk358 +
+                                (((u8*)g_Menu->unk358)[0x2AE4] * 0x50 + 0xF50)),
+                    g_Menu->renderContext, D_801E9D18 + i * 8 - offset, D_801E9D1C, 0x1000);
+            }
+        }
+        for (i = 0; i < ((u8*)g_Menu->unk358)[0x2AE4]; i++) {
+            pEntry = (u8*)g_Menu->unk358 + (g_Menu->renderContext + i * 2) * 0x28;
+            MenuSetQuadVertices((SVECTOR*)((u8*)g_Menu->unk358 + 0x24C0 + i * 0x20),
+                                *(u16*)(pEntry + 0xF58), *(u16*)(pEntry + 0xF5A),
+                                *(u16*)(pEntry + 0xF60) - *(u16*)(pEntry + 0xF58),
+                                *(u16*)(pEntry + 0xF72) - *(u16*)(pEntry + 0xF5A));
+        }
+    }
+*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D74EC);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D7884);
 void func_801D7C3C(u_char a0, u_char a1) {
