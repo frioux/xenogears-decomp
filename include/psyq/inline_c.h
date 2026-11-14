@@ -1160,6 +1160,11 @@ the way retail's 3.x SetTransVector + SetRotMatrix pair comes out. */
 	: "r"( r0 )						\
 	: "memory" )
 
+/* Single SZ1/SZ2 store; gte_stsz3/4 only expose them as a group. */
+#define gte_stsz1( r0 ) __asm__ volatile ("swc2\t$17, 0( %0 )" : : "r"( r0 ) : "memory" )
+
+#define gte_stsz2( r0 ) __asm__ volatile ("swc2\t$18, 0( %0 )" : : "r"( r0 ) : "memory" )
+
 #define gte_stsz3( r0, r1, r2 ) __asm__ volatile (		\
 	"swc2	$17, 0( %0 );"					\
 	"swc2	$18, 0( %1 );"					\

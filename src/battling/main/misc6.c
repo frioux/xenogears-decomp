@@ -1,6 +1,7 @@
 #include "common.h"
 #include "main/game.h"
 #include "psyq/libgpu.h"
+#include "psyq/inline_c.h"
 #include "system/memory.h"
 
 // .sdata/.bss of the overlay (supplied by splat's asm segments)
@@ -75,6 +76,11 @@ typedef struct {
     /* 0x18 */ SVECTOR v1;
 } BattleQuad; // Size: 0x20
 
+// An 8-byte, byte-aligned chunk: assigning one copies 8 bytes with lwl/lwr.
+typedef struct {
+    u8 unk[8];
+} Bytes8;
+
 extern BattleQuad D_80094818[100];
 extern s32 D_800926B0;
 extern s32 D_800926B4;
@@ -147,6 +153,58 @@ void func_8007E31C(s32* pPos, s32* pPos2, u8* pColor) {
 }
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007E3CC);
+/* best 88.67%: the 16-byte want/gte work block, the two Bytes8 copies into
+   0x1F800018/0x1F800020, all six u16 translation subtractions, gte_ldv01 +
+   RTPT, gte_stsxy01 into quad+8/quad+0xC, the SZ2 read and the 0x03000000 OT
+   link are all exact (frame 0x10 too). Residual: retail keeps TWO induction
+   bases (t0 = &D_80094818 and a3 = t0+0xC, both +0x20 per iteration) and so
+   reaches the copy with 4(a3)/0xC(a3); ours folds them into one base and uses
+   0x10/0x18 off it. Retail also builds &D_80094818 (lui/addiu) before the
+   scratchpad loads, ours after. Tried: an explicit pPack = quad+0xC pointer for
+   the copies and the stsxy01 (worse, 88.64 - gcc re-associates back onto the
+   quad base), a literal 0x3000000 in the link store with a long sz[4] local
+   (89.17 but frame 0x18), declaring the copies through BattleQuad->v0/v1.
+   Note gte_stsz1/gte_stsz2 were added to include/psyq/inline_c.h for this.
+void func_8007E3CC(u32* pOt) {
+    u8* pScratch;
+    BattleQuad* pQuad;
+    u32 dx;
+    u32 dy;
+    u32 dz;
+    u32 link;
+    u32 addr;
+    u32 tag;
+    u32* pLink;
+    long sz[2];
+    s32 i;
+
+    pScratch = (u8*)0x1F800000;
+    tag = 0x3000000;
+    dx = *(u32*)(pScratch + 0x0);
+    dy = *(u32*)(pScratch + 0x4);
+    dz = *(u32*)(pScratch + 0x8);
+    for (i = 0; i < D_800926B4; i++) {
+        pQuad = &D_80094818[i];
+        *(Bytes8*)(pScratch + 0x18) = *(Bytes8*)((u8*)pQuad + 0x10);
+        *(Bytes8*)(pScratch + 0x20) = *(Bytes8*)((u8*)pQuad + 0x18);
+        ((u16*)(pScratch + 0x18))[0] -= dx;
+        ((u16*)(pScratch + 0x18))[1] -= dy;
+        ((u16*)(pScratch + 0x18))[2] -= dz;
+        ((u16*)(pScratch + 0x20))[0] -= dx;
+        ((u16*)(pScratch + 0x20))[1] -= dy;
+        ((u16*)(pScratch + 0x20))[2] -= dz;
+        gte_ldv01(pScratch + 0x18, pScratch + 0x20);
+        gte_rtpt();
+        gte_stsxy01((u8*)pQuad + 0x8, (u8*)pQuad + 0xC);
+        gte_stsz2(sz);
+        pLink = &pOt[sz[0] >> 4];
+        link = *pLink;
+        addr = (u32)pQuad & 0xFFFFFF;
+        *pLink = addr;
+        *(u32*)addr = link | tag;
+    }
+}
+ */
 
 void func_8007E528(s32 mode) {
     if (D_80092708 == 0 && mode == 0xA) {
