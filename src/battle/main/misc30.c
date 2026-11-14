@@ -351,27 +351,24 @@ void func_800BADD4(s32 index) {
     *(u32*)(pBase + index * 4 + 0x8CB8) = 0;
 }
 */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800BAEB8);
-/* 75.68%: the known 0x8C8C wall (same as misc28's func_800B64D4).  Retail keeps
-   &D_800C3EB0 in $a1 and adds 0x8C8C with a separate li+addu; gcc always folds
-   the constant into the symbolic address as lui at,0x1 / lw -29556(at).
-   Tried: raw (u8*)D_800C3EB0, base pointer local, base + separate offset local,
-   gcc 2.6.0, 2.7.2-cdk (cc1 rejects), -O3.  The second half (index*0x1C + 0xA
-   access, the lb 0xAF compare and both calls) matches exactly under the base
-   pointer form, so only this one address is wrong.
 void func_800BAEB8(s32 index) {
+    u8* pBase = D_800C3EB0;
+    u8* pEntry = pBase + index * 4;
+    u8* pCounter;
+    SpriteData** ppSlot;
     SpriteData* pSprite;
     s32 sfx;
 
-    pSprite = *(SpriteData**)((u8*)D_800C3EB0 + index * 4 + 0x8C8C);
+    ppSlot = (SpriteData**)(pEntry + 0x8C8C);
+    pSprite = *ppSlot;
     if (((s8*)pSprite)[0xAF] == 0x15) {
         return;
     }
-    sfx = (D_800C3EB0[index * 0x1C + 0xA] != 0) << 11;
+    pCounter = pBase + index * 0x1C;
+    sfx = (pCounter[0xA] != 0) << 11;
     func_800223B0(pSprite, sfx);
     func_80021FE0(pSprite, sfx);
 }
-*/
 void func_800BAF40(void) {
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800BAF48);
