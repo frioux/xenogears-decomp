@@ -84,29 +84,39 @@ void BattleProjectShadowVerts(u8* pObj, u8* pDst) {
     func_8008C3A8(*(void**)(pObj + 8), pDst, *(u16*)(pObj + 2));
 }
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc15", func_8008BD70);
-/* Best C match, 83.00%: the body is right (the loop's decrement even lands in
-   both jal delay slots), but gcc emits a top test (`li v0,-1; beq s1,v0`) and
-   keeps `D_80059528 = *(pData+0x10)` in the preheader, while the original
-   rotates the loop (preheader `s1--`, `j` to the bottom test) and merges that
-   store into the loop-tail block.  do/while (i-- != 0) with i = count-1 and
-   `while (i != -1) { ...; i--; }` both drop to 74-80%.
+/* Best C match, 93.67% (228 bytes vs retail 232). Two things here are load-bearing
+   and worth keeping: the preheader assigns D_800595C0 BEFORE the three global
+   stores (retail loads pData+4 there; the other order costs 10 points), and the
+   loop counter is decremented inside both arms, which is what puts the addiu in
+   both jal delay slots. Still different: gcc turns `i = count - 1; while
+   (i != -1)` into a `beqz count` guard plus a fall-through body, while retail
+   jumps straight to the latch (`j`, `addiu s1,s1,-1`) and has the loop test at
+   the bottom; and gcc keeps the `D_80059528 = *(pData + 0x10)` store in the
+   preheader where retail merges it into the latch block, which also reorders the
+   preheader loads. Writing that store at the loop top through a pCur local
+   instead drops to 73.73% (gcc folds the redundant reload), `while (--i != -1)`
+   with a single decrement is 87.64%, and the original 83.00% park note's
+   `do/while` variants were 74-80%.
 void func_8008BD70(u8* pData, void* pPacket, void* pUnk, void* pVertices) {
     s32 i;
     u8* pNode;
 
-    i = *(u16*)(pData + 6);
+    i = *(u16*)(pData + 6) - 1;
     D_80059528 = *(void**)(pData + 0x10);
+    D_800595C0 += *(u16*)(pData + 4);
     g_pCurModelPacket = pPacket;
     D_80059568 = pUnk;
     g_pCurModelVertices = pVertices;
-    D_800595C0 += *(u16*)(pData + 4);
-    while (--i != -1) {
+    while (i != -1) {
         pNode = (u8*)D_80059528;
         D_80059528 = pNode + 4;
-        if (pNode[0] & 8)
+        if (pNode[0] & 8) {
+            i--;
             func_8008C620(pNode + 4, *(s16*)(pNode + 2));
-        else
+        } else {
+            i--;
             func_8008C4B0(pNode + 4, *(s16*)(pNode + 2));
+        }
         D_80059528 = (u8*)D_80059528 + (*(s16*)(pNode + 2) << 3);
     }
 }
