@@ -44,16 +44,21 @@ extern u8 D_801E96A5;
 
 extern u8 D_80059171;
 extern u8 D_800594D0;
+extern u8 D_800594CC;
+void func_801D29A8(s32 arg0, s32 arg1);
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc1", func_801C531C);
+
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc1", func_801C55A0);
 
-/* Best: 96.86% (508 bytes, same size).  Only the case 1 block differs: retail does not
-   share the mainMenuChoice load across the test branch, so its fallthrough block starts
-   with a fresh lbu and reorg fills the beqz delay slot from the branch target (li v0,6);
-   ours keeps the loaded value live, so the addiu goes in the delay slot.  Everything
-   else (dispatch tree, case 4/5 bodies, tail) is identical.  Tried: if/else both ways,
-   --, -= 1, 2-case switch on mainMenuChoice, case order 1,3,4,5 (64.92%) vs 4,5,1,3.
+/* Best: 96.86% under the unit's Default preset (gcc 2.7.2); 100.00% under gcc 2.6.0.
+   The unit is a 2.6.0 unit: every already-matched function of misc1 stays 100.00 under
+   gcc-2.6.0-psx and this body reaches 100.0 there, so switch the unit to XenoLibrary and
+   un-park this body as is.  Under 2.7.2 the only difference is that retail does not share
+   the mainMenuChoice load across the test branch (it re-loads with lbu in the -1 arm).
+   Tried under 2.7.2: if/else both ways, -= 1, 2-case switch on mainMenuChoice, nested
+   switch, case order 1,3,4,5 (64.92%) vs 4,5,1,3.  Under 2.6.0: -= 1 and - 1 give 99.99
+   (addiu +255 instead of -1), -- gives 100.00.
 void func_801C55A0(void) {
     u_char shouldContinue;
     u_char isHandled;
@@ -80,7 +85,7 @@ void func_801C55A0(void) {
                 break;
             case 1:
                 if (g_Menu->mainMenuChoice != 0) {
-                    g_Menu->mainMenuChoice -= 1;
+                    g_Menu->mainMenuChoice--;
                 } else {
                     g_Menu->mainMenuChoice = 6;
                 }
@@ -99,7 +104,6 @@ void func_801C55A0(void) {
         }
     } while (shouldContinue);
 }
-
 */
 void MenuCdChangeMain(void) {
     u_char shouldReset;
@@ -129,13 +133,15 @@ void MenuCdChangeMain(void) {
     g_Menu->pManager->unk3 = 0;
     MenuWaitForDiscChange(D_80059171);
 }
+
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc1", func_801C58EC);
 
-/* Best: 97.66% (604 bytes, same size).  Whole function matches except the case 1 block:
-   retail does NOT share the mainMenuChoice load across the test branch, so its else arm
-   re-loads (lbu) instead of computing from the tested value, and the branch comes out
-   beqz with an unfilled delay slot.  Everything else (prologue, case 4/3, tail, disc
-   test) is identical.  Tried: if/else both ways, -= 1, (u_char) cast, 2-case switch.
+/* Best: 97.66% under the unit's Default preset (gcc 2.7.2); 100.00% under gcc 2.6.0.
+   Same story as func_801C55A0: this is part of the same block of gcc-2.6.0 code, and gcc
+   2.6.0 reproduces the whole body exactly (including the case 1 arm re-loading
+   mainMenuChoice).  Switch the unit to XenoLibrary and un-park this body as is.
+   Under 2.7.2 the only difference is that the case 1 arm shares the mainMenuChoice load.
+   Tried under 2.7.2: if/else both ways, -= 1, --, (u_char) cast, 2-case switch.
 void func_801C58EC(void) {
     u_char shouldContinue;
 
@@ -157,7 +163,7 @@ void func_801C58EC(void) {
                 break;
             case 1:
                 if (g_Menu->mainMenuChoice != 0) {
-                    g_Menu->mainMenuChoice = g_Menu->mainMenuChoice - 1;
+                    g_Menu->mainMenuChoice--;
                 } else {
                     g_Menu->mainMenuChoice = 2;
                 }
@@ -183,9 +189,8 @@ void func_801C58EC(void) {
     } while (shouldContinue);
     func_801E8044(8, (u8*)g_Menu->pManager + 0xC);
 }
-
-
 */
+
 void MenuMenuUnk2Manager(u_char isInitialization) {
     if (isInitialization) {
         g_Menu->menuUnk2 = HeapAlloc(sizeof(MenuUnk2), 0);
@@ -294,15 +299,72 @@ void MenuInitializeMenuData(void) {
             break;
     }
 }
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc1", func_801C5FE4);
+void func_801C5FE4(void) {
+    switch (D_80059460) {
+        case 0:
+            MenuResetSelectionCursorFlags();
+            func_801D29A8(0, 0);
+            g_Menu->pManager->unk5[1] = 0;
+            g_Menu->pManager->unk5[0] = 0;
+            if (D_80059171 == 0) {
+                D_800594CC = g_Menu->mainMenuChoice;
+            }
+            break;
+        case 2:
+        case 6:
+            break;
+    }
+    MenuRenderFrame();
+    MenuRenderFrame();
+    g_Menu->shouldDrawMenu = FALSE;
+    MenuRenderFrame();
+    do {
+        MenuRenderFrame();
+    } while (g_Menu->renderContext != 0);
+    MenuMenuManagerManager(MENU_DATA_FREE);
+    MenuSelectionMenuManager(MENU_DATA_FREE);
+    MenuMenuUnk5Manager(MENU_DATA_FREE);
+    MenuDressingRoomManager(MENU_DATA_FREE);
+    MenuMenuUnk1Manager(MENU_DATA_FREE);
+    HeapFree(g_Menu->pCursors);
+    HeapFree(g_Menu->resources);
+    HeapFree(g_Menu->unk2E0);
+    HeapFree(g_Menu->unk4E0[0].pVramBuffer);
+    if (g_MenuDebugEnabled) {
+        SoundStopElementsForSoundFile(g_Menu->unk2E4);
+        MenuRenderFrame();
+        SoundRemoveSedsEntry(g_Menu->unk2E4);
+        MenuRenderFrame();
+        HeapFree(g_Menu->unk2E4);
+    }
+    switch (D_80059460) {
+        case 0:
+            MenuMenuUnk2Manager(MENU_DATA_FREE);
+            MenuUnk340Manager(MENU_DATA_FREE);
+            MenuUnk344Manager(MENU_DATA_FREE);
+            MenuUnk39CManager(MENU_DATA_FREE);
+            HeapFree(g_Menu->windows[0]);
+            HeapFree(g_Menu->windowParameters[0]);
+            HeapFree(g_Menu->windows[1]);
+            HeapFree(g_Menu->windowParameters[1]);
+            break;
+        case 2:
+        case 6:
+            MenuMenuUnk2Manager(MENU_DATA_FREE);
+            break;
+    }
+    HeapFree(g_Menu);
+}
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc1", func_801C62A8);
 
 /* Best: 92.33% - only the placement of the two MenuWaitForDiscChange call blocks differs: the
    original lays the outer test's then-block out of line (beqz $v0 -> call block) and
    falls through to the second test, then to a "j end".  Tried: else-if, `!=`/else
    (87.67%), 2-way switch with default (92.33%), early break + separate if (92.33%),
-   nested if (92.33%), 2-way switch (92.33%).  Instruction multiset is identical; this is
-   a bb-reorder tie-break.
+   nested if (92.33%), 2-way switch (92.33%), switch on D_800594D0 (92.33%), two
+   independent ifs (90.47%, 340 bytes), case order 2 before 0 (86.98%), gcc-2.6.0 (92.33%).
+   Instruction multiset is identical; this is a bb-reorder tie-break: retail keeps both
+   compare insns adjacent at the top and puts both call blocks after a `j end`.
 void func_801C62A8(void) {
     u8 menuIndex;
 
