@@ -2488,6 +2488,7 @@ after the round-31 precedent. Two macros' worth of knowledge, now in the file's 
 | 36 | 11 workers: `world_map/{misc7,misc9,misc10}`, `battling/misc3`, `slus_006.64/system/sound`, `battle/{misc12,misc13,misc26,misc31}`, `field/misc8`, `menu/misc3` + a 10-worker naming round | +7 | 1338 | `battle/misc12` **3** (`83FF4 84108 84750`), `battle/misc26` **3** (`B3B6C B1EA0 B3658`), `world_map/misc9` 1 (`86700`); 0 in world_map/misc7, world_map/misc10, battling/misc3, system/sound, battle/misc13, battle/misc31, field/misc8, menu/misc3 (parks improved or walls re-measured; most of them were already parked). ~450 names applied |
 | 35 | 13 workers: `battle/{misc32,misc34,misc28,misc8,misc4,misc5,misc6,misc6_r2,misc27_b}`, `battling/misc16`, `slus_006.64/system/{archive_b,controller_b,work_list}` + a 10-worker naming round | +9 | 1345 | `controller_b` **2** (`80035F1C 8003634C`, the unit is now 3 stubs from done), `battle/misc34` **2** (`BF600 BF9EC`), `battle/misc6_r2` **2** (`7AE38 7AE98`, via the new clamp-copy idiom), `battle/misc27_b` 1 (`B5CC0`), `battle/misc28` 1 (`B6990`), `battling/misc16` 1 (`8DA48`); 0 in misc32 (16/21 atfree), misc8, misc4, misc5, misc6, archive_b, work_list (parks improved instead). 244 names applied |
 | 37 | 13 workers: `battle/{misc12,misc16_r2,misc21,misc23}`, `field/{misc,misc6}`, `world_map/{misc2,misc5}`, `menu/{misc7,misc12}`, `slus_006.64/system/temp2`, `lib_gear/main/main`, `battling/misc6` + a 10-worker naming round | +4 | 1334 | `world_map/misc2` **3** (`758C0 7634C 76594`, landed by a worker killed before its gate), `battle/misc12` 1 (`84548`); 0 in the other eleven - park notes only, or the worker timed out (misc12, field/misc, world_map/misc2 all hit the 30-minute kill). 252 names applied, 38 skipped (33 are addresses that are a different function in another overlay) |
+| 38 | 15 workers: `battle/{misc3,misc16,misc27,misc27_b,misc28,misc29,misc31,misc33}`, `battling/{misc11,misc15,misc16}`, `menu/misc2`, `field/misc6`, `world_map/misc15`, `slus_006.64/system/rendering` + a 10-worker naming round | +0 | 1334 | **every one of the 25 children was killed at 30 min**; 21 made no file edit at all and the four that did only un-parked a neighbour's 90-96% park. One name landed (`field/misc8` `func_800864B4` -> `FieldClearActorSoundSlots`) |
 
 
 ### Round 36's per-unit detail
@@ -2594,3 +2595,19 @@ Still open, with evidence: `battle/misc19`'s 5-run split (2 functions, 4 new fil
 - Trap in `battle/misc21`: naming `BattleBlock`'s byte at 0x3 (`unk1[2]` -> `tag`) drops the
   already-matched `func_800A2ACC`/`func_800A2BB8` from 100 to 91% (array-index spelling
   changes gcc's induction). Struct-field renames are not free.
+
+### Round 38: 25 children, 0 matches - the round was starved, not wrong
+
+- All 15 matching workers and 9 of 10 naming workers were killed at 1800000 ms with
+  `changed tracked files: none` or a single un-park. Nine of the fifteen matching
+  workers' reports open with "I'll start by reading ..." - they never reached a second
+  edit. That is queue/latency starvation, not a documentation or targeting failure:
+  round 37 ran 23 children on the same unit mix and closed 4.
+- **Do not run 25 children again.** Cap a round at ~12 (8 matching + 4 naming) and
+  expect the survivors to do the work; a killed child's clone is worth nothing because
+  `merge` refuses uncommitted edits, and four of this round's five un-parked bodies were
+  *other* functions' parks (90.55%, 96.44%) that the brief never assigned.
+- The naming round also proved the target-selection error: ranking files by a bare
+  `grep -c func_` counts `extern` prototypes (world_map/misc3: 5 stubs, 174 `func_`
+  mentions, 0 unnamed C definitions). Count *definition* lines (return type + `{`) with
+  comments stripped, or ask `objdiff`'s matched set.
