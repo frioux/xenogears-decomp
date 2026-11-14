@@ -92,9 +92,15 @@ Measured over ten sessions; the brief decides the yield (3 per round with units 
 by stub count, 10 to 16 with the method below).
 
 1. Rank units by **instructions per fresh stub**, smallest first:
-   `python3 tools/scripts/select_target.py --json` (ignore its `attempt` flag; grep
-   `^/\*` in the file to see the parks). Stubs under ~120 instructions are where the
-   matches are.
+   `python3 tools/scripts/select_target.py --json` (ignore its `attempt` flag). Stubs
+   under ~120 instructions are where the matches are.
+   **A stub is fresh only if no percentage sits within ~25 lines of its `INCLUDE_ASM`.**
+   Parks are written `// Best: 84.76%` far more often than as `/* ... */`, so `grep
+   '^/\*'` over-reports badly: round 36 briefed 11 units picked that way and 9 of them
+   were 100% parked (7 matches from 11 workers). The whole tree now has only ~49 units
+   with a genuinely unparked stub, and most of those have 2-6 of them, so the yield per
+   round is close to the size of that list: measure it before choosing, and prefer the
+   units with 5+.
 2. **Give the worker the reachable subset, not the unit.** Leave out of `funcs`:
    - `python3 tools/scripts/atfree.py <bin>/<unit> asm/<bin>/nonmatchings/<unit>`
      (assembler ceiling, no preset matches them; most of `battle/main/misc26..35`);
