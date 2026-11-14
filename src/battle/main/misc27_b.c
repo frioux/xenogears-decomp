@@ -46,9 +46,10 @@ u8* func_800B5924(u8* pActor, s32 arg1, s32 arg2) {
     *(u32*)(pActor + 0xAC) |= 0x20;
     return pTask;
 }
-// PARKED: with 59BC defined in C, its caller func_800B5AC4 compiles 8 bytes SHORT (112
-// against retail 120) because the visible definition lets gcc drop a callee-saved pair.
-// Keeping the old-style void declaration is what reproduces retail.
+// PARKED: the body below is 100.00% as C (264 bytes), but with its definition visible
+// func_800B5AC4 compiles 112 bytes against retail 120 (82.67%): gcc then merges the two
+// `lhu point.x / addu / sh` chains that retail keeps separate. The old-style `void`
+// declaration is what reproduces retail, and it cannot coexist with the definition.
 /*
 BattlePoint* func_800B59BC(BattlePoint* pOut, u8* pActor, s32 index) {
     DVECTOR rot;
@@ -126,7 +127,6 @@ void* func_800B5C18(u8* pActor, u8* pScript) {
     func_800B5B3C(pTask);
     return pTask;
 }
-/*
 void func_800B5CC0(u8* pWork) {
     MATRIX m;
     SVECTOR rot;
@@ -137,8 +137,8 @@ void func_800B5CC0(u8* pWork) {
     pSprite = *(u8**)(pWork + 0x4);
     AnimScriptTick(pSprite);
     rot2.vy = *(s32*)(pSprite + 0x10) >> 13;
-    rot2.vx = 0;
     rot2.vz = *(s32*)(pSprite + 0x14) >> 13;
+    rot2.vx = 0;
     rot.vx = func_80022CAC(pSprite, *(s32*)(pSprite + 0xC) >> 13);
     rot.vy = 0;
     rot.vz = 0;
@@ -154,8 +154,6 @@ void func_800B5CC0(u8* pWork) {
         ((void (*)(u8*))*(void**)(pWork + 0xC))(pWork);
     }
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc27_b", func_800B5CC0);
 void func_800B5DC4(u8* pWork) {
     *(u16*)(pWork + 0x34) = 1;
     TimerWorkListSetTaskCallback(*(void**)(pWork + 0x6C), func_800B5CC0);
