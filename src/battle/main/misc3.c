@@ -338,7 +338,7 @@ void func_80077698(void) {
     bzero(D_800C3E24, 0xEC);
     for (i = 0; i < 4; i++) {
         for (j = 0; j < 2; j++) {
-            SetPolyG3((POLY_G3 *)((i * 2 + j) * 0x1C + (s32)D_800C3E24));
+            SetPolyG3((POLY_G3 *)((i * 2 + j) * 0x1C + (mem_addr)D_800C3E24));
             switch (i) {
             case 0:
                 ((POLY_G3 *)(D_800C3E24 + (i * 2 + j) * 0x1C))->x0 = 0xC0;
