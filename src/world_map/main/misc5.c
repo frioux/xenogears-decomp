@@ -97,15 +97,6 @@ extern MATRIX D_8009A180;
 extern void func_8007A06C(void *pBlock, s32 arg, s32 arg2);
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007A9F8);
-/* best 94.72%: everything matches except the position of the final
-   sw to D_8009BE24[idx].unk50 -- retail leaves it last, gcc hoists it
-   next to the addiu that materialises 0x1000. Tried: literal, pointer
-   local, s32 locals, plain globals (89.35%), address computed mid-block.
-   Also tried (round 44, no change): store moved mid-block before the
-   D_8009BE2C pair (68.60%), and the 0x1000 pre-loaded into an s32 local
-   right after D_8009D55C so only the store is last (94.72%, gcc still
-   sinks the sw into the li's slot).
-
 int func_8007AD34(int idx) {
     WorldMapPlayer *pPlayer;
     s32 a;
@@ -127,10 +118,10 @@ int func_8007AD34(int idx) {
     D_8009D560 = b;
     D_8009BE30 = c;
     D_8009D564 = c;
-    pPlayer->unk50 = 0x1000;
+    // volatile store pins the sw after the six copies, as retail has it
+    *(volatile s32 *)&pPlayer->unk50 = 0x1000;
     return 1;
-}*/
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007AD34);
+}
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007ADD4);
 int func_8007B200(int idx) {
     u8 *pPlayer = (u8 *)D_8009BE24 + (idx << 7);
