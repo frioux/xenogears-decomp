@@ -161,7 +161,43 @@ extern void func_8001E298(void *p, u32 *pTbl);
 extern void GfxSetBaseMatrix(MATRIX *p);
 extern void AnimScriptTick(void *p);
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_80082F64);
+void func_80082F64(WorldMapActor *pActor, WorldMapModelOut *pOut, WorldMapModel *pModel) {
+    if (pActor->unk20 == 0) {
+        return;
+    }
+    if (pActor->unk20 != 1) {
+        return;
+    }
+    {
+        pModel->rot.vz = 0;
+        pModel->rot.vx = 0;
+        pModel->rot.vy = ((s32 *)&pActor->unk50)[6];
+        pModel->scale.vx = ((s32 *)&pActor->unk50)[8] & 0x7FFF;
+        pModel->scale.vy = 0x1000;
+        pModel->scale.vz = rcos(((s32 *)&pActor->unk50)[7]) * 6;
+        RotMatrix(&pModel->rot, &pModel->mat);
+        ScaleMatrix(&pModel->mat, &pModel->scale);
+        pOut->mat = pModel->mat;
+        ((s32 *)&pActor->unk50)[0] += ((s32 *)&pActor->unk50)[3];
+        ((s32 *)&pActor->unk50)[1] += ((s32 *)&pActor->unk50)[4];
+        if (((s32 *)&pActor->unk50)[0] >= 0x100) {
+            ((s32 *)&pActor->unk50)[0] = 0xFF;
+            ((s32 *)&pActor->unk50)[3] = -((s32 *)&pActor->unk50)[3];
+        } else if (((s32 *)&pActor->unk50)[0] < 0x40) {
+            ((s32 *)&pActor->unk50)[0] = 0x40;
+            ((s32 *)&pActor->unk50)[3] = -((s32 *)&pActor->unk50)[3];
+        }
+        if (((s32 *)&pActor->unk50)[1] >= 0x100) {
+            ((s32 *)&pActor->unk50)[1] = 0xFF;
+            ((s32 *)&pActor->unk50)[4] = -((s32 *)&pActor->unk50)[4];
+        } else if (((s32 *)&pActor->unk50)[1] < 0x80) {
+            ((s32 *)&pActor->unk50)[1] = 0x80;
+            ((s32 *)&pActor->unk50)[4] = -((s32 *)&pActor->unk50)[4];
+        }
+        ((s32 *)&pActor->unk50)[7] = (((s32 *)&pActor->unk50)[7] + 8) & 0xFFF;
+        ((s32 *)&pActor->unk50)[8] += ((s32 *)&pActor->unk50)[9];
+    }
+}
 // Best: 98.71%. Instruction multiset and registers are identical bar one
 // store: `sw v?,4(s2)` (scale.vy = 0x1000) sits in the load-delay slot of
 // `lw 0x68` here, while retail puts it in the slot of `lw 0x70`. Source order
@@ -180,8 +216,8 @@ void func_80082F64(WorldMapActor *pActor, WorldMapModelOut *pOut, WorldMapModel 
         pModel->rot.vz = 0;
         pModel->rot.vx = 0;
         pModel->rot.vy = ((s32 *)&pActor->unk50)[6];
-        pModel->scale.vy = 0x1000;
         pModel->scale.vx = ((s32 *)&pActor->unk50)[8] & 0x7FFF;
+        pModel->scale.vy = 0x1000;
         pModel->scale.vz = rcos(((s32 *)&pActor->unk50)[7]) * 6;
         RotMatrix(&pModel->rot, &pModel->mat);
         ScaleMatrix(&pModel->mat, &pModel->scale);
