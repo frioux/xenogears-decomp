@@ -243,25 +243,11 @@ s32 BattleGetTextPrimCount(void) {
     return D_800926DC;
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007E634);
-/* best 96.74% (620 bytes, same size as the original), ONE instruction differs:
-   the second ReadTIM block's `((s16*)tim.caddr)[0] = 0;` loads caddr into v0
-   here while the original loads it into v1 (everything else in all 620 bytes is
-   byte-identical, including the 0x38 frame - the unused RECT below is what pads
-   it). Tried for that register: an s16* / u_short* local, `*(s16*)tim.caddr`,
-   the same local assigned in both blocks, s16 vs s32 for the u0 width temp
-   (s16 also breaks the lh into lbu), and cdk/-O3 (76.22 / 96.74). The whole
-   shape below is recovered from the assembly:
-   - D_800926D4[0]/[1] are 100-POLY_FT4 buffers (0xFA0 bytes each) that the
-     setup zeroes the length byte of;
-   - D_800954D8 is an array of 0x1C-byte records (DR_TPAGE then the SPRT that
-     BattleDrawTimedSpritePrims queues), and the tail copies record 0 into record 1;
-   - GetTPage(0,1,prect->x,prect->y) is passed through u_short to SetDrawTPage,
-     which is the andi a3,v0,0xFFFF in its jal delay slot.
 void func_8007E634(BattleTimState* pState) {
     TIM_IMAGE tim;
     RECT pad; // unused: reproduces the original's 8-byte frame slot
     BattleDrawRecord* pRec;
+    s16* pClut;
     s32 w;
     s32 i;
 
@@ -273,9 +259,10 @@ void func_8007E634(BattleTimState* pState) {
     }
     OpenTIM(pState->unk3C);
     ReadTIM(&tim);
-    ((s16*)tim.caddr)[2] = -0x6F9D;
-    ((s16*)tim.caddr)[0] = 0;
-    ((s16*)tim.caddr)[3] = -1;
+    pClut = (s16*)tim.caddr;
+    pClut[2] = -0x6F9D;
+    pClut[0] = 0;
+    pClut[3] = -1;
     LoadImage(tim.crect, tim.caddr);
     LoadImage(tim.prect, tim.paddr);
     D_800926E4 = GetClut(tim.crect->x, tim.crect->y);
@@ -283,7 +270,8 @@ void func_8007E634(BattleTimState* pState) {
     D_800926DC = 0;
     OpenTIM(pState->unk64);
     ReadTIM(&tim);
-    ((s16*)tim.caddr)[0] = 0;
+    pClut = (s16*)tim.caddr;
+    pClut[0] = 0;
     LoadImage(tim.crect, tim.caddr);
     LoadImage(tim.prect, tim.paddr);
     pRec = D_800954D8;
@@ -300,7 +288,7 @@ void func_8007E634(BattleTimState* pState) {
     pRec->sprt.v0 = tim.prect->y;
     D_800954D8[1] = *pRec;
 }
- */
+
 
 void BattleSetTextCursor(s16 a, s16 b) {
     D_800926E8 = a;
