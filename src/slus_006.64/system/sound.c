@@ -4145,7 +4145,58 @@ void SoundStopVoiceOnChannel(SoundVoiceData* voiceData, u32 channelIndex) {
     }
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003EFE4);
+void func_8003EFE4(AudioManager* pAudioManager, AudioElement* pElements, s32 count) {
+    AudioElement* pElement = pElements;
+    AudioEnvelope* pEnvelope;
+    u16 statusFlags;
+    s16 numElements = count;
+    s32 value;
+    s32 i;
+
+    do {
+        if (pElement->active_flag != 0) {
+            ((u16*)pElement->unk_0xD0)[2] = 0;
+            ((u16*)pElement->unk_0xD0)[1] = 0;
+            ((u16*)pElement->unk_0xD0)[0] = 0;
+            if (pElement->unk_0xCE != 0) {
+                i = NUM_VOICE_ENVELOPES;
+                pEnvelope = pElement->envelopes;
+                statusFlags = pElement->status_flags;
+                for (; i != 0; i--) {
+                    if ((pEnvelope->flags & 0x1) != 0) {
+                        if (pEnvelope->unk_0x14 != 0) {
+                            pEnvelope->unk_0x14--;
+                        } else {
+                            value = ((s32 (*)(AudioEnvelope*))pEnvelope->unk_0x0)(pEnvelope);
+                            if (*(s16*)&pEnvelope->unk_0x18 < 0x400) {
+                                value = (value >> 10) * *(s16*)&pEnvelope->unk_0x18;
+                                *(s16*)&pEnvelope->unk_0x18 += pEnvelope->unk_0x1A;
+                            }
+                            value >>= 16;
+                            switch (pEnvelope->unk_0x1C) {
+                            case 0:
+                                ((u16*)pElement->unk_0xD0)[0] += value;
+                                statusFlags |= SOUND_STATUS_PLAYING_NTOE;
+                                break;
+                            case 1:
+                                ((u16*)pElement->unk_0xD0)[1] += value;
+                                statusFlags |= SOUND_STATUS_VOLUME_CHANGE;
+                                break;
+                            case 2:
+                                ((u16*)pElement->unk_0xD0)[2] += value;
+                                statusFlags |= SOUND_STATUS_VOLUME_CHANGE;
+                                break;
+                            }
+                        }
+                    }
+                    pEnvelope++;
+                }
+                pElement->status_flags = statusFlags;
+            }
+        }
+        pElement++;
+    } while (--numElements != 0);
+}
 
 void SoundClearEnvelopeFlags(AudioEnvelope* pEnvelope) {
     pEnvelope->flags &= ~0x1;
