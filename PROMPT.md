@@ -224,6 +224,17 @@ register off scores about 40. This is the tool for the parks this file used to c
 the reason they were dead is that hand-written shapes do not move an allocator tie, and
 a search that tries several shapes a second does. Workers have it in every brief.
 
+What is measured so far (2026-11-14, five bodies, on a loaded VM at 3-8 candidates a
+second): `battle/misc20` `func_8009E5C8`, parked at 99.91% with "8 shapes tried", went
+to 0 in 26 seconds and is a real match (`MATCH`, objdiff 100.00%; the edit was one
+hoisted `rowOffset = i * 0x170` local). `battle/misc8` `func_8007CDD0` went 40 -> 30 in
+a minute. `battle/misc16` `func_8008DC34` (score 10) found nothing in 3 minutes. So it
+closes some parks quickly and not others; the yield over the whole set is not known
+yet. **Keep the count** (ZERO results per pass, and how many of them a worker turned
+into a gated match) in the tracker: if a full pass yields under ~10 matches, stop
+re-running it and say so here; if it yields dozens, a longer second pass is the best
+use of idle CPU there is.
+
 **The sweep** runs it over every parked body (494 when this was written), CPU only:
 
     pgrep -f permute_sweep.py || nohup tools/rounds/permute_sweep.py --minutes 3 >> ~/xw/permute-sweep.log 2>&1 </dev/null &
