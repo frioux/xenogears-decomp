@@ -52,7 +52,6 @@ extern void func_8007313C(void *pDst, void *pSrc);
 extern void func_8008EB4C(s32 arg);
 extern void func_80083C0C(s32 mode);
 extern void BattleResetTextListState(void);
-extern void func_800812BC(u8 *p);
 extern void func_8007E894(s16 a, s16 b);
 extern void BattleSetRowTextColor(void *p, s32 arg);
 extern void func_8007EBE0(u8 *p);
@@ -66,19 +65,38 @@ typedef struct {
 } BattleTextEntry; // Size: 0x14
 
 typedef struct {
-    /* 0x0  */ u8 unk0;
-    /* 0x4  */ u32 pEntries;
-    /* 0x8  */ s16 count;
-    /* 0xC  */ void (*unkC)(void *p);
-    /* 0x10 */ u8 unk10[4];
-    /* 0x14 */ s16 unk14;
-    /* 0x16 */ s16 unk16;
-} BattleTextList; // Size: 0x18
+    /* 0x0 */ u8 unk0[3];
+    /* 0x3 */ u8 code;
+    /* 0x4 */ u32 mode;
+    /* 0x8 */ u16 x;
+    /* 0xA */ u16 y;
+    /* 0xC */ u16 w;
+    /* 0xE */ u16 h;
+} BattleTextFrame; // Size: 0x10
+
+typedef struct {
+    /* 0x00 */ u8 unk0;
+    /* 0x01 */ u8 unk1[3];
+    /* 0x04 */ u32 pEntries;
+    /* 0x08 */ s16 count;
+    /* 0x0A */ u8 unkA[2];
+    /* 0x0C */ void (*unkC)(void *p);
+    /* 0x10 */ u8 unk10[2];
+    /* 0x12 */ s16 unk12;
+    /* 0x14 */ u16 unk14;
+    /* 0x16 */ u16 unk16;
+    /* 0x18 */ u8 unk18[4];
+    /* 0x1C */ BattleTextFrame frame;
+    /* 0x2C */ BattleTextFrame saved;
+} BattleTextList; // Size: 0x3C
 
 extern void func_800811AC(u8 *p);
+extern void func_800812BC(BattleTextList *p);
 extern void func_8008151C(BattleTextList *p);
 extern void func_8008162C(s32 *p, s32 a1);
 extern void func_80081A44(void);
+extern s32 func_8007EB6C(u32 a0);
+extern void func_8007EE08(s32 a0);
 extern void func_80080F04(void);
 extern void *GetStringEntry(void *pStringData, u32 entry);
 extern s32 SystemRenderStringEntry(void *pCur, void *pCharBuffer, s32 mode, s32 flag);
@@ -386,12 +404,72 @@ void func_800811AC(u8 *p) {
 */
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc8", func_800812BC);
+/* 77.44% (492 bytes vs retail 496).  Shape fully decoded from the asm and
+   verified: two loops over p->count at 0x14 stride through p->pEntries;
+   loop 1 does entry->unk12 = func_8007EB6C(entry->unk4) / 2 and keeps the
+   running max, loop 2 stores max into entry->unk12 for the entries whose
+   unk0 byte has bit 1; then the frame header stores, the p->unk0 width
+   fixups, a 16-byte copy of the frame at 0x1C into 0x2C (p->saved =
+   p->frame gives retail's four lw then four sw) and func_8007EE08(0).
+   Learned: max must be s32, not s16 - as s16 gcc sign-extends max before
+   the compare where retail sign-extends the fresh quotient.
+   Remaining levers: (a) retail materialises p + 0x1C into $a0 once, before
+   the unk14 store, and reaches frame.x / frame.w in the tail block as
+   0x8($a0) / 0xC($a0), while ours keeps every frame access s1-relative -
+   an untried `BattleTextFrame *pFrame = &p->frame;` pointer local used in
+   the tail block; (b) retail's max = 0 lands in the blez delay slot while
+   ours hoists it into the prologue, and i/off keep swapping register
+   roles; (c) the order of the count reload, the lhu of unk14 and the
+   0x2A / 0x26 stores differs.
+   Note this unit's original compiler merges adjacent constant stores (see
+   the func_80080F04 and func_80081ECC parks), which is why 0x20 here is a
+   single sw of 0x60102020.
+void func_800812BC(BattleTextList *p) {
+    s32 off;
+    s32 i;
+    s16 w;
+    s32 max;
+    BattleTextEntry *pEntry;
+
+    max = 0;
+    for (i = 0, off = 0; i < p->count; i++, off += 0x14) {
+        pEntry = (BattleTextEntry *)(p->pEntries + off);
+        w = func_8007EB6C(pEntry->unk4) / 2;
+        pEntry->unk12 = w;
+        if (max < w) {
+            max = w;
+        }
+    }
+    i = 0;
+    p->frame.code = 3;
+    p->frame.w = max * 2 + 0x14;
+    p->frame.x = 0x96 - max;
+    p->unk12 = 0;
+    p->frame.mode = 0x60102020;
+    p->unk14 = 0x6D - p->count * 10;
+    ((u8 *)&p->frame.mode)[3] |= 2;
+    p->frame.h = p->count * 20 + 0x14;
+    p->frame.y = p->unk14 - 0xA;
+    for (off = 0; i < p->count; i++, off += 0x14) {
+        pEntry = (BattleTextEntry *)(p->pEntries + off);
+        if (pEntry->unk0[0] & 2) {
+            pEntry->unk12 = max;
+        }
+    }
+    if (p->unk0 != 0) {
+        p->frame.w += p->unk0;
+        p->frame.x -= p->unk0 / 2;
+        p->unk16 = 0xA0 - p->unk0 / 2 - max;
+    }
+    p->saved = p->frame;
+    func_8007EE08(0);
+}*/
 
 void BattleInitTextLists(void) {
     u32 i;
-    u8 *p;
+    BattleTextList *p;
 
-    for (i = 0, p = D_800915AC; i < 8; i++, p += 0x3C) {
+    for (i = 0, p = (BattleTextList *)D_800915AC; i < 8; i++, p++) {
         func_800812BC(p);
     }
     D_80092734 = 0;
