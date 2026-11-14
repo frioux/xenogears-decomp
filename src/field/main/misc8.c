@@ -535,9 +535,12 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800831F4);
    arithmetic: `angle = (rotation.vy + ((direction & 1) ? -0x400 : 0x400)) &
    0xFFF` gives the original's `bnez $v0,.L; addiu $v0,$v1,-0x400` cond-add with
    the delay slot filled (an if/else or a ternary split from the `& 0xFFF`
-   gives `beqz` + `j` instead). The 0x20 frame needs no unused local, and the
-   second store reads `vy` unsigned (`lhu`), so the `| 0x8000` uses the field
-   type, not a signed local.
+   gives `beqz` + `j` instead). The second store reads `vy` unsigned (`lhu`), so
+   the `| 0x8000` uses the field type, not a signed local.
+   Frame: do NOT pad it. This body compiles to a 0x18 frame (140 bytes vs the
+   original 148); the original's extra 8 unused bytes and the `move $v1,$v0`
+   below arrive together with the right instruction stream, so an unused local
+   only moves the frame and leaves the diff where it is.
    Residuals: (1) the original loads vy into v0, copies it (`move $v1,$v0`) and
    tests in place (`andi $v0,$v0,0x8000`) so vy lives in v1 for the addu; gcc
    loads straight into v1 (`lh $v1`; `andi $v0,$v1,0x8000`) and is 4 bytes
@@ -579,7 +582,11 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_8008492C);
    `bltz`-style tail (280 bytes), so the `beqz` above it keeps a nop delay slot
    and the later `beqz flags&4` gets `move v0,zero` from its target; gcc here
    cross-jumps that return into the shared epilogue and fills the delay slots
-   itself (276 bytes).
+   itself (276 bytes). Re-measured: the merge also costs the ordering of the
+   `flags & 2` block (ours hoists `li v0,0x1` above `lh v1,0x10($a0)`, the
+   original loads first) and leaves the `flags & 4` load in v0, where the
+   original uses v1 - v1 is only dead there once the `flags & 2` return is its
+   own block. Same body, same 276 bytes.
 extern s32 D_800ADB98;
 extern s32 D_800ADC0C;
 
