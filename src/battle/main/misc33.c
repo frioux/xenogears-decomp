@@ -136,7 +136,59 @@ s32 func_800BE6E8(s32 value, u8 *pBuf, s32 n, u8 started, s32 base) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BE790);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BEB04);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BEBC4);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BEC18);
+typedef struct {
+    /* 0x00 */ u16 cur;
+    /* 0x02 */ u16 pressed;
+    /* 0x04 */ u16 released;
+    /* 0x06 */ u16 unk6;
+} BattlePadFrame; // Size: 0x8
+
+typedef struct {
+    /* 0x0000 */ u8 unk0[0xC58];
+    /* 0xC58 */ u16 cur[2];
+    /* 0xC5C */ u16 pressed[2];
+    /* 0xC60 */ u16 released[2];
+    /* 0xC64 */ BattlePadFrame history[4];
+} BattlePadState; // Size: 0xC84
+
+extern int ControllerGetButtonState(int controllerIndex);
+extern u16 D_800D30E4;
+
+void func_800BEC18(void) {
+    u8 *pStateBase;
+    BattlePadState *pState;
+    s32 cur;
+    u16 prev;
+    u16 prev2;
+
+    /* the mask is what makes gcc narrow the call result */
+    cur = ControllerGetButtonState(0) & 0xFFFF;
+    /* a symbol plus literal folds into one lui/addiu; retail adds 0x8000 in a register */
+    pStateBase = D_800C3EB0;
+    pState = (BattlePadState *)(pStateBase + 0x8000);
+    prev = pState->cur[0];
+    pState->cur[0] = cur;
+    pState->pressed[0] = ~prev & cur;
+    pState->released[0] = prev & ~cur;
+
+    cur = ControllerGetButtonState(1);
+    prev2 = pState->cur[1];
+    pState->pressed[1] = ~prev2 & cur;
+    pState->cur[1] = cur;
+    pState->released[1] = pState->cur[0] & ~cur;
+
+    if (pState->cur[0] == pState->history[0].cur) {
+        return;
+    }
+    pState->history[3] = pState->history[2];
+    pState->history[2] = pState->history[1];
+    pState->history[1] = pState->history[0];
+    pState->history[0].cur = pState->cur[0];
+    pState->history[0].pressed = pState->pressed[0];
+    pState->history[0].released = pState->released[0];
+    pState->history[0].unk6 = D_800D30E4;
+}
+
 void func_800BED30(void) {
     D_800C3E20 = 0;
     D_800C3610 = NULL;
