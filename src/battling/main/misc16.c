@@ -258,9 +258,10 @@ void func_8008D580(Misc16Work* pWork) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc16", func_8008D5C0);
 /* 98.19% - byte-identical except that retail keeps pWork in $s1 and the loop
-   counter in $s2 while gcc swaps them (s2/s1).  Tried: three declaration
-   orders for i/pEntry/pInitEntry.  gcc-2.7.2-cdk scores 93.71, so it is not a
-   preset question.
+   counter in $s2 while gcc swaps them (s2/s1); the prologue's save order
+   follows.  gcc-2.6.0 scores 99.79 here (2.7.2-cdk fails to compile), so the
+   unit may be a 2.6.0 unit; that cannot be switched without re-checking every
+   already-matched function in misc16, which are all INCLUDE_ASM.
 void func_8008D5C0(Misc16Work* pWork, s32 count) {
     u8* pEntry;
     void (*pInitEntry)(u8*, Misc16Work*);
@@ -339,23 +340,17 @@ void func_8008D9F0(Misc16Work* pWork) {
     }
 }
 */
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc16", func_8008DA48);
-/* 85.63% - everything including the frame (the 0x28 unused local) and the
-   division-by-3 magic matches; only the mfhi scratch register differs
-   (original a3, gcc a2), the usual allocator tie-break.  Tried: s16 value,
-   2 * -x / 3, pad declared first, -x * 2 / 3.
-void func_8008DA48(Misc16Work* pWork, u8* pArg1) {
-    u8 pad[0x28]; // reproduces the original frame; never referenced
+void func_8008DA48(Misc16Work* pWork, u8* pArg1, MATRIX* pMat) {
+    u8 pad[0x28];
     s32 i;
     s32 value;
     u8* pEntry;
     void (*pCallback)(u8*, u8*);
-
     D_8009282C = (u8*)0x1F800000;
     D_80092830 = (u8*)0x1F800030;
-    *(s16*)(PSX_SCRATCH + 0x30) = D_80096FA8.vx;
-    *(s16*)(PSX_SCRATCH + 0x32) = D_80096FAC.vx;
-    *(s16*)(PSX_SCRATCH + 0x34) = D_80096FB0.vx;
+    ((s16*)D_8009282C)[0x18] = D_80096FA8.vx;
+    ((s16*)D_8009282C)[0x19] = D_80096FAC.vx;
+    ((s16*)D_8009282C)[0x1A] = D_80096FB0.vx;
     pEntry = pWork->unk10;
     pCallback = (void (*)(u8*, u8*))pWork->unk54;
     for (i = 0; i < pWork->unkA; i++) {
@@ -380,8 +375,8 @@ void func_8008DA48(Misc16Work* pWork, u8* pArg1) {
         }
         pEntry += pWork->unkC;
     }
+    (void)pad;
 }
-*/
 typedef struct {
     /* 0x0 */ s32 unk0[8];
 } Misc16Oct; // Size: 0x20
@@ -396,12 +391,11 @@ void func_8008DBC0(u8* pArg0, s16 arg1, u8* pArg1) {
     *(Misc16Oct*)pArg1 = *(Misc16Oct*)(pObj + 0x4C);
 }
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc16", func_8008DC28);
-/* 93.22% - chained assignment is what makes retail's single `li` serve both
-   stores (`unk4A = unk44 = 0x60` now matches exactly).  The remaining gap is
-   that retail materialises the 4 into $v1 BEFORE the two 0x60 stores and
-   stores it after them, while gcc loads it at its first use in $v0.
-   Tried: chained `unk48 = unk0 = 4`, separate `= 4` statements, the 4 pair
-   placed before the 0x60 pair, and the original `s16 four` local.
+/* 93.22% - the only difference is instruction order: retail loads every
+   constant at the top of the block and sinks the dependent stores (li v1,4
+   before the 0x60 pair, then li v0,0x20, then both sh v1).  Same for
+   -O3 (93.22) and gcc 2.6.0 (93.22).  Tried: chained vs separate
+   statements, 4-pair before the 0x60-pair, s32 locals for both constants.
 void func_8008DC28(void) {
     Misc16Work* pWork;
 
