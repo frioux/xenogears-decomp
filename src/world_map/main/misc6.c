@@ -174,6 +174,19 @@ extern void func_8007FC8C(int);
 extern int func_8007FD30(int);
 extern void WorldMapEnterNop(void);
 extern void WorldMapUpdateFrameWithParticles(void);
+extern void WorldMapLoadSedsBank(void);
+extern void func_80085F58(void);
+extern void func_80085FE0(void);
+extern void WorldMapInitNop(void);
+extern void WorldMapUpdateFrame(void);
+extern void func_80080900(void);
+extern void func_80080944(void);
+extern void func_80080A28(void);
+extern void func_80080AC4(void);
+extern void func_80080370(void);
+extern void func_80080578(void);
+extern void func_80080600(void);
+extern int WorldMapInitActorScript(int);
 
 int WorldMapInitGroup12Actor(int index) {
     WorldMapGroup *pGroup;
@@ -689,7 +702,70 @@ int func_8007FD30(int index) {
 }
 */
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007FF70);
+void func_8007FF70(void) {
+    RECT rect;
+    u32 *pPos;
+
+    WorldMapInitGfxEnv();
+    rect.x = 0;
+    rect.y = 0;
+    rect.w = 0x140;
+    rect.h = 0xD8;
+    MoveImage(&rect, 0x2C0, 0x100);
+    DrawSync(0);
+    func_80072DB4(0x40, 0, 4, 2);
+    while (ArchiveDataSync() >= 3) {
+    }
+    WorldMapDecompressMapData();
+    func_8009766C();
+    D_8009BE4C = D_8009A180;
+    D_8009CCA4 = 2;
+    D_8009D3CC = 0x10;
+    D_8009D804 = 0;
+    D_8009D144 = 0;
+    D_8009CD40 = func_80086700;
+    func_80098044();
+    ArchiveCdDataSync(0);
+    WorldMapLoadSedsBank();
+    /* the array form (as in misc3) is what keeps the pointer in $s0 across the
+       body; a scalar's &D_8009C5AC is folded into the store and the call */
+    {
+        extern u8 D_8009C5AC[];
+        pPos = (u32 *)D_8009C5AC;
+    }
+    *pPos = 0x4100000;
+    D_8009C5B0 = 0xFFF80000;
+    D_8009C5B4 = 0x13C0000;
+    func_80084580();
+    func_8008440C();
+    func_800979C8();
+    func_800736DC();
+    func_80085F58();
+    func_800863E0();
+    WorldMapInitTileAnimEntries();
+    WorldMapInitFrameAnimEntries();
+    WorldMapSetupMapPrims();
+    func_80088F64();
+    ArchiveCdDataSync(0);
+    SoundAddSedsEntry(D_8006259C);
+    ArchiveSetIndex(0x24, 0);
+    func_80097BC0(pPos);
+    do {
+        func_800967E4();
+        Vsync(0);
+    } while (WorldMapGetQueuedLoadCount() > 0);
+    func_80097718(func_800923A8, func_800925A0);
+    func_80097718(WorldMapInitActorScript, func_80080370);
+    func_80097718(func_80080578, func_80080600);
+    func_80097718(func_80080900, func_80080944);
+    func_80097718(func_80080A28, func_80080AC4);
+    func_80097718(WorldMapInitNop, WorldMapUpdateFrame);
+    func_800978FC();
+    func_8008901C();
+    func_800865A0();
+    func_80085FE0();
+    func_80075228();
+}
 void WorldMapExitToMap84(void) {
     u16 unkValue;
 
