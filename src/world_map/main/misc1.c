@@ -157,6 +157,9 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80071B9C);
    Tried with no change: pTable = &D_8009B564 + nLevel, (u16*)((u8*)pTable + 2),
    the increment statement before vs after the if, and pTable[1] as the pre-check
    (that one loads through the base register instead of folding).
+   Round 50: gcc forms the la as %lo(D_8009B566)+2 (the symbol it already loaded
+   for the pre-check), not %lo(D_8009B564); gcc-2.7.2-cdk drops this to 81.1% and
+   -G0 does not compile this unit, so the preset is not the lever.
 */
 /*
 void func_80071B9C(s32 arg0, s32 arg1) {
@@ -368,6 +371,10 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_8007299C);
    `volatile u16`. Second note: the first loop's `addu` needed the index first,
    i.e. `(u8*)(i * 0x80 + (s32)D_8009BE24)`; the ptr-first spelling gives the
    reversed addu. Sibling teardown WorldMapAllocPrimBuffers has the same 98.55% class.
+   Round 50: re-confirmed; `u16* pFlags = &D_8006F954; *pFlags |= 0x8000;` (and with a
+   `volatile u16*`) still gives lui v0 / lhu %lo(v0) / lui $at + sh %lo: gcc folds the
+   address into the load, so the loaded value occupies the only free register and the
+   store needs $at. Retail needs the address in a THIRD register (v1) used twice.
 */
 /*
 extern void* D_80062528;
