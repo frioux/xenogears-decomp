@@ -30,8 +30,96 @@ extern void func_80072A9C(s32 index, u8 arg1);
 extern void func_80072DA8(s32 index, u8 arg1);
 extern s32 func_80072F38(s32 index, u8 arg1);
 extern void func_80073380(s32 index);
+extern s32 func_80025FA8(void *pDir, s32 id, u8 *pPrim, s32 context, u16 x, u16 y, u16 u, u16 v, u16 w);
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_80073B64);
+/* 86.09%: all five call loops are recovered and their bodies match
+   instruction-for-instruction - (1) `for (i = 0; i < D_800D2D28[0x97]; i++)`
+   AddPrim of a 0x10-stride prim at D_800C3EA4 + 0x908 indexed by
+   D_800D2D28[0x98] + i*2; (2) four func_800728B8 at D_800C3EA4 + 0x2E08 +
+   i*0x320 with D_800D2D28[i+0x74]/[i+0x84]; (3) three entries at 0x1E4 stride
+   with a `switch` on the byte at base+0x852D (case 1 -> atlas + i*0x1E4 +
+   0x835C with bytes +0x852E/+0x852C, case 2 -> the same pointer + 0xA0 with
+   +0x852F/+0x852C; the code below folds case 2 into +0x83FC, but retail
+   adds the 0xA0 to the case-1 pointer LAST, so `pAtlas + 0xA0` is the shape to
+   try)
+   plus the 0xEC/[0x99] draw at 0x6008 + i*0x140; (4) the optional 0xAF draw at
+   0x9C8 and three draws at 0x3A88 + i*0xC80; (5) three entries at 0x1C/0x50/
+   0x1E0 strides, skipping entries whose D_800C3EB6[i*0x1C] is 0x7F, and the
+   AddPrim whose index is `(i * 2 + ctx) * 36` where ctx is D_800CCB34 reached
+   as `&D_800CCB04 + 0x30` (that is how retail gets it here:
+   `lw v1,0x30(s4)` off the hoisted `la D_800CCB04`). Remaining differences are
+   all allocation: retail keeps &D_800CCB04 in $s4 (saving it in the prologue;
+   we rematerialise `lui/lw` at each AddPrim and lose the s4 slot), the
+   `off + (s32)D_800C3EA4` adds come out base-first here and offset-first in
+   retail (`addu a0,a1,v0` vs `addu a0,v0,a1`, and the AddPrim prim argument
+   likewise), and loop 3's four big-displacement byte loads make gcc hoist
+   `0x852C` into a register (`li s1,0x852C`) instead of keeping retail's
+   base+off3 register with 0x852C..0x852F displacements. Two `u16 v[8]`-style
+   tricks were not needed: this frame (0x30, s0-s4+ra) matches as written. */
+/*
+void func_80073B64(void) {
+    s32 i;
+    s32 off;
+    s32 off2;
+    s32 off3;
+    u8 *p;
+
+    for (i = 0; i < D_800D2D28[0x97]; i++) {
+        AddPrim(D_800CCB04 + 4,
+                (u8 *)(D_800C3EA4 + 0x908 + (D_800D2D28[0x98] + i * 2) * 0x10));
+    }
+
+    for (i = 0, off = 0x2E08; i < 4; i++, off += 0x320) {
+        func_800728B8((u8 *)(D_800C3EA4 + off),
+                      *(u8 *)(D_800D2D28 + i + 0x74),
+                      *(u8 *)(D_800D2D28 + i + 0x84));
+    }
+
+    for (i = 0, off = 0x6008, off3 = 0; i < 3; i++, off += 0x140, off3 += 0x1E4) {
+        if (*(u8 *)(D_800D2D28 + i + 0xCC) != 0) {
+            p = (u8 *)(D_800C3EA4 + off3);
+            switch (*(u8 *)(p + 0x852D)) {
+            case 1:
+                func_800728B8((u8 *)(D_800C3EA4 + off3 + 0x835C),
+                              *(u8 *)(p + 0x852E), *(u8 *)(p + 0x852C));
+                break;
+            case 2:
+                func_800728B8((u8 *)(D_800C3EA4 + off3 + 0x83FC),
+                              *(u8 *)(p + 0x852F), *(u8 *)(p + 0x852C));
+                break;
+            }
+            func_800728B8((u8 *)(D_800C3EA4 + off),
+                          *(s32 *)(D_800D2D28 + i * 4 + 0xEC),
+                          *(u8 *)(D_800D2D28 + i + 0x99));
+        }
+    }
+
+    if (D_800D2D28[0xAF] != 0) {
+        func_800728B8(D_800C3EA4 + 0x9C8, D_800D2D28[0x7B], D_800D2D28[0xA4]);
+    }
+
+    for (i = 0, off = 0x3A88; i < 3; i++, off += 0xC80) {
+        func_800728B8((u8 *)(D_800C3EA4 + off),
+                      *(s32 *)(D_800D2D28 + i * 4 + 0xE0),
+                      *(u8 *)(D_800D2D28 + i + 0x93));
+    }
+
+    for (i = 0, off = 0x818, off2 = 0, off3 = 0; i < 3;
+         i++, off += 0x50, off2 += 0x1C, off3 += 0x1E0) {
+        if ((&D_800C3EB6)[off2] != 0x7F) {
+            func_800728B8((u8 *)(D_800C3EA4 + off), 1, D_800D2D28[0x83]);
+            if (*(u8 *)(D_800D2D28 + i + 0xCC) != 0) {
+                func_800728B8((u8 *)(D_800C3EA4 + off3),
+                              *(u8 *)(D_800D2D28 + i + 0x78), D_800D2D28[0xA2]);
+                AddPrim(D_800CCB04 + 4,
+                        (u8 *)(D_800C3EA4 + 0x740 +
+                               (i * 2 + ((s32 *)&D_800CCB04)[0xC]) * 36));
+            }
+        }
+    }
+}
+ */
 
 void func_80073E88(void) {
     s32 i;
@@ -342,6 +430,76 @@ void func_800765C4(s32 arg0) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_80076710);
+/* 92.93%: everything structural matches (the 0xA9 loop, both func_80025FA8
+   calls with their five stack arguments, the SetSemiTrans loop, the 0xAB loop,
+   the two range tests, the 0x58 frame). Shapes that were needed: x and y are
+   16-byte memory objects (`u16 v[8]`, only v[0] and v[4] used) - two u16 locals
+   land at sp+0x28/0x2A and shrink the frame by 8 bytes; one `i` shared by the
+   three loops keeps the middle loop's index in $s0 across the SetSemiTrans
+   call, retail has it in $a3, so each loop needs its own variable; the
+   SetSemiTrans offset needs its own `off` local to get retail's
+   addu-in-the-jal-slot operand order. What is left is allocation only:
+   (1) retail keeps &D_800CCB34 in $s0 from just after the 0x77 store and does
+   `lw a3,0(s0)` at both call sites, gcc 2.7.2 rematerialises
+   `lui/lw %lo(D_800CCB34)` at each site (a `s32 *pCtx` local does not survive,
+   it folds back and costs 8 points); (2) loop 1 emits `addu v1,v1,v0` where
+   retail has `addu v0,v0,v1` - gcc canonicalises the commutative operands, so
+   swapping the C operands changes nothing; (3) the second call's
+   `idx * 0x50 + 0x3768 + (s32)D_800C3EA4` chain interleaves with the stack-arg
+   stores (retail emits the three shifts contiguously and adds the constant to
+   the product, not to the base) and `li a1,0x1` is not stolen into the loop's
+   back-edge delay slot; (4) the 0xAB loop's index is $a1 here, $a3 in retail. */
+/*
+void func_80076710(s32 arg0) {
+    u16 v[8];
+    s32 i;
+    s32 j;
+    s32 k;
+    s32 idx;
+    s32 off;
+
+    for (i = 0; i < D_800D2D28[0xA9]; i++) {
+        *(u32 *)(D_800D2D28 + 0x64) -= *(u32 *)(D_800D2D28 + 0x54);
+        *(u32 *)(D_800D2D28 + 0x6C) += *(u32 *)(D_800D2D28 + 0x5C);
+        v[0] = *(u16 *)(D_800D2D28 + 0x34) + (*(u32 *)(D_800D2D28 + 0x64) >> 8);
+        v[4] = *(u16 *)(D_800D2D28 + 0x44) + (*(u32 *)(D_800D2D28 + 0x6C) >> 8);
+    }
+
+    D_800D2D28[0xA9] = 0;
+    D_800D2D28[0x77] = 0;
+
+    D_800D2D28[0x77] = func_80025FA8(D_800D2F5C, 0x52, D_800C3EA4 + 0x3768, D_800CCB34,
+                                     v[0], v[4], *(u16 *)(D_800D2D28 + 0x104),
+                                     *(u16 *)(D_800D2D28 + 0x104),
+                                     *(u16 *)(D_800D2D28 + 0x106));
+
+    idx = D_800D2D28[0x77];
+    D_800D2D28[0x77] +=
+        func_80025FA8(D_800D2F5C, 0x53, idx * 0x50 + 0x3768 + (s32)D_800C3EA4, D_800CCB34,
+                      v[0], v[4], *(u16 *)(D_800D2D28 + 0x104), *(u16 *)(D_800D2D28 + 0x104),
+                      *(u16 *)(D_800D2D28 + 0x106));
+
+    for (j = idx * 2; j < D_800D2D28[0x77] * 2; j += 2) {
+        off = (j + D_800CCB34) * 40 + 0x3768;
+        SetSemiTrans((u8 *)(off + (s32)D_800C3EA4), 1);
+    }
+
+    D_800D2D28[0x87] = *(u8 *)&D_800CCB34;
+
+    for (k = 0; k < D_800D2D28[0xAB]; k++) {
+        *(u16 *)(D_800D2D28 + 0x104) += 0x66;
+        *(u16 *)(D_800D2D28 + 0x106) += 0x80;
+    }
+    D_800D2D28[0xAB] = 0;
+
+    if (v[0] <= *(u32 *)(D_800D2D28 + 0x3C)) {
+        *(u8 *)(D_800D2D28 + arg0 + 0x90) = 1;
+    }
+    if (v[4] >= *(u32 *)(D_800D2D28 + 0x4C)) {
+        *(u8 *)(D_800D2D28 + arg0 + 0x90) = 1;
+    }
+}
+*/
 
 void func_800769E8(RECT *pRect, u_long *pData) {
     LoadImage(pRect, pData);
