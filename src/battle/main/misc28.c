@@ -42,11 +42,14 @@ void func_800B6438(u8 *p) {
     WorkListSetTaskCallback((u8 *)*(u32 *)(p + 0x6C) + 0x1C, D_80025A88);
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc28", func_800B6464);
-/* best 59.79%: retail loads both packet bytes before any arithmetic and
-   copies the packet pointer to t1 in the first slot; gcc reuses a0 for the
-   second lbu and sinks it below the srl.  Also tried: u16 v local, s32 byte
-   locals, i less-than n (gives slt instead of the rotated bne), and both
-   signed and unsigned packet pointer types.
+/* best 59.79% (s32 b0/b1 locals below) / 58.00% (inline p[0], p[1]).
+   retail clusters all three loads at the block top (lhu v0,0(a3); lbu a0,0(t1);
+   lbu a1,1(t1)) and only then does the andi/srl/addu work; gcc sinks the second
+   lbu below the srl.  Retail also chains both pointer loads in the same register
+   (lw v1,0x20(a0); lw v1,0x30(v1)) because the count lives in v0, while gcc
+   allocates the count to v1 and the chain to v0.  Tried: u16 v local, s32 byte
+   locals, i less-than n (gives slt instead of the rotated bne), signed and
+   unsigned packet pointer types, pointer chain before the count.
 void func_800B6464(u8 *pActor, u8 *p) {
     u8 *pEntry;
     s16 n;
@@ -65,33 +68,40 @@ void func_800B6464(u8 *pActor, u8 *p) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc28", func_800B64D4);
-/* best 95.76% under gcc 2.7.2-cdk, 77.59% under the unit preset.
-   retail adds 0x8C8C as a separate li+addu on the runtime base
-   (li v1,0x8C8C; addu v0,v0,v1; lw a0,0(v0)), gcc always folds it into the
-   symbol address as lui at,0x1 / lw a0,-29556(at).  Tried: local base pointer,
-   separate offset statements, u32 integer base, gcc-2.6.0 and 2.7.2-cdk.
+/* best 95.88%: only remaining difference is a v0/v1 swap - retail keeps the
+   symbol base in v1 and the shifted byte in v0, gcc does the reverse.  The
+   's32 off = 0x8C8C' local is what stops gcc folding 0x8C8C into the symbol
+   address (a literal gives lui at,0x1 / lw a0,-29556(at)).  Also tried:
+   idx local, u32 base, pointer local, reordered stores, gcc-2.6.0.
 void func_800B64D4(s32 arg0, u8 *p) {
-    u32 nEntry = (u32)D_800C3EB0 + (p[1] << 2);
+    u8 *pEntry;
+    s32 off;
 
-    func_800245D8(*(u32 *)(nEntry + 0x8C8C), p[0]);
+    pEntry = (u8 *)((u32)D_800C3EB0 + (p[1] << 2));
+    off = 0x8C8C;
+    func_800245D8(*(u32 *)(pEntry + off), p[0]);
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc28", func_800B6518);
-/* best 81.08%: retail materialises the two 8-byte locals in memory (sh) and
-   rebuilds each word from two lhu, and its frame is 8 bytes larger (one
-   unused slot); gcc reads each word back with a single lw.  Explicit
-   (v.vy << 16) | v.vx recombination is worse (69.61).  The A pair loads lh
-   (signed) and the B pair lhu, so the B fields are unsigned halfwords.
+/* best 91.71%: the array form gets the lhu read-back and the two-word
+   recombination right; what is left is the two actor loads coming out as
+   'lhu' instead of retail's 'lh' (gcc merges the s16 load with the halfword
+   store into one HImode load, and an HImode load on mips is lhu) plus the
+   8-byte-larger retail frame (an unused 8-byte local).  Tried: SVECTOR with
+   *(s32*)&field recombination (81.08, gives lw), u16 fields (same lhu),
+   ((u16*)a)[i] casts on the read-back, explicit (vy<<16)|vx with s16 fields
+   (69.61).
 void func_800B6518(u8 *pActor) {
-    SVECTOR a;
-    SVECTOR b;
+    s16 a[4];
+    s16 b[4];
     s16 angle;
 
-    a.vx = *(s16 *)(pActor + 0x2);
-    a.vy = *(s16 *)(pActor + 0xA);
-    b.vx = *(u16 *)(pActor + 0xA0);
-    b.vy = *(u16 *)(pActor + 0xA4);
-    angle = func_80023124(*(s32 *)&b, *(s32 *)&a);
+    a[0] = *(s16 *)(pActor + 0x2);
+    a[1] = *(s16 *)(pActor + 0xA);
+    b[0] = *(u16 *)(pActor + 0xA0);
+    b[1] = *(u16 *)(pActor + 0xA4);
+    angle = func_80023124(((u16 *)b)[1] << 16 | ((u16 *)b)[0],
+                          ((u16 *)a)[1] << 16 | ((u16 *)a)[0]);
     func_80021FE0(pActor, angle);
     func_800223B0(pActor, angle);
 }
@@ -130,18 +140,19 @@ void func_800B6930(u32 *pOut, s8 *p) {
     pOut[1] = ((p[3] << 8) | (u8)p[2]) << 16;
     pOut[2] = ((p[5] << 8) | (u8)p[4]) << 16;
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc28", func_800B6990);
-/* best 52.71%: the first read (p += ...) matches byte for byte with this shape;
-   every pOut store instead gets lbu + sll 24/sra 16 because gcc truncates the
-   signed high byte into a halfword store.  Zero-extending both bytes (u8*) or
-   s8* with a (u8) cast on the low byte give the identical bad shape.
 void func_800B6990(u16 *pOut, s8 *p) {
+    s32 v0;
+    s32 v1;
+    s32 v2;
+
     p += (p[1] << 8) | (u8)p[0];
-    pOut[0] = (p[1] << 8) | (u8)p[0];
-    pOut[1] = (p[3] << 8) | (u8)p[2];
-    pOut[2] = (p[5] << 8) | (u8)p[4];
+    v0 = (p[1] * 256) | (u8)p[0];
+    pOut[0] = v0;
+    v1 = (p[3] * 256) | (u8)p[2];
+    pOut[1] = v1;
+    v2 = (p[5] * 256) | (u8)p[4];
+    pOut[2] = v2;
 }
-*/
 void func_800B69E4(u16 *pOut, s8 *p) {
     s32 v;
 
