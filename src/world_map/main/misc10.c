@@ -20,10 +20,103 @@ extern void SpritePlayAnimation(void* pSprite, s32 arg1);
 extern void WorldMapSetSpriteSetParent(s32 arg0, s32 arg1);
 extern void SpriteSetScale(void* pSprite, s16 scale);
 extern void func_8008BFD4(s32 arg0, u32* pVec, s32 arg2, s32 arg3);
+extern s32 WorldMapGetTilePlaneHeight(s32 x, s32 z);
 
 typedef struct {
     /* 0x0 */ s32 w[4];
 } Block16; // Size: 0x10
+
+typedef struct {
+    /* 0x00 */ undefined32 unk00;
+    /* 0x04 */ u16 unk04;
+    /* 0x06 */ u16 unk06;
+    /* 0x08 */ undefined32 unk08[6]; // 0x08..0x1F
+    /* 0x20 */ u16 unk20;
+    /* 0x22 */ u16 unk22;
+    /* 0x24 */ s16 unk24;
+    /* 0x26 */ undefined16 unk26;
+    /* 0x28 */ s32 unk28;
+    /* 0x2C */ s32 unk2C;
+    /* 0x30 */ s32 unk30;
+    /* 0x34 */ undefined32 unk34;
+    /* 0x38 */ s32 unk38;
+    /* 0x3C */ u32 unk3C;
+    /* 0x40 */ s32 unk40;
+    /* 0x44 */ undefined32 unk44;
+    /* 0x48 */ s16 unk48;
+    /* 0x4A */ s16 unk4A;
+    /* 0x4C */ void* unk4C;
+    /* 0x50 */ s32 unk50;
+    /* 0x54 */ void* unk54;
+    /* 0x58 */ s32 unk58;
+    /* 0x5C */ s32 unk5C;
+    /* 0x60 */ undefined32 unk60[8]; // 0x60..0x7F
+} WorldMapActor; // Size: 0x80
+
+typedef struct {
+    /* 0x0 */ s32 unk00;
+    /* 0x4 */ s32 unk04;
+    /* 0x8 */ s32 unk08;
+    /* 0xC */ s32 unk0C;
+} WorldMapVec; // Size: 0x10
+
+typedef struct {
+    /* 0x00 */ WorldMapVec vec;
+    /* 0x10 */ u16 unk10;
+    /* 0x12 */ u16 pad12;
+} WorldMapTrail; // Size: 0x14
+
+typedef struct {
+    /* 0x0 */ s8 r;
+    /* 0x1 */ s8 g;
+    /* 0x2 */ s8 b;
+    /* 0x3 */ s8 a;
+} WorldMapColorStep; // Size: 0x4
+
+typedef union {
+    /* 0x0 */ s32 flags;
+    /* 0x0 */ u16 count;
+    /* 0x2 */ s16 active;
+} WorldMapTrailFlags; // Size: 0x4
+
+typedef struct {
+    /* 0x00 */ s16 unk00;
+    /* 0x02 */ s16 unk02;
+    /* 0x04 */ WorldMapTrailFlags unk04;
+    /* 0x08 */ s32 unk08;
+    /* 0x0C */ s32 unk0C;
+    /* 0x10 */ s32 unk10;
+    /* 0x14 */ undefined32 unk14;
+    /* 0x18 */ s32 unk18;
+    /* 0x1C */ s32 unk1C;
+    /* 0x20 */ s32 unk20;
+    /* 0x24 */ undefined32 unk24;
+    /* 0x28 */ s32 unk28;
+    /* 0x2C */ s32 unk2C;
+    /* 0x30 */ s32 unk30;
+    /* 0x34 */ undefined32 unk34;
+    /* 0x38 */ u16 unk38;
+    /* 0x3A */ u16 unk3A;
+    /* 0x3C */ u16 unk3C;
+    /* 0x3E */ u16 unk3E;
+    /* 0x40 */ u32 unk40;
+    /* 0x44 */ WorldMapColorStep colorStep;
+    /* 0x48 */ undefined32 unk48;
+} WorldMapTrailEntry; // Size: 0x4C
+
+typedef struct {
+    /* 0x00 */ undefined32 unk00;
+    /* 0x04 */ undefined32 unk04;
+    /* 0x08 */ undefined16 unk08[2];
+    /* 0x0A */ u16 unk0A;
+    /* 0x0C */ undefined32 unk0C[5];
+    /* 0x20 */ undefined32 unk20[13];
+} WorldMapSprite; // Size: 0x54
+
+extern WorldMapVec D_8009D55C;
+extern WorldMapTrail D_8009CEC4[];
+extern u16 D_8009D52C;
+extern u16 D_8009D154;
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc10", func_80088B40);
 /* 73.64%: structure confirmed (loop over D_8009AFDC calling WorldMapSetSpriteSetParent(0x45,id),
@@ -347,6 +440,77 @@ void WorldMapClearGroupEntryFlag(s32 arg0) {
 }
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc10", func_80089580);
+/* 48.70% (436 bytes, retail 456): struct layout recovered and the head/tests/
+   arithmetic are right; two differences remain.
+   (1) The count/active word at entry+0x04: retail loads it ONCE as a word and
+   splits it with sra 16 (active, jump to loop end when zero) and sll 16/sra 16
+   (count, blez to the detach path), so the source reads it as an s32 and the
+   WorldMapTrailFlags union below reproduces that head exactly. Retail still
+   decrements the count with a plain lhu/sh at +0 and zeroes both halves with a
+   single sw in the detach path, which is why the union needs all three members.
+   (2) sched2 ties: retail loads all six pos/vel words first, does the six adds,
+   and sinks all six stores to the end of the green path; gcc here emits
+   load/add/store per statement, and gcc also hoists the D_8009BCC0 load out of
+   the loop whereas retail reloads it inside the out-of-line detach block.
+   Tried: six separate += statements in retail's own add order, nested if/else vs
+   continue, u16/s16 for the two halves (the unsigned form is what makes gcc emit
+   the separate lhu+beqz instead of the word split).
+   The colour step at entry+0x44 is a word in retail: r comes from lb +0, g and b
+   from (word<<16)>>24 and (word<<8)>>24, i.e. the source truncates a loaded
+   word rather than reading three s8 fields (three lb's was 46.61%).
+void func_80089580(void) {
+    WorldMapTrailEntry* pEntry;
+    s32 i;
+    s32 flags;
+    s32 r;
+    s32 g;
+    s32 b;
+
+    pEntry = (WorldMapTrailEntry*)D_8009BDF4;
+    for (i = 0xFF; i != -1; i--, pEntry++) {
+        flags = pEntry->unk04.flags;
+        if ((flags >> 16) != 0) {
+            if ((s16)flags > 0) {
+                pEntry->unk08 += pEntry->unk18;
+                pEntry->unk0C += pEntry->unk1C;
+                pEntry->unk10 += pEntry->unk20;
+                pEntry->unk18 += pEntry->unk28;
+                pEntry->unk1C += pEntry->unk2C;
+                pEntry->unk20 += pEntry->unk30;
+                pEntry->unk04.count = pEntry->unk04.count - 1;
+                pEntry->unk38 += pEntry->unk3C;
+                pEntry->unk3A += pEntry->unk3E;
+                r = (pEntry->unk40 & 0xFF) + pEntry->colorStep.r;
+                g = ((pEntry->unk40 >> 8) & 0xFF) + pEntry->colorStep.g;
+                b = ((pEntry->unk40 >> 16) & 0xFF) + pEntry->colorStep.b;
+                if (r < 0) {
+                    r = 0;
+                }
+                if (r >= 0x100) {
+                    r = 0xFF;
+                }
+                if (g < 0) {
+                    g = 0;
+                }
+                if (g >= 0x100) {
+                    g = 0xFF;
+                }
+                if (b < 0) {
+                    b = 0;
+                }
+                if (b >= 0x100) {
+                    b = 0xFF;
+                }
+                pEntry->unk40 = (pEntry->unk40 & 0xFF000000) | (b << 16) | (g << 8) | r;
+            } else {
+                ((WorldMapSprite*)D_8009BCC0)[pEntry->unk00].unk0A--;
+                pEntry->unk00 = 0;
+                pEntry->unk04.flags = 0;
+            }
+        }
+    }
+}
+*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc10", func_80089748);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc10", func_80089C78);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc10", func_8008A2C8);
@@ -372,3 +536,49 @@ s32 func_8008A52C(s32 arg0) {
 }
 */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc10", func_8008A5B8);
+/* 90.48% (372 bytes, retail 372): identical instruction multiset, only the
+   prologue rotates - retail computes (D_8009BE24 + arg0*0x80) into a2 before the
+   SpriteAllocFromAnimFile arg setup and keeps li a2,0x1E0 for the jal delay slot;
+   gcc shifts into v1, emits li a2 early and lets reorg steal the addu into the
+   slot. Same wall as the func_8008B54C / func_8008BDD0 parks in misc11 ("the 0x40
+   stack store lands just before the jal"). Tried: call written inline as the
+   store rhs, a void* pSprite temp, (u8*)D_8009BE24 + arg0*0x80 spelling - all
+   byte-identical at 90.48%. Everything from the SpritePlayAnimation jal on
+   matches, including the 32-iteration 0x14-stride copy and the D_8009D55C tail.
+s32 func_8008A5B8(s32 arg0) {
+    WorldMapActor* pActor;
+    WorldMapTrail* pTrail;
+    void* pSprite;
+    s32 i;
+
+    pActor = (WorldMapActor*)((u8*)D_8009BE24 + arg0 * 0x80);
+    pSprite = SpriteAllocFromAnimFile(D_8009CD34, 0x100, 0x1E0, 0x140, 0x100, 0x40);
+    pActor->unk4C = pSprite;
+    SpritePlayAnimation(pActor->unk4C, 0);
+    SpriteSetScale(pActor->unk4C, 0x1800);
+    *(u32*)((u8*)pActor->unk4C + 0x3C) &= ~4;
+    pActor->unk28 = g_GameState.unk1820 << 12;
+    pActor->unk30 = g_GameState.unk1822 << 12;
+    pActor->unk2C = WorldMapGetTilePlaneHeight(pActor->unk28, pActor->unk30);
+    {
+        u16 unk1824 = g_GameState.unk1824;
+
+        pActor->unk24 = 1;
+        pActor->unk4A = 8;
+        pActor->unk40 = 0;
+        pActor->unk3C = 0;
+        pActor->unk38 = 0;
+        pActor->unk20 = 2;
+        D_8009D154 = 0;
+        pActor->unk48 = unk1824;
+    }
+    pTrail = D_8009CEC4;
+    for (i = 0; i < 0x20; i++, pTrail++) {
+        pTrail->vec = *(WorldMapVec*)&pActor->unk28;
+        pTrail->unk10 = pActor->unk48;
+    }
+    D_8009D55C = *(WorldMapVec*)&pActor->unk28;
+    D_8009D52C = pActor->unk48;
+    return 1;
+}
+*/
