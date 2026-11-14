@@ -17,6 +17,7 @@ extern void* D_8009CD34;
 extern void HeapFree(void* pMem);
 extern void* func_80024524(void* pArg0, s16 arg1, s16 arg2, s16 arg3, s16 arg4, s16 arg5);
 extern void func_800245D8(void* pSprite, s32 arg1);
+extern void func_800848B4(s32 arg0, s32 arg1);
 extern void SpriteSetScale(void* pSprite, s16 scale);
 extern void func_8008BFD4(s32 arg0, u32* pVec, s32 arg2, s32 arg3);
 
@@ -25,24 +26,67 @@ typedef struct {
 } Block16; // Size: 0x10
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc10", func_80088B40);
+/* 73.64%: structure confirmed (loop over D_8009AFDC calling func_800848B4(0x45,id),
+   sh 0 at pDst+0x20, the 0x99 branch, then the >>12 tail shared with
+   func_80088D00). Two walls, both seen elsewhere in this unit: (a) the tail
+   folds +0x16A4 into the store displacements (0x16AC/0x16B0/0x16B4) where
+   retail does addiu a1,a1,0x16A4 once and stores at 8/0xC/0x10; (b) both id
+   loops want an `s32 id` instead of a bare `*pIds` (see func_80088C90). The
+   0x40 frame vs retail's 0x20 comes from (b).
+s32 func_80088B40(s32 arg0) {
+    u8* pDst;
+    u8* pBase;
+    s32* pSrc;
+    s16* pIds;
+    s32 ret;
+
+    pIds = D_8009AFDC;
+    while (*pIds != -1) {
+        func_800848B4(0x45, *pIds);
+        pIds++;
+    }
+    pDst = D_8009BE24 + (arg0 << 7);
+    *(s16*)(pDst + 0x20) = 0;
+    pBase = D_8009C620;
+    if (g_GameState.unk1930[0] == 0x99) {
+        *(s32*)(pDst + 0x28) = 0x2000000;
+        *(s32*)(pDst + 0x30) = 0x4120000;
+        *(s32*)(pDst + 0x2C) = 0;
+        ret = 1;
+    } else {
+        *(s16*)(pBase + 0x16A4) = 1;
+        pIds = D_8009AFDC;
+        while (*pIds != -1) {
+            *(s16*)(pBase + *pIds * 0x54) = 1;
+            pIds++;
+        }
+        ret = 3;
+    }
+    pSrc = (s32*)(pBase + 0x16A4);
+    pSrc[2] = *(s32*)(pDst + 0x28) >> 12;
+    pSrc[3] = *(s32*)(pDst + 0x2C) >> 12;
+    pSrc[4] = *(s32*)(pDst + 0x30) >> 12;
+    return ret;
+}
+*/
+
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc10", func_80088C90);
-/* 52.89% with s16 D_8009AFDC: the loop body (pointer walk, *0x54 multiply
-   chain, addiu a0,-2 fixup) matches, but gcc allocates a 16-byte frame that
-   retail does not have and its unused slot makes the *pIds reload come out
-   lhu + sll/sra instead of retail's lh, and it loads the two addresses in the
-   opposite order. Adding an s16 id local and reading the id twice changes
-   nothing. Retail is: li v0,1 / lw a1,D_8009C620 / la a0,D_8009AFDC /
-   sh v0,0x16A4(a1) / lh v1,0(a0) / beq with a nop in the delay slot.
+/* 85.32% (was 52.89): the load mode is the whole game. `s32 id` read once in
+   the while condition gives retail's single `lh` and drops the 16-byte phantom
+   frame; an `s16 id`, or a bare `*pIds * 0x54` with or without an `(s32)` cast,
+   makes gcc load HImode (lhu) and sign-extend with sll/sra, which also costs a
+   register (t0 where retail uses a3) and a 16-byte frame. Still missing:
+   retail loads D_8009C620 before D_8009AFDC and re-loads `lh v0,0(a0)` after
+   the branch, while mine reuses the tested value (108 vs 112 bytes).
 s32 func_80088C90(void) {
     u8* pBase;
     s16* pIds;
-    s16 id;
+    s32 id;
 
     pBase = D_8009C620;
     *(s16*)(pBase + 0x16A4) = 1;
     pIds = D_8009AFDC;
-    while (*pIds != -1) {
-        id = *pIds;
+    while ((id = *pIds) != -1) {
         *(s16*)(pBase + id * 0x54) = 1;
         pIds++;
     }
