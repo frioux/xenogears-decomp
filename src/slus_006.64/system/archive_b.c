@@ -3,32 +3,34 @@
 #include "psyq/memory.h"
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive_b", func_80037878);
-/* 79.6%: structure matches, but gcc 2.7.2 strength-reduces the row base
-   i*nSize into an induction accumulator, which costs a register and the
-   original's frame (0x40 vs 0x48). The original keeps a real mult.
+/* 99.94%: byte-identical size (316) and instruction stream; the ONLY difference
+   is the inner loop's back-edge target: retail's .L800378EC label sits on the
+   maspsx mult/mflo hazard nop and branches to +0x74, ours lands after that nop
+   (+0x78). Same for a `while` inner loop and for the pRow-pointer spelling
+   (97.15%). Everything else is exact, including the fresh `mult` for i*nSize
+   (a pCur local or an nRowOffset temp instead makes gcc strength-reduce it into
+   an accumulator, which is what the earlier 79.6% was).
 typedef s32 (*ArchiveCompareFn)(u8* pA, u8* pB);
 
 void func_80037878(u8* pData, s32 nCount, s32 nSize, ArchiveCompareFn pCompare) {
     u8* pTemp;
-    u8* pRow;
-    u8* pCur;
+    s32 k;
     s32 i;
     s32 j;
-    s32 k;
-    s32 nRowOffset;
 
     pTemp = HeapAlloc(nSize, 0);
-    for (i = 0, k = 0, pCur = pData; i < nCount; i++, pCur += nSize) {
-        nRowOffset = i * nSize;
-        for (j = i, pRow = pData + nRowOffset; j < nCount; j++, pRow += nSize) {
-            if (pCompare(pData + nSize * k, pRow) > 0) {
+    for (i = 0; i < nCount; i++) {
+        k = i;
+        j = i;
+        while (j < nCount) {
+            if (pCompare(pData + nSize * k, pData + j * nSize) > 0) {
                 k = j;
             }
+            j++;
         }
-        memcpy(pTemp, pCur, nSize);
-        memcpy(pCur, pData + k * nSize, nSize);
-        memcpy(pData + k * nSize, pTemp, nSize);
-        k = i;
+        memcpy(pTemp, pData + i * nSize, nSize);
+        memcpy(pData + i * nSize, pData + nSize * k, nSize);
+        memcpy(pData + nSize * k, pTemp, nSize);
     }
     HeapFree(pTemp);
 }
@@ -50,11 +52,13 @@ void func_800379B4(u32 value) {
 */
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive_b", func_800379C8);
-/* 0%: retail is a bare `j FontPrintf`. FontPrintf is variadic (system/memory.h),
-   and gcc 2.7.2 refuses to tail-call a variadic callee, so every spelling that
-   takes `...` or forwards a fixed list emits a `subu sp,24` frame plus jal. A
-   non-variadic local prototype for FontPrintf is impossible without touching
-   the header or casting the callee (which turns the call into la+jalr).
+/* 0%: retail is a bare `j FontPrintf` plus a nop delay slot and nothing else.
+   Not a variadic problem: with a non-prototype `extern void FontPrintf();`
+   (system/memory.h dropped so the variadic decl cannot conflict) gcc 2.7.2 still
+   emits the 24-byte frame + jal, so this MIPS port does not emit sibling calls
+   at all. No other function in the linked binary or any overlay starts with
+   `j <name>` either, so retail's `j` is hand-written asm (or a compiler we do
+   not have) and no C can reproduce it.
 void func_800379C8(char* pFormat) {
     FontPrintf(pFormat);
 }
