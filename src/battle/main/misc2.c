@@ -11,6 +11,10 @@ extern u8 *D_800D3278;
 extern s32 D_800CCB34;
 extern void *D_800D2F5C;
 extern u8 *D_800D2D28;
+extern u8 *D_800C3E24;
+extern u16 D_800C3254[];
+extern u8 D_800D3280;
+extern u8 D_800D2D24[];
 extern u8 *D_800D2DB4;
 extern u8 D_800C3EB6;
 extern u8 D_800D32A1;
@@ -117,6 +121,14 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_800743A4);
    re-forms %hi/%lo(D_800CCB04) per call instead of keeping &D_800CCB04 in s0
    and reloading through it. func_800743A4 and func_80074554 are identical. */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_800744BC);
+/* 79.68%: only allocation differs. Retail keeps p in $v1 and accumulates the
+   offset chain directly in the argument register $a1 (addu $a1,$a1,$v1 in the
+   jal slot) and keeps &D_800CCB04 in a saved $s0 (`lw $a0,0($s0)` twice); gcc
+   gives $a1 to p and builds the sum in $v0 (addu $a1,$v0,$a1). Also tried
+   `u8 **pp = &D_800CCB04;` and AddPrim(*pp + 4, ...): same 79.68%, the address
+   local is folded away and none of the $s0 save/restore is emitted. Retail's
+   source clearly held the OT address in a local that survived the call, which
+   reload_cse rematerialises for us. Allocator tie, not a source-shape problem. */
 /* void func_800744BC(void) {
     u8 *p;
     s32 off;
@@ -137,7 +149,38 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_80074554);
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_800745EC);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_80074AB8);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_80074D4C);
+void func_80074D4C(void) {
+    s32 i;
+
+    if (D_800D2D28[0xC6] == 0) {
+        return;
+    }
+
+    if (D_800C3E24[0xE5] != 0) {
+        *(s32 *)(D_800C3E24 + 0xE0) -= 4;
+        if (*(s32 *)(D_800C3E24 + 0xE0) < 0x40) {
+            D_800C3E24[0xE5] = 0;
+            *(s32 *)(D_800C3E24 + 0xE0) = 0x40;
+        }
+    } else {
+        *(s32 *)(D_800C3E24 + 0xE0) += 4;
+        if (*(s32 *)(D_800C3E24 + 0xE0) >= 0x100) {
+            D_800C3E24[0xE5] = 1;
+            *(s32 *)(D_800C3E24 + 0xE0) = 0xFC;
+        }
+    }
+
+    i = 0;
+    do {
+        if (*(u8 *)(D_800C3E24 + i + 0xE6) != 0) {
+            ((u8 *)D_800C3E24)[(i * 2 + D_800C3E24[0xE4]) * 0x1C + 4] = D_800C3E24[0xE0];
+            ((u8 *)D_800C3E24)[(i * 2 + D_800C3E24[0xE4]) * 0x1C + 5] = 0;
+            ((u8 *)D_800C3E24)[(i * 2 + D_800C3E24[0xE4]) * 0x1C + 6] = 0;
+            AddPrim(D_800CCB04 + 4, (u8 *)((i * 2 + D_800C3E24[0xE4]) * 0x1C + (s32)D_800C3E24));
+        }
+        i++;
+    } while (i < 4);
+}
 void func_80074EEC(void) {
     if (D_800D2D28[0xA8] == 0) {
         return;
