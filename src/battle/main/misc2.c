@@ -30,6 +30,7 @@ extern void func_80072A9C(s32 index, u8 arg1);
 extern void func_80072DA8(s32 index, u8 arg1);
 extern s32 func_80072F38(s32 index, u8 arg1);
 extern void func_80073380(s32 index);
+extern s32 func_80025FA8(void *pDir, s32 id, u8 *pPrim, s32 context, u16 x, u16 y, u16 u, u16 v, u16 w);
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_80073B64);
 
@@ -342,6 +343,76 @@ void func_800765C4(s32 arg0) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_80076710);
+/* 92.93%: everything structural matches (the 0xA9 loop, both func_80025FA8
+   calls with their five stack arguments, the SetSemiTrans loop, the 0xAB loop,
+   the two range tests, the 0x58 frame). Shapes that were needed: x and y are
+   16-byte memory objects (`u16 v[8]`, only v[0] and v[4] used) - two u16 locals
+   land at sp+0x28/0x2A and shrink the frame by 8 bytes; one `i` shared by the
+   three loops keeps the middle loop's index in $s0 across the SetSemiTrans
+   call, retail has it in $a3, so each loop needs its own variable; the
+   SetSemiTrans offset needs its own `off` local to get retail's
+   addu-in-the-jal-slot operand order. What is left is allocation only:
+   (1) retail keeps &D_800CCB34 in $s0 from just after the 0x77 store and does
+   `lw a3,0(s0)` at both call sites, gcc 2.7.2 rematerialises
+   `lui/lw %lo(D_800CCB34)` at each site (a `s32 *pCtx` local does not survive,
+   it folds back and costs 8 points); (2) loop 1 emits `addu v1,v1,v0` where
+   retail has `addu v0,v0,v1` - gcc canonicalises the commutative operands, so
+   swapping the C operands changes nothing; (3) the second call's
+   `idx * 0x50 + 0x3768 + (s32)D_800C3EA4` chain interleaves with the stack-arg
+   stores (retail emits the three shifts contiguously and adds the constant to
+   the product, not to the base) and `li a1,0x1` is not stolen into the loop's
+   back-edge delay slot; (4) the 0xAB loop's index is $a1 here, $a3 in retail. */
+/*
+void func_80076710(s32 arg0) {
+    u16 v[8];
+    s32 i;
+    s32 j;
+    s32 k;
+    s32 idx;
+    s32 off;
+
+    for (i = 0; i < D_800D2D28[0xA9]; i++) {
+        *(u32 *)(D_800D2D28 + 0x64) -= *(u32 *)(D_800D2D28 + 0x54);
+        *(u32 *)(D_800D2D28 + 0x6C) += *(u32 *)(D_800D2D28 + 0x5C);
+        v[0] = *(u16 *)(D_800D2D28 + 0x34) + (*(u32 *)(D_800D2D28 + 0x64) >> 8);
+        v[4] = *(u16 *)(D_800D2D28 + 0x44) + (*(u32 *)(D_800D2D28 + 0x6C) >> 8);
+    }
+
+    D_800D2D28[0xA9] = 0;
+    D_800D2D28[0x77] = 0;
+
+    D_800D2D28[0x77] = func_80025FA8(D_800D2F5C, 0x52, D_800C3EA4 + 0x3768, D_800CCB34,
+                                     v[0], v[4], *(u16 *)(D_800D2D28 + 0x104),
+                                     *(u16 *)(D_800D2D28 + 0x104),
+                                     *(u16 *)(D_800D2D28 + 0x106));
+
+    idx = D_800D2D28[0x77];
+    D_800D2D28[0x77] +=
+        func_80025FA8(D_800D2F5C, 0x53, idx * 0x50 + 0x3768 + (s32)D_800C3EA4, D_800CCB34,
+                      v[0], v[4], *(u16 *)(D_800D2D28 + 0x104), *(u16 *)(D_800D2D28 + 0x104),
+                      *(u16 *)(D_800D2D28 + 0x106));
+
+    for (j = idx * 2; j < D_800D2D28[0x77] * 2; j += 2) {
+        off = (j + D_800CCB34) * 40 + 0x3768;
+        SetSemiTrans((u8 *)(off + (s32)D_800C3EA4), 1);
+    }
+
+    D_800D2D28[0x87] = *(u8 *)&D_800CCB34;
+
+    for (k = 0; k < D_800D2D28[0xAB]; k++) {
+        *(u16 *)(D_800D2D28 + 0x104) += 0x66;
+        *(u16 *)(D_800D2D28 + 0x106) += 0x80;
+    }
+    D_800D2D28[0xAB] = 0;
+
+    if (v[0] <= *(u32 *)(D_800D2D28 + 0x3C)) {
+        *(u8 *)(D_800D2D28 + arg0 + 0x90) = 1;
+    }
+    if (v[4] >= *(u32 *)(D_800D2D28 + 0x4C)) {
+        *(u8 *)(D_800D2D28 + arg0 + 0x90) = 1;
+    }
+}
+*/
 
 void func_800769E8(RECT *pRect, u_long *pData) {
     LoadImage(pRect, pData);
