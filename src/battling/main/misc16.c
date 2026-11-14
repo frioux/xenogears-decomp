@@ -17,9 +17,9 @@ struct Misc16Work {
     /* 0x0C */ s16 unkC;
     /* 0x0E */ u16 unkE;
     /* 0x10 */ u8* unk10;
-    /* 0x14 */ s16 unk14;
-    /* 0x16 */ s16 unk16;
-    /* 0x18 */ s16 unk18;
+    /* 0x14 */ u16 unk14;
+    /* 0x16 */ u16 unk16;
+    /* 0x18 */ u16 unk18;
     /* 0x1A */ u16 pad1A;
     /* 0x1C */ u16 unk1C;
     /* 0x1E */ u16 unk1E;
@@ -294,6 +294,103 @@ void func_8008D5C0(Misc16Work* pWork, s32 count) {
    entry->unk6 = pWork->unk6A and calls pWork->unk50(entry).  Not attempted
    body-wise yet. */
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc16", func_8008D680);
+/* 88.85% first attempt (736 bytes, frame 0xB8 vs retail 0xC0).  What is
+   already right: the whole prologue order, the *pMat copy, the three
+   unk1C/1E/20 additions (they want u16 unk14/16/18, which is why the
+   struct now declares those three as u16), the RotMatrix/MulMatrix chain,
+   both loops with --count == -1 and the unk50/unk5C call order.
+   Still different: (1) retail spills pWork->unk50 to 0x80(sp) and keeps
+   nine callee regs, gcc here keeps it in $s8 so the frame is 8 bytes
+   short - one more live value is needed somewhere, probably from the GTE
+   block below; (2) retail keeps pDir = sp+0x18 in $s6 across both loops
+   and stores through it; (3) retail re-reads IR1-IR3 with lhu from that
+   buffer before mtc2 into IR1-IR3 (a real memory round trip, so it is not
+   CSE-able in our compile: gcc reuses the mfc2 results) and keeps the
+   addiu pEntry+8 address instead of folding it into the sh offsets.  The
+   GTE shape is the same one func_8008DDFC above matches with
+   gte_ldv0 / gte_mvmva(1,0,0,3,0) / gte_stir123_gpr, so the macro set is
+   available; the open question is which libgte macro spells the
+   store-then-reload-into-IR round trip.
+void func_8008D680(Misc16Work* pWork, MATRIX* pMat, s32 count) {
+    SVECTOR vec;
+    SVECTOR dir;
+    MATRIX rotBase;
+    MATRIX mat;
+    MATRIX rotExtra;
+    void (*pUpdateEntry)(u8*);
+    void (*pUpdate)(Misc16Work*, u8*);
+    s32 n;
+    s32 i;
+    s32 angle;
+    s32 rnd;
+    s32 scale;
+    s32 depth;
+    s16 vx;
+    s16 vy;
+    s16 vz;
+    u8* pEntry;
+
+    pUpdateEntry = (void (*)(u8*))pWork->unk50;
+    pUpdate = (void (*)(Misc16Work*, u8*))pWork->unk5C;
+    mat = *pMat;
+    pWork->unk1C = pWork->unk14 + pMat->t[0];
+    pWork->unk1E = pWork->unk16 + pMat->t[1];
+    pWork->unk20 = pWork->unk18 + pMat->t[2];
+    RotMatrix((SVECTOR*)&pWork->unk34, &rotBase);
+    MulMatrix(&mat, &rotBase);
+    RotMatrix((SVECTOR*)&pWork->unk3C, &rotExtra);
+    MulMatrix(&rotExtra, &mat);
+    SetRotMatrix(&rotExtra);
+    pEntry = pWork->unk10;
+    n = count;
+    for (i = 0; i < pWork->unkA; i++) {
+        if (*(s16*)(pEntry + 6) == 0) {
+            n--;
+            if (n == -1) {
+                break;
+            }
+            angle = rand() % pWork->unk44;
+            rnd = rand();
+            vec.vy = -rsin(angle);
+            scale = rcos(angle);
+            vec.vx = rcos(rnd) * scale >> 12;
+            vec.vz = rsin(rnd) * scale >> 12;
+            depth = pWork->unk48 + rand() % pWork->unk4A;
+            gte_ldv0(&vec);
+            gte_mvmva(1, 0, 0, 3, 0);
+            gte_stir123_gpr(vx, vy, vz);
+            dir.vx = vx;
+            dir.vy = vy;
+            dir.vz = vz;
+            gte_lddp(depth);
+            gte_ldir123(dir.vx, dir.vy, dir.vz);
+            gte_nop();
+            gte_nop();
+            gte_gpf12_b();
+            gte_stir123_gpr(vx, vy, vz);
+            ((s16*)(pEntry + 8))[0] = vx;
+            ((s16*)(pEntry + 8))[1] = vy;
+            ((s16*)(pEntry + 8))[2] = vz;
+        }
+        pEntry += pWork->unkC;
+    }
+    SetRotMatrix(&mat);
+    pEntry = pWork->unk10;
+    n = count;
+    for (i = 0; i < pWork->unkA; i++) {
+        if (*(s16*)(pEntry + 6) == 0) {
+            n--;
+            if (n == -1) {
+                break;
+            }
+            pUpdate(pWork, pEntry);
+            *(s16*)(pEntry + 6) = pWork->unk6A;
+            pUpdateEntry(pEntry);
+        }
+        pEntry += pWork->unkC;
+    }
+}
+*/
 void func_8008D980(Misc16Work* pWork) {
     s32 count;
 
