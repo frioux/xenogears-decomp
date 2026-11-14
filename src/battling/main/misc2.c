@@ -75,7 +75,28 @@ void func_800732CC(void) {
     D_80092644 = p;
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_8007334C);
+extern s32 D_80092648;
+extern s32 D_80092A24;
+extern s32 D_80092A28;
+extern s32 D_80092A2C;
+extern u8 D_80091C0C[];
+extern void func_8008D680(u8 *, u8 *, s32);
+extern void BattleEffectUpdateEntries(u8 *, u8 *, u8 *);
+
+void func_8007334C(u8 *p0, u8 *p1) {
+    s32 n = D_80092648;
+    u8 *p = D_80092644;
+
+    *(s16 *)(p + 0x14) = D_80092A24;
+    *(s16 *)(p + 0x16) = D_80092A28;
+    *(s16 *)(p + 0x18) = D_80092A2C;
+    *(s16 *)(p + 0x34) = 0;
+    *(s16 *)(p + 0x36) = 0;
+    *(s16 *)(p + 0x38) = 0;
+    func_8008D680(p, D_80091C0C, n);
+    gte_SetTransRotMatrix_gpr(p1);
+    BattleEffectUpdateEntries(p, p0, p1);
+}
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80073424);
 /* 98.09%: the loop's induction shape. The original keeps BOTH a walking
@@ -148,7 +169,30 @@ void func_80073424(VECTOR *p0, VECTOR *p1, u8 *p2, s32 arg3, s32 arg4, s32 arg5)
 } */
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80073644);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80073B7C);
+void func_80073B7C(u8 *p0, s32 arg1, s32 arg2, VECTOR *pOut) {
+    u32 **pArray;
+    u32 *pEntry;
+    u8 *pSrc;
+    u8 *pVerts;
+
+    pArray = *(u32 ***)(*(u8 **)(*(u8 **)(p0 + 0x5C) + 0x4) + 0x4);
+    pEntry = *(u32 **)(arg1 + pArray);
+    if (arg2 != 0 && pEntry[0] == 1) {
+        gte_SetRotMatrix_gpr((u8 *)pEntry + 0x4C);
+        pSrc = *(u8 **)(*(u8 **)((u8 *)pEntry + 0x4) + 0x14);
+        pVerts = *(u8 **)(pSrc + 0x8);
+        gte_ldv0((SVECTOR *)(pVerts + (arg2 * 8 - 8)));
+        gte_mvmva(1, 0, 0, 0, 0);
+        gte_stlvnl(pOut);
+        pOut->vx += *(s32 *)(p0 + 0x0);
+        pOut->vy += *(s32 *)(p0 + 0x4);
+        pOut->vz += *(s32 *)(p0 + 0x8);
+    } else {
+        pOut->vx = *(s32 *)((u8 *)pEntry + 0x60) + *(s32 *)(p0 + 0x0);
+        pOut->vy = *(s32 *)((u8 *)pEntry + 0x64) + *(s32 *)(p0 + 0x4);
+        pOut->vz = *(s32 *)((u8 *)pEntry + 0x68) + *(s32 *)(p0 + 0x8);
+    }
+}
 
 void func_80073CA4(u8 *p0) {
     s32 i;
