@@ -45,6 +45,8 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_80078BC8);
    in the original, i.e. the -1 has to be live in v0 (a call-crossing constant in
    a call-clobbered register); goto/label, a hoisted nResult and per-block -1 all
    still rematerialise it per block (77-80%).
+   Round 43: nested ifs with one `int nResult = -1;` initialiser put the -1 in
+   $s0 (not v0) and the guard loads in v0 - 71.76%, i.e. worse than the chain.
 extern int ArchiveDataSync(void);
 extern s32 D_800ADB2C;
 extern s32 D_800ADB34;
@@ -404,6 +406,11 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007A5C4);
    strength-reduces &polys[1] (the copy at the end of the body) into an induction
    register and addresses polys[0] off it with negative offsets, spilling the
    uv[7] pointer to the stack: 10 callee-saved slots vs the original 9.
+   Round 43: spelling the whole body as D_800B0FEC[i].vertices[k] (indexed access,
+   no pointer local) is far worse - 73.51%, 668 bytes, because gcc then reaches
+   every field through `lui $at; addu $at,$at,$s0; sh` off a folded HI16 addend.
+   The pointer form below is the right shape; the extra biv is what costs the
+   register.
 extern u_short D_800ADE30[]; // X0,Z0 -> X3,Z3 positions per direction
 extern u_char D_800ADE70[];  // U0,V0 -> U3,V3s per direction
 extern Quad D_800B0FEC[];
