@@ -1,5 +1,6 @@
 #include "common.h"
 #include "psyq/libgpu.h"
+#include "system/model.h"
 
 typedef struct {
     /* 0x0 */ u8* pBlocks;
@@ -19,16 +20,26 @@ typedef struct {
 } BattleSpritePool; // Size: 0x8
 
 typedef struct {
-    /* 0x0 */ void** pParts;
+    /* 0x0 */ ModelPart** pParts;
     /* 0x4 */ u32 count;
 } BattleModelPartList; // Size: 0x8
 
 typedef struct {
-    /* 0x00 */ u8 unk00[0xA];
+    /* 0x0 */ u16 partIndex;
+    /* 0x2 */ u16 parentIndex;
+} BattleSkeletonEntry; // Size: 0x4
+
+typedef struct {
+    /* 0x00 */ void* pParent;
+    /* 0x04 */ u8 doTransform;
+    /* 0x05 */ u8 doRotate;
+    /* 0x06 */ u8 rotDirection;
+    /* 0x07 */ u8 unk7;
+    /* 0x08 */ u16 jointIndex;
     /* 0x0A */ u16 count;
     /* 0x0C */ MATRIX localTransform;
     /* 0x2C */ MATRIX globalTransform;
-    /* 0x4C */ u8 unk4C[0x8];
+    /* 0x4C */ SVECTOR scale;
     /* 0x54 */ s16 rot[3];
     /* 0x5A */ u16 pad5A;
     /* 0x5C */ s32 pos[3];
@@ -58,6 +69,10 @@ extern s32 BattleFreeBlock(BattleBlockPool* pPool, BattleBlock* pBlock);
 extern u32 ModelResolvePointers(void* pModel);
 extern void ModelPartFreeLightData(void* pLightData);
 extern void ModelRenderPacket(void* pPart, void* pPacket, u_long* pOT, int flags);
+extern void ModelAllocatePackets(ModelPart* pPart, void** ppPacket, void** ppPacketCopy);
+extern void ModelInitializePacket(ModelPart* pPart, void* pPacket, s32 packetIndex);
+extern void ModelPacketSetBaseTexPage(s16 x, s16 y);
+extern void ModelPacketSetBaseClut(s16 x, s16 y);
 
 BattleModelPartList* BattleInitializeMesh(u8* pModel, BattleModelPartList* pList) {
     u32 count;
@@ -69,12 +84,129 @@ BattleModelPartList* BattleInitializeMesh(u8* pModel, BattleModelPartList* pList
     pList->count = count;
     if (pList->pParts != NULL) {
         for (i = 0; i < count; i++) {
-            pList->pParts[i] = pModel + (0x10 + i * 0x38);
+            pList->pParts[i] = (ModelPart*)(pModel + (0x10 + i * 0x38));
         }
     }
     return pList;
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_8009EC4C);
+BattleSprite* func_8009EC4C(BattleModelPartList* pMesh, BattleSkeletonEntry* pEntries, s32 packetIndex,
+                            s32 hasTexture, s16 texX, s16 texY, s16 clutX, s16 clutY) {
+    int i;
+    int numSprites;
+    u16 partIndex;
+    u16 parentIndex;
+    BattleSkeletonEntry* pEntry;
+    BattleSprite* pSprites;
+    BattleSprite* pSprite;
+
+    HeapChangeCurrentUser(4, NULL);
+
+    pEntry = pEntries;
+    partIndex = pEntry->partIndex;
+    numSprites = 0;
+    while (partIndex < pMesh->count || partIndex == 0xFFFF) {
+        pEntry++;
+        partIndex = pEntry->partIndex;
+        numSprites++;
+    }
+
+    if (numSprites == 0) {
+        return NULL;
+    }
+
+    // Always account for the root sprite
+    numSprites++;
+
+    pSprites = HeapAlloc(numSprites * sizeof(BattleSprite), 0x0);
+    if (pSprites == NULL) {
+        return NULL;
+    }
+
+    pEntry = pEntries;
+    pSprite = pSprites + 1;
+    i = 1;
+    partIndex = pEntry->partIndex;
+    parentIndex = pEntry->parentIndex;
+
+    // Root sprite
+    pSprites[0].doTransform = 1;
+    pSprites[0].doRotate = 1;
+    pSprites[0].rotDirection = 1;
+    pSprites[0].scale.vx = 0x1000;
+    pSprites[0].scale.vy = 0x1000;
+    pSprites[0].scale.vz = 0x1000;
+    pSprites[0].pParent = NULL;
+    pSprites[0].unk7 = 0;
+    pSprites[0].jointIndex = 0xFFFF;
+    pSprites[0].count = numSprites;
+    pSprites[0].p68 = NULL;
+    pSprites[0].p6C = NULL;
+    pSprites[0].rot[0] = 0;
+    pSprites[0].rot[1] = 0;
+    pSprites[0].rot[2] = 0;
+    pSprites[0].pos[0] = 0;
+    pSprites[0].pos[1] = 0;
+    pSprites[0].pos[2] = 0;
+    pSprites[0].p70 = NULL;
+    pSprites[0].p74 = NULL;
+    pSprites[0].p78 = NULL;
+
+    while (partIndex < pMesh->count || partIndex == 0xFFFF) {
+        if (parentIndex == 0xFFFF) {
+            pSprite->pParent = NULL;
+        } else {
+            pSprite->pParent = &pSprites[parentIndex] + 1;
+        }
+
+        pSprite->count = i++;
+        pSprite->doTransform = 1;
+        pSprite->doRotate = 1;
+        pSprite->unk7 = 1;
+        pSprite->scale.vx = 0x1000;
+        pSprite->scale.vy = 0x1000;
+        pSprite->scale.vz = 0x1000;
+        pSprite->rotDirection = 0;
+        pSprite->scale.pad = 0;
+        pSprite->jointIndex = partIndex;
+
+        if (partIndex != 0xFFFF) {
+            ModelAllocatePackets(pMesh->pParts[partIndex], &pSprite->p68, &pSprite->p6C);
+            if (pSprite->p68 == NULL) {
+                BattleFreeModelSkeleton(pSprites);
+                return NULL;
+            }
+
+            if (hasTexture) {
+                ModelPacketSetBaseTexPage(texX, texY);
+                ModelPacketSetBaseClut(clutX, clutY);
+            }
+
+            ModelInitializePacket(pMesh->pParts[partIndex], pSprite->p68, packetIndex);
+            memcpy(pSprite->p6C, pSprite->p68, pMesh->pParts[partIndex]->unk20[1].modelPacketSize);
+        } else {
+            pSprite->p68 = NULL;
+            pSprite->p6C = NULL;
+        }
+
+        pSprite->rot[0] = 0;
+        pSprite->rot[1] = 0;
+        pSprite->rot[2] = 0;
+        pSprite->pos[0] = 0;
+        pSprite->pos[1] = 0;
+        pSprite->pos[2] = 0;
+        pSprite->p70 = NULL;
+        pSprite->p74 = NULL;
+        pSprite->p78 = NULL;
+
+        pSprite++;
+        pEntry++;
+
+        partIndex = pEntry->partIndex;
+        parentIndex = pEntry->parentIndex;
+    }
+
+    return pSprites;
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_8009EF3C);
 /* 94.94% (648 vs 624 bytes). Everything is recovered: struct offsets (pos[3] s32 at
    0x5C, rot[3] s16 at 0x54, scale[3] s16 at 0x4C, pParent void* at 0x0, dirty flags
@@ -185,7 +317,7 @@ void BattleRenderModel(BattleModelPartList* pMesh, BattleSprite* pSkeleton, MATR
     pSkeleton++;
 
     for (i = 1; i < numChildren; i++) {
-        if (*(u16*)(pSkeleton->unk00 + 8) != 0xFFFF) {
+        if (pSkeleton->jointIndex != 0xFFFF) {
             void* pPart;
             void* pPacket;
 
@@ -195,7 +327,7 @@ void BattleRenderModel(BattleModelPartList* pMesh, BattleSprite* pSkeleton, MATR
             SetRotMatrix(pMatrix);
             SetTransMatrix(pMatrix);
 
-            pPart = pMesh->pParts[*(u16*)(pSkeleton->unk00 + 8)];
+            pPart = pMesh->pParts[pSkeleton->jointIndex];
             pPacket = ((void**)&pSkeleton->p68)[packetIndex];
             ModelRenderPacket(pPart, pPacket, (u_long*)arg5, arg4);
         }
