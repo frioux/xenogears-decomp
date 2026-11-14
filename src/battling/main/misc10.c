@@ -108,16 +108,6 @@ void BattleDrawEffectFrame(void) {
     }
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_80084B48);
-
-/* 95.98% - frame, the `addu v1,v0` copy, the store and both arms now line up
-   (inverted arms: expired case is the fall-through). One instruction off: the
-   original sign-extends the decremented value into its own register
-   (`sll v0; sra a1,v0,0x10; bgtz a1; nop`), ours lets combine fold the sra
-   into the branch (`sll v0; bgtz v0; move a1,zero`). Tried: `D_80092780 -= 4`
-   + test the global, s16 local for store and test, s32 local with `(s16)timer`
-   and `(s32)timer` casts, int local read back, non-inverted arms (`timer > 0`,
-   which also costs the 0x20 frame) - all 95.98%.
 void func_80084B48(void) {
     s16 timer;
 
@@ -125,20 +115,19 @@ void func_80084B48(void) {
     if (timer != 0) {
         timer = timer - 4;
         D_80092780 = timer;
-        if ((s32)timer <= 0) {
+        if (timer <= 0) {
             D_80092780 = 0;
             D_80092784 = 0;
             SoundSetAudioManagerMasterVolumeWithFade(D_80092948, 0x100, 0);
             D_8009292C = 0x100;
             BattleEffectFreeResources();
         } else {
-            func_8008E3CC(D_80092938, 0, 1);
+            func_8008E3CC(D_80092938, timer, 1);
         }
     } else {
         D_80092784 = 0;
     }
 }
-*/
 
 void BattleActorCreateRotatedPart(Misc10Actor* pActor) {
     u8* pScript;
@@ -339,6 +328,42 @@ void BattleAddSharedPrim(void) {
 }
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_80086E70);
+
+/* 80.41% - content matches, layout does not: retail puts the value<0x38 block
+   between the first prim and the inner if (as the else of an outer if whose
+   else exits), ours puts it last. Also retail computes the tapered x3 as
+   `addiu v0,s3,-4 ; subu a2,v0,q` where ours folds to `value - (q + 4)`.
+   Tried: if (value >= 0x38) {..} else {small} (80.41%, this one), early
+   `return` in the small block (56.79%, +s5, 0x30 frame), `return` in the else
+   (72.36%), a `quarter` local for the division (no change).
+void func_80086E70(u8* pOt, u8* pBase, s32 value, s32 flag) {
+    if (value >= 0x38) {
+        BattleSetVertexXForFlipped(flag, (u16*)(pBase + 0xC), 0x38);
+        BattleSetVertexXForFlipped(flag, (u16*)(pBase + 0x14), 0x34);
+        AddPrim(pOt, pBase);
+        if (value >= 0x48) {
+            BattleSetVertexXForFlipped(flag, (u16*)(pBase + 0x24), 0x48);
+            BattleSetVertexXForFlipped(flag, (u16*)(pBase + 0x2C), 0x40);
+            BattleSetVertexYForFlipped(flag, (u16*)(pBase + 0x2E), 0x10);
+            AddPrim(pOt, pBase + 0x18);
+            BattleSetVertexXForFlipped(flag, (u16*)(pBase + 0x3C), value);
+            BattleSetVertexXForFlipped(flag, (u16*)(pBase + 0x44), value - 8);
+            AddPrim(pOt, pBase + 0x30);
+        } else {
+            BattleSetVertexXForFlipped(flag, (u16*)(pBase + 0x24), value);
+            BattleSetVertexXForFlipped(flag, (u16*)(pBase + 0x2C),
+                                       (value - 4) - (value - 0x38) / 4);
+            BattleSetVertexYForFlipped(flag, (u16*)(pBase + 0x2E),
+                                       (value - 0x38) / 2 + 8);
+            AddPrim(pOt, pBase + 0x18);
+        }
+    } else {
+        BattleSetVertexXForFlipped(flag, (u16*)(pBase + 0xC), value);
+        BattleSetVertexXForFlipped(flag, (u16*)(pBase + 0x14), value - 4);
+        AddPrim(pOt, pBase);
+    }
+}
+*/
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_80086FF8);
 
