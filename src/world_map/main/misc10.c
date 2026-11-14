@@ -78,6 +78,9 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc10", func_80088C90);
    register (t0 where retail uses a3) and a 16-byte frame. Still missing:
    retail loads D_8009C620 before D_8009AFDC and re-loads `lh v0,0(a0)` after
    the branch, while mine reuses the tested value (108 vs 112 bytes).
+   Reading the array twice in the body (`id = *pIds; pIds++; use id`) is the
+   shape that produces retail's extra `lh v0,0(a0)` but it also makes gcc pick
+   the unsigned HImode load (52.89%).
 s32 func_80088C90(void) {
     u8* pBase;
     s16* pIds;
@@ -229,7 +232,10 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc10", func_8008901C);
    HeapAlloc and for the reload); gcc materialises it twice (lui $at for the
    store, then lui/lw for the reload) and reorg therefore fills the second jal's
    delay slot with li a1,1 instead of the store. An explicit
-   `void** pSlot = &D_8009BE1C` compiles to the identical bytes.
+   `void** pSlot = &D_8009BE1C` compiles to the identical bytes; so does
+   `D_8009BE1C = HeapAlloc(); pEntry = D_8009BE1C; D_8009BE20 = HeapAlloc();`
+   (gcc then forwards the alloc result instead of reloading, 268 bytes either
+   way). Only cse's choice between an address register and $at differs.
 void func_8008901C(void) {
     u8* pEntry;
     s32* pSrc;
@@ -345,11 +351,13 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc10", func_80089748);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc10", func_80089C78);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc10", func_8008A2C8);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc10", func_8008A52C);
-/* 76.69%: everything after the call is byte-identical. Only the prologue order
-   differs: retail emits sll v1,a0,0x7 before the argument setup and keeps the
-   0x40 stack argument in v0 until just before the jal, gcc sinks the sll into
-   the argument region, uses v0 for it and stores 0x40 immediately. Tried the
-   scaled index as a named local and both declaration orders.
+/* 76.69%: only two insns are transposed (everything else is byte-identical).
+   Retail emits sll v1,a0,0x7 at the top and defers the 0x40 stack argument's
+   store (sw v0,0x14(sp)) to just before the jal; gcc puts the arg store first
+   and then sinks the sll into the argument region, which needs v0 and is why
+   the shift lands in v0 where retail has v1. Identical bytes for: the scaled
+   index inline, as a named s32 local, pActor declared first or last, and the
+   call written directly as the store's rhs.
 s32 func_8008A52C(s32 arg0) {
     u8* pSprite;
     u8* pActor;
