@@ -3,13 +3,27 @@
 #include "psyq/libgte.h"
 
 typedef struct {
-    /* 0x00 */ u8 unk0[0x1C];
+    /* 0x00 */ u8 unk0[0x4];
+    /* 0x04 */ s32 unk4;
+    /* 0x08 */ void (*unk8)();
+    /* 0x0C */ u8 unkC[0x10];
     /* 0x1C */ s32 unk1C;
-    /* 0x20 */ u8 unk20[0x24];
+    /* 0x20 */ u8 unk20[0xC];
+    /* 0x2C */ s32 unk2C;
+    /* 0x30 */ s32 unk30;
+    /* 0x34 */ s32 unk34;
+    /* 0x38 */ u8 unk38[0xC];
     /* 0x44 */ s32 unk44;
+    /* 0x48 */ u8 unk48;
+    /* 0x49 */ u8 unk49;
+    /* 0x4A */ u8 unk4A;
+    /* 0x4B */ u8 pad4B;
+    /* 0x4C */ u8 unk4C[0x4];
 } BattleMisc33State; // Size: 0x50
 
 extern BattleMisc33State *D_800C3610;
+extern s32 D_800C360C;
+extern void func_800B9F78();
 extern s32 D_800C3618;
 extern s32 D_800C3E20;
 extern u16 D_800D2E54;
@@ -74,8 +88,11 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BE1C4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BE330);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BE538);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BE6A0);
-/* best 69.67%: the table address must be materialised once into t2 before the
-   loop, which only happens for D_800C3784 itself, not for a pointer local.
+/* best 88.33%: everything matches but the loop-entry order.  Retail emits
+   `beqz a2` with `i = 0` in its delay slot, so its RTL had the `last = n - 1`
+   local hoisted AFTER the entry test; declaring `last` before the loop puts it
+   in front, and inlining `n - 1 - i` instead makes gcc hoist `n - 1` badly
+   (73.06%).  Two instructions differ, no missing or extra insn.
 void func_800BE6A0(s32 arg0, u8 *p, s32 n, s32 arg3) {
     s32 i;
     s32 last;
@@ -135,14 +152,104 @@ s32 func_800BE6E8(s32 value, u8 *pBuf, s32 n, u8 started, s32 base) {
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BE790);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BEB04);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BEBC4);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BEC18);
+typedef struct {
+    /* 0x00 */ u16 cur;
+    /* 0x02 */ u16 pressed;
+    /* 0x04 */ u16 released;
+    /* 0x06 */ u16 unk6;
+} BattlePadFrame; // Size: 0x8
+
+typedef struct {
+    /* 0x0000 */ u8 unk0[0xC58];
+    /* 0xC58 */ u16 cur[2];
+    /* 0xC5C */ u16 pressed[2];
+    /* 0xC60 */ u16 released[2];
+    /* 0xC64 */ BattlePadFrame history[4];
+} BattlePadState; // Size: 0xC84
+
+extern int ControllerGetButtonState(int controllerIndex);
+extern u16 D_800D30E4;
+
+extern u16 D_80059494;
+extern void Vsync(s32 mode);
+extern void func_800BEC18(void);
+
+void func_800BEBC4(void) {
+    u8 *pStateBase;
+    BattlePadState *pState;
+
+    func_800BEC18();
+    pStateBase = D_800C3EB0;
+    pState = (BattlePadState *)(pStateBase + 0x8000);
+    if (pState->cur[0] & 0x100) {
+        Vsync(8);
+        D_80059494 = 0;
+    }
+}
+void func_800BEC18(void) {
+    u8 *pStateBase;
+    BattlePadState *pState;
+    s32 cur;
+    u16 prev;
+    u16 prev2;
+
+    /* the mask is what makes gcc narrow the call result */
+    cur = ControllerGetButtonState(0) & 0xFFFF;
+    /* a symbol plus literal folds into one lui/addiu; retail adds 0x8000 in a register */
+    pStateBase = D_800C3EB0;
+    pState = (BattlePadState *)(pStateBase + 0x8000);
+    prev = pState->cur[0];
+    pState->cur[0] = cur;
+    pState->pressed[0] = ~prev & cur;
+    pState->released[0] = prev & ~cur;
+
+    cur = ControllerGetButtonState(1);
+    prev2 = pState->cur[1];
+    pState->pressed[1] = ~prev2 & cur;
+    pState->cur[1] = cur;
+    pState->released[1] = pState->cur[0] & ~cur;
+
+    if (pState->cur[0] == pState->history[0].cur) {
+        return;
+    }
+    pState->history[3] = pState->history[2];
+    pState->history[2] = pState->history[1];
+    pState->history[1] = pState->history[0];
+    pState->history[0].cur = pState->cur[0];
+    pState->history[0].pressed = pState->pressed[0];
+    pState->history[0].released = pState->released[0];
+    pState->history[0].unk6 = D_800D30E4;
+}
+
 void func_800BED30(void) {
     D_800C3E20 = 0;
     D_800C3610 = NULL;
     D_800D2E54 = 0;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BED4C);
+/* best 85.18%: retail reloads D_800C3610 four times and keeps one load after
+   the func_800BF0B4 call (dead in C, so gcc deletes it and the pointer base
+   stays in a call-clobbered register instead of $s0).
+void func_800BED4C(void) {
+    BattleMisc33State *pState;
+
+    pState = HeapAlloc(0x50, 0);
+    pState->unk8 = func_800B9F78;
+    D_800C3610 = pState;
+    D_800C360C = 0;
+    pState->unk4A = 0;
+    D_800C3610->unk48 = 1;
+    D_800C3610->unk30 = 0;
+    D_800C3610->unk49 = 0;
+    D_800C3610->unk2C = 1;
+    D_800C3610->unk4 = 0;
+    D_800C3610->unk34 = 0;
+    func_800BF0B4(0);
+    pState = D_800C3610;
+    D_80059464 = 0;
+    D_800591AC = 1;
+}
+*/
 void func_800BEDE8(void) {
     HeapFree(D_800C3610);
     D_80059464 = 0;
