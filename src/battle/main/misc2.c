@@ -33,6 +33,93 @@ extern void func_80073380(s32 index);
 extern s32 func_80025FA8(void *pDir, s32 id, u8 *pPrim, s32 context, u16 x, u16 y, u16 u, u16 v, u16 w);
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_80073B64);
+/* 86.09%: all five call loops are recovered and their bodies match
+   instruction-for-instruction - (1) `for (i = 0; i < D_800D2D28[0x97]; i++)`
+   AddPrim of a 0x10-stride prim at D_800C3EA4 + 0x908 indexed by
+   D_800D2D28[0x98] + i*2; (2) four func_800728B8 at D_800C3EA4 + 0x2E08 +
+   i*0x320 with D_800D2D28[i+0x74]/[i+0x84]; (3) three entries at 0x1E4 stride
+   with a `switch` on the byte at base+0x852D (case 1 -> atlas + i*0x1E4 +
+   0x835C with bytes +0x852E/+0x852C, case 2 -> the same pointer + 0xA0 with
+   +0x852F/+0x852C; the code below folds case 2 into +0x83FC, but retail
+   adds the 0xA0 to the case-1 pointer LAST, so `pAtlas + 0xA0` is the shape to
+   try)
+   plus the 0xEC/[0x99] draw at 0x6008 + i*0x140; (4) the optional 0xAF draw at
+   0x9C8 and three draws at 0x3A88 + i*0xC80; (5) three entries at 0x1C/0x50/
+   0x1E0 strides, skipping entries whose D_800C3EB6[i*0x1C] is 0x7F, and the
+   AddPrim whose index is `(i * 2 + ctx) * 36` where ctx is D_800CCB34 reached
+   as `&D_800CCB04 + 0x30` (that is how retail gets it here:
+   `lw v1,0x30(s4)` off the hoisted `la D_800CCB04`). Remaining differences are
+   all allocation: retail keeps &D_800CCB04 in $s4 (saving it in the prologue;
+   we rematerialise `lui/lw` at each AddPrim and lose the s4 slot), the
+   `off + (s32)D_800C3EA4` adds come out base-first here and offset-first in
+   retail (`addu a0,a1,v0` vs `addu a0,v0,a1`, and the AddPrim prim argument
+   likewise), and loop 3's four big-displacement byte loads make gcc hoist
+   `0x852C` into a register (`li s1,0x852C`) instead of keeping retail's
+   base+off3 register with 0x852C..0x852F displacements. Two `u16 v[8]`-style
+   tricks were not needed: this frame (0x30, s0-s4+ra) matches as written. */
+/*
+void func_80073B64(void) {
+    s32 i;
+    s32 off;
+    s32 off2;
+    s32 off3;
+    u8 *p;
+
+    for (i = 0; i < D_800D2D28[0x97]; i++) {
+        AddPrim(D_800CCB04 + 4,
+                (u8 *)(D_800C3EA4 + 0x908 + (D_800D2D28[0x98] + i * 2) * 0x10));
+    }
+
+    for (i = 0, off = 0x2E08; i < 4; i++, off += 0x320) {
+        func_800728B8((u8 *)(D_800C3EA4 + off),
+                      *(u8 *)(D_800D2D28 + i + 0x74),
+                      *(u8 *)(D_800D2D28 + i + 0x84));
+    }
+
+    for (i = 0, off = 0x6008, off3 = 0; i < 3; i++, off += 0x140, off3 += 0x1E4) {
+        if (*(u8 *)(D_800D2D28 + i + 0xCC) != 0) {
+            p = (u8 *)(D_800C3EA4 + off3);
+            switch (*(u8 *)(p + 0x852D)) {
+            case 1:
+                func_800728B8((u8 *)(D_800C3EA4 + off3 + 0x835C),
+                              *(u8 *)(p + 0x852E), *(u8 *)(p + 0x852C));
+                break;
+            case 2:
+                func_800728B8((u8 *)(D_800C3EA4 + off3 + 0x83FC),
+                              *(u8 *)(p + 0x852F), *(u8 *)(p + 0x852C));
+                break;
+            }
+            func_800728B8((u8 *)(D_800C3EA4 + off),
+                          *(s32 *)(D_800D2D28 + i * 4 + 0xEC),
+                          *(u8 *)(D_800D2D28 + i + 0x99));
+        }
+    }
+
+    if (D_800D2D28[0xAF] != 0) {
+        func_800728B8(D_800C3EA4 + 0x9C8, D_800D2D28[0x7B], D_800D2D28[0xA4]);
+    }
+
+    for (i = 0, off = 0x3A88; i < 3; i++, off += 0xC80) {
+        func_800728B8((u8 *)(D_800C3EA4 + off),
+                      *(s32 *)(D_800D2D28 + i * 4 + 0xE0),
+                      *(u8 *)(D_800D2D28 + i + 0x93));
+    }
+
+    for (i = 0, off = 0x818, off2 = 0, off3 = 0; i < 3;
+         i++, off += 0x50, off2 += 0x1C, off3 += 0x1E0) {
+        if ((&D_800C3EB6)[off2] != 0x7F) {
+            func_800728B8((u8 *)(D_800C3EA4 + off), 1, D_800D2D28[0x83]);
+            if (*(u8 *)(D_800D2D28 + i + 0xCC) != 0) {
+                func_800728B8((u8 *)(D_800C3EA4 + off3),
+                              *(u8 *)(D_800D2D28 + i + 0x78), D_800D2D28[0xA2]);
+                AddPrim(D_800CCB04 + 4,
+                        (u8 *)(D_800C3EA4 + 0x740 +
+                               (i * 2 + ((s32 *)&D_800CCB04)[0xC]) * 36));
+            }
+        }
+    }
+}
+ */
 
 void func_80073E88(void) {
     s32 i;
