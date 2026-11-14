@@ -80,27 +80,30 @@ u16 FieldScriptClearAnimationOverrideIfFlag16(u8 arg0) {
     }
     return ret;
 }
-// best 92.90% (2.7.2-psx and cdk); 96.94% under gcc-2.6.0. The row-offset chain
-// goes in $v0 where retail has $v1, which cascades to the base pointer and the u8 sum.
+// best 94.68% (2.7.2-psx); 93.71% under gcc-2.6.0, cdk rejects the file. The one
+// missing insn is retail's `addu v1,v0,zero` copy of the byte sum into the u8
+// result before the clamp compare: gcc 2.7.2 coalesces `u8 r = sum;` into the sum
+// pseudo. Earlier shapes (92.90%) also put the row-offset chain in $v0 where
+// retail has $v1; the `s32 off` + pointer split below fixes that and the two
+// strength-reduced multiplies. Tried besides this: value as s32/u32/u8, compare
+// on r vs `(u8)r`, one-expression form, folding arg1 into `off` (65.00%),
+// loading both bytes before adding (65.16%).
 /*
-Best attempt: 92.90%. Structure and instruction multiset identical (the
-   addiu 0x1058 of the row offset, the two strength-reduced multiplies and the
-   clamp all line up); the only difference is that gcc puts the row-offset chain
-   in $v0 and the arg1 chain in $v1 where the original has them in $v1/$v0, which
-   cascades to the base pointer ($a1 vs $a3) and costs the original's
-   `move v1,v0` for the u8 sum. Tried: one-expression form, `u8* q` slice,
-   pointer-free `s32 off`, a separate `s32 sum` + `u8 v = sum`, and folding arg1
-   into `off` (`off = arg0*0x5F0 + 0x1058 + arg1*0x28`, 65.00%: it then groups the
-   base with the arg1 chain).
 u8 func_8009A258(u8 arg0, u8 arg1) {
-    u8* p = D_800C34B0;
     s32 off = arg0 * 0x5F0 + 0x1058;
-    u8 v = *(u8*)((u8*)p + off + arg1 * 0x28 + 0x14) + p[arg0 * 0x170 + 0x5B];
+    u8* p = (u8*)off + (u32)D_800C34B0;
+    u8* q;
+    s32 value;
+    u8 r;
 
-    if (v > 0x64) {
-        v = 0x64;
+    value = p[arg1 * 0x28 + 0x14];
+    q = (u8*)D_800C34B0 + arg0 * 0x170;
+    value += q[0x5B];
+    r = value;
+    if (r >= 0x65) {
+        r = 0x64;
     }
-    return v;
+    return r;
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009A258);
