@@ -158,7 +158,7 @@ s32 BattleGetActorActionEntry(BattleActor *pActor, u32 id, s32 *pOut) {
 // (command < 2). flags & 7 selects which component the command drives: 0 rotation,
 // 1 position, otherwise scale; flags & 0x20 / & 0x40 add the node's current
 // component to the target / reference vector.
-void func_800AF678(BattleModel *pModel, u8 *pPool, BattleModelNode *pNode, u8 flags, u8 command, u8 unk3,
+void BattleModelQueueTransformCommand(BattleModel *pModel, u8 *pPool, BattleModelNode *pNode, u8 flags, u8 command, u8 unk3,
                    u8 unk1, s16 x, s16 y, s16 z, s16 dx, s16 dy, s16 dz, s16 duration) {
     u8 mode;
     BattleBlock *pBlock;
@@ -267,7 +267,7 @@ void func_800AF678(BattleModel *pModel, u8 *pPool, BattleModelNode *pNode, u8 fl
         for (i = 1; i < pModel->pNodes->unkA; i++) {
             pChild++;
             if (pChild->pParent == pNode) {
-                func_800AF678(pModel, pPool, pChild, flags & 0xFF, command, unk3, unk1, x, y, z, dx, dy, dz,
+                BattleModelQueueTransformCommand(pModel, pPool, pChild, flags & 0xFF, command, unk3, unk1, x, y, z, dx, dy, dz,
                               duration);
             }
         }
