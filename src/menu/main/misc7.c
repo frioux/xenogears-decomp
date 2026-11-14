@@ -732,6 +732,10 @@ extern s32 D_801E9D10;
 extern s32 D_801E9D14;
 extern s32 D_801E9D18;
 extern s32 D_801E9D1C;
+extern s32 D_801E9D20;
+extern s32 D_801E9D24;
+extern s32 D_801E9D28;
+extern s32 D_801E9D2C;
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D7154);
 /* Best: 93.29% (912 bytes, retail frame 0x48 and both loops decoded). Second of
    the two-block gear-stat renders (the sibling func_801D6194 above is the same
@@ -800,6 +804,67 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D7154);
     }
 */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D74EC);
+/* Best: 95.19% (920 bytes, retail's exact size). Both halves decode completely;
+   the whole remaining diff is loop 2, in the same place for each half:
+   (1) retail loads x0 and y0 TWICE each - `lhu a1,0x11D8` for the x argument
+   and `lhu v0,0x11D8` again as the minuend of the width - while gcc CSEs the
+   twin HImode load at the same address (no store between them) and emits one
+   load plus a `move`; the parked func_801D6194 and func_801D7154 notes hit the
+   identical wall (0xA8/0xAA), so this is the unit's known un-CSE-able twin
+   `lhu`. (2) knock-on: retail holds the (renderContext + 2 * i) * 0x28 entry
+   address in v1 and computes the verts pointer with `addu a0,s1,a0` before the
+   loads, gcc picks v0 for the entry. Retail's load order is
+   x, x1, x0, y, y3, y0 - i.e. argument, width pair, argument, height pair - not
+   the x,y,w,h source order, which is probably the clue someone needs.
+   void func_801D74EC(u_char a0, u_char a1) {
+       s32 offset;
+       s32 i;
+
+       MenuParseNumberToDigits(
+           *(s32*)((u8*)&g_GameState.characters[g_Menu->pManager->currentCharacterIDs[a0]] + 0x44));
+       offset = a1 * 0x18;
+       ((u8*)g_Menu->unk358)[0x2AE5] = 0;
+       for (i = 0; i < 7; i++) {
+           if (g_Menu->digits[2 + i] != 0xFF) {
+               ((u8*)g_Menu->unk358)[0x2AE5] += func_8002675C(
+                   g_Menu->resources, g_Menu->digits[2 + i],
+                   (POLY_FT4*)((u8*)g_Menu->unk358 +
+                               (((u8*)g_Menu->unk358)[0x2AE5] * 0x50 + 0x11D0)),
+                   g_Menu->renderContext, D_801E9D20 + i * 8 - offset, D_801E9D24, 0x1000);
+           }
+       }
+       for (i = 0; i < ((u8*)g_Menu->unk358)[0x2AE5]; i++) {
+           u8* pEntry = (u8*)g_Menu->unk358 + (g_Menu->renderContext + i * 2) * 0x28;
+
+           MenuSetQuadVertices((SVECTOR*)((u8*)g_Menu->unk358 + (i * 0x20 + 0x25C0)),
+                               *(u16*)(pEntry + 0x11D8), *(u16*)(pEntry + 0x11DA),
+                               *(u16*)(pEntry + 0x11E0) - *(u16*)(pEntry + 0x11D8),
+                               *(u16*)(pEntry + 0x11F2) - *(u16*)(pEntry + 0x11DA));
+       }
+
+       MenuParseNumberToDigits(
+           *(s32*)((u8*)&g_GameState.characters[g_Menu->pManager->currentCharacterIDs[a0]] + 0x48));
+       offset = a1 * 0x18;
+       ((u8*)g_Menu->unk358)[0x2AE6] = 0;
+       for (i = 0; i < 7; i++) {
+           if (g_Menu->digits[2 + i] != 0xFF) {
+               ((u8*)g_Menu->unk358)[0x2AE6] += func_8002675C(
+                   g_Menu->resources, g_Menu->digits[2 + i],
+                   (POLY_FT4*)((u8*)g_Menu->unk358 +
+                               (((u8*)g_Menu->unk358)[0x2AE6] * 0x50 + 0x1400)),
+                   g_Menu->renderContext, D_801E9D28 + i * 8 - offset, D_801E9D2C, 0x1000);
+           }
+       }
+       for (i = 0; i < ((u8*)g_Menu->unk358)[0x2AE6]; i++) {
+           u8* pEntry = (u8*)g_Menu->unk358 + (g_Menu->renderContext + i * 2) * 0x28;
+
+           MenuSetQuadVertices((SVECTOR*)((u8*)g_Menu->unk358 + (i * 0x20 + 0x26A0)),
+                               *(u16*)(pEntry + 0x1408), *(u16*)(pEntry + 0x140A),
+                               *(u16*)(pEntry + 0x1410) - *(u16*)(pEntry + 0x1408),
+                               *(u16*)(pEntry + 0x1422) - *(u16*)(pEntry + 0x140A));
+       }
+   }
+*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D7884);
 void MenuSetGearWindowContents(u_char a0, u_char a1) {
     func_801D5ED4(a0, a1);
