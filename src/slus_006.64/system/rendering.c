@@ -7,7 +7,7 @@ extern void func_8001E3D8(SpriteData* pSpriteData, void* pArg);
 extern void func_8001E9BC(SpriteData* pSpriteData, void* pArg);
 extern void func_8001EE88(SpriteData* pSpriteData, void* pArg1, void* pArg2);
 extern void func_8001F1D4(SpriteData* pSpriteData, void* pArg1, void* pArg2);
-extern void func_8001F750(SpriteData* pSpriteData, s32 index, SpriteAnimPackage* pAnimPackage);
+extern void SpriteApplyDirTransforms(SpriteData* pSpriteData, s32 index, SpriteAnimPackage* pAnimPackage);
 extern void SpriteClearDirTransforms(SpriteData* pSpriteData);
 
 // Rendering-related stuff
@@ -600,7 +600,7 @@ void func_8001F6B0(SpriteData* pSpriteData) {
 }
 */
 
-void func_8001F750(SpriteData* pSpriteData, s32 index, SpriteAnimPackage* pAnimPackage) {
+void SpriteApplyDirTransforms(SpriteData* pSpriteData, s32 index, SpriteAnimPackage* pAnimPackage) {
     u8* pFrames;
     u8* pBlock;
     u8* pEntry;
@@ -671,11 +671,11 @@ void func_8001F750(SpriteData* pSpriteData, s32 index, SpriteAnimPackage* pAnimP
    What is still wrong:
    1. frame: the original reserves 0x40 (saves at 0x20-0x38) with 0x20 bytes of
       unused stack; this C gets 0x30 (the default 0x10 outgoing-args area + the 7
-      saves). func_8001F750, the sibling, has a tight 0x30 frame, and an unused
+      saves). SpriteApplyDirTransforms, the sibling, has a tight 0x30 frame, and an unused
       local such as `MATRIX unused;` is dropped by gcc, so the extra 0x10 looks
       like a larger outgoing-args area in the original rather than a local.
       Round r12 checked that: the largest call in the body takes 3 arguments
-      (func_8001F750), then HeapAlloc(2) and SpriteClearDirTransforms(1), so the outgoing
+      (SpriteApplyDirTransforms), then HeapAlloc(2) and SpriteClearDirTransforms(1), so the outgoing
       area can only be 0x10, and no instruction in the 115 accesses any stack
       word in 0x00-0x1F. So the extra 0x10 is not outgoing args; it behaves like
       incoming-parameter / pretend-arg space (a callee that declares more
@@ -704,7 +704,7 @@ void func_8001F8E8(SpriteData* pSpriteData, s32 index, SpriteAnimPackage* pAnimP
     header = *(u16*)pFrames;
     if (index < (header & 0x1FF) + 1) {
         if (header & 0x8000) {
-            func_8001F750(pSpriteData, index, pAnimPackage);
+            SpriteApplyDirTransforms(pSpriteData, index, pAnimPackage);
             return;
         }
         pBlock = (u8*)((mem_addr)((u16*)pFrames)[index] + (mem_addr)pFrames);

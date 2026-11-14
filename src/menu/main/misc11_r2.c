@@ -68,7 +68,7 @@ typedef struct {
     /* 0x1124 */ MenuSaveBlob0xA38 unk1920;
 } MenuSaveSlot; // Size: 0x1B5C
 
-void func_801E4A28(MenuSaveSlot* pSlot) {
+void MenuSaveSlotWriteGameState(MenuSaveSlot* pSlot) {
     GameGear* pGear;
     MenuSaveGear* pSaveGear;
     u8 i;
@@ -103,7 +103,7 @@ void func_801E4A28(MenuSaveSlot* pSlot) {
 }
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc11_r2", func_801E4D10);
-/* Best: 91.40% (840 vs 744 bytes), the inverse of func_801E4A28 (which
+/* Best: 91.40% (840 vs 744 bytes), the inverse of MenuSaveSlotWriteGameState (which
    matches): same record layout, same copy shapes, and the four
    MenuApplyGear* calls per gear land in the right order with s2 = i & 0xFF
    shared across them.  What is left is one allocator tie that swaps the two

@@ -89,7 +89,7 @@ extern void func_80088FF4(void);
 extern void func_80089128(void);
 extern void func_80097D64(void);
 extern void func_800976A0(void);
-extern void func_80093354(void *p);
+extern void WorldMapWrapPosition(void *p);
 extern s32 func_80093A5C(s32, s32);
 extern void func_800894C8(s32);
 extern void func_80089160(s32, void *, s32);
@@ -620,7 +620,7 @@ int func_8007CD20(int idx) {
         *(s16 *)(pPlayer + 0x20) = 2;
     }
     *(s32 *)(pPlayer + 0x30) += *(s32 *)(pPlayer + 0x40);
-    func_80093354(pPlayer + 0x28);
+    WorldMapWrapPosition(pPlayer + 0x28);
     *(s32 *)(pBlock + 8) = *(s32 *)(pPlayer + 0x28) >> 12;
     *(s32 *)(pBlock + 0xC) = *(s32 *)(pPlayer + 0x2C) >> 12;
     *(s32 *)(pBlock + 0x10) = *(s32 *)(pPlayer + 0x30) >> 12;
@@ -681,7 +681,7 @@ int func_8007CF18(int idx) {
         *(s16 *)(pPlayer + 0x20) = 1;
     }
     *(s32 *)(pPlayer + 0x30) += *(s32 *)(pPlayer + 0x40);
-    func_80093354(pPlayer + 0x28);
+    WorldMapWrapPosition(pPlayer + 0x28);
     *(s32 *)(pPlayer + 0x2C) = func_80093A5C(*(s32 *)(pPlayer + 0x28), *(s32 *)(pPlayer + 0x30)) - 0x4000;
     *(s32 *)(pWork + 0x1AC) = *(s32 *)(pPlayer + 0x28) >> 12;
     *(s32 *)(pWork + 0x1B0) = *(s32 *)(pPlayer + 0x2C) >> 12;
@@ -733,7 +733,7 @@ int func_8007D110(int idx) {
         return 3;
     }
     *(s32 *)(pPlayer + 0x30) += *(s32 *)(pPlayer + 0x40);
-    func_80093354(pPlayer + 0x28);
+    WorldMapWrapPosition(pPlayer + 0x28);
     *(s32 *)(pPlayer + 0x2C) = func_80093A5C(*(s32 *)(pPlayer + 0x28), *(s32 *)(pPlayer + 0x30)) - 0x4000;
     *(s32 *)(pWork + 0x2FC) = *(s32 *)(pPlayer + 0x28) >> 12;
     *(s32 *)(pWork + 0x300) = *(s32 *)(pPlayer + 0x2C) >> 12;
@@ -780,7 +780,7 @@ int func_8007D2B8(int idx) {
         return 3;
     }
     *(s32 *)(pPlayer + 0x30) += *(s32 *)(pPlayer + 0x40);
-    func_80093354(pPlayer + 0x28);
+    WorldMapWrapPosition(pPlayer + 0x28);
     *(s32 *)(pPlayer + 0x2C) = func_80093A5C(*(s32 *)(pPlayer + 0x28), *(s32 *)(pPlayer + 0x30)) - 0x4000;
     *(s32 *)(pWork + 0x350) = *(s32 *)(pPlayer + 0x28) >> 12;
     *(s32 *)(pWork + 0x354) = *(s32 *)(pPlayer + 0x2C) >> 12;

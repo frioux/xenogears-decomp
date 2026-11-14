@@ -33,7 +33,7 @@ s32 func_8007A280(u8, u8, s32, s32);
 
 // Preset screened twice, both times Default wins. gcc 2.7.2-cdk is ruled out:
 // the 11 matched functions drop to 41.73-99.09% and, with maspsx
-// --aspsx-version=2.67 as well, func_8007BA88/BAB8 fall to 95.00% too. gcc 2.6.0
+// --aspsx-version=2.67 as well, BattleClearByteRegs/BAB8 fall to 95.00% too. gcc 2.6.0
 // keeps all 11 matched functions at 100.00% and, of the 13 bodies parked below,
 // only func_8007C040 scores better (72.75% vs 65.42%) and it is still far off.
 // So every park here is an allocator tie under all three, not a wrong compiler.
@@ -75,13 +75,13 @@ u8 func_8007B4B8(u8 **p, u8 index, u8 arg2) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007B4B8);
-void func_8007B578(u8 **p, u8 index) {
+void BattleWordRegCopyFromMatchedSlot(u8 **p, u8 index) {
     u16 *pTable = (u16 *)(D_800D3420 + index * 0x40);
     u8 value = BattleFindFirstFlagTableMatch(pTable[(*p)[3]]);
 
     pTable[(*p)[1]] = func_8007A280(value, (*p)[2], 0, 1);
 }
-u8 func_8007B608(u8 **p, u8 index, u8 arg2) {
+u8 BattleWordRegCopyToMatchedSlot(u8 **p, u8 index, u8 arg2) {
     u16 *pField = (u16 *)(D_800D3420 + index * 0x40);
     u8 ret = arg2;
     u8 value = BattleFindFirstFlagTableMatch(pField[(*p)[3]]);
@@ -163,13 +163,13 @@ void func_8007B8D4(u8 **p, u8 index) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007B8D4);
-void func_8007B914(u8 **p, u8 index) {
+void BattleWordTableStoreReg(u8 **p, u8 index) {
     u16 *pField = (u16 *)(D_800D3420 + index * 0x40);
     u8 *pArgs = *p;
 
     D_8005A3A0[pArgs[2]] = pField[pArgs[1]];
 }
-void func_8007B958(u8 **p, u8 index) {
+void BattleByteRegSetReg(u8 **p, u8 index) {
     u8 *pTable = D_800D3430 + index * 0x40;
     u8 *pArgs = *p;
 
@@ -236,7 +236,7 @@ void func_8007BA44(u8 **p, u8 index) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007BA44);
-void func_8007BA88(u8 index) {
+void BattleClearByteRegs(u8 index) {
     s32 i = 0xF;
     u8 *p = D_800D343F + index * 0x40;
 
@@ -244,7 +244,7 @@ void func_8007BA88(u8 index) {
         *p-- = 0;
     }
 }
-void func_8007BAB8(u8 index) {
+void BattleClearWordRegs(u8 index) {
     s32 i = 0x7;
     u16 *p = (u16 *)(D_800D342E + index * 0x40);
 
@@ -256,7 +256,7 @@ void func_8007BAB8(u8 index) {
 // reuses a0). The two-statement slot local is needed: written as
 // (index + 3) * 0x170 inside the store, gcc folds 3*0x170 into the
 // displacement instead of the addiu the original has. Hoisting the value
-// into a u32 local (which works for func_8007BB2C) drops it to 41.18%.
+// into a u32 local (which works for BattleSlotStoreWord7A) drops it to 41.18%.
 // screened: 96.76% is the max of Default / cdk 53.82 / 2.6.0 96.76.
 /*
 void func_8007BAE8(u8 **p, u8 index) {
@@ -266,20 +266,20 @@ void func_8007BAE8(u8 **p, u8 index) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007BAE8);
-void func_8007BB2C(u8 **p, u8 index) {
+void BattleSlotStoreWord7A(u8 **p, u8 index) {
     u32 value = (*p)[1] | ((*p)[2] << 8);
     s32 slot = index + 3;
 
     *(u16 *)(D_800CCE3E + slot * 0x170) = value;
 }
-void func_8007BB70(u8 **p, u8 index) {
+void BattleSlotStoreWordHighBytes(u8 **p, u8 index) {
     s32 slot = index + 3;
 
     *(u8 *)(D_800CCE3D + slot * 0x170) = (*p)[1];
     *(u8 *)(D_800CCE3B + slot * 0x170) = (*p)[2];
     *(u8 *)(D_800CCE39 + slot * 0x170) = (*p)[3];
 }
-void func_8007BBD8(u8 **p, u8 index) {
+void BattleSlotStoreWordLowBytes(u8 **p, u8 index) {
     s32 slot = index + 3;
 
     *(u8 *)(D_800CCE3C + slot * 0x170) = (*p)[1];
@@ -299,13 +299,13 @@ void func_8007BC40(u8 **p, u8 *pDest, u8 count) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007BC40);
-void func_8007BC84(u8 **p, u8 index) {
+void BattleByteRegSetRandom(u8 **p, u8 index) {
     u8 value = func_8001BD40(0, (*p)[2]);
     u8 *pTable = D_800D3430 + index * 0x40;
 
     pTable[(*p)[1]] = value;
 }
-void func_8007BCE8(u8 **p, u8 index) {
+void BattleWordRegSetRandomRange(u8 **p, u8 index) {
     u16 value = func_80089B50(0, (*p)[2] | ((*p)[3] << 8));
     u16 *pField = (u16 *)(D_800D3420 + index * 0x40);
 

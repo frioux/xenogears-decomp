@@ -46,10 +46,10 @@ void func_801E92CC(void);
 s32 func_801E93A0(s32 arg0);
 void func_801C6400(void);
 void func_801C6AA0(void);
-void func_801C6D4C(void);
-void func_801C6D5C(void);
-void func_801C6E0C(void);
-void func_801C6E68(void);
+void MenuResetRenderContext(void);
+void MenuResetAnimationCounters(void);
+void MenuInitializeMenuStrings(void);
+void MenuInitializeWindowBorders(void);
 void func_801C6F70(void);
 
 void MenuSetupScreen(void) {
@@ -59,10 +59,10 @@ void MenuSetupScreen(void) {
     g_Menu->pSelectionMenu->unk1180.h = 0xE0;
     g_Menu->unk348->unk15B = 0x40;
     func_801C6AA0();
-    func_801C6D4C();
-    func_801C6E0C();
+    MenuResetRenderContext();
+    MenuInitializeMenuStrings();
     func_801C6F70();
-    func_801C6E68();
+    MenuInitializeWindowBorders();
     switch (D_80059460) {
     case 2:
         g_Menu->unk348->unk15B = 0x4C;
@@ -70,7 +70,7 @@ void MenuSetupScreen(void) {
     case 0:
     case 6:
         func_801C6400();
-        func_801C6D5C();
+        MenuResetAnimationCounters();
         break;
     }
 }

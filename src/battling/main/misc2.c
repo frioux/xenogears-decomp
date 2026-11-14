@@ -112,7 +112,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80073424);
    sp+0x30), both VECTOR locals at sp+0x10/sp+0x20, the 0x10-byte copies and all
    four calls - matches instruction for instruction.
 extern u8 D_800910F4[];
-extern void func_8008859C(VECTOR *, SVECTOR *);
+extern void BattleNormalizeVectorToShort(VECTOR *, SVECTOR *);
 extern void func_8008EBD0(u8 *, s32, void *, s32);
 
 void func_80073424(VECTOR *p0, VECTOR *p1, u8 *p2, s32 arg3, s32 arg4, s32 arg5) {
@@ -151,7 +151,7 @@ void func_80073424(VECTOR *p0, VECTOR *p1, u8 *p2, s32 arg3, s32 arg4, s32 arg5)
     } else {
         vDiff = vNormal;
     }
-    func_8008859C(&vDiff, (SVECTOR *)(pSlot + 0x28));
+    BattleNormalizeVectorToShort(&vDiff, (SVECTOR *)(pSlot + 0x28));
     *(s16 *)(pSlot + 0x3E) = *(u16 *)(pEntry + 0x0);
     *(u8 *)(pSlot + 0x31) = *(u8 *)(pEntry + 0x4);
     *(s16 *)(pSlot + 0x40) = *(u8 *)(pEntry + 0x3);

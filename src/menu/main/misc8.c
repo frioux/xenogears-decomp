@@ -105,7 +105,7 @@ void func_801D7CFC(s32 arg0, u_char arg1, u_char arg2) {
 }
 */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801D7F50);
-void func_801D827C(POLY_G4* pPolys, u_char mode) {
+void MenuSetStatBarQuadColors(POLY_G4* pPolys, u_char mode) {
     POLY_G4* pPoly;
     u8 rgb[3];
     s32 i;
@@ -149,7 +149,7 @@ void func_801D827C(POLY_G4* pPolys, u_char mode) {
         pPoly->b3 = 0;
     }
 }
-void func_801D83AC(POLY_FT4* pPolys, u_char mode, u_char count, u_char startIndex) {
+void MenuSetStatBarTileColors(POLY_FT4* pPolys, u_char mode, u_char count, u_char startIndex) {
     POLY_FT4* pPoly;
     u8 rgb[3];
     s32 i;
@@ -211,7 +211,7 @@ void func_801D84B4(u_short arg0, u_short arg1, s32 arg2) {
 }
 */
 
-s32 func_801D85DC(s32 unusedArg, volatile u16* p0, volatile u16* p1) {
+s32 MenuMaxStatValue(s32 unusedArg, volatile u16* p0, volatile u16* p1) {
     SVECTOR unusedFrame[3]; // original allocates a 0x18 frame it never writes
     u16 max = 0;
     s32 i;
@@ -233,7 +233,7 @@ s32 func_801D85DC(s32 unusedArg, volatile u16* p0, volatile u16* p1) {
 }
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801D8644);
-void func_801D8DE4(s32 arg0, u_char arg1, s32 arg2, s32 arg3) {
+void MenuDrawStatTable(s32 arg0, u_char arg1, s32 arg2, s32 arg3) {
     s32 width = 0x98;
     s32 height = 0x26;
     u_char value;
@@ -395,7 +395,7 @@ s32 func_801D9808(void) {
     return 1;
 }
 */
-void func_801D9B08(void) {
+void MenuOpenCardEvents(void) {
     MenuCloseCardEvents();
     Vsync(0);
     InitCARD(1);

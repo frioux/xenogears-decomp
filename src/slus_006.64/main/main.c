@@ -26,11 +26,11 @@ extern void ControllerUpdate(void);
 extern int func_8002DFE0(void);
 extern void func_8004B7D0(void*);
 extern void func_8003BDFC(int);
-extern void func_8001AADC(void);
+extern void SystemResetGlobalState(void);
 extern void func_8001BB50(void);
 extern void func_80024F20(void);
 extern void func_800379B4(int);
-extern void func_8001B6BC(void);
+extern void SystemNop(void);
 extern void GameShowSplashScreen(void);
 extern void ChangeGameState(unsigned int);
 extern void MainLoop(int);
@@ -116,7 +116,7 @@ void func_80019578(void) {
     HeapFree(pWdsFile4);
     HeapFree(pWdsFile5);
 
-    func_8001AADC();
+    SystemResetGlobalState();
     func_8001BB50();
     func_80024F20();
     func_800379B4(0);
@@ -136,7 +136,7 @@ void func_80019578(void) {
     }
 
     GameShowSplashScreen();
-    func_8001B6BC();
+    SystemNop();
     ChangeGameState(6);
     MainLoop(0);
 }

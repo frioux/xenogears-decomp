@@ -2799,7 +2799,7 @@ void FieldScriptLoadCharacterDataMinus1(void) {
 
 extern s32 D_8004F354;
 extern void FieldFreePendingAudioManager(void);
-extern void func_8001B66C(void);
+extern void SoundFreeLoadedWdsAndAudioManager(void);
 extern void FieldStartWdsBankLoad(int, int);
 
 // 92.24%: the two guards match as `!=` conjunctions (both `beq` jump forward to
@@ -2816,7 +2816,7 @@ void func_8008F7B8(void) {
     if (D_800ADB1C == 0) {
         FieldFreePendingAudioManager();
         if (characterId != D_8004F324) {
-            func_8001B66C();
+            SoundFreeLoadedWdsAndAudioManager();
             D_8004F308 = -1;
         }
         D_8004F324 = characterId;
@@ -2825,7 +2825,7 @@ void func_8008F7B8(void) {
         D_800B00C0 = 1;
     } else if (D_8004F354 != 1 && D_8004F308 != -1) {
         if (characterId != D_8004F324) {
-            func_8001B66C();
+            SoundFreeLoadedWdsAndAudioManager();
             D_8004F324 = characterId;
             D_8004F308 = -1;
             FieldStartWdsBankLoad(characterId, 0);

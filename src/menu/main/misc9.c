@@ -22,7 +22,7 @@ void MenuFreeScrollHandle(void);
 void func_801E8044(s32 arg0, void* pArg1);
 void func_801E8018(s32 arg0, void* pArg1, void* pArg2, void* pArg3);
 void MenuSetupPointerCursors(s32 arg0);
-void func_801DB02C(s32 arg0);
+void MenuInitializeArrowCursor(s32 arg0);
 void func_801D3488(s32 arg0, s32 arg1);
 void func_801E3ECC(MenuDressingRoom* pDressingRoom, s32 gearId);
 void MenuCreateWindow(u_char a0, u_char a1, u_char a2, u_char a3, u16 a4, u_char a5, u_char a6, u32 a7, u_char a8);
@@ -200,7 +200,7 @@ void func_801DE2C8(u32 arg0) {
     func_801E8018(6, (u8*)g_Menu + 0x14E0, &D_801EA558[(arg0 & 0xFF) * 6], &pManager->unk38[8]);
     func_801C72BC(7);
     MenuSetupPointerCursors(3);
-    func_801DB02C(0);
+    MenuInitializeArrowCursor(0);
     func_801D3488(1, arg0 & 0xFF);
 }
 

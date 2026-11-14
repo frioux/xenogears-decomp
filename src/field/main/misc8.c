@@ -829,7 +829,7 @@ extern s32 D_8004F354;
 extern s32 D_800AFC54;
 extern u8 D_800ADFCD[];
 extern void ArchiveCdDataSync(int mode);
-extern void func_8001B66C(void);
+extern void SoundFreeLoadedWdsAndAudioManager(void);
 void func_8002945C(void* pData);
 void func_8003BDFC(int arg0);
 void SoundTransferWdsPart(void* pBuffer, int size);
@@ -865,7 +865,7 @@ void FieldStartWdsBankLoad(int arg0) {
     int index;
 
     ArchiveCdDataSync(0);
-    func_8001B66C();
+    SoundFreeLoadedWdsAndAudioManager();
     if (arg0 == 0xFF) {
         D_8004F308 = 0;
         return;

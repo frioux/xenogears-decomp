@@ -101,7 +101,7 @@ void func_801C55A0(void) {
 }
 
 */
-void func_801C57A4(void) {
+void MenuCdChangeMain(void) {
     u_char shouldReset;
 
     D_80059171 = 1;
@@ -186,7 +186,7 @@ void func_801C58EC(void) {
 
 
 */
-void func_801C5B54(u_char isInitialization) {
+void MenuMenuUnk2Manager(u_char isInitialization) {
     if (isInitialization) {
         g_Menu->menuUnk2 = HeapAlloc(sizeof(MenuUnk2), 0);
         bzero(g_Menu->menuUnk2, sizeof(MenuUnk2));
@@ -195,7 +195,7 @@ void func_801C5B54(u_char isInitialization) {
     HeapFree(g_Menu->menuUnk2);
 }
 
-void func_801C5BB8(u_char isInitialization) {
+void MenuMenuManagerManager(u_char isInitialization) {
     if (isInitialization) {
         g_Menu->pManager = HeapAlloc(sizeof(MenuManager), 0);
         bzero(g_Menu->pManager, sizeof(MenuManager));
@@ -204,7 +204,7 @@ void func_801C5BB8(u_char isInitialization) {
     HeapFree(g_Menu->pManager);
 }
 
-void func_801C5C1C(u_char isInitialization) {
+void MenuSelectionMenuManager(u_char isInitialization) {
     if (isInitialization) {
         g_Menu->pSelectionMenu = HeapAlloc(sizeof(MenuSelectionMenu), 0);
         bzero(g_Menu->pSelectionMenu, sizeof(MenuSelectionMenu));
@@ -213,7 +213,7 @@ void func_801C5C1C(u_char isInitialization) {
     HeapFree(g_Menu->pSelectionMenu);
 }
 
-void func_801C5C80(u_char isInitialization) {
+void MenuMenuUnk5Manager(u_char isInitialization) {
     if (isInitialization) {
         g_Menu->unk354 = HeapAlloc(sizeof(MenuUnk5), 0);
         bzero(g_Menu->unk354, sizeof(MenuUnk5));
@@ -222,7 +222,7 @@ void func_801C5C80(u_char isInitialization) {
     HeapFree(g_Menu->unk354);
 }
 
-void func_801C5CE4(u_char isInitialization) {
+void MenuDressingRoomManager(u_char isInitialization) {
     if (isInitialization) {
         g_Menu->pDressingRoom = HeapAlloc(sizeof(MenuDressingRoom), 0);
         bzero(g_Menu->pDressingRoom, sizeof(MenuDressingRoom));
@@ -231,7 +231,7 @@ void func_801C5CE4(u_char isInitialization) {
     HeapFree(g_Menu->pDressingRoom);
 }
 
-void func_801C5D48(u_char isInitialization) {
+void MenuUnk340Manager(u_char isInitialization) {
     if (isInitialization) {
         g_Menu->unk340 = HeapAlloc(0x328, 0);
         bzero(g_Menu->unk340, 0x328);
@@ -240,7 +240,7 @@ void func_801C5D48(u_char isInitialization) {
     HeapFree(g_Menu->unk340);
 }
 
-void func_801C5DAC(u_char isInitialization) {
+void MenuUnk344Manager(u_char isInitialization) {
     if (isInitialization) {
         g_Menu->unk344 = HeapAlloc(0x374, 0);
         bzero(g_Menu->unk344, 0x374);
@@ -249,7 +249,7 @@ void func_801C5DAC(u_char isInitialization) {
     HeapFree(g_Menu->unk344);
 }
 
-void func_801C5E10(u_char isInitialization) {
+void MenuMenuUnk1Manager(u_char isInitialization) {
     if (isInitialization) {
         g_Menu->unk348 = HeapAlloc(sizeof(MenuUnk1), 0);
         bzero(g_Menu->unk348, sizeof(MenuUnk1));
@@ -258,7 +258,7 @@ void func_801C5E10(u_char isInitialization) {
     HeapFree(g_Menu->unk348);
 }
 
-void func_801C5E74(u_char isInitialization) {
+void MenuUnk39CManager(u_char isInitialization) {
     s32 i;
 
     if (isInitialization) {
@@ -273,24 +273,24 @@ void func_801C5E74(u_char isInitialization) {
     }
 }
 
-void func_801C5F10(void) {
-    func_801C5BB8(1);
-    func_801C5C1C(1);
-    func_801C5C80(1);
-    func_801C5CE4(1);
-    func_801C5E10(1);
+void MenuInitializeMenuData(void) {
+    MenuMenuManagerManager(1);
+    MenuSelectionMenuManager(1);
+    MenuMenuUnk5Manager(1);
+    MenuDressingRoomManager(1);
+    MenuMenuUnk1Manager(1);
     g_Menu->pCursors = HeapAlloc(sizeof(MenuPointerCursors), 0);
     bzero(g_Menu->pCursors, sizeof(MenuPointerCursors));
     switch (D_80059460) {
         case 0:
-            func_801C5B54(1);
-            func_801C5D48(1);
-            func_801C5DAC(1);
-            func_801C5E74(1);
+            MenuMenuUnk2Manager(1);
+            MenuUnk340Manager(1);
+            MenuUnk344Manager(1);
+            MenuUnk39CManager(1);
             break;
         case 2:
         case 6:
-            func_801C5B54(1);
+            MenuMenuUnk2Manager(1);
             break;
     }
 }
@@ -306,7 +306,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc1", func_801C62A8);
 void func_801C62A8(void) {
     u8 menuIndex;
 
-    func_801C5F10();
+    MenuInitializeMenuData();
     MenuSetupScreen();
     g_Menu->shouldDrawMenu = 1;
     g_Menu->unk32A = 1;
@@ -329,7 +329,7 @@ void func_801C62A8(void) {
             }
             break;
         case 6:
-            func_801C57A4();
+            MenuCdChangeMain();
             break;
     }
     func_801C5FE4();
@@ -397,11 +397,11 @@ void func_801C6400(void) {
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc1", func_801C65F4);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc1", func_801C6AA0);
 
-void func_801C6D4C(void) {
+void MenuResetRenderContext(void) {
     g_Menu->renderContext = 0;
 }
 
-void func_801C6D5C(void) {
+void MenuResetAnimationCounters(void) {
     g_Menu->unk4CC = 0;
     g_Menu->unk4D0 = 0;
     g_Menu->unk4D8 = 0;
@@ -409,7 +409,7 @@ void func_801C6D5C(void) {
     g_Menu->unk4D4 = 0;
 }
 
-void func_801C6D90(void) {
+void MenuFillVramRectWhite(void) {
     RECT rect;
     u_short* pVramData;
     u8 _unused[0x8];
@@ -426,13 +426,13 @@ void func_801C6D90(void) {
     HeapFree(pVramData);
 }
 
-void func_801C6E0C(void) {
+void MenuInitializeMenuStrings(void) {
     SystemTransferPaletteToVRAM(0, 0x1D1);
     g_Menu->unk4E0[0].pVramBuffer = HeapAlloc(0x38E, 0);
     func_801E7E68(g_Menu->unk4E0, D_801EA524, 0, 4);
-    func_801C6D90();
+    MenuFillVramRectWhite();
 }
-void func_801C6E68(void) {
+void MenuInitializeWindowBorders(void) {
     POLY_FT4 _unusued;
 
     ResourceHelperGetTexCoords(

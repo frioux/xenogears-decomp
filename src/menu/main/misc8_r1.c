@@ -63,7 +63,7 @@ s32 func_801D9C84(void) {
     }
     g_Menu->menuUnk2->unk4FE7[0] = 1;
     MenuRenderFrame();
-    func_801D9B08();
+    MenuOpenCardEvents();
     DrawSync(0);
     Vsync(0);
     EnterCriticalSection();

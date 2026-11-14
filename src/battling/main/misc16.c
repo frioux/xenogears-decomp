@@ -86,7 +86,7 @@ Misc16Work* func_8008D3F4(s32 arg0, s32 arg1);
 void BattleEffectUpdateEntries(Misc16Work* pWork, u8* pArg1, MATRIX* pMat);
 void func_8008D680(Misc16Work* pWork, MATRIX* pMat, s32 count);
 
-void func_8008CED4(void) {
+void BattleEffectNoop(void) {
 }
 
 typedef struct {
@@ -106,7 +106,7 @@ typedef struct {
     /* 0x8 */ s32 unk8;
 } Misc16Vec; // Size: 0xC
 
-void func_8008CEDC(u8* pArg0, u8* pArg1) {
+void BattleEffectInitEntry(u8* pArg0, u8* pArg1) {
     pArg0[0x13] = 2;
     pArg0[0x17] = 0x6A;
     pArg0[0x14] = pArg1[0x74];
@@ -114,7 +114,7 @@ void func_8008CEDC(u8* pArg0, u8* pArg1) {
     pArg0[0x16] = pArg1[0x76];
     *(Misc16Vec*)(pArg0 + 0x1C) = *(Misc16Vec*)(pArg0 + 0x10);
 }
-void func_8008CF30(u8* pArg0, u8* pArg1) {
+void BattleEffectAddEntryPrim(u8* pArg0, u8* pArg1) {
     s32 buf[2];
     u8* pObj;
     s32 offset;
@@ -127,7 +127,7 @@ void func_8008CF30(u8* pArg0, u8* pArg1) {
 void FieldScriptSetActorFaceId(u8* pArg0, u8* pArg1) {
     *(SVECTOR*)pArg1 = *(SVECTOR*)(pArg0 + 0x1C);
 }
-void func_8008CFC4(Misc16Work* pWork, s16* pOut) {
+void BattleEffectComputeRandomRotatedPosition(Misc16Work* pWork, s16* pOut) {
     SVECTOR vec;
     VECTOR rot;
 
@@ -140,13 +140,13 @@ void func_8008CFC4(Misc16Work* pWork, s16* pOut) {
     pOut[2] = pWork->unk20 + rot.vz;
 }
 
-void func_8008D0A4(Misc16Work* pWork, s16* pOut) {
+void BattleEffectComputeRandomBoxPosition(Misc16Work* pWork, s16* pOut) {
     pOut[0] = pWork->unk1C + rand() % pWork->unk24 - pWork->unk2C;
     pOut[1] = pWork->unk1E + rand() % pWork->unk26 - pWork->unk2E;
     pOut[2] = pWork->unk20 + rand() % pWork->unk28 - pWork->unk30;
 }
 
-void func_8008D14C(Misc16Work* pWork, s16* pOut) {
+void BattleEffectComputeRandomFlatPosition(Misc16Work* pWork, s16* pOut) {
     SVECTOR vec;
     VECTOR rot;
 
@@ -158,7 +158,7 @@ void func_8008D14C(Misc16Work* pWork, s16* pOut) {
     pOut[1] = pWork->unk1E + rot.vy;
     pOut[2] = pWork->unk20 + rot.vz;
 }
-void func_8008D208(Misc16Work* pWork, s16* pOut) {
+void BattleEffectComputeRandomEllipsePosition(Misc16Work* pWork, s16* pOut) {
     s32 angle;
     s32 rnd;
     SVECTOR vec;
@@ -174,7 +174,7 @@ void func_8008D208(Misc16Work* pWork, s16* pOut) {
     pOut[1] = pWork->unk1E + rot.vy;
     pOut[2] = pWork->unk20 + rot.vz;
 }
-void func_8008D304(Misc16Work* pWork, s16* pOut, s32 angle) {
+void BattleEffectComputeAngledEllipsePosition(Misc16Work* pWork, s16* pOut, s32 angle) {
     SVECTOR vec;
     VECTOR rot;
     s32 rotAngle; // retail reads the incoming s2 without ever setting it
@@ -245,7 +245,7 @@ Misc16Work* func_8008D3F4(s32 arg0, s32 arg1) {
     return pWork;
 }
 */
-void func_8008D580(Misc16Work* pWork) {
+void BattleEffectClearEntrySlots(Misc16Work* pWork) {
     s32 i;
     u8* pEntry;
 
@@ -307,7 +307,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc16", func_8008D680);
    buffer before mtc2 into IR1-IR3 (a real memory round trip, so it is not
    CSE-able in our compile: gcc reuses the mfc2 results) and keeps the
    addiu pEntry+8 address instead of folding it into the sh offsets.  The
-   GTE shape is the same one func_8008DDFC above matches with
+   GTE shape is the same one BattleEffectRotateVectorByDepth above matches with
    gte_ldv0 / gte_mvmva(1,0,0,3,0) / gte_stir123_gpr, so the macro set is
    available; the open question is which libgte macro spells the
    store-then-reload-into-IR round trip.
@@ -391,7 +391,7 @@ void func_8008D680(Misc16Work* pWork, MATRIX* pMat, s32 count) {
     }
 }
 */
-void func_8008D980(Misc16Work* pWork) {
+void BattleEffectHalveEntryCountIfBelow(Misc16Work* pWork) {
     s32 count;
 
     if (pWork->unkA > 0) {
@@ -401,7 +401,7 @@ void func_8008D980(Misc16Work* pWork) {
         }
     }
 }
-void func_8008D9F0(Misc16Work* pWork) {
+void BattleEffectHalveEntryCount(Misc16Work* pWork) {
     s32 value;
 
     if (pWork->unk2 > 0) {
@@ -419,7 +419,7 @@ void func_8008D9F0(Misc16Work* pWork) {
 /* 91.14% - the sign-extend of the stored unkA is emitted before the store
    instead of after it.  Three shapes (s16/int temporary, ternary, direct
    field re-read) all give the same v0/v1 split.
-void func_8008D9F0(Misc16Work* pWork) {
+void BattleEffectHalveEntryCount(Misc16Work* pWork) {
     s32 value;
 
     if (pWork->unk2 > 0) {
@@ -478,7 +478,7 @@ typedef struct {
     /* 0x0 */ s32 unk0[8];
 } Misc16Oct; // Size: 0x20
 
-void func_8008DBC0(u8* pArg0, s16 arg1, u8* pArg1) {
+void BattleEffectCopyObjectMatrix(u8* pArg0, s16 arg1, u8* pArg1) {
     u8** pArray;
     u8* pObj;
     Misc16Oct unused; // reproduces the original 0x20 stack frame
@@ -508,18 +508,18 @@ void func_8008DC28(void) {
     D_80092834 = (s32)pWork;
 }
 */
-void func_8008DCA8(s32 arg0) {
+void BattleEffectSetSpawnTimer(s32 arg0) {
     D_80092838 = arg0;
 }
 
-void func_8008DCB8(u8* pArg0, u8* pArg1, MATRIX* pMat, Misc16Vec* pVec) {
+void BattleEffectUpdate(u8* pArg0, u8* pArg1, MATRIX* pMat, Misc16Vec* pVec) {
     MATRIX matZero;
     MATRIX matWork;
     Misc16Work* pWork;
 
     pWork = (Misc16Work*)D_80092834;
     if (D_80092838 >= 0x10) {
-        func_8008DBC0(pArg1, 0x27, (u8*)&matWork);
+        BattleEffectCopyObjectMatrix(pArg1, 0x27, (u8*)&matWork);
         MatrixNormal(&matWork, &matZero);
         matZero.t[2] = 0;
         matZero.t[1] = 0;
@@ -539,7 +539,7 @@ void func_8008DCB8(u8* pArg0, u8* pArg1, MATRIX* pMat, Misc16Vec* pVec) {
     gte_SetTransRotMatrix_gpr(pMat);
     BattleEffectUpdateEntries(pWork, pArg0, pMat);
 }
-void func_8008DDFC(SVECTOR* pIn, SVECTOR* pOut, s32 depth) {
+void BattleEffectRotateVectorByDepth(SVECTOR* pIn, SVECTOR* pOut, s32 depth) {
     register s16 vx asm("$8");
     register s16 vy asm("$9");
     register s16 vz asm("$10");
@@ -563,13 +563,13 @@ void func_8008DDFC(SVECTOR* pIn, SVECTOR* pOut, s32 depth) {
    pArg0 + (the stack address of the local vector).  Left as INCLUDE_ASM. */
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc16", func_8008DE54);
 
-void func_8008DF30(void) {
+void BattleEffectClearResourcePointers(void) {
     D_80092844 = 0;
     D_8009283C = 0;
     D_80092840 = 0;
 }
 
-void func_8008DF50(void) {
+void BattleEffectInitResources(void) {
     s32 i;
     RECT rect;
     s16* pFirst;
@@ -600,7 +600,7 @@ void func_8008DF50(void) {
     rect.h = 1;
     LoadImage(&rect, (u_long*)D_80091CE0);
 }
-void func_8008E064(void) {
+void BattleEffectFreeResources(void) {
     if (D_80092844 != 0) {
         HeapDelayedFree((u8*)D_80092844, 2);
         HeapDelayedFree((u8*)D_8009283C, 2);
@@ -610,7 +610,7 @@ void func_8008E064(void) {
         D_80092840 = 0;
     }
 }
-void func_8008E0C8(void) {
+void BattleEffectCopyBuffers(void) {
     s32* pSrc;
     s32* pWordDst;
     u8* pByteDst;

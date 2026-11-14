@@ -78,7 +78,7 @@ extern u32 D_8009D564;
 extern void func_8007A06C(void *, void *, int);
 extern void WorldMapSetSpriteSetParent(int, int);
 extern void func_80089160(int, void *, int);
-extern void func_80093354(VECTOR *);
+extern void WorldMapWrapPosition(VECTOR *);
 extern int func_80093A5C(int, int);
 extern void SoundSetAudioManagerVolumeWithFade(void *, int, int);
 extern void SoundStopAllElements(void);
@@ -120,7 +120,7 @@ extern void func_80086700(void);
 extern void (*D_8009CD40)(void);
 extern void func_80098044(void);
 extern int ArchiveCdDataSync(int);
-extern void func_8001B66C(void);
+extern void SoundFreeLoadedWdsAndAudioManager(void);
 extern s16 D_8009A5B4[];
 extern s16 D_8009A5B6[];
 extern s16 D_8009A5B8[];
@@ -240,7 +240,7 @@ int WorldMapUpdateGroup12Actor(int index) {
     SVECTOR *pScratch = (SVECTOR *)((u8 *)PSX_SCRATCH + 0xA0);
 
     pActor->unk30 += pActor->unk40;
-    func_80093354((VECTOR *)&pActor->unk28);
+    WorldMapWrapPosition((VECTOR *)&pActor->unk28);
     pActor->unk2C = func_80093A5C(pActor->unk28, pActor->unk30) - 0x4000;
     pRoot->unk000[12].unk08 = pActor->unk28 >> 12;
     pRoot->unk000[12].unk0C = pActor->unk2C >> 12;
@@ -282,7 +282,7 @@ int WorldMapUpdateGroup13Actor(int index) {
     SVECTOR *pScratch = (SVECTOR *)((u8 *)PSX_SCRATCH + 0xA0);
 
     pActor->unk30 += pActor->unk40;
-    func_80093354((VECTOR *)&pActor->unk28);
+    WorldMapWrapPosition((VECTOR *)&pActor->unk28);
     pActor->unk2C = func_80093A5C(pActor->unk28, pActor->unk30) - 0x4000;
     pGroup->unk08 = pActor->unk28 >> 12;
     pGroup->unk0C = pActor->unk2C >> 12;
@@ -335,7 +335,7 @@ int WorldMapUpdateGroup16Actor(int index) {
         break;
     }
     pActor->unk30 += pActor->unk40;
-    func_80093354((VECTOR *)&pActor->unk28);
+    WorldMapWrapPosition((VECTOR *)&pActor->unk28);
     pGroup->unk08 = pActor->unk28 >> 12;
     pGroup->unk0C = pActor->unk2C >> 12;
     pGroup->unk10 = pActor->unk30 >> 12;
@@ -356,7 +356,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007D918);
    for the store and the call, pPos[0], and plain D_8009C5AC plus &D_8009C5AC
    (all three compile identically). SOLVED since: declare the symbol as an
    array (extern u8 D_8009C5AC[]), then `pPos = (u32*)D_8009C5AC;` keeps the
-   address in $s0 - func_8007FF70 below has the same group and is 100.00%.
+   address in $s0 - WorldMapInitializeModeWithActors below has the same group and is 100.00%.
    That is also why the value reads here are *(u32*)D_8009C5AC. Also note the
    ArchiveDataSync loop is while (ArchiveDataSync() >= 3), which is what gives
    the slti/beqz shape.
@@ -384,7 +384,7 @@ void func_8007D918(void) {
     D_8009CD40 = func_80086700;
     func_80098044();
     ArchiveCdDataSync(0);
-    func_8001B66C();
+    SoundFreeLoadedWdsAndAudioManager();
     nIndex = D_8009D3D4;
     *(u32 *)D_8009C5AC = D_8009A5B4[nIndex * 4] << 12;
     D_8009C5B0 = D_8009A5B6[nIndex * 4] << 12;
@@ -714,7 +714,7 @@ int func_8007FD30(int index) {
 }
 */
 
-void func_8007FF70(void) {
+void WorldMapInitializeModeWithActors(void) {
     RECT rect;
     u32 *pPos;
 
@@ -869,7 +869,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_80080600);
    Tried: plain globals, a `s16 *pAngle = &D_8009BD38` local (identical RTL
    after cse), array declaration. Volatile on the store/load is the obvious
    next thing to try (retail has no lw/sw of a pointer, so it is source-level).
-   Note the same `extern u8 D_8009C5AC[]` trick that fixed func_8007FF70 may be
+   Note the same `extern u8 D_8009C5AC[]` trick that fixed WorldMapInitializeModeWithActors may be
    what retail used here too: 0x1F8000A2 is addressed as a displacement off a
    register holding 0x1F800000, i.e. `u8 *pScratch = (u8 *)PSX_SCRATCH` is right.
 int func_80080600(int index) {

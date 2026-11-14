@@ -86,7 +86,7 @@ void ArchiveCdDataSync(int mode);
 void BattleLoadSlotEntry(s32 index, s32 value);
 void BattleFreeSlotEntry(s32 index);
 s32 ArchiveReadFileFromCdSector(s32 sector, void* pDestBuffer, s32 fileSize, s32 arg3, u32 flags);
-s32 func_8007FF70(s32 value, s32 max, s32 flags);
+s32 WorldMapInitializeModeWithActors(s32 value, s32 max, s32 flags);
 void BattleSetCurrentTextList(s32 arg);
 void BattleByteRegTestReg(u8* pText);
 void func_8007F258(void* pOt, s32 arg);
@@ -290,7 +290,7 @@ void BattleDrawOptionRows4To6(Misc7Struct* p) {
     func_8007EE08(0);
 }
 
-s32 func_8007FF70(s32 value, s32 max, s32 flags) {
+s32 WorldMapInitializeModeWithActors(s32 value, s32 max, s32 flags) {
     s32 delta = 1;
     s32 pad;
     s32 status;
@@ -337,46 +337,46 @@ s32 func_8007FF70(s32 value, s32 max, s32 flags) {
 }
 
 void BattleMoveDifficultyCursor(void) {
-    D_80099D98[0] = func_8007FF70(D_80099D98[0], 2, 0);
+    D_80099D98[0] = WorldMapInitializeModeWithActors(D_80099D98[0], 2, 0);
 }
 
 void BattleMoveSpeedCursor(void) {
-    D_80099DA1[0] = func_8007FF70(D_80099DA1[0], 7, 2);
+    D_80099DA1[0] = WorldMapInitializeModeWithActors(D_80099DA1[0], 7, 2);
 }
 
 void BattleMoveFrameRateCursor(void) {
-    D_80099D9A[0] = func_8007FF70(D_80099D9A[0], 4, 2);
+    D_80099D9A[0] = WorldMapInitializeModeWithActors(D_80099D9A[0], 4, 2);
 }
 
 void BattleMoveVibrationCursorPad0(void) {
-    D_80099D9B[0] = func_8007FF70(D_80099D9B[0], 1, 1);
+    D_80099D9B[0] = WorldMapInitializeModeWithActors(D_80099D9B[0], 1, 1);
 }
 
 void BattleMoveVibrationCursorPad1(void) {
-    D_80099D9C[0] = func_8007FF70(D_80099D9C[0], 1, 1);
+    D_80099D9C[0] = WorldMapInitializeModeWithActors(D_80099D9C[0], 1, 1);
 }
 
 void BattleMoveComCursorPad0(void) {
-    D_80099D9D[0] = func_8007FF70(D_80099D9D[0], 1, 1);
+    D_80099D9D[0] = WorldMapInitializeModeWithActors(D_80099D9D[0], 1, 1);
 }
 
 void BattleMoveComCursorPad1(void) {
-    D_80099D9E[0] = func_8007FF70(D_80099D9E[0], 1, 1);
+    D_80099D9E[0] = WorldMapInitializeModeWithActors(D_80099D9E[0], 1, 1);
 }
 
 void BattleMoveValueOptionCursor(void) {
-    D_80099D9F[0] = func_8007FF70(D_80099D9F[0], 3, 2);
+    D_80099D9F[0] = WorldMapInitializeModeWithActors(D_80099D9F[0], 3, 2);
 }
 
 s32 BattleMoveOnOffCursor(void) {
-    s32 value = func_8007FF70(D_80092884, 1, 1);
+    s32 value = WorldMapInitializeModeWithActors(D_80092884, 1, 1);
 
     D_80092884 = value;
     return value;
 }
 
 void BattleMoveComBehaviorCursor(void) {
-    D_80099DA2[0] = func_8007FF70(D_80099DA2[0], 0xD, 3);
+    D_80099DA2[0] = WorldMapInitializeModeWithActors(D_80099DA2[0], 0xD, 3);
 }
 
 void BattleHandleSelectionInputPad0(void) {
@@ -392,7 +392,7 @@ void BattleHandleSelectionInputPad0(void) {
     if ((D_80092710 & 1) == 0) {
         same = (D_80092700 == D_80092704);
         do {
-            D_80092700 = func_8007FF70(D_80092700, D_80092888 - 1, 3);
+            D_80092700 = WorldMapInitializeModeWithActors(D_80092700, D_80092888 - 1, 3);
         } while (D_80092700 == D_80092704 && (D_80092748 & 1) == 0 && !same);
         if (D_80091364 == 0) {
             if (g_C1ButtonStateReleased & 0x20) {
@@ -420,7 +420,7 @@ void BattleHandleSelectionInputPad1(void) {
     if ((D_80092710 & 2) == 0) {
         same = (D_80092700 == D_80092704);
         do {
-            D_80092704 = func_8007FF70(D_80092704, D_80092888 - 1, 3);
+            D_80092704 = WorldMapInitializeModeWithActors(D_80092704, D_80092888 - 1, 3);
         } while (D_80092700 == D_80092704 && (D_80092748 & 1) == 0 && !same);
         if (D_80092750 & 0x20) {
             D_80092710 |= 2;

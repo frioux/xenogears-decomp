@@ -33,7 +33,7 @@ extern void BattleDrawTextPrims(void* pOt);
 extern void func_8008E3CC(void* pOt, s32 arg1, s32 arg2);
 extern void func_8008BC04(void);
 extern void SoundSetAudioManagerMasterVolumeWithFade(s32 arg0, s32 arg1, s32 arg2);
-extern void func_8008E064(void);
+extern void BattleEffectFreeResources(void);
 extern void func_80083BB4(s32 arg);
 extern void func_80083C0C(s32 arg);
 extern void SoundRemoveSedsEntry(s32 arg);
@@ -130,7 +130,7 @@ void func_80084B48(void) {
             D_80092784 = 0;
             SoundSetAudioManagerMasterVolumeWithFade(D_80092948, 0x100, 0);
             D_8009292C = 0x100;
-            func_8008E064();
+            BattleEffectFreeResources();
         } else {
             func_8008E3CC(D_80092938, 0, 1);
         }

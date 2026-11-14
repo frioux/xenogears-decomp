@@ -115,7 +115,7 @@ typedef struct {
     /* 0x0 */ u8 name[8];
 } WorldMapName8; // Size: 0x8
 
-extern void func_80093484(WorldMapScrollDelta* pDelta);
+extern void WorldMapWrapDelta(WorldMapScrollDelta* pDelta);
 extern void func_80096F18(void* pOut, s32* pSrc, s32 nHeight);
 extern s32 D_8009BE0C;
 extern s32 D_8009BD48;
@@ -265,7 +265,7 @@ void func_80076DA4(WorldMapPlayer* pPlayer, WorldMapScrollDelta* pDelta) {
         pDelta->x = pPlayer->unk50 - pPlayer->unk38;
         pDelta->y = pPlayer->unk54 - pPlayer->unk3C;
         pDelta->z = pPlayer->unk58 - pPlayer->unk40;
-        func_80093484(pDelta);
+        WorldMapWrapDelta(pDelta);
         pDelta->stepX = pDelta->x >> 3;
         pDelta->stepY = pDelta->y >> 3;
         pDelta->stepZ = pDelta->z >> 3;
@@ -307,7 +307,7 @@ void WorldMapApproachHeight(u8* p) {
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc3", func_80076FA8);
 /* Best attempt: 75.16%. Same skeleton as func_80076DA4 (compare the three
    player fields against the D_8009D55C/560/564 goal, wrap the delta through
-   func_80093484, 1/8 step, |step| < 0x200 snaps to the goal). Remaining diff:
+   WorldMapWrapDelta, 1/8 step, |step| < 0x200 snaps to the goal). Remaining diff:
    inside the if-block gcc cse reuses the D_8009D55C/560/564 values it loaded
    for the compare (in a2/a3/a1), while the original reloads D_8009D560 and
    D_8009D564 plus the player fields, so everything after shifts by two
@@ -318,7 +318,7 @@ void func_80076FA8(WorldMapPlayer* pPlayer, WorldMapScrollDelta* pDelta) {
         pDelta->x = D_8009D55C - pPlayer->unk28;
         pDelta->y = D_8009D560 - pPlayer->unk2C;
         pDelta->z = D_8009D564 - pPlayer->unk30;
-        func_80093484(pDelta);
+        WorldMapWrapDelta(pDelta);
         pDelta->stepX = pDelta->x >> 3;
         pDelta->stepY = pDelta->y >> 3;
         pDelta->stepZ = pDelta->z >> 3;

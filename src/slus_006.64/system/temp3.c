@@ -28,7 +28,7 @@ extern u8* D_800592D8;
 extern void* D_800592DC;
 extern void* D_800592E0;
 
-void func_8001A5CC(void) {
+void SystemInitializeCellGridBuffers(void) {
     int i;
     int j;
 
@@ -45,7 +45,7 @@ void func_8001A5CC(void) {
     }
 }
 
-void func_8001A684(s32 arg0, s32 arg1) {
+void SystemIncrementCellNeighborCount(s32 arg0, s32 arg1) {
     if (arg0 < 0) {
         arg0 = 0x1C;
     }
@@ -101,14 +101,14 @@ void func_8001A6E8(u_long* pOt) {
                 AddPrim(pOt, pPrim);
                 pPrim += 0xC;
                 count++;
-                func_8001A684(i - 1, j - 1);
-                func_8001A684(i - 1, j);
-                func_8001A684(i - 1, j + 1);
-                func_8001A684(i, j - 1);
-                func_8001A684(i, j + 1);
-                func_8001A684(i + 1, j - 1);
-                func_8001A684(i + 1, j);
-                func_8001A684(i + 1, j + 1);
+                SystemIncrementCellNeighborCount(i - 1, j - 1);
+                SystemIncrementCellNeighborCount(i - 1, j);
+                SystemIncrementCellNeighborCount(i - 1, j + 1);
+                SystemIncrementCellNeighborCount(i, j - 1);
+                SystemIncrementCellNeighborCount(i, j + 1);
+                SystemIncrementCellNeighborCount(i + 1, j - 1);
+                SystemIncrementCellNeighborCount(i + 1, j);
+                SystemIncrementCellNeighborCount(i + 1, j + 1);
             }
         }
     }
@@ -146,14 +146,14 @@ void func_8001A6E8(u_long* pOt) {
 
     x = rand() % 0x1C;
     y = rand() % 0x28;
-    func_8001A684(x - 1, y - 1);
-    func_8001A684(x - 1, y);
-    func_8001A684(x - 1, y + 1);
-    func_8001A684(x, y - 1);
-    func_8001A684(x, y + 1);
-    func_8001A684(x + 1, y - 1);
-    func_8001A684(x + 1, y);
-    func_8001A684(x + 1, y + 1);
+    SystemIncrementCellNeighborCount(x - 1, y - 1);
+    SystemIncrementCellNeighborCount(x - 1, y);
+    SystemIncrementCellNeighborCount(x - 1, y + 1);
+    SystemIncrementCellNeighborCount(x, y - 1);
+    SystemIncrementCellNeighborCount(x, y + 1);
+    SystemIncrementCellNeighborCount(x + 1, y - 1);
+    SystemIncrementCellNeighborCount(x + 1, y);
+    SystemIncrementCellNeighborCount(x + 1, y + 1);
 }
 */
 
@@ -192,7 +192,7 @@ extern s32 D_8006F990[3];
 extern s32 D_8005A444[3];
 extern s32 D_80062524[1];
 
-void func_8001AADC(void) {
+void SystemResetGlobalState(void) {
     int i;
 
     D_8004F364 = 1;
@@ -251,7 +251,7 @@ void GamePartySignalReinitialize(void) {
     g_GamePartySkinsInitialized = 0;
 }
 
-void func_8001ACA4(void) {
+void GamePartyReloadSkinsFromFieldArchive(void) {
     D_8004F334 = -1;
     D_8004F330 = -1;
     HeapChangeCurrentUser(HEAP_USER_YOSI, 0);
@@ -464,7 +464,7 @@ int func_8001B484(int fileIndex, s32 arg1) {
             HeapUnpinBlock(D_8005A4E0);
             HeapFree(D_8005A4E0);
         }
-        func_8001B53C(fileIndex);
+        ArchiveLoadFileToPinnedBuffer(fileIndex);
         D_8004F334 = arg1;
         D_8004F330 = fileIndex;
     }
@@ -472,7 +472,7 @@ int func_8001B484(int fileIndex, s32 arg1) {
     return -1;
 }
 
-void func_8001B53C(int index) {
+void ArchiveLoadFileToPinnedBuffer(int index) {
     D_8005A4C0 = ArchiveDecodeAlignedSize(index + 0xB8);
     D_8005A4E0 = HeapAlloc(D_8005A4C0, 1);
     HeapPinBlock(D_8005A4E0);
@@ -482,7 +482,7 @@ void func_8001B53C(int index) {
 extern int g_GameHasLoadedWDS;
 extern SoundWDSEntry* g_GameCurLoadedWDS;
 
-void func_8001B5A8(void) {
+void GameFreeLoadedWdsEntry(void) {
     if (g_GameHasLoadedWDS == 1) {
         SoundFreeWdsEntry(g_GameCurLoadedWDS);
         g_GameHasLoadedWDS = 0;
@@ -497,7 +497,7 @@ extern s32 D_8004F2FC;
 extern void SoundStopAudioManager(s32);
 extern void SoundDestroyAudioManager(s32);
 
-void func_8001B5E8(void) {
+void SoundStopAndReleaseAudioManager(void) {
     if (D_8004F35C == 1) {
         SoundStopAudioManager(D_80062528);
         if (D_8004F348 == 0) {
@@ -512,19 +512,19 @@ void func_8001B5E8(void) {
 
 extern s32 D_8004F36C;
 extern s32 D_8004F33C;
-void func_8001B5E8(void);
+void SoundStopAndReleaseAudioManager(void);
 
-void func_8001B66C(void) {
+void SoundFreeLoadedWdsAndAudioManager(void) {
     if (D_8004F36C != 0) {
-        func_8001B5E8();
-        func_8001B5A8();
+        SoundStopAndReleaseAudioManager();
+        GameFreeLoadedWdsEntry();
     }
     D_8004F33C = -1;
     D_8004F338 = -1;
     D_8004F36C = 0;
 }
 
-void func_8001B6BC(void) {}
+void SystemNop(void) {}
 
 extern u8 D_8005959C;
 extern s32* D_8005917C;
@@ -540,9 +540,9 @@ extern void func_80070F40(void);
 extern void ChangeGameState(unsigned int state);
 extern void MainLoop(s32 arg0);
 extern void* FontLoadFont(s32 startX, s32 startY, s32 width, s32 height, s32 maxLetters, u32 flags, s32 texpageX, s32 texpageY, s32 clutX, s32 clutY, void* pCompressedFontFile);
-extern void func_8001B844(void);
+extern void SystemInitializeDisplayEnvironments(void);
 
-void func_8001B6C4(void) {
+void GameSetUpDisplayAndChangeState(void) {
     int gameState;
 
     D_8005959C = 1;
@@ -554,7 +554,7 @@ void func_8001B6C4(void) {
         FontLoadFont(0x10, 0x10, 0x140, 0x100, 0x3E8, 0, 0x340, 0, 0x340, 0x20, 0);
     }
 
-    func_8001B844();
+    SystemInitializeDisplayEnvironments();
     func_80070F40();
 
     if (D_800C48EA == 1 || D_800C48EA == 0x40 || D_800C48EA == 0x21) {
@@ -589,7 +589,7 @@ void func_8001B6C4(void) {
 extern DISPENV D_800C4A7C;
 extern s32 func_800379D0();
 
-void func_8001B844(void) {
+void SystemInitializeDisplayEnvironments(void) {
     u8* pEnv;
     DRAWENV* pDrawEnv;
 
@@ -607,11 +607,11 @@ void func_8001B844(void) {
     SetDefDispEnv((DISPENV*)(pEnv + 0x4070), 0, 0, 0x140, 0xE0);
     pEnv += 0x4014;
     SetDefDrawEnv((DRAWENV*)pEnv, 0, 0xE0, 0x140, 0xE0);
-    func_8001B94C(pDrawEnv);
-    func_8001B94C((DRAWENV*)pEnv);
+    SystemSetDrawEnvBackgroundColor(pDrawEnv);
+    SystemSetDrawEnvBackgroundColor((DRAWENV*)pEnv);
 }
 
-void func_8001B94C(DRAWENV* pDrawEnv) {
+void SystemSetDrawEnvBackgroundColor(DRAWENV* pDrawEnv) {
     pDrawEnv->isbg = 1;
     pDrawEnv->dtd = 1;
     pDrawEnv->r0 = 60;
@@ -623,8 +623,8 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp3", func_8001B970);
 /*
 Best: 85.15%. The tail needs D_8005947C/D_800594CC defined in this unit to get
 %gp_rel. That is safe now: maspsx only relaxes the `lui $at` form, and
-func_8001B6C4 reads D_8005947C through `lui $v0`, so it keeps %hi/%lo (verified
-by func_8001B6C4 matching 100% while D_8005959C is defined here). The remaining
+GameSetUpDisplayAndChangeState reads D_8005947C through `lui $v0`, so it keeps %hi/%lo (verified
+by GameSetUpDisplayAndChangeState matching 100% while D_8005959C is defined here). The remaining
 diff is the inner loop: the original keeps the even byte on an
 advancing pointer and recomputes the odd byte as (i + j) + (g_GameState + 1),
 gcc merges the two into one base with 0/1 offsets.
@@ -687,7 +687,7 @@ extern s32 D_8005949C;
 
 extern s32 func_800379D8(s32, s32, s32*, s32*, s32*);
 
-void func_8001BB0C(void) {
+void ArchiveLoadStreamedFilePair(void) {
     func_800379D8(D_8006F9DE, 0, &D_80059470, &D_80059520, &D_8005949C);
 }
 
@@ -705,19 +705,19 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp3", func_8001BB50);
 Best: 80.87%. The original writes these globals through %gp_rel, which maspsx only
 emits for symbols the unit defines itself (a file-scope definition here turns each
 reference into %gp_rel). This file also contains functions that use %lo for the same
-symbols (e.g. func_8001B6C4 on D_800594F8/D_8005947C), so the unit cannot have both.
+symbols (e.g. GameSetUpDisplayAndChangeState on D_800594F8/D_8005947C), so the unit cannot have both.
 The mechanism is visible in the original asm: maspsx only rewrites the `lui $at`
-form to gp_rel, and func_8001B6C4 reaches those two symbols through a pointer
+form to gp_rel, and GameSetUpDisplayAndChangeState reaches those two symbols through a pointer
 held in $v0 (`lui $v0,%hi; lbu %lo($v0)`), so it keeps %hi/%lo while the same
 symbols are gp_rel elsewhere. That means the unit does define them; the reference
 form is source-level and the two can coexist. Worth retrying with declarations
 for D_800594F8/D_8005946C/D_800594D4/D_800595A0 in this unit and
-D_8005947C/D_800594F8 read through a pointer local inside func_8001B6C4;
+D_8005947C/D_800594F8 read through a pointer local inside GameSetUpDisplayAndChangeState;
 deciding who owns this .bss data is a unit-level call.
 Confirmed in maspsx (__init__.py, store/load gp-rel branch): a symbol is relaxed to
 %gp_rel only when it is in sbss_entries AND not in comm_symbols, i.e. only a file-local
 (.lcomm) definition does it; a plain definition here becomes .comm (fcommon) and is never
-relaxed. So making func_8001BB50 match would turn func_8001B6C4's store to D_800594F8
+relaxed. So making func_8001BB50 match would turn GameSetUpDisplayAndChangeState's store to D_800594F8
 (gp_rel here impossible - retail has lui $at %hi there) into gp_rel and break that
 function's verified 100%, which is the unit-level conflict.
 void func_8001BB50(void) {
@@ -751,7 +751,7 @@ extern u8 D_8004F388[];
 extern void SoundAddSedsEntry(SoundFile* pSoundFile);
 extern void SoundPlaySoundEffectOnLastPair(s32 arg0);
 
-void func_8001BBAC(void) {
+void SoundLoadAndPlaySedsBank(void) {
     int i;
     u8 soundEffectId;
     void* pEndAddress;

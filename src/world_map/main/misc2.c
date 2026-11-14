@@ -104,8 +104,8 @@ extern s32 D_8009D55C;
 extern s32 D_8009D560;
 extern s32 D_8009D564;
 
-extern s32 func_80094028(s32 arg0);
-extern s32 func_80093F18(s32 arg0);
+extern s32 WorldMapGetTileGroup(s32 arg0);
+extern s32 WorldMapGetTileHalfIndex(s32 arg0);
 extern s16 D_8009A3A0[];
 extern u16 D_8009B578[];
 extern u8* D_8009D73C[];
@@ -409,7 +409,7 @@ void WorldMapEnterMenuMode(void) {
         *pOut = g_GameState.gearRide[i];
     }
     D_8009D14C = D_80059179;
-    if ((s16)func_80093F18((s32)&D_8009D55C) == 4) {
+    if ((s16)WorldMapGetTileHalfIndex((s32)&D_8009D55C) == 4) {
         D_80059179 = 1;
     }
     WorldMapWaitForQueuedLoads();
@@ -573,8 +573,8 @@ s32 func_80075E7C(s32 arg0, s32 arg1) {
     s32 i;
     s32 zone;
 
-    index = (s16)func_80094028(arg0);
-    if ((s16)func_80093F18(arg0) == 4) {
+    index = (s16)WorldMapGetTileGroup(arg0);
+    if ((s16)WorldMapGetTileHalfIndex(arg0) == 4) {
         index = D_8009A3A0[index];
     }
     pLimit = D_8009B578;

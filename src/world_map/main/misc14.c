@@ -43,9 +43,9 @@ extern s16 D_8009CE68;
 extern void WorldMapSortCdRequestsBySector(SVec* pRecord);
 extern void WorldMapSortFileLoadsByOffset(SVec4* pRecord);
 extern void func_800967E4(void);
-extern void func_80093354(void* p);
-extern s32 func_80093F18(void* p);
-extern s16 func_80094060(s16 row, s16 col);
+extern void WorldMapWrapPosition(void* p);
+extern s32 WorldMapGetTileHalfIndex(void* p);
+extern s16 WorldMapGetTileKindValue(s16 row, s16 col);
 
 // Scratchpad probe at 0x1F800000: the near/far pair at 0x20/0x30 is projected
 // in place and the winning one is copied down to 0x00. v.x/v.z is a scratch
@@ -134,13 +134,13 @@ s32 WorldMapProbeCellEdgeXFromReference(SVec* pPos, SVec* pAim, WorldMapProbe* p
     pFar->z = ((scale * pFar->x) >> 12) + pPos->z;
     pNear->x += pPos->x;
     pFar->x += pPos->x;
-    func_80093354(pNear);
-    if (func_80094060(kind, func_80093F18(pNear)) == 0) {
+    WorldMapWrapPosition(pNear);
+    if (WorldMapGetTileKindValue(kind, WorldMapGetTileHalfIndex(pNear)) == 0) {
         pProbe->v = pProbe->near;
         return 1;
     }
-    func_80093354(pFar);
-    return func_80094060(kind, func_80093F18(pFar)) == 0 ? 3 : 0;
+    WorldMapWrapPosition(pFar);
+    return WorldMapGetTileKindValue(kind, WorldMapGetTileHalfIndex(pFar)) == 0 ? 3 : 0;
 }
 
 s32 WorldMapProbeCellEdgeXFromPosition(SVec* pPos, SVec* pAim, WorldMapProbe* pProbe, s16 kind) {
@@ -160,13 +160,13 @@ s32 WorldMapProbeCellEdgeXFromPosition(SVec* pPos, SVec* pAim, WorldMapProbe* pP
     pFar->z = ((scale * pFar->x) >> 12) + pPos->z;
     pNear->x += pPos->x;
     pFar->x += pPos->x;
-    func_80093354(pNear);
-    if (func_80094060(kind, func_80093F18(pNear)) == 0) {
+    WorldMapWrapPosition(pNear);
+    if (WorldMapGetTileKindValue(kind, WorldMapGetTileHalfIndex(pNear)) == 0) {
         pProbe->v = pProbe->near;
         return 1;
     }
-    func_80093354(pFar);
-    return func_80094060(kind, func_80093F18(pFar)) == 0 ? 3 : 0;
+    WorldMapWrapPosition(pFar);
+    return WorldMapGetTileKindValue(kind, WorldMapGetTileHalfIndex(pFar)) == 0 ? 3 : 0;
 }
 
 s32 WorldMapProbeCellEdgeZFromReference(SVec* pPos, SVec* pAim, WorldMapProbe* pProbe, s16 kind) {
@@ -186,13 +186,13 @@ s32 WorldMapProbeCellEdgeZFromReference(SVec* pPos, SVec* pAim, WorldMapProbe* p
     pFar->x = ((scale * pFar->z) >> 12) + pPos->x;
     pNear->z += pPos->z;
     pFar->z += pPos->z;
-    func_80093354(pNear);
-    if (func_80094060(kind, func_80093F18(pNear)) == 0) {
+    WorldMapWrapPosition(pNear);
+    if (WorldMapGetTileKindValue(kind, WorldMapGetTileHalfIndex(pNear)) == 0) {
         pProbe->v = pProbe->near;
         return 1;
     }
-    func_80093354(pFar);
-    return func_80094060(kind, func_80093F18(pFar)) == 0 ? 2 : 0;
+    WorldMapWrapPosition(pFar);
+    return WorldMapGetTileKindValue(kind, WorldMapGetTileHalfIndex(pFar)) == 0 ? 2 : 0;
 }
 
 s32 WorldMapProbeCellEdgeZFromPosition(SVec* pPos, SVec* pAim, WorldMapProbe* pProbe, s16 kind) {
@@ -212,13 +212,13 @@ s32 WorldMapProbeCellEdgeZFromPosition(SVec* pPos, SVec* pAim, WorldMapProbe* pP
     pFar->x = ((scale * pFar->z) >> 12) + pPos->x;
     pNear->z += pPos->z;
     pFar->z += pPos->z;
-    func_80093354(pNear);
-    if (func_80094060(kind, func_80093F18(pNear)) == 0) {
+    WorldMapWrapPosition(pNear);
+    if (WorldMapGetTileKindValue(kind, WorldMapGetTileHalfIndex(pNear)) == 0) {
         pProbe->v = pProbe->near;
         return 1;
     }
-    func_80093354(pFar);
-    return func_80094060(kind, func_80093F18(pFar)) == 0 ? 2 : 0;
+    WorldMapWrapPosition(pFar);
+    return WorldMapGetTileKindValue(kind, WorldMapGetTileHalfIndex(pFar)) == 0 ? 2 : 0;
 }
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc14", func_80094A5C);

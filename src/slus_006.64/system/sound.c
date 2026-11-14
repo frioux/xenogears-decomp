@@ -4145,7 +4145,7 @@ void SoundStopVoiceOnChannel(SoundVoiceData* voiceData, u32 channelIndex) {
     }
 }
 
-void func_8003EFE4(AudioManager* pAudioManager, AudioElement* pElements, s32 count) {
+void SoundStepElementEnvelopes(AudioManager* pAudioManager, AudioElement* pElements, s32 count) {
     AudioElement* pElement = pElements;
     AudioEnvelope* pEnvelope;
     u16 statusFlags;

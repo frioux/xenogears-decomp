@@ -160,8 +160,8 @@ extern s16 D_8009A1CC;
 extern s16 D_8009A1CE;
 extern u8 D_8009A2B8[];
 
-extern void func_800888B0(void);
-extern s32 func_800888E4(s32 slot);
+extern void BattleSetSlotBit(void);
+extern s32 BattleTestSlotBit(s32 slot);
 extern void BattleAppendExtraQueueEntry(void);
 extern s32 BattleSetFlag10000IfAllSlotBitsSet(void);
 extern void func_80089330(s32, s32);
@@ -211,7 +211,7 @@ s32 BattleSetFlag10000IfAllSlotBitsSet(void) {
 
     for (slot = 0; slot < 0x31; slot++) {
         if (slot != 0x16) {
-            if (func_800888E4(slot) == 0) {
+            if (BattleTestSlotBit(slot) == 0) {
                 return 0;
             }
         }
@@ -301,7 +301,7 @@ void BattleApplyOptionWord(void) {
 }
 
 void BattleMarkSlotAndQueueIfAllMarked(void) {
-    func_800888B0();
+    BattleSetSlotBit();
     BattleSetFlag10000IfAllSlotBitsSet();
 }
 

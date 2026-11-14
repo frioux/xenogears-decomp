@@ -384,8 +384,8 @@ extern void SoundStopAllElements(void);
 extern void SoundRemoveSedsEntry(void* p);
 extern void func_800230A8(void* p);
 extern void WorldMapSaveState(void);
-extern void func_80092DD0(void);
-extern void func_800931B0(void);
+extern void WorldMapFreeAreaNameString(void);
+extern void WorldMapFreeMode4AreaNameString(void);
 extern void WorldMapFreeSpriteSets(void);
 extern void func_80086124(void);
 extern void GfxFreeWorkBuffers(void);
@@ -421,8 +421,8 @@ void func_8007299C(void) {
         WorldMapSaveState();
         D_8006F954 |= 0x8000;
     }
-    func_80092DD0();
-    func_800931B0();
+    WorldMapFreeAreaNameString();
+    WorldMapFreeMode4AreaNameString();
     WorldMapFreeSpriteSets();
     func_80086124();
     GfxFreeWorkBuffers();

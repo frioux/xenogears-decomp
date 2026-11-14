@@ -40,7 +40,7 @@ typedef struct {
 
 extern BattlingSlot D_80095938[];
 
-extern void *func_8008820C();
+extern void *BattleAllocLineSlot();
 extern void func_80085EC8(void *);
 
 typedef struct {
@@ -103,12 +103,12 @@ extern u8 D_800927E0;
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc11", func_80087068);
 
-void func_800875EC(void) {
+void BattleInitDrawEnvPair(void) {
     func_80085EC8(D_8009A2F8);
     D_8009A2F8[1] = D_8009A2F8[0];
 }
 
-void func_80087650(void) {
+void BattleClearSpanTables(void) {
     s32 i;
 
     for (i = 0; i < 0x80; i++) {
@@ -175,7 +175,7 @@ void func_80087698(s32 arg0, s32 arg1, s32 arg2, s32 arg3) {
 }
 */
 
-void func_8008779C(s32 arg0, s32 arg1, s32 arg2) {
+void BattleRenderShadedSpans(s32 arg0, s32 arg1, s32 arg2) {
     D_80059598 = (D_80059598 & 0xFFFFFF) | 0x24000000;
     gte_ldrgb(&D_80059598);
     func_800732AC((void *)0x1F800120, D_80091934, 0x30);
@@ -206,7 +206,7 @@ void func_80087830(void) {
 */
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc11", func_800878DC);
 
-void func_80087AB0(BattlingPacketOwner *arg0) {
+void BattleInitSemiTransQuadPacket(BattlingPacketOwner *arg0) {
     BattlingPacket *p = arg0->packet;
 
     p->unk4.word = 0x2C101010;
@@ -247,7 +247,7 @@ void func_80087E38(s32 *arg0) {
 */
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc11", func_80087EA0);
 
-void *func_8008820C(s32 *arg0, s32 *arg1, s32 arg2) {
+void *BattleAllocLineSlot(s32 *arg0, s32 *arg1, s32 arg2) {
     s32 i;
 
     for (i = 0; i < 0x64; i++) {
@@ -272,15 +272,15 @@ void *func_8008820C(s32 *arg0, s32 *arg1, s32 arg2) {
     }
     return NULL;
 }
-void func_800882D4(s32 arg0, s32 *arg1, s32 arg2, s16 arg3) {
-    u8 *p = func_8008820C(arg0, arg1, arg2);
+void BattleCreateLineSlot(s32 arg0, s32 *arg1, s32 arg2, s16 arg3) {
+    u8 *p = BattleAllocLineSlot(arg0, arg1, arg2);
 
     if (p != NULL) {
         *(s16 *)(p + 0x30) = arg3;
     }
 }
 
-void func_80088308(void) {
+void BattleClearLineSlots(void) {
     s32 i;
 
     for (i = 0x141C; i >= 0; i -= 0x34) {
@@ -288,7 +288,7 @@ void func_80088308(void) {
     }
 }
 
-void func_8008832C(void *arg0) {
+void BattleDrawLineSlots(void *arg0) {
     Bytes8 work[2];
     u8 *pSlot;
     s32 i;
@@ -317,7 +317,7 @@ void func_8008832C(void *arg0) {
     }
 }
 
-void func_800884E0(VECTOR *arg0, VECTOR *arg1) {
+void BattleNormalizeVector(VECTOR *arg0, VECTOR *arg1) {
     VECTOR normal;
     s32 sqrt;
     s32 largestComponent;
@@ -334,7 +334,7 @@ void func_800884E0(VECTOR *arg0, VECTOR *arg1) {
     VectorNormal(&normal, arg1);
 }
 
-void func_8008859C(VECTOR *arg0, SVECTOR *arg1) {
+void BattleNormalizeVectorToShort(VECTOR *arg0, SVECTOR *arg1) {
     VECTOR normal;
     s32 sqrt;
     s32 largestComponent;
@@ -351,7 +351,7 @@ void func_8008859C(VECTOR *arg0, SVECTOR *arg1) {
     VectorNormalS(&normal, arg1);
 }
 
-void func_80088658(SVECTOR *arg0, SVECTOR *arg1) {
+void BattleNormalizeShortToShort(SVECTOR *arg0, SVECTOR *arg1) {
     VECTOR normal;
     s32 sqrt;
     s32 largestComponent;
@@ -370,7 +370,7 @@ void func_80088658(SVECTOR *arg0, SVECTOR *arg1) {
     VectorNormalS(&normal, arg1);
 }
 
-s32 func_800886FC(s32 *arg0) {
+s32 BattleVectorLength(s32 *arg0) {
     long out[3];
 
     gte_ldlvl(arg0);
@@ -381,7 +381,7 @@ s32 func_800886FC(s32 *arg0) {
     return SquareRoot0(out[0] + out[1] + out[2]);
 }
 
-s32 func_80088754(s32 *arg0) {
+s32 BattleVectorLength2D(s32 *arg0) {
     long out[3];
 
     gte_ldlvl(arg0);
@@ -392,7 +392,7 @@ s32 func_80088754(s32 *arg0) {
     return SquareRoot0(out[0] + out[2]);
 }
 
-s32 func_800887A4(s32 *arg0, s32 *arg1) {
+s32 BattleVectorDistance(s32 *arg0, s32 *arg1) {
     long out[3];
 
     out[0] = arg1[0] - arg0[0];
@@ -406,7 +406,7 @@ s32 func_800887A4(s32 *arg0, s32 *arg1) {
     return SquareRoot0(out[0] + out[1] + out[2]);
 }
 
-s32 func_80088838(s32 *arg0, s32 *arg1) {
+s32 BattleVectorDistance2D(s32 *arg0, s32 *arg1) {
     long out[3];
 
     out[0] = arg1[0] - arg0[0];
@@ -419,21 +419,21 @@ s32 func_80088838(s32 *arg0, s32 *arg1) {
     return SquareRoot0(out[0] + out[2]);
 }
 
-void func_800888B0(s32 arg0) {
+void BattleSetSlotBit(s32 arg0) {
     s32 bit = 1;
 
     bit <<= arg0 & 7;
     D_8006F978[arg0 >> 3] |= bit;
 }
 
-s32 func_800888E4(s32 arg0) {
+s32 BattleTestSlotBit(s32 arg0) {
     s32 bit = 1;
 
     bit <<= arg0 & 7;
     return D_8006F978[arg0 >> 3] & bit;
 }
 
-void func_80088908(s32 arg0) {
+void BattleClearSlotBit(s32 arg0) {
     s32 mask = 1;
 
     mask <<= arg0 & 7;

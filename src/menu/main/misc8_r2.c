@@ -53,7 +53,7 @@ s32 func_8002675C(MenuResourceDirectory* pDir, u32 index, POLY_FT4* pPrims, s32 
 void MenuSetQuadVertices(SVECTOR* pVertices, u16 x, u16 y, u16 width, u16 height);
 void func_801E91C4(P_TAG* pTag);
 
-void func_801D9E3C(void) {
+void MenuShutdown(void) {
     s32 i;
 
     g_Menu->unk4D8 = 0;
@@ -76,7 +76,7 @@ void func_801D9E3C(void) {
     ExitCriticalSection();
 }
 
-void func_801D9F34(void) {
+void MenuLoadUnkDE0Strings(void) {
     if (D_80059460 != 2) {
         func_801E8018(6, g_Menu->unkDE0, D_801EA53C, g_Menu->pManager->unk1A);
     } else {
@@ -86,7 +86,7 @@ void func_801D9F34(void) {
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc8_r2", func_801D9F98);
 
-void func_801DA4A8(void) {
+void MenuInitializeUnk42CPanel(void) {
     MenuUnk9* pMenu;
 
     MenuSetupPointerCursors(2);
@@ -97,7 +97,7 @@ void func_801DA4A8(void) {
     func_801C72BC(0);
 }
 
-void func_801DA518(void) {
+void MenuFreeUnk42CPanel(void) {
     MenuFreeScrollHandle();
     MenuFreeWindow(3);
     MenuFreeWindow(4);
@@ -111,7 +111,7 @@ void func_801DA518(void) {
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc8_r2", func_801DA5BC);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc8_r2", func_801DA9A8);
 
-void func_801DB02C(u_char index) {
+void MenuInitializeArrowCursor(u_char index) {
     g_Menu->arrowCursors[index] = HeapAlloc(0x78, 0);
     bzero(g_Menu->arrowCursors[index], 0x78);
     g_Menu->arrowCursors[index]->curAnimFrame = 4;
@@ -196,7 +196,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc8_r2", func_801DB0A8);
    }
 */
 
-void func_801DB340(u_char index) {
+void MenuFreeArrowCursor(u_char index) {
     HeapFree(g_Menu->arrowCursors[index]);
     g_Menu->pManager->shouldRenderArrowCursor[index] = 0;
 }

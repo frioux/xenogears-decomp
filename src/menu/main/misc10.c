@@ -21,9 +21,9 @@ void func_801E8044(u8, u8*);
 void MenuLoadSubMenuChoiceStrings(u8);
 void func_801D3488(u8, u8);
 void func_801E05D0(u8, u8, u8);
-void func_801D9E3C(void);
+void MenuShutdown(void);
 void func_801DC2CC(u8);
-void func_801DA518(void);
+void MenuFreeUnk42CPanel(void);
 void func_801DE36C(void);
 void func_801DE400(void);
 void MenuClearSubMenuChoiceFlags(void);
@@ -276,7 +276,7 @@ void func_801E3088(u8 arg0) {
         break;
     case 1:
     case 8:
-        func_801D9E3C();
+        MenuShutdown();
         break;
     case 2:
         g_Menu->pManager->unk5[2] = 0;
@@ -288,7 +288,7 @@ void func_801E3088(u8 arg0) {
         func_801DC2CC(0);
         break;
     case 4:
-        func_801DA518();
+        MenuFreeUnk42CPanel();
         break;
     case 5:
         func_801DE36C();

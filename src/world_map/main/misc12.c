@@ -14,7 +14,7 @@ extern s32 D_8009BCDC;
 extern s32 D_8009B214[];
 extern u16 D_1F8000A8;
 extern void func_80096F18(s16 *pOut, s32 *pSrc, s32 nHeight, u16 *pAngles);
-extern void func_80093354(void *p);
+extern void WorldMapWrapPosition(void *p);
 extern u8 *func_80093660(s32 x, s32 z);
 extern u8 D_8009BD60;
 extern s16 D_8009BD24;
@@ -391,7 +391,7 @@ s32 func_80091FF8(s32 nLimit, u16 *pIn, s16 *pOfs) {
         for (j = 0; j < 6; j++) {
             *(s32 *)pScratch = nX;
             for (k = 0; k < 6; k++) {
-                func_80093354(pScratch);
+                WorldMapWrapPosition(pScratch);
                 nZ = *(s8 *)func_80093660(*(s32 *)pScratch, *(s32 *)(pScratch + 8));
                 if (nZ < nBest) {
                     *(s32 *)(pScratch + 4) = nZ;

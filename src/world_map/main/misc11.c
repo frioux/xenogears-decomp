@@ -82,20 +82,20 @@ extern s16 D_8009B1A4[];
 extern void *D_8009BDF8[];
 extern void *D_8009CD38;
 extern void *D_8009CD3C;
-extern void func_80093534(WorldMapPos *);
+extern void WorldMapWrapDeltaScaled(WorldMapPos *);
 extern s32 SquareRoot0(s32);
 
 extern s32 func_8008C364(WorldMapActor *, s32);
 extern void func_80089160(s32, void *, void *);
 extern void func_800894C8(s32);
-extern s16 func_80093F18(void *);
-extern s32 func_80093978(s32, s32);
+extern s16 WorldMapGetTileHalfIndex(void *);
+extern s32 WorldMapGetTilePlaneHeight(s32, s32);
 extern void *D_8009BDFC[];
 extern void *D_8009BE00[];
 extern void *func_80024524(void *, s16, s16, s16, s16, s16);
 extern void func_800245D8(void *, s32);
 extern void SpriteSetScale(void *, s16);
-extern void func_80093354(void *);
+extern void WorldMapWrapPosition(void *);
 extern s32 D_8009C5AC;
 extern s32 D_8009C5B4;
 extern s32 D_8009C584;
@@ -139,7 +139,7 @@ int func_8008B54C(int index) {
     *(u32 *)((u8 *)pActor->unk4C + 0x3C) &= ~4;
     pActor->unk28 = g_GameState.unk1820 << 12;
     pActor->unk30 = g_GameState.unk1822 << 12;
-    pActor->unk2C = func_80093978(pActor->unk28, pActor->unk30);
+    pActor->unk2C = WorldMapGetTilePlaneHeight(pActor->unk28, pActor->unk30);
     {
         u16 unk48 = g_GameState.unk1824;
         pActor->unk24 = 1;
@@ -184,7 +184,7 @@ int func_8008BDD0(int index) {
     *(u32 *)((u8 *)pActor->unk4C + 0x3C) &= ~4;
     pActor->unk28 = g_GameState.unk1820 << 12;
     pActor->unk30 = g_GameState.unk1822 << 12;
-    pActor->unk2C = func_80093978(pActor->unk28, pActor->unk30);
+    pActor->unk2C = WorldMapGetTilePlaneHeight(pActor->unk28, pActor->unk30);
     {
         u16 unk48 = g_GameState.unk1824;
         pActor->unk24 = 1;
@@ -216,8 +216,8 @@ int func_8008BEC8(WorldMapActor *pActor) {
     } else {
         result |= 2;
     }
-    func_80093354(&pActor->unk28);
-    pActor->unk2C = func_80093978(pActor->unk28, pActor->unk30);
+    WorldMapWrapPosition(&pActor->unk28);
+    pActor->unk2C = WorldMapGetTilePlaneHeight(pActor->unk28, pActor->unk30);
     return result;
 }
 void func_8008BFD4(s16 arg0, s32 *pArray, s16 arg2, s16 arg3) {
@@ -268,7 +268,7 @@ void func_8008C040(WorldMapPos *pPos, s32 arg1, s32 arg2, u8 *pOut, u8 *pOut2) {
             if (((pos - base) >> 12) < arg2 + pEntry->unk10) {
                 diff.x = (pEntry->unk04 - pPos->x) >> 12;
                 diff.z = (pEntry->unk0C - pPos->z) >> 12;
-                func_80093534(&diff);
+                WorldMapWrapDeltaScaled(&diff);
                 dist = SquareRoot0(diff.x * diff.x + diff.z * diff.z);
                 if (dist < pEntry->unk14 + arg1) {
                     *pOut = 2;
@@ -285,7 +285,7 @@ void func_8008C040(WorldMapPos *pPos, s32 arg1, s32 arg2, u8 *pOut, u8 *pOut2) {
 }
 */
 void func_8008C1DC(s32 arg0, WorldMapActor *pActor, WorldMapScreenPos *pPos) {
-    if (func_80093F18(&pActor->unk28) == 3) {
+    if (WorldMapGetTileHalfIndex(&pActor->unk28) == 3) {
         pPos->unk0A0 = pActor->unk28 >> 12;
         pPos->unk0A2 = pActor->unk2C >> 12;
         pPos->unk0A4 = pActor->unk30 >> 12;
@@ -314,7 +314,7 @@ void func_8008C28C(WorldMapActor *pActor, int index) {
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008C364);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008C530);
 /* 78.83% (432 bytes; retail is 444). Structurally right and byte-identical from the
-   func_80093978 jal onward, including the 32-iteration 0x14-stride copy to
+   WorldMapGetTilePlaneHeight jal onward, including the 32-iteration 0x14-stride copy to
    D_8009CEC4 and the tail. Two source facts established:
    (1) the mode chain must be written inverted -- "if (mode >= 4) { if (mode < 8) {
        unk20 = 2; unk24 = 1; } } else { ...gearRide... }" -- because that is the only
@@ -355,7 +355,7 @@ s32 func_8008C530(int index) {
                 pActor->unk20 = 1;
                 pActor->unk28 = D_8009C5AC;
                 pActor->unk30 = D_8009C5B4;
-                pActor->unk2C = func_80093978(pActor->unk28, pActor->unk30);
+                pActor->unk2C = WorldMapGetTilePlaneHeight(pActor->unk28, pActor->unk30);
                 pActor->unk48 = D_8009C584;
                 D_8009D55C = *(WorldMapVec *)&pActor->unk28;
                 D_8009D52C = pActor->unk48;
@@ -400,7 +400,7 @@ int func_8008C75C(int index) {
     *(u32 *)((u8 *)pActor->unk4C + 0x3C) &= ~4;
     pActor->unk28 = g_GameState.unk1930[0x16] << 12;
     pActor->unk30 = g_GameState.unk1930[0x17] << 12;
-    pActor->unk2C = func_80093978(pActor->unk28, pActor->unk30);
+    pActor->unk2C = WorldMapGetTilePlaneHeight(pActor->unk28, pActor->unk30);
     pActor->unk24 = 1;
     pActor->unk40 = 0;
     pActor->unk3C = 0;
@@ -447,7 +447,7 @@ int func_8008D3F0(int index) {
                 pActor->unk20 = 1;
                 pActor->unk28 = D_8009C5AC;
                 pActor->unk30 = D_8009C5B4;
-                pActor->unk2C = func_80093978(pActor->unk28, pActor->unk30);
+                pActor->unk2C = WorldMapGetTilePlaneHeight(pActor->unk28, pActor->unk30);
                 pActor->unk48 = D_8009C584;
             }
         } else if (mode < 8) {
@@ -487,7 +487,7 @@ int func_8008D590(int index) {
     *(u32 *)((u8 *)pActor->unk4C + 0x3C) &= ~4;
     pActor->unk28 = g_GameState.unk1930[0x19] << 12;
     pActor->unk30 = g_GameState.unk1930[0x1A] << 12;
-    pActor->unk2C = func_80093978(pActor->unk28, pActor->unk30);
+    pActor->unk2C = WorldMapGetTilePlaneHeight(pActor->unk28, pActor->unk30);
     pActor->unk24 = 1;
     pActor->unk40 = 0;
     pActor->unk3C = 0;
@@ -525,7 +525,7 @@ int func_8008DD6C(int index) {
                 pActor->unk20 = 1;
                 pActor->unk28 = D_8009C5AC;
                 pActor->unk30 = D_8009C5B4;
-                pActor->unk2C = func_80093978(pActor->unk28, pActor->unk30);
+                pActor->unk2C = WorldMapGetTilePlaneHeight(pActor->unk28, pActor->unk30);
                 pActor->unk48 = D_8009C584;
             }
         } else if (mode < 8) {
@@ -563,7 +563,7 @@ int func_8008DF0C(int index) {
     *(u32 *)((u8 *)pActor->unk4C + 0x3C) &= ~4;
     pActor->unk28 = g_GameState.unk1930[0x1C] << 12;
     pActor->unk30 = g_GameState.unk1930[0x1D] << 12;
-    pActor->unk2C = func_80093978(pActor->unk28, pActor->unk30);
+    pActor->unk2C = WorldMapGetTilePlaneHeight(pActor->unk28, pActor->unk30);
     pActor->unk24 = 1;
     pActor->unk40 = 0;
     pActor->unk3C = 0;

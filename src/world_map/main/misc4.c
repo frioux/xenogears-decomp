@@ -72,7 +72,7 @@ extern s16 D_8009BD3C;
 extern void func_80089160(s32, s32, s32);
 extern void func_8007A06C(s32, u8 *, s32);
 extern u8 *D_8006259C;
-extern void func_80093354(void *);
+extern void WorldMapWrapPosition(void *);
 extern s32 func_80093A5C(s32, s32);
 extern void SoundPlaySoundEffectOnFreePair(s32);
 
@@ -321,7 +321,7 @@ s32 WorldMapUpdateActorTerrainHeight(s32 index) {
         p->unk4 = 0;
         D_8009C620->unk540 = 1;
     }
-    func_80093354(&p->unk28);
+    WorldMapWrapPosition(&p->unk28);
     p->unk2C = func_80093A5C(p->unk28, p->unk30) + 0x18000;
     D_8009C620->unk548 = p->unk28 >> 12;
     D_8009C620->unk54C = p->unk2C >> 12;

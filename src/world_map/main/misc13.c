@@ -40,7 +40,7 @@ extern u16 D_8009D4A8;
 extern u8 D_8009D500;
 extern s32 func_80032F54(void* pString, s16 a, s16 b, s16 c, s16 d, s16 e, s16 f);
 extern void func_80093740(WorldMapPos* p, s32 x, s32 z);
-extern s32 func_800935DC(WorldMapPos* p0, WorldMapPos* p1, WorldMapPos* p2);
+extern s32 WorldMapInterpolatePlaneHeight(WorldMapPos* p0, WorldMapPos* p1, WorldMapPos* p2);
 extern void SystemStringResetIfIdle(void* pString);
 extern void SystemStringPushBuffer(void* pString, void* pData);
 extern void func_80034888(void* pString, u32 unk, u32 arg);
@@ -84,7 +84,7 @@ typedef struct {
     /* 0x00 */ u32 unk0[0xA];
 } WorldMapPrim; // Size: 0x28
 
-s32 func_80092BE4(void) {
+s32 WorldMapInitAreaNameString(void) {
     u8* pBuffer;
 
     pBuffer = D_8009D498;
@@ -132,7 +132,7 @@ s32 func_80092C70(s32 index) {
 }
 */
 
-void func_80092DD0(void) {
+void WorldMapFreeAreaNameString(void) {
     SystemStringFree(&D_8009D498[0]);
 }
 
@@ -221,7 +221,7 @@ s32 func_80092FD8(s32 index) {
 }
 */
 
-void func_800931B0(void) {
+void WorldMapFreeMode4AreaNameString(void) {
     SystemStringFree(&D_8009BD64[0]);
 }
 
@@ -270,7 +270,7 @@ void func_800931D8(u8* pSrc, u8* pDst, s32 count, u8* pFactors) {
     }
 }
 */
-void func_80093354(WorldMapPos* p) {
+void WorldMapWrapPosition(WorldMapPos* p) {
     if (p->x >= D_8009D160 * 0x800000) {
         p->x -= D_8009D160 * 0x800000;
     }
@@ -285,7 +285,7 @@ void func_80093354(WorldMapPos* p) {
     }
 }
 
-void func_800933EC(WorldMapPos* p) {
+void WorldMapWrapPositionScaled(WorldMapPos* p) {
     if (p->x >= D_8009D160 * 2048) {
         p->x -= D_8009D160 * 2048;
     }
@@ -300,7 +300,7 @@ void func_800933EC(WorldMapPos* p) {
     }
 }
 
-void func_80093484(WorldMapPos* p) {
+void WorldMapWrapDelta(WorldMapPos* p) {
     if (p->x < -0x4000000) {
         p->x += D_8009D160 * 0x800000;
     } else if (p->x > 0x4000000) {
@@ -313,7 +313,7 @@ void func_80093484(WorldMapPos* p) {
     }
 }
 
-void func_80093534(WorldMapPos* p) {
+void WorldMapWrapDeltaScaled(WorldMapPos* p) {
     if (p->x < -0x4000) {
         p->x += D_8009D160 * 2048;
     } else if (p->x > 0x4000) {
@@ -326,7 +326,7 @@ void func_80093534(WorldMapPos* p) {
     }
 }
 
-s32 func_800935DC(WorldMapPos* p0, WorldMapPos* p1, WorldMapPos* p2) {
+s32 WorldMapInterpolatePlaneHeight(WorldMapPos* p0, WorldMapPos* p1, WorldMapPos* p2) {
     p0->unk4 = (-(p2->x * (p0->x - p1->x)) - p2->z * (p0->z - p1->z)) / p2->unk4;
     p0->unk4 += p1->unk4;
     return p0->unk4;
@@ -363,7 +363,7 @@ u8* func_80093660(s32 x, s32 z) {
 }
 */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_80093740);
-s32 func_80093978(s32 x, s32 z) {
+s32 WorldMapGetTilePlaneHeight(s32 x, s32 z) {
     WorldMapPos a;
     WorldMapPos b;
     WorldMapPos c;
@@ -382,7 +382,7 @@ s32 func_80093978(s32 x, s32 z) {
         b.unk4 = (s8)pTile[4] << 12;
     }
     func_80093740(&c, x, z);
-    func_800935DC(&a, &b, &c);
+    WorldMapInterpolatePlaneHeight(&a, &b, &c);
     return a.unk4 << 3;
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_80093A5C);
@@ -406,7 +406,7 @@ s32 func_80093E8C(WorldMapPos* p) {
 }
 */
 
-s32 func_80093F18(WorldMapPos* p) {
+s32 WorldMapGetTileHalfIndex(WorldMapPos* p) {
     s32 n;
     s32 k;
     s32 dx;
@@ -424,19 +424,19 @@ s32 func_80093F18(WorldMapPos* p) {
     return ((u32)n >> 7) & 7;
 }
 
-s32 func_80093FE4(WorldMapPos* p) {
+s32 WorldMapGetTileShape(WorldMapPos* p) {
     return func_80093E8C(p) & 0xF;
 }
 
-s32 func_80094004(WorldMapPos* p) {
+s32 WorldMapGetTileAttrBits10To15(WorldMapPos* p) {
     return ((u32)func_80093E8C(p) << 16) >> 26;
 }
 
-s32 func_80094028(WorldMapPos* p) {
+s32 WorldMapGetTileGroup(WorldMapPos* p) {
     return (func_80093660(p->x, p->z)[3] >> 2) & 0xF;
 }
 
-s16 func_80094060(s16 row, s16 col) {
+s16 WorldMapGetTileKindValue(s16 row, s16 col) {
     return *(s16*)(D_8009BAC8 + row * 16 + col * 2);
 }
 
@@ -451,7 +451,7 @@ s32 func_80094088(WorldMapPos* p, WorldMapPos* pPos, WorldMapPos* pOut) {
     s16 k;
     s32 sum;
 
-    k = func_80093FE4(p);
+    k = WorldMapGetTileShape(p);
     sum = pPos->x * D_8009B264[k * 4] + pPos->z * D_8009B26C[k * 4];
     if (sum == 0) {
         pOut->x = pPos->x;
@@ -493,7 +493,7 @@ s32 func_80094154(WorldMapPos* p0, WorldMapPos* p1) {
     return SquareRoot0(sum);
 }
 */
-void func_800941C4(WorldMapPos* p0, WorldMapPos* p1, s32* pVector, s16* pAngle) {
+void WorldMapBuildDirectionFromPositions(WorldMapPos* p0, WorldMapPos* p1, s32* pVector, s16* pAngle) {
     s32 dx;
     s32 dz;
 

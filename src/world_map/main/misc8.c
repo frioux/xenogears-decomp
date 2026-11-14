@@ -155,7 +155,7 @@ extern s32 WorldMapSetActorPosition(s32);
 extern s32 func_80084068(s32);
 extern u8 *D_8009BE3C;
 extern MATRIX D_8009C808;
-extern void func_80093484(void *pDelta);
+extern void WorldMapWrapDelta(void *pDelta);
 extern void func_800223B0(void *p, s32 angle);
 extern void func_8001E298(void *p, u32 *pTbl);
 extern void func_80024FF4(MATRIX *p);
@@ -508,13 +508,13 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_80085418);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_80085760);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_80085CDC);
 // Best: 87.17% (620 bytes vs 636). Three loops over the 0x40 actors: project
-// each active actor through the camera delta (func_80093484 wraps it), run
+// each active actor through the camera delta (WorldMapWrapDelta wraps it), run
 // RTPS per actor and store SZ3 into the scratch slot at 0x1F800018+4*i, then
 // depth-index func_8001E298 and slew each actor's 0x5C angle toward its 0x48
 // target. Diffs found but not yet fixed, in the order they appear:
 //  1. retail keeps &D_8009BE28 in $s3 and reads D_8009BE30 as +8 off it, so
 //     the frame is 0x28 not 0x20 (this also costs the s3 save/restore pair).
-//  2. the delta passed to func_80093484 is &pScratch[2] (0x1F800008), i.e.
+//  2. the delta passed to WorldMapWrapDelta is &pScratch[2] (0x1F800008), i.e.
 //     addiu a0,$s2,8 - not $s2.
 //  3. D_8009C808 is a MATRIX, not a MATRIX*: &D_8009C808 (lui+addiu) is what
 //     retail holds in $s0 for both SetRotMatrix/SetTransMatrix.
@@ -541,7 +541,7 @@ void func_80085CDC(void) {
         if ((*(s16 *)((u8 *)pActor + 0x24) == 0) & (*(s32 *)((u8 *)pActor + 0x4C) != 0)) {
             pScratch[2] = *(s32 *)((u8 *)pActor + 0x28) - D_8009BE28;
             pScratch[4] = *(s32 *)((u8 *)pActor + 0x30) - D_8009BE30;
-            func_80093484((WorldMapPos *)pScratch);
+            WorldMapWrapDelta((WorldMapPos *)pScratch);
             ((s32 *)*(void **)((u8 *)pActor + 0x4C))[0] = pScratch[2] << 4;
             ((s32 *)*(void **)((u8 *)pActor + 0x4C))[2] = -(pScratch[4]) << 4;
             ((s32 *)*(void **)((u8 *)pActor + 0x4C))[1] = *(s32 *)((u8 *)pActor + 0x2C) << 4;

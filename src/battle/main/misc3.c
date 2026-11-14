@@ -25,7 +25,7 @@ extern u16 g_SystemPalette2;
 extern s32 func_8008ABB8(s32, s32);
 extern s32 GetStringEntryFromBank12(s32);
 extern u16 func_80098AF8(s32, s32);
-extern void func_80077074(void);
+extern void BattleInitPacketPrimitives(void);
 extern void HeapFree(void *pMem);
 extern u8 *GetStringEntry(u8 *, s32);
 extern s32 SystemRenderStringEntry(u8 *, void *, s32, s32);
@@ -249,7 +249,7 @@ void func_80076EA4(void) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_80076EA4);
-void func_80077074(void) {
+void BattleInitPacketPrimitives(void) {
     (*(u8 **)(D_800C3EA4 + 0xA230))[0x669] = 0;
     (*(u8 **)(D_800C3EA4 + 0xA230))[0x66B] = 0;
     (*(u8 **)(D_800C3EA4 + 0xA230))[0x66D] = 0;
@@ -326,7 +326,7 @@ void func_80077610(void) {
 
     *(u8 **)(D_800C3EA4 + 0xA230) = p;
     bzero(p, 0x670);
-    func_80077074();
+    BattleInitPacketPrimitives();
 }
 
 void func_8007765C(void) {

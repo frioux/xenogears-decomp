@@ -20,7 +20,7 @@ void func_801D5BA4(u_char a0, u_char a1);
 void MenuSetPlayTimeDigitPrims(u_char a0, u_char a1);
 void MenuSetGearWindowContents(u_char a0, u_char a1);
 void func_801D7CFC(u_char a0, u_char a1, u_char a2);
-void func_801D8DE4(u_char a0, s32 a1, s32 a2, u_char a3);
+void MenuDrawStatTable(u_char a0, s32 a1, s32 a2, u_char a3);
 void func_801D8EA4(u_char a0, s32 a1, s32 a2, u_char a3);
 
 void MenuSetWindow(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4, u_char a5, s32 a6, u_char a7);
@@ -284,7 +284,7 @@ void MenuDrawGearScreen(u_char a0, u_char a1) {
     MenuSetGearWindowContents(a0, a1);
     func_801D7CFC(a0, a1, g_GameState.gearRide[a0]);
     MenuRenderFrame();
-    func_801D8DE4(a0, 0, 0, a1);
+    MenuDrawStatTable(a0, 0, 0, a1);
     MenuRenderFrame();
     func_801D8EA4(a0, 0, 0, a1);
 }

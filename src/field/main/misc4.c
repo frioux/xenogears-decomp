@@ -238,7 +238,7 @@ extern s32 D_8004F310;
 extern s32 g_GamePartySkinsInitialized;
 extern s32 D_800B0064;
 extern void func_800A30FC(void);
-extern void func_8001B66C(void);
+extern void SoundFreeLoadedWdsAndAudioManager(void);
 extern void FieldBeginWdsFileLoad(void);
 extern void FieldFinishWdsFileLoad(void);
 extern void func_8001BB50(void);
@@ -265,11 +265,11 @@ void FieldAdvanceGameState(int state) {
     }
     case 1:
         if (D_8004F384 == state) {
-            func_8001B66C();
+            SoundFreeLoadedWdsAndAudioManager();
             FieldBeginWdsFileLoad();
             ArchiveCdDataSync(0);
             FieldFinishWdsFileLoad();
-            func_8001B66C();
+            SoundFreeLoadedWdsAndAudioManager();
         }
         if (D_8004F370 != 0) {
             return;
