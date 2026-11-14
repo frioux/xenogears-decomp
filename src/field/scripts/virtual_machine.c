@@ -270,6 +270,11 @@ void FieldScriptVMRun(int maxInstructionCount) {
 // twice; -G0/-O3 and gcc-2.7.2-cdk presets. Round 36 also: all 7 locals in 12 different declaration
 // orders (90.49% every time) and gcc-2.6.0-psx (89.86%), so the temp-register split is a
 // global.c allocno tie, not a source shape.
+// Round 40 read of the original: the 'lbu D_800B21CC' is at 0x213C, BEFORE the three
+// D_800B06B8 / D_800AFD1C / g_FieldScriptVMCurActor stores at 0x2144-0x2158, and only the
+// 'beqz' on it comes after them - so the source read the byte into a local between the flag
+// read-modify-write and those stores (e.g. 'u_char bSlotLocked = D_800B21CC;').  Writing
+// 'if (D_800B21CC != 0)' there puts the load at the branch instead.
 /*
 extern s32 D_800ADBFC;
 extern s32 D_800ADB1C;
@@ -408,36 +413,44 @@ void func_800A2488(void) {
     D_800ADB8C = 0;
 }
 
-// Best attempt: 57.73% (468 bytes; frame 0x30 vs 0x40, one fewer saved register). The control
-// flow is right - the count-guarded table loop, the player position.vy -= 8, and the
-// "if (i < D_800ADBFC) { if (flags12C_0) continue; } else if (b == 0) deltas" /
-// "if (b == 1) deltas" pair reproduce the original block layout exactly. Two walls remain, both
-// about addresses:
-//  1. the original materialises ONE base register (a2 = &D_800B21D2, hoisted before the loop) and
-//     reads the three deltas with reloc-free negative offsets (lw v1,-0x16(a2), -0x12, -0xE), so
-//     its source reached D_800B21BC/C0/C4 relative to the byte symbol; this C names the three
-//     globals, so gcc hoists them into t1/t0/a3 with their own %hi/%lo pairs.
-//  2. the original reloads g_FieldActors on every use inside the loop body
-//     (lui a0,%hi(g_FieldActors); lw a0,0(a0); addu a0,a1,a0 - loop offset first), while gcc here
-//     CSEs that load and keeps it in a0, which also loses the addu operand order.
-// The D_800B2264 table/count reach-one-base idiom in the first loop is the same wall documented in
-// main/main.c func_80077884 (90.25%): fold_rtx folds the -0x80/+0x80 pair back to the symbol.
+// Best attempt: 74.92% (572 bytes vs 592; frame 0x30 vs 0x40, both with s0-s2+ra).
+// Structural match: the count-guarded table loop, the player position.vy -= 8, the
+// "if (i < D_800ADBFC) { if (flags12C_0) continue; } else if (mode == 0) deltas" /
+// "if (mode == 1) deltas" pair, and the delta reads through one hoisted pointer to
+// D_800B21D2 with -0x16/-0x12/-0xE offsets (volatile, so gcc does not hoist them out of
+// the loop - that alone was worth 7 points).  What is left:
+//  1. the original materialises &D_800B2264 ONCE ('lui v1,%hi; addiu v1,v1,%lo'), loads
+//     the loop count through it ('lw v0,0(v1)') and derives the anim table from the same
+//     register ('addiu s2,v1,-128') in the loop preheader, reloading the count as
+//     'lw v0,0x80(s2)'.  This C gets three separate address materialisations because
+//     gcc 2.7.2 folds '(u8*)&D_800B2264 - 0x80' into 'la D_800B2264-128' and folds the
+//     count load to %lo.  Tried: pCount/pAnimTable pointer locals, the inline form,
+//     gcc-2.7.2-cdk (74.89%), -G0, -O3 - same shape every time.
+//  2. per delta the original loads the delta value BETWEEN the g_FieldActors pointer load
+//     and the 'addu' that finishes the actor address, which costs it a load-delay nop
+//     (8 insns per field vs 7 here).  Loading the delta into a temp first, or storing
+//     through a pointer local, does not move it.
+//  3. the 0x10-byte-larger frame means the original had 0x30 bytes of locals this body
+//     does not need; cosmetic next to (1) and (2).
 /*
 extern s32 D_800B2264;
 extern s32 D_800ADBFC;
 extern s32 g_PlayerActorIndex;
 extern s32 g_GamePartySkinsInitialized;
+extern u_char D_800B21D2;
 extern s32 D_800B21BC;
 extern s32 D_800B21C0;
 extern s32 D_800B21C4;
-extern u_char D_800B21D2;
 extern void func_800AD898(void);
+extern void LibGearSetModelAnimation(u16, u16, s32);
 
 // Applies the camera shake delta from the script globals to every actor's translation
 void func_800A24C4(void) {
     int i;
     ActorData* pActorData;
-    FieldActor* pFieldActor;
+    s32* pCount;
+    s16* pAnimTable;
+    volatile u_char* pShake;
 
     if (!g_GamePartySkinsInitialized) {
         return;
@@ -446,8 +459,10 @@ void func_800A24C4(void) {
     func_800A22AC(2);
     func_800AD898();
 
-    for (i = 0; i < D_800B2264; i++) {
-        LibGearSetModelAnimation(i, 0, ((s16*)((u8*)&D_800B2264 - 0x80))[i]);
+    pCount = &D_800B2264;
+    pAnimTable = (s16*)((u8*)pCount - 0x80);
+    for (i = 0; i < *pCount; i++) {
+        LibGearSetModelAnimation(i, 0, pAnimTable[i]);
     }
 
     pActorData = g_FieldActors[g_PlayerActorIndex].pActorData;
@@ -455,22 +470,23 @@ void func_800A24C4(void) {
         pActorData->position.vy -= 8;
     }
 
+    // The shake deltas sit at -0x16..-0xE from the mode byte
+    pShake = &D_800B21D2;
     for (i = 0; i < g_FieldNumActors; i++) {
-        pFieldActor = &g_FieldActors[i];
         if (i < D_800ADBFC) {
-            if (pFieldActor->pActorData->flags12C_0) {
+            if (g_FieldActors[i].pActorData->flags12C_0) {
                 continue;
             }
-        } else if ((D_800B21D2 & 0x7F) == 0) {
-            pFieldActor->transformMatrix.t[0] += D_800B21BC;
-            pFieldActor->transformMatrix.t[1] += D_800B21C0;
-            pFieldActor->transformMatrix.t[2] += D_800B21C4;
+        } else if ((pShake[0] & 0x7F) == 0) {
+            g_FieldActors[i].transformMatrix.t[0] += *(volatile s32*)(pShake - 0x16);
+            g_FieldActors[i].transformMatrix.t[1] += *(volatile s32*)(pShake - 0x12);
+            g_FieldActors[i].transformMatrix.t[2] += *(volatile s32*)(pShake - 0xE);
         }
 
-        if ((D_800B21D2 & 0x7F) == 1) {
-            pFieldActor->transformMatrix.t[0] += D_800B21BC;
-            pFieldActor->transformMatrix.t[1] += D_800B21C0;
-            pFieldActor->transformMatrix.t[2] += D_800B21C4;
+        if ((pShake[0] & 0x7F) == 1) {
+            g_FieldActors[i].transformMatrix.t[0] += *(volatile s32*)(pShake - 0x16);
+            g_FieldActors[i].transformMatrix.t[1] += *(volatile s32*)(pShake - 0x12);
+            g_FieldActors[i].transformMatrix.t[2] += *(volatile s32*)(pShake - 0xE);
         }
     }
 }
