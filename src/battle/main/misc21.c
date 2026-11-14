@@ -95,7 +95,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_8009EF3C);
    - signature is (BattleSprite* pSprites, s32 scale): misc24's func_800AAA20 calls it
      as func_8009EF3C(*(u32 *)(arg0 + 4), *(s16 *)(arg0 + 0x1C)), and the sibling that
      takes the same two arguments is func_8009F1C4 (rot-order flag 0x37 there).
-   Remaining deltas are allocator only: retail keeps the sprite walker in $s2, the
+   Remaining deltas (6 excess instructions, so not purely a tie): retail keeps the sprite walker in $s2, the
    base in $s4, i in $s1, count in $s6 and the constant 1 in $s7 (frame 0x38); this
    version gets walker $s4/$s2, i $s2, count $s5, 1 in $s6 (frame 0x30), and derives
    one of the three loop pointers with an extra addiu instead of retail's
