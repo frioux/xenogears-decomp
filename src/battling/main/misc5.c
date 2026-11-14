@@ -1,5 +1,6 @@
 #include "common.h"
 #include "psyq/libgte.h"
+#include "psyq/inline_c.h"
 #include "system/memory.h"
 
 typedef struct {
@@ -55,7 +56,12 @@ typedef struct {
     /* 0x60 */ u32 unk60;
     /* 0x64 */ u16 unk64;
     /* 0x66 */ u16 unk66;
-    /* 0x68 */ u8 unk68[0x14];
+    /* 0x68 */ u16 unk68;
+    /* 0x6A */ u16 unk6A;
+    /* 0x6C */ s16 unk6C;
+    /* 0x6E */ u16 unk6E;
+    /* 0x70 */ u32 unk70;
+    /* 0x74 */ u8 unk74[0x8];
 } BattleSlot; // Size: 0x7C
 
 // 0xC-byte primitive template func_8007D6B8 allocates at D_800926C0/D_800926C4.
@@ -88,9 +94,13 @@ extern u16 D_800926A8[];
 extern u16 D_800926AA;
 extern u16 D_800926AC;
 extern u16 D_800926AE;
+extern u16 D_80092694;
 extern u16 D_800926A0;
-extern s16 D_80092698;
-extern s16 D_8009269C;
+// CLUT x (0x80092698) and y (0x8009269C). func_8007B270 reads each of them as a
+// short, this unit's other callers only want the low byte.
+extern u8 D_80092698[];
+extern u8 D_8009269C[];
+extern s32 D_800928E8;
 extern VECTOR D_80096FA8;
 
 // 0xC-byte entry table BattleInitSpriteBuffers allocates at D_800926C8.
@@ -128,6 +138,7 @@ extern int rand(void);
 extern void func_8007E3CC(s32);
 extern void func_8007D334(s32, s32, s32);
 extern void func_800732AC(void *, void *, s32);
+extern void func_8007E020(s32);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007B270);
 
@@ -271,9 +282,103 @@ s32 func_8007CD14(s32 a0, s32 a1, s32 a2, s32 a3) {
     return (a3 & 0x7F) | ((a0 << 7) & 0x80) | (a1 << 24) | ((a2 << 8) & 0xFFFF00);
 }
 
+/* Best attempt: objdiff 85.67%. Everything matches except the scheduling of the
+   0x64/0x66/0x68 stores against the u/v byte-pair writes: retail fills their
+   load-delay slots with the t1 = slot + 0x28 / t2 = slot + 0x20 / a2 = slot
+   address setup of the SlotMotion copy and hoists the pVec and D_800926A4 loads,
+   gcc leaves nop there and keeps each load next to its store. Tried: the u/v
+   pair in ascending order, unk68 stored with unk66 instead of after unk6A, the
+   u/v block before the unk64..68 stores, and slot->unk0 in place of a pMotion
+   pointer (all 82-85%); the first two halves of the function and the trailing
+   search loop are byte-identical. */
+/*
+void func_8007CD44(s32 arg0, VECTOR *pPos, VECTOR *pVec, u32 arg3) {
+    BattleSlot *pSlot = D_80092AD8;
+    BattleSlot *pEntry = D_80092AD8;
+    SlotMotion *pMotion;
+    u16 id;
+    s32 u;
+    s32 v;
+    s32 i;
+
+    for (i = 0; i < 0x3C; i++, pEntry++) {
+        if (pEntry->unk50 != 0) {
+            if (pEntry->unk70 == arg3) {
+                if (pEntry->unk6C == D_800928E8) {
+                    return;
+                }
+            }
+        }
+    }
+
+    pSlot = D_80092AD8;
+    for (i = 0; i < 0x3C; i++, pSlot++) {
+        if (pSlot->unk50 == 0) {
+            break;
+        }
+    }
+    if (i == 0x3C) {
+        return;
+    }
+
+    pSlot->unk52 = 7;
+    pSlot->unk53 = 2;
+    pSlot->unk50 = 1;
+    pSlot->unk51 = 0;
+    pSlot->unk54 = pPos->vx;
+    pSlot->unk56 = pPos->vy;
+    pSlot->unk58 = pPos->vz;
+    pSlot->unk6C = D_800928E8;
+    pSlot->unk64 = pVec->vx;
+    pSlot->unk66 = pVec->vy;
+
+    pMotion = &pSlot->unk0;
+    u = D_80092698[0] * 4 + 8;
+    u += arg0 * 4;
+    pMotion->unk18[0xC] = u;
+    pMotion->unk18[4] = u;
+    pMotion->unk10[4] = u;
+    pMotion->unk8[4] = u;
+    v = D_8009269C[0];
+    pMotion->unk18[0xD] = v;
+    pMotion->unk18[5] = v;
+    pMotion->unk10[5] = v;
+    pMotion->unk8[5] = v;
+
+    pSlot->unk70 = arg3;
+    pSlot->unk60 = 0;
+    pSlot->unk6A = D_800926A4;
+    pSlot->unk68 = pVec->vz;
+    pMotion->unk16 = D_80092694;
+    pMotion->unk7 &= 0xFE;
+    pMotion->unkE = D_800926A0;
+    pSlot->unk28 = *pMotion;
+
+    id = D_800926A4 - 1;
+    pEntry = D_80092AD8;
+    for (i = 0; i < 0x3C; i++, pEntry++) {
+        if (pEntry->unk50 != 0 && pEntry->unk70 == arg3 && pEntry != pSlot && pEntry->unk53 == 2 && pEntry->unk6A == id) {
+            pSlot->unk60 = (u32)pEntry;
+        }
+    }
+}
+*/
+
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007CD44);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007CF78);
+void func_8007CF78(MATRIX *pMat, s32 arg1) {
+    MATRIX transposed;
+
+    *(VECTOR *)PSX_SCRATCH = D_80096FA8;
+    TransposeMatrix(pMat, &transposed);
+    func_8007BBA0(pMat, &transposed, arg1);
+    func_8007C280(pMat, &transposed, arg1);
+    func_8007CAA4(pMat, NULL, arg1);
+    gte_SetRotMatrix_gpr(pMat);
+    func_8007D918(arg1);
+    func_8007E020(arg1);
+    func_8007E3CC(arg1);
+}
 
 void func_8007D068(s32 arg0) {
     *(VECTOR *)PSX_SCRATCH = D_80096FA8;
