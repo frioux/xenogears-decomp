@@ -260,26 +260,15 @@ void BattleStoreActorSlotTagCount(u8 **arg0, u8 arg1) {
     pRow = &D_800D3430[arg1 * 0x40];
     pRow[(*arg0)[1]] = count;
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007CDD0);
-/* best: 78.26%. Every instruction of the loop/tail is present; only the
-   callee-saved set and two intra-block orders differ: the original keeps the
-   D_800D3420 base in s0 across the BattleFindFirstFlagTableMatch call (4 saved regs), gcc
-   folds the whole row base into s1 before the call (3 saved regs), and it
-   emits the two D_800C3EB4 loads in the opposite order. Tried: pRow/pField as
-   separate locals, slot = arg1 + 3 assigned after the call, and the two table
-   bytes split into operator/row locals - all three give the same code.
-
 void func_8007CDD0(u8 **arg0, u8 arg1) {
     u16 *pField = (u16 *)(D_800D3420 + arg1 * 0x40);
-    u8 *pRow = D_800D3420 + 0x10 + arg1 * 0x40;
     u8 value = BattleFindFirstFlagTableMatch(pField[(*arg0)[2]]);
+    u8 a = D_800C3EB4[value * 0x1C];
     s32 slot = arg1 + 3;
-    u8 operator = D_800C3EB4[value * 0x1C];
-    u8 row = D_800C3EB4[slot * 0x1C];
 
-    pRow[(*arg0)[1]] = D_800D3364[operator * 8 + row * 0x40 + 0x140];
+    ((u8 *)(D_800D3420 + 0x10 + arg1 * 0x40))[(*arg0)[1]] = D_800D3364[D_800C3EB4[slot * 0x1C] * 0x40 + a * 8 + 0x140];
 }
-*/
+
 void BattleStoreCharSlotMatchedTagCount(u8 **arg0, u8 arg1) {
     s32 count = 0;
     s32 i = 0;
