@@ -16,3 +16,4 @@ build.ninja
 core
 tools/objdiff/objdiff-cli*
 *.core
+tools/decomp-permuter/
