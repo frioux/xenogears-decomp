@@ -230,16 +230,19 @@ u8 func_8009AB00(u8 arg0) {
     return flags;
 }
 
-// best 96.91% (2.7.2-psx and cdk); 96.84% under gcc-2.6.0. One allocator
-// permutation at the second row recomputation swaps $v0/$v1 in both store tails.
+// best 98.68% (2.7.2-psx): one allocator permutation at the second row
+// recomputation; gcc masks arg0 in place in $a0 where retail re-masks into $v1.
 /*
-Best attempt: 96.91%, identical size (272 bytes) and identical instruction
-   multiset/order. The only difference is one allocator permutation at the
-   second row recomputation: the original re-masks arg0 into $v1 and puts the
-   D_800C34B0 base in $a0 (and the 3*arg0 partial in $a1), gcc masks arg0 in
-   place in $a0 and puts the base in $a1 and the partial in $a2, which swaps
-   $v0/$v1 in both store tails. Tried: plain `arg0 * 0x170` both times, an
-   `s32 off = arg0 * 0x170` local, and a `u8 a = arg0;` copy -- all 96.91%.
+Best attempt: 98.68%, identical size (272 bytes) and identical instruction
+   multiset/order. The second row recomputation masks arg0 in place into $a0 and
+   puts the D_800C34B0 base in $a1 and the 3*arg0 partial in $a2, where the
+   original re-masks arg0 into $v1, the base into $a0 and the partial into $a1,
+   which swaps $v0/$v1 in both store tails.
+   The 96.91% shape below it computed the second row pointer as
+   `(u8*)D_800C34B0 + (arg0 * 0x690 + 0x2228)`; spelling it as the matched
+   func_8009AC48 does (`s32 off = ...; u8* q = (u8*)off + (u32)D_800C34B0;`)
+   gains the second multiply chain. Also tried: an `s32 off`/`u8 a = arg0`
+   local and `arg0 * 0x170` recomputed twice -- 96.91%.
 void func_8009AB38(u8 arg0) {
     u8* p = (u8*)D_800C34B0 + arg0 * 0x170;
     u16 f;
@@ -254,26 +257,30 @@ void func_8009AB38(u8 arg0) {
     }
     p = (u8*)D_800C34B0 + arg0 * 0x170;
     if (p[0x15A] & 0x80) {
-        p = (u8*)D_800C34B0 + (arg0 * 0x690 + 0x2228);
-        *(u16*)(p + 0x348) = 1;
-        *(u16*)(p + 0x398) = 1;
-        *(u16*)(p + 0x3C0) = 1;
-        *(u16*)(p + 0x3E8) = 1;
-        *(u16*)(p + 0x410) = 1;
-        *(u16*)(p + 0x438) = 1;
-        *(u16*)(p + 0x460) = 1;
+        s32 off = arg0 * 0x690 + 0x2228;
+        u8* q = (u8*)off + (u32)D_800C34B0;
+
+        *(u16*)(q + 0x348) = 1;
+        *(u16*)(q + 0x398) = 1;
+        *(u16*)(q + 0x3C0) = 1;
+        *(u16*)(q + 0x3E8) = 1;
+        *(u16*)(q + 0x410) = 1;
+        *(u16*)(q + 0x438) = 1;
+        *(u16*)(q + 0x460) = 1;
     } else {
-        p = (u8*)D_800C34B0 + (arg0 * 0x5F0 + 0x1058);
-        *(u16*)(p + 0x370) = 1;
-        *(u16*)(p + 0x3C0) = 1;
-        *(u16*)(p + 0x3E8) = 1;
-        *(u16*)(p + 0x410) = 1;
-        *(u16*)(p + 0x438) = 1;
-        *(u16*)(p + 0x460) = 1;
-        *(u16*)(p + 0x488) = 1;
-        *(u16*)(p + 0x4B0) = 1;
-        *(u16*)(p + 0x4D8) = 1;
-        *(u16*)(p + 0x500) = 1;
+        s32 off = arg0 * 0x5F0 + 0x1058;
+        u8* q = (u8*)off + (u32)D_800C34B0;
+
+        *(u16*)(q + 0x370) = 1;
+        *(u16*)(q + 0x3C0) = 1;
+        *(u16*)(q + 0x3E8) = 1;
+        *(u16*)(q + 0x410) = 1;
+        *(u16*)(q + 0x438) = 1;
+        *(u16*)(q + 0x460) = 1;
+        *(u16*)(q + 0x488) = 1;
+        *(u16*)(q + 0x4B0) = 1;
+        *(u16*)(q + 0x4D8) = 1;
+        *(u16*)(q + 0x500) = 1;
     }
 }
 */
