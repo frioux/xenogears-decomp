@@ -440,8 +440,8 @@ void WorldMapClearGroupEntryFlag(s32 arg0) {
 }
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc10", func_80089580);
-/* 63.10%: struct layout recovered and the head/tests/arithmetic are right; two
-   differences remain.
+/* 48.70% (436 bytes, retail 456): struct layout recovered and the head/tests/
+   arithmetic are right; two differences remain.
    (1) The count/active word at entry+0x04: retail loads it ONCE as a word and
    splits it with sra 16 (active, jump to loop end when zero) and sll 16/sra 16
    (count, blez to the detach path), so the source reads it as an s32 and the
