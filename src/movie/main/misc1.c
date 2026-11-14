@@ -224,20 +224,30 @@ void func_80073328(POLY_G4* pPoly0, POLY_G4* pPoly1, s32 x, s32 y, s32 w, s32 h)
     setXY4(pPoly1, x, y, x + w, y, x, y + h, x + w, y + h);
 }
 
-// Best attempt (85.80%): the loop, the lerp and the tag swap come out, but retail
-// keeps six separate byte-channel pointers (base+2 with -1/-2 offsets) and spills
-// two of them, i.e. it wants more live values than this shape produces.
+// Best attempt (93.37%): the six channel pointers derived from the two .b-channel
+// anchors reproduce retail's lui/addiu + addiu -1/-2 prologue and the whole
+// instruction stream, but retail rematerialises the three "current" channel loads
+// for the final add (it has no register to keep them live) and the allocator here
+// picks t2/s8/s5 where retail picks t0/s7/s6, so three loads go missing.
 /*
 void func_800734B8(POLY_G4* pPoly0, POLY_G4* pPoly1, s32 x, s32 y, s32 w, s32 h) {
     s32 i;
     s32 r;
     s32 g;
     s32 b;
-    MovieColour* pCol;
-    MovieColour* pTarget;
+    u_char* pColR;
+    u_char* pColG;
+    u_char* pColB;
+    u_char* pTargetR;
+    u_char* pTargetG;
+    u_char* pTargetB;
 
-    pCol = (MovieColour*)D_80076FCC;
-    pTarget = (MovieColour*)D_80076FDC;
+    pColB = D_80076FCE;
+    pTargetB = D_80076FDE;
+    pColG = pColB - 1;
+    pTargetG = pTargetB - 1;
+    pColR = pColB - 2;
+    pTargetR = pTargetB - 2;
 
     setXY4(pPoly1, x, y, x + w, y, x, y + h, x + w, y + h);
 
@@ -245,17 +255,17 @@ void func_800734B8(POLY_G4* pPoly0, POLY_G4* pPoly1, s32 x, s32 y, s32 w, s32 h)
         if (++D_80076FEC[i] > D_80076FFC[i]) {
             D_80076FEC[i] = 0;
             D_80076FFC[i] = (func_80074AF0() & 0xFF) + 0x20;
-            pCol[i].r = pTarget[i].r;
-            pCol[i].g = pTarget[i].g;
-            pCol[i].b = pTarget[i].b;
-            pTarget[i].r = 0xFF;
-            pTarget[i].g = 0xFF;
-            pTarget[i].b = (func_80074AF0() & 0x3F) - 0x42;
+            *pColR = *pTargetR;
+            *pColG = *pTargetG;
+            *pColB = *pTargetB;
+            *pTargetR = 0xFF;
+            *pTargetG = 0xFF;
+            *pTargetB = (func_80074AF0() & 0x3F) - 0x42;
         }
 
-        r = pCol[i].r + (pTarget[i].r - pCol[i].r) * D_80076FEC[i] / D_80076FFC[i];
-        g = pCol[i].g + (pTarget[i].g - pCol[i].g) * D_80076FEC[i] / D_80076FFC[i];
-        b = pCol[i].b + (pTarget[i].b - pCol[i].b) * D_80076FEC[i] / D_80076FFC[i];
+        r = *pColR + (*pTargetR - *pColR) * D_80076FEC[i] / D_80076FFC[i];
+        g = *pColG + (*pTargetG - *pColG) * D_80076FEC[i] / D_80076FFC[i];
+        b = *pColB + (*pTargetB - *pColB) * D_80076FEC[i] / D_80076FFC[i];
 
         switch (i) {
         case 0:
@@ -279,6 +289,13 @@ void func_800734B8(POLY_G4* pPoly0, POLY_G4* pPoly1, s32 x, s32 y, s32 w, s32 h)
             pPoly1->b3 = b;
             break;
         }
+
+        pColB += 4;
+        pTargetB += 4;
+        pColG += 4;
+        pTargetG += 4;
+        pColR += 4;
+        pTargetR += 4;
     }
 
     pPoly1->tag = (pPoly1->tag & 0xFF000000) | (pPoly0->tag & 0xFFFFFF);
