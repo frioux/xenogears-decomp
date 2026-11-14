@@ -176,24 +176,27 @@ void func_80076D58(u8 *pInfo, u8 flag, u8 mode) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_80076D58);
-/* 96.80%: the whole stream is byte-identical except ONE instruction, the
-   first loop's address addu: retail has `addu s0,s5,s0` (base first, s5 =
-   sp+0x10), and every ARRAY_REF spelling tried - pBuf[i], *(pBuf + i),
-   *(u8 **)((u8 *)pBuf + i * 4) - gives `addu s0,s0,s5` (index first). The
-   PLUS_EXPR spelling `pSlot = pBuf + i;` DOES give retail's operand order,
-   but as a statement of its own gcc then hoists the sll/addiu above the
-   func_8008AC00 call, so `li a0,0x1B` stops being the last insn before the
-   jal and reorg steals it into the loop-back bnez delay slot instead (464 ->
-   468 bytes). Assigning pSlot after the store lets cse reuse the ARRAY_REF
-   address, so the order goes index-first again. Everything else is exact:
-   both SystemRenderStringEntry calls, the chained `D_800D2F3E[off] =
-   pEntry[2] = 0x78;` and `D_800D2F3F[off] = pEntry[3] = h;` stores (the chained
-   form is what reproduces retail's shared `li v0,0x78` / `move v0,s3` before
-   the two sb), the rect stores, the HeapFree loop, and the third loop driven
-   by a byte offset (`*(u8 **)((u8 *)D_800C3E5C + off2)`, off2 += 4 - the plain
+/* 98.15%: ONE instruction left, the first loop's address addu: retail has
+   `addu s0,s5,s0` (base first, s5 = sp+0x10), ours `addu s0,s0,s5`. The
+   prologue save order (round 43) is gcc emitting the callee-saved save+init
+   pair in order of FIRST ASSIGNMENT, so `i = 0;` has to be the first statement
+   (with `for (; i < 11; i++)`) - retail saves s2/moves s2 zero before s4/s3/s1.
+   That alone took 96.80 -> 98.15. Everything else is byte-exact: both
+   SystemRenderStringEntry calls, the chained `D_800D2F3E[off] = pEntry[2] =
+   0x78;` / `D_800D2F3F[off] = pEntry[3] = h;` stores (the chained form is what
+   reproduces retail's shared `li v0,0x78` / `move v0,s3`), the rect stores, the
+   HeapFree loop, and the third loop driven by a byte offset
+   (`*(u8 **)((u8 *)D_800C3E5C + off2)`, off2 += 4 - the plain
    `D_800C3E5C + off` form double-scales because the symbol is typed u8 *).
-   Also tried: pEntry assigned before the call (saved register, worse).
-   Parked body (96.80):
+   For the addu order, tried and NOT it: pSlot = pBuf + i (gives retail's
+   operand order but +4 bytes: the address math moves above the call, so
+   `li a0,0x1B` is no longer last before the jal and reorg also copies it into
+   the loop-back bnez delay slot, 468 bytes / 90.83), i[pBuf], `*(pBuf + i)`,
+   `*(u8 **)((u8 *)pBuf + i * 4)`, `*(u8 **)((s32)i * 4 + (s32)pBuf)`, and a
+   pValue temp for the call result - all give index-first. Operand order is
+   not source-driven here; it is a combine/allocator tie.
+*/
+/*
 void func_80076EA4(void) {
     u8 *pBuf[11];
     RECT rect;
@@ -206,10 +209,11 @@ void func_80076EA4(void) {
     s32 y;
     s32 h;
 
+    i = 0;
     y = 0x10D;
     h = 0xD;
     off = 0x2C;
-    for (i = 0; i < 11; i++) {
+    for (; i < 11; i++) {
         pBuf[i] = func_8008AC00(0x1B);
         bzero(pBuf[i], 0x30C);
         D_800D2F3C[off] = SystemRenderStringEntry(GetStringEntryFromBank12(i + 0xA), pBuf[i], 0x1B, 0);
@@ -245,7 +249,29 @@ void func_80076EA4(void) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_80076EA4);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_80077074);
+void func_80077074(void) {
+    (*(u8 **)(D_800C3EA4 + 0xA230))[0x669] = 0;
+    (*(u8 **)(D_800C3EA4 + 0xA230))[0x66B] = 0;
+    (*(u8 **)(D_800C3EA4 + 0xA230))[0x66D] = 0;
+    func_80076D58(*(u8 **)(D_800C3EA4 + 0xA230) + 0x000, 0, 1);
+    func_80076D58(*(u8 **)(D_800C3EA4 + 0xA230) + 0x050, 0, 1);
+    func_80076D58(*(u8 **)(D_800C3EA4 + 0xA230) + 0x0A0, 0, 2);
+    func_80076D58(*(u8 **)(D_800C3EA4 + 0xA230) + 0x0F0, 0, 2);
+    func_80076D58(*(u8 **)(D_800C3EA4 + 0xA230) + 0x140, 0, 1);
+    func_80076D58(*(u8 **)(D_800C3EA4 + 0xA230) + 0x190, 0, 2);
+    func_80076D58(*(u8 **)(D_800C3EA4 + 0xA230) + 0x1E0, 0, 2);
+    func_80076D58(*(u8 **)(D_800C3EA4 + 0xA230) + 0x230, 0, 2);
+    func_80076D58(*(u8 **)(D_800C3EA4 + 0xA230) + 0x280, 0, 3);
+    func_80076D58(*(u8 **)(D_800C3EA4 + 0xA230) + 0x2D0, 1, 3);
+    func_80076D58(*(u8 **)(D_800C3EA4 + 0xA230) + 0x320, 0, 2);
+    func_80076D58(*(u8 **)(D_800C3EA4 + 0xA230) + 0x370, 1, 2);
+    func_80076D58(*(u8 **)(D_800C3EA4 + 0xA230) + 0x3C0, 0, 2);
+    func_80076D58(*(u8 **)(D_800C3EA4 + 0xA230) + 0x410, 0, 2);
+    func_80076D58(*(u8 **)(D_800C3EA4 + 0xA230) + 0x460, 0, 2);
+    func_80076D58(*(u8 **)(D_800C3EA4 + 0xA230) + 0x4B0, 0, 2);
+    func_80076D58(*(u8 **)(D_800C3EA4 + 0xA230) + 0x500, 0, 2);
+    func_80076D58(*(u8 **)(D_800C3EA4 + 0xA230) + 0x550, 0, 2);
+}
 void func_80077364(POLY_FT4 *p, u8 index) {
     s32 i;
     s32 offset;
