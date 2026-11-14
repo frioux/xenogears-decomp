@@ -275,6 +275,13 @@ void FieldScriptVMRun(int maxInstructionCount) {
 // 'beqz' on it comes after them - so the source read the byte into a local between the flag
 // read-modify-write and those stores (e.g. 'u_char bSlotLocked = D_800B21CC;').  Writing
 // 'if (D_800B21CC != 0)' there puts the load at the branch instead.
+// Round 41: 'u_char bSlotLocked = D_800B21CC;' before the three stores does put the lbu
+// there (its 'beqz' delay slot then takes the 0xF), and the loop header must spell
+// 'pFieldActor = (FieldActor*)(i * sizeof(FieldActor) + (s32)g_FieldActors);' - that is
+// what makes the original's index-first 'addu a1,s1,v0' come out.  90.49 -> 90.55%.  What
+// is left is the register swap of the two loop temps: retail keeps pFieldActor in $a1 and
+// pActor in $a0, gcc puts pFieldActor in $a0 and pActor in $a1 (and reloads pActorData
+// from 0x4C($a1) in the join block).  Sizes are identical (636 bytes).
 /*
 extern s32 D_800ADBFC;
 extern s32 D_800ADB1C;
@@ -294,6 +301,7 @@ void func_800A2030(void) {
     u_short nInstructionPointer;
     FieldActor* pFieldActor;
     ActorData* pActor;
+    u_char bSlotLocked;
 
     if (D_800ADB74 == 1) {
         nActorCount = 1;
@@ -304,7 +312,7 @@ void func_800A2030(void) {
     D_800C4268 = 0;
 
     for (i = 0; i < nActorCount; i++) {
-        pFieldActor = &g_FieldActors[i];
+        pFieldActor = (FieldActor*)(i * sizeof(FieldActor) + (s32)g_FieldActors);
         if (!(pFieldActor->status & 0xF00)) {
             continue;
         }
@@ -319,6 +327,7 @@ void func_800A2030(void) {
 
         pActor = pFieldActor->pActorData;
         pActor->scriptFlags.flags &= ~0x1000000;
+        bSlotLocked = D_800B21CC;
 
         D_800B06B8 = pFieldActor;
         D_800AFD1C = i;
@@ -326,7 +335,7 @@ void func_800A2030(void) {
 
         // Pick the script slot with the lowest priority
         nMinPriority = 0xF;
-        if (D_800B21CC != 0) {
+        if (bSlotLocked != 0) {
             for (j = 0; j < 3; j++) {
                 if (D_8005A444[j] != ACTOR_ID_INVALID && D_8005A444[j] == i) {
                     goto next_actor;
@@ -359,7 +368,6 @@ void func_800A2030(void) {
         ;
     }
 }
-
 */
 INCLUDE_ASM("asm/field/nonmatchings/scripts/virtual_machine", func_800A2030);
 
@@ -432,15 +440,19 @@ void func_800A2488(void) {
 //     through a pointer local, does not move it.
 //  3. the 0x10-byte-larger frame means the original had 0x30 bytes of locals this body
 //     does not need; cosmetic next to (1) and (2).
+// Round 41: (1) is the same fold_rtx wall as field/main/main.c func_80077884 - gcc folds
+// the count load back to %lo and re-forms a separate lui/%lo for the table, so the two
+// accesses are never expressed off one register.  Also tried the base-relative form
+// 'for (i = 0; i < D_800B2264; i++) LibGearSetModelAnimation(i, 0, ((s16*)&D_800B2264)[i - 0x40);'
+// - same result, and it drops the +0x80 reload shape.  (3) is 0x30 bytes of UNUSED locals in
+// retail (its saved regs sit at 0x30-0x3C), so a dummy 0x30-byte local would fix the frame
+// if the rest ever closes.
 /*
 extern s32 D_800B2264;
 extern s32 D_800ADBFC;
-extern s32 g_PlayerActorIndex;
 extern s32 g_GamePartySkinsInitialized;
+extern s32 g_PlayerActorIndex;
 extern u_char D_800B21D2;
-extern s32 D_800B21BC;
-extern s32 D_800B21C0;
-extern s32 D_800B21C4;
 extern void func_800AD898(void);
 extern void LibGearSetModelAnimation(u16, u16, s32);
 
@@ -459,10 +471,8 @@ void func_800A24C4(void) {
     func_800A22AC(2);
     func_800AD898();
 
-    pCount = &D_800B2264;
-    pAnimTable = (s16*)((u8*)pCount - 0x80);
-    for (i = 0; i < *pCount; i++) {
-        LibGearSetModelAnimation(i, 0, pAnimTable[i]);
+    for (i = 0; i < D_800B2264; i++) {
+        LibGearSetModelAnimation(i, 0, ((s16*)&D_800B2264)[i - 0x40]);
     }
 
     pActorData = g_FieldActors[g_PlayerActorIndex].pActorData;
