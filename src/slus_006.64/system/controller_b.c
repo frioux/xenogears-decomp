@@ -1,13 +1,18 @@
 #include "common.h"
 #include "system/controller.h"
 #include "psyq/libapi.h"
+#include "psyq/libgpu.h"
+#include "psyq/pc.h"
 
 extern u_char D_8005938C;
+extern int D_80010000;
 extern int D_80059390;
 extern int D_800501FC;
 extern int D_80050204;
 
 extern void ControllerResetState(void);
+extern void ControllerPoll(void);
+extern void ControllerPushState(void);
 
 typedef struct {
     /* 0x0 */ u_char unk0;
@@ -24,6 +29,13 @@ extern ControllerBState D_8005A1BC[];
 // symbol, which is how splat split the .bss labels; element stride stays 0x8.
 extern u_short D_8005A1C0[];
 extern u_char D_8005A1C3[];
+
+typedef struct {
+    /* 0x0 */ u_long magic;
+    /* 0x4 */ u_long flags;
+    /* 0x8 */ u_long size;
+    /* 0xC */ RECT rect;
+} TimHeader; // Size: 0x14
 
 extern void func_80036188(ControllerBState* pState);
 extern void func_80040C3C(void* pDest, int destSize, void* pSrc, int srcSize);
@@ -56,7 +68,23 @@ void func_80035E44(void) {
         D_800501F8 = 1;
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/controller_b", func_80035F1C);
+void func_80035F1C(RECT* pRect, char* pPath) {
+    TimHeader header;
+    int fd;
+
+    StoreImage(pRect, (u_long*)0x80700000);
+    header.magic = 0x10;
+    header.flags = 2;
+    header.size = pRect->w * pRect->h * 2 + 0xC;
+    header.rect.x = pRect->x;
+    header.rect.y = pRect->y;
+    header.rect.w = pRect->w;
+    header.rect.h = pRect->h;
+    fd = PCcreate(pPath, 0);
+    PCwrite(fd, (char*)&header, 0x14);
+    PCwrite(fd, (char*)0x80700000, pRect->w * pRect->h * 2);
+    PCclose(fd);
+}
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/controller_b", func_80035FF8);
 
@@ -135,7 +163,18 @@ void func_8003633C(u_char value) {
     D_8005938C = value;
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/controller_b", func_8003634C);
+void func_8003634C(void) {
+    s32 pad[10]; // unused: reproduces the original's 0x40-byte frame
+    D_80059488++;
+    ControllerPoll();
+    ControllerPushState();
+    func_80035E44();
+    func_80036220();
+    if (D_800501FC != 0)
+        ((void (*)(void))D_800501FC)();
+    if (D_80010000 != -1 && D_80059390 != 0)
+        asm("break 0x400");
+}
 
 void func_800363E0(int value) {
     D_80059390 = value;
