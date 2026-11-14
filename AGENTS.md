@@ -378,6 +378,32 @@ commit. Rules that make that work:
   a comment; a wrong layout costs a whole overlay.
 
 
+### Switch jump tables in overlays: `own_rodata.py`
+
+Overlays keep all `.rodata` in one asm blob (`[0x0, rodata]`), so a C `switch` made
+cc1 emit a second table and `make check` failed with every function at 100%. Fix once
+per unit, BEFORE converting any of its jtbl stubs:
+
+```sh
+python3 tools/scripts/own_rodata.py --report <bin>   # dry run, one line per unit with jtbl stubs
+python3 tools/scripts/own_rodata.py <bin>/<unit>     # or --all <bin>; edits config/<bin>.yaml
+make check                                           # must stay all OK with no C changes
+```
+
+It carves the unit's table range out of the blob (`[off, .rodata, <unit>]`, as field.yaml
+does); splat then puts each `jtbl_` into the `.s` of the stub that uses it. Convert stubs
+as usual (`diff_func.sh` shows `jtbl_X` vs `.rodata` operands, expected) and judge with
+`check_bin.sh <bin>`. Tables are emitted after their function in file order, so mixing
+converted and unconverted stubs is safe. Applied to battle (23 units), battling (10),
+world_map (11), menu (5); `make check` stays all OK. Proven: `battle/main/misc12`
+`func_80082F7C` matched with the other 10 stubs still asm.
+
+Limits: run it before converting (it finds tables through the stubs' `.s`; a converted
+stub's table is invisible, so an edge table would be left out of the range). Refused:
+`FOREIGN` (a string/data label sits inside the range: `battling/main/misc2`,
+`menu/main/misc1`, `movie/main/misc1`; needs hand work), `ORDER` (tables not in
+function-address order), `NOBLOB`. A converted stub's own string literals are untested.
+
 ### The GTE macros had the wrong DMPSX revision, twice (both fixed)
 
 `include/psyq/inline_c.h` shipped the **4.3** spelling of the DMPSX macros. Retail

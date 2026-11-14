@@ -50,23 +50,15 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_800829F4);
 /* Same jtbl blocker as func_80082F7C below (table jtbl_80070130). */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80082BB0);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80082D4C);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80082F7C);
-/* BLOCKED by the jump table (round 41, objdiff 88.13%, one attempt):
-   retail dispatches through the shared rodata table jtbl_80070170 that
-   asm/battle/data/0.rodata.s owns. The switch below makes cc1 emit the same
-   eight words in the same order -- but into the unit object's own .rdata
-   section, i.e. a second copy next to the asm-owned one, so the overlay grows
-   and make build fails (this tree links clean without the switch, so the
-   switch is the cause). No source shape can fix that: the whole unit's jtbl
-   set has to move out of asm/battle/data/0.rodata.s into C in address order
-   as one job. Same blocker on func_800829F4 (jtbl_80070110) and func_80082BB0
-   (jtbl_80070130) -- 11 of this unit's 16 stubs name a jtbl.
-   Shape notes for that job: the store constant lands in the branch delay slot
-   only when the if/else puts the BattlePlaySoundIfEnabled(0x4F) call in the shared tail,
-   and retail's addu is base-first, so the field reads want a p/off pair.
-
+extern u8 D_800D3014;
+extern void BattleLoadStringTableAE(u8);
+extern u8 func_8008B478(u8);
+extern void func_8008ADD0(u8);
+extern void BattlePlaySoundIfEnabled(u8);
 void func_80082F7C(u8 arg0) {
     u8 a;
+    u8 *p;
+    int off;
     a = arg0;
     switch (D_800D3014) {
     case 4:
@@ -80,37 +72,38 @@ void func_80082F7C(u8 arg0) {
         }
         break;
     case 0:
-        if (*(u16 *)(D_800C3EAC + a * 0x40 + 0x2E) != 0) {
-            BattlePlaySoundIfEnabled(0x4F);
-        } else {
-            D_800C3EAC[0x2DD] = 0x10;
+        p = D_800C3EAC;
+        off = a * 0x40;
+        if (*(u16 *)(p + off + 0x2E) == 0) {
+            p[0x2DD] = 0x10;
+            break;
         }
+        BattlePlaySoundIfEnabled(0x4F);
         break;
     case 1:
-        if (*(u16 *)(D_800C3EAC + a * 0x40 + 0x34) != 0) {
-            BattlePlaySoundIfEnabled(0x4F);
-        } else {
-            D_800C3EAC[0x2DD] = 0x11;
+        p = D_800C3EAC;
+        off = a * 0x40;
+        if (*(u16 *)(p + off + 0x34) == 0) {
+            p[0x2DD] = 0x11;
+            break;
         }
+        BattlePlaySoundIfEnabled(0x4F);
         break;
     case 2:
         D_800C3EAC[0x2DD] = 0x12;
         break;
     case 3:
-        if (*(u16 *)(D_800C3EAC + a * 0x40 + 0x24) != 0) {
-            BattlePlaySoundIfEnabled(0x4F);
-        } else {
-            D_800C3EAC[0x2DD] = 0x18;
+        p = D_800C3EAC;
+        off = a * 0x40;
+        if (*(u16 *)(p + off + 0x24) == 0) {
+            p[0x2DD] = 0x18;
+            break;
         }
+        BattlePlaySoundIfEnabled(0x4F);
         break;
     }
 }
-*/
-extern u8 D_800D3014;
-extern void BattleLoadStringTableAE(u8);
-extern u8 func_8008B478(u8);
-extern void func_8008ADD0(u8);
-extern void BattlePlaySoundIfEnabled(u8);
+
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_800830A8);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80083340);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80083580);
