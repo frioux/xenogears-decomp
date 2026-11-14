@@ -148,9 +148,7 @@ build_variables = {
     maspsx_flags = "--dont-expand-li --use-comm-section --run-assembler"
 }
 paths = [
-    "battle/main/misc26.",
     "battle/main/misc27_psx.",
-    "battle/main/misc31.",
     "battle/main/misc35."
 ]
 
@@ -331,7 +329,7 @@ build_variables = {
     gp_flag = "-G0",
     maspsx_flags = "--dont-expand-li --use-comm-section --run-assembler"
 }
-paths = [ "battle/main/misc32.", "battle/main/misc28.", "battle/main/misc30.", "battle/main/misc33.", "battle/main/misc34." ]
+paths = [ "battle/main/misc32.", "battle/main/misc28.", "battle/main/misc30.", "battle/main/misc33.", "battle/main/misc34.", "battle/main/misc26.", "battle/main/misc31.", "battle/main/misc29." ]
 
 [[build_preset]]
 name = "XenoFieldNoGp"
@@ -388,19 +386,12 @@ paths = [
 ]
 
 
-# battle/misc29 splits off XenoBattleTail for its compiler only: func_800B8284 is
-# 100.00% under cdk and 77.69% under 2.7.2 with the identical maspsx flags and body
-# (retail rebases the DISPENV tail once and stores eight `sh` off that register;
-# plain 2.7.2 folds base+offset into one absolute address per store, so maspsx
-# expands each through $at), while all five functions already matched in the unit
-# stay 100.0 under cdk. The maspsx flags must stay XenoBattleTail's - this is not
-# XenoGraphics' --aspsx-version=2.67. Placed last so it wins over the entry above.
-[[build_preset]]
-name = "XenoBattleTailCdk"
-build_variables = {
-    gcc = "gcc-2.7.2-cdk-psx",
-    maspsx_flags = "--dont-expand-li --use-comm-section --run-assembler"
-}
-paths = [
-    "battle/main/misc29.",
-]
+# battle/misc26, misc29 and misc31 moved from XenoBattleTail / XenoBattleTailCdk to
+# XenoBattleTailCdk0 in round 55 after an unpark screen: every already-matched
+# function in all three stays 100.00 under cdk -G0 (misc29's func_800B8284 is the
+# one that needed cdk in the first place, and misc29 is why the -G0 screen reached
+# it), and the parks those units had written under 2.7.2 / cdk -G8 came in at
+# 100.00 under -G0 alone: misc26 func_800B3588/383C/397C/3C2C, misc31
+# func_800BB690/BB7F8/BCB54, misc29 func_800B7C28/B8048/B8D04. XenoBattleTailCdk
+# is now empty and was removed; misc27/misc27_b stay on it only for their compiler
+# (their parks are C-shape and identical under -G0).

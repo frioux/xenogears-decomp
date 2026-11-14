@@ -426,7 +426,7 @@ void BattleDrawTextRightOffset(u8* pText, s32 dy) {
     D_800926EC += 0x14;
 }
 
-void func_8007EE08(s32 arg) {
+void BattleSetTextColor(s32 arg) {
     s32 white = 0xFF;
 
     if (arg != 0) {

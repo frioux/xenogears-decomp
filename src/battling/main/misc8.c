@@ -92,11 +92,11 @@ typedef struct {
 
 extern void func_800811AC(u8 *p);
 extern void func_800812BC(BattleTextList *p);
-extern void func_8008151C(BattleTextList *p);
+extern void BattleDrawTextList(BattleTextList *p);
 extern void func_8008162C(s32 *p, s32 a1);
 extern void func_80081A44(void);
 extern s32 BattleGetTextWidth(u32 a0);
-extern void func_8007EE08(s32 a0);
+extern void BattleSetTextColor(s32 a0);
 extern void func_80080F04(void);
 extern void *GetStringEntry(void *pStringData, u32 entry);
 extern s32 SystemRenderStringEntry(void *pCur, void *pCharBuffer, s32 mode, s32 flag);
@@ -411,7 +411,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc8", func_800812BC);
    running max, loop 2 stores max into entry->unk12 for the entries whose
    unk0 byte has bit 1; then the frame header stores, the p->unk0 width
    fixups, a 16-byte copy of the frame at 0x1C into 0x2C (p->saved =
-   p->frame gives retail's four lw then four sw) and func_8007EE08(0).
+   p->frame gives retail's four lw then four sw) and BattleSetTextColor(0).
    Learned: max must be s32, not s16 - as s16 gcc sign-extends max before
    the compare where retail sign-extends the fresh quotient.
    Remaining levers: (a) retail materialises p + 0x1C into $a0 once, before
@@ -463,7 +463,7 @@ void func_800812BC(BattleTextList *p) {
         p->unk16 = 0xA0 - p->unk0 / 2 - max;
     }
     p->saved = p->frame;
-    func_8007EE08(0);
+    BattleSetTextColor(0);
 }*/
 
 void BattleInitTextLists(void) {
@@ -479,7 +479,7 @@ void BattleInitTextLists(void) {
     func_80080F04();
 }
 
-void func_8008151C(BattleTextList *p) {
+void BattleDrawTextList(BattleTextList *p) {
     s32 i;
 
     if (p == 0) {
@@ -518,7 +518,7 @@ void func_8008151C(BattleTextList *p) {
    `for (off = 0; ...)`, the init clause written `i = 0, off = 0` and
    `off = 0, i = 0`, both declaration orders, and a while loop (97.47%) - the
    two loop-initialisation insns keep retail's order inverted.
-void func_8008151C(BattleTextList *p) {
+void BattleDrawTextList(BattleTextList *p) {
     s32 i;
     s32 off;
 
@@ -576,7 +576,7 @@ void BattleUpdateTextWindow(void) {
             }
             func_8008162C(p, D_800928FC);
         }
-        func_8008151C(D_80092734);
+        BattleDrawTextList(D_80092734);
     }
 }
 

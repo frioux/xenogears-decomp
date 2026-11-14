@@ -74,7 +74,7 @@ extern s32 D_80092938;
 extern u8 D_8006FF80[];
 extern u8 D_8006FF90[];
 
-void func_8007EE08(s32 arg);
+void BattleSetTextColor(s32 arg);
 void BattleClearTextSpriteEntries(void);
 void func_80080C48(s32 arg);
 void BattleSetScreenMode(s32 mode);
@@ -153,9 +153,9 @@ typedef struct {
 
 void BattleSetRowTextColor(Misc7Struct* p, s32 arg) {
     if (p->unk12 == arg) {
-        func_8007EE08(1);
+        BattleSetTextColor(1);
     } else {
-        func_8007EE08(0);
+        BattleSetTextColor(0);
     }
 }
 
@@ -169,7 +169,7 @@ void BattleDrawOptionRows0To4(Misc7Struct* p) {
     s32 value;
 
     BattleSetTextCursor(p->unk24 + p->unk28 - 0xA, p->unk14);
-    func_8007EE08(0);
+    BattleSetTextColor(0);
     BattleSetRowTextColor(p, 0);
     BattleDrawTextRight((u8*)BattleGetDifficultyText());
     BattleSetRowTextColor(p, 1);
@@ -193,14 +193,14 @@ void BattleDrawOptionRows0To4(Misc7Struct* p) {
         pText = D_8006FF68;
     }
     BattleDrawTextRight(pText);
-    func_8007EE08(0);
+    BattleSetTextColor(0);
 }
 
 void BattleDrawOptionRows0To2(Misc7Struct* p) {
     u8 buf[0x8];
 
     BattleSetTextCursor(p->unk24 + p->unk28 - 0xA, p->unk14);
-    func_8007EE08(0);
+    BattleSetTextColor(0);
     BattleDrawTextRight(D_8006FF7C);
     BattleSetRowTextColor(p, 1);
     BattleDrawTextRight(D_8009132C[D_80099DA2[0]]);
@@ -208,7 +208,7 @@ void BattleDrawOptionRows0To2(Misc7Struct* p) {
     BattleSetRowTextColor(p, 2);
     Sprintf(buf, D_8006FF60, D_80091300[D_80099D9A[0]]);
     BattleDrawTextRight(buf);
-    func_8007EE08(0);
+    BattleSetTextColor(0);
 }
 
 void BattleDrawVibrationOptions(void) {
@@ -234,7 +234,7 @@ void BattleDrawVibrationOptions(void) {
     } else {
         D_800916DC[0x14] |= 4;
     }
-    func_8007EE08(0);
+    BattleSetTextColor(0);
     flag = !(D_80092710 & 2);
     if (flag && D_80092754 == 0) {
         flag = 0;
@@ -255,7 +255,7 @@ void BattleDrawVibrationOptions(void) {
     } else {
         D_80091718[0x14] |= 4;
     }
-    func_8007EE08(0);
+    BattleSetTextColor(0);
     func_8007F258(D_80092938, 1);
 }
 
@@ -264,7 +264,7 @@ void BattleDrawOptionRows4To6(Misc7Struct* p) {
     u8* pText;
     u8 flag;
 
-    func_8007EE08(0);
+    BattleSetTextColor(0);
     BattleSetTextCursor(p->unk24 + p->unk28 - 0xA, p->unk14);
     BattleDrawTextRight(D_8006FF7C);
     BattleDrawTextRight(D_8006FF7C);
@@ -287,7 +287,7 @@ void BattleDrawOptionRows4To6(Misc7Struct* p) {
         pText = D_8006FFA4;
     }
     BattleDrawTextRight(pText);
-    func_8007EE08(0);
+    BattleSetTextColor(0);
 }
 
 s32 WorldMapInitializeModeWithActors(s32 value, s32 max, s32 flags) {

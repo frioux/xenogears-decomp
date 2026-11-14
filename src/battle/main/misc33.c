@@ -103,7 +103,7 @@ void BattleStepActorFadeOut(BattleMisc33Actor *p) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BE1C4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BE330);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BE538);
-void func_800BE6A0(s32 arg0, u8 *p, s32 n, s32 arg3) {
+void BattleWriteHexDigits(s32 arg0, u8 *p, s32 n, s32 arg3) {
     s32 i;
 
     for (i = 0; i != n; i++) {
@@ -118,7 +118,7 @@ void func_800BE6A0(s32 arg0, u8 *p, s32 n, s32 arg3) {
    local hoisted AFTER the entry test; declaring `last` before the loop puts it
    in front, and inlining `n - 1 - i` instead makes gcc hoist `n - 1` badly
    (73.06%).  Two instructions differ, no missing or extra insn.
-void func_800BE6A0(s32 arg0, u8 *p, s32 n, s32 arg3) {
+void BattleWriteHexDigits(s32 arg0, u8 *p, s32 n, s32 arg3) {
     s32 i;
     s32 last;
 
@@ -357,7 +357,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BEFF4);
    jal delay slot; ours allocates it straight to $a0 (so the slot gets a nop) and the
    sensor-table base lands in $a1 instead of $v1.  The sprite-table entry is the same
    0x1C-byte stride D_800C3EB0 table that func_800BF3EB8 walks, and the 4-bit key is
-   the (unkA8>>30) | ((unkAC&3)<<2) pairing seen in func_800BF2B8.  A permuter job.
+   the (unkA8>>30) | ((unkAC&3)<<2) pairing seen in BattleLoadActorArchiveFile.  A permuter job.
 void func_800BEFF4(s32 actorIndex) {
     Misc33Point *pSprite;
     u8 *pBase;
@@ -404,7 +404,7 @@ void BattleFaceTargetAndMeasureDistance(Misc33Point *p, s32 arg1) {
     SpritePlayAnimation(p, arg1);
     BattleSetStateStep(6);
 }
-void func_800BF2B8(Misc33Point *pSprite) {
+void BattleLoadActorArchiveFile(Misc33Point *pSprite) {
     s32 entry;
     void *pBuffer;
     u32 part;
