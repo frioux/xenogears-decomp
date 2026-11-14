@@ -58,18 +58,12 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B8068);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B8098);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B81BC);
 
-// 100.00% under gcc-2.7.2-cdk-psx and 77.69% under the unit preset (77.69 under
-// gcc 2.6.0 too): a PRESET_CDK function, not a source problem. Retail rebases the
-// tail once (addiu $s0,$s0,-0xBCC off the DISPENV base = D_800C3EB0) and then does
-// eight sh at 0xBD4-0xBDA and 0x4C44-0x4C4A off that register; plain 2.7.2 folds
-// base+offset into one absolute symbol address per store and maspsx expands each
-// through $at (16 insns instead of 11), whereas cdk emits the lui/addiu pair as two
-// RTL insns and gets retail's shape exactly, tail included. The pBase assignment
-// must stay after the SetGeomOffset call: that is what puts the three prologue
-// saves in retail's order. All five already-matched functions of this unit stay
-// 100.0 under cdk (try_flags.sh), so the unit can move presets; un-park this body
-// as-is when it does.
-/*
+// This unit is a cdk unit (XenoBattleTailCdk, per-file): retail rebases the tail
+// once (addiu $s0,$s0,-0xBCC off the DISPENV base = D_800C3EB0) and then does eight
+// sh off that register, where plain 2.7.2 folds base+offset into one absolute
+// address per store and maspsx expands each through $at (16 insns instead of 11).
+// The pBase assignment must stay after the SetGeomOffset call: that is what puts
+// the three prologue saves in retail's order.
 void func_800B8284(void) {
     u8 *pBase;
     u8 *pWork;
@@ -91,8 +85,6 @@ void func_800B8284(void) {
     *(s16 *)(pWork + 0x4C4A) = 0xD8;
     *(s16 *)(pWork + 0xBDA) = 0xD8;
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B8284);
 void func_800B8354(void) {
     while (ArchiveDataSync() != 0) {
         func_800BE790();

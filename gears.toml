@@ -150,7 +150,6 @@ build_variables = {
 paths = [
     "battle/main/misc26.",
     "battle/main/misc27_psx.",
-    "battle/main/misc29.",
     "battle/main/misc31.",
     "battle/main/misc32.",
     "battle/main/misc35."
@@ -387,4 +386,22 @@ build_variables = {
 }
 paths = [
     "battle/main/misc23.",
+]
+
+
+# battle/misc29 splits off XenoBattleTail for its compiler only: func_800B8284 is
+# 100.00% under cdk and 77.69% under 2.7.2 with the identical maspsx flags and body
+# (retail rebases the DISPENV tail once and stores eight `sh` off that register;
+# plain 2.7.2 folds base+offset into one absolute address per store, so maspsx
+# expands each through $at), while all five functions already matched in the unit
+# stay 100.0 under cdk. The maspsx flags must stay XenoBattleTail's - this is not
+# XenoGraphics' --aspsx-version=2.67. Placed last so it wins over the entry above.
+[[build_preset]]
+name = "XenoBattleTailCdk"
+build_variables = {
+    gcc = "gcc-2.7.2-cdk-psx",
+    maspsx_flags = "--dont-expand-li --use-comm-section --run-assembler"
+}
+paths = [
+    "battle/main/misc29.",
 ]
