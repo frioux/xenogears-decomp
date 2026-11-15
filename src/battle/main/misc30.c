@@ -687,6 +687,22 @@ void func_800BAF48(s32 index) {
         func_800BE790();
     }
 }
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800BB080);
+/* 72.77%: instruction for instruction the loop is retail's -- the same three
+   guard branches, the `addu s2,s0,s4` stolen into the first beq's delay slot,
+   the shared increment block and the tail call.  Two constant loads and the
+   frame are all that differ:
+     retail  ori v0,zero,0x8CB8 / addu v0,s0,v0 / sw zero,0(v0)
+     ours    li  s5,0x8000      / addu v0,s0,s5 / sw zero,3256(v0)
+   and retail re-materialises the loop bound (`li v0,3` before the bne) where
+   gcc hoists it into $s4.  The two hoists add $s5/$s6, so the frame is 0x30
+   against retail's 0x28, and the three branch targets are 4 bytes late.
+   Tried: inline store (gcc splits 0x8CB8 into 0x8000+0xCB8), a named pSlot2
+   local, both store orders, `i != 3` as a for-step vs. a body step, pointer
+   increments vs. an indexed slot, and a 4-minute permuter run (base=1104,
+   best=574) whose only scoring edit moved the second store out of the if --
+   not usable.  The remaining shape (two loop-invariant constants hoisted into
+   callee-saved registers) is a loop.c cost decision, not a source one.
 void func_800BB080(s32 arg0) {
     s32 i = 0;
     u8* pEntry = D_800C3EB0;
@@ -711,6 +727,7 @@ void func_800BB080(s32 arg0) {
     }
     BattleWaitForOtherActorAnimations(arg0);
 }
+*/
 void BattleActorSyncPositionFromModel(u8* pTask) {
     SpriteData* pSprite;
     u8* pScript;
