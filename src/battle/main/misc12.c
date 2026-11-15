@@ -47,11 +47,13 @@ extern BattleUnk170 D_800CCE08[];
 typedef struct {
     /* 0x00 */ u8 unk0[0x24];
     /* 0x24 */ u16 unk24;
-    /* 0x26 */ u8 unk26[0x2];
+    /* 0x26 */ u16 unk26;
     /* 0x28 */ u16 unk28;
-    /* 0x2A */ u8 unk2A[0x4];
+    /* 0x2A */ u16 unk2A;
+    /* 0x2C */ u16 unk2C;
     /* 0x2E */ u16 unk2E;
-    /* 0x30 */ u8 unk30[0x4];
+    /* 0x30 */ u16 unk30;
+    /* 0x32 */ u16 unk32;
     /* 0x34 */ u16 unk34;
     /* 0x36 */ u16 unk36;
     /* 0x38 */ u8 unk38[0x4];
@@ -74,7 +76,64 @@ extern void BattlePlaySoundIfEnabled(u8);
 extern u8 func_8008BED8(u8);
 extern void func_8008B908(u8);
 extern u8 D_800C3E29;
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80082820);
+extern void func_800826CC(u8);
+void func_80082820(u8 arg0) {
+    u8 a;
+
+    a = arg0;
+    switch (D_800D3014) {
+    case 4:
+    case 6:
+    case 7:
+        func_800826CC(a);
+        ((BattleActorSlots *)D_800C3EAC)->unk2DE[0] = 1;
+        break;
+    case 0:
+        if (((BattleActorSlots *)D_800C3EAC)->slot[a].unk26 == 0) {
+            ((BattleActorSlots *)D_800C3EAC)->unk2DD = 7;
+            break;
+        }
+        if (((BattleActorSlots *)D_800C3EAC)->unk2F6 != 0 && D_800C3E29 == 0) {
+            if (((BattleActorSlots *)D_800C3EAC)->slot[a].unk2E != 0) {
+                BattlePlaySoundIfEnabled(0x4F);
+            } else {
+                ((BattleActorSlots *)D_800C3EAC)->unk2DD = 1;
+            }
+            ((BattleActorSlots *)D_800C3EAC)->unk2F6 = 0;
+            break;
+        }
+        ((BattleActorSlots *)D_800C3EAC)->unk2F6 = 1;
+        BattlePlaySoundIfEnabled(0x4F);
+        break;
+    case 1:
+        if (((BattleActorSlots *)D_800C3EAC)->slot[a].unk32 == 0) {
+            ((BattleActorSlots *)D_800C3EAC)->unk2DD = 8;
+            break;
+        }
+        BattlePlaySoundIfEnabled(0x4F);
+        break;
+    case 2:
+        if (((BattleActorSlots *)D_800C3EAC)->slot[a].unk2C == 0) {
+            ((BattleActorSlots *)D_800C3EAC)->unk2DD = 9;
+            break;
+        }
+        if (((BattleActorSlots *)D_800C3EAC)->unk2F6 != 0 && D_800C3E29 == 2) {
+            ((BattleActorSlots *)D_800C3EAC)->unk2DD = 3;
+            ((BattleActorSlots *)D_800C3EAC)->unk2F6 = 0;
+            break;
+        }
+        ((BattleActorSlots *)D_800C3EAC)->unk2F6 = 1;
+        BattlePlaySoundIfEnabled(0x4F);
+        break;
+    case 3:
+        if (((BattleActorSlots *)D_800C3EAC)->slot[a].unk30 == 0) {
+            ((BattleActorSlots *)D_800C3EAC)->unk2DD = 4;
+            break;
+        }
+        BattlePlaySoundIfEnabled(0x4F);
+        break;
+    }
+}
 extern void BattleSetupActorSlotDisplay(u8);
 extern void func_80084A7C(u8);
 extern void func_80077698(void);
@@ -238,7 +297,67 @@ void func_80082F7C(u8 arg0) {
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_800830A8);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80083340);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80083580);
+extern u8 D_800C48EA;
+extern s32 func_8009A9D0(u8);
+void func_80083580(u8 arg0) {
+    u8 a;
+
+    a = arg0;
+    switch (D_800D3014) {
+    case 4:
+    case 6:
+    case 7:
+        if (func_8009A9D0(((BattleActorSlots *)D_800C3EAC)->unk2C0[0x13]) != 0) {
+            D_800C48EA = 0x40;
+        }
+        ((BattleActorSlots *)D_800C3EAC)->unk2DE[0] = 1;
+        break;
+    case 0:
+        if (((BattleActorSlots *)D_800C3EAC)->slot[a].unk36 == 0) {
+            ((BattleActorSlots *)D_800C3EAC)->unk2DD = 0x15;
+            break;
+        }
+        if (((BattleActorSlots *)D_800C3EAC)->unk2F6 != 0 && D_800C3E29 == 0) {
+            if (((BattleActorSlots *)D_800C3EAC)->slot[a].unk2E != 0) {
+                BattlePlaySoundIfEnabled(0x4F);
+            } else {
+                ((BattleActorSlots *)D_800C3EAC)->unk2DD = 0x10;
+            }
+            ((BattleActorSlots *)D_800C3EAC)->unk2F6 = 0;
+            break;
+        }
+        ((BattleActorSlots *)D_800C3EAC)->unk2F6 = 1;
+        BattlePlaySoundIfEnabled(0x4F);
+        break;
+    case 1:
+        if (((BattleActorSlots *)D_800C3EAC)->slot[a].unk34 == 0) {
+            ((BattleActorSlots *)D_800C3EAC)->unk2DD = 0x16;
+            break;
+        }
+        BattlePlaySoundIfEnabled(0x4F);
+        break;
+    case 3:
+        if (((BattleActorSlots *)D_800C3EAC)->slot[a].unk24 == 0) {
+            ((BattleActorSlots *)D_800C3EAC)->unk2DD = 0x18;
+            break;
+        }
+        if (((BattleActorSlots *)D_800C3EAC)->unk2F6 != 0 && D_800C3E29 == 3) {
+            if (((BattleActorSlots *)D_800C3EAC)->slot[a].unk28 != 0) {
+                BattlePlaySoundIfEnabled(0x4F);
+            } else {
+                ((BattleActorSlots *)D_800C3EAC)->unk2DD = 0x13;
+            }
+            ((BattleActorSlots *)D_800C3EAC)->unk2F6 = 0;
+            break;
+        }
+        ((BattleActorSlots *)D_800C3EAC)->unk2F6 = 1;
+        BattlePlaySoundIfEnabled(0x4F);
+        break;
+    case 2:
+        ((BattleActorSlots *)D_800C3EAC)->unk2DD = 0x12;
+        break;
+    }
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80083748);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80083948);
 u8 BattlePairTargetable(u8 arg0, u8 arg1) {
