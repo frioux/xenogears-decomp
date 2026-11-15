@@ -2,6 +2,7 @@
 #define _XENO_BATTLE_ACTOR_H
 
 #include "psyq/libgte.h"
+#include "field/actor.h"
 
 // A queued movement/rotation command, allocated by BattleAllocBlock and linked
 // into the owning sprite's p70 slot.
@@ -38,6 +39,39 @@ typedef struct {
     /* 0x74 */ BattleBlock* p74;
     /* 0x78 */ BattleBlock* p78;
 } BattleSprite; // Size: 0x7C
+
+// A 16.16 fixed-point vector as battle code reads it: the integer part of each
+// component is the high half of the word, so reading one is a halfword load at
+// +2/+6/+A.
+typedef struct {
+    /* 0x0 */ s16 xFrac;
+    /* 0x2 */ s16 xWhole;
+    /* 0x4 */ s16 yFrac;
+    /* 0x6 */ s16 yWhole;
+    /* 0x8 */ s16 zFrac;
+    /* 0xA */ s16 zWhole;
+} BattleFixed16Vector; // Size: 0xC
+
+// Battle-side view of a battle actor's sprite (SpriteData in
+// include/field/actor.h). Battle code reads the integer half of the 16.16
+// position and does a whole-word read-modify-write on the 0x3C flag word, which
+// the shared header's IVEC3 and bitfield spelling cannot express; that spelling
+// is left alone because other units' matches depend on it. Only the words
+// src/battle/main/misc28 touches are named.
+typedef struct {
+    /* 0x00 */ BattleFixed16Vector position;
+    /* 0x0C */ IVEC3 step;
+    /* 0x18 */ s32 moveSpeed;
+    /* 0x1C */ u32 gravity;
+    /* 0x20 */ SpriteDataI1* pBase;
+    /* 0x24 */ u8 unk24[0xE];
+    /* 0x32 */ s16 direction;
+    /* 0x34 */ u8 unk34[0x8];
+    /* 0x3C */ u32 flags;
+    /* 0x40 */ u8 unk40[0x60];
+    /* 0xA0 */ SVEC targetPosition;
+    /* 0xA6 */ u8 unkA6[0x2];
+} BattleSpriteState; // Size: 0xA8
 
 // A battle participant. D_800D3368[] holds one pointer per slot. Only the
 // fields read by src/battle/main/misc24 are named; other battle units reach

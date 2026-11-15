@@ -1,5 +1,6 @@
 #include "common.h"
 #include "field/actor.h"
+#include "battle/actor.h"
 #include "psyq/libgpu.h"
 
 // 16.16 fixed point; the integer part is the high half of the word.
@@ -72,8 +73,8 @@ extern void func_800B6F0C(void);
 extern void BattleStoreGfxOrderingTable(void);
 extern void BattleDestroyWorkTask(u8 *p);
 extern s32 SpriteComputeAngleFromPoints(s32 arg0, s32 arg1);
-extern s32 SpriteScaleValue(u8 *pActor, s32 arg1);
-extern void func_801FC4C4(s32 arg0, s32 arg1, void *pArg2, s32 arg3, s32 arg4, s32 arg5, s32 arg6, s32 arg7);
+extern s32 SpriteScaleValue(void *pSprite, s32 arg1);
+extern void func_801FC4C4(void *pArg0, void *pArg1, void *pBase, s32 arg3, s32 arg4, s32 arg5, s32 arg6, s32 arg7);
 extern void SpriteSetDirection(u8 *pActor, s16 arg1);
 extern void func_800223B0(u8 *pActor, s16 arg1);
 extern void SpriteSetSVec(SVECTOR *pVector, s16 x, s16 y, s16 z);
@@ -152,8 +153,8 @@ void func_800B6518(u8 *pActor) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc28", func_800B65B0);
-void BattleActorSetDirectionTowardPosition(u8 *p) {
-    u16 rot[3];
+void BattleActorSetDirectionTowardPosition(BattleSpriteState *pSprite) {
+    SVECTOR rot;
     VECTOR diff;
     VECTOR sq;
     SVECTOR vec;
@@ -163,21 +164,21 @@ void BattleActorSetDirectionTowardPosition(u8 *p) {
     s16 zero;
 
     zero = 0;
-    diff.vx = *(s16 *)(p + 0xA0) - *(s16 *)(p + 0x2);
-    diff.vy = *(s16 *)(p + 0xA2) - *(s16 *)(p + 0x6);
-    diff.vz = *(s16 *)(p + 0xA4) - *(s16 *)(p + 0xA);
+    diff.vx = pSprite->targetPosition.x - pSprite->position.xWhole;
+    diff.vy = pSprite->targetPosition.y - pSprite->position.yWhole;
+    diff.vz = pSprite->targetPosition.z - pSprite->position.zWhole;
     Square0(&diff, &sq);
     len = SquareRoot0(sq.vx + sq.vz);
-    rot[1] = -ratan2(diff.vz, diff.vx);
-    rot[2] = ratan2(diff.vy, len);
-    rot[0] = 0;
-    *(u16 *)(p + 0x32) = rot[1];
-    SpriteSetSVec(&vec, (*(s32 *)(p + 0x18) << 9) >> 16, zero, zero);
-    RotMatrix((SVECTOR *)rot, &mtx);
+    rot.vy = -ratan2(diff.vz, diff.vx);
+    rot.vz = ratan2(diff.vy, len);
+    rot.vx = 0;
+    pSprite->direction = rot.vy;
+    SpriteSetSVec(&vec, (pSprite->moveSpeed << 9) >> 16, zero, zero);
+    RotMatrix(&rot, &mtx);
     ApplyMatrix(&mtx, &vec, &out);
-    *(s32 *)(p + 0xC) = out.vx << 7;
-    *(s32 *)(p + 0x10) = out.vy << 7;
-    *(s32 *)(p + 0x14) = out.vz << 7;
+    pSprite->step.x = out.vx << 7;
+    pSprite->step.y = out.vy << 7;
+    pSprite->step.z = out.vz << 7;
 }
 void BattleScriptLoadFixed3(u32 *pOut, s8 *p) {
     p += (p[1] << 8) | (u8)p[0];
@@ -217,27 +218,27 @@ void BattleActorCopyVectorFromSource(SpriteData *pSprite) {
     pSprite->step.y = pSrc->step.y;
     pSprite->step.z = pSrc->step.z;
 }
-void BattleScriptCall8001FC4C4WithActorState(u8 *pActor, s8 *pArg) {
+void BattleScriptCall8001FC4C4WithActorState(SpriteData *pSprite, s8 *pArg) {
     s32 x2;
     s8 *p;
     s32 x1;
     s32 x3;
 
     p = pArg + ((pArg[1] << 8) | (u8)pArg[0]);
-    if (*(u16 *)(pActor + 0x3A) != 0) {
-        x1 = SpriteScaleValue(pActor, (p[1] << 3) | (u8)p[0]) << 8;
-        x2 = SpriteScaleValue(pActor, (u8)p[2]) << 16;
-        x3 = SpriteScaleValue(pActor, (u8)p[3]) << 16;
+    if (pSprite->field_0x3A != 0) {
+        x1 = SpriteScaleValue(pSprite, (p[1] << 3) | (u8)p[0]) << 8;
+        x2 = SpriteScaleValue(pSprite, (u8)p[2]) << 16;
+        x3 = SpriteScaleValue(pSprite, (u8)p[3]) << 16;
     } else {
         x1 = ((p[1] << 3) | (u8)p[0]) << 5;
         x2 = (u8)p[2] << 13;
         x3 = (u8)p[3] << 13;
     }
-    func_801FC4C4(*(u32 *)(*(u32 *)(pActor + 0x20) + 0x34), *(u32 *)(*(u32 *)(pActor + 0x20) + 0x2C),
-                  *(u32 *)(pActor + 0x20) + 0xC, x1, x2, x3, (u8)p[4] << 4, (u8)p[5] << 2);
-    *(u32 *)(*(u32 *)(pActor + 0x20) + 0x34) = 0;
-    *(u32 *)(*(u32 *)(pActor + 0x20) + 0x2C) = 0;
-    *(u32 *)(*(u32 *)(pActor + 0x20) + 0x30) = 0;
+    func_801FC4C4(pSprite->pBase->pDirTransforms, pSprite->pBase->pFramesData,
+                  &pSprite->pBase->transformMatrix, x1, x2, x3, (u8)p[4] << 4, (u8)p[5] << 2);
+    pSprite->pBase->pDirTransforms = NULL;
+    pSprite->pBase->pFramesData = NULL;
+    pSprite->pBase->pCurRenderFramesData = NULL;
 }
 void BattleScriptCall8001FC53CWithScaledBytes(u8 *pArg, s8 *p) {
     p += (p[1] << 8) | (u8)p[0];
@@ -253,31 +254,31 @@ void BattleMoveScreenImageToVram(void) {
     MoveImage(&rect, 0x2C0, 0x100);
     BattleCreateWorkTask();
 }
-void BattleSetRotationZFromVelocity(u8 *p) {
-    *(u16 *)(*(u32 *)(p + 0x20) + 4) = ratan2(*(s32 *)(p + 0x10) >> 8, *(s32 *)(p + 0xC) >> 8);
-    *(u32 *)(p + 0x3C) |= 0x10000000;
+void BattleSetRotationZFromVelocity(BattleSpriteState *pSprite) {
+    pSprite->pBase->rotation.z = ratan2(pSprite->step.y >> 8, pSprite->step.x >> 8);
+    pSprite->flags |= 0x10000000;
 }
-void BattleSetRotationXFromVelocity(u8 *p) {
-    *(u16 *)(*(u32 *)(p + 0x20) + 0) = ratan2(*(s32 *)(p + 0x14) >> 8, *(s32 *)(p + 0xC) >> 8);
-    *(u32 *)(p + 0x3C) |= 0x10000000;
+void BattleSetRotationXFromVelocity(BattleSpriteState *pSprite) {
+    pSprite->pBase->rotation.x = ratan2(pSprite->step.z >> 8, pSprite->step.x >> 8);
+    pSprite->flags |= 0x10000000;
 }
-void BattleSetRotationFromVelocity(u8 *p) {
+void BattleSetRotationFromVelocity(BattleSpriteState *pSprite) {
     VECTOR vec;
     VECTOR sq;
     s32 len;
 
-    vec.vx = *(s32 *)(p + 0xC) >> 8;
-    vec.vy = *(s32 *)(p + 0x10) >> 8;
-    vec.vz = *(s32 *)(p + 0x14) >> 8;
+    vec.vx = pSprite->step.x >> 8;
+    vec.vy = pSprite->step.y >> 8;
+    vec.vz = pSprite->step.z >> 8;
     if (vec.vz == 0) {
         vec.vz = 4;
     }
     Square0(&vec, &sq);
     len = SquareRoot0(sq.vx + sq.vz);
-    *(s16 *)(*(u32 *)(p + 0x20) + 0x2) = -ratan2(vec.vz, vec.vx);
-    *(s16 *)(*(u32 *)(p + 0x20) + 0x4) = ratan2(vec.vy, len);
-    *(s16 *)(*(u32 *)(p + 0x20) + 0x0) = 0;
-    *(u32 *)(p + 0x3C) |= 0x10000000;
+    pSprite->pBase->rotation.y = -ratan2(vec.vz, vec.vx);
+    pSprite->pBase->rotation.z = ratan2(vec.vy, len);
+    pSprite->pBase->rotation.x = 0;
+    pSprite->flags |= 0x10000000;
 }
 void BattleClearRecordTable8(SpriteData *pSprite) {
     s32 i;
