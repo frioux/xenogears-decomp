@@ -6,9 +6,6 @@
 #include "system/menu.h"
 #include "main/game.h"
 
-// tmp
-u_char MemberChangeMenuSwapCharacters(u_char, s32, s32, u_char, s32, s32);
-
 // Bit masks
 extern u_short D_801CB57C[];
 extern u_short D_8006F94C;
@@ -1964,80 +1961,70 @@ void MemberChangeMenuFreeCursors(void) {
 }
 
 
-INCLUDE_ASM("asm/member_change_menu/nonmatchings/main/misc", MemberChangeMenuSwapCharacters);
-// 98.22% (460 bytes): every instruction matches, only the s0-s4 assignment differs.
-// Original: canSwapSrc=s0, canSwapDst=s1, result=s2, srcIndex=s3, dstIndex=s4.
-// Ours:     result=s0, srcIndex=s1, dstIndex=s2, canSwapSrc=s3, canSwapDst=s4.
-// global.c orders allocnos by pri = floor_log2(n_refs) * n_refs / live_length, so
-// the two flags need n_refs == 4 (they measure 3: two defs + one use in the
-// `if (canSwapSrc && canSwapDst)` test). Every insn is already accounted for, so
-// the 4th mention must be one that final/reorg deletes. Tried and regressing:
-// else{TRUE} (94.23), duplicated cond block (83.02), an extra `|| canSwapDst` on
-// the src test (96.48), nested ifs (91.81), deferred TRUE inits (91.81),
-// declaration/initialisation order, int/u_char types, `== TRUE` tests,
-// gcc 2.7.2 (97.22) and 2.7.2-cdk (93.03), -O3 variants (63-71).
-// The n_refs theory above is falsified: giving ONE flag a 4th use
-// (`result = canSwapSrc & canSwapDst`) only moved that flag from s3/s4 to
-// s4/s3 - both flags still sat below result/srcIndex/dstIndex, and giving both
-// flags three extra uses scattered the whole set (result s0, src s2, dst s3,
-// canSwapDst s1, canSwapSrc s4). So the allocation is not a monotone function
-// of n_refs; the original order (flags first, result third) is not reachable by
-// ref-count or declaration-order tweaks.
-// u_char MemberChangeMenuSwapCharacters(u_char isBenchedWindowActive, s32 curCharIndex, s32 curCharOffset, u_char isSelectedCharOnBenchedWindow, s32 selectedCharIndex, s32 selectedCharOffset) {
-//     u_char srcIndex;
-//     u_char dstIndex;
-//     int result;
-//     u_char canSwapSrc;
-//     u_char canSwapDst;
-//     u_char numPartyCharacters;
-//     u_char tmp;
-//     s32 i;
-//
-//     result = FALSE;
-//     canSwapSrc = TRUE;
-//     canSwapDst = TRUE;
-//
-//     if (!isBenchedWindowActive) {
-//         srcIndex = curCharIndex;
-//         dstIndex = selectedCharIndex + selectedCharOffset;
-//     } else {
-//         srcIndex = selectedCharIndex;
-//         dstIndex = curCharIndex + curCharOffset;
-//     }
-//
-//     if (g_Menu->pManager->currentCharacterIDs[srcIndex] == 0xFF ||
-//         MemberChangeMenuIsCharacterFlagSet(D_8006F94C, g_Menu->pManager->currentCharacterIDs[srcIndex])) {
-//         canSwapSrc = FALSE;
-//     }
-//
-//     if (g_Menu->unk1E14[dstIndex] == 0xFF ||
-//         MemberChangeMenuIsCharacterFlagSet(D_8006F94C, g_Menu->unk1E14[dstIndex])) {
-//         canSwapDst = FALSE;
-//     }
-//
-//     if (canSwapSrc && canSwapDst) {
-//         tmp = g_Menu->pManager->currentCharacterIDs[srcIndex];
-//         g_Menu->pManager->currentCharacterIDs[srcIndex] = g_Menu->unk1E14[dstIndex];
-//         g_Menu->unk1E14[dstIndex] = tmp;
-//
-//         numPartyCharacters = 0;
-//         for (i = 0; i < MAX_PARTY_MEMBERS; i++) {
-//             if (g_Menu->pManager->currentCharacterIDs[i] != 0xFF) {
-//                 numPartyCharacters++;
-//             }
-//         }
-//
-//         result = TRUE;
-//         if (numPartyCharacters == 0) {
-//             tmp = g_Menu->pManager->currentCharacterIDs[srcIndex];
-//             g_Menu->pManager->currentCharacterIDs[srcIndex] = g_Menu->unk1E14[dstIndex];
-//             g_Menu->unk1E14[dstIndex] = tmp;
-//             result = FALSE;
-//         }
-//     }
-//
-//     return result;
-// }
+u_char MemberChangeMenuSwapCharacters(u_char isBenchedWindowActive, s32 curCharIndex, s32 curCharOffset, u_char isSelectedCharOnBenchedWindow, s32 selectedCharIndex, s32 selectedCharOffset) {
+    u_char canSwapSrc;
+    u_char canSwapDst;
+    int result;
+    u_char srcIndex;
+    u_char dstIndex;
+    u_char numPartyCharacters;
+    u_char tmp;
+    s32 i;
+
+    // The do/while(0) blocks in this function are load-bearing: they split the
+    // statement groups so that gcc 2.6.0 reproduces retail's s0-s4 allocation
+    // (canSwapSrc=s0, canSwapDst=s1, result=s2, srcIndex=s3, dstIndex=s4).
+    do {
+        result = FALSE;
+        canSwapSrc = TRUE;
+        canSwapDst = TRUE;
+    } while (0);
+
+    if (!isBenchedWindowActive) {
+        srcIndex = curCharIndex;
+        dstIndex = selectedCharIndex + selectedCharOffset;
+    } else {
+        srcIndex = selectedCharIndex;
+        dstIndex = curCharIndex + curCharOffset;
+    }
+
+    if (g_Menu->pManager->currentCharacterIDs[srcIndex] == 0xFF ||
+        MemberChangeMenuIsCharacterFlagSet(D_8006F94C, g_Menu->pManager->currentCharacterIDs[srcIndex])) {
+        canSwapSrc = FALSE;
+    }
+
+    if (g_Menu->unk1E14[dstIndex] == 0xFF ||
+        MemberChangeMenuIsCharacterFlagSet(D_8006F94C, g_Menu->unk1E14[dstIndex])) {
+        canSwapDst = FALSE;
+    }
+
+    if (canSwapSrc && canSwapDst) {
+        tmp = g_Menu->pManager->currentCharacterIDs[srcIndex];
+        g_Menu->pManager->currentCharacterIDs[srcIndex] = g_Menu->unk1E14[dstIndex];
+        g_Menu->unk1E14[dstIndex] = tmp;
+
+        // i is zeroed ahead of the count init for the same allocator reason.
+        i = 0;
+        for (numPartyCharacters = 0; i < MAX_PARTY_MEMBERS; i++) {
+            if (g_Menu->pManager->currentCharacterIDs[i] != 0xFF) {
+                numPartyCharacters++;
+            }
+        }
+
+        result = TRUE;
+        if (numPartyCharacters == 0) {
+            // Same load-bearing do/while(0) as above.
+            do {
+                tmp = g_Menu->pManager->currentCharacterIDs[srcIndex];
+                g_Menu->pManager->currentCharacterIDs[srcIndex] = g_Menu->unk1E14[dstIndex];
+            } while (0);
+            g_Menu->unk1E14[dstIndex] = tmp;
+            result = FALSE;
+        }
+    }
+
+    return result;
+}
 
 void MemberChangeMenuMainLoop(void) {
     int i;
