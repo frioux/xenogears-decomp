@@ -122,14 +122,14 @@ extern int rand(void);
 
 void WorldMapRelocateMapEntryOffsets(void) {
     WorldMapTableEntry* pEntry;
-    u_char* pBase;
+    s32 base;
     s32 i;
 
-    pBase = D_8009C7EC;
-    pEntry = (WorldMapTableEntry*)pBase;
+    base = (s32)D_8009C7EC;
+    pEntry = (WorldMapTableEntry*)D_8009C7EC;
     for (i = 0; i < 0x100; i++, pEntry++) {
         if (pEntry->offset != 0) {
-            pEntry->offset += (s32)pBase;
+            pEntry->offset += base;
         }
     }
     for (i = 0; i < 0x10; i++) {
@@ -492,24 +492,22 @@ s32 WorldMapSetSceneLayerRotMatrices(s32 index) {
 }
 
 void WorldMapBuildBasisMatrix(VECTOR* pVec, VECTOR* pWork, MATRIX* pMat) {
-    s16* pOut = (s16*)pMat;
-
     pWork->vz = 0;
     pWork->vx = 0;
     pWork->vy = 0x1000;
     OuterProduct12(pWork, pVec, pWork);
     VectorNormal(pWork, pWork);
-    pOut[0] = pWork->vx;
-    pOut[1] = pWork->vy;
-    pOut[2] = pWork->vz;
+    pMat->m[0][0] = pWork->vx;
+    pMat->m[0][1] = pWork->vy;
+    pMat->m[0][2] = pWork->vz;
     OuterProduct12(pVec, pWork, pWork);
     VectorNormal(pWork, pWork);
-    pOut[3] = pWork->vx;
-    pOut[4] = pWork->vy;
-    pOut[5] = pWork->vz;
-    pOut[6] = pVec->vx;
-    pOut[7] = pVec->vy;
-    pOut[8] = pVec->vz;
+    pMat->m[1][0] = pWork->vx;
+    pMat->m[1][1] = pWork->vy;
+    pMat->m[1][2] = pWork->vz;
+    pMat->m[2][0] = pVec->vx;
+    pMat->m[2][1] = pVec->vy;
+    pMat->m[2][2] = pVec->vz;
     TransposeMatrix(pMat, pMat);
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_80087C6C);
