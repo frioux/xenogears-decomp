@@ -77,7 +77,7 @@ extern u8 func_8008BED8(u8);
 extern void func_8008B908(u8);
 extern u8 D_800C3E29;
 extern void func_800826CC(u8);
-void func_80082820(u8 arg0) {
+void BattleAdvanceSlotMenuState(u8 arg0) {
     u8 a;
 
     a = arg0;
@@ -299,7 +299,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_800830A8);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80083340);
 extern u8 D_800C48EA;
 extern s32 func_8009A9D0(u8);
-void func_80083580(u8 arg0) {
+void BattleAdvanceSlotMenuStateRandom(u8 arg0) {
     u8 a;
 
     a = arg0;
@@ -360,7 +360,7 @@ void func_80083580(u8 arg0) {
 }
 extern void BattleLoadStringTable96(u8);
 extern u8 func_8008CFB8(u8);
-void func_80083748(u8 arg0) {
+void BattleAdvanceSlotMenuStateText(u8 arg0) {
     u8 a;
 
     a = arg0;
@@ -656,7 +656,7 @@ extern void func_800BC404(u16);
 extern void func_800BCD98(u16);
 extern void BattleUpdateFrame(void);
 extern u8 func_80084854(u8, u8);
-s32 func_80084B40(u8 arg0) {
+s32 BattleSelectTargetSlotLoop(u8 arg0) {
     u8 b;
     u8 m;
     u8 state;

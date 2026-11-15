@@ -169,7 +169,7 @@ extern s32 D_800B007C;
 
 extern void WorkListsFreeAllEntries(void);
 extern void GfxFlushImageList(void);
-extern void func_800250E0(int context);
+extern void GfxSetRenderContext(int context);
 extern void GfxFreeWorkBuffers(void);
 extern void FieldFreeActorData(int actorIndex);
 extern void ModelRestorePartVertices(void* pBackup);
@@ -206,7 +206,7 @@ void FieldFree(void) {
     do {
         GfxFlushImageList();
         DrawSync(0);
-        func_800250E0((g_FieldCurRenderContextIndex + ++i) & 1);
+        GfxSetRenderContext((g_FieldCurRenderContextIndex + ++i) & 1);
         GfxFlushImageList();
         DrawSync(0);
         GfxFreeWorkBuffers();

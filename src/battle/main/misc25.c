@@ -122,7 +122,7 @@ s32 BattleResolveTargetSlot(BattleActor *pActor, u32 id, u16 *pOut) {
     return id & 0xFF;
 }
 extern BattleTableEntry D_800CCD1E[];
-extern u8 func_8009C050(u8);
+extern u8 BattleGetActorActionConditionMask(u8);
 
 s32 BattleGetActorActionEntry(BattleActor *pActor, u32 id, s32 *pOut) {
     u32 sel = id;
@@ -131,7 +131,7 @@ s32 BattleGetActorActionEntry(BattleActor *pActor, u32 id, s32 *pOut) {
     *pOut = 0;
     if ((sel & 0xFF) >= 0xFE) {
         if ((sel & 0xFF) == 0xFF) {
-            kind = func_8009C050(pActor->unk20[0]);
+            kind = BattleGetActorActionConditionMask(pActor->unk20[0]);
             if ((kind & 4) && (pActor->flags4A & 0x100)) {
                 pActor->unk2A[0] = 0x1B;
             } else if ((kind & 2) && (pActor->flags4A & 0x80)) {

@@ -604,7 +604,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009BD94);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009BE0C);
 // Spell each offset from D_800CCCE8 itself: through a `base` local gcc
 // reassociates base + 0xA4 + idx to base + (idx + 0xA4), wrong register.
-u8 func_8009C050(u8 arg0) {
+u8 BattleGetActorActionConditionMask(u8 arg0) {
     s32 idx = arg0 * 0x170;
     u8* base = D_800CCCE8;
     u8* pTimer = D_800CCCE8 + 0xA4 + idx;

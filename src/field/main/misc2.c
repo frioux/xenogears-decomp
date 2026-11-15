@@ -1066,7 +1066,7 @@ void func_800752C8(void) {
         return;
     }
 
-    func_800250E0(g_FieldCurRenderContextIndex);
+    GfxSetRenderContext(g_FieldCurRenderContextIndex);
     GfxSetCurrentOT(g_FieldCurRenderContext->ot1);
     GfxSetBaseMatrix(&g_Scene.worldToScreenMatrix);
     SpriteAnimFrameListFlush();

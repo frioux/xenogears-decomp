@@ -35,10 +35,10 @@ extern void func_8008860C(void);
 extern void BattleBuildFlaggedSlotSpriteColumn(void);
 extern void BattleBuildBlendedSprite(void);
 extern void func_800891E4(void);
-extern void func_80089348(void);
+extern void BattleBuildGrey80BlendSpriteColumn5(void);
 extern void func_8008946C(void);
 extern void func_8008963C(void);
-extern void func_800897CC(void);
+extern void BattleBuildGrey80BlendSpriteColumn2(void);
 extern void func_8008A3EC(u8 arg0);
 extern void BattleUpdateImageUpload(u8 arg0);
 extern void func_8008A684(u8 arg0);
@@ -145,7 +145,7 @@ void func_800891E4(void) {
     }
 }
 */
-void func_80089348(void) {
+void BattleBuildGrey80BlendSpriteColumn5(void) {
     s32 i = 0;
     s32 pitch = 0x11A << 16;
     s32 off;
@@ -198,7 +198,7 @@ void func_8008963C(void) {
 }
 */
 
-void func_800897CC(void) {
+void BattleBuildGrey80BlendSpriteColumn2(void) {
     s32 i = 0;
     s32 pitch = 0x11A << 16;
     s32 off;
@@ -262,10 +262,10 @@ void BattleBuildSpritePrimLists(void) {
     BattleBuildFlaggedSlotSpriteColumn();
     BattleBuildBlendedSprite();
     func_800891E4();
-    func_80089348();
+    BattleBuildGrey80BlendSpriteColumn5();
     func_8008946C();
     func_8008963C();
-    func_800897CC();
+    BattleBuildGrey80BlendSpriteColumn2();
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc14", func_80089B50);
 // Best attempt: objdiff 90.38%, 144 bytes (the original size). Everything up to the

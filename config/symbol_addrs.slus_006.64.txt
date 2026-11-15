@@ -1382,3 +1382,4 @@ SpriteAnimPackageGetFrameCount = 0x8001EE74;
 SpriteNextVramSlot = 0x8001F530;
 SpriteApplyFrameDirTransforms = 0x8001F8E8;
 SoundSpuMemoryAllocateBlockFit = 0x800394B8;
+GfxSetRenderContext = 0x800250E0;

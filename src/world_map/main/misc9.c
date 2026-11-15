@@ -350,7 +350,7 @@ s32 WorldMapInitSlotAngleStep8(s32 index) {
     pSlot->unk54 = 8;
     return 1;
 }
-s32 func_80087734(s32 index) {
+s32 WorldMapUpdateSlotRotationMatrices(s32 index) {
     WorldMapSlot* pSlot = (WorldMapSlot*)(D_8009BE24 + index * 0x80);
     SVECTOR* pVec0 = (SVECTOR*)0x1F8000A0;
     SVECTOR* pVec1 = (SVECTOR*)0x1F8000A8;
@@ -378,7 +378,7 @@ s32 func_800877E0(s32 index) {
     return 1;
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_80087804);
-// Best: 87.50%. Family of func_80087734: angle update, two scratchpad SVECTORs
+// Best: 87.50%. Family of WorldMapUpdateSlotRotationMatrices: angle update, two scratchpad SVECTORs
 // (0x1F8000A0 / 0x1F8000A8) fed to RotMatrix with D_8009C620 +
 // D_8009B624[..]*0x54 + 0x20 / D_8009B626[..]*0x54 + 0x20, plus the lhu 0x1A of
 // each entry. Everything matches (frame 0x20 via the unused long[2]) except that
@@ -453,7 +453,7 @@ s32 WorldMapSetSceneLayerTPages(s32 index) {
     WorldMapSetSlotTPages(pEntry2, *(u8**)(pEntry2 + 0x48), *(u16*)(*(u8**)(pEntry2 + 0x40) + 4), 3);
     return 1;
 }
-s32 func_80087A8C(s32 index) {
+s32 WorldMapSetSceneLayerRotMatrices(s32 index) {
     WorldMapSlot* pSlot = (WorldMapSlot*)(D_8009BE24 + index * 0x80);
     u8* pSrc = D_8009C620;
     s32 entryIndex = D_8009C610 * 2;

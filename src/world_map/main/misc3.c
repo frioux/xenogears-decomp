@@ -416,7 +416,7 @@ extern void func_80075228(void);
 extern void WorldMapModeInitFadeRect(void);
 extern void func_800925A0(void);
 extern void WorldMapInitSlotAngleStep8(void);
-extern void func_80087734(void);
+extern void WorldMapUpdateSlotRotationMatrices(void);
 extern void WorldMapModeInitNop(void);
 extern void WorldMapUpdateFrameWithSlotProjection(void);
 extern void WorldMapEnterNop(void);
@@ -477,7 +477,7 @@ void WorldMapInitializeMode(void) {
     } while (WorldMapGetQueuedLoadCount() > 0);
     WorldMapAddSlot((void*)WorldMapModeInitFadeRect, (void*)func_800925A0);
     WorldMapAddSlot((void*)func_8007756C, (void*)func_800776E0);
-    WorldMapAddSlot((void*)WorldMapInitSlotAngleStep8, (void*)func_80087734);
+    WorldMapAddSlot((void*)WorldMapInitSlotAngleStep8, (void*)WorldMapUpdateSlotRotationMatrices);
     WorldMapAddSlot((void*)WorldMapModeInitNop, (void*)WorldMapUpdateFrameWithSlotProjection);
     func_800978FC();
     func_8008901C();

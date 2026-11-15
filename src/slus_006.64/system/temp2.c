@@ -106,7 +106,7 @@ typedef struct {
 // D_80059524 is a tentative definition so maspsx emits %gp_rel for it.
 s32 D_80059524;
 
-void func_800250E0(int context) {
+void GfxSetRenderContext(int context) {
     s32* pLists;
     LinkedListEntry* pCurEntry;
     void* pPrimBuffer;
@@ -965,7 +965,7 @@ void ResourceHelperNoOp(void) {
 //
 // Un-park screen: cdk 68.00%, gcc-2.6.0 67.64%, gcc-2.7.2 67.82%, cdk -G0
 // 67.17% - no compiler switch helps; it is the GP-rel split below.
-// Best 68.00%: blocked on the same GP-rel split as func_800250E0. The original
+// Best 68.00%: blocked on the same GP-rel split as GfxSetRenderContext. The original
 // object reads g_GfxCurWorkBuffer and g_GfxCurWorkBufferEnd with lui/%hi+%lo
 // here (they were externs in this function's original TU), but the matched
 // functions 80025180/800251C8/8002541C/80025544 need %gp_rel for both, which
