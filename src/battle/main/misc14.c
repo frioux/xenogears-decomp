@@ -45,6 +45,21 @@ extern void func_8008A684(u8 arg0);
 extern int rand(void);
 extern u8 *D_800C3EA4;
 extern u8 *D_800D2D28;
+extern u8 D_800C3444;
+extern u8 *D_800D3278;
+extern u8 D_800C48EA;
+extern u8 D_800D3014;
+extern s32 *D_8005917C;
+extern u16 g_C1ButtonStatePressedOnce;
+extern u16 g_C1ButtonStateReleased;
+extern int D_80059488;
+extern int ControllerGetType(int controllerIndex);
+extern int ControllerIsStateStackFull(void);
+extern void ControllerResetState(void);
+extern int ControllerPopState(void);
+extern void GraphicsDrawPauseLetters(int x, int y);
+extern void SoundMuteAllSpuChannels(void);
+extern void SoundEnableAllSpuChannels(void);
 extern u8 D_800C3CF8[];
 extern u8 D_800C3CFB[];
 extern u8 D_800CCC58;
@@ -391,6 +406,110 @@ void BattleUpdateImageUpload(u8 arg0) {
     }
     BattleUploadImageFrame();
 }
+// The prim pool's head is a 0x38-stride table of per-slot records; only the two
+// fields this unit touches are named (see BattlePrimPool for the pool tail).
+typedef struct {
+    /* 0x00 */ u8 unk0[0x26];
+    /* 0x26 */ s16 unk26;
+    /* 0x28 */ u8 unk28;
+    /* 0x29 */ u8 unk29[0xF];
+} BattlePrimPoolSlot; // Size: 0x38
+
+// Best attempt: objdiff 97.61%, 672 bytes (the original is 664). Whole function is
+// reconstructed; every block, every call and both loops are present. Two differences:
+// (a) the 0x10-slot loop over the prim pool (D_800D3278, 0x38-stride records) - retail
+// has i++ as the first insn of the if-body, so reorg steals it into the beqz delay slot
+// and copies the loop test slti into the bgez delay slot; every C form tried here puts
+// i++ just before the test, leaving two nops (+8 bytes). That is the BLOCK_ROTATION
+// shape, not movable by hand: indexed pSlot[i] gives retail's 0x26/0x28 displacements
+// (pointer pSlot++ rebases the biv onto unk26 and drops to 95.93%), and for / while /
+// do-while all give the same tail. (b) S-register tie: retail has the mute flag in s0
+// and the wait flag in s1, gcc swaps them; declaration order, init order and s32 vs u8
+// (which also drops retail's andi) do not change the tie.
+/*
+void func_8008A3EC(u8 arg0) {
+    s32 i;
+    BattlePrimPoolSlot *pSlot;
+    s32 channelMask;
+    u8 muted;
+    u8 waiting;
+
+    waiting = 1;
+    muted = 0;
+    do {
+        if (ControllerGetType(0) == 0) {
+            if (muted == 0) {
+                GraphicsDrawPauseLetters(0x88, 0x64);
+                GraphicsDrawPauseLetters(0x88, 0x144);
+                SoundMuteAllSpuChannels();
+                muted++;
+                channelMask = D_80059488;
+            }
+        } else {
+            if (waiting != 0) {
+                SoundEnableAllSpuChannels();
+                D_80059488 = channelMask;
+            }
+            waiting = 0;
+        }
+    } while (waiting != 0);
+
+    BattleUploadImageFrame();
+    if (D_800D2D28[0xCA] != 0) {
+        pSlot = (BattlePrimPoolSlot *)D_800D3278;
+        for (i = 0; i < 0x10; i++) {
+            if (pSlot[i].unk28 != 0) {
+                if (--pSlot[i].unk26 < 0) {
+                    pSlot[i].unk26 = 0;
+                }
+            }
+        }
+    }
+
+    muted = 1;
+    do {
+        if (D_800D2D28[0xCF] == 0) {
+            D_800D3014 = 0xFF;
+        }
+        if (ControllerIsStateStackFull() != 0) {
+            ControllerResetState();
+        } else {
+            while (ControllerPopState() != 0) {
+                if (D_800C3444 != 0) {
+                    if (*D_8005917C != -1) {
+                        if ((g_C1ButtonStatePressedOnce & 4) != 0) {
+                            if ((g_C1ButtonStatePressedOnce & 8) != 0) {
+                                D_800C48EA = muted;
+                                SoundEnableAllSpuChannels();
+                                D_80059488 = channelMask;
+                                D_800C3444 = 0;
+                                break;
+                            }
+                        }
+                    }
+                } else if ((g_C1ButtonStateReleased & 0x20) != 0) {
+                    D_800D3014 = 4;
+                    break;
+                }
+                if ((g_C1ButtonStateReleased & 0x800) != 0 && D_800CCC58 != 0) {
+                    if (D_800C3444 == 0) {
+                        SoundMuteAllSpuChannels();
+                        GraphicsDrawPauseLetters(0x88, 0x64);
+                        GraphicsDrawPauseLetters(0x88, 0x144);
+                        channelMask = D_80059488;
+                        D_800C3444 = muted;
+                    } else {
+                        SoundEnableAllSpuChannels();
+                        D_80059488 = channelMask;
+                        D_800C3444 = 0;
+                    }
+                    break;
+                }
+            }
+        }
+    } while (D_800C3444 != 0);
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc14", func_8008A3EC);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc14", func_8008A684);
 void BattleUpdateEffectByScreenMode(u8 arg0) {
