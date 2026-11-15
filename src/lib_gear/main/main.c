@@ -1178,24 +1178,41 @@ s16 LibGearInterpolateFallClamped(s16 a, s16 b, s16 c) {
 
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E0A00);
 
-// objdiff 87.69%, 1016 bytes against retail's 1028. The whole structure is
+// objdiff 88.98%, 1048 bytes against retail's 1028. The whole structure is
 // reproduced: the unk14/unk16 frame advance with the unk24 callback, the
 // flush-on-negative path, the unk18 latch, the four-way unk10 dispatch (0,1,4,5
 // as a compare tree - matches a switch), the shared LoadImage tail of cases 0/1,
-// the clipped copy rectangle (which retail really does keep in two RECT locals -
+// the clipped copy rectangle (retail really does keep it in two RECT locals -
 // that is what makes the sh/lh off sp 0x18..0x26 and the oversized 0x78 frame
 // match exactly), the unk11=1 flag, the unk10<4 two-loop split and the 6-byte
 // row pitch of the pUnk1C path. pDstBase/pSrcBase locals cost the two hoisted
 // `lw 4(t1)` / `lw 12(s0)`.
-// What is left is the inner-loop address arithmetic: retail sums the column part
-// into the base first (`addu a0,dstX<<1,t3` then `addu a0,x<<1,a0`) and adds the
-// row product LAST, i.e. offset-first addu operands; ours emits base-first
-// (`addu v1,t3,dstX<<1`) even though the row product is added last as well.
+// FINDINGS from this round:
+// 1. The old body's second loop was WRONG: retail applies the destination row
+//    product there too (`lh v0,0x22(sp); lh v1,0x2c(t1); mult`), so both loops
+//    store to pDstBase + (dstY+y)*pSource->rect.w + dstX + x.
+// 2. The addu operand order IS controllable, in the mirror direction of the
+//    documented embedded-assignment lever: `dstX*2 + (u32)base` keeps
+//    retail's offset-first `addu a0,a0,t3`, while every pointer expression
+//    (`base + x`, `x + base`, `p[i]`, `((u8*)base + i)`) collapses to the
+//    same base-first `addu v1,t3,dstX<<1` however it is spelled. The pointer
+//    form also has to be a per-term scaled sum plus the row product last, so
+//    the u32 locals below are what reproduces retail's five addu sites.
+// WHAT IS LEFT: the unk18 early-exit costs 3 instructions more than retail's
+// single `beq s1,v0,.epilogue` (ours: `bne` + `j` + `addu v0,s1,zero`), and
+// retail's tail return truncates the raw callback result (`sll v0,s2,16` /
+// `sra`) at four exits while its negative exit is a plain `addu v0,s1,zero` -
+// so the returned expression at those sites is NOT the s16 local. Retail also
+// sign-extends the callback result explicitly, i.e. Temp8::unk24 returns
+// something wider than the s16 the header declares. Register allocation after
+// that (t1/t2 vs retail's t2/t3) is what is left of the loops.
 // Tried: `base + row*w + dstX + x` (row first, 85.01), the col-pointer +
-// `pDst[(dstY+y)*w]` subscript form (this body, 87.69), s16 loop counters
-// (much worse - the counters must be int).
-// A 3-minute permuter run (676 iterations, base 2411) reached 2131 only by
-// deleting the `return frame` of the unk18 early-exit, which is not a fix.
+// `pDst[(dstY+y)*w]` pointer/subscript forms (85.5-87.9), s16 loop counters
+// (much worse - the counters must be int), a nested `if (frame != unk18)`
+// single-exit body (85.5).
+// A 3-minute permuter run on the previous body (676 iterations, base 2411)
+// reached 2131 only by deleting the `return frame` of the unk18 early-exit,
+// which is not a fix.
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E1258);
 /*
 s16 func_801E1258(Temp8* pTexture, s32 frameStep) {
@@ -1209,6 +1226,8 @@ s16 func_801E1258(Temp8* pTexture, s32 frameStep) {
     u16* pSrcBase;
     u16* pDst;
     u16* pSrc;
+    u32 dstAddr;
+    u32 srcAddr;
 
     if (pTexture->unk1A == 0) {
         return -1;
@@ -1281,17 +1300,20 @@ s16 func_801E1258(Temp8* pTexture, s32 frameStep) {
         if (pSource->unk10 < 4) {
             for (y = 0; y < dstRect.h; y++) {
                 for (x = 0; x < dstRect.w; x++) {
-                    pDst = pDstBase + dstRect.x + x;
-                    pSrc = pSrcBase + srcRect.x + x;
-                    pDst[(dstRect.y + y) * pSource->rect.w] = pSrc[(srcRect.y + y) * pTexture->rect.w];
+                    dstAddr = dstRect.x * 2 + (u32)pDstBase;
+                    srcAddr = srcRect.x * 2 + (u32)pSrcBase;
+                    dstAddr = x * 2 + dstAddr;
+                    srcAddr = x * 2 + srcAddr;
+                    *(u16*)((dstRect.y + y) * pSource->rect.w * 2 + dstAddr) =
+                        *(u16*)((srcRect.y + y) * pTexture->rect.w * 2 + srcAddr);
                 }
             }
         } else {
             for (y = 0; y < dstRect.h; y++) {
                 for (x = 0; x < dstRect.w; x++) {
                     pDst = pDstBase + dstRect.x + x;
-                    pSrc = (u16*)pTexture->pUnk1C + 3 * (srcRect.y + y) + srcRect.x + x;
-                    *pDst = *pSrc;
+                    pSrc = (u16*)pTexture->pUnk1C + 3 * (srcRect.y + y) + (srcRect.x + x);
+                    pDst[(dstRect.y + y) * pSource->rect.w] = *pSrc;
                 }
             }
         }
