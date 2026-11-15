@@ -71,6 +71,9 @@ extern u8 D_800D3014;
 extern u8 D_800C3E29;
 extern u8 func_8008B478(u8 arg0);
 extern void BattlePlaySoundIfEnabled(u8 arg0);
+extern void BattleSetupActorSlotDisplay(u8 arg0);
+extern void func_80084A7C(u8 arg0);
+extern void func_80077698(void);
 
 /* 82.95%: best of 6 shapes. The loop body matches instruction for
    instruction (four reloads of the volatile counter, the two separate
@@ -167,16 +170,10 @@ void BattleAllocDrawBuffer(void) {
 
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_8007FF14);
-/* 91.69%: shapes exhausted (12 tries). The instruction multiset is nearly
-   identical; what is left is a rotation of the loop's register assignment -
-   retail has v=$a1, digits=$a0, i*4=$a2, quotient=$a3, mfhi=$v0, while gcc
-   gives v=$a2, digits=$a1, i*4=$a3, quotient=$a0, mfhi=$t3 (because $a3 is
-   taken by the strength-reduced i*4 biv). Declaration order, a base local,
-   u8 digits and s32 v all change nothing or make it worse (90.97/90.75/89.62).
-   Under gcc-2.7.2-cdk it is 93.74 (still not 100), so not a preset question.
-   Two instruction-order details remain: retail puts the division-by-10
-   dividend's andi after the magic-constant lui/ori and hoists sll v0,v1,2
-   into the bnez delay slot. */
+/* 91.69%: only a register rotation left (retail v=$a1, digits=$a0, i*4=$a2,
+   quotient=$a3, mfhi=$v0; ours shifts by one). 12 hand shapes tried plus a
+   4-minute permuter run (best score 948 vs base 971, and its "fix" was a no-op
+   if/else, so nothing to port). cdk gives 93.74, so not a preset question. */
 /*
 void func_8007FF14(u8 arg0) {
     s32 i;
@@ -214,8 +211,8 @@ void func_8007FF14(u8 arg0) {
         D_800D2D28[0xAD] = 1;
         D_800D2D28[0xC7] = 1;
     }
-}
-*/
+}*/
+
 
 
 void BattleResetActorDrawState(u8 arg0) {
@@ -378,8 +375,95 @@ u8 func_80080C94(u8 arg0) {
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_80080C94);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_8008115C);
+/* 88.35%: every case body is instruction-identical to retail except two
+   block-placement differences. (a) gcc cross-jumps all four plain
+   `D_800C3EAC[0x2DD] = N;` case tails into one shared store block at the end of
+   the function; retail keeps each store inline and only shares the
+   BattlePlaySoundIfEnabled call. (b) that shared call block: retail is
+   `jal; nop` with `li a0,0x4F` sitting in each predecessor's branch delay slot,
+   ours is `jal; li a0,0x4F` (reorg always steals the constant into the jal slot
+   when it is the last insn before the call). Same two shapes, unresolved, in
+   func_800816F8 (99.90%, JTBL-only there). Tried: literal vs. local argument,
+   both if/else orders, p/off locals vs. inline D_800C3EAC indexing. */
+/*
+void func_8008115C(u8 arg0) {
+    u8 a;
+    u8 *p;
+    s32 off;
+
+    a = arg0;
+    switch (D_800D3014) {
+    case 4:
+    case 6:
+    case 7:
+        p = D_800C3EAC;
+        off = a * 0x40;
+        if (p[off + 0x3C] == 0xFF) {
+            BattlePlaySoundIfEnabled(0x4F);
+        } else {
+            D_800D366C = 0;
+            BattleSetupActorSlotDisplay(a);
+            func_80084A7C(a);
+            func_80077698();
+            D_800C3EAC[0x2DD] = 5;
+        }
+        break;
+    case 1:
+        p = D_800C3EAC;
+        off = a * 0x40;
+        if (*(u16 *)(p + off + 0x32) != 0) {
+            BattlePlaySoundIfEnabled(0x4F);
+        } else {
+            D_800C3EAC[0x2DD] = 2;
+        }
+        break;
+    case 2:
+        D_800C3EAC[0x2DD] = 3;
+        break;
+    case 3:
+        p = D_800C3EAC;
+        off = a * 0x40;
+        if (*(u16 *)(p + off + 0x30) == 0) {
+            D_800C3EAC[0x2DD] = 4;
+            break;
+        }
+        if (p[0x2F6] != 0 && D_800C3E29 == 3) {
+            if (*(u16 *)(p + off + 0x2A) != 0) {
+                BattlePlaySoundIfEnabled(0x4F);
+            } else {
+                D_800C3EAC[0x2DD] = 0xA;
+            }
+            D_800C3EAC[0x2F6] = 0;
+        } else {
+            D_800C3EAC[0x2F6] = 1;
+            BattlePlaySoundIfEnabled(0x4F);
+        }
+        break;
+    case 0:
+        p = D_800C3EAC;
+        off = a * 0x40;
+        if (*(u16 *)(p + off + 0x26) != 0) {
+            BattlePlaySoundIfEnabled(0x4F);
+        } else {
+            D_800C3EAC[0x2DD] = 7;
+        }
+        break;
+    }
+}*/
+
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_80081318);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_80081504);
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_800816F8);
+/* 99.90% and JTBL_LAYOUT: with the switch converted, the C jump table is
+   emitted with `.align 3` at object offset 0x1F4, so cc1 inserts a 4-byte pad
+   word and the unit's .rodata becomes 0x278 instead of 0x274 - check_bin.sh
+   battle then reports MISMATCH (build/out/battle.bin is 4 bytes long) while
+   every instruction of the function is byte-identical. The table cannot be
+   moved to an 8-aligned offset: the three 0x20-byte asm tables before it
+   (func_8008115C/80081318/80081504) plus func_80080160's 0x194 table put it at
+   0x1F4, and the backend hardcodes the table alignment. Only convertible
+   together with a change that makes the offset 8-aligned. Best body kept. */
+/*
 void func_800816F8(u8 arg0) {
     u8 a;
     u8 *p;
@@ -438,7 +522,8 @@ void func_800816F8(u8 arg0) {
         BattlePlaySoundIfEnabled(0x4F);
         break;
     }
-}
+}*/
+
 void BattleInitTargetSlotFlags(s32 arg0) {
     s32 i;
 
