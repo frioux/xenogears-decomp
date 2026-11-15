@@ -245,17 +245,7 @@ void WorldMapUpdateFrameAnimEntries(void) {
         }
     }
 }
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc2", func_80075228);
 
-/* 94.80%: the clear loop and the 0x300/0x180 selection match; every remaining
-   slot is gcc's constant CSE (`li v1,1` for D_8009D64C then a fresh `li v0,1`
-   for D_8009BCC4 in retail, one shared register here, which also moves the
-   width value from v0 to v1). Reading g_GameState.unk1834 into a `u16 flags`
-   local *before* the D_8009D64C store is what puts the `lhu` ahead of it, and
-   `if (!(flags & 0x4000)) w = 0x180; else w = 0x300;` is what produces retail's
-   `bnez` polarity. Also tried: ternary, direct store per branch, -O3 (85.8),
-   gcc-2.7.2-cdk (85.8), local vs literal constant, declaration order. The clear
-   loop must decrement a `s16*` local from D_8009C872, not index D_8009C854.
 void func_80075228(void) {
     s32 i;
     s32 screenWidth;
@@ -271,7 +261,9 @@ void func_80075228(void) {
     flags = g_GameState.unk1834;
     D_8009D64C = 1;
     if (!(flags & 0x4000)) {
-        screenWidth = 0x180;
+        // retail reuses the flags temporary's register for the width
+        flags = 0x180;
+        screenWidth = flags;
     } else {
         screenWidth = 0x300;
     }
@@ -279,7 +271,6 @@ void func_80075228(void) {
     D_8009BCC4 = 1;
     D_8009D80C = 0;
 }
-*/
 
 void WorldMapUpdateRandomTimers(void) {
     s32 value;
