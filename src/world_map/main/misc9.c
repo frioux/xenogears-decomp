@@ -422,29 +422,23 @@ s32 func_80087804(s32 index) {
 }
 */
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_80087904);
-// Best: 98.83%. Everything matches (frame 0x30, all six saves in the right slots,
-// `bleq` delay slot holding sw s0, pSrc+7 materialised after the branch) except the
-// position of the s1 pair: retail emits sw s1/move s1,zero before the s2/s3 param
-// copies, gcc here emits it after them. Same instructions, different order.
-// Screen: cdk 92.05, 2.6.0 92.44 with the older shape; this shape is 98.83.
-/*
 void func_80087904(u8* pDst, u8* pSrc, s32 count, s32 abr) {
     long tmp[2]; // unused: reproduces retail's 0x30-byte stack frame
     u8* p;
+    s32 rows = count;
+    s32 tpageAbr = abr;
     s32 i = 0;
 
-    if (count > 0) {
+    if (rows > 0) {
         p = pSrc + 7;
         do {
-            *(u16*)(p + 0xF) = GetTPage(0, abr, 0x1A0, 0xA0);
+            *(u16*)(p + 0xF) = GetTPage(0, tpageAbr, 0x1A0, 0xA0);
             *p |= 2;
             p += 0x28;
-        } while (++i < count);
+        } while (++i < rows);
     }
-    memcpy(*(u8**)(pDst + 0x4C), *(u8**)(pDst + 0x48), count * 0x28);
+    memcpy(*(u8**)(pDst + 0x4C), *(u8**)(pDst + 0x48), rows * 0x28);
 }
-*/
 s32 BattleInitSlotRowsForActor(s32 index) {
     WorldMapSlot* pSlot = (WorldMapSlot*)(D_8009BE24 + index * 0x80);
 
