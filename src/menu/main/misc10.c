@@ -13,8 +13,6 @@ void MenuLoadStringsFromIds(u8, u8*, u8*, void*);
 void MenuApplyGearFrame(MenuDressingRoom*, u8);
 void MenuApplyGearArmor(MenuDressingRoom*, u8);
 void MenuApplyGearEngine(MenuDressingRoom*, u8);
-void func_801E433C(MenuDressingRoom*, u8);
-void func_801E4754(MenuDressingRoom*, u8);
 void func_801C72BC(u8);
 void MenuFreeShoulderButtonUi(void);
 void MenuFreeWindow(u8);
