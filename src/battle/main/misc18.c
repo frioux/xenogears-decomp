@@ -227,6 +227,7 @@ void BattleRollPercentAndSetState38(void) {
 void func_800968C0(void) {
     u8 *pData;
     u8 *pBase;
+    u8 *pActor;
     u16 t;
     u8 sel;
     u8 s;
@@ -259,7 +260,8 @@ void func_800968C0(void) {
         return;
     }
     pBase = D_800C34B0;
-    if (*(u8 *)(pBase + (lim = sel * 0x170) + 0x15A) & 0x80) {
+    pActor = pBase + sel * 0x170;
+    if (*(u8 *)(pActor + 0x15A) & 0x80) {
         return;
     }
     lim = 0x32;
