@@ -104,7 +104,7 @@ void func_80082178(s32 arg0, s32 arg1, s32 arg2) {
     s32 i;
 
     bx = arg0;
-    bx = bx >> 8;
+    bx >>= 8;
     by = arg1 >> 8;
     x = bx + ((rcos(arg2 + 0x280) * 10) >> 12);
     x0 = x;
