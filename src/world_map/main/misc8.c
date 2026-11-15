@@ -4,6 +4,7 @@
 #include "psyq/memory.h"
 #include "psyq/libgte.h"
 #include "psyq/inline_c.h"
+#include "system/model.h"
 
 typedef struct {
     /* 0x00 */ u32 unk0;
@@ -66,18 +67,19 @@ typedef struct {
 
 typedef struct WorldMapEntry {
     /* 0x00 */ s16 unk0;
-    /* 0x02 */ u16 pad2;
+    /* 0x02 */ s16 unk2;
     /* 0x04 */ u16 unk4;
     /* 0x06 */ u16 pad6;
     /* 0x08 */ s32 unk8;
     /* 0x0C */ s32 unkC;
     /* 0x10 */ s32 unk10;
-    /* 0x14 */ u8 unk14[0xC];
+    /* 0x14 */ u8 unk14[4];
+    /* 0x18 */ SVECTOR unk18;
     /* 0x20 */ MATRIX mat;
-    /* 0x40 */ u8 *unk40;
+    /* 0x40 */ ModelPart *unk40;
     /* 0x44 */ WorldMapMesh *unk44;
-    /* 0x48 */ u8 *unk48;
-    /* 0x4C */ u8 *unk4C;
+    /* 0x48 */ void *unk48;
+    /* 0x4C */ void *unk4C;
     /* 0x50 */ struct WorldMapEntry *unk50;
 } WorldMapEntry; // Size: 0x54
 
@@ -101,8 +103,32 @@ typedef struct {
     /* 0x20 */ MATRIX mat;
 } WorldMapModelOut; // Size: 0x40
 
+// One sprite set definition inside the block D_8009BD30 points at.
+typedef struct {
+    /* 0x0 */ u16 partIndex; // index into ModelFileHeader::modelParts
+    /* 0x2 */ u16 unk2;
+    /* 0x4 */ s16 unk4;
+    /* 0x6 */ s16 unk6;
+    /* 0x8 */ s16 unk8;
+    /* 0xA */ u16 unkA[3];
+} WorldMapSpriteSetDef; // Size: 0x10
+
+typedef struct {
+    /* 0x0 */ u16 count;
+    /* 0x2 */ WorldMapSpriteSetDef defs[0];
+} WorldMapSpriteSetTable; // Size: 0x2
+
 extern u8 D_8009AC60[];
 extern u8 D_8009C5AC[];
+extern ModelFileHeader *D_8009CD48;
+extern WorldMapSpriteSetTable *D_8009BD30;
+extern s32 *D_8009D308;
+extern s16 D_8009BD28;
+extern MATRIX D_8009A140;
+extern MATRIX D_8009A160;
+extern s32 D_80050100;
+extern s32 D_8009C16C;
+extern s32 D_8009C840;
 
 extern void ModelPartFreeLightData(void *pModelPart);
 extern int Vsync(int mode);
@@ -317,7 +343,7 @@ void WorldMapSetSpritePrimColor(u8 *pData, s32 count, u8 r, u8 g, s32 b) {
 s32 WorldMapSetupSpriteSetPrims(s32 arg0) {
     WorldMapEntry *pEntry = &D_8009C620[arg0 + 78];
 
-    WorldMapBuildSpritePrims(pEntry, pEntry->unk48, *(u16 *)(pEntry->unk40 + 4), 3);
+    WorldMapBuildSpritePrims(pEntry, pEntry->unk48, pEntry->unk40->polyCount, 3);
     return 1;
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_80083264);
@@ -390,7 +416,7 @@ s32 func_80083264(s32 arg0) {
     }
     WorldMapBuildActorModelMatrix(pActor, pEntry, (WorldMapModel *)0x1F800000);
     WorldMapSetSpritePrimColor(*(u8 **)((u8 *)pEntry + D_8009D7F0 * 4 + 0x48),
-                               *(u16 *)(pEntry->unk40 + 4),
+                               pEntry->unk40->polyCount,
                                pActor->unk50, pActor->unk54, pActor->unk58);
     return 1;
 }
@@ -633,7 +659,58 @@ void WorldMapLoadTextureClut(void) {
     HeapFree(pDst);
     HeapFree(pData);
 }
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_80084580);
+void func_80084580(void) {
+    WorldMapSpriteSetTable *pSetTable;
+    WorldMapSpriteSetDef *pDef;
+    WorldMapMesh *pMesh;
+    ModelPart *pPart;
+    s32 *pRelocs;
+    s32 *pCur;
+    s16 count;
+    s32 i;
+
+    count = ModelResolvePointers(D_8009CD48);
+    D_8009BD28 = count;
+    pRelocs = D_8009D308;
+    pCur = pRelocs + 1;
+    D_8009D308 = pCur;
+    for (i = 0; i < count; i++) {
+        *pCur++ = (s32)pRelocs + *pCur;
+    }
+    count = D_8009BD30->count;
+    D_8009D7E0 = count;
+    D_8009C620 = HeapAlloc(count * sizeof(WorldMapEntry), 0);
+    pSetTable = D_8009BD30;
+    SetColorMatrix(&D_8009A140);
+    SetLightMatrix(&D_8009A160);
+    pDef = pSetTable->defs;
+    for (i = 0; i < D_8009D7E0; i++, pDef++) {
+        D_8009C620[i].unk0 = 0;
+        D_8009C620[i].unk2 = pDef->partIndex;
+        D_8009C620[i].unk4 = pDef->unk2;
+        D_8009C620[i].unk8 = pDef->unk4;
+        D_8009C620[i].unkC = pDef->unk6;
+        D_8009C620[i].unk10 = -pDef->unk8;
+        D_8009C620[i].unk18.vx = pDef->unkA[0];
+        D_8009C620[i].unk18.vy = pDef->unkA[1];
+        D_8009C620[i].unk18.vz = pDef->unkA[2];
+        RotMatrixYXZ(&D_8009C620[i].unk18, &D_8009C620[i].mat);
+        pPart = &((ModelFileHeader *)D_8009CD48)->modelParts[D_8009C620[i].unk2];
+        D_8009C620[i].unk40 = pPart;
+        ModelAllocatePackets(pPart, &D_8009C620[i].unk48, &D_8009C620[i].unk4C);
+        ModelInitializePacket(D_8009C620[i].unk40, D_8009C620[i].unk48, 1);
+        memcpy(D_8009C620[i].unk4C, D_8009C620[i].unk48,
+               D_8009C620[i].unk40->unk20[1].modelPacketSize);
+        pMesh = ((WorldMapMesh **)D_8009D308)[D_8009C620[i].unk2];
+        D_8009C620[i].unk44 = pMesh;
+        pMesh->unk4 = (SVECTOR *)((u8 *)pMesh + (s32)pMesh->unk4);
+        D_8009C620[i].unk50 = 0;
+    }
+    D_80050100 = 2;
+    D_8009C16C = -1;
+    D_8009C840 = -1;
+    D_8009C620[4].unk0 = 1;
+}
 
 void WorldMapFreeSpriteSets(void) {
     s32 i;
@@ -649,6 +726,36 @@ void WorldMapSetSpriteSetParent(s32 arg0, s32 arg1) {
     D_8009C620[arg1].unk50 = &D_8009C620[arg0];
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_800848F4);
+// Not attempted: 259 instructions, no C written, no percentage. splat already
+// labels the stub "Handwritten function" and the body is one GTE pipeline, so
+// this is the class AGENTS.md calls unmatchable blind; it needs the whole body
+// written before the first diff tells you anything.
+// Decode, for whoever picks it up (addresses are the scratchpad, all reached
+// through $s1 = 0x1F800028, i.e. write them as byte offsets off one base):
+//   head: 0x1F800018/0x14/0x10 = 0x800 (scale, vz/vy/vx order), D_80050104 = 3,
+//         D_800595C0 = 0, D_80059578 = 0, SVECTOR at 0x1F8000A0 = {0,0,0}.
+//   per sprite set i (s4 = i, s2 = i*0x54): skip if D_8009C620[i].unk0 != 0;
+//         copy D_8009C620[i].mat (0x20..0x3C) to 0x1F8000F0..0x10C, then
+//         overwrite 0x1F800104/108/10C = unk8/unkC/-unk10;
+//   chain: while (p->unk50) { p = p->unk50; p->unk34/38/3C = unk8/unkC/-unk10;
+//         gte matrix load of p->unk20 into $0-$4, three MVMVA 1,0,3,3,0 rotations
+//         of the 3 shorts at 0x1F8000F0/F2/F4 (lh->mtc2 $9-$11, mfc2 $12-$14 stored
+//         back as shorts at stride 6), gte load of p->0x34..0x3C into $5-$7, then
+//         mtc2 $0 + lwc2 $1 8(...) and MVMVA 1,0,0,0,0 with swc2 $25/$26/$27 into
+//         0x1F800104..10C; }  -- the tail call is WorldMapWrapDeltaScaled.
+//   then: 0x1F800000 = 0x1F800104 - (D_8009BE28 >> 12),
+//         0x1F800008 = -0x1F80010C - (D_8009BE30 >> 12);
+//         ScaleMatrix(0x1F8000F0, 0x1F800010); CompMatrix(&D_8009C808,
+//         0x1F8000F0, 0x1F800110); SetRotMatrix/SetTransMatrix(0x1F800110);
+//         RTPS on 0x1F8000A0, flag to 0x1F800020 (bltz skips), SZ3 to 0x1F800028
+//         (>= 0xD80 skips), then
+//         ModelRenderPacket(D_8009C620[i].unk40,
+//             *(u32 *)((u8 *)D_8009C620 + D_8009D7F0 * 4 + 0x48),
+//             *(u32 *)(D_8009BE3C + 0x70), D_8009AD2C[D_8009C620[i].unk4]).
+// The GTE encodings are the DMPSX 4.3 spellings (interleaved ctc2 of $12-$14 for
+// the matrix load, nop;nop;.word for MVMVA), which inline_c.h still carries, so
+// this is a body to write, not a wall -- but it is a two-hour job, not a stub.
+
 
 s32 WorldMapFindSpriteSet(void *pArg, s16 *pOut) {
     WorldMapEntry *pEntry = D_8009C620;
