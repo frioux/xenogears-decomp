@@ -297,15 +297,6 @@ void BattleScriptSkipUnknownOpcodeWords(u8** pCursor) {
         BattleScriptCursorSkipWord(pCursor);
     }
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc4", func_800799C8);
-/* Best: 98.71% (232 bytes, identical instruction multiset). The only difference
-   is the 0x8B8 clear loop's exit test: it comes out `bltz <exit>; nop; j <loop>`
-   where retail has `bgez <loop>; nop; j <exit>`. for/while/do-while all give the
-   inverted polarity; nothing else is left. The win (87.14% -> 98.71%) came from
-   the `cmd = *pCursor; while (cmd != 0xFD) { ...; cmd = *pCursor; }` form: it
-   collapses retail's single shared 0xFD/0xFF test block and keeps 0xFF
-   rematerialised in the branch delay slot instead of hoisting it into $s2.
-
 void func_800799C8(u8 arg0) {
     u8* pCursor;
     u8 value;
@@ -326,12 +317,11 @@ void func_800799C8(u8 arg0) {
     for (i = 0x8B8; i >= 0; i -= 0x48) {
         D_800C402F[i] = 0xFF;
     }
-    cmd = *pCursor;
-    while (cmd != 0xFD) {
-        if (cmd == 0xFF) {
+    while (*pCursor != 0xFD) {
+        if (*pCursor == 0xFF) {
             break;
         }
-        if (cmd >= 0x80) {
+        if (*pCursor >= 0x80) {
             if ((func_8007F8C0(&pCursor, slot) & 0xFF) != 0) {
                 cmd = *pCursor;
                 continue;
@@ -343,7 +333,6 @@ void func_800799C8(u8 arg0) {
         cmd = *pCursor;
     }
 }
-*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc4", func_80079AB0);
 /* Best: 98.66%. Everything but three allocator/CSE tie-breaks is identical: (1)
    retail keeps the single `slot & 0xFF` in $a0 and reuses it for the 0x170 index
