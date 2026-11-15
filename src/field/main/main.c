@@ -122,7 +122,7 @@ void FieldLoadUITextures(void) {
 }
 */
 
-void func_800777DC(void) {
+void FieldWaitForSceneMapFileLoad(void) {
     ArchiveCdDataSync(0);
     while (func_8001B484((g_GameSceneMapNum & 0xFFF) * 2, 0) != 0) {
     }
@@ -132,7 +132,7 @@ void FieldUpdateDeltaTime(void) {
     g_FrameDeltaTime = Vsync(1);
 }
 
-void func_80077844(s16* pOut, int x0, int x1, int x2, int x3, int x4, int x5, int x6, int x7, int x8) {
+void FieldSetMatrix(s16* pOut, int x0, int x1, int x2, int x3, int x4, int x5, int x6, int x7, int x8) {
     pOut[0] = x0;
     pOut[1] = x1;
     pOut[2] = x2;
@@ -289,7 +289,7 @@ void func_80077AB4(void) {
 }
 */
 
-void func_80077C60(void) {
+void FieldLoadAndCreateObjectModels(void) {
     func_80077884();
     func_80077AB4();
 }
@@ -322,7 +322,7 @@ extern s32 D_800ADB9C;
 // (0x6B) sits past the string's terminator but is present in the original binary.
 const char D_8006FB80[0xC] = { 'C', 'l', 'e', 'a', 'r', ' ', 'O', 'T', 'A', 'G', 0, 0x6B };
 
-void func_80077DAC(void) {
+void FieldUpdateFrame(void) {
     D_800ADB9C = Vsync(1);
     FieldClearAndSwapOTag();
     FieldPollControllers();

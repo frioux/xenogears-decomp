@@ -307,7 +307,7 @@ s32 WorldMapUpdateFrameWithParticles(void) {
     func_80086798();
     return 1;
 }
-void func_80078A60(void) {
+void WorldMapInitializeModeWithTerrainActors(void) {
     RECT rect;
 
     WorldMapInitGfxEnv();
@@ -666,7 +666,7 @@ s32 WorldMapUpdateObjectAPosition(s32 index) {
     return 3;
 }
 */
-void func_8007A5DC(void) {
+void WorldMapInitializeModeWithScaledGroups(void) {
     RECT rect;
 
     WorldMapInitGfxEnv();
@@ -723,7 +723,7 @@ void func_8007A5DC(void) {
     func_800865A0();
     WorldMapInitRandomTimers();
 }
-void func_8007A8AC(void) {
+void WorldMapExitToMap11A(void) {
     u16 v;
 
     SoundStopAllElements();

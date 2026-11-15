@@ -22,7 +22,7 @@ void MenuUploadStringTextures(MenuString* pStringList, u_char* pStringIdList, s3
 void func_801E61B0(void);
 void func_801E68AC(u8* pEntry);
 void MenuDrawSlotSprite(u8 index, u8* pEntry);
-void func_801E6B70(u8 index, u8* pEntry);
+void MenuDrawSlotResourceSprites(u8 index, u8* pEntry);
 void func_801E6CFC(u8 index, u8* pEntry);
 void func_801E6F5C(u8 index, u8* pEntry);
 void MenuLoadSlotCharacterNameTexture(s32 index, u8* pEntry, s32 arg2);
@@ -156,7 +156,7 @@ void func_801E76EC(s32 arg0) {
         if (*(pEntry + i + 0x1C) != 0xFF) {
             *(u8*)((u8*)g_Menu->unk34C + offset + 0x1310) = 1;
             MenuDrawSlotSprite(i, pEntry);
-            func_801E6B70(i, pEntry);
+            MenuDrawSlotResourceSprites(i, pEntry);
             func_801E6CFC(i, pEntry);
             func_801E6F5C(i, pEntry);
             MenuLoadSlotCharacterNameTexture((u_char)i, pEntry, arg0);

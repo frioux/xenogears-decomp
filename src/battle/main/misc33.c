@@ -144,7 +144,7 @@ extern s32 func_800BD3AC(BattleActorSprite *p, s32 arg1, s32 arg2);
 extern void BattleFreeTimerTaskIfActive(void);
 extern void func_800BE790(void);
 extern s32 BattleGetAdjustedWaitCountdown(void);
-extern void func_800C1140(s32);
+extern void BattleRemoveSedsEntries(s32);
 extern void BattleUnloadActorArchive();
 extern int ArchiveSetIndex(int directoryIndex, int entryIndex);
 extern int ArchiveDecodeAlignedSize(u32 entryIndex);
@@ -648,7 +648,7 @@ s32 BattleLoadSoundSeds(void) {
 }
 void BattleFreeSoundSeds(void) {
     if (D_800D3350 != 0) {
-        func_800C1140(D_800C3618);
+        BattleRemoveSedsEntries(D_800C3618);
         D_800D3350 = 0;
     }
 }

@@ -132,7 +132,7 @@ void BattleCreateActorDistanceTask(SpriteData *pSpriteData, s32 minDistance,
     pSpriteData->flags_0xAC |= 0x20;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800BF85C);
-void func_800BF8CC(u8 *pActor) {
+void BattleRemapActorModelId(u8 *pActor) {
     s32 i = 0;
     s32 *pEntry;
 

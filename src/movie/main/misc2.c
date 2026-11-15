@@ -307,7 +307,7 @@ void MovieResetPlaybackAndClearScreen(void) {
 
 // non-void: gcc reorg moves the delay-slot fill (li v0,1) differently when the
 // function returns void; retail keeps the nop after each branch and the 0x30 frame.
-s32 func_800763BC(u8 mode) {
+s32 MovieStartStreamWithMode(u8 mode) {
     long pad[6];
     s32 state;
 

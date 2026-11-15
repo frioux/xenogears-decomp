@@ -5,7 +5,7 @@ extern void SoundFreeWdsEntry(void *);
 extern void SoundRemoveSedsEntry(void *);
 extern s32 *D_800C3A6C;
 
-void func_800C0828(SVECTOR *pFrom, SVECTOR *pTo, u16 *pRot) {
+void BattleCalcLookAtRotation(SVECTOR *pFrom, SVECTOR *pTo, u16 *pRot) {
     MATRIX mtx; // unused: reproduces retail's 0x20-byte stack slot
     VECTOR diff;
     VECTOR sq;
@@ -38,7 +38,7 @@ void func_800C0F70(void) {
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc35", func_800C0FAC);
 
-void func_800C1140(s32 *pArg) {
+void BattleRemoveSedsEntries(s32 *pArg) {
     s32 *pEntry = pArg;
     s32 i = pEntry[0] - 3;
 

@@ -841,3 +841,7 @@ FieldScriptCopyCharacter = 0x8008764C;
 FieldFadeParticleCornerColor = 0x800A6998;
 FieldGetMouseState = 0x8007AE78;
 FieldGetTrianglePlaneHeight = 0x8007B07C;
+FieldWaitForSceneMapFileLoad = 0x800777DC;
+FieldSetMatrix = 0x80077844;
+FieldLoadAndCreateObjectModels = 0x80077C60;
+FieldUpdateFrame = 0x80077DAC;

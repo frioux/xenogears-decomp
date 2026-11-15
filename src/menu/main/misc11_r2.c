@@ -741,7 +741,7 @@ extern u32 D_801EA020;
 
 // pSlot and pCount re-derive pCounter's address: gcc emits retail's base-first
 // "addu d,base,offset" only when that sum is an assignment's own result.
-void func_801E6B70(u8 arg0, u8* pArg1) {
+void MenuDrawSlotResourceSprites(u8 arg0, u8* pArg1) {
     u8* pPrims;
     u8* pCounter;
     u8* pSlot;

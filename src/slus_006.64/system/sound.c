@@ -245,7 +245,7 @@ extern s32 D_800595C4;
 extern void* D_80059518;
 extern AudioManager* D_800595D8;
 
-s32 func_8003C020(void);
+s32 SoundTimerInterruptHandler(void);
 void SoundSpuIRQHandler(void);
 void SoundOnTransferCallback(void);
 void func_800386C4(s32 mode);
@@ -287,7 +287,7 @@ void SoundInitialize(s32 flags) {
     g_SoundVolumeController.commonAttr.mask = 0xC;
 
     EnterCriticalSection();
-    g_unk_SoundEvent = OpenEvent(RCntCNT2, EvSpINT, RCntMdINTR, func_8003C020);
+    g_unk_SoundEvent = OpenEvent(RCntCNT2, EvSpINT, RCntMdINTR, SoundTimerInterruptHandler);
     SetRCnt(RCntCNT2, 0x44E8, RCntMdINTR);
     StartRCnt(RCntCNT2);
     SpuSetTransferCallback(&SoundOnTransferCallback);
@@ -2968,7 +2968,7 @@ void SoundSetSpuIrqCallback(u32 func) {
 }
 
 //----------------------------------------------------------------------------------------------------------------------
-s32 func_8003C020(void) {
+s32 SoundTimerInterruptHandler(void) {
     AudioManager* pManager;
     s16 volume;
     u16 cdVolume;
@@ -3089,7 +3089,7 @@ s32 func_8003C020(void) {
         if (count != 0) {
             pElements = pManager->elements;
             SoundStepElementEnvelopes(pManager, pElements, count);
-            func_8003EBF0(pManager, pElements, count);
+            SoundApplyElementStatusFlags(pManager, pElements, count);
         }
     }
 
@@ -4688,7 +4688,7 @@ void SoundApplyPendingKeyOff(void) {
 // Recomputes the SPU volume/pan/pitch of every element whose status flags ask for it. The
 // manager's interpolators and an element's note are 16.16 fixed point; the mixer reads the
 // integer part on its own, hence the (s16*) casts.
-void func_8003EBF0(AudioManager* pManager, AudioElement* pElements, s32 count) {
+void SoundApplyElementStatusFlags(AudioManager* pManager, AudioElement* pElements, s32 count) {
     AudioElement* pElement;
     s16 numElements = count;
     u16 statusFlags;

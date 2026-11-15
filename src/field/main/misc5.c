@@ -135,7 +135,7 @@ extern void FieldClearAndSwapOTag(void);
 extern void FieldRenderSync(void);
 extern void FieldFadeToBlack(int duration);
 extern void FieldFadeToWhite(int duration);
-extern void func_80077DAC(void);
+extern void FieldUpdateFrame(void);
 extern void func_8007554C(void);
 extern void FieldTickSkipCounter(void);
 extern void FieldLoadFont(void);
@@ -193,7 +193,7 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A5924);
                 FieldZoomFadeEffectSetPolygonColor(0);
                 nColor = 0;
                 for (i = 0; i < D_800ADB3C; i++) {
-                    func_80077DAC();
+                    FieldUpdateFrame();
                     FieldZoomFadeEffectUpdate();
                     func_8007554C();
                     FieldTickSkipCounter();
@@ -208,7 +208,7 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A5924);
                 FieldFadeToBlack(D_800ADB3C);
                 D_800C3A40 = 0;
                 for (i = 0; i < D_800ADB3C; i++) {
-                    func_80077DAC();
+                    FieldUpdateFrame();
                     FieldAddParticlePrims();
                     func_8007554C();
                     FieldTickSkipCounter();
@@ -224,7 +224,7 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A5924);
                 FieldFadeToBlack(D_800ADB3C);
                 nColor = 0x800000;
                 for (i = 0; i < D_800ADB3C; i++) {
-                    func_80077DAC();
+                    FieldUpdateFrame();
                     FieldZoomFadeEffectUpdate();
                     func_8007554C();
                     FieldTickSkipCounter();
@@ -240,7 +240,7 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A5924);
             }
 
             while (D_800ADB38 == 3) {
-                func_80077DAC();
+                FieldUpdateFrame();
                 FieldZoomFadeEffectUpdate();
                 func_8007554C();
                 FieldTickSkipCounter();
@@ -663,13 +663,13 @@ void FieldStepStreamPlayback(int nFrames) {
     }
 }
 
-extern void func_80077DAC(void);
+extern void FieldUpdateFrame(void);
 extern void func_8007554C(void);
 extern int ArchiveDataSync(void);
 
 void FieldWaitForArchiveAndFrameSync(void) {
     do {
-        func_80077DAC();
+        FieldUpdateFrame();
         func_8007554C();
     } while (ArchiveDataSync() != 0 || g_FieldCurRenderContextIndex != 0);
     CdDataSync(0);

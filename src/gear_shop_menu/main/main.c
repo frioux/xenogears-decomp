@@ -2288,10 +2288,10 @@ void GearShopMenuFreePointerCursors(void) {
     HeapFree(g_Menu->pCursors);
 }
 
-void func_801CC520(void) {
+void GearShopMenuNoOp(void) {
 }
 
-void func_801CC528(void) {
+void GearShopMenuNoOp2(void) {
 }
 
 void GearShopMenuConfirmationWindowInitialize(u8 stringIndex) {
@@ -2782,7 +2782,7 @@ u_char GearShopMenuShopModeMenuHandleSelectedOption(void) {
 
     // intentionally using selection w/o intialization
     if (selection) {
-        func_801CC528();
+        GearShopMenuNoOp2();
         GearShopMenuRenderMenuStringsToVram(4, g_Menu->unk6E0, &D_801D6A20[0], g_Menu->pManager->unkC);
     }
 

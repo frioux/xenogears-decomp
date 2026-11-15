@@ -332,7 +332,7 @@ s32 BattleMaskHasSlotBit(s32 mask, u8 idx) {
     return flags;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc14", func_80089CCC);
-void func_8008A144(void) {
+void BattleUploadImageFrame(void) {
     /* declared out of call order: gcc's register tie for the LoadImage arguments depends on it */
     s32 vramOffset3;
     s32 vramOffset0;
@@ -389,7 +389,7 @@ void BattleUpdateImageUpload(u8 arg0) {
         D_800D3288 -= 1;
         break;
     }
-    func_8008A144();
+    BattleUploadImageFrame();
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc14", func_8008A3EC);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc14", func_8008A684);

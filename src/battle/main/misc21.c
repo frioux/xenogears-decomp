@@ -40,7 +40,7 @@ extern void* HeapAlloc(u_int allocSize, u_int allocFlags);
 extern u_int HeapFree(void* pMem);
 extern void HeapChangeCurrentUser(u_int userTag, char** pContentTypes);
 extern void BattleResetBlockPool(BattleBlockPool* pPool);
-extern void func_800A2D5C(BattleSpritePool* pPool);
+extern void BattleResetSpritePool(BattleSpritePool* pPool);
 extern s32 BattleFreeBlock(BattleBlockPool* pPool, BattleBlock* pBlock);
 extern u32 ModelResolvePointers(void* pModel);
 extern void ModelPartFreeLightData(void* pLightData);
@@ -65,7 +65,7 @@ BattleModelPartList* BattleInitializeMesh(u8* pModel, BattleModelPartList* pList
     }
     return pList;
 }
-BattleSprite* func_8009EC4C(BattleModelPartList* pMesh, BattleSkeletonEntry* pEntries, s32 packetIndex,
+BattleSprite* BattleCreateModelSkeleton(BattleModelPartList* pMesh, BattleSkeletonEntry* pEntries, s32 packetIndex,
                             s32 hasTexture, s16 texX, s16 texY, s16 clutX, s16 clutY) {
     int i;
     int numSprites;
@@ -879,7 +879,7 @@ BattleSpritePool* BattleCreateSpritePool(BattleSpritePool* pPool, s32 count) {
     pPool->unk6 = 0;
     pPool->pBlocks = HeapAlloc((count + 1) * sizeof(Vertex), 0);
     if (pPool->pBlocks != NULL) {
-        func_800A2D5C(pPool);
+        BattleResetSpritePool(pPool);
         return pPool;
     }
     return NULL;
@@ -894,7 +894,7 @@ void BattleFreeSpritePool(BattleBlockPool* pPool) {
     }
     pPool->pBlocks = NULL;
 }
-void func_800A2D5C(BattleSpritePool* pPool) {
+void BattleResetSpritePool(BattleSpritePool* pPool) {
     int i;
     int j;
     Vertex* pVertex;

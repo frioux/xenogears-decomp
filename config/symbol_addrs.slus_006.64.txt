@@ -1402,3 +1402,5 @@ GetGraphType = 0x800444B8;
 SoundSetElementPanByIndex = 0x8003A55C;
 SoundScriptSetVoiceFlags4000AndMode = 0x8003D53C;
 SoundScriptSetTriangleEnvelope2 = 0x8003DF78;
+SoundTimerInterruptHandler = 0x8003C020;
+SoundApplyElementStatusFlags = 0x8003EBF0;

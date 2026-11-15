@@ -49,7 +49,7 @@ void func_801D29A8(s32 arg0, s32 arg1);
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc1", func_801C531C);
 
-void func_801C55A0(void) {
+void MenuNormalMenuMain(void) {
     u_char shouldContinue;
     u_char isHandled;
 
@@ -123,7 +123,7 @@ void MenuCdChangeMain(void) {
     MenuWaitForDiscChange(D_80059171);
 }
 
-void func_801C58EC(void) {
+void MenuLoadGameMain(void) {
     u_char shouldContinue;
 
     shouldContinue = 1;
@@ -279,7 +279,7 @@ void MenuInitializeMenuData(void) {
             break;
     }
 }
-void func_801C5FE4(void) {
+void MenuFinalizeMenuData(void) {
     switch (D_80059460) {
         case 0:
             MenuResetSelectionCursorFlags();
@@ -356,11 +356,11 @@ void func_801C62A8(void) {
     switch (menuIndex) {
         case 0:
             func_801D2D38();
-            func_801C55A0();
+            MenuNormalMenuMain();
             break;
         case 2:
             D_800594D0 = 0;
-            func_801C58EC();
+            MenuLoadGameMain();
             g_Menu->pManager->shouldRenderSelectionMenu = 0;
             g_Menu->pManager->unk4 = 0;
             g_Menu->pManager->unk3 = 0;
@@ -374,7 +374,7 @@ void func_801C62A8(void) {
             MenuCdChangeMain();
             break;
     }
-    func_801C5FE4();
+    MenuFinalizeMenuData();
 }
 */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc1", func_801C6400);
