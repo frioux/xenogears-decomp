@@ -517,7 +517,13 @@ void SpriteDrawModelPartsInBaseMatrix(WorkListEntry* pTask) {
 // function": GTE sequences against fixed GTE registers, i.e. Psy-Q Lite
 // assembly, not gcc output. 80025D4C's lwc2/swc2 traffic does have macros
 // (gte_ldlvl / gte_stlvl_gpr, see its park note), but the bare mtc2/mfc2
-// forms of the other three have no source spelling.
+// forms of the other three have no source spelling. Round 63 proved it for
+// 80026F44 (addi/bne operands no gcc emits, see its park note) and confirmed
+// 80025C04 is not convertible either: it uses the scratchpad at 0x1F800004 as
+// an explicit IR buffer (lui $t0,0x1F80 hoisted once, every other access an
+// offset off it, swc2/lwc2 to 0x1F800004/8/C and 0x1F800014/18/1C) and none of
+// those addresses exists in symbol_addrs, so they are absolute immediates in
+// the original object, not symbols a C file can name.
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_80025C04);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_80025D4C);
@@ -545,6 +551,17 @@ and always with bit 15 set.
 // down (mode 0 keeps it, 1 halves it, 2 quarters it, 3 replaces it with the
 // average of R, G and B) and biased per channel, then the GPF interpolates the
 // difference against pSrc2's colour by depth and the result is added back.
+
+Frame is the last structural gap, found this round: retail is 0x18 with TWO
+saved registers (s0 = redBias, s1 = the mode-3 average) and keeps greenBias<<5
+in t9 / blueBias<<10 in t8; this body needs THREE (s0 = greenBias, s1 =
+redBias, s2 = average), hence 0x20. Swapping the two bias shift statements
+(blueBias<<=10 first) changes nothing - 87.89 again - so retail's
+`j` delay slot holding the green shift while ours holds the blue one is
+allocator freedom, not statement order. Retail also builds the output word as
+(red-part | 0x8000) then green then blue with an `ori 0x8000`, where gcc 2.6.0
+hoists `li v1,-32768` into the beqz delay slot and ORs it at the end; that is
+a reassociation tie, not a source shape.
 void func_80025D4C(s32 count, u16* pSrc, u16* pSrc2, u16* pDst,
                        s32 redBias, s32 greenBias, s32 blueBias, s32 mode,
                        s32 depth) {
@@ -1104,7 +1121,15 @@ s32 ResourceHelperGetSpriteList(MenuResourceDirectory* dir, u32 index, MenuResou
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_80026F44);
 /*
-Best 74.88% (160 bytes, exactly the original's size). The LOOP SHAPE IS SOLVED:
+NOT C-REPRODUCIBLE: this stub is handwritten PSY-Q Lite assembly, not gcc output.
+Two tells, both absent from all 946 matched .s files of slus_006.64:
+  `addi $a1,$zero,0x20`  - ADDI (opcode 8). gcc and maspsx only ever emit the
+      ADDIU/ORI forms for `li`, so no C produces this opcode.
+  `bne $zero,$t2`        - gcc's mips.md branch patterns put the register
+      first (`bne $t2,$zero`, printed `bnez`); $zero first never appears.
+The loop shape itself was solved before that was noticed (see below); the body
+below is the best C attempt and cannot be pushed further.
+Best 74.88% (160 bytes, exactly the original's size). The LOOP SHAPE:
 retail's unrotated top test with `li t2,-1` hoisted once before the loop is
 `while (1) { if (--count == limit) break; ... }` with `s32 limit = -1;` - a
 literal -1 in the compare makes gcc rematerialise it, a limit local is what
