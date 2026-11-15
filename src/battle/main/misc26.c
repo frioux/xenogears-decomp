@@ -48,7 +48,7 @@ typedef struct {
 } BattleScaleTask; // Size: 0x40
 
 extern u8 *D_800C3558;
-extern u32 D_800C3548;
+extern BattleScaleTask *D_800C3548;
 extern u8 D_800C355C;
 extern u32 D_800C3560;
 
@@ -59,6 +59,9 @@ extern void BattleSetActorRectParams(s32, s32, s32, s32, s32, s32);
 extern void WorkListRemoveTask(void *pEntry);
 extern void TimerWorkListRemoveTask(void *pEntry);
 extern void BattleUploadAndFreeImageResources(void);
+extern WorkListEntry *TimerWorkListAllocateTask();
+extern void TimerWorkListSetTaskCallback();
+extern void WorkListTaskSetOnFreeCallback();
 
 u8 *BattleGetFrame(u8 *pBase, s32 n) {
     return &pBase[n * 0x1C + 0xC];
@@ -144,10 +147,32 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc26", func_800B3358);
 void BattleFreeScaleTask(void *pEntry) {
     TimerWorkListRemoveTask(pEntry);
     HeapFree(pEntry);
-    D_800C3548 = 0;
+    D_800C3548 = NULL;
 }
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc26", func_800B35C0);
+// Returns the one scale task, allocating it on first use and restarting the
+// ease from wherever the scale currently sits on every later call.
+BattleScaleTask *func_800B35C0(void) {
+    BattleScaleTask *pTask;
+
+    if (D_800C3548 == NULL) {
+        pTask = (BattleScaleTask *)TimerWorkListAllocateTask(NULL,
+                    sizeof(BattleScaleTask) - sizeof(WorkListEntry));
+        TimerWorkListSetTaskCallback(pTask, func_800B3358);
+        WorkListTaskSetOnFreeCallback(pTask, BattleFreeScaleTask);
+        pTask->start.vx = 0;
+        pTask->start.vy = 0;
+        pTask->start.vz = 0;
+        D_800C3548 = pTask;
+    } else {
+        pTask = D_800C3548;
+        pTask->start.vx = pTask->current.vx;
+        pTask->start.vy = pTask->current.vy;
+        pTask->start.vz = pTask->current.vz;
+    }
+    return pTask;
+}
+
 void BattleCreateTimedScaleTask(BattleScaleVector *pTarget, s32 frames) {
     BattleScaleTask *pTask = func_800B35C0();
 
