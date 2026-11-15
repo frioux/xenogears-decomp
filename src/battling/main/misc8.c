@@ -366,22 +366,8 @@ void BattleSetTextSpriteEntry(s32 entry, s32 mode) {
     LoadImage(&rect, D_80095510[0].pData);
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc8", func_800811AC);
-/* PARK 98.68% (264 bytes, retail 264).  Shape decoded: the AddPrim argument is
-   `&D_80095510[0].sprt[D_800928A0]` (0x14 = sizeof(SPRT), the stores are
-   clut/w of that sprite), likewise `&D_80095540.sprt[...]`, and
-   `&g_Tpage[D_800928A0]` for the last one.  Writing it with the SPRT pointer
-   type makes gcc fold the +4 into the symbol (`%lo(D_80095514)`) and re-base
-   every offset, 77.84%, so the u8* base + off spelling below is the right one.
-   Only difference: the D_800928A0 * 0x14 chain's temp register - retail keeps
-   it in a1 for all three insns (sll/addu/sll) because `off` is allocated to a1,
-   ours gives the temp v0 and only the last sll a1.  Every other insn matches,
-   including the base in a2 and both addu operand orders.
-   Tried: off as s32 and as u32, an intermediate `s32 n = D_800928A0`, off/base
-   declaration order swapped, the multiply inlined in each address (90.15%),
-   gcc-2.7.2-cdk (95.29%).  A GIV tie - permuter job.
 void func_800811AC(u8 *p) {
-    u32 off;
+    u16 off;
     u8 *pBase;
 
     if (D_8009273C != 0) {
@@ -402,7 +388,6 @@ void func_800811AC(u8 *p) {
         AddPrim(p, D_80095570 + D_800928A0 * 8);
     }
 }
-*/
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc8", func_800812BC);
 /* 77.44% (492 bytes vs retail 496).  Shape fully decoded from the asm and
