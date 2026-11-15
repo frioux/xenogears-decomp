@@ -1,7 +1,7 @@
 #include "common.h"
 #include "psyq/libgte.h"
+#include "system/animation.h"
 
-extern void func_800BDF1C(u8 *pEntry);
 extern void func_8001F6B0(void *pObj);
 extern void func_80025180(void *pData);
 extern void WorkListsRemoveEntriesForData(void *pTask);
@@ -205,15 +205,43 @@ void func_800BDA1C(u8 *pTask) {
 }
 */
 
-void BattleStepEffectColorFade(u8 *pTask) {
-    void (*pCallback)(u8 *);
+// A battle effect driven by the timer work list. Both work-list entries sit inside
+// the task allocation: the timer entry at 0x0 (TimerWorkListSetTaskCallback and
+// TimerWorkListRemoveTask take the task pointer itself) and the render entry at
+// 0x1C, which BattleFreeTimerTask unlinks on its own.
+typedef struct {
+    /* 0x00 */ WorkListEntry timerEntry;
+    /* 0x1C */ WorkListEntry workEntry;
+    /* 0x38 */ u8 unk38[0x8];
+    /* 0x40 */ s32 unk40;
+    /* 0x44 */ s32 unk44;
+    /* 0x48 */ s32 position;
+    /* 0x4C */ u8 unk4C[0x14];
+    /* 0x60 */ u8 unk60[0x3];
+    /* 0x63 */ u8 unk63;
+    /* 0x64 */ s32 unk64;
+    /* 0x68 */ u8 unk68[0x14];
+    /* 0x7C */ u8 unk7C; // nonzero: position steps the other way
+    /* 0x7D */ u8 unk7D[0x3];
+    /* 0x80 */ u8 unk80[0x3]; // colors, faded by BattleStepEffectColorFade
+    /* 0x83 */ u8 unk83;
+    /* 0x84 */ u32 unk84;
+    /* 0x88 */ s32 timer;
+} Misc32Task; // Size: 0x8C
+
+// Declared after the struct: the timer update takes the task. It reads none of
+// the argument's fields, it works off D_800D2D68.
+extern void func_800BDF1C(Misc32Task *pTask);
+
+void BattleStepEffectColorFade(Misc32Task *pTask) {
+    WorkListCallback_t pCallback;
 
     func_800BDF1C(pTask);
-    pTask[0x80] -= 2;
-    pTask[0x81] -= 2;
-    pTask[0x82] -= 2;
-    if (--*(s32 *)(pTask + 0x88) < 0) {
-        pCallback = *(void (**)(u8 *))(pTask + 0xC);
+    pTask->unk80[0] -= 2;
+    pTask->unk80[1] -= 2;
+    pTask->unk80[2] -= 2;
+    if (--pTask->timer < 0) {
+        pCallback = pTask->timerEntry.onFreeCallback;
         pCallback(pTask);
     }
 }
@@ -244,15 +272,8 @@ void func_800BDB74(u8 *pTask) {
     }
 }
 */
-extern void TimerWorkListSetTaskCallback(u8 *pTask, void (*pCallback)(u8 *));
-extern void func_800BDB74(u8 *pTask);
-
-typedef struct {
-    /* 0x00 */ u8 unk0[0x83];
-    /* 0x83 */ u8 unk83;
-    /* 0x84 */ u32 unk84;
-    /* 0x88 */ s32 unk88;
-} Misc32Task; // Size: 0x8C
+extern void TimerWorkListSetTaskCallback(Misc32Task *pTask, void (*pCallback)(Misc32Task *));
+extern void func_800BDB74(Misc32Task *pTask);
 
 // best 91.60% (permuter base 83.40; the one edit worth +8.2 was assigning 0x10
 // to a local before the `if`, so gcc stops folding it into the branch).
@@ -261,7 +282,8 @@ typedef struct {
 // (`sw v1,136(a0)`). Tried: u8 pointer, struct task pointer, offset casts, a task
 // copy, a callback local, indexed and offset forms - all give $4. A 3-min permuter
 // run from this body made no progress (427 iterations, 70 -> 70).
-// The Misc32Task typedef above is unused unless this is unparked.
+// The body below still names the old Misc32Task fields: the countdown is now
+// pTask->timer and the flags byte pTask->unk83.
 /*
 void func_800BDC14(Misc32Task *pTask) {
     s32 nextUnk88;
@@ -276,36 +298,36 @@ void func_800BDC14(Misc32Task *pTask) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BDC14);
-extern void func_800BDC14(u8 *pTask);
+extern void func_800BDC14(Misc32Task *pTask);
 
-void BattleStepEffectPosition(u8 *pTask) {
+void BattleStepEffectPosition(Misc32Task *pTask) {
     func_800BDF1C(pTask);
-    if (pTask[0x7C] != 0) {
-        *(s32 *)(pTask + 0x48) += 0xC0000;
+    if (pTask->unk7C != 0) {
+        pTask->position += 0xC0000;
     } else {
-        *(s32 *)(pTask + 0x48) -= 0xC0000;
+        pTask->position -= 0xC0000;
     }
-    if (--*(s32 *)(pTask + 0x88) < 0) {
+    if (--pTask->timer < 0) {
         do { /* the do-while stops reorg hoisting the call's move a0,s0 */
-            *(s32 *)(pTask + 0x88) = 0x10;
+            pTask->timer = 0x10;
         } while (0);
         TimerWorkListSetTaskCallback(pTask, func_800BDC14);
     }
 }
-extern u8 *D_800D2D68;
-extern void WorkListRemoveTask(void *pEntry);
+extern Misc32Task *D_800D2D68;
+extern void WorkListRemoveTask(WorkListEntry *pEntry);
 
-void BattleFreeTimerTask(u8 *pEntry) {
-    D_800D2D68 = 0;
-    WorkListRemoveTask(pEntry + 0x1C);
-    TimerWorkListRemoveTask(pEntry);
+void BattleFreeTimerTask(Misc32Task *pTask) {
+    D_800D2D68 = NULL;
+    WorkListRemoveTask(&pTask->workEntry);
+    TimerWorkListRemoveTask(&pTask->timerEntry);
 }
 void BattleTimerTaskNoOp(void) {
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BDD3C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BDE58);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BDF1C);
-extern void BattleFreeTimerTask(u8 *pEntry);
+extern void BattleFreeTimerTask(Misc32Task *pTask);
 
 void BattleFreeTimerTaskIfActive(void) {
     if (D_800D2D68 != NULL) {
