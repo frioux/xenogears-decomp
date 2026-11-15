@@ -269,8 +269,8 @@ TIM_IMAGE *ReadTIM(TIM_IMAGE *timimg) {
     return timimg;
 }
 
-u_long func_8004722C(void *p, int n) {
-    return D_8005A38C = func_80047638(p, n, &D_8005A388, &D_8005A380, &D_8005A384);
+int OpenTMD(u_long *tmd, int obj_no) {
+    return D_8005A38C = func_80047638(tmd, obj_no, &D_8005A388, &D_8005A380, &D_8005A384);
 }
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_c", func_8004726C);
