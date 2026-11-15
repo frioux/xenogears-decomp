@@ -3248,11 +3248,11 @@ u8* func_8003D53C(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
             return pScript;
         }
         if (pAudioElements->active_flag & 0x2) {
-            if (pAudioManager) {
-                return pScript;
-            } else {
+            // redundant test: the two returns are what puts the return value in this branch's delay slot
+            if (pAudioManager != NULL) {
                 return pScript;
             }
+            return pScript;
         }
     }
 
