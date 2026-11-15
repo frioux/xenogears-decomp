@@ -457,6 +457,20 @@ void func_801E8474(s32 count, s32* pEntries) {
    nothing (still 88.09). Permuter 3 min from the 99.79% body: no gain. So the
    99.79% body below is the best one; what is left is only which of
    D_801EA1EC / D_801EA1EC+4 gcc materialises first.
+   Round 113 (measured): the pair DIRECTION is solvable, the PROLOGUE order is
+   the wall. Two pointer locals in every spelling tried (`pCursor = D_801EA1EC;
+   pText = pCursor + 1;`, `pText = &D_801EA1EC[1]`, `(s32*)((u8*)pCursor + 4)`,
+   the two inits swapped, an empty do/while after the pair) all give retail's
+   exact pair (la s4 = D_801EA1EC then addu s5,s4,4) and all land on 88.09%,
+   because gcc emits BOTH invariants at the head of the entry block, ahead of the
+   remaining saves: sw s2 / li s2 / la s4 / sw s5 / addu s5,s4,4 / sw ra / sw s3
+   / sw s1 / sw s0 / lw v0,852. One address local keeps retail's order (its init
+   is scheduled into the lw 852 delay slot) but can only derive the OTHER base:
+   loop-1 base as `pCursor[idx]` with the text access inline (`pCursor[idx + 1]`,
+   `D_801EA1EC[idx + 1]`) or both as symbols (`D_801EA1F0[idx]`) drops s5
+   entirely - 86.67% and 91.27%, 680 bytes. Permuter 4 min from the 99.79% body:
+   no gain. Next lever: something that stops the entry block from being the
+   loop preheader, so the hoisted pair lands after the stores.
    Round 112: the inline `D_801EA1EC[idx + 1]` form (no pText local) makes gcc
    form a second full lui/addiu of D_801EA1F0 in loop 2's preheader (91.84%), and
    a single pointer local folds to the symbol the same way. Confirmed the two
