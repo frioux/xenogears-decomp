@@ -1103,7 +1103,7 @@ s32 ResourceHelperGetSpriteList(MenuResourceDirectory* dir, u32 index, MenuResou
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_80026F44);
 /*
-Best 74.63% (160 bytes, exactly the original's size). The LOOP SHAPE IS SOLVED:
+Best 74.88% (160 bytes, exactly the original's size). The LOOP SHAPE IS SOLVED:
 retail's unrotated top test with `li t2,-1` hoisted once before the loop is
 `while (1) { if (--count == limit) break; ... }` with `s32 limit = -1;` - a
 literal -1 in the compare makes gcc rematerialise it, a limit local is what
@@ -1117,6 +1117,12 @@ final `rgb |= 1` comes out `ori t5,t5,1` there and `li v1,1; or` here, the two
 `or`s differ in operand order, and the clamp prologue fills the beqz delay slot
 with the level<<7 shift where retail has a nop and shifts after. A separate
 `s32 dqp; dqp = level << 7; gte_lddp(dqp);` local changed nothing.
+Round 61: shifting in place (`level <<= 7; gte_lddp(level);`) DOES reproduce
+retail's in-place `sll a1,a1,0x7` instead of a copy into v0 (74.63 -> 74.88);
+the `level >= 0x20` clamp shape is already right. What is left is reorg: retail
+leaves a nop in the clamp's bne delay slot where we have the sll, and fills the
+loop's `beq a0,t2` slot with the `lhu` where we emit a nop; plus the nine body
+values land in t0/v1/a1 instead of t5/t4/t3.
 void func_80026F44(s32 count, s32 level, u16* pDst, u16* pSrc) {
     u16 color;
     s32 limit;
@@ -1128,7 +1134,8 @@ void func_80026F44(s32 count, s32 level, u16* pDst, u16* pSrc) {
     if (level >= 0x20) {
         level = 0x20;
     }
-    gte_lddp(level << 7);
+    level <<= 7;
+    gte_lddp(level);
     limit = -1;
     while (1) {
         if (--count == limit) {
