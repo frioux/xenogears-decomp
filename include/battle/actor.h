@@ -187,6 +187,32 @@ typedef struct {
     /* 0x15B */ u8 unk15B[0x15];
 } BattleTableEntry; // Size: 0x170
 
+// The per-slot action state a slot entry carries at +0xA4 (0xCC bytes): the
+// status words, the scaled stats and the slot's copy of the equipped weapon
+// records. D_800D2DC8 and D_800D2D6C point at the acting and the defending
+// slot's copy of it. Only the fields src/battle/main/misc20 reads are named;
+// the words it holds are the same bytes as the owning slot entry's fields from
+// +0x104 on (0x64 here is BattleTableEntry.unk108).
+typedef struct {
+    /* 0x00 */ u8 unk00[0x3A];
+    /* 0x3A */ u16 unk3A;
+    /* 0x3C */ u8 unk3C[0x13];
+    /* 0x4F */ u8 unk4F;
+    /* 0x50 */ u8 unk50[0x14];
+    /* 0x64 */ s32 unk64; // scaled max hp
+    /* 0x68 */ u8 unk68[0x14];
+    /* 0x7C */ u16 unk7C;
+    /* 0x7E */ u8 unk7E[0x2];
+    /* 0x80 */ u16 unk80;
+    /* 0x82 */ u16 unk82;
+    /* 0x84 */ u16 unk84;
+    /* 0x86 */ u8 unk86[0x13];
+    /* 0x99 */ u8 unk99;
+    /* 0x9A */ u8 unk9A[0x4];
+    /* 0x9E */ u8 unk9E;
+    /* 0x9F */ u8 unk9F[0x2D];
+} BattleSlotState; // Size: 0xCC
+
 // One 0x28-byte row of the per-actor action tables the battle work block holds
 // at +0x1058 (0x5F0 bytes per actor) and +0x2228 (0x690 bytes per actor). The
 // row currently in use is pointed to by D_800C3DFC. Only the fields read by
@@ -214,13 +240,31 @@ typedef struct {
     /* 0x27 */ s8 unk27;
 } BattleRow; // Size: 0x28
 
+// One 0x14-byte record of the battle work block's two per-character gear
+// weapon tables: +0x5750 is the record a weapon slot is equipped from,
+// +0x5B38 the id list BattleGearHasWeaponId searches. Only the bytes those two
+// functions read are named.
+typedef struct {
+    /* 0x0 */ u8 unk0[0xC];
+    /* 0xC */ u8 unkC;
+    /* 0xD */ u8 unkD;
+    /* 0xE */ u8 unkE;
+    /* 0xF */ u8 unkF; // weapon id
+    /* 0x10 */ u8 unk10;
+    /* 0x11 */ u8 unk11;
+    /* 0x12 */ u8 unk12[0x2];
+} BattleGearWeaponRecord; // Size: 0x14
+
 // The battle work block (D_800C34B0): the three slot entries, the per-actor
 // action-row tables, and the per-slot action state the battle main loop runs
 // on. Only the tail read by src/battle/main/misc18 is named; the row tables at
 // +0x1058/+0x2228 and the scratch row at +0x35D8 are still reached by offset.
 typedef struct {
     /* 0x0000 */ BattleTableEntry slots[3];
-    /* 0x0450 */ u8 unk450[0x5B1C];
+    /* 0x0450 */ u8 unk450[0x5300];
+    /* 0x5750 */ BattleGearWeaponRecord gearWeapons[50];
+    /* 0x5B38 */ BattleGearWeaponRecord gearWeaponIds[50];
+    /* 0x5F20 */ u8 unk5F20[0x4C];
     /* 0x5F6C */ s32 unk5F6C[12];
     /* 0x5F9C */ u8 unk5F9C[4];
     /* 0x5FA0 */ u8 unk5FA0[12];

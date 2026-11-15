@@ -7,8 +7,8 @@ extern BattleRow *D_800C3DFC;
 extern BattleTableEntry *D_800C3E00;
 extern BattleTableEntry *D_800C3E34;
 extern BattleWorkBlock *D_800C34B0;
-extern u8 *D_800D2DC8;
-extern u8 *D_800D2D6C;
+extern BattleSlotState *D_800D2DC8;
+extern BattleSlotState *D_800D2D6C;
 extern u8 D_800C3E50;
 extern u8 D_800C3E04;
 extern u8 D_800D2DC4;
@@ -109,7 +109,7 @@ skip:
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc20", func_8009C198);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc20", func_8009C4B4);
 void BattleSaveScriptCommandOperands(void) {
-    u16 a = *(u16 *)(D_800D2D6C + 0x84);
+    u16 a = D_800D2D6C->unk84;
     u16 b = D_800C3E00->unk8A;
     u16 c;
 
@@ -180,15 +180,15 @@ u16 BattleScaleValueByMultiplierByte(void) {
     u32 b;
     s32 n;
     if (D_800C3DFC->unk0A & 0x100) {
-        f = *(u16 *)(D_800D2D6C + 0x7C);
-        b = D_800D2D6C[0x9E];
+        f = D_800D2D6C->unk7C;
+        b = D_800D2D6C->unk9E;
         if ((f & 0x100) || b == 0) {
             n = 4;
         } else {
             n = b;
         }
         ret = n * ret / 4;
-        if ((*(u16 *)(D_800D2D6C + 0x80) | *(u16 *)(D_800D2D6C + 0x82)) & 0x40) {
+        if ((D_800D2D6C->unk80 | D_800D2D6C->unk82) & 0x40) {
             ret = ret + ((ret & 0xFFFF) >> 1);
         }
     }
@@ -260,24 +260,22 @@ s32 func_8009DB54(s32 arg0) {
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc20", func_8009DBFC);
 void BattleClearActorPercent99(void) {
-    D_800D2DC8[0x99] = 0;
+    D_800D2DC8->unk99 = 0;
 }
 void BattleSetSlotState2FromActorField4F(void) {
-    u8 *p = D_800D2DC8;
-    u32 v = p[0x4F] * *(s32 *)(p + 0x64);
+    BattleSlotState *p = D_800D2DC8;
+    u32 v = p->unk4F * p->unk64;
     u32 q = v / 10;
-    u8 *base = (u8 *)D_800C34B0;
 
-    (base + D_800C3E50)[0x5FA0] = 2;
-    *(s32 *)(D_800C3E50 * 4 + (u8 *)D_800C34B0 + 0x5F6C) = q;
+    D_800C34B0->unk5FA0[D_800C3E50] = 2;
+    D_800C34B0->unk5F6C[D_800C3E50] = q;
 }
 void BattleSetSlotState2FromScriptField11Div20(void) {
-    u32 v = D_800C3DFC->unk11 * *(s32 *)(D_800D2DC8 + 0x64);
+    u32 v = D_800C3DFC->unk11 * D_800D2DC8->unk64;
     u32 q = v / 20;
-    u8 *base = (u8 *)D_800C34B0;
 
-    (base + D_800C3E50)[0x5FA0] = 2;
-    *(s32 *)(D_800C3E50 * 4 + (u8 *)D_800C34B0 + 0x5F6C) = q;
+    D_800C34B0->unk5FA0[D_800C3E50] = 2;
+    D_800C34B0->unk5F6C[D_800C3E50] = q;
 }
 void BattleSetSlotState2FromActorField5B(void) {
     s32 v = D_800C3E00->unk5B * D_800C3DFC->unk11;
@@ -290,33 +288,30 @@ void BattleSetSlotFields148And10C(void) {
     D_800CCCE8[D_800C3E50].unk15B[7] = 3;
 }
 void BattleSetSlotState0AFromActorWord3ADiv20(void) {
-    u8 *base;
-    s32 v = *(u16 *)(D_800D2DC8 + 0x3A) * D_800C3DFC->unk11;
+    s32 v = D_800D2DC8->unk3A * D_800C3DFC->unk11;
     s32 q = v / 20;
 
-    base = (u8 *)D_800C34B0;
-    (base + D_800C3E50)[0x5FA0] = 0xA;
-    *(s32 *)(D_800C3E50 * 4 + (u8 *)D_800C34B0 + 0x5F6C) = q;
+    D_800C34B0->unk5FA0[D_800C3E50] = 0xA;
+    D_800C34B0->unk5F6C[D_800C3E50] = q;
 }
 void BattleSetSlotState0BFromActorWord3ADiv20(void) {
-    u8 *base;
-    s32 v = *(u16 *)(D_800D2DC8 + 0x3A) * D_800C3DFC->unk11;
+    s32 v = D_800D2DC8->unk3A * D_800C3DFC->unk11;
     s32 q = v / 20;
 
-    base = (u8 *)D_800C34B0;
-    (base + D_800C3E50)[0x5FA0] = 0xB;
-    *(s32 *)(D_800C3E50 * 4 + (u8 *)D_800C34B0 + 0x5F6C) = q;
+    D_800C34B0->unk5FA0[D_800C3E50] = 0xB;
+    D_800C34B0->unk5F6C[D_800C3E50] = q;
 }
 void BattleClearSlotConditionBits(void) {
-    u8 *p = D_800D2DC8;
+    BattleSlotState *p = D_800D2DC8;
     BattleTableEntry *q = D_800C3E34;
 
-    *(u16 *)(p + 0x7C) &= 0xF80B;
+    p->unk7C &= 0xF80B;
     q->unk7A &= 0xFFDF;
 }
 s32 BattleGearHasWeaponId(u8 arg0) {
+    BattleGearWeaponRecord *pRec = &D_800C34B0->gearWeaponIds[arg0];
+    u8 v = pRec->unkF;
     u8 id = g_GameState.characters[4].gearId;
-    u8 v = ((u8 *)D_800C34B0)[arg0 * 0x14 + 0x5B47];
 
     if (g_GameState.gears[id].weaponData[0].unk5 == v ||
         g_GameState.gears[id].weaponData[1].unk5 == v) {
@@ -325,8 +320,8 @@ s32 BattleGearHasWeaponId(u8 arg0) {
     return g_GameState.gears[id].weaponData[2].unk5 == v;
 }
 void BattleApplyGearWeaponRecord(u8 arg0) {
-    u8 *p = &((u8 *)D_800C34B0)[arg0 * 0x14 + 0x5750];
-    u8 v = p[0xF];
+    BattleGearWeaponRecord *p = &D_800C34B0->gearWeapons[arg0];
+    u8 v = p->unkF;
     s32 rowOffset;
     u8 id = g_GameState.characters[4].gearId;
     u8 sel;
@@ -341,19 +336,19 @@ void BattleApplyGearWeaponRecord(u8 arg0) {
     if (g_GameState.gears[id].weaponData[2].unk5 == v) {
         sel = 3;
     }
-    g_GameState.gears[id].weaponData[sel].unk2 = p[0xE];
-    g_GameState.gears[id].weaponData[sel].unk4 = p[0x11];
-    g_GameState.gears[id].weaponData[sel].unk3 = p[0x10];
-    g_GameState.gears[id].weaponData[sel].unk4 = p[0x11];
+    g_GameState.gears[id].weaponData[sel].unk2 = p->unkE;
+    g_GameState.gears[id].weaponData[sel].unk4 = p->unk11;
+    g_GameState.gears[id].weaponData[sel].unk3 = p->unk10;
+    g_GameState.gears[id].weaponData[sel].unk4 = p->unk11;
     g_GameState.gears[id].unk4[sel] = arg0;
-    g_GameState.gearPartsIds[0x6C + arg0] = p[0xC];
+    g_GameState.gearPartsIds[0x6C + arg0] = p->unkC;
     for (i = 0; i < 3; i++) {
         rowOffset = i * 0x170;
         if (((u8 *)D_800C34B0)[rowOffset + 0x56] == 4) {
-            *(u8 *)((u8 *)D_800C34B0 + (rowOffset + sel * 8) + 0xB6) = p[0xE];
-            *(u8 *)((u8 *)D_800C34B0 + (rowOffset + sel * 8) + 0xB8) = p[0x11];
-            *(u8 *)((u8 *)D_800C34B0 + (rowOffset + sel * 8) + 0xB7) = p[0x10];
-            *(u8 *)((u8 *)D_800C34B0 + (rowOffset + sel * 8) + 0xB8) = p[0x11];
+            *(u8 *)((u8 *)D_800C34B0 + (rowOffset + sel * 8) + 0xB6) = p->unkE;
+            *(u8 *)((u8 *)D_800C34B0 + (rowOffset + sel * 8) + 0xB8) = p->unk11;
+            *(u8 *)((u8 *)D_800C34B0 + (rowOffset + sel * 8) + 0xB7) = p->unk10;
+            *(u8 *)((u8 *)D_800C34B0 + (rowOffset + sel * 8) + 0xB8) = p->unk11;
             *(u8 *)((u8 *)D_800C34B0 + rowOffset + sel + 0xA8) = arg0;
         }
     }
