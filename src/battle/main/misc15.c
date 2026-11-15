@@ -333,21 +333,16 @@ void BattleClearPrimFlagsThreeSlots(u8 arg0) {
         D_800D2D28[0xCB] = 1;
     }
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008CD28);
-/* Best: 99.36%. Same tail as func_8008BC98: the two `D_800C3EAC + arg0*0x40`
-   base adds come out index-first (`addu v1,s1,v1`, `addu s1,s1,v0`) where the
-   original has base-first (`addu v1,v1,s1`, `addu v0,v0,s1`). Both operands die
-   at each add, so it is a global.c tie-break. Tried: subscript vs pointer
-   arithmetic for the entry address. Everything else is identical.
 void func_8008CD28(u8 arg0) {
     u16 value;
+    int new_var;
 
     D_800D2D28[0x9C] = D_800D2D28[0x9D] = D_800D2D28[0x9E] = 1;
+    new_var = 0x40;
     D_800D2D28[0xB0] = D_800D2D28[0xB1] = D_800D2D28[0xB2] = 1;
     D_800D2D28[0xB7] = 4;
-    value = BattleSlotBitMask(arg0) | BattleSlotBitMask((D_800C3EAC + arg0 * 0x40)[0x3C]);
+    value = BattleSlotBitMask(arg0) | BattleSlotBitMask((D_800C3EAC + arg0 * new_var)[0x3C]);
     func_800BC404(value);
-    func_800BCD98(BattleSlotBitMask((D_800C3EAC + arg0 * 0x40)[0x3C]));
+    func_800BCD98(BattleSlotBitMask((D_800C3EAC + arg0 * new_var)[0x3C]));
 }
-*/
 
