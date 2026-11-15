@@ -24,6 +24,8 @@ extern s16 D_801E869C;
 extern s16 D_801E8698;
 
 void func_801DCEC8(Model* pModel, MATRIX* pMatrix, s32 arg2, s32 arg3, s32 arg4, s32 arg5, s32 arg6);
+void func_80026F44(s32 count, s32 level, void* pDst, void* pSrc);
+void func_80026FE8(s32 count, s32 level, void* pDst, void* pSrc, void* pSrc2);
 void LibGearUpdateModelAttachment(Model* pModel);
 extern VertexBuffer g_LibGearVertexBuffer;
 
@@ -1176,7 +1178,128 @@ s16 LibGearInterpolateFallClamped(s16 a, s16 b, s16 c) {
 
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E0A00);
 
+// objdiff 87.69%, 1016 bytes against retail's 1028. The whole structure is
+// reproduced: the unk14/unk16 frame advance with the unk24 callback, the
+// flush-on-negative path, the unk18 latch, the four-way unk10 dispatch (0,1,4,5
+// as a compare tree - matches a switch), the shared LoadImage tail of cases 0/1,
+// the clipped copy rectangle (which retail really does keep in two RECT locals -
+// that is what makes the sh/lh off sp 0x18..0x26 and the oversized 0x78 frame
+// match exactly), the unk11=1 flag, the unk10<4 two-loop split and the 6-byte
+// row pitch of the pUnk1C path. pDstBase/pSrcBase locals cost the two hoisted
+// `lw 4(t1)` / `lw 12(s0)`.
+// What is left is the inner-loop address arithmetic: retail sums the column part
+// into the base first (`addu a0,dstX<<1,t3` then `addu a0,x<<1,a0`) and adds the
+// row product LAST, i.e. offset-first addu operands; ours emits base-first
+// (`addu v1,t3,dstX<<1`) even though the row product is added last as well.
+// Tried: `base + row*w + dstX + x` (row first, 85.01), the col-pointer +
+// `pDst[(dstY+y)*w]` subscript form (this body, 87.69), s16 loop counters
+// (much worse - the counters must be int).
+// A 3-minute permuter run (676 iterations, base 2411) reached 2131 only by
+// deleting the `return frame` of the unk18 early-exit, which is not a fix.
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E1258);
+/*
+s16 func_801E1258(Temp8* pTexture, s32 frameStep) {
+    Temp8* pSource;
+    s16 frame;
+    RECT srcRect;
+    RECT dstRect;
+    int x;
+    int y;
+    u16* pDstBase;
+    u16* pSrcBase;
+    u16* pDst;
+    u16* pSrc;
+
+    if (pTexture->unk1A == 0) {
+        return -1;
+    }
+
+    pTexture->unk14 += pTexture->unk16 * (frameStep + 1);
+    frame = pTexture->unk24(pTexture->unk14, pTexture->unk20, pTexture->unk22);
+    if (frame < 0) {
+        LibGearFlushTexture(pTexture);
+        return frame;
+    }
+
+    if (frame == pTexture->unk18) {
+        return frame;
+    }
+    pTexture->unk18 = frame;
+
+    switch (pTexture->unk10) {
+        case 0:
+            func_80026F44(pTexture->unk12, frame, pTexture->pUnkC, pTexture->pUnk4);
+            if (pTexture->pSource == NULL) {
+                LoadImage(&pTexture->rect, (u_long*)pTexture->pUnkC);
+            }
+            break;
+        case 1:
+            func_80026FE8(pTexture->unk12, frame, pTexture->pUnkC, pTexture->pUnk8, pTexture->pUnk4);
+            if (pTexture->pSource == NULL) {
+                LoadImage(&pTexture->rect, (u_long*)pTexture->pUnkC);
+            }
+            break;
+        case 4:
+            LibGearFadeTexturePixels(pTexture, frame);
+            break;
+        case 5:
+            LibGearBlendTexturePixels(pTexture, frame);
+            break;
+    }
+
+    pSource = pTexture->pSource;
+    if (pSource == NULL || pSource->unk1A == 0) {
+        return frame;
+    }
+
+    // Clip the copy to the overlap of the two rectangles
+    if (pSource->rect.x < pTexture->rect.x) {
+        dstRect.x = pTexture->rect.x - pSource->rect.x;
+        srcRect.x = 0;
+        dstRect.w = pSource->rect.x + pSource->rect.w - pTexture->rect.x;
+    } else {
+        dstRect.x = 0;
+        srcRect.x = pSource->rect.x - pTexture->rect.x;
+        dstRect.w = pTexture->rect.x + pTexture->rect.w - pSource->rect.x;
+    }
+
+    if (pSource->rect.y < pTexture->rect.y) {
+        dstRect.y = pTexture->rect.y - pSource->rect.y;
+        srcRect.y = 0;
+        dstRect.h = pSource->rect.y + pSource->rect.h - pTexture->rect.y;
+    } else {
+        dstRect.y = 0;
+        srcRect.y = pSource->rect.y - pTexture->rect.y;
+        dstRect.h = pTexture->rect.y + pTexture->rect.h - pSource->rect.y;
+    }
+
+    if (dstRect.w > 0 && dstRect.h > 0) {
+        pSource->unk11 = 1;
+        pDstBase = pSource->pUnk4;
+        pSrcBase = (u16*)pTexture->pUnkC;
+
+        if (pSource->unk10 < 4) {
+            for (y = 0; y < dstRect.h; y++) {
+                for (x = 0; x < dstRect.w; x++) {
+                    pDst = pDstBase + dstRect.x + x;
+                    pSrc = pSrcBase + srcRect.x + x;
+                    pDst[(dstRect.y + y) * pSource->rect.w] = pSrc[(srcRect.y + y) * pTexture->rect.w];
+                }
+            }
+        } else {
+            for (y = 0; y < dstRect.h; y++) {
+                for (x = 0; x < dstRect.w; x++) {
+                    pDst = pDstBase + dstRect.x + x;
+                    pSrc = (u16*)pTexture->pUnk1C + 3 * (srcRect.y + y) + srcRect.x + x;
+                    *pDst = *pSrc;
+                }
+            }
+        }
+    }
+
+    return frame;
+}
+*/
 
 void LibGearFlushTexture(Temp8* pTexture) {
     if (pTexture->unk1A != 0) {
