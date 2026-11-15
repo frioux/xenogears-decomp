@@ -1,4 +1,5 @@
 #include "common.h"
+#include "field/actor.h"
 #include "system/memory.h"
 #include "psyq/libgpu.h"
 #include "system/archive.h"
@@ -172,7 +173,118 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B838C);
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B853C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B8774);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B8840);
+/* One 0x1C-byte slot of the battle actor table at D_800C3EB0. */
+typedef struct {
+    /* 0x00 */ u8 unk0[0x6];
+    /* 0x06 */ u8 unk6;
+    /* 0x07 */ u8 unk7;
+    /* 0x08 */ u8 unk8;
+    /* 0x09 */ u8 unk9[0x5];
+    /* 0x0E */ u16 unkE;
+    /* 0x10 */ u16 unk10;
+    /* 0x12 */ u8 unk12[0xA];
+} BattleActorSlot; // Size: 0x1C
+
+/* Battle state pointed to by D_800C3610; only the fields this unit reads. */
+typedef struct {
+    /* 0x00 */ u8 unk0[0x4];
+    /* 0x04 */ SpriteData *pSprite;
+    /* 0x08 */ u8 unk8[0x18];
+    /* 0x20 */ s32 unk20;
+    /* 0x24 */ s32 unk24;
+    /* 0x28 */ u8 unk28[0x18];
+    /* 0x40 */ void *unk40;
+} BattleUnitState; // Size: 0x44
+
+extern BattleUnitState *D_800C3610;
+extern BattleActorSlot D_800C3EB0[];
+extern void func_800BEFF4(s32 actorIndex);
+extern void BattleActorUpdateGroundHeightAndTriangle(SpriteData *pSprite);
+
+extern u8 D_800591AD;
+extern u8 D_800591AC;
+extern s32 D_800591A8;
+extern s32 D_80050104;
+extern void BattleResetStateGlobals(void);
+extern void func_800BE108(void);
+extern void WorkListsReset(void);
+extern void func_800BB7F8(void);
+extern void GfxAllocateWorkBuffers(s32 workBufferSize, s32 allocFlag);
+extern void func_800BCD8C(void);
+extern void func_800B89F4(void);
+
+void func_800B8840(void) {
+    D_800591AD = 1;
+    D_80059464 = 0;
+    D_800591AC = 0;
+    D_800591A8 = 0x2000;
+    BattleResetStateGlobals();
+    func_800BE108();
+    WorkListsReset();
+    func_800BB7F8();
+    GfxAllocateWorkBuffers(0x5000, 0);
+    func_800BCD8C();
+    func_800B7C28();
+    func_800B89F4();
+    D_80050104 = 0;
+}
+
+// Best 75.16%: the body is right apart from the loop's slot pointer, which gcc
+// folds into the symbol (%lo(D_800C3EB0 + 0x54)) where retail materialises
+// D_800C3EB0 and then does a separate `addiu v1,v0,0x54`, so the two lbu
+// displacements come out -2/0 instead of 6/8. Tried: &D_800C3EB0[3], (u8*)cast
+// + 0x54, a typed pointer local, a pBase local shared with the tail - all fold.
+extern s32 D_800C3D58;
+extern s32 D_80059198;
+extern s32 D_80050100;
+/*
+void func_800B88C4(void) {
+    BattleActorSlot *pSlot;
+    u8 *pBase;
+    u8 *pWork;
+    u8 *pOT;
+    u8 *pBuf;
+    s32 value;
+    s32 n;
+    s32 i;
+
+    D_800C3D58 = 0;
+    pSlot = (BattleActorSlot *)((u8 *)D_800C3EB0 + 0x54);
+    for (i = 3; i != 0xB; i++) {
+        if (pSlot->unk6 < 0x11 && pSlot->unk8 != 0) {
+            D_800C3D58++;
+        }
+        pSlot++;
+    }
+    n = D_800C3D58 / 2 - 1;
+    D_80059198 = n;
+    if (n < 0) {
+        D_80059198 = 0;
+    }
+    pBase = (u8 *)D_800C3EB0;
+    pWork = pBase + 0x8000;
+    value = D_80059198;
+    D_80059198 = 0;
+    pOT = *(u8 **)(pWork + 0xC50);
+    D_80050100 = 2;
+    if (pOT == pBase + 0xB70) {
+        pBuf = pBase + 0x4BE0;
+    } else {
+        *(s32 *)(pWork + 0xDAC) = value;
+        pBuf = pBase + 0xB70;
+    }
+    *(u8 **)(pWork + 0xC50) = pBuf;
+    *(u8 **)(pWork + 0xC54) = pBuf + 0x70;
+    ClearOTagR((u_long *)(pBuf + 0x70), 0x1000);
+    *(s32 *)(pWork + 0xC84) = 1;
+    *(u8 **)(pWork + 0xC50) = pBase + 0x4BE0;
+    *(u8 *)(pWork + 0xDA8) = 0;
+    pBase[0x4BF8] = pBase[0xB88];
+    pBase[0x4BF9] = pBase[0xB89];
+    pBase[0x4BFA] = pBase[0xB8A];
+    pBase[0x4BFB] = pBase[0xB8B];
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B88C4);
 
 void func_800B89F4(void) {
@@ -197,7 +309,36 @@ void func_800B8D7C(void) {
     func_800B8D04();
 }
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B8DA4);
+extern void BattleDestroyState(void);
+extern void func_800BEE2C(u16 arg0, u16 arg1, s32 arg2);
+
+void func_800B8DA4(void) {
+    BattleActorSlot *pTable;
+    SpriteData *pSprite;
+    u32 slotHigh;
+    s32 index;
+
+    if (D_800C3610 == NULL) {
+        return;
+    }
+    func_800BEFF4(D_800C3610->unk20);
+    pTable = D_800C3EB0;
+    pSprite = D_800C3610->pSprite;
+    slotHigh = (u32)pSprite->flags_0xA8 >> 30;
+    index = ((pSprite->flags_0xAC & 3) << 2) | slotHigh;
+    if (pTable[index].unk8 != 0) {
+        func_800BEE2C(index, 0, 0x1F);
+    } else {
+        pSprite->position.x = pTable[D_800C3610->unk24].unkE << 16;
+        pSprite->position.z = pTable[D_800C3610->unk24].unk10 << 16;
+        BattleActorUpdateGroundHeightAndTriangle(pSprite);
+        pSprite->position.y = pSprite->field_0x84 << 16;
+        SpritePlayAnimation(pSprite, ((s8 *)pSprite)[0xB0]);
+        SpriteSetCallback(pSprite, NULL);
+    }
+    BattleDestroyState();
+}
+
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B8EBC);
 
 void func_800B9020(u8 *pSprite) {
