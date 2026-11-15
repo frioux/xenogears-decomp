@@ -392,35 +392,33 @@ void WorldMapExitToMap110(void) {
 }
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_80078E2C);
-/* NOTE: the extern at the top of this file must read `s32 func_80078E2C(s32
-   index)`, not `void func_80078E2C(void)`, or cc1 exits 33 with "conflicting
-   types" and diff_func prints 0.00% with no diff at all.
-   35.90%: the whole WorldMapActor store cluster is scheduled to the end of the
-   block, with the D_8009BE24 load sunk just before it, instead of interleaved
-   with the global stores as the original has it. 12 source shapes tried
-   (pointer local, repeated array-index casts, every statement permutation,
-   `index *= 0x80` vs `D_8009BE24 + index` vs `&index`): 19.97-35.90%. Source
-   order does not matter, the scheduler owns the block. -O1 gives 45. Same
-   scheduler class as WorldMapResetActorSlotWithSound. Round 51 re-tried the exact retail store
-   order with the pointer local both before and after the global stores: both
-   compile byte-identically to 19.97%, which confirms the block order comes from
-   cc1's priority scheduler (every `li+store` pair is hoisted ahead of each
-   `$0`-store, and the pointer store cluster lands after them), not from the C.
-   What retail's stream shows is the same scheduler with the `$0` stores kept in
-   place, so the source must create a dependency this shape does not.
+/* 93.33%, one instruction from a match, 120 bytes (retail's size).
+   The do/while shape is what closes this scheduler class (round 72 found it for
+   WorldMapResetActorSlotWithSound); nesting one around the D_8009BD3A store and
+   copying -0xC0 into a u32 local assigned before the pointer cluster (both found
+   by the permuter) got 19.97 -> 93.33. Remaining diff: retail's `li v0,0x40` for
+   the p->unk22 store sits four instructions early (between the D_8009BD3A and
+   D_8009BD3C stores); here it lands after the D_8009BD3C store. p->unk22 is the
+   only statement before the tail whose `li` is misplaced, so this is a scheduler
+   tie, not structure: hand-tried the store inside/outside each of the three
+   enclosing blocks and as a live local (that one hoists the li past the three
+   slot stores and picks $a0 instead of $v0). Both a permuter run from here
+   (3 min, 1740 iters) and the shapes above leave it at 93.33.
 s32 func_80078E2C(s32 index) {
-    ((WorldMapActor *)D_8009BE24)[index].unk20 = 0x10;
+    WorldMapActor *p;
+    u32 scrollX;
+
+    p = D_8009BE24;
     D_8009BE0C = 0x78;
     D_8009D3F0 = 0x200000;
     D_8009D144 = 0;
-    ((WorldMapActor *)D_8009BE24)[index].unk58 = 0;
-    ((WorldMapActor *)D_8009BE24)[index].unk54 = 0;
-    ((WorldMapActor *)D_8009BE24)[index].unk50 = 0;
-    D_8009BD38 = -0xC0;
-    D_8009BD3A = 0x680;
-    D_8009BD3C = 0;
-    ((WorldMapActor *)D_8009BE24)[index].unk22 = 0x40;
-    ((WorldMapActor *)D_8009BE24)[index].unk74 = 0;
+    p = p + index;
+    scrollX = -0xC0;
+    p->unk20 = 0x10;
+    p->unk58 = 0;
+    do { p->unk54 = 0; p->unk50 = 0; D_8009BD38 = scrollX; do { D_8009BD3A = 0x680; } while (0); D_8009BD3C = 0; } while (0);
+    p->unk22 = 0x40;
+    p->unk74 = 0;
     return 1;
 }
 */
