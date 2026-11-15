@@ -161,8 +161,7 @@ void func_80091D38(u8 arg0, char arg1, u8 arg2) {
         ret = 1;
     }
     if (ret != 0) {
-        ret = arg0;
-        func_800916D4(arg1, arg2, ret);
+        func_800916D4(arg1, arg2, arg0);
         func_8009187C(arg0, arg1, arg2);
         func_80091B38(arg0, arg1, arg2);
         (*(u8 **)(D_800C3EA4 + 0xA230))[0x66A] = *(u8 *)&D_800CCB34;
