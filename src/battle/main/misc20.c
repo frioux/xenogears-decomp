@@ -145,6 +145,131 @@ void BattleSetCurrentSlotState6(void) {
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc20", func_8009D3A0);
+// best 91.80%: the whole branch tree, the six rand()%100 blocks, the frame and the
+// register assignment all line up; what is left is eight single instructions.
+//   - evade = mod + evade and hit = mod/2 + hit: retail keeps the sum's
+//     destination as the accumulator (addu a2,v0,a2), gcc 2.6 emits a2,a2,v0 in
+//     both operand orders.
+//   - the two `(s16)x / 2` sites: retail's last shift is srl, ours sra.
+//   - (s8) of the u8 BattleRow.unk15: retail keeps lbu+sll/sra, gcc folds the
+//     cast into an lb even through a u8 local + (s8) at the use.
+//   - gcc cross-jumps the two `if (unk84|unk86 & 0x20)` / `& 0x40` blocks
+//     (identical rand()%100-chance-%50 tails): ours threads the first block into
+//     the second's body with a `j`, retail duplicates it.
+//   - limit = limit + 0x55 - penalty is reassociated to limit - (penalty - 0x55).
+// Next step is a permuter run on this body, not more hand shapes.
+/*
+s32 func_8009D3A0(void) {
+    s32 penalty = 0;
+    s16 limit = 0;
+    s32 hit;
+    s32 evade;
+    s32 chance;
+    s16 roll;
+    u8 rowMod;
+    u8 isGear;
+
+    if ((D_800C3DFC->unk0A & 0x200) && (*(u16 *)((u8 *)D_800C3E34 + 0x34) & 8)) {
+        return 3;
+    }
+    if (D_800C3DFC->unk0A & 0x1000) {
+        return 3;
+    }
+    if ((D_800C3E34->unk84 | D_800C3E34->unk86) & 0x100) {
+        return 3;
+    }
+    if (D_800C3E34->unk7C & 0x2000) {
+        return 1;
+    }
+    if (D_800C3E34->unk80 & 0x1000) {
+        return 1;
+    }
+    if (D_800C3DFC->unk0A & 0x8000) {
+        return 1;
+    }
+    hit = D_800C3E34->unk5C[3];
+    isGear = ((u8 *)&g_GameState.unk22B6)[D_800D2D6C->unk04[0]];
+    evade = D_800C3E00->unk5C[2];
+    if (!isGear) {
+        evade = *(s8 *)&D_800D2D6C->unk9F[0] + evade;
+    }
+    if ((s8)D_800D2DC8->unk9F[0] != 0) {
+        hit = (s8)D_800D2DC8->unk9F[0] / 2 + hit;
+    }
+    if (D_800C3E00->unk56 == 4) {
+        if ((D_800C3DFC->unk0C[4] & 0x80) && !isGear) {
+            return 3;
+        }
+        if ((D_800C3DFC->unk0C[4] & 0x20) &&
+            ((u8 *)&g_GameState.unk22B6)[D_800D2D6C->unk04[3]] == 0) {
+            return 3;
+        }
+    }
+    if ((D_800D2D6C->unk80 | D_800D2D6C->unk82) & 0x800) {
+        evade += (s16)evade / 2;
+    }
+    if (D_800D2D6C->unk7C & 0x10) {
+        penalty = 0x3C;
+    }
+    if (D_800C3DFC->unk0A & 0x1000) {
+        return 3;
+    }
+    if (D_800C34B0->slots[D_800C3E50].state.unkB6 & 0x80) {
+        if ((D_800D2DC8->unk80 | D_800D2DC8->unk82) & 0x400) {
+            hit += (s16)hit / 2;
+        }
+        if (D_800D2DC8->unk7C & 0x10) {
+            limit = 0x1E;
+        }
+        if (D_800D2DC8->unk7C & 0xC00) {
+            return 1;
+        }
+    } else {
+        evade = (s16)evade / 2;
+        if (D_800C3E34->unk7C & 0x2000) {
+            return 1;
+        }
+        if (D_800C3E34->unk80 & 0x1000) {
+            return 1;
+        }
+        if ((D_800C3E34->unk84 | D_800C3E34->unk86) & 0x800) {
+            hit += (s16)hit / 2;
+        }
+    }
+    if (D_800C34B0->slots[D_800C3E50].state.unkB6 & 1) {
+        if (rand() % 100 < 0x5F) {
+            return 2;
+        }
+        return 1;
+    }
+    rowMod = D_800C3DFC->unk15;
+    chance = evade + (s8)rowMod - hit;
+    if ((D_800C3E34->unk84 | D_800C3E34->unk86) & 0x20) {
+        roll = rand() % 100 - chance;
+        if (roll < 50) {
+            return 1;
+        }
+        return 3;
+    }
+    if ((D_800C3E34->unk84 | D_800C3E34->unk86) & 0x40) {
+        roll = rand() % 100 - chance;
+        if (roll < 50) {
+            return 1;
+        }
+        return 2;
+    }
+    roll = rand() % 100 - chance;
+    limit = limit + 0x55 - penalty;
+    if (roll >= limit) {
+        return 3;
+    }
+    roll = rand() % 100 - chance;
+    if (roll < limit) {
+        return 1;
+    }
+    return 2;
+}
+*/
 u16 BattleScaleValueByMultiplierByte(void) {
     u16 ret = func_80096FBC();
     u16 f;
