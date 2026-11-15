@@ -370,10 +370,12 @@ void BattleFreeModelMesh(BattleModelPartList* pList, s32 freeLight) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_8009F844);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_800A0838);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_800A1B50);
-/* 96.05% (420 vs 424 bytes). The instruction multiset is identical; the only
-   delta is that gcc's sched2 emits `lh v0,6(a1)` third (after countA/countB)
-   where retail has it first, which also swaps v0/v1 with a1 in the skip-block
-   arithmetic. Shapes tried: every statement order of the four field reads (with
+/* 97.90% (420 vs 421 bytes in the body; the loop-head `nop` vs retail's dead
+   `andi` is the only non-multiset insn). The remaining delta is register
+   identity: pFrame sits in $v1 where retail coalesces it into $a1 (the pData
+   parameter register, `addiu a1,a1,0x18` in the bnez delay slot), which drags
+   the third rot temp and the unk06 temp along with it.
+   Shapes tried: every statement order of the four field reads (with
    and without a unk06 local), countA inline vs a local, and both pointer/walker
    forms. Facts this cost a round to establish, keep them:
    - `pFrame += (countA + 1) * 3` MUST go through a temp: the temp is what puts
@@ -403,6 +405,13 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_800A1B50);
    Nothing hand-editable is left; this is a -O2 allocator/scheduler shape. Next
    round should spend the permuter budget (`--minutes 4 -j 2` twice did nothing)
    or bias the allocator with a differently-shaped frame walker, not text order.
+   Round 64: a `s32 skipFirst = (unk06 == 0);` local assigned right after the
+   unk06 load and tested by the if took it from 96.05 to 97.90 (the body below).
+   That is now the only delta left: pFrame still lands in $v1 where retail keeps
+   it in $a1 (the parameter register, coalesced), and the unk06 temp follows it
+   ($v0 vs retail's $t0), plus retail's dead `andi v0,t3,0xffff` in the loop-head
+   bnez delay slot where we emit nop. Permuter on top of the 97.90 body: base 360
+   best 360 (646 iterations, 3 min).
 void func_800A1B50(BattleSprite* pSprites, BattleAnimData* pData) {
     s16* pFrame;
     BattleSprite* pSprite;
@@ -414,6 +423,7 @@ void func_800A1B50(BattleSprite* pSprites, BattleAnimData* pData) {
     u16 animFlags;
     u16 numSprites;
     s16 unk06;
+    s32 skipFirst;
     s32 i;
     s32 v0;
     s32 v1;
@@ -422,11 +432,12 @@ void func_800A1B50(BattleSprite* pSprites, BattleAnimData* pData) {
     numA = 0;
     numB = 0;
     unk06 = pData->unk06;
-    pFrame = (s16*)(pData + 1);
+    skipFirst = unk06 == 0;
     countA = pData->countA;
     countB = pData->countB;
     animFlags = pData->flags;
-    if (unk06 == 0) {
+    pFrame = (s16*)(pData + 1);
+    if (skipFirst) {
         v2 = countA + 1;
         pFrame += v2 * 3;
     }
