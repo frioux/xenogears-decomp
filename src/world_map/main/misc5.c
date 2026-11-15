@@ -208,16 +208,19 @@ int WorldMapSetupGroup4And5ScaledPrims(int idx) {
 }
 
 int WorldMapUpdateGroup4And5Scale(int idx) {
-    u8 *pPlayer = (u8 *)D_8009BE24 + (idx << 7);
+    WorldMapPlayer *pPlayer = D_8009BE24 + idx;
     u8 *pWork = (u8 *)D_8009C620;
     u32 *pScratch = (u32 *)0x1F800000;
+    // second layer's scale; retail keeps this field's address in a register,
+    // which is what makes the player pointer land in $a2
+    s32 *pScale2 = &pPlayer->unk54;
     s32 x;
     s32 y;
     s32 z;
     s32 w;
 
-    if (*(s16 *)(pPlayer + 4) != 0) {
-        *(s16 *)(pPlayer + 4) = 0;
+    if (pPlayer->unk4 != 0) {
+        pPlayer->unk4 = 0;
         *(s16 *)(pWork + 0x1A4) = 0;
         *(s16 *)(pWork + 0x150) = 0;
     }
@@ -229,22 +232,22 @@ int WorldMapUpdateGroup4And5Scale(int idx) {
     z = D_8009C5B4 >> 12;
     *(s32 *)(pWork + 0x1B4) = z;
     *(s32 *)(pWork + 0x160) = z;
-    *(s32 *)(pPlayer + 0x50) += 0x180;
-    if (*(s32 *)(pPlayer + 0x50) > 0x800) {
-        *(s32 *)(pPlayer + 0x54) += 0x180;
+    pPlayer->unk50 += 0x180;
+    if (pPlayer->unk50 > 0x800) {
+        *pScale2 += 0x180;
     }
-    if (*(s32 *)(pPlayer + 0x50) > 0x7F00) {
-        *(s32 *)(pPlayer + 0x50) = 0x7F00;
+    if (pPlayer->unk50 > 0x7F00) {
+        pPlayer->unk50 = 0x7F00;
     }
-    if (*(s32 *)(pPlayer + 0x54) > 0x7F00) {
-        *(s32 *)(pPlayer + 0x54) = 0x7F00;
+    if (*pScale2 > 0x7F00) {
+        *pScale2 = 0x7F00;
     }
     *(MATRIX *)&pScratch[0x3C] = D_8009A180;
     *(MATRIX *)&pScratch[0x44] = *(MATRIX *)&pScratch[0x3C];
-    w = *(s32 *)(pPlayer + 0x50);
+    w = pPlayer->unk50;
     *(u32 *)0x1F800008 = w;
     *(u32 *)0x1F800000 = w;
-    x = *(s32 *)(pPlayer + 0x54);
+    x = *pScale2;
     *(u32 *)0x1F800014 = 0x1000;
     *(u32 *)0x1F800004 = 0x1000;
     *(u32 *)0x1F800018 = x;
@@ -285,16 +288,19 @@ int WorldMapSetupGroup6And7ScaledPrims(int idx) {
 }
 
 int WorldMapUpdateGroup6And7Scale(int idx) {
-    u8 *pPlayer = (u8 *)D_8009BE24 + (idx << 7);
+    WorldMapPlayer *pPlayer = D_8009BE24 + idx;
     u8 *pWork = (u8 *)D_8009C620;
     u32 *pScratch = (u32 *)0x1F800000;
+    // second layer's scale; retail keeps this field's address in a register,
+    // which is what makes the player pointer land in $a2
+    s32 *pScale2 = &pPlayer->unk54;
     s32 x;
     s32 y;
     s32 z;
     s32 w;
 
-    if (*(s16 *)(pPlayer + 4) != 0) {
-        *(s16 *)(pPlayer + 4) = 0;
+    if (pPlayer->unk4 != 0) {
+        pPlayer->unk4 = 0;
         *(s16 *)(pWork + 0x24C) = 0;
         *(s16 *)(pWork + 0x1F8) = 0;
     }
@@ -306,22 +312,22 @@ int WorldMapUpdateGroup6And7Scale(int idx) {
     z = D_8009C5B4 >> 12;
     *(s32 *)(pWork + 0x25C) = z;
     *(s32 *)(pWork + 0x208) = z;
-    *(s32 *)(pPlayer + 0x50) += 0x180;
-    if (*(s32 *)(pPlayer + 0x50) > 0x800) {
-        *(s32 *)(pPlayer + 0x54) += 0x180;
+    pPlayer->unk50 += 0x180;
+    if (pPlayer->unk50 > 0x800) {
+        *pScale2 += 0x180;
     }
-    if (*(s32 *)(pPlayer + 0x50) > 0x7F00) {
-        *(s32 *)(pPlayer + 0x50) = 0x7F00;
+    if (pPlayer->unk50 > 0x7F00) {
+        pPlayer->unk50 = 0x7F00;
     }
-    if (*(s32 *)(pPlayer + 0x54) > 0x7F00) {
-        *(s32 *)(pPlayer + 0x54) = 0x7F00;
+    if (*pScale2 > 0x7F00) {
+        *pScale2 = 0x7F00;
     }
     *(MATRIX *)&pScratch[0x3C] = D_8009A180;
     *(MATRIX *)&pScratch[0x44] = *(MATRIX *)&pScratch[0x3C];
-    w = *(s32 *)(pPlayer + 0x50);
+    w = pPlayer->unk50;
     *(u32 *)0x1F800008 = w;
     *(u32 *)0x1F800000 = w;
-    x = *(s32 *)(pPlayer + 0x54);
+    x = *pScale2;
     *(u32 *)0x1F800014 = 0x1000;
     *(u32 *)0x1F800004 = 0x1000;
     *(u32 *)0x1F800018 = x;
