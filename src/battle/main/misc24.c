@@ -424,16 +424,6 @@ s32 BattleGetActorSpriteDistance(u8 *arg0) {
     return SquareRoot0(dx * dx + dy * dy + dz * dz);
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AEF68);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AF180);
-/* 97.43% - instruction multiset identical; the only difference is two swapped
-   register pairs in the allocator: original has s0=p/s1=i and s3=arg0/s4=arg2,
-   this emits s0=i/s1=p and s3=arg2/s4=arg0 (and the two operands of the two
-   "addu" address sums come out base-first). Tried: 6 declaration orders for the
-   locals (identical), q=p order swapped (80.40), while-loop form (97.43),
-   n loaded before p/q (97.43), "arg1*0x7C + ptr" instead of "ptr + arg1*0x7C"
-   (97.43, gcc canonicalises either way). Allocator tie, same class as the notes
-   above.
-extern s32 BattleFreeBlock(u8 *arg0, u8 *arg1);
 void func_800AF180(u8 *arg0, s32 arg1, u8 *arg2, u8 *arg3) {
     u8 *p;
     u8 *q;
@@ -441,15 +431,17 @@ void func_800AF180(u8 *arg0, s32 arg1, u8 *arg2, u8 *arg3) {
     s32 n;
     s32 i;
 
-    p = arg1 * 0x7C + arg2;
-    q = arg1 * 0x7C + arg3;
+    p = (u8 *)(arg1 * 0x7C + (s32)arg2);
+    q = (u8 *)(arg1 * 0x7C + (s32)arg3);
     n = *(u16 *)(arg2 + 0xA);
     *(u8 *)(p + 7) = 0;
     *(u8 *)(q + 7) = 1;
     BattleFreeBlock(arg0, *(s32 *)(p + 0x70));
-    *(s32 *)(p + 0x70) = 0;
-    BattleFreeBlock(arg0, *(s32 *)(p + 0x74));
-    *(s32 *)(p + 0x74) = 0;
+    do {
+        *(s32 *)(p + 0x70) = 0;
+        BattleFreeBlock(arg0, *(s32 *)(p + 0x74));
+        *(s32 *)(p + 0x74) = 0;
+    } while (0);
     BattleFreeBlock(arg0, *(s32 *)(p + 0x78));
     *(s32 *)(p + 0x78) = 0;
     pChild = arg2;
@@ -460,8 +452,6 @@ void func_800AF180(u8 *arg0, s32 arg1, u8 *arg2, u8 *arg3) {
         }
     }
 }
-
-*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AF270);
 /* 85.71% - instruction multiset identical, only the preheader order differs:
    the original emits the hoisted "li a3,1" before "addiu a0,a0,7", here the
