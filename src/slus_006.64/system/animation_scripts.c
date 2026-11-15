@@ -134,42 +134,43 @@ void SpriteSetPositionXZ(SpriteData* pSpriteData, s32 x, s32 z) {
 }
 
 // Animation state copied in and out of a script suspension record (see SpriteRestoreAnimState).
+// The offsets are the record's own, not SpriteData's.
 typedef struct {
-    /* 0x0  */ s32 positionX;
-    /* 0x4  */ s32 positionY;
-    /* 0x8  */ s32 positionZ;
-    /* 0xC  */ s32 padC;
-    /* 0x10 */ u16 field_0x80;
-    /* 0x12 */ u16 animIndex;
-    /* 0x14 */ s16 animId;
-    /* 0x16 */ s16 field_0xB0;
-    /* 0x18 */ s16 scriptIndex;
-    /* 0x1C */ s32 field_0x1C;
-    /* 0x20 */ s32 field_0x20;
-    /* 0x24 */ u16 scaleX;
+    /* 0x00 */ IVEC3 position; // SpriteData.position
+    /* 0x0C */ s32 pad0C;
+    /* 0x10 */ u16 field_0x80; // SpriteData.field_0x80
+    /* 0x12 */ u16 animIndex; // flags_0xA8 bits 11..16
+    /* 0x14 */ s16 animId; // top byte of flags_0xAC
+    /* 0x16 */ s16 animFlags; // low byte of flags_0xB0
+    /* 0x18 */ s16 scriptIndex; // flags_0xA8 bits 22..27
+    /* 0x1C */ s32 field_0x1C; // field_0x7C->field_0x0
+    /* 0x20 */ s32 field_0x20; // field_0x7C->field_0x4
+    /* 0x24 */ u16 scaleX; // SpriteData.pBase->scale
     /* 0x26 */ u16 scaleY;
     /* 0x28 */ u16 scaleZ;
-    /* 0x2A */ u16 field_0x2C;
-    /* 0x2C */ u16 field_0x82;
+    /* 0x2A */ u16 scale; // SpriteData.scale
+    /* 0x2C */ u16 field_0x82; // SpriteData.field_0x82
 } SpriteAnimState; // Size: 0x30
 
 extern s32 D_80059198;
 extern void AnimScriptTick(SpriteData* pSpriteData);
 extern void SpritePlayAnimation(SpriteData* pSpriteData, s32 animId);
 
+// flags_0xAC keeps the animation id in its top byte and flags_0xB0 the animation
+// flag byte in its low byte; the shared header declares both as whole words.
 void SpriteRestoreAnimState(SpriteData* pSpriteData, SpriteAnimState* pState) {
     s32 savedRenderContext = D_80059198;
 
     D_80059198 = 0;
     pSpriteData->field_0x80 = pState->field_0x80;
-    *(u8*)((u8*)pSpriteData + 0xAF) = *(u8*)((u8*)pState + 0x14);
-    *(u8*)((u8*)pSpriteData + 0xB0) = *(u8*)((u8*)pState + 0x16);
+    ((u8*)&pSpriteData->flags_0xAC)[3] = (u8)pState->animId;
+    ((u8*)&pSpriteData->flags_0xB0)[0] = (u8)pState->animFlags;
     pSpriteData->pBase->scale.x = pState->scaleX;
     pSpriteData->pBase->scale.y = pState->scaleY;
     pSpriteData->pBase->scale.z = pState->scaleZ;
     pSpriteData->field_0x82 = pState->field_0x82;
-    pSpriteData->scale = pState->field_0x2C;
-    SpritePlayAnimation(pSpriteData, (s8)*(u8*)((u8*)pSpriteData + 0xAF));
+    pSpriteData->scale = pState->scale;
+    SpritePlayAnimation(pSpriteData, ((s8*)&pSpriteData->flags_0xAC)[3]);
     while (((u32)pSpriteData->flags_0xA8 >> 22 & 0x3F) != pState->scriptIndex) {
         AnimScriptTick(pSpriteData);
         pSpriteData->position.x += pSpriteData->step.x;
@@ -177,22 +178,22 @@ void SpriteRestoreAnimState(SpriteData* pSpriteData, SpriteAnimState* pState) {
         pSpriteData->position.y += pSpriteData->step.y;
         pSpriteData->step.y += pSpriteData->gravity;
     }
-    pSpriteData->position.x = pState->positionX;
-    pSpriteData->position.y = pState->positionY;
-    pSpriteData->position.z = pState->positionZ;
+    pSpriteData->position.x = pState->position.x;
+    pSpriteData->position.y = pState->position.y;
+    pSpriteData->position.z = pState->position.z;
     ((SpriteDataI3*)pSpriteData->field_0x7C)->field_0x0 = pState->field_0x1C;
     ((SpriteDataI3*)pSpriteData->field_0x7C)->field_0x4 = pState->field_0x20;
     D_80059198 = savedRenderContext;
 }
 
 void SpriteSaveAnimState(SpriteData* pSpriteData, SpriteAnimState* pState) {
-    pState->positionX = pSpriteData->position.x;
-    pState->positionY = pSpriteData->position.y;
-    pState->positionZ = pSpriteData->position.z;
+    pState->position.x = pSpriteData->position.x;
+    pState->position.y = pSpriteData->position.y;
+    pState->position.z = pSpriteData->position.z;
     pState->field_0x80 = (u16)pSpriteData->field_0x80;
     pState->animIndex = (u32)pSpriteData->flags_0xA8 >> 11 & 0x3F;
-    pState->animId = (s8)*(u8*)((u8*)pSpriteData + 0xAF);
-    pState->field_0xB0 = (s8)*(u8*)((u8*)pSpriteData + 0xB0);
+    pState->animId = (s8)((u8*)&pSpriteData->flags_0xAC)[3];
+    pState->animFlags = (s8)((u8*)&pSpriteData->flags_0xB0)[0];
     pState->scriptIndex = (u32)pSpriteData->flags_0xA8 >> 22 & 0x3F;
     pState->field_0x1C = ((SpriteDataI3*)pSpriteData->field_0x7C)->field_0x0;
     pState->field_0x20 = ((SpriteDataI3*)pSpriteData->field_0x7C)->field_0x4;
@@ -200,11 +201,11 @@ void SpriteSaveAnimState(SpriteData* pSpriteData, SpriteAnimState* pState) {
     pState->scaleY = (u16)pSpriteData->pBase->scale.y;
     pState->scaleZ = (u16)pSpriteData->pBase->scale.z;
     pState->field_0x82 = (u16)pSpriteData->field_0x82;
-    pState->field_0x2C = (u16)pSpriteData->scale;
+    pState->scale = (u16)pSpriteData->scale;
 }
 
 void SpriteSetFieldB0(SpriteData* pSpriteData, u8 value) {
-    *(u8*)((u8*)pSpriteData + 0xB0) = value;
+    ((u8*)&pSpriteData->flags_0xB0)[0] = value;
 }
 
 void SpriteSetMoveSpeed(SpriteData* pSpriteData, s32 moveSpeed) {
