@@ -1304,6 +1304,9 @@ s16 (*LibGearGetInterpolationFunc(s32 type))(s16, s16, s16) {
 // Later: three bare `-1` literals (no negOne local) also give 74.36 - cse still
 // merges them into one register and sched2 parks that li 9 insns early (slot 5),
 // so the constant is not a source-shape question either.
+// Round 62: permuter, 783 iterations from this body (base 60), found nothing
+// better - the (li slot 0, store slot 14) split is confirmed out of reach here.
+INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E3534);
 /*
 void func_801E3534(Model* pModel, s32 arg1, u32 arg2, u32 arg3) {
     s16 negOne = -1;
@@ -1344,7 +1347,6 @@ void func_801E3534(Model* pModel, s32 arg1, u32 arg2, u32 arg3) {
     pModel->unk1E = negOne;
 }
 */
-INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E3534);
 void LibGearSetAnimation(Model* pModel, Model* pSource, s32 arg2, s32 arg3) {
     if ((pModel != NULL) && (pSource != NULL)) {
         if (pModel->unk2B != 0) {
@@ -1631,8 +1633,21 @@ int LibGearGetModelDistance(Model* pModel) {
 // `pModel->unk58` reads, a separate `rawType` copy) makes gcc 2.6 CSE them into
 // one addiu, which costs one instruction and shifts every later label.
 // Screened: 93.15 attempt above; 95.39 best (2.6.0), 92.13 under 2.7.2-cdk - not a preset problem.
+// Round 62: 99.18% (464 bytes, the original's size). The last instruction is
+// `addiu a0,v1,-1` in the original where this compiles to `move a0,v1`: gcc CSEs
+// the `unk58 - 1` of the range test into the stored index. What got the body from
+// 95.39 to 99.18 is the `pModel2` copy of the pointer in the 0xFD arm, which makes
+// the unk58 copy land in the register retail uses (retail `lh v1` + `move a1,v1`,
+// here `lh a1` + `move v1,a1`); it is an allocator workaround, not plausible
+// source, and it is the only remaining delta besides that one addiu. Two permuter
+// runs (790 + 30 iterations, base 231) found nothing past it, and screening the
+// FD arm against a cast or against `pModel->unk20` directly brings it back to
+// 95.39. Making the store read through pModel2 instead of pModel is the same
+// 99.18 (the test's subtract and the store's are still the same pseudo).
+INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E63A8);
 /*
 void func_801E63A8(Model* pModel) {
+    Model* pModel2;
     Model* pSource;
     MATRIX* pMatrix;
     u_short value[12];
@@ -1652,8 +1667,9 @@ void func_801E63A8(Model* pModel) {
     if (pModel->unk58 == 0xFE) {
         index = D_801E86B0;
     }
-    if (pModel->unk58 == 0xFD) {
-        index = pModel->unk20;
+    pModel2 = pModel;
+    if (pModel2->unk58 == 0xFD) {
+        index = pModel2->unk20;
     }
     if (pModel->unk58 == 0xFC) {
         index = pModel->unk21;
@@ -1708,7 +1724,6 @@ void func_801E63A8(Model* pModel) {
     }
 }
 */
-INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E63A8);
 
 
 // objdiff 98.63%: byte-identical except that gcc 2.6 puts pJoint in s1 and the
