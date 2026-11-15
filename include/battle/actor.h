@@ -216,6 +216,17 @@ typedef struct {
     /* 0x0A4 */ BattleSlotState state;
 } BattleTableEntry; // Size: 0x170
 
+// The per-slot battle register file (D_800D3400[slot]): the dword, word and
+// byte registers the script's comparison ops test against, indexed by the
+// operand byte that follows the opcode. +0x00 is read as a script cursor by
+// src/battle/main/misc4.
+typedef struct {
+    /* 0x00 */ u8 unk0[0x10];
+    /* 0x10 */ u32 unk10[4]; // dword registers
+    /* 0x20 */ u16 unk20[8]; // word registers
+    /* 0x30 */ u8 unk30[0x10]; // byte registers
+} BattleSlotRegs; // Size: 0x40
+
 // One 0x28-byte row of the per-actor action tables the battle work block holds
 // at +0x1058 (0x5F0 bytes per actor) and +0x2228 (0x690 bytes per actor). The
 // row currently in use is pointed to by D_800C3DFC. Only the fields read by
