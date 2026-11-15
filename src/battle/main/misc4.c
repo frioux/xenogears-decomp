@@ -101,40 +101,48 @@ void BattleQueueCommandF8IfFlagged(u8 arg0, u8 arg1) {
         BattleQueueCommandF8(arg1);
     }
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc4", func_80078998);
-/* Best: 68.28%, one pass. The control flow below is decoded from the asm and
-   believed right (note BattleQueueCommandF8IfFlagged takes arg1 first, and the 0xFD scan loop
-   walks D_800C402F in 0x48 strides). The gap is register allocation: retail keeps
-   `arg1 * 8` in $s0 and re-forms `lui $at,%hi(D_800D2E62); addu $at,$at,$s0` at
-   every use, while this shape makes gcc CSE those addresses into pointer locals
-   (a third callee-saved register appears, frame 0x30 instead of 0x28). Try
-   indexing off a u8/u16 table type or splitting the accesses across the calls.
-
+/* Best: 89.11% (408 bytes vs retail 420), now COMPILES (the old 68.28% note
+   was a body that did not build: it indexed the BattleCommandQueue pointer as an
+   array, D_800C3EAC[0x2DA], which the typed struct rejects). Structure is exact -
+   all four calls, the 0xFD scan and both table stores match. Three insns short:
+   retail forms &D_800D2C94 ONCE into $s1 (lui/addiu) and reuses it for the
+   pre-call store and both post-call compares, and copies it to $t0 for the loop
+   plus the queue pointer to $a2 and i=0 in the preheader; gcc here rematerialises
+   the pValue address at each use (lui %hi + lhu %lo) and hoists pQueue/i above
+   the beq. Tried: pValue assigned at the top of the body and just before the
+   D_800C3FFE store (identical), no pQueue local (reloads D_800C3EAC inside the
+   loop). The remaining gap is remat/scheduling, not source shape. *//*
 void func_80078998(u8 arg0, u8 arg1) {
+    BattleCommandQueue *pQueue;
+    u16 *pValue;
     s32 i;
     s32 n;
 
     BattleQueueCommandF8IfFlagged(arg1, arg0);
-    D_800C3EAC[0x2DC] = D_800D2E5D[arg1 * 8] + 1;
-    BattleBeginActorAction(arg0, *(u16*)(D_800D2E62 + arg1 * 8), D_800D2E5E[arg1 * 8]);
-    BattleApplySlotCurveAndStep(D_800C3EAC[0x2DA]);
-    D_800C402F[D_800C3EAC[0x2DA] * 72] = D_800D2E5E[arg1 * 8];
-    D_800C3FFE[D_800C3EAC[0x2DA]][0] = D_800D2C94;
+    D_800C3EAC->unk2DC = D_800D2E5C[arg1].unk1 + 1;
+    BattleBeginActorAction(arg0, D_800D2E5C[arg1].unk6, D_800D2E5C[arg1].unk2);
+    BattleApplySlotCurveAndStep(D_800C3EAC->count);
+    D_800C402F[D_800C3EAC->count * 72] = D_800D2E5C[arg1].unk2;
+    pValue = &D_800D2C94;
+    D_800C3FFE[D_800C3EAC->count][0] = *pValue;
     func_800785D4(arg0, arg1);
-    if (*(u16*)(D_800D2E62 + arg1 * 8) != D_800D2C94) {
+    if (D_800D2E5C[arg1].unk6 != *pValue) {
+        pQueue = D_800C3EAC;
         i = 0;
         n = 0;
-        while (n < D_800C3EAC[0x2DA]) {
+        while (n < pQueue->count) {
             if (D_800C402F[i] == 0xFD) {
-                *(u16*)(D_800C3FFE + i) = D_800D2C94;
+                *(u16 *)((u8 *)D_800C3FFE + i) = *pValue;
                 break;
             }
             n++;
             i += 0x48;
         }
     }
-}
-*/
+}*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc4", func_80078998);
+
+
 void BattleQueueCommandFD(u8 arg0, u8 arg1, u8 arg2) {
     D_800C402F[D_800C3EAC->count * 72] = 0xFD;
     D_800C4022[D_800C3EAC->count][0] = 0;
@@ -163,22 +171,17 @@ void BattleSetPendingActorMask(u8 arg0, u8 arg1) {
     D_800D39E0 = D_800D2E5C[arg1].unk6;
 }
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc4", func_80078D6C);
-/* Best: 86.09%. The second store is stolen into the lhu load-delay slot by gcc
-   unless its address register is clobbered by the 0x170 multiply chain, and only
-   the folded `&D_800C3D1B[arg0 - 3].unk0` address does that (chain reuses v0), but
-   it folds -12 into %hi(D_800C3D1B) and costs the original's separate
-   addiu/sll + %hi/addu address. Kept in place by volatile; the remaining diff is
-   that address shape only. Also: -O1 scores 90.74, so the mover is an -O2 pass.
-
 void func_80078D6C(u8 arg0, u8 arg1) {
-    D_800C402F[D_800C3EAC[0x2DA] * 72] = 0xF9;
+    D_800C402F[D_800C3EAC->count * 72] = 0xF9;
     func_800785D4(arg0, arg1);
     D_800D2DE4[arg0] = 0xFF;
-    *(volatile u8*)&D_800C3D1B[arg0 - 3].unk0 = 1;
+    // The empty-block wrapper keeps this store ahead of the D_800CCD64 read-modify-write.
+    do {
+        D_800C3D1B[arg0 - 3].unk0 = 1;
+    } while (0);
     D_800CCD64[arg0].flags &= 0x8000;
 }
-*/
+
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc4", func_80078E24);
 void BattleApplyCommandByteVar(u8 arg0, u8 arg1) {
     func_80079ED8(arg0, D_800D2E5C[arg1].unk1, D_800D2E5C[arg1].unk4, 0);
