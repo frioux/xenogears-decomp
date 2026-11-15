@@ -425,13 +425,16 @@ s32 func_80087804(s32 index) {
 void func_80087904(u8* pDst, u8* pSrc, s32 count, s32 abr) {
     long tmp[2]; // unused: reproduces retail's 0x30-byte stack frame
     u8* p;
-    s32 n = count;
+    s32 n;
+    s32 a;
     s32 i = 0;
 
+    n = count;
+    a = abr;
     if (n > 0) {
         p = pSrc + 7;
         do {
-            *(u16*)(p + 0xF) = GetTPage(0, abr, 0x1A0, 0xA0);
+            *(u16*)(p + 0xF) = GetTPage(0, a, 0x1A0, 0xA0);
             *p |= 2;
             p += 0x28;
         } while (++i < n);
