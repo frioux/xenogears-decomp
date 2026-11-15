@@ -106,13 +106,13 @@ void SpriteSetFrameFromAnimIndex(SpriteData* pSpriteData) {
     animFlags = pAnimFlags[animIndex];
     frameIndex = animFlags & 0x1FF;
     if (animFlags & 0x200) {
-        pSpriteData->flags_0xAC |= 8;
+        pSpriteData->flags_0xAC.flags |= 8;
     } else {
-        pSpriteData->flags_0xAC &= ~8;
+        pSpriteData->flags_0xAC.flags &= ~8;
     }
     *(u32*)((u8*)pSpriteData + 0x3C) = (*(u32*)((u8*)pSpriteData + 0x3C) & ~8) |
-                                       (((((u32)pSpriteData->flags_0xAC >> 3) & 1) ^
-                                         (((u32)pSpriteData->flags_0xAC >> 2) & 1))
+                                       (((((u32)pSpriteData->flags_0xAC.flags >> 3) & 1) ^
+                                         (((u32)pSpriteData->flags_0xAC.flags >> 2) & 1))
                                         << 3);
     func_8001D2B0(pSpriteData, frameIndex);
 }
@@ -128,7 +128,7 @@ void func_80022DF4(pEntry) WorkListEntry* pEntry;
     SpriteApplyMovementStep(pSpriteData);
     if (pSpriteData->pSpriteBytecode == NULL) {
         pEntry->onFreeCallback(pEntry);
-    } else if (((u32)pSpriteData->flags_0xAC >> 6) & 1) {
+    } else if (((u32)pSpriteData->flags_0xAC.flags >> 6) & 1) {
         AnimScriptTick(pSpriteData);
         SpriteApplyMovementStep(pSpriteData);
         if (pSpriteData->pSpriteBytecode == NULL) {
@@ -160,10 +160,10 @@ void AnimTaskFree(AnimTask* pAnimTask) {
             HeapFree(pSpriteData->pBase->pDirTransforms);
         }
     }
-    if (((u32)pSpriteData->flags_0xAC >> 5) & 1) {
+    if (((u32)pSpriteData->flags_0xAC.flags >> 5) & 1) {
         WorkListsRemoveEntriesForData(pTask);
     }
-    if (((u32)pSpriteData->flags_0xB0 >> 11) & 1) {
+    if (((u32)pSpriteData->flags_0xB0.flags >> 11) & 1) {
         TimerWorkListClearDataField70(pTask);
     }
     if ((pSpriteData->field_0x3C_0 & 3) == 1) {
@@ -428,7 +428,7 @@ void func_80023804(SpriteData* pSpriteData) {
     pFlagsA8[2] = 0;
     *(u8*)((u8*)pSpriteData + 0xB0) = 0;
     *(u8*)((u8*)pSpriteData + 0xAF) = 0;
-    pSpriteData->flags_0xAC = (pSpriteData->flags_0xAC & 0xFFF8007F) | ((0x100 & 0xFFF) << 7);
+    pSpriteData->flags_0xAC.flags = (pSpriteData->flags_0xAC.flags & 0xFFF8007F) | ((0x100 & 0xFFF) << 7);
     pSpriteData->flags_0xA8 &= 0xFFF1FFFF;
     cycles = D_80059198 + 1;
     pSpriteData->gravity = (cycles * 0x4000) * cycles * pSpriteData->field_0x82 / 4096;
@@ -577,14 +577,14 @@ AnimTask* func_80023FD8(s32 index, void* pAnimFile, ActorRotation* pOffset, s32 
             *(u8*)((u8*)pSpriteData + 0x3D) = *(u8*)((u8*)pTemplate + 0x3D);
             pSpriteData->scale = pTemplate->scale;
             (*(u32*)((u8*)pSpriteData + 0x3C)) = ((*(u32*)((u8*)pSpriteData + 0x3C)) | 0x4000000) & ~4;
-            pSpriteData->flags_0xAC = (pSpriteData->flags_0xAC & ~4) | (pTemplate->flags_0xAC & 4);
-            pSpriteData->flags_0xAC =
-                (pSpriteData->flags_0xAC & 0xFFF8007F) | (pTemplate->flags_0xAC & 0x7FF80);
+            pSpriteData->flags_0xAC.flags = (pSpriteData->flags_0xAC.flags & ~4) | (pTemplate->flags_0xAC.flags & 4);
+            pSpriteData->flags_0xAC.flags =
+                (pSpriteData->flags_0xAC.flags & 0xFFF8007F) | (pTemplate->flags_0xAC.flags & 0x7FF80);
             pSpriteData->field_0x7C = pTemplate->field_0x7C;
             pSpriteData->field_0x7C = pTemplate->field_0x7C;
-            flags = ((u32)pTemplate->flags_0xA8 >> 30) | ((pTemplate->flags_0xAC & 3) << 2);
+            flags = ((u32)pTemplate->flags_0xA8 >> 30) | ((pTemplate->flags_0xAC.flags & 3) << 2);
             pSpriteData->flags_0xA8 = (pSpriteData->flags_0xA8 & 0x3FFFFFFF) | (flags << 30);
-            pSpriteData->flags_0xAC = (pSpriteData->flags_0xAC & ~3) | (flags >> 2);
+            pSpriteData->flags_0xAC.flags = (pSpriteData->flags_0xAC.flags & ~3) | (flags >> 2);
             pSpriteData->field_0x50 = pTemplate->field_0x50;
             *(u8*)((u8*)pSpriteData + 0x8D) = *(u8*)((u8*)pTemplate + 0xAF);
         }
@@ -705,9 +705,9 @@ void SpritePlayAnimation(SpriteData* pSpriteData, s32 animId) {
         return;
     }
     if (pSpriteData->pCurAnimFile == pSpriteData->pDefaultAnimFile) {
-        pSpriteData->flags_0xB0 &= ~0x400;
+        pSpriteData->flags_0xB0.flags &= ~0x400;
     } else {
-        pSpriteData->flags_0xB0 |= 0x400;
+        pSpriteData->flags_0xB0.flags |= 0x400;
     }
     if (animId < 0) {
         SpriteSetAnimFile(pSpriteData, pSpriteData->pSpecialAnimFile);
@@ -722,7 +722,7 @@ void SpritePlayAnimation(SpriteData* pSpriteData, s32 animId) {
                 *(SVEC2*)&((SpriteDataI3*)pSpriteData->field_0x7C)->texX;
         }
     }
-    ((u8*)&pSpriteData->flags_0xAC)[3] = animId;
+    ((u8*)&pSpriteData->flags_0xAC.flags)[3] = animId;
     if (animId < 0) {
         animId = ~animId;
     }

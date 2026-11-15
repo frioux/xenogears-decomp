@@ -156,7 +156,7 @@ void BattleCreateActorDistanceTask(SpriteData *pSpriteData, s32 minDistance,
     pTask->animId = *(s8 *)((u8 *)pSpriteData + 0xAF);
     pTask->distance = func_800B57E4(pSpriteData);
     pTask->minDistance = minDistance;
-    pSpriteData->flags_0xAC |= 0x20;
+    pSpriteData->flags_0xAC.flags |= 0x20;
 }
 // best 73.04% (71.61% in the variant below, 108 bytes = one instruction short):
 // retail's first instruction is a `move t0,a1` copy of the second parameter (its
@@ -277,7 +277,7 @@ void func_800BFA9C(void) {
     func_800BE790();
     pSprite = D_800C3E1C;
     high = (u32)pSprite->flags_0xA8 >> 30;
-    low = (pSprite->flags_0xAC & 3) << 2;
+    low = (pSprite->flags_0xAC.flags & 3) << 2;
     mode = low | high;
     for (i = 0; i != 3; i++) {
         if (D_800C3EB0[i].unk8 != 0) {

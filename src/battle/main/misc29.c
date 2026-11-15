@@ -325,7 +325,7 @@ void BattleActorInitSpriteFromSlot(void) {
     pTable = D_800C3EB0;
     pSprite = D_800C3610->pSprite;
     slotHigh = (u32)pSprite->flags_0xA8 >> 30;
-    index = ((pSprite->flags_0xAC & 3) << 2) | slotHigh;
+    index = ((pSprite->flags_0xAC.flags & 3) << 2) | slotHigh;
     if (pTable[index].unk8 != 0) {
         func_800BEE2C(index, 0, 0x1F);
     } else {

@@ -118,7 +118,7 @@ void BattleSetActorDirectionMatrix(SpriteData* pSpriteData, s32 index, MATRIX* p
                                              (mem_addr)pSpriteData->pBase->pDirTransforms);
     y = pTransform->translationY;
     x = pTransform->translationX;
-    if (((u32)pSpriteData->flags_0xAC >> 2) & 1) {
+    if (((u32)pSpriteData->flags_0xAC.flags >> 2) & 1) {
         x = -x;
     }
     scale = pSpriteData->scale;

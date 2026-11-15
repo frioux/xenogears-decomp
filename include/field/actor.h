@@ -147,6 +147,15 @@ typedef struct {
 
 // Flags (Field 0xB0):
 // 0x400: Current animation is using non-default animation package
+
+// SpriteData's two animation flag words are read and written whole by most
+// callers, but a few set a single byte of one: the animation id is byte 3 of
+// flags_0xAC and the animation flag byte is byte 0 of flags_0xB0.
+typedef union {
+    /* 0x0 */ s32 flags;
+    /* 0x0 */ u8 bytes[4];
+} SpriteFlagWord;
+
 typedef struct {
     /* 0x0  */ IVEC3 position;
     /* 0xC  */ IVEC3 step;
@@ -203,8 +212,8 @@ typedef struct {
     /* 0xA4 */ s16 field_0xA4;
     /* 0xA6 */ s16 field_0xA6;
     /* 0xA8 */ s32 flags_0xA8;
-    /* 0xAC */ s32 flags_0xAC;
-    /* 0xB0 */ s32 flags_0xB0;
+    /* 0xAC */ SpriteFlagWord flags_0xAC;
+    /* 0xB0 */ SpriteFlagWord flags_0xB0;
     /* 0xB4 */ SpriteDataI1 inner1;
     /* 0xF4 */ SpriteDataI3 inner3;
     /* 0x110 */ SpriteAnimPackage i2CurPackage;

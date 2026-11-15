@@ -183,7 +183,7 @@ void BattleFreeAnimTask(u8 *pEntry) {
             D_800D30A8[2] = D_800C3CD4[2];
         }
     }
-    if (((u32)pSprite->flags_0xAC >> 5) & 1) {
+    if (((u32)pSprite->flags_0xAC.flags >> 5) & 1) {
         WorkListsRemoveEntriesForData(pEntry);
     }
     TimerWorkListRemoveTask(pEntry);
@@ -213,7 +213,7 @@ void BattleAnimTaskTick(u8 *pEntry) {
         (*((void (**)(u8 *))(pEntry + 0xC)))(pEntry);
         return;
     }
-    if ((((u32)pSprite->flags_0xAC >> 6) & 1) == 0) {
+    if ((((u32)pSprite->flags_0xAC.flags >> 6) & 1) == 0) {
         return;
     }
     AnimScriptTick(pSprite);
@@ -270,7 +270,7 @@ void BattleInitAnimTask(u8 *pEntry) {
         }
     }
     D_800C3CC4++;
-    if (((u32)pSprite->flags_0xAC >> 2) & 1) {
+    if (((u32)pSprite->flags_0xAC.flags >> 2) & 1) {
         pSprite->direction = 0x800;
     } else {
         pSprite->direction = 0;
