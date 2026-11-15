@@ -97,7 +97,10 @@ args and the same limit on the launch -
 `subagent({workflow: "tools/rounds/brief.js", async: true, options: {timeoutMs: 3600000}, args: {workers: [...]}})` -
 and at most 8 workers, because each one also runs the permuter (`-j 2`) on the 6-core
 build VM. The brief tells a worker to commit after every match, so a kill at 60 loses
-little. Judge the deep shape by matched instructions, not function count.
+little. Judge the deep shape by matched instructions, not function count. **A port round
+(`permute-brief.js`) is the same constraint:** each worker runs the permuter for real, so
+7 port workers plus the sweep drove the load to 22 on 6 cores and several workers spent
+4+ minutes in one compile. Cap a port round at 5 workers, or pause the sweep for it.
 
 If `make check` fails: `tools/scripts/culprit.sh <bin>` names the differing functions
 and `tools/scripts/sizes.py` names a function whose size is wrong. Revert that
@@ -330,7 +333,13 @@ by stub count, 10 to 16 with the method below).
      are evidence the unit wants that preset, so screen the unit instead of briefing them;
    - `grep -l jtbl asm/<bin>/nonmatchings/<unit>/*.s` only in a unit that does not own
      its tables ("Jump tables");
-   - `python3 tools/scripts/convertible.py <bin>/<unit>` BLOCKED entries;
+   - `python3 tools/scripts/convertible.py <bin>/<unit>` BLOCKED entries — **run this
+     on every unit before writing `funcs`.** `fresh_stubs.py` does not apply it, so a
+     unit whose small stubs are all jump-table owners looks like 2-3 easy fresh stubs and
+     is really a wall (`battle/misc30`, round 72: both stubs BLOCKED, 0 matches; its real
+     pool was two other stubs, 47 and 78 insns). A unit's tables are often a prefix chain
+     (`func_A` -> `B` -> `C`), so only a prefix of the jtbl stubs can ever be converted;
+     `convertible.py`'s verdict already accounts for that;
    - stubs with `sw $sp`/`lw $sp` (stack switch; the alloca bodies it catches are
      `grep -l 'sw \$sp, 0x0' asm/*/nonmatchings/`, a dozen in `system/` and the battle tail);
    - stubs of <15 insns that start by loading a literal address: often a data word, not a
