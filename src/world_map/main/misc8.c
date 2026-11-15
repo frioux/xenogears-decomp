@@ -881,41 +881,44 @@ s32 WorldMapFindSpriteSet(void *pArg, s16 *pOut) {
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_80084DB8);
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_80085158);
-// Best: 91.97% (708 bytes vs 716). Every call, argument, offset and the whole
-// tail (three RotTrans, the two edge vectors, OuterProduct0, the three >>2, the
-// VectorNormal and the WorldMapInterpolatePlaneHeight at the end) already match
-// instruction for instruction; what is left is register allocation: retail
-// keeps pEntry in s0 and the triangle index in s1 so the triangle pointer and
-// the vertex base reuse those two, giving six saved registers, while gcc gives
-// us pEntry s1 / index s2 and needs a seventh (s6) for pNormal. Tried: pVerts
-// read once into a local (that fixed the repeated `lw 0x4(...)`), pTri before
-// pVerts, the scale stores as three literal `*(s32*)0x1F8000xx = 0x800` (82%,
-// gcc hoists all four scratchpad addresses into saved registers), the scale
-// stores in retail's vz/vy/vx order, and pEntry assigned late. This is the
-// allocator-tie class, not a source-shape problem.
+// Best: 94.26% (708 bytes vs retail 704 - one instruction LONG). The whole body
+// is now instruction-identical to retail except registers: retail uses SIX saved
+// registers (s0 = pEntry then pTri, s1 = triIndex then pVerts, s2 = pC,
+// s3 = pOut, s4 = pB, s5 = pNormal) and reuses each of its two dead head
+// registers, gcc gives pC s3 / pOut s5 / pNormal s6 and needs a seventh. The
+// second difference is the vx scale store: retail emits the immediate form
+// 'lui at,0x1f80 / sw v0,16(at)' where gcc uses the live pB register
+// ('sw v0,0(s4)'). Real levers found: pMat->t[2] = 0 must be written BEFORE
+// pMat->t[0] = 0, and pMat->t[1] = pEntry->unkC BEFORE the three scale stores
+// (91.97 -> 94.26, the whole store cluster then matches). Tried and no effect:
+// pVerts before pTri, scratch-pointer declarations after the pointers, a
+// separate pScale local for the stores + argument, pMesh dropped in favour of
+// two pEntry->unk44 expressions, and a 4-minute permuter run (its only gain was
+// 'volatile unsigned long triIndex', which is wrong - retail reads the fifth
+// argument with lhu).
 /*
 void func_80085158(WorldMapPos *pPos, WorldMapPos *pOut, WorldMapPos *pNormal, u16 setIndex,
                    u16 triIndex) {
     WorldMapEntry *pEntry;
+    WorldMapMesh *pMesh;
+    WorldMapTriangle *pTri;
+    SVECTOR *pVerts;
     MATRIX *pMat = (MATRIX *)0x1F8000F0;
     VECTOR *pA = (VECTOR *)0x1F800000;
     VECTOR *pB = (VECTOR *)0x1F800010;
     VECTOR *pC = (VECTOR *)0x1F800020;
-    WorldMapMesh *pMesh;
-    WorldMapTriangle *pTri;
-    SVECTOR *pVerts;
     long flag;
 
     pEntry = &D_8009C620[setIndex];
     pOut->x = (pPos->x >> 12) - pEntry->unk8;
     pOut->z = pEntry->unk10 - (pPos->z >> 12);
     *pMat = pEntry->mat;
-    pMat->t[0] = 0;
     pMat->t[2] = 0;
+    pMat->t[0] = 0;
+    pMat->t[1] = pEntry->unkC;
     pB->vz = 0x800;
     pB->vy = 0x800;
     pB->vx = 0x800;
-    pMat->t[1] = pEntry->unkC;
     ScaleMatrix(pMat, pB);
     SetRotMatrix(pMat);
     SetTransMatrix(pMat);
