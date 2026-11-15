@@ -12,7 +12,9 @@ typedef struct {
     /* 0x0A9 */ u8 unkA9;
     /* 0x0AA */ u8 unkAA;
     /* 0x0AB */ u8 unkAB;
-    /* 0x0AC */ u8 unkAC[0x1E];
+    /* 0x0AC */ u8 unkAC;
+    /* 0x0AD */ u8 unkAD;
+    /* 0x0AE */ u8 unkAE[0x1C];
     /* 0x0CA */ u8 unkCA;
     /* 0x0CB */ u8 unkCB[0x4];
     /* 0x0CF */ u8 unkCF;
@@ -61,6 +63,10 @@ extern u8 D_800D2C36;
 extern u8 D_800C3CFA[];
 extern u8 D_800D2C38;
 extern u16 D_800D2C30;
+extern u16 D_800D2C3A;
+extern s32 D_800C2054[];
+extern u8 func_8001BD40(s32 arg0, u8 arg1);
+extern void BattleSetupLinearMove(s32 arg0, s32 arg1, s32 arg2, s32 arg3);
 extern s32 BattleMaskHasStatusBit(s32 mask, u8 idx);
 extern u8 D_800CCB34;
 extern u8* D_800D2DB4;
@@ -142,6 +148,69 @@ void BattleStepTwoAxisInterpolation(void) {
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc14", func_80088B80);
+// Best attempt: objdiff 92.61% (retail 1240 bytes). Two classes of diff: the frame
+// carries one extra callee-saved register (s6, so ra moves 0x48 -> 0x4C) and,
+// downstream of that, the D_800D2DB4 base sits in $a0 where retail has $a1 at the
+// coordinate stores. The three sprite packages, the four prim loops and the 2x10
+// grid already line up. The s16/u16 mix on 0x5D9C/0x5D9E and the word read of
+// D_800CCB34 inside the grid loop are casts retail really had: the same symbols are
+// read the other way round in BattleStepTwoAxisInterpolation.
+/*
+void func_80088B80(void) {
+    s32 i;
+    s32 j;
+    s32 sx;
+    s32 sy;
+
+    if (D_800D2D28->unkAD == 0) {
+        return;
+    }
+    if (D_800C207C != 0) {
+        if ((u8)func_8001BD40(0, 0x63) >= 0x60) {
+            BattleSetupLinearMove(*(u16*)(D_800D2DB4 + 0x5D9C), *(u16*)(D_800D2DB4 + 0x5D9E),
+                D_800C2054[(u8)func_8001BD40(0, 4)], D_800C2054[(u8)func_8001BD40(0, 4) + 5]);
+        }
+    }
+    if (D_800C207C == 0) {
+        BattleStepTwoAxisInterpolation();
+        *(u16*)(D_800D2DB4 + 0x5D9C) = *(u16*)&D_800C3A7C + D_800C2080 / 0x100;
+        *(u16*)(D_800D2DB4 + 0x5D9E) = *(u16*)&D_800C3A80 + D_800C2084 / 0x100;
+    }
+    D_800D2DB4[0x5D72] = BattleDrawSpritePackage(0xB9, (s32)(D_800D2DB4 + 0xD20), *(s16*)(D_800D2DB4 + 0x5D9C), *(s16*)(D_800D2DB4 + 0x5D9E));
+    D_800D2DB4[0x5D94] = D_800CCB34;
+    D_800D2DB4[0x5D71] = BattleDrawSpritePackage((*(u16*)(D_800D2DB4 + 0x5D9C) & 0xF) + 0xA9, (s32)(D_800D2DB4 + 0x3C0), 0xA0, 0x64);
+    D_800D2DB4[0x5D93] = D_800CCB34;
+    D_800D2DB4[0x5D73] = BattleDrawSpritePackage(0x82, (s32)(D_800D2DB4 + 0xFA0), *(s16*)(D_800D2DB4 + 0x5D9C), *(s16*)(D_800D2DB4 + 0x5D9E));
+    D_800D2DB4[0x5D95] = D_800CCB34;
+    for (i = 0; i < D_800D2DB4[0x5D72]; i++) {
+        BattleSetPrimGrey80BlendAdd((u8*)((i * 2 + D_800D2DB4[0x5D94]) * 0x28 + 0xD20 + (s32)D_800D2DB4));
+    }
+    for (i = 0; i < D_800D2DB4[0x5D73]; i++) {
+        BattleSetPrimGrey80BlendAdd((u8*)((i * 2 + D_800D2DB4[0x5D95]) * 0x28 + 0xFA0 + (s32)D_800D2DB4));
+    }
+    for (i = 0; i < D_800D2DB4[0x5D71]; i++) {
+        BattleSetPrimGrey80BlendAdd((u8*)((i * 2 + D_800D2DB4[0x5D93]) * 0x28 + 0x3C0 + (s32)D_800D2DB4));
+    }
+    D_800D2DB4[0x5D96] = BattleDrawSpritePackage((*(u16*)(D_800D2DB4 + 0x5D9E) & 0xF) + 0xC9, (s32)(D_800D2DB4 + 0x32A0), *(s16*)(D_800D2DB4 + 0x5D9C), *(s16*)(D_800D2DB4 + 0x5D9E));
+    D_800D2DB4[0x5D97] = D_800CCB34;
+    for (i = 0; i < D_800D2DB4[0x5D96]; i++) {
+        BattleSetPrimGrey80BlendSub((u8*)((i * 2 + D_800D2DB4[0x5D97]) * 0x28 + 0x32A0 + (s32)D_800D2DB4));
+    }
+    if (D_800C207C == 0) {
+        sy = 0xA << 16;
+        for (i = 0; i < 2; i++) {
+            sx = 0x82 << 16;
+            for (j = 0; j < 0xA; j++) {
+                BattleDrawSpritePackage(func_8001BD40(0, 9) + 0xBA, (s32)(((i * 0xA + j) * 0x50 + 0x46A0) + (s32)D_800D2DB4), sx >> 16, sy >> 16);
+                BattleSetPrimGrey80BlendAdd((u8*)((((i * 0xA + j) * 2 + *(s32*)&D_800CCB34) * 0x28 + 0x46A0) + (s32)D_800D2DB4));
+                sx += 0x60000;
+            }
+            sy += 0xBD << 16;
+        }
+        D_800D2DB4[0x5D98] = D_800CCB34;
+    }
+}
+*/
 void BattleBuildFlaggedSlotSpriteColumn(void) {
     s32 i = 0;
     s32 pitch = 0x6E << 16;
@@ -214,7 +283,38 @@ void BattleBuildGrey80BlendSpriteColumn5(void) {
         BattleSetPrimGrey80BlendAdd((u8*)((off2 = (i * 2 + D_800D2DB4[0x5D87]) * 0x28 + 0x4E70) + (s32)D_800D2DB4));
     }
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc14", func_8008946C);
+void func_8008946C(void) {
+    s32 i;
+    s32 n;
+    s32 pitch;
+    s32 columnBase;
+    s32 off;
+    s32 off2;
+
+    columnBase = 0x4FB0;
+    if (D_800D2C34 < 4) {
+        BattleParseNumberToDigits(D_800D2C3A);
+        i = 0;
+        n = 0;
+        pitch = 0x11A << 16;
+        while (i < 2) {
+            s32 slot = D_800C3CFB[i++];
+            if (slot != 0xFF) {
+                off = D_800D2DB4[0x5D79] * 0x50 + 0x4FB0;
+                D_800D2DB4[0x5D79] += BattleDrawSpritePackage(slot + 0x92, (s32)(off + (s32)D_800D2DB4), pitch >> 16, 0x4E);
+                pitch += 0x60000;
+                n++;
+            }
+        }
+        D_800D2DB4[0x5D79] += BattleDrawSpritePackage(0x9D, (s32)((D_800D2DB4[0x5D79] * 0x50 + columnBase) + (s32)D_800D2DB4), 0x11A + n * 6, 0x4E);
+    } else {
+        D_800D2DB4[0x5D79] = BattleDrawSpritePackage(0xA2, (s32)(D_800D2DB4 + 0x4FB0), 0x11A, 0x4E);
+    }
+    D_800D2DB4[0x5D88] = D_800CCB34;
+    for (i = 0; i < D_800D2DB4[0x5D79]; i++) {
+        BattleSetPrimGrey80BlendAdd((u8*)((off2 = (i * 2 + D_800D2DB4[0x5D88]) * 0x28 + 0x4FB0) + (s32)D_800D2DB4));
+    }
+}
 void BattleBuildGrey80BlendSpriteColumn7(void) {
     s32 i = 0;
     s32 columnBase;
