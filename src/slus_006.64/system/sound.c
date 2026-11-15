@@ -238,6 +238,10 @@ extern SpuUnion* g_pSoundSpuRegisters;
 extern char g_SoundSpuMemoryTableStart[];
 extern u8 D_80065B0C[];
 extern s32 D_80059504;
+extern s16 D_8005A404;
+extern u16 D_8005955C;
+extern s32 D_80059540;
+extern s32 D_800595C4;
 extern void* D_80059518;
 extern AudioManager* D_800595D8;
 
@@ -2572,6 +2576,15 @@ s16 level, declaration orders, the `do { pWds = g_SoundWdsLinkedList; } while (0
 found (worth +0.2), and three 4-minute permuter runs (best 535 vs 540, i.e. the same registers
 rotated the other way). The permuter's only other suggestion is to wrap everything from
 `elementFlags = ...` to `unk_Flags |= 0x8000` in a do { } while (0), which cc1 2.6.0 exits 33 on.
+Three more shapes tried on top of the note above (all 94.82%, no movement): swapping the
+declaration order of `u32 volume` and `s32 count`, declaring count before volume at the top of
+the list, `u32 count`, and moving `u32 volume` last. The `count`/`volume` swap is the whole
+residual: retail has volume in $s8/fp and count in $s6, gcc 2.6.0 gives them the other way
+round. Measured as well: all six callers of this function (SoundPlaySoundEffectOnPair,
+...WithLevels, ...OnFreePair, ...OnLastPair, SoundSendCommandByIdWithLevels,
+SoundSendCommandConstant) stay at 100.00% with the real four-argument prototype in scope, so
+converting this one does NOT hit the caller-prototype hazard - make check is still the gate,
+but objdiff shows no caller damage.
 */
 /*
 void func_8003B644(s16 element, s32 soundId, s32 level, s16 pan) {
@@ -2932,6 +2945,166 @@ void SoundSetSpuIrqCallback(u32 func) {
 
 //----------------------------------------------------------------------------------------------------------------------
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003C020);
+/*
+Attempt (86.26%, 1100 bytes vs the original's 1124): the first pass - every block, call and
+constant is in the right order, so the remaining work is the shape of five regions, not the
+structure. What the disassembly says, do not re-derive it: it is the RCnt event tick handler
+(OpenEvent's callback). The guard is `if (g_SoundControlFlags & 0x40) return 0;`, then
+`start = GetRCnt(0xF2000002)`, then the odd-tick block on `if (D_80059504++ & 1)`: tick the
+master interpolator and push `currentValue >> 16` (retail loads it as `lh 0x32`, i.e. the high
+halfword) through SoundSetVolumeWithPhase, the same for the cd interpolator gated on D_8005A404
+(`lhu 0x3E`, unsigned - a u16 local), then flush `commonAttr.mask` through SpuSetCommonAttr.
+Then func_8003E900(), a walk of g_SoundAudioManagerListHead doing SoundRestoreAudioManagerBackup
+(unk_0x24 >= unk_0x2c, unsigned), the four interpolators 0x64/0x70/0x7c/0x88, and an inner
+do/while on `unk_0x50 < 0` that calls func_8003C4C4 + func_8003C6E8 per element and breaks out
+on `unk_0x48 == 0`; a second walk calls SoundStepElementEnvelopes + func_8003EBF0; then
+SoundApplyPendingKeyOff, the D_8005955C bit 0 -> SpuSetIRQ(1), and D_800595C4/D_80059540
+accumulate when the second GetRCnt is >= the first.
+Deltas seen in this attempt: (a) `if ((unk_Flags & 0x8000) == 0) continue;` gives andi/beqz,
+retail has `lh 0x10` + `bgez` - the flags test wants `if (unk_Flags >= 0) continue;` (two
+sites, 8 bytes); (b) the `unk_0x50 - unk_0x54 < 0` guard: retail keeps the store in the bgez
+delay slot; (c) the `unk_0x48 == 0` break block is laid out before the loop test in retail, so
+write it as if/else and let the else break; (d) the header's s16 unk_0x32/0x34/0x36/0x38 are
+compared UNSIGNED in retail (sltu, andi 0xffff) - the first attempt cast them to u16 at each
+use, which is what produced the extra andi; the fields are probably u16, but re-typing the
+shared AudioManager is someone else's call. The body below is the 86.26% version, unmodified.
+s32 func_8003C020(void) {
+    AudioManager* pManager;
+    s16 volume;
+    u16 cdVolume;
+    u32 start;
+    u32 end;
+    u8 count;
+
+    if (g_SoundControlFlags & 0x40) {
+        return 0;
+    }
+
+    start = GetRCnt(0xF2000002);
+
+    if (D_80059504++ & 1) {
+        if (g_SoundVolumeController.masterInterpolator.counter != 0) {
+            SoundTickInterpolator(&g_SoundVolumeController.masterInterpolator);
+            volume = (s16)(g_SoundVolumeController.masterInterpolator.currentValue >> 16);
+            g_SoundVolumeController.currentMasterVolume = volume;
+            SoundSetVolumeWithPhase(volume, &g_SoundVolumeController.commonAttr.mvol, 0);
+            g_SoundVolumeController.commonAttr.mask |= SPU_COMMON_MVOLL | SPU_COMMON_MVOLR;
+        }
+
+        if (D_8005A404 != 0) {
+            SoundTickInterpolator(&g_SoundVolumeController.cdInterpolator);
+            cdVolume = (u16)(g_SoundVolumeController.cdInterpolator.currentValue >> 16);
+            g_SoundVolumeController.currentCdVolume = cdVolume;
+            g_SoundVolumeController.commonAttr.cd.volume.right = cdVolume;
+            g_SoundVolumeController.commonAttr.cd.volume.left = cdVolume;
+            g_SoundVolumeController.commonAttr.mask |= SPU_COMMON_CDVOLL | SPU_COMMON_CDVOLR;
+        }
+
+        if (g_SoundVolumeController.commonAttr.mask != 0) {
+            SpuSetCommonAttr(&g_SoundVolumeController.commonAttr);
+            g_SoundVolumeController.commonAttr.mask = 0;
+        }
+    }
+
+    func_8003E900();
+
+    for (pManager = g_SoundAudioManagerListHead; pManager != NULL; pManager = pManager->next) {
+        if ((pManager->unk_Flags & 0x8000) == 0) {
+            continue;
+        }
+
+        if (pManager->unk_0x2c != 0 && (u32)pManager->unk_0x24 >= (u32)pManager->unk_0x2c) {
+            SoundRestoreAudioManagerBackup(pManager);
+        }
+
+        if (pManager->unk_Interpolator_0x64.counter != 0) {
+            SoundTickInterpolator(&pManager->unk_Interpolator_0x64);
+            pManager->unk_0x54 = (s16)(pManager->unk_0x58 >> 16) * (s16)(pManager->unk_Interpolator_0x64.currentValue >> 16);
+        }
+
+        if (pManager->unk_Interpolator_0x70.counter != 0) {
+            SoundTickInterpolator(&pManager->unk_Interpolator_0x70);
+            unk_SoundSetFlagsOnActiveVoices(0x100, pManager);
+        }
+
+        if (pManager->unk_Interpolator_0x7c.counter != 0) {
+            SoundTickInterpolator(&pManager->unk_Interpolator_0x7c);
+            unk_SoundSetFlagsOnActiveVoices(0x200, pManager);
+        }
+
+        if (pManager->unk_Interpolator_0x88.counter != 0) {
+            SoundTickInterpolator(&pManager->unk_Interpolator_0x88);
+            unk_SoundSetFlagsOnActiveVoices(0x100, pManager);
+        }
+
+        pManager->unk_0x20++;
+        pManager->unk_0x28 += (s16)(pManager->unk_Interpolator_0x64.currentValue >> 16);
+
+        if (pManager->unk_0x50 - pManager->unk_0x54 < 0) {
+            do {
+                if (--pManager->unk_0x36 == 0) {
+                    pManager->unk_0x36 = pManager->unk_0x3a;
+                    if ((u16)++pManager->unk_0x34 > (u16)pManager->unk_0x38) {
+                        pManager->unk_0x34 = 1;
+                        pManager->unk_0x32++;
+                    }
+                }
+
+                count = pManager->elementCount;
+                if (count != 0) {
+                    func_8003C4C4(pManager, pManager->elements, count);
+                    func_8003C6E8(pManager, pManager->elements, count);
+                }
+
+                if (pManager->unk_0x48 == 0) {
+                    pManager->unk_Flags &= 0x7FFF;
+                    break;
+                }
+
+                pManager->unk_0x24++;
+                if (pManager->unk_Interpolator_0x70.currentValue == 0) {
+                    SoundStopAudioManager(pManager);
+                    pManager->unk_Flags |= 0x100;
+                }
+
+                if ((u16)pManager->unk_0x32 == *(u16*)pManager->unk_0x1e) {
+                    pManager->unk_Flags &= ~0x20;
+                    SoundSetAudioManagerMasterVolumeWithFade(pManager, 0, 0);
+                    *(u16*)pManager->unk_0x1e = 0;
+                }
+            } while (pManager->unk_0x50 < 0);
+        }
+    }
+
+    for (pManager = g_SoundAudioManagerListHead; pManager != NULL; pManager = pManager->next) {
+        if ((pManager->unk_Flags & 0x8000) == 0) {
+            continue;
+        }
+
+        count = pManager->elementCount;
+        if (count != 0) {
+            SoundStepElementEnvelopes(pManager, pManager->elements, count);
+            func_8003EBF0(pManager, pManager->elements, count);
+        }
+    }
+
+    SoundApplyPendingKeyOff();
+
+    if (D_8005955C & 1) {
+        D_8005955C &= ~1;
+        SpuSetIRQ(1);
+    }
+
+    end = GetRCnt(0xF2000002);
+    if (end >= start) {
+        D_800595C4 = D_800595C4 + (end - start);
+        D_80059540++;
+    }
+
+    return 0;
+}
+*/
+
 
 //----------------------------------------------------------------------------------------------------------------------
 void SoundTickInterpolator(AudioInterpolator* interpolator) {
