@@ -187,6 +187,32 @@ typedef struct {
     /* 0x15B */ u8 unk15B[0x15];
 } BattleTableEntry; // Size: 0x170
 
+// The per-slot action state a slot entry carries at +0xA4 (0xCC bytes): the
+// status words, the scaled stats and the slot's copy of the equipped weapon
+// records. D_800D2DC8 and D_800D2D6C point at the acting and the defending
+// slot's copy of it. Only the fields src/battle/main/misc20 reads are named;
+// the words it holds are the same bytes as the owning slot entry's fields from
+// +0x104 on (0x64 here is BattleTableEntry.unk108).
+typedef struct {
+    /* 0x00 */ u8 unk00[0x3A];
+    /* 0x3A */ u16 unk3A;
+    /* 0x3C */ u8 unk3C[0x13];
+    /* 0x4F */ u8 unk4F;
+    /* 0x50 */ u8 unk50[0x14];
+    /* 0x64 */ s32 unk64; // scaled max hp
+    /* 0x68 */ u8 unk68[0x14];
+    /* 0x7C */ u16 unk7C;
+    /* 0x7E */ u8 unk7E[0x2];
+    /* 0x80 */ u16 unk80;
+    /* 0x82 */ u16 unk82;
+    /* 0x84 */ u16 unk84;
+    /* 0x86 */ u8 unk86[0x13];
+    /* 0x99 */ u8 unk99;
+    /* 0x9A */ u8 unk9A[0x4];
+    /* 0x9E */ u8 unk9E;
+    /* 0x9F */ u8 unk9F[0x2D];
+} BattleSlotState; // Size: 0xCC
+
 // One 0x28-byte row of the per-actor action tables the battle work block holds
 // at +0x1058 (0x5F0 bytes per actor) and +0x2228 (0x690 bytes per actor). The
 // row currently in use is pointed to by D_800C3DFC. Only the fields read by
