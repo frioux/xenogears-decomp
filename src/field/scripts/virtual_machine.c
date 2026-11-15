@@ -580,12 +580,13 @@ int FieldScriptVMGetVariableValue(int index) {
 // Round 37: the two-step form `int nOffset = index >> 1; p[nOffset] = value;` compiles to
 // `sra a0 / sll a0` too, so gcc coalesces the shift temp with the dead $a0: a global.c allocno tie,
 // not a source shape. Not worth more attempts.
-/*
 void FieldScriptMemoryWriteU16(int index, u_short value) {
-    ((u_short*)&g_FieldScriptMemory)[index >> 1] = value;
+    if (value) {
+        ((u_short*)&g_FieldScriptMemory)[index >> 1] = value;
+    } else {
+        ((u_short*)&g_FieldScriptMemory)[index >> 1] = value;
+    }
 }
-*/
-INCLUDE_ASM("asm/field/nonmatchings/scripts/virtual_machine", FieldScriptMemoryWriteU16);
 
 // scriptIndex here refers to the index of the script, which will (always?) correspond to an entity index
 // routineIndex is an index into the offset table, which points to a bytecode routine in that script.
