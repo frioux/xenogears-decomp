@@ -150,16 +150,24 @@ u8 func_8007B7B0(u8 **p, u8 index, u8 arg2) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007B7B0);
-// best: 73.75%. Instruction multiset identical; the original loads *p into v0
-// and puts the D_800D3420 base in a0, gcc emits the base first instead. Same
-// allocator tie as the rest of the D_800D34x0 operators in misc6.
-// screened: 73.75% is the max of Default / cdk 50.94 / 2.6.0 73.75.
+// best: 98.00%, permuter score 40. Sole gap: the pArgs[2] table index and the
+// pArgs[1] slot index keep swapped registers (retail puts the loaded value in
+// v0 and the slot index in v1, gcc the reverse); multiset identical.
+// The value temp computed before pField is what took it from 73.75 to 98.00.
+// Tried and no better: inline rhs 73.75, value with initializer 71.75, pArgs
+// declared first 71.75, assignment inside the store expr 73.75, u8 index temp
+// 73.75, s16 value 98.00, u8 pointer arithmetic store 98.00, 3121 permuter
+// iterations at base 40.
+// screened: 73.75% was the max of Default / cdk 50.94 / 2.6.0 73.75.
 /*
 void func_8007B8D4(u8 **p, u8 index) {
-    u16 *pField = (u16 *)(D_800D3420 + index * 0x40);
+    u16 value;
+    u16 *pField;
     u8 *pArgs = *p;
 
-    pField[pArgs[1]] = D_8005A3A0[pArgs[2]];
+    value = D_8005A3A0[pArgs[2]];
+    pField = (u16 *)(D_800D3420 + index * 0x40);
+    pField[pArgs[1]] = value;
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007B8D4);
@@ -185,17 +193,27 @@ void BattleWordRegSetReg(u8 **p, u8 index) {
     base = D_800D3420;
     ((u16 *)(base + index * 0x40))[pArgs[2]] = ((u16 *)(base + index * 0x40))[pArgs[1]];
 }
-// best: 84.67%. Instruction multiset identical; the original loads *p into v0
-// and puts the D_800D3410 base in a0, gcc emits the base first instead. Same
-// allocator tie as BattleWordRegSetReg.
+// best: 85.33%, permuter score 80. The copy inside the second subscript closed
+// everything except the prologue: retail loads *p into v0 first and then forms
+// the D_800D3410 base into a0 (reusing dead p); gcc forms the base into v1 (a0
+// when the do-while wrapper is dropped, 84.67) and loads *p after. Same
+// allocator tie as BattleWordRegSetReg. The do-while wrapper is load-bearing.
+// Tried and no better: base u8 local 73.33, base local plus dead pField 66.27,
+// *p written inline twice 78.67, u32 value temp 67.87, pre-assigned pArgsCopy
+// 84.67, pField + (pArgs - pArgs) to delay the base 85.33, 3025 permuter
+// iterations from base 80.
 // screened: identical 84.67% under Default, 2.7.2-cdk and 2.6.0 - a register
 // allocation tie, not a compiler question.
 /*
 void func_8007B9C8(u8 **p, u8 index) {
-    u32 *pField = (u32 *)(D_800D3410 + index * 0x40);
     u8 *pArgs = *p;
+    u8 *pArgsCopy;
+    u32 *pField;
 
-    pField[pArgs[2]] = pField[pArgs[1]];
+    pField = (u32 *)(D_800D3410 + index * 0x40);
+    do {
+        pField[pArgs[2]] = pField[(pArgsCopy = pArgs)[1]];
+    } while (0);
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007B9C8);
