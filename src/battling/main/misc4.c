@@ -118,7 +118,13 @@ struct ActorScript {
     /* 0x4 */ s16 unk4;
     /* 0x6 */ s16 unk6;
     /* 0x8 */ s16 unk8;
-    /* 0xA */ u8 padA[0x1A];
+    /* 0xA */ u8 padA[0x2];
+    /* 0xC */ u16 unkC;
+    /* 0xE */ u8 padE[0x1];
+    /* 0xF */ u8 unkF;
+    /* 0x10 */ u8 pad10[0x10];
+    /* 0x20 */ u16 unk20;
+    /* 0x22 */ u8 pad22[0x2];
     /* 0x24 */ s16 unk24;
     /* 0x26 */ s16 unk26;
     /* 0x28 */ s16 unk28;
@@ -134,15 +140,77 @@ typedef struct {
 
 // Actor pointer at 0x15CC, aimed at the actor's own 0x9CC.
 
+// The rotation block p->unk5C->unk4 points at; the reset copies the script's
+// facing word into all three of its components.
+typedef struct {
+    /* 0x00 */ u8 pad00[0x10];
+    /* 0x10 */ SVECTOR unk10;
+} ActorPartRot; // Size: 0x18
+
 // Layout recovered from the offsets this unit touches; only those are known.
 struct ActorPart {
-    /* 0x00 */ u8 pad00[0x34];
+    /* 0x00 */ u8 pad00[0x4];
+    /* 0x04 */ ActorPartRot* unk4;
+    /* 0x08 */ u8 pad08[0x2C];
     /* 0x34 */ s32 unk34;
     /* 0x38 */ s32 unk38;
     /* 0x3C */ s32 unk3C;
     /* 0x40 */ u8 pad40[0x6];
     /* 0x46 */ s16 unk46;
 }; // Size: unknown
+
+// One of the actor's sixteen 0x54-byte model records; the reset clears the byte
+// at the end of every one of them.
+typedef struct {
+    /* 0x00 */ u8 pad00[0x51];
+    /* 0x51 */ u8 unk51;
+    /* 0x52 */ u8 pad52[0x2];
+} ActorModelRecord; // Size: 0x54
+
+// One of the eight 0x44-byte slot records at 0x64C (src/battling/main/misc2
+// walks the same array); the reset clears its in-use byte and its timer.
+typedef struct {
+    /* 0x00 */ u8 pad00[0x30];
+    /* 0x30 */ u8 unk30;
+    /* 0x31 */ u8 pad31[0xF];
+    /* 0x40 */ s16 unk40;
+    /* 0x42 */ u8 pad42[0x2];
+} ActorSlotRecord; // Size: 0x44
+
+// The 0x10-byte block the reset zeroes at p + 0x15D8.
+typedef struct {
+    /* 0x0 */ s16 unk0;
+    /* 0x2 */ s16 unk2;
+    /* 0x4 */ s16 unk4;
+    /* 0x6 */ s16 unk6;
+    /* 0x8 */ s16 unk8;
+    /* 0xA */ s16 unkA;
+    /* 0xC */ s16 unkC;
+} UnkStruct1; // Size: 0xE
+
+// One 0x14-byte record per battle slot, the same table src/battling/main/misc3
+// reads; the reset clears everything but the pointer and the gauge byte.
+typedef struct {
+    /* 0x0 */ u32 unk0;
+    /* 0x4 */ u8 unk4;
+    /* 0x5 */ u8 pad5[0x3];
+    /* 0x8 */ u32 unk8;
+    /* 0xC */ u32 unkC;
+    /* 0x10 */ u32 unk10;
+} BattleSlotReset; // Size: 0x14
+
+extern BattleSlotReset D_80096FB8[];
+
+extern u32 D_8006FC74[];
+// The two bytes D_8009264C carries; the reset points the actor's 0x84 slot at it
+// and sets the flag, which retail reaches by its own name 0x8009264E.
+extern u8 D_8009264C[];
+extern u8 D_8009264E;
+
+extern void BattleResetMessageQueue(Actor* p);
+extern void BattleActorResetUnk15D8(UnkStruct1* p);
+extern void BattleInitSemiTransQuadPacket(Actor* p);
+extern void func_80090CC0(Actor* p);
 
 struct Actor {
     /* 0x000 */ s32 unk0;
@@ -152,9 +220,14 @@ struct Actor {
     /* 0x010 */ s32 unk10;
     /* 0x014 */ s32 unk14;
     /* 0x018 */ s32 unk18;
-    /* 0x01C */ u8 pad1C[0x30];
+    /* 0x01C */ u8 pad1C[0x4];
+    /* 0x020 */ s32 unk20;
+    /* 0x024 */ s32 unk24;
+    /* 0x028 */ s32 unk28;
+    /* 0x02C */ u8 pad2C[0x20];
     /* 0x04C */ u8 unk4C;
-    /* 0x04D */ u8 pad4D[0x2];
+    /* 0x04D */ u8 pad4D;
+    /* 0x04E */ u8 unk4E;
     /* 0x04F */ u8 unk4F;
     /* 0x050 */ u8 pad50[0x2];
     /* 0x052 */ u8 unk52;
@@ -162,23 +235,53 @@ struct Actor {
     /* 0x054 */ s32 unk54;
     /* 0x058 */ u8 pad58[0x4];
     /* 0x05C */ ActorPart* unk5C;
-    /* 0x060 */ u8 pad60[0x50];
+    /* 0x060 */ u8 pad60[0x24];
+    /* 0x084 */ u8* unk84;
+    /* 0x088 */ u8 pad88[0x10];
+    /* 0x098 */ s32 unk98;
+    /* 0x09C */ s32 unk9C;
+    /* 0x0A0 */ u8 padA0[0x8];
+    /* 0x0A8 */ s32 unkA8;
+    /* 0x0AC */ u8 padAC[0x4];
     /* 0x0B0 */ s32 unkB0;
-    /* 0x0B4 */ u8 padB4[0x10];
+    /* 0x0B4 */ s16 unkB4;
+    /* 0x0B6 */ s16 unkB6;
+    /* 0x0B8 */ s16 unkB8;
+    /* 0x0BA */ s16 unkBA;
+    /* 0x0BC */ s16 unkBC;
+    /* 0x0BE */ s16 unkBE;
+    /* 0x0C0 */ u8 unkC0;
+    /* 0x0C1 */ u8 unkC1;
+    /* 0x0C2 */ u8 unkC2;
+    /* 0x0C3 */ u8 unkC3;
     /* 0x0C4 */ u8 unkC4;
     /* 0x0C5 */ u8 unkC5;
     /* 0x0C6 */ u8 unkC6;
-    /* 0x0C7 */ u8 padC7[0x5];
+    /* 0x0C7 */ u8 padC7;
+    /* 0x0C8 */ s16 unkC8;
+    /* 0x0CA */ s16 unkCA;
     /* 0x0CC */ s16 unkCC;
-    /* 0x0CE */ u8 padCE[0x2];
+    /* 0x0CE */ s16 unkCE;
     /* 0x0D0 */ u32 unkD0;
     /* 0x0D4 */ u32 unkD4;
-    /* 0x0D8 */ u8 padD8[0x824];
+    /* 0x0D8 */ u8 padD8[0x10];
+    /* 0x0E8 */ s32 unkE8;
+    /* 0x0EC */ u8 padEC[0x8];
+    /* 0x0F4 */ s32 unkF4;
+    /* 0x0F8 */ ActorModelRecord unkF8[16];
+    /* 0x638 */ u8 pad638[0x14];
+    /* 0x64C */ ActorSlotRecord unk64C[8];
+    /* 0x86C */ u8 pad86C[0x90];
     /* 0x8FC */ ActorScript* unk8FC;
     /* 0x900 */ u8 pad900[0xA];
     /* 0x90A */ u8 unk90A;
     /* 0x90B */ u8 unk90B;
-    /* 0x90C */ u8 pad90C[0x20];
+    /* 0x90C */ u8 pad90C[0x4];
+    /* 0x910 */ u8 unk910;
+    /* 0x911 */ u8 pad911[0x3];
+    /* 0x914 */ s16 unk914;
+    /* 0x916 */ s16 unk916;
+    /* 0x918 */ u8 pad918[0x14];
     /* 0x92C */ s32 unk92C;
     /* 0x930 */ s32 unk930;
     /* 0x934 */ s32 unk934;
@@ -196,13 +299,31 @@ struct Actor {
     /* 0x964 */ u8 pad964[0x8];
     /* 0x96C */ s16 unk96C;
     /* 0x96E */ s16 unk96E;
-    /* 0x970 */ u8 pad970[0x28];
+    /* 0x970 */ s32 unk970;
+    /* 0x974 */ u8 pad974[0x24];
     /* 0x998 */ s16 unk998;
     /* 0x99A */ s16 unk99A;
-    /* 0x99C */ u8 pad99C[0xC30];
+    /* 0x99C */ u8 pad99C[0x27];
+    /* 0x9C3 */ u8 unk9C3;
+    /* 0x9C4 */ u8 pad9C4[0xC08];
     /* 0x15CC */ ActorSub* unk15CC;
     /* 0x15D0 */ u8 pad15D0[0x4];
     /* 0x15D4 */ u8 unk15D4;
+    /* 0x15D5 */ u8 pad15D5[0x3];
+    /* 0x15D8 */ UnkStruct1 unk15D8;
+    /* 0x15E6 */ u8 pad15E6[0xA];
+    /* 0x15F0 */ s16 unk15F0;
+    /* 0x15F2 */ s16 unk15F2;
+    /* 0x15F4 */ s16 unk15F4;
+    /* 0x15F6 */ s16 unk15F6;
+    /* 0x15F8 */ s16 unk15F8;
+    /* 0x15FA */ u8 pad15FA[0x5A];
+    /* 0x1654 */ s32 unk1654;
+    /* 0x1658 */ s32 unk1658;
+    /* 0x165C */ s32 unk165C;
+    /* 0x1660 */ s32 unk1660;
+    /* 0x1664 */ u8 pad1664[0x4];
+    /* 0x1668 */ s16 unk1668;
 }; // Size: unknown
 
 extern Actor D_8009872C;
@@ -250,16 +371,6 @@ void BattleActorSetPartTransform(Actor* p) {
     p->unk5C->unk46 = p->unk54;
 }
 
-typedef struct {
-    /* 0x0 */ s16 unk0;
-    /* 0x2 */ s16 unk2;
-    /* 0x4 */ s16 unk4;
-    /* 0x6 */ s16 unk6;
-    /* 0x8 */ s16 unk8;
-    /* 0xA */ s16 unkA;
-    /* 0xC */ s16 unkC;
-} UnkStruct1; // Size: 0xE
-
 void BattleActorResetUnk15D8(UnkStruct1* p) {
     p->unk0 = 0x100;
     p->unk4 = 0x10;
@@ -271,6 +382,106 @@ void BattleActorResetUnk15D8(UnkStruct1* p) {
 }
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_80078F00);
+
+/* Best attempt: 84.48%. 0x80078F00..0x800790C8 (the two clear loops, the
+   constant stores and every call/delay slot) is instruction-identical; the
+   residual is the p->unkD0/p->unkD4 flag block at 0x8007900C. Retail keeps one
+   p->unkD4 load in $a1 and applies two masks to it (`and a1,a1,-0xD` then
+   `and a1,a1,-4`) with a single store, i.e. the source held the word in a local
+   across the p->unkD0 statement, and materialises `| 0x2000000` and `| 0x20000`
+   as two separate ors (gcc folds `(x | C1) | C2` into `| 0x2020000` for every
+   single-expression spelling tried), so that too is not one expression in the
+   original. Also unserialised: `lbu $v0,0xF($s1)` needs retail's load-delay nop
+   before the `sh` into 0x15F0.
+void func_80078F00(Actor* p) {
+    ActorPart* pPart;
+    ActorPartRot* pRot;
+    ActorScript* pScript;
+    u16 face;
+    s32 i;
+
+    pPart = p->unk5C;
+    pScript = p->unk8FC;
+    p->unk8 = 0;
+    p->unk4 = 0;
+    p->unk0 = 0;
+    p->unk18 = 0;
+    p->unk14 = 0;
+    p->unk10 = 0;
+    p->unk28 = 0;
+    p->unk24 = 0;
+    p->unk20 = 0;
+    pRot = pPart->unk4;
+    face = pScript->unk20;
+    pRot->unk10.vz = face;
+    pRot->unk10.vy = face;
+    pRot->unk10.vx = face;
+    p->unk98 = 0x10;
+    p->unk9C = 0x10;
+    p->unkA8 = 0x60;
+    p->unkB4 = 0x12C;
+    p->unkB8 = 0x12C;
+    p->unkBC = 0x12C;
+    p->unkBE = 0x480;
+    p->unkC2 = 0xF0;
+    p->unk54 = 0;
+    p->unkC4 = 0;
+    p->unkC5 = 0;
+    p->unkB6 = 0;
+    p->unkBA = 0;
+    p->unk910 = 0;
+    p->unkC0 = 0x7F;
+    p->unkC1 = 0x7F;
+    p->unk970 = 0;
+    p->unk9C3 = 0;
+    p->unkE8 = 0;
+    p->unk916 = 0;
+    p->unkC8 = 0;
+    p->unkCA = 0;
+    for (i = 0; i < 8; i++) {
+        p->unk64C[i].unk30 = 0;
+        p->unk64C[i].unk40 = 0;
+    }
+    for (i = 0xF; i >= 0; i--) {
+        p->unkF8[i].unk51 = 0;
+    }
+    p->unkF4 = 1;
+    BattleResetMessageQueue(p);
+    p->unk4E = 0xFF;
+    p->unkD4 &= ~0xC;
+    p->unkD0 = (p->unkD0 & ~0x1000) | 0x2000000 | 0x20000;
+    p->unkCE = p->unkCC + 0x800;
+    p->unkD4 &= ~3;
+    p->unkD0 &= 0xFF7FFFFF;
+    p->unk15F0 = pScript->unkF;
+    p->unk15F6 = 0x100;
+    p->unk15F8 = 0;
+    p->unk1654 = 0;
+    p->unk1658 = 0;
+    p->unk165C = 0;
+    p->unk1660 = 0;
+    p->unk90B = 0;
+    p->unkD0 &= ~4;
+    p->unkD0 &= ~2;
+    p->unkD0 &= ~0x38;
+    p->unk15F4 = pScript->unkC;
+    p->unk15F2 = pScript->unkC;
+    p->unkD4 &= ~0x10;
+    p->unk84 = D_8009264C;
+    D_8009264E = 1;
+    D_80096FB8[(p->unkD0 >> 27) & 1].unk0 = (u32)D_8006FC74;
+    D_80096FB8[(p->unkD0 >> 27) & 1].unk8 = 0;
+    D_80096FB8[(p->unkD0 >> 27) & 1].unk4 = 0;
+    D_80096FB8[(p->unkD0 >> 27) & 1].unkC = 0;
+    D_80096FB8[(p->unkD0 >> 27) & 1].unk10 = 0;
+    func_80090CC0(p);
+    BattleActorResetUnk15D8(&p->unk15D8);
+    BattleInitSemiTransQuadPacket(p);
+    p->unk914 = 0;
+    p->unk1668 = 0;
+    p->unkD4 &= ~0x40;
+}
+*/
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_8007920C);
 
@@ -403,8 +614,7 @@ void BattleResetState(void) {
 
 // char return (value unused): retail's `beqz` delay slot holds a nop, and a void
 // return lets gcc reorg steal the first insn of the if-body into it.
-char BattleResetForNextRound(void) {
-    D_8009872C.unkCC = 0x400;
+char BattleResetForNextRound(void) {    D_8009872C.unkCC = 0x400;
     D_80097010.unkCC = -0x400;
     func_80078F00(&D_8009872C);
     func_80078F00(&D_80097010);
