@@ -42,15 +42,12 @@ void func_800B4EDC(u8* pArg) {
     u8* p;
     u16 palette;
     u16 vram;
-    s32 y;
-
     p = *(u8**)(*(u8**)(pArg + 0x20) + 0x30);
     palette = *(u16*)(p + 0xA);
     rect.x = (*(u8*)(p + 0x4) >> 2) + ((palette & 0xF) << 6);
-    y = *(u8*)(p + 0x5) + ((palette << 4) & 0x100);
+    rect.y = *(u8*)(p + 0x5) + ((palette << 4) & 0x100);
     rect.w = 8;
     rect.h = 8;
-    rect.y = y;
     MoveImage(&rect, 0x3F0, 0x1F0);
     vram = *(u16*)(p + 0xC);
     rect.w = 0x10;
