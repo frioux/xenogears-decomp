@@ -146,6 +146,12 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DD5E8);
    permute.sh --minutes 4 -j 2: PERMUTER_BETTER 777 -> 547, but the winner
    caches g_Menu in a callee-saved local, which drops a lui/lw pair and
    compiles to 408 bytes - wrong size, so not portable.
+   Round 106 re-check: the whole loop-1 delta is that one addu, nothing else.
+   Dropping the pPoly local and writing the address twice, and the
+   'pStrings[i].polys + ctx' spelling, both compile identically to each other
+   and to the version below (416 bytes, if-body one insn short, 93.96%): gcc
+   CSEs the poly address out of the compare and the argument regardless, and
+   the load then uses the record-base register that retail keeps in a2.
    void func_801DD5E8(u_char arg0) {
        MenuString* pStrings;
        POLY_FT4* pPoly;
