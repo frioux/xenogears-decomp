@@ -2,10 +2,12 @@
 #include "psyq/libgte.h"
 
 extern void func_800BDF1C(u8 *pEntry);
-extern void func_8001F6B0(u8 *pObj);
-extern void func_80025180(u8 *pData);
-extern void WorkListsRemoveEntriesForData(u8 *pTask);
-extern void TimerWorkListRemoveTask(u8 *pTask);
+extern void func_8001F6B0(void *pObj);
+extern void func_80025180(void *pData);
+extern void WorkListsRemoveEntriesForData(void *pTask);
+extern void TimerWorkListRemoveTask(void *pTask);
+// left unprototyped: the ramp passes a third argument the callee (misc31) does not read
+extern void func_800BCAFC();
 extern MATRIX D_800D30BC;
 
 /* Built with XenoBattleTailCdk0 (gcc-2.7.2-cdk, -G0). With -G0 the cdk cc1 splits
@@ -21,9 +23,7 @@ void BattleClearActorMask(void) {
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BCD98);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BCEAC);
-// The sprite record a color-ramp task animates. Only the three s16 slots this
-// unit reads are named; the record continues past them (func_800BCAFC writes its
-// 0x28..0x2B colors).
+// The sprite record a color-ramp task animates.
 typedef struct {
     /* 0x00 */ u8 unk0[0x2];
     /* 0x02 */ s16 unk2;
@@ -31,7 +31,10 @@ typedef struct {
     /* 0x06 */ s16 unk6;
     /* 0x08 */ u8 unk8[0x2];
     /* 0x0A */ s16 unkA;
-} BattleEffectSprite; // Size: 0xC
+    /* 0x0C */ u8 unkC[0x1C];
+    /* 0x28 */ u8 unk28[0x3]; // colors, written by func_800BCAFC
+    /* 0x2B */ u8 unk2B;
+} BattleEffectSprite; // Size: 0x2C
 
 // The color-ramp task's own data block, reached through the task entry's +0x4.
 typedef struct {
@@ -45,8 +48,8 @@ typedef struct {
     /* 0x50 */ u8 unk50[0x4];
     /* 0x54 */ s32 unk54;
     /* 0x58 */ s32 unk58; // ramp angle, advanced once per step
-    /* 0x5C is the next field: BattleFreeEffectSpriteTask frees it */
-} BattleEffectColorRampData; // Size: 0x5C
+    /* 0x5C */ void *unk5C;
+} BattleEffectColorRampData; // Size: 0x60
 
 typedef struct {
     /* 0x00 */ u8 unk0[0x4];
@@ -75,15 +78,15 @@ void BattleApplyEffectSpriteColorRamp(BattleEffectTask *pTask) {
     pData->unk4E += 0x10;
 }
 
-void BattleFreeEffectSpriteTask(u8 *pTask) {
-    u8 *pData;
-    u8 *pObj;
+void BattleFreeEffectSpriteTask(BattleEffectTask *pTask) {
+    BattleEffectColorRampData *pData;
+    BattleEffectSprite *pSprite;
 
-    pData = *(u8 **)(pTask + 0x4);
-    pObj = *(u8 **)(pData + 0x38);
-    pObj[0x2B] |= 1;
-    func_8001F6B0(pObj);
-    func_80025180(*(u8 **)(pData + 0x5C));
+    pData = pTask->pData;
+    pSprite = pData->pSprite;
+    pSprite->unk2B |= 1;
+    func_8001F6B0(pSprite);
+    func_80025180(pData->unk5C);
     WorkListsRemoveEntriesForData(pTask);
     TimerWorkListRemoveTask(pTask);
     HeapFree(pData);
