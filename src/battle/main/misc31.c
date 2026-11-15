@@ -31,6 +31,17 @@ extern s32 D_800C3678;
 extern u8 D_800C3CC4;
 extern s32 D_800C3CBC;
 extern u8 *D_800C3748;
+extern u8 *D_800C3680;
+extern u8 *D_800C3684;
+extern u16 D_800C3CCC[];
+extern u16 D_800C3CD4[];
+extern u16 D_800D30A0[];
+extern u16 D_800D30A8[];
+extern void WorkListsRemoveEntriesForData(u8 *pTask);
+extern void AnimScriptTick(SpriteData *pSprite);
+extern void SpriteApplyMovementStep(SpriteData *pSprite);
+extern IVEC3 D_8006F99C;
+extern IVEC3 D_8006F9AC;
 
 // best 95.69% under gcc-2.6.0 (94.51% under 2.7.2): only the lui %hi(D_800D30BC)
 // lands late and turns the three "lh" loads into v1 instead of v0. 2.6.0 fixes the
@@ -147,8 +158,75 @@ void func_800BB844(MATRIX *pMatrix, SVECTOR *pA, SVECTOR *pB, SVECTOR *pC) {
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BB9D4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BBAB8);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BBEE0);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BC018);
+void func_800BBEE0(u8 *pEntry) {
+    SpriteData *pSprite;
+
+    pSprite = *(SpriteData **)(pEntry + 4);
+    if ((pSprite->field_0x40 >> 13 & 0xF) == 0xA) {
+        if (D_800C3680 == pEntry) {
+            D_800C3680 = NULL;
+            if (D_800C37C8 == 0) {
+                D_800D30A0[0] = D_800C3CCC[0];
+                D_800D30A0[1] = D_800C3CCC[1];
+                D_800D30A0[2] = D_800C3CCC[2];
+            }
+        }
+    } else if (D_800C3684 == pEntry) {
+        D_800C3684 = NULL;
+        if (D_800C37C8 == 0) {
+            D_800D30A8[0] = D_800C3CD4[0];
+            D_800D30A8[1] = D_800C3CD4[1];
+            D_800D30A8[2] = D_800C3CD4[2];
+        }
+    }
+    if (((u32)pSprite->flags_0xAC >> 5) & 1) {
+        WorkListsRemoveEntriesForData(pEntry);
+    }
+    TimerWorkListRemoveTask(pEntry);
+    WorkListRemoveTask(pEntry + 0x1C);
+    HeapFree(pEntry);
+    D_800C3CC4--;
+    if (D_800C3CC4 == 0) {
+        func_800BC2F0(D_800C367C);
+    }
+}
+void func_800BC018(u8 *pEntry) {
+    SpriteData *pSprite;
+
+    pSprite = *(SpriteData **)(pEntry + 4);
+    AnimScriptTick(pSprite);
+    SpriteApplyMovementStep(pSprite);
+    if ((pSprite->field_0x40 >> 13 & 0xF) == 0xA) {
+        D_8006F99C.x = pSprite->position.x;
+        D_8006F99C.y = pSprite->position.y;
+        D_8006F99C.z = pSprite->position.z;
+    } else {
+        D_8006F9AC.x = pSprite->position.x;
+        D_8006F9AC.y = pSprite->position.y;
+        D_8006F9AC.z = pSprite->position.z;
+    }
+    if (pSprite->pSpriteBytecode == NULL) {
+        (*((void (**)(u8 *))(pEntry + 0xC)))(pEntry);
+        return;
+    }
+    if ((((u32)pSprite->flags_0xAC >> 6) & 1) == 0) {
+        return;
+    }
+    AnimScriptTick(pSprite);
+    SpriteApplyMovementStep(pSprite);
+    if ((pSprite->field_0x40 >> 13 & 0xF) == 0xA) {
+        D_8006F99C.x = pSprite->position.x;
+        D_8006F99C.y = pSprite->position.y;
+        D_8006F99C.z = pSprite->position.z;
+    } else {
+        D_8006F9AC.x = pSprite->position.x;
+        D_8006F9AC.y = pSprite->position.y;
+        D_8006F9AC.z = pSprite->position.z;
+    }
+    if (pSprite->pSpriteBytecode == NULL) {
+        (*((void (**)(u8 *))(pEntry + 0xC)))(pEntry);
+    }
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BC158);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BC2F0);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BC3F8);
