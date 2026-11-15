@@ -27,6 +27,78 @@ typedef struct {
     /* 0x0 */ u32 w[4];
 } SlotData; // Size: 0x10
 
+// A battle participant as this unit drives it. Same layout as the BattleActor
+// in src/battling/main/misc18.c; the fields this unit does not read stay
+// opaque.
+typedef struct BattleActor {
+    /* 0x000 */ u8 unk0[0x48];
+    /* 0x048 */ s32 unk48;
+    /* 0x04C */ u8 unk4C[0xC];
+    /* 0x058 */ s32 unk58;
+    /* 0x05C */ u8 unk5C[0x3C];
+    /* 0x098 */ s32 unk98;
+    /* 0x09C */ s32 unk9C;
+    /* 0x0A0 */ u8 unkA0[0x14];
+    /* 0x0B4 */ s16 unkB4;
+    /* 0x0B6 */ s16 unkB6;
+    /* 0x0B8 */ u8 unkB8[0x4];
+    /* 0x0BC */ s16 unkBC;
+    /* 0x0BE */ s16 unkBE;
+    /* 0x0C0 */ u8 unkC0[0xE];
+    /* 0x0CE */ s16 unkCE;
+    /* 0x0D0 */ u32 flags;
+    /* 0x0D4 */ u8 unkD4[0x835];
+    /* 0x909 */ u8 unk909;
+    /* 0x90A */ u8 unk90A[0xD5A];
+    /* 0x1664 */ u8* pSoundTable;
+    /* 0x1668 */ u16 unk1668;
+} BattleActor; // Size: 0x166A
+
+// The flags word at +0x2C of a BattleWork (see src/battling/main/misc18.c).
+typedef union {
+    /* 0x0 */ u32 flags;
+    /* 0x0 */ struct {
+        /* 0x0 */ u32 unk2C_0 : 8;
+        /* 0x0 */ u32 unk2C_8 : 1;
+        /* 0x0 */ u32 unk2C_9 : 1;
+        /* 0x0 */ u32 unk2C_10 : 1;
+        /* 0x0 */ u32 unk2C_11 : 1;
+        /* 0x0 */ u32 unk2C_12 : 1;
+        /* 0x0 */ u32 unk2C_13 : 1;
+        /* 0x0 */ u32 pad2C : 18;
+    } bits;
+    /* 0x0 */ struct {
+        /* 0x0 */ u16 pad2C;
+        /* 0x2 */ u8 unk2E;
+        /* 0x3 */ u8 pad2F;
+    } bytes;
+} BattleWorkFlags; // Size: 0x4
+
+// The per-slot action state the battle main loop runs on. +0x04 counts down to
+// the next state change and is stored as a byte elsewhere, so it is read
+// through a u16 here and compared signed.
+typedef struct {
+    /* 0x00 */ BattleActor* pOwner;
+    /* 0x04 */ u16 unk4;
+    /* 0x06 */ u16 pad6;
+    /* 0x08 */ u8 unk8;
+    /* 0x09 */ u8 unk9;
+    /* 0x0A */ s16 unkA;
+    /* 0x0C */ s16 unkC;
+    /* 0x0E */ u8 unkE;
+    /* 0x0F */ u8 unkF;
+    /* 0x10 */ s32 unk10;
+    /* 0x14 */ s32 unk14;
+    /* 0x18 */ s32 unk18;
+    /* 0x1C */ s32 unk1C;
+    /* 0x20 */ s32 unk20;
+    /* 0x24 */ s32 unk24;
+    /* 0x28 */ s32 unk28;
+    /* 0x2C */ BattleWorkFlags unk2C;
+    /* 0x30 */ u16 unk30;
+    /* 0x32 */ u16 pad32;
+} BattleWork; // Size: 0x34
+
 extern BattleSlot D_80096EA0[];
 extern BattleSlot D_80096F0C[];
 
@@ -42,15 +114,15 @@ extern u8 D_80091F80[];
 extern u8 D_80091F90[];
 extern u8 D_80091FA0[];
 
-extern void BattleQueueMessage(u8*, u8);
-extern void BattleTryQueueMessage5(u8*, u8*);
+extern void BattleQueueMessage(BattleActor*, s32);
+extern void BattleTryQueueMessage5(BattleActor*, BattleWork*);
 extern void BattleAcquireSoundSlot(u8*, u32, u8*, u32);
 extern s32 func_8008B650(s32, s16, s16);
 extern void SoundStopAllElements(void);
 extern u32 func_8003A5D0(u32);
 extern void SoundStopElementsByIndex(u8);
-extern void BattleQueueRandomMessages(u8*, u8*, s32);
-extern void BattleDispatchWorkState(u8*);
+extern void BattleQueueRandomMessages(BattleActor*, BattleWork*, s32);
+extern void BattleDispatchWorkState(BattleActor*);
 extern void SoundPlaySoundEffectOnPairWithLevels(s32, s32, s32, s32);
 extern void BattleEffectCopyBuffers(void);
 
@@ -196,10 +268,10 @@ void BattleIncrementSoundSlotTimers(void) {
         D_80096F10++;
     }
 }
-u8* BattleSetActorSoundTable(u8* p) {
+u8* BattleSetActorSoundTable(BattleActor* pActor) {
     u8* pTable;
 
-    switch (*(u8*)(p + 0x909)) {
+    switch (pActor->unk909) {
     case 9:
         pTable = D_80091FA0;
         break;
@@ -216,7 +288,7 @@ u8* BattleSetActorSoundTable(u8* p) {
         pTable = D_80091F90;
         break;
     }
-    *(u8**)(p + 0x1664) = pTable;
+    pActor->pSoundTable = pTable;
     return pTable;
 }
 void BattleAcquireSoundSlot(u8* p0, u32 idx, u8* pData, u32 flags) {
@@ -279,10 +351,10 @@ void func_8008EB4C(u8* p) {
         BattleAcquireSoundSlot(p + 0x60000, 0, NULL, D_80059488);
     }
 }*/
-void BattlePlaySoundEffectByIdx(u8* p, s32 idx, u8* pData, s32 flags) {
+void BattlePlaySoundEffectByIdx(BattleActor* pActor, s32 idx, u8* pData, s32 flags) {
     if (idx != 0) {
         BattleAcquireSoundSlot((u8*)(idx + 0x60000), flags, pData,
-                      (idx & 0x7F) | ((*(u32*)(p + 0xD0) >> 20) & 0x80));
+                      (idx & 0x7F) | ((pActor->flags >> 20) & 0x80));
     }
 }
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008EBD0);
@@ -354,36 +426,36 @@ void func_8008ED6C(u8* p, s32 idx) {
         BattleStopSoundSlotsByFlags(((*(u32*)(p + 0xD0) >> 20) & 0x80) | (pTable[i + 1] & 0x7F));
     }
 }*/
-void BattleUpdateActorApproach(u8* p, s16 arg1, s16 arg2) {
+void BattleUpdateActorApproach(BattleActor* pActor, s16 arg1, s16 arg2) {
     s32 pad[4];
-    s32 v98;
-    s32 v9C;
+    s32 step;
+    s32 backStep;
     s32 flag;
     s32 i;
 
-    v98 = *(s32*)(p + 0x98);
-    v9C = *(s32*)(p + 0x9C);
-    if (*(u32*)(p + 0xD0) & 0x100) {
-        v9C = v9C * 2 / 3;
+    step = pActor->unk98;
+    backStep = pActor->unk9C;
+    if (pActor->flags & 0x100) {
+        backStep = backStep * 2 / 3;
         flag = 0;
     } else {
         flag = 1;
     }
     for (i = 0; i < 2; i++) {
         if (arg2 != 0 && flag != 0) {
-            *(s32*)(p + 0x48) += v98;
-            if (*(s32*)(p + 0x48) > arg2) {
-                *(s32*)(p + 0x48) = arg2;
+            pActor->unk48 += step;
+            if (pActor->unk48 > arg2) {
+                pActor->unk48 = arg2;
             }
         } else {
-            *(s32*)(p + 0x48) -= v9C;
-            if (*(s32*)(p + 0x48) < 0) {
-                *(s32*)(p + 0x48) = 0;
+            pActor->unk48 -= backStep;
+            if (pActor->unk48 < 0) {
+                pActor->unk48 = 0;
             }
         }
     }
-    *(s32*)(p + 0x58) = func_8008B650(*(s32*)(p + 0x58), arg1, 0x40);
-    *(u16*)(p + 0xCE) = 0;
+    pActor->unk58 = func_8008B650(pActor->unk58, arg1, 0x40);
+    pActor->unkCE = 0;
 }
 void BattleCheckStateAndSetDelay60(u8* p0, u8* p1) {
     BattleTryQueueMessage5(p0, p1);
@@ -459,6 +531,6 @@ void BattleSetActionFieldFAndDispatch(u8* p0, u8* p1, u8 value) {
     BattleDispatchWorkState(p0);
 }
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008F280);
-s32 BattleCheckValueAboveScaledMax(u8* p, s32 arg1) {
-    return (*(s16*)(p + 0xBC) * arg1) / 255 < *(s16*)(p + 0xB4);
+s32 BattleCheckValueAboveScaledMax(BattleActor* pActor, s32 arg1) {
+    return (pActor->unkBC * arg1) / 255 < pActor->unkB4;
 }
