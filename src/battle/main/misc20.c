@@ -150,17 +150,16 @@ void func_8009CA90(void) {
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc20", func_8009CA90);
 void BattleSetSlotBit20FromStatusBit200(u8 arg0) {
-    s32 o = arg0 * 0x170;
-    u8 *p = (u8 *)D_800CCCE8 + 0xA4 + o;
-    u8 *q = (u8 *)D_800CCCE8 + o;
+    BattleSlotState *pState = &D_800CCCE8[arg0].state;
+    BattleTableEntry *pSlot = &D_800CCCE8[arg0];
     u16 v;
 
-    if (*(u16 *)(p + 0x80) & 0x200) {
-        v = *(u16 *)(q + 0x84) | 0x20;
+    if (pState->unk80 & 0x200) {
+        v = pSlot->unk84 | 0x20;
     } else {
-        v = *(u16 *)(q + 0x84) & 0xFFDF;
+        v = pSlot->unk84 & 0xFFDF;
     }
-    *(u16 *)(q + 0x84) = v;
+    pSlot->unk84 = v;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc20", func_8009CBC4);
 void BattleSetCurrentSlotState6(void) {
@@ -285,7 +284,7 @@ void BattleSetSlotState2FromActorField5B(void) {
 }
 void BattleSetSlotFields148And10C(void) {
     D_800C3D60[0] = 4;
-    D_800CCCE8[D_800C3E50].unk15B[7] = 3;
+    D_800CCCE8[D_800C3E50].state.unkB7[7] = 3;
 }
 void BattleSetSlotState0AFromActorWord3ADiv20(void) {
     s32 v = D_800D2DC8->unk3A * D_800C3DFC->unk11;

@@ -213,10 +213,10 @@ void BattleSetSlotFlag15A1(u8 arg0) {
 
     D_800C34B0->unk5FC2 = 0;
     q = &D_800C34B0->slots[arg0];
-    q->unk15A |= 1;
+    q->state.unkB6 |= 1;
     p = &D_800C34B0->slots[arg0];
-    if ((p->unk15A & 0x80) && (p->unk126 & 0x10)) {
-        p->unk120 &= 0xFE4F;
+    if ((p->state.unkB6 & 0x80) && (p->state.unk82 & 0x10)) {
+        p->state.unk7C &= 0xFE4F;
         p->unk7C &= 0xEFFF;
     }
     if (D_800D2C34 == 4) {
@@ -226,9 +226,9 @@ void BattleSetSlotFlag15A1(u8 arg0) {
 
 u8 BattleClearSlotFlag15A1(u8 arg0) {
     BattleTableEntry* p = &D_800C34B0->slots[arg0];
-    u8 flags = p->unk15A & 0xFE;
+    u8 flags = p->state.unkB6 & 0xFE;
 
-    p->unk15A = flags;
+    p->state.unkB6 = flags;
     return flags;
 }
 
@@ -237,8 +237,8 @@ void BattleSetSlotEntryFieldsTo1(u8 arg0) {
     BattleTableEntry* r;
     u16 f;
 
-    if (p->unk15A & 0x80) {
-        f = p->unk124 & 0x2000;
+    if (p->state.unkB6 & 0x80) {
+        f = p->state.unk80 & 0x2000;
     } else {
         f = p->unk88 & 0x400;
     }
@@ -246,7 +246,7 @@ void BattleSetSlotEntryFieldsTo1(u8 arg0) {
         return;
     }
     r = &D_800C34B0->slots[arg0];
-    if (r->unk15A & 0x80) {
+    if (r->state.unkB6 & 0x80) {
         s32 off = arg0 * 0x690 + 0x2228;
         BattleRow* pRow = (BattleRow*)((u8*)off + (u32)D_800C34B0);
 
@@ -284,8 +284,8 @@ void BattleSetSlotEntryFieldsTo2000(u8 arg0, u8 arg1) {
         }
     }
     p = &D_800C34B0->slots[arg0];
-    if (p->unk15A & 0x80) {
-        f = p->unk124 & 0x2000;
+    if (p->state.unkB6 & 0x80) {
+        f = p->state.unk80 & 0x2000;
     } else {
         f = p->unk88 & 0x400;
     }
@@ -293,7 +293,7 @@ void BattleSetSlotEntryFieldsTo2000(u8 arg0, u8 arg1) {
         return;
     }
     r = &D_800C34B0->slots[arg0];
-    if (r->unk15A & 0x80) {
+    if (r->state.unkB6 & 0x80) {
         s32 off = arg0 * 0x690 + 0x2228;
         BattleRow* pRow = (BattleRow*)((u8*)off + (u32)D_800C34B0);
 
@@ -304,7 +304,7 @@ void BattleSetSlotEntryFieldsTo2000(u8 arg0, u8 arg1) {
         pRow[26].flags = 0x2000;
         pRow[27].flags = 0x2000;
         pRow[28].flags = 0x2000;
-        r->unk124 &= 0xDFFF;
+        r->state.unk80 &= 0xDFFF;
     } else {
         s32 off = arg0 * 0x5F0 + 0x1058;
         BattleRow* pRow = (BattleRow*)((u8*)off + (u32)D_800C34B0);
@@ -470,24 +470,24 @@ void BattleResetActorStats(void) {
         p->unk5C[2] = 0x14;
         p->unk5C[3] = 0xF;
         p->unk7A = 0x1FBF;
-        p->unk149 = 0;
+        p->state.unkA5 = 0;
     }
 }
 
 void BattleSetActorScaledHp(u8 arg0, u8* arg1) {
     BattleTableEntry* p = (BattleTableEntry*)(arg0 * 0x170 + (u32)D_800C34B0);
-    u32* pScaled = (u32*)&p->unk90[0x14];
+    BattleSlotState* pState = &p->state;
 
     if (*(u16*)(arg1 + 0x4E) * 50 > 0x1869F) {
         if (*(u16*)(arg1 + 0x4C) * 50 > 0x1869F) {
-            p->unk104 = 0x1869F;
+            p->state.unk60 = 0x1869F;
         } else {
-            p->unk104 = *(u16*)(arg1 + 0x4C) * 50;
+            p->state.unk60 = *(u16*)(arg1 + 0x4C) * 50;
         }
-        pScaled[0x19] = 0x1869F;
+        pState->unk64 = 0x1869F;
     } else {
-        p->unk104 = *(u16*)(arg1 + 0x4C) * 50;
-        p->unk108 = *(u16*)(arg1 + 0x4E) * 50;
+        p->state.unk60 = *(u16*)(arg1 + 0x4C) * 50;
+        p->state.unk64 = *(u16*)(arg1 + 0x4E) * 50;
     }
 }
 
@@ -627,7 +627,7 @@ u8 BattleGetActorActionConditionMask(u8 arg0) {
     return ret;
 }
 void BattleSetSlotFields148And162(u8 arg0) {
-    D_800CCCE8[arg0].unk148 = 4;
-    D_800CCCE8[arg0].unk15B[7] = 3;
+    D_800CCCE8[arg0].state.unkA4 = 4;
+    D_800CCCE8[arg0].state.unkB7[7] = 3;
     g_GameState.unk16BC[0].unk1E |= 0x4000;
 }

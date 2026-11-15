@@ -3,6 +3,7 @@
 
 #include "psyq/libgte.h"
 #include "field/actor.h"
+#include "main/game.h"
 
 // A queued movement/rotation command, allocated by BattleAllocBlock and linked
 // into the owning sprite's p70 slot.
@@ -142,10 +143,44 @@ typedef struct {
     /* 0x114 */ u8 unk114[0x8C];
 } BattleActor; // Size: 0x1A0
 
+// The per-slot action state a slot entry carries at +0xA4 (0xCC bytes): the
+// status words, the scaled stats and the slot's copy of the equipped weapon
+// records. D_800D2DC8 and D_800D2D6C point at the acting and the defending
+// slot's copy of it. Only the fields read by src/battle/main/misc19 and
+// misc20 are named.
+typedef struct {
+    /* 0x00 */ u8 unk00[0x4];
+    /* 0x04 */ u8 unk04[0xC];
+    /* 0x10 */ GearWeaponData weaponData[3]; // sel == 3 lands in unk28, as in retail
+    /* 0x28 */ u8 unk28[0x12];
+    /* 0x3A */ u16 unk3A;
+    /* 0x3C */ u8 unk3C[0x13];
+    /* 0x4F */ u8 unk4F;
+    /* 0x50 */ u8 unk50[0x10];
+    /* 0x60 */ u32 unk60; // scaled current hp
+    /* 0x64 */ s32 unk64; // scaled max hp
+    /* 0x68 */ u8 unk68[0x14];
+    /* 0x7C */ u16 unk7C;
+    /* 0x7E */ u8 unk7E[0x2];
+    /* 0x80 */ u16 unk80;
+    /* 0x82 */ u16 unk82;
+    /* 0x84 */ u16 unk84;
+    /* 0x86 */ u8 unk86[0x13];
+    /* 0x99 */ u8 unk99;
+    /* 0x9A */ u8 unk9A[0x4];
+    /* 0x9E */ u8 unk9E;
+    /* 0x9F */ u8 unk9F[0x5];
+    /* 0xA4 */ u8 unkA4;
+    /* 0xA5 */ u8 unkA5;
+    /* 0xA6 */ u8 unkA6[0x10];
+    /* 0xB6 */ u8 unkB6;
+    /* 0xB7 */ u8 unkB7[0x15];
+} BattleSlotState; // Size: 0xCC
+
 // One slot of the per-battle-slot table family (stride 0x170). Three of them
 // open the battle work block (D_800C34B0->slots); D_800C3E00/D_800C3E34 point
 // at the acting slot and its target. Only the fields read by
-// src/battle/main/misc18 are named.
+// src/battle/main/misc18 and misc19 are named.
 typedef struct {
     /* 0x000 */ u16 flags;
     /* 0x002 */ u8 unk02;
@@ -171,47 +206,9 @@ typedef struct {
     /* 0x08A */ u16 unk8A;
     /* 0x08C */ u16 unk8C;
     /* 0x08E */ u16 unk8E;
-    /* 0x090 */ u8 unk90[0x74];
-    /* 0x104 */ u32 unk104;
-    /* 0x108 */ u32 unk108;
-    /* 0x10C */ u8 unk10C[0x14];
-    /* 0x120 */ u16 unk120;
-    /* 0x122 */ u16 pad122;
-    /* 0x124 */ u16 unk124;
-    /* 0x126 */ u16 unk126;
-    /* 0x128 */ u8 unk128[0x20];
-    /* 0x148 */ u8 unk148;
-    /* 0x149 */ u8 unk149;
-    /* 0x14A */ u8 unk14A[0x10];
-    /* 0x15A */ u8 unk15A;
-    /* 0x15B */ u8 unk15B[0x15];
+    /* 0x090 */ u8 unk90[0x14];
+    /* 0x0A4 */ BattleSlotState state;
 } BattleTableEntry; // Size: 0x170
-
-// The per-slot action state a slot entry carries at +0xA4 (0xCC bytes): the
-// status words, the scaled stats and the slot's copy of the equipped weapon
-// records. D_800D2DC8 and D_800D2D6C point at the acting and the defending
-// slot's copy of it. Only the fields src/battle/main/misc20 reads are named;
-// the words it holds are the same bytes as the owning slot entry's fields from
-// +0x104 on (0x64 here is BattleTableEntry.unk108).
-typedef struct {
-    /* 0x00 */ u8 unk00[0x3A];
-    /* 0x3A */ u16 unk3A;
-    /* 0x3C */ u8 unk3C[0x13];
-    /* 0x4F */ u8 unk4F;
-    /* 0x50 */ u8 unk50[0x14];
-    /* 0x64 */ s32 unk64; // scaled max hp
-    /* 0x68 */ u8 unk68[0x14];
-    /* 0x7C */ u16 unk7C;
-    /* 0x7E */ u8 unk7E[0x2];
-    /* 0x80 */ u16 unk80;
-    /* 0x82 */ u16 unk82;
-    /* 0x84 */ u16 unk84;
-    /* 0x86 */ u8 unk86[0x13];
-    /* 0x99 */ u8 unk99;
-    /* 0x9A */ u8 unk9A[0x4];
-    /* 0x9E */ u8 unk9E;
-    /* 0x9F */ u8 unk9F[0x2D];
-} BattleSlotState; // Size: 0xCC
 
 // One 0x28-byte row of the per-actor action tables the battle work block holds
 // at +0x1058 (0x5F0 bytes per actor) and +0x2228 (0x690 bytes per actor). The
