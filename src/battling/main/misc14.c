@@ -3,6 +3,7 @@
 #include "psyq/inline_c.h"
 #include "system/memory.h"
 #include "system/archive.h"
+#include "system/model.h"
 
 // .bss/.sdata of the overlay (supplied by splat's asm segments)
 extern u8 D_800928A0;
@@ -17,7 +18,7 @@ extern s32 D_80096D88;
 extern s32 D_80096D8C;
 extern s32 D_80092914;
 extern u8 *D_80092938;
-extern void *D_80092868;
+extern RECT *D_80092868;
 
 extern void func_80030A30(s32 index, void *pLight);
 extern u32 func_800405E4(void);
@@ -43,19 +44,36 @@ void BattleDisableBackColor(void) {
 
 extern void ModelRenderPacket(void *pPart, void *pPacket, u_long *pOT, s32 flags);
 
-void BattleRenderActorModel(u8 *pActor) {
+// One drawn model part (the record src/battling/main/misc13.c declares as
+// Misc13ModelPart): the part's flags and colours, the packet area to fill for
+// each draw buffer, and the model part itself.
+typedef struct {
+    /* 0x00 */ u32 flags;
+    /* 0x04 */ s32 unk04;
+    /* 0x08 */ u8* pPacket[2]; // packet area, one per draw buffer
+    /* 0x10 */ s32 unk10;
+    /* 0x14 */ ModelPart* pModelPart;
+    /* 0x18 */ u8 r;
+    /* 0x19 */ u8 g;
+    /* 0x1A */ u8 b;
+    /* 0x1B */ u8 pad1B;
+    /* 0x1C */ s32 unk1C;
+} Misc14ModelPart; // Size: 0x20
+
+void BattleRenderActorModel(Misc14ModelPart *pPart) {
     D_80050104 = 0;
     if (D_80092810 != 0) {
-        if (*(u32 *)pActor & 0x10) {
-            gte_SetBackColor(pActor[0x18], pActor[0x19], pActor[0x1A]);
+        if (pPart->flags & 0x10) {
+            gte_SetBackColor(pPart->r, pPart->g, pPart->b);
         } else {
             gte_SetBackColor(0x40, 0x40, 0x40);
         }
     }
-    ModelRenderPacket(*(void **)(pActor + 0x14), *(void **)(pActor + D_800928A0 * 4 + 8),
-                      (u_long *)D_800928E4, *(s32 *)(pActor + 4));
+    ModelRenderPacket(pPart->pModelPart, pPart->pPacket[D_800928A0], (u_long *)D_800928E4, pPart->unk04);
 }
 
+// The colour word BattleSetColorIfChanged copies in one move; the fourth byte
+// of the destination word is the prim code and is written separately.
 typedef struct {
     u8 b[4];
 } Misc14Quad; // Size: 0x4
@@ -88,18 +106,41 @@ void BattleSetEntryColor(u8 *pActor) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc14", func_8008A7E0);
 
-void BattleSetModelLights(u8 *pActor) {
-    func_80030A30(0, *(u8 **)(*(u8 **)pActor + 4));
-    func_80030A30(1, *(u8 **)(*(u8 **)(pActor + 4) + 4));
-    func_80030A30(2, *(u8 **)(*(u8 **)(pActor + 8) + 4));
+// A model node (the record src/battling/main/misc13.c declares as Misc13Node,
+// which also carries the two child nodes this unit never reads).
+typedef struct Misc14ModelNode {
+    /* 0x00 */ s32 state;
+    /* 0x04 */ void* pData;
+} Misc14ModelNode; // Size: 0x9C
+
+void BattleSetModelLights(Misc14ModelNode **pNodes) {
+    func_80030A30(0, pNodes[0]->pData);
+    func_80030A30(1, pNodes[1]->pData);
+    func_80030A30(2, pNodes[2]->pData);
 }
 
-void BattleClearOrderingTable(u8 *pActor) {
-    s32 n = *(s16 *)(pActor + 0x14);
+// The per-frame display work of one battle actor group (the pointer the group
+// carries at +0x284): a double-buffered ordering table and prim area, the two
+// draw modes set up for it, and the prim queued when its 0x10 flag is set.
+typedef struct {
+    /* 0x00 */ s32 unk0;
+    /* 0x04 */ u_long* pOt[2];     // ordering table, one per draw buffer
+    /* 0x0C */ u_long* pPrim[2];   // prim area, one per draw buffer
+    /* 0x14 */ s16 count;          // ordering table length in words
+    /* 0x16 */ u8 flags;
+    /* 0x17 */ u8 unk17;
+    /* 0x18 */ DR_MODE drawModes[2][2]; // [half][draw buffer]
+    /* 0x48 */ u8 prim48[2][0x10];
+} Misc14DisplayWork; // Size: 0x68
 
-    ClearOTagR(*(u_long **)(pActor + D_800928A0 * 4 + 4), n);
-    D_800928E4 = *(u_long *)(pActor + D_800928A0 * 4 + 4);
-    D_80050100 = *(u8 *)(pActor + 0x17);
+extern s32 D_80091C30;
+
+void BattleClearOrderingTable(Misc14DisplayWork *pWork) {
+    s32 n = pWork->count;
+
+    ClearOTagR(pWork->pOt[D_800928A0], n);
+    D_800928E4 = (u32)pWork->pOt[D_800928A0];
+    D_80050100 = pWork->unk17;
 }
 
 void BattleSetOrderingTableTarget(s32 arg0) {
@@ -111,16 +152,15 @@ void BattleCaptureTimerCount(void) {
 }
 
 void BattleCompactOrderingTable(s32 arg0) {
-    u8 *pCtx = (u8 *)D_80091C30;
+    Misc14DisplayWork *pWork = (Misc14DisplayWork *)D_80091C30;
     s32 timeout;
     s32 start;
     s32 diff;
     s32 i;
-    u32 *pOT;
     u32 *pPrim;
     u32 *pNext;
 
-    if (pCtx == 0) {
+    if (pWork == NULL) {
         return;
     }
     start = D_80092820;
@@ -130,7 +170,7 @@ void BattleCompactOrderingTable(s32 arg0) {
     } else {
         timeout = 0xC0;
     }
-    i = *(s16 *)(pCtx + 0x14) - 1;
+    i = pWork->count - 1;
     if (i < 4) {
         return;
     }
@@ -142,8 +182,7 @@ void BattleCompactOrderingTable(s32 arg0) {
         if (timeout < diff) {
             break;
         }
-        pOT = *(u32 **)(pCtx + D_800928A0 * 4 + 4);
-        pPrim = (u32 *)pOT[i];
+        pPrim = (u32 *)pWork->pOt[D_800928A0][i];
         pNext = (u32 *)((*pPrim & 0xFFFFFF) + 0x80000000);
         if (*(u8 *)((u8 *)pNext + 3) == 0) {
             do {
@@ -159,23 +198,23 @@ void BattleCompactOrderingTable(s32 arg0) {
     } while (i >= 4);
 }
 
-extern void func_800453E8(void *pDrmode, void *pRect);
-extern void func_8004546C(void *pDrmode, void *pRect);
+extern void func_800453E8(DR_MODE *pDrmode, RECT *pRect);
+extern void func_8004546C(DR_MODE *pDrmode, RECT *pRect);
 
-void BattleAttachActorPrims(u8 *pActor) {
-    BattleSetOrderingTableTarget((s32)pActor);
-    AddPrims(D_80092938, *(void **)(pActor + D_800928A0 * 4 + 0xC), *(void **)(pActor + D_800928A0 * 4 + 4));
-    if ((*(u8 *)(pActor + 0x16) & 4) == 0) {
-        func_800453E8(pActor + (D_800928A0 * 12 + 0x18), D_80092868);
+void BattleAttachActorPrims(Misc14DisplayWork *pWork) {
+    BattleSetOrderingTableTarget((s32)pWork);
+    AddPrims(D_80092938, pWork->pPrim[D_800928A0], pWork->pOt[D_800928A0]);
+    if ((pWork->flags & 4) == 0) {
+        func_800453E8(&pWork->drawModes[0][D_800928A0], D_80092868);
     }
-    if ((*(u8 *)(pActor + 0x16) & 8) == 0) {
-        func_8004546C(pActor + (D_800928A0 * 12 + 0x30), (u8 *)D_80092868 + 8);
+    if ((pWork->flags & 8) == 0) {
+        func_8004546C(&pWork->drawModes[1][D_800928A0], D_80092868 + 1);
     }
-    if (*(u8 *)(pActor + 0x16) & 0x10) {
-        AddPrim(D_80092938, pActor + (D_800928A0 * 16 + 0x48));
+    if (pWork->flags & 0x10) {
+        AddPrim(D_80092938, pWork->prim48[D_800928A0]);
     }
-    AddPrim(D_80092938, pActor + (D_800928A0 * 12 + 0x30));
-    AddPrim(D_80092938, pActor + (D_800928A0 * 12 + 0x18));
+    AddPrim(D_80092938, &pWork->drawModes[1][D_800928A0]);
+    AddPrim(D_80092938, &pWork->drawModes[0][D_800928A0]);
 }
 
 typedef struct {
