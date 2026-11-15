@@ -10,6 +10,18 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive_b", func_80037878);
    (97.15%). Everything else is exact, including the fresh `mult` for i*nSize
    (a pCur local or an nRowOffset temp instead makes gcc strength-reduce it into
    an accumulator, which is what the earlier 79.6% was).
+   Round 108: WALL, it is the assembler, not the C. maspsx's _handle_mflo_mfhi
+   appends the hazard nop AFTER the instruction in the mflo window and emits the
+   loop label only afterwards, so `--print-output` shows
+   "addu / nop / $L8: / mult"; retail's aspsx put the label first ("nop" at
+   .L800378EC, mult after it). maspsx has a label-then-nop form only in
+   _handle_nop_before_next_instruction, which fires after a LOAD whose result the
+   next insn uses - never between an mflo and a mult. No C shape can move that
+   label: for(;;)+break, for(j=i;j<nCount;j++), an empty do/while at the loop
+   head and a do/while around the three memcpys were all tried this round (the
+   first three 99.94% with this same single difference; the memcpy do/while
+   breaks the outer-loop rotation, 95.29%/312 bytes; an if/else+continue form is
+   81.78%). permuter from this body: 503 more iterations, base=1 best=1.
 typedef s32 (*ArchiveCompareFn)(u8* pA, u8* pB);
 
 void func_80037878(u8* pData, s32 nCount, s32 nSize, ArchiveCompareFn pCompare) {
