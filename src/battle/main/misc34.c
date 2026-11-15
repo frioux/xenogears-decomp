@@ -12,6 +12,8 @@ extern s32 D_800C3610;
 extern s32 D_800C3628;
 extern s32 D_800C3CE8;
 extern s32 D_800D2D68;
+extern u8 D_800591AC;
+extern u8 D_8006BE10[];
 
 extern void func_800A9FF0(s32);
 s32 BattleIsTimerTaskActive(void);
@@ -19,6 +21,7 @@ extern void func_800BD2E4(void);
 extern void *func_800BFC80(void *, s32, s32);
 extern s32 func_800B57E4(SpriteData *pSpriteData);
 extern u8 *TimerWorkListAllocateTask(void *pList, s32 size);
+extern u8 *func_80023B84(u8 *pActor, u8 *pEntry);
 extern void TimerWorkListSetTaskCallback(void *pTask, void *pCallback);
 
 // WorkListEntry of include/system/animation.h; an overlay unit cannot include that
@@ -147,8 +150,7 @@ void func_800BF8CC(u8 *pActor) {
     if (i >= D_800D3678) {
         *(s32*)(pActor + 0x74) = D_800D363C[0];
     } else {
-        pEntry = D_800D3640;
-        *(s32*)(pActor + 0x74) = pEntry[i];
+        *(s32*)(pActor + 0x74) = D_800D3640[i];
     }
 }
 s32 BattleFindTableEntryIndex(s32 arg0) {
@@ -208,15 +210,8 @@ void BattleInvokeSpriteCallbackForActor(void *arg0, s32 arg1) {
 // 90.75%: everything matches except the D_8006BE10+0x10 load. Retail's ASPSX emits
 // lui/addiu/%lo(sym) then lw 16; gcc folds the address into the load
 // (lui %hi + lw 16(%hi_reg)), one instruction shorter - no C shape materialises it.
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800BFDA8);
-/*
-extern u8 D_800591AC;
-extern u8 D_8006BE10[];
-extern u8 *func_80023B84(u8 *pActor, u8 *pEntry);
-
 void func_800BFDA8(u8 *pActor, s32 arg1) {
     u8 *pBase;
-    u8 *pTable;
     u8 saved;
     u8 *pNew;
     s32 flags;
@@ -227,8 +222,8 @@ void func_800BFDA8(u8 *pActor, s32 arg1) {
     if (func_800BFC80(pActor, arg1, 0) != 0) {
         return;
     }
-    pTable = &D_8006BE10[0];
-    pBase = *(u8 **)(pTable + 0x10);
+    pActor = &D_8006BE10[0];
+    pBase = *(u8 **)(pActor + 0x10);
     saved = D_800591AC;
     D_800591AC = 0;
     pNew = func_80023B84(pActor, (u8 *)((s32)(arg1 + (u16 *)pBase)[1] + (s32)pBase));
@@ -239,7 +234,6 @@ void func_800BFDA8(u8 *pActor, s32 arg1) {
     flags |= 0x100;
     *(s32 *)(pNew + 0xB0) = flags;
 }
-*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800BFE48);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800C0314);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800C0564);
