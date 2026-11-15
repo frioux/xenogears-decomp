@@ -358,7 +358,69 @@ void func_80083580(u8 arg0) {
         break;
     }
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80083748);
+extern void BattleLoadStringTable96(u8);
+extern u8 func_8008CFB8(u8);
+void func_80083748(u8 arg0) {
+    u8 a;
+
+    a = arg0;
+    switch (D_800D3014) {
+    case 4:
+    case 6:
+    case 7:
+        BattleLoadStringTable96(a);
+        if (func_8008CFB8(a) != 0) {
+            func_8008ADD0(a);
+        } else {
+            ((BattleActorSlots *)D_800C3EAC)->unk2DD = 0x18;
+        }
+        break;
+    case 0:
+        if (((BattleActorSlots *)D_800C3EAC)->slot[a].unk36 == 0) {
+            ((BattleActorSlots *)D_800C3EAC)->unk2DD = 0x15;
+            break;
+        }
+        if (((BattleActorSlots *)D_800C3EAC)->unk2F6 != 0 && D_800C3E29 == 0) {
+            if (((BattleActorSlots *)D_800C3EAC)->slot[a].unk2E != 0) {
+                BattlePlaySoundIfEnabled(0x4F);
+            } else {
+                ((BattleActorSlots *)D_800C3EAC)->unk2DD = 0x10;
+            }
+            ((BattleActorSlots *)D_800C3EAC)->unk2F6 = 0;
+            break;
+        }
+        ((BattleActorSlots *)D_800C3EAC)->unk2F6 = 1;
+        BattlePlaySoundIfEnabled(0x4F);
+        break;
+    case 1:
+        if (((BattleActorSlots *)D_800C3EAC)->slot[a].unk34 == 0) {
+            ((BattleActorSlots *)D_800C3EAC)->unk2DD = 0x16;
+            break;
+        }
+        BattlePlaySoundIfEnabled(0x4F);
+        break;
+    case 2:
+        if (((BattleActorSlots *)D_800C3EAC)->slot[a].unk2C == 0) {
+            ((BattleActorSlots *)D_800C3EAC)->unk2DD = 0x17;
+            break;
+        }
+        if (((BattleActorSlots *)D_800C3EAC)->unk2F6 != 0 && D_800C3E29 == 2) {
+            ((BattleActorSlots *)D_800C3EAC)->unk2DD = 0x12;
+            ((BattleActorSlots *)D_800C3EAC)->unk2F6 = 0;
+            break;
+        }
+        ((BattleActorSlots *)D_800C3EAC)->unk2F6 = 1;
+        BattlePlaySoundIfEnabled(0x4F);
+        break;
+    case 3:
+        if (((BattleActorSlots *)D_800C3EAC)->slot[a].unk28 == 0) {
+            ((BattleActorSlots *)D_800C3EAC)->unk2DD = 0x13;
+            break;
+        }
+        BattlePlaySoundIfEnabled(0x4F);
+        break;
+    }
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80083948);
 u8 BattlePairTargetable(u8 arg0, u8 arg1) {
     u8 ret;
