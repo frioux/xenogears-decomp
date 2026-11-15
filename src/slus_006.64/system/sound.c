@@ -2457,6 +2457,105 @@ void SoundInitializeAudioManager(AudioManager* manager) {
 //----------------------------------------------------------------------------------------------------------------------
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003B424);
 
+/* 84.32% - prologue and the element-field store block match; left over: the
+   active_flag ternary (retail keeps a j + two li where gcc cross-jumps), the
+   |= 4 reload (gcc reuses the stored value), and the envelope-zeroing base
+   (retail walks from a0 = element + 0x60).
+void func_8003B424(AudioManager* pManager) {
+    u8* pSeqData;
+    AudioElement* pElement;
+    u16* pScriptOffset;
+    SoundWDSEntry* pWds;
+    s32 count = pManager->elementCount;
+    u32 value;
+    u32 aliveBits;
+    s32 bit;
+    s32 i;
+    s32 voice;
+    s32 j;
+
+    if (count == 0) {
+        return;
+    }
+
+    pElement = pManager->elements;
+    i = 0;
+    voice = -1;
+    aliveBits = 0;
+    pSeqData = (u8*)pManager->unk_0x8;
+    pScriptOffset = (u16*)(pSeqData + 0x22);
+    pWds = SoundFindWdsEntry(pManager->unk_0x16);
+    if (pWds == NULL) {
+        pWds = g_SoundWdsLinkedList;
+    }
+
+    do {
+        if (*pScriptOffset != 0) {
+            bit = 1 << i;
+            aliveBits |= bit;
+            pElement->active_flag = (pManager->unk_0x4c & bit) ? 0x421 : 0x401;
+            if (pManager->unk_Flags & 4) {
+                pElement->active_flag |= 4;
+            }
+
+            pElement->status_flags = 0x170;
+            pElement->unk_0x04 = 0;
+            value = *(u16*)(pSeqData + 0x10);
+            pElement->unk_0x06[1] = 0x10;
+            pElement->unk_0x06[0] = i;
+            pElement->unk_0x8 = value;
+            pElement->octave = 0x3C;
+            pElement->unk_0x62 = 0xF;
+            pElement->unk_0x72 = 0xFFFF;
+            pElement->unk_0x76 = 0x6000;
+            pElement->unk_0x78 = 0x7F000000;
+            pElement->savedScriptIP = NULL;
+            *(s32*)pElement->unk_0x1C = 0;
+            pElement->unk_0x20 = 0;
+            pElement->unk_0x22 = 0;
+            pElement->fermataDuration = 0;
+            pElement->unk_0x60 = 0;
+            pElement->unk_0x6E = 0;
+            pElement->unk_0x64[0] = 0;
+            pElement->unk_0x74 = 0x4000;
+            pElement->unk_0x70 = 0;
+            ((u16*)pElement->unk_0xD0)[0] = 0;
+            ((u16*)pElement->unk_0xD0)[1] = 0;
+            ((u16*)pElement->unk_0xD0)[2] = 0;
+            ((u16*)pElement->voice_data.unkC)[0] = 0;
+            ((u16*)pElement->voice_data.unkC)[1] = 0;
+            pElement->unk_0xCE = 0;
+            value = (u32)pSeqData + *pScriptOffset;
+            *(u32*)&pElement->unk_0x0C[4] = value;
+            pElement->unk14 = value;
+
+            for (j = NUM_VOICE_ENVELOPES - 1; j >= 0; j--) {
+                pElement->envelopes[j].flags = 0;
+            }
+
+            pElement->unk2C = (u32)pWds;
+            pElement->unk_0x25 = (u8)pManager->unk_0x16;
+            if (pWds != NULL) {
+                func_8003E5BC(0, pElement);
+            }
+            pElement->voice_number = voice;
+            pElement->voice_data.modeFlags = 0;
+            pElement->voice_data.priority = 0x100;
+            SoundAssignVoiceToChannelAndStop(&pElement->voice_data, voice);
+        } else {
+            pElement->active_flag = 0;
+        }
+
+        pScriptOffset++;
+        pElement++;
+        i++;
+        voice++;
+    } while (--count != 0);
+
+    pManager->unk_0x48 = aliveBits;
+}
+*/
+
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003B644);
 
 void SoundFreeAudioManagerBackups(AudioManager* pManager) {
