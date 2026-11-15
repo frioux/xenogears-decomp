@@ -44,6 +44,7 @@ extern u8 D_800D343E[];
 extern u16 D_800C48E8;
 extern s32 BattleSlotBitMask(u8 arg0);
 extern u8 D_800D2DE4[];
+extern u8 D_800C3D18[];
 extern BattleTableEntry D_800CCD64[];
 extern u8 D_800D32A1[];
 extern u16 D_800D2C94;
@@ -83,7 +84,7 @@ extern s32 func_80079ED8(u8 arg0, u8 arg1, u8 arg2, s32 arg3);
 extern u8 D_800C3D19[];
 extern u8 D_800C3D1A[];
 extern u8 D_800D340C[];
-extern u8 D_800CCD1C[];
+extern BattleTableEntry D_800CCD1C[];
 extern void BattleSetOverlayArg(u8 arg0);
 
 void BattleQueueCommandF8(u8 arg0) {
@@ -342,18 +343,18 @@ void BattleScriptResetActorState(u8 arg0) {
         }
     }
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc4", func_80079AB0);
-/* Best: 98.66%. Everything but three allocator/CSE tie-breaks is identical: (1)
-   retail keeps the single `slot & 0xFF` in $a0 and reuses it for the 0x170 index
-   and D_800C3D18/D_800D3408, ours splits it into a $v0 copy plus a later $a0 one;
-   (2) retail's early `return result` loads the variable (`addu v0,s2,zero`) where
-   gcc folds it to zero here; (3) `lw a0,0x10(sp)` vs our `lw v0,0x10(sp)` for the
-   command byte. The return type must be s32 (as void, gcc deletes `result = 1`);
-   D_800C3D18 is a 4-byte-stride table read as bytes, hence the `slot * 4` index.
-   Tried: value=0/result=0 in both orders and at both positions (that pair is now
-   exact), slot as the 7th-vs-8th local declaration, the else arm written as
-   `cmd >= 0x80` first and as `cmd < 0x80` first.
-
+/* Best: 98.55%, same 376 bytes as retail. The 98.66% this block used to claim
+   came from a body that did not build (D_800D2E5C[0] and D_800C3D1B[arg0 - 3] need the record
+   struct, and D_800CCD1C is a BattleTableEntry table, not a byte array), so its
+   percentages were historic. Two allocator ties left: the early `return result`
+   loads it (`move v0,s2`) where gcc folds it to zero, and the slot index keeps
+   one $v0 copy plus a later $a0 one where retail reuses $a0. The loop shape
+   matters: `cmd = *pCursor; while (cmd != 0xFD) { if (cmd == 0xFF) break; if
+   (cmd >= 0x80) { ... } else { ... } cmd = *pCursor; }` scores 98.55%, the
+   inverted `if (cmd < 0x80) { } else if` form 79.56%, and `for (;;)` with two
+   breaks loses the shared 0xFD register. pCursor lives in a stack slot because
+   &pCursor is passed to the two decoders. */
+/*
 s32 func_80079AB0(u8 arg0) {
     s32 result;
     u8 value;
@@ -371,41 +372,40 @@ s32 func_80079AB0(u8 arg0) {
             return result;
         }
     }
-    D_800D2E5C[0] = 0;
+    D_800D2E5C[0].unk0 = 0;
     if (D_800C3D18[slot * 4] != 0) {
-        pCursor = *(u8**)(D_800D3408 + slot * 0x40);
+        pCursor = *(u8 **)&D_800D3400[slot].unk0[8];
         p = D_800D2E5C;
         pEnd = p + 0x100;
         do {
             *p++ = 0;
         } while (p < pEnd);
-        for (;;) {
-            cmd = *pCursor;
-            if (cmd == 0xFD) {
-                break;
-            }
+        cmd = *pCursor;
+        while (cmd != 0xFD) {
             if (cmd == 0xFF) {
                 break;
             }
             if (cmd >= 0x80) {
-                if ((func_8007F8C0(&pCursor, slot) & 0xFF) != 0) {
-                    continue;
+                if ((func_8007F8C0(&pCursor, slot) & 0xFF) == 0) {
+                    BattleScriptSkipUnknownOpcodeWords(&pCursor);
                 }
-                BattleScriptSkipUnknownOpcodeWords(&pCursor);
             } else {
                 if (cmd == 0x62) {
                     result = 1;
                 }
                 value = func_8007EF6C(&pCursor, slot, value);
             }
+            cmd = *pCursor;
         }
     }
-    if (D_800D2E5C[0] != 0) {
+    if (D_800D2E5C[0].unk0 != 0) {
         func_800793F0(slot + 3);
     }
     return result;
 }
 */
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc4", func_80079AB0);
+
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc4", func_80079C24);
 /* Best: 89.50%, instruction stream identical except two hoist positions (508
    bytes vs retail's 504). Retail stores value/i, then the two loop constants
