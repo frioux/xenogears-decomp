@@ -384,6 +384,17 @@ extern void BattleStepEffectColorFadeFromBase(Misc32Task *pTask);
 // in do{...}while(0) (55.56), the call alone in do{...}while(0) (67.40), a `pEffect`
 // alias for the call argument (cse folds it), an alias for the stores, u8 pointer,
 // offset casts, a callback local, indexed forms, and a 3-min permuter run.
+// Round 116: moving the unk83 STORE after the call (compute the byte into a `u8
+// flags` local before it, `pTask->unk83 = flags;` after it) DOES defeat
+// combine_regs - the parameter then stays in a saved register with a real
+// `move a0,sN` argument copy - but the flag byte then lives across the call and
+// needs a SECOND saved register (0x20 frame, 108 bytes, 70.36%). Wrapping only the
+// timer store in do{...}while(0), the lever that closed BattleStepEffectPosition
+// next door, reproduces that function's shape instead (store straight after the
+// bgez, so reorg steals the load-delay nop: 96 bytes, 68.96%). A 4-min permuter run
+// from the 91.60 body: base=70 best=70, 1645 iterations, nothing. Retail's object
+// has the same instruction multiset as the 91.60 body; the only differences are
+// $a0 vs $s0 on the sw/sb and the position of the move, i.e. a local-alloc choice.
 /*
 void func_800BDC14(Misc32Task *pTask) {
     s32 nextTimer;
