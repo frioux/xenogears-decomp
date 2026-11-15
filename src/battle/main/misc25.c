@@ -754,25 +754,33 @@ void BattleWaitForOtherActorAnimations(s32 arg0) {
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800B15D8);
-/* 71.84% (192 bytes, same size as the original): the 7-word copy and the frame
-   arithmetic are right. Remaining differences: the original keeps the copy
-   destination in $a2 and the lui high half in $a3 (so the later global accesses
-   are `lw v0,%lo(D_800C3BD0)($a3)`), and blocks the copy 3+3+1 instead of 4+3.
-   Tried: pDst pointer local, direct global access on every reference,
-   `s32 offset` local folding the +0xC into the register (that one matches the
-   original's `addiu v0,v0,0xC` but the rest is unchanged).
+/* 71.38% under this unit's preset (XenoBattle260Div, gcc 2.6.0). 100.00% under
+   `--gcc gcc-2.7.2-cdk-psx --gp -G0` with this exact body, and tools/scripts/atfree.py
+   lists this stub's `lw $v0,%lo(D_800C3BD0)($a3)` as the cdk-with--G0 signature, so
+   the body below is believed correct and the residual is the PRESET: retail keeps
+   the lui half in $a3 and forms the addresses with separate addiu (a2 for the copy
+   destination, a0 in the bnez delay slot), while gcc 2.6.0 folds each address into
+   one register and re-forms the +8/+0x10 accesses with fresh lui/%hi pairs.
+   2.6.0 also chunks the 7-word copy 4+3 where retail has 3+3+1. Tried: `pDst`
+   pointer local for the copy, for the whole body, and for the two +8/+0x10
+   assignments only (gcc folds the constant address either way); global name on
+   every reference (72%), no `offset` local (loses retail's addiu v0,v0,0xC).
 s32 func_800B15D8(u8 *p, s32 index) {
-    BattleFrame *pFrame = (BattleFrame *)(p + index * 0x1C + 0xC);
-    BattleFrame *pDst = &D_800C3BD0;
+    BattleFrame *pFrame;
+    BattleFrame *pDst;
+    s32 offset;
 
+    offset = index * 0x1C + 0xC;
+    pFrame = (BattleFrame *)(p + offset);
+    pDst = &D_800C3BD0;
     *pDst = *pFrame;
     if ((*(u32 *)(p + 4) & 1) == 0) {
-        pDst->unk0 += (mem_addr)pFrame;
-        pDst->unk8 += (mem_addr)pFrame;
-        pDst->unk10 += (mem_addr)pFrame;
+        D_800C3BD0.unk0 = D_800C3BD0.unk0 + (mem_addr)pFrame;
+        D_800C3BD0.unk8 = D_800C3BD0.unk8 + (mem_addr)pFrame;
+        D_800C3BD0.unk10 = D_800C3BD0.unk10 + (mem_addr)pFrame;
     }
     D_800C3BF0 = 0;
-    D_800C3BEC = pDst->unk10;
+    D_800C3BEC = D_800C3BD0.unk10;
     return pFrame->unk14;
 }
 */
