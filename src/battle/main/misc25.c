@@ -40,7 +40,9 @@ typedef struct {
 
 struct BattleModelNode {
     /* 0x00 */ BattleModelNode *pParent;
-    /* 0x04 */ u8 pad4[0x3];
+    /* 0x04 */ u8 unk4;
+    /* 0x05 */ u8 unk5;
+    /* 0x06 */ u8 pad6;
     /* 0x07 */ u8 unk7;
     /* 0x08 */ u8 pad8[0x2];
     /* 0x0A */ u16 unkA;
@@ -320,18 +322,26 @@ typedef struct {
     /* 0x13 */ u8 unk13; // non-zero: installs func_800AFC68 as the task callback
 } BattlePartInfo; // Size: 0x14
 
+// Task func_80023FD8 allocates for one part: a SpriteData at +0x38 and, at the
+// byte offset the sprite records in its allocatedDataSize (+0xBE), the appended
+// BattlePartNode below.
+typedef struct {
+    /* 0x00 */ u8 unk0[0x38];
+    /* 0x38 */ SpriteData sprite;
+} BattlePartTask;
+
 void BattleCreateModelPartTask(s32 arg0, s32 arg1, s32 arg2, s32 arg3, s32 arg4, BattlePartInfo *pInfo,
                                s32 arg6) {
-    u8 *pTask;
-    u8 *pSprite;
+    BattlePartTask *pTask;
+    SpriteData *pSprite;
     BattlePartNode *pNode;
 
-    pTask = func_80023FD8(arg1, arg0, arg2, 0x18);
-    pSprite = pTask + 0x38;
+    pTask = (BattlePartTask *)func_80023FD8(arg1, arg0, arg2, 0x18);
+    pSprite = &pTask->sprite;
     SpriteSetDirection(pSprite, arg3);
     func_800223B0(pSprite, arg3);
     SpriteSetScale(pSprite, arg4);
-    pNode = (BattlePartNode *)(pTask + *(s16 *)(pTask + 0xBE));
+    pNode = (BattlePartNode *)((u8 *)pTask + pSprite->allocatedDataSize);
     pNode->unk8 = arg6;
     pNode->partIndex = pInfo->partIndex;
     if (pInfo->unk13 != 0) {
@@ -391,35 +401,35 @@ void BattleApplyNodeOffset(BattleModel *pModel, BattleModelNode *pNode, char fla
     mode = flags & 7;
     if (mode == 0) {
         if (flags & 0x20) {
-            *(u16 *)((u8 *)pNode + 0x54) += x;
-            *(u16 *)((u8 *)pNode + 0x56) += y;
-            *(u16 *)((u8 *)pNode + 0x58) += z;
+            pNode->rot[0] += x;
+            pNode->rot[1] += y;
+            pNode->rot[2] += z;
         } else {
-            *(u16 *)((u8 *)pNode + 0x54) = x;
-            *(u16 *)((u8 *)pNode + 0x56) = y;
-            *(u16 *)((u8 *)pNode + 0x58) = z;
+            pNode->rot[0] = x;
+            pNode->rot[1] = y;
+            pNode->rot[2] = z;
         }
     } else if (mode == 1) {
         if (flags & 0x20) {
-            *(s32 *)((u8 *)pNode + 0x5C) += x;
-            *(s32 *)((u8 *)pNode + 0x60) += y;
-            *(s32 *)((u8 *)pNode + 0x64) += z;
+            pNode->pos[0] += x;
+            pNode->pos[1] += y;
+            pNode->pos[2] += z;
         } else {
-            *(s32 *)((u8 *)pNode + 0x5C) = x;
-            *(s32 *)((u8 *)pNode + 0x60) = y;
-            *(s32 *)((u8 *)pNode + 0x64) = z;
+            pNode->pos[0] = x;
+            pNode->pos[1] = y;
+            pNode->pos[2] = z;
         }
     } else if (flags & 0x20) {
-        *(u16 *)((u8 *)pNode + 0x4C) += x;
-        *(u16 *)((u8 *)pNode + 0x4E) += y;
-        *(u16 *)((u8 *)pNode + 0x50) += z;
+        pNode->scale[0] += x;
+        pNode->scale[1] += y;
+        pNode->scale[2] += z;
     } else {
-        *(u16 *)((u8 *)pNode + 0x4C) = x;
-        *(u16 *)((u8 *)pNode + 0x4E) = y;
-        *(u16 *)((u8 *)pNode + 0x50) = z;
+        pNode->scale[0] = x;
+        pNode->scale[1] = y;
+        pNode->scale[2] = z;
     }
-    *(u8 *)((u8 *)pNode + 4) = 1;
-    *(u8 *)((u8 *)pNode + 5) = 1;
+    pNode->unk4 = 1;
+    pNode->unk5 = 1;
     if (flags & 0x80) {
         pChild = pModel->pNodes;
         for (i = 1; i < pModel->pNodes->unkA; i++) {
@@ -672,21 +682,21 @@ extern void ArchiveStopTransfer(s32);
 
 void func_800B136C(void) {
     s32 flagB = 0;
-    u8 **pBase = D_800D3368;
+    BattleActor **pBase = D_800D3368;
     s32 flagA = 0;
-    u8 *pEntry;
+    BattleActor *pEntry;
     s32 i;
-    u8 **pp;
-    u8 **ppBase;
+    BattleActor **pp;
+    BattleActor **ppBase;
 
     for (;;) {
         flagA = 0;
         for (i = 0; i < 11; i++) {
             if (pBase[i] != NULL) {
-                if (pBase[i][0x38] != 0) {
+                if (pBase[i]->unk38 != 0) {
                     flagA = 1;
                 }
-                if (*(s32 *)(pBase[i] + 0xC) != 0) {
+                if (pBase[i]->unkC != 0) {
                     flagB = 1;
                 }
             }
@@ -710,7 +720,7 @@ void func_800B136C(void) {
         if (ArchiveDataSync() == 0) {
             for (i = 0, pp = ppBase; i < 11; i++) {
                 pEntry = *pp++;
-                if (pEntry != NULL && *(s32 *)(pEntry + 0xC) != 0) {
+                if (pEntry != NULL && pEntry->unkC != 0) {
                     BattleFreeActorBuffer(pEntry);
                 }
             }
