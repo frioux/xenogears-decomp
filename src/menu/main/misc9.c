@@ -76,14 +76,14 @@ void MenuFitInventoryWindowToItems(void) {
 }
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DBE54);
+
 void func_801DC1D4(u_char arg0) {
     s32 kind;
     s32 index = 0;
-    u8 mode = arg0;
 
     g_Menu->unk430 = HeapAlloc(0x1094, 0);
     bzero(g_Menu->unk430, 0x1094);
-    switch (mode) {
+    switch (arg0) {
     case 0:
         kind = 2;
         break;
@@ -98,7 +98,7 @@ void func_801DC1D4(u_char arg0) {
     MenuLoadStringsFromIds(8, g_Menu->unk10E0, &D_801EA548[index * 8], g_Menu->pManager->unk38);
     func_801C72BC((u8)kind);
     MenuSetupPointerCursors(2);
-    func_801D3488(2, arg0 & 0xFF);
+    func_801D3488(2, arg0);
 }
 
 void MenuFreeUnk430Panel(u_char arg0) {
