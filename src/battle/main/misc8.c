@@ -60,6 +60,7 @@ void func_8007C1A4(u8 **arg0, u8 arg1) {
 
     buf[0] = buf[1] = buf[2] = 0;
     pRow[(*arg0)[1]] = 0;
+    do {
     while ((buf[0] & buf[1] & buf[2]) == 0) {
         s32 slot = func_8001BD40(0, 2);
         u8 idx = slot;
@@ -78,6 +79,7 @@ void func_8007C1A4(u8 **arg0, u8 arg1) {
             buf[idx] = 1;
         }
     }
+    } while (0);
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007C33C);
@@ -205,6 +207,7 @@ void func_8007C840(u8 **arg0, u8 arg1) {
 
     buf[0] = buf[1] = buf[2] = 0;
     pRow[(*arg0)[1]] = 0;
+    do {
     while ((buf[0] & buf[1] & buf[2]) == 0) {
         s32 slot = func_8001BD40(0, 2);
         u8 idx = slot;
@@ -222,6 +225,7 @@ void func_8007C840(u8 **arg0, u8 arg1) {
             buf[idx] = 1;
         }
     }
+    } while (0);
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007C9D4);
@@ -241,6 +245,7 @@ void func_8007C9D4(u8 **arg0, u8 arg1) {
 
     buf[0] = buf[1] = buf[2] = 0;
     pRow[(*arg0)[1]] = 0;
+    do {
     while ((buf[0] & buf[1] & buf[2]) == 0) {
         s32 slot = func_8001BD40(0, 2);
         u8 idx = slot;
@@ -253,6 +258,7 @@ void func_8007C9D4(u8 **arg0, u8 arg1) {
             buf[idx] = 1;
         }
     }
+    } while (0);
 }
 */
 void BattlePickSlotByFlagTable(u8 **arg0, u8 arg1) {
@@ -479,39 +485,53 @@ void BattlePickActorSlotWithFlag80(u8 **arg0, u8 arg1) {
         pRow[index] = result;
     }
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007D478);
-/* best: 98.05%. Every instruction matches except the saved-register numbering
-   and one preheader copy: retail defines the row base in a caller-saved temp
-   (addu a1,a1,v1), uses it for the zeroing store, and copies it to s2 at the
-   end of the block (move s2,a1) - so retail allocates s1 to arg0 and s2 to the
-   base, and the function is one instruction longer. gcc 2.6 homes the base
-   straight into s1 (addu s1,a1,v1) and gives s2 to arg0. With the zeroing
-   store spelled inline instead (retail's CSE shape) the base is materialised
-   twice (97.24%, addu s2,a1,v1 + addu v0,a1,v0/addu v0,v0,v1) and with both
-   stores inline it is 88.06%. Also tried: u8 buf first vs u16 *pRow first
-   (identical), buf[idx] = 1 vs buf[slot] = 1 (the latter loses the move/andi
-   split, 92.79%).
-
+// best: 98.46%. Everything matches except the row-base copy in the preheader:
+// retail computes the base in caller-saved a1 (addu a1,a1,v1), uses it for the
+// zeroing store (addu v0,v0,a1), then copies it into s2 at loop entry
+// (move s2,a1) - one instruction more than gcc 2.6 emits, which homes the base
+// in s2 from the start (addu s2,a1,v1). Saved-register assignment does match
+// retail now (s1=arg0, s2=base, s0=buf).
+// How it got here: the do-while(0) wrapper alone changes nothing; the duplicated
+// if (arg0) branch, whose two arms are identical (a permuter artifact kept only
+// because it is what flips arg0 to s1 and base to s2), is needed - remove either
+// and the function drops to 98.05% (s1=base, s2=arg0). Hoisting the flags word
+// into a local is neutral on its own but keeps retail's single lhu.
+// permute.sh ran twice from this body (576 and 976 iterations): no gain.
+// Also tried: the zeroing store spelled inline instead of through pRow (97.24%,
+// base materialised twice: addu s2,a1,v1 plus addu v0,a1,v0 / addu v0,v0,v1);
+// both stores inline (88.06%); u8 buf declared first vs u16 *pRow first
+// (identical); buf[idx] = 1 vs buf[slot] = 1 (loses the move/andi split, 92.79%).
+/*
 void func_8007D478(u8 **arg0, u8 arg1) {
     u8 buf[3];
     u16 *pRow = (u16 *)(D_800D3420 + arg1 * 0x40);
+    u32 flags;
 
     buf[0] = buf[1] = buf[2] = 0;
     pRow[(*arg0)[1]] = 0;
-    while ((buf[0] & buf[1] & buf[2]) == 0) {
-        s32 slot = func_8001BD40(0, 2);
-        u8 idx = slot;
+    do {
+        while ((buf[0] & buf[1] & buf[2]) == 0) {
+            s32 slot = func_8001BD40(0, 2);
+            u8 idx = slot;
 
-        if (buf[idx] == 0) {
-            if ((D_800CCD64[idx].flags & 0x8000) && (D_800CCD64[idx].flags & 0x4002) == 0) {
-                pRow[(*arg0)[1]] = BattleSlotBitMask(idx);
-                break;
+            if (buf[idx] == 0) {
+                flags = D_800CCD64[idx].flags;
+                if ((flags & 0x8000) && (flags & 0x4002) == 0) {
+                    if (arg0) {
+                        pRow[(*arg0)[1]] = BattleSlotBitMask(idx);
+                        break;
+                    } else {
+                        pRow[(*arg0)[1]] = BattleSlotBitMask(idx);
+                        break;
+                    }
+                }
+                buf[idx] = 1;
             }
-            buf[idx] = 1;
         }
-    }
+    } while (0);
 }
 */
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007D478);
 void BattleStoreCharSlotFlagsC000ClearCount(u8 **arg0, u8 arg1) {
     u8 *pRow;
     s32 count = 0;
