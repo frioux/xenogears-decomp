@@ -34,14 +34,13 @@ typedef struct {
 // Split out of main/misc27 (see config/battle.yaml): compiled with gcc 2.7.2-cdk,
 // which the callback cluster in this function range needs.
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc27", func_800B3F04);
-// 84.19% under gcc 2.7.2, 2.7.2-cdk, 2.7.2-cdk -G0 and 2.6.0 alike, and under every
-// -O/-G/-mcpu of the try_flags sweep (59.58 at -O1), so no preset fixes this: retail
-// hoists `li 8` and the rect.w/h stores ahead of the rect.x maths, we emit them after.
+
 void func_800B4EDC(u8* pArg) {
     RECT rect;
     u8* p;
     u16 palette;
     u16 vram;
+
     p = *(u8**)(*(u8**)(pArg + 0x20) + 0x30);
     palette = *(u16*)(p + 0xA);
     rect.x = (*(u8*)(p + 0x4) >> 2) + ((palette & 0xF) << 6);
