@@ -43,7 +43,7 @@ extern s32 BattleFindMinValueOtherSlot(s32);
 extern void func_800B89FC(s32, s32, s32, s32);
 extern u8 BattleSlotBitMaskInverted(u8);
 extern s32 func_8009ADA0(u8, s32 *);
-extern void func_80085388(void);
+extern void BattleClearSlotCurveEntry(void);
 extern void BattleAttachActorAnimScripts(u8, s32, s32, s32);
 extern u8 D_800C4000[];
 extern u8 D_800C3FE8[];
@@ -108,7 +108,7 @@ void BattleBeginActorStatAnimation(s32 arg0) {
         for (i = 0; i < 3; i++) {
             if (buf[i] != 0) {
                 D_800C3EAC[0x2DA] = 0;
-                func_80085388();
+                BattleClearSlotCurveEntry();
                 D_800C4000[(u8)arg0] = i + 8;
                 v = buf[i];
                 p = D_800C3EAC;

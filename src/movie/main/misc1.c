@@ -141,7 +141,7 @@ void MovieUpdateStream(void) {
         func_80071C34(0xD);
     }
     if (D_80076EBC != 0) {
-        value = func_80074AF0() & 0xFF;
+        value = MovieGetRandomNumber() & 0xFF;
         if (value == 0) {
             if (D_80076E48 < 0xB) {
                 MovieStartStreamRead();
@@ -174,7 +174,7 @@ void MovieStartStreamRead(void) {
 
 INCLUDE_ASM("asm/movie/nonmatchings/main/misc1", func_80071C34);
 
-void func_80072428(void) {
+void MovieUpdateFrameCounter(void) {
     D_80076E5C++;
     if (++D_80076ECC >= 0x3C) {
         D_80076ECC = 0;
@@ -184,7 +184,7 @@ void func_80072428(void) {
 
 INCLUDE_ASM("asm/movie/nonmatchings/main/misc1", func_80072480);
 
-void func_8007293C(void) {
+void MoviePauseCdDrive(void) {
     if (ArchiveGetDebugTable() == 0) {
         func_8002A498(0);
         ArchiveCdDataSync(0);
@@ -196,7 +196,7 @@ void func_8007293C(void) {
     }
 }
 
-void func_800729A8(char* pName, char* pBuffer, int len) {
+void MovieReadPcFile(char* pName, char* pBuffer, int len) {
     int fd;
 
     fd = PCopen(pName, 0, 0);
@@ -212,7 +212,7 @@ INCLUDE_ASM("asm/movie/nonmatchings/main/misc1", func_80072D84);
 // the loop-index save before the div-by-3 magic and the 6th stack argument where
 // retail emits it after them, and the div-by-3 quotient lands in v0 here and v1
 // in retail. Naming the 8 as a local (kept below) is what fixed the equivalent
-// ordering in func_80073328.
+// ordering in MovieInitGlowPoly.
 /*
 void func_80072D84(POLY_G4* pPoly0, POLY_G4* pPoly1, s32 x, s32 y, s32 w, s32 h) {
     s32 i;
@@ -222,17 +222,17 @@ void func_80072D84(POLY_G4* pPoly0, POLY_G4* pPoly1, s32 x, s32 y, s32 w, s32 h)
     brightness = 8;
 
     for (i = 0; i < 0x10; i += 4) {
-        D_80076F8C[i] = (func_80074AF0() & 0xFF) / 32 + 8;
+        D_80076F8C[i] = (MovieGetRandomNumber() & 0xFF) / 32 + 8;
         D_80076F8D[i] = brightness;
-        D_80076F8E[i] = (func_80074AF0() & 0xFF) / 3 + 0x10;
-        D_80076F9C[i] = (func_80074AF0() & 0xFF) / 32 + 8;
+        D_80076F8E[i] = (MovieGetRandomNumber() & 0xFF) / 3 + 0x10;
+        D_80076F9C[i] = (MovieGetRandomNumber() & 0xFF) / 32 + 8;
         D_80076F9D[i] = brightness;
-        D_80076F9E[i] = (func_80074AF0() & 0xFF) / 3 + 0x10;
+        D_80076F9E[i] = (MovieGetRandomNumber() & 0xFF) / 3 + 0x10;
     }
 
     for (j = 0; j < 4; j++) {
         D_80076FAC[j] = 0;
-        D_80076FBC[j] = (func_80074AF0() & 0xFF) + 0x20;
+        D_80076FBC[j] = (MovieGetRandomNumber() & 0xFF) + 0x20;
     }
 
     SetPolyG4(pPoly0);
@@ -259,13 +259,13 @@ void func_80072F98(POLY_G4* pPoly0, POLY_G4* pPoly1, s32 x, s32 y, s32 w, s32 h)
     for (i = 0; i < 4; i++) {
         if (++D_80076FAC[i] > D_80076FBC[i]) {
             D_80076FAC[i] = 0;
-            D_80076FBC[i] = (func_80074AF0() & 0xFF) + 0x20;
+            D_80076FBC[i] = (MovieGetRandomNumber() & 0xFF) + 0x20;
             D_80076F8C[i].r = D_80076F9C[i].r;
             D_80076F8C[i].g = D_80076F9C[i].g;
             D_80076F8C[i].b = D_80076F9C[i].b;
-            D_80076F9C[i].r = (func_80074AF0() & 0xFF) / 32 + 8;
+            D_80076F9C[i].r = (MovieGetRandomNumber() & 0xFF) / 32 + 8;
             D_80076F9C[i].g = 8;
-            D_80076F9C[i].b = (func_80074AF0() & 0xFF) / 3 + 0x10;
+            D_80076F9C[i].b = (MovieGetRandomNumber() & 0xFF) / 3 + 0x10;
         }
 
         r = D_80076F8C[i].r + (D_80076F9C[i].r - D_80076F8C[i].r) * D_80076FAC[i] / D_80076FBC[i];
@@ -303,7 +303,7 @@ void func_80072F98(POLY_G4* pPoly0, POLY_G4* pPoly1, s32 x, s32 y, s32 w, s32 h)
 
 INCLUDE_ASM("asm/movie/nonmatchings/main/misc1", func_80072F98);
 
-void func_80073328(POLY_G4* pPoly0, POLY_G4* pPoly1, s32 x, s32 y, s32 w, s32 h) {
+void MovieInitGlowPoly(POLY_G4* pPoly0, POLY_G4* pPoly1, s32 x, s32 y, s32 w, s32 h) {
     s32 i;
     s32 j;
     s32 color;
@@ -315,15 +315,15 @@ void func_80073328(POLY_G4* pPoly0, POLY_G4* pPoly1, s32 x, s32 y, s32 w, s32 h)
     for (i = 0; i < 0x10; i += 4) {
         D_80076FCC[i] = color;
         D_80076FCD[i] = color;
-        D_80076FCE[i] = (func_80074AF0() & 0x3F) - 0x42;
+        D_80076FCE[i] = (MovieGetRandomNumber() & 0x3F) - 0x42;
         D_80076FDC[i] = color;
         D_80076FDD[i] = color;
-        D_80076FDE[i] = (func_80074AF0() & 0x3F) - 0x42;
+        D_80076FDE[i] = (MovieGetRandomNumber() & 0x3F) - 0x42;
     }
 
     for (j = 0; j < 4; j++) {
         D_80076FEC[j] = 0;
-        D_80076FFC[j] = (func_80074AF0() & 0xFF) + 0x20;
+        D_80076FFC[j] = (MovieGetRandomNumber() & 0xFF) + 0x20;
     }
 
     SetPolyG4(pPoly0);
@@ -362,13 +362,13 @@ void func_800734B8(POLY_G4* pPoly0, POLY_G4* pPoly1, s32 x, s32 y, s32 w, s32 h)
     for (i = 0; i < 4; i++) {
         if (++D_80076FEC[i] > D_80076FFC[i]) {
             D_80076FEC[i] = 0;
-            D_80076FFC[i] = (func_80074AF0() & 0xFF) + 0x20;
+            D_80076FFC[i] = (MovieGetRandomNumber() & 0xFF) + 0x20;
             *pColR = *pTargetR;
             *pColG = *pTargetG;
             *pColB = *pTargetB;
             *pTargetR = 0xFF;
             *pTargetG = 0xFF;
-            *pTargetB = (func_80074AF0() & 0x3F) - 0x42;
+            *pTargetB = (MovieGetRandomNumber() & 0x3F) - 0x42;
         }
 
         r = *pColR + (*pTargetR - *pColR) * D_80076FEC[i] / D_80076FFC[i];
@@ -479,7 +479,7 @@ s32 MovieUpdatePadCursor(s32 arg0, s32 arg1, s32* pOut) {
     return 0;
 }
 
-s32 func_80074AF0(void) {
+s32 MovieGetRandomNumber(void) {
     s32 a;
     s32 b;
     s32 r;

@@ -223,7 +223,7 @@ void WorldMapExitToMap10E(void) {
     D_8009BBC4 = 1;
     D_8006F950 = v;
 }
-s32 func_80077DC8(s32 index) {
+s32 WorldMapResetActorSlotWithSound(s32 index) {
     WorldMapActor *p;
     u8 *q;
 
@@ -401,7 +401,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_80078E2C);
    (pointer local, repeated array-index casts, every statement permutation,
    `index *= 0x80` vs `D_8009BE24 + index` vs `&index`): 19.97-35.90%. Source
    order does not matter, the scheduler owns the block. -O1 gives 45. Same
-   scheduler class as func_80077DC8. Round 51 re-tried the exact retail store
+   scheduler class as WorldMapResetActorSlotWithSound. Round 51 re-tried the exact retail store
    order with the pointer local both before and after the global stores: both
    compile byte-identically to 19.97%, which confirms the block order comes from
    cc1's priority scheduler (every `li+store` pair is hoisted ahead of each

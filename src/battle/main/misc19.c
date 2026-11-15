@@ -509,7 +509,7 @@ Best attempt: 93.87%. Every instruction from the `p[0x56] == 3` test onward
    `((u8*)&D_800CCE42)[(u32)i*0x170]`, `((u8*)&D_800CCE42)[i*0x170]`,
    `*(volatile u8*)((u32)D_800CCE42 + (u32)i*0x170)`, gcc-2.7.2-cdk (94.10%),
    -O3 (93.87%) and -G0 (93.87%) -- all identical. Established from the matched
-   functions in this overlay (BattleGetGameCharacterField5 here, func_80085310 in misc12) that
+   functions in this overlay (BattleGetGameCharacterField5 here, BattleActorPosXGreaterThan in misc12) that
    gcc emits the $at form only when the symbol's address is credited to no
    pseudo at all; here the same `sym + i*0x170` value occurs in both blocks, so
    CSE credits it and the loop hoists it. Not source-reachable without changing

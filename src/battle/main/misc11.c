@@ -46,7 +46,7 @@ extern u8 D_80059179;
 extern u8 D_800C4022[];
 extern u8 D_800C3FFE[];
 extern void BattleClearFlagC6(void);
-extern void func_8009413C(u8 arg0, u8 arg1);
+extern void BattleClearSlotFlagsIfChar4(u8 arg0, u8 arg1);
 extern u8 D_800D2C0C[];
 extern void func_8009A2D4(u8 arg0);
 extern void BattleBuildSpritePrimLists(u8 arg0);
@@ -72,7 +72,7 @@ extern u8 D_800C3E29;
 extern u8 func_8008B478(u8 arg0);
 extern void BattlePlaySoundIfEnabled(u8 arg0);
 extern void BattleSetupActorSlotDisplay(u8 arg0);
-extern void func_80084A7C(u8 arg0);
+extern void BattleEnsureTargetSlotInCandidateList(u8 arg0);
 extern void func_80077698(void);
 
 /* 82.95%: best of 6 shapes. The loop body matches instruction for
@@ -403,7 +403,7 @@ void func_8008115C(u8 arg0) {
         } else {
             D_800D366C = 0;
             BattleSetupActorSlotDisplay(a);
-            func_80084A7C(a);
+            BattleEnsureTargetSlotInCandidateList(a);
             func_80077698();
             D_800C3EAC[0x2DD] = 5;
         }
@@ -576,7 +576,7 @@ void func_800819A4(u8 arg0) {
             BattleSlotBitMask(D_800C3EAC[arg0 * 0x40 + 0x3C]);
         D_800C3EAC[0x2DA]++;
     }
-    func_8009413C(arg0, 0);
+    BattleClearSlotFlagsIfChar4(arg0, 0);
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_800819A4);

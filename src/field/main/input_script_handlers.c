@@ -27,24 +27,24 @@ void FieldScriptCheckControllerInputExact(u_short buttonState) {
     }
 }
 
-void func_80096150(void) {
+void FieldScriptCheckControllerInputExactPressed(void) {
     FieldScriptCheckControllerInputExact(D_800AFE9C);
 }
 
-void func_80096178(void) {
+void FieldScriptCheckControllerInputExactHeld(void) {
     FieldScriptCheckControllerInputExact(D_800AFC6C);
 }
 
 // Is button pressed handler
-void func_800961A0(void) {
+void FieldScriptCheckControllerInputMaskPressed(void) {
     FieldScriptVMCheckControllerInput(D_800AFE9C);
 }
 
-void func_800961C8(void) {
+void FieldScriptCheckControllerInputMaskHeld(void) {
     FieldScriptVMCheckControllerInput(D_800AFC6C);
 }
 
-void func_800961F0(void) {
+void FieldScriptClearHeldButtons(void) {
     u_short scriptInstructionPointer = g_FieldScriptVMCurActor->scriptInstructionPointer;
 
     D_800AFC6C = 0;

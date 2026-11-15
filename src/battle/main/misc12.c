@@ -135,7 +135,7 @@ void BattleAdvanceSlotMenuState(u8 arg0) {
     }
 }
 extern void BattleSetupActorSlotDisplay(u8);
-extern void func_80084A7C(u8);
+extern void BattleEnsureTargetSlotInCandidateList(u8);
 extern void func_80077698(void);
 extern u8 D_800D366C;
 void BattleSetActorSlotDisplayMode(u8 arg0) {
@@ -151,7 +151,7 @@ void BattleSetActorSlotDisplayMode(u8 arg0) {
             break;
         }
         BattleSetupActorSlotDisplay(a);
-        func_80084A7C(a);
+        BattleEnsureTargetSlotInCandidateList(a);
         ((BattleActorSlots *)D_800C3EAC)->unk2DD = 0x19;
         func_80077698();
         D_800D366C = 0;
@@ -246,7 +246,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80082D4C);
 extern void BattleLoadStringTableAE(u8);
 extern u8 func_8008B478(u8);
 extern void func_8008ADD0(u8);
-void func_80082F7C(u8 arg0) {
+void BattleAdvanceSlotMenuStateAE(u8 arg0) {
     u8 a;
     u8 *p;
     int off;
@@ -466,7 +466,7 @@ u8 BattleActorTargetableWithOverride(u8 arg0, u8 arg1) {
     return ret;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_800841E0);
-u8 func_80084548(u8 arg0, u8 arg1, u8 arg2) {
+u8 BattleBuildTargetCandidateListByGroup(u8 arg0, u8 arg1, u8 arg2) {
     s32 i;
     s32 j;
     s32 n;
@@ -633,7 +633,7 @@ u8 func_80084854(u8 arg0, u8 arg1) {
 }
 */
 
-void func_80084A7C(u8 arg0) {
+void BattleEnsureTargetSlotInCandidateList(u8 arg0) {
     s32 off;
     s32 found;
     s32 i;
@@ -705,7 +705,7 @@ s32 BattleSelectTargetSlotLoop(u8 arg0) {
     return state;
 }
 
-u16 func_80084D28(void) {
+u16 BattleGetSameRowSlotMask(void) {
     s32 i;
     u16 ret;
 
@@ -781,7 +781,7 @@ u16 func_80084DE4(u16 arg0, u16 arg1, u8 arg2, u8 arg3, u8 arg4) {
     if (arg4 != 0) {
         D_800C3E2C = BattleBuildTargetCandidateList(arg2);
     } else {
-        D_800C3E2C = func_80084548(grp, hi, first);
+        D_800C3E2C = BattleBuildTargetCandidateListByGroup(grp, hi, first);
     }
     D_800C3D64 &= mask;
     if ((flags & 0x8000) != 0) {
@@ -828,10 +828,10 @@ u16 func_80084DE4(u16 arg0, u16 arg1, u8 arg2, u8 arg3, u8 arg4) {
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80084DE4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80085084);
-u32 func_80085310(u8 arg0, u8 arg1) {
+u32 BattleActorPosXGreaterThan(u8 arg0, u8 arg1) {
     return D_800C3EBE[arg0].unk0 > D_800C3EBE[arg1].unk0;
 }
-void func_80085350(void) {
+void BattleClearSlotCurveState(void) {
     s32 i;
 
     for (i = 0; i < 11; i++) {
@@ -839,7 +839,7 @@ void func_80085350(void) {
         D_800D2D70[i] = 0;
     }
 }
-void func_80085388(void) {
+void BattleClearSlotCurveEntry(void) {
     s32 i;
 
     for (i = 0; i < 0xB; i++) {

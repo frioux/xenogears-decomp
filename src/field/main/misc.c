@@ -245,7 +245,7 @@ typedef struct {
     u8 bytes[0x20];
 } UnkGearStateShiftCopy;
 
-void func_8008764C(void) {
+void FieldScriptCopyCharacter(void) {
     GameState* pGameState;
     int sourceIndex = FieldScriptVMGetArgument(1);
     int destIndex = FieldScriptVMGetArgument(3);

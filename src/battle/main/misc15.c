@@ -38,7 +38,7 @@ extern u8 D_800CDD40[];
 extern u8 D_800CCD38[];
 extern u8 D_800D2D24[];
 extern u8 D_800CEF10[];
-extern void func_80085388(void);
+extern void BattleClearSlotCurveEntry(void);
 extern void func_80079840(u8 arg0, u8 arg1);
 extern void BattleQueueCommandFE(u8 arg0);
 extern void BattleApplySlotCurveAndStep(u8 arg0);
@@ -128,7 +128,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008ADD0);
    D_800D2C94 into a callee-saved register once (`lui s1,%hi; addiu s1,s1,%lo`)
    and reads it twice across three calls (`lhu a0,0(s1)`, later `lhu v1,0(s1)`),
    which also gives the loop counter `i` its own register (retail `li s2,3` sits
-   in the delay slot right after `jal func_80085388`) and arg0 $s3. gcc 2.6 folds
+   in the delay slot right after `jal BattleClearSlotCurveEntry`) and arg0 $s3. gcc 2.6 folds
    the constant address into each load (`lui a0,%hi; lhu a0,0(a0)`), which leaves
    3 saved registers instead of 4, so every later saved-register name shifts by
    one and the diff can never reach 100. Tried: u16 *pMask local assigned at the
@@ -164,7 +164,7 @@ void func_8008ADD0(u8 arg0) {
     }
     pMask = &D_800D2C94;
     BattleQueueCommandF3WithSlotMask(mask, arg0);
-    func_80085388();
+    BattleClearSlotCurveEntry();
     BattleBeginActorAction(arg0, mask, D_800C3EAC[0x2DC] - 1);
     BattleApplySlotCurveAndStep(D_800C3EAC[0x2DA]);
     mask = BattleSlotBitMask(arg0);

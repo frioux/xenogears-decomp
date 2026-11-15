@@ -48,7 +48,7 @@ extern u8 *D_800C3DE8;
 extern u8 D_800CCD88[];
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80091064);
-void func_80091604(s32 arg0) {
+void BattleBuildSpriteColumn8(s32 arg0) {
     s32 i;
     s32 offset;
 
@@ -228,7 +228,7 @@ void func_8009382C(u8 arg0, u8 arg1) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_8009382C);
 // 100.0% under gcc 2.6.0-psx (99.81/99.76/99.90 under this unit's 2.7.2): this
 // function wants a 2.6.0 TU of its own; the unit as a whole is a 2.7.2 unit.
-void func_800939CC(u8 arg0, u8 arg1) {
+void BattleDrawCharStatusIfMaskUnset(u8 arg0, u8 arg1) {
     u16 tbl[4];
     s32 o;
 
@@ -252,7 +252,7 @@ void func_800939CC(u8 arg0, u8 arg1) {
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80093B08);
-void func_8009413C(u8 arg0, u8 arg1) {
+void BattleClearSlotFlagsIfChar4(u8 arg0, u8 arg1) {
     if (D_800D2D24[arg0] == 4) {
         D_800D2D28[0xB7] = 0;
         D_800D2D28[0xB0] = 0;
@@ -267,7 +267,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_800946F4);
    order of one addu for i*0x170 + pBase (original base-first, gcc index-first).
    Tried: array-ref, pointer-plus (this version), integer base and a pointer
    local for that sum; also 2.7.2-cdk -> 99.77. */
-void func_80094C78(void) {
+void BattleAccumulateSlotValueByRowFlag(void) {
     u8 *pBase = D_800C34B0;
     u8 *pOther = (u8 *)(D_800C3E50 * 4 + (u32)pBase);
     u8 *pRow;
@@ -337,7 +337,7 @@ void func_80094D24(void) {
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80094D24);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80094EE4);
-void func_80095690(void) {
+void BattleSetSlotState2FromActorField5BWithModifiers(void) {
     u8 *p = D_800C3E00;
     u8 *q = D_800C3DFC;
     u8 *r;
@@ -385,7 +385,7 @@ void BattleInitActiveSlotAction(void) {
     *(s32 *)(t * 4 + D_800D2C54) = v / 10;
     D_800D2C9E |= 1 << t;
 }
-void func_800958D8(void) {
+void BattleClearStatusWordsOnAction6E(void) {
     if (rand() % 100 > D_800C3DFC[0x1C]) {
         return;
     }

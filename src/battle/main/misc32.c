@@ -21,7 +21,7 @@ void BattleClearActorMask(void) {
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BCD98);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BCEAC);
-void func_800BCFAC(u8 *pEntry) {
+void BattleApplyEffectSpriteColorRamp(u8 *pEntry) {
     u8 *pData;
     u8 *pSrc;
     s32 timer;

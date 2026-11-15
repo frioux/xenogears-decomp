@@ -515,7 +515,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007C724);
    D_8009C5B0/B4 loads, sinks the 0x7C store next to the 0x58 store and hoists
    li 0xffc0 to the top. Tried: unk5C indexed vs a named unk7C field, s32
    locals for the three loads, plain globals (all three give the same 180-byte
-   schedule), -O3 (41.22%). Same class as misc4 func_80077DC8 (70%) and misc6
+   schedule), -O3 (41.22%). Same class as misc4 WorldMapResetActorSlotWithSound (70%) and misc6
    func_80080578 (34.97%).
 int func_8007C724(int idx) {
     WorldMapPlayer *pPlayer;

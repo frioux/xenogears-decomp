@@ -62,8 +62,8 @@ extern s32 func_8007A280(u8 arg0, u8 arg1, s32 arg2, s32 arg3);
 extern void BattleUpdateFrame(void);
 extern void func_800793F0(u8 arg0);
 extern void BattleQueueCommand1BAndFE(u8 arg0);
-extern void func_80085350(void);
-extern void func_80085388(void);
+extern void BattleClearSlotCurveState(void);
+extern void BattleClearSlotCurveEntry(void);
 extern s32 BattleFindMinValueOtherSlot(u8 arg0);
 extern void func_800B89FC(s32 arg0, u8 arg1, s32 arg2, s32 arg3);
 extern s32 func_80079ED8(u8 arg0, u8 arg1, u8 arg2, s32 arg3);
@@ -246,8 +246,8 @@ void BattleQueueCommand1BAndFE(u8 arg0) {
 }
 void func_80079778(u8 arg0) {
     D_800C3EAC[0x2DA] = 0;
-    func_80085350();
-    func_80085388();
+    BattleClearSlotCurveState();
+    BattleClearSlotCurveEntry();
     D_800C400B[D_800C3EAC[0x2DA] * 72] = arg0;
     BattleUpdateFrame();
     func_800B89FC(1, arg0, 0, BattleFindMinValueOtherSlot(arg0));

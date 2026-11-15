@@ -309,7 +309,7 @@ void BattleQueueRandomMessages(u8* pArg0) {
     }
 }
 
-void func_8008FF24(u8* pArg0, u8* pArg1) {
+void BattleQueueMessagesAndSetScaledDelay(u8* pArg0, u8* pArg1) {
     int one;
 
     if (*(u8*)(*(u8**)(pArg0 + 0xD8) + 0xC4) == 4) {
@@ -329,7 +329,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc18", func_8008FFEC);
    Two differences: (a) gcc keeps the loop counter`n` in $a1 whereas retail uses
    $s0, and so fills the `bnez` delay slot with `addiu s0,s0,-1` where retail has
    a nop plus a separate block; (b) the tail reassociates A + (rand() % 20 + 1)
-   into (A + 1) + rand() % 20 - the same expression func_8008FF24 had, which broke
+   into (A + 1) + rand() % 20 - the same expression BattleQueueMessagesAndSetScaledDelay had, which broke
    it with a local holding the 1 (`one = 1;` before the call). Also tried: the tail
    as a separate `r = rand() % 20 + 1` statement (85.61%, the 0xF load moves after
    the division) and the sum written call-first (87.81%). Note the divisor is a
@@ -378,7 +378,7 @@ void BattleEnterWorkState1(u8* pArg0) {
 
     p = *(u8**)(pArg0 + 0x15FC);
     p[0x8] = 1;
-    func_8008FF24(pArg0, p);
+    BattleQueueMessagesAndSetScaledDelay(pArg0, p);
     v = p[0xF];
     if (v >= 2) {
         p[0x9] = rand() % 8 + 1;
