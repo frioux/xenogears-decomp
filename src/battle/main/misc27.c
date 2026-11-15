@@ -1,4 +1,5 @@
 #include "common.h"
+#include "field/actor.h"
 #include "psyq/libgte.h"
 #include "psyq/libgpu.h"
 
@@ -35,24 +36,27 @@ typedef struct {
 // which the callback cluster in this function range needs.
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc27", func_800B3F04);
 
-void func_800B4EDC(u8* pArg) {
+// Uploads the current frame's texture and CLUT into the sprite's own slots: the
+// 8x8 tile at the frame descriptor's texture-page rectangle goes to (0x3F0,0x1F0)
+// and its CLUT to (0x3F0,0x1EE).
+void func_800B4EDC(SpriteData* pSpriteData) {
     RECT rect;
-    u8* p;
-    u16 palette;
-    u16 vram;
+    SpriteFrameData* pFrame;
+    s16 texPage;
+    s16 clut;
 
-    p = *(u8**)(*(u8**)(pArg + 0x20) + 0x30);
-    palette = *(u16*)(p + 0xA);
-    rect.x = (*(u8*)(p + 0x4) >> 2) + ((palette & 0xF) << 6);
-    rect.y = *(u8*)(p + 0x5) + ((palette << 4) & 0x100);
+    pFrame = pSpriteData->pBase->pCurRenderFramesData;
+    texPage = pFrame->texPage;
+    rect.x = (pFrame->texX >> 2) + ((texPage & 0xF) << 6);
+    rect.y = pFrame->texY + ((texPage << 4) & 0x100);
     rect.w = 8;
     rect.h = 8;
     MoveImage(&rect, 0x3F0, 0x1F0);
-    vram = *(u16*)(p + 0xC);
+    clut = pFrame->clutID;
     rect.w = 0x10;
     rect.h = 1;
-    rect.x = vram & 0x3F;
-    rect.y = (vram >> 6) & 0x1FF;
+    rect.x = clut & 0x3F;
+    rect.y = (clut >> 6) & 0x1FF;
     MoveImage(&rect, 0x3F0, 0x1EE);
 }
 
