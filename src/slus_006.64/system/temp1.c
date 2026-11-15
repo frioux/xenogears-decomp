@@ -250,12 +250,22 @@ typedef struct {
     /* 0xC */ u32 dataOffset;
 } AnimScriptLoopBlock;
 
+// The pair a block's 0xC offset points at, placed right after the block
+typedef struct {
+    /* 0x0 */ u32 target;
+    /* 0x4 */ u32 count; // stored as count - 1
+} AnimScriptLoopBlockData;
+
 u32 AnimScriptGetBlockTarget(AnimScriptLoopBlock* pBlock) {
-    return *(u32*)(pBlock->dataOffset + (mem_addr)pBlock);
+    AnimScriptLoopBlockData* pData = (AnimScriptLoopBlockData*)(pBlock->dataOffset + (mem_addr)pBlock);
+
+    return pData->target;
 }
 
 u32 AnimScriptGetBlockCount(AnimScriptLoopBlock* pBlock) {
-    return *(u32*)(pBlock->dataOffset + (mem_addr)pBlock + 4) + 1;
+    AnimScriptLoopBlockData* pData = (AnimScriptLoopBlockData*)(pBlock->dataOffset + (mem_addr)pBlock);
+
+    return pData->count + 1;
 }
 
 extern int D_80059198;
@@ -722,7 +732,7 @@ void SpritePlayAnimation(SpriteData* pSpriteData, s32 animId) {
                 *(SVEC2*)&((SpriteDataI3*)pSpriteData->field_0x7C)->texX;
         }
     }
-    ((u8*)&pSpriteData->flags_0xAC.flags)[3] = animId;
+    pSpriteData->flags_0xAC.bytes[3] = (u8)animId;
     if (animId < 0) {
         animId = ~animId;
     }
