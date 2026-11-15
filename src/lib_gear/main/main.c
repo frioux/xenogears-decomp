@@ -2338,26 +2338,10 @@ void LibGearShutdown(void) {
     LibGearFreeVertexBuffer(&g_LibGearVertexBuffer);
 }
 
-// 97.40%, 768 bytes (= retail). Everything but the tail of the second half is
-// byte-identical: the prologue, both LibGearReleaseSkeletonObjects call sites,
-// the (modelIndex - 8) < 2 guard and the HeapFree chain. The pool address must
-// be a local inside each pSkeleton block (`pPool = &D_801E86A8`); passing the
-// literal makes gcc re-form lui/addiu into a0 at each call instead of keeping
-// the address in s0 and copying it into the delay slot.
-// Remaining delta, both 0x30/0x24 teardown loops only: retail keeps the offset
-// accumulator in s0 and copies the slot address into s2 at loop entry
-// (`addu s2,s0,zero`), and schedules `offset = 0` after the duplicated exit
-// test; gcc puts the offset in s2, reaches the slot through s3, and schedules
-// `offset = 0` before the test. Retail also re-forms modelIndex*4 at each of
-// the four post-loop sites, gcc CSEs it into s3. Tried: the permuter (2 runs,
-// ~2900 iterations, found only the pModelSlot hoist below), pModelSlot in the
-// second loop (94.01), pModelSlot in the loop body (96.93), a slot-pointer
-// local dereferenced as (*pModelSlot) (96.93), `for (i = 0, offset = 0; ...)`
-// and swapping the i/offset declarations (both 97.40).
-/*
+// Frees every resource a model owns and clears its slot. The texture and list
+// entries are arrays of unk10E / unk10D structs, not byte blobs.
 void func_801E8030(s32 modelIndex) {
     s32 i;
-    s32 offset;
 
     if (g_LibGearModels[modelIndex] == NULL) {
         return;
@@ -2401,21 +2385,15 @@ void func_801E8030(s32 modelIndex) {
     }
 
     if (g_LibGearModels[modelIndex]->unk10E != 0) {
-        Model** pModelSlot = g_LibGearModels;
-
-        offset = 0;
-        for (i = 0; i < pModelSlot[modelIndex]->unk10E; i++) {
-            LibGearFlushTexture((Temp8*)((u8*)g_LibGearModels[modelIndex]->unk118 + offset));
-            offset += 0x30;
+        for (i = 0; i < g_LibGearModels[modelIndex]->unk10E; i++) {
+            LibGearFlushTexture(&g_LibGearModels[modelIndex]->unk118[i]);
         }
         HeapFree(g_LibGearModels[modelIndex]->unk118);
     }
 
     if (g_LibGearModels[modelIndex]->unk10D != 0) {
-        offset = 0;
         for (i = 0; i < g_LibGearModels[modelIndex]->unk10D; i++) {
-            LibGearFreeModelEntry((Temp9*)((u8*)g_LibGearModels[modelIndex]->unk114 + offset));
-            offset += 0x24;
+            LibGearFreeModelEntry(&g_LibGearModels[modelIndex]->unk114[i]);
         }
         HeapFree(g_LibGearModels[modelIndex]->unk114);
     }
@@ -2423,8 +2401,6 @@ void func_801E8030(s32 modelIndex) {
     HeapFree(g_LibGearModels[modelIndex]);
     g_LibGearModels[modelIndex] = NULL;
 }
-*/
-INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E8030);
 
 void LibGearSetModelAnimation(u16 modelIndex, u16 bits, s32 arg2) {
     Model* pModel = g_LibGearModels[modelIndex];
