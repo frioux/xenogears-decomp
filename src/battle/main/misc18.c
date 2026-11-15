@@ -310,33 +310,21 @@ void BattleClearAllSlotStates(void) {
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80097D5C);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_8009892C);
-/* COMPILES as written (round 111 re-check): 96.96%, same 460 bytes and the
-   same instruction multiset. Twelve source
-   shapes tried (order of the D_800C3E00 / D_800D2D6C / D_800C3AA4 stores, hp
-   temp vs. direct expression, u16[] vs. byte-cast array, decl order). The only
-   residual difference is placement inside the block: the original leaves the
-   last `sll v0,v0,0x4` of i*0x170 until after the D_800C34B0 load and computes
-   the D_800C3AA4[i] address (`addu a0,a0,t0`) after the lhu, if the addresses
-   are at all source-controlled; the 95-99% allocator/placement class. Presets
-   screened: 2.6.0 (this, 96.96), 2.7.2 (93.91), 2.7.2-cdk (72.30). The tail
-   from `flag = ...` to the end of the function is byte-identical.
-
 void func_8009892C(void) {
     u8 i;
     u8 j;
     u8 v;
-    u8 *pActor;
+    BattleTableEntry *pSlot;
     u8 *pRow;
     u16 hp;
     u16 flag;
 
     for (i = 0; i < 3; i++) {
         if (D_800D2D24[i] != 0x7F) {
-            pActor = (u8 *)(i * 0x170 + (s32)D_800C34B0);
-            pRow = pActor + 0xA4;
-            D_800C3E00 = pActor;
-            hp = *(u16 *)(pActor + 0x7A);
+            pSlot = &D_800C34B0->slots[i];
+            pRow = (u8 *)&pSlot->state;
+            D_800C3E00 = pSlot;
+            hp = pSlot->unk7A;
             D_800D2D6C = pRow;
             *(u16 *)&D_800C3AA4[i * 2] = hp;
             for (j = 0; j < 4; j++) {
@@ -370,7 +358,6 @@ void func_8009892C(void) {
         *(u8 *)((u8 *)&g_GameState + 0x131C) = 0x28;
     }
 }
-*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80098AF8);
 /* COMPILES as written (round 111 re-check against today's externs): 95.16%,
    372 bytes = the original's. Body, both
