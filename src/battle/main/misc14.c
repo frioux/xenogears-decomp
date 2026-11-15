@@ -209,37 +209,31 @@ void BattleBuildGrey80BlendSpriteColumn5(void) {
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc14", func_8008946C);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc14", func_8008963C);
-// Best attempt: objdiff 89.89%. Tail loop chain matches with "&D_800D2DB4[...]" but the
-// final addu comes out base-first (addu a0,a1,a0) where the original is offset-first;
-// the two BattleDrawSpritePackage call sites put the base in $a1 and the offset chain in $v0
-// (original: base $v1, chain $a1), and reorg fills the beq delay slot with the arg0
-// addiu instead of the loop increment. The "n" counter is real (the tail call's a2 is
-// (s16)(0x11A + n*6), NOT pitch>>16).
-/*
 void func_8008963C(void) {
     s32 i = 0;
+    s32 columnBase;
     s32 n = 0;
     s32 pitch = 0x11A << 16;
     s32 off;
+    s32 off2;
 
+    columnBase = 0x50A0;
     BattleParseNumberToDigits(D_800D2C36);
     for (i = 0; i < 3; i++) {
         if (D_800C3CFA[i] != 0xFF) {
             off = D_800D2DB4[0x5D7A] * 0x50 + 0x50A0;
-            D_800D2DB4[0x5D7A] += BattleDrawSpritePackage(D_800C3CFA[i] + 0x92, (s32)&D_800D2DB4[off], pitch >> 16, 0x56);
+            D_800D2DB4[0x5D7A] += BattleDrawSpritePackage(D_800C3CFA[i] + 0x92, (s32)(off + (s32)D_800D2DB4), pitch >> 16, 0x56);
             pitch += 0x60000;
             n++;
         }
     }
-    off = D_800D2DB4[0x5D7A] * 0x50 + 0x50A0;
-    D_800D2DB4[0x5D7A] += BattleDrawSpritePackage(0x9D, (s32)&D_800D2DB4[off], 0x11A + n * 6, 0x56);
+    D_800D2DB4[0x5D7A] += BattleDrawSpritePackage(0x9D, (s32)((D_800D2DB4[0x5D7A] * 0x50 + columnBase) + (s32)D_800D2DB4), 0x11A + n * 6, 0x56);
     D_800D2DB4[0x5D89] = D_800CCB34;
     for (i = 0; i < D_800D2DB4[0x5D7A]; i++) {
-        BattleSetPrimGrey80BlendAdd(&D_800D2DB4[(i * 2 + D_800D2DB4[0x5D89]) * 0x28 + 0x50A0]);
+        off2 = (i * 2 + D_800D2DB4[0x5D89]) * 0x28 + 0x50A0;
+        BattleSetPrimGrey80BlendAdd(&D_800D2DB4[off2]);
     }
 }
-*/
 
 void BattleBuildGrey80BlendSpriteColumn2(void) {
     s32 i = 0;
