@@ -1644,6 +1644,16 @@ int LibGearGetModelDistance(Model* pModel) {
 // FD arm against a cast or against `pModel->unk20` directly brings it back to
 // 95.39. Making the store read through pModel2 instead of pModel is the same
 // 99.18 (the test's subtract and the store's are still the same pseudo).
+// Round 76: 99.87%, same 464 bytes, instruction multiset identical to retail.
+// The permuter put the range test through a boolean temporary (`inRange`) and
+// that removed the CSE'd `unk58 - 1`; a second block around the 0xFA store
+// (which jump-optimisation deletes again, but only after cse has seen it) is
+// what moves the four type tests onto the load register. Left in the diff: the
+// 0xFD and 0xFC tests read `a1` here and `v1` in retail, and the range subtract
+// is `addiu v0,v1,-1` here against `addiu v0,a1,-1` -- registers only, no
+// instruction or size delta, so this is the cse reg_eqv tie-break. Without the
+// `pModel2` copy the body is 460 bytes and 98.58%. Permuter: 1389 iterations
+// found base 26 -> 15 (this body), 2062 more from it found nothing better.
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E63A8);
 /*
 void func_801E63A8(Model* pModel) {
@@ -1652,6 +1662,7 @@ void func_801E63A8(Model* pModel) {
     MATRIX* pMatrix;
     u_short value[12];
     s32 index;
+    int inRange;
     s32 jointIndex;
     Temp3* pObject;
 
@@ -1675,9 +1686,14 @@ void func_801E63A8(Model* pModel) {
         index = pModel->unk21;
     }
     if (pModel->unk58 == 0xFA) {
-        index = 0xA;
+        if (pModel2) {
+            index = 0xA;
+        } else {
+            index = 0xA;
+        }
     }
-    if ((u32)(pModel->unk58 - 1) < 0x7F) {
+    inRange = ((u32)(pModel->unk58 - 1)) < 0x7F;
+    if (inRange) {
         index = pModel->unk58 - 1;
     }
 
