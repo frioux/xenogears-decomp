@@ -256,12 +256,6 @@ void BattleEffectClearEntrySlots(Misc16Work* pWork) {
     }
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc16", func_8008D5C0);
-/* 98.19% - byte-identical except that retail keeps pWork in $s1 and the loop
-   counter in $s2 while gcc swaps them (s2/s1); the prologue's save order
-   follows.  gcc-2.6.0 scores 99.79 here (2.7.2-cdk fails to compile), so the
-   unit may be a 2.6.0 unit; that cannot be switched without re-checking every
-   already-matched function in misc16, which are all INCLUDE_ASM.
 void func_8008D5C0(Misc16Work* pWork, s32 count) {
     u8* pEntry;
     void (*pInitEntry)(u8*, Misc16Work*);
@@ -272,16 +266,14 @@ void func_8008D5C0(Misc16Work* pWork, s32 count) {
     }
     pWork->unkA = count;
     HeapSetCurrentContentType(0x14);
-    pEntry = HeapAlloc(pWork->unkC * pWork->unkA, 0);
+    pEntry = (pWork->unk10 = HeapAlloc(pWork->unkC * pWork->unkA, 0));
     pInitEntry = pWork->unk58;
-    pWork->unk10 = pEntry;
     for (i = 0; i < pWork->unkA; i++) {
         pInitEntry(pEntry, pWork);
         *(s16*)(pEntry + 6) = 0;
         pEntry += pWork->unkC;
     }
 }
-*/
 /* func_8008D680(pWork, pMat, count): mat = *pMat; pWork->unk1C/1E/20 +=
    pMat->t[0..2]; RotMatrix(&pWork->unk34, &rotBase); MulMatrix(&mat,
    &rotBase); RotMatrix(&pWork->unk3C, &rotExtra); MulMatrix(&rotExtra,
