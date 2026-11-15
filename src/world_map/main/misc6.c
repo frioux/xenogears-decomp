@@ -128,7 +128,7 @@ extern s16 D_8009A674[];
 extern s16 D_8009A678[];
 extern s32 D_8009D7F0;
 extern void WorldMapSetPrimColors(u8 *, s32, s32, s32, s32);
-extern void func_8007EBBC(WorldMapGroup *, u8 *, int, int);
+extern void WorldMapBuildPolyFT4Templates(WorldMapGroup *, u8 *, int, int);
 extern void func_80084580(void);
 extern void WorldMapLoadTextureClut(void);
 extern void func_800979C8(void);
@@ -168,7 +168,7 @@ extern int func_8007E450(int);
 extern void func_8007E4E4(int);
 extern int func_8007ECA4(int);
 extern void func_8007EE34(int);
-extern int func_8007F8AC(int);
+extern int WorldMapInitSlotActor(int);
 extern void func_8007F968(int);
 extern void func_8007FC8C(int);
 extern int func_8007FD30(int);
@@ -418,11 +418,11 @@ void func_8007D918(void) {
     WorldMapAddSlot(WorldMapSetActorScriptTables, func_8007DE98);
     WorldMapAddSlot(func_8007E450, func_8007E4E4);
     WorldMapAddSlot(func_8007ECA4, func_8007EE34);
-    WorldMapAddSlot(func_8007F8AC, func_8007F968);
-    WorldMapAddSlot(func_8007F8AC, func_8007F968);
-    WorldMapAddSlot(func_8007F8AC, func_8007F968);
-    WorldMapAddSlot(func_8007F8AC, func_8007F968);
-    WorldMapAddSlot(func_8007F8AC, func_8007F968);
+    WorldMapAddSlot(WorldMapInitSlotActor, func_8007F968);
+    WorldMapAddSlot(WorldMapInitSlotActor, func_8007F968);
+    WorldMapAddSlot(WorldMapInitSlotActor, func_8007F968);
+    WorldMapAddSlot(WorldMapInitSlotActor, func_8007F968);
+    WorldMapAddSlot(WorldMapInitSlotActor, func_8007F968);
     WorldMapAddSlot(func_8007FC8C, func_8007FD30);
     WorldMapAddSlot(WorldMapEnterNop, WorldMapUpdateFrameWithParticles);
     func_800978FC();
@@ -522,7 +522,7 @@ int func_8007E450(int index) {
     return 1;
 }
 */INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007E4E4);
-void func_8007EBBC(WorldMapGroup *pGroup, u8 *pPrim, int count, int abr) {
+void WorldMapBuildPolyFT4Templates(WorldMapGroup *pGroup, u8 *pPrim, int count, int abr) {
     POLY_FT4 *pPoly;
     int i;
 
@@ -543,7 +543,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007ECA4);
    index in $v1 and the return constant ($v0=1) in the middle of the block;
    gcc hoists the multiply and puts the return constant first. Tried: pActor
    assigned before/after the WorldMapSetSpriteSetParent calls (after is right - it is what
-   puts the index in $s2 and moves addu into the first func_8007EBBC delay
+   puts the index in $s2 and moves addu into the first WorldMapBuildPolyFT4Templates delay
    slot), nIndex declared first vs last.
 int func_8007ECA4(int index) {
     int nIndex;
@@ -557,9 +557,9 @@ int func_8007ECA4(int index) {
     WorldMapSetSpriteSetParent(1, 3);
     pRoot = D_8009C620;
     pActor = &D_8009BE24[index];
-    func_8007EBBC(&pRoot->unk000[1], pRoot->unk000[1].unk48, *(u16 *)((u8 *)pRoot->unk000[1].unk40 + 4), 3);
-    func_8007EBBC(&pRoot->unk000[2], pRoot->unk000[2].unk48, *(u16 *)((u8 *)pRoot->unk000[2].unk40 + 4), 3);
-    func_8007EBBC(&pRoot->unk000[3], pRoot->unk000[3].unk48, *(u16 *)((u8 *)pRoot->unk000[3].unk40 + 4), 1);
+    WorldMapBuildPolyFT4Templates(&pRoot->unk000[1], pRoot->unk000[1].unk48, *(u16 *)((u8 *)pRoot->unk000[1].unk40 + 4), 3);
+    WorldMapBuildPolyFT4Templates(&pRoot->unk000[2], pRoot->unk000[2].unk48, *(u16 *)((u8 *)pRoot->unk000[2].unk40 + 4), 3);
+    WorldMapBuildPolyFT4Templates(&pRoot->unk000[3], pRoot->unk000[3].unk48, *(u16 *)((u8 *)pRoot->unk000[3].unk40 + 4), 1);
     pGroup = &D_8009C620->unk000[1];
     pRot = &pGroup->unk18;
     pMatrix = &pGroup->unk20;
@@ -585,7 +585,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007EE34);
 // globals are absolute symbols from undefined_syms_auto, and -G0 changes that
 // addressing). Do not re-try -G0 here.
 
-int func_8007F8AC(int index) {
+int WorldMapInitSlotActor(int index) {
     int nType = index - 4;
     WorldMapActor *pActor = &D_8009BE24[index];
     WorldMapGroup *pGroup = &D_8009C620->unk000[nType + 4];
@@ -597,7 +597,7 @@ int func_8007F8AC(int index) {
     } else {
         nAbr = 3;
     }
-    func_8007EBBC(pGroup, pGroup->unk48, *(u16 *)((u8 *)pGroup->unk40 + 4), nAbr);
+    WorldMapBuildPolyFT4Templates(pGroup, pGroup->unk48, *(u16 *)((u8 *)pGroup->unk40 + 4), nAbr);
     pActor->unk38 = -0x85A;
     pActor->unk40 = 0xDA6;
     pActor->unk20 = 0;

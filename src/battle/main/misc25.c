@@ -383,7 +383,7 @@ void func_800AFC68(u8 *p) {
 }
 */
 
-void func_800AFD98(BattleModel *pModel, BattleModelNode *pNode, char flags, s16 x, s16 y, s16 z) {
+void BattleApplyNodeOffset(BattleModel *pModel, BattleModelNode *pNode, char flags, s16 x, s16 y, s16 z) {
     BattleModelNode *pChild;
     s32 mode;
     s32 i;
@@ -425,7 +425,7 @@ void func_800AFD98(BattleModel *pModel, BattleModelNode *pNode, char flags, s16 
         for (i = 1; i < pModel->pNodes->unkA; i++) {
             pChild++;
             if (pChild->pParent == pNode) {
-                func_800AFD98(pModel, pChild, flags, x, y, z);
+                BattleApplyNodeOffset(pModel, pChild, flags, x, y, z);
             }
         }
     }

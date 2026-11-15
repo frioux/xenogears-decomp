@@ -297,7 +297,7 @@ void FieldScriptVMHandlerWriteActorRotation(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
 
-void func_800989F0(void) {
+void FieldScriptVMHandlerWriteActorRotationByIndex(void) {
     ActorData* pActorData;
     int actorIndex;
 

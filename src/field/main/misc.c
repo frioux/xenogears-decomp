@@ -593,7 +593,7 @@ void FieldScriptSetByte21AC(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
 
-void func_80088508(void) {
+void FieldScriptWritePartySpriteFrame(void) {
     SpriteData* pSpriteData;
     int partyMemberId;
     int address;

@@ -825,3 +825,5 @@ FieldScriptVMHandlerSwitchPartyLeader = 0x800A0228;
 FieldGetVec2FromPolar = 0x8007B614;
 FieldCameraUpdateFromTarget = 0x80072A38;
 FieldScriptWritePartyMemberPosition = 0x8009FEE4;
+FieldScriptWritePartySpriteFrame = 0x80088508;
+FieldScriptVMHandlerWriteActorRotationByIndex = 0x800989F0;

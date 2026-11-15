@@ -142,7 +142,7 @@ void func_80091B38(u8 arg0, u8 arg1, u8 arg2) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80091B38);
-void func_80091D38(u8 arg0, char arg1, u8 arg2) {
+void BattleDrawCharStatusIfFlagged(u8 arg0, char arg1, u8 arg2) {
     u8 ret = 0;
 
     if (D_800D32A1[arg0 * 8] == 0) {

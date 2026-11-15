@@ -424,7 +424,7 @@ s32 BattleGetActorSpriteDistance(u8 *arg0) {
     return SquareRoot0(dx * dx + dy * dy + dz * dz);
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AEF68);
-void func_800AF180(u8 *arg0, s32 arg1, u8 *arg2, u8 *arg3) {
+void BattleFreeActorEntryAndChildren(u8 *arg0, s32 arg1, u8 *arg2, u8 *arg3) {
     u8 *p;
     u8 *q;
     u8 *pChild;
@@ -448,7 +448,7 @@ void func_800AF180(u8 *arg0, s32 arg1, u8 *arg2, u8 *arg3) {
     for (i = 1; i < n; i++) {
         pChild += 0x7C;
         if (*(u8 **)pChild == p) {
-            func_800AF180(arg0, *(u16 *)(pChild + 0xA), arg2, arg3);
+            BattleFreeActorEntryAndChildren(arg0, *(u16 *)(pChild + 0xA), arg2, arg3);
         }
     }
 }
