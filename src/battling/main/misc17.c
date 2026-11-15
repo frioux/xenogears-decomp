@@ -219,13 +219,6 @@ u8* BattleSetActorSoundTable(u8* p) {
     *(u8**)(p + 0x1664) = pTable;
     return pTable;
 }
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008E78C);
-/* best: objdiff 99.25% - instruction multiset, size (292) and block layout identical; only $3 and $4 are
-   swapped (retail: biv in v1, lhu temp in a0; gcc: biv in a0, temp in v1). The loop must be written with
-   `pSlot = &D_80096F0C[i - 3]` (single biv, counter kept, base derived as `addiu v1,s0,-108`); the plain
-   `pSlot[i]` form makes gcc replace the counter with an end-pointer compare, and `pSlot++` splits into two
-   bivs. Tried: 5 local declaration orders, `best < unk4` vs `unk4 > best`, indexed vs pointer, struct copy
-   of the 4 words (needed - it gives the retail load-load-load-load/store x4).
 void func_8008E78C(u8* p0, u32 idx, u8* pData, u32 flags) {
     BattleSlot* pSlot;
     BattleSlot* pSel;
@@ -239,7 +232,7 @@ void func_8008E78C(u8* p0, u32 idx, u8* pData, u32 flags) {
     for (i = 0; i < 4; i++) {
         pSlot = &D_80096F0C[i - 3];
         if (pSlot->unk1 == 0 || (idx == 0 && pSlot->unk0 == 0)) {
-            pSel = pSlot;
+            do { pSel = pSlot; } while (0);
             break;
         }
         if (best < pSlot->unk4) {
@@ -263,7 +256,6 @@ void func_8008E78C(u8* p0, u32 idx, u8* pData, u32 flags) {
         SoundPlaySoundEffectOnPairWithLevels(pSlot->unk8, pSlot->unk2, 0x7F, 0x40);
     }
 }
-*/
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008E8B0);
 void BattleReleaseFinishedSoundSlots(void) {
     BattleSlot* pSlot;
