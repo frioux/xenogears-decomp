@@ -31,9 +31,10 @@ extern u16 D_800D39DC;
 extern BattleSlotRegs D_800D3400[];
 
 s32 BattleWordRegLeImm(u8 **arg0, u8 arg1) {
-    u16 value = (*arg0)[2] | ((*arg0)[3] << 8);
+    u8 *p = *arg0;
+    u16 value = p[2] | (p[3] << 8);
 
-    return value >= D_800D3400[arg1].unk20[(*arg0)[1]];
+    return value >= D_800D3400[arg1].unk20[p[1]];
 }
 s32 BattleByteRegGeImm(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
@@ -41,9 +42,10 @@ s32 BattleByteRegGeImm(u8 **arg0, u8 arg1) {
     return !(D_800D3400[arg1].unk30[p[1]] < p[2]);
 }
 s32 BattleWordRegGeImm(u8 **arg0, u8 arg1) {
-    u16 value = (*arg0)[2] | ((*arg0)[3] << 8);
+    u8 *p = *arg0;
+    u16 value = p[2] | (p[3] << 8);
 
-    return D_800D3400[arg1].unk20[(*arg0)[1]] >= value;
+    return D_800D3400[arg1].unk20[p[1]] >= value;
 }
 s32 BattleByteRegEqReg(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
@@ -73,9 +75,10 @@ s32 BattleByteRegTestImm(u8 **arg0, u8 arg1) {
     return v != 0;
 }
 s32 BattleWordRegTestImm(u8 **arg0, u8 arg1) {
-    u16 value = (*arg0)[2] + ((*arg0)[3] << 8);
+    u8 *p = *arg0;
+    u16 value = p[2] + (p[3] << 8);
 
-    return (D_800D3400[arg1].unk20[(*arg0)[1]] & value) != 0;
+    return (D_800D3400[arg1].unk20[p[1]] & value) != 0;
 }
 s32 BattleByteRegTestReg(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
@@ -96,9 +99,10 @@ s32 BattleByteRegNeImm(u8 **arg0, u8 arg1) {
     return (D_800D3400[arg1].unk30[p[1]] ^ p[2]) != 0;
 }
 s32 BattleWordRegNeImm(u8 **arg0, u8 arg1) {
-    u16 value = (*arg0)[2] | ((*arg0)[3] << 8);
+    u8 *p = *arg0;
+    u16 value = p[2] | (p[3] << 8);
 
-    return (D_800D3400[arg1].unk20[(*arg0)[1]] ^ value) != 0;
+    return (D_800D3400[arg1].unk20[p[1]] ^ value) != 0;
 }
 s32 BattleByteRegNeReg(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
