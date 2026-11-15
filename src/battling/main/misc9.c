@@ -125,12 +125,6 @@ void func_80082178(s32 arg0, s32 arg1, s32 arg2) {
     func_80087698(x0, y0, px, py);
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc9", func_80082300);
-
-/* best 99.40%: instruction stream identical, including both spill slots;
-   only the s5/s6 pair of bx and x is swapped (an allocator tie-break, six
-   source shapes tried: declaration order twice, x0/x assignment order, an
-   s32 start[2] array instead of the x0/y0 spill pair).
 void func_80082300(s32 arg0, s32 arg1, s32 arg2) {
     s32 x0;
     s32 y0;
@@ -159,11 +153,11 @@ void func_80082300(s32 arg0, s32 arg1, s32 arg2) {
         ang += 0x75;
     }
     px = bx + ((rcos(arg2 - 0x100) << 4) >> 12);
-    py = by + ((rsin(arg2 - 0x100) << 4) >> 12);
+    bx = rsin(arg2 - 0x100);
+    py = by + ((bx << 4) >> 12);
     func_80087698(x, y, px, py);
     func_80087698(x0, y0, px, py);
 }
-*/
 
 void BattleCopyPlaneNormal(Unk8* p) {
     *p = D_80092768;
