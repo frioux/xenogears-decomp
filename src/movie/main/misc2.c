@@ -189,6 +189,19 @@ INCLUDE_ASM("asm/movie/nonmatchings/main/misc2", func_80074BA4);
 // epilogue with v0 = the slt result, i.e. they return 0, where our 'return result'
 // needs li v0,-1 on that edge (spelling it 'return 0' costs 8 bytes). Not tried: the
 // permuter. A switch is not the answer, it would emit a jtbl (unowned in movie).
+// 91.70%, 544 bytes / 134 insns = retail's size. Two independent residuals, both
+// re-measured this round:
+//   a) block rotation: gcc puts the state==1 body inline and branches to the state==2
+//      test; retail does the reverse (beq state,1 to a body placed after the state==2
+//      return block, which then falls through into the shared tail).
+//   b) the two 'D_8007711C >= ArchiveDecodeSizeAbsolute(..)' early-outs branch straight
+//      to the epilogue with v0 = the slt result, i.e. that edge returns 0 while our
+//      'return result' needs it in s4 (a register copy, not the branch). Measured this
+//      round: spelling them 'return 0' keeps 544 bytes but drops to 66.51% (gcc then
+//      merges both early-outs into one return-0 block and re-rotates the states), and a
+//      s32 'ok = (D < size); if (!ok) return ok;' gives 536 bytes / 68.03%, i.e. a
+//      wrong size. So neither spelling is the answer; the shape is still unknown.
+// A switch would emit a jtbl (unowned in movie). Permuter not yet run on this one.
 /*
 s32 func_8007519C(void) {
     u8 buffer[0x1000];
@@ -646,9 +659,19 @@ void WorldMapScriptOp04SetScratchPosition(void) {
 // CompMatrix arguments the same pointer) is UNSOUND - it compiles to
 // CompMatrix(trans, trans, res) - so porting it drops objdiff to 83.30%. The u32
 // dxSq half is kept here and is neutral.
+// 99.24%, 420 bytes / 105 insns = retail's size, and the whole function is identical
+// except ONE register: retail 'mult s2,s2 / mflo v0 / addu s3,s3,v0', we get $v1 for
+// both. The three 'D_800770CC/D0/D4' stores and the CompMatrix arguments are now exact:
+// the trick was that retail reaches the translation vector through the matrix's t[]
+// ('s32* pTrans = D_800770B8.t;') which makes gcc materialise 0x800770CC in $a3 for the
+// first store and derive the matrix base as 'addiu a1,a3,-0x14' - writing '&D_800770B8'
+// for the argument and pScaleMatrix->t[i] for the stores gives 88.94% with a $at macro,
+// and the separate D_800770CC/D0/D4 externs 89.13%.
+// Permuter from this body (3 min, -j 2, 828 iterations): PERMUTER_NONE base=10 best=10.
 /*
 void func_80076CA4(void) {
     MATRIX* pRotMatrix;
+    s32* pTrans;
     MovieVector* pPos;
     SVECTOR* pAngle;
     s32 dz;
@@ -673,9 +696,11 @@ void func_80076CA4(void) {
     pRotMatrix->t[0] = 0;
     pRotMatrix->t[1] = 0;
     pRotMatrix->t[2] = SquareRoot0(dxSq + dy * dy + dzSq);
-    D_800770CC = D_80076F2C.x - pPos->x;
-    D_800770D0 = D_80076F30 - D_80077040;
-    D_800770D4 = D_80076F34 - D_80077044;
-    CompMatrix(pRotMatrix, (MATRIX*)&D_800770B8, &D_80077050);
+    pTrans = D_800770B8.t;
+    pTrans[0] = D_80076F2C.x - pPos->x;
+    pTrans[1] = D_80076F30 - D_80077040;
+    pTrans[2] = D_80076F34 - D_80077044;
+    CompMatrix(pRotMatrix, &D_800770B8, &D_80077050);
 }*/
 INCLUDE_ASM("asm/movie/nonmatchings/main/misc2", func_80076CA4);
+
