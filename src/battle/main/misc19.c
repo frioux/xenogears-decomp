@@ -203,6 +203,23 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009A854);
 // gcc-2.6.0, which the unit cannot move to. The gap is one register: gcc copies
 // mfhi into $a1 and shifts into $a0 where retail mfhi's into $a0 and shifts in
 // place. Two permuter runs found nothing.
+/* PRESET_260: 100.00% under gcc-2.6.0 at every -O and -G (tools/scripts/try_flags.sh
+   battle/main/misc19 func_8009A9D0 --sweep); 99.66% under the unit's 2.7.2 at every
+   -O and -G. Whole-unit screen under 2.6.0: 100.00 BattleGetActorConditionCode,
+   FieldScriptClearAnimationOverrideIfFlag16, BattleGetGameCharacterField5,
+   BattleIsCharacterInParty, BattleResetActorStats, BattleSetActorScaledHp,
+   BattleGetActorActionConditionMask, func_8009A9D0; below 100 BattleSetSlotFlag15A1
+   99.57, BattleClearSlotFlag15A1 95.71, BattleSetSlotEntryFieldsTo1 99.71,
+   BattleSetSlotEntryFieldsTo2000 99.77. So the unit is mixed; this one function is a
+   contiguous run of its own and could be carved into its own .c on the XenoLibrary
+   preset. The gap under 2.7.2 is one register: gcc 2.7.2 copies the mfhi result to
+   $a1 and shifts into $a0, retail mfhi's into $a0 and shifts in place (a
+   smulsi3_highpart md difference, not source-controllable). Shapes tried with no
+   effect: inline `rand() % 100` vs an `s32 r` local for the rand() result,
+   `50 > rand() % 100`, `rand() % 100 <= 49`, `(s32)(rand() % 100) < 50`; two
+   permuter runs found nothing (third run, round 112: PERMUTER_NONE base=10
+   best=10, 899 iterations).
+   PARKED (99.66%). */
 /*
 s32 func_8009A9D0(void) {
     D_800C34B0->unk5FC2 = 0;
@@ -605,6 +622,24 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009BAC4);
 // D_800C3DFC[0x11] from a time when the symbol was a u8*; it is a BattleRow*
 // now, so the same byte is D_800C3DFC->unk11 (identical code). Only the last
 // four instructions differ, and only by register - see the note above.
+// PRESET_260: 100.00% under gcc-2.6.0 (tools/scripts/try_flags.sh), 98.33% under
+// the unit's 2.7.2 (and under 2.7.2-cdk). The last four instructions differ:
+// retail reloads the second base into $v0/$v1 and then mfhi's into $v0 with the
+// srl in place, so the mfhi result is coalesced with its consumer; 2.7.2 copies
+// it to $a1 and shifts into $v0. That is the same mfhi-coalescing difference
+// func_8009A9D0 has, i.e. a smulsi3_highpart md difference between the two cc1s,
+// not a source shape. See func_8009A9D0's note for the whole-unit screen.
+// The gain to 98.33 came from splitting the two statements' base loads: a u8*
+// local for the first store, and a plain expression for the second so
+// (u32)D_800C34B0 is loaded again; the int idx local stops the second lbu being
+// CSE'd into the first, which is what lets the base reload schedule after multu.
+// Also tried, all 98.33 or worse: index-first addu operand order (97.33), two
+// separate locals for idx and address, declaration order swapped, u8* address
+// local, u32 quotient local stored separately, 20u divisor, dropping the idx
+// temp, u32* destination pointer local (70.17, CSEs the base). Permuter score 50,
+// stuck over 1907+1250 iterations.
+// PARKED (98.33%). Body compiles; D_800C3DFC is a BattleRow* so the old
+// D_800C3DFC[0x11] spelling is now ->unk11 (identical code).
 /*
 void func_8009BD94(void) {
     int new_var;
