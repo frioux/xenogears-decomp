@@ -90,6 +90,7 @@ u_long func_800459DC(int dfe, int dtd, u_short tpage) {
     u_long mode;
     u_long tp;
 
+    /* retail keeps the 320-wide test and the tpage word in one register: reuse tp */
     tp = D_800568D0 == 1 || D_800568D0 == 2;
     if (tp) {
         mode = 0xE1000000;
