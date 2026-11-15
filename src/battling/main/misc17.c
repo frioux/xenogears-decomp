@@ -457,78 +457,78 @@ void BattleUpdateActorApproach(BattleActor* pActor, s16 arg1, s16 arg2) {
     pActor->unk58 = func_8008B650(pActor->unk58, arg1, 0x40);
     pActor->unkCE = 0;
 }
-void BattleCheckStateAndSetDelay60(u8* p0, u8* p1) {
-    BattleTryQueueMessage5(p0, p1);
-    *(u16*)(p1 + 4) = 0x3C;
+void BattleCheckStateAndSetDelay60(BattleActor* pActor, BattleWork* pWork) {
+    BattleTryQueueMessage5(pActor, pWork);
+    pWork->unk4 = 0x3C;
 }
-void BattleQueueRandomMessagesAndDelay(u8* p0, u8* p1, s32 flag) {
-    BattleQueueRandomMessages(p0, p1, flag);
-    *(u16*)(p1 + 4) = flag ? 0x1E : 0xA;
+void BattleQueueRandomMessagesAndDelay(BattleActor* pActor, BattleWork* pWork, s32 flag) {
+    BattleQueueRandomMessages(pActor, pWork, flag);
+    pWork->unk4 = flag ? 0x1E : 0xA;
 }
-void BattleQueueMessage3AndDelay60(u8* p0, u8* p1) {
-    BattleQueueMessage(p0, 3);
-    *(u16*)(p1 + 4) = 0x3C;
+void BattleQueueMessage3AndDelay60(BattleActor* pActor, BattleWork* pWork) {
+    BattleQueueMessage(pActor, 3);
+    pWork->unk4 = 0x3C;
 }
-void BattleToggleActionFlag2000(u8* p0, u8* p1) {
+void BattleToggleActionFlag2000(BattleActor* pActor, BattleWork* pWork) {
     u32 flags;
 
-    flags = *(u32*)(p1 + 0x2C);
-    *(u32*)(p1 + 0x2C) = (flags & ~0x2000) | ((((flags >> 13) & 1) ^ 1) << 13);
-    if (*(u32*)(p1 + 0x2C) & 0x2000) {
-        *(u32*)(p0 + 0xD0) |= 2;
-        *(u16*)(p1 + 4) = 0x3C;
+    flags = pWork->unk2C.flags;
+    pWork->unk2C.flags = (flags & ~0x2000) | ((((flags >> 13) & 1) ^ 1) << 13);
+    if (pWork->unk2C.flags & 0x2000) {
+        pActor->flags |= 2;
+        pWork->unk4 = 0x3C;
     } else {
-        *(u32*)(p0 + 0xD0) &= ~2;
-        *(u32*)(p0 + 0xD0) &= ~0x38;
-        *(u16*)(p1 + 4) = 0x1E;
+        pActor->flags &= ~2;
+        pActor->flags &= ~0x38;
+        pWork->unk4 = 0x1E;
     }
 }
-void BattleQueueMessages4Then3Delay60(u8* p0, u8* p1) {
-    BattleQueueMessage(p0, 4);
-    BattleQueueMessage(p0, 3);
-    *(u16*)(p1 + 4) = 0x3C;
+void BattleQueueMessages4Then3Delay60(BattleActor* pActor, BattleWork* pWork) {
+    BattleQueueMessage(pActor, 4);
+    BattleQueueMessage(pActor, 3);
+    pWork->unk4 = 0x3C;
 }
-void BattleQueueMessage4AndDelay60(u8* p0, u8* p1) {
-    BattleQueueMessage(p0, 4);
-    *(u16*)(p1 + 4) = 0x3C;
+void BattleQueueMessage4AndDelay60(BattleActor* pActor, BattleWork* pWork) {
+    BattleQueueMessage(pActor, 4);
+    pWork->unk4 = 0x3C;
 }
-void BattleSetRandomFacingAround800(u8* p0, u8* p1) {
+void BattleSetRandomFacingAround800(BattleActor* pActor, BattleWork* pWork) {
     u16 timer;
 
     if (D_8009284C >= 0x801) {
-        *(u16*)(p1 + 0x4) = 1;
-        *(u16*)(p1 + 0xC) = 0;
+        pWork->unk4 = 1;
+        pWork->unkC = 0;
         return;
     }
-    *(u16*)(p1 + 0x4) -= 1;
-    if ((s16)*(u16*)(p1 + 0x4) != -1) {
+    pWork->unk4 -= 1;
+    if ((s16)pWork->unk4 != -1) {
         return;
     }
-    *(u16*)(p1 + 0xA) = rand() % 0x600 + 0x500;
+    pWork->unkA = rand() % 0x600 + 0x500;
     timer = rand() % 50 + 0xA;
-    *(u16*)(p1 + 0xC) = 0xFF;
-    *(u16*)(p1 + 0x4) = timer;
+    pWork->unkC = 0xFF;
+    pWork->unk4 = timer;
 }
-void BattleSetRandomFacingAround0(u8* p0, u8* p1) {
+void BattleSetRandomFacingAround0(BattleActor* pActor, BattleWork* pWork) {
     u16 timer;
 
     if (D_8009284C < 0x100) {
-        *(u16*)(p1 + 0x4) = 1;
-        *(u16*)(p1 + 0xC) = 0;
+        pWork->unk4 = 1;
+        pWork->unkC = 0;
         return;
     }
-    *(u16*)(p1 + 0x4) -= 1;
-    if ((s16)*(u16*)(p1 + 0x4) != -1) {
+    pWork->unk4 -= 1;
+    if ((s16)pWork->unk4 != -1) {
         return;
     }
-    *(u16*)(p1 + 0xA) = rand() % 0x600 - 0x300;
+    pWork->unkA = rand() % 0x600 - 0x300;
     timer = rand() % 120 + 0xA;
-    *(u16*)(p1 + 0xC) = 0xFF;
-    *(u16*)(p1 + 0x4) = timer;
+    pWork->unkC = 0xFF;
+    pWork->unk4 = timer;
 }
-void BattleSetActionFieldFAndDispatch(u8* p0, u8* p1, u8 value) {
-    p1[0xF] = value;
-    BattleDispatchWorkState(p0);
+void BattleSetActionFieldFAndDispatch(BattleActor* pActor, BattleWork* pWork, u8 value) {
+    pWork->unkF = value;
+    BattleDispatchWorkState(pActor);
 }
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008F280);
 s32 BattleCheckValueAboveScaledMax(BattleActor* pActor, s32 arg1) {
