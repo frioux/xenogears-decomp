@@ -140,7 +140,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008B54C);
    the sll and v0 the constant; ours: right after "li v0,0x40", sll into v0) plus the
    matching addu register. The matched WorldMapInitPartyActorSprite0 has retail's
    exact shape, so it is a scheduling/allocator artifact of this function's tail, not
-   the call: no hand shape moved it. Permuter is blocked on this unit (see func_8008C040).
+   the call: no hand shape moved it. Permuter is blocked on this unit (see WorldMapFindZoneAtPosition).
 int func_8008B54C(int index) {
     WorldMapActor *pActor = &D_8009BE24[index];
 
@@ -242,7 +242,7 @@ void WorldMapQueueZoneEntry(s16 arg0, s32 *pArray, s16 arg2, s16 arg3) {
     pEntry->unk14 = arg2;
     D_8009BD04 = (D_8009BD04 + 1) & 0x1F;
 }
-void func_8008C040(WorldMapPos *pPos, s32 arg1, s32 arg2, u8 *pOut, u8 *pOut2) {
+void WorldMapFindZoneAtPosition(WorldMapPos *pPos, s32 arg1, s32 arg2, u8 *pOut, u8 *pOut2) {
     WorldMapEntry *pEntry = D_8009BE6C;
     s32 i;
     WorldMapPos diff;

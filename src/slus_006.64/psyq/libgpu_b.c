@@ -44,7 +44,7 @@ extern void func_80046EFC(void);
 extern int func_80046F30(void);
 extern u_long func_80045A34(int x, int y);
 extern u_long func_80045B00(int x, int y);
-extern u_long func_800459DC(int dfe, int dtd, u_short tpage);
+extern u_long DrawMode(int dfe, int dtd, u_short tpage);
 extern u_long func_80045BCC(int x, int y);
 extern u_long func_80045C10(RECT *tw);
 
@@ -78,7 +78,7 @@ void SetPriority(DR_MODE *p, int dfe, int dtd) {
 
 void SetDrawMode(DR_MODE *p, int dfe, int dtd, int tpage, RECT *tw) {
     setlen(p, 2);
-    *(u_long*)&p->code[0] = func_800459DC(dfe, dtd, tpage);
+    *(u_long*)&p->code[0] = DrawMode(dfe, dtd, tpage);
     *(u_long*)&p->code[1] = func_80045C10(tw);
 }
 
@@ -86,7 +86,7 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_b", func_80045534);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_b", func_8004574C);
 
-u_long func_800459DC(int dfe, int dtd, u_short tpage) {
+u_long DrawMode(int dfe, int dtd, u_short tpage) {
     u_long mode;
     u_long tp;
 

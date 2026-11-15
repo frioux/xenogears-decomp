@@ -1289,7 +1289,7 @@ reverse (pPrevBlock s0, address s1) whatever the declaration order.
 
 
 
-int func_800394B8(int size) {
+int SoundSpuMemoryAllocateBlockFit(int size) {
     SoundSpuMemoryBlock* pBlock;
     SoundSpuMemoryBlock* pNextBlock;
     SoundSpuMemoryBlock* pFitBlock;

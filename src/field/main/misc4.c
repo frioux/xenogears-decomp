@@ -887,7 +887,7 @@ int FieldGetTriangleWindingSign(SVECTOR* pA, SVECTOR* pB, SVECTOR* pC, SVECTOR* 
 
 extern s16 D_800B218C;
 
-void func_8007B614(IVEC3* pVec, int scale, int angle) {
+void FieldGetVec2FromPolar(IVEC3* pVec, int scale, int angle) {
     int nAngle = angle & 0xFFF;
     int nScale = (scale << 4) * D_800B218C >> 12;
     int nScaled;
