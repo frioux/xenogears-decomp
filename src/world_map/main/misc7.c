@@ -66,7 +66,7 @@ extern s32 D_8009BE30;
 extern s32 D_8009D55C;
 extern s32 D_8009D560;
 extern s32 D_8009D564;
-extern void func_8007A06C(void *, s32, s32);
+extern void WorldMapSetupPrimTemplates(void *, s32, s32);
 extern s16 D_8009BD38;
 extern s16 D_8009BD3A;
 extern s16 D_8009BD3C;
@@ -179,9 +179,9 @@ s32 func_80080A28(s32 index) {
     pSlot->unk50 = 0;
     pSlot->unk58 = 0x80;
     pSlot->pos.z = D_8009C5B4;
-    func_8007A06C(p, *(s32 *)(p + 0x48), *(u16 *)(*(s32 *)(p + 0x40) + 4));
+    WorldMapSetupPrimTemplates(p, *(s32 *)(p + 0x48), *(u16 *)(*(s32 *)(p + 0x40) + 4));
     p += 0x54;
-    func_8007A06C(p, *(s32 *)(p + 0x48), *(u16 *)(*(s32 *)(p + 0x40) + 4));
+    WorldMapSetupPrimTemplates(p, *(s32 *)(p + 0x48), *(u16 *)(*(s32 *)(p + 0x40) + 4));
     return 3;
 }
 */

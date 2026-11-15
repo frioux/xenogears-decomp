@@ -165,13 +165,13 @@ extern u_char D_801EA534[]; // String IDs of the menu strings
 extern u16 D_801E9E4C[];
 extern u16 D_801E9E58[];
 
-void func_801E7E68(MenuString* pStringList, u_char* pStringIdList, s32 yOffset, s32 count);
+void MenuUploadStringTextures(MenuString* pStringList, u_char* pStringIdList, s32 yOffset, s32 count);
 
 void MenuLoadSubMenuChoiceStrings(u_char a0) {
     s32 i;
 
     if (a0 != 0) {
-        func_801E7E68(g_Menu->unkAE0, D_801EA534, 4, 6);
+        MenuUploadStringTextures(g_Menu->unkAE0, D_801EA534, 4, 6);
         for (i = 0; i < 3; i++) {
             MenuSetQuadVertices(g_Menu->unkAE0[i + 3].vertices, D_801E9E4C[i * 2], D_801E9E58[i * 2], g_Menu->unkAE0[i + 3].width, 0xD);
             g_Menu->unkAE0[i + 3].renderContext = *(u_char*)&g_Menu->renderContext;

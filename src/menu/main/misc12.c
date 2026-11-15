@@ -18,7 +18,7 @@ void func_801E7C50(MenuString* pStringList, s32 index, s32 yOffset, s32 flags);
 extern void* GetStringEntry(void* pStringData, u32 index);
 extern u16 g_SystemPalette1;
 extern u16 g_SystemPalette2;
-void func_801E7E68(MenuString* pStringList, u_char* pStringIdList, s32 yOffset, s32 count);
+void MenuUploadStringTextures(MenuString* pStringList, u_char* pStringIdList, s32 yOffset, s32 count);
 void func_801E61B0(void);
 void func_801E68AC(u8* pEntry);
 void MenuDrawSlotSprite(u8 index, u8* pEntry);
@@ -352,7 +352,7 @@ void func_801E7C50(MenuString* pStringList, s32 index, s32 yOffset, s32 flags) {
 }
 */
 
-void func_801E7E68(MenuString* pStringList, u_char* pStringIdList, s32 yOffset, s32 count) {
+void MenuUploadStringTextures(MenuString* pStringList, u_char* pStringIdList, s32 yOffset, s32 count) {
     RECT* pRect;
     s32 i;
     s32 index;
@@ -376,7 +376,7 @@ void func_801E7E68(MenuString* pStringList, u_char* pStringIdList, s32 yOffset, 
     }
 }
 void MenuLoadStringsFromIds(u_char count, MenuString* pStringList, u_char* pStringIdList, void* pUnused) {
-    func_801E7E68(pStringList, pStringIdList, 4, count);
+    MenuUploadStringTextures(pStringList, pStringIdList, 4, count);
 }
 
 void MenuClearBytes(u_char count, u_char* pBuffer) {

@@ -75,7 +75,7 @@ extern u32 D_8009D55C;
 extern u32 D_8009D560;
 extern u32 D_8009D564;
 
-extern void func_8007A06C(void *, void *, int);
+extern void WorldMapSetupPrimTemplates(void *, void *, int);
 extern void WorldMapSetSpriteSetParent(int, int);
 extern void func_80089160(int, void *, int);
 extern void WorldMapWrapPosition(VECTOR *);
@@ -633,8 +633,8 @@ int func_8007FC8C(int index) {
     int nX;
     int nZ;
 
-    func_8007A06C(&pRoot->unk000[9], pRoot->unk000[9].unk48, *(u16 *)((u8 *)pRoot->unk000[9].unk40 + 4));
-    func_8007A06C(&pRoot->unk000[10], pRoot->unk000[10].unk48, *(u16 *)((u8 *)pRoot->unk000[10].unk40 + 4));
+    WorldMapSetupPrimTemplates(&pRoot->unk000[9], pRoot->unk000[9].unk48, *(u16 *)((u8 *)pRoot->unk000[9].unk40 + 4));
+    WorldMapSetupPrimTemplates(&pRoot->unk000[10], pRoot->unk000[10].unk48, *(u16 *)((u8 *)pRoot->unk000[10].unk40 + 4));
     nX = 0x1498000;
     nZ = 0x4AF2000;
     pActor->unk28 = nX;

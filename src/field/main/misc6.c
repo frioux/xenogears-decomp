@@ -914,7 +914,7 @@ extern void FieldScriptVMHandlerSetActorModelFromSpriteIndex0(void);
 extern s32 D_8006F990[3];
 extern s16 D_800AFB54;
 
-void func_800A0228(void) {
+void FieldScriptVMHandlerSwitchPartyLeader(void) {
     int partyIndex;
     int nFlag;
     s32 nMapData;

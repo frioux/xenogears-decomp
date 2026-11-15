@@ -154,7 +154,7 @@ extern void WorldMapInitGroup16Actor(void);
 extern void WorldMapUpdateGroup16Actor(void);
 extern void WorldMapEnterNop(void);
 extern void WorldMapUpdateFrameWithParticles(void);
-extern void func_8007A06C(void *pBlock, s32 arg, s32 arg2);
+extern void WorldMapSetupPrimTemplates(void *pBlock, s32 arg, s32 arg2);
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007A9F8);
 int WorldMapInitActorScrollScale(int idx) {
@@ -197,7 +197,7 @@ int WorldMapSetupGroup4And5ScaledPrims(int idx) {
         u32 arg1 = *(u32 *)pSrc;
         u16 arg2 = *(u16 *)(*(u32 *)(pSrc - 8) + 4);
 
-        func_8007A06C(pBlock, arg1, arg2);
+        WorldMapSetupPrimTemplates(pBlock, arg1, arg2);
         pSrc += 0x54;
         pBlock += 0x54;
     }
@@ -217,7 +217,7 @@ int WorldMapSetupGroup4And5ScaledPrims(int idx) {
     return 3;
 }
 
-int func_8007B394(int idx) {
+int WorldMapUpdateGroup4And5Scale(int idx) {
     u8 *pPlayer = (u8 *)D_8009BE24 + (idx << 7);
     u8 *pWork = (u8 *)D_8009C620;
     u32 *pScratch = (u32 *)0x1F800000;
@@ -279,7 +279,7 @@ int WorldMapSetupGroup6And7ScaledPrims(int idx) {
         u32 arg1 = *(u32 *)pSrc;
         u16 arg2 = *(u16 *)(*(u32 *)(pSrc - 8) + 4);
 
-        func_8007A06C(pBlock, arg1, arg2);
+        WorldMapSetupPrimTemplates(pBlock, arg1, arg2);
         pSrc += 0x54;
         pBlock += 0x54;
     }
@@ -299,7 +299,7 @@ int WorldMapSetupGroup6And7ScaledPrims(int idx) {
     return 3;
 }
 
-int func_8007B798(int idx) {
+int WorldMapUpdateGroup6And7Scale(int idx) {
     u8 *pPlayer = (u8 *)D_8009BE24 + (idx << 7);
     u8 *pWork = (u8 *)D_8009C620;
     u32 *pScratch = (u32 *)0x1F800000;

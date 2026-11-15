@@ -91,7 +91,7 @@ extern void BattleAttachActorPrims(u8* p);
 extern void BattleAddSharedPrim(void);
 extern void func_80087698(s32 x0, s32 y0, s32 x1, s32 y1);
 
-void func_80082178(s32 arg0, s32 arg1, s32 arg2) {
+void BattleDrawHexagonOutline(s32 arg0, s32 arg1, s32 arg2) {
     s32 x0;
     s32 y0;
     s32 x;
@@ -125,7 +125,7 @@ void func_80082178(s32 arg0, s32 arg1, s32 arg2) {
     func_80087698(x0, y0, px, py);
 }
 
-void func_80082300(s32 arg0, s32 arg1, s32 arg2) {
+void BattleDrawArcOutline(s32 arg0, s32 arg1, s32 arg2) {
     s32 x0;
     s32 y0;
     s32 x;

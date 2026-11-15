@@ -821,3 +821,4 @@ FieldScriptJumpIfCharacterBit1D30 = 0x80096534;
 FieldScriptSetCharacterBit1D30 = 0x800965A8;
 FieldScriptClearCharacterBit1D30 = 0x800965F4;
 FieldPlaySoundElementPair = 0x800855C8;
+FieldScriptVMHandlerSwitchPartyLeader = 0x800A0228;

@@ -417,7 +417,7 @@ void BattleActorTickAnimScript(u8* pTask) {
         }
     }
 }
-void func_800BACBC(s32 index, s16* p0, s16* p1, s16* p2, s16* p3, s16* p4, s16* p5) {
+void BattleSpriteProjectToScreen(s32 index, s16* p0, s16* p1, s16* p2, s16* p3, s16* p4, s16* p5) {
     u8* pBase = D_800C3EB0;
     s32 vx;
     s32 vy;

@@ -60,7 +60,7 @@ extern u8 D_800D2D24[];
 extern s32 BattleMaskHasStatusBit(s32, u8);
 extern u8 func_80085084(u16, u8, s32);
 extern void BattleClearPrimFlagsThreeSlots(u8);
-extern void func_8008CD28(u8);
+extern void BattleSetPrimFlagsThreeSlots(u8);
 extern void BattlePlaySoundIfEnabled(u8);
 extern void BattleSetPolyFT4Rect(POLY_FT4 *, s16, s16, u8, u8, s16, s16);
 

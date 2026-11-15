@@ -5,7 +5,7 @@
 extern u8 D_80059460; // Index of the menu overlay the menu was entered with
 extern u_char D_801EA524[]; // String IDs of the menu strings
 
-void func_801E7E68(MenuString* pStringList, u_char* pStringIdList, s32 yOffset, s32 count);
+void MenuUploadStringTextures(MenuString* pStringList, u_char* pStringIdList, s32 yOffset, s32 count);
 
 u_char func_801C531C(u_char arg0);
 void MenuRenderFrame(void);
@@ -471,7 +471,7 @@ void MenuFillVramRectWhite(void) {
 void MenuInitializeMenuStrings(void) {
     SystemTransferPaletteToVRAM(0, 0x1D1);
     g_Menu->unk4E0[0].pVramBuffer = HeapAlloc(0x38E, 0);
-    func_801E7E68(g_Menu->unk4E0, D_801EA524, 0, 4);
+    MenuUploadStringTextures(g_Menu->unk4E0, D_801EA524, 0, 4);
     MenuFillVramRectWhite();
 }
 void MenuInitializeWindowBorders(void) {

@@ -490,7 +490,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A8B0C);
     }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A8BF0);
-// Archive entry allocated by func_800A9540 / func_800A96B4, stored in D_800C3B78.
+// Archive entry allocated by func_800A9540 / BattleAllocateArchiveFilePair, stored in D_800C3B78.
 // The 0x18-byte variant stops after unk14; the 0x20-byte one adds a second
 // {u16, s32} pair at 0x18.
 typedef struct {
@@ -580,7 +580,7 @@ void func_800A9540(s32 arg0) {
     ArchiveSetIndex(alignedIndex, remainder);
 }
 */
-void func_800A96B4(s32 arg0) {
+void BattleAllocateArchiveFilePair(s32 arg0) {
     Misc23ArchiveEntry *pEntry;
     s32 alignedIndex;
     s32 remainder;

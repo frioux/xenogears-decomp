@@ -165,7 +165,7 @@ typedef struct {
     /* 0x4FE4 */ u8 flags[0x4];
 } MenuUnk2Flags;
 
-u_char func_801C9BCC(s32 a0) {
+u_char MenuIsSlotUsable(s32 a0) {
     MenuUnk2* pMenu = g_Menu->menuUnk2;
     s32 result = 1;
     s32 j;

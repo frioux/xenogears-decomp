@@ -83,7 +83,7 @@ extern s16 D_8009BD38;
 extern s16 D_8009BD3A;
 extern s16 D_8009BD3C;
 extern void func_80089160(s32, s32, s32);
-extern void func_8007A06C(s32, u8 *, s32);
+extern void WorldMapSetupPrimTemplates(s32, u8 *, s32);
 extern u8 *D_8006259C;
 extern void WorldMapWrapPosition(void *);
 extern s32 func_80093A5C(s32, s32);
@@ -169,8 +169,8 @@ extern void WorldMapAddSlot();
 extern s32 WorldMapStartActorScript(s32);
 extern void func_8007A9F8(void);
 extern void func_8007ADD4(void);
-extern void func_8007B394(void);
-extern void func_8007B798(void);
+extern void WorldMapUpdateGroup4And5Scale(void);
+extern void WorldMapUpdateGroup6And7Scale(void);
 extern void func_8007BBEC(void);
 extern s32 WorldMapInitActorScrollScale(s32);
 extern s32 WorldMapSetupGroup4And5ScaledPrims(s32);
@@ -508,7 +508,7 @@ s32 WorldMapInitActorAtScrollPositionWithSound(s32 index) {
     return 1;
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_80079778);
-void func_8007A06C(s32 arg0, u8 *pDst, s32 count) {
+void WorldMapSetupPrimTemplates(s32 arg0, u8 *pDst, s32 count) {
     s32 i;
 
     for (i = 0; i < count; i++) {
@@ -532,9 +532,9 @@ s32 WorldMapSetupGroup14And15Prims(s32 index) {
     p->unk20 = 0;
     p->unk70 = 0;
     p->unk6C = 0;
-    func_8007A06C((s32)D_8009C620 + 0x498, D_8009C620->unk4E0,
+    WorldMapSetupPrimTemplates((s32)D_8009C620 + 0x498, D_8009C620->unk4E0,
                   ((u16 *)D_8009C620->unk4D8)[2]);
-    func_8007A06C((s32)D_8009C620 + 0x4EC, D_8009C620->unk534,
+    WorldMapSetupPrimTemplates((s32)D_8009C620 + 0x4EC, D_8009C620->unk534,
                   ((u16 *)D_8009C620->unk52C)[2]);
     return 3;
 }
@@ -546,7 +546,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_8007A1B4);
    live value pseudos and gcc then reuses the dead actor pointer in $a2
    (97.16%), and spelling the pairs as repeated `p->unk6C`/`p->unk70` lets gcc
    CSE them and moves p to $a3 (96.17%). Same allocator class as misc5
-   func_8007B394.
+   WorldMapUpdateGroup4And5Scale.
 s32 func_8007A1B4(s32 index) {
     WorldMapSpriteEntry *pEntry;
     MATRIX *pMtxA;
@@ -732,8 +732,8 @@ void func_8007A5DC(void) {
     WorldMapAddSlot(WorldMapModeInitFadeRect, func_800925A0);
     WorldMapAddSlot(WorldMapStartActorScript, func_8007A9F8);
     WorldMapAddSlot(WorldMapInitActorScrollScale, func_8007ADD4);
-    WorldMapAddSlot(WorldMapSetupGroup4And5ScaledPrims, func_8007B394);
-    WorldMapAddSlot(WorldMapSetupGroup6And7ScaledPrims, func_8007B798);
+    WorldMapAddSlot(WorldMapSetupGroup4And5ScaledPrims, WorldMapUpdateGroup4And5Scale);
+    WorldMapAddSlot(WorldMapSetupGroup6And7ScaledPrims, WorldMapUpdateGroup6And7Scale);
     WorldMapAddSlot(WorldMapInitReturnThree, WorldMapActivateSpriteGroup9Timed);
     WorldMapAddSlot(WorldMapInitGroup0Actor, func_8007BBEC);
     WorldMapAddSlot(WorldMapEnterNop, WorldMapUpdateFrameWithParticles);

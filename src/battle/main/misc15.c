@@ -189,7 +189,7 @@ void BattleClearPrimFlagsFourSlots(u8 arg0) {
         D_800D2D28[0xCB] = 1;
     }
 }
-void func_8008B168(u8 arg0) {
+void BattleSetPrimFlagsFourSlots(u8 arg0) {
     int slotStride = 0x40;
     u16 value;
 
@@ -211,7 +211,7 @@ void BattleClearPrimFlagsTwoSlots(u8 arg0) {
         D_800D2D28[0xCB] = 1;
     }
 }
-void func_8008BC98(u8 arg0) {
+void BattleSetPrimFlagsTwoSlots(u8 arg0) {
     u16 value;
     int slotStride = 0x40;
 
@@ -261,7 +261,7 @@ s32 func_8008BD50(u8 arg0, u8 arg1, u8 arg2, u8 arg3) {
             result = 1;
         } else {
             D_800D2D28[0xC6] = 0;
-            func_8008BC98(arg0);
+            BattleSetPrimFlagsTwoSlots(arg0);
         }
     } else {
         if (BattleIsCharacterInParty(value - 0x32) != 0) {
@@ -295,7 +295,7 @@ void BattleFreeSlotPrims(u8 arg0) {
 /* Best: 99.78%. One addu left: the FIRST call's address add comes out
    index-first (`addu v1,s1,v1`) where the original has base-first
    (`addu v1,v1,s1`); the index s1 = arg0*0x40 lives across both calls.
-   Same tail as func_8008B168 / func_8008BC98 / func_8008CD28, which the
+   Same tail as BattleSetPrimFlagsFourSlots / BattleSetPrimFlagsTwoSlots / BattleSetPrimFlagsThreeSlots, which the
    permuter did fix there with a stride local -- here it only fixed the
    second call: a `char maskOffset` assigned 0x3C inline in its subscript
    `D_800C3EAC[arg0 * 0x40 + (maskOffset = 0x3C)]` (worth 99.36 -> 99.78).
@@ -329,7 +329,7 @@ void BattleClearPrimFlagsThreeSlots(u8 arg0) {
         D_800D2D28[0xCB] = 1;
     }
 }
-void func_8008CD28(u8 arg0) {
+void BattleSetPrimFlagsThreeSlots(u8 arg0) {
     u16 value;
     int slotStride = 0x40;
 

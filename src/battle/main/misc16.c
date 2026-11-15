@@ -61,7 +61,7 @@ extern u8 D_800D2D24[];
 extern s32 BattleMaskHasStatusBit(s32, u8);
 extern u8 func_80085084(u16, u8, s32);
 extern void BattleClearPrimFlagsThreeSlots(u8);
-extern void func_8008CD28(u8);
+extern void BattleSetPrimFlagsThreeSlots(u8);
 extern void BattlePlaySoundIfEnabled(u8);
 extern void BattleSetPolyFT4Rect(POLY_FT4 *, s16, s16, u8, u8, s16, s16);
 
@@ -96,7 +96,7 @@ u8 func_8008CDE4(u8 arg0, u8 arg1) {
             ret = 1;
         } else {
             D_800D2D28[0xC6] = 0;
-            func_8008CD28(arg0);
+            BattleSetPrimFlagsThreeSlots(arg0);
         }
         flag = 0;
     }
