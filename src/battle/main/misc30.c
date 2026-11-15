@@ -1,5 +1,6 @@
 #include "common.h"
 #include "field/actor.h"
+#include "battle/actor.h"
 #include "psyq/libgte.h"
 
 // Battle state pointed to by D_800C3610. Only the fields this unit touches are recovered.
@@ -28,7 +29,7 @@ extern u8 D_800C3623;
 extern u16 D_800D30A0[];
 extern u16 D_800D3354[];
 extern u16 D_800D335C[];
-extern u8* D_800D3368[];
+extern BattleSlotRecord* D_800D3368[];
 extern s32 D_80050100;
 extern MATRIX D_800D30BC;
 extern u_long* g_GfxCurOT;
@@ -38,7 +39,7 @@ extern u_long* g_GfxCurOT;
 // repeated. Its bitfields at 0x10/0x14 are whole words to this unit.
 typedef struct {
     /* 0x00 */ void* unk0;
-    /* 0x04 */ void* unk4; // pSpriteData, at least in some cases
+    /* 0x04 */ struct BattleActorSprite* unk4; // pSpriteData, at least in some cases
     /* 0x08 */ void* onTriggerCallback;
     /* 0x0C */ void* onFreeCallback;
     /* 0x10 */ u32 unk10;
@@ -52,24 +53,93 @@ typedef struct {
     /* 0x38 */ SpriteData spriteData;
 } AnimTask; // Size: 0x19C
 
-extern void SpriteSetScale(SpriteData* pSprite, s16 scale);
-extern void SpriteInitFromAnimFileWithClut(SpriteData* pSprite, void* pAnimFile, s16 arg2, s16 arg3,
-                                           s16 arg4, s16 arg5, s16 arg6, s32 arg7);
+// A battle actor's 16.16 position, read as whole words by the code that moves
+// the actor and as integer halfwords by the code that projects it.
+typedef union {
+    /* 0x0 */ IVEC3 value;
+    /* 0x0 */ BattleFixed16Vector parts;
+} BattleActorPosition; // Size: 0xC
+
+// The 0xAC flag word: its low two bits are the model slot index and its top
+// byte is the animation id the callers compare against 0x15/0x16.
+typedef union {
+    /* 0x0 */ u32 flags;
+    struct {
+        /* 0x0 */ u8 unk0;
+        /* 0x1 */ u8 unk1;
+        /* 0x2 */ u8 unk2;
+        /* 0x3 */ s8 animId;
+    } bytes;
+} BattleActorFlagWord; // Size: 0x4
+
+// Battle-side view of a battle actor's SpriteData (include/field/actor.h).
+// BattleSpriteState in include/battle/actor.h stops at 0xA8 and leaves +0x78 and
+// +0x84 unnamed, which this unit reads, so the whole view lives here.
+typedef struct BattleActorSprite {
+    /* 0x00 */ BattleActorPosition position;
+    /* 0x0C */ IVEC3 step;
+    /* 0x18 */ s32 moveSpeed;
+    /* 0x1C */ u32 gravity;
+    /* 0x20 */ SpriteDataI1* pBase;
+    /* 0x24 */ u8 unk24[0xA];
+    /* 0x2E */ s16 field_0x2e;
+    /* 0x30 */ s16 field_0x30;
+    /* 0x32 */ s16 direction;
+    /* 0x34 */ u8 unk34[0x8];
+    /* 0x3C */ u32 flags; // 0x4: transform matrix dirty
+    /* 0x40 */ u8 unk40[0x24];
+    /* 0x64 */ void* pSpriteBytecode;
+    /* 0x68 */ u8 unk68[0x4];
+    /* 0x6C */ void* field_0x6C;
+    /* 0x70 */ u8 unk70[0x8];
+    /* 0x78 */ u32 field_0x78;
+    /* 0x7C */ u8 unk7C[0x4];
+    /* 0x80 */ s16 field_0x80;
+    /* 0x82 */ s16 field_0x82;
+    /* 0x84 */ s16 field_0x84;
+    /* 0x86 */ u8 unk86[0x2];
+    /* 0x88 */ u8 unk88[0x16];
+    /* 0x9E */ s16 animScriptWaitTimer;
+    /* 0xA0 */ SVEC targetPosition;
+    /* 0xA6 */ u8 unkA6[0x2];
+    /* 0xA8 */ u32 flags_0xA8;
+    /* 0xAC */ BattleActorFlagWord flags_0xAC;
+    /* 0xB0 */ s8 animId;
+    /* 0xB1 */ u8 unkB1[0x3];
+} BattleActorSprite; // Size: 0xB4
+
+// The model position a per-slot record points at, copied into the actor's own
+// position by BattleActorSyncPositionFromModel.
+typedef struct {
+    /* 0x00 */ u8 unk0[0x5C];
+    /* 0x5C */ s32 x;
+    /* 0x60 */ s32 y;
+    /* 0x64 */ s32 z;
+} BattleModelPosition; // Size: 0x68
+
+typedef struct {
+    /* 0x0 */ u8 unk0[0x4];
+    /* 0x4 */ BattleModelPosition* pModelPosition;
+} BattleSlotRecord; // Size: 0x8
+
+extern void SpriteSetScale(BattleActorSprite* pSprite, s16 scale);
+extern void SpriteInitFromAnimFileWithClut(BattleActorSprite* pSprite, void* pAnimFile, s16 arg2,
+                                           s16 arg3, s16 arg4, s16 arg5, s16 arg6, s32 arg7);
 extern AnimTask* WorkListsAddTasks(u32 allocSize, void* pData, void* pTimerCallback,
                                   void* pWorkCallback, void* pOnFreeCallback);
-extern void AnimScriptTick(SpriteData* pSprite);
-extern void SpriteApplyMovementStep(SpriteData* pSprite);
-extern void SpritePlayAnimation(SpriteData* pSprite, s32 arg1);
-void BattleActorTickAnimScript(u8* pTask);
-void BattleActorDrawProjected(u8* pTask);
+extern void AnimScriptTick(BattleActorSprite* pSprite);
+extern void SpriteApplyMovementStep(BattleActorSprite* pSprite);
+extern void SpritePlayAnimation(BattleActorSprite* pSprite, s32 arg1);
+void BattleActorTickAnimScript(AnimTask* pTask);
+void BattleActorDrawProjected(AnimTask* pTask);
 void BattleFreeActorAnimTask(AnimTask* pTask);
-extern void SpriteSetDirection(SpriteData* pSprite, s16 arg1);
-extern void func_80022B2C(SpriteData* pSprite);
-extern s32 BattleAngleToPoint(SpriteData* p0, SpriteData* p1);
-extern void func_800223B0(SpriteData* pSprite, s16 arg1);
+extern void SpriteSetDirection(BattleActorSprite* pSprite, s16 arg1);
+extern void func_80022B2C(BattleActorSprite* pSprite);
+extern s32 BattleAngleToPoint(BattleActorSprite* p0, BattleActorSprite* p1);
+extern void func_800223B0(BattleActorSprite* pSprite, s16 arg1);
 extern void BattleSetStateStep(s32 arg0);
 extern void BattleWaitForOtherActorAnimations(s32 arg0);
-extern void BattleFaceActorsTowardEachOther(SpriteData* p0, SpriteData* p1);
+extern void BattleFaceActorsTowardEachOther(BattleActorSprite* p0, BattleActorSprite* p1);
 extern void WorkListsRemoveEntriesForData(void* pTask);
 extern void SpriteAnimFrameListRemove(void* pPayload);
 extern void WorkListRemoveTask(void* pTask);
@@ -77,7 +147,7 @@ extern void TimerWorkListRemoveTask(void* pTask);
 extern s32 BattleFindGroundTriangle(s16* pVec, s32 arg1, s32 arg2);
 extern s32 BattleFindTriangleContainingPoint(s16* pVec);
 extern void BattleProjectPointOntoIndexedTriangle(s16* pVec, s32 arg1, u8* pOut);
-extern void SpriteDrawFrame(SpriteData* pSprite, u_long* pOT);
+extern void SpriteDrawFrame(BattleActorSprite* pSprite, u_long* pOT);
 extern void* func_800BFC80(void* pArg0, s32 arg1, s32 arg2);
 extern s32 D_80059464;
 extern u8 D_800591AC;
@@ -85,16 +155,16 @@ extern void func_800B136C(void);
 extern void BattleUnloadActorArchive(void);
 extern void func_800BFBA0(void);
 extern void BattleSetAnimTaskShort(s32 arg0);
-extern void BattleLoadActorArchiveFile(SpriteData* pSprite);
+extern void BattleLoadActorArchiveFile(BattleActorSprite* pSprite);
 extern void func_800BEFF4(s32 actorIndex);
-extern void func_800BF3E8(SpriteData* pSprite);
+extern void func_800BF3E8(BattleActorSprite* pSprite);
 extern void func_800BC460(u16 mask);
 extern void BattleLoadArchiveEntryFile(void);
-extern void func_800B9508(SpriteData* pSprite);
-extern void SpriteSetCallback(SpriteData* pSprite, void* pCallback);
+extern void func_800B9508(BattleActorSprite* pSprite);
+extern void SpriteSetCallback(BattleActorSprite* pSprite, void* pCallback);
 extern void BattleSetSpriteTemplate(void* pArg);
-extern void BattleActorWaitFramesWithCallback(s32 arg0, SpriteData* pSprite);
-extern void BattleSetPendingCommand(SpriteData* pSprite);
+extern void BattleActorWaitFramesWithCallback(s32 arg0, BattleActorSprite* pSprite);
+extern void BattleSetPendingCommand(BattleActorSprite* pSprite);
 extern void BattleBeginAnimTask(s32 arg0);
 extern void BattleSetSlotFlagB4(s32 arg0);
 extern void BattleClearSlotFlagB4(s32 arg0);
@@ -275,24 +345,24 @@ void BattleApplyStateStep(void) {
     D_800C3610->unk48 = 1;
     D_800C3610->unk49 = ((u8*)D_800C3610)[0x1C];
 }
-void BattleFaceActorsTowardEachOther(SpriteData* p0, SpriteData* p1) {
+void BattleFaceActorsTowardEachOther(BattleActorSprite* p0, BattleActorSprite* p1) {
     if (p0 == p1) {
         return;
     }
     func_800223B0(p0, BattleAngleToPoint(p0, p1));
     SpriteSetDirection(p0, BattleAngleToPoint(p0, p1));
-    if (((s8*)p1)[0xAF] != 0x15) {
+    if (p1->flags_0xAC.bytes.animId != 0x15) {
         func_800223B0(p1, BattleAngleToPoint(p1, p0));
         SpriteSetDirection(p1, BattleAngleToPoint(p1, p0));
     }
 }
-void BattleActorSnapToTargetAndFace(SpriteData* pSprite, s32 arg1) {
-    pSprite->position.x = pSprite->field_0xA0 << 16;
-    pSprite->position.z = pSprite->field_0xA4 << 16;
+void BattleActorSnapToTargetAndFace(BattleActorSprite* pSprite, BattleActorSprite* pTarget) {
+    pSprite->position.value.x = pSprite->targetPosition.x << 16;
+    pSprite->position.value.z = pSprite->targetPosition.z << 16;
     D_800C3610->unk48 = 1;
     BattleSetStateStep(4);
-    SpritePlayAnimation(pSprite, ((s8*)pSprite)[0xB0]);
-    BattleFaceActorsTowardEachOther(pSprite, arg1);
+    SpritePlayAnimation(pSprite, pSprite->animId);
+    BattleFaceActorsTowardEachOther(pSprite, pTarget);
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800B9C78);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800B9F78);
@@ -319,14 +389,14 @@ void BattleLoadActorSlotAnimation(s32 index) {
     }
     BattleSetAnimTaskShort(0xC0);
 }
-void BattleActorSetStepFromAngle(SpriteData* pSprite, s16 angle) {
+void BattleActorSetStepFromAngle(BattleActorSprite* pSprite, s16 angle) {
     s32 scale = pSprite->moveSpeed >> 3;
 
     pSprite->direction = angle;
     pSprite->step.x = ((rsin(angle) >> 1) * scale) >> 8;
     pSprite->step.z = -(((rcos(pSprite->direction) >> 1) * scale)) >> 8;
 }
-void BattleActorComputeFallDirection(SpriteData* pSprite) {
+void BattleActorComputeFallDirection(BattleActorSprite* pSprite) {
     VECTOR diff;
     SVECTOR vec;
     u8 out[0x10];
@@ -335,18 +405,18 @@ void BattleActorComputeFallDirection(SpriteData* pSprite) {
     s32 dy;
     s32 angle;
 
-    SpriteSetSVec(&vec, pSprite->field_0xA0, pSprite->field_0xA2, pSprite->field_0xA4);
+    SpriteSetSVec(&vec, pSprite->targetPosition.x, pSprite->targetPosition.y, pSprite->targetPosition.z);
     index = BattleFindGroundTriangle((s16*)&vec, pSprite->field_0x78, 4);
     if (index < 0) {
         index = BattleFindTriangleContainingPoint((s16*)&vec);
     }
     BattleProjectPointOntoIndexedTriangle((s16*)&vec, index, out);
-    if (vec.vy > pSprite->field_0xA2) {
-        *(u16*)&vec.vy = *(u16*)&pSprite->field_0xA2;
+    if (vec.vy > pSprite->targetPosition.y) {
+        *(u16*)&vec.vy = *(u16*)&pSprite->targetPosition.y;
     }
-    dy = ((vec.vy << 16) - *(s32*)((u8*)pSprite + 0x4)) >> 16;
-    diff.vx = pSprite->field_0xA0 - *(s16*)((u8*)pSprite + 0x2);
-    diff.vz = pSprite->field_0xA4 - *(s16*)((u8*)pSprite + 0xA);
+    dy = ((vec.vy << 16) - pSprite->position.value.y) >> 16;
+    diff.vx = pSprite->targetPosition.x - pSprite->position.parts.xWhole;
+    diff.vz = pSprite->targetPosition.z - pSprite->position.parts.zWhole;
     angle = -ratan2(diff.vz, diff.vx);
     Square0(&diff, &diff);
     len = SquareRoot0(diff.vx + diff.vz);
@@ -354,7 +424,7 @@ void BattleActorComputeFallDirection(SpriteData* pSprite) {
                       (pSprite->moveSpeed * dy) / len;
     BattleActorSetStepFromAngle(pSprite, angle);
 }
-void BattleActorUpdateFallMotion(SpriteData* pSprite) {
+void BattleActorUpdateFallMotion(BattleActorSprite* pSprite) {
     VECTOR diff;
     SVECTOR vec;
     u8 out[0x10];
@@ -365,11 +435,11 @@ void BattleActorUpdateFallMotion(SpriteData* pSprite) {
     s32 num;
 
     divisor = -((pSprite->step.y << 1) / (s32)pSprite->gravity);
-    pSprite->position.x &= 0xFFFF0000;
-    pSprite->position.y &= 0xFFFF0000;
-    pSprite->position.z &= 0xFFFF0000;
-    diff.vx = pSprite->field_0xA0 - *(s16*)((u8*)pSprite + 0x2);
-    diff.vz = pSprite->field_0xA4 - *(s16*)((u8*)pSprite + 0xA);
+    pSprite->position.value.x &= 0xFFFF0000;
+    pSprite->position.value.y &= 0xFFFF0000;
+    pSprite->position.value.z &= 0xFFFF0000;
+    diff.vx = pSprite->targetPosition.x - pSprite->position.parts.xWhole;
+    diff.vz = pSprite->targetPosition.z - pSprite->position.parts.zWhole;
     diff.vy = 0;
     angle = -ratan2(diff.vz, diff.vx);
     Square0(&diff, &diff);
@@ -379,61 +449,62 @@ void BattleActorUpdateFallMotion(SpriteData* pSprite) {
     } else {
         pSprite->moveSpeed = 0;
     }
-    SpriteSetSVec(&vec, pSprite->field_0xA0, pSprite->field_0xA2, pSprite->field_0xA4);
+    SpriteSetSVec(&vec, pSprite->targetPosition.x, pSprite->targetPosition.y, pSprite->targetPosition.z);
     index = BattleFindGroundTriangle((s16*)&vec, pSprite->field_0x78, 4);
     if (index < 0) {
         index = BattleFindTriangleContainingPoint((s16*)&vec);
     }
     BattleProjectPointOntoIndexedTriangle((s16*)&vec, index, out);
-    if (vec.vy > pSprite->field_0xA2) {
-        *(u16*)&vec.vy = *(u16*)&pSprite->field_0xA2;
+    if (vec.vy > pSprite->targetPosition.y) {
+        *(u16*)&vec.vy = *(u16*)&pSprite->targetPosition.y;
     }
-    num = (vec.vy << 16) - *(s32*)((u8*)pSprite + 0x4);
+    num = (vec.vy << 16) - pSprite->position.value.y;
     if (divisor != 0) {
         pSprite->step.y += num / divisor;
     }
     BattleActorSetStepFromAngle(pSprite, angle);
     func_80022B2C(pSprite);
 }
-void BattleActorUpdateGroundHeightAndTriangle(u8* pSprite) {
+void BattleActorUpdateGroundHeightAndTriangle(BattleActorSprite* pSprite) {
     s16 vec[3];
     u8 out[0x10];
     s32 coord;
     s32 index;
 
-    coord = *(s16*)(pSprite + 0x2);
+    coord = pSprite->position.parts.xWhole;
     vec[0] = coord;
-    coord = *(s16*)(pSprite + 0x6);
+    coord = pSprite->position.parts.yWhole;
     vec[1] = coord;
-    coord = *(s16*)(pSprite + 0xA);
+    coord = pSprite->position.parts.zWhole;
     vec[2] = coord;
-    index = BattleFindGroundTriangle(vec, *(s32*)(pSprite + 0x78), 4);
+    index = BattleFindGroundTriangle(vec, pSprite->field_0x78, 4);
     if (index < 0) {
         index = BattleFindTriangleContainingPoint(vec);
     }
     BattleProjectPointOntoIndexedTriangle(vec, index, out);
-    *(u16*)(pSprite + 0x84) = vec[1];
-    *(s32*)(pSprite + 0x78) = index;
+    pSprite->field_0x84 = vec[1];
+    pSprite->field_0x78 = index;
 }
 // The two unused slots keep the caller's argument area at retail's offsets.
 AnimTask* BattleCreateAnimTask(void* pAnimFile, s16 clutX, s16 clutY, s16 texX, s16 texY, s16 unk5, s16 posX,
                         s16 posY, s16 posZ, s16 animId, u16 direction, s32 unk84, s32 unk88, s32 clut) {
     AnimTask* pTask;
-    SpriteData* pSprite;
+    AnimTask* pTask;
+    BattleActorSprite* pSprite;
 
     pTask = WorkListsAddTasks(sizeof(AnimTask), NULL, BattleActorTickAnimScript,
                               BattleActorDrawProjected, BattleFreeActorAnimTask);
-    pSprite = &pTask->spriteData;
+    pSprite = (BattleActorSprite*)&pTask->spriteData;
     pTask->task1.unk4 = pSprite;
     pTask->task2.unk4 = pSprite;
     pTask->task2.unk0 = NULL;
     SpriteInitFromAnimFileWithClut(pSprite, pAnimFile, clutX, clutY, texX, texY, unk5, clut);
     pSprite->field_0x6C = pTask;
-    pSprite->position.x = posX << 16;
-    pSprite->position.y = posY << 16;
-    pSprite->position.z = posZ << 16;
-    *(u8*)((u8*)pSprite + 0xB0) = animId;
-    *(u32*)((u8*)pSprite + 0x3C) |= 4;
+    pSprite->position.value.x = posX << 16;
+    pSprite->position.value.y = posY << 16;
+    pSprite->position.value.z = posZ << 16;
+    pSprite->animId = animId;
+    pSprite->flags |= 4;
     pSprite->direction = direction;
     SpriteSetScale(pSprite, 0x2000);
     pSprite->field_0x82 = 0x2000;
@@ -448,8 +519,8 @@ typedef struct {
     s32 pad[4];
 } RotTransPersOut;
 
-void BattleActorDrawProjected(u8* pTask) {
-    SpriteData* pSprite;
+void BattleActorDrawProjected(AnimTask* pTask) {
+    BattleActorSprite* pSprite;
     SVECTOR vec;
     s32 coord;
     s32 otz;
@@ -458,21 +529,21 @@ void BattleActorDrawProjected(u8* pTask) {
     if (D_800C3664 != 0) {
         return;
     }
-    pSprite = *(SpriteData**)(pTask + 0x4);
-    coord = *(s16*)((u8*)pSprite + 0x2);
+    pSprite = pTask->task1.unk4;
+    coord = pSprite->position.parts.xWhole;
     vec.vx = coord;
-    coord = *(s16*)((u8*)pSprite + 0x6);
+    coord = pSprite->position.parts.yWhole;
     vec.vy = coord;
-    coord = *(s16*)((u8*)pSprite + 0xA);
+    coord = pSprite->position.parts.zWhole;
     vec.vz = coord;
     SetRotMatrix(&D_800D30BC);
     SetTransMatrix(&D_800D30BC);
     otz = (RotTransPers(&vec, &out.sxy, (u_long*)&out.sxy, &out.flag) >> D_80050100) +
-          *(s16*)((u8*)pSprite + 0x30);
+          pSprite->field_0x30;
     if (out.flag & 0x8000) {
         otz = 0;
     }
-    *(s16*)((u8*)pSprite + 0x2E) = otz;
+    pSprite->field_0x2e = otz;
     if ((u32)(otz - 1) < 0xFFF) {
         SpriteDrawFrame(pSprite, g_GfxCurOT + otz);
     }
@@ -502,13 +573,13 @@ void BattleFreeActorAnimTask(AnimTask* pTask) {
     HeapFree(pSelf);
 }
 
-void BattleActorTickAnimScript(u8* pTask) {
-    SpriteData* pSprite = *(SpriteData**)(pTask + 0x4);
+void BattleActorTickAnimScript(AnimTask* pTask) {
+    BattleActorSprite* pSprite = pTask->task1.unk4;
 
     if (D_800C3664 == 0) {
         AnimScriptTick(pSprite);
         SpriteApplyMovementStep(pSprite);
-        if (((u32)pSprite->flags_0xAC >> 6) & 1) {
+        if ((pSprite->flags_0xAC.flags >> 6) & 1) {
             AnimScriptTick(pSprite);
             SpriteApplyMovementStep(pSprite);
         }
@@ -658,7 +729,7 @@ void func_800BAF48(s32 index) {
     s32 count;
     s32 off;
     mem_addr base;
-    SpriteData* pSprite;
+    BattleActorSprite* pSprite;
     u8* pEntry;
 
     BattleBeginAnimTask(1 << index);
@@ -667,11 +738,11 @@ void func_800BAF48(s32 index) {
     base = (mem_addr)D_800C3EB0;
     pEntry = (u8*)(base + (index << 2));
     off = 0x8C8C;
-    pSprite = *(SpriteData**)(pEntry + off);
+    pSprite = *(BattleActorSprite**)(pEntry + off);
     BattleUnloadActorArchive();
     SpritePlayAnimation(pSprite, 0x16);
     while (pSprite->animScriptWaitTimer != 0) {
-        if (((s8*)pSprite)[0xAF] != 0x16) {
+        if (pSprite->flags_0xAC.bytes.animId != 0x16) {
             break;
         }
         func_800BE790();
@@ -732,18 +803,18 @@ void func_800BB080(s32 arg0) {
     BattleWaitForOtherActorAnimations(arg0);
 }
 */
-void BattleActorSyncPositionFromModel(u8* pTask) {
-    SpriteData* pSprite;
-    u8* pScript;
+void BattleActorSyncPositionFromModel(AnimTask* pTask) {
+    BattleActorSprite* pSprite;
+    BattleSlotRecord* pRecord;
     s32 mode;
     s32 index;
     u32 unused[2]; // unused: reproduces retail's 0x28 frame
 
-    pSprite = *(SpriteData**)(pTask + 0x4);
-    mode = *(u32*)((u8*)pSprite + 0xA8) >> 30;
-    index = ((*(u32*)((u8*)pSprite + 0xAC) & 3) << 2) | mode;
-    pScript = D_800D3368[index];
-    if (pScript == NULL) {
+    pSprite = pTask->task1.unk4;
+    mode = pSprite->flags_0xA8 >> 30;
+    index = ((pSprite->flags_0xAC.flags & 3) << 2) | mode;
+    pRecord = D_800D3368[index];
+    if (pRecord == NULL) {
         return;
     }
     if (pSprite->animScriptWaitTimer == 0) {
@@ -752,13 +823,13 @@ void BattleActorSyncPositionFromModel(u8* pTask) {
     if (pSprite->pSpriteBytecode != NULL) {
         AnimScriptTick(pSprite);
         SpriteApplyMovementStep(pSprite);
-        if (((u32)pSprite->flags_0xAC >> 6) & 1) {
+        if ((pSprite->flags_0xAC.flags >> 6) & 1) {
             AnimScriptTick(pSprite);
             SpriteApplyMovementStep(pSprite);
         }
     }
-    pSprite->position.x = *(u32*)(*(u32*)(pScript + 0x4) + 0x5C) << 16;
-    pSprite->position.y = *(u32*)(*(u32*)(pScript + 0x4) + 0x60) << 16;
-    pSprite->position.z = *(u32*)(*(u32*)(pScript + 0x4) + 0x64) << 16;
+    pSprite->position.value.x = pRecord->pModelPosition->x << 16;
+    pSprite->position.value.y = pRecord->pModelPosition->y << 16;
+    pSprite->position.value.z = pRecord->pModelPosition->z << 16;
 }
 
