@@ -721,20 +721,6 @@ u16 func_80084D28(void) {
 }
 extern u16 BattleSlotBitMaskInverted(u8);
 extern u8 D_800C3E9A[];
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80084DE4);
-/* 98.35%: every instruction and the frame (0x30, 7 saved regs) match; the only
-   difference is the register the tail fill loop got - retail keeps the 0xFF
-   constant in a0 and the counter in s1, gcc 2.6.0 here gives the constant a1 and
-   the counter a0 (the pointer is v1 in both). Tried: counter as a separate local
-   (best, this one), counter reusing n, pointer local vs D_800C3E90[i], constant
-   as a literal vs a u8 local, four declaration orders of i/j/n/off/off8/val.
-   Everything else is exact, including the first loop's tail order
-   (s3 += 0x170, i++, slti, then off8 += 8 stolen into the bnez delay slot) and
-   the 0x8000/0x1000/0x2000 group tests.
-   Note for an un-park: the two offsets must stay explicit source variables
-   (off = 0x170 * i, off8 = 8 * i, both from 0); writing D_800CCD64[i].unk0 and
-   D_800D32A1[i * 8] instead makes gcc fold the D_800D32A1 base into the pointer
-   (lui/addiu in the preheader instead of move s5,zero) and it loses 5%.
 u16 func_80084DE4(u16 arg0, u16 arg1, u8 arg2, u8 arg3, u8 arg4) {
     s32 i;
     s32 j;
@@ -785,8 +771,8 @@ u16 func_80084DE4(u16 arg0, u16 arg1, u8 arg2, u8 arg3, u8 arg4) {
     }
     D_800C3D64 &= mask;
     if ((flags & 0x8000) != 0) {
-        D_800C3E2C = 0xFF;
         n = 0;
+        D_800C3E2C = 0xFF;
         for (i = 0, off = 0, off8 = 0; i < 0xB; i++, off8 += 8) {
             if (BattleMaskHasSlotBit(D_800C3D64, i) != 0) {
                 if (D_800D32A1[off8] == 0) {
@@ -825,7 +811,6 @@ u16 func_80084DE4(u16 arg0, u16 arg1, u8 arg2, u8 arg3, u8 arg4) {
     }
     return flags & 0xFFFF;
 }
-*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80085084);
 u32 func_80085310(u8 arg0, u8 arg1) {
     return D_800C3EBE[arg0].unk0 > D_800C3EBE[arg1].unk0;
