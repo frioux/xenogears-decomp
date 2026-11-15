@@ -85,7 +85,6 @@ typedef struct {
 extern WorldMapPlayer* D_8009BE24;
 extern WorldMapSceneLayer* D_8009C620;
 
-void WorldMapSetSlotTPages(WorldMapSceneLayer* pLayer, u8* pSrc, s32 count, s32 abr);
 
 typedef struct {
     /* 0x0 */ s32 offset;
@@ -119,6 +118,8 @@ typedef struct {
 extern WorldMapTilePos D_8009AF30[];
 extern WorldMapTilePos D_8009AF38[];
 extern int rand(void);
+
+void WorldMapSetSlotTPages(WorldMapSceneLayer* pLayer, u8* pSrc, s32 count, s32 abr);
 
 void WorldMapRelocateMapEntryOffsets(void) {
     WorldMapTableEntry* pEntry;
