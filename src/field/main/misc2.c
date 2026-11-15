@@ -189,30 +189,36 @@ void FieldMathIntersectLines(SVec4* pA, SVec4* pB, SVec4* pOut) {
     pOut->y = pB->y + ((t * nB.vz) >> 12);
 }
 
-// 62.01% (520 bytes vs the original's 524): the store set and order are right, and
-// every g_Scene/g_CameraEye-vy-vz store already comes out as the original's
-// lui-at/%lo pair. The original additionally keeps $s0 = &g_CamInterpolation live
-// across the func_80070594 call and does the whole post-call reset block with
-// negative displacements off it (-0x104 = g_CameraEye.vx, -0xF4..-0xEC = g_CameraAt,
-// -0xD4..-0xCC = g_CameraEye2, +0x74/+0x78 = g_Scene.sceneScrZ/sceneDIP,
-// +0x7A = sceneScale, -0x50 = g_FieldCameraMode, ...). Spelling those as offsets
-// from a u_char* base gets the pre-call part exactly (register difference only) but
-// gcc rematerialises the constant address after the call instead of saving it, so
-// the post-call block is one lui-at/%lo pair per store. Defeating that
-// rematerialisation is the whole remaining problem (same wall as FieldActorApplyRotationAndScale).
-// screened: Default 62.01, cdk 65.16 (best), 2.6.0 62.01 - no preset harvests it; the $s0 &g_CamInterpolation base wall.
+// PARKED 95.08% (420 bytes vs the original's 408; permuter-tuned body). Clean form
+// below is 91.81%. Two findings from this round:
+// (1) THE PLAIN POINTER IS WORTHLESS: `u_char* pCam = (u_char*)&g_CamInterpolation`
+//     scores 62.01% because gcc folds every post-call use back into a fresh
+//     %hi/%lo pair (`sw $zero,%lo(g_CamInterpolation-0x104)($at)`), so the `$s0`
+//     base retail keeps across the func_80070594 call never forms.
+// (2) TAKING THE POINTER'S ADDRESS (`pCamRef = &pCam`, then `*pCamRef`) defeats
+//     that fold: 62.01 -> 91.81%, and the permuter's temp/type soup below reaches
+//     95.08% (420 vs 408 bytes). What is left is structural, not an allocator tie:
+//     the address-taken pointer costs retail's frame its spare slot (0x20 vs 0x18,
+//     one `sw`/`lw` of pCam) and our base ends up in $v1 picked up from that slot
+//     instead of retail's $s0 held across the call. Retail has NO spill slot, so
+//     retail's source laundered nothing - it kept a plain constant address in a
+//     callee-saved register, which 2.7.2 will not do for any plain-pointer shape
+//     tried here. Next idea worth a shot: find a source form where the base is a
+//     genuinely loaded value without a local's address being taken (a global
+//     pointer datum would need new data, which this unit cannot add).
+// Screened already: Default 62.01, cdk 65.16, 2.6.0 62.01 on the plain form.
+// permuter runs: 62.01 -> 91.81 -> 94.64 -> 95.08, still falling slowly; the
+// candidates are in permuter/func_8007254C/.
 /*
 extern VECTOR g_CameraEye;
 extern void func_80070594(MATRIX* pMatrix);
 
 // The original keeps &g_CamInterpolation in $s0 for the whole function and reaches
 // the camera block that sits below it (g_CameraEye..g_CameraUp at 0x800AF880) with
-// negative displacements, so those stores are spelled as offsets from that base. The
-// g_Scene fields it also resets are outside that block and keep their own %hi/%lo.
-// Both spellings are load-bearing: g_CameraEye.vx comes out of the base register,
-// g_CameraEye.vy/vz out of the symbol.
+// negative displacements, so those stores are spelled as offsets from that base.
 void func_8007254C(void) {
     u_char* pCam;
+    u_char** pCamRef;
 
     pCam = (u_char*)&g_CamInterpolation;
     *(s32*)pCam = 8;
@@ -239,43 +245,46 @@ void func_8007254C(void) {
     g_Scene.unk7C = 0x800;
     g_Scene.camRotation.vx = 0;
     g_Scene.camRotation.vy = 0;
+    pCamRef = &pCam;
     g_Scene.camRotation.vz = 0;
-    func_80070594((MATRIX*)(pCam + 0x2C));
+    func_80070594((MATRIX*)(*pCamRef + 0x2C));
 
-    *(s32*)(pCam - 0x104) = 0;
+    *(s32*)(*pCamRef - 0x104) = 0;
     g_CameraEye.vy = 0;
     g_CameraEye.vz = 0;
-    *(s32*)(pCam - 0xE0) = 0x10000000;
+    *(s32*)(*pCamRef - 0xE0) = 0x10000000;
     *(s32*)(pCam - 0xB0) = 0x10000000;
-    *(s16*)(pCam + 0x78) = 0x1E;
+    *(s16*)(*pCamRef + 0x78) = 0x1E;
     *(s32*)(pCam + 0x74) = 0x200;
     *(s32*)(pCam - 0xF4) = 0;
     *(s32*)(pCam - 0xF0) = 0;
-    *(s32*)(pCam - 0xEC) = 0;
-    *(s32*)(pCam - 0xE4) = 0;
-    *(s32*)(pCam - 0xDC) = 0;
-    *(s32*)(pCam - 0xA4) = 0;
+    *(s32*)(*pCamRef - 0xEC) = 0;
+    *(s32*)(*pCamRef - 0xE4) = 0;
+    *(s32*)(*pCamRef - 0xDC) = 0;
+    *(s32*)(*pCamRef - 0xA4) = 0;
     *(s32*)(pCam - 0xA0) = 0;
-    *(s32*)(pCam - 0x9C) = 0;
+    *(s32*)(*pCamRef - 0x9C) = 0;
     *(s32*)(pCam - 0xD4) = 0;
     *(s32*)(pCam - 0xD0) = 0;
-    *(s32*)(pCam - 0xCC) = 0;
+    *(s32*)(*pCamRef - 0xCC) = 0;
     *(s32*)(pCam - 0xC4) = 0;
-    *(s32*)(pCam - 0xC0) = 0;
+    *(s32*)(*pCamRef - 0xC0) = 0;
     *(s32*)(pCam - 0xBC) = 0;
-    *(s32*)(pCam - 0xB4) = 0;
+    *(s32*)(*pCamRef - 0xB4) = 0;
     *(s32*)(pCam - 0xAC) = 0;
     *(s16*)(pCam + 0x7C) = 0;
     *(s16*)(pCam + 0x8C) = 0;
-    *(s16*)(pCam + 0x98) = 0;
-    *(s16*)(pCam + 0x7A) = 0x1000;
-    *(s16*)(pCam - 0x50) = 0;
+    *(s16*)(*pCamRef + 0x98) = 0;
+    *(s16*)(*pCamRef + 0x7A) = 0x1000;
+    *(s16*)(*pCamRef - 0x50) = 0;
     *(s16*)(pCam - 0x48) = 0;
     *(s16*)(pCam - 0x46) = 0;
     *(s16*)(pCam - 0x24) = 0;
 }
 */
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_8007254C);
+
+
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_800726E8);
 // 93.36% (856 bytes vs the original's 844). Re-checked under the unit's
