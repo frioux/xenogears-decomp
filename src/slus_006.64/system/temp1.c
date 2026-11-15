@@ -110,6 +110,7 @@ void SpriteSetFrameFromAnimIndex(SpriteData* pSpriteData) {
     } else {
         pSpriteData->flags_0xAC.flags &= ~8;
     }
+    // the header splits word 0x3C into bitfields, but retail rewrites the whole word
     *(u32*)((u8*)pSpriteData + 0x3C) = (*(u32*)((u8*)pSpriteData + 0x3C) & ~8) |
                                        (((((u32)pSpriteData->flags_0xAC.flags >> 3) & 1) ^
                                          (((u32)pSpriteData->flags_0xAC.flags >> 2) & 1))
@@ -229,6 +230,7 @@ s32 SpriteComputeAngleFromPoints(SLineEnds line) {
 }
 
 void SpriteSetFrameAndFlips(SpriteData* pSpriteData, s32 arg1, s32 arg2, s32 arg3) {
+    // the header splits word 0x3C into bitfields, but retail rewrites the whole word
     u32 flags = *(u32*)((u8*)pSpriteData + 0x3C);
 
     flags &= ~0x10;
