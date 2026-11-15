@@ -457,6 +457,12 @@ void func_801E8474(s32 count, s32* pEntries) {
    nothing (still 88.09). Permuter 3 min from the 99.79% body: no gain. So the
    99.79% body below is the best one; what is left is only which of
    D_801EA1EC / D_801EA1EC+4 gcc materialises first.
+   Round 112: the inline `D_801EA1EC[idx + 1]` form (no pText local) makes gcc
+   form a second full lui/addiu of D_801EA1F0 in loop 2's preheader (91.84%), and
+   a single pointer local folds to the symbol the same way. Confirmed the two
+   pointer locals give retail's exact pair (`lui/addiu s4` + `addiu s5,s4,4`) but
+   88.09% because both invariants are emitted inside the prologue save region;
+   adding a live `u_char sel = selected;` copy does not move them.
 void func_801E86C8(u_char selected) {
        s32 i;
        s32 n;
@@ -619,6 +625,14 @@ void MenuSetPrimShadingMode(POLY_FT4* pPoly, u_char mode) {
    'andi a1,s1,0xFF' (gcc proves mode is 2 or 3 there) where retail keeps it.
    Tried: offset local + offset+pWindow, inline (chain + K + pWindow), and
    pWindow + chain operand order; all 95.69. Pure allocator tie -> parked.
+   Round 112: porting the r111 one-expression recipe (off = chain + K; then
+   off + (u32)pWindow) reproduces retail's addiu-on-chain and every loop
+   preheader, but the chain's own multiply lands in v0/v1 where retail keeps it
+   in a0, so it scores 97.06 here, not 99.51; routing the chain through a
+   POLY_FT4* local assigned twice (chain, then + pWindow) is 97.06 as well.
+   Residuals at 97.06: that chain register, the final block's window pointer
+   (retail v1 / gcc a2) and the final call's andi a1,s1,0xFF (gcc folds it to
+   move a1,s1 even with a (u_char) cast in a braced block).
 void func_801E8F60(u8 arg0, u8 arg1) {
     MenuWindow* pWindow;
     s32 mode;
