@@ -128,7 +128,7 @@ extern s16 D_8009A674[];
 extern s16 D_8009A678[];
 extern s32 D_8009D7F0;
 extern void WorldMapSetPrimColors(u8 *, s32, s32, s32, s32);
-extern void func_8007EBBC(WorldMapGroup *, void *, int, int);
+extern void func_8007EBBC(WorldMapGroup *, u8 *, int, int);
 extern void func_80084580(void);
 extern void WorldMapLoadTextureClut(void);
 extern void func_800979C8(void);
@@ -522,13 +522,6 @@ int func_8007E450(int index) {
     return 1;
 }
 */INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007E4E4);
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007EBBC);
-/* 99.83%: byte-identical except that gcc picks the loop pointer base as
-   pPrim + 7 where the original has pPrim + 6 (every displacement off it is
-   then 0 vs 1, -3 vs -2, ...). Tried: setlen/setcode split, explicit field
-   stores, u8 pointer with p[..] offsets, &pPoly[i] indexing (that one drops
-   the bias to 0, 83.84%), pPoly++ in the body, code |= 2 instead of
-   setSemiTrans - the bias never lands on 6.
 void func_8007EBBC(WorldMapGroup *pGroup, u8 *pPrim, int count, int abr) {
     POLY_FT4 *pPoly;
     int i;
@@ -537,12 +530,12 @@ void func_8007EBBC(WorldMapGroup *pGroup, u8 *pPrim, int count, int abr) {
         setPolyFT4(pPoly);
         pPoly->tpage = GetTPage(0, abr, 0x300, 0x100);
         pPoly->clut = GetClut(0, 0x1FF);
-        setRGB0(pPoly, 0x3C, 0x3C, 0xC0);
         setSemiTrans(pPoly, 1);
+        setRGB0(pPoly, 0x3C, 0x3C, 0xC0);
     }
     memcpy((u8 *)pGroup->unk4C, pGroup->unk48, count * sizeof(POLY_FT4));
 }
-*/
+
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007ECA4);
 /* 78.97%: instruction multiset identical (400 bytes both), only the tail block
    after RotMatrixYXZ differs in evaluation order and register choice. Retail
