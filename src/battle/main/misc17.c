@@ -1,38 +1,11 @@
 #include "common.h"
 #include "main/game.h"
+#include "battle/actor.h"
+#include "battle/battle_work.h"
 #include "psyq/libgpu.h"
 
-// Char/actor state block (D_800C3E00, D_800C3E34); only the fields this unit
-// touches are declared.
-typedef struct {
-    /* 0x000 */ u8 unk0[0x4E];
-    /* 0x04E */ u16 unk4E;
-    /* 0x050 */ u8 unk50[0xB];
-    /* 0x05B */ u8 unk5B;
-    /* 0x05C */ u8 unk5C[0x20];
-    /* 0x07C */ u16 unk7C;
-    /* 0x07E */ u16 unk7E;
-    /* 0x080 */ u16 unk80;
-    /* 0x082 */ u16 unk82;
-    /* 0x084 */ u16 unk84;
-    /* 0x086 */ u16 unk86;
-    /* 0x088 */ u16 unk88;
-    /* 0x08A */ u16 unk8A;
-    /* 0x08C */ u16 unk8C;
-    /* 0x08E */ u16 unk8E;
-} BattleCharState;
-
-// Current battle action's parameter block (D_800C3DFC).
-typedef struct {
-    /* 0x00 */ u8 unk0[0x11];
-    /* 0x11 */ u8 unk11;
-    /* 0x12 */ u8 unk12[0xA];
-    /* 0x1C */ u8 unk1C;
-    /* 0x1D */ u8 unk1D;
-    /* 0x1E */ u16 unk1E;
-} BattleAction;
-
-// Sprite work buffer (D_800D2D28).
+// Sprite work buffer (D_800D2D28). battle_work.h's BattleWork names the same
+// block but stops at 0xA8, so the 0xB0/0xB7 flag bytes are declared here.
 typedef struct {
     /* 0x000 */ u8 unk0[0x9C];
     /* 0x09C */ u8 unk9C;
@@ -49,12 +22,12 @@ typedef struct {
 extern u8 D_800D2D24[];
 extern BattleSpriteWork *D_800D2D28;
 extern u8 D_800C3E50;
-extern u8 *D_800C34B0;
-extern u8 *D_800C3EA4;
+extern BattleWorkBlock *D_800C34B0;
+extern BattleGraphicsWork *D_800C3EA4;
 extern s32 D_800CCB34;
-extern BattleAction *D_800C3DFC;
-extern BattleCharState *D_800C3E34;
-extern u8 D_800CCD3E[];
+extern BattleRow *D_800C3DFC;
+extern BattleTableEntry *D_800C3E34;
+extern BattleTableEntry D_800CCCE8[];
 extern u8 D_800D2C54[];
 extern u8 D_800D2C88[];
 extern u16 D_800D2C9E;
@@ -62,9 +35,7 @@ extern u16 D_800C324E;
 extern u16 D_800C3250;
 extern u16 D_800C3252;
 extern u16 D_800C323A;
-extern u8 D_800CCD62[];
-extern BattleCharState *D_800C3E00;
-extern u8 D_800CCE42[];
+extern BattleTableEntry *D_800C3E00;
 extern u8 D_800D32A1[];
 extern u8 D_800C3CFA[];
 extern u16 g_SystemPalette1;
@@ -100,7 +71,7 @@ void BattleBuildSpriteColumn8(s32 arg0) {
     for (i = 0; i < 8; i++) {
         offset = i * 8 + 0x38;
         D_800D2D28->unkF8 += BattleDrawSpritePackage(0x66,
-            D_800C3EA4 + 0xBA8 + D_800D2D28->unkF8 * 80, 0x20,
+            (u8 *)D_800C3EA4 + 0xBA8 + D_800D2D28->unkF8 * 80, 0x20,
             (s16)(offset + arg0));
     }
     D_800D2D28->unkA5 = *(u8 *)&D_800CCB34;
@@ -202,10 +173,10 @@ void BattleDrawCharStatusIfFlagged(u8 arg0, char arg1, u8 arg2) {
         func_800916D4(arg1, arg2, arg0);
         func_8009187C(arg0, arg1, arg2);
         func_80091B38(arg0, arg1, arg2);
-        (*(u8 **)(D_800C3EA4 + 0xA230))[0x66A] = *(u8 *)&D_800CCB34;
-        (*(u8 **)(D_800C3EA4 + 0xA230))[0x66B] = 1;
+        D_800C3EA4->pPacketPrims[0x66A] = *(u8 *)&D_800CCB34;
+        D_800C3EA4->pPacketPrims[0x66B] = 1;
     } else {
-        (*(u8 **)(D_800C3EA4 + 0xA230))[0x66B] = 0;
+        D_800C3EA4->pPacketPrims[0x66B] = 0;
     }
 }
 /* 64.13%: shape is right (two palette stores, four BattleSetPolyFT4Rect calls with
@@ -274,7 +245,6 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_8009382C);
 // function wants a 2.6.0 TU of its own; the unit as a whole is a 2.7.2 unit.
 void BattleDrawCharStatusIfMaskUnset(u8 arg0, u8 arg1) {
     u16 tbl[4];
-    s32 o;
 
     tbl[0] = D_800C324E;
     tbl[1] = D_800C3250;
@@ -282,17 +252,16 @@ void BattleDrawCharStatusIfMaskUnset(u8 arg0, u8 arg1) {
     tbl[3] = D_800C323A;
     if ((u16)BattleMaskHasStatusBit((u16)g_GameState.unk16BC[D_800D2D24[arg0]].unk1E,
                            arg1)) {
-        o = arg0 * 0x170;
-        if ((*(u16 *)(D_800CCD62 + o) & tbl[arg1]) == 0) {
+        if ((D_800CCCE8[arg0].unk7A & tbl[arg1]) == 0) {
             func_80093578(arg0, arg1);
             func_8009382C(arg0, arg1);
-            (*(u8 **)(D_800C3EA4 + 0xA230))[0x66A] = *(u8 *)&D_800CCB34;
-            (*(u8 **)(D_800C3EA4 + 0xA230))[0x66B] = 1;
+            D_800C3EA4->pPacketPrims[0x66A] = *(u8 *)&D_800CCB34;
+            D_800C3EA4->pPacketPrims[0x66B] = 1;
         } else {
-            (*(u8 **)(D_800C3EA4 + 0xA230))[0x66B] = 0;
+            D_800C3EA4->pPacketPrims[0x66B] = 0;
         }
     } else {
-        (*(u8 **)(D_800C3EA4 + 0xA230))[0x66B] = 0;
+        D_800C3EA4->pPacketPrims[0x66B] = 0;
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80093B08);
@@ -312,7 +281,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_800946F4);
    Tried: array-ref, pointer-plus (this version), integer base and a pointer
    local for that sum; also 2.7.2-cdk -> 99.77. */
 void BattleAccumulateSlotValueByRowFlag(void) {
-    u8 *pBase = D_800C34B0;
+    u8 *pBase = (u8 *)D_800C34B0;
     u8 *pOther = (u8 *)(D_800C3E50 * 4 + (u32)pBase);
     u8 *pRow;
     u8 i;
@@ -382,9 +351,9 @@ void func_80094D24(void) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80094D24);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80094EE4);
 void BattleSetSlotState2FromActorField5BWithModifiers(void) {
-    BattleCharState *p = D_800C3E00;
-    BattleAction *q = D_800C3DFC;
-    BattleCharState *r;
+    BattleTableEntry *p = D_800C3E00;
+    BattleRow *q = D_800C3DFC;
+    BattleTableEntry *r;
     s16 v;
     u16 f;
 
@@ -400,18 +369,18 @@ void BattleSetSlotState2FromActorField5BWithModifiers(void) {
     if (f & 0x200) {
         v = 13 * v / 10;
     }
-    if (*(u8 *)(D_800CCE42 + D_800C3E50 * 0x170) & 0x80) {
+    if (D_800CCCE8[D_800C3E50].state.unkB6 & 0x80) {
         v = 0;
     }
-    *(u8 *)(D_800C34B0 + D_800C3E50 + 0x5FA0) = 2;
-    *(s32 *)(D_800C3E50 * 4 + D_800C34B0 + 0x5F6C) = v;
+    D_800C34B0->unk5FA0[D_800C3E50] = 2;
+    D_800C34B0->unk5F6C[D_800C3E50] = v;
 }
 void BattleInitActiveSlotAction(void) {
     s32 t;
-    BattleCharState *p;
+    BattleTableEntry *p;
     s32 v;
 
-    if (D_800CCD3E[D_800C3E50 * 0x170] == 2) {
+    if (D_800CCCE8[D_800C3E50].unk56 == 2) {
         BattleSetSlotEntryFieldsTo2000(D_800C3E50, 1);
     }
     t = D_800C3E50;
@@ -454,5 +423,5 @@ void BattleClearStatusWordsOnAction6E(void) {
     if (D_800C3DFC->unk1E & 0x400) {
         D_800C3E34->unk8E = 0;
     }
-    D_800C34B0[0x5FC7] = 0x3A;
+    D_800C34B0->unk5FC7 = 0x3A;
 }
