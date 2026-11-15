@@ -67,6 +67,10 @@ extern u8 D_800C3E2C;
 extern u8 D_800C48EA;
 extern u8 D_800CCD38[];
 extern u8 D_800CDD53[];
+extern u8 D_800D3014;
+extern u8 D_800C3E29;
+extern u8 func_8008B478(u8 arg0);
+extern void BattlePlaySoundIfEnabled(u8 arg0);
 
 /* 82.95%: best of 6 shapes. The loop body matches instruction for
    instruction (four reloads of the volatile counter, the two separate
@@ -376,7 +380,65 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_80080C94);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_8008115C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_80081318);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_80081504);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_800816F8);
+void func_800816F8(u8 arg0) {
+    u8 a;
+    u8 *p;
+    s32 off;
+
+    a = arg0;
+    switch (D_800D3014) {
+    case 4:
+    case 6:
+    case 7:
+        BattleLoadStringTableAE(a);
+        if (func_8008B478(a) != 0) {
+            func_8008ADD0(a);
+        } else {
+            D_800C3EAC[0x2DD] = 4;
+        }
+        break;
+    case 0:
+        p = D_800C3EAC;
+        off = a * 0x40;
+        if (*(u16 *)(p + off + 0x2E) == 0) {
+            p[0x2DD] = 1;
+            break;
+        }
+        if (p[0x2F6] != 0 && D_800C3E29 == 0) {
+            if (*(u16 *)(p + off + 0x26) != 0) {
+                BattlePlaySoundIfEnabled(0x4F);
+            } else {
+                D_800C3EAC[0x2DD] = 7;
+            }
+            D_800C3EAC[0x2F6] = 0;
+        } else {
+            D_800C3EAC[0x2F6] = 1;
+            BattlePlaySoundIfEnabled(0x4F);
+        }
+        break;
+    case 1:
+        p = D_800C3EAC;
+        off = a * 0x40;
+        if (*(u16 *)(p + off + 0x32) == 0) {
+            p[0x2DD] = 2;
+            break;
+        }
+        BattlePlaySoundIfEnabled(0x4F);
+        break;
+    case 2:
+        D_800C3EAC[0x2DD] = 3;
+        break;
+    case 3:
+        p = D_800C3EAC;
+        off = a * 0x40;
+        if (*(u16 *)(p + off + 0x2A) == 0) {
+            p[0x2DD] = 0xA;
+            break;
+        }
+        BattlePlaySoundIfEnabled(0x4F);
+        break;
+    }
+}
 void BattleInitTargetSlotFlags(s32 arg0) {
     s32 i;
 
