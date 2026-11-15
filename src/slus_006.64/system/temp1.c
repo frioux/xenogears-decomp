@@ -91,6 +91,7 @@ void SpriteApplyMovementStep(SpriteData* pSpriteData) {
 extern void func_8001D2B0();
 
 void SpriteSetFrameFromAnimIndex(SpriteData* pSpriteData) {
+    u16* pAnimFlags;
     s32 animIndex;
     u16 animFlags;
     s32 frameIndex;
@@ -101,7 +102,8 @@ void SpriteSetFrameFromAnimIndex(SpriteData* pSpriteData) {
     if (animIndex < 0) {
         animIndex = 0;
     }
-    animFlags = ((u16*)pSpriteData->field_0x54)[animIndex];
+    pAnimFlags = (u16*)pSpriteData->field_0x54;
+    animFlags = pAnimFlags[animIndex];
     frameIndex = animFlags & 0x1FF;
     if (animFlags & 0x200) {
         pSpriteData->flags_0xAC |= 8;
@@ -249,15 +251,11 @@ typedef struct {
 } AnimScriptLoopBlock;
 
 u32 AnimScriptGetBlockTarget(AnimScriptLoopBlock* pBlock) {
-    mem_addr offset = pBlock->dataOffset;
-
-    return *(u32*)(offset + (mem_addr)pBlock);
+    return *(u32*)((u8*)pBlock + pBlock->dataOffset);
 }
 
 u32 AnimScriptGetBlockCount(AnimScriptLoopBlock* pBlock) {
-    mem_addr offset = pBlock->dataOffset;
-
-    return *(u32*)(offset + (mem_addr)pBlock + 4) + 1;
+    return *(u32*)(pBlock->dataOffset + (mem_addr)pBlock + 4) + 1;
 }
 
 extern int D_80059198;
@@ -504,7 +502,7 @@ AnimTask* AnimTaskCreate(s32 arg0, s32 type, void* pAnimPackage, s32 size, void*
         if (arg0 == 6) {
             pAnimPackage = &D_8005A474[0];
         }
-        dataSize = (SpriteAnimPackageGetFrameCount(*(u16**)pAnimPackage) - 1) * 24 + 0x58;
+        dataSize = (SpriteAnimPackageGetFrameCount(((SpriteAnimPackage*)pAnimPackage)->pFrames) - 1) * 24 + 0x58;
         pEntry = AnimTaskAlloc(pData, dataSize + size);
         SpriteInitBaseWithRenderFrames(&pEntry->spriteData);
         break;
@@ -717,15 +715,16 @@ void SpritePlayAnimation(SpriteData* pSpriteData, s32 animId) {
     } else {
         SpriteSetAnimFile(pSpriteData, pSpriteData->pDefaultAnimFile);
         if (D_800591AD) {
-            ((SpriteAnimPackage*)pSpriteData->pVramData)->tex = *(SVEC2*)((u8*)pSpriteData->field_0x7C + 0xE);
+            ((SpriteAnimPackage*)pSpriteData->pVramData)->tex =
+                *(SVEC2*)&((SpriteDataI3*)pSpriteData->field_0x7C)->texX;
         }
     }
-    *(u8*)((u8*)pSpriteData + 0xAF) = animId;
+    ((u8*)&pSpriteData->flags_0xAC)[3] = animId;
     if (animId < 0) {
         animId = ~animId;
     }
     pAnimations = ((SpriteAnimPackage*)pSpriteData->pVramData)->pAnimations;
-    animOffset = *(u16*)(pAnimations + animId * 2 + 2);
+    animOffset = ((u16*)pAnimations)[animId + 1];
     pSpriteData->field_0x40 |= 0x100000;
     pSpriteData->pCurAnimation = pAnimations + animOffset;
     func_80023538(pSpriteData, pSpriteData->pCurAnimation);
