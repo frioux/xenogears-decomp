@@ -1501,8 +1501,14 @@ void GearShopMenuBuildGearPartNameGraphics(u8 itemType) {
 // in the engine case, including equipFlags first and a `do { } while (0)` cluster; an
 // extra s32/u32 temp for the price or for the flags; the pointer assignment moved above
 // sellPrice; gcc 2.7.2-psx (96.4%) and gcc-2.7.2-cdk-psx (83.59%) - the unit's 2.6.0
-// is right; two permuter runs (best candidates were variable-reuse games: pFrame holding
-// &rect, equipFlags read through the u8 itemType).
+// is right; three permuter runs (best candidates were variable-reuse games: pFrame holding
+// &rect, equipFlags read through the u8 itemType; the third ran 1300 iterations and never
+// beat the base score).
+// Round 101 also re-proved, all still 2508 bytes: the embedded-assignment form
+// (`value = (pEngine = &...)->price;`) in the engine case AND in the frame case; the engine
+// case with no pointer local at all (plain double indexing); a do { } while (0) around just
+// the engine case's value/price/equipFlags cluster. The unmerge needs the element address
+// in a register other than $v0 at the ENGINE site, and no source shape moves it.
 // The known-cheating `value = equipFlags; equipFlags = value;` in the engine case does
 // unmerge 4 of those 6 insns (97.37%, 2524 bytes) but swaps what the digit loop renders
 // for engines, so it is not shippable.
