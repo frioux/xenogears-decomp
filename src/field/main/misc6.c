@@ -942,6 +942,7 @@ void func_800A0228(void) {
             pCurActor->walkmeshId = 0;
         }
         if (g_pGameState->gearRide[partyIndex] != 0 || g_GamePartyMembers[partyIndex] == 7) {
+            // gcc's register allocator needs this in its own block to keep nFlag in $s2
             do {
                 nFlag = 0;
             } while (0);
