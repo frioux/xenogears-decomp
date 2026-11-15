@@ -13,11 +13,11 @@ extern void WorkListRemoveTask(void *pEntry);
 extern void TimerWorkListRemoveTask(void *pEntry);
 extern void BattleUploadAndFreeImageResources(void);
 
-u8 *func_800B168C(u8 *pBase, s32 n) {
+u8 *BattleGetFrame(u8 *pBase, s32 n) {
     return &pBase[n * 0x1C + 0xC];
 }
 
-s32 func_800B16A4(u8 *pBase) {
+s32 BattleGetPrimitiveBufferSize(u8 *pBase) {
     s32 count;
     s32 total;
     u8 *p;
@@ -86,15 +86,15 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc26", func_800B1F0C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc26", func_800B1F6C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc26", func_800B2AEC);
 
-void func_800B3348(void) {
+void BattleNoOp2(void) {
 }
 
-void func_800B3350(void) {
+void BattleNoOp3(void) {
 }
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc26", func_800B3358);
 
-void func_800B3588(void *pEntry) {
+void BattleFreeScaleTask(void *pEntry) {
     TimerWorkListRemoveTask(pEntry);
     HeapFree(pEntry);
     D_800C3548 = 0;
@@ -113,7 +113,7 @@ void BattleCreateTimedScaleTask(u8 *pSrc, s32 n) {
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc26", func_800B36BC);
 
-void func_800B383C(u8 *pEntry) {
+void BattleFreeScreenFadeTask(u8 *pEntry) {
     WorkListRemoveTask(pEntry + 0x1C);
     TimerWorkListRemoveTask(pEntry);
     D_800C3558 = NULL;
@@ -121,7 +121,7 @@ void func_800B383C(u8 *pEntry) {
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc26", func_800B3878);
 
-void func_800B397C(s32 a0, s32 a1, u8 a2, u8 a3, u8 a4) {
+void BattleStartScreenFadeOwnBuffer(s32 a0, s32 a1, u8 a2, u8 a3, u8 a4) {
     D_800C355C = 1;
     func_800B39C0(a0, a1, a2, a3, a4);
     D_800C355C = 0;
@@ -161,7 +161,7 @@ void func_800B3B94(u8 *pArg) {
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc26", func_800B3B94);
 
-void func_800B3C2C(u8 *pEntry) {
+void BattleFreeImageTask(u8 *pEntry) {
     WorkListRemoveTask(pEntry + 0x1C);
     TimerWorkListRemoveTask(pEntry);
     HeapFree(pEntry);

@@ -141,11 +141,11 @@ extern BattleSpriteBody *WorkListsAddTasks(s32 allocSize, void *pData, void *pTi
 extern s32 func_800BE6E8(s32 value, u8 *pBuf, s32 n, u8 started, s32 base);
 extern s32 ResourceHelperGetSpriteList(u8 *pDir, u32 index, BattleSpritePart *pOut, s16 x, s16 y);
 extern s32 func_800BD3AC(BattleActorSprite *p, s32 arg1, s32 arg2);
-extern void func_800BE0DC(void);
+extern void BattleFreeTimerTaskIfActive(void);
 extern void func_800BE790(void);
 extern s32 BattleGetAdjustedWaitCountdown(void);
 extern void func_800C1140(s32);
-extern void func_800B8D7C();
+extern void BattleUnloadActorArchive();
 extern int ArchiveSetIndex(int directoryIndex, int entryIndex);
 extern int ArchiveDecodeAlignedSize(u32 entryIndex);
 extern void ArchiveReadFileToBuffer(s32 index, void *pBuffer, u32 arg2, u32 flags);
@@ -318,7 +318,7 @@ void BattleAttachActorAnimScripts(s32 index, s32 arg1, s32 arg2, s32 arg3) {
         SpritePlayAnimation(pSprite, anim);
     }
     D_800C3780 = 0;
-    func_800BE0DC();
+    BattleFreeTimerTaskIfActive();
     D_80059464 = 0;
     D_800591AC = 0;
 }
@@ -628,7 +628,7 @@ void BattleLoadActorArchiveFile(BattleActorSprite *pSprite) {
     void *pBuffer;
     u32 part;
 
-    func_800B8D7C();
+    BattleUnloadActorArchive();
     ArchiveSetIndex(0x2C, 1);
     entry = *pSprite->unk7C;
     pBuffer = HeapAlloc(ArchiveDecodeAlignedSize(entry), 1);

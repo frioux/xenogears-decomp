@@ -129,7 +129,7 @@ extern s32 D_800ADB3C;
 extern s16 D_800ADC08;
 extern int D_800C3A40;
 extern void FontFree(void);
-extern void func_80070C84(void);
+extern void FieldResetPortraitSlots(void);
 extern void FieldCopyScreenToFadeTexture(void);
 extern void FieldClearAndSwapOTag(void);
 extern void FieldRenderSync(void);
@@ -170,7 +170,7 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A5924);
             return;
         }
         FontFree();
-        func_80070C84();
+        FieldResetPortraitSlots();
         FieldStoreScreenImage();
         if (D_800ADB38 == 1 || D_800ADB38 == 4) {
             FieldCopyScreenToFadeTexture();

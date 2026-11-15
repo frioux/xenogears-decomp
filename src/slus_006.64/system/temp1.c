@@ -742,7 +742,7 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80024730);
    it with `addu $a0,$a2`; a source-level extra local gets gcc to copy too but into $a1, and
    the position copies come out load-all-then-store-all instead of the original's interleaved
    `lw %lo/%lo+4/%lo+8; sw` with `addiu $v0,$v0,%lo` in the delay slot.
-extern void func_800BC158(AnimTask* pAnimTask);
+extern void BattleInitAnimTask(AnimTask* pAnimTask);
 extern void SpriteSetTaskHandler(WorkListEntry* pTask, s32 animType);
 extern IVEC3 D_8006F99C;
 extern IVEC3 D_8006F9AC;
@@ -758,11 +758,11 @@ void func_80024730(AnimTask* pAnimTask) {
         pSpriteData->curSpriteFrame = 1;
         animType = (animType - 2) & 0xF;
         pSpriteData->field_0x40 = (pSpriteData->field_0x40 & 0xFFFE1FFF) | (animType << 13);
-        func_800BC158(pAnimTask);
+        BattleInitAnimTask(pAnimTask);
         pSpriteData->position = D_8006F99C;
         break;
     case 10:
-        func_800BC158(pAnimTask);
+        BattleInitAnimTask(pAnimTask);
         pSpriteData->curSpriteFrame = 0;
         pSpriteData->position = D_8006F99C;
         break;
@@ -770,11 +770,11 @@ void func_80024730(AnimTask* pAnimTask) {
         pSpriteData->curSpriteFrame = 1;
         animType = (animType - 2) & 0xF;
         pSpriteData->field_0x40 = (pSpriteData->field_0x40 & 0xFFFE1FFF) | (animType << 13);
-        func_800BC158(pAnimTask);
+        BattleInitAnimTask(pAnimTask);
         pSpriteData->position = D_8006F99C;
         break;
     case 11:
-        func_800BC158(pAnimTask);
+        BattleInitAnimTask(pAnimTask);
         pSpriteData->curSpriteFrame = 0;
         pSpriteData->position = D_8006F9AC;
         break;

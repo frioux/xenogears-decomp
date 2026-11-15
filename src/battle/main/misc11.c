@@ -33,7 +33,7 @@ extern u8 D_800D2C34;
 extern u8 func_80084854(u8 arg0, u8 arg1);
 extern void func_80093B08(u8 arg0);
 extern u16 BattleSlotBitMask(u8 arg0);
-extern void func_800BC404(u16 arg0);
+extern void BattleBeginAnimTask(u16 arg0);
 extern void func_800BCD98(u16 arg0);
 extern void func_80088490(u8 arg0);
 extern void func_8009AEFC(u8 arg0);
@@ -319,7 +319,7 @@ u8 func_80080C94(u8 arg0) {
     BattleInitSlotRowsForActor(arg0, D_800C3E2C);
     idx = arg0 * 0x40;
     (D_800C3EAC + idx)[0x3C] = D_800C3E2C;
-    func_800BC404(BattleSlotBitMask(arg0) | BattleSlotBitMask((D_800C3EAC + idx)[0x3C]));
+    BattleBeginAnimTask(BattleSlotBitMask(arg0) | BattleSlotBitMask((D_800C3EAC + idx)[0x3C]));
     BattleUpdateFrame();
     D_800C204C = 1;
     switch (info[0]) {
@@ -530,7 +530,7 @@ void BattleInitTargetSlotFlags(s32 arg0) {
     if (D_800C3EAC[0x2E9] != 0) {
         return;
     }
-    func_800BC404(BattleSlotBitMask(D_800C3EAC[0x2E8]));
+    BattleBeginAnimTask(BattleSlotBitMask(D_800C3EAC[0x2E8]));
     func_800BCD98(BattleSlotBitMask(D_800C3EAC[0x2E8]));
     i = 0;
     do {
@@ -547,7 +547,7 @@ void BattleInitTargetSlotFlags(s32 arg0) {
 }
 /* 92.34%: `BattleSlotBitMask` returns u16, so a separate `orBits = f(a); orBits |=
    f(b);` masks both results; writing the two calls as one `|` expression inside
-   the func_800BC404 call lets gcc fold them into the single `or` + final `andi
+   the BattleBeginAnimTask call lets gcc fold them into the single `or` + final `andi
    0xffff` the original has. What is left: the original loads D_800C3EAC once and
    shares the base between the `[0x2DA]` read and the `+arg0*0x40` pointer for
    the BattleSlotBitMask argument (we reload it), and the two `addu base,base,idx`
@@ -567,7 +567,7 @@ void func_800819A4(u8 arg0) {
     BattleFreeStringTable96();
     BattleClearFlagC6();
     orBits = BattleSlotBitMask(arg0) | BattleSlotBitMask(D_800C3EAC[arg0 * 0x40 + 0x3C]);
-    func_800BC404(orBits);
+    BattleBeginAnimTask(orBits);
     if (D_800D2D24[arg0] != 4) {
         D_800C400B[D_800C3EAC[0x2DA] * 0x48] = arg0;
         D_800C402F[D_800C3EAC[0x2DA] * 0x48] = 0xFD;

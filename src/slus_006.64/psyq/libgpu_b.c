@@ -237,7 +237,7 @@ u_char func_80046588(int index) {
     return D_8005A27C[index];
 }
 
-int func_8004659C(u_long *src, int n) {
+int GpuSendWordsByCpu(u_long *src, int n) {
     int i;
 
     *D_800569A4 = 0x04000000;

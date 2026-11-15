@@ -652,7 +652,7 @@ void func_80084A7C(u8 arg0) {
         D_800C3EAC[0x2E8] = D_800C3E90[0];
     }
 }
-extern void func_800BC404(u16);
+extern void BattleBeginAnimTask(u16);
 extern void func_800BCD98(u16);
 extern void BattleUpdateFrame(void);
 extern u8 func_80084854(u8, u8);
@@ -667,7 +667,7 @@ s32 BattleSelectTargetSlotLoop(u8 arg0) {
     while (1) {
         while (D_800D3014 == 8) {
             m = b;
-            func_800BC404(BattleSlotBitMask(arg0) | BattleSlotBitMask(m));
+            BattleBeginAnimTask(BattleSlotBitMask(arg0) | BattleSlotBitMask(m));
             func_800BCD98(BattleSlotBitMask(m));
             BattleUpdateFrame();
         }
@@ -679,7 +679,7 @@ s32 BattleSelectTargetSlotLoop(u8 arg0) {
             ((BattleActorSlots *)D_800C3EAC)->slot[arg0].unk3C = b;
             break;
         case 5:
-            func_800BC404(BattleSlotBitMask(arg0) |
+            BattleBeginAnimTask(BattleSlotBitMask(arg0) |
                           BattleSlotBitMask(((BattleActorSlots *)D_800C3EAC)->slot[arg0].unk3C));
             state = 0;
             func_800BCD98(BattleSlotBitMask(((BattleActorSlots *)D_800C3EAC)->slot[arg0].unk3C));

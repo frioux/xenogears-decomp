@@ -16,7 +16,7 @@ extern MATRIX D_800D30BC;
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BCC60);
 extern s16 D_800C3D14;
 
-void func_800BCD8C(void) {
+void BattleClearActorMask(void) {
     D_800C3D14 = 0;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BCD98);
@@ -53,7 +53,7 @@ void func_800BCFAC(u8 *pEntry) {
 }
 */
 
-void func_800BD024(u8 *pTask) {
+void BattleFreeEffectSpriteTask(u8 *pTask) {
     u8 *pData;
     u8 *pObj;
 
@@ -180,7 +180,7 @@ void func_800BDA1C(u8 *pTask) {
 }
 */
 
-void func_800BDB08(u8 *pTask) {
+void BattleStepEffectColorFade(u8 *pTask) {
     void (*pCallback)(u8 *);
 
     func_800BDF1C(pTask);
@@ -253,7 +253,7 @@ void func_800BDC14(Misc32Task *pTask) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BDC14);
 extern void func_800BDC14(u8 *pTask);
 
-void func_800BDC78(u8 *pTask) {
+void BattleStepEffectPosition(u8 *pTask) {
     func_800BDF1C(pTask);
     if (pTask[0x7C] != 0) {
         *(s32 *)(pTask + 0x48) += 0xC0000;
@@ -270,26 +270,26 @@ void func_800BDC78(u8 *pTask) {
 extern u8 *D_800D2D68;
 extern void WorkListRemoveTask(void *pEntry);
 
-void func_800BDCF8(u8 *pEntry) {
+void BattleFreeTimerTask(u8 *pEntry) {
     D_800D2D68 = 0;
     WorkListRemoveTask(pEntry + 0x1C);
     TimerWorkListRemoveTask(pEntry);
 }
-void func_800BDD34(void) {
+void BattleTimerTaskNoOp(void) {
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BDD3C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BDE58);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BDF1C);
-extern void func_800BDCF8(u8 *pEntry);
+extern void BattleFreeTimerTask(u8 *pEntry);
 
-void func_800BE0DC(void) {
+void BattleFreeTimerTaskIfActive(void) {
     if (D_800D2D68 != NULL) {
-        func_800BDCF8(D_800D2D68);
+        BattleFreeTimerTask(D_800D2D68);
     }
 }
 extern s32 D_800C374C;
 
-void func_800BE108(void) {
+void BattleResetTimerTaskGlobals(void) {
     D_800D2D68 = NULL;
     D_800C374C = 0;
 }

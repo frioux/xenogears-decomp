@@ -82,9 +82,9 @@ extern void* func_800BFC80(void* pArg0, s32 arg1, s32 arg2);
 extern s32 D_80059464;
 extern u8 D_800591AC;
 extern void func_800B136C(void);
-extern void func_800B8D7C(void);
+extern void BattleUnloadActorArchive(void);
 extern void func_800BFBA0(void);
-extern void func_800BC454(s32 arg0);
+extern void BattleSetAnimTaskShort(s32 arg0);
 extern void BattleLoadActorArchiveFile(SpriteData* pSprite);
 extern void func_800BEFF4(s32 actorIndex);
 extern void func_800BF3E8(SpriteData* pSprite);
@@ -210,7 +210,7 @@ void BattleLoadActorSlotAnimation(s32 index) {
     pBase = D_800C3EB0;
     slotOffset = 0x8C8C;
     if (pBase[index * 0x1C + 8] != 0) {
-        func_800B8D7C();
+        BattleUnloadActorArchive();
         func_800BFBA0();
     } else if (index < 3) {
         pSprite = *(SpriteData**)(pBase + index * 4 + slotOffset);
@@ -218,9 +218,9 @@ void BattleLoadActorSlotAnimation(s32 index) {
             BattleLoadActorArchiveFile(pSprite);
         }
     } else {
-        func_800B8D7C();
+        BattleUnloadActorArchive();
     }
-    func_800BC454(0xC0);
+    BattleSetAnimTaskShort(0xC0);
 }
 void BattleActorSetStepFromAngle(SpriteData* pSprite, s16 angle) {
     s32 scale = pSprite->moveSpeed >> 3;

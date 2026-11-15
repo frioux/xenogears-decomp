@@ -12,7 +12,7 @@ extern void BattleFreePacketPrimitives(void);
 extern void BattleClearFlagC6(void);
 extern void func_8008FA60(s32 arg0);
 extern u16 BattleSlotBitMask(u8 arg0);
-extern void func_800BC404(u16 arg0);
+extern void BattleBeginAnimTask(u16 arg0);
 extern void func_800BCD98(u16 arg0);
 extern u16 BattleMaskHasSlotBit(u16 arg0, u8 arg1);
 extern u16 BattleSlotBitMaskInverted(u8 arg0);
@@ -168,7 +168,7 @@ void func_8008ADD0(u8 arg0) {
     BattleBeginActorAction(arg0, mask, D_800C3EAC[0x2DC] - 1);
     BattleApplySlotCurveAndStep(D_800C3EAC[0x2DA]);
     mask = BattleSlotBitMask(arg0);
-    func_800BC404(*pMask | mask);
+    BattleBeginAnimTask(*pMask | mask);
     func_800B89FC(1, arg0, D_800C3EAC[arg0 * 0x40 + 0x3C], BattleFindMinValueOtherSlot(arg0));
     D_800C402F[D_800C3EAC[0x2DA] * 72] = D_800D2C98;
     D_800C400B[D_800C3EAC[0x2DA] * 72] = arg0;
@@ -201,7 +201,7 @@ void BattleSetPrimFlagsFourSlots(u8 arg0) {
     D_800D2D28[0xB0] = D_800D2D28[0xB1] = D_800D2D28[0xB2] = D_800D2D28[0xB3] = 1;
     D_800D2D28[0xB7] = 1;
     value = BattleSlotBitMask(arg0) | BattleSlotBitMask((D_800C3EAC + arg0 * slotStride)[0x3C]);
-    func_800BC404(value);
+    BattleBeginAnimTask(value);
     func_800BCD98(BattleSlotBitMask((D_800C3EAC + arg0 * slotStride)[0x3C]));
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008B224);
@@ -282,7 +282,7 @@ void BattleSetPrimFlagsTwoSlots(u8 arg0) {
     D_800D2D28[0xB0] = D_800D2D28[0xB1] = 1;
     D_800D2D28[0xB7] = 2;
     value = BattleSlotBitMask(arg0) | BattleSlotBitMask((D_800C3EAC + arg0 * slotStride)[0x3C]);
-    func_800BC404(value);
+    BattleBeginAnimTask(value);
     func_800BCD98(BattleSlotBitMask((D_800C3EAC + arg0 * slotStride)[0x3C]));
 }
 s32 BattleActivateTwoSlotCommand(u8 arg0, u8 arg1, u8 arg2, u8 arg3) {
@@ -358,7 +358,7 @@ void func_8008C3F0(u8 arg0) {
     D_800D2D28[0xB7] = 3;
     D_800D2D28[0xB0] = D_800D2D28[0xB1] = 1;
     value = BattleSlotBitMask(arg0) | BattleSlotBitMask(D_800C3EAC[arg0 * 0x40 + 0x3C]);
-    func_800BC404(value);
+    BattleBeginAnimTask(value);
     func_800BCD98(BattleSlotBitMask(D_800C3EAC[arg0 * 0x40 + (maskOffset = 0x3C)]));
 }
 */
@@ -381,7 +381,7 @@ void BattleSetPrimFlagsThreeSlots(u8 arg0) {
     D_800D2D28[0xB0] = D_800D2D28[0xB1] = D_800D2D28[0xB2] = 1;
     D_800D2D28[0xB7] = 4;
     value = BattleSlotBitMask(arg0) | BattleSlotBitMask((D_800C3EAC + arg0 * slotStride)[0x3C]);
-    func_800BC404(value);
+    BattleBeginAnimTask(value);
     func_800BCD98(BattleSlotBitMask((D_800C3EAC + arg0 * slotStride)[0x3C]));
 }
 

@@ -9,8 +9,8 @@
  * registers (lui $v0 / $v1 / $s0 ...) for every access, and it was assembled with
  * li left unexpanded (the XenoBattleTail preset's --dont-expand-li). At -G8 our
  * assembler expands a one-shot absolute store's address through $at; at -G0 gcc
- * splits it itself, which is what retail does: func_800B7C28, func_800B8048 and
- * func_800B8D04 are 100.00% under gcc 2.7.2-cdk -G0 and 45/45/81.63% at -G8.
+ * splits it itself, which is what retail does: BattleClearFlagD2FDC, BattleSetSpriteTemplate and
+ * BattleFreeActorArchiveAndSoundSeds are 100.00% under gcc 2.7.2-cdk -G0 and 45/45/81.63% at -G8.
  */
 
 extern int ArchiveDataSync(void);
@@ -24,7 +24,7 @@ extern void SpritePlayAnimation(void *, s32);
 extern void SpriteSetCallback(void *, void *);
 extern void func_8002A498(s32);
 
-void func_800B73EC(void) {
+void BattleAllocWorkBuffer(void) {
     u8 *pWork = HeapAlloc(0x10F7C, 1);
 
     *(u8 **)(pWork + 4) = pWork;
@@ -33,12 +33,12 @@ void func_800B73EC(void) {
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B7424);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B7870);
-void func_800B7C28(void) {
+void BattleClearFlagD2FDC(void) {
     D_800D2FDC = 0;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B7C34);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B7E94);
-void func_800B8048(void *pArg) {
+void BattleSetSpriteTemplate(void *pArg) {
     D_800C3E1C = pArg;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B8054);
@@ -52,7 +52,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B81BC);
 // address per store and maspsx expands each through $at (16 insns instead of 11).
 // The pBase assignment must stay after the SetGeomOffset call: that is what puts
 // the three prologue saves in retail's order.
-void func_800B8284(void) {
+void BattleInitDispEnvAndDrawEnv(void) {
     u8 *pBase;
     u8 *pWork;
 
@@ -73,7 +73,7 @@ void func_800B8284(void) {
     *(s16 *)(pWork + 0x4C4A) = 0xD8;
     *(s16 *)(pWork + 0xBDA) = 0xD8;
 }
-void func_800B8354(void) {
+void BattleWaitArchiveSync(void) {
     while (ArchiveDataSync() != 0) {
         func_800BE790();
     }
@@ -133,7 +133,7 @@ void func_800B838C(s32 arg0, s32 arg1) {
     s32 id;
 
     func_800C0F70();
-    func_800B8354();
+    BattleWaitArchiveSync();
     ArchiveSetIndex(0x2C, 1);
 
     pTable = D_800C35DC;
@@ -152,7 +152,7 @@ void func_800B838C(s32 arg0, s32 arg1) {
     request.unk10 = 0;
     func_80029AFC(&request, 0, 0);
 
-    func_800B8354();
+    BattleWaitArchiveSync();
     SoundAddSedsEntry(pBuffer1);
     pWds = SoundLoadWdsFile(pBuffer2, 0);
     while (func_8003BDFC(0) != 0) {
@@ -206,12 +206,12 @@ extern u8 D_800591AC;
 extern s32 D_800591A8;
 extern s32 D_80050104;
 extern void BattleResetStateGlobals(void);
-extern void func_800BE108(void);
+extern void BattleResetTimerTaskGlobals(void);
 extern void WorkListsReset(void);
 extern void func_800BB7F8(void);
 extern void GfxAllocateWorkBuffers(s32 workBufferSize, s32 allocFlag);
-extern void func_800BCD8C(void);
-extern void func_800B89F4(void);
+extern void BattleClearActorMask(void);
+extern void BattleEmptyHook(void);
 
 void BattleInitStateWorkBuffers(void) {
     D_800591AD = 1;
@@ -219,13 +219,13 @@ void BattleInitStateWorkBuffers(void) {
     D_800591AC = 0;
     D_800591A8 = 0x2000;
     BattleResetStateGlobals();
-    func_800BE108();
+    BattleResetTimerTaskGlobals();
     WorkListsReset();
     func_800BB7F8();
     GfxAllocateWorkBuffers(0x5000, 0);
-    func_800BCD8C();
-    func_800B7C28();
-    func_800B89F4();
+    BattleClearActorMask();
+    BattleClearFlagD2FDC();
+    BattleEmptyHook();
     D_80050104 = 0;
 }
 
@@ -287,12 +287,12 @@ void func_800B88C4(void) {
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B88C4);
 
-void func_800B89F4(void) {
+void BattleEmptyHook(void) {
 }
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B89FC);
-void func_800B8D04(void) {
-    func_800B8354();
+void BattleFreeActorArchiveAndSoundSeds(void) {
+    BattleWaitArchiveSync();
     BattleLoadArchiveEntryFile();
     while (D_80059464 != BattleIsTimerTaskActive()) {
         func_800BE790();
@@ -304,9 +304,9 @@ void func_800B8D04(void) {
     }
 }
 
-void func_800B8D7C(void) {
+void BattleUnloadActorArchive(void) {
     func_8002A498(0);
-    func_800B8D04();
+    BattleFreeActorArchiveAndSoundSeds();
 }
 
 extern void BattleDestroyState(void);
@@ -341,7 +341,7 @@ void BattleActorInitSpriteFromSlot(void) {
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B8EBC);
 
-void func_800B9020(u8 *pSprite) {
+void BattleSpritePlayStoredAnimation(u8 *pSprite) {
     SpritePlayAnimation(pSprite, *(s8 *)(pSprite + 0xB0));
     SpriteSetCallback(pSprite, 0);
 }

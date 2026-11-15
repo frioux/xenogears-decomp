@@ -44,7 +44,7 @@ extern char D_8006FB24[];
 extern void func_800877E0(u8 arg0, u8 arg1);
 extern void func_80087EDC(u8 arg0, u8 arg1);
 extern void func_800881B8(u8 arg0, u8 arg1);
-extern void func_800BC404(u16 arg0);
+extern void BattleBeginAnimTask(u16 arg0);
 // A 0x48-byte row of the per-battle-slot table at D_800C3FFE.
 typedef u16 BattleSlotRow[36]; // Size: 0x48
 
@@ -134,7 +134,7 @@ void BattleQueueCommandFD(u8 arg0, u8 arg1, u8 arg2) {
             func_800881B8(arg0, arg2);
         }
     }
-    func_800BC404(BattleSlotBitMask(arg0) | *(u16*)(D_800D2E62 + arg1 * 8));
+    BattleBeginAnimTask(BattleSlotBitMask(arg0) | *(u16*)(D_800D2E62 + arg1 * 8));
     func_800785D4(arg0, arg1);
 }
 void BattleQueueCommandFC(u8 arg0, u8 arg1) {

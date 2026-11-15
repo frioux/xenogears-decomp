@@ -196,7 +196,7 @@ extern void func_80098044(void);
 extern int ArchiveCdDataSync(int);
 extern void WorldMapLoadSedsBank(void);
 extern void WorldMapLoadTextureClut(void);
-extern void func_80084580(void);
+extern void WorldMapInitSpriteSets(void);
 extern void func_800979C8(void);
 extern void func_800736DC(void);
 extern void func_800863E0(void);
@@ -471,7 +471,7 @@ void WorldMapInitializeScene(void) {
     *pVec = 0x1800000;
     D_8009C5B0 = 0xFFF00000;
     D_8009C5B4 = 0x1A00000;
-    func_80084580();
+    WorldMapInitSpriteSets();
     WorldMapLoadTextureClut();
     func_800979C8();
     func_800736DC();
@@ -659,7 +659,7 @@ void WorldMapLoadTextureClut(void) {
     HeapFree(pDst);
     HeapFree(pData);
 }
-void func_80084580(void) {
+void WorldMapInitSpriteSets(void) {
     WorldMapSpriteSetTable *pSetTable;
     WorldMapSpriteSetDef *pDef;
     WorldMapMesh *pMesh;

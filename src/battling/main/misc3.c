@@ -397,7 +397,7 @@ typedef struct {
 
 // Returns the index of the edge the segment pFrom..pTo meets, and writes the
 // edge's vector to *ppEdge.
-s32 func_80078704(Vec4* pFrom, Vec4* pTo, BattleActorEdges* pEdges, Vec4** ppEdge) {
+s32 BattleActorSelectEdgeForSegment(Vec4* pFrom, Vec4* pTo, BattleActorEdges* pEdges, Vec4** ppEdge) {
     s32 dz;
     s32 dx;
     s32 side0;

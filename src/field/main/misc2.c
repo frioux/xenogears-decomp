@@ -194,7 +194,7 @@ void FieldMathIntersectLines(SVec4* pA, SVec4* pB, SVec4* pOut) {
 // (1) THE PLAIN POINTER IS WORTHLESS: `u_char* pCam = (u_char*)&g_CamInterpolation`
 //     scores 62.01% because gcc folds every post-call use back into a fresh
 //     %hi/%lo pair (`sw $zero,%lo(g_CamInterpolation-0x104)($at)`), so the `$s0`
-//     base retail keeps across the func_80070594 call never forms.
+//     base retail keeps across the FieldMatrixSetIdentity call never forms.
 // (2) TAKING THE POINTER'S ADDRESS (`pCamRef = &pCam`, then `*pCamRef`) defeats
 //     that fold: 62.01 -> 91.81%, and the permuter's temp/type soup below reaches
 //     95.08% (420 vs 408 bytes). What is left is structural, not an allocator tie:
@@ -211,7 +211,7 @@ void FieldMathIntersectLines(SVec4* pA, SVec4* pB, SVec4* pOut) {
 // candidates are in permuter/func_8007254C/.
 /*
 extern VECTOR g_CameraEye;
-extern void func_80070594(MATRIX* pMatrix);
+extern void FieldMatrixSetIdentity(MATRIX* pMatrix);
 
 // The original keeps &g_CamInterpolation in $s0 for the whole function and reaches
 // the camera block that sits below it (g_CameraEye..g_CameraUp at 0x800AF880) with
@@ -247,7 +247,7 @@ void func_8007254C(void) {
     g_Scene.camRotation.vy = 0;
     pCamRef = &pCam;
     g_Scene.camRotation.vz = 0;
-    func_80070594((MATRIX*)(*pCamRef + 0x2C));
+    FieldMatrixSetIdentity((MATRIX*)(*pCamRef + 0x2C));
 
     *(s32*)(*pCamRef - 0x104) = 0;
     g_CameraEye.vy = 0;

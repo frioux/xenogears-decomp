@@ -150,7 +150,7 @@ extern void WorldMapWrapTileVertexPositions(void);
 extern void func_80098044(void);
 extern void ArchiveCdDataSync(s32);
 extern void WorldMapLoadSedsBank(void);
-extern void func_80084580(void);
+extern void WorldMapInitSpriteSets(void);
 extern void WorldMapLoadTextureClut(void);
 extern void func_800979C8(void);
 extern void func_800736DC(void);
@@ -346,7 +346,7 @@ void func_80078A60(void) {
     D_8009C5AC.x = 0x2000000;
     D_8009C5B0 = -0x300000;
     D_8009C5B4 = 0x2000000;
-    func_80084580();
+    WorldMapInitSpriteSets();
     WorldMapLoadTextureClut();
     func_800979C8();
     func_800736DC();
@@ -712,7 +712,7 @@ void func_8007A5DC(void) {
     D_8009C5AC.x = 0x5BED000;
     D_8009C5B0 = -0xA0000;
     D_8009C5B4 = 0x62A8000;
-    func_80084580();
+    WorldMapInitSpriteSets();
     WorldMapLoadTextureClut();
     func_800979C8();
     func_800736DC();

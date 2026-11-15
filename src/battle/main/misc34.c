@@ -150,7 +150,7 @@ void BattleTickCountersAndFreeUnitSlot(void) {
     }
 }
 extern u8 D_800C3621;
-extern void func_800B8354(void);
+extern void BattleWaitArchiveSync(void);
 extern int ArchiveDecodeAlignedSize(u32 entryIndex);
 extern void ArchiveReadFileToBuffer(s32 index, void *pBuffer, u32 arg2, u32 flags);
 extern void func_8002DDE4(void *p0, s32 a1, s32 a2, s32 a3, s32 a4, s32 a5, s32 a6);
@@ -159,11 +159,11 @@ void BattleLoadArchiveEntryFile(void) {
     void *pBuffer;
 
     if (D_800C3621 != 0) {
-        func_800B8354();
+        BattleWaitArchiveSync();
         ArchiveSetIndex(0x2C, 0);
         pBuffer = HeapAlloc(ArchiveDecodeAlignedSize(1), 0);
         ArchiveReadFileToBuffer(1, pBuffer, 0, 0x80);
-        func_800B8354();
+        BattleWaitArchiveSync();
         func_8002DDE4(pBuffer, 0, 0, 0, 0, 0, 0);
         func_800BE790();
         HeapFree(pBuffer);

@@ -396,7 +396,7 @@ extern void func_80098044(void);
 extern s32 ArchiveCdDataSync(s32 arg0);
 extern void WorldMapLoadSedsBank(void);
 extern void WorldMapLoadTextureClut(void);
-extern void func_80084580(void);
+extern void WorldMapInitSpriteSets(void);
 extern void func_800979C8(void);
 extern void func_800736DC(void);
 extern void WorldMapRelocateMapEntryOffsets(void);
@@ -459,7 +459,7 @@ void WorldMapInitializeMode(void) {
     *pPos = 0x7702000;
     D_8009C5B0 = 0xFFD00000;
     D_8009C5B4 = 0x27C0000;
-    func_80084580();
+    WorldMapInitSpriteSets();
     WorldMapLoadTextureClut();
     func_800979C8();
     func_800736DC();
@@ -650,7 +650,7 @@ void WorldMapInitializeModeWithSound(void) {
     *pPos = 0x2000000;
     D_8009C5B0 = 0xFFE00000;
     D_8009C5B4 = 0x2000000;
-    func_80084580();
+    WorldMapInitSpriteSets();
     WorldMapLoadTextureClut();
     func_800979C8();
     func_800736DC();

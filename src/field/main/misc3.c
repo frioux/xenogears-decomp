@@ -300,7 +300,7 @@ extern void func_80029EB0(int, int*, int, int, short, short, short, short, short
 
 extern void FieldOrVramStripPixels(void);
 
-void func_80070488(void) {
+void FieldStartScriptDataStream(void) {
     int* pStreamFile;
 
     if (!D_800ADB60) {
@@ -311,7 +311,7 @@ void func_80070488(void) {
     }
 }
 
-void func_80070508(void) {
+void FieldFreeScriptDataStream(void) {
     if (D_800ADB60 == 1) {
         ArchiveCdDataSync(0);
         DrawSync(0);
@@ -322,13 +322,13 @@ void func_80070508(void) {
     FieldOrVramStripPixels();
 }
 
-void func_80070560(VECTOR* pDest, SVECTOR* pSrc) {
+void FieldConvertSVectorToVector(VECTOR* pDest, SVECTOR* pSrc) {
     pDest->vx = pSrc->vx << 16;
     pDest->vy = pSrc->vy << 16;
     pDest->vz = pSrc->vz << 16;
 }
 
-void func_80070594(MATRIX* dest) {
+void FieldMatrixSetIdentity(MATRIX* dest) {
     SVECTOR rotation;
 
     rotation.vx = 0;
@@ -346,7 +346,7 @@ extern s16 D_800B06A4[3][3];
 extern s16 D_800B06A6[3][3];
 extern s32 D_800ADB0C;
 
-void func_80070C84(void) {
+void FieldResetPortraitSlots(void) {
     int i;
 
     for (i = 0; i < 3; i++) {

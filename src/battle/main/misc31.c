@@ -162,7 +162,7 @@ void func_800BB844(MATRIX *pMatrix, SVECTOR *pA, SVECTOR *pB, SVECTOR *pC) {
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BB9D4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BBAB8);
-void func_800BBEE0(u8 *pEntry) {
+void BattleFreeAnimTask(u8 *pEntry) {
     SpriteData *pSprite;
 
     pSprite = *(SpriteData **)(pEntry + 4);
@@ -194,7 +194,7 @@ void func_800BBEE0(u8 *pEntry) {
         func_800BC2F0(D_800C367C);
     }
 }
-void func_800BC018(u8 *pEntry) {
+void BattleAnimTaskTick(u8 *pEntry) {
     SpriteData *pSprite;
 
     pSprite = *(SpriteData **)(pEntry + 4);
@@ -231,7 +231,7 @@ void func_800BC018(u8 *pEntry) {
         (*((void (**)(u8 *))(pEntry + 0xC)))(pEntry);
     }
 }
-void func_800BC158(u8 *pEntry) {
+void BattleInitAnimTask(u8 *pEntry) {
     SpriteData *pSprite;
     u8 *pOwner;
 
@@ -275,22 +275,22 @@ void func_800BC158(u8 *pEntry) {
     } else {
         pSprite->direction = 0;
     }
-    WorkListTaskSetOnFreeCallback(pEntry, func_800BBEE0);
-    TimerWorkListSetTaskCallback(pEntry, func_800BC018);
+    WorkListTaskSetOnFreeCallback(pEntry, BattleFreeAnimTask);
+    TimerWorkListSetTaskCallback(pEntry, BattleAnimTaskTick);
     func_800BC2F0(2);
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BC2F0);
-void func_800BC3F8(s32 value) {
+void BattleSetAnimTaskDoneState(s32 value) {
     D_800C367C = value;
 }
-void func_800BC404(u8 *pEntry) {
+void BattleBeginAnimTask(u8 *pEntry) {
     if (D_800C37C8 == 0) {
         func_800BC2F0(1);
         func_800BC460((s32)pEntry);
     }
     D_80059454 = D_800C3CDC;
 }
-void func_800BC454(s16 value) {
+void BattleSetAnimTaskShort(s16 value) {
     D_800C3740 = value;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BC460);
