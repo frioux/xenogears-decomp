@@ -233,17 +233,16 @@ void func_8008615C(void) {
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_800863E0);
 // Best: 91.94%. Both loops are instruction-for-instruction identical to retail;
-// the only differences are register picks: retail keeps the D_8009D150 destination
-// pointer in s3 and the x counter in s2 (we take the reverse), and holds
-// `-(rand() >> 10)` / `(rand() & 3) + 1` in v0/s2 where we use v1. Retail also keeps
-// a second `x = 0` (move s2,zero) in the entry block that gcc folds away here, and
-// emits the x-loop preheader `sll s5,s2,0xb; addiu s1,s3,4` before `move s0,zero`.
-// An extra `x = 0;` before the y loop does not survive cse (same 91.94).
+// only register picks differ: retail keeps the D_8009D150 destination pointer in
+// s3 and the x counter in s2 (we take the reverse), and holds -(rand() >> 10) /
+// (rand() & 3) + 1 in v0/s2 where we use v1. Retail also keeps a second
+// `x = 0` (move s2,zero) in the entry block that gcc folds away here, and emits
+// the x-loop preheader sll s5,s2,0xb; addiu s1,s3,4 before move s0,zero.
 // Declaration order, x/y swap, pointer-last, indexed pVertex[k] and separate
-// idx/value locals all leave the tie untouched (89.23 with a separate loop-2 temp).
-// Note D_8009AF30/D_8009AF38 are separate absolute symbols 8 bytes apart, each read
-// as a word at stride 0x10 (retail keeps that stride in s0 and compares it to 0x50).
-// Screen: not screened under another gcc - the shape is exact, only regs differ.
+// idx/value locals all leave the tie untouched (89.23 with a separate loop-2
+// temp). D_8009AF30/D_8009AF38 are separate absolute symbols 8 bytes apart, each
+// read as a word at stride 0x10 (retail keeps that stride in s0, compares 0x50).
+// This is the 95-99% class: a permuter job, not a hand job.
 /*
 void func_800863E0(void) {
     s32 xoff;
@@ -281,12 +280,6 @@ void func_800863E0(void) {
     }
 }
 */
-
-void WorldMapFreeTileVertexBuffers(void) {
-    HeapFree(D_8009CEB4);
-    HeapFree(D_8009D150);
-}
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_800865A0);
 // Best: 53.39%. Shape recovered: 0x120 POLY_FT4 primitives in D_8009D7F8, each
 // getting setPolyFT4 + setRGB0(0x26,0x26,0x26) + tpage GetTPage(0,1,0x3C0,0x100)
 // + clut GetClut(0x130,0x1FE) + SetSemiTrans(p,1), then a 0x2D00-byte memcpy
@@ -515,15 +508,15 @@ s32 WorldMapSetSceneSpriteSetParents(void) {
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_80087FD0);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_80088570);
-// Best: 95.92%. Size and instruction multiset exact; only the gcc allocator's
-// pick for the g_GameState+0x1854 pointer differs (retail keeps it in v1, ours
-// takes a0) plus the knock-on register for the merged `v` store (retail v0, ours
-// v1). Notes that got here: the 0x2C store precedes the 0x30 value in both
-// branches (a `v` local assigned in each branch is what makes the single
-// pSlot->unk30 store land at the join); g_GameState+0x184E is read with `lh`, so
-// it wants an s32 local; writing 0x2C/0x30 as direct stores gives 97.75% but
-// emits an extra store (288 vs 284 bytes) because gcc does not cross-jump.
-// Screen: cdk 66.38, best 95.92% here - not a compiler miss.
+// Best: 95.92%. Size and instruction multiset exact; the only difference is the
+// gcc allocator's pick for the g_GameState+0x1854 pointer (retail keeps its
+// ADDRESS in v1 and loads through it; ours takes a0, which pushes the merged
+// `v` constant 0x4800000 into v1 and hoists its lui above the sh). Permuter run
+// 1 (permuter/func_80088570, base=410) found best=290: wrapping the else branch's
+// g_GameState+0x1852 expression in `do { } while (0)` - kept below - plus the
+// store order pSlot->unk2C, pSlot->unk28 = 0, then v = 0x4800000, which lets reorg
+// put the unk28 store in the j delay slot as retail does. Direct 0x2C/0x30 stores
+// (no `v` local) give 97.75% but an extra store (288 vs 284 bytes).
 /*
 s32 func_80088570(s32 index) {
     WorldMapSlot* pSlot;
@@ -537,17 +530,19 @@ s32 func_80088570(s32 index) {
     pSlot->unk58 = 0;
     pSlot->unk5C = 0xC;
     if (g_GameState.unk1854 == 0) {
-        g_GameState.unk1854 = g_GameState.unk1854 + 1;
+        g_GameState.unk1854++;
         pSlot->unk2C = 0xFFD80000;
-        v = 0x4800000;
         pSlot->unk28 = 0;
+        v = 0x4800000;
     } else {
         s32 angleY = *(s16*)&g_GameState.unk184E;
         u16 posX = ((u16*)g_GameState.unk1838)[0xA];
 
         pSlot->unk2C = 0xFFD80000;
         pSlot->unk28 = angleY * 0x1000 + posX;
-        v = (s16)g_GameState.unk1852 * 0x1000 + g_GameState.unk1850;
+        do {
+            v = *(s16*)&g_GameState.unk1852 * 0x1000 + g_GameState.unk1850;
+        } while (0);
     }
     pSlot->unk30 = v;
     pSlot->unk40 = 0xB50;
