@@ -1,8 +1,17 @@
 #include "common.h"
 #include "main/game.h"
 
-// Operator argument tables: D_800D3420 is the 16-bit field table, D_800D3430
-// the 8-bit one, D_800D3410 the 32-bit one; all are indexed by slot * 0x40.
+// One slot of the per-slot operator register block at D_800D3400 (stride 0x40):
+// the same arguments in 32-, 16- and 8-bit form. D_800D3410, D_800D3420,
+// D_800D3430 and D_800D343F are its +0x10, +0x20, +0x30 and +0x3F.
+typedef struct {
+    /* 0x00 */ u8 unk00[0x10];
+    /* 0x10 */ u32 unk10[4];
+    /* 0x20 */ u16 unk20[8];
+    /* 0x30 */ u8 unk30[0x10];
+} BattleOpRegs; // Size: 0x40
+
+extern BattleOpRegs D_800D3400[];
 extern u8 D_800D3410[];
 extern u8 D_800D3420[];
 extern u8 D_800D342E[];
@@ -22,6 +31,26 @@ extern u8 D_800CCE3B[];
 extern u8 D_800CCE3C[];
 extern u8 D_800CCE3D[];
 extern u8 D_800CCE3E[];
+
+// One slot of the per-slot operator argument block at D_800CCDE8 (stride
+// 0x170, the same family as the BattleTableEntry rows). The writers below put
+// one argument word into it as a dword, as a word, and as its two bytes, hence
+// the byte-by-byte fields; the parked func_8007B6C0/func_8007B7B0 read the
+// dwords at +0x4 and +0x8.
+typedef struct {
+    /* 0x00 */ u8 unk00[0x4C];
+    /* 0x4C */ u32 unk4C;
+    /* 0x50 */ u8 unk50;
+    /* 0x51 */ u8 unk51;
+    /* 0x52 */ u8 unk52;
+    /* 0x53 */ u8 unk53;
+    /* 0x54 */ u8 unk54;
+    /* 0x55 */ u8 unk55;
+    /* 0x56 */ u16 unk56;
+    /* 0x58 */ u8 unk58[0x118];
+} BattleSlotArgs; // Size: 0x170
+
+extern BattleSlotArgs D_800CCDE8[];
 
 u8 func_8001BD40(int, u8);
 u16 func_80089B50(int, u16);
@@ -44,10 +73,10 @@ s32 func_8007A280(u8, u8, s32, s32);
 // slot+base into s0 before the call and needs one saved register fewer.
 // screened: 90.81% is the max of Default / 2.7.2-cdk 80.16 / 2.6.0 90.81.
 void BattleByteRegSetMatched(u8 **p, u8 index) {
-    u16 *pField = (u16 *)(D_800D3420 + index * 0x40);
+    u16 *pField = D_800D3400[index].unk20;
     u8 value = BattleFindFirstFlagTableMatch(pField[(*p)[3]]);
     u8 result = func_80079ED8(value, (*p)[2], 0, 1);
-    u8 *pTable = (u8 *)(D_800D3420 + 0x10) + index * 0x40;
+    u8 *pTable = D_800D3400[index].unk30;
 
     pTable[(*p)[1]] = result;
 }
@@ -74,13 +103,13 @@ u8 func_8007B4B8(u8 **p, u8 index, u8 arg2) {
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007B4B8);
 void BattleWordRegCopyFromMatchedSlot(u8 **p, u8 index) {
-    u16 *pTable = (u16 *)(D_800D3420 + index * 0x40);
+    u16 *pTable = D_800D3400[index].unk20;
     u8 value = BattleFindFirstFlagTableMatch(pTable[(*p)[3]]);
 
     pTable[(*p)[1]] = func_8007A280(value, (*p)[2], 0, 1);
 }
 u8 BattleWordRegCopyToMatchedSlot(u8 **p, u8 index, u8 arg2) {
-    u16 *pField = (u16 *)(D_800D3420 + index * 0x40);
+    u16 *pField = D_800D3400[index].unk20;
     u8 ret = arg2;
     u8 value = BattleFindFirstFlagTableMatch(pField[(*p)[3]]);
 
@@ -192,20 +221,21 @@ void func_8007B8D4(u8 **p, u8 index) {
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007B8D4);
 void BattleWordTableStoreReg(u8 **p, u8 index) {
-    u16 *pField = (u16 *)(D_800D3420 + index * 0x40);
+    u16 *pField = D_800D3400[index].unk20;
     u8 *pArgs = *p;
 
     D_8005A3A0[pArgs[2]] = pField[pArgs[1]];
 }
 void BattleByteRegSetReg(u8 **p, u8 index) {
-    u8 *pTable = D_800D3430 + index * 0x40;
+    u8 *pTable = D_800D3400[index].unk30;
     u8 *pArgs = *p;
 
     pTable[pArgs[2]] = pTable[pArgs[1]];
 }
 void BattleWordRegSetReg(u8 **p, u8 index) {
     // The dead pField is load-bearing: its initializer makes gcc emit the
-    // index*0x40 shift before the base lui/addiu, as retail does.
+    // index*0x40 shift before the base lui/addiu, as retail does, and the base
+    // has to stay an untyped byte pointer for the two stores to share it.
     u16 *pField = (u16 *)(D_800D3420 + index * 0x40);
     u8 *pArgs = *p;
     u8 *base;
@@ -289,17 +319,17 @@ void func_8007BA04(u8 **p, u8 index) {
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007BA04);
 void BattleSlotStoreDwordFromWordReg(u8 **p, u8 index) {
-    u32 *pField32 = (u32 *)(D_800D3410 + index * 0x40);
+    u32 *pField32 = D_800D3400[index].unk10;
     u16 *pWordRegs;
     u8 *pArgs = *p;
 
     // the assignment inside the subscript is load-bearing: with a plain local
     // gcc picks v1 for the stored halfword instead of retail's a0 (95.29%).
-    pField32[pArgs[2]] = (pWordRegs = (u16 *)(D_800D3410 + 0x10 + index * 0x40))[pArgs[1]];
+    pField32[pArgs[2]] = (pWordRegs = D_800D3400[index].unk20)[pArgs[1]];
 }
 void BattleClearByteRegs(u8 index) {
     s32 i = 0xF;
-    u8 *p = D_800D343F + index * 0x40;
+    u8 *p = &D_800D3400[index].unk30[0xF];
 
     for (; i >= 0; i--) {
         *p-- = 0;
@@ -307,7 +337,7 @@ void BattleClearByteRegs(u8 index) {
 }
 void BattleClearWordRegs(u8 index) {
     s32 i = 0x7;
-    u16 *p = (u16 *)(D_800D342E + index * 0x40);
+    u16 *p = &D_800D3400[index].unk20[0x7];
 
     for (; i >= 0; i--) {
         *p-- = 0;
@@ -317,27 +347,27 @@ void BattleSlotStoreWord0(u8 **p, u8 index) {
     s32 slot = index + 3;
     s32 hi = (*p)[2] << 8;
 
-    *(u32 *)(D_800CCE34 + slot * 0x170) = (*p)[1] | hi;
+    D_800CCDE8[slot].unk4C = (*p)[1] | hi;
 }
 void BattleSlotStoreWord7A(u8 **p, u8 index) {
     u32 value = (*p)[1] | ((*p)[2] << 8);
     s32 slot = index + 3;
 
-    *(u16 *)(D_800CCE3E + slot * 0x170) = value;
+    D_800CCDE8[slot].unk56 = value;
 }
 void BattleSlotStoreWordHighBytes(u8 **p, u8 index) {
     s32 slot = index + 3;
 
-    *(u8 *)(D_800CCE3D + slot * 0x170) = (*p)[1];
-    *(u8 *)(D_800CCE3B + slot * 0x170) = (*p)[2];
-    *(u8 *)(D_800CCE39 + slot * 0x170) = (*p)[3];
+    D_800CCDE8[slot].unk55 = (*p)[1];
+    D_800CCDE8[slot].unk53 = (*p)[2];
+    D_800CCDE8[slot].unk51 = (*p)[3];
 }
 void BattleSlotStoreWordLowBytes(u8 **p, u8 index) {
     s32 slot = index + 3;
 
-    *(u8 *)(D_800CCE3C + slot * 0x170) = (*p)[1];
-    *(u8 *)(D_800CCE3A + slot * 0x170) = (*p)[2];
-    *(u8 *)(D_800CCE38 + slot * 0x170) = (*p)[3];
+    D_800CCDE8[slot].unk54 = (*p)[1];
+    D_800CCDE8[slot].unk52 = (*p)[2];
+    D_800CCDE8[slot].unk50 = (*p)[3];
 }
 // best: 98.82%. Only the last addu is commuted (original base first into a1,
 // gcc reuses the dead a2): identical multiset, same 98.82% under gcc 2.6.0 and
@@ -354,13 +384,13 @@ void func_8007BC40(u8 **p, u8 *pDest, u8 count) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007BC40);
 void BattleByteRegSetRandom(u8 **p, u8 index) {
     u8 value = func_8001BD40(0, (*p)[2]);
-    u8 *pTable = D_800D3430 + index * 0x40;
+    u8 *pTable = D_800D3400[index].unk30;
 
     pTable[(*p)[1]] = value;
 }
 void BattleWordRegSetRandomRange(u8 **p, u8 index) {
     u16 value = func_80089B50(0, (*p)[2] | ((*p)[3] << 8));
-    u16 *pField = (u16 *)(D_800D3420 + index * 0x40);
+    u16 *pField = D_800D3400[index].unk20;
 
     pField[(*p)[1]] = value;
 }
