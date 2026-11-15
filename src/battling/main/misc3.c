@@ -250,11 +250,11 @@ void func_8007661C(u8* p) {
 }
 */
 
+/* non-void return type: as void gcc fills the beq delay slots that retail
+   leaves as nop. */
 short func_800767C8(u8* p) {
     u32 flags;
-    unsigned long new_var;
 
-    new_var = 0xD8;
     if (D_8009284C >= 0x201) {
         return;
     }
@@ -268,7 +268,7 @@ short func_800767C8(u8* p) {
     if (!(flags & 0x40000)) {
         return;
     }
-    if (!(*(u32*)(*(u8**)(p + new_var) + 0xD0) & 0x40000)) {
+    if (!(*(u32*)(*(u8**)(p + 0xD8) + 0xD0) & 0x40000)) {
         return;
     }
     if ((flags & 0x60000000) != 0x20000000 || (p[0x90A] & 2)) {
