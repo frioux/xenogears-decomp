@@ -72,8 +72,10 @@ typedef struct {
 
 typedef union {
     /* 0x0 */ s32 flags;
-    /* 0x0 */ u16 count;
-    /* 0x2 */ s16 active;
+    /* 0x0 */ struct {
+        /* 0x0 */ u16 count;
+        /* 0x2 */ s16 active;
+    } status;
 } WorldMapTrailFlags; // Size: 0x4
 
 typedef struct {
@@ -104,15 +106,14 @@ typedef struct {
 typedef struct {
     /* 0x00 */ undefined32 unk00;
     /* 0x04 */ u32 unk04;
-    /* 0x08 */ undefined16 unk08;
+    /* 0x08 */ undefined8 unk08[0x2];
     /* 0x0A */ u16 unk0A;
-    /* 0x0C */ undefined16 unk0C;
-    /* 0x0E */ undefined32 unk0E;
+    /* 0x0C */ undefined8 unk0C[0x6];
     /* 0x12 */ u16 unk12;
     /* 0x14 */ u16 unk14;
     /* 0x16 */ u16 unk16;
     /* 0x18 */ u16 unk18;
-    /* 0x1A */ undefined16 unk1A;
+    /* 0x1A */ undefined8 unk1A[0x2];
     /* 0x1C */ u16 unk1C;
     /* 0x1E */ u16 unk1E;
     /* 0x20 */ u16 unk20;
@@ -342,28 +343,29 @@ s32 WorldMapReturnThreeB(void) {
 }
 
 void WorldMapInitSpriteGroupTables(void) {
+    WorldMapSprite* pSprite;
+    WorldMapTrailEntry* pTrail;
     s32 i;
-    u8* p;
 
-    p = (u8*)D_8009BCC0;
+    pSprite = D_8009BCC0->sprites;
     for (i = 0x1FF; i != -1; i--) {
-        *(s32*)(p + 0x4) = 0;
-        *(s16*)(p + 0xA) = 0;
-        *(s16*)(p + 0x12) = 0;
-        *(s16*)(p + 0x18) = 0;
-        *(s16*)(p + 0x16) = 0;
-        *(s16*)(p + 0x14) = 0;
-        *(s16*)(p + 0x20) = 0;
-        *(s16*)(p + 0x1E) = 0;
-        *(s16*)(p + 0x1C) = 0;
-        p += 0x54;
+        pSprite->unk04 = 0;
+        pSprite->unk0A = 0;
+        pSprite->unk12 = 0;
+        pSprite->unk18 = 0;
+        pSprite->unk16 = 0;
+        pSprite->unk14 = 0;
+        pSprite->unk20 = 0;
+        pSprite->unk1E = 0;
+        pSprite->unk1C = 0;
+        pSprite++;
     }
     D_8009BDF4 = HeapAlloc(0x4C00, 0);
-    p = (u8*)D_8009BDF4;
+    pTrail = D_8009BDF4;
     for (i = 0xFF; i != -1; i--) {
-        *(s16*)(p + 0x6) = 0;
-        *(s16*)(p + 0x4) = 0;
-        p += 0x4C;
+        pTrail->unk04.status.active = 0;
+        pTrail->unk04.status.count = 0;
+        pTrail++;
     }
 }
 
@@ -464,30 +466,30 @@ void func_800893E0(s32 arg0, u8* arg1, u8* arg2) {
 */
 
 void WorldMapDeactivateSpriteGroup(s32 arg0) {
-    u8* p;
+    WorldMapSprite* pSprite;
     s32 i;
 
-    p = (u8*)D_8009BCC0 + arg0 * 0x2A0 + 0x4F;
+    pSprite = D_8009BCC0[arg0].sprites;
     for (i = 7; i != -1; i--) {
-        *p &= 0x7F;
-        p += 0x54;
+        pSprite->unk4F &= 0x7F;
+        pSprite++;
     }
 }
 
 void WorldMapClearGroupEntryFlag(s32 arg0) {
-    s16* pEntry;
+    WorldMapTrailEntry* pEntry;
     s32 i;
     s32 j;
 
     pEntry = D_8009BDF4;
     for (i = 0xFF; i != -1; i--) {
         for (j = 0; j < 8; j++) {
-            if (pEntry[0] == (arg0 << 3) + j && pEntry[3] != 0) {
-                pEntry[2] = 0;
+            if (pEntry->unk00 == (arg0 << 3) + j && pEntry->unk04.status.active != 0) {
+                pEntry->unk04.status.count = 0;
                 break;
             }
         }
-        pEntry += 0x26;
+        pEntry++;
     }
 }
 
@@ -529,7 +531,7 @@ void func_80089580(void) {
                 pEntry->unk18 += pEntry->unk28;
                 pEntry->unk1C += pEntry->unk2C;
                 pEntry->unk20 += pEntry->unk30;
-                pEntry->unk04.count = pEntry->unk04.count - 1;
+                pEntry->unk04.status.count = pEntry->unk04.status.count - 1;
                 pEntry->unk38 += pEntry->unk3C;
                 pEntry->unk3A += pEntry->unk3E;
                 r = (pEntry->unk40 & 0xFF) + pEntry->colorStep.r;
