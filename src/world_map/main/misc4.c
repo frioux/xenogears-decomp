@@ -195,7 +195,7 @@ extern void func_800925A0(void);
 extern void func_800978FC(void);
 extern void func_8008901C(void);
 extern void func_800865A0(void);
-extern void func_80075228(void);
+extern void WorldMapInitRandomTimers(void);
 
 void WorldMapExitToMap10E(void) {
     u16 v;
@@ -374,7 +374,7 @@ void func_80078A60(void) {
     func_800978FC();
     func_8008901C();
     func_800865A0();
-    func_80075228();
+    WorldMapInitRandomTimers();
 }
 void WorldMapExitToMap110(void) {
     u16 v;
@@ -740,7 +740,7 @@ void func_8007A5DC(void) {
     func_800978FC();
     func_8008901C();
     func_800865A0();
-    func_80075228();
+    WorldMapInitRandomTimers();
 }
 void func_8007A8AC(void) {
     u16 v;

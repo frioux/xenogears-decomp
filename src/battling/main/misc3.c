@@ -160,7 +160,7 @@ extern u32 D_80091198[];
 extern u32 D_80096FB8[];
 extern u8 D_80096FBC[];
 
-void func_800764CC(u8* p) {
+void BattleUpdateSlotGaugeDisplay(u8* p) {
     u32 flags;
     s32 prod;
     u8* p1600;

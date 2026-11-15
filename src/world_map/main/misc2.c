@@ -246,7 +246,7 @@ void WorldMapUpdateFrameAnimEntries(void) {
     }
 }
 
-void func_80075228(void) {
+void WorldMapInitRandomTimers(void) {
     s32 i;
     s32 screenWidth;
     u16 flags;

@@ -218,7 +218,7 @@ void func_800BE1C4(u8 *pTask) {
         scale.vz -= 0x330;
     }
 }
-void func_800BE330(s32 value) {
+void BattleCreateNumberSpriteTask(s32 value) {
     BattleSpriteBody *pBody;
     u8 digits[6];
     s32 i;
@@ -281,7 +281,7 @@ void func_800BE330(s32 value) {
         }
     }
 }
-void func_800BE538(s32 index, s32 arg1, s32 arg2, s32 arg3) {
+void BattleAttachActorAnimScripts(s32 index, s32 arg1, s32 arg2, s32 arg3) {
     BattleActorSprite *pSprite;
     BattleMisc33State *pState;
     u8 *pBase;

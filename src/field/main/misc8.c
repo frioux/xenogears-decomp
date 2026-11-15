@@ -1070,7 +1070,7 @@ void FieldGetDistanceScaledValue(int arg0, int* pOut, int arg2) {
     *pOut = (u_int)(scaled * arg2) >> 16;
 }
 
-extern void func_8003A344(int, int);
+extern void SoundSetElementVolumeByIndex(int, int);
 extern void func_8003A55C(int, int);
 void FieldActorWorldToScreenPosition(int, int*, int*);
 
@@ -1092,7 +1092,7 @@ void FieldUpdateActorSoundSlot(int arg0, int arg1, int arg2, int arg3, int actor
                 screenX = 0;
             }
             scaled = screenX * 0x6666 >> 16;
-            func_8003A344(i * 2, value);
+            SoundSetElementVolumeByIndex(i * 2, value);
             func_8003A55C(i * 2, scaled);
         }
     }

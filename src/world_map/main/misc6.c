@@ -159,7 +159,7 @@ extern void WorldMapAddSlot(void *, void *);
 extern void func_800978FC(void);
 extern void func_8008901C(void);
 extern void func_800865A0(void);
-extern void func_80075228(void);
+extern void WorldMapInitRandomTimers(void);
 extern void WorldMapModeInitFadeRect(void);
 extern void func_800925A0(void);
 extern int WorldMapSetActorScriptTables(int);
@@ -428,7 +428,7 @@ void func_8007D918(void) {
     func_800978FC();
     func_8008901C();
     func_800865A0();
-    func_80075228();
+    WorldMapInitRandomTimers();
 }
 */void WorldMapExitToMap1A1(void) {
     s32 nIndex;
@@ -777,7 +777,7 @@ void WorldMapInitializeModeWithActors(void) {
     func_8008901C();
     func_800865A0();
     func_80085FE0();
-    func_80075228();
+    WorldMapInitRandomTimers();
 }
 void WorldMapExitToMap84(void) {
     u16 unkValue;

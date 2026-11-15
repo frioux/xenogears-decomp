@@ -34,10 +34,7 @@ extern BattleUnk48 D_800C3FE8[];
 
 typedef struct {
     /* 0x00 */ u16 unk0;
-    /* 0x02 */ u8 pad2[0x5E];
-    /* 0x60 */ u16 unk60;
-    /* 0x62 */ u16 unk62;
-    /* 0x64 */ u8 pad64[0x10C];
+    /* 0x02 */ u8 pad2[0x16E];
 } BattleUnk170; // Size: 0x170
 
 extern u8 D_800D2DCC[];
@@ -159,6 +156,13 @@ void BattleSetActorSlotDisplayMode(u8 arg0) {
         func_80077698();
         D_800D366C = 0;
         break;
+    case 1:
+        if (((BattleActorSlots *)D_800C3EAC)->slot[a].unk34 == 0) {
+            ((BattleActorSlots *)D_800C3EAC)->unk2DD = 0x11;
+            break;
+        }
+        BattlePlaySoundIfEnabled(0x4F);
+        break;
     case 2:
         ((BattleActorSlots *)D_800C3EAC)->unk2DD = 0x12;
         break;
@@ -238,65 +242,7 @@ void BattleSetActorSlotMenuMode(u8 arg0) {
         break;
     }
 }
-extern void BattleSetSlotFlag15A1(u8);
-extern u16 D_800D2C32;
-void func_80082D4C(u8 arg0) {
-    u8 a;
-
-    a = arg0;
-    switch (D_800D3014) {
-    case 4:
-    case 6:
-    case 7:
-        BattleSetSlotFlag15A1(a);
-        D_800CCD64[a].unk60 += D_800D2C32;
-        if (D_800CCD64[a].unk60 > D_800CCD64[a].unk62) {
-            D_800CCD64[a].unk60 = D_800CCD64[a].unk62;
-        }
-        ((BattleActorSlots *)D_800C3EAC)->unk2DE[0xD + a] = 1;
-        ((BattleActorSlots *)D_800C3EAC)->unk2DE[0xC] = 0;
-        ((BattleActorSlots *)D_800C3EAC)->unk2DE[0] = 1;
-        break;
-    case 0:
-        if (((BattleActorSlots *)D_800C3EAC)->slot[a].unk2E == 0) {
-            ((BattleActorSlots *)D_800C3EAC)->unk2DD = 0x10;
-            break;
-        }
-        BattlePlaySoundIfEnabled(0x4F);
-        break;
-    case 1:
-        if (((BattleActorSlots *)D_800C3EAC)->slot[a].unk34 == 0) {
-            ((BattleActorSlots *)D_800C3EAC)->unk2DD = 0x11;
-            break;
-        }
-        BattlePlaySoundIfEnabled(0x4F);
-        break;
-    case 3:
-        if (((BattleActorSlots *)D_800C3EAC)->slot[a].unk28 == 0) {
-            ((BattleActorSlots *)D_800C3EAC)->unk2DD = 0x13;
-            break;
-        }
-        if (((BattleActorSlots *)D_800C3EAC)->unk2F6 != 0 && D_800C3E29 == 3) {
-            if (((BattleActorSlots *)D_800C3EAC)->slot[a].unk24 != 0) {
-                BattlePlaySoundIfEnabled(0x4F);
-            } else {
-                ((BattleActorSlots *)D_800C3EAC)->unk2DD = 0x18;
-            }
-            ((BattleActorSlots *)D_800C3EAC)->unk2F6 = 0;
-            break;
-        }
-        ((BattleActorSlots *)D_800C3EAC)->unk2F6 = 1;
-        BattlePlaySoundIfEnabled(0x4F);
-        break;
-    case 2:
-        if (((BattleActorSlots *)D_800C3EAC)->slot[a].unk2C == 0) {
-            ((BattleActorSlots *)D_800C3EAC)->unk2DD = 0x17;
-            break;
-        }
-        BattlePlaySoundIfEnabled(0x4F);
-        break;
-    }
-}
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80082D4C);
 extern void BattleLoadStringTableAE(u8);
 extern u8 func_8008B478(u8);
 extern void func_8008ADD0(u8);
@@ -350,76 +296,7 @@ void func_80082F7C(u8 arg0) {
 }
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_800830A8);
-void func_80083340(u8 arg0) {
-    u8 a;
-
-    a = arg0;
-    switch (D_800D3014) {
-    case 4:
-    case 6:
-    case 7:
-        if (func_8008BED8(a) != 0) {
-            func_8008B908(a);
-        } else {
-            ((BattleActorSlots *)D_800C3EAC)->unk2DD = 0x16;
-        }
-        break;
-    case 0:
-        if (((BattleActorSlots *)D_800C3EAC)->slot[a].unk36 == 0) {
-            ((BattleActorSlots *)D_800C3EAC)->unk2DD = 0x15;
-            break;
-        }
-        if (((BattleActorSlots *)D_800C3EAC)->unk2F6 != 0 && D_800C3E29 == 0) {
-            if (((BattleActorSlots *)D_800C3EAC)->slot[a].unk2E != 0) {
-                BattlePlaySoundIfEnabled(0x4F);
-            } else {
-                ((BattleActorSlots *)D_800C3EAC)->unk2DD = 0x10;
-            }
-            ((BattleActorSlots *)D_800C3EAC)->unk2F6 = 0;
-            break;
-        }
-        ((BattleActorSlots *)D_800C3EAC)->unk2F6 = 1;
-        BattlePlaySoundIfEnabled(0x4F);
-        break;
-    case 2:
-        if (((BattleActorSlots *)D_800C3EAC)->slot[a].unk2C == 0) {
-            ((BattleActorSlots *)D_800C3EAC)->unk2DD = 0x17;
-            break;
-        }
-        if (((BattleActorSlots *)D_800C3EAC)->unk2F6 != 0 && D_800C3E29 == 2) {
-            ((BattleActorSlots *)D_800C3EAC)->unk2DD = 0x12;
-            ((BattleActorSlots *)D_800C3EAC)->unk2F6 = 0;
-            break;
-        }
-        ((BattleActorSlots *)D_800C3EAC)->unk2F6 = 1;
-        BattlePlaySoundIfEnabled(0x4F);
-        break;
-    case 3:
-        if (((BattleActorSlots *)D_800C3EAC)->slot[a].unk24 == 0) {
-            ((BattleActorSlots *)D_800C3EAC)->unk2DD = 0x18;
-            break;
-        }
-        if (((BattleActorSlots *)D_800C3EAC)->unk2F6 != 0 && D_800C3E29 == 3) {
-            if (((BattleActorSlots *)D_800C3EAC)->slot[a].unk28 != 0) {
-                BattlePlaySoundIfEnabled(0x4F);
-            } else {
-                ((BattleActorSlots *)D_800C3EAC)->unk2DD = 0x13;
-            }
-            ((BattleActorSlots *)D_800C3EAC)->unk2F6 = 0;
-            break;
-        }
-        ((BattleActorSlots *)D_800C3EAC)->unk2F6 = 1;
-        BattlePlaySoundIfEnabled(0x4F);
-        break;
-    case 1:
-        if (((BattleActorSlots *)D_800C3EAC)->slot[a].unk34 == 0) {
-            ((BattleActorSlots *)D_800C3EAC)->unk2DD = 0x11;
-            break;
-        }
-        BattlePlaySoundIfEnabled(0x4F);
-        break;
-    }
-}
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80083340);
 extern u8 D_800C48EA;
 extern s32 func_8009A9D0(u8);
 void BattleAdvanceSlotMenuStateRandom(u8 arg0) {
@@ -950,90 +827,7 @@ u16 func_80084DE4(u16 arg0, u16 arg1, u8 arg2, u8 arg3, u8 arg4) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80084DE4);
-typedef struct {
-    /* 0x00 */ u8 pad0[0xE6];
-    /* 0xE6 */ u8 unkE6[4];
-} BattleUnkEA; // Size: 0xEA
-
-extern BattleUnkEA *D_800C3E24;
-extern u16 func_80084DE4(u16, u16, u8, u8, u8);
-u8 func_80085084(u16 arg0, u8 arg1, u8 arg2) {
-    u16 mask;
-    u16 prev;
-    u8 state;
-    u8 target;
-    s32 i;
-
-    prev = 0xFE;
-    func_80084DE4(arg0, arg0, arg1, 0, arg2);
-    mask = D_800C3D64;
-    state = D_800C3E2C == 0xFF;
-    while (state == 0) {
-        BattleUpdateFrame();
-        switch (arg0 & 0xF) {
-        case 0:
-            func_800BCD98(BattleSlotBitMask(D_800C3E2C));
-            func_800BC404(BattleSlotBitMask(D_800C3E2C));
-            break;
-        case 1:
-            func_800BCD98(D_800C3D64);
-            func_800BC404(D_800C3D64);
-            break;
-        case 2:
-            mask = func_80084D28();
-            func_800BCD98(mask);
-            func_800BC404(mask);
-            break;
-        }
-        switch (D_800D3014) {
-        case 5:
-            state = 1;
-            break;
-        case 4:
-            D_800C3D64 = mask;
-            state = 2;
-            break;
-        case 6:
-        case 7:
-            break;
-        case 0:
-            target = func_80084854(D_800C3E2C, 0);
-            if (BattleMaskHasSlotBit(D_800C3D64, target) != 0) {
-                D_800C3E2C = target;
-            }
-            break;
-        case 1:
-            target = func_80084854(D_800C3E2C, 1);
-            if (BattleMaskHasSlotBit(D_800C3D64, target) != 0) {
-                D_800C3E2C = target;
-            }
-            break;
-        case 2:
-            target = func_80084854(D_800C3E2C, 2);
-            if (BattleMaskHasSlotBit(D_800C3D64, target) != 0) {
-                D_800C3E2C = target;
-            }
-            break;
-        case 3:
-            target = func_80084854(D_800C3E2C, 3);
-            if (BattleMaskHasSlotBit(D_800C3D64, target) != 0) {
-                D_800C3E2C = target;
-            }
-            break;
-        }
-        if (D_800D3014 != prev) {
-            prev = D_800D3014;
-            for (i = 0; i < 4; i++) {
-                if (func_80084854(D_800C3E2C, i) != D_800C3E2C) {
-                    D_800C3E24->unkE6[i] = 1;
-                } else {
-                    D_800C3E24->unkE6[i] = 0;
-                }
-            }
-        }
-    }
-    return state - 1;
-}
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80085084);
 u32 func_80085310(u8 arg0, u8 arg1) {
     return D_800C3EBE[arg0].unk0 > D_800C3EBE[arg1].unk0;
 }

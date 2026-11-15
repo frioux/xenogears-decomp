@@ -1801,7 +1801,7 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003A20C);
 /*
 Screened under gcc-2.7.2-cdk / gcc-2.7.2 / this unit's gcc-2.6.0: 80.40 / 80.40 / 84.00 - not
 a compiler-only match; the current preset is the best of the three.
-Attempt (84.00%, correct size and registers): same blocker as func_8003A344 - the
+Attempt (84.00%, correct size and registers): same blocker as SoundSetElementVolumeByIndex - the
 only difference is that gcc emits the `andi a0,0xfe` / `xori a0,0x8` mask after
 the loop-preheader constants (`li s2,2`, `li s4,1`) while the original emits it
 first. Stable against the mask in a local of its own, and against the mask inline
@@ -1844,7 +1844,7 @@ void SoundSetElementVolumeById(s32 id, s32 value) {
     } while (cnt);
 }
 
-void func_8003A344(s32 elementIndex, s32 value) {
+void SoundSetElementVolumeByIndex(s32 elementIndex, s32 value) {
     AudioElement* pElement;
     u32 cnt;
 
@@ -1897,7 +1897,7 @@ a compiler-only match; the current preset is the best of the three.
 Attempt (90.70%, correct size): identical to SoundFadeElementVolumeById except that gcc hoists
 the `andi a0,0xFE` / `xori a0,0x8` index pair into the loop preheader (after
 `li t0,2` / `sll a1,8`) while the original keeps them in the entry block. Same
-blocker as func_8003A344 and func_8003A55C; u8/u16 index types and declaration
+blocker as SoundSetElementVolumeByIndex and func_8003A55C; u8/u16 index types and declaration
 order do not move it.
 void func_8003A450(s32 elementIndex, s32 value, s32 frames) {
     s32 index = (elementIndex & 0xFE) ^ 8;

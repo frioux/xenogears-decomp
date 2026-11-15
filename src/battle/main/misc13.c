@@ -44,7 +44,7 @@ extern void func_800B89FC(s32, s32, s32, s32);
 extern u8 BattleSlotBitMaskInverted(u8);
 extern s32 func_8009ADA0(u8, s32 *);
 extern void func_80085388(void);
-extern void func_800BE538(u8, s32, s32, s32);
+extern void BattleAttachActorAnimScripts(u8, s32, s32, s32);
 extern u8 D_800C4000[];
 extern u8 D_800C3FE8[];
 extern u8 *D_800C3EA4;
@@ -117,7 +117,7 @@ void BattleBeginActorStatAnimation(s32 arg0) {
                 func_80085618(p[0x2DA]);
             }
         }
-        func_800BE538((u8)arg0, buf[0], buf[1], buf[2]);
+        BattleAttachActorAnimScripts((u8)arg0, buf[0], buf[1], buf[2]);
     }
 }
 void BattleBeginAction(s32 arg0, u16 arg1, u16 arg2) {
