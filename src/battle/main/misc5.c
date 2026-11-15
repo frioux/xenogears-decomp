@@ -1,24 +1,60 @@
 #include "common.h"
 
 extern u8 *D_800D2D28;
-extern u8 D_800D3725[];
 extern u16 D_8005A3A0[];
-extern u8 D_800D3430[];
 extern u8 D_800D3420[];
 extern u8 D_800D3410[];
 extern u8 D_800D2DCC[];
-extern u8 D_800CCD64[];
-extern u8 D_800CCD6C[];
-extern u8 D_800C3EB7[];
+
+// The per-slot battle register file (D_800D3400[slot]): the dword, word and
+// byte registers the script's arithmetic ops are applied to. Same layout as
+// src/battle/main/misc10.c's BattleSlotRegs.
+typedef struct {
+    /* 0x00 */ u8 unk0[0x10];
+    /* 0x10 */ u32 unk10[4]; // dword registers
+    /* 0x20 */ u16 unk20[8]; // word registers
+    /* 0x30 */ u8 unk30[0x10]; // byte registers
+} BattleSlotRegs; // Size: 0x40
+
+// One 0x60-byte entry of the screen slot table at D_800D3718; only the byte at
+// 0xD (the slot's enable flag) is touched here. src/battle/main/misc3.c reaches
+// the same table by byte offset.
+typedef struct {
+    /* 0x00 */ u8 unk0[0xD];
+    /* 0x0D */ u8 unkD;
+    /* 0x0E */ u8 unkE[0x52];
+} BattleScreenSlot; // Size: 0x60
+
+// One 0x170-byte entry of the slot table at D_800CCD64: the two flag words the
+// slot state tests read. include/battle/actor.h's BattleTableEntry covers the
+// same table, but keeps these two words inside its opaque unk5C array.
+typedef struct {
+    /* 0x000 */ u16 flags; // tested against 0xC000 and 0xC002
+    /* 0x002 */ u8 unk2[0x6];
+    /* 0x008 */ u16 unk8; // tested against 0x20
+    /* 0x00A */ u8 unkA[0x166];
+} BattleSlotFlagEntry; // Size: 0x170
+
+// One 0x1C-byte entry of the slot record table at D_800C3E9C; only the byte at
+// 0x1B (the entry's high-bit flag) is read here.
+typedef struct {
+    /* 0x00 */ u8 unk0[0x1B];
+    /* 0x1B */ u8 unk1B;
+} BattleSlotRecord; // Size: 0x1C
+
+extern BattleScreenSlot D_800D3718[];
+extern BattleSlotFlagEntry D_800CCD64[];
+extern BattleSlotRecord D_800C3E9C[];
+extern BattleSlotRegs D_800D3400[];
 
 void BattleSetSlotFlagB4(u8 arg0) {
     D_800D2D28[0xB4] = 1;
-    D_800D3725[arg0 * 0x60] = 1;
+    D_800D3718[arg0].unkD = 1;
 }
 
 void BattleClearSlotFlagB4(u8 arg0) {
     D_800D2D28[0xB4] = 0;
-    D_800D3725[arg0 * 0x60] = 0;
+    D_800D3718[arg0].unkD = 0;
 }
 
 extern u16 BattleMaskHasSlotBit(u16, u8);
@@ -71,12 +107,10 @@ u32 BattleSlotFlagsC002Clear(u8 arg0, u8 arg1) {
     u8 res = 0;
 
     if (D_800D2DCC[arg0] != 0) {
-        s32 off = arg0 * 0x170;
-
-        if ((*(u16 *)(D_800CCD64 + off) & 0xC002) == 0) {
+        if ((D_800CCD64[arg0].flags & 0xC002) == 0) {
             res = 1;
             if (arg1 == 0) {
-                u32 f = *(u16 *)(D_800CCD6C + off) & 0x20;
+                u32 f = D_800CCD64[arg0].unk8 & 0x20;
 
                 res = f == 0;
             }
@@ -87,8 +121,8 @@ u32 BattleSlotFlagsC002Clear(u8 arg0, u8 arg1) {
 u32 BattleSlotFlagsC000Clear(u8 arg0) {
     u8 res = 0;
 
-    if (D_800D2DCC[arg0] != 0 && D_800C3EB7[arg0 * 0x1C] == 0) {
-        res = (*(u16 *)(D_800CCD64 + arg0 * 0x170) & 0xC000) == 0;
+    if (D_800D2DCC[arg0] != 0 && D_800C3E9C[arg0].unk1B == 0) {
+        res = (D_800CCD64[arg0].flags & 0xC000) == 0;
     }
     return res;
 }
@@ -115,7 +149,7 @@ u8 BattleGridWriteByteAdvanceRow(u8 **arg0, u8 *arg1, u8 arg2) {
 void BattleGridWriteByteReg(u8 **arg0, u8 *arg1, u8 arg2, u8 arg3) {
     u8 *p = *arg0;
     s32 idx = arg3 * 8 + p[1];
-    u8 *pRow = D_800D3430 + arg2 * 0x40;
+    u8 *pRow = D_800D3400[arg2].unk30;
 
     arg1[idx] = pRow[p[2]];
 }
@@ -130,7 +164,7 @@ void BattleGridCopyRow(u8 **arg0, u8 *arg1) {
 }
 void BattleByteRegSetImm(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
-    u8 *pRow = D_800D3430 + arg1 * 0x40;
+    u8 *pRow = D_800D3400[arg1].unk30;
 
     pRow[p[1]] = p[2];
 }
@@ -177,11 +211,13 @@ void func_8007A968(u8 **arg0, u8 arg1) {
     ((u32 *)D_800D3410)[idx] = val;
 } */
 void BattleWordTableStoreImm(u8 **arg0) {
-    D_8005A3A0[(*arg0)[1]] = (*arg0)[2];
+    u8 *p = *arg0;
+
+    D_8005A3A0[p[1]] = p[2];
 }
 void BattleByteRegAddImmClamp(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
-    u8 *pRow = D_800D3430 + arg1 * 0x40;
+    u8 *pRow = D_800D3400[arg1].unk30;
     s32 v = pRow[p[1]] + p[2];
     u8 res = v;
 
@@ -208,7 +244,7 @@ void BattleByteRegAddImmClamp(u8 **arg0, u8 arg1) {
 } */
 void BattleByteRegSubImmClamp(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
-    u8 *pRow = D_800D3430 + arg1 * 0x40;
+    u8 *pRow = D_800D3400[arg1].unk30;
     s32 v = pRow[p[1]] - p[2];
     u8 res = v;
 
@@ -263,31 +299,31 @@ void func_8007AA60(u8 **arg0, u8 arg1) {
 } */
 void BattleByteRegDivImm(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
-    u8 *pRow = D_800D3430 + arg1 * 0x40;
+    u8 *pRow = D_800D3400[arg1].unk30;
 
     pRow[p[1]] /= p[2];
 }
 void BattleByteRegModImm(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
-    u8 *pRow = D_800D3430 + arg1 * 0x40;
+    u8 *pRow = D_800D3400[arg1].unk30;
 
     pRow[p[1]] %= p[2];
 }
 void BattleByteRegAndImm(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
-    u8 *pRow = D_800D3430 + arg1 * 0x40;
+    u8 *pRow = D_800D3400[arg1].unk30;
 
     pRow[p[1]] &= p[2];
 }
 void BattleByteRegOrImm(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
-    u8 *pRow = D_800D3430 + arg1 * 0x40;
+    u8 *pRow = D_800D3400[arg1].unk30;
 
     pRow[p[1]] |= p[2];
 }
 void BattleByteRegXorImm(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
-    u8 *pRow = D_800D3430 + arg1 * 0x40;
+    u8 *pRow = D_800D3400[arg1].unk30;
 
     pRow[p[1]] ^= p[2];
 }
