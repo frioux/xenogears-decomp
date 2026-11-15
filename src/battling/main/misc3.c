@@ -160,15 +160,6 @@ extern u32 D_80091198[];
 extern u32 D_80096FB8[];
 extern u8 D_80096FBC[];
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_800764CC);
-
-/* measured 95.12% (was 99.76% when this note was written): two residuals. (1) gcc hoists the `lui v0,0x800` / `and v1,v1,v0`
-   pair for the `flags & 0x8000000` test up into the mult->mflo shadow (before
-   the 0xD0 store); the original leaves both after the 0x15F2 store. Tried:
-   test inline in the if, in-place `flags &=`, if/else on the two call shapes,
-   a fresh s32 local, source-reordering the two stores. (2) the 0x1600 index
-   sum: gcc emits `addu v0,v0,v1` (index first), the original `addu v0,v1,v0`.
-   Tried: pointer local, `*(p1600 + i)`, indexed form.
 void func_800764CC(u8* p) {
     u32 flags;
     s32 prod;
@@ -182,13 +173,15 @@ void func_800764CC(u8* p) {
         flags &= ~2;
         *(u32*)(p + 0xD0) = flags;
     }
-    prod = *(s16*)(p + 0x15F4) * D_8009292C;
-    flags = *(u32*)(p + 0xD0);
-    flags &= ~0x80000;
-    *(u32*)(p + 0xD0) = flags;
-    *(s16*)(p + 0x15F2) = prod >> 8;
+    do {
+        prod = *(s16*)(p + 0x15F4) * D_8009292C;
+        flags = *(u32*)(p + 0xD0);
+        flags &= ~0x80000;
+        *(u32*)(p + 0xD0) = flags;
+        *(s16*)(p + 0x15F2) = prod >> 8;
+    } while (0);
     flags &= 0x8000000;
-    if (!flags) {
+    if (!(prod = flags)) {
         BattleSetTextCursor(0x28, 0x28);
     } else {
         BattleSetTextCursor(0xF0, 0x28);
@@ -196,10 +189,9 @@ void func_800764CC(u8* p) {
     if (p[0x9C3] != 0) {
         ((u32*)D_80096FB8)[((*(u32*)(p + 0xD0) >> 27) & 1) * 5] = ((u32*)D_80091198)[p[0x9C3]];
         p1600 = *(u8**)(p + 0x1600);
-        ((u8*)D_80096FBC)[((*(u32*)(p + 0xD0) >> 27) & 1) * 20] = (p1600[p[0x9C3] + 9] * *(s16*)p1600) / 100;
+        ((u8*)D_80096FBC)[((*(u32*)(p + 0xD0) >> 27) & 1) * 20] = ((p1600 + p[0x9C3])[9] * *(s16*)p1600) / 100;
     }
 }
-*/
 
 extern void BattleSetTextScale(s32 color);
 extern void BattleDrawTextLeft(char* pStr);
