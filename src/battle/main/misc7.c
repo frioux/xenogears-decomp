@@ -54,7 +54,7 @@ typedef struct {
 extern BattleSlotArgs D_800CCDE8[];
 
 u8 func_8001BD40(int, u8);
-u16 func_80089B50(int, u16);
+u16 BattleRandomRange(int, u16);
 u8 func_8007A628(u8, u8);
 u16 BattleSlotBitMask(u8);
 s32 BattleFindFirstFlagTableMatch(u16);
@@ -394,7 +394,7 @@ void BattleByteRegSetRandom(BattleCommand **p, u8 index) {
     pTable[(*p)->unk1] = value;
 }
 void BattleWordRegSetRandomRange(BattleCommand **p, u8 index) {
-    u16 value = func_80089B50(0, (*p)->unk2 | ((*p)->unk3 << 8));
+    u16 value = BattleRandomRange(0, (*p)->unk2 | ((*p)->unk3 << 8));
     u16 *pField = D_800D3400[index].unk20;
 
     pField[(*p)->unk1] = value;

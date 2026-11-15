@@ -65,7 +65,7 @@ extern void BattleBuildBlendedSprite(void);
 extern void func_800891E4(void);
 extern void BattleBuildGrey80BlendSpriteColumn5(void);
 extern void func_8008946C(void);
-extern void func_8008963C(void);
+extern void BattleBuildGrey80BlendSpriteColumn7(void);
 extern void BattleBuildGrey80BlendSpriteColumn2(void);
 extern void func_8008A3EC(u8 arg0);
 extern void BattleUpdateImageUpload(u8 arg0);
@@ -209,7 +209,7 @@ void BattleBuildGrey80BlendSpriteColumn5(void) {
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc14", func_8008946C);
-void func_8008963C(void) {
+void BattleBuildGrey80BlendSpriteColumn7(void) {
     s32 i = 0;
     s32 columnBase;
     s32 n = 0;
@@ -301,10 +301,10 @@ void BattleBuildSpritePrimLists(void) {
     func_800891E4();
     BattleBuildGrey80BlendSpriteColumn5();
     func_8008946C();
-    func_8008963C();
+    BattleBuildGrey80BlendSpriteColumn7();
     BattleBuildGrey80BlendSpriteColumn2();
 }
-u16 func_80089B50(u16 arg0, u16 arg1) {
+u16 BattleRandomRange(u16 arg0, u16 arg1) {
     s32 rem;
     s32 range;
 
