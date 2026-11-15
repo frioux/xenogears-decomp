@@ -159,7 +159,7 @@ void GameSoftReset(void) {
     DrawSyncCallback(0);
     func_8004B7D0(0);
     CdFlush();
-    func_800408F4();
+    StopPAD();
     SwEnterCriticalSection();
     start();
 }

@@ -138,7 +138,7 @@ long StartPAD(void) {
     EnablePAD();
 }
 
-void func_800408F4(void) {
+void StopPAD(void) {
     func_80040B00();
     StopPAD2();
     func_800409AC();
