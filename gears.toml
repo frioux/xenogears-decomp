@@ -183,8 +183,7 @@ build_variables = {
 paths = [
     "battle/main/misc21.",
     "battling/main/misc15.",
-    "movie/main/misc1.",
-    "movie/main/misc2."
+    "movie/main/misc1."
 ]
 
 # world_map is addiu-dominant AND expands div: both flags, not either.
@@ -395,3 +394,18 @@ paths = [
 # func_800BB690/BB7F8/BCB54, misc29 func_800B7C28/B8048/B8D04. XenoBattleTailCdk
 # is now empty and was removed; misc27/misc27_b stay on it only for their compiler
 # (their parks are C-shape and identical under -G0).
+
+# movie/main/misc2 wants plain gcc 2.7.2 with -G0, NOT cdk: round 83 screened
+# func_80076AF0 across every axis and `gcc-2.7.2 -O2 -G0` is the only 100.00
+# (cdk -G0 is 80.36 - the cdk theory was wrong for this unit). The function keeps
+# &D_80077070 in $a0 for a zero-offset store; -G8 makes gcc emit the symbol form
+# through $at. Every already-matched function in the unit scores identically
+# under -G8 and -G0, so this is a straight switch, not a split. The other movie
+# units stay on XenoBattleDiv - screen them the same way before moving them.
+[[build_preset]]
+name = "XenoMovieG0"
+build_variables = {
+    gp_flag = "-G0",
+    maspsx_flags = "--expand-div --use-comm-section --run-assembler"
+}
+paths = [ "movie/main/misc2." ]
