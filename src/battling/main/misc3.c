@@ -56,27 +56,49 @@ typedef struct BattleActor {
     /* 0x006C */ Vec4 unk6C;
     /* 0x007C */ u8 unk7C[0x4];
     /* 0x0080 */ u8* unk80;
-    /* 0x0084 */ u8 unk84[0x40];
+    /* 0x0084 */ u8 unk84[0x2C];
+    /* 0x00B0 */ s32 unkB0;
+    /* 0x00B4 */ s16 unkB4;
+    /* 0x00B6 */ s16 unkB6;
+    /* 0x00B8 */ s16 unkB8;
+    /* 0x00BA */ s16 unkBA;
+    /* 0x00BC */ s16 unkBC;
+    /* 0x00BE */ s16 unkBE;
+    /* 0x00C0 */ u8 unkC0;
+    /* 0x00C1 */ u8 unkC1;
+    /* 0x00C2 */ u8 unkC2;
+    /* 0x00C3 */ u8 unkC3;
     /* 0x00C4 */ u8 unkC4;
     /* 0x00C5 */ u8 unkC5;
-    /* 0x00C6 */ u8 unkC6[0x4];
-    /* 0x00CA */ u16 unkCA;
+    /* 0x00C6 */ u8 unkC6[0x2];
+    /* 0x00C8 */ s16 unkC8;
+    /* 0x00CA */ s16 unkCA;
     /* 0x00CC */ u8 unkCC[0x4];
     /* 0x00D0 */ u32 flags;
     /* 0x00D4 */ u32 unkD4;
     /* 0x00D8 */ struct BattleActor* pTarget;
     /* 0x00DC */ u8 unkDC[0xC];
     /* 0x00E8 */ u32 unkE8;
-    /* 0x00EC */ u8 unkEC[0x14];
+    /* 0x00EC */ u8 unkEC[0x4];
+    /* 0x00F0 */ s16 unkF0;
+    /* 0x00F2 */ u8 unkF2[0xE];
     /* 0x0100 */ s32 unk100;
     /* 0x0104 */ u8 unk104[0x806];
     /* 0x090A */ u8 unk90A;
-    /* 0x090B */ u8 unk90B[0xB];
-    /* 0x0916 */ u16 unk916;
+    /* 0x090B */ u8 unk90B[0x3];
+    /* 0x090E */ u8 unk90E;
+    /* 0x090F */ u8 unk90F;
+    /* 0x0910 */ u8 unk910;
+    /* 0x0911 */ u8 unk911[0x3];
+    /* 0x0914 */ s16 unk914;
+    /* 0x0916 */ s16 unk916;
     /* 0x0918 */ u8 unk918[0x14];
     /* 0x092C */ Vec4 unk92C;
     /* 0x093C */ Vec4 unk93C;
-    /* 0x094C */ u8 unk94C[0x54];
+    /* 0x094C */ u8 unk94C[0x24];
+    /* 0x0970 */ s32 unk970;
+    /* 0x0974 */ Vec4 unk974;
+    /* 0x0984 */ u8 unk984[0x1C];
     /* 0x09A0 */ BattleMessageQueue messageQueue;
     /* 0x09C3 */ u8 unk9C3;
     /* 0x09C4 */ u8 unk9C4[0xC24];
@@ -384,7 +406,7 @@ s32 dec;
     }
 }
 
-void BattleActorBeginMove(BattleActor* p) {
+void BattleActorBeginMove(BattleActor* p, s32 ang, s32 shift, s32 dec) {
     p->flags |= 0x1000;
     p->unk4C = 8;
     p->unk4E = 0xFF;
@@ -395,7 +417,7 @@ void BattleActorBeginMove(BattleActor* p) {
     p->unkC5 = 0;
     p->unkD4 &= ~0x10;
     p->flags &= ~0x400;
-    func_80077584(p);
+    func_80077584(p, ang, shift, dec);
 }
 
 /* non-void return type, bare returns: as void gcc fills the beqz/beq delay
@@ -430,7 +452,87 @@ s32 BattleUpdateControllerActuator(BattleActor* p, s32 mode) {
     return;
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80077770);
+/* Non-void return type: as void gcc fills the beq delay slots that retail
+   leaves as nop. */
+short func_80077770(BattleActor* p) {
+    s32 dist;
+    s32 ang;
+    s32 mode;
+    s32 mid;
+    s32 decel;
+    u32 flags;
+
+    mode = 4;
+    p->unkF0++;
+    if (p->unkCA != 0) {
+        if (p->unk4C == 9) {
+            p->unk4C = 0xC;
+            p->unk4E = 0xFF;
+            p->flags |= 0x1000;
+            goto done;
+        }
+    } else {
+        flags = p->flags;
+        if (flags & 4) {
+            mode = 2;
+            goto done;
+        }
+        mid = (p->unk92C.y - p->unk93C.y) * 2 / 3 + p->unk93C.y;
+        if (p->unk974.y < mid) {
+            if ((flags & 0x700000) == 0x100000) {
+                p->unk4C = 7;
+                p->unk4E = 0xFF;
+                p->flags = (p->flags | 0x1000) & 0xFF8FFFFF;
+            } else {
+                p->unk4C = 6;
+                p->unk4E = 0xFF;
+                p->flags = ((p->flags | 0x1000) & 0xFF8FFFFF) | 0x100000;
+            }
+        } else {
+            if ((flags & 0x700000) == 0x200000) {
+                p->unk4C = 7;
+                p->unk4E = 0xFF;
+                p->flags = (p->flags | 0x1000) & 0xFF8FFFFF;
+            } else {
+                p->unk4C = 5;
+                p->unk4E = 0xFF;
+                p->flags = ((p->flags | 0x1000) & 0xFF8FFFFF) | 0x200000;
+            }
+        }
+    }
+    ang = ratan2(p->unk0.x - p->unk974.x, p->unk0.z - p->unk974.z);
+    dist = BattleVectorDistance2D(&p->unk0, p->pTarget);
+    if (dist < BattleVectorDistance2D(&p->unk974, p->pTarget)) {
+        ang += 0x800;
+    }
+    decel = 1;
+    switch ((p->unk100 - 1) & 7) {
+    case 2:
+        p->unk4C = 6;
+        p->unk4E = 0xFF;
+        p->flags |= 0x1000;
+        func_80077584(p, ang, 0xC, 0x64);
+        break;
+    case 3:
+        BattleActorBeginMove(p, ang, 0xB, 0x80);
+        break;
+    case 1:
+        decel = 0;
+        /* fallthrough */
+    default:
+        if (p->unk916 >= 0x26 || p->unkF0 >= 4) {
+            BattleActorBeginMove(p, ang, 0xA, 0xA0);
+            mode = 0xF;
+            p->unkE8 = 0;
+            p->unk916 = 0;
+        } else {
+            func_80077584(p, ang, 0xA, -decel & 0x1E);
+        }
+        break;
+    }
+done:
+    BattleUpdateControllerActuator(p, mode);
+}
 
 u8* BattleActorSelectActionEntry(BattleActor* p, s32 flag) {
     s32 idx;
