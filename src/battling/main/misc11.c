@@ -224,24 +224,15 @@ void BattleInitSemiTransQuadPacket(BattlingPacketOwner *arg0) {
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc11", func_80087B74);
 
 void func_80087E38(s32 *arg0) {
-    int order;
-    int next;
-    s32 *pSrc;
-    BattlingEntry68 *pBase;
-    BattlingEntry68 *p;
     s32 i = D_800928F8;
 
     if (i < 0x1F) {
-        pBase = D_8009A988;
-        pSrc = arg0;
-        p = pBase + i;
-        p->unk0 = pSrc[0];
-        order = pSrc[1];
-        next = i + 1;
-        p->unk2 = order;
-        order = next;
-        p->unk4 = pSrc[2];
-        D_800928F8 = order;
+        BattlingEntry68 *pBase = D_8009A988;
+        BattlingEntry68 *p = pBase + i;
+        p->unk0 = arg0[0];
+        p->unk2 = arg0[1];
+        p->unk4 = arg0[2];
+        D_800928F8 = i + 1;
     }
 }
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc11", func_80087EA0);
