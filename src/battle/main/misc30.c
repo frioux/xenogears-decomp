@@ -417,18 +417,11 @@ void BattleActorTickAnimScript(u8* pTask) {
         }
     }
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800BACBC);
-/* 99.29%: the only difference is that retail's sprite pointer takes $v1 and its
-   SImode load temp $v0, gcc's the other way (identical size, 280 bytes, every
-   other instruction exact, frame and 0x8C8C li+addu head included).  Writing
-   `vec.vx = *(s16*)(...) + 0` flips the registers into retail's order but turns
-   the loads into lhu; the `s32 coord` temp that gives lh also gives the swap.
-   Tried: coord declared before/after pSprite, pBase via the global, s16[3] vec.
-/*
 void func_800BACBC(s32 index, s16* p0, s16* p1, s16* p2, s16* p3, s16* p4, s16* p5) {
     u8* pBase = D_800C3EB0;
     s32 coord;
     SpriteData* pSprite;
+    int new_var;
     SVECTOR vec;
     u16 sxy[2];
     s32 flag;
@@ -436,7 +429,8 @@ void func_800BACBC(s32 index, s16* p0, s16* p1, s16* p2, s16* p3, s16* p4, s16* 
     pSprite = *(SpriteData**)(pBase + index * 4 + 0x8C8C);
     coord = *(s16*)((u8*)pSprite + 0x2);
     vec.vx = coord;
-    coord = *(s16*)((u8*)pSprite + 0x6);
+    new_var = *(s16*)((u8*)pSprite + 0x6);
+    coord = new_var;
     vec.vy = coord;
     coord = *(s16*)((u8*)pSprite + 0xA);
     vec.vz = coord;
@@ -451,7 +445,6 @@ void func_800BACBC(s32 index, s16* p0, s16* p1, s16* p2, s16* p3, s16* p4, s16* 
     *p5 = sxy[0] - 0x18;
     PopMatrix();
 }
-*/
 void BattleReleaseActorSlot(s32 index) {
     u8* pBase = D_800C3EB0;
     u8* pBlock;
