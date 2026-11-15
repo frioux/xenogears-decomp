@@ -252,17 +252,10 @@ void BattleClearWordRegs(u8 index) {
         *p-- = 0;
     }
 }
-// best: 96.76%. Only the register holding *p differs (original v1, gcc
-// reuses a0). The two-statement slot local is needed: written as
-// (index + 3) * 0x170 inside the store, gcc folds 3*0x170 into the
-// displacement instead of the addiu the original has. Hoisting the value
-// into a u32 local (which works for BattleSlotStoreWord7A) drops it to 41.18%.
-// screened: 96.76% is the max of Default / cdk 53.82 / 2.6.0 96.76.
 void func_8007BAE8(u8 **p, u8 index) {
-    s32 hi;
     s32 slot = index + 3;
+    s32 hi = (*p)[2] << 8;
 
-    hi = (*p)[2] << 8;
     *(u32 *)(D_800CCE34 + slot * 0x170) = (*p)[1] | hi;
 }
 void BattleSlotStoreWord7A(u8 **p, u8 index) {
