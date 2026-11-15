@@ -126,7 +126,7 @@ void BattleSetSlotBit20FromStatusBit200(u8 arg0) {
     BattleTableEntry *pSlot = &D_800CCCE8[arg0];
     u16 v;
 
-    if (pState->unk80 & 0x200) {
+    if (D_800D2DC8->unk80 & 0x200) {
         v = pSlot->unk84 | 0x20;
     } else {
         v = pSlot->unk84 & 0xFFDF;
@@ -165,40 +165,31 @@ u16 BattleScaleValueByMultiplierByte(void) {
     }
     return ret;
 }
-/* best 98.21%: arm order, both divide-by-100 sites, the shared guard add and
-   the return mask all match. Remaining: the guard add comes out as
-   `addu a1,a1,v0` after the branch instead of the original's speculative
-   `addu v0,a1,a0` + `move a1,v0` in the beqz delay slot, the >>1 is sra here
-   and srl in the original (so `ret` wants an unsigned type, but an unsigned
-   `ret` turns the /100 into an unsigned division), and the 0x15A index chain
-   lands in v0 instead of v1.  (u16 v) vs (s32 v) + cast: 98.21 / 97.20.
 u16 func_8009DA04(void) {
-    s32 ret = func_80097610();
+    u16 ret = func_80097610();
     u16 v;
     u8 n;
 
-    if (*(u16 *)(D_800C3DFC + 0xA) & 0x100) {
-        v = *(u16 *)(D_800D2DC8 + 0x72);
-        n = D_800D2DC8[0x99];
+    if (D_800C3DFC->unk0A & 0x100) {
+        n = D_800D2DC8->unk99;
+        v = *(u16 *)&D_800D2DC8->unk68[0xA];
         if (n != 0 && v != 0) {
             v = v * (100 - n) / 100;
         }
-        if (*(u8 *)(D_800C34B0 + D_800C3E50 * 0x170 + 0x15A) & 0x80) {
+        if (D_800C34B0->slots[D_800C3E50].state.unkB6 & 0x80) {
             ret = ret + v;
         }
-        if ((*(u16 *)(D_800D2DC8 + 0x80) | *(u16 *)(D_800D2DC8 + 0x82)) & 0x20) {
-            ret = ret + ((ret & 0xFFFF) >> 1);
+        if ((D_800D2DC8->unk80 | D_800D2DC8->unk82) & 0x20) {
+            ret = ret + (ret >> 1);
         }
     } else {
-        n = D_800D2DC8[0x99];
+        n = D_800D2DC8->unk99;
         if (n != 0) {
-            ret = (ret & 0xFFFF) * (100 - n) / 100;
+            ret = ret * (100 - n) / 100;
         }
     }
     return ret;
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc20", func_8009DA04);
 s32 func_8009DB54(s32 arg0) {
     u16 mask = *(u16 *)((u8 *)D_800C3DFC + 8);
     u8 i;
