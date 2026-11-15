@@ -885,27 +885,19 @@ int FieldGetTriangleWindingSign(SVECTOR* pA, SVECTOR* pB, SVECTOR* pC, SVECTOR* 
     return -1;
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007B614);
-/* Best attempt: 97.88%. Only a rotation of the call-saved registers differs: the
-   original has pVec=s2, nAngle=s1, nScale=s0, gcc gives pVec=s1, nAngle=s0,
-   nScale=s2 (same instruction order). Declaration and statement order, commuted
-   multiplies, split temporaries, split shift, s16/u16 angle and x/z temps all
-   reproduce exactly this allocation; the y store must come last in the source so
-   it lands after the rcos multiply.
-   Round 51: re-diffed at 97.88% and confirmed the instruction stream is the
-   original's exactly, with s0/s1/s2 permuted - an allocator tie. cdk scores the
-   same 97.88. D_800B218C still needs a symbol_addrs.field.txt entry.
 extern s16 D_800B218C;
 
 void func_8007B614(IVEC3* pVec, int scale, int angle) {
     int nAngle = angle & 0xFFF;
+    int nScaled;
     int nScale = (scale << 4) * D_800B218C >> 12;
 
     pVec->x = rsin(nAngle) * nScale;
-    pVec->z = -(rcos(nAngle) * nScale);
+    nScaled = nScale;
+    nScale = rcos(nAngle);
+    pVec->z = -(nScale * nScaled);
     pVec->y = 0;
 }
-*/
 
 int FieldGetVec2Angle(IVEC3* pVec) {
     return -ratan2(pVec->z, pVec->x) & 0xFFF;
