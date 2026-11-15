@@ -96,7 +96,7 @@ BattleDistanceWaitTask* BattleCreateActorDistanceWaitTask(SpriteData* pSpriteDat
     pTask->pSpriteBytecode = (void*)arg2;
     // +0xAF is the top byte of the flag word at 0xAC: the animation the actor plays
     pTask->animId = *(s8*)((u8*)pSpriteData + 0xAF);
-    pSpriteData->flags_0xAC |= 0x20;
+    pSpriteData->flags_0xAC.flags |= 0x20;
     return pTask;
 }
 // PARKED: the body below is 100.00% as C under cdk -G8 and cdk -G0 (264 bytes; 97.35 under 2.6.0),
