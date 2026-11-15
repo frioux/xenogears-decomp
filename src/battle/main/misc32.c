@@ -147,17 +147,16 @@ void func_800BD1FC(s32 slot) {
 }*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BD1FC);
 
-// best 94.66%: only two differences. (1) Retail re-forms `lui v0,%hi(D_800C360C)`
-// every iteration and loads through it; gcc 2.7.2 hoists the %hi into $s3, which
-// costs the fifth saved register ($s4 for pBase) and makes the frame 0x2C instead
-// of 0x28. A volatile declaration of the global did not stop the hoist, and a
-// pointer / array / struct spelling of it changes nothing. (2) Retail's row sum is
-// `addu v0,v0,s3` with pBase in $s3; ours is the same sum with pBase in $s4.
-// Everything else, including the `li 0x8C8C` in the compare's delay slot and the
-// row store order, is exact.
-// 94.66%: COMPILES (needs D_800C3E1C + the func_800BD1FC prototype). The only
-// difference is the one in the note below: gcc hoists %hi(D_800C360C) into $s3
-// (+$s4 for pBase, frame 0x2C) where retail re-forms it per iteration (frame 0x28).
+// best 94.66%: COMPILES. Everything matches - the `li 0x8C8C` in the compare's
+// delay slot, the frame saves, the row store order - except one thing: gcc's LICM
+// hoists `lui %hi(D_800C360C)` out of the loop into $s3, which needs a fifth saved
+// register (pBase moves to $s4) and makes the frame 0x2C instead of retail's 0x28.
+// Retail re-forms the %hi inside the loop every iteration (v0, dying at the load).
+// Tried this round: a volatile read of the global (the load stops moving, the %hi
+// still hoists), the `pRow = pBase + row; pRow[i + 0x150]` pointer form (same hoist,
+// and its addu operands flip to base-first), and the do-while form. The `lw` itself
+// is already inside the loop in both compiles (the call blocks its hoist); only the
+// address word moves, so this is loop.c, not register allocation.
 /*
 void func_800BD2E4(void) {
     u8 *pSlot;
