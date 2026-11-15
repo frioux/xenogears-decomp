@@ -2980,7 +2980,6 @@ u_short ShopMenuGetCharacterEquippedItemFlags(u_char itemID, u_char itemType) {
 
 INCLUDE_ASM("asm/shop_menu/nonmatchings/main/misc", func_801CDD14);
 
-INCLUDE_ASM("asm/shop_menu/nonmatchings/main/misc", func_801CE480);
 // 99.71%, size exact (1112 bytes = retail's). What is left is five identical
 // coalescing ties: retail computes an array element's address into the BASE
 // register (`addu v1,v0,v1` then `lbu v0,12(v1)`), ours coalesces the sum into the
@@ -3006,7 +3005,6 @@ INCLUDE_ASM("asm/shop_menu/nonmatchings/main/misc", func_801CE480);
 // decomp-permuter runs went 241 -> 140 -> 80 (the u16 above was its find); its
 // next step (50) wraps the `oldValue[0] += pCurWeapon->attack` in an
 // `if (g_Menu->pDressingRoom)`, which is a shape hack, not source.
-/*
 void func_801CE480(s32* pDelta, s8* pIsImprovement, u8 itemId, u8 itemType, u8 characterId) {
     s16 oldValue[2];
     s16 newValue[2];
@@ -3032,14 +3030,15 @@ void func_801CE480(s32* pDelta, s8* pIsImprovement, u8 itemId, u8 itemType, u8 c
             // Billy carries four guns, so both his current and his preview value are sums
             characterIndex = 4;
             if (characterId != 4) {
-                newValue[0] = g_Menu->pDressingRoom->pWeaponsData[g_GameState.characters[characterId].unk6A[0]].attack
-                            + g_GameState.characters[characterId].attack;
-                oldValue[0] = g_Menu->pDressingRoom->pWeaponsData[itemId].attack
-                            + g_GameState.characters[characterId].attack;
+                pCurWeapon = &g_Menu->pDressingRoom->pWeaponsData[g_GameState.characters[characterId].unk6A[0]];
+                newValue[0] = pCurWeapon->attack + g_GameState.characters[characterId].attack;
+                pCurWeapon = &g_Menu->pDressingRoom->pWeaponsData[itemId];
+                oldValue[0] = pCurWeapon->attack + g_GameState.characters[characterId].attack;
             } else {
                 pSlots = &g_GameState.characters[characterIndex].unk6F[0];
                 for (i = 0; i < 4; i++) {
-                    newValue[0] += g_Menu->pDressingRoom->pWeaponsData[pSlots[i]].attack;
+                    pCurWeapon = &g_Menu->pDressingRoom->pWeaponsData[pSlots[i]];
+                    newValue[0] += pCurWeapon->attack;
                 }
 
                 pItemWeapon = &g_Menu->pDressingRoom->pWeaponsData[itemId];
@@ -3059,7 +3058,8 @@ void func_801CE480(s32* pDelta, s8* pIsImprovement, u8 itemId, u8 itemType, u8 c
             newValue[1] = oldValue[1] = g_GameState.characters[characterId].defense;
 
             for (i = 0; i < 3; i++) {
-                newValue[1] += g_Menu->pDressingRoom->pAccessoriesData[g_GameState.characters[characterId].unk74[i]].defense;
+                pCurAccessory = &g_Menu->pDressingRoom->pAccessoriesData[g_GameState.characters[characterId].unk74[i]];
+                newValue[1] += pCurAccessory->defense;
             }
 
             // The candidate only replaces an accessory of the same group
@@ -3089,7 +3089,8 @@ void func_801CE480(s32* pDelta, s8* pIsImprovement, u8 itemId, u8 itemType, u8 c
                 oldValue[1] = g_GameState.characters[characterId].defense + pItemAccessory->defense;
                 for (i = 0; i < 3; i++) {
                     if (i != smallest) {
-                        oldValue[1] += g_Menu->pDressingRoom->pAccessoriesData[g_GameState.characters[characterId].unk74[i]].defense;
+                        pCurAccessory = &g_Menu->pDressingRoom->pAccessoriesData[g_GameState.characters[characterId].unk74[i]];
+                        oldValue[1] += pCurAccessory->defense;
                     }
                 }
             }
@@ -3106,7 +3107,6 @@ void func_801CE480(s32* pDelta, s8* pIsImprovement, u8 itemId, u8 itemType, u8 c
         }
     }
 }
-*/
 u_short ShopMenuFindInventoryQuantity(u_char* pIDs, u_char* pValues, int numIDs, u_char id) {
     int i;
     u_char value;
