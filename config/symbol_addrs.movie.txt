@@ -29,6 +29,6 @@ func_800763BC = 0x800763BC;
 func_80076488 = 0x80076488;
 MovieRequestFrame = 0x800768D8;
 MovieFadeAudioOnPadPress = 0x800769A4;
-func_80076AF0 = 0x80076AF0;
+MovieInitGteState = 0x80076AF0;
 WorldMapScriptOp04SetScratchPosition = 0x80076C68;
 func_80076CA4 = 0x80076CA4;

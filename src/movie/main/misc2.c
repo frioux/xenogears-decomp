@@ -389,7 +389,7 @@ void MovieFadeAudioOnPadPress(void) {
     }
 }
 
-void func_80076AF0(void) {
+void MovieInitGteState(void) {
     MATRIX* pColorMatrix;
 
     SetGeomScreen(0x200);
