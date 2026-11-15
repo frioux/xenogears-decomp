@@ -165,29 +165,26 @@ void BattleBuildBlendedSprite(void) {
         BattleSetPrimGrey80BlendAdd((u8*)(pEntry + (s32)D_800D2DB4));
     }
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc14", func_800891E4);
-// Best attempt: objdiff 95.11%, same addu operand order / register-allocation issue in the two tail loops
-/*
 void func_800891E4(void) {
     u8 v;
+    u8 slotA;
+    u8 slotB;
     s32 i;
-    s32 off;
 
     v = D_800D2C34;
-    D_800D2DB4[0x5D77] = BattleDrawSpritePackage((u8)(v - 0x5D), (s32)(D_800D2DB4 + 0x3E80), 0xA0, 0x64);
+    slotA = v - 0x5D;
+    slotB = v - 0x25;
+    D_800D2DB4[0x5D77] = BattleDrawSpritePackage(slotA, (s32)(D_800D2DB4 + 0x3E80), 0xA0, 0x64);
     D_800D2DB4[0x5D86] = D_800CCB34;
-    D_800D2DB4[0x5D7F] = BattleDrawSpritePackage((u8)(v - 0x25), (s32)(D_800D2DB4 + 0x43D0), 0xA0, 0x64);
+    D_800D2DB4[0x5D7F] = BattleDrawSpritePackage(slotB, (s32)(D_800D2DB4 + 0x43D0), 0xA0, 0x64);
     D_800D2DB4[0x5D8E] = D_800CCB34;
     for (i = 0; i < D_800D2DB4[0x5D77]; i++) {
-        off = (i * 2 + D_800D2DB4[0x5D86]) * 0x28 + 0x3E80;
-        BattleSetPrimGrey80BlendAdd((u8*)(off + (s32)D_800D2DB4));
+        BattleSetPrimGrey80BlendAdd(D_800D2DB4 + ((i * 2 + D_800D2DB4[0x5D86]) * 0x28 + 0x3E80));
     }
     for (i = 0; i < D_800D2DB4[0x5D7F]; i++) {
-        off = (i * 2 + D_800D2DB4[0x5D8E]) * 0x28 + 0x43D0;
-        BattleSetPrimGrey80BlendSub((u8*)(off + (s32)D_800D2DB4));
+        BattleSetPrimGrey80BlendSub(D_800D2DB4 + ((i * 2 + D_800D2DB4[0x5D8E]) * 0x28 + 0x43D0));
     }
 }
-*/
 void BattleBuildGrey80BlendSpriteColumn5(void) {
     s32 i = 0;
     s32 pitch = 0x11A << 16;
@@ -425,17 +422,16 @@ typedef struct {
     /* 0x29 */ u8 unk29[0xF];
 } BattlePrimPoolSlot; // Size: 0x38
 
-// Best attempt: objdiff 97.61%, 672 bytes (the original is 664). Whole function is
-// reconstructed; every block, every call and both loops are present. Two differences:
-// (a) the 0x10-slot loop over the prim pool (D_800D3278, 0x38-stride records) - retail
-// has i++ as the first insn of the if-body, so reorg steals it into the beqz delay slot
-// and copies the loop test slti into the bgez delay slot; every C form tried here puts
-// i++ just before the test, leaving two nops (+8 bytes). That is the BLOCK_ROTATION
-// shape, not movable by hand: indexed pSlot[i] gives retail's 0x26/0x28 displacements
-// (pointer pSlot++ rebases the biv onto unk26 and drops to 95.93%), and for / while /
-// do-while all give the same tail. (b) S-register tie: retail has the mute flag in s0
-// and the wait flag in s1, gcc swaps them; declaration order, init order and s32 vs u8
-// (which also drops retail's andi) do not change the tie.
+// Best attempt: objdiff 98.96%, 668 bytes (the original is 664). Whole function is
+// reconstructed; every block, every call and both loops are present, and the 0x10-slot
+// prim-pool loop over D_800D3278 now matches instruction for instruction (indexed
+// pSlot[i] gives retail's 0x26/0x28 displacements, i++ in the beqz delay slot and the
+// slti copied into the bgez delay slot; a pointer walk rebases the biv and drops to
+// 95.93%). Two differences left: (a) one instruction too many before the first branch
+// (every branch target is +4 relative to retail); (b) S-register tie: retail keeps the
+// mute flag in s0 and the wait flag in s1, gcc swaps them, which also swaps the two
+// prologue saves. Declaration order, init order and s32 vs u8 (which drops retail's
+// andi) do not move the tie.
 /*
 void func_8008A3EC(u8 arg0) {
     s32 i;
