@@ -43,18 +43,14 @@ extern s32 D_80077024;
 extern u32 D_80077028;
 extern s32 D_80076F04;
 extern s32 D_80076F08;
-extern s32 D_80076F2C;
 extern s32 D_80076F30;
 extern s32 D_80076F34;
-extern s32 D_8007702C;
 extern s32 D_80077030;
 extern s32 D_80077034;
-extern s32 D_8007703C;
 extern s32 D_80077040;
 extern s32 D_80077044;
 extern s32 D_8007704C;
-extern s16 D_800770B0;
-extern s16 D_800770B2;
+extern SVECTOR D_800770B0;
 extern s16 D_80077070;
 extern s16 D_80077072;
 extern s16 D_80077074;
@@ -73,7 +69,7 @@ extern s16 D_8007709A;
 extern s16 D_8007709C;
 extern s16 D_8007709E;
 extern s16 D_800770A0;
-extern s16 D_800770B8;
+extern MATRIX D_800770B8;
 extern s16 D_800770BA;
 extern s16 D_800770BC;
 extern s16 D_800770BE;
@@ -85,7 +81,7 @@ extern s16 D_800770C8;
 extern s32 D_800770CC;
 extern s32 D_800770D0;
 extern s32 D_800770D4;
-extern s32 D_800770D8[];
+extern MATRIX D_800770D8;
 extern s32 D_800770EC;
 extern s32 D_800770F0;
 extern s32 D_800770F4;
@@ -105,6 +101,16 @@ typedef struct {
     /* 0x4 */ s32 unk4;
     /* 0x8 */ s32 unk8;
 } MovieFileHeader; // Size: 0xC
+
+typedef struct {
+    /* 0x0 */ s32 x;
+    /* 0x4 */ s32 y;
+    /* 0x8 */ s32 z;
+} MovieVector; // Size: 0xC
+
+extern MovieVector D_8007702C;
+extern MovieVector D_8007703C;
+extern MovieVector D_80076F2C;
 
 typedef struct {
     /* 0x0 */ u8 unk0;
@@ -385,14 +391,11 @@ void MovieFadeAudioOnPadPress(void) {
 
 INCLUDE_ASM("asm/movie/nonmatchings/main/misc2", func_80076AF0);
 
-/* best 98.87% - the whole stream matches (380 bytes both, permuter run from this
-   body found nothing in 1969 iterations) except the base of the first colour-matrix
-   store: retail keeps &D_80077070 in $a0 (it survives from the `la` after
-   SetGeomOffset to the SetColorMatrix call) and writes `sh v0,0(a0)`, while our
-   store is the symbol form `sh v0,D_80077070` (assembler-expanded through $at).
-   Shapes tried: s16* local, MATRIX* local with m[0][0], plain symbol store; also
-   scored under -G0 (99.15%) and 2.7.2-cdk. The other two diagonal stores of the
-   same matrix use %lo in retail too, so only the offset-0 element could fold.
+/* PRESET: 100.00% under gcc 2.7.2 with -G0 (Default maspsx). Under this unit's
+   -G8 the offset-0 colour-matrix store folds to the symbol form: retail keeps
+   &D_80077070 in $a0 and writes sh v0,0(a0). tools/scripts/try_flags.sh --all
+   shows every other function of the unit scoring IDENTICALLY under -G0, so the
+   unit is a straight preset switch, not a split. Parked body:
 void func_80076AF0(void) {
     s16* pDiag;
 
@@ -457,46 +460,24 @@ void WorldMapScriptOp04SetScratchPosition(void) {
 
 INCLUDE_ASM("asm/movie/nonmatchings/main/misc2", func_80076CA4);
 
-/* best 73.42% - same instruction count (408 bytes) and the prologue now matches
-   retail exactly: 0x30 frame, s1 = dz saved first, and &D_8007703C kept in $s5
-   across the GTE calls. Getting the frame and $s5 needs the position/vector
-   triples declared as structs (MovieVector below, D_8007702C/3C/76F2C) and a
-   MovieVector* local, not the flat s32 D_ globals - and the rotation/translation
-   matrices typed as MATRIX (D_800770B8, D_800770D8), not s16/s32[].
-   Remaining differences, all in the tail:
-   1. retail materialises &(D_800770CC) = the D_800770B8 matrix + 0x14 in $a3,
-      stores the three t[] words at 0(a3), and derives the CompMatrix matrix
-      argument as a3 - 0x14; we fold the three stores to the %lo(D_800770B8+0x14)
-      form and materialise the base separately.
-   2. retail stores the SquareRoot0 result (D_800770F4) after it has loaded
-      D_80076F2C/D_8007703C and formed a3/a1; ours stores it right after the call.
-   3. the translation x reload lands in $a2 in retail, $v0/$6 in ours.
-   Shapes tried: s32* translation pointer + pTrans[k] (same 73.42), MATRIX member
-   form (same), and the AddressCSE-first order. -G0 on this unit's neighbour
-   func_80076AF0 scored 99.15% but this unit must stay on its preset (the div
-   trap), and try_flags --gp -G0 fails to compile the unit at all.
-   Declarations this body needs, at the top of the unit:
-     typedef struct { s32 x; s32 y; s32 z; } MovieVector; // Size: 0xC
-     extern MovieVector D_8007702C;
-     extern MovieVector D_8007703C;
-     extern MovieVector D_80076F2C;
-     extern SVECTOR D_800770B0;      // was: extern s16 D_800770B0; D_800770B2
-     extern MATRIX D_800770B8;       // was: extern s16 D_800770B8;
-     extern MATRIX D_800770D8;       // was: extern s32 D_800770D8[];
-typedef struct {
-    s32 x;
-    s32 y;
-    s32 z;
-} MovieVector; // Size: 0xC
-
-extern MovieVector D_8007702C;
-extern MovieVector D_8007703C;
-extern MovieVector D_80076F2C;
-
+/* PRESET: 88.94% under gcc 2.7.2 -G0, 83.09% under this unit's -G8. Under -G0
+   every instruction is retail's except one register tie (retail `mflo v0` then
+   `addu s3,s3,v0`, we get $v1) plus reloc spellings that link identically
+   (D_800770B0.vy assembles as D_800770B0+2 where retail names D_800770B2, and
+   D_800770D8.t[0..2] as +0x14/18/1C where retail names D_800770EC/F0/F4).
+   Under -G8 the blocker is the same one as func_80076AF0: retail keeps the
+   SVECTOR address in $s0 (`sh v0,0(s0)`, then `move a0,s0` for RotMatrix's
+   argument), while -G8 folds that store to the $at symbol form and materialises
+   the call argument after the jal. Shapes tried here: SVECTOR* local for both
+   stores and the call, MATRIX member stores, a dySq local (worse: 83.88 under
+   -G0). The declarations it needs are already in the unit: MovieVector for
+   D_8007702C/3C and D_80076F2C, SVECTOR for D_800770B0, MATRIX for D_800770B8
+   and D_800770D8. Parked body:
 void func_80076CA4(void) {
     MATRIX* pRotMatrix;
     MATRIX* pTransMatrix;
     MovieVector* pPos;
+    SVECTOR* pAngle;
     s32 dz;
     s32 dzSq;
     s32 dx;
@@ -504,15 +485,16 @@ void func_80076CA4(void) {
     s32 dy;
 
     pPos = &D_8007703C;
+    pAngle = &D_800770B0;
     dz = D_80077044 - D_80077034;
     dzSq = dz * dz;
     dx = pPos->x - D_8007702C.x;
     dxSq = dx * dx;
     dy = D_80077040 - D_80077030;
-    D_800770B0.vx = ratan2(dy, SquareRoot0(dzSq + dxSq));
-    D_800770B0.vy = -ratan2(dx, dz);
+    pAngle->vx = ratan2(dy, SquareRoot0(dzSq + dxSq));
+    pAngle->vy = -ratan2(dx, dz);
     pRotMatrix = &D_800770D8;
-    RotMatrix(&D_800770B0, pRotMatrix);
+    RotMatrix(pAngle, pRotMatrix);
     RotMatrixZ(D_8007704C, pRotMatrix);
     MulMatrix2(&D_800770F8, pRotMatrix);
     pTransMatrix = &D_800770B8;
