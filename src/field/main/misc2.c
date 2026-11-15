@@ -387,9 +387,6 @@ void func_800726E8(void) {
 // `unk70--; if (unk70 == 0)`. A ternary form scores 99.93% only because it grows the
 // function by 4 bytes (828 vs 824) - no.
 // screened: Default 99.52 (best), cdk 72.11, 2.6.0 99.32 - the one-instruction reorg delay slot described above.
-
-INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80072A38);
-/*
 extern int func_8007CD80(VECTOR* pPos, SVECTOR* pPoints, SVec4* pOut);
 extern void FieldRotateEyeAboutAt(VECTOR* pEye, VECTOR* pAt);
 extern VECTOR g_CameraEye2;
@@ -397,11 +394,11 @@ extern VECTOR g_CameraAt2;
 extern int D_800ADBA8;
 extern u_char D_800B21CD;
 
-void func_80072A38(VECTOR* pPos, int param) {
+volatile unsigned int func_80072A38(VECTOR* pPos, int param) {
     SVECTOR points[2];
+    int new_var2;
     SVec4 line;
-    SVec4 cross;
-    SVec4 result;
+    SVec4 new_var[2];
     VECTOR pos;
     // The original allocates 0x20 of stack the code never references (frame 0x80).
     MATRIX unusedMatrix;
@@ -410,15 +407,15 @@ void func_80072A38(VECTOR* pPos, int param) {
     pos.vy = 0;
     pos.vz = pPos->vz;
 
-    if (func_8007CD80(&pos, points, &cross) == -1) {
+    if (func_8007CD80(&pos, points, &new_var[0]) == -1) {
         line.x = points[0].vx;
         line.y = points[0].vz;
         line.z = points[1].vx;
         line.w = points[1].vz;
-        FieldMathIntersectLines(&line, &cross, &result);
+        FieldMathIntersectLines(&line, &new_var[0], &new_var[1]);
 
-        g_CameraAt2.vx = result.x << 16;
-        g_CameraAt2.vz = result.y << 16;
+        g_CameraAt2.vx = new_var[1].x << 16;
+        g_CameraAt2.vz = new_var[1].y << 16;
         if (D_800B21CD == 0) {
             if (D_800ADBA8 == 0) {
                 g_CameraAt2.vy = param << 16;
@@ -446,7 +443,7 @@ void func_80072A38(VECTOR* pPos, int param) {
         pAt = (VECTOR*)((u_char*)pSceneDIP - 0x13C);
         offset = (-((rsin(((*pSceneDIP * 91) >> 3) + 0xC00) * (s32)g_Scene.sceneScrZ) << 5) >> 0x10) * g_Scene.sceneScale * 0x10;
         g_CameraEye2.vy = offset + g_CameraAt2.vy;
-        offset = ((((rcos(((*pSceneDIP * 91) >> 3) + 0xC00) * (s32)g_Scene.sceneScrZ) << 5) >> 0x10) * g_Scene.sceneScale * 0x10);
+        offset = (((new_var2 = ((rcos(((*pSceneDIP * 91) >> 3) + 0xC00) * (s32)g_Scene.sceneScrZ) << 5) >> 0x10)) * g_Scene.sceneScale * 0x10);
         g_CameraEye2.vz = offset + g_CameraAt2.vz;
         pEye->vx = pAt->vx;
         FieldRotateEyeAboutAt(pEye, pAt);
@@ -459,6 +456,8 @@ void func_80072A38(VECTOR* pPos, int param) {
         }
         if (--g_Scene.unk8C == 0) {
             g_Scene.unk48 &= 0xFFFE;
+            do {
+            } while (0);
         }
     }
 
@@ -471,7 +470,6 @@ void func_80072A38(VECTOR* pPos, int param) {
         }
     }
 }
-*/
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80072D74);
 // 89.60% (1240 bytes, the original is 1236 - the extra is a slot in a delay-slot/register
