@@ -3,11 +3,12 @@
 #include "psyq/inline_c.h"
 #include "system/memory.h"
 #include "battle/actor.h"
+#include "libgear/main.h"
 
 extern u8 D_800C3B74;
 extern BattleActor *D_800D3368[];
-extern u8 *D_8005919C;
-extern u8 *D_800C4924;
+extern Temp8 *D_8005919C;
+extern Temp8 *D_800C4924;
 extern s16 BattleOffsetBySin(s16 angle, s16 divisor, s16 base);
 extern s16 BattleOffsetByAngleClamped(s16 angle, s16 divisor, s16 base);
 extern s16 BattleOffsetByNegatedAngle(s16 angle, s16 divisor, s16 base);
@@ -24,6 +25,7 @@ extern s32 func_8009EF3C(BattleSprite *pSprites, s16 unk1C);
 extern s32 func_800A0838(u8 *arg0, BattleSprite *pSprites, u16 unk3C, s16 unk1C);
 extern void func_800AE2A4(BattleActor *pActor, u8 *arg1, u8 *arg2);
 extern BattleBlock *BattleAllocBlock(void *pPool);
+extern s32 BattleFreeBlock(void *pPool, BattleBlock *pBlock);
 
 // One 0x48-byte row of the battle command queue at D_800C4000. A row whose
 // command byte still reads 0xF7 has not been dispatched yet; 0xFF ends the
@@ -302,7 +304,9 @@ void BattleSpriteUpdateWorldPosition(BattleActor *pActor) {
                 if (index != 0) {
                     pSprites = D_800D3368[pActor->unk5C]->pSprites;
                     MulMatrix0(&pSprites->globalTransform,
-                               (MATRIX *)(index * 0x7C + (s32)pSprites + 0x2C), (MATRIX *)PSX_SCRATCH);
+                               &((BattleSprite *)(index * sizeof(BattleSprite) + (s32)pSprites))
+                                    ->globalTransform,
+                               (MATRIX *)PSX_SCRATCH);
                 } else {
                     pMatrix = &D_800D3368[pActor->unk5C]->pSprites->globalTransform;
                 }
@@ -313,7 +317,9 @@ void BattleSpriteUpdateWorldPosition(BattleActor *pActor) {
             if (index != 0) {
                 pSprites = D_800D3368[pActor->unk5C]->pSprites;
                 CompMatrix(&pSprites->localTransform,
-                           (MATRIX *)(index * 0x7C + (s32)pSprites + 0x2C), pMatrix);
+                           &((BattleSprite *)(index * sizeof(BattleSprite) + (s32)pSprites))
+                                ->globalTransform,
+                           pMatrix);
             } else {
                 pMatrix = &D_800D3368[pActor->unk5C]->pSprites->localTransform;
             }
@@ -428,16 +434,16 @@ void BattleSetupActorMoveCommand(BattleActor *pActor, BattleMoveCommand *pComman
 }
 s32 BattleGetSoundBankId(BattleActor *pActor, s32 arg1) {
     if (arg1 == 0) {
-        return *(u16 *)(D_8005919C + 0x14) << 16;
+        return D_8005919C->unk14 << 16;
     }
     if (arg1 == 1) {
-        return *(u16 *)(*(u8 **)(pActor->unkB0 + 8) + 0x14) << 16;
+        return ((Temp8 *)((Temp8 *)pActor->unkB0)->pUnk8)->unk14 << 16;
     }
     if (arg1 == 2) {
-        return *(u16 *)(*(u8 **)(pActor->unkB4 + 8) + 0x14) << 16;
+        return ((Temp8 *)((Temp8 *)pActor->unkB4)->pUnk8)->unk14 << 16;
     }
     if (arg1 == 3) {
-        return *(u16 *)(D_800C4924 + 0x14) << 16;
+        return D_800C4924->unk14 << 16;
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AE2A4);
@@ -455,31 +461,31 @@ s32 BattleGetActorSpriteDistance(BattleActor *pActor) {
     return SquareRoot0(dx * dx + dy * dy + dz * dz);
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AEF68);
-void BattleFreeActorEntryAndChildren(u8 *arg0, s32 arg1, u8 *arg2, u8 *arg3) {
-    u8 *p;
-    u8 *q;
-    u8 *pChild;
+void BattleFreeActorEntryAndChildren(u8 *pPool, s32 index, BattleSprite *pSprites, BattleSprite *pOther) {
+    BattleSprite *p;
+    BattleSprite *q;
+    BattleSprite *pChild;
     s32 n;
     s32 i;
 
-    p = (u8 *)(arg1 * 0x7C + (s32)arg2);
-    q = (u8 *)(arg1 * 0x7C + (s32)arg3);
-    n = *(u16 *)(arg2 + 0xA);
-    *(u8 *)(p + 7) = 0;
-    *(u8 *)(q + 7) = 1;
-    BattleFreeBlock(arg0, *(s32 *)(p + 0x70));
+    p = (BattleSprite *)(index * sizeof(BattleSprite) + (s32)pSprites);
+    q = (BattleSprite *)(index * sizeof(BattleSprite) + (s32)pOther);
+    n = ((u16 *)pSprites->unk6)[2];
+    p->unk6[1] = 0;
+    q->unk6[1] = 1;
+    BattleFreeBlock(pPool, p->p70);
     do {
-        *(s32 *)(p + 0x70) = 0;
-        BattleFreeBlock(arg0, *(s32 *)(p + 0x74));
-        *(s32 *)(p + 0x74) = 0;
+        p->p70 = NULL;
+        BattleFreeBlock(pPool, p->p74);
+        p->p74 = NULL;
     } while (0);
-    BattleFreeBlock(arg0, *(s32 *)(p + 0x78));
-    *(s32 *)(p + 0x78) = 0;
-    pChild = arg2;
+    BattleFreeBlock(pPool, p->p78);
+    p->p78 = NULL;
+    pChild = pSprites;
     for (i = 1; i < n; i++) {
-        pChild += 0x7C;
-        if (*(u8 **)pChild == p) {
-            BattleFreeActorEntryAndChildren(arg0, *(u16 *)(pChild + 0xA), arg2, arg3);
+        pChild++;
+        if (*(BattleSprite **)pChild == p) {
+            BattleFreeActorEntryAndChildren(pPool, ((u16 *)pChild->unk6)[2], pSprites, pOther);
         }
     }
 }
