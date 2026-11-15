@@ -33,80 +33,69 @@ void BattleSetActorMaskForSlotRecord3(void) {
         }
     }
 }
-/* best 96.98% under gcc 2.6.0 (XenoBattle260). Permuter runs closed two
-   hunks: `mask = 1` must be assigned before `D_800C3E50 = 0` (that was the
-   unsunk `li s0,1`), and the D_800C3D3C index chain wants its own pointer
-   local computed before the `D_800D2DC4 = 0` store. Remaining diffs are
-   allocator: the payload of the D_800C3DFC/0xA load is scheduled differently
-   and the D_800C3E34 / D_800D2DC8 store pair comes out in the wrong order.
-   A permuter run at 96.98 prefers fusing the store into the local
-   (`q = (D_800C3D3C = ...)`) for 97.09 percent - not ported, it reads badly. */
-/*
 void func_8009C198(void) {
-    u8 *q;
-    u16 f;
+    BattleTableEntry *pSlot;
+    u16 flags;
     u16 mask;
-    u8 a;
+    u32 actor;
+    u8 one;
 
     if (D_800C3E04 < 3) {
-        D_800C3DFC = D_800C34B0 +
-                     (D_800C34B0[0x5FC1] * 0x690 + 0x2228) +
-                     D_800C34B0[0x5FC2] * 0x28;
+        D_800C3DFC = (BattleRow *)((u8 *)D_800C34B0 +
+                                   (D_800C34B0->unk5FC1 * 0x690 + 0x2228) +
+                                   D_800C34B0->unk5FC2 * 0x28);
     } else {
-        D_800C3DFC = D_800C34B0 + (D_800C34B0[0x5FC2] * 0x28 + 0x35D8);
+        D_800C3DFC = (BattleRow *)((u8 *)D_800C34B0 +
+                                   (D_800C34B0->unk5FC2 * 0x28 + 0x35D8));
     }
     BattleSetSlotEntryFieldsTo2000(D_800C3E04);
-    q = D_800C34B0 + D_800C34B0[0x5FC1] * 0x170 + 0x148;
+    actor = D_800C34B0->unk5FC1;
     D_800D2DC4 = 0;
-    D_800C3D3C = q;
-    f = *(u16 *)(D_800C3DFC + 0xA);
-    if (f & 0x100) {
-        if (D_800C3E00[0x56] == 1) {
+    D_800C3D3C = &D_800C34B0->slots[actor].state.unkA4;
+    if (D_800C3DFC->unk0A & 0x100) {
+        if (D_800C3E00->unk56 == 1) {
             BattleRollPercentAndSetState38();
         }
     }
-    if (D_800C3E00[0xA0] == 5 || D_800C3E00[0xA0] == 0xD) {
-        if (D_800C34B0[0x5FC2] == 1) {
-            D_800C3DFC[0x22] = D_800D2D6C[0x1A];
+    if (((u8 *)D_800C3E00)[0xA0] == 5 || ((u8 *)D_800C3E00)[0xA0] == 0xD) {
+        if (D_800C34B0->unk5FC2 == 1) {
+            D_800C3DFC->unk22 = ((u8 *)D_800D2D6C)[0x1A];
         }
     }
     mask = 1;
     D_800C3E50 = 0;
     do {
-        if (*(u16 *)(D_800C34B0 + 0x5FAC) & mask) {
-            q = D_800C34B0 + D_800C3E50 * 0x170;
-            D_800D2DC8 = q + 0xA4;
-            D_800C3E34 = q;
-            D_800C3D60 = q + 0x148;
+        if (D_800C34B0->unk5FAC & mask) {
+            pSlot = &D_800C34B0->slots[D_800C3E50];
+            D_800C3E34 = pSlot;
+            D_800D2DC8 = &pSlot->state;
+            D_800C3D60 = &pSlot->state.unkA4;
             func_8009CA90();
-            ((void (*)(void))D_800C34DC[D_800C3DFC[0x16]])();
-            q = D_800C34B0;
-            if (q[D_800C3E50 + 0x5FA0] == 0) {
-                a = 1;
-                f = *(u16 *)(D_800C3DFC + 0xA);
-                if (!(f & 0x800)) {
-                    a = 0;
-                    if (!(f & 0x4000)) {
+            ((void (*)(void))D_800C34DC[D_800C3DFC->unk16])();
+            if (D_800C34B0->unk5FA0[D_800C3E50] == 0) {
+                one = 1;
+                flags = D_800C3DFC->unk0A;
+                if (!(flags & 0x800)) {
+                    one = 0;
+                    if (!(flags & 0x4000)) {
                         goto skip;
                     }
                 }
-                func_8009DBFC(a);
+                func_8009DBFC(one);
             }
-skip:
-            *(u16 *)(D_800C34B0 + 0x5FB0) = *(u16 *)(D_800C3DFC + 2);
+        skip:
+            D_800C34B0->unk5FB0 = *(u16 *)((u8 *)D_800C3DFC + 2);
             func_8009C4B4();
             BattleSetSlotBit20FromStatusBit200(D_800C3E50);
         }
         D_800C3E50++;
         mask <<= 1;
     } while (D_800C3E50 < 0xB);
-    if (D_800C3E00[0x56] == 4) {
+    if (D_800C3E00->unk56 == 4) {
         func_8009E788();
     }
     BattleSaveScriptCommandOperands();
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc20", func_8009C198);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc20", func_8009C4B4);
 void BattleSaveScriptCommandOperands(void) {
     u16 a = D_800D2D6C->unk84;
