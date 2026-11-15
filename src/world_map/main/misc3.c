@@ -1,6 +1,25 @@
 #include "common.h"
 #include "psyq/libetc.h"
 #include "psyq/libgpu.h"
+#include "system/sound.h"
+
+// One slot of the pool D_8009BE24 (stride 0x80), partial view: only the script
+// cursor and the wait countdown are used here. The cursor is halfword
+// addressed; 0x50 of a slot is a pointer to the current command word.
+typedef struct {
+    /* 0x00 */ u8 unk0[0x22];
+    /* 0x22 */ s16 waitFrames;
+    /* 0x24 */ u8 unk24[0x2C];
+    /* 0x50 */ s16* pc;
+    /* 0x54 */ u8 unk54[0x2C];
+} WorldMapScriptSlot; // Size: 0x80
+
+// The world map frame render context D_8009BE3C points at: the two ordering
+// table heads it fills each frame.
+typedef struct {
+    /* 0x00 */ u8 unk0[0x70];
+    /* 0x70 */ u_long* pOt[2];
+} WorldMapRenderContext; // partial view
 
 extern s32 D_8009D554;
 extern s32 D_8009D7CC;
@@ -21,15 +40,15 @@ extern u8 D_8009C5AC[];
 extern s32 D_8009C5B0;
 extern s32 D_8009C5B4;
 extern s32 D_8009D3F0;
-extern void* D_8006259C;
+extern SoundFile* D_8006259C;
 
-extern u8* D_8009BE24;
+extern WorldMapScriptSlot* D_8009BE24;
 extern s32 D_8009D144;
 extern s32 D_8009BD40;
 extern s16 D_8009D558;
 extern s32 D_8009BBB4;
 extern s32 D_8009BE28;
-extern u8* D_8009BE3C;
+extern WorldMapRenderContext* D_8009BE3C;
 extern s32 D_8009C5BC;
 extern s32 D_8009BC38;
 extern s32 D_8009BCB0;
@@ -42,6 +61,8 @@ extern s16 D_8006F950;
 extern s16 D_8006F954;
 extern s32 D_8009BBC4;
 
+extern void func_8009932C(u_long* pOt0, u_long* pOt1, s32* pState);
+
 extern void WorldMapBuildRotationMatrix(s32* p);
 extern void func_80097244(s32* p);
 extern void func_80089748(void);
@@ -53,7 +74,6 @@ extern void func_800981C8(s32* p);
 extern void WorldMapWaitForLoadSlotFree(void);
 extern void func_80098CC0(void);
 extern void func_800983A0(s32* p);
-extern void func_8009932C(s32 arg0, s32 arg1, s32* p);
 extern void func_80073B04(void);
 extern void func_800737EC(void);
 extern void func_80086798(void);
@@ -69,11 +89,12 @@ extern void WorldMapFreeGridImages(void);
 extern void WorldMapFreeSlotPool(void);
 extern void HeapFree(void* pMem);
 
-typedef s32 (*WorldMapScriptHandler)(u8* pSlot, s32 arg1, s16 arg2, s16 arg3);
+typedef s32 (*WorldMapScriptHandler)(WorldMapScriptSlot* pSlot, s32 arg1, s16 arg2, s16 arg3);
 extern WorldMapScriptHandler D_8009A3C0[];
 
-// World map player (stride 0x80), the scroll fields func_80076DA4 and
-// func_80076FA8 touch. Same layout as misc12.c's local WorldMapPlayer.
+// World map player (stride 0x80), the scroll and height fields
+// func_80076DA4, func_80076FA8 and WorldMapApproachHeight touch. Same layout
+// as misc12.c's local WorldMapPlayer.
 typedef struct {
     /* 0x00 */ u8 unk0[0x28];
     /* 0x28 */ s32 unk28;
@@ -115,6 +136,7 @@ typedef struct {
     /* 0x0 */ u8 name[8];
 } WorldMapName8; // Size: 0x8
 
+
 extern void WorldMapWrapDelta(WorldMapScrollDelta* pDelta);
 extern void func_80096F18(void* pOut, s32* pSrc, s32 nHeight);
 extern s32 D_8009BE0C;
@@ -130,7 +152,6 @@ extern s16 D_8009BD3A;
 extern s16 D_8009BD3C;
 
 s32 WorldMapUpdateFrame(void) {
-    u8* p;
     s32* pState;
 
     if (D_8009D144 == 0) {
@@ -150,8 +171,7 @@ s32 WorldMapUpdateFrame(void) {
     }
     pState = &D_8009BE28;
     func_800983A0(pState);
-    p = D_8009BE3C;
-    func_8009932C(*(s32*)(p + 0x70), *(s32*)(p + 0x74), pState);
+    func_8009932C(D_8009BE3C->pOt[0], D_8009BE3C->pOt[1], pState);
     D_8009C5BC = D_8009C5BC + 0x40;
     func_80073B04();
     func_800737EC();
@@ -159,18 +179,17 @@ s32 WorldMapUpdateFrame(void) {
     return 1;
 }
 
-s32 WorldMapRunSlotScript(s32 arg0) {
-    u8* pSlot = (u8*)D_8009BE24 + (arg0 << 7);
-    u8* pCmd;
+s32 WorldMapRunSlotScript(s32 index) {
+    WorldMapScriptSlot* pSlot = &D_8009BE24[index];
+    s16* pCmd;
     s32 cmd;
     s32 n = 0;
-    s32 pad[2];
+    s32 pad[2]; // unused: reproduces retail's 0x28 frame
 
     do {
-        pCmd = *(u8**)(pSlot + 0x50) + (n << 1);
-        *(u8**)(pSlot + 0x50) = pCmd;
+        pCmd = pSlot->pc += n;
         cmd = *(s32*)pCmd;
-        n = D_8009A3C0[cmd & 0xFFFF](pSlot, cmd >> 16, *(s16*)(pCmd + 4), *(s16*)(pCmd + 6));
+        n = D_8009A3C0[cmd & 0xFFFF](pSlot, cmd >> 16, pCmd[2], pCmd[3]);
     } while (n != 0);
     return 1;
 }
@@ -181,15 +200,15 @@ s32 WorldMapScriptOp00End(void) {
     return 0;
 }
 
-s32 WorldMapScriptOp01WaitFrames(u8* p, s32 arg1) {
-    s16 timer = *(s16*)(p + 0x22);
+s32 WorldMapScriptOp01WaitFrames(WorldMapScriptSlot* pSlot, s32 arg1) {
+    s16 timer = pSlot->waitFrames;
 
     if (timer == 0) {
-        *(s16*)(p + 0x22) = arg1;
+        pSlot->waitFrames = arg1;
         return 0;
     }
     timer--;
-    *(s16*)(p + 0x22) = timer;
+    pSlot->waitFrames = timer;
     return (timer < 1) << 1;
 }
 
@@ -233,12 +252,12 @@ s32 WorldMapScriptOp08FadeMasterVolume(void) {
 }
 
 s32 WorldMapScriptOp09PlaySound(s32 arg0, s32 arg1) {
-    SoundPlaySoundEffectOnFreePair((*(u16*)((u8*)D_8006259C + 0x14) << 16) | arg1);
+    SoundPlaySoundEffectOnFreePair((D_8006259C->sedId << 16) | arg1);
     return 2;
 }
 
 s32 WorldMapScriptOp10FadeSound(s32 arg0, s32 arg1, s32 arg2, s32 arg3) {
-    SoundFadeElementVolumeById((*(u16*)((u8*)D_8006259C + 0x14) << 16) | arg1, arg2, arg3);
+    SoundFadeElementVolumeById((D_8006259C->sedId << 16) | arg1, arg2, arg3);
     return 4;
 }
 
@@ -291,8 +310,8 @@ void func_80076DA4(WorldMapPlayer* pPlayer, WorldMapScrollDelta* pDelta) {
 }
 */
 
-void WorldMapApproachHeight(u8* p) {
-    s32 cur = *(s32*)(p + 0x5C);
+void WorldMapApproachHeight(WorldMapPlayer* pPlayer) {
+    s32 cur = pPlayer->unk5C;
     s32 idx;
 
     if (cur != D_8009D3F0) {
@@ -595,7 +614,6 @@ s32 WorldMapSlotEnterNop(void) {
 }
 
 s32 WorldMapUpdateFrameWithoutEffects(void) {
-    u8* p;
     s32* pState;
 
     if (D_8009D144 == 0) {
@@ -613,8 +631,7 @@ s32 WorldMapUpdateFrameWithoutEffects(void) {
     }
     pState = &D_8009BE28;
     func_800983A0(pState);
-    p = D_8009BE3C;
-    func_8009932C(*(s32*)(p + 0x70), *(s32*)(p + 0x74), pState);
+    func_8009932C(D_8009BE3C->pOt[0], D_8009BE3C->pOt[1], pState);
     D_8009C5BC = D_8009C5BC + 0x40;
     func_80073B04();
     func_800737EC();
