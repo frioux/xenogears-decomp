@@ -155,7 +155,7 @@ void AnimTaskFree(AnimTask* pAnimTask) {
             func_80025180(pSpriteData->pBase->pFramesData);
         }
     }
-    if ((*(u32*)((u8*)pSpriteData + 0x3C) & 3) == 1) {
+    if ((pSpriteData->field_0x3C_0 & 3) == 1) {
         if (pSpriteData->pBase->pDirTransforms) {
             HeapFree(pSpriteData->pBase->pDirTransforms);
         }
@@ -166,7 +166,7 @@ void AnimTaskFree(AnimTask* pAnimTask) {
     if (((u32)pSpriteData->flags_0xB0 >> 11) & 1) {
         TimerWorkListClearDataField70(pTask);
     }
-    if ((*(u32*)((u8*)pSpriteData + 0x3C) & 3) == 1) {
+    if ((pSpriteData->field_0x3C_0 & 3) == 1) {
         SpriteAnimFrameListRemove(pSpriteData);
     }
     TimerWorkListRemoveTask(pTask);
@@ -251,7 +251,7 @@ typedef struct {
 } AnimScriptLoopBlock;
 
 u32 AnimScriptGetBlockTarget(AnimScriptLoopBlock* pBlock) {
-    return *(u32*)((u8*)pBlock + pBlock->dataOffset);
+    return *(u32*)(pBlock->dataOffset + (mem_addr)pBlock);
 }
 
 u32 AnimScriptGetBlockCount(AnimScriptLoopBlock* pBlock) {
@@ -278,6 +278,8 @@ void func_80023290(SpriteData* pSpriteData, s32 direction) {
     s32 animType;
     s32 dir;
 
+    // the header splits the 0x3C word into bitfields, but retail rewrites the whole word:
+    // a bitfield store would add the 0xFFFFF mask
     *(u32*)((u8*)pSpriteData + 0x3C) =
         (*(u32*)((u8*)pSpriteData + 0x3C) & ~0xE0) | ((direction & 7) << 5);
     if (direction & 7) {
@@ -502,7 +504,8 @@ AnimTask* AnimTaskCreate(s32 arg0, s32 type, void* pAnimPackage, s32 size, void*
         if (arg0 == 6) {
             pAnimPackage = &D_8005A474[0];
         }
-        dataSize = (SpriteAnimPackageGetFrameCount(((SpriteAnimPackage*)pAnimPackage)->pFrames) - 1) * 24 + 0x58;
+        dataSize = (SpriteAnimPackageGetFrameCount(((SpriteAnimPackage*)pAnimPackage)->pFrames) - 1) *
+                       sizeof(SpriteFrameData) + 0x58;
         pEntry = AnimTaskAlloc(pData, dataSize + size);
         SpriteInitBaseWithRenderFrames(&pEntry->spriteData);
         break;
