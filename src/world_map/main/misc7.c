@@ -214,26 +214,17 @@ void WorldMapExitToMap1FA(void) {
     D_8009BBC4 = 1;
     D_8006F950 = v;
 }
-// Best: 95.26%. Statement order matches retail (the slot base is formed before
-// the D_8009A6C0 load, the counter is reloaded twice); only the register choice
-// differs: retail keeps the base in $v1 and the index in $a0, gcc puts the base
-// in $v0 and reuses $a0 for the index. A pointer local restores $v1 but
-// reorders the statements (65.26%); the post-increment spelling scores 56.84%.
-// A pointer local (WorldMapSlot *pSlot = D_8009BE24 + index, or &D_8009BE24[index])
-// does get retail's registers ($v1 for the base, $a0 for the index temp) but lets
-// gcc hoist the D_8009A6C0 load above the address formation (65.26%), so the
-// direct-index form below remains the best shape.
-// Preset screen: cdk 48.89, gcc-2.6.0 95.26.
-/*
+// The empty do/while is load-bearing: without it gcc hoists the D_8009A6C0 load
+// above the slot address formation (65.26%); with it the schedule is retail's.
 s32 func_80081174(s32 index) {
-    D_8009BE24[index].unk50 = 0;
-    D_8009BE24[index].unk20 = D_8009A6C0;
-    D_8009BE24[index].unk22 = D_8009A70C[D_8009BE24[index].unk50];
-    D_8009BE24[index].unk50 = D_8009BE24[index].unk50 + 1;
+    WorldMapSlot *pSlot = &D_8009BE24[index];
+    do { } while (0);
+    pSlot->unk50 = 0;
+    pSlot->unk20 = D_8009A6C0;
+    pSlot->unk22 = D_8009A70C[pSlot->unk50];
+    pSlot->unk50 = pSlot->unk50 + 1;
     return 1;
 }
-*/
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_80081174);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_800811C0);
 // Best: 76.59%, same class as before: instruction multiset and relocations are
 // identical (the three source words are the separate globals D_8009C5AC,
