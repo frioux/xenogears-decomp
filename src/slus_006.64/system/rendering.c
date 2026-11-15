@@ -583,7 +583,8 @@ void func_8001F6B0(SpriteData* pSpriteData) {
         return;
     }
 
-    texPageBits = (flags >> 5) & 7;
+    color = flags;
+    texPageBits = (color >> 5) & 7;
     if (texPageBits != 0) {
         do { texPageBits--; } while (0);
     }
