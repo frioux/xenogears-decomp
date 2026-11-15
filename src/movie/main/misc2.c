@@ -638,25 +638,8 @@ void WorldMapScriptOp04SetScratchPosition(void) {
     SetTransMatrix(pMatrix);
 }
 
-// 99.24% under the unit's gcc 2.7.2 -G0: 420 bytes / 105 insns = retail's size and the
-// whole function is identical except ONE register - retail 'mult s2,s2 / mflo v0 /
-// addu s3,s3,v0', 2.7.2 gives $v1 for both. The source is NOT the problem: under
-// gcc 2.6.0 with the same flags (-O2 -G0) this body is INSTRUCTION-IDENTICAL to retail
-// ('mflo $2') and scores 99.33 only because of symbol+offset relocation naming that
-// links to the same bytes (our 'sw $0,D_800770D8+24' against retail's D_800770F0 - the
-// same forms the 2.7.2 build of this unit already carries). try_flags.sh
-// movie/main/misc2 --all --gcc gcc-2.6.0-psx leaves every already-matched function of
-// this unit at 100.00, so this TU wants 2.6.0 and not 2.7.2: gears.toml was not edited.
-// Shapes tried under 2.7.2 for the $v0 (all 420 bytes, all $v1): 'dy * dy' inline in
-// the sqrt argument, 's32 dySq' and 'u32 dySq' assigned at the use site, a 'dy2 = dy'
-// copy, 's32/u32 dist = dxSq + dy * dy' then '(dist + dzSq)', (u32) casts on the
-// product, and 'dxSq += dy * dy' (that one shuffles the two earlier mflos, 85.12%).
-// Two permuter runs (3 min base=10 best=10; 5 min, 2327 iterations, base=10 best=10).
-// The trans-matrix block below is exact and came from the round-112 lever: retail
-// reaches the translation vector through the matrix's t[] ('s32* pTrans = D_800770B8.t;')
-// so gcc materialises 0x800770CC in $a3 and derives the CompMatrix argument from it as
-// 'addiu a1,a3,-0x14'.
-/*
+// objdiff reads 99.33% on this one, not 100: the t[] stores name D_800770D8+24 where
+// retail's object names D_800770F0 - same bytes, same addend (see AGENTS.md).
 void func_80076CA4(void) {
     MATRIX* pRotMatrix;
     s32* pTrans;
@@ -690,6 +673,4 @@ void func_80076CA4(void) {
     pTrans[2] = D_80076F34 - D_80077044;
     CompMatrix(pRotMatrix, &D_800770B8, &D_80077050);
 }
-*/
-INCLUDE_ASM("asm/movie/nonmatchings/main/misc2", func_80076CA4);
 
