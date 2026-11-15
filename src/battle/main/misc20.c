@@ -33,7 +33,7 @@ void BattleSetActorMaskForSlotRecord3(void) {
         }
     }
 }
-void func_8009C198(void) {
+void BattleExecuteActionRow(void) {
     BattleTableEntry *pSlot;
     u16 flags;
     u16 mask;
@@ -70,7 +70,7 @@ void func_8009C198(void) {
             D_800C3E34 = pSlot;
             D_800D2DC8 = &pSlot->state;
             D_800C3D60 = &pSlot->state.unkA4;
-            func_8009CA90();
+            BattleAdvanceActionRow();
             ((void (*)(void))D_800C34DC[D_800C3DFC->unk16])();
             if (D_800C34B0->unk5FA0[D_800C3E50] == 0) {
                 one = 1;
@@ -112,7 +112,7 @@ void BattleSaveScriptCommandOperands(void) {
         D_800C34B0->unk5FBE |= c;
     }
 }
-void func_8009CA90(void) {
+void BattleAdvanceActionRow(void) {
     if (D_800C34B0->unk5FC2 >= 0xC && D_800C34B0->unk5FC2 < 0xF &&
         !(D_800C34B0->slots[D_800C3E50].state.unkB6 & 0x80)) {
         D_800C3DFC += 3;
@@ -165,7 +165,7 @@ u16 BattleScaleValueByMultiplierByte(void) {
     }
     return ret;
 }
-u16 func_8009DA04(void) {
+u16 BattleApplySlotPercentToValue(void) {
     u16 ret = func_80097610();
     u16 v;
     u8 n;
@@ -190,7 +190,7 @@ u16 func_8009DA04(void) {
     }
     return ret;
 }
-s32 func_8009DB54(s32 arg0) {
+s32 BattleScaleValueByRowBitPercent(s32 arg0) {
     u16 mask = *(u16 *)((u8 *)D_800C3DFC + 8);
     u8 i;
     u8 idx; /* left unassigned when the scan finds no bit, as in retail */
