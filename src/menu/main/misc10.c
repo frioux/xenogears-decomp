@@ -305,29 +305,10 @@ void func_801E3088(u8 arg0) {
 }
 */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E31C0);
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E35BC);
-
-/* objdiff 96.71% (280 bytes, same size; 80.36% was the previous 2.7.2 attempt).
-   Structure is complete: pTarget->hp += value and both clamps (which reload the
-   stored halfword exactly as retail does) already match byte for byte, as does
-   the isGear else-branch. The only residue is the five-instruction register
-   choice in the isGear == 0 head: retail builds the base temp in v0
-   (addu v0,t0,t2), loads pSlots into a0 and the slot byte into v0 with ether in
-   v1; this compile always builds the base in a0, the pointer in v1 and ether in
-   a0. The instruction multiset is already identical, so this is the allocator
-   tie-break class. Shapes tried this round (all 280 bytes):
-   ether hoisted into its own local before pSlots (96.71), pSlot as one flat
-   expression (93.86), raw *(u8**)(unk20 + charIndex*4) load (93.86). Earlier:
-   single-statement indexing (93.86), &pSlots[slotIndex*0x28] vs byte offset
-   (96.71 both), swapped multiply operands (93.33%), gcc-2.7.2-cdk (84.13%).
-   The pSlots table is pDressingRoom->unk20[charIndex] and each slot record is
-   0x28 bytes with a u8 at 0x11 -- NOT sizeof(GameCharacter) (0xA4); using
-   GameCharacter* gave a 288-byte object and 80.36%.
 void func_801E35BC(MenuDressingRoom* pDressingRoom, u8 charIndex, u8 targetIndex, u8 slotIndex, u8 isGear) {
     GameCharacter* pChar;
     GameCharacter* pTarget;
     u8* pSlots;
-    u8* pSlot;
     GameGear* pGear;
     u32 value;
 
@@ -336,8 +317,8 @@ void func_801E35BC(MenuDressingRoom* pDressingRoom, u8 charIndex, u8 targetIndex
     pGear = &g_GameState.gears[g_GameState.characters[charIndex].gearId];
     if (isGear == 0) {
         pSlots = ((u8**)pDressingRoom->unk20)[charIndex];
-        pSlot = &pSlots[slotIndex * 0x28];
-        value = pChar->ether * pSlot[0x11];
+        pSlots = &pSlots[slotIndex * 0x28];
+        value = pChar->ether * pSlots[0x11];
         pTarget->hp = pTarget->hp + value;
         if (pTarget->hp > pTarget->maxHp) {
             pTarget->hp = pTarget->maxHp;
@@ -349,7 +330,6 @@ void func_801E35BC(MenuDressingRoom* pDressingRoom, u8 charIndex, u8 targetIndex
         }
     }
 }
-*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E36D4);
 void MenuComputeCharacterStats(MenuDressingRoom* pDressingRoom, u8 charIndex) {
     GameCharacter* pChar;
