@@ -334,13 +334,19 @@ s32 BattleMaskHasSlotBit(s32 mask, u8 idx) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc14", func_80089CCC);
 void func_8008A144(void) {
     int new_var;
+    int off;
+    int off2;
+    int off3;
     D_800D2D28[0xAA] += 1;
     if ((D_800D2D28[0xAA] & 1) == 0) {
         return;
     }
-    LoadImage((RECT*)(D_800C3EA4 + 0x8950), (u_long*)(*(u32*)(D_800D2D28 + 0x30) * 4 + 0x8970 + D_800C3EA4));
-    LoadImage((RECT*)(D_800C3EA4 + 0x8958), (u_long*)(*(u32*)(D_800D2D28 + 0x30) * 4 + 0x8FA0 + D_800C3EA4));
-    LoadImage((RECT*)(D_800C3EA4 + 0x8960), (u_long*)(*(u32*)(D_800D2D28 + 0x30) * 4 + 0x95D0 + D_800C3EA4));
+    off = 0x8970;
+    LoadImage((RECT*)(D_800C3EA4 + 0x8950), (u_long*)(*(u32*)(D_800D2D28 + 0x30) * 4 + off + (s32)D_800C3EA4));
+    off2 = 0x8FA0;
+    LoadImage((RECT*)(D_800C3EA4 + 0x8958), (u_long*)(*(u32*)(D_800D2D28 + 0x30) * 4 + off2 + (s32)D_800C3EA4));
+    off3 = 0x95D0;
+    LoadImage((RECT*)(D_800C3EA4 + 0x8960), (u_long*)(*(u32*)(D_800D2D28 + 0x30) * 4 + off3 + (s32)D_800C3EA4));
     new_var = 0x9C00;
     LoadImage((RECT*)(D_800C3EA4 + 0x8968), (u_long*)(*(u32*)(D_800D2D28 + 0x30) * 4 + new_var + (s32)D_800C3EA4));
     *(u32*)(D_800D2D28 + 0x30) += 4;
