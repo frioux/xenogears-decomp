@@ -119,6 +119,134 @@ extern BattleSprite* D_8009270C;
 extern void* D_80092938;
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007E020);
+/* best 96.29%. Same size and instruction multiset as retail (556 bytes, 139 insns:
+   the three RTPT stages, the 0x30-byte triple-prim block, the OT link and the
+   unk2/unkA tail are instruction-identical up to register names). What is left is
+   the entry block's register assignment: retail copies pOt into t6 first, then
+   materialises &vec (t4), the 0x1F8000B0 read-back slot (t3), 0xFFFFFF, 0x3000000
+   and the 0x1F800000 base (t1), and keeps i in t5; ours copies pOt into t5,
+   materialises the read-back slot (t6) first and keeps i in t4. One 'or' also writes
+   v0 where retail writes a0 - writing 'link |= 0x03000000;' before the store may fix
+   that one. Permuter: 1390 -> 395 in one 3-minute run (that is where the
+   embedded-assignment lever below came from), flat on a second run.
+   Levers this body already carries, each of which moved it: gte_stsxy3(&q[0].xy,
+   &q[1].xy, &q[2].xy) as ONE macro call, which is what materialises retail's three
+   addiu before the swc2s; D_800926CC as its own pointer-array symbol instead of
+   ((u8**)&D_800926C8)[1 + page] (that also fixes the relocation name); the
+   0x1F800000 scratch as one struct whose otz at 0xB0 is read through the base while
+   the SDK read-back writes the fixed slot 0x1F8000B0 through a local pointer - that
+   split is what produces retail's 'lw v0,176(t1)' beside 'swc2 $17,0(t3)'; s16
+   coordinates (a truncating add gives retail's lhu/lhu, the clamp's lh/slti needs the
+   signed field); and 'for (i = 0; i < 0x218; i++, pParticle++)' rather than an
+   increment inside the body, which is what puts both giv increments in the loop tail.
+// 0x10-byte 2D primitive the particle renderer links three at a time; only the
+// tag word and the projected XY at 0x8 are written here.
+typedef struct {
+    // 0x0 u32 tag;
+    // 0x4 u32 unk4;
+    // 0x8 u32 xy;
+    // 0xC u32 unkC;
+} BattleParticleQuad; // Size: 0x10
+
+// 0xC-byte entry of the particle table D_800926C8 points at.
+typedef struct {
+    // 0x0 s16 unk0;
+    // 0x2 s16 unk2;
+    // 0x4 s16 unk4;
+    // 0x6 s16 unk6; // 0 marks a free entry
+    // 0x8 s8 unk8;
+    // 0x9 s8 unk9;
+    // 0xA s16 unkA;
+} BattleParticle; // Size: 0xC
+
+// GTE scratch block at 0x1F800000: the three camera offsets, then the vector
+// staged for the next RTPT.
+typedef struct {
+    // 0x00 s32 unk00;
+    // 0x04 s32 unk04;
+    // 0x08 s32 unk08;
+    // 0x0C s32 unk0C;
+    // 0x10 SVECTOR vec;
+    // 0x18 u8 unk18[0x98];
+    // 0xB0 s32 otz;
+} BattleGteScratch; // Size: 0xB4
+
+extern BattleParticleQuad* D_800926CC[];
+
+// Projects the live particles three at a time with RTPT and links one screen
+// prim per particle into the OT by its projected Z.
+void func_8007E020(u32* pOt) {
+    BattleGteScratch* pScratch;
+    BattleParticleQuad* pQuad;
+    BattleParticle* pParticle;
+    s32* pOtz;
+    u32 masked;
+    u32* pLink;
+    u32 link;
+    u32 addr;
+    s32 dx;
+    s32 dy;
+    s32 dz;
+    s32 stage;
+    s32 i;
+
+    pScratch = (BattleGteScratch*)0x1F800000;
+    pOtz = (s32*)0x1F8000B0;
+    dx = pScratch->unk00;
+    dy = pScratch->unk04;
+    dz = pScratch->unk08;
+    pParticle = (BattleParticle*)D_800926C8;
+    pQuad = (BattleParticleQuad*)D_800926CC[D_800928A0];
+    stage = 0;
+    for (i = 0; i < 0x218; i++, pParticle++) {
+        if (pParticle->unk6 == 0) {
+            continue;
+        }
+        pParticle->unk0 += pParticle->unk8;
+        pParticle->unk4 += pParticle->unk9;
+        pScratch->vec.vx = pParticle->unk0 - dx;
+        pScratch->vec.vy = pParticle->unk2 - dy;
+        pScratch->vec.vz = pParticle->unk4 - dz;
+        if (stage == 0) {
+            gte_ldv0(&pScratch->vec);
+            stage = 1;
+        } else if (stage == 1) {
+            gte_ldv1(&pScratch->vec);
+            stage = 2;
+        } else {
+            gte_ldv2(&pScratch->vec);
+            gte_rtpt();
+            stage = 0;
+            gte_stsxy3(&pQuad[0].xy, &pQuad[1].xy, &pQuad[2].xy);
+            gte_stsz1(pOtz);
+            pLink = (u32*)(((pScratch->otz >> 4) << 2) + (u32)pOt);
+            link = *pLink;
+            addr = (u32)&pQuad[0] & 0xFFFFFF;
+            *pLink = addr;
+            *(u32*)addr = link | 0x03000000;
+            gte_stsz2(pOtz);
+            pLink = (u32*)(((pScratch->otz >> 4) << 2) + (u32)pOt);
+            link = *pLink;
+            addr = masked = (u32)&pQuad[1] & 0xFFFFFF;
+            *pLink = addr;
+            *(u32*)addr = link | 0x03000000;
+            gte_stsz(pOtz);
+            pLink = (u32*)(((pScratch->otz >> 4) << 2) + (u32)pOt);
+            link = *pLink;
+            addr = (u32)&pQuad[2] & 0xFFFFFF;
+            *pLink = addr;
+            *(u32*)addr = link | 0x03000000;
+            pQuad += 3;
+        }
+        pParticle->unk2 += pParticle->unkA;
+        pParticle->unkA += 2;
+        if (pParticle->unk2 > 0x10) {
+            pParticle->unk2 = 0x10;
+        }
+        pParticle->unk6--;
+    }
+}
+ */
 
 void BattleClearSpriteTables(void) {
     s32 i;
@@ -177,6 +305,8 @@ void BattleDrawLineQuads(u32* pOt) {
     u32 dz;
     u32 link;
     u32 addr;
+    s32* pOtz;
+    u32 masked;
     u32* pLink;
     long sz[2];
     s32 i;
