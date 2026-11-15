@@ -330,7 +330,7 @@ void MenuApplyDressingRoomSlotHpBonus(MenuDressingRoom* pDressingRoom, u8 charIn
         }
     }
 }
-void func_801E36D4(MenuDressingRoom* pDressingRoom, u8 charIndex) {
+void MenuApplyEquippedItemBonuses(MenuDressingRoom* pDressingRoom, u8 charIndex) {
     GameCharacter* pChar;
     MenuShopAccessory* pAccessory;
     MenuShopWeapon* pWeapon;

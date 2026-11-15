@@ -19,9 +19,22 @@ typedef struct {
     /* 0x44 */ u8 unk44[0xC];
     /* 0x50 */ s32 unk50;
     /* 0x54 */ s32 unk54;
-    /* 0x58 */ u32 unk58;
+    /* 0x58 */ s32 unk58;
     /* 0x5C */ u8 unk5C[0x24];
 } WorldMapPlayer; // Size: 0x80
+
+// sound-effect bank header: +0x14 is the bank id sound commands are played from
+typedef struct {
+    /* 0x00 */ u8 unk0[0x14];
+    /* 0x14 */ u16 unk14;
+} SoundSedsBank; // Size: unknown, only +0x14 is read
+
+typedef struct {
+    /* 0x00 */ s16 unk0;
+    /* 0x02 */ s16 unk2;
+    /* 0x04 */ s16 unk4;
+    /* 0x06 */ s16 unk6;
+} WorldMapTrackPoint; // Size: 0x8
 
 typedef struct {
     /* 0x00 */ s32 x;
@@ -47,6 +60,9 @@ typedef struct {
 
 extern WorldMapPlayer *D_8009BE24;
 extern WorldMapSceneLayer *D_8009C620;
+extern u16 D_8009A450[];
+extern u16 D_8009A46C[];
+extern WorldMapTrackPoint D_8009A490[];
 extern u16 D_8009A4D8;
 extern u16 D_8009A4E8[];
 extern u16 D_8009BD38;
@@ -64,7 +80,7 @@ extern s32 D_8009D55C;
 extern s32 D_8009D560;
 extern s32 D_8009D564;
 extern s32 D_8009D144;
-extern u8 *D_8006259C;
+extern SoundSedsBank *D_8006259C;
 extern s32 D_8009BC38;
 extern s32 D_8009BCB0;
 extern s32 D_8009BC3C;
@@ -91,11 +107,18 @@ extern void WorldMapWrapPosition(void *p);
 extern s32 func_80093A5C(s32, s32);
 extern void WorldMapDeactivateSpriteGroup(s32);
 extern void func_80089160(s32, void *, s32);
+extern void WorldMapStartSlot(s32, s32);
+extern void WorldMapInterpolateQuadraticVector(s32, s16 *, s16 *, s16 *, s32 *);
+extern void WorldMapExtractRotationFromMatrix(MATRIX *, SVECTOR *);
+extern void SoundPlaySoundEffectOnFreePair(s32);
+extern void SoundSendCommandConstant(s32);
 extern s16 D_8009A488[];
 extern MATRIX D_8009A180;
 extern MATRIX D_8009BE4C;
 extern s32 D_8009CCA4;
 extern s32 D_8009D3CC;
+extern s32 D_8009D554;
+extern s32 D_8009D7CC;
 extern s32 D_8009D804;
 extern void (*D_8009CD40)(void);
 extern void WorldMapWrapTileVertexPositions(void);
@@ -151,7 +174,81 @@ extern void WorldMapEnterNop(void);
 extern void WorldMapUpdateFrameWithParticles(void);
 extern void WorldMapSetupPrimTemplates(void *pBlock, s32 arg, s32 arg2);
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007A9F8);
+s32 WorldMapUpdateActorState(s32 idx) {
+    WorldMapPlayer *pPlayer = D_8009BE24 + idx;
+
+    switch (pPlayer->unk20) {
+    case 0:
+        break;
+    case 1:
+        if ((s16)--pPlayer->unk22 < 0) {
+            pPlayer->unk20 = D_8009A450[pPlayer->unk50];
+            pPlayer->unk22 = D_8009A46C[pPlayer->unk50];
+            pPlayer->unk50++;
+        }
+        break;
+    case 2:
+        func_80089160(0x11, NULL, 0);
+        pPlayer->unk20 = 1;
+        SoundPlaySoundEffectOnFreePair((D_8006259C->unk14 << 16) | 1);
+        break;
+    case 3:
+        WorldMapStartSlot(2, 2);
+        pPlayer->unk20 = 1;
+        func_80089160(0xF, NULL, 0);
+        func_80089160(0x10, NULL, 0);
+        SoundPlaySoundEffectOnFreePair((D_8006259C->unk14 << 16) | 4);
+        SoundPlaySoundEffectOnFreePair((D_8006259C->unk14 << 16) | 5);
+        SoundPlaySoundEffectOnFreePair((D_8006259C->unk14 << 16) | 6);
+        break;
+    case 4:
+        WorldMapStartSlot(2, 3);
+        WorldMapStartSlot(3, 1);
+        pPlayer->unk20 = 1;
+        break;
+    case 5:
+        WorldMapStartSlot(2, 6);
+        WorldMapStartSlot(4, 1);
+        WorldMapStartSlot(5, 1);
+        pPlayer->unk20 = 1;
+        SoundPlaySoundEffectOnFreePair((D_8006259C->unk14 << 16) | 7);
+        SoundPlaySoundEffectOnFreePair((D_8006259C->unk14 << 16) | 8);
+        SoundPlaySoundEffectOnFreePair((D_8006259C->unk14 << 16) | 9);
+        break;
+    case 6:
+        WorldMapStartSlot(2, 4);
+        pPlayer->unk20 = 1;
+        SoundPlaySoundEffectOnFreePair((D_8006259C->unk14 << 16) | 0xA);
+        SoundSendCommandConstant((D_8006259C->unk14 << 16) | 0xB);
+        SoundSendCommandConstant((D_8006259C->unk14 << 16) | 0xC);
+        break;
+    case 7:
+        WorldMapStartSlot(2, 5);
+        pPlayer->unk20 = 1;
+        break;
+    case 8:
+        WorldMapStartSlot(2, 1);
+        pPlayer->unk20 = 1;
+        break;
+    case 9:
+        WorldMapStartSlot(6, 1);
+        WorldMapStartSlot(2, 7);
+        pPlayer->unk20 = 1;
+        break;
+    case 10:
+        WorldMapStartSlot(0, 0xD);
+        D_8009D3CC = 4;
+        pPlayer->unk20 = 1;
+        break;
+    case 11:
+        D_8009D554 = 0;
+        D_8009D7CC = 0;
+        pPlayer->unk20 = 1;
+        break;
+    }
+    return 1;
+}
+
 int WorldMapInitActorScrollScale(int idx) {
     WorldMapPlayer *pPlayer;
     s32 a;
@@ -394,6 +491,113 @@ int WorldMapInitGroup0Actor(int idx) {
 }
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007BBEC);
+/* PARKED 98.80% (218/218 insns) - cannot be converted on its own: the switch
+   table would land at .rodata+0x30 but retail has func_8007ADD4's two tables
+   (jtbl_8006FBF4/jtbl_8006FC14) there first; convert ADD4 and BBEC together.
+   Only remaining diff: the 16.16 x read at 0x1F800002, retail "lh", ours
+   "lhu;sll 16;sra 16" (tried ((s16*)pScratch)[1], *(s16*)((u8*)pScratch+2),
+   ((SVECTOR*)pScratch)->vy).
+    s32 func_8007BBEC(s32 idx) {
+        WorldMapPlayer *pPlayer = D_8009BE24 + idx;
+        WorldMapSceneLayer *pLayer;
+        WorldMapTrackPoint *pPoint;
+        u32 *pScratch = (u32 *)0x1F800000;
+        VECTOR *pVec0;
+        VECTOR *pVec1;
+        VECTOR *pVec2;
+        VECTOR *pVec3;
+        SVECTOR *pRot;
+        SVECTOR *pOutRot;
+        MATRIX *pMat;
+        s32 result = 1;
+
+        switch (pPlayer->unk50 >> 12) {
+        case 0:
+        case 1:
+            pPlayer->unk50 += pPlayer->unk58;
+            pPlayer->unk54 += 4;
+            break;
+        case 2:
+        case 3:
+        case 4:
+            pPlayer->unk50 += pPlayer->unk58;
+            pPlayer->unk58 -= 8;
+            if (pPlayer->unk58 < 0x80) {
+                pPlayer->unk58 = 0x80;
+            }
+            pPlayer->unk54 += 4;
+            break;
+        case 5:
+        case 6:
+        case 7:
+            pPlayer->unk50 += pPlayer->unk58;
+            pPlayer->unk58 += 8;
+            if (pPlayer->unk58 > 0x100) {
+                pPlayer->unk58 = 0x100;
+            }
+            pPlayer->unk54 -= 0x10;
+            break;
+        case 8:
+            result = 3;
+            break;
+        }
+        pPoint = &D_8009A490[pPlayer->unk50 >> 12];
+        if (pPoint[2].unk6 != -1) {
+            WorldMapInterpolateQuadraticVector(pPlayer->unk50 & 0xFFF, (s16 *)pPoint,
+                                               (s16 *)&pPoint[1], (s16 *)&pPoint[2],
+                                               (s32 *)pScratch);
+        }
+        pVec1 = (VECTOR *)&pScratch[4];
+        pPoint = &D_8009A490[(pPlayer->unk50 + 0x80) >> 12];
+        WorldMapInterpolateQuadraticVector((pPlayer->unk50 + 0x80) & 0xFFF, (s16 *)pPoint,
+                                           (s16 *)&pPoint[1], (s16 *)&pPoint[2], (s32 *)pVec1);
+        pLayer = D_8009C620;
+        pLayer->pos.x = ((s16 *)pScratch)[1];
+        pLayer->pos.y = ((s32 *)pScratch)[1] >> 16;
+        pLayer->pos.z = ((s32 *)pScratch)[2] >> 16;
+        pVec0 = (VECTOR *)pScratch;
+        pVec1->vx = (pVec1->vx - pVec0->vx) >> 12;
+        pVec1->vy = (pVec1->vy - pVec0->vy) >> 12;
+        pVec1->vz = -((pVec1->vz - pVec0->vz) >> 12);
+        VectorNormal(pVec1, pVec0);
+        pRot = (SVECTOR *)&pScratch[0x28];
+        pRot->vx = 0;
+        pRot->vy = ratan2(pVec0->vx, pVec0->vz) & 0xFFF;
+        pRot->vz = pPlayer->unk54;
+        pMat = (MATRIX *)&pScratch[0x3C];
+        RotMatrixYXZ(pRot, pMat);
+        pRot->vx = 0;
+        pRot->vy = -0x1000;
+        pRot->vz = 0;
+        ApplyMatrix(pMat, pRot, pVec1);
+        pVec3 = (VECTOR *)&pScratch[0xC];
+        OuterProduct12(pVec0, pVec1, pVec3);
+        pVec2 = (VECTOR *)&pScratch[8];
+        VectorNormal(pVec3, pVec2);
+        OuterProduct12(pVec0, pVec2, pVec3);
+        VectorNormal(pVec3, pVec1);
+        pMat->m[0][0] = pVec2->vx;
+        pMat->m[0][1] = pVec2->vy;
+        pMat->m[0][2] = pVec2->vz;
+        pMat->m[1][0] = pVec1->vx;
+        pMat->m[1][1] = pVec1->vy;
+        pMat->m[1][2] = pVec1->vz;
+        pMat->m[2][0] = pVec0->vx;
+        pMat->m[2][1] = pVec0->vy;
+        pMat->m[2][2] = pVec0->vz;
+        TransposeMatrix(pMat, &pLayer->mat);
+        pOutRot = (SVECTOR *)&pScratch[0x2A];
+        WorldMapExtractRotationFromMatrix(pMat, pOutRot);
+        if (pLayer->pos.y >= -0x7F) {
+            pRot->vx = pLayer->pos.x;
+            pRot->vy = pLayer->pos.y;
+            pRot->vz = pLayer->pos.z;
+            pOutRot->vz = -*(u16 *)&pOutRot->vz;
+            func_80089160(0x12, pRot, (s32)pOutRot);
+        }
+        return result;
+    }
+*/
 void func_8007BF50(void) {
     RECT rect;
     s32 *pPos = &D_8009C5AC;

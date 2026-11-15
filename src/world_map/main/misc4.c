@@ -167,7 +167,7 @@ extern void WorldMapUpdateLoadQueue(void);
 extern s32 Vsync(s32);
 extern void WorldMapAddSlot();
 extern s32 WorldMapStartActorScript(s32);
-extern void func_8007A9F8(void);
+extern void WorldMapUpdateActorState(void);
 extern void func_8007ADD4(void);
 extern void WorldMapUpdateGroup4And5Scale(void);
 extern void WorldMapUpdateGroup6And7Scale(void);
@@ -711,7 +711,7 @@ void func_8007A5DC(void) {
         Vsync(0);
     } while (WorldMapGetQueuedLoadCount() > 0);
     WorldMapAddSlot(WorldMapModeInitFadeRect, func_800925A0);
-    WorldMapAddSlot(WorldMapStartActorScript, func_8007A9F8);
+    WorldMapAddSlot(WorldMapStartActorScript, WorldMapUpdateActorState);
     WorldMapAddSlot(WorldMapInitActorScrollScale, func_8007ADD4);
     WorldMapAddSlot(WorldMapSetupGroup4And5ScaledPrims, WorldMapUpdateGroup4And5Scale);
     WorldMapAddSlot(WorldMapSetupGroup6And7ScaledPrims, WorldMapUpdateGroup6And7Scale);
