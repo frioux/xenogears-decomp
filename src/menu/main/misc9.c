@@ -130,12 +130,22 @@ void MenuFreeUnk430Panel(u_char arg0) {
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DC3D8);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DCE60);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DD5E8);
-/* Best: 94.01%, same size (416 bytes). Remaining deltas are allocator
-   naming plus two real shapes: retail sums the poly offset as
-   rc*0x28 + i*0x80 in a register before adding the base, and re-does the
-   `andi a1,arg0,0xff` in loop 2 in the loop-back branch delay slot.
-   Spelling the address as `(u8*)base + (rc*0x28 + i*0x80)` reproduces
-   retail operand order but adds 2 instructions (91.84-91.89%).
+/* Best: 94.01%, same size (416 bytes), from the round-63 attempt (u_char arg0).
+   Remaining deltas, all tried by hand this round:
+   1. loop 1: retail forms the compare address as base + (rc*0x28 + i*0x80)
+      (two addu, keeping base unmodified) and only then reuses the saved
+      base + i*0x80 and rc*0x28 for the call argument (addu a2,a1). Every C
+      that names pStrings[i].polys[pStrings[i].renderContext] once, or via a
+      separate ctx local, or via a pString pointer local, CSEs to
+      (base + i*0x80) + rc*0x28 and loses one addu (93.96-94.01%).
+   2. loop 2: retail repeats andi a1,arg0,0xff in the loop-back delay slot;
+      gcc un-hoists it out of the loop and leaves a nop there. A `u_char mode
+      = arg0;` local inside the body does not stop the hoist.
+   3. u_int arg0 with (arg0 & 0xFF) at each call site (so the mask is a real
+      per-site expression) gives 93.58%.
+   permute.sh --minutes 4 -j 2: PERMUTER_BETTER 777 -> 547, but the winner
+   caches g_Menu in a callee-saved local, which drops a lui/lw pair and
+   compiles to 408 bytes - wrong size, so not portable.
    void func_801DD5E8(u_char arg0) {
        MenuString* pStrings;
        POLY_FT4* pPoly;
