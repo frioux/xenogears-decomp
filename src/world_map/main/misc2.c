@@ -437,6 +437,7 @@ void WorldMapEnterMenuMode(void) {
     WorldMapFreePrimTemplateBuffers();
     HeapFree(D_8009BC3C);
     HeapFree(D_8009BCB4);
+    // probe the heap base to size the decompression buffer
     pTemp = HeapAlloc(4, 1);
     HeapFree(pTemp);
     pTemp = (void*)((u32)pTemp & 0xFFFFFF);
@@ -778,22 +779,22 @@ void WorldMapPlayBgmFromBuffer(u8* pSrc, s32 index) {
     D_80062528 = SoundCreateAudioManagerOnHeap(D_80062648);
     SoundPlayAudioManager(D_80062528, 0x7F, 0);
 }
-void WorldMapInterpolateQuadraticVector(s32 arg0, s16* pRow0, s16* pRow1, s16* pRow2, s32* pOut) {
+void WorldMapInterpolateQuadraticVector(s32 t, s16* pRow0, s16* pRow1, s16* pRow2, s32* pOut) {
     s32 s;
     s32 iz;
     s32 zv;
     s32 xs;
 
-    s = 0x1000 - arg0;
+    s = 0x1000 - t;
     iz = ((s * s) << 3) >> 12;
-    zv = ((s * arg0) >> 8) + 0x8000;
-    xs = ((arg0 * arg0) << 3) >> 12;
+    zv = ((s * t) >> 8) + 0x8000;
+    xs = ((t * t) << 3) >> 12;
     pOut[0] = pRow0[0] * iz + pRow1[0] * zv + pRow2[0] * xs;
     pOut[1] = pRow0[1] * iz + pRow1[1] * zv + pRow2[1] * xs;
     pOut[2] = pRow0[2] * iz + pRow1[2] * zv + pRow2[2] * xs;
 }
 void WorldMapDecompressMapData(void) {
-    s32* pHeader;
+    s32* pHeader; // block offsets, relative to the header's own address
     u8* pBase;
 
     pHeader = (s32*)D_8009C180;
@@ -806,8 +807,8 @@ void WorldMapDecompressMapData(void) {
     D_8009BD30 = (s32)(pBase + pHeader[4]);
     D_8009C7EC = (s32)(pBase + pHeader[5]);
     D_8009BCC0 = (s32)(pBase + pHeader[6]);
-    D_8009D77C = (s32)(pBase + pHeader[8]);
-    D_8009D7C8 = (s32)(pBase + pHeader[9]);
+    D_8009D77C = (WorldMapAnimSet*)(pBase + pHeader[8]);
+    D_8009D7C8 = (WorldMapAnimSet*)(pBase + pHeader[9]);
 }
 
 int WorldMapInitNop(void) {
