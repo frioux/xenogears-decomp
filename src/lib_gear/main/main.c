@@ -753,6 +753,15 @@ INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801DF7F4);
 // pSkeleton to s1 and pBlock to s2, ours is swapped. Declaration reordering
 // (flag1 first) dropped the score to 75.10%.
 // Screened: 75.14 best (2.6.0), 74.89 under 2.7.2-cdk - not a preset problem.
+// Re-measured: 1016 bytes against retail's 968, so the body is 12 instructions
+// too big and this is NOT an allocator tie: ours needs a 0x40 stack slot for
+// flag1 (andi a3,a3,1; sw a3,64(sp) at entry, lw t0,64(sp) at each use), saves
+// s2 twice, and re-forms pVertexBase + pKeyframe[0] in a block the original
+// reaches with one addu. Fixing it means finding the source shape that keeps
+// every value in retail's 8 saved registers (s1=pSkeleton, s2=pBlock,
+// s3=i, s4=transFrame, s5=rotFrame, s6=blockFlags, s7=pVertexBase, fp=flag1)
+// with the rotating constant 1 left in a1 and the u8 fifth argument read
+// straight out of its home slot 0x88(sp).
 /*
 s32 func_801DFAC4(Temp4* pList, ModelJoint* pSkeleton, KeyframeBlock* pBlock, s32 flags, u8 type) {
     u16 numRotFrames;
@@ -2329,15 +2338,22 @@ void LibGearShutdown(void) {
     LibGearFreeVertexBuffer(&g_LibGearVertexBuffer);
 }
 
-// 94.08%: the body is right, the reload shape of `g_LibGearModels[modelIndex]`
-// (a CSE'd &g_LibGearModels[modelIndex] in s1, the model pointer never hoisted)
-// matches, and so do the two 0x30/0x24 teardown loops. Remaining delta is one
-// register pair: the original keeps the array address in s1 and &D_801E86A8 in
-// s0, ours has them swapped, which also moves `addiu v0,s4,-8` out of the
-// `beqz` delay slot. Declaration order and dropping the pList local both leave
-// the swap.
-// Screened: 94.08 at -G8, 96.93 at -G4 (2.6.0), 85.49 under 2.7.2-cdk - near, but -G4 is not the
-// unit's setting.
+// 97.40%, 768 bytes (= retail). Everything but the tail of the second half is
+// byte-identical: the prologue, both LibGearReleaseSkeletonObjects call sites,
+// the (modelIndex - 8) < 2 guard and the HeapFree chain. The pool address must
+// be a local inside each pSkeleton block (`pPool = &D_801E86A8`); passing the
+// literal makes gcc re-form lui/addiu into a0 at each call instead of keeping
+// the address in s0 and copying it into the delay slot.
+// Remaining delta, both 0x30/0x24 teardown loops only: retail keeps the offset
+// accumulator in s0 and copies the slot address into s2 at loop entry
+// (`addu s2,s0,zero`), and schedules `offset = 0` after the duplicated exit
+// test; gcc puts the offset in s2, reaches the slot through s3, and schedules
+// `offset = 0` before the test. Retail also re-forms modelIndex*4 at each of
+// the four post-loop sites, gcc CSEs it into s3. Tried: the permuter (2 runs,
+// ~2900 iterations, found only the pModelSlot hoist below), pModelSlot in the
+// second loop (94.01), pModelSlot in the loop body (96.93), a slot-pointer
+// local dereferenced as (*pModelSlot) (96.93), `for (i = 0, offset = 0; ...)`
+// and swapping the i/offset declarations (both 97.40).
 /*
 void func_801E8030(s32 modelIndex) {
     s32 i;
@@ -2362,16 +2378,20 @@ void func_801E8030(s32 modelIndex) {
 
     if ((u32)(modelIndex - 8) >= 2) {
         if (g_LibGearModels[modelIndex]->pSkeleton != NULL) {
-            LibGearReleaseSkeletonObjects(&D_801E86A8, g_LibGearModels[modelIndex]->pSkeleton);
-            LibGearReleaseSkeletonObjectsByType(&D_801E86A8, g_LibGearModels[modelIndex]->pSkeleton, 0xFF);
+            Temp4* pPool = &D_801E86A8;
+
+            LibGearReleaseSkeletonObjects(pPool, g_LibGearModels[modelIndex]->pSkeleton);
+            LibGearReleaseSkeletonObjectsByType(pPool, g_LibGearModels[modelIndex]->pSkeleton, 0xFF);
             LibGearFreeModelSkeleton(g_LibGearModels[modelIndex]->pSkeleton);
             g_LibGearModels[modelIndex]->pMesh = NULL;
             g_LibGearModels[modelIndex]->pSkeleton = NULL;
         }
     } else {
         if (g_LibGearModels[modelIndex]->pSkeleton != NULL) {
-            LibGearReleaseSkeletonObjects(&D_801E86A8, g_LibGearModels[modelIndex]->pSkeleton);
-            LibGearReleaseSkeletonObjectsByType(&D_801E86A8, g_LibGearModels[modelIndex]->pSkeleton, 0xFF);
+            Temp4* pPool = &D_801E86A8;
+
+            LibGearReleaseSkeletonObjects(pPool, g_LibGearModels[modelIndex]->pSkeleton);
+            LibGearReleaseSkeletonObjectsByType(pPool, g_LibGearModels[modelIndex]->pSkeleton, 0xFF);
             HeapFree(g_LibGearModels[modelIndex]->pSkeleton);
         }
     }
@@ -2381,8 +2401,10 @@ void func_801E8030(s32 modelIndex) {
     }
 
     if (g_LibGearModels[modelIndex]->unk10E != 0) {
+        Model** pModelSlot = g_LibGearModels;
+
         offset = 0;
-        for (i = 0; i < g_LibGearModels[modelIndex]->unk10E; i++) {
+        for (i = 0; i < pModelSlot[modelIndex]->unk10E; i++) {
             LibGearFlushTexture((Temp8*)((u8*)g_LibGearModels[modelIndex]->unk118 + offset));
             offset += 0x30;
         }
