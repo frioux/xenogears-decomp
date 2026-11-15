@@ -366,16 +366,22 @@ void func_80076FA8(WorldMapPlayer* pPlayer, WorldMapScrollDelta* pDelta) {
 */
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc3", func_800771D8);
-/* Best attempt: 99.67%. Only difference: the original negates the local
-   (negu v1,v1) where gcc's cse substitutes the parameter (negu v1,a2),
-   although the move v1,a2 copy itself is emitted in the right place. Also
-   tried: the ternary form (arg2 < 0) ? -arg2 : arg2 (same code), the
-   limit = arg2 assign moved before the first abs (move lands in the wrong
-   delay slot, 91.67%), 0 - limit, an arg2 test instead of a limit test.
-   Preset screen: cdk 99.67, gcc-2.6.0 fails to compile. This is not a
-   compiler-version or register-allocation tie: fold_rtx substitutes the copy
-   into the negate under both 2.7.2 presets, so the source shape that keeps
-   negu v1,v1 has not been found.
+/* Best attempt: 99.67% (60 bytes, same instruction count). Only difference:
+   the original negates the local (negu v1,v1) where gcc's cse substitutes
+   the parameter (negu v1,a2), although the move v1,a2 copy itself is emitted
+   in the right place. Tried, all byte-identical at 99.67: the ternary form
+   (arg2 < 0) ? -arg2 : arg2, an arg2 test instead of a limit test, a separate
+   abs local (both if-form and ternary), a two-pseudo abs (abs = limit; if
+   (limit < 0) abs = -limit), if/else arms assigning the abs, an empty else,
+   a do/while block, a while (1) ... break, an inner { s32 t = limit; },
+   the embedded assignment if ((limit = arg2) < 0), declaration-init, u32
+   limit, 0 - limit, 0u - (u32)limit, limit *= -1, an else-self-assign on the
+   first abs. The only spelling that does not fold is ~limit + 1, and it
+   costs a nor/addiu pair (80.33%). Permuter from this body: 1300 iterations,
+   base=5 best=5. Preset screen: cdk 99.67, gcc-2.6.0 fails to compile. This
+   is not a compiler-version or register-allocation tie: fold_rtx substitutes
+   the copy into the negate under both 2.7.2 presets, so the source shape that
+   keeps negu v1,v1 has not been found.
 s32 func_800771D8(s32 arg0, s32 arg1, s32 arg2) {
     s32 delta;
     s32 limit;
