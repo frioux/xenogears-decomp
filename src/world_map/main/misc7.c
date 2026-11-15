@@ -2,6 +2,7 @@
 #include "psyq/libgpu.h"
 #include "psyq/libgte.h"
 #include "psyq/memory.h"
+#include "system/model.h"
 
 typedef struct {
     /* 0x0 */ s32 x;
@@ -38,10 +39,9 @@ typedef struct {
     /* 0x0C */ s32 unkC;
     /* 0x10 */ s32 unk10;
     /* 0x14 */ u8 unk14[0x2C];
-    /* 0x40 */ u8 *unk40;
+    /* 0x40 */ ModelPart *pModel;
     /* 0x44 */ u32 unk44;
-    /* 0x48 */ u8 *unk48;
-    /* 0x4C */ u8 *unk4C;
+    /* 0x48 */ void *pPackets[2]; // prim lists, [0] source and [1] destination; D_8009D7F0 picks one
     /* 0x50 */ u8 unk50[0x4];
 } WorldMapEntry; // Size: 0x54
 
@@ -146,13 +146,13 @@ s32 func_80080944(s32 index) {
 */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_80080944);
 
-void WorldMapSetPrimColors(u8 *p, s32 count, s32 a, s32 b, s32 c) {
+void WorldMapSetPrimColors(POLY_FT4 *pPrim, s32 count, s32 a, s32 b, s32 c) {
     s32 i;
 
-    for (i = 0; i < count; i++, p += 0x28) {
-        p[4] = a;
-        p[5] = b;
-        p[6] = c;
+    for (i = 0; i < count; i++, pPrim++) {
+        pPrim->r0 = a;
+        pPrim->g0 = b;
+        pPrim->b0 = c;
     }
 }
 
@@ -272,7 +272,7 @@ void WorldMapInitPolyFt4Prims(WorldMapEntry *pEntry, u8 *pDst, s32 count, s32 ab
         pDst[7] |= 2;
         pDst += 0x28;
     }
-    memcpy(pEntry->unk4C, pEntry->unk48, count * 0x28);
+    memcpy(pEntry->pPackets[1], pEntry->pPackets[0], count * sizeof(POLY_FT4));
 }
 
 // Best: 66.00%. Structure, relocations and offsets are all right (the call,
@@ -304,7 +304,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_800817A0);
 s32 WorldMapUpdateSlotColorFade(s32 index) {
     WorldMapSlot *pSlot = &D_8009BE24[index];
     WorldMapEntry *pEntry = &D_8009C620[2];
-    u8 *p;
+    POLY_FT4 *pPrim;
     s32 i;
 
     switch (pSlot->unk4) {
@@ -315,12 +315,12 @@ s32 WorldMapUpdateSlotColorFade(s32 index) {
     case 2:
         pSlot->unk4 = 0;
         pSlot->unk20 = 0;
-        p = *(u8 **)((u8 *)pEntry + D_8009D7F0 * 4 + 0x48);
-        for (i = 0; i < *(u16 *)(pEntry->unk40 + 4); i++, p += 0x28) {
-            p[7] &= ~2;
-            p[4] = 0x80;
-            p[5] = 0x80;
-            p[6] = 0x80;
+        pPrim = pEntry->pPackets[D_8009D7F0];
+        for (i = 0; i < pEntry->pModel->polyCount; i++, pPrim++) {
+            pPrim->code &= ~2;
+            pPrim->r0 = 0x80;
+            pPrim->g0 = 0x80;
+            pPrim->b0 = 0x80;
         }
         break;
     }
@@ -337,8 +337,8 @@ s32 WorldMapUpdateSlotColorFade(s32 index) {
             }
         }
     }
-    WorldMapSetPrimColors(*(u8 **)((u8 *)pEntry + D_8009D7F0 * 4 + 0x48),
-                  *(u16 *)(pEntry->unk40 + 4),
+    WorldMapSetPrimColors(pEntry->pPackets[D_8009D7F0],
+                  pEntry->pModel->polyCount,
                   pSlot->unk50, pSlot->unk54, pSlot->unk58);
     return 1;
 }
@@ -380,7 +380,7 @@ s32 func_800819C8(s32 index) {
 */
 s32 WorldMapUpdateSlotColorFadeFast(s32 index) {
     WorldMapSlot *pSlot = &D_8009BE24[index];
-    u8 *pEntry = (u8 *)D_8009C620;
+    WorldMapEntry *pEntry = &D_8009C620[0];
 
     if (pSlot->unk4 == 1) {
         pSlot->unk4 = 0;
@@ -397,12 +397,12 @@ s32 WorldMapUpdateSlotColorFadeFast(s32 index) {
             }
         }
     }
-    WorldMapSetPrimColors(*(u8 **)(pEntry + D_8009D7F0 * 4 + 0x48),
-                  *(u16 *)(*(u8 **)(pEntry + 0x40) + 4),
+    WorldMapSetPrimColors(pEntry->pPackets[D_8009D7F0],
+                  pEntry->pModel->polyCount,
                   pSlot->unk50, pSlot->unk54, pSlot->unk58);
-    pEntry += 0x54;
-    WorldMapSetPrimColors(*(u8 **)(pEntry + D_8009D7F0 * 4 + 0x48),
-                  *(u16 *)(*(u8 **)(pEntry + 0x40) + 4),
+    pEntry++;
+    WorldMapSetPrimColors(pEntry->pPackets[D_8009D7F0],
+                  pEntry->pModel->polyCount,
                   pSlot->unk50, pSlot->unk54, pSlot->unk58);
     return 1;
 }
