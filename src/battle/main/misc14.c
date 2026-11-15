@@ -165,29 +165,26 @@ void BattleBuildBlendedSprite(void) {
         BattleSetPrimGrey80BlendAdd((u8*)(pEntry + (s32)D_800D2DB4));
     }
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc14", func_800891E4);
-// Best attempt: objdiff 95.11%, same addu operand order / register-allocation issue in the two tail loops
-/*
 void func_800891E4(void) {
     u8 v;
+    u8 slotA;
+    u8 slotB;
     s32 i;
-    s32 off;
 
     v = D_800D2C34;
-    D_800D2DB4[0x5D77] = BattleDrawSpritePackage((u8)(v - 0x5D), (s32)(D_800D2DB4 + 0x3E80), 0xA0, 0x64);
+    slotA = v - 0x5D;
+    slotB = v - 0x25;
+    D_800D2DB4[0x5D77] = BattleDrawSpritePackage(slotA, (s32)(D_800D2DB4 + 0x3E80), 0xA0, 0x64);
     D_800D2DB4[0x5D86] = D_800CCB34;
-    D_800D2DB4[0x5D7F] = BattleDrawSpritePackage((u8)(v - 0x25), (s32)(D_800D2DB4 + 0x43D0), 0xA0, 0x64);
+    D_800D2DB4[0x5D7F] = BattleDrawSpritePackage(slotB, (s32)(D_800D2DB4 + 0x43D0), 0xA0, 0x64);
     D_800D2DB4[0x5D8E] = D_800CCB34;
     for (i = 0; i < D_800D2DB4[0x5D77]; i++) {
-        off = (i * 2 + D_800D2DB4[0x5D86]) * 0x28 + 0x3E80;
-        BattleSetPrimGrey80BlendAdd((u8*)(off + (s32)D_800D2DB4));
+        BattleSetPrimGrey80BlendAdd(D_800D2DB4 + ((i * 2 + D_800D2DB4[0x5D86]) * 0x28 + 0x3E80));
     }
     for (i = 0; i < D_800D2DB4[0x5D7F]; i++) {
-        off = (i * 2 + D_800D2DB4[0x5D8E]) * 0x28 + 0x43D0;
-        BattleSetPrimGrey80BlendSub((u8*)(off + (s32)D_800D2DB4));
+        BattleSetPrimGrey80BlendSub(D_800D2DB4 + ((i * 2 + D_800D2DB4[0x5D8E]) * 0x28 + 0x43D0));
     }
 }
-*/
 void BattleBuildGrey80BlendSpriteColumn5(void) {
     s32 i = 0;
     s32 pitch = 0x11A << 16;
