@@ -90,25 +90,34 @@ int PCread(int fd, char *buff, int len) {
     return nTotal;
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libsn", _SN_read);
-/* 79.17%: the trap is the only asm; the tail is honest C, but gcc coalesces the
-   result copy into the value register, so the epilogue is
-   `li v1,-1; jr ra; move v0,v1` instead of retail's
-   `beqz v0,L; move v0,v1; li v0,-1` (copy sunk into the branch delay slot).
-   Forcing `register int ret asm("$2")` does emit the copy but then the branch
-   reads a clobbered status. Same 79.17% under gcc 2.6.0, 2.7.2-cdk, -O1, -O2.
+// 99.17%, decomp-permuter score 5 (base 165): retail is a select,
+// `beqz v0,L; addu v0,v1,zero; addiu v0,zero,-1`. The body below gets the
+// shape right - result in $2, `addu v0,v1,zero` sunk into the branch delay
+// slot - by comparing an uninitialised local, and the only remaining
+// difference is that the branch tests $a0, the register gcc picks for that
+// dead local, instead of $v0 (status). Honest forms are all worse: plain
+// `if (status != 0) ret = -1` is 79.17% (`li v1,-1`, copy at the return);
+// if/else, ternary and early return 45-57%; `register int ret asm("$2")`
+// emits the copy before the branch and needs a nop; letting status double as
+// the result gives the mirrored `bnez` layout. Same 79.17% under gcc 2.6.0,
+// 2.7.2-cdk, -O1, -O2. Permuter re-run from score 5 (1696 iters): NONE.
+/*
 int _SN_read(int fd, int cmd, int nbytes, char *buff) {
     register int status asm("$2");
     register int value asm("$3");
+    int new_var;
     int ret;
 
     __asm__ volatile("break 261" : "=r"(status), "=r"(value));
     ret = value;
-    if (status != 0)
+    if (new_var != 0) {
+        new_var = status;
         ret = -1;
+    }
     return ret;
 }
 */
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libsn", _SN_read);
 
 int PCwrite(int fd, char *buff, int len) {
     register char *pBuff asm("$19");
