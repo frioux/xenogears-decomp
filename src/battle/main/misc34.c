@@ -88,20 +88,19 @@ extern void SpriteSetCallback(SpriteData *pSpriteData, void *pCallback);
 extern void SpritePlayAnimation(SpriteData *pSpriteData, s32 animId);
 extern void func_800BE790(void);
 
-// Byte 3 of the actor's 0xAC flag word is the animation it is playing, so it is
-// read through the byte view of that word rather than as a named field.
+// The animation the actor is playing is byte 3 of its 0xAC flag word.
 void BattleActorWaitFramesWithCallback(s32 arg0, SpriteData *pSpriteData) {
     if (pSpriteData->pDefaultAnimFile == NULL) {
         func_800B7C34(arg0);
         return;
     }
     D_800C3CE8 = 0;
-    if (*(s8 *)((u8 *)pSpriteData + 0xAF) != 0) {
+    if ((s8)pSpriteData->flags_0xAC.bytes[3] != 0) {
         SpriteSetCallback(pSpriteData, BattleIncFrameCounter);
-        SpritePlayAnimation(pSpriteData, *(s8 *)((u8 *)pSpriteData + 0xAF));
+        SpritePlayAnimation(pSpriteData, (s8)pSpriteData->flags_0xAC.bytes[3]);
     }
     func_800B7C34(arg0);
-    if (*(s8 *)((u8 *)pSpriteData + 0xAF) != 0) {
+    if ((s8)pSpriteData->flags_0xAC.bytes[3] != 0) {
         while (D_800C3CE8 == 0) {
             func_800BE790();
         }
@@ -153,7 +152,7 @@ void BattleCreateActorDistanceTask(SpriteData *pSpriteData, s32 minDistance,
     TimerWorkListSetTaskCallback(pTask, BattleUpdateDistanceTask);
     pTask->pOnDistanceOutOfRange = pOnDistanceOutOfRange;
     pTask->pSpriteData = pSpriteData;
-    pTask->animId = *(s8 *)((u8 *)pSpriteData + 0xAF);
+    pTask->animId = (s8)pSpriteData->flags_0xAC.bytes[3];
     pTask->distance = func_800B57E4(pSpriteData);
     pTask->minDistance = minDistance;
     pSpriteData->flags_0xAC.flags |= 0x20;
@@ -194,22 +193,22 @@ void func_800BF85C(s32 arg0, s32 arg1) {
     D_800D363C[0] = target;
 }
 */
-void BattleRemapActorModelId(u8 *pActor) {
+void BattleRemapActorModelId(SpriteData *pActor) {
     s32 i = 0;
     s32 *pEntry;
 
     if (D_800D3678 != 0) {
         pEntry = D_800D363C;
         for (i = 0; i != D_800D3678; i++) {
-            if (pEntry[i] == *(s32*)(pActor + 0x74)) {
+            if (pEntry[i] == (s32)pActor->pTargetEntitySprite) {
                 break;
             }
         }
     }
     if (i >= D_800D3678) {
-        *(s32*)(pActor + 0x74) = D_800D363C[0];
+        pActor->pTargetEntitySprite = (void *)D_800D363C[0];
     } else {
-        *(s32*)(pActor + 0x74) = D_800D3640[i];
+        pActor->pTargetEntitySprite = (void *)D_800D3640[i];
     }
 }
 s32 BattleFindTableEntryIndex(s32 arg0) {
