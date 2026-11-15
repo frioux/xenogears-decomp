@@ -591,16 +591,21 @@ int FieldScriptVMGetVariableValue(int index) {
 // volatile cast 52.86%. Only the shift destination register differs from the original, and
 // nothing in the source moves it off the scale's register: the shifted value is dead after
 // the scale, so this is an allocno tie, not a source shape. Not worth more attempts.
-/*
 void FieldScriptMemoryWriteU16(int index, u_short value) {
+    int new_var2;
+    int new_var;
+
+    new_var2 = index >> 1;
     if (value) {
         ((u_short*)&g_FieldScriptMemory)[index >> 1] = value;
+    } else if (index || new_var) {
+        new_var = new_var2;
+        ((u_short*)&g_FieldScriptMemory)[new_var] = value;
     } else {
-        ((u_short*)&g_FieldScriptMemory)[index >> 1] = value;
+        new_var = new_var2;
+        ((u_short*)&g_FieldScriptMemory)[new_var] = value;
     }
 }
-*/
-INCLUDE_ASM("asm/field/nonmatchings/scripts/virtual_machine", FieldScriptMemoryWriteU16);
 
 // scriptIndex here refers to the index of the script, which will (always?) correspond to an entity index
 // routineIndex is an index into the offset table, which points to a bytecode routine in that script.
