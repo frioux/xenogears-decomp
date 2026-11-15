@@ -113,10 +113,9 @@ void BattleSwapActorSlots(s32 arg0, s32 arg1) {
 }
 u8 func_800AA7DC(s32 arg0) {
     s32 o;
-    s32 stop;
+    s32 stop = 0xF7;
     u8 v;
 
-    stop = 0xF7;
     o = arg0 * 0x48;
     do {
         v = D_800C402F[o];
