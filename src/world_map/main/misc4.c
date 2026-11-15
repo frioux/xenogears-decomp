@@ -391,37 +391,32 @@ void WorldMapExitToMap110(void) {
     D_8006F950 = v;
 }
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_80078E2C);
-/* 93.33%, one instruction from a match, 120 bytes (retail's size).
-   The do/while shape is what closes this scheduler class (round 72 found it for
-   WorldMapResetActorSlotWithSound); nesting one around the D_8009BD3A store and
-   copying -0xC0 into a u32 local assigned before the pointer cluster (both found
-   by the permuter) got 19.97 -> 93.33. Remaining diff: retail's `li v0,0x40` for
-   the p->unk22 store sits four instructions early (between the D_8009BD3A and
-   D_8009BD3C stores); here it lands after the D_8009BD3C store. p->unk22 is the
-   only statement before the tail whose `li` is misplaced, so this is a scheduler
-   tie, not structure: hand-tried the store inside/outside each of the three
-   enclosing blocks and as a live local (that one hoists the li past the three
-   slot stores and picks $a0 instead of $v0). Both a permuter run from here
-   (3 min, 1740 iters) and the shapes above leave it at 93.33.
 s32 func_80078E2C(s32 index) {
     WorldMapActor *p;
-    u32 scrollX;
+    s32 scroll;
+    s32 timer;
 
     p = D_8009BE24;
     D_8009BE0C = 0x78;
     D_8009D3F0 = 0x200000;
     D_8009D144 = 0;
     p = p + index;
-    scrollX = -0xC0;
+    scroll = -0xC0;
     p->unk20 = 0x10;
     p->unk58 = 0;
-    do { p->unk54 = 0; p->unk50 = 0; D_8009BD38 = scrollX; do { D_8009BD3A = 0x680; } while (0); D_8009BD3C = 0; } while (0);
-    p->unk22 = 0x40;
+    // the do/while blocks decide the store order and where the 0x40 lands
+    do {
+        p->unk54 = 0;
+        p->unk50 = 0;
+        D_8009BD38 = scroll;
+        do { D_8009BD3A = 0x680; } while (0);
+        timer = 0x40;
+        D_8009BD3C = 0;
+    } while (0);
+    p->unk22 = timer;
     p->unk74 = 0;
     return 1;
 }
-*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_80078EA4);
 s32 WorldMapInitActorRotationMatrix(s32 index) {
     WorldMapActor *p;
