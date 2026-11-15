@@ -250,15 +250,11 @@ void func_8007661C(u8* p) {
 }
 */
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_800767C8);
-
-/* 89.36%: identical instructions except delay slots. The original leaves a nop
-   after the "bne flags & 0x60000000" test where gcc/as always fills the slot
-   with the lbu from the target block (one instruction, 4 bytes). Tried: early
-   returns, one big && chain (83.28%), nested if for the last test.
-void func_800767C8(u8* p) {
+short func_800767C8(u8* p) {
     u32 flags;
+    unsigned long new_var;
 
+    new_var = 0xD8;
     if (D_8009284C >= 0x201) {
         return;
     }
@@ -272,7 +268,7 @@ void func_800767C8(u8* p) {
     if (!(flags & 0x40000)) {
         return;
     }
-    if (!(*(u32*)(*(u8**)(p + 0xD8) + 0xD0) & 0x40000)) {
+    if (!(*(u32*)(*(u8**)(p + new_var) + 0xD0) & 0x40000)) {
         return;
     }
     if ((flags & 0x60000000) != 0x20000000 || (p[0x90A] & 2)) {
@@ -280,7 +276,6 @@ void func_800767C8(u8* p) {
         BattleQueueMessage(p, 5);
     }
 }
-*/
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80076884);
 
