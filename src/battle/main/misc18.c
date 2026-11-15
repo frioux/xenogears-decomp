@@ -245,8 +245,7 @@ void func_800968C0(void) {
         return;
     }
     sel = D_800C3E04;
-    s = 3;
-    if (sel < s && !(t & 0x2000)) {
+    if (sel < 3 && !(t & 0x2000)) {
         return;
     }
     if (!(*(u16 *)(pData + 0x88) & 0x1000)) {
