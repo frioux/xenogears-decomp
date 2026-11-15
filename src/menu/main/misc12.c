@@ -423,6 +423,15 @@ void func_801E8474(s32 count, s32* pEntries) {
    the s2/s1/s3 saves (88.09%); initialising pText inside the outer loop gives
    90.16%. Swapping the pText init between the two unk354 stores does not
    change the order either.
+   Round 104: forcing the base-first pair with two pointer locals
+   (`pCursor = D_801EA1EC; pText = pCursor + 1;` and pCursor[] reads in both
+   loops) DOES give retail's s4 = &D_801EA1EC + addiu s5,s4,4, but it drops to
+   88.09%: the invariant then hoists to the very top of the entry block, ahead of
+   the li/andi saves and the 0x1400 store, instead of sitting between the two
+   0x354 stores. Moving the assignment between the stores in the source changes
+   nothing (still 88.09). Permuter 3 min from the 99.79% body: no gain. So the
+   99.79% body below is the best one; what is left is only which of
+   D_801EA1EC / D_801EA1EC+4 gcc materialises first.
 void func_801E86C8(u_char selected) {
        s32 i;
        s32 n;
