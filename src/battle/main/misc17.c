@@ -2,14 +2,58 @@
 #include "main/game.h"
 #include "psyq/libgpu.h"
 
+// Char/actor state block (D_800C3E00, D_800C3E34); only the fields this unit
+// touches are declared.
+typedef struct {
+    /* 0x000 */ u8 unk0[0x4E];
+    /* 0x04E */ u16 unk4E;
+    /* 0x050 */ u8 unk50[0xB];
+    /* 0x05B */ u8 unk5B;
+    /* 0x05C */ u8 unk5C[0x20];
+    /* 0x07C */ u16 unk7C;
+    /* 0x07E */ u16 unk7E;
+    /* 0x080 */ u16 unk80;
+    /* 0x082 */ u16 unk82;
+    /* 0x084 */ u16 unk84;
+    /* 0x086 */ u16 unk86;
+    /* 0x088 */ u16 unk88;
+    /* 0x08A */ u16 unk8A;
+    /* 0x08C */ u16 unk8C;
+    /* 0x08E */ u16 unk8E;
+} BattleCharState;
+
+// Current battle action's parameter block (D_800C3DFC).
+typedef struct {
+    /* 0x00 */ u8 unk0[0x11];
+    /* 0x11 */ u8 unk11;
+    /* 0x12 */ u8 unk12[0xA];
+    /* 0x1C */ u8 unk1C;
+    /* 0x1D */ u8 unk1D;
+    /* 0x1E */ u16 unk1E;
+} BattleAction;
+
+// Sprite work buffer (D_800D2D28).
+typedef struct {
+    /* 0x000 */ u8 unk0[0x9C];
+    /* 0x09C */ u8 unk9C;
+    /* 0x09D */ u8 unk9D[0x8];
+    /* 0x0A5 */ u8 unkA5;
+    /* 0x0A6 */ u8 unkA6[0xA];
+    /* 0x0B0 */ u8 unkB0;
+    /* 0x0B1 */ u8 unkB1[0x6];
+    /* 0x0B7 */ u8 unkB7;
+    /* 0x0B8 */ u8 unkB8[0x40];
+    /* 0x0F8 */ s32 unkF8;
+} BattleSpriteWork;
+
 extern u8 D_800D2D24[];
-extern u8 *D_800D2D28;
+extern BattleSpriteWork *D_800D2D28;
 extern u8 D_800C3E50;
 extern u8 *D_800C34B0;
 extern u8 *D_800C3EA4;
 extern s32 D_800CCB34;
-extern u8 *D_800C3DFC;
-extern u8 *D_800C3E34;
+extern BattleAction *D_800C3DFC;
+extern BattleCharState *D_800C3E34;
 extern u8 D_800CCD3E[];
 extern u8 D_800D2C54[];
 extern u8 D_800D2C88[];
@@ -19,7 +63,7 @@ extern u16 D_800C3250;
 extern u16 D_800C3252;
 extern u16 D_800C323A;
 extern u8 D_800CCD62[];
-extern u8 *D_800C3E00;
+extern BattleCharState *D_800C3E00;
 extern u8 D_800CCE42[];
 extern u8 D_800D32A1[];
 extern u8 D_800C3CFA[];
@@ -52,15 +96,15 @@ void BattleBuildSpriteColumn8(s32 arg0) {
     s32 i;
     s32 offset;
 
-    *(s32 *)(D_800D2D28 + 0xF8) = 0;
+    D_800D2D28->unkF8 = 0;
     for (i = 0; i < 8; i++) {
         offset = i * 8 + 0x38;
-        *(s32 *)(D_800D2D28 + 0xF8) += BattleDrawSpritePackage(0x66,
-            D_800C3EA4 + 0xBA8 + *(s32 *)(D_800D2D28 + 0xF8) * 80, 0x20,
+        D_800D2D28->unkF8 += BattleDrawSpritePackage(0x66,
+            D_800C3EA4 + 0xBA8 + D_800D2D28->unkF8 * 80, 0x20,
             (s16)(offset + arg0));
     }
-    D_800D2D28[0xA5] = *(u8 *)&D_800CCB34;
-    D_800D2D28[0x9C] = 1;
+    D_800D2D28->unkA5 = *(u8 *)&D_800CCB34;
+    D_800D2D28->unk9C = 1;
 }
 /* 86.04%: the s/2 and s-s/2*2 expansion, both UV args and the pointer sum are
    insn-identical; what is left is expansion order (gcc hoists `li a1,0x20` /
@@ -254,8 +298,8 @@ void BattleDrawCharStatusIfMaskUnset(u8 arg0, u8 arg1) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80093B08);
 void BattleClearSlotFlagsIfChar4(u8 arg0, u8 arg1) {
     if (D_800D2D24[arg0] == 4) {
-        D_800D2D28[0xB7] = 0;
-        D_800D2D28[0xB0] = 0;
+        D_800D2D28->unkB7 = 0;
+        D_800D2D28->unkB0 = 0;
         if (arg1 != 0) {
             BattleReleaseEffectSlotIfChar4();
         }
@@ -338,18 +382,18 @@ void func_80094D24(void) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80094D24);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80094EE4);
 void BattleSetSlotState2FromActorField5BWithModifiers(void) {
-    u8 *p = D_800C3E00;
-    u8 *q = D_800C3DFC;
-    u8 *r;
+    BattleCharState *p = D_800C3E00;
+    BattleAction *q = D_800C3DFC;
+    BattleCharState *r;
     s16 v;
     u16 f;
 
-    v = p[0x5B] * q[0x11];
-    if (*(u16 *)(p + 0x8A) & 0x2000) {
+    v = p->unk5B * q->unk11;
+    if (p->unk8A & 0x2000) {
         v *= 2;
     }
     r = D_800C3E34;
-    f = *(u16 *)(r + 0x8C) | *(u16 *)(r + 0x8E);
+    f = r->unk8C | r->unk8E;
     if (f & 0x100) {
         v = 7 * v / 10;
     }
@@ -364,21 +408,21 @@ void BattleSetSlotState2FromActorField5BWithModifiers(void) {
 }
 void BattleInitActiveSlotAction(void) {
     s32 t;
-    u8 *p;
+    BattleCharState *p;
     s32 v;
 
     if (D_800CCD3E[D_800C3E50 * 0x170] == 2) {
         BattleSetSlotEntryFieldsTo2000(D_800C3E50, 1);
     }
     t = D_800C3E50;
-    *(u16 *)(D_800C3E34 + 0x7C) = 0;
-    *(u16 *)(D_800C3E34 + 0x80) = 0;
-    *(u16 *)(D_800C3E34 + 0x84) = 0;
-    *(u16 *)(D_800C3E34 + 0x88) = 0;
-    *(u16 *)(D_800C3E34 + 0x8C) = 0;
+    D_800C3E34->unk7C = 0;
+    D_800C3E34->unk80 = 0;
+    D_800C3E34->unk84 = 0;
+    D_800C3E34->unk88 = 0;
+    D_800C3E34->unk8C = 0;
     D_800D2C88[t] = 2;
     p = D_800C3E34;
-    v = *(u16 *)(p + 0x4E) * D_800C3DFC[0x11];
+    v = p->unk4E * D_800C3DFC->unk11;
     if (D_800C3E50) { // empty: makes gcc share this load with the one below ($v1, not $a1)
     }
     t = D_800C3E50;
@@ -386,29 +430,29 @@ void BattleInitActiveSlotAction(void) {
     D_800D2C9E |= 1 << t;
 }
 void BattleClearStatusWordsOnAction6E(void) {
-    if (rand() % 100 > D_800C3DFC[0x1C]) {
+    if (rand() % 100 > D_800C3DFC->unk1C) {
         return;
     }
-    if (D_800C3DFC[0x1D] != 0x6E) {
+    if (D_800C3DFC->unk1D != 0x6E) {
         return;
     }
-    if (*(u16 *)(D_800C3DFC + 0x1E) & 0x8000) {
-        *(u16 *)(D_800C3E34 + 0x84) = 0;
+    if (D_800C3DFC->unk1E & 0x8000) {
+        D_800C3E34->unk84 = 0;
     }
-    if (*(u16 *)(D_800C3DFC + 0x1E) & 0x4000) {
-        *(u16 *)(D_800C3E34 + 0x86) = 0;
+    if (D_800C3DFC->unk1E & 0x4000) {
+        D_800C3E34->unk86 = 0;
     }
-    if (*(u16 *)(D_800C3DFC + 0x1E) & 0x2000) {
-        *(u16 *)(D_800C3E34 + 0x88) = 0;
+    if (D_800C3DFC->unk1E & 0x2000) {
+        D_800C3E34->unk88 = 0;
     }
-    if (*(u16 *)(D_800C3DFC + 0x1E) & 0x1000) {
-        *(u16 *)(D_800C3E34 + 0x8A) = 0;
+    if (D_800C3DFC->unk1E & 0x1000) {
+        D_800C3E34->unk8A = 0;
     }
-    if (*(u16 *)(D_800C3DFC + 0x1E) & 0x800) {
-        *(u16 *)(D_800C3E34 + 0x8C) = 0;
+    if (D_800C3DFC->unk1E & 0x800) {
+        D_800C3E34->unk8C = 0;
     }
-    if (*(u16 *)(D_800C3DFC + 0x1E) & 0x400) {
-        *(u16 *)(D_800C3E34 + 0x8E) = 0;
+    if (D_800C3DFC->unk1E & 0x400) {
+        D_800C3E34->unk8E = 0;
     }
     D_800C34B0[0x5FC7] = 0x3A;
 }
