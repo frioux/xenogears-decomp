@@ -1,113 +1,125 @@
 #include "common.h"
+#include "battle/actor.h"
 
-extern u8 D_800D3420[];
-extern u8 D_800D3430[];
+// One slot of the per-slot operator register block at D_800D3400 (stride 0x40):
+// the same register file in 32-, 16- and 8-bit form. D_800D3410, D_800D3420 and
+// D_800D3430 are its +0x10, +0x20 and +0x30 arrays; the handlers below read the
+// three operand indexes from the slot's current instruction (BattleCommand) and
+// apply the operation to that slot's registers.
+typedef struct {
+    /* 0x00 */ u8 unk00[0x10];
+    /* 0x10 */ u32 unk10[4];
+    /* 0x20 */ u16 unk20[8];
+    /* 0x30 */ u8 unk30[0x10];
+} BattleOpRegs; // Size: 0x40
 
-void BattleByteRegAddClamp(u8 **p, u8 index) {
-    u8 *pTable = D_800D3430 + index * 0x40;
-    u8 *pArgs = *p;
-    s32 value = pTable[pArgs[1]] + pTable[pArgs[2]];
+extern BattleOpRegs D_800D3400[];
+
+void BattleByteRegAddClamp(BattleCommand **p, u8 index) {
+    u8 *pRegs = D_800D3400[index].unk30;
+    BattleCommand *pCmd = *p;
+    s32 value = pRegs[pCmd->unk1] + pRegs[pCmd->unk2];
     u8 result = value;
 
     if (value > 0xFF) {
         result = 0xFF;
     }
-    pTable[pArgs[3]] = result;
+    pRegs[pCmd->unk3] = result;
 }
-void BattleByteRegSubClamp(u8 **p, u8 index) {
-    u8 *pTable = D_800D3430 + index * 0x40;
-    u8 *pArgs = *p;
-    s32 value = pTable[pArgs[1]] - pTable[pArgs[2]];
+void BattleByteRegSubClamp(BattleCommand **p, u8 index) {
+    u8 *pRegs = D_800D3400[index].unk30;
+    BattleCommand *pCmd = *p;
+    s32 value = pRegs[pCmd->unk1] - pRegs[pCmd->unk2];
     u8 result = value;
 
     if (value < 0) {
         result = 0;
     }
-    pTable[pArgs[3]] = result;
+    pRegs[pCmd->unk3] = result;
 }
 // 100.0% under gcc 2.6.0-psx, 98.52% under 2.7.2-cdk and 96.5% under 2.7.2: needs a
 // 2.6.0 TU of its own.
-void BattleByteRegMulClamp(u8 **p, u8 index) {
-    u8 *pTable = D_800D3430 + index * 0x40;
-    u8 *pArgs = *p;
-    s16 value = pTable[pArgs[1]] * pTable[pArgs[2]];
+void BattleByteRegMulClamp(BattleCommand **p, u8 index) {
+    u8 *pRegs = D_800D3400[index].unk30;
+    BattleCommand *pCmd = *p;
+    s16 value = pRegs[pCmd->unk1] * pRegs[pCmd->unk2];
 
     if (value > 0xFF) {
         value = 0xFF;
     }
-    pTable[pArgs[3]] = value;
+    pRegs[pCmd->unk3] = value;
 }
-void BattleByteRegDiv(u8 **p, u8 index) {
-    u8 *pTable = D_800D3430 + index * 0x40;
-    u8 *pArgs = *p;
+void BattleByteRegDiv(BattleCommand **p, u8 index) {
+    u8 *pRegs = D_800D3400[index].unk30;
+    BattleCommand *pCmd = *p;
 
-    pTable[pArgs[3]] = pTable[pArgs[1]] / pTable[pArgs[2]];
+    pRegs[pCmd->unk3] = pRegs[pCmd->unk1] / pRegs[pCmd->unk2];
 }
-void BattleByteRegMod(u8 **p, u8 index) {
-    u8 *pTable = D_800D3430 + index * 0x40;
-    u8 *pArgs = *p;
+void BattleByteRegMod(BattleCommand **p, u8 index) {
+    u8 *pRegs = D_800D3400[index].unk30;
+    BattleCommand *pCmd = *p;
 
-    pTable[pArgs[3]] = pTable[pArgs[1]] % pTable[pArgs[2]];
+    pRegs[pCmd->unk3] = pRegs[pCmd->unk1] % pRegs[pCmd->unk2];
 }
-void BattleByteRegAnd(u8 **p, u8 index) {
-    u8 *pTable = D_800D3430 + index * 0x40;
-    u8 *pArgs = *p;
+void BattleByteRegAnd(BattleCommand **p, u8 index) {
+    u8 *pRegs = D_800D3400[index].unk30;
+    BattleCommand *pCmd = *p;
 
-    pTable[pArgs[3]] = pTable[pArgs[1]] & pTable[pArgs[2]];
+    pRegs[pCmd->unk3] = pRegs[pCmd->unk1] & pRegs[pCmd->unk2];
 }
-void BattleByteRegOr(u8 **p, u8 index) {
-    u8 *pTable = D_800D3430 + index * 0x40;
-    u8 *pArgs = *p;
+void BattleByteRegOr(BattleCommand **p, u8 index) {
+    u8 *pRegs = D_800D3400[index].unk30;
+    BattleCommand *pCmd = *p;
 
-    pTable[pArgs[3]] = pTable[pArgs[1]] | pTable[pArgs[2]];
+    pRegs[pCmd->unk3] = pRegs[pCmd->unk1] | pRegs[pCmd->unk2];
 }
-void BattleByteRegXor(u8 **p, u8 index) {
-    u8 *pTable = D_800D3430 + index * 0x40;
-    u8 *pArgs = *p;
+void BattleByteRegXor(BattleCommand **p, u8 index) {
+    u8 *pRegs = D_800D3400[index].unk30;
+    BattleCommand *pCmd = *p;
 
-    pTable[pArgs[3]] = pTable[pArgs[1]] ^ pTable[pArgs[2]];
+    pRegs[pCmd->unk3] = pRegs[pCmd->unk1] ^ pRegs[pCmd->unk2];
 }
-void BattleWordRegAddClamp(u8 **p, u8 index) {
-    u16 *pField = (u16 *)(D_800D3420 + index * 0x40);
-    u8 *pArgs = *p;
-    s32 value = pField[pArgs[1]] + pField[pArgs[2]];
+void BattleWordRegAddClamp(BattleCommand **p, u8 index) {
+    u16 *pRegs = D_800D3400[index].unk20;
+    BattleCommand *pCmd = *p;
+    s32 value = pRegs[pCmd->unk1] + pRegs[pCmd->unk2];
 
     if (value > 0xFFFF) {
         value = 0xFFFF;
     }
-    pField[pArgs[3]] = value;
+    pRegs[pCmd->unk3] = value;
 }
-void BattleWordRegSubClamp(u8 **p, u8 index) {
-    u16 *pField = (u16 *)(D_800D3420 + index * 0x40);
-    u8 *pArgs = *p;
-    s32 value = pField[pArgs[1]] - pField[pArgs[2]];
+void BattleWordRegSubClamp(BattleCommand **p, u8 index) {
+    u16 *pRegs = D_800D3400[index].unk20;
+    BattleCommand *pCmd = *p;
+    s32 value = pRegs[pCmd->unk1] - pRegs[pCmd->unk2];
 
     if (value < 0) {
         value = 0;
     }
-    pField[pArgs[3]] = value;
+    pRegs[pCmd->unk3] = value;
 }
-void BattleWordRegMulClamp(u8 **p, u8 index) {
-    u16 *pField = (u16 *)(D_800D3420 + index * 0x40);
-    u8 *pArgs = *p;
-    s32 value = pField[pArgs[1]] * pField[pArgs[2]];
+void BattleWordRegMulClamp(BattleCommand **p, u8 index) {
+    u16 *pRegs = D_800D3400[index].unk20;
+    BattleCommand *pCmd = *p;
+    s32 value = pRegs[pCmd->unk1] * pRegs[pCmd->unk2];
 
     if (value > 0xFFFF) {
         value = 0xFFFF;
     }
-    pField[pArgs[3]] = value;
+    pRegs[pCmd->unk3] = value;
 }
-void BattleWordRegDiv(u8 **p, u8 index) {
-    u16 *pField = (u16 *)(D_800D3420 + index * 0x40);
-    u8 *pArgs = *p;
+void BattleWordRegDiv(BattleCommand **p, u8 index) {
+    u16 *pRegs = D_800D3400[index].unk20;
+    BattleCommand *pCmd = *p;
 
-    pField[pArgs[3]] = pField[pArgs[1]] / pField[pArgs[2]];
+    pRegs[pCmd->unk3] = pRegs[pCmd->unk1] / pRegs[pCmd->unk2];
 }
-void BattleWordRegMod(u8 **p, u8 index) {
-    u16 *pField = (u16 *)(D_800D3420 + index * 0x40);
-    u8 *pArgs = *p;
+void BattleWordRegMod(BattleCommand **p, u8 index) {
+    u16 *pRegs = D_800D3400[index].unk20;
+    BattleCommand *pCmd = *p;
 
-    pField[pArgs[3]] = pField[pArgs[1]] % pField[pArgs[2]];
+    pRegs[pCmd->unk3] = pRegs[pCmd->unk1] % pRegs[pCmd->unk2];
 }
 // best 99.00% (2.7.2 and 2.6.0; 96.50 cdk): 22 instructions, the only miss is the
 // D_800D3420 base register - retail $a2, gcc $v1.
