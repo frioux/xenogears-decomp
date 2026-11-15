@@ -25,7 +25,7 @@ extern u8 D_800D3688[];
 extern u8 D_800C3D70[];
 extern u8 D_800C3FFE[];
 extern u8 func_80085084(u16 arg0, u8 arg1, s32 arg2);
-extern s32 BattleIsCharacterInParty(u8 arg0);
+extern s32 BattleIsCharacterInParty(s32 arg0);
 extern void func_8009A854(u8 arg0);
 extern u16 D_800D2C94;
 extern u8 D_800D2C98;
@@ -222,49 +222,29 @@ void BattleSetPrimFlagsTwoSlots(u8 arg0) {
     func_800BC404(value);
     func_800BCD98(BattleSlotBitMask((D_800C3EAC + arg0 * slotStride)[0x3C]));
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008BD50);
-/* Best: 79.27%, 94 insns / 376 bytes = the original's exact size. Verified
-   against retail: every parameter is used after a call (s5/s4/s3 saves
-   match byte-for-byte), and the index `arg2 * 2 + arg1` must be written
-   inline at every use -- a saved `off` local moves it to s0 and drops the
-   s4/s3 saves, because retail rematerialises the index after the calls.
-   Remaining diff is the base address: retail materialises D_800D2CE0 into
-   a0 (lui/addiu) and adds the index with a register addu, and re-loads
-   *p in the arg3==0 branch; gcc folds the base into the load operand
-   ($at form, 3 insns instead of 4). Tried: p local, pBase local, (u32)
-   cast with and without parens (parens fold straight back to $at, no
-   parens give the register form but reassociate base+arg2*2+arg1), off
-   local. Also unmatched: the arg3 branch is emitted inverted (retail
-   `bnez arg3` with the *p path falling through).
 s32 func_8008BD50(u8 arg0, u8 arg1, u8 arg2, u8 arg3) {
     u8 value;
     u16 entry;
-    u8 *p;
-    u8 *pBase;
     s32 result;
 
     result = 0;
-    pBase = D_800D2CE0;
-    p = pBase + (arg2 * 2 + arg1);
-    entry = *(u16 *)(D_800D2204 + *p * 0x10);
+    entry = *(u16 *)(D_800D2204 + D_800D2CE0[arg2 * 2 + arg1] * 0x10);
     if (arg3 == 0) {
-        value = *p;
+        value = D_800D2CE0[arg2 * 2 + arg1];
     } else {
         value = D_800C3D70[arg2 * 2 + arg1];
     }
-    if (value == 0) {
-        BattlePlaySoundIfEnabled(0x4F);
-    } else if (arg3 == 0) {
-        BattleClearPrimFlagsTwoSlots(1);
-        D_800D2D28[0xC6] = 1;
-        if (func_80085084(entry, arg0, 0) != 0) {
-            result = 1;
-        } else {
-            D_800D2D28[0xC6] = 0;
-            BattleSetPrimFlagsTwoSlots(arg0);
-        }
-    } else {
-        if (BattleIsCharacterInParty(value - 0x32) != 0) {
+    if (value != 0) {
+        if (arg3 == 0) {
+            BattleClearPrimFlagsTwoSlots(1);
+            D_800D2D28[0xC6] = 1;
+            if (func_80085084(entry, arg0, 0) != 0) {
+                result = 1;
+            } else {
+                D_800D2D28[0xC6] = 0;
+                BattleSetPrimFlagsTwoSlots(arg0);
+            }
+        } else if (BattleIsCharacterInParty(value - 0x32) != 0) {
             func_8009A854(value);
             value = D_800D3688[arg2 * 2 + arg1] - 1;
             D_800D3688[arg2 * 2 + arg1] = value;
@@ -273,10 +253,11 @@ s32 func_8008BD50(u8 arg0, u8 arg1, u8 arg2, u8 arg3) {
             }
             result = 2;
         }
+    } else {
+        BattlePlaySoundIfEnabled(0x4F);
     }
     return result;
 }
-*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008BED8);
 void BattleFreeSlotPrims(u8 arg0) {
     D_800D2D28[0x9C] = D_800D2D28[0x9D] = D_800D2D28[0x9E] = 0;
