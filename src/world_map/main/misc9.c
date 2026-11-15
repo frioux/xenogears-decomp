@@ -119,6 +119,24 @@ extern WorldMapTilePos D_8009AF30[];
 extern WorldMapTilePos D_8009AF38[];
 extern int rand(void);
 
+// The eight waypoint tiles of the current world map zone, in 1/4096 tile units
+extern u16 D_8009AF80[8];
+extern u16 D_8009AF90[8];
+
+// 0x20 entries of the path direction the actor walks along, ring-indexed by unk54
+extern WorldMapPathEntry D_8009CD68[];
+
+// 12.4 fixed point world map position
+typedef struct {
+    /* 0x0 */ s32 x;
+    /* 0x4 */ s32 unk4;
+    /* 0x8 */ s32 z;
+} WorldMapPos; // Size: 0xC
+
+extern s32 WorldMapGetTilePlaneHeight(s32 x, s32 z);
+extern void WorldMapWrapDeltaScaled(WorldMapPos* p);
+extern s32 func_80094154(WorldMapPos* p0, WorldMapPos* p1);
+
 void WorldMapSetSlotTPages(WorldMapSceneLayer* pLayer, u8* pSrc, s32 count, s32 abr);
 
 void WorldMapRelocateMapEntryOffsets(void) {
@@ -511,16 +529,91 @@ void WorldMapBuildBasisMatrix(VECTOR* pVec, VECTOR* pWork, MATRIX* pMat) {
     pMat->m[2][2] = pVec->vz;
     TransposeMatrix(pMat, pMat);
 }
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_80087C6C);
-s32 WorldMapSetSceneSpriteSetParents(void) {
-    s32 value = D_8009B674[D_8009C610];
+// Best: 96.77% (752 bytes; retail is 756 - exactly one instruction, a `nop` that
+// retail has in the load-delay slot of `lw v0,80(sp)` after the unk2C store).
+// Everything from the `WorldMapGetTilePlaneHeight` jal to the epilogue is
+// instruction-identical; the two remaining deltas are (a) the prologue block, where
+// retail emits `addiu sp,0x38 / sw s0,0x20` BEFORE the D_8009C610 load and the rest
+// of the saves (ra,s3,s2,s1) after it, while gcc here puts the load pair above the
+// whole save block, and (b) at the unk2C store gcc hoists the `lw v1,80(s0)` reload
+// of unk50 above the `sw v0,44(s0)` and fills the load delay with that store, so the
+// value lands in v1 and the nop disappears. Wrapping the two scratchpad stores in
+// `do { ... } while (0);` reproduces (b) exactly and grows the file to retail's 756
+// bytes, but it also hoists the D_8009AF80/D_8009AF90 address formations above the
+// func_80094154 call, which costs pPos its s2 (it becomes s3) and drops the score to
+// 92.72. Nine declaration orders of {pSlot,pLayer,pPos,pCount,tileZ,tileIndex,dist,i,z}
+// all give exactly 96.77. Permuter: two runs (base=1993 -> 443, then 293, no ZERO);
+// the only thing it found that pays is the `u16 tileZ` local and moving the
+// `pPos->unk4 = 0` and `unk3C = 0` stores later, both already in the body below.
+// Screen: gcc-2.7.2-cdk 72.59 (and a matched neighbour WorldMapUpdateSceneLayerRotationMatrices
+// drops to 56.45 under it), so this is not a preset miss.
+/*
+s32 func_80087C6C(s32 index) {
+    WorldMapPlayer* pSlot;
+    WorldMapSceneLayer* pLayer;
+    WorldMapPos* pPos;
+    u16* pCount;
+    s32 tileIndex;
+    s32 dist;
+    s32 i;
+    s32 z;
+    u16 tileZ;
 
-    WorldMapSetSpriteSetParent(value, value - 4);
-    WorldMapSetSpriteSetParent(value, value - 3);
-    WorldMapSetSpriteSetParent(value, value - 2);
-    WorldMapSetSpriteSetParent(value, value - 1);
+    tileIndex = D_8009B674[D_8009C610];
+    WorldMapSetSceneSpriteSetParents();
+    pSlot = &D_8009BE24[index];
+    pPos = (WorldMapPos*)0x1F800000;
+    pSlot->unk4A = 0x4000;
+    pLayer = &D_8009C620[tileIndex];
+    pSlot->unk20 = 0;
+    if (g_GameState.unk1930[0] < 0xCD) {
+        pSlot->unk28 = 0xD80000;
+        pSlot->unk30 = 0x7280000;
+        pLayer->mat = D_8009A180;
+        pSlot->unk2C = WorldMapGetTilePlaneHeight(pSlot->unk28, pSlot->unk30);
+    } else {
+        pCount = &((u16*)g_GameState.unk1838)[9];
+        if (*pCount == 0) {
+            (*pCount)++;
+            pSlot->unk50 = 0;
+            pSlot->unk28 = D_8009AF80[pSlot->unk50] << 12;
+            z = D_8009AF90[pSlot->unk50];
+        } else {
+            pSlot->unk50 = ((u16*)g_GameState.unk1838)[8];
+            pSlot->unk28 = ((u16*)g_GameState.unk1838)[6] << 12;
+            z = ((u16*)g_GameState.unk1838)[7];
+        }
+        pSlot->unk30 = z << 12;
+        pSlot->unk2C = WorldMapGetTilePlaneHeight(pSlot->unk28, pSlot->unk30);
+        pPos->x = D_8009AF80[pSlot->unk50] << 12;
+        pPos->z = D_8009AF90[pSlot->unk50] << 12;
+        dist = func_80094154(&pSlot->unk28, pPos);
+        if (dist < 0) {
+            dist = -dist;
+        }
+        if (dist < 8) {
+            pSlot->unk50 = (pSlot->unk50 + 1) & 7;
+        }
+        pPos->x = D_8009AF80[pSlot->unk50] - (pSlot->unk28 >> 12);
+        tileZ = D_8009AF90[pSlot->unk50];
+        pPos->z = tileZ - (pSlot->unk30 >> 12);
+        pPos->unk4 = 0;
+        WorldMapWrapDeltaScaled(pPos);
+        VectorNormal((VECTOR*)pPos, (VECTOR*)pPos);
+        for (i = 0; i < 0x100; i += 8) {
+            ((WorldMapPathEntry*)((u8*)D_8009CD68 + i))->unk0 = pPos->x;
+            ((WorldMapPathEntry*)((u8*)D_8009CD68 + i))->unk4 = pPos->z;
+        }
+        pSlot->unk58 = 1;
+        pSlot->unk54 = 0;
+        pSlot->unk38 = D_8009CD68[1].unk0;
+        pSlot->unk40 = D_8009CD68[pSlot->unk58].unk4;
+        pSlot->unk3C = 0;
+    }
     return 1;
 }
+*/
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_80087C6C);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_80087FD0);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_80088570);
 // Best: 95.92% (284 bytes = retail's size, identical instruction multiset). The
