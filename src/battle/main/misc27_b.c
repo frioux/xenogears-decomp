@@ -94,6 +94,7 @@ BattleDistanceWaitTask* BattleCreateActorDistanceWaitTask(SpriteData* pSpriteDat
     pTask->distance = func_800B57E4(pSpriteData);
     pTask->minDistance = arg1;
     pTask->pSpriteBytecode = (void*)arg2;
+    // +0xAF is the top byte of the flag word at 0xAC: the animation the actor plays
     pTask->animId = *(s8*)((u8*)pSpriteData + 0xAF);
     pSpriteData->flags_0xAC |= 0x20;
     return pTask;
@@ -238,9 +239,9 @@ void BattleSetLinkedSpriteDrawWorkCallback(SpriteData* pSpriteData) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc27_b", func_800B61F8);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc27_b", func_800B626C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc27_b", func_800B62C8);
-void BattleScriptApplyRectParams(u8* pActor, u8* pScript) {
+void BattleScriptApplyRectParams(u8* pActor, s8* pScript) {
     BattleScriptOp* pOp;
 
-    pOp = (BattleScriptOp*)(pScript + ((*(s8*)(pScript + 1) << 8) | pScript[0]));
+    pOp = (BattleScriptOp*)(pScript + ((pScript[1] << 8) | (u8)pScript[0]));
     func_800B3CD4(pOp->unk5, pOp->unk3, pOp->unk4, (s8)pOp->unk0, pOp->unk1, pOp->unk2);
 }
