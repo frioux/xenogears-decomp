@@ -16,7 +16,7 @@ typedef struct {
 } WorldMapMenuSlot; // Size: 0x80
 
 extern void SystemStringFree(void* pString);
-extern s32 func_80093E8C(WorldMapPos* p);
+extern s32 WorldMapGetTileValue(WorldMapPos* p);
 extern u8* func_80093660(s32 x, s32 z);
 extern long SquareRoot0(long a);
 extern long ratan2(long y, long x);
@@ -386,7 +386,7 @@ s32 WorldMapGetTilePlaneHeight(s32 x, s32 z) {
     return a.unk4 << 3;
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_80093A5C);
-s32 func_80093E8C(WorldMapPos* p) {
+s32 WorldMapGetTileValue(WorldMapPos* p) {
     s16 idx;
     s16 baseOffset;
     s32 sub;
@@ -406,7 +406,7 @@ s32 WorldMapGetTileHalfIndex(WorldMapPos* p) {
     s32 dz;
     s32 sum;
 
-    n = func_80093E8C(p);
+    n = WorldMapGetTileValue(p);
     k = (n & 0xF) * 4;
     dx = (u16)(p->x / 8) - D_8009B464[k];
     dz = (u16)(p->z / 8) - D_8009B46C[k];
@@ -418,11 +418,11 @@ s32 WorldMapGetTileHalfIndex(WorldMapPos* p) {
 }
 
 s32 WorldMapGetTileShape(WorldMapPos* p) {
-    return func_80093E8C(p) & 0xF;
+    return WorldMapGetTileValue(p) & 0xF;
 }
 
 s32 WorldMapGetTileAttrBits10To15(WorldMapPos* p) {
-    return ((u32)func_80093E8C(p) << 16) >> 26;
+    return ((u32)WorldMapGetTileValue(p) << 16) >> 26;
 }
 
 s32 WorldMapGetTileGroup(WorldMapPos* p) {

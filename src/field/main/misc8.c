@@ -672,7 +672,7 @@ void FieldStartArchiveStream(int archiveIndex, int allocMode, void* pCallback) {
 void func_8003A20C(int);
 void SoundPlaySoundEffectOnPairWithLevels(void*, int, int, int);
 
-void func_800855C8(int arg0, int arg1, int arg2, int arg3) {
+void FieldPlaySoundElementPair(int arg0, int arg1, int arg2, int arg3) {
     int slot;
     int temp;
 
@@ -692,7 +692,7 @@ void FieldSetSoundSlotElement(int arg0, int arg1) {
         func_8003A20C(offset * 2);
     } else {
         D_800B21B8 = arg0;
-        func_800855C8(arg0, 0x7F, 0x40, offset);
+        FieldPlaySoundElementPair(arg0, 0x7F, 0x40, offset);
     }
 }
 

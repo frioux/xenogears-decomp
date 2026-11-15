@@ -2871,7 +2871,7 @@ void FieldScriptSetSoundSlotVolume(void) {
 }
 
 void FieldScriptSetSoundSlotVolumeParams(void) {
-    func_800855C8(
+    FieldPlaySoundElementPair(
         FieldScriptVMGetArgument(1),
         FieldScriptVMGetArgument(5),
         FieldScriptVMGetArgument(3),
@@ -2900,10 +2900,10 @@ void FieldScriptSetSoundSlotVolume3(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
 
-extern void func_800855C8(int, int, int, int);
+extern void FieldPlaySoundElementPair(int, int, int, int);
 
 void FieldScriptSetSoundSlotVolumeParams3(void) {
-    func_800855C8(FieldScriptVMGetArgument(1), FieldScriptVMGetArgument(5), FieldScriptVMGetArgument(3), 3);
+    FieldPlaySoundElementPair(FieldScriptVMGetArgument(1), FieldScriptVMGetArgument(5), FieldScriptVMGetArgument(3), 3);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 7;
 }
 

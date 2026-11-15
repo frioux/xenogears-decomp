@@ -213,7 +213,7 @@ extern void GfxAllocateWorkBuffers(s32 workBufferSize, s32 allocFlag);
 extern void func_800BCD8C(void);
 extern void func_800B89F4(void);
 
-void func_800B8840(void) {
+void BattleInitStateWorkBuffers(void) {
     D_800591AD = 1;
     D_80059464 = 0;
     D_800591AC = 0;
@@ -312,7 +312,7 @@ void func_800B8D7C(void) {
 extern void BattleDestroyState(void);
 extern void func_800BEE2C(u16 arg0, u16 arg1, s32 arg2);
 
-void func_800B8DA4(void) {
+void BattleActorInitSpriteFromSlot(void) {
     BattleActorSlot *pTable;
     SpriteData *pSprite;
     u32 slotHigh;

@@ -54,7 +54,7 @@ extern void BattleSetupActorSlotDisplay(u8);
 extern void func_80084A7C(u8);
 extern void func_80077698(void);
 extern u8 D_800D366C;
-void func_800829F4(u8 arg0) {
+void BattleSetActorSlotDisplayMode(u8 arg0) {
     u8 *p;
     int off;
     u8 a;
@@ -115,7 +115,7 @@ void func_800829F4(u8 arg0) {
         break;
     }
 }
-void func_80082BB0(u8 arg0) {
+void BattleSetActorSlotMenuMode(u8 arg0) {
     u8 *p;
     int off;
     u8 a;
