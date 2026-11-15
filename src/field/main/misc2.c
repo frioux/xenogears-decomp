@@ -375,18 +375,6 @@ void func_800726E8(void) {
 }
 */
 
-// Attempt below is 99.52%: identical except the final `bnez` delay slot - ours fills it
-// with the `andi` of the flag clear, retail leaves a `nop` and puts the `andi` after.
-// Verified NOT a preset problem: try_flags --sweep gives 99.52 for gcc-2.7.2 at -O2/-O3,
-// -G4/-G8, mcpu 3000/r8000 (2.6.0: 99.32, 2.7.2-cdk: 72.11). Tried and equally 99.52: plain
-// `if (--unk70 == 0)`, the original `if (!=0) ; else` spelling, and hoisting the flags word
-// into an `s32 flags` local. The andi dest ($v0) and its source ($a0) are both dead at the
-// branch target, so reorg is free to steal it in every spelling tried; blocking the steal
-// means changing what reorg sees (e.g. a live use at the target), not the statement shape.
-// Also 99.52% and byte-identical: `s32* pFlags` local, `!--unk70`, and the split
-// `unk70--; if (unk70 == 0)`. A ternary form scores 99.93% only because it grows the
-// function by 4 bytes (828 vs 824) - no.
-// screened: Default 99.52 (best), cdk 72.11, 2.6.0 99.32 - the one-instruction reorg delay slot described above.
 extern int func_8007CD80(VECTOR* pPos, SVECTOR* pPoints, SVec4* pOut);
 extern void FieldRotateEyeAboutAt(VECTOR* pEye, VECTOR* pAt);
 extern VECTOR g_CameraEye2;
@@ -394,11 +382,13 @@ extern VECTOR g_CameraAt2;
 extern int D_800ADBA8;
 extern u_char D_800B21CD;
 
-volatile unsigned int func_80072A38(VECTOR* pPos, int param) {
+// The non-void return type is load-bearing: with `void` gcc reorg steals the flag clear's
+// `andi` into the final `bnez` delay slot (99.52%).
+int func_80072A38(VECTOR* pPos, int param) {
     SVECTOR points[2];
-    int new_var2;
     SVec4 line;
-    SVec4 new_var[2];
+    SVec4 cross;
+    SVec4 result;
     VECTOR pos;
     // The original allocates 0x20 of stack the code never references (frame 0x80).
     MATRIX unusedMatrix;
@@ -407,15 +397,15 @@ volatile unsigned int func_80072A38(VECTOR* pPos, int param) {
     pos.vy = 0;
     pos.vz = pPos->vz;
 
-    if (func_8007CD80(&pos, points, &new_var[0]) == -1) {
+    if (func_8007CD80(&pos, points, &cross) == -1) {
         line.x = points[0].vx;
         line.y = points[0].vz;
         line.z = points[1].vx;
         line.w = points[1].vz;
-        FieldMathIntersectLines(&line, &new_var[0], &new_var[1]);
+        FieldMathIntersectLines(&line, &cross, &result);
 
-        g_CameraAt2.vx = new_var[1].x << 16;
-        g_CameraAt2.vz = new_var[1].y << 16;
+        g_CameraAt2.vx = result.x << 16;
+        g_CameraAt2.vz = result.y << 16;
         if (D_800B21CD == 0) {
             if (D_800ADBA8 == 0) {
                 g_CameraAt2.vy = param << 16;
@@ -443,7 +433,7 @@ volatile unsigned int func_80072A38(VECTOR* pPos, int param) {
         pAt = (VECTOR*)((u_char*)pSceneDIP - 0x13C);
         offset = (-((rsin(((*pSceneDIP * 91) >> 3) + 0xC00) * (s32)g_Scene.sceneScrZ) << 5) >> 0x10) * g_Scene.sceneScale * 0x10;
         g_CameraEye2.vy = offset + g_CameraAt2.vy;
-        offset = (((new_var2 = ((rcos(((*pSceneDIP * 91) >> 3) + 0xC00) * (s32)g_Scene.sceneScrZ) << 5) >> 0x10)) * g_Scene.sceneScale * 0x10);
+        offset = (((rcos(((*pSceneDIP * 91) >> 3) + 0xC00) * (s32)g_Scene.sceneScrZ) << 5) >> 0x10) * g_Scene.sceneScale * 0x10;
         g_CameraEye2.vz = offset + g_CameraAt2.vz;
         pEye->vx = pAt->vx;
         FieldRotateEyeAboutAt(pEye, pAt);
@@ -456,8 +446,6 @@ volatile unsigned int func_80072A38(VECTOR* pPos, int param) {
         }
         if (--g_Scene.unk8C == 0) {
             g_Scene.unk48 &= 0xFFFE;
-            do {
-            } while (0);
         }
     }
 
