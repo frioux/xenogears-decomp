@@ -1,4 +1,5 @@
 #include "common.h"
+#include "field/actor.h"
 #include "psyq/libgpu.h"
 
 // 16.16 fixed point; the integer part is the high half of the word.
@@ -208,12 +209,13 @@ void BattleScriptAddHalfwords3(u16 *pOut, s8 *p) {
     v = (p[5] << 8) | (u8)p[4];
     pOut[2] += v;
 }
-void BattleActorCopyVectorFromSource(u8 *p) {
-    u8 *pSrc = *(u8 **)(p + 0x70);
+void BattleActorCopyVectorFromSource(SpriteData *pSprite) {
+    SpriteData *pSrc;
 
-    *(u32 *)(p + 0xC) = *(u32 *)(pSrc + 0xC);
-    *(u32 *)(p + 0x10) = *(u32 *)(pSrc + 0x10);
-    *(u32 *)(p + 0x14) = *(u32 *)(pSrc + 0x14);
+    pSrc = pSprite->field_0x70;
+    pSprite->step.x = pSrc->step.x;
+    pSprite->step.y = pSrc->step.y;
+    pSprite->step.z = pSrc->step.z;
 }
 void BattleScriptCall8001FC4C4WithActorState(u8 *pActor, s8 *pArg) {
     s32 x2;
@@ -277,24 +279,24 @@ void BattleSetRotationFromVelocity(u8 *p) {
     *(s16 *)(*(u32 *)(p + 0x20) + 0x0) = 0;
     *(u32 *)(p + 0x3C) |= 0x10000000;
 }
-void BattleClearRecordTable8(u8 *p) {
+void BattleClearRecordTable8(SpriteData *pSprite) {
     s32 i;
 
-    if (*(u32 *)(p + 0x20) == 0) {
+    if (pSprite->pBase == NULL) {
         return;
     }
-    if (*(u32 *)(*(u32 *)(p + 0x20) + 0x34) == 0) {
+    if (pSprite->pBase->pDirTransforms == NULL) {
         return;
     }
     for (i = 0; i != 8; i++) {
-        *(u8 *)(*(u32 *)(*(u32 *)(p + 0x20) + 0x34) + i * 8 + 0x0) = 0;
-        *(u8 *)(*(u32 *)(*(u32 *)(p + 0x20) + 0x34) + i * 8 + 0x1) = 0;
-        *(u16 *)(*(u32 *)(*(u32 *)(p + 0x20) + 0x34) + i * 8 + 0x2) = 0;
-        *(u16 *)(*(u32 *)(*(u32 *)(p + 0x20) + 0x34) + i * 8 + 0x4) = 0;
-        *(u16 *)(*(u32 *)(*(u32 *)(p + 0x20) + 0x34) + i * 8 + 0x6) = 0;
+        (i + pSprite->pBase->pDirTransforms->dirTransforms)->translationX = 0;
+        (i + pSprite->pBase->pDirTransforms->dirTransforms)->translationY = 0;
+        (i + pSprite->pBase->pDirTransforms->dirTransforms)->rotationX = 0;
+        (i + pSprite->pBase->pDirTransforms->dirTransforms)->rotationY = 0;
+        (i + pSprite->pBase->pDirTransforms->dirTransforms)->rotationZ = 0;
     }
-    *(u8 *)(*(u32 *)(p + 0x20) + 0x3C) = 0;
-    *(u8 *)(*(u32 *)(p + 0x20) + 0x3D) = 0;
+    pSprite->pBase->offsetX = 0;
+    pSprite->pBase->offsetY = 0;
 }
 void BattleActorRotateVectorZ(u8 *pActor, s8 *p) {
     SVECTOR rotation;
