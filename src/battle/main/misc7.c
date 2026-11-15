@@ -259,6 +259,18 @@ void BattleWordRegSetReg(BattleCommand **p, u8 index) {
 // keeps the header and only the sum's register differs. The do-while wrapper
 // and the dead pArgsCopy are load-bearing. Screened: same score under
 // Default, 2.7.2-cdk and 2.6.0, so not a compiler question.
+// Round 98: the two halves are ONE register decision, not two source decisions.
+// Spell the sum with separate locals (base loaded into its own local, then
+// `slot = index * 0x40 + pBase`, or the sum handed to a local first, or as an
+// embedded assignment, or typed as D_800D3400[index].unk10) and the sum's addu
+// DOES take retail's destination register - but the base address's lui/addiu
+// pair is then materialised into v0/v1 and hoisted above the *p load
+// (84.00-85.33%), because a0 still holds p there, so the address temp never
+// gets a0. Only the coalesced base-first form above puts the address temp in
+// a0, and that same a0 is what pins the pair in retail's load-delay slot (the
+// load reads a0, so hoisting over it is illegal). Fourth permuter run from this
+// body (2716 iterations) and a screening of the separate-locals form under -O3,
+// -G0 and 2.6.0 (84.00 flat) found nothing.
 /*
 void func_8007B9C8(u8 **p, u8 index) {
     u8 *pArgs = *p;
