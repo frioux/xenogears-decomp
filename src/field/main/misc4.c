@@ -889,10 +889,11 @@ extern s16 D_800B218C;
 
 void func_8007B614(IVEC3* pVec, int scale, int angle) {
     int nAngle = angle & 0xFFF;
-    int nScaled;
     int nScale = (scale << 4) * D_800B218C >> 12;
+    int nScaled;
 
     pVec->x = rsin(nAngle) * nScale;
+    /* dropping nScaled and folding it into the rcos multiply costs the s0/s1/s2 assignment, 97.88% */
     nScaled = nScale;
     nScale = rcos(nAngle);
     pVec->z = -(nScale * nScaled);
