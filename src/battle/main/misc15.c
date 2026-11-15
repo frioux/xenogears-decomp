@@ -335,14 +335,14 @@ void BattleClearPrimFlagsThreeSlots(u8 arg0) {
 }
 void func_8008CD28(u8 arg0) {
     u16 value;
-    int new_var;
+    int slotStride;
 
     D_800D2D28[0x9C] = D_800D2D28[0x9D] = D_800D2D28[0x9E] = 1;
-    new_var = 0x40;
+    slotStride = 0x40;
     D_800D2D28[0xB0] = D_800D2D28[0xB1] = D_800D2D28[0xB2] = 1;
     D_800D2D28[0xB7] = 4;
-    value = BattleSlotBitMask(arg0) | BattleSlotBitMask((D_800C3EAC + arg0 * new_var)[0x3C]);
+    value = BattleSlotBitMask(arg0) | BattleSlotBitMask((D_800C3EAC + arg0 * slotStride)[0x3C]);
     func_800BC404(value);
-    func_800BCD98(BattleSlotBitMask((D_800C3EAC + arg0 * new_var)[0x3C]));
+    func_800BCD98(BattleSlotBitMask((D_800C3EAC + arg0 * slotStride)[0x3C]));
 }
 
