@@ -27,8 +27,8 @@ extern s16 D_800568D4;
 extern s16 D_800568D6;
 extern u_char D_800568D3;
 
-extern u_long *D_800569A0; // GPU status register
-extern u_long *D_800569A4; // GPU data register (GP0)
+extern volatile u_long *D_800569A0; // GPU status register
+extern volatile u_long *D_800569A4; // GPU data register (GP0)
 extern u_long *D_800569A8;
 extern u_long *D_800569AC;
 extern volatile u_long *D_800569B0;
@@ -237,15 +237,6 @@ u_char func_80046588(int index) {
     return D_8005A27C[index];
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_b", func_8004659C);
-
-/* best: 81.75% (retail 22 insns, this 21) -- retail fills BOTH delay slots with
-   `addu $v0,zero,zero`, so its RTL carries a second copy of the return-0 setup
-   inside the loop, and it leaves `sw $v1,0($v0)` before the backward bne; gcc
-   rotates the loop so that store is the fall-through insn and reorg steals it
-   into the slot. Guarding with an explicit `if (n == 0) return 0;` emits a
-   duplicate beqz (23 insns). cdk is not this unit's compiler: under
-   gcc-2.7.2-cdk this scores 59.45% and matched neighbours collapse.
 int func_8004659C(u_long *src, int n) {
     int i;
 
@@ -254,7 +245,6 @@ int func_8004659C(u_long *src, int n) {
         *D_800569A0 = *src++;
     return 0;
 }
-*/
 
 void func_800465EC(u_long value) {
     *D_800569A4 = 0x04000002;
