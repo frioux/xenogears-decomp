@@ -1105,8 +1105,8 @@ s32 ResourceHelperGetSpriteList(MenuResourceDirectory* dir, u32 index, MenuResou
     s32 texPageX;
     s32 texPageY;
 
-    pDirent = (MenuResourceDirentTextureMetadata*)(dir->offsets[index] + (unsigned)dir);
-    pData = &pDirent->data[0];
+    pDirent = (MenuResourceDirentTextureMetadata*)(dir->offsets[index] + (mem_addr)dir);
+    pData = pDirent->data;
     count = pDirent->count;
     for (i = 0; i != count; i++, pData++, out++) {
         u_shifted = pData->u << 0x10;
