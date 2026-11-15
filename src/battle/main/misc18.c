@@ -224,22 +224,21 @@ void BattleRollPercentAndSetState38(void) {
     }
 }
 void BattleRollPercentAndSwapActiveActor(void) {
-    u8 *pData;
+    BattleTableEntry *pTarget;
     u8 *pBase;
-    u8 *pActor;
+    BattleTableEntry *pActor;
+    BattleTableEntry *pOld;
     u16 t;
     u8 sel;
     u8 s;
     u8 tmp;
-    u8 *p;
-    u8 *q;
     s32 lim;
 
-    pData = (u8 *)D_800C3E34;
-    if (*(u16 *)(pData + 0x7C) & 0xA000) {
+    pTarget = D_800C3E34;
+    if (pTarget->unk7C & 0xA000) {
         return;
     }
-    t = *(u16 *)(pData + 0x80);
+    t = pTarget->unk80;
     if (t & 0x1000) {
         return;
     }
@@ -247,42 +246,44 @@ void BattleRollPercentAndSwapActiveActor(void) {
     if (sel < 3 && !(t & 0x2000)) {
         return;
     }
-    if (!(*(u16 *)(pData + 0x88) & 0x1000)) {
+    if (!(pTarget->unk88 & 0x1000)) {
         return;
     }
-    t = *(u16 *)((u8 *)D_800C3DFC + 0xA);
+    t = D_800C3DFC->unk0A;
     if (t & 0x2000) {
         return;
     }
     if (t & 0x100) {
         return;
     }
-    pBase = D_800C34B0;
-    pActor = pBase + sel * 0x170;
-    if (*(u8 *)(pActor + 0x15A) & 0x80) {
+    pBase = (u8 *)D_800C34B0;
+    pActor = (BattleTableEntry *)(pBase + sel * sizeof(*pActor));
+    if (pActor->state.unkB6 & 0x80) {
         return;
     }
     lim = 0x32;
-    if (*(u8 *)(pData + 0x56) == 0) {
+    if (pTarget->unk56 == 0) {
         lim = 0x3C;
     }
     if (lim < rand() % 100) {
         return;
     }
-    if (*(u8 *)((u8 *)D_800C3DFC + 0x16) == 2) {
+    if (D_800C3DFC->unk16 == 2) {
         return;
     }
     tmp = D_800C3E50;
     s = D_800C3E04;
-    p = (u8 *)D_800C3E00;
+    pOld = D_800C3E00;
     D_800C3E04 = tmp;
-    q = (u8 *)(D_800C3E00 = D_800C3E34);
-    D_800C3E34 = p;
+    D_800C3E00 = D_800C3E34;
+    D_800C3E34 = pOld;
     D_800C3E50 = s;
+    // row table at +0x1378, 0x5F0 bytes per slot (inside BattleWorkBlock's
+    // unk450, so it is reached by offset)
     D_800C3DFC = (BattleRow *)((u8 *)D_800C34B0 + D_800C3E04 * 0x5F0 + 0x1378);
-    *(u8 *)((u8 *)D_800C34B0 + D_800C3E04 + 0x5FA0) = 7;
-    *(u32 *)((u8 *)D_800C34B0 + D_800C3E04 * 4 + 0x5F6C) = 0;
-    ((u8 *)D_800C34B0)[0x5FC7] = 0x34;
+    D_800C34B0->unk5FA0[D_800C3E04] = 7;
+    D_800C34B0->unk5F6C[D_800C3E04] = 0;
+    D_800C34B0->unk5FC7 = 0x34;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80096AB8);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80096FBC);
