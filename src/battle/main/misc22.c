@@ -363,6 +363,8 @@ void func_800A44C0(u8 **pArg) {
                 s32 offset = *(s16 *)(D_800D3316 + i) * 124;
                 s32 vec[4];
 
+                /* retail re-reads the part pointer for the second argument; reusing pMat
+                   makes gcc rotate the CompMatrix argument registers. */
                 CompMatrix(pMat + 0xC, *(u8 **)(pEntry + 4) + offset + 0xA8, pMatrix);
                 SetRotMatrix(pMatrix);
                 SetTransMatrix(pMatrix);
