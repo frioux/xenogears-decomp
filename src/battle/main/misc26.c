@@ -1,5 +1,7 @@
 #include "common.h"
 #include "psyq/libgte.h"
+#include "psyq/libgpu.h"
+#include "psyq/inline_c.h"
 
 // WorkListEntry of include/system/animation.h; an overlay unit cannot include
 // that header (it holds tentative definitions of main-exe globals), so the
@@ -47,10 +49,37 @@ typedef struct {
     /* 0x3C */ s32 halfLength; // half the ease length, the divisor for each step
 } BattleScaleTask; // Size: 0x40
 
-extern u8 *D_800C3558;
+// The screen fade drawn over the battle: a timer entry (0x00) that steps the
+// colour and a draw entry (0x1C) that emits the quad, then the two ends of the
+// fade and the colour it is at on this frame. D_800C3C00 and D_800C3C50 are the
+// two static ones, which is where the size comes from.
+typedef struct {
+    /* 0x00 */ WorkListEntry timerEntry;
+    /* 0x1C */ WorkListEntry drawEntry;
+    /* 0x38 */ s32 length; // twice the frame count the fade was given
+    /* 0x3C */ s32 timer; // counts the length down
+    /* 0x40 */ u8 unk40;
+    /* 0x41 */ u8 abr; // semi-transparency mode handed to GetTPage
+    /* 0x42 */ u8 targetR;
+    /* 0x43 */ u8 targetG;
+    /* 0x44 */ u8 targetB;
+    /* 0x45 */ u8 startR;
+    /* 0x46 */ u8 startG;
+    /* 0x47 */ u8 startB;
+    /* 0x48 */ u8 curR;
+    /* 0x49 */ u8 curG;
+    /* 0x4A */ u8 curB;
+    /* 0x4B */ u8 pad4B[0x5];
+} BattleScreenFadeTask; // Size: 0x50
+
+extern BattleScreenFadeTask *D_800C3558;
 extern BattleScaleTask *D_800C3548;
 extern u8 D_800C355C;
 extern u32 D_800C3560;
+
+extern u8 *g_GfxCurWorkBuffer;
+extern u8 *g_GfxCurWorkBufferEnd;
+extern u_long *g_GfxCurOT;
 
 extern BattleScaleTask *func_800B35C0();
 extern void func_800B3358(BattleScaleTask *pTask);
@@ -183,7 +212,36 @@ void BattleCreateTimedScaleTask(BattleScaleVector *pTarget, s32 frames) {
     pTask->halfLength = frames * 2;
     func_800B3358(pTask);
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc26", func_800B36BC);
+// One step of the fade: while the timer runs, move the colour from the start
+// toward the target in equal slices, and once it is spent settle on the target
+// and release the task if the fade has ended on black.
+void func_800B36BC(BattleScreenFadeTask *pTask) {
+    s32 step[3];
+
+    if (pTask->timer == 0) {
+        pTask->curR = pTask->targetR;
+        pTask->curG = pTask->targetG;
+        pTask->curB = pTask->targetB;
+        if ((pTask->curR | pTask->curG | pTask->curB) == 0) {
+            D_800C3558->timerEntry.onFreeCallback(D_800C3558);
+        }
+        return;
+    }
+    pTask->timer--;
+    step[0] = pTask->targetR - pTask->startR;
+    step[1] = pTask->targetG - pTask->startG;
+    step[2] = pTask->targetB - pTask->startB;
+    gte_lddp(pTask->timer >> 1);
+    gte_ldlvl(step);
+    gte_gpf0();
+    gte_stlvl(step);
+    step[0] = step[0] / (pTask->length >> 1);
+    step[1] = step[1] / (pTask->length >> 1);
+    step[2] = step[2] / (pTask->length >> 1);
+    pTask->curR = pTask->targetR - (u8)step[0];
+    pTask->curG = pTask->targetG - (u8)step[1];
+    pTask->curB = pTask->targetB - (u8)step[2];
+}
 
 void BattleFreeScreenFadeTask(u8 *pEntry) {
     WorkListRemoveTask(pEntry + 0x1C);
@@ -191,7 +249,37 @@ void BattleFreeScreenFadeTask(u8 *pEntry) {
     D_800C3558 = NULL;
 }
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc26", func_800B3878);
+// Draws the fade as one semi-transparent quad over the whole screen. The 0x50
+// asked of the work buffer is more than the quad and its draw mode take.
+void func_800B3878(WorkListEntry *pEntry) {
+    BattleScreenFadeTask *pTask = pEntry->unk4;
+    u8 *pBuf = g_GfxCurWorkBuffer;
+    POLY_F4 *pPoly;
+    DR_MODE *pMode;
+
+    if ((u8 *)(pBuf + 0x50) >= g_GfxCurWorkBufferEnd) {
+        return;
+    }
+    pPoly = (POLY_F4 *)pBuf;
+    pMode = (DR_MODE *)(pBuf + sizeof(POLY_F4));
+    g_GfxCurWorkBuffer = pBuf + sizeof(POLY_F4) + sizeof(DR_MODE);
+    SetPolyF4(pPoly);
+    SetSemiTrans(pPoly, 1);
+    pPoly->r0 = pTask->curR;
+    pPoly->g0 = pTask->curG;
+    pPoly->b0 = pTask->curB;
+    pPoly->x0 = -0x20;
+    pPoly->y0 = -0x20;
+    pPoly->x1 = 0x140;
+    pPoly->y1 = -0x20;
+    pPoly->x2 = -0x20;
+    pPoly->y2 = 0xF0;
+    pPoly->x3 = 0x140;
+    pPoly->y3 = 0xF0;
+    SetDrawMode(pMode, 0, 0, GetTPage(0, pTask->abr, 0, 0), NULL);
+    AddPrim(g_GfxCurOT + 2, pPoly);
+    AddPrim(g_GfxCurOT + 2, pMode);
+}
 
 void BattleStartScreenFadeOwnBuffer(s32 a0, s32 a1, u8 a2, u8 a3, u8 a4) {
     D_800C355C = 1;
@@ -203,7 +291,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc26", func_800B39C0);
 
 s32 BattleGetActorFlag41(void) {
     if (D_800C3558 != NULL) {
-        return D_800C3558[0x41];
+        return D_800C3558->abr;
     }
     return 1;
 }
