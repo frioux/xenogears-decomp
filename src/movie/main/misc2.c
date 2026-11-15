@@ -457,36 +457,71 @@ void WorldMapScriptOp04SetScratchPosition(void) {
 
 INCLUDE_ASM("asm/movie/nonmatchings/main/misc2", func_80076CA4);
 
-/* best 73.61% - the original keeps &D_8007703C in $s5 across the GTE calls
-   (that is also the extra saved register in its 0x30 frame) and forms
-   &D_800770B8 as (address of D_800770CC) - 0x14; a source-level pointer to
-   D_8007703C gets rematerialised instead. Also reorders the D_800770CC/D0/D4
-   block.
+/* best 73.42% - same instruction count (408 bytes) and the prologue now matches
+   retail exactly: 0x30 frame, s1 = dz saved first, and &D_8007703C kept in $s5
+   across the GTE calls. Getting the frame and $s5 needs the position/vector
+   triples declared as structs (MovieVector below, D_8007702C/3C/76F2C) and a
+   MovieVector* local, not the flat s32 D_ globals - and the rotation/translation
+   matrices typed as MATRIX (D_800770B8, D_800770D8), not s16/s32[].
+   Remaining differences, all in the tail:
+   1. retail materialises &(D_800770CC) = the D_800770B8 matrix + 0x14 in $a3,
+      stores the three t[] words at 0(a3), and derives the CompMatrix matrix
+      argument as a3 - 0x14; we fold the three stores to the %lo(D_800770B8+0x14)
+      form and materialise the base separately.
+   2. retail stores the SquareRoot0 result (D_800770F4) after it has loaded
+      D_80076F2C/D_8007703C and formed a3/a1; ours stores it right after the call.
+   3. the translation x reload lands in $a2 in retail, $v0/$6 in ours.
+   Shapes tried: s32* translation pointer + pTrans[k] (same 73.42), MATRIX member
+   form (same), and the AddressCSE-first order. -G0 on this unit's neighbour
+   func_80076AF0 scored 99.15% but this unit must stay on its preset (the div
+   trap), and try_flags --gp -G0 fails to compile the unit at all.
+   Declarations this body needs, at the top of the unit:
+     typedef struct { s32 x; s32 y; s32 z; } MovieVector; // Size: 0xC
+     extern MovieVector D_8007702C;
+     extern MovieVector D_8007703C;
+     extern MovieVector D_80076F2C;
+     extern SVECTOR D_800770B0;      // was: extern s16 D_800770B0; D_800770B2
+     extern MATRIX D_800770B8;       // was: extern s16 D_800770B8;
+     extern MATRIX D_800770D8;       // was: extern s32 D_800770D8[];
+typedef struct {
+    s32 x;
+    s32 y;
+    s32 z;
+} MovieVector; // Size: 0xC
+
+extern MovieVector D_8007702C;
+extern MovieVector D_8007703C;
+extern MovieVector D_80076F2C;
+
 void func_80076CA4(void) {
+    MATRIX* pRotMatrix;
+    MATRIX* pTransMatrix;
+    MovieVector* pPos;
     s32 dz;
     s32 dzSq;
     s32 dx;
     s32 dxSq;
     s32 dy;
-    s32* pz;
 
+    pPos = &D_8007703C;
     dz = D_80077044 - D_80077034;
     dzSq = dz * dz;
-    pz = &D_8007703C;
-    dx = *pz - D_8007702C;
+    dx = pPos->x - D_8007702C.x;
     dxSq = dx * dx;
     dy = D_80077040 - D_80077030;
-    D_800770B0 = ratan2(dy, SquareRoot0(dzSq + dxSq));
-    D_800770B2 = -ratan2(dx, dz);
-    RotMatrix((SVECTOR*)&D_800770B0, (MATRIX*)&D_800770D8);
-    RotMatrixZ(D_8007704C, (MATRIX*)&D_800770D8);
-    MulMatrix2((MATRIX*)&D_800770F8, (MATRIX*)&D_800770D8);
-    D_800770EC = 0;
-    D_800770F0 = 0;
-    D_800770F4 = SquareRoot0(dxSq + dy * dy + dzSq);
-    D_800770CC = D_80076F2C - *pz;
-    D_800770D0 = D_80076F30 - D_80077040;
-    D_800770D4 = D_80076F34 - D_80077044;
-    CompMatrix((MATRIX*)&D_800770D8, (MATRIX*)&D_800770B8, &D_80077050);
+    D_800770B0.vx = ratan2(dy, SquareRoot0(dzSq + dxSq));
+    D_800770B0.vy = -ratan2(dx, dz);
+    pRotMatrix = &D_800770D8;
+    RotMatrix(&D_800770B0, pRotMatrix);
+    RotMatrixZ(D_8007704C, pRotMatrix);
+    MulMatrix2(&D_800770F8, pRotMatrix);
+    pTransMatrix = &D_800770B8;
+    pRotMatrix->t[0] = 0;
+    pRotMatrix->t[1] = 0;
+    pRotMatrix->t[2] = SquareRoot0(dxSq + dy * dy + dzSq);
+    pTransMatrix->t[0] = D_80076F2C.x - pPos->x;
+    pTransMatrix->t[1] = D_80076F30 - D_80077040;
+    pTransMatrix->t[2] = D_80076F34 - D_80077044;
+    CompMatrix(pRotMatrix, pTransMatrix, &D_80077050);
 }
 */
