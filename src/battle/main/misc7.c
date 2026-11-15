@@ -43,7 +43,7 @@ s32 func_8007A280(u8, u8, s32, s32);
 // allocator: the original keeps slot in s0 and base+0x10 in s1, gcc folds
 // slot+base into s0 before the call and needs one saved register fewer.
 // screened: 90.81% is the max of Default / 2.7.2-cdk 80.16 / 2.6.0 90.81.
-void func_8007B424(u8 **p, u8 index) {
+void BattleByteRegSetMatched(u8 **p, u8 index) {
     u16 *pField = (u16 *)(D_800D3420 + index * 0x40);
     u8 value = BattleFindFirstFlagTableMatch(pField[(*p)[3]]);
     u8 result = func_80079ED8(value, (*p)[2], 0, 1);
