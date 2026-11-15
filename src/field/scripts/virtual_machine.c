@@ -570,37 +570,26 @@ int FieldScriptVMGetVariableValue(int index) {
     }
 }
 
-// Best attempt: 97.14% - the original shifts the index into a second register ($a2) before scaling
-// it ($v0); gcc 2.7.2 always reuses $a0 for both shifts with every form tried. Also tried, all
-// 97.14%: a local pointer with p[i] / *(p + (i >> 1)), an int param with a (u_short) cast on the
-// value, and &g_FieldScriptMemory + (index >> 1). index / 2 gives 69.29% (36 bytes, rounding
-// fixup) and a volatile cast 52.86%. A two-step `nOffset = index >> 1` plus a byte-offset add
-// `(u_char*)&g_FieldScriptMemory + (nOffset << 1)` is also 97.14%. gcc-2.6.0, gcc-2.7.2-cdk and
-// -O3 all give the same 97.14%. Only the shift's destination register differs from the original.
-// Round 37: the two-step form `int nOffset = index >> 1; p[nOffset] = value;` compiles to
-// `sra a0 / sll a0` too, so gcc coalesces the shift temp with the dead $a0: a global.c allocno tie,
-// not a source shape. Not worth more attempts.
-// Best attempt: 98.57%, and the only reason the body below is an if-else is that it is the
-// cheapest shape that flips the allocator tie (permuter best of 2115 iterations, score 10).
-// The original shifts index into $a2 and scales into $v0; the plain store ties both shifts to
-// one register - $a0 (97.14%) if written straight, $v0 (98.57%) behind an if-else whose two
-// branches gcc cross-jumps away, so no branch is emitted and the byte count still matches.
-// Also 98.57%: the same if-else keyed on index >= 0, or written if-not-value. Also 97.14%:
-// a local pointer p[i], a two-step nOffset = index >> 1, a byte-pointer plus (nOffset << 1),
-// (u_int) on the scaled index, and gcc-2.6.0, gcc-2.7.2-cdk, -O3. index / 2 is 69.29%, a
-// volatile cast 52.86%. Only the shift destination register differs from the original, and
-// nothing in the source moves it off the scale's register: the shifted value is dead after
-// the scale, so this is an allocno tie, not a source shape. Not worth more attempts.
-/*
-void FieldScriptMemoryWriteU16(int index, u_short value) {
-    if (value) {
-        ((u_short*)&g_FieldScriptMemory)[index >> 1] = value;
+// The dead second test is what keeps the shift in its own register: a plain store coalesces
+// both shifts onto $a0 (a global.c allocno tie), while here the same store in two branches
+// gcc cross-jumps away emits no branch and leaves the shift to $a2.
+void FieldScriptMemoryWriteU16(int index, int value) {
+    u_short uValue;
+    int nOffset;
+    int nStoreOffset;
+
+    uValue = value;
+    nOffset = index >> 1;
+    if (uValue) {
+        ((u_short*)&g_FieldScriptMemory)[index >> 1] = uValue;
+    } else if (index || nStoreOffset) {
+        nStoreOffset = nOffset;
+        ((u_short*)&g_FieldScriptMemory)[nStoreOffset] = uValue;
     } else {
-        ((u_short*)&g_FieldScriptMemory)[index >> 1] = value;
+        nStoreOffset = nOffset;
+        ((u_short*)&g_FieldScriptMemory)[nStoreOffset] = uValue;
     }
 }
-*/
-INCLUDE_ASM("asm/field/nonmatchings/scripts/virtual_machine", FieldScriptMemoryWriteU16);
 
 // scriptIndex here refers to the index of the script, which will (always?) correspond to an entity index
 // routineIndex is an index into the offset table, which points to a bytecode routine in that script.
