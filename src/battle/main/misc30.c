@@ -4,7 +4,9 @@
 
 // Battle state pointed to by D_800C3610. Only the fields this unit touches are recovered.
 typedef struct {
-    /* 0x00 */ u8 pad00[0x1C];
+    /* 0x00 */ u8 pad00[0x4];
+    /* 0x04 */ SpriteData* pCurSprite;
+    /* 0x08 */ u8 pad08[0x14];
     /* 0x1C */ u32 unk1C;
     /* 0x20 */ u8 pad20[0x14];
     /* 0x34 */ u32 unk34;
@@ -16,6 +18,16 @@ typedef struct {
 extern BattleState* D_800C3610;
 extern u8 D_800C3664;
 extern u8 D_800C3EB0[];
+extern s32 D_800C360C;
+extern u16 D_800C3608;
+extern u16 D_800C3614;
+extern u16 D_800C3DF0;
+extern u8 D_800C3623;
+
+// The per-slot vectors retail copies from 0x800D30A0 to 0x800D3354.
+extern u16 D_800D30A0[];
+extern u16 D_800D3354[];
+extern u16 D_800D335C[];
 extern u8* D_800D3368[];
 extern s32 D_80050100;
 extern MATRIX D_800D30BC;
@@ -74,8 +86,82 @@ extern void func_800B8D7C(void);
 extern void func_800BFBA0(void);
 extern void func_800BC454(s32 arg0);
 extern void BattleLoadActorArchiveFile(SpriteData* pSprite);
+extern void func_800BEFF4(s32 actorIndex);
+extern void func_800BF3E8(SpriteData* pSprite);
+extern void func_800BC460(u16 mask);
+extern void BattleLoadArchiveEntryFile(void);
+extern void func_800B9508(SpriteData* pSprite);
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800B905C);
+/* 86.54%: 516 bytes against retail's 512, so one instruction too many.  The head
+   (the 0x48-stride index, the 0x15B dispatch, the two 0x40 flag stores and both
+   BattleFaceActorsTowardEachOther calls) is exact, and so is the four-insn index
+   recovery for pSlot.  Left over: (1) retail loads the sprite's and the target's
+   flag words A8 then AC (A8 into $v0), ours AC then A8, because the mask is one
+   expression `(1 << i) | (1 << j)` -- the `li a1,1` it hoists is right; (2) the
+   x/+-0x50 pair: retail copies x into $a1 (`move a1,a2`) and re-issues
+   `slt v0,a1,a3` in both branch delay slots, ours re-loads x with `lhu` and
+   sign-extends it, and the two tests come out inverted (bne/beq) with a
+   destructively-merged tail.  (3) the six u16 copies at the end: retail
+   materialises the source base into $v0 and the destination into $v1, ours the
+   other way round (D_800D30A0/D_800D3354/... spellings are right).
+   Tried: if/else-if vs ternary for the +-0x50 pair, x reloaded vs reused,
+   pTarget assigned twice (needed - retail loads 0x74 again after the call) vs
+   once, mask as `mask = 1<<i; mask |= 1<<j` (gives the li late) vs one
+   expression (li a1,1 hoisted, retail's shape).  A permuter job.
+void func_800B905C(void) {
+    s32 index;
+    s32 slotIndex;
+    s32 mask;
+    s16 x;
+    SpriteData* pSprite;
+    SpriteData* pTarget;
+    u8* pBase;
+    u8* pSlot;
+
+    pBase = D_800C3EB0;
+    func_800BEFF4(pBase[D_800C360C * 0x48 + 0x15B]);
+    pSprite = D_800C3610->pCurSprite;
+    func_800BF3E8(pSprite);
+    if (pBase[0xA78] != 0) {
+        pTarget = pSprite->pTargetEntitySprite;
+        pTarget->flags_0xAC |= 0x40;
+        pSprite->flags_0xAC |= 0x40;
+        BattleFaceActorsTowardEachOther(pSprite, pTarget);
+        pTarget = pSprite->pTargetEntitySprite;
+        mask = (1 << (((*(u32*)((u8*)pSprite + 0xAC) & 3) << 2) | (*(u32*)((u8*)pSprite + 0xA8) >> 30))) |
+               (1 << (((*(u32*)((u8*)pTarget + 0xAC) & 3) << 2) | (*(u32*)((u8*)pTarget + 0xA8) >> 30)));
+        func_800BC460(mask);
+        index = *(u32*)((u8*)pTarget + 0xA8) >> 30;
+        slotIndex = ((*(u32*)((u8*)pTarget + 0xAC) & 3) << 2) | index;
+        pSlot = pBase + slotIndex * 0x1C;
+        x = *(s16*)((u8*)pTarget + 0x2);
+        if (x == *(u16*)(pSlot + 0xE) && *(s16*)((u8*)pTarget + 0xA) == *(u16*)(pSlot + 0x10)) {
+            if (*(s16*)((u8*)pSprite + 0x2) < x) {
+                *(s16*)((u8*)pSprite + 0xA0) = x - 0x50;
+            } else {
+                *(s16*)((u8*)pSprite + 0xA0) = x + 0x50;
+            }
+        } else if (x < *(u16*)(pSlot + 0xE)) {
+            *(s16*)((u8*)pSprite + 0xA0) = x - 0x50;
+        } else {
+            *(s16*)((u8*)pSprite + 0xA0) = x + 0x50;
+        }
+        *(s16*)((u8*)pSprite + 0xA2) = 0;
+        *(s16*)((u8*)pSprite + 0xA4) = *(s16*)((u8*)pTarget + 0xA);
+        func_800BC460(mask);
+        D_800D3354[0] = D_800D30A0[0];
+        D_800D3354[1] = D_800D30A0[1];
+        D_800D3354[2] = D_800D30A0[2];
+        D_800D335C[0] = D_800D30A0[4];
+        D_800D335C[1] = D_800D30A0[5];
+        D_800D335C[2] = D_800D30A0[6];
+        BattleFaceActorsTowardEachOther(pSprite, pTarget);
+    }
+    BattleLoadArchiveEntryFile();
+    func_800B9508(pSprite);
+}
+*/
 
 void BattleIncrementStateTimer(void) {
     BattleState* pState = D_800C3610;
