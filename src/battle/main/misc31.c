@@ -41,8 +41,11 @@ extern void WorkListsRemoveEntriesForData(u8 *pTask);
 extern void AnimScriptTick(SpriteData *pSprite);
 extern void SpriteApplyMovementStep(SpriteData *pSprite);
 extern void WorkListTaskSetOnFreeCallback(void *pEntry, void *pCallback);
+extern u16 D_800C3CDC;
+extern u16 D_80059454;
 extern IVEC3 D_8006F99C;
 extern IVEC3 D_8006F9AC;
+extern void func_800BC460(s32 arg0);
 
 // best 95.69% under gcc-2.6.0 (94.51% under 2.7.2): only the lui %hi(D_800D30BC)
 // lands late and turns the three "lh" loads into v1 instead of v0. 2.6.0 fixes the
@@ -277,14 +280,19 @@ void func_800BC158(u8 *pEntry) {
     func_800BC2F0(2);
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BC2F0);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BC3F8);
-/* best 45%: unmatchable macro-store, see func_800BC454 below. */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BC404);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BC454);
-/* best 45%, and 45.0 under every gcc/-O/-G in try_flags --sweep: gcc emits the
-   one-insn macro store `sw $a0,D_800C3740` and maspsx expands it with $at
-   (`lui at,%hi` + `sw ...,0(at)`), while retail ASPSX picks $v0 and reorg then
-   fills the jr delay slot with the store. Same $at wall as misc32/misc28. */
+void func_800BC3F8(s32 value) {
+    D_800C367C = value;
+}
+void func_800BC404(u8 *pEntry) {
+    if (D_800C37C8 == 0) {
+        func_800BC2F0(1);
+        func_800BC460((s32)pEntry);
+    }
+    D_80059454 = D_800C3CDC;
+}
+void func_800BC454(s16 value) {
+    D_800C3740 = value;
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BC460);
 
 void func_800BCAA4(void) {
