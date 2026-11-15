@@ -4,18 +4,15 @@
 #include "psyq/libgpu.h"
 #include "psyq/libgte.h"
 
-extern u_char* D_8009BE24;
 extern s32 D_8009C610;
 extern u16 D_8009B674[];
 extern u_char* D_8009C7EC;
-extern u_char* D_8009CEB4;
 extern u_char* D_8009D150;
 extern u16 D_8009D478[];
 extern u_char* D_8009D7E8;
 extern u_char* D_8009D7EC;
 extern u_char* D_8009D7F8;
 extern u_char* D_8009D7FC;
-extern u_char* D_8009C620;
 extern s16 D_8009AFA0[];
 extern u16 D_8009B688[];
 extern u16 D_8009B64C[];
@@ -35,6 +32,7 @@ extern MATRIX D_8009A180;
 extern s16 D_8009BD3C;
 extern s16 D_8009BE04;
 extern u32* D_8009BE3C;
+extern u_char* D_8009CEB4;
 extern s16 D_8009D618[];
 extern s16 D_8009D570[];
 extern WorldMapGridOrigin D_8009C838;
@@ -42,7 +40,6 @@ extern s32 D_8009D7F0;
 
 
 void WorldMapSetSpriteSetParent(s32 arg0, s32 arg1);
-void WorldMapSetSlotTPages(u8* pDst, u8* pSrc, s32 count, s32 abr);
 s32 WorldMapSetSceneLayerTPages(s32 arg0);
 void func_80099BFC(u8* pSrc, s32 count, u32 arg2, u8* pPrim);
 
@@ -66,7 +63,29 @@ typedef struct {
     /* 0x58 */ s32 unk58;
     /* 0x5C */ s32 unk5C;
     /* 0x60 */ u8 pad60[0x20];
-} WorldMapSlot; // Size: 0x80
+} WorldMapPlayer; // Size: 0x80
+
+// 0x54-byte scene-layer entry in the D_8009C620 table
+typedef struct {
+    /* 0x00 */ s16 unk0;
+    /* 0x02 */ u8 unk2[0x6];
+    /* 0x08 */ s32 unk8;
+    /* 0x0C */ s32 unkC;
+    /* 0x10 */ s32 unk10;
+    /* 0x14 */ s32 unk14;
+    /* 0x18 */ SVECTOR rot;
+    /* 0x20 */ MATRIX mat;
+    /* 0x40 */ u8* unk40; // header whose +0x4 is the prim count
+    /* 0x44 */ u8 unk44[0x4];
+    /* 0x48 */ u8* unk48; // vertex buffer
+    /* 0x4C */ u8* unk4C; // copy destination for unk48
+    /* 0x50 */ u8 unk50[0x4];
+} WorldMapSceneLayer; // Size: 0x54
+
+extern WorldMapPlayer* D_8009BE24;
+extern WorldMapSceneLayer* D_8009C620;
+
+void WorldMapSetSlotTPages(WorldMapSceneLayer* pLayer, u8* pSrc, s32 count, s32 abr);
 
 typedef struct {
     /* 0x0 */ s32 offset;
@@ -346,85 +365,85 @@ void WorldMapWrapTileVertexPositions(void) {
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_80086798);
 s32 WorldMapInitSlotAngleStep8(s32 index) {
-    WorldMapSlot* pSlot = (WorldMapSlot*)(D_8009BE24 + index * 0x80);
+    WorldMapPlayer* pSlot = &D_8009BE24[index];
 
     pSlot->unk50 = 0;
     pSlot->unk54 = 8;
     return 1;
 }
 s32 WorldMapUpdateSlotRotationMatrices(s32 index) {
-    WorldMapSlot* pSlot = (WorldMapSlot*)(D_8009BE24 + index * 0x80);
+    WorldMapPlayer* pSlot = &D_8009BE24[index];
     SVECTOR* pVec0 = (SVECTOR*)0x1F8000A0;
     SVECTOR* pVec1 = (SVECTOR*)0x1F8000A8;
-    u8* pSrc;
+    WorldMapSceneLayer* pLayers;
     u16 angle;
 
     pSlot->unk50 = (pSlot->unk50 + pSlot->unk54) & 0xFFF;
-    pSrc = D_8009C620;
+    pLayers = D_8009C620;
     pVec1->vx = 0;
     pVec0->vx = 0;
-    pVec0->vy = *(u16*)(pSrc + 0x40A);
-    pVec1->vy = *(u16*)(pSrc + 0x4B2);
+    pVec0->vy = pLayers[12].rot.vy;
+    pVec1->vy = pLayers[14].rot.vy;
     angle = pSlot->unk50;
     pVec1->vz = angle;
     pVec0->vz = angle;
-    RotMatrix(pVec0, (MATRIX*)(pSrc + 0x410));
-    RotMatrix(pVec1, (MATRIX*)(pSrc + 0x4B8));
+    RotMatrix(pVec0, &pLayers[12].mat);
+    RotMatrix(pVec1, &pLayers[14].mat);
     return 1;
 }
 s32 func_800877E0(s32 index) {
-    WorldMapSlot* pSlot = (WorldMapSlot*)(D_8009BE24 + index * 0x80);
+    WorldMapPlayer* pSlot = &D_8009BE24[index];
 
     pSlot->unk50 = 0;
     pSlot->unk54 = 8;
     return 1;
 }
 s32 WorldMapUpdateSceneLayerRotationMatrices(s32 index) {
-    WorldMapSlot* pSlot = (WorldMapSlot*)(D_8009BE24 + index * 0x80);
-    u8* pSrc = D_8009C620;
+    WorldMapPlayer* pSlot = &D_8009BE24[index];
+    WorldMapSceneLayer* pLayers = D_8009C620;
     s32 entryIndex = D_8009C610 * 2;
     s32 index1 = D_8009B624[entryIndex];
     s32 index2 = D_8009B626[entryIndex];
     SVECTOR* pVec0 = (SVECTOR*)0x1F8000A0;
     SVECTOR* pVec1 = (SVECTOR*)0x1F8000A8;
-    u8* pEntry1;
-    u8* pEntry2;
+    WorldMapSceneLayer* pLayer1;
+    WorldMapSceneLayer* pLayer2;
     u16 angle;
     long tmp[2]; // unused: reproduces retail's 0x20-byte stack frame
 
     pSlot->unk50 = (pSlot->unk50 + pSlot->unk54) & 0xFFF;
-    pEntry1 = pSrc + index1 * 0x54;
+    pLayer1 = &pLayers[index1];
     pVec1->vx = 0;
     pVec0->vx = 0;
-    pVec0->vy = *(u16*)(pEntry1 + 0x1A);
-    pEntry2 = pSrc + index2 * 0x54;
-    pVec1->vy = *(u16*)(pEntry2 + 0x1A);
+    pVec0->vy = pLayer1->rot.vy;
+    pLayer2 = &pLayers[index2];
+    pVec1->vy = pLayer2->rot.vy;
     angle = pSlot->unk50;
     pVec1->vz = angle;
     pVec0->vz = angle;
-    RotMatrix(pVec0, (MATRIX*)(pEntry1 + 0x20));
-    RotMatrix(pVec1, (MATRIX*)(pEntry2 + 0x20));
+    RotMatrix(pVec0, &pLayer1->mat);
+    RotMatrix(pVec1, &pLayer2->mat);
     return 1;
 }
-void WorldMapSetSlotTPages(u8* pDst, u8* pSrc, s32 count, s32 abr) {
+void WorldMapSetSlotTPages(WorldMapSceneLayer* pLayer, u8* pSrc, s32 count, s32 abr) {
     long tmp[2]; // unused: reproduces retail's 0x30-byte stack frame
-    u8* p;
+    POLY_FT4* pPrim;
     s32 rows = count;
     s32 tpageAbr = abr;
     s32 i = 0;
 
     if (rows > 0) {
-        p = pSrc + 7;
+        pPrim = (POLY_FT4*)pSrc;
         do {
-            *(u16*)(p + 0xF) = GetTPage(0, tpageAbr, 0x1A0, 0xA0);
-            *p |= 2;
-            p += 0x28;
+            pPrim->tpage = GetTPage(0, tpageAbr, 0x1A0, 0xA0);
+            pPrim->code |= 2;
+            pPrim++;
         } while (++i < rows);
     }
-    memcpy(*(u8**)(pDst + 0x4C), *(u8**)(pDst + 0x48), rows * 0x28);
+    memcpy(pLayer->unk4C, pLayer->unk48, rows * 0x28);
 }
 s32 BattleInitSlotRowsForActor(s32 index) {
-    WorldMapSlot* pSlot = (WorldMapSlot*)(D_8009BE24 + index * 0x80);
+    WorldMapPlayer* pSlot = &D_8009BE24[index];
 
     pSlot->unk50 = 0;
     pSlot->unk54 = 0x10;
@@ -432,29 +451,29 @@ s32 BattleInitSlotRowsForActor(s32 index) {
     return 1;
 }
 s32 WorldMapSetSceneLayerTPages(s32 index) {
-    u8* pBase = D_8009C620;
-    u8* pEntry;
-    u8* pEntry2;
+    WorldMapSceneLayer* pLayers = D_8009C620;
+    WorldMapSceneLayer* pLayer1;
+    WorldMapSceneLayer* pLayer2;
     s32 entryIndex;
     long tmp[2]; // unused: reproduces retail's 0x10-byte stack slot
 
     entryIndex = D_8009C610 * 2;
-    pEntry = pBase + D_8009B64C[entryIndex] * 0x54;
-    pEntry2 = pBase + D_8009B64E[entryIndex] * 0x54;
-    WorldMapSetSlotTPages(pEntry, *(u8**)(pEntry + 0x48), *(u16*)(*(u8**)(pEntry + 0x40) + 4), 3);
-    WorldMapSetSlotTPages(pEntry2, *(u8**)(pEntry2 + 0x48), *(u16*)(*(u8**)(pEntry2 + 0x40) + 4), 3);
+    pLayer1 = &pLayers[D_8009B64C[entryIndex]];
+    pLayer2 = &pLayers[D_8009B64E[entryIndex]];
+    WorldMapSetSlotTPages(pLayer1, pLayer1->unk48, ((u16*)pLayer1->unk40)[2], 3);
+    WorldMapSetSlotTPages(pLayer2, pLayer2->unk48, ((u16*)pLayer2->unk40)[2], 3);
     return 1;
 }
 s32 WorldMapSetSceneLayerRotMatrices(s32 index) {
-    WorldMapSlot* pSlot = (WorldMapSlot*)(D_8009BE24 + index * 0x80);
-    u8* pSrc = D_8009C620;
+    WorldMapPlayer* pSlot = &D_8009BE24[index];
+    WorldMapSceneLayer* pLayers = D_8009C620;
     s32 entryIndex = D_8009C610 * 2;
     s32 index1 = D_8009B64C[entryIndex];
     s32 index2 = D_8009B64E[entryIndex];
     SVECTOR* pVec0 = (SVECTOR*)0x1F8000A0;
     SVECTOR* pVec1 = (SVECTOR*)0x1F8000A8;
-    u8* pEntry1 = pSrc + index1 * 0x54;
-    u8* pEntry2;
+    WorldMapSceneLayer* pLayer1 = &pLayers[index1];
+    WorldMapSceneLayer* pLayer2;
     u16 angle;
     long tmp[2]; // unused: reproduces retail's 0x20-byte stack frame
 
@@ -466,9 +485,9 @@ s32 WorldMapSetSceneLayerRotMatrices(s32 index) {
     angle = pSlot->unk50;
     pVec1->vy = angle;
     pVec0->vy = angle;
-    pEntry2 = pSrc + index2 * 0x54;
-    RotMatrix(pVec0, (MATRIX*)(pEntry1 + 0x20));
-    RotMatrix(pVec1, (MATRIX*)(pEntry2 + 0x20));
+    pLayer2 = &pLayers[index2];
+    RotMatrix(pVec0, &pLayer1->mat);
+    RotMatrix(pVec1, &pLayer2->mat);
     return 1;
 }
 
@@ -515,12 +534,12 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_80088570);
 // were screened by an earlier round).
 /*
 s32 func_80088570(s32 index) {
-    WorldMapSlot* pSlot;
+    WorldMapPlayer* pSlot;
     u16* pCount;
     s32 v;
 
     func_8008868C();
-    pSlot = (WorldMapSlot*)(D_8009BE24 + index * 0x80);
+    pSlot = &D_8009BE24[index];
     pSlot->unk54 = 4;
     pSlot->unk20 = 0;
     pSlot->unk50 = 0;
