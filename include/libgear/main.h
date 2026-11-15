@@ -131,7 +131,7 @@ typedef struct _Temp8 {
     /* 0x8  */ void* pUnk8;
     /* 0xC  */ void* pUnkC;
     /* 0x10 */ u8 unk10;
-    /* 0x11 */ u8 pad11;
+    /* 0x11 */ u8 unk11;
     /* 0x12 */ s16 unk12;
     /* 0x14 */ u16 unk14;
     /* 0x16 */ u16 unk16;
@@ -140,7 +140,7 @@ typedef struct _Temp8 {
     /* 0x1C */ void* pUnk1C;
     /* 0x20 */ s16 unk20;
     /* 0x22 */ s16 unk22;
-    /* 0x24 */ s16 (*unk24)(u_short);
+    /* 0x24 */ s16 (*unk24)(u_short frame, s16 x, s16 y);
     /* 0x28 */ RECT rect;
 } Temp8; // Size: 0x30
 
