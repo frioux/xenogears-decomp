@@ -72,8 +72,8 @@ extern u8 D_800928A0;
 
 extern u16 D_80091CE0[];
 
-extern u8* D_8009282C;
-extern u8* D_80092830;
+extern SVECTOR* D_8009282C;
+extern SVECTOR* D_80092830;
 
 extern VECTOR D_80096FA8;
 extern VECTOR D_80096FAC;
@@ -245,19 +245,32 @@ Misc16Work* func_8008D3F4(s32 arg0, s32 arg1) {
     return pWork;
 }
 */
+/* Header every battle-effect entry starts with. An entry is pWork->unkC bytes
+   long (the kind table's size), so the table is walked byte-wise; the first
+   eight bytes are also the SVECTOR the particle code transforms. */
+typedef struct {
+    /* 0x00 */ s16 x;
+    /* 0x02 */ s16 y;
+    /* 0x04 */ s16 z;
+    /* 0x06 */ s16 life;
+    /* 0x08 */ s16 vx;
+    /* 0x0A */ s16 vy;
+    /* 0x0C */ s16 vz;
+} Misc16Entry; // Size: 0xE (known extent)
+
 void BattleEffectClearEntrySlots(Misc16Work* pWork) {
     s32 i;
-    u8* pEntry;
+    Misc16Entry* pEntry;
 
-    pEntry = pWork->unk10;
+    pEntry = (Misc16Entry*)pWork->unk10;
     for (i = 0; i < pWork->unkA; i++) {
-        *(s16*)(pEntry + 6) = 0;
-        pEntry += pWork->unkC;
+        pEntry->life = 0;
+        pEntry = (Misc16Entry*)((u8*)pEntry + pWork->unkC);
     }
 }
 
 void BattleEffectAllocEntries(Misc16Work* pWork, s32 count) {
-    u8* pEntry;
+    Misc16Entry* pEntry;
     void (*pInitEntry)(u8*, Misc16Work*);
     s32 i;
 
@@ -266,12 +279,12 @@ void BattleEffectAllocEntries(Misc16Work* pWork, s32 count) {
     }
     pWork->unkA = count;
     HeapSetCurrentContentType(0x14);
-    pEntry = (pWork->unk10 = HeapAlloc(pWork->unkC * pWork->unkA, 0));
+    pEntry = (Misc16Entry*)(pWork->unk10 = HeapAlloc(pWork->unkC * pWork->unkA, 0));
     pInitEntry = pWork->unk58;
     for (i = 0; i < pWork->unkA; i++) {
-        pInitEntry(pEntry, pWork);
-        *(s16*)(pEntry + 6) = 0;
-        pEntry += pWork->unkC;
+        pInitEntry((u8*)pEntry, pWork);
+        pEntry->life = 0;
+        pEntry = (Misc16Entry*)((u8*)pEntry + pWork->unkC);
     }
 }
 /* func_8008D680(pWork, pMat, count): mat = *pMat; pWork->unk1C/1E/20 +=
@@ -430,54 +443,66 @@ void BattleEffectHalveEntryCount(Misc16Work* pWork) {
 }
 */
 void BattleEffectUpdateEntries(Misc16Work* pWork, u8* pArg1, MATRIX* pMat) {
-    u8 pad[0x28];
+    u8 pad[0x28]; // unused; reproduces the original's 0x28 bytes behind the frame
     s32 i;
     s32 value;
-    u8* pEntry;
+    Misc16Entry* pEntry;
     void (*pCallback)(u8*, u8*);
-    D_8009282C = (u8*)0x1F800000;
-    D_80092830 = (u8*)0x1F800030;
-    ((s16*)D_8009282C)[0x18] = D_80096FA8.vx;
-    ((s16*)D_8009282C)[0x19] = D_80096FAC.vx;
-    ((s16*)D_8009282C)[0x1A] = D_80096FB0.vx;
-    pEntry = pWork->unk10;
+
+    D_8009282C = (SVECTOR*)0x1F800000;
+    D_80092830 = (SVECTOR*)0x1F800030;
+    D_80092830->vx = D_80096FA8.vx;
+    D_80092830->vy = D_80096FAC.vx;
+    D_80092830->vz = D_80096FB0.vx;
+    pEntry = (Misc16Entry*)pWork->unk10;
     pCallback = (void (*)(u8*, u8*))pWork->unk54;
     for (i = 0; i < pWork->unkA; i++) {
-        if (*(s16*)(pEntry + 6) != 0) {
-            *(s16*)(pEntry + 6) = *(s16*)(pEntry + 6) - 1;
-            *(u16*)(pEntry + 0xA) += pWork->unk0;
-            *(u16*)(pEntry + 0x0) += *(u16*)(pEntry + 8);
-            *(u16*)(pEntry + 0x2) += *(u16*)(pEntry + 0xA);
-            *(u16*)(pEntry + 0x4) += *(u16*)(pEntry + 0xC);
-            if (*(s16*)(pEntry + 2) > 0) {
-                value = -*(s16*)(pEntry + 0xA) * 2 / 3;
-                *(s16*)(pEntry + 0xA) = value;
+        if (pEntry->life != 0) {
+            pEntry->life = pEntry->life - 1;
+            pEntry->vy += pWork->unk0;
+            pEntry->x += pEntry->vx;
+            pEntry->y += pEntry->vy;
+            pEntry->z += pEntry->vz;
+            if (pEntry->y > 0) {
+                value = -pEntry->vy * 2 / 3;
+                pEntry->vy = value;
                 value = (s16)value;
                 if (value < 0) {
                     value = -value;
                 }
                 if (value < 4) {
-                    *(s16*)(pEntry + 6) = 0;
+                    pEntry->life = 0;
                 }
             }
-            pCallback(pEntry, pArg1);
+            pCallback((u8*)pEntry, pArg1);
         }
-        pEntry += pWork->unkC;
+        pEntry = (Misc16Entry*)((u8*)pEntry + pWork->unkC);
     }
     (void)pad;
 }
+/* One model part, as far as the effect code needs it: parts are placed by the
+   matrix they carry at 0x4C. */
 typedef struct {
-    /* 0x0 */ s32 unk0[8];
-} Misc16Oct; // Size: 0x20
+    /* 0x00 */ u8 pad00[0x4C];
+    /* 0x4C */ MATRIX matrix;
+} Misc16Part; // Size: 0x6C
 
-void BattleEffectCopyObjectMatrix(u8* pArg0, s16 arg1, u8* pArg1) {
-    u8** pArray;
-    u8* pObj;
-    Misc16Oct unused; // reproduces the original 0x20 stack frame
+typedef struct {
+    /* 0x0 */ u8 pad0[0x4];
+    /* 0x4 */ Misc16Part** pParts;
+} Misc16PartTable; // Size: 0x8
 
-    pArray = *(u8***)(*(u8**)(pArg0 + 4) + 4);
-    pObj = pArray[arg1];
-    *(Misc16Oct*)pArg1 = *(Misc16Oct*)(pObj + 0x4C);
+/* An object the effect is attached to: the model whose part table +0x4 holds. */
+typedef struct {
+    /* 0x0 */ u8 pad0[0x4];
+    /* 0x4 */ Misc16PartTable* pModel;
+} Misc16Object; // Size: 0x8
+
+void BattleEffectCopyObjectMatrix(Misc16Object* pObject, s16 index, MATRIX* pMat) {
+    MATRIX unused; // reproduces the original 0x20 byte stack frame
+
+    *pMat = pObject->pModel->pParts[index]->matrix;
+    (void)unused;
 }
 void BattleEffectCreateWork(void) {
     s16 initValue;
@@ -506,7 +531,7 @@ void BattleEffectUpdate(u8* pArg0, u8* pArg1, MATRIX* pMat, Misc16Vec* pVec) {
 
     pWork = (Misc16Work*)D_80092834;
     if (D_80092838 >= 0x10) {
-        BattleEffectCopyObjectMatrix(pArg1, 0x27, (u8*)&matWork);
+        BattleEffectCopyObjectMatrix((Misc16Object*)pArg1, 0x27, &matWork);
         MatrixNormal(&matWork, &matZero);
         matZero.t[2] = 0;
         matZero.t[1] = 0;
