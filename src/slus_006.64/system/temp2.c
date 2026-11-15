@@ -100,29 +100,19 @@ typedef struct {
 // object is the two per-context list heads, so address it through a cast.
 #define g_GfxSpriteTileLists ((LinkedListEntry**)&D_80059300)
 
-// This function is in another TU than func_80024F64 due to GP Rel variables
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_800250E0);
-/*
-Un-park screen: cdk 87.38%, gcc-2.6.0 70.20%, gcc-2.7.2 70.20%, cdk -O3
-87.38%, cdk -G0 69.00%, and aspsx 2.56 scores the same as 2.67 - no compiler
-switch helps; the GP-rel split below is the whole gap. Body must keep
-s32 D_80059524; as a tentative definition (maspsx emits %gp_rel only then).
-Best 87.38%: blocked on the GP-rel split. The original object reads
-
-g_GfxWorkBuffers through %hi/%lo here (it was an extern in this function's
-original TU) but through %gp_rel in GfxAllocateWorkBuffers, which defines it.
-maspsx decides per symbol, so one temp2.c cannot produce both spellings; the
-only diff is `lw a0,0(gp); addu v1,v1,a0` vs `lui v0,%hi; addiu v0,v0,%lo;
-addu v1,v1,v0; lw v0,0(v1)`.
-Declare D_80059524 as a tentative definition (not extern) so maspsx emits
-%gp_rel for it.
+// g_GfxWorkBuffers and the g_GfxWorkBuffer2 that follows it are the two
+// per-context buffer bases, reached as one array through the symbol's address:
+// indexing the symbol is what makes maspsx emit %hi/%lo rather than %gp_rel.
+// D_80059524 is a tentative definition so maspsx emits %gp_rel for it.
 s32 D_80059524;
-void func_800250E0(int context) {
-    void* pPrimBuffer;
-    LinkedListEntry* pCurEntry;
 
-    pCurEntry = g_GfxSpriteTileLists[context];
-    pPrimBuffer = ((void**)g_GfxWorkBuffers)[context];
+void func_800250E0(int context) {
+    s32* pLists;
+    LinkedListEntry* pCurEntry;
+    void* pPrimBuffer;
+
+    pCurEntry = ((LinkedListEntry**)(pLists = &D_80059300))[context];
+    pPrimBuffer = ((void**)&g_GfxWorkBuffers)[context];
     g_GfxCurContext = context;
     g_GfxCurWorkBuffer = pPrimBuffer;
     D_80059524 = pPrimBuffer;
@@ -131,11 +121,8 @@ void func_800250E0(int context) {
         HeapFree(pCurEntry->pData);
         pCurEntry = pCurEntry->pNext;
     }
-
     g_GfxSpriteTileLists[context] = NULL;
 }
-*/
-
 // GfxQueueSpriteTileData
 void func_80025180(void* pData) {
     LinkedListEntry* pNewEntry;
@@ -1117,7 +1104,7 @@ s32 ResourceHelperGetSpriteList(MenuResourceDirectory* dir, u32 index, MenuResou
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_80026F44);
 /*
-Best 74.63% (160 bytes, exactly the original's size). The LOOP SHAPE IS SOLVED:
+Best 74.88% (160 bytes, exactly the original's size). The LOOP SHAPE IS SOLVED:
 retail's unrotated top test with `li t2,-1` hoisted once before the loop is
 `while (1) { if (--count == limit) break; ... }` with `s32 limit = -1;` - a
 literal -1 in the compare makes gcc rematerialise it, a limit local is what
@@ -1131,6 +1118,12 @@ final `rgb |= 1` comes out `ori t5,t5,1` there and `li v1,1; or` here, the two
 `or`s differ in operand order, and the clamp prologue fills the beqz delay slot
 with the level<<7 shift where retail has a nop and shifts after. A separate
 `s32 dqp; dqp = level << 7; gte_lddp(dqp);` local changed nothing.
+Round 61: shifting in place (`level <<= 7; gte_lddp(level);`) DOES reproduce
+retail's in-place `sll a1,a1,0x7` instead of a copy into v0 (74.63 -> 74.88);
+the `level >= 0x20` clamp shape is already right. What is left is reorg: retail
+leaves a nop in the clamp's bne delay slot where we have the sll, and fills the
+loop's `beq a0,t2` slot with the `lhu` where we emit a nop; plus the nine body
+values land in t0/v1/a1 instead of t5/t4/t3.
 void func_80026F44(s32 count, s32 level, u16* pDst, u16* pSrc) {
     u16 color;
     s32 limit;
@@ -1142,7 +1135,8 @@ void func_80026F44(s32 count, s32 level, u16* pDst, u16* pSrc) {
     if (level >= 0x20) {
         level = 0x20;
     }
-    gte_lddp(level << 7);
+    level <<= 7;
+    gte_lddp(level);
     limit = -1;
     while (1) {
         if (--count == limit) {
