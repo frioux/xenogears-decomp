@@ -60,7 +60,8 @@ typedef struct {
 } BattleActionData; // Size: 0xA
 
 // A battle participant as this unit drives it. Only the fields this unit
-// touches are named; 0x1604 is a lower bound on the real size.
+// touches are named; 0x1668 is the last one, so 0x166A is a lower bound on the
+// real size.
 typedef struct BattleActor {
     /* 0x000 */ u8 unk0[0xB4];
     /* 0x0B4 */ s16 unkB4;
