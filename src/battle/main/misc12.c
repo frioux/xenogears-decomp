@@ -721,23 +721,23 @@ u16 func_80084D28(void) {
 }
 extern u16 BattleSlotBitMaskInverted(u8);
 extern u8 D_800C3E9A[];
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80084DE4);
-/* 98.35%: every instruction and the frame (0x30, 7 saved regs) match; the only
-   difference is the register the tail fill loop got - retail keeps the 0xFF
-   constant in a0 and the counter in s1, gcc 2.6.0 here gives the constant a1 and
-   the counter a0 (the pointer is v1 in both). Tried: counter as a separate local
-   (best, this one), counter reusing n, pointer local vs D_800C3E90[i], constant
-   as a literal vs a u8 local, four declaration orders of i/j/n/off/off8/val.
-   Everything else is exact, including the first loop's tail order
-   (s3 += 0x170, i++, slti, then off8 += 8 stolen into the bnez delay slot) and
-   the 0x8000/0x1000/0x2000 group tests.
+/* 99.81% at best: every instruction and the frame (0x30, 7 saved regs) match
+   except the order of the two callee-saved parameter copies in the entry block -
+   retail emits sw s6,0x28 / move s6,a0 before sw s1,0x14 / move s1,a2, gcc 2.6.0
+   here emits the s1 pair first. Permuter stalls at 30 on this body, two runs.
+   The tail fill loop is what took it from 98.35% to 99.81%: the 0x4000 branch's
+   countdown must reuse n, not a fresh local, so the counter lands in s1 as in
+   retail (val stays a u8 0xFF; p = D_800C3E9A; for (; n >= 0; n--) *p-- = val).
+   n = 0 must also precede the D_800C3E2C = 0xFF store in the 0x8000 branch.
+   Tried, worse or neutral: swapping the flags/hi assignments (98.62%), a separate
+   j local for the countdown (99.63%), flags declared first, other declaration
+   orders of i/n/off/off8/val.
    Note for an un-park: the two offsets must stay explicit source variables
    (off = 0x170 * i, off8 = 8 * i, both from 0); writing D_800CCD64[i].unk0 and
-   D_800D32A1[i * 8] instead makes gcc fold the D_800D32A1 base into the pointer
+   D_800D32A1[i * 8] makes gcc fold the D_800D32A1 base into the pointer
    (lui/addiu in the preheader instead of move s5,zero) and it loses 5%.
 u16 func_80084DE4(u16 arg0, u16 arg1, u8 arg2, u8 arg3, u8 arg4) {
     s32 i;
-    s32 j;
     s32 n;
     s32 off;
     s32 off8;
@@ -785,8 +785,8 @@ u16 func_80084DE4(u16 arg0, u16 arg1, u8 arg2, u8 arg3, u8 arg4) {
     }
     D_800C3D64 &= mask;
     if ((flags & 0x8000) != 0) {
-        D_800C3E2C = 0xFF;
         n = 0;
+        D_800C3E2C = 0xFF;
         for (i = 0, off = 0, off8 = 0; i < 0xB; i++, off8 += 8) {
             if (BattleMaskHasSlotBit(D_800C3D64, i) != 0) {
                 if (D_800D32A1[off8] == 0) {
@@ -817,15 +817,16 @@ u16 func_80084DE4(u16 arg0, u16 arg1, u8 arg2, u8 arg3, u8 arg4) {
         D_800C3E2C = arg2;
         D_800C3D64 = BattleSlotBitMask(arg2);
         val = 0xFF;
-        j = 10;
+        n = 10;
         p = D_800C3E9A;
-        for (; j >= 0; j--) {
+        for (; n >= 0; n--) {
             *p-- = val;
         }
     }
     return flags & 0xFFFF;
 }
 */
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80084DE4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80085084);
 u32 func_80085310(u8 arg0, u8 arg1) {
     return D_800C3EBE[arg0].unk0 > D_800C3EBE[arg1].unk0;
