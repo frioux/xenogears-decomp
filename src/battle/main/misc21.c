@@ -389,6 +389,20 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_800A1B50);
      displacements show.
    permuter: 2 runs / 1364 iterations, base 555 best 555 - it cannot break the
    load-order tie either.
+   Round 63: both bodies are 420 bytes (the note's "424" is stale) and the real
+   delta is register identity, not just order:
+   - retail walks the frame in $a1 (the *pData parameter register itself*:
+     `addiu a1,a1,24` in the bnez delay slot) and uses $a3/$a2/$v1 as the three
+     rot temps; ours gives pFrame=$v1 and the third temp=$a1 - a straight swap.
+     So the tie is pFrame-vs-third-temp allocation, and the `lh t0,6(a1)` order
+     follows from it.
+   - retail's `bnez v0,loop` delay slot repeats a DEAD `andi v0,t3,0xffff`
+     (gcc emits `nop` there in ours); that is the only non-multiset insn left.
+   - moving the `pFrame = (s16*)(pData + 1)` statement after the four field
+     loads changes nothing (same 96.05%), so statement order is not the lever.
+   Nothing hand-editable is left; this is a -O2 allocator/scheduler shape. Next
+   round should spend the permuter budget (`--minutes 4 -j 2` twice did nothing)
+   or bias the allocator with a differently-shaped frame walker, not text order.
 void func_800A1B50(BattleSprite* pSprites, BattleAnimData* pData) {
     s16* pFrame;
     BattleSprite* pSprite;
@@ -553,6 +567,12 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_800A2434);
       of 6 bytes (u16 idxA, u16 idxB, u8 byteA, u8 byteB). Note BattleFreeAllSpriteBlocks
       and BattleFreeSpriteBlocksByTag match ONLY with `unk1[2]` - naming that byte (e.g.
       `tag`) changes their induction variable and drops them to 91%.
+      Round 63, from the sibling func_800A2704: there the same block-init code
+      reloads the tag from the caller frame (`lbu 0x88(sp)`, twice) and hands it
+      straight to `sb ...,3(a0)`, and countA/countB/limit/unk12 live in u16 stack
+      slots (`sh` then `lhu` back, 0x20/0x28/0x30/0x38(sp)): so `pB[2] = tag` with
+      a plain parameter use is retail's shape and the 0x50-vs-0x48 frame is stack
+      pressure from the other locals, not the tag.
 s32 func_800A2434(BattleBlockPool* pPool, BattleSprite* pSprites, BattleAnimData* pData, u32 flags,
                    u8 tag) {
     BattleBlock* pBlock;
@@ -655,6 +675,44 @@ s32 func_800A2434(BattleBlockPool* pPool, BattleSprite* pSprites, BattleAnimData
     return 0;
 }
 */
+/* NO ATTEMPT YET - full structural read of the .s, use it to write the body.
+   5 parameters: (BattleBlockPool* pPool, BattleSprite* pSprites,
+   BattleAnimData* pData, u32 flags, u8 tag), tag on the stack (lbu 0x88(sp) with
+   a 0x78 frame). Shape:
+     if (pData->unk06 != 0) { BattleFreeAllSpriteBlocks(pPool, pSprites);
+                              func_800A1B50(pSprites, pData); return 1; }
+     flagA = flags & 1;  countA = pData->countA;  countB = pData->countB;
+     numSprites = pSprites->count;  limit = numSprites;
+     if (countA + 1 < numSprites) limit = countA + 1;
+     unk12 = *(u16*)(pData->unk00 + 2);  if (!flagA) unk12--;
+     animFlags = pData->flags;
+     pFrame = (s16*)(pData + 1);                 (s2 = pData + 0x18)
+     pTable = (u8*)pFrame + (countA + 1) * 6;    (s0, then s7)
+     if (!(animFlags & 1)) pTable += countA * 6;
+     if (!(animFlags & 2)) pTable += countB * 6;
+     if (limit <= 0) return 0;
+   then `for (i = 0; i < limit; i++, pSprite++, pFrame += 3, i.e. 6 bytes
+   as 2+2+4 across the two halves)` with TWO mirrored halves per sprite: index A
+   = pFrame[0] drives pSprites->p70 (rot), index B = pFrame[1] drives
+   pSprites->p74 (pos); pBytes = pFrame + 2, both halves use only one byte of the
+   pair for the block (rot takes pBytes[0], pos takes pBytes[1], and the frame
+   record is 6 bytes with the 3 s16 values of each half consumed only when the
+   update happens).
+   Each half: if (index == 0xFFFF) { free the old block when i != 0 && !(flags &
+   n) && the sliding counter is still < its count; pFrame += 3; counter++ } else
+   { take the existing block if it is != NULL and block->unk1[2] != 0xFF else
+   BattleAllocBlock(pPool); if (!(animFlags & n) && i != 0 && counter < countN)
+   write the 3 frame shorts (rot as u16 `lh`+`sh` into sprite->rot[] at 0x54,
+   pos as s16 `lh`+`sw` into sprite->pos[0x5C]); if (block) initialise it:
+   unk0 = 1, unk1 = flagA, unk3 = tag, unk2 = pBytes[k], unk10 = 0 (sh),
+   unk12 = unk12 (sh), and unk4 = unk8 = pTable + index. }
+   Then sprite->p70 / p74 = block. The block-initialise code is the same in both
+   halves (cross-jumped in retail, so write the call twice - -fcross-jumping
+   merges identical tails).
+   Registers retail uses: s1 = pSprites + 0x74 (so the sprite fields are the
+   negative displacements -0x70 doTransform, -0x20 rot[0], -0x18 pos[0],
+   -0x4 p70, 0x0 p74), s6 = animFlags, fp = flagA, s3 = i, s5 = rot counter,
+   s4 = pos counter, s0 = frame walker, s7 = pTable. */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_800A2704);
 void BattleFreeAllSpriteBlocks(BattleBlockPool* pPool, BattleSprite* pSprites) {
     BattleBlock* pBlock;
