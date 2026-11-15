@@ -37,19 +37,9 @@ void BattleSetActorMaskForSlotRecord3(void) {
         }
     }
 }
-/* best 93.97% under gcc 2.6.0 (XenoBattle260): head (both branches, incl. the
-   addiu/addiu placement and index-first addu, which needs the parenthesised
-   `base + (a*0x690 + 0x2228) + b*0x28` form), the D_800C34DC table call, the
-   0x5FA0 block (needs the `goto skip` shape or gcc emits two jals/sltu) and the
-   loop tail all match. Four hunk remain, all allocator/store-order: (1) the
-   D_800C3D3C block, where the original puts the next statement's `lw D_800C3DFC`
-   + `lhu 0xA` between the index chain and the final addu (mine keeps the
-   statement together and gains a nop); (2) `li s0,1` is not sunk into the two
-   bne delay slots (it lands after the sb D_800C3E50); (3) the D_800C3E34 /
-   D_800D2DC8 store pair comes out in the opposite order with q and q+0xA4 in
-   swapped registers, whatever the source order of the two stores; (4) the
-   0x5FA0 check reloads D_800C34B0 into v0 (then lbu D_800C3E50), mine into v1.
-   Six shapes tried. Keep the externs below when retrying.
+/* best 93.97% under gcc 2.6.0 (XenoBattle260); park note: head, the
+   D_800C34DC table call, the 0x5FA0 block and the loop tail match. Four
+   hunks remain, all allocator/store-order (see git history). */
 void func_8009C198(void) {
     u8 *q;
     u16 f;
@@ -64,8 +54,9 @@ void func_8009C198(void) {
         D_800C3DFC = D_800C34B0 + (D_800C34B0[0x5FC2] * 0x28 + 0x35D8);
     }
     BattleSetSlotEntryFieldsTo2000(D_800C3E04);
+    q = D_800C34B0 + D_800C34B0[0x5FC1] * 0x170 + 0x148;
     D_800D2DC4 = 0;
-    D_800C3D3C = D_800C34B0 + D_800C34B0[0x5FC1] * 0x170 + 0x148;
+    D_800C3D3C = q;
     f = *(u16 *)(D_800C3DFC + 0xA);
     if (f & 0x100) {
         if (D_800C3E00[0x56] == 1) {
@@ -77,8 +68,8 @@ void func_8009C198(void) {
             D_800C3DFC[0x22] = D_800D2D6C[0x1A];
         }
     }
-    D_800C3E50 = 0;
     mask = 1;
+    D_800C3E50 = 0;
     do {
         if (*(u16 *)(D_800C34B0 + 0x5FAC) & mask) {
             q = D_800C34B0 + D_800C3E50 * 0x170;
@@ -112,8 +103,6 @@ skip:
     }
     BattleSaveScriptCommandOperands();
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc20", func_8009C198);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc20", func_8009C4B4);
 void BattleSaveScriptCommandOperands(void) {
     u16 a = *(u16 *)(D_800D2D6C + 0x84);
