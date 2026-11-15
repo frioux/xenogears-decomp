@@ -3853,25 +3853,30 @@ u8* SoundScriptSelectEnvelope(u8* pScript, AudioManager* pAudioManager, AudioEle
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003E1F8);
 /*
-Screened under gcc-2.7.2-cdk / gcc-2.7.2 / this unit's gcc-2.6.0: 82.97 / 84.21 / 83.37 - not
-a compiler-only match; the current preset is the best of the three.
-Attempt (82.97%, same size): every instruction is right except that gcc gives
-pScript s2 and the AudioEnvelope s1 (original: pScript s1, envelope s2) and re-uses
-the pScript[0] load for the sum where the original reloads it into a1 and copies the
-result to s0. Swapping the two declarations, splitting the divide into its own
-temporary, duplicating the value expression and u16/s32 variants of `value` all
-leave the same 82.97%.
+Round 66: 85.66% (148 bytes, right size). Two permuter runs (630 -> 305 -> 265) plus hand
+shapes; the body below is the best found. Split the multiply from the divide (`pitch = x*x;`
+then `pitch / 64` at the use) - that is what puts the `mult` early and `mflo` after the
+pAudioElements->unk_0xCC scale in retail. `note` must be a u8 COPY of pScript[0] taken after
+the multiply, otherwise gcc reuses the single load for the sum (retail reloads it into a1).
+The `do { } while (0)` is load-bearing: it is the only shape found that gives retail's
+prologue (pScript s1, envelope s2; without it the two are mirrored and the score is 83.37) -
+it is also why this is parked and not shipped. THE REMAINING 2-INSTRUCTION DELTA: retail
+loads `lbu a0,2(s1)` and `lbu a2,29(s2)` BEFORE the volume `addu a1,a1,v0`; ours emits both
+after it. Everything else, including the call and the two envelope stores, is exact.
 u8* func_8003E1F8(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
+    s32 pitch;
     AudioEnvelope* pEnvelope;
-    s32 value;
+    s32 volume;
+    u8 note;
 
+    volume = pScript[0];
+    pitch = volume * volume;
+    note = volume;
     pEnvelope = &pAudioElements->envelopes[pAudioElements->unk_0xCC];
-    value = pScript[0] + (pScript[0] * pScript[0]) / 64;
-    pEnvelope->delta = SoundCalculateEnvelopeDelta(((s8)pScript[1] << 24) | (pScript[2] << 16), value, pEnvelope->unk_0x1D);
-    pEnvelope->reload = value;
-    return pScript + 3;
+    do { volume = note + pitch / 64; pEnvelope->delta = SoundCalculateEnvelopeDelta(((s8)pScript[1] << 24) | (pScript[2] << 16), volume, pEnvelope->unk_0x1D); pEnvelope->reload = volume; return pScript + 3; } while (0);
 }
 */
+
 
 s32 SoundCalculateEnvelopeDelta(s32 value, s16 divisor, s16 mode) {
     if (value != 0 && divisor != 0) {
