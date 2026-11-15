@@ -69,7 +69,7 @@ extern s16 D_8007709A;
 extern s16 D_8007709C;
 extern s16 D_8007709E;
 extern s16 D_800770A0;
-extern s16 D_800770B8;
+extern MATRIX D_800770B8;
 extern s16 D_800770BA;
 extern s16 D_800770BC;
 extern s16 D_800770BE;
@@ -396,7 +396,7 @@ void func_80076AF0(void) {
     SetGeomOffset(0xA0, 0x78);
     pColorMatrix = &D_80077070;
 
-    D_800770B8 = 0x1000;
+    D_800770B8.m[0][0] = 0x1000;
     D_800770C0 = 0x1000;
     D_800770C8 = 0x1000;
     D_800770F8 = 0x1000;
@@ -452,6 +452,63 @@ void WorldMapScriptOp04SetScratchPosition(void) {
 
 INCLUDE_ASM("asm/movie/nonmatchings/main/misc2", func_80076CA4);
 
+/* best 89.13% under gcc 2.7.2 -G0 (88.94 with a MATRIX* local for the trans
+   stores instead of the individual symbols, 83.09 under the unit's old -G8).
+   Size is retail's 420 bytes / 105 instructions and the whole head is exact;
+   two differences remain:
+   1. the trans-matrix store block. Retail computes ONE address into $a3
+      (0x800770CC, i.e. &D_800770B8.t[0] = base+0x14), stores with $a3 as the
+      base (sw v1,0(a3)) and then derives the CompMatrix argument from it
+      (addiu a1,a3,-0x14). We emit a lone lui/addiu pair for the argument and a
+      bare %lo(%at) store. That is gcc sharing the %hi of one symbol_ref across
+      two offsets of the SAME symbol, which needs the trans base to reach the
+      store through a register - a pointer local gets folded back to a symbol
+      store, so all three store spellings tried (individual D_ symbols, a
+      MATRIX* pTransMatrix, a s32* pTransT = pTransMatrix->t) give a %at store.
+   2. one register tie: retail mult $s2,$s2 / mflo $v0 / addu $s3,$s3,$v0, we
+      get $v1 for the mflo and the addu.
+   Permuter run (4 min, -j 2) from this body: PERMUTER_BETTER base=950 best=775,
+   but its best candidate (u32 dxSq + a pRotMatrix reassignment so that both
+   CompMatrix arguments are the same pointer) is UNSOUND - it compiles to
+   CompMatrix(trans, trans, res) - and porting it drops objdiff to 83.30%.
+   The u32 dxSq half of it is kept here and is neutral for objdiff.
+   Next lever to try: a source shape where the trans stores are reached through
+   a runtime base (parameter/global pointer), since gcc folds every
+   compile-time-known global address into a bare symbol store. Parked body:
+void func_80076CA4(void) {
+    MATRIX* pRotMatrix;
+    MovieVector* pPos;
+    SVECTOR* pAngle;
+    s32 dz;
+    s32 dx;
+    s32 dzSq;
+    u32 dxSq;
+    s32 dy;
+
+    pPos = &D_8007703C;
+    pAngle = &D_800770B0;
+    dz = D_80077044 - D_80077034;
+    dzSq = dz * dz;
+    dx = pPos->x - D_8007702C.x;
+    dxSq = dx * dx;
+    dy = D_80077040 - D_80077030;
+    pAngle->vx = ratan2(dy, SquareRoot0(dzSq + dxSq));
+    pAngle->vy = -ratan2(dx, dz);
+    pRotMatrix = &D_800770D8;
+    RotMatrix(pAngle, pRotMatrix);
+    RotMatrixZ(D_8007704C, pRotMatrix);
+    MulMatrix2(&D_800770F8, pRotMatrix);
+    pRotMatrix->t[0] = 0;
+    pRotMatrix->t[1] = 0;
+    pRotMatrix->t[2] = SquareRoot0(dxSq + dy * dy + dzSq);
+    D_800770CC = D_80076F2C.x - pPos->x;
+    D_800770D0 = D_80076F30 - D_80077040;
+    D_800770D4 = D_80076F34 - D_80077044;
+    CompMatrix(pRotMatrix, (MATRIX*)&D_800770B8, &D_80077050);
+}
+*/
+INCLUDE_ASM("asm/movie/nonmatchings/main/misc2", func_80076CA4);
+
 /* PRESET: 88.94% under gcc 2.7.2 -G0, 83.09% under this unit's -G8. Under -G0
    every instruction is retail's except one register tie (retail `mflo v0` then
    `addu s3,s3,v0`, we get $v1) plus reloc spellings that link identically
@@ -467,7 +524,6 @@ INCLUDE_ASM("asm/movie/nonmatchings/main/misc2", func_80076CA4);
    and D_800770D8. Parked body:
 void func_80076CA4(void) {
     MATRIX* pRotMatrix;
-    MATRIX* pTransMatrix;
     MovieVector* pPos;
     SVECTOR* pAngle;
     s32 dz;
