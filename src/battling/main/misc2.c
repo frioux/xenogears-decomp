@@ -537,25 +537,25 @@ void BattleActorApplyAnimationCommand(u8 *p0) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80074BA4);
 
-extern u8 D_8009872C[];
+extern Actor D_8009872C;
 extern s32 D_80099D8C;
 extern s32 D_80099D88;
 extern u8 D_80050622;
 extern s32 BattleCheckValueAboveScaledMax(u8 *, s32);
 
 void BattleSetResultCode(s32 arg0) {
-    u8 *p = D_8009872C;
+    Actor *p = &D_8009872C;
     u8 *pDst;
     s16 v;
     s32 a;
     s32 b;
 
     if (arg0 != 0) {
-        if (BattleCheckValueAboveScaledMax(p, 0xE0) != 0) {
+        if (BattleCheckValueAboveScaledMax((u8 *)p, 0xE0) != 0) {
             D_80050622 = 2;
             return;
         }
-        if (BattleCheckValueAboveScaledMax(p, 0x10) != 0) {
+        if (BattleCheckValueAboveScaledMax((u8 *)p, 0x10) != 0) {
             D_80050622 = 1;
             return;
         }
@@ -570,22 +570,22 @@ void BattleSetResultCode(s32 arg0) {
         D_80050622 = 0x82;
         return;
     }
-    v = *(s16 *)(p + 0xBC);
+    v = p->unkBC;
     a = (v * 176) / 255;
-    if (a < *(s32 *)(p + 0x1654)) {
+    if (a < p->unk1654) {
         D_80050622 = 0x83;
         return;
     }
     b = (v * 160) / 255;
-    if (b < *(s32 *)(p + 0x1658)) {
+    if (b < p->unk1658) {
         D_80050622 = 0x84;
         return;
     }
-    if (a < *(s32 *)(p + 0x1658) + *(s32 *)(p + 0x1654)) {
+    if (a < p->unk1658 + p->unk1654) {
         D_80050622 = 0x85;
         return;
     }
-    pDst = *(u8 **)(p + 0xD8);
+    pDst = p->unkD8;
     if (BattleCheckValueAboveScaledMax(pDst, 0xE0) != 0) {
         D_80050622 = 0x86;
         return;
