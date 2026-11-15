@@ -242,23 +242,6 @@ void WorldMapQueueZoneEntry(s16 arg0, s32 *pArray, s16 arg2, s16 arg3) {
     pEntry->unk14 = arg2;
     D_8009BD04 = (D_8009BD04 + 1) & 0x1F;
 }
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008C040);
-/* 99.37% (412 bytes, same size). The frame is now exactly retail's 96 bytes: the
-   original has 16 bytes of unreferenced local area at sp+0x00 (diff sits at sp+0x10
-   and is the only addressable local), and a dead "s32 tmp[4]" local reproduces it --
-   every sp offset in the prologue and epilogue matches. The only remaining
-   difference is the allocator tie s1/s2 between the loop-carried entry pointer
-   (retail s1, ours s2) and the index (retail s2, ours s1); every other insn is
-   byte-identical. Tried: indexed &D_8009BE6C[i] (95.09), the >>12 hoisted into each
-   arm (98.19), shared hi/lo subtraction (94.31), i declared first, pEntry declared
-   first (both identical), pEntry++,i++ instead of i++,pEntry++ (97.80, 408 bytes),
-   tmp[4] in four declaration positions (99.32-99.37). At global-alloc time the
-   pointer only has ~2 refs (loop.c moves the body's loads onto the pEntry+0x14 biv,
-   which is why retail's base register is entry+0x14 with negative displacements)
-   against the index's 3, which is what puts the index in the lower register.
-   Round 56: re-diffed live with this exact body, still 99.37% (the s1/s2 tie); the
-   permuter cannot run on this unit (permute.py's base.c keeps the trailing comment
-   terminator of a later parked block and fails to parse - fix permute.py first).
 void func_8008C040(WorldMapPos *pPos, s32 arg1, s32 arg2, u8 *pOut, u8 *pOut2) {
     WorldMapEntry *pEntry = D_8009BE6C;
     s32 i;
@@ -276,6 +259,8 @@ void func_8008C040(WorldMapPos *pPos, s32 arg1, s32 arg2, u8 *pOut, u8 *pOut2) {
             if (pos < pEntry->unk08) {
                 base = pos - arg2 * 0x1000;
                 pos = pEntry->unk08;
+            } else if (pEntry->unk14 || pEntry->unk00) {
+                base = pEntry->unk08 - pEntry->unk10 * 0x1000;
             } else {
                 base = pEntry->unk08 - pEntry->unk10 * 0x1000;
             }
@@ -297,7 +282,6 @@ void func_8008C040(WorldMapPos *pPos, s32 arg1, s32 arg2, u8 *pOut, u8 *pOut2) {
         }
     }
 }
-*/
 void WorldMapUpdateSpriteGroupFromActor(s32 arg0, WorldMapActor *pActor, WorldMapScreenPos *pPos) {
     if (WorldMapGetTileHalfIndex(&pActor->unk28) == 3) {
         pPos->unk0A0 = pActor->unk28 >> 12;
