@@ -246,7 +246,7 @@ void func_8008C040(WorldMapPos *pPos, s32 arg1, s32 arg2, u8 *pOut, u8 *pOut2) {
     WorldMapEntry *pEntry = D_8009BE6C;
     s32 i;
     WorldMapPos diff;
-    s32 tmp[4];
+    s32 tmp[4]; /* unread; its stack slot is what gives retail's 96-byte frame */
     s32 pos;
     s32 base;
     s32 dist;
@@ -262,6 +262,7 @@ void func_8008C040(WorldMapPos *pPos, s32 arg1, s32 arg2, u8 *pOut, u8 *pOut2) {
             } else if (pEntry->unk14 || pEntry->unk00) {
                 base = pEntry->unk08 - pEntry->unk10 * 0x1000;
             } else {
+                /* same value as the arm above; retail keeps the branch, so must we */
                 base = pEntry->unk08 - pEntry->unk10 * 0x1000;
             }
             if (((pos - base) >> 12) < arg2 + pEntry->unk10) {
