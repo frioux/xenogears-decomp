@@ -206,22 +206,21 @@ extern char D_8006FD10[];
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_8007661C);
 
-// best 99.91% (written as 99.02%, then noted as 97.90%): the instruction stream
-// is now identical; only the frame differs, 0x38 vs 0x30 -- gcc reserves one
-// unused 8-byte local slot between buf and the saved regs (buf sits at sp+0x10 in
-// both; buf sizes 0xC and 0x10 both give 0x38, 0x18 gives 0x40, and `u8 buf[0x8]`
-// reaches 0x30 but is too small for "FRAME:%d-%d"). Two permuter edits made the
-// rest exact: reuse h for the D_80096FC4 value passed to the last Sprintf, and
-// read the D_80096FBC index as (flags >> 23) >> 4. Tried: buf declared before
-// h/w, both w/h declaration orders, default-plus-override instead of if/else,
-// u32 instead of s32 for the 0x96FC4 pair (that one was srl vs sra), plain if /
-// empty else / pointer local / s32 local for the 0x82 clamp, buf sizes 0xC/0x18.
-// The unused 0x8 slot is the one thing still between this and a match.
+/* 99.91%: instruction stream and size (428 bytes) are exact; only the frame
+   differs, 0x38 vs 0x30 -- gcc reserves 8 unused bytes between buf and the saved
+   regs (vars=24 vs retail's 16; buf sits at sp+0x10 in both). Bisected: the pad
+   appears as soon as the mid-body BattleSetTextScale call is present, in either
+   shape (ternary Cond ? 0xE7 : 0x100, or if/else into an s32 local) -- both emit
+   retail's exact insns, and dropping that call alone brings vars back to 16, so
+   it looks like a reload spill slot the allocator keeps. buf sizes 0x8/0xC/0x10/
+   0x18 and both w/h declaration orders do not move it. permuter reports ZERO
+   because it does not score stack offsets.
 /*
 void func_8007661C(u8* p) {
     char buf[0x10];
     s32 h;
     s32 w;
+    s32 color;
 
     h = 0xA;
     w = 0x14;
@@ -233,7 +232,12 @@ void func_8007661C(u8* p) {
     }
     BattleSetTextCursor(w, h);
     Sprintf(buf, D_8006FD04, D_80096FB8[((*(u32*)(p + 0xD0) >> 27) & 1) * 5]);
-    BattleSetTextScale(D_80096FB8[((*(u32*)(p + 0xD0) >> 27) & 1) * 5] == D_8009112C ? 0xE7 : 0x100);
+    if (D_80096FB8[((*(u32*)(p + 0xD0) >> 27) & 1) * 5] == D_8009112C) {
+        color = 0xE7;
+    } else {
+        color = 0x100;
+    }
+    BattleSetTextScale(color);
     BattleDrawTextLeft(buf);
     BattleSetTextScale(0x100);
     BattleSetTextCursor(w + 0x34, h);
@@ -315,14 +319,10 @@ void BattleActorBeginMove(u8* p) {
     func_80077584(p);
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_800776A8);
-
-/* 88.00%: gcc emits the mask constant before the flags load, so reorg steals
-   the lui into the beq delay slot and maspsx must add a load-delay nop; the
-   original has the load first and an unfilled slot (same shape as func_800767C8).
-void func_800776A8(u8* p, s32 mode) {
+/* non-void return type, bare returns: as void gcc fills the beqz/beq delay
+   slots that retail leaves as nop. */
+s32 func_800776A8(u8* p, s32 mode) {
     u32 flags;
-    s32 kind;
 
     if (BattleGetScreenMode(p) == 4) {
         return;
@@ -338,7 +338,7 @@ void func_800776A8(u8* p, s32 mode) {
         if (flags & 0x40) {
             return;
         }
-        kind = 1;
+        ControllerSetActuatorDuration(1, mode);
     } else {
         if (!(D_80099D9B & 1)) {
             return;
@@ -346,11 +346,10 @@ void func_800776A8(u8* p, s32 mode) {
         if (flags & 0x40) {
             return;
         }
-        kind = 0;
+        ControllerSetActuatorDuration(0, mode);
     }
-    ControllerSetActuatorDuration(kind, mode);
+    return;
 }
-*/
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80077770);
 
