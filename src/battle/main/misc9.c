@@ -1,6 +1,38 @@
 #include "common.h"
+#include "battle/actor.h"
 
-extern u8 D_800D2C60[];
+// One slot of the per-slot operator register block at D_800D3400 (stride 0x40):
+// the same arguments in 32-, 16- and 8-bit form. D_800D3410, D_800D3420 and
+// D_800D3430 are its +0x10, +0x20 and +0x30 arrays; the handlers below read the
+// operand indexes from the slot's current instruction (BattleCommand) and apply
+// the operation to that slot's registers.
+typedef struct {
+    /* 0x00 */ u8 unk00[0x10];
+    /* 0x10 */ u32 unk10[4];
+    /* 0x20 */ u16 unk20[8];
+    /* 0x30 */ u8 unk30[0x10];
+} BattleOpRegs; // Size: 0x40
+
+// One of the 0x1C-byte per-slot tag records at D_800C3EB4: tag at +0, flag byte
+// at +3 (the byte BattleSetSlotRecordByteAndRelease writes).
+typedef struct {
+    /* 0x0 */ u8 tag;
+    /* 0x1 */ u8 unk1[2];
+    /* 0x3 */ u8 flags;
+    /* 0x4 */ u8 unk4[0x18];
+} BattleSlotRecord; // Size: 0x1C
+
+// Per-slot "can be picked" flag these loops gate on, one 8-byte record per
+// battle slot; D_800D32B1 is the record the slot table is walked down from.
+typedef struct {
+    /* 0x0 */ u8 inUse;
+    /* 0x1 */ u8 unk1[7];
+} BattleSlotFlag; // Size: 0x8
+
+extern BattleOpRegs D_800D3400[];
+extern BattleSlotRecord D_800C3EB4[];
+extern BattleSlotFlag D_800D32A1[];
+extern u32 D_800D2C60[];
 extern u8 D_800D2C8B[];
 extern u8 D_800D2DC0;
 extern u8 *D_800D3278;
@@ -11,10 +43,8 @@ extern u8 D_800D3430[];
 extern u8 D_800C3EB7[];
 extern u8 D_800CCD62[];
 extern u8 D_800CD1B2[];
-extern u8 D_800D32A1[];
 extern u8 D_800D32B1[];
 extern u8 D_800D32F1[];
-extern u8 D_800C3EB4[];
 extern u8 func_8007A628(u8 arg0, u8 arg1);
 extern s32 func_8007A280(u8 arg0, u8 arg1, s32 arg2, s32 arg3);
 extern u8 func_8001BD40(s32 arg0, u8 arg1);
@@ -260,39 +290,38 @@ void func_8007DFD4(u8 **arg0, s32 arg1) {
     }
 }
  */
-void BattleSetSlotRecordByteAndRelease(u8 **arg0, s32 arg1) {
+void BattleSetSlotRecordByteAndRelease(BattleCommand **ppCmd, s32 arg1) {
     s32 idx = (arg1 & 0xFF) + 3;
 
-    D_800C3EB7[idx * 0x1C] = (*arg0)[1];
-    if ((*arg0)[1] & 0x80) {
+    D_800C3EB4[idx].flags = (*ppCmd)->unk1;
+    if ((*ppCmd)->unk1 & 0x80) {
         func_80087EDC((u8)(arg1 + 3), (u8)(arg1 + 3));
     } else {
         func_800883AC((u8)(arg1 + 3));
     }
 }
-void BattleWordRegSetSlotBitMask(u8 **arg0, s32 arg1) {
+void BattleWordRegSetSlotBitMask(BattleCommand **ppCmd, s32 arg1) {
     u16 value = BattleSlotBitMask((arg1 + 3) & 0xFF);
-    u8 *p = *arg0;
-    u16 *pField = (u16 *)(D_800D3420 + (arg1 & 0xFF) * 0x40);
+    u16 *pRegs = D_800D3400[arg1 & 0xFF].unk20;
 
-    pField[p[1]] = value;
+    pRegs[(*ppCmd)->unk1] = value;
 }
-void BattleStoreCharSlotFlagMask(u8 **arg0, u8 arg1) {
+void BattleStoreCharSlotFlagMask(BattleCommand **ppCmd, u8 arg1) {
     s32 acc = 0;
     s32 i;
-    u16 *pRow;
+    u16 *pRegs;
 
-    // the slot table is walked downwards from D_800D32B1
+    // the slot table is walked downwards from its third record
     for (i = 2; i >= 0; i--) {
         if ((u8)BattleSlotFlagsC000Clear((u8)i) != 0) {
-            switch ((*arg0)[2]) {
+            switch ((*ppCmd)->unk2) {
             case 1:
-                if (D_800D32B1[(i - 2) * 8] != 0) {
+                if (D_800D32A1[i].inUse != 0) {
                     acc |= 1;
                 }
                 break;
             case 2:
-                if (D_800D32B1[(i - 2) * 8] == 0) {
+                if (D_800D32A1[i].inUse == 0) {
                     acc |= 1;
                 }
                 break;
@@ -303,8 +332,8 @@ void BattleStoreCharSlotFlagMask(u8 **arg0, u8 arg1) {
         }
         acc <<= 1;
     }
-    pRow = (u16 *)(D_800D3420 + arg1 * 0x40);
-    pRow[(*arg0)[1]] = (u16)acc >> 1;
+    pRegs = D_800D3400[arg1].unk20;
+    pRegs[(*ppCmd)->unk1] = (u16)acc >> 1;
 }
 /* best: 95.31%. Same family as BattleStoreCharSlotFlagMask (walk the slot table downwards,
    `(i - 0xA) * 8` keeps D_800D32F1 as the base symbol). Only difference: the
@@ -406,7 +435,7 @@ void func_8007E554(u8 **arg0, u8 arg1) {
     pRow[(*arg0)[1]] = acc << 2;
 } */
 void BattleClearSlotDwordAndSetStat4(u8 arg0) {
-    ((u32 *)D_800D2C60)[arg0] = 0;
+    D_800D2C60[arg0] = 0;
     D_800D2C8B[arg0] = 4;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007E6A0);
@@ -456,16 +485,14 @@ void func_8007E740(u8 **arg0, u8 arg1) {
 
     pRow[p[1]] = p[2] * pRow[p[1]];
 } */
-void BattleDwordRegDivImm(u8 **arg0, u8 arg1) {
-    u8 *p = *arg0;
-    u32 *pRow = (u32 *)(D_800D3410 + arg1 * 0x40);
+void BattleDwordRegDivImm(BattleCommand **ppCmd, u8 arg1) {
+    u32 *pRegs = D_800D3400[arg1].unk10;
+    BattleCommand *pCmd = *ppCmd;
 
-    pRow[p[1]] /= p[2];
+    pRegs[pCmd->unk1] /= pCmd->unk2;
 }
-void BattleWriteWorkBufferWord(u8 **arg0) {
-    u8 *p = *arg0;
-
-    *(u16 *)(D_800D3278 + p[1] * 2 + 0x394) = p[2];
+void BattleWriteWorkBufferWord(BattleCommand **ppCmd) {
+    *(u16 *)(D_800D3278 + (*ppCmd)->unk1 * 2 + 0x394) = (*ppCmd)->unk2;
 }
 /* best: 96.50%. Structure found: do-while with the pointer compared as a SIGNED
    int (a u16* compare gives sltu, the original has slt), and the flag tested as
@@ -502,22 +529,20 @@ void func_8007E8AC(u8 **arg0) {
 
     D_800D3364[idx + 0x140] = p[3];
 } */
-void BattleSetPendingCharIndex(u8 **arg0, u8 arg1) {
-    u8 *p = *arg0;
-    u16 *pField = (u16 *)(D_800D3420 + arg1 * 0x40);
+void BattleSetPendingCharIndex(BattleCommand **ppCmd, u8 arg1) {
+    u16 *pRegs = D_800D3400[arg1].unk20;
 
-    D_800D2DC0 = BattleFindFirstFlagTableMatch(pField[p[1]]) + 1;
+    D_800D2DC0 = BattleFindFirstFlagTableMatch(pRegs[(*ppCmd)->unk1]) + 1;
 }
 void BattleResetDisplayValues(void) {
     u8 buf[0x10];
 
     func_80078508(buf);
 }
-s32 BattleSetTextScale(u8 **arg0, u8 arg1) {
-    u8 *p = *arg0;
-    u8 *pRow = D_800D3430 + arg1 * 0x40;
+s32 BattleSetTextScale(BattleCommand **ppCmd, u8 arg1) {
+    u8 *pRegs = D_800D3400[arg1].unk30;
 
-    return pRow[p[1]] == p[2];
+    return pRegs[(*ppCmd)->unk1] == (*ppCmd)->unk2;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007E98C);
 /* best: 96.47%. Identical instruction multiset and order once the 16-bit value
@@ -534,9 +559,8 @@ s32 func_8007E98C(u8 **arg0, s32 arg1) {
 
     return pField[p[1]] == value;
 } */
-s32 BattleByteRegLeImm(u8 **arg0, u8 arg1) {
-    u8 *p = *arg0;
-    u8 *pRow = D_800D3430 + arg1 * 0x40;
+s32 BattleByteRegLeImm(BattleCommand **ppCmd, u8 arg1) {
+    u8 *pRegs = D_800D3400[arg1].unk30;
 
-    return p[2] >= pRow[p[1]];
+    return (*ppCmd)->unk2 >= pRegs[(*ppCmd)->unk1];
 }
