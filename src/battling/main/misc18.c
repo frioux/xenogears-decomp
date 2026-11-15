@@ -309,36 +309,31 @@ void BattleQueueRandomMessages(u8* pArg0) {
     }
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc18", func_8008FF24);
-/* 94.70%: instruction multiset identical; two differences. gcc reassociates
-   A + (rand() % 20 + 1) into (A + 1) + rand() % 20, so the +1 lands on the product
-   side where retail adds it to the remainder, and it keeps the *20 product in $a0
-   where retail has it in $a1 (retail's $a0 still holds the loaded 0xF byte).
-   Also tried: a temp for the remainder, both parenthesised groupings, terms in the
-   other order (worse: 67-75%) and gcc 2.7.2-cdk (95.49%).
 void func_8008FF24(u8* pArg0, u8* pArg1) {
+    int one;
+
     if (*(u8*)(*(u8**)(pArg0 + 0xD8) + 0xC4) == 4) {
         if ((*(u32*)(pArg1 + 0x2C) & 0xA00) == 0x200) {
             BattleQueueMessages4Then3(pArg0);
             *(s16*)(pArg1 + 0x4) = 3;
         }
     } else {
+        one = 1;
         BattleQueueRandomMessages(pArg0);
-        *(s16*)(pArg1 + 0x4) = (2 - *(u8*)(pArg1 + 0xF)) * 20 + (rand() % 20 + 1);
+        *(s16*)(pArg1 + 0x4) = (2 - *(u8*)(pArg1 + 0xF)) * 20 + (rand() % 20 + one);
     }
     func_8008F7B8(pArg1);
 }
-*/
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc18", func_8008FFEC);
 /* 95.41%: frame, saved regs (s0..s3) and both call-site chains already match.
    Two differences: (a) gcc keeps the loop counter`n` in $a1 whereas retail uses
    $s0, and so fills the `bnez` delay slot with `addiu s0,s0,-1` where retail has
    a nop plus a separate block; (b) the tail reassociates A + (rand() % 20 + 1)
-   into (A + 1) + rand() % 20 - the same expression, and the same blocker, as
-   func_8008FF24 below. Also tried: the tail as a separate `r = rand() % 20 + 1`
-   statement (85.61%, the 0xF load moves after the division) and the sum written
-   call-first (87.81%). Note the divisor is a local (`c`) so the 0x911 byte is
-   loaded once, as retail does.
+   into (A + 1) + rand() % 20 - the same expression func_8008FF24 had, which broke
+   it with a local holding the 1 (`one = 1;` before the call). Also tried: the tail
+   as a separate `r = rand() % 20 + 1` statement (85.61%, the 0xF load moves after
+   the division) and the sum written call-first (87.81%). Note the divisor is a
+   local (`c`) so the 0x911 byte is loaded once, as retail does.
 s32 func_8008FFEC(u8* pArg0, u8* pArg1) {
     s32 n;
     s32 i;
