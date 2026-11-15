@@ -394,26 +394,10 @@ int WorldMapInitGroup0Actor(int idx) {
 }
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007BBEC);
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007BF50);
-/* best 97.91% (784 bytes, size exact): every instruction of this long init
-   sequence is right -- the two loops, the 32-byte D_8009A180 -> D_8009BE4C
-   copy, all twenty WorldMapAddSlot pairs -- except the two-insn address setup for
-   D_8009C5AC (lui/addiu into $s0). Retail materialises it just before the store
-   at 0x783C and then reuses $s0 for the func_80097BC0 argument at 0x78C0; gcc
-   only allocates the register when the pointer local is initialised at the top
-   of the function, and then it emits the lui/addiu there instead.
-   With the assignment at retail's position gcc folds both uses to %hi/%lo
-   (97.22%): `lui v0,0xD00000; lui at,%hi; sw v0,0(at)` plus a fresh
-   `lui a0/addiu a0` for the call. Tried, all still folding: a pPos local used
-   for both the store and the call, (s32*)((u32)&D_8009C5AC), a volatile store.
-   The matched WorldMapInitializeMode in misc3 gets $s0 at the assignment point
-   only because it declares `extern u8 D_8009C5AC[]` and casts the array to a
-   pointer -- that spelling is not available here, the matched functions of this
-   unit read D_8009C5AC as an s32. gcc 2.7.2-cdk scores 78.67%, so no preset
-   lead.
 void func_8007BF50(void) {
     RECT rect;
     s32 *pPos = &D_8009C5AC;
+    s32 *pScratch; // shared: one register for the position store and the group-13 handler
 
     WorldMapInitGfxEnv();
     rect.x = 0;
@@ -436,7 +420,8 @@ void func_8007BF50(void) {
     func_80098044();
     ArchiveCdDataSync(0);
     WorldMapLoadSedsBank();
-    *pPos = 0xD00000;
+    pScratch = pPos;
+    *pScratch = 0xD00000;
     D_8009C5B0 = 0xFFF60000;
     D_8009C5B4 = 0x400000;
     WorldMapInitSpriteSets();
@@ -464,7 +449,8 @@ void func_8007BF50(void) {
     WorldMapAddSlot((void *)WorldMapInitGroup9Actor, (void *)WorldMapUpdateGroup9Actor);
     WorldMapAddSlot((void *)WorldMapInitGroup10Actor, (void *)WorldMapUpdateGroup10Actor);
     WorldMapAddSlot((void *)WorldMapInitGroup12Actor, (void *)WorldMapUpdateGroup12Actor);
-    WorldMapAddSlot((void *)WorldMapInitGroup13Actor, (void *)WorldMapUpdateGroup13Actor);
+    pScratch = (void *)WorldMapUpdateGroup13Actor;
+    WorldMapAddSlot((void *)WorldMapInitGroup13Actor, pScratch);
     WorldMapAddSlot((void *)WorldMapInitGroup16Actor, (void *)WorldMapUpdateGroup16Actor);
     WorldMapAddSlot((void *)WorldMapEnterNop, (void *)WorldMapUpdateFrameWithParticles);
     func_800978FC();
@@ -472,7 +458,7 @@ void func_8007BF50(void) {
     func_800865A0();
     WorldMapInitRandomTimers();
 }
-*/
+
 void WorldMapExitToMap111(void) {
     u16 v;
 
