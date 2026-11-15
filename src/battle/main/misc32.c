@@ -247,15 +247,15 @@ void func_800BD974(SVECTOR *pVec, s32 *pOut) {
     pOut[0] = (sxy[0] - ofx) * 2;
     pOut[1] = (sxy[1] - ofy) * 2;
     pOut[2] = ReadGeomScreen();
-}*/
-// Retail writes the current geom screen through the matrix block, so the block is
-// typed as a MATRIX with its tail field named.
+}
+// The GTE geom-output block D_800C3760 doubles as a matrix: its t[2] word is the
+// geom screen offset (misc33 declares the same struct as BattleGeomMatrix).
 typedef struct {
     /* 0x00 */ u8 unk0[0x1C];
     /* 0x1C */ s32 geomScreen;
-} BattleGeomState;
+} BattleGeomMatrix; // Size: 0x20
 
-extern BattleGeomState D_800C3760;
+extern BattleGeomMatrix D_800C3760;
 extern void func_800BD810(u8 *pEntry, u8 *pData);
 
 // 96.95% under this unit's cdk preset (89.20 on 2.7.2). Left: (1) retail keeps the
