@@ -129,6 +129,43 @@ extern RECT D_800704E0; // .rodata
 extern s32 D_80077448;
 extern s32 D_801D68B4;
 
+// .rodata
+extern char D_8007042C[];
+extern char D_80070430[];
+extern char D_80070450[];
+extern char D_80070464[];
+extern char D_8007046C[];
+extern char D_80070474[];
+extern char D_80070488[];
+extern char D_8007049C[];
+extern char D_800704AC[];
+extern char D_800704BC[];
+extern char D_800704C4[];
+extern char D_800704C8[];
+extern char D_800704D4[];
+
+extern void FontPrintf(char*, ...);
+extern void FontDrawLetters(void* pOt);
+extern void HeapDebugDump(u_int mode, u_int startBlockIdx, int endBlockIdx, u_int flags);
+extern void func_80072F98(POLY_G4* pPoly0, POLY_G4* pPoly1, s32 x, s32 y, s32 w, s32 h);
+extern void func_800734B8(POLY_G4* pPoly0, POLY_G4* pPoly1, s32 x, s32 y, s32 w, s32 h);
+
+// The two double-buffered draw environments the debug menu alternates between;
+// each one starts 0x18 bytes before the matching MovieSlot entry (D_8007713C).
+typedef struct {
+    /* 0x0  */ DRAWENV drawEnv;
+    /* 0x5C */ DISPENV dispEnv;
+    /* 0x70 */ u_long ot[0x20];
+    /* 0xF0 */ POLY_G4 polyG4[2];
+} MovieDrawBuffer; // Size: 0x138
+
+extern MovieDrawBuffer D_80077124[];
+extern MovieDrawBuffer* D_80077120;
+extern s32 D_8007744C;
+extern s32 D_80077394;
+extern s32 D_800773AC;
+extern s32 D_800773B4;
+
 void MovieClearFrameBuffer(void) {
     RECT rect;
 
@@ -263,6 +300,144 @@ int WorldMapSyncGearRideActors(u32 entryIndex) {
 }
 
 INCLUDE_ASM("asm/movie/nonmatchings/main/misc2", func_80075D8C);
+
+/* best 92.41% - 1228 bytes against retail's 1232; the head, the pad-cursor
+   handling, the inner loop's tail test and everything from FontPrintf(0x80070430)
+   to the epilogue are instruction-identical. Three differences remain:
+   1. gcc CSEs `j + 1` (the ArchiveDecodeSector/ArchiveGetFilePath argument) into a
+      callee-saved register whose live range spans the whole inner loop, so the frame
+      is 0x50 with 8 saves where retail has 0x48 with 7, and every local sits one
+      register higher (entry in $18 where retail has $17). Retail recomputes
+      `addiu a0,$s0,1` at all three call sites. Also tried: a `for` loop (same CSE,
+      plus a duplicated top exit test), and the pointer-increment spelling.
+   2. the cursor limit: a `count = 0x1249` local makes gcc fold `count - 0x14` and
+      hoist 0x1235, retail hoists 0x1249 and does `addiu $v0,$s6,-0x14` at each of
+      the two sites.
+   3. the HEX/DEC ternary is laid out with the true value (D_80070474) as fallthrough;
+      retail materialises the false value (D_80070488) first and branches to the true.
+   Recovered for it: MovieDrawBuffer (see the typedef above) and that the two draw
+   buffers D_80077124[] each start 0x18 bytes before the matching MovieSlot entry
+   D_8007713C[].
+void func_80075D8C(void) {
+void func_80075D8C(void) {
+    s32 alignedIndex;
+    s32 remainder;
+    s32 action;
+    s32 entry;
+    s32 j;
+    s32 count;
+    s32 hexMode;
+    s32 showName;
+    s32 size;
+    char* pPath;
+    char* pFileName;
+    char* pCursor;
+    MovieDrawBuffer* pBuffer;
+
+    MovieClearFrameBuffer();
+    entry = 0;
+    ArchiveGetArchiveOffsetIndices(&alignedIndex, &remainder);
+    ArchiveSetIndex(0, 0);
+    count = 0x1249;
+    hexMode = 0;
+    showName = 0;
+    do {
+        pBuffer = &D_80077124[0];
+        if (D_80077120 == pBuffer) {
+            pBuffer = &D_80077124[1];
+        }
+        D_80077120 = pBuffer;
+        D_8007744C = 1 - D_8007744C;
+        ClearOTagR(pBuffer->ot, 0x20);
+        FontPrintf(D_80070450);
+        FontPrintf(hexMode ? D_80070464 : D_8007046C);
+        MovieUpdatePadCursor(0, 0, &action);
+        if ((D_800773B4 & 0x1000) == 0 && (D_800773AC & 0x1000) != 0) {
+            if (entry > 0) {
+                entry--;
+            }
+        }
+        if ((D_800773B4 & 0x10) == 0 && (D_800773AC & 0x10) != 0) {
+            entry -= 0x14;
+            if (entry < 0) {
+                entry = 0;
+            }
+        }
+        if ((D_800773B4 & 0x4000) == 0 && (D_800773AC & 0x4000) != 0) {
+            if (entry < count - 0x14) {
+                entry++;
+            }
+        }
+        if ((D_800773B4 & 0x40) == 0 && (D_800773AC & 0x40) != 0) {
+            entry += 0x14;
+            if (entry > count - 0x14) {
+                entry = count - 0x14;
+            }
+        }
+        if ((D_800773B4 & 0x8) == 0 && (D_800773AC & 0x8) != 0) {
+            hexMode = 1 - hexMode;
+        }
+        if ((D_800773B4 & 0x4) == 0 && (D_800773AC & 0x4) != 0) {
+            showName = 1 - showName;
+        }
+        j = entry;
+        do {
+            if (WorldMapSyncGearRideActors(j) == 0) {
+                FontPrintf(hexMode ? D_80070474 : D_80070488, j);
+            } else {
+                if (hexMode) {
+                    FontPrintf(D_8007049C, j, ArchiveDecodeSector(j + 1));
+                } else {
+                    FontPrintf(D_800704AC, j, ArchiveDecodeSector(j + 1));
+                }
+                if (showName) {
+                    if (WorldMapSyncGearRideActors(j) < 0) {
+                        FontPrintf(D_800704BC, -WorldMapSyncGearRideActors(j));
+                    } else {
+                        pPath = ArchiveGetFilePath(j + 1);
+                        if (pPath != NULL) {
+                            pFileName = pPath;
+                            if (*pFileName != '\0') {
+                                pCursor = pFileName;
+                                while (*pCursor != '\0') {
+                                    if (*pCursor == '\\') {
+                                        pFileName = pCursor + 1;
+                                    }
+                                    pCursor++;
+                                }
+                            }
+                            FontPrintf(D_800704C4, pFileName);
+                        } else {
+                            FontPrintf(D_8007042C, pPath);
+                        }
+                    }
+                } else {
+                    if (hexMode) {
+                        FontPrintf(D_800704C8, WorldMapSyncGearRideActors(j));
+                    } else {
+                        FontPrintf(D_800704D4, WorldMapSyncGearRideActors(j));
+                    }
+                }
+            }
+            j++;
+        } while (j < entry + 0x14);
+        FontPrintf(D_80070430);
+        if (D_80077394 > 0) {
+            HeapDebugDump(1, 0, 6, 0x808D);
+        }
+        FontDrawLetters(D_80077120->ot);
+        func_80072F98((POLY_G4*)D_80077120->ot, &D_80077120->polyG4[0], 8, 0x14, 0x130, 0xC0);
+        func_800734B8((POLY_G4*)D_80077120->ot, &D_80077120->polyG4[1], 7, 0x13, 0x132, 0xC2);
+        DrawSync(0);
+        Vsync(0);
+        PutDrawEnv(&D_80077120->drawEnv);
+        PutDispEnv(&D_80077120->dispEnv);
+        DrawOTag(&D_80077120->ot[0x1F]);
+    } while (action != 2);
+    ArchiveSetIndex(alignedIndex, remainder);
+}
+
+*/
 
 void MovieResetPlaybackAndClearScreen(void) {
     long pad[6];
