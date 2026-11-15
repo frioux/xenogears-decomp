@@ -401,23 +401,9 @@ void BattleResetState(void) {
     D_800928FC = 0;
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_80079B44);
-
-/* Best attempt: 98.94%. Everything matches except ONE instruction: retail's
-   `beqz $v0,.L` has a `nop` in its delay slot and loads the division magic
-   (`lui $v0,0x6666`) as the first insn of the if-body; gcc 2.7.2 emits the same
-   insn list but reorg hoists that lui into the beqz delay slot, so our body is
-   4 bytes short and the whole switch shifts up one slot (permuter: base=103
-   best=103 over 998 iterations, nothing better).
-   The Actor-typed globals below ARE the answer to the la shape (previous note
-   here was wrong): retail's `la v1,D_800987F8` + `addiu a0,v1,-0xCC` comes from
-   a struct/typed-global store (`D_8009872C.unkCC = 0x400;` then
-   `func_80078F00(&D_8009872C);`), NOT from s16* locals - with the s16* form gcc
-   folds the -0xCC into a fresh la and the pair costs one instruction more.
-   Shapes tried for the delay slot: inline `switch ((D_80092950 - 1) % 5)`
-   (98.94, register tie correct: dividend in a0), `s32 m` local + switch
-   (98.36, dividend lands in v1), `if`/`else if` chain (92.51).
-void func_80079B44(void) {
+// char return (value unused): retail's `beqz` delay slot holds a nop, and a void
+// return lets gcc reorg steal the first insn of the if-body into it.
+char func_80079B44(void) {
     D_8009872C.unkCC = 0x400;
     D_80097010.unkCC = -0x400;
     func_80078F00(&D_8009872C);
@@ -461,64 +447,6 @@ void func_80079B44(void) {
         }
     }
 }
-*/
-
-/* Best attempt: 82.19%. Everything from the D_800928F4 store onwards is identical;
-   the first six instructions differ. The original folds the store address as
-   la(D_800987F8 = actor + 0xCC) into v1, stores at 0(v1) and then derives the call
-   argument with a runtime addiu a0,v1,-0xCC; gcc 2.7.2 always folds the constant
-   into the la of whichever address expression carries it, so the pair comes out as
-   la(arg) + fresh la(store) instead (one instruction longer), and the % 5 block
-   picks a0 vs v1 for the dividend.
-   Shapes tried: plain symbols, symbol+0xCC/-0xCC arithmetic, s16* locals, volatile
-   s16* locals, and an Actor* local with a field at 0xCC - all fold the same way.
-void func_80079B44(void) {
-    s32 m;
-
-    s16* pA = &D_800987F8;
-    s16* pB = &D_800970DC;
-
-    *pA = 0x400;
-    *pB = -0x400;
-    func_80078F00((Actor*)((u8*)pA - 0xCC));
-    func_80078F00((Actor*)((u8*)pB - 0xCC));
-    BattleEffectClearEntrySlots(D_80092644);
-    BattleClearSpriteTables();
-    BattleEffectClearSlots();
-    BattleRandomizeCameraPosition();
-    D_800928F4 = 1;
-    D_8009290C = -1;
-    BattleEffectSetSpawnTimer(0);
-    D_80092638 = 0;
-    D_80092640 = 0;
-    D_80092890 = 0;
-    D_8009263C = 0x5A;
-    D_8009294C = 0;
-    D_80092648 = 0;
-    BattleClearTextSpriteEntries();
-    D_80050622 = 0;
-    BattleInitSoundSlots();
-    BattleClearInitFlag();
-    D_800928D4 = 0;
-    D_800928F0 = 0;
-    D_80091144 = 0;
-    D_80091145 = 0;
-    D_80092664 = 0;
-    D_80092950++;
-    SystemStringReset(D_8009868C);
-    D_80099D9A = 0;
-    if (D_8005061C != 0) {
-        m = (D_80092950 - 1) % 5;
-        if (m == 3) {
-            D_800928B4 = 1;
-        } else if (m == 4) {
-            D_800928B4 = 2;
-        } else {
-            D_800928B4 = 0;
-        }
-    }
-}
-*/
 
 void BattleActorSetUnk15CCFlags(Actor* p) {
     p->unk15CC->unkA = (p->unk15CC->unkA & 0xFEFF) | ((p->unkD0 << 6) & 0x100);
