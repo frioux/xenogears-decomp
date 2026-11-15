@@ -168,7 +168,9 @@ void BattleBeginActorAction(u8 arg0, u16 arg1, u16 arg2) {
 // what costs the 4 bytes. Only the pointer form keeps 0x9C8 on the offset chain.
 // Also probed: gcc-2.7.2-cdk and -O3 both give 99.63% (tools/scripts/try_flags.sh),
 // so this is not a preset question. Permuter: 1154 iterations in round 79, 2398
-// more in round 98, base=30 best=30 both times.
+// more in round 98, 3503 more in round m103-p13, base=30 best=30 every time.
+// D_800D2D28 is declared `volatile u8 *`: that was the permuter's own best edit
+// (base 250 -> 30) and the only change it ever found.
 // Reads D_800CCB34 with lbu, so it must stay u8 (s32 gives 94.94%). The SECOND
 // call's first argument is the constant 0x19, not D_800C3EAC[0x2D4] + 0xF.
 /*
