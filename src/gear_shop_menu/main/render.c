@@ -1483,6 +1483,153 @@ void GearShopMenuBuildGearPartNameGraphics(u8 itemType) {
 }
 // https://decomp.me/scratch/5HauM
 INCLUDE_ASM("asm/gear_shop_menu/nonmatchings/main/render", func_801D2B74);
+// Best parked attempt: 97.35%, 2524 bytes (retail is 2464; the variant without the engine-case
+// `value`/`equipFlags` copy below scores 96.74% at 2508 bytes). The whole loop body - the bzero/stall,
+// the 5-case switch, the digit loop, both setRECT/LoadImage pairs, the MenuString setup, the
+// quantity digits and the loop tail - is instruction-for-instruction retail's, including the
+// prologue (s7 = workspace, s6 = i*0x80, s5 = scrollOffset+i, fp = price, 10 spilled givs).
+// Two things still differ:
+//   1. 15 instructions too long (11 in the 2508-byte variant), and the case bodies land in a
+//      different block order than retail
+//      (retail emits armor, frame, engine-tail, engine, weapon, accessory, accessory-tail).
+//      Swapping the accessory/weapon cases in the source gets the order right (that is included
+//      below) but the sizes still disagree.
+//   2. The equipFlags/price pair in each case: retail loads the price into the digit-loop
+//      register and copies it to the comparison register (`addu fp,s3,zero`), we load price and
+//      copy into whichever register the allocator picked.
+// Sources used: this body is modeled on the parked func_801D18F8 below (same loop, same givs,
+// 98.73%) and on GearShopMenuBuildSellItemDetails (the `price = var_s6` two-variable idiom and
+// the "@bug sellPrice is never set for types 3/4" shape, which this function has too).
+// Ruled out: no pRect local / pRect used for setRECT+LoadImage (frame 208, 84.7%); itemId kept in
+// a u8 local (retail re-reads g_Menu->shopItemIDs[...] at every use - 2 extra instructions per
+// case, 86.5%); `noEquipFlags = -1` hoisted before the switch (96.51%, retail materialises -1
+// inside each case). Two permuter runs (1474 -> 1234) found only the engine-case
+// `value`/`equipFlags` copy, which is in the body below and is worth +0.6%.
+// jtbl_801C5068 is the 5-word table + its 4-byte .align 3 pad; with this body the compiler emits
+// it at .rodata+48 == 0x801C5068, i.e. the switch is layout-safe and converting the function only
+// needs the last few instructions to line up.
+/*
+s32 func_801D2B74(s32 scrollOffset, s32 funds, u8* pItemAffordable) {
+    RECT rect;
+    u8 sp28[0xE];
+    u8 sp38[0xE];
+    int places[5]; // sp48
+    s32 quotient;
+    u8 didRounding;
+    s32 sellPrice;
+    s32 price;
+    s32 value;
+    u32 equipFlags;
+    u8 itemType;
+    u8 tensDigit;
+    u8 onesDigit;
+    s32 j;
+    s32 k;
+    void* pWorkspace;
+    s32 i;
+    RECT* pRect;
+
+    places[0] = 1;
+    places[1] = 10;
+    places[2] = 100;
+    places[3] = 1000;
+    places[4] = 10000;
+
+    pWorkspace = HeapAlloc(0x3F6, 0);
+    pRect = &rect;
+
+    for (i = 0; i < 8; i++) {
+        pItemAffordable[i] = 0;
+        bzero(sp28, 0xE);
+        g_Menu->pShop->unk468C[i] = 0;
+        if (g_Menu->shopItemIDs[scrollOffset + i]) {
+            itemType = g_Menu->shopItemTypes[scrollOffset + i];
+            switch (itemType) {
+                case ITEM_TYPE_GEAR_ARMOR:
+                    sellPrice = g_Menu->pDressingRoom->pGearArmor[g_GameState.gears[g_gearShopCurrentGearId].armorId].price >> 1;
+                    g_Menu->pShop->unk3C30[i].width = SystemRenderStringEntry(GetStringEntry(g_Menu->pShop->pGearArmorNames, g_Menu->shopItemIDs[scrollOffset + i]), pWorkspace, 0x24, 0);
+                    value = g_Menu->pDressingRoom->pGearArmor[g_Menu->shopItemIDs[scrollOffset + i]].price;
+                    price = value;
+                    equipFlags = g_Menu->pDressingRoom->pGearArmor[g_Menu->shopItemIDs[scrollOffset + i]].equipFlags;
+                    break;
+                case ITEM_TYPE_GEAR_FRAME:
+                    sellPrice = g_Menu->pDressingRoom->pGearFrames[g_GameState.gears[g_gearShopCurrentGearId].frameId].price >> 1;
+                    g_Menu->pShop->unk3C30[i].width = SystemRenderStringEntry(GetStringEntry(g_Menu->pShop->pGearFrameNames, g_Menu->shopItemIDs[scrollOffset + i]), pWorkspace, 0x24, 0);
+                    value = g_Menu->pDressingRoom->pGearFrames[g_Menu->shopItemIDs[scrollOffset + i]].price;
+                    price = value;
+                    equipFlags = g_Menu->pDressingRoom->pGearFrames[g_Menu->shopItemIDs[scrollOffset + i]].equipFlags;
+                    break;
+                case ITEM_TYPE_GEAR_ENGINE:
+                    sellPrice = g_Menu->pDressingRoom->pGearEngines[g_GameState.gears[g_gearShopCurrentGearId].engineId].price >> 1;
+                    g_Menu->pShop->unk3C30[i].width = SystemRenderStringEntry(GetStringEntry(g_Menu->pShop->pGearEngineNames, g_Menu->shopItemIDs[scrollOffset + i]), pWorkspace, 0x24, 0);
+                    value = g_Menu->pDressingRoom->pGearEngines[g_Menu->shopItemIDs[scrollOffset + i]].price;
+                    price = value;
+                    value = g_Menu->pDressingRoom->pGearEngines[g_Menu->shopItemIDs[scrollOffset + i]].equipFlags;
+                    equipFlags = value;
+                    break;
+                case ITEM_TYPE_GEAR_WEAPON:
+                    g_Menu->pShop->unk3C30[i].width = SystemRenderStringEntry(GetGearWeaponName(g_Menu->shopItemIDs[scrollOffset + i]), pWorkspace, 0x24, 0);
+                    value = g_Menu->pDressingRoom->pGearWeapons[g_Menu->shopItemIDs[scrollOffset + i]].price;
+                    price = value;
+                    equipFlags = -1;
+                    break;
+                case ITEM_TYPE_GEAR_ACCESSORY:
+                    g_Menu->pShop->unk3C30[i].width = SystemRenderStringEntry(GetGearAccessoryName(g_Menu->shopItemIDs[scrollOffset + i]), pWorkspace, 0x24, 0);
+                    value = g_Menu->pDressingRoom->pGearAccessories[g_Menu->shopItemIDs[scrollOffset + i]].price;
+                    price = value;
+                    equipFlags = -1;
+                    break;
+            }
+            if (funds >= price) {
+                if (GearShopMenuGearCanEquip(equipFlags, g_gearShopCurrentGearId)) {
+                    pItemAffordable[i] = 0x80;
+                }
+            }
+            didRounding = FALSE;
+            for (j = 4, k = 0; j > 0; k++, j--) {
+                quotient = value / places[j];
+                if (quotient || didRounding) {
+                    ((u8*)pRect)[8 + k * 2] = quotient + 0x10;
+                    didRounding = TRUE;
+                    value -= (quotient * places[j]);
+                } else {
+                    ((u8*)pRect)[8 + k * 2] = 0xC3;
+                }
+            }
+            ((u8*)pRect)[16] = (value % 10) + 0x10;
+            SystemDecodeGlyphCodesN((u16*)((u8*)&rect + 8), sp38, 5);
+            g_Menu->pShop->unk4030[i].width = SystemRenderStringEntry(&sp38, pWorkspace, 0x24, 1);
+            setRECT(&rect, 0x180 + (i & 1) * 0x18, 0x80 + (i / 2) * FONT_LETTER_HEIGHT, 0x28, FONT_LETTER_HEIGHT);
+            LoadImage(&rect, pWorkspace);
+            GearShopMenuInitializeMenuStringPolys(&g_Menu->pShop->unk3C30[i], i, 0x80, pItemAffordable[i] + 1);
+            GearShopMenuSetVertices(g_Menu->pShop->unk3C30[i].vertices, 0x24, 0x32 + FONT_LETTER_HEIGHT * i, g_Menu->pShop->unk3C30[i].width, FONT_LETTER_HEIGHT);
+            setRECT(&rect, 0x180 + (i & 1) * 0x18, 0x80 + (i / 2) * FONT_LETTER_HEIGHT, 0x28, FONT_LETTER_HEIGHT);
+            LoadImage(&rect, pWorkspace);
+            DrawSync(0);
+            GearShopMenuInitializeMenuStringPolys(&g_Menu->pShop->unk4030[i], i, 0x80, pItemAffordable[i] + 2);
+            GearShopMenuSetVertices(g_Menu->pShop->unk4030[i].vertices, 0x8C, 0x32 + FONT_LETTER_HEIGHT * i, g_Menu->pShop->unk4030[i].width, FONT_LETTER_HEIGHT);
+            g_Menu->pShop->unk3C30[i].renderContext = g_Menu->renderContext;
+            g_Menu->pShop->unk3C30[i].renderContext = g_Menu->renderContext;
+            g_Menu->pShop->unk4684[i] = 1;
+            if (g_Menu->pShop->curItemQuantities[scrollOffset + i]) {
+                g_Menu->pShop->unk468C[i] += func_8002675C(g_Menu->resources, 0xF1, g_Menu->pShop->polysShopInventory[i * 4], g_Menu->renderContext, 0xB4, 0x36 + FONT_LETTER_HEIGHT * i, 0x1000U);
+                tensDigit = g_Menu->pShop->curItemQuantities[scrollOffset + i] / 10;
+                if (tensDigit) {
+                    g_Menu->pShop->unk468C[i] += func_8002675C(g_Menu->resources, tensDigit, &g_Menu->pShop->polysShopInventory[i * 4][g_Menu->pShop->unk468C[i] * 2], g_Menu->renderContext, 0xBC, 0x36 + FONT_LETTER_HEIGHT * i, 0x1000U);
+                }
+                onesDigit = g_Menu->pShop->curItemQuantities[scrollOffset + i] % 10;
+                g_Menu->pShop->unk468C[i] += func_8002675C(g_Menu->resources, onesDigit, &g_Menu->pShop->polysShopInventory[i * 4][g_Menu->pShop->unk468C[i] * 2], g_Menu->renderContext, 0xC4, 0x36 + FONT_LETTER_HEIGHT * i, 0x1000U);
+                g_Menu->pShop->unk4694[i] = g_Menu->renderContext;
+            }
+        } else {
+            g_Menu->pShop->unk4684[i] = 0;
+        }
+    }
+
+    HeapFree(pWorkspace);
+    return sellPrice;
+}
+*/
 
 void GearShopMenuComputeEquipStatDelta(s32* pDelta, s8* pIsImprovement, u8 itemId, u8 itemType, u8 characterId) {
     s16 oldValue[2];
