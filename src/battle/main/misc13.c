@@ -76,7 +76,6 @@ extern s32 D_800C2084;
 extern u8 D_800C207C;
 extern u8 func_8001BD40(s32, u8);
 extern s32 BattleMaskHasSlotBit(s32, u8);
-extern void func_800883AC(u8);
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80085618);
 void BattleResetActorStatDisplay(s32 arg0) {
