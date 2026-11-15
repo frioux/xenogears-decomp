@@ -79,7 +79,7 @@ extern void BattleBuildFlaggedSlotSpriteColumn(void);
 extern void BattleBuildBlendedSprite(void);
 extern void BattleBuildGrey80BlendSpriteColumnPair(void);
 extern void BattleBuildGrey80BlendSpriteColumn5(void);
-extern void func_8008946C(void);
+extern void BattleBuildGrey80BlendSpriteColumn6(void);
 extern void BattleBuildGrey80BlendSpriteColumn7(void);
 extern void BattleBuildGrey80BlendSpriteColumn2(void);
 extern void BattleUpdatePauseMenu(u8 arg0);
@@ -283,7 +283,7 @@ void BattleBuildGrey80BlendSpriteColumn5(void) {
         BattleSetPrimGrey80BlendAdd((u8*)((off2 = (i * 2 + D_800D2DB4[0x5D87]) * 0x28 + 0x4E70) + (s32)D_800D2DB4));
     }
 }
-void func_8008946C(void) {
+void BattleBuildGrey80BlendSpriteColumn6(void) {
     s32 i;
     s32 n;
     s32 pitch;
@@ -406,7 +406,7 @@ void BattleBuildSpritePrimLists(void) {
     BattleBuildBlendedSprite();
     BattleBuildGrey80BlendSpriteColumnPair();
     BattleBuildGrey80BlendSpriteColumn5();
-    func_8008946C();
+    BattleBuildGrey80BlendSpriteColumn6();
     BattleBuildGrey80BlendSpriteColumn7();
     BattleBuildGrey80BlendSpriteColumn2();
 }

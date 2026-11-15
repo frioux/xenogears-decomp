@@ -216,7 +216,7 @@ void BattleCreateTimedScaleTask(BattleScaleVector *pTarget, s32 frames) {
 // One step of the fade: while the timer runs, move the colour from the start
 // toward the target in equal slices, and once it is spent settle on the target
 // and release the task if the fade has ended on black.
-void func_800B36BC(void *pArg) {
+void BattleStepScreenFade(void *pArg) {
     BattleScreenFadeTask *pTask = pArg;
     s32 step[3];
 
@@ -253,7 +253,7 @@ void BattleFreeScreenFadeTask(u8 *pEntry) {
 
 // Draws the fade as one semi-transparent quad over the whole screen. The 0x50
 // asked of the work buffer is more than the quad and its draw mode take.
-void func_800B3878(WorkListEntry *pEntry) {
+void BattleDrawScreenFade(WorkListEntry *pEntry) {
     BattleScreenFadeTask *pTask = pEntry->unk4;
     u8 *pBuf = g_GfxCurWorkBuffer;
     POLY_F4 *pPoly;
