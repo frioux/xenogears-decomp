@@ -10,8 +10,76 @@ extern s32 D_8009284C;
 extern u8 D_80091178[];
 extern u8 D_80091179[];
 
-s32 BattleActorDeltaUnk15E8(u8* p0, u8* p1) {
-    return *(s16*)(p1 + 0x15EA) - *(s16*)(p0 + 0x15E8);
+typedef struct {
+    /* 0x0 */ s32 x;
+    /* 0x4 */ s32 y;
+    /* 0x8 */ s32 z;
+    /* 0xC */ s32 w;
+} Vec4; // Size: 0x10
+
+// The ring buffer of pending battle messages (32 entries): writeIdx advances on
+// a push, readIdx on a pop, and count holds the number queued.
+typedef struct {
+    /* 0x00 */ u8 buf[0x20];
+    /* 0x20 */ u8 writeIdx;
+    /* 0x21 */ u8 readIdx;
+    /* 0x22 */ u8 count;
+} BattleMessageQueue; // Size: 0x23
+
+// A battle participant as this unit drives it. Only the fields this unit
+// touches are named; 0x166A is a lower bound on the real size (other battle
+// units reach further).
+typedef struct BattleActor {
+    /* 0x0000 */ Vec4 unk0;
+    /* 0x0010 */ u8 unk10[0x4];
+    /* 0x0014 */ s32 unk14;
+    /* 0x0018 */ u8 unk18[0x8];
+    /* 0x0020 */ s32 unk20;
+    /* 0x0024 */ u8 unk24[0x4];
+    /* 0x0028 */ s32 unk28;
+    /* 0x002C */ u8 unk2C[0x14];
+    /* 0x0040 */ s32 unk40;
+    /* 0x0044 */ u8 unk44[0x8];
+    /* 0x004C */ u8 unk4C;
+    /* 0x004D */ u8 unk4D;
+    /* 0x004E */ u8 unk4E;
+    /* 0x004F */ u8 unk4F[0x31];
+    /* 0x0080 */ u8* unk80;
+    /* 0x0084 */ u8 unk84[0x40];
+    /* 0x00C4 */ u8 unkC4;
+    /* 0x00C5 */ u8 unkC5;
+    /* 0x00C6 */ u8 unkC6[0x4];
+    /* 0x00CA */ u16 unkCA;
+    /* 0x00CC */ u8 unkCC[0x4];
+    /* 0x00D0 */ u32 flags;
+    /* 0x00D4 */ u32 unkD4;
+    /* 0x00D8 */ struct BattleActor* pTarget;
+    /* 0x00DC */ u8 unkDC[0xC];
+    /* 0x00E8 */ u32 unkE8;
+    /* 0x00EC */ u8 unkEC[0x14];
+    /* 0x0100 */ s32 unk100;
+    /* 0x0104 */ u8 unk104[0x806];
+    /* 0x090A */ u8 unk90A;
+    /* 0x090B */ u8 unk90B[0xB];
+    /* 0x0916 */ u16 unk916;
+    /* 0x0918 */ u8 unk918[0x24];
+    /* 0x093C */ Vec4 unk93C;
+    /* 0x094C */ u8 unk94C[0x54];
+    /* 0x09A0 */ BattleMessageQueue messageQueue;
+    /* 0x09C3 */ u8 unk9C3;
+    /* 0x09C4 */ u8 unk9C4[0xC24];
+    /* 0x15E8 */ s16 unk15E8;
+    /* 0x15EA */ s16 unk15EA;
+    /* 0x15EC */ u8 unk15EC[0x6];
+    /* 0x15F2 */ s16 unk15F2;
+    /* 0x15F4 */ s16 unk15F4;
+    /* 0x15F6 */ u8 unk15F6[0xA];
+    /* 0x1600 */ u8* unk1600;
+    /* 0x1604 */ u8 unk1604[0x66];
+} BattleActor; // Size: 0x166A
+
+s32 BattleActorDeltaUnk15E8(BattleActor* p0, BattleActor* p1) {
+    return p1->unk15EA - p0->unk15E8;
 }
 
 void BattleNoop2(void) {
@@ -104,49 +172,45 @@ s32 func_80075A4C(u8* p, s32 a, s32 b, s32 c) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80075B50);
 
-void BattleQueueMessage(u8* p, u8 value) {
+void BattleQueueMessage(BattleActor* p, u8 value) {
     u8 idx;
-    u8* pSlot;
 
-    if (p[0x9C2] < 0x20) {
-        idx = p[0x9C0];
-        p[0x9C0] = idx + 1;
-        pSlot = p + (idx & 0x1F);
-        pSlot[0x9A0] = value;
-        p[0x9C2]++;
+    if (p->messageQueue.count < 0x20) {
+        idx = p->messageQueue.writeIdx;
+        p->messageQueue.writeIdx = idx + 1;
+        p->messageQueue.buf[idx & 0x1F] = value;
+        p->messageQueue.count++;
     }
 }
 
-u8 BattleDequeueMessage(u8* p) {
+u8 BattleDequeueMessage(BattleActor* p) {
     u8 idx;
-    u8* pSlot;
     u8 value;
 
-    if (p[0x9C2] == 0) {
+    if (p->messageQueue.count == 0) {
         return 0;
     }
-    idx = p[0x9C1]++;
-    pSlot = p + (idx & 0x1F);
-    value = pSlot[0x9A0];
-    p[0x9C2]--;
+    idx = p->messageQueue.readIdx++;
+    value = p->messageQueue.buf[idx & 0x1F];
+    p->messageQueue.count--;
     return value;
 }
 
-void BattleResetMessageQueue(u8* p) {
-    p[0x9C2] = 0;
-    p[0x9C0] = 0;
-    p[0x9C1] = 0;
-    p[0x9C3] = 0;
+void BattleResetMessageQueue(BattleActor* p) {
+    p->messageQueue.count = 0;
+    p->messageQueue.writeIdx = 0;
+    p->messageQueue.readIdx = 0;
+    p->unk9C3 = 0;
 }
 
-void BattlePrintMessageQueue(u8* p) {
+void BattlePrintMessageQueue(BattleActor* p) {
     s32 i;
     s32 idx;
 
-    idx = p[0x9C1];
+    idx = p->messageQueue.readIdx;
     func_800379C8(D_8006FCC0);
-    for (i = 0; i < p[0x9C2]; i++) {
-        func_800379C8(D_8006FCC4, *(u8*)(p + ((idx++) & 0x1F) + 0x9A0));
+    for (i = 0; i < p->messageQueue.count; i++) {
+        func_800379C8(D_8006FCC4, p->messageQueue.buf[(idx++) & 0x1F]);
     }
     func_800379C8(D_8006FCC8);
 }
@@ -252,26 +316,26 @@ void func_8007661C(u8* p) {
 
 /* non-void return type: as void gcc fills the beq delay slots that retail
    leaves as nop. */
-short BattleTryQueueMessage5(u8* p) {
+short BattleTryQueueMessage5(BattleActor* p) {
     u32 flags;
 
     if (D_8009284C >= 0x201) {
         return;
     }
-    if (p[0xC5] == 4) {
+    if (p->unkC5 == 4) {
         return;
     }
-    flags = *(u32*)(p + 0xD0);
+    flags = p->flags;
     if (flags & 0x1000000) {
         return;
     }
     if (!(flags & 0x40000)) {
         return;
     }
-    if (!(*(u32*)(*(u8**)(p + 0xD8) + 0xD0) & 0x40000)) {
+    if (!(p->pTarget->flags & 0x40000)) {
         return;
     }
-    if ((flags & 0x60000000) != 0x20000000 || (p[0x90A] & 2)) {
+    if ((flags & 0x60000000) != 0x20000000 || (p->unk90A & 2)) {
         BattleResetMessageQueue(p);
         BattleQueueMessage(p, 5);
     }
@@ -285,44 +349,44 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80077038);
    calls it with one argument, and as void gcc fills the beqz delay slot with the
    clamp's addiu where retail leaves a nop. */
 char func_80077584(p, ang, shift, dec)
-u8* p;
+BattleActor* p;
 s32 ang;
 s32 shift;
 s32 dec;
 {
-    *(s32*)(p + 0x20) += rcos(ang) >> shift;
-    *(s32*)(p + 0x28) += rsin(ang) >> shift;
-    if (*(s32*)(p + 0x14) >= -0x8B) {
-        *(s32*)(p + 0x14) -= dec;
+    p->unk20 += rcos(ang) >> shift;
+    p->unk28 += rsin(ang) >> shift;
+    if (p->unk14 >= -0x8B) {
+        p->unk14 -= dec;
     }
-    if (*(s32*)(p + 0x14) < -0x82) {
-        *(s32*)(p + 0x14) = -0x82;
+    if (p->unk14 < -0x82) {
+        p->unk14 = -0x82;
     }
 }
 
-void BattleActorBeginMove(u8* p) {
-    *(u32*)(p + 0xD0) |= 0x1000;
-    p[0x4C] = 8;
-    p[0x4E] = 0xFF;
-    *(u16*)(p + 0xCA) = 0x3C;
-    *(u16*)(p + 0x916) = 0x28;
-    *(u32*)(p + 0xE8) = 0x28;
-    p[0xC4] = 4;
-    p[0xC5] = 0;
-    *(u32*)(p + 0xD4) &= ~0x10;
-    *(u32*)(p + 0xD0) &= ~0x400;
+void BattleActorBeginMove(BattleActor* p) {
+    p->flags |= 0x1000;
+    p->unk4C = 8;
+    p->unk4E = 0xFF;
+    p->unkCA = 0x3C;
+    p->unk916 = 0x28;
+    p->unkE8 = 0x28;
+    p->unkC4 = 4;
+    p->unkC5 = 0;
+    p->unkD4 &= ~0x10;
+    p->flags &= ~0x400;
     func_80077584(p);
 }
 
 /* non-void return type, bare returns: as void gcc fills the beqz/beq delay
    slots that retail leaves as nop. */
-s32 func_800776A8(u8* p, s32 mode) {
+s32 func_800776A8(BattleActor* p, s32 mode) {
     u32 flags;
 
     if (BattleGetScreenMode(p) == 4) {
         return;
     }
-    flags = *(u32*)(p + 0xD0);
+    flags = p->flags;
     if (flags & 0x8000000) {
         if (D_800928C8 != 2 && D_800928C8 != 4) {
             return;
@@ -348,37 +412,30 @@ s32 func_800776A8(u8* p, s32 mode) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80077770);
 
-u8* BattleActorSelectActionEntry(u8* p, s32 flag) {
+u8* BattleActorSelectActionEntry(BattleActor* p, s32 flag) {
     s32 idx;
 
-    idx = p[0x9C3] * 2;
+    idx = p->unk9C3 * 2;
     if (flag != 0) {
-        p[0x9C3] = D_80091178[idx];
+        p->unk9C3 = D_80091178[idx];
     } else {
-        p[0x9C3] = D_80091179[idx];
+        p->unk9C3 = D_80091179[idx];
     }
-    return (u8*)(*(u32*)(p + 0x80) + p[0x9C3] * 4);
+    return p->unk80 + p->unk9C3 * 4;
 }
 
-void BattleActorSetFlag80000(u8* p) {
-    *(u32*)(p + 0xD0) |= 0x80000;
+void BattleActorSetFlag80000(BattleActor* p) {
+    p->flags |= 0x80000;
 }
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80077A9C);
 
-typedef struct {
-    /* 0x0 */ s32 x;
-    /* 0x4 */ s32 y;
-    /* 0x8 */ s32 z;
-    /* 0xC */ s32 w;
-} Vec4;
-
-void BattleActorApplyCenterPosition(u8* p) {
-    *(Vec4*)p = *(Vec4*)(p + 0x93C);
-    p[0x4C] = 0;
-    p[0xC4] = 0;
-    p[0xC5] = 0;
-    *(u32*)(p + 0xD0) |= 0x2000000;
+void BattleActorApplyCenterPosition(BattleActor* p) {
+    p->unk0 = p->unk93C;
+    p->unk4C = 0;
+    p->unkC4 = 0;
+    p->unkC5 = 0;
+    p->flags |= 0x2000000;
 }
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80078194);
