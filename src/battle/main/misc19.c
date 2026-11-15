@@ -83,12 +83,13 @@ u16 FieldScriptClearAnimationOverrideIfFlag16(u8 arg0) {
 // against 120 here, and the 4 missing bytes are retail's `addu v1,v0,zero` copy of
 // the byte sum into the u8 result before the clamp compare - gcc 2.7.2 coalesces
 // `u8 value = sum;` into the sum pseudo, so the body cannot link as it stands.
-// What the 95.32 (from 94.68) is: writing the row bump as an ASSIGNMENT
+// What got it from 94.68 to 95.32: writing the row bump as an ASSIGNMENT
 // (`p = p + arg1 * 0x28;`) gives retail's base-first `addu v1,v1,v0`, and forming
-// q beside the two loads gives retail's two-addu-then-two-lbu order.
-// Remaining gap: that copy, plus a mirror register allocation (retail p byte in
-// $v0 and q byte in $v1, here the other way round). Tried: s32 sum + u8 copy,
-// `+=` vs one expression, u8 vs s32 value, sum kept live via a wider compare.
+// q next to the two loads gives retail's two-addu-then-two-lbu order.
+// Remaining gap: that copy, and a mirror register allocation (retail p byte in
+// $v0, q byte in $v1; here the other way round). Tried: s32 sum + u8 copy, `+=` vs
+// one expression, sum kept live via a wider compare, the 0x5B offset in a local
+// (permuter found that one, no change), permuter 1837 iterations (best 91.8%).
 /*
 u8 func_8009A258(u8 arg0, u8 arg1) {
     s32 off = arg0 * 0x5F0 + 0x1058;
