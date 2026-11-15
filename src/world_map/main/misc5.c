@@ -395,9 +395,9 @@ int WorldMapInitGroup0Actor(int idx) {
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007BBEC);
 void func_8007BF50(void) {
-    s32 *new_var;
     RECT rect;
     s32 *pPos = &D_8009C5AC;
+    s32 *pScratch; // shared: one register for the position store and the group-13 handler
 
     WorldMapInitGfxEnv();
     rect.x = 0;
@@ -420,8 +420,8 @@ void func_8007BF50(void) {
     func_80098044();
     ArchiveCdDataSync(0);
     WorldMapLoadSedsBank();
-    new_var = pPos;
-    *new_var = 0xD00000;
+    pScratch = pPos;
+    *pScratch = 0xD00000;
     D_8009C5B0 = 0xFFF60000;
     D_8009C5B4 = 0x400000;
     WorldMapInitSpriteSets();
@@ -449,8 +449,8 @@ void func_8007BF50(void) {
     WorldMapAddSlot((void *)WorldMapInitGroup9Actor, (void *)WorldMapUpdateGroup9Actor);
     WorldMapAddSlot((void *)WorldMapInitGroup10Actor, (void *)WorldMapUpdateGroup10Actor);
     WorldMapAddSlot((void *)WorldMapInitGroup12Actor, (void *)WorldMapUpdateGroup12Actor);
-    new_var = (void *)WorldMapUpdateGroup13Actor;
-    WorldMapAddSlot((void *)WorldMapInitGroup13Actor, new_var);
+    pScratch = (void *)WorldMapUpdateGroup13Actor;
+    WorldMapAddSlot((void *)WorldMapInitGroup13Actor, pScratch);
     WorldMapAddSlot((void *)WorldMapInitGroup16Actor, (void *)WorldMapUpdateGroup16Actor);
     WorldMapAddSlot((void *)WorldMapEnterNop, (void *)WorldMapUpdateFrameWithParticles);
     func_800978FC();
@@ -458,6 +458,7 @@ void func_8007BF50(void) {
     func_800865A0();
     WorldMapInitRandomTimers();
 }
+
 void WorldMapExitToMap111(void) {
     u16 v;
 
