@@ -343,37 +343,10 @@ void BattleScriptResetActorState(u8 arg0) {
         }
     }
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc4", func_80079AB0);
-/* Best: 99.78%, retail's exact 372 bytes, ONE register left: the temp for the
-   loop tail's `cmd = *pCursor` load is $v0 here and $a0 in retail (`lw a0,0x10(sp)`
-   / `lbu v1,0x0(a0)`). Everything else is identical, including the single 0xFD
-   and 0xFF registers in the back edge and the 0x62 in the bnez delay slot.
-   The lever that closed the old 98.55% park's two residuals in one change was
-   replacing the early `return result` with `goto done` and one shared return:
-   gcc had folded that return to `move v0,zero` (it can prove result == 0 there)
-   and, with it folded, also re-derived `(u8)(arg0 - 3)` for the slot*4 / slot*0x40
-   uses instead of keeping retail's single `andi a0,s0,0xff`; the shared return
-   gives one epilogue block and gcc then copies `result` into $v0 in all three
-   branch delay slots, exactly as retail does.
-   Tried on the last register: permute.sh 4 min / 947 iterations (PERMUTER_NONE,
-   base=10), u8 cmd (376 bytes) and s32 cmd (slti, 99.14%), declaration order of
-   all eight locals, slot assignment first, `pCursor[0]` for either or both loads.
-   Round 113, all still `lw v0,16(sp)` at retail's 372 bytes: the cursor as a
-   one-element array (`u8* pCursor[1]`, `*pCursor[0]`), as a struct member
-   (`struct { u8* p; } cur;`), `u8* volatile pCursor`, the `for (cmd = *pCursor;
-   cmd != 0xFD; cmd = *pCursor)` increment-expression form, swapped operands
-   `while (0xFD != cmd)`, and `while ((cmd & 0xFF) != 0xFD)`. try_flags under
-   gcc-2.7.2-cdk gives 73.54% (the preset is not the answer), so the register
-   choice is not the unit's compiler and not the cursor's spelling: retail had
-   $v0 occupied at the tail load (its 0xFD constant lands in $v0 right after),
-   while local-alloc here hands the reload $v0 first and reuses $v0 for 0xFD.
-   */
-/*
 s32 func_80079AB0(u8 arg0) {
     u8 slot;
     s32 result;
     u8 value;
-    u32 cmd;
     u8* pCursor;
     u8* p;
     u8* pEnd;
@@ -394,22 +367,20 @@ s32 func_80079AB0(u8 arg0) {
         do {
             *p++ = 0;
         } while (p < pEnd);
-        cmd = *pCursor;
-        while (cmd != 0xFD) {
-            if (cmd == 0xFF) {
+        while (*pCursor != 0xFD) {
+            if (*pCursor == 0xFF) {
                 break;
             }
-            if (cmd >= 0x80) {
+            if (*pCursor >= 0x80) {
                 if ((func_8007F8C0(&pCursor, slot) & 0xFF) == 0) {
                     BattleScriptSkipUnknownOpcodeWords(&pCursor);
                 }
             } else {
-                if (cmd == 0x62) {
+                if (*pCursor == 0x62) {
                     result = 1;
                 }
                 value = func_8007EF6C(&pCursor, slot, value);
             }
-            cmd = *pCursor;
         }
     }
     if (D_800D2E5C[0].unk0 != 0) {
@@ -418,7 +389,6 @@ s32 func_80079AB0(u8 arg0) {
 done:
     return result;
 }
-*/
 void BattleRunActiveSlotScripts(void) {
     s32 i;
     s32 off;
