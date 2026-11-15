@@ -13,7 +13,25 @@ typedef struct {
     /* 0x30 */ u8 unk30[0x10];
 } BattleOpRegs; // Size: 0x40
 
+// One of the 0x1C-byte per-slot tag records at D_800C3EB4: tag at +0, flag byte
+// at +3 (the byte BattleSetSlotRecordByteAndRelease writes).
+typedef struct {
+    /* 0x0 */ u8 tag;
+    /* 0x1 */ u8 unk1[2];
+    /* 0x3 */ u8 flags;
+    /* 0x4 */ u8 unk4[0x18];
+} BattleSlotRecord; // Size: 0x1C
+
+// Per-slot "can be picked" flag these loops gate on, one 8-byte record per
+// battle slot; D_800D32B1 is the record the slot table is walked down from.
+typedef struct {
+    /* 0x0 */ u8 inUse;
+    /* 0x1 */ u8 unk1[7];
+} BattleSlotFlag; // Size: 0x8
+
 extern BattleOpRegs D_800D3400[];
+extern BattleSlotRecord D_800C3EB4[];
+extern BattleSlotFlag D_800D32A1[];
 extern u32 D_800D2C60[];
 extern u8 D_800D2C8B[];
 extern u8 D_800D2DC0;
@@ -25,10 +43,8 @@ extern u8 D_800D3430[];
 extern u8 D_800C3EB7[];
 extern u8 D_800CCD62[];
 extern u8 D_800CD1B2[];
-extern u8 D_800D32A1[];
 extern u8 D_800D32B1[];
 extern u8 D_800D32F1[];
-extern u8 D_800C3EB4[];
 extern u8 func_8007A628(u8 arg0, u8 arg1);
 extern s32 func_8007A280(u8 arg0, u8 arg1, s32 arg2, s32 arg3);
 extern u8 func_8001BD40(s32 arg0, u8 arg1);
@@ -277,7 +293,7 @@ void func_8007DFD4(u8 **arg0, s32 arg1) {
 void BattleSetSlotRecordByteAndRelease(BattleCommand **ppCmd, s32 arg1) {
     s32 idx = (arg1 & 0xFF) + 3;
 
-    D_800C3EB7[idx * 0x1C] = (*ppCmd)->unk1;
+    D_800C3EB4[idx].flags = (*ppCmd)->unk1;
     if ((*ppCmd)->unk1 & 0x80) {
         func_80087EDC((u8)(arg1 + 3), (u8)(arg1 + 3));
     } else {
@@ -295,17 +311,17 @@ void BattleStoreCharSlotFlagMask(BattleCommand **ppCmd, u8 arg1) {
     s32 i;
     u16 *pRegs;
 
-    // the slot table is walked downwards from D_800D32B1
+    // the slot table is walked downwards from its third record
     for (i = 2; i >= 0; i--) {
         if ((u8)BattleSlotFlagsC000Clear((u8)i) != 0) {
             switch ((*ppCmd)->unk2) {
             case 1:
-                if (D_800D32B1[(i - 2) * 8] != 0) {
+                if (D_800D32A1[i].inUse != 0) {
                     acc |= 1;
                 }
                 break;
             case 2:
-                if (D_800D32B1[(i - 2) * 8] == 0) {
+                if (D_800D32A1[i].inUse == 0) {
                     acc |= 1;
                 }
                 break;
