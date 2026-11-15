@@ -413,3 +413,16 @@ build_variables = {
     maspsx_flags = "--expand-div --use-comm-section --run-assembler"
 }
 paths = [ "movie/main/misc2." ]
+
+# movie/main/misc2 also wants gcc 2.6.0 (round 113): every live C function scores
+# identically under 2.6.0 and 2.7.2 at -O2 -G0, but the unit's park func_80076CA4 comes
+# out instruction-identical to retail under 2.6.0 (its `mflo` lands in $v0; 2.7.2 puts
+# it in $v1 and no source shape moves it). Same flags, different cc1 - last entry wins.
+[[build_preset]]
+name = "XenoMovie260G0"
+build_variables = {
+    gcc = "gcc-2.6.0-psx",
+    gp_flag = "-G0",
+    maspsx_flags = "--expand-div --use-comm-section --run-assembler"
+}
+paths = [ "movie/main/misc2." ]
