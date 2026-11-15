@@ -430,7 +430,7 @@ int func_8004440C(int que) {
     return nPrev;
 }
 
-int func_800444B8(void) {
+int GetGraphType(void) {
     return D_800568D0;
 }
 

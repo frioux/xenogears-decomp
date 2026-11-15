@@ -526,7 +526,7 @@ void BattleActorSetUnk15CCFlags(Actor* p) {
     p->unk15CC->unk6 = (p->unk15CC->unk6 & 0xBFFF) | ((p->unkD0 >> 5) & 0x4000);
 }
 
-void func_80079D6C(Actor* p) {
+void BattleActorLoadUnk15CCFlags(Actor* p) {
     u32 flag;
     u32 signBit = 0x80000000; // a literal here gives `sll 17; srl 31`, retail has `sll 17; slti 0`
     u32 masked;

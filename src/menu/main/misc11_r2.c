@@ -415,19 +415,24 @@ extern MenuGlyphCellPos D_801E9994[0x15];
 extern MenuGlyphCellPos D_801E99E8[2];
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc11_r2", func_801E5B88);
-/* Best: 99.63% (708 bytes, same size as retail, instruction stream identical: the
-   only differing words are register names).  Shape is settled: nested loops
-   i = 0..0x1F, j = 0..1, prim at g_Menu->unk34C + (i * 2 + j) * 0x28; the atlas cell
-   is D_801E9994[i % 0x15] plus row offset (i / 0x15) * 8 in x and D_801E99E8[i / 0x15]
-   in y, so the two tables have to be pointer locals (with the plain array form gcc
-   folds the address through $at); the uv comes from (i % 0x10) * 0x10 and
-   (i / 0x10) * 0x10 - 0x20, and putting `i = 0` FIRST in the outer for-init is what
-   fixed the prologue save order (97.31 -> 99.63).  Left: register ties only -
-   retail forms the byte offset through a v1 temporary and keeps g_Menu's loaded
-   pointer in a0 where gcc folds both into s0/v1, mfhi lands in a1 vs t1, and
-   i is copied to t1 vs t2.  Permuter job (live body, report mode).
+/* Best: 99.94% under the unit preset (708 bytes = retail's size, instruction stream
+   identical; the one differing word is mfhi's destination - retail has
+   mfhi a1 / sra a1,a1,0x2, gcc 2.7.2 here emits mfhi t0 / sra a1,t0,0x2).
+   Two permuter runs (1136 and 2017 mutants) found nothing better, so this is not a
+   source shape: the same body scores 100.00 under gcc 2.6.0 (try_flags.sh), i.e. the
+   mfhi+sra fusion is a property of the compiler version.  Switching this unit needs a
+   split: under 2.6.0 every already-matched C function of the unit stays 100.00 except
+   MenuFillInventoryTables (93.06).
+   Settled shape: nested loops i = 0..0x1F, j = 0..1, prim at
+   g_Menu->unk34C + (i * 2 + j) * 0x28; the atlas cell is D_801E9994[i % 0x15] plus
+   row offset (i / 0x15) * 8 in x and D_801E99E8[i / 0x15] in y (both tables have to be
+   pointer locals, the plain array form folds the address through $at); uv from
+   (i % 0x10) * 0x10 and (i / 0x10) * 0x10 - 0x20.  `i = 0` FIRST in the outer for-init
+   fixes the prologue save order (97.31 -> 99.63), and carrying (i * 2 + j) * 0x28
+   through a separate temp before assigning the s32 offset took it 99.63 -> 99.94.
 
 void func_801E5B88(void) {
+    int offsetTmp;
     MenuGlyphCellPos* pCellX;
     MenuGlyphCellPos* pCellY;
     s32 offset;
@@ -436,7 +441,8 @@ void func_801E5B88(void) {
 
     for (i = 0, pCellX = D_801E9994, pCellY = D_801E99E8; i < 0x20; i++) {
         for (j = 0; j < 2; j++) {
-            offset = (i * 2 + j) * 0x28;
+            offsetTmp = (i * 2 + j) * 0x28;
+            offset = offsetTmp;
             MenuInitializePolyFt4((POLY_FT4*)(offset + (u32)g_Menu->unk34C));
             ((POLY_FT4*)(offset + (u32)g_Menu->unk34C))->x0 =
                 pCellX[i % 0x15].unk0 + (i / 0x15) * 8;

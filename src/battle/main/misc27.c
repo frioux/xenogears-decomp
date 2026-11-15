@@ -104,7 +104,7 @@ void BattleScriptUploadSpriteFrame(SpriteData* pSpriteData) {
     MoveImage(&rect, 0x3F0, 0x1EE);
 }
 
-void func_800B4F88(SpriteData* pSpriteData, s32 index, MATRIX* pMatrix) {
+void BattleSetActorDirectionMatrix(SpriteData* pSpriteData, s32 index, MATRIX* pMatrix) {
     BattleDirectionTransform* pTransform;
     SVECTOR rot;
     s32 x;
@@ -175,7 +175,7 @@ void func_800B50D4(u8* pActor, u8* pArg) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc27", func_800B50D4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc27", func_800B51B0);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc27", func_800B5588);
-void func_800B56E4(WorkListEntry* pWork) {
+void BattleProcessDirectionTransformTask(WorkListEntry* pWork) {
     BattleDirectionTask* pTask;
 
     pTask = pWork->pTask;
@@ -183,11 +183,11 @@ void func_800B56E4(WorkListEntry* pWork) {
     func_800C08CC(5, pTask->unk78, func_800B51B0);
 }
 
-void func_800B572C(SpriteData* pSpriteData, u8* pArgs) {
+void BattleCreateDirectionTransformTask(SpriteData* pSpriteData, u8* pArgs) {
     BattleDirectionTask* pTask;
 
     pTask = WorkListsAddTasks(sizeof(BattleDirectionTask), pSpriteData->field_0x6C, func_800B5588,
-                              func_800B56E4, NULL);
+                              BattleProcessDirectionTransformTask, NULL);
     pTask->pSpriteData = pSpriteData;
     // Read as unsigned: curSpriteFrame is s16 in the struct but -1 is a valid frame
     pTask->curSpriteFrame = *(u16*)&pSpriteData->curSpriteFrame;

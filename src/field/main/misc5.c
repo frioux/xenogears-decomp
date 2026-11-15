@@ -375,7 +375,7 @@ void FieldDisplay(void) {
 
 // Fades out the vertex colors of one corner of a particle primitive while the
 // corner's projected position stays near the screen centre.
-void func_800A6998(POLY_GT4* pPoly, int nCorner, int nDistance, u_short* pTimer) {
+void FieldFadeParticleCornerColor(POLY_GT4* pPoly, int nCorner, int nDistance, u_short* pTimer) {
     VECTOR vecA;
     VECTOR vecB;
     int nCenterX;
@@ -467,10 +467,10 @@ void FieldAddParticlePrims(void) {
     for (i = 0; i < 0xE; i++) {
         for (j = 0; j < 0x14; j++) {
             pPoly = (POLY_GT4*)((u_char*)D_800B00C4 + g_FieldCurRenderContextIndex * 0x38E0) + (i * 0x14 + j);
-            func_800A6998(pPoly, 0, D_800C3A40, ((FieldParticlePrimitiveSet*)D_800B00C4)->unk71C0 + (i * 0x14 + j));
-            func_800A6998(pPoly, 1, D_800C3A40, ((FieldParticlePrimitiveSet*)D_800B00C4)->unk73F0 + (i * 0x14 + j));
-            func_800A6998(pPoly, 2, D_800C3A40, ((FieldParticlePrimitiveSet*)D_800B00C4)->unk7620 + (i * 0x14 + j));
-            func_800A6998(pPoly, 3, D_800C3A40, ((FieldParticlePrimitiveSet*)D_800B00C4)->unk7850 + (i * 0x14 + j));
+            FieldFadeParticleCornerColor(pPoly, 0, D_800C3A40, ((FieldParticlePrimitiveSet*)D_800B00C4)->unk71C0 + (i * 0x14 + j));
+            FieldFadeParticleCornerColor(pPoly, 1, D_800C3A40, ((FieldParticlePrimitiveSet*)D_800B00C4)->unk73F0 + (i * 0x14 + j));
+            FieldFadeParticleCornerColor(pPoly, 2, D_800C3A40, ((FieldParticlePrimitiveSet*)D_800B00C4)->unk7620 + (i * 0x14 + j));
+            FieldFadeParticleCornerColor(pPoly, 3, D_800C3A40, ((FieldParticlePrimitiveSet*)D_800B00C4)->unk7850 + (i * 0x14 + j));
             addPrim(&g_FieldCurRenderContext->ot3[0],
                 (POLY_GT4*)((u_char*)D_800B00C4 + g_FieldCurRenderContextIndex * 0x38E0) + (i * 0x14 + j));
         }

@@ -17,7 +17,7 @@ typedef struct {
 
 extern void SystemStringFree(void* pString);
 extern s32 WorldMapGetTileValue(WorldMapPos* p);
-extern u8* func_80093660(s32 x, s32 z);
+extern u8* WorldMapGetTileEntry(s32 x, s32 z);
 extern long SquareRoot0(long a);
 extern long ratan2(long y, long x);
 extern int rcos(int a);
@@ -331,7 +331,7 @@ s32 WorldMapInterpolatePlaneHeight(WorldMapPos* p0, WorldMapPos* p1, WorldMapPos
     p0->unk4 += p1->unk4;
     return p0->unk4;
 }
-u8* func_80093660(s32 x, s32 z) {
+u8* WorldMapGetTileEntry(s32 x, s32 z) {
     s16 idx;
     s16 zone;
     s16 sub;
@@ -358,7 +358,7 @@ s32 WorldMapGetTilePlaneHeight(s32 x, s32 z) {
     WorldMapPos c;
     u8* pTile;
 
-    pTile = func_80093660(x, z);
+    pTile = WorldMapGetTileEntry(x, z);
     a.x = (u16)(x / 8);
     a.z = -(u16)(z / 8);
     if (pTile[1] & 0x80) {
@@ -415,7 +415,7 @@ s32 WorldMapGetTileAttrBits10To15(WorldMapPos* p) {
 }
 
 s32 WorldMapGetTileGroup(WorldMapPos* p) {
-    return (func_80093660(p->x, p->z)[3] >> 2) & 0xF;
+    return (WorldMapGetTileEntry(p->x, p->z)[3] >> 2) & 0xF;
 }
 
 s16 WorldMapGetTileKindValue(s16 row, s16 col) {

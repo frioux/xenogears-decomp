@@ -838,3 +838,4 @@ FieldScriptCheckControllerInputMaskPressed = 0x800961A0;
 FieldScriptCheckControllerInputMaskHeld = 0x800961C8;
 FieldScriptClearHeldButtons = 0x800961F0;
 FieldScriptCopyCharacter = 0x8008764C;
+FieldFadeParticleCornerColor = 0x800A6998;
