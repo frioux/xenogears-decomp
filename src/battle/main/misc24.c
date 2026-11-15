@@ -424,16 +424,6 @@ s32 BattleGetActorSpriteDistance(u8 *arg0) {
     return SquareRoot0(dx * dx + dy * dy + dz * dz);
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AEF68);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AF180);
-/* 97.43% - instruction multiset identical; the only difference is two swapped
-   register pairs in the allocator: original has s0=p/s1=i and s3=arg0/s4=arg2,
-   this emits s0=i/s1=p and s3=arg2/s4=arg0 (and the two operands of the two
-   "addu" address sums come out base-first). Tried: 6 declaration orders for the
-   locals (identical), q=p order swapped (80.40), while-loop form (97.43),
-   n loaded before p/q (97.43), "arg1*0x7C + ptr" instead of "ptr + arg1*0x7C"
-   (97.43, gcc canonicalises either way). Allocator tie, same class as the notes
-   above.
-extern s32 BattleFreeBlock(u8 *arg0, u8 *arg1);
 void func_800AF180(u8 *arg0, s32 arg1, u8 *arg2, u8 *arg3) {
     u8 *p;
     u8 *q;
@@ -441,15 +431,17 @@ void func_800AF180(u8 *arg0, s32 arg1, u8 *arg2, u8 *arg3) {
     s32 n;
     s32 i;
 
-    p = arg1 * 0x7C + arg2;
-    q = arg1 * 0x7C + arg3;
+    p = (u8 *)(arg1 * 0x7C + (s32)arg2);
+    q = (u8 *)(arg1 * 0x7C + (s32)arg3);
     n = *(u16 *)(arg2 + 0xA);
     *(u8 *)(p + 7) = 0;
     *(u8 *)(q + 7) = 1;
     BattleFreeBlock(arg0, *(s32 *)(p + 0x70));
-    *(s32 *)(p + 0x70) = 0;
-    BattleFreeBlock(arg0, *(s32 *)(p + 0x74));
-    *(s32 *)(p + 0x74) = 0;
+    do {
+        *(s32 *)(p + 0x70) = 0;
+        BattleFreeBlock(arg0, *(s32 *)(p + 0x74));
+        *(s32 *)(p + 0x74) = 0;
+    } while (0);
     BattleFreeBlock(arg0, *(s32 *)(p + 0x78));
     *(s32 *)(p + 0x78) = 0;
     pChild = arg2;
@@ -460,17 +452,21 @@ void func_800AF180(u8 *arg0, s32 arg1, u8 *arg2, u8 *arg3) {
         }
     }
 }
-
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AF270);
-/* 85.71% - instruction multiset identical, only the preheader order differs:
+/* 85.71% (80 bytes vs 84) - instruction multiset identical, only the preheader order differs:
    the original emits the hoisted "li a3,1" before "addiu a0,a0,7", here the
    arg0 += 7 statement lands there first (and reorg then fills the beqz delay
-   slot with it, so the frame is one insn shorter). Indexed forms
-   arg0[i*0x7C+7] (90.33%) or p=arg0+7 / p[i*0x7C] (90.43%) put li a3 first
-   but let gcc fold the +7 into the load displacement (lbu 7(a0)) or into the
-   biv init (addiu a0,a0,0x83); a u8 one; local made it worse (85.71%, the
-   addiu hoisted above the slt).
+   slot with it, so the frame is one insn shorter). The increment is in the
+   ENTRY block here, in the original it is in the preheader after the loop
+   guard, which is why the original still has a nop in the beqz delay slot.
+   Indexed forms arg0[i*0x7C+7] (90.33%) or p=arg0+7 / p[i*0x7C] (90.43%) put
+   li a3 first but let gcc fold the +7 into the load displacement (lbu 7(a0)) or
+   into the biv init (addiu a0,a0,0x83); a u8 one; local made it worse, the
+   addiu hoisted above the slt.
+   Permuter (base=163 best=60) found only a TRAP: swapping the two first
+   statements so the count is read as *(u16*)(arg0+0xA) AFTER arg0 += 7, i.e.
+   from +0x11 instead of +0xA. It scores 90.43% because it emits the same
+   instruction count, but it is semantically wrong; a second 4-minute round
+   from that body found nothing better (60 -> 60). Do not use it. *//*
 void func_800AF270(u8 *arg0, u8 *arg1) {
     s32 n;
     s32 i;
@@ -487,3 +483,4 @@ void func_800AF270(u8 *arg0, u8 *arg1) {
     }
 }
 */
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AF270);
