@@ -1612,7 +1612,8 @@ void SoundReloadAudioManagerSamples(AudioManager* pManager, s32 volume, s32 fram
         cnt--;
         pWds = SoundFindWdsEntry(pElement->unk_0x25);
         pElement->unk2C = (u32)pWds;
-        pTone = (SoundWdsTone*)((u8*)pWds + 0x30) + pElement->unk_0x26;
+        // the tone table follows the WDS header
+        pTone = (SoundWdsTone*)((u8*)pWds + sizeof(SoundWDSEntry)) + pElement->unk_0x26;
         sampleStart = pTone->sampleOffset << 3;
         pElement->voice_data.startAddress = sampleStart + pWds->spuMemoryAddress;
         pElement->voice_data.loopAddress = sampleStart + (pTone->loopOffset << 3);
@@ -2160,6 +2161,22 @@ u16* SoundGetLowestActiveElementCounter(AudioManager* pManager) {
     return pResult;
 }
 
+// Header of an in-memory sequence file, reached through AudioManager::unk_0x8.
+typedef struct {
+    /* 0x00 */ u8 unk00[0x10];
+    /* 0x10 */ u16 unk10;
+    /* 0x12 */ u16 unk12;
+    /* 0x14 */ u8 elementCount;
+    /* 0x15 */ u8 unk15;
+    /* 0x16 */ u16 unk16;
+    /* 0x18 */ u16 unk18;
+    /* 0x1A */ u8 unk1A;
+    /* 0x1B */ u8 unk1B;
+    /* 0x1C */ u8 unk1C;
+    /* 0x1D */ u8 unk1D;
+    /* 0x1E */ u16 unk1E;
+} SoundSeqHeader; // Size: 0x20
+
 s32 SoundGetAudioManagerSeqOffsetPointer(AudioManager* pManager) {
     AudioManager* pCurrent = g_SoundAudioManagerListHead;
     s32 result;
@@ -2171,9 +2188,9 @@ s32 SoundGetAudioManagerSeqOffsetPointer(AudioManager* pManager) {
     }
 
     if (pCurrent != NULL) {
-        u8* pBase = (u8*)pCurrent->unk_0x8;
+        SoundSeqHeader* pSeq = (SoundSeqHeader*)pCurrent->unk_0x8;
 
-        result = *(u16*)(pBase + 0x1E) + (s32)pBase;
+        result = pSeq->unk1E + (s32)pSeq;
     } else {
         result = 0;
     }
@@ -2390,7 +2407,7 @@ void SoundFreeAudioManager(AudioManager* pManager) {
 }
 
 void SoundLoadAudioManagerSequenceHeader(AudioManager* pManager) {
-    u8* pSeqData = (u8*)pManager->unk_0x8;
+    SoundSeqHeader* pSeq = (SoundSeqHeader*)pManager->unk_0x8;
     s16 status;
 
     status = (s16)SoundUnkDebug0(pManager->unk_0x8);
@@ -2400,14 +2417,14 @@ void SoundLoadAudioManagerSequenceHeader(AudioManager* pManager) {
     }
 
     pManager->unk_Flags |= 0x1;
-    pManager->unk_0x12 = *(u16*)(pSeqData + 0x10);
-    pManager->elementCount = pSeqData[0x14];
-    pManager->unk_0x16 = *(u16*)(pSeqData + 0x16);
-    pManager->unk_0x18 = *(u16*)(pSeqData + 0x18);
-    pManager->unk_0x40[1] = pSeqData[0x1A];
-    pManager->reverbDepth = pSeqData[0x1B] << 8;
-    pManager->reverbDelay = pSeqData[0x1C];
-    pManager->reverbFeedback = pSeqData[0x1D];
+    pManager->unk_0x12 = pSeq->unk10;
+    pManager->elementCount = pSeq->elementCount;
+    pManager->unk_0x16 = pSeq->unk16;
+    pManager->unk_0x18 = pSeq->unk18;
+    pManager->unk_0x40[1] = pSeq->unk1A;
+    pManager->reverbDepth = pSeq->unk1B << 8;
+    pManager->reverbDelay = pSeq->unk1C;
+    pManager->reverbFeedback = pSeq->unk1D;
 
     if (g_SoundControlFlags & 0x1000) {
         SoundSetReverbModeWithAllocation((s8)pManager->unk_0x40[1], pManager->reverbDepth, pManager->reverbDelay, pManager->reverbFeedback);
