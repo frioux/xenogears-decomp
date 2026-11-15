@@ -355,30 +355,29 @@ void func_801E7C50(MenuString* pStringList, s32 index, s32 yOffset, s32 flags) {
 // Was matched (objdiff 100.00%) under 2.7.2 and links 12 bytes wrong under the unit's
 // gcc 2.6.0 preset, which this unit moved to in session 7. Re-match under 2.6.0:
 
-/*
 void func_801E7E68(MenuString* pStringList, u_char* pStringIdList, s32 yOffset, s32 count) {
     RECT* pRect;
     s32 i;
+    s32 new_var;
 
     for (i = 0; i < count; i += 2) {
-        pStringList[i].width = SystemRenderStringEntry(GetStringEntry(g_Menu->unk2E0, pStringIdList[i]),
+        new_var = i;
+        pStringList[new_var].width = SystemRenderStringEntry(GetStringEntry(g_Menu->unk2E0, pStringIdList[new_var]),
             g_Menu->unk4E0[0].pVramBuffer, 0x18, 0);
-        pRect = &pStringList[i].vramDest;
-        pStringList[i + 1].width = SystemRenderStringEntry(GetStringEntry(g_Menu->unk2E0, pStringIdList[i + 1]),
+        pRect = &pStringList[new_var].vramDest;
+        pStringList[new_var + 1].width = SystemRenderStringEntry(GetStringEntry(g_Menu->unk2E0, pStringIdList[new_var + 1]),
             g_Menu->unk4E0[0].pVramBuffer, 0x18, 1);
-        pStringList[i].vramDest.x = ((i / 2) & 1) * 0x20 + 0x140;
-        pStringList[i].vramDest.y = ((i + yOffset) / 4) * 0xD;
-        pStringList[i].vramDest.w = 0x1C;
-        pStringList[i].vramDest.h = 0xD;
-        pStringList[i + 1].vramDest = pStringList[i].vramDest;
-        func_801E7C50(&pStringList[i], i, yOffset, 0);
-        func_801E7C50(&pStringList[i + 1], i + 1, yOffset, 0);
+        pStringList[new_var].vramDest.x = ((new_var / 2) & 1) * 0x20 + 0x140;
+        pStringList[new_var].vramDest.y = ((new_var + yOffset) / 4) * 0xD;
+        pStringList[new_var].vramDest.w = 0x1C;
+        pStringList[new_var].vramDest.h = 0xD;
+        pStringList[new_var + 1].vramDest = pStringList[new_var].vramDest;
+        func_801E7C50(&pStringList[new_var], new_var, yOffset, 0);
+        func_801E7C50(&pStringList[new_var + 1], new_var + 1, yOffset, 0);
         LoadImage(pRect, g_Menu->unk4E0[0].pVramBuffer);
         DrawSync(0);
     }
 }
-*/
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E7E68);
 void MenuLoadStringsFromIds(u_char count, MenuString* pStringList, u_char* pStringIdList, void* pUnused) {
     func_801E7E68(pStringList, pStringIdList, 4, count);
 }
