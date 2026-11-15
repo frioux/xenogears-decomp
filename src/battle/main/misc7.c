@@ -271,6 +271,12 @@ void BattleWordRegSetReg(BattleCommand **p, u8 index) {
 // load reads a0, so hoisting over it is illegal). Fourth permuter run from this
 // body (2716 iterations) and a screening of the separate-locals form under -O3,
 // -G0 and 2.6.0 (84.00 flat) found nothing.
+// Round 103: the off-tree permuter-best candidate (base-first sum handed to a
+// pArgsCopy local, `pField = pArgsCopy` at the loop head, score 20 vs base 25)
+// is 85.33% here - its metric traded the load-first header away. Two more runs
+// from this body (2212 + 1661 iterations, base 25) found nothing. Inlining the
+// sum into one `pField = (u32 *)(D_800D3410 - (-(index * 0x40)))` statement and
+// dropping the dead pBase local is byte-identical, 98.33.
 /*
 void func_8007B9C8(u8 **p, u8 index) {
     u8 *pArgs = *p;
