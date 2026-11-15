@@ -1110,16 +1110,6 @@ void* SoundHeapAllocateFromEnd(int size) {
     return pMemory;
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", SoundHeapFree);
-/*
-Screened under gcc-2.7.2-cdk / gcc-2.7.2 / this unit's gcc-2.6.0: 96.62 / 96.62 / 96.62 - not
-a compiler-only match; the current preset is the best of the three.
-Attempt (96.62%, same size): every instruction is right and pBlock=s1 / pCurrent=s0
-match; the original copies the loop variable to v0 (`move v0,s0`) and iterates on v0,
-gcc keeps iterating on s0. Adding a separate loop variable or an explicit
-`if (pCurrent != pBlock) { do ... } while (pEntry != pBlock)` guard coalesces back to
-s0 (96.62%), while(1)/break drops to 91.26%, reversed compare operands to 96.18%.
-`pEntry = pPrev->pNext` in the body removes the copy entirely (gcc iterates on s0), 96.62%.
 void SoundHeapFree(void* pMemory) {
     SoundHeapBlockHeader* pBlock;
     SoundHeapBlockHeader* pCurrent = g_SoundHeapHead;
@@ -1132,12 +1122,11 @@ void SoundHeapFree(void* pMemory) {
     for (pEntry = pCurrent; pEntry != pBlock; pEntry = pEntry->pNext) {
         pPrev = pEntry;
     }
-    if (pPrev != NULL) {
-        pPrev->pNext = pBlock->pNext;
+    if (0 != pPrev) {
+        pPrev->pNext = (pCurrent = pBlock)->pNext;
     }
     EnableEvent(g_unk_SoundEvent);
 }
-*/
 
 u32 SoundHeapGetLargestFreeBlockSize(void) {
     SoundHeapBlockHeader* pHeapBlock;
