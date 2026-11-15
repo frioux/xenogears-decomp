@@ -584,7 +584,7 @@ void func_800A96B4(s32 arg0) {
     Misc23ArchiveEntry *pEntry;
     s32 alignedIndex;
     s32 remainder;
-    s32 next;
+    s32 entryIndex;
 
     ArchiveGetArchiveOffsetIndices(&alignedIndex, &remainder);
     ArchiveSetIndex(0x28, 0);
@@ -592,13 +592,13 @@ void func_800A96B4(s32 arg0) {
     pEntry = HeapAlloc(0x18, 1);
     D_800C3B78 = pEntry;
     arg0 *= 2;
-    next = arg0 + 1;
-    ArchiveGetFilePath(next);
-    pEntry->unk0 = next;
-    pEntry->unk4 = HeapAlloc(ArchiveDecodeAlignedSize(next), 1);
-    next = arg0 + 2;
-    pEntry->unk8 = next;
-    pEntry->unkC = HeapAlloc(ArchiveDecodeAlignedSize(arg0 + 2), 1);
+    entryIndex = arg0 + 1;
+    ArchiveGetFilePath(entryIndex);
+    pEntry->unk0 = entryIndex;
+    pEntry->unk4 = HeapAlloc(ArchiveDecodeAlignedSize(entryIndex), 1);
+    entryIndex = arg0 + 2;
+    pEntry->unk8 = entryIndex;
+    pEntry->unkC = HeapAlloc(ArchiveDecodeAlignedSize(entryIndex), 1);
     pEntry->unk10 = 0;
     pEntry->unk14 = 0;
     func_80029AFC(D_800C3B78, 0, 0);
