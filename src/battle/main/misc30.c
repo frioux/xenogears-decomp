@@ -30,7 +30,6 @@ extern u8 D_800C3623;
 extern u16 D_800D30A0[];
 extern u16 D_800D3354[];
 extern u16 D_800D335C[];
-extern BattleSlotRecord* D_800D3368[];
 extern s32 D_80050100;
 extern MATRIX D_800D30BC;
 extern u_long* g_GfxCurOT;
@@ -122,6 +121,8 @@ typedef struct {
     /* 0x0 */ u8 unk0[0x4];
     /* 0x4 */ BattleModelPosition* pModelPosition;
 } BattleSlotRecord; // Size: 0x8
+
+extern BattleSlotRecord* D_800D3368[];
 
 extern void SpriteSetScale(BattleActorSprite* pSprite, s16 scale);
 extern void SpriteInitFromAnimFileWithClut(BattleActorSprite* pSprite, void* pAnimFile, s16 arg2,
@@ -489,7 +490,6 @@ void BattleActorUpdateGroundHeightAndTriangle(BattleActorSprite* pSprite) {
 // The two unused slots keep the caller's argument area at retail's offsets.
 AnimTask* BattleCreateAnimTask(void* pAnimFile, s16 clutX, s16 clutY, s16 texX, s16 texY, s16 unk5, s16 posX,
                         s16 posY, s16 posZ, s16 animId, u16 direction, s32 unk84, s32 unk88, s32 clut) {
-    AnimTask* pTask;
     AnimTask* pTask;
     BattleActorSprite* pSprite;
 
