@@ -148,8 +148,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80091B38);
    masks it to u8) and the if/else-if shape that reproduces the call CFG.
    Re-screened: 98.40 under gcc-2.6.0 as well (73.63 under cdk), so the
    a3/s2 entry copy is not a compiler-version artifact. */
-/*
-void func_80091D38(u8 arg0, s32 arg1, u8 arg2) {
+void func_80091D38(u8 arg0, char arg1, u8 arg2) {
     u8 ret = 0;
 
     if (D_800D32A1[arg0 * 8] == 0) {
@@ -162,7 +161,8 @@ void func_80091D38(u8 arg0, s32 arg1, u8 arg2) {
         ret = 1;
     }
     if (ret != 0) {
-        func_800916D4(arg1, arg2, arg0);
+        ret = arg0;
+        func_800916D4(arg1, arg2, ret);
         func_8009187C(arg0, arg1, arg2);
         func_80091B38(arg0, arg1, arg2);
         (*(u8 **)(D_800C3EA4 + 0xA230))[0x66A] = *(u8 *)&D_800CCB34;
@@ -171,8 +171,6 @@ void func_80091D38(u8 arg0, s32 arg1, u8 arg2) {
         (*(u8 **)(D_800C3EA4 + 0xA230))[0x66B] = 0;
     }
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80091D38);
 /* 64.13%: shape is right (two palette stores, four BattleSetPolyFT4Rect calls with
    the arg0/0x60/0x10 stack args, trailing 0x668 store) but retail keeps
    `&D_800CCB34` in s0 (`lui/addiu` once) where gcc rematerialises
