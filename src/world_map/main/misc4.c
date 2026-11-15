@@ -223,15 +223,6 @@ void WorldMapExitToMap10E(void) {
     D_8009BBC4 = 1;
     D_8006F950 = v;
 }
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_80077DC8);
-/* 70.00%: identical instruction multiset and registers; the only difference is
-   where the WorldMapActor store cluster (addu s0,s0,a0 and sh 0x20 / sw 0x58 /
-   0x54 / 0x50) sits.  Loading D_8009BE24 into p FIRST and adding `index` after
-   the D_8009BE0C/D_8009D3F0/D_8006259C statements reproduces the original's
-   early `lw s0, D_8009BE24` (at 0x82E4, before the first global store), but the
-   scheduler still emits the cluster after the D_8009BD3C/3A/38 stores; putting
-   those three first in C changes nothing (the scheduler owns the block). Same
-   class as func_80078E2C below.
 s32 func_80077DC8(s32 index) {
     WorldMapActor *p;
     u8 *q;
@@ -243,17 +234,14 @@ s32 func_80077DC8(s32 index) {
     p = p + index;
     p->unk20 = 0;
     p->unk58 = 0;
-    p->unk54 = 0;
-    p->unk50 = 0;
-    D_8009BD3C = 0;
-    D_8009BD3A = 0;
+    // do/while block makes cc1 schedule these stores after the actor cluster
+    do { p->unk54 = 0; p->unk50 = 0; D_8009BD3C = 0; D_8009BD3A = 0; } while (0);
     D_8009BD38 = 0;
     D_8009D144 = 1;
     SoundPlaySoundEffectOnFreePair((((u16 *)q)[0xA] << 16) | 0xA4);
     p->unk22 = 0x18;
     return 1;
 }
-*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_80077E68);
 s32 WorldMapInitActorAtScrollPosition(s32 index) {
     WorldMapActor *p;
