@@ -486,6 +486,116 @@ s32 BattleTestActorSlotFlagsC002ByMode(void) {
     return ret;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_800995A0);
+/* best: 97.11%, 768 bytes (retail 752), 4 instructions too long. The prologue
+   through the kind==0 case and the whole tail (the two sdata checks, the 0x40
+   bit, the D_800CCE44 store) are byte-identical; case 9's 8-value tree matches
+   too. Left: the two- and three-case flag switches place their last case body
+   inline in retail (`bne <v>,0x1000,<miss>` then the body, then `j <miss>`) where
+   gcc 2.6.0 emits `beq <v>,0x1000,<body>` plus an extra block and jump, so cases
+   2/5/7 cost one extra j each. Shape found: the kind dispatch must be five
+   separate ifs (an if/else chain or a switch each make gcc emit a jump table or
+   shift the whole layout), each holding a switch on flag; the flag cases wanted
+   0x1000 listed before 0x800 in case 2 and 0x8000 before 0x4000 in case 5 (worth
+   3 points). Arguments: a0 slot (u8), a1 kind (u8), a2 flag (u16), a3 count (s32).
+   Symbols are the raw overlay names of the 0x170-byte BattleTableEntry table:
+   D_800CCCE8, D_800CCD72 (+0x8A) and D_800CCE44 (+0x15C); the tail reads +0x32
+   bit 0x40 of the same entry.
+void func_800995A0(u8 slot, u8 kind, u16 flag, s32 count) {
+    u8 *pEntry;
+    u8 *pTimer;
+    u8 idx = 0xF;
+    u8 val = count;
+    u16 bits;
+
+    if (*(u16 *)(D_800CCD72 + D_800C3E04 * 0x170) & 0x2000) {
+        val *= 2;
+    }
+    pEntry = (u8 *)D_800CCCE8 + slot * 0x170;
+    if (kind == 0) {
+        if (flag != 0x1000) {
+            idx = (flag == 0x2000) ? 0 : 0xF;
+        } else {
+            idx = 1;
+        }
+    }
+    if (kind == 2) {
+        switch (flag) {
+        case 0x1000:
+            idx = 2;
+            break;
+        case 0x800:
+            idx = 3;
+            break;
+        }
+    }
+    if (kind == 5) {
+        switch (flag) {
+        case 0x8000:
+            idx = 4;
+            break;
+        case 0x4000:
+            idx = 5;
+            break;
+        }
+    }
+    if (kind == 7) {
+        switch (flag) {
+        case 0x4000:
+            idx = 0xA;
+            break;
+        case 0x8000:
+            idx = 9;
+            break;
+        case 0x1000:
+            idx = 0xB;
+            break;
+        }
+    }
+    if (kind == 9) {
+        switch (flag) {
+        case 0x100:
+        case 0x200:
+        case 0x400:
+        case 0x800:
+            idx = 0xD;
+            break;
+        case 0x1000:
+        case 0x2000:
+        case 0x4000:
+        case 0x8000:
+            idx = 0xC;
+            break;
+        }
+    }
+    if (idx == 0xF) {
+        return;
+    }
+    switch (kind) {
+    case 5:
+    case 7:
+    case 9:
+        bits = *(u16 *)&D_800C3E34->unk88 | *(u16 *)&D_800C3E34->unk8A;
+        if (bits & 5) {
+            val *= 2;
+        }
+        if (bits & 0xA) {
+            val >>= 1;
+        }
+        break;
+    }
+    if (*(u16 *)(pEntry + 0x32) & 0x40) {
+        switch (kind) {
+        case 5:
+        case 7:
+        case 9:
+            val *= 2;
+            break;
+        }
+    }
+    pTimer = (u8 *)D_800CCE44 + slot * 0x170;
+    pTimer[idx] = val;
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80099890);
 void BattleDecrementConditionTimers(BattleTableEntry *p, BattleTableEntry *pOther, u8 *pCnt) {
     if (p->unk7C & 0x200) {
