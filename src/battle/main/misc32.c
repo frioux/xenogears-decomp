@@ -77,17 +77,17 @@ extern void WorkListsDeleteTasks(void);
 void func_800BD7A0(u8 *pEntry) {
     u8 *pCur;
     u8 *pPrev;
-    u8 *new_var2;
-    short new_var;
+    u8 *pHead;
+    short hasPrev;
 
-    new_var2 = D_800C3750;
+    pHead = D_800C3750;
     pPrev = NULL;
-    pCur = new_var2;
+    pCur = pHead;
     while (pCur != NULL) {
-        if (new_var2 == pEntry) {
-            new_var = pPrev != NULL;
-            if (new_var) {
-                do { *(u8 **)(pPrev + 0x38) = *(u8 **)((pCur = new_var2) + 0x38); } while (0);
+        if (pHead == pEntry) {
+            hasPrev = pPrev != NULL;
+            if (hasPrev) {
+                do { *(u8 **)(pPrev + 0x38) = *(u8 **)((pCur = pHead) + 0x38); } while (0);
             } else {
                 D_800C3750 = *(u8 **)(pCur + 0x38);
             }
@@ -219,12 +219,12 @@ typedef struct {
 } Misc32Task; // Size: 0x8C
 
 void func_800BDC14(Misc32Task *pTask) {
-    int new_var;
+    s32 nextUnk88;
 
     func_800BDF1C((u8 *)pTask);
-    new_var = 0x10;
+    nextUnk88 = 0x10;
     if (--pTask->unk88 < 0) {
-        pTask->unk88 = new_var;
+        pTask->unk88 = nextUnk88;
         pTask->unk83 = (pTask->unk83 | 2) & 0xFE;
         TimerWorkListSetTaskCallback(pTask, func_800BDB74);
     }
