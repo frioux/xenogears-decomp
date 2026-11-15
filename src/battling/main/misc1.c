@@ -92,21 +92,41 @@ void BattleSetValueAndClearFlags(s32 value) {
 
 extern s32 D_80092934;
 
-s32 BattleSetFacingAngleFromVector(u8* p) {
+typedef struct BattleScriptBlock BattleScriptBlock;
+
+// Partial view of the battle actor record these functions receive; only the
+// fields src/battling/main/misc1 reads are named. The record is far larger
+// than this (it holds the actor's script pointer at +0x8FC).
+typedef struct {
+    /* 0x000 */ VECTOR position;
+    /* 0x010 */ u8 unk10[0x24];
+    /* 0x034 */ VECTOR unk34;
+    /* 0x044 */ u8 unk44[0x4];
+    /* 0x048 */ u32 unk48;
+    /* 0x04C */ u8 unk4C[0xC];
+    /* 0x058 */ s32 unk58;
+    /* 0x05C */ s32 unk5C;
+    /* 0x060 */ u8 unk60[0x6E];
+    /* 0x0CE */ s16 unkCE;
+    /* 0x0D0 */ u8 unkD0[0x82C];
+    /* 0x8FC */ BattleScriptBlock* pScript;
+} BattleActorView; // Size: unknown
+
+s32 BattleSetFacingAngleFromVector(BattleActorView* p) {
     VECTOR vec;
     s32 angle;
 
-    vec = *(VECTOR*)p;
+    vec = p->position;
     vec.vx -= 0x3F80;
     vec.vz -= 0x3F80;
     angle = ratan2(vec.vx, vec.vz) & 0xFFF;
     if (angle >= 0x201) {
-        *(s32*)(p + 0x58) = 0x800 - D_80092934;
+        p->unk58 = 0x800 - D_80092934;
     } else {
-        *(s32*)(p + 0x58) = 0xC00 - D_80092934;
+        p->unk58 = 0xC00 - D_80092934;
     }
-    *(s32*)(p + 0x48) = 0xFF;
-    *(s16*)(p + 0xCE) = 0;
+    p->unk48 = 0xFF;
+    p->unkCE = 0;
     return 0;
 }
 
@@ -114,17 +134,27 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_8007107C);
 
 extern s32 D_800925E0;
 extern s32 D_800925E4;
-extern void* D_80092868;
 extern u8 D_800928A0;
-extern u8 D_800929E4[];
+extern DR_TPAGE D_800929E4[];
+
+// The packet BattleQueueSpriteAndTpagePrims fills and queues: its primitive tag
+// sits at +0x74, the word the battle stores alongside it at +0x7C.
+typedef struct {
+    /* 0x00 */ u8 unk0[0x74];
+    /* 0x74 */ u_long tag;
+    /* 0x78 */ u8 unk78[0x4];
+    /* 0x7C */ s32 unk7C;
+} BattleSpritePacket; // Size: unknown
+
+extern BattleSpritePacket* D_80092868;
 
 void BattleQueueSpriteAndTpagePrims(void* pOt) {
-    u8* p;
+    BattleSpritePacket* pPacket;
 
-    p = D_80092868;
-    *(s32*)(p + 0x7C) = D_800925E0 | (D_800925E4 << 16);
-    AddPrim(pOt, p + 0x74);
-    AddPrim(pOt, &D_800929E4[D_800928A0 * 8]);
+    pPacket = D_80092868;
+    pPacket->unk7C = D_800925E0 | (D_800925E4 << 16);
+    AddPrim(pOt, &pPacket->tag);
+    AddPrim(pOt, &D_800929E4[D_800928A0]);
 }
 
 extern u32 D_800929EC;
@@ -387,8 +417,21 @@ extern s16 D_80092632;
 extern void* D_800910F0;
 extern void* D_80092610;
 
-void BattleInitRenderScene(u8* p) {
-    u8* pSrc;
+// The block the actor's script pointer (+0x8FC) addresses: the five signed
+// halfwords and the unsigned one BattleInitRenderScene copies into the render
+// state at D_80092618..D_80092632.
+struct BattleScriptBlock {
+    /* 0x00 */ u8 unk00[0x14];
+    /* 0x14 */ s16 unk14;
+    /* 0x16 */ s16 unk16;
+    /* 0x18 */ s16 unk18;
+    /* 0x1A */ s16 unk1A;
+    /* 0x1C */ s16 unk1C;
+    /* 0x1E */ u16 unk1E;
+};
+
+void BattleInitRenderScene(BattleActorView* p) {
+    BattleScriptBlock* pScript;
     void* pAnim;
     s32 id;
     s32 x;
@@ -400,7 +443,7 @@ void BattleInitRenderScene(u8* p) {
 
     func_80030988(5, 4, 0x40, 0x40);
     pAnim = BattleCreateLightGroup(BattleCreateOrderingTablePair(0x10));
-    id = *(s32*)(p + 0x5C);
+    id = p->unk5C;
     D_800910F0 = pAnim;
     D_80092610 = BattleInitObjectTree(id);
     BattleSetScreenResolution(0x280, 0xDA);
@@ -408,16 +451,20 @@ void BattleInitRenderScene(u8* p) {
     D_800928D0 = 0;
     D_80092614 = p;
     func_80078F00(p);
-    D_80096FB0 = 0;
-    D_80096FAC = 0;
-    D_80096FA8 = 0;
-    pSrc = *(u8**)(p + 0x8FC);
-    x = *(s16*)(pSrc + 0x14);
-    y = *(s16*)(pSrc + 0x16);
-    z = *(s16*)(pSrc + 0x18);
-    w = *(s16*)(pSrc + 0x1A);
-    u = *(s16*)(pSrc + 0x1C);
-    v = *(u16*)(pSrc + 0x1E);
+    // retail reads the script pointer after this cluster, not in front of it:
+    // the block stops cc1 hoisting the load over the three stores.
+    do {
+        D_80096FB0 = 0;
+        D_80096FAC = 0;
+        D_80096FA8 = 0;
+    } while (0);
+    pScript = p->pScript;
+    x = pScript->unk14;
+    y = pScript->unk16;
+    z = pScript->unk18;
+    w = pScript->unk1A;
+    u = pScript->unk1C;
+    v = pScript->unk1E;
     D_80092618 = 1;
     D_8009261C = x;
     D_80092620 = y;
@@ -454,14 +501,14 @@ void BattleFreeRenderScene(void) {
 
 extern MATRIX D_80091C0C;
 
-void BattleComposeCameraMatrix(u8* p, MATRIX* pIn, MATRIX* pOut) {
+void BattleComposeCameraMatrix(BattleActorView* p, MATRIX* pIn, MATRIX* pOut) {
     MATRIX mtx;
 
     *pOut = *pIn;
     mtx = D_80091C0C;
-    mtx.t[0] = *(s32*)(p + 0x34) - D_80096FA8;
+    mtx.t[0] = p->unk34.vx - D_80096FA8;
     mtx.t[1] = -D_80096FAC;
-    mtx.t[2] = *(s32*)(p + 0x3C) - D_80096FB0;
+    mtx.t[2] = p->unk34.vz - D_80096FB0;
     CompMatrix(pIn, &mtx, &mtx);
     pOut->t[0] = mtx.t[0];
     pOut->t[1] = mtx.t[1];
