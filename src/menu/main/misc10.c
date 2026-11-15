@@ -331,130 +331,6 @@ void MenuApplyDressingRoomSlotHpBonus(MenuDressingRoom* pDressingRoom, u8 charIn
     }
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E36D4);
-
-/* objdiff 99.77%, 940 bytes = retail's exact size, 235 instructions both sides.
-   Everything matches (including the 10-entry jump table's content, the store
-   order of the 17-entry clears, the switch bodies in retail's source order
-   1,2,3,4,7,5,8,9,0xA and the s16-cast/'lh' first flag test) except FOUR
-   'addu' ops whose operand order is swapped: retail accumulates in place
-   ('lw a2,0x4(a0); sll v0,v0,4; addu a2,a2,v0' and three 'addu v1,v1,v0'),
-   we get 'lw v1,0x4(a0); addu a2,v0,v1' / 'addu v1,v0,v1'. Tried: indexed
-   '&pDressingRoom->pAccessoriesData[id]', 'base + id', and the two-statement
-   'pAcc = pTable; pAcc += id;' (that one grows the frame to 960 bytes). This is
-   an allocator/combine tie on the pointer+scaled-index add: permuter job.
-   Body: clears the character's equipment bonus accumulators (unk0[0x28..0x2B],
-   etherDefenseFromEquipment, unk2D[0..4], the five u16 at unk79[5/9/0xD/0x11/0x15]
-   and field_0xA1[0]), then for the 3 accessory slots adds defense, switches on
-   pAccessory->unk9[0] (1..0xA) to OR the u16 at unk9[1] into one accumulator or
-   add it to unk2D[3]/field_0xA1[0], then applies the 8 per-stat bits of the u16
-   at unk9[3] (0x8000->unk0[0x28], 0x4000->0x29, 0x2000->0x2A, 0x1000->0x2B,
-   0x800->etherDefenseFromEquipment, 0x400->unk2D[1], 0x200->unk2D[2],
-   0x100->unk2D[0]), and finally copies the weapon record of unk6A[0] into
-   unk0[0..4] (plus unk6F[0] and unk6F[3] into unk0[0..4]/unk0[0x18..0x1C] when
-   unk56 == 4) and ORs unk0[0] into unk79[0x15] when unk0[3] == 100.
-void func_801E36D4(MenuDressingRoom* pDressingRoom, u8 charIndex) {
-    GameCharacter* pChar;
-    MenuShopAccessory* pAccessory;
-    GearWeapon* pWeapon;
-    u8 value;
-    u8 i;
-
-    i = 0;
-    pChar = &g_GameState.characters[charIndex];
-    pChar->unk2D[0] = 0;
-    ((u16*)&pChar->unk2D[5])[0] = 0;
-    pChar->unk0[0x28] = 0;
-    pChar->unk0[0x29] = 0;
-    pChar->unk0[0x2A] = 0;
-    pChar->unk0[0x2B] = 0;
-    pChar->etherDefenseFromEquipment = 0;
-    pChar->unk2D[1] = 0;
-    pChar->unk2D[2] = 0;
-    pChar->unk2D[3] = 0;
-    pChar->unk2D[4] = 0;
-    ((u16*)&pChar->unk79[5])[0] = 0;
-    ((u16*)&pChar->unk79[9])[0] = 0;
-    ((u16*)&pChar->unk79[0xD])[0] = 0;
-    ((u16*)&pChar->unk79[0x11])[0] = 0;
-    ((u16*)&pChar->unk79[0x15])[0] = 0;
-    pChar->field_0xA1[0] = 0;
-    for (; i < 3; i++) {
-        pAccessory = pDressingRoom->pAccessoriesData + pChar->unk74[i];
-        pChar->unk2D[0] += pAccessory->defense;
-        switch (pAccessory->unk9[0]) {
-        case 1:
-            ((u16*)&pChar->unk79[5])[0] |= ((u16*)&pAccessory->unk9[1])[0];
-            break;
-        case 2:
-            ((u16*)&pChar->unk79[9])[0] |= ((u16*)&pAccessory->unk9[1])[0];
-            break;
-        case 3:
-            ((u16*)&pChar->unk79[0xD])[0] |= ((u16*)&pAccessory->unk9[1])[0];
-            break;
-        case 4:
-            ((u16*)&pChar->unk79[0x11])[0] |= ((u16*)&pAccessory->unk9[1])[0];
-            break;
-        case 7:
-            ((u16*)&pChar->unk79[0x15])[0] |= ((u16*)&pAccessory->unk9[1])[0];
-            break;
-        case 5:
-            ((u16*)&pChar->unk2D[5])[0] |= ((u16*)&pAccessory->unk9[1])[0];
-            break;
-        case 8:
-        case 9:
-            pChar->unk2D[3] += pAccessory->unk9[1];
-            break;
-        case 0xA:
-            pChar->field_0xA1[0] += pAccessory->unk9[1];
-            break;
-        }
-        value = pAccessory->unk9[3];
-        if (((s16*)&pAccessory->unk9[3])[0] & 0x8000) {
-            pChar->unk0[0x28] += value;
-        }
-        if (((u16*)&pAccessory->unk9[3])[0] & 0x4000) {
-            pChar->unk0[0x29] += value;
-        }
-        if (((u16*)&pAccessory->unk9[3])[0] & 0x2000) {
-            pChar->unk0[0x2A] += value;
-        }
-        if (((u16*)&pAccessory->unk9[3])[0] & 0x1000) {
-            pChar->unk0[0x2B] += value;
-        }
-        if (((u16*)&pAccessory->unk9[3])[0] & 0x800) {
-            pChar->etherDefenseFromEquipment += value;
-        }
-        if (((u16*)&pAccessory->unk9[3])[0] & 0x400) {
-            pChar->unk2D[1] += value;
-        }
-        if (((u16*)&pAccessory->unk9[3])[0] & 0x200) {
-            pChar->unk2D[2] += value;
-        }
-        if (((u16*)&pAccessory->unk9[3])[0] & 0x100) {
-            pChar->unk2D[0] += value;
-        }
-    }
-    pWeapon = pDressingRoom->pWeaponsData + pChar->unk6A[0];
-    pChar->unk0[4] = pWeapon->unkC;
-    ((u16*)&pChar->unk0[0])[0] = pWeapon->price;
-    pChar->unk0[2] = ((u8*)&pWeapon->unkA)[0];
-    pChar->unk0[3] = ((u8*)&pWeapon->unkA)[1];
-    if (pChar->unk56 == 4) {
-        pWeapon = pDressingRoom->pWeaponsData + pChar->unk6F[0];
-        pChar->unk0[4] = pWeapon->unkC;
-        ((u16*)&pChar->unk0[0])[0] = pWeapon->price;
-        pChar->unk0[2] = ((u8*)&pWeapon->unkA)[0];
-        pChar->unk0[3] = ((u8*)&pWeapon->unkA)[1];
-        pWeapon = pDressingRoom->pWeaponsData + pChar->unk6F[3];
-        pChar->unk0[0x1C] = pWeapon->unkC;
-        ((u16*)&pChar->unk0[0x18])[0] = pWeapon->price;
-        pChar->unk0[0x1A] = ((u8*)&pWeapon->unkA)[0];
-        pChar->unk0[0x1B] = ((u8*)&pWeapon->unkA)[1];
-    }
-    if (pChar->unk0[3] == 100) {
-        ((u16*)&pChar->unk79[0x15])[0] |= ((u16*)&pChar->unk0[0])[0];
-    }
-}
 void MenuComputeCharacterStats(MenuDressingRoom* pDressingRoom, u8 charIndex) {
     GameCharacter* pChar;
 
@@ -492,7 +368,7 @@ void MenuComputeCharacterStats(MenuDressingRoom* pDressingRoom, u8 charIndex) {
         pDressingRoom->unkB8[6] = 0x10;
     }
 }
-*/
+
 void MenuFillDressingRoomGearStats(MenuDressingRoom* pDressingRoom, u8 gearIndex) {
     GameCharacter* pChar;
     GameGear* pGear;
@@ -534,76 +410,6 @@ void MenuFillDressingRoomGearStats(MenuDressingRoom* pDressingRoom, u8 gearIndex
     pDressingRoom->unkB6 = pGear->unk9C;
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E3ECC);
-
-/* objdiff 99.94%, 676 bytes = retail's size, 169 instructions on both sides and
-   the ONLY difference is the switch's table operand (retail names jtbl_801C522C,
-   ours says .rodata): MATCH by the JTBL rule. It cannot be committed because
-   retail's table is 8 words (7 cases plus a trailing 0x00000000 pad word) and no
-   C switch emits that pad, so the unit's .rodata comes out 4 bytes short and
-   check_bin menu fails on size (153860 vs 153864) with everything else identical.
-   Body: per gearIndex (0..6) copy 3 bytes of accessorySlots from gears[gearIndex]
-   to gears[{1,15,10,11,12,13,14}], case 4 also copies weaponId[0], case 5 also
-   weaponId[0]/[3] and unk4[0]/[3], then recompute with func_801E433C and, in
-   cases 4 and 5, func_801E4754. Needs the pad word expressible (or the table left
-   in asm) to be linkable.
-void func_801E3ECC(MenuDressingRoom* pDressingRoom, u8 gearIndex) {
-    u8 i;
-
-    func_801E433C(pDressingRoom, gearIndex);
-    func_801E4754(pDressingRoom, gearIndex);
-    switch (gearIndex) {
-    case 0:
-        for (i = 0; i < 3; i++) {
-            g_GameState.gears[1].accessorySlots[i] = g_GameState.gears[0].accessorySlots[i];
-        }
-        func_801E433C(pDressingRoom, 1);
-        break;
-    case 1:
-        for (i = 0; i < 3; i++) {
-            g_GameState.gears[15].accessorySlots[i] = g_GameState.gears[1].accessorySlots[i];
-        }
-        func_801E433C(pDressingRoom, 0xF);
-        break;
-    case 2:
-        for (i = 0; i < 3; i++) {
-            g_GameState.gears[10].accessorySlots[i] = g_GameState.gears[2].accessorySlots[i];
-        }
-        func_801E433C(pDressingRoom, 0xA);
-        break;
-    case 3:
-        for (i = 0; i < 3; i++) {
-            g_GameState.gears[11].accessorySlots[i] = g_GameState.gears[3].accessorySlots[i];
-        }
-        func_801E433C(pDressingRoom, 0xB);
-        break;
-    case 4:
-        for (i = 0; i < 3; i++) {
-            g_GameState.gears[12].accessorySlots[i] = g_GameState.gears[4].accessorySlots[i];
-        }
-        func_801E433C(pDressingRoom, 0xC);
-        g_GameState.gears[12].weaponId[0] = g_GameState.gears[4].weaponId[0];
-        func_801E4754(pDressingRoom, 0xC);
-        break;
-    case 5:
-        for (i = 0; i < 3; i++) {
-            g_GameState.gears[13].accessorySlots[i] = g_GameState.gears[5].accessorySlots[i];
-        }
-        func_801E433C(pDressingRoom, 0xD);
-        g_GameState.gears[13].weaponId[0] = g_GameState.gears[5].weaponId[0];
-        g_GameState.gears[13].weaponId[3] = g_GameState.gears[5].weaponId[3];
-        g_GameState.gears[13].unk4[0] = g_GameState.gears[5].unk4[0];
-        g_GameState.gears[13].unk4[3] = g_GameState.gears[5].unk4[3];
-        func_801E4754(pDressingRoom, 0xD);
-        break;
-    case 6:
-        for (i = 0; i < 3; i++) {
-            g_GameState.gears[14].accessorySlots[i] = g_GameState.gears[6].accessorySlots[i];
-        }
-        func_801E433C(pDressingRoom, 0xE);
-        break;
-    }
-}
-*/
 void MenuRecalculateGearStats(MenuDressingRoom* pDressingRoom, u8 gearIndex) {
     MenuApplyGearFrame(pDressingRoom, gearIndex);
     MenuApplyGearEngine(pDressingRoom, gearIndex);

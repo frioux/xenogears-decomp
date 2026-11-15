@@ -56,6 +56,25 @@ def strip_comments(text):
     return "".join(out), unterminated
 
 
+def comment_blocks(text, min_size=0):
+    """Yield (start_line, end_line, body) for each /* */ block at least min_size bytes."""
+    i, n, line = 0, len(text), 1
+    while i < n:
+        if text.startswith("/*", i):
+            j = text.find("*/", i + 2)
+            if j < 0:
+                return
+            start = line
+            line += text[i:j + 2].count("\n")
+            if j + 2 - i >= min_size:
+                yield start, line, text[i:j + 2]
+            i = j + 2
+            continue
+        if text[i] == "\n":
+            line += 1
+        i += 1
+
+
 def main():
     quiet = "-q" in sys.argv
     problems = 0
@@ -75,6 +94,19 @@ def main():
             problems += 1
             print(f"{rel}: {name} is both INCLUDE_ASM'd and defined in C "
                   f"(maspsx: 'symbol already defined'; the linker reports a missing .o)")
+        # A park is one function's attempt. A big /* */ block holding two or more
+        # definitions has swallowed the function that follows it: its callers then
+        # link with "undefined reference", and every other check above still passes
+        # because strip_comments() blanks the swallowed definition (round 75:
+        # menu/main/misc10's func_801E36D4 park ate MenuComputeCharacterStats).
+        for start, end, body in comment_blocks(text, min_size=200):
+            defs = DEF_RE.findall(body)
+            if len(set(defs)) > 1:   # the same body stored twice is a duplicate, not a swallow
+                problems += 1
+                print(f"{rel}: the /* */ block at line {start} holds {len(defs)} "
+                      f"function definitions ({', '.join(defs)}) - a park that "
+                      f"swallowed the function after it; close it before "
+                      f"line {start}")
         # a `*/` sitting where no comment was open shows up as an unbalanced count
         if not quiet and code.count("/*") != code.count("*/"):
             pass
