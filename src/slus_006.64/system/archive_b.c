@@ -37,17 +37,24 @@ void func_80037878(u8* pData, s32 nCount, s32 nSize, ArchiveCompareFn pCompare) 
 */
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive_b", func_800379B4);
-/* 77.8%: a store to the .sdata global D_80050618 (12 bytes there, per
-   data/3F290.sdata.s). The original computes the address with an explicit
-   lui/addiu pair in $t0, i.e. the address went into a register; every C
-   spelling tried (plain extern of u32 / u32[3] / a pointer local / -G0 /
-   gcc 2.6.0) emits the `sw $4,sym` macro form instead, which maspsx leaves
-   for gas to expand into `lui $at` + `sw $4,0($at)`.
-extern u32 D_80050618[3];
+/* 96.00%: byte-identical size (20) and instruction stream, including the
+   address-in-a-register form the park note below was looking for. The ONE
+   remaining difference is that register: retail is `la $t0` (lui/addiu into
+   $8), ours is `la $v0` (lui/addiu into $2). Dropping `volatile` (or making
+   the global a scalar instead of an array) puts the store back to the
+   `sw $4,sym` macro form through $at, 77.80%; array decay plus `volatile`
+   gets gcc to `la` but its allocator always hands a lone forced-address
+   pseudo $v0. Also 96.00 under gcc-2.6.0 and 77.80 under 2.7.2-cdk (with and
+   without -G0, which emits `lui $2` + `sw $4,%lo` and no addiu), so it is not
+   a preset: the unit is on Default and no other stub here uses $t0.
+   decomp-permuter from this body: 5643 iterations, base=20 best=20, nothing
+   better. Everything else tried: pointer local, volatile-pointer local,
+   `register volatile` local, a store through a `(volatile u32*)` cast, element
+   [0] instead of `*ptr`, and an s32 return type to move $v0 out of the way.
+extern volatile u32 D_80050618[3];
 
 void func_800379B4(u32 value) {
-    u32* pDst = D_80050618;
-    *pDst = value;
+    *D_80050618 = value;
 }
 */
 
