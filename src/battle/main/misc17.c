@@ -362,16 +362,6 @@ void func_80095690(void) {
     *(u8 *)(D_800C34B0 + D_800C3E50 + 0x5FA0) = 2;
     *(s32 *)(D_800C3E50 * 4 + D_800C34B0 + 0x5F6C) = v;
 }
-/* 95.00% (this shape): instruction multiset identical; gcc emits the sb's
-   `li 2` before the five `sh zero` stores (the original keeps it after), and
-   picks v1/a1 for the p/index pair where the original has v0/v1, which also
-   drags the /10 `mfhi` to a2 instead of v0. Tried: index/p as locals
-   (this, 95.00), both globals inline (89.30 - nop after the p load, index load
-   sunk past the stores), both declaration orders, `p` reassigned for the
-   0x4E read. Operand/allocator tie.
-   Re-screened: best 95.16 under gcc-2.6.0 (69.17 under cdk). There the p/index
-   pair is v1/a1 against the original's v0/v1, and the /10 `mfhi` follows it. */
-/*
 void func_800957D8(void) {
     s32 t;
     u8 *p;
@@ -381,23 +371,20 @@ void func_800957D8(void) {
         BattleSetSlotEntryFieldsTo2000(D_800C3E50, 1);
     }
     t = D_800C3E50;
-    p = D_800C3E34;
-    *(u16 *)(p + 0x7C) = 0;
-    *(u16 *)(p + 0x80) = 0;
-    *(u16 *)(p + 0x84) = 0;
-    *(u16 *)(p + 0x88) = 0;
-    *(u16 *)(p + 0x8C) = 0;
+    *(u16 *)(D_800C3E34 + 0x7C) = 0;
+    *(u16 *)(D_800C3E34 + 0x80) = 0;
+    *(u16 *)(D_800C3E34 + 0x84) = 0;
+    *(u16 *)(D_800C3E34 + 0x88) = 0;
+    *(u16 *)(D_800C3E34 + 0x8C) = 0;
     D_800D2C88[t] = 2;
     p = D_800C3E34;
     v = *(u16 *)(p + 0x4E) * D_800C3DFC[0x11];
+    if (D_800C3E50) { // empty: makes gcc share this load with the one below ($v1, not $a1)
+    }
     t = D_800C3E50;
     *(s32 *)(t * 4 + D_800D2C54) = v / 10;
     D_800D2C9E |= 1 << t;
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_800957D8);
-// 100.0% under gcc 2.6.0-psx (99.81/99.76/99.90 under this unit's 2.7.2): this
-// function wants a 2.6.0 TU of its own; the unit as a whole is a 2.7.2 unit.
 void func_800958D8(void) {
     if (rand() % 100 > D_800C3DFC[0x1C]) {
         return;
