@@ -7,7 +7,7 @@ extern u8 D_800C37C8;
 extern u16 D_800C3E30;
 extern u8 D_800C3D40;
 extern u8 D_800C3D6C;
-extern u8 *D_800C3BAC[];
+extern BattleBlock *D_800C3BAC[];
 extern s32 D_800C3BCC[];
 extern s32 D_800C3BEC;
 extern s32 D_800C3BF0;
@@ -494,42 +494,31 @@ void BattleReleaseBlockSlots(s32 arg0) {
     BattleClearBlockSlots();
 }
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800B0164);
-/* 99.70%: everything right except the scratch register gcc uses to spill the
-   7th stack argument at entry (original `lhu $t0,104(sp)` / `sh $t0,16(sp)`,
-   ours $a0); a0 is free here because arg0 is unused, so it is a global.c
-   tie-break. Tried: s16 vs u16 params, &D_800C3BAC[index] vs index+base
-   (needed a `pBase` local to get the original lui/addiu-then-sll order).
-void func_800B0164(s32 arg0, s32 index, u8 arg2, u8 arg3, u16 arg4, u16 arg5, u16 arg6,
-                   u16 arg7, u16 arg8, u16 arg9, u16 arg10) {
-    u8 **pBase;
-    u8 **pp;
-    u8 *p;
+void func_800B0164(u8 *pPool, s32 index, u8 unk2, u8 unk3, s16 x, s16 y, s16 z, s16 dx,
+                   s16 dy, s16 dz, s16 duration) {
+    BattleBlock *pBlock;
 
     if (D_800C37C8 == 0) {
-        pBase = D_800C3BAC;
-        pp = &pBase[index];
-        if (*pp == NULL) {
-            *pp = (u8 *)BattleAllocBlock();
+        if (D_800C3BAC[index] == NULL) {
+            D_800C3BAC[index] = BattleAllocBlock(pPool);
         }
-        p = *pp;
-        if (p != NULL) {
-            p[0] = 1;
-            p[1] = 0;
-            p[2] = arg2;
-            p[3] = arg3;
-            *(s16 *)(p + 0x4) = arg4;
-            *(s16 *)(p + 0x6) = arg5;
-            *(s16 *)(p + 0x8) = arg6;
-            *(s16 *)(p + 0xA) = arg7;
-            *(s16 *)(p + 0xC) = arg8;
-            *(s16 *)(p + 0xE) = arg9;
-            *(s16 *)(p + 0x10) = 0;
-            *(s16 *)(p + 0x12) = arg10;
+        pBlock = D_800C3BAC[index];
+        if (pBlock != NULL) {
+            pBlock->unk0 = 1;
+            pBlock->unk1 = 0;
+            pBlock->unk2 = unk2;
+            pBlock->unk3 = unk3;
+            pBlock->unk4 = x;
+            pBlock->unk6 = y;
+            pBlock->unk8 = z;
+            pBlock->unkA = dx;
+            pBlock->unkC = dy;
+            pBlock->unkE = dz;
+            pBlock->unk10 = 0;
+            pBlock->unk12 = duration;
         }
     }
 }
-*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800B026C);
 
 s32 BattleIsPointWithinBounds(s16 *pPos) {
