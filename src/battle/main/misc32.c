@@ -250,7 +250,7 @@ void func_800BDC78(u8 *pTask) {
         *(s32 *)(pTask + 0x48) -= 0xC0000;
     }
     if (--*(s32 *)(pTask + 0x88) < 0) {
-        do {
+        do { /* the do-while stops reorg hoisting the call's move a0,s0 */
             *(s32 *)(pTask + 0x88) = 0x10;
         } while (0);
         TimerWorkListSetTaskCallback(pTask, func_800BDC14);
