@@ -16,7 +16,7 @@ void GearShopMenuComputeTransitionSteps();
 void GearShopMenuUpdateAndRender();
 
 // TODO: remove once matched
-s32 func_801D2B74(s32, u32, u8*);
+s32 func_801D2B74(s32, s32, u8*);
 
 u8 func_8001BD40(int, u8);
 
@@ -1483,31 +1483,25 @@ void GearShopMenuBuildGearPartNameGraphics(u8 itemType) {
 }
 // https://decomp.me/scratch/5HauM
 INCLUDE_ASM("asm/gear_shop_menu/nonmatchings/main/render", func_801D2B74);
-// Best parked attempt: 97.35%, 2524 bytes (retail is 2464; the variant without the engine-case
-// `value`/`equipFlags` copy below scores 96.74% at 2508 bytes). The whole loop body - the bzero/stall,
-// the 5-case switch, the digit loop, both setRECT/LoadImage pairs, the MenuString setup, the
-// quantity digits and the loop tail - is instruction-for-instruction retail's, including the
-// prologue (s7 = workspace, s6 = i*0x80, s5 = scrollOffset+i, fp = price, 10 spilled givs).
-// Two things still differ:
-//   1. 15 instructions too long (11 in the 2508-byte variant), and the case bodies land in a
-//      different block order than retail
-//      (retail emits armor, frame, engine-tail, engine, weapon, accessory, accessory-tail).
-//      Swapping the accessory/weapon cases in the source gets the order right (that is included
-//      below) but the sizes still disagree.
-//   2. The equipFlags/price pair in each case: retail loads the price into the digit-loop
-//      register and copies it to the comparison register (`addu fp,s3,zero`), we load price and
-//      copy into whichever register the allocator picked.
-// Sources used: this body is modeled on the parked func_801D18F8 below (same loop, same givs,
-// 98.73%) and on GearShopMenuBuildSellItemDetails (the `price = var_s6` two-variable idiom and
-// the "@bug sellPrice is never set for types 3/4" shape, which this function has too).
-// Ruled out: no pRect local / pRect used for setRECT+LoadImage (frame 208, 84.7%); itemId kept in
-// a u8 local (retail re-reads g_Menu->shopItemIDs[...] at every use - 2 extra instructions per
-// case, 86.5%); `noEquipFlags = -1` hoisted before the switch (96.51%, retail materialises -1
-// inside each case). Two permuter runs (1474 -> 1234) found only the engine-case
-// `value`/`equipFlags` copy, which is in the body below and is worth +0.6%.
-// jtbl_801C5068 is the 5-word table + its 4-byte .align 3 pad; with this body the compiler emits
-// it at .rodata+48 == 0x801C5068, i.e. the switch is layout-safe and converting the function only
-// needs the last few instructions to line up.
+// PARKED: 96.75%, 2508 bytes (retail is 2532 = 633 insns, ours 627). Everything matches except the
+// cross-jumping of the per-case `equipFlags` load / `price = value` / spill suffix. Retail emits that
+// suffix TWICE: once shared by the gear ARMOR and FRAME cases (the armor case ends `j` into the frame
+// block, delay slot `nop`) and once inline for the ENGINE case, whose element address sits in $v1
+// (`addu v1,v0,v1; lhu s3,10(v1); lw v1,0(v1); move s8,s3; j; sw v1,104(sp)`). Our compile computes
+// `addu v0,v0,v1` in all three cases, so gcc 2.6.0 finds all three suffixes identical and keeps ONE
+// copy (-6 insns, -24 bytes). Making the engine case's block differ at the source level is the whole
+// remaining problem; the "value = equipFlags; equipFlags = value;" two-variable hack below does
+// unmerge 4 of those 6 insns (97.37%, 2524 bytes) but swaps what the digit loop renders for engines
+// (equipFlags instead of price), so it is not in this body.
+// Also open (worth 1 insn): retail reaches the `places[]` base as `lw t1,120(sp); addiu a1,t1,16`
+// (from the pRect spill), ours as `addiu a1,sp,48`.
+// Fixed in this body and not to be undone: `equipFlags` MUST be declared before `sellPrice` (that is
+// what puts equipFlags at 0x68 and sellPrice at 0x70); the five case bodies, the block order, every
+// reloc and the prologue already match instruction-for-instruction.
+// Proved dead ends: element pointer locals at the three price/equipFlags sites (gcc folds them back
+// into the addu); `pEngine = pGearEngines; pEngine[id].price`; two permuter runs (1474 -> 1033 -> 1284,
+// best candidates are variable-reuse games: pFrame holding &rect, or loading equipFlags through the
+// u8 itemType). jtbl_801C5068 is the 5-word table + its 4-byte pad, correct in this body.
 /*
 s32 func_801D2B74(s32 scrollOffset, s32 funds, u8* pItemAffordable) {
     RECT rect;
@@ -1516,10 +1510,10 @@ s32 func_801D2B74(s32 scrollOffset, s32 funds, u8* pItemAffordable) {
     int places[5]; // sp48
     s32 quotient;
     u8 didRounding;
+    u32 equipFlags;
     s32 sellPrice;
     s32 price;
     s32 value;
-    u32 equipFlags;
     u8 itemType;
     u8 tensDigit;
     u8 onesDigit;
@@ -1528,6 +1522,9 @@ s32 func_801D2B74(s32 scrollOffset, s32 funds, u8* pItemAffordable) {
     void* pWorkspace;
     s32 i;
     RECT* pRect;
+    GearArmor* pArmor;
+    GearFrame* pFrame;
+    GearEngine* pEngine;
 
     places[0] = 1;
     places[1] = 10;
@@ -1548,24 +1545,26 @@ s32 func_801D2B74(s32 scrollOffset, s32 funds, u8* pItemAffordable) {
                 case ITEM_TYPE_GEAR_ARMOR:
                     sellPrice = g_Menu->pDressingRoom->pGearArmor[g_GameState.gears[g_gearShopCurrentGearId].armorId].price >> 1;
                     g_Menu->pShop->unk3C30[i].width = SystemRenderStringEntry(GetStringEntry(g_Menu->pShop->pGearArmorNames, g_Menu->shopItemIDs[scrollOffset + i]), pWorkspace, 0x24, 0);
-                    value = g_Menu->pDressingRoom->pGearArmor[g_Menu->shopItemIDs[scrollOffset + i]].price;
+                    pArmor = &g_Menu->pDressingRoom->pGearArmor[g_Menu->shopItemIDs[scrollOffset + i]];
+                    value = pArmor->price;
                     price = value;
-                    equipFlags = g_Menu->pDressingRoom->pGearArmor[g_Menu->shopItemIDs[scrollOffset + i]].equipFlags;
+                    equipFlags = pArmor->equipFlags;
                     break;
                 case ITEM_TYPE_GEAR_FRAME:
                     sellPrice = g_Menu->pDressingRoom->pGearFrames[g_GameState.gears[g_gearShopCurrentGearId].frameId].price >> 1;
                     g_Menu->pShop->unk3C30[i].width = SystemRenderStringEntry(GetStringEntry(g_Menu->pShop->pGearFrameNames, g_Menu->shopItemIDs[scrollOffset + i]), pWorkspace, 0x24, 0);
-                    value = g_Menu->pDressingRoom->pGearFrames[g_Menu->shopItemIDs[scrollOffset + i]].price;
+                    pFrame = &g_Menu->pDressingRoom->pGearFrames[g_Menu->shopItemIDs[scrollOffset + i]];
+                    value = pFrame->price;
                     price = value;
-                    equipFlags = g_Menu->pDressingRoom->pGearFrames[g_Menu->shopItemIDs[scrollOffset + i]].equipFlags;
+                    equipFlags = pFrame->equipFlags;
                     break;
                 case ITEM_TYPE_GEAR_ENGINE:
                     sellPrice = g_Menu->pDressingRoom->pGearEngines[g_GameState.gears[g_gearShopCurrentGearId].engineId].price >> 1;
                     g_Menu->pShop->unk3C30[i].width = SystemRenderStringEntry(GetStringEntry(g_Menu->pShop->pGearEngineNames, g_Menu->shopItemIDs[scrollOffset + i]), pWorkspace, 0x24, 0);
-                    value = g_Menu->pDressingRoom->pGearEngines[g_Menu->shopItemIDs[scrollOffset + i]].price;
+                    pEngine = &g_Menu->pDressingRoom->pGearEngines[g_Menu->shopItemIDs[scrollOffset + i]];
+                    value = pEngine->price;
                     price = value;
-                    value = g_Menu->pDressingRoom->pGearEngines[g_Menu->shopItemIDs[scrollOffset + i]].equipFlags;
-                    equipFlags = value;
+                    equipFlags = pEngine->equipFlags;
                     break;
                 case ITEM_TYPE_GEAR_WEAPON:
                     g_Menu->pShop->unk3C30[i].width = SystemRenderStringEntry(GetGearWeaponName(g_Menu->shopItemIDs[scrollOffset + i]), pWorkspace, 0x24, 0);
