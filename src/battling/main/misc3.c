@@ -233,7 +233,15 @@ extern s32 D_8009292C;
 extern u8 D_80099D9C;
 extern u8 D_80099D9B;
 extern u32 D_80091198[];
-extern u32 D_80096FB8[];
+// One 0x14-byte record per battle slot; D_80096FBC, which the battle draw code
+// also reads, is this table's +0x4 field.
+typedef struct {
+    /* 0x0 */ u32 unk0;
+    /* 0x4 */ u8 percent;
+    /* 0x5 */ u8 unk5[0xF];
+} BattleSlotGauge; // Size: 0x14
+
+extern BattleSlotGauge D_80096FB8[];
 extern u8 D_80096FBC[];
 
 void BattleUpdateSlotGaugeDisplay(BattleActor* p) {
@@ -264,9 +272,9 @@ void BattleUpdateSlotGaugeDisplay(BattleActor* p) {
         BattleSetTextCursor(0xF0, 0x28);
     }
     if (p->unk9C3 != 0) {
-        D_80096FB8[((p->flags >> 27) & 1) * 5] = D_80091198[p->unk9C3];
+        D_80096FB8[((p->flags >> 27) & 1)].unk0 = D_80091198[p->unk9C3];
         pActionData = p->pActionData;
-        D_80096FBC[((p->flags >> 27) & 1) * 20] = (pActionData->unk9[p->unk9C3] * pActionData->unk0) / 100;
+        D_80096FB8[((p->flags >> 27) & 1)].percent = (pActionData->unk9[p->unk9C3] * pActionData->unk0) / 100;
     }
 }
 
