@@ -216,6 +216,7 @@ int WorldMapSetupGroup4And5ScaledPrims(int idx) {
     pLast->unk0 = 1;
     return 3;
 }
+
 int func_8007B394(int idx) {
     u8 *pPlayer = (u8 *)D_8009BE24 + (idx << 7);
     u8 *pWork = (u8 *)D_8009C620;
@@ -297,6 +298,7 @@ int WorldMapSetupGroup6And7ScaledPrims(int idx) {
     pLast->unk0 = 1;
     return 3;
 }
+
 int func_8007B798(int idx) {
     u8 *pPlayer = (u8 *)D_8009BE24 + (idx << 7);
     u8 *pWork = (u8 *)D_8009C620;
