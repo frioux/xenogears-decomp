@@ -13,7 +13,7 @@ extern void ArchiveStopTransfer(int mode);
 
 void MenuClearGlyphTexture(void);
 void func_801E6668(s32 arg0);
-void func_801E76EC(s32 arg0);
+void MenuDrawCharacterSlots(s32 arg0);
 void func_801E7C50(MenuString* pStringList, s32 index, s32 yOffset, s32 flags);
 extern void* GetStringEntry(void* pStringData, u32 index);
 extern u16 g_SystemPalette1;
@@ -145,7 +145,7 @@ void MenuLoadSlotCharacterNameTexture(s32 index, u8* pEntry, s32 arg2) {
     HeapFree(pBuf);
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E733C);
-void func_801E76EC(s32 arg0) {
+void MenuDrawCharacterSlots(s32 arg0) {
     s32 i = 0;
     u32 offset = 0;
     u8* pEntry;
@@ -174,7 +174,7 @@ void MenuUpdateCharacterWindow(s32 arg0, u_char arg1) {
     MenuClearGlyphTexture();
     if (arg0 != 0xFF) {
         if (arg1 != 0) {
-            func_801E76EC(arg0);
+            MenuDrawCharacterSlots(arg0);
             func_801E6668(arg0);
             ((u8*)g_Menu->unk34C)[0x2DBC] = 1;
         } else {

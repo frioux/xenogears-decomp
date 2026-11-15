@@ -494,7 +494,7 @@ void BattleReleaseBlockSlots(s32 arg0) {
     BattleClearBlockSlots();
 }
 
-void func_800B0164(u8 *pPool, s32 index, u8 unk2, u8 unk3, s16 x, s16 y, s16 z, s16 dx,
+void BattleSetBlockSlotCommand(u8 *pPool, s32 index, u8 unk2, u8 unk3, s16 x, s16 y, s16 z, s16 dx,
                    s16 dy, s16 dz, s16 duration) {
     BattleBlock *pBlock;
 
