@@ -317,36 +317,35 @@ int WorldMapSyncGearRideActors(u32 entryIndex) {
     return nFileSize;
 }
 
-// func_80075D8C: parked at 99.66%, 1236 bytes (retail is 1232), but the body below
-// is NOT retail's flow: with `j = entry` at the top of the inner do-while gcc keeps
-// that store in the loop header, so the back edge re-runs it (the source is an
-// infinite loop) and reorg also copies it into the 'bnez' delay slot of the 0x4 bit
-// test - one instruction more than retail.
-// The two init placements, measured:
-//   init INSIDE the body  -> 99.66%, 1236 bytes, j+1 recomputed per site as retail
-//                            does, but the duplicated init costs the 4 bytes.
-//   init BEFORE the body  -> 96.43%, 1248 bytes, init correct (single copy, in the
-//                            bnez delay slot) but gcc then carries `j + 1` in a
-//                            derived induction register (s1, 'addiu s1,s1,1' at the
-//                            loop tail, 'move a0,s1' at the three call sites), which
-//                            needs a seventh saved register (frame 0x50, 8 saves).
-// So the remaining work is only "make gcc keep the init out of the loop header while
-// NOT making a register out of j+1"; every other instruction is retail's.
-// Tried: for-loop (95.49), 'while (++j < entry + 0x14)' (96.43), a 'next = j + 1'
-// local at the top of the body (96.49), permuter 6 min / 1805 iterations from the
-// in-body body (PERMUTER_NONE, base 112 best 112). Preset is right: -O3 77.96,
-// -O1 91.72, 2.7.2-cdk 82.0, plain 2.7.2 98.5, 2.6.0 -O2 -G0 (the unit's) 99.66.
+// func_80075D8C: parked at 99.66%, 1236 bytes (retail 1232). ONE instruction over.
+// The body below is instruction-for-instruction retail everywhere else, but its
+// `j = entry` sits at the top of the inner do-while, so gcc keeps that store in the
+// loop HEADER and the back edge re-runs it (this listing is an infinite loop; it is
+// not the real source, it is just the only shape found that reproduces the other
+// 1232 bytes, including the extra copy reorg puts in the 0x4-bit bnez delay slot).
+// Init BEFORE the loop is semantically right and lands that single copy in retail's
+// exact place, but gcc 2.6.0 then makes `j + 1` a derived giv: a new saved register
+// s1, initialised by TWO `addiu s1,s0,1` at the loop head, `move a0,s1` at all three
+// call sites (retail recomputes `addiu a0,s0,1` at each), `addiu s1,s1,1` in the
+// tail: 96.43%, 1248 bytes, frame 0x50, eight saves instead of seven.
+// So the target is a shape with init before the loop AND no carried `j + 1`.
+// Measured, all shapes not flags: for-loop `for (j = entry; j < entry + 0x14; j++)`
+// 95.49%, `while (++j < entry + 0x14)` 96.43%, a `next = j + 1` local 96.49%,
+// `1 + j` operand order 96.43% (commutative, canonicalised), permuter 6 min / 1805
+// iterations from the in-body body (PERMUTER_NONE, base 112 best 112).
+// Preset is right: -O3 77.96, -O1 91.72, 2.7.2-cdk 82.0, plain 2.7.2 98.5, 2.6.0
+// -O2 -G0 (the unit's) 99.66.
 // What closed 92.4 -> 99.1 earlier, in order (all source shapes, not flags):
 //   1. FontPrintf(D_8007042C) takes ONE argument (func_80075534 calls it that way);
-//      passing pPath cost a 'move a1,zero'.
+//      passing pPath cost a `move a1,zero`.
 //   2. the hex/dec format is an if/else, not a ternary; cross-jumping then merges the
-//      two FontPrintf calls and hoists 'move a1,s0' above the branch, as retail does.
-//   3. 'count = 0x1249;' belongs INSIDE the outer do-while: it is then a
-//      loop-invariant set gcc hoists as 'li s6,0x1249', and 'count - 0x14' stays the
-//      'addiu v0,s6,-20' retail has instead of folding to li 0x1235.
-//   4. one variable for the archive path, not two: 'pFileName = ArchiveGetFilePath(j+1)'
+//      two FontPrintf calls and hoists `move a1,s0` above the branch, as retail does.
+//   3. `count = 0x1249;` belongs INSIDE the outer do-while: it is then a
+//      loop-invariant set gcc hoists as `li s6,0x1249`, and `count - 0x14` stays the
+//      `addiu v0,s6,-20` retail has instead of folding to li 0x1235.
+//   4. one variable for the archive path, not two: `pFileName = ArchiveGetFilePath(j+1)`
 //      tested and then walked. With a separate pPath gcc tests the return value
-//      directly and copies it in the 'beqz' delay slot, where retail tests the copy
+//      directly and copies it in the `beqz` delay slot, where retail tests the copy
 //      and keeps a nop in the slot (worth 99.14 -> 99.66 with the in-body init).
 // Frame/registers are retail's on the in-body variant (0x48, 7 saves, s1=entry,
 // s2=hexMode, s3=showName); MovieDrawBuffer and the D_80077124[] draw buffers (each
