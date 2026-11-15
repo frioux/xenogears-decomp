@@ -50,6 +50,47 @@ typedef struct {
 } BattleActorAnimData;
 
 typedef struct {
+    /* 0x0 */ u8 pad0[0x8];
+    /* 0x8 */ SVECTOR *pVerts;
+} BattleMesh;
+
+/* Draw state of one model part; bit 0 of flags is its visibility. */
+typedef struct {
+    /* 0x00 */ u32 flags;
+    /* 0x04 */ u8 pad04[0x10];
+    /* 0x14 */ BattleMesh *pMesh;
+} BattlePartDraw;
+
+/* One model part. A part of type 1 is placed by its own matrix, any other by
+   the translation that matrix carries. */
+typedef struct {
+    /* 0x00 */ s32 type;
+    /* 0x04 */ BattlePartDraw *pDraw;
+    /* 0x08 */ u8 pad08[0x44];
+    /* 0x4C */ MATRIX matrix;
+} BattlePart; // Size: 0x6C
+
+/* Per-part animation record in the model's part table. */
+typedef struct {
+    /* 0x00 */ u8 pad00[0x12];
+    /* 0x12 */ s16 unk12;
+} BattlePartAnim; // Size: 0x14
+
+/* The model object's part tables. */
+typedef struct {
+    /* 0x0 */ s16 count;
+    /* 0x2 */ u8 pad02[0x2];
+    /* 0x4 */ BattlePart **pParts;
+    /* 0x8 */ BattlePartAnim *pAnims;
+} BattleModel;
+
+/* Actor+0x5C points at this wrapper; its 0x4 field is the model object. */
+typedef struct {
+    /* 0x0 */ u8 pad0[0x4];
+    /* 0x4 */ BattleModel *pModel;
+} BattleModelLink; // Size: 0x8
+
+typedef struct {
     /* 0x000 */ s32 unk0;
     /* 0x004 */ s32 unk4;
     /* 0x008 */ s32 unk8;
@@ -57,7 +98,9 @@ typedef struct {
     /* 0x04C */ u8 unk4C;
     /* 0x04D */ u8 pad4D[0x7];
     /* 0x054 */ s32 unk54;
-    /* 0x058 */ u8 pad58[0x2C];
+    /* 0x058 */ u8 pad58[0x4];
+    /* 0x05C */ BattleModelLink *unk5C;
+    /* 0x060 */ u8 pad60[0x24];
     /* 0x084 */ s32 unk84;
     /* 0x088 */ u8 pad88[0x2C];
     /* 0x0B4 */ s16 unkB4;
@@ -224,7 +267,8 @@ extern void BattleEffectUpdateEntries(BattleEffect *, u8 *, u8 *);
 
 void BattleEffectSetMatrix(u8 *p0, u8 *p1) {
     s32 n = D_80092648;
-    u8 *p = (u8 *)D_80092644;
+    BattleEffect *pEffect = D_80092644;
+    u8 *p = (u8 *)pEffect;
 
     /* Written through a byte pointer: a typed store lets gcc hoist the next
        global load above the previous store and the original interleaves. */
@@ -234,9 +278,9 @@ void BattleEffectSetMatrix(u8 *p0, u8 *p1) {
     *(s16 *)(p + 0x34) = 0;
     *(s16 *)(p + 0x36) = 0;
     *(s16 *)(p + 0x38) = 0;
-    func_8008D680((BattleEffect *)p, D_80091C0C, n);
+    func_8008D680(pEffect, D_80091C0C, n);
     gte_SetTransRotMatrix_gpr(p1);
-    BattleEffectUpdateEntries((BattleEffect *)p, p0, p1);
+    BattleEffectUpdateEntries(pEffect, p0, p1);
 }
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80073424);
@@ -310,28 +354,21 @@ void func_80073424(VECTOR *p0, VECTOR *p1, u8 *p2, s32 arg3, s32 arg4, s32 arg5)
 } */
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80073644);
 
-void BattleTransformEntryVertex(u8 *p0, s32 arg1, s32 arg2, VECTOR *pOut) {
-    u32 **pArray;
-    u32 *pEntry;
-    u8 *pSrc;
-    u8 *pVerts;
+void BattleTransformEntryVertex(Actor *p0, s32 arg1, s32 arg2, VECTOR *pOut) {
+    BattlePart *pEntry = p0->unk5C->pModel->pParts[arg1];
 
-    pArray = *(u32 ***)(*(u8 **)(*(u8 **)(p0 + 0x5C) + 0x4) + 0x4);
-    pEntry = *(u32 **)(arg1 + pArray);
-    if (arg2 != 0 && pEntry[0] == 1) {
-        gte_SetRotMatrix_gpr((u8 *)pEntry + 0x4C);
-        pSrc = *(u8 **)(*(u8 **)((u8 *)pEntry + 0x4) + 0x14);
-        pVerts = *(u8 **)(pSrc + 0x8);
-        gte_ldv0((SVECTOR *)(pVerts + (arg2 * 8 - 8)));
+    if (arg2 != 0 && pEntry->type == 1) {
+        gte_SetRotMatrix_gpr(&pEntry->matrix);
+        gte_ldv0(&pEntry->pDraw->pMesh->pVerts[arg2 - 1]);
         gte_mvmva(1, 0, 0, 0, 0);
         gte_stlvnl(pOut);
-        pOut->vx += *(s32 *)(p0 + 0x0);
-        pOut->vy += *(s32 *)(p0 + 0x4);
-        pOut->vz += *(s32 *)(p0 + 0x8);
+        pOut->vx += p0->unk0;
+        pOut->vy += p0->unk4;
+        pOut->vz += p0->unk8;
     } else {
-        pOut->vx = *(s32 *)((u8 *)pEntry + 0x60) + *(s32 *)(p0 + 0x0);
-        pOut->vy = *(s32 *)((u8 *)pEntry + 0x64) + *(s32 *)(p0 + 0x4);
-        pOut->vz = *(s32 *)((u8 *)pEntry + 0x68) + *(s32 *)(p0 + 0x8);
+        pOut->vx = pEntry->matrix.t[0] + p0->unk0;
+        pOut->vy = pEntry->matrix.t[1] + p0->unk4;
+        pOut->vz = pEntry->matrix.t[2] + p0->unk8;
     }
 }
 
@@ -340,7 +377,7 @@ void BattleCommitSlotStates(Actor *p0) {
     s32 i;
 
     for (i = 0; i < 16; i++) {
-        pSlot = (BattleActorSlot *)((u8 *)p0 + 0x104 + i * 0x54);
+        pSlot = &p0->slots[i];
         if (pSlot->unk44.byte.state == 2) {
             pSlot->unk44.byte.state = 1;
         } else {
@@ -489,49 +526,49 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_800740E4);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80074678);
 
-void BattleUpdatePartDrawFlags(u8 *p0) {
-    u32 **pArray = *(u32 ***)(*(u8 **)(*(u8 **)(p0 + 0x5C) + 0x4) + 0x4);
+void BattleUpdatePartDrawFlags(Actor *p0) {
+    BattlePart **pParts = p0->unk5C->pModel->pParts;
     s32 i;
 
-    for (i = 0; i < *(s16 *)(*(u8 **)(*(u8 **)(p0 + 0x5C) + 0x4)); i++) {
-        u32 *pEntry = pArray[i];
+    for (i = 0; i < p0->unk5C->pModel->count; i++) {
+        BattlePart *pPart = pParts[i];
 
-        if (pEntry[0] == 1) {
-            *(u32 *)*(u32 **)((u8 *)pEntry + 0x4) &= ~1;
+        if (pPart->type == 1) {
+            pPart->pDraw->flags &= ~1;
         }
     }
-    for (i = 0; i < *(u8 *)(p0 + 0x908); i++) {
-        u32 *pEntry = pArray[*(u8 *)(*(u8 **)(p0 + 0x904) + i)];
+    for (i = 0; i < p0->unk908; i++) {
+        BattlePart *pPart = pParts[p0->unk904[i]];
 
-        *(u32 *)*(u32 **)((u8 *)pEntry + 0x4) |= 1;
+        pPart->pDraw->flags |= 1;
     }
-    if (*(u8 *)(p0 + 0x909) == 0xD) {
-        *(u32 *)*(u32 **)((u8 *)pArray[0xD] + 0x4) |= 1;
+    if (p0->unk909 == 0xD) {
+        pParts[0xD]->pDraw->flags |= 1;
     }
 }
 
-extern void func_80074678(u8 *, s32, u8);
-extern void func_8008B0D8(u8 *);
-extern void func_8008B730(u8 *, s32, s32);
+extern void func_80074678(Actor *, s32, u8);
+extern void func_8008B0D8(BattlePartAnim *);
+extern void func_8008B730(BattlePartAnim *, s32, s32);
 
-void BattleActorApplyAnimationCommand(u8 *p0) {
-    u8 *pState = *(u8 **)(p0 + 0x15CC);
-    u8 *pData = *(u8 **)(p0 + 0x15D0);
-    u8 *pEntry;
+void BattleActorApplyAnimationCommand(Actor *p0) {
+    BattleActorState *pState = p0->unk15CC;
+    BattleActorAnimData *pData = p0->unk15D0;
+    BattlePartAnim *pAnim;
 
-    *(s32 *)(p0 + 0x00) = *(s16 *)(pState + 0x0);
-    *(s32 *)(p0 + 0x04) = *(s16 *)(pState + 0x2);
-    *(s32 *)(p0 + 0x08) = *(s16 *)(pState + 0x4);
-    *(u8 *)(p0 + 0x4C) = *(u8 *)(pData + 0x8);
-    *(s32 *)(p0 + 0x54) = (*(u16 *)(pState + 0x6) << 20) >> 20;
-    pEntry = *(u8 **)(*(u8 **)(*(u8 **)(p0 + 0x5C) + 0x4) + 0x8) + *(u8 *)(pData + 0x8) * 0x14;
-    if (*(u16 *)(pData + 0x6) & 0x1000) {
+    p0->unk0 = pState->x;
+    p0->unk4 = pState->y;
+    p0->unk8 = pState->z;
+    p0->unk4C = pData->index;
+    p0->unk54 = (pState->unk6 << 20) >> 20;
+    pAnim = &p0->unk5C->pModel->pAnims[pData->index];
+    if (pData->flags & 0x1000) {
         BattleUpdatePartDrawFlags(p0);
-        func_8008B0D8(pEntry);
+        func_8008B0D8(pAnim);
     }
-    func_80074678(p0, *(s16 *)(pEntry + 0x12), *(u8 *)(*(u8 **)(p0 + 0x15D0) + 0x9));
-    if (*(u8 *)(pData + 0xA) != 0) {
-        func_8008B730(pEntry, *(u8 *)(pData + 0x9), *(u8 *)(pData + 0xA));
+    func_80074678(p0, pAnim->unk12, p0->unk15D0->unk9);
+    if (pData->unkA != 0) {
+        func_8008B730(pAnim, pData->unk9, pData->unkA);
     }
 }
 
