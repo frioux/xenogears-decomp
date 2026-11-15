@@ -2,6 +2,7 @@
 #include "psyq/libgpu.h"
 #include "psyq/libgte.h"
 #include "psyq/memory.h"
+#include "system/model.h"
 
 typedef struct {
     /* 0x0 */ s32 x;
@@ -31,18 +32,19 @@ typedef struct {
     /* 0x78 */ u8 pad78[0x8];
 } WorldMapActor; // Size: 0x80
 
+// One entry of the D_8009C620 table (stride 0x54). 0x48 and 0x4C are the source
+// and destination prim lists (D_8009C620[14]/[15] feed WorldMapSetupPrimTemplates).
 typedef struct {
     /* 0x00 */ u32 unk0;
     /* 0x04 */ u32 unk4;
     /* 0x08 */ WorldMapPos4 pos;
     /* 0x18 */ u8 unk18[0x8];
     /* 0x20 */ MATRIX matrix;
-    /* 0x40 */ u32 *unk40;
+    /* 0x40 */ ModelPart *pModel;
     /* 0x44 */ u32 unk44;
-    /* 0x48 */ u8 *unk48;
-    /* 0x4C */ u32 unk4C;
+    /* 0x48 */ void *pPackets[2];
     /* 0x50 */ u32 unk50;
-} WorldMapSpriteEntry; // Size: 0x54
+} WorldMapEntry; // Size: 0x54
 
 typedef struct {
     /* 0x00 */ s32 unk0;
@@ -51,16 +53,8 @@ typedef struct {
     /* 0x0C */ s32 unkC;
     /* 0x10 */ s32 unk10;
     /* 0x14 */ u8 pad14[0x484];
-    /* 0x498 */ u8 unk498[0x40];
-    /* 0x4D8 */ u32 *unk4D8;
-    /* 0x4DC */ u32 unk4DC;
-    /* 0x4E0 */ u8 *unk4E0;
-    /* 0x4E4 */ u8 pad4E4[0x8];
-    /* 0x4EC */ u8 unk4EC[0x40];
-    /* 0x52C */ u32 *unk52C;
-    /* 0x530 */ u32 unk530;
-    /* 0x534 */ u8 *unk534;
-    /* 0x538 */ u8 pad538[0x8];
+    /* 0x498 */ WorldMapEntry unk498;
+    /* 0x4EC */ WorldMapEntry unk4EC;
     /* 0x540 */ s16 unk540;
     /* 0x542 */ u8 pad542[0x6];
     /* 0x548 */ s32 unk548;
@@ -72,6 +66,13 @@ typedef struct {
     /* 0x580 */ u8 pad580[0x20];
 } WorldMapState; // Size: 0x5A0
 
+// The world map frame render context D_8009BE3C points at: partial view of the
+// two ordering table heads it fills each frame.
+typedef struct {
+    /* 0x00 */ u8 unk0[0x70];
+    /* 0x70 */ u_long *pOt[2];
+} WorldMapRenderContext; // partial view
+
 extern WorldMapActor *D_8009BE24;
 extern u16 D_8009A450;
 extern u16 D_8009A46C[];
@@ -82,8 +83,8 @@ extern s32 D_8009D144;
 extern s16 D_8009BD38;
 extern s16 D_8009BD3A;
 extern s16 D_8009BD3C;
-extern void func_80089160(s32, s32, s32);
-extern void WorldMapSetupPrimTemplates(s32, u8 *, s32);
+extern void func_80089160(s32, void *, s32);
+extern void WorldMapSetupPrimTemplates(WorldMapEntry *, POLY_FT4 *, s32);
 extern u8 *D_8006259C;
 extern void WorldMapWrapPosition(void *);
 extern s32 func_80093A5C(s32, s32);
@@ -114,7 +115,7 @@ extern s32 D_8009BD40;
 extern s32 D_8009BBB4;
 extern s16 D_8009D558;
 extern s32 D_8009BE28;
-extern u8 *D_8009BE3C;
+extern WorldMapRenderContext *D_8009BE3C;
 extern s32 D_8009C5BC;
 extern WorldMapPos4 D_8009C5AC;
 extern void WorldMapBuildRotationMatrix(s32 *p);
@@ -127,7 +128,7 @@ extern void func_800981C8(s32 *p);
 extern void WorldMapWaitForLoadSlotFree(void);
 extern void func_80098CC0(void);
 extern void func_800983A0(s32 *p);
-extern void func_8009932C(s32 arg0, s32 arg1, s32 *p);
+extern void func_8009932C(u_long *pOt0, u_long *pOt1, s32 *pState);
 extern void func_80073B04(void);
 extern void func_800737EC(void);
 extern void func_80086798(void);
@@ -280,7 +281,6 @@ s32 WorldMapEnterNop(void) {
 }
 
 s32 WorldMapUpdateFrameWithParticles(void) {
-    u8 *p;
     s32 *pState;
 
     if (D_8009D144 == 0) {
@@ -299,8 +299,7 @@ s32 WorldMapUpdateFrameWithParticles(void) {
     }
     pState = &D_8009BE28;
     func_800983A0(pState);
-    p = D_8009BE3C;
-    func_8009932C(*(s32 *)(p + 0x70), *(s32 *)(p + 0x74), pState);
+    func_8009932C(D_8009BE3C->pOt[0], D_8009BE3C->pOt[1], pState);
     D_8009C5BC = D_8009C5BC + 0x40;
     func_80073B04();
     func_800737EC();
@@ -422,10 +421,8 @@ s32 WorldMapInitActorRotationMatrix(s32 index) {
     WorldMapActor *p;
     WorldMapState *s;
 
-    index *= 0x80;
-    p = D_8009BE24;
+    p = D_8009BE24 + index;
     s = D_8009C620;
-    p = (WorldMapActor *)((u8 *)p + index);
     p->unk28 = 0x02000000;
     p->unk30 = 0x01500000;
     p->unk20 = 0;
@@ -489,21 +486,21 @@ s32 WorldMapInitActorAtScrollPositionWithSound(s32 index) {
     return 1;
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_80079778);
-void WorldMapSetupPrimTemplates(s32 arg0, u8 *pDst, s32 count) {
+void WorldMapSetupPrimTemplates(WorldMapEntry *pEntry, POLY_FT4 *pPrim, s32 count) {
     s32 i;
 
     for (i = 0; i < count; i++) {
-        pDst[3] = 9;
-        pDst[7] = 0x2C;
-        *(u16 *)(pDst + 0x16) = GetTPage(1, 3, 0x340, 0x100);
-        *(u16 *)(pDst + 0xE) = GetClut(0x100, 0x1FF);
-        pDst[4] = 0x80;
-        pDst[5] = 0x80;
-        pDst[7] |= 2;
-        pDst[6] = 0x80;
-        pDst += 0x28;
+        setlen(pPrim, 9);
+        pPrim->code = 0x2C;
+        pPrim->tpage = GetTPage(1, 3, 0x340, 0x100);
+        pPrim->clut = GetClut(0x100, 0x1FF);
+        pPrim->r0 = 0x80;
+        pPrim->g0 = 0x80;
+        setSemiTrans(pPrim, 1);
+        pPrim->b0 = 0x80; // last store sets gcc's induction base to 0x6 as retail's does
+        pPrim++;
     }
-    memcpy(*(u8 **)(arg0 + 0x4C), *(u8 **)(arg0 + 0x48), count * 0x28);
+    memcpy(pEntry->pPackets[1], pEntry->pPackets[0], count * sizeof(POLY_FT4));
 }
 
 s32 WorldMapSetupGroup14And15Prims(s32 index) {
@@ -513,10 +510,10 @@ s32 WorldMapSetupGroup14And15Prims(s32 index) {
     p->unk20 = 0;
     p->unk70 = 0;
     p->unk6C = 0;
-    WorldMapSetupPrimTemplates((s32)D_8009C620 + 0x498, D_8009C620->unk4E0,
-                  ((u16 *)D_8009C620->unk4D8)[2]);
-    WorldMapSetupPrimTemplates((s32)D_8009C620 + 0x4EC, D_8009C620->unk534,
-                  ((u16 *)D_8009C620->unk52C)[2]);
+    WorldMapSetupPrimTemplates(&D_8009C620->unk498, D_8009C620->unk498.pPackets[0],
+                  D_8009C620->unk498.pModel->polyCount);
+    WorldMapSetupPrimTemplates(&D_8009C620->unk4EC, D_8009C620->unk4EC.pPackets[0],
+                  D_8009C620->unk4EC.pModel->polyCount);
     return 3;
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_8007A1B4);
@@ -529,7 +526,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_8007A1B4);
    CSE them and moves p to $a3 (96.17%). Same allocator class as misc5
    WorldMapUpdateGroup4And5Scale.
 s32 func_8007A1B4(s32 index) {
-    WorldMapSpriteEntry *pEntry;
+    WorldMapEntry *pEntry;
     MATRIX *pMtxA;
     MATRIX *pMtxB;
     WorldMapActor *p;
@@ -537,7 +534,7 @@ s32 func_8007A1B4(s32 index) {
     s32 scale;
     s32 scaleY;
 
-    pEntry = (WorldMapSpriteEntry *)D_8009C620;
+    pEntry = (WorldMapEntry *)D_8009C620;
     p = D_8009BE24 + index;
     result = 1;
     pEntry[14].pos = pEntry[0].pos;
@@ -575,9 +572,8 @@ s32 func_8007A1B4(s32 index) {
 s32 WorldMapSetActorTimer60(s32 index) {
     WorldMapActor *p;
 
-    index *= 0x80;
-    p = D_8009BE24;
-    *(s16 *)((u8 *)p + index + 0x22) = 0x60;
+    p = D_8009BE24 + index;
+    p->unk22 = 0x60;
     return 3;
 }
 
@@ -640,7 +636,7 @@ s32 WorldMapUpdateObjectAPosition(s32 index) {
     pScratch->vx = s->unk8;
     pScratch->vy = s->unkC;
     pScratch->vz = s->unk10;
-    func_80089160(0xA, (s32)pScratch, 0);
+    func_80089160(0xA, pScratch, 0);
     return 3;
 }
 
@@ -752,9 +748,7 @@ void WorldMapExitToMap11A(void) {
 s32 WorldMapStartActorScript(s32 index) {
     WorldMapActor *p;
 
-    p = D_8009BE24;
-    index *= 0x80;
-    p = (WorldMapActor *)((u8 *)p + index);
+    p = D_8009BE24 + index;
     p->unk50 = 0;
     p->unk20 = D_8009A450;
     p->unk22 = D_8009A46C[p->unk50];
