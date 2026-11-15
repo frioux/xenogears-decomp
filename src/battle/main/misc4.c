@@ -419,22 +419,6 @@ done:
     return result;
 }
 */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc4", func_80079C24);
-/* Best: 89.50%, instruction stream identical except two hoist positions (508
-   bytes vs retail's 504). Retail stores value/i, then the two loop constants
-   (0xFD -> $s7, 0xFF -> $s6) and only then idx/off/off2/index, and it forms
-   `la $v1,%lo(D_800D2E5C)` between the D_800CCD64 `lhu` and its `andi`; here
-   both hoisted pairs land after the source inits / at the start of the block.
-   Everything else is exact: the index/off/off2 biv order (s1/s2/s4), idx as an
-   incrementing s32 biv started at 3, the do-while clear loop (rotated, $j with
-   the store in its delay slot), the 0x8B8 loop with `li v0,0x8b8` duplicated in
-   both flag-test delay slots, and the `while (cmd != 0xFD)` form with the 0xFF
-   break (that form, not `for (;;)` with two breaks, is what shares one register
-   for 0xFD between the entry test and the back edge — 85.57% -> 89.50%).
-   Tried: p/pEnd formed before the flag test (moves the `la` three insns too
-   early, 89.17%), for(;;) with two breaks, idx = i + 3 in the body.
-
-/*
 void func_80079C24(void) {
     s32 i;
     s32 off;
@@ -447,11 +431,15 @@ void func_80079C24(void) {
     u8* pCursor;
     u8* p;
     u8* pEnd;
-    u32 cmd;
+    u16 flags;
+    u32 stopOp;
+    u32 endOp;
 
-    saved = D_800C3EAC[0x2D3];
+    saved = D_800C3EAC->unk2D3;
     value = 0;
     i = 0;
+    stopOp = 0xFD;
+    endOp = 0xFF;
     for (idx = 3, off = 0x450, off2 = 0, index = 0; i < 8;
          idx++, off += 0x170, off2 += 0x40, index += 4, i++) {
         if (D_800C3D1A[index] == 0) {
@@ -460,41 +448,38 @@ void func_80079C24(void) {
         if (D_800C3D19[index] == 0) {
             continue;
         }
-        D_800C3EAC[0x2D3] = idx;
+        D_800C3EAC->unk2D3 = idx;
         pCursor = *(u8**)(D_800D340C + off2);
-        if ((*(u16*)((u8*)D_800CCD64 + off) & 0x8000) != 0) {
-            if ((*(u16*)(D_800CCD1C + off) & 0x800) == 0) {
+        flags = *(u16*)((u8*)D_800CCD64 + off);
+        p = D_800D2E5C;
+        if ((flags & 0x8000) != 0) {
+            if ((*(u16*)((u8*)D_800CCD1C + off) & 0x800) == 0) {
                 continue;
             }
         }
         for (j = 0x8B8; j >= 0; j -= 0x48) {
-            D_800C402F[j] = 0xFF;
+            D_800C402F[j] = endOp;
         }
-        p = D_800D2E5C;
         pEnd = p + 0x100;
         do {
             *p++ = 0;
         } while (p < pEnd);
-        cmd = *pCursor;
-        while (cmd != 0xFD) {
-            if (cmd == 0xFF) {
+        while (*pCursor != stopOp) {
+            if (*pCursor == endOp) {
                 break;
             }
-            if (cmd >= 0x80) {
+            if (*pCursor >= 0x80) {
                 if ((func_8007F8C0(&pCursor, i) & 0xFF) != 0) {
-                    cmd = *pCursor;
                     continue;
                 }
                 BattleScriptSkipUnknownOpcodeWords(&pCursor);
             } else {
                 value = func_8007EF6C(&pCursor, i, value);
             }
-            cmd = *pCursor;
         }
-        D_800C3EAC[0x2DB] = 0;
+        D_800C3EAC->unk2DB = 0;
         func_80079778(idx);
         BattleSetOverlayArg(0);
     }
-    D_800C3EAC[0x2D3] = saved;
+    D_800C3EAC->unk2D3 = saved;
 }
-*/
