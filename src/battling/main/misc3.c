@@ -213,14 +213,18 @@ extern char D_8006FD10[];
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_8007661C);
 
-/* measured 99.02% (written as 97.90%): the instruction stream is identical apart from two things. (1) the
-   frame is 0x38 instead of 0x30 -- this source needs one 8-byte stack temp the
-   original does not have (buf sits at sp+0x10 in both, only the total differs;
-   `u8 buf[0x8]` moves it to 0x30 but then the buffer is too small for
-   "FRAME:%d-%d"). (2) the three callee-saved locals come out rotated: gcc
-   gives s0/s1/s2 to p/w/h, the original has h/p/w (p in s1). Tried: both
-   declaration orders for w/h and for buf, default-plus-override instead of
-   if/else, u32 instead of s32 for the 0x96FC4 pair (that one was srl vs sra).
+// best 99.91% (written as 99.02%, then noted as 97.90%): the instruction stream
+// is now identical; only the frame differs, 0x38 vs 0x30 -- gcc reserves one
+// unused 8-byte local slot between buf and the saved regs (buf sits at sp+0x10 in
+// both; buf sizes 0xC and 0x10 both give 0x38, 0x18 gives 0x40, and `u8 buf[0x8]`
+// reaches 0x30 but is too small for "FRAME:%d-%d"). Two permuter edits made the
+// rest exact: reuse h for the D_80096FC4 value passed to the last Sprintf, and
+// read the D_80096FBC index as (flags >> 23) >> 4. Tried: buf declared before
+// h/w, both w/h declaration orders, default-plus-override instead of if/else,
+// u32 instead of s32 for the 0x96FC4 pair (that one was srl vs sra), plain if /
+// empty else / pointer local / s32 local for the 0x82 clamp, buf sizes 0xC/0x18.
+// The unused 0x8 slot is the one thing still between this and a match.
+/*
 void func_8007661C(u8* p) {
     char buf[0x10];
     s32 h;
@@ -240,10 +244,11 @@ void func_8007661C(u8* p) {
     BattleDrawTextLeft(buf);
     BattleSetTextScale(0x100);
     BattleSetTextCursor(w + 0x34, h);
-    Sprintf(buf, D_8006FD08, ((u8*)D_80096FBC)[((*(u32*)(p + 0xD0) >> 27) & 1) * 20]);
+    Sprintf(buf, D_8006FD08, ((u8*)D_80096FBC)[((((*(u32*)(p + 0xD0)) >> 23) >> 4) & 1) * 20]);
     BattleDrawTextLeft(buf);
     BattleSetTextCursor(w, h + 0x14);
-    Sprintf(buf, D_8006FD10, D_80096FC4[((*(u32*)(p + 0xD0) >> 27) & 1) * 5] >> 4, D_80096FC8[((*(u32*)(p + 0xD0) >> 27) & 1) * 5] >> 4);
+    h = D_80096FC4[((*(u32*)(p + 0xD0) >> 27) & 1) * 5] >> 4;
+    Sprintf(buf, D_8006FD10, h, D_80096FC8[((*(u32*)(p + 0xD0) >> 27) & 1) * 5] >> 4);
     BattleDrawTextLeft(buf);
 }
 */
@@ -284,17 +289,15 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80076884);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80077038);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80077584);
-
-/* 97.62%: the only difference is a nop in the original's beqz delay slot before
-   the "p->unk14 = -0x82" clamp, where gcc always fills the slot with the addiu.
-   Tried: plain if, empty else branch, pointer local for the field, s32 local
-   holding the limit.
-NOTE: the definition has to be old-style (K&R, four parameters) or the unit
-   stops compiling: the already matched caller BattleActorBeginMove passes only p and
-   gcc rejects the prototyped definition ("too few arguments"). The measured
-   diff is exactly the missing nop, everything else lines up.
-void func_80077584(u8* p, s32 ang, s32 shift, s32 dec) {
+/* Old-style definition and a non-void return both matter: BattleActorBeginMove
+   calls it with one argument, and as void gcc fills the beqz delay slot with the
+   clamp's addiu where retail leaves a nop. */
+char func_80077584(p, ang, shift, dec)
+u8* p;
+s32 ang;
+s32 shift;
+s32 dec;
+{
     *(s32*)(p + 0x20) += rcos(ang) >> shift;
     *(s32*)(p + 0x28) += rsin(ang) >> shift;
     if (*(s32*)(p + 0x14) >= -0x8B) {
@@ -304,7 +307,6 @@ void func_80077584(u8* p, s32 ang, s32 shift, s32 dec) {
         *(s32*)(p + 0x14) = -0x82;
     }
 }
-*/
 
 void BattleActorBeginMove(u8* p) {
     *(u32*)(p + 0xD0) |= 0x1000;
