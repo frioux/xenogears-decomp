@@ -61,6 +61,18 @@ struct BattleDirectionTask {
     /* 0xA0 */ u8 unkA0[0x18];
 }; // Size: 0xB8
 
+// One entry of the direction-transform table SpriteData.pBase points at
+// (SpriteDirectionTransforms in include/field/actor.h): retail loads the translation as
+// s8 and the rotations as u16, so this unit views the table with that signedness instead
+// of changing the shared header, which other units depend on.
+typedef struct {
+    /* 0x0 */ s8 translationX;
+    /* 0x1 */ s8 translationY;
+    /* 0x2 */ u16 rotationX;
+    /* 0x4 */ u16 rotationY;
+    /* 0x6 */ u16 rotationZ;
+} BattleDirectionTransform; // Size: 0x8
+
 extern BattleDirectionTask* WorkListsAddTasks(s32 allocSize, void* pData, void* pTimerCallback,
                                               void* pWorkCallback, void* pOnFreeCallback);
 
@@ -92,33 +104,34 @@ void BattleScriptUploadSpriteFrame(SpriteData* pSpriteData) {
     MoveImage(&rect, 0x3F0, 0x1EE);
 }
 
-void func_800B4F88(u8* pActor, s32 index, MATRIX* pMatrix) {
+void func_800B4F88(SpriteData* pSpriteData, s32 index, MATRIX* pMatrix) {
+    BattleDirectionTransform* pTransform;
     SVECTOR rot;
-    u8* pFrame;
     s32 x;
     s32 y;
     s16 scale;
 
-    if (*(u8**)(pActor + 0x20) == NULL) {
+    if (pSpriteData->pBase == NULL) {
         return;
     }
-    pFrame = (u8*)((index << 3) + *(s32*)(*(u8**)(pActor + 0x20) + 0x34));
-    y = *(s8*)(pFrame + 1);
-    x = *(s8*)pFrame;
-    if ((*(u32*)(pActor + 0xAC) >> 2) & 1) {
+    pTransform = (BattleDirectionTransform*)(index * sizeof(BattleDirectionTransform) +
+                                             (mem_addr)pSpriteData->pBase->pDirTransforms);
+    y = pTransform->translationY;
+    x = pTransform->translationX;
+    if (((u32)pSpriteData->flags_0xAC >> 2) & 1) {
         x = -x;
     }
-    scale = *(s16*)(pActor + 0x2C);
+    scale = pSpriteData->scale;
     y = (y * scale) / 0x1000;
     x = (x * scale) / 0x1000;
-    rot.vx = *(u16*)(pFrame + 2);
-    rot.vy = *(u16*)((index << 3) + *(s32*)(*(u8**)(pActor + 0x20) + 0x34) + 4);
-    rot.vz = *(u16*)((index << 3) + *(s32*)(*(u8**)(pActor + 0x20) + 0x34) + 6);
+    rot.vx = pTransform->rotationX;
+    rot.vy = ((BattleDirectionTransform*)pSpriteData->pBase->pDirTransforms)[index].rotationY;
+    rot.vz = ((BattleDirectionTransform*)pSpriteData->pBase->pDirTransforms)[index].rotationZ;
     RotMatrix(&rot, pMatrix);
-    pMatrix->t[0] = *(s32*)(*(u8**)(pActor + 0x20) + 0x20) + x;
-    pMatrix->t[1] = *(s32*)(*(u8**)(pActor + 0x20) + 0x24) + y;
-    pMatrix->t[2] = *(s32*)(*(u8**)(pActor + 0x20) + 0x28);
-    SetMulMatrix(pMatrix, (MATRIX*)(*(u8**)(pActor + 0x20) + 0xC));
+    pMatrix->t[0] = pSpriteData->pBase->transformMatrix.t[0] + x;
+    pMatrix->t[1] = pSpriteData->pBase->transformMatrix.t[1] + y;
+    pMatrix->t[2] = pSpriteData->pBase->transformMatrix.t[2];
+    SetMulMatrix(pMatrix, &pSpriteData->pBase->transformMatrix);
 }
 // 90.55% under gcc 2.7.2-cdk (-G8 and -G0) and every swept -O/-G/-mcpu, 73.07 under
 // 2.6.0, so no preset fixes this: the two combined induction bases match and only the
