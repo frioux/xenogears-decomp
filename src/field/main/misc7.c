@@ -297,20 +297,13 @@ void FieldScriptVMHandlerWriteActorRotation(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc7", func_800989F0);
-// 95.43% (144 bytes): everything matches except that gcc already has the
-// `li a0,2` for FieldScriptVMGetInstructionArgument at the top of the then-block
-// in the RTL (verified with a -fno-delayed-branch cc1 dump, so this is not a
-// reorg problem), which leaves a nop in the jal delay slot and lets reorg take
-// the sll into the beq slot. Passing the index from a local int changes nothing.
-/*
 void func_800989F0(void) {
     ActorData* pActorData;
     int actorIndex;
 
     actorIndex = FieldScriptVMGetActorIndex(1);
     if (actorIndex != ACTOR_ID_INVALID) {
-        pActorData = g_FieldActors[actorIndex].pActorData;
+        do { pActorData = g_FieldActors[actorIndex].pActorData; } while (0);
         FieldScriptMemoryWriteU16(
             FieldScriptVMGetInstructionArgument(2) & 0xFFFF,
             pActorData->rotation.vy & 0xFFF
@@ -318,7 +311,6 @@ void func_800989F0(void) {
     }
     g_FieldScriptVMCurActor->scriptInstructionPointer += 4;
 }
-*/
 
 void FieldScriptVMHandlerTeleportActor(void) {
     SpriteData* pSpriteData;
