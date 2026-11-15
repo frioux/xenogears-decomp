@@ -510,7 +510,6 @@ s32 WorldMapSetActorPosition(s32 arg0) {
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_80084068);
 void func_8008440C(void) {
     RECT rect;
-    s32 x;
     FadeParams factors = D_800704DC;
     u8 *pData;
     u8 *pDst;
@@ -521,18 +520,17 @@ void func_8008440C(void) {
     ModelLoadTextureBlock(pData);
     DrawSync(0);
     HeapFree(pData);
-    x = 0;
     HeapFree(D_8009BD20);
     pData = HeapAlloc(0x200, 1);
     pDst = HeapAlloc(0x2000, 1);
-    rect.x = x;
+    rect.x = 0;
     rect.y = 0x1F0;
     rect.w = 0x100;
     rect.h = 1;
     StoreImage(&rect, (u_long *)pData);
-    DrawSync(x);
+    DrawSync(0);
     func_800931D8(pData, pDst, 0x10, (u8 *)&factors);
-    rect.x = x;
+    rect.x = 0;
     rect.y = 0x1F0;
     rect.w = 0x100;
     rect.h = 0xF;
