@@ -2486,7 +2486,9 @@ void func_8003B424(AudioManager* pManager) {
     pScriptOffset = (u16*)(pSeqData + 0x22);
     pWds = SoundFindWdsEntry(pManager->unk_0x16);
     if (pWds == NULL) {
-        pWds = g_SoundWdsLinkedList;
+        do {
+            pWds = g_SoundWdsLinkedList;
+        } while (0);
     }
 
     do {
@@ -2557,7 +2559,126 @@ void func_8003B424(AudioManager* pManager) {
 */
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003B644);
+/*
+Attempt (94.82%, 748 bytes = the original's size): the structure, the instruction multiset and
+the whole element loop agree. The only difference left is a two-register swap - retail keeps the
+volume scaler in fp ($s8, the register `level` arrived in) and the element count in $s6; gcc 2.6.0
+gives the volume $s6 and the count fp. How this body was reached, do not regress it: `level` is
+s32 (so `(s16)volume` really narrows - retail has the sll 16/sra 16 pair) and `u32 volume = level;`
+makes the volume reuse level's register (retail's `move s8,a2` at the entry), and the
+`elementFlags = element >> 8;` assignment has to sit just before `pScriptOffset = ...`, not in the
+declaration list (that alone was 91.83 -> 94.82). Tried as well: element >> 8 inline in the loop,
+s16 level, declaration orders, the `do { pWds = g_SoundWdsLinkedList; } while (0);` the permuter
+found (worth +0.2), and three 4-minute permuter runs (best 535 vs 540, i.e. the same registers
+rotated the other way). The permuter's only other suggestion is to wrap everything from
+`elementFlags = ...` to `unk_Flags |= 0x8000` in a do { } while (0), which cc1 2.6.0 exits 33 on.
+*/
+/*
+void func_8003B644(s16 element, s32 soundId, s32 level, s16 pan) {
+    SoundFile* pSoundFile = g_SoundSedsLinkedList;
+    AudioManager* pManager = D_800595D8;
+    AudioElement* pElement;
+    SoundWDSEntry* pWds;
+    u16* pScriptOffset;
+    u8 elementFlags;
+    s16 sedId = soundId >> 16;
+    u32 volume = level;
+    u32 value;
+    s32 count;
+    s32 i;
 
+    while (pSoundFile->sedId != sedId) {
+        pSoundFile = pSoundFile->pNext;
+        if (pSoundFile == NULL) {
+            return;
+        }
+    }
+
+    pWds = SoundFindWdsEntry(pSoundFile->sndId);
+    if (pWds == NULL) {
+        do {
+            pWds = g_SoundWdsLinkedList;
+        } while (0);
+    }
+
+    volume = (s16)volume * ((u8*)pSoundFile)[((u16*)&pSoundFile->unk18)[0] + (soundId & 0xFFFF)];
+    volume >>= 7;
+    if ((volume >> 15) & 1) {
+        volume = 0x7FFF;
+    }
+
+    elementFlags = element >> 8;
+    pScriptOffset = &pSoundFile->scriptOffsets[(soundId & 0xFFFF) * 2];
+    pElement = &pManager->elements[element & 0xFF];
+    count = D_80059404;
+
+    DisableEvent(g_unk_SoundEvent);
+
+    do {
+        pElement->unk_0x8 = soundId;
+        *(s32*)pElement->unk_0x0C = D_80059504;
+        pElement->unk_0x06[1] = elementFlags;
+
+        if (*pScriptOffset != 0) {
+            pManager->unk_0x48 |= 1 << (u8)pElement->unk_0x06[0];
+            pElement->active_flag = 0x409;
+            if (((u16*)&pSoundFile->unk10)[0] & 0x1) {
+                pElement->active_flag = 0x40B;
+            }
+
+            pElement->status_flags = 0x170;
+            pElement->unk_0x04 = 0;
+            value = (u32)pSoundFile + *pScriptOffset;
+            pElement->octave = 0x3C;
+            pElement->unk_0x62 = 0xF;
+            pElement->unk_0x72 = 0xFFFF;
+            pElement->savedScriptIP = NULL;
+            *(s32*)pElement->unk_0x1C = 0;
+            pElement->unk_0x20 = 0;
+            pElement->unk_0x22 = 0;
+            pElement->fermataDuration = 0;
+            pElement->unk_0x60 = 0;
+            pElement->unk_0x6E = 0;
+            pElement->unk_0x64[0] = 0;
+            pElement->unk_0x76 = volume;
+            pElement->unk_0x78 = 0x7F000000;
+            pElement->unk_0x70 = 0;
+            ((u16*)pElement->unk_0xD0)[0] = 0;
+            ((u16*)pElement->unk_0xD0)[1] = 0;
+            ((u16*)pElement->unk_0xD0)[2] = 0;
+            ((u16*)pElement->voice_data.unkC)[0] = 0;
+            ((u16*)pElement->voice_data.unkC)[1] = 0;
+            pElement->unk_0xCE = 0;
+            pElement->unk_0x74 = pan;
+            *(u32*)&pElement->unk_0x0C[4] = value;
+            pElement->unk14 = value;
+
+            for (i = NUM_VOICE_ENVELOPES - 1; i >= 0; i--) {
+                pElement->envelopes[i].flags = 0;
+            }
+
+            pElement->unk2C = (u32)pWds;
+            pElement->unk_0x25 = pSoundFile->sndId;
+            if (pWds != NULL) {
+                func_8003E5BC(0, pElement);
+            }
+            pElement->voice_data.modeFlags = 0;
+            pElement->voice_data.priority = 0x200;
+            SoundAssignVoiceToChannelAndStop(&pElement->voice_data, pElement->voice_number);
+        } else {
+            pManager->unk_0x48 &= ~(1 << (u8)pElement->unk_0x06[0]);
+            pElement->active_flag = 0;
+            SoundReleaseVoiceFromChannel(&pElement->voice_data, pElement->voice_number);
+        }
+
+        pScriptOffset++;
+        pElement++;
+    } while (--count != 0);
+
+    pManager->unk_Flags |= 0x8000;
+    EnableEvent(g_unk_SoundEvent);
+}
+*/
 void SoundFreeAudioManagerBackups(AudioManager* pManager) {
     AudioManager* pEntry = pManager->unk_Manager_0x4;
 
