@@ -280,6 +280,11 @@ void func_800863E0(void) {
     }
 }
 */
+void WorldMapFreeTileVertexBuffers(void) {
+    HeapFree(D_8009CEB4);
+    HeapFree(D_8009D150);
+}
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_800865A0);
 // Best: 53.39%. Shape recovered: 0x120 POLY_FT4 primitives in D_8009D7F8, each
 // getting setPolyFT4 + setRGB0(0x26,0x26,0x26) + tpage GetTPage(0,1,0x3C0,0x100)
 // + clut GetClut(0x130,0x1FE) + SetSemiTrans(p,1), then a 0x2D00-byte memcpy
