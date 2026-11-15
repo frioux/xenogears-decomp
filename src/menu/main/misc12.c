@@ -477,57 +477,75 @@ void func_801E8474(s32 count, s32* pEntries) {
    pointer locals give retail's exact pair (`lui/addiu s4` + `addiu s5,s4,4`) but
    88.09% because both invariants are emitted inside the prologue save region;
    adding a live `u_char sel = selected;` copy does not move them.
-void func_801E86C8(u_char selected) {
-       s32 i;
-       s32 n;
-       s32 allValid;
-       u32 off;
-       s32* pText;
-       allValid = 1;
-       g_Menu->unk354->unk1400 = 0;
-       g_Menu->unk354->unk1404 = 0;
-       g_Menu->pManager->unkA = 1;
-       pText = D_801EA1EC + 1;
-       for (n = 1; n < 5; n++) {
-           g_Menu->unk354->unk1400 = 0;
-           g_Menu->subMenuNumChoices = 0;
-           for (i = 0; i < n; i++) {
-               if (D_801EA1EC[(selected + g_Menu->mainMenuChoice) * 8 + i * 2] != 0xFFFF) {
-                   g_Menu->unk354->unk1400 = func_8002675C(g_Menu->resources,
-                       D_801EA1EC[(selected + g_Menu->mainMenuChoice) * 8 + i * 2],
-                       (POLY_FT4*)(g_Menu->unk354->unk1400 * 0x50 + (s32)g_Menu->unk354),
-                       g_Menu->renderContext, 0xA0, 0x96, 0x1000) + g_Menu->unk354->unk1400;
-                   g_Menu->subMenuNumChoices++;
-               } else {
-                   allValid = 0;
-               }
-           }
-           g_Menu->unk354->unk1408 = *(u8*)&g_Menu->renderContext;
-           if (allValid) {
-               for (i = 0; i < 2; i++) {
-                   MenuRenderFrame();
-               }
-           }
-           g_Menu->unk354->unk1404 = 0;
-           for (i = 0; i < n; i++) {
-               if (D_801EA1EC[(selected + g_Menu->mainMenuChoice) * 8 + i * 2] != 0xFFFF) {
-                   off = g_Menu->unk354->unk1404 * 0x50 + 0x500;
-                   g_Menu->unk354->unk1404 = func_8002675C(g_Menu->resources,
-                       pText[(selected + g_Menu->mainMenuChoice) * 8 + i * 2],
-                       (POLY_FT4*)(off + (s32)g_Menu->unk354),
-                       g_Menu->renderContext, 0xA0, 0x96, 0x1000) + g_Menu->unk354->unk1404;
-               }
-           }
-           g_Menu->unk354->unk1409 = *(u8*)&g_Menu->renderContext;
-           if (allValid) {
-               for (i = 0; i < 2; i++) {
-                   MenuRenderFrame();
-               }
-           }
-       }
-   }
+   Round 114 (measured, 8 shapes). The anchor direction follows reload_cse:
+   whichever table address is materialised FIRST in the RTL survives as the
+   `la` and the other becomes `addiu <other>,<that>,+-4`. Baseline body anchors
+   D_801EA1EC+4 (s5) so the cursor base is `addiu s4,s5,-4`. Whenever a SECOND
+   live pointer local exists (dependent `pText = pCursor + 1`, two independent
+   ones, two `u8*` ones, either source order, with or without a do/while) the
+   pair is right (`la s4,D_801EA1EC` + `addiu s5,s4,4`) but the `la` is emitted
+   inside the save region (right after `sw s4`) instead of retail's slot after
+   `lw v0,852`, so 88.09% (688 bytes). Moving both inits inside the outer loop
+   so loop.c hoists them gives the same split (`la` in the save region,
+   `addu s5,s4,4` in retail's slot) at 88.16%. With one local (this body) the
+   save order is retail's exactly and the pair lands in retail's slots.
+   Left to solve: which of `la D_801EA1EC` / `la D_801EA1EC+4` is emitted first
+   without displacing it into the save region.
 */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E86C8);
+/* Best: 99.79% (688 bytes, exact instruction multiset; only the two table bases' direction differs).
+
+void func_801E86C8(u_char selected) {
+    s32 i;
+    s32 n;
+    s32 allValid;
+    u32 off;
+    s32* pText;
+
+    allValid = 1;
+    g_Menu->unk354->unk1400 = 0;
+    g_Menu->unk354->unk1404 = 0;
+    g_Menu->pManager->unkA = 1;
+    pText = D_801EA1EC + 1;
+    for (n = 1; n < 5; n++) {
+        g_Menu->unk354->unk1400 = 0;
+        g_Menu->subMenuNumChoices = 0;
+        for (i = 0; i < n; i++) {
+            if (D_801EA1EC[(selected + g_Menu->mainMenuChoice) * 8 + i * 2] != 0xFFFF) {
+                g_Menu->unk354->unk1400 = func_8002675C(g_Menu->resources,
+                    D_801EA1EC[(selected + g_Menu->mainMenuChoice) * 8 + i * 2],
+                    (POLY_FT4*)(g_Menu->unk354->unk1400 * 0x50 + (s32)g_Menu->unk354),
+                    g_Menu->renderContext, 0xA0, 0x96, 0x1000) + g_Menu->unk354->unk1400;
+                g_Menu->subMenuNumChoices++;
+            } else {
+                allValid = 0;
+            }
+        }
+        g_Menu->unk354->unk1408 = *(u8*)&g_Menu->renderContext;
+        if (allValid) {
+            for (i = 0; i < 2; i++) {
+                MenuRenderFrame();
+            }
+        }
+        g_Menu->unk354->unk1404 = 0;
+        for (i = 0; i < n; i++) {
+            if (D_801EA1EC[(selected + g_Menu->mainMenuChoice) * 8 + i * 2] != 0xFFFF) {
+                off = g_Menu->unk354->unk1404 * 0x50 + 0x500;
+                g_Menu->unk354->unk1404 = func_8002675C(g_Menu->resources,
+                    pText[(selected + g_Menu->mainMenuChoice) * 8 + i * 2],
+                    (POLY_FT4*)(off + (s32)g_Menu->unk354),
+                    g_Menu->renderContext, 0xA0, 0x96, 0x1000) + g_Menu->unk354->unk1404;
+            }
+        }
+        g_Menu->unk354->unk1409 = *(u8*)&g_Menu->renderContext;
+        if (allValid) {
+            for (i = 0; i < 2; i++) {
+                MenuRenderFrame();
+            }
+        }
+    }
+}
+*/
 void MenuSetSelectionMenuPrims(u_char count, u_char selected, s32* pEntries) {
     s32 i;
     u32 index;
