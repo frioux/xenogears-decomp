@@ -1,6 +1,7 @@
 #include "common.h"
 #include "system/memory.h"
 #include "psyq/libgte.h"
+#include "field/actor.h"
 
 // One battle sprite: the transform steps at 0x40..0x48 that BattleStepActorFadeOut
 // advances, the clip colour at 0x68..0x6A, the model parts at 0x74/0x7C and the
@@ -40,6 +41,7 @@ typedef struct {
     /* 0xAC */ union {
         /* 0xAC */ u32 word;
         /* 0xAC */ u8 bytes[0x4];
+        /* 0xAC */ s8 sbytes[0x4];
     } unkAC;
     /* 0xB0 */ s8 unkB0;
 } BattleActorSprite; // Size: 0xB4
@@ -52,7 +54,7 @@ typedef struct {
     /* 0x1C */ s32 unk1C;
     /* 0x20 */ u8 unk20[0x4];
     /* 0x24 */ s32 unk24;
-    /* 0x28 */ u8 unk28[0x4];
+    /* 0x28 */ u32 unk28;
     /* 0x2C */ s32 unk2C;
     /* 0x30 */ s32 unk30;
     /* 0x34 */ s32 unk34;
@@ -62,11 +64,24 @@ typedef struct {
     /* 0x49 */ u8 unk49;
     /* 0x4A */ u8 unk4A;
     /* 0x4B */ u8 pad4B;
-    /* 0x4C */ u8 unk4C[0x4];
+    /* 0x4C */ BattleActorSprite *unk4C;
 } BattleMisc33State; // Size: 0x50
 
 extern BattleMisc33State *D_800C3610;
 extern s32 D_800C360C;
+
+// A 0x48-byte row of the per-battle actor table that D_800C3EB0 + 0x108 starts;
+// misc25 indexes the same rows as D_800C4000[D_800C360C - 1].
+typedef struct {
+    /* 0x00 */ u8 unk0[0x46];
+    /* 0x46 */ u16 unk46;
+} BattleActorRow; // Size: 0x48
+
+extern BattleActorRow D_800C3FB8[];
+extern BattleActorSprite *D_800D363C;
+extern s16 D_800D3634;
+extern s16 D_800D3678;
+extern s32 BattleCollectMaskedSlotActors(u16 mask, void **pOut, s32 arg2);
 extern void func_800B9F78();
 extern s32 D_800C3E20;
 extern u16 D_800D2E54;
@@ -106,7 +121,60 @@ void BattleStepActorFadeOut(BattleActorSprite *p) {
         p->unkC(p);
     }
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BE1C4);
+// The GTE geom-output block D_800C3760 doubles as a matrix: CompMatrix writes
+// into it and its t[2] word is the geom screen offset (misc32 reads the same
+// 0x1C word as D_800C377C).
+typedef struct {
+    /* 0x00 */ u8 unk0[0x1C];
+    /* 0x1C */ s32 geomScreen;
+} BattleGeomMatrix; // Size: 0x20
+
+extern BattleGeomMatrix D_800C3760;
+extern void func_800BD810(u8 *pEntry, u8 *pData);
+
+void func_800BE1C4(u8 *pTask) {
+    u8 *pData;
+    u8 *pEntry;
+    MATRIX mtx;
+    SVECTOR padVec; // unused: reproduces retail's 0x80 frame
+    SVEC vec;
+    VECTOR sxy;
+    VECTOR scale;
+    s32 ofx;
+    s32 ofy;
+    s32 i;
+    s32 j;
+
+    pData = *(u8 **)(pTask + 0x4);
+    ReadGeomOffset(&ofx, &ofy);
+    sxy.vx = (0xA0 - ofx) * 2;
+    sxy.vy = (0x46 - ofy) * 2;
+    sxy.vz = ReadGeomScreen();
+    D_800C3760.geomScreen = ReadGeomScreen();
+    SpriteCopySVec(&vec, (SVEC *)(pData + 0x38));
+    scale.vx = *(s32 *)(pData + 0x40);
+    scale.vy = *(s32 *)(pData + 0x44);
+    scale.vz = *(s32 *)(pData + 0x48);
+    for (i = 0; i != 6; i++) {
+        RotMatrix((SVECTOR *)&vec, &mtx);
+        TransMatrix(&mtx, &sxy);
+        CompMatrix((MATRIX *)&D_800C3760, &mtx, &mtx);
+        ScaleMatrix(&mtx, &scale);
+        SetRotMatrix(&mtx);
+        SetTransMatrix(&mtx);
+        j = 0;
+        pEntry = pData + 0x70;
+        while (j != *(s32 *)(pData + 0x6C)) {
+            func_800BD810(pEntry, *(u8 **)(pData + 0x68));
+            j++;
+            pEntry += 0x18;
+        }
+        vec.z -= 5;
+        scale.vx -= 0x330;
+        scale.vy -= 0x330;
+        scale.vz -= 0x330;
+    }
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BE330);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BE538);
 void BattleWriteHexDigits(s32 value, u8 *pBuf, s32 n, s32 base) {
@@ -440,3 +508,35 @@ void BattleFreeSoundSeds(void) {
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BF3E8);
+/* best 79.86%: everything below is retail's instruction set except one `lw`
+   (retail re-reads D_800D363C for the pState->unk4C store: `lw a0,0(s2)` after
+   the two 0x74 stores, so its address lives in $s2 and the loaded head in $s0;
+   ours CSEs the third read onto s0 and needs no second saved register) and the
+   unkA8/unkAC load order.  The two `lhu` of the mask ARE two separate C
+   expressions -- one per statement, with the D_800D3634 store between them --
+   and the call argument must be the later statement's load, so the argument
+   expression is written last.  The table row is 0x48 bytes at D_800C3EB0+0x108
+   (misc25 reaches the same rows as D_800C4000[D_800C360C - 1]), field 0x46.
+void func_800BF3E8(BattleActorSprite *p) {
+    BattleActorSprite *pLast;
+    BattleMisc33State *pState;
+    s32 count;
+
+    D_800D3634 = D_800C3FB8[D_800C360C].unk46;
+    count = BattleCollectMaskedSlotActors(D_800C3FB8[D_800C360C].unk46, (void **)&D_800D363C, (s32)p);
+    D_800D3678 = count;
+    if (count == 0) {
+        D_800D363C = p;
+    }
+    pLast = D_800D363C;
+    pState = D_800C3610;
+    p->unk74 = D_800D363C;
+    ((BattleActorSprite *)D_800D363C)->unk74 = p;
+    pState->unk4C = D_800D363C;
+    pState->unk28 = ((pLast->unkAC.word & 3) << 2) | (pLast->unkA8 >> 30);
+    func_800223B0(p, BattleAngleToPoint(p, p->unk74));
+    if (pLast->unkAC.sbytes[3] != 0x15) {
+        func_800223B0(pLast, BattleAngleToPoint(p->unk74, p));
+    }
+}
+*/
