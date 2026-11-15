@@ -601,7 +601,6 @@ void FieldScriptSetByte21AC(void) {
 // pSpriteData load to `SpriteData* volatile*` does not stop the hoist.
 // preset screen: 2.7.2 97.68%, cdk 84.20%, 2.6.0 97.68% - no compiler
 // fixes it.
-/*
 void func_80088508(void) {
     SpriteData* pSpriteData;
     int partyMemberId;
@@ -611,6 +610,7 @@ void func_80088508(void) {
     g_FieldScriptMaxInstructionCount += 4;
     if (partyMemberId != ACTOR_ID_INVALID) {
         pSpriteData = g_FieldActors[partyMemberId].pSpriteData;
+        do { } while (0);
         address = FieldScriptVMGetInstructionArgument(1);
         FieldScriptMemoryWriteU16(address & 0xFFFF, *(u_short*)&((SpriteDataI3*)pSpriteData->field_0x7C)->field_0xC);
         FieldScriptMemoryWriteU16(FieldScriptVMGetInstructionArgument(3) & 0xFFFF, partyMemberId);
@@ -623,8 +623,6 @@ void func_80088508(void) {
     }
     g_FieldScriptVMCurActor->scriptInstructionPointer += 7;
 }
-*/
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_80088508);
 
 typedef struct {
     /* 0x0 */ int bankIndex;
