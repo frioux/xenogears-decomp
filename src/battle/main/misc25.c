@@ -7,7 +7,7 @@ extern u8 D_800C37C8;
 extern u16 D_800C3E30;
 extern u8 D_800C3D40;
 extern u8 D_800C3D6C;
-extern u8 *D_800C3BAC[];
+extern BattleBlock *D_800C3BAC[];
 extern s32 D_800C3BCC[];
 extern s32 D_800C3BEC;
 extern s32 D_800C3BF0;
@@ -494,42 +494,31 @@ void BattleReleaseBlockSlots(s32 arg0) {
     BattleClearBlockSlots();
 }
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800B0164);
-/* 99.70%: everything right except the scratch register gcc uses to spill the
-   7th stack argument at entry (original `lhu $t0,104(sp)` / `sh $t0,16(sp)`,
-   ours $a0); a0 is free here because arg0 is unused, so it is a global.c
-   tie-break. Tried: s16 vs u16 params, &D_800C3BAC[index] vs index+base
-   (needed a `pBase` local to get the original lui/addiu-then-sll order).
-void func_800B0164(s32 arg0, s32 index, u8 arg2, u8 arg3, u16 arg4, u16 arg5, u16 arg6,
-                   u16 arg7, u16 arg8, u16 arg9, u16 arg10) {
-    u8 **pBase;
-    u8 **pp;
-    u8 *p;
+void func_800B0164(u8 *pPool, s32 index, u8 unk2, u8 unk3, s16 x, s16 y, s16 z, s16 dx,
+                   s16 dy, s16 dz, s16 duration) {
+    BattleBlock *pBlock;
 
     if (D_800C37C8 == 0) {
-        pBase = D_800C3BAC;
-        pp = &pBase[index];
-        if (*pp == NULL) {
-            *pp = (u8 *)BattleAllocBlock();
+        if (D_800C3BAC[index] == NULL) {
+            D_800C3BAC[index] = BattleAllocBlock(pPool);
         }
-        p = *pp;
-        if (p != NULL) {
-            p[0] = 1;
-            p[1] = 0;
-            p[2] = arg2;
-            p[3] = arg3;
-            *(s16 *)(p + 0x4) = arg4;
-            *(s16 *)(p + 0x6) = arg5;
-            *(s16 *)(p + 0x8) = arg6;
-            *(s16 *)(p + 0xA) = arg7;
-            *(s16 *)(p + 0xC) = arg8;
-            *(s16 *)(p + 0xE) = arg9;
-            *(s16 *)(p + 0x10) = 0;
-            *(s16 *)(p + 0x12) = arg10;
+        pBlock = D_800C3BAC[index];
+        if (pBlock != NULL) {
+            pBlock->unk0 = 1;
+            pBlock->unk1 = 0;
+            pBlock->unk2 = unk2;
+            pBlock->unk3 = unk3;
+            pBlock->unk4 = x;
+            pBlock->unk6 = y;
+            pBlock->unk8 = z;
+            pBlock->unkA = dx;
+            pBlock->unkC = dy;
+            pBlock->unkE = dz;
+            pBlock->unk10 = 0;
+            pBlock->unk12 = duration;
         }
     }
 }
-*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800B026C);
 
 s32 BattleIsPointWithinBounds(s16 *pPos) {
@@ -765,25 +754,33 @@ void BattleWaitForOtherActorAnimations(s32 arg0) {
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800B15D8);
-/* 71.84% (192 bytes, same size as the original): the 7-word copy and the frame
-   arithmetic are right. Remaining differences: the original keeps the copy
-   destination in $a2 and the lui high half in $a3 (so the later global accesses
-   are `lw v0,%lo(D_800C3BD0)($a3)`), and blocks the copy 3+3+1 instead of 4+3.
-   Tried: pDst pointer local, direct global access on every reference,
-   `s32 offset` local folding the +0xC into the register (that one matches the
-   original's `addiu v0,v0,0xC` but the rest is unchanged).
+/* 71.38% under this unit's preset (XenoBattle260Div, gcc 2.6.0). 100.00% under
+   `--gcc gcc-2.7.2-cdk-psx --gp -G0` with this exact body, and tools/scripts/atfree.py
+   lists this stub's `lw $v0,%lo(D_800C3BD0)($a3)` as the cdk-with--G0 signature, so
+   the body below is believed correct and the residual is the PRESET: retail keeps
+   the lui half in $a3 and forms the addresses with separate addiu (a2 for the copy
+   destination, a0 in the bnez delay slot), while gcc 2.6.0 folds each address into
+   one register and re-forms the +8/+0x10 accesses with fresh lui/%hi pairs.
+   2.6.0 also chunks the 7-word copy 4+3 where retail has 3+3+1. Tried: `pDst`
+   pointer local for the copy, for the whole body, and for the two +8/+0x10
+   assignments only (gcc folds the constant address either way); global name on
+   every reference (72%), no `offset` local (loses retail's addiu v0,v0,0xC).
 s32 func_800B15D8(u8 *p, s32 index) {
-    BattleFrame *pFrame = (BattleFrame *)(p + index * 0x1C + 0xC);
-    BattleFrame *pDst = &D_800C3BD0;
+    BattleFrame *pFrame;
+    BattleFrame *pDst;
+    s32 offset;
 
+    offset = index * 0x1C + 0xC;
+    pFrame = (BattleFrame *)(p + offset);
+    pDst = &D_800C3BD0;
     *pDst = *pFrame;
     if ((*(u32 *)(p + 4) & 1) == 0) {
-        pDst->unk0 += (mem_addr)pFrame;
-        pDst->unk8 += (mem_addr)pFrame;
-        pDst->unk10 += (mem_addr)pFrame;
+        D_800C3BD0.unk0 = D_800C3BD0.unk0 + (mem_addr)pFrame;
+        D_800C3BD0.unk8 = D_800C3BD0.unk8 + (mem_addr)pFrame;
+        D_800C3BD0.unk10 = D_800C3BD0.unk10 + (mem_addr)pFrame;
     }
     D_800C3BF0 = 0;
-    D_800C3BEC = pDst->unk10;
+    D_800C3BEC = D_800C3BD0.unk10;
     return pFrame->unk14;
 }
 */
