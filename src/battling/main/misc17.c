@@ -232,7 +232,7 @@ void func_8008E78C(u8* p0, u32 idx, u8* pData, u32 flags) {
     for (i = 0; i < 4; i++) {
         pSlot = &D_80096F0C[i - 3];
         if (pSlot->unk1 == 0 || (idx == 0 && pSlot->unk0 == 0)) {
-            do { pSel = pSlot; } while (0);
+            do { pSel = pSlot; } while (0); // the block keeps the copy out of the beq delay slot
             break;
         }
         if (best < pSlot->unk4) {
