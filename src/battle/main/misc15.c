@@ -217,24 +217,18 @@ void BattleClearPrimFlagsTwoSlots(u8 arg0) {
         D_800D2D28[0xCB] = 1;
     }
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008BC98);
-/* Best: 99.35%. Parking note: two `addu` operand orders differ (original
-   base-first `addu v1,v1,s1` / `addu v0,v0,s1`, ours index-first). Eight source
-   spellings (subscript, pointer arith, u8(*)[0x40] cast, (arg0<<6), base+0x3C
-   indexed, u32 integer add, off locals) all compile byte-identically, so this is
-   the allocator picking which dying operand coalesces with the dest, not a source
-   shape. Same tail in func_8008B168 / func_8008C3F0 / func_8008CD28.
 void func_8008BC98(u8 arg0) {
     u16 value;
+    int slotStride;
 
     D_800D2D28[0x9C] = D_800D2D28[0x9D] = D_800D2D28[0x9E] = 1;
     D_800D2D28[0xB0] = D_800D2D28[0xB1] = 1;
     D_800D2D28[0xB7] = 2;
-    value = BattleSlotBitMask(arg0) | BattleSlotBitMask((D_800C3EAC + arg0 * 0x40)[0x3C]);
+    slotStride = 0x40;
+    value = BattleSlotBitMask(arg0) | BattleSlotBitMask((D_800C3EAC + arg0 * slotStride)[0x3C]);
     func_800BC404(value);
-    func_800BCD98(BattleSlotBitMask((D_800C3EAC + arg0 * 0x40)[0x3C]));
+    func_800BCD98(BattleSlotBitMask((D_800C3EAC + arg0 * slotStride)[0x3C]));
 }
-*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008BD50);
 /* Best: 79.27%, 94 insns / 376 bytes = the original's exact size. Verified
    against retail: every parameter is used after a call (s5/s4/s3 saves
