@@ -957,25 +957,19 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_80085418);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_80085760);
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_80085CDC);
-// Best: 93.47%, 636 bytes = retail's size (was 89.31% at 628 bytes before the
-// actor fields below were typed; typing unk24/unk48/unk4C/unk5C and giving the
-// sprite a WorldMapSpritePos/WorldMapSpritePosWhole view also fixed the lhu->lh
-// sprite reads and made GfxSetBaseMatrix(&D_8009C808) rematerialise into $a0 as
-// retail does, which frees the jal slot for 'i = 0'). Three deltas left:
-//  1. prologue: retail emits sw s1 / move s1,zero BEFORE sw s3 / lui s3 / addiu s3
-//     (s2 = pScratch, s1 = i, s3 = pCam); we emit the s3 pair first. The rest of
-//     the prologue and every loop body is instruction-identical.
-//  2. loop 3: retail loads pScratch[i + 6] (lw 24(s2)) after lh 0x24 and lw 0x4C
-//     and before the sltiu chain; sched2 hoists it above the lh in both spellings
-//     tried (its own statement before the if, and an embedded assignment in the
-//     '&' chain).
-//  3. slew block: retail has ang in $a1, cur in $a0 and d in $v1; ours has ang
-//     $a0, cur $v1, d $a1 (declaration-order tie). The four arms into one shared
-//     'sw 0x5C' are correct since 'cur = ang;' moved out of the inner if
-//     (permuter, 89.31 -> 93.47).
-// Two relocation-only diffs (byte identical, both name a 0x1F8000xx symbol the
-// original object had): 'addiu a0,s2,%lo(D_1F800008)' for the WrapDelta argument
-// and 'addiu s2,s2,%lo(D_1F800004)' at the loop-3 tail - ours fold to 8/4.
+// Best: 97.70% at retail's exact size (636 bytes), instruction multiset
+// identical. Everything else is now exact: the prologue save order needs `i = 0`
+// assigned BEFORE pCam is materialised (that is delta 1, fixed); the pScratch[i+6]
+// load in loop 3 must be read INLINE in the condition and in the SpriteDrawFrame
+// index, not through a local, or sched2 hoists it above the lh (delta 2, fixed);
+// and the slew arms assign to `d` (the ang-cur delta) rather than to cur, which
+// puts the result in $v1 as retail has it. The only delta left is an allocator
+// tie: retail holds ang in $a1 and cur in $a0, this body holds ang in $a0 and cur
+// in $a1, which also flips the two load orders and the two arm registers.
+// Declaration order does not move it (4 orders measured); an earlier permuter run
+// (base 770, best 555) only "improved" it by making the body semantically wrong.
+// Two relocation-only diffs remain and are byte identical: the WrapDelta argument
+// names D_1F800008 and the loop-3 tail D_1F800004 where this body folds to 8/4.
 /*
 void func_80085CDC(void) {
     WorldMapActor *pActor;
@@ -983,15 +977,16 @@ void func_80085CDC(void) {
     s32 *pScratch;
     WorldMapPos *pCam;
     s32 i;
-    s32 d;
     s32 cur;
     s16 ang;
+    s32 d;
     s32 v;
 
     pScratch = (s32 *)0x1F800000;
+    i = 0;
     pCam = (WorldMapPos *)&D_8009BE28;
     pActor = D_8009BE24;
-    for (i = 0; i < 0x40; i++, pActor++) {
+    for (; i < 0x40; i++, pActor++) {
         if ((pActor->unk24 == 0) & (pActor->unk4C != 0)) {
             pScratch[2] = pActor->unk28 - pCam->x;
             pScratch[4] = pActor->unk30 - pCam->z;
@@ -1022,9 +1017,8 @@ void func_80085CDC(void) {
     i = 0;
     pActor = D_8009BE24;
     for (; i < 0x40; i++, pActor++) {
-        d = pScratch[i + 6];
-        if ((pActor->unk24 == 0) & (pActor->unk4C != 0) & (d < 0xB00)) {
-            SpriteDrawFrame(pActor->unk4C, (u32 *)(((u32 *)D_8009BE3C)[0x1C]) + (d >> 4));
+        if ((pActor->unk24 == 0) & (pActor->unk4C != 0) & (pScratch[i + 6] < 0xB00)) {
+            SpriteDrawFrame(pActor->unk4C, (u32 *)(((u32 *)D_8009BE3C)[0x1C]) + (pScratch[i + 6] >> 4));
             ang = pActor->unk48;
             cur = pActor->unk5C;
             d = ang - cur;
@@ -1032,20 +1026,21 @@ void func_80085CDC(void) {
                 d += 0x1000;
             }
             if (d < 0x801) {
-                cur = ang;
                 if (d >= 0x100) {
-                    cur = cur + 0x100;
+                    d = cur + 0x100;
+                } else {
+                    d = ang;
                 }
             } else {
                 d -= 0x1000;
                 if (d < -0xFF) {
-                    cur = cur - 0x100;
+                    d = cur - 0x100;
                 } else {
-                    cur = ang;
+                    d = ang;
                 }
             }
-            pActor->unk5C = cur;
-            func_800223B0(pActor->unk4C, (cur - *(u16 *)&D_8009BD3A - 0x400) & 0xFFF);
+            pActor->unk5C = d;
+            func_800223B0(pActor->unk4C, (d - *(u16 *)&D_8009BD3A - 0x400) & 0xFFF);
             AnimScriptTick(pActor->unk4C);
         }
     }
