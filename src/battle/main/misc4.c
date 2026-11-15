@@ -44,6 +44,7 @@ extern u8 D_800D343E[];
 extern u16 D_800C48E8;
 extern s32 BattleSlotBitMask(u8 arg0);
 extern u8 D_800D2DE4[];
+extern u8 D_800C3D18[];
 extern BattleTableEntry D_800CCD64[];
 extern u8 D_800D32A1[];
 extern u16 D_800D2C94;
@@ -83,7 +84,7 @@ extern s32 func_80079ED8(u8 arg0, u8 arg1, u8 arg2, s32 arg3);
 extern u8 D_800C3D19[];
 extern u8 D_800C3D1A[];
 extern u8 D_800D340C[];
-extern u8 D_800CCD1C[];
+extern BattleTableEntry D_800CCD1C[];
 extern void BattleSetOverlayArg(u8 arg0);
 
 void BattleQueueCommandF8(u8 arg0) {
@@ -101,40 +102,48 @@ void BattleQueueCommandF8IfFlagged(u8 arg0, u8 arg1) {
         BattleQueueCommandF8(arg1);
     }
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc4", func_80078998);
-/* Best: 68.28%, one pass. The control flow below is decoded from the asm and
-   believed right (note BattleQueueCommandF8IfFlagged takes arg1 first, and the 0xFD scan loop
-   walks D_800C402F in 0x48 strides). The gap is register allocation: retail keeps
-   `arg1 * 8` in $s0 and re-forms `lui $at,%hi(D_800D2E62); addu $at,$at,$s0` at
-   every use, while this shape makes gcc CSE those addresses into pointer locals
-   (a third callee-saved register appears, frame 0x30 instead of 0x28). Try
-   indexing off a u8/u16 table type or splitting the accesses across the calls.
-
+/* Best: 89.11% (408 bytes vs retail 420), now COMPILES (the old 68.28% note
+   was a body that did not build: it indexed the BattleCommandQueue pointer as an
+   array, D_800C3EAC[0x2DA], which the typed struct rejects). Structure is exact -
+   all four calls, the 0xFD scan and both table stores match. Three insns short:
+   retail forms &D_800D2C94 ONCE into $s1 (lui/addiu) and reuses it for the
+   pre-call store and both post-call compares, and copies it to $t0 for the loop
+   plus the queue pointer to $a2 and i=0 in the preheader; gcc here rematerialises
+   the pValue address at each use (lui %hi + lhu %lo) and hoists pQueue/i above
+   the beq. Tried: pValue assigned at the top of the body and just before the
+   D_800C3FFE store (identical), no pQueue local (reloads D_800C3EAC inside the
+   loop). The remaining gap is remat/scheduling, not source shape. *//*
 void func_80078998(u8 arg0, u8 arg1) {
+    BattleCommandQueue *pQueue;
+    u16 *pValue;
     s32 i;
     s32 n;
 
     BattleQueueCommandF8IfFlagged(arg1, arg0);
-    D_800C3EAC[0x2DC] = D_800D2E5D[arg1 * 8] + 1;
-    BattleBeginActorAction(arg0, *(u16*)(D_800D2E62 + arg1 * 8), D_800D2E5E[arg1 * 8]);
-    BattleApplySlotCurveAndStep(D_800C3EAC[0x2DA]);
-    D_800C402F[D_800C3EAC[0x2DA] * 72] = D_800D2E5E[arg1 * 8];
-    D_800C3FFE[D_800C3EAC[0x2DA]][0] = D_800D2C94;
+    D_800C3EAC->unk2DC = D_800D2E5C[arg1].unk1 + 1;
+    BattleBeginActorAction(arg0, D_800D2E5C[arg1].unk6, D_800D2E5C[arg1].unk2);
+    BattleApplySlotCurveAndStep(D_800C3EAC->count);
+    D_800C402F[D_800C3EAC->count * 72] = D_800D2E5C[arg1].unk2;
+    pValue = &D_800D2C94;
+    D_800C3FFE[D_800C3EAC->count][0] = *pValue;
     func_800785D4(arg0, arg1);
-    if (*(u16*)(D_800D2E62 + arg1 * 8) != D_800D2C94) {
+    if (D_800D2E5C[arg1].unk6 != *pValue) {
+        pQueue = D_800C3EAC;
         i = 0;
         n = 0;
-        while (n < D_800C3EAC[0x2DA]) {
+        while (n < pQueue->count) {
             if (D_800C402F[i] == 0xFD) {
-                *(u16*)(D_800C3FFE + i) = D_800D2C94;
+                *(u16 *)((u8 *)D_800C3FFE + i) = *pValue;
                 break;
             }
             n++;
             i += 0x48;
         }
     }
-}
-*/
+}*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc4", func_80078998);
+
+
 void BattleQueueCommandFD(u8 arg0, u8 arg1, u8 arg2) {
     D_800C402F[D_800C3EAC->count * 72] = 0xFD;
     D_800C4022[D_800C3EAC->count][0] = 0;
@@ -163,22 +172,17 @@ void BattleSetPendingActorMask(u8 arg0, u8 arg1) {
     D_800D39E0 = D_800D2E5C[arg1].unk6;
 }
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc4", func_80078D6C);
-/* Best: 86.09%. The second store is stolen into the lhu load-delay slot by gcc
-   unless its address register is clobbered by the 0x170 multiply chain, and only
-   the folded `&D_800C3D1B[arg0 - 3].unk0` address does that (chain reuses v0), but
-   it folds -12 into %hi(D_800C3D1B) and costs the original's separate
-   addiu/sll + %hi/addu address. Kept in place by volatile; the remaining diff is
-   that address shape only. Also: -O1 scores 90.74, so the mover is an -O2 pass.
-
 void func_80078D6C(u8 arg0, u8 arg1) {
-    D_800C402F[D_800C3EAC[0x2DA] * 72] = 0xF9;
+    D_800C402F[D_800C3EAC->count * 72] = 0xF9;
     func_800785D4(arg0, arg1);
     D_800D2DE4[arg0] = 0xFF;
-    *(volatile u8*)&D_800C3D1B[arg0 - 3].unk0 = 1;
+    // The empty-block wrapper keeps this store ahead of the D_800CCD64 read-modify-write.
+    do {
+        D_800C3D1B[arg0 - 3].unk0 = 1;
+    } while (0);
     D_800CCD64[arg0].flags &= 0x8000;
 }
-*/
+
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc4", func_80078E24);
 void BattleApplyCommandByteVar(u8 arg0, u8 arg1) {
     func_80079ED8(arg0, D_800D2E5C[arg1].unk1, D_800D2E5C[arg1].unk4, 0);
@@ -339,18 +343,18 @@ void BattleScriptResetActorState(u8 arg0) {
         }
     }
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc4", func_80079AB0);
-/* Best: 98.66%. Everything but three allocator/CSE tie-breaks is identical: (1)
-   retail keeps the single `slot & 0xFF` in $a0 and reuses it for the 0x170 index
-   and D_800C3D18/D_800D3408, ours splits it into a $v0 copy plus a later $a0 one;
-   (2) retail's early `return result` loads the variable (`addu v0,s2,zero`) where
-   gcc folds it to zero here; (3) `lw a0,0x10(sp)` vs our `lw v0,0x10(sp)` for the
-   command byte. The return type must be s32 (as void, gcc deletes `result = 1`);
-   D_800C3D18 is a 4-byte-stride table read as bytes, hence the `slot * 4` index.
-   Tried: value=0/result=0 in both orders and at both positions (that pair is now
-   exact), slot as the 7th-vs-8th local declaration, the else arm written as
-   `cmd >= 0x80` first and as `cmd < 0x80` first.
-
+/* Best: 98.55%, same 376 bytes as retail. The 98.66% this block used to claim
+   came from a body that did not build (D_800D2E5C[0] and D_800C3D1B[arg0 - 3] need the record
+   struct, and D_800CCD1C is a BattleTableEntry table, not a byte array), so its
+   percentages were historic. Two allocator ties left: the early `return result`
+   loads it (`move v0,s2`) where gcc folds it to zero, and the slot index keeps
+   one $v0 copy plus a later $a0 one where retail reuses $a0. The loop shape
+   matters: `cmd = *pCursor; while (cmd != 0xFD) { if (cmd == 0xFF) break; if
+   (cmd >= 0x80) { ... } else { ... } cmd = *pCursor; }` scores 98.55%, the
+   inverted `if (cmd < 0x80) { } else if` form 79.56%, and `for (;;)` with two
+   breaks loses the shared 0xFD register. pCursor lives in a stack slot because
+   &pCursor is passed to the two decoders. */
+/*
 s32 func_80079AB0(u8 arg0) {
     s32 result;
     u8 value;
@@ -368,41 +372,40 @@ s32 func_80079AB0(u8 arg0) {
             return result;
         }
     }
-    D_800D2E5C[0] = 0;
+    D_800D2E5C[0].unk0 = 0;
     if (D_800C3D18[slot * 4] != 0) {
-        pCursor = *(u8**)(D_800D3408 + slot * 0x40);
+        pCursor = *(u8 **)&D_800D3400[slot].unk0[8];
         p = D_800D2E5C;
         pEnd = p + 0x100;
         do {
             *p++ = 0;
         } while (p < pEnd);
-        for (;;) {
-            cmd = *pCursor;
-            if (cmd == 0xFD) {
-                break;
-            }
+        cmd = *pCursor;
+        while (cmd != 0xFD) {
             if (cmd == 0xFF) {
                 break;
             }
             if (cmd >= 0x80) {
-                if ((func_8007F8C0(&pCursor, slot) & 0xFF) != 0) {
-                    continue;
+                if ((func_8007F8C0(&pCursor, slot) & 0xFF) == 0) {
+                    BattleScriptSkipUnknownOpcodeWords(&pCursor);
                 }
-                BattleScriptSkipUnknownOpcodeWords(&pCursor);
             } else {
                 if (cmd == 0x62) {
                     result = 1;
                 }
                 value = func_8007EF6C(&pCursor, slot, value);
             }
+            cmd = *pCursor;
         }
     }
-    if (D_800D2E5C[0] != 0) {
+    if (D_800D2E5C[0].unk0 != 0) {
         func_800793F0(slot + 3);
     }
     return result;
 }
 */
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc4", func_80079AB0);
+
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc4", func_80079C24);
 /* Best: 89.50%, instruction stream identical except two hoist positions (508
    bytes vs retail's 504). Retail stores value/i, then the two loop constants
