@@ -1,35 +1,85 @@
 #include "common.h"
+#include "psyq/libgte.h"
+
+// WorkListEntry of include/system/animation.h; an overlay unit cannot include
+// that header (it holds tentative definitions of main-exe globals), so the
+// layout is repeated here.
+typedef struct WorkListEntry {
+    /* 0x00 */ void *unk0;
+    /* 0x04 */ void *unk4;
+    /* 0x08 */ void (*onTriggerCallback)(void *pTask);
+    /* 0x0C */ void (*onFreeCallback)(void *pTask);
+    /* 0x10 */ u32 unk10;
+    /* 0x14 */ u32 unk14;
+    /* 0x18 */ struct WorkListEntry *pNext;
+} WorkListEntry; // Size: 0x1C
+
+// One frame of a battle model, as BattleGetFrame hands it out: a header of
+// self-relative (offset, count) pairs into the same allocation, then the flags
+// word that records whether the part scales are already applied.
+typedef struct {
+    /* 0x00 */ s32 partsOffset; // byte offset of the part array, from here
+    /* 0x04 */ s32 partCount;
+    /* 0x08 */ u8 unk8[0x8]; // a second (offset, count) pair this unit never reads
+    /* 0x10 */ s32 primsOffset; // byte offset of the primitive packet array
+    /* 0x14 */ s32 primCount;
+    /* 0x18 */ u32 flags; // 0x8000: part scales already applied
+} BattleModelFrame; // Size: 0x1C
+
+// A three-component scale as the timed scale task keeps it; unsigned because the
+// task only halves and subtracts, and the ease ends at zero.
+typedef struct {
+    /* 0x0 */ u16 vx;
+    /* 0x2 */ u16 vy;
+    /* 0x4 */ u16 vz;
+    /* 0x6 */ u16 pad6;
+} BattleScaleVector; // Size: 0x8
+
+// The scale-easing timer task: a timer work-list entry, then the scale it eases
+// and the countdown driving the ease.
+typedef struct {
+    /* 0x00 */ WorkListEntry entry;
+    /* 0x1C */ BattleScaleVector current; // scale the task is at right now
+    /* 0x24 */ BattleScaleVector start; // scale the ease started from
+    /* 0x2C */ BattleScaleVector target; // scale the ease ends at
+    /* 0x34 */ s32 frame; // frames elapsed
+    /* 0x38 */ s32 framesLeft; // frames left in the ease
+    /* 0x3C */ s32 halfLength; // half the ease length, the divisor for each step
+} BattleScaleTask; // Size: 0x40
 
 extern u8 *D_800C3558;
-extern u32 D_800C3548;
+extern BattleScaleTask *D_800C3548;
 extern u8 D_800C355C;
 extern u32 D_800C3560;
 
-extern u8 *func_800B35C0();
-extern void func_800B3358(u8 *pArg0);
+extern BattleScaleTask *func_800B35C0();
+extern void func_800B3358(BattleScaleTask *pTask);
 extern void func_800B39C0(s32, s32, u8, u8, u8);
 extern void BattleSetActorRectParams(s32, s32, s32, s32, s32, s32);
 extern void WorkListRemoveTask(void *pEntry);
 extern void TimerWorkListRemoveTask(void *pEntry);
 extern void BattleUploadAndFreeImageResources(void);
+extern WorkListEntry *TimerWorkListAllocateTask();
+extern void TimerWorkListSetTaskCallback();
+extern void WorkListTaskSetOnFreeCallback();
 
 u8 *BattleGetFrame(u8 *pBase, s32 n) {
     return &pBase[n * 0x1C + 0xC];
 }
 
-s32 BattleGetPrimitiveBufferSize(u8 *pBase) {
+s32 BattleGetPrimitiveBufferSize(BattleModelFrame *pFrame) {
     s32 count;
     s32 total;
-    u8 *p;
+    u8 *pPrim;
     s32 n;
 
     count = 0;
     total = 0;
-    p = (u8 *)((u32)*(s32 *)(pBase + 0x10) + (u32)pBase);
-    n = *(s32 *)(pBase + 0x14);
+    pPrim = (u8 *)((u32)pFrame->primsOffset + (u32)pFrame);
+    n = pFrame->primCount;
     for (; count != n; count++) {
-        total += (p[0] + 1) * 4;
-        p += (p[1] + 1) * 4;
+        total += (pPrim[0] + 1) * 4;
+        pPrim += (pPrim[1] + 1) * 4;
     }
     return total;
 }
@@ -48,21 +98,21 @@ void func_800B16F0(void) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc26", func_800B16F0);
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc26", func_800B1720);
-void BattleModelScaleParts(u8 *pBase, s32 shift) {
-    s16 *p;
+void BattleModelScaleParts(BattleModelFrame *pFrame, s32 shift) {
+    SVECTOR *pPart;
     s32 n;
     s32 i;
 
-    if (*(u32 *)(pBase + 0x18) & 0x8000) {
+    if (pFrame->flags & 0x8000) {
         return;
     }
-    *(u32 *)(pBase + 0x18) |= 0x8000;
-    p = (s16 *)((u32)*(s32 *)pBase + (u32)pBase);
-    n = *(s32 *)(pBase + 4);
+    pFrame->flags |= 0x8000;
+    pPart = (SVECTOR *)((u32)pFrame->partsOffset + (u32)pFrame);
+    n = pFrame->partCount;
     for (i = 0; i != n; i++) {
-        p[i * 4 + 0] <<= shift;
-        p[i * 4 + 1] <<= shift;
-        p[i * 4 + 2] <<= shift;
+        pPart[i].vx <<= shift;
+        pPart[i].vy <<= shift;
+        pPart[i].vz <<= shift;
     }
 }
 
@@ -97,19 +147,41 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc26", func_800B3358);
 void BattleFreeScaleTask(void *pEntry) {
     TimerWorkListRemoveTask(pEntry);
     HeapFree(pEntry);
-    D_800C3548 = 0;
+    D_800C3548 = NULL;
 }
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc26", func_800B35C0);
-void BattleCreateTimedScaleTask(u8 *pSrc, s32 n) {
-    u8 *p = func_800B35C0();
+// Returns the one scale task, allocating it on first use and restarting the
+// ease from wherever the scale currently sits on every later call.
+BattleScaleTask *func_800B35C0(void) {
+    BattleScaleTask *pTask;
 
-    *(u16 *)(p + 0x2C) = *(u16 *)(pSrc + 0);
-    *(u16 *)(p + 0x2E) = *(u16 *)(pSrc + 2);
-    *(u16 *)(p + 0x30) = *(u16 *)(pSrc + 4);
-    *(s32 *)(p + 0x38) = n * 2;
-    *(s32 *)(p + 0x3C) = n * 2;
-    func_800B3358(p);
+    if (D_800C3548 == NULL) {
+        pTask = (BattleScaleTask *)TimerWorkListAllocateTask(NULL,
+                    sizeof(BattleScaleTask) - sizeof(WorkListEntry));
+        TimerWorkListSetTaskCallback(pTask, func_800B3358);
+        WorkListTaskSetOnFreeCallback(pTask, BattleFreeScaleTask);
+        pTask->start.vx = 0;
+        pTask->start.vy = 0;
+        pTask->start.vz = 0;
+        D_800C3548 = pTask;
+    } else {
+        pTask = D_800C3548;
+        pTask->start.vx = pTask->current.vx;
+        pTask->start.vy = pTask->current.vy;
+        pTask->start.vz = pTask->current.vz;
+    }
+    return pTask;
+}
+
+void BattleCreateTimedScaleTask(BattleScaleVector *pTarget, s32 frames) {
+    BattleScaleTask *pTask = func_800B35C0();
+
+    pTask->target.vx = pTarget->vx;
+    pTask->target.vy = pTarget->vy;
+    pTask->target.vz = pTarget->vz;
+    pTask->framesLeft = frames * 2;
+    pTask->halfLength = frames * 2;
+    func_800B3358(pTask);
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc26", func_800B36BC);
 
