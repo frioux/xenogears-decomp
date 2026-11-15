@@ -739,7 +739,6 @@ void MenuParseNumberToDigits(u32 number);
 extern u32 D_801EA01C;
 extern u32 D_801EA020;
 
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc11_r2", func_801E6B70);
 /* Best: 99.49% (396 bytes = retail's size and instruction count).  Shape: two
    MenuParseNumberToDigits calls around a 3-iteration loop over g_Menu[0x322 + i];
    the counter byte is unk34C + arg0 * 0x87C + 0x1308, the prim pointer is
@@ -755,26 +754,32 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc11_r2", func_801E6B70);
    primOffset must be a real s32 local or gcc folds 0xA98 onto the base load, and
    the x argument must be written "arg0 * 0x50 + D_801EA01C" (the reverse order
    costs three instructions).
+*/
 void func_801E6B70(u8 arg0, u8* pArg1) {
     u8* pPrims;
+    u8* pCounter;
+    u8* pSlot;
+    u8* pCount;
     s32 primOffset;
+    s32 tailOffset;
     int i;
 
     MenuParseNumberToDigits((pArg1 + arg0)[0x16]);
-    *((u8*)g_Menu->unk34C + arg0 * 0x87C + 0x1308) = 0;
+    pCounter = (u8*)g_Menu->unk34C + arg0 * 0x87C;
+    pCounter[0x1308] = 0;
     for (i = 0; i < 3; i++) {
         if (*((u8*)g_Menu + i + 0x322) == 0xFF) {
             continue;
         }
         primOffset = arg0 * 0x87C + 0xA98;
         pPrims = (u8*)(primOffset + (u32)g_Menu->unk34C);
-        *((u8*)g_Menu->unk34C + arg0 * 0x87C + 0x1308) += func_8002675C(
+        *((pSlot = (u8*)g_Menu->unk34C + arg0 * 0x87C) + 0x1308) += func_8002675C(
             g_Menu->resources, *((u8*)g_Menu + i + 0x322),
-            (POLY_FT4*)(pPrims + (*((u8*)g_Menu->unk34C + arg0 * 0x87C + 0x1308) * 0x50 + 0x320)),
+            (POLY_FT4*)(pPrims + (*((pCount = (u8*)g_Menu->unk34C + arg0 * 0x87C) + 0x1308) * 0x50 + 0x320)),
             g_Menu->renderContext, arg0 * 0x50 + D_801EA01C + i * 8,
             D_801EA020, 0x1000);
     }
     MenuParseNumberToDigits((pArg1 + arg0)[0x19]);
-    *((u8*)g_Menu->unk34C + arg0 * 0x87C + 0x1309) = 0;
+    tailOffset = arg0 * 0x87C;
+    *((u8*)g_Menu->unk34C + tailOffset + 0x1309) = 0;
 }
-*/
