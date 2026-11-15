@@ -216,14 +216,7 @@ int WorldMapSetupGroup4And5ScaledPrims(int idx) {
     pLast->unk0 = 1;
     return 3;
 }
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007B394);
-/* best 99.68%: 624 bytes, identical instruction multiset. Only the registers of the
-   two D_8009C5AC values differ: retail keeps the >>12 result in v0 and the -0x40
-   constant in v1, gcc gives the constant v0 (a global-alloc priority tie; 8 shapes
-   tried, including a separate local per value, swapping the store order, and
-   single-statement vs split shift). The vector block (0x1F800000/0x1F800010) needs
-   its own locals x/z/w or gcc reloads the 0x54 field twice (the $at-addressed
-   scratchpad store forces a reload) and the head allocation moves too.
+
 int func_8007B394(int idx) {
     u8 *pPlayer = (u8 *)D_8009BE24 + (idx << 7);
     u8 *pWork = (u8 *)D_8009C620;
@@ -238,9 +231,8 @@ int func_8007B394(int idx) {
         *(s16 *)(pWork + 0x1A4) = 0;
         *(s16 *)(pWork + 0x150) = 0;
     }
-    x = D_8009C5AC >> 12;
-    *(s32 *)(pWork + 0x1AC) = x;
-    *(s32 *)(pWork + 0x158) = x;
+    *(s32 *)(pWork + 0x1AC) = D_8009C5AC >> 12;
+    *(s32 *)(pWork + 0x158) = D_8009C5AC >> 12;
     y = -0x40;
     *(s32 *)(pWork + 0x1B0) = y;
     *(s32 *)(pWork + 0x15C) = y;
@@ -273,7 +265,6 @@ int func_8007B394(int idx) {
     *(MATRIX *)(pWork + 0x1C4) = *(MATRIX *)0x1F800110;
     return 1;
 }
-*/
 int WorldMapSetupGroup6And7ScaledPrims(int idx) {
     u8 *pPlayer = (u8 *)D_8009BE24 + (idx << 7);
     u8 *pWork = (u8 *)D_8009C620;
@@ -307,13 +298,7 @@ int WorldMapSetupGroup6And7ScaledPrims(int idx) {
     pLast->unk0 = 1;
     return 3;
 }
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007B798);
-/* best 99.68%: 624 bytes, identical instruction multiset. This is the +0xA8
-   sibling of func_8007B394 (blocks at 0x1F8/0x24C instead of 0x150/0x1A4); the
-   parked body below is that one with the offsets shifted. Same allocator tie:
-   retail keeps the D_8009C5AC>>12 result in v0 and the -0x40 constant in v1,
-   gcc always gives the constant v0. Everything else, including the two
-   0x1F8000F0/0x1F800110 matrix copies and both ScaleMatrix calls, is exact.
+
 int func_8007B798(int idx) {
     u8 *pPlayer = (u8 *)D_8009BE24 + (idx << 7);
     u8 *pWork = (u8 *)D_8009C620;
@@ -328,9 +313,8 @@ int func_8007B798(int idx) {
         *(s16 *)(pWork + 0x24C) = 0;
         *(s16 *)(pWork + 0x1F8) = 0;
     }
-    x = D_8009C5AC >> 12;
-    *(s32 *)(pWork + 0x254) = x;
-    *(s32 *)(pWork + 0x200) = x;
+    *(s32 *)(pWork + 0x254) = D_8009C5AC >> 12;
+    *(s32 *)(pWork + 0x200) = D_8009C5AC >> 12;
     y = -0x40;
     *(s32 *)(pWork + 0x258) = y;
     *(s32 *)(pWork + 0x204) = y;
@@ -363,7 +347,6 @@ int func_8007B798(int idx) {
     *(MATRIX *)(pWork + 0x26C) = *(MATRIX *)0x1F800110;
     return 1;
 }
-*/
 
 int WorldMapInitReturnThree(void) {
     return 3;
