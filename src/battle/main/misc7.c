@@ -224,20 +224,14 @@ void func_8007BA04(u8 **p, u8 index) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007BA04);
-// best: 95.29%. Only the register holding the stored halfword differs
-// (original a0, gcc v1); everything else, including the D_800D3420 base
-// derived as D_800D3410+0x10, is identical.
-// screened: identical 95.29% under Default, 2.7.2-cdk and 2.6.0 - a register
-// allocation tie, not a compiler question.
 void func_8007BA44(u8 **p, u8 index) {
-    u8 storeIndex;
     u32 *pField32 = (u32 *)(D_800D3410 + index * 0x40);
-    u16 *pField = (u16 *)(D_800D3410 + 0x10 + index * 0x40);
-    u8 *pBase;
+    u16 *pWordRegs;
     u8 *pArgs = *p;
 
-    storeIndex = pArgs[2];
-    pField32[storeIndex] = ((u16 *)(pBase = D_800D3410 + 0x10 + index * 0x40))[pArgs[1]];
+    // the assignment inside the subscript is load-bearing: with a plain local
+    // gcc picks v1 for the stored halfword instead of retail's a0 (95.29%).
+    pField32[pArgs[2]] = (pWordRegs = (u16 *)(D_800D3410 + 0x10 + index * 0x40))[pArgs[1]];
 }
 void BattleClearByteRegs(u8 index) {
     s32 i = 0xF;
