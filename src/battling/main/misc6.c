@@ -5,8 +5,6 @@
 #include "system/memory.h"
 
 // .sdata/.bss of the overlay (supplied by splat's asm segments)
-extern u8* D_800926C8;
-extern u8* D_800926BC;
 extern u8 D_800928A0;
 extern u8 D_80092708;
 extern u8 D_800926F0;
@@ -69,14 +67,30 @@ extern s32 D_80091964[];
 extern s32** D_800928EC;
 extern s32 D_80092888;
 
+// 0xC-byte entry of the slot table BattleInitSpriteBuffers (main/misc5) allocates
+// at D_800926C8; this file only clears the head of an entry.
 typedef struct {
     /* 0x0 */ u16 unk0;
     /* 0x2 */ u16 unk2;
     /* 0x4 */ u16 unk4;
-    /* 0x6 */ u16 unk6;
-    /* 0x8 */ u16 unk8;
+    /* 0x6 */ s16 unk6;
+    /* 0x8 */ s8 unk8;
+    /* 0x9 */ s8 unk9;
     /* 0xA */ u16 unkA;
-} BattleSlot; // Size: 0xC
+} BattleSpriteSlot; // Size: 0xC
+
+// 0xA-byte entry of the table func_8007D6B8 (main/misc5) allocates at D_800926BC.
+typedef struct {
+    /* 0x0 */ u16 unk0;
+    /* 0x2 */ u16 unk2;
+    /* 0x4 */ u16 unk4;
+    /* 0x6 */ s8 unk6;
+    /* 0x7 */ s8 unk7;
+    /* 0x8 */ u16 unk8;
+} BattleSpriteEntry; // Size: 0xA
+
+extern BattleSpriteSlot* D_800926C8;
+extern BattleSpriteEntry* D_800926BC;
 
 typedef struct {
     /* 0x00 */ u16 unk0;
@@ -118,6 +132,30 @@ typedef struct {
 extern BattleSprite* D_8009270C;
 extern void* D_80092938;
 
+// Vertex staged in the GTE scratch block. The components are subtracted as
+// unsigned halves, which is how the original loads them (lhu).
+typedef struct {
+    /* 0x0 */ u16 vx;
+    /* 0x2 */ u16 vy;
+    /* 0x4 */ u16 vz;
+    /* 0x6 */ u16 pad;
+} BattleStageVertex; // Size: 0x8
+
+// GTE scratch block at 0x1F800000: the three camera offsets every drawer
+// subtracts, the pair BattleDrawLineQuads stages for its RTPT, and the SZ
+// read-back slot func_8007E020 reads at 0xB0.
+typedef struct {
+    /* 0x00 */ s32 unk00;
+    /* 0x04 */ s32 unk04;
+    /* 0x08 */ s32 unk08;
+    /* 0x0C */ s32 unk0C;
+    /* 0x10 */ BattleStageVertex vec;
+    /* 0x18 */ BattleStageVertex v0;
+    /* 0x20 */ BattleStageVertex v1;
+    /* 0x28 */ u8 unk28[0x88];
+    /* 0xB0 */ s32 otz;
+} BattleGteScratch; // Size: 0xB4
+
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007E020);
 /* best 96.29%. Same size and instruction multiset as retail (556 bytes, 139 insns:
    the three RTPT stages, the 0x30-byte triple-prim block, the OT link and the
@@ -158,18 +196,6 @@ typedef struct {
     // 0x9 s8 unk9;
     // 0xA s16 unkA;
 } BattleParticle; // Size: 0xC
-
-// GTE scratch block at 0x1F800000: the three camera offsets, then the vector
-// staged for the next RTPT.
-typedef struct {
-    // 0x00 s32 unk00;
-    // 0x04 s32 unk04;
-    // 0x08 s32 unk08;
-    // 0x0C s32 unk0C;
-    // 0x10 SVECTOR vec;
-    // 0x18 u8 unk18[0x98];
-    // 0xB0 s32 otz;
-} BattleGteScratch; // Size: 0xB4
 
 extern BattleParticleQuad* D_800926CC[];
 
@@ -252,18 +278,18 @@ void BattleClearSpriteTables(void) {
     s32 i;
 
     for (i = 0; i < 0x21C; i++) {
-        ((BattleSlot*)D_800926C8)[i].unk6 = 0;
-        ((BattleSlot*)D_800926C8)[i].unk4 = 0;
-        ((BattleSlot*)D_800926C8)[i].unk2 = 0;
-        ((BattleSlot*)D_800926C8)[i].unk0 = 0;
+        D_800926C8[i].unk6 = 0;
+        D_800926C8[i].unk4 = 0;
+        D_800926C8[i].unk2 = 0;
+        D_800926C8[i].unk0 = 0;
     }
     D_8009791B = 0;
     D_80099037 = 0;
     for (i = 0; i < 0xFF; i++) {
-        *(D_800926BC + i * 0xA + 6) = 0;
-        *(u16*)(D_800926BC + i * 0xA + 4) = 0;
-        *(u16*)(D_800926BC + i * 0xA + 2) = 0;
-        *(u16*)(D_800926BC + i * 0xA + 0) = 0;
+        D_800926BC[i].unk6 = 0;
+        D_800926BC[i].unk4 = 0;
+        D_800926BC[i].unk2 = 0;
+        D_800926BC[i].unk0 = 0;
     }
 }
 
@@ -298,43 +324,41 @@ void BattleQueueLineQuad(s32* pPos, s32* pPos2, u8* pColor) {
 }
 
 void BattleDrawLineQuads(u32* pOt) {
-    u8* pScratch;
+    BattleGteScratch* pScratch;
     BattleQuad* pQuad;
+    u32* pLink;
+    u32* pTag;
+    u32 link;
     u32 dx;
     u32 dy;
     u32 dz;
-    u32 link;
-    u32 addr;
-    s32* pOtz;
-    u32 masked;
-    u32* pLink;
-    long sz[2];
+    s32 sz;
     s32 i;
 
-    pScratch = (u8*)0x1F800000;
+    pScratch = (BattleGteScratch*)0x1F800000;
     pQuad = D_80094818;
-    dx = *(u32*)(pScratch + 0x0);
-    dy = *(u32*)(pScratch + 0x4);
-    dz = *(u32*)(pScratch + 0x8);
+    dx = pScratch->unk00;
+    dy = pScratch->unk04;
+    dz = pScratch->unk08;
     i = 0;
     while (i < D_800926B4) {
-        *(Bytes8*)(pScratch + 0x18) = *(Bytes8*)&pQuad->v0;
-        *(Bytes8*)(pScratch + 0x20) = *(Bytes8*)&pQuad->v1;
-        ((u16*)(pScratch + 0x18))[0] -= dx;
-        ((u16*)(pScratch + 0x18))[1] -= dy;
-        ((u16*)(pScratch + 0x18))[2] -= dz;
-        ((u16*)(pScratch + 0x20))[0] -= dx;
-        ((u16*)(pScratch + 0x20))[1] -= dy;
-        ((u16*)(pScratch + 0x20))[2] -= dz;
-        gte_ldv01(pScratch + 0x18, pScratch + 0x20);
+        *(Bytes8*)&pScratch->v0 = *(Bytes8*)&pQuad->v0;
+        *(Bytes8*)&pScratch->v1 = *(Bytes8*)&pQuad->v1;
+        pScratch->v0.vx -= dx;
+        pScratch->v0.vy -= dy;
+        pScratch->v0.vz -= dz;
+        pScratch->v1.vx -= dx;
+        pScratch->v1.vy -= dy;
+        pScratch->v1.vz -= dz;
+        gte_ldv01(&pScratch->v0, &pScratch->v1);
         gte_rtpt();
-        gte_stsxy01((u8*)pQuad + 0x8, (u8*)pQuad + 0xC);
-        gte_stsz2(sz);
-        pLink = (u32*)(((sz[0] >> 4) << 2) + (u32)pOt);
+        gte_stsxy01(&pQuad->x, &pQuad->y);
+        gte_stsz2(&sz);
+        pLink = (u32*)(((sz >> 4) << 2) + (u32)pOt);
         link = *pLink;
-        addr = (u32)pQuad & 0xFFFFFF;
-        *pLink = addr;
-        *(u32*)addr = link | 0x03000000;
+        pTag = (u32*)((u32)pQuad & 0xFFFFFF);
+        *pLink = (u32)pTag;
+        *pTag = link | 0x03000000;
         i++;
         pQuad++;
     }
