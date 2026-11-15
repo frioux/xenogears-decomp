@@ -531,6 +531,25 @@ void SpriteSetDirection(SpriteData*, s16);
 
 void func_80081F80(SpriteData*, s16, FieldActor*);
 
+INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800831F4);
+/* 92.51% (140 vs 148 bytes). Frame and every other instruction match. The
+   branch shape only comes out with the ternary INSIDE the arithmetic (angle =
+   (current + ((direction & 1) ? -0x400 : 0x400)) & 0xFFF), which gives
+   retail's cond-add with the delay slot filled; an if/else or a ternary split
+   off the & 0xFFF gives beqz + j instead. The second store reads vy unsigned
+   (lhu), so the | 0x8000 uses the field type.
+   Residuals, all allocator/scheduling: (1) the original loads vy into v0,
+   copies it (move v1,v0) and tests in place (andi v0,v0,0x8000), keeping vy in
+   v1 for the addiu; we load straight into v1 and are one instruction short.
+   (2) we sink the second sh (0x106) into the jal delay slot by moving the
+   lh a1,0x104 reload ahead of it; retail stores both halves, reloads, and
+   leaves a nop in the slot. (3) the frame: retail's is 0x20 with the saves at
+   0x18/0x1C, ours 0x18 with them at 0x10/0x14 - an unused local only moves
+   the frame and does not produce the missing instructions.
+   Tried: an s16 current local for both the test and the addiu (same 92.51%),
+   gcc-2.7.2-cdk (89.27%) and 2.6.0 (92.51%), and a 3-minute permuter run
+   (base 500, best 128, no zero) which only proposed splitting the pointer into
+   two locals.
 void func_800831F4(SpriteData* pSprite, ActorData* pActorData, FieldActor* pActor, int direction) {
     s16 angle;
     s16 current;
@@ -548,6 +567,7 @@ void func_800831F4(SpriteData* pSprite, ActorData* pActorData, FieldActor* pActo
         }
     }
 }
+*/
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80083288);
 
@@ -718,6 +738,20 @@ void FieldStopSedsPlayback(void) {
     }
 }
 
+INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80085788);
+/* 93.00% (252 vs 280 bytes). The inner scan is byte-identical to retail thanks
+   to two shapes found earlier: the scan is `while (1) { if (pEntry->unk0 ==
+   0xFFFF) break; pEntry++; i++; }` (a `while (cond)` gets inverted to a
+   two-ended test) and the stream id is one `s16` local (gcc does not CSE a
+   global across calls, so reading it inline reloads it three times).
+   Two residuals left, both allocator/scheduling, not structural: (1) retail
+   loads the id into s0 and copies it to s1 in the first jal delay slot
+   (`move s1,s0`), reusing s0 as scratch, where we load straight into s1;
+   (2) retail REMATERIALISES the loop bound every iteration (`addiu v0,s1,1`
+   before the head test and again in the back-edge, `slt v0,a1,v0`) while gcc
+   2.7.2 hoists `streamId + 1` into s0 once. Retail also forms `s1 + 0x115`
+   after ArchiveSetIndex; `streamId * 2` in the scan and the head test are
+   otherwise byte-identical.
 void func_80085788(void) {
     s16 streamId;
     s32 count;
@@ -752,6 +786,7 @@ void func_80085788(void) {
         D_800C3A64 = i;
     }
 }
+*/
 
 extern void* D_8006259C;
 extern s32 D_8004F32C;
