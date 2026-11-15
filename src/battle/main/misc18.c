@@ -20,6 +20,14 @@ extern u8 D_800D220E[];
 extern u16 D_800D2C98;
 extern u16 D_800D2C9E;
 
+// the 0x170-byte slot action table at 0x800CCCE8, and two of its columns:
+// D_800CCD72 is the flag word at +0x8A, D_800CCE44 the timer bytes at +0x15C
+// (spelling them as their own symbols is what keeps func_800995A0's
+// address formation; one base + constant inside a sum measures 94.50)
+extern u8 D_800CCCE8[];
+extern u8 D_800CCD72[];
+extern u8 D_800CCE44[];
+
 extern s32 rand(void);
 extern s8 func_80097964(u8, u8, u16);
 extern void func_800995A0(u8, u8, u16, s32);
@@ -77,21 +85,15 @@ void BattleRollAndClearTargetConditions(void) {
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80095D4C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80096018);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80096494);
-/* best: 93.04%. Same block layout and instruction multiset (226 vs 227); every
-   branch, the two duplicated (elemAtk & elem2) blocks, the element case tree,
-   the /10 pair and the two /5 tails line up instruction for instruction. Left:
-   register allocation (retail weak=t6, bitAtk=t5, elemDef=t2; ours weak=t5,
-   bitAtk=t2, elemDef=a0), retail's base-first `addu v0,a0,v0` on the
-   actor[sel].unk15A stride (both `pBase + sel * 0x170` and
-   `sel * 0x170 + (s32)pBase` give index-first), and one extra
-   `andi v0,t1,0xff` on the second `elemAtk & pair` (retail does the AND in
-   QImode because its result only feeds a compare against 0). Notes for the next
-   attempt: `weak`/`hitB` must be s32 (a u8 costs an andi at each test),
-   `hitA` is u8 (its test takes andi 0xff), and the switch needs a hoisted
-   `mask = elem2 << 8` local - that is what makes retail emit the single
-   `sll v1,t2,0x8` before the case chain. Tried: u8 vs s32 weak/hitB, nested vs
-   && for the elemAtk == 0 guard, declaration order, u16 vs u8 elemAtk.
+/* COMPILES as written (round 111 re-check): 93.04%, 908 bytes. The parked body
+   was written when D_800C3DFC / D_800C3E00 / D_800C3E34 were u8 arrays; with
+   today's typed externs only the two field reads changed
+   (D_800C3DFC->unk22, a byte read of D_800C3E34->unk38 because retail uses lbu
+   there but lhu 0x40 on the same address) plus the head/tail word reads.
+   Residual: register allocation (retail weak=t6, bitAtk=t5, elemDef=t2) and the
+   base-first addu on the actor[sel].unk15A stride. See the note below the old
+   block.
+/*
 void func_80096494(u16 *pA, u16 *pB, u8 *pFlag) {
     u8 *pBase;
     u8 bitAtk;
@@ -110,16 +112,16 @@ void func_80096494(u16 *pA, u16 *pB, u8 *pFlag) {
 
     pBase = D_800C34B0;
     bitAtk = *(u8 *)(pBase + D_800C3E50 * 0x170 + 0x15A) >> 7;
-    elemAtk = D_800C3DFC[0x22] & 0x3F;
-    elemDef = D_800C3E34[0x38] & 0x3F;
+    elemAtk = D_800C3DFC->unk22 & 0x3F;
+    elemDef = *(u8 *)&D_800C3E34->unk38 & 0x3F;
     bitDef = *(u8 *)(pBase + D_800C3E04 * 0x170 + 0x15A) >> 7;
     if (bitDef == 0) {
-        pair = *(u16 *)(D_800C3E00 + 0x8C) | *(u16 *)(D_800C3E00 + 0x8E);
+        pair = D_800C3E00->unk8C | D_800C3E00->unk8E;
     } else {
         pair = *(u16 *)(D_800D2D6C + 0x84) | *(u16 *)(D_800D2D6C + 0x86);
     }
     pair >>= 12;
-    if (*(u16 *)(D_800C3DFC + 0xA) & 0x100) {
+    if (D_800C3DFC->unk0A & 0x100) {
         weak = 1;
     }
     if (elemAtk == 0) {
@@ -133,7 +135,7 @@ void func_80096494(u16 *pA, u16 *pB, u8 *pFlag) {
     mul = 10;
     mul2 = 10;
     if (elemAtk & elemDef) {
-        if (*(u16 *)(D_800C3E34 + 0x38) & 0x40) {
+        if (D_800C3E34->unk38 & 0x40) {
             mul = 0x12;
         } else {
             mul = 0xF;
@@ -143,7 +145,7 @@ void func_80096494(u16 *pA, u16 *pB, u8 *pFlag) {
         }
     }
     if (bitAtk == 0) {
-        m = *(u16 *)(D_800C3E34 + 0x8C) | *(u16 *)(D_800C3E34 + 0x8E);
+        m = D_800C3E34->unk8C | D_800C3E34->unk8E;
         elem2 = (m & 0xF00) >> 8;
         hitB = (m >> 1) & 1;
     } else {
@@ -207,22 +209,22 @@ void func_80096494(u16 *pA, u16 *pB, u8 *pFlag) {
     }
     *pA = *pA * mul / 10;
     *pB = mul2 * *pB / 10;
-    if (*(u16 *)(D_800C3E00 + 0x32) & 0x10) {
+    if (((u16 *)&D_800C3E00->unk04[0x2E])[0] & 0x10) {
         *pA += *pA / 5;
     }
-    if (*(u16 *)(D_800C3E34 + 0x32) & 0x10) {
+    if (((u16 *)&D_800C3E34->unk04[0x2E])[0] & 0x10) {
         *pB += *pB / 5;
     }
-}
-*/
-void BattleRollPercentAndSetState38(void) {
+}void BattleRollPercentAndSetState38(void) {
     s32 t = D_800C3E00->unk5B + D_800C3DFC->unk14;
 
     if (rand() % 100 >= t) {
         D_800C34B0->unk5FC7 = 0x38;
         D_800D2DC4 = 1;
     }
-}
+}*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80096494);
+
 void BattleRollPercentAndSwapActiveActor(void) {
     BattleTableEntry *pTarget;
     u8 *pBase;
@@ -301,7 +303,8 @@ void BattleClearAllSlotStates(void) {
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80097D5C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_8009892C);
-/* best: 96.96%, same 460 bytes and the same instruction multiset. Twelve source
+/* COMPILES as written (round 111 re-check against today's externs): 96.96%,
+   same 460 bytes and the same instruction multiset. Twelve source
    shapes tried (order of the D_800C3E00 / D_800D2D6C / D_800C3AA4 stores, hp
    temp vs. direct expression, u16[] vs. byte-cast array, decl order). The only
    residual difference is placement inside the block: the original leaves the
@@ -485,21 +488,14 @@ s32 BattleTestActorSlotFlagsC002ByMode(void) {
     }
     return ret;
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_800995A0);
-/* best: 97.11%, 768 bytes (retail 752), 4 instructions too long. The prologue
-   through the kind==0 case and the whole tail (the two sdata checks, the 0x40
-   bit, the D_800CCE44 store) are byte-identical; case 9's 8-value tree matches
-   too. Left: the two- and three-case flag switches place their last case body
-   inline in retail (`bne <v>,0x1000,<miss>` then the body, then `j <miss>`) where
-   gcc 2.6.0 emits `beq <v>,0x1000,<body>` plus an extra block and jump, so cases
-   2/5/7 cost one extra j each. Shape found: the kind dispatch must be five
-   separate ifs (an if/else chain or a switch each make gcc emit a jump table or
-   shift the whole layout), each holding a switch on flag; the flag cases wanted
-   0x1000 listed before 0x800 in case 2 and 0x8000 before 0x4000 in case 5 (worth
-   3 points). Arguments: a0 slot (u8), a1 kind (u8), a2 flag (u16), a3 count (s32).
-   Symbols are the raw overlay names of the 0x170-byte BattleTableEntry table:
-   D_800CCCE8, D_800CCD72 (+0x8A) and D_800CCE44 (+0x15C); the tail reads +0x32
-   bit 0x40 of the same entry.
+/* COMPILES as written (round 111 re-check): 97.11%, 768 bytes (retail 752),
+   4 instructions too long; measured again just now. The three externs
+   D_800CCCE8 / D_800CCD72 / D_800CCE44 at the top of the file are what it was
+   missing. Tried and rejected this round: typed BattleTableEntry access
+   (D_800CCCE8[i].unk8A, &D_800CCCE8[slot]) 94.89%, and one base symbol with
+   +0x8A / +0x15C folded into the sum 94.50% - both lose retail address
+   formation, so keep the three symbol spellings.
+/*
 void func_800995A0(u8 slot, u8 kind, u16 flag, s32 count) {
     u8 *pEntry;
     u8 *pTimer;
@@ -594,8 +590,9 @@ void func_800995A0(u8 slot, u8 kind, u16 flag, s32 count) {
     }
     pTimer = (u8 *)D_800CCE44 + slot * 0x170;
     pTimer[idx] = val;
-}
-*/
+}*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_800995A0);
+
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80099890);
 void BattleDecrementConditionTimers(BattleTableEntry *p, BattleTableEntry *pOther, u8 *pCnt) {
     if (p->unk7C & 0x200) {
