@@ -287,135 +287,148 @@ int WorldMapInitActorScrollScale(int idx) {
     return 1;
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007ADD4);
-/* PARKED 81.35% (1080 bytes / 270 insns; retail 1068 / 267). Two switches plus
-   a shared rand-jitter tail; every block is found and the instruction multiset
-   differs only in how three read-modify-write globals are addressed, which is
-   also the whole 12-byte excess:
-   - case 4: retail holds &D_8009BE30 in $a2 and does lw/sw through it; ours
-     folds to %hi/%lo for the load and $at for the store.
-   - case 5: retail holds &D_8009BD3A in $a3 for both the lhu and the sh; ours
-     loads through a register and stores through $at.
-   - tail: retail holds &D_8009BD40 in $t1 for the += pair (load+store) and uses
-     $at for D_8009BD48/BD42/BD4A; ours uses $at throughout.
-   Tried for each of the three: a plain pointer local (block-scoped and
-   function-level), *p += / *p = through it, and pointer reuse across the
-   func_80097244 call argument - gcc 2.7.2 cse folds the pseudo back to the
-   symbol every time, score unchanged at 81.35%. Next step is tools/scripts/
-   permute.sh (this is a GIV/address-materialisation tie, not a structure bug).
-   Compiler is NOT the preset: try_flags.sh gives 69.06% under cdk -G0.
+/* PARKED 87.56% (1064 bytes / 266 insns; retail 1068 / 267). Two switches plus a
+   shared rand-jitter tail; every block is found.
+   SOLVED (was 81.35%): the three read-modify-write globals retail addresses
+   through a HELD register - case 4 D_8009BE30 in $a2, case 5 D_8009BD3A in $a3,
+   tail D_8009BD40 in $t1 - are UNBOUNDED ARRAY declarations. That is what makes
+   gcc keep the base in a general register instead of the `sw $r,sym` macro form
+   that maspsx expands through $at. Unparking needs these in place of the scalar
+   D_8009BD3x/4x and D_8009BE28/BE2C/BE30 declarations (the neighbours
+   WorldMapInitActorScrollScale and WorldMapExitToMap111 then still MATCH, only
+   their reloc addends move: objdiff 99.00 / 99.85):
+       extern SVECTOR D_8009BD38[];   // rotation, offset, target: 3 SVECTORs
+       extern SVECTOR D_8009BD40[];   // offset + target, same bytes
+       extern WorldMapPos D_8009BE28[];
+   and every use spelled D_8009BD3A -> D_8009BD38[0].vy and so on. SPELLING IS
+   THE WHOLE TRICK: a bounded array (u16 x[3]) or a member behind a plain struct
+   folds back to %hi/$at; a pure load or store folds too; only a read-modify-write
+   materialises the base, and only the FIRST RMW of a basic block - which is
+   exactly retail's tail (BD40 in $t1, then BD48/BD42/BD4A through $at).
+   REMAINING 4 BYTES, one decision: retail materialises &D_8009BD40 fresh in $a0
+   for func_80096F18 and AGAIN in $t1 after the two rand() calls; with arg1 and
+   the tail RMW both spelled &D_8009BD40 gcc hoists the address into the SAVED
+   register $s0 before the calls (which also pushes the player pointer to $s1 and
+   the scratch base to $s2, adding a save/restore pair). Spelling arg1 as
+   &D_8009BD38[1] kills the hoist (that is this 87.56% body) but gcc then derives
+   the other argument as `addiu $a3,$a0,-8` where retail emits a fresh `la`, so
+   the function comes out 4 bytes SHORT. A third symbol for one of those three
+   roles is what is missing and 0x8009BD40 has none: tried arg1 &D_8009BD48[-1]
+   (the hoist returns, 1072 bytes) and arg4 &D_8009BD40[-1] (84.74%). Also left
+   over: case 3/5 store order (ours sinks pPlayer->unk4 = 0) and the case-4
+   v0/v1, a1/a2 allocation swap.
+   Compiler is not the preset: -G0 85.93, gcc-2.6.0 85.89, cdk -G0 66.51.
    Do not convert func_8007BBEC/8007C3B8/8007C7D8 before this one: their tables
    must follow its two (jtbl_8006FBF4 at .rodata+0x30, jtbl_8006FC14 at +0x50,
-   with 4 pad bytes between them from the align before the second table). The
-   first switch's index needs an s16 local - 'nState = pPlayer->unk4 - 1;' gives
-   retail's lhu/addiu -1/sll 16/sra 16 where a bare expression gives lh.
-s32 func_8007ADD4(s32 idx) {
-    WorldMapPlayer *pPlayer = D_8009BE24 + idx;
-    u16 *pScratch = (u16 *)0x1F800000;
-    s32 nAngle;
-    s16 nState;
-    s16 nTimer;
+   with 4 pad bytes between them from the align before the second table).
+    s32 func_8007ADD4(s32 idx) {
+        WorldMapPlayer *pPlayer = D_8009BE24 + idx;
+        u16 *pJitter = (u16 *)PSX_SCRATCH;
+        s32 nAngle;
+        s16 nState;
+        s16 nTimer;
 
-    nState = pPlayer->unk4 - 1;
-    switch (nState) {
-    case 0:
-        pPlayer->unk4 = 0;
-        pPlayer->unk20 = 1;
-        break;
-    case 1:
-        pPlayer->unk20 = 2;
-        pPlayer->unk4 = 0;
-        pPlayer->unk50 = 0x40000;
-        break;
-    case 2:
-        D_8009D3F0 = 0x640000;
-        pPlayer->unk4 = 0;
-        pPlayer->unk20 = 0;
-        D_8009BD38 = -0x1E0;
-        D_8009BD3A = 0x480;
-        D_8009BD3C = 0;
-        break;
-    case 3:
-        pPlayer->unk4 = 0;
-        pPlayer->unk20 = 0;
-        D_8009D3F0 = 0x1E0000;
-        D_8009BD38 = 0x40;
-        D_8009BD3A = 0x418;
-        D_8009BD3C = 0;
-        D_8009D144 = 0;
-        D_8009BE30 = D_8009C5B4;
-        break;
-    case 4:
-        pPlayer->unk4 = 0;
-        pPlayer->unk20 = 3;
-        break;
-    case 5:
-        pPlayer->unk4 = 0;
-        pPlayer->unk20 = 4;
-        pPlayer->unk58 = D_8009C5AC + 0xC7C00;
-        D_8009D144 = 1;
-        pPlayer->unk5C = D_8009C5B4 + 0x3EC400;
-        break;
-    case 6:
-        pPlayer->unk4 = 0;
-        pPlayer->unk20 = 5;
-        break;
+        nState = pPlayer->unk4 - 1;
+        switch (nState) {
+        case 0:
+            pPlayer->unk4 = 0;
+            pPlayer->unk20 = 1;
+            break;
+        case 1:
+            pPlayer->unk20 = 2;
+            pPlayer->unk4 = 0;
+            pPlayer->unk50 = 0x40000;
+            break;
+        case 2:
+            D_8009D3F0 = 0x640000;
+            pPlayer->unk4 = 0;
+            pPlayer->unk20 = 0;
+            D_8009BD38[0].vx = -0x1E0;
+            D_8009BD38[0].vy = 0x480;
+            D_8009BD38[0].vz = 0;
+            break;
+        case 3:
+            pPlayer->unk4 = 0;
+            pPlayer->unk20 = 0;
+            D_8009D3F0 = 0x1E0000;
+            D_8009BD38[0].vx = 0x40;
+            D_8009BD38[0].vy = 0x418;
+            D_8009BD38[0].vz = 0;
+            D_8009D144 = 0;
+            D_8009BE28[0].z = D_8009C5B4;
+            break;
+        case 4:
+            pPlayer->unk4 = 0;
+            pPlayer->unk20 = 3;
+            break;
+        case 5:
+            pPlayer->unk4 = 0;
+            pPlayer->unk20 = 4;
+            pPlayer->unk58 = D_8009C5AC + 0xC7C00;
+            D_8009D144 = 1;
+            pPlayer->unk5C = D_8009C5B4 + 0x3EC400;
+            break;
+        case 6:
+            pPlayer->unk4 = 0;
+            pPlayer->unk20 = 5;
+            break;
+        }
+        switch (pPlayer->unk20) {
+        case 0:
+            break;
+        case 1:
+            pPlayer->unk50 += 0x200;
+            if (pPlayer->unk50 > 0x8000) {
+                pPlayer->unk50 = 0x8000;
+                pPlayer->unk20 = 0;
+            }
+            break;
+        case 2:
+            pPlayer->unk50 -= 0x200;
+            if (pPlayer->unk50 < 0x8000) {
+                pPlayer->unk50 = 0x8000;
+                pPlayer->unk20 = 0;
+            }
+            break;
+        case 3:
+            pPlayer->unk50 -= 0x100;
+            if (pPlayer->unk50 < 0x1000) {
+                pPlayer->unk50 = 0x1000;
+                pPlayer->unk20 = 0;
+            }
+            break;
+        case 4:
+            D_8009BE28[0].z += 0x3A000;
+            if (D_8009BE28[0].z > 0x77FFFFF) {
+                pPlayer->unk20 = 0;
+            }
+            D_8009BD40[0].vx = (pPlayer->unk58 - D_8009BE28[0].x) >> 12;
+            D_8009BD40[1].vz = 0;
+            D_8009BD40[1].vx = 0;
+            nAngle = D_8009BE28[0].y >> 12;
+            D_8009BD40[1].vy = nAngle;
+            D_8009BD40[0].vy = nAngle - 0x40;
+            D_8009BD40[0].vz = (D_8009BE28[0].z - pPlayer->unk5C) >> 12;
+            func_80097244((s32 *)&D_8009BD40[0]);
+            WorldMapExtractRotationFromMatrix(&D_8009C808, &D_8009BD38[0]);
+            break;
+        case 5:
+            D_8009BD38[0].vy += 4;
+            nTimer = D_8009BD38[0].vy;
+            if (nTimer > 0x600) {
+                pPlayer->unk20 = 0;
+            }
+            break;
+        }
+        func_80096F18(&D_8009BD40[0], &D_8009BE28[0], D_8009D3F0, &D_8009BD38[0]);
+        pJitter[0x50] = rand() % (pPlayer->unk50 >> 12) - (pPlayer->unk50 >> 13);
+        pJitter[0x51] = rand() % (pPlayer->unk50 >> 12) - (pPlayer->unk50 >> 13);
+        D_8009BD40[0].vx += pJitter[0x50];
+        D_8009BD40[1].vx += pJitter[0x50];
+        D_8009BD40[0].vy += pJitter[0x51];
+        D_8009BD40[1].vy += pJitter[0x51];
+        return 1;
     }
-    switch (pPlayer->unk20) {
-    case 0:
-        break;
-    case 1:
-        pPlayer->unk50 += 0x200;
-        if (pPlayer->unk50 > 0x8000) {
-            pPlayer->unk50 = 0x8000;
-            pPlayer->unk20 = 0;
-        }
-        break;
-    case 2:
-        pPlayer->unk50 -= 0x200;
-        if (pPlayer->unk50 < 0x8000) {
-            pPlayer->unk50 = 0x8000;
-            pPlayer->unk20 = 0;
-        }
-        break;
-    case 3:
-        pPlayer->unk50 -= 0x100;
-        if (pPlayer->unk50 < 0x1000) {
-            pPlayer->unk50 = 0x1000;
-            pPlayer->unk20 = 0;
-        }
-        break;
-    case 4:
-        D_8009BE30 += 0x3A000;
-        if (D_8009BE30 > 0x77FFFFF) {
-            pPlayer->unk20 = 0;
-        }
-        D_8009BD40 = (pPlayer->unk58 - D_8009BE28) >> 12;
-        D_8009BD4C = 0;
-        D_8009BD48 = 0;
-        nAngle = D_8009BE2C >> 12;
-        D_8009BD4A = nAngle;
-        D_8009BD42 = nAngle - 0x40;
-        D_8009BD44 = (D_8009BE30 - pPlayer->unk5C) >> 12;
-        func_80097244(&D_8009BD40);
-        WorldMapExtractRotationFromMatrix(&D_8009C808, (SVECTOR *)&D_8009BD38);
-        break;
-    case 5:
-        D_8009BD3A += 4;
-        nTimer = D_8009BD3A;
-        if (nTimer > 0x600) {
-            pPlayer->unk20 = 0;
-        }
-        break;
-    }
-    func_80096F18(&D_8009BD40, &D_8009BE28, D_8009D3F0, &D_8009BD38);
-    pScratch[0x50] = rand() % (pPlayer->unk50 >> 12) - (pPlayer->unk50 >> 13);
-    pScratch[0x51] = rand() % (pPlayer->unk50 >> 12) - (pPlayer->unk50 >> 13);
-    D_8009BD40 += pScratch[0x50];
-    D_8009BD48 += pScratch[0x50];
-    D_8009BD42 += pScratch[0x51];
-    D_8009BD4A += pScratch[0x51];
-    return 1;
-}
 */
 
 int WorldMapSetupGroup4And5ScaledPrims(int idx) {
