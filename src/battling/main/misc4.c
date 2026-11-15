@@ -403,7 +403,7 @@ void BattleResetState(void) {
 
 // char return (value unused): retail's `beqz` delay slot holds a nop, and a void
 // return lets gcc reorg steal the first insn of the if-body into it.
-char func_80079B44(void) {
+char BattleResetForNextRound(void) {
     D_8009872C.unkCC = 0x400;
     D_80097010.unkCC = -0x400;
     func_80078F00(&D_8009872C);
