@@ -45,6 +45,12 @@ extern void BattleApplySlotCurveAndStep(u8 arg0);
 extern void BattleBeginActorAction(u8 arg0, u16 arg1, u16 arg2);
 extern s32 BattleFindMinValueOtherSlot(u8 arg0);
 extern void func_800B89FC(s32 arg0, u8 arg1, s32 arg2, s32 arg3);
+extern s32 func_8008C81C(u8 arg0);
+extern void BattleNoOpCallback(s32 arg0, s32 arg1);
+extern void func_800877E0(u8 arg0, u8 arg1);
+extern void func_80087EDC(u8 arg0, u8 arg1);
+extern void BattleSetupActorSlotDisplay(u8 arg0);
+extern u8 D_800C4928;
 
 void BattlePlaySoundIfEnabled(u8 arg0) {
     if (D_800D366C != 0) {
@@ -348,6 +354,78 @@ void func_8008C3F0(u8 arg0) {
     func_800BCD98(BattleSlotBitMask((D_800C3EAC + arg0 * slotStride)[0x3C]));
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008C4A8);
+/* Best: 88.52% (932 bytes vs the original's 884). Same calls, same branch tree,
+   same instruction multiset in every block except two shapes:
+   1. loop-invariant base hoisting. Retail re-forms each of the three command
+      table bases inside the loop (`lui at,%hi(D_800C402F); addu at,at,v1;
+      sb %lo(D_800C402F)(at)`); gcc 2.6 hoists all three symbols into s3/s4/s5 in
+      the loop preheader (L8008C66C) and reaches them with `addu v0,v0,sN`,
+      which also grows the frame from 0x28 to 0x38. The same expression outside
+      the loop compiles to retail's at-form, so the source spelling is right and
+      it is the `loop` pass doing it. Tried: a `do { } while (0);` block around
+      the three stores (no change), three separate index locals (loads of
+      D_800C3EAC[0x2DA] drop from three to one), `int slotStride = 0x40;`
+      (fixes the addu operand order of item 2 but makes the tail index a real
+      `mult` and costs 4 more registers), pointer locals.
+   2. addu operand order at three sites: retail `addu v0,v0,s0` (base first),
+      gcc `addu v0,s0,v0`. `(D_800C3EAC + arg0 * slotStride)[0x3C]` with a
+      variable stride gives retail's order but breaks item 1 further (see above);
+      with the 0x40 literal the order is wrong at exactly the three sites where
+      the pointer lands in $v0 rather than $a0. Both `D_800C3EAC[arg0 * 0x40 +
+      0x3C]` and `(D_800C3EAC + arg0 * 0x40)[0x3C]` measured identical.
+   Everything else matches, including the shared epilogue, `D_800D2D28[0xCB] =
+   result` / `D_800C4928 = result` both storing $s3 (the source has to store the
+   `result` local there, not the literal 1), the `sb` in BattleFreeSlotPrims's
+   jal delay slot, the `addiu v0,v0,0xFF` (255, not -1) form of `x - 1`, and the
+   `slti/bnez` for-loop tail. `make check` was NOT run on the parked body.
+   NEXT: permute this body. */
+/*
+s32 func_8008C4A8(u8 arg0) {
+    s32 result;
+    s32 i;
+
+    result = 1;
+    if ((func_8008C81C(arg0) & 0xFF) != 0) {
+        BattleNoOpCallback(arg0, 0x100);
+        BattleFreeSlotPrims(1);
+        D_800D2D28[0xCB] = result;
+        result = 0;
+    } else {
+        BattleNoOpCallback(arg0, 0x80);
+        D_800D2D28[0xAF] = 0;
+        BattleFreeSlotPrims(1);
+        D_800D366C = 0;
+        func_800BCD98(0);
+        D_800C3EAC[arg0 * 0x40 + 0x3C] = D_800C3E2C;
+        func_800877E0(arg0, D_800C3EAC[arg0 * 0x40 + 0x3C]);
+        D_800C4928 = result;
+        BattleSetupActorSlotDisplay(arg0);
+        if ((*(u16 *)(D_800CCD1C + D_800C3EAC[arg0 * 0x40 + 0x3C] * 0x170) & 0x800) != 0) {
+            D_800C400B[D_800C3EAC[0x2DA] * 72] = arg0;
+            D_800C402F[D_800C3EAC[0x2DA] * 72] = 0xF3;
+            D_800C4022[D_800C3EAC[0x2DA] * 36] = BattleSlotBitMask(D_800C3EAC[arg0 * 0x40 + 0x3C]);
+            D_800C3EAC[0x2DA] = D_800C3EAC[0x2DA] + 1;
+        }
+        for (i = 0; i < 7; i++) {
+            if (D_800C3EAC[i + 0x2C4] != 0xFF) {
+                D_800C3EAC[0x2DC] = D_800C3EAC[i + 0x2C4] + 8;
+                BattleBeginActorAction(arg0, BattleSlotBitMask(D_800C3EAC[arg0 * 0x40 + 0x3C]), D_800C3EAC[0x2DC] - 1);
+                BattleApplySlotCurveAndStep(D_800C3EAC[0x2DA]);
+                D_800C402F[D_800C3EAC[0x2DA] * 72] = D_800C3EAC[0x2DC] - 1;
+                D_800C400B[D_800C3EAC[0x2DA] * 72] = arg0;
+                *(u16 *)(D_800C3FFE + D_800C3EAC[0x2DA] * 72) = D_800D2C94;
+                D_800C3EAC[0x2DA] = D_800C3EAC[0x2DA] + 1;
+            }
+        }
+        BattleQueueCommandFE(arg0);
+        func_80087EDC(arg0, D_800C3EAC[arg0 * 0x40 + 0x3C]);
+        while (D_800C3EAC[0x2DB] == 0) {
+            BattleUpdateFrame();
+        }
+    }
+    return result;
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008C81C);
 void BattleClearPrimFlagsThreeSlots(u8 arg0) {
     D_800D2D28[0x9C] = D_800D2D28[0x9D] = D_800D2D28[0x9E] = 0;
