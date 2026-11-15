@@ -202,6 +202,14 @@ void BattleWordRegSetReg(u8 **p, u8 index) {
 // *p written inline twice 78.67, u32 value temp 67.87, pre-assigned pArgsCopy
 // 84.67, pField + (pArgs - pArgs) to delay the base 85.33, 3025 permuter
 // iterations from base 80.
+// The base-first order survives every source order tried (round 76): pArgs
+// declared first 84.67, both bases inline 74.33, two-statement base split 58.67,
+// u8 slot copy 84.67, volatile *p read 84.67, index term first 84.67, typed
+// u32* base + index * 16 84.67, load and base in one do-while 82.67, plus a
+// third permuter run (2026 iterations, base=80 best=80). That it is emission
+// order and not an allocator tie is shown by BattleByteRegSetReg, the same
+// table family one function earlier: it is matched with retail's base-then-load
+// order, so retail's load-first here needs a dependency the source has none of.
 // screened: identical 84.67% under Default, 2.7.2-cdk and 2.6.0 - a register
 // allocation tie, not a compiler question.
 /*
