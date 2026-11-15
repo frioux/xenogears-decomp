@@ -617,7 +617,7 @@ s32 BattleUpdateControllerActuator(BattleActor* p, s32 mode) {
 
 /* Non-void return type: as void gcc fills the beq delay slots that retail
    leaves as nop. */
-short func_80077770(BattleActor* p) {
+short BattleUpdateActorMovement(BattleActor* p) {
     s32 dist;
     s32 ang;
     s32 mode;
