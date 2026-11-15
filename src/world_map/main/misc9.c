@@ -379,7 +379,7 @@ s32 func_800877E0(s32 index) {
     pSlot->unk54 = 8;
     return 1;
 }
-s32 func_80087804(s32 index) {
+s32 WorldMapUpdateSceneLayerRotationMatrices(s32 index) {
     WorldMapSlot* pSlot = (WorldMapSlot*)(D_8009BE24 + index * 0x80);
     u8* pSrc = D_8009C620;
     s32 entryIndex = D_8009C610 * 2;

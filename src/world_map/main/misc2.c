@@ -64,7 +64,7 @@ typedef struct {
 
 extern void WorldMapInitGfxEnv(void);
 extern void func_80072DB4(s32 arg0, s32 arg1, s32 arg2, s32 arg3);
-extern void func_8008440C(void);
+extern void WorldMapLoadTextureClut(void);
 extern void func_800978FC(void);
 extern void func_8008901C(void);
 extern void func_800865A0(void);
@@ -488,7 +488,7 @@ void WorldMapExitMenuMode(void) {
     MoveImage(&rect, 0, 0xD8);
     ClearOTagR(*(u_long**)(D_8009BE3C + 0x70), 0x400);
     ArchiveCdDataSync(0);
-    func_8008440C();
+    WorldMapLoadTextureClut();
     rect.x = 0x180;
     rect.y = w;
     rect.w = 0x80;

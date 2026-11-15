@@ -165,7 +165,7 @@ extern void WorldMapAllocSlotPool(void);
 extern void func_80098044(void);
 extern int ArchiveCdDataSync(int);
 extern void WorldMapLoadSedsBank(void);
-extern void func_8008440C(void);
+extern void WorldMapLoadTextureClut(void);
 extern void func_80084580(void);
 extern void func_800979C8(void);
 extern void func_800736DC(void);
@@ -368,7 +368,7 @@ void WorldMapInitializeScene(void) {
     D_8009C5B0 = 0xFFF00000;
     D_8009C5B4 = 0x1A00000;
     func_80084580();
-    func_8008440C();
+    WorldMapLoadTextureClut();
     func_800979C8();
     func_800736DC();
     func_800863E0();
@@ -508,7 +508,7 @@ s32 WorldMapSetActorPosition(s32 arg0) {
     return 1;
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_80084068);
-void func_8008440C(void) {
+void WorldMapLoadTextureClut(void) {
     RECT rect;
     FadeParams factors = D_800704DC;
     u8 *pData;

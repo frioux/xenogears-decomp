@@ -450,7 +450,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_800979C8);
 // `sw s2,0x20(sp)` + `move s2,zero` (i = 0 from the declaration) AFTER the
 // LZSSHeapDecompress argument setup (lui/lw a0, li a1) and before `sw ra`; we
 // emit that pair first, at the very top of the entry block. Same 2-insn class
-// as the parked func_8008440C in world_map/main/misc8 (98.71%), not a register
+// as the parked WorldMapLoadTextureClut in world_map/main/misc8 (98.71%), not a register
 // numbering problem. What DID close this from 92.13%: three separate pointer
 // locals (pClut for loop 1, pClut2 for loop 2, pClut3 for loop 3 - one shared
 // pClut put i in s3 and the pointer in s2, the reverse of retail), assigning

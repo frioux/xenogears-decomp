@@ -130,7 +130,7 @@ extern s32 D_8009D7F0;
 extern void WorldMapSetPrimColors(u8 *, s32, s32, s32, s32);
 extern void func_8007EBBC(WorldMapGroup *, void *, int, int);
 extern void func_80084580(void);
-extern void func_8008440C(void);
+extern void WorldMapLoadTextureClut(void);
 extern void func_800979C8(void);
 extern void WorldMapQueueFileLoads(void);
 extern void func_800736DC(void);
@@ -390,7 +390,7 @@ void func_8007D918(void) {
     D_8009C5B0 = D_8009A5B6[nIndex * 4] << 12;
     D_8009C5B4 = D_8009A5B8[nIndex * 4] << 12;
     func_80084580();
-    func_8008440C();
+    WorldMapLoadTextureClut();
     func_800979C8();
     WorldMapQueueFileLoads();
     func_800736DC();
@@ -750,7 +750,7 @@ void WorldMapInitializeModeWithActors(void) {
     D_8009C5B0 = 0xFFF80000;
     D_8009C5B4 = 0x13C0000;
     func_80084580();
-    func_8008440C();
+    WorldMapLoadTextureClut();
     func_800979C8();
     func_800736DC();
     WorldMapRelocateMapEntryOffsets();
