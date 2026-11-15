@@ -245,6 +245,7 @@ void WorldMapUpdateFrameAnimEntries(void) {
         }
     }
 }
+
 void func_80075228(void) {
     s32 i;
     s32 screenWidth;
