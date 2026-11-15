@@ -638,36 +638,24 @@ void WorldMapScriptOp04SetScratchPosition(void) {
     SetTransMatrix(pMatrix);
 }
 
-// 89.13% under the unit's gcc 2.7.2 -G0, verified now (83.09 under the old -G8).
-// Size is retail's 420 bytes / 105 insns and the whole head is exact. Two left:
-//   1. the trans-matrix store block. Retail forms ONE base in $a3 by
-//      'lui %hi(D_800770CC) / addiu %lo(D_800770CC)' and stores 'sw ...,0(a3)',
-//      then derives the CompMatrix argument from it ('addiu a1,a3,-0x14'), i.e.
-//      retail's source reached both the three s32 stores AND the MATRIX at
-//      D_800770B8 through one base at 0x800770CC (the matrix's t[0]); our C writes
-//      the three stores as separate externs (D_800770CC/D0/D4), so gcc makes a
-//      lone lui/addiu pair for the argument and a bare %lo(%at) store. Tried: the
-//      individual symbols, a MATRIX* local for the trans matrix, a s32* pointing
-//      at the t-vector, and a s32* via pRotMatrix. What is NOT tried is a single
-//      declared 3-word object at 0x800770CC that the CompMatrix argument is taken
-//      from, e.g. a VECTOR D_800770CC with '(MATRIX*)((u8*)pVec - 0x14)' - no unit
-//      in the repo has such a symbol yet.
-//   2. one register tie: retail 'mult / mflo $v0 / addu $s3,$s3,$v0', we get $v1
-//      for the mflo and the addu.
-// Permuter run (4 min, -j 2) from this body: PERMUTER_BETTER base=950 best=775, but
-// its best candidate (u32 dxSq plus a pRotMatrix reassignment that makes both
-// CompMatrix arguments the same pointer) is UNSOUND - it compiles to
-// CompMatrix(trans, trans, res) - so porting it drops objdiff to 83.30%. The u32
-// dxSq half is kept here and is neutral.
-// 99.24%, 420 bytes / 105 insns = retail's size, and the whole function is identical
-// except ONE register: retail 'mult s2,s2 / mflo v0 / addu s3,s3,v0', we get $v1 for
-// both. The three 'D_800770CC/D0/D4' stores and the CompMatrix arguments are now exact:
-// the trick was that retail reaches the translation vector through the matrix's t[]
-// ('s32* pTrans = D_800770B8.t;') which makes gcc materialise 0x800770CC in $a3 for the
-// first store and derive the matrix base as 'addiu a1,a3,-0x14' - writing '&D_800770B8'
-// for the argument and pScaleMatrix->t[i] for the stores gives 88.94% with a $at macro,
-// and the separate D_800770CC/D0/D4 externs 89.13%.
-// Permuter from this body (3 min, -j 2, 828 iterations): PERMUTER_NONE base=10 best=10.
+// 99.24% under the unit's gcc 2.7.2 -G0: 420 bytes / 105 insns = retail's size and the
+// whole function is identical except ONE register - retail 'mult s2,s2 / mflo v0 /
+// addu s3,s3,v0', 2.7.2 gives $v1 for both. The source is NOT the problem: under
+// gcc 2.6.0 with the same flags (-O2 -G0) this body is INSTRUCTION-IDENTICAL to retail
+// ('mflo $2') and scores 99.33 only because of symbol+offset relocation naming that
+// links to the same bytes (our 'sw $0,D_800770D8+24' against retail's D_800770F0 - the
+// same forms the 2.7.2 build of this unit already carries). try_flags.sh
+// movie/main/misc2 --all --gcc gcc-2.6.0-psx leaves every already-matched function of
+// this unit at 100.00, so this TU wants 2.6.0 and not 2.7.2: gears.toml was not edited.
+// Shapes tried under 2.7.2 for the $v0 (all 420 bytes, all $v1): 'dy * dy' inline in
+// the sqrt argument, 's32 dySq' and 'u32 dySq' assigned at the use site, a 'dy2 = dy'
+// copy, 's32/u32 dist = dxSq + dy * dy' then '(dist + dzSq)', (u32) casts on the
+// product, and 'dxSq += dy * dy' (that one shuffles the two earlier mflos, 85.12%).
+// Two permuter runs (3 min base=10 best=10; 5 min, 2327 iterations, base=10 best=10).
+// The trans-matrix block below is exact and came from the round-112 lever: retail
+// reaches the translation vector through the matrix's t[] ('s32* pTrans = D_800770B8.t;')
+// so gcc materialises 0x800770CC in $a3 and derives the CompMatrix argument from it as
+// 'addiu a1,a3,-0x14'.
 /*
 void func_80076CA4(void) {
     MATRIX* pRotMatrix;
@@ -677,7 +665,7 @@ void func_80076CA4(void) {
     s32 dz;
     s32 dx;
     s32 dzSq;
-    u32 dxSq;
+    s32 dxSq;
     s32 dy;
 
     pPos = &D_8007703C;
@@ -701,6 +689,7 @@ void func_80076CA4(void) {
     pTrans[1] = D_80076F30 - D_80077040;
     pTrans[2] = D_80076F34 - D_80077044;
     CompMatrix(pRotMatrix, &D_800770B8, &D_80077050);
-}*/
+}
+*/
 INCLUDE_ASM("asm/movie/nonmatchings/main/misc2", func_80076CA4);
 
