@@ -223,7 +223,7 @@ void BattleInitSemiTransQuadPacket(BattlingPacketOwner *arg0) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc11", func_80087B74);
 
-void func_80087E38(s32 *arg0) {
+void BattleAppendEntry(s32 *arg0) {
     s32 i = D_800928F8;
 
     if (i < 0x1F) {

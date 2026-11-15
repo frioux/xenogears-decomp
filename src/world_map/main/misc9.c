@@ -42,7 +42,7 @@ extern s32 D_8009D7F0;
 
 
 void WorldMapSetSpriteSetParent(s32 arg0, s32 arg1);
-void func_80087904(u8* pDst, u8* pSrc, s32 count, s32 abr);
+void WorldMapSetSlotTPages(u8* pDst, u8* pSrc, s32 count, s32 abr);
 s32 WorldMapSetSceneLayerTPages(s32 arg0);
 void func_80099BFC(u8* pSrc, s32 count, u32 arg2, u8* pPrim);
 
@@ -422,7 +422,7 @@ s32 func_80087804(s32 index) {
 }
 */
 
-void func_80087904(u8* pDst, u8* pSrc, s32 count, s32 abr) {
+void WorldMapSetSlotTPages(u8* pDst, u8* pSrc, s32 count, s32 abr) {
     long tmp[2]; // unused: reproduces retail's 0x30-byte stack frame
     u8* p;
     s32 rows = count;
@@ -457,8 +457,8 @@ s32 WorldMapSetSceneLayerTPages(s32 index) {
     entryIndex = D_8009C610 * 2;
     pEntry = pBase + D_8009B64C[entryIndex] * 0x54;
     pEntry2 = pBase + D_8009B64E[entryIndex] * 0x54;
-    func_80087904(pEntry, *(u8**)(pEntry + 0x48), *(u16*)(*(u8**)(pEntry + 0x40) + 4), 3);
-    func_80087904(pEntry2, *(u8**)(pEntry2 + 0x48), *(u16*)(*(u8**)(pEntry2 + 0x40) + 4), 3);
+    WorldMapSetSlotTPages(pEntry, *(u8**)(pEntry + 0x48), *(u16*)(*(u8**)(pEntry + 0x40) + 4), 3);
+    WorldMapSetSlotTPages(pEntry2, *(u8**)(pEntry2 + 0x48), *(u16*)(*(u8**)(pEntry2 + 0x40) + 4), 3);
     return 1;
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_80087A8C);

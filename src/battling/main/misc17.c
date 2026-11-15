@@ -44,7 +44,7 @@ extern u8 D_80091FA0[];
 
 extern void BattleQueueMessage(u8*, u8);
 extern void func_800767C8(u8*, u8*);
-extern void func_8008E78C(u8*, u32, u8*, u32);
+extern void BattleAcquireSoundSlot(u8*, u32, u8*, u32);
 extern s32 func_8008B650(s32, s16, s16);
 extern void SoundStopAllElements(void);
 extern u32 func_8003A5D0(u32);
@@ -219,7 +219,7 @@ u8* BattleSetActorSoundTable(u8* p) {
     *(u8**)(p + 0x1664) = pTable;
     return pTable;
 }
-void func_8008E78C(u8* p0, u32 idx, u8* pData, u32 flags) {
+void BattleAcquireSoundSlot(u8* p0, u32 idx, u8* pData, u32 flags) {
     BattleSlot* pSlot;
     BattleSlot* pSel;
     u32* pSrc;
@@ -276,12 +276,12 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008EB4C);
    `D_80059488[0]` (array decl), locals for the global and for the constant - all 73.33%.
 void func_8008EB4C(u8* p) {
     if (p != NULL) {
-        func_8008E78C(p + 0x60000, 0, NULL, D_80059488);
+        BattleAcquireSoundSlot(p + 0x60000, 0, NULL, D_80059488);
     }
 }*/
 void BattlePlaySoundEffectByIdx(u8* p, s32 idx, u8* pData, s32 flags) {
     if (idx != 0) {
-        func_8008E78C((u8*)(idx + 0x60000), flags, pData,
+        BattleAcquireSoundSlot((u8*)(idx + 0x60000), flags, pData,
                       (idx & 0x7F) | ((*(u32*)(p + 0xD0) >> 20) & 0x80));
     }
 }
@@ -308,12 +308,12 @@ void func_8008EBD0(u8* p, s32 idx, u8* pData, s32 flags) {
     b = D_80091EE0[i];
     pTable = D_80091EE0;
     if (b != 0) {
-        func_8008E78C((u8*)(b | 0x60000), flags, pData,
+        BattleAcquireSoundSlot((u8*)(b | 0x60000), flags, pData,
                       ((*(u32*)(p + 0xD0) >> 20) & 0x80) | (b & 0x7F));
     }
     b = pTable[i + 1];
     if (b != 0) {
-        func_8008E78C((u8*)(b | 0x60000), flags, pData,
+        BattleAcquireSoundSlot((u8*)(b | 0x60000), flags, pData,
                       ((*(u32*)(p + 0xD0) >> 20) & 0x80) | (b & 0x7F));
     }
 }*/

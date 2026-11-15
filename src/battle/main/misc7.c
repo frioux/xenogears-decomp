@@ -252,7 +252,7 @@ void BattleClearWordRegs(u8 index) {
         *p-- = 0;
     }
 }
-void func_8007BAE8(u8 **p, u8 index) {
+void BattleSlotStoreWord0(u8 **p, u8 index) {
     s32 slot = index + 3;
     s32 hi = (*p)[2] << 8;
 

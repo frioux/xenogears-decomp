@@ -224,7 +224,7 @@ void BattleRollPercentAndSetState38(void) {
         D_800D2DC4 = 1;
     }
 }
-void func_800968C0(void) {
+void BattleRollPercentAndSwapActiveActor(void) {
     u8 *pData;
     u8 *pBase;
     u8 *pActor;
