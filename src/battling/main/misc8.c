@@ -3,23 +3,17 @@
 #include "psyq/libgpu.h"
 #include "system/controller.h"
 
-extern u8 D_800915AC[];
 extern u16 D_800915BE;
 extern u16 D_80091636;
-extern u8 D_80091660[];
 extern u8 D_800926FC;
 extern u8 D_8009275C;
 extern u16 D_80091762;
 extern u16 D_80091672;
 extern u16 D_800916AE;
-extern s32 *D_80092734;
-extern s32 *D_80092738;
 extern u8 D_80092758;
 extern s32 *D_80092760;
-extern u8 D_8009A0D8[];
 extern u8 D_800928A0;
 extern s32 D_800926DC;
-extern u8 D_800916D8[];
 extern s32 D_80092700;
 extern s32 D_80092704;
 extern u8 D_8009273C;
@@ -86,14 +80,28 @@ typedef struct {
     /* 0x14 */ u16 unk14;
     /* 0x16 */ u16 unk16;
     /* 0x18 */ u8 unk18[4];
-    /* 0x1C */ BattleTextFrame frame;
-    /* 0x2C */ BattleTextFrame saved;
+    /* 0x1C */ BattleTextFrame frames[2]; /* current, saved */
 } BattleTextList; // Size: 0x3C
+
+extern BattleTextList D_800915AC[8];
+extern BattleTextList D_80091660;
+extern BattleTextList D_800916D8;
+extern BattleTextList *D_80092734;
+extern BattleTextList *D_80092738;
+
+// Per-draw-buffer slot record, 0xF8 bytes: it starts with the screen area the
+// slot's text window covers.
+typedef struct {
+    /* 0x00 */ RECT rect;
+    /* 0x08 */ u8 unk8[0xF0];
+} Misc8SlotEntry; // Size: 0xF8
+
+extern Misc8SlotEntry D_8009A0D8[];
 
 extern void BattleDrawTextSprites(u8 *p);
 extern void func_800812BC(BattleTextList *p);
 extern void BattleDrawTextList(BattleTextList *p);
-extern void func_8008162C(s32 *p, s32 a1);
+extern void func_8008162C(BattleTextList *p, s32 a1);
 extern void func_80081A44(void);
 extern s32 BattleGetTextWidth(u32 a0);
 extern void BattleSetTextColor(s32 a0);
@@ -120,12 +128,12 @@ void BattleSetCurrentTextList(s32 a0) {
         D_80092734 = D_80092738;
     } else {
         D_80092738 = D_80092734;
-        D_80092734 = (s32 *)(D_800915AC + a0 * 0x3C);
+        D_80092734 = &D_800915AC[a0];
     }
 }
 
 s32 BattleIsDefaultTextList(void) {
-    return D_80092734 == (s32 *)D_80091660;
+    return D_80092734 == &D_80091660;
 }
 
 void BattleInitTextWindow(void) {
@@ -184,7 +192,7 @@ void BattleSaveScreenImage(void) {
         HeapToggleErrorHandler(0);
     }
     DrawSync(0);
-    rect = *(RECT *)(D_8009A0D8 + ((D_800928A0 + 1) & 1) * 0xF8);
+    rect = D_8009A0D8[((D_800928A0 + 1) & 1)].rect;
     MoveImage(&rect, 0x140, 0x100);
     if (D_80092760 != 0) {
         StoreImage(&rect, (u_long *)D_80092760);
@@ -239,9 +247,8 @@ void BattleResetTextPrimQueue(void) {
 
 extern u8 *D_800926D4[];
 extern s32 D_800912F0;
-extern u8 D_80095498[];
-extern u8 D_800954C8[];
-extern u8 D_8009A0DA[];
+extern DR_MOVE D_80095498[];
+extern DR_TPAGE D_800954C8[];
 
 void BattleDrawTextPrims(u8 *p) {
     s32 i;
@@ -256,18 +263,18 @@ void BattleDrawTextPrims(u8 *p) {
     BattleDrawTextSprites(p);
     if (((D_80092734 != 0) && (D_80092758 != 0)) || (D_800912F0 != 0)) {
         if (D_80092734 != 0) {
-            AddPrim(p, (u8 *)D_80092734 + (D_800928A0 * 0x10 + 0x1C));
-            SetDrawTPage((DR_TPAGE *)(D_800954C8 + D_800928A0 * 8), 0, 0, GetTPage(0, 2, 0, 0));
-            AddPrim(p, D_800954C8 + D_800928A0 * 8);
+            AddPrim(p, &D_80092734->frames[D_800928A0]);
+            SetDrawTPage(&D_800954C8[D_800928A0], 0, 0, GetTPage(0, 2, 0, 0));
+            AddPrim(p, &D_800954C8[D_800928A0]);
         }
         rect.x = 0x140;
         rect.y = 0x100;
         rect.w = 0x140;
         rect.h = 0xDA;
-        SetDrawMove((DR_MOVE *)(D_80095498 + D_800928A0 * 0x18), &rect,
-                    *(s16 *)(D_8009A0D8 + D_800928A0 * 0xF8),
-                    *(s16 *)(D_8009A0DA + D_800928A0 * 0xF8));
-        AddPrim(p, D_80095498 + D_800928A0 * 0x18);
+        SetDrawMove(&D_80095498[D_800928A0], &rect,
+                    D_8009A0D8[D_800928A0].rect.x,
+                    D_8009A0D8[D_800928A0].rect.y);
+        AddPrim(p, &D_80095498[D_800928A0]);
     }
     D_800912F0 = 0;
 }
@@ -455,7 +462,7 @@ void BattleInitTextLists(void) {
     u32 i;
     BattleTextList *p;
 
-    for (i = 0, p = (BattleTextList *)D_800915AC; i < 8; i++, p++) {
+    for (i = 0, p = D_800915AC; i < 8; i++, p++) {
         func_800812BC(p);
     }
     D_80092734 = 0;
@@ -470,8 +477,8 @@ void BattleDrawTextList(BattleTextList *p) {
     if (p == 0) {
         return;
     }
-    D_80092734 = (s32 *)p;
-    if ((s32 *)p == (s32 *)D_800916D8) {
+    D_80092734 = p;
+    if (p == &D_800916D8) {
         return;
     }
     if (p->unk0 != 0) {
@@ -541,7 +548,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc8", func_80081A44);
 
 void BattleUpdateTextWindow(void) {
     s32 unk[2]; /* retail reserves 8 bytes of locals here */
-    s32 *p;
+    BattleTextList *p;
 
     if (D_8009275C != 0) {
         BattleRestoreScreenImage();
@@ -549,7 +556,7 @@ void BattleUpdateTextWindow(void) {
     }
     ControllerMergeStates();
     p = D_80092734;
-    if (p == (s32 *)D_800916D8) {
+    if (p == &D_800916D8) {
         func_80081A44();
     } else {
         if (p != 0) {
