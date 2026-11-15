@@ -324,7 +324,7 @@ s32 BattleGearHasWeaponId(u8 arg0) {
     }
     return g_GameState.gears[id].weaponData[2].unk5 == v;
 }
-void func_8009E5C8(u8 arg0) {
+void BattleApplyGearWeaponRecord(u8 arg0) {
     u8 *p = &((u8 *)D_800C34B0)[arg0 * 0x14 + 0x5750];
     u8 v = p[0xF];
     s32 rowOffset;
