@@ -179,36 +179,31 @@ int WorldMapInitActorScrollScale(int idx) {
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007ADD4);
 int WorldMapSetupGroup4And5ScaledPrims(int idx) {
-    u8 *pPlayer = (u8 *)D_8009BE24 + (idx << 7);
-    u8 *pWork = (u8 *)D_8009C620;
-    u8 *pBlock = pWork + 0x150;
-    u8 *pSrc = pWork + 0x198;
-    u32 *pScratch = (u32 *)0x1F800000;
-    WorldMapSceneLayer *pLast;
+    WorldMapPlayer *pPlayer = D_8009BE24 + idx;
+    WorldMapSceneLayer *pBlock = &D_8009C620[4];
+    WorldMapSceneLayer *pLayer = &D_8009C620[4];
+    u32 *pScratch = (u32 *)PSX_SCRATCH;
     s32 scale;
     s32 i;
 
     for (i = 0; i < 2; i++) {
-        u32 arg1 = *(u32 *)pSrc;
-        u16 arg2 = *(u16 *)(*(u32 *)(pSrc - 8) + 4);
-
-        WorldMapSetupPrimTemplates(pBlock, arg1, arg2);
-        pSrc += 0x54;
-        pBlock += 0x54;
+        WorldMapSetupPrimTemplates(pBlock, (s32)pLayer->unk48,
+                                   ((u16 *)pLayer->unk40)[2]);
+        pLayer++;
+        pBlock++;
     }
-    *(s32 *)(pPlayer + 0x54) = 0;
-    *(s32 *)(pPlayer + 0x50) = 0;
+    pPlayer->unk54 = 0;
+    pPlayer->unk50 = 0;
     *(MATRIX *)&pScratch[0x3C] = D_8009A180;
-    scale = *(s32 *)(pPlayer + 0x50);
+    scale = pPlayer->unk50;
     pScratch[1] = 0x1000;
     pScratch[2] = scale;
     pScratch[0] = scale;
     ScaleMatrix((MATRIX *)&pScratch[0x3C], (VECTOR *)pScratch);
-    pLast = (WorldMapSceneLayer *)pBlock;
-    pLast->mat = *(MATRIX *)&pScratch[0x3C];
-    pLast[1].mat = *(MATRIX *)&pScratch[0x3C];
-    pLast[1].unk0 = 1;
-    pLast->unk0 = 1;
+    pBlock->mat = *(MATRIX *)&pScratch[0x3C];
+    pBlock[1].mat = *(MATRIX *)&pScratch[0x3C];
+    pBlock[1].unk0 = 1;
+    pBlock->unk0 = 1;
     return 3;
 }
 
@@ -261,36 +256,31 @@ int WorldMapUpdateGroup4And5Scale(int idx) {
     return 1;
 }
 int WorldMapSetupGroup6And7ScaledPrims(int idx) {
-    u8 *pPlayer = (u8 *)D_8009BE24 + (idx << 7);
-    u8 *pWork = (u8 *)D_8009C620;
-    u8 *pBlock = pWork + 0x1F8;
-    u8 *pSrc = pWork + 0x240;
-    u32 *pScratch = (u32 *)0x1F800000;
-    WorldMapSceneLayer *pLast;
+    WorldMapPlayer *pPlayer = D_8009BE24 + idx;
+    WorldMapSceneLayer *pBlock = &D_8009C620[6];
+    WorldMapSceneLayer *pLayer = &D_8009C620[6];
+    u32 *pScratch = (u32 *)PSX_SCRATCH;
     s32 scale;
     s32 i;
 
     for (i = 0; i < 2; i++) {
-        u32 arg1 = *(u32 *)pSrc;
-        u16 arg2 = *(u16 *)(*(u32 *)(pSrc - 8) + 4);
-
-        WorldMapSetupPrimTemplates(pBlock, arg1, arg2);
-        pSrc += 0x54;
-        pBlock += 0x54;
+        WorldMapSetupPrimTemplates(pBlock, (s32)pLayer->unk48,
+                                   ((u16 *)pLayer->unk40)[2]);
+        pLayer++;
+        pBlock++;
     }
-    *(s32 *)(pPlayer + 0x54) = 0;
-    *(s32 *)(pPlayer + 0x50) = 0;
+    pPlayer->unk54 = 0;
+    pPlayer->unk50 = 0;
     *(MATRIX *)&pScratch[0x3C] = D_8009A180;
-    scale = *(s32 *)(pPlayer + 0x50);
+    scale = pPlayer->unk50;
     pScratch[1] = 0x1000;
     pScratch[2] = scale;
     pScratch[0] = scale;
     ScaleMatrix((MATRIX *)&pScratch[0x3C], (VECTOR *)pScratch);
-    pLast = (WorldMapSceneLayer *)pBlock;
-    pLast->mat = *(MATRIX *)&pScratch[0x3C];
-    pLast[1].mat = *(MATRIX *)&pScratch[0x3C];
-    pLast[1].unk0 = 1;
-    pLast->unk0 = 1;
+    pBlock->mat = *(MATRIX *)&pScratch[0x3C];
+    pBlock[1].mat = *(MATRIX *)&pScratch[0x3C];
+    pBlock[1].unk0 = 1;
+    pBlock->unk0 = 1;
     return 3;
 }
 
