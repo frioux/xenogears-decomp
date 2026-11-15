@@ -50,8 +50,6 @@ extern s32 D_80092A54;
 extern s32 D_80092A58;
 extern s32 D_80092A64;
 extern s32 D_80092A68;
-extern s32 D_8009872C;
-extern s32 D_80097010;
 extern s32 D_80099068;
 extern s32 D_8009794C;
 extern s32 D_80099088;
@@ -170,7 +168,9 @@ struct Actor {
     /* 0x0C4 */ u8 unkC4;
     /* 0x0C5 */ u8 unkC5;
     /* 0x0C6 */ u8 unkC6;
-    /* 0x0C7 */ u8 padC7[0x9];
+    /* 0x0C7 */ u8 padC7[0x5];
+    /* 0x0CC */ s16 unkCC;
+    /* 0x0CE */ u8 padCE[0x2];
     /* 0x0D0 */ u32 unkD0;
     /* 0x0D4 */ u32 unkD4;
     /* 0x0D8 */ u8 padD8[0x824];
@@ -204,6 +204,9 @@ struct Actor {
     /* 0x15D0 */ u8 pad15D0[0x4];
     /* 0x15D4 */ u8 unk15D4;
 }; // Size: unknown
+
+extern Actor D_8009872C;
+extern Actor D_80097010;
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_80078920);
 
@@ -399,6 +402,66 @@ void BattleResetState(void) {
 }
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_80079B44);
+
+/* Best attempt: 98.94%. Everything matches except ONE instruction: retail's
+   `beqz $v0,.L` has a `nop` in its delay slot and loads the division magic
+   (`lui $v0,0x6666`) as the first insn of the if-body; gcc 2.7.2 emits the same
+   insn list but reorg hoists that lui into the beqz delay slot, so our body is
+   4 bytes short and the whole switch shifts up one slot (permuter: base=103
+   best=103 over 998 iterations, nothing better).
+   The Actor-typed globals below ARE the answer to the la shape (previous note
+   here was wrong): retail's `la v1,D_800987F8` + `addiu a0,v1,-0xCC` comes from
+   a struct/typed-global store (`D_8009872C.unkCC = 0x400;` then
+   `func_80078F00(&D_8009872C);`), NOT from s16* locals - with the s16* form gcc
+   folds the -0xCC into a fresh la and the pair costs one instruction more.
+   Shapes tried for the delay slot: inline `switch ((D_80092950 - 1) % 5)`
+   (98.94, register tie correct: dividend in a0), `s32 m` local + switch
+   (98.36, dividend lands in v1), `if`/`else if` chain (92.51).
+void func_80079B44(void) {
+    D_8009872C.unkCC = 0x400;
+    D_80097010.unkCC = -0x400;
+    func_80078F00(&D_8009872C);
+    func_80078F00(&D_80097010);
+    BattleEffectClearEntrySlots(D_80092644);
+    BattleClearSpriteTables();
+    BattleEffectClearSlots();
+    BattleRandomizeCameraPosition();
+    D_800928F4 = 1;
+    D_8009290C = -1;
+    BattleEffectSetSpawnTimer(0);
+    D_80092638 = 0;
+    D_80092640 = 0;
+    D_80092890 = 0;
+    D_8009263C = 0x5A;
+    D_8009294C = 0;
+    D_80092648 = 0;
+    BattleClearTextSpriteEntries();
+    D_80050622 = 0;
+    BattleInitSoundSlots();
+    BattleClearInitFlag();
+    D_800928D4 = 0;
+    D_800928F0 = 0;
+    D_80091144 = 0;
+    D_80091145 = 0;
+    D_80092664 = 0;
+    D_80092950++;
+    SystemStringReset(D_8009868C);
+    D_80099D9A = 0;
+    if (D_8005061C != 0) {
+        switch ((D_80092950 - 1) % 5) {
+        case 3:
+            D_800928B4 = 1;
+            break;
+        case 4:
+            D_800928B4 = 2;
+            break;
+        default:
+            D_800928B4 = 0;
+            break;
+        }
+    }
+}
+*/
 
 /* Best attempt: 82.19%. Everything from the D_800928F4 store onwards is identical;
    the first six instructions differ. The original folds the store address as
