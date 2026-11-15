@@ -299,17 +299,9 @@ void MovieResetPlaybackAndClearScreen(void) {
     }
 }
 
-INCLUDE_ASM("asm/movie/nonmatchings/main/misc2", func_800763BC);
-
-/* best 89.61% - the whole mnemonic stream matches (200 bytes both) except where
-   the two `li v0,1` of the reset block land: retail fills the `j` delay slot and
-   leaves a nop after each branch, ours fills each branch's delay slot and leaves
-   the nop in the `j` slot. Everything up to the shared size-check tail matches,
-   including the cross-jumped ArchiveDecodeSizeAbsolute(2)/ArchiveDecodeSizeAbsolute(1)
-   tail, which proves the original wrote the size check inside each branch.
-   Earlier 82.33% shape: shared size check with a nIndex local (gcc reorders the
-   ==2 test before the size check).
-void func_800763BC(u8 mode) {
+// non-void: gcc reorg moves the delay-slot fill (li v0,1) differently when the
+// function returns void; retail keeps the nop after each branch and the 0x30 frame.
+s32 func_800763BC(u8 mode) {
     long pad[6];
     s32 state;
 
@@ -335,41 +327,6 @@ void func_800763BC(u8 mode) {
     D_8007713C[1].unk55 = 1;
     func_80076488();
 }
-*/
-
-/* best 82.33% - frame needs `long pad[6]`; only the form of the D_80077448==1
-   test differs (original branches on != 1 and falls into the SetIndex block).
-   The state>2 path repeats the reset block and gcc cross-jumps it, which
-   reproduces the original's shared tail but moves the ==2 test before the
-   size check. Shapes tried: else-if chain + goto, nested else, either branch
-   polarity on ==2, duplicated reset block.
-void func_800763BC(u8 mode) {
-    long pad[6];
-    s32 nIndex;
-
-    D_80077028 = mode;
-    D_800773AC = -1;
-    if (D_80077448 == 0) {
-        ArchiveSetIndex(0x18, 0);
-        nIndex = 2;
-    } else if (D_80077448 == 1) {
-        ArchiveSetIndex(0x18, 1);
-        nIndex = 1;
-    } else if (D_80077448 == 2) {
-        return;
-    }
-    if (D_8007711C >= (s16)ArchiveDecodeSizeAbsolute(nIndex)) {
-        return;
-    }
-reset:
-    D_8007713C[0].unk0 = 0;
-    D_8007713C[1].unk0 = 0;
-    enabled = 1;
-    D_8007713C[0].unk55 = enabled;
-    D_8007713C[1].unk55 = enabled;
-    func_80076488();
-}
-*/
 
 INCLUDE_ASM("asm/movie/nonmatchings/main/misc2", func_80076488);
 
@@ -428,13 +385,14 @@ void MovieFadeAudioOnPadPress(void) {
 
 INCLUDE_ASM("asm/movie/nonmatchings/main/misc2", func_80076AF0);
 
-/* best 98.87% - the matrix diagonal store is the only difference: retail keeps
-   &D_80077070 in $a0 (loaded right after SetGeomOffset) and stores through it
-   with `sh $v0,0($a0)`, ours folds the address back to $at/%lo even with the
-   pointer local present (the `la $4,D_80077070` is emitted at the right place
-   and survives to the SetColorMatrix call, but cse/flow folds the store).
-   Shapes tried: MATRIX* local + m[0][0], s16* local, u32 cast through an int
-   local, cast-of-struct-pointer.
+/* best 98.87% - the whole stream matches (380 bytes both, permuter run from this
+   body found nothing in 1969 iterations) except the base of the first colour-matrix
+   store: retail keeps &D_80077070 in $a0 (it survives from the `la` after
+   SetGeomOffset to the SetColorMatrix call) and writes `sh v0,0(a0)`, while our
+   store is the symbol form `sh v0,D_80077070` (assembler-expanded through $at).
+   Shapes tried: s16* local, MATRIX* local with m[0][0], plain symbol store; also
+   scored under -G0 (99.15%) and 2.7.2-cdk. The other two diagonal stores of the
+   same matrix use %lo in retail too, so only the offset-0 element could fold.
 void func_80076AF0(void) {
     s16* pDiag;
 
@@ -499,36 +457,71 @@ void WorldMapScriptOp04SetScratchPosition(void) {
 
 INCLUDE_ASM("asm/movie/nonmatchings/main/misc2", func_80076CA4);
 
-/* best 73.61% - the original keeps &D_8007703C in $s5 across the GTE calls
-   (that is also the extra saved register in its 0x30 frame) and forms
-   &D_800770B8 as (address of D_800770CC) - 0x14; a source-level pointer to
-   D_8007703C gets rematerialised instead. Also reorders the D_800770CC/D0/D4
-   block.
+/* best 73.42% - same instruction count (408 bytes) and the prologue now matches
+   retail exactly: 0x30 frame, s1 = dz saved first, and &D_8007703C kept in $s5
+   across the GTE calls. Getting the frame and $s5 needs the position/vector
+   triples declared as structs (MovieVector below, D_8007702C/3C/76F2C) and a
+   MovieVector* local, not the flat s32 D_ globals - and the rotation/translation
+   matrices typed as MATRIX (D_800770B8, D_800770D8), not s16/s32[].
+   Remaining differences, all in the tail:
+   1. retail materialises &(D_800770CC) = the D_800770B8 matrix + 0x14 in $a3,
+      stores the three t[] words at 0(a3), and derives the CompMatrix matrix
+      argument as a3 - 0x14; we fold the three stores to the %lo(D_800770B8+0x14)
+      form and materialise the base separately.
+   2. retail stores the SquareRoot0 result (D_800770F4) after it has loaded
+      D_80076F2C/D_8007703C and formed a3/a1; ours stores it right after the call.
+   3. the translation x reload lands in $a2 in retail, $v0/$6 in ours.
+   Shapes tried: s32* translation pointer + pTrans[k] (same 73.42), MATRIX member
+   form (same), and the AddressCSE-first order. -G0 on this unit's neighbour
+   func_80076AF0 scored 99.15% but this unit must stay on its preset (the div
+   trap), and try_flags --gp -G0 fails to compile the unit at all.
+   Declarations this body needs, at the top of the unit:
+     typedef struct { s32 x; s32 y; s32 z; } MovieVector; // Size: 0xC
+     extern MovieVector D_8007702C;
+     extern MovieVector D_8007703C;
+     extern MovieVector D_80076F2C;
+     extern SVECTOR D_800770B0;      // was: extern s16 D_800770B0; D_800770B2
+     extern MATRIX D_800770B8;       // was: extern s16 D_800770B8;
+     extern MATRIX D_800770D8;       // was: extern s32 D_800770D8[];
+typedef struct {
+    s32 x;
+    s32 y;
+    s32 z;
+} MovieVector; // Size: 0xC
+
+extern MovieVector D_8007702C;
+extern MovieVector D_8007703C;
+extern MovieVector D_80076F2C;
+
 void func_80076CA4(void) {
+    MATRIX* pRotMatrix;
+    MATRIX* pTransMatrix;
+    MovieVector* pPos;
     s32 dz;
     s32 dzSq;
     s32 dx;
     s32 dxSq;
     s32 dy;
-    s32* pz;
 
+    pPos = &D_8007703C;
     dz = D_80077044 - D_80077034;
     dzSq = dz * dz;
-    pz = &D_8007703C;
-    dx = *pz - D_8007702C;
+    dx = pPos->x - D_8007702C.x;
     dxSq = dx * dx;
     dy = D_80077040 - D_80077030;
-    D_800770B0 = ratan2(dy, SquareRoot0(dzSq + dxSq));
-    D_800770B2 = -ratan2(dx, dz);
-    RotMatrix((SVECTOR*)&D_800770B0, (MATRIX*)&D_800770D8);
-    RotMatrixZ(D_8007704C, (MATRIX*)&D_800770D8);
-    MulMatrix2((MATRIX*)&D_800770F8, (MATRIX*)&D_800770D8);
-    D_800770EC = 0;
-    D_800770F0 = 0;
-    D_800770F4 = SquareRoot0(dxSq + dy * dy + dzSq);
-    D_800770CC = D_80076F2C - *pz;
-    D_800770D0 = D_80076F30 - D_80077040;
-    D_800770D4 = D_80076F34 - D_80077044;
-    CompMatrix((MATRIX*)&D_800770D8, (MATRIX*)&D_800770B8, &D_80077050);
+    D_800770B0.vx = ratan2(dy, SquareRoot0(dzSq + dxSq));
+    D_800770B0.vy = -ratan2(dx, dz);
+    pRotMatrix = &D_800770D8;
+    RotMatrix(&D_800770B0, pRotMatrix);
+    RotMatrixZ(D_8007704C, pRotMatrix);
+    MulMatrix2(&D_800770F8, pRotMatrix);
+    pTransMatrix = &D_800770B8;
+    pRotMatrix->t[0] = 0;
+    pRotMatrix->t[1] = 0;
+    pRotMatrix->t[2] = SquareRoot0(dxSq + dy * dy + dzSq);
+    pTransMatrix->t[0] = D_80076F2C.x - pPos->x;
+    pTransMatrix->t[1] = D_80076F30 - D_80077040;
+    pTransMatrix->t[2] = D_80076F34 - D_80077044;
+    CompMatrix(pRotMatrix, pTransMatrix, &D_80077050);
 }
 */
