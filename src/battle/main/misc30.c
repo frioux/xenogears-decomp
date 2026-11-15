@@ -91,6 +91,13 @@ extern void func_800BF3E8(SpriteData* pSprite);
 extern void func_800BC460(u16 mask);
 extern void BattleLoadArchiveEntryFile(void);
 extern void func_800B9508(SpriteData* pSprite);
+extern void SpriteSetCallback(SpriteData* pSprite, void* pCallback);
+extern void BattleSetSpriteTemplate(void* pArg);
+extern void BattleActorWaitFramesWithCallback(s32 arg0, SpriteData* pSprite);
+extern void BattleSetPendingCommand(SpriteData* pSprite);
+extern void BattleBeginAnimTask(u16 arg0);
+extern void BattleSetSlotFlagB4(s32 arg0);
+extern void BattleClearSlotFlagB4(s32 arg0);
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800B905C);
 /* 86.54%: 516 bytes against retail's 512, so one instruction too many.  The head
@@ -172,6 +179,95 @@ void BattleIncrementStateTimer(void) {
 }
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800B9284);
+/* 79.10%, 660 bytes against retail 644 (4 instructions over: the top of the
+   first arm and the leftover of the address shape below).  It is a jump-table switch on arg1 over 0xF3..0xFA
+   (8 cases, out-of-range = break).  The case order below is retail's text order
+   (0xFA, 0xF8, 0xF7, 0xF5, 0xF4, 0xF6, 0xF3) and it is exact: seven of the eight
+   arms are byte-identical, including the `sra`/`andi a0,0x1ff` pair in the 0xF5
+   and 0xF4 arms (which needs the field in an s32 local -- with the load written
+   inline gcc emits srl and reloads the field for the call argument).
+   The one remaining difference, in all seven arms that index the slot table, is
+   how the slot address is formed.  Retail:
+     lui v1,base / lui v0,D_800C360C / lw a0,D_800C360C / addiu v1,v1,base-lo
+     sll v0,a0,3 / addu v0,v0,a0 / sll v0,v0,3 / addu v0,v0,v1 / lhu v0,0x172(v0)
+   i.e. one address expression (base high split around the index load, index in
+   its own register, 0x172 kept as the load displacement).  Ours, with a pointer
+   local, computes the index first and the base lui/addiu adjacently after it;
+   written as one indexed expression D_800C3EB0[slot * 0x48 + 0x172] instead, the
+   base ordering and register split come out right (85.42%) but gcc folds 0x172
+   into the lo_sum (addiu v1,v1,D_800C3EB0+0x172) and drops the displacement, and
+   it also swaps which register holds the index with the one holding the
+   D_800C3608 address in the 0xF3 arm.  Tried: pointer local + s32 index local,
+   plain pSlot = D_800C3EB0 + D_800C360C * 0x48, the single indexed expression,
+   index-first and base-first source orders.  CONVERTING THIS FUNCTION IS ALSO
+   LAYOUT-SENSITIVE: its table jtbl_80070A28 is the first of the four tables in
+   the unit's rodata range [0xF38, 0xFEC] (misc30 owns it), so it is the only
+   one of the four that can be converted without moving the other three --
+   func_800B9508 (jtbl_80070A48), func_800B9C78 (jtbl_80070A80) and
+   func_800B9F78 (jtbl_80070AB8) must all be converted in address order before
+   any of those three can be.  A permuter run from this body is the next step.
+void func_800B9284(SpriteData* pSprite, s32 code) {
+    s32 slot;
+    u8 *pSlot;
+    s32 id;
+
+    switch (code) {
+        case 0xFA:
+            D_800C3610->unk48 = 1;
+            SpriteSetCallback(pSprite, 0);
+            slot = D_800C360C;
+            pSlot = D_800C3EB0 + slot * 0x48;
+            BattleSetSlotFlagB4(pSlot[0x172]);
+            break;
+        case 0xF8:
+            D_800C3610->unk48 = 1;
+            SpriteSetCallback(pSprite, 0);
+            slot = D_800C360C;
+            pSlot = D_800C3EB0 + slot * 0x48;
+            BattleClearSlotFlagB4(pSlot[0x172]);
+            break;
+        case 0xF7:
+            D_800C3610->unk48 = 1;
+            SpriteSetCallback(pSprite, 0);
+            slot = D_800C360C;
+            pSlot = D_800C3EB0 + slot * 0x48;
+            D_800C3614 = *(u16 *)(pSlot + 0x172);
+            break;
+        case 0xF5:
+            BattleSetSpriteTemplate(pSprite);
+            slot = D_800C360C;
+            pSlot = D_800C3EB0 + slot * 0x48;
+            id = *(u16 *)(pSlot + 0x172);
+            D_800C3DF0 = (id >> 9) & 0x3F;
+            ((u8 *)pSprite)[0xAF] = 0x11;
+            BattleActorWaitFramesWithCallback(id & 0x1FF, pSprite);
+            BattleSetPendingCommand(pSprite);
+            SpritePlayAnimation(pSprite, 0x13);
+            D_800C3623 = 1;
+            break;
+        case 0xF4:
+            BattleSetSpriteTemplate(pSprite);
+            slot = D_800C360C;
+            pSlot = D_800C3EB0 + slot * 0x48;
+            id = *(u16 *)(pSlot + 0x172);
+            D_800C3DF0 = (id >> 9) & 0x3F;
+            ((u8 *)pSprite)[0xAF] = 0x11;
+            BattleActorWaitFramesWithCallback(id & 0x1FF, pSprite);
+            break;
+        case 0xF6:
+            slot = D_800C360C;
+            pSlot = D_800C3EB0 + slot * 0x48;
+            BattleBeginAnimTask(*(u16 *)(pSlot + 0x14E));
+            break;
+        case 0xF3:
+            D_800C3610->unk48 = 1;
+            slot = D_800C360C;
+            pSlot = D_800C3EB0 + slot * 0x48;
+            D_800C3608 |= *(u16 *)(pSlot + 0x172);
+            break;
+    }
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800B9508);
 
 void BattleApplyStateStep(void) {
