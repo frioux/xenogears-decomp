@@ -168,7 +168,7 @@ extern int func_8007E450(int);
 extern void func_8007E4E4(int);
 extern int func_8007ECA4(int);
 extern void func_8007EE34(int);
-extern void func_8007F8AC(int);
+extern int func_8007F8AC(int);
 extern void func_8007F968(int);
 extern void func_8007FC8C(int);
 extern int func_8007FD30(int);
@@ -592,7 +592,6 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007EE34);
 // globals are absolute symbols from undefined_syms_auto, and -G0 changes that
 // addressing). Do not re-try -G0 here.
 
-/*
 int func_8007F8AC(int index) {
     int nType = index - 4;
     WorldMapActor *pActor = &D_8009BE24[index];
@@ -615,8 +614,7 @@ int func_8007F8AC(int index) {
     pActor->unk5C[0] = unkValue;
     return 1;
 }
-*/
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007F8AC);
+
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007F968);
 
 /* 88.66%: instruction multiset identical. Retail materialises all the
