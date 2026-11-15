@@ -22,15 +22,21 @@ typedef struct {
     /* 0x12 */ s16 unk12;
 } BattleBlock; // Size: 0x14
 
-// One part of an actor's model: its own transform plus the command queue.
-// Also the element type of a battle actor's sprite array (stride 0x7C).
+// One part of an actor's model: its own transform plus the command queue, and
+// the element type of a battle actor's sprite array (stride 0x7C). Element 0 is
+// the root, which owns the skeleton and the per-part queue heads; the rest link
+// back to it through pParent.
 typedef struct {
-    /* 0x00 */ u8 unk0[0x5];
-    /* 0x05 */ u8 unk5;
-    /* 0x06 */ u8 unk6[0x6];
+    /* 0x00 */ void* pParent;
+    /* 0x04 */ u8 doTransform;
+    /* 0x05 */ u8 doRotate;
+    /* 0x06 */ u8 rotDirection;
+    /* 0x07 */ u8 unk7;
+    /* 0x08 */ u16 jointIndex;
+    /* 0x0A */ u16 count; // number of elements in the array, this one included
     /* 0x0C */ MATRIX localTransform;
     /* 0x2C */ MATRIX globalTransform;
-    /* 0x4C */ u8 unk4C[0x8];
+    /* 0x4C */ SVECTOR scale;
     /* 0x54 */ s16 rot[3];
     /* 0x5A */ u16 pad5A;
     /* 0x5C */ s32 pos[3];

@@ -2,17 +2,13 @@
 #include "psyq/libgpu.h"
 #include "system/model.h"
 #include "libgear/main.h"
+#include "battle/actor.h"
 
 typedef struct {
     /* 0x0 */ u8* pBlocks;
     /* 0x4 */ u16 usedCount;
     /* 0x6 */ u16 capacity;
 } BattleBlockPool; // Size: 0x8
-
-typedef struct {
-    /* 0x0 */ u8 flag;
-    /* 0x1 */ u8 unk1[0x13];
-} BattleBlock; // Size: 0x14
 
 typedef struct {
     /* 0x0 */ u8* pBlocks;
@@ -29,27 +25,6 @@ typedef struct {
     /* 0x0 */ u16 partIndex;
     /* 0x2 */ u16 parentIndex;
 } BattleSkeletonEntry; // Size: 0x4
-
-typedef struct {
-    /* 0x00 */ void* pParent;
-    /* 0x04 */ u8 doTransform;
-    /* 0x05 */ u8 doRotate;
-    /* 0x06 */ u8 rotDirection;
-    /* 0x07 */ u8 unk7;
-    /* 0x08 */ u16 jointIndex;
-    /* 0x0A */ u16 count;
-    /* 0x0C */ MATRIX localTransform;
-    /* 0x2C */ MATRIX globalTransform;
-    /* 0x4C */ SVECTOR scale;
-    /* 0x54 */ s16 rot[3];
-    /* 0x5A */ u16 pad5A;
-    /* 0x5C */ s32 pos[3];
-    /* 0x68 */ void* p68;
-    /* 0x6C */ void* p6C;
-    /* 0x70 */ BattleBlock* p70;
-    /* 0x74 */ BattleBlock* p74;
-    /* 0x78 */ BattleBlock* p78;
-} BattleSprite; // Size: 0x7C
 
 typedef struct {
     /* 0x00 */ u8 unk00[0x4];
@@ -531,7 +506,7 @@ void BattleResetBlockPool(BattleBlockPool* pPool) {
         pBlock = (BattleBlock*)pPool->pBlocks;
         pPool->usedCount = 0;
         for (i = 0; i < pPool->capacity; i++) {
-            pBlock->flag = 0;
+            pBlock->unk0 = 0;
             pBlock++;
         }
     }
@@ -541,10 +516,10 @@ BattleBlock* BattleAllocBlock(BattleBlockPool* pPool) {
 
     if (pPool->usedCount < pPool->capacity) {
         pBlock = &((BattleBlock*)pPool->pBlocks)[pPool->usedCount];
-        if (pBlock->flag == 0) {
+        if (pBlock->unk0 == 0) {
             pPool->usedCount++;
             while (pPool->usedCount < pPool->capacity &&
-                   ((BattleBlock*)pPool->pBlocks)[pPool->usedCount].flag != 0) {
+                   ((BattleBlock*)pPool->pBlocks)[pPool->usedCount].unk0 != 0) {
                 pPool->usedCount++;
             }
             return pBlock;
@@ -562,7 +537,7 @@ s32 BattleFreeBlock(BattleBlockPool* pPool, BattleBlock* pBlock) {
     if (index < pPool->usedCount) {
         pPool->usedCount = index;
     }
-    pBlock->flag = 0;
+    pBlock->unk0 = 0;
     return index;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_800A2434);
@@ -856,17 +831,17 @@ void BattleFreeAllSpriteBlocks(BattleBlockPool* pPool, BattleSprite* pSprites) {
     pSprite = pSprites;
     for (i = 0; i < count; i++, pSprite++) {
         pBlock = pSprite->p70;
-        if (pBlock != NULL && pBlock->unk1[2] != 0xFF) {
+        if (pBlock != NULL && pBlock->unk3 != 0xFF) {
             BattleFreeBlock(pPool, pBlock);
             pSprite->p70 = NULL;
         }
         pBlock = pSprite->p74;
-        if (pBlock != NULL && pBlock->unk1[2] != 0xFF) {
+        if (pBlock != NULL && pBlock->unk3 != 0xFF) {
             BattleFreeBlock(pPool, pBlock);
             pSprite->p74 = NULL;
         }
         pBlock = pSprite->p78;
-        if (pBlock != NULL && pBlock->unk1[2] != 0xFF) {
+        if (pBlock != NULL && pBlock->unk3 != 0xFF) {
             BattleFreeBlock(pPool, pBlock);
             pSprite->p78 = NULL;
         }
@@ -882,17 +857,17 @@ void BattleFreeSpriteBlocksByTag(BattleBlockPool* pPool, BattleSprite* pSprites,
     pSprite = pSprites;
     for (i = 0; i < count; i++, pSprite++) {
         pBlock = pSprite->p70;
-        if (pBlock != NULL && pBlock->unk1[2] == tag) {
+        if (pBlock != NULL && pBlock->unk3 == tag) {
             BattleFreeBlock(pPool, pBlock);
             pSprite->p70 = NULL;
         }
         pBlock = pSprite->p74;
-        if (pBlock != NULL && pBlock->unk1[2] == tag) {
+        if (pBlock != NULL && pBlock->unk3 == tag) {
             BattleFreeBlock(pPool, pBlock);
             pSprite->p74 = NULL;
         }
         pBlock = pSprite->p78;
-        if (pBlock != NULL && pBlock->unk1[2] == tag) {
+        if (pBlock != NULL && pBlock->unk3 == tag) {
             BattleFreeBlock(pPool, pBlock);
             pSprite->p78 = NULL;
         }

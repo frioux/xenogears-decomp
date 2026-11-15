@@ -87,7 +87,7 @@ s32 BattleGetActorHeight(s32 arg0) {
 
     p = D_800D3368[arg0];
     if (p != 0) {
-        return (p->unk24 * ((p->unk1C * ((s16 *)p->pSprites->unk4C)[1]) >> 12)) >> 12;
+        return (p->unk24 * ((p->unk1C * p->pSprites->scale.vy) >> 12)) >> 12;
     }
     return 0;
 }
@@ -102,10 +102,10 @@ s32 BattleGetActorRadius(s32 arg0) {
     if (p != 0) {
         if (p->flags4A & 8) {
             a = p->unk26;
-            b = ((s16 *)p->pSprites->unk4C)[0];
+            b = p->pSprites->scale.vx;
         } else {
             a = p->unk28;
-            b = ((s16 *)p->pSprites->unk4C)[2];
+            b = p->pSprites->scale.vz;
         }
         r = (D_800D3368[arg0]->unk1C * b) >> 12;
         r = (a * r) >> 12;
@@ -306,7 +306,7 @@ void BattleSpriteUpdateWorldPosition(BattleActor *pActor) {
                     MulMatrix0(&pSprites->globalTransform,
                                &((BattleSprite *)(index * sizeof(BattleSprite) + (s32)pSprites))
                                     ->globalTransform,
-                               (MATRIX *)PSX_SCRATCH);
+                               pMatrix);
                 } else {
                     pMatrix = &D_800D3368[pActor->unk5C]->pSprites->globalTransform;
                 }
@@ -345,7 +345,7 @@ void BattleQueueSpriteRotationTween(u8 *pPool, BattleSprite *pSprite, s32 arg2, 
         pSprite->rot[0] = arg3;
         pSprite->rot[1] = arg4;
         pSprite->rot[2] = arg5;
-        pSprite->unk5 = 1;
+        pSprite->doRotate = 1;
     } else if (pSprite->rot[0] != arg3 || pSprite->rot[1] != arg4 ||
                pSprite->rot[2] != arg5) {
         if (pSprite->p70 == NULL) {
@@ -461,7 +461,7 @@ s32 BattleGetActorSpriteDistance(BattleActor *pActor) {
     return SquareRoot0(dx * dx + dy * dy + dz * dz);
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AEF68);
-void BattleFreeActorEntryAndChildren(u8 *pPool, s32 index, BattleSprite *pSprites, BattleSprite *pOther) {
+void BattleFreeActorEntryAndChildren(void *pPool, s32 index, BattleSprite *pSprites, BattleSprite *pOther) {
     BattleSprite *p;
     BattleSprite *q;
     BattleSprite *pChild;
@@ -470,9 +470,9 @@ void BattleFreeActorEntryAndChildren(u8 *pPool, s32 index, BattleSprite *pSprite
 
     p = (BattleSprite *)(index * sizeof(BattleSprite) + (s32)pSprites);
     q = (BattleSprite *)(index * sizeof(BattleSprite) + (s32)pOther);
-    n = ((u16 *)pSprites->unk6)[2];
-    p->unk6[1] = 0;
-    q->unk6[1] = 1;
+    n = pSprites->count;
+    p->unk7 = 0;
+    q->unk7 = 1;
     BattleFreeBlock(pPool, p->p70);
     do {
         p->p70 = NULL;
@@ -484,8 +484,8 @@ void BattleFreeActorEntryAndChildren(u8 *pPool, s32 index, BattleSprite *pSprite
     pChild = pSprites;
     for (i = 1; i < n; i++) {
         pChild++;
-        if (*(BattleSprite **)pChild == p) {
-            BattleFreeActorEntryAndChildren(pPool, ((u16 *)pChild->unk6)[2], pSprites, pOther);
+        if (pChild->pParent == p) {
+            BattleFreeActorEntryAndChildren(pPool, pChild->count, pSprites, pOther);
         }
     }
 }
