@@ -263,15 +263,17 @@ void func_80071CDC(void) {
 */
 
 
-/* best: 98.00%. Only the D_8009D3F8 store differs: the original reuses the
-   $a0 that already holds the address for the func_80029AFC call and emits a
-   bare "sh $v1,0($a0)"; gcc re-forms the symbol address and needs one extra
-   lui $at. A local StreamDataQueueEntry* does not stop that folding, and neither
-   does routing the address through an s32 local: cse replaces the store's
-   (mem (symbol_ref)) with %hi/%lo regardless, because the address pseudo is
-   created after the store. Dead end unless the address comes from a runtime base. *//*
-
-
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80071EF0);
+/* best: 98.00% (256 bytes vs 252). Only the D_8009D3F8 store differs: the
+   original reuses the $a0 that already holds the address for the func_80029AFC
+   call and emits a bare "sh $v1,0($a0)"; gcc re-forms the symbol address and
+   needs one extra lui $at. A local StreamDataQueueEntry* does not stop that
+   folding, and neither does routing the address through an s32 local or a
+   volatile pointer: cse replaces the store's (mem (symbol_ref)) with %hi/%lo
+   regardless, because the address pseudo is created after the store. Dead end
+   unless the address comes from a runtime base.
+   Round 51: permuter 434 iterations, base=125 best=125 - no lever in the body.
+*/
 void func_80071EF0(void) {
     void* pBuffer;
     StreamDataQueueEntry* pQueue;
@@ -291,9 +293,6 @@ void func_80071EF0(void) {
     D_8009D40C = D_8009BD20;
     func_80029AFC(pQueue, 0, 0);
 }
-
-*/
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80071EF0);
 
 void WorldMapQueueTwoFileLoads(void) {
     void* pBuffer;
