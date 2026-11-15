@@ -1844,27 +1844,23 @@ void SoundSetElementVolumeById(s32 id, s32 value) {
     } while (cnt);
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003A344);
-/*
-Screened under gcc-2.7.2-cdk / gcc-2.7.2 / this unit's gcc-2.6.0: 72.03 / 72.03 / 79.31 - not
-a compiler-only match; the current preset is the best of the three.
-Attempt (79.31%, 116 bytes - same size): every instruction matches and is in the
-original's order except that gcc emits the `andi a0,0xFE` / `xori a0,0x8` index pair
-directly before the index*0x158 multiply chain, where the original emits it first,
-before the loop-invariant constants (`li a2,2`, `sll a1,a1,8`, `li a3,0x100`).
-gcc folds the whole index expression into the address computation, so writing the
-index as a separate first statement, as `elementIndex &= 0xFE; elementIndex ^= 8;`,
-as an inline expression, or leaving `value << 8` / `0x100` as loop-body literals
-(which loop.c then hoists) all give the identical instruction stream (79.31%).
 void func_8003A344(s32 elementIndex, s32 value) {
-    s32 index = (elementIndex & 0xFE) ^ 8;
-    u32 cnt = 2;
-    s32 volume = value << 8;
-    s32 status = 0x100;
-    AudioElement* pElement = &D_800595D8->elements[index];
+    AudioElement* pElement;
+    s32 active;
+    u32 cnt;
+    s32 volume;
+    s32 status;
+
+    elementIndex &= 0xFE;
+    elementIndex ^= 8;
+    cnt = 2;
+    volume = value << 8;
+    status = 0x100;
+    pElement = &D_800595D8->elements[elementIndex];
 
     do {
-        if (pElement->active_flag & 0x1) {
+        active = pElement->active_flag;
+        if (active = active & 0x1) {
             pElement->unk_0x76 = volume;
             pElement->status_flags = status;
         }
@@ -1872,7 +1868,6 @@ void func_8003A344(s32 elementIndex, s32 value) {
         cnt--;
     } while (cnt);
 }
-*/
 
 void SoundFadeElementVolumeById(s32 id, s32 value, s32 frames) {
     AudioManager* pManager = D_800595D8;
