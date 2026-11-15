@@ -20,7 +20,8 @@ typedef struct {
     /* 0x50 */ s32 unk50;
     /* 0x54 */ s32 unk54;
     /* 0x58 */ s32 unk58;
-    /* 0x5C */ u8 unk5C[0x24];
+    /* 0x5C */ s32 unk5C;
+    /* 0x60 */ u8 unk60[0x20];
 } WorldMapPlayer; // Size: 0x80
 
 // sound-effect bank header: +0x14 is the bank id sound commands are played from
@@ -65,9 +66,20 @@ extern u16 D_8009A46C[];
 extern WorldMapTrackPoint D_8009A490[];
 extern u16 D_8009A4D8;
 extern u16 D_8009A4E8[];
-extern u16 D_8009BD38;
-extern u16 D_8009BD3A;
-extern u16 D_8009BD3C;
+extern s16 D_8009BD38;
+extern s16 D_8009BD3A;
+extern s16 D_8009BD3C;
+// camera position / rotation halfwords, accumulated by the random jitter below
+extern u16 D_8009BD40;
+extern u16 D_8009BD42;
+extern u16 D_8009BD44;
+extern u16 D_8009BD48;
+extern u16 D_8009BD4A;
+extern u16 D_8009BD4C;
+extern MATRIX D_8009C808;
+extern void func_80096F18(void *, void *, s32, void *);
+extern void func_80097244(s32 *pPos);
+extern int rand(void);
 extern s32 D_8009BE0C;
 extern s32 D_8009BE28;
 extern s32 D_8009BE2C;
@@ -275,6 +287,137 @@ int WorldMapInitActorScrollScale(int idx) {
     return 1;
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007ADD4);
+/* PARKED 81.35% (1080 bytes / 270 insns; retail 1068 / 267). Two switches plus
+   a shared rand-jitter tail; every block is found and the instruction multiset
+   differs only in how three read-modify-write globals are addressed, which is
+   also the whole 12-byte excess:
+   - case 4: retail holds &D_8009BE30 in $a2 and does lw/sw through it; ours
+     folds to %hi/%lo for the load and $at for the store.
+   - case 5: retail holds &D_8009BD3A in $a3 for both the lhu and the sh; ours
+     loads through a register and stores through $at.
+   - tail: retail holds &D_8009BD40 in $t1 for the += pair (load+store) and uses
+     $at for D_8009BD48/BD42/BD4A; ours uses $at throughout.
+   Tried for each of the three: a plain pointer local (block-scoped and
+   function-level), *p += / *p = through it, and pointer reuse across the
+   func_80097244 call argument - gcc 2.7.2 cse folds the pseudo back to the
+   symbol every time, score unchanged at 81.35%. Next step is tools/scripts/
+   permute.sh (this is a GIV/address-materialisation tie, not a structure bug).
+   Compiler is NOT the preset: try_flags.sh gives 69.06% under cdk -G0.
+   Do not convert func_8007BBEC/8007C3B8/8007C7D8 before this one: their tables
+   must follow its two (jtbl_8006FBF4 at .rodata+0x30, jtbl_8006FC14 at +0x50,
+   with 4 pad bytes between them from the align before the second table). The
+   first switch's index needs an s16 local - 'nState = pPlayer->unk4 - 1;' gives
+   retail's lhu/addiu -1/sll 16/sra 16 where a bare expression gives lh.
+s32 func_8007ADD4(s32 idx) {
+    WorldMapPlayer *pPlayer = D_8009BE24 + idx;
+    u16 *pScratch = (u16 *)0x1F800000;
+    s32 nAngle;
+    s16 nState;
+    s16 nTimer;
+
+    nState = pPlayer->unk4 - 1;
+    switch (nState) {
+    case 0:
+        pPlayer->unk4 = 0;
+        pPlayer->unk20 = 1;
+        break;
+    case 1:
+        pPlayer->unk20 = 2;
+        pPlayer->unk4 = 0;
+        pPlayer->unk50 = 0x40000;
+        break;
+    case 2:
+        D_8009D3F0 = 0x640000;
+        pPlayer->unk4 = 0;
+        pPlayer->unk20 = 0;
+        D_8009BD38 = -0x1E0;
+        D_8009BD3A = 0x480;
+        D_8009BD3C = 0;
+        break;
+    case 3:
+        pPlayer->unk4 = 0;
+        pPlayer->unk20 = 0;
+        D_8009D3F0 = 0x1E0000;
+        D_8009BD38 = 0x40;
+        D_8009BD3A = 0x418;
+        D_8009BD3C = 0;
+        D_8009D144 = 0;
+        D_8009BE30 = D_8009C5B4;
+        break;
+    case 4:
+        pPlayer->unk4 = 0;
+        pPlayer->unk20 = 3;
+        break;
+    case 5:
+        pPlayer->unk4 = 0;
+        pPlayer->unk20 = 4;
+        pPlayer->unk58 = D_8009C5AC + 0xC7C00;
+        D_8009D144 = 1;
+        pPlayer->unk5C = D_8009C5B4 + 0x3EC400;
+        break;
+    case 6:
+        pPlayer->unk4 = 0;
+        pPlayer->unk20 = 5;
+        break;
+    }
+    switch (pPlayer->unk20) {
+    case 0:
+        break;
+    case 1:
+        pPlayer->unk50 += 0x200;
+        if (pPlayer->unk50 > 0x8000) {
+            pPlayer->unk50 = 0x8000;
+            pPlayer->unk20 = 0;
+        }
+        break;
+    case 2:
+        pPlayer->unk50 -= 0x200;
+        if (pPlayer->unk50 < 0x8000) {
+            pPlayer->unk50 = 0x8000;
+            pPlayer->unk20 = 0;
+        }
+        break;
+    case 3:
+        pPlayer->unk50 -= 0x100;
+        if (pPlayer->unk50 < 0x1000) {
+            pPlayer->unk50 = 0x1000;
+            pPlayer->unk20 = 0;
+        }
+        break;
+    case 4:
+        D_8009BE30 += 0x3A000;
+        if (D_8009BE30 > 0x77FFFFF) {
+            pPlayer->unk20 = 0;
+        }
+        D_8009BD40 = (pPlayer->unk58 - D_8009BE28) >> 12;
+        D_8009BD4C = 0;
+        D_8009BD48 = 0;
+        nAngle = D_8009BE2C >> 12;
+        D_8009BD4A = nAngle;
+        D_8009BD42 = nAngle - 0x40;
+        D_8009BD44 = (D_8009BE30 - pPlayer->unk5C) >> 12;
+        func_80097244(&D_8009BD40);
+        WorldMapExtractRotationFromMatrix(&D_8009C808, (SVECTOR *)&D_8009BD38);
+        break;
+    case 5:
+        D_8009BD3A += 4;
+        nTimer = D_8009BD3A;
+        if (nTimer > 0x600) {
+            pPlayer->unk20 = 0;
+        }
+        break;
+    }
+    func_80096F18(&D_8009BD40, &D_8009BE28, D_8009D3F0, &D_8009BD38);
+    pScratch[0x50] = rand() % (pPlayer->unk50 >> 12) - (pPlayer->unk50 >> 13);
+    pScratch[0x51] = rand() % (pPlayer->unk50 >> 12) - (pPlayer->unk50 >> 13);
+    D_8009BD40 += pScratch[0x50];
+    D_8009BD48 += pScratch[0x50];
+    D_8009BD42 += pScratch[0x51];
+    D_8009BD4A += pScratch[0x51];
+    return 1;
+}
+*/
+
 int WorldMapSetupGroup4And5ScaledPrims(int idx) {
     WorldMapPlayer *pPlayer = D_8009BE24 + idx;
     WorldMapSceneLayer *pBlock = &D_8009C620[4];
@@ -723,7 +866,7 @@ int func_8007C724(int idx) {
     D_8009D3F0 = 0x400000;
     pPlayer = D_8009BE24 + idx;
     D_8009D144 = 1;
-    ((u32 *)pPlayer->unk5C)[8] = 0x1000;
+    ((u32 *)&pPlayer->unk5C)[8] = 0x1000;
     a = D_8009C5AC;
     b = D_8009C5B0;
     c = D_8009C5B4;
