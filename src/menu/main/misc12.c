@@ -2,7 +2,29 @@
 
 #include "psyq/libcd.h"
 #include "psyq/pc.h"
+#include "system/archive.h"
 #include "system/menu.h"
+
+// The 0x10-byte header of a file sector on the archive CD.
+typedef struct {
+    /* 0x0 */ u8 unk0[3];
+    /* 0x3 */ u8 disc;
+    /* 0x4 */ u32 tag;
+    /* 0x8 */ u8 unk8[8];
+} MenuSectorHeader; // Size: 0x10
+
+extern u8 D_801EA8C4[0x20];
+extern RECT D_801EA8E4;
+extern RECT D_801EA8EC;
+extern s32 D_801EA900[];
+extern u8 D_801EA8F5;
+extern MenuSectorHeader D_801C5294;
+extern char D_801C52A4[];
+extern char D_801C52B8[];
+extern char D_801C52CC[];
+extern char D_801C52E0[];
+extern char D_801C52F4[];
+extern char D_801C5308[];
 
 extern u_char D_801EA8F4;
 extern int Vsync(int mode);
@@ -185,6 +207,7 @@ void MenuUpdateCharacterWindow(s32 arg0, u_char arg1) {
     }
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E78C8);
+// Triage r111: BUILDS now (the externs at the top of the file: u8 D_801EA8C4[0x20], RECT D_801EA8E4, RECT D_801EA8EC, s32 D_801EA900[]). Real score of this body: 84.42%, 948 bytes.
 /* Best: 84.42% (948 vs 904 bytes), first full shape. Decoded: a 0x20-byte CLUT
    (16 entries) is memmoved out of MenuUnk2ImageChunk.pad0[0x60] into the buffer at
    D_801EA8C4 and uploaded with LoadImage to the RECT at D_801EA8EC
@@ -270,6 +293,7 @@ void func_801E78C8(s32 index) {
 }
 */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E7C50);
+// Triage r111: BUILDS, real score 72.41%, 528 bytes. No new declarations were needed beyond MenuString/POLY_FT4.
 /* Best: 72.41% under gcc-2.6.0 (62.66% under 2.7.2). Shape recovered from the asm:
    row = index / 2 and column = index & 1 are separate locals (retail keeps row in
    s4 and reuses it for the flags != 0 branch's row * 0xD), u = (row & 1) * 0x80 is
@@ -409,6 +433,7 @@ void func_801E8474(s32 count, s32* pEntries) {
     }
 }
 
+// Triage r111: BUILDS, real score 99.79%, 688 bytes = retail's size. Only D_801EA1EC / D_801EA1EC+4 base order is left; a typed 2-word struct view is WRONG (retail's index math is the flat s32[] one: sll i,1 + sll (sel+choice),3 + addu + sll 2).
 /* Best: 99.79% (688 bytes, exact instruction multiset, only the two table
    bases swap). The missing structural piece: loop 2's guard tests the CURSOR
    word of the same entry, not the text word -- retail compares
@@ -576,6 +601,7 @@ void MenuSetPrimShadingMode(POLY_FT4* pPoly, u_char mode) {
         break;
     }
 }
+// Triage r111: as stored here it is 98.20% (612 bytes = retail's size). The addiu-on-offset shape does work: with "s32 off; off = (i * 2 + pWindow->renderContext) * 0x28 + K; MenuSetPrimShadingMode((POLY_FT4*)(off + (u32)pWindow), mode);" in each of the five K != 0 loops, the final block in its own braced { s32 off; ... } with (u_char)mode, and loop 1 as "(...) * 0x28 + (u32)pWindow" (base last), it reaches 99.51%. Residual: the last call re-truncates mode (retail andi a1,s1,0xFF, gcc proves 2..3 and emits move a1,s1) and retail loads pWindow into v1 there where gcc picks a2. Permuter 3 min from the 99.51% body: no gain (base=215 best=215).
 /* Best: 85.90% and the instruction stream is IDENTICAL modulo two allocator
    swaps: retail has arg0 in s2 / (arg0&0xFF)*4 in s3 / pWindow in a2, mine the
    mirror. Same 536 bytes, same insns. The address grouping that retail uses is
@@ -679,6 +705,7 @@ void MenuReadPcFile(char* pName, char* pBuffer, int len) {
     PCread(fd, pBuffer, len);
     PCclose(fd);
 }
+// Triage r111: BUILDS (needed the MenuSectorHeader view + externs at the top of the file; the body's own externs for g_ArchiveTable/Header/DebugTable stay). As stored: 96.65%. Changing three lines - "header = D_801C5294;" instead of a pointer cast, "CdControlB(0x15, 0, pStat)" instead of &D_801EA8F4, and "(*pStat & 1)" for the status test - gives 96.81% (756 bytes): the remaining 16 bytes are (a) retail re-materialises &D_801EA8F4 into s0 before the 0x15 query and reads *pStat through it where this body re-derives the address (a2 for the call, v1 for the read); a second pStat = &D_801EA8F4 there scores worse (96.65%, address in a2 only), and (b) retail's last block ends with j epilogue + move v0,s0 where this body falls through into the shared move v0,s0, and retail places move s0,zero (result = 0) after the argument setup where this body puts it in the bne delay slot.
 /* Best: 96.65% under gcc-2.6.0 (764 bytes vs retail's 772). Recovered shape:
    a 16-byte sector header struct copied from the zero datum D_801C5294 (that
    copy reproduces exactly), ArchiveCdDataSync(0), then either the PC-file path
