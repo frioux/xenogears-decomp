@@ -280,4 +280,16 @@ typedef struct {
     /* 0x5FC7 */ u8 unk5FC7;
 } BattleWorkBlock; // Size: 0x5FC8
 
+// One instruction of the bytecode a battle slot's handlers step through: the
+// opcode byte followed by its operand bytes. Instructions vary in length, so
+// only the four bytes src/battle/main/misc7 reads are named. Those handlers
+// take the slot's instruction pointer by address, so `(*p)` is the instruction
+// being executed.
+typedef struct {
+    /* 0x0 */ u8 unk0;
+    /* 0x1 */ u8 unk1;
+    /* 0x2 */ u8 unk2;
+    /* 0x3 */ u8 unk3;
+} BattleCommand; // Size: 0x4
+
 #endif
