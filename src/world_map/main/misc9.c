@@ -352,32 +352,26 @@ s32 WorldMapInitSlotAngleStep8(s32 index) {
     pSlot->unk54 = 8;
     return 1;
 }
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_80087734);
-// Best: 63.72%. Two scratchpad vectors (0x1F8000A0 / 0x1F8000A8) built from
-// D_8009C620+0x40A, +0x4B2 and the slot angle (fields are unsigned: retail uses
-// lhu), then RotMatrix(v, pSrc+0x410) and RotMatrix(v, pSrc+0x4B8). Retail loads
-// D_8009BE24 first and D_8009C620 only after the slot angle update; gcc hoists the
-// D_8009C620 load above the frame and stores 0xA8/0xA0/0xA2/0xAA/0xAC/0xA4 in an
-// order that neither the source order nor a struct walk reproduces.
-// Screen: cdk 63.72, 2.6.0 63.49, best 63.72 here - not a compiler miss.
-/*
 s32 func_80087734(s32 index) {
     WorldMapSlot* pSlot = (WorldMapSlot*)(D_8009BE24 + index * 0x80);
+    SVECTOR* pVec0 = (SVECTOR*)0x1F8000A0;
+    SVECTOR* pVec1 = (SVECTOR*)0x1F8000A8;
     u8* pSrc;
+    u16 angle;
 
     pSlot->unk50 = (pSlot->unk50 + pSlot->unk54) & 0xFFF;
     pSrc = D_8009C620;
-    *(u16*)0x1F8000A8 = 0;
-    *(u16*)0x1F8000A0 = 0;
-    *(u16*)0x1F8000A2 = *(u16*)(pSrc + 0x40A);
-    *(u16*)0x1F8000AA = *(u16*)(pSrc + 0x4B2);
-    *(u16*)0x1F8000AC = ((u16*)&pSlot->unk50)[0];
-    *(u16*)0x1F8000A4 = ((u16*)&pSlot->unk50)[0];
-    RotMatrix((SVECTOR*)0x1F8000A0, (MATRIX*)(pSrc + 0x410));
-    RotMatrix((SVECTOR*)0x1F8000A8, (MATRIX*)(pSrc + 0x4B8));
+    pVec1->vx = 0;
+    pVec0->vx = 0;
+    pVec0->vy = *(u16*)(pSrc + 0x40A);
+    pVec1->vy = *(u16*)(pSrc + 0x4B2);
+    angle = pSlot->unk50;
+    pVec1->vz = angle;
+    pVec0->vz = angle;
+    RotMatrix(pVec0, (MATRIX*)(pSrc + 0x410));
+    RotMatrix(pVec1, (MATRIX*)(pSrc + 0x4B8));
     return 1;
 }
-*/
 s32 func_800877E0(s32 index) {
     WorldMapSlot* pSlot = (WorldMapSlot*)(D_8009BE24 + index * 0x80);
 
@@ -461,36 +455,32 @@ s32 WorldMapSetSceneLayerTPages(s32 index) {
     WorldMapSetSlotTPages(pEntry2, *(u8**)(pEntry2 + 0x48), *(u16*)(*(u8**)(pEntry2 + 0x40) + 4), 3);
     return 1;
 }
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_80087A8C);
-// Best: 50.02%. Same family as func_80087734 above: angle update then two
-// scratchpad SVECTORs (0x1F8000A0 / 0x1F8000A8) fed to RotMatrix with
-// D_8009C620 + D_8009B64C[..]*0x54 + 0x20 / D_8009B64E[..]*0x54 + 0x20. Retail
-// saves only s0 (it re-points the base at the second entry in the first jal's
-// delay slot) and loads both table halfwords before the calls; gcc keeps the
-// D_8009C610*2 index in s1 across the call and sinks the second lhu.
-// Screen: cdk 30.16, 2.6.0 49.69, best 50.02 here - not a compiler miss.
-/*
 s32 func_80087A8C(s32 index) {
     WorldMapSlot* pSlot = (WorldMapSlot*)(D_8009BE24 + index * 0x80);
     u8* pSrc = D_8009C620;
     s32 entryIndex = D_8009C610 * 2;
-    s32 off1 = D_8009B64C[entryIndex] * 0x54;
-    s32 off2 = D_8009B64E[entryIndex] * 0x54;
+    s32 index1 = D_8009B64C[entryIndex];
+    s32 index2 = D_8009B64E[entryIndex];
+    SVECTOR* pVec0 = (SVECTOR*)0x1F8000A0;
+    SVECTOR* pVec1 = (SVECTOR*)0x1F8000A8;
+    u8* pEntry1 = pSrc + index1 * 0x54;
+    u8* pEntry2;
     u16 angle;
+    long tmp[2]; // unused: reproduces retail's 0x20-byte stack frame
 
     pSlot->unk50 = (pSlot->unk50 + pSlot->unk54) & 0xFFF;
-    *(u16*)0x1F8000AC = 0;
-    *(u16*)0x1F8000A4 = 0;
-    *(u16*)0x1F8000A8 = 0;
-    *(u16*)0x1F8000A0 = 0;
-    angle = ((u16*)&pSlot->unk50)[0];
-    *(u16*)0x1F8000AA = angle;
-    *(u16*)0x1F8000A2 = angle;
-    RotMatrix((SVECTOR*)0x1F8000A0, (MATRIX*)(pSrc + off1 + 0x20));
-    RotMatrix((SVECTOR*)0x1F8000A8, (MATRIX*)(pSrc + off2 + 0x20));
+    pVec1->vz = 0;
+    pVec0->vz = 0;
+    pVec1->vx = 0;
+    pVec0->vx = 0;
+    angle = pSlot->unk50;
+    pVec1->vy = angle;
+    pVec0->vy = angle;
+    pEntry2 = pSrc + index2 * 0x54;
+    RotMatrix(pVec0, (MATRIX*)(pEntry1 + 0x20));
+    RotMatrix(pVec1, (MATRIX*)(pEntry2 + 0x20));
     return 1;
 }
-*/
 
 void WorldMapBuildBasisMatrix(VECTOR* pVec, VECTOR* pWork, MATRIX* pMat) {
     s16* pOut = (s16*)pMat;
