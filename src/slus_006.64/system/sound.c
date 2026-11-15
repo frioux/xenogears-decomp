@@ -2564,27 +2564,31 @@ void func_8003B424(AudioManager* pManager) {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003B644);
 /*
-Attempt (94.82%, 748 bytes = the original's size): the structure, the instruction multiset and
-the whole element loop agree. The only difference left is a two-register swap - retail keeps the
-volume scaler in fp ($s8, the register `level` arrived in) and the element count in $s6; gcc 2.6.0
-gives the volume $s6 and the count fp. How this body was reached, do not regress it: `level` is
-s32 (so `(s16)volume` really narrows - retail has the sll 16/sra 16 pair) and `u32 volume = level;`
-makes the volume reuse level's register (retail's `move s8,a2` at the entry), and the
-`elementFlags = element >> 8;` assignment has to sit just before `pScriptOffset = ...`, not in the
-declaration list (that alone was 91.83 -> 94.82). Tried as well: element >> 8 inline in the loop,
-s16 level, declaration orders, the `do { pWds = g_SoundWdsLinkedList; } while (0);` the permuter
-found (worth +0.2), and three 4-minute permuter runs (best 535 vs 540, i.e. the same registers
-rotated the other way). The permuter's only other suggestion is to wrap everything from
-`elementFlags = ...` to `unk_Flags |= 0x8000` in a do { } while (0), which cc1 2.6.0 exits 33 on.
-Three more shapes tried on top of the note above (all 94.82%, no movement): swapping the
-declaration order of `u32 volume` and `s32 count`, declaring count before volume at the top of
-the list, `u32 count`, and moving `u32 volume` last. The `count`/`volume` swap is the whole
-residual: retail has volume in $s8/fp and count in $s6, gcc 2.6.0 gives them the other way
-round. Measured as well: all six callers of this function (SoundPlaySoundEffectOnPair,
-...WithLevels, ...OnFreePair, ...OnLastPair, SoundSendCommandByIdWithLevels,
-SoundSendCommandConstant) stay at 100.00% with the real four-argument prototype in scope, so
-converting this one does NOT hit the caller-prototype hazard - make check is still the gate,
-but objdiff shows no caller damage.
+Attempt (96.32%, 748 bytes = the original's size): the whole element loop agrees, including the
+volume scaling; the ONLY residual is a two-register swap. Retail keeps the volume scaler in fp
+($s8, the register `level` arrived in) and the element count in $s6; gcc 2.6.0 gives the volume
+$s6 and the count fp, in 11 instructions (the entry `sw s8,72(sp) / move s8,a2` pair, `sll
+v1,s8,16`, `mflo v0 / srl s8,v0,7`, `srl v0,s8,15`, `li s8,0x7FFF`, the `lui/lw` of D_80059404,
+`sh s8,79(s0)` and the loop tail `addiu s6,s6,-1 / bnez s6`). Both allocnos are entry-born SImode
+locals live across the whole function, so this is gcc's global-alloc priority tie-break
+(floor_log2(nrefs*size/live_length), ties by allocno index), not a source shape: 3 permuter runs
+by the previous worker plus 2 more here (best 265 vs base 270, and that one only by rewriting the
+whole loop body) never moved it. Do not burn hand shapes on the declaration list - tried: `s32
+count` before/after `u32 volume`, `u32 count`, `s16 level`, volume assigned at the top vs at the
+multiply, and an unused-local pad.
+What was fixed this round, do not regress: (1) the tone-table byte must be reached with a
+LEFT-ASSOCIATIVE pointer sum, `*((u8*)pSoundFile + off + (soundId & 0xFFFF))` - retail emits
+`addu v0,s2,v0` (base + table offset) and then adds the masked index, where the array form
+`((u8*)pSoundFile)[off + idx]` adds off+idx first and then the base (94.82 -> 94.93); (2) the
+`- (-off)` spelling below is a permuter perturbation, NOT original source: it makes gcc emit the
+`lhu 24(s2)` table-offset load before the `lw 16(sp)` soundId reload (retail's order) and is worth
+94.93 -> 96.32. The realistic `+ off` form is otherwise identical.
+Reached from the previous note's body, which is worth keeping: `level` is s32 (so `(s16)volume`
+really narrows - retail has the sll 16/sra 16 pair), `u32 volume = level;` makes the volume reuse
+level's register (retail's `move s8,a2` at the entry), and the `elementFlags = element >> 8;`
+assignment has to sit just before `pScriptOffset = ...`. All six callers of this function stay at
+100.00% with the real four-argument prototype in scope (round 92), so converting it does not hit
+the caller-prototype hazard - but make check / check_bin is still the gate.
 */
 /*
 void func_8003B644(s16 element, s32 soundId, s32 level, s16 pan) {
@@ -2614,7 +2618,7 @@ void func_8003B644(s16 element, s32 soundId, s32 level, s16 pan) {
         } while (0);
     }
 
-    volume = (s16)volume * ((u8*)pSoundFile)[((u16*)&pSoundFile->unk18)[0] + (soundId & 0xFFFF)];
+    volume = (s16)volume * *(u8*)((u8*)pSoundFile - (-((u16*)&pSoundFile->unk18)[0]) + (soundId & 0xFFFF));
     volume >>= 7;
     if ((volume >> 15) & 1) {
         volume = 0x7FFF;
@@ -2690,8 +2694,8 @@ void func_8003B644(s16 element, s32 soundId, s32 level, s16 pan) {
 
     pManager->unk_Flags |= 0x8000;
     EnableEvent(g_unk_SoundEvent);
-}
-*/
+}*/
+
 void SoundFreeAudioManagerBackups(AudioManager* pManager) {
     AudioManager* pEntry = pManager->unk_Manager_0x4;
 
