@@ -186,18 +186,17 @@ void func_8009A854(u8 arg0, u8 arg1) {
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009A854);
 
-// 100.00% only under gcc-2.6.0 (99.66% on the unit's 2.7.2): the mfhi temp of the
-// `% 100` expansion lands in $a0 there, in $a1 under 2.7.2.
-// links 2 bytes wrong: objdiff-clean bodies can still differ from retail (the
-// `r % 100` division sequence is the suspect; try maspsx --expand-div for the unit).
+// best 99.66% on the unit's 2.7.2, 100.00% under gcc-2.6.0: the mfhi temp of the
+// `% 100` expansion is $a0 there and $a1 here, so retail's in-place
+// `mfhi a0 / sra a0,a0,5` becomes `mfhi a1 / sra a0,a1,5`. The unit cannot move to
+// 2.6.0 (BattleClearSlotFlag15A1 95.71, BattleSetSlotFlag15A1 99.57 under it).
+// Shapes with no effect on the tie: `rand() % 100 < 50` inline vs `int r` local,
+// `50 > rand() % 100`, `rand() % 100 <= 49`, `(s32)(rand() % 100) < 50`; the
+// permuter found nothing either.
 /*
 s32 func_8009A9D0(void) {
-    u8* p = D_800C34B0;
-    int r;
-
-    p[0x5FC2] = 0;
-    r = rand();
-    if (r % 100 < 50) {
+    D_800C34B0->unk5FC2 = 0;
+    if (rand() % 100 < 50) {
         func_8009BE0C();
         return 1;
     }
@@ -406,17 +405,8 @@ void func_8009AEFC(u8 arg0) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009AEFC);
-// best 99.75% (2.7.2-psx; 74.02% cdk). Same size, same instruction multiset,
-// same block layout; only the switch's table operand differs, which no C can
-// reproduce here: jtbl_80070428 is split out of the overlay's splat-owned
-// rodata blob (0x80070428 = overlay + 0x938, inside the [0x0, rodata]
-// subsegment), so a C switch emits a duplicate 0x50-byte table into this unit's
-// .rodata and shifts the overlay. Leave as INCLUDE_ASM.
-// `default: return;` removed the duplicated tail decrement (99.33 -> 99.75);
-// `u8 idx` costs an extra andi, `s32 idx` is required.
-/*
 void func_8009AFD8(void) {
-    u8 sel = *(u8*)((u8*)D_800C34B0 + 0x5FC2);
+    u8 sel = D_800C34B0->unk5FC2;
     s32 idx;
 
     switch (sel) {
@@ -424,12 +414,14 @@ void func_8009AFD8(void) {
     case 1:
     case 2:
     case 3:
-        idx = *(u8*)(D_800C3E00 + 0x6F);
+        idx = D_800C3E00[0x6F];
         break;
     case 4:
     case 5:
         return;
     case 6:
+        idx = D_800C3E00[0x72];
+        break;
     case 7:
     case 8:
     case 9:
@@ -443,11 +435,11 @@ void func_8009AFD8(void) {
     case 17:
     case 18:
     case 19:
-        idx = *(u8*)(D_800C3E00 + 0x6F);
+        idx = D_800C3E00[0x6F];
         if (g_GameState.gearPartsIds[0x6C + idx]) {
             g_GameState.gearPartsIds[0x6C + idx]--;
         }
-        idx = *(u8*)(D_800C3E00 + 0x72);
+        idx = D_800C3E00[0x72];
         break;
     default:
         return;
@@ -456,8 +448,6 @@ void func_8009AFD8(void) {
         g_GameState.gearPartsIds[0x6C + idx]--;
     }
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009AFD8);
 
 void BattleResetActorStats(void) {
     u8 i;
