@@ -25,6 +25,32 @@ extern u8 *TimerWorkListAllocateTask(void *pList, s32 size);
 extern u8 *func_80023B84(u8 *pActor, u8 *pEntry);
 extern void TimerWorkListSetTaskCallback(void *pTask, void *pCallback);
 
+/* One 0x1C-byte slot of the battle actor table at D_800C3EB0. */
+typedef struct {
+    /* 0x00 */ u8 unk0[0x6];
+    /* 0x06 */ u8 unk6;
+    /* 0x07 */ u8 unk7;
+    /* 0x08 */ u8 unk8;
+    /* 0x09 */ u8 unk9[0x5];
+    /* 0x0E */ u16 unkE;
+    /* 0x10 */ u16 unk10;
+    /* 0x12 */ u8 unk12[0xA];
+} BattleActorSlot; // Size: 0x1C
+
+extern BattleActorSlot D_800C3EB0[];
+extern SpriteData *D_800C3E1C;
+extern u8 D_800C362C;
+extern s32 D_800C35D8;
+extern void *D_800C3A6C;
+extern u8 D_800C3620;
+extern u8 D_800C3622;
+extern u16 D_800D3634;
+extern void BattleFreeActorArchiveAndSoundSeds(void);
+extern void func_800BB760(s32 index);
+extern void func_800C0F70(void);
+extern void *SoundLoadWdsFile(void *pBuffer, s32 arg1);
+extern s16 func_8003BDFC(s32 arg0);
+
 // WorkListEntry of include/system/animation.h; an overlay unit cannot include that
 // header (it holds tentative definitions of main-exe globals), so the layout is
 // repeated. The distance task's block starts with one of these.
@@ -132,7 +158,42 @@ void BattleCreateActorDistanceTask(SpriteData *pSpriteData, s32 minDistance,
     pTask->minDistance = minDistance;
     pSpriteData->flags_0xAC |= 0x20;
 }
+// best 73.04% (71.61% in the variant below, 108 bytes = one instruction short):
+// retail's first instruction is a `move t0,a1` copy of the second parameter (its
+// a1 is then reused for the 0x8C8C constant), and its reload of the target slot
+// happens before the D_800D363C lui; every instruction after that is present, only
+// the allocator's register roles differ. 0x8C8C is a byte offset into the
+// D_800C3EB0 block that does not fit a 16-bit displacement, so retail assembles
+// base+index and +0x8C8C in two addu's - that part the C below does reproduce.
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800BF85C);
+/*
+// Makes the actor of slot arg0 the current battle sprite and points it at the actor
+// of slot arg1, which is also recorded as the model id table's only entry.
+void func_800BF85C(s32 arg0, s32 arg1) {
+    mem_addr base;
+    s32 off;
+    s32 slot;
+    s32 target;
+    SpriteData *pSprite;
+    u8 *pTargetSlot;
+
+    base = (mem_addr)D_800C3EB0;
+    off = 0x8C8C;
+    slot = arg1;
+    pSprite = *(SpriteData **)(base + (arg0 << 2) + off);
+    if (pSprite == NULL) {
+        return;
+    }
+    pTargetSlot = (u8 *)(base + (slot << 2) + off);
+    D_800C3E1C = pSprite;
+    target = *(s32 *)pTargetSlot;
+    D_800D3634 = 1 << slot;
+    *(s32 *)((u8 *)pSprite + 0x74) = target;
+    target = *(s32 *)pTargetSlot;
+    D_800D363C[1] = 0;
+    D_800D363C[0] = target;
+}
+*/
 void BattleRemapActorModelId(u8 *pActor) {
     s32 i = 0;
     s32 *pEntry;
@@ -181,31 +242,6 @@ extern void BattleWaitArchiveSync(void);
 extern int ArchiveDecodeAlignedSize(u32 entryIndex);
 extern void ArchiveReadFileToBuffer(s32 index, void *pBuffer, u32 arg2, u32 flags);
 extern void func_8002DDE4(void *p0, s32 a1, s32 a2, s32 a3, s32 a4, s32 a5, s32 a6);
-
-/* One 0x1C-byte slot of the battle actor table at D_800C3EB0. */
-typedef struct {
-    /* 0x00 */ u8 unk0[0x6];
-    /* 0x06 */ u8 unk6;
-    /* 0x07 */ u8 unk7;
-    /* 0x08 */ u8 unk8;
-    /* 0x09 */ u8 unk9[0x5];
-    /* 0x0E */ u16 unkE;
-    /* 0x10 */ u16 unk10;
-    /* 0x12 */ u8 unk12[0xA];
-} BattleActorSlot; // Size: 0x1C
-
-extern BattleActorSlot D_800C3EB0[];
-extern SpriteData *D_800C3E1C;
-extern u8 D_800C362C;
-extern s32 D_800C35D8;
-extern void *D_800C3A6C;
-extern u8 D_800C3620;
-extern u8 D_800C3622;
-extern void BattleFreeActorArchiveAndSoundSeds(void);
-extern void func_800BB760(s32 index);
-extern void func_800C0F70(void);
-extern void *SoundLoadWdsFile(void *pBuffer, s32 arg1);
-extern s16 func_8003BDFC(s32 arg0);
 
 void BattleLoadArchiveEntryFile(void) {
     void *pBuffer;
