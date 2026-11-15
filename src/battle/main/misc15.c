@@ -190,10 +190,9 @@ void BattleClearPrimFlagsFourSlots(u8 arg0) {
     }
 }
 void func_8008B168(u8 arg0) {
-    int slotStride;
+    int slotStride = 0x40;
     u16 value;
 
-    slotStride = 0x40;
     D_800D2D28[0x9C] = D_800D2D28[0x9D] = D_800D2D28[0x9E] = 1;
     D_800D2D28[0xB0] = D_800D2D28[0xB1] = D_800D2D28[0xB2] = D_800D2D28[0xB3] = 1;
     D_800D2D28[0xB7] = 1;
@@ -214,12 +213,11 @@ void BattleClearPrimFlagsTwoSlots(u8 arg0) {
 }
 void func_8008BC98(u8 arg0) {
     u16 value;
-    int slotStride;
+    int slotStride = 0x40;
 
     D_800D2D28[0x9C] = D_800D2D28[0x9D] = D_800D2D28[0x9E] = 1;
     D_800D2D28[0xB0] = D_800D2D28[0xB1] = 1;
     D_800D2D28[0xB7] = 2;
-    slotStride = 0x40;
     value = BattleSlotBitMask(arg0) | BattleSlotBitMask((D_800C3EAC + arg0 * slotStride)[0x3C]);
     func_800BC404(value);
     func_800BCD98(BattleSlotBitMask((D_800C3EAC + arg0 * slotStride)[0x3C]));
@@ -324,10 +322,9 @@ void BattleClearPrimFlagsThreeSlots(u8 arg0) {
 }
 void func_8008CD28(u8 arg0) {
     u16 value;
-    int slotStride;
+    int slotStride = 0x40;
 
     D_800D2D28[0x9C] = D_800D2D28[0x9D] = D_800D2D28[0x9E] = 1;
-    slotStride = 0x40;
     D_800D2D28[0xB0] = D_800D2D28[0xB1] = D_800D2D28[0xB2] = 1;
     D_800D2D28[0xB7] = 4;
     value = BattleSlotBitMask(arg0) | BattleSlotBitMask((D_800C3EAC + arg0 * slotStride)[0x3C]);
