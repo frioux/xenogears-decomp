@@ -433,6 +433,13 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_8008390C);
 // store-to-load pair into the constant. Every instruction and relocation of
 // the raw form matches except that folding: retail re-loads D_8009BD3A (lh)
 // and D_8009BD3C (lh) after storing them, we get lui $v0,0x40 instead.
+// Round-49 update: a volatile *store* (*(volatile s16 *)&D_8009BD3A = 0x400)
+// does stop the fold and restores both lh's, but the extra live value shifts
+// the allocator one register over (temps to a1, 0x960000 to a0; 244 vs 224
+// bytes, 77%); the same happens spelling the angle globals as one array
+// (extern s16 D_8009BD38[]) with the reads through D_8009BD38[1]/[2]: no fold,
+// 79.41%, registers and store order off. My third shape - struct fields for the
+// stores, plain externs for the reads - is 79.57% and also loses the allocator.
 // -O1 scores 67.46. A volatile load forces the reload but emits
 // lhu + sll 0x10 + sra 0x4 instead of lh + sll 0xc (72.84%); volatile on the
 // stores alone changes nothing.
@@ -507,7 +514,10 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_8008440C);
 // reverse, because reorg steals the nearest eligible insn and our i=0 is
 // emitted before the call's arg setup. `s32 i = 0;` at the declaration plus
 // `for (; i < 0x10; i++, pClut++)` is what fixed the other 8% (it puts the
-// pClut la and rect.y in retail's positions).
+// pClut la and rect.y in retail's positions). Round 49: the permuter ran 4 min
+// / 595 iterations on this body and found nothing (base=best=120); moving
+// `i = 0` into the for-init gets the delay slot right but swaps i/pClut to
+// s2/s5, so the swap is only reachable through the arg-emission order.
 /*
 void func_8008440C(void) {
     RECT rect;
