@@ -688,18 +688,16 @@ void func_800B136C(void) {
     s32 i;
     u8 **pp;
     u8 **ppBase;
-    int new_var;
 
     for (;;) {
         flagA = 0;
         for (i = 0; i < 11; i++) {
             if (pBase[i] != NULL) {
-                new_var = 1;
                 if (pBase[i][0x38] != 0) {
-                    flagA = new_var;
+                    flagA = 1;
                 }
                 if (*(s32 *)(pBase[i] + 0xC) != 0) {
-                    flagB = new_var;
+                    flagB = 1;
                 }
             }
         }
