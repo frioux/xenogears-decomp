@@ -8,7 +8,8 @@ typedef struct {
     /* 0x00 */ u8 pad00[0x4];
     /* 0x04 */ SpriteData* pCurSprite;
     /* 0x08 */ u8 pad08[0x14];
-    /* 0x1C */ u32 unk1C;
+    /* 0x1C */ u8 unk1C; // state step, copied to 0x49 when the step changes
+    /* 0x1D */ u8 pad1D[0x3];
     /* 0x20 */ u8 pad20[0x14];
     /* 0x34 */ u32 unk34;
     /* 0x38 */ u8 pad38[0x10];
@@ -343,7 +344,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800B9508);
 
 void BattleApplyStateStep(void) {
     D_800C3610->unk48 = 1;
-    D_800C3610->unk49 = ((u8*)D_800C3610)[0x1C];
+    D_800C3610->unk49 = D_800C3610->unk1C;
 }
 void BattleFaceActorsTowardEachOther(BattleActorSprite* p0, BattleActorSprite* p1) {
     if (p0 == p1) {
