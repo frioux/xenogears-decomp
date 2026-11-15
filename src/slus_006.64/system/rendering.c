@@ -569,8 +569,6 @@ void func_8001F5BC(SpriteData* pSpriteData, s32 unusedIndex, s32* pOutX, s32* pO
    a3/t0/a2/v1/a0. Both sides copy the parameter out of a0 at entry because the
    block-local `flags` load takes a0; only the copy's destination differs.
 */
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001F6B0);
-/* Best attempt: 96.50% (see the note above the INCLUDE_ASM).
 void func_8001F6B0(SpriteData* pSpriteData) {
     SpriteFrameData* pFrameData;
     u32 flags;
@@ -587,7 +585,7 @@ void func_8001F6B0(SpriteData* pSpriteData) {
 
     texPageBits = (flags >> 5) & 7;
     if (texPageBits != 0) {
-        texPageBits--;
+        do { texPageBits--; } while (0);
     }
     tex = ((SpriteAnimPackage*)pSpriteData->pVramData)->tex;
     color = *(u32*)&pSpriteData->red;
@@ -598,7 +596,6 @@ void func_8001F6B0(SpriteData* pSpriteData) {
         pFrameData[i].texPage = (texPage & 0xFF9F) | (texPageBits << 5);
     }
 }
-*/
 
 void SpriteApplyDirTransforms(SpriteData* pSpriteData, s32 index, SpriteAnimPackage* pAnimPackage) {
     u8* pFrames;
