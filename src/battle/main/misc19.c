@@ -602,8 +602,8 @@ void func_8009BD94(void) {
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009BD94);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009BE0C);
-// best 99.31% under cdk (97.78% on 2.7.2 and 2.6.0): gcc reassociates
-// base+0xA4+idx into base+(idx+0xA4), off the index register not the base.
+// Spell each offset from D_800CCCE8 itself: through a `base` local gcc
+// reassociates base + 0xA4 + idx to base + (idx + 0xA4), wrong register.
 u8 func_8009C050(u8 arg0) {
     s32 idx = arg0 * 0x170;
     u8* base = D_800CCCE8;
