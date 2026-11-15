@@ -3486,34 +3486,22 @@ u8* SoundScriptSetUnk70(u8* pScript, AudioManager* pAudioManager, AudioElement* 
     return pScript;
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003D8B8);
-/*
-Screened under gcc-2.7.2-cdk / gcc-2.7.2 / this unit's gcc-2.6.0: 83.90 / 83.90 / 92.34 - not
-a compiler-only match; the current preset is the best of the three.
-Attempt (92.34%, same size, all instructions in the original's order except two missing
-int-to-s16 conversions): gcc elides the `sll 16`/`sra 16` pair before the velocity square
-and the one converting the divisor argument, because it can prove the sum non-negative and
-in range (`u8` velocity, `s16` velocity, an explicit `(s16)` cast and `s32 volume` all give
-the same elision). The register allocation also comes out mirrored: gcc puts the volume
-total in s0 and pAudioElements in s1, the original the other way round (the prologue save
-order follows). The note curve `note * abs(note)` does match with the if/else below.
 u8* func_8003D8B8(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
-    s8 note = pScript[1];
+    s32 note = (s8)pScript[1];
     s16 velocity = pScript[0];
-    s32 volume;
-    s32 pitch;
     s32 unk16;
 
     if (note != 0) {
         if (velocity != 0) {
+            // the note offset squared with its sign kept: the pitch curve
             if (note < 0) {
-                pitch = note * -note;
+                note = note * -note;
             } else {
-                pitch = note * note;
+                note = note * note;
             }
-            volume = velocity + ((s16)velocity * (s16)velocity) / 64;
-            pAudioElements->envelopes[0].delta = SoundCalculateEnvelopeDelta(pitch << 14, volume, 3);
-            pAudioElements->envelopes[0].reload = volume;
+            velocity = velocity + ((s16)velocity * (s16)velocity) / 64;
+            pAudioElements->envelopes[0].delta = SoundCalculateEnvelopeDelta(note << 14, velocity, 3);
+            pAudioElements->envelopes[0].reload = velocity;
             unk16 = pScript[2] << 2;
             pAudioElements->envelopes[0].unk_0x1A = 0x400;
             pAudioElements->envelopes[0].unk_0x0 = (undefined32)SoundEnvelopeStepTriangleHalfRate;
@@ -3528,7 +3516,6 @@ u8* func_8003D8B8(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
 
     return pScript + 3;
 }
-*/
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003D9A4);
 /*
@@ -4262,6 +4249,115 @@ void SoundAbortVoiceOnChannel(SoundVoiceData* voiceData, u32 channelIndex) {
 }
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003E900);
+/*
+Attempt (98.51%, 604 bytes = the original's size; the instruction multiset and the order of
+every instruction agree): the only difference is one register pair - retail keeps the SPU
+voice-register base in t0 and the loop index in t1, gcc gives t0 to the index and t1 to the
+base. Every other register agrees (updateMask t2, the channel array t3, the three masks
+t4/t5/t6, the adsr biv a2, flags a3). Tried: for(;;) vs do/while, both pointer increments in
+every position, the local declaration order, the statement order of the initialisations (this
+one fixed the prologue and the loop latch exactly), a modeFlags local, and 4 minutes of the
+permuter (base=225 best=225, 1172 iterations). gcc 2.6.0's local-alloc hands t0 to the index
+inside the mask-update block, where the index is referenced five times and the base not at
+all; retail's allocator made the opposite call.
+*/
+/*
+// Voice register update requested by the channel scripts: each SoundVoiceData's
+// flags say which SPU registers to refresh, then the voice's flags are cleared.
+void func_8003E900(void) {
+    SpuUnion* pSpu;
+    SPU_VOICE_REG* pVoice;
+    SoundVoiceData* pChannel;
+    SoundVoiceData** pChannels;
+    u16 flags;
+    u32 revModeMask;
+    u32 noiseModeMask;
+    u32 chanFmMask;
+    u32 updateMask;
+    u32 keyOnFlags;
+    s32 i;
+
+    pChannels = g_SoundChannels;
+    revModeMask = 0;
+    noiseModeMask = 0;
+    chanFmMask = 0;
+    updateMask = 0;
+    pVoice = g_pSoundSpuRegisters->_rxx.voice;
+    i = 0;
+    do {
+        pChannel = *pChannels;
+
+        if (pChannel != NULL) {
+            flags = pChannel->flags;
+            if (flags != 0) {
+                if (flags & 0x1) {
+                    pVoice->volume.left = pChannel->volume.left;
+                    pVoice->volume.right = pChannel->volume.right;
+                }
+                if (flags & 0x4) {
+                    pVoice->pitch = pChannel->pitch;
+                }
+                if (flags & 0x8) {
+                    pVoice->addr = pChannel->startAddress >> 3;
+                    pVoice->loop_addr = pChannel->loopAddress >> 3;
+                }
+                if (flags & 0x10) {
+                    pVoice->adsr[0] = (pVoice->adsr[0] & 0xFF) + (pChannel->unkAdsr4 << 8) +
+                        ((pChannel->unkAdsr1 >> 2) << 15);
+                }
+                if (flags & 0x20) {
+                    pVoice->adsr[0] = (pVoice->adsr[0] & 0xFF0F) + (pChannel->adsrDR << 4);
+                }
+                if (flags & 0x40) {
+                    pVoice->adsr[1] = (pVoice->adsr[1] & 0x3F) + (pChannel->unkAdsr5 << 6) +
+                        ((pChannel->unkAdsr2 >> 1) << 14);
+                }
+                if (flags & 0x80) {
+                    pVoice->adsr[1] = (pVoice->adsr[1] & 0xFFC0) +
+                        (pChannel->unkAdsr6 + ((pChannel->unkAdsr3 >> 2) << 5));
+                }
+                if (flags & 0x100) {
+                    pVoice->adsr[0] = (pVoice->adsr[0] & 0xFFF0) + pChannel->adsrSR;
+                }
+                updateMask |= flags & 0x7000;
+                pChannel->flags = 0;
+            }
+
+            // Voice 0..15 live in the low half of the SPU's 24-bit masks, 16..23 in the high half.
+            chanFmMask |= ((pChannel->modeFlags >> 4) & 1) << i;
+            noiseModeMask |= ((pChannel->modeFlags >> 5) & 1) << i;
+            revModeMask |= ((pChannel->modeFlags >> 6) & 1) << i;
+        }
+
+        pVoice++;
+        pChannels++;
+        i++;
+    } while (i < NUM_VOICES);
+
+    pSpu = g_pSoundSpuRegisters;
+    if (updateMask & 0xFFFF) {
+        if (updateMask & 0x1000) {
+            pSpu->_rxx.chan_fm[0] = chanFmMask;
+            pSpu->_rxx.chan_fm[1] = chanFmMask >> 16;
+        }
+        if (updateMask & 0x2000) {
+            pSpu->_rxx.noise_mode[0] = noiseModeMask;
+            pSpu->_rxx.noise_mode[1] = noiseModeMask >> 16;
+        }
+        if (updateMask & 0x4000) {
+            pSpu->_rxx.rev_mode[0] = revModeMask;
+            pSpu->_rxx.rev_mode[1] = revModeMask >> 16;
+        }
+    }
+
+    keyOnFlags = g_SoundKeyOnFlags;
+    if (keyOnFlags != 0) {
+        pSpu->_rxx.key_on[0] = keyOnFlags;
+        pSpu->_rxx.key_on[1] = keyOnFlags >> 16;
+        g_SoundKeyOnFlags = 0;
+    }
+}
+*/
 
 void SoundApplyPendingKeyOff(void) {
     u32 flags = g_unk_VoicesNeedingProcessing;
