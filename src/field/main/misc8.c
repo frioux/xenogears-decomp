@@ -529,28 +529,6 @@ void FieldConvertIVec3ToSVector(SVECTOR* pDst, IVEC3* pSrc) {
 extern void* D_801E8670[];
 void SpriteSetDirection(SpriteData*, s16);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800831F4);
-/* 92.51% (148 vs 140 bytes): frame and every other insn match, two residuals.
-   The branch shape only comes out right when the ternary sits *inside* the
-   arithmetic: `angle = (rotation.vy + ((direction & 1) ? -0x400 : 0x400)) &
-   0xFFF` gives the original's `bnez $v0,.L; addiu $v0,$v1,-0x400` cond-add with
-   the delay slot filled (an if/else or a ternary split from the `& 0xFFF`
-   gives `beqz` + `j` instead). The second store reads `vy` unsigned (`lhu`), so
-   the `| 0x8000` uses the field type, not a signed local.
-   Frame: do NOT pad it. This body compiles to a 0x18 frame (140 bytes vs the
-   original 148); the original's extra 8 unused bytes and the `move $v1,$v0`
-   below arrive together with the right instruction stream, so an unused local
-   only moves the frame and leaves the diff where it is.
-   Residuals: (1) the original loads vy into v0, copies it (`move $v1,$v0`) and
-   tests in place (`andi $v0,$v0,0x8000`) so vy lives in v1 for the addu; gcc
-   loads straight into v1 (`lh $v1`; `andi $v0,$v1,0x8000`) and is 4 bytes
-   short. Reading the field into a `s16 current` local first changes nothing.
-   (2) gcc sinks the second store (`sh $v0,0x106($s0)`) into the `jal
-   func_80081F80` delay slot because the reload `lh $a1,0x104($s0)` is moved
-   before it; the original stores both halves, reloads, and keeps a nop in the
-   slot.
-   Re-tried: an `s16 current = pActorData->rotation.vy;` local used for both the
-   test and the addiu gives the identical 92.51%.
 void func_80081F80(SpriteData*, s16, FieldActor*);
 
 void func_800831F4(SpriteData* pSprite, ActorData* pActorData, FieldActor* pActor, int direction) {
@@ -570,7 +548,7 @@ void func_800831F4(SpriteData* pSprite, ActorData* pActorData, FieldActor* pActo
         }
     }
 }
-*/
+
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80083288);
 
 void FieldNoOp(void) {
@@ -674,39 +652,16 @@ void FieldStartArchiveStream(int archiveIndex, int allocMode, void* pCallback) {
 void func_8003A20C(int);
 void SoundPlaySoundEffectOnPairWithLevels(void*, int, int, int);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800855C8);
-/* 85.56%: re-tried with the mask written out at both call sites, i.e.
-   `func_8003A20C((arg3 & 7) * 2)` and `OnPairWithLevels(arg0, (arg3 & 7) * 2,
-   ...)`. Same 85.56%: gcc still folds the two shifts into one value in s0 and
-   copies it (`move a0,s0` / `move a1,s0`), where retail recomputes
-   `sll a0,s0,1` (in the jal delay slot) and `sll a1,s0,1`. So the source needs
-   two shifts gcc cannot CSE; see the note below for the shapes already tried.
 void func_800855C8(int arg0, int arg1, int arg2, int arg3) {
-    func_8003A20C((arg3 & 7) * 2);
-    SoundPlaySoundEffectOnPairWithLevels(arg0, (arg3 & 7) * 2, (s16)arg1, (s16)arg2);
-}
-*/
-/* 85.56%: the original keeps `arg3 & 7` in s0 and shifts at each use
-   (`andi s0,a3,7`, `sll a0,s0,1`, `sll a1,s0,1`); gcc CSEs the doubled value
-   into s0 and copies it (`move a0,s0` / `move a1,s0`), which also keeps it out
-   of the first jal's delay slot. Same size and registers, so it links, but
-   objdiff never reaches 100%. Writing `offset + offset`, `2 * (arg3 & 7)`, or
-   the two expressions inline with no local all still fold into one product;
-   re-tried here: both inline (85.56%, `sll s0,s0,1` hoisted before the call
-   plus two `move`s) and `offset*2` + `offset+offset` (85.56%, same shape - the
-   front end canonicalises `+` to a shift before cse, so the two uses still
-   merge); the 100% shape needs a second `offset * 2` that gcc cannot CSE.
-   Re-tried (85.56%): `offset * 2` for the first call and `offset << 1` for the
-   second still merges into one `sll s0,s0,1` hoisted before the first call with
-   two `move`s - the front end folds both to the same tree, so no source spelling
-   gives retail's two separate `sll`.
-void func_800855C8(int arg0, int arg1, int arg2, int arg3) {
-    int offset = arg3 & 7;
+    int slot;
+    int temp;
 
-    func_8003A20C(offset * 2);
-    SoundPlaySoundEffectOnPairWithLevels(arg0, offset << 1, (s16)arg1, (s16)arg2);
+    temp = (u32)arg3 & 7;
+    func_8003A20C(temp * 2);
+    slot = arg3 & 7;
+    temp = (s16)arg1;
+    SoundPlaySoundEffectOnPairWithLevels(arg0, slot * 2, temp, (s16)arg2);
 }
-*/
 
 extern s32 D_800B21B8;
 
@@ -763,20 +718,6 @@ void FieldStopSedsPlayback(void) {
     }
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80085788);
-/* 93.00% (252 vs 280 bytes). Two changes took this from 85.42% to here:
-   (1) the inner scan must be an infinite loop with a break - `while (1) {
-   if (pEntry->unk0 == 0xFFFF) break; pEntry++; i++; }` - which is what makes
-   retail keep the test at the top with a `j` back edge and the pointer and
-   index increments in the two delay slots (a plain `while (cond)` gets
-   inverted: test at both ends, `bne` back edge); (2) the stream id must be
-   one local (`s16 streamId = D_800C3A38;`) - reading the global inline at
-   each use makes gcc reload it three times, since it does not CSE a global
-   across the calls. Residues: retail copies the loaded id into s1 right
-   after the first call (`move s1,s0`) and reuses s0 for `streamId + 0x115`,
-   ours keeps the load in s1 and computes `addiu s0,s1,0x115`; and retail
-   recomputes the loop bound at the head and in the back-edge
-   (`addiu v0,s1,1; slt v0,a1,v0`), ours hoists it into s0 before the loop.
 void func_80085788(void) {
     s16 streamId;
     s32 count;
@@ -811,7 +752,6 @@ void func_80085788(void) {
         D_800C3A64 = i;
     }
 }
-*/
 
 extern void* D_8006259C;
 extern s32 D_8004F32C;
