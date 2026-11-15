@@ -53,6 +53,23 @@ typedef struct {
     /* 0x8 */ s32 z;
 } WorldMapPos; // Size: 0xC
 
+// An actor's sprite keeps its world position as 16.16 fixed point: the wrap
+// loop writes whole words, the GTE pass reads the integer half of each.
+typedef struct {
+    /* 0x0 */ s32 x;
+    /* 0x4 */ s32 y;
+    /* 0x8 */ s32 z;
+} WorldMapSpritePos; // Size: 0xC, 16.16 fixed point
+
+typedef struct {
+    /* 0x0 */ s16 xFrac;
+    /* 0x2 */ s16 x;
+    /* 0x4 */ s16 yFrac;
+    /* 0x6 */ s16 y;
+    /* 0x8 */ s16 zFrac;
+    /* 0xA */ s16 z;
+} WorldMapSpritePosWhole; // Size: 0xC
+
 // One triangle of a sprite set's mesh: three indices into WorldMapMesh::unk4.
 typedef struct {
     /* 0x0 */ s16 vert[3];
@@ -940,28 +957,23 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_80085418);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_80085760);
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_80085CDC);
-// Best: 89.31% (628 bytes vs retail's 636). Round 114 triage: with findings
-// 1-3 already in the body (pCam = &D_8009BE28 in $s3, the &pScratch[2] argument,
-// D_8009C808 as a MATRIX) the loop-1 body, the RTPS loop and the sprite/slew
-// calls are instruction-identical. Five deltas left, top to bottom:
-//  1. prologue save order: retail emits sw/lui s2 then sw/move s1 BEFORE sw s3,
-//     we emit s3's pair first (a declaration-order tie-break; the s3 pair is
-//     pCam, s2 is pScratch, s1 is i).
-//  2. the three sprite reads (2/6/0xA of pActor->unk4C) come out lhu in every
-//     spelling; retail lh. gcc only emits lh for a sign-extending SI load, so
-//     the value has to be used as s32 somewhere (a plain s16->s16 field copy
-//     gives lhu); not found yet.
-//  3. retail rematerialises &D_8009C808 into $a0 for GfxSetBaseMatrix (lui +
-//     addiu, 2 insns we do not emit because we reuse $s0) and that is what frees
-//     the delay slot for 'i = 0'; the two SetRotMatrix/SetTransMatrix calls use
-//     $s0. So the third call probably passes &D_8009C808 directly in the source.
-//  4. loop 3: retail loads the SZ3 slot (lw 0x18(s2)) AFTER lh 0x24 and lw 0x4C,
-//     we load it first because 'd = pScratch[i+6];' is its own statement - move
-//     it into the condition.
-//  5. the slew block: retail loads ang (lh 0x48) BEFORE cur (lw 0x5C) and runs
-//     all four arms into ONE shared 'sw 0x5C'; we emit two stores and have
-//     cur/ang in the opposite registers.
-// Two relocation-only diffs (byte-identical, both name a 0x1F8000xx symbol the
+// Best: 93.47%, 636 bytes = retail's size (was 89.31% at 628 bytes before the
+// actor fields below were typed; typing unk24/unk48/unk4C/unk5C and giving the
+// sprite a WorldMapSpritePos/WorldMapSpritePosWhole view also fixed the lhu->lh
+// sprite reads and made GfxSetBaseMatrix(&D_8009C808) rematerialise into $a0 as
+// retail does, which frees the jal slot for 'i = 0'). Three deltas left:
+//  1. prologue: retail emits sw s1 / move s1,zero BEFORE sw s3 / lui s3 / addiu s3
+//     (s2 = pScratch, s1 = i, s3 = pCam); we emit the s3 pair first. The rest of
+//     the prologue and every loop body is instruction-identical.
+//  2. loop 3: retail loads pScratch[i + 6] (lw 24(s2)) after lh 0x24 and lw 0x4C
+//     and before the sltiu chain; sched2 hoists it above the lh in both spellings
+//     tried (its own statement before the if, and an embedded assignment in the
+//     '&' chain).
+//  3. slew block: retail has ang in $a1, cur in $a0 and d in $v1; ours has ang
+//     $a0, cur $v1, d $a1 (declaration-order tie). The four arms into one shared
+//     'sw 0x5C' are correct since 'cur = ang;' moved out of the inner if
+//     (permuter, 89.31 -> 93.47).
+// Two relocation-only diffs (byte identical, both name a 0x1F8000xx symbol the
 // original object had): 'addiu a0,s2,%lo(D_1F800008)' for the WrapDelta argument
 // and 'addiu s2,s2,%lo(D_1F800004)' at the loop-3 tail - ours fold to 8/4.
 /*
@@ -969,22 +981,24 @@ void func_80085CDC(void) {
     WorldMapActor *pActor;
     MATRIX *pMat;
     s32 *pScratch;
-    WorldMapPos *pCam = (WorldMapPos *)&D_8009BE28;
+    WorldMapPos *pCam;
     s32 i;
     s32 d;
     s32 cur;
     s16 ang;
+    s32 v;
 
     pScratch = (s32 *)0x1F800000;
+    pCam = (WorldMapPos *)&D_8009BE28;
     pActor = D_8009BE24;
     for (i = 0; i < 0x40; i++, pActor++) {
-        if ((*(s16 *)((u8 *)pActor + 0x24) == 0) & (*(s32 *)((u8 *)pActor + 0x4C) != 0)) {
-            pScratch[2] = *(s32 *)((u8 *)pActor + 0x28) - pCam->x;
-            pScratch[4] = *(s32 *)((u8 *)pActor + 0x30) - pCam->z;
-            WorldMapWrapDelta((WorldMapPos *)&pScratch[2]);
-            ((s32 *)*(void **)((u8 *)pActor + 0x4C))[0] = pScratch[2] << 4;
-            ((s32 *)*(void **)((u8 *)pActor + 0x4C))[2] = -(pScratch[4]) << 4;
-            ((s32 *)*(void **)((u8 *)pActor + 0x4C))[1] = *(s32 *)((u8 *)pActor + 0x2C) << 4;
+        if ((pActor->unk24 == 0) & (pActor->unk4C != 0)) {
+            pScratch[2] = pActor->unk28 - pCam->x;
+            pScratch[4] = pActor->unk30 - pCam->z;
+            WorldMapWrapDelta(&pScratch[2]);
+            ((WorldMapSpritePos *)pActor->unk4C)->x = pScratch[2] << 4;
+            ((WorldMapSpritePos *)pActor->unk4C)->z = -pScratch[4] << 4;
+            ((WorldMapSpritePos *)pActor->unk4C)->y = pActor->unk2C << 4;
         }
     }
     pMat = &D_8009C808;
@@ -992,33 +1006,34 @@ void func_80085CDC(void) {
     SetTransMatrix(pMat);
     pActor = D_8009BE24;
     for (i = 0; i < 0x40; i++, pActor++) {
-        if ((*(s16 *)((u8 *)pActor + 0x24) == 0) & (*(s32 *)((u8 *)pActor + 0x4C) != 0)) {
-            ((s16 *)pScratch)[0] = ((s16 *)*(void **)((u8 *)pActor + 0x4C))[1];
-            ((s16 *)pScratch)[1] = ((s16 *)*(void **)((u8 *)pActor + 0x4C))[3];
-            ((s16 *)pScratch)[2] = ((s16 *)*(void **)((u8 *)pActor + 0x4C))[5];
-            gte_ldv0(pScratch);
+        if ((pActor->unk24 == 0) & (pActor->unk4C != 0)) {
+            v = ((WorldMapSpritePosWhole *)pActor->unk4C)->x;
+            ((SVECTOR *)pScratch)->vx = v;
+            v = ((WorldMapSpritePosWhole *)pActor->unk4C)->y;
+            ((SVECTOR *)pScratch)->vy = v;
+            v = ((WorldMapSpritePosWhole *)pActor->unk4C)->z;
+            ((SVECTOR *)pScratch)->vz = v;
+            gte_ldv0((SVECTOR *)pScratch);
             gte_rtps();
             gte_stsz(&pScratch[i + 6]);
         }
     }
-    GfxSetBaseMatrix(pMat);
+    GfxSetBaseMatrix(&D_8009C808);
     i = 0;
     pActor = D_8009BE24;
     for (; i < 0x40; i++, pActor++) {
         d = pScratch[i + 6];
-        if ((*(s16 *)((u8 *)pActor + 0x24) == 0) & (*(s32 *)((u8 *)pActor + 0x4C) != 0) & (d < 0xB00)) {
-            SpriteDrawFrame(*(void **)((u8 *)pActor + 0x4C),
-                          (u32 *)(((u32 *)D_8009BE3C)[0x1C]) + (d >> 4));
-            ang = *(s16 *)((u8 *)pActor + 0x48);
-            cur = *(s32 *)((u8 *)pActor + 0x5C);
+        if ((pActor->unk24 == 0) & (pActor->unk4C != 0) & (d < 0xB00)) {
+            SpriteDrawFrame(pActor->unk4C, (u32 *)(((u32 *)D_8009BE3C)[0x1C]) + (d >> 4));
+            ang = pActor->unk48;
+            cur = pActor->unk5C;
             d = ang - cur;
             if (d < 0) {
                 d += 0x1000;
             }
             if (d < 0x801) {
-                if (d < 0x100) {
-                    cur = ang;
-                } else {
+                cur = ang;
+                if (d >= 0x100) {
                     cur = cur + 0x100;
                 }
             } else {
@@ -1029,12 +1044,10 @@ void func_80085CDC(void) {
                     cur = ang;
                 }
             }
-            *(s32 *)((u8 *)pActor + 0x5C) = cur;
-            func_800223B0(*(void **)((u8 *)pActor + 0x4C),
-                          (cur - *(u16 *)&D_8009BD3A - 0x400) & 0xFFF);
-            AnimScriptTick(*(void **)((u8 *)pActor + 0x4C));
+            pActor->unk5C = cur;
+            func_800223B0(pActor->unk4C, (cur - *(u16 *)&D_8009BD3A - 0x400) & 0xFFF);
+            AnimScriptTick(pActor->unk4C);
         }
     }
 }
 */
-
