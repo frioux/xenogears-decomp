@@ -580,16 +580,6 @@ void func_800A9540(s32 arg0) {
     ArchiveSetIndex(alignedIndex, remainder);
 }
 */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A96B4);
-/* 99.10% under both presets (2.7.2 as parked, and 2.6.0 -G0 --expand-div now):
-   identical instruction multiset; the only difference is which of $s1/$s2
-   holds the (arg0 * 2) index and which holds index + 1 - the original puts the
-   index in $s1 (reusing the saved parameter register: "sll s1,s1,1", and
-   "addiu s2,s1,2") and gcc puts it in $s2, so both the prologue saves and the
-   three "move a0,sN" swaps follow. Tried: computing index before the HeapAlloc
-   calls (45.83%), after them (99.10%), naming index + 1 as its own local,
-   reordering all five declarations, rewriting it as "arg0 *= 2" so the scale
-   happens in place (99.10%). Allocator tie-break class.
 void func_800A96B4(s32 arg0) {
     Misc23ArchiveEntry *pEntry;
     s32 alignedIndex;
@@ -606,14 +596,14 @@ void func_800A96B4(s32 arg0) {
     ArchiveGetFilePath(next);
     pEntry->unk0 = next;
     pEntry->unk4 = HeapAlloc(ArchiveDecodeAlignedSize(next), 1);
-    pEntry->unk8 = arg0 + 2;
+    next = arg0 + 2;
+    pEntry->unk8 = next;
     pEntry->unkC = HeapAlloc(ArchiveDecodeAlignedSize(arg0 + 2), 1);
     pEntry->unk10 = 0;
     pEntry->unk14 = 0;
     func_80029AFC(D_800C3B78, 0, 0);
     ArchiveSetIndex(alignedIndex, remainder);
 }
-*/
 // Payload reached through Misc23ArchiveEntry::unk14: a count-prefixed list of
 // 16-bit entries plus the pixel block bounded by unk8..unkC.
 typedef struct {
