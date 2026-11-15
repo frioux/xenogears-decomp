@@ -239,18 +239,6 @@ void func_800BDC14(Misc32Task *pTask) {
     }
 }
 */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BDC78);
-/* best 87.50%: the whole body matches; only the callback address is ordered
-   differently. Retail emits `lui a1,%hi; move a0,s0; jal; addiu a1,%lo`, i.e.
-   the %hi/%lo pair is split around the move - the cdk two-insn `la`. gcc 2.7.2
-   emits `la` as one macro that maspsx expands adjacently, so reorg steals the
-   `move a0,s0` into the slot instead.
-   gcc-2.7.2-cdk scores 93.75 and DOES put the addiu in the delay slot: its
-   whole remaining difference is the pre-reorg order, retail `lui a1; move
-   a0,s0; jal; addiu a1,%lo` against cdk `move a0,s0; lui a1; jal; addiu`.
-   gcc expands call arguments left to right, so shaping the source to get
-   arg1's %hi emitted before arg0's copy is what is left. Tried: the address
-   in a function-pointer local assigned last (sunk to the call either way).
 extern void TimerWorkListSetTaskCallback(u8 *pTask, void (*pCallback)(u8 *));
 extern void func_800BDC14(u8 *pTask);
 
@@ -262,11 +250,12 @@ void func_800BDC78(u8 *pTask) {
         *(s32 *)(pTask + 0x48) -= 0xC0000;
     }
     if (--*(s32 *)(pTask + 0x88) < 0) {
-        *(s32 *)(pTask + 0x88) = 0x10;
+        do {
+            *(s32 *)(pTask + 0x88) = 0x10;
+        } while (0);
         TimerWorkListSetTaskCallback(pTask, func_800BDC14);
     }
 }
-*/
 extern u8 *D_800D2D68;
 extern void WorkListRemoveTask(void *pEntry);
 
