@@ -411,14 +411,6 @@ void func_800881B8(u8 arg0, u8 arg1) {
     }
 }
 */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_800883AC);
-/* 92.28%: instruction multiset identical; gcc hoists the BattleSlotBitMaskInverted argument
-   (lui/addu/lbu off $s0) above the D_800D301C store, into the load-delay slot
-   after the D_800D301C lbu, while retail leaves a nop there and loads the
-   argument after the store. Round 45: not a preset question - gcc-2.7.2-cdk
-   scores 62.86% (register set differs). Not tried: spelling the store's index
-   as a local (needs a saved register across the call) - retail recomputes
-   `D_800C3EB4[ofs]` after the call, so no.
 void func_800883AC(u8 arg0) {
     s32 ofs;
     u8 sel;
@@ -430,10 +422,11 @@ void func_800883AC(u8 arg0) {
     }
     ofs = arg0 * 28;
     D_800D301C[(D_800C3EB4[ofs] + sel) << 2]--;
-    ret = BattleSlotBitMaskInverted(D_800C3EB5[ofs]);
+    do {
+        ret = BattleSlotBitMaskInverted(D_800C3EB5[ofs]);
+    } while (0);
     D_800D301D[(D_800C3EB4[ofs] + sel) << 2] &= ret;
 }
-*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80088490);
 /* 63.19%: first block and the five `D_800C3EB4[ofs]` reloads match retail exactly;
    still open: gcc branches on the skip condition (`beq $2,$0,store`, loop as
