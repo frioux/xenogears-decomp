@@ -213,14 +213,17 @@ extern char D_8006FD10[];
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_8007661C);
 
-// best 99.91% (was 99.02%): every instruction is identical except the frame,
-// 0x38 vs 0x30 -- gcc reserves one unused 8-byte local slot between buf and the
-// saved regs (buf sits at sp+0x10 in both; buf sizes 0xC and 0x10 both give
-// 0x38, 0x18 gives 0x40). Two permuter edits made the rest exact: reuse h for
-// the D_80096FC4 value passed to the last Sprintf, and read the D_80096FBC
-// index as (flags >> 23) >> 4. Tried: buf declared before h/w, both w/h
-// declaration orders, default-plus-override instead of if/else, u32 for the
-// 0x96FC4 pair, buf sizes 0xC/0x18. The 0x8 slot is what is left.
+// best 99.91% (written as 99.02%, then noted as 97.90%): the instruction stream
+// is now identical; only the frame differs, 0x38 vs 0x30 -- gcc reserves one
+// unused 8-byte local slot between buf and the saved regs (buf sits at sp+0x10 in
+// both; buf sizes 0xC and 0x10 both give 0x38, 0x18 gives 0x40, and `u8 buf[0x8]`
+// reaches 0x30 but is too small for "FRAME:%d-%d"). Two permuter edits made the
+// rest exact: reuse h for the D_80096FC4 value passed to the last Sprintf, and
+// read the D_80096FBC index as (flags >> 23) >> 4. Tried: buf declared before
+// h/w, both w/h declaration orders, default-plus-override instead of if/else,
+// u32 instead of s32 for the 0x96FC4 pair (that one was srl vs sra), plain if /
+// empty else / pointer local / s32 local for the 0x82 clamp, buf sizes 0xC/0x18.
+// The unused 0x8 slot is the one thing still between this and a match.
 /*
 void func_8007661C(u8* p) {
     char buf[0x10];
