@@ -386,25 +386,18 @@ s32 WorldMapGetTilePlaneHeight(s32 x, s32 z) {
     return a.unk4 << 3;
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_80093A5C);
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_80093E8C);
-/* best: 99.43% (140 bytes, same size). Identical instruction multiset; the only
-   delta is the final address add: the original keeps the table entry in v1 and
-   emits addu v1,v1,v0 then lh v0,0x510(v1), while gcc aims the add at v0 and
-   loads into v0. Tried the address as base+sub*2+0x510, as an s16 index form, as
-   (s16*)pBase[0x288+sub] and as a struct member array; all give exactly 99.43%,
-   so this is the allocator tie-break class, not a source-shape problem.
-
 s32 func_80093E8C(WorldMapPos* p) {
     s16 idx;
+    s16 baseOffset;
     s32 sub;
     s32 pBase;
 
     idx = ((p->z >> 20) / 8) * D_8009D160 + (p->x >> 20) / 8;
     pBase = D_8009C184[idx];
+    baseOffset = 0x510; // a constant local keeps the load at 0x510(v1), not a widened add
     sub = (((p->z & 0x7FF000) >> 19) << 4) | ((p->x & 0x7FF000) >> 19);
-    return ((s16*)((u8*)pBase + 0x510))[sub];
+    return ((s16*)((u8*)pBase + baseOffset))[sub];
 }
-*/
 
 s32 WorldMapGetTileHalfIndex(WorldMapPos* p) {
     s32 n;
