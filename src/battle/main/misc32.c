@@ -152,11 +152,26 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BD1FC);
 // hoists `lui %hi(D_800C360C)` out of the loop into $s3, which needs a fifth saved
 // register (pBase moves to $s4) and makes the frame 0x2C instead of retail's 0x28.
 // Retail re-forms the %hi inside the loop every iteration (v0, dying at the load).
-// Tried this round: a volatile read of the global (the load stops moving, the %hi
+// Tried: a volatile read of the global (the load stops moving, the %hi
 // still hoists), the `pRow = pBase + row; pRow[i + 0x150]` pointer form (same hoist,
 // and its addu operands flip to base-first), and the do-while form. The `lw` itself
 // is already inside the loop in both compiles (the call blocks its hoist); only the
 // address word moves, so this is loop.c, not register allocation.
+// MECHANISM (from cc1 -da: build/src/.../misc32.c.i.loop lists the loop's
+// "N real insns" and one line per movable, "moved to"/"not desirable"): loop.c's
+// move_movables hoists a loop-invariant constant when
+// threshold * savings * lifetime >= insn_count, with threshold =
+// (loop_has_call ? 1 : 2) * (1 + n_non_fixed_regs) = 29 here, savings = 1 and
+// lifetime = 1. Natural bodies for this loop all come out at 27-29 real insns, so
+// the D_800C360C `high` - the lowest-UID constant in the body, hence first in the
+// movable chain - always passes and is hoisted; every later candidate (7, 0x8C8C,
+// D_800C3E1C's high) is then blocked by the `threshold -= 3` a move performs.
+// insn_count must reach 30 to flip it, and only insns that survive to loop.c count:
+// pointer locals (pRow, pByte) are copy-propagated away by cse1 (still 28), while a
+// dead `count = row;` store does survive and compile to nothing - two of them give
+// insn_count 30, no hoist, retail's prologue save order, and a body that differs
+// only in the two adds coming out i-then-base instead of base-then-i. No realistic
+// source shape found that adds 2 such insns, so this stays parked.
 /*
 void func_800BD2E4(void) {
     u8 *pSlot;
