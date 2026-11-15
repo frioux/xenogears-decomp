@@ -145,35 +145,26 @@ void func_800891E4(void) {
     }
 }
 */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc14", func_80089348);
-// Best attempt: objdiff 96.84%, 292 bytes (the original size). The boost loop matches
-// exactly with the "off" local + "(s32)(off + (s32)D_800D2DB4)" (index-first addu, and
-// the +0x4E70 stays on the offset chain). The tail loop is one instruction off: the
-// original keeps the base in $a1 and folds the constant into the offset chain
-// (sll a0,a0,3 / addiu a0,a0,0x4E70 / addu a0,a0,a1), gcc folds it onto the base
-// instead (addiu v0,a1,0x4E70 / addu a0,a0,v0). Inline form for the tail loop (no
-// "off" local) is the same 96.84%; the "off"-local form for the tail loop is 94.23%
-// (base lands in $a0 and the offset in $v0).
-/*
 void func_80089348(void) {
     s32 i = 0;
     s32 pitch = 0x11A << 16;
     s32 off;
+    s32 off2;
 
     BattleParseNumberToDigits(D_800D2C2A);
-    for (i = 0; i < 5; i++) {
-        if (D_800C3CF8[i] != 0xFF) {
+    while (i < 5) {
+        s32 slot = D_800C3CF8[i++];
+        if (slot != 0xFF) {
             off = D_800D2DB4[0x5D78] * 0x50 + 0x4E70;
-            D_800D2DB4[0x5D78] += BattleDrawSpritePackage(D_800C3CF8[i] + 0x92, (s32)(off + (s32)D_800D2DB4), pitch >> 16, 0x46);
+            D_800D2DB4[0x5D78] += BattleDrawSpritePackage(slot + 0x92, (s32)(off + (s32)D_800D2DB4), pitch >> 16, 0x46);
             pitch += 0x60000;
         }
     }
     D_800D2DB4[0x5D87] = D_800CCB34;
     for (i = 0; i < D_800D2DB4[0x5D78]; i++) {
-        BattleSetPrimGrey80BlendAdd((u8*)((i * 2 + D_800D2DB4[0x5D87]) * 0x28 + 0x4E70 + (s32)D_800D2DB4));
+        BattleSetPrimGrey80BlendAdd((u8*)((off2 = (i * 2 + D_800D2DB4[0x5D87]) * 0x28 + 0x4E70) + (s32)D_800D2DB4));
     }
 }
-*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc14", func_8008946C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc14", func_8008963C);
 // Best attempt: objdiff 89.89%. Tail loop chain matches with "&D_800D2DB4[...]" but the
@@ -207,30 +198,26 @@ void func_8008963C(void) {
 }
 */
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc14", func_800897CC);
-// Best attempt: objdiff 96.84%, 292 bytes; the twin of func_80089348 (same one-instruction
-// tail-loop difference: original "addiu a0,a0,0x51E0 / addu a0,a0,a1", gcc
-// "addiu v0,a1,0x51E0 / addu a0,a0,v0"). Inline index-first form for both loops: 87.45%.
-/*
 void func_800897CC(void) {
     s32 i = 0;
     s32 pitch = 0x11A << 16;
     s32 off;
+    s32 off2;
 
     BattleParseNumberToDigits(D_800D2C35);
-    for (i = 0; i < 2; i++) {
-        if (D_800C3CFB[i] != 0xFF) {
+    while (i < 2) {
+        s32 slot = D_800C3CFB[i++];
+        if (slot != 0xFF) {
             off = D_800D2DB4[0x5D7B] * 0x50 + 0x51E0;
-            D_800D2DB4[0x5D7B] += BattleDrawSpritePackage(D_800C3CFB[i] + 0x92, (s32)(off + (s32)D_800D2DB4), pitch >> 16, 0x5E);
+            D_800D2DB4[0x5D7B] += BattleDrawSpritePackage(slot + 0x92, (s32)(off + (s32)D_800D2DB4), pitch >> 16, 0x5E);
             pitch += 0x60000;
         }
     }
     D_800D2DB4[0x5D8A] = D_800CCB34;
     for (i = 0; i < D_800D2DB4[0x5D7B]; i++) {
-        BattleSetPrimGrey80BlendAdd((u8*)((i * 2 + D_800D2DB4[0x5D8A]) * 0x28 + 0x51E0 + (s32)D_800D2DB4));
+        BattleSetPrimGrey80BlendAdd((u8*)((off2 = (i * 2 + D_800D2DB4[0x5D8A]) * 0x28 + 0x51E0) + (s32)D_800D2DB4));
     }
 }
-*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc14", func_800898F0);
 // Best attempt: objdiff 91.38% (528 bytes, the original size). Only two classes of diff,
 // both shared with the rest of the BattleDrawSpritePackage family in this unit: every call site puts
