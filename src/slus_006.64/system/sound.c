@@ -1846,23 +1846,17 @@ void SoundSetElementVolumeById(s32 id, s32 value) {
 
 void func_8003A344(s32 elementIndex, s32 value) {
     AudioElement* pElement;
-    s32 active;
     u32 cnt;
-    s32 volume;
-    s32 status;
 
     elementIndex &= 0xFE;
     elementIndex ^= 8;
     cnt = 2;
-    volume = value << 8;
-    status = 0x100;
     pElement = &D_800595D8->elements[elementIndex];
 
     do {
-        active = pElement->active_flag;
-        if (active = active & 0x1) {
-            pElement->unk_0x76 = volume;
-            pElement->status_flags = status;
+        if (pElement->active_flag & 0x1) {
+            pElement->unk_0x76 = value << 8;
+            pElement->status_flags = 0x100;
         }
         pElement++;
         cnt--;
