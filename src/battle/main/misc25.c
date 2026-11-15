@@ -674,21 +674,21 @@ extern void ArchiveStopTransfer(s32);
 
 void func_800B136C(void) {
     s32 flagB = 0;
-    u8 **pBase = D_800D3368;
+    BattleActor **pBase = D_800D3368;
     s32 flagA = 0;
-    u8 *pEntry;
+    BattleActor *pEntry;
     s32 i;
-    u8 **pp;
-    u8 **ppBase;
+    BattleActor **pp;
+    BattleActor **ppBase;
 
     for (;;) {
         flagA = 0;
         for (i = 0; i < 11; i++) {
             if (pBase[i] != NULL) {
-                if (pBase[i][0x38] != 0) {
+                if (pBase[i]->unk38 != 0) {
                     flagA = 1;
                 }
-                if (*(s32 *)(pBase[i] + 0xC) != 0) {
+                if (pBase[i]->unkC != 0) {
                     flagB = 1;
                 }
             }
@@ -712,7 +712,7 @@ void func_800B136C(void) {
         if (ArchiveDataSync() == 0) {
             for (i = 0, pp = ppBase; i < 11; i++) {
                 pEntry = *pp++;
-                if (pEntry != NULL && *(s32 *)(pEntry + 0xC) != 0) {
+                if (pEntry != NULL && pEntry->unkC != 0) {
                     BattleFreeActorBuffer(pEntry);
                 }
             }
