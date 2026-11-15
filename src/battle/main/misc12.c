@@ -950,7 +950,90 @@ u16 func_80084DE4(u16 arg0, u16 arg1, u8 arg2, u8 arg3, u8 arg4) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80084DE4);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80085084);
+typedef struct {
+    /* 0x00 */ u8 pad0[0xE6];
+    /* 0xE6 */ u8 unkE6[4];
+} BattleUnkEA; // Size: 0xEA
+
+extern BattleUnkEA *D_800C3E24;
+extern u16 func_80084DE4(u16, u16, u8, u8, u8);
+u8 func_80085084(u16 arg0, u8 arg1, u8 arg2) {
+    u16 mask;
+    u16 prev;
+    u8 state;
+    u8 target;
+    s32 i;
+
+    prev = 0xFE;
+    func_80084DE4(arg0, arg0, arg1, 0, arg2);
+    mask = D_800C3D64;
+    state = D_800C3E2C == 0xFF;
+    while (state == 0) {
+        BattleUpdateFrame();
+        switch (arg0 & 0xF) {
+        case 0:
+            func_800BCD98(BattleSlotBitMask(D_800C3E2C));
+            func_800BC404(BattleSlotBitMask(D_800C3E2C));
+            break;
+        case 1:
+            func_800BCD98(D_800C3D64);
+            func_800BC404(D_800C3D64);
+            break;
+        case 2:
+            mask = func_80084D28();
+            func_800BCD98(mask);
+            func_800BC404(mask);
+            break;
+        }
+        switch (D_800D3014) {
+        case 5:
+            state = 1;
+            break;
+        case 4:
+            D_800C3D64 = mask;
+            state = 2;
+            break;
+        case 6:
+        case 7:
+            break;
+        case 0:
+            target = func_80084854(D_800C3E2C, 0);
+            if (BattleMaskHasSlotBit(D_800C3D64, target) != 0) {
+                D_800C3E2C = target;
+            }
+            break;
+        case 1:
+            target = func_80084854(D_800C3E2C, 1);
+            if (BattleMaskHasSlotBit(D_800C3D64, target) != 0) {
+                D_800C3E2C = target;
+            }
+            break;
+        case 2:
+            target = func_80084854(D_800C3E2C, 2);
+            if (BattleMaskHasSlotBit(D_800C3D64, target) != 0) {
+                D_800C3E2C = target;
+            }
+            break;
+        case 3:
+            target = func_80084854(D_800C3E2C, 3);
+            if (BattleMaskHasSlotBit(D_800C3D64, target) != 0) {
+                D_800C3E2C = target;
+            }
+            break;
+        }
+        if (D_800D3014 != prev) {
+            prev = D_800D3014;
+            for (i = 0; i < 4; i++) {
+                if (func_80084854(D_800C3E2C, i) != D_800C3E2C) {
+                    D_800C3E24->unkE6[i] = 1;
+                } else {
+                    D_800C3E24->unkE6[i] = 0;
+                }
+            }
+        }
+    }
+    return state - 1;
+}
 u32 func_80085310(u8 arg0, u8 arg1) {
     return D_800C3EBE[arg0].unk0 > D_800C3EBE[arg1].unk0;
 }
