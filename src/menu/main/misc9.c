@@ -5,8 +5,8 @@
 #include "system/memory.h"
 #include "system/menu.h"
 
-extern u8 D_801EA548[];
-extern u8 D_801EA558[];
+extern u8 D_801EA548[][8]; // 8 u8 string IDs per panel
+extern u8 D_801EA558[][6]; // 6 u8 string IDs per panel
 extern u16 D_801EA724;
 extern u8 D_801EA730[];
 extern s32 D_801EA728;
@@ -95,7 +95,7 @@ void MenuCreateUnk430Panel(u_char arg0) {
         index = 1;
         break;
     }
-    MenuLoadStringsFromIds(8, g_Menu->unk10E0, &D_801EA548[index * 8], g_Menu->pManager->unk38);
+    MenuLoadStringsFromIds(8, g_Menu->unk10E0, D_801EA548[index], g_Menu->pManager->unk38);
     func_801C72BC((u8)kind);
     MenuSetupPointerCursors(2);
     func_801D3488(2, arg0);
@@ -187,7 +187,7 @@ void MenuInitializeCharacterSpriteRecords(u32 arg0) {
     g_Menu->unk434 = HeapAlloc(0xA1C, 0);
     bzero(g_Menu->unk434, 0xA1C);
     pManager = g_Menu->pManager;
-    MenuLoadStringsFromIds(6, (u8*)g_Menu + 0x14E0, &D_801EA558[(arg0 & 0xFF) * 6], &pManager->unk38[8]);
+    MenuLoadStringsFromIds(6, g_Menu->unk14E0, D_801EA558[arg0 & 0xFF], pManager->unk40);
     func_801C72BC(7);
     MenuSetupPointerCursors(3);
     MenuInitializeArrowCursor(0);
@@ -220,7 +220,6 @@ void MenuCreateListWindow(u_char arg0, u_char arg1) {
     s32 start;
     s32 count;
     s32 label;
-    s32 offset;
 
     for (i = 0; i < 6; i++) {
         g_Menu->pManager->unk40[i] = 0;
@@ -237,8 +236,7 @@ void MenuCreateListWindow(u_char arg0, u_char arg1) {
     }
 
     for (i = start; i < count; i++) {
-        offset = (arg1 & 0xFF) * 6;
-        func_801E8070(6, (u8*)g_Menu + 0x14E0, (u8*)(&D_801EA558[offset]), D_801E9EA0,
+        func_801E8070(6, g_Menu->unk14E0, D_801EA558[arg1 & 0xFF], D_801E9EA0,
                       g_Menu->pManager->unk40, (u8)i, (u8)i, 3);
     }
 
