@@ -209,7 +209,8 @@ void func_800828F8(VECTOR* p0, VECTOR* p1, s32 radius) {
         m.m[1][0] = 0;
         m.m[0][1] = 0;
         m.m[1][1] = 0x1000;
-        m.m[0][0] = (m.m[2][2] = n.vz);
+        m.m[2][2] = n.vz;
+        m.m[0][0] = n.vz;
         m.m[0][2] = -n.vx;
         m.m[2][0] = n.vx;
         ApplyMatrixLV(&m, p1, &v);
