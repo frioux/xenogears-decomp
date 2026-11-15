@@ -148,16 +148,21 @@ void func_8008D328(void) {
 
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008D598);
-/* 99.91%: identical except ONE word -- the original ends the dy computation
-   with addu s0,s4,s6 (arg2's register first) and gcc emits addu s0,s6,s4.
-   Tried: source order arg2+arg4 and arg4+arg2 (gcc emits s6,s4 for BOTH, so it
-   is not an RTL operand order issue -- the allocator/emit order is canonical),
-   implicit narrowing instead of the (s16) cast, an (s32) cast on arg4, a split
-   s32 sum temp, and gcc-2.7.2-cdk (84.94, so the preset is right). Everything
-   else in the 464-byte body matches byte for byte: the codes[] branch pair, the
-   four BattleDrawSpritePackage calls with the 0x5A0 accumulate operand order, dx between
-   calls 1 and 2, dy between calls 2 and 3, and the 4-iteration BattleSetPrimGrey80BlendModeFromGlobal
-   loop.
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008DC34);
+/* 99.91%: ONE word. The original ends the dy computation with addu s0,s4,s6
+   (arg2's register first); gcc emits addu s0,s6,s4. C operand order is NOT the
+   lever: arg2+arg4 and arg4+arg2 both give s6,s4, so gcc canonicalises the
+   commutative pair somewhere past expand. Not the preset either: plain
+   gcc-2.7.2 scores the same 99.91 and 2.7.2-cdk 84.94. Tried: implicit narrowing
+   instead of the (s16) cast, an (s32) cast on arg4, a split s32 sum temp, and a
+   4-minute permuter run (base=10 best=10, nothing). Everything else in the
+   464-byte body is byte for byte: the codes[] branch pair, the four
+   BattleDrawSpritePackage calls with the 0x5A0 accumulate, dx between calls 1
+   and 2, dy between calls 2 and 3, and the 4-iteration
+   BattleSetPrimGrey80BlendModeFromGlobal loop.
+   Lead for the next pass: the sum's two operands are both plain params, so only
+   a different RTL shape for the plus can move it -- an operand that is itself
+   the result of an instruction, or a reload-visible copy, is untried.
 void func_8008DC34(u8 arg0, s32 arg1, s32 arg2, s32 arg3, u16 arg4) {
     u8 codes[4];
     u8 *p;
@@ -189,9 +194,7 @@ void func_8008DC34(u8 arg0, s32 arg1, s32 arg2, s32 arg3, u16 arg4) {
         BattleSetPrimGrey80BlendModeFromGlobal(p + (i * 2 + D_800CCB34) * 0x28);
     }
 }
-
 */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008DC34);
 
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008DE04);
@@ -229,6 +232,7 @@ void func_8008F6E4(u8 arg0, s32 arg1, s32 arg2, s32 arg3, s32 arg4) {
     D_800D2D28[arg0 + 0xB0] = 1;
 }
 */
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008F8F4);
 /* 96.44%: whole body matches; only the prologue save/copy order differs (gcc
    gives s4 to arg5 and s5 to arg1 and copies arg0 last; the original has
    s4=arg1, s5=arg5 and copies arg0 first). Tried: separate pointer temps per
@@ -237,6 +241,9 @@ void func_8008F6E4(u8 arg0, s32 arg1, s32 arg2, s32 arg3, s32 arg4) {
    `base[index + K]` (only the former gives the base-first addu), inverted
    if/else, and two declaration orders. Worth one more try by someone who can
    read gcc's allocno order.
+   Also tried later: a live u16 copy of arg1 used at both sites -- same 96.44,
+   gcc still gives arg5 the s4 home and pushes arg0's copy-later pair further
+   down, so the copy does not raise arg1's allocno priority.
 
 void func_8008F8F4(s32 arg0, u16 arg1, u16 arg2, u16 arg3, u16 arg4, u8 arg5, u8 arg6) {
     u8 *pFlags;
@@ -275,4 +282,3 @@ void func_8008F8F4(s32 arg0, u16 arg1, u16 arg2, u16 arg3, u16 arg4, u8 arg5, u8
     }
 }
 */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008F8F4);
