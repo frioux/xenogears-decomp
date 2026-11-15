@@ -304,17 +304,6 @@ void BattleBuildSpritePrimLists(void) {
     func_8008963C();
     BattleBuildGrey80BlendSpriteColumn2();
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc14", func_80089B50);
-// Best attempt: objdiff 90.38%, 144 bytes (the original size). Everything up to the
-// div matches exactly, including the folded "return 0" in the beqz delay slot; the only
-// diff is that the original puts the remainder AND the sum in $v1
-// (div zero,v0,v1 / mfhi v1 / addu v1,s1,v1 / andi v0,v1,0xffff) while gcc coalesces
-// both into $v0 and then merges the sum's u16 conversion with the other branch's mask
-// at the shared exit. Every spelling that masks the dividend ((u16)rand(),
-// rand() & 0xFFFF, a u16 temp) instead makes gcc put the rand call in the beqz delay
-// slot and duplicate it -> 85.38% / 156 bytes. Also tried: s32 rem and u16 res locals,
-// swapping the range/rem declaration order, "return rand()" vs "return rand() & 0xFFFF".
-/*
 u16 func_80089B50(u16 arg0, u16 arg1) {
     s32 rem;
     s32 range;
@@ -332,10 +321,9 @@ u16 func_80089B50(u16 arg0, u16 arg1) {
     if (range > 0xFFFE) {
         return rand();
     }
-    rem = rand() % (range + 1);
+    rem = (u16)rand() % (range + 1);
     return (u16)(arg0 + rem);
 }
-*/
 u16 BattleStatusBitMask(u8 idx) {
     return D_800C3468[idx];
 }
