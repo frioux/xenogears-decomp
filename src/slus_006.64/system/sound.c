@@ -1612,7 +1612,8 @@ void SoundReloadAudioManagerSamples(AudioManager* pManager, s32 volume, s32 fram
         cnt--;
         pWds = SoundFindWdsEntry(pElement->unk_0x25);
         pElement->unk2C = (u32)pWds;
-        pTone = (SoundWdsTone*)((u8*)pWds + 0x30) + pElement->unk_0x26;
+        // the tone table follows the WDS header
+        pTone = (SoundWdsTone*)((u8*)pWds + sizeof(SoundWDSEntry)) + pElement->unk_0x26;
         sampleStart = pTone->sampleOffset << 3;
         pElement->voice_data.startAddress = sampleStart + pWds->spuMemoryAddress;
         pElement->voice_data.loopAddress = sampleStart + (pTone->loopOffset << 3);
@@ -1768,11 +1769,12 @@ void SoundStopElementsForSoundFile(SoundFile* pSoundFile) {
     AudioManager* pManager = D_800595D8;
     AudioElement* pElement = &pManager->elements[0];
     u32 cnt = D_80059478;
-    s16 sedId = *(s16*)((u8*)pSoundFile + 0x14);
+    s16 sedId = *(s16*)&pSoundFile->sedId;
 
     do {
         if (pElement->active_flag & 0x1) {
-            if (*(s16*)((u8*)pElement + 0xA) == sedId) {
+            // unk_0x8 holds two 16-bit ids; the second one is the owning file's sedId
+            if (((s16*)&pElement->unk_0x8)[1] == sedId) {
                 pElement->active_flag = 0;
                 pManager->unk_0x48 &= ~(1 << (u8)pElement->unk_0x06[0]);
                 SoundReleaseVoiceFromChannel(&pElement->voice_data, pElement->voice_number);
@@ -2159,6 +2161,22 @@ u16* SoundGetLowestActiveElementCounter(AudioManager* pManager) {
     return pResult;
 }
 
+// Header of an in-memory sequence file, reached through AudioManager::unk_0x8.
+typedef struct {
+    /* 0x00 */ u8 unk00[0x10];
+    /* 0x10 */ u16 unk10;
+    /* 0x12 */ u16 unk12;
+    /* 0x14 */ u8 elementCount;
+    /* 0x15 */ u8 unk15;
+    /* 0x16 */ u16 unk16;
+    /* 0x18 */ u16 unk18;
+    /* 0x1A */ u8 unk1A;
+    /* 0x1B */ u8 unk1B;
+    /* 0x1C */ u8 unk1C;
+    /* 0x1D */ u8 unk1D;
+    /* 0x1E */ u16 unk1E;
+} SoundSeqHeader; // Size: 0x20
+
 s32 SoundGetAudioManagerSeqOffsetPointer(AudioManager* pManager) {
     AudioManager* pCurrent = g_SoundAudioManagerListHead;
     s32 result;
@@ -2170,9 +2188,9 @@ s32 SoundGetAudioManagerSeqOffsetPointer(AudioManager* pManager) {
     }
 
     if (pCurrent != NULL) {
-        u8* pBase = (u8*)pCurrent->unk_0x8;
+        SoundSeqHeader* pSeq = (SoundSeqHeader*)pCurrent->unk_0x8;
 
-        result = *(u16*)(pBase + 0x1E) + (s32)pBase;
+        result = pSeq->unk1E + (s32)pSeq;
     } else {
         result = 0;
     }
@@ -2330,18 +2348,20 @@ void SoundReleaseAllVoices(AudioManager* manager) {
 void SoundCopyPercussionTable(AudioManager* pManager, AudioManager* pSrc) {
     u32* pTable;
     u8* pData;
+    u32* pSlot;
     u32 cnt;
 
     pTable = (u32*)((u8*)pManager + SoundCalculateAudioManagerSize(pSrc->elementCount));
     pManager->unk_0xc = (s32)pTable;
     // the sequence header stores the percussion table offset as a 16-bit field
-    pData = (u8*)pSrc + *(u16*)((u8*)pSrc + 0x20);
+    pData = (u8*)pSrc + (u16)pSrc->unk_0x20;
     cnt = pSrc->unk_0x15;
 
     do {
         u32 value = pData[1] | (pData[2] << 8) | (pData[3] << 16) | (pData[4] << 24);
 
-        *(u32*)((u8*)pTable + (pData[0] << 2)) = value;
+        pSlot = pTable + pData[0];
+        *pSlot = value;
         pData += 5;
         cnt--;
     } while (cnt);
@@ -2387,7 +2407,7 @@ void SoundFreeAudioManager(AudioManager* pManager) {
 }
 
 void SoundLoadAudioManagerSequenceHeader(AudioManager* pManager) {
-    u8* pSeqData = (u8*)pManager->unk_0x8;
+    SoundSeqHeader* pSeq = (SoundSeqHeader*)pManager->unk_0x8;
     s16 status;
 
     status = (s16)SoundUnkDebug0(pManager->unk_0x8);
@@ -2397,14 +2417,14 @@ void SoundLoadAudioManagerSequenceHeader(AudioManager* pManager) {
     }
 
     pManager->unk_Flags |= 0x1;
-    pManager->unk_0x12 = *(u16*)(pSeqData + 0x10);
-    pManager->elementCount = pSeqData[0x14];
-    pManager->unk_0x16 = *(u16*)(pSeqData + 0x16);
-    pManager->unk_0x18 = *(u16*)(pSeqData + 0x18);
-    pManager->unk_0x40[1] = pSeqData[0x1A];
-    pManager->reverbDepth = pSeqData[0x1B] << 8;
-    pManager->reverbDelay = pSeqData[0x1C];
-    pManager->reverbFeedback = pSeqData[0x1D];
+    pManager->unk_0x12 = pSeq->unk10;
+    pManager->elementCount = pSeq->elementCount;
+    pManager->unk_0x16 = pSeq->unk16;
+    pManager->unk_0x18 = pSeq->unk18;
+    pManager->unk_0x40[1] = pSeq->unk1A;
+    pManager->reverbDepth = pSeq->unk1B << 8;
+    pManager->reverbDelay = pSeq->unk1C;
+    pManager->reverbFeedback = pSeq->unk1D;
 
     if (g_SoundControlFlags & 0x1000) {
         SoundSetReverbModeWithAllocation((s8)pManager->unk_0x40[1], pManager->reverbDepth, pManager->reverbDelay, pManager->reverbFeedback);
@@ -3385,7 +3405,7 @@ u8* SoundScriptStopElementsById(u8* pScript, AudioManager* pAudioManager, AudioE
 
 u8* SoundScriptJumpToInstrumentScript(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     SoundFile* pSoundFile = g_SoundSedsLinkedList;
-    s16 sedId = *(s16*)((u8*)pAudioElements + 0xA);
+    s16 sedId = ((s16*)&pAudioElements->unk_0x8)[1];
     s16 instrument = pScript[0] | (pScript[1] << 8);
     u8 channel = pScript[2];
 
