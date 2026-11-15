@@ -182,15 +182,14 @@ void BattleByteRegSetReg(u8 **p, u8 index) {
 // and 2.6.0 / 2.7.2-cdk both give the same 84.67%.
 // screened: identical 84.67% under Default, 2.7.2-cdk and 2.6.0 - a register
 // allocation tie, not a compiler question.
-/*
 void func_8007B98C(u8 **p, u8 index) {
     u16 *pField = (u16 *)(D_800D3420 + index * 0x40);
     u8 *pArgs = *p;
+    u8 *base;
 
-    pField[pArgs[2]] = pField[pArgs[1]];
+    base = D_800D3420;
+    ((u16 *)(base + index * 0x40))[pArgs[2]] = ((u16 *)(base + index * 0x40))[pArgs[1]];
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007B98C);
 // best: 84.67%. Instruction multiset identical; the original loads *p into v0
 // and puts the D_800D3410 base in a0, gcc emits the base first instead. Same
 // allocator tie as func_8007B98C.
