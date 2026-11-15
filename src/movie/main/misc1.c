@@ -209,11 +209,15 @@ INCLUDE_ASM("asm/movie/nonmatchings/main/misc1", func_80072A08);
 INCLUDE_ASM("asm/movie/nonmatchings/main/misc1", func_80072D84);
 
 // Best attempt (99.40%): byte count, frame and every instruction except the
-// destination register of the two div-by-3 sign fixups; retail keeps the quotient
-// in v1 (mfhi v1 / subu v1,v1,v0 / sb v1) and gcc 2.7.2 reuses the dying dividend
-// register v0 (subu v0,v1,v0 / sb v0). Five source shapes (shared s32 temp, temp
-// declared first, u8 temp, MovieColour pointer locals, byte-stride loop) and two
-// permuter runs (2376 iterations) all leave it at 99.40%.
+// destination register of the two div-by-3 sign fixups. Retail keeps the quotient
+// in v1 (mfhi v1 / subu v1,v1,v0 / addiu v1,v1,0x10 / sb v1); gcc 2.7.2 puts it in
+// v0, the dying dividend/sign register (subu v0,v1,v0). gcc only writes the fixup
+// into v1 when v0 is still LIVE across the subu - proved by keeping the masked
+// random byte in a local that a later statement reads, which flips the first site
+// to v1 - and no plausible source of this function keeps it live. Eight source
+// shapes (shared temp, per-site temp, quotient local + separate add, u8 temp,
+// dividend local, reversed operand order, MovieColour pointer locals) and two
+// permuter runs (2376 iterations) all land here.
 /*
 void func_80072D84(POLY_G4* pPoly0, POLY_G4* pPoly1, s32 x, s32 y, s32 w, s32 h) {
     s32 i;
@@ -278,15 +282,17 @@ void MovieInitGlowPoly(POLY_G4* pPoly0, POLY_G4* pPoly1, s32 x, s32 y, s32 w, s3
 
 INCLUDE_ASM("asm/movie/nonmatchings/main/misc1", func_800734B8);
 
-// Best attempt (93.54%): the whole loop is instruction-for-instruction retail's
-// (six byte pointers anchored on the B channels, the three div-by-frame lerps
-// grouped as deltas then adds, the four-way switch on i, the tag swap). Only the
-// hard-register assignment differs: retail holds the six pointers in
-// s5/s4/t0/fp/s7/s6 plus pPoly0 spilled at 0x10(sp), gcc 2.7.2 here picks
-// s7/t2/s5/s6/s8/... The permuter's best finding was that retail re-reads the
-// current channel byte for the final add (it is not CSE'd with the one in the
-// delta), which needs a second pointer to the same address; that reads 94.34% at
-// 812 bytes (8 bytes long), so the realistic grouped-delta form is kept instead.
+// Best attempt (93.54%, 804 bytes against retail's 820): retail's instruction
+// multiset plus four more reads. Retail keeps the six channel pointers in
+// s5/s4/t0/s8/s7/s6 with the pColG pointer (D_80076FCD) in caller-saved t0,
+// saved and restored around the three calls, and pPoly0 on the stack at 0x10(sp);
+// gcc here picks s7/s4/t2/s6/s8/s5 with the same one-caller-saved shape. Those
+// two allocation differences also change CSE: retail re-reads *pColR/*pColG/
+// *pColB after the three divisions (three extra lbu) instead of keeping the bytes
+// loaded for the deltas. Six declaration orders of the pointer locals all compile
+// identically; the combined single-expression form reads 93.37% at the same size,
+// and a second pointer to the same address (forced reloads) reads 94.34% at 812
+// bytes. The permuter's best was the same 812-byte form.
 /*
 void func_800734B8(POLY_G4* pPoly0, POLY_G4* pPoly1, s32 x, s32 y, s32 w, s32 h) {
     s32 i;
