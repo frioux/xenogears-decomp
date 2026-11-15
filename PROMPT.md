@@ -311,6 +311,11 @@ by stub count, 10 to 16 with the method below).
    since 2026-11-14 keeps jump-table stubs of units that own their tables and atfree
    stubs of cdk -G0 units: 455 fresh stubs in 111 units).
    Round 45 with this test: 14 workers, 3 committed matches before the kill.
+   **A parked body, however, is written directly BELOW its stub, not above it**, so the
+   above-window test alone missed every park whose note is the stub's own: on 2026-11-14
+   the tool reported 433 stubs in 111 units and only 186 in 76 were really fresh (`sound`,
+   `battle/misc4` and `battling/misc6` bottomed out entirely). `fresh_stubs.py` now skips
+   the window between a stub and the next one too; run it before trusting any count above.
    Parks are written `// Best: 84.76%` far more often than as `/* ... */`, so `grep
    '^/\*'` over-reports badly: round 36 briefed 11 units picked that way and 9 of them
    were 100% parked (7 matches from 11 workers). Measured round 37 with that test: 1338
