@@ -26,6 +26,15 @@ typedef struct {
     /* 0x22 */ u8 count;
 } BattleMessageQueue; // Size: 0x23
 
+// The action data p->pActionData points at: a 16-bit scale word at +0 and, from
+// +9, one byte per action index (the slot gauge display turns the current
+// action's byte into a percentage of the scale).
+typedef struct {
+    /* 0x0 */ s16 unk0;
+    /* 0x2 */ u8 unk2[0x7];
+    /* 0x9 */ u8 unk9[0];
+} BattleActionData; // Size: 0xA
+
 // A battle participant as this unit drives it. Only the fields this unit
 // touches are named; 0x166A is a lower bound on the real size (other battle
 // units reach further).
@@ -43,7 +52,9 @@ typedef struct BattleActor {
     /* 0x004C */ u8 unk4C;
     /* 0x004D */ u8 unk4D;
     /* 0x004E */ u8 unk4E;
-    /* 0x004F */ u8 unk4F[0x31];
+    /* 0x004F */ u8 unk4F[0x1D];
+    /* 0x006C */ Vec4 unk6C;
+    /* 0x007C */ u8 unk7C[0x4];
     /* 0x0080 */ u8* unk80;
     /* 0x0084 */ u8 unk84[0x40];
     /* 0x00C4 */ u8 unkC4;
@@ -62,7 +73,8 @@ typedef struct BattleActor {
     /* 0x090A */ u8 unk90A;
     /* 0x090B */ u8 unk90B[0xB];
     /* 0x0916 */ u16 unk916;
-    /* 0x0918 */ u8 unk918[0x24];
+    /* 0x0918 */ u8 unk918[0x14];
+    /* 0x092C */ Vec4 unk92C;
     /* 0x093C */ Vec4 unk93C;
     /* 0x094C */ u8 unk94C[0x54];
     /* 0x09A0 */ BattleMessageQueue messageQueue;
@@ -74,7 +86,7 @@ typedef struct BattleActor {
     /* 0x15F2 */ s16 unk15F2;
     /* 0x15F4 */ s16 unk15F4;
     /* 0x15F6 */ u8 unk15F6[0xA];
-    /* 0x1600 */ u8* unk1600;
+    /* 0x1600 */ BattleActionData* pActionData;
     /* 0x1604 */ u8 unk1604[0x66];
 } BattleActor; // Size: 0x166A
 
@@ -215,7 +227,7 @@ void BattlePrintMessageQueue(BattleActor* p) {
     func_800379C8(D_8006FCC8);
 }
 
-extern s32 BattleGetScreenMode(u8* p);
+extern s32 BattleGetScreenMode(BattleActor* p);
 extern void BattleSetTextCursor(s32 a0, s32 a1);
 extern s32 D_8009292C;
 extern u8 D_80099D9C;
@@ -224,26 +236,26 @@ extern u32 D_80091198[];
 extern u32 D_80096FB8[];
 extern u8 D_80096FBC[];
 
-void BattleUpdateSlotGaugeDisplay(u8* p) {
+void BattleUpdateSlotGaugeDisplay(BattleActor* p) {
     u32 flags;
     s32 prod;
-    u8* p1600;
+    BattleActionData* pActionData;
 
-    *(s32*)(p + 0x40) = 0;
-    *(s32*)(p + 0x100) = 0;
+    p->unk40 = 0;
+    p->unk100 = 0;
     if (BattleGetScreenMode(p) != 7) {
-        flags = *(u32*)(p + 0xD0);
+        flags = p->flags;
         flags &= 0xFFFF7FFF;
         flags &= ~2;
-        *(u32*)(p + 0xD0) = flags;
+        p->flags = flags;
     }
     // the do-block keeps the 0x8000000 test out of the mult shadow
     do {
-        prod = *(s16*)(p + 0x15F4) * D_8009292C;
-        flags = *(u32*)(p + 0xD0);
+        prod = p->unk15F4 * D_8009292C;
+        flags = p->flags;
         flags &= ~0x80000;
-        *(u32*)(p + 0xD0) = flags;
-        *(s16*)(p + 0x15F2) = prod >> 8;
+        p->flags = flags;
+        p->unk15F2 = prod >> 8;
     } while (0);
     flags &= 0x8000000;
     if (!flags) {
@@ -251,10 +263,10 @@ void BattleUpdateSlotGaugeDisplay(u8* p) {
     } else {
         BattleSetTextCursor(0xF0, 0x28);
     }
-    if (p[0x9C3] != 0) {
-        ((u32*)D_80096FB8)[((*(u32*)(p + 0xD0) >> 27) & 1) * 5] = ((u32*)D_80091198)[p[0x9C3]];
-        p1600 = *(u8**)(p + 0x1600);
-        ((u8*)D_80096FBC)[((*(u32*)(p + 0xD0) >> 27) & 1) * 20] = ((p1600 + p[0x9C3])[9] * *(s16*)p1600) / 100;
+    if (p->unk9C3 != 0) {
+        D_80096FB8[((p->flags >> 27) & 1) * 5] = D_80091198[p->unk9C3];
+        pActionData = p->pActionData;
+        D_80096FBC[((p->flags >> 27) & 1) * 20] = (pActionData->unk9[p->unk9C3] * pActionData->unk0) / 100;
     }
 }
 
@@ -440,21 +452,11 @@ void BattleActorApplyCenterPosition(BattleActor* p) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80078194);
 
-extern s32 BattleVectorDistance2D(s32*, s32*);
-
-// The three ground-plane edge vectors a battle actor keeps; only the offsets
-// this unit reads are typed (the shared BattleActor stops at 0x1A0).
-typedef struct {
-    /* 0x000 */ u8 pad000[0x6C];
-    /* 0x06C */ Vec4 unk6C;
-    /* 0x07C */ u8 pad07C[0x8B0];
-    /* 0x92C */ Vec4 unk92C;
-    /* 0x93C */ Vec4 unk93C;
-} BattleActorEdges; // Size: 0x94C
+extern s32 BattleVectorDistance2D(Vec4*, Vec4*);
 
 // Returns the index of the edge the segment pFrom..pTo meets, and writes the
 // edge's vector to *ppEdge.
-s32 BattleActorSelectEdgeForSegment(Vec4* pFrom, Vec4* pTo, BattleActorEdges* pEdges, Vec4** ppEdge) {
+s32 BattleActorSelectEdgeForSegment(Vec4* pFrom, Vec4* pTo, BattleActor* pEdges, Vec4** ppEdge) {
     s32 dz;
     s32 dx;
     s32 side0;
@@ -487,8 +489,8 @@ s32 BattleActorSelectEdgeForSegment(Vec4* pFrom, Vec4* pTo, BattleActorEdges* pE
     prod2 = side2 * side0;
     if (prod1 < 0) {
         if (prod2 < 0) {
-            s32 dist92C = BattleVectorDistance2D(&pEdges->unk92C.x, (s32*)pFrom);
-            if (BattleVectorDistance2D(&pEdges->unk93C.x, (s32*)pFrom) < dist92C) {
+            s32 dist92C = BattleVectorDistance2D(&pEdges->unk92C, pFrom);
+            if (BattleVectorDistance2D(&pEdges->unk93C, pFrom) < dist92C) {
                 *ppEdge = &pEdges->unk92C;
             } else {
                 *ppEdge = &pEdges->unk93C;
@@ -503,8 +505,8 @@ s32 BattleActorSelectEdgeForSegment(Vec4* pFrom, Vec4* pTo, BattleActorEdges* pE
         return 2;
     }
     {
-        s32 dist92C = BattleVectorDistance2D(&pEdges->unk92C.x, (s32*)pFrom);
-        if (dist92C < BattleVectorDistance2D(&pEdges->unk93C.x, (s32*)pFrom)) {
+        s32 dist92C = BattleVectorDistance2D(&pEdges->unk92C, pFrom);
+        if (dist92C < BattleVectorDistance2D(&pEdges->unk93C, pFrom)) {
             *ppEdge = &pEdges->unk92C;
         } else {
             *ppEdge = &pEdges->unk93C;
