@@ -32,21 +32,26 @@ int FieldTickSkipCounter(void) {
     return nCount;
 }
 
+extern int ArchiveDataSync(void);
+extern s32 D_800ADB2C;
+extern s32 D_800ADB34;
+extern s32 D_800ADB90;
+extern s32 D_800ADBC4;
+
 INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_80078BC8);
-/* Best attempt: 90.68%. The original keeps -1 in v0 across the whole guard chain
-   (loads go to v1) and copies ArchiveDataSync's result to v1 before testing it.
-   Five separate early `return -1`s, one `||` chain, and the nResult form all
-   compile to 144 bytes with `li v0,-1` re-materialised in every branch delay slot
-   (78.38% for the first two), so the shape below is the closest; also 90.68%
-   under every gcc-2.6.0/2.7.2/2.7.2-cdk -O1..-O3 -G4/-G8 combination.
-   The lone addiu v0,-1 sits in the ArchiveDataSync branch's delay slot, so it
-   also runs on the fall-through path; the three nops are that value simply not
-   being clobbered again. Every guard load lands in v0 in our compile and in v1
-   in the original, i.e. the -1 has to be live in v0 (a call-crossing constant in
-   a call-clobbered register); goto/label, a hoisted nResult and per-block -1 all
-   still rematerialise it per block (77-80%).
-   Round 43: nested ifs with one `int nResult = -1;` initialiser put the -1 in
-   $s0 (not v0) and the guard loads in v0 - 71.76%, i.e. worse than the chain.
+/* Best attempt: 90.68% (144 bytes; the original is 148). The original keeps its
+   return value -1 in v0 across the ArchiveDataSync call and the three guard
+   tests, so the call's result is copied to v1 (`addu v1,v0,zero`), the -1 is
+   re-materialised in that branch's delay slot and the three later tests read
+   into v1 with nop delay slots. Our compile tests v0 directly and re-emits
+   `li v0,-1` in each of the three branch delay slots, i.e. it is exactly the
+   `addu v1,v0,zero` (4 bytes) that is missing; every shape below folds the
+   constant instead. Tried: five independent `return -1`s, a `result = -1;`
+   before the call with `return result`/`goto out`, nested if/else + single
+   nResult (this one, 90.68), `nResult = -1` initialised at declaration with a
+   single out label (71.76, 152 bytes), and one permuter run (4 min, 705 iters)
+   whose best candidate is 84.49% under objdiff - the permuter's own score is
+   not objdiff's, so it picked a body that is worse here.
 extern int ArchiveDataSync(void);
 extern s32 D_800ADB2C;
 extern s32 D_800ADB34;
@@ -663,36 +668,21 @@ void FieldSetMousePosition(int mouseIndex, int xMovement, int yMovement) {
 
 void FieldUpdateMousePosition(int controllerIndex);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007AE78);
-/* Best attempt: 93.65%. Only difference is scheduling around the byte-1 test:
-   the original emits nop; lb v1,1(s0); li v0,0x12 and this puts li,lb before
-   the branch (plus a nop for the load delay). Repeating the array expression
-   per use is required: it reproduces the three reloads of the buffer pointer.
-   A version that loaded both bytes into locals (95.87%) gets li after lb but
-   hoists both loads above the bnez.
-   Round 51: the delta is reorg, not the constant - this attempt compiles to
-   `bnez v0; lb v1,1(s0)` (the byte-1 load FILLED INTO the branch delay slot),
-   then li, a load-delay nop and bne, while the original has `bnez v0; nop;
-   lb v1,1(s0); li v0,0x12; bne` (its li is the load-delay filler for lb). Same
-   instruction multiset; blocking reorg from stealing that load is the only
-   lever left, and no source shape tried so far does it.
-   Also 77.30 under gcc-2.7.2-cdk, so this is not a preset question; the unit
-   stays on Default (every already-matched function of misc4 breaks under cdk:
-   FieldInitTableQuad 64.14, FieldOrVramStripPixels 88.10, FieldRenderColorFill
-   83.40, FieldGetDominantComponent 81.91).
-void func_8007AE78(int controllerIndex, int* pOut) {
+int func_8007AE78(int controllerIndex, int* pOut) {
+    s8** pPad;
+
     FieldUpdateMousePosition(controllerIndex);
     pOut[0] = g_FieldMousePositionsX[controllerIndex] / g_FieldMouseSpeedX;
+    pPad = (s8**)&g_pFieldControllerBuffer1;
     pOut[1] = g_FieldMousePositionsY[controllerIndex] / g_FieldMouseSpeedY;
     pOut[2] = -0x100;
     pOut[3] = ((s8**)&g_pFieldControllerBuffer1)[controllerIndex][4];
-    pOut[4] = ((s8**)&g_pFieldControllerBuffer1)[controllerIndex][5];
+    pOut[4] = pPad[controllerIndex][5];
     if (!((s8**)&g_pFieldControllerBuffer1)[controllerIndex][0]
         && ((s8**)&g_pFieldControllerBuffer1)[controllerIndex][1] == 0x12) {
-        pOut[2] = ~((s8**)&g_pFieldControllerBuffer1)[controllerIndex][3] & 0xC;
+        pOut[2] = ~pPad[controllerIndex][3] & 0xC;
     }
 }
-*/
 
 void FieldUpdateMousePosition(int controllerIndex) {
     if (((s8**)&g_pFieldControllerBuffer1)[controllerIndex][0] == 0
