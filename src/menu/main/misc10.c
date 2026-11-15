@@ -13,6 +13,8 @@ void MenuLoadStringsFromIds(u8, u8*, u8*, void*);
 void MenuApplyGearFrame(MenuDressingRoom*, u8);
 void MenuApplyGearArmor(MenuDressingRoom*, u8);
 void MenuApplyGearEngine(MenuDressingRoom*, u8);
+void func_801E433C(MenuDressingRoom*, u8);
+void func_801E4754(MenuDressingRoom*, u8);
 void func_801C72BC(u8);
 void MenuFreeShoulderButtonUi(void);
 void MenuFreeWindow(u8);
@@ -409,7 +411,63 @@ void MenuFillDressingRoomGearStats(MenuDressingRoom* pDressingRoom, u8 gearIndex
     pDressingRoom->unkB5 = pGear->unk9D;
     pDressingRoom->unkB6 = pGear->unk9C;
 }
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E3ECC);
+void func_801E3ECC(MenuDressingRoom* pDressingRoom, u8 gearIndex) {
+    u8 i;
+
+    func_801E433C(pDressingRoom, gearIndex);
+    func_801E4754(pDressingRoom, gearIndex);
+    switch (gearIndex) {
+    case 0:
+        for (i = 0; i < 3; i++) {
+            g_GameState.gears[1].accessorySlots[i] = g_GameState.gears[0].accessorySlots[i];
+        }
+        func_801E433C(pDressingRoom, 1);
+        break;
+    case 1:
+        for (i = 0; i < 3; i++) {
+            g_GameState.gears[15].accessorySlots[i] = g_GameState.gears[1].accessorySlots[i];
+        }
+        func_801E433C(pDressingRoom, 0xF);
+        break;
+    case 2:
+        for (i = 0; i < 3; i++) {
+            g_GameState.gears[10].accessorySlots[i] = g_GameState.gears[2].accessorySlots[i];
+        }
+        func_801E433C(pDressingRoom, 0xA);
+        break;
+    case 3:
+        for (i = 0; i < 3; i++) {
+            g_GameState.gears[11].accessorySlots[i] = g_GameState.gears[3].accessorySlots[i];
+        }
+        func_801E433C(pDressingRoom, 0xB);
+        break;
+    case 4:
+        for (i = 0; i < 3; i++) {
+            g_GameState.gears[12].accessorySlots[i] = g_GameState.gears[4].accessorySlots[i];
+        }
+        func_801E433C(pDressingRoom, 0xC);
+        g_GameState.gears[12].weaponId[0] = g_GameState.gears[4].weaponId[0];
+        func_801E4754(pDressingRoom, 0xC);
+        break;
+    case 5:
+        for (i = 0; i < 3; i++) {
+            g_GameState.gears[13].accessorySlots[i] = g_GameState.gears[5].accessorySlots[i];
+        }
+        func_801E433C(pDressingRoom, 0xD);
+        g_GameState.gears[13].weaponId[0] = g_GameState.gears[5].weaponId[0];
+        g_GameState.gears[13].weaponId[3] = g_GameState.gears[5].weaponId[3];
+        g_GameState.gears[13].unk4[0] = g_GameState.gears[5].unk4[0];
+        g_GameState.gears[13].unk4[3] = g_GameState.gears[5].unk4[3];
+        func_801E4754(pDressingRoom, 0xD);
+        break;
+    case 6:
+        for (i = 0; i < 3; i++) {
+            g_GameState.gears[14].accessorySlots[i] = g_GameState.gears[6].accessorySlots[i];
+        }
+        func_801E433C(pDressingRoom, 0xE);
+        break;
+    }
+}
 void MenuRecalculateGearStats(MenuDressingRoom* pDressingRoom, u8 gearIndex) {
     MenuApplyGearFrame(pDressingRoom, gearIndex);
     MenuApplyGearEngine(pDressingRoom, gearIndex);
