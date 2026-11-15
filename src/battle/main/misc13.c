@@ -148,25 +148,27 @@ void BattleBeginActorAction(u8 arg0, u16 arg1, u16 arg2) {
     D_800D2CAA = c + 0xFF;
     func_800941A4();
 }
-// 99.63%: the volatile view of D_800D2D28 (extern above) fixed the epilogue
-// and the load re-materialisation; the only remaining difference is the operand
-// order of the three addu that reorg places in the BattleDrawSpritePackage jal
-// delay slots - retail addu a1,a1,v0 (offset + base), gcc addu a1,v0,a1. Same
-// instruction count, same schedule, different encoding. gcc canonicalises
-// pointer+int to (pointer, int) at RTL gen, so source order cannot force it.
-// Tried: ofs + base (99.63% too), int-add (s32)base + ofs (75.54%, 320 bytes),
-// ofs + (s32)base (74.25%, 320 bytes), an ofs local recomputed per call before
-// each call (70.57%: gcc evaluates it before the first-argument lbu), permuter
-// 3 min / 1154 iterations from base=30 (PERMUTER_NONE, best=30).
-// Round 79: the integer forms DO reproduce retail's operand order (src1 = the
-// offset chain, src2 = the base) but every one of them folds 0x9C8 onto the
-// base register instead of onto the offset chain, which moves the load and the
-// addiu and drops the size to 320. Declaring D_800C3EA4 `u8 * volatile` (only
-// this function uses it) stops the early hoist and reaches 82.94%: operand
-// order right, but the base lands in a1 and the chain in v0, the mirror of
-// retail. The pointer form is the only one that leaves the offset chain in a1
-// (the dying second-argument register) and the base in v0 - that register split
-// plus retail's addu order cannot both be had from gcc 2.7.2 here.
+// 99.63%: 324 bytes (= retail), identical instruction multiset, identical
+// schedule, identical registers; the ONLY difference is the operand slots of the
+// three addu that reorg places in the BattleDrawSpritePackage jal delay slots:
+// retail `addu a1,a1,v0` (chain in src1, base in src2), gcc `addu a1,v0,a1`.
+// The register split is already retail's (chain a1, base v0) in the pointer form;
+// only the RTL operand order differs, so the source order of a `base + int` pointer
+// sum cannot steer it.
+// Tried and measured, all 99.63% or worse: ofs + base; base + ofs; &base[ofs];
+// base + 0x9C8 + ofs; (s32)base + ofs (75.54%, 320 bytes); ofs + (s32)base (74.25%);
+// u32 casts (74.25%); int sums with an embedded assignment to an s32 local, base
+// first (75.98%) and base last (83.19%); a volatile re-read of the base combined
+// with the chain-first int sum (82.94%: right operand order, mirrored registers);
+// `u8 * const volatile` D_800C3EA4; a separate ofs local per call (70.57%, gcc then
+// evaluates it before the first-argument lbu).
+// Round 79 concluded the integer forms reproduce retail's operand order - they do
+// not: every int-typed sum lets gcc's reassociation move 0x9C8 onto the BASE
+// register (addiu v0,v0,2504) and the addu still comes out base-first, which is
+// what costs the 4 bytes. Only the pointer form keeps 0x9C8 on the offset chain.
+// Also probed: gcc-2.7.2-cdk and -O3 both give 99.63% (tools/scripts/try_flags.sh),
+// so this is not a preset question. Permuter: 1154 iterations in round 79, 2398
+// more in round 98, base=30 best=30 both times.
 // Reads D_800CCB34 with lbu, so it must stay u8 (s32 gives 94.94%). The SECOND
 // call's first argument is the constant 0x19, not D_800C3EAC[0x2D4] + 0xF.
 /*
