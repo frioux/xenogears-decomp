@@ -79,30 +79,33 @@ u16 FieldScriptClearAnimationOverrideIfFlag16(u8 arg0) {
     }
     return ret;
 }
-// best 94.68% (2.7.2-psx); 93.71% under gcc-2.6.0, cdk rejects the file. The one
-// missing insn is retail's `addu v1,v0,zero` copy of the byte sum into the u8
-// result before the clamp compare: gcc 2.7.2 coalesces `u8 r = sum;` into the sum
-// pseudo. Earlier shapes (92.90%) also put the row-offset chain in $v0 where
-// retail has $v1; the `s32 off` + pointer split below fixes that and the two
-// strength-reduced multiplies. Tried besides this: value as s32/u32/u8, compare
-// on r vs `(u8)r`, one-expression form, folding arg1 into `off` (65.00%),
-// loading both bytes before adding (65.16%).
+// PARKED (95.32%). Body COMPILES (park triage, round 111). 124 bytes of retail
+// against 120 here, and the 4 missing bytes are retail's `addu v1,v0,zero` copy of
+// the byte sum into the u8 result before the clamp compare - gcc 2.7.2 coalesces
+// `u8 value = sum;` into the sum pseudo, so the body cannot link as it stands.
+// What got it from 94.68 to 95.32: writing the row bump as an ASSIGNMENT
+// (`p = p + arg1 * 0x28;`) gives retail's base-first `addu v1,v1,v0`, and forming
+// q next to the two loads gives retail's two-addu-then-two-lbu order.
+// Remaining gap: that copy, and a mirror register allocation (retail p byte in
+// $v0, q byte in $v1; here the other way round). Tried: s32 sum + u8 copy, `+=` vs
+// one expression, sum kept live via a wider compare, the 0x5B offset in a local
+// (permuter found that one, no change), permuter 1837 iterations (best 91.8%).
 /*
 u8 func_8009A258(u8 arg0, u8 arg1) {
     s32 off = arg0 * 0x5F0 + 0x1058;
     u8* p = (u8*)off + (u32)D_800C34B0;
     u8* q;
-    s32 value;
-    u8 r;
+    s32 sum;
+    u8 value;
 
-    value = p[arg1 * 0x28 + 0x14];
+    p = p + arg1 * 0x28;
     q = (u8*)D_800C34B0 + arg0 * 0x170;
-    value += q[0x5B];
-    r = value;
-    if (r >= 0x65) {
-        r = 0x64;
+    sum = p[0x14] + q[0x5B];
+    value = sum;
+    if (value > 0x64) {
+        value = 0x64;
     }
-    return r;
+    return value;
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009A258);
@@ -131,6 +134,9 @@ s32 BattleIsCharacterInParty(u8 arg0) {
 
 // best 84.95% under gcc-2.6.0 (76.74% on 2.7.2, 72.68% cdk): retail folds each
 // g_GameState store address into the relocation, gcc CSEs one register for all four.
+// PARKED (76.74%). Body COMPILES (park triage, round 111); nothing changed in it.
+// The note above is still the whole gap: retail folds each g_GameState store
+// address into its relocation, gcc CSEs one base register for all four.
 /*
 Best attempt: 76.74% (round 18, first attempt on this stub). The 4-way
    compare chain, the `andi/sltiu` loop and every offset/mask are right; what is
@@ -193,6 +199,10 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009A854);
 // Shapes with no effect on the tie: `rand() % 100 < 50` inline vs `int r` local,
 // `50 > rand() % 100`, `rand() % 100 <= 49`, `(s32)(rand() % 100) < 50`; the
 // permuter found nothing either.
+// PARKED (99.66%). Body COMPILES (park triage, round 111); 100.00% only under
+// gcc-2.6.0, which the unit cannot move to. The gap is one register: gcc copies
+// mfhi into $a1 and shifts into $a0 where retail mfhi's into $a0 and shifts in
+// place. Two permuter runs found nothing.
 /*
 s32 func_8009A9D0(void) {
     D_800C34B0->unk5FC2 = 0;
@@ -325,6 +335,9 @@ void BattleSetSlotEntryFieldsTo2000(u8 arg0, u8 arg1) {
 // 0xCCCCCCCD first in the guarded block and mfhi in $v0, which is retail's order.
 // 0x164 bytes against retail's 0x15c: the body is 8 bytes too long, so it cannot
 // be converted even if it diffs clean (see the size check in AGENTS.md).
+// PARKED (88.68%). Body COMPILES (park triage, round 111) and is 356 bytes
+// against retail's 348: 8 bytes too long, so it cannot be converted even if it
+// reached 100. See the note above for the /20 ordering difference.
 /*
 s32 func_8009ADA0(u8 arg0, u32* arg1) {
     u8* p = arg0 * 0x170 + (u32)D_800C34B0;
@@ -369,6 +382,9 @@ s32 func_8009ADA0(u8 arg0, u32* arg1) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009ADA0);
 // best 90.27% (2.7.2-psx and gcc-2.6.0); 89.18% cdk. loop.c hoists the
 // D_800CCD68 base out of the 3..11 loop; retail re-forms it at both references.
+// PARKED (90.27%). Body COMPILES (park triage, round 111) but is 216 bytes
+// against retail's 220 - the missing instruction is the D_800CCD68 base that
+// retail re-forms per reference and gcc hoists, so it cannot link either.
 /*
 Best attempt: 88.27%. Everything matches except the 3..11 loop: the original
    re-forms `lui at,%hi(D_800CCD68); addu at,at,v0` at BOTH memory references,
@@ -485,6 +501,10 @@ void BattleSetActorScaledHp(u8 arg0, BattleTableEntry* pArg) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009B1E4);
 // best 94.23% under gcc-2.6.0 (93.87% on 2.7.2, 94.10% cdk): the D_800CCE42
 // base is hoisted out of the loop where retail re-forms lui/addiu per reference.
+// PARKED (93.87%). Body COMPILES (park triage, round 111; it needed the extern u8
+// D_800CCE42[] that is now at the top of the file). 532 bytes against retail's
+// 536 - the missing instruction is the D_800CCE42 base retail re-forms per
+// reference and gcc hoists, the same gap as func_8009AEFC above.
 /*
 Best attempt: 93.87%. Every instruction from the `p[0x56] == 3` test onward
    matches; the only difference is the D_800CCE42 access. The original re-forms
@@ -581,6 +601,10 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009BAC4);
 // separate locals for idx and address, declaration order swapped, u8* address
 // local, u32 quotient local stored separately, 20u divisor, dropping the idx
 // temp, u32* destination pointer local (70.17, CSEs the base).
+// PARKED (98.33%). Body COMPILES again (park triage, round 111): the park spelled
+// D_800C3DFC[0x11] from a time when the symbol was a u8*; it is a BattleRow*
+// now, so the same byte is D_800C3DFC->unk11 (identical code). Only the last
+// four instructions differ, and only by register - see the note above.
 /*
 void func_8009BD94(void) {
     int new_var;
@@ -591,7 +615,7 @@ void func_8009BD94(void) {
     new_var = D_800C3E50;
     new_var = (u32)D_800C34B0 + new_var * 4 - -0x5F6C;
     *(u32*)new_var =
-        (u32)(D_800C3DFC[0x11] * *(s32*)(D_800D2DC8 + 0x64)) / 20;
+        (u32)(D_800C3DFC->unk11 * *(s32*)(D_800D2DC8 + 0x64)) / 20;
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009BD94);
