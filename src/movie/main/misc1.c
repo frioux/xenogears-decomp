@@ -208,11 +208,12 @@ INCLUDE_ASM("asm/movie/nonmatchings/main/misc1", func_80072A08);
 
 INCLUDE_ASM("asm/movie/nonmatchings/main/misc1", func_80072D84);
 
-// Best attempt (96.65%): the instruction stream is otherwise identical. gcc emits
-// the loop-index save before the div-by-3 magic and the 6th stack argument where
-// retail emits it after them, and the div-by-3 quotient lands in v0 here and v1
-// in retail. Naming the 8 as a local (kept below) is what fixed the equivalent
-// ordering in MovieInitGlowPoly.
+// Best attempt (99.40%): byte count, frame and every instruction except the
+// destination register of the two div-by-3 sign fixups; retail keeps the quotient
+// in v1 (mfhi v1 / subu v1,v1,v0 / sb v1) and gcc 2.7.2 reuses the dying dividend
+// register v0 (subu v0,v1,v0 / sb v0). Five source shapes (shared s32 temp, temp
+// declared first, u8 temp, MovieColour pointer locals, byte-stride loop) and two
+// permuter runs (2376 iterations) all leave it at 99.40%.
 /*
 void func_80072D84(POLY_G4* pPoly0, POLY_G4* pPoly1, s32 x, s32 y, s32 w, s32 h) {
     s32 i;
@@ -221,13 +222,13 @@ void func_80072D84(POLY_G4* pPoly0, POLY_G4* pPoly1, s32 x, s32 y, s32 w, s32 h)
 
     brightness = 8;
 
-    for (i = 0; i < 0x10; i += 4) {
-        D_80076F8C[i] = (MovieGetRandomNumber() & 0xFF) / 32 + 8;
-        D_80076F8D[i] = brightness;
-        D_80076F8E[i] = (MovieGetRandomNumber() & 0xFF) / 3 + 0x10;
-        D_80076F9C[i] = (MovieGetRandomNumber() & 0xFF) / 32 + 8;
-        D_80076F9D[i] = brightness;
-        D_80076F9E[i] = (MovieGetRandomNumber() & 0xFF) / 3 + 0x10;
+    for (i = 0; i < 4; i++) {
+        D_80076F8C[i].r = (MovieGetRandomNumber() & 0xFF) / 32 + 8;
+        D_80076F8C[i].g = brightness;
+        D_80076F8C[i].b = (MovieGetRandomNumber() & 0xFF) / 3 + 0x10;
+        D_80076F9C[i].r = (MovieGetRandomNumber() & 0xFF) / 32 + 8;
+        D_80076F9C[i].g = brightness;
+        D_80076F9C[i].b = (MovieGetRandomNumber() & 0xFF) / 3 + 0x10;
     }
 
     for (j = 0; j < 4; j++) {
@@ -241,63 +242,6 @@ void func_80072D84(POLY_G4* pPoly0, POLY_G4* pPoly1, s32 x, s32 y, s32 w, s32 h)
     SetPolyG4(pPoly1);
     SetSemiTrans(pPoly1, 0);
     setXY4(pPoly1, x, y, x + w, y, x, y + h, x + w, y + h);
-}
-*/
-
-// Best attempt (89.02%): the loop, the lerp and the tag swap all come out; the
-// gap is that retail spills the &D_80076FBC[i] byte offset to the stack and
-// re-forms the address, while gcc here keeps it in a register giv.
-/*
-void func_80072F98(POLY_G4* pPoly0, POLY_G4* pPoly1, s32 x, s32 y, s32 w, s32 h) {
-    s32 i;
-    s32 r;
-    s32 g;
-    s32 b;
-
-    setXY4(pPoly1, x, y, x + w, y, x, y + h, x + w, y + h);
-
-    for (i = 0; i < 4; i++) {
-        if (++D_80076FAC[i] > D_80076FBC[i]) {
-            D_80076FAC[i] = 0;
-            D_80076FBC[i] = (MovieGetRandomNumber() & 0xFF) + 0x20;
-            D_80076F8C[i].r = D_80076F9C[i].r;
-            D_80076F8C[i].g = D_80076F9C[i].g;
-            D_80076F8C[i].b = D_80076F9C[i].b;
-            D_80076F9C[i].r = (MovieGetRandomNumber() & 0xFF) / 32 + 8;
-            D_80076F9C[i].g = 8;
-            D_80076F9C[i].b = (MovieGetRandomNumber() & 0xFF) / 3 + 0x10;
-        }
-
-        r = D_80076F8C[i].r + (D_80076F9C[i].r - D_80076F8C[i].r) * D_80076FAC[i] / D_80076FBC[i];
-        g = D_80076F8C[i].g + (D_80076F9C[i].g - D_80076F8C[i].g) * D_80076FAC[i] / D_80076FBC[i];
-        b = D_80076F8C[i].b + (D_80076F9C[i].b - D_80076F8C[i].b) * D_80076FAC[i] / D_80076FBC[i];
-
-        switch (i) {
-        case 0:
-            pPoly1->r0 = r;
-            pPoly1->g0 = g;
-            pPoly1->b0 = b;
-            break;
-        case 1:
-            pPoly1->r1 = r;
-            pPoly1->g1 = g;
-            pPoly1->b1 = b;
-            break;
-        case 2:
-            pPoly1->r2 = r;
-            pPoly1->g2 = g;
-            pPoly1->b2 = b;
-            break;
-        case 3:
-            pPoly1->r3 = r;
-            pPoly1->g3 = g;
-            pPoly1->b3 = b;
-            break;
-        }
-    }
-
-    pPoly1->tag = (pPoly1->tag & 0xFF000000) | (pPoly0->tag & 0xFFFFFF);
-    pPoly0->tag = (pPoly0->tag & 0xFF000000) | ((u32)pPoly1 & 0xFFFFFF);
 }
 */
 
@@ -332,17 +276,26 @@ void MovieInitGlowPoly(POLY_G4* pPoly0, POLY_G4* pPoly1, s32 x, s32 y, s32 w, s3
     setXY4(pPoly1, x, y, x + w, y, x, y + h, x + w, y + h);
 }
 
-// Best attempt (93.37%): the six channel pointers derived from the two .b-channel
-// anchors reproduce retail's lui/addiu + addiu -1/-2 prologue and the whole
-// instruction stream, but retail rematerialises the three "current" channel loads
-// for the final add (it has no register to keep them live) and the allocator here
-// picks t2/s8/s5 where retail picks t0/s7/s6, so three loads go missing.
+INCLUDE_ASM("asm/movie/nonmatchings/main/misc1", func_800734B8);
+
+// Best attempt (93.54%): the whole loop is instruction-for-instruction retail's
+// (six byte pointers anchored on the B channels, the three div-by-frame lerps
+// grouped as deltas then adds, the four-way switch on i, the tag swap). Only the
+// hard-register assignment differs: retail holds the six pointers in
+// s5/s4/t0/fp/s7/s6 plus pPoly0 spilled at 0x10(sp), gcc 2.7.2 here picks
+// s7/t2/s5/s6/s8/... The permuter's best finding was that retail re-reads the
+// current channel byte for the final add (it is not CSE'd with the one in the
+// delta), which needs a second pointer to the same address; that reads 94.34% at
+// 812 bytes (8 bytes long), so the realistic grouped-delta form is kept instead.
 /*
 void func_800734B8(POLY_G4* pPoly0, POLY_G4* pPoly1, s32 x, s32 y, s32 w, s32 h) {
     s32 i;
     s32 r;
     s32 g;
     s32 b;
+    s32 dr;
+    s32 dg;
+    s32 db;
     u_char* pColR;
     u_char* pColG;
     u_char* pColB;
@@ -371,9 +324,12 @@ void func_800734B8(POLY_G4* pPoly0, POLY_G4* pPoly1, s32 x, s32 y, s32 w, s32 h)
             *pTargetB = (MovieGetRandomNumber() & 0x3F) - 0x42;
         }
 
-        r = *pColR + (*pTargetR - *pColR) * D_80076FEC[i] / D_80076FFC[i];
-        g = *pColG + (*pTargetG - *pColG) * D_80076FEC[i] / D_80076FFC[i];
-        b = *pColB + (*pTargetB - *pColB) * D_80076FEC[i] / D_80076FFC[i];
+        dr = (*pTargetR - *pColR) * D_80076FEC[i] / D_80076FFC[i];
+        dg = (*pTargetG - *pColG) * D_80076FEC[i] / D_80076FFC[i];
+        db = (*pTargetB - *pColB) * D_80076FEC[i] / D_80076FFC[i];
+        r = *pColR + dr;
+        g = *pColG + dg;
+        b = *pColB + db;
 
         switch (i) {
         case 0:
@@ -410,8 +366,6 @@ void func_800734B8(POLY_G4* pPoly0, POLY_G4* pPoly1, s32 x, s32 y, s32 w, s32 h)
     pPoly0->tag = (pPoly0->tag & 0xFF000000) | ((u32)pPoly1 & 0xFFFFFF);
 }
 */
-
-INCLUDE_ASM("asm/movie/nonmatchings/main/misc1", func_800734B8);
 
 INCLUDE_ASM("asm/movie/nonmatchings/main/misc1", func_800737EC);
 
@@ -482,6 +436,9 @@ s32 MovieUpdatePadCursor(s32 arg0, s32 arg1, s32* pOut) {
 s32 MovieGetRandomNumber(void) {
     s32 a;
     s32 b;
+    s32 dr;
+    s32 dg;
+    s32 db;
     s32 r;
 
     a = D_80076EF4 * 5 + 1;
