@@ -2,7 +2,7 @@
 #include "psyq/libgpu.h"
 #include "libgear/main.h"
 
-// Partial view of the per-frame battle work block (D_800D2D28). shared
+// Partial view of the per-frame battle work block (D_800D2D28). The shared
 // include/battle/battle_work.h owns the type other units read; this view names
 // only the sub-image upload state this unit advances each frame.
 typedef struct {
