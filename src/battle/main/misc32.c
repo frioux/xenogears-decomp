@@ -147,17 +147,16 @@ void func_800BD1FC(s32 slot) {
 }*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BD1FC);
 
-// best 94.66%: only two differences. (1) Retail re-forms `lui v0,%hi(D_800C360C)`
-// every iteration and loads through it; gcc 2.7.2 hoists the %hi into $s3, which
-// costs the fifth saved register ($s4 for pBase) and makes the frame 0x2C instead
-// of 0x28. A volatile declaration of the global did not stop the hoist, and a
-// pointer / array / struct spelling of it changes nothing. (2) Retail's row sum is
-// `addu v0,v0,s3` with pBase in $s3; ours is the same sum with pBase in $s4.
-// Everything else, including the `li 0x8C8C` in the compare's delay slot and the
-// row store order, is exact.
-// 94.66%: COMPILES (needs D_800C3E1C + the func_800BD1FC prototype). The only
-// difference is the one in the note below: gcc hoists %hi(D_800C360C) into $s3
-// (+$s4 for pBase, frame 0x2C) where retail re-forms it per iteration (frame 0x28).
+// best 94.66%: COMPILES. Everything matches - the `li 0x8C8C` in the compare's
+// delay slot, the frame saves, the row store order - except one thing: gcc's LICM
+// hoists `lui %hi(D_800C360C)` out of the loop into $s3, which needs a fifth saved
+// register (pBase moves to $s4) and makes the frame 0x2C instead of retail's 0x28.
+// Retail re-forms the %hi inside the loop every iteration (v0, dying at the load).
+// Tried this round: a volatile read of the global (the load stops moving, the %hi
+// still hoists), the `pRow = pBase + row; pRow[i + 0x150]` pointer form (same hoist,
+// and its addu operands flip to base-first), and the do-while form. The `lw` itself
+// is already inside the loop in both compiles (the call blocks its hoist); only the
+// address word moves, so this is loop.c, not register allocation.
 /*
 void func_800BD2E4(void) {
     u8 *pSlot;
@@ -196,26 +195,19 @@ typedef struct Misc32TaskNode {
 } Misc32TaskNode; // Size: 0x3C
 
 extern Misc32TaskNode *D_800C3750;
-extern void WorkListsDeleteTasks(void);
+extern void WorkListsDeleteTasks(WorkListEntry *pTasks);
 
-// best 95.36%: COMPILES. The body below is the retail algorithm (the old park
-// compared the head instead of the moving pointer) and the instruction multiset is
-// retail's; only the register tie differs. Retail copies the parameter to $a1
-// (`move $a1,$a0`) and compares the moving pointer against it, which pushes the
-// %hi of D_800C3750 to $a2 and puts `move $v1,zero` before the head load. gcc keeps
-// the parameter in $a0, the %hi in $a1, and loads the head first.
-// Tried: pTarget/pHead/`register` locals (coalesced away), a short `hasPrev`, the
-// do-while form, swapped compare operands (95.18), the old pHead spelling (91.96).
-// 95.36%: COMPILES. Only the register tie differs - see the block below.
-/*
-void func_800BD7A0(Misc32TaskNode *pEntry) {
+// The D_800C3750 list's on-free callback: unlink the entry, then free it.
+void func_800BD7A0(void *pEntry) {
     Misc32TaskNode *pCur;
     Misc32TaskNode *pPrev;
+    Misc32TaskNode *pTarget;
 
-    pPrev = NULL;
     pCur = D_800C3750;
+    pPrev = NULL;
+    pTarget = pEntry;
     while (pCur != NULL) {
-        if (pCur == pEntry) {
+        if (pCur == pTarget) {
             if (pPrev != NULL) {
                 pPrev->pNext = pCur->pNext;
             } else {
@@ -226,9 +218,8 @@ void func_800BD7A0(Misc32TaskNode *pEntry) {
         pPrev = pCur;
         pCur = pCur->pNext;
     }
-    WorkListsDeleteTasks();
-}*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BD7A0);
+    WorkListsDeleteTasks(pEntry);
+}
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BD810);
 
