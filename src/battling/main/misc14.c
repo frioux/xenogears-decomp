@@ -72,6 +72,8 @@ void BattleRenderActorModel(Misc14ModelPart *pPart) {
     ModelRenderPacket(pPart->pModelPart, pPart->pPacket[D_800928A0], (u_long *)D_800928E4, pPart->unk04);
 }
 
+// The colour word BattleSetColorIfChanged copies in one move; the fourth byte
+// of the destination word is the prim code and is written separately.
 typedef struct {
     u8 b[4];
 } Misc14Quad; // Size: 0x4
