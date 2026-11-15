@@ -419,21 +419,21 @@ void BattleActorTickAnimScript(u8* pTask) {
 }
 void func_800BACBC(s32 index, s16* p0, s16* p1, s16* p2, s16* p3, s16* p4, s16* p5) {
     u8* pBase = D_800C3EB0;
-    s32 coord;
+    s32 vx;
+    s32 vy;
+    s32 vz;
     SpriteData* pSprite;
-    int new_var;
     SVECTOR vec;
     u16 sxy[2];
     s32 flag;
 
     pSprite = *(SpriteData**)(pBase + index * 4 + 0x8C8C);
-    coord = *(s16*)((u8*)pSprite + 0x2);
-    vec.vx = coord;
-    new_var = *(s16*)((u8*)pSprite + 0x6);
-    coord = new_var;
-    vec.vy = coord;
-    coord = *(s16*)((u8*)pSprite + 0xA);
-    vec.vz = coord;
+    vx = *(s16*)((u8*)pSprite + 0x2);
+    vec.vx = vx;
+    vy = *(s16*)((u8*)pSprite + 0x6);
+    vec.vy = vy;
+    vz = *(s16*)((u8*)pSprite + 0xA);
+    vec.vz = vz;
     PushMatrix();
     SetRotMatrix(&D_800D30BC);
     SetTransMatrix(&D_800D30BC);
