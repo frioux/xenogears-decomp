@@ -3,6 +3,114 @@
 #include "psyq/gtemac.h"
 #include "psyq/inline_c.h"
 
+/* Battle actor layout, recovered from the offsets this unit touches. */
+typedef struct {
+    /* 0x00 */ s32 vx;
+    /* 0x04 */ s32 vy;
+    /* 0x08 */ s32 vz;
+    /* 0x0C */ s32 unk0C;
+} BattleQuad; // Size: 0x10
+
+/* 0x44 is read and written as one word and its upper bytes one at a time. */
+typedef union {
+    /* 0x0 */ u32 flags;
+    struct {
+        /* 0x0 */ u8 unk44;
+        /* 0x1 */ u8 state;
+        /* 0x2 */ u8 unk46;
+        /* 0x3 */ u8 unk47;
+    } byte;
+} BattleSlotFlags; // Size: 0x4
+
+typedef struct {
+    /* 0x00 */ BattleQuad pos;
+    /* 0x10 */ BattleQuad unk10;
+    /* 0x20 */ BattleQuad unk20;
+    /* 0x30 */ BattleQuad unk30;
+    /* 0x40 */ u8 unk40[0x3];
+    /* 0x43 */ u8 unk43;
+    /* 0x44 */ BattleSlotFlags unk44;
+    /* 0x48 */ u8 pad48[0x8];
+    /* 0x50 */ s32 unk50;
+} BattleActorSlot; // Size: 0x54
+
+typedef struct {
+    /* 0x0 */ s16 x;
+    /* 0x2 */ s16 y;
+    /* 0x4 */ s16 z;
+    /* 0x6 */ u16 unk6;
+} BattleActorState;
+
+typedef struct {
+    /* 0x0 */ u8 pad0[0x6];
+    /* 0x6 */ u16 flags;
+    /* 0x8 */ u8 index;
+    /* 0x9 */ u8 unk9;
+    /* 0xA */ u8 unkA;
+} BattleActorAnimData;
+
+typedef struct {
+    /* 0x000 */ s32 unk0;
+    /* 0x004 */ s32 unk4;
+    /* 0x008 */ s32 unk8;
+    /* 0x00C */ u8 pad0C[0x40];
+    /* 0x04C */ u8 unk4C;
+    /* 0x04D */ u8 pad4D[0x7];
+    /* 0x054 */ s32 unk54;
+    /* 0x058 */ u8 pad58[0x2C];
+    /* 0x084 */ s32 unk84;
+    /* 0x088 */ u8 pad88[0x2C];
+    /* 0x0B4 */ s16 unkB4;
+    /* 0x0B6 */ u16 unkB6;
+    /* 0x0B8 */ u8 padB8[0x2];
+    /* 0x0BA */ s16 unkBA;
+    /* 0x0BC */ s16 unkBC;
+    /* 0x0BE */ u8 padBE[0x1A];
+    /* 0x0D8 */ u8 *unkD8;
+    /* 0x0DC */ u8 padDC[0x28];
+    /* 0x104 */ BattleActorSlot slots[16];
+    /* 0x644 */ u32 unk644;
+    /* 0x648 */ u8 pad648[0x2BC];
+    /* 0x904 */ u8 *unk904;
+    /* 0x908 */ u8 unk908;
+    /* 0x909 */ u8 unk909;
+    /* 0x90A */ u8 pad90A[0xCC2];
+    /* 0x15CC */ BattleActorState *unk15CC;
+    /* 0x15D0 */ BattleActorAnimData *unk15D0;
+    /* 0x15D4 */ u8 unk15D4;
+    /* 0x15D5 */ u8 pad15D5[0x17];
+    /* 0x15EC */ s16 unk15EC;
+    /* 0x15EE */ s16 unk15EE;
+    /* 0x15F0 */ u8 pad15F0[0x64];
+    /* 0x1654 */ s32 unk1654;
+    /* 0x1658 */ s32 unk1658;
+} Actor; // Size: unknown
+
+/* The 0x60-entry effect context allocated by BattleEffectInitContext. */
+typedef struct {
+    /* 0x00 */ s16 unk0;
+    /* 0x02 */ u8 pad02[0x12];
+    /* 0x14 */ s16 unk14;
+    /* 0x16 */ s16 unk16;
+    /* 0x18 */ s16 unk18;
+    /* 0x1A */ u8 pad1A[0x1A];
+    /* 0x34 */ s16 unk34;
+    /* 0x36 */ s16 unk36;
+    /* 0x38 */ s16 unk38;
+    /* 0x3A */ u8 pad3A[0xA];
+    /* 0x44 */ s16 unk44;
+    /* 0x46 */ s16 unk46;
+    /* 0x48 */ s16 unk48;
+    /* 0x4A */ s16 unk4A;
+    /* 0x4C */ u8 pad4C[0x1C];
+    /* 0x68 */ s16 unk68;
+    /* 0x6A */ s16 unk6A;
+    /* 0x6C */ u8 pad6C[0x8];
+    /* 0x74 */ u8 unk74;
+    /* 0x75 */ u8 unk75;
+    /* 0x76 */ u8 unk76;
+} BattleEffect; // Size: unknown
+
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80072D18);
 
 /* The depth is consumed out of $a2 by gte_ldir123_dp_a2, so the third
@@ -86,23 +194,23 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_800731F8);
 } */
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_800732AC);
 
-extern u8 *func_8008D3F4(s32, s32);
-extern void BattleEffectAllocEntries(u8 *, s32);
-extern u8 *D_80092644;
+extern BattleEffect *func_8008D3F4(s32, s32);
+extern void BattleEffectAllocEntries(BattleEffect *, s32);
+extern BattleEffect *D_80092644;
 
 void BattleEffectInitContext(void) {
-    u8 *p = func_8008D3F4(3, 0);
+    BattleEffect *p = func_8008D3F4(3, 0);
 
-    p[0x74] = 0x80;
-    p[0x75] = 0x80;
-    p[0x76] = 0xC0;
+    p->unk74 = 0x80;
+    p->unk75 = 0x80;
+    p->unk76 = 0xC0;
     BattleEffectAllocEntries(p, 0x60);
-    *(s16 *)(p + 0x00) = 4;
-    *(s16 *)(p + 0x44) = 0x300;
-    *(s16 *)(p + 0x48) = 8;
-    *(s16 *)(p + 0x4A) = 0x20;
-    *(s16 *)(p + 0x68) = 0;
-    *(s16 *)(p + 0x6A) = 0x20;
+    p->unk0 = 4;
+    p->unk44 = 0x300;
+    p->unk48 = 8;
+    p->unk4A = 0x20;
+    p->unk68 = 0;
+    p->unk6A = 0x20;
     D_80092644 = p;
 }
 
@@ -111,22 +219,24 @@ extern s32 D_80092A24;
 extern s32 D_80092A28;
 extern s32 D_80092A2C;
 extern u8 D_80091C0C[];
-extern void func_8008D680(u8 *, u8 *, s32);
-extern void BattleEffectUpdateEntries(u8 *, u8 *, u8 *);
+extern void func_8008D680(BattleEffect *, u8 *, s32);
+extern void BattleEffectUpdateEntries(BattleEffect *, u8 *, u8 *);
 
 void BattleEffectSetMatrix(u8 *p0, u8 *p1) {
     s32 n = D_80092648;
-    u8 *p = D_80092644;
+    u8 *p = (u8 *)D_80092644;
 
+    /* Written through a byte pointer: a typed store lets gcc hoist the next
+       global load above the previous store and the original interleaves. */
     *(s16 *)(p + 0x14) = D_80092A24;
     *(s16 *)(p + 0x16) = D_80092A28;
     *(s16 *)(p + 0x18) = D_80092A2C;
     *(s16 *)(p + 0x34) = 0;
     *(s16 *)(p + 0x36) = 0;
     *(s16 *)(p + 0x38) = 0;
-    func_8008D680(p, D_80091C0C, n);
+    func_8008D680((BattleEffect *)p, D_80091C0C, n);
     gte_SetTransRotMatrix_gpr(p1);
-    BattleEffectUpdateEntries(p, p0, p1);
+    BattleEffectUpdateEntries((BattleEffect *)p, p0, p1);
 }
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80073424);
@@ -225,46 +335,40 @@ void BattleTransformEntryVertex(u8 *p0, s32 arg1, s32 arg2, VECTOR *pOut) {
     }
 }
 
-void BattleCommitSlotStates(u8 *p0) {
+void BattleCommitSlotStates(Actor *p0) {
+    BattleActorSlot *pSlot;
     s32 i;
 
     for (i = 0; i < 16; i++) {
-        u8 *p = p0 + 0x104 + i * 0x54;
-
-        if (p[0x45] == 2) {
-            p[0x45] = 1;
+        pSlot = (BattleActorSlot *)((u8 *)p0 + 0x104 + i * 0x54);
+        if (pSlot->unk44.byte.state == 2) {
+            pSlot->unk44.byte.state = 1;
         } else {
-            p[0x45] = 0;
+            pSlot->unk44.byte.state = 0;
         }
     }
 }
 
 extern s32 D_80092650;
 
-typedef struct {
-    /* 0x0 */ s32 x;
-    /* 0x4 */ s32 y;
-    /* 0x8 */ s32 z;
-    /* 0xC */ s32 w;
-} Quad; // Size: 0x10
-
-void BattleStoreSlotPositions(u8 *p0, u8 *p1, s32 arg2, u8 *p3, u8 *p4, s32 arg5, u8 *p6) {
+void BattleStoreSlotPositions(BattleQuad *p0, BattleQuad *p1, s32 arg2, u8 *p3, BattleActorSlot *p4,
+                              s32 arg5, Actor *p6) {
     u32 flags;
 
     arg2 &= 1;
-    *(Quad *)(p4 + 0x10) = *(Quad *)(p4 + 0x00);
-    *(Quad *)(p4 + 0x30) = *(Quad *)(p4 + 0x20);
-    *(Quad *)(p4 + 0x00) = *(Quad *)p0;
-    *(Quad *)(p4 + 0x20) = *(Quad *)p1;
-    flags = *(u32 *)(p4 + 0x44);
+    p4->unk10 = p4->pos;
+    p4->unk30 = p4->unk20;
+    p4->pos = *p0;
+    p4->unk20 = *p1;
+    flags = p4->unk44.flags;
     flags &= ~2;
     flags |= arg2 << 1;
-    *(u8 *)(p4 + 0x43) = arg5;
-    *(u32 *)(p4 + 0x44) = flags;
-    *(u8 *)(p4 + 0x45) = 2;
-    *(u8 *)(p4 + 0x47) = *(u32 *)(p6 + 0x644);
-    *(s32 *)(p4 + 0x50) = *(s32 *)(p6 + 0x84);
-    *(u8 *)(p4 + 0x46) = *(u8 *)(p3 + 0x1);
+    p4->unk43 = arg5;
+    p4->unk44.flags = flags;
+    p4->unk44.byte.state = 2;
+    p4->unk44.byte.unk47 = p6->unk644;
+    p4->unk50 = p6->unk84;
+    p4->unk44.byte.unk46 = p3[1];
     D_80092650++;
 }
 
@@ -292,7 +396,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80073DE4);
 extern s32 D_800928C8;
 extern void func_8008EB4C(s32);
 
-s32 BattleAccumulateGaugePoints(u8 *p0, s32 arg1, s32 arg2) {
+s32 BattleAccumulateGaugePoints(Actor *p0, s32 arg1, s32 arg2) {
     s16 t;
     s32 q;
 
@@ -302,28 +406,28 @@ s32 BattleAccumulateGaugePoints(u8 *p0, s32 arg1, s32 arg2) {
     if (D_800928C8 == 6) {
         return 1;
     }
-    t = *(u16 *)(p0 + 0xB6) + arg1;
-    *(s16 *)(p0 + 0xB6) = t;
+    t = p0->unkB6 + arg1;
+    p0->unkB6 = t;
     if (t < 0x1001) {
         return 1;
     }
     q = (t - 0x1000) / 20;
-    if (q >= *(s16 *)(p0 + 0xB4)) {
-        *(s16 *)(p0 + 0xB6) = t - arg1;
-        *(s16 *)(p0 + 0xBA) = 0;
+    if (q >= p0->unkB4) {
+        p0->unkB6 = t - arg1;
+        p0->unkBA = 0;
         if (BattleGetScreenMode() != 4) {
             func_8008EB4C(0x2E);
         }
         return 0;
     }
-    *(s16 *)(p0 + 0xB6) = 0x1000;
-    *(s16 *)(p0 + 0xBA) = q;
+    p0->unkB6 = 0x1000;
+    p0->unkBA = q;
     switch (arg2) {
     case 1:
-        *(s32 *)(p0 + 0x1654) += (s16)q;
+        p0->unk1654 += (s16)q;
         break;
     case 2:
-        *(s32 *)(p0 + 0x1658) += (s16)q;
+        p0->unk1658 += (s16)q;
         break;
     }
     return 1;
@@ -663,6 +767,6 @@ void func_800751C8(u8 *p0, u8 *p1) {
 } */
 
 
-s32 BattleComputeScaledFieldDelta(u8 *p0, u8 *p1, s32 scale) {
-    return (*(s16 *)(p1 + 0x15EC) * scale) / 32 - *(s16 *)(p0 + 0x15EE);
+s32 BattleComputeScaledFieldDelta(Actor *p0, Actor *p1, s32 scale) {
+    return (p1->unk15EC * scale) / 32 - p0->unk15EE;
 }
