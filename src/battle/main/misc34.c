@@ -204,11 +204,19 @@ void BattleInvokeSpriteCallbackForActor(void *arg0, s32 arg1) {
     func_800BFC80(arg0, arg1, 1);
 }
 
-// 90.75%: everything matches except the D_8006BE10+0x10 load. Retail's ASPSX emits
+// 95.75%: everything matches except the D_8006BE10+0x10 load. Retail's ASPSX emits
 // lui/addiu/%lo(sym) then lw 16; gcc folds the address into the load
 // (lui %hi + lw 16(%hi_reg)), one instruction shorter - no C shape materialises it.
+// Hoisting the func_80023B84 argument into pEntry (permuter, score 177 -> 20) took it
+// from 90.75 to 95.75. A permuter variant reached 99.50 by 'pActor = &D_8006BE10[0]'
+// so the table address lands in s2 and the 0x74 store writes the table instead of the
+// actor: same byte encodings, wrong code - do not un-park it as a match. Also tried:
+// (s32)D_8006BE10 + 0x10 (folds the same way), decl order swaps.
+/*
 void func_800BFDA8(u8 *pActor, s32 arg1) {
     u8 *pBase;
+    u8 *pTable;
+    u8 *pEntry;
     u8 saved;
     u8 *pNew;
     s32 flags;
@@ -219,11 +227,12 @@ void func_800BFDA8(u8 *pActor, s32 arg1) {
     if (func_800BFC80(pActor, arg1, 0) != 0) {
         return;
     }
-    pActor = &D_8006BE10[0];
-    pBase = *(u8 **)(pActor + 0x10);
+    pTable = &D_8006BE10[0];
+    pBase = *(u8 **)(pTable + 0x10);
+    pEntry = (u8 *)((s32)(arg1 + (u16 *)pBase)[1] + (s32)pBase);
     saved = D_800591AC;
     D_800591AC = 0;
-    pNew = func_80023B84(pActor, (u8 *)((s32)(arg1 + (u16 *)pBase)[1] + (s32)pBase));
+    pNew = func_80023B84(pActor, pEntry);
     flags = *(s32 *)(pNew + 0xB0);
     *(s8 *)(pNew + 0xAF) = arg1;
     *(u8 **)(pNew + 0x74) = pActor;
@@ -231,6 +240,8 @@ void func_800BFDA8(u8 *pActor, s32 arg1) {
     flags |= 0x100;
     *(s32 *)(pNew + 0xB0) = flags;
 }
+*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800BFDA8);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800BFE48);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800C0314);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800C0564);
