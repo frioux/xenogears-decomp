@@ -513,9 +513,11 @@ int StoreImage(RECT *rect, u_long *p) {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu", MoveImage);
 
-/* best: 82.73% -- identical instruction multiset; aspsx 2.56 scheduled the block
-   (all three loads hoisted above the two stores, li a2,0x14 between them) and gcc
-   emits source order, so no C shape reproduces it.
+/* best: 95.69% -- one pair misplaced: retail loads D_800568C8 right after
+   "lw a0,0(s0)" and before "li a2,0x14", gcc emits it after "sw a0,0(a1)".
+   Writing the packet word before the D_80056984 store fixed the other four
+   slots; two permuter runs from this body found nothing (a local holding
+   &D_800568C8->unk18 only moved the loss onto the D_800568C8 load).
 int MoveImage(RECT *rect, int x, int y) {
     u_long *pPacket;
 
@@ -525,11 +527,10 @@ int MoveImage(RECT *rect, int x, int y) {
         return -1;
 
     pPacket = &D_80056980;
-    D_80056984 = (y << 16) | (x & 0xFFFF);
     *pPacket = *(u_long*)&rect->x;
+    D_80056984 = (y << 16) | (x & 0xFFFF);
     D_80056988 = *(u_long*)&rect->w;
-    pPacket -= 2;
-    return D_800568C8->unk08(D_800568C8->unk18, pPacket, 0x14, 0);
+    return D_800568C8->unk08(D_800568C8->unk18, pPacket - 2, 0x14, 0);
 }
 */
 
