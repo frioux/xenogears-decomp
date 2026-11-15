@@ -1062,23 +1062,24 @@ u32 GearShopMenuBuildSellItemDetails(u8 arg0, u8 itemType) {
 }
 
 INCLUDE_ASM("asm/gear_shop_menu/nonmatchings/main/render", func_801D18F8);
-// 95.81%: every block, call and branch of the digit/price loop is now identical and the frame
-// is retail's 0xC0. Two things were found this round and both are in the attempt below:
-//  - the RECT is set up TWICE in the source (setRECT before each LoadImage). Retail re-stores
-//    all four fields before the second LoadImage and keeps x/y/w in $s1/$s0/$s2 across the
-//    calls; a single setRECT with one pointer local is 8 bytes short (1556 vs retail's 1576).
-//  - the digit loop's 0xC3 glyph is hoisted to one register before the loop in retail
-//    ("ori t0,0xc3"), ours re-materialises it inside the else branch.
-// Remaining delta (3 insns): which loop-carried value lives in a register vs on the stack.
-// Retail spills the 0x3C30 + i*0x80 string-struct accumulator to 0x90($sp) and reloads it at
-// every use, keeps the 0x4030 + i*0x80 one in 0x78($sp), 0x32 + 0xD*i in 0x80($sp) and 0xD*i in
-// 0x88($sp), and keeps &sp20 (the RECT) in $fp (s8) - so i lands in $s3. Ours keeps the 0x3C30
-// accumulator in a register and i in $s2, and re-loads the 0x4030 slot twice where retail keeps
-// it live. One permuter run from the 92.05% shape (one setRECT, RECT* local) reached 94.74%,
-// a second found nothing (1906 -> 1901); a re-run from THIS body is the next step.
-// Ruled out: dropping the (RECT*) cast, RECT declared after the other locals, a s32 width local,
-// a RECT* local for the stores + both LoadImage calls (95.01%), that pointer local hoisted out
-// of the loop (94.39%), a `quotient = FONT_LETTER_HEIGHT * i` local (no change).
+// 98.39%: three loop-carried spill placements. Everything else - every block, call, branch, the
+// 0xC0 frame, the two setRECTs, the digit loop, the tail - is retail's. The whole remaining delta
+// is WHICH of two loop-carried values gets $fp: retail keeps &sp20 (the RECT) in $fp and spills the
+// 0x3C30 + i*0x80 string accumulator to 0x90(sp); gcc 2.6.0 spills &sp20 to 0x78(sp) and keeps the
+// 0x3C30 accumulator in $fp - exactly one allocno swapped between register and slot.
+//   - no pointer local (LoadImage((RECT*)&sp20, ...) and setRECT(&sp20, ...)): 95.81%, 1564 bytes.
+//     Structurally EXACT - 13 loop-carried values, 9 in registers, 4 slots, right insn count; the
+//     only differences are that swap and the 2 extra tail insns a spilled accumulator costs.
+//   - a RECT* local (the body below): 98.39%, 1584 bytes. &sp20 wins $fp, but cse keeps a second
+//     pseudo for the digit-loop base, so the frame grows 8 bytes (5 slots) and it is 8 bytes long.
+// A matching body would be the first form with the swap flipped. Tried and ruled out this round:
+// pRect as `RECT* pRect = &sp20;` inline in the declaration block (98.15%); pRect for the two
+// setRECTs only / for the LoadImages only (98.15 / 94.53); the assignment placed before the loop /
+// after HeapAlloc / inside the loop / after places[1] (98.31 / 94.53 / 98.31 / 98.31);
+// bzero((u8*)pRect + 8, 0xE) as a ref-count probe (94.53, and retail's bzero is plain sp+0x28).
+// Permuter: three runs, 1356 -> 659 -> 624 -> nothing (about 4400 mutants); the only thing kept was
+// the do/while (0) around the tensDigit func_8002675C call (98.31 -> 98.39). Another run is not
+// worth it from here.
 /*
 void func_801D18F8(s32 scrollOffset, u8* pItemIds, u8* pItemTypes, u8* pItemSellQtys, u8* pItemQtys) {
     RECT sp20;
@@ -1087,6 +1088,7 @@ void func_801D18F8(s32 scrollOffset, u8* pItemIds, u8* pItemTypes, u8* pItemSell
     int places[5]; // sp48
     s32 quotient;
     u8 didRounding;
+    RECT* pRect;
     s32 j;
     s32 k;
     u8 itemType;
@@ -1098,6 +1100,7 @@ void func_801D18F8(s32 scrollOffset, u8* pItemIds, u8* pItemTypes, u8* pItemSell
 
     places[0] = 1;
     places[1] = 10;
+    pRect = &sp20;
     places[2] = 100;
     places[3] = 1000;
     places[4] = 10000;
@@ -1131,12 +1134,12 @@ void func_801D18F8(s32 scrollOffset, u8* pItemIds, u8* pItemTypes, u8* pItemSell
             sp28[8] = (qty % 10) + 0x10;
             SystemDecodeGlyphCodesN((u16*)&sp28, sp38, 5);
             g_Menu->pShop->unk4030[i].width = SystemRenderStringEntry(&sp38, pWorkspace, 0x24U, 1U);
-            setRECT(&sp20, 0x180 + (i & 1) * 0x18, 0x80 + (i / 2) * FONT_LETTER_HEIGHT, 0x28, FONT_LETTER_HEIGHT);
-            LoadImage((RECT*)&sp20, pWorkspace);
+            setRECT(pRect, 0x180 + (i & 1) * 0x18, 0x80 + (i / 2) * FONT_LETTER_HEIGHT, 0x28, FONT_LETTER_HEIGHT);
+            LoadImage(pRect, pWorkspace);
             GearShopMenuInitializeMenuStringPolys(&g_Menu->pShop->unk3C30[i], i, 0x80, 0x81);
             GearShopMenuSetVertices(g_Menu->pShop->unk3C30[i].vertices, 0x24, 0x32 + FONT_LETTER_HEIGHT * i, g_Menu->pShop->unk3C30[i].width, FONT_LETTER_HEIGHT);
-            setRECT(&sp20, 0x180 + (i & 1) * 0x18, 0x80 + (i / 2) * FONT_LETTER_HEIGHT, 0x28, FONT_LETTER_HEIGHT);
-            LoadImage((RECT*)&sp20, pWorkspace);
+            setRECT(pRect, 0x180 + (i & 1) * 0x18, 0x80 + (i / 2) * FONT_LETTER_HEIGHT, 0x28, FONT_LETTER_HEIGHT);
+            LoadImage(pRect, pWorkspace);
             DrawSync(0);
             GearShopMenuInitializeMenuStringPolys(&g_Menu->pShop->unk4030[i], i, 0x80, 0x82);
             GearShopMenuSetVertices(g_Menu->pShop->unk4030[i].vertices, 0x8C, 0x32 + FONT_LETTER_HEIGHT * i, g_Menu->pShop->unk4030[i].width, FONT_LETTER_HEIGHT);
@@ -1147,7 +1150,7 @@ void func_801D18F8(s32 scrollOffset, u8* pItemIds, u8* pItemTypes, u8* pItemSell
                 g_Menu->pShop->unk468C[i] += func_8002675C(g_Menu->resources, 0xE5, g_Menu->pShop->polysShopInventory[i * 4], g_Menu->renderContext, 0xB4, 0x36 + FONT_LETTER_HEIGHT * i, 0x1000U);
                 tensDigit = pItemSellQtys[scrollOffset + i] / 10;
                 if (tensDigit) {
-                    g_Menu->pShop->unk468C[i] += func_8002675C(g_Menu->resources, tensDigit, &g_Menu->pShop->polysShopInventory[i * 4][g_Menu->pShop->unk468C[i] * 2], g_Menu->renderContext, 0xBC, 0x36 + FONT_LETTER_HEIGHT * i, 0x1000U);
+                    do { g_Menu->pShop->unk468C[i] += func_8002675C(g_Menu->resources, tensDigit, &g_Menu->pShop->polysShopInventory[i * 4][g_Menu->pShop->unk468C[i] * 2], g_Menu->renderContext, 0xBC, 0x36 + FONT_LETTER_HEIGHT * i, 0x1000U); } while (0);
                 }
                 onesDigit = pItemSellQtys[scrollOffset + i] % 10;
                 g_Menu->pShop->unk468C[i] += func_8002675C(g_Menu->resources, onesDigit, &g_Menu->pShop->polysShopInventory[i * 4][g_Menu->pShop->unk468C[i] * 2], g_Menu->renderContext, 0xC4, 0x36 + FONT_LETTER_HEIGHT * i, 0x1000U);
@@ -1160,7 +1163,9 @@ void func_801D18F8(s32 scrollOffset, u8* pItemIds, u8* pItemTypes, u8* pItemSell
 
     HeapFree(pWorkspace);
 }
+
 */
+
 
 /*
  * Finalizes the sale.
