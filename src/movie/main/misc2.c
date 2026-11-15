@@ -179,12 +179,17 @@ void MovieClearFrameBuffer(void) {
 
 INCLUDE_ASM("asm/movie/nonmatchings/main/misc2", func_80074BA4);
 
-INCLUDE_ASM("asm/movie/nonmatchings/main/misc2", func_8007519C);
-
-/* best 91.70% - same size as retail (544 bytes); needs the state header read
-   twice (debug-table path and CD path) and the local/register order fixed: our
-   `result` lands in $s3 where retail has $s4. Everything else in the two paths
-   matches. Rewritten from the assembly, no earlier park note existed.
+// 91.70%, verified now (it did NOT compile before; the declarations exist since
+// round 107). Same size as retail, 544 bytes / 134 insns, and every instruction of
+// the debug path, the pad handling and the CD path is already identical. Two things
+// are left: gcc puts the state==1 body inline and jumps to the state==2 test, retail
+// does the reverse (beq state,1 to a body placed after the state==2 return block,
+// which then falls through into the shared tail); and retail's two
+// 'D_8007711C >= ArchiveDecodeSizeAbsolute(..)' early-outs branch straight to the
+// epilogue with v0 = the slt result, i.e. they return 0, where our 'return result'
+// needs li v0,-1 on that edge (spelling it 'return 0' costs 8 bytes). Not tried: the
+// permuter. A switch is not the answer, it would emit a jtbl (unowned in movie).
+/*
 s32 func_8007519C(void) {
     u8 buffer[0x1000];
     MovieFileHeader* pHeader;
@@ -245,8 +250,8 @@ s32 func_8007519C(void) {
         }
     }
     return result;
-}
-*/
+}*/
+INCLUDE_ASM("asm/movie/nonmatchings/main/misc2", func_8007519C);
 
 void MovieLoadSoundBanks(void) {
     char* pWdsFile;
@@ -299,26 +304,22 @@ int WorldMapSyncGearRideActors(u32 entryIndex) {
     return nFileSize;
 }
 
-INCLUDE_ASM("asm/movie/nonmatchings/main/misc2", func_80075D8C);
-
-/* best 92.41% - 1228 bytes against retail's 1232; the head, the pad-cursor
-   handling, the inner loop's tail test and everything from FontPrintf(0x80070430)
-   to the epilogue are instruction-identical. Three differences remain:
-   1. gcc CSEs `j + 1` (the ArchiveDecodeSector/ArchiveGetFilePath argument) into a
-      callee-saved register whose live range spans the whole inner loop, so the frame
-      is 0x50 with 8 saves where retail has 0x48 with 7, and every local sits one
-      register higher (entry in $18 where retail has $17). Retail recomputes
-      `addiu a0,$s0,1` at all three call sites. Also tried: a `for` loop (same CSE,
-      plus a duplicated top exit test), and the pointer-increment spelling.
-   2. the cursor limit: a `count = 0x1249` local makes gcc fold `count - 0x14` and
-      hoist 0x1235, retail hoists 0x1249 and does `addiu $v0,$s6,-0x14` at each of
-      the two sites.
-   3. the HEX/DEC ternary is laid out with the true value (D_80070474) as fallthrough;
-      retail materialises the false value (D_80070488) first and branches to the true.
-   Recovered for it: MovieDrawBuffer (see the typedef above) and that the two draw
-   buffers D_80077124[] each start 0x18 bytes before the matching MovieSlot entry
-   D_8007713C[].
-void func_80075D8C(void) {
+// 92.41%, verified now: 1228 bytes against retail's 1232. It did not compile
+// because the body was stored with its 'void func_80075D8C(void) {' header line
+// duplicated (park.py matched the outer definition, the copy left two); that is
+// fixed, and the diagnosis below still holds. Three residuals:
+//   1. gcc CSEs 'j + 1' (the ArchiveDecodeSector/ArchiveGetFilePath argument) into a
+//      callee-saved register live across the whole inner loop, so the frame is 0x50
+//      with 8 saves where retail has 0x48 with 7 and every local sits one register
+//      higher. Retail recomputes 'addiu a0,$s0,1' at all three call sites. A for
+//      loop and the pointer-increment spelling both give the same CSE.
+//   2. a 'count = 0x1249' local makes gcc fold 'count - 0x14' and hoist 0x1235;
+//      retail hoists 0x1249 and does 'addiu $v0,$s6,-0x14' at both sites.
+//   3. the HEX/DEC ternary is laid out with the true value (D_80070474) as
+//      fallthrough; retail materialises the false value (D_80070488) first.
+// Recovered for it: MovieDrawBuffer, and the two draw buffers D_80077124[] each
+// start 0x18 bytes before the matching MovieSlot entry D_8007713C[].
+/*
 void func_80075D8C(void) {
     s32 alignedIndex;
     s32 remainder;
@@ -435,9 +436,8 @@ void func_80075D8C(void) {
         DrawOTag(&D_80077120->ot[0x1F]);
     } while (action != 2);
     ArchiveSetIndex(alignedIndex, remainder);
-}
-
-*/
+}*/
+INCLUDE_ASM("asm/movie/nonmatchings/main/misc2", func_80075D8C);
 
 void MovieResetPlaybackAndClearScreen(void) {
     long pad[6];
@@ -625,31 +625,28 @@ void WorldMapScriptOp04SetScratchPosition(void) {
     SetTransMatrix(pMatrix);
 }
 
-INCLUDE_ASM("asm/movie/nonmatchings/main/misc2", func_80076CA4);
-
-/* best 89.13% under gcc 2.7.2 -G0 (88.94 with a MATRIX* local for the trans
-   stores instead of the individual symbols, 83.09 under the unit's old -G8).
-   Size is retail's 420 bytes / 105 instructions and the whole head is exact;
-   two differences remain:
-   1. the trans-matrix store block. Retail computes ONE address into $a3
-      (0x800770CC, i.e. &D_800770B8.t[0] = base+0x14), stores with $a3 as the
-      base (sw v1,0(a3)) and then derives the CompMatrix argument from it
-      (addiu a1,a3,-0x14). We emit a lone lui/addiu pair for the argument and a
-      bare %lo(%at) store. That is gcc sharing the %hi of one symbol_ref across
-      two offsets of the SAME symbol, which needs the trans base to reach the
-      store through a register - a pointer local gets folded back to a symbol
-      store, so all three store spellings tried (individual D_ symbols, a
-      MATRIX* pTransMatrix, a s32* pTransT = pTransMatrix->t) give a %at store.
-   2. one register tie: retail mult $s2,$s2 / mflo $v0 / addu $s3,$s3,$v0, we
-      get $v1 for the mflo and the addu.
-   Permuter run (4 min, -j 2) from this body: PERMUTER_BETTER base=950 best=775,
-   but its best candidate (u32 dxSq + a pRotMatrix reassignment so that both
-   CompMatrix arguments are the same pointer) is UNSOUND - it compiles to
-   CompMatrix(trans, trans, res) - and porting it drops objdiff to 83.30%.
-   The u32 dxSq half of it is kept here and is neutral for objdiff.
-   Next lever to try: a source shape where the trans stores are reached through
-   a runtime base (parameter/global pointer), since gcc folds every
-   compile-time-known global address into a bare symbol store. Parked body:
+// 89.13% under the unit's gcc 2.7.2 -G0, verified now (83.09 under the old -G8).
+// Size is retail's 420 bytes / 105 insns and the whole head is exact. Two left:
+//   1. the trans-matrix store block. Retail forms ONE base in $a3 by
+//      'lui %hi(D_800770CC) / addiu %lo(D_800770CC)' and stores 'sw ...,0(a3)',
+//      then derives the CompMatrix argument from it ('addiu a1,a3,-0x14'), i.e.
+//      retail's source reached both the three s32 stores AND the MATRIX at
+//      D_800770B8 through one base at 0x800770CC (the matrix's t[0]); our C writes
+//      the three stores as separate externs (D_800770CC/D0/D4), so gcc makes a
+//      lone lui/addiu pair for the argument and a bare %lo(%at) store. Tried: the
+//      individual symbols, a MATRIX* local for the trans matrix, a s32* pointing
+//      at the t-vector, and a s32* via pRotMatrix. What is NOT tried is a single
+//      declared 3-word object at 0x800770CC that the CompMatrix argument is taken
+//      from, e.g. a VECTOR D_800770CC with '(MATRIX*)((u8*)pVec - 0x14)' - no unit
+//      in the repo has such a symbol yet.
+//   2. one register tie: retail 'mult / mflo $v0 / addu $s3,$s3,$v0', we get $v1
+//      for the mflo and the addu.
+// Permuter run (4 min, -j 2) from this body: PERMUTER_BETTER base=950 best=775, but
+// its best candidate (u32 dxSq plus a pRotMatrix reassignment that makes both
+// CompMatrix arguments the same pointer) is UNSOUND - it compiles to
+// CompMatrix(trans, trans, res) - so porting it drops objdiff to 83.30%. The u32
+// dxSq half is kept here and is neutral.
+/*
 void func_80076CA4(void) {
     MATRIX* pRotMatrix;
     MovieVector* pPos;
@@ -680,5 +677,5 @@ void func_80076CA4(void) {
     D_800770D0 = D_80076F30 - D_80077040;
     D_800770D4 = D_80076F34 - D_80077044;
     CompMatrix(pRotMatrix, (MATRIX*)&D_800770B8, &D_80077050);
-}
-*/
+}*/
+INCLUDE_ASM("asm/movie/nonmatchings/main/misc2", func_80076CA4);
