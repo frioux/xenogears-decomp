@@ -239,6 +239,10 @@ paths = [
     "battle/main/misc20.",
     "battle/main/misc12.",
     "battle/main/misc18.",
+    # battle/main/misc14 (round 110 screen): all 16 matched functions stay 100.0 under
+    # 2.6.0, and its four parks jump at once - func_8008963C 89.89 -> 98.40,
+    # func_800898F0 91.38 -> 94.58, func_8008A3EC 97.61 -> 98.96.
+    "battle/main/misc14.",
     "battle/main/misc1.",
     "battle/main/misc15.",
     "battle/main/misc6.",
