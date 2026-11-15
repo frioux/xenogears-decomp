@@ -344,40 +344,41 @@ void BattleStepEffectColorFade(Misc32Task *pTask) {
 
 extern u8 SpriteColorAddClamp(u8 arg0, s16 arg1);
 
-// 90.50%: COMPILES (the body is now the realistic Misc32Task form). Only the
-// callback argument's register is left: retail keeps a second copy of the task in
-// $s1 (`move $s1,$s0`, 0x20 frame) and reaches the callback through it, gcc uses
-// $s0 for both (0x18 frame). A pOwner/u8* copy local is coalesced away; cdk and
-// 2.7.2 both score 90.50. The two volatile re-reads are required: without them cse
-// forwards call 1's stored result into call 2's argument (86.00).
-/*
+// The effect task, reached through its own alias: retail keeps a second copy of the
+// task pointer in $s1 (0x20 frame) and makes the callback through it, so the fade
+// stores and the timer update must not share one variable. The two volatile
+// re-reads are required too: without them cse forwards call 1's stored result into
+// call 2's argument (86.00 instead of 100.00).
 void func_800BDB74(Misc32Task *pTask) {
+    Misc32Task *pEffect;
     WorkListCallback_t pCallback;
 
+    pEffect = pTask;
     func_800BDF1C(pTask);
-    pTask->unk80[0] = SpriteColorAddClamp(pTask->unk80[0], -8);
     // the volatile re-reads are required: without them cse forwards the previous
     // call's stored result into the next call's argument
-    pTask->unk80[1] = SpriteColorAddClamp(*(volatile u8 *)&pTask->unk80[0], -8);
-    pTask->unk80[2] = SpriteColorAddClamp(*(volatile u8 *)&pTask->unk80[0], -8);
-    if (--pTask->timer < 0 || (pTask->unk80[0] | pTask->unk80[1] | pTask->unk80[2]) == 0) {
+    pEffect->unk80[0] = SpriteColorAddClamp(pEffect->unk80[0], -8);
+    pEffect->unk80[1] = SpriteColorAddClamp(*(volatile u8 *)&pTask->unk80[0], -8);
+    pEffect->unk80[2] = SpriteColorAddClamp(*(volatile u8 *)&pEffect->unk80[0], -8);
+    if (--pTask->timer < 0 || (pTask->unk80[0] | pTask->unk80[1] | pEffect->unk80[2]) == 0) {
         pCallback = pTask->timerEntry.onFreeCallback;
-        pCallback(pTask);
+        pCallback(pEffect);
     }
-}*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BDB74);
+}
 
 extern void TimerWorkListSetTaskCallback(Misc32Task *pTask, void (*pCallback)(Misc32Task *));
 extern void func_800BDB74(Misc32Task *pTask);
 
-// 91.60%: COMPILES (the body below is now the current Misc32Task form). The
-// `nextTimer` local is worth +8.2 (it stops gcc folding 0x10 into the branch).
-// Left: the callback block. Retail does `move $4,$16` at the jal (after the lui for
-// the callback address) and keeps the two stores on $s0; gcc hoists the copy to the
-// bgez delay slot and stores through $4 (`sw v1,136(a0)`, `sb v0,131(a0)`).
-// Tried this round: a `u8 flags` temp, the whole block in do{...}while(0) (84.76),
-// both store orders - all still $4. Older rounds tried u8 pointer, offset casts, a
-// task copy, a callback local, indexed forms and a 3-min permuter run (no progress).
+// 91.60%: COMPILES (parked body below). The `nextTimer` local is worth +8.2 (it
+// stops gcc folding 0x10 into the branch). Left: the callback block only. Retail's
+// instruction order is already reproduced exactly; the two stores go through $s0
+// while the call's `move $a0,$s0` sits earlier in the block, so gcc's cse is free to
+// forward the copy into them (`sw v1,136(a0)`, `sb v0,131(a0)`).
+// Tried: a `u8 flags` temp, the whole block in do{...}while(0) (55.56 - it also stops
+// the arg setup being hoisted), both store orders, a second `pEffect` alias of the
+// parameter (this round: it closed func_800BDB74 but cse drops it here, since the
+// stores and the call use the same value with nothing else live), u8 pointer, offset
+// casts, a callback local, indexed forms, and a 3-min permuter run (no progress).
 /*
 void func_800BDC14(Misc32Task *pTask) {
     s32 nextTimer;
