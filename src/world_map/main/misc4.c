@@ -508,14 +508,6 @@ s32 WorldMapInitActorAtScrollPositionWithSound(s32 index) {
     return 1;
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_80079778);
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_8007A06C);
-/* 99.85%: only the loop-pointer bias differs. gcc makes the loop pointer
-   pSrc + 7, retail holds pSrc + 6, so every displacement is off by one
-   (sb -4/-3/-2/-1/0, sh 7/15 vs -3/-2/-1/0/1, sh 8/16 -> 8 insns). Same class
-   as misc6 func_8007EBBC (pPrim + 7 vs + 6). Store order in the body does move
-   the schedule (9/128/128/128 first = 83.3%, 128/9/.../128/128 = 90.7%, this
-   one is best); what does NOT move the bias: struct-typed pointer, index form,
-   u8 offsets, loop pointer declared separately.
 void func_8007A06C(s32 arg0, u8 *pDst, s32 count) {
     s32 i;
 
@@ -526,13 +518,12 @@ void func_8007A06C(s32 arg0, u8 *pDst, s32 count) {
         *(u16 *)(pDst + 0xE) = GetClut(0x100, 0x1FF);
         pDst[4] = 0x80;
         pDst[5] = 0x80;
-        pDst[6] = 0x80;
         pDst[7] |= 2;
+        pDst[6] = 0x80;
         pDst += 0x28;
     }
     memcpy(*(u8 **)(arg0 + 0x4C), *(u8 **)(arg0 + 0x48), count * 0x28);
 }
-*/
 
 s32 WorldMapSetupGroup14And15Prims(s32 index) {
     WorldMapActor *p;
