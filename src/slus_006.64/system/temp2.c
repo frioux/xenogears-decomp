@@ -100,9 +100,10 @@ typedef struct {
 // object is the two per-context list heads, so address it through a cast.
 #define g_GfxSpriteTileLists ((LinkedListEntry**)&D_80059300)
 
-// This function is in another TU than func_80024F64 due to GP Rel variables
 // g_GfxWorkBuffers and the g_GfxWorkBuffer2 that follows it are the two
-// per-context buffer bases, reached as one array through the symbol's address.
+// per-context buffer bases, reached as one array through the symbol's address:
+// indexing the symbol is what makes maspsx emit %hi/%lo rather than %gp_rel.
+// D_80059524 is a tentative definition so maspsx emits %gp_rel for it.
 s32 D_80059524;
 
 void func_800250E0(int context) {
