@@ -76,22 +76,14 @@ void MenuFitInventoryWindowToItems(void) {
 }
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DBE54);
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DC1D4);
-/* Best: 98.31%, 252 bytes (retail's size). The dispatch tree retail uses needs the
-   switch operand to be a u8 VARIABLE: `switch (arg0 & 0xFF)` makes gcc 2.6.0 emit a
-   flat compare chain (91.94%), `u8 mode = arg0; switch (mode)` gives retail's
-   beq 1 / slti 2 / beqz / beqz 0 tree. The only remaining delta is one instruction:
-   the u8 local costs `move v0,s2` before `andi v1,v0,0xff`, where retail masks s2
-   in place (so both would be the same bytes). Not tried: an s32 local switched as
-   `(u8)mode`, a u_char parameter (drops retail's trailing andi a1,s2,0xff instead).
-void func_801DC1D4(u32 arg0) {
+
+void func_801DC1D4(u_char arg0) {
     s32 kind;
     s32 index = 0;
-    u8 mode = arg0;
 
     g_Menu->unk430 = HeapAlloc(0x1094, 0);
     bzero(g_Menu->unk430, 0x1094);
-    switch (mode) {
+    switch (arg0) {
     case 0:
         kind = 2;
         break;
@@ -106,9 +98,8 @@ void func_801DC1D4(u32 arg0) {
     MenuLoadStringsFromIds(8, g_Menu->unk10E0, &D_801EA548[index * 8], g_Menu->pManager->unk38);
     func_801C72BC((u8)kind);
     MenuSetupPointerCursors(2);
-    func_801D3488(2, arg0 & 0xFF);
+    func_801D3488(2, arg0);
 }
-*/
 
 void MenuFreeUnk430Panel(u_char arg0) {
     s32 kind;
