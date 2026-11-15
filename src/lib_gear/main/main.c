@@ -660,7 +660,7 @@ s32 func_801DF7F4(Temp4* pList, ModelJoint* pSkeleton, KeyframeBlock* pBlock, s3
     }
 
     frame = pBlock->unk2;
-    if (flag1 == 0) {
+    if (!flag1) {
         frame--;
     }
 
@@ -738,30 +738,31 @@ s32 func_801DF7F4(Temp4* pList, ModelJoint* pSkeleton, KeyframeBlock* pBlock, s3
 */
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801DF7F4);
 
-// objdiff 75.14%. The instruction shapes of the whole 242-insn body are right:
-// the two 6-byte-stride channels, the 0xFFFF merge into the else arm (the
-// unk3==0xFF goto lands on the same code), blockFlags&1 / i!=0 / rotFrame<
-// numRotFrames guards, pObject fill order (unk0,unk1,unk3,unk2,unk10,unk12,
-// unk4=unk8=pVertexBase+pKeyframe[0]) and the 6-byte pKeyframe stride.
-// Remaining delta is allocation only: the original keeps flag1 in $fp and the
-// constant 1 in $a1 (spilled to 0x48(sp) around the two LibGearAllocJointObject calls),
-// and reads the u8 `type` argument straight from its home slot 0x88(sp) each
-// use; gcc here spills flag1 to a slot and copies `type` into a slot at entry,
-// which costs the register that the other value needs. Also unmatched: the
-// original spills `(u8*)&pKeyframe[2]` (addiu t0,s2,4 at the loop top, reloaded
-// for both channels) where gcc uses 4(s2)/5(s2) immediates; and it allocates
-// pSkeleton to s1 and pBlock to s2, ours is swapped. Declaration reordering
-// (flag1 first) dropped the score to 75.10%.
-// Screened: 75.14 best (2.6.0), 74.89 under 2.7.2-cdk - not a preset problem.
-// Re-measured: 1016 bytes against retail's 968, so the body is 12 instructions
-// too big and this is NOT an allocator tie: ours needs a 0x40 stack slot for
-// flag1 (andi a3,a3,1; sw a3,64(sp) at entry, lw t0,64(sp) at each use), saves
-// s2 twice, and re-forms pVertexBase + pKeyframe[0] in a block the original
-// reaches with one addu. Fixing it means finding the source shape that keeps
-// every value in retail's 8 saved registers (s1=pSkeleton, s2=pBlock,
-// s3=i, s4=transFrame, s5=rotFrame, s6=blockFlags, s7=pVertexBase, fp=flag1)
-// with the rotating constant 1 left in a1 and the u8 fifth argument read
-// straight out of its home slot 0x88(sp).
+// objdiff 79.40%, 996 bytes against retail's 968. Every one of retail's 242
+// instructions is reproduced in order -- the two 6-byte-stride channels, the
+// 0xFFFF merge into the else arm (the unk3==0xFF goto lands on the same code),
+// the blockFlags&1 / i!=0 / rotFrame<numRotFrames guards, the pObject fill order
+// (unk0,unk1,unk3,unk2,unk10,unk12,unk4,unk8 with one pVertex temp so the two
+// stores keep retail's order), the 6-byte pKeyframe stride and the joint+0x74
+// base. What is left is ONE allocator decision that cascades:
+//   retail: s0=pData s1=pJoint s2=pKeyframe s3=i s4=transFrame s5=rotFrame
+//           s6=blockFlags s7=pVertexBase fp=flag1, the hoisted constant 1 in
+//           a1 with a caller-save (sw/lw 0x48(sp)) around both
+//           LibGearAllocJointObject calls, u8 `type` read straight from its
+//           home slot 0x88(sp), and a per-iteration u8* pFrameData spilled to
+//           0x18(sp) (addiu s2+4 / sw / two lw).
+//   gcc 2.6.0 here: puts the hoisted 1 in a callee-saved reg (s7, no saves),
+//           pVertexBase in fp, and spills flag1 (u8, 0x40(sp)) and `type`
+//           (0x18(sp), one lbu home + one sb). Same frame size 0x78, same slot
+//           map, but 8 registers instead of 9 long-lived and the stores pay a
+//           load each.
+// Tried and measured, none of it changes the assignment: flag1 s32 (75.14) /
+// u8 (79.38) / u32, flag1 = flags; flag1 &= 1;  (gcc folds it back to one
+// andi), if (!flag1), flag1 declared first, a pFrameData local at the loop top
+// (frame grows to 0x80), the chained unk4=unk8 assignment (stores 8 before 4,
+// so the pVertex temp is required). A 4-minute permuter run (1754 iterations,
+// base 5790) reached 5260 and found only new_var splits -- no structural win.
+// Screened earlier: 74.89 under 2.7.2-cdk, so not a preset problem.
 /*
 s32 func_801DFAC4(Temp4* pList, ModelJoint* pSkeleton, KeyframeBlock* pBlock, s32 flags, u8 type) {
     u16 numRotFrames;
@@ -771,10 +772,11 @@ s32 func_801DFAC4(Temp4* pList, ModelJoint* pSkeleton, KeyframeBlock* pBlock, s3
     u16 rotFrame;
     u16 transFrame;
     u16 blockFlags;
-    s32 flag1;
+    u8 flag1;
     u16* pKeyframe;
     u16* pData;
     u8* pVertexBase;
+    u32 pVertex;
     Temp3* pObject;
     ModelJoint* pJoint;
     s32 i;
@@ -839,7 +841,9 @@ s32 func_801DFAC4(Temp4* pList, ModelJoint* pSkeleton, KeyframeBlock* pBlock, s3
                 pObject->unk2 = ((u8*)&pKeyframe[2])[0];
                 pObject->unk10 = 0;
                 pObject->unk12 = frame;
-                *(u32*)&pObject->unk4 = *(u32*)&pObject->unk8 = (u32)(pVertexBase + pKeyframe[0]);
+                pVertex = (u32)(pVertexBase + pKeyframe[0]);
+                *(u32*)&pObject->unk4 = pVertex;
+                *(u32*)&pObject->unk8 = pVertex;
                 pJoint->unk70 = (u32)pObject;
             }
         } else {
@@ -877,7 +881,9 @@ s32 func_801DFAC4(Temp4* pList, ModelJoint* pSkeleton, KeyframeBlock* pBlock, s3
                 pObject->unk2 = ((u8*)&pKeyframe[2])[1];
                 pObject->unk10 = 0;
                 pObject->unk12 = frame;
-                *(u32*)&pObject->unk4 = *(u32*)&pObject->unk8 = (u32)(pVertexBase + pKeyframe[0]);
+                pVertex = (u32)(pVertexBase + pKeyframe[0]);
+                *(u32*)&pObject->unk4 = pVertex;
+                *(u32*)&pObject->unk8 = pVertex;
                 pJoint->unk74 = (u32)pObject;
             }
         } else {
