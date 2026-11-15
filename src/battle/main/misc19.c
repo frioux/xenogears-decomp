@@ -437,7 +437,7 @@ void func_8009AFD8(void) {
     case 19:
         idx = D_800C3E00[0x6F];
         if (g_GameState.gearPartsIds[0x6C + idx]) {
-            g_GameState.gearPartsIds[0x6C + idx]--;
+            g_GameState.gearPartsIds[0x6C + idx] = g_GameState.gearPartsIds[0x6C + idx] + 0xFF;
         }
         idx = D_800C3E00[0x72];
         break;
@@ -445,7 +445,7 @@ void func_8009AFD8(void) {
         return;
     }
     if (g_GameState.gearPartsIds[0x6C + idx]) {
-        g_GameState.gearPartsIds[0x6C + idx]--;
+        g_GameState.gearPartsIds[0x6C + idx] = g_GameState.gearPartsIds[0x6C + idx] + 0xFF;
     }
 }
 
