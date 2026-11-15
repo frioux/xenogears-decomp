@@ -2,6 +2,34 @@
 #include "psyq/libgpu.h"
 #include "libgear/main.h"
 
+// Partial view of the per-frame battle work block (D_800D2D28). The shared
+// include/battle/battle_work.h owns the type other units read; this view names
+// only the sub-image upload state this unit advances each frame.
+typedef struct {
+    /* 0x000 */ u8 unk0[0x30];
+    /* 0x030 */ u32 unk30; // source page index, advances 4 words per upload
+    /* 0x034 */ u8 unk34[0x75];
+    /* 0x0A9 */ u8 unkA9;
+    /* 0x0AA */ u8 unkAA;
+    /* 0x0AB */ u8 unkAB;
+    /* 0x0AC */ u8 unkAC[0x1E];
+    /* 0x0CA */ u8 unkCA;
+    /* 0x0CB */ u8 unkCB[0x4];
+    /* 0x0CF */ u8 unkCF;
+} BattleUploadState; // Size: 0xD0 (lower bound: other units reach 0xFC)
+
+// Partial view of the battle work block (D_800C3EA4): the sub-image descriptors
+// LoadImage uploads and the scroll BattleUpdateImageUpload animates.
+typedef struct {
+    /* 0x0000 */ u8 unk0[0x6410];
+    /* 0x6410 */ s32 unk6410; // sub-image scroll, steps by 4 between 0x7C and 0x81
+    /* 0x6414 */ u8 unk6414;
+    /* 0x6415 */ u8 unk6415;
+    /* 0x6416 */ u8 unk6416;
+    /* 0x6417 */ u8 unk6417[0x2539];
+    /* 0x8950 */ RECT uploadRect[4];
+} BattleUploadWork; // Size: 0x8970 (lower bound: other units reach 0xA2C8)
+
 extern u16 D_800C3468[];
 extern u16 D_800C3448[];
 extern u8 D_800C3E4C;
@@ -43,8 +71,8 @@ extern void func_8008A3EC(u8 arg0);
 extern void BattleUpdateImageUpload(u8 arg0);
 extern void func_8008A684(u8 arg0);
 extern int rand(void);
-extern u8 *D_800C3EA4;
-extern u8 *D_800D2D28;
+extern BattleUploadWork *D_800C3EA4;
+extern BattleUploadState *D_800D2D28;
 extern u8 D_800C3444;
 extern u8 *D_800D3278;
 extern u8 D_800C48EA;
@@ -353,21 +381,21 @@ void BattleUploadImageFrame(void) {
     s32 vramOffset0;
     s32 vramOffset1;
     s32 vramOffset2;
-    D_800D2D28[0xAA] += 1;
-    if ((D_800D2D28[0xAA] & 1) == 0) {
+    D_800D2D28->unkAA += 1;
+    if ((D_800D2D28->unkAA & 1) == 0) {
         return;
     }
     vramOffset0 = 0x8970;
-    LoadImage((RECT*)(D_800C3EA4 + 0x8950), (u_long*)(*(u32*)(D_800D2D28 + 0x30) * 4 + vramOffset0 + (s32)D_800C3EA4));
+    LoadImage(&D_800C3EA4->uploadRect[0], (u_long*)(D_800D2D28->unk30 * 4 + vramOffset0 + (s32)D_800C3EA4));
     vramOffset1 = 0x8FA0;
-    LoadImage((RECT*)(D_800C3EA4 + 0x8958), (u_long*)(*(u32*)(D_800D2D28 + 0x30) * 4 + vramOffset1 + (s32)D_800C3EA4));
+    LoadImage(&D_800C3EA4->uploadRect[1], (u_long*)(D_800D2D28->unk30 * 4 + vramOffset1 + (s32)D_800C3EA4));
     vramOffset2 = 0x95D0;
-    LoadImage((RECT*)(D_800C3EA4 + 0x8960), (u_long*)(*(u32*)(D_800D2D28 + 0x30) * 4 + vramOffset2 + (s32)D_800C3EA4));
+    LoadImage(&D_800C3EA4->uploadRect[2], (u_long*)(D_800D2D28->unk30 * 4 + vramOffset2 + (s32)D_800C3EA4));
     vramOffset3 = 0x9C00;
-    LoadImage((RECT*)(D_800C3EA4 + 0x8968), (u_long*)(*(u32*)(D_800D2D28 + 0x30) * 4 + vramOffset3 + (s32)D_800C3EA4));
-    *(u32*)(D_800D2D28 + 0x30) += 4;
-    if (*(u32*)(D_800D2D28 + 0x30) >= 0xC7) {
-        *(u32*)(D_800D2D28 + 0x30) = 0;
+    LoadImage(&D_800C3EA4->uploadRect[3], (u_long*)(D_800D2D28->unk30 * 4 + vramOffset3 + (s32)D_800C3EA4));
+    D_800D2D28->unk30 += 4;
+    if (D_800D2D28->unk30 >= 0xC7) {
+        D_800D2D28->unk30 = 0;
     }
 }
 void BattleUpdateImageUpload(u8 arg0) {
@@ -377,20 +405,20 @@ void BattleUpdateImageUpload(u8 arg0) {
     if (arg0 == 0) {
         func_80089CCC(0);
     }
-    D_800D2D28[0xA9] += 6;
-    D_800D2D28[0xAB] += 1;
-    if (D_800C3EA4[0x6415] != 0) {
-        if (D_800C3EA4[0x6416] == 0) {
-            *(s32*)(D_800C3EA4 + 0x6410) += 4;
-            if (*(s32*)(D_800C3EA4 + 0x6410) >= 0x81) {
-                *(s32*)(D_800C3EA4 + 0x6410) = 0x7C;
-                D_800C3EA4[0x6416] = 1;
+    D_800D2D28->unkA9 += 6;
+    D_800D2D28->unkAB += 1;
+    if (D_800C3EA4->unk6415 != 0) {
+        if (D_800C3EA4->unk6416 == 0) {
+            D_800C3EA4->unk6410 += 4;
+            if (D_800C3EA4->unk6410 >= 0x81) {
+                D_800C3EA4->unk6410 = 0x7C;
+                D_800C3EA4->unk6416 = 1;
             }
         } else {
-            *(s32*)(D_800C3EA4 + 0x6410) -= 4;
-            if (*(s32*)(D_800C3EA4 + 0x6410) < 0) {
-                *(s32*)(D_800C3EA4 + 0x6410) = 4;
-                D_800C3EA4[0x6416] = 0;
+            D_800C3EA4->unk6410 -= 4;
+            if (D_800C3EA4->unk6410 < 0) {
+                D_800C3EA4->unk6410 = 4;
+                D_800C3EA4->unk6416 = 0;
             }
         }
     }
@@ -455,7 +483,7 @@ void func_8008A3EC(u8 arg0) {
     } while (waiting != 0);
 
     BattleUploadImageFrame();
-    if (D_800D2D28[0xCA] != 0) {
+    if (D_800D2D28->unkCA != 0) {
         pSlot = (BattlePrimPoolSlot *)D_800D3278;
         for (i = 0; i < 0x10; i++) {
             if (pSlot[i].unk28 != 0) {
@@ -468,7 +496,7 @@ void func_8008A3EC(u8 arg0) {
 
     muted = 1;
     do {
-        if (D_800D2D28[0xCF] == 0) {
+        if (D_800D2D28->unkCF == 0) {
             D_800D3014 = 0xFF;
         }
         if (ControllerIsStateStackFull() != 0) {
