@@ -95,6 +95,11 @@ void BattleFreeEffectSpriteTask(BattleEffectTask *pTask) {
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BD098);
 extern s32 D_800C360C;
+extern void *D_800C3E1C;
+extern s32 D_800C3D38;
+extern s32 D_800D3630;
+extern void func_800BD3AC(void *pSprite, u16 arg1, u8 arg2);
+extern void func_800BD1FC(s32 slot);
 
 // best 91.07%: the instruction multiset and the frame are retail's; what is left
 // is register choice and statement order. Retail loads the call's last argument
@@ -106,6 +111,8 @@ extern s32 D_800C360C;
 // Realistic form: the row is a 0x48-byte record of four 11-entry arrays (u16 at
 // +0x138, u8 at +0x150, u16 at +0x15C, u8 at +0x174 - the block misc12 reaches as
 // D_800C3FE8[]), indexed by D_800C360C - 1; a slot's sprite is at +0x8C8C.
+// 91.07%: COMPILES (externs added: D_800C3D38, D_800D3630, D_800C3E1C,
+// func_800BD3AC prototype). Register tie + $a1 vs $v0 in the tail's row sum.
 /*
 void func_800BD1FC(s32 slot) {
     u8 *pBase;
@@ -137,8 +144,7 @@ void func_800BD1FC(s32 slot) {
     func_800BD3AC(pSprite, *(u16 *)(pHalf + 0x138), kind);
     pRow = pBase + (D_800C360C - 1) * 0x48;
     *(u16 *)(offset + pRow + 0x138) = 0xFFFF;
-}
-*/
+}*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BD1FC);
 
 // best 94.66%: only two differences. (1) Retail re-forms `lui v0,%hi(D_800C360C)`
@@ -149,6 +155,9 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BD1FC);
 // `addu v0,v0,s3` with pBase in $s3; ours is the same sum with pBase in $s4.
 // Everything else, including the `li 0x8C8C` in the compare's delay slot and the
 // row store order, is exact.
+// 94.66%: COMPILES (needs D_800C3E1C + the func_800BD1FC prototype). The only
+// difference is the one in the note below: gcc hoists %hi(D_800C360C) into $s3
+// (+$s4 for pBase, frame 0x2C) where retail re-forms it per iteration (frame 0x28).
 /*
 void func_800BD2E4(void) {
     u8 *pSlot;
@@ -176,48 +185,51 @@ void func_800BD2E4(void) {
         pSlot += 4;
         i++;
     }
-}
-*/
+}*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BD2E4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BD3AC);
-extern u8 *D_800C3750;
+// An entry of the work list D_800C3750 heads (the onFreeCallback list): only the
+// next link is used by this unit.
+typedef struct Misc32TaskNode {
+    /* 0x00 */ u8 unk0[0x38];
+    /* 0x38 */ struct Misc32TaskNode *pNext;
+} Misc32TaskNode; // Size: 0x3C
+
+extern Misc32TaskNode *D_800C3750;
 extern void WorkListsDeleteTasks(void);
 
-// best 91.96% (permuter base 86.25; two rounds of edits, both worth having:
-// the head symbol goes into a local `pHead` that pCur copies, and the pPrev test
-// goes through a short `hasPrev`, plus the do-while that re-assigns pCur before the
-// if-branch load). Instruction multiset is identical; what is left is register and
-// slot assignment: retail zeroes $v1 (pPrev) before it loads the head into $v0 and
-// copies the pEntry parameter to $a1 (`move $a1,$a0`) so the compare is on the copy.
-// gcc loads the head first, keeps pCur in $v0 and compares against $a0. Ordering
-// pPrev=NULL ahead of the head load drops it back to 89.82.
+// best 95.36%: COMPILES. The body below is the retail algorithm (the old park
+// compared the head instead of the moving pointer) and the instruction multiset is
+// retail's; only the register tie differs. Retail copies the parameter to $a1
+// (`move $a1,$a0`) and compares the moving pointer against it, which pushes the
+// %hi of D_800C3750 to $a2 and puts `move $v1,zero` before the head load. gcc keeps
+// the parameter in $a0, the %hi in $a1, and loads the head first.
+// Tried: pTarget/pHead/`register` locals (coalesced away), a short `hasPrev`, the
+// do-while form, swapped compare operands (95.18), the old pHead spelling (91.96).
+// 95.36%: COMPILES. Only the register tie differs - see the block below.
 /*
-void func_800BD7A0(u8 *pEntry) {
-    u8 *pCur;
-    u8 *pPrev;
-    u8 *pHead;
-    short hasPrev;
+void func_800BD7A0(Misc32TaskNode *pEntry) {
+    Misc32TaskNode *pCur;
+    Misc32TaskNode *pPrev;
 
-    pHead = D_800C3750;
     pPrev = NULL;
-    pCur = pHead;
+    pCur = D_800C3750;
     while (pCur != NULL) {
-        if (pHead == pEntry) {
-            hasPrev = pPrev != NULL;
-            if (hasPrev) {
-                do { *(u8 **)(pPrev + 0x38) = *(u8 **)((pCur = pHead) + 0x38); } while (0);
+        if (pCur == pEntry) {
+            if (pPrev != NULL) {
+                pPrev->pNext = pCur->pNext;
             } else {
-                D_800C3750 = *(u8 **)(pCur + 0x38);
+                D_800C3750 = pCur->pNext;
             }
             break;
         }
         pPrev = pCur;
-        pCur = *(u8 **)(pCur + 0x38);
+        pCur = pCur->pNext;
     }
     WorkListsDeleteTasks();
-}
-*/
+}*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BD7A0);
+
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BD810);
 
 void func_800BD974(SVECTOR *pVec, s32 *pOut) {
@@ -235,30 +247,24 @@ void func_800BD974(SVECTOR *pVec, s32 *pOut) {
     pOut[0] = (sxy[0] - ofx) * 2;
     pOut[1] = (sxy[1] - ofy) * 2;
     pOut[2] = ReadGeomScreen();
-}
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BDA1C);
-/* best 89.20%: three families of difference left.
-   1. gcc 2.7.2 folds the geom-state store into one address (`lui; addiu %lo+0x1C`)
-      or, through a pointer local, into `$at`; retail keeps the plain base symbol
-      in $s0 and stores with `sw $v0,0x1C($s0)`, reusing $s0 for CompMatrix.
-      Tried: a struct type on the extern, `u8 D_800C3760[]` + offset, a
-      BattleGeomState* and a MATRIX* local (`&pGeom->t[2]`): 77.95 at worst.
-   2. retail loads the three SVECTOR halves with `lh`, gcc with `lhu`.
-   3. retail's `i = 0` lands after the ShadeTriangle-free prologue block, gcc
-      hoists it to the ReadGeomScreen delay slot.
-   Everything else (matrix chain, the 0x18-stride loop, frame) is exact.
-   Under gcc-2.7.2-cdk this body is 96.95 (against 89.20 on the unit
-   preset), and -G0 changes nothing: the rest is the three items above.
+}*/
+// Retail writes the current geom screen through the matrix block, so the block is
+// typed as a MATRIX with its tail field named.
 typedef struct {
-    // 0x00
-    u8 unk0[0x1C];
-    // 0x1C
-    s32 geomScreen;
+    /* 0x00 */ u8 unk0[0x1C];
+    /* 0x1C */ s32 geomScreen;
 } BattleGeomState;
 
 extern BattleGeomState D_800C3760;
 extern void func_800BD810(u8 *pEntry, u8 *pData);
 
+// 96.95% under this unit's cdk preset (89.20 on 2.7.2). Left: (1) retail keeps the
+// D_800C3760 base in $s0 and stores `sw $v0,0x1C($s0)`, reusing $s0 for CompMatrix;
+// gcc folds the store into one address or goes through $at. (2) retail loads the
+// three SVECTOR halves with `lh`, gcc with `lhu`. (3) retail's `i = 0` lands after
+// the ReadGeomScreen block, gcc hoists it into the delay slot. The declarations
+// above must stay LIVE for this body to build (they used to sit inside the block).
+/*
 void func_800BDA1C(u8 *pTask) {
     u8 *pData;
     MATRIX mtx;
@@ -288,7 +294,7 @@ void func_800BDA1C(u8 *pTask) {
     }
 }
 */
-
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BDA1C);
 // A battle effect driven by the timer work list. Both work-list entries sit inside
 // the task allocation: the timer entry at 0x0 (TimerWorkListSetTaskCallback and
 // TimerWorkListRemoveTask take the task pointer itself) and the render entry at
@@ -330,58 +336,56 @@ void BattleStepEffectColorFade(Misc32Task *pTask) {
     }
 }
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BDB74);
-/* best 90.50%: only the callback argument's register is left. Retail copies the
-   task into $s1 (`move $s1,$s0`) and reaches the callback through it - `lw $v0,
-   0xC($s1)`, `move $a0,$s1` - while gcc uses $s0 for both. gcc 2.7.2 refuses to
-   keep a second copy: an `u8 *pEntry = pTask` local used only in the `if` gets
-   coalesced away. gcc-2.7.2-cdk scores the same 90.50, so this one is not a
-   preset problem either.
-   The two `volatile` reads ARE needed: without them cse forwards call 1's stored
-   result into call 2's argument (`andi $a0,$v0,0xff`, with the store deferred
-   into the next call's delay slot) and the score drops to 86.00; retail reloads
-   the byte. With them the instruction multiset is identical.
 extern u8 SpriteColorAddClamp(u8 arg0, s16 arg1);
 
-void func_800BDB74(u8 *pTask) {
-    void (*pCallback)(u8 *);
+// 90.50%: COMPILES (the body is now the realistic Misc32Task form). Only the
+// callback argument's register is left: retail keeps a second copy of the task in
+// $s1 (`move $s1,$s0`, 0x20 frame) and reaches the callback through it, gcc uses
+// $s0 for both (0x18 frame). A pOwner/u8* copy local is coalesced away; cdk and
+// 2.7.2 both score 90.50. The two volatile re-reads are required: without them cse
+// forwards call 1's stored result into call 2's argument (86.00).
+/*
+void func_800BDB74(Misc32Task *pTask) {
+    WorkListCallback_t pCallback;
 
     func_800BDF1C(pTask);
-    pTask[0x80] = SpriteColorAddClamp(pTask[0x80], -8);
-    pTask[0x81] = SpriteColorAddClamp(*(volatile u8 *)(pTask + 0x80), -8);
-    pTask[0x82] = SpriteColorAddClamp(*(volatile u8 *)(pTask + 0x80), -8);
-    if (--*(s32 *)(pTask + 0x88) < 0 || (pTask[0x80] | pTask[0x81] | pTask[0x82]) == 0) {
-        pCallback = *(void (**)(u8 *))(pTask + 0xC);
+    pTask->unk80[0] = SpriteColorAddClamp(pTask->unk80[0], -8);
+    // the volatile re-reads are required: without them cse forwards the previous
+    // call's stored result into the next call's argument
+    pTask->unk80[1] = SpriteColorAddClamp(*(volatile u8 *)&pTask->unk80[0], -8);
+    pTask->unk80[2] = SpriteColorAddClamp(*(volatile u8 *)&pTask->unk80[0], -8);
+    if (--pTask->timer < 0 || (pTask->unk80[0] | pTask->unk80[1] | pTask->unk80[2]) == 0) {
+        pCallback = pTask->timerEntry.onFreeCallback;
         pCallback(pTask);
     }
-}
-*/
+}*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BDB74);
+
 extern void TimerWorkListSetTaskCallback(Misc32Task *pTask, void (*pCallback)(Misc32Task *));
 extern void func_800BDB74(Misc32Task *pTask);
 
-// best 91.60% (permuter base 83.40; the one edit worth +8.2 was assigning 0x10
-// to a local before the `if`, so gcc stops folding it into the branch).
-// Left: the callback block. Retail does `move $4,$16` at the jal and keeps the two
-// stores on $s0; gcc hoists the copy into the bgez delay slot and stores through $4
-// (`sw v1,136(a0)`). Tried: u8 pointer, struct task pointer, offset casts, a task
-// copy, a callback local, indexed and offset forms - all give $4. A 3-min permuter
-// run from this body made no progress (427 iterations, 70 -> 70).
-// The body below still names the old Misc32Task fields: the countdown is now
-// pTask->timer and the flags byte pTask->unk83.
+// 91.60%: COMPILES (the body below is now the current Misc32Task form). The
+// `nextTimer` local is worth +8.2 (it stops gcc folding 0x10 into the branch).
+// Left: the callback block. Retail does `move $4,$16` at the jal (after the lui for
+// the callback address) and keeps the two stores on $s0; gcc hoists the copy to the
+// bgez delay slot and stores through $4 (`sw v1,136(a0)`, `sb v0,131(a0)`).
+// Tried this round: a `u8 flags` temp, the whole block in do{...}while(0) (84.76),
+// both store orders - all still $4. Older rounds tried u8 pointer, offset casts, a
+// task copy, a callback local, indexed forms and a 3-min permuter run (no progress).
 /*
 void func_800BDC14(Misc32Task *pTask) {
-    s32 nextUnk88;
+    s32 nextTimer;
 
-    func_800BDF1C((u8 *)pTask);
-    nextUnk88 = 0x10;
-    if (--pTask->unk88 < 0) {
-        pTask->unk88 = nextUnk88;
+    func_800BDF1C(pTask);
+    nextTimer = 0x10;
+    if (--pTask->timer < 0) {
+        pTask->timer = nextTimer;
         pTask->unk83 = (pTask->unk83 | 2) & 0xFE;
         TimerWorkListSetTaskCallback(pTask, func_800BDB74);
     }
-}
-*/
+}*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BDC14);
+
 extern void func_800BDC14(Misc32Task *pTask);
 
 void BattleStepEffectPosition(Misc32Task *pTask) {
