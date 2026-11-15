@@ -341,25 +341,6 @@ extern u8 D_800D3314[];
 extern u8 D_800D3316[];
 extern u8 D_800D3330[];
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A44C0);
-/* 99.46% (404 bytes, identical instruction multiset): prologue, frame, loop, GTE
-   block and both branches are exact; the only difference is the four-insn
-   CompMatrix argument setup - original keeps pMat in $v1 and the n*124 chain in
-   $a1 (lw v1 / lh v0 / addiu a0,v1 / sll a1,v0), ours puts pMat in $a1 and the
-   chain in $v0.
-   Split finding: typing the part makes the register rotation exact but flips the
-   final address add. With
-     BattleMisc22Part *pPart = (BattleMisc22Part *)*(void **)(pEntry + 4);
-     CompMatrix(&pPart->matrix, &pPart->sprites[*(s16 *)(D_800D3316 + i)], pMatrix);
-   (matrix at 0xC, BattleMisc22Spr sprites[] at 0xA8) every register matches
-   retail (lw v1 / lh v0 / sll a1,v0), but gcc then emits
-   'addiu a1,a1,0xA8' BEFORE 'addu a1,v1,a1' where retail adds the base first and
-   leaves the constant addiu in the jal delay slot: 95.94%. The untyped
-   'pMat + idx*124 + 0xA8' below has retail's add order and the wrong registers.
-   Whoever retries: keep the typed struct and find the source shape that stops gcc
-   reassociating (pPart + 0xA8) + chain into pPart + (0xA8 + chain).
-   Tried: s16 and s32 index locals, both operand orders, a prepass offset local,
-   'pPart->sprites + idx', raw (u8 *)pPart arithmetic with the typed first arg.
 void func_800A44C0(u8 **pArg) {
     u16 *pZ;
     u16 *pY;
@@ -382,7 +363,7 @@ void func_800A44C0(u8 **pArg) {
                 s32 offset = *(s16 *)(D_800D3316 + i) * 124;
                 s32 vec[4];
 
-                CompMatrix(pMat + 0xC, pMat + offset + 0xA8, pMatrix);
+                CompMatrix(pMat + 0xC, *(u8 **)(pEntry + 4) + offset + 0xA8, pMatrix);
                 SetRotMatrix(pMatrix);
                 SetTransMatrix(pMatrix);
                 gte_ldv0((SVECTOR *)(i + D_800D330C));
@@ -403,7 +384,6 @@ void func_800A44C0(u8 **pArg) {
         i += 0x14;
     } while ((s32)pZ < (s32)D_800D3330);
 }
-*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A4654);
 void BattleFreeSceneResources(void) {
     s32 i;
