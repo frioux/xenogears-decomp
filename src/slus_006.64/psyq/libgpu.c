@@ -71,7 +71,6 @@ extern GpuSysFuncs D_80056888; // the driver table D_800568C8 points at
 extern u_int D_80056950[];     // draw-mode table: clip width/height per mode
 extern u_int D_80056964[];     // draw-mode table: VRAM height per mode
 
-extern void func_8004463C(char *name, RECT *rect);
 extern void GPU_cw(u_long value);
 extern u_char func_80046C58(int mode);
 extern void func_8004574C(DR_ENV *pDrEnv, DRAWENV *pEnv);
@@ -299,7 +298,7 @@ void SetDrawMove(DR_MOVE *p, RECT *rect, int x, int y) {
     *(u_long*)&p->code[4] = *(u_long*)&rect->w;
 }
 
-void func_80043EAC(DR_LOAD *p, RECT *rect) {
+void SetDrawLoad(DR_LOAD *p, RECT *rect) {
     u_int len = (rect->w * rect->h + 1) / 2;
     u_int nLen = len + 4;
 
@@ -313,14 +312,16 @@ void func_80043EAC(DR_LOAD *p, RECT *rect) {
     p->p[nLen - 4] = 0x01000000;
 }
 
-int func_80043F18(u_char *p0, u_char *p1) {
-    int len = p0[3] + p1[3] + 1;
+int MargePrim(void *p0, void *p1) {
+    u_char *pTag0 = p0;
+    u_char *pTag1 = p1;
+    int len = pTag0[3] + pTag1[3] + 1;
 
     if (len >= 0x11)
         return -1;
 
-    p0[3] = len;
-    *(u_long*)p1 = 0;
+    pTag0[3] = len;
+    *(u_long*)pTag1 = 0;
     return 0;
 }
 
@@ -415,7 +416,7 @@ int SetGraphDebug(int level) {
     return nPrev;
 }
 
-int func_8004440C(int que) {
+int SetGraphQue(int que) {
     u_char *pQue = &D_800568D1;
     int nPrev = *pQue;
 
@@ -470,7 +471,9 @@ int DrawSync(int mode) {
     return D_800568C8->unk3C(mode);
 }
 
-void func_8004463C(char *name, RECT *rect) {
+int CheckPrim(char *name, u_long *pRect) {
+    RECT *rect = (RECT*)pRect;
+
     switch (g_GraphDebugLevel) {
     case 1:
         if (rect->w > D_800568D4 || rect->w + rect->x > D_800568D4 ||
@@ -488,45 +491,46 @@ void func_8004463C(char *name, RECT *rect) {
 }
 
 int ClearImage(RECT *rect, u_char r, u_char g, u_char b) {
-    func_8004463C(D_80019180, rect);
+    CheckPrim(D_80019180, (u_long*)rect);
     return D_800568C8->unk08(D_800568C8->unk0C, rect, 8, (b << 16) | (g << 8) | r);
 }
 
 
 int ClearImage2(RECT *rect, u_char r, u_char g, u_char b) {
-    func_8004463C(D_80019180, rect);
+    CheckPrim(D_80019180, (u_long*)rect);
     return D_800568C8->unk08(D_800568C8->unk0C, rect, 8, 0x80000000 | (b << 16) | (g << 8) | r);
 }
 
 int LoadImage(RECT *rect, u_long *p) {
-    func_8004463C(D_8001918C, rect);
+    CheckPrim(D_8001918C, (u_long*)rect);
     return D_800568C8->unk08(D_800568C8->unk20, rect, 8, (u_long)p);
 }
 
 int StoreImage(RECT *rect, u_long *p) {
-    func_8004463C(D_80019198, rect);
+    CheckPrim(D_80019198, (u_long*)rect);
     return D_800568C8->unk08(D_800568C8->unk1C, rect, 8, (u_long)p);
 }
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu", MoveImage);
 
-/* best: 82.73% -- identical instruction multiset; aspsx 2.56 scheduled the block
-   (all three loads hoisted above the two stores, li a2,0x14 between them) and gcc
-   emits source order, so no C shape reproduces it.
+/* best: 95.69% -- one pair misplaced: retail loads D_800568C8 right after
+   "lw a0,0(s0)" and before "li a2,0x14", gcc emits it after "sw a0,0(a1)".
+   Writing the packet word before the D_80056984 store fixed the other four
+   slots; two permuter runs from this body found nothing (a local holding
+   &D_800568C8->unk18 only moved the loss onto the D_800568C8 load).
 int MoveImage(RECT *rect, int x, int y) {
     u_long *pPacket;
 
-    func_8004463C(D_800191A4, rect);
+    CheckPrim(D_800191A4, (u_long*)rect);
 
     if (rect->w == 0 || rect->h == 0)
         return -1;
 
     pPacket = &D_80056980;
-    D_80056984 = (y << 16) | (x & 0xFFFF);
     *pPacket = *(u_long*)&rect->x;
+    D_80056984 = (y << 16) | (x & 0xFFFF);
     D_80056988 = *(u_long*)&rect->w;
-    pPacket -= 2;
-    return D_800568C8->unk08(D_800568C8->unk18, pPacket, 0x14, 0);
+    return D_800568C8->unk08(D_800568C8->unk18, pPacket - 2, 0x14, 0);
 }
 */
 
