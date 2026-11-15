@@ -5,6 +5,22 @@
 #include "system/menu.h"
 
 void MenuParseNumberToDigits(u32 number);
+
+// A window's tween state, one per window: &((MenuWindowTween*)g_Menu->unk0)[index].
+typedef struct {
+    /* 0x00 */ s32 unk0;
+    /* 0x04 */ s32 unk4;
+    /* 0x08 */ s32 unk8;
+    /* 0x0C */ s32 unkC;
+    /* 0x10 */ s32 unk10;
+    /* 0x14 */ s32 unk14;
+    /* 0x18 */ s32 unk18; // x, in 8.8 fixed point
+    /* 0x1C */ s32 unk1C; // y, in 8.8 fixed point
+    /* 0x20 */ u8 unk20;
+    /* 0x21 */ u8 unk21;
+    /* 0x22 */ u8 unk22;
+    /* 0x23 */ u8 unk23;
+} MenuWindowTween; // Size: 0x24
 void func_801D3C4C(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4);
 void MenuInitializeWindowBorderCorners(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4);
 void func_801D3FF8(u_char a0, u_short a1, u_short a2, u_short a3);
@@ -308,30 +324,31 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D49D0);
        }
    }
 */
-void MenuSetWindow(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4, u_char a5, s32 a6, u_char a7) {
-    MenuWindow* pWindow = g_Menu->windows[a0];
+void MenuSetWindow(u_char index, u_short x, u_short y, u_short width, u_short height,
+                   u_char unk714, s32 zIndex, u_char hasScrollBar) {
+    MenuWindow* pWindow = g_Menu->windows[index];
 
-    g_Menu->pManager->shouldRenderWindow[a0] = 0;
-    MenuSetQuadVertices(pWindow->vertsBackground, a1, a2, a3, a4);
-    MenuInitializeWindowBorderCorners(a0, a1, a2, a3, a4);
-    func_801D3FF8(a0, a1, a2, a3);
-    func_801D433C(a0, a1, a2, a3, a4);
-    func_801D4688(a0, a1, a2, a4);
-    func_801D49D0(a0, a1, a2, a3, a4);
-    if (a7 != 0) {
-        func_801D3C4C(a0, a1, a2, a3, a4);
+    g_Menu->pManager->shouldRenderWindow[index] = 0;
+    MenuSetQuadVertices(pWindow->vertsBackground, x, y, width, height);
+    MenuInitializeWindowBorderCorners(index, x, y, width, height);
+    func_801D3FF8(index, x, y, width);
+    func_801D433C(index, x, y, width, height);
+    func_801D4688(index, x, y, height);
+    func_801D49D0(index, x, y, width, height);
+    if (hasScrollBar != 0) {
+        func_801D3C4C(index, x, y, width, height);
     }
-    pWindow->hasScrollBar = a7;
-    pWindow->unk714 = a5;
-    pWindow->zIndex = a6;
+    pWindow->hasScrollBar = hasScrollBar;
+    pWindow->unk714 = unk714;
+    pWindow->zIndex = zIndex;
     pWindow->renderContext = *(u8*)&g_Menu->renderContext;
-    g_Menu->pManager->shouldRenderWindow[a0] = 1;
+    g_Menu->pManager->shouldRenderWindow[index] = 1;
 }
-void MenuFreeWindow(u_char a0) {
-    g_Menu->pManager->shouldRenderWindow[a0] = 0;
-    g_Menu->pManager->unk27[a0] = 0;
-    HeapFree(g_Menu->windows[a0]);
-    HeapFree(g_Menu->windowParameters[a0]);
+void MenuFreeWindow(u_char index) {
+    g_Menu->pManager->shouldRenderWindow[index] = 0;
+    g_Menu->pManager->unk27[index] = 0;
+    HeapFree(g_Menu->windows[index]);
+    HeapFree(g_Menu->windowParameters[index]);
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D4F2C);
 /* Best: 87.79%. Structure and every called function/prototype is right; what is
@@ -362,21 +379,20 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D4F2C);
                      (D_801EA578[a0] << 2) & 0xFC, D_801EA5C4[a0], 0x48, 0xD);
    }
 */
-void MenuSetCharacterWindowIcons(u_char a0, s32 a1, s32 a2) {
-    MenuCharacterWindow* pWindow;
+void MenuSetCharacterWindowIcons(u_char index, s32 x, s32 y) {
+    MenuCharacterWindow* pWindow = g_Menu->unk39C[index];
     s32 i;
 
-    pWindow = g_Menu->unk39C[a0];
     pWindow->iconsPrimCount = 0;
     for (i = 0; i < 0x14; i++) {
         if (D_801EA34C[i] != 0xFFFF) {
             pWindow->iconsPrimCount += func_8002675C(
                 g_Menu->resources,
                 D_801EA34C[i],
-                pWindow->polysIcons[pWindow->iconsPrimCount],
+                &pWindow->polysIcons[pWindow->iconsPrimCount * 2],
                 g_Menu->renderContext,
-                a1 + D_801E9A78[i],
-                a2 + D_801E9AC8[i],
+                x + D_801E9A78[i],
+                y + D_801E9AC8[i],
                 0x1000);
         }
     }
@@ -476,93 +492,91 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D53D0);
        }
    }
 */
-void MenuSetCharacterWideNumberDigits(u_char a0, u_char a1, s32 a2, s32 a3) {
-    u8* pWindow = (u8*)g_Menu->unk39C[a0];
+void MenuSetCharacterWideNumberDigits(u_char index, u_char characterId, s32 x, s32 y) {
+    MenuCharacterWindow* pWindow = g_Menu->unk39C[index];
     s32 i;
 
-    MenuParseNumberToDigits(*(s32*)((u8*)&g_GameState.characters[a1] + 0x44));
-    pWindow[0x1277] = 0;
+    MenuParseNumberToDigits(*(s32*)((u8*)&g_GameState.characters[characterId] + 0x44));
+    pWindow->wideNumberPrimCount = 0;
     for (i = 0; i < 7; i++) {
         if (g_Menu->digits[2 + i] != 0xFF) {
-            pWindow[0x1277] += func_8002675C(
+            pWindow->wideNumberPrimCount += func_8002675C(
                 g_Menu->resources, g_Menu->digits[2 + i],
-                (POLY_FT4*)((u8*)pWindow + (pWindow[0x1277] * 0x50 + 0xE10)),
-                g_Menu->renderContext, a2 + D_801E9B48 + i * 8,
-                a3 + D_801E9B4C, 0x1000);
+                &pWindow->polysWideNumber[pWindow->wideNumberPrimCount * 2],
+                g_Menu->renderContext, x + D_801E9B48 + i * 8,
+                y + D_801E9B4C, 0x1000);
         }
     }
-    MenuParseNumberToDigits(*(s32*)((u8*)&g_GameState.characters[a1] + 0x48));
-    pWindow[0x1278] = 0;
+    MenuParseNumberToDigits(*(s32*)((u8*)&g_GameState.characters[characterId] + 0x48));
+    pWindow->wideNumber2PrimCount = 0;
     for (i = 0; i < 7; i++) {
         if (g_Menu->digits[2 + i] != 0xFF) {
-            pWindow[0x1278] += func_8002675C(
+            pWindow->wideNumber2PrimCount += func_8002675C(
                 g_Menu->resources, g_Menu->digits[2 + i],
-                (POLY_FT4*)((u8*)pWindow + (pWindow[0x1278] * 0x50 + 0x1040)),
-                g_Menu->renderContext, a2 + D_801E9B50 + i * 8,
-                a3 + D_801E9B54, 0x1000);
+                &pWindow->polysWideNumber2[pWindow->wideNumber2PrimCount * 2],
+                g_Menu->renderContext, x + D_801E9B50 + i * 8,
+                y + D_801E9B54, 0x1000);
         }
     }
 }
-void MenuSetCharacterLevelDigits(u_char a0, u_char a1, s32 a2, s32 a3) {
-    u8* pWindow = (u8*)g_Menu->unk39C[a0];
+void MenuSetCharacterLevelDigits(u_char index, u_char characterId, s32 x, s32 y) {
+    MenuCharacterWindow* pWindow = g_Menu->unk39C[index];
     s32 i;
 
-    MenuParseNumberToDigits(g_GameState.characters[a1].level);
-    pWindow[0x1271] = 0;
+    MenuParseNumberToDigits(g_GameState.characters[characterId].level);
+    pWindow->levelPrimCount = 0;
     for (i = 0; i < 3; i++) {
         if (g_Menu->digits[6 + i] != 0xFF) {
-            pWindow[0x1271] += func_8002675C(
+            pWindow->levelPrimCount += func_8002675C(
                 g_Menu->resources, g_Menu->digits[6 + i],
-                (POLY_FT4*)((u8*)pWindow + (pWindow[0x1271] * 0x50 + 0x910)),
-                g_Menu->renderContext, a2 + D_801E9B18 + i * 8, a3 + D_801E9B1C,
+                &pWindow->polysLevel[pWindow->levelPrimCount * 2],
+                g_Menu->renderContext, x + D_801E9B18 + i * 8, y + D_801E9B1C,
                 0x1000);
         }
     }
-    MenuParseNumberToDigits(g_GameState.characters[a1].unk63);
-    pWindow[0x1272] = 0;
+    MenuParseNumberToDigits(g_GameState.characters[characterId].unk63);
+    pWindow->unk1272PrimCount = 0;
     for (i = 0; i < 3; i++) {
         if (g_Menu->digits[6 + i] != 0xFF) {
-            pWindow[0x1272] += func_8002675C(
+            pWindow->unk1272PrimCount += func_8002675C(
                 g_Menu->resources, g_Menu->digits[6 + i],
-                (POLY_FT4*)((u8*)pWindow + (pWindow[0x1272] * 0x50 + 0xA00)),
-                g_Menu->renderContext, a2 + D_801E9B20 + i * 8, a3 + D_801E9B24,
+                &pWindow->unk0A00[pWindow->unk1272PrimCount * 2],
+                g_Menu->renderContext, x + D_801E9B20 + i * 8, y + D_801E9B24,
                 0x1000);
         }
     }
-    for (i = 0; i < pWindow[0x1272]; i++) {
-        SetShadeTex(
-            (POLY_FT4*)((u8*)pWindow +
-                        ((i * 2 + g_Menu->renderContext) * 0x28 + 0xA00)),
-            0);
-        *(u8*)((u8*)pWindow +
-               ((g_Menu->renderContext + i * 2) * 0x28 + 0xA04)) = 0;
-        *(u8*)((u8*)pWindow +
-               ((g_Menu->renderContext + i * 2) * 0x28 + 0xA05)) = 0x80;
-        *(u8*)((u8*)pWindow +
-               ((g_Menu->renderContext + i * 2) * 0x28 + 0xA06)) = 0;
+    for (i = 0; i < pWindow->unk1272PrimCount; i++) {
+        SetShadeTex((POLY_FT4*)((u8*)pWindow +
+                                ((i * 2 + g_Menu->renderContext) * 0x28 + 0xA00)), 0);
+        ((POLY_FT4*)((u8*)pWindow +
+                     ((g_Menu->renderContext + i * 2) * 0x28 + 0xA00)))->r0 = 0;
+        ((POLY_FT4*)((u8*)pWindow +
+                     ((g_Menu->renderContext + i * 2) * 0x28 + 0xA00)))->g0 = 0x80;
+        ((POLY_FT4*)((u8*)pWindow +
+                     ((g_Menu->renderContext + i * 2) * 0x28 + 0xA00)))->b0 = 0;
     }
 }
-void MenuSetCharacterWindowContents(u_char a0, u_char a1) {
-    s32* pData;
-    u8* pWindow;
+void MenuSetCharacterWindowContents(u_char index, u_char characterId) {
+    MenuWindowTween* pTween;
+    MenuCharacterWindow* pWindow;
     s32 x;
     s32 y;
 
-    if (a0 == 0xFF) {
+    if (index == CHARACTER_ID_NONE) {
         return;
     }
-    pData = (s32*)((u8*)g_Menu + a0 * 0x24);
-    pWindow = (u8*)g_Menu->unk39C[a0];
-    x = pData[6] / 256 + pData[0];
-    y = pData[7] / 256 + pData[2];
-    func_801D4F2C(a0, a1, x, y);
-    MenuSetCharacterWindowIcons(a0, x, y);
-    func_801D51EC(a0, a1, x, y);
-    func_801D53D0(a0, a1, x, y);
-    MenuSetCharacterWideNumberDigits(a0, a1, x, y);
-    MenuSetCharacterLevelDigits(a0, a1, x, y);
-    g_Menu->pManager->unk0[a0] = 1;
-    *(u8*)(pWindow + 0x1270) = *(u8*)&g_Menu->renderContext;
+    pTween = &((MenuWindowTween*)(void*)g_Menu->unk0)[index];
+    pWindow = g_Menu->unk39C[index];
+    x = pTween->unk18 / 256 + pTween->unk0;
+    y = pTween->unk1C / 256 + pTween->unk8;
+    func_801D4F2C(index, characterId, x, y);
+    MenuSetCharacterWindowIcons(index, x, y);
+    func_801D51EC(index, characterId, x, y);
+    func_801D53D0(index, characterId, x, y);
+    MenuSetCharacterWideNumberDigits(index, characterId, x, y);
+    MenuSetCharacterLevelDigits(index, characterId, x, y);
+    g_Menu->pManager->unk0[index] = 1;
+    pWindow->renderContext = *(u8*)&g_Menu->renderContext;
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D5BA4);
 /* Best: 96.88%. Only the delay-slot fill differs: retail puts the loop
@@ -613,9 +627,9 @@ void MenuSetPlayTimeDigitPrims(s32 x, s32 y) {
         func_8002675C(g_Menu->resources, g_Menu->unk2EC[i], (POLY_FT4*)(i * 0x50 + (s32)g_Menu->unk344),
                       g_Menu->renderContext, x + i * 8 + 0x10, y, 0x1000);
     }
-    func_8002675C(g_Menu->resources, MENU_TEX_PLAY_TIME_COLON, g_Menu->unk344->polys[7],
+    func_8002675C(g_Menu->resources, MENU_TEX_PLAY_TIME_COLON, &g_Menu->unk344->polys[7],
                   g_Menu->renderContext, x + 0x18, y, 0x1000);
-    func_8002675C(g_Menu->resources, MENU_TEX_PLAY_TIME_COLON, g_Menu->unk344->polys[9],
+    func_8002675C(g_Menu->resources, MENU_TEX_PLAY_TIME_COLON, &g_Menu->unk344->polys[9],
                   g_Menu->renderContext, x + 0x30, y, 0x1000);
     g_Menu->unk344->renderContext = *(u8*)&g_Menu->renderContext;
 }
