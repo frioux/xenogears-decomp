@@ -147,24 +147,22 @@ void func_800891E4(void) {
 */
 void func_80089348(void) {
     s32 i = 0;
-    int new_var;
-    int new_var2;
     s32 pitch = 0x11A << 16;
     s32 off;
+    s32 off2;
 
     BattleParseNumberToDigits(D_800D2C2A);
     while (i < 5) {
         s32 slot = D_800C3CF8[i++];
         if (slot != 0xFF) {
             off = D_800D2DB4[0x5D78] * 0x50 + 0x4E70;
-            new_var = slot + 0x92;
-            D_800D2DB4[0x5D78] += BattleDrawSpritePackage(new_var, (s32)(off + (s32)D_800D2DB4), pitch >> 16, 0x46);
+            D_800D2DB4[0x5D78] += BattleDrawSpritePackage(slot + 0x92, (s32)(off + (s32)D_800D2DB4), pitch >> 16, 0x46);
             pitch += 0x60000;
         }
     }
     D_800D2DB4[0x5D87] = D_800CCB34;
     for (i = 0; i < D_800D2DB4[0x5D78]; i++) {
-        BattleSetPrimGrey80BlendAdd((u8*)((new_var2 = (i * 2 + D_800D2DB4[0x5D87]) * 0x28 + 0x4E70) + (s32)D_800D2DB4));
+        BattleSetPrimGrey80BlendAdd((u8*)((off2 = (i * 2 + D_800D2DB4[0x5D87]) * 0x28 + 0x4E70) + (s32)D_800D2DB4));
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc14", func_8008946C);
@@ -202,9 +200,9 @@ void func_8008963C(void) {
 
 void func_800897CC(void) {
     s32 i = 0;
-    unsigned int new_var;
     s32 pitch = 0x11A << 16;
     s32 off;
+    s32 off2;
 
     BattleParseNumberToDigits(D_800D2C35);
     while (i < 2) {
@@ -217,8 +215,7 @@ void func_800897CC(void) {
     }
     D_800D2DB4[0x5D8A] = D_800CCB34;
     for (i = 0; i < D_800D2DB4[0x5D7B]; i++) {
-        new_var = (i * 2 + D_800D2DB4[0x5D8A]) * 0x28 + 0x51E0;
-        BattleSetPrimGrey80BlendAdd((u8*)(new_var + (s32)D_800D2DB4));
+        BattleSetPrimGrey80BlendAdd((u8*)((off2 = (i * 2 + D_800D2DB4[0x5D8A]) * 0x28 + 0x51E0) + (s32)D_800D2DB4));
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc14", func_800898F0);
