@@ -2980,31 +2980,10 @@ u_short ShopMenuGetCharacterEquippedItemFlags(u_char itemID, u_char itemType) {
 
 INCLUDE_ASM("asm/shop_menu/nonmatchings/main/misc", func_801CDD14);
 
-// 99.71%, size exact (1112 bytes = retail's). What is left is five identical
-// coalescing ties: retail computes an array element's address into the BASE
-// register (`addu v1,v0,v1` then `lbu v0,12(v1)`), ours coalesces the sum into the
-// scaled INDEX register (`addu v0,v0,v1` then `lbu v0,12(v0)`), at the two
-// non-Billy weapon sums, both weapon-loop bodies and both accessory-loop bodies.
-// Shapes that got here from the 93.95% park (all of them load-bearing):
-//  - the four s16 zeros are stored in the order 0xA, 0x8, 0x2, 0x0 (newValue[1],
-//    newValue[0], oldValue[1], oldValue[0]) and oldValue sits at sp+0;
-//  - the non-Billy weapon branch needs the sums written as two direct array
-//    expressions with `characters[characterId].attack` repeated: pointer locals
-//    there cost the item's `addu` its base register;
-//  - `newValue[1] = oldValue[1] = characters[characterId].defense;` as a chained
-//    assignment, so cc1 loads defense once and stores it twice (two separate
-//    assignments reload it);
-//  - loop 1 (the sum over Billy's four guns) must index the game state with a
-//    VARIABLE character index (`u16 characterIndex = 4`): with the literal 4 cc1
-//    folds the address to g_GameState+0x56B, losing retail's second addiu
-//    (`lui %hi(g_GameState+0x2DB)` + addiu + `addiu a0,v0,0x290`) and never
-//    strength-reducing the loop. A `u8*` slot pointer local is what makes that
-//    loop a pointer walk; loop 2 keeps the runtime `characterId * 0xA4` chain;
-//  - leastDefense needs the copy shape: `slotDefense = pCurAccessory->defense;
-//    leastDefense = slotDefense;` (retail reloads defense for the compare).
-// decomp-permuter runs went 241 -> 140 -> 80 (the u16 above was its find); its
-// next step (50) wraps the `oldValue[0] += pCurWeapon->attack` in an
-// `if (g_Menu->pDressingRoom)`, which is a shape hack, not source.
+// The zero-store order, the chained defense assignment, the u16 characterIndex (Billy
+// is character 4) and the slotDefense copy are load-bearing: other spellings change the
+// instruction order. The three sum loops need the element address in a pointer local -
+// indexing the tables inline makes cc1 coalesce the address into the index register.
 void func_801CE480(s32* pDelta, s8* pIsImprovement, u8 itemId, u8 itemType, u8 characterId) {
     s16 oldValue[2];
     s16 newValue[2];
