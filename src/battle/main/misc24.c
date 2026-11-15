@@ -111,30 +111,22 @@ void BattleSwapActorSlots(s32 arg0, s32 arg1) {
     D_800D3368[arg0] = D_800D3368[arg1];
     D_800D3368[arg1] = tmp;
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AA7DC);
-/* 88.24% - instruction multiset identical, only the hoisted "li a1,0xF7" of
-   the loop condition sits after the arg0*0x48 preheader instead of before it.
-   The indexed form D_800C402F[i*0x48] does put "li a1,0xF7" first (gcc emits
-   hoisted invariants before strength-reduction inits) but then turns the biv
-   into a pointer, folding %hi/%lo into a register in the preheader
-   (lui v1/addiu v1/addu v0,v0,v1/lbu 0(v0)) instead of re-forming the symbol
-   address each iteration - 56.76% and 2 insns longer. A "u8 stop = 0xF7;"
-   local changes nothing (the constant is re-folded).
 u8 func_800AA7DC(s32 arg0) {
     s32 o;
+    s32 stop;
     u8 v;
 
+    stop = 0xF7;
     o = arg0 * 0x48;
     do {
         v = D_800C402F[o];
         o += 0x48;
-    } while (v == 0xF7);
+    } while (v == stop);
     if (v == 0xFF) {
         v = 0xFE;
     }
     return v;
 }
-*/
 s16 (*BattleGetAngleOffsetFunction(s32 arg0))(s16 angle, s16 divisor, s16 base) {
     switch (arg0) {
     case 1:
