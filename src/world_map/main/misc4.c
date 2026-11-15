@@ -72,6 +72,13 @@ typedef struct {
     /* 0x580 */ u8 pad580[0x20];
 } WorldMapState; // Size: 0x5A0
 
+// The world map frame render context D_8009BE3C points at: partial view of the
+// two ordering table heads it fills each frame.
+typedef struct {
+    /* 0x00 */ u8 unk0[0x70];
+    /* 0x70 */ u_long *pOt[2];
+} WorldMapRenderContext; // partial view
+
 extern WorldMapActor *D_8009BE24;
 extern u16 D_8009A450;
 extern u16 D_8009A46C[];
@@ -82,7 +89,7 @@ extern s32 D_8009D144;
 extern s16 D_8009BD38;
 extern s16 D_8009BD3A;
 extern s16 D_8009BD3C;
-extern void func_80089160(s32, s32, s32);
+extern void func_80089160(s32, void *, s32);
 extern void WorldMapSetupPrimTemplates(s32, u8 *, s32);
 extern u8 *D_8006259C;
 extern void WorldMapWrapPosition(void *);
@@ -114,7 +121,7 @@ extern s32 D_8009BD40;
 extern s32 D_8009BBB4;
 extern s16 D_8009D558;
 extern s32 D_8009BE28;
-extern u8 *D_8009BE3C;
+extern WorldMapRenderContext *D_8009BE3C;
 extern s32 D_8009C5BC;
 extern WorldMapPos4 D_8009C5AC;
 extern void WorldMapBuildRotationMatrix(s32 *p);
@@ -127,7 +134,7 @@ extern void func_800981C8(s32 *p);
 extern void WorldMapWaitForLoadSlotFree(void);
 extern void func_80098CC0(void);
 extern void func_800983A0(s32 *p);
-extern void func_8009932C(s32 arg0, s32 arg1, s32 *p);
+extern void func_8009932C(u_long *pOt0, u_long *pOt1, s32 *pState);
 extern void func_80073B04(void);
 extern void func_800737EC(void);
 extern void func_80086798(void);
@@ -280,7 +287,6 @@ s32 WorldMapEnterNop(void) {
 }
 
 s32 WorldMapUpdateFrameWithParticles(void) {
-    u8 *p;
     s32 *pState;
 
     if (D_8009D144 == 0) {
@@ -299,8 +305,7 @@ s32 WorldMapUpdateFrameWithParticles(void) {
     }
     pState = &D_8009BE28;
     func_800983A0(pState);
-    p = D_8009BE3C;
-    func_8009932C(*(s32 *)(p + 0x70), *(s32 *)(p + 0x74), pState);
+    func_8009932C(D_8009BE3C->pOt[0], D_8009BE3C->pOt[1], pState);
     D_8009C5BC = D_8009C5BC + 0x40;
     func_80073B04();
     func_800737EC();
@@ -422,10 +427,8 @@ s32 WorldMapInitActorRotationMatrix(s32 index) {
     WorldMapActor *p;
     WorldMapState *s;
 
-    index *= 0x80;
-    p = D_8009BE24;
+    p = D_8009BE24 + index;
     s = D_8009C620;
-    p = (WorldMapActor *)((u8 *)p + index);
     p->unk28 = 0x02000000;
     p->unk30 = 0x01500000;
     p->unk20 = 0;
@@ -575,9 +578,8 @@ s32 func_8007A1B4(s32 index) {
 s32 WorldMapSetActorTimer60(s32 index) {
     WorldMapActor *p;
 
-    index *= 0x80;
-    p = D_8009BE24;
-    *(s16 *)((u8 *)p + index + 0x22) = 0x60;
+    p = D_8009BE24 + index;
+    p->unk22 = 0x60;
     return 3;
 }
 
@@ -640,7 +642,7 @@ s32 WorldMapUpdateObjectAPosition(s32 index) {
     pScratch->vx = s->unk8;
     pScratch->vy = s->unkC;
     pScratch->vz = s->unk10;
-    func_80089160(0xA, (s32)pScratch, 0);
+    func_80089160(0xA, pScratch, 0);
     return 3;
 }
 
@@ -752,9 +754,7 @@ void WorldMapExitToMap11A(void) {
 s32 WorldMapStartActorScript(s32 index) {
     WorldMapActor *p;
 
-    p = D_8009BE24;
-    index *= 0x80;
-    p = (WorldMapActor *)((u8 *)p + index);
+    p = D_8009BE24 + index;
     p->unk50 = 0;
     p->unk20 = D_8009A450;
     p->unk22 = D_8009A46C[p->unk50];
