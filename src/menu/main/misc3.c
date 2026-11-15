@@ -165,15 +165,6 @@ typedef struct {
     /* 0x4FE4 */ u8 flags[0x4];
 } MenuUnk2Flags;
 
-/* Best attempt: 99.44%. Only difference is an allocator tie-break: the result
-   flag gets a3 where the original has a2 and the `unk4F7C` index gets a2 where
-   the original has a3 (both live ranges are otherwise identical). Tried: every
-   declaration order, initialiser forms, `register idx`, and the statement
-   order of the two assignments. The base-first `addu` (a1 + index) needs an array member, hence
-   the local MenuUnk2Flags cast below; the shared header's scalar unk4FE4 with
-   `(&pMenu->unk4FE4)[...]` emits the operands the other way round. */
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801C9BCC);
-/*
 u_char func_801C9BCC(s32 a0) {
     MenuUnk2* pMenu = g_Menu->menuUnk2;
     s32 result = 1;
@@ -215,9 +206,12 @@ u_char func_801C9BCC(s32 a0) {
     if (result != 0) {
         g_Menu->unk4D8 = 2;
     }
+    /* keeping `idx` live here is what makes the allocator put the result flag in a2 */
+    if (idx) {
+        return result;
+    }
     return result;
 }
-*/
 
 s32 MenuFindFirstValidSlot(s32 a0) {
     s32 result = 0xFF;
