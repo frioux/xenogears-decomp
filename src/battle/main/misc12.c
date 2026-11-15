@@ -803,9 +803,9 @@ u16 func_80084DE4(u16 arg0, u16 arg1, u8 arg2, u8 arg3, u8 arg4) {
         D_800C3E2C = arg2;
         D_800C3D64 = BattleSlotBitMask(arg2);
         val = 0xFF;
-        j = 10;
+        n = 10;
         p = D_800C3E9A;
-        for (; j >= 0; j--) {
+        for (; n >= 0; n--) {
             *p-- = val;
         }
     }
