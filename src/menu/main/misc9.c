@@ -42,29 +42,29 @@ void func_801DB5E4(s32 arg0);
 s32 func_801E31C0(MenuDressingRoom* pDressingRoom, u8 characterId, u8 itemId);
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DB920);
-/* Best: 92.79%, retail's exact size (1068 bytes, 267 insns). Every instruction,
-   call, branch and store is in retail's order; the ONLY remaining difference is
-   which callee-saved register holds three of the live-across-call variables:
-   retail has refresh=$s1, pItemId=$s2, result(paged mask)=$s3, this body gets
-   $s3, $s1, $s2 (slot=$s4, active=$s5, 1=$s6, &itemQuantities=$s7, idx=$s8 all
-   already agree, and both spill arg0/arg1 to sp+0x28/0x30). Tried: every local
-   declaration order (2.6.0 does not allocate by declaration order), and
-   permute.sh --minutes 3 (PERMUTER_BETTER 1361 -> 1321, its only hits are
-   cosmetic: it moved `refresh = 0;` above the `case 4:` label and inlined
-   pCursors for one store - neither moves a register). Also of note: the
-   itemIDs clear at the end must be spelled through the itemQuantities base
-   (`itemQuantities[idx + MAX_INVENTORY_ITEMS]`) - spelled `itemIDs[idx]` gcc
-   builds a second %hi/%lo pair (retail reuses %hi(g_GameState+0x1F90)+0x96) and
-   spelled `pQuantity[MAX_INVENTORY_ITEMS]` it CSEs to `sb $zero,150($s7)` and
-   loses an instruction. Decode: g_Menu->pDressingRoom->pItemsData[id] is a
-   0x10-byte MenuShopItem, unk4[2] bit 0x80 = shaded variant (dropped when bit
-   0x20 is set while D_80059171 is 0), unk4[0] bit 0 = paged item list. */
+/* Best: 96.76, 1064 bytes (retail 1068). Structure matches retail everywhere
+   except three points:
+   1. Loop preheader order: retail emits the loop-entry `if (active)` test
+      BEFORE the hoisted idx/pQuantity setup, i.e. its source computed
+      `idx = arg0 * 2 + arg1` and `pQuantity = &g_GameState.itemQuantities[idx]`
+      INSIDE the while body and loop.c hoisted them into the preheader. Moving
+      both inside the loop closed 92.79 -> 96.76; the body below is that version.
+   2. The itemIDs clear in the `quantity == 0` branch: retail has
+      lui/addiu(g_GameState+0x1F90) + addiu 0x96 + addu fp + sb (5 insns); every
+      spelling of `g_GameState.itemQuantities[idx + MAX_INVENTORY_ITEMS] = 0`
+      now folds to the 3-insn %at macro `sb $0,%lo(g_GameState+0x2026)(fp)`,
+      `(u8*)itemQuantities + MAX_INVENTORY_ITEMS` then `[idx]` compiles the same
+      (measured 96.76/1064), and `pQuantity[MAX_INVENTORY_ITEMS]` gives
+      `sb $0,0x96(s7)` (also short). Retail's fresh la of the base says its
+      source took the array address into a variable; not reproduced.
+   3. Callee-saved rotation: retail refresh=$s1, &itemIDs=$s2, result=$s3, ours
+      $s3, $s1, $s2 (the other seven agree). Under gcc global-alloc priority
+      (floor_log2(n_refs)*n_refs*10000/live_length) the order is &itemIDs
+      (2 refs over ~12 insns) > result > refresh; no reachable length change
+      reorders it to retail's, so the lever is elsewhere.
+   permute.sh --minutes 3 on the earlier 92.79 body: PERMUTER_BETTER, cosmetic
+   only. Not re-run from this body. */
 /*
-Item selection loop for one row of the inventory: two columns of gear-shop
-   item rows (MenuCreateWindow(2, ...)) driven by the mapped input, with the
-   pointer cursor drawn on the row that holds the selected character's item.
-   Returns the bit mask of characters that own the item (and the shaded-item
-   flag).
 u8 func_801DB920(s32 arg0, s32 arg1) {
     MenuShopItem* pItem;
     MenuPointerCursors* pCursors;
@@ -99,9 +99,9 @@ u8 func_801DB920(s32 arg0, s32 arg1) {
         return result;
     }
     MenuCreateWindow(2, 0x10, 0xE, 0x90, 0xB0, 0, 0, 4, 0);
-    idx = arg0 * 2 + arg1;
-    pQuantity = &g_GameState.itemQuantities[idx];
     while (active) {
+        idx = arg0 * 2 + arg1;
+        pQuantity = &g_GameState.itemQuantities[idx];
         MenuRenderFrame();
         result = 0;
         if (refresh) {
@@ -189,8 +189,8 @@ u8 func_801DB920(s32 arg0, s32 arg1) {
     MenuFreeWindow(2);
     return result;
 }
-
 */
+
 void MenuSwapInventoryItems(s32 index0, s32 index1) {
     u_char tmp;
 
