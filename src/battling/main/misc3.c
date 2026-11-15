@@ -173,6 +173,7 @@ void func_800764CC(u8* p) {
         flags &= ~2;
         *(u32*)(p + 0xD0) = flags;
     }
+    // the do-block keeps the 0x8000000 test out of the mult shadow
     do {
         prod = *(s16*)(p + 0x15F4) * D_8009292C;
         flags = *(u32*)(p + 0xD0);
@@ -181,7 +182,7 @@ void func_800764CC(u8* p) {
         *(s16*)(p + 0x15F2) = prod >> 8;
     } while (0);
     flags &= 0x8000000;
-    if (!(prod = flags)) {
+    if (!flags) {
         BattleSetTextCursor(0x28, 0x28);
     } else {
         BattleSetTextCursor(0xF0, 0x28);
