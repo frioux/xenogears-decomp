@@ -2,8 +2,10 @@
 #include "psyq/libgpu.h"
 #include "system/memory.h"
 
-extern s32 D_800D2D40;
-extern s32 D_800D2D48;
+extern u8 *D_800D2D40;
+extern u8 *D_800D2D48;
+extern u8 *D_800C3EA0;
+extern u8 *D_800C3D50[2];
 extern u8 D_800C3D04[];
 extern u8 D_800C3D0C[];
 extern u16 D_800C3D40;
@@ -24,7 +26,7 @@ extern u8 *D_800D33E4;
 extern u16 D_800D361A;
 extern u_long *D_800D3604;
 extern RECT D_800D3628;
-extern void *D_800C3AC4;
+extern u8 *D_800C3AC4;
 extern void *D_800C3AC8;
 extern u8 D_800C3D68;
 extern u8 D_800591AC;
@@ -205,8 +207,8 @@ s32 BattleSearchTriangleTree(s32 arg0, s32 index, s32 depth) {
 }
 
 void BattleSetColorSources(s32 arg0, s32 arg1) {
-    D_800D2D40 = arg0;
-    D_800D2D48 = arg1;
+    D_800D2D40 = (u8 *)arg0;
+    D_800D2D48 = (u8 *)arg1;
 }
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A5EB4);
@@ -228,6 +230,104 @@ void BattleSetActorRectParams(s32 arg0, s32 arg1, s32 arg2, s32 arg3, s32 arg4, 
 }
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A64E4);
+/* 98.71% (gcc 2.6.0 --expand-div -G0, the unit preset): the whole function is
+   recovered - 232 instructions like retail, the same frame, the same registers
+   ($a1 = pSrc, $a0 = pSrc+2, $a2 = i*0x24, $a3 = i*0x18, $t0 = i) and every
+   load, store, displacement, null test and biv increment in retail's order.
+   The ONLY difference is the operand order of the 18 address addus: retail has
+   "addu v0,v0,a2" / "addu v0,v0,a3", gcc emits "addu v0,a2,v0". Semantically
+   identical, but the encoding differs so check_bin cannot pass.
+   Shapes tried on that sum (each one leaves everything else byte-identical,
+   so this is a single isolated tie and a good permuter/unpark candidate): the
+   plain array form (parked below), index constant-first (0x1740 + i*0x24), an
+   embedded assignment (pDst = ...)[K] and *((pDst = base + off) + K), a
+   pDst = D_800C3EA0 + i*0x24 per store, an integer (mem_addr) sum, and a plain
+   offset variable (s32 and u32) incremented in the body instead of a biv - all
+   still index-first. The one shape that DOES emit base-first is
+   "pDst = &D_800C3EA0[i * 0x24 + 0x1740]; *pDst = ...", but it keeps 0x1740 in
+   the sum ("addu v0,t1,v0; sb v1,0(v0)") and moves the base to $t1. A 4-minute
+   permuter run found nothing (2036 iterations, base=300 best=300).
+   try_flags: 2.7.2 -G0 95.59, cdk -G0 79.78, 2.6.0 -O1 46.66, -O3 98.71, so
+   the preset is right.
+   Structure, for whoever unparks it: pSrc = D_800C3AC4 is a table of 24-byte
+   records of six 3-byte colours (advance 4 per colour). For i in 0..3: the four
+   0x1740/48/50/58 groups go into D_800C3EA0 + i*0x24, the 0x16E0 group and the
+   0x284 group (D_800C3D50[0]) use i*0x18, and when D_800C3EA0 is NULL the five
+   groups are skipped with pSrc += 0x14. Then a second i in 0..1 loop writes the
+   0x2E4/2EC/2F4/2FC groups into D_800C3D50[0] + i*0x24 (pSrc += 0x10 when it is
+   NULL), and the last two colours go to the D_800D2D40 / D_800D2D48 pointers
+   set by BattleSetColorSources. Every store reloads its base global, so the
+   destination expression has to be written out in full at each store - a
+   pointer local collapses the twelve loads into one. */
+/*
+void func_800A64E4(void) {
+    u8 *pSrc;
+    s32 i;
+
+    pSrc = D_800C3AC4;
+    for (i = 0; i < 4; i++) {
+        if (D_800C3EA0 != NULL) {
+            D_800C3EA0[i * 0x24 + 0x1740] = pSrc[0];
+            D_800C3EA0[i * 0x24 + 0x1741] = pSrc[1];
+            D_800C3EA0[i * 0x24 + 0x1742] = pSrc[2];
+            pSrc += 4;
+            D_800C3EA0[i * 0x24 + 0x1748] = pSrc[0];
+            D_800C3EA0[i * 0x24 + 0x1749] = pSrc[1];
+            D_800C3EA0[i * 0x24 + 0x174A] = pSrc[2];
+            pSrc += 4;
+            D_800C3EA0[i * 0x24 + 0x1750] = pSrc[0];
+            D_800C3EA0[i * 0x24 + 0x1751] = pSrc[1];
+            D_800C3EA0[i * 0x24 + 0x1752] = pSrc[2];
+            pSrc += 4;
+            D_800C3EA0[i * 0x24 + 0x1758] = pSrc[0];
+            D_800C3EA0[i * 0x24 + 0x1759] = pSrc[1];
+            D_800C3EA0[i * 0x24 + 0x175A] = pSrc[2];
+            pSrc += 4;
+            D_800C3EA0[i * 0x18 + 0x16E0] = pSrc[0];
+            D_800C3EA0[i * 0x18 + 0x16E1] = pSrc[1];
+            D_800C3EA0[i * 0x18 + 0x16E2] = pSrc[2];
+            pSrc += 4;
+        } else {
+            pSrc += 0x14;
+        }
+        if (D_800C3D50[0] != NULL) {
+            D_800C3D50[0][i * 0x18 + 0x284] = pSrc[0];
+            D_800C3D50[0][i * 0x18 + 0x285] = pSrc[1];
+            D_800C3D50[0][i * 0x18 + 0x286] = pSrc[2];
+        }
+        pSrc += 4;
+    }
+    for (i = 0; i < 2; i++) {
+        if (D_800C3D50[0] != NULL) {
+            D_800C3D50[0][i * 0x24 + 0x2E4] = pSrc[0];
+            D_800C3D50[0][i * 0x24 + 0x2E5] = pSrc[1];
+            D_800C3D50[0][i * 0x24 + 0x2E6] = pSrc[2];
+            pSrc += 4;
+            D_800C3D50[0][i * 0x24 + 0x2EC] = pSrc[0];
+            D_800C3D50[0][i * 0x24 + 0x2ED] = pSrc[1];
+            D_800C3D50[0][i * 0x24 + 0x2EE] = pSrc[2];
+            pSrc += 4;
+            D_800C3D50[0][i * 0x24 + 0x2F4] = pSrc[0];
+            D_800C3D50[0][i * 0x24 + 0x2F5] = pSrc[1];
+            D_800C3D50[0][i * 0x24 + 0x2F6] = pSrc[2];
+            pSrc += 4;
+            D_800C3D50[0][i * 0x24 + 0x2FC] = pSrc[0];
+            D_800C3D50[0][i * 0x24 + 0x2FD] = pSrc[1];
+            D_800C3D50[0][i * 0x24 + 0x2FE] = pSrc[2];
+            pSrc += 4;
+        } else {
+            pSrc += 0x10;
+        }
+    }
+    D_800D2D40[0] = pSrc[0];
+    D_800D2D40[1] = pSrc[1];
+    D_800D2D40[2] = pSrc[2];
+    pSrc += 4;
+    D_800D2D48[0] = pSrc[0];
+    D_800D2D48[1] = pSrc[1];
+    D_800D2D48[2] = pSrc[2];
+}
+*/
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A6884);
 /* 99.74%: the switch and every instruction match; the function is 612 bytes
