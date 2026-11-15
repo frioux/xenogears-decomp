@@ -189,23 +189,17 @@ void BattleClearPrimFlagsFourSlots(u8 arg0) {
         D_800D2D28[0xCB] = 1;
     }
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008B168);
-/* Best: 99.36%. Same tail as func_8008BC98: the two `D_800C3EAC + arg0*0x40`
-   base adds come out index-first (`addu v1,s1,v1`, `addu s1,s1,v0`) where the
-   original has base-first (`addu v1,v1,s1`, `addu v0,v0,s1`). Both operands die
-   at each add, so it is a global.c tie-break. Tried: subscript vs pointer
-   arithmetic for the entry address. Everything else is identical.
 void func_8008B168(u8 arg0) {
+    int slotStride = 0x40;
     u16 value;
 
     D_800D2D28[0x9C] = D_800D2D28[0x9D] = D_800D2D28[0x9E] = 1;
     D_800D2D28[0xB0] = D_800D2D28[0xB1] = D_800D2D28[0xB2] = D_800D2D28[0xB3] = 1;
     D_800D2D28[0xB7] = 1;
-    value = BattleSlotBitMask(arg0) | BattleSlotBitMask((D_800C3EAC + arg0 * 0x40)[0x3C]);
+    value = BattleSlotBitMask(arg0) | BattleSlotBitMask((D_800C3EAC + arg0 * slotStride)[0x3C]);
     func_800BC404(value);
-    func_800BCD98(BattleSlotBitMask((D_800C3EAC + arg0 * 0x40)[0x3C]));
+    func_800BCD98(BattleSlotBitMask((D_800C3EAC + arg0 * slotStride)[0x3C]));
 }
-*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008B224);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008B478);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008B908);
@@ -217,24 +211,17 @@ void BattleClearPrimFlagsTwoSlots(u8 arg0) {
         D_800D2D28[0xCB] = 1;
     }
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008BC98);
-/* Best: 99.35%. Parking note: two `addu` operand orders differ (original
-   base-first `addu v1,v1,s1` / `addu v0,v0,s1`, ours index-first). Eight source
-   spellings (subscript, pointer arith, u8(*)[0x40] cast, (arg0<<6), base+0x3C
-   indexed, u32 integer add, off locals) all compile byte-identically, so this is
-   the allocator picking which dying operand coalesces with the dest, not a source
-   shape. Same tail in func_8008B168 / func_8008C3F0 / func_8008CD28.
 void func_8008BC98(u8 arg0) {
     u16 value;
+    int slotStride = 0x40;
 
     D_800D2D28[0x9C] = D_800D2D28[0x9D] = D_800D2D28[0x9E] = 1;
     D_800D2D28[0xB0] = D_800D2D28[0xB1] = 1;
     D_800D2D28[0xB7] = 2;
-    value = BattleSlotBitMask(arg0) | BattleSlotBitMask((D_800C3EAC + arg0 * 0x40)[0x3C]);
+    value = BattleSlotBitMask(arg0) | BattleSlotBitMask((D_800C3EAC + arg0 * slotStride)[0x3C]);
     func_800BC404(value);
-    func_800BCD98(BattleSlotBitMask((D_800C3EAC + arg0 * 0x40)[0x3C]));
+    func_800BCD98(BattleSlotBitMask((D_800C3EAC + arg0 * slotStride)[0x3C]));
 }
-*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008BD50);
 /* Best: 79.27%, 94 insns / 376 bytes = the original's exact size. Verified
    against retail: every parameter is used after a call (s5/s4/s3 saves
@@ -305,14 +292,22 @@ void BattleFreeSlotPrims(u8 arg0) {
         D_800D2D28[0xB0] = D_800D2D28[0xB1] = 0;
     }
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008C3F0);
-/* Best: 99.36%. Same tail as func_8008BC98: the two `D_800C3EAC + arg0*0x40`
-   base adds come out index-first (`addu v1,s1,v1`, `addu s1,s1,v0`) where the
-   original has base-first (`addu v1,v1,s1`, `addu v0,v0,s1`). Tried: subscript,
-   opt to the add, explicit u8* pEntry/pBase locals (worse), u32 integer
-   arithmetic, a typed 0x40 struct pointer, and gcc 2.7.2 / 2.7.2-cdk / -O1 /
-   -O3: every one emits the same index-first addu, so it is cc1, not source.
+/* Best: 99.78%. One addu left: the FIRST call's address add comes out
+   index-first (`addu v1,s1,v1`) where the original has base-first
+   (`addu v1,v1,s1`); the index s1 = arg0*0x40 lives across both calls.
+   Same tail as func_8008B168 / func_8008BC98 / func_8008CD28, which the
+   permuter did fix there with a stride local -- here it only fixed the
+   second call: a `char maskOffset` assigned 0x3C inline in its subscript
+   `D_800C3EAC[arg0 * 0x40 + (maskOffset = 0x3C)]` (worth 99.36 -> 99.78).
+   Tried: two more permute.sh runs (450 and 1105 iterations, score stuck at
+   10), `0x3C + arg0 * 0x40`, `0x40 * arg0 + 0x3C`, plus everything the
+   previous note listed: subscript, opt to the add, explicit u8* pEntry/pBase
+   locals (worse), u32 integer arithmetic, a typed 0x40 struct pointer, and
+   gcc 2.7.2 / 2.7.2-cdk / -O1 / -O3.
+*/
+/*
 void func_8008C3F0(u8 arg0) {
+    char maskOffset;
     u16 value;
 
     D_800D2D28[0x9C] = D_800D2D28[0x9D] = D_800D2D28[0x9E] = 1;
@@ -320,9 +315,10 @@ void func_8008C3F0(u8 arg0) {
     D_800D2D28[0xB0] = D_800D2D28[0xB1] = 1;
     value = BattleSlotBitMask(arg0) | BattleSlotBitMask(D_800C3EAC[arg0 * 0x40 + 0x3C]);
     func_800BC404(value);
-    func_800BCD98(BattleSlotBitMask(D_800C3EAC[arg0 * 0x40 + 0x3C]));
+    func_800BCD98(BattleSlotBitMask(D_800C3EAC[arg0 * 0x40 + (maskOffset = 0x3C)]));
 }
 */
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008C3F0);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008C4A8);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008C81C);
 void BattleClearPrimFlagsThreeSlots(u8 arg0) {
@@ -333,21 +329,15 @@ void BattleClearPrimFlagsThreeSlots(u8 arg0) {
         D_800D2D28[0xCB] = 1;
     }
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008CD28);
-/* Best: 99.36%. Same tail as func_8008BC98: the two `D_800C3EAC + arg0*0x40`
-   base adds come out index-first (`addu v1,s1,v1`, `addu s1,s1,v0`) where the
-   original has base-first (`addu v1,v1,s1`, `addu v0,v0,s1`). Both operands die
-   at each add, so it is a global.c tie-break. Tried: subscript vs pointer
-   arithmetic for the entry address. Everything else is identical.
 void func_8008CD28(u8 arg0) {
     u16 value;
+    int slotStride = 0x40;
 
     D_800D2D28[0x9C] = D_800D2D28[0x9D] = D_800D2D28[0x9E] = 1;
     D_800D2D28[0xB0] = D_800D2D28[0xB1] = D_800D2D28[0xB2] = 1;
     D_800D2D28[0xB7] = 4;
-    value = BattleSlotBitMask(arg0) | BattleSlotBitMask((D_800C3EAC + arg0 * 0x40)[0x3C]);
+    value = BattleSlotBitMask(arg0) | BattleSlotBitMask((D_800C3EAC + arg0 * slotStride)[0x3C]);
     func_800BC404(value);
-    func_800BCD98(BattleSlotBitMask((D_800C3EAC + arg0 * 0x40)[0x3C]));
+    func_800BCD98(BattleSlotBitMask((D_800C3EAC + arg0 * slotStride)[0x3C]));
 }
-*/
 
