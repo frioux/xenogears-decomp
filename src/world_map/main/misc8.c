@@ -103,11 +103,12 @@ typedef struct {
     /* 0x20 */ MATRIX mat;
 } WorldMapModelOut; // Size: 0x40
 
-// Partial view of the camera scratchpad at 0x1F800000.
+// Partial view of the GTE work area in the scratchpad at 0x1F800000.
 typedef struct {
-    /* 0x00 */ VECTOR rot;
-    /* 0x10 */ VECTOR scale;
-    /* 0x20 */ u8 unk20[0xD0];
+    /* 0x00 */ VECTOR vert0; // first RotTrans output
+    /* 0x10 */ VECTOR scale; // ScaleMatrix output, later the second RotTrans output
+    /* 0x20 */ VECTOR vert2; // third RotTrans output
+    /* 0x30 */ u8 unk30[0xC0];
     /* 0xF0 */ MATRIX mat;
 } WorldMapScratch; // Size: 0x110
 
@@ -921,18 +922,18 @@ void func_80085158(WorldMapPos *pPos, WorldMapPos *pOut, WorldMapPos *pNormal, u
     pVerts = pMesh->unk4;
     RotTrans(&pVerts[pTri->vert[0]], pA, &flag);
     RotTrans(&pVerts[pTri->vert[1]], pB, &flag);
-    RotTrans(&pVerts[pTri->vert[2]], (VECTOR *)0x1F800020, &flag);
+    RotTrans(&pVerts[pTri->vert[2]], &pWork->vert2, &flag);
     pB->vx -= pA->vx;
     pB->vy -= pA->vy;
     pB->vz -= pA->vz;
-    ((VECTOR *)0x1F800020)->vx -= pA->vx;
-    ((VECTOR *)0x1F800020)->vy -= pA->vy;
-    ((VECTOR *)0x1F800020)->vz -= pA->vz;
-    OuterProduct0((VECTOR *)0x1F800020, pB, (VECTOR *)0x1F800020);
-    ((VECTOR *)0x1F800020)->vx >>= 2;
-    ((VECTOR *)0x1F800020)->vy >>= 2;
-    ((VECTOR *)0x1F800020)->vz >>= 2;
-    VectorNormal((VECTOR *)0x1F800020, (VECTOR *)pNormal);
+    pWork->vert2.vx -= pA->vx;
+    pWork->vert2.vy -= pA->vy;
+    pWork->vert2.vz -= pA->vz;
+    OuterProduct0(&pWork->vert2, pB, &pWork->vert2);
+    pWork->vert2.vx >>= 2;
+    pWork->vert2.vy >>= 2;
+    pWork->vert2.vz >>= 2;
+    VectorNormal(&pWork->vert2, (VECTOR *)pNormal);
     WorldMapInterpolatePlaneHeight(pOut, (WorldMapPos *)pA, pNormal);
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_80085418);
