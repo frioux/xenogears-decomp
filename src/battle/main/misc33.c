@@ -41,7 +41,7 @@ typedef struct {
     /* 0xAC */ union {
         /* 0xAC */ u32 word;
         /* 0xAC */ u8 bytes[0x4];
-        /* 0xAC */ s8 sbytes[0x4];
+        /* 0xAC */ s_char sbytes[0x4];
     } unkAC;
     /* 0xB0 */ s8 unkB0;
 } BattleActorSprite; // Size: 0xB4
@@ -79,6 +79,10 @@ typedef struct {
 
 extern BattleActorRow D_800C3FB8[];
 extern BattleActorSprite *D_800D363C;
+extern u8 D_800C3780;
+extern s16 D_800C3752[];
+extern s32 D_800D3630;
+extern u8 *D_800D2F5C;
 extern s16 D_800D3634;
 extern s16 D_800D3678;
 extern s32 BattleCollectMaskedSlotActors(u16 mask, void **pOut, s32 arg2);
@@ -101,6 +105,45 @@ extern void SpriteSetDirection(BattleActorSprite *p, s16 arg1);
 extern void func_800223B0(BattleActorSprite *p, s16 arg1);
 extern void SpritePlayAnimation(BattleActorSprite *p, s32 arg1);
 
+// One 0x18-byte part of a battle sprite: the record ResourceHelperGetSpriteList
+// converts a menu dirent into, with its width/height at 0x6/0x7.
+typedef struct {
+    /* 0x00 */ u16 x;
+    /* 0x02 */ u16 y;
+    /* 0x04 */ u8 u;
+    /* 0x05 */ u8 v;
+    /* 0x06 */ u8 width;
+    /* 0x07 */ u8 height;
+    /* 0x08 */ u8 unk8[0x10];
+} BattleSpritePart; // Size: 0x18
+
+// What WorkListsAddTasks allocates for the fade-out task (0x130 bytes) and what
+// func_800BE1C4 draws: a rotation at 0x38, the scale steps at 0x40 that
+// BattleStepActorFadeOut advances, the clip colour at 0x68, and the part list at
+// 0x70 whose count is at 0x6C.
+typedef struct {
+    /* 0x00 */ u8 unk0[0x38];
+    /* 0x38 */ SVECTOR rot;
+    /* 0x40 */ VECTOR scale;
+    /* 0x50 */ u8 unk50[0x10];
+    /* 0x60 */ s32 unk60;
+    /* 0x64 */ s32 unk64;
+    /* 0x68 */ u8 unk68;
+    /* 0x69 */ u8 unk69;
+    /* 0x6A */ u8 unk6A;
+    /* 0x6B */ u8 unk6B;
+    /* 0x6C */ s32 unk6C;
+    /* 0x70 */ BattleSpritePart parts[8];
+} BattleSpriteBody; // Size: 0x130
+
+extern BattleSpriteBody *WorkListsAddTasks(s32 allocSize, void *pData, void *pTimerCallback,
+                                          void *pWorkCallback, void *pOnFreeCallback);
+extern s32 func_800BE6E8(s32 value, u8 *pBuf, s32 n, u8 started, s32 base);
+extern s32 ResourceHelperGetSpriteList(u8 *pDir, u32 index, BattleSpritePart *pOut, s16 x, s16 y);
+extern s32 func_800BD3AC(BattleActorSprite *p, s32 arg1, s32 arg2);
+extern void func_800BE0DC(void);
+extern void func_800BE790(void);
+extern s32 BattleGetAdjustedWaitCountdown(void);
 extern void func_800C1140(s32);
 extern void func_800B8D7C();
 extern int ArchiveSetIndex(int directoryIndex, int entryIndex);
@@ -175,8 +218,110 @@ void func_800BE1C4(u8 *pTask) {
         scale.vz -= 0x330;
     }
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BE330);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BE538);
+void func_800BE330(s32 value) {
+    BattleSpriteBody *pBody;
+    u8 digits[6];
+    s32 i;
+    s32 mode;
+    s32 step;
+    s32 tex;
+
+    pBody = WorkListsAddTasks(0x130, NULL, BattleStepActorFadeOut, func_800BE1C4, NULL);
+    step = ((rand() & 3) - 2) * 8;
+    pBody->unk64 = -step;
+    if (pBody->unk64 == 0) {
+        pBody->unk64 = 6;
+    }
+    pBody->unk60 = 0x20;
+    pBody->unk6B = 0x2E;
+    pBody->scale.vx = 0x2000;
+    pBody->scale.vy = 0x2000;
+    pBody->scale.vz = 0x2000;
+    mode = D_800D3630;
+    pBody->unk6C = 0;
+    pBody->rot.vx = 0;
+    pBody->rot.vy = 0;
+    pBody->rot.vz = 0;
+    switch (mode) {
+    case 0xB:
+        pBody->unk68 = 0;
+        pBody->unk69 = 0;
+        pBody->unk6A = 0x80;
+        break;
+    case 3:
+        pBody->unk68 = 0x80;
+        pBody->unk69 = 0;
+        pBody->unk6A = 0x80;
+        break;
+    case 2:
+        pBody->unk68 = 0;
+        pBody->unk69 = 0x80;
+        pBody->unk6A = 0;
+        break;
+    default:
+        pBody->unk68 = 0x80;
+        pBody->unk69 = 0x80;
+        pBody->unk6A = 0x80;
+        break;
+    }
+    func_800BE6E8(value, digits, 5, 0, 0);
+    tex = D_800C3752[digits[0]];
+    pBody->unk6C = 0;
+    i = 0;
+    while (i != digits[0]) {
+        pBody->unk6C += ResourceHelperGetSpriteList(D_800D2F5C, digits[i + 1] + 0x72,
+                                                    &pBody->parts[pBody->unk6C], tex, -8);
+        i++;
+        tex += 10;
+    }
+    if (pBody->unk6C != 0) {
+        for (i = 0; i != pBody->unk6C; i++) {
+            pBody->parts[i].width--;
+            pBody->parts[i].height--;
+        }
+    }
+}
+void func_800BE538(s32 index, s32 arg1, s32 arg2, s32 arg3) {
+    BattleActorSprite *pSprite;
+    BattleMisc33State *pState;
+    u8 *pBase;
+    s32 anim;
+
+    D_80059464 = 0;
+    D_800591AC = 1;
+    pBase = D_800C3EB0;
+    pSprite = *(BattleActorSprite **)(pBase + index * 4 + 0x8C8C);
+    D_800C3780 = 1;
+    if (pSprite != NULL) {
+        anim = pSprite->unkAC.sbytes[3];
+        SpritePlayAnimation(pSprite, 0xA);
+        pState = D_800C3610;
+        D_800C3610 = (BattleMisc33State *)1;
+        if (arg1 != 0) {
+            func_800BD3AC(pSprite, arg1, 0);
+        }
+        if (arg2 != 0) {
+            func_800BD3AC(pSprite, arg2, 1);
+        }
+        if (arg3 != 0) {
+            func_800BD3AC(pSprite, arg3, 0xA);
+        }
+        D_800C3610 = pState;
+        while (BattleGetAdjustedWaitCountdown() != 0) {
+            func_800BE790();
+        }
+        if (pSprite->unkAC.sbytes[3] == 0xA) {
+            while (pSprite->unkAC.sbytes[3] == 0xA) {
+                func_800BE790();
+            }
+        }
+        SpritePlayAnimation(pSprite, anim);
+    }
+    D_800C3780 = 0;
+    func_800BE0DC();
+    D_80059464 = 0;
+    D_800591AC = 0;
+}
 void BattleWriteHexDigits(s32 value, u8 *pBuf, s32 n, s32 base) {
     s32 i;
 
