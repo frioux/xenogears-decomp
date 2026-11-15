@@ -318,30 +318,30 @@ long RotAverageNclip4(SVECTOR *v0, SVECTOR *v1, SVECTOR *v2, SVECTOR *v3,
 */
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte_b", TransposeMatrix);
-/* best attempt 92.81%. Every instruction, its ORDER, the lh rather than
-   lhu on the 0x10 halfword and the reuse of the p[0] temp for p[3] and of the
-   p[1] temp for the 0x10 load all match the original; the only difference is
-   which register each live value sits in, so nothing at 100% is reachable
-   without retail's allocation:
-     original: v0 = return copy, a1 = store base, t1/t2/t3 = the three temps
-     gcc:      v0 = return copy AND store base, a1/a2/v1 = the temps
-   gcc 2.7.2 copies a1 into v0 at entry (that part is right) and then folds
-   every store onto v0, freeing a1 for the first temp. Keeping a1 live as the
-   store base needs four more simultaneously live values in v1/a2/a3/t0, and no
-   source shape tried produces them: pointer locals for the word stores, a
-   separate short pointer for the halfword stores, a ret local, direct casts and
-   2/3/4 temp variables all give the same 92.81%. A try_flags sweep over gcc
-   2.6.0 / 2.7.2 / 2.7.2-cdk x -O1..-O3 x -G4/-G8 x mcpu 3000/r8000 also gives
-   92.81% on every one of the 30 combinations, so the preset is not the issue.
-   The 3-temp ordering below is the one that reaches 92.81%. The earlier 65.00%
-   attempts used 4 temp variables; with 3, gcc reuses the p[0] temp for p[3] and
-   the p[1] temp for the 0x10 halfword exactly like the original.
-   Tried again this round: writing the same stores as plain q1[i]=q0[j] /
-   s1[i]=q0[j] expressions drops to 0.00% (108 bytes, no CSE reuse, lhu);
-   carrying the destination in two aliases (d for the stores, r for the return)
-   is CSE'd back to one pseudo and stays 92.81%.
+// best attempt 93.75%, ported from permuter-out/TransposeMatrix.diff (its candidate
+// scored 93.75 where the previous body, which returned a local copy of m1, scored
+// 92.81). Every instruction, its order, its offset, the lh rather than lhu on the
+// 0x10 halfword and the reuse of one temp for two values all match the original;
+// the only difference left is register choice:
+//   original: v0 = copy of a1 (the return value), a0 = load base, a1 = store base,
+//             t1/t2/t3 = the three temps
+//   gcc:      v0 = copy of a0 (the return value) and it takes over the load base,
+//             a1 = store base, a0/a2/v1 = the temps
+// Retail returns the SECOND argument, so 'return m0' below is not what the source
+// said; gcc 2.7.2 answers 'return m1' with 92.81% because it folds every store
+// onto the v0 copy and frees a1 for the first temp. What retail gives is a dead
+// copy in v0 with a0 and a1 both live, i.e. an allocator coin-flip: no source
+// shape tried produces it. Pointer locals for the word stores, a separate short
+// pointer, a ret local, direct casts, 2/3/4 temp variables, a fourth alias for the
+// load base and two aliases for the destination all land on 92.81 or 93.75.
+// try_flags over gcc 2.6.0 / 2.7.2 / 2.7.2-cdk x -O1..-O3 x -G4/-G8 x mcpu
+// 3000/r8000 gives 93.75% on all 36 combinations, so the preset is not the issue.
+// A 4-minute permute.sh run from the 93.75 body (1177 iterations) found nothing
+// better (base=100 best=100 on the permuter's own scale).
+// Tried earlier and worse: the same stores as plain q1[i]=q0[j] / s1[i]=q0[j]
+// expressions drops to 0.00% (108 bytes, no CSE reuse, lhu).
+/*
 MATRIX *TransposeMatrix(MATRIX *m0, MATRIX *m1) {
-    MATRIX *r = m1;
     long *q = (long *)m1;
     short *qs = (short *)m1;
     long a, b, c;
@@ -360,7 +360,7 @@ MATRIX *TransposeMatrix(MATRIX *m0, MATRIX *m1) {
     b = ((short *)m0)[8];
     qs[2] = a;
     qs[8] = b;
-    return r;
+    return m0;
 }
 */
 
