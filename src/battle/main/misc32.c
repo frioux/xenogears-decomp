@@ -21,26 +21,58 @@ void BattleClearActorMask(void) {
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BCD98);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BCEAC);
-void BattleApplyEffectSpriteColorRamp(u8 *pEntry) {
-    u8 *pData;
-    u8 *pSrc;
+// The sprite record a color-ramp task animates. Only the three s16 slots this
+// unit reads are named; the record continues past them (func_800BCAFC writes its
+// 0x28..0x2B colors).
+typedef struct {
+    /* 0x00 */ u8 unk0[0x2];
+    /* 0x02 */ s16 unk2;
+    /* 0x04 */ u8 unk4[0x2];
+    /* 0x06 */ s16 unk6;
+    /* 0x08 */ u8 unk8[0x2];
+    /* 0x0A */ s16 unkA;
+} BattleEffectSprite; // Size: 0xC
+
+// The color-ramp task's own data block, reached through the task entry's +0x4.
+typedef struct {
+    /* 0x00 */ u8 unk0[0x38];
+    /* 0x38 */ BattleEffectSprite *pSprite;
+    /* 0x3C */ s32 unk3C;
+    /* 0x40 */ s32 unk40;
+    /* 0x44 */ s32 unk44;
+    /* 0x48 */ u8 unk48[0x6];
+    /* 0x4E */ u16 unk4E;
+    /* 0x50 */ u8 unk50[0x4];
+    /* 0x54 */ s32 unk54;
+    /* 0x58 */ s32 unk58; // ramp angle, advanced once per step
+    /* 0x5C is the next field: BattleFreeEffectSpriteTask frees it */
+} BattleEffectColorRampData; // Size: 0x5C
+
+typedef struct {
+    /* 0x00 */ u8 unk0[0x4];
+    /* 0x04 */ BattleEffectColorRampData *pData;
+} BattleEffectTask; // Size: 0x8
+
+void BattleApplyEffectSpriteColorRamp(BattleEffectTask *pTask) {
+    BattleEffectColorRampData *pData;
+    BattleEffectSprite *pSprite;
     s32 timer;
     s16 unk6;
     s16 unkA;
 
-    pData = *(u8 **)(pEntry + 0x4);
-    pSrc = *(u8 **)(pData + 0x38);
-    timer = *(s32 *)(pData + 0x58) + 1;
-    *(s32 *)(pData + 0x3C) = *(s16 *)(pSrc + 0x2);
-    unk6 = *(s16 *)(pSrc + 0x6);
-    *(s32 *)(pData + 0x40) = unk6; // retail stores unk6, then overwrites it below
-    unkA = *(s16 *)(pSrc + 0xA);
-    *(s32 *)(pData + 0x44) = unkA;
-    *(s32 *)(pData + 0x58) = timer;
+    pData = pTask->pData;
+    pSprite = pData->pSprite;
+    timer = pData->unk58 + 1;
+    pData->unk3C = pSprite->unk2;
+    unk6 = pSprite->unk6;
+    pData->unk40 = unk6; // retail stores unk6, then overwrites it below
+    unkA = pSprite->unkA;
+    pData->unk44 = unkA;
+    pData->unk58 = timer;
     // kept after the timer store: retail loads 0x54 in that slot
-    *(s32 *)(pData + 0x40) = unk6 - *(s32 *)(pData + 0x54) - 0x20;
-    func_800BCAFC(pSrc, timer, unkA);
-    *(u16 *)(pData + 0x4E) += 0x10;
+    pData->unk40 = unk6 - pData->unk54 - 0x20;
+    func_800BCAFC(pSprite, timer, unkA);
+    pData->unk4E += 0x10;
 }
 
 void BattleFreeEffectSpriteTask(u8 *pTask) {
