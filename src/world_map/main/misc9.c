@@ -614,6 +614,15 @@ s32 func_80087C6C(s32 index) {
 }
 */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_80087C6C);
+s32 WorldMapSetSceneSpriteSetParents(void) {
+    s32 value = D_8009B674[D_8009C610];
+
+    WorldMapSetSpriteSetParent(value, value - 4);
+    WorldMapSetSpriteSetParent(value, value - 3);
+    WorldMapSetSpriteSetParent(value, value - 2);
+    WorldMapSetSpriteSetParent(value, value - 1);
+    return 1;
+}
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_80087FD0);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_80088570);
 // Best: 95.92% (284 bytes = retail's size, identical instruction multiset). The
