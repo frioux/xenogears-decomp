@@ -51,7 +51,7 @@ extern s32 D_80077040;
 extern s32 D_80077044;
 extern s32 D_8007704C;
 extern SVECTOR D_800770B0;
-extern s16 D_80077070;
+extern MATRIX D_80077070;
 extern s16 D_80077072;
 extern s16 D_80077074;
 extern s16 D_80077076;
@@ -69,7 +69,7 @@ extern s16 D_8007709A;
 extern s16 D_8007709C;
 extern s16 D_8007709E;
 extern s16 D_800770A0;
-extern MATRIX D_800770B8;
+extern s16 D_800770B8;
 extern s16 D_800770BA;
 extern s16 D_800770BC;
 extern s16 D_800770BE;
@@ -389,19 +389,12 @@ void MovieFadeAudioOnPadPress(void) {
     }
 }
 
-INCLUDE_ASM("asm/movie/nonmatchings/main/misc2", func_80076AF0);
-
-/* PRESET: 100.00% under gcc 2.7.2 with -G0 (Default maspsx). Under this unit's
-   -G8 the offset-0 colour-matrix store folds to the symbol form: retail keeps
-   &D_80077070 in $a0 and writes sh v0,0(a0). tools/scripts/try_flags.sh --all
-   shows every other function of the unit scoring IDENTICALLY under -G0, so the
-   unit is a straight preset switch, not a split. Parked body:
 void func_80076AF0(void) {
-    s16* pDiag;
+    MATRIX* pColorMatrix;
 
     SetGeomScreen(0x200);
     SetGeomOffset(0xA0, 0x78);
-    pDiag = (s16*)&D_80077070;
+    pColorMatrix = &D_80077070;
 
     D_800770B8 = 0x1000;
     D_800770C0 = 0x1000;
@@ -433,7 +426,7 @@ void func_80076AF0(void) {
     D_8007709E = 0;
     D_800770A0 = 0;
 
-    pDiag[0] = 0x969;
+    pColorMatrix->m[0][0] = 0x969;
     D_80077072 = 0;
     D_80077074 = 0;
     D_80077076 = 0x969;
@@ -443,10 +436,9 @@ void func_80076AF0(void) {
     D_8007707E = 0;
     D_80077080 = 0;
 
-    SetColorMatrix((MATRIX*)pDiag);
+    SetColorMatrix(pColorMatrix);
     SetBackColor(0x60, 0x60, 0x60);
 }
-*/
 
 void WorldMapScriptOp04SetScratchPosition(void) {
     long pad[6];
