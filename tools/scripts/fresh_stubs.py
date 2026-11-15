@@ -36,6 +36,10 @@ for path,fs in byfile.items():
         win=L[max(0,i-60):i]
         if any("%" in l for l in win): continue          # park note near
         if any(re.search(r'\b%s\s*\('%re.escape(n),l) for l in win): continue  # parked body above
+        nxt=[j for j in range(i+1,len(L)) if "INCLUDE_ASM" in L[j]]
+        below=L[i+1:(nxt[0] if nxt else len(L))]
+        if any("%" in l for l in below): continue        # park note below its own stub
+        if any(re.search(r'\b%s\s*\('%re.escape(n),l) for l in below): continue  # parked body below
         res.setdefault((unit,b),[]).append((f["insns"],n,path))
 rows=sorted(res.items(),key=lambda kv:(-len(kv[1]),sum(x[0] for x in kv[1])/len(kv[1])))
 print("total units",len(rows),"stubs",sum(len(v) for _,v in rows))

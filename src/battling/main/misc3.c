@@ -383,4 +383,75 @@ void BattleActorApplyCenterPosition(u8* p) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80078194);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80078704);
+extern s32 BattleVectorDistance2D(s32*, s32*);
+
+// The three ground-plane edge vectors a battle actor keeps; only the offsets
+// this unit reads are typed (the shared BattleActor stops at 0x1A0).
+typedef struct {
+    /* 0x000 */ u8 pad000[0x6C];
+    /* 0x06C */ Vec4 unk6C;
+    /* 0x07C */ u8 pad07C[0x8B0];
+    /* 0x92C */ Vec4 unk92C;
+    /* 0x93C */ Vec4 unk93C;
+} BattleActorEdges; // Size: 0x94C
+
+// Returns the index of the edge the segment pFrom..pTo meets, and writes the
+// edge's vector to *ppEdge.
+s32 func_80078704(Vec4* pFrom, Vec4* pTo, BattleActorEdges* pEdges, Vec4** ppEdge) {
+    s32 dz;
+    s32 dx;
+    s32 side0;
+    s32 side1;
+    s32 side2;
+    s32 prod1;
+    s32 prod2;
+
+    dz = pFrom->z - pTo->z;
+    dx = pTo->x - pFrom->x;
+    side0 = dz * pEdges->unk6C.x + dx * pEdges->unk6C.z + pFrom->x * pTo->z - pTo->x * pFrom->z;
+    side1 = dz * pEdges->unk92C.x + dx * pEdges->unk92C.z + pFrom->x * pTo->z - pTo->x * pFrom->z;
+    side2 = dz * pEdges->unk93C.x + dx * pEdges->unk93C.z + pFrom->x * pTo->z - pTo->x * pFrom->z;
+    if (side0 < 0) {
+        side0 = -1;
+    } else if (side0 > 0) {
+        side0 = 1;
+    }
+    if (side1 < 0) {
+        side1 = -1;
+    } else if (side1 > 0) {
+        side1 = 1;
+    }
+    if (side2 < 0) {
+        side2 = -1;
+    } else if (side2 > 0) {
+        side2 = 1;
+    }
+    prod1 = side1 * side0;
+    prod2 = side2 * side0;
+    if (prod1 < 0) {
+        if (prod2 < 0) {
+            s32 dist92C = BattleVectorDistance2D(&pEdges->unk92C.x, (s32*)pFrom);
+            if (BattleVectorDistance2D(&pEdges->unk93C.x, (s32*)pFrom) < dist92C) {
+                *ppEdge = &pEdges->unk92C;
+            } else {
+                *ppEdge = &pEdges->unk93C;
+            }
+            return 0;
+        }
+        *ppEdge = &pEdges->unk92C;
+        return 1;
+    }
+    if (prod2 < 0) {
+        *ppEdge = &pEdges->unk93C;
+        return 2;
+    }
+    {
+        s32 dist92C = BattleVectorDistance2D(&pEdges->unk92C.x, (s32*)pFrom);
+        if (dist92C < BattleVectorDistance2D(&pEdges->unk93C.x, (s32*)pFrom)) {
+            *ppEdge = &pEdges->unk92C;
+        } else {
+            *ppEdge = &pEdges->unk93C;
+        }
+    }
+    return 3;
+}
