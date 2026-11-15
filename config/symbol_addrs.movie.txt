@@ -1,5 +1,5 @@
 func_800704E8 = 0x800704E8;
-func_80070DCC = 0x80070DCC;
+MovieUpdateStream = 0x80070DCC;
 func_800712C4 = 0x800712C4;
 MovieStartStreamRead = 0x80071BA0;
 func_80071C34 = 0x80071C34;

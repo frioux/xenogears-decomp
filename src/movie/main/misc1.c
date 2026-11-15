@@ -72,7 +72,7 @@ extern void func_800294B4(s32 arg0);
 extern s32 ArchiveDecodeAlignedSize(u32 entryIndex);
 extern void func_80071C34(s32 arg0);
 
-void func_80070DCC(void) {
+void MovieUpdateStream(void) {
     s32 size;
     u32 value;
 

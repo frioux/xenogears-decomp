@@ -297,7 +297,7 @@ void BattleScriptSkipUnknownOpcodeWords(u8** pCursor) {
         BattleScriptCursorSkipWord(pCursor);
     }
 }
-void func_800799C8(u8 arg0) {
+void BattleScriptResetActorState(u8 arg0) {
     u8* pCursor;
     u8 value;
     u8 slot;
