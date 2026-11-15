@@ -126,7 +126,7 @@ void BattleSetSlotBit20FromStatusBit200(u8 arg0) {
     BattleTableEntry *pSlot = &D_800CCCE8[arg0];
     u16 v;
 
-    if (D_800D2DC8->unk80 & 0x200) {
+    if (pState->unk80 & 0x200) {
         v = pSlot->unk84 | 0x20;
     } else {
         v = pSlot->unk84 & 0xFFDF;
