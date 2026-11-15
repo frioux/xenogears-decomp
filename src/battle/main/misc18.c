@@ -15,6 +15,8 @@ extern u8 D_800C3E50;
 extern u8 D_800D2DC4;
 extern u8 *D_800D2D6C;
 extern u8 *D_800D2DC8;
+
+extern u8 D_800D220E[];
 extern u16 D_800D2C98;
 extern u16 D_800D2C9E;
 
@@ -23,15 +25,6 @@ extern s8 func_80097964(u8, u8, u16);
 extern void func_800995A0(u8, u8, u16, s32);
 extern void func_80098D2C(u8, u8);
 extern void func_80094D24(void);
-
-// One 0x10-byte record of the main executable's per-slot table; this unit reads
-// only the halfword BattleInitActiveSlotActions copies into the work block.
-typedef struct {
-    /* 0x0 */ u8 unk0[0xE];
-    /* 0xE */ u16 unkE;
-} BattleSlotRecord; // Size: 0x10
-
-extern BattleSlotRecord D_800D2200[];
 
 void BattleApplyScriptConditionTimer(void) {
     s8 ret = func_80097964(D_800C3DFC->unk1C, D_800C3DFC->unk1D,
@@ -447,7 +440,7 @@ void BattleInitActiveSlotActions(u8 sel) {
         mask <<= 1;
     }
 
-    *(u16 *)((u8 *)D_800C34B0 + 0x5FB0) = D_800D2200[sel].unkE;
+    *(u16 *)((u8 *)D_800C34B0 + 0x5FB0) = *(u16 *)(D_800D220E + sel * 0x10);
 
     if (D_800D2C9E & 0x8000) {
         D_800D2C98 = 0xC2;
