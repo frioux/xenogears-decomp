@@ -414,18 +414,19 @@ void func_800881B8(u8 arg0, u8 arg1) {
 void func_800883AC(u8 arg0) {
     s32 ofs;
     u8 sel;
-    u8 ret;
+    u8 invMask;
 
     sel = (arg0 >= 3) * 8;
     if (D_800D32A1[arg0 * 8] != 0) {
         sel |= 0x10;
     }
-    ofs = arg0 * 28;
+    ofs = arg0 * 0x1C;
     D_800D301C[(D_800C3EB4[ofs] + sel) << 2]--;
+    /* The do/while keeps gcc from hoisting the mask argument above the store. */
     do {
-        ret = BattleSlotBitMaskInverted(D_800C3EB5[ofs]);
+        invMask = BattleSlotBitMaskInverted(D_800C3EB5[ofs]);
     } while (0);
-    D_800D301D[(D_800C3EB4[ofs] + sel) << 2] &= ret;
+    D_800D301D[(D_800C3EB4[ofs] + sel) << 2] &= invMask;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80088490);
 /* 63.19%: first block and the five `D_800C3EB4[ofs]` reloads match retail exactly;
