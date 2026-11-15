@@ -739,47 +739,32 @@ void MenuParseNumberToDigits(u32 number);
 extern u32 D_801EA01C;
 extern u32 D_801EA020;
 
-/* Best: 99.49% (396 bytes = retail's size and instruction count).  Shape: two
-   MenuParseNumberToDigits calls around a 3-iteration loop over g_Menu[0x322 + i];
-   the counter byte is unk34C + arg0 * 0x87C + 0x1308, the prim pointer is
-   (arg0 * 0x87C + 0xA98) + unk34C + count * 0x50 + 0x320, the x stack argument is
-   arg0 * 0x50 + D_801EA01C + i * 8 and the trailing store goes to +0x1309.
-   Left: five operand slots.  Retail emits "addu d,base,offset" (destination as the
-   first source) at all four unk34C+offset sums, gcc always "addu d,offset,base".
-   Not source order: the array form, the u8* form and (u32)base + offset compiled to
-   the same five swaps.  Also tried: the offset written first in C (pointer and
-   integer), an s32 slotOffset local (79.52%: the frame grows and the multiply moves
-   into s3), the tail through a pointer local (86.26%), and three permuter runs
-   (its best candidate scored worse on objdiff).  Two shape facts worth keeping:
-   primOffset must be a real s32 local or gcc folds 0xA98 onto the base load, and
-   the x argument must be written "arg0 * 0x50 + D_801EA01C" (the reverse order
-   costs three instructions).
-*/
+// pSlot and pCount re-derive pCounter's address: gcc emits retail's base-first
+// "addu d,base,offset" only when that sum is an assignment's own result.
 void func_801E6B70(u8 arg0, u8* pArg1) {
     u8* pPrims;
     u8* pCounter;
     u8* pSlot;
     u8* pCount;
     s32 primOffset;
-    s32 tailOffset;
     int i;
 
     MenuParseNumberToDigits((pArg1 + arg0)[0x16]);
     pCounter = (u8*)g_Menu->unk34C + arg0 * 0x87C;
     pCounter[0x1308] = 0;
     for (i = 0; i < 3; i++) {
-        if (*((u8*)g_Menu + i + 0x322) == 0xFF) {
+        if (g_Menu->digits[6 + i] == 0xFF) {
             continue;
         }
         primOffset = arg0 * 0x87C + 0xA98;
         pPrims = (u8*)(primOffset + (u32)g_Menu->unk34C);
         *((pSlot = (u8*)g_Menu->unk34C + arg0 * 0x87C) + 0x1308) += func_8002675C(
-            g_Menu->resources, *((u8*)g_Menu + i + 0x322),
+            g_Menu->resources, g_Menu->digits[6 + i],
             (POLY_FT4*)(pPrims + (*((pCount = (u8*)g_Menu->unk34C + arg0 * 0x87C) + 0x1308) * 0x50 + 0x320)),
             g_Menu->renderContext, arg0 * 0x50 + D_801EA01C + i * 8,
             D_801EA020, 0x1000);
     }
     MenuParseNumberToDigits((pArg1 + arg0)[0x19]);
-    tailOffset = arg0 * 0x87C;
-    *((u8*)g_Menu->unk34C + tailOffset + 0x1309) = 0;
+    pCounter = (u8*)g_Menu->unk34C + arg0 * 0x87C;
+    pCounter[0x1309] = 0;
 }
