@@ -1933,20 +1933,16 @@ void SoundSetElementPanById(s32 id, s32 value) {
     } while (cnt);
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003A55C);
-/*
-Screened under gcc-2.7.2-cdk / gcc-2.7.2 / this unit's gcc-2.6.0: 72.03 / 72.03 / 79.31 - not
-a compiler-only match; the current preset is the best of the three.
-Attempt (79.31%, correct size and registers): the only difference is that gcc
-schedules the `andi a0,0xfe` / `xori a0,0x8` pair after the loop-preheader
-constants (`li a2,2`, `sll a1,a1,8`, `li a3,0x100`) while the original emits
-them first. Everything else - including the second pointer to status_flags -
-matches. Stable against declaration order and against a statement-per-line form.
 void func_8003A55C(s32 elementIndex, s32 value) {
-    s32 index = (elementIndex & 0xFE) ^ 8;
-    AudioElement* pElement = &D_800595D8->elements[index];
-    s32 volume = value << 8;
-    u32 cnt = 2;
+    AudioElement* pElement;
+    u32 cnt;
+    s32 volume;
+
+    elementIndex &= 0xFE;
+    elementIndex ^= 8;
+    cnt = 2;
+    volume = value << 8;
+    pElement = &D_800595D8->elements[elementIndex];
 
     do {
         if (pElement->active_flag & 0x1) {
@@ -1957,7 +1953,6 @@ void func_8003A55C(s32 elementIndex, s32 value) {
         cnt--;
     } while (cnt);
 }
-*/
 
 s32 func_8003A5D0(s32 id) {
     AudioElement* pElement = &D_800595D8->elements[0];
