@@ -680,21 +680,6 @@ extern s32 BattleGetAdjustedWaitCountdown(void);
 extern s32 ArchiveDataSync(void);
 extern void func_8002A498(s32);
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800B136C);
-/* 96.96% (332 bytes vs 328): the whole control flow, the two 11-entry polls and
-   the ArchiveDataSync wait loop match; only two register-allocation ties remain.
-   1. prologue save order: original `sw ra,32 / sw s1,20 / sw s0,16 / move s1,zero
-      / move s0,zero`, ours emits `sw s1,20 / move s1,zero` before `sw ra,32`.
-   2. first poll loop: original keeps the array walker in $a0 and the element in
-      $v1, ours the other way round.
-   Tried: D_800D3368[i] and *(pp++) walkers, one base pointer local (pBase) vs
-   two (pBase + ppBase), comma for-init, flagA declared before/after the base.
-   Shape notes for whoever retries: phase 1 is
-     for (;;) { poll 11 entries; if (BattleGetAdjustedWaitCountdown()) flagA = 1;
-                if (flagA) { func_800BE790(); flagA = 0; continue; } break; }
-   phase 2 needs BOTH a base local (loaded once into $s2 before the while) and a
-   walker reset from it each pass, and a `if (flagA == 0) break;` after the
-   sync test so gcc shares the loop test with the break.
 void func_800B136C(void) {
     s32 flagB = 0;
     u8 **pBase = D_800D3368;
@@ -705,13 +690,13 @@ void func_800B136C(void) {
     u8 **ppBase;
 
     for (;;) {
+        flagA = 0;
         for (i = 0; i < 11; i++) {
-            pEntry = pBase[i];
-            if (pEntry != NULL) {
-                if (pEntry[0x38] != 0) {
+            if (pBase[i] != NULL) {
+                if (pBase[i][0x38] != 0) {
                     flagA = 1;
                 }
-                if (*(s32 *)(pEntry + 0xC) != 0) {
+                if (*(s32 *)(pBase[i] + 0xC) != 0) {
                     flagB = 1;
                 }
             }
@@ -721,7 +706,6 @@ void func_800B136C(void) {
         }
         if (flagA != 0) {
             func_800BE790();
-            flagA = 0;
             continue;
         }
         break;
@@ -748,7 +732,6 @@ void func_800B136C(void) {
         func_800BE790();
     }
 }
-*/
 void BattleSetExtraMatrixFlag(void) {
     D_800C3D6C = 1;
 }
