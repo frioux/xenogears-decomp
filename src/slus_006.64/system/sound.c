@@ -1768,11 +1768,12 @@ void SoundStopElementsForSoundFile(SoundFile* pSoundFile) {
     AudioManager* pManager = D_800595D8;
     AudioElement* pElement = &pManager->elements[0];
     u32 cnt = D_80059478;
-    s16 sedId = *(s16*)((u8*)pSoundFile + 0x14);
+    s16 sedId = *(s16*)&pSoundFile->sedId;
 
     do {
         if (pElement->active_flag & 0x1) {
-            if (*(s16*)((u8*)pElement + 0xA) == sedId) {
+            // unk_0x8 holds two 16-bit ids; the second one is the owning file's sedId
+            if (((s16*)&pElement->unk_0x8)[1] == sedId) {
                 pElement->active_flag = 0;
                 pManager->unk_0x48 &= ~(1 << (u8)pElement->unk_0x06[0]);
                 SoundReleaseVoiceFromChannel(&pElement->voice_data, pElement->voice_number);
@@ -2330,18 +2331,20 @@ void SoundReleaseAllVoices(AudioManager* manager) {
 void SoundCopyPercussionTable(AudioManager* pManager, AudioManager* pSrc) {
     u32* pTable;
     u8* pData;
+    u32* pSlot;
     u32 cnt;
 
     pTable = (u32*)((u8*)pManager + SoundCalculateAudioManagerSize(pSrc->elementCount));
     pManager->unk_0xc = (s32)pTable;
     // the sequence header stores the percussion table offset as a 16-bit field
-    pData = (u8*)pSrc + *(u16*)((u8*)pSrc + 0x20);
+    pData = (u8*)pSrc + (u16)pSrc->unk_0x20;
     cnt = pSrc->unk_0x15;
 
     do {
         u32 value = pData[1] | (pData[2] << 8) | (pData[3] << 16) | (pData[4] << 24);
 
-        *(u32*)((u8*)pTable + (pData[0] << 2)) = value;
+        pSlot = pTable + pData[0];
+        *pSlot = value;
         pData += 5;
         cnt--;
     } while (cnt);
@@ -3385,7 +3388,7 @@ u8* SoundScriptStopElementsById(u8* pScript, AudioManager* pAudioManager, AudioE
 
 u8* SoundScriptJumpToInstrumentScript(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     SoundFile* pSoundFile = g_SoundSedsLinkedList;
-    s16 sedId = *(s16*)((u8*)pAudioElements + 0xA);
+    s16 sedId = ((s16*)&pAudioElements->unk_0x8)[1];
     s16 instrument = pScript[0] | (pScript[1] << 8);
     u8 channel = pScript[2];
 
