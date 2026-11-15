@@ -1933,7 +1933,7 @@ void SoundSetElementPanById(s32 id, s32 value) {
     } while (cnt);
 }
 
-void func_8003A55C(s32 elementIndex, s32 value) {
+void SoundSetElementPanByIndex(s32 elementIndex, s32 value) {
     AudioElement* pElement;
     u32 cnt;
     s32 volume;
@@ -3308,7 +3308,7 @@ u8* SoundScriptSetReverb(u8* pScript, AudioManager* pAudioManager, AudioElement*
     return pScript + 3;
 }
 
-u8* func_8003D53C(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
+u8* SoundScriptSetVoiceFlags4000AndMode(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     if (pAudioManager->unk_Flags & 0x6) {
         if ((g_SoundControlFlags & 0x2000) == 0) {
             return pScript;
@@ -3819,7 +3819,7 @@ u8* SoundScriptSetEnvelope2Rate(u8* pScript, AudioManager* pAudioManager, AudioE
     return pScript;
 }
 
-u8* func_8003DF78(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
+u8* SoundScriptSetTriangleEnvelope2(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     s8 note = pScript[1];
     s16 velocity = pScript[0];
     s32 unk16;

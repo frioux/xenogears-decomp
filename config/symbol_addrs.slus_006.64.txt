@@ -1399,3 +1399,6 @@ ArchiveStreamFileDataCallback = 0x8002BA58;
 ArchivePrintDebugState = 0x8002C310;
 SoundScriptSetTriangleEnvelope0 = 0x8003D8B8;
 GetGraphType = 0x800444B8;
+SoundSetElementPanByIndex = 0x8003A55C;
+SoundScriptSetVoiceFlags4000AndMode = 0x8003D53C;
+SoundScriptSetTriangleEnvelope2 = 0x8003DF78;
