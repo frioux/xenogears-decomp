@@ -29,6 +29,13 @@ typedef struct {
     /* 0x0BC */ u8 unk0BC[0xB4];
 } BattleSlotEntry; // Size: 0x170
 
+// Per-slot "can be picked" flag the slot-picking loops gate on, one 8-byte
+// record per battle slot.
+typedef struct {
+    /* 0x0 */ u8 inUse;
+    /* 0x1 */ u8 unk1[7];
+} BattleSlotFlag; // Size: 0x8
+
 // Per-slot tag record: tag at +0, flag byte at +3.
 typedef struct {
     /* 0x0 */ u8 tag;
@@ -49,7 +56,7 @@ extern u8 D_800D2DCC[];
 extern u8 D_800CCD3E[];
 extern u8 D_800CCDEC[];
 extern u8 D_800C3EB7[];
-extern u8 D_800D32A1[];
+extern BattleSlotFlag D_800D32A1[];
 extern u8 D_800D3420[];
 extern u8 D_800D3430[];
 extern u8 *D_800D3364;
@@ -300,7 +307,7 @@ void BattlePickSlotByFlagTable(BattleSlotArgs **ppArgs, u8 row) {
     for (; i < 0xB; i++, record += 8) {
         u8 idx = i;
 
-        if (func_8007A628(idx, (*ppArgs)->tag) != 0 && D_800D32A1[record] != 0) {
+        if (func_8007A628(idx, (*ppArgs)->tag) != 0 && ((u8 *)D_800D32A1)[record] != 0) {
             *pBuf++ = idx;
             count++;
         }
@@ -569,13 +576,11 @@ void BattlePickCharSlotByLowestEntryDwordInUse(BattleSlotArgs **ppArgs, u8 row) 
     u32 best = -1;
     s32 bestIndex = 0;
     s32 i;
-    s32 offset;
-    s32 record;
 
-    for (i = 0, offset = 0, record = 0; i < 3; offset += 0x170, i++, record += 8) {
-        if (func_8007A628(i, (*ppArgs)->tag) != 0 && D_800D32A1[record] != 0
-            && best >= *(u32 *)(D_800CCDEC + offset)) {
-            best = *(u32 *)(D_800CCDEC + offset);
+    for (i = 0; i < 3; i++) {
+        if (func_8007A628(i, (*ppArgs)->tag) != 0 && D_800D32A1[i].inUse != 0
+            && best >= D_800CCD34[i].unk0B8) {
+            best = D_800CCD34[i].unk0B8;
             bestIndex = i;
         }
     }
@@ -589,13 +594,11 @@ void BattlePickActorSlotByLowestEntryWordInUse(BattleSlotArgs **ppArgs, u8 row) 
     u32 best = -1;
     s32 bestIndex = 0;
     s32 i;
-    s32 offset;
-    s32 record;
 
-    for (i = 3, offset = 0x450, record = 0x18; i < 0xB; offset += 0x170, i++, record += 8) {
-        if (func_8007A628(i, (*ppArgs)->tag) != 0 && D_800D32A1[record] != 0
-            && best >= *(u16 *)((u8 *)D_800CCD34 + offset)) {
-            best = *(u16 *)((u8 *)D_800CCD34 + offset);
+    for (i = 3; i < 0xB; i++) {
+        if (func_8007A628(i, (*ppArgs)->tag) != 0 && D_800D32A1[i].inUse != 0
+            && best >= D_800CCD34[i].unk000) {
+            best = D_800CCD34[i].unk000;
             bestIndex = i;
         }
     }
