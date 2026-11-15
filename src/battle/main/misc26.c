@@ -215,7 +215,8 @@ void BattleCreateTimedScaleTask(BattleScaleVector *pTarget, s32 frames) {
 // One step of the fade: while the timer runs, move the colour from the start
 // toward the target in equal slices, and once it is spent settle on the target
 // and release the task if the fade has ended on black.
-void func_800B36BC(BattleScreenFadeTask *pTask) {
+void func_800B36BC(void *pArg) {
+    BattleScreenFadeTask *pTask = pArg;
     s32 step[3];
 
     if (pTask->timer == 0) {
