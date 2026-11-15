@@ -66,7 +66,7 @@ typedef struct {
 
 extern BattleFilterEntry* D_80092874;
 extern s32 D_80091964[];
-extern u8** D_800928EC;
+extern s32** D_800928EC;
 extern s32 D_80092888;
 
 typedef struct {
@@ -103,12 +103,12 @@ extern s32 D_800926B4;
 
 // 0x14-byte sprite record of the 7x7 table BattleInitSpriteRectTable allocates at D_8009270C.
 typedef struct {
-    /* 0x00 */ u16 unk0;
-    /* 0x02 */ u16 unk2;
+    /* 0x00 */ s16 unk0;
+    /* 0x02 */ s16 unk2;
     /* 0x04 */ u16 unk4;
     /* 0x06 */ u16 unk6;
-    /* 0x08 */ u16 unk8;
-    /* 0x0A */ u16 unkA;
+    /* 0x08 */ s16 unk8;
+    /* 0x0A */ s16 unkA;
     /* 0x0C */ u16 unkC;
     /* 0x0E */ u16 unkE;
     /* 0x10 */ u16 unk10;
@@ -116,6 +116,7 @@ typedef struct {
 } BattleSprite; // Size: 0x14
 
 extern BattleSprite* D_8009270C;
+extern void* D_80092938;
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007E020);
 
@@ -358,7 +359,6 @@ void func_8007E964(s32 c) {
         *(u_short*)&pPkt->u3 = (pGlyph[0] + gw) | ((pGlyph[1] + (pGlyph[3] + 1)) << 8);
         pPkt->tpage = D_800926E0;
         pPkt->clut = D_800926E4;
-        setlen(pPkt, 9);
         *(u_long*)&pPkt->r0 = D_800926F0 | (D_800926F4 << 8) | (D_800926F8 << 16) | 0x2C000000;
         D_800926DC++;
     }
@@ -481,7 +481,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007EEE8);
 void func_8007EEE8(s32 arg) {
     s32 i;
     s32 limit;
-    u8** pQueue;
+    s32** pQueue;
 
     limit = g_GameState.unk1930[0];
     pQueue = HeapAlloc(0xC4, 1);
@@ -489,7 +489,7 @@ void func_8007EEE8(s32 arg) {
     D_80092888 = 0;
     for (i = 0; i < 0x31; i++) {
         if (arg == 0 || D_80092874[i].unk4 <= limit) {
-            pQueue[D_80092888++] = (u8*)&D_80091964[i];
+            pQueue[D_80092888++] = &D_80091964[i];
         }
     }
     if (arg != 0) {
@@ -528,6 +528,83 @@ void BattleInitSpriteRectTable(void) {
 }
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007F05C);
+/* best 84.45% (504 bytes against retail's 512). Whole body is right: the flag
+   x offset (0xD3/0x33), the two-part idx wrap against D_80092888, the
+   0x14-byte sprite lookup through D_800928EC/D_8009270C, the shade==0x40 fast
+   path with (x,0x30)-(x+0x3C,0x70), the shaded path's colour word
+   (shade+0x40 in r/g/b, code 0x2C) and its quad (x0 = x+4-k, y0 = 0x34-k,
+   w = 0x34+2k, h = 0x38+2k, k = shade>>4), the four u/v words
+   (u = sprite->unk8*2 with u1 = u+0x3B, v1 = sprite->unkA+0x3F) and the
+   GetClut/GetTPage/AddPrim tail are all exact.
+   Two residuals, both scheduling:
+   1. retail spends one addiu +0x40 in the bne delay slot and then gets k back
+      with addiu -0x40 in the shaded arm; ours keeps shade in a1 and adds 0x40
+      inside the arm, i.e. one instruction shorter (the 8 missing bytes).
+   2. x1 = (x0 + 0x34) + 2k in retail, ours folds to x0 + (0x34 + 2k).
+   Tried: one setlen before the branch (the permuter prefers it in its own
+   metric but it costs retail's duplicate store), a grow/2k local, splitting
+   x1/y1 into two statements, an index local, every declaration order. The
+   permuter ran 3 minutes (base 1855 -> 1465) and only found the setlen move.
+   Sprite field types here are s16: that is what makes the uv stores read
+   unkA with lhu (truncated store) and the GetTPage/GetClut args with lh.
+void func_8007F05C(s32 idx, POLY_FT4* pPkt, s32 flag, s32 x, s32 shade) {
+    BattleSprite* pSprite;
+    s32 count;
+    s32 half;
+    s32 grow;
+    s32 u;
+    s32 x0;
+    s32 y0;
+    s32 x1;
+    s32 y1;
+
+    if (flag != 0) {
+        x += 0xD3;
+    } else {
+        x += 0x33;
+    }
+    count = D_80092888;
+    if (idx > count - 1) {
+        idx -= count;
+    }
+    if (idx < 0) {
+        idx += count;
+    }
+    count = *D_800928EC[idx];
+    pSprite = &D_8009270C[count];
+    if (shade == 0x40) {
+        setlen(pPkt, 9);
+        pPkt->code = 0x2D;
+        *(u_long*)&pPkt->x0 = x | (0x30 << 16);
+        *(u_long*)&pPkt->x1 = (x + 0x3C) | (0x30 << 16);
+        *(u_long*)&pPkt->x2 = x | (0x70 << 16);
+        *(u_long*)&pPkt->x3 = (x + 0x3C) | (0x70 << 16);
+    } else {
+        s32 color = shade + 0x40;
+
+        setlen(pPkt, 9);
+        *(u_long*)&pPkt->r0 = (color << 8) | color | (color << 16) | 0x2C000000;
+        half = shade >> 4;
+        x0 = x + 4 - half;
+        y0 = 0x34 - half;
+        grow = half * 2;
+        x1 = x0 + 0x34 + grow;
+        y1 = y0 + 0x38 + grow;
+        *(u_long*)&pPkt->x0 = x0 | (y0 << 16);
+        *(u_long*)&pPkt->x1 = x1 | (y0 << 16);
+        *(u_long*)&pPkt->x2 = x0 | (y1 << 16);
+        *(u_long*)&pPkt->x3 = x1 | (y1 << 16);
+    }
+    u = pSprite->unk8 * 2;
+    *(u_short*)&pPkt->u0 = u | (pSprite->unkA << 8);
+    *(u_short*)&pPkt->u1 = u + 0x3B | (pSprite->unkA << 8);
+    *(u_short*)&pPkt->u2 = u | ((pSprite->unkA + 0x3F) << 8);
+    *(u_short*)&pPkt->u3 = u + 0x3B | ((pSprite->unkA + 0x3F) << 8);
+    pPkt->clut = GetClut(pSprite->unk0, pSprite->unk2);
+    pPkt->tpage = GetTPage(1, 0, pSprite->unk8 & 0xFF80, pSprite->unkA);
+    AddPrim(D_80092938, pPkt);
+}
+ */
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007F258);
 
