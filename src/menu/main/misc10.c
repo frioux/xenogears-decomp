@@ -305,7 +305,7 @@ void func_801E3088(u8 arg0) {
 }
 */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E31C0);
-void func_801E35BC(MenuDressingRoom* pDressingRoom, u8 charIndex, u8 targetIndex, u8 slotIndex, u8 isGear) {
+void MenuApplyDressingRoomSlotHpBonus(MenuDressingRoom* pDressingRoom, u8 charIndex, u8 targetIndex, u8 slotIndex, u8 isGear) {
     GameCharacter* pChar;
     GameCharacter* pTarget;
     u8* pSlots;

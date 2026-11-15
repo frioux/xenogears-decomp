@@ -175,7 +175,7 @@ void BattleByteRegSetReg(u8 **p, u8 index) {
 
     pTable[pArgs[2]] = pTable[pArgs[1]];
 }
-void func_8007B98C(u8 **p, u8 index) {
+void BattleWordRegSetReg(u8 **p, u8 index) {
     // The dead pField is load-bearing: its initializer makes gcc emit the
     // index*0x40 shift before the base lui/addiu, as retail does.
     u16 *pField = (u16 *)(D_800D3420 + index * 0x40);
@@ -187,7 +187,7 @@ void func_8007B98C(u8 **p, u8 index) {
 }
 // best: 84.67%. Instruction multiset identical; the original loads *p into v0
 // and puts the D_800D3410 base in a0, gcc emits the base first instead. Same
-// allocator tie as func_8007B98C.
+// allocator tie as BattleWordRegSetReg.
 // screened: identical 84.67% under Default, 2.7.2-cdk and 2.6.0 - a register
 // allocation tie, not a compiler question.
 /*

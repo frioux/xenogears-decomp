@@ -64,7 +64,7 @@ typedef struct BattleActor {
 } BattleActor; // Size: 0x1604
 
 extern s32 func_80073DE4(BattleActor* p, s32 arg1);
-extern void func_800767C8(u8* p);
+extern void BattleTryQueueMessage5(u8* p);
 extern void BattleQueueMessage(u8* p, s32 arg1);
 extern u8 D_80092884;
 extern u32 BattleGetGridCellAtPosition(s32* p);
@@ -176,7 +176,7 @@ void BattleQueueMessages4Then3(u8* pArg0) {
         }
     }
     if (D_80092884 != 0) {
-        func_800767C8(pArg0);
+        BattleTryQueueMessage5(pArg0);
         BattleQueueMessage(pArg0, 4);
         BattleQueueMessage(pArg0, 3);
         return;
@@ -438,7 +438,7 @@ void BattleEnterWorkState2(u8* pArg0) {
     p = *(u8**)(pArg0 + 0x15FC);
     p[0x8] = 2;
     if (rand() % 3 == 0) {
-        func_800767C8(pArg0);
+        BattleTryQueueMessage5(pArg0);
     }
     *(s32*)(p + 0x28) = rand() % 1536 + 0x100;
     *(s16*)(p + 0x4) = 0;

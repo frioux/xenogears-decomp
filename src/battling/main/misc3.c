@@ -252,7 +252,7 @@ void func_8007661C(u8* p) {
 
 /* non-void return type: as void gcc fills the beq delay slots that retail
    leaves as nop. */
-short func_800767C8(u8* p) {
+short BattleTryQueueMessage5(u8* p) {
     u32 flags;
 
     if (D_8009284C >= 0x201) {

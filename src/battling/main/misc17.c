@@ -43,7 +43,7 @@ extern u8 D_80091F90[];
 extern u8 D_80091FA0[];
 
 extern void BattleQueueMessage(u8*, u8);
-extern void func_800767C8(u8*, u8*);
+extern void BattleTryQueueMessage5(u8*, u8*);
 extern void BattleAcquireSoundSlot(u8*, u32, u8*, u32);
 extern s32 func_8008B650(s32, s16, s16);
 extern void SoundStopAllElements(void);
@@ -386,7 +386,7 @@ void BattleUpdateActorApproach(u8* p, s16 arg1, s16 arg2) {
     *(u16*)(p + 0xCE) = 0;
 }
 void BattleCheckStateAndSetDelay60(u8* p0, u8* p1) {
-    func_800767C8(p0, p1);
+    BattleTryQueueMessage5(p0, p1);
     *(u16*)(p1 + 4) = 0x3C;
 }
 void BattleQueueRandomMessagesAndDelay(u8* p0, u8* p1, s32 flag) {
