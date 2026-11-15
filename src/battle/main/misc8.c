@@ -308,37 +308,47 @@ void BattleStoreActorSlotTagCount(u8 **arg0, u8 arg1) {
     pRow = &D_800D3430[arg1 * 0x40];
     pRow[(*arg0)[1]] = count;
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007CDD0);
-/* best: 99.02% (212 bytes = retail's exact size; every instruction matches
-   except the frame and one commutative addu):
-   - `u8 *pRow = (u8 *)(D_800D3420 + 0x10) + arg1 * 0x40;` is what reproduces
-     retail's `lui %hi(D_800D3420)` / `addiu %lo` / `addiu s0,s0,0x10` in the
-     jal delay slot plus `addu s2,s2,s0` after it. Spelling the row as
-     `D_800D3430 + ...` gives two separate symbol loads (78.26%) and
-     `(u8 *)pField + 0x10` makes gcc CSE the row base into one register (89.77%).
-   - `u8 a = D_800C3EB4[value * 0x1C]; s32 slot = arg1 + 3;` in THAT order is
-     what puts `addiu s1,s1,3` between the two index chains, like retail.
-   - `D_800D3364[row * 0x40 + op * 8 + 0x140]` (row first) is what gets the two
-     slls in retail's order (99.02% vs 98.26%).
-   Remaining: (1) frame 0x30 vs retail 0x28 - two dead spill slots; the stack
-   offset shift proves they exist but no sw/lw to sp is emitted. Dropping one
-   live local (inlining the call result) removes the 8 bytes but costs 2
-   instructions (80.42%, 204 bytes). (2) mine puts the table base in v1 and the
-   sum in v0, retail the reverse (`addu v0,v0,v1` vs `addu v1,v1,v0`).
-   Also tried: pRow declared first (85.23%, picks D_800D3430 then subtracts
-   0x10), slot before the loads (89.75%), inline pField, inline b, (void)pRow,
-   and the store address inlined instead of a pRow local (76.43%).
-
+// best: 99.21% (212 bytes = retail's exact size; everything matches except the
+// frame (0x30 vs retail 0x28, two dead spill slots) and which of v0/v1 holds the
+// table base and which the offset sum: retail `addu v1,v1,v0` then `addu
+// v0,v0,v1`, mine the reverse pair). Permuter mischief 30 (was 40); two more
+// 4-minute runs from this body both came back PERMUTER_NONE base=30 best=30, so
+// what is left is not a tie the permuter can reach in minutes.
+// Permuter edit ported: `s32 opOffset = a * 8;` as its own local, used by the
+// store index (99.02 to 99.21). Temp-first vs row-first in the index compiles
+// identically. What the earlier round established:
+// at 99.02%:  (212 bytes = retail's exact size; every instruction matches
+//    except the frame and one commutative addu):
+//    - `u8 *pRow = (u8 *)(D_800D3420 + 0x10) + arg1 * 0x40;` is what reproduces
+//      retail's `lui %hi(D_800D3420)` / `addiu %lo` / `addiu s0,s0,0x10` in the
+//      jal delay slot plus `addu s2,s2,s0` after it. Spelling the row as
+//      `D_800D3430 + ...` gives two separate symbol loads (78.26%) and
+//      `(u8 *)pField + 0x10` makes gcc CSE the row base into one register (89.77%).
+//    - `u8 a = D_800C3EB4[value * 0x1C]; s32 slot = arg1 + 3;` in THAT order is
+//      what puts `addiu s1,s1,3` between the two index chains, like retail.
+//    - `D_800D3364[row * 0x40 + op * 8 + 0x140]` (row first) is what gets the two
+//      slls in retail's order (99.02% vs 98.26%).
+//    Remaining: (1) frame 0x30 vs retail 0x28 - two dead spill slots; the stack
+//    offset shift proves they exist but no sw/lw to sp is emitted. Dropping one
+//    live local (inlining the call result) removes the 8 bytes but costs 2
+//    instructions (80.42%, 204 bytes). (2) mine puts the table base in v1 and the
+//    sum in v0, retail the reverse (`addu v0,v0,v1` vs `addu v1,v1,v0`).
+//    Also tried: pRow declared first (85.23%, picks D_800D3430 then subtracts
+//    0x10), slot before the loads (89.75%), inline pField, inline b, (void)pRow,
+//    and the store address inlined instead of a pRow local (76.43%).
+/*
 void func_8007CDD0(u8 **arg0, u8 arg1) {
     u16 *pField = (u16 *)(D_800D3420 + arg1 * 0x40);
     u8 value = BattleFindFirstFlagTableMatch(pField[(*arg0)[2]]);
     u8 *pRow = (u8 *)(D_800D3420 + 0x10) + arg1 * 0x40;
     u8 a = D_800C3EB4[value * 0x1C];
     s32 slot = arg1 + 3;
+    s32 opOffset = a * 8;
 
-    pRow[(*arg0)[1]] = D_800D3364[D_800C3EB4[slot * 0x1C] * 0x40 + a * 8 + 0x140];
+    pRow[(*arg0)[1]] = D_800D3364[D_800C3EB4[slot * 0x1C] * 0x40 + opOffset + 0x140];
 }
 */
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007CDD0);
 
 void BattleStoreCharSlotMatchedTagCount(u8 **arg0, u8 arg1) {
     s32 count = 0;
