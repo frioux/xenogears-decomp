@@ -31,6 +31,13 @@ typedef struct {
     /* 0xA */ s16 unkA;
 } WorldMapEntry; // Size: 0xC
 
+// Header of an animation set: a count followed by one offset per entry,
+// relative to the header itself.
+typedef struct {
+    /* 0x0 */ s32 count;
+    /* 0x4 */ s32 offsets[1];
+} WorldMapAnimSet; // Size: 0x8
+
 typedef struct {
     /* 0x0 */ u32 data[0x800];
 } ActorBlock; // Size: 0x2000
@@ -117,20 +124,18 @@ extern s32 D_8009BE10;
 extern u8* D_8009BE14;
 extern u8* D_8009BE18;
 extern s32 D_8009BE38;
-extern u8* D_8009D30C;
-extern u8* D_8009D780;
+extern Vector16* D_8009D30C;
 extern s32 D_8009C180;
 extern s32 D_8009CD48;
 extern s32 D_8009BD30;
 extern s32 D_8009D308;
 extern s32 D_8009BCC0;
 extern s32 D_8009C7EC;
-extern s32 D_8009D77C;
-extern s32 D_8009D7C8;
+extern WorldMapAnimSet* D_8009D77C;
+extern WorldMapAnimSet* D_8009D7C8;
 extern void* LZSSHeapDecompress(void* pCompressedData, int flags);
 extern s32 D_8009CC9C;
 extern u8 D_8009A1E8[];
-extern u8* D_8009D7D0;
 extern s16 D_8009C872[1];
 extern s16 D_8009C854[];
 extern s32 D_8009BCC4;
@@ -139,6 +144,8 @@ extern s32 D_8009D64C;
 extern s32 D_8009D80C;
 extern s32* D_80062528;
 extern s32 D_8009CD64;
+extern WorldMapEntry* D_8009D780;
+extern WorldMapEntry* D_8009D7D0;
 extern u8 D_8009A250[];
 extern u8 D_80062648[];
 
@@ -149,14 +156,12 @@ void WorldMapFreePrimBuffers(void) {
 }
 
 void WorldMapAddSlotPosition(s16 arg0, s32* pVec) {
-    Vector16* pEntry;
     s32 index;
 
     index = D_8009BE38;
-    pEntry = (Vector16*)((index << 3) + (s32)D_8009D30C);
-    pEntry->vx = pVec[0] >> 12;
-    pEntry->vz = pVec[2] >> 12;
-    pEntry->vy = arg0;
+    D_8009D30C[index].vx = pVec[0] >> 12;
+    D_8009D30C[index].vz = pVec[2] >> 12;
+    D_8009D30C[index].vy = arg0;
     D_8009BE38 = (index + 1) & 0xF;
 }
 
@@ -166,13 +171,13 @@ void WorldMapInitTileAnimEntries(void) {
     s32 count;
     s32 i;
 
-    count = ((s32*)D_8009D77C)[0];
+    count = D_8009D77C->count;
     D_8009CC9C = count;
-    pEntry = (WorldMapEntry*)HeapAlloc(count * 0xC, 0);
-    D_8009D780 = (u8*)pEntry;
+    pEntry = (WorldMapEntry*)HeapAlloc(count * sizeof(WorldMapEntry), 0);
+    D_8009D780 = pEntry;
     for (i = 0; i < D_8009CC9C; i++, pEntry++) {
-        pEntry->unk0 = (u32)D_8009D77C + ((s32*)D_8009D77C)[i + 1];
-        pEntry->pSprite = (WorldMapSprite*)(D_8009A1E8 + i * 0x10);
+        pEntry->unk0 = (u32)D_8009D77C + D_8009D77C->offsets[i];
+        pEntry->pSprite = &((WorldMapSprite*)D_8009A1E8)[i];
         pEntry->unk8 = 0;
         pEntry->unkA = 1;
     }
@@ -186,7 +191,7 @@ void WorldMapUpdateTileAnimEntries(void) {
     WorldMapEntry* pEntry;
     s32 i;
 
-    pEntry = (WorldMapEntry*)D_8009D780;
+    pEntry = D_8009D780;
     for (i = 0; i < D_8009CC9C; i++, pEntry++) {
         pEntry->unkA--;
         if (pEntry->unkA == 0) {
@@ -207,13 +212,13 @@ void WorldMapInitFrameAnimEntries(void) {
     s32 count;
     s32 i;
 
-    count = ((s32*)D_8009D7C8)[0];
+    count = D_8009D7C8->count;
     D_8009CD64 = count;
-    pEntry = (WorldMapEntry*)HeapAlloc(count * 0xC, 0);
-    D_8009D7D0 = (u8*)pEntry;
+    pEntry = (WorldMapEntry*)HeapAlloc(count * sizeof(WorldMapEntry), 0);
+    D_8009D7D0 = pEntry;
     for (i = 0; i < D_8009CD64; i++, pEntry++) {
-        pEntry->unk0 = (u32)D_8009D7C8 + ((s32*)D_8009D7C8)[i + 1];
-        pEntry->pSprite = (WorldMapSprite*)(D_8009A250 + i * 0x10);
+        pEntry->unk0 = (u32)D_8009D7C8 + D_8009D7C8->offsets[i];
+        pEntry->pSprite = &((WorldMapSprite*)D_8009A250)[i];
         pEntry->unk8 = 0;
         pEntry->unkA = 1;
     }
@@ -228,7 +233,7 @@ void WorldMapUpdateFrameAnimEntries(void) {
     s32 offset;
     s32 i;
 
-    pEntry = (WorldMapEntry*)D_8009D7D0;
+    pEntry = D_8009D7D0;
     for (i = 0; i < D_8009CD64; i++, pEntry++) {
         pEntry->unkA--;
         if (pEntry->unkA == 0) {
@@ -302,35 +307,6 @@ void WorldMapUpdateRandomTimers(void) {
         }
     }
 }
-void WorldMapSaveState(void) {
-    u8* pSave;
-
-    pSave = D_8005A4E4;
-    *(ActorBlock*)pSave = *(ActorBlock*)D_8009BE24;
-    *(s32*)(pSave + 0x2000) = D_8009D55C;
-    *(s32*)(pSave + 0x2004) = D_8009D560;
-    *(s32*)(pSave + 0x2008) = D_8009D564;
-    *(s32*)(pSave + 0x2010) = D_8009D52C;
-    *(s32*)(pSave + 0x2014) = D_8009BE40;
-    *(s32*)(pSave + 0x2018) = D_8009BCC4;
-    *(s32*)(pSave + 0x201C) = D_8009D64C;
-    *(SlotBlock*)(pSave + 0x2020) = *(SlotBlock*)D_8009C854;
-    *(UnkBlock*)(pSave + 0x2040) = *(UnkBlock*)D_8009CEC4;
-    *(s32*)(pSave + 0x22C0) = D_8009D154;
-    *(s32*)(pSave + 0x22C4) = D_8009BD38;
-    *(s32*)(pSave + 0x22C8) = D_8009BD3C;
-    *(s32*)(pSave + 0x22CC) = D_8009D3F0;
-    *(s32*)(pSave + 0x22D0) = D_8009BE0C;
-    *(s32*)(pSave + 0x22E4) = D_8009C838;
-    *(s32*)(pSave + 0x22E8) = D_8009C83C;
-    *(s32*)(pSave + 0x22D4) = D_8009BBB4;
-    *(s32*)(pSave + 0x22D8) = D_8009BBB8;
-    *(s32*)(pSave + 0x22DC) = D_8009BBBC;
-    *(s32*)(pSave + 0x22EC) = D_8009BE28;
-    *(s32*)(pSave + 0x22F0) = D_8009BE2C;
-    *(s32*)(pSave + 0x22F4) = D_8009BE30;
-}
-
 typedef struct {
     /* 0x0 */ s32 w0;
     /* 0x4 */ s32 w1;
@@ -345,28 +321,80 @@ typedef struct {
     /* 0x6 */ s16 h6;
 } WorldMapShortQuad; // Size: 0x8
 
+// The world-map save slot at D_8005A4E4: the actor block followed by the small
+// world-map globals. Each field is the save slot's copy of the global named
+// next to it; the loader reads unk22C4 and unk22E4 back as halfword blocks.
+typedef struct {
+    /* 0x0000 */ ActorBlock actors;
+    /* 0x2000 */ WorldMapQuad unk2000;
+    /* 0x2010 */ s32 unk2010; // D_8009D52C
+    /* 0x2014 */ s32 unk2014; // D_8009BE40
+    /* 0x2018 */ s32 unk2018; // D_8009BCC4
+    /* 0x201C */ s32 unk201C; // D_8009D64C
+    /* 0x2020 */ SlotBlock unk2020;  // D_8009C854
+    /* 0x2040 */ UnkBlock unk2040;   // D_8009CEC4
+    /* 0x22C0 */ s32 unk22C0;        // D_8009D154
+    /* 0x22C4 */ s32 unk22C4;        // D_8009BD38
+    /* 0x22C8 */ s32 unk22C8;        // D_8009BD3C
+    /* 0x22CC */ s32 unk22CC;        // D_8009D3F0
+    /* 0x22D0 */ s32 unk22D0;        // D_8009BE0C
+    /* 0x22D4 */ WorldMapQuad unk22D4; // D_8009BBB4
+    /* 0x22E4 */ s32 unk22E4;        // D_8009C838
+    /* 0x22E8 */ s32 unk22E8;        // D_8009C83C
+    /* 0x22EC */ WorldMapQuad unk22EC; // D_8009BE28
+} WorldMapSaveData; // Size: 0x22FC
+
+void WorldMapSaveState(void) {
+    WorldMapSaveData* pSave;
+
+    pSave = (WorldMapSaveData*)D_8005A4E4;
+    pSave->actors = *(ActorBlock*)D_8009BE24;
+    pSave->unk2000.w0 = D_8009D55C;
+    pSave->unk2000.w1 = D_8009D560;
+    pSave->unk2000.w2 = D_8009D564;
+    pSave->unk2010 = D_8009D52C;
+    pSave->unk2014 = D_8009BE40;
+    pSave->unk2018 = D_8009BCC4;
+    pSave->unk201C = D_8009D64C;
+    pSave->unk2020 = *(SlotBlock*)D_8009C854;
+    pSave->unk2040 = *(UnkBlock*)D_8009CEC4;
+    pSave->unk22C0 = D_8009D154;
+    pSave->unk22C4 = D_8009BD38;
+    pSave->unk22C8 = D_8009BD3C;
+    pSave->unk22CC = D_8009D3F0;
+    pSave->unk22D0 = D_8009BE0C;
+    pSave->unk22E4 = D_8009C838;
+    pSave->unk22E8 = D_8009C83C;
+    pSave->unk22D4.w0 = D_8009BBB4;
+    pSave->unk22D4.w1 = D_8009BBB8;
+    pSave->unk22D4.w2 = D_8009BBBC;
+    pSave->unk22EC.w0 = D_8009BE28;
+    pSave->unk22EC.w1 = D_8009BE2C;
+    pSave->unk22EC.w2 = D_8009BE30;
+}
+
 extern s32 D_8009C5AC;
 
 void WorldMapLoadState(void) {
-    u8* pSave;
+    WorldMapSaveData* pSave;
 
-    pSave = (u8*)D_8005A4E4;
-    *(ActorBlock*)D_8009BE24 = *(ActorBlock*)pSave;
-    *(WorldMapQuad*)&D_8009C5AC = *(WorldMapQuad*)(pSave + 0x2000);
-    *(WorldMapQuad*)&D_8009D55C = *(WorldMapQuad*)(pSave + 0x2000);
-    *(SlotBlock*)D_8009C854 = *(SlotBlock*)(pSave + 0x2020);
-    D_8009D52C = *(s32*)(pSave + 0x2010);
-    D_8009BE40 = *(s32*)(pSave + 0x2014);
-    D_8009BCC4 = *(s32*)(pSave + 0x2018);
-    D_8009D64C = *(s32*)(pSave + 0x201C);
-    *(UnkBlock*)D_8009CEC4 = *(UnkBlock*)(pSave + 0x2040);
-    *(WorldMapShortQuad*)&D_8009BD38 = *(WorldMapShortQuad*)(pSave + 0x22C4);
-    *(WorldMapQuad*)&D_8009BBB4 = *(WorldMapQuad*)(pSave + 0x22D4);
-    *(WorldMapShortQuad*)&D_8009C838 = *(WorldMapShortQuad*)(pSave + 0x22E4);
-    *(WorldMapQuad*)&D_8009BE28 = *(WorldMapQuad*)(pSave + 0x22EC);
-    D_8009D154 = *(s32*)(pSave + 0x22C0);
-    D_8009D3F0 = *(s32*)(pSave + 0x22CC);
-    D_8009BE0C = *(s32*)(pSave + 0x22D0);
+    pSave = (WorldMapSaveData*)D_8005A4E4;
+    *(ActorBlock*)D_8009BE24 = pSave->actors;
+    *(WorldMapQuad*)&D_8009C5AC = pSave->unk2000;
+    *(WorldMapQuad*)&D_8009D55C = pSave->unk2000;
+    *(SlotBlock*)D_8009C854 = pSave->unk2020;
+    D_8009D52C = pSave->unk2010;
+    D_8009BE40 = pSave->unk2014;
+    D_8009BCC4 = pSave->unk2018;
+    D_8009D64C = pSave->unk201C;
+    *(UnkBlock*)D_8009CEC4 = pSave->unk2040;
+    *(WorldMapShortQuad*)&D_8009BD38 = *(WorldMapShortQuad*)&pSave->unk22C4;
+    *(WorldMapQuad*)&D_8009BBB4 = pSave->unk22D4;
+    *(WorldMapShortQuad*)&D_8009C838 = *(WorldMapShortQuad*)&pSave->unk22E4;
+    *(WorldMapQuad*)&D_8009BE28 = pSave->unk22EC;
+    D_8009D154 = pSave->unk22C0;
+    D_8009D3F0 = pSave->unk22CC;
+    D_8009BE0C = pSave->unk22D0;
 }
 
 extern s32 D_8009D7F0;
@@ -409,6 +437,7 @@ void WorldMapEnterMenuMode(void) {
     WorldMapFreePrimTemplateBuffers();
     HeapFree(D_8009BC3C);
     HeapFree(D_8009BCB4);
+    // probe the heap base to size the decompression buffer
     pTemp = HeapAlloc(4, 1);
     HeapFree(pTemp);
     pTemp = (void*)((u32)pTemp & 0xFFFFFF);
@@ -750,22 +779,22 @@ void WorldMapPlayBgmFromBuffer(u8* pSrc, s32 index) {
     D_80062528 = SoundCreateAudioManagerOnHeap(D_80062648);
     SoundPlayAudioManager(D_80062528, 0x7F, 0);
 }
-void WorldMapInterpolateQuadraticVector(s32 arg0, s16* pRow0, s16* pRow1, s16* pRow2, s32* pOut) {
+void WorldMapInterpolateQuadraticVector(s32 t, s16* pRow0, s16* pRow1, s16* pRow2, s32* pOut) {
     s32 s;
     s32 iz;
     s32 zv;
     s32 xs;
 
-    s = 0x1000 - arg0;
+    s = 0x1000 - t;
     iz = ((s * s) << 3) >> 12;
-    zv = ((s * arg0) >> 8) + 0x8000;
-    xs = ((arg0 * arg0) << 3) >> 12;
+    zv = ((s * t) >> 8) + 0x8000;
+    xs = ((t * t) << 3) >> 12;
     pOut[0] = pRow0[0] * iz + pRow1[0] * zv + pRow2[0] * xs;
     pOut[1] = pRow0[1] * iz + pRow1[1] * zv + pRow2[1] * xs;
     pOut[2] = pRow0[2] * iz + pRow1[2] * zv + pRow2[2] * xs;
 }
 void WorldMapDecompressMapData(void) {
-    s32* pHeader;
+    s32* pHeader; // block offsets, relative to the header's own address
     u8* pBase;
 
     pHeader = (s32*)D_8009C180;
@@ -778,8 +807,8 @@ void WorldMapDecompressMapData(void) {
     D_8009BD30 = (s32)(pBase + pHeader[4]);
     D_8009C7EC = (s32)(pBase + pHeader[5]);
     D_8009BCC0 = (s32)(pBase + pHeader[6]);
-    D_8009D77C = (s32)(pBase + pHeader[8]);
-    D_8009D7C8 = (s32)(pBase + pHeader[9]);
+    D_8009D77C = (WorldMapAnimSet*)(pBase + pHeader[8]);
+    D_8009D7C8 = (WorldMapAnimSet*)(pBase + pHeader[9]);
 }
 
 int WorldMapInitNop(void) {
