@@ -593,14 +593,6 @@ void FieldScriptSetByte21AC(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
 
-// 97.68%: instruction for instruction identical except that gcc's allocator puts
-// the `li a0,1` for the first FieldScriptVMGetInstructionArgument call at the top
-// of the then-block instead of just before the jal, so reorg leaves a nop in the
-// delay slot. Inline vs. `address` local makes no difference. Same instruction
-// count either way (280 bytes): only those two slots differ. Casting the
-// pSpriteData load to `SpriteData* volatile*` does not stop the hoist.
-// preset screen: 2.7.2 97.68%, cdk 84.20%, 2.6.0 97.68% - no compiler
-// fixes it.
 void func_80088508(void) {
     SpriteData* pSpriteData;
     int partyMemberId;
@@ -610,6 +602,7 @@ void func_80088508(void) {
     g_FieldScriptMaxInstructionCount += 4;
     if (partyMemberId != ACTOR_ID_INVALID) {
         pSpriteData = g_FieldActors[partyMemberId].pSpriteData;
+        // empty statement: without it gcc hoists the `li a0,1` out of the call's delay slot
         do { } while (0);
         address = FieldScriptVMGetInstructionArgument(1);
         FieldScriptMemoryWriteU16(address & 0xFFFF, *(u_short*)&((SpriteDataI3*)pSpriteData->field_0x7C)->field_0xC);
