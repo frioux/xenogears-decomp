@@ -476,6 +476,11 @@ over the BETTER park.
   `{args: {args: {...}}}`. The extra wrapper still detaches a run, then dies instantly with
   `TypeError: Cannot read properties of undefined (reading 'map')`; the notice arrives minutes
   later and no clone is touched, so the recovery is a relaunch, not a rebuild.
+- **A worker's `unit` becomes the run key, so it must be a bare path.** One worker whose
+  `unit` carried a space and parentheses (`"slus_006.64/system/temp2 (plus ...)"`) killed the
+  whole workflow in the first second with `runs.all item 0 has an invalid key` - keys allow
+  only letters, digits, `.`, `_`, `-`. No clone was touched, so the recovery is to fix the
+  string and relaunch. Put the extra files in `extra`, never in `unit`.
 
 ## Where lessons go
 
