@@ -349,20 +349,11 @@ int WorldMapUpdateGroup16Actor(int index) {
     }
     return 1;
 }
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007D918);
-/* 93.88%: byte-identical except the &D_8009C5AC group. Retail keeps the address
-   in $s0 (lui/addiu before the first store, sw v0,0(s0), then move a0,s0 at the
-   func_80097BC0 call); gcc folds every use to %hi/%lo. Tried: a pPos local used
-   for the store and the call, pPos[0], and plain D_8009C5AC plus &D_8009C5AC
-   (all three compile identically). SOLVED since: declare the symbol as an
-   array (extern u8 D_8009C5AC[]), then `pPos = (u32*)D_8009C5AC;` keeps the
-   address in $s0 - WorldMapInitializeModeWithActors below has the same group and is 100.00%.
-   That is also why the value reads here are *(u32*)D_8009C5AC. Also note the
-   ArchiveDataSync loop is while (ArchiveDataSync() >= 3), which is what gives
-   the slti/beqz shape.
 void func_8007D918(void) {
     RECT rect;
     s32 nIndex;
+    s32 nOffset;
+    u32 *pPos;
 
     WorldMapInitGfxEnv();
     rect.x = 0;
@@ -385,10 +376,19 @@ void func_8007D918(void) {
     func_80098044();
     ArchiveCdDataSync(0);
     SoundFreeLoadedWdsAndAudioManager();
+    /* declared as an array (see the extern above) for the same reason as in
+       WorldMapInitializeModeWithActors: the pointer stays in $s0 across the
+       body, where a scalar's &D_8009C5AC is folded into every use. */
+    pPos = (u32 *)D_8009C5AC;
     nIndex = D_8009D3D4;
-    *(u32 *)D_8009C5AC = D_8009A5B4[nIndex * 4] << 12;
-    D_8009C5B0 = D_8009A5B6[nIndex * 4] << 12;
-    D_8009C5B4 = D_8009A5B8[nIndex * 4] << 12;
+    nOffset = D_8009A5B4[nIndex * 4] << 12;
+    *pPos = nOffset;
+    nOffset = D_8009A5B6[nIndex * 4] << 12;
+    D_8009C5B0 = nOffset;
+    /* split only here: with an inline << 12 the scheduler steals the slot */
+    nOffset = D_8009A5B8[nIndex * 4];
+    nOffset <<= 12;
+    D_8009C5B4 = nOffset;
     func_80084580();
     WorldMapLoadTextureClut();
     func_800979C8();
@@ -402,7 +402,7 @@ void func_8007D918(void) {
     ArchiveCdDataSync(0);
     g_GameCurLoadedWDS = SoundLoadWdsFile(D_8009C88C, 0);
     ArchiveSetIndex(0x24, 0);
-    func_80097BC0((u32 *)D_8009C5AC);
+    func_80097BC0(pPos);
     do {
         WorldMapUpdateLoadQueue();
         Vsync(0);
@@ -430,7 +430,8 @@ void func_8007D918(void) {
     func_800865A0();
     WorldMapInitRandomTimers();
 }
-*/void WorldMapExitToMap1A1(void) {
+
+void WorldMapExitToMap1A1(void) {
     s32 nIndex;
     u16 unkWord;
     u16 unkValue;
