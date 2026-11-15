@@ -224,17 +224,10 @@ void BattleRollPercentAndSetState38(void) {
         D_800D2DC4 = 1;
     }
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_800968C0);
-/* best: 99.52%, same 504 bytes. Two residual differences: (1) the gear-pointer
-   add for actor[0x15A] commutes (`addu v0,v0,v1` here vs. `addu v1,v1,v0` in
-   the original, which then renames the dest register); (2) at the end of the
-   swap block the original stores D_800C3E34 before D_800C3E00, ours the other
-   way round. Everything else, including the `sel < 3 && !(flags & 0x2000)`
-   return, rand() % 100 tail and the three D_800C34B0 writes, is identical.
-
 void func_800968C0(void) {
     u8 *pData;
     u8 *pBase;
+    u8 *pActor;
     u16 t;
     u8 sel;
     u8 s;
@@ -266,7 +259,8 @@ void func_800968C0(void) {
         return;
     }
     pBase = D_800C34B0;
-    if (*(u8 *)(pBase + sel * 0x170 + 0x15A) & 0x80) {
+    pActor = pBase + sel * 0x170;
+    if (*(u8 *)(pActor + 0x15A) & 0x80) {
         return;
     }
     lim = 0x32;
@@ -283,16 +277,14 @@ void func_800968C0(void) {
     s = D_800C3E04;
     p = D_800C3E00;
     D_800C3E04 = tmp;
-    q = D_800C3E34;
+    q = (D_800C3E00 = D_800C3E34);
     D_800C3E34 = p;
     D_800C3E50 = s;
-    D_800C3E00 = q;
     D_800C3DFC = (u8 *)(D_800C34B0 + D_800C3E04 * 0x5F0 + 0x1378);
     *(u8 *)(D_800C34B0 + D_800C3E04 + 0x5FA0) = 7;
     *(u32 *)(D_800C34B0 + D_800C3E04 * 4 + 0x5F6C) = 0;
     D_800C34B0[0x5FC7] = 0x34;
 }
-*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80096AB8);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80096FBC);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80097610);
