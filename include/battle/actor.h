@@ -108,20 +108,87 @@ typedef struct {
     /* 0x114 */ u8 unk114[0x8C];
 } BattleActor; // Size: 0x1A0
 
-// One 0x170-byte slot of the per-battle-slot table family; only the flag word
-// at +0 is read by this unit.
+// One slot of the per-battle-slot table family (stride 0x170). Three of them
+// open the battle work block (D_800C34B0->slots); D_800C3E00/D_800C3E34 point
+// at the acting slot and its target. Only the fields read by
+// src/battle/main/misc18 are named.
 typedef struct {
     /* 0x000 */ u16 flags;
-    /* 0x002 */ u8 unk02[0x16E];
+    /* 0x002 */ u8 unk02;
+    /* 0x003 */ u8 unk03;
+    /* 0x004 */ u8 unk04[0x34];
+    /* 0x038 */ u16 unk38;
+    /* 0x03A */ u8 unk3A[0x1C];
+    /* 0x056 */ u8 unk56;
+    /* 0x057 */ u8 unk57[0x4];
+    /* 0x05B */ u8 unk5B;
+    /* 0x05C */ u8 unk5C[0x1E];
+    /* 0x07A */ u16 unk7A;
+    /* 0x07C */ u16 unk7C;
+    /* 0x07E */ u8 unk7E[0x2];
+    /* 0x080 */ u16 unk80;
+    /* 0x082 */ u16 unk82;
+    /* 0x084 */ u16 unk84;
+    /* 0x086 */ u16 unk86;
+    /* 0x088 */ u16 unk88;
+    /* 0x08A */ u16 unk8A;
+    /* 0x08C */ u16 unk8C;
+    /* 0x08E */ u16 unk8E;
+    /* 0x090 */ u8 unk90[0xCA];
+    /* 0x15A */ u8 unk15A;
+    /* 0x15B */ u8 unk15B[0x15];
 } BattleTableEntry; // Size: 0x170
 
-// One 0x28-byte row of the per-actor action tables the battle-work block holds
+// One 0x28-byte row of the per-actor action tables the battle work block holds
 // at +0x1058 (0x5F0 bytes per actor) and +0x2228 (0x690 bytes per actor). The
-// row currently in use is pointed to by D_800C3DFC. Only the flag word at +0 is
-// named; +0x14 is read as a byte and +0x27 as an s8 by other units.
+// row currently in use is pointed to by D_800C3DFC. Only the fields read by
+// src/battle/main/misc18 are named; +0x14 is read as a byte and +0x27 as an s8
+// by other units.
 typedef struct {
     /* 0x00 */ u16 flags;
-    /* 0x02 */ u8 unk02[0x26];
+    /* 0x02 */ u8 unk02[0x8];
+    /* 0x0A */ u16 unk0A;
+    /* 0x0C */ u8 unk0C[0x5];
+    /* 0x11 */ u8 unk11;
+    /* 0x12 */ u8 unk12[0x2];
+    /* 0x14 */ u8 unk14;
+    /* 0x15 */ u8 unk15;
+    /* 0x16 */ u8 unk16;
+    /* 0x17 */ u8 unk17[0x5];
+    /* 0x1C */ u8 unk1C;
+    /* 0x1D */ u8 unk1D;
+    /* 0x1E */ u16 unk1E;
+    /* 0x20 */ u8 unk20;
+    /* 0x21 */ u8 unk21;
+    /* 0x22 */ u8 unk22;
+    /* 0x23 */ u8 unk23;
+    /* 0x24 */ u8 unk24[0x3];
+    /* 0x27 */ s8 unk27;
 } BattleRow; // Size: 0x28
+
+// The battle work block (D_800C34B0): the three slot entries, the per-actor
+// action-row tables, and the per-slot action state the battle main loop runs
+// on. Only the tail read by src/battle/main/misc18 is named; the row tables at
+// +0x1058/+0x2228 and the scratch row at +0x35D8 are still reached by offset.
+typedef struct {
+    /* 0x0000 */ BattleTableEntry slots[3];
+    /* 0x0450 */ u8 unk450[0x5B1C];
+    /* 0x5F6C */ s32 unk5F6C[12];
+    /* 0x5F9C */ u8 unk5F9C[4];
+    /* 0x5FA0 */ u8 unk5FA0[12];
+    /* 0x5FAC */ u16 unk5FAC;
+    /* 0x5FAE */ u16 unk5FAE;
+    /* 0x5FB0 */ u16 unk5FB0;
+    /* 0x5FB2 */ u8 unk5FB2[0xA];
+    /* 0x5FBC */ u8 unk5FBC;
+    /* 0x5FBD */ u8 unk5FBD;
+    /* 0x5FBE */ u8 unk5FBE;
+    /* 0x5FBF */ u8 unk5FBF;
+    /* 0x5FC0 */ u8 unk5FC0;
+    /* 0x5FC1 */ u8 unk5FC1;
+    /* 0x5FC2 */ u8 unk5FC2;
+    /* 0x5FC3 */ u8 unk5FC3[4];
+    /* 0x5FC7 */ u8 unk5FC7;
+} BattleWorkBlock; // Size: 0x5FC8
 
 #endif
