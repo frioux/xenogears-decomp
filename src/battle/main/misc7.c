@@ -43,16 +43,14 @@ s32 func_8007A280(u8, u8, s32, s32);
 // allocator: the original keeps slot in s0 and base+0x10 in s1, gcc folds
 // slot+base into s0 before the call and needs one saved register fewer.
 // screened: 90.81% is the max of Default / 2.7.2-cdk 80.16 / 2.6.0 90.81.
-/*
 void func_8007B424(u8 **p, u8 index) {
     u16 *pField = (u16 *)(D_800D3420 + index * 0x40);
-    u8 *pTable = (u8 *)pField + 0x10;
     u8 value = BattleFindFirstFlagTableMatch(pField[(*p)[3]]);
+    u8 result = func_80079ED8(value, (*p)[2], 0, 1);
+    u8 *pTable = (u8 *)(D_800D3420 + 0x10) + index * 0x40;
 
-    pTable[(*p)[1]] = func_80079ED8(value, (*p)[2], 0, 1);
+    pTable[(*p)[1]] = result;
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007B424);
 // best: 81.15%. Frame and register set now match; the only gap is that the
 // original materialises D_800D3420+0x10 with its own addiu and then adds slot
 // and the arg byte, gcc folds the 0x10 into the lbu displacement. 62.17% if
@@ -248,7 +246,6 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007B9C8);
 // moves the *p load to v1 and drops to 95.94%.
 // screened: the plain pTable form is identical 95.94% under Default, 2.7.2-cdk
 // and 2.6.0 - a register allocation tie, not a compiler question.
-/*
 void func_8007BA04(u8 **p, u8 index) {
     u16 *pField = (u16 *)(D_800D3420 + index * 0x40);
     u8 *pTable;
@@ -257,8 +254,6 @@ void func_8007BA04(u8 **p, u8 index) {
     pTable = (D_800D3420 + 0x10) - (-(index * 0x40));
     pField[pArgs[2]] = pTable[pArgs[1]];
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007BA04);
 void BattleSlotStoreDwordFromWordReg(u8 **p, u8 index) {
     u32 *pField32 = (u32 *)(D_800D3410 + index * 0x40);
     u16 *pWordRegs;
