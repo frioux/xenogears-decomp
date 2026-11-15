@@ -274,24 +274,22 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80076884);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80077038);
 
+/* Old-style definition and a non-void return both matter: BattleActorBeginMove
+   calls it with one argument, and as void gcc fills the beqz delay slot with the
+   clamp's addiu where retail leaves a nop. */
 char func_80077584(p, ang, shift, dec)
 u8* p;
 s32 ang;
 s32 shift;
 s32 dec;
 {
-    s32 limit;
-    u8* pAngle;
-
     *(s32*)(p + 0x20) += rcos(ang) >> shift;
     *(s32*)(p + 0x28) += rsin(ang) >> shift;
-    limit = -0x8B;
-    if (*(s32*)(p + 0x14) >= limit) {
+    if (*(s32*)(p + 0x14) >= -0x8B) {
         *(s32*)(p + 0x14) -= dec;
     }
-    pAngle = p + 0x14;
     if (*(s32*)(p + 0x14) < -0x82) {
-        *(s32*)pAngle = -0x82;
+        *(s32*)(p + 0x14) = -0x82;
     }
 }
 
