@@ -1,14 +1,15 @@
 #include "common.h"
 #include "main/game.h"
+#include "battle/actor.h"
 
 extern u8 D_800C3AA4[];
 extern u8 D_800D2D10[];
 extern u8 D_800D2D24[];
-extern u8 *D_800C34B0;
-extern u8 *D_800C3DFC;
-extern u8 *D_800C3E00;
+extern BattleWorkBlock *D_800C34B0;
+extern BattleRow *D_800C3DFC;
+extern BattleTableEntry *D_800C3E00;
 extern u8 D_800C34AD;
-extern u8 *D_800C3E34;
+extern BattleTableEntry *D_800C3E34;
 extern u8 D_800C3E04;
 extern u8 D_800C3E50;
 extern u8 D_800D2DC4;
@@ -26,53 +27,51 @@ extern void func_80098D2C(u8, u8);
 extern void func_80094D24(void);
 
 void BattleApplyScriptConditionTimer(void) {
-    s8 ret = func_80097964(D_800C3DFC[0x1C], D_800C3DFC[0x1D],
-                           *(u16 *)(D_800C3DFC + 0x1E));
+    s8 ret = func_80097964(D_800C3DFC->unk1C, D_800C3DFC->unk1D,
+                           D_800C3DFC->unk1E);
 
-    if (*(u16 *)(D_800C3DFC + 0xA) & 0x4000) {
-        func_800995A0(D_800C3E50, D_800C3DFC[0x1D], *(u16 *)(D_800C3DFC + 0x1E), 5);
+    if (D_800C3DFC->unk0A & 0x4000) {
+        func_800995A0(D_800C3E50, D_800C3DFC->unk1D, D_800C3DFC->unk1E, 5);
     } else {
-        func_800995A0(D_800C3E50, D_800C3DFC[0x1D], *(u16 *)(D_800C3DFC + 0x1E),
-                      D_800C3DFC[0x11]);
+        func_800995A0(D_800C3E50, D_800C3DFC->unk1D, D_800C3DFC->unk1E,
+                      D_800C3DFC->unk11);
         if (ret != 1) {
-            u8 *p = D_800C34B0;
+            BattleWorkBlock *p = D_800C34B0;
 
-            *(u8 *)(p + D_800C3E50 + 0x5FA0) = 6;
+            p->unk5FA0[D_800C3E50] = 6;
         }
     }
 }
 void BattleApplyActorConditionTimer(void) {
-    u8 *p = D_800C3E00;
+    BattleTableEntry *p = D_800C3E00;
 
-    if (func_80097964(p[2], p[3], *(u16 *)p) == 1) {
-        u8 *q = D_800C3DFC;
+    if (func_80097964(p->unk02, p->unk03, p->flags) == 1) {
+        BattleRow *q = D_800C3DFC;
 
-        func_800995A0(D_800C3E50, q[0x1D], *(u16 *)(q + 0x1E), 5);
+        func_800995A0(D_800C3E50, q->unk1D, q->unk1E, 5);
     }
 }
 void BattleRollAndClearTargetConditions(void) {
-    u8 t = D_800C3DFC[0x1C];
+    u8 t = D_800C3DFC->unk1C;
 
     if (t < rand() % 100) {
-        u8 *p = D_800C34B0;
-
-        *(u8 *)(p + D_800C3E50 + 0x5FA0) = 6;
+        D_800C34B0->unk5FA0[D_800C3E50] = 6;
     } else {
-        if (D_800C3DFC[0x1D] & 0x80) {
-            *(u16 *)(D_800C3E34 + 0x7C) &= 0xC000;
+        if (D_800C3DFC->unk1D & 0x80) {
+            D_800C3E34->unk7C &= 0xC000;
         }
-        if (D_800C3DFC[0x1D] & 0x40) {
-            *(u16 *)(D_800C3E34 + 0x80) = 0;
-            *(u16 *)(D_800C3E34 + 0x7A) &= 0xFFDF;
+        if (D_800C3DFC->unk1D & 0x40) {
+            D_800C3E34->unk80 = 0;
+            D_800C3E34->unk7A &= 0xFFDF;
         }
-        if (D_800C3DFC[0x1D] & 0x20) {
-            *(u16 *)(D_800C3E34 + 0x84) = 0;
+        if (D_800C3DFC->unk1D & 0x20) {
+            D_800C3E34->unk84 = 0;
         }
-        if (D_800C3DFC[0x1D] & 0x10) {
-            *(u16 *)(D_800C3E34 + 0x88) = 0;
+        if (D_800C3DFC->unk1D & 0x10) {
+            D_800C3E34->unk88 = 0;
         }
-        if (D_800C3DFC[0x1D] & 0x8) {
-            *(u16 *)(D_800C3E34 + 0x8C) = 0;
+        if (D_800C3DFC->unk1D & 0x8) {
+            D_800C3E34->unk8C = 0;
         }
     }
 }
@@ -217,10 +216,10 @@ void func_80096494(u16 *pA, u16 *pB, u8 *pFlag) {
 }
 */
 void BattleRollPercentAndSetState38(void) {
-    s32 t = D_800C3E00[0x5B] + D_800C3DFC[0x14];
+    s32 t = D_800C3E00->unk5B + D_800C3DFC->unk14;
 
     if (rand() % 100 >= t) {
-        D_800C34B0[0x5FC7] = 0x38;
+        D_800C34B0->unk5FC7 = 0x38;
         D_800D2DC4 = 1;
     }
 }
@@ -236,7 +235,7 @@ void BattleRollPercentAndSwapActiveActor(void) {
     u8 *q;
     s32 lim;
 
-    pData = D_800C3E34;
+    pData = (u8 *)D_800C3E34;
     if (*(u16 *)(pData + 0x7C) & 0xA000) {
         return;
     }
@@ -251,7 +250,7 @@ void BattleRollPercentAndSwapActiveActor(void) {
     if (!(*(u16 *)(pData + 0x88) & 0x1000)) {
         return;
     }
-    t = *(u16 *)(D_800C3DFC + 0xA);
+    t = *(u16 *)((u8 *)D_800C3DFC + 0xA);
     if (t & 0x2000) {
         return;
     }
@@ -270,20 +269,20 @@ void BattleRollPercentAndSwapActiveActor(void) {
     if (lim < rand() % 100) {
         return;
     }
-    if (*(u8 *)(D_800C3DFC + 0x16) == 2) {
+    if (*(u8 *)((u8 *)D_800C3DFC + 0x16) == 2) {
         return;
     }
     tmp = D_800C3E50;
     s = D_800C3E04;
-    p = D_800C3E00;
+    p = (u8 *)D_800C3E00;
     D_800C3E04 = tmp;
-    q = (D_800C3E00 = D_800C3E34);
+    q = (u8 *)(D_800C3E00 = D_800C3E34);
     D_800C3E34 = p;
     D_800C3E50 = s;
-    D_800C3DFC = (u8 *)(D_800C34B0 + D_800C3E04 * 0x5F0 + 0x1378);
-    *(u8 *)(D_800C34B0 + D_800C3E04 + 0x5FA0) = 7;
-    *(u32 *)(D_800C34B0 + D_800C3E04 * 4 + 0x5F6C) = 0;
-    D_800C34B0[0x5FC7] = 0x34;
+    D_800C3DFC = (BattleRow *)((u8 *)D_800C34B0 + D_800C3E04 * 0x5F0 + 0x1378);
+    *(u8 *)((u8 *)D_800C34B0 + D_800C3E04 + 0x5FA0) = 7;
+    *(u32 *)((u8 *)D_800C34B0 + D_800C3E04 * 4 + 0x5F6C) = 0;
+    ((u8 *)D_800C34B0)[0x5FC7] = 0x34;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80096AB8);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80096FBC);
@@ -295,8 +294,8 @@ void BattleClearAllSlotStates(void) {
     s16 i;
 
     for (i = 0xB; i != -1; i--) {
-        *(u8 *)(D_800C34B0 + i + 0x5FA0) = 0xFF;
-        *(u32 *)(D_800C34B0 + 0x5F6C + i * 4) = 0;
+        D_800C34B0->unk5FA0[i] = 0xFF;
+        D_800C34B0->unk5F6C[i] = 0;
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80097D5C);
@@ -436,13 +435,13 @@ void BattleInitActiveSlotActions(u8 sel) {
 
     mask = 1;
     for (i = 0; i < 11; i++) {
-        if (*(u16 *)(D_800C34B0 + 0x5FAC) & mask) {
+        if (D_800C34B0->unk5FAC & mask) {
             func_80098D2C(i, sel);
         }
         mask <<= 1;
     }
 
-    *(u16 *)(D_800C34B0 + 0x5FB0) = *(u16 *)(D_800D220E + sel * 0x10);
+    *(u16 *)((u8 *)D_800C34B0 + 0x5FB0) = *(u16 *)(D_800D220E + sel * 0x10);
 
     if (D_800D2C9E & 0x8000) {
         D_800D2C98 = 0xC2;
@@ -461,9 +460,7 @@ s32 BattleTestActorSlotFlagsC002ByMode(void) {
     case 2:
         n = 0;
         for (i = 0; i < 3; i++) {
-            s32 off = i * 368;
-
-            if ((*(u16 *)((s32)D_800C34B0 + off + 0x7C) & 0xC002) != 0) {
+            if (D_800C34B0->slots[i].unk7C & 0xC002) {
                 n++;
             }
         }
@@ -474,9 +471,7 @@ s32 BattleTestActorSlotFlagsC002ByMode(void) {
     case 3:
         n = 0;
         for (i = 0; i < 3; i++) {
-            s32 off = i * 368;
-
-            if ((*(u16 *)((s32)D_800C34B0 + off + 0x7C) & 0xC002) != 0) {
+            if (D_800C34B0->slots[i].unk7C & 0xC002) {
                 n++;
             }
         }
@@ -491,88 +486,88 @@ s32 BattleTestActorSlotFlagsC002ByMode(void) {
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_800995A0);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80099890);
-void BattleDecrementConditionTimers(u8 *p, u8 *pOther, u8 *pCnt) {
-    if (*(u16 *)(p + 0x7C) & 0x200) {
+void BattleDecrementConditionTimers(BattleTableEntry *p, BattleTableEntry *pOther, u8 *pCnt) {
+    if (p->unk7C & 0x200) {
         pCnt[1] = pCnt[1] + 0xFF;
         if (pCnt[1] == 0) {
-            *(u16 *)(p + 0x7C) &= 0xFDFF;
+            p->unk7C &= 0xFDFF;
         }
     }
-    if (*(u16 *)(p + 0x7C) & 0x100) {
+    if (p->unk7C & 0x100) {
         pCnt[2] = pCnt[2] + 0xFF;
         if (pCnt[2] == 0) {
-            *(u16 *)(p + 0x7C) &= 0xFEFF;
+            p->unk7C &= 0xFEFF;
         }
     }
-    if (*(u16 *)(p + 0x7C) & 0x80) {
+    if (p->unk7C & 0x80) {
         pCnt[3] = pCnt[3] + 0xFF;
         if (pCnt[3] == 0) {
-            *(u16 *)(p + 0x7C) &= 0xFF7F;
+            p->unk7C &= 0xFF7F;
         }
     }
-    if (*(u16 *)(p + 0x7C) & 0x20) {
+    if (p->unk7C & 0x20) {
         pCnt[4] = pCnt[4] + 0xFF;
         if (pCnt[4] == 0) {
-            *(u16 *)(p + 0x7C) &= 0xFFDF;
-            *(u16 *)(pOther + 0x7C) &= 0xEFFF;
+            p->unk7C &= 0xFFDF;
+            pOther->unk7C &= 0xEFFF;
         }
     }
-    if (*(u16 *)(p + 0x7C) & 0x10) {
+    if (p->unk7C & 0x10) {
         pCnt[5] = pCnt[5] + 0xFF;
         if (pCnt[5] == 0) {
-            *(u16 *)(p + 0x7C) &= 0xFFEF;
+            p->unk7C &= 0xFFEF;
         }
     }
-    if (*(u16 *)(p + 0x7C) & 0xF000) {
+    if (p->unk7C & 0xF000) {
         pCnt[7] = pCnt[7] + 0xFF;
         if (pCnt[7] == 0) {
-            *(u16 *)(p + 0x7C) &= 0x0FFF;
+            p->unk7C &= 0x0FFF;
         }
     }
-    if (*(u16 *)(p + 0x7C) & 0xF00) {
+    if (p->unk7C & 0xF00) {
         pCnt[8] = pCnt[8] + 0xFF;
         if (pCnt[8] == 0) {
-            *(u16 *)(p + 0x7C) &= 0xF0FF;
+            p->unk7C &= 0xF0FF;
         }
     }
-    if (*(u16 *)(p + 0x80) & 0x1000) {
+    if (p->unk80 & 0x1000) {
         pCnt[0xA] = pCnt[0xA] + 0xFF;
         if (pCnt[0xA] == 0) {
-            *(u16 *)(p + 0x80) &= 0xEFFF;
+            p->unk80 &= 0xEFFF;
         }
     }
-    if (*(u16 *)(p + 0x80) & 0x40) {
+    if (p->unk80 & 0x40) {
         pCnt[0xB] = pCnt[0xB] + 0xFF;
         if (pCnt[0xB] == 0) {
-            *(u16 *)(p + 0x80) &= 0xFFBF;
+            p->unk80 &= 0xFFBF;
         }
     }
-    if (*(u16 *)(p + 0x80) & 0x20) {
+    if (p->unk80 & 0x20) {
         pCnt[0xC] = pCnt[0xC] + 0xFF;
         if (pCnt[0xC] == 0) {
-            *(u16 *)(p + 0x80) &= 0xFFDF;
+            p->unk80 &= 0xFFDF;
         }
     }
 }
 void BattleSaveScriptCommandOperandsFromActor(void) {
-    u16 ab = *(u16 *)(D_800C3E00 + 0x8C) | *(u16 *)(D_800C3E00 + 0x8E);
+    u16 ab = D_800C3E00->unk8C | D_800C3E00->unk8E;
 
-    D_800C34B0[0x5FBC] = D_800C3DFC[0x20];
-    D_800C34B0[0x5FBD] = D_800C3DFC[0x21];
-    D_800C34B0[0x5FBE] = D_800C3DFC[0x22];
-    D_800C34B0[0x5FBF] = D_800C3DFC[0x23];
-    D_800C34B0[0x5FC0] = D_800C34B0[0x5FC2];
+    D_800C34B0->unk5FBC = D_800C3DFC->unk20;
+    D_800C34B0->unk5FBD = D_800C3DFC->unk21;
+    D_800C34B0->unk5FBE = D_800C3DFC->unk22;
+    D_800C34B0->unk5FBF = D_800C3DFC->unk23;
+    D_800C34B0->unk5FC0 = D_800C34B0->unk5FC2;
 
     ab >>= 12;
-    if ((D_800C34B0[0x5FBE] & 0x3F) == 0) {
-        D_800C34B0[0x5FBE] |= ab;
+    if ((D_800C34B0->unk5FBE & 0x3F) == 0) {
+        D_800C34B0->unk5FBE |= ab;
     }
 }
 void BattleFilterSlotMaskByGroup(void) {
-    if (*(u16 *)(D_800C34B0 + 0x5FAC) & 7) {
-        *(u16 *)(D_800C34B0 + 0x5FAC) = *(u16 *)(D_800C34B0 + 0x5FAE) & 7;
+    if (D_800C34B0->unk5FAC & 7) {
+        D_800C34B0->unk5FAC = D_800C34B0->unk5FAE & 7;
     }
-    if (*(u16 *)(D_800C34B0 + 0x5FAC) & 0x7F8) {
-        *(u16 *)(D_800C34B0 + 0x5FAC) = *(u16 *)(D_800C34B0 + 0x5FAE) & 0x7F8;
+    if (D_800C34B0->unk5FAC & 0x7F8) {
+        D_800C34B0->unk5FAC = D_800C34B0->unk5FAE & 0x7F8;
     }
 }
