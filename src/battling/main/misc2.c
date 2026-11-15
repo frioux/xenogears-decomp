@@ -267,7 +267,8 @@ extern void BattleEffectUpdateEntries(BattleEffect *, u8 *, u8 *);
 
 void BattleEffectSetMatrix(u8 *p0, u8 *p1) {
     s32 n = D_80092648;
-    u8 *p = (u8 *)D_80092644;
+    BattleEffect *pEffect = D_80092644;
+    u8 *p = (u8 *)pEffect;
 
     /* Written through a byte pointer: a typed store lets gcc hoist the next
        global load above the previous store and the original interleaves. */
@@ -277,9 +278,9 @@ void BattleEffectSetMatrix(u8 *p0, u8 *p1) {
     *(s16 *)(p + 0x34) = 0;
     *(s16 *)(p + 0x36) = 0;
     *(s16 *)(p + 0x38) = 0;
-    func_8008D680((BattleEffect *)p, D_80091C0C, n);
+    func_8008D680(pEffect, D_80091C0C, n);
     gte_SetTransRotMatrix_gpr(p1);
-    BattleEffectUpdateEntries((BattleEffect *)p, p0, p1);
+    BattleEffectUpdateEntries(pEffect, p0, p1);
 }
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80073424);
