@@ -44,17 +44,138 @@ extern u8 *D_800D3364;
 extern BattleUnk170 D_800CCD64[];
 extern BattleUnk170 D_800CCE08[];
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80082820);
-/* Same jtbl blocker as func_80082F7C below (table jtbl_80070110). */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_800829F4);
-/* Same jtbl blocker as func_80082F7C below (table jtbl_80070130). */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80082BB0);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80082D4C);
 extern u8 D_800D3014;
+extern void BattlePlaySoundIfEnabled(u8);
+extern u8 func_8008BED8(u8);
+extern void func_8008B908(u8);
+extern u8 D_800C3E29;
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80082820);
+extern void BattleSetupActorSlotDisplay(u8);
+extern void func_80084A7C(u8);
+extern void func_80077698(void);
+extern u8 D_800D366C;
+void func_800829F4(u8 arg0) {
+    u8 *p;
+    int off;
+    u8 a;
+
+    a = arg0;
+    switch (D_800D3014) {
+    case 4:
+    case 6:
+    case 7:
+        if (*(u8 *)((D_800C3EAC - (-(a * 0x40))) + 0x3C) == 0xFF) {
+            BattlePlaySoundIfEnabled(0x4F);
+            break;
+        }
+        BattleSetupActorSlotDisplay(a);
+        func_80084A7C(a);
+        D_800C3EAC[0x2DD] = 0x19;
+        func_80077698();
+        D_800D366C = 0;
+        break;
+    case 1:
+        p = D_800C3EAC;
+        off = a * 0x40;
+        if (*(u16 *)(p + off + 0x34) == 0) {
+            p[0x2DD] = 0x11;
+            break;
+        }
+        BattlePlaySoundIfEnabled(0x4F);
+        break;
+    case 2:
+        D_800C3EAC[0x2DD] = 0x12;
+        break;
+    case 3:
+        off = a * 0x40;
+        if (*(u16 *)(D_800C3EAC + off + 0x28) == 0) {
+            D_800C3EAC[0x2DD] = 0x13;
+            break;
+        }
+        if (D_800C3EAC[0x2F6] != 0 && D_800C3E29 == 3) {
+            if (*(u16 *)(D_800C3EAC + off + 0x24) != 0) {
+                BattlePlaySoundIfEnabled(0x4F);
+            } else {
+                D_800C3EAC[0x2DD] = 0x18;
+            }
+            D_800C3EAC[0x2F6] = 0;
+            break;
+        }
+        D_800C3EAC[0x2F6] = 1;
+        BattlePlaySoundIfEnabled(0x4F);
+        break;
+    case 0:
+        p = D_800C3EAC;
+        off = a * 0x40;
+        if (*(u16 *)(p + off + 0x36) == 0) {
+            p[0x2DD] = 0x15;
+            break;
+        }
+        BattlePlaySoundIfEnabled(0x4F);
+        break;
+    }
+}
+void func_80082BB0(u8 arg0) {
+    u8 *p;
+    int off;
+    u8 a;
+
+    a = arg0;
+    switch (D_800D3014) {
+    case 4:
+    case 6:
+    case 7:
+        if (func_8008BED8(a) != 0) {
+            func_8008B908(a);
+        } else {
+            D_800C3EAC[0x2DD] = 0x11;
+        }
+        break;
+    case 0:
+        p = D_800C3EAC;
+        off = a * 0x40;
+        if (*(u16 *)(p + off + 0x2E) == 0) {
+            p[0x2DD] = 0x10;
+            break;
+        }
+        BattlePlaySoundIfEnabled(0x4F);
+        break;
+    case 2:
+        D_800C3EAC[0x2DD] = 0x12;
+        break;
+    case 3:
+        off = a * 0x40;
+        if (*(u16 *)(D_800C3EAC + off + 0x28) == 0) {
+            D_800C3EAC[0x2DD] = 0x13;
+            break;
+        }
+        if (D_800C3EAC[0x2F6] != 0 && D_800C3E29 == 3) {
+            if (*(u16 *)(D_800C3EAC + off + 0x24) != 0) {
+                BattlePlaySoundIfEnabled(0x4F);
+            } else {
+                D_800C3EAC[0x2DD] = 0x18;
+            }
+            D_800C3EAC[0x2F6] = 0;
+            break;
+        }
+        D_800C3EAC[0x2F6] = 1;
+        BattlePlaySoundIfEnabled(0x4F);
+        break;
+    case 1:
+        p = D_800C3EAC;
+        off = a * 0x40;
+        if (*(u16 *)(p + off + 0x34) == 0) {
+            p[0x2DD] = 0x16;
+            break;
+        }
+        BattlePlaySoundIfEnabled(0x4F);
+        break;
+    }
+}
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80082D4C);
 extern void BattleLoadStringTableAE(u8);
 extern u8 func_8008B478(u8);
 extern void func_8008ADD0(u8);
-extern void BattlePlaySoundIfEnabled(u8);
 void func_80082F7C(u8 arg0) {
     u8 a;
     u8 *p;
