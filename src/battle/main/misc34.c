@@ -1,6 +1,7 @@
 #include "common.h"
 #include "field/actor.h"
 #include "psyq/libgte.h"
+#include "system/sound.h"
 
 extern s32 D_80059464;
 extern s16 D_800D3678;
@@ -23,6 +24,32 @@ extern s32 func_800B57E4(SpriteData *pSpriteData);
 extern u8 *TimerWorkListAllocateTask(void *pList, s32 size);
 extern u8 *func_80023B84(u8 *pActor, u8 *pEntry);
 extern void TimerWorkListSetTaskCallback(void *pTask, void *pCallback);
+
+/* One 0x1C-byte slot of the battle actor table at D_800C3EB0. */
+typedef struct {
+    /* 0x00 */ u8 unk0[0x6];
+    /* 0x06 */ u8 unk6;
+    /* 0x07 */ u8 unk7;
+    /* 0x08 */ u8 unk8;
+    /* 0x09 */ u8 unk9[0x5];
+    /* 0x0E */ u16 unkE;
+    /* 0x10 */ u16 unk10;
+    /* 0x12 */ u8 unk12[0xA];
+} BattleActorSlot; // Size: 0x1C
+
+extern BattleActorSlot D_800C3EB0[];
+extern SpriteData *D_800C3E1C;
+extern u8 D_800C362C;
+extern s32 D_800C35D8;
+extern void *D_800C3A6C;
+extern u8 D_800C3620;
+extern u8 D_800C3622;
+extern u16 D_800D3634;
+extern void BattleFreeActorArchiveAndSoundSeds(void);
+extern void func_800BB760(s32 index);
+extern void func_800C0F70(void);
+extern void *SoundLoadWdsFile(void *pBuffer, s32 arg1);
+extern s16 func_8003BDFC(s32 arg0);
 
 // WorkListEntry of include/system/animation.h; an overlay unit cannot include that
 // header (it holds tentative definitions of main-exe globals), so the layout is
@@ -131,7 +158,42 @@ void BattleCreateActorDistanceTask(SpriteData *pSpriteData, s32 minDistance,
     pTask->minDistance = minDistance;
     pSpriteData->flags_0xAC |= 0x20;
 }
+// best 73.04% (71.61% in the variant below, 108 bytes = one instruction short):
+// retail's first instruction is a `move t0,a1` copy of the second parameter (its
+// a1 is then reused for the 0x8C8C constant), and its reload of the target slot
+// happens before the D_800D363C lui; every instruction after that is present, only
+// the allocator's register roles differ. 0x8C8C is a byte offset into the
+// D_800C3EB0 block that does not fit a 16-bit displacement, so retail assembles
+// base+index and +0x8C8C in two addu's - that part the C below does reproduce.
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800BF85C);
+/*
+// Makes the actor of slot arg0 the current battle sprite and points it at the actor
+// of slot arg1, which is also recorded as the model id table's only entry.
+void func_800BF85C(s32 arg0, s32 arg1) {
+    mem_addr base;
+    s32 off;
+    s32 slot;
+    s32 target;
+    SpriteData *pSprite;
+    u8 *pTargetSlot;
+
+    base = (mem_addr)D_800C3EB0;
+    off = 0x8C8C;
+    slot = arg1;
+    pSprite = *(SpriteData **)(base + (arg0 << 2) + off);
+    if (pSprite == NULL) {
+        return;
+    }
+    pTargetSlot = (u8 *)(base + (slot << 2) + off);
+    D_800C3E1C = pSprite;
+    target = *(s32 *)pTargetSlot;
+    D_800D3634 = 1 << slot;
+    *(s32 *)((u8 *)pSprite + 0x74) = target;
+    target = *(s32 *)pTargetSlot;
+    D_800D363C[1] = 0;
+    D_800D363C[0] = target;
+}
+*/
 void BattleRemapActorModelId(u8 *pActor) {
     s32 i = 0;
     s32 *pEntry;
@@ -196,8 +258,67 @@ void BattleLoadArchiveEntryFile(void) {
         D_800C3621 = 0;
     }
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800BFA9C);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800BFBA0);
+// Hands every live actor slot whose animation is neither idle nor one of the 0x10
+// special ones to the per-actor animation task, except the slot the current battle
+// state owns (state mode 2). The 4-bit slot mode packs bits 30-31 of flags_0xA8 with
+// bits 0-1 of flags_0xAC, so it is assembled from two pieces.
+void func_800BFA9C(void) {
+    s32 i;
+    s32 mode;
+    s32 high;
+    s32 low;
+    SpriteData *pSprite;
+
+    if (D_800C362C == 0) {
+        return;
+    }
+    BattleFreeActorArchiveAndSoundSeds();
+    func_800BE790();
+    func_800BE790();
+    pSprite = D_800C3E1C;
+    high = (u32)pSprite->flags_0xA8 >> 30;
+    low = (pSprite->flags_0xAC & 3) << 2;
+    mode = low | high;
+    for (i = 0; i != 3; i++) {
+        if (D_800C3EB0[i].unk8 != 0) {
+            if (D_800C362C != 2 || i != mode) {
+                if (D_800C3EB0[i].unk6 < 0x11) {
+                    func_800BB760(i);
+                }
+            }
+        }
+    }
+    while (D_800C35D8 != 0) {
+        func_800BE790();
+    }
+    D_800C362C = 0;
+}
+
+// Loads the battle's sound archive file (directory 0x2C, entry 5) and hands it to
+// the WDS player, unless the WDS table already has its id.
+void func_800BFBA0(void) {
+    SoundWDSEntry *pWds;
+
+    if (D_800C3620 != 0) {
+        return;
+    }
+    BattleWaitArchiveSync();
+    ArchiveSetIndex(0x2C, 0);
+    pWds = HeapAlloc(ArchiveDecodeAlignedSize(5), 0);
+    ArchiveReadFileToBuffer(5, pWds, 0, 0x80);
+    BattleWaitArchiveSync();
+    if (SoundFindWdsEntry(pWds->id) == NULL) {
+        func_800C0F70();
+        D_800C3A6C = SoundLoadWdsFile(pWds, 0);
+        while (func_8003BDFC(0) != 0) {
+            func_800BE790();
+        }
+        D_800C3620 = 1;
+        D_800C3622 = 0;
+    }
+    HeapFree(pWds);
+}
+
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800BFC80);
 
 void BattleInvokeSpriteCallbackForActor(void *arg0, s32 arg1) {
