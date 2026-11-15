@@ -226,21 +226,19 @@ void WorldMapExitToMap10E(void) {
 s32 func_80077DC8(s32 index) {
     WorldMapActor *p;
     u8 *q;
-    s32 new_var;
 
     p = D_8009BE24;
     D_8009BE0C = 0x78;
     D_8009D3F0 = 0x200000;
     q = D_8006259C;
     p = p + index;
-    new_var = 0;
     p->unk20 = 0;
     p->unk58 = 0;
-    do { p->unk54 = 0; p->unk50 = 0; D_8009BD3C = new_var; D_8009BD3A = 0; } while (0);
+    // do/while block makes cc1 schedule these stores after the actor cluster
+    do { p->unk54 = 0; p->unk50 = 0; D_8009BD3C = 0; D_8009BD3A = 0; } while (0);
     D_8009BD38 = 0;
     D_8009D144 = 1;
-    new_var = (((u16 *)q)[0xA] << 16) | 0xA4;
-    SoundPlaySoundEffectOnFreePair(new_var);
+    SoundPlaySoundEffectOnFreePair((((u16 *)q)[0xA] << 16) | 0xA4);
     p->unk22 = 0x18;
     return 1;
 }
