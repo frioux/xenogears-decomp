@@ -377,43 +377,33 @@ s32 func_800877E0(s32 index) {
     pSlot->unk54 = 8;
     return 1;
 }
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_80087804);
-// Best: 87.50%. Family of WorldMapUpdateSlotRotationMatrices: angle update, two scratchpad SVECTORs
-// (0x1F8000A0 / 0x1F8000A8) fed to RotMatrix with D_8009C620 +
-// D_8009B624[..]*0x54 + 0x20 / D_8009B626[..]*0x54 + 0x20, plus the lhu 0x1A of
-// each entry. Everything matches (frame 0x20 via the unused long[2]) except that
-// gcc hoists the two `sh zero` stores above the pSlot->unk50 store; retail keeps
-// them after it. Hoisting the two table halfwords into s32 locals is required —
-// with the array expressions inline gcc sinks the D_8009C610 load to 60%.
-// Screen: cdk 62.00, 2.6.0 87.11, best 87.50 here - not a compiler miss.
-/*
 s32 func_80087804(s32 index) {
     WorldMapSlot* pSlot = (WorldMapSlot*)(D_8009BE24 + index * 0x80);
     u8* pSrc = D_8009C620;
     s32 entryIndex = D_8009C610 * 2;
     s32 index1 = D_8009B624[entryIndex];
     s32 index2 = D_8009B626[entryIndex];
-    u8* pEntry;
+    SVECTOR* pVec0 = (SVECTOR*)0x1F8000A0;
+    SVECTOR* pVec1 = (SVECTOR*)0x1F8000A8;
+    u8* pEntry1;
     u8* pEntry2;
-    long tmp[2]; // unused: reproduces retail's 0x20-byte stack frame
     u16 angle;
+    long tmp[2]; // unused: reproduces retail's 0x20-byte stack frame
 
     pSlot->unk50 = (pSlot->unk50 + pSlot->unk54) & 0xFFF;
-    pEntry = pSrc + index1 * 0x54;
-    *(u16*)0x1F8000A8 = 0;
-    *(u16*)0x1F8000A0 = 0;
-    *(u16*)0x1F8000A2 = *(u16*)(pEntry + 0x1A);
+    pEntry1 = pSrc + index1 * 0x54;
+    pVec1->vx = 0;
+    pVec0->vx = 0;
+    pVec0->vy = *(u16*)(pEntry1 + 0x1A);
     pEntry2 = pSrc + index2 * 0x54;
-    *(u16*)0x1F8000AA = *(u16*)(pEntry2 + 0x1A);
-    angle = ((u16*)&pSlot->unk50)[0];
-    *(u16*)0x1F8000AC = angle;
-    *(u16*)0x1F8000A4 = angle;
-    RotMatrix((SVECTOR*)0x1F8000A0, (MATRIX*)(pEntry + 0x20));
-    RotMatrix((SVECTOR*)0x1F8000A8, (MATRIX*)(pEntry2 + 0x20));
+    pVec1->vy = *(u16*)(pEntry2 + 0x1A);
+    angle = pSlot->unk50;
+    pVec1->vz = angle;
+    pVec0->vz = angle;
+    RotMatrix(pVec0, (MATRIX*)(pEntry1 + 0x20));
+    RotMatrix(pVec1, (MATRIX*)(pEntry2 + 0x20));
     return 1;
 }
-*/
-
 void WorldMapSetSlotTPages(u8* pDst, u8* pSrc, s32 count, s32 abr) {
     long tmp[2]; // unused: reproduces retail's 0x30-byte stack frame
     u8* p;
@@ -513,18 +503,18 @@ s32 WorldMapSetSceneSpriteSetParents(void) {
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_80087FD0);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_80088570);
-// Best: 95.92%. Size and instruction multiset exact; the only difference is the
-// gcc allocator's pick for the g_GameState+0x1854 pointer (retail keeps its
-// ADDRESS in v1 and loads through it; ours takes a0, which pushes the merged
-// `v` constant 0x4800000 into v1 and hoists its lui above the sh). Permuter run
-// 1 (permuter/func_80088570, base=410) found best=290: wrapping the else branch's
-// g_GameState+0x1852 expression in `do { } while (0)` - kept below - plus the
-// store order pSlot->unk2C, pSlot->unk28 = 0, then v = 0x4800000, which lets reorg
-// put the unk28 store in the j delay slot as retail does. Direct 0x2C/0x30 stores
-// (no `v` local) give 97.75% but an extra store (288 vs 284 bytes).
+// Best: 95.92% (284 bytes = retail's size, identical instruction multiset). The
+// single tie: gcc gives the &g_GameState.unk1854 pointer a0 (retail: v1), which
+// pushes angleY's lh into v1 in the else branch (retail has it in v0) and hoists
+// the 0x4800000 lui one insn early in the if branch. The explicit u16* pCount
+// local (parked below) does NOT move that pick; a0 is free at that point, so the
+// allocator's order takes it before v1. Permuter run 1 (base=410) found the
+// do-while wrapper + store order now in the body. Not a compiler miss (cdk/2.6.0
+// were screened by an earlier round).
 /*
 s32 func_80088570(s32 index) {
     WorldMapSlot* pSlot;
+    u16* pCount;
     s32 v;
 
     func_8008868C();
@@ -534,8 +524,9 @@ s32 func_80088570(s32 index) {
     pSlot->unk50 = 0;
     pSlot->unk58 = 0;
     pSlot->unk5C = 0xC;
-    if (g_GameState.unk1854 == 0) {
-        g_GameState.unk1854++;
+    pCount = &g_GameState.unk1854;
+    if (*pCount == 0) {
+        (*pCount)++;
         pSlot->unk2C = 0xFFD80000;
         pSlot->unk28 = 0;
         v = 0x4800000;
