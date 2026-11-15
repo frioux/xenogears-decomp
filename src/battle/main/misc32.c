@@ -212,35 +212,27 @@ void func_800BDB74(u8 *pTask) {
     }
 }
 */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BDC14);
-/* best 83.40%: only the base register of the four accesses in the `if` body
-   differs. gcc hoists the call's `move $4,$16` to the top of the block and
-   addresses through $4; retail emits the copy at the call and stays on $16.
-   Tried: u8* with pEntry+0x88 casts, a struct type, a pTask copy, a callback
-   local, indexed and offset forms - all give $4. The same body on
-   gcc-2.7.2-cdk is 91.40 (83.60 here): cdk moves the `lui a1,%hi` up front.
-extern void func_800BDF1C(u8 *pEntry);
-extern void TimerWorkListSetTaskCallback(void *pEntry, void *pCallback);
-extern void func_800BDB74(void);
+extern void TimerWorkListSetTaskCallback(u8 *pTask, void (*pCallback)(u8 *));
+extern void func_800BDB74(u8 *pTask);
 
 typedef struct {
-    u8 unk0[0x83];
-    u8 unk83;
-    u32 unk84;
-    s32 unk88;
-} Misc32Task;
+    /* 0x00 */ u8 unk0[0x83];
+    /* 0x83 */ u8 unk83;
+    /* 0x84 */ u32 unk84;
+    /* 0x88 */ s32 unk88;
+} Misc32Task; // Size: 0x8C
 
 void func_800BDC14(Misc32Task *pTask) {
+    int new_var;
+
     func_800BDF1C((u8 *)pTask);
+    new_var = 0x10;
     if (--pTask->unk88 < 0) {
-        pTask->unk88 = 0x10;
+        pTask->unk88 = new_var;
         pTask->unk83 = (pTask->unk83 | 2) & 0xFE;
         TimerWorkListSetTaskCallback(pTask, func_800BDB74);
     }
 }
-*/
-extern void TimerWorkListSetTaskCallback(u8 *pTask, void (*pCallback)(u8 *));
-extern void func_800BDC14(u8 *pTask);
 
 void func_800BDC78(u8 *pTask) {
     func_800BDF1C(pTask);
