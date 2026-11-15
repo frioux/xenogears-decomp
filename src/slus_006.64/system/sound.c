@@ -4176,34 +4176,17 @@ void SoundAbortVoiceOnChannel(SoundVoiceData* voiceData, u32 channelIndex) {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003E900);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003EB5C);
-/*
-Screened under gcc-2.7.2-cdk / gcc-2.7.2 / this unit's gcc-2.6.0: 81.05 / 81.05 / 85.11 - not
-a compiler-only match; the current preset is the best of the three.
-Round 45 adds: the do-while pointer-walk shape (below) is exact for the body, the loop tail
-(i++ in the beqz delay slot, pVoice++ in the bnez delay slot) and both slti/bnez; an indexed
-`pVoice[i]` body drops to 81.14 and never biv-replaces into the pointer walk. Remaining deltas
-are (a) the allocator shuffle - retail mask->v1/pVoice->a0/i->a1, gcc pVoice->v1/i->a0/mask->a1,
-(b) gcc sinks the `addiu pVoice,a2+0xA` preheader into the beqz delay slot where retail has a
-nop and forms it after `li a3,1`, (c) at the tail retail ORs into v1 and puts `srl v0,v1,0x10`
-in the beqz delay slot, gcc ORs into v0 and strips the shift after the first sh.
-Attempt (85.11%, same size): the loop body and the key-off tail are instruction for
-instruction right. gcc picks a different register for the loop-carried voice mask
-(a1/v0 here, v1 in the original) and therefore a different s/ptr register, and it
-sinks the pVoice-0xA preheader addiu into the guarding branch delay slot where the
-original leaves a nop. Reading the mask global directly in the loop, a u32 or long
-mask local and declaration order all give the same allocation.
 void func_8003EB5C(void) {
-    u32 voiceMask = g_unk_VoicesNeedingProcessing;
+    u32 flags = g_unk_VoicesNeedingProcessing;
     SpuUnion* pSpu = g_pSoundSpuRegisters;
     SPU_VOICE_REG* pVoice = pSpu->_rxx.voice;
-    u32 keyOff;
+    u32 keyOffHi;
     s32 i;
 
-    if (voiceMask != 0) {
+    if (flags != 0) {
         i = 0;
         do {
-            if (voiceMask & (1 << i)) {
+            if (flags & (1 << i)) {
                 pVoice->adsr[1] = (pVoice->adsr[1] & 0xFFC0) | 6;
             }
             i++;
@@ -4211,15 +4194,15 @@ void func_8003EB5C(void) {
         } while (i < NUM_VOICES);
     }
 
-    keyOff = g_SoundKeyOffFlags | g_unk_VoicesNeedingProcessing;
-    if (keyOff != 0) {
-        pSpu->_rxx.key_off[0] = keyOff;
-        pSpu->_rxx.key_off[1] = (u16)(keyOff >> 0x10);
+    flags = g_SoundKeyOffFlags | g_unk_VoicesNeedingProcessing;
+    if (flags != 0) {
+        keyOffHi = flags >> 0x10;
+        pSpu->_rxx.key_off[0] = flags;
+        pSpu->_rxx.key_off[1] = keyOffHi;
         g_unk_VoicesNeedingProcessing = 0;
         g_SoundKeyOffFlags = 0;
     }
 }
-*/
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003EBF0);
 
