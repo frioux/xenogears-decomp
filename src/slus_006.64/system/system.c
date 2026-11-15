@@ -158,10 +158,12 @@ void SystemFreeData(void) {
 }
 
 
+// The font file header is a run of u16s: 0x2 is the offset to the glyph data,
+// 0x4..0xC are the metrics the codecs above compare against.
 void SystemInitializeFont(void* pFontFile) {
     int dataOffset;
 
-    if (pFontFile == 0) {
+    if (pFontFile == NULL) {
         HeapSetCurrentContentType(HEAP_CONTENT_NONE);
         return;
     }
