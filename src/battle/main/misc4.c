@@ -87,6 +87,12 @@ extern u8 D_800D340C[];
 extern BattleTableEntry D_800CCD1C[];
 extern void BattleSetOverlayArg(u8 arg0);
 
+extern u8 D_800C3E3D[];
+extern u8 D_800D3404[];
+extern u8 D_800D3408[];
+extern BattleTableEntry D_800CCCE8[];
+extern u16 BattleMaskHasSlotBit(u16 arg0, u8 arg1);
+
 void BattleQueueCommandF8(u8 arg0) {
     if (D_800C3E8C != 0) {
         D_800C400B[D_800C3EAC->count * 72] = arg0;
@@ -102,17 +108,19 @@ void BattleQueueCommandF8IfFlagged(u8 arg0, u8 arg1) {
         BattleQueueCommandF8(arg1);
     }
 }
-/* Best: 89.11% (408 bytes vs retail 420), now COMPILES (the old 68.28% note
-   was a body that did not build: it indexed the BattleCommandQueue pointer as an
-   array, D_800C3EAC[0x2DA], which the typed struct rejects). Structure is exact -
-   all four calls, the 0xFD scan and both table stores match. Three insns short:
-   retail forms &D_800D2C94 ONCE into $s1 (lui/addiu) and reuses it for the
-   pre-call store and both post-call compares, and copies it to $t0 for the loop
-   plus the queue pointer to $a2 and i=0 in the preheader; gcc here rematerialises
-   the pValue address at each use (lui %hi + lhu %lo) and hoists pQueue/i above
-   the beq. Tried: pValue assigned at the top of the body and just before the
-   D_800C3FFE store (identical), no pQueue local (reloads D_800C3EAC inside the
-   loop). The remaining gap is remat/scheduling, not source shape. *//*
+/* Best: 89.11% (408 bytes vs retail 420), and it compiles. Structure is exact -
+   all four calls, the 0xFD scan and both table stores line up; the whole gap is
+   &D_800D2C94: retail forms it ONCE into $s1 (lui/addiu), keeps it across the
+   func_800785D4 call and reads it three times (`lhu v1,0(s1)`, `lhu v0,0(s1)`,
+   and through a copy in $t0 for the scan). gcc 2.7.2 folds the constant address
+   into each load (`lui %hi; lhu %lo`), which costs the three instructions.
+   MEASURED: under -G0 gcc DOES keep &D_800D2C94 in a register (the -G0 build of
+   this function scores 94.59%), so this is the -G setting, not the source - but
+   this unit cannot move to -G0: matched BattleQueueCommandFD drops to 99.67.
+   The same wall is parked in misc15 func_8008ADD0 (D_800D2C94 again), so it is
+   one shared question, not a per-function one. Tried: pValue assigned at the
+   top and just before the D_800C3FFE store (identical), no pQueue local
+   (reloads D_800C3EAC in the loop), u16 *pValue = &D_800D2C94.
 void func_80078998(u8 arg0, u8 arg1) {
     BattleCommandQueue *pQueue;
     u16 *pValue;
@@ -142,6 +150,7 @@ void func_80078998(u8 arg0, u8 arg1) {
     }
 }*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc4", func_80078998);
+
 
 
 void BattleQueueCommandFD(u8 arg0, u8 arg1, u8 arg2) {
@@ -183,6 +192,53 @@ void func_80078D6C(u8 arg0, u8 arg1) {
     D_800CCD64[arg0].flags &= 0x8000;
 }
 
+/* Best: 70.25% (560 bytes, exactly retail's size). The prologue and the flag
+   scan are byte-identical, including the `idx` copy the loop needs (`u8 idx = i`
+   at the top of the body, `slot = idx` in the break): with `slot = i` written
+   directly gcc keeps the branch inverted and the loop never matches. Everything
+   from the 0xC3E3D store to the memmove differs only in instruction ORDER and
+   CSE: retail hoists (slot-3)<<6, (arg0-3)<<6 and then arg0*0x170 in that order
+   and keeps one register (v0) for all four register-file words, ours hoists
+   arg0*0x170 first and merges the four loads above the four stores. The copy is
+   four u32 accesses off the four absolute symbols D_800D3400/04/08/0C (that is
+   what retail's four distinct relocations are), NOT one typed struct copy:
+   `*(BattleSlotRegsHead *)...= *(...)` gives a 4-register block move and
+   `D_800D3400[i].unk0` lanes give a base register instead of retail's
+   symbol+index `$at` form. Tried: u8 src/dst locals (masks the result, 62.56),
+   inline (slot-3)*0x40 at every use (68.14, 552 bytes), the four copies wrapped
+   in an empty do/while block (68.89). Remaining gap is cse/insn-order, not
+   source shape. NOTE the four loads also want to stay *interleaved* with their
+   stores; ours hoists them (t0-t3 vs retail's repeated v0).
+void func_80078E24(u8 arg0, u8 arg1) {
+    u8 slot;
+    u8 idx;
+    s32 i;
+    s32 src;
+    s32 dst;
+
+    for (i = 0; i < 11; i++) {
+        idx = i;
+        if (BattleMaskHasSlotBit(D_800D2E5C[arg1].unk6, idx) != 0) {
+            slot = idx;
+            break;
+        }
+    }
+    src = (slot - 3) * 0x40;
+    dst = (arg0 - 3) * 0x40;
+    D_800C3E3D[arg0] = D_800C3E3D[slot];
+    *(u32 *)((u8 *)D_800D3400 + dst) = *(u32 *)((u8 *)D_800D3400 + src);
+    *(u32 *)(D_800D3404 + dst) = *(u32 *)(D_800D3404 + src);
+    *(u32 *)(D_800D3408 + dst) = *(u32 *)(D_800D3408 + src);
+    *(u32 *)(D_800D340C + dst) = *(u32 *)(D_800D340C + src);
+    D_800C3D18[(arg0 - 3) * 4] = D_800C3D18[(slot - 3) * 4];
+    D_800C3D19[(arg0 - 3) * 4] = D_800C3D19[(slot - 3) * 4];
+    memmove(&D_800CCCE8[arg0], &D_800CCCE8[slot], sizeof(BattleTableEntry));
+    D_800C4022[D_800C3EAC->count][0] = slot;
+    D_800C402F[D_800C3EAC->count * 72] = 0xFB;
+    D_800C400B[D_800C3EAC->count * 72] = arg0;
+    D_800C3EAC->count = D_800C3EAC->count + 1;
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc4", func_80078E24);
 void BattleApplyCommandByteVar(u8 arg0, u8 arg1) {
     func_80079ED8(arg0, D_800D2E5C[arg1].unk1, D_800D2E5C[arg1].unk4, 0);
