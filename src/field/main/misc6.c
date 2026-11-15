@@ -841,8 +841,8 @@ extern s32 D_8005A444[];
 extern s32 D_8005A448;
 extern s32 D_8005A44C;
 
-// Retail returns the actor index only by accident: the non-void return type is what
-// keeps `sll v0,v1,1` out of the `beq nActorIndex,0xFF` delay slot.
+// The non-void return type is required: declared void, cc1 (reorg) moves `sll
+// v0,v1,1` into the `beq nActorIndex,0xFF` delay slot instead of a `nop`.
 int func_8009FEE4(int partyMemberIndex) {
     s32* pActorSlots;
     s32 nActorIndex;
