@@ -72,17 +72,8 @@ extern void func_800294B4(s32 arg0);
 extern s32 ArchiveDecodeAlignedSize(u32 entryIndex);
 extern void func_80071C34(s32 arg0);
 
-INCLUDE_ASM("asm/movie/nonmatchings/main/misc1", func_80070DCC);
-
-// Best attempt (99.78%): the whole stream matches bar one register. Retail loads the
-// entry field into a1 and copies it to a0 for the ArchiveDecodeAlignedSize call
-// with a move in the jal delay slot; gcc here loads straight into a0 and leaves
-// a nop. Shapes tried: the field expression twice, an s32 and a u16 local, the
-// parameter declared u32, and three local declaration orders - all identical.
-/*
 void func_80070DCC(void) {
     s32 size;
-    s32 i;
     u32 value;
 
     if ((D_800773B4 & 0x20) == 0 && (D_800773AC & 0x20) != 0) {
@@ -115,12 +106,12 @@ void func_80070DCC(void) {
         D_80076E9C = func_80028B14();
         if (D_80076E9C != 0) {
             if (D_80076E94 >= 0x801) {
-                for (i = 0; i < 0x200; i++) {
-                    *D_80076E84++ = D_80076E9C[i];
+                for (size = 0; size < 0x200; size++) {
+                    *D_80076E84++ = D_80076E9C[size];
                 }
             } else {
-                for (i = 0; i < D_80076E94 / 4; i++) {
-                    *D_80076E84++ = D_80076E9C[i];
+                for (size = 0; size < D_80076E94 / 4; size++) {
+                    *D_80076E84++ = D_80076E9C[size];
                 }
             }
             D_80076E94 -= 0x800;
@@ -164,7 +155,6 @@ void func_80070DCC(void) {
         D_80076EBC = 1 - D_80076EBC;
     }
 }
-*/
 
 INCLUDE_ASM("asm/movie/nonmatchings/main/misc1", func_800712C4);
 
