@@ -4387,7 +4387,92 @@ void SoundApplyPendingKeyOff(void) {
     }
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003EBF0);
+// Recomputes the SPU volume/pan/pitch of every element whose status flags ask for it. The
+// manager's interpolators and an element's note are 16.16 fixed point; the mixer reads the
+// integer part on its own, hence the (s16*) casts.
+void func_8003EBF0(AudioManager* pManager, AudioElement* pElements, s32 count) {
+    AudioElement* pElement;
+    s16 numElements = count;
+    u16 statusFlags;
+    s32 currentVolume;
+    s32 scale;
+    s32 pan;
+    s32 left;
+    s32 right;
+
+    if (pManager->unk_Flags & 0x20) {
+        return;
+    }
+
+    pElement = pElements;
+    do {
+        if (pElement->active_flag != 0) {
+            statusFlags = pElement->status_flags;
+
+            if (statusFlags & SOUND_STATUS_VOLUME_CHANGE) {
+                currentVolume = ((s16*)&pElement->unk_0x78)[1];
+                scale = currentVolume - ((currentVolume * ((s16*)pElement->unk_0xD0)[1]) >> 15);
+                if (scale > 0x7FFF) {
+                    scale = 0x7FFF;
+                }
+                if (scale < 0) {
+                    scale = 0;
+                }
+                scale = (pElement->unk_0x76 * scale) >> 15;
+                scale = (((s16*)&pManager->unk_Interpolator_0x70)[1] * scale) >> 16;
+
+                pan = (s16)pElement->unk_0x74 + ((s16*)pElement->unk_0xD0)[2] +
+                    ((s16*)&pManager->unk_Interpolator_0x88)[1];
+                if (pan > 0x7F00) {
+                    pan = 0x7F00;
+                }
+                if (pan < 0) {
+                    pan = 0;
+                }
+
+                if (g_SoundControlFlags & 0x100) {
+                    if (pan < 0x4000) {
+                        right = (pan * 0x5A00) >> 14;
+                        left = 0x7F00 - ((pan * 0x2500) >> 14);
+                    } else {
+                        pan = 0x8000 - pan;
+                        left = (pan * 0x5A00) >> 14;
+                        right = 0x7F00 - ((pan * 0x2500) >> 14);
+                    }
+                    left = (left * scale) >> 15;
+                    right = (right * scale) >> 15;
+                } else {
+                    left = right = (scale * 0x5A00) >> 15;
+                }
+
+                pElement->voice_data.volume.left = left;
+                pElement->voice_data.volume.right = right;
+                pElement->voice_data.flags |= 0x1;
+            }
+
+            if (statusFlags & SOUND_STATUS_PLAYING_NTOE) {
+                s32 note = ((s16*)&pElement->unk68)[1] + ((s16*)pElement->unk_0xD0)[0] +
+                    ((s16*)&pManager->unk_Interpolator_0x7c)[1];
+
+                pElement->voice_data.pitch = SoundGetTonePitch((s16)note) & 0x3FFF;
+                pElement->voice_data.flags |= 0x4;
+            }
+
+            if (statusFlags & 0x1) {
+                if ((pElement->active_flag & 0x20) == 0) {
+                    SoundAssignVoiceToChannelAndPlay(&pElement->voice_data, pElement->voice_number);
+                }
+            }
+
+            if (statusFlags & SOUND_STATUS_REST_NOTE) {
+                SoundStopVoiceOnChannel(&pElement->voice_data, pElement->voice_number);
+            }
+
+            pElement->status_flags = 0;
+        }
+        pElement++;
+    } while (--numElements != 0);
+}
 
 // .sdata tables used by the sample-rate helper below (splat data segment).
 extern u8 D_80050B78[];
