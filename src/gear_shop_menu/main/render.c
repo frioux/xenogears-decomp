@@ -1062,24 +1062,23 @@ u32 GearShopMenuBuildSellItemDetails(u8 arg0, u8 itemType) {
 }
 
 INCLUDE_ASM("asm/gear_shop_menu/nonmatchings/main/render", func_801D18F8);
-// 92.05%: frame size, instruction count of every block and the spill set are right;
-// the only remaining delta is which of two loop values gcc keeps in $fp/$s8: the original
-// keeps &sp20 there and spills (0x3C30 + i*0x80) to 0x90($sp), this version does the
-// reverse (and so puts i in $s2 instead of $s3). Everything else is identical.
-// Ruled out: dropping the (RECT*) cast (same 92.05%), declaring the RECT after the other
-// locals (92.03%, frame grows 4 bytes), a RECT* local for the two LoadImage calls (91.13%),
-// and a s32 width = 0x28 local for the RECT (folded back into a literal, same 92.05%).
-// The tie-break is how much the &sp20 pseudo is used: the original also addresses sp28[8] and
-// places[4] off fp, so it beats the 0x3C30+i*0x80 accumulator for the last callee-saved reg.
-// Re-confirmed by pulling the attempt below back in verbatim: still 92.05%, and the whole delta
-// is that gcc keeps the 0x4030+i*0x80 string-struct accumulator in $s8 here while the original
-// spills it to 0x90($sp) and puts &sp20 (the RECT) in $fp, which shifts i from $s2 to $s3.
-// Later re-derivation: that register is only part of it. The original addresses sp28[k*2] (8($fp)),
-// sp28[8] (0x10($fp)) and places[4] (0x28 off $fp+0x10) relative to the RECT base, i.e. gcc saw
-// sp20/sp28/places as ONE base there, yet kept setRECT's four stores sp-relative (0x20..0x26($sp)).
-// So the tie-break comes from the stack objects being related in the source, not from register
-// priority alone; making them one aggregate turns the setRECT stores into 0($fp)-style, so it needs
-// a source shape that the allocator splits exactly this way.
+// 95.81%: every block, call and branch of the digit/price loop is now identical and the frame
+// is retail's 0xC0. Two things were found this round and both are in the attempt below:
+//  - the RECT is set up TWICE in the source (setRECT before each LoadImage). Retail re-stores
+//    all four fields before the second LoadImage and keeps x/y/w in $s1/$s0/$s2 across the
+//    calls; a single setRECT with one pointer local is 8 bytes short (1556 vs retail's 1576).
+//  - the digit loop's 0xC3 glyph is hoisted to one register before the loop in retail
+//    ("ori t0,0xc3"), ours re-materialises it inside the else branch.
+// Remaining delta (3 insns): which loop-carried value lives in a register vs on the stack.
+// Retail spills the 0x3C30 + i*0x80 string-struct accumulator to 0x90($sp) and reloads it at
+// every use, keeps the 0x4030 + i*0x80 one in 0x78($sp), 0x32 + 0xD*i in 0x80($sp) and 0xD*i in
+// 0x88($sp), and keeps &sp20 (the RECT) in $fp (s8) - so i lands in $s3. Ours keeps the 0x3C30
+// accumulator in a register and i in $s2, and re-loads the 0x4030 slot twice where retail keeps
+// it live. One permuter run from the 92.05% shape (one setRECT, RECT* local) reached 94.74%,
+// a second found nothing (1906 -> 1901); a re-run from THIS body is the next step.
+// Ruled out: dropping the (RECT*) cast, RECT declared after the other locals, a s32 width local,
+// a RECT* local for the stores + both LoadImage calls (95.01%), that pointer local hoisted out
+// of the loop (94.39%), a `quotient = FONT_LETTER_HEIGHT * i` local (no change).
 /*
 void func_801D18F8(s32 scrollOffset, u8* pItemIds, u8* pItemTypes, u8* pItemSellQtys, u8* pItemQtys) {
     RECT sp20;
@@ -1136,6 +1135,7 @@ void func_801D18F8(s32 scrollOffset, u8* pItemIds, u8* pItemTypes, u8* pItemSell
             LoadImage((RECT*)&sp20, pWorkspace);
             GearShopMenuInitializeMenuStringPolys(&g_Menu->pShop->unk3C30[i], i, 0x80, 0x81);
             GearShopMenuSetVertices(g_Menu->pShop->unk3C30[i].vertices, 0x24, 0x32 + FONT_LETTER_HEIGHT * i, g_Menu->pShop->unk3C30[i].width, FONT_LETTER_HEIGHT);
+            setRECT(&sp20, 0x180 + (i & 1) * 0x18, 0x80 + (i / 2) * FONT_LETTER_HEIGHT, 0x28, FONT_LETTER_HEIGHT);
             LoadImage((RECT*)&sp20, pWorkspace);
             DrawSync(0);
             GearShopMenuInitializeMenuStringPolys(&g_Menu->pShop->unk4030[i], i, 0x80, 0x82);
