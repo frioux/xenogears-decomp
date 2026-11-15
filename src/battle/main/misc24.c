@@ -38,6 +38,17 @@ typedef struct {
 
 extern BattleCommandRow D_800C4000[];
 
+// A queued move command: a point count at +0x12 and the point list at +0x14,
+// which BattleSetupActorMoveCommand hands to the actor. 0x18 is a lower bound
+// on its size; only the fields read here are typed.
+typedef struct {
+    /* 0x00 */ u16 unk0;
+    /* 0x02 */ u16 unk2;
+    /* 0x04 */ u8 unk4[0xE];
+    /* 0x12 */ u16 unk12;
+    /* 0x14 */ u32 unk14;
+} BattleMoveCommand; // Size: 0x18
+
 // One 0x70-byte entry of the per-actor entry array BattleAllocActorEntryArray
 // allocates; only the id and the word at +8 are initialised here.
 typedef struct {
@@ -396,51 +407,51 @@ void BattleQueueSpriteCommandToPoint(u8 *pPool, BattleSprite *pSprite, s32 arg2,
         pSprite->p70 = pNode;
     }
 }
-void BattleSetupActorMoveCommand(u8 *arg0, u8 *arg1, s32 arg2) {
+void BattleSetupActorMoveCommand(BattleActor *pActor, BattleMoveCommand *pCommand, s32 arg2) {
     u8 *p;
 
-    if (*(u16 *)(arg1 + 0x12) != 0) {
-        *(s16 *)(arg0 + 0x98) = 0;
+    if (pCommand->unk12 != 0) {
+        pActor->unk98 = 0;
         if (arg2 != 0) {
-            *(s16 *)(arg0 + 0x9A) = *(u16 *)(arg1 + 0x2);
+            pActor->unk9A = pCommand->unk2;
         } else {
-            *(s16 *)(arg0 + 0x9A) = -1;
+            pActor->unk9A = -1;
         }
-        *(s16 *)(arg0 + 0x9C) = 0;
-        *(s16 *)(arg0 + 0x9E) = *(u16 *)(arg1 + 0x12);
-        p = arg1 + *(u32 *)(arg1 + 0x14);
-        *(u32 *)(arg0 + 0xA0) = (u32)p;
-        *(u32 *)(arg0 + 0xA4) = (u32)p;
+        pActor->unk9C = 0;
+        pActor->unk9E = pCommand->unk12;
+        p = (u8 *)pCommand + pCommand->unk14;
+        pActor->unkA0 = (mem_addr)p;
+        pActor->unkA4 = (mem_addr)p;
     } else {
-        *(s16 *)(arg0 + 0x98) = -1;
+        pActor->unk98 = -1;
     }
 }
-s32 BattleGetSoundBankId(u8 *arg0, s32 arg1) {
+s32 BattleGetSoundBankId(BattleActor *pActor, s32 arg1) {
     if (arg1 == 0) {
         return *(u16 *)(D_8005919C + 0x14) << 16;
     }
     if (arg1 == 1) {
-        return *(u16 *)(*(u8 **)(*(u8 **)(arg0 + 0xB0) + 8) + 0x14) << 16;
+        return *(u16 *)(*(u8 **)(pActor->unkB0 + 8) + 0x14) << 16;
     }
     if (arg1 == 2) {
-        return *(u16 *)(*(u8 **)(*(u8 **)(arg0 + 0xB4) + 8) + 0x14) << 16;
+        return *(u16 *)(*(u8 **)(pActor->unkB4 + 8) + 0x14) << 16;
     }
     if (arg1 == 3) {
         return *(u16 *)(D_800C4924 + 0x14) << 16;
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AE2A4);
-void BattleClearActorCommand(u8 *pArg) {
-    *(s16 *)(pArg + 0x98) = -1;
+void BattleClearActorCommand(BattleActor *pActor) {
+    pActor->unk98 = -1;
 }
-s32 BattleGetActorSpriteDistance(u8 *arg0) {
+s32 BattleGetActorSpriteDistance(BattleActor *pActor) {
     s32 dx;
     s32 dy;
     s32 dz;
 
-    dx = *(s16 *)(arg0 + 0x88) - *(s32 *)(*(u8 **)(arg0 + 4) + 0x5C);
-    dy = *(s16 *)(arg0 + 0x8A) - *(s32 *)(*(u8 **)(arg0 + 4) + 0x60);
-    dz = *(s16 *)(arg0 + 0x8C) - *(s32 *)(*(u8 **)(arg0 + 4) + 0x64);
+    dx = pActor->unk88 - pActor->pSprites->pos[0];
+    dy = pActor->unk8A - pActor->pSprites->pos[1];
+    dz = pActor->unk8C - pActor->pSprites->pos[2];
     return SquareRoot0(dx * dx + dy * dy + dz * dz);
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AEF68);
