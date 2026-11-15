@@ -5,7 +5,6 @@
 #include "battle/actor.h"
 
 extern u8 D_800C3B74;
-extern u8 D_800C402F[];
 extern BattleActor *D_800D3368[];
 extern u8 *D_8005919C;
 extern u8 *D_800C4924;
@@ -19,12 +18,34 @@ extern u8 D_800C3D0C[];
 extern s32 BattleFindFirstActorInMask(void);
 extern void func_800AA934(u8 *arg0, u8 *arg1, void *arg2, s32 arg3);
 extern void func_800AAD54(void *arg0, void *arg1, s32 arg2, s32 arg3, s32 arg4);
-extern void BattleSnapActorToGround(u8 *arg0);
-extern s32 func_8009F1C4(u32 arg0, s16 arg1);
-extern s32 func_8009EF3C(u32 arg0, s16 arg1);
-extern s32 func_800A0838(u8 *arg0, u32 arg1, u16 arg2, s16 arg3);
-extern void func_800AE2A4(u8 *arg0, u8 *arg1, u8 *arg2);
-extern u8 *BattleAllocBlock(u8 *arg0);
+extern void BattleSnapActorToGround(BattleActor *pActor);
+extern s32 func_8009F1C4(BattleSprite *pSprites, s16 unk1C);
+extern s32 func_8009EF3C(BattleSprite *pSprites, s16 unk1C);
+extern s32 func_800A0838(u8 *arg0, BattleSprite *pSprites, u16 unk3C, s16 unk1C);
+extern void func_800AE2A4(BattleActor *pActor, u8 *arg1, u8 *arg2);
+extern BattleBlock *BattleAllocBlock(void *pPool);
+
+// One 0x48-byte row of the battle command queue at D_800C4000. A row whose
+// command byte still reads 0xF7 has not been dispatched yet; 0xFF ends the
+// queue. The same rows are reachable from the other battle units by other
+// field offsets, so only the fields read here are named.
+typedef struct {
+    /* 0x00 */ u8 unk00[0x2F];
+    /* 0x2F */ u8 unk2F;
+    /* 0x30 */ u8 unk30[0x16];
+    /* 0x46 */ u16 unk46;
+} BattleCommandRow; // Size: 0x48
+
+extern BattleCommandRow D_800C4000[];
+
+// One 0x70-byte entry of the per-actor entry array BattleAllocActorEntryArray
+// allocates; only the id and the word at +8 are initialised here.
+typedef struct {
+    /* 0x00 */ s16 unk0;
+    /* 0x02 */ u8 unk02[0x6];
+    /* 0x08 */ u32 unk8;
+    /* 0x0C */ u8 unk0C[0x64];
+} BattleActorEntry; // Size: 0x70
 
 u8 BattleClampScaledByte(s16 arg0, s16 arg1, s32 arg2) {
     s16 v;
@@ -36,12 +57,12 @@ u8 BattleClampScaledByte(s16 arg0, s16 arg1, s32 arg2) {
     return v;
 }
 void BattleSetCurrentActorAndQueueCommand(u8 *arg0, u16 arg1, u16 arg2, void *arg3) {
-    u8 *p;
+    BattleActor *p;
 
-    p = (u8 *)D_800D3368[arg1];
+    p = D_800D3368[arg1];
     D_800C3D40 = arg1;
     D_800C3E30 = arg2;
-    *(u8 *)(p + 0x35) = 0;
+    p->unk35 = 0;
     if (D_800D3368[arg1] != 0) {
         if (!(arg1 == BattleFindFirstActorInMask())) {
             func_800AA934((u8 *)D_800D3368[arg1], arg0, D_800C3D0C, arg3);
@@ -49,77 +70,75 @@ void BattleSetCurrentActorAndQueueCommand(u8 *arg0, u16 arg1, u16 arg2, void *ar
     }
 }
 s32 BattleGetActorHeight(s32 arg0) {
-    u8 *p;
+    BattleActor *p;
 
-    p = (u8 *)D_800D3368[arg0];
+    p = D_800D3368[arg0];
     if (p != 0) {
-        return (*(s16 *)(p + 0x24) * ((*(s16 *)(p + 0x1C) * *(s16 *)(*(u8 **)(p + 4) + 0x4E)) >> 12)) >> 12;
+        return (p->unk24 * ((p->unk1C * ((s16 *)p->pSprites->unk4C)[1]) >> 12)) >> 12;
     }
     return 0;
 }
 s32 BattleGetActorRadius(s32 arg0) {
-    u8 *p;
+    BattleActor *p;
     s32 a;
     s32 b;
     s32 r;
 
     r = 0;
-    p = (u8 *)D_800D3368[arg0];
+    p = D_800D3368[arg0];
     if (p != 0) {
-        if (*(u16 *)(p + 0x4A) & 8) {
-            a = *(s16 *)(p + 0x26);
-            b = *(s16 *)(*(u8 **)(p + 4) + 0x4C);
+        if (p->flags4A & 8) {
+            a = p->unk26;
+            b = ((s16 *)p->pSprites->unk4C)[0];
         } else {
-            a = *(s16 *)(p + 0x28);
-            b = *(s16 *)(*(u8 **)(p + 4) + 0x50);
+            a = p->unk28;
+            b = ((s16 *)p->pSprites->unk4C)[2];
         }
-        r = (*(s16 *)((u8 *)D_800D3368[arg0] + 0x1C) * b) >> 12;
+        r = (D_800D3368[arg0]->unk1C * b) >> 12;
         r = (a * r) >> 12;
     }
     return r;
 }
-void BattleAllocActorEntryArray(u8 *arg0) {
-    u8 *p;
+void BattleAllocActorEntryArray(BattleActor *pActor) {
+    BattleActorEntry *pEntries;
     s32 i;
 
-    if (*(u8 *)(arg0 + 0x10C) != 0) {
-        p = HeapAlloc(*(u8 *)(arg0 + 0x10C) * 0x70, 0);
-        for (i = 0; i < *(u8 *)(arg0 + 0x10C); i++) {
-            *(s16 *)(p + i * 0x70) = -1;
-            *(u32 *)(p + i * 0x70 + 8) = 0;
+    if (pActor->unk10C != 0) {
+        pEntries = HeapAlloc(pActor->unk10C * sizeof(BattleActorEntry), 0);
+        for (i = 0; i < pActor->unk10C; i++) {
+            pEntries[i].unk0 = -1;
+            pEntries[i].unk8 = 0;
         }
-        *(u32 *)(arg0 + 0x110) = (u32)p;
+        pActor->unk110 = (mem_addr)pEntries;
     }
 }
 void BattleSetActorPrimaryCommand(s32 arg0, u8 arg1) {
-    s32 p;
+    BattleActor *p;
 
     p = D_800D3368[arg0];
     if (p != 0) {
-        *(u8 *)(p + 0x2A) = arg1;
+        p->unk2A[0] = arg1;
     }
 }
 void BattleSetBattleStateBit(u32 arg0) {
     D_800C3B74 = arg0 & 1;
 }
 void BattleSwapActorSlots(s32 arg0, s32 arg1) {
-    s32 tmp;
+    BattleActor *tmp;
 
-    ((u8 *)D_800D3368[arg0])[0x34] = 0;
-    ((u8 *)D_800D3368[arg1])[0x34] = 1;
+    D_800D3368[arg0]->unk34 = 0;
+    D_800D3368[arg1]->unk34 = 1;
     tmp = D_800D3368[arg0];
     D_800D3368[arg0] = D_800D3368[arg1];
     D_800D3368[arg1] = tmp;
 }
 u8 func_800AA7DC(s32 arg0) {
-    s32 o;
     s32 stop = 0xF7;
     u8 v;
 
-    o = arg0 * 0x48;
     do {
-        v = D_800C402F[o];
-        o += 0x48;
+        v = D_800C4000[arg0].unk2F;
+        arg0++;
     } while (v == stop);
     if (v == 0xFF) {
         v = 0xFE;
@@ -233,25 +252,25 @@ void func_800AA934(u8 *arg0, u8 *arg1, void *arg2, s32 arg3) {
     }
 }
 */
-s32 BattleStepActorAnimation(u8 *arg0, u8 *arg1, s32 arg2, u8 *arg3, s32 arg4) {
+s32 BattleStepActorAnimation(BattleActor *pActor, u8 *arg1, s32 arg2, u8 *arg3, s32 arg4) {
     s32 r;
     s32 i;
 
-    if (*(u32 *)arg0 != 0) {
+    if (((u32 *)pActor->unk0)[0] != 0) {
         r = 0;
-        if (*(u8 *)(arg0 + 0x34) != 0) {
-            BattleSnapActorToGround(arg0);
-            if (*(u8 *)(arg0 + 0x37) != 0) {
-                func_8009F1C4(*(u32 *)(arg0 + 4), *(s16 *)(arg0 + 0x1C));
+        if (pActor->unk34 != 0) {
+            BattleSnapActorToGround(pActor);
+            if (pActor->unk37 != 0) {
+                func_8009F1C4(pActor->pSprites, pActor->unk1C);
             } else {
-                func_8009EF3C(*(u32 *)(arg0 + 4), *(s16 *)(arg0 + 0x1C));
+                func_8009EF3C(pActor->pSprites, pActor->unk1C);
             }
             for (i = 0; i < arg2; i++) {
-                r |= func_800A0838(arg1, *(u32 *)(arg0 + 4), *(u16 *)(arg0 + 0x3C), *(s16 *)(arg0 + 0x1C));
-                func_800AE2A4(arg0, arg1, arg3);
+                r |= func_800A0838(arg1, pActor->pSprites, pActor->unk3C, pActor->unk1C);
+                func_800AE2A4(pActor, arg1, arg3);
             }
         }
-        func_800AAD54(arg0, arg1, r, arg2, arg4);
+        func_800AAD54(pActor, arg1, r, arg2, arg4);
     }
     return r;
 }
@@ -302,78 +321,79 @@ void BattleSpriteUpdateWorldPosition(BattleActor *pActor) {
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AAD54);
-void BattleQueueSpriteRotationTween(u8 *arg0, u8 *arg1, s32 arg2, s32 arg3, s32 arg4, s32 arg5) {
-    u8 *pNode;
+void BattleQueueSpriteRotationTween(u8 *pPool, BattleSprite *pSprite, s32 arg2, s32 arg3, s32 arg4, s32 arg5) {
+    BattleBlock *pNode;
 
     if (arg2 < 2) {
-        *(s16 *)(arg1 + 0x54) = arg3;
-        *(s16 *)(arg1 + 0x56) = arg4;
-        *(s16 *)(arg1 + 0x58) = arg5;
-        *(u8 *)(arg1 + 5) = 1;
-    } else if (*(s16 *)(arg1 + 0x54) != arg3 || *(s16 *)(arg1 + 0x56) != arg4 ||
-               *(s16 *)(arg1 + 0x58) != arg5) {
-        if (*(u8 **)(arg1 + 0x70) == 0) {
-            pNode = BattleAllocBlock(arg0);
+        pSprite->rot[0] = arg3;
+        pSprite->rot[1] = arg4;
+        pSprite->rot[2] = arg5;
+        pSprite->unk5 = 1;
+    } else if (pSprite->rot[0] != arg3 || pSprite->rot[1] != arg4 ||
+               pSprite->rot[2] != arg5) {
+        if (pSprite->p70 == NULL) {
+            pNode = BattleAllocBlock(pPool);
         } else {
-            pNode = *(u8 **)(arg1 + 0x70);
+            pNode = pSprite->p70;
         }
-        if (pNode != 0) {
-            *(u8 *)(pNode + 0) = 1;
-            *(u8 *)(pNode + 2) = 3;
-            *(u8 *)(pNode + 1) = 0;
-            *(u8 *)(pNode + 3) = 0xFE;
-            *(u16 *)(pNode + 4) = *(u16 *)(arg1 + 0x54);
-            *(u16 *)(pNode + 6) = *(u16 *)(arg1 + 0x56);
-            *(u16 *)(pNode + 8) = *(u16 *)(arg1 + 0x58);
-            arg3 = (arg3 - *(s16 *)(arg1 + 0x54)) & 0xFFF;
+        if (pNode != NULL) {
+            pNode->unk0 = 1;
+            pNode->unk2 = 3;
+            pNode->unk1 = 0;
+            pNode->unk3 = 0xFE;
+            pNode->unk4 = pSprite->rot[0];
+            pNode->unk6 = pSprite->rot[1];
+            pNode->unk8 = pSprite->rot[2];
+            arg3 = (arg3 - pSprite->rot[0]) & 0xFFF;
             if (arg3 >= 0x800) {
                 arg3 -= 0x1000;
             }
-            *(s16 *)(pNode + 0xA) = arg3;
-            arg4 = (arg4 - *(s16 *)(arg1 + 0x56)) & 0xFFF;
+            pNode->unkA = arg3;
+            arg4 = (arg4 - pSprite->rot[1]) & 0xFFF;
             if (arg4 >= 0x800) {
                 arg4 -= 0x1000;
             }
-            *(s16 *)(pNode + 0xC) = arg4;
-            arg5 = (arg5 - *(s16 *)(arg1 + 0x58)) & 0xFFF;
+            pNode->unkC = arg4;
+            arg5 = (arg5 - pSprite->rot[2]) & 0xFFF;
             if (arg5 >= 0x800) {
                 arg5 -= 0x1000;
             }
-            *(s16 *)(pNode + 0xE) = arg5;
-            *(u16 *)(pNode + 0x10) = 0;
-            *(s16 *)(pNode + 0x12) = arg2;
-            *(u32 *)(arg1 + 0x70) = pNode;
+            pNode->unkE = arg5;
+            pNode->unk10 = 0;
+            pNode->unk12 = arg2;
+            pSprite->p70 = pNode;
         }
     }
 }
-void BattleQueueSpriteCommandToPoint(u8 *arg0, u8 *arg1, s32 arg2, s32 arg3, s32 arg4, s32 arg5, s32 arg6, s32 arg7, s32 arg8) {
-    u8 *pNode;
+void BattleQueueSpriteCommandToPoint(u8 *pPool, BattleSprite *pSprite, s32 arg2, s32 arg3, s32 arg4,
+                                     s32 arg5, s32 arg6, s32 arg7, s32 arg8) {
+    BattleBlock *pNode;
     s32 dx;
     s32 dy;
     s32 dz;
 
-    if (*(u32 *)(arg1 + 0x70) == 0) {
-        pNode = BattleAllocBlock(arg0);
+    if ((u32)pSprite->p70 == 0) {
+        pNode = BattleAllocBlock(pPool);
     } else {
-        pNode = *(u8 **)(arg1 + 0x70);
+        pNode = pSprite->p70;
     }
-    if (pNode != 0) {
-        *(u8 *)(pNode + 0) = 1;
-        *(u8 *)(pNode + 2) = arg2 + 7;
-        *(u8 *)(pNode + 1) = 0;
-        *(u8 *)(pNode + 3) = 0xFE;
-        dx = arg6 - *(s32 *)(arg1 + 0x5C);
-        dy = arg7 - *(s32 *)(arg1 + 0x60);
-        dz = arg8 - *(s32 *)(arg1 + 0x64);
-        *(s16 *)(pNode + 4) = SquareRoot0(dx * dx + dy * dy + dz * dz) + 1;
-        *(s16 *)(pNode + 6) = arg3;
-        *(s16 *)(pNode + 8) = arg4;
-        *(s16 *)(pNode + 0xA) = arg6;
-        *(s16 *)(pNode + 0xC) = arg7;
-        *(s16 *)(pNode + 0xE) = arg8;
-        *(s16 *)(pNode + 0x10) = 0;
-        *(s16 *)(pNode + 0x12) = arg5;
-        *(u32 *)(arg1 + 0x70) = pNode;
+    if (pNode != NULL) {
+        pNode->unk0 = 1;
+        pNode->unk2 = arg2 + 7;
+        pNode->unk1 = 0;
+        pNode->unk3 = 0xFE;
+        dx = arg6 - pSprite->pos[0];
+        dy = arg7 - pSprite->pos[1];
+        dz = arg8 - pSprite->pos[2];
+        pNode->unk4 = SquareRoot0(dx * dx + dy * dy + dz * dz) + 1;
+        pNode->unk6 = arg3;
+        pNode->unk8 = arg4;
+        pNode->unkA = arg6;
+        pNode->unkC = arg7;
+        pNode->unkE = arg8;
+        pNode->unk10 = 0;
+        pNode->unk12 = arg5;
+        pSprite->p70 = pNode;
     }
 }
 void BattleSetupActorMoveCommand(u8 *arg0, u8 *arg1, s32 arg2) {
