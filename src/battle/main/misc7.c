@@ -212,6 +212,21 @@ void BattleWordRegSetReg(u8 **p, u8 index) {
 // order, so retail's load-first here needs a dependency the source has none of.
 // screened: identical 84.67% under Default, 2.7.2-cdk and 2.6.0 - a register
 // allocation tie, not a compiler question.
+// ROUND 78: the emission order IS movable, and the remaining diff is narrower
+// than "the load must come first". Two shapes get retail's order:
+//   a) `s32 slot = index * 0x40;` declared after pArgs, base spelled INLINE in
+//      both subscripts ((u32 *)(D_800D3410 + slot))[k] -> andi, sll, lw v0,0(a0),
+//      lui a0, addiu a0 exactly; 79.67% because gcc then sums slot+base twice
+//      (16 insns, addu v1,v1,a1 / addu v1,v1,a0 pairs).
+//   b) the pField local + both stores wrapped in do { } while (0) AFTER the
+//      load -> the load is hoisted to the first instruction, then andi/sll,
+//      then lui/addiu; 84.67% with the load in a0 and the base in v0, i.e. the
+//      exact mirror of (a) and of retail (retail: load v0, base a0).
+// So retail's build gave the register freed by the dead parameter to the BASE
+// and my builds give it to the LOAD; every other insn matches in (b). Next
+// lever to try: something that makes the load's result not tie to a0 (a second
+// use of p, a u8 copy of the loaded pointer, the base written before the load
+// inside the do-while but assigned after it) - not more statement reordering.
 /*
 void func_8007B9C8(u8 **p, u8 index) {
     u8 *pArgs = *p;
