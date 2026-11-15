@@ -425,21 +425,19 @@ s32 func_80087804(s32 index) {
 void func_80087904(u8* pDst, u8* pSrc, s32 count, s32 abr) {
     long tmp[2]; // unused: reproduces retail's 0x30-byte stack frame
     u8* p;
-    s32 n;
-    s32 a;
+    s32 rows = count;
+    s32 tpageAbr = abr;
     s32 i = 0;
 
-    n = count;
-    a = abr;
-    if (n > 0) {
+    if (rows > 0) {
         p = pSrc + 7;
         do {
-            *(u16*)(p + 0xF) = GetTPage(0, a, 0x1A0, 0xA0);
+            *(u16*)(p + 0xF) = GetTPage(0, tpageAbr, 0x1A0, 0xA0);
             *p |= 2;
             p += 0x28;
-        } while (++i < n);
+        } while (++i < rows);
     }
-    memcpy(*(u8**)(pDst + 0x4C), *(u8**)(pDst + 0x48), n * 0x28);
+    memcpy(*(u8**)(pDst + 0x4C), *(u8**)(pDst + 0x48), rows * 0x28);
 }
 s32 BattleInitSlotRowsForActor(s32 index) {
     WorldMapSlot* pSlot = (WorldMapSlot*)(D_8009BE24 + index * 0x80);
