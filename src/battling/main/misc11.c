@@ -223,28 +223,18 @@ void BattleInitSemiTransQuadPacket(BattlingPacketOwner *arg0) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc11", func_80087B74);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc11", func_80087E38);
-/* Best 98.08%: the only difference is which register gets the sum. The original
-   keeps the base in a0 and the result in v0 (addu v0,v0,a0); gcc reuses the dead
-   base register (addu a0,v0,a0) and the i+1 temp then moves to v0. Tried: p += i,
-   p = p + i, p = &p[i], p = base + i, u8* + i*0x68, n = i + 1, decls outside the
-   if (all 98.08 or worse), &D_8009A988[i] and i + D_8009A988 (84.04),
-   and the indexed D_8009A988[i].unkN form (66.81: it re-forms the base with
-   $at instead of keeping it in a0).
 void func_80087E38(s32 *arg0) {
     s32 i = D_800928F8;
 
     if (i < 0x1F) {
-        BattlingEntry68 *p = D_8009A988;
-
-        p += i;
+        BattlingEntry68 *pBase = D_8009A988;
+        BattlingEntry68 *p = pBase + i;
         p->unk0 = arg0[0];
         p->unk2 = arg0[1];
         p->unk4 = arg0[2];
         D_800928F8 = i + 1;
     }
 }
-*/
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc11", func_80087EA0);
 
 void *BattleAllocLineSlot(s32 *arg0, s32 *arg1, s32 arg2) {
