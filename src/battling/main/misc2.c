@@ -39,6 +39,9 @@ typedef struct {
     /* 0x2 */ s16 y;
     /* 0x4 */ s16 z;
     /* 0x6 */ u16 unk6;
+    /* 0x8 */ u8 index;
+    /* 0x9 */ u8 unk9;
+    /* 0xA */ u8 unkA;
 } BattleActorState;
 
 typedef struct {
@@ -90,17 +93,37 @@ typedef struct {
     /* 0x4 */ BattleModel *pModel;
 } BattleModelLink; // Size: 0x8
 
+/* Per-part entry of the sequence table at D_80091130: a mode and the part
+   that follows this one, -1 ending the sequence. */
+typedef struct {
+    /* 0x0 */ u8 mode;
+    /* 0x1 */ s8 next;
+} BattlePartMode; // Size: 0x2
+
+/* Per-part timing table an actor points at from +0x7C. */
+typedef struct {
+    /* 0x0 */ u8 unk0;
+    /* 0x1 */ u8 unk1;
+} BattlePartTiming; // Size: 0x2
+
 typedef struct {
     /* 0x000 */ s32 unk0;
     /* 0x004 */ s32 unk4;
     /* 0x008 */ s32 unk8;
     /* 0x00C */ u8 pad0C[0x40];
     /* 0x04C */ u8 unk4C;
-    /* 0x04D */ u8 pad4D[0x7];
+    /* 0x04D */ u8 unk4D;
+    /* 0x04E */ u8 unk4E;
+    /* 0x04F */ u8 unk4F;
+    /* 0x050 */ s16 unk50;
+    /* 0x052 */ u8 unk52;
+    /* 0x053 */ u8 pad53;
     /* 0x054 */ s32 unk54;
     /* 0x058 */ u8 pad58[0x4];
     /* 0x05C */ BattleModelLink *unk5C;
-    /* 0x060 */ u8 pad60[0x24];
+    /* 0x060 */ u8 pad60[0x1C];
+    /* 0x07C */ BattlePartTiming *unk7C;
+    /* 0x080 */ u8 pad80[0x4];
     /* 0x084 */ s32 unk84;
     /* 0x088 */ u8 pad88[0x2C];
     /* 0x0B4 */ s16 unkB4;
@@ -108,7 +131,9 @@ typedef struct {
     /* 0x0B8 */ u8 padB8[0x2];
     /* 0x0BA */ s16 unkBA;
     /* 0x0BC */ s16 unkBC;
-    /* 0x0BE */ u8 padBE[0x1A];
+    /* 0x0BE */ u8 padBE[0x12];
+    /* 0x0D0 */ u32 unkD0;
+    /* 0x0D4 */ u8 padD4[0x4];
     /* 0x0D8 */ u8 *unkD8;
     /* 0x0DC */ u8 padDC[0x28];
     /* 0x104 */ BattleActorSlot slots[16];
@@ -117,14 +142,23 @@ typedef struct {
     /* 0x904 */ u8 *unk904;
     /* 0x908 */ u8 unk908;
     /* 0x909 */ u8 unk909;
-    /* 0x90A */ u8 pad90A[0xCC2];
+    /* 0x90A */ u8 pad90A[0x4];
+    /* 0x90E */ u8 unk90E;
+    /* 0x90F */ u8 pad90F[0x89];
+    /* 0x998 */ s16 unk998;
+    /* 0x99A */ s16 unk99A;
+    /* 0x99C */ s16 unk99C;
+    /* 0x99E */ s16 unk99E;
+    /* 0x9A0 */ u8 pad9A0[0xC2C];
     /* 0x15CC */ BattleActorState *unk15CC;
     /* 0x15D0 */ BattleActorAnimData *unk15D0;
     /* 0x15D4 */ u8 unk15D4;
     /* 0x15D5 */ u8 pad15D5[0x17];
     /* 0x15EC */ s16 unk15EC;
     /* 0x15EE */ s16 unk15EE;
-    /* 0x15F0 */ u8 pad15F0[0x64];
+    /* 0x15F0 */ u8 pad15F0[0x2];
+    /* 0x15F2 */ s16 unk15F2;
+    /* 0x15F4 */ u8 pad15F4[0x60];
     /* 0x1654 */ s32 unk1654;
     /* 0x1658 */ s32 unk1658;
 } Actor; // Size: unknown
@@ -549,7 +583,8 @@ void BattleUpdatePartDrawFlags(Actor *p0) {
 
 extern void func_80074678(Actor *, s32, u8);
 extern void func_8008B0D8(BattlePartAnim *);
-extern void func_8008B730(BattlePartAnim *, s32, s32);
+extern s32 func_8008B730(BattlePartAnim *, s32, s32);
+extern BattlePartMode D_80091130[];
 
 void BattleActorApplyAnimationCommand(Actor *p0) {
     BattleActorState *pState = p0->unk15CC;
@@ -573,6 +608,143 @@ void BattleActorApplyAnimationCommand(Actor *p0) {
 }
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80074BA4);
+/* 99.08% (1212 bytes, the original's size): the whole body matches except the
+   register the flag constant lands in, in two of the four mode-case blocks. The
+   original loads -0x801 into $v1 and the reloaded flags into $a0 (`li v1,-2049;
+   lw a0,208(s0); and a0,a0,v1; or a0,a0,v0`), gcc picks the opposite
+   (`li a0,-2049; lw v1,208(s0)`); cases 0 and 2 come out exactly right with the
+   same source shape, so it is a per-block local-alloc tie, not a source shape.
+   Tried: swapping the `|` operands (93.43%, size wrong), a `flags` local for the
+   read-modify-write (97.62% with the constant in $a0 everywhere), `(u8)` casts,
+   declaration orders for `i`/`old`/`delta`/`ret`. Levers that DID work and must
+   be kept: `part = p0->unk4C;` + `(u8)part != p0->unk4E` reproduces the original's
+   redundant `andi a0,a1,0xff` and, with `&D_80091130[part]` as the first
+   statement of the if-body, its second `sll/addu s4` (gcc CSEs the two identical
+   `&D_80091130[p0->unk4C]` forms away); `old + (p0->unk4F + p0->unk52)` gives the
+   original's operand order; the read-modify-writes must be written on the FIELD
+   (`p0->unkD0 = (p0->unkD0 & ~0x800) | ((ret & 1) << 11)`) so gcc tests the
+   stored register and stores before the branch; `p0->unk998 = pAnim->unk12;`
+   before `p0->unk99A = delta;`; `i = 0;` as its own statement plus `while
+   (i < delta)`; unkA declared before unk9 for the two zero-inits. */
+/* void func_80074BA4(Actor *p0) {
+    BattleActorState *pState = p0->unk15CC;
+    BattlePartMode *pMode;
+    BattlePartAnim *pAnim;
+    s32 ret;
+    s32 i;
+    u16 old;
+    s32 delta;
+    u8 part;
+    s32 unkA = 0;
+    s32 unk9 = 0;
+
+    pState->unk6 = (pState->unk6 & 0xF000) | (p0->unk54 & 0xFFF);
+    pState->x = p0->unk0;
+    pState->y = p0->unk4;
+    pState->z = p0->unk8;
+    pState->index = p0->unk4C;
+    pMode = &D_80091130[p0->unk4C];
+    pAnim = &p0->unk5C->pModel->pAnims[p0->unk4C];
+    pState->unk6 &= ~0x1000;
+    part = p0->unk4C;
+    if ((u8)part != p0->unk4E || (p0->unkD0 & 0x10000000) != 0) {
+        pMode = &D_80091130[part];
+        p0->unk4E = part;
+        p0->unkD0 = (p0->unkD0 | 0x1000) & ~0x800;
+        if ((p0->unkD0 & 0x10000000) == 0) {
+            p0->unk99C = p0->unk7C[p0->unk4C].unk0;
+        }
+        if (p0->unkD0 & 0x02000000) {
+            p0->unk99C = 1;
+            p0->unkD0 &= ~0x02000000;
+        }
+        p0->unk4F = (p0->unk7C[p0->unk4C].unk1 * p0->unk15F2) / 256;
+        pAnim = &p0->unk5C->pModel->pAnims[p0->unk4C];
+        BattleUpdatePartDrawFlags(p0);
+        func_8008B0D8(pAnim);
+        p0->unk99E = 0;
+        p0->unk50 = -1;
+        p0->unkD0 &= ~0x10000000;
+        pState->unk6 |= 0x1000;
+        if (pMode->mode == 2) {
+            p0->unk90E = p0->unk4C;
+        } else {
+            p0->unk90E = 0;
+        }
+    }
+    i = 0;
+    old = p0->unk99E;
+    p0->unk99E = old + (p0->unk4F + p0->unk52);
+    delta = ((p0->unk99E << 16) >> 20) - ((old << 16) >> 20);
+    p0->unk998 = pAnim->unk12;
+    p0->unk99A = delta;
+    while (i < delta) {
+        if (p0->unk99C != 1) {
+            p0->unk99C--;
+            if (p0->unk99C < 1) {
+                p0->unk99C = 1;
+            }
+        }
+        i++;
+    }
+    switch (pMode->mode) {
+    case 0:
+        if ((p0->unkD0 & 0x800) == 0) {
+            ret = func_8008B730(pAnim, delta, p0->unk99C);
+            unk9 = delta;
+            unkA = p0->unk99C;
+            p0->unkD0 = (p0->unkD0 & ~0x800) | ((ret & 1) << 11);
+            if (p0->unkD0 & 0x800) {
+                if (pMode->next == -1) {
+                    p0->unkD0 &= ~0x1000;
+                } else {
+                    p0->unk4C = pMode->next;
+                }
+            }
+        }
+        break;
+    case 1:
+        p0->unkD0 &= ~0x1000;
+        ret = func_8008B730(pAnim, delta, p0->unk99C);
+        unk9 = delta;
+        unkA = p0->unk99C;
+        p0->unkD0 = (p0->unkD0 & ~0x800) | ((ret & 1) << 11);
+        if (p0->unkD0 & 0x800) {
+            p0->unkD0 |= 0x10000000;
+            if (pMode->next != -1) {
+                p0->unk4C = pMode->next;
+            }
+        }
+        break;
+    case 2:
+        p0->unkD0 &= ~0x1000;
+        if ((p0->unkD0 & 0x800) == 0) {
+            ret = func_8008B730(pAnim, delta, p0->unk99C);
+            unk9 = delta;
+            unkA = p0->unk99C;
+            p0->unkD0 = (p0->unkD0 & ~0x800) | ((ret & 1) << 11);
+        }
+        if (p0->unkD0 & 0x400) {
+            if (pMode->next == -1) {
+                p0->unkD0 &= ~0x1000;
+            } else {
+                p0->unk4C = pMode->next;
+            }
+            p0->unkD0 &= ~0x400;
+        }
+        break;
+    case 3:
+        if ((p0->unkD0 & 0x800) == 0) {
+            ret = func_8008B730(pAnim, delta, p0->unk99C);
+            unk9 = delta;
+            unkA = p0->unk99C;
+            p0->unkD0 = (p0->unkD0 & ~0x800) | ((ret & 1) << 11);
+        }
+        break;
+    }
+    pState->unk9 = unk9;
+    pState->unkA = unkA;
+} */
 
 extern Actor D_8009872C;
 extern s32 D_80099D8C;
