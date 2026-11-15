@@ -184,7 +184,7 @@ extern void func_80080944(void);
 extern void func_80080A28(void);
 extern void func_80080AC4(void);
 extern void func_80080370(void);
-extern void func_80080578(void);
+extern int func_80080578(int);
 extern int func_80080600(int);
 extern int WorldMapInitActorScript(int);
 extern s16 D_8009BD38;
@@ -618,7 +618,6 @@ int func_8007F8AC(int index) {
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007F8AC);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007F968);
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007FC8C);
 /* 88.66%: instruction multiset identical. Retail materialises all the
    immediates first (lui/ori v1 = 0x1498000, lui/ori a0 = 0x4AF2000,
    li v0 = 3 for the return) and only then starts storing, and it defers
@@ -626,7 +625,11 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007FC8C);
    other way (0x58 right after 0x54). Tried literals and int locals for
    the two big constants - gcc folds the locals straight back into the
    stores. Group bases are unk000[9] (s1 + 0x2F4) and unk000[10]
-   (s1 + 0x348).
+   (s1 + 0x348). Retail's store order is 0x28, 0x2C, 0x54, 0x20, 0x30, 0x50,
+   0x58 (the last one deferred), which is the source order below.
+*/
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007FC8C);
+/* 88.66%
 int func_8007FC8C(int index) {
     WorldMapRoot *pRoot = D_8009C620;
     WorldMapActor *pActor = &D_8009BE24[index];
@@ -816,13 +819,18 @@ int WorldMapInitActorScript(int index) {
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_80080370);
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_80080578);
-/* 34.97%: same body as func_8007E450 minus the last three stores (see its
-   note for the proof that the scheduler cannot be turned off for this unit).
-   The
-   original emits everything in strict source order (sll, lw D_8009BE24,
-   li 0x1000, sw D_8009D144, addu, sw 0x7C, then the three D_8009C5xx loads,
-   li 0x78, sw D_8009BE0C, li 1, the six paired stores); gcc 2.7.2 reorders
-   the loads here, so the shape is not reproducible from this source order.
+/* 34.97%: byte count is retail's (34 insns) and the instruction multiset is
+   identical; only the schedule differs. Retail's MEMORY ops are in strict
+   source order (sw D_8009D144, sw 0x7C($v1), then the three D_8009C5xx loads,
+   then sw D_8009BE0C, then the six paired stores, then sh 4($v1), sh 0x20($v1));
+   only the immediate loads are hoisted (li 0x1000 before the first store,
+   li 1 before the pairs). gcc 2.7.2 sched2 hoists the three D_8009C5xx loads
+   to the very top of the block, above the sll, which rotates everything after
+   it. Confirmed the mechanism: compiled with -fno-schedule-insns2 the tail
+   (li 1 / sh 4($v1) / six pairs in x,y,z order) is exactly retail's and only
+   the head differs. Volatile on the three loads changes nothing (34.97%).
+   Same body as func_8007E450 (whose note has the preset screen) and as
+   misc7's func_800813E8 (76.59% there, where retail's sh pairs are first).
 int func_80080578(int index) {
     WorldMapActor *pActor = &D_8009BE24[index];
     int nScale = 0x1000;
