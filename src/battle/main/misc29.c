@@ -24,11 +24,21 @@ extern void SpritePlayAnimation(void *, s32);
 extern void SpriteSetCallback(void *, void *);
 extern void ArchiveStopTransfer(s32);
 
-void BattleAllocWorkBuffer(void) {
-    u8 *pWork = HeapAlloc(0x10F7C, 1);
+/* The work buffer carved out at battle init. Both of its self-pointers address
+   the buffer itself; only these two fields are known in this unit. */
+typedef struct {
+    /* 0x00000 */ u8 unk0[0x4];
+    /* 0x00004 */ void *unk4;
+    /* 0x00008 */ u8 unk8[0x18];
+    /* 0x00020 */ void *unk20;
+    /* 0x00024 */ u8 unk24[0x10F58];
+} BattleWorkBuffer; // Size: 0x10F7C
 
-    *(u8 **)(pWork + 4) = pWork;
-    *(u8 **)(pWork + 0x20) = pWork;
+void BattleAllocWorkBuffer(void) {
+    BattleWorkBuffer *pWork = HeapAlloc(sizeof(BattleWorkBuffer), 1);
+
+    pWork->unk4 = pWork;
+    pWork->unk20 = pWork;
     func_800B7424(pWork);
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B7424);
@@ -46,6 +56,21 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B8068);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B8098);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B81BC);
 
+/* One of the battle's two frame environments: the DRAWENV a frame draws with,
+   that frame's DISPENV 0x5C bytes later, then the frame's work area. */
+typedef struct {
+    /* 0x0000 */ DRAWENV draw;
+    /* 0x005C */ DISPENV disp;
+    /* 0x0070 */ u8 unk70[0x4000];
+} BattleFrameEnv; // Size: 0x4070
+
+/* The battle work block at D_800C3EB0 seen from its frame environments on. The
+   0xB70 bytes before them are the actor table and the rest of the block. */
+typedef struct {
+    /* 0x0000 */ u8 unk0[0xB70];
+    /* 0x0B70 */ BattleFrameEnv frames[2];
+} BattleEnvBlock; // Size: 0x8C50
+
 // This unit is a cdk unit (XenoBattleTailCdk, per-file): retail rebases the tail
 // once (addiu $s0,$s0,-0xBCC off the DISPENV base = D_800C3EB0) and then does eight
 // sh off that register, where plain 2.7.2 folds base+offset into one absolute
@@ -54,7 +79,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B81BC);
 // the three prologue saves in retail's order.
 void BattleInitDispEnvAndDrawEnv(void) {
     u8 *pBase;
-    u8 *pWork;
+    BattleEnvBlock *pEnv;
 
     SetGeomOffset(0xA0, 0xA4);
     pBase = (u8 *)&D_800C4A7C;
@@ -63,15 +88,15 @@ void BattleInitDispEnvAndDrawEnv(void) {
     SetDefDrawEnv((DRAWENV *)(pBase - 0x5C), 0, 0, 0x140, 0xE0);
     SetDefDrawEnv((DRAWENV *)(pBase + 0x4014), 0, 0xE0, 0x140, 0xE0);
 
-    pWork = pBase - 0xBCC;
-    *(s16 *)(pWork + 0x4C46) = 0xA;
-    *(s16 *)(pWork + 0xBD6) = 0xA;
-    *(s16 *)(pWork + 0x4C48) = 0x100;
-    *(s16 *)(pWork + 0xBD8) = 0x100;
-    *(s16 *)(pWork + 0x4C44) = 0;
-    *(s16 *)(pWork + 0xBD4) = 0;
-    *(s16 *)(pWork + 0x4C4A) = 0xD8;
-    *(s16 *)(pWork + 0xBDA) = 0xD8;
+    pEnv = (BattleEnvBlock *)(pBase - 0xBCC);
+    pEnv->frames[1].disp.screen.y = 0xA;
+    pEnv->frames[0].disp.screen.y = 0xA;
+    pEnv->frames[1].disp.screen.w = 0x100;
+    pEnv->frames[0].disp.screen.w = 0x100;
+    pEnv->frames[1].disp.screen.x = 0;
+    pEnv->frames[0].disp.screen.x = 0;
+    pEnv->frames[1].disp.screen.h = 0xD8;
+    pEnv->frames[0].disp.screen.h = 0xD8;
 }
 void BattleWaitArchiveSync(void) {
     while (ArchiveDataSync() != 0) {
@@ -333,7 +358,7 @@ void BattleActorInitSpriteFromSlot(void) {
         pSprite->position.z = pTable[D_800C3610->unk24].unk10 << 16;
         BattleActorUpdateGroundHeightAndTriangle(pSprite);
         pSprite->position.y = pSprite->field_0x84 << 16;
-        SpritePlayAnimation(pSprite, ((s8 *)pSprite)[0xB0]);
+        SpritePlayAnimation(pSprite, (s8)pSprite->flags_0xB0.bytes[0]);
         SpriteSetCallback(pSprite, NULL);
     }
     BattleDestroyState();
@@ -341,7 +366,7 @@ void BattleActorInitSpriteFromSlot(void) {
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B8EBC);
 
-void BattleSpritePlayStoredAnimation(u8 *pSprite) {
-    SpritePlayAnimation(pSprite, *(s8 *)(pSprite + 0xB0));
-    SpriteSetCallback(pSprite, 0);
+void BattleSpritePlayStoredAnimation(SpriteData *pSprite) {
+    SpritePlayAnimation(pSprite, (s8)pSprite->flags_0xB0.bytes[0]);
+    SpriteSetCallback(pSprite, NULL);
 }
