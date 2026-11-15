@@ -91,14 +91,6 @@ extern void BattleAttachActorPrims(u8* p);
 extern void BattleAddSharedPrim(void);
 extern void func_80087698(s32 x0, s32 y0, s32 x1, s32 y1);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc9", func_80082178);
-
-/* best 99.47%: 392 bytes, instruction multiset identical; only the
-   bx/x pair is swapped (bx in s6 here, s5 in the original). Same
-   allocator tie as func_80082300 below. Declaring bx/by before the spilled
-   x0/y0 (instead of after) leaves the swap unchanged, and gcc-2.7.2-cdk scores
-   91.13 on this body (so it is not a compiler-version question).
-/*
 void func_80082178(s32 arg0, s32 arg1, s32 arg2) {
     s32 x0;
     s32 y0;
@@ -111,7 +103,8 @@ void func_80082178(s32 arg0, s32 arg1, s32 arg2) {
     s32 py;
     s32 i;
 
-    bx = arg0 >> 8;
+    bx = arg0;
+    bx >>= 8;
     by = arg1 >> 8;
     x = bx + ((rcos(arg2 + 0x280) * 10) >> 12);
     x0 = x;
@@ -131,14 +124,7 @@ void func_80082178(s32 arg0, s32 arg1, s32 arg2) {
     func_80087698(x, y, px, py);
     func_80087698(x0, y0, px, py);
 }
-*/
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc9", func_80082300);
-
-/* best 99.40%: instruction stream identical, including both spill slots;
-   only the s5/s6 pair of bx and x is swapped (an allocator tie-break, six
-   source shapes tried: declaration order twice, x0/x assignment order, an
-   s32 start[2] array instead of the x0/y0 spill pair).
 void func_80082300(s32 arg0, s32 arg1, s32 arg2) {
     s32 x0;
     s32 y0;
@@ -167,11 +153,11 @@ void func_80082300(s32 arg0, s32 arg1, s32 arg2) {
         ang += 0x75;
     }
     px = bx + ((rcos(arg2 - 0x100) << 4) >> 12);
-    py = by + ((rsin(arg2 - 0x100) << 4) >> 12);
+    bx = rsin(arg2 - 0x100);
+    py = by + ((bx << 4) >> 12);
     func_80087698(x, y, px, py);
     func_80087698(x0, y0, px, py);
 }
-*/
 
 void BattleCopyPlaneNormal(Unk8* p) {
     *p = D_80092768;
