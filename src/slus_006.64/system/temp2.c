@@ -1265,7 +1265,139 @@ void func_80026FE8(s32 count, s32 level, u16* pDst, u16* pSrc, u16* pSrc2) {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_8002709C);
 /*
-Status: derivation only, never diffed (no percentage yet); kept so the next
+Parked at 80.74%, 808 bytes (the original's exact size), first body written
+from the derivation below - so the fills, the six loops' bounds and the call
+set are all right. What is left is register allocation only:
+  retail frame 0xA0 with the width spill at 0x70, saved regs s0 = height,
+  s1 = pVec, s2 = pColors, s3 = arg11, s5 = arg12, s6 = arg13, s7 = arg2,
+  fp = arg3, and clutX/clutY NOT hoisted (reloaded from 0xB0/0xB4 inside the
+  FT4 loop); this body spills arg2/arg3 to the outgoing-arg area instead,
+  hoists clutY into a saved register and puts the width spill at 0x98, so the
+  prologue and every stack offset are +8 from retail's.
+Also note the parameter types the .s proves: width and height are s32 (a0 is
+spilled with sw, height gets the plain `bgez` + addiu 0xFF of a 32-bit signed
+%256 - an s16 height makes gcc emit sll/sra first), arg7/arg11/arg12/arg13 are
+u16 (lhu) and pVec is read with lhu at 0/4/8 for the colour halves but lw at 8
+for the `vz < 0` test, so pVec->vz is both.
+
+// Block func_8002709C allocates: the prims func_800273C4 fills, then the
+// draw state it copies in.
+typedef struct {
+      // 0x000 POLY_FT4 ft4[16];
+      // 0x280 POLY_F4 f4[4];
+      // 0x2E0 POLY_G4 g4[2];
+      // 0x328 s32 unk328;
+      // 0x32C s32 unk32C;
+      // 0x330 s32 unk330;
+      // 0x334 u16 width;
+      // 0x336 u16 height;
+      // 0x338 u16 unk338;
+      // 0x33A u16 unk33A;
+      // 0x33C u16 vx;
+      // 0x33E u16 vy;
+      // 0x340 u16 vz;
+      // 0x342 u16 unk342;
+      // 0x344 u16 unk344;
+      // 0x346 u16 unk346;
+      // 0x348 u16 unk348;
+      // 0x34A u16 unk34A;
+} Temp2FillBlock; // Size: 0x34C
+
+void* func_8002709C(s32 width, s32 height, s32 arg2, s32 arg3, s32 clutX,
+                    s32 clutY, u16 arg7, s32 arg8, VECTOR* pVec, u8* pColors,
+                    u16 arg11, u16 arg12, u16 arg13) {
+    DRAWENV env;
+    Temp2FillBlock* pBlock;
+    s32 i;
+    s32 j;
+
+    HeapChangeCurrentUser(4, 0);
+    pBlock = HeapAlloc(sizeof(Temp2FillBlock), 0);
+    if (pBlock == NULL) {
+        return NULL;
+    }
+    GetDrawEnv(&env);
+    pBlock->unk328 = arg2;
+    pBlock->unk32C = arg3;
+    pBlock->vx = pVec->vx;
+    pBlock->vy = pVec->vy;
+    pBlock->vz = pVec->vz;
+    pBlock->unk346 = arg11;
+    pBlock->unk348 = arg12;
+    pBlock->unk34A = arg13;
+    if (pVec->vz < 0) {
+        pBlock->unk330 = -arg8;
+    } else {
+        pBlock->unk330 = arg8;
+    }
+    pBlock->height = height;
+    pBlock->width = width;
+    pBlock->unk338 = arg7;
+    pBlock->unk33A = height % 256;
+    for (i = 0; i < 16; i++) {
+        SetPolyFT4(&pBlock->ft4[i]);
+        SetShadeTex(&pBlock->ft4[i], 1);
+        pBlock->ft4[i].clut = GetClut(clutX, clutY);
+    }
+    if (pColors == NULL) {
+        pBlock->unk344 = 0;
+        return pBlock;
+    }
+    pBlock->unk344 = 1;
+    for (j = 0; j < 2; j++) {
+        SetPolyF4(&pBlock->f4[j]);
+        pBlock->f4[j].r0 = pColors[0];
+        pBlock->f4[j].g0 = pColors[1];
+        pBlock->f4[j].b0 = pColors[2];
+        pBlock->f4[j].x0 = 0;
+        pBlock->f4[j].y0 = 0;
+        pBlock->f4[j].x1 = 0x140;
+        pBlock->f4[j].y1 = 0;
+        pBlock->f4[j].x2 = 0;
+        pBlock->f4[j].x3 = 0x140;
+    }
+    pColors += 4;
+    for (j = 0; j < 2; j++) {
+        pBlock->g4[j].r0 = pColors[0];
+        pBlock->g4[j].g0 = pColors[1];
+        pBlock->g4[j].b0 = pColors[2];
+        pBlock->g4[j].r1 = pColors[0];
+        pBlock->g4[j].g1 = pColors[1];
+        pBlock->g4[j].b1 = pColors[2];
+        pColors += 4;
+        pBlock->g4[j].r2 = pColors[0];
+        pBlock->g4[j].g2 = pColors[1];
+        pBlock->g4[j].b2 = pColors[2];
+        pBlock->g4[j].r3 = pColors[0];
+        pBlock->g4[j].g3 = pColors[1];
+        pBlock->g4[j].b3 = pColors[2];
+        pColors -= 4;
+        SetPolyG4(&pBlock->g4[j]);
+        pBlock->g4[j].x0 = 0;
+        pBlock->g4[j].x1 = 0x140;
+        pBlock->g4[j].x2 = 0;
+        pBlock->g4[j].x3 = 0x140;
+    }
+    pColors += 4;
+    for (j = 2; j < 4; j++) {
+        SetPolyF4(&pBlock->f4[j]);
+        pBlock->f4[j].r0 = pColors[0];
+        pBlock->f4[j].g0 = pColors[1];
+        pBlock->f4[j].b0 = pColors[2];
+        pBlock->f4[j].x0 = 0;
+        pBlock->f4[j].x1 = 0x140;
+        pBlock->f4[j].x2 = 0;
+        pBlock->f4[j].y2 = 0xF0;
+        pBlock->f4[j].x3 = 0x140;
+        pBlock->f4[j].y3 = 0xF0;
+    }
+    return pBlock;
+}
+*/
+
+/*
+Derivation kept from the previous round; every offset below is taken
+straight from the .s.
 worker does not have to re-read 202 instructions. Every offset below is taken
 straight from the .s.
 
