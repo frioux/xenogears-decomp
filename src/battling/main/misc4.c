@@ -526,25 +526,17 @@ void BattleActorSetUnk15CCFlags(Actor* p) {
     p->unk15CC->unk6 = (p->unk15CC->unk6 & 0xBFFF) | ((p->unkD0 >> 5) & 0x4000);
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_80079D6C);
-
-/* Best attempt: 91.03%. Everything matches except the third term: the original
-   materialises the bit-14 test as `sll 17; slti 0` while every source shape
-   tried here gives gcc's canonical `sll 17; srl 31` (a local, a u32 local, a
-   multiply, `!= 0` on the masked sign bit, and the direct expression all fold
-   the same way), and `li a1,-5` lands one slot earlier than the original.
-   Follow-up: `(p->unk15CC->unk6 << 17) < 0` (no mask, s32 flag) also compiles to
-   sll/srl 31 - gcc canonicalises any "negative?" test of a left shift into a bit
-   test, so the original's slti needs a value gcc cannot see the shift of.
 void func_80079D6C(Actor* p) {
     u32 flag;
+    u32 signBit = 0x80000000; // a literal here gives `sll 17; srl 31`, retail has `sll 17; slti 0`
+    u32 masked;
 
     p->unkD0 = (p->unkD0 & ~4) | ((p->unk15CC->unkA >> 6) & 4);
     p->unkD0 = (p->unkD0 & 0xFFFF7FFF) | ((p->unk15CC->unk6 << 2) & 0x8000);
-    flag = ((p->unk15CC->unk6 << 17) & 0x80000000) != 0;
-    p->unkD0 = (p->unkD0 & 0xFFF7FFFF) | (flag << 19);
+    masked = p->unkD0 & 0xFFF7FFFF;
+    flag = ((p->unk15CC->unk6 << 17) & signBit) != 0;
+    p->unkD0 = masked | (flag << 19);
 }
-*/
 
 void BattleResetUnk92640(void) {
     D_80092640 = 0;
