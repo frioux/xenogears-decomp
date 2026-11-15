@@ -95,7 +95,7 @@ extern void SpriteSetCallback(SpriteData* pSprite, void* pCallback);
 extern void BattleSetSpriteTemplate(void* pArg);
 extern void BattleActorWaitFramesWithCallback(s32 arg0, SpriteData* pSprite);
 extern void BattleSetPendingCommand(SpriteData* pSprite);
-extern void BattleBeginAnimTask(u16 arg0);
+extern void BattleBeginAnimTask(s32 arg0);
 extern void BattleSetSlotFlagB4(s32 arg0);
 extern void BattleClearSlotFlagB4(s32 arg0);
 
@@ -125,6 +125,7 @@ void func_800B905C(void) {
     SpriteData* pTarget;
     u8* pBase;
     u8* pSlot;
+    u8* pSlot2;
 
     pBase = D_800C3EB0;
     func_800BEFF4(pBase[D_800C360C * 0x48 + 0x15B]);
@@ -648,44 +649,68 @@ void BattleActorSetFacingFromSideFlag(s32 index) {
 */
 void BattleNoOpCallback(void) {
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800BAF48);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800BB080);
-/* 76.91%: same 0x8C8C fold as BattleActorSetFacingFromSideFlag.  Retail keeps the raw
-   &D_800C3EB0 in $s0 and hoists 0x8C8C into $s4 (`li s4,0x8C8C; addu s2,s0,s4`),
-   then adds 0x8CB8 with a second li+addu after the call; gcc folds 0x8CB8 into
-   the symbol base (lui s0,0x1; addiu s0,-29512) and uses -0x2C for the other
-   access, which also drags the loop-bound `3` into a register (li s3,3).
-   The call through pSprite->field_0x6C+0xC, the three break tests and the
-   BattleWaitForOtherActorAnimations tail are otherwise identical.
-   Also tried: named pointer locals for the two zero stores (the ppSlot trick
-   that closed BattleActorSetFacingFromSideFlag and BattleReleaseActorSlot here); loop.c then hoists BOTH
-   0x8C8C and 0x8CB8 into callee-saved registers and the frame grows to 0x30.
+extern s32 g_NumTimerWorkListEntries;
+extern s32 D_800C35D8;
+extern void func_800BE790(void);
+extern void func_800BB760(s32 index);
+
+void func_800BAF48(s32 index) {
+    s32 count;
+    s32 off;
+    mem_addr base;
+    SpriteData* pSprite;
+    u8* pEntry;
+
+    BattleBeginAnimTask(1 << index);
+    BattleBeginAnimTask(0);
+    count = g_NumTimerWorkListEntries;
+    base = (mem_addr)D_800C3EB0;
+    pEntry = (u8*)(base + (index << 2));
+    off = 0x8C8C;
+    pSprite = *(SpriteData**)(pEntry + off);
+    BattleUnloadActorArchive();
+    SpritePlayAnimation(pSprite, 0x16);
+    while (pSprite->animScriptWaitTimer != 0) {
+        if (((s8*)pSprite)[0xAF] != 0x16) {
+            break;
+        }
+        func_800BE790();
+    }
+    while (g_NumTimerWorkListEntries != count) {
+        func_800BE790();
+    }
+    BattleReleaseActorSlot(index);
+    func_800BE790();
+    func_800BE790();
+    func_800BB760(index);
+    while (D_800C35D8 != 0) {
+        func_800BE790();
+    }
+}
 void func_800BB080(s32 arg0) {
+    s32 i = 0;
     u8* pEntry = D_800C3EB0;
     SpriteData* pSprite;
-    void* pObj;
-    s32 i;
+    void* pTask;
+    u8* pSlot;
+    u8* pSlot2;
 
-    for (i = 0; i != 3; i++) {
-        if (i == arg0) {
-            break;
+    for (; i != 3; i++) {
+        if (i != arg0) {
+            pSlot = pEntry + 0x8C8C;
+            pSprite = *(SpriteData**)pSlot;
+            if (pSprite != NULL && pSprite->pDefaultAnimFile == NULL) {
+                pTask = pSprite->field_0x6C;
+                (*(void (**)(void*))((u8*)pTask + 0xC))(pTask);
+                *(u32*)pSlot = 0;
+                pSlot2 = pEntry + 0x8CB8;
+                *(u32*)pSlot2 = 0;
+            }
         }
-        pSprite = *(SpriteData**)(pEntry + 0x8C8C);
-        if (pSprite == NULL) {
-            break;
-        }
-        if (pSprite->pDefaultAnimFile != NULL) {
-            break;
-        }
-        pObj = *(void**)((u8*)pSprite + 0x6C);
-        (*(void (**)(void*))((u8*)pObj + 0xC))(pObj);
-        *(u32*)(pEntry + 0x8C8C) = 0;
-        *(u32*)(pEntry + 0x8CB8) = 0;
         pEntry += 4;
     }
     BattleWaitForOtherActorAnimations(arg0);
 }
-*/
 void BattleActorSyncPositionFromModel(u8* pTask) {
     SpriteData* pSprite;
     u8* pScript;
