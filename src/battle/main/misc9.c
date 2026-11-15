@@ -492,9 +492,7 @@ void BattleDwordRegDivImm(BattleCommand **ppCmd, u8 arg1) {
     pRegs[pCmd->unk1] /= pCmd->unk2;
 }
 void BattleWriteWorkBufferWord(BattleCommand **ppCmd) {
-    u8 *pCmd = (u8 *)*ppCmd;
-
-    *(u16 *)(D_800D3278 + pCmd[1] * 2 + 0x394) = pCmd[2];
+    *(u16 *)(D_800D3278 + (*ppCmd)->unk1 * 2 + 0x394) = (*ppCmd)->unk2;
 }
 /* best: 96.50%. Structure found: do-while with the pointer compared as a SIGNED
    int (a u16* compare gives sltu, the original has slt), and the flag tested as
