@@ -370,7 +370,8 @@ void SetFogNearFar(long a, long b, long h) {
 
     SetDQA(n);
     SetDQB(f);
-} */
+}
+*/
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_c", D_80048BBC);
 
