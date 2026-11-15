@@ -3,7 +3,7 @@
 #include "psyq/libgpu.h"
 
 extern u8 *D_800C3EAC;
-extern u8 *D_800D2D28;
+extern volatile u8 *D_800D2D28;
 extern u8 D_800C3EB4[];
 extern u8 D_800D301C[];
 extern u16 D_800D39DC;
@@ -149,20 +149,19 @@ void BattleBeginActorAction(u8 arg0, u16 arg1, u16 arg2) {
     D_800D2CAA = c + 0xFF;
     func_800941A4();
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80085D34);
-/* 95.68%: since the round-45 un-park the instruction stream is identical
-   except (a) the three `addu a1,?,?` that reorg places in the BattleDrawSpritePackage
-   jal delay slot - retail `addu a1,a1,v0` (offset in the destination), gcc
-   `addu a1,v0,a1`; and (b) the epilogue, where retail has `nop; sb
-   D_800D2D28+0xA4; lw $ra` and gcc hoists `lw $ra` into the lbu load-delay
-   slot then stores after it (316 bytes, same count). Round 47 re-tried
-   `ofs + base` (operand order in the source) for (a): still 95.68%, gcc
-   canonicalises the commutative addu, so this is an allocator/schedule tie,
-   not a source shape. Tried: `ofs + base` (70.30% before the round-47 fixes,
-   95.68% now), an `ofs` local (66.62%: gcc CSEs the two D_800D2D28 loads that
-   retail keeps separate). Reads D_800CCB34 with lbu, so the extern must stay
-   `u8` (with `s32` it is 94.94%). The SECOND call's first argument is the
-   constant 0x19, not D_800C3EAC[0x2D4] + 0xF.
+// 99.63%: the volatile view of D_800D2D28 (extern above) fixed the epilogue
+// and the load re-materialisation; the only remaining difference is the operand
+// order of the three addu that reorg places in the BattleDrawSpritePackage jal
+// delay slots - retail addu a1,a1,v0 (offset + base), gcc addu a1,v0,a1. Same
+// instruction count, same schedule, different encoding. gcc canonicalises
+// pointer+int to (pointer, int) at RTL gen, so source order cannot force it.
+// Tried: ofs + base (99.63% too), int-add (s32)base + ofs (75.54%, 320 bytes),
+// ofs + (s32)base (74.25%, 320 bytes), an ofs local recomputed per call before
+// each call (70.57%: gcc evaluates it before the first-argument lbu), permuter
+// 3 min / 1154 iterations from base=30 (PERMUTER_NONE, best=30).
+// Reads D_800CCB34 with lbu, so it must stay u8 (s32 gives 94.94%). The SECOND
+// call's first argument is the constant 0x19, not D_800C3EAC[0x2D4] + 0xF.
+/*
 void func_80085D34(void) {
     s32 v;
 
@@ -176,6 +175,7 @@ void func_80085D34(void) {
     D_800D2D28[0xA4] = D_800CCB34;
 }
 */
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80085D34);
 void BattleClearCommandSlots(void) {
     s32 i;
 
