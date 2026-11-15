@@ -48,7 +48,8 @@ typedef struct BattleActor {
     /* 0x0028 */ s32 unk28;
     /* 0x002C */ u8 unk2C[0x14];
     /* 0x0040 */ s32 unk40;
-    /* 0x0044 */ u8 unk44[0x8];
+    /* 0x0044 */ u8 unk44[0x4];
+    /* 0x0048 */ s32 unk48;
     /* 0x004C */ u8 unk4C;
     /* 0x004D */ u8 unk4D;
     /* 0x004E */ u8 unk4E;
@@ -78,7 +79,7 @@ typedef struct BattleActor {
     /* 0x00D4 */ u32 unkD4;
     /* 0x00D8 */ struct BattleActor* pTarget;
     /* 0x00DC */ u8 unkDC[0xC];
-    /* 0x00E8 */ u32 unkE8;
+    /* 0x00E8 */ s32 unkE8;
     /* 0x00EC */ u8 unkEC[0x4];
     /* 0x00F0 */ s16 unkF0;
     /* 0x00F2 */ u8 unkF2[0xE];
@@ -249,7 +250,7 @@ void BattlePrintMessageQueue(BattleActor* p) {
     func_800379C8(D_8006FCC8);
 }
 
-extern s32 BattleGetScreenMode(BattleActor* p);
+extern s32 BattleGetScreenMode(void);
 extern void BattleSetTextCursor(s32 a0, s32 a1);
 extern s32 D_8009292C;
 extern u8 D_80099D9C;
@@ -273,7 +274,7 @@ void BattleUpdateSlotGaugeDisplay(BattleActor* p) {
 
     p->unk40 = 0;
     p->unk100 = 0;
-    if (BattleGetScreenMode(p) != 7) {
+    if (BattleGetScreenMode() != 7) {
         flags = p->flags;
         flags &= 0xFFFF7FFF;
         flags &= ~2;
@@ -385,7 +386,155 @@ short BattleTryQueueMessage5(BattleActor* p) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80076884);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80077038);
+extern u8 D_800928C4;
+extern s32 D_80092934;
+extern s32 BattleCheckValueAboveScaledMax(BattleActor* p, s32 v);
+extern void func_8008EB4C(s32 arg);
+
+s32 func_80077038(BattleActor* p) {
+    u32 flags;
+
+    if (p->unkC2 != 0) {
+        p->unkC2 -= 0x10;
+    }
+    if (p->unkC4 == 5) {
+        return;
+    }
+    if (p->unkE8 >= 0x15) {
+        p->unkE8 = 0x14;
+    }
+    if (p->unkE8 != 0) {
+        p->unkE8--;
+    } else {
+        p->flags &= ~0x1000;
+    }
+    if (p->unk916 != 0) {
+        p->unk916--;
+    }
+    if (p->unk914 != 0) {
+        p->unk914--;
+    }
+    if (p->unkC8 != 0) {
+        p->unkC8--;
+    } else {
+        p->unkF0 = 0;
+        p->flags = (p->flags & 0xFF8FFFFF) | 0x300000;
+    }
+    if (p->unkC3 != 0) {
+        p->unkC5 = 4;
+        p->unkC3--;
+    } else if (p->unkC5 == 4) {
+        p->unkC5 = 0;
+    }
+    if (p->unkCA != 0) {
+        p->unkCA--;
+    }
+    if (p->unkB6 != 0) {
+        if (p->unkC4 & 1) {
+            if ((p->flags & 0x60000000) == 0x60000000) {
+                if (p->unk90A & 4) {
+                    p->unkB6 -= 8;
+                } else {
+                    p->unkB6 -= 2;
+                }
+            } else if ((p->flags & 0x60000000) == 0x20000000) {
+                p->unkB6 -= 6;
+            } else {
+                p->unkB6 -= 4;
+            }
+        } else {
+            p->unkB6 -= 8;
+        }
+        if (p->unkB6 < 0) {
+            p->unkB6 = 0;
+        }
+    }
+    if (p->unkC4 == 4) {
+        if (p->unkCA == 0) {
+            p->unkC4 = 0;
+            p->unkC5 = 0;
+        }
+    } else {
+        if (p->unkB0 - 0x30 < p->unk0.y) {
+            p->unkC4 &= ~2;
+        }
+        if (p->unk48 != 0) {
+            p->unkC4 |= 1;
+        } else {
+            p->unkC4 &= ~1;
+        }
+    }
+    flags = p->flags;
+    if (flags & 0x800) {
+        switch (p->unk90E) {
+        case 9:
+            if (p->unkCA == 0) {
+                p->flags = flags | 0x400;
+            }
+            break;
+        case 0xF:
+            if (p->unkC5 != 4) {
+                p->flags = flags | 0x400;
+            }
+            break;
+        case 2:
+            if (p->unkC4 & 2) {
+                p->flags = flags | 0x400;
+            }
+            break;
+        }
+    }
+    p->unkB4 -= p->unkBA;
+    p->unkB4 -= p->unk970;
+    if (p->unkBA != 0) {
+        if (p->unk910 == 0) {
+            if (BattleGetScreenMode() != 4) {
+                func_8008EB4C(0x2D);
+            }
+            p->unk910 = 0x14;
+        }
+        p->unk910--;
+    } else {
+        p->unk910 = 0;
+    }
+    if (D_800928C4 != 0 && BattleCheckValueAboveScaledMax(p, 0x50) == 0 && (p->flags & 0x8000000)) {
+        p->unkB4 = p->unkBC * 0x50 / 0x100;
+    }
+    if (p->unkB4 < 0) {
+        p->unkB4 = 0;
+    }
+    if (p->unkB8 != p->unkB4) {
+        p->unkB8 = p->unkB4;
+        p->unkC1 = p->unkC0;
+        p->unkC0 = (p->unkB4 * 0x80 + p->unkBC - 1) / p->unkBC;
+        if (p->unkC0 == 1) {
+            p->unkC0 = 2;
+        }
+        p->unkC2 = 0xF0;
+    }
+    p->unkBA = 0;
+    p->unk970 = 0;
+    if (D_800928C8 != 4 && p->unkB4 == 0 && D_800928C8 != 6 && !(p->flags & 0x800000)) {
+        p->unk4C = 0xD;
+        p->unk4E = 0xFF;
+        p->unkC4 = 5;
+        p->unkC5 = 0;
+        p->flags |= 0x1000;
+        p->unk14 -= 0x50;
+        p->flags |= 0x400;
+        if (p->flags & 0x8000000) {
+            p->unk20 -= rcos(D_80092934) >> 9;
+            p->unk28 -= rsin(D_80092934) >> 9;
+        } else {
+            p->unk20 += rcos(D_80092934) >> 9;
+            p->unk28 += rsin(D_80092934) >> 9;
+        }
+        p->flags |= 0x800000;
+        BattleUpdateControllerActuator(p, 0x14);
+        p->unk100 = 0;
+    }
+    return;
+}
 
 /* Old-style definition and a non-void return both matter: BattleActorBeginMove
    calls it with one argument, and as void gcc fills the beqz delay slot with the
@@ -425,7 +574,7 @@ void BattleActorBeginMove(BattleActor* p, s32 ang, s32 shift, s32 dec) {
 s32 BattleUpdateControllerActuator(BattleActor* p, s32 mode) {
     u32 flags;
 
-    if (BattleGetScreenMode(p) == 4) {
+    if (BattleGetScreenMode() == 4) {
         return;
     }
     flags = p->flags;
