@@ -188,7 +188,7 @@ void SpriteDrawProjected(WorkListEntry* pTask) {
     u32 flags;
 
     pSpriteData = pTask->unk4;
-    if ((((u32)pSpriteData->flags_0xB0 >> 8) & 1) && D_800C3664) {
+    if ((((u32)pSpriteData->flags_0xB0.flags >> 8) & 1) && D_800C3664) {
         return;
     }
 
