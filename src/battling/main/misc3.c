@@ -211,6 +211,17 @@ extern char D_8006FD04[];
 extern char D_8006FD08[];
 extern char D_8006FD10[];
 
+INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_8007661C);
+
+// best 99.91% (was 99.02%): every instruction is identical except the frame,
+// 0x38 vs 0x30 -- gcc reserves one unused 8-byte local slot between buf and the
+// saved regs (buf sits at sp+0x10 in both; buf sizes 0xC and 0x10 both give
+// 0x38, 0x18 gives 0x40). Two permuter edits made the rest exact: reuse h for
+// the D_80096FC4 value passed to the last Sprintf, and read the D_80096FBC
+// index as (flags >> 23) >> 4. Tried: buf declared before h/w, both w/h
+// declaration orders, default-plus-override instead of if/else, u32 for the
+// 0x96FC4 pair, buf sizes 0xC/0x18. The 0x8 slot is what is left.
+/*
 void func_8007661C(u8* p) {
     char buf[0x10];
     s32 h;
@@ -237,6 +248,7 @@ void func_8007661C(u8* p) {
     Sprintf(buf, D_8006FD10, h, D_80096FC8[((*(u32*)(p + 0xD0) >> 27) & 1) * 5] >> 4);
     BattleDrawTextLeft(buf);
 }
+*/
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_800767C8);
 
