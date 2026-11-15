@@ -189,17 +189,6 @@ u32 BattleGetGridCellAtPosition(s32* p) {
     return (u32)D_800928DC[(b << 7) + a];
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc9", func_800828F8);
-
-/* best 97.57%. Frame, local layout and the whole matrix block line up; the
-   residual is only WHICH register holds n.vx vs n.vz, and the load order
-   (retail lhu's n.vz then n.vx, we do n.vx then n.vz).
-   Written in retail's exact store order (m[2][0]=n.vx, m[2][2]=n.vz,
-   m[0][0]=n.vz, m[0][2]=-n.vx, so the last sh lands in ApplyMatrixLV's delay
-   slot) the store sequence matches instruction for instruction but scores
-   95.50; the order below scores 97.57. Both are one allocator/qty order swap
-   away from retail and no source shape tried so far moves it. Field-name
-   reads (n.vx / n.vz) beat ((u16*)&n)[i]: 94.16 -> 97.57.
 void func_800828F8(VECTOR* p0, VECTOR* p1, s32 radius) {
     VECTOR v;
     VECTOR v2;
@@ -220,10 +209,9 @@ void func_800828F8(VECTOR* p0, VECTOR* p1, s32 radius) {
         m.m[1][0] = 0;
         m.m[0][1] = 0;
         m.m[1][1] = 0x1000;
-        m.m[0][0] = n.vz;
+        m.m[0][0] = (m.m[2][2] = n.vz);
         m.m[0][2] = -n.vx;
         m.m[2][0] = n.vx;
-        m.m[2][2] = n.vz;
         ApplyMatrixLV(&m, p1, &v);
         TransposeMatrix(&m, &mT);
         SetRotMatrix(&mT);
@@ -243,7 +231,6 @@ void func_800828F8(VECTOR* p0, VECTOR* p1, s32 radius) {
         }
     }
 }
-*/
 
 extern u8 D_800928B4;
 extern u8 D_8009178C[];
