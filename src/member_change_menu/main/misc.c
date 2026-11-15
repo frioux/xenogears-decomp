@@ -6,9 +6,6 @@
 #include "system/menu.h"
 #include "main/game.h"
 
-// tmp
-u_char MemberChangeMenuSwapCharacters(u_char, s32, s32, u_char, s32, s32);
-
 // Bit masks
 extern u_short D_801CB57C[];
 extern u_short D_8006F94C;
@@ -1974,6 +1971,9 @@ u_char MemberChangeMenuSwapCharacters(u_char isBenchedWindowActive, s32 curCharI
     u_char tmp;
     s32 i;
 
+    // The do/while(0) blocks in this function are load-bearing: they split the
+    // statement groups so that gcc 2.6.0 reproduces retail's s0-s4 allocation
+    // (canSwapSrc=s0, canSwapDst=s1, result=s2, srcIndex=s3, dstIndex=s4).
     do {
         result = FALSE;
         canSwapSrc = TRUE;
@@ -2000,12 +2000,12 @@ u_char MemberChangeMenuSwapCharacters(u_char isBenchedWindowActive, s32 curCharI
 
     if (canSwapSrc && canSwapDst) {
         tmp = g_Menu->pManager->currentCharacterIDs[srcIndex];
-        i = 0;
         g_Menu->pManager->currentCharacterIDs[srcIndex] = g_Menu->unk1E14[dstIndex];
         g_Menu->unk1E14[dstIndex] = tmp;
 
-        numPartyCharacters = i;
-        for (i = 0; i < MAX_PARTY_MEMBERS; i++) {
+        // i is zeroed ahead of the count init for the same allocator reason.
+        i = 0;
+        for (numPartyCharacters = 0; i < MAX_PARTY_MEMBERS; i++) {
             if (g_Menu->pManager->currentCharacterIDs[i] != 0xFF) {
                 numPartyCharacters++;
             }
@@ -2013,6 +2013,7 @@ u_char MemberChangeMenuSwapCharacters(u_char isBenchedWindowActive, s32 curCharI
 
         result = TRUE;
         if (numPartyCharacters == 0) {
+            // Same load-bearing do/while(0) as above.
             do {
                 tmp = g_Menu->pManager->currentCharacterIDs[srcIndex];
                 g_Menu->pManager->currentCharacterIDs[srcIndex] = g_Menu->unk1E14[dstIndex];
