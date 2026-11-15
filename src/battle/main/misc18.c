@@ -28,7 +28,7 @@ extern u8 D_800CCE44[];
 
 extern s32 rand(void);
 extern s8 func_80097964(u8, u8, u16);
-extern void func_800995A0(u8, u8, u16, s32);
+extern void BattleSetSlotConditionTimer(u8, u8, u16, s32);
 extern void func_80098D2C(u8, u8);
 extern void func_80094D24(void);
 
@@ -37,9 +37,9 @@ void BattleApplyScriptConditionTimer(void) {
                            D_800C3DFC->unk1E);
 
     if (D_800C3DFC->unk0A & 0x4000) {
-        func_800995A0(D_800C3E50, D_800C3DFC->unk1D, D_800C3DFC->unk1E, 5);
+        BattleSetSlotConditionTimer(D_800C3E50, D_800C3DFC->unk1D, D_800C3DFC->unk1E, 5);
     } else {
-        func_800995A0(D_800C3E50, D_800C3DFC->unk1D, D_800C3DFC->unk1E,
+        BattleSetSlotConditionTimer(D_800C3E50, D_800C3DFC->unk1D, D_800C3DFC->unk1E,
                       D_800C3DFC->unk11);
         if (ret != 1) {
             BattleWorkBlock *p = D_800C34B0;
@@ -54,7 +54,7 @@ void BattleApplyActorConditionTimer(void) {
     if (func_80097964(p->unk02, p->unk03, p->flags) == 1) {
         BattleRow *q = D_800C3DFC;
 
-        func_800995A0(D_800C3E50, q->unk1D, q->unk1E, 5);
+        BattleSetSlotConditionTimer(D_800C3E50, q->unk1D, q->unk1E, 5);
     }
 }
 void BattleRollAndClearTargetConditions(void) {
@@ -310,7 +310,7 @@ void BattleClearAllSlotStates(void) {
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80097D5C);
-void func_8009892C(void) {
+void BattleResetSlotConditionCounters(void) {
     u8 i;
     u8 j;
     u8 v;
@@ -482,7 +482,7 @@ s32 BattleTestActorSlotFlagsC002ByMode(void) {
     }
     return ret;
 }
-void func_800995A0(u8 slot, u8 kind, u16 flag, s32 count) {
+void BattleSetSlotConditionTimer(u8 slot, u8 kind, u16 flag, s32 count) {
     u8 *pEntry;
     u8 *pTimer;
     u8 idx = 0xF;

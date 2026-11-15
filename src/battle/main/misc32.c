@@ -198,7 +198,7 @@ extern Misc32TaskNode *D_800C3750;
 extern void WorkListsDeleteTasks(WorkListEntry *pTasks);
 
 // The D_800C3750 list's on-free callback: unlink the entry, then free it.
-void func_800BD7A0(void *pEntry) {
+void BattleUnlinkAndFreeTask(void *pEntry) {
     Misc32TaskNode *pCur;
     Misc32TaskNode *pPrev;
     Misc32TaskNode *pTarget;

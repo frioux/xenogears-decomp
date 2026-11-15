@@ -62,7 +62,7 @@ extern void SoundPlaySoundEffectOnLastPair(s32 arg0);
 extern void func_8008860C(void);
 extern void BattleBuildFlaggedSlotSpriteColumn(void);
 extern void BattleBuildBlendedSprite(void);
-extern void func_800891E4(void);
+extern void BattleBuildGrey80BlendSpriteColumnPair(void);
 extern void BattleBuildGrey80BlendSpriteColumn5(void);
 extern void func_8008946C(void);
 extern void BattleBuildGrey80BlendSpriteColumn7(void);
@@ -165,7 +165,7 @@ void BattleBuildBlendedSprite(void) {
         BattleSetPrimGrey80BlendAdd((u8*)(pEntry + (s32)D_800D2DB4));
     }
 }
-void func_800891E4(void) {
+void BattleBuildGrey80BlendSpriteColumnPair(void) {
     u8 v;
     u8 slotA;
     u8 slotB;
@@ -295,7 +295,7 @@ void BattleBuildSpritePrimLists(void) {
     func_8008860C();
     BattleBuildFlaggedSlotSpriteColumn();
     BattleBuildBlendedSprite();
-    func_800891E4();
+    BattleBuildGrey80BlendSpriteColumnPair();
     BattleBuildGrey80BlendSpriteColumn5();
     func_8008946C();
     BattleBuildGrey80BlendSpriteColumn7();
