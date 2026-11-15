@@ -552,7 +552,7 @@ void func_8001F5BC(SpriteData* pSpriteData, s32 unusedIndex, s32* pOutX, s32* pO
    to compile at all.
    Instruction stream is identical; only the temp
    assignment differs (original: pSpriteData->t1, texPageBits->a3, color->a1,
-   pFrameData->a0, i->t0; this C: a3, t0, a2, v1, a0). Reordering the locals has
+   pFrameData->a0, i->t0; this C: t0, a3, a1, v1, a0). Reordering the locals has
    no effect at all (re-confirmed). The sprite reaching t1 rather than a3 is the
    whole difference: a0 goes to the flags word, so the parameter has to be copied
    out of its incoming register.
@@ -563,14 +563,24 @@ void func_8001F5BC(SpriteData* pSpriteData, s32 unusedIndex, s32* pOutX, s32* pO
    79-96.5. Clue for the next attempt: a2 is NEVER used in the original, so its
    block 1 held one more block-local pseudo than any shape tried here -- that is
    what would push the parameter out to t1.
-   Re-checked round r12: the compiled stream is instruction-for-instruction the
-   original's; the only delta is a permutation of the five live values
-   (param/texPageBits/color/pFrameData/i): original t1/a3/a1/a0/t0, ours
-   a3/t0/a2/v1/a0. Both sides copy the parameter out of a0 at entry because the
-   block-local `flags` load takes a0; only the copy's destination differs.
 */
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001F6B0);
-/* Best attempt: 96.50% (see the note above the INCLUDE_ASM).
+/* Best attempt: 97.38% (was 96.50). Two permuter edits in the body below are
+   load-bearing and look gratuitous -- keep both:
+     1. `color = flags;` then `texPageBits = (color >> 5) & 7;` (96.50 -> 97.38).
+     2. `do { texPageBits--; } while (0);` (96.50 -> 97.12): the extra block
+        scope is what puts texPageBits in a3, the original's register.
+   The instruction stream is identical; the remaining delta is a 3-cycle of the
+   live values. Original: param t1, color a1, texPageBits a3, pFrameData a0,
+   i t0, shift temp v1, a2 free. Ours: param t0, color a1, texPageBits a3,
+   pFrameData v1, i a0, shift temp a2, t1 free. a0 is the induction pointer on
+   both sides and the value load order matches, so this is the allocator only.
+   Two permuter runs from score 115: 115 -> 105, then no gain in 867 iterations.
+   Re-tried by hand this round, none better: u32 i (97.38), i declared before
+   pFrameData (97.38), pFrameData pointer local in the loop (97.38), loop guard
+   read once and ++i in the body (97.38), `i < bound` (91.95), pFrameData
+   assigned before tex (85.20). gcc-2.7.2-cdk scores 97.12, so not the preset.
+*/
+/*
 void func_8001F6B0(SpriteData* pSpriteData) {
     SpriteFrameData* pFrameData;
     u32 flags;
@@ -585,9 +595,10 @@ void func_8001F6B0(SpriteData* pSpriteData) {
         return;
     }
 
-    texPageBits = (flags >> 5) & 7;
+    color = flags;
+    texPageBits = (color >> 5) & 7;
     if (texPageBits != 0) {
-        texPageBits--;
+        do { texPageBits--; } while (0);
     }
     tex = ((SpriteAnimPackage*)pSpriteData->pVramData)->tex;
     color = *(u32*)&pSpriteData->red;
@@ -599,6 +610,7 @@ void func_8001F6B0(SpriteData* pSpriteData) {
     }
 }
 */
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001F6B0);
 
 void SpriteApplyDirTransforms(SpriteData* pSpriteData, s32 index, SpriteAnimPackage* pAnimPackage) {
     u8* pFrames;
