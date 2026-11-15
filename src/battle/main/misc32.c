@@ -196,26 +196,19 @@ typedef struct Misc32TaskNode {
 } Misc32TaskNode; // Size: 0x3C
 
 extern Misc32TaskNode *D_800C3750;
-extern void WorkListsDeleteTasks(void);
+extern void WorkListsDeleteTasks(WorkListEntry *pTasks);
 
-// best 95.36%: COMPILES. The body below is the retail algorithm (the old park
-// compared the head instead of the moving pointer) and the instruction multiset is
-// retail's; only the register tie differs. Retail copies the parameter to $a1
-// (`move $a1,$a0`) and compares the moving pointer against it, which pushes the
-// %hi of D_800C3750 to $a2 and puts `move $v1,zero` before the head load. gcc keeps
-// the parameter in $a0, the %hi in $a1, and loads the head first.
-// Tried: pTarget/pHead/`register` locals (coalesced away), a short `hasPrev`, the
-// do-while form, swapped compare operands (95.18), the old pHead spelling (91.96).
-// 95.36%: COMPILES. Only the register tie differs - see the block below.
-/*
-void func_800BD7A0(Misc32TaskNode *pEntry) {
+// The D_800C3750 list's on-free callback: unlink the entry, then free it.
+void func_800BD7A0(void *pEntry) {
     Misc32TaskNode *pCur;
     Misc32TaskNode *pPrev;
+    Misc32TaskNode *pTarget;
 
-    pPrev = NULL;
     pCur = D_800C3750;
+    pPrev = NULL;
+    pTarget = pEntry;
     while (pCur != NULL) {
-        if (pCur == pEntry) {
+        if (pCur == pTarget) {
             if (pPrev != NULL) {
                 pPrev->pNext = pCur->pNext;
             } else {
@@ -226,9 +219,8 @@ void func_800BD7A0(Misc32TaskNode *pEntry) {
         pPrev = pCur;
         pCur = pCur->pNext;
     }
-    WorkListsDeleteTasks();
-}*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BD7A0);
+    WorkListsDeleteTasks(pEntry);
+}
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BD810);
 
