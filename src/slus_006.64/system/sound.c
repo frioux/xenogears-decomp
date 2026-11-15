@@ -1797,19 +1797,16 @@ void SoundStopElementsById(s32 sedId) {
     } while (cnt);
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003A20C);
-/*
-Screened under gcc-2.7.2-cdk / gcc-2.7.2 / this unit's gcc-2.6.0: 80.40 / 80.40 / 84.00 - not
-a compiler-only match; the current preset is the best of the three.
-Attempt (84.00%, correct size and registers): same blocker as SoundSetElementVolumeByIndex - the
-only difference is that gcc emits the `andi a0,0xfe` / `xori a0,0x8` mask after
-the loop-preheader constants (`li s2,2`, `li s4,1`) while the original emits it
-first. Stable against the mask in a local of its own, and against the mask inline
-in the address expression.
-void func_8003A20C(s32 index) {
-    AudioManager* pManager = D_800595D8;
-    AudioElement* pElement = &pManager->elements[(index & 0xFE) ^ 8];
-    u32 cnt = 2;
+void func_8003A20C(s32 elementIndex) {
+    AudioManager* pManager;
+    AudioElement* pElement;
+    u32 cnt;
+
+    elementIndex &= 0xFE;
+    elementIndex ^= 8;
+    cnt = 2;
+    pManager = D_800595D8;
+    pElement = &pManager->elements[elementIndex];
 
     do {
         if (pElement->active_flag & 0x1) {
@@ -1821,7 +1818,6 @@ void func_8003A20C(s32 index) {
         cnt--;
     } while (cnt);
 }
-*/
 
 void SoundNop2(void) {}
 
@@ -1890,21 +1886,17 @@ void SoundFadeElementVolumeById(s32 id, s32 value, s32 frames) {
     } while (cnt);
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003A450);
-/*
-Screened under gcc-2.7.2-cdk / gcc-2.7.2 / this unit's gcc-2.6.0: 90.47 / 90.47 / 90.70 - not
-a compiler-only match; the current preset is the best of the three.
-Attempt (90.70%, correct size): identical to SoundFadeElementVolumeById except that gcc hoists
-the `andi a0,0xFE` / `xori a0,0x8` index pair into the loop preheader (after
-`li t0,2` / `sll a1,8`) while the original keeps them in the entry block. Same
-blocker as SoundSetElementVolumeByIndex and func_8003A55C; u8/u16 index types and declaration
-order do not move it.
 void func_8003A450(s32 elementIndex, s32 value, s32 frames) {
-    s32 index = (elementIndex & 0xFE) ^ 8;
-    u32 cnt = 2;
-    s32 volume = value << 8;
-    AudioElement* pElement = &D_800595D8->elements[index];
+    AudioElement* pElement;
+    u32 cnt;
+    s32 volume;
     s32 delta;
+
+    elementIndex &= 0xFE;
+    elementIndex ^= 8;
+    cnt = 2;
+    volume = value << 8;
+    pElement = &D_800595D8->elements[elementIndex];
 
     do {
         if (pElement->active_flag & 0x1) {
@@ -1922,7 +1914,7 @@ void func_8003A450(s32 elementIndex, s32 value, s32 frames) {
         pElement++;
         cnt--;
     } while (cnt);
-} */
+}
 
 void SoundSetElementPanById(s32 id, s32 value) {
     AudioManager* pManager = D_800595D8;
