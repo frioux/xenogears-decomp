@@ -384,7 +384,7 @@ extern u_char D_800B21CD;
 
 // The non-void return type is load-bearing: with `void` gcc reorg steals the flag clear's
 // `andi` into the final `bnez` delay slot (99.52%).
-int func_80072A38(VECTOR* pPos, int param) {
+int FieldCameraUpdateFromTarget(VECTOR* pPos, int param) {
     SVECTOR points[2];
     SVec4 line;
     SVec4 cross;

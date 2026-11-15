@@ -77,7 +77,7 @@ void MenuFitInventoryWindowToItems(void) {
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DBE54);
 
-void func_801DC1D4(u_char arg0) {
+void MenuCreateUnk430Panel(u_char arg0) {
     s32 kind;
     s32 index = 0;
 

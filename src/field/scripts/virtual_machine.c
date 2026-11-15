@@ -655,7 +655,7 @@ extern u8 D_800B02C8;
 extern s32 D_8004F318;
 extern s32 D_8004F328;
 extern s32 D_8004F2F4;
-extern void func_8009FEE4(int actorIndex);
+extern void FieldScriptWritePartyMemberPosition(int actorIndex);
 
 // Refreshes the script memory from the field state, and every 0x1F calls walks the map position pair
 void FieldScriptUpdateMemoryEachFrame(void) {
@@ -679,7 +679,7 @@ void FieldScriptUpdateMemoryEachFrame(void) {
 
     for (i = 0; i < MAX_PARTY_MEMBERS; i++) {
         if (g_pGameState->gearRide[i] == 1) {
-            func_8009FEE4(i);
+            FieldScriptWritePartyMemberPosition(i);
         }
     }
 

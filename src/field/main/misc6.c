@@ -843,7 +843,7 @@ extern s32 D_8005A44C;
 
 // The non-void return type is required: declared void, cc1 (reorg) moves `sll
 // v0,v1,1` into the `beq nActorIndex,0xFF` delay slot instead of a `nop`.
-int func_8009FEE4(int partyMemberIndex) {
+int FieldScriptWritePartyMemberPosition(int partyMemberIndex) {
     s32* pActorSlots;
     s32 nActorIndex;
     s32 nWalkmeshFlags;

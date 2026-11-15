@@ -256,7 +256,7 @@ void BattleEffectClearEntrySlots(Misc16Work* pWork) {
     }
 }
 
-void func_8008D5C0(Misc16Work* pWork, s32 count) {
+void BattleEffectAllocEntries(Misc16Work* pWork, s32 count) {
     u8* pEntry;
     void (*pInitEntry)(u8*, Misc16Work*);
     s32 i;
@@ -492,7 +492,7 @@ void func_8008DC28(void) {
     pWork->unk74 = 0xFF;
     pWork->unk75 = 0xA0;
     pWork->unk76 = 0x70;
-    func_8008D5C0(pWork, 0x100);
+    BattleEffectAllocEntries(pWork, 0x100);
     pWork->unk4A = pWork->unk44 = 0x60;
     pWork->unk48 = pWork->unk0 = 4;
     pWork->unk68 = 0;

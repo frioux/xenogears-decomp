@@ -90,7 +90,7 @@ typedef struct {
     /* 0x2C */ BattleTextFrame saved;
 } BattleTextList; // Size: 0x3C
 
-extern void func_800811AC(u8 *p);
+extern void BattleDrawTextSprites(u8 *p);
 extern void func_800812BC(BattleTextList *p);
 extern void BattleDrawTextList(BattleTextList *p);
 extern void func_8008162C(s32 *p, s32 a1);
@@ -253,7 +253,7 @@ void BattleDrawTextPrims(u8 *p) {
         AddPrim(p, pEntry);
     }
     D_800926DC = 0;
-    func_800811AC(p);
+    BattleDrawTextSprites(p);
     if (((D_80092734 != 0) && (D_80092758 != 0)) || (D_800912F0 != 0)) {
         if (D_80092734 != 0) {
             AddPrim(p, (u8 *)D_80092734 + (D_800928A0 * 0x10 + 0x1C));
@@ -366,7 +366,7 @@ void BattleSetTextSpriteEntry(s32 entry, s32 mode) {
     LoadImage(&rect, D_80095510[0].pData);
 }
 
-void func_800811AC(u8 *p) {
+void BattleDrawTextSprites(u8 *p) {
     u16 off;
     u8 *pBase;
 

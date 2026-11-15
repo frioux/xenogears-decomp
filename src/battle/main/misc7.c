@@ -224,7 +224,7 @@ void func_8007BA04(u8 **p, u8 index) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007BA04);
-void func_8007BA44(u8 **p, u8 index) {
+void BattleSlotStoreDwordFromWordReg(u8 **p, u8 index) {
     u32 *pField32 = (u32 *)(D_800D3410 + index * 0x40);
     u16 *pWordRegs;
     u8 *pArgs = *p;

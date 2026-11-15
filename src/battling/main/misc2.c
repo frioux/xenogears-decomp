@@ -87,7 +87,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_800731F8);
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_800732AC);
 
 extern u8 *func_8008D3F4(s32, s32);
-extern void func_8008D5C0(u8 *, s32);
+extern void BattleEffectAllocEntries(u8 *, s32);
 extern u8 *D_80092644;
 
 void BattleEffectInitContext(void) {
@@ -96,7 +96,7 @@ void BattleEffectInitContext(void) {
     p[0x74] = 0x80;
     p[0x75] = 0x80;
     p[0x76] = 0xC0;
-    func_8008D5C0(p, 0x60);
+    BattleEffectAllocEntries(p, 0x60);
     *(s16 *)(p + 0x00) = 4;
     *(s16 *)(p + 0x44) = 0x300;
     *(s16 *)(p + 0x48) = 8;
