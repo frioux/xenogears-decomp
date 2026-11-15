@@ -465,31 +465,32 @@ void BattleResetActorStats(void) {
     u8 i;
 
     for (i = 1; i < 3; i++) {
-        u8* p = (u8*)(i * 0x170 + (u32)D_800C34B0);
+        BattleTableEntry* p =
+            (BattleTableEntry*)(i * 0x170 + (u32)D_800C34B0);
 
-        *(u16*)(p + 0x4C) = 0x64;
-        *(u16*)(p + 0x4E) = 0x64;
-        p[0x5E] = 0x14;
-        p[0x5F] = 0xF;
-        *(u16*)(p + 0x7A) = 0x1FBF;
-        p[0x149] = 0;
+        ((u16*)&p->unk3A)[9] = 0x64;
+        ((u16*)&p->unk3A)[0xA] = 0x64;
+        p->unk5C[2] = 0x14;
+        p->unk5C[3] = 0xF;
+        p->unk7A = 0x1FBF;
+        p->unk90[0xB9] = 0;
     }
 }
 
 void BattleSetActorScaledHp(u8 arg0, u8* arg1) {
-    u8* p = arg0 * 0x170 + (u32)D_800C34B0;
-    u8* q = p + 0xA4;
+    BattleTableEntry* p = (BattleTableEntry*)(arg0 * 0x170 + (u32)D_800C34B0);
+    u32* pScaled = (u32*)&p->unk90[0x14];
 
     if (*(u16*)(arg1 + 0x4E) * 50 > 0x1869F) {
         if (*(u16*)(arg1 + 0x4C) * 50 > 0x1869F) {
-            *(u32*)(p + 0x104) = 0x1869F;
+            ((u32*)&p->unk90)[0x1D] = 0x1869F;
         } else {
-            *(u32*)(p + 0x104) = *(u16*)(arg1 + 0x4C) * 50;
+            ((u32*)&p->unk90)[0x1D] = *(u16*)(arg1 + 0x4C) * 50;
         }
-        *(u32*)(q + 0x64) = 0x1869F;
+        pScaled[0x19] = 0x1869F;
     } else {
-        *(u32*)(p + 0x104) = *(u16*)(arg1 + 0x4C) * 50;
-        *(u32*)(p + 0x108) = *(u16*)(arg1 + 0x4E) * 50;
+        ((u32*)&p->unk90)[0x1D] = *(u16*)(arg1 + 0x4C) * 50;
+        ((u32*)&p->unk90)[0x1E] = *(u16*)(arg1 + 0x4E) * 50;
     }
 }
 
@@ -629,9 +630,7 @@ u8 BattleGetActorActionConditionMask(u8 arg0) {
     return ret;
 }
 void BattleSetSlotFields148And162(u8 arg0) {
-    s32 off = arg0 * 0x170;
-
-    D_800CCE30[off] = 4;
-    D_800CCE4A[off] = 3;
+    D_800CCE30[arg0 * 0x170] = 4;
+    D_800CCE4A[arg0 * 0x170] = 3;
     g_GameState.unk16BC[0].unk1E |= 0x4000;
 }
