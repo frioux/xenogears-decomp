@@ -53,10 +53,80 @@ extern void BattleAttachActorPrims(void* pData);
 extern s32 BattleCheckActorBelowBreakThreshold(s32 arg0, s32 arg1);
 void BattleAddSharedPrim(void);
 
+// The header at the start of the block pData->pHeader points at, once
+// BattleRelocateBlockPointers has fixed up its +0x30 offset.
 typedef struct {
-    /* 0x000 */ u8 unk000[0x284];
+    /* 0x00 */ u8 unk00[0xE];
+    /* 0x0E */ u8 unk0E;
+    /* 0x0F */ u8 unk0F;
+    /* 0x10 */ u8 unk10;
+    /* 0x11 */ u8 unk11;
+    /* 0x12 */ u8 unk12;
+    /* 0x13 */ u8 unk13[0x1D];
+    /* 0x30 */ s32 unk30; // byte offset of the sprite table from the block start
+} Misc10SpriteHeader; // Size: 0x34
+
+// One 4-byte action slot of the block's +0x18 array; only the flag byte is read.
+typedef struct {
+    /* 0x0 */ u8 unk0;
+    /* 0x1 */ u8 unk1;
+    /* 0x2 */ u8 unk2;
+    /* 0x3 */ u8 unk3;
+} Misc10ActionSlot; // Size: 0x4
+
+// One 0x20-byte entry of the D_80092874 table (the same table src/battling/
+// main/misc6.c calls BattleFilterEntry); +0xA holds one flag byte per action
+// slot and this unit counts 14 of them.
+typedef struct {
+    /* 0x00 */ u8 unk00[0x4];
+    /* 0x04 */ s16 unk04;
+    /* 0x06 */ u8 unk06[0x4];
+    /* 0x0A */ u8 unk0A[0xE];
+    /* 0x18 */ u8 unk18[0x8];
+} Misc10ActionRow; // Size: 0x20
+
+// The relocated resource block pData points at: the layout
+// BattleRelocateBlockPointers in src/battling/main/misc14.c fixes up, so each
+// pointer below is a byte offset from the block start before that call.
+typedef struct {
+    /* 0x00 */ u8 unk00[0x10];
+    /* 0x10 */ Misc10SpriteHeader* pHeader;
+    /* 0x14 */ u8* unk14;
+    /* 0x18 */ Misc10ActionSlot* pActions;
+    /* 0x1C */ u8 unk1C[0x4];
+    /* 0x20 */ u8* pImage;
+} Misc10Block; // Size: 0x24
+
+typedef struct {
+    /* 0x000 */ u8 unk000[0x5C];
+    /* 0x05C */ u8* unk5C;
+    /* 0x060 */ u8* unk60;
+    /* 0x064 */ u8 unk064[0x18];
+    /* 0x07C */ u8* unk7C;
+    /* 0x080 */ Misc10ActionSlot* pActions;
+    /* 0x084 */ u8 unk084[0x4C];
+    /* 0x0D0 */ u32 flags;
+    /* 0x0D4 */ u8 unk0D4[0x4];
+    /* 0x0D8 */ u8* unk0D8;
+    /* 0x0DC */ u8 unk0DC[0x1A8];
     /* 0x284 */ u32* unk284;
-} Misc10Actor; // Size: unknown
+    /* 0x288 */ u8 unk288[0x674];
+    /* 0x8FC */ u8* unk8FC;
+    /* 0x900 */ u8* unk900;
+    /* 0x904 */ u8* unk904;
+    /* 0x908 */ u8 unk908;
+    /* 0x909 */ u8 unk909;
+    /* 0x90A */ u8 unk90A;
+    /* 0x90B */ u8 unk90B[0x6];
+    /* 0x911 */ u8 unk911;
+    /* 0x912 */ u8 unk912;
+    /* 0x913 */ u8 unk913[0xCC1];
+    /* 0x15D4 */ u8 unk15D4;
+    /* 0x15D5 */ u8 unk15D5;
+    /* 0x15D6 */ u8 unk15D6;
+    /* 0x15D7 */ u8 unk15D7[0x29];
+    /* 0x1600 */ Misc10ActionRow* pActionRow;
+} Misc10Actor; // Size: 0x1604
 
 typedef struct {
     /* 0x00 */ u8 unk00[0x44];
@@ -94,7 +164,16 @@ typedef struct {
     /* 0x0C */ Misc10TexRect* unk0C;
 } Misc10TagSrc; // Size: 0x10
 
+extern Misc10ActionRow* D_80092874;
+extern u8 D_8009872C[];
+extern u8 D_80097010[];
 extern Misc10Prim D_8009A300[];
+
+extern void BattleSetTpageAndClut(s16 x, s16 y, s16 clutX, s16 clutY);
+extern void BattleClearTpageAndClut(void);
+extern void* BattleRelocateBlockPointers(void* pData);
+extern u8* func_8008B38C(u8* pArg);
+extern u8* BattleSetActorSoundTable(Misc10Actor* pActor);
 
 s32 BattleQueueActorPrims(Misc10Actor* pActor) {
     u32* pData = pActor->unk284;
@@ -158,6 +237,139 @@ void BattleActorCreateRotatedPart(Misc10Actor* pActor) {
 }
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_80084C88);
+
+/* 89.37% objdiff, 832 bytes against retail 840. Structure, call order, the
+   prologue save order and every s-register except one pair match, and the
+   jump table comes out at the unit rodata start where retail has it. Because
+   the stub owns a jtbl_ table, this function can never print MATCH in
+   diff_func.sh (the original dump stops at the first case label, which gas
+   makes a symbol when .rodata references it) - objdiff% and check_bin.sh are
+   the only judges.
+   What is still wrong:
+   1. Best body below keeps pActor->unk5C = pNode AFTER the switch, which is
+      what makes gcc hand pActor s0 / pNode s1 (global-alloc priority order
+      pActor, pData, arg2, pNode, with s1 already reserved by the flip-loop
+      buffer through local-alloc). Moving that store to its retail position
+      (middle block, before the pActionRow store) makes pNode block-local, so
+      local-alloc takes s0 for it and pActor falls to s1 - the whole function
+      then reads 86% with s0/s1 swapped. That trade-off is the whole gap.
+   2. pActor->unk90A |= 1; pActor->unk90A |= 2; (retail case 35/36) is cse-d
+      into one |= 3 by gcc; retail has two lbu/ori/sb pairs. Untried:
+      bitfields, or a union member for that byte.
+   3. gcc cross-jumps the three case-body sb v0,0x90A into one shared tail;
+      retail has one per case (2 instructions, the size difference).
+   Key trick that fixed the prologue: assign pSrc = pData->pImage + 0x200
+   BEFORE HeapAlloc in the arg2 == 0 branch - retail keeps it in s0 across
+   the HeapAlloc call (its addiu lands in the call delay slot), which is what
+   pushes the heap buffer to s1 and pData/arg2 to s2/s3.
+   void func_80084C88(Misc10Actor* pActor, Misc10Block* pData, s32 arg2) {
+       RECT rect;
+       Misc10SpriteHeader* pHeader;
+       Misc10ActionRow* pRow;
+       u8* pNode;
+       u8* pObj;
+       u8* pBuf;
+       u8* pSrc;
+       u8* pDst;
+       u8* pRead;
+       s32 row;
+       s32 col;
+       s32 i;
+
+       pActor->flags = (pActor->flags & 0xF7FFFFFF) | ((arg2 & 1) << 27);
+       if (arg2 != 0) {
+           BattleSetTpageAndClut(0x380, 0, 0, 0x1FE);
+           pActor->unk0D8 = D_8009872C;
+       } else {
+           BattleSetTpageAndClut(0x3C0, 0, 0, 0x1FF);
+           pActor->unk0D8 = D_80097010;
+       }
+       BattleRelocateBlockPointers(pData);
+       pNode = func_8008B38C((u8*)pData);
+       pObj = (u8*)BattleCreateObject();
+       pActor->unk60 = pObj;
+       BattleAppendListEntry(pObj, pNode);
+       pActor->pActionRow = &D_80092874[pActor->unk909];
+       pActor->unk90A = 0;
+       switch (pActor->unk909) {
+       case 3:
+       case 14:
+       case 27:
+       case 34:
+       case 39:
+       case 41:
+       case 42:
+           pActor->unk90A |= 4;
+           break;
+       case 13:
+           BattleClearTpageAndClut();
+           BattleActorCreateRotatedPart(pActor);
+           break;
+       case 35:
+       case 36:
+           pActor->unk90A |= 1;
+           pActor->unk90A |= 2;
+           break;
+       case 38:
+           pActor->unk90A |= 2;
+           break;
+       }
+       pActor->unk5C = pNode;
+       BattleSetActorSoundTable(pActor);
+       pHeader = pData->pHeader;
+       pActor->unk8FC = (u8*)pHeader;
+       pActor->unk7C = pData->unk14;
+       pActor->unk900 = (u8*)pHeader + 0x34;
+       pActor->pActions = pData->pActions;
+       pActor->unk904 = (u8*)pHeader + pHeader->unk30;
+       pActor->unk908 = pHeader->unk0E;
+       pActor->unk15D4 = pHeader->unk10;
+       pActor->unk15D5 = pHeader->unk11;
+       pActor->unk15D6 = pHeader->unk12;
+       pActor->unk911 = 0;
+       pActor->unk912 = 0;
+       pRow = pActor->pActionRow;
+       for (i = 0; i < 0xE; i++) {
+           if (pRow->unk0A[i] != 0) {
+               if (pActor->pActions[i].unk3 != 0) {
+                   pActor->unk911++;
+               } else {
+                   pActor->unk912++;
+               }
+           }
+       }
+       rect.x = 0;
+       rect.y = arg2 + 0x1F6;
+       rect.w = 0x100;
+       rect.h = 1;
+       LoadImage(&rect, (u_long*)pData->pImage);
+       rect.x = arg2 * 0x10 + 0x380;
+       rect.y = 0x100;
+       rect.w = 0xB;
+       rect.h = 0x16;
+       if (arg2 != 0) {
+           LoadImage(&rect, (u_long*)(pData->pImage + 0x200));
+       } else {
+           pSrc = pData->pImage + 0x200;
+           pBuf = (u8*)HeapAlloc(0x1E4, 0);
+           pDst = pBuf;
+           for (row = 0; row < 0x16; row++) {
+               pRead = pSrc + 0x15;
+               for (col = 0; col < 0x16; col++) {
+                   *pDst++ = *pRead--;
+               }
+               pSrc += 0x16;
+           }
+           LoadImage(&rect, (u_long*)pBuf);
+           HeapDelayedFree(pBuf, 1);
+       }
+       rect.x = 0x3A0;
+       rect.y = arg2 * 8 + 0x100;
+       rect.w = 0x10;
+       rect.h = 8;
+       LoadImage(&rect, (u_long*)(pData->pImage + 0x3E4));
+   }
+*/
 
 void BattleUpdateEffectImage(void) {
     if (D_80092784 != NULL && (D_80059488 & 0x1)) {
