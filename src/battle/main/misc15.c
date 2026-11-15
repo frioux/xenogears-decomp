@@ -1,4 +1,5 @@
 #include "common.h"
+#include "main/game.h"
 
 extern u8 *D_800C3EAC;
 extern u8 D_800C3CF4[];
@@ -26,6 +27,7 @@ extern u8 D_800C3D70[];
 extern u8 D_800C3FFE[];
 extern u8 func_80085084(u16 arg0, u8 arg1, s32 arg2);
 extern s32 BattleIsCharacterInParty(s32 arg0);
+extern s32 BattleMaskHasStatusBit(s32 mask, u8 idx);
 extern void func_8009A854(u8 arg0);
 extern u16 D_800D2C94;
 extern u8 D_800D2C98;
@@ -33,6 +35,8 @@ extern u8 D_800D32A1[];
 extern u16 D_800C3D64;
 extern u8 D_800C3E2C;
 extern u8 D_800CDD40[];
+extern u8 D_800CCD38[];
+extern u8 D_800D2D24[];
 extern u8 D_800CEF10[];
 extern void func_80085388(void);
 extern void func_80079840(u8 arg0, u8 arg1);
@@ -201,6 +205,65 @@ void BattleSetPrimFlagsFourSlots(u8 arg0) {
     func_800BCD98(BattleSlotBitMask((D_800C3EAC + arg0 * slotStride)[0x3C]));
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008B224);
+/* Best: 89.19% (584 bytes vs the original's 596). Same calls, same branch tree,
+   same register set (s0=arg0, s1=arg0*0x170 offset, s2=inParty, s3=count,
+   s4=entry, s5=canAct, s6=result); what is left is two shapes:
+   1. the D_800CCD38 accesses. Retail keeps only the OFFSET in s1 and re-folds
+      `lui at,%hi(D_800CCD38); addu at,at,s1; lhu/sh %lo(at)` at each of the
+      three sites; gcc forms base+offset once into s1 (`lui/addiu` + `addu`).
+      Tried: three separate full spellings, an s32 off local, a u32 off.
+   2. the arg1 + arg2*2 sum: retail computes it into a1 (`addu a1,a1,v0`, the
+      incoming arg1) before the offset sum; gcc leaves arg1 in t0 (`move
+      t0,a1` at entry) and computes the call argument last.
+   Everything else, including the asymmetric second branch (retail's else path
+   is `if ((u16)BattleMaskHasStatusBit(...) != 0) inParty = 1;`, not an
+   assignment -- that asymmetry is what stops gcc cross-jumping the two calls),
+   already matches instruction for instruction. NEXT: permute this body. It
+   also needs `#include "main/game.h"`, D_800CCD38/D_800D2D24 and
+   BattleMaskHasStatusBit, which are declared above. */
+/*
+s32 func_8008B224(u8 arg0, u8 arg1, u8 arg2) {
+    s32 result;
+    u8 canAct;
+    u8 inParty;
+    u16 entry;
+    u8 count;
+    s32 off;
+
+    result = 0;
+    canAct = 1;
+    inParty = 0;
+    if (D_800D32A1[arg0 * 8] == 0) {
+        off = (arg2 * 2 + arg1 + 0x16) * 40 + arg0 * 1520;
+        entry = *(u16 *)(D_800CDD40 + off);
+        count = *(u8 *)(D_800CDD40 + off + 0x13);
+        inParty = (u16)BattleMaskHasStatusBit((u16)g_GameState.unk16BC[D_800D2D24[arg0]].unk6, arg1 + arg2 * 2) != 0;
+    } else {
+        off = (arg2 * 2 + arg1 + 0x15) * 40 + arg0 * 1680;
+        entry = *(u16 *)(D_800CEF10 + off);
+        count = *(u8 *)(D_800CEF10 + off + 0x13);
+        if ((u16)BattleMaskHasStatusBit((u16)g_GameState.unk16BC[D_800D2D24[arg0]].unkA, arg1 + arg2 * 2) != 0) {
+            inParty = 1;
+        }
+    }
+    if (*(u16 *)(D_800CCD38 + arg0 * 0x170) >= count && inParty != 0) {
+        BattleClearPrimFlagsFourSlots(1);
+        D_800D2D28[0xC6] = 1;
+        if (func_80085084(entry, arg0, 0) != 0) {
+            *(u16 *)(D_800CCD38 + arg0 * 0x170) -= count;
+            result = 1;
+        } else {
+            D_800D2D28[0xC6] = 0;
+            BattleSetPrimFlagsFourSlots(arg0);
+        }
+        canAct = 0;
+    }
+    if (canAct != 0) {
+        BattlePlaySoundIfEnabled(0x4F);
+    }
+    return result;
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008B478);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008B908);
 void BattleClearPrimFlagsTwoSlots(u8 arg0) {
