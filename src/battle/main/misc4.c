@@ -301,7 +301,6 @@ void func_800799C8(u8 arg0) {
     u8* pCursor;
     u8 value;
     u8 slot;
-    u32 cmd;
     s32 i;
     u8* p;
     u8* pEnd;
@@ -323,14 +322,12 @@ void func_800799C8(u8 arg0) {
         }
         if (*pCursor >= 0x80) {
             if ((func_8007F8C0(&pCursor, slot) & 0xFF) != 0) {
-                cmd = *pCursor;
                 continue;
             }
             BattleScriptSkipUnknownOpcodeWords(&pCursor);
         } else {
             value = func_8007EF6C(&pCursor, slot, value);
         }
-        cmd = *pCursor;
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc4", func_80079AB0);
