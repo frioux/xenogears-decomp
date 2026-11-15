@@ -14,7 +14,7 @@ extern u8 D_800CCD68[];
 
 extern int rand(void);
 extern void func_8009BE0C(void);
-extern void BattleSetActorScaledHp(u8 arg0, u8* arg1);
+extern void BattleSetActorScaledHp(u8 arg0, BattleTableEntry* pArg);
 
 s32 BattleGetActorConditionCode(u8 arg0) {
     BattleTableEntry* p = (BattleTableEntry*)(arg0 * 0x170 + (u32)D_800C34B0);
@@ -474,21 +474,21 @@ void BattleResetActorStats(void) {
     }
 }
 
-void BattleSetActorScaledHp(u8 arg0, u8* arg1) {
+void BattleSetActorScaledHp(u8 arg0, BattleTableEntry* pArg) {
     BattleTableEntry* p = (BattleTableEntry*)(arg0 * 0x170 + (u32)D_800C34B0);
     BattleSlotState* pState = &p->state;
 
-    if (*(u16*)(arg1 + 0x4E) * 50 > 0x1869F) {
-        if (*(u16*)(arg1 + 0x4C) * 50 > 0x1869F) {
+    if (pArg->unk4E * 50 > 0x1869F) {
+        if (pArg->unk4C * 50 > 0x1869F) {
             p->state.unk60 = 0x1869F;
         } else {
-            p->state.unk60 = *(u16*)(arg1 + 0x4C) * 50;
+            p->state.unk60 = pArg->unk4C * 50;
         }
-        // only this store goes through a state base pointer ($a3 = p + 0xA4) in retail
+        // only this store goes through the state pointer ($a3 = p + 0xA4) in retail
         pState->unk64 = 0x1869F;
     } else {
-        p->state.unk60 = *(u16*)(arg1 + 0x4C) * 50;
-        p->state.unk64 = *(u16*)(arg1 + 0x4E) * 50;
+        p->state.unk60 = pArg->unk4C * 50;
+        p->state.unk64 = pArg->unk4E * 50;
     }
 }
 
@@ -606,23 +606,19 @@ void func_8009BD94(void) {
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009BD94);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009BE0C);
-// Spell each offset from D_800CCCE8 itself: through a `base` local gcc
-// reassociates base + 0xA4 + idx to base + (idx + 0xA4), wrong register.
 u8 BattleGetActorActionConditionMask(u8 arg0) {
-    s32 idx = arg0 * 0x170;
-    u8* base = (u8*)D_800CCCE8;
-    u8* pTimer = (u8*)D_800CCCE8 + 0xA4 + idx;
-    u8* pRow = base + idx;
-    u8* pState = (u8*)D_800CCCE8 + 0x148 + idx;
-    s32 flag = *(u16*)(pTimer + 0x7C) & 0x400;
+    BattleTableEntry* pEntry = (BattleTableEntry*)(arg0 * 0x170 + (u32)D_800CCCE8);
+    BattleSlotState* pState = (BattleSlotState*)(arg0 * 0x170 + 0xA4 + (u32)D_800CCCE8);
+    u8* pCondition = (u8*)D_800CCCE8 + 0x148 + arg0 * 0x170;
+    s32 flag = pState->unk7C & 0x400;
     u8 ret = flag != 0;
 
-    if (*(u32*)(pTimer + 0x60) < (*(u32*)(pTimer + 0x64) >> 3)) {
-        if (!(*(u16*)(pRow + 0x36) & 1)) {
+    if (pState->unk60 < ((u32)pState->unk64 >> 3)) {
+        if (!(*(u16*)(pEntry->unk04 + 0x32) & 1)) {
             ret |= 2;
         }
     }
-    if (*pState == 4) {
+    if (*pCondition == 4) {
         ret |= 4;
     }
     return ret;
