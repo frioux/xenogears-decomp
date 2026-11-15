@@ -500,19 +500,20 @@ typedef struct {
     /* 0xBEA */ u8 unkBEA[0x2];
 } MenuCharacter; // Size: 0xBEC
 
-// Character info window prims, one prim per render context and digit (allocated in misc1).
+// Character info window prims, one prim per digit and render context (allocated in misc1).
+// Every prim array is indexed [digit * 2 + renderContext].
 typedef struct {
     /* 0x0000 */ u8 unk0[0xA0];
-    /* 0x00A0 */ POLY_FT4 polysIcons[0x14][2];
+    /* 0x00A0 */ POLY_FT4 polysIcons[0x28];
     /* 0x06E0 */ u8 unk6E0[0x230];
-    /* 0x0910 */ POLY_FT4 polysLevel[3][2];
-    /* 0x0A00 */ POLY_FT4 unk0A00[3][2];
-    /* 0x0AF0 */ POLY_FT4 polysHp[3][2];
-    /* 0x0BE0 */ POLY_FT4 polysMaxHp[3][2];
-    /* 0x0CD0 */ POLY_FT4 polysMp[2][2];
-    /* 0x0D70 */ POLY_FT4 polysMaxMp[2][2];
-    /* 0x0E10 */ POLY_FT4 polysWideNumber[7][2];
-    /* 0x1040 */ POLY_FT4 polysWideNumber2[7][2];
+    /* 0x0910 */ POLY_FT4 polysLevel[6];
+    /* 0x0A00 */ POLY_FT4 unk0A00[6];
+    /* 0x0AF0 */ POLY_FT4 polysHp[6];
+    /* 0x0BE0 */ POLY_FT4 polysMaxHp[6];
+    /* 0x0CD0 */ POLY_FT4 polysMp[4];
+    /* 0x0D70 */ POLY_FT4 polysMaxMp[4];
+    /* 0x0E10 */ POLY_FT4 polysWideNumber[14];
+    /* 0x1040 */ POLY_FT4 polysWideNumber2[14];
     /* 0x1270 */ u_char renderContext;
     /* 0x1271 */ u_char levelPrimCount;
     /* 0x1272 */ u_char unk1272PrimCount;
