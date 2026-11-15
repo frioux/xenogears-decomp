@@ -508,45 +508,37 @@ s32 WorldMapSetActorPosition(s32 arg0) {
     return 1;
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_80084068);
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_8008440C);
-// Best: 98.71%. Only diff left: retail has `li a1,1` before `lui/lw a0` and
-// `move s5,zero` (i = 0) in the LZSSHeapDecompress jal delay slot; we get the
-// reverse, because reorg steals the nearest eligible insn and our i=0 is
-// emitted before the call's arg setup. `s32 i = 0;` at the declaration plus
-// `for (; i < 0x10; i++, pClut++)` is what fixed the other 8% (it puts the
-// pClut la and rect.y in retail's positions). Round 49: the permuter ran 4 min
-// / 595 iterations on this body and found nothing (base=best=120); moving
-// `i = 0` into the for-init gets the delay slot right but swaps i/pClut to
-// s2/s5, so the swap is only reachable through the arg-emission order.
-/*
 void func_8008440C(void) {
     RECT rect;
+    int new_var;
     FadeParams factors = D_800704DC;
     u8 *pData;
     u8 *pDst;
     u16 *pClut;
-    s32 i = 0;
+    s32 i;
 
     pData = LZSSHeapDecompress(D_8009BD20, 1);
     ModelLoadTextureBlock(pData);
     DrawSync(0);
     HeapFree(pData);
+    new_var = 0;
     HeapFree(D_8009BD20);
     pData = HeapAlloc(0x200, 1);
     pDst = HeapAlloc(0x2000, 1);
-    rect.x = 0;
+    rect.x = new_var;
     rect.y = 0x1F0;
     rect.w = 0x100;
     rect.h = 1;
     StoreImage(&rect, (u_long *)pData);
-    DrawSync(0);
+    DrawSync(new_var);
     func_800931D8(pData, pDst, 0x10, (u8 *)&factors);
-    rect.x = 0;
+    rect.x = new_var;
     rect.y = 0x1F0;
     rect.w = 0x100;
     rect.h = 0xF;
     LoadImage(&rect, (u_long *)pDst);
     DrawSync(0);
+    i = 0;
     pClut = D_8009BCE0;
     for (; i < 0x10; i++, pClut++) {
         *pClut = GetClut(rect.x, rect.y);
@@ -555,7 +547,6 @@ void func_8008440C(void) {
     HeapFree(pDst);
     HeapFree(pData);
 }
-*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_80084580);
 
 void WorldMapFreeSpriteSets(void) {
