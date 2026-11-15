@@ -33,80 +33,69 @@ void BattleSetActorMaskForSlotRecord3(void) {
         }
     }
 }
-/* best 96.98% under gcc 2.6.0 (XenoBattle260). Permuter runs closed two
-   hunks: `mask = 1` must be assigned before `D_800C3E50 = 0` (that was the
-   unsunk `li s0,1`), and the D_800C3D3C index chain wants its own pointer
-   local computed before the `D_800D2DC4 = 0` store. Remaining diffs are
-   allocator: the payload of the D_800C3DFC/0xA load is scheduled differently
-   and the D_800C3E34 / D_800D2DC8 store pair comes out in the wrong order.
-   A permuter run at 96.98 prefers fusing the store into the local
-   (`q = (D_800C3D3C = ...)`) for 97.09 percent - not ported, it reads badly. */
-/*
 void func_8009C198(void) {
-    u8 *q;
-    u16 f;
+    BattleTableEntry *pSlot;
+    u16 flags;
     u16 mask;
-    u8 a;
+    u32 actor;
+    u8 one;
 
     if (D_800C3E04 < 3) {
-        D_800C3DFC = D_800C34B0 +
-                     (D_800C34B0[0x5FC1] * 0x690 + 0x2228) +
-                     D_800C34B0[0x5FC2] * 0x28;
+        D_800C3DFC = (BattleRow *)((u8 *)D_800C34B0 +
+                                   (D_800C34B0->unk5FC1 * 0x690 + 0x2228) +
+                                   D_800C34B0->unk5FC2 * 0x28);
     } else {
-        D_800C3DFC = D_800C34B0 + (D_800C34B0[0x5FC2] * 0x28 + 0x35D8);
+        D_800C3DFC = (BattleRow *)((u8 *)D_800C34B0 +
+                                   (D_800C34B0->unk5FC2 * 0x28 + 0x35D8));
     }
     BattleSetSlotEntryFieldsTo2000(D_800C3E04);
-    q = D_800C34B0 + D_800C34B0[0x5FC1] * 0x170 + 0x148;
+    actor = D_800C34B0->unk5FC1;
     D_800D2DC4 = 0;
-    D_800C3D3C = q;
-    f = *(u16 *)(D_800C3DFC + 0xA);
-    if (f & 0x100) {
-        if (D_800C3E00[0x56] == 1) {
+    D_800C3D3C = &D_800C34B0->slots[actor].state.unkA4;
+    if (D_800C3DFC->unk0A & 0x100) {
+        if (D_800C3E00->unk56 == 1) {
             BattleRollPercentAndSetState38();
         }
     }
-    if (D_800C3E00[0xA0] == 5 || D_800C3E00[0xA0] == 0xD) {
-        if (D_800C34B0[0x5FC2] == 1) {
-            D_800C3DFC[0x22] = D_800D2D6C[0x1A];
+    if (((u8 *)D_800C3E00)[0xA0] == 5 || ((u8 *)D_800C3E00)[0xA0] == 0xD) {
+        if (D_800C34B0->unk5FC2 == 1) {
+            D_800C3DFC->unk22 = ((u8 *)D_800D2D6C)[0x1A];
         }
     }
     mask = 1;
     D_800C3E50 = 0;
     do {
-        if (*(u16 *)(D_800C34B0 + 0x5FAC) & mask) {
-            q = D_800C34B0 + D_800C3E50 * 0x170;
-            D_800D2DC8 = q + 0xA4;
-            D_800C3E34 = q;
-            D_800C3D60 = q + 0x148;
+        if (D_800C34B0->unk5FAC & mask) {
+            pSlot = &D_800C34B0->slots[D_800C3E50];
+            D_800C3E34 = pSlot;
+            D_800D2DC8 = &pSlot->state;
+            D_800C3D60 = &pSlot->state.unkA4;
             func_8009CA90();
-            ((void (*)(void))D_800C34DC[D_800C3DFC[0x16]])();
-            q = D_800C34B0;
-            if (q[D_800C3E50 + 0x5FA0] == 0) {
-                a = 1;
-                f = *(u16 *)(D_800C3DFC + 0xA);
-                if (!(f & 0x800)) {
-                    a = 0;
-                    if (!(f & 0x4000)) {
+            ((void (*)(void))D_800C34DC[D_800C3DFC->unk16])();
+            if (D_800C34B0->unk5FA0[D_800C3E50] == 0) {
+                one = 1;
+                flags = D_800C3DFC->unk0A;
+                if (!(flags & 0x800)) {
+                    one = 0;
+                    if (!(flags & 0x4000)) {
                         goto skip;
                     }
                 }
-                func_8009DBFC(a);
+                func_8009DBFC(one);
             }
-skip:
-            *(u16 *)(D_800C34B0 + 0x5FB0) = *(u16 *)(D_800C3DFC + 2);
+        skip:
+            D_800C34B0->unk5FB0 = *(u16 *)((u8 *)D_800C3DFC + 2);
             func_8009C4B4();
             BattleSetSlotBit20FromStatusBit200(D_800C3E50);
         }
         D_800C3E50++;
         mask <<= 1;
     } while (D_800C3E50 < 0xB);
-    if (D_800C3E00[0x56] == 4) {
+    if (D_800C3E00->unk56 == 4) {
         func_8009E788();
     }
     BattleSaveScriptCommandOperands();
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc20", func_8009C198);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc20", func_8009C4B4);
 void BattleSaveScriptCommandOperands(void) {
     u16 a = D_800D2D6C->unk84;
@@ -123,32 +112,15 @@ void BattleSaveScriptCommandOperands(void) {
         D_800C34B0->unk5FBE |= c;
     }
 }
-/* best 99.91%: head, both index chains, both stores and the shared store all
-   match. Only the flag test's fail branch differs: the original targets the
-   else block (.L8009CAFC), gcc jumps to the epilogue (same net effect, one
-   instruction different). Writing the flag test as a flat `A && B && C` chain
-   produces the original branch but flips the index add's operands to
-   `addu v1,v1,a0` (99.63%); the nested `if` gives `addu v1,a0,v1` but jumps to
-   the epilogue. Six shapes tried.
 void func_8009CA90(void) {
-    u8 *p = D_800C34B0;
-
-    if (p[0x5FC2] >= 0xC && p[0x5FC2] < 0xF) {
-        u8 *q = p + D_800C3E50 * 0x170;
-        if (!(q[0x15A] & 0x80)) {
-            D_800C3DFC += 0x78;
-        }
-    } else {
-        if (p[0x5FC2] < 3) {
-            u8 *q = p + D_800C3E50 * 0x170;
-            if (!(q[0x15A] & 0x80)) {
-                D_800C3DFC += 0x258;
-            }
-        }
+    if (D_800C34B0->unk5FC2 >= 0xC && D_800C34B0->unk5FC2 < 0xF &&
+        !(D_800C34B0->slots[D_800C3E50].state.unkB6 & 0x80)) {
+        D_800C3DFC += 3;
+    } else if (D_800C34B0->unk5FC2 < 3 &&
+               !(D_800C34B0->slots[D_800C3E50].state.unkB6 & 0x80)) {
+        D_800C3DFC += 15;
     }
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc20", func_8009CA90);
 void BattleSetSlotBit20FromStatusBit200(u8 arg0) {
     BattleSlotState *pState = &D_800CCCE8[arg0].state;
     BattleTableEntry *pSlot = &D_800CCCE8[arg0];
@@ -193,60 +165,44 @@ u16 BattleScaleValueByMultiplierByte(void) {
     }
     return ret;
 }
-/* best 98.21%: arm order, both divide-by-100 sites, the shared guard add and
-   the return mask all match. Remaining: the guard add comes out as
-   `addu a1,a1,v0` after the branch instead of the original's speculative
-   `addu v0,a1,a0` + `move a1,v0` in the beqz delay slot, the >>1 is sra here
-   and srl in the original (so `ret` wants an unsigned type, but an unsigned
-   `ret` turns the /100 into an unsigned division), and the 0x15A index chain
-   lands in v0 instead of v1.  (u16 v) vs (s32 v) + cast: 98.21 / 97.20.
 u16 func_8009DA04(void) {
-    s32 ret = func_80097610();
+    u16 ret = func_80097610();
     u16 v;
     u8 n;
 
-    if (*(u16 *)(D_800C3DFC + 0xA) & 0x100) {
-        v = *(u16 *)(D_800D2DC8 + 0x72);
-        n = D_800D2DC8[0x99];
+    if (D_800C3DFC->unk0A & 0x100) {
+        n = D_800D2DC8->unk99;
+        v = *(u16 *)&D_800D2DC8->unk68[0xA];
         if (n != 0 && v != 0) {
             v = v * (100 - n) / 100;
         }
-        if (*(u8 *)(D_800C34B0 + D_800C3E50 * 0x170 + 0x15A) & 0x80) {
+        if (D_800C34B0->slots[D_800C3E50].state.unkB6 & 0x80) {
             ret = ret + v;
         }
-        if ((*(u16 *)(D_800D2DC8 + 0x80) | *(u16 *)(D_800D2DC8 + 0x82)) & 0x20) {
-            ret = ret + ((ret & 0xFFFF) >> 1);
+        if ((D_800D2DC8->unk80 | D_800D2DC8->unk82) & 0x20) {
+            ret = ret + (ret >> 1);
         }
     } else {
-        n = D_800D2DC8[0x99];
+        n = D_800D2DC8->unk99;
         if (n != 0) {
-            ret = (ret & 0xFFFF) * (100 - n) / 100;
+            ret = ret * (100 - n) / 100;
         }
     }
     return ret;
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc20", func_8009DA04);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc20", func_8009DB54);
-/* best 93.93% under gcc 2.6.0 (92.38% under 2.7.2): the head and the divide
-   match, but the original has one extra block - the `break` path copies the
-   index into v1 (`j .L8009DB8C; addu v1,a1,zero`) before the shared
-   `lbu 0x88(D_800D2DC8 + i)` load, so the loop counter and the index used after
-   the loop are not the same source variable there.  Also the two loop
-   invariants come out mirrored (0x8000 in a2 / mask in v1 here, a3 / a2 in the
-   original); making 0x8000 a local did not move it.
 s32 func_8009DB54(s32 arg0) {
-    u8 i = 0;
-    u16 mask = *(u16 *)(D_800C3DFC + 8);
-    s32 bit = 0x8000;
+    u16 mask = *(u16 *)((u8 *)D_800C3DFC + 8);
+    u8 i;
+    u8 idx; /* left unassigned when the scan finds no bit, as in retail */
     u8 v;
 
-    for (; i < 0x10; i++) {
-        if (mask & (bit >> i)) {
+    for (i = 0; i < 0x10; i++) {
+        if (mask & (0x8000 >> i)) {
+            idx = i;
             break;
         }
     }
-    v = D_800D2DC8[i + 0x88];
+    v = D_800D2DC8->unk86[idx + 2];
     if (v != 0) {
         if (v < 0x14) {
             arg0 = arg0 * (0x14 - v) / 20;
@@ -256,7 +212,6 @@ s32 func_8009DB54(s32 arg0) {
     }
     return arg0;
 }
-*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc20", func_8009DBFC);
 void BattleClearActorPercent99(void) {
     D_800D2DC8->unk99 = 0;
