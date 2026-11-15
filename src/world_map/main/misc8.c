@@ -4,6 +4,7 @@
 #include "psyq/memory.h"
 #include "psyq/libgte.h"
 #include "psyq/inline_c.h"
+#include "system/model.h"
 
 typedef struct {
     /* 0x00 */ u32 unk0;
@@ -66,18 +67,19 @@ typedef struct {
 
 typedef struct WorldMapEntry {
     /* 0x00 */ s16 unk0;
-    /* 0x02 */ u16 pad2;
+    /* 0x02 */ s16 unk2;
     /* 0x04 */ u16 unk4;
     /* 0x06 */ u16 pad6;
     /* 0x08 */ s32 unk8;
     /* 0x0C */ s32 unkC;
     /* 0x10 */ s32 unk10;
-    /* 0x14 */ u8 unk14[0xC];
+    /* 0x14 */ u8 unk14[4];
+    /* 0x18 */ SVECTOR unk18;
     /* 0x20 */ MATRIX mat;
     /* 0x40 */ u8 *unk40;
     /* 0x44 */ WorldMapMesh *unk44;
-    /* 0x48 */ u8 *unk48;
-    /* 0x4C */ u8 *unk4C;
+    /* 0x48 */ void *unk48;
+    /* 0x4C */ void *unk4C;
     /* 0x50 */ struct WorldMapEntry *unk50;
 } WorldMapEntry; // Size: 0x54
 
@@ -101,8 +103,32 @@ typedef struct {
     /* 0x20 */ MATRIX mat;
 } WorldMapModelOut; // Size: 0x40
 
+// One sprite set definition inside the block D_8009BD30 points at.
+typedef struct {
+    /* 0x0 */ u16 partIndex; // index into ModelFileHeader::modelParts
+    /* 0x2 */ u16 unk2;
+    /* 0x4 */ s16 unk4;
+    /* 0x6 */ s16 unk6;
+    /* 0x8 */ s16 unk8;
+    /* 0xA */ u16 unkA[3];
+} WorldMapSpriteSetDef; // Size: 0x10
+
+typedef struct {
+    /* 0x0 */ u16 count;
+    /* 0x2 */ WorldMapSpriteSetDef defs[0];
+} WorldMapSpriteSetTable; // Size: 0x2
+
 extern u8 D_8009AC60[];
 extern u8 D_8009C5AC[];
+extern ModelFileHeader *D_8009CD48;
+extern WorldMapSpriteSetTable *D_8009BD30;
+extern s32 *D_8009D308;
+extern s16 D_8009BD28;
+extern MATRIX D_8009A140;
+extern MATRIX D_8009A160;
+extern s32 D_80050100;
+extern s32 D_8009C16C;
+extern s32 D_8009C840;
 
 extern void ModelPartFreeLightData(void *pModelPart);
 extern int Vsync(int mode);
@@ -633,7 +659,58 @@ void WorldMapLoadTextureClut(void) {
     HeapFree(pDst);
     HeapFree(pData);
 }
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_80084580);
+void func_80084580(void) {
+    WorldMapSpriteSetTable *pSetTable;
+    WorldMapSpriteSetDef *pDef;
+    WorldMapMesh *pMesh;
+    ModelPart *pPart;
+    s32 *pRelocs;
+    s32 *pCur;
+    s16 count;
+    s32 i;
+
+    count = ModelResolvePointers(D_8009CD48);
+    D_8009BD28 = count;
+    pRelocs = D_8009D308;
+    pCur = pRelocs + 1;
+    D_8009D308 = pCur;
+    for (i = 0; i < count; i++) {
+        *pCur++ = (s32)pRelocs + *pCur;
+    }
+    count = D_8009BD30->count;
+    D_8009D7E0 = count;
+    D_8009C620 = HeapAlloc(count * 0x54, 0);
+    pSetTable = D_8009BD30;
+    SetColorMatrix(&D_8009A140);
+    SetLightMatrix(&D_8009A160);
+    pDef = pSetTable->defs;
+    for (i = 0; i < D_8009D7E0; i++, pDef++) {
+        D_8009C620[i].unk0 = 0;
+        D_8009C620[i].unk2 = pDef->partIndex;
+        D_8009C620[i].unk4 = pDef->unk2;
+        D_8009C620[i].unk8 = pDef->unk4;
+        D_8009C620[i].unkC = pDef->unk6;
+        D_8009C620[i].unk10 = -pDef->unk8;
+        D_8009C620[i].unk18.vx = pDef->unkA[0];
+        D_8009C620[i].unk18.vy = pDef->unkA[1];
+        D_8009C620[i].unk18.vz = pDef->unkA[2];
+        RotMatrixYXZ(&D_8009C620[i].unk18, &D_8009C620[i].mat);
+        pPart = &((ModelFileHeader *)D_8009CD48)->modelParts[D_8009C620[i].unk2];
+        D_8009C620[i].unk40 = (u8 *)pPart;
+        ModelAllocatePackets(pPart, &D_8009C620[i].unk48, &D_8009C620[i].unk4C);
+        ModelInitializePacket((ModelPart *)D_8009C620[i].unk40, D_8009C620[i].unk48, 1);
+        memcpy(D_8009C620[i].unk4C, D_8009C620[i].unk48,
+               ((ModelPart *)D_8009C620[i].unk40)->unk20[1].modelPacketSize);
+        pMesh = ((WorldMapMesh **)D_8009D308)[D_8009C620[i].unk2];
+        D_8009C620[i].unk44 = pMesh;
+        pMesh->unk4 = (SVECTOR *)((u8 *)pMesh + (s32)pMesh->unk4);
+        D_8009C620[i].unk50 = 0;
+    }
+    D_80050100 = 2;
+    D_8009C16C = -1;
+    D_8009C840 = -1;
+    D_8009C620[4].unk0 = 1;
+}
 
 void WorldMapFreeSpriteSets(void) {
     s32 i;
