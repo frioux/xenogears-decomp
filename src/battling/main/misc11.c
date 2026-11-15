@@ -1,44 +1,34 @@
 #include "common.h"
 #include "psyq/libgte.h"
+#include "psyq/libgpu.h"
 #include "psyq/gtemac.h"
 #include "psyq/inline_c.h"
 
 extern u8 D_8006F978[];
 extern u8 *D_800927CC;
 extern u8 *D_800927D0;
-extern u8 D_80095968[];
 extern u8 D_800928A0;
 extern VECTOR D_80096FA8;
 extern void func_800316C0(void *pOt, void *pPrim);
 
-// An 8-byte, byte-aligned chunk: assigning one copies 8 bytes with lwl/lwr.
 typedef struct {
-    u8 unk[8];
-} Bytes8;
-
-typedef struct {
-    /* 0x00 */ u8 pad0[0x4];
-    /* 0x04 */ u8 unk4;
-    /* 0x05 */ u8 unk5;
-    /* 0x06 */ u8 unk6;
-    /* 0x07 */ u8 pad7[0xD];
-    /* 0x14 */ u8 unk14;
-    /* 0x15 */ u8 unk15;
-    /* 0x16 */ u8 unk16;
-    /* 0x17 */ u8 pad17[0x9];
-    /* 0x20 */ s16 unk20;
-    /* 0x22 */ s16 unk22;
-    /* 0x24 */ s16 unk24;
-    /* 0x26 */ u8 pad26[0x2];
-    /* 0x28 */ s16 unk28;
-    /* 0x2A */ s16 unk2A;
-    /* 0x2C */ s16 unk2C;
-    /* 0x2E */ u8 pad2E[0x2];
-    /* 0x30 */ s16 unk30;
+    /* 0x00 */ LINE_F2 prim[2];
+    /* 0x20 */ SVECTOR pos[2];
+    /* 0x30 */ s16 count;
     /* 0x32 */ u8 pad32[0x2];
 } BattlingSlot; // Size: 0x34
 
 extern BattlingSlot D_80095938[];
+
+// The count word of a line slot, addressed through its own symbol: splat puts
+// D_80095968 0x30 bytes past D_80095938, i.e. at slot 0's count, and the
+// original object reaches it with that symbol rather than off the slot base.
+typedef struct {
+    /* 0x00 */ s16 count;
+    /* 0x02 */ u8 pad2[0x32];
+} BattlingLineSlotCount; // Size: 0x34
+
+extern BattlingLineSlotCount D_80095968[];
 
 extern void *BattleAllocLineSlot();
 extern void func_80085EC8(void *);
@@ -243,66 +233,64 @@ void *BattleAllocLineSlot(s32 *arg0, s32 *arg1, s32 arg2) {
     for (i = 0; i < 0x64; i++) {
         BattlingSlot *p = &D_80095938[i];
 
-        if (p->unk30 == 0) {
-            p->unk30 = 1;
-            p->unk20 = arg0[0];
-            p->unk22 = arg0[1];
-            p->unk24 = arg0[2];
-            p->unk28 = arg1[0];
-            p->unk2A = arg1[1];
-            p->unk2C = arg1[2];
-            p->unk4 = (arg2 & 2) * 0x7F;
-            p->unk5 = (arg2 & 4) * 0x3F;
-            p->unk6 = (arg2 & 1) * 0xFF;
-            p->unk14 = (arg2 & 2) * 0x7F;
-            p->unk15 = (arg2 & 4) * 0x3F;
-            p->unk16 = (arg2 & 1) * 0xFF;
+        if (p->count == 0) {
+            p->count = 1;
+            p->pos[0].vx = arg0[0];
+            p->pos[0].vy = arg0[1];
+            p->pos[0].vz = arg0[2];
+            p->pos[1].vx = arg1[0];
+            p->pos[1].vy = arg1[1];
+            p->pos[1].vz = arg1[2];
+            p->prim[0].r0 = (arg2 & 2) * 0x7F;
+            p->prim[0].g0 = (arg2 & 4) * 0x3F;
+            p->prim[0].b0 = (arg2 & 1) * 0xFF;
+            p->prim[1].r0 = (arg2 & 2) * 0x7F;
+            p->prim[1].g0 = (arg2 & 4) * 0x3F;
+            p->prim[1].b0 = (arg2 & 1) * 0xFF;
             return p;
         }
     }
     return NULL;
 }
 void BattleCreateLineSlot(s32 arg0, s32 *arg1, s32 arg2, s16 arg3) {
-    u8 *p = BattleAllocLineSlot(arg0, arg1, arg2);
+    BattlingSlot *pSlot = BattleAllocLineSlot(arg0, arg1, arg2);
 
-    if (p != NULL) {
-        *(s16 *)(p + 0x30) = arg3;
+    if (pSlot != NULL) {
+        pSlot->count = arg3;
     }
 }
 
 void BattleClearLineSlots(void) {
-    s32 i;
+    s32 offset;
 
-    for (i = 0x141C; i >= 0; i -= 0x34) {
-        *(s16 *)(D_80095968 + i) = 0;
+    // A byte-offset walk: the original tests the offset itself, not an index.
+    for (offset = 0x141C; offset >= 0; offset -= 0x34) {
+        *(s16 *)((u8 *)D_80095968 + offset) = 0;
     }
 }
 
 void BattleDrawLineSlots(void *arg0) {
-    Bytes8 work[2];
-    u8 *pSlot;
+    SVECTOR pos[2];
     s32 i;
-    s32 off;
 
     for (i = 0; i < 0x64; i++) {
-        off = i * 0x34;
-        if (*(s16 *)(D_80095968 + off) != 0) {
-            pSlot = (u8 *)D_80095938 + off;
-            *(u16 *)(pSlot + 0x30) -= 1;
-            work[0] = *(Bytes8 *)(pSlot + 0x20);
-            work[1] = *(Bytes8 *)(pSlot + 0x28);
-            ((u16 *)work)[0] -= D_80096FA8.vx;
-            ((u16 *)work)[1] -= D_80096FA8.vy;
-            ((u16 *)work)[2] -= D_80096FA8.vz;
-            ((u16 *)work)[4] -= D_80096FA8.vx;
-            ((u16 *)work)[5] -= D_80096FA8.vy;
-            ((u16 *)work)[6] -= D_80096FA8.vz;
-            gte_ldv01(work, (u8 *)work + 8);
+        if (D_80095968[i].count != 0) {
+            BattlingSlot *pSlot = &D_80095938[i];
+
+            pSlot->count--;
+            pos[0] = pSlot->pos[0];
+            pos[1] = pSlot->pos[1];
+            pos[0].vx -= D_80096FA8.vx;
+            pos[0].vy -= D_80096FA8.vy;
+            pos[0].vz -= D_80096FA8.vz;
+            pos[1].vx -= D_80096FA8.vx;
+            pos[1].vy -= D_80096FA8.vy;
+            pos[1].vz -= D_80096FA8.vz;
+            gte_ldv01(&pos[0], &pos[1]);
             gte_rtpt();
-            gte_stsxy01((u8 *)pSlot + D_800928A0 * 0x10 + 8, (u8 *)pSlot + D_800928A0 * 0x10 + 0xC);
-            *(u8 *)((u8 *)pSlot + D_800928A0 * 0x10 + 3) = 3;
-            *(u8 *)((u8 *)pSlot + D_800928A0 * 0x10 + 7) = 0x40;
-            func_800316C0(arg0, (u8 *)pSlot + D_800928A0 * 0x10);
+            gte_stsxy01(&pSlot->prim[D_800928A0].x0, &pSlot->prim[D_800928A0].x1);
+            setLineF2(&pSlot->prim[D_800928A0]);
+            func_800316C0(arg0, &pSlot->prim[D_800928A0]);
         }
     }
 }
