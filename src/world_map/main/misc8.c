@@ -539,6 +539,13 @@ s32 WorldMapSetActorParams(s32 arg0) {
     return 1;
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_8008390C);
+// Round 111 triage: this body did NOT compile - it was defined void while the
+// unit's own extern at the top of the file says s32 (retail returns 1), so every
+// attempt to unpark it died before it produced bytes. With the s32 return below
+// it builds and scores 84.75%, 224 bytes = retail's exact size, so round 64's
+// numbers are real. New this round: '*(volatile s16 *)&D_8009BD3A' does force
+// retail's reload but gcc emits lhu + sll 0x10 + sra 0x4 for it, 252 bytes,
+// 72.84% - gcc's volatile short load is unsigned, so the fold stays open.
 // Best: 84.75% with the raw byte-pointer form below; the typed-struct form
 // (pActor->unk7C = 0x1000; D_8009BD3A = 0x400; ... v = D_8009BD3A;) scores
 // 30.52% because gcc reorders the whole straight-line block once it folds the
@@ -566,7 +573,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_8008390C);
 //     scheduler property, not a preset question; the unit's already-matched
 //     functions keep their flags.
 /*
-void func_8008390C(s32 arg0) {
+s32 func_8008390C(s32 arg0) {
     WorldMapActor *pActor = &D_8009BE24[arg0];
     u8 *p = (u8 *)pActor;
     s32 v;
@@ -940,7 +947,14 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_80085CDC);
 // each active actor through the camera delta (WorldMapWrapDelta wraps it), run
 // RTPS per actor and store SZ3 into the scratch slot at 0x1F800018+4*i, then
 // depth-index SpriteDrawFrame and slew each actor's 0x5C angle toward its 0x48
-// target. Diffs found but not yet fixed, in the order they appear:
+// Round 111 triage: builds; with findings 1 and 2 below APPLIED in the body
+// (the pCam local and the &pScratch[2] argument) it scores 89.31%, 628 bytes vs
+// retail's 636 - the 0x28 frame, the s3 save pair and 'addiu a0,s2,8' are then
+// retail exactly. Still open: the three sprite halfword reads come out lhu in
+// every spelling (s16 * index, byte-offset s16 *), retail lh; the third loop
+// loads the 0x5C angle before the 0x48 one and gets ang - cur with the two
+// registers swapped; and the slew block's single shared store. Diffs found, in
+// the order they appear:
 //  1. retail keeps &D_8009BE28 in $s3 and reads D_8009BE30 as +8 off it, so
 //     the frame is 0x28 not 0x20 (this also costs the s3 save/restore pair).
 //  2. the delta passed to WorldMapWrapDelta is &pScratch[2] (0x1F800008), i.e.
@@ -959,6 +973,7 @@ void func_80085CDC(void) {
     WorldMapActor *pActor;
     MATRIX *pMat;
     s32 *pScratch;
+    WorldMapPos *pCam = (WorldMapPos *)&D_8009BE28;
     s32 i;
     s32 d;
     s32 cur;
@@ -968,9 +983,9 @@ void func_80085CDC(void) {
     pActor = D_8009BE24;
     for (i = 0; i < 0x40; i++, pActor++) {
         if ((*(s16 *)((u8 *)pActor + 0x24) == 0) & (*(s32 *)((u8 *)pActor + 0x4C) != 0)) {
-            pScratch[2] = *(s32 *)((u8 *)pActor + 0x28) - D_8009BE28;
-            pScratch[4] = *(s32 *)((u8 *)pActor + 0x30) - D_8009BE30;
-            WorldMapWrapDelta((WorldMapPos *)pScratch);
+            pScratch[2] = *(s32 *)((u8 *)pActor + 0x28) - pCam->x;
+            pScratch[4] = *(s32 *)((u8 *)pActor + 0x30) - pCam->z;
+            WorldMapWrapDelta((WorldMapPos *)&pScratch[2]);
             ((s32 *)*(void **)((u8 *)pActor + 0x4C))[0] = pScratch[2] << 4;
             ((s32 *)*(void **)((u8 *)pActor + 0x4C))[2] = -(pScratch[4]) << 4;
             ((s32 *)*(void **)((u8 *)pActor + 0x4C))[1] = *(s32 *)((u8 *)pActor + 0x2C) << 4;
