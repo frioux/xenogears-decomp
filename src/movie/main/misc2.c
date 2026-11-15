@@ -317,19 +317,24 @@ int WorldMapSyncGearRideActors(u32 entryIndex) {
     return nFileSize;
 }
 
-// 92.41%, verified now: 1228 bytes against retail's 1232. It did not compile
-// because the body was stored with its 'void func_80075D8C(void) {' header line
-// duplicated (park.py matched the outer definition, the copy left two); that is
-// fixed, and the diagnosis below still holds. Three residuals:
-//   1. gcc CSEs 'j + 1' (the ArchiveDecodeSector/ArchiveGetFilePath argument) into a
-//      callee-saved register live across the whole inner loop, so the frame is 0x50
-//      with 8 saves where retail has 0x48 with 7 and every local sits one register
-//      higher. Retail recomputes 'addiu a0,$s0,1' at all three call sites. A for
-//      loop and the pointer-increment spelling both give the same CSE.
-//   2. a 'count = 0x1249' local makes gcc fold 'count - 0x14' and hoist 0x1235;
-//      retail hoists 0x1249 and does 'addiu $v0,$s6,-0x14' at both sites.
-//   3. the HEX/DEC ternary is laid out with the true value (D_80070474) as
-//      fallthrough; retail materialises the false value (D_80070488) first.
+// 99.14%, 1232 bytes = retail's exact size. Nothing structural is left: the whole
+// instruction stream is retail's and the only differences are six branch
+// displacements, because gcc emits 'j = entry' twice (retail has it once, in the
+// 'bnez' delay slot of the 0x4 bit test) and drops one instruction elsewhere.
+// What closed 92.4 -> 99.14 here, in order (all three were source shapes, not flags):
+//   1. FontPrintf(D_8007042C) takes ONE argument (func_80075534 calls it the same
+//      way); passing pPath cost a 'move a1,zero'.
+//   2. the j+1 CSE: 'j = entry;' belongs INSIDE the inner do-while body, not before
+//      it. gcc then hoists the (loop-invariant) set out, and 'j + 1' stops being
+//      CSE'd into a callee-saved register live across the calls - which is what made
+//      the frame 0x50 with an eighth save. Found by the permuter.
+//   3. 'count = 0x1249;' belongs inside the outer do-while body too: it is then a
+//      loop-invariant set that gcc hoists as 'li s6,0x1249', and 'count - 0x14'
+//      stays the 'addiu v0,s6,-20' retail has instead of folding to li 0x1235.
+//   4. the hex/dec format is an if/else, not a ternary; cross-jumping then merges the
+//      two FontPrintf calls and hoists 'move a1,s0' above the branch, as retail does.
+// Tried and worse: 'j = entry' before the do (96.55), the ternary format (98.02).
+// Frame/registers are retail's (0x48, 7 saves, s1=entry s2=hex s3=showName).
 // Recovered for it: MovieDrawBuffer, and the two draw buffers D_80077124[] each
 // start 0x18 bytes before the matching MovieSlot entry D_8007713C[].
 /*
@@ -352,10 +357,10 @@ void func_80075D8C(void) {
     entry = 0;
     ArchiveGetArchiveOffsetIndices(&alignedIndex, &remainder);
     ArchiveSetIndex(0, 0);
-    count = 0x1249;
     hexMode = 0;
     showName = 0;
     do {
+        count = 0x1249;
         pBuffer = &D_80077124[0];
         if (D_80077120 == pBuffer) {
             pBuffer = &D_80077124[1];
@@ -394,10 +399,14 @@ void func_80075D8C(void) {
         if ((D_800773B4 & 0x4) == 0 && (D_800773AC & 0x4) != 0) {
             showName = 1 - showName;
         }
-        j = entry;
         do {
+            j = entry;
             if (WorldMapSyncGearRideActors(j) == 0) {
-                FontPrintf(hexMode ? D_80070474 : D_80070488, j);
+                if (hexMode) {
+                    FontPrintf(D_80070474, j);
+                } else {
+                    FontPrintf(D_80070488, j);
+                }
             } else {
                 if (hexMode) {
                     FontPrintf(D_8007049C, j, ArchiveDecodeSector(j + 1));
@@ -422,7 +431,7 @@ void func_80075D8C(void) {
                             }
                             FontPrintf(D_800704C4, pFileName);
                         } else {
-                            FontPrintf(D_8007042C, pPath);
+                            FontPrintf(D_8007042C);
                         }
                     }
                 } else {
@@ -449,7 +458,8 @@ void func_80075D8C(void) {
         DrawOTag(&D_80077120->ot[0x1F]);
     } while (action != 2);
     ArchiveSetIndex(alignedIndex, remainder);
-}*/
+}
+*/
 INCLUDE_ASM("asm/movie/nonmatchings/main/misc2", func_80075D8C);
 
 void MovieResetPlaybackAndClearScreen(void) {
