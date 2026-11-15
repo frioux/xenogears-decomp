@@ -303,7 +303,10 @@ void func_800989F0(void) {
 
     actorIndex = FieldScriptVMGetActorIndex(1);
     if (actorIndex != ACTOR_ID_INVALID) {
-        do { pActorData = g_FieldActors[actorIndex].pActorData; } while (0);
+        // gcc otherwise hoists the `li a0,2` above the branch, emptying the jal delay slot
+        do {
+            pActorData = g_FieldActors[actorIndex].pActorData;
+        } while (0);
         FieldScriptMemoryWriteU16(
             FieldScriptVMGetInstructionArgument(2) & 0xFFFF,
             pActorData->rotation.vy & 0xFFF
