@@ -299,17 +299,9 @@ void MovieResetPlaybackAndClearScreen(void) {
     }
 }
 
-INCLUDE_ASM("asm/movie/nonmatchings/main/misc2", func_800763BC);
-
-/* best 89.61% - the whole mnemonic stream matches (200 bytes both) except where
-   the two `li v0,1` of the reset block land: retail fills the `j` delay slot and
-   leaves a nop after each branch, ours fills each branch's delay slot and leaves
-   the nop in the `j` slot. Everything up to the shared size-check tail matches,
-   including the cross-jumped ArchiveDecodeSizeAbsolute(2)/ArchiveDecodeSizeAbsolute(1)
-   tail, which proves the original wrote the size check inside each branch.
-   Earlier 82.33% shape: shared size check with a nIndex local (gcc reorders the
-   ==2 test before the size check).
-void func_800763BC(u8 mode) {
+// non-void: gcc reorg moves the delay-slot fill (li v0,1) differently when the
+// function returns void; retail keeps the nop after each branch and the 0x30 frame.
+s32 func_800763BC(u8 mode) {
     long pad[6];
     s32 state;
 
@@ -335,41 +327,6 @@ void func_800763BC(u8 mode) {
     D_8007713C[1].unk55 = 1;
     func_80076488();
 }
-*/
-
-/* best 82.33% - frame needs `long pad[6]`; only the form of the D_80077448==1
-   test differs (original branches on != 1 and falls into the SetIndex block).
-   The state>2 path repeats the reset block and gcc cross-jumps it, which
-   reproduces the original's shared tail but moves the ==2 test before the
-   size check. Shapes tried: else-if chain + goto, nested else, either branch
-   polarity on ==2, duplicated reset block.
-void func_800763BC(u8 mode) {
-    long pad[6];
-    s32 nIndex;
-
-    D_80077028 = mode;
-    D_800773AC = -1;
-    if (D_80077448 == 0) {
-        ArchiveSetIndex(0x18, 0);
-        nIndex = 2;
-    } else if (D_80077448 == 1) {
-        ArchiveSetIndex(0x18, 1);
-        nIndex = 1;
-    } else if (D_80077448 == 2) {
-        return;
-    }
-    if (D_8007711C >= (s16)ArchiveDecodeSizeAbsolute(nIndex)) {
-        return;
-    }
-reset:
-    D_8007713C[0].unk0 = 0;
-    D_8007713C[1].unk0 = 0;
-    enabled = 1;
-    D_8007713C[0].unk55 = enabled;
-    D_8007713C[1].unk55 = enabled;
-    func_80076488();
-}
-*/
 
 INCLUDE_ASM("asm/movie/nonmatchings/main/misc2", func_80076488);
 
@@ -428,13 +385,14 @@ void MovieFadeAudioOnPadPress(void) {
 
 INCLUDE_ASM("asm/movie/nonmatchings/main/misc2", func_80076AF0);
 
-/* best 98.87% - the matrix diagonal store is the only difference: retail keeps
-   &D_80077070 in $a0 (loaded right after SetGeomOffset) and stores through it
-   with `sh $v0,0($a0)`, ours folds the address back to $at/%lo even with the
-   pointer local present (the `la $4,D_80077070` is emitted at the right place
-   and survives to the SetColorMatrix call, but cse/flow folds the store).
-   Shapes tried: MATRIX* local + m[0][0], s16* local, u32 cast through an int
-   local, cast-of-struct-pointer.
+/* best 98.87% - the whole stream matches (380 bytes both, permuter run from this
+   body found nothing in 1969 iterations) except the base of the first colour-matrix
+   store: retail keeps &D_80077070 in $a0 (it survives from the `la` after
+   SetGeomOffset to the SetColorMatrix call) and writes `sh v0,0(a0)`, while our
+   store is the symbol form `sh v0,D_80077070` (assembler-expanded through $at).
+   Shapes tried: s16* local, MATRIX* local with m[0][0], plain symbol store; also
+   scored under -G0 (99.15%) and 2.7.2-cdk. The other two diagonal stores of the
+   same matrix use %lo in retail too, so only the offset-0 element could fold.
 void func_80076AF0(void) {
     s16* pDiag;
 
