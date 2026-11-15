@@ -169,19 +169,26 @@ s16 (*BattleGetAngleOffsetFunction(s32 arg0))(s16 angle, s16 divisor, s16 base) 
     }
     return BattleOffsetBySin;
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AA898);
 /* 74.36% - every store and constant is identical and in the same order; the
    only difference is where the "-1" constant is materialised: the original
    does "li v1,-1" as the very first instruction (before "li v0,0xffff"), this
-   emits it just before the sh to 0x98. Tried: raw -1 literals for the three
-   s16 fields (74.36), a "s16 m1 = -1;" decl initialiser at the top (74.36),
-   a separate "m1 = -1;" statement first (74.36) - gcc sinks the constant to
-   its first use here, and the 0xFFFF/0xFF/0x6B/0x1 loads already match.
+   emits it after "li v0,0x6b", just before the sb to 0x39. Permuter: 1570
+   iterations from score 85 found nothing better; the one real gain in its
+   candidate was swapping the 0x5C (0xFF) store above the 0x3C one (score
+   210 -> 85), which is kept - the new_var2 pointer, the new_var = 0 temp and
+   the (int) cast it also added were noise and are gone (same score without
+   them). Tried: raw -1 literals for the three s16 fields (74.36), a
+   "s16 m1 = -1;" decl initialiser at the top fed to 0x98/0x3A/0x1E (74.36,
+   the li still lands at its first use), and a separate "m1 = -1;" statement
+   first - gcc sinks the constant to its first use here, and the
+   0xFFFF/0xFF/0x6B/0x1 loads already match.
    Note *(u16 *)(arg0 + 0x3C) is unsigned (ori 0xffff) while 0x98/0x3A/0x1E are
    signed -1 (addiu), so the two constants must stay spelled differently.
+*/
+/*
 void func_800AA898(u8 *arg0, s32 arg1, s32 arg2, s32 arg3) {
-    *(u16 *)(arg0 + 0x3C) = -1;
     *(u8 *)(arg0 + 0x5C) = 0xFF;
+    *(u16 *)(arg0 + 0x3C) = -1;
     *(u8 *)(arg0 + 0x39) = 0x6B;
     *(s32 *)(arg0 + 0x8) = arg2;
     *(s32 *)(arg0 + 0xC) = 0;
@@ -215,23 +222,26 @@ void func_800AA898(u8 *arg0, s32 arg1, s32 arg2, s32 arg3) {
     *(s16 *)(arg0 + 0x1E) = -1;
 }
 */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AA934);
-/* 88.71% - structure, branch layout, both table reads and the whole tail
-   (the stores + func_800AAD54(arg0, arg2, -1, 1, 0)) already line up. Three
-   differences left: (1) the original reloads arg0[0x2B] for the "++"
-   (lbu, nop, addiu) while gcc CSEs it into one load and masks it
-   ("andi v0,v1,0xff"), so the two blocks are 4 instructions apart;
-   (2) the if-branch table pointer lands in $a1 instead of $v0;
-   (3) the else branch folds the +4 of *(u8 **)(arg1 + 0xC) + 4 into the
-   -0x138 displacement (-0x134) where the original keeps "lw v1,4(v0)".
-   Tried: nested ifs with bare dereferences (64.61), a u8 *pCount = arg0 +
-   0x2B local (88.71, no change), pointer locals for both table bases (88.71),
-   and a u16 n = D_800C3E30 local which is needed to hoist the lhu before the
-   stores. Same-family blocker as the note above: a constant/pointer being
-   re-formed where the original keeps it live.
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AA898);
+/* 96.25% - gain over the 88.71 body: bind the else-branch table base to a u8 *
+   local (*(u8 **)(arg1 + 0xC) + 4) and index it in u8 rather than forming a
+   s32 * and casting; permuter score 262 -> 227, 1408 further iters found
+   nothing better. Remaining: (1) both arg0[*pCount + ..] stores emit
+   "addu v0,v0,a0" where the original has "addu v0,a0,v0" ('*pCount + 0x2A +
+   arg0' reassociates the same way); (2) the else branch folds the +4 into the
+   -0x138 displacement (lw v0,-308(v0)) where the original keeps
+   "lw v1,4(v0)" then "lw v0,-312(v0)", which leaves every branch offset 8
+   bytes short of the original; (3) original reloads arg0[0x2B] for the "++"
+   where gcc CSEs it into one load plus "andi". Also tried: nested ifs with
+   bare dereferences (64.61), a u8 *pCount = arg0 + 0x2B local (88.71),
+   pointer locals for both table bases (88.71), and a u16 n = D_800C3E30 local,
+   which is needed to hoist the lhu before the stores.
+*/
+/*
 void func_800AA934(u8 *arg0, u8 *arg1, void *arg2, s32 arg3) {
     s32 *pTable;
     u8 *pCount;
+    u8 *pEntries;
     u16 n;
 
     pCount = arg0 + 0x2B;
@@ -248,8 +258,8 @@ void func_800AA934(u8 *arg0, u8 *arg1, void *arg2, s32 arg3) {
                     pTable = (s32 *)*(u8 **)(arg1 + 8);
                     *(s32 *)(arg0 + 0x10) = pTable[arg3];
                 } else {
-                    pTable = (s32 *)(*(u8 **)(arg1 + 0xC) + 4);
-                    *(s32 *)(arg0 + 0x10) = *(s32 *)((u8 *)pTable + arg3 * 4 - 0x138);
+                    pEntries = *(u8 **)(arg1 + 0xC) + 4;
+                    *(s32 *)(arg0 + 0x10) = *(s32 *)(pEntries + arg3 * 4 - 0x138);
                 }
                 n = D_800C3E30;
                 *(u16 *)(arg0 + 0x42) = 0;
@@ -265,6 +275,7 @@ void func_800AA934(u8 *arg0, u8 *arg1, void *arg2, s32 arg3) {
     }
 }
 */
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AA934);
 s32 BattleStepActorAnimation(BattleActor *pActor, u8 *arg1, s32 arg2, u8 *arg3, s32 arg4) {
     s32 r;
     s32 i;
