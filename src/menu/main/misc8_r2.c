@@ -5,6 +5,7 @@
 #include "psyq/libcd.h"
 
 extern u8 D_80059460; // Index of the menu overlay the menu was entered with
+extern u8 D_80059171;
 extern u16 D_801EA53C[]; // String IDs of the menu strings
 extern u16 D_801EA542[]; // String IDs of the menu strings
 extern u16 D_801EA548[]; // String IDs of the menu strings
@@ -52,6 +53,10 @@ void func_801E8F60(s32 mode, u_char index);
 s32 func_8002675C(MenuResourceDirectory* pDir, u32 index, POLY_FT4* pPrims, s32 context, s32 x, s32 y, s32 scale);
 void MenuSetQuadVertices(SVECTOR* pVertices, u16 x, u16 y, u16 width, u16 height);
 void MenuSetPolySemiTransGrey(P_TAG* pTag);
+void func_801E7C50(MenuString* pStringList, s32 index, s32 yOffset, s32 flags);
+void* GetItemName(int entryId);
+s32 SystemRenderStringEntry(u8* pSrc, void* pDst, s32 len, s32 mode);
+void SystemDecodeGlyphCodesN(u16* pInput, u8* pOutput, int count);
 
 void MenuShutdown(void) {
     s32 i;
@@ -108,7 +113,97 @@ void MenuFreeUnk42CPanel(void) {
     HeapFree(g_Menu->pDressingRoom->pItemsData);
 }
 
+/* 91.33% (1028 vs 1012 bytes). Decode of the whole body is settled; every call,
+   store and loop is in retail's order. Remaining deltas, all small:
+   1) block order: retail lays the two failure paths out AFTER the main body and
+      merges them at one `unk1184[i] = 0`; this C makes gcc emit the fail path
+      inline with `bnez` and jump over it. The source shape is the early-continue
+      form below, which is logically the same but gcc chose the other order.
+   2) `(x + 0x28) & 0xFFF8` and `(x + 0x90) & 0xFFF8`: retail emits a single
+      `andi a1,a1,0xfff8`; here gcc emits `li t0,-8 / and` plus `andi 0xfff8`
+      (it simplifies the mask to -8 once it knows the value is 16-bit, then
+      truncates again). Not fixed by spelling the mask on a u16 local or by
+      dropping the mask in favour of the u16 parameter.
+   3) four `addu` operand-order flips (retail base-first for the sb stores,
+      offset-first for the func_801E7C50 pointers) - the embedded-assignment
+      lever did not move them here; permuter job.
+   4) two `sb $zero` to the HIGH bytes of the two u16 glyph codes (sp+0x19 and
+      sp+0x1B) happen once before the loop; a zero initializer on the buffer
+      makes gcc copy from .sdata, four explicit stores keep all four, so the
+      attempt below writes the two bytes directly.
+   Shape summary: for each of 16 item slots (2 columns x 8 rows, g_GameState
+   inventory starting at arg0 * 2) either clear the dangling id/qty pair, or
+   render the item name + 2-digit quantity into two 16-record MenuString arrays
+   at unk42C + 0x00 and + 0x800, upload both with a LoadImage of one 0x28 x 0xD
+   cell, then set up their prims with func_801E7C50 and MenuSetQuadVertices.
+   The flag byte is pDressingRoom->pItemsData[id].unk4[2]; bit 0x80 is the
+   shaded variant and is dropped when bit 0x20 is set while D_80059171 is 0. */
+/*
+void func_801DA5BC(s32 arg0) {
+    u8 digitCodes[4];
+    u8 text[8];
+    RECT rect;
+    void* pWorkspace;
+    u8 tens;
+    s32 itemFlags;
+    s32 x;
+    s32 i;
+
+    pWorkspace = HeapAlloc(0x3F6, 0);
+    digitCodes[1] = 0;
+    digitCodes[3] = 0;
+    for (i = 0; i < 0x10; i++) {
+        if (g_GameState.itemIDs[arg0 * 2 + i] == 0) {
+            g_GameState.itemQuantities[arg0 * 2 + i] = 0;
+        } else if (g_GameState.itemQuantities[arg0 * 2 + i] == 0) {
+            g_GameState.itemIDs[arg0 * 2 + i] = 0;
+        } else {
+            if (g_GameState.itemQuantities[arg0 * 2 + i] >= 0x64) {
+                g_GameState.itemQuantities[arg0 * 2 + i] = 0x63;
+            }
+            ((MenuString*)g_Menu->unk42C)[i].width =
+                SystemRenderStringEntry(GetItemName(g_GameState.itemIDs[arg0 * 2 + i]), pWorkspace, 0x24, 0);
+            tens = g_GameState.itemQuantities[arg0 * 2 + i] / 10;
+            digitCodes[0] = tens != 0 ? tens + 0x10 : 0xC3;
+            digitCodes[2] = g_GameState.itemQuantities[arg0 * 2 + i] % 10 + 0x10;
+            SystemDecodeGlyphCodesN((u16*)digitCodes, text, 2);
+            ((MenuString*)g_Menu->unk42C)[i + 0x10].width =
+                SystemRenderStringEntry(text, pWorkspace, 0x24, 1);
+            rect.x = 0x180 + (i & 1) * 0x18;
+            rect.y = 0x80 + (i / 2) * FONT_LETTER_HEIGHT;
+            rect.w = 0x28;
+            rect.h = FONT_LETTER_HEIGHT;
+            LoadImage(&rect, (u_long*)pWorkspace);
+            DrawSync(0);
+            itemFlags = g_Menu->pDressingRoom->pItemsData[g_GameState.itemIDs[arg0 * 2 + i]].unk4[2];
+            if ((itemFlags & 0x20) && (D_80059171 == 0)) {
+                itemFlags = 0;
+            } else {
+                itemFlags &= 0x80;
+            }
+            func_801E7C50(&((MenuString*)g_Menu->unk42C)[i], i, 0x80, itemFlags | 1);
+            func_801E7C50(&((MenuString*)g_Menu->unk42C)[i + 0x10], i, 0x80, itemFlags | 2);
+            x = (i % 2) * 0x88;
+            MenuSetQuadVertices(((MenuString*)g_Menu->unk42C)[i].vertices, (x + 0x28) & 0xFFF8,
+                                (i / 2) * 0x10 + 0xE, ((MenuString*)g_Menu->unk42C)[i].width,
+                                FONT_LETTER_HEIGHT);
+            MenuSetQuadVertices(((MenuString*)g_Menu->unk42C)[i + 0x10].vertices, (x + 0x90) & 0xFFF8,
+                                (i / 2) * 0x10 + 0xE, ((MenuString*)g_Menu->unk42C)[i + 0x10].width,
+                                FONT_LETTER_HEIGHT);
+            ((MenuString*)g_Menu->unk42C)[i].renderContext = *(u8*)&g_Menu->renderContext;
+            ((MenuString*)g_Menu->unk42C)[i + 0x10].renderContext = *(u8*)&g_Menu->renderContext;
+            g_Menu->unk42C->unk1184[i] = 1;
+            continue;
+        }
+        g_Menu->unk42C->unk1184[i] = 0;
+    }
+    HeapFree(pWorkspace);
+    g_Menu->pManager->unk48 = 1;
+}
+
+*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc8_r2", func_801DA5BC);
+
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc8_r2", func_801DA9A8);
 
 void MenuInitializeArrowCursor(u_char index) {
