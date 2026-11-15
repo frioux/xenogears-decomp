@@ -3,13 +3,24 @@
 extern u8 *D_800D2D28;
 extern u8 D_800D3725[];
 extern u16 D_8005A3A0[];
-extern u8 D_800D3430[];
 extern u8 D_800D3420[];
 extern u8 D_800D3410[];
 extern u8 D_800D2DCC[];
 extern u8 D_800CCD64[];
 extern u8 D_800CCD6C[];
 extern u8 D_800C3EB7[];
+
+// The per-slot battle register file (D_800D3400[slot]): the dword, word and
+// byte registers the script's arithmetic ops are applied to. Same layout as
+// src/battle/main/misc10.c's BattleSlotRegs.
+typedef struct {
+    /* 0x00 */ u8 unk0[0x10];
+    /* 0x10 */ u32 unk10[4]; // dword registers
+    /* 0x20 */ u16 unk20[8]; // word registers
+    /* 0x30 */ u8 unk30[0x10]; // byte registers
+} BattleSlotRegs; // Size: 0x40
+
+extern BattleSlotRegs D_800D3400[];
 
 void BattleSetSlotFlagB4(u8 arg0) {
     D_800D2D28[0xB4] = 1;
@@ -115,7 +126,7 @@ u8 BattleGridWriteByteAdvanceRow(u8 **arg0, u8 *arg1, u8 arg2) {
 void BattleGridWriteByteReg(u8 **arg0, u8 *arg1, u8 arg2, u8 arg3) {
     u8 *p = *arg0;
     s32 idx = arg3 * 8 + p[1];
-    u8 *pRow = D_800D3430 + arg2 * 0x40;
+    u8 *pRow = D_800D3400[arg2].unk30;
 
     arg1[idx] = pRow[p[2]];
 }
@@ -130,7 +141,7 @@ void BattleGridCopyRow(u8 **arg0, u8 *arg1) {
 }
 void BattleByteRegSetImm(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
-    u8 *pRow = D_800D3430 + arg1 * 0x40;
+    u8 *pRow = D_800D3400[arg1].unk30;
 
     pRow[p[1]] = p[2];
 }
@@ -181,7 +192,7 @@ void BattleWordTableStoreImm(u8 **arg0) {
 }
 void BattleByteRegAddImmClamp(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
-    u8 *pRow = D_800D3430 + arg1 * 0x40;
+    u8 *pRow = D_800D3400[arg1].unk30;
     s32 v = pRow[p[1]] + p[2];
     u8 res = v;
 
@@ -208,7 +219,7 @@ void BattleByteRegAddImmClamp(u8 **arg0, u8 arg1) {
 } */
 void BattleByteRegSubImmClamp(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
-    u8 *pRow = D_800D3430 + arg1 * 0x40;
+    u8 *pRow = D_800D3400[arg1].unk30;
     s32 v = pRow[p[1]] - p[2];
     u8 res = v;
 
@@ -263,31 +274,31 @@ void func_8007AA60(u8 **arg0, u8 arg1) {
 } */
 void BattleByteRegDivImm(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
-    u8 *pRow = D_800D3430 + arg1 * 0x40;
+    u8 *pRow = D_800D3400[arg1].unk30;
 
     pRow[p[1]] /= p[2];
 }
 void BattleByteRegModImm(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
-    u8 *pRow = D_800D3430 + arg1 * 0x40;
+    u8 *pRow = D_800D3400[arg1].unk30;
 
     pRow[p[1]] %= p[2];
 }
 void BattleByteRegAndImm(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
-    u8 *pRow = D_800D3430 + arg1 * 0x40;
+    u8 *pRow = D_800D3400[arg1].unk30;
 
     pRow[p[1]] &= p[2];
 }
 void BattleByteRegOrImm(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
-    u8 *pRow = D_800D3430 + arg1 * 0x40;
+    u8 *pRow = D_800D3400[arg1].unk30;
 
     pRow[p[1]] |= p[2];
 }
 void BattleByteRegXorImm(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
-    u8 *pRow = D_800D3430 + arg1 * 0x40;
+    u8 *pRow = D_800D3400[arg1].unk30;
 
     pRow[p[1]] ^= p[2];
 }
