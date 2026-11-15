@@ -744,6 +744,11 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_8009FA54);
 // difference), and a `*(volatile s32*)&D_800B2268` store (no change - so cc1 is
 // not sinking the store, the scheduling happens before it). Re-tried a `s16 ip`
 // temp for the 0xCC read-modify-write: identical 63.17%.
+// Round 117: wrapping the D_800B2268 store in `do { ... } while (0);` puts every
+// other instruction in retail's exact order (sw before the second lhu/sh) but
+// makes cc1 emit a third `lhu 0xCC(a0)` at the top: 90.00%, 124 vs 120 bytes.
+// The remaining gap is that one redundant load, so the do/while block is the
+// right skeleton to start the next attempt from.
 /*
 void func_8009FB98(void) {
     ActorData* pActor;
