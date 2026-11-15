@@ -604,25 +604,12 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009BD94);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009BE0C);
 // best 99.31% under cdk (97.78% on 2.7.2 and 2.6.0): gcc reassociates
 // base+0xA4+idx into base+(idx+0xA4), off the index register not the base.
-/*
-Best attempt: 97.78% (the `(u8*)idx + (u32)(base + 0xA4)` spelling added in
-   round 18 still folds to `base + (idx + 0xA4)`, the wrong direction, and a
-   `pTimerBase` local drops to 69.53%). Instruction multiset and all offsets match; the only
-   difference is that gcc reassociates `base + 0xA4 + idx` into
-   `base + (idx + 0xA4)`, so the two `addiu $x,base,0xA4/0x148` come out off the
-   index register instead of off the base register (and the base lands in $a1
-   instead of $a0). Splitting the bases into their own pointer locals
-   (`pTimerBase = base + 0xA4; pTimer = pTimerBase + idx;`) gets the right shape
-   but reorders everything and drops to 69.53%. Note `s32 flag = ... & 0x400;
-   ret = flag != 0;` is required: the direct `(x & 0x400) != 0` becomes
-   srl/andi instead of the original's andi/sltu.
- PARKED (97.78%)
 u8 func_8009C050(u8 arg0) {
     s32 idx = arg0 * 0x170;
     u8* base = D_800CCCE8;
-    u8* pTimer = base + 0xA4 + idx;
+    u8* pTimer = D_800CCCE8 + 0xA4 + idx;
     u8* pRow = base + idx;
-    u8* pState = base + 0x148 + idx;
+    u8* pState = D_800CCCE8 + 0x148 + idx;
     s32 flag = *(u16*)(pTimer + 0x7C) & 0x400;
     u8 ret = flag != 0;
 
@@ -636,8 +623,6 @@ u8 func_8009C050(u8 arg0) {
     }
     return ret;
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009C050);
 void BattleSetSlotFields148And162(u8 arg0) {
     s32 off = arg0 * 0x170;
 
