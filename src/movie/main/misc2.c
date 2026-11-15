@@ -317,26 +317,40 @@ int WorldMapSyncGearRideActors(u32 entryIndex) {
     return nFileSize;
 }
 
-// 99.14%, 1232 bytes = retail's exact size. Nothing structural is left: the whole
-// instruction stream is retail's and the only differences are six branch
-// displacements, because gcc emits 'j = entry' twice (retail has it once, in the
-// 'bnez' delay slot of the 0x4 bit test) and drops one instruction elsewhere.
-// What closed 92.4 -> 99.14 here, in order (all three were source shapes, not flags):
-//   1. FontPrintf(D_8007042C) takes ONE argument (func_80075534 calls it the same
-//      way); passing pPath cost a 'move a1,zero'.
-//   2. the j+1 CSE: 'j = entry;' belongs INSIDE the inner do-while body, not before
-//      it. gcc then hoists the (loop-invariant) set out, and 'j + 1' stops being
-//      CSE'd into a callee-saved register live across the calls - which is what made
-//      the frame 0x50 with an eighth save. Found by the permuter.
-//   3. 'count = 0x1249;' belongs inside the outer do-while body too: it is then a
-//      loop-invariant set that gcc hoists as 'li s6,0x1249', and 'count - 0x14'
-//      stays the 'addiu v0,s6,-20' retail has instead of folding to li 0x1235.
-//   4. the hex/dec format is an if/else, not a ternary; cross-jumping then merges the
+// func_80075D8C: parked at 99.66%, 1236 bytes (retail is 1232), but the body below
+// is NOT retail's flow: with `j = entry` at the top of the inner do-while gcc keeps
+// that store in the loop header, so the back edge re-runs it (the source is an
+// infinite loop) and reorg also copies it into the 'bnez' delay slot of the 0x4 bit
+// test - one instruction more than retail.
+// The two init placements, measured:
+//   init INSIDE the body  -> 99.66%, 1236 bytes, j+1 recomputed per site as retail
+//                            does, but the duplicated init costs the 4 bytes.
+//   init BEFORE the body  -> 96.43%, 1248 bytes, init correct (single copy, in the
+//                            bnez delay slot) but gcc then carries `j + 1` in a
+//                            derived induction register (s1, 'addiu s1,s1,1' at the
+//                            loop tail, 'move a0,s1' at the three call sites), which
+//                            needs a seventh saved register (frame 0x50, 8 saves).
+// So the remaining work is only "make gcc keep the init out of the loop header while
+// NOT making a register out of j+1"; every other instruction is retail's.
+// Tried: for-loop (95.49), 'while (++j < entry + 0x14)' (96.43), a 'next = j + 1'
+// local at the top of the body (96.49), permuter 6 min / 1805 iterations from the
+// in-body body (PERMUTER_NONE, base 112 best 112). Preset is right: -O3 77.96,
+// -O1 91.72, 2.7.2-cdk 82.0, plain 2.7.2 98.5, 2.6.0 -O2 -G0 (the unit's) 99.66.
+// What closed 92.4 -> 99.1 earlier, in order (all source shapes, not flags):
+//   1. FontPrintf(D_8007042C) takes ONE argument (func_80075534 calls it that way);
+//      passing pPath cost a 'move a1,zero'.
+//   2. the hex/dec format is an if/else, not a ternary; cross-jumping then merges the
 //      two FontPrintf calls and hoists 'move a1,s0' above the branch, as retail does.
-// Tried and worse: 'j = entry' before the do (96.55), the ternary format (98.02).
-// Frame/registers are retail's (0x48, 7 saves, s1=entry s2=hex s3=showName).
-// Recovered for it: MovieDrawBuffer, and the two draw buffers D_80077124[] each
-// start 0x18 bytes before the matching MovieSlot entry D_8007713C[].
+//   3. 'count = 0x1249;' belongs INSIDE the outer do-while: it is then a
+//      loop-invariant set gcc hoists as 'li s6,0x1249', and 'count - 0x14' stays the
+//      'addiu v0,s6,-20' retail has instead of folding to li 0x1235.
+//   4. one variable for the archive path, not two: 'pFileName = ArchiveGetFilePath(j+1)'
+//      tested and then walked. With a separate pPath gcc tests the return value
+//      directly and copies it in the 'beqz' delay slot, where retail tests the copy
+//      and keeps a nop in the slot (worth 99.14 -> 99.66 with the in-body init).
+// Frame/registers are retail's on the in-body variant (0x48, 7 saves, s1=entry,
+// s2=hexMode, s3=showName); MovieDrawBuffer and the D_80077124[] draw buffers (each
+// 0x18 bytes before its D_8007713C[] MovieSlot) came out of this function.
 /*
 void func_80075D8C(void) {
     s32 alignedIndex;
@@ -348,7 +362,6 @@ void func_80075D8C(void) {
     s32 hexMode;
     s32 showName;
     s32 size;
-    char* pPath;
     char* pFileName;
     char* pCursor;
     MovieDrawBuffer* pBuffer;
@@ -417,9 +430,8 @@ void func_80075D8C(void) {
                     if (WorldMapSyncGearRideActors(j) < 0) {
                         FontPrintf(D_800704BC, -WorldMapSyncGearRideActors(j));
                     } else {
-                        pPath = ArchiveGetFilePath(j + 1);
-                        if (pPath != NULL) {
-                            pFileName = pPath;
+                        pFileName = ArchiveGetFilePath(j + 1);
+                        if (pFileName != NULL) {
                             if (*pFileName != '\0') {
                                 pCursor = pFileName;
                                 while (*pCursor != '\0') {
