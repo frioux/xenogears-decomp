@@ -158,6 +158,15 @@ void BattleBeginActorAction(u8 arg0, u16 arg1, u16 arg2) {
 // ofs + (s32)base (74.25%, 320 bytes), an ofs local recomputed per call before
 // each call (70.57%: gcc evaluates it before the first-argument lbu), permuter
 // 3 min / 1154 iterations from base=30 (PERMUTER_NONE, best=30).
+// Round 79: the integer forms DO reproduce retail's operand order (src1 = the
+// offset chain, src2 = the base) but every one of them folds 0x9C8 onto the
+// base register instead of onto the offset chain, which moves the load and the
+// addiu and drops the size to 320. Declaring D_800C3EA4 `u8 * volatile` (only
+// this function uses it) stops the early hoist and reaches 82.94%: operand
+// order right, but the base lands in a1 and the chain in v0, the mirror of
+// retail. The pointer form is the only one that leaves the offset chain in a1
+// (the dying second-argument register) and the base in v0 - that register split
+// plus retail's addu order cannot both be had from gcc 2.7.2 here.
 // Reads D_800CCB34 with lbu, so it must stay u8 (s32 gives 94.94%). The SECOND
 // call's first argument is the constant 0x19, not D_800C3EAC[0x2D4] + 0xF.
 /*
