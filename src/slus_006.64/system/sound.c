@@ -3486,7 +3486,7 @@ u8* SoundScriptSetUnk70(u8* pScript, AudioManager* pAudioManager, AudioElement* 
     return pScript;
 }
 
-u8* func_8003D8B8(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
+u8* SoundScriptSetTriangleEnvelope0(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     s32 note = (s8)pScript[1];
     s16 velocity = pScript[0];
     s32 unk16;
@@ -3528,7 +3528,7 @@ velocity in a2/v1, where the original has pAudioElements s1 (copied in the first
 velocity s2, index s3, flags s0. `s32 velocity`/`s32 note` (in either declaration order) and
 u8/s16 local types all give the same mirror. A second miss: `((mode & 0x10) == 0) * 2 + 1` becomes
 a two-way branch here instead of the original's sltiu/sll/addiu, and `(s16)velocity * (s16)velocity`
-is elided unless the local is widened to s32. Compare the parked func_8003D8B8, the same function
+is elided unless the local is widened to s32. Compare the parked SoundScriptSetTriangleEnvelope0, the same function
 with a constant mode, which is stuck at 92.34% on the same allocation mirror.
 u8* func_8003D9A4(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     s8 note = pScript[1];

@@ -668,7 +668,7 @@ s32 func_800B12D0(s32 arg0, s32 arg1) {
 */
 extern s32 BattleGetAdjustedWaitCountdown(void);
 extern s32 ArchiveDataSync(void);
-extern void func_8002A498(s32);
+extern void ArchiveStopTransfer(s32);
 
 void func_800B136C(void) {
     s32 flagB = 0;
@@ -703,7 +703,7 @@ void func_800B136C(void) {
     if (flagB == 0) {
         return;
     }
-    func_8002A498(0);
+    ArchiveStopTransfer(0);
     flagA = 1;
     ppBase = D_800D3368;
     while (flagA != 0) {

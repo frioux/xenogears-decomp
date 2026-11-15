@@ -7,7 +7,7 @@ extern int Vsync(int mode);
 extern void ArchiveCdDataSync(int mode);
 extern u_char ArchiveCdSetMode(u_char mode);
 extern u32 ArchiveGetDebugTable(void);
-extern void func_8002A498(int mode);
+extern void ArchiveStopTransfer(int mode);
 extern void* HeapAlloc(u_int allocSize, u_int allocFlags);
 extern s32 ArchiveReadFileFromCdSector(s32 sector, void* pDestBuffer, s32 fileSize, s32 arg3, u32 flags);
 
@@ -67,8 +67,8 @@ extern u8 D_80076F7C[];
 extern s32 D_80076F80;
 extern u32* func_80028B14(void);
 extern s32 func_80028F30(u8* pArg0, s32* pArg1);
-extern void func_8002945C(u32* pStream);
-extern void func_800294B4(s32 arg0);
+extern void ArchiveReleaseStreamBlock(u32* pStream);
+extern void ArchiveReleaseStreamSection(s32 arg0);
 extern s32 ArchiveDecodeAlignedSize(u32 entryIndex);
 extern void func_80071C34(s32 arg0);
 
@@ -87,7 +87,7 @@ void MovieUpdateStream(void) {
     }
     if ((D_800773B4 & 0x40) == 0 && (D_800773AC & 0x40) != 0) {
         D_80076EA4++;
-        func_8002A498(0);
+        ArchiveStopTransfer(0);
     }
     if ((D_800773B4 & 0x1000) == 0 && (D_800773AC & 0x1000) != 0) {
         func_80071C34(7);
@@ -125,12 +125,12 @@ void MovieUpdateStream(void) {
                     D_80076E84 = (u32*)D_80076E7C[D_80076EB4].unk4;
                 }
             }
-            func_8002945C(D_80076E9C);
+            ArchiveReleaseStreamBlock(D_80076E9C);
         }
     }
     if (D_80076EB8 == 2) {
         if (func_80028F30(D_80076F7C, &D_80076F80) == 0) {
-            func_800294B4(D_80076F80);
+            ArchiveReleaseStreamSection(D_80076F80);
         }
     }
 
@@ -186,7 +186,7 @@ INCLUDE_ASM("asm/movie/nonmatchings/main/misc1", func_80072480);
 
 void MoviePauseCdDrive(void) {
     if (ArchiveGetDebugTable() == 0) {
-        func_8002A498(0);
+        ArchiveStopTransfer(0);
         ArchiveCdDataSync(0);
         ArchiveCdSetMode(0);
         ArchiveCdDataSync(0);

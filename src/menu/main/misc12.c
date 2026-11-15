@@ -9,7 +9,7 @@ extern int Vsync(int mode);
 extern void ArchiveCdDataSync(int mode);
 extern u_char ArchiveCdSetMode(u_char mode);
 extern u32 ArchiveGetDebugTable(void);
-extern void func_8002A498(int mode);
+extern void ArchiveStopTransfer(int mode);
 
 void MenuClearGlyphTexture(void);
 void func_801E6668(s32 arg0);
@@ -650,7 +650,7 @@ void MenuInitializePolyFt4(POLY_FT4* pPoly) {
 }
 void MenuPauseCdDrive(void) {
     if (ArchiveGetDebugTable() == 0) {
-        func_8002A498(0);
+        ArchiveStopTransfer(0);
         ArchiveCdDataSync(0);
         ArchiveCdSetMode(0);
         ArchiveCdDataSync(0);

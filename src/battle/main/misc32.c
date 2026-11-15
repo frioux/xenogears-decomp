@@ -7,7 +7,7 @@ extern void func_80025180(void *pData);
 extern void WorkListsRemoveEntriesForData(void *pTask);
 extern void TimerWorkListRemoveTask(void *pTask);
 // left unprototyped: the ramp passes a third argument the callee (misc31) does not read
-extern void func_800BCAFC();
+extern void BattleSetSpriteColorFromAngle();
 extern MATRIX D_800D30BC;
 
 /* Built with XenoBattleTailCdk0 (gcc-2.7.2-cdk, -G0). With -G0 the cdk cc1 splits
@@ -32,7 +32,7 @@ typedef struct {
     /* 0x08 */ u8 unk8[0x2];
     /* 0x0A */ s16 unkA;
     /* 0x0C */ u8 unkC[0x1C];
-    /* 0x28 */ u8 unk28[0x3]; // colors, written by func_800BCAFC
+    /* 0x28 */ u8 unk28[0x3]; // colors, written by BattleSetSpriteColorFromAngle
     /* 0x2B */ u8 unk2B;
 } BattleEffectSprite; // Size: 0x2C
 
@@ -74,7 +74,7 @@ void BattleApplyEffectSpriteColorRamp(BattleEffectTask *pTask) {
     pData->unk58 = timer;
     // kept after the timer store: retail loads 0x54 in that slot
     pData->unk40 = unk6 - pData->unk54 - 0x20;
-    func_800BCAFC(pSprite, timer, unkA);
+    BattleSetSpriteColorFromAngle(pSprite, timer, unkA);
     pData->unk4E += 0x10;
 }
 

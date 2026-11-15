@@ -22,7 +22,7 @@ extern void *D_800C3618;
 extern void func_800BE790(void);
 extern void SpritePlayAnimation(void *, s32);
 extern void SpriteSetCallback(void *, void *);
-extern void func_8002A498(s32);
+extern void ArchiveStopTransfer(s32);
 
 void BattleAllocWorkBuffer(void) {
     u8 *pWork = HeapAlloc(0x10F7C, 1);
@@ -208,7 +208,7 @@ extern s32 D_80050104;
 extern void BattleResetStateGlobals(void);
 extern void BattleResetTimerTaskGlobals(void);
 extern void WorkListsReset(void);
-extern void func_800BB7F8(void);
+extern void BattleResetAnimState(void);
 extern void GfxAllocateWorkBuffers(s32 workBufferSize, s32 allocFlag);
 extern void BattleClearActorMask(void);
 extern void BattleEmptyHook(void);
@@ -221,7 +221,7 @@ void BattleInitStateWorkBuffers(void) {
     BattleResetStateGlobals();
     BattleResetTimerTaskGlobals();
     WorkListsReset();
-    func_800BB7F8();
+    BattleResetAnimState();
     GfxAllocateWorkBuffers(0x5000, 0);
     BattleClearActorMask();
     BattleClearFlagD2FDC();
@@ -305,7 +305,7 @@ void BattleFreeActorArchiveAndSoundSeds(void) {
 }
 
 void BattleUnloadActorArchive(void) {
-    func_8002A498(0);
+    ArchiveStopTransfer(0);
     BattleFreeActorArchiveAndSoundSeds();
 }
 

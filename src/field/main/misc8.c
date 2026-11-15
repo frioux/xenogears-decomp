@@ -837,7 +837,7 @@ extern s32 D_800AFC54;
 extern u8 D_800ADFCD[];
 extern void ArchiveCdDataSync(int mode);
 extern void SoundFreeLoadedWdsAndAudioManager(void);
-void func_8002945C(void* pData);
+void ArchiveReleaseStreamBlock(void* pData);
 void func_8003BDFC(int arg0);
 void SoundTransferWdsPart(void* pBuffer, int size);
 SoundWDSEntry* SoundLoadPartialWdsFile(void* pBuffer, int size, int arg2);
@@ -853,7 +853,7 @@ void FieldWdsStreamCallback(FieldWdsBlock* pBlock) {
         case 3:
             D_800C3A1C[bankIndex] = *pBlock;
             D_800B2370++;
-            func_8002945C(pBlock);
+            ArchiveReleaseStreamBlock(pBlock);
             if (D_800B2370 == 4) {
                 g_GameCurLoadedWDS = SoundLoadPartialWdsFile(D_800C3A1C, 0x2000, 0);
             }
@@ -862,7 +862,7 @@ void FieldWdsStreamCallback(FieldWdsBlock* pBlock) {
             func_8003BDFC(0x10);
             D_800C3A1C[0] = *pBlock;
             SoundTransferWdsPart(D_800C3A1C, 0x800);
-            func_8002945C(pBlock);
+            ArchiveReleaseStreamBlock(pBlock);
             break;
     }
 }

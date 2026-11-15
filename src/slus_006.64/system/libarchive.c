@@ -63,7 +63,7 @@ void ArchiveInit(u32 pArchiveTable, u32 pHeaderTable, u32 pDebugTable) {
 }
 
 void ArchiveReset(void) {
-    func_8002A498(0);
+    ArchiveStopTransfer(0);
     ArchiveCdDataSync(0);
     if (g_ArchiveDebugTable == 0) {
         while (CdControlB(9, 0, &D_80059F1C) == 0);
@@ -125,7 +125,7 @@ unsigned short ArchiveGetDiscNumber(void) {
     return *((unsigned short*)(g_ArchiveHeader + 0x78));
 }
 
-int func_80028548(int directoryIndex, int entryIndex) {
+int ArchiveGetRelativeEntryIndex(int directoryIndex, int entryIndex) {
     int nOffset;
     nOffset = ((u_short*)g_ArchiveHeader)[directoryIndex + entryIndex];
     return nOffset - g_CurArchiveOffset;
@@ -320,7 +320,7 @@ int ArchiveDecodeSector(int entryIndex) {
 }
 
 // Same as ArchiveDecodeSector, but uses D_8004FE18 as current archive offset
-int func_80028A18(int entryIndex) {
+int ArchiveDecodeSectorAligned(int entryIndex) {
     u_char* pArchiveEntry;
     unsigned int nOffset;
 
@@ -515,7 +515,7 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/libarchive", func_80028B14);
  * }
  */
 
-int func_80028E60(int sectionIndex, int maxEntries, int targetState) {
+int ArchiveCheckStreamFileSectionStates(int sectionIndex, int maxEntries, int targetState) {
     int i;
     ArchiveStreamFileSectionHeader* pSectionHeader;
     int nSections;
@@ -567,7 +567,7 @@ void ArchiveConsolidateStreamFileEntry(int sectionIndex) {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/libarchive", func_80028F30);
 
-u_short func_8002945C(u_char* pSection) {
+u_short ArchiveReleaseStreamBlock(u_char* pSection) {
     u_char* pStream;
     u_char* pStreamEnd;
     ArchiveStreamFileSectionHeader* pSectionHeader;
@@ -590,7 +590,7 @@ u_short func_8002945C(u_char* pSection) {
     return nState;
 }
 
-u_short func_800294B4(u_char* pSection) {
+u_short ArchiveReleaseStreamSection(u_char* pSection) {
     u_char* pStream;
     u_char* pStreamEnd;
     ArchiveStreamFileSectionHeader* pSectionHeader;

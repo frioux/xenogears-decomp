@@ -23,10 +23,10 @@ extern s32 D_80059F00;
 extern u32 D_80059F0C;
 extern s16 D_80059F60;
 extern s32 D_8005A4DC;
-extern void func_8002B084(u_char status);
+extern void ArchiveCdReadyReadFile(u_char status);
 extern void func_8002B2F0(u_char status);
-extern void func_8002BA58();
-extern void func_8002BA40();
+extern void ArchiveStreamFileDataCallback();
+extern void ArchiveRestorePendingCount();
 extern void func_8002AC24();
 extern void ArchiveCdDataSync(int);
 extern int ArchiveDecodeSizeAligned(int);
@@ -109,7 +109,7 @@ int ArchiveReadFile(u32 dbgEntryIndex, u8* pDestBuffer, s32 arg2, s32 flags) {
             }
 
             g_ArchiveCdDriveState = ARCHIVE_CD_DRIVE_READ_SECTOR;
-            CdDataCallback(&func_8002BA58);
+            CdDataCallback(&ArchiveStreamFileDataCallback);
             CdSyncCallback(&ArchiveCdDriveCommandHandler);
             pReadyCallback = &func_8002B2F0;
             CdReadyCallback(pReadyCallback);
@@ -198,7 +198,7 @@ int ArchiveReadFile(u32 dbgEntryIndex, u8* pDestBuffer, s32 arg2, s32 flags) {
     g_ArchiveCdDriveState = ARCHIVE_CD_DRIVE_READ_SECTOR;
     CdDataCallback(NULL);
     CdSyncCallback(&ArchiveCdDriveCommandHandler);
-    pReadyCallback = &func_8002B084;
+    pReadyCallback = &ArchiveCdReadyReadFile;
     CdReadyCallback(pReadyCallback);
     D_8005A488 += 1;
     CdControlF(CdlSetloc, (void*)pLoc);
@@ -211,7 +211,7 @@ int ArchiveReadFile(u32 dbgEntryIndex, u8* pDestBuffer, s32 arg2, s32 flags) {
  * archiveIndex (both fields swapped; the outer bound really is nCount-1), then
  * the CD setup copied from ArchiveReadFile and either the PCopen/PCread/PCclose
  * debug loop over all nCount entries or the streaming callback path
- * (CdDataCallback(func_8002BA40), CdReadyCallback(func_8002AC24), CdlSetloc).
+ * (CdDataCallback(ArchiveRestorePendingCount), CdReadyCallback(func_8002AC24), CdlSetloc).
  * Signature should be `int func_80029AFC(StreamDataQueueEntry*, int)` - retail
  * returns -3 / 0 (callers in src/battle/main/misc23.c, world_map/main/misc1.c
  * and archive_b.c pass (pQueue, 0, 0), so a third unused parameter is fine).
@@ -331,7 +331,7 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_80029AFC);
  *             }
  *         } else {
  *             g_ArchiveCdDriveState = ARCHIVE_CD_DRIVE_READ_SECTOR;
- *             CdDataCallback(&func_8002BA40);
+ *             CdDataCallback(&ArchiveRestorePendingCount);
  *             CdSyncCallback(&ArchiveCdDriveCommandHandler);
  *             CdReadyCallback(&func_8002AC24);
  *             D_8005A488 += 1;
@@ -428,7 +428,7 @@ void ArchiveCdSetMode(u_char mode) {
     CdControlF(CdlSetmode, &D_80059F18);
 }
 
-void func_8002A498(int channel) {
+void ArchiveStopTransfer(int channel) {
     int i;
 
     D_8004FE34 = 1;
@@ -704,7 +704,7 @@ void ArchiveCdDriveCommandHandler(u_char status, u_char* pResult) {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002AC24);
 
-void func_8002B084(u_char status) {
+void ArchiveCdReadyReadFile(u_char status) {
     s32 nHalfSector;
     s32 nWords;
     s32 i;
@@ -953,11 +953,11 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002B8B0);
  * }
  */
 
-void func_8002BA40(void) {
+void ArchiveRestorePendingCount(void) {
     D_8004FDFC = D_8004FE00;
 }
 
-void func_8002BA58(void) {
+void ArchiveStreamFileDataCallback(void) {
     ArchiveStreamFileSectionHeader* pSection;
     ArchiveStreamFileSectionHeader* pCurrent;
     s16 i;
@@ -1127,7 +1127,7 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002BB50);
  */
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002BF38);
 
-void func_8002C310(void) {
+void ArchivePrintDebugState(void) {
     func_800379C8(D_80018944, g_ArchiveTable, D_8004FE08, D_8004FE2C);
     func_800379C8(D_80018954, D_8004FE40, D_8004FE10, D_80059F3C, D_80059F50);
     func_800379C8(D_80018964, D_80059F40, D_80059F44, D_80059F48, D_80059F4C);

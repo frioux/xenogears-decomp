@@ -39,7 +39,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc27", func_800B3F04);
 // Uploads the current frame's texture and CLUT into the sprite's own slots: the
 // 8x8 tile at the frame descriptor's texture-page rectangle goes to (0x3F0,0x1F0)
 // and its CLUT to (0x3F0,0x1EE).
-void func_800B4EDC(SpriteData* pSpriteData) {
+void BattleScriptUploadSpriteFrame(SpriteData* pSpriteData) {
     RECT rect;
     SpriteFrameData* pFrame;
     s16 texPage;

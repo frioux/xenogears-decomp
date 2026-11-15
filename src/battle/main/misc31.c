@@ -86,7 +86,7 @@ void func_800BB248(u8 *pTask) {
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BB248);
 
-void func_800BB314(u8 *pEntry) {
+void BattleFreeActorSpriteTask(u8 *pEntry) {
     u32 unused[2];
     WorkListRemoveTask(pEntry + 0x1C);
     TimerWorkListRemoveTask(pEntry);
@@ -95,7 +95,7 @@ void func_800BB314(u8 *pEntry) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BB350);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BB540);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BB620);
-void func_800BB690(u8 *pEntry) {
+void BattleAnimTaskAllocArchiveEntry(u8 *pEntry) {
     func_800A9540(*(s32 *)(pEntry + 0x1C));
     D_800C3CB8++;
     TimerWorkListSetTaskCallback(pEntry, func_800BB620);
@@ -122,14 +122,14 @@ void func_800BB760(u8 *pEntry) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BB760);
-void func_800BB7F8(void) {
+void BattleResetAnimState(void) {
     D_800C3674 = 0x200;
     D_800C3678 = -1;
     D_800C3CC4 = 0;
     D_800C3CBC = 1;
     func_800BC2F0(0);
 }
-void func_800BB844(MATRIX *pMatrix, SVECTOR *pA, SVECTOR *pB, SVECTOR *pC) {
+void BattleBuildMatrixFromThreeVectors(MATRIX *pMatrix, SVECTOR *pA, SVECTOR *pB, SVECTOR *pC) {
     VECTOR vTmp;
     VECTOR vB;
     VECTOR vC;
@@ -295,19 +295,19 @@ void BattleSetAnimTaskShort(s16 value) {
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BC460);
 
-void func_800BCAA4(void) {
+void BattleSetAnimState4(void) {
     if (D_800C37C8 == 0) {
         func_800BC2F0(4);
     }
 }
 
-void func_800BCAD0(void) {
+void BattleSetAnimState1(void) {
     if (D_800C37C8 == 0) {
         func_800BC2F0(1);
     }
 }
 
-void func_800BCAFC(u8 *pEntry, s32 angle) {
+void BattleSetSpriteColorFromAngle(u8 *pEntry, s32 angle) {
     s32 color;
 
     color = rcos(angle << 6);
@@ -322,7 +322,7 @@ void func_800BCAFC(u8 *pEntry, s32 angle) {
     pEntry[0x2A] = color;
     func_8001F6B0(pEntry);
 }
-void func_800BCB54(void) {
+void BattleFreeSpriteColorTask(void) {
     u8 *pEntry;
 
     pEntry = D_800C3748;
@@ -337,7 +337,7 @@ void func_800BCB54(void) {
     }
 }
 
-void func_800BCBB4(u8 *pEntry) {
+void BattleSpriteColorTaskTick(u8 *pEntry) {
     s32 color;
     s32 angle;
     u8 *pData;
