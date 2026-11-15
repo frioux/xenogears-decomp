@@ -275,6 +275,18 @@ brief explains to the worker how a jump-table match reads in `diff_func.sh` and 
   sits inside the table range; `own_rodata.py --report <bin>` says FOREIGN). Their
   jump-table stubs stay out of `funcs`. `field` and `slus_006.64` units already had
   per-unit `.rodata`.
+
+Round 56 retired most of this queue, and the reason is **layout, not C**: five workers
+hit it and none converted a switch. Two pre-conversion checks decide a jtbl stub, and
+neither is visible in objdiff, so put them in `funcs` filters rather than in a brief:
+count the stub's `.s` table words against the case count (retail pads with a trailing
+0 word - `battle/misc23` `func_800A6884` is six words for five cases, so the overlay
+loses 4 bytes and `convertible.py`'s BLOCKED is right), and compare the table's address
+with its neighbours (gcc aligns a C table to 8, retail often packs it 4-byte aligned -
+`world_map/misc12` `func_80090C68`/`90E14` reach 99.91% instruction-identical and still
+shift the overlay by 4). A stub that passes both is ordinary work; one that fails either
+is only convertible as part of a whole-family in-order conversion with the BLOCKED
+stubs around it, which is the `misc2` `.rodata` problem again.
 - Run `own_rodata.py` on a unit BEFORE any of its jump-table stubs is converted; it
   finds the tables through the stubs' `.s`. For a unit split after today, run it on the
   new unit, then `make check` with no C change.
