@@ -343,22 +343,27 @@ void BattleScriptResetActorState(u8 arg0) {
         }
     }
 }
-/* Best: 98.55%, same 376 bytes as retail. The 98.66% this block used to claim
-   came from a body that did not build (D_800D2E5C[0] and D_800C3D1B[arg0 - 3] need the record
-   struct, and D_800CCD1C is a BattleTableEntry table, not a byte array), so its
-   percentages were historic. Two allocator ties left: the early `return result`
-   loads it (`move v0,s2`) where gcc folds it to zero, and the slot index keeps
-   one $v0 copy plus a later $a0 one where retail reuses $a0. The loop shape
-   matters: `cmd = *pCursor; while (cmd != 0xFD) { if (cmd == 0xFF) break; if
-   (cmd >= 0x80) { ... } else { ... } cmd = *pCursor; }` scores 98.55%, the
-   inverted `if (cmd < 0x80) { } else if` form 79.56%, and `for (;;)` with two
-   breaks loses the shared 0xFD register. pCursor lives in a stack slot because
-   &pCursor is passed to the two decoders. */
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc4", func_80079AB0);
+/* Best: 99.78%, retail's exact 372 bytes, ONE register left: the temp for the
+   loop tail's `cmd = *pCursor` load is $v0 here and $a0 in retail (`lw a0,0x10(sp)`
+   / `lbu v1,0x0(a0)`). Everything else is identical, including the single 0xFD
+   and 0xFF registers in the back edge and the 0x62 in the bnez delay slot.
+   The lever that closed the old 98.55% park's two residuals in one change was
+   replacing the early `return result` with `goto done` and one shared return:
+   gcc had folded that return to `move v0,zero` (it can prove result == 0 there)
+   and, with it folded, also re-derived `(u8)(arg0 - 3)` for the slot*4 / slot*0x40
+   uses instead of keeping retail's single `andi a0,s0,0xff`; the shared return
+   gives one epilogue block and gcc then copies `result` into $v0 in all three
+   branch delay slots, exactly as retail does.
+   Tried on the last register: permute.sh 4 min / 947 iterations (PERMUTER_NONE,
+   base=10), u8 cmd (376 bytes) and s32 cmd (slti, 99.14%), declaration order of
+   all eight locals, slot assignment first, `pCursor[0]` for either or both loads.
+   */
 /*
 s32 func_80079AB0(u8 arg0) {
+    u8 slot;
     s32 result;
     u8 value;
-    u8 slot;
     u32 cmd;
     u8* pCursor;
     u8* p;
@@ -369,7 +374,7 @@ s32 func_80079AB0(u8 arg0) {
     slot = arg0 - 3;
     if ((D_800CCD64[slot + 3].flags & 0x8000) != 0) {
         if ((D_800CCD1C[slot + 3].flags & 0x800) == 0) {
-            return result;
+            goto done;
         }
     }
     D_800D2E5C[0].unk0 = 0;
@@ -401,11 +406,10 @@ s32 func_80079AB0(u8 arg0) {
     if (D_800D2E5C[0].unk0 != 0) {
         func_800793F0(slot + 3);
     }
+done:
     return result;
 }
 */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc4", func_80079AB0);
-
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc4", func_80079C24);
 /* Best: 89.50%, instruction stream identical except two hoist positions (508
    bytes vs retail's 504). Retail stores value/i, then the two loop constants
