@@ -1048,39 +1048,16 @@ void FieldPlayerSetScriptFlag80(void) {
     g_FieldActors[g_PlayerActorIndex].pActorData->scriptFlags.flags |= 0x80;
 }
 
-// Screened 36 variants: best 99.64% here, cdk 94.07%, 2.6.0 99.64% - the third
-// block's `addu` destination register is the whole gap.
-// FieldResetActorPosition: copies the current actor's scripted position into the
-// field actor's transform/child matrices and into its sprite.
-// 99.64%: every instruction matches except the destination register of the third
-// block's `addu`: the original coalesces base+offset into the index register
-// (`addu v1,v1,v0`, then the two stores off $v1); gcc 2.7.2 always coalesces it
-// into the freshly loaded base register (`addu v0,v1,v0`). Same size and operand
-// order; -O2/-O3 both do this. index+base operand order is required (base-first
-// gives `addu v0,v0,v1`).
-// Also tried: `offset += (s32)g_FieldActors` in the third block (mutating the index
-// variable moves the whole allocation, 82.38%), `u_int offset` (same 99.64%) and
-// computing the pointer after `z = pPosition[5]` (same 99.64%).
-// Re-tried with a variant harness (each of these confirmed against the object):
-// all 24 declaration orders of x/y/z/offset (identical code, so the choice is not
-// pseudo numbering); a second pointer local `pFieldActor2` for the third block and
-// an `s32 addr = offset; addr += (s32)g_FieldActors;` copy (both stop gcc from
-// CSE-ing the x0x5C, which is then rematerialised per block, 82.38%); storing
-// through `((s32*)pFieldActor)[10]/[18]` (same 99.64%); and reading `pPosition[5]`
-// twice instead of a `z` temp (the sum then goes to a fresh $a3 in all three
-// blocks, 75.00%). The whole function is a single basic block, so the sum, the
-// reloaded base and the offset are all local-alloc quantities and gcc 2.7.2 always
-// takes the first free $v0; retail's $v1 dest needs the offset quantity to be
-// preferred, which no source shape reached.
+// g_FieldActors is volatile, so retail re-reads the base once per component pair:
+// the three pointer locals keep those reloads where the original has them.
 void func_800A0C94(void) {
     FieldActor* pFieldActor;
-    SpriteData* pSpriteData;
+    FieldActor* pFieldActor1;
     FieldActor* pFieldActor2;
-    FieldActor* pFieldActor3;
+    SpriteData* pSpriteData;
     ActorData* pActor;
     s16* pPosition;
     s32 x;
-    u16 nComp;
     s32 y;
     s32 z;
     s32 offset;
@@ -1090,24 +1067,21 @@ void func_800A0C94(void) {
     offset = D_800AFD1C * sizeof(FieldActor);
     pFieldActor = (FieldActor*)(offset + (s32)g_FieldActors);
     pPosition = (s16*)&pActor->position;
-    nComp = 0;
 
     x = pPosition[1];
     pSpriteData = pFieldActor->pSpriteData;
-    pFieldActor->transformMatrix.t[nComp] = x;
-    pFieldActor2 = (FieldActor*)(offset + (s32)g_FieldActors);
+    pFieldActor->transformMatrix.t[0] = x;
+    pFieldActor1 = (FieldActor*)(offset + (s32)g_FieldActors);
     pFieldActor->childMatrix.t[0] = x;
 
     y = pPosition[3];
-    pFieldActor3 = (FieldActor*)(offset + (s32)g_FieldActors);
-    pFieldActor = pFieldActor2;
-    pFieldActor->transformMatrix.t[1] = y;
-    pFieldActor->childMatrix.t[1] = y;
+    pFieldActor2 = (FieldActor*)(offset + (s32)g_FieldActors);
+    pFieldActor1->transformMatrix.t[1] = y;
+    pFieldActor1->childMatrix.t[1] = y;
 
-    pFieldActor = pFieldActor3;
     z = pPosition[5];
-    pFieldActor->transformMatrix.t[2] = z;
-    pFieldActor->childMatrix.t[2] = z;
+    pFieldActor2->transformMatrix.t[2] = z;
+    pFieldActor2->childMatrix.t[2] = z;
 
     pSpriteData->position.x = pActor->position.vx;
     pSpriteData->position.y = pActor->position.vy;
@@ -1118,6 +1092,7 @@ void func_800A0C94(void) {
     pSpriteData->field_0x84 = curY;
     pActor->curYPos = curY;
 }
+
 void FieldScriptVMHandlerSetActorModelFromSpriteIndex0(void) {
     func_80076AC0(D_800AFD1C, 0, (void*)((*(s32*)(g_FieldSpriteData + 4)) + (s32)g_FieldSpriteData), 0, 0, 0x80, 1);
     func_800A0C94();
