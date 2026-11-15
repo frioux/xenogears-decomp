@@ -130,16 +130,15 @@ void BattleCreateActorDistanceTask(SpriteData *pSpriteData, s32 minDistance,
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800BF85C);
 // 92.21% under gcc-2.7.2-cdk-psx (76.59 under 2.7.2): instruction multiset\n// matches, only the index/pointer registers are swapped. Not a preset question.
-/*
 void func_800BF8CC(u8 *pActor) {
     s32 count;
-    s32 i = 0;
     s32 *pEntry;
+    s32 i = 0;
 
     count = D_800D3678;
     if (count != 0) {
         pEntry = D_800D363C;
-        for (i = 0; i != count; i++) {
+        for (i = 0; i != D_800D3678; i++) {
             if (pEntry[i] == *(s32*)(pActor + 0x74)) {
                 break;
             }
@@ -152,8 +151,6 @@ void func_800BF8CC(u8 *pActor) {
         *(s32*)(pActor + 0x74) = pEntry[i];
     }
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800BF8CC);
 s32 BattleFindTableEntryIndex(s32 arg0) {
     s16 count = D_800D3678;
     s32 i = 0;
