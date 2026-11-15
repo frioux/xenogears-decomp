@@ -419,7 +419,7 @@ done:
     return result;
 }
 */
-void func_80079C24(void) {
+void BattleRunActiveSlotScripts(void) {
     s32 i;
     s32 off;
     s32 off2;

@@ -889,7 +889,7 @@ s32 WorldMapFindSpriteSet(void *pArg, s16 *pOut) {
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_80084DB8);
 
 
-void func_80085158(WorldMapPos *pPos, WorldMapPos *pOut, WorldMapPos *pNormal, u16 setIndex,
+void WorldMapProjectTriangleNormal(WorldMapPos *pPos, WorldMapPos *pOut, WorldMapPos *pNormal, u16 setIndex,
                    u16 triIndex) {
     WorldMapEntry *pEntry;
     WorldMapMesh *pMesh;

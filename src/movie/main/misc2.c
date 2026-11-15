@@ -642,7 +642,7 @@ void WorldMapScriptOp04SetScratchPosition(void) {
     long pad[6];
     MATRIX* pMatrix;
 
-    func_80076CA4();
+    MovieBuildViewMatrix();
     pMatrix = &D_80077050;
     SetRotMatrix(pMatrix);
     SetTransMatrix(pMatrix);
@@ -650,7 +650,7 @@ void WorldMapScriptOp04SetScratchPosition(void) {
 
 // objdiff reads 99.33% on this one, not 100: the t[] stores name D_800770D8+24 where
 // retail's object names D_800770F0 - same bytes, same addend (see AGENTS.md).
-void func_80076CA4(void) {
+void MovieBuildViewMatrix(void) {
     MATRIX* pRotMatrix;
     s32* pTrans;
     MovieVector* pPos;

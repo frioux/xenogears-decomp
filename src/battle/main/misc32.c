@@ -349,7 +349,7 @@ extern u8 SpriteColorAddClamp(u8 arg0, s16 arg1);
 // stores and the timer update must not share one variable. The two volatile
 // re-reads are required too: without them cse forwards call 1's stored result into
 // call 2's argument (86.00 instead of 100.00).
-void func_800BDB74(Misc32Task *pTask) {
+void BattleStepEffectColorFadeFromBase(Misc32Task *pTask) {
     Misc32Task *pEffect;
     WorkListCallback_t pCallback;
 
@@ -367,7 +367,7 @@ void func_800BDB74(Misc32Task *pTask) {
 }
 
 extern void TimerWorkListSetTaskCallback(Misc32Task *pTask, void (*pCallback)(Misc32Task *));
-extern void func_800BDB74(Misc32Task *pTask);
+extern void BattleStepEffectColorFadeFromBase(Misc32Task *pTask);
 
 // 91.60%: COMPILES (parked body below). The `nextTimer` local is worth +8.2 (it
 // stops gcc folding 0x10 into the branch). Left: the callback block only. Retail's
@@ -376,7 +376,7 @@ extern void func_800BDB74(Misc32Task *pTask);
 // forward the copy into them (`sw v1,136(a0)`, `sb v0,131(a0)`).
 // Tried: a `u8 flags` temp, the whole block in do{...}while(0) (55.56 - it also stops
 // the arg setup being hoisted), both store orders, a second `pEffect` alias of the
-// parameter (this round: it closed func_800BDB74 but cse drops it here, since the
+// parameter (this round: it closed BattleStepEffectColorFadeFromBase but cse drops it here, since the
 // stores and the call use the same value with nothing else live), u8 pointer, offset
 // casts, a callback local, indexed forms, and a 3-min permuter run (no progress).
 /*
@@ -388,7 +388,7 @@ void func_800BDC14(Misc32Task *pTask) {
     if (--pTask->timer < 0) {
         pTask->timer = nextTimer;
         pTask->unk83 = (pTask->unk83 | 2) & 0xFE;
-        TimerWorkListSetTaskCallback(pTask, func_800BDB74);
+        TimerWorkListSetTaskCallback(pTask, BattleStepEffectColorFadeFromBase);
     }
 }*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BDC14);
