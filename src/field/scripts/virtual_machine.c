@@ -573,19 +573,21 @@ int FieldScriptVMGetVariableValue(int index) {
 // The dead second test is what keeps the shift in its own register: a plain store coalesces
 // both shifts onto $a0 (a global.c allocno tie), while here the same store in two branches
 // gcc cross-jumps away emits no branch and leaves the shift to $a2.
-void FieldScriptMemoryWriteU16(int index, u_short value) {
+void FieldScriptMemoryWriteU16(int index, int value) {
+    u_short uValue;
     int nOffset;
     int nStoreOffset;
 
+    uValue = value;
     nOffset = index >> 1;
-    if (value) {
-        ((u_short*)&g_FieldScriptMemory)[index >> 1] = value;
+    if (uValue) {
+        ((u_short*)&g_FieldScriptMemory)[index >> 1] = uValue;
     } else if (index || nStoreOffset) {
         nStoreOffset = nOffset;
-        ((u_short*)&g_FieldScriptMemory)[nStoreOffset] = value;
+        ((u_short*)&g_FieldScriptMemory)[nStoreOffset] = uValue;
     } else {
         nStoreOffset = nOffset;
-        ((u_short*)&g_FieldScriptMemory)[nStoreOffset] = value;
+        ((u_short*)&g_FieldScriptMemory)[nStoreOffset] = uValue;
     }
 }
 
