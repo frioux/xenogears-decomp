@@ -33,10 +33,11 @@ void func_800BCFAC(u8 *pEntry) {
     timer = *(s32 *)(pData + 0x58) + 1;
     *(s32 *)(pData + 0x3C) = *(s16 *)(pSrc + 0x2);
     unk6 = *(s16 *)(pSrc + 0x6);
-    *(s32 *)(pData + 0x40) = unk6;
+    *(s32 *)(pData + 0x40) = unk6; // retail stores unk6, then overwrites it below
     unkA = *(s16 *)(pSrc + 0xA);
     *(s32 *)(pData + 0x44) = unkA;
     *(s32 *)(pData + 0x58) = timer;
+    // kept after the timer store: retail loads 0x54 in that slot
     *(s32 *)(pData + 0x40) = unk6 - *(s32 *)(pData + 0x54) - 0x20;
     func_800BCAFC(pSrc, timer, unkA);
     *(u16 *)(pData + 0x4E) += 0x10;
