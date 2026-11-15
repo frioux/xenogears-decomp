@@ -266,7 +266,7 @@ void BattleSetVertexYForFlipped(s32 flag, u16* pDst, s32 value) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_80085EC8);
 
-void func_800864B4(Misc10TagSrc* p, s32 x, s32 y, POLY_FT4* pPoly, s32 mode) {
+void FieldSoundResetActorEffects(Misc10TagSrc* p, s32 x, s32 y, POLY_FT4* pPoly, s32 mode) {
     s32 scale;
     s32 right;
 

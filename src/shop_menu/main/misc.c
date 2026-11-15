@@ -2984,7 +2984,7 @@ INCLUDE_ASM("asm/shop_menu/nonmatchings/main/misc", func_801CDD14);
 // is character 4) and the slotDefense copy are load-bearing: other spellings change the
 // instruction order. The three sum loops need the element address in a pointer local -
 // indexing the tables inline makes cc1 coalesce the address into the index register.
-void func_801CE480(s32* pDelta, s8* pIsImprovement, u8 itemId, u8 itemType, u8 characterId) {
+void ShopMenuComputeStatChange(s32* pDelta, s8* pIsImprovement, u8 itemId, u8 itemType, u8 characterId) {
     s16 oldValue[2];
     s16 newValue[2];
     u8 changeDetected;
