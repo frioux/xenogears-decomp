@@ -425,7 +425,7 @@ void func_800AFD98(BattleModel *pModel, BattleModelNode *pNode, char flags, s16 
         for (i = 1; i < pModel->pNodes->unkA; i++) {
             pChild++;
             if (pChild->pParent == pNode) {
-                func_800AFD98(pModel, pChild, flags & 0xFF, x, y, z);
+                func_800AFD98(pModel, pChild, flags, x, y, z);
             }
         }
     }
