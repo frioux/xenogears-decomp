@@ -437,6 +437,8 @@ void func_80075D8C(void) {
     ArchiveSetIndex(alignedIndex, remainder);
 }
 
+*/
+
 void MovieResetPlaybackAndClearScreen(void) {
     long pad[6];
     RECT rect;
