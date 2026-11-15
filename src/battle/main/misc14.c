@@ -30,6 +30,15 @@ typedef struct {
     /* 0x8950 */ RECT uploadRect[4];
 } BattleUploadWork; // Size: 0x8970 (lower bound: other units reach 0xA2C8)
 
+// The prim pool's head is a 0x38-stride table of per-slot records; only the two
+// fields this unit touches are named (see BattlePrimPool for the pool tail).
+typedef struct {
+    /* 0x00 */ u8 unk0[0x26];
+    /* 0x26 */ s16 unk26;
+    /* 0x28 */ u8 unk28;
+    /* 0x29 */ u8 unk29[0xF];
+} BattlePrimPoolSlot; // Size: 0x38
+
 extern u16 D_800C3468[];
 extern u16 D_800C3448[];
 extern u8 D_800C3E4C;
@@ -74,7 +83,7 @@ extern int rand(void);
 extern BattleUploadWork *D_800C3EA4;
 extern BattleUploadState *D_800D2D28;
 extern u8 D_800C3444;
-extern u8 *D_800D3278;
+extern BattlePrimPoolSlot *D_800D3278;
 extern u8 D_800C48EA;
 extern u8 D_800D3014;
 extern s32 *D_8005917C;
@@ -413,29 +422,9 @@ void BattleUpdateImageUpload(u8 arg0) {
     }
     BattleUploadImageFrame();
 }
-// The prim pool's head is a 0x38-stride table of per-slot records; only the two
-// fields this unit touches are named (see BattlePrimPool for the pool tail).
-typedef struct {
-    /* 0x00 */ u8 unk0[0x26];
-    /* 0x26 */ s16 unk26;
-    /* 0x28 */ u8 unk28;
-    /* 0x29 */ u8 unk29[0xF];
-} BattlePrimPoolSlot; // Size: 0x38
 
-// Best attempt: objdiff 98.96%, 668 bytes (the original is 664). Whole function is
-// reconstructed; every block, every call and both loops are present, and the 0x10-slot
-// prim-pool loop over D_800D3278 now matches instruction for instruction (indexed
-// pSlot[i] gives retail's 0x26/0x28 displacements, i++ in the beqz delay slot and the
-// slti copied into the bgez delay slot; a pointer walk rebases the biv and drops to
-// 95.93%). Two differences left: (a) one instruction too many before the first branch
-// (every branch target is +4 relative to retail); (b) S-register tie: retail keeps the
-// mute flag in s0 and the wait flag in s1, gcc swaps them, which also swaps the two
-// prologue saves. Declaration order, init order and s32 vs u8 (which drops retail's
-// andi) do not move the tie.
-/*
 void func_8008A3EC(u8 arg0) {
     s32 i;
-    BattlePrimPoolSlot *pSlot;
     s32 channelMask;
     u8 muted;
     u8 waiting;
@@ -452,7 +441,7 @@ void func_8008A3EC(u8 arg0) {
                 channelMask = D_80059488;
             }
         } else {
-            if (waiting != 0) {
+            if (muted != 0) {
                 SoundEnableAllSpuChannels();
                 D_80059488 = channelMask;
             }
@@ -462,11 +451,10 @@ void func_8008A3EC(u8 arg0) {
 
     BattleUploadImageFrame();
     if (D_800D2D28->unkCA != 0) {
-        pSlot = (BattlePrimPoolSlot *)D_800D3278;
         for (i = 0; i < 0x10; i++) {
-            if (pSlot[i].unk28 != 0) {
-                if (--pSlot[i].unk26 < 0) {
-                    pSlot[i].unk26 = 0;
+            if (D_800D3278[i].unk28 != 0) {
+                if (--D_800D3278[i].unk26 < 0) {
+                    D_800D3278[i].unk26 = 0;
                 }
             }
         }
@@ -497,26 +485,29 @@ void func_8008A3EC(u8 arg0) {
                     D_800D3014 = 4;
                     break;
                 }
-                if ((g_C1ButtonStateReleased & 0x800) != 0 && D_800CCC58 != 0) {
-                    if (D_800C3444 == 0) {
-                        SoundMuteAllSpuChannels();
-                        GraphicsDrawPauseLetters(0x88, 0x64);
-                        GraphicsDrawPauseLetters(0x88, 0x144);
-                        channelMask = D_80059488;
-                        D_800C3444 = muted;
-                    } else {
-                        SoundEnableAllSpuChannels();
-                        D_80059488 = channelMask;
-                        D_800C3444 = 0;
-                    }
+                if ((g_C1ButtonStateReleased & 0x800) == 0) {
+                    continue;
+                }
+                if (D_800CCC58 == 0) {
                     break;
                 }
+                if (D_800C3444 == 0) {
+                    SoundMuteAllSpuChannels();
+                    GraphicsDrawPauseLetters(0x88, 0x64);
+                    GraphicsDrawPauseLetters(0x88, 0x144);
+                    channelMask = D_80059488;
+                    D_800C3444 = muted;
+                } else {
+                    SoundEnableAllSpuChannels();
+                    D_80059488 = channelMask;
+                    D_800C3444 = 0;
+                }
+                break;
             }
         }
     } while (D_800C3444 != 0);
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc14", func_8008A3EC);
+
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc14", func_8008A684);
 void BattleUpdateEffectByScreenMode(u8 arg0) {
     switch (D_800C3E4C) {
