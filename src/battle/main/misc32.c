@@ -21,16 +21,6 @@ void BattleClearActorMask(void) {
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BCD98);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BCEAC);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BCFAC);
-/* best 87.20%: instruction multiset identical, ordering only. Retail schedules
-   the 0x58 load (and the `addiu a1,a1,1` on it) before the 0x54 load and the
-   0xA load; gcc hoists the 0x54 load into the slot after the 0x38 load and
-   leaves the 0x58 group late. Tried: ++field inline in the call, a separate
-   ++ statement plus a re-read, a timer local read before the stores, unk6/unkA
-   locals (needed - without them gcc reloads both and it drops to 70%).
-   gcc-2.7.2-cdk scores the same 87.20, so this one is not a preset problem.
-extern void func_800BCAFC(u8 *pSrc, s32 arg1, s32 arg2);
-
 void func_800BCFAC(u8 *pEntry) {
     u8 *pData;
     u8 *pSrc;
@@ -43,15 +33,15 @@ void func_800BCFAC(u8 *pEntry) {
     timer = *(s32 *)(pData + 0x58) + 1;
     *(s32 *)(pData + 0x3C) = *(s16 *)(pSrc + 0x2);
     unk6 = *(s16 *)(pSrc + 0x6);
-    *(s32 *)(pData + 0x40) = unk6;
-    *(s32 *)(pData + 0x40) = unk6 - *(s32 *)(pData + 0x54) - 0x20;
+    *(s32 *)(pData + 0x40) = unk6; // retail stores unk6, then overwrites it below
     unkA = *(s16 *)(pSrc + 0xA);
     *(s32 *)(pData + 0x44) = unkA;
     *(s32 *)(pData + 0x58) = timer;
+    // kept after the timer store: retail loads 0x54 in that slot
+    *(s32 *)(pData + 0x40) = unk6 - *(s32 *)(pData + 0x54) - 0x20;
     func_800BCAFC(pSrc, timer, unkA);
     *(u16 *)(pData + 0x4E) += 0x10;
 }
-*/
 
 void BattleFreeEffectSpriteTask(u8 *pTask) {
     u8 *pData;
