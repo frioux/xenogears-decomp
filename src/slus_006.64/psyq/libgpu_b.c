@@ -17,7 +17,7 @@ typedef struct {
     /* 0x2C */ void (*unk2C)(u_long *ot, int n);
     /* 0x30 */ void (*unk30)();
     /* 0x34 */ void (*unk34)(int mode);
-    /* 0x38 */ int (*unk38)();
+    /* 0x38 */ u_int (*unk38)();
     /* 0x3C */ int (*unk3C)(int mode);
 } GpuSysFuncs; // Size: 0x40
 
@@ -48,20 +48,20 @@ extern u_long DrawMode(int dfe, int dtd, u_short tpage);
 extern u_long func_80045BCC(int x, int y);
 extern u_long func_80045C10(RECT *tw);
 
-int func_8004537C(void) {
-    return (u_int)D_800568C8->unk38() >> 31;
+int GetODE(void) {
+    return D_800568C8->unk38() >> 31;
 }
 
-void func_800453AC(DR_MODE *p, RECT *tw) {
+void SetTexWindow(DR_TWIN *p, RECT *tw) {
     setlen(p, 2);
     *(u_long*)&p->code[0] = func_80045C10(tw);
     *(u_long*)&p->code[1] = 0;
 }
 
-void func_800453E8(DR_MODE *p, RECT *pt) {
+void SetDrawArea(DR_AREA *p, RECT *r) {
     setlen(p, 2);
-    *(u_long*)&p->code[0] = func_80045A34(pt->x, pt->y);
-    *(u_long*)&p->code[1] = func_80045B00((s16)(pt->x + pt->w - 1), (s16)(pt->y + pt->h - 1));
+    *(u_long*)&p->code[0] = func_80045A34(r->x, r->y);
+    *(u_long*)&p->code[1] = func_80045B00((s16)(r->x + r->w - 1), (s16)(r->y + r->h - 1));
 }
 
 void func_8004546C(DR_MODE *p, RECT *pt) {
