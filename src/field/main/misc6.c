@@ -854,12 +854,12 @@ extern s32 D_8005A44C;
 // does, and case 0 goes through the pointer. Tried: if-wrap instead of the early
 // return, and three declaration orders - all identical. Parking for the reorg
 // delay-slot fill, which no source shape reached.
-/*
-void func_8009FEE4(int partyMemberIndex) {
+volatile int func_8009FEE4(int partyMemberIndex) {
     s32* pActorSlots;
     s32 nActorIndex;
     s32 nWalkmeshFlags;
     ActorData* pActorData;
+    int new_var;
 
     pActorSlots = D_8005A444;
     nActorIndex = pActorSlots[partyMemberIndex];
@@ -867,10 +867,11 @@ void func_8009FEE4(int partyMemberIndex) {
         return;
     }
     pActorData = g_FieldActors[nActorIndex].pActorData;
+    new_var = 0xFFF;
     nWalkmeshFlags = pActorData->walkmeshId << 14;
     switch (partyMemberIndex) {
         case 0:
-            FieldScriptMemoryWriteU16(0x2A, (g_GameSceneMapNum & 0xFFF) | nWalkmeshFlags);
+            FieldScriptMemoryWriteU16(0x2A, (g_GameSceneMapNum & new_var) | nWalkmeshFlags);
             FieldScriptMemoryWriteU16(0x2C, ((s16*)&g_FieldActors[pActorSlots[0]].pActorData->position)[1]);
             FieldScriptMemoryWriteU16(0x2E, ((s16*)&g_FieldActors[pActorSlots[0]].pActorData->position)[5]);
             break;
@@ -880,14 +881,12 @@ void func_8009FEE4(int partyMemberIndex) {
             FieldScriptMemoryWriteU16(0x34, ((s16*)&g_FieldActors[D_8005A448].pActorData->position)[5]);
             break;
         case 2:
-            FieldScriptMemoryWriteU16(0x36, (g_GameSceneMapNum & 0xFFF) | nWalkmeshFlags);
+            FieldScriptMemoryWriteU16(0x36, (g_GameSceneMapNum & new_var) | nWalkmeshFlags);
             FieldScriptMemoryWriteU16(0x38, ((s16*)&g_FieldActors[D_8005A44C].pActorData->position)[1]);
             FieldScriptMemoryWriteU16(0x3A, ((s16*)&g_FieldActors[D_8005A44C].pActorData->position)[5]);
             break;
     }
 }
-*/
-INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_8009FEE4);
 
 void FieldScriptReadPartyMemberPosition(s32 arg0, s32* arg1, s32* arg2, s32* arg3) {
     switch (arg0) {
