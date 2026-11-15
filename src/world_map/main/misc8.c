@@ -939,6 +939,32 @@ void func_80085158(WorldMapPos *pPos, WorldMapPos *pOut, WorldMapPos *pNormal, u
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_80085418);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_80085760);
 
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_80085CDC);
+// Best: 89.31% (628 bytes vs retail's 636). Round 114 triage: with findings
+// 1-3 already in the body (pCam = &D_8009BE28 in $s3, the &pScratch[2] argument,
+// D_8009C808 as a MATRIX) the loop-1 body, the RTPS loop and the sprite/slew
+// calls are instruction-identical. Five deltas left, top to bottom:
+//  1. prologue save order: retail emits sw/lui s2 then sw/move s1 BEFORE sw s3,
+//     we emit s3's pair first (a declaration-order tie-break; the s3 pair is
+//     pCam, s2 is pScratch, s1 is i).
+//  2. the three sprite reads (2/6/0xA of pActor->unk4C) come out lhu in every
+//     spelling; retail lh. gcc only emits lh for a sign-extending SI load, so
+//     the value has to be used as s32 somewhere (a plain s16->s16 field copy
+//     gives lhu); not found yet.
+//  3. retail rematerialises &D_8009C808 into $a0 for GfxSetBaseMatrix (lui +
+//     addiu, 2 insns we do not emit because we reuse $s0) and that is what frees
+//     the delay slot for 'i = 0'; the two SetRotMatrix/SetTransMatrix calls use
+//     $s0. So the third call probably passes &D_8009C808 directly in the source.
+//  4. loop 3: retail loads the SZ3 slot (lw 0x18(s2)) AFTER lh 0x24 and lw 0x4C,
+//     we load it first because 'd = pScratch[i+6];' is its own statement - move
+//     it into the condition.
+//  5. the slew block: retail loads ang (lh 0x48) BEFORE cur (lw 0x5C) and runs
+//     all four arms into ONE shared 'sw 0x5C'; we emit two stores and have
+//     cur/ang in the opposite registers.
+// Two relocation-only diffs (byte-identical, both name a 0x1F8000xx symbol the
+// original object had): 'addiu a0,s2,%lo(D_1F800008)' for the WrapDelta argument
+// and 'addiu s2,s2,%lo(D_1F800004)' at the loop-3 tail - ours fold to 8/4.
+/*
 void func_80085CDC(void) {
     WorldMapActor *pActor;
     MATRIX *pMat;
@@ -1010,4 +1036,5 @@ void func_80085CDC(void) {
         }
     }
 }
+*/
 
