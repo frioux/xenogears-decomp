@@ -102,7 +102,8 @@ void SpriteSetFrameFromAnimIndex(SpriteData* pSpriteData) {
     if (animIndex < 0) {
         animIndex = 0;
     }
-    pAnimFlags = (u16*)pSpriteData->field_0x54;
+    // field_0x54 holds a raw address (animation_scripts.c stores one) to u16 frame entries
+    pAnimFlags = (u16*)(mem_addr)pSpriteData->field_0x54;
     animFlags = pAnimFlags[animIndex];
     frameIndex = animFlags & 0x1FF;
     if (animFlags & 0x200) {
@@ -110,7 +111,8 @@ void SpriteSetFrameFromAnimIndex(SpriteData* pSpriteData) {
     } else {
         pSpriteData->flags_0xAC.flags &= ~8;
     }
-    // the header splits word 0x3C into bitfields, but retail rewrites the whole word
+    // 0x3C has no field for bits 5-7 (they sit inside the 20-bit field_0x3C_0), so the word
+    // is rewritten whole
     *(u32*)((u8*)pSpriteData + 0x3C) = (*(u32*)((u8*)pSpriteData + 0x3C) & ~8) |
                                        (((((u32)pSpriteData->flags_0xAC.flags >> 3) & 1) ^
                                          (((u32)pSpriteData->flags_0xAC.flags >> 2) & 1))
@@ -230,7 +232,8 @@ s32 SpriteComputeAngleFromPoints(SLineEnds line) {
 }
 
 void SpriteSetFrameAndFlips(SpriteData* pSpriteData, s32 arg1, s32 arg2, s32 arg3) {
-    // the header splits word 0x3C into bitfields, but retail rewrites the whole word
+    // the flip bits are bits 3-4 of field_0x3C_0, which has no field of its own, so the
+    // whole word is rewritten
     u32 flags = *(u32*)((u8*)pSpriteData + 0x3C);
 
     flags &= ~0x10;
@@ -290,8 +293,8 @@ void func_80023290(SpriteData* pSpriteData, s32 direction) {
     s32 animType;
     s32 dir;
 
-    // the header splits the 0x3C word into bitfields, but retail rewrites the whole word:
-    // a bitfield store would add the 0xFFFFF mask
+    // 0x3C has no field for bits 5-7 (they sit inside the 20-bit field_0x3C_0), so the word
+    // is rewritten whole
     *(u32*)((u8*)pSpriteData + 0x3C) =
         (*(u32*)((u8*)pSpriteData + 0x3C) & ~0xE0) | ((direction & 7) << 5);
     if (direction & 7) {
@@ -301,7 +304,7 @@ void func_80023290(SpriteData* pSpriteData, s32 direction) {
     }
     animType = (pSpriteData->field_0x40 >> 13) & 0xF;
     if (animType == 8 || animType == 9) {
-        dir = (*(u32*)((u8*)pSpriteData + 0x3C) >> 5) & 7;
+        dir = (pSpriteData->field_0x3C_0 >> 5) & 7;
         if (dir) {
             *(u32*)((u8*)pSpriteData + 0x3C) =
                 (*(u32*)((u8*)pSpriteData + 0x3C) & ~0xE0) | (((dir - 1) & 7) << 5);
@@ -471,8 +474,8 @@ void SpriteInitBaseAndClearInner3(SpriteData* pSpriteData) {
     pSpriteData->pBase = &pSpriteData->inner1;
     SpriteResetBase(&pSpriteData->inner1);
     pSpriteData->pBase->pDirTransforms = NULL;
-    // the store 0x40 into pBase lands on the first word of inner3
-    *(u32*)((u8*)pSpriteData->pBase + 0x40) = 0;
+    // pBase points at inner1, so inner3 sits right after it
+    ((SpriteDataI3*)(pSpriteData->pBase + 1))->field_0x0 = 0;
 }
 
 void SpriteInitBaseWithInternalStorage(SpriteData* pSpriteData) {
