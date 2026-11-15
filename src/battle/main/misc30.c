@@ -414,7 +414,7 @@ void BattleActorComputeFallDirection(BattleActorSprite* pSprite) {
     }
     BattleProjectPointOntoIndexedTriangle((s16*)&vec, index, out);
     if (vec.vy > pSprite->targetPosition.y) {
-        *(u16*)&vec.vy = *(u16*)&pSprite->targetPosition.y;
+        vec.vy = pSprite->targetPosition.y;
     }
     dy = ((vec.vy << 16) - pSprite->position.value.y) >> 16;
     diff.vx = pSprite->targetPosition.x - pSprite->position.parts.xWhole;
@@ -458,7 +458,7 @@ void BattleActorUpdateFallMotion(BattleActorSprite* pSprite) {
     }
     BattleProjectPointOntoIndexedTriangle((s16*)&vec, index, out);
     if (vec.vy > pSprite->targetPosition.y) {
-        *(u16*)&vec.vy = *(u16*)&pSprite->targetPosition.y;
+        vec.vy = pSprite->targetPosition.y;
     }
     num = (vec.vy << 16) - pSprite->position.value.y;
     if (divisor != 0) {
