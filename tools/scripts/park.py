@@ -21,7 +21,7 @@ import argparse
 import re
 import sys
 
-DEF = r"^[A-Za-z_][\w \t*]*?\b%s\s*\([^;]*\)\s*\{\n(?:.*?\n)*?\}\n"
+DEF = r"^[A-Za-z_][\w \t*]*?\b%s\s*\([^;]*\)\s*\{\n(?:.*?\n)*?\}[ \t]*(?=\n|$)"
 BLOCK = re.compile(r"^/\*((?:[^*]|\*(?!/))*?)\*/\n", re.M)
 FILLER = re.compile(r"^(?:[ \t]*(?://.*)?\n)*$")
 
