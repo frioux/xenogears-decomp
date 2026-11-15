@@ -211,16 +211,14 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007B9C8);
 // D_800D3420+0x10 like the original.
 // screened: identical 95.94% under Default, 2.7.2-cdk and 2.6.0 - a register
 // allocation tie, not a compiler question.
-/*
 void func_8007BA04(u8 **p, u8 index) {
     u16 *pField = (u16 *)(D_800D3420 + index * 0x40);
-    u8 *pTable = D_800D3420 + 0x10 + index * 0x40;
+    u8 *pTable;
     u8 *pArgs = *p;
 
+    pTable = (D_800D3420 + 0x10) - (-(index * 0x40));
     pField[pArgs[2]] = pTable[pArgs[1]];
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007BA04);
 // best: 95.29%. Only the register holding the stored halfword differs
 // (original a0, gcc v1); everything else, including the D_800D3420 base
 // derived as D_800D3410+0x10, is identical.
