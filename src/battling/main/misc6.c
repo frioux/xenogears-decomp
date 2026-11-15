@@ -169,8 +169,48 @@ void BattleQueueLineQuad(s32* pPos, s32* pPos2, u8* pColor) {
     }
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007E3CC);
-/* best 88.67%: the 16-byte want/gte work block, the two Bytes8 copies into
+void func_8007E3CC(u32* pOt) {
+    u8* pScratch;
+    BattleQuad* pQuad;
+    u32 dx;
+    u32 dy;
+    u32 dz;
+    u32 link;
+    u32 addr;
+    u32 tag;
+    u32* pLink;
+    long sz[2];
+    s32 i;
+
+    pScratch = (u8*)0x1F800000;
+    pQuad = D_80094818;
+    dx = *(u32*)(pScratch + 0x0);
+    dy = *(u32*)(pScratch + 0x4);
+    dz = *(u32*)(pScratch + 0x8);
+    i = 0;
+    while (i < D_800926B4) {
+        *(Bytes8*)(pScratch + 0x18) = *(Bytes8*)((u8*)pQuad + 0x10);
+        *(Bytes8*)(pScratch + 0x20) = *(Bytes8*)((u8*)pQuad + 0x18);
+        ((u16*)(pScratch + 0x18))[0] -= dx;
+        ((u16*)(pScratch + 0x18))[1] -= dy;
+        ((u16*)(pScratch + 0x18))[2] -= dz;
+        ((u16*)(pScratch + 0x20))[0] -= dx;
+        ((u16*)(pScratch + 0x20))[1] -= dy;
+        ((u16*)(pScratch + 0x20))[2] -= dz;
+        gte_ldv01(pScratch + 0x18, pScratch + 0x20);
+        gte_rtpt();
+        gte_stsxy01((u8*)pQuad + 0x8, (u8*)pQuad + 0xC);
+        gte_stsz2(sz);
+        pLink = (u32*)(((sz[0] >> 4) << 2) + (u32)pOt);
+        link = *pLink;
+        addr = (u32)pQuad & 0xFFFFFF;
+        *pLink = addr;
+        *(u32*)addr = link | 0x03000000;
+        i++;
+        pQuad++;
+    }
+}
+/* parked note (best 88.67%) :
    0x1F800018/0x1F800020, all six u16 translation subtractions, gte_ldv01 +
    RTPT, gte_stsxy01 into quad+8/quad+0xC, the SZ2 read and the 0x03000000 OT
    link are all exact (frame 0x10 too). Residual: retail keeps TWO induction
@@ -187,46 +227,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007E3CC);
    original source had two pointer locals stepping 0x20 - not one base plus a
    folded offset. The permuter refuses this body (its C parser rejects the GTE
    __asm__ blocks), so the shape has to be found by hand.
-void func_8007E3CC(u32* pOt) {
-    u8* pScratch;
-    BattleQuad* pQuad;
-    u32 dx;
-    u32 dy;
-    u32 dz;
-    u32 link;
-    u32 addr;
-    u32 tag;
-    u32* pLink;
-    long sz[2];
-    s32 i;
-
-    pScratch = (u8*)0x1F800000;
-    tag = 0x3000000;
-    dx = *(u32*)(pScratch + 0x0);
-    dy = *(u32*)(pScratch + 0x4);
-    dz = *(u32*)(pScratch + 0x8);
-    for (i = 0; i < D_800926B4; i++) {
-        pQuad = &D_80094818[i];
-        *(Bytes8*)(pScratch + 0x18) = *(Bytes8*)((u8*)pQuad + 0x10);
-        *(Bytes8*)(pScratch + 0x20) = *(Bytes8*)((u8*)pQuad + 0x18);
-        ((u16*)(pScratch + 0x18))[0] -= dx;
-        ((u16*)(pScratch + 0x18))[1] -= dy;
-        ((u16*)(pScratch + 0x18))[2] -= dz;
-        ((u16*)(pScratch + 0x20))[0] -= dx;
-        ((u16*)(pScratch + 0x20))[1] -= dy;
-        ((u16*)(pScratch + 0x20))[2] -= dz;
-        gte_ldv01(pScratch + 0x18, pScratch + 0x20);
-        gte_rtpt();
-        gte_stsxy01((u8*)pQuad + 0x8, (u8*)pQuad + 0xC);
-        gte_stsz2(sz);
-        pLink = &pOt[sz[0] >> 4];
-        link = *pLink;
-        addr = (u32)pQuad & 0xFFFFFF;
-        *pLink = addr;
-        *(u32*)addr = link | tag;
-    }
-}
- */
+*/
 
 void BattleSetSpriteTimer(s32 mode) {
     if (D_80092708 == 0 && mode == 0xA) {
