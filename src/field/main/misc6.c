@@ -841,25 +841,13 @@ extern s32 D_8005A444[];
 extern s32 D_8005A448;
 extern s32 D_8005A44C;
 
-// Screened 36 variants: best 99.36% here, cdk 96.03%, 2.6.0 99.36% - the reorg
-// delay-slot fill (`sll` into the beq slot) is the whole gap.
-// 99.36% (624 bytes; retail is 628). Everything matches except one delay slot: cc1
-// (reorg) puts the first insn of the fall-through block, `sll v0,v1,1` (part of
-// nActorIndex * sizeof(FieldActor)), into the `beq nActorIndex,0xFF` delay slot, and
-// retail leaves a `nop` there (retail's `sll` writes $v0, which the branch reads).
-// The `pActorSlots` local is what reproduces retail's `la $s0,D_8005A444` in the
-// entry block (without it gcc addresses D_8005A444 with %hi/%lo per use and the
-// frame loses $s0: 95.25%); case 1/2 must use the absolute symbols D_8005A448 /
-// D_8005A44C (both already in linker/undefined_syms_auto.field.txt) because retail
-// does, and case 0 goes through the pointer. Tried: if-wrap instead of the early
-// return, and three declaration orders - all identical. Parking for the reorg
-// delay-slot fill, which no source shape reached.
-volatile int func_8009FEE4(int partyMemberIndex) {
+// Retail returns the actor index only by accident: the non-void return type is what
+// keeps `sll v0,v1,1` out of the `beq nActorIndex,0xFF` delay slot.
+int func_8009FEE4(int partyMemberIndex) {
     s32* pActorSlots;
     s32 nActorIndex;
     s32 nWalkmeshFlags;
     ActorData* pActorData;
-    int new_var;
 
     pActorSlots = D_8005A444;
     nActorIndex = pActorSlots[partyMemberIndex];
@@ -867,11 +855,10 @@ volatile int func_8009FEE4(int partyMemberIndex) {
         return;
     }
     pActorData = g_FieldActors[nActorIndex].pActorData;
-    new_var = 0xFFF;
     nWalkmeshFlags = pActorData->walkmeshId << 14;
     switch (partyMemberIndex) {
         case 0:
-            FieldScriptMemoryWriteU16(0x2A, (g_GameSceneMapNum & new_var) | nWalkmeshFlags);
+            FieldScriptMemoryWriteU16(0x2A, (g_GameSceneMapNum & 0xFFF) | nWalkmeshFlags);
             FieldScriptMemoryWriteU16(0x2C, ((s16*)&g_FieldActors[pActorSlots[0]].pActorData->position)[1]);
             FieldScriptMemoryWriteU16(0x2E, ((s16*)&g_FieldActors[pActorSlots[0]].pActorData->position)[5]);
             break;
@@ -881,7 +868,7 @@ volatile int func_8009FEE4(int partyMemberIndex) {
             FieldScriptMemoryWriteU16(0x34, ((s16*)&g_FieldActors[D_8005A448].pActorData->position)[5]);
             break;
         case 2:
-            FieldScriptMemoryWriteU16(0x36, (g_GameSceneMapNum & new_var) | nWalkmeshFlags);
+            FieldScriptMemoryWriteU16(0x36, (g_GameSceneMapNum & 0xFFF) | nWalkmeshFlags);
             FieldScriptMemoryWriteU16(0x38, ((s16*)&g_FieldActors[D_8005A44C].pActorData->position)[1]);
             FieldScriptMemoryWriteU16(0x3A, ((s16*)&g_FieldActors[D_8005A44C].pActorData->position)[5]);
             break;
