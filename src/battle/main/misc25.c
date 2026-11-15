@@ -40,7 +40,9 @@ typedef struct {
 
 struct BattleModelNode {
     /* 0x00 */ BattleModelNode *pParent;
-    /* 0x04 */ u8 pad4[0x3];
+    /* 0x04 */ u8 unk4;
+    /* 0x05 */ u8 unk5;
+    /* 0x06 */ u8 pad6;
     /* 0x07 */ u8 unk7;
     /* 0x08 */ u8 pad8[0x2];
     /* 0x0A */ u16 unkA;
@@ -391,35 +393,35 @@ void BattleApplyNodeOffset(BattleModel *pModel, BattleModelNode *pNode, char fla
     mode = flags & 7;
     if (mode == 0) {
         if (flags & 0x20) {
-            *(u16 *)((u8 *)pNode + 0x54) += x;
-            *(u16 *)((u8 *)pNode + 0x56) += y;
-            *(u16 *)((u8 *)pNode + 0x58) += z;
+            pNode->rot[0] += x;
+            pNode->rot[1] += y;
+            pNode->rot[2] += z;
         } else {
-            *(u16 *)((u8 *)pNode + 0x54) = x;
-            *(u16 *)((u8 *)pNode + 0x56) = y;
-            *(u16 *)((u8 *)pNode + 0x58) = z;
+            pNode->rot[0] = x;
+            pNode->rot[1] = y;
+            pNode->rot[2] = z;
         }
     } else if (mode == 1) {
         if (flags & 0x20) {
-            *(s32 *)((u8 *)pNode + 0x5C) += x;
-            *(s32 *)((u8 *)pNode + 0x60) += y;
-            *(s32 *)((u8 *)pNode + 0x64) += z;
+            pNode->pos[0] += x;
+            pNode->pos[1] += y;
+            pNode->pos[2] += z;
         } else {
-            *(s32 *)((u8 *)pNode + 0x5C) = x;
-            *(s32 *)((u8 *)pNode + 0x60) = y;
-            *(s32 *)((u8 *)pNode + 0x64) = z;
+            pNode->pos[0] = x;
+            pNode->pos[1] = y;
+            pNode->pos[2] = z;
         }
     } else if (flags & 0x20) {
-        *(u16 *)((u8 *)pNode + 0x4C) += x;
-        *(u16 *)((u8 *)pNode + 0x4E) += y;
-        *(u16 *)((u8 *)pNode + 0x50) += z;
+        pNode->scale[0] += x;
+        pNode->scale[1] += y;
+        pNode->scale[2] += z;
     } else {
-        *(u16 *)((u8 *)pNode + 0x4C) = x;
-        *(u16 *)((u8 *)pNode + 0x4E) = y;
-        *(u16 *)((u8 *)pNode + 0x50) = z;
+        pNode->scale[0] = x;
+        pNode->scale[1] = y;
+        pNode->scale[2] = z;
     }
-    *(u8 *)((u8 *)pNode + 4) = 1;
-    *(u8 *)((u8 *)pNode + 5) = 1;
+    pNode->unk4 = 1;
+    pNode->unk5 = 1;
     if (flags & 0x80) {
         pChild = pModel->pNodes;
         for (i = 1; i < pModel->pNodes->unkA; i++) {
