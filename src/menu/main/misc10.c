@@ -330,7 +330,116 @@ void MenuApplyDressingRoomSlotHpBonus(MenuDressingRoom* pDressingRoom, u8 charIn
         }
     }
 }
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E36D4);
+void func_801E36D4(MenuDressingRoom* pDressingRoom, u8 charIndex) {
+    GameCharacter* pChar;
+    MenuShopAccessory* pAccessory;
+    MenuShopWeapon* pWeapon;
+    u8 value;
+    u8 i;
+
+    pChar = &g_GameState.characters[charIndex];
+    pChar->unk2D[0] = 0;
+    ((u16*)&pChar->unk2D[5])[0] = 0;
+    pChar->unk0[0x28] = 0;
+    pChar->unk0[0x29] = 0;
+    pChar->unk0[0x2A] = 0;
+    pChar->unk0[0x2B] = 0;
+    pChar->etherDefenseFromEquipment = 0;
+    pChar->unk2D[1] = 0;
+    pChar->unk2D[2] = 0;
+    pChar->unk2D[3] = 0;
+    pChar->unk2D[4] = 0;
+    ((u16*)&pChar->unk79[5])[0] = 0;
+    ((u16*)&pChar->unk79[9])[0] = 0;
+    ((u16*)&pChar->unk79[0xD])[0] = 0;
+    ((u16*)&pChar->unk79[0x11])[0] = 0;
+    ((u16*)&pChar->unk79[0x15])[0] = 0;
+    pChar->field_0xA1[0] = 0;
+
+    for (i = 0; i < 3; i++) {
+        pAccessory = pDressingRoom->pAccessoriesData;
+        pAccessory += pChar->unk74[i];
+        pChar->unk2D[0] += pAccessory->defense;
+        switch (pAccessory->unk9[0]) {
+        case 1:
+            ((u16*)&pChar->unk79[5])[0] |= ((u16*)&pAccessory->unk9[1])[0];
+            break;
+        case 2:
+            ((u16*)&pChar->unk79[9])[0] |= ((u16*)&pAccessory->unk9[1])[0];
+            break;
+        case 3:
+            ((u16*)&pChar->unk79[0xD])[0] |= ((u16*)&pAccessory->unk9[1])[0];
+            break;
+        case 4:
+            ((u16*)&pChar->unk79[0x11])[0] |= ((u16*)&pAccessory->unk9[1])[0];
+            break;
+        case 5:
+            ((u16*)&pChar->unk2D[5])[0] |= ((u16*)&pAccessory->unk9[1])[0];
+            break;
+        case 7:
+            ((u16*)&pChar->unk79[0x15])[0] |= ((u16*)&pAccessory->unk9[1])[0];
+            break;
+        case 8:
+        case 9:
+            pChar->unk2D[3] += pAccessory->unk9[1];
+            break;
+        case 10:
+            pChar->field_0xA1[0] += pAccessory->unk9[1];
+            break;
+        }
+        /* Retail keeps the byte at 0xC in one register across the eight bit
+           tests, and adds it as the left operand, so spell it that way. */
+        value = ((u8*)&pAccessory->unk9[3])[0];
+        if (*(s16*)&pAccessory->unk9[3] & 0x8000) {
+            pChar->unk0[0x28] = value + pChar->unk0[0x28];
+        }
+        if (((u16*)&pAccessory->unk9[3])[0] & 0x4000) {
+            pChar->unk0[0x29] = value + pChar->unk0[0x29];
+        }
+        if (((u16*)&pAccessory->unk9[3])[0] & 0x2000) {
+            pChar->unk0[0x2A] = value + pChar->unk0[0x2A];
+        }
+        if (((u16*)&pAccessory->unk9[3])[0] & 0x1000) {
+            pChar->unk0[0x2B] = value + pChar->unk0[0x2B];
+        }
+        if (((u16*)&pAccessory->unk9[3])[0] & 0x800) {
+            pChar->etherDefenseFromEquipment = value + pChar->etherDefenseFromEquipment;
+        }
+        if (((u16*)&pAccessory->unk9[3])[0] & 0x400) {
+            pChar->unk2D[1] = value + pChar->unk2D[1];
+        }
+        if (((u16*)&pAccessory->unk9[3])[0] & 0x200) {
+            pChar->unk2D[2] = value + pChar->unk2D[2];
+        }
+        if (((u16*)&pAccessory->unk9[3])[0] & 0x100) {
+            pChar->unk2D[0] = value + pChar->unk2D[0];
+        }
+    }
+
+    pWeapon = pDressingRoom->pWeaponsData;
+    pWeapon += pChar->unk6A[0];
+    pChar->unk0[4] = pWeapon->attack;
+    ((u16*)pChar->unk0)[0] = ((u16*)&pWeapon->unk7[1])[0];
+    pChar->unk0[2] = pWeapon->unk7[3];
+    pChar->unk0[3] = pWeapon->unk7[4];
+    if (pChar->unk56 == 4) {
+        pWeapon = pDressingRoom->pWeaponsData;
+        pWeapon += pChar->unk6F[0];
+        pChar->unk0[4] = pWeapon->attack;
+        ((u16*)pChar->unk0)[0] = ((u16*)&pWeapon->unk7[1])[0];
+        pChar->unk0[2] = pWeapon->unk7[3];
+        pChar->unk0[3] = pWeapon->unk7[4];
+        pWeapon = pDressingRoom->pWeaponsData;
+        pWeapon += pChar->unk6F[3];
+        pChar->unk0[0x1C] = pWeapon->attack;
+        ((u16*)&pChar->unk0[0x18])[0] = ((u16*)&pWeapon->unk7[1])[0];
+        pChar->unk0[0x1A] = pWeapon->unk7[3];
+        pChar->unk0[0x1B] = pWeapon->unk7[4];
+    }
+    if (pChar->unk0[3] == 0x64) {
+        ((u16*)&pChar->unk79[0x15])[0] |= ((u16*)pChar->unk0)[0];
+    }
+}
 void MenuComputeCharacterStats(MenuDressingRoom* pDressingRoom, u8 charIndex) {
     GameCharacter* pChar;
 
