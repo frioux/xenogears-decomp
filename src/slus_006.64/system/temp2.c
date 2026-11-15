@@ -205,6 +205,9 @@ void SpriteDrawProjected(WorkListEntry* pTask) {
     }
     pSpriteData->field_0x2e = nOTOffset;
 
+    // Bits 24-29 of the 0x3C word have no field in SpriteData: retail loads the
+    // word and shifts it (lw + srl), while the bitfields of the neighbouring
+    // bits narrow to lbu 0x3F.
     flags = *(u32*)((u8*)pSpriteData + 0x3C);
     if ((flags >> 24) & 1) {
         SpriteUpdateTransformMatrix(pSpriteData);
@@ -214,6 +217,8 @@ void SpriteDrawProjected(WorkListEntry* pTask) {
         TransMatrix(&pSpriteData->pBase->transformMatrix, (VECTOR*)vecTrans);
         SetRotMatrix(&pSpriteData->pBase->transformMatrix);
         SetTransMatrix(&pSpriteData->pBase->transformMatrix);
+        // Re-read rather than reuse flags: retail reloads the word here because
+        // the GTE calls above clobber the register it was in.
         if ((*(u32*)((u8*)pSpriteData + 0x3C) >> 25) & 1) {
             nOTOffset = 0xFFF;
         } else {
@@ -393,6 +398,10 @@ void SpriteDrawModelParts(WorkListEntry* pTask) {
         }
         SetRotMatrix(&matrix);
         SetTransMatrix(&matrix);
+        // pFramesData is a scalar in the shared SpriteDataI1, so the per-context
+        // entry (0x2C/0x30) is picked by index, as in GfxSetRenderContext; bit 2
+        // of the upper half of field_0x40 is read as a halfword (lhu 0x42) and
+        // the word field has no half of its own.
         ModelRenderPacket(pSpriteData->pBase->pDirTransforms,
                           ((void**)&pSpriteData->pBase->pFramesData)[g_GfxCurContext],
                           g_GfxCurOT, ((u16*)&pSpriteData->field_0x40)[1] & 4);
@@ -406,7 +415,9 @@ extern MATRIX D_8004FDA0;
 
 // The standalone base object pBase points at carries a second rotation/scale
 // pair past the 0x40 SpriteDataI1 covers; SVECTOR's 8-byte size puts the scale
-// exactly where D_8004FD80 keeps its 0xC00 identity diagonal.
+// exactly where D_8004FD80 keeps its 0xC00 identity diagonal. The cast is
+// written at each read on purpose: one pointer local across the D_8004FD80
+// stores turns retail's four pBase reloads into one and costs the match (93%).
 typedef struct {
     /* 0x00 */ SpriteDataI1 base;
     /* 0x40 */ u32 unk40;
@@ -466,6 +477,9 @@ void SpriteDrawLitModelParts(WorkListEntry* pTask) {
             ReadGeomOffset(&geomOffsetX, &geomOffsetY);
             SetGeomOffset(0xA0, 0x70);
         }
+        // Unspellable as fields, for the reasons in SpriteDrawModelParts: bits
+        // 24-29 of the 0x3C word (lw + srl), the three-bit value in its low byte
+        // (lbu + srl), and the per-context frames data.
         if ((*(u32*)((u8*)pSpriteData + 0x3C) >> 25) & 1) {
             oldShift = D_80050100;
             D_80050100 = 0x10;
@@ -507,6 +521,7 @@ void SpriteDrawModelPartsInBaseMatrix(WorkListEntry* pTask) {
         pSpriteData->pBase->transformMatrix.t[2] = D_8004FBB8.t[2] + vecResult.vz;
         SetRotMatrix(&pSpriteData->pBase->transformMatrix);
         SetTransMatrix(&pSpriteData->pBase->transformMatrix);
+        // Same three unspellable reads as SpriteDrawLitModelParts.
         if ((*(u32*)((u8*)pSpriteData + 0x3C) >> 25) & 1) {
             oldShift = D_80050100;
             D_80050100 = 0x10;
