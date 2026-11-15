@@ -14,8 +14,6 @@ extern void func_800B51B0();
 extern void func_800B50D4();
 extern void func_800B5588();
 extern u8 D_800C356C[];
-extern u8* WorkListsAddTasks(s32 allocSize, void* pData, void* pTimerCallback, void* pWorkCallback,
-                             void* pOnFreeCallback);
 extern void BattleIntegrateSpriteVelocityTask();
 extern void func_800B5DF4();
 extern void func_800B6004();
@@ -31,6 +29,40 @@ typedef struct {
     /* 0x4 */ u8 unk4;
     /* 0x5 */ u8 unk5;
 } BattleScriptOp;
+
+// WorkListEntry of include/system/animation.h; an overlay unit cannot include that header
+// (it holds tentative definitions of main-exe globals), so the layout is repeated. Both
+// entries WorkListsAddTasks fills in point unk4 back at the block they were allocated in.
+typedef struct BattleDirectionTask BattleDirectionTask;
+
+typedef struct WorkListEntry {
+    /* 0x00 */ void* unk0;
+    /* 0x04 */ BattleDirectionTask* pTask;
+    /* 0x08 */ void* onTriggerCallback;
+    /* 0x0C */ void* onFreeCallback;
+    /* 0x10 */ u32 unk10;
+    /* 0x14 */ u32 unk14;
+    /* 0x18 */ struct WorkListEntry* pNext;
+} WorkListEntry; // Size: 0x1C
+
+// The 0xB8-byte block WorkListsAddTasks allocates for the direction-transform task: the
+// timer and work entries, then the task's own fields.
+struct BattleDirectionTask {
+    /* 0x00 */ WorkListEntry timerTask;
+    /* 0x1C */ WorkListEntry workTask;
+    /* 0x38 */ SpriteData* pSpriteData;
+    /* 0x3C */ u32 curSpriteFrame;
+    /* 0x40 */ s32 unk40;
+    /* 0x44 */ u32 unk44;
+    /* 0x48 */ s32 unk48;
+    /* 0x4C */ u8* pArgs;
+    /* 0x50 */ SVECTOR unk50[5];
+    /* 0x78 */ SVECTOR unk78[5];
+    /* 0xA0 */ u8 unkA0[0x18];
+}; // Size: 0xB8
+
+extern BattleDirectionTask* WorkListsAddTasks(s32 allocSize, void* pData, void* pTimerCallback,
+                                              void* pWorkCallback, void* pOnFreeCallback);
 
 // Split out of main/misc27 (see config/battle.yaml): compiled with gcc 2.7.2-cdk,
 // which the callback cluster in this function range needs.
@@ -130,30 +162,32 @@ void func_800B50D4(u8* pActor, u8* pArg) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc27", func_800B50D4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc27", func_800B51B0);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc27", func_800B5588);
-void func_800B56E4(u8* pWork) {
-    u8* pSprite;
+void func_800B56E4(WorkListEntry* pWork) {
+    BattleDirectionTask* pTask;
 
-    pSprite = *(u8**)(pWork + 0x4);
-    func_8001E148(*(void**)(pSprite + 0x38));
-    func_800C08CC(5, pSprite + 0x78, func_800B51B0);
+    pTask = pWork->pTask;
+    func_8001E148(pTask->pSpriteData);
+    func_800C08CC(5, pTask->unk78, func_800B51B0);
 }
 
-void func_800B572C(u8* pActor, u8* pArg) {
-    u8* pTasks;
+void func_800B572C(SpriteData* pSpriteData, u8* pArgs) {
+    BattleDirectionTask* pTask;
 
-    pTasks = WorkListsAddTasks(0xB8, *(void**)(pActor + 0x6C), func_800B5588, func_800B56E4, 0);
-    *(u8**)(pTasks + 0x38) = pActor;
-    *(u32*)(pTasks + 0x3C) = *(u16*)(pActor + 0x34);
-    *(s32*)(pTasks + 0x40) = *(s8*)(pActor + 0xAF);
-    *(u8**)(pTasks + 0x4C) = pArg;
-    *(u32*)(pTasks + 0x44) = *(u8*)(pActor + 0x3C) >> 5;
-    if (*(u8*)pArg == 0) {
-        *(s32*)(pTasks + 0x48) = 4;
+    pTask = WorkListsAddTasks(sizeof(BattleDirectionTask), pSpriteData->field_0x6C, func_800B5588,
+                              func_800B56E4, NULL);
+    pTask->pSpriteData = pSpriteData;
+    // Read as unsigned: curSpriteFrame is s16 in the struct but -1 is a valid frame
+    pTask->curSpriteFrame = *(u16*)&pSpriteData->curSpriteFrame;
+    pTask->unk40 = *(s8*)((u8*)pSpriteData + 0xAF);
+    pTask->pArgs = pArgs;
+    pTask->unk44 = *(u8*)((u8*)pSpriteData + 0x3C) >> 5;
+    if (pArgs[0] == 0) {
+        pTask->unk48 = 4;
     } else {
-        *(s32*)(pTasks + 0x48) = *(u8*)pArg;
+        pTask->unk48 = pArgs[0];
     }
-    func_800B50D4(pActor, pTasks + 0x78);
-    func_800B50D4(pActor, pTasks + 0x50);
+    func_800B50D4(pSpriteData, pTask->unk78);
+    func_800B50D4(pSpriteData, pTask->unk50);
 }
 long func_800B57E4(u8* pActor) {
     VECTOR v;
