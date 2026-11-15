@@ -239,9 +239,9 @@ void func_800B36BC(void *pArg) {
     step[0] = step[0] / (pTask->length >> 1);
     step[1] = step[1] / (pTask->length >> 1);
     step[2] = step[2] / (pTask->length >> 1);
-    pTask->curR = pTask->targetR - (u8)step[0];
-    pTask->curG = pTask->targetG - (u8)step[1];
-    pTask->curB = pTask->targetB - (u8)step[2];
+    pTask->curR = pTask->targetR - step[0];
+    pTask->curG = pTask->targetG - step[1];
+    pTask->curB = pTask->targetB - step[2];
 }
 
 void BattleFreeScreenFadeTask(u8 *pEntry) {
