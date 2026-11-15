@@ -71,28 +71,25 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BD098);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BD1FC);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BD2E4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BD3AC);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BD7A0);
-/* best 86.25%: retail materialises the head symbol once, `lui a2,%hi` at the
-   top, and folds `%lo(D_800C3750)` into both the load and the store through
-   $a2. gcc emits the bare asm macro for the load (gas expands it with $v0/$at)
-   and re-forms the address with `lui $at` for the store. Going through a local
-   `u8 **ppHead = &D_800C3750` gives lui+addiu in $a1 instead. Retail also
-   copies the parameter to $a1 at entry; gcc compares $a0 directly.
-extern void WorkListsDeleteTasks(void);
 extern u8 *D_800C3750;
+extern void WorkListsDeleteTasks(void);
 
 void func_800BD7A0(u8 *pEntry) {
     u8 *pCur;
     u8 *pPrev;
+    u8 *new_var2;
+    short new_var;
 
+    new_var2 = D_800C3750;
     pPrev = NULL;
-    pCur = D_800C3750;
+    pCur = new_var2;
     while (pCur != NULL) {
-        if (pCur == pEntry) {
-            if (pPrev != NULL) {
-                *(u8 **)(pPrev + 0x38) = *(u8 **)(pCur + 0x38);
+        if (new_var2 == pEntry) {
+            new_var = pPrev != NULL;
+            if (new_var) {
+                *(u8 **)(pPrev + 0x38) = *(u8 **)(new_var2 + 0x38);
             } else {
-                D_800C3750 = *(u8 **)(pCur + 0x38);
+                D_800C3750 = *(u8 **)(new_var2 + 0x38);
             }
             break;
         }
@@ -101,7 +98,6 @@ void func_800BD7A0(u8 *pEntry) {
     }
     WorkListsDeleteTasks();
 }
-*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BD810);
 
 void func_800BD974(SVECTOR *pVec, s32 *pOut) {
