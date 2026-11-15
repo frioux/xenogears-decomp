@@ -243,49 +243,35 @@ void BattleWordRegSetReg(u8 **p, u8 index) {
     base = D_800D3420;
     ((u16 *)(base + index * 0x40))[pArgs[2]] = ((u16 *)(base + index * 0x40))[pArgs[1]];
 }
-// best: 85.33%, permuter score 80. The copy inside the second subscript closed
-// everything except the prologue: retail loads *p into v0 first and then forms
-// the D_800D3410 base into a0 (reusing dead p); gcc forms the base into v1 (a0
-// when the do-while wrapper is dropped, 84.67) and loads *p after. Same
-// allocator tie as BattleWordRegSetReg. The do-while wrapper is load-bearing.
-// Tried and no better: base u8 local 73.33, base local plus dead pField 66.27,
-// *p written inline twice 78.67, u32 value temp 67.87, pre-assigned pArgsCopy
-// 84.67, pField + (pArgs - pArgs) to delay the base 85.33, 3025 permuter
-// iterations from base 80.
-// The base-first order survives every source order tried (round 76): pArgs
-// declared first 84.67, both bases inline 74.33, two-statement base split 58.67,
-// u8 slot copy 84.67, volatile *p read 84.67, index term first 84.67, typed
-// u32* base + index * 16 84.67, load and base in one do-while 82.67, plus a
-// third permuter run (2026 iterations, base=80 best=80). That it is emission
-// order and not an allocator tie is shown by BattleByteRegSetReg, the same
-// table family one function earlier: it is matched with retail's base-then-load
-// order, so retail's load-first here needs a dependency the source has none of.
-// screened: identical 84.67% under Default, 2.7.2-cdk and 2.6.0 - a register
-// allocation tie, not a compiler question.
-// ROUND 78: the emission order IS movable, and the remaining diff is narrower
-// than "the load must come first". Two shapes get retail's order:
-//   a) `s32 slot = index * 0x40;` declared after pArgs, base spelled INLINE in
-//      both subscripts ((u32 *)(D_800D3410 + slot))[k] -> andi, sll, lw v0,0(a0),
-//      lui a0, addiu a0 exactly; 79.67% because gcc then sums slot+base twice
-//      (16 insns, addu v1,v1,a1 / addu v1,v1,a0 pairs).
-//   b) the pField local + both stores wrapped in do { } while (0) AFTER the
-//      load -> the load is hoisted to the first instruction, then andi/sll,
-//      then lui/addiu; 84.67% with the load in a0 and the base in v0, i.e. the
-//      exact mirror of (a) and of retail (retail: load v0, base a0).
-// So retail's build gave the register freed by the dead parameter to the BASE
-// and my builds give it to the LOAD; every other insn matches in (b). Next
-// lever to try: something that makes the load's result not tie to a0 (a second
-// use of p, a u8 copy of the loaded pointer, the base written before the load
-// inside the do-while but assigned after it) - not more statement reordering.
+// best: 98.33%, permuter score 25 (2084 iterations from this body found
+// nothing; three earlier runs from the 85.33% body also stalled). Retail is
+// 60 bytes, same as this body, and the only difference is which register holds
+// the D_800D3410 + index*0x40 sum: retail `addu a1,a1,a0` (the slot register),
+// this body `addu a0,a0,a1` (the base register). The load-first header
+// (andi, sll, lw v0,0(a0), lui a0, addiu a0) matches exactly.
+// The addu destination is fixed by the C operand order, and the two orders are
+// mutually exclusive here: every index-first spelling of the sum
+// ((u32 *)D_800D3410 + index * 0x10, D_800D3400[index].unk10,
+// &D_800D3400[index].unk10[0], (mem_addr)D_800D3410 + index * 0x40, a slot
+// local, and the double-negated index-first form) gives retail's operand order
+// but materialises the base into v1 BEFORE the *p load (85.33%); base-first
+// keeps the header and only the sum's register differs. The do-while wrapper
+// and the dead pArgsCopy are load-bearing. Screened: same score under
+// Default, 2.7.2-cdk and 2.6.0, so not a compiler question.
 /*
 void func_8007B9C8(u8 **p, u8 index) {
     u8 *pArgs = *p;
+    u8 *pNext;
     u8 *pArgsCopy;
     u32 *pField;
+    u8 *pBase;
 
-    pField = (u32 *)(D_800D3410 + index * 0x40);
+    pBase = D_800D3410 - (-(index * 0x40));
+    pField = (u32 *)pBase;
     do {
-        pField[pArgs[2]] = pField[(pArgsCopy = pArgs)[1]];
+        pNext = pArgs;
+        pArgs = &(pArgsCopy = pNext)[1];
+        pField[pNext[2]] = pField[*pArgs];
     } while (0);
 }
 */
