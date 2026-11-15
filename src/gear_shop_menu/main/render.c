@@ -1482,26 +1482,31 @@ void GearShopMenuBuildGearPartNameGraphics(u8 itemType) {
     HeapFree(pWorkspace);
 }
 // https://decomp.me/scratch/5HauM
+// PARKED: 96.75%, 2508 bytes. Retail is 2532 = 633 insns; 110 of 112 instruction
+// segments are exact. The two that differ are ONE root cause: retail emits the per-case
+// `equipFlags` load / `price = value` copy / spill suffix TWICE (once shared by the ARMOR
+// and FRAME cases -- armor ends `j` into the frame block, delay slot `nop` -- and once
+// inline for the ENGINE case) where gcc 2.6.0 merges all three into one copy (-6 insns).
+// Retail's ENGINE copy exists only because its element address lands in $v1
+// (`sll v0,v0,4; addu v1,v0,v1; lhu s3,10(v1); lw v1,0(v1)`) while ARMOR/FRAME use $a0
+// (`addu a0,v0,v1`); we get $v0 at every site, so the three blocks compare equal after
+// reload and gcc keeps one. The remaining 1-insn difference is the `places[]` base:
+// retail `lw t1,120(sp); addiu a1,t1,16`, ours `addiu a1,sp,48`.
+// Fixed here, do not undo: `equipFlags` MUST be declared before `sellPrice` (that is what
+// puts equipFlags at 0x68 and sellPrice at 0x70); the case-block order, the jtbl
+// (5 words + 4-byte pad at 0x801C5068), the prologue and every other reloc are exact.
+// Proved dead ends (each re-diffed; all stay 2508 bytes with ONE merged copy): element
+// pointer locals in all four indexed-vs-pointer combinations across the three cases
+// (gcc folds them back to $v0); every statement order of `value`/`price`/`equipFlags`
+// in the engine case, including equipFlags first and a `do { } while (0)` cluster; an
+// extra s32/u32 temp for the price or for the flags; the pointer assignment moved above
+// sellPrice; gcc 2.7.2-psx (96.4%) and gcc-2.7.2-cdk-psx (83.59%) - the unit's 2.6.0
+// is right; two permuter runs (best candidates were variable-reuse games: pFrame holding
+// &rect, equipFlags read through the u8 itemType).
+// The known-cheating `value = equipFlags; equipFlags = value;` in the engine case does
+// unmerge 4 of those 6 insns (97.37%, 2524 bytes) but swaps what the digit loop renders
+// for engines, so it is not shippable.
 INCLUDE_ASM("asm/gear_shop_menu/nonmatchings/main/render", func_801D2B74);
-// PARKED: 96.75%, 2508 bytes (retail is 2532 = 633 insns, ours 627). Everything matches except the
-// cross-jumping of the per-case `equipFlags` load / `price = value` / spill suffix. Retail emits that
-// suffix TWICE: once shared by the gear ARMOR and FRAME cases (the armor case ends `j` into the frame
-// block, delay slot `nop`) and once inline for the ENGINE case, whose element address sits in $v1
-// (`addu v1,v0,v1; lhu s3,10(v1); lw v1,0(v1); move s8,s3; j; sw v1,104(sp)`). Our compile computes
-// `addu v0,v0,v1` in all three cases, so gcc 2.6.0 finds all three suffixes identical and keeps ONE
-// copy (-6 insns, -24 bytes). Making the engine case's block differ at the source level is the whole
-// remaining problem; the "value = equipFlags; equipFlags = value;" two-variable hack below does
-// unmerge 4 of those 6 insns (97.37%, 2524 bytes) but swaps what the digit loop renders for engines
-// (equipFlags instead of price), so it is not in this body.
-// Also open (worth 1 insn): retail reaches the `places[]` base as `lw t1,120(sp); addiu a1,t1,16`
-// (from the pRect spill), ours as `addiu a1,sp,48`.
-// Fixed in this body and not to be undone: `equipFlags` MUST be declared before `sellPrice` (that is
-// what puts equipFlags at 0x68 and sellPrice at 0x70); the five case bodies, the block order, every
-// reloc and the prologue already match instruction-for-instruction.
-// Proved dead ends: element pointer locals at the three price/equipFlags sites (gcc folds them back
-// into the addu); `pEngine = pGearEngines; pEngine[id].price`; two permuter runs (1474 -> 1033 -> 1284,
-// best candidates are variable-reuse games: pFrame holding &rect, or loading equipFlags through the
-// u8 itemType). jtbl_801C5068 is the 5-word table + its 4-byte pad, correct in this body.
 /*
 s32 func_801D2B74(s32 scrollOffset, s32 funds, u8* pItemAffordable) {
     RECT rect;
