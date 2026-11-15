@@ -101,28 +101,17 @@ typedef struct {
 #define g_GfxSpriteTileLists ((LinkedListEntry**)&D_80059300)
 
 // This function is in another TU than func_80024F64 due to GP Rel variables
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_800250E0);
-/*
-Un-park screen: cdk 87.38%, gcc-2.6.0 70.20%, gcc-2.7.2 70.20%, cdk -O3
-87.38%, cdk -G0 69.00%, and aspsx 2.56 scores the same as 2.67 - no compiler
-switch helps; the GP-rel split below is the whole gap. Body must keep
-s32 D_80059524; as a tentative definition (maspsx emits %gp_rel only then).
-Best 87.38%: blocked on the GP-rel split. The original object reads
-
-g_GfxWorkBuffers through %hi/%lo here (it was an extern in this function's
-original TU) but through %gp_rel in GfxAllocateWorkBuffers, which defines it.
-maspsx decides per symbol, so one temp2.c cannot produce both spellings; the
-only diff is `lw a0,0(gp); addu v1,v1,a0` vs `lui v0,%hi; addiu v0,v0,%lo;
-addu v1,v1,v0; lw v0,0(v1)`.
-Declare D_80059524 as a tentative definition (not extern) so maspsx emits
-%gp_rel for it.
+// g_GfxWorkBuffers and the g_GfxWorkBuffer2 that follows it are the two
+// per-context buffer bases, reached as one array through the symbol's address.
 s32 D_80059524;
-void func_800250E0(int context) {
-    void* pPrimBuffer;
-    LinkedListEntry* pCurEntry;
 
-    pCurEntry = g_GfxSpriteTileLists[context];
-    pPrimBuffer = ((void**)g_GfxWorkBuffers)[context];
+void func_800250E0(int context) {
+    s32* pLists;
+    LinkedListEntry* pCurEntry;
+    void* pPrimBuffer;
+
+    pCurEntry = ((LinkedListEntry**)(pLists = &D_80059300))[context];
+    pPrimBuffer = ((void**)&g_GfxWorkBuffers)[context];
     g_GfxCurContext = context;
     g_GfxCurWorkBuffer = pPrimBuffer;
     D_80059524 = pPrimBuffer;
@@ -131,11 +120,8 @@ void func_800250E0(int context) {
         HeapFree(pCurEntry->pData);
         pCurEntry = pCurEntry->pNext;
     }
-
     g_GfxSpriteTileLists[context] = NULL;
 }
-*/
-
 // GfxQueueSpriteTileData
 void func_80025180(void* pData) {
     LinkedListEntry* pNewEntry;
