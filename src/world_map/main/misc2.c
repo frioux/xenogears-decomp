@@ -260,6 +260,7 @@ void func_80075228(void) {
     flags = g_GameState.unk1834;
     D_8009D64C = 1;
     if (!(flags & 0x4000)) {
+        // retail reuses the flags temporary's register for the width
         flags = 0x180;
         screenWidth = flags;
     } else {
