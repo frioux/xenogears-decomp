@@ -1072,13 +1072,15 @@ void FieldPlayerSetScriptFlag80(void) {
 // reloaded base and the offset are all local-alloc quantities and gcc 2.7.2 always
 // takes the first free $v0; retail's $v1 dest needs the offset quantity to be
 // preferred, which no source shape reached.
-/*
 void func_800A0C94(void) {
     FieldActor* pFieldActor;
     SpriteData* pSpriteData;
+    FieldActor* pFieldActor2;
+    FieldActor* pFieldActor3;
     ActorData* pActor;
     s16* pPosition;
     s32 x;
+    u16 nComp;
     s32 y;
     s32 z;
     s32 offset;
@@ -1088,18 +1090,21 @@ void func_800A0C94(void) {
     offset = D_800AFD1C * sizeof(FieldActor);
     pFieldActor = (FieldActor*)(offset + (s32)g_FieldActors);
     pPosition = (s16*)&pActor->position;
+    nComp = 0;
 
     x = pPosition[1];
     pSpriteData = pFieldActor->pSpriteData;
-    pFieldActor->transformMatrix.t[0] = x;
+    pFieldActor->transformMatrix.t[nComp] = x;
+    pFieldActor2 = (FieldActor*)(offset + (s32)g_FieldActors);
     pFieldActor->childMatrix.t[0] = x;
 
     y = pPosition[3];
-    pFieldActor = (FieldActor*)(offset + (s32)g_FieldActors);
+    pFieldActor3 = (FieldActor*)(offset + (s32)g_FieldActors);
+    pFieldActor = pFieldActor2;
     pFieldActor->transformMatrix.t[1] = y;
     pFieldActor->childMatrix.t[1] = y;
 
-    pFieldActor = (FieldActor*)(offset + (s32)g_FieldActors);
+    pFieldActor = pFieldActor3;
     z = pPosition[5];
     pFieldActor->transformMatrix.t[2] = z;
     pFieldActor->childMatrix.t[2] = z;
@@ -1113,9 +1118,6 @@ void func_800A0C94(void) {
     pSpriteData->field_0x84 = curY;
     pActor->curYPos = curY;
 }
-*/
-INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_800A0C94);
-
 void FieldScriptVMHandlerSetActorModelFromSpriteIndex0(void) {
     func_80076AC0(D_800AFD1C, 0, (void*)((*(s32*)(g_FieldSpriteData + 4)) + (s32)g_FieldSpriteData), 0, 0, 0x80, 1);
     func_800A0C94();
