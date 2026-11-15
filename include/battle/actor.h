@@ -152,7 +152,10 @@ typedef struct {
     /* 0x003 */ u8 unk03;
     /* 0x004 */ u8 unk04[0x34];
     /* 0x038 */ u16 unk38;
-    /* 0x03A */ u8 unk3A[0x1C];
+    /* 0x03A */ u8 unk3A[0x12];
+    /* 0x04C */ u16 unk4C; // hp, scaled by 50 into +0x104
+    /* 0x04E */ u16 unk4E; // max hp, scaled by 50 into +0x108
+    /* 0x050 */ u8 unk50[0x6];
     /* 0x056 */ u8 unk56;
     /* 0x057 */ u8 unk57[0x4];
     /* 0x05B */ u8 unk5B;
@@ -168,7 +171,18 @@ typedef struct {
     /* 0x08A */ u16 unk8A;
     /* 0x08C */ u16 unk8C;
     /* 0x08E */ u16 unk8E;
-    /* 0x090 */ u8 unk90[0xCA];
+    /* 0x090 */ u8 unk90[0x74];
+    /* 0x104 */ u32 unk104;
+    /* 0x108 */ u32 unk108;
+    /* 0x10C */ u8 unk10C[0x14];
+    /* 0x120 */ u16 unk120;
+    /* 0x122 */ u16 pad122;
+    /* 0x124 */ u16 unk124;
+    /* 0x126 */ u16 unk126;
+    /* 0x128 */ u8 unk128[0x20];
+    /* 0x148 */ u8 unk148;
+    /* 0x149 */ u8 unk149;
+    /* 0x14A */ u8 unk14A[0x10];
     /* 0x15A */ u8 unk15A;
     /* 0x15B */ u8 unk15B[0x15];
 } BattleTableEntry; // Size: 0x170
