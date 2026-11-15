@@ -273,7 +273,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80071EF0);
    regardless, because the address pseudo is created after the store. Dead end
    unless the address comes from a runtime base.
    Round 51: permuter 434 iterations, base=125 best=125 - no lever in the body.
-*/
+
 void func_80071EF0(void) {
     void* pBuffer;
     StreamDataQueueEntry* pQueue;
@@ -293,6 +293,7 @@ void func_80071EF0(void) {
     D_8009D40C = D_8009BD20;
     func_80029AFC(pQueue, 0, 0);
 }
+*/
 
 void WorldMapQueueTwoFileLoads(void) {
     void* pBuffer;
