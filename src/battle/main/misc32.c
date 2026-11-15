@@ -9,6 +9,7 @@ extern void TimerWorkListRemoveTask(void *pTask);
 // left unprototyped: the ramp passes a third argument the callee (misc31) does not read
 extern void BattleSetSpriteColorFromAngle();
 extern MATRIX D_800D30BC;
+extern u8 D_800C3EB0[];
 
 /* Built with XenoBattleTailCdk0 (gcc-2.7.2-cdk, -G0). With -G0 the cdk cc1 splits
    every absolute symbol access itself (`lui $r,%hi(sym)` / `%lo(sym)($r)`, any free
@@ -93,7 +94,90 @@ void BattleFreeEffectSpriteTask(BattleEffectTask *pTask) {
 }
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BD098);
+extern s32 D_800C360C;
+
+// best 91.07%: the instruction multiset and the frame are retail's; what is left
+// is register choice and statement order. Retail loads the call's last argument
+// (`lbu a2,0x150(a1)`) before the two global stores, keeps the sprite in $t0 (so
+// $a0 can hold the 0x174 byte) and puts the row sum straight into $v0 in the tail.
+// Tried: direct call arguments instead of the `kind` local, pByte/pHalf swapped in
+// the declaration list, an `s32 offset` local, an `s32 row` local (that one
+// restructures the head), and both pointer-cast spellings of the row base.
+// Realistic form: the row is a 0x48-byte record of four 11-entry arrays (u16 at
+// +0x138, u8 at +0x150, u16 at +0x15C, u8 at +0x174 - the block misc12 reaches as
+// D_800C3FE8[]), indexed by D_800C360C - 1; a slot's sprite is at +0x8C8C.
+/*
+void func_800BD1FC(s32 slot) {
+    u8 *pBase;
+    u8 *pRow;
+    u8 *pHalf;
+    u8 *pByte;
+    s32 offset;
+    s32 kind;
+    void *pSprite;
+
+    pBase = D_800C3EB0;
+    pRow = pBase + (D_800C360C - 1) * 0x48;
+    offset = slot * 2;
+    pByte = pRow + slot;
+    if (pByte[0x150] == 0xFF) {
+        return;
+    }
+    pHalf = (u8 *)(offset + pRow);
+    if (*(u16 *)(pHalf + 0x138) == 0xFFFF) {
+        return;
+    }
+    pSprite = *(void **)(pBase + slot * 4 + 0x8C8C);
+    if (pSprite == NULL) {
+        return;
+    }
+    kind = pByte[0x150];
+    D_800C3D38 = *(u16 *)(pHalf + 0x15C);
+    D_800D3630 = pByte[0x174];
+    func_800BD3AC(pSprite, *(u16 *)(pHalf + 0x138), kind);
+    pRow = pBase + (D_800C360C - 1) * 0x48;
+    *(u16 *)(offset + pRow + 0x138) = 0xFFFF;
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BD1FC);
+
+// best 94.66%: only two differences. (1) Retail re-forms `lui v0,%hi(D_800C360C)`
+// every iteration and loads through it; gcc 2.7.2 hoists the %hi into $s3, which
+// costs the fifth saved register ($s4 for pBase) and makes the frame 0x2C instead
+// of 0x28. A volatile declaration of the global did not stop the hoist, and a
+// pointer / array / struct spelling of it changes nothing. (2) Retail's row sum is
+// `addu v0,v0,s3` with pBase in $s3; ours is the same sum with pBase in $s4.
+// Everything else, including the `li 0x8C8C` in the compare's delay slot and the
+// row store order, is exact.
+/*
+void func_800BD2E4(void) {
+    u8 *pSlot;
+    u8 *pBase;
+    s32 row;
+    void **pEntry;
+    void *pSprite;
+    u8 flag;
+    s32 i;
+
+    flag = 0;
+    i = 0;
+    pSlot = D_800C3EB0;
+    pBase = pSlot;
+    while (i != 0xB) {
+        row = (D_800C360C - 1) * 0x48;
+        if (pBase[row + i + 0x150] == 7) {
+            flag = 1;
+        }
+        pEntry = (void **)(pSlot + 0x8C8C);
+        pSprite = *pEntry;
+        if (pSprite != NULL && (D_800C3E1C != pSprite || !flag)) {
+            func_800BD1FC(i);
+        }
+        pSlot += 4;
+        i++;
+    }
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BD2E4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BD3AC);
 extern u8 *D_800C3750;
