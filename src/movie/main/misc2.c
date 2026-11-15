@@ -563,7 +563,6 @@ void MovieFadeAudioOnPadPress(void) {
         D_80077014 = 5;
     }
 }
-*/
 
 void MovieInitGteState(void) {
     MATRIX* pColorMatrix;
