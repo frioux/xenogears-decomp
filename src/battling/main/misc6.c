@@ -177,7 +177,6 @@ void func_8007E3CC(u32* pOt) {
     u32 dz;
     u32 link;
     u32 addr;
-    u32 tag;
     u32* pLink;
     long sz[2];
     s32 i;
@@ -189,8 +188,8 @@ void func_8007E3CC(u32* pOt) {
     dz = *(u32*)(pScratch + 0x8);
     i = 0;
     while (i < D_800926B4) {
-        *(Bytes8*)(pScratch + 0x18) = *(Bytes8*)((u8*)pQuad + 0x10);
-        *(Bytes8*)(pScratch + 0x20) = *(Bytes8*)((u8*)pQuad + 0x18);
+        *(Bytes8*)(pScratch + 0x18) = *(Bytes8*)&pQuad->v0;
+        *(Bytes8*)(pScratch + 0x20) = *(Bytes8*)&pQuad->v1;
         ((u16*)(pScratch + 0x18))[0] -= dx;
         ((u16*)(pScratch + 0x18))[1] -= dy;
         ((u16*)(pScratch + 0x18))[2] -= dz;
@@ -210,24 +209,6 @@ void func_8007E3CC(u32* pOt) {
         pQuad++;
     }
 }
-/* parked note (best 88.67%) :
-   0x1F800018/0x1F800020, all six u16 translation subtractions, gte_ldv01 +
-   RTPT, gte_stsxy01 into quad+8/quad+0xC, the SZ2 read and the 0x03000000 OT
-   link are all exact (frame 0x10 too). Residual: retail keeps TWO induction
-   bases (t0 = &D_80094818 and a3 = t0+0xC, both +0x20 per iteration) and so
-   reaches the copy with 4(a3)/0xC(a3); ours folds them into one base and uses
-   0x10/0x18 off it. Retail also builds &D_80094818 (lui/addiu) before the
-   scratchpad loads, ours after. Tried: an explicit pPack = quad+0xC pointer for
-   the copies and the stsxy01 (worse, 88.64 - gcc re-associates back onto the
-   quad base), a literal 0x3000000 in the link store with a long sz[4] local
-   (89.17 but frame 0x18), declaring the copies through BattleQuad->v0/v1.
-   Note gte_stsz1/gte_stsz2 were added to include/psyq/inline_c.h for this.
-   Re-checked round 51: still 88.67%. a3 is &quad->y (0xC) and retail advances
-   BOTH pointers by hand (t0 in the bnez delay slot, a3 in the body), so the
-   original source had two pointer locals stepping 0x20 - not one base plus a
-   folded offset. The permuter refuses this body (its C parser rejects the GTE
-   __asm__ blocks), so the shape has to be found by hand.
-*/
 
 void BattleSetSpriteTimer(s32 mode) {
     if (D_80092708 == 0 && mode == 0xA) {
