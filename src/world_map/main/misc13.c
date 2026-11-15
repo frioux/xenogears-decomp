@@ -388,14 +388,15 @@ s32 WorldMapGetTilePlaneHeight(s32 x, s32 z) {
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_80093A5C);
 s32 func_80093E8C(WorldMapPos* p) {
     s16 idx;
+    s16 baseOffset;
     s32 sub;
     s32 pBase;
 
     idx = ((p->z >> 20) / 8) * D_8009D160 + (p->x >> 20) / 8;
     pBase = D_8009C184[idx];
-    idx = 0x510;
+    baseOffset = 0x510; // a constant local keeps the load at 0x510(v1), not a widened add
     sub = (((p->z & 0x7FF000) >> 19) << 4) | ((p->x & 0x7FF000) >> 19);
-    return ((s16*)((u8*)pBase + idx))[sub];
+    return ((s16*)((u8*)pBase + baseOffset))[sub];
 }
 
 s32 WorldMapGetTileHalfIndex(WorldMapPos* p) {
