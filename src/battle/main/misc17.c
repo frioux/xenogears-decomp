@@ -371,31 +371,32 @@ void func_80095690(void) {
    0x4E read. Operand/allocator tie.
    Re-screened: best 95.16 under gcc-2.6.0 (69.17 under cdk). There the p/index
    pair is v1/a1 against the original's v0/v1, and the /10 `mfhi` follows it. */
-/*
 void func_800957D8(void) {
+    u8 mode;
     s32 t;
     u8 *p;
     s32 v;
 
-    if (D_800CCD3E[D_800C3E50 * 0x170] == 2) {
+    mode = D_800CCD3E[D_800C3E50 * 0x170];
+    if (mode == 2) {
         BattleSetSlotEntryFieldsTo2000(D_800C3E50, 1);
     }
     t = D_800C3E50;
-    p = D_800C3E34;
-    *(u16 *)(p + 0x7C) = 0;
-    *(u16 *)(p + 0x80) = 0;
-    *(u16 *)(p + 0x84) = 0;
-    *(u16 *)(p + 0x88) = 0;
-    *(u16 *)(p + 0x8C) = 0;
+    *(u16 *)(D_800C3E34 + 0x7C) = 0;
+    *(u16 *)(D_800C3E34 + 0x80) = 0;
+    *(u16 *)(D_800C3E34 + 0x84) = 0;
+    *(u16 *)(D_800C3E34 + 0x88) = 0;
+    *(u16 *)(D_800C3E34 + 0x8C) = 0;
     D_800D2C88[t] = 2;
     p = D_800C3E34;
     v = *(u16 *)(p + 0x4E) * D_800C3DFC[0x11];
+    if (D_800C3E50) {
+    }
     t = D_800C3E50;
     *(s32 *)(t * 4 + D_800D2C54) = v / 10;
-    D_800D2C9E |= 1 << t;
+    v = t;
+    D_800D2C9E |= 1 << v;
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_800957D8);
 // 100.0% under gcc 2.6.0-psx (99.81/99.76/99.90 under this unit's 2.7.2): this
 // function wants a 2.6.0 TU of its own; the unit as a whole is a 2.7.2 unit.
 void func_800958D8(void) {
