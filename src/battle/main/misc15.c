@@ -349,7 +349,6 @@ void BattleFreeSlotPrims(u8 arg0) {
    locals (worse), u32 integer arithmetic, a typed 0x40 struct pointer, and
    gcc 2.7.2 / 2.7.2-cdk / -O1 / -O3.
 */
-/*
 void func_8008C3F0(u8 arg0) {
     char maskOffset;
     u16 value;
@@ -357,12 +356,10 @@ void func_8008C3F0(u8 arg0) {
     D_800D2D28[0x9C] = D_800D2D28[0x9D] = D_800D2D28[0x9E] = 1;
     D_800D2D28[0xB7] = 3;
     D_800D2D28[0xB0] = D_800D2D28[0xB1] = 1;
-    value = BattleSlotBitMask(arg0) | BattleSlotBitMask(D_800C3EAC[arg0 * 0x40 + 0x3C]);
+    value = BattleSlotBitMask(arg0) | BattleSlotBitMask(D_800C3EAC[arg0 * (maskOffset = 0x40) + 0x3C]);
     BattleBeginAnimTask(value);
     func_800BCD98(BattleSlotBitMask(D_800C3EAC[arg0 * 0x40 + (maskOffset = 0x3C)]));
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008C3F0);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008C4A8);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008C81C);
 void BattleClearPrimFlagsThreeSlots(u8 arg0) {
