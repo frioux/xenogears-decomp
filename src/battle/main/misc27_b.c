@@ -1,4 +1,5 @@
 #include "common.h"
+#include "battle/actor.h"
 #include "psyq/libgte.h"
 #include "psyq/libgpu.h"
 
@@ -16,6 +17,7 @@ extern void func_800B5DF4();
 extern void func_800B6004();
 extern void func_800B5854();
 extern u8* TimerWorkListAllocateTask();
+extern s32 func_800B57E4(SpriteData* pSpriteData);
 
 typedef struct {
     /* 0x0 */ u8 unk0;
@@ -31,19 +33,70 @@ typedef struct {
     /* 0x2 */ u16 y;
 } BattlePoint;
 
+// WorkListEntry of include/system/animation.h; an overlay unit cannot include that
+// header (it holds tentative definitions of main-exe globals), so the layout is
+// repeated. unk4 is the SpriteData the entry's callback works on.
+typedef struct WorkListEntry {
+    /* 0x00 */ void* unk0;
+    /* 0x04 */ SpriteData* pSpriteData;
+    /* 0x08 */ void* onTriggerCallback;
+    /* 0x0C */ void (*onFreeCallback)(void*);
+    /* 0x10 */ u32 unk10;
+    /* 0x14 */ u32 unk14;
+    /* 0x18 */ struct WorkListEntry* pNext;
+} WorkListEntry; // Size: 0x1C
+
+// What SpriteData.field_0x6C points at (AnimTask in include/system/animation.h):
+// the timer entry the motion callbacks hang on and, at 0x1C, the entry the sprite
+// draw pass hangs its callback on.
+typedef struct {
+    /* 0x00 */ WorkListEntry timerEntry;
+    /* 0x1C */ WorkListEntry drawEntry;
+} BattleSpriteTask; // Size: 0x38
+
+// The 0x18-byte block BattleCreateActorDistanceWaitTask adds after its timer
+// entry: the actor to watch, the animation it plays while the task waits, the
+// distance measured last frame and the bound that ends the wait.
+typedef struct {
+    /* 0x00 */ WorkListEntry timerEntry;
+    /* 0x1C */ SpriteData* pSpriteData;
+    /* 0x20 */ u8 unk20[0x4];
+    /* 0x24 */ s32 animId;
+    /* 0x28 */ s32 distance;
+    /* 0x2C */ s32 minDistance;
+    /* 0x30 */ void* pSpriteBytecode;
+} BattleDistanceWaitTask; // Size: 0x34
+
+// The 0x18-byte block BattleCreateSpriteFollowTask adds after its timer entry: the
+// actor whose joint leads, the sprite it drags along, the two direction-transform
+// slots the script byte at 0x24/0x28 packs (one nibble each), and the frame and
+// animation the follow started with.
+typedef struct {
+    /* 0x00 */ WorkListEntry timerEntry;
+    /* 0x1C */ SpriteData* pSpriteData;
+    /* 0x20 */ SpriteData* pTargetSprite;
+    /* 0x24 */ s32 sourceJoint;
+    /* 0x28 */ s32 targetJoint;
+    /* 0x2C */ s32 curSpriteFrame;
+    /* 0x30 */ s32 animId;
+} BattleSpriteFollowTask; // Size: 0x34
+
 
 // Split out of main/misc27 (see config/battle.yaml): compiled with gcc 2.7.2-cdk.
-u8* BattleCreateActorDistanceWaitTask(u8* pActor, s32 arg1, s32 arg2) {
-    u8* pTask;
+BattleDistanceWaitTask* BattleCreateActorDistanceWaitTask(SpriteData* pSpriteData, s32 arg1,
+                                                              s32 arg2) {
+    BattleDistanceWaitTask* pTask;
 
-    pTask = TimerWorkListAllocateTask(*(void**)(pActor + 0x6C), 0x18);
+    pTask = (BattleDistanceWaitTask*)TimerWorkListAllocateTask(
+        pSpriteData->field_0x6C, sizeof(BattleDistanceWaitTask) - sizeof(WorkListEntry));
     TimerWorkListSetTaskCallback(pTask, func_800B5854);
-    *(u8**)(pTask + 0x1C) = pActor;
-    *(s32*)(pTask + 0x28) = func_800B57E4(pActor);
-    *(s32*)(pTask + 0x2C) = arg1;
-    *(s32*)(pTask + 0x30) = arg2;
-    *(s32*)(pTask + 0x24) = *(s8*)(pActor + 0xAF);
-    *(u32*)(pActor + 0xAC) |= 0x20;
+    pTask->pSpriteData = pSpriteData;
+    pTask->distance = func_800B57E4(pSpriteData);
+    pTask->minDistance = arg1;
+    pTask->pSpriteBytecode = (void*)arg2;
+    // +0xAF is the top byte of the flag word at 0xAC: the animation the actor plays
+    pTask->animId = *(s8*)((u8*)pSpriteData + 0xAF);
+    pSpriteData->flags_0xAC |= 0x20;
     return pTask;
 }
 // PARKED: the body below is 100.00% as C under cdk -G8 and cdk -G0 (264 bytes; 97.35 under 2.6.0),
@@ -77,107 +130,118 @@ BattlePoint* func_800B59BC(BattlePoint* pOut, u8* pActor, s32 index) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc27_b", func_800B59BC);
-BattlePoint* BattleGetActorJointPoint(BattlePoint* pOut, u8* pActor, s32 index) {
+BattlePoint* BattleGetActorJointPoint(BattlePoint* pOut, SpriteData* pSpriteData, s32 index) {
     BattlePoint point;
     int ofs;
 
-    func_800B59BC(&point, pActor, index);
-    ofs = *(s16*)(pActor + 0x2);
+    func_800B59BC(&point, pSpriteData, index);
+    ofs = ((BattleFixed16Vector*)&pSpriteData->position)->xWhole;
     point.x = point.x + ofs;
-    ofs = *(s16*)(pActor + 0x6);
+    ofs = ((BattleFixed16Vector*)&pSpriteData->position)->yWhole;
     point.y = point.y + ofs;
     *pOut = point;
     return pOut;
 }
 
-void BattleUpdateSpriteFollowTask(u8* pWork) {
+void BattleUpdateSpriteFollowTask(BattleSpriteFollowTask* pTask) {
     BattlePoint a;
     BattlePoint b;
     DVECTOR d;
-    u8* pSprite;
+    SpriteData* pSpriteData;
     s32 mode;
 
-    pSprite = *(u8**)(*(u8**)(pWork + 0x1C) + 0x74);
-    BattleGetActorJointPoint(&a, *(u8**)(pWork + 0x1C), *(s32*)(pWork + 0x24));
-    BattleGetActorJointPoint(&b, pSprite, *(s32*)(pWork + 0x28));
+    pSpriteData = pTask->pSpriteData->pTargetEntitySprite;
+    BattleGetActorJointPoint(&a, pTask->pSpriteData, pTask->sourceJoint);
+    BattleGetActorJointPoint(&b, pSpriteData, pTask->targetJoint);
     d.vx = a.x - b.x;
     d.vy = a.y - b.y;
-    *(s32*)pSprite += d.vx << 16;
-    *(s32*)(pSprite + 4) += d.vy << 16;
-    if (*(s32*)(pWork + 0x30) == *(s8*)(*(u8**)(pWork + 0x1C) + 0xAF)) {
-        mode = (*(u32*)(*(u8**)(pWork + 0x1C) + 0xA8) >> 28) & 3;
+    pSpriteData->position.x += d.vx << 16;
+    pSpriteData->position.y += d.vy << 16;
+    if (pTask->animId == *(s8*)((u8*)pTask->pSpriteData + 0xAF)) {
+        mode = ((u32)pTask->pSpriteData->flags_0xA8 >> 28) & 3;
         if (mode != 0) {
             if (mode != 1) {
                 return;
             }
         }
     }
-    ((void (*)(u8*))*(void**)(pWork + 0xC))(pWork);
+    pTask->timerEntry.onFreeCallback(pTask);
 }
 
-void* BattleCreateSpriteFollowTask(u8* pActor, u8* pScript) {
-    u8* pTask;
+BattleSpriteFollowTask* BattleCreateSpriteFollowTask(SpriteData* pSpriteData, u8* pArgs) {
+    BattleSpriteFollowTask* pTask;
 
-    pTask = TimerWorkListAllocateTask(*(void**)(pActor + 0x6C), 0x18);
+    pTask = (BattleSpriteFollowTask*)TimerWorkListAllocateTask(
+        pSpriteData->field_0x6C, sizeof(BattleSpriteFollowTask) - sizeof(WorkListEntry));
     TimerWorkListSetTaskCallback(pTask, BattleUpdateSpriteFollowTask);
-    *(u8**)(pTask + 0x1C) = pActor;
-    *(s32*)(pTask + 0x20) = *(s32*)(pActor + 0x74);
-    *(s32*)(pTask + 0x2C) = *(u16*)(pActor + 0x34);
-    *(s32*)(pTask + 0x30) = *(s8*)(pActor + 0xAF);
-    *(s32*)(pTask + 0x24) = pScript[0] & 0xF;
-    *(s32*)(pTask + 0x28) = pScript[0] >> 4;
+    pTask->pSpriteData = pSpriteData;
+    pTask->pTargetSprite = pSpriteData->pTargetEntitySprite;
+    // Read unsigned: the frame the follow starts on is a 16-bit value
+    pTask->curSpriteFrame = *(u16*)&pSpriteData->curSpriteFrame;
+    pTask->animId = *(s8*)((u8*)pSpriteData + 0xAF);
+    pTask->sourceJoint = pArgs[0] & 0xF;
+    pTask->targetJoint = pArgs[0] >> 4;
     BattleUpdateSpriteFollowTask(pTask);
     return pTask;
 }
-void BattleIntegrateSpriteVelocityTask(u8* pWork) {
+void BattleIntegrateSpriteVelocityTask(WorkListEntry* pWork) {
     MATRIX m;
     SVECTOR rot;
     SVECTOR rot2;
     VECTOR v;
-    u8* pSprite;
+    SpriteData* pSpriteData;
 
-    pSprite = *(u8**)(pWork + 0x4);
-    AnimScriptTick(pSprite);
-    rot2.vy = *(s32*)(pSprite + 0x10) >> 13;
-    rot2.vz = *(s32*)(pSprite + 0x14) >> 13;
+    pSpriteData = pWork->pSpriteData;
+    AnimScriptTick(pSpriteData);
+    rot2.vy = pSpriteData->step.y >> 13;
+    rot2.vz = pSpriteData->step.z >> 13;
     rot2.vx = 0;
-    rot.vx = SpriteScaleValue(pSprite, *(s32*)(pSprite + 0xC) >> 13);
+    rot.vx = SpriteScaleValue(pSpriteData, pSpriteData->step.x >> 13);
     rot.vy = 0;
     rot.vz = 0;
     RotMatrix(&rot2, &m);
     ApplyMatrix(&m, &rot, &v);
-    v.vx += *(s16*)(pSprite + 0xA0);
-    v.vy += *(s16*)(pSprite + 0xA2);
-    v.vz += *(s16*)(pSprite + 0xA4);
-    *(u32*)(pSprite + 0x0) = v.vx << 16;
-    *(u32*)(pSprite + 0x4) = v.vy << 16;
-    *(u32*)(pSprite + 0x8) = v.vz << 16;
-    if (*(u32*)(pSprite + 0x64) == 0) {
-        ((void (*)(u8*))*(void**)(pWork + 0xC))(pWork);
+    v.vx += pSpriteData->field_0xA0;
+    v.vy += pSpriteData->field_0xA2;
+    v.vz += pSpriteData->field_0xA4;
+    pSpriteData->position.x = v.vx << 16;
+    pSpriteData->position.y = v.vy << 16;
+    pSpriteData->position.z = v.vz << 16;
+    if (pSpriteData->pSpriteBytecode == NULL) {
+        pWork->onFreeCallback(pWork);
     }
 }
-void BattleStartSpriteMotionTask(u8* pWork) {
-    *(u16*)(pWork + 0x34) = 1;
-    TimerWorkListSetTaskCallback(*(void**)(pWork + 0x6C), BattleIntegrateSpriteVelocityTask);
+void BattleStartSpriteMotionTask(SpriteData* pSpriteData) {
+    BattleSpriteTask* pTask;
+
+    pSpriteData->curSpriteFrame = 1;
+    pTask = pSpriteData->field_0x6C;
+    TimerWorkListSetTaskCallback(&pTask->timerEntry, BattleIntegrateSpriteVelocityTask);
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc27_b", func_800B5DF4);
-void BattleSetSpriteDrawWorkCallback(u8* pWork) {
-    *(u16*)(pWork + 0x34) = 1;
-    WorkListSetTaskCallback(*(u8**)(pWork + 0x6C) + 0x1C, func_800B5DF4);
-    pWork[0x2B] = 0x40;
+void BattleSetSpriteDrawWorkCallback(SpriteData* pSpriteData) {
+    BattleSpriteTask* pTask;
+
+    pSpriteData->curSpriteFrame = 1;
+    pTask = pSpriteData->field_0x6C;
+    WorkListSetTaskCallback(&pTask->drawEntry, func_800B5DF4);
+    pSpriteData->prim = 0x40;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc27_b", func_800B6004);
-void BattleSetLinkedSpriteDrawWorkCallback(u8* pWork) {
-    *(u16*)(pWork + 0x34) = 1;
-    WorkListSetTaskCallback(*(u8**)(pWork + 0x6C) + 0x1C, func_800B6004);
-    pWork[0x2B] = 0x40;
+void BattleSetLinkedSpriteDrawWorkCallback(SpriteData* pSpriteData) {
+    BattleSpriteTask* pTask;
+
+    pSpriteData->curSpriteFrame = 1;
+    pTask = pSpriteData->field_0x6C;
+    WorkListSetTaskCallback(&pTask->drawEntry, func_800B6004);
+    pSpriteData->prim = 0x40;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc27_b", func_800B61F8);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc27_b", func_800B626C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc27_b", func_800B62C8);
-void BattleScriptApplyRectParams(u8* arg0, u8* pScript) {
+void BattleScriptApplyRectParams(u8* pActor, s8* pScript) {
     BattleScriptOp* pOp;
 
-    pOp = (BattleScriptOp*)(pScript + ((*(s8*)(pScript + 1) << 8) | pScript[0]));
+    pOp = (BattleScriptOp*)(pScript + ((pScript[1] << 8) | (u8)pScript[0]));
     func_800B3CD4(pOp->unk5, pOp->unk3, pOp->unk4, (s8)pOp->unk0, pOp->unk1, pOp->unk2);
 }
