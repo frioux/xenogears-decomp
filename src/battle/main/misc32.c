@@ -74,6 +74,15 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BD3AC);
 extern u8 *D_800C3750;
 extern void WorkListsDeleteTasks(void);
 
+// best 91.96% (permuter base 86.25; two rounds of edits, both worth having:
+// the head symbol goes into a local `pHead` that pCur copies, and the pPrev test
+// goes through a short `hasPrev`, plus the do-while that re-assigns pCur before the
+// if-branch load). Instruction multiset is identical; what is left is register and
+// slot assignment: retail zeroes $v1 (pPrev) before it loads the head into $v0 and
+// copies the pEntry parameter to $a1 (`move $a1,$a0`) so the compare is on the copy.
+// gcc loads the head first, keeps pCur in $v0 and compares against $a0. Ordering
+// pPrev=NULL ahead of the head load drops it back to 89.82.
+/*
 void func_800BD7A0(u8 *pEntry) {
     u8 *pCur;
     u8 *pPrev;
@@ -98,6 +107,8 @@ void func_800BD7A0(u8 *pEntry) {
     }
     WorkListsDeleteTasks();
 }
+*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BD7A0);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BD810);
 
 void func_800BD974(SVECTOR *pVec, s32 *pOut) {
@@ -218,6 +229,15 @@ typedef struct {
     /* 0x88 */ s32 unk88;
 } Misc32Task; // Size: 0x8C
 
+// best 91.60% (permuter base 83.40; the one edit worth +8.2 was assigning 0x10
+// to a local before the `if`, so gcc stops folding it into the branch).
+// Left: the callback block. Retail does `move $4,$16` at the jal and keeps the two
+// stores on $s0; gcc hoists the copy into the bgez delay slot and stores through $4
+// (`sw v1,136(a0)`). Tried: u8 pointer, struct task pointer, offset casts, a task
+// copy, a callback local, indexed and offset forms - all give $4. A 3-min permuter
+// run from this body made no progress (427 iterations, 70 -> 70).
+// The Misc32Task typedef above is unused unless this is unparked.
+/*
 void func_800BDC14(Misc32Task *pTask) {
     s32 nextUnk88;
 
@@ -229,6 +249,9 @@ void func_800BDC14(Misc32Task *pTask) {
         TimerWorkListSetTaskCallback(pTask, func_800BDB74);
     }
 }
+*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BDC14);
+extern void func_800BDC14(u8 *pTask);
 
 void func_800BDC78(u8 *pTask) {
     func_800BDF1C(pTask);
