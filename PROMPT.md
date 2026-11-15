@@ -397,6 +397,18 @@ broken an overlay with every function at 100:
 - park surgery that swallowed the next function or the next `INCLUDE_ASM` line (the
   symptom is `undefined reference` at link);
 - a worker re-splitting an opaque field of a shared header.
+- **three jtbl conversions in one unit whose OWN `check_bin` passed** (round 64,
+  `battle/misc12`): the unit already had four converted switch tables from an earlier
+  round and three more changed the alignment chain for every table after them. A worker
+  cannot see this - only `make check` on the merged tree can - so any round that converts
+  a switch in a unit with existing converted switches must expect a bisect (file at each
+  of the worker's commits, then fully reverted) and the bodies stay in git for a future
+  whole-family job.
+
+One `.c` per round, even for two workers who would touch different functions: round 63
+briefed `slus_006.64/system/sound` to a permuter port and a matching worker in the same
+round and the merge conflicted. When the conflict is one function, the real match wins
+over the BETTER park.
 
 ## Harness facts
 
