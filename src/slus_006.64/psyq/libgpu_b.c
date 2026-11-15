@@ -86,18 +86,12 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_b", func_80045534);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_b", func_8004574C);
 
-/* best: 96.82% (88 bytes; identical instruction multiset, identical size) -- only
-   the two live registers differ: retail keeps mode in $v1 and the tpage word in
-   $v0, gcc coalesces mode into $v0 and the tpage word into the incoming $a2.
-   `mode = 0xE1000000` at the declaration instead of at the top of each arm moves
-   lui $v1 into the graph-type test's delay slot (78.67%); the ternary form of the
-   tpage word gives the same two registers; `(tpage & mask) | (dfe ? bit : 0)` with
-   the mask first reproduces retail's block order exactly. Allocator tie.
 u_long func_800459DC(int dfe, int dtd, u_short tpage) {
     u_long mode;
     u_long tp;
 
-    if (D_800568D0 == 1 || D_800568D0 == 2) {
+    tp = D_800568D0 == 1 || D_800568D0 == 2;
+    if (tp) {
         mode = 0xE1000000;
         if (dtd)
             mode |= 0x800;
@@ -114,9 +108,6 @@ u_long func_800459DC(int dfe, int dtd, u_short tpage) {
     }
     return mode | tp;
 }
-*/
-
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_b", func_800459DC);
 
 /* best: 58.61% -- the (s16) casts reproduce retail's clamp tests, but gcc keeps
    the incoming x in $a0 and puts the truncated temp in $a3 (retail the reverse),
