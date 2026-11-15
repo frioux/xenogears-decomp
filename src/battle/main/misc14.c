@@ -422,17 +422,16 @@ typedef struct {
     /* 0x29 */ u8 unk29[0xF];
 } BattlePrimPoolSlot; // Size: 0x38
 
-// Best attempt: objdiff 97.61%, 672 bytes (the original is 664). Whole function is
-// reconstructed; every block, every call and both loops are present. Two differences:
-// (a) the 0x10-slot loop over the prim pool (D_800D3278, 0x38-stride records) - retail
-// has i++ as the first insn of the if-body, so reorg steals it into the beqz delay slot
-// and copies the loop test slti into the bgez delay slot; every C form tried here puts
-// i++ just before the test, leaving two nops (+8 bytes). That is the BLOCK_ROTATION
-// shape, not movable by hand: indexed pSlot[i] gives retail's 0x26/0x28 displacements
-// (pointer pSlot++ rebases the biv onto unk26 and drops to 95.93%), and for / while /
-// do-while all give the same tail. (b) S-register tie: retail has the mute flag in s0
-// and the wait flag in s1, gcc swaps them; declaration order, init order and s32 vs u8
-// (which also drops retail's andi) do not change the tie.
+// Best attempt: objdiff 98.96%, 668 bytes (the original is 664). Whole function is
+// reconstructed; every block, every call and both loops are present, and the 0x10-slot
+// prim-pool loop over D_800D3278 now matches instruction for instruction (indexed
+// pSlot[i] gives retail's 0x26/0x28 displacements, i++ in the beqz delay slot and the
+// slti copied into the bgez delay slot; a pointer walk rebases the biv and drops to
+// 95.93%). Two differences left: (a) one instruction too many before the first branch
+// (every branch target is +4 relative to retail); (b) S-register tie: retail keeps the
+// mute flag in s0 and the wait flag in s1, gcc swaps them, which also swaps the two
+// prologue saves. Declaration order, init order and s32 vs u8 (which drops retail's
+// andi) do not move the tie.
 /*
 void func_8008A3EC(u8 arg0) {
     s32 i;
