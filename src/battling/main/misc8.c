@@ -84,8 +84,8 @@ typedef struct {
 } BattleTextList; // Size: 0x3C
 
 extern BattleTextList D_800915AC[8];
-extern BattleTextList D_80091660;
-extern BattleTextList D_800916D8;
+extern BattleTextList D_80091660[];
+extern BattleTextList D_800916D8[];
 extern BattleTextList *D_80092734;
 extern BattleTextList *D_80092738;
 
@@ -133,7 +133,7 @@ void BattleSetCurrentTextList(s32 a0) {
 }
 
 s32 BattleIsDefaultTextList(void) {
-    return D_80092734 == &D_80091660;
+    return D_80092734 == D_80091660;
 }
 
 void BattleInitTextWindow(void) {
@@ -478,7 +478,7 @@ void BattleDrawTextList(BattleTextList *p) {
         return;
     }
     D_80092734 = p;
-    if (p == &D_800916D8) {
+    if (p == D_800916D8) {
         return;
     }
     if (p->unk0 != 0) {
@@ -556,7 +556,7 @@ void BattleUpdateTextWindow(void) {
     }
     ControllerMergeStates();
     p = D_80092734;
-    if (p == &D_800916D8) {
+    if (p == D_800916D8) {
         func_80081A44();
     } else {
         if (p != 0) {
