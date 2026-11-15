@@ -207,10 +207,11 @@ void func_800897CC(void) {
     s32 off;
 
     BattleParseNumberToDigits(D_800D2C35);
-    for (i = 0; i < 2; i++) {
-        if (D_800C3CFB[i] != 0xFF) {
+    while (i < 2) {
+        s32 slot = D_800C3CFB[i++];
+        if (slot != 0xFF) {
             off = D_800D2DB4[0x5D7B] * 0x50 + 0x51E0;
-            D_800D2DB4[0x5D7B] += BattleDrawSpritePackage(D_800C3CFB[i] + 0x92, (s32)(off + (s32)D_800D2DB4), pitch >> 16, 0x5E);
+            D_800D2DB4[0x5D7B] += BattleDrawSpritePackage(slot + 0x92, (s32)(off + (s32)D_800D2DB4), pitch >> 16, 0x5E);
             pitch += 0x60000;
         }
     }
