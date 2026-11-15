@@ -87,9 +87,9 @@ void func_800BD7A0(u8 *pEntry) {
         if (new_var2 == pEntry) {
             new_var = pPrev != NULL;
             if (new_var) {
-                *(u8 **)(pPrev + 0x38) = *(u8 **)(new_var2 + 0x38);
+                do { *(u8 **)(pPrev + 0x38) = *(u8 **)((pCur = new_var2) + 0x38); } while (0);
             } else {
-                D_800C3750 = *(u8 **)(new_var2 + 0x38);
+                D_800C3750 = *(u8 **)(pCur + 0x38);
             }
             break;
         }
