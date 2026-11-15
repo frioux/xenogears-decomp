@@ -92,19 +92,33 @@ u8 BattleWordRegCopyToMatchedSlot(u8 **p, u8 index, u8 arg2) {
     }
     return ret;
 }
-// best: 89.53%. Structurally complete (both cases, the -0x10 derived from the
-// D_800D3420 base in the jal delay slot, u8 value local, g_GameState.gold), but
-// the original keeps slot and base in separate callee-saved regs (s1, s0) and
-// combines them after the call, gcc combines them before and needs one saved
-// register fewer (228 vs 224 bytes). 85.93% with the case-2 pointer inlined.
-// screened: 89.53% is the max of Default / cdk 78.78 / 2.6.0 89.53.
+// best: 96.17%. Both arms and every instruction now match; the whole gap is
+// one allocator coin: the top `*p` load result and the switch discriminant
+// keep swapped registers (retail: pArgs in a0 from `lw a0,0(s2)`, discriminant
+// in a2; gcc: pArgs a2, discriminant a0). Case 2's `lbu v0,1(a0)` then also
+// lands after the D_800D3410 base instead of before it, which is a knock-on of
+// the same swap (retail can only load it early because the base reuses a0).
+// Structure that got it here from the 89.53 park: keep slot and base apart so
+// the sums form at their points of use - case 1 spells the field-table base
+// `(u8 *)(D_800D3420 - 0x10) + index * 0x40` (the -0x10 lands in the jal delay
+// slot) instead of deriving it from pField, and the D_800DCCDEC load and the
+// store keep retail's order.
+// Tried and no better: `switch ((*p)[2])` with (*p)[k] inline 96.17, a `u8 kind`
+// local fed from (*p)[2] 96.17, `u8 *pArgs` used for all three subscripts 89.22
+// (pArgs then spans the call and takes s2), a u8 index local for case 2 96.17,
+// permuter 2423 iterations base=230 best=200 (its best candidate hoists the
+// case-2 index load into a volatile temp - the load order moves, the a0/a2 swap
+// does not).
+// screened: 89.53% was the max of Default / cdk 78.78 / 2.6.0 89.53.
 /*
 void func_8007B6C0(u8 **p, u8 index) {
-    switch ((*p)[2]) {
+    u8 *pArgs = *p;
+
+    switch (pArgs[2]) {
     case 1: {
         u16 *pField = (u16 *)(D_800D3420 + index * 0x40);
-        u32 *pField32 = (u32 *)((u8 *)pField - 0x10);
         u8 value = BattleFindFirstFlagTableMatch(pField[(*p)[3]]);
+        u32 *pField32 = (u32 *)((u8 *)(D_800D3420 - 0x10) + index * 0x40);
 
         pField32[(*p)[1]] = *(u32 *)(D_800CCDEC + value * 0x170);
         break;
@@ -119,15 +133,23 @@ void func_8007B6C0(u8 **p, u8 index) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007B6C0);
-// best: 87.67%. Body recovered from the .s (u8 return: ret = arg2, the
-// D_800D2E5C = 0x20 / arg2+1 path for value < 3, then a two-way store of
-// ((u32 *)((u8 *)pField - 0x10))[(*p)[1]] into D_800CCDF0 / D_800CCDEC +
-// value * 0x170 selected by (*p)[2]). Sole gap: retail keeps D_800D3420 in one
-// saved register (s3) and index * 0x40 in another (s0) across the call and
-// re-forms base-0x10 with `addiu s3,-0x10` in each branch, gcc forms the whole
-// pField sum once (frame 0x20 instead of 0x28) and folds the -0x10 into the
-// load displacement. Spelling D_800D3420 - 0x10 inline instead of pField makes
-// the frame 0x30 and drops it to 76.07%; a hoisted pField32 local gives 82.36%.
+// best: 88.95%. Body recovered from the .s: u8 return (ret = arg2), the
+// D_800D2E5C = 0x20 / arg2+1 path for value < 3, then (*p)[2] == 0 selects
+// D_800CCDF0 and everything else D_800CCDEC, storing the
+// ((u32 *)((u8 *)D_800D3420 - 0x10))[index * 0x40 + (*p)[1]] dword into
+// value * 0x170 of it. Writing that field-table address INLINE, rather than
+// deriving it from pField, is what took the park from 87.67 to 88.95: the base
+// stays in s3 and index * 0x40 in s0 across the call, like retail. Two gaps
+// left, both allocator ties:
+//  - in each arm gcc folds the -0x10 into the load displacement and sums
+//    index*4 + slot first (`lw v1,-16(v1)`); retail does `addiu v1,s3,-0x10`,
+//    `addu v1,s0,v1`, then adds the index. A `u8 *pField32` local inside the
+//    arm instead drops to 80.92 (p -> s2, arg2 -> s3, base -> s1).
+//  - the u8 `value` lands in a1 (the dead index parameter) where retail uses
+//    v1; every other instruction matches.
+// The store direction matters: arg2 is the return value, the field-table dword
+// goes INTO D_800CCD*, not the other way round.
+// screened: 87.67% was the max of Default / cdk 78.94 / 2.6.0 87.67.
 /*
 u8 func_8007B7B0(u8 **p, u8 index, u8 arg2) {
     u16 *pField = (u16 *)(D_800D3420 + index * 0x40);
@@ -139,10 +161,10 @@ u8 func_8007B7B0(u8 **p, u8 index, u8 arg2) {
         ret = arg2 + 1;
     } else if ((*p)[2] == 0) {
         *(u32 *)(D_800CCDF0 + value * 0x170) =
-            ((u32 *)((u8 *)pField - 0x10))[(*p)[1]];
+            ((u32 *)((u8 *)(D_800D3420 - 0x10) + index * 0x40))[(*p)[1]];
     } else {
         *(u32 *)(D_800CCDEC + value * 0x170) =
-            ((u32 *)((u8 *)pField - 0x10))[(*p)[1]];
+            ((u32 *)((u8 *)(D_800D3420 - 0x10) + index * 0x40))[(*p)[1]];
     }
     return ret;
 }
@@ -246,6 +268,16 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007B9C8);
 // moves the *p load to v1 and drops to 95.94%.
 // screened: the plain pTable form is identical 95.94% under Default, 2.7.2-cdk
 // and 2.6.0 - a register allocation tie, not a compiler question.
+// Round 79: a third permuter run (1903 iterations) from base 30 also found
+// nothing. The tie is exactly two coins: pTable's dst (retail a1 = the slot
+// register, so the sum is (plus slot base2)) and the *p load dst (retail a0,
+// so retail's pTable dst and pArgs do NOT collide). Every shape that commutes
+// the sum (a `u32 slot` local, `index * 0x40 + (u8 *)(D_800D3420 + 0x10)`,
+// the same with (*p)[1] inline so the load is CSE'd) gives retail's
+// `addu a1,a1,v0` but moves the load to v1 -> 95.94. Spelling D_800D3430
+// directly gives it its own lui/addiu (88.38), so the +0x10 really is derived
+// from the base.
+/*
 void func_8007BA04(u8 **p, u8 index) {
     u16 *pField = (u16 *)(D_800D3420 + index * 0x40);
     u8 *pTable;
@@ -254,6 +286,8 @@ void func_8007BA04(u8 **p, u8 index) {
     pTable = (D_800D3420 + 0x10) - (-(index * 0x40));
     pField[pArgs[2]] = pTable[pArgs[1]];
 }
+*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007BA04);
 void BattleSlotStoreDwordFromWordReg(u8 **p, u8 index) {
     u32 *pField32 = (u32 *)(D_800D3410 + index * 0x40);
     u16 *pWordRegs;
