@@ -205,18 +205,21 @@ void func_8007B9C8(u8 **p, u8 index) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007B9C8);
-// best: 95.94%. Pure register renaming (gcc swaps v0 and v1 and keeps the *p
-// load in v1 instead of reusing the dead a0); identical multiset, unchanged by
-// gcc 2.6.0 and 2.7.2-cdk. The D_800D3430 base is already derived as
-// D_800D3420+0x10 like the original.
-// screened: identical 95.94% under Default, 2.7.2-cdk and 2.6.0 - a register
-// allocation tie, not a compiler question.
+// best: 98.12%. Sole gap: the pTable sum is formed into the base register (v0)
+// where retail reuses the index register (a1); every other register and
+// instruction matches, including the D_800D3430 base derived as
+// D_800D3420+0x10. Permuter score 30 is this body and 778 more iterations found
+// nothing better; writing the index term first fixes the addu operand order but
+// moves the *p load to v1 and drops to 95.94%.
+// screened: the plain pTable form is identical 95.94% under Default, 2.7.2-cdk
+// and 2.6.0 - a register allocation tie, not a compiler question.
 /*
 void func_8007BA04(u8 **p, u8 index) {
     u16 *pField = (u16 *)(D_800D3420 + index * 0x40);
-    u8 *pTable = D_800D3420 + 0x10 + index * 0x40;
+    u8 *pTable;
     u8 *pArgs = *p;
 
+    pTable = (D_800D3420 + 0x10) - (-(index * 0x40));
     pField[pArgs[2]] = pTable[pArgs[1]];
 }
 */
