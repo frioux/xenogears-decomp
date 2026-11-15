@@ -1,11 +1,24 @@
 #include "common.h"
 #include "psyq/libgpu.h"
+#include "battle/actor.h"
+
+// The per-slot digit-panel bookkeeping the renderers below advance. D_800D2D28
+// points at the battle work block that battle_work.h's BattleWork describes for
+// misc2/misc3; the counters these two functions use sit past the fields that
+// view names, so misc1 spells out just those.
+typedef struct {
+    /* 0x000 */ u8 unk0[0x99];
+    /* 0x099 */ u8 unk99[3];
+    /* 0x09C */ u8 unk9C[0x44];
+    /* 0x0E0 */ s32 statSpriteCount[3];  // packaged sprites so far, x 0x50 into the slot's prim area
+    /* 0x0EC */ s32 valueSpriteCount[3];
+} BattleDigitState; // Size: 0xF8
 
 extern u8 D_800C3D48;
 extern u8 D_800C48EA;
 extern s32 *D_800C3E54;
 extern u8 *D_800C3EAC;
-extern u8 *D_800D2D28;
+extern BattleDigitState *D_800D2D28;
 extern u8 D_800D3725[];
 extern s32 D_800D3284;
 extern s32 D_800D328C;
@@ -51,7 +64,7 @@ extern u16 func_80098AF8(s32, s32);
 extern void BattleSetSlotFlagB4(s32);
 extern void BattleClearSlotFlagB4(s32);
 extern s32 SystemRenderStringEntry(u8 *, s32, s32, s32);
-extern s32 D_800CCB34;
+extern u8 D_800CCB34;
 extern u8 D_800D2D88[];
 extern u8 D_800D3280;
 extern u16 D_800C3076[];
@@ -68,7 +81,7 @@ extern u8 D_800CCE44[];
 extern u16 D_800D2E1C[];
 extern u8 D_800C3CF9[];
 extern u8 D_800D32A0[];
-extern u16 D_800CCDC4[];
+extern BattleTableEntry D_800CCDC4[]; // per-slot table family, stride 0x170
 extern void BattleParseNumberToDigits(s32);
 
 void BattleLoadOverlay(void) {
@@ -235,7 +248,7 @@ void BattleApplyCharRedrawFlags(void) {
     // `*(p + i + k)` and not `p[i + k]`: only the former puts the base first in
     // the addu under both 2.6.0 and 2.7.2, which is the original's order.
     for (i = 0; i < 3; i++) {
-        pDst = D_800D2D28;
+        pDst = (u8 *)D_800D2D28;
         pSrc = D_800C3EAC;
         *(pDst + i + 0x7C) = *(pSrc + i + 0x2EB);
     }
@@ -248,8 +261,8 @@ void BattleClearAllSlotFlagB4(void) {
     for (i = 0x2A0; i >= 0; i -= 0x60) {
         D_800D3725[i] = 0;
     }
-    D_800D2D28[0xB5] = 0;
-    D_800D2D28[0xB4] = 0;
+    ((u8 *)D_800D2D28)[0xB5] = 0;
+    ((u8 *)D_800D2D28)[0xB4] = 0;
     BattleUpdateFrame();
 }
 
@@ -421,52 +434,53 @@ void func_80072938(POLY_FT4 *pPrim, s32 first, s32 last, s32 mode) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80072A9C);
-void BattleRenderActorStatDigits(s32 arg0, u8 arg1) {
+void BattleRenderActorStatDigits(s32 slot, u8 arg1) {
     s32 first;
     s32 i;
 
-    first = *(s32 *)(D_800D2D28 + arg0 * 4 + 0xE0);
+    first = D_800D2D28->statSpriteCount[slot];
     for (i = 0; i < 5; i++) {
         if (D_800D2D88[i] != 0xFF) {
-            *(s32 *)(D_800D2D28 + arg0 * 4 + 0xE0) += BattleDrawSpritePackage(
+            D_800D2D28->statSpriteCount[slot] += BattleDrawSpritePackage(
                 D_800D2D88[i] + 0x67,
-                (s32)(D_800C3EA4 + (arg0 * 3200 + 0x3A88)) + *(s32 *)(D_800D2D28 + arg0 * 4 + 0xE0) * 80,
-                (s16)(D_800C3076[arg0 * 24 + i] + D_800C3254[D_800D3280 * 3 + arg0]),
+                (s32)(D_800C3EA4 + (slot * 3200 + 0x3A88)) + D_800D2D28->statSpriteCount[slot] * 80,
+                (s16)(D_800C3076[slot * 24 + i] + D_800C3254[D_800D3280 * 3 + slot]),
                 0x10);
         }
     }
     if (arg1 != 0) {
-        func_80072938((POLY_FT4 *)(D_800C3EA4 + (arg0 * 3200 + 0x3A88)), first,
-                      *(s32 *)(D_800D2D28 + arg0 * 4 + 0xE0), arg1);
+        func_80072938((POLY_FT4 *)(D_800C3EA4 + (slot * 3200 + 0x3A88)), first,
+                      D_800D2D28->statSpriteCount[slot], arg1);
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80072F38);
-void BattleRenderActorValueDigits(s32 arg0) {
-    u8 *pFlags;
+void BattleRenderActorValueDigits(s32 slot) {
+    u8 *pSlotGraphics;
     s16 amount;
     s32 off;
     s32 i;
 
-    off = arg0 * 484;
-    pFlags = D_800C3EA4;
-    pFlags = pFlags + off;
-    if (*(u8 *)(pFlags + 0x853D) == 1) {
-        amount = *(u8 *)(D_800D32A0 + arg0 * 8);
+    off = slot * 484;
+    pSlotGraphics = D_800C3EA4;
+    pSlotGraphics = pSlotGraphics + off;
+    // 0x853D is the slot's (0x1E4 stride) status byte in the graphics work block.
+    if (pSlotGraphics[0x853D] == 1) {
+        amount = D_800D32A0[slot * 8];
     } else {
-        amount = *(u16 *)((u8 *)D_800CCDC4 + arg0 * 0x170);
+        amount = D_800CCDC4[slot].flags;
     }
     BattleParseNumberToDigits(amount);
 
     for (i = 0; i < 4; i++) {
         if (D_800C3CF9[i] != 0xFF) {
-            *(s32 *)(D_800D2D28 + arg0 * 4 + 0xEC) += BattleDrawSpritePackage(
+            D_800D2D28->valueSpriteCount[slot] += BattleDrawSpritePackage(
                 D_800C3CF9[i] + 0x83,
-                (s32)(D_800C3EA4 + (arg0 * 320 + 0x6008)) + *(s32 *)(D_800D2D28 + arg0 * 4 + 0xEC) * 80,
-                (s16)(arg0 * 96 + (D_800C3254[D_800D3280 * 3 + arg0] + 0x4A) + i * 6),
+                (s32)(D_800C3EA4 + (slot * 320 + 0x6008)) + D_800D2D28->valueSpriteCount[slot] * 80,
+                (s16)(slot * 96 + (D_800C3254[D_800D3280 * 3 + slot] + 0x4A) + i * 6),
                 0x25);
         }
     }
-    *(u8 *)(D_800D2D28 + arg0 + 0x99) = *(u8 *)&D_800CCB34;
+    D_800D2D28->unk99[slot] = D_800CCB34;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80073538);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80073A58);
