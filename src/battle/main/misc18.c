@@ -20,6 +20,12 @@ extern u8 D_800D220E[];
 extern u16 D_800D2C98;
 extern u16 D_800D2C9E;
 
+// the 0x170-byte slot action table at 0x800CCCE8, and two of its columns:
+// D_800CCD72 is the flag word at +0x8A, D_800CCE44 the timer bytes at +0x15C
+extern u8 D_800CCCE8[];
+extern u8 D_800CCD72[];
+extern u8 D_800CCE44[];
+
 extern s32 rand(void);
 extern s8 func_80097964(u8, u8, u16);
 extern void func_800995A0(u8, u8, u16, s32);
@@ -78,7 +84,11 @@ void BattleRollAndClearTargetConditions(void) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80095D4C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80096018);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80096494);
-/* best: 93.04%. Same block layout and instruction multiset (226 vs 227); every
+/* COMPILES as written (round 111 re-check): 93.04%, 908 bytes. The parked body
+   used raw u8-array spellings of D_800C3DFC / D_800C3E00 / D_800C3E34; with
+   today's typed externs only the field reads below changed (a byte read of
+   D_800C3E34->unk38, because retail uses lbu there but lhu for the 0x40 test).
+   Same block layout and instruction multiset (226 vs 227); every
    branch, the two duplicated (elemAtk & elem2) blocks, the element case tree,
    the /10 pair and the two /5 tails line up instruction for instruction. Left:
    register allocation (retail weak=t6, bitAtk=t5, elemDef=t2; ours weak=t5,
@@ -110,16 +120,16 @@ void func_80096494(u16 *pA, u16 *pB, u8 *pFlag) {
 
     pBase = D_800C34B0;
     bitAtk = *(u8 *)(pBase + D_800C3E50 * 0x170 + 0x15A) >> 7;
-    elemAtk = D_800C3DFC[0x22] & 0x3F;
-    elemDef = D_800C3E34[0x38] & 0x3F;
+    elemAtk = D_800C3DFC->unk22 & 0x3F;
+    elemDef = *(u8 *)&D_800C3E34->unk38 & 0x3F;
     bitDef = *(u8 *)(pBase + D_800C3E04 * 0x170 + 0x15A) >> 7;
     if (bitDef == 0) {
-        pair = *(u16 *)(D_800C3E00 + 0x8C) | *(u16 *)(D_800C3E00 + 0x8E);
+        pair = D_800C3E00->unk8C | D_800C3E00->unk8E;
     } else {
         pair = *(u16 *)(D_800D2D6C + 0x84) | *(u16 *)(D_800D2D6C + 0x86);
     }
     pair >>= 12;
-    if (*(u16 *)(D_800C3DFC + 0xA) & 0x100) {
+    if (D_800C3DFC->unk0A & 0x100) {
         weak = 1;
     }
     if (elemAtk == 0) {
@@ -133,7 +143,7 @@ void func_80096494(u16 *pA, u16 *pB, u8 *pFlag) {
     mul = 10;
     mul2 = 10;
     if (elemAtk & elemDef) {
-        if (*(u16 *)(D_800C3E34 + 0x38) & 0x40) {
+        if (D_800C3E34->unk38 & 0x40) {
             mul = 0x12;
         } else {
             mul = 0xF;
@@ -143,7 +153,7 @@ void func_80096494(u16 *pA, u16 *pB, u8 *pFlag) {
         }
     }
     if (bitAtk == 0) {
-        m = *(u16 *)(D_800C3E34 + 0x8C) | *(u16 *)(D_800C3E34 + 0x8E);
+        m = D_800C3E34->unk8C | D_800C3E34->unk8E;
         elem2 = (m & 0xF00) >> 8;
         hitB = (m >> 1) & 1;
     } else {
@@ -207,10 +217,10 @@ void func_80096494(u16 *pA, u16 *pB, u8 *pFlag) {
     }
     *pA = *pA * mul / 10;
     *pB = mul2 * *pB / 10;
-    if (*(u16 *)(D_800C3E00 + 0x32) & 0x10) {
+    if (((u16 *)&D_800C3E00->unk04[0x2E])[0] & 0x10) {
         *pA += *pA / 5;
     }
-    if (*(u16 *)(D_800C3E34 + 0x32) & 0x10) {
+    if (((u16 *)&D_800C3E34->unk04[0x2E])[0] & 0x10) {
         *pB += *pB / 5;
     }
 }
@@ -301,7 +311,8 @@ void BattleClearAllSlotStates(void) {
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80097D5C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_8009892C);
-/* best: 96.96%, same 460 bytes and the same instruction multiset. Twelve source
+/* COMPILES as written (round 111 re-check): 96.96%, same 460 bytes and the
+   same instruction multiset. Twelve source
    shapes tried (order of the D_800C3E00 / D_800D2D6C / D_800C3AA4 stores, hp
    temp vs. direct expression, u16[] vs. byte-cast array, decl order). The only
    residual difference is placement inside the block: the original leaves the
@@ -361,9 +372,8 @@ void func_8009892C(void) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80098AF8);
-/* best: 95.16%, 94 instructions (same count as the original), in every preset
-   screened (2.7.2, 2.6.0, 2.7.2-cdk), so the addiu fold below is not a preset
-   question. Body, both
+/* COMPILES as written (round 111 re-check against today's externs): 95.16%,
+   372 bytes = the original's. Body, both
    branches, the outer/inner branch layout, the 9*x tails, the 0xA5/0xA0 clamp,
    the rand()%8-4 delta and the call are byte-identical. Left: gcc folds the
    row stride's +0x1058 / +0x2228 into the base add (addiu v0,a1,K then
@@ -486,7 +496,11 @@ s32 BattleTestActorSlotFlagsC002ByMode(void) {
     return ret;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_800995A0);
-/* best: 97.11%, 768 bytes (retail 752), 4 instructions too long. The prologue
+/* COMPILES as written (round 111 re-check): 97.11%, 768 bytes (retail 752), 4
+   instructions too long. The three externs above are what it was missing;
+   typed BattleTableEntry access measures 94.89% and one base symbol with
+   +0x8A/+0x15C folded into the sum 94.50%, so keep the three spellings. The
+   prologue
    through the kind==0 case and the whole tail (the two sdata checks, the 0x40
    bit, the D_800CCE44 store) are byte-identical; case 9's 8-value tree matches
    too. Left: the two- and three-case flag switches place their last case body
