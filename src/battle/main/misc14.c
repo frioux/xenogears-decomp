@@ -61,6 +61,7 @@ extern u8 D_800D2C36;
 extern u8 D_800C3CFA[];
 extern u8 D_800D2C38;
 extern u16 D_800D2C30;
+extern u16 D_800D2C3A;
 extern s32 BattleMaskHasStatusBit(s32 mask, u8 idx);
 extern u8 D_800CCB34;
 extern u8* D_800D2DB4;
@@ -214,7 +215,38 @@ void BattleBuildGrey80BlendSpriteColumn5(void) {
         BattleSetPrimGrey80BlendAdd((u8*)((off2 = (i * 2 + D_800D2DB4[0x5D87]) * 0x28 + 0x4E70) + (s32)D_800D2DB4));
     }
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc14", func_8008946C);
+void func_8008946C(void) {
+    s32 i;
+    s32 n;
+    s32 pitch;
+    s32 columnBase;
+    s32 off;
+    s32 off2;
+
+    columnBase = 0x4FB0;
+    if (D_800D2C34 < 4) {
+        BattleParseNumberToDigits(D_800D2C3A);
+        i = 0;
+        n = 0;
+        pitch = 0x11A << 16;
+        while (i < 2) {
+            s32 slot = D_800C3CFB[i++];
+            if (slot != 0xFF) {
+                off = D_800D2DB4[0x5D79] * 0x50 + 0x4FB0;
+                D_800D2DB4[0x5D79] += BattleDrawSpritePackage(slot + 0x92, (s32)(off + (s32)D_800D2DB4), pitch >> 16, 0x4E);
+                pitch += 0x60000;
+                n++;
+            }
+        }
+        D_800D2DB4[0x5D79] += BattleDrawSpritePackage(0x9D, (s32)((D_800D2DB4[0x5D79] * 0x50 + columnBase) + (s32)D_800D2DB4), 0x11A + n * 6, 0x4E);
+    } else {
+        D_800D2DB4[0x5D79] = BattleDrawSpritePackage(0xA2, (s32)(D_800D2DB4 + 0x4FB0), 0x11A, 0x4E);
+    }
+    D_800D2DB4[0x5D88] = D_800CCB34;
+    for (i = 0; i < D_800D2DB4[0x5D79]; i++) {
+        BattleSetPrimGrey80BlendAdd((u8*)((off2 = (i * 2 + D_800D2DB4[0x5D88]) * 0x28 + 0x4FB0) + (s32)D_800D2DB4));
+    }
+}
 void BattleBuildGrey80BlendSpriteColumn7(void) {
     s32 i = 0;
     s32 columnBase;
