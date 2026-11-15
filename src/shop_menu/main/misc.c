@@ -2981,25 +2981,39 @@ u_short ShopMenuGetCharacterEquippedItemFlags(u_char itemID, u_char itemType) {
 INCLUDE_ASM("asm/shop_menu/nonmatchings/main/misc", func_801CDD14);
 
 INCLUDE_ASM("asm/shop_menu/nonmatchings/main/misc", func_801CE480);
-// 93.95%: shop twin of gear_shop_menu/main/render.c GearShopMenuComputeEquipStatDelta (same signature and tail loop), but it
-// computes the two preview stat pairs inline instead of calling the DressingRoom helpers.
-// characterId is the 5th, stack argument; itemType 0 = weapon, 1 = accessory. The two s16[2] pairs are
-// zeroed with four sh stores in the order 10(sp), 8(sp), 2(sp), 0(sp).
-// The four loops must be written as plain `characters[].unk6F[i]` / `.unk74[i]` subscripts: gcc then
-// strength-reduces them to the pointer walk (lbu/addiu/slt against base+N) the original has, and the
-// preview values must go through MenuShopWeapon/MenuShopAccessory pointer locals so one pWeaponsData /
-// pAccessoriesData entry feeds both .unk6/.unkE and .attack/.defense from one register.
-// Remaining 66-instruction delta, all register allocation: gcc 2.7.2 here is one call-clobbered temp
-// short of the original's set. It swaps pDelta/pIsImprovement out of $t5/$t6 into $t6/$t5, gives
-// changeDetected $t1 instead of $t0 (so the tail loop's i lands in $a3 instead of $t0 and the
-// accessory pointer in $t0 instead of $t1), and coalesces `addu $v0,$v0,$v1` / `lbu $v0,0xC($v0)`
-// where the original coalesces the sum with the base (`addu $v1,$v0,$v1`). Everything else matches,
-// including frame size, block order and the tail loop.
+// 99.71%, size exact (1112 bytes = retail's). What is left is five identical
+// coalescing ties: retail computes an array element's address into the BASE
+// register (`addu v1,v0,v1` then `lbu v0,12(v1)`), ours coalesces the sum into the
+// scaled INDEX register (`addu v0,v0,v1` then `lbu v0,12(v0)`), at the two
+// non-Billy weapon sums, both weapon-loop bodies and both accessory-loop bodies.
+// Shapes that got here from the 93.95% park (all of them load-bearing):
+//  - the four s16 zeros are stored in the order 0xA, 0x8, 0x2, 0x0 (newValue[1],
+//    newValue[0], oldValue[1], oldValue[0]) and oldValue sits at sp+0;
+//  - the non-Billy weapon branch needs the sums written as two direct array
+//    expressions with `characters[characterId].attack` repeated: pointer locals
+//    there cost the item's `addu` its base register;
+//  - `newValue[1] = oldValue[1] = characters[characterId].defense;` as a chained
+//    assignment, so cc1 loads defense once and stores it twice (two separate
+//    assignments reload it);
+//  - loop 1 (the sum over Billy's four guns) must index the game state with a
+//    VARIABLE character index (`u16 characterIndex = 4`): with the literal 4 cc1
+//    folds the address to g_GameState+0x56B, losing retail's second addiu
+//    (`lui %hi(g_GameState+0x2DB)` + addiu + `addiu a0,v0,0x290`) and never
+//    strength-reducing the loop. A `u8*` slot pointer local is what makes that
+//    loop a pointer walk; loop 2 keeps the runtime `characterId * 0xA4` chain;
+//  - leastDefense needs the copy shape: `slotDefense = pCurAccessory->defense;
+//    leastDefense = slotDefense;` (retail reloads defense for the compare).
+// decomp-permuter runs went 241 -> 140 -> 80 (the u16 above was its find); its
+// next step (50) wraps the `oldValue[0] += pCurWeapon->attack` in an
+// `if (g_Menu->pDressingRoom)`, which is a shape hack, not source.
 /*
 void func_801CE480(s32* pDelta, s8* pIsImprovement, u8 itemId, u8 itemType, u8 characterId) {
     s16 oldValue[2];
     s16 newValue[2];
     u8 changeDetected;
+    u8 slotDefense;
+    u16 characterIndex;
+    u8* pSlots;
     u8 leastDefense;
     int smallest;
     MenuShopWeapon* pItemWeapon;
@@ -3015,15 +3029,17 @@ void func_801CE480(s32* pDelta, s8* pIsImprovement, u8 itemId, u8 itemType, u8 c
 
     switch (itemType) {
         case ITEM_TYPE_WEAPON:
-            // Billy has four equipped guns, so both the current and the new value are sums
+            // Billy carries four guns, so both his current and his preview value are sums
+            characterIndex = 4;
             if (characterId != 4) {
-                pCurWeapon = &g_Menu->pDressingRoom->pWeaponsData[g_GameState.characters[characterId].unk6A[0]];
-                newValue[0] = pCurWeapon->attack + g_GameState.characters[characterId].attack;
-                pItemWeapon = &g_Menu->pDressingRoom->pWeaponsData[itemId];
-                oldValue[0] = pItemWeapon->attack + g_GameState.characters[characterId].attack;
+                newValue[0] = g_Menu->pDressingRoom->pWeaponsData[g_GameState.characters[characterId].unk6A[0]].attack
+                            + g_GameState.characters[characterId].attack;
+                oldValue[0] = g_Menu->pDressingRoom->pWeaponsData[itemId].attack
+                            + g_GameState.characters[characterId].attack;
             } else {
+                pSlots = &g_GameState.characters[characterIndex].unk6F[0];
                 for (i = 0; i < 4; i++) {
-                    newValue[0] += g_Menu->pDressingRoom->pWeaponsData[g_GameState.characters[4].unk6F[i]].attack;
+                    newValue[0] += g_Menu->pDressingRoom->pWeaponsData[pSlots[i]].attack;
                 }
 
                 pItemWeapon = &g_Menu->pDressingRoom->pWeaponsData[itemId];
@@ -3040,8 +3056,7 @@ void func_801CE480(s32* pDelta, s8* pIsImprovement, u8 itemId, u8 itemType, u8 c
 
         case ITEM_TYPE_ACCESSORY:
             changeDetected = TRUE;
-            oldValue[1] = g_GameState.characters[characterId].defense;
-            newValue[1] = g_GameState.characters[characterId].defense;
+            newValue[1] = oldValue[1] = g_GameState.characters[characterId].defense;
 
             for (i = 0; i < 3; i++) {
                 newValue[1] += g_Menu->pDressingRoom->pAccessoriesData[g_GameState.characters[characterId].unk74[i]].defense;
@@ -3065,7 +3080,8 @@ void func_801CE480(s32* pDelta, s8* pIsImprovement, u8 itemId, u8 itemType, u8 c
                 for (i = 0; i < 3; i++) {
                     pCurAccessory = &g_Menu->pDressingRoom->pAccessoriesData[g_GameState.characters[characterId].unk74[i]];
                     if (leastDefense >= pCurAccessory->defense) {
-                        leastDefense = pCurAccessory->defense;
+                        slotDefense = pCurAccessory->defense;
+                        leastDefense = slotDefense;
                         smallest = i;
                     }
                 }
@@ -3091,7 +3107,6 @@ void func_801CE480(s32* pDelta, s8* pIsImprovement, u8 itemId, u8 itemType, u8 c
     }
 }
 */
-
 u_short ShopMenuFindInventoryQuantity(u_char* pIDs, u_char* pValues, int numIDs, u_char id) {
     int i;
     u_char value;
