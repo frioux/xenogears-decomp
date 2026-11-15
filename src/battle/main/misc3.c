@@ -53,51 +53,51 @@ extern u8 D_800D2F69[];
 extern u8 *D_800C3E5C[];
 
 
-void BattleSetPrimSemiTransTexture(u8 *p) {
+void BattleSetPrimSemiTransTexture(POLY_FT4 *p) {
     SetSemiTrans(p, 1);
     SetShadeTex(p, 0);
 }
-void BattleSetPrimGrey80BlendModeFromGlobal(u8 *p) {
+void BattleSetPrimGrey80BlendModeFromGlobal(POLY_FT4 *p) {
     BattleSetPrimSemiTransTexture(p);
-    p[4] = 0x80;
-    p[5] = 0x80;
-    p[6] = 0x80;
+    p->r0 = 0x80;
+    p->g0 = 0x80;
+    p->b0 = 0x80;
     if (D_800595A0 != 0) {
-        *(u16 *)(p + 0x16) |= 0x40;
+        p->tpage |= 0x40;
     } else {
-        *(u16 *)(p + 0x16) &= ~0x40;
+        p->tpage &= ~0x40;
     }
 }
-void BattleSetPrimGrey80BlendAdd(u8 *p) {
+void BattleSetPrimGrey80BlendAdd(POLY_FT4 *p) {
     BattleSetPrimSemiTransTexture(p);
-    p[4] = 0x80;
-    p[5] = 0x80;
-    p[6] = 0x80;
-    *(u16 *)(p + 0x16) |= 0x20;
+    p->r0 = 0x80;
+    p->g0 = 0x80;
+    p->b0 = 0x80;
+    p->tpage |= 0x20;
 }
 
-void BattleSetPrimGrey40BlendAdd(u8 *p) {
+void BattleSetPrimGrey40BlendAdd(POLY_FT4 *p) {
     BattleSetPrimSemiTransTexture(p);
-    p[4] = 0x40;
-    p[5] = 0x40;
-    p[6] = 0x40;
-    *(u16 *)(p + 0x16) |= 0x20;
+    p->r0 = 0x40;
+    p->g0 = 0x40;
+    p->b0 = 0x40;
+    p->tpage |= 0x20;
 }
 
-void BattleSetPrimGrey80BlendSub(u8 *p) {
+void BattleSetPrimGrey80BlendSub(POLY_FT4 *p) {
     BattleSetPrimSemiTransTexture(p);
-    p[4] = 0x80;
-    p[5] = 0x80;
-    p[6] = 0x80;
-    *(u16 *)(p + 0x16) |= 0x40;
+    p->r0 = 0x80;
+    p->g0 = 0x80;
+    p->b0 = 0x80;
+    p->tpage |= 0x40;
 }
 
-void BattleSetPrimGrey40BlendSub(u8 *p) {
+void BattleSetPrimGrey40BlendSub(POLY_FT4 *p) {
     BattleSetPrimSemiTransTexture(p);
-    p[4] = 0x40;
-    p[5] = 0x40;
-    p[6] = 0x40;
-    *(u16 *)(p + 0x16) |= 0x40;
+    p->r0 = 0x40;
+    p->g0 = 0x40;
+    p->b0 = 0x40;
+    p->tpage |= 0x40;
 }
 
 void BattleSetPolyFT4RectH13(POLY_FT4 *p, s16 x, s16 y, u8 u, u8 v, u8 dx) {
