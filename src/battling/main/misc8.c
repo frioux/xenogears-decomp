@@ -3,23 +3,17 @@
 #include "psyq/libgpu.h"
 #include "system/controller.h"
 
-extern u8 D_800915AC[];
 extern u16 D_800915BE;
 extern u16 D_80091636;
-extern u8 D_80091660[];
 extern u8 D_800926FC;
 extern u8 D_8009275C;
 extern u16 D_80091762;
 extern u16 D_80091672;
 extern u16 D_800916AE;
-extern s32 *D_80092734;
-extern s32 *D_80092738;
 extern u8 D_80092758;
-extern s32 *D_80092760;
-extern u8 D_8009A0D8[];
+extern u_long *D_80092760;
 extern u8 D_800928A0;
 extern s32 D_800926DC;
-extern u8 D_800916D8[];
 extern s32 D_80092700;
 extern s32 D_80092704;
 extern u8 D_8009273C;
@@ -86,14 +80,28 @@ typedef struct {
     /* 0x14 */ u16 unk14;
     /* 0x16 */ u16 unk16;
     /* 0x18 */ u8 unk18[4];
-    /* 0x1C */ BattleTextFrame frame;
-    /* 0x2C */ BattleTextFrame saved;
+    /* 0x1C */ BattleTextFrame frames[2]; /* current, saved */
 } BattleTextList; // Size: 0x3C
+
+extern BattleTextList D_800915AC[8];
+extern BattleTextList D_80091660[];
+extern BattleTextList D_800916D8[];
+extern BattleTextList *D_80092734;
+extern BattleTextList *D_80092738;
+
+// Per-draw-buffer slot record, 0xF8 bytes: it starts with the screen area the
+// slot's text window covers.
+typedef struct {
+    /* 0x00 */ RECT rect;
+    /* 0x08 */ u8 unk8[0xF0];
+} Misc8SlotEntry; // Size: 0xF8
+
+extern Misc8SlotEntry D_8009A0D8[];
 
 extern void BattleDrawTextSprites(u8 *p);
 extern void func_800812BC(BattleTextList *p);
 extern void BattleDrawTextList(BattleTextList *p);
-extern void func_8008162C(s32 *p, s32 a1);
+extern void func_8008162C(BattleTextList *p, s32 a1);
 extern void func_80081A44(void);
 extern s32 BattleGetTextWidth(u32 a0);
 extern void BattleSetTextColor(s32 a0);
@@ -120,12 +128,12 @@ void BattleSetCurrentTextList(s32 a0) {
         D_80092734 = D_80092738;
     } else {
         D_80092738 = D_80092734;
-        D_80092734 = (s32 *)(D_800915AC + a0 * 0x3C);
+        D_80092734 = &D_800915AC[a0];
     }
 }
 
 s32 BattleIsDefaultTextList(void) {
-    return D_80092734 == (s32 *)D_80091660;
+    return D_80092734 == D_80091660;
 }
 
 void BattleInitTextWindow(void) {
@@ -171,7 +179,7 @@ void BattleRestoreScreenImage(void) {
         rect.w = 0x140;
         rect.h = 0xDA;
         func_8007313C(D_80092760, (u8 *)D_80092760 + 0x21E80);
-        LoadImage(&rect, (u_long *)D_80092760);
+        LoadImage(&rect, D_80092760);
     }
 }
 
@@ -184,10 +192,10 @@ void BattleSaveScreenImage(void) {
         HeapToggleErrorHandler(0);
     }
     DrawSync(0);
-    rect = *(RECT *)(D_8009A0D8 + ((D_800928A0 + 1) & 1) * 0xF8);
+    rect = D_8009A0D8[((D_800928A0 + 1) & 1)].rect;
     MoveImage(&rect, 0x140, 0x100);
     if (D_80092760 != 0) {
-        StoreImage(&rect, (u_long *)D_80092760);
+        StoreImage(&rect, D_80092760);
     }
     DrawSync(0);
 }
@@ -239,9 +247,8 @@ void BattleResetTextPrimQueue(void) {
 
 extern u8 *D_800926D4[];
 extern s32 D_800912F0;
-extern u8 D_80095498[];
-extern u8 D_800954C8[];
-extern u8 D_8009A0DA[];
+extern DR_MOVE D_80095498[];
+extern DR_TPAGE D_800954C8[];
 
 void BattleDrawTextPrims(u8 *p) {
     s32 i;
@@ -256,18 +263,18 @@ void BattleDrawTextPrims(u8 *p) {
     BattleDrawTextSprites(p);
     if (((D_80092734 != 0) && (D_80092758 != 0)) || (D_800912F0 != 0)) {
         if (D_80092734 != 0) {
-            AddPrim(p, (u8 *)D_80092734 + (D_800928A0 * 0x10 + 0x1C));
-            SetDrawTPage((DR_TPAGE *)(D_800954C8 + D_800928A0 * 8), 0, 0, GetTPage(0, 2, 0, 0));
-            AddPrim(p, D_800954C8 + D_800928A0 * 8);
+            AddPrim(p, &D_80092734->frames[D_800928A0]);
+            SetDrawTPage(&D_800954C8[D_800928A0], 0, 0, GetTPage(0, 2, 0, 0));
+            AddPrim(p, &D_800954C8[D_800928A0]);
         }
         rect.x = 0x140;
         rect.y = 0x100;
         rect.w = 0x140;
         rect.h = 0xDA;
-        SetDrawMove((DR_MOVE *)(D_80095498 + D_800928A0 * 0x18), &rect,
-                    *(s16 *)(D_8009A0D8 + D_800928A0 * 0xF8),
-                    *(s16 *)(D_8009A0DA + D_800928A0 * 0xF8));
-        AddPrim(p, D_80095498 + D_800928A0 * 0x18);
+        SetDrawMove(&D_80095498[D_800928A0], &rect,
+                    D_8009A0D8[D_800928A0].rect.x,
+                    D_8009A0D8[D_800928A0].rect.y);
+        AddPrim(p, &D_80095498[D_800928A0]);
     }
     D_800912F0 = 0;
 }
@@ -333,7 +340,7 @@ extern Misc8Text D_80095510[2];
 extern Misc8Text D_80095540;
 extern u16 D_8009556C;
 extern u16 D_8009556E;
-extern u8 D_80095570[];
+extern DR_TPAGE D_80095570[];
 
 void BattleRenderCenteredText(Misc8Text *p, s32 entry, s32 flag) {
     s32 len;
@@ -385,7 +392,7 @@ void BattleDrawTextSprites(u8 *p) {
         AddPrim(p, pBase + (off + 4));
     }
     if (D_8009273C | D_80092740) {
-        AddPrim(p, D_80095570 + D_800928A0 * 8);
+        AddPrim(p, &D_80095570[D_800928A0]);
     }
 }
 
@@ -395,14 +402,14 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc8", func_800812BC);
    loop 1 does entry->unk12 = BattleGetTextWidth(entry->unk4) / 2 and keeps the
    running max, loop 2 stores max into entry->unk12 for the entries whose
    unk0 byte has bit 1; then the frame header stores, the p->unk0 width
-   fixups, a 16-byte copy of the frame at 0x1C into 0x2C (p->saved =
-   p->frame gives retail's four lw then four sw) and BattleSetTextColor(0).
+   fixups, a 16-byte copy of the frame at 0x1C into 0x2C (frames[1] =
+   frames[0] gives retail's four lw then four sw) and BattleSetTextColor(0).
    Learned: max must be s32, not s16 - as s16 gcc sign-extends max before
    the compare where retail sign-extends the fresh quotient.
    Remaining levers: (a) retail materialises p + 0x1C into $a0 once, before
    the unk14 store, and reaches frame.x / frame.w in the tail block as
    0x8($a0) / 0xC($a0), while ours keeps every frame access s1-relative -
-   an untried `BattleTextFrame *pFrame = &p->frame;` pointer local used in
+   an untried `BattleTextFrame *pFrame = &p->frames[0];` pointer local used in
    the tail block; (b) retail's max = 0 lands in the blez delay slot while
    ours hoists it into the prologue, and i/off keep swapping register
    roles; (c) the order of the count reload, the lhu of unk14 and the
@@ -427,15 +434,15 @@ void func_800812BC(BattleTextList *p) {
         }
     }
     i = 0;
-    p->frame.code = 3;
-    p->frame.w = max * 2 + 0x14;
-    p->frame.x = 0x96 - max;
+    p->frames[0].code = 3;
+    p->frames[0].w = max * 2 + 0x14;
+    p->frames[0].x = 0x96 - max;
     p->unk12 = 0;
-    p->frame.mode = 0x60102020;
+    p->frames[0].mode = 0x60102020;
     p->unk14 = 0x6D - p->count * 10;
-    ((u8 *)&p->frame.mode)[3] |= 2;
-    p->frame.h = p->count * 20 + 0x14;
-    p->frame.y = p->unk14 - 0xA;
+    ((u8 *)&p->frames[0].mode)[3] |= 2;
+    p->frames[0].h = p->count * 20 + 0x14;
+    p->frames[0].y = p->unk14 - 0xA;
     for (off = 0; i < p->count; i++, off += 0x14) {
         pEntry = (BattleTextEntry *)(p->pEntries + off);
         if (pEntry->unk0[0] & 2) {
@@ -443,11 +450,11 @@ void func_800812BC(BattleTextList *p) {
         }
     }
     if (p->unk0 != 0) {
-        p->frame.w += p->unk0;
-        p->frame.x -= p->unk0 / 2;
+        p->frames[0].w += p->unk0;
+        p->frames[0].x -= p->unk0 / 2;
         p->unk16 = 0xA0 - p->unk0 / 2 - max;
     }
-    p->saved = p->frame;
+    p->frames[1] = p->frames[0];
     BattleSetTextColor(0);
 }*/
 
@@ -455,7 +462,7 @@ void BattleInitTextLists(void) {
     u32 i;
     BattleTextList *p;
 
-    for (i = 0, p = (BattleTextList *)D_800915AC; i < 8; i++, p++) {
+    for (i = 0, p = D_800915AC; i < 8; i++, p++) {
         func_800812BC(p);
     }
     D_80092734 = 0;
@@ -470,8 +477,8 @@ void BattleDrawTextList(BattleTextList *p) {
     if (p == 0) {
         return;
     }
-    D_80092734 = (s32 *)p;
-    if ((s32 *)p == (s32 *)D_800916D8) {
+    D_80092734 = p;
+    if (p == D_800916D8) {
         return;
     }
     if (p->unk0 != 0) {
@@ -540,8 +547,8 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc8", func_8008162C);
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc8", func_80081A44);
 
 void BattleUpdateTextWindow(void) {
-    s32 unk[2]; /* retail reserves 8 bytes of locals here */
-    s32 *p;
+    s32 unk[2]; /* unused: retail's frame keeps 8 bytes of locals here */
+    BattleTextList *p;
 
     if (D_8009275C != 0) {
         BattleRestoreScreenImage();
@@ -549,7 +556,7 @@ void BattleUpdateTextWindow(void) {
     }
     ControllerMergeStates();
     p = D_80092734;
-    if (p == (s32 *)D_800916D8) {
+    if (p == D_800916D8) {
         func_80081A44();
     } else {
         if (p != 0) {
