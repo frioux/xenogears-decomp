@@ -48,16 +48,6 @@ extern u8 *D_800C3DE8;
 extern u8 D_800CCD88[];
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80091064);
-/* 94.88%: this `+=` form reproduces the original's instruction ORDER exactly
-   (accumulator load before `i++`, `addiu s0` in the bnez delay slot); only the
-   three remaining addu's operand/dest regs differ. The `s32 size = f();
-   acc = size + acc;` spelling fixes the accumulate (orig v0 = ret + acc,
-   `+=` gives v1 = acc + ret) but hoists `i++` over the 0xF8 load and adds a
-   nop in the lw-delay slot. Also tried: (s16)(arg0+offset) vs
-   (s16)(offset+arg0) (gcc emits s2,s0 either way, original s0,s2), the
-   arg1 pointer sum in both operand orders, and =f()+a. Operand-order tie.
-   Re-screened for a compiler swap: 94.88 under 2.7.2 and 94.88 under
-   2.7.2-cdk (a tie), 92.12 under gcc-2.6.0 - this preset is the right one. */
 void func_80091604(s32 arg0) {
     s32 i;
     s32 offset;
