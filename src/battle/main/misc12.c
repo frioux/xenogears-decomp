@@ -723,7 +723,6 @@ extern u16 BattleSlotBitMaskInverted(u8);
 extern u8 D_800C3E9A[];
 u16 func_80084DE4(u16 arg0, u16 arg1, u8 arg2, u8 arg3, u8 arg4) {
     s32 i;
-    s32 j;
     s32 n;
     s32 off;
     s32 off8;
