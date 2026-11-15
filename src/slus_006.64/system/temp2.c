@@ -462,7 +462,7 @@ void SpriteDrawLitModelParts(WorkListEntry* pTask) {
             SetTransMatrix(&pSpriteData->pBase->transformMatrix);
         }
 
-        if (*(s32*)((u8*)pSpriteData + 0x3C) < 0) {
+        if (pSpriteData->field_0x3C_4 & 1) {
             ReadGeomOffset(&geomOffsetX, &geomOffsetY);
             SetGeomOffset(0xA0, 0x70);
         }
@@ -480,7 +480,7 @@ void SpriteDrawLitModelParts(WorkListEntry* pTask) {
                           g_GfxCurOT, 0, pSpriteData->field_0x30,
                           *(u8*)((u8*)pSpriteData + 0x3C) >> 5);
         }
-        if (*(s32*)((u8*)pSpriteData + 0x3C) < 0) {
+        if (pSpriteData->field_0x3C_4 & 1) {
             SetGeomOffset(geomOffsetX, geomOffsetY);
         }
     }
