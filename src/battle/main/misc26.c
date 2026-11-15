@@ -1,6 +1,19 @@
 #include "common.h"
 #include "psyq/libgte.h"
 
+// WorkListEntry of include/system/animation.h; an overlay unit cannot include
+// that header (it holds tentative definitions of main-exe globals), so the
+// layout is repeated here.
+typedef struct WorkListEntry {
+    /* 0x00 */ void *unk0;
+    /* 0x04 */ void *unk4;
+    /* 0x08 */ void (*onTriggerCallback)(void *pTask);
+    /* 0x0C */ void (*onFreeCallback)(void *pTask);
+    /* 0x10 */ u32 unk10;
+    /* 0x14 */ u32 unk14;
+    /* 0x18 */ struct WorkListEntry *pNext;
+} WorkListEntry; // Size: 0x1C
+
 // One frame of a battle model, as BattleGetFrame hands it out: a header of
 // self-relative (offset, count) pairs into the same allocation, then the flags
 // word that records whether the part scales are already applied.
@@ -22,16 +35,14 @@ typedef struct {
     /* 0x6 */ u16 pad6;
 } BattleScaleVector; // Size: 0x8
 
-// The scale-easing timer task: 0x24 bytes of timer work-list bookkeeping, then
-// the scale it eases and the countdown driving the ease.
+// The scale-easing timer task: a timer work-list entry, then the scale it eases
+// and the countdown driving the ease.
 typedef struct {
-    /* 0x00 */ u8 unk0[0xC];
-    /* 0x0C */ void (*pOnComplete)(void *pTask); // called once the scale arrives
-    /* 0x10 */ u8 unk10[0xC];
-    /* 0x1C */ BattleScaleVector current;
-    /* 0x24 */ BattleScaleVector start;
-    /* 0x2C */ BattleScaleVector target;
-    /* 0x34 */ s32 frames; // frames elapsed
+    /* 0x00 */ WorkListEntry entry;
+    /* 0x1C */ BattleScaleVector current; // scale the task is at right now
+    /* 0x24 */ BattleScaleVector start; // scale the ease started from
+    /* 0x2C */ BattleScaleVector target; // scale the ease ends at
+    /* 0x34 */ s32 frame; // frames elapsed
     /* 0x38 */ s32 framesLeft; // frames left in the ease
     /* 0x3C */ s32 halfLength; // half the ease length, the divisor for each step
 } BattleScaleTask; // Size: 0x40
