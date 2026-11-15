@@ -309,8 +309,9 @@ void BattleClearSlotConditionBits(void) {
     q->unk7A &= 0xFFDF;
 }
 s32 BattleGearHasWeaponId(u8 arg0) {
+    BattleGearWeaponRecord *pRec = &D_800C34B0->gearWeaponIds[arg0];
+    u8 v = pRec->unkF;
     u8 id = g_GameState.characters[4].gearId;
-    u8 v = ((u8 *)D_800C34B0)[arg0 * 0x14 + 0x5B47];
 
     if (g_GameState.gears[id].weaponData[0].unk5 == v ||
         g_GameState.gears[id].weaponData[1].unk5 == v) {
@@ -319,8 +320,8 @@ s32 BattleGearHasWeaponId(u8 arg0) {
     return g_GameState.gears[id].weaponData[2].unk5 == v;
 }
 void BattleApplyGearWeaponRecord(u8 arg0) {
-    u8 *p = &((u8 *)D_800C34B0)[arg0 * 0x14 + 0x5750];
-    u8 v = p[0xF];
+    BattleGearWeaponRecord *p = &D_800C34B0->gearWeapons[arg0];
+    u8 v = p->unkF;
     s32 rowOffset;
     u8 id = g_GameState.characters[4].gearId;
     u8 sel;
@@ -335,19 +336,19 @@ void BattleApplyGearWeaponRecord(u8 arg0) {
     if (g_GameState.gears[id].weaponData[2].unk5 == v) {
         sel = 3;
     }
-    g_GameState.gears[id].weaponData[sel].unk2 = p[0xE];
-    g_GameState.gears[id].weaponData[sel].unk4 = p[0x11];
-    g_GameState.gears[id].weaponData[sel].unk3 = p[0x10];
-    g_GameState.gears[id].weaponData[sel].unk4 = p[0x11];
+    g_GameState.gears[id].weaponData[sel].unk2 = p->unkE;
+    g_GameState.gears[id].weaponData[sel].unk4 = p->unk11;
+    g_GameState.gears[id].weaponData[sel].unk3 = p->unk10;
+    g_GameState.gears[id].weaponData[sel].unk4 = p->unk11;
     g_GameState.gears[id].unk4[sel] = arg0;
-    g_GameState.gearPartsIds[0x6C + arg0] = p[0xC];
+    g_GameState.gearPartsIds[0x6C + arg0] = p->unkC;
     for (i = 0; i < 3; i++) {
         rowOffset = i * 0x170;
         if (((u8 *)D_800C34B0)[rowOffset + 0x56] == 4) {
-            *(u8 *)((u8 *)D_800C34B0 + (rowOffset + sel * 8) + 0xB6) = p[0xE];
-            *(u8 *)((u8 *)D_800C34B0 + (rowOffset + sel * 8) + 0xB8) = p[0x11];
-            *(u8 *)((u8 *)D_800C34B0 + (rowOffset + sel * 8) + 0xB7) = p[0x10];
-            *(u8 *)((u8 *)D_800C34B0 + (rowOffset + sel * 8) + 0xB8) = p[0x11];
+            *(u8 *)((u8 *)D_800C34B0 + (rowOffset + sel * 8) + 0xB6) = p->unkE;
+            *(u8 *)((u8 *)D_800C34B0 + (rowOffset + sel * 8) + 0xB8) = p->unk11;
+            *(u8 *)((u8 *)D_800C34B0 + (rowOffset + sel * 8) + 0xB7) = p->unk10;
+            *(u8 *)((u8 *)D_800C34B0 + (rowOffset + sel * 8) + 0xB8) = p->unk11;
             *(u8 *)((u8 *)D_800C34B0 + rowOffset + sel + 0xA8) = arg0;
         }
     }

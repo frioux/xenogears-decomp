@@ -240,13 +240,31 @@ typedef struct {
     /* 0x27 */ s8 unk27;
 } BattleRow; // Size: 0x28
 
+// One 0x14-byte record of the battle work block's two per-character gear
+// weapon tables: +0x5750 is the record a weapon slot is equipped from,
+// +0x5B38 the id list BattleGearHasWeaponId searches. Only the bytes those two
+// functions read are named.
+typedef struct {
+    /* 0x0 */ u8 unk0[0xC];
+    /* 0xC */ u8 unkC;
+    /* 0xD */ u8 unkD;
+    /* 0xE */ u8 unkE;
+    /* 0xF */ u8 unkF; // weapon id
+    /* 0x10 */ u8 unk10;
+    /* 0x11 */ u8 unk11;
+    /* 0x12 */ u8 unk12[0x2];
+} BattleGearWeaponRecord; // Size: 0x14
+
 // The battle work block (D_800C34B0): the three slot entries, the per-actor
 // action-row tables, and the per-slot action state the battle main loop runs
 // on. Only the tail read by src/battle/main/misc18 is named; the row tables at
 // +0x1058/+0x2228 and the scratch row at +0x35D8 are still reached by offset.
 typedef struct {
     /* 0x0000 */ BattleTableEntry slots[3];
-    /* 0x0450 */ u8 unk450[0x5B1C];
+    /* 0x0450 */ u8 unk450[0x5300];
+    /* 0x5750 */ BattleGearWeaponRecord gearWeapons[50];
+    /* 0x5B38 */ BattleGearWeaponRecord gearWeaponIds[50];
+    /* 0x5F20 */ u8 unk5F20[0x4C];
     /* 0x5F6C */ s32 unk5F6C[12];
     /* 0x5F9C */ u8 unk5F9C[4];
     /* 0x5FA0 */ u8 unk5FA0[12];
