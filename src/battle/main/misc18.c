@@ -15,8 +15,6 @@ extern u8 D_800C3E50;
 extern u8 D_800D2DC4;
 extern u8 *D_800D2D6C;
 extern u8 *D_800D2DC8;
-
-extern u8 D_800D220E[];
 extern u16 D_800D2C98;
 extern u16 D_800D2C9E;
 
@@ -25,6 +23,15 @@ extern s8 func_80097964(u8, u8, u16);
 extern void func_800995A0(u8, u8, u16, s32);
 extern void func_80098D2C(u8, u8);
 extern void func_80094D24(void);
+
+// One 0x10-byte record of the main executable's per-slot table; this unit reads
+// only the halfword BattleInitActiveSlotActions copies into the work block.
+typedef struct {
+    /* 0x0 */ u8 unk0[0xE];
+    /* 0xE */ u16 unkE;
+} BattleSlotRecord; // Size: 0x10
+
+extern BattleSlotRecord D_800D2200[];
 
 void BattleApplyScriptConditionTimer(void) {
     s8 ret = func_80097964(D_800C3DFC->unk1C, D_800C3DFC->unk1D,
@@ -224,22 +231,21 @@ void BattleRollPercentAndSetState38(void) {
     }
 }
 void BattleRollPercentAndSwapActiveActor(void) {
-    u8 *pData;
+    BattleTableEntry *pTarget;
     u8 *pBase;
-    u8 *pActor;
+    BattleTableEntry *pActor;
+    BattleTableEntry *pOld;
     u16 t;
     u8 sel;
     u8 s;
     u8 tmp;
-    u8 *p;
-    u8 *q;
     s32 lim;
 
-    pData = (u8 *)D_800C3E34;
-    if (*(u16 *)(pData + 0x7C) & 0xA000) {
+    pTarget = D_800C3E34;
+    if (pTarget->unk7C & 0xA000) {
         return;
     }
-    t = *(u16 *)(pData + 0x80);
+    t = pTarget->unk80;
     if (t & 0x1000) {
         return;
     }
@@ -247,42 +253,42 @@ void BattleRollPercentAndSwapActiveActor(void) {
     if (sel < 3 && !(t & 0x2000)) {
         return;
     }
-    if (!(*(u16 *)(pData + 0x88) & 0x1000)) {
+    if (!(pTarget->unk88 & 0x1000)) {
         return;
     }
-    t = *(u16 *)((u8 *)D_800C3DFC + 0xA);
+    t = D_800C3DFC->unk0A;
     if (t & 0x2000) {
         return;
     }
     if (t & 0x100) {
         return;
     }
-    pBase = D_800C34B0;
-    pActor = pBase + sel * 0x170;
-    if (*(u8 *)(pActor + 0x15A) & 0x80) {
+    pBase = (u8 *)D_800C34B0;
+    pActor = (BattleTableEntry *)(pBase + sel * sizeof(*pActor));
+    if (pActor->state.unkB6 & 0x80) {
         return;
     }
     lim = 0x32;
-    if (*(u8 *)(pData + 0x56) == 0) {
+    if (pTarget->unk56 == 0) {
         lim = 0x3C;
     }
     if (lim < rand() % 100) {
         return;
     }
-    if (*(u8 *)((u8 *)D_800C3DFC + 0x16) == 2) {
+    if (D_800C3DFC->unk16 == 2) {
         return;
     }
     tmp = D_800C3E50;
     s = D_800C3E04;
-    p = (u8 *)D_800C3E00;
+    pOld = D_800C3E00;
     D_800C3E04 = tmp;
-    q = (u8 *)(D_800C3E00 = D_800C3E34);
-    D_800C3E34 = p;
+    D_800C3E00 = D_800C3E34;
+    D_800C3E34 = pOld;
     D_800C3E50 = s;
     D_800C3DFC = (BattleRow *)((u8 *)D_800C34B0 + D_800C3E04 * 0x5F0 + 0x1378);
-    *(u8 *)((u8 *)D_800C34B0 + D_800C3E04 + 0x5FA0) = 7;
-    *(u32 *)((u8 *)D_800C34B0 + D_800C3E04 * 4 + 0x5F6C) = 0;
-    ((u8 *)D_800C34B0)[0x5FC7] = 0x34;
+    D_800C34B0->unk5FA0[D_800C3E04] = 7;
+    D_800C34B0->unk5F6C[D_800C3E04] = 0;
+    D_800C34B0->unk5FC7 = 0x34;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80096AB8);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80096FBC);
@@ -441,7 +447,7 @@ void BattleInitActiveSlotActions(u8 sel) {
         mask <<= 1;
     }
 
-    *(u16 *)((u8 *)D_800C34B0 + 0x5FB0) = *(u16 *)(D_800D220E + sel * 0x10);
+    *(u16 *)((u8 *)D_800C34B0 + 0x5FB0) = D_800D2200[sel].unkE;
 
     if (D_800D2C9E & 0x8000) {
         D_800D2C98 = 0xC2;
