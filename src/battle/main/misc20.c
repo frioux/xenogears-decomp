@@ -112,32 +112,15 @@ void BattleSaveScriptCommandOperands(void) {
         D_800C34B0->unk5FBE |= c;
     }
 }
-/* best 99.91%: head, both index chains, both stores and the shared store all
-   match. Only the flag test's fail branch differs: the original targets the
-   else block (.L8009CAFC), gcc jumps to the epilogue (same net effect, one
-   instruction different). Writing the flag test as a flat `A && B && C` chain
-   produces the original branch but flips the index add's operands to
-   `addu v1,v1,a0` (99.63%); the nested `if` gives `addu v1,a0,v1` but jumps to
-   the epilogue. Six shapes tried.
 void func_8009CA90(void) {
-    u8 *p = D_800C34B0;
-
-    if (p[0x5FC2] >= 0xC && p[0x5FC2] < 0xF) {
-        u8 *q = p + D_800C3E50 * 0x170;
-        if (!(q[0x15A] & 0x80)) {
-            D_800C3DFC += 0x78;
-        }
-    } else {
-        if (p[0x5FC2] < 3) {
-            u8 *q = p + D_800C3E50 * 0x170;
-            if (!(q[0x15A] & 0x80)) {
-                D_800C3DFC += 0x258;
-            }
-        }
+    if (D_800C34B0->unk5FC2 >= 0xC && D_800C34B0->unk5FC2 < 0xF &&
+        !(D_800C34B0->slots[D_800C3E50].state.unkB6 & 0x80)) {
+        D_800C3DFC += 3;
+    } else if (D_800C34B0->unk5FC2 < 3 &&
+               !(D_800C34B0->slots[D_800C3E50].state.unkB6 & 0x80)) {
+        D_800C3DFC += 15;
     }
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc20", func_8009CA90);
 void BattleSetSlotBit20FromStatusBit200(u8 arg0) {
     BattleSlotState *pState = &D_800CCCE8[arg0].state;
     BattleTableEntry *pSlot = &D_800CCCE8[arg0];
@@ -216,26 +199,19 @@ u16 func_8009DA04(void) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc20", func_8009DA04);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc20", func_8009DB54);
-/* best 93.93% under gcc 2.6.0 (92.38% under 2.7.2): the head and the divide
-   match, but the original has one extra block - the `break` path copies the
-   index into v1 (`j .L8009DB8C; addu v1,a1,zero`) before the shared
-   `lbu 0x88(D_800D2DC8 + i)` load, so the loop counter and the index used after
-   the loop are not the same source variable there.  Also the two loop
-   invariants come out mirrored (0x8000 in a2 / mask in v1 here, a3 / a2 in the
-   original); making 0x8000 a local did not move it.
 s32 func_8009DB54(s32 arg0) {
-    u8 i = 0;
-    u16 mask = *(u16 *)(D_800C3DFC + 8);
-    s32 bit = 0x8000;
+    u16 mask = *(u16 *)((u8 *)D_800C3DFC + 8);
+    u8 i;
+    u8 idx; /* left unassigned when the scan finds no bit, as in retail */
     u8 v;
 
-    for (; i < 0x10; i++) {
-        if (mask & (bit >> i)) {
+    for (i = 0; i < 0x10; i++) {
+        if (mask & (0x8000 >> i)) {
+            idx = i;
             break;
         }
     }
-    v = D_800D2DC8[i + 0x88];
+    v = D_800D2DC8->unk86[idx + 2];
     if (v != 0) {
         if (v < 0x14) {
             arg0 = arg0 * (0x14 - v) / 20;
@@ -245,7 +221,6 @@ s32 func_8009DB54(s32 arg0) {
     }
     return arg0;
 }
-*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc20", func_8009DBFC);
 void BattleClearActorPercent99(void) {
     D_800D2DC8->unk99 = 0;
