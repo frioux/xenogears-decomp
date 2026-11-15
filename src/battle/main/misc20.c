@@ -157,6 +157,12 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc20", func_8009D3A0);
 //     (identical rand()%100-chance-%50 tails): ours threads the first block into
 //     the second's body with a `j`, retail duplicates it.
 //   - limit = limit + 0x55 - penalty is reassociated to limit - (penalty - 0x55).
+//   - a 4-minute permuter run on this body (tools/scripts/permute.sh, -j 2) scored
+//     base=4514 best=1813 and its only finding was wrapping the 0x40 block in
+//     `do { ... } while (0);`. That does NOT break the cross-jump above (the
+//     `j` into the other block's body survives) and costs objdiff 91.80 -> 91.67
+//     because chance/limit swap s0/s1, so it was reverted. A longer run from this
+//     body is the next step, not more hand shapes.
 // Next step is a permuter run on this body, not more hand shapes.
 /*
 s32 func_8009D3A0(void) {
