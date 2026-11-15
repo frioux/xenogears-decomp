@@ -652,7 +652,59 @@ void func_80084A7C(u8 arg0) {
         D_800C3EAC[0x2E8] = D_800C3E90[0];
     }
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80084B40);
+extern void func_800BC404(u16);
+extern void func_800BCD98(u16);
+extern void BattleUpdateFrame(void);
+extern u8 func_80084854(u8, u8);
+s32 func_80084B40(u8 arg0) {
+    u8 b;
+    u8 m;
+    u8 state;
+
+    b = ((BattleActorSlots *)D_800C3EAC)->unk2DE[0xA];
+    state = 2;
+    D_800D3014 = 8;
+    while (1) {
+        while (D_800D3014 == 8) {
+            m = b;
+            func_800BC404(BattleSlotBitMask(arg0) | BattleSlotBitMask(m));
+            func_800BCD98(BattleSlotBitMask(m));
+            BattleUpdateFrame();
+        }
+        switch (D_800D3014) {
+        case 4:
+        case 6:
+        case 7:
+            state = 1;
+            ((BattleActorSlots *)D_800C3EAC)->slot[arg0].unk3C = b;
+            break;
+        case 5:
+            func_800BC404(BattleSlotBitMask(arg0) |
+                          BattleSlotBitMask(((BattleActorSlots *)D_800C3EAC)->slot[arg0].unk3C));
+            state = 0;
+            func_800BCD98(BattleSlotBitMask(((BattleActorSlots *)D_800C3EAC)->slot[arg0].unk3C));
+            break;
+        case 0:
+            b = func_80084854(b, 0);
+            break;
+        case 1:
+            b = func_80084854(b, 1);
+            break;
+        case 2:
+            b = func_80084854(b, 2);
+            break;
+        case 3:
+            b = func_80084854(b, 3);
+            break;
+        }
+        D_800D3014 = 8;
+        if (state != 2) {
+            break;
+        }
+    }
+    return state;
+}
+
 u16 func_80084D28(void) {
     s32 i;
     u16 ret;
