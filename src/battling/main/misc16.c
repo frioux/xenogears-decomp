@@ -480,7 +480,7 @@ void BattleEffectCopyObjectMatrix(u8* pArg0, s16 arg1, u8* pArg1) {
     *(Misc16Oct*)pArg1 = *(Misc16Oct*)(pObj + 0x4C);
 }
 void func_8008DC28(void) {
-    s16 new_var;
+    s16 initValue;
     Misc16Work* pWork;
 
     pWork = func_8008D3F4(1, NULL);
@@ -488,9 +488,9 @@ void func_8008DC28(void) {
     pWork->unk75 = 0xA0;
     pWork->unk76 = 0x70;
     BattleEffectAllocEntries(pWork, 0x100);
-    new_var = (pWork->unk0 = 4);
+    initValue = (pWork->unk0 = 4);
     pWork->unk4A = pWork->unk44 = 0x60;
-    pWork->unk48 = new_var;
+    pWork->unk48 = initValue;
     pWork->unk68 = 0;
     pWork->unk6A = 0x20;
     D_80092834 = (s32)pWork;
