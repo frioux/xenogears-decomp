@@ -76,7 +76,7 @@ extern void BattleBuildGrey80BlendSpriteColumn5(void);
 extern void func_8008946C(void);
 extern void BattleBuildGrey80BlendSpriteColumn7(void);
 extern void BattleBuildGrey80BlendSpriteColumn2(void);
-extern void func_8008A3EC(u8 arg0);
+extern void BattleUpdatePauseMenu(u8 arg0);
 extern void BattleUpdateImageUpload(u8 arg0);
 extern void func_8008A684(u8 arg0);
 extern int rand(void);
@@ -423,7 +423,7 @@ void BattleUpdateImageUpload(u8 arg0) {
     BattleUploadImageFrame();
 }
 
-void func_8008A3EC(u8 arg0) {
+void BattleUpdatePauseMenu(u8 arg0) {
     s32 i;
     s32 channelMask;
     u8 muted;
@@ -518,7 +518,7 @@ void BattleUpdateEffectByScreenMode(u8 arg0) {
         BattleUpdateImageUpload(arg0);
         break;
     case 2:
-        func_8008A3EC(arg0);
+        BattleUpdatePauseMenu(arg0);
         break;
     }
 }
