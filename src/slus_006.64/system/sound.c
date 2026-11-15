@@ -1325,6 +1325,7 @@ int func_800394B8(int size) {
         return 0;
     }
 
+    // Reuses pNextBlock: a second pointer local there puts the stores through lui/addiu.
     pNextBlock = &g_SoundSpuMemoryBlocks[index];
     pNextBlock->flags = SPU_MEMORY_IN_USE;
     pNextBlock->unk1 = 0;
