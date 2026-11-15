@@ -336,29 +336,16 @@ void BattleFreeSlotPrims(u8 arg0) {
         D_800D2D28[0xB0] = D_800D2D28[0xB1] = 0;
     }
 }
-/* Best: 99.78%. One addu left: the FIRST call's address add comes out
-   index-first (`addu v1,s1,v1`) where the original has base-first
-   (`addu v1,v1,s1`); the index s1 = arg0*0x40 lives across both calls.
-   Same tail as BattleSetPrimFlagsFourSlots / BattleSetPrimFlagsTwoSlots / BattleSetPrimFlagsThreeSlots, which the
-   permuter did fix there with a stride local -- here it only fixed the
-   second call: a `char maskOffset` assigned 0x3C inline in its subscript
-   `D_800C3EAC[arg0 * 0x40 + (maskOffset = 0x3C)]` (worth 99.36 -> 99.78).
-   Tried: two more permute.sh runs (450 and 1105 iterations, score stuck at
-   10), `0x3C + arg0 * 0x40`, `0x40 * arg0 + 0x3C`, plus everything the
-   previous note listed: subscript, opt to the add, explicit u8* pEntry/pBase
-   locals (worse), u32 integer arithmetic, a typed 0x40 struct pointer, and
-   gcc 2.7.2 / 2.7.2-cdk / -O1 / -O3.
-*/
 void func_8008C3F0(u8 arg0) {
-    char maskOffset;
     u16 value;
+    int slotStride = 0x40;
 
     D_800D2D28[0x9C] = D_800D2D28[0x9D] = D_800D2D28[0x9E] = 1;
     D_800D2D28[0xB7] = 3;
     D_800D2D28[0xB0] = D_800D2D28[0xB1] = 1;
-    value = BattleSlotBitMask(arg0) | BattleSlotBitMask(D_800C3EAC[arg0 * (maskOffset = 0x40) + 0x3C]);
+    value = BattleSlotBitMask(arg0) | BattleSlotBitMask((D_800C3EAC + arg0 * slotStride)[0x3C]);
     BattleBeginAnimTask(value);
-    func_800BCD98(BattleSlotBitMask(D_800C3EAC[arg0 * 0x40 + (maskOffset = 0x3C)]));
+    func_800BCD98(BattleSlotBitMask((D_800C3EAC + arg0 * slotStride)[0x3C]));
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008C4A8);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008C81C);
