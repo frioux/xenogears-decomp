@@ -2835,10 +2835,10 @@ void FieldScriptSetSoundSlotFlags(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
 
-extern void func_8003A450(int, int, int);
+extern void SoundFadeElementVolumeByIndex(int, int, int);
 
 void FieldScriptSetSoundElementVolumeFade(void) {
-    func_8003A450(FieldScriptVMGetArgument(3) * 2, FieldScriptVMGetArgument(1), FieldScriptVMGetArgument(5));
+    SoundFadeElementVolumeByIndex(FieldScriptVMGetArgument(3) * 2, FieldScriptVMGetArgument(1), FieldScriptVMGetArgument(5));
     g_FieldScriptVMCurActor->scriptInstructionPointer += 7;
 }
 

@@ -48,7 +48,7 @@ extern void BattleAcquireSoundSlot(u8*, u32, u8*, u32);
 extern s32 func_8008B650(s32, s16, s16);
 extern void SoundStopAllElements(void);
 extern u32 func_8003A5D0(u32);
-extern void func_8003A20C(u8);
+extern void SoundStopElementsByIndex(u8);
 extern void BattleQueueRandomMessages(u8*, u8*, s32);
 extern void BattleDispatchWorkState(u8*);
 extern void SoundPlaySoundEffectOnPairWithLevels(s32, s32, s32, s32);
@@ -324,7 +324,7 @@ void BattleStopSoundSlotsByFlags(u8 kind) {
     pSlot = D_80096EA0;
     for (i = 0; i < 4; i++) {
         if (pSlot[i].unk1 != 0 && pSlot[i].unk3 == kind) {
-            func_8003A20C(pSlot[i].unk2);
+            SoundStopElementsByIndex(pSlot[i].unk2);
             pSlot[i].unk1 = 0;
         }
     }

@@ -362,7 +362,7 @@ void func_80095690(void) {
     *(u8 *)(D_800C34B0 + D_800C3E50 + 0x5FA0) = 2;
     *(s32 *)(D_800C3E50 * 4 + D_800C34B0 + 0x5F6C) = v;
 }
-void func_800957D8(void) {
+void BattleInitActiveSlotAction(void) {
     s32 t;
     u8 *p;
     s32 v;

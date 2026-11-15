@@ -285,7 +285,7 @@ void BattleSetPrimFlagsTwoSlots(u8 arg0) {
     func_800BC404(value);
     func_800BCD98(BattleSlotBitMask((D_800C3EAC + arg0 * slotStride)[0x3C]));
 }
-s32 func_8008BD50(u8 arg0, u8 arg1, u8 arg2, u8 arg3) {
+s32 BattleActivateTwoSlotCommand(u8 arg0, u8 arg1, u8 arg2, u8 arg3) {
     u8 value;
     u16 entry;
     s32 result;

@@ -169,7 +169,7 @@ void BattleQueueLineQuad(s32* pPos, s32* pPos2, u8* pColor) {
     }
 }
 
-void func_8007E3CC(u32* pOt) {
+void BattleDrawLineQuads(u32* pOt) {
     u8* pScratch;
     BattleQuad* pQuad;
     u32 dx;

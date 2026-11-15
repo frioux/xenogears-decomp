@@ -1797,7 +1797,7 @@ void SoundStopElementsById(s32 sedId) {
     } while (cnt);
 }
 
-void func_8003A20C(s32 elementIndex) {
+void SoundStopElementsByIndex(s32 elementIndex) {
     AudioManager* pManager;
     AudioElement* pElement;
     u32 cnt;
@@ -1886,7 +1886,7 @@ void SoundFadeElementVolumeById(s32 id, s32 value, s32 frames) {
     } while (cnt);
 }
 
-void func_8003A450(s32 elementIndex, s32 value, s32 frames) {
+void SoundFadeElementVolumeByIndex(s32 elementIndex, s32 value, s32 frames) {
     AudioElement* pElement;
     u32 cnt;
     s32 volume;
@@ -4181,7 +4181,7 @@ void SoundAbortVoiceOnChannel(SoundVoiceData* voiceData, u32 channelIndex) {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003E900);
 
-void func_8003EB5C(void) {
+void SoundApplyPendingKeyOff(void) {
     u32 flags = g_unk_VoicesNeedingProcessing;
     SpuUnion* pSpu = g_pSoundSpuRegisters;
     SPU_VOICE_REG* pVoice = pSpu->_rxx.voice;

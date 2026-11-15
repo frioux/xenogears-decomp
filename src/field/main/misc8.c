@@ -669,7 +669,7 @@ void FieldStartArchiveStream(int archiveIndex, int allocMode, void* pCallback) {
     D_800AFEA4 = pCallback;
 }
 
-void func_8003A20C(int);
+void SoundStopElementsByIndex(int);
 void SoundPlaySoundEffectOnPairWithLevels(void*, int, int, int);
 
 void FieldPlaySoundElementPair(int arg0, int arg1, int arg2, int arg3) {
@@ -677,7 +677,7 @@ void FieldPlaySoundElementPair(int arg0, int arg1, int arg2, int arg3) {
     int temp;
 
     temp = (u32)arg3 & 7;
-    func_8003A20C(temp * 2);
+    SoundStopElementsByIndex(temp * 2);
     slot = arg3 & 7;
     temp = (s16)arg1;
     SoundPlaySoundEffectOnPairWithLevels(arg0, slot * 2, temp, (s16)arg2);
@@ -689,7 +689,7 @@ void FieldSetSoundSlotElement(int arg0, int arg1) {
     int offset = arg1 & 7;
 
     if (arg0 == 0) {
-        func_8003A20C(offset * 2);
+        SoundStopElementsByIndex(offset * 2);
     } else {
         D_800B21B8 = arg0;
         FieldPlaySoundElementPair(arg0, 0x7F, 0x40, offset);
@@ -1163,7 +1163,7 @@ void FieldAssignActorSoundSlot(int arg0, int arg1, int arg2, int arg3, int actor
                 screenX = 0;
             }
             scaled = screenX * 0x6666 >> 16;
-            func_8003A20C(i * 2);
+            SoundStopElementsByIndex(i * 2);
             SoundPlaySoundEffectOnPairWithLevels((void*)arg0, (short)(i * 2), value, scaled);
             break;
         }
@@ -1175,7 +1175,7 @@ void FieldReleaseActorSoundSlot(u_int arg0) {
 
     for (i = 0; i < 3; i++) {
         if (D_800AFE88[i].unk0 == arg0) {
-            func_8003A20C(i * 2);
+            SoundStopElementsByIndex(i * 2);
             D_800AFE8A[i].unk0 = 0xFFFF;
             D_800AFE88[i].unk0 = 0xFFFF;
             break;
@@ -1220,7 +1220,7 @@ void FieldResetActorSoundSlots(void) {
     pFlags = &D_800B233C;
     for (; i < 4; i++) {
         if (!(*pFlags & 1)) {
-            func_8003A20C(i * 2);
+            SoundStopElementsByIndex(i * 2);
         }
         *pFlags >>= 1;
     }
@@ -1310,7 +1310,7 @@ void func_80086590(VECTOR* pPosition) {
     for (i = 0; i < 3; i++) {
         if (slots.inUse[i] == 0) {
             if (D_800AFE8A[i].unk0 != 0xFFFF) {
-                func_8003A20C(i * 2);
+                SoundStopElementsByIndex(i * 2);
                 D_800AFE8A[i].unk0 = 0xFFFF;
                 D_800AFE88[i].unk0 = 0xFFFF;
             }

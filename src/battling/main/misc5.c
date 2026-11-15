@@ -137,7 +137,7 @@ extern u8 D_800928A0;
 
 extern int rand(void);
 
-extern void func_8007E3CC(s32);
+extern void BattleDrawLineQuads(s32);
 extern void func_8007D334(s32, s32, s32);
 extern void func_800732AC(void *, void *, s32);
 extern void func_8007E020(s32);
@@ -458,12 +458,12 @@ void BattleEffectQueueMatrixPrims(MATRIX *pMat, s32 arg1) {
     gte_SetRotMatrix_gpr(pMat);
     func_8007D918(arg1);
     func_8007E020(arg1);
-    func_8007E3CC(arg1);
+    BattleDrawLineQuads(arg1);
 }
 
 void BattleEffectQueuePrims(s32 arg0) {
     *(VECTOR *)PSX_SCRATCH = D_80096FA8;
-    func_8007E3CC(arg0);
+    BattleDrawLineQuads(arg0);
 }
 
 /*

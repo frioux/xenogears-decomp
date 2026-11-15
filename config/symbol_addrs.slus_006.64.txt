@@ -1384,3 +1384,6 @@ SpriteApplyFrameDirTransforms = 0x8001F8E8;
 SoundSpuMemoryAllocateBlockFit = 0x800394B8;
 GfxSetRenderContext = 0x800250E0;
 SoundSetElementVolumeByIndex = 0x8003A344;
+SoundStopElementsByIndex = 0x8003A20C;
+SoundFadeElementVolumeByIndex = 0x8003A450;
+SoundApplyPendingKeyOff = 0x8003EB5C;
