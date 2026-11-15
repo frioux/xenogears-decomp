@@ -580,23 +580,28 @@ void func_8009B46C(u16* arg0) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009B46C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009B684);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009BAC4);
-// best 86.33% under gcc-2.6.0 (83.67% on 2.7.2 and cdk): the index pseudo lands
-// in $v0 where retail has $v1, so the store and mfhi registers swap.
+// best 98.33% (was 86.33%): only the last four instructions differ, and only by
+// register: gcc puts the second D_800C3E50 load in $v0 where retail has $v1, so
+// mfhi lands in $a1 instead of $v0. Permuter score 50, stuck over 1907+1250
+// iterations, so this is an allocator tie and not a structural miss.
+// The gain came from splitting the two statements' base loads: a u8* local for
+// the first store, and a plain expression for the second so (u32)D_800C34B0 is
+// loaded again; the int idx local stops the second lbu being CSE'd into the
+// first, which is what lets the base reload schedule after multu.
+// Also tried, all 98.33 or worse: index-first addu operand order (97.33), two
+// separate locals for idx and address, declaration order swapped, u8* address
+// local, u32 quotient local stored separately, 20u divisor, dropping the idx
+// temp, u32* destination pointer local (70.17, CSEs the base).
 /*
-Best attempt: matches every instruction up to the last 5, which are an
-   allocator permutation (index pseudo in $v0 vs the original's $v1, so the store
-   goes through $v0 and mfhi lands in $a1 vs $v0). objdiff scores the earlier
-   all-unsigned spelling of this expression 97.33% (it likes its instruction
-   multiset better), but THIS spelling is the shape-correct one: retail's first
-   product is `mult` (signed) and only the /20 is unsigned (`multu` by
-   0xCCCCCCCD + `srl 4`, no sign fixup), which only falls out of a signed product
-   cast to u32. With *(u32*)(D_800D2DC8 + 0x64) the multiply comes out `multu`
-   and the mult/multu pair is wrong. Also tried: `(u32)D_800C34B0 + idx * 4`
-   operand order (identical result), a u32 numerator local (83.67%), a u32*
-   destination pointer local (70.17%, CSEs the base).
 void func_8009BD94(void) {
-    *(u8*)((u8*)D_800C34B0 + D_800C3E50 + 0x5FA0) = 2;
-    *(u32*)((u32)D_800C34B0 + D_800C3E50 * 4 + 0x5F6C) =
+    int new_var;
+    u8* new_var2;
+
+    new_var2 = (u8*)D_800C34B0;
+    *(u8*)(new_var2 + D_800C3E50 + 0x5FA0) = 2;
+    new_var = D_800C3E50;
+    new_var = (u32)D_800C34B0 + new_var * 4 - -0x5F6C;
+    *(u32*)new_var =
         (u32)(D_800C3DFC[0x11] * *(s32*)(D_800D2DC8 + 0x64)) / 20;
 }
 */
