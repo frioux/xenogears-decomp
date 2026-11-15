@@ -753,6 +753,15 @@ INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801DF7F4);
 // pSkeleton to s1 and pBlock to s2, ours is swapped. Declaration reordering
 // (flag1 first) dropped the score to 75.10%.
 // Screened: 75.14 best (2.6.0), 74.89 under 2.7.2-cdk - not a preset problem.
+// Re-measured: 1016 bytes against retail's 968, so the body is 12 instructions
+// too big and this is NOT an allocator tie: ours needs a 0x40 stack slot for
+// flag1 (andi a3,a3,1; sw a3,64(sp) at entry, lw t0,64(sp) at each use), saves
+// s2 twice, and re-forms pVertexBase + pKeyframe[0] in a block the original
+// reaches with one addu. Fixing it means finding the source shape that keeps
+// every value in retail's 8 saved registers (s1=pSkeleton, s2=pBlock,
+// s3=i, s4=transFrame, s5=rotFrame, s6=blockFlags, s7=pVertexBase, fp=flag1)
+// with the rotating constant 1 left in a1 and the u8 fifth argument read
+// straight out of its home slot 0x88(sp).
 /*
 s32 func_801DFAC4(Temp4* pList, ModelJoint* pSkeleton, KeyframeBlock* pBlock, s32 flags, u8 type) {
     u16 numRotFrames;
