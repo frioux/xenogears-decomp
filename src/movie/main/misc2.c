@@ -51,7 +51,7 @@ extern s32 D_80077040;
 extern s32 D_80077044;
 extern s32 D_8007704C;
 extern SVECTOR D_800770B0;
-extern s16 D_80077070;
+extern MATRIX D_80077070;
 extern s16 D_80077072;
 extern s16 D_80077074;
 extern s16 D_80077076;
@@ -389,21 +389,14 @@ void MovieFadeAudioOnPadPress(void) {
     }
 }
 
-INCLUDE_ASM("asm/movie/nonmatchings/main/misc2", func_80076AF0);
-
-/* PRESET: 100.00% under gcc 2.7.2 with -G0 (Default maspsx). Under this unit's
-   -G8 the offset-0 colour-matrix store folds to the symbol form: retail keeps
-   &D_80077070 in $a0 and writes sh v0,0(a0). tools/scripts/try_flags.sh --all
-   shows every other function of the unit scoring IDENTICALLY under -G0, so the
-   unit is a straight preset switch, not a split. Parked body:
 void func_80076AF0(void) {
-    s16* pDiag;
+    MATRIX* pColorMatrix;
 
     SetGeomScreen(0x200);
     SetGeomOffset(0xA0, 0x78);
-    pDiag = (s16*)&D_80077070;
+    pColorMatrix = &D_80077070;
 
-    D_800770B8 = 0x1000;
+    D_800770B8.m[0][0] = 0x1000;
     D_800770C0 = 0x1000;
     D_800770C8 = 0x1000;
     D_800770F8 = 0x1000;
@@ -433,7 +426,7 @@ void func_80076AF0(void) {
     D_8007709E = 0;
     D_800770A0 = 0;
 
-    pDiag[0] = 0x969;
+    pColorMatrix->m[0][0] = 0x969;
     D_80077072 = 0;
     D_80077074 = 0;
     D_80077076 = 0x969;
@@ -443,10 +436,9 @@ void func_80076AF0(void) {
     D_8007707E = 0;
     D_80077080 = 0;
 
-    SetColorMatrix((MATRIX*)pDiag);
+    SetColorMatrix(pColorMatrix);
     SetBackColor(0x60, 0x60, 0x60);
 }
-*/
 
 void WorldMapScriptOp04SetScratchPosition(void) {
     long pad[6];
@@ -460,28 +452,37 @@ void WorldMapScriptOp04SetScratchPosition(void) {
 
 INCLUDE_ASM("asm/movie/nonmatchings/main/misc2", func_80076CA4);
 
-/* PRESET: 88.94% under gcc 2.7.2 -G0, 83.09% under this unit's -G8. Under -G0
-   every instruction is retail's except one register tie (retail `mflo v0` then
-   `addu s3,s3,v0`, we get $v1) plus reloc spellings that link identically
-   (D_800770B0.vy assembles as D_800770B0+2 where retail names D_800770B2, and
-   D_800770D8.t[0..2] as +0x14/18/1C where retail names D_800770EC/F0/F4).
-   Under -G8 the blocker is the same one as func_80076AF0: retail keeps the
-   SVECTOR address in $s0 (`sh v0,0(s0)`, then `move a0,s0` for RotMatrix's
-   argument), while -G8 folds that store to the $at symbol form and materialises
-   the call argument after the jal. Shapes tried here: SVECTOR* local for both
-   stores and the call, MATRIX member stores, a dySq local (worse: 83.88 under
-   -G0). The declarations it needs are already in the unit: MovieVector for
-   D_8007702C/3C and D_80076F2C, SVECTOR for D_800770B0, MATRIX for D_800770B8
-   and D_800770D8. Parked body:
+/* best 89.13% under gcc 2.7.2 -G0 (88.94 with a MATRIX* local for the trans
+   stores instead of the individual symbols, 83.09 under the unit's old -G8).
+   Size is retail's 420 bytes / 105 instructions and the whole head is exact;
+   two differences remain:
+   1. the trans-matrix store block. Retail computes ONE address into $a3
+      (0x800770CC, i.e. &D_800770B8.t[0] = base+0x14), stores with $a3 as the
+      base (sw v1,0(a3)) and then derives the CompMatrix argument from it
+      (addiu a1,a3,-0x14). We emit a lone lui/addiu pair for the argument and a
+      bare %lo(%at) store. That is gcc sharing the %hi of one symbol_ref across
+      two offsets of the SAME symbol, which needs the trans base to reach the
+      store through a register - a pointer local gets folded back to a symbol
+      store, so all three store spellings tried (individual D_ symbols, a
+      MATRIX* pTransMatrix, a s32* pTransT = pTransMatrix->t) give a %at store.
+   2. one register tie: retail mult $s2,$s2 / mflo $v0 / addu $s3,$s3,$v0, we
+      get $v1 for the mflo and the addu.
+   Permuter run (4 min, -j 2) from this body: PERMUTER_BETTER base=950 best=775,
+   but its best candidate (u32 dxSq + a pRotMatrix reassignment so that both
+   CompMatrix arguments are the same pointer) is UNSOUND - it compiles to
+   CompMatrix(trans, trans, res) - and porting it drops objdiff to 83.30%.
+   The u32 dxSq half of it is kept here and is neutral for objdiff.
+   Next lever to try: a source shape where the trans stores are reached through
+   a runtime base (parameter/global pointer), since gcc folds every
+   compile-time-known global address into a bare symbol store. Parked body:
 void func_80076CA4(void) {
     MATRIX* pRotMatrix;
-    MATRIX* pTransMatrix;
     MovieVector* pPos;
     SVECTOR* pAngle;
     s32 dz;
-    s32 dzSq;
     s32 dx;
-    s32 dxSq;
+    s32 dzSq;
+    u32 dxSq;
     s32 dy;
 
     pPos = &D_8007703C;
@@ -497,13 +498,12 @@ void func_80076CA4(void) {
     RotMatrix(pAngle, pRotMatrix);
     RotMatrixZ(D_8007704C, pRotMatrix);
     MulMatrix2(&D_800770F8, pRotMatrix);
-    pTransMatrix = &D_800770B8;
     pRotMatrix->t[0] = 0;
     pRotMatrix->t[1] = 0;
     pRotMatrix->t[2] = SquareRoot0(dxSq + dy * dy + dzSq);
-    pTransMatrix->t[0] = D_80076F2C.x - pPos->x;
-    pTransMatrix->t[1] = D_80076F30 - D_80077040;
-    pTransMatrix->t[2] = D_80076F34 - D_80077044;
-    CompMatrix(pRotMatrix, pTransMatrix, &D_80077050);
+    D_800770CC = D_80076F2C.x - pPos->x;
+    D_800770D0 = D_80076F30 - D_80077040;
+    D_800770D4 = D_80076F34 - D_80077044;
+    CompMatrix(pRotMatrix, (MATRIX*)&D_800770B8, &D_80077050);
 }
 */
