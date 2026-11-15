@@ -216,7 +216,7 @@ void WorldMapExitToMap1FA(void) {
 }
 // The empty do/while is load-bearing: without it gcc hoists the D_8009A6C0 load
 // above the slot address formation (65.26%); with it the schedule is retail's.
-s32 func_80081174(s32 index) {
+s32 WorldMapBeginSlotAnimFrame(s32 index) {
     WorldMapSlot *pSlot = &D_8009BE24[index];
     do { } while (0);
     pSlot->unk50 = 0;
