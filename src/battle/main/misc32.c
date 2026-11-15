@@ -369,16 +369,21 @@ void BattleStepEffectColorFadeFromBase(Misc32Task *pTask) {
 extern void TimerWorkListSetTaskCallback(Misc32Task *pTask, void (*pCallback)(Misc32Task *));
 extern void BattleStepEffectColorFadeFromBase(Misc32Task *pTask);
 
-// 91.60%: COMPILES (parked body below). The `nextTimer` local is worth +8.2 (it
-// stops gcc folding 0x10 into the branch). Left: the callback block only. Retail's
-// instruction order is already reproduced exactly; the two stores go through $s0
-// while the call's `move $a0,$s0` sits earlier in the block, so gcc's cse is free to
-// forward the copy into them (`sw v1,136(a0)`, `sb v0,131(a0)`).
-// Tried: a `u8 flags` temp, the whole block in do{...}while(0) (55.56 - it also stops
-// the arg setup being hoisted), both store orders, a second `pEffect` alias of the
-// parameter (this round: it closed BattleStepEffectColorFadeFromBase but cse drops it here, since the
-// stores and the call use the same value with nothing else live), u8 pointer, offset
-// casts, a callback local, indexed forms, and a 3-min permuter run (no progress).
+// 91.60%: COMPILES (parked body below). `nextTimer` is worth +8.2 (it stops gcc
+// folding 0x10 into the branch); the rest of the block is retail's, per the diff.
+// CAUSE (round 115, from the cc1 -da dumps: misc32.flow vs misc32.lreg): the
+// argument copy `(set (reg 4 a0) (reg 80))` is the parameter's LAST use, so
+// local-alloc's combine_regs merges reg 80 into $a0, rewrites the two stores to
+// `sw v1,136(a0)` / `sb v0,131(a0)` and reorders the block to put the copy first.
+// Retail's own object proves combine_regs did not fire there: its `move $a0,$s0`
+// sits at block position 3, before its `sw v1,136(s0)`, so $a0 is defined before
+// those stores and they still use $s0. The lever is therefore a shape in which the
+// parameter is still live when the copy is scanned, or one whose stores reach the
+// base via a pseudo combine_regs cannot merge into $a0.
+// Tried (all 91.60 or worse): a `u8 flags` temp, both store orders, the whole block
+// in do{...}while(0) (55.56), the call alone in do{...}while(0) (67.40), a `pEffect`
+// alias for the call argument (cse folds it), an alias for the stores, u8 pointer,
+// offset casts, a callback local, indexed forms, and a 3-min permuter run.
 /*
 void func_800BDC14(Misc32Task *pTask) {
     s32 nextTimer;
