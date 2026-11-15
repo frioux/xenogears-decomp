@@ -484,6 +484,7 @@ void BattleSetActorScaledHp(u8 arg0, u8* arg1) {
         } else {
             p->state.unk60 = *(u16*)(arg1 + 0x4C) * 50;
         }
+        // only this store goes through a state base pointer ($a3 = p + 0xA4) in retail
         pState->unk64 = 0x1869F;
     } else {
         p->state.unk60 = *(u16*)(arg1 + 0x4C) * 50;
