@@ -37,7 +37,7 @@ extern void BattleBeginAnimTask(u16 arg0);
 extern void func_800BCD98(u16 arg0);
 extern void func_80088490(u8 arg0);
 extern void func_8009AEFC(u8 arg0);
-extern void func_800BAF48(u8 arg0);
+extern void BattleFinishActorAnimationAndReleaseSlot(u8 arg0);
 extern void func_800883AC(u8 arg0);
 extern u8 D_800CCE42[];
 extern u8 D_800C3EB8[];
@@ -599,7 +599,7 @@ void func_800826CC(u8 arg0) {
 
     func_80088490(arg0);
     func_8009AEFC(arg0);
-    func_800BAF48(arg0);
+    BattleFinishActorAnimationAndReleaseSlot(arg0);
     D_800CCE42[arg0 * 0x170] |= 0x80;
     func_800883AC(arg0);
     D_800D32A1[arg0 * 8] = 2;

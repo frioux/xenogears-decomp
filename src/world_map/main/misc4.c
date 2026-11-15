@@ -178,7 +178,7 @@ extern s32 WorldMapSetupGroup6And7ScaledPrims(s32);
 extern s32 WorldMapInitReturnThree(s32);
 extern s32 WorldMapInitGroup0Actor(s32);
 extern s32 WorldMapActivateSpriteGroup9Timed(s32);
-extern s32 func_80078E2C(s32 index);
+extern s32 WorldMapInitActorSlotTimer40(s32 index);
 extern void func_80078EA4(void);
 extern void func_80079778(void);
 extern void func_8007A1B4(void);
@@ -352,7 +352,7 @@ void func_80078A60(void) {
         Vsync(0);
     } while (WorldMapGetQueuedLoadCount() > 0);
     WorldMapAddSlot(WorldMapModeInitFadeRect, func_800925A0);
-    WorldMapAddSlot(func_80078E2C, func_80078EA4);
+    WorldMapAddSlot(WorldMapInitActorSlotTimer40, func_80078EA4);
     WorldMapAddSlot(WorldMapInitActorAtScrollPositionWithSound, func_80079778);
     WorldMapAddSlot(WorldMapSetupGroup14And15Prims, func_8007A1B4);
     WorldMapAddSlot(WorldMapSetActorTimer60, func_8007A430);
@@ -391,7 +391,7 @@ void WorldMapExitToMap110(void) {
     D_8006F950 = v;
 }
 
-s32 func_80078E2C(s32 index) {
+s32 WorldMapInitActorSlotTimer40(s32 index) {
     WorldMapActor *p;
     s32 scroll;
     s32 timer;

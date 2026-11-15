@@ -726,7 +726,7 @@ extern s32 D_800C35D8;
 extern void func_800BE790(void);
 extern void func_800BB760(s32 index);
 
-void func_800BAF48(s32 index) {
+void BattleFinishActorAnimationAndReleaseSlot(s32 index) {
     s32 count;
     s32 off;
     mem_addr base;
@@ -775,7 +775,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800BB080);
    best=574) whose only scoring edit moved the second store out of the if --
    not usable.  The remaining shape (two loop-invariant constants hoisted into
    callee-saved registers) is a loop.c cost decision, not a source one.
-   Lever found next door (func_800BAF48, matched): a `mem_addr base` local plus
+   Lever found next door (BattleFinishActorAnimationAndReleaseSlot, matched): a `mem_addr base` local plus
    `s32 off = 0x8C8C` and `pEntry + off` stops gcc folding the offset into the
    symbol's %lo (D_800CCB3C) and reproduces retail's `lui/addiu base` + a
    separate reg-reg add of the constant.

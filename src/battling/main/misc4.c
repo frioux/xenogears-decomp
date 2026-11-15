@@ -97,7 +97,7 @@ extern void func_8007DC74();
 extern s32 func_80082488();
 extern u32 BattleGetGridCellAtPosition();
 extern void func_800828F8();
-extern void func_800776A8();
+extern void BattleUpdateControllerActuator();
 extern s32 BattleGetScreenMode();
 extern void BattleApplyOptionWord(void);
 extern void BattleEffectCreateWork(void);
@@ -225,7 +225,7 @@ void BattleActorUpdateGroundMovement(Actor* p) {
         if (p->unkC4 == 4) {
             if (!(p->unkD4 & 0x10)) {
                 func_8008EBD0(p, 0xD, p, 2);
-                func_800776A8(p, 6);
+                BattleUpdateControllerActuator(p, 6);
             }
             p->unkD4 |= 0x10;
             if (p->unk14 >= 0x40) {

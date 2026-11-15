@@ -552,7 +552,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_8008390C);
 //     D_8009BD38[1]/[2] with `extern s16 D_8009BD38[]`: no fold, the two `lh`
 //     come back, but 51.59% / 244 bytes vs retail's 224 - cc1 hoists every
 //     li+store pair past the $0 stores and lands the WorldMapActor cluster at
-//     the end, exactly the misc4 func_80078E2C / misc7 func_800827EC class.
+//     the end, exactly the misc4 WorldMapInitActorSlotTimer40 / misc7 func_800827EC class.
 // (2) try_flags --sweep over that body: best is gcc-2.7.2-cdk -O1 74.33,
 //     2.7.2 -O1 74.08, every -O2/-O3 row 43-52. So the store order is a -O2
 //     scheduler property, not a preset question; the unit's already-matched

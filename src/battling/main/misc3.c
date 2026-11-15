@@ -400,7 +400,7 @@ void BattleActorBeginMove(BattleActor* p) {
 
 /* non-void return type, bare returns: as void gcc fills the beqz/beq delay
    slots that retail leaves as nop. */
-s32 func_800776A8(BattleActor* p, s32 mode) {
+s32 BattleUpdateControllerActuator(BattleActor* p, s32 mode) {
     u32 flags;
 
     if (BattleGetScreenMode(p) == 4) {
