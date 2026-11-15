@@ -12,6 +12,8 @@ extern u8 D_801EA730[];
 extern s32 D_801EA728;
 extern u16 D_801EA72C;
 extern u8 D_801E9EA0[];
+extern u8 D_801E9785;
+extern u8 D_80059171;
 
 void func_801DDF24(u_char arg0, u_char arg1, s32 arg2);
 void MenuRenderFrame(void);
@@ -30,9 +32,165 @@ void func_801E8070(s32 arg0, void* pArg1, void* pArg2, void* pArg3, void* pArg4,
 void MenuFillDressingRoomGearStats(MenuDressingRoom* pDressingRoom, s32 gearId);
 void MenuSetPrimShadingMode(POLY_FT4* pPoly, u_char mode);
 void func_801E8F60(s32 mode, u_char index);
+u32 MenuAndBitMaskLsbFirst(u32 mask, u8 index);
+void MenuPlaySoundEffect(u_char soundEffectId);
+s32 func_801D9704(s32 slot, s32 direction, s32 unk);
+void func_801DA5BC(s32 arg0);
+void func_801DA9A8(s32 arg0, s32 arg1);
+void func_801DB39C(s32 arg0);
+void func_801DB5E4(s32 arg0);
+s32 func_801E31C0(MenuDressingRoom* pDressingRoom, u8 characterId, u8 itemId);
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DB920);
+/* Best: 92.79%, retail's exact size (1068 bytes, 267 insns). Every instruction,
+   call, branch and store is in retail's order; the ONLY remaining difference is
+   which callee-saved register holds three of the live-across-call variables:
+   retail has refresh=$s1, pItemId=$s2, result(paged mask)=$s3, this body gets
+   $s3, $s1, $s2 (slot=$s4, active=$s5, 1=$s6, &itemQuantities=$s7, idx=$s8 all
+   already agree, and both spill arg0/arg1 to sp+0x28/0x30). Tried: every local
+   declaration order (2.6.0 does not allocate by declaration order), and
+   permute.sh --minutes 3 (PERMUTER_BETTER 1361 -> 1321, its only hits are
+   cosmetic: it moved `refresh = 0;` above the `case 4:` label and inlined
+   pCursors for one store - neither moves a register). Also of note: the
+   itemIDs clear at the end must be spelled through the itemQuantities base
+   (`itemQuantities[idx + MAX_INVENTORY_ITEMS]`) - spelled `itemIDs[idx]` gcc
+   builds a second %hi/%lo pair (retail reuses %hi(g_GameState+0x1F90)+0x96) and
+   spelled `pQuantity[MAX_INVENTORY_ITEMS]` it CSEs to `sb $zero,150($s7)` and
+   loses an instruction. Decode: g_Menu->pDressingRoom->pItemsData[id] is a
+   0x10-byte MenuShopItem, unk4[2] bit 0x80 = shaded variant (dropped when bit
+   0x20 is set while D_80059171 is 0), unk4[0] bit 0 = paged item list. */
+/*
+Item selection loop for one row of the inventory: two columns of gear-shop
+   item rows (MenuCreateWindow(2, ...)) driven by the mapped input, with the
+   pointer cursor drawn on the row that holds the selected character's item.
+   Returns the bit mask of characters that own the item (and the shaded-item
+   flag).
+u8 func_801DB920(s32 arg0, s32 arg1) {
+    MenuShopItem* pItem;
+    MenuPointerCursors* pCursors;
+    s32 idx;
+    s32 i;
+    u16 result;
+    u32 paged;
+    u16 mask;
+    u8* pQuantity;
+    u8 refresh;
+    u8 flags;
+    s32 slot;
+    u8 active;
+    u8* pItemId;
+    u8 quantity;
 
+    slot = g_Menu->unk4DA[2];
+    D_801E9785 = 0;
+    pItem = &g_Menu->pDressingRoom->pItemsData[g_GameState.itemIDs[arg0 * 2 + arg1]];
+    result = 0;
+    refresh = 1;
+    active = 1;
+    flags = pItem->unk4[2];
+    if (flags & 0x80) {
+        result = 1;
+        if (flags & 0x20) {
+            result = D_80059171 != 0;
+        }
+    }
+    paged = ((u16*)pItem->unk4)[0] & 1;
+    if (result == 0) {
+        return result;
+    }
+    MenuCreateWindow(2, 0x10, 0xE, 0x90, 0xB0, 0, 0, 4, 0);
+    idx = arg0 * 2 + arg1;
+    pQuantity = &g_GameState.itemQuantities[idx];
+    while (active) {
+        MenuRenderFrame();
+        result = 0;
+        if (refresh) {
+            refresh = 0;
+            func_801DA5BC(arg0);
+            func_801DA9A8(arg1, arg0);
+            func_801DB39C(1);
+            func_801DB5E4(0);
+        }
+        pCursors = g_Menu->pCursors;
+        pCursors->shouldRender[2] = 0;
+        pCursors->shouldRender[1] = 0;
+        pCursors->shouldRender[0] = 0;
+        if (paged) {
+            i = 0;
+            while (1) {
+                if (g_Menu->pManager->currentCharacterIDs[i] != 0xFF) {
+                    result |= 1 << i;
+                    g_Menu->pCursors->shouldRender[i] = 1;
+                }
+                i++;
+                if (i >= 3) {
+                    break;
+                }
+            }
+        } else {
+            result = 1 << slot;
+            g_Menu->pCursors->shouldRender[slot] = 1;
+        }
+        g_Menu->pManager->shouldRenderCursors = 1;
+        if (*pQuantity == 0) {
+            active = 0;
+        }
+        if (active == 0) {
+            break;
+        }
+        switch (g_Menu->input) {
+        case 4:
+            refresh = 0;
+            pItemId = &g_GameState.itemIDs[idx];
+            for (i = 0; i < 3; i++) {
+                mask = MenuAndBitMaskLsbFirst(result, i);
+                if (mask != 0) {
+                    if (func_801E31C0(g_Menu->pDressingRoom, g_Menu->pManager->currentCharacterIDs[i],
+                                      *pItemId) == 0) {
+                        refresh |= 1;
+                    }
+                }
+            }
+            if (refresh) {
+                MenuPlaySoundEffect(0x37);
+                quantity = *pQuantity - 1;
+                *pQuantity = quantity;
+                if (quantity == 0) {
+                    g_GameState.itemQuantities[idx + MAX_INVENTORY_ITEMS] = 0;
+                }
+            } else {
+                MenuPlaySoundEffect(4);
+            }
+            refresh = 1;
+            break;
+        case 5:
+            active = 0;
+            result = 0;
+            break;
+        case 1:
+            slot = func_801D9704(slot, 0, 0);
+            break;
+        case 3:
+            slot = func_801D9704(slot, 1, 0);
+            break;
+        }
+    }
+    pCursors = g_Menu->pCursors;
+    pCursors->shouldRender[2] = 0;
+    pCursors->shouldRender[1] = 0;
+    pCursors->shouldRender[0] = 0;
+    func_801DB39C(0);
+    g_Menu->pManager->unk46 = 0;
+    MenuRenderFrame();
+    for (i = 0; i < 3; i++) {
+        HeapFree(g_Menu->currentCharacters[i]);
+    }
+    D_801E9785 = 0;
+    MenuFreeWindow(2);
+    return result;
+}
+
+*/
 void MenuSwapInventoryItems(s32 index0, s32 index1) {
     u_char tmp;
 
