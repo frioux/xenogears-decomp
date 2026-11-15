@@ -1,14 +1,15 @@
 #include "common.h"
 #include "psyq/libgpu.h"
+#include "battle/battle_work.h"
 
 extern u8 *D_800C3E24;
 extern u8 D_800CCB34;
 extern u8 D_800D2D24[];
 extern u8 D_800D3294;
 extern u8 *D_800D2F5C;
-extern u8 *D_800C3EA4;
+extern BattleGraphicsWork *D_800C3EA4;
 extern u8 *D_800C3EAC;
-extern u8 *D_800D2D28;
+extern BattleWork *D_800D2D28;
 extern u8 D_800C400B[];
 extern u8 D_800C4022[];
 extern u8 D_800C402F[];
@@ -41,7 +42,7 @@ extern void func_8008F8F4(s32 arg0, u16 arg1, u16 arg2, u16 arg3, u16 arg4, u8 a
 extern void *BattleAllocTextBuffer(s32 arg0);
 extern u8 D_800D36C0[];
 extern u8 D_800D36C8[];
-extern u8 *D_800D2E38[];
+extern BattleSlotGraphics *D_800D2E38[];
 extern u8 D_800594D4[];
 extern u8 D_800D2F3C[];
 extern u8 D_800D2F3D[];
@@ -251,31 +252,30 @@ void func_80076EA4(void) {
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_80076EA4);
 void BattleInitPacketPrimitives(void) {
-    (*(u8 **)(D_800C3EA4 + 0xA230))[0x669] = 0;
-    (*(u8 **)(D_800C3EA4 + 0xA230))[0x66B] = 0;
-    (*(u8 **)(D_800C3EA4 + 0xA230))[0x66D] = 0;
-    func_80076D58(*(u8 **)(D_800C3EA4 + 0xA230) + 0x000, 0, 1);
-    func_80076D58(*(u8 **)(D_800C3EA4 + 0xA230) + 0x050, 0, 1);
-    func_80076D58(*(u8 **)(D_800C3EA4 + 0xA230) + 0x0A0, 0, 2);
-    func_80076D58(*(u8 **)(D_800C3EA4 + 0xA230) + 0x0F0, 0, 2);
-    func_80076D58(*(u8 **)(D_800C3EA4 + 0xA230) + 0x140, 0, 1);
-    func_80076D58(*(u8 **)(D_800C3EA4 + 0xA230) + 0x190, 0, 2);
-    func_80076D58(*(u8 **)(D_800C3EA4 + 0xA230) + 0x1E0, 0, 2);
-    func_80076D58(*(u8 **)(D_800C3EA4 + 0xA230) + 0x230, 0, 2);
-    func_80076D58(*(u8 **)(D_800C3EA4 + 0xA230) + 0x280, 0, 3);
-    func_80076D58(*(u8 **)(D_800C3EA4 + 0xA230) + 0x2D0, 1, 3);
-    func_80076D58(*(u8 **)(D_800C3EA4 + 0xA230) + 0x320, 0, 2);
-    func_80076D58(*(u8 **)(D_800C3EA4 + 0xA230) + 0x370, 1, 2);
-    func_80076D58(*(u8 **)(D_800C3EA4 + 0xA230) + 0x3C0, 0, 2);
-    func_80076D58(*(u8 **)(D_800C3EA4 + 0xA230) + 0x410, 0, 2);
-    func_80076D58(*(u8 **)(D_800C3EA4 + 0xA230) + 0x460, 0, 2);
-    func_80076D58(*(u8 **)(D_800C3EA4 + 0xA230) + 0x4B0, 0, 2);
-    func_80076D58(*(u8 **)(D_800C3EA4 + 0xA230) + 0x500, 0, 2);
-    func_80076D58(*(u8 **)(D_800C3EA4 + 0xA230) + 0x550, 0, 2);
+    D_800C3EA4->pPacketPrims[0x669] = 0;
+    D_800C3EA4->pPacketPrims[0x66B] = 0;
+    D_800C3EA4->pPacketPrims[0x66D] = 0;
+    func_80076D58(D_800C3EA4->pPacketPrims + 0x000, 0, 1);
+    func_80076D58(D_800C3EA4->pPacketPrims + 0x050, 0, 1);
+    func_80076D58(D_800C3EA4->pPacketPrims + 0x0A0, 0, 2);
+    func_80076D58(D_800C3EA4->pPacketPrims + 0x0F0, 0, 2);
+    func_80076D58(D_800C3EA4->pPacketPrims + 0x140, 0, 1);
+    func_80076D58(D_800C3EA4->pPacketPrims + 0x190, 0, 2);
+    func_80076D58(D_800C3EA4->pPacketPrims + 0x1E0, 0, 2);
+    func_80076D58(D_800C3EA4->pPacketPrims + 0x230, 0, 2);
+    func_80076D58(D_800C3EA4->pPacketPrims + 0x280, 0, 3);
+    func_80076D58(D_800C3EA4->pPacketPrims + 0x2D0, 1, 3);
+    func_80076D58(D_800C3EA4->pPacketPrims + 0x320, 0, 2);
+    func_80076D58(D_800C3EA4->pPacketPrims + 0x370, 1, 2);
+    func_80076D58(D_800C3EA4->pPacketPrims + 0x3C0, 0, 2);
+    func_80076D58(D_800C3EA4->pPacketPrims + 0x410, 0, 2);
+    func_80076D58(D_800C3EA4->pPacketPrims + 0x460, 0, 2);
+    func_80076D58(D_800C3EA4->pPacketPrims + 0x4B0, 0, 2);
+    func_80076D58(D_800C3EA4->pPacketPrims + 0x500, 0, 2);
+    func_80076D58(D_800C3EA4->pPacketPrims + 0x550, 0, 2);
 }
 void BattleInitTilePrims(POLY_FT4 *p, u8 index) {
     s32 i;
-    s32 offset;
 
     for (i = 0; i < 4; i++) {
         SetPolyFT4(&p[i]);
@@ -283,56 +283,56 @@ void BattleInitTilePrims(POLY_FT4 *p, u8 index) {
         p[i].r0 = 0xFF;
         p[i].g0 = 0xFF;
         p[i].b0 = 0xFF;
-        offset = index * 0x18;
-        p[i].tpage = GetTPage(*(s32 *)(D_800C3EA4 + offset + 0xA238), 0,
-                              *(s32 *)(D_800C3EA4 + offset + 0xA244),
-                              *(s32 *)(D_800C3EA4 + offset + 0xA248));
-        p[i].clut = GetClut(*(s32 *)(D_800C3EA4 + offset + 0xA23C),
-                            *(s32 *)(D_800C3EA4 + offset + 0xA240));
+        p[i].tpage = GetTPage(D_800C3EA4->tiles[index].tp, 0,
+                              D_800C3EA4->tiles[index].texPageX,
+                              D_800C3EA4->tiles[index].texPageY);
+        p[i].clut = GetClut(D_800C3EA4->tiles[index].clutX,
+                            D_800C3EA4->tiles[index].clutY);
     }
 }
 void BattleInitSlotPrims(u8 index) {
-    u8 *pBase;
+    BattleSlotGraphics *pGfx;
     u8 i;
 
-    pBase = D_800D2E38[index];
+    pGfx = D_800D2E38[index];
+    // the index-first spelling is what makes gcc emit retail's addu order
     for (i = 0; i < 2; i++) {
-        SetPolyG4((POLY_G4 *)&pBase[i * 0x24 + 0x3C0]);
-        pBase[i * 0x24 + 0x3C4] = D_800594D4[0];
-        pBase[i * 0x24 + 0x3C5] = D_800594D4[1];
-        pBase[i * 0x24 + 0x3C6] = D_800594D4[2];
-        pBase[i * 0x24 + 0x3CC] = D_800594D4[0];
-        pBase[i * 0x24 + 0x3CD] = D_800594D4[1];
-        pBase[i * 0x24 + 0x3CE] = D_800594D4[2];
-        pBase[i * 0x24 + 0x3D4] = D_800594D4[0];
-        pBase[i * 0x24 + 0x3D5] = D_800594D4[1];
-        pBase[i * 0x24 + 0x3D6] = D_800594D4[2];
-        pBase[i * 0x24 + 0x3DC] = D_800594D4[0];
-        pBase[i * 0x24 + 0x3DD] = D_800594D4[1];
-        pBase[i * 0x24 + 0x3DE] = D_800594D4[2];
-        SetSemiTrans((POLY_G4 *)&pBase[i * 0x24 + 0x3C0], 1);
-        SetDrawMode((DR_MODE *)&pBase[i * 0xC + 0x408], 0, 0,
-                    GetTPage(0, D_800595A0, *(s32 *)(D_800C3EA4 + 0xA25C),
-                             *(s32 *)(D_800C3EA4 + 0xA260)),
+        SetPolyG4(&pGfx->prims[i]);
+        (i + pGfx->prims)->r0 = D_800594D4[0];
+        (i + pGfx->prims)->g0 = D_800594D4[1];
+        (i + pGfx->prims)->b0 = D_800594D4[2];
+        (i + pGfx->prims)->r1 = D_800594D4[0];
+        (i + pGfx->prims)->g1 = D_800594D4[1];
+        (i + pGfx->prims)->b1 = D_800594D4[2];
+        (i + pGfx->prims)->r2 = D_800594D4[0];
+        (i + pGfx->prims)->g2 = D_800594D4[1];
+        (i + pGfx->prims)->b2 = D_800594D4[2];
+        (i + pGfx->prims)->r3 = D_800594D4[0];
+        (i + pGfx->prims)->g3 = D_800594D4[1];
+        (i + pGfx->prims)->b3 = D_800594D4[2];
+        SetSemiTrans(&pGfx->prims[i], 1);
+        SetDrawMode(&pGfx->drawModes[i], 0, 0,
+                    GetTPage(0, D_800595A0, D_800C3EA4->tiles[1].texPageX,
+                             D_800C3EA4->tiles[1].texPageY),
                     (RECT *)D_800D2D28);
     }
-    BattleInitTilePrims((POLY_FT4 *)&pBase[0x140], 1);
-    BattleInitTilePrims((POLY_FT4 *)&pBase[0x1E0], 2);
-    BattleInitTilePrims((POLY_FT4 *)&pBase[0x280], 3);
-    BattleInitTilePrims((POLY_FT4 *)&pBase[0x320], 4);
+    BattleInitTilePrims(pGfx->tilePrims[0], 1);
+    BattleInitTilePrims(pGfx->tilePrims[1], 2);
+    BattleInitTilePrims(pGfx->tilePrims[2], 3);
+    BattleInitTilePrims(pGfx->tilePrims[3], 4);
 }
 
 void BattleAllocPacketPrimitives(void) {
     u8 *p = (u8 *)BattleAllocHeapBlock(0x670, 0);
 
-    *(u8 **)(D_800C3EA4 + 0xA230) = p;
+    D_800C3EA4->pPacketPrims = p;
     bzero(p, 0x670);
     BattleInitPacketPrimitives();
 }
 
 void BattleFreePacketPrimitives(void) {
     BattleUpdateFrame();
-    HeapFree(*(u8 **)(D_800C3EA4 + 0xA230));
+    HeapFree(D_800C3EA4->pPacketPrims);
 }
 
 void func_80077698(void) {
@@ -391,11 +391,11 @@ void func_80077698(void) {
     *(s32 *)(D_800C3E24 + 0xE0) = 0xFF;
     D_800C3E24[0xE5] = 1;
     D_800C3E24[0xE4] = D_800CCB34;
-    D_800D2D28[0xC6] = 1;
+    D_800D2D28->unkC6 = 1;
 }
 
 void BattleClearFlagC6(void) {
-    D_800D2D28[0xC6] = 0;
+    D_800D2D28->unkC6 = 0;
 }
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_80077990);
