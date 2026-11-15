@@ -391,6 +391,19 @@ extern s32 D_80092934;
 extern s32 BattleCheckValueAboveScaledMax(BattleActor* p, s32 v);
 extern void func_8008EB4C(s32 arg);
 
+INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80077038);
+
+/* 99.06%: every instruction is retail's, the function is 4 bytes short (1348 vs
+   1352) for one reason. At the `p->flags |= 0x400` store retail RELOADS the word
+   for the 0x8000000 test (`sw v1,208(s0); lw v0,208(s0); lui v1,0x800; and`)
+   while gcc forwards the stored value into the `and`, so `lui` is hoisted and
+   the reload disappears. Every other shape of the body is byte-identical.
+   Tried: `p->flags = p->flags | 0x400`, a `flags` local, both statement orders
+   for the |= 0x1000 / unk14 / |= 0x400 trio, a do/while block around the store.
+   The permuter (3 min) reached base=326 best=120 only by moving `p->unk970 = 0`
+   inside the if, which fixes the reload but costs retail's store placement.
+*/
+/*
 s32 func_80077038(BattleActor* p) {
     u32 flags;
 
@@ -535,6 +548,7 @@ s32 func_80077038(BattleActor* p) {
     }
     return;
 }
+*/
 
 /* Old-style definition and a non-void return both matter: BattleActorBeginMove
    calls it with one argument, and as void gcc fills the beqz delay slot with the
