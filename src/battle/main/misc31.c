@@ -40,6 +40,7 @@ extern u16 D_800D30A8[];
 extern void WorkListsRemoveEntriesForData(u8 *pTask);
 extern void AnimScriptTick(SpriteData *pSprite);
 extern void SpriteApplyMovementStep(SpriteData *pSprite);
+extern void WorkListTaskSetOnFreeCallback(void *pEntry, void *pCallback);
 extern IVEC3 D_8006F99C;
 extern IVEC3 D_8006F9AC;
 
@@ -227,7 +228,54 @@ void func_800BC018(u8 *pEntry) {
         (*((void (**)(u8 *))(pEntry + 0xC)))(pEntry);
     }
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BC158);
+void func_800BC158(u8 *pEntry) {
+    SpriteData *pSprite;
+    u8 *pOwner;
+
+    pSprite = (SpriteData *)(pEntry + 0x38);
+    if ((pSprite->field_0x40 >> 13 & 0xF) == 0xA) {
+        pOwner = D_800C3680;
+        if (pOwner != NULL) {
+            if (*(u16 *)(pOwner + 0x6C) != 1 && (u16)pSprite->curSpriteFrame == 1) {
+                ((void (*)(u8 *)) * (void **)(pOwner + 0xC))(pOwner);
+                D_800C3680 = pEntry;
+            } else {
+                pSprite->animScriptWaitTimer = 0;
+                pSprite->pSpriteBytecode = NULL;
+            }
+        } else {
+            D_800C3680 = pEntry;
+            D_800C3CCC[0] = D_800D30A0[0];
+            D_800C3CCC[1] = D_800D30A0[1];
+            D_800C3CCC[2] = D_800D30A0[2];
+        }
+    } else {
+        pOwner = D_800C3684;
+        if (pOwner != NULL) {
+            if (*(u16 *)(pOwner + 0x6C) != 1 && (u16)pSprite->curSpriteFrame == 1) {
+                ((void (*)(u8 *)) * (void **)(pOwner + 0xC))(pOwner);
+                D_800C3684 = pEntry;
+            } else {
+                pSprite->animScriptWaitTimer = 0;
+                pSprite->pSpriteBytecode = NULL;
+            }
+        } else {
+            D_800C3684 = pEntry;
+            D_800C3CD4[0] = D_800D30A8[0];
+            D_800C3CD4[1] = D_800D30A8[1];
+            D_800C3CD4[2] = D_800D30A8[2];
+        }
+    }
+    D_800C3CC4++;
+    if (((u32)pSprite->flags_0xAC >> 2) & 1) {
+        pSprite->direction = 0x800;
+    } else {
+        pSprite->direction = 0;
+    }
+    WorkListTaskSetOnFreeCallback(pEntry, func_800BBEE0);
+    TimerWorkListSetTaskCallback(pEntry, func_800BC018);
+    func_800BC2F0(2);
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BC2F0);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BC3F8);
 /* best 45%: unmatchable macro-store, see func_800BC454 below. */
