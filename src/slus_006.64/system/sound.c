@@ -1797,19 +1797,16 @@ void SoundStopElementsById(s32 sedId) {
     } while (cnt);
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003A20C);
-/*
-Screened under gcc-2.7.2-cdk / gcc-2.7.2 / this unit's gcc-2.6.0: 80.40 / 80.40 / 84.00 - not
-a compiler-only match; the current preset is the best of the three.
-Attempt (84.00%, correct size and registers): same blocker as SoundSetElementVolumeByIndex - the
-only difference is that gcc emits the `andi a0,0xfe` / `xori a0,0x8` mask after
-the loop-preheader constants (`li s2,2`, `li s4,1`) while the original emits it
-first. Stable against the mask in a local of its own, and against the mask inline
-in the address expression.
-void func_8003A20C(s32 index) {
-    AudioManager* pManager = D_800595D8;
-    AudioElement* pElement = &pManager->elements[(index & 0xFE) ^ 8];
-    u32 cnt = 2;
+void func_8003A20C(s32 elementIndex) {
+    AudioManager* pManager;
+    AudioElement* pElement;
+    u32 cnt;
+
+    elementIndex &= 0xFE;
+    elementIndex ^= 8;
+    cnt = 2;
+    pManager = D_800595D8;
+    pElement = &pManager->elements[elementIndex];
 
     do {
         if (pElement->active_flag & 0x1) {
@@ -1821,7 +1818,6 @@ void func_8003A20C(s32 index) {
         cnt--;
     } while (cnt);
 }
-*/
 
 void SoundNop2(void) {}
 
@@ -1890,21 +1886,17 @@ void SoundFadeElementVolumeById(s32 id, s32 value, s32 frames) {
     } while (cnt);
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003A450);
-/*
-Screened under gcc-2.7.2-cdk / gcc-2.7.2 / this unit's gcc-2.6.0: 90.47 / 90.47 / 90.70 - not
-a compiler-only match; the current preset is the best of the three.
-Attempt (90.70%, correct size): identical to SoundFadeElementVolumeById except that gcc hoists
-the `andi a0,0xFE` / `xori a0,0x8` index pair into the loop preheader (after
-`li t0,2` / `sll a1,8`) while the original keeps them in the entry block. Same
-blocker as SoundSetElementVolumeByIndex and func_8003A55C; u8/u16 index types and declaration
-order do not move it.
 void func_8003A450(s32 elementIndex, s32 value, s32 frames) {
-    s32 index = (elementIndex & 0xFE) ^ 8;
-    u32 cnt = 2;
-    s32 volume = value << 8;
-    AudioElement* pElement = &D_800595D8->elements[index];
+    AudioElement* pElement;
+    u32 cnt;
+    s32 volume;
     s32 delta;
+
+    elementIndex &= 0xFE;
+    elementIndex ^= 8;
+    cnt = 2;
+    volume = value << 8;
+    pElement = &D_800595D8->elements[elementIndex];
 
     do {
         if (pElement->active_flag & 0x1) {
@@ -1922,7 +1914,7 @@ void func_8003A450(s32 elementIndex, s32 value, s32 frames) {
         pElement++;
         cnt--;
     } while (cnt);
-} */
+}
 
 void SoundSetElementPanById(s32 id, s32 value) {
     AudioManager* pManager = D_800595D8;
@@ -1941,20 +1933,16 @@ void SoundSetElementPanById(s32 id, s32 value) {
     } while (cnt);
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003A55C);
-/*
-Screened under gcc-2.7.2-cdk / gcc-2.7.2 / this unit's gcc-2.6.0: 72.03 / 72.03 / 79.31 - not
-a compiler-only match; the current preset is the best of the three.
-Attempt (79.31%, correct size and registers): the only difference is that gcc
-schedules the `andi a0,0xfe` / `xori a0,0x8` pair after the loop-preheader
-constants (`li a2,2`, `sll a1,a1,8`, `li a3,0x100`) while the original emits
-them first. Everything else - including the second pointer to status_flags -
-matches. Stable against declaration order and against a statement-per-line form.
 void func_8003A55C(s32 elementIndex, s32 value) {
-    s32 index = (elementIndex & 0xFE) ^ 8;
-    AudioElement* pElement = &D_800595D8->elements[index];
-    s32 volume = value << 8;
-    u32 cnt = 2;
+    AudioElement* pElement;
+    u32 cnt;
+    s32 volume;
+
+    elementIndex &= 0xFE;
+    elementIndex ^= 8;
+    cnt = 2;
+    volume = value << 8;
+    pElement = &D_800595D8->elements[elementIndex];
 
     do {
         if (pElement->active_flag & 0x1) {
@@ -1965,7 +1953,6 @@ void func_8003A55C(s32 elementIndex, s32 value) {
         cnt--;
     } while (cnt);
 }
-*/
 
 s32 func_8003A5D0(s32 id) {
     AudioElement* pElement = &D_800595D8->elements[0];
@@ -3866,25 +3853,30 @@ u8* SoundScriptSelectEnvelope(u8* pScript, AudioManager* pAudioManager, AudioEle
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003E1F8);
 /*
-Screened under gcc-2.7.2-cdk / gcc-2.7.2 / this unit's gcc-2.6.0: 82.97 / 84.21 / 83.37 - not
-a compiler-only match; the current preset is the best of the three.
-Attempt (82.97%, same size): every instruction is right except that gcc gives
-pScript s2 and the AudioEnvelope s1 (original: pScript s1, envelope s2) and re-uses
-the pScript[0] load for the sum where the original reloads it into a1 and copies the
-result to s0. Swapping the two declarations, splitting the divide into its own
-temporary, duplicating the value expression and u16/s32 variants of `value` all
-leave the same 82.97%.
+Round 66: 85.66% (148 bytes, right size). Two permuter runs (630 -> 305 -> 265) plus hand
+shapes; the body below is the best found. Split the multiply from the divide (`pitch = x*x;`
+then `pitch / 64` at the use) - that is what puts the `mult` early and `mflo` after the
+pAudioElements->unk_0xCC scale in retail. `note` must be a u8 COPY of pScript[0] taken after
+the multiply, otherwise gcc reuses the single load for the sum (retail reloads it into a1).
+The `do { } while (0)` is load-bearing: it is the only shape found that gives retail's
+prologue (pScript s1, envelope s2; without it the two are mirrored and the score is 83.37) -
+it is also why this is parked and not shipped. THE REMAINING 2-INSTRUCTION DELTA: retail
+loads `lbu a0,2(s1)` and `lbu a2,29(s2)` BEFORE the volume `addu a1,a1,v0`; ours emits both
+after it. Everything else, including the call and the two envelope stores, is exact.
 u8* func_8003E1F8(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
+    s32 pitch;
     AudioEnvelope* pEnvelope;
-    s32 value;
+    s32 volume;
+    u8 note;
 
+    volume = pScript[0];
+    pitch = volume * volume;
+    note = volume;
     pEnvelope = &pAudioElements->envelopes[pAudioElements->unk_0xCC];
-    value = pScript[0] + (pScript[0] * pScript[0]) / 64;
-    pEnvelope->delta = SoundCalculateEnvelopeDelta(((s8)pScript[1] << 24) | (pScript[2] << 16), value, pEnvelope->unk_0x1D);
-    pEnvelope->reload = value;
-    return pScript + 3;
+    do { volume = note + pitch / 64; pEnvelope->delta = SoundCalculateEnvelopeDelta(((s8)pScript[1] << 24) | (pScript[2] << 16), volume, pEnvelope->unk_0x1D); pEnvelope->reload = volume; return pScript + 3; } while (0);
 }
 */
+
 
 s32 SoundCalculateEnvelopeDelta(s32 value, s16 divisor, s16 mode) {
     if (value != 0 && divisor != 0) {
@@ -4189,34 +4181,17 @@ void SoundAbortVoiceOnChannel(SoundVoiceData* voiceData, u32 channelIndex) {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003E900);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003EB5C);
-/*
-Screened under gcc-2.7.2-cdk / gcc-2.7.2 / this unit's gcc-2.6.0: 81.05 / 81.05 / 85.11 - not
-a compiler-only match; the current preset is the best of the three.
-Round 45 adds: the do-while pointer-walk shape (below) is exact for the body, the loop tail
-(i++ in the beqz delay slot, pVoice++ in the bnez delay slot) and both slti/bnez; an indexed
-`pVoice[i]` body drops to 81.14 and never biv-replaces into the pointer walk. Remaining deltas
-are (a) the allocator shuffle - retail mask->v1/pVoice->a0/i->a1, gcc pVoice->v1/i->a0/mask->a1,
-(b) gcc sinks the `addiu pVoice,a2+0xA` preheader into the beqz delay slot where retail has a
-nop and forms it after `li a3,1`, (c) at the tail retail ORs into v1 and puts `srl v0,v1,0x10`
-in the beqz delay slot, gcc ORs into v0 and strips the shift after the first sh.
-Attempt (85.11%, same size): the loop body and the key-off tail are instruction for
-instruction right. gcc picks a different register for the loop-carried voice mask
-(a1/v0 here, v1 in the original) and therefore a different s/ptr register, and it
-sinks the pVoice-0xA preheader addiu into the guarding branch delay slot where the
-original leaves a nop. Reading the mask global directly in the loop, a u32 or long
-mask local and declaration order all give the same allocation.
 void func_8003EB5C(void) {
-    u32 voiceMask = g_unk_VoicesNeedingProcessing;
+    u32 flags = g_unk_VoicesNeedingProcessing;
     SpuUnion* pSpu = g_pSoundSpuRegisters;
     SPU_VOICE_REG* pVoice = pSpu->_rxx.voice;
-    u32 keyOff;
+    u32 keyOffHi;
     s32 i;
 
-    if (voiceMask != 0) {
+    if (flags != 0) {
         i = 0;
         do {
-            if (voiceMask & (1 << i)) {
+            if (flags & (1 << i)) {
                 pVoice->adsr[1] = (pVoice->adsr[1] & 0xFFC0) | 6;
             }
             i++;
@@ -4224,15 +4199,15 @@ void func_8003EB5C(void) {
         } while (i < NUM_VOICES);
     }
 
-    keyOff = g_SoundKeyOffFlags | g_unk_VoicesNeedingProcessing;
-    if (keyOff != 0) {
-        pSpu->_rxx.key_off[0] = keyOff;
-        pSpu->_rxx.key_off[1] = (u16)(keyOff >> 0x10);
+    flags = g_SoundKeyOffFlags | g_unk_VoicesNeedingProcessing;
+    if (flags != 0) {
+        keyOffHi = flags >> 0x10;
+        pSpu->_rxx.key_off[0] = flags;
+        pSpu->_rxx.key_off[1] = keyOffHi;
         g_unk_VoicesNeedingProcessing = 0;
         g_SoundKeyOffFlags = 0;
     }
 }
-*/
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003EBF0);
 
