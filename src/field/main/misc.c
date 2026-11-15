@@ -254,7 +254,7 @@ void func_8008764C(void) {
         *(CharacterRecordCopy*)&g_pGameState->characters[sourceIndex];
     *(UnkGearStateShiftCopy*)((u8*)&g_pGameState->unk16BC[destIndex] + 4) =
         *(UnkGearStateShiftCopy*)((u8*)&g_pGameState->unk16BC[sourceIndex] + 4);
-    pGameState = g_pGameState;
+    pGameState = g_pGameState; // reused for the first flag write only; the second reloads it
     if (destIndex == 9) {
         pGameState->unk22B6 |= 0x2000;
     }
