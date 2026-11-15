@@ -12,7 +12,11 @@ typedef struct {
     /* 0x0A9 */ u8 unkA9;
     /* 0x0AA */ u8 unkAA;
     /* 0x0AB */ u8 unkAB;
-} BattleUploadState; // Size: 0xAC (lower bound: other units reach 0xFC)
+    /* 0x0AC */ u8 unkAC[0x1E];
+    /* 0x0CA */ u8 unkCA;
+    /* 0x0CB */ u8 unkCB[0x4];
+    /* 0x0CF */ u8 unkCF;
+} BattleUploadState; // Size: 0xD0 (lower bound: other units reach 0xFC)
 
 // Partial view of the battle work block (D_800C3EA4): the sub-image descriptors
 // LoadImage uploads and the scroll BattleUpdateImageUpload animates.
@@ -479,7 +483,7 @@ void func_8008A3EC(u8 arg0) {
     } while (waiting != 0);
 
     BattleUploadImageFrame();
-    if (D_800D2D28[0xCA] != 0) {
+    if (D_800D2D28->unkCA != 0) {
         pSlot = (BattlePrimPoolSlot *)D_800D3278;
         for (i = 0; i < 0x10; i++) {
             if (pSlot[i].unk28 != 0) {
@@ -492,7 +496,7 @@ void func_8008A3EC(u8 arg0) {
 
     muted = 1;
     do {
-        if (D_800D2D28[0xCF] == 0) {
+        if (D_800D2D28->unkCF == 0) {
             D_800D3014 = 0xFF;
         }
         if (ControllerIsStateStackFull() != 0) {
