@@ -952,7 +952,7 @@ extern s32 D_800ADBDC;
 extern int D_80065848[];
 extern int ControllerPopState(void);
 extern void ControllerResetState(void);
-extern void func_8007AE78(int controllerIndex, int* pOut);
+extern void FieldGetMouseState(int controllerIndex, int* pOut);
 
 void FieldPollControllers(void) {
     D_800AFE9C = 0;
@@ -976,7 +976,7 @@ void FieldPollControllers(void) {
     D_800C3900 &= D_800ADB00;
 
     ControllerResetState();
-    func_8007AE78(1, D_80065848);
+    FieldGetMouseState(1, D_80065848);
 
     if (D_800ADC18 != 0) {
         D_800AFE9C = 0;

@@ -56,7 +56,7 @@ extern void BattleSetTextCursor(s16 a, s16 b);
 extern void BattleSetRowTextColor(void *p, s32 arg);
 extern void BattleDrawTextLeft(u8 *p);
 extern void BattleDrawTextRightOffset(u8 *p, s32 dy);
-extern void func_80036420(void);
+extern void ControllerMergeStates(void);
 typedef struct {
     /* 0x0  */ u8 unk0[4];
     /* 0x4  */ u32 unk4;
@@ -547,7 +547,7 @@ void BattleUpdateTextWindow(void) {
         BattleRestoreScreenImage();
         D_8009275C = 0;
     }
-    func_80036420();
+    ControllerMergeStates();
     p = D_80092734;
     if (p == (s32 *)D_800916D8) {
         func_80081A44();

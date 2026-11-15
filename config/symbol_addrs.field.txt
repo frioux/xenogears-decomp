@@ -839,3 +839,5 @@ FieldScriptCheckControllerInputMaskHeld = 0x800961C8;
 FieldScriptClearHeldButtons = 0x800961F0;
 FieldScriptCopyCharacter = 0x8008764C;
 FieldFadeParticleCornerColor = 0x800A6998;
+FieldGetMouseState = 0x8007AE78;
+FieldGetTrianglePlaneHeight = 0x8007B07C;

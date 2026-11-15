@@ -100,7 +100,7 @@ extern void func_800828F8();
 extern void func_800776A8();
 extern s32 BattleGetScreenMode();
 extern void BattleApplyOptionWord(void);
-extern void func_8008DC28(void);
+extern void BattleEffectCreateWork(void);
 extern void func_8008EBD0();
 extern void BattlePlaySoundEffectByIdx();
 extern void func_8008ED6C();
@@ -378,7 +378,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_800796B8);
 
 void BattleInitOptionDefaults(void) {
     BattleEffectInitContext();
-    func_8008DC28();
+    BattleEffectCreateWork();
     BattleApplyOptionWord();
     D_80099D9D = 1;
     D_80099DA1 = 3;

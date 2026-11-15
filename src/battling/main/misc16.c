@@ -479,7 +479,7 @@ void BattleEffectCopyObjectMatrix(u8* pArg0, s16 arg1, u8* pArg1) {
     pObj = pArray[arg1];
     *(Misc16Oct*)pArg1 = *(Misc16Oct*)(pObj + 0x4C);
 }
-void func_8008DC28(void) {
+void BattleEffectCreateWork(void) {
     s16 initValue;
     Misc16Work* pWork;
 

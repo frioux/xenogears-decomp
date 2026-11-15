@@ -1037,10 +1037,10 @@ ControllerSetFlag80050200 = 0x80036400;
 ControllerIsStateStackFull = 0x80036410;
 
 // system/controller_c
-func_80036420 = 0x80036420;
-func_80036528 = 0x80036528;
-func_800366E0 = 0x800366E0;
-func_800366F0 = 0x800366F0;
+ControllerMergeStates = 0x80036420;
+ControllerDebugPrintBuffer = 0x80036528;
+ControllerSetPrintFunc = 0x800366E0;
+ControllerPrintChar = 0x800366F0;
 func_80036718 = 0x80036718;
 
 // psyq/libgpu_b

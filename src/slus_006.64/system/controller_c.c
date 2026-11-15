@@ -9,7 +9,7 @@ extern ControllerPrintFunc D_80050594;
 extern int ControllerIsStateStackFull(void);
 extern void ControllerResetState(void);
 
-void func_80036420(void) {
+void ControllerMergeStates(void) {
     u_short nC2PressedOnce;
     u_short nC1PressedOnce;
     u_short nC2Released;
@@ -49,7 +49,7 @@ extern char D_80018ACC[]; // "%02x "
 extern char D_80018AD4[]; // "\n"
 extern char D_80018AD8[]; // "%04x\n"
 
-void func_80036528(u_char* pBuffer) {
+void ControllerDebugPrintBuffer(u_char* pBuffer) {
     int nCurAddr;
     int nEndAddr;
     int nSize;
@@ -84,8 +84,8 @@ void ControllerDebugPrint(void) {
     u_char* pBuffer;
 
     pBuffer = g_C1Buffer;
-    func_80036528(pBuffer);
-    func_80036528(pBuffer + CONTROLLER_BUFFER_SIZE);
+    ControllerDebugPrintBuffer(pBuffer);
+    ControllerDebugPrintBuffer(pBuffer + CONTROLLER_BUFFER_SIZE);
     FontPrintf(D_80018AE0, g_C1LeftStickXAxis, g_C1LeftStickYAxis);
     FontPrintf(D_80018AF4, g_C2LeftStickXAxis, g_C2LeftStickYAxis);
     FontPrintf(D_80018B08, g_C1ButtonState, g_C2ButtonState);
@@ -95,11 +95,11 @@ void ControllerDebugPrint(void) {
     }
 }
 
-void func_800366E0(ControllerPrintFunc pPrintFunc) {
+void ControllerSetPrintFunc(ControllerPrintFunc pPrintFunc) {
     D_80050594 = pPrintFunc;
 }
 
-void func_800366F0(int c) {
+void ControllerPrintChar(int c) {
     D_80050594(c);
 }
 
@@ -140,7 +140,7 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/controller_c", func_80036718);
          nCount = 0;
          for (; *pFormat != 0; pFormat++) {
              if (*pFormat != '%') {
-                 func_800366F0(*pFormat);
+                 ControllerPrintChar(*pFormat);
                  nCount++;
                  continue;
              }
@@ -314,14 +314,14 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/controller_c", func_80036718);
                  if (*pFormat != '%') {
                      return nCount;
                  }
-                 func_800366F0(*pFormat);
+                 ControllerPrintChar(*pFormat);
                  nCount++;
                  continue;
              }
          output:
              if (i < state.nWidth && !(state.nFlags & 1)) {
                  do {
-                     func_800366F0(' ');
+                     ControllerPrintChar(' ');
                      nCount++;
                      state.nWidth--;
                  } while (i < state.nWidth);
@@ -330,13 +330,13 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/controller_c", func_80036718);
                  nCur = (int)pBuffer;
                  nEnd = i + nCur;
                  do {
-                     func_800366F0(*(u_char*)nCur);
+                     ControllerPrintChar(*(u_char*)nCur);
                      nCur++;
                  } while (nCur < nEnd);
              }
              nCount += i;
              while (i < state.nWidth) {
-                 func_800366F0(' ');
+                 ControllerPrintChar(' ');
                  i++;
                  nCount++;
              }

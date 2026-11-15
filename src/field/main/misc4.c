@@ -668,7 +668,7 @@ void FieldSetMousePosition(int mouseIndex, int xMovement, int yMovement) {
 
 void FieldUpdateMousePosition(int controllerIndex);
 
-int func_8007AE78(int controllerIndex, int* pOut) {
+int FieldGetMouseState(int controllerIndex, int* pOut) {
     s8** pPad;
 
     FieldUpdateMousePosition(controllerIndex);
@@ -703,7 +703,7 @@ void FieldUpdateMousePosition(int controllerIndex) {
 }
 
 // Returns the Y of the point on the plane spanned by pA/pB/pC whose X/Z is pOut's
-void func_8007B07C(SVECTOR* pA, SVECTOR* pB, SVECTOR* pC, SVECTOR* pOut, VECTOR* pNormal) {
+void FieldGetTrianglePlaneHeight(SVECTOR* pA, SVECTOR* pB, SVECTOR* pC, SVECTOR* pOut, VECTOR* pNormal) {
     VECTOR nB;
     VECTOR nC;
     VECTOR v;
@@ -821,7 +821,7 @@ int func_8007B1C4(int x, int z, int nWalkmesh, SVECTOR* pOut, VECTOR* pNormal) {
         v[2].vy = pComp[pTri[i].v2 * 4 + 1];
         v[2].vz = pComp[pTri[i].v2 * 4 + 2];
 
-        func_8007B07C(&v[0], &v[1], &v[2], &ref, pNormal);
+        FieldGetTrianglePlaneHeight(&v[0], &v[1], &v[2], &ref, pNormal);
         pOut->vx = ref.vx;
         pOut->vy = ref.vy;
         pOut->vz = ref.vz;
