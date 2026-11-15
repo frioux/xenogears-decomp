@@ -278,6 +278,8 @@ void BattleRollPercentAndSwapActiveActor(void) {
     D_800C3E00 = D_800C3E34;
     D_800C3E34 = pOld;
     D_800C3E50 = s;
+    // row table at +0x1378, 0x5F0 bytes per slot (inside BattleWorkBlock's
+    // unk450, so it is reached by offset)
     D_800C3DFC = (BattleRow *)((u8 *)D_800C34B0 + D_800C3E04 * 0x5F0 + 0x1378);
     D_800C34B0->unk5FA0[D_800C3E04] = 7;
     D_800C34B0->unk5F6C[D_800C3E04] = 0;
