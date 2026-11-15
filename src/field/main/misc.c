@@ -237,14 +237,6 @@ void FieldScriptCopyGear(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
 }
 
-// Copies a character record (0xA4, word aligned) and the 0x20 bytes that start 4
-// bytes into unk16BC[] from the same slot of the first argument.
-// 93.49%: same size (440 bytes), same instruction multiset. Only ordering differs -
-// the original emits `sll v1,t1,0x5` before the `lui/lw` of g_pGameState and hoists
-// that load above the `bne` for destIndex == 9. Pointer locals for the 0x20-byte copy
-// add 8 bytes (91.95%), a plain `characters[i] = characters[j]` assignment loses the
-// word alignment and compiles to an alignment test plus two loops (62.52%).
-/*
 typedef struct {
     u32 words[0x29];
 } CharacterRecordCopy;
@@ -254,6 +246,7 @@ typedef struct {
 } UnkGearStateShiftCopy;
 
 void func_8008764C(void) {
+    GameState* pGameState;
     int sourceIndex = FieldScriptVMGetArgument(1);
     int destIndex = FieldScriptVMGetArgument(3);
 
@@ -261,16 +254,15 @@ void func_8008764C(void) {
         *(CharacterRecordCopy*)&g_pGameState->characters[sourceIndex];
     *(UnkGearStateShiftCopy*)((u8*)&g_pGameState->unk16BC[destIndex] + 4) =
         *(UnkGearStateShiftCopy*)((u8*)&g_pGameState->unk16BC[sourceIndex] + 4);
+    pGameState = g_pGameState; // reused for the first flag write only; the second reloads it
     if (destIndex == 9) {
-        g_pGameState->unk22B6 |= 0x2000;
+        pGameState->unk22B6 |= 0x2000;
     }
     if (destIndex == 0xA) {
         g_pGameState->unk22B6 |= 0x1000;
     }
     g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
 }
-*/
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008764C);
 
 extern u8 D_80050622;
 
