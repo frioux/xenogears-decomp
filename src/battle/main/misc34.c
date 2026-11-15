@@ -1,4 +1,5 @@
 #include "common.h"
+#include "field/actor.h"
 #include "psyq/libgte.h"
 
 extern s32 D_80059464;
@@ -16,38 +17,65 @@ extern void func_800A9FF0(s32);
 s32 BattleIsTimerTaskActive(void);
 extern void func_800BD2E4(void);
 extern void *func_800BFC80(void *, s32, s32);
-extern long func_800B57E4(u8 *pActor);
+extern s32 func_800B57E4(SpriteData *pSpriteData);
 extern u8 *TimerWorkListAllocateTask(void *pList, s32 size);
 extern void TimerWorkListSetTaskCallback(void *pTask, void *pCallback);
 
+// WorkListEntry of include/system/animation.h; an overlay unit cannot include that
+// header (it holds tentative definitions of main-exe globals), so the layout is
+// repeated. The distance task's block starts with one of these.
+typedef struct WorkListEntry {
+    /* 0x00 */ void *unk0;
+    /* 0x04 */ void *unk4;
+    /* 0x08 */ void *onTriggerCallback;
+    /* 0x0C */ void (*onFreeCallback)(void *);
+    /* 0x10 */ u32 unk10;
+    /* 0x14 */ u32 unk14;
+    /* 0x18 */ struct WorkListEntry *pNext;
+} WorkListEntry; // Size: 0x1C
+
+// The block BattleCreateActorDistanceTask adds after its timer entry: the actor to
+// watch, the animation it plays while waiting, the distance measured last frame,
+// the range that ends the wait and the callback run when the range is left.
+typedef struct {
+    /* 0x00 */ WorkListEntry entry;
+    /* 0x1C */ SpriteData *pSpriteData;
+    /* 0x20 */ s32 animId;
+    /* 0x24 */ s32 distance;
+    /* 0x28 */ s32 minDistance;
+    /* 0x2C */ void (*pOnDistanceOutOfRange)(SpriteData *);
+} BattleDistanceTask; // Size: 0x30
+STATIC_ASSERT_SIZEOF(BattleDistanceTask, 0x30);
+
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800BF4F0);
 
-// 55.00%: our assembler picks $at where retail picked a free register (atfree).
 void BattleIncFrameCounter(void) {
     D_800C3CE8++;
 }
 
 extern void func_800B7C34(s32);
-extern void SpriteSetCallback(u8 *pActor, void *pCallback);
-extern void SpritePlayAnimation(u8 *pActor, s32 arg1);
+extern void SpriteSetCallback(SpriteData *pSpriteData, void *pCallback);
+extern void SpritePlayAnimation(SpriteData *pSpriteData, s32 animId);
 extern void func_800BE790(void);
 
-void BattleActorWaitFramesWithCallback(s32 arg0, u8 *pActor) {
-    if (*(s32 *)(pActor + 0x48) == 0) {
+// Byte 3 of the actor's 0xAC flag word is the animation it is playing, so it is
+// read through the byte view of that word rather than as a named field.
+void BattleActorWaitFramesWithCallback(s32 arg0, SpriteData *pSpriteData) {
+    if (pSpriteData->pDefaultAnimFile == NULL) {
         func_800B7C34(arg0);
         return;
     }
     D_800C3CE8 = 0;
-    if (*(s8 *)(pActor + 0xAF) != 0) {
-        SpriteSetCallback(pActor, BattleIncFrameCounter);
-        SpritePlayAnimation(pActor, *(s8 *)(pActor + 0xAF));
+    if (*(s8 *)((u8 *)pSpriteData + 0xAF) != 0) {
+        SpriteSetCallback(pSpriteData, BattleIncFrameCounter);
+        SpritePlayAnimation(pSpriteData, *(s8 *)((u8 *)pSpriteData + 0xAF));
     }
     func_800B7C34(arg0);
-    if (*(s8 *)(pActor + 0xAF) != 0) {
+    if (*(s8 *)((u8 *)pSpriteData + 0xAF) != 0) {
         while (D_800C3CE8 == 0) {
             func_800BE790();
         }
-        SpriteSetCallback(pActor, 0);
+        SpriteSetCallback(pSpriteData, 0);
     }
 }
 
@@ -65,37 +93,40 @@ s32 BattleIsTimerTaskActive(void) {
     return D_800D2D68 != 0;
 }
 
-// 45.00%: our assembler picks $at where retail picked a free register (atfree).
 void BattleSetPendingCommand(s32 arg0) {
     D_800C3628 = arg0;
 }
 
-void BattleUpdateDistanceTask(u8 *pArg) {
-    u8 *pTask;
+void BattleUpdateDistanceTask(BattleDistanceTask *pTask) {
+    BattleDistanceTask *pSelf;
     s32 prev;
     s32 dist;
 
-    pTask = pArg;
-    prev = *(s32 *)(pArg + 0x24);
-    dist = func_800B57E4(*(u8 **)(pArg + 0x1C));
-    *(s32 *)(pArg + 0x24) = dist;
-    if (prev < dist || dist < *(s32 *)(pArg + 0x28)) {
-        ((void (*)(u8 *)) * (void **)(pTask + 0x2C))(*(u8 **)(pTask + 0x1C));
-        ((void (*)(u8 *)) * (void **)(pTask + 0xC))(pTask);
+    // Retail keeps this second name of the same block in its own register; using
+    // pTask in the branch below as well drops the match to 91%.
+    pSelf = pTask;
+    prev = pTask->distance;
+    dist = func_800B57E4(pTask->pSpriteData);
+    pTask->distance = dist;
+    if (prev < dist || dist < pTask->minDistance) {
+        pSelf->pOnDistanceOutOfRange(pSelf->pSpriteData);
+        pSelf->entry.onFreeCallback(pSelf);
     }
 }
 
-void BattleCreateActorDistanceTask(u8 *pActor, s32 arg1, s32 arg2) {
-    u8 *pTask;
+void BattleCreateActorDistanceTask(SpriteData *pSpriteData, s32 minDistance,
+                                  void (*pOnDistanceOutOfRange)(SpriteData *)) {
+    BattleDistanceTask *pTask;
 
-    pTask = TimerWorkListAllocateTask(*(void**)(pActor + 0x6C), 0x14);
+    pTask = (BattleDistanceTask *)TimerWorkListAllocateTask(
+        pSpriteData->field_0x6C, sizeof(BattleDistanceTask) - sizeof(WorkListEntry));
     TimerWorkListSetTaskCallback(pTask, BattleUpdateDistanceTask);
-    *(s32*)(pTask + 0x2C) = arg2;
-    *(u8**)(pTask + 0x1C) = pActor;
-    *(s32*)(pTask + 0x20) = *(s8*)(pActor + 0xAF);
-    *(s32*)(pTask + 0x24) = func_800B57E4(pActor);
-    *(s32*)(pTask + 0x28) = arg1;
-    *(u32*)(pActor + 0xAC) |= 0x20;
+    pTask->pOnDistanceOutOfRange = pOnDistanceOutOfRange;
+    pTask->pSpriteData = pSpriteData;
+    pTask->animId = *(s8 *)((u8 *)pSpriteData + 0xAF);
+    pTask->distance = func_800B57E4(pSpriteData);
+    pTask->minDistance = minDistance;
+    pSpriteData->flags_0xAC |= 0x20;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800BF85C);
 // 92.21% under gcc-2.7.2-cdk-psx (76.59 under 2.7.2): instruction multiset\n// matches, only the index/pointer registers are swapped. Not a preset question.
@@ -138,7 +169,6 @@ s32 BattleFindTableEntryIndex(s32 arg0) {
     }
     return i;
 }
-// 79.76%: frame differs (gcc reserves an extra slot); allocator tie.
 void BattleTickCountersAndFreeUnitSlot(void) {
     s16 first = D_800D2D4C + 1;
     s16 second = D_800D36BC + 1;
