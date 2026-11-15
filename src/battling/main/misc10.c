@@ -98,7 +98,8 @@ typedef struct {
 } Misc10Block; // Size: 0x24
 
 typedef struct {
-    /* 0x000 */ u8 unk000[0x5C];
+    /* 0x000 */ u8 unk000[0x58];
+    /* 0x058 */ u8* unk58;
     /* 0x05C */ u8* unk5C;
     /* 0x060 */ u8* unk60;
     /* 0x064 */ u8 unk064[0x18];
@@ -546,8 +547,107 @@ void BattleBuildFlippedTexturedQuad(Misc10TagSrc* p, s32 x, s32 y, POLY_FT4* pPo
     pPoly[1] = pPoly[0];
 }
 
+extern POLY_FT4 D_80095698[16];
+extern DR_TPAGE D_80095918[4];
+extern u8 D_80091814[];
+extern u8 D_80092860;
+extern u8 D_80092864;
+
+// Packet word store, as include/system/font.h's setXY0Fast / setUV0Fast family.
+#define Misc10SetXY0(p, _x0, _y0) *(s32*)&(p)->x0 = (_x0) | ((_y0) << 0x10)
+#define Misc10SetXY1(p, _x1, _y1) *(s32*)&(p)->x1 = (_x1) | ((_y1) << 0x10)
+#define Misc10SetUV0(p, _u0, _v0) *(u16*)&(p)->u0 = (_u0) | ((_v0) << 0x8)
+#define Misc10SetRGBC(p, _r0, _g0, _b0, _code) \
+    *(s32*)&(p)->r0 = (_r0) | ((_g0) << 0x8) | ((_b0) << 0x10) | ((_code) << 0x18)
+
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_800868E0);
 
+/* 71.59% (1228 bytes against retail 1348), 3 attempts, parked for time.
+   The unit's data at D_80095698 is POLY_FT4[16] (0x280 bytes, ending exactly at
+   D_80095918) followed by DR_TPAGE[4]; every retail offset lands on a POLY_FT4
+   field (+3 len, +4 r0/g0/b0/code, +8 x0/y0, +0xC u0/v0, +0xE clut, +0x10
+   x1/y1), so the packets are POLY_FT4s. The word/halfword stores retail has
+   (sw 0x090007 at +8, sh 0 at +0xC, sw 0x160016 at +0x10, sw 0x2C000080 at +4)
+   are the setXY0Fast/setUV0Fast family from include/system/font.h: gcc 2.7.2
+   does NOT merge adjacent short/byte stores, so they must be written as word
+   stores (the macros above). This body has all the values, both TIM sections,
+   the SetDrawTPage/DR_TPAGE pairs, the three GetClut calls, both blocks of
+   sprite setups and all five 0x28-byte copies in retail order.
+   What is left: (1) about 30 instructions of register/loop-setup difference -
+   retail keeps the POLY base in s1 and forms the copy pointers base-relative
+   (addiu s2,s1,0xA0 / addiu t0,s1,0xF0) while keeping the scalar field stores
+   ABSOLUTE (lui $at,%hi/%lo), and its copies do not re-materialise the base per
+   copy; (2) retail's frame is 0x50 with s3-s0 saved (pActor in s3), ours 0x48
+   with s2-s0, i.e. we are one callee-saved register short; (3) the two
+   D_80092860/D_80092864 lbu's sit earlier in retail than the stores.
+   Tried: all-array-symbol accesses (55.28%, copies also go absolute), all
+   pointer-local accesses (64.58%, scalar stores then go base-relative).
+   The form below is the mixed one.
+   void func_800868E0(Misc10Actor* pActor) {
+    TIM_IMAGE tim;
+    RECT rect;
+    POLY_FT4* p;
+    u16* pClut;
+
+    p = D_80095698;
+    OpenTIM((u_long*)pActor->unk58);
+    ReadTIM(&tim);
+    pClut = (u16*)tim.caddr;
+    pClut[0] = 0;
+    pClut[1] = 0x8000;
+    LoadImage(tim.crect, tim.caddr);
+    LoadImage(tim.prect, tim.paddr);
+    p[5] = p[4];
+    FieldSoundResetActorEffects((Misc10TagSrc*)&tim, 6, 7, &p[0], 0);
+    BattleBuildFlippedTexturedQuad((Misc10TagSrc*)&tim, 0x13A - tim.prect->w * 4, 7, &p[2], 0);
+    SetDrawTPage(&D_80095918[0], 0, 1, GetTPage(1, 0, 0x380, 0x100));
+    D_80095918[1] = D_80095918[0];
+    SetDrawTPage(&D_80095918[2], 0, 1, GetTPage(0, 0, 0x380, 0x100));
+    D_80095918[3] = D_80095918[2];
+    setlen(&D_80095698[4], 4);
+    D_80095698[4].code = 0x65;
+    Misc10SetXY0(&D_80095698[4], 7, 9);
+    Misc10SetUV0(&D_80095698[4], 0, 0);
+    Misc10SetXY1(&D_80095698[4], 0x16, 0x16);
+    D_80095698[4].clut = GetClut(0, 0x1F6);
+    p[6] = p[5];
+    Misc10SetXY0(&D_80095698[6], 0x123, 0);
+    D_80095698[6].u0 = 0x20;
+    D_80095698[6].clut = GetClut(0, 0x1F7);
+    OpenTIM((u_long*)pActor->unk5C);
+    ReadTIM(&tim);
+    LoadImage(tim.prect, tim.paddr);
+    FieldSoundResetActorEffects((Misc10TagSrc*)&tim, 6, 0x20, &p[12], 0);
+    BattleBuildFlippedTexturedQuad((Misc10TagSrc*)&tim, 0x13A - tim.prect->w * 4, 0x20, &p[14], 0);
+    Misc10SetXY1(&D_80095698[8], 0x40, 8);
+    Misc10SetRGBC(&D_80095698[12], 0x80, 0, 0, 0x2C);
+    Misc10SetRGBC(&D_80095698[13], 0x80, 0, 0, 0x2C);
+    Misc10SetRGBC(&D_80095698[14], 0x80, 0, 0, 0x2C);
+    Misc10SetRGBC(&D_80095698[15], 0x80, 0, 0, 0x2C);
+    setlen(&D_80095698[12], 9);
+    setlen(&D_80095698[13], 9);
+    setlen(&D_80095698[14], 9);
+    setlen(&D_80095698[15], 9);
+    setlen(&D_80095698[8], 4);
+    D_80095698[8].code = 0x65;
+    Misc10SetUV0(&D_80095698[8], 0x80, 0);
+    D_80092860 = D_80095698[12].v0;
+    D_80092864 = D_80095698[14].v0;
+    D_80095698[13].clut = D_80095698[0].clut;
+    D_80095698[12].clut = D_80095698[0].clut;
+    D_80095698[15].clut = D_80095698[0].clut;
+    D_80095698[14].clut = D_80095698[0].clut;
+    D_80095698[8].clut = GetClut(0x3A0, 0x110);
+    Misc10SetXY0(&D_80095698[8], 0x1E, 0xB);
+    p[10] = p[8];
+    Misc10SetUV0(&D_80095698[10], 0x80, 8);
+    Misc10SetXY0(&D_80095698[10], 0xE3, 0x15);
+    p[9] = p[8];
+    p[11] = p[10];
+    setRECT(&rect, 0x3A0, 0x110, 0x10, 1);
+    LoadImage(&rect, (u_long*)D_80091814);
+}
+*/
 void BattleAddSharedPrim(void) {
     AddPrim(D_80092938, &D_8009A300[D_800928A0]);
 }
