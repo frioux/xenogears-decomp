@@ -120,9 +120,9 @@ void func_800B6464(u8 *pActor, u8 *p) {
 void func_800B64D4(s32 arg0, u8 *p) {
     u8 *pEntry;
     s32 off;
-    u32 new_var;
+    mem_addr base;
 
-    pEntry = (u8 *)((new_var = (u32)D_800C3EB0) + (p[1] << 2));
+    pEntry = (u8 *)((base = (mem_addr)D_800C3EB0) + (p[1] << 2));
     off = 0x8C8C;
     SpritePlayAnimation(*(u32 *)(pEntry + off), p[0]);
 }
