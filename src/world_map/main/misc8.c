@@ -103,6 +103,14 @@ typedef struct {
     /* 0x20 */ MATRIX mat;
 } WorldMapModelOut; // Size: 0x40
 
+// Partial view of the camera scratchpad at 0x1F800000.
+typedef struct {
+    /* 0x00 */ VECTOR rot;
+    /* 0x10 */ VECTOR scale;
+    /* 0x20 */ u8 unk20[0xD0];
+    /* 0xF0 */ MATRIX mat;
+} WorldMapScratch; // Size: 0x110
+
 // One sprite set definition inside the block D_8009BD30 points at.
 typedef struct {
     /* 0x0 */ u16 partIndex; // index into ModelFileHeader::modelParts
@@ -879,41 +887,7 @@ s32 WorldMapFindSpriteSet(void *pArg, s16 *pOut) {
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_80084DB8);
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_80085158);
-// Best: 98.59% - 704 bytes, retail's exact size (176 instructions); only two
-// instructions sit in different places. Round 113 levers that got here:
-//  - 'pTri = pMesh->tris; pTri += triIndex;' in place of
-//    '&pMesh->tris[triIndex]' (94.26 -> 97.66): the two-statement form keeps the
-//    base-first 'addiu s0,v1,8 / addu s0,s0,v0' and lets pTri take pEntry's dead
-//    register, so the six saved registers come out retail exactly
-//    (s0 = pEntry then pTri, s1 = triIndex then pVerts, s2 = pC, s3 = pOut,
-//    s4 = pB, s5 = pNormal) instead of needing a seventh.
-//  - the three 0x800 stores written as constants through a view struct at
-//    0x1F800000 (pWork->scale), with pB still not holding 0x1F800010 at that
-//    point (assigned just before ScaleMatrix): all three become the immediate
-//    'lui at,0x1f80 / sw v0,0x1x(at)' form. Any live register holding
-//    0x1F800010 there turns the vx store into 'sw v0,0(s4)' (+1 insn) and also
-//    swaps pOut/pB to s4/s3.
-// Remaining delta (both instructions are present, only placed differently):
-// retail materialises the ScaleMatrix argument EARLY ('lui a1,0x1f80 /
-// ori a1,a1,0x10' in the prologue) and so reorg steals 'ori s2,s2,0x20' (pC,
-// assigned just before the call) into the jal's delay slot; ours materialises
-// the argument at the call, so reorg steals 'ori a1,a1,0x10' there instead.
-// Tried with no effect: pC assigned before the store cluster (both halves then
-// early, 98.47), a separate pScale pointer initialised at the top (gcc keeps it
-// in s3, which reverts both the vx store and the register split, back to 700),
-// pScale dying at the call (same), literal '*(u32 *)0x1F80001x' stores (three
-// fresh saved registers, 708). Next idea: retail's $a1 holds 0x1F800010 from
-// the prologue, so it is a variable whose range ends at the call - find a shape
-// where gcc 2.7.2 picks that caller-saved register. The body needs this partial
-// view struct declared above it:
-//   typedef struct {
-//       VECTOR rot;        // 0x00
-//       VECTOR scale;      // 0x10
-//       u8 unk20[0xD0];    // 0x20
-//       MATRIX mat;        // 0xF0
-//   } WorldMapScratch;     // Size: 0x110
-/*
+
 void func_80085158(WorldMapPos *pPos, WorldMapPos *pOut, WorldMapPos *pNormal, u16 setIndex,
                    u16 triIndex) {
     WorldMapEntry *pEntry;
@@ -923,7 +897,6 @@ void func_80085158(WorldMapPos *pPos, WorldMapPos *pOut, WorldMapPos *pNormal, u
     MATRIX *pMat = (MATRIX *)0x1F8000F0;
     VECTOR *pA = (VECTOR *)0x1F800000;
     VECTOR *pB;
-    VECTOR *pC;
     WorldMapScratch *pWork = (WorldMapScratch *)0x1F800000;
     long flag;
 
@@ -938,7 +911,6 @@ void func_80085158(WorldMapPos *pPos, WorldMapPos *pOut, WorldMapPos *pNormal, u
     pWork->scale.vy = 0x800;
     pWork->scale.vx = 0x800;
     pB = (VECTOR *)0x1F800010;
-    pC = (VECTOR *)0x1F800020;
     ScaleMatrix(pMat, pB);
     SetRotMatrix(pMat);
     SetTransMatrix(pMat);
@@ -949,50 +921,23 @@ void func_80085158(WorldMapPos *pPos, WorldMapPos *pOut, WorldMapPos *pNormal, u
     pVerts = pMesh->unk4;
     RotTrans(&pVerts[pTri->vert[0]], pA, &flag);
     RotTrans(&pVerts[pTri->vert[1]], pB, &flag);
-    RotTrans(&pVerts[pTri->vert[2]], pC, &flag);
+    RotTrans(&pVerts[pTri->vert[2]], (VECTOR *)0x1F800020, &flag);
     pB->vx -= pA->vx;
     pB->vy -= pA->vy;
     pB->vz -= pA->vz;
-    pC->vx -= pA->vx;
-    pC->vy -= pA->vy;
-    pC->vz -= pA->vz;
-    OuterProduct0(pC, pB, pC);
-    pC->vx >>= 2;
-    pC->vy >>= 2;
-    pC->vz >>= 2;
-    VectorNormal(pC, (VECTOR *)pNormal);
+    ((VECTOR *)0x1F800020)->vx -= pA->vx;
+    ((VECTOR *)0x1F800020)->vy -= pA->vy;
+    ((VECTOR *)0x1F800020)->vz -= pA->vz;
+    OuterProduct0((VECTOR *)0x1F800020, pB, (VECTOR *)0x1F800020);
+    ((VECTOR *)0x1F800020)->vx >>= 2;
+    ((VECTOR *)0x1F800020)->vy >>= 2;
+    ((VECTOR *)0x1F800020)->vz >>= 2;
+    VectorNormal((VECTOR *)0x1F800020, (VECTOR *)pNormal);
     WorldMapInterpolatePlaneHeight(pOut, (WorldMapPos *)pA, pNormal);
 }
-*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_80085418);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_80085760);
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_80085CDC);
-// Best: 87.17% (620 bytes vs 636). Three loops over the 0x40 actors: project
-// each active actor through the camera delta (WorldMapWrapDelta wraps it), run
-// RTPS per actor and store SZ3 into the scratch slot at 0x1F800018+4*i, then
-// depth-index SpriteDrawFrame and slew each actor's 0x5C angle toward its 0x48
-// Round 111 triage: builds; with findings 1 and 2 below APPLIED in the body
-// (the pCam local and the &pScratch[2] argument) it scores 89.31%, 628 bytes vs
-// retail's 636 - the 0x28 frame, the s3 save pair and 'addiu a0,s2,8' are then
-// retail exactly. Still open: the three sprite halfword reads come out lhu in
-// every spelling (s16 * index, byte-offset s16 *), retail lh; the third loop
-// loads the 0x5C angle before the 0x48 one and gets ang - cur with the two
-// registers swapped; and the slew block's single shared store. Diffs found, in
-// the order they appear:
-//  1. retail keeps &D_8009BE28 in $s3 and reads D_8009BE30 as +8 off it, so
-//     the frame is 0x28 not 0x20 (this also costs the s3 save/restore pair).
-//  2. the delta passed to WorldMapWrapDelta is &pScratch[2] (0x1F800008), i.e.
-//     addiu a0,$s2,8 - not $s2.
-//  3. D_8009C808 is a MATRIX, not a MATRIX*: &D_8009C808 (lui+addiu) is what
-//     retail holds in $s0 for both SetRotMatrix/SetTransMatrix.
-//  4. the three scratch halfword writes read the actor's 0x4C pointer as
-//     *s16 and must emit lh; a s16 array index gives lhu. Use byte casts.
-//  5. in the third loop retail loads the 0x48 angle (lh a1,-4(s0)) BEFORE the
-//     0x5C current angle (lw a0,16(s0)); the substraction is ang - cur.
-//  6. retail's slew is `v1 = (d < 0x100) ? ang : cur + 0x100` with the THEN
-//     value in the bnez delay slot and the ELSE after a j; and the `i = 0`
-//     that starts loop 2 is emitted after the SetTransMatrix call, not before.
-/*
+
 void func_80085CDC(void) {
     WorldMapActor *pActor;
     MATRIX *pMat;
@@ -1064,4 +1009,4 @@ void func_80085CDC(void) {
         }
     }
 }
-*/
+
