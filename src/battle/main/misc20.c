@@ -57,9 +57,9 @@ void BattleExecuteActionRow(void) {
             BattleRollPercentAndSetState38();
         }
     }
-    if (((u8 *)D_800C3E00)[0xA0] == 5 || ((u8 *)D_800C3E00)[0xA0] == 0xD) {
+    if (D_800C3E00->unk90[0x10] == 5 || D_800C3E00->unk90[0x10] == 0xD) {
         if (D_800C34B0->unk5FC2 == 1) {
-            D_800C3DFC->unk22 = ((u8 *)D_800D2D6C)[0x1A];
+            D_800C3DFC->unk22 = D_800D2D6C->weaponData[1].unk2;
         }
     }
     mask = 1;
@@ -84,7 +84,7 @@ void BattleExecuteActionRow(void) {
                 func_8009DBFC(one);
             }
         skip:
-            D_800C34B0->unk5FB0 = *(u16 *)((u8 *)D_800C3DFC + 2);
+            D_800C34B0->unk5FB0 = ((u16 *)D_800C3DFC->unk02)[0];
             func_8009C4B4();
             BattleSetSlotBit20FromStatusBit200(D_800C3E50);
         }
@@ -322,7 +322,7 @@ u16 BattleApplySlotPercentToValue(void) {
     return ret;
 }
 s32 BattleScaleValueByRowBitPercent(s32 arg0) {
-    u16 mask = *(u16 *)((u8 *)D_800C3DFC + 8);
+    u16 mask = ((u16 *)D_800C3DFC->unk02)[3];
     u8 i;
     u8 idx; /* left unassigned when the scan finds no bit, as in retail */
     u8 v;
@@ -407,7 +407,6 @@ s32 BattleGearHasWeaponId(u8 arg0) {
 void BattleApplyGearWeaponRecord(u8 arg0) {
     BattleGearWeaponRecord *p = &D_800C34B0->gearWeapons[arg0];
     u8 v = p->unkF;
-    s32 rowOffset;
     u8 id = g_GameState.characters[4].gearId;
     u8 sel;
     u8 i;
@@ -428,13 +427,12 @@ void BattleApplyGearWeaponRecord(u8 arg0) {
     g_GameState.gears[id].unk4[sel] = arg0;
     g_GameState.gearPartsIds[0x6C + arg0] = p->unkC;
     for (i = 0; i < 3; i++) {
-        rowOffset = i * 0x170;
-        if (((u8 *)D_800C34B0)[rowOffset + 0x56] == 4) {
-            *(u8 *)((u8 *)D_800C34B0 + (rowOffset + sel * 8) + 0xB6) = p->unkE;
-            *(u8 *)((u8 *)D_800C34B0 + (rowOffset + sel * 8) + 0xB8) = p->unk11;
-            *(u8 *)((u8 *)D_800C34B0 + (rowOffset + sel * 8) + 0xB7) = p->unk10;
-            *(u8 *)((u8 *)D_800C34B0 + (rowOffset + sel * 8) + 0xB8) = p->unk11;
-            *(u8 *)((u8 *)D_800C34B0 + rowOffset + sel + 0xA8) = arg0;
+        if ((D_800C34B0->slots + i)->unk56 == 4) {
+            D_800C34B0->slots[i].state.weaponData[sel].unk2 = p->unkE;
+            D_800C34B0->slots[i].state.weaponData[sel].unk4 = p->unk11;
+            D_800C34B0->slots[i].state.weaponData[sel].unk3 = p->unk10;
+            D_800C34B0->slots[i].state.weaponData[sel].unk4 = p->unk11;
+            D_800C34B0->slots[i].state.unk04[sel] = arg0;
         }
     }
 }
