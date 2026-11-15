@@ -580,9 +580,24 @@ int FieldScriptVMGetVariableValue(int index) {
 // Round 37: the two-step form `int nOffset = index >> 1; p[nOffset] = value;` compiles to
 // `sra a0 / sll a0` too, so gcc coalesces the shift temp with the dead $a0: a global.c allocno tie,
 // not a source shape. Not worth more attempts.
+// Best attempt: 98.57%, and the only reason the body below is an if-else is that it is the
+// cheapest shape that flips the allocator tie (permuter best of 2115 iterations, score 10).
+// The original shifts index into $a2 and scales into $v0; the plain store ties both shifts to
+// one register - $a0 (97.14%) if written straight, $v0 (98.57%) behind an if-else whose two
+// branches gcc cross-jumps away, so no branch is emitted and the byte count still matches.
+// Also 98.57%: the same if-else keyed on index >= 0, or written if-not-value. Also 97.14%:
+// a local pointer p[i], a two-step nOffset = index >> 1, a byte-pointer plus (nOffset << 1),
+// (u_int) on the scaled index, and gcc-2.6.0, gcc-2.7.2-cdk, -O3. index / 2 is 69.29%, a
+// volatile cast 52.86%. Only the shift destination register differs from the original, and
+// nothing in the source moves it off the scale's register: the shifted value is dead after
+// the scale, so this is an allocno tie, not a source shape. Not worth more attempts.
 /*
 void FieldScriptMemoryWriteU16(int index, u_short value) {
-    ((u_short*)&g_FieldScriptMemory)[index >> 1] = value;
+    if (value) {
+        ((u_short*)&g_FieldScriptMemory)[index >> 1] = value;
+    } else {
+        ((u_short*)&g_FieldScriptMemory)[index >> 1] = value;
+    }
 }
 */
 INCLUDE_ASM("asm/field/nonmatchings/scripts/virtual_machine", FieldScriptMemoryWriteU16);
