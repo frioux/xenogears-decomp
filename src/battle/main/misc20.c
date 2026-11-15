@@ -37,9 +37,15 @@ void BattleSetActorMaskForSlotRecord3(void) {
         }
     }
 }
-/* best 93.97% under gcc 2.6.0 (XenoBattle260); park note: head, the
-   D_800C34DC table call, the 0x5FA0 block and the loop tail match. Four
-   hunks remain, all allocator/store-order (see git history). */
+/* best 96.98% under gcc 2.6.0 (XenoBattle260). Permuter runs closed two
+   hunks: `mask = 1` must be assigned before `D_800C3E50 = 0` (that was the
+   unsunk `li s0,1`), and the D_800C3D3C index chain wants its own pointer
+   local computed before the `D_800D2DC4 = 0` store. Remaining diffs are
+   allocator: the payload of the D_800C3DFC/0xA load is scheduled differently
+   and the D_800C3E34 / D_800D2DC8 store pair comes out in the wrong order.
+   A permuter run at 96.98 prefers fusing the store into the local
+   (`q = (D_800C3D3C = ...)`) for 97.09 percent - not ported, it reads badly. */
+/*
 void func_8009C198(void) {
     u8 *q;
     u16 f;
@@ -103,6 +109,8 @@ skip:
     }
     BattleSaveScriptCommandOperands();
 }
+*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc20", func_8009C198);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc20", func_8009C4B4);
 void BattleSaveScriptCommandOperands(void) {
     u16 a = *(u16 *)(D_800D2D6C + 0x84);
