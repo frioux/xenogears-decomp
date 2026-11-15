@@ -322,18 +322,26 @@ typedef struct {
     /* 0x13 */ u8 unk13; // non-zero: installs func_800AFC68 as the task callback
 } BattlePartInfo; // Size: 0x14
 
+// Task func_80023FD8 allocates for one part: a SpriteData at +0x38 and, at the
+// byte offset the sprite records in its allocatedDataSize (+0xBE), the appended
+// BattlePartNode below.
+typedef struct {
+    /* 0x00 */ u8 unk0[0x38];
+    /* 0x38 */ SpriteData sprite;
+} BattlePartTask;
+
 void BattleCreateModelPartTask(s32 arg0, s32 arg1, s32 arg2, s32 arg3, s32 arg4, BattlePartInfo *pInfo,
                                s32 arg6) {
-    u8 *pTask;
-    u8 *pSprite;
+    BattlePartTask *pTask;
+    SpriteData *pSprite;
     BattlePartNode *pNode;
 
-    pTask = func_80023FD8(arg1, arg0, arg2, 0x18);
-    pSprite = pTask + 0x38;
+    pTask = (BattlePartTask *)func_80023FD8(arg1, arg0, arg2, 0x18);
+    pSprite = &pTask->sprite;
     SpriteSetDirection(pSprite, arg3);
     func_800223B0(pSprite, arg3);
     SpriteSetScale(pSprite, arg4);
-    pNode = (BattlePartNode *)(pTask + *(s16 *)(pTask + 0xBE));
+    pNode = (BattlePartNode *)((u8 *)pTask + pSprite->allocatedDataSize);
     pNode->unk8 = arg6;
     pNode->partIndex = pInfo->partIndex;
     if (pInfo->unk13 != 0) {
