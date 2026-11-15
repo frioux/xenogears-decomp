@@ -1289,23 +1289,10 @@ reverse (pPrevBlock s0, address s1) whatever the declaration order.
 
 
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_800394B8);
-/*
-Screened under gcc-2.7.2-cdk / gcc-2.7.2 / this unit's gcc-2.6.0: 95.70 / 98.91 / 98.91 - not
-a compiler-only match; the current preset is the best of the three.
-Best attempt (98.91%): control flow and instruction sequence identical; the two local pairs are
-register-mirrored in both the loop and the tail - the original keeps the next-block pointer in a0
-and the loaded spuAddress in a1, gcc 2.6 puts the loaded value in a0 and the pointer in a1
-(same systematic mirror as SoundSpuMemoryAllocateBlock below, so it is not a per-function detail).
-The tail also shows the original reading pBlock->nextBlockIndex (the last block visited), not the
-block saved as pFitBlock, so keep that spelling. The unused local pNewBlock is required: writing
-the five field stores through g_SoundSpuMemoryBlocks[index] directly makes gcc re-form the base
-with lui/addiu (87%).
 int func_800394B8(int size) {
     SoundSpuMemoryBlock* pBlock;
     SoundSpuMemoryBlock* pNextBlock;
     SoundSpuMemoryBlock* pFitBlock;
-    SoundSpuMemoryBlock* pNewBlock;
     int address;
     int allocAddress;
     int index;
@@ -1338,17 +1325,16 @@ int func_800394B8(int size) {
         return 0;
     }
 
-    pNewBlock = &g_SoundSpuMemoryBlocks[index];
-    pNewBlock->flags = SPU_MEMORY_IN_USE;
-    pNewBlock->unk1 = 0;
-    pNewBlock->spuAddress = allocAddress;
-    pNewBlock->size = size;
-    pNewBlock->nextBlockIndex = pBlock->nextBlockIndex;
+    pNextBlock = &g_SoundSpuMemoryBlocks[index];
+    pNextBlock->flags = SPU_MEMORY_IN_USE;
+    pNextBlock->unk1 = 0;
+    pNextBlock->spuAddress = allocAddress;
+    pNextBlock->size = size;
+    pNextBlock->nextBlockIndex = pBlock->nextBlockIndex;
     pBlock->nextBlockIndex = index;
 
     return allocAddress;
 }
-*/
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", SoundSpuMemoryAllocateBlockAtAddress);
 /*
