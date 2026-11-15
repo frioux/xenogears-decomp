@@ -1,4 +1,5 @@
 #include "common.h"
+#include "battle/actor.h"
 #include "main/game.h"
 
 // One slot of the per-slot operator register block at D_800D3400 (stride 0x40):
@@ -72,13 +73,13 @@ s32 func_8007A280(u8, u8, s32, s32);
 // allocator: the original keeps slot in s0 and base+0x10 in s1, gcc folds
 // slot+base into s0 before the call and needs one saved register fewer.
 // screened: 90.81% is the max of Default / 2.7.2-cdk 80.16 / 2.6.0 90.81.
-void BattleByteRegSetMatched(u8 **p, u8 index) {
+void BattleByteRegSetMatched(BattleCommand **p, u8 index) {
     u16 *pField = D_800D3400[index].unk20;
-    u8 value = BattleFindFirstFlagTableMatch(pField[(*p)[3]]);
-    u8 result = func_80079ED8(value, (*p)[2], 0, 1);
+    u8 value = BattleFindFirstFlagTableMatch(pField[(*p)->unk3]);
+    u8 result = func_80079ED8(value, (*p)->unk2, 0, 1);
     u8 *pTable = D_800D3400[index].unk30;
 
-    pTable[(*p)[1]] = result;
+    pTable[(*p)->unk1] = result;
 }
 // best: 81.15%. Frame and register set now match; the only gap is that the
 // original materialises D_800D3420+0x10 with its own addiu and then adds slot
@@ -102,22 +103,22 @@ u8 func_8007B4B8(u8 **p, u8 index, u8 arg2) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007B4B8);
-void BattleWordRegCopyFromMatchedSlot(u8 **p, u8 index) {
+void BattleWordRegCopyFromMatchedSlot(BattleCommand **p, u8 index) {
     u16 *pTable = D_800D3400[index].unk20;
-    u8 value = BattleFindFirstFlagTableMatch(pTable[(*p)[3]]);
+    u8 value = BattleFindFirstFlagTableMatch(pTable[(*p)->unk3]);
 
-    pTable[(*p)[1]] = func_8007A280(value, (*p)[2], 0, 1);
+    pTable[(*p)->unk1] = func_8007A280(value, (*p)->unk2, 0, 1);
 }
-u8 BattleWordRegCopyToMatchedSlot(u8 **p, u8 index, u8 arg2) {
+u8 BattleWordRegCopyToMatchedSlot(BattleCommand **p, u8 index, u8 arg2) {
     u16 *pField = D_800D3400[index].unk20;
     u8 ret = arg2;
-    u8 value = BattleFindFirstFlagTableMatch(pField[(*p)[3]]);
+    u8 value = BattleFindFirstFlagTableMatch(pField[(*p)->unk3]);
 
     if (value < 3) {
         D_800D2E5C = 0x20;
         ret = arg2 + 1;
     } else {
-        func_8007A280(value, (*p)[2], pField[(*p)[1]], 0);
+        func_8007A280(value, (*p)->unk2, pField[(*p)->unk1], 0);
     }
     return ret;
 }
@@ -220,28 +221,28 @@ void func_8007B8D4(u8 **p, u8 index) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007B8D4);
-void BattleWordTableStoreReg(u8 **p, u8 index) {
+void BattleWordTableStoreReg(BattleCommand **p, u8 index) {
     u16 *pField = D_800D3400[index].unk20;
-    u8 *pArgs = *p;
+    BattleCommand *pCmd = *p;
 
-    D_8005A3A0[pArgs[2]] = pField[pArgs[1]];
+    D_8005A3A0[pCmd->unk2] = pField[pCmd->unk1];
 }
-void BattleByteRegSetReg(u8 **p, u8 index) {
+void BattleByteRegSetReg(BattleCommand **p, u8 index) {
     u8 *pTable = D_800D3400[index].unk30;
-    u8 *pArgs = *p;
+    BattleCommand *pCmd = *p;
 
-    pTable[pArgs[2]] = pTable[pArgs[1]];
+    pTable[pCmd->unk2] = pTable[pCmd->unk1];
 }
-void BattleWordRegSetReg(u8 **p, u8 index) {
+void BattleWordRegSetReg(BattleCommand **p, u8 index) {
     // The dead pField is load-bearing: its initializer makes gcc emit the
     // index*0x40 shift before the base lui/addiu, as retail does, and the base
     // has to stay an untyped byte pointer for the two stores to share it.
     u16 *pField = (u16 *)(D_800D3420 + index * 0x40);
-    u8 *pArgs = *p;
+    BattleCommand *pCmd = *p;
     u8 *base;
 
     base = D_800D3420;
-    ((u16 *)(base + index * 0x40))[pArgs[2]] = ((u16 *)(base + index * 0x40))[pArgs[1]];
+    ((u16 *)(base + index * 0x40))[pCmd->unk2] = ((u16 *)(base + index * 0x40))[pCmd->unk1];
 }
 // best: 98.33%, permuter score 25 (2084 iterations from this body found
 // nothing; three earlier runs from the 85.33% body also stalled). Retail is
@@ -304,14 +305,14 @@ void func_8007BA04(u8 **p, u8 index) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007BA04);
-void BattleSlotStoreDwordFromWordReg(u8 **p, u8 index) {
+void BattleSlotStoreDwordFromWordReg(BattleCommand **p, u8 index) {
     u32 *pField32 = D_800D3400[index].unk10;
     u16 *pWordRegs;
-    u8 *pArgs = *p;
+    BattleCommand *pCmd = *p;
 
     // the assignment inside the subscript is load-bearing: with a plain local
     // gcc picks v1 for the stored halfword instead of retail's a0 (95.29%).
-    pField32[pArgs[2]] = (pWordRegs = D_800D3400[index].unk20)[pArgs[1]];
+    pField32[pCmd->unk2] = (pWordRegs = D_800D3400[index].unk20)[pCmd->unk1];
 }
 void BattleClearByteRegs(u8 index) {
     s32 i = 0xF;
@@ -329,31 +330,31 @@ void BattleClearWordRegs(u8 index) {
         *p-- = 0;
     }
 }
-void BattleSlotStoreWord0(u8 **p, u8 index) {
+void BattleSlotStoreWord0(BattleCommand **p, u8 index) {
     s32 slot = index + 3;
-    s32 hi = (*p)[2] << 8;
+    s32 hi = (*p)->unk2 << 8;
 
-    D_800CCDE8[slot].unk4C = (*p)[1] | hi;
+    D_800CCDE8[slot].unk4C = (*p)->unk1 | hi;
 }
-void BattleSlotStoreWord7A(u8 **p, u8 index) {
-    u32 value = (*p)[1] | ((*p)[2] << 8);
+void BattleSlotStoreWord7A(BattleCommand **p, u8 index) {
+    u32 value = (*p)->unk1 | ((*p)->unk2 << 8);
     s32 slot = index + 3;
 
     D_800CCDE8[slot].unk56 = value;
 }
-void BattleSlotStoreWordHighBytes(u8 **p, u8 index) {
+void BattleSlotStoreWordHighBytes(BattleCommand **p, u8 index) {
     s32 slot = index + 3;
 
-    D_800CCDE8[slot].unk55 = (*p)[1];
-    D_800CCDE8[slot].unk53 = (*p)[2];
-    D_800CCDE8[slot].unk51 = (*p)[3];
+    D_800CCDE8[slot].unk55 = (*p)->unk1;
+    D_800CCDE8[slot].unk53 = (*p)->unk2;
+    D_800CCDE8[slot].unk51 = (*p)->unk3;
 }
-void BattleSlotStoreWordLowBytes(u8 **p, u8 index) {
+void BattleSlotStoreWordLowBytes(BattleCommand **p, u8 index) {
     s32 slot = index + 3;
 
-    D_800CCDE8[slot].unk54 = (*p)[1];
-    D_800CCDE8[slot].unk52 = (*p)[2];
-    D_800CCDE8[slot].unk50 = (*p)[3];
+    D_800CCDE8[slot].unk54 = (*p)->unk1;
+    D_800CCDE8[slot].unk52 = (*p)->unk2;
+    D_800CCDE8[slot].unk50 = (*p)->unk3;
 }
 // best: 98.82%. Only the last addu is commuted (original base first into a1,
 // gcc reuses the dead a2): identical multiset, same 98.82% under gcc 2.6.0 and
@@ -368,17 +369,17 @@ void func_8007BC40(u8 **p, u8 *pDest, u8 count) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007BC40);
-void BattleByteRegSetRandom(u8 **p, u8 index) {
-    u8 value = func_8001BD40(0, (*p)[2]);
+void BattleByteRegSetRandom(BattleCommand **p, u8 index) {
+    u8 value = func_8001BD40(0, (*p)->unk2);
     u8 *pTable = D_800D3400[index].unk30;
 
-    pTable[(*p)[1]] = value;
+    pTable[(*p)->unk1] = value;
 }
-void BattleWordRegSetRandomRange(u8 **p, u8 index) {
-    u16 value = func_80089B50(0, (*p)[2] | ((*p)[3] << 8));
+void BattleWordRegSetRandomRange(BattleCommand **p, u8 index) {
+    u16 value = func_80089B50(0, (*p)->unk2 | ((*p)->unk3 << 8));
     u16 *pField = D_800D3400[index].unk20;
 
-    pField[(*p)[1]] = value;
+    pField[(*p)->unk1] = value;
 }
 // best: 91.53%. Structure recovered (3-byte `buf[0] = buf[1] = buf[2] = 0`
 // is what gives the three sb zero; `while (!(buf[0] & buf[1] & buf[2]))`
