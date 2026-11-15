@@ -225,6 +225,14 @@ extern s32 func_80084068(s32);
 extern u8 *D_8009BE3C;
 extern MATRIX D_8009C808;
 extern void WorldMapWrapDelta(void *pDelta);
+extern void WorldMapWrapDeltaScaled(WorldMapPos *pDelta);
+extern void ModelRenderPacket(ModelPart *pPart, void *pPacket, u_long *pOt, s32 mode);
+extern s16 D_8009AD2C[];
+extern s32 D_8009BE28;
+extern s32 D_8009BE30;
+extern s32 D_80050104;
+extern s32 D_800595C0;
+extern s32 D_80059578;
 extern void func_800223B0(void *p, s32 angle);
 extern void SpriteDrawFrame(void *p, u32 *pTbl);
 extern void GfxSetBaseMatrix(MATRIX *p);
@@ -726,6 +734,97 @@ void WorldMapSetSpriteSetParent(s32 arg0, s32 arg1) {
     D_8009C620[arg1].unk50 = &D_8009C620[arg0];
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_800848F4);
+// Best: 76.46% (1060 bytes vs 1036). Structure and every call/offset in the
+// head, the sprite-set copy and the tail (WrapDeltaScaled, ScaleMatrix,
+// CompMatrix, SetRot/TransMatrix, RTPS, FLAG, SZ3, ModelRenderPacket) already
+// agree; what is left is (a) gcc hoisting each scratchpad pointer into its own
+// saved register (s0=0xF0, s7=0xA0, s8=0x10, s6=0x110) where retail keeps ONE
+// base ($s1 = 0x1F800000) and derives 0xF0/0xF2/0xF4 from it, and (b) the GTE
+// halves of the chain loop: retail splits the rotation-matrix load around the
+// three column transforms and interleaves the translation ctc2s through
+// $12-$14 (gte_SetRotMatrix_gpr order), and its first matrix load reaches the
+// node through $t4-$t6, so gte_SetRotMatrix + gte_SetTransVector cannot
+// reproduce it as two macro calls.
+/*
+void func_800848F4(void) {
+    MATRIX *pMat = (MATRIX *)0x1F8000F0;
+    MATRIX *pOut = (MATRIX *)0x1F800110;
+    VECTOR *pScale = (VECTOR *)0x1F800010;
+    SVECTOR *pRot = (SVECTOR *)0x1F8000A0;
+    WorldMapPos *pDelta = (WorldMapPos *)0x1F800000;
+    WorldMapEntry *pChain;
+    s32 camX;
+    s32 camZ;
+    s32 scale;
+    s32 i;
+    long flag;
+
+    scale = 0x800;
+    *(s32 *)&pScale->vz = scale;
+    *(s32 *)&pScale->vy = scale;
+    *(s32 *)&pScale->vx = scale;
+    D_80050104 = 3;
+    D_800595C0 = 0;
+    D_80059578 = 0;
+    pRot->vz = 0;
+    pRot->vy = 0;
+    pRot->vx = 0;
+    camX = D_8009BE28 >> 12;
+    camZ = D_8009BE30 >> 12;
+    for (i = 0; i < D_8009D7E0; i++) {
+        if (D_8009C620[i].unk0 != 0) {
+            continue;
+        }
+        *pMat = D_8009C620[i].mat;
+        pMat->t[1] = D_8009C620[i].unk8;
+        pMat->t[2] = D_8009C620[i].unkC;
+        pMat->t[3] = -D_8009C620[i].unk10;
+        pChain = D_8009C620[i].unk50;
+        while (pChain != 0) {
+            pChain->mat.t[1] = pChain->unk8;
+            pChain->mat.t[2] = pChain->unkC;
+            pChain->mat.t[3] = -pChain->unk10;
+            gte_SetRotMatrix(&pChain->mat);
+            gte_ldclmv(&pMat->m[0][0]);
+            gte_mvmva(1, 0, 3, 3, 0);
+            gte_stclmv(&pMat->m[0][0]);
+            gte_ldclmv(&pMat->m[0][1]);
+            gte_mvmva(1, 0, 3, 3, 0);
+            gte_stclmv(&pMat->m[0][1]);
+            gte_ldclmv(&pMat->m[0][2]);
+            gte_mvmva(1, 0, 3, 3, 0);
+            gte_stclmv(&pMat->m[0][2]);
+            gte_SetTransVector(&pChain->mat);
+            gte_ldlv0(&pMat->t[1]);
+            gte_rt();
+            gte_stlvnl(&pMat->t[1]);
+            pChain = pChain->unk50;
+        }
+        pDelta->x = pMat->t[1] - camX;
+        pDelta->z = -pMat->t[3] - camZ;
+        WorldMapWrapDeltaScaled(pDelta);
+        pMat->t[1] = pDelta->x;
+        pMat->t[3] = -pDelta->z;
+        ScaleMatrix(pMat, pScale);
+        CompMatrix(&D_8009C808, pMat, pOut);
+        SetRotMatrix(pOut);
+        SetTransMatrix(pOut);
+        gte_ldv0(pRot);
+        gte_rtps();
+        gte_stflg_val(flag);
+        *(s32 *)0x1F800020 = flag;
+        if (*(s32 *)0x1F800020 < 0) {
+            continue;
+        }
+        gte_stsz((s32 *)0x1F800028);
+        if (*(s32 *)0x1F800028 >= 0xD80) {
+            continue;
+        }
+        ModelRenderPacket(D_8009C620[i].unk40, (&D_8009C620[i].unk48)[D_8009D7F0],
+                          *(u_long **)(D_8009BE3C + 0x70), D_8009AD2C[D_8009C620[i].unk4]);
+    }
+}
+*/
 // Not attempted: 259 instructions, no C written, no percentage. splat already
 // labels the stub "Handwritten function" and the body is one GTE pipeline, so
 // this is the class AGENTS.md calls unmatchable blind; it needs the whole body
