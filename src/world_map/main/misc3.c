@@ -184,7 +184,7 @@ s32 WorldMapRunSlotScript(s32 index) {
     s16* pCmd;
     s32 cmd;
     s32 n = 0;
-    s32 pad[2];
+    s32 pad[2]; // unused: reproduces retail's 0x28 frame
 
     do {
         pCmd = pSlot->pc += n;
