@@ -388,14 +388,14 @@ void SpriteDrawModelParts(WorkListEntry* pTask) {
         vec.vy = pSpriteData->position.y >> 16;
         vec.vz = pSpriteData->position.z >> 16;
         TransMatrix(&pSpriteData->pBase->transformMatrix, &vec);
-        if (!(*(u8*)((u8*)pSpriteData + 0x3F) & 1)) {
+        if (!(pSpriteData->field_0x3C_2 & 1)) {
             CompMatrix(&D_8004FBB8, &pSpriteData->pBase->transformMatrix, &matrix);
         }
         SetRotMatrix(&matrix);
         SetTransMatrix(&matrix);
         ModelRenderPacket(pSpriteData->pBase->pDirTransforms,
                           ((void**)&pSpriteData->pBase->pFramesData)[g_GfxCurContext],
-                          g_GfxCurOT, *(u16*)((u8*)pSpriteData + 0x42) & 4);
+                          g_GfxCurOT, ((u16*)&pSpriteData->field_0x40)[1] & 4);
     }
 }
 
@@ -403,6 +403,16 @@ extern void func_800B1F6C(void* pDirTransforms, void* pFramesData, u_long* pOT,
                           int flags, s32 arg4, s32 arg5);
 extern MATRIX D_8004FD80;
 extern MATRIX D_8004FDA0;
+
+// The standalone base object pBase points at carries a second rotation/scale
+// pair past the 0x40 SpriteDataI1 covers; SVECTOR's 8-byte size puts the scale
+// exactly where D_8004FD80 keeps its 0xC00 identity diagonal.
+typedef struct {
+    /* 0x00 */ SpriteDataI1 base;
+    /* 0x40 */ u32 unk40;
+    /* 0x44 */ SVECTOR rotation;
+    /* 0x4C */ SVECTOR scale;
+} SpriteBaseExt; // Size: 0x54
 
 // Builds the sprite's color and light matrices from its base scale/rotation,
 // then draws its model parts; a negative flag word saves and restores the
@@ -420,14 +430,15 @@ void SpriteDrawLitModelParts(WorkListEntry* pTask) {
     pSpriteData = pTask->unk4;
     SpriteUpdateTransformMatrix(pSpriteData);
     if (pSpriteData->pBase->pDirTransforms) {
-        if ((*(u32*)((u8*)pSpriteData + 0x40) >> 1) & 1) {
+        if ((pSpriteData->field_0x40 >> 1) & 1) {
             PushMatrix();
             // The scale values go in the m[i][0] slots (bytes 0, 6, 0xC), which
             // is where the static initialiser keeps its 0xC00 identity values.
-            D_8004FD80.m[0][0] = *(u16*)((u8*)pSpriteData->pBase + 0x4C);
-            D_8004FD80.m[1][0] = *(u16*)((u8*)pSpriteData->pBase + 0x4E);
-            D_8004FD80.m[2][0] = *(u16*)((u8*)pSpriteData->pBase + 0x50);
-            RotMatrix((SVECTOR*)((u8*)pSpriteData->pBase + 0x44), &colorMatrix);
+            D_8004FD80.m[0][0] = ((SpriteBaseExt*)pSpriteData->pBase)->scale.vx;
+            D_8004FD80.m[1][0] = ((SpriteBaseExt*)pSpriteData->pBase)->scale.vy;
+            D_8004FD80.m[2][0] = ((SpriteBaseExt*)pSpriteData->pBase)->scale.vz;
+            RotMatrix(&((SpriteBaseExt*)pSpriteData->pBase)->rotation,
+                      &colorMatrix);
             MulMatrix0(&colorMatrix, &pSpriteData->pBase->transformMatrix,
                        &colorMatrix);
             MulMatrix0(&D_8004FDA0, &colorMatrix, &lightMatrix);
@@ -441,7 +452,7 @@ void SpriteDrawLitModelParts(WorkListEntry* pTask) {
         vec.vy = pSpriteData->position.y >> 16;
         vec.vz = pSpriteData->position.z >> 16;
         TransMatrix(&pSpriteData->pBase->transformMatrix, &vec);
-        if (!(*(u8*)((u8*)pSpriteData + 0x3F) & 1)) {
+        if (!(pSpriteData->field_0x3C_2 & 1)) {
             CompMatrix(&D_8004FBB8, &pSpriteData->pBase->transformMatrix,
                        &matrix);
             SetRotMatrix(&matrix);
