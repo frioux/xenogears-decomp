@@ -1669,6 +1669,20 @@ int LibGearGetModelDistance(Model* pModel) {
 // instruction or size delta, so this is the cse reg_eqv tie-break. Without the
 // `pModel2` copy the body is 460 bytes and 98.58%. Permuter: 1389 iterations
 // found base 26 -> 15 (this body), 2062 more from it found nothing better.
+// Round 110 (near-miss park round): three more shapes measured, all re-park at
+// 99.87%/464 bytes. (1) `pModel2 = pModel;` moved above the 0xFE test drops the
+// a1 copy and the body shrinks to 460 bytes/98.58%, so the copy is born from the
+// pModel2->unk58 read in the 0xFD arm and that read must stay first. (2) reading
+// the range test through pModel2 (either with the FD arm on pModel or with the
+// pointer kept only for `pModel2->unk20`) makes cse emit a SECOND `lh v1,88(s0)`
+// -> 468 bytes: gcc only folds the pModel2 read into the pModel load when it is
+// the first post-loop read. (3) an `s16 type = pModel->unk58;` local, in place of
+// the pModel2 read, is cse'd away entirely (no copy, 460 bytes). A fourth
+// permuter run (854 iters, -j 2) from this body found nothing (base=best=15).
+// Conclusion: retail's `a1` is used exactly once, by the range subtract, and its
+// def sits in the 0xFE delay slot; ours puts the equivalent copy on the 0xFD/0xFC
+// compares instead. Same instruction multiset, same size, only reg_eqv's choice of
+// which use takes a1 differs - not reachable from source without a reload.
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E63A8);
 /*
 void func_801E63A8(Model* pModel) {
