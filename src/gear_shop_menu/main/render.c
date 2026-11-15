@@ -1062,24 +1062,33 @@ u32 GearShopMenuBuildSellItemDetails(u8 arg0, u8 itemType) {
 }
 
 INCLUDE_ASM("asm/gear_shop_menu/nonmatchings/main/render", func_801D18F8);
-// 98.39%: three loop-carried spill placements. Everything else - every block, call, branch, the
-// 0xC0 frame, the two setRECTs, the digit loop, the tail - is retail's. The whole remaining delta
-// is WHICH of two loop-carried values gets $fp: retail keeps &sp20 (the RECT) in $fp and spills the
-// 0x3C30 + i*0x80 string accumulator to 0x90(sp); gcc 2.6.0 spills &sp20 to 0x78(sp) and keeps the
-// 0x3C30 accumulator in $fp - exactly one allocno swapped between register and slot.
-//   - no pointer local (LoadImage((RECT*)&sp20, ...) and setRECT(&sp20, ...)): 95.81%, 1564 bytes.
-//     Structurally EXACT - 13 loop-carried values, 9 in registers, 4 slots, right insn count; the
-//     only differences are that swap and the 2 extra tail insns a spilled accumulator costs.
-//   - a RECT* local (the body below): 98.39%, 1584 bytes. &sp20 wins $fp, but cse keeps a second
-//     pseudo for the digit-loop base, so the frame grows 8 bytes (5 slots) and it is 8 bytes long.
-// A matching body would be the first form with the swap flipped. Tried and ruled out this round:
-// pRect as `RECT* pRect = &sp20;` inline in the declaration block (98.15%); pRect for the two
-// setRECTs only / for the LoadImages only (98.15 / 94.53); the assignment placed before the loop /
-// after HeapAlloc / inside the loop / after places[1] (98.31 / 94.53 / 98.31 / 98.31);
-// bzero((u8*)pRect + 8, 0xE) as a ref-count probe (94.53, and retail's bzero is plain sp+0x28).
-// Permuter: three runs, 1356 -> 659 -> 624 -> nothing (about 4400 mutants); the only thing kept was
-// the do/while (0) around the tensDigit func_8002675C call (98.31 -> 98.39). Another run is not
-// worth it from here.
+// Best parked attempt: 98.73%, 1584 bytes (retail is 1572). Structure is exact - every block, call,
+// branch, the two setRECTs, the digit loop, the tail and the spill SET are retail's; the whole delta
+// is ONE allocno tie: which of the two loop-carried addresses gets $fp.
+//   retail: $fp = &sp20 (RECT), slots 0x78 = 0x4030+i*0x80, 0x80 = 0x32+0xD*i, 0x88 = 0xD*i,
+//           0x90 = 0x3c30+i*0x80; the 8 RECT stores fold to 32(sp)..38(sp) and LoadImage gets
+//           `move a0,$fp`.
+//   ours:   $fp = pWorkspace, $s4 = &sp20, and a SECOND pseudo (a copy of &sp20 for the digit-loop
+//           giv base) is spilled to 0x78, which is what makes the frame 200 instead of 192: 11
+//           loop-carried candidates for 6 registers instead of 10, so 5 slots instead of 4.
+//     - pRect used only for LoadImage, everything else `&sp20`: 94.39%, 1572 bytes (retail's SIZE:
+//       stores fold, but LoadImage reloads the spilled copy and the accumulator still wins $fp).
+//     - no pointer local at all: 95.67%, 1564 bytes, frame 192 (all four spills in retail's order
+//       0x4030/0x32/0xD*i, but the 0x3c30 accumulator wins $fp and both LoadImage args become
+//       `addu a0,sp,32`).
+//     - writing the digit-buffer accesses through the pointer (the body below) kills one reload:
+//       98.39 -> 98.73. Same code with `&sp20` spelled there and pRect only on LoadImage: 94.39.
+// Ruled out: pRect declared first / last / inline (98.39 / 98.39 / 98.15); pRect only for the
+// setRECTs (94.39-98.15); the pRect assignment before the loop / after HeapAlloc / inside the loop /
+// after places[1] (98.31 / 94.53 / 98.31 / 98.31); bzero((u8*)pRect + 8, 0xE) (94.53). Declaration
+// order and the workspace's pointer type change nothing (byte-identical output).
+// Permuter: four runs (from 95.81/95.67/98.39/98.73 seeds) all plateau here; the last one reported
+// PERMUTER_BETTER but its change is a re-spelling that scores 94.39 by objdiff.
+// Presets screened with try_flags.sh: 2.7.2-cdk 94.65, 2.7.2 93.31 (the unit's 2.6.0 is best), so
+// this is not a compiler-version question.
+// What is left to try: make gcc CSE the digit-loop giv base onto the LoadImage pointer so there is
+// ONE pseudo for &sp20, or make one of the two candidates win $fp. Kernel: retail has 10
+// loop-carried values here, we have 11.
 /*
 void func_801D18F8(s32 scrollOffset, u8* pItemIds, u8* pItemTypes, u8* pItemSellQtys, u8* pItemQtys) {
     RECT sp20;
@@ -1124,15 +1133,15 @@ void func_801D18F8(s32 scrollOffset, u8* pItemIds, u8* pItemTypes, u8* pItemSell
             for (j = 4, k = 0; j > 0; k++, j--) {
                 quotient = qty / places[j];
                 if (quotient || didRounding) {
-                    sp28[k * 2] = quotient + 0x10;
+                    ((u8*)pRect)[8 + k * 2] = quotient + 0x10;
                     didRounding = TRUE;
                     qty -= (quotient * places[j]);
                 } else {
-                    sp28[k * 2] = 0xC3;
+                    ((u8*)pRect)[8 + k * 2] = 0xC3;
                 }
             }
-            sp28[8] = (qty % 10) + 0x10;
-            SystemDecodeGlyphCodesN((u16*)&sp28, sp38, 5);
+            ((u8*)pRect)[16] = (qty % 10) + 0x10;
+            SystemDecodeGlyphCodesN((u16*)((u8*)pRect + 8), sp38, 5);
             g_Menu->pShop->unk4030[i].width = SystemRenderStringEntry(&sp38, pWorkspace, 0x24U, 1U);
             setRECT(pRect, 0x180 + (i & 1) * 0x18, 0x80 + (i / 2) * FONT_LETTER_HEIGHT, 0x28, FONT_LETTER_HEIGHT);
             LoadImage(pRect, pWorkspace);
@@ -1163,7 +1172,6 @@ void func_801D18F8(s32 scrollOffset, u8* pItemIds, u8* pItemTypes, u8* pItemSell
 
     HeapFree(pWorkspace);
 }
-
 */
 
 
