@@ -1118,8 +1118,7 @@ void SoundHeapFree(void* pMemory) {
 
     DisableEvent(g_unk_SoundEvent);
     pBlock = (SoundHeapBlockHeader*)pMemory - 1;
-    pPrev = NULL;
-    for (pEntry = pCurrent; pEntry != pBlock; pEntry = pEntry->pNext) {
+    for (pEntry = pCurrent, pPrev = NULL; pEntry != pBlock; pEntry = pEntry->pNext) {
         pPrev = pEntry;
     }
     if (0 != pPrev) {
