@@ -232,19 +232,21 @@ void func_8008615C(void) {
 */
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_800863E0);
-// Best: 91.94%. Both loops are instruction-for-instruction identical to retail;
-// only register picks differ: retail keeps the D_8009D150 destination pointer in
-// s3 and the x counter in s2 (we take the reverse), and holds -(rand() >> 10) /
-// (rand() & 3) + 1 in v0/s2 where we use v1. Retail also keeps a second
-// `x = 0` (move s2,zero) in the entry block that gcc folds away here, and emits
-// the x-loop preheader sll s5,s2,0xb; addiu s1,s3,4 before move s0,zero.
-// Declaration order, x/y swap, pointer-last, indexed pVertex[k] and separate
-// idx/value locals all leave the tie untouched (89.23 with a separate loop-2
-// temp). D_8009AF30/D_8009AF38 are separate absolute symbols 8 bytes apart, each
-// read as a word at stride 0x10 (retail keeps that stride in s0, compares 0x50).
-// This is the 95-99% class: a permuter job, not a hand job.
+// Best: 93.98% (392 bytes = retail's exact size; instruction multiset identical
+// apart from one systematic register tie: retail keeps pVertex in s3 and the x
+// counter in s2, this body takes the reverse, which is also what moves the
+// `addiu s1,pVertex,4` giv past `move s0,zero`). Both Rand loops, the 0x54/0x50
+// bounds, the (D_8009AF30[i]/D_8009AF38[i]) strength-reduced strides and the
+// double HeapAlloc prologue are exact.
+// What the permuter found (run 1, base=926 -> 721, two runs, no ZERO):
+//   yoff = y << 11 had to move INSIDE the x loop, after xoff - that alone put
+//   the entry-block `x = 0` before the y-loop preheader, where retail has it
+//   (a redundant `x = 0;` statement is deleted by gcc, so this is the only way).
+//   Run 2 printed the same 721; run 3 (score-only) confirmed no further gain.
+// Moving pVertex's declaration to the end of the list does not move the tie.
 /*
 void func_800863E0(void) {
+    WorldMapPathEntry* pPath;
     s32 xoff;
     s32 yoff;
     s32 x;
@@ -252,15 +254,15 @@ void func_800863E0(void) {
     s32 i;
     s32 value;
     WorldMapTileVertex* pVertex;
-    WorldMapPathEntry* pPath;
 
     D_8009D150 = HeapAlloc(0x500, 0);
     D_8009CEB4 = HeapAlloc(0x280, 0);
     pVertex = (WorldMapTileVertex*)D_8009D150;
+    x = 0;
     for (y = 0; y < 4; y++) {
-        yoff = y << 11;
         for (x = 0; x < 4; x++) {
             xoff = x << 11;
+            yoff = y << 11;
             for (i = 0; i < 5; i++) {
                 pVertex->unk0 = (D_8009AF30[i].unk0 + xoff) << 12;
                 pVertex->unk8 = (D_8009AF38[i].unk0 + yoff) << 12;
