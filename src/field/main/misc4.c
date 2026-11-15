@@ -114,7 +114,234 @@ void FieldOrVramStripPixels(void) {
     }
 }
 
+extern u_char D_800594D0;
+extern u_char D_8005942C;
+extern s32 D_8004F310;
+extern s32 g_GamePartySkinsInitialized;
+extern SoundWDSEntry* g_GameCurLoadedWDS;
+
+extern s32 D_8004F2F8;
+extern s32 D_8004F304;
+extern s32 D_8004F338;
+extern s32 D_8004F348;
+extern s32 D_8004F2FC;
+extern s32 D_800AFD04;
+extern s32 D_800ADB60;
+extern s32 D_800ADC14;
+extern s32 D_800C2684;
+extern s32 D_800B2264;
+extern AudioManager* D_80062528;
+
+extern void FieldLoadFont(void);
+extern void FieldStoreScreenImage(void);
+extern void FieldWaitForSceneMapFileLoad(void);
+extern void FieldRenderSync(void);
+extern void FieldImageConvert24BitTo15Bit(int nIndex);
+extern void FieldInitializeRenderContexts(void);
+extern void FieldCopyScreenToFadeTexture(void);
+extern void FieldCopyScreenToVram(int x, int y);
+extern void FieldClearAndSwapOTag(void);
+extern void FieldZoomFadeEffectLoadTextures(int nSemiTrans, int nABR);
+extern void FieldLoad(void);
+extern void FieldStartScriptDataStream(void);
+extern void LibGearSetDirectKeyframes(u32 shouldRender);
+extern void FieldZoomFadeEffectSetPolygonColor(int color);
+extern void FieldZoomFadeEffectUpdate(void);
+extern void FieldDisplay(void);
+extern void FieldFadeToBlack(int duration);
+extern void FieldUpdateFrame(void);
+extern void func_8007554C(void);
+extern void FieldFreePendingAudioManager(void);
+extern void FieldStartWdsBankLoad(int arg0, int arg1);
+extern void FieldScriptUpdateMemoryEachFrame(void);
+extern void FieldRestoreScreenImage(void);
+extern void ControllerResetState(void);
+extern void SoundStopAudioManager(AudioManager* manager);
+extern void SoundDestroyAudioManager(AudioManager* pManager);
+extern void SoundFreeWdsEntry(SoundWDSEntry* pTargetEntry);
+extern void SoundFreeLoadedWdsAndAudioManager(void);
+extern void func_800A24C4(void);
+extern void FontFree(void);
+
 INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_80078D44);
+/* Best attempt: 97.50% (1344 bytes; the original is 1348). Every call, loop and
+   branch is in retail's order; what is left is one allocator decision and one
+   block shape.
+   1. Retail keeps nFade in $s0 and the loop counter in $s1; all our shapes give
+      nFade $s1 and i $s0, because gcc CSEs the -0x40000 decrement into a saved
+      register ($s0) here, while retail rematerialises it (lui $v0,0xfffc;
+      addu $s0,$s0,$v0) inside the D_800ADB60 loop and only parks it in a saved
+      register ($s1, then $s3) for the later loops. Declaration orders tried:
+      rect/i/nFadeStep/nFade, nFade first, nFadeStep first; all four give the
+      same allocation.
+   2. nFadeStep: retail is [lbu $v0,D_800594D0][beq -> end][move $s2,zero]
+      [lbu $v0,D_8005942C][bne -> end][li $s2,0x20][move $s2,zero], i.e. a
+      store of 0, then 0x20, then 0 again on the Y==1 path. The "0x20 unless
+      either flag is 1" spelling (body below) reaches the same instruction
+      multiset but fills the delay slots the other way round; the
+      `nFadeStep = 0; if (X != 1) { nFadeStep = 0x20; if (Y == 1) { ... } }`
+      spellings all make gcc fold the two constants into a setcc
+      (xori/sltu/sll $s2,$v0,0x5) and come out 4-8 bytes short.
+   Also open: the rect stores in the second MoveImage block are [w][y][x][h]
+   here and [w][y][x][h] in retail but with the two zero stores swapped.
+   One permuter run (4 min, 913 iters) reported PERMUTER_BETTER 1553 -> 1042 for
+   a body that duplicates the fade block under `if (i)`, but that body scores
+   94.16% under objdiff (1332 bytes), so its metric is not objdiff's here.
+void func_80078D44(void) {
+    // Loads the scene map, fades the field in and runs it until the state machine
+    // leaves state 1, then tears the field down
+
+        RECT rect;
+        int i;
+        int nFadeStep;
+        int nFade;
+
+        FieldLoadFont();
+        FieldStoreScreenImage();
+        ArchiveSetIndex(4, 0);
+        FieldWaitForSceneMapFileLoad();
+        FieldRenderSync();
+        if (D_8004F2F8 == 0) {
+            FieldImageConvert24BitTo15Bit(0);
+        }
+        FieldInitializeRenderContexts();
+        if (D_8004F2F8 == 0) {
+            rect.x = 0;
+            rect.y = 0x100;
+            rect.w = 0x140;
+            rect.h = 0xE0;
+            MoveImage(&rect, 0, 0);
+        }
+        g_FieldCurRenderContextIndex = 1;
+        FieldCopyScreenToFadeTexture();
+        FieldCopyScreenToVram(0, 0x100);
+        DrawSync(0);
+        FieldClearAndSwapOTag();
+        FieldRenderSync();
+        if (D_800594D0 == 1 || D_8005942C == 1) {
+            FieldZoomFadeEffectLoadTextures(0, 0);
+        } else {
+            FieldZoomFadeEffectLoadTextures(1, 1);
+        }
+        D_8004F2F8 = 1;
+        ArchiveCdDataSync(0);
+        ArchiveSetIndex(4, 0);
+        FieldLoad();
+        FieldStartScriptDataStream();
+        D_800AFD04 = 1;
+        if (D_800B2264 != 0) {
+            LibGearSetDirectKeyframes(1);
+        }
+        nFadeStep = 0x20;
+        if (D_800594D0 == 1 || D_8005942C == 1) {
+            nFadeStep = 0;
+        }
+        nFade = 0x800000;
+        if (D_800ADB60 == 1) {
+            do {
+                FieldClearAndSwapOTag();
+                FieldZoomFadeEffectUpdate();
+                FieldDisplay();
+                if (D_8005942C != 1) {
+                    if (D_800C2684 < 0x22C0) {
+                        D_800C2684 += nFadeStep;
+                    }
+                } else {
+                    FieldZoomFadeEffectSetPolygonColor(nFade >> 16);
+                    nFade -= 0x40000;
+                    if (nFade < 0) {
+                        nFade = 0;
+                    }
+                }
+            } while (ArchiveDataSync() != 0);
+            DrawSync(0);
+            HeapFree((void*)D_800ADC14);
+            D_800ADB60 = 0;
+            FieldOrVramStripPixels();
+        }
+        if (D_8005942C == 1) {
+            do {
+                FieldClearAndSwapOTag();
+                FieldZoomFadeEffectUpdate();
+                FieldDisplay();
+                FieldZoomFadeEffectSetPolygonColor(nFade >> 16);
+                nFade -= 0x40000;
+            } while (nFade >= 0);
+        }
+        if (D_800594D0 == 1) {
+            rect.x = 0;
+            rect.y = 0;
+            rect.w = 0x140;
+            rect.h = 0xE0;
+            MoveImage(&rect, 0x200, 0);
+        }
+        if (D_8004F304 != 0) {
+            SoundStopAudioManager(D_80062528);
+            SoundDestroyAudioManager(D_80062528);
+            SoundFreeWdsEntry(g_GameCurLoadedWDS);
+            D_8004F304 = 0;
+        }
+        func_800A24C4();
+        D_8004F310 = 0;
+        g_GamePartySkinsInitialized = 0;
+        FieldRenderSync();
+        ControllerResetState();
+        D_8004F308 = 0;
+        if (D_800594D0 == 1) {
+            D_8004F324 = 0xE;
+            FieldFreePendingAudioManager();
+        }
+        if (D_8004F338 != D_8004F324) {
+            SoundFreeLoadedWdsAndAudioManager();
+            D_8004F308 = -1;
+            if (D_8004F2FC != 0) {
+                D_8004F348 = 1;
+            }
+            FieldStartWdsBankLoad(D_8004F324, 1);
+        } else {
+            FieldFreePendingAudioManager();
+        }
+        FieldScriptUpdateMemoryEachFrame();
+        if (D_800594D0 != 1) {
+            if (D_8005942C != 1) {
+                FieldFadeToBlack(0x20);
+                for (i = 0; i < 0x20; i++) {
+                    FieldUpdateFrame();
+                    FieldZoomFadeEffectUpdate();
+                    func_8007554C();
+                    FieldTickSkipCounter();
+                    if (D_800594D0 != 1) {
+                        FieldZoomFadeEffectSetPolygonColor(nFade >> 16);
+                        nFade -= 0x40000;
+                        if (nFade < 0) {
+                            nFade = 0;
+                        }
+                        if (D_800C2684 < 0x22C0) {
+                            D_800C2684 += nFadeStep;
+                        }
+                    }
+                }
+            } else {
+                FieldFadeToBlack(0x20);
+            }
+        } else {
+            for (i = 0; i < 8; i++) {
+                FieldUpdateFrame();
+                FieldZoomFadeEffectUpdate();
+                func_8007554C();
+                FieldTickSkipCounter();
+            }
+        }
+        if (D_800B2264 != 0) {
+            LibGearSetDirectKeyframes(0);
+        }
+        FieldRestoreScreenImage();
+        HeapConsolidate();
+        FontFree();
+        FieldLoadFont();
+        D_800AFD04 = 0;
+    }
+*/
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_80079288);
 /* Best attempt: 79.46% (the form below scores 78.37%, 728 bytes against the
@@ -236,13 +463,9 @@ void func_80079288(void) {
 }
 */
 
-extern u_char D_8005942C;
 extern s32 D_800AFC78;
-extern s32 D_8004F324;
 extern s32 D_8004F370;
 extern s16 D_8004F384;
-extern s32 D_8004F310;
-extern s32 g_GamePartySkinsInitialized;
 extern s32 D_800B0064;
 extern void FieldScriptSyncMemoryWithGameState(void);
 extern void SoundFreeLoadedWdsAndAudioManager(void);
