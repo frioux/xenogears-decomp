@@ -1,5 +1,6 @@
 #include "common.h"
 #include "psyq/libgte.h"
+#include "psyq/libgpu.h"
 #include "psyq/inline_c.h"
 #include "system/memory.h"
 
@@ -23,12 +24,135 @@ typedef struct HeapNode {
     /* 0xC */ WorkBlock* pBlock;
 } HeapNode; // Size: 0x10
 
+// One entry of the packet list at D_80059528: a flag byte and a count, then
+// count 8-byte vertex runs immediately after this 4-byte header.
+typedef struct {
+    /* 0x0 */ u8 flags;
+    /* 0x1 */ u8 unk1;
+    /* 0x2 */ s16 count;
+} PacketNode; // Size: 0x4
+
+// The work data a model block holds at +0x14: the counts BattleInitWorkBlock
+// turns into delayed prims, and the head of the packet list.
+typedef struct {
+    /* 0x00 */ u8 unk0[0x2];
+    /* 0x02 */ u16 count;
+    /* 0x04 */ u16 unk4;
+    /* 0x06 */ u16 nodeCount;
+    /* 0x08 */ u32 unk8;
+    /* 0x0C */ u8 unkC[0x4];
+    /* 0x10 */ PacketNode* pNodes;
+} WorkData; // Size: 0x14
+
+// A model's render record (model block +0xC): the vertex count and pointer,
+// the transform data and one packet pointer per on-screen copy, which
+// D_800928A0 indexes.
+typedef struct {
+    /* 0x00 */ u8 unk0[0x2];
+    /* 0x02 */ u16 count;
+    /* 0x04 */ u8 unk4[0x4];
+    /* 0x08 */ void* pVerts;
+    /* 0x0C */ void* pData;
+    /* 0x10 */ void* pPackets[1];
+} RenderRecord; // Size: 0x14
+
+// A model's sub-part (model block +0x4); its +4 slot is the address of the
+// part's flags word.
+typedef struct {
+    /* 0x0 */ u8 unk0[0x4];
+    /* 0x4 */ s32* pFlags;
+} ModelPart; // Size: 0x8
+
+// The model data block a tree node points at (node +0x4): its type word, the
+// sub-part, the render record and the work data.
+typedef struct {
+    /* 0x00 */ s32 type;
+    /* 0x04 */ ModelPart* pPart;
+    /* 0x08 */ u8 unk8[0x4];
+    /* 0x0C */ RenderRecord* pRender;
+    /* 0x10 */ u8 unk10[0x4];
+    /* 0x14 */ WorkData* pWorkData;
+} ModelBlock; // Size: 0x18
+
+// A node of the object tree BattleInitObjectTree builds: its model block and
+// the two children the tree is walked through.
+typedef struct ObjectNode ObjectNode;
+struct ObjectNode {
+    /* 0x00 */ s32 type;
+    /* 0x04 */ ModelBlock* pModel;
+    /* 0x08 */ u8 unk8[0x88];
+    /* 0x90 */ ObjectNode* pChild90;
+    /* 0x94 */ ObjectNode* pChild94;
+}; // Size: 0x98
+
+// An effect vertex as the trail code reads it: three u16 coordinates (the
+// original loads them with lhu even where a SVECTOR would fit).
+typedef struct {
+    /* 0x0 */ u16 vx;
+    /* 0x2 */ u16 vy;
+    /* 0x4 */ u16 vz;
+    /* 0x6 */ u16 pad6;
+} EffectVert; // Size: 0x8
+
+// A quad trail effect: v0 is the vertex the caller writes each frame, v1..v3
+// the trail, and then one LINE_F4 packet per on-screen copy.
+typedef struct {
+    /* 0x00 */ EffectVert v0;
+    /* 0x08 */ u8 unk8[0x8];
+    /* 0x10 */ EffectVert v1;
+    /* 0x18 */ EffectVert v2;
+    /* 0x20 */ EffectVert v3;
+    /* 0x28 */ LINE_F4 prim[2];
+} QuadTrail; // Size: 0x60
+
+// A triangle trail effect: the same layout one packet shorter.
+typedef struct {
+    /* 0x00 */ EffectVert v0;
+    /* 0x08 */ u8 unk8[0x8];
+    /* 0x10 */ EffectVert v1;
+    /* 0x18 */ EffectVert v2;
+    /* 0x20 */ LINE_F3 prim[2];
+} TriTrail; // Size: 0x50
+
+// A two-vertex line trail effect.
+typedef struct {
+    /* 0x00 */ EffectVert v0;
+    /* 0x08 */ u8 unk8[0x8];
+    /* 0x10 */ EffectVert v1;
+    /* 0x18 */ LINE_F2 prim[2];
+} LineTrail; // Size: 0x38
+
+// A 0x10-byte tile packet with an explicit width and height (the SDK's
+// TILE_16 leaves those out, this one is written by BattleInitSpritePrim).
+typedef struct {
+    /* 0x0 */ u_long tag;
+    /* 0x4 */ u_char r0, g0, b0, code;
+    /* 0x8 */ short x0, y0;
+    /* 0xC */ short w, h;
+} TilePrim; // Size: 0x10
+
+// A sprite effect: one tile packet per on-screen copy.
+typedef struct {
+    /* 0x00 */ EffectVert v0;
+    /* 0x08 */ u8 unk8[0x8];
+    /* 0x10 */ TilePrim prim[2];
+} SpriteTrail; // Size: 0x30
+
+// The record a prim copies its colour from; only the three colour bytes at
+// +0x74 are read by this unit, the real structure is longer.
+typedef struct {
+    /* 0x00 */ u8 unk0[0x74];
+    /* 0x74 */ u8 r0;
+    /* 0x75 */ u8 g0;
+    /* 0x76 */ u8 b0;
+} EffectSource; // Size: 0x77+
+
 extern s32 D_80092824;
 extern void* D_80092828;
-extern void* BattleCreateObjectTree(u8* pObj, void* pArg);
+extern void* BattleCreateObjectTree(ObjectNode* pNode, void* pArg);
 extern s32 BattleCreateObject(void);
 extern void BattleAppendListEntry(s32 handle, void* pNode);
-extern void BattleInitWorkBlock(WorkBlock* pBlock, u8* pData);
+extern void BattleInitWorkBlock(WorkBlock* pBlock, WorkData* pData);
 extern s32 rand(void);
 extern u8 D_800928A0;
 extern s32 D_800928E4;
@@ -48,7 +172,7 @@ extern s32 D_8009A2CC;
 extern s32 D_8009A2D0;
 extern void func_8008C3A8(void* pSrc, void* pDst, u16 n);
 extern void func_80031804(void* pOT, void* pPrim);
-extern u8* D_80092830;
+extern EffectVert* D_80092830;
 extern SVECTOR* D_8009282C;
 extern void func_80031708(void* pOT, void* pPrim);
 // An 8-byte, byte-aligned chunk: assigning one copies 8 bytes with lwl/lwr.
@@ -70,7 +194,7 @@ typedef struct {
 } Words2; // Size: 0x8
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc15", func_8008BC04);
-void BattleProjectShadowVerts(u8* pObj, u8* pDst) {
+void BattleProjectShadowVerts(RenderRecord* pRecord, u8* pDst) {
     VECTOR vec;
     VECTOR vecUnused;
 
@@ -81,7 +205,7 @@ void BattleProjectShadowVerts(u8* pObj, u8* pDst) {
     D_8009A2C8.vx <<= 4;
     D_8009A2C8.vy <<= 4;
     D_8009A2C8.vz <<= 4;
-    func_8008C3A8(*(void**)(pObj + 8), pDst, *(u16*)(pObj + 2));
+    func_8008C3A8(pRecord->pVerts, pDst, pRecord->count);
 }
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc15", func_8008BD70);
 /* Best C match, 93.67% (228 bytes vs retail 232). Two things here are load-bearing
@@ -121,7 +245,7 @@ void func_8008BD70(u8* pData, void* pPacket, void* pUnk, void* pVertices) {
     }
 }
 */
-void BattleInitWorkBlock(WorkBlock* pBlock, u8* pData) {
+void BattleInitWorkBlock(WorkBlock* pBlock, WorkData* pData) {
     s32 i;
     s32 j;
     s32 n;
@@ -129,13 +253,13 @@ void BattleInitWorkBlock(WorkBlock* pBlock, u8* pData) {
     s32 sumB;
     u8* pMem;
     u8* pBuf;
-    u8* pNode;
+    PacketNode* pNode;
 
-    pBlock->count = *(u16*)(pData + 2);
-    pBlock->unk2 = *(u16*)(pData + 4);
-    pBlock->unk4 = *(u32*)(pData + 8);
+    pBlock->count = pData->count;
+    pBlock->unk2 = pData->unk4;
+    pBlock->unk4 = pData->unk8;
     pBlock->pData = pData;
-    D_80059528 = *(void**)(pData + 0x10);
+    D_80059528 = pData->pNodes;
     HeapSetCurrentContentType(0x13);
     pMem = HeapAlloc(pBlock->count * 8, 2);
     i = pBlock->count;
@@ -147,56 +271,56 @@ void BattleInitWorkBlock(WorkBlock* pBlock, u8* pData) {
     HeapSetCurrentContentType(5);
     sumA = 0;
     sumB = 0;
-    i = *(u16*)(pData + 6);
+    i = pData->nodeCount;
     while (--i != -1) {
         pNode = D_80059528;
-        D_80059528 = pNode + 4;
-        if (pNode[0] & 8)
-            sumB += *(s16*)(pNode + 2);
+        D_80059528 = (u8*)pNode + sizeof(PacketNode);
+        if (pNode->flags & 8)
+            sumB += pNode->count;
         else
-            sumA += *(s16*)(pNode + 2);
-        D_80059528 = (u8*)D_80059528 + (*(s16*)(pNode + 2) << 3);
+            sumA += pNode->count;
+        D_80059528 = (u8*)D_80059528 + (pNode->count << 3);
     }
     i = sumA * 0x14 + sumB * 0x18;
     pBuf = HeapAlloc(i * 2, 2);
     pBlock->pDelayedMem = pBuf;
     pBlock->pDelayedMemEnd = pBuf + i;
-    j = *(u16*)(pData + 6);
-    D_80059528 = *(void**)(pData + 0x10);
+    j = pData->nodeCount;
+    D_80059528 = pData->pNodes;
     while (--j != -1) {
         pNode = D_80059528;
-        D_80059528 = pNode + 4;
-        if (pNode[0] & 8) {
-            n = *(s16*)(pNode + 2);
+        D_80059528 = (u8*)pNode + sizeof(PacketNode);
+        if (pNode->flags & 8) {
+            n = pNode->count;
             while (--n != -1) {
                 pBuf[3] = 5;
                 *(u32*)(pBuf + 4) = 0x28403030;
                 pBuf += 0x18;
             }
         } else {
-            n = *(s16*)(pNode + 2);
+            n = pNode->count;
             while (--n != -1) {
                 pBuf[3] = 4;
                 *(u32*)(pBuf + 4) = 0x20403030;
                 pBuf += 0x14;
             }
         }
-        D_80059528 = (u8*)D_80059528 + (*(s16*)(pNode + 2) << 3);
+        D_80059528 = (u8*)D_80059528 + (pNode->count << 3);
     }
     func_800732AC(pBlock->pDelayedMemEnd, pBlock->pDelayedMem, i);
 }
-void BattleAttachWorkNode(void* pObj, void* pValue) {
-    *(s32*)pObj = 5;
-    *((void**)pObj + 1) = pValue;
+void BattleAttachWorkNode(HeapNode* pNode, void* pOwner) {
+    pNode->type = 5;
+    pNode->pOwner = pOwner;
 }
-HeapNode* BattleCreateWorkNode(void* pOwner) {
+HeapNode* BattleCreateWorkNode(ObjectNode* pOwner) {
     HeapNode* pNode;
     s32 type;
     void* pWork;
 
     HeapSetCurrentContentType(7);
     pNode = HeapAlloc(0x10, 2);
-    type = *(s32*)pOwner;
+    type = pOwner->type;
     pWork = D_80092828;
     pNode->pOwner = pOwner;
     pNode->pBlock = NULL;
@@ -215,30 +339,30 @@ void BattleFreeWorkBlock(HeapNode* pNode) {
         HeapFree(pBlock);
     }
 }
-void* BattleCreateObjectTree(u8* pObj, void* pArg) {
+void* BattleCreateObjectTree(ObjectNode* pNode, void* pArg) {
     void* pWork;
-    HeapNode* pNode;
-    void* pBlock;
-    void* pData;
-    u8* pChild;
+    HeapNode* pHeapNode;
+    WorkBlock* pBlock;
+    WorkData* pData;
+    ObjectNode* pChild;
 
     HeapSetCurrentContentType(6);
     pWork = (void*)BattleCreateObject();
-    pNode = BattleCreateWorkNode(pObj);
-    BattleAttachWorkNode(pWork, pNode);
-    if (pNode->type == 1) {
-        pData = *(void**)(*(u8**)(pObj + 4) + 0x14);
+    pHeapNode = BattleCreateWorkNode(pNode);
+    BattleAttachWorkNode(pWork, pHeapNode);
+    if (pHeapNode->type == 1) {
+        pData = pNode->pModel->pWorkData;
         HeapSetCurrentContentType(5);
         pBlock = HeapAlloc(0x18, 2);
-        pNode->pBlock = pBlock;
+        pHeapNode->pBlock = pBlock;
         BattleInitWorkBlock(pBlock, pData);
     }
-    pChild = *(u8**)(pObj + 0x94);
+    pChild = pNode->pChild94;
     D_80092824++;
     if (pChild != NULL)
         BattleAppendListEntry((s32)pWork, BattleCreateObjectTree(pChild, pWork));
-    if (*(void**)(pObj + 0x90) != NULL)
-        BattleAppendListEntry((s32)pArg, BattleCreateObjectTree(*(u8**)(pObj + 0x90), pArg));
+    if (pNode->pChild90 != NULL)
+        BattleAppendListEntry((s32)pArg, BattleCreateObjectTree(pNode->pChild90, pArg));
     return pWork;
 }
 void BattleResetObjectCountAndCreateTree(void* pWork) {
@@ -249,24 +373,24 @@ void BattleInitObjectTree(void* pWork) {
     D_80092828 = pWork;
     BattleResetObjectCountAndCreateTree(pWork);
 }
-void BattleQueueNodePrims(u8* pObj) {
-    u8* pData;
-    u8* pChk;
-    u8* pBase;
+void BattleQueueNodePrims(ObjectNode* pNode) {
+    ModelBlock* pModel;
+    ModelPart* pPart;
+    RenderRecord* pRender;
 
-    pData = *(u8**)(pObj + 4);
-    if (*(s32*)pData == 1) {
-        pChk = *(u8**)(pData + 4);
-        if ((*(s32*)*(u8**)(pChk + 4) & 1) == 0) {
-            pBase = *(u8**)(pData + 0xC);
-            func_8008BD70(*(void**)(pBase + 0xC), *(void**)((u8*)pBase + 0x10 + D_800928A0 * 4),
-                          (u8*)D_800928E4 + 4, *(void**)(pBase + 8));
+    pModel = pNode->pModel;
+    if (pModel->type == 1) {
+        pPart = pModel->pPart;
+        if ((*pPart->pFlags & 1) == 0) {
+            pRender = pModel->pRender;
+            func_8008BD70(pRender->pData, pRender->pPackets[D_800928A0],
+                          (u8*)D_800928E4 + 4, pRender->pVerts);
         }
     }
-    if (*(u8**)(pObj + 0x94) != NULL)
-        BattleQueueNodePrims(*(u8**)(pObj + 0x94));
-    if (*(u8**)(pObj + 0x90) != NULL)
-        BattleQueueNodePrims(*(u8**)(pObj + 0x90));
+    if (pNode->pChild94 != NULL)
+        BattleQueueNodePrims(pNode->pChild94);
+    if (pNode->pChild90 != NULL)
+        BattleQueueNodePrims(pNode->pChild90);
 }
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc15", func_8008C3A8);
 /* Best C match, 73.52% (272 bytes vs retail 280). Two shapes are already right
@@ -316,131 +440,131 @@ void func_8008C3A8(SVECTOR* pSrc, SVECTOR* pDst, s32 n) {
 */
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc15", func_8008C4B0);
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc15", func_8008C620);
-void BattleShiftQuad4Verts(u8* pObj) {
-    *(Bytes8*)(pObj + 0x20) = *(Bytes8*)pObj;
-    *(Bytes8*)(pObj + 0x18) = *(Bytes8*)(pObj + 0x20);
-    *(Bytes8*)(pObj + 0x10) = *(Bytes8*)(pObj + 0x18);
+void BattleShiftQuad4Verts(QuadTrail* pTrail) {
+    *(Bytes8*)&pTrail->v3 = *(Bytes8*)&pTrail->v0;
+    *(Bytes8*)&pTrail->v2 = *(Bytes8*)&pTrail->v3;
+    *(Bytes8*)&pTrail->v1 = *(Bytes8*)&pTrail->v2;
 }
-void BattleInitQuad4Prim(u8* pObj, u8* pSrc) {
-    pObj[0x2F] = 0x4C;
-    pObj[0x2B] = 6;
-    *(u32*)(pObj + 0x40) = 0x55555555;
-    pObj[0x2F] |= 2;
-    pObj[0x2C] = pSrc[0x74];
-    pObj[0x2D] = pSrc[0x75];
-    pObj[0x2E] = pSrc[0x76];
-    *(Words4*)(pObj + 0x44) = *(Words4*)(pObj + 0x28);
-    *(Words3*)(pObj + 0x54) = *(Words3*)(pObj + 0x38);
+void BattleInitQuad4Prim(QuadTrail* pTrail, EffectSource* pSrc) {
+    pTrail->prim[0].code = 0x4C;
+    setlen(&pTrail->prim[0], 6);
+    pTrail->prim[0].pad = 0x55555555;
+    pTrail->prim[0].code |= 2;
+    pTrail->prim[0].r0 = pSrc->r0;
+    pTrail->prim[0].g0 = pSrc->g0;
+    pTrail->prim[0].b0 = pSrc->b0;
+    *(Words4*)&pTrail->prim[1].tag = *(Words4*)&pTrail->prim[0].tag;
+    *(Words3*)&pTrail->prim[1].x2 = *(Words3*)&pTrail->prim[0].x2;
 }
-void BattleAddQuad4Prim(u8* pObj, u8* pOT) {
+void BattleAddQuad4Prim(QuadTrail* pTrail, u8* pOT) {
     long local[2];
-    u8* pBase;
+    LINE_F4* pPrim;
     s32 otz;
 
-    pBase = pObj + 0x28 + D_800928A0 * 0x1C;
-    otz = RotTransPers4((SVECTOR*)pObj, (SVECTOR*)(pObj + 0x10), (SVECTOR*)(pObj + 0x18),
-                        (SVECTOR*)(pObj + 0x20), (long*)(pBase + 8), (long*)(pBase + 0xC),
-                        (long*)(pBase + 0x10), (long*)(pBase + 0x14), local, local);
-    *(Bytes8*)(pObj + 0x20) = *(Bytes8*)(pObj + 0x18);
-    *(Bytes8*)(pObj + 0x18) = *(Bytes8*)(pObj + 0x10);
-    *(Bytes8*)(pObj + 0x10) = *(Bytes8*)pObj;
-    func_80031750(pOT + ((otz >> 2) << 2), pBase);
+    pPrim = &pTrail->prim[D_800928A0];
+    otz = RotTransPers4((SVECTOR*)&pTrail->v0, (SVECTOR*)&pTrail->v1, (SVECTOR*)&pTrail->v2,
+                        (SVECTOR*)&pTrail->v3, (long*)&pPrim->x0, (long*)&pPrim->x1,
+                        (long*)&pPrim->x2, (long*)&pPrim->x3, local, local);
+    *(Bytes8*)&pTrail->v3 = *(Bytes8*)&pTrail->v2;
+    *(Bytes8*)&pTrail->v2 = *(Bytes8*)&pTrail->v1;
+    *(Bytes8*)&pTrail->v1 = *(Bytes8*)&pTrail->v0;
+    func_80031750(pOT + ((otz >> 2) << 2), pPrim);
 }
-void BattleShiftTri3Verts(u8* pObj) {
-    *(Bytes8*)(pObj + 0x18) = *(Bytes8*)pObj;
-    *(Bytes8*)(pObj + 0x10) = *(Bytes8*)(pObj + 0x18);
+void BattleShiftTri3Verts(TriTrail* pTrail) {
+    *(Bytes8*)&pTrail->v2 = *(Bytes8*)&pTrail->v0;
+    *(Bytes8*)&pTrail->v1 = *(Bytes8*)&pTrail->v2;
 }
-void BattleInitTri3Prim(u8* pObj, u8* pSrc) {
-    pObj[0x27] = 0x48;
-    pObj[0x23] = 5;
-    *(u32*)(pObj + 0x34) = 0x55555555;
-    pObj[0x27] |= 2;
-    pObj[0x24] = pSrc[0x74];
-    pObj[0x25] = pSrc[0x75];
-    pObj[0x26] = pSrc[0x76];
-    *(Words4*)(pObj + 0x38) = *(Words4*)(pObj + 0x20);
-    *(Words2*)(pObj + 0x48) = *(Words2*)(pObj + 0x30);
+void BattleInitTri3Prim(TriTrail* pTrail, EffectSource* pSrc) {
+    pTrail->prim[0].code = 0x48;
+    setlen(&pTrail->prim[0], 5);
+    pTrail->prim[0].pad = 0x55555555;
+    pTrail->prim[0].code |= 2;
+    pTrail->prim[0].r0 = pSrc->r0;
+    pTrail->prim[0].g0 = pSrc->g0;
+    pTrail->prim[0].b0 = pSrc->b0;
+    *(Words4*)&pTrail->prim[1].tag = *(Words4*)&pTrail->prim[0].tag;
+    *(Words2*)&pTrail->prim[1].x2 = *(Words2*)&pTrail->prim[0].x2;
 }
-void BattleAddTri3Prim(u8* pObj, u8* pOT) {
-    u8* pRef;
-    u8* pPkt;
+void BattleAddTri3Prim(TriTrail* pTrail, u8* pOT) {
+    EffectVert* pRef;
+    LINE_F3* pPrim;
     s32 i;
     long otz;
 
     pRef = D_80092830;
-    D_8009282C[0].vx = *(u16*)(pObj + 0x0) - *(u16*)(pRef + 0x0);
-    D_8009282C[0].vy = *(u16*)(pObj + 0x2) - *(u16*)(pRef + 0x2);
-    D_8009282C[0].vz = *(u16*)(pObj + 0x4) - *(u16*)(pRef + 0x4);
-    D_8009282C[1].vx = *(u16*)(pObj + 0x10) - *(u16*)(pRef + 0x0);
-    D_8009282C[1].vy = *(u16*)(pObj + 0x12) - *(u16*)(pRef + 0x2);
-    D_8009282C[1].vz = *(u16*)(pObj + 0x14) - *(u16*)(pRef + 0x4);
-    D_8009282C[2].vx = *(u16*)(pObj + 0x18) - *(u16*)(pRef + 0x0);
-    D_8009282C[2].vy = *(u16*)(pObj + 0x1A) - *(u16*)(pRef + 0x2);
-    D_8009282C[2].vz = *(u16*)(pObj + 0x1C) - *(u16*)(pRef + 0x4);
+    D_8009282C[0].vx = pTrail->v0.vx - pRef->vx;
+    D_8009282C[0].vy = pTrail->v0.vy - pRef->vy;
+    D_8009282C[0].vz = pTrail->v0.vz - pRef->vz;
+    D_8009282C[1].vx = pTrail->v1.vx - pRef->vx;
+    D_8009282C[1].vy = pTrail->v1.vy - pRef->vy;
+    D_8009282C[1].vz = pTrail->v1.vz - pRef->vz;
+    D_8009282C[2].vx = pTrail->v2.vx - pRef->vx;
+    D_8009282C[2].vy = pTrail->v2.vy - pRef->vy;
+    D_8009282C[2].vz = pTrail->v2.vz - pRef->vz;
     gte_ldv3c(D_8009282C);
     gte_rtpt();
     i = D_800928A0;
-    *(Bytes8*)(pObj + 0x18) = *(Bytes8*)(pObj + 0x10);
-    *(Bytes8*)(pObj + 0x10) = *(Bytes8*)pObj;
-    pPkt = pObj + (i * 0x18 + 0x20);
-    gte_stsxy3(pPkt + 8, pPkt + 0xC, pPkt + 0x10);
+    *(Bytes8*)&pTrail->v2 = *(Bytes8*)&pTrail->v1;
+    *(Bytes8*)&pTrail->v1 = *(Bytes8*)&pTrail->v0;
+    pPrim = &pTrail->prim[i];
+    gte_stsxy3(&pPrim->x0, &pPrim->x1, &pPrim->x2);
     gte_stszotz(&otz);
-    func_80031708(pOT + ((otz >> 2) << 2), pPkt);
+    func_80031708(pOT + ((otz >> 2) << 2), pPrim);
 }
-void BattleShiftLine2Verts(u8* pObj) {
-    *(Bytes8*)(pObj + 0x10) = *(Bytes8*)pObj;
+void BattleShiftLine2Verts(LineTrail* pTrail) {
+    *(Bytes8*)&pTrail->v1 = *(Bytes8*)&pTrail->v0;
 }
-void BattleInitLine2Prim(u8* pObj, u8* pSrc) {
-    pObj[0x1B] = 3;
-    pObj[0x1F] = 0x42;
-    pObj[0x1C] = pSrc[0x74];
-    pObj[0x1D] = pSrc[0x75];
-    pObj[0x1E] = pSrc[0x76];
-    *(Words4*)(pObj + 0x28) = *(Words4*)(pObj + 0x18);
+void BattleInitLine2Prim(LineTrail* pTrail, EffectSource* pSrc) {
+    setlen(&pTrail->prim[0], 3);
+    pTrail->prim[0].code = 0x42;
+    pTrail->prim[0].r0 = pSrc->r0;
+    pTrail->prim[0].g0 = pSrc->g0;
+    pTrail->prim[0].b0 = pSrc->b0;
+    *(Words4*)&pTrail->prim[1].tag = *(Words4*)&pTrail->prim[0].tag;
 }
-void BattleAddLine2Prim(u8* pObj, u8* pOT) {
+void BattleAddLine2Prim(LineTrail* pTrail, u8* pOT) {
     long local[2];
-    u8* pBase;
+    LINE_F2* pPrim;
     s32 otz;
 
-    pBase = pObj + 0x18 + D_800928A0 * 0x10;
-    otz = RotTransPers3((SVECTOR*)pObj, (SVECTOR*)(pObj + 0x10), (SVECTOR*)local,
-                        (long*)(pBase + 8), (long*)(pBase + 0xC),
+    pPrim = &pTrail->prim[D_800928A0];
+    otz = RotTransPers3((SVECTOR*)&pTrail->v0, (SVECTOR*)&pTrail->v1, (SVECTOR*)local,
+                        (long*)&pPrim->x0, (long*)&pPrim->x1,
                         local, local, local);
-    *(Bytes8*)(pObj + 0x10) = *(Bytes8*)pObj;
-    func_800316C0(pOT + ((otz >> 2) << 2), pBase);
+    *(Bytes8*)&pTrail->v1 = *(Bytes8*)&pTrail->v0;
+    func_800316C0(pOT + ((otz >> 2) << 2), pPrim);
 }
 void BattleNoOpVertexShift(void) {
 }
-void BattleInitSpritePrim(u8* pObj, u8* pSrc) {
+void BattleInitSpritePrim(SpriteTrail* pTrail, EffectSource* pSrc) {
     s16 n;
 
-    pObj[0x13] = 3;
-    pObj[0x17] = 0x62;
+    setlen(&pTrail->prim[0], 3);
+    pTrail->prim[0].code = 0x62;
     n = rand() % 2 + 2;
-    *(s16*)(pObj + 0x1E) = n;
-    *(s16*)(pObj + 0x1C) = n * 2;
-    pObj[0x14] = pSrc[0x74];
-    pObj[0x15] = pSrc[0x75];
-    pObj[0x16] = pSrc[0x76];
-    *(Words4*)(pObj + 0x20) = *(Words4*)(pObj + 0x10);
+    pTrail->prim[0].h = n;
+    pTrail->prim[0].w = n * 2;
+    pTrail->prim[0].r0 = pSrc->r0;
+    pTrail->prim[0].g0 = pSrc->g0;
+    pTrail->prim[0].b0 = pSrc->b0;
+    *(Words4*)&pTrail->prim[1].tag = *(Words4*)&pTrail->prim[0].tag;
 }
-void BattleAddSpritePrim(u8* pSrc, u8* pOT) {
+void BattleAddSpritePrim(SpriteTrail* pTrail, u8* pOT) {
     SVECTOR vec;
-    u8* pRef;
-    u8* pDst;
+    EffectVert* pRef;
+    TilePrim* pPrim;
     long sxy;
     s32 otz;
 
     pRef = D_80092830;
-    vec.vx = *(u16*)(pSrc + 0) - *(u16*)(pRef + 0);
-    vec.vy = *(u16*)(pSrc + 2) - *(u16*)(pRef + 2);
-    vec.vz = *(u16*)(pSrc + 4) - *(u16*)(pRef + 4);
+    vec.vx = pTrail->v0.vx - pRef->vx;
+    vec.vy = pTrail->v0.vy - pRef->vy;
+    vec.vz = pTrail->v0.vz - pRef->vz;
     gte_ldv0(&vec);
     gte_rtps();
-    pDst = pSrc + (D_800928A0 * 0x10 + 0x10);
-    gte_stsxy2(pDst + 8);
+    pPrim = &pTrail->prim[D_800928A0];
+    gte_stsxy2(&pPrim->x0);
     gte_stszotz(&sxy);
     otz = sxy;
-    func_80031804(pOT + ((otz >> 2) << 2), pDst);
+    func_80031804(pOT + ((otz >> 2) << 2), pPrim);
 }
