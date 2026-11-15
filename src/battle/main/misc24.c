@@ -452,15 +452,21 @@ void func_800AF180(u8 *arg0, s32 arg1, u8 *arg2, u8 *arg3) {
         }
     }
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AF270);
-/* 85.71% - instruction multiset identical, only the preheader order differs:
+/* 85.71% (80 bytes vs 84) - instruction multiset identical, only the preheader order differs:
    the original emits the hoisted "li a3,1" before "addiu a0,a0,7", here the
    arg0 += 7 statement lands there first (and reorg then fills the beqz delay
-   slot with it, so the frame is one insn shorter). Indexed forms
-   arg0[i*0x7C+7] (90.33%) or p=arg0+7 / p[i*0x7C] (90.43%) put li a3 first
-   but let gcc fold the +7 into the load displacement (lbu 7(a0)) or into the
-   biv init (addiu a0,a0,0x83); a u8 one; local made it worse (85.71%, the
-   addiu hoisted above the slt).
+   slot with it, so the frame is one insn shorter). The increment is in the
+   ENTRY block here, in the original it is in the preheader after the loop
+   guard, which is why the original still has a nop in the beqz delay slot.
+   Indexed forms arg0[i*0x7C+7] (90.33%) or p=arg0+7 / p[i*0x7C] (90.43%) put
+   li a3 first but let gcc fold the +7 into the load displacement (lbu 7(a0)) or
+   into the biv init (addiu a0,a0,0x83); a u8 one; local made it worse, the
+   addiu hoisted above the slt.
+   Permuter (base=163 best=60) found only a TRAP: swapping the two first
+   statements so the count is read as *(u16*)(arg0+0xA) AFTER arg0 += 7, i.e.
+   from +0x11 instead of +0xA. It scores 90.43% because it emits the same
+   instruction count, but it is semantically wrong; a second 4-minute round
+   from that body found nothing better (60 -> 60). Do not use it. *//*
 void func_800AF270(u8 *arg0, u8 *arg1) {
     s32 n;
     s32 i;
@@ -477,3 +483,4 @@ void func_800AF270(u8 *arg0, u8 *arg1) {
     }
 }
 */
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AF270);
