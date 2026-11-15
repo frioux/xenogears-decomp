@@ -756,7 +756,6 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_800848F4);
 void func_800848F4(void) {
     MATRIX *pMat = (MATRIX *)0x1F8000F0;
     MATRIX *pOut = (MATRIX *)0x1F800110;
-    VECTOR *pScale = (VECTOR *)0x1F800010;
     SVECTOR *pRot = (SVECTOR *)0x1F8000A0;
     WorldMapPos *pDelta = (WorldMapPos *)0x1F800000;
     WorldMapEntry *pChain;
@@ -812,7 +811,7 @@ void func_800848F4(void) {
         WorldMapWrapDeltaScaled(pDelta);
         pMat->t[1] = pDelta->x;
         pMat->t[3] = -pDelta->z;
-        ScaleMatrix(pMat, pScale);
+        ScaleMatrix(pMat, pB);
         CompMatrix(&D_8009C808, pMat, pOut);
         SetRotMatrix(pOut);
         SetTransMatrix(pOut);
@@ -881,21 +880,39 @@ s32 WorldMapFindSpriteSet(void *pArg, s16 *pOut) {
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_80084DB8);
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_80085158);
-// Best: 94.26% (708 bytes vs retail 704 - one instruction LONG). The whole body
-// is now instruction-identical to retail except registers: retail uses SIX saved
-// registers (s0 = pEntry then pTri, s1 = triIndex then pVerts, s2 = pC,
-// s3 = pOut, s4 = pB, s5 = pNormal) and reuses each of its two dead head
-// registers, gcc gives pC s3 / pOut s5 / pNormal s6 and needs a seventh. The
-// second difference is the vx scale store: retail emits the immediate form
-// 'lui at,0x1f80 / sw v0,16(at)' where gcc uses the live pB register
-// ('sw v0,0(s4)'). Real levers found: pMat->t[2] = 0 must be written BEFORE
-// pMat->t[0] = 0, and pMat->t[1] = pEntry->unkC BEFORE the three scale stores
-// (91.97 -> 94.26, the whole store cluster then matches). Tried and no effect:
-// pVerts before pTri, scratch-pointer declarations after the pointers, a
-// separate pScale local for the stores + argument, pMesh dropped in favour of
-// two pEntry->unk44 expressions, and a 4-minute permuter run (its only gain was
-// 'volatile unsigned long triIndex', which is wrong - retail reads the fifth
-// argument with lhu).
+// Best: 98.59% - 704 bytes, retail's exact size (176 instructions); only two
+// instructions sit in different places. Round 113 levers that got here:
+//  - 'pTri = pMesh->tris; pTri += triIndex;' in place of
+//    '&pMesh->tris[triIndex]' (94.26 -> 97.66): the two-statement form keeps the
+//    base-first 'addiu s0,v1,8 / addu s0,s0,v0' and lets pTri take pEntry's dead
+//    register, so the six saved registers come out retail exactly
+//    (s0 = pEntry then pTri, s1 = triIndex then pVerts, s2 = pC, s3 = pOut,
+//    s4 = pB, s5 = pNormal) instead of needing a seventh.
+//  - the three 0x800 stores written as constants through a view struct at
+//    0x1F800000 (pWork->scale), with pB still not holding 0x1F800010 at that
+//    point (assigned just before ScaleMatrix): all three become the immediate
+//    'lui at,0x1f80 / sw v0,0x1x(at)' form. Any live register holding
+//    0x1F800010 there turns the vx store into 'sw v0,0(s4)' (+1 insn) and also
+//    swaps pOut/pB to s4/s3.
+// Remaining delta (both instructions are present, only placed differently):
+// retail materialises the ScaleMatrix argument EARLY ('lui a1,0x1f80 /
+// ori a1,a1,0x10' in the prologue) and so reorg steals 'ori s2,s2,0x20' (pC,
+// assigned just before the call) into the jal's delay slot; ours materialises
+// the argument at the call, so reorg steals 'ori a1,a1,0x10' there instead.
+// Tried with no effect: pC assigned before the store cluster (both halves then
+// early, 98.47), a separate pScale pointer initialised at the top (gcc keeps it
+// in s3, which reverts both the vx store and the register split, back to 700),
+// pScale dying at the call (same), literal '*(u32 *)0x1F80001x' stores (three
+// fresh saved registers, 708). Next idea: retail's $a1 holds 0x1F800010 from
+// the prologue, so it is a variable whose range ends at the call - find a shape
+// where gcc 2.7.2 picks that caller-saved register. The body needs this partial
+// view struct declared above it:
+//   typedef struct {
+//       VECTOR rot;        // 0x00
+//       VECTOR scale;      // 0x10
+//       u8 unk20[0xD0];    // 0x20
+//       MATRIX mat;        // 0xF0
+//   } WorldMapScratch;     // Size: 0x110
 /*
 void func_80085158(WorldMapPos *pPos, WorldMapPos *pOut, WorldMapPos *pNormal, u16 setIndex,
                    u16 triIndex) {
@@ -905,8 +922,9 @@ void func_80085158(WorldMapPos *pPos, WorldMapPos *pOut, WorldMapPos *pNormal, u
     SVECTOR *pVerts;
     MATRIX *pMat = (MATRIX *)0x1F8000F0;
     VECTOR *pA = (VECTOR *)0x1F800000;
-    VECTOR *pB = (VECTOR *)0x1F800010;
-    VECTOR *pC = (VECTOR *)0x1F800020;
+    VECTOR *pB;
+    VECTOR *pC;
+    WorldMapScratch *pWork = (WorldMapScratch *)0x1F800000;
     long flag;
 
     pEntry = &D_8009C620[setIndex];
@@ -916,15 +934,18 @@ void func_80085158(WorldMapPos *pPos, WorldMapPos *pOut, WorldMapPos *pNormal, u
     pMat->t[2] = 0;
     pMat->t[0] = 0;
     pMat->t[1] = pEntry->unkC;
-    pB->vz = 0x800;
-    pB->vy = 0x800;
-    pB->vx = 0x800;
+    pWork->scale.vz = 0x800;
+    pWork->scale.vy = 0x800;
+    pWork->scale.vx = 0x800;
+    pB = (VECTOR *)0x1F800010;
+    pC = (VECTOR *)0x1F800020;
     ScaleMatrix(pMat, pB);
     SetRotMatrix(pMat);
     SetTransMatrix(pMat);
 
     pMesh = pEntry->unk44;
-    pTri = &pMesh->tris[triIndex];
+    pTri = pMesh->tris;
+    pTri += triIndex;
     pVerts = pMesh->unk4;
     RotTrans(&pVerts[pTri->vert[0]], pA, &flag);
     RotTrans(&pVerts[pTri->vert[1]], pB, &flag);
