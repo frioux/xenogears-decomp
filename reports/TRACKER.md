@@ -2816,3 +2816,5 @@ Handover (end of the rounds 54-68 session). The sweep is still running in `~/xw/
 | 69 | 3 permuter-apply workers (the last three ZEROs) | +3 | 2640 | `MenuApplyDressingRoomSlotHpBonus` (menu/misc10, 99.87% park), `BattleTryQueueMessage5` (battling/misc3), `BattleWordRegSetReg` (battle/misc7). 3 names. raw 2640 -> 2640 (2637 at the rewrite round's end plus park prose; the round's own raw count is unchanged). |
 
 Round 69 detail: the port-and-gate round is now a 4-minute, 3-worker operation end to end (launch to green `make check`), and it closed the last ZEROs the sweep had produced. `permute_sweep.py --report` is the first command of every round from now on.
+
+Pending at handover: the sweep's ZERO queue is now **empty** (0 ZEROs). One BETTER lead qualifies under the score<=60 rule and is worth one worker: `battle/main/misc7` `func_8007B8D4` (parked 95.94%, score 230 -> 40) - `permute_sweep.py --report --briefs` prints its worker args. Everything else listed is score 70+ and has never closed. The sweep is still running with ~180 parked bodies unscored; leave it running and re-read the report at the start of the next session.
