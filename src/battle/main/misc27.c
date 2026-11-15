@@ -37,19 +37,20 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc27", func_800B3F04);
 // 84.19% under gcc 2.7.2, 2.7.2-cdk, 2.7.2-cdk -G0 and 2.6.0 alike, and under every
 // -O/-G/-mcpu of the try_flags sweep (59.58 at -O1), so no preset fixes this: retail
 // hoists `li 8` and the rect.w/h stores ahead of the rect.x maths, we emit them after.
-/*
 void func_800B4EDC(u8* pArg) {
     RECT rect;
     u8* p;
     u16 palette;
     u16 vram;
+    s32 y;
 
     p = *(u8**)(*(u8**)(pArg + 0x20) + 0x30);
     palette = *(u16*)(p + 0xA);
     rect.x = (*(u8*)(p + 0x4) >> 2) + ((palette & 0xF) << 6);
+    y = *(u8*)(p + 0x5) + ((palette << 4) & 0x100);
     rect.w = 8;
     rect.h = 8;
-    rect.y = *(u8*)(p + 0x5) + ((palette << 4) & 0x100);
+    rect.y = y;
     MoveImage(&rect, 0x3F0, 0x1F0);
     vram = *(u16*)(p + 0xC);
     rect.w = 0x10;
@@ -58,8 +59,6 @@ void func_800B4EDC(u8* pArg) {
     rect.y = (vram >> 6) & 0x1FF;
     MoveImage(&rect, 0x3F0, 0x1EE);
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc27", func_800B4EDC);
 
 void func_800B4F88(u8* pActor, s32 index, MATRIX* pMatrix) {
     SVECTOR rot;
