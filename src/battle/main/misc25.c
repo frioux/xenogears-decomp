@@ -383,16 +383,7 @@ void func_800AFC68(u8 *p) {
 }
 */
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800AFD98);
-/* 98.68% (516 bytes, identical instruction multiset): the whole body, the three
-   mode blocks, the two sb writes and the child walk are exact; only the
-   callee-saved assignment of the pModel and flags pseudos differs (original
-   pModel=s6 / flags=s7, ours pModel=s7 / flags=s3; original keeps a second copy
-   of flags in a2 for the three `flags & 0x20` tests, which needs the source to
-   hold flags in two variables - not reproduced). Tried: s32 vs u8 vs unsigned
-   flags, recursive call with and without `& 0xFF`, s16 vs s32 x/y/z with casts,
-   mode/i/pChild declaration orders - all leave the ranking untouched.
-void func_800AFD98(BattleModel *pModel, BattleModelNode *pNode, s32 flags, s16 x, s16 y, s16 z) {
+void func_800AFD98(BattleModel *pModel, BattleModelNode *pNode, char flags, s16 x, s16 y, s16 z) {
     BattleModelNode *pChild;
     s32 mode;
     s32 i;
@@ -439,7 +430,6 @@ void func_800AFD98(BattleModel *pModel, BattleModelNode *pNode, s32 flags, s16 x
         }
     }
 }
-*/
 
 void BattleSnapActorToGround(BattleActor *pActor) {
     u8 unk10[0x10];
