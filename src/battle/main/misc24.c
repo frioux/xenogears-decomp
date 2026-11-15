@@ -3,11 +3,12 @@
 #include "psyq/inline_c.h"
 #include "system/memory.h"
 #include "battle/actor.h"
+#include "libgear/main.h"
 
 extern u8 D_800C3B74;
 extern BattleActor *D_800D3368[];
-extern u8 *D_8005919C;
-extern u8 *D_800C4924;
+extern Temp8 *D_8005919C;
+extern Temp8 *D_800C4924;
 extern s16 BattleOffsetBySin(s16 angle, s16 divisor, s16 base);
 extern s16 BattleOffsetByAngleClamped(s16 angle, s16 divisor, s16 base);
 extern s16 BattleOffsetByNegatedAngle(s16 angle, s16 divisor, s16 base);
@@ -302,7 +303,9 @@ void BattleSpriteUpdateWorldPosition(BattleActor *pActor) {
                 if (index != 0) {
                     pSprites = D_800D3368[pActor->unk5C]->pSprites;
                     MulMatrix0(&pSprites->globalTransform,
-                               (MATRIX *)(index * 0x7C + (s32)pSprites + 0x2C), (MATRIX *)PSX_SCRATCH);
+                               &((BattleSprite *)(index * sizeof(BattleSprite) + (s32)pSprites))
+                                    ->globalTransform,
+                               (MATRIX *)PSX_SCRATCH);
                 } else {
                     pMatrix = &D_800D3368[pActor->unk5C]->pSprites->globalTransform;
                 }
@@ -313,7 +316,9 @@ void BattleSpriteUpdateWorldPosition(BattleActor *pActor) {
             if (index != 0) {
                 pSprites = D_800D3368[pActor->unk5C]->pSprites;
                 CompMatrix(&pSprites->localTransform,
-                           (MATRIX *)(index * 0x7C + (s32)pSprites + 0x2C), pMatrix);
+                           &((BattleSprite *)(index * sizeof(BattleSprite) + (s32)pSprites))
+                                ->globalTransform,
+                           pMatrix);
             } else {
                 pMatrix = &D_800D3368[pActor->unk5C]->pSprites->localTransform;
             }
@@ -428,16 +433,16 @@ void BattleSetupActorMoveCommand(BattleActor *pActor, BattleMoveCommand *pComman
 }
 s32 BattleGetSoundBankId(BattleActor *pActor, s32 arg1) {
     if (arg1 == 0) {
-        return *(u16 *)(D_8005919C + 0x14) << 16;
+        return D_8005919C->unk14 << 16;
     }
     if (arg1 == 1) {
-        return *(u16 *)(*(u8 **)(pActor->unkB0 + 8) + 0x14) << 16;
+        return ((Temp8 *)((Temp8 *)pActor->unkB0)->pUnk8)->unk14 << 16;
     }
     if (arg1 == 2) {
-        return *(u16 *)(*(u8 **)(pActor->unkB4 + 8) + 0x14) << 16;
+        return ((Temp8 *)((Temp8 *)pActor->unkB4)->pUnk8)->unk14 << 16;
     }
     if (arg1 == 3) {
-        return *(u16 *)(D_800C4924 + 0x14) << 16;
+        return D_800C4924->unk14 << 16;
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AE2A4);
