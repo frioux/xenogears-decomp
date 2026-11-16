@@ -274,7 +274,7 @@ void BattleRollPercentAndSwapActiveActor(void) {
     if (t & 0x100) {
         return;
     }
-    pBase = (u8 *)D_800C34B0;
+    pBase = (u8 *)D_800C34B0->slots;
     pActor = (BattleTableEntry *)(pBase + sel * sizeof(*pActor));
     if (pActor->state.unkB6 & 0x80) {
         return;
