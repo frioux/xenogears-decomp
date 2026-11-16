@@ -43,30 +43,30 @@ typedef struct {
 
 
 extern Misc15Slot *g_WorldMapSlots;
-extern void *D_8009C184[];
+extern void *g_WorldMapTileCellPointers[];
 extern MATRIX g_WorldMapIdentityMatrix;
-extern MATRIX D_8009D534;
+extern MATRIX g_WorldMapGridMatrix;
 extern u32 D_8009C580[];
 extern s32 g_WorldMapGridAngle;
-extern s32 D_8009C618;
+extern s32 g_WorldMapGridShadePhase;
 extern u8 *g_WorldMapTilePrimBuffer;
 extern u8 *g_WorldMapTilePrimBufferCopy;
-extern s32 D_8009BCB8;
+extern s32 g_WorldMapLoadQueueHead;
 extern s32 D_8009BD2C;
-extern s32 D_8009CD44;
-extern void *D_8009D788[16];
-extern void *D_8009C624[16];
+extern s32 g_WorldMapCdReadState;
+extern void *g_WorldMapCdRequestQueue[16];
+extern void *g_WorldMapFileLoadRequestQueue[16];
 extern void func_800981C8(s32);
 extern void WorldMapSubmitGridImageLoads(void);
 
 extern void WorldMapClearSlotPool(void);
-extern CdlLOC D_8009CEBC;
-extern u8 *D_8009D3BC;
-extern s32 D_8009D7F4;
-extern s32 D_8009D614;
-extern s32 D_8009D56C;
-extern s32 D_8009CEB8;
-extern s32 D_8009C590;
+extern CdlLOC g_WorldMapCdReadLocation;
+extern u8 *g_WorldMapCdRequestCursor;
+extern s32 g_WorldMapCdExpectedSector;
+extern s32 g_WorldMapCdCurrentSector;
+extern s32 g_WorldMapCdReadSectorsLeft;
+extern s32 g_WorldMapCdReadBytesLeft;
+extern s32 g_WorldMapCdReadDest;
 extern s32 D_8009BE48;
 extern s32 D_8009CCB0;
 extern s32 D_8009CCA8;
@@ -92,15 +92,15 @@ s32 WorldMapUpdateLoadQueue(void) {
     if ((first == 0) | (second == 0xFFFFFFFF)) {
         result = func_800968E0();
         if (result == 0) {
-            if (D_8009D788[D_8009BCB8] != NULL) {
-                WorldMapStartCdRead((Misc15CdRequest *)D_8009D788[D_8009BCB8]);
+            if (g_WorldMapCdRequestQueue[g_WorldMapLoadQueueHead] != NULL) {
+                WorldMapStartCdRead((Misc15CdRequest *)g_WorldMapCdRequestQueue[g_WorldMapLoadQueueHead]);
             }
         }
     } else {
-        if (D_8009C624[D_8009BCB8] != NULL) {
-            WorldMapReadFileEntries(D_8009C624[D_8009BCB8]);
-            D_8009C624[D_8009BCB8] = NULL;
-            D_8009BCB8 = (D_8009BCB8 + 1) & 0xF;
+        if (g_WorldMapFileLoadRequestQueue[g_WorldMapLoadQueueHead] != NULL) {
+            WorldMapReadFileEntries(g_WorldMapFileLoadRequestQueue[g_WorldMapLoadQueueHead]);
+            g_WorldMapFileLoadRequestQueue[g_WorldMapLoadQueueHead] = NULL;
+            g_WorldMapLoadQueueHead = (g_WorldMapLoadQueueHead + 1) & 0xF;
         }
     }
     return result;
@@ -113,7 +113,7 @@ s32 WorldMapUpdateLoadQueue(void) {
 // to move to C with the function, and a C definition cannot name code labels.
 /*
 s32 func_800968E0(void) {
-    switch (D_8009CD44) {
+    switch (g_WorldMapCdReadState) {
     case 0:
         return 0;
     case 1:
@@ -122,13 +122,13 @@ s32 func_800968E0(void) {
         return 1;
     case 4:
         if (--D_8009BD2C == 0) {
-            D_8009CD44++;
+            g_WorldMapCdReadState++;
         }
         return 1;
     case 5:
-        D_8009CD44 = 0;
-        D_8009D788[D_8009BCB8] = 0;
-        D_8009BCB8 = (D_8009BCB8 + 1) & 0xF;
+        g_WorldMapCdReadState = 0;
+        g_WorldMapCdRequestQueue[g_WorldMapLoadQueueHead] = 0;
+        g_WorldMapLoadQueueHead = (g_WorldMapLoadQueueHead + 1) & 0xF;
         return 2;
     }
     return 3;
@@ -141,21 +141,21 @@ void WorldMapStartCdRead(Misc15CdRequest *p) {
     u32 size;
 
     lba = p->unk0;
-    D_8009CD44 = 1;
-    pLoc = &D_8009CEBC;
+    g_WorldMapCdReadState = 1;
+    pLoc = &g_WorldMapCdReadLocation;
     /* retail keeps this dead store: the volatile store blocks gcc's elimination */
-    *(u8 *volatile *)&D_8009D3BC = (u8 *)p;
-    D_8009D3BC = (u8 *)p + 0xC;
+    *(u8 *volatile *)&g_WorldMapCdRequestCursor = (u8 *)p;
+    g_WorldMapCdRequestCursor = (u8 *)p + 0xC;
     size = p->unk4;
     D_8009BE48 = 0;
     D_8009CCB0 = 0;
     D_8009CCA8 = 0;
     D_8009CCA0 = 0;
-    D_8009D7F4 = lba;
-    D_8009D614 = lba;
-    D_8009D56C = (size + 0x7FF) >> 11;
-    D_8009CEB8 = p->unk4;
-    D_8009C590 = p->unk8;
+    g_WorldMapCdExpectedSector = lba;
+    g_WorldMapCdCurrentSector = lba;
+    g_WorldMapCdReadSectorsLeft = (size + 0x7FF) >> 11;
+    g_WorldMapCdReadBytesLeft = p->unk4;
+    g_WorldMapCdReadDest = p->unk8;
     CdIntToPos(lba, pLoc);
     CdSyncCallback(func_80096A6C);
     CdControlF(CdlSetloc, (u8 *)pLoc);
@@ -235,7 +235,7 @@ typedef struct {
 
 extern s16 g_WorldMapCameraRot;
 extern s16 g_WorldMapViewRotationY;
-extern s16 D_8009BD3C;
+extern s16 g_WorldMapViewRotationZ;
 extern MATRIX g_WorldMapViewMatrix;
 extern s16 D_8009C80A;
 extern s16 D_8009C80C;
@@ -314,7 +314,7 @@ void WorldMapBuildRotationMatrix(Misc15Rot *p) {
     *(MATRIX *)0x1F800130 = *pMtx;
     RotMatrixX(-g_WorldMapCameraRot, pMtx);
     RotMatrixY(-g_WorldMapViewRotationY, (MATRIX *)0x1F800110);
-    RotMatrixZ(-D_8009BD3C, (MATRIX *)0x1F800130);
+    RotMatrixZ(-g_WorldMapViewRotationZ, (MATRIX *)0x1F800130);
     MulMatrix0(pMtx, (MATRIX *)0x1F800110, (MATRIX *)0x1F800150);
     MulMatrix0((MATRIX *)0x1F800130, (MATRIX *)0x1F800150, &g_WorldMapViewMatrix);
     ((SVECTOR *)0x1F8000A0)->vx = -(u16)p->unk0;
@@ -550,14 +550,14 @@ void func_80097BC0(s32 *p) {
     s32 x;
     s32 z;
 
-    D_8009D534 = g_WorldMapIdentityMatrix;
+    g_WorldMapGridMatrix = g_WorldMapIdentityMatrix;
     i = 0xFF;
     pEnd = D_8009C580;
     for (; i >= 0; i--) {
         *pEnd-- = 0;
     }
     x = p[0];
-    D_8009C618 = 0x400;
+    g_WorldMapGridShadePhase = 0x400;
     D_8009BBB8 = 0;
     g_WorldMapGridAngle = 0;
     g_WorldMapScrollX = x & 0x7FFFFF;
@@ -576,14 +576,14 @@ void WorldMapRefreshGrid(s32 arg0) {
     u32 *pEnd;
     s32 i;
 
-    D_8009D534 = g_WorldMapIdentityMatrix;
+    g_WorldMapGridMatrix = g_WorldMapIdentityMatrix;
     i = 0xFF;
     pEnd = D_8009C580;
     for (; i >= 0; i--) {
         *pEnd-- = 0;
     }
     g_WorldMapGridAngle = 0;
-    D_8009C618 = 0x400;
+    g_WorldMapGridShadePhase = 0x400;
     func_800981C8(arg0);
     WorldMapSubmitGridImageLoads();
 }
@@ -592,14 +592,14 @@ void WorldMapFreeGridImages(void) {
     s32 i;
 
     for (i = 0; i < 0x100; i++) {
-        if (D_8009C184[i] != NULL) {
-            HeapFree(D_8009C184[i]);
+        if (g_WorldMapTileCellPointers[i] != NULL) {
+            HeapFree(g_WorldMapTileCellPointers[i]);
         }
     }
 }
 
-extern s32 D_8009BCD8;
-extern s16 D_8009D570[];
+extern s32 g_WorldMapGridImageFileIndex;
+extern s16 g_WorldMapGridTileIds[];
 extern s32 ArchiveDecodeSector(s32 entryIndex);
 extern u8 *ArchiveGetFilePath(s32 entryIndex);
 extern s32 WorldMapAddCdRequest(s32 x, s32 y, s32 z);
@@ -619,13 +619,13 @@ void WorldMapSubmitGridImageLoads(void) {
     first = ArchiveGetDebugTable();
     second = ArchiveGetDebugTable();
     if ((first == 0) | (second == 0xFFFFFFFF)) {
-        pSector = (u8 *)ArchiveDecodeSector(D_8009BCD8);
+        pSector = (u8 *)ArchiveDecodeSector(g_WorldMapGridImageFileIndex);
         for (i = 3; i < 6; i++) {
             for (j = 3; j < 6; j++) {
-                id = D_8009D570[i * 9 + j];
-                if (D_8009C184[id] == NULL) {
-                    D_8009C184[id] = HeapAlloc(0x710, 0);
-                    WorldMapAddCdRequest((s32)(pSector + id), 0x710, (s32)D_8009C184[id]);
+                id = g_WorldMapGridTileIds[i * 9 + j];
+                if (g_WorldMapTileCellPointers[id] == NULL) {
+                    g_WorldMapTileCellPointers[id] = HeapAlloc(0x710, 0);
+                    WorldMapAddCdRequest((s32)(pSector + id), 0x710, (s32)g_WorldMapTileCellPointers[id]);
                 }
             }
         }
@@ -633,23 +633,23 @@ void WorldMapSubmitGridImageLoads(void) {
         WorldMapSubmitCdRequests();
         for (i = 0; i < 9; i++) {
             for (j = 0; j < 9; j++) {
-                id = D_8009D570[i * 9 + j];
-                if (D_8009C184[id] == NULL) {
-                    D_8009C184[id] = HeapAlloc(0x710, 0);
-                    WorldMapAddCdRequest((s32)(pSector + id), 0x710, (s32)D_8009C184[id]);
+                id = g_WorldMapGridTileIds[i * 9 + j];
+                if (g_WorldMapTileCellPointers[id] == NULL) {
+                    g_WorldMapTileCellPointers[id] = HeapAlloc(0x710, 0);
+                    WorldMapAddCdRequest((s32)(pSector + id), 0x710, (s32)g_WorldMapTileCellPointers[id]);
                 }
             }
         }
         WorldMapAddCdRequest(0, 0, 0);
         WorldMapSubmitCdRequests();
     } else {
-        pPath = ArchiveGetFilePath(D_8009BCD8);
+        pPath = ArchiveGetFilePath(g_WorldMapGridImageFileIndex);
         for (i = 0; i < 9; i++) {
             for (j = 0; j < 9; j++) {
-                id = D_8009D570[i * 9 + j];
-                if (D_8009C184[id] == NULL) {
-                    D_8009C184[id] = HeapAlloc(0x710, 0);
-                    WorldMapAddFileLoadRequest((s32)pPath, id << 11, 0x710, (s32)D_8009C184[id]);
+                id = g_WorldMapGridTileIds[i * 9 + j];
+                if (g_WorldMapTileCellPointers[id] == NULL) {
+                    g_WorldMapTileCellPointers[id] = HeapAlloc(0x710, 0);
+                    WorldMapAddFileLoadRequest((s32)pPath, id << 11, 0x710, (s32)g_WorldMapTileCellPointers[id]);
                 }
             }
         }

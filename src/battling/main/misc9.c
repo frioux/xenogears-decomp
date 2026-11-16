@@ -26,12 +26,12 @@ extern s32 g_BattleCameraAngleStep;
 extern s32 g_BattleScreenMode;
 extern s32 g_BattleCameraSpinStep;
 extern s32 g_BattleTransitionFrames;
-extern s16 D_80097102;
-extern s16 D_8009881E;
+extern s16 g_BattleCombatant0DownCount;
+extern s16 g_BattleCombatant1DownCount;
 
 extern int rand(void);
 
-extern s32 D_80092944;
+extern s32 g_BattleElapsedFrames;
 extern char D_800701B0[];
 extern void BattleDrawTextLeft(char* p);
 
@@ -575,8 +575,8 @@ void BattleSetScreenMode(s32 mode) {
         func_8007AC3C();
         break;
     case 6:
-        pA = &D_8009881E;
-        pB = &D_80097102;
+        pA = &g_BattleCombatant1DownCount;
+        pB = &g_BattleCombatant0DownCount;
         vA = *pA;
         vB = *pB;
         BattleInitRenderScene(vA < vB ? pB - 0x79 : pA - 0x79);
@@ -599,7 +599,7 @@ void func_80083CE8(void) {
     char buf[0x20];
     s32 n;
 
-    n = D_80092944;
+    n = g_BattleElapsedFrames;
     Sprintf(buf, D_800701B0, n / 1800, (n % 1800) / 30, (n % 30) * 99 / 30);
     BattleDrawTextLeft(buf);
 }

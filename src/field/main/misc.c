@@ -1321,7 +1321,7 @@ extern s32 D_80062524;
 
 extern s32 g_GameWdsEntrySlot3;
 
-extern s32 D_8004F370;
+extern s32 g_FieldSuppressStateChange;
 
 extern void SoundGetPendingSpuCommandType(int);
 
@@ -1360,7 +1360,7 @@ setIndex1C:
                 g_FieldWdsLoadEntryIndex += 2;
                 goto readFile;
             }
-            if (D_8004F370 != 1) {
+            if (g_FieldSuppressStateChange != 1) {
                 g_FieldWdsLoadEntryIndex = (flags & 0x7F) + 0x1F;
                 ArchiveSetIndex(0x2C, 1);
                 goto readFile;

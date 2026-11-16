@@ -173,7 +173,7 @@ extern s32 g_WorldMapScrollTargetY;
 extern s32 g_WorldMapScrollTargetZ;
 extern s16 g_WorldMapCameraRot;
 extern s16 g_WorldMapViewRotationY;
-extern s16 D_8009BD3C;
+extern s16 g_WorldMapViewRotationZ;
 extern s32 g_WorldMapRotationMatrixValid;
 extern s32 g_WorldMapCameraHeight;
 extern s32 g_WorldMapFadeLevel;
@@ -555,7 +555,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_8008390C);
 // 30.52% because gcc reorders the whole straight-line block once it folds the
 // store-to-load pair into the constant. Every instruction and relocation of
 // the raw form matches except that folding: retail re-loads g_WorldMapViewRotationY (lh)
-// and D_8009BD3C (lh) after storing them, we get lui $v0,0x40 instead.
+// and g_WorldMapViewRotationZ (lh) after storing them, we get lui $v0,0x40 instead.
 // Round-49 update: a volatile *store* (*(volatile s16 *)&g_WorldMapViewRotationY = 0x400)
 // does stop the fold and restores both lh's, but the extra live value shifts
 // the allocator one register over (temps to a1, 0x960000 to a0; 244 vs 224
@@ -600,7 +600,7 @@ s32 func_8008390C(s32 arg0) {
     *(s32 *)(p + 0x5C) = 0x960000;
     g_WorldMapCameraRot = -0x20;
     g_WorldMapViewRotationY = 0x400;
-    D_8009BD3C = 0;
+    g_WorldMapViewRotationZ = 0;
     *(s32 *)(p + 0x50) = -0x20000;
     *(s32 *)(p + 0x38) = -0x20000;
     v = g_WorldMapViewRotationY;
@@ -608,7 +608,7 @@ s32 func_8008390C(s32 arg0) {
     g_WorldMapCameraHeight = 0x960000;
     *(s32 *)(p + 0x54) = v << 12;
     *(s32 *)(p + 0x3C) = v << 12;
-    v = D_8009BD3C;
+    v = g_WorldMapViewRotationZ;
     g_WorldMapFadeLevel = 0x78;
     *(s32 *)(p + 0x58) = v << 12;
     *(s32 *)(p + 0x40) = v << 12;

@@ -2,14 +2,14 @@
 #include "psyq/libgpu.h"
 #include "system/memory.h"
 
-extern u8 *D_800D2D40;
-extern u8 *D_800D2D48;
+extern u8 *g_BattleColorSourceA;
+extern u8 *g_BattleColorSourceB;
 extern u8 *D_800C3EA0;
 extern u8 *D_800C3D50[2];
-extern u8 D_800C3D04[];
+extern u8 g_BattleSpritePool[];
 extern u8 g_BattleBlockPool[];
 extern u16 g_BattleCurrentActorSlot;
-extern u16 D_800C3E30;
+extern u16 g_BattleCommandActorMask;
 extern u8 D_800D3611;
 extern u8 *g_BattleActors[];
 
@@ -27,17 +27,17 @@ extern u8 *D_800D33E4;
 extern u16 D_800D361A;
 extern u_long *D_800D3604;
 extern RECT D_800D3628;
-extern u8 *D_800C3AC4;
-extern void *D_800C3AC8;
+extern u8 *g_BattleColorTintBase;
+extern void *g_BattleColorTintWork;
 extern u8 D_800C3D68;
 extern u8 g_FlagTimerWorkListAdds;
 extern s32 g_NumFlaggedTimerWorkListEntries;
-extern s32 D_800C360C;
+extern s32 g_BattleCommandRowIndex;
 extern u8 D_800C4000[];
 
 // Per-unit 6-byte state records, unit id 0..3; the original spells each byte
 // as its own symbol.
-extern u8 D_800C3AAC[];
+extern u8 g_BattleColorTintParams[];
 extern u8 D_800C3AAD[];
 extern u8 D_800C3AAE[];
 extern u8 D_800C3AAF[];
@@ -86,7 +86,7 @@ extern void BattleFreeActorBuffer(void *);
 extern s32 g_BattleTriangleVertices;
 extern s32 g_BattleTriangleCount;
 extern s32 g_BattleTriangles;
-extern u8 D_800D2F64;
+extern u8 g_BattleTriangleVisitStamp;
 extern s32 BattleSearchTriangleTree(s32, s32, s32);
 
 s32 BattleFindGroundTriangle(s32 arg0, s32 arg1, s32 arg2) {
@@ -108,11 +108,11 @@ s32 BattleFindGroundTriangle(s32 arg0, s32 arg1, s32 arg2) {
             break;
         }
     }
-    D_800D2F64++;
-    if (D_800D2F64 != 0) {
+    g_BattleTriangleVisitStamp++;
+    if (g_BattleTriangleVisitStamp != 0) {
         return result;
     }
-    D_800D2F64 = 1;
+    g_BattleTriangleVisitStamp = 1;
     for (i = 0; i < g_BattleTriangleCount; i++) {
         ((Misc23TreeEntry *)(i * 14 + g_BattleTriangles))->unkD = 0;
     }
@@ -180,8 +180,8 @@ s32 BattleSearchTriangleTree(s32 arg0, s32 index, s32 depth) {
     if (index < 0) {
         return -1;
     }
-    if (((Misc23TreeEntry *)(index * 14 + g_BattleTriangles))->unkD != D_800D2F64) {
-        ((Misc23TreeEntry *)(index * 14 + g_BattleTriangles))->unkD = D_800D2F64;
+    if (((Misc23TreeEntry *)(index * 14 + g_BattleTriangles))->unkD != g_BattleTriangleVisitStamp) {
+        ((Misc23TreeEntry *)(index * 14 + g_BattleTriangles))->unkD = g_BattleTriangleVisitStamp;
         result = BattleTestPointInTriangle((void *)(((Misc23TreeEntry *)(index * 14 + g_BattleTriangles))->unk0 * 8 + g_BattleTriangleVertices),
                                (void *)(((Misc23TreeEntry *)(index * 14 + g_BattleTriangles))->unk2 * 8 + g_BattleTriangleVertices),
                                (void *)(((Misc23TreeEntry *)(index * 14 + g_BattleTriangles))->unk4 * 8 + g_BattleTriangleVertices), arg0);
@@ -208,8 +208,8 @@ s32 BattleSearchTriangleTree(s32 arg0, s32 index, s32 depth) {
 }
 
 void BattleSetColorSources(s32 arg0, s32 arg1) {
-    D_800D2D40 = (u8 *)arg0;
-    D_800D2D48 = (u8 *)arg1;
+    g_BattleColorSourceA = (u8 *)arg0;
+    g_BattleColorSourceB = (u8 *)arg1;
 }
 
 extern u8 D_800D3600[];
@@ -237,7 +237,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A5EB4);
    found nothing (993 iterations, base=300 best=300). So the order is set by loop.c
    when it builds the address giv, not by the source spelling.
    What DID matter, for whoever unparks it: the first clear loop is a BYTE OFFSET
-   loop - for (offset = 0x12; offset >= 0; offset -= 6) D_800C3AAC[offset] = 0; -
+   loop - for (offset = 0x12; offset >= 0; offset -= 6) g_BattleColorTintParams[offset] = 0; -
    and it needs its own local (retail keeps it in $v0, the other three loops use
    $a3); with i * 6 gcc keeps a counter and an offset register and the window is
    five instructions wrong. The func_800A3640 call takes 19 parameters - a0 is
@@ -246,8 +246,8 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A5EB4);
    D_800C3EA8, 0, 0, 0, 0 (the s16 ones are passed as promoted shorts, which is
    why each is one sign-extended word in its own slot) - and with that prototype in
    scope that whole call is byte-identical. D_800D360C = 0 belongs between the call
-   and the first HeapAlloc; the two 0x88 allocations fill D_800C3AC4 (the copy
-   destination) and D_800C3AC8. */
+   and the first HeapAlloc; the two 0x88 allocations fill g_BattleColorTintBase (the copy
+   destination) and g_BattleColorTintWork. */
 /*
 void func_800A5EB4(void) {
     u8 *pEntry;
@@ -256,7 +256,7 @@ void func_800A5EB4(void) {
     s32 i;
 
     for (offset = 0x12; offset >= 0; offset -= 6) {
-        D_800C3AAC[offset] = 0;
+        g_BattleColorTintParams[offset] = 0;
     }
     pEntry = *(u8 **)(D_800D33E4 + 0x118);
     for (i = 0; i < *(u8 *)(D_800D33E4 + 0x10E); i++) {
@@ -267,9 +267,9 @@ void func_800A5EB4(void) {
     }
     func_800A3640(D_800D3600, 0, 1, 0x601, 0, D_800D2D30, D_800D2D34, 0, 0, 0, 0, D_800D2D30, D_800D2D34, D_800D2D2C, D_800C3EA8, 0, 0, 0, 0);
     D_800D360C = 0;
-    D_800C3AC4 = HeapAlloc(0x88, 1);
-    D_800C3AC8 = HeapAlloc(0x88, 1);
-    pDst = D_800C3AC4;
+    g_BattleColorTintBase = HeapAlloc(0x88, 1);
+    g_BattleColorTintWork = HeapAlloc(0x88, 1);
+    pDst = g_BattleColorTintBase;
     for (i = 0; i < 4; i++) {
         if (D_800C3EA0 != NULL) {
             pDst[0] = D_800C3EA0[i * 0x24 + 0x1740];
@@ -324,13 +324,13 @@ void func_800A5EB4(void) {
             pDst += 0x10;
         }
     }
-    pDst[0] = D_800D2D40[0];
-    pDst[1] = D_800D2D40[1];
-    pDst[2] = D_800D2D40[2];
+    pDst[0] = g_BattleColorSourceA[0];
+    pDst[1] = g_BattleColorSourceA[1];
+    pDst[2] = g_BattleColorSourceA[2];
     pDst += 4;
-    pDst[0] = D_800D2D48[0];
-    pDst[1] = D_800D2D48[1];
-    pDst[2] = D_800D2D48[2];
+    pDst[0] = g_BattleColorSourceB[0];
+    pDst[1] = g_BattleColorSourceB[1];
+    pDst[2] = g_BattleColorSourceB[2];
 }
 */
 
@@ -338,14 +338,14 @@ void BattleSetActorRectParams(s32 arg0, s32 arg1, s32 arg2, s32 arg3, s32 arg4, 
     if (arg0 < 4) {
         if (arg1 >= 0) {
             D_800D3611 = 1;
-            D_800C3AAC[arg0 * 6] = 1;
+            g_BattleColorTintParams[arg0 * 6] = 1;
             D_800C3AAD[arg0 * 6] = arg1;
             D_800C3AAE[arg0 * 6] = arg2;
             D_800C3AAF[arg0 * 6] = arg3;
             D_800C3AB0[arg0 * 6] = arg4;
             D_800C3AB1[arg0 * 6] = arg5;
         } else {
-            D_800C3AAC[arg0 * 6] = 0;
+            g_BattleColorTintParams[arg0 * 6] = 0;
         }
     }
 }
@@ -370,13 +370,13 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A64E4);
    permuter run found nothing (2036 iterations, base=300 best=300).
    try_flags: 2.7.2 -G0 95.59, cdk -G0 79.78, 2.6.0 -O1 46.66, -O3 98.71, so
    the preset is right.
-   Structure, for whoever unparks it: pSrc = D_800C3AC4 is a table of 24-byte
+   Structure, for whoever unparks it: pSrc = g_BattleColorTintBase is a table of 24-byte
    records of six 3-byte colours (advance 4 per colour). For i in 0..3: the four
    0x1740/48/50/58 groups go into D_800C3EA0 + i*0x24, the 0x16E0 group and the
    0x284 group (D_800C3D50[0]) use i*0x18, and when D_800C3EA0 is NULL the five
    groups are skipped with pSrc += 0x14. Then a second i in 0..1 loop writes the
    0x2E4/2EC/2F4/2FC groups into D_800C3D50[0] + i*0x24 (pSrc += 0x10 when it is
-   NULL), and the last two colours go to the D_800D2D40 / D_800D2D48 pointers
+   NULL), and the last two colours go to the g_BattleColorSourceA / g_BattleColorSourceB pointers
    set by BattleSetColorSources. Every store reloads its base global, so the
    destination expression has to be written out in full at each store - a
    pointer local collapses the twelve loads into one. */
@@ -385,7 +385,7 @@ void func_800A64E4(void) {
     u8 *pSrc;
     s32 i;
 
-    pSrc = D_800C3AC4;
+    pSrc = g_BattleColorTintBase;
     for (i = 0; i < 4; i++) {
         if (D_800C3EA0 != NULL) {
             D_800C3EA0[i * 0x24 + 0x1740] = pSrc[0];
@@ -440,13 +440,13 @@ void func_800A64E4(void) {
             pSrc += 0x10;
         }
     }
-    D_800D2D40[0] = pSrc[0];
-    D_800D2D40[1] = pSrc[1];
-    D_800D2D40[2] = pSrc[2];
+    g_BattleColorSourceA[0] = pSrc[0];
+    g_BattleColorSourceA[1] = pSrc[1];
+    g_BattleColorSourceA[2] = pSrc[2];
     pSrc += 4;
-    D_800D2D48[0] = pSrc[0];
-    D_800D2D48[1] = pSrc[1];
-    D_800D2D48[2] = pSrc[2];
+    g_BattleColorSourceB[0] = pSrc[0];
+    g_BattleColorSourceB[1] = pSrc[1];
+    g_BattleColorSourceB[2] = pSrc[2];
 }
 */
 
@@ -471,7 +471,7 @@ void func_800A6884(u8 *pDst, s32 index, u8 *pSrc) {
     r = ((s8 *)D_800C3AAF)[index * 6] * 8;
     g = ((s8 *)D_800C3AB0)[index * 6] * 8;
     b = ((s8 *)D_800C3AB1)[index * 6] * 8;
-    if (D_800C3AAC[index * 6] != 0) {
+    if (g_BattleColorTintParams[index * 6] != 0) {
         switch (D_800C3AAD[index * 6]) {
         case 0:
             r += pSrc[0];
@@ -578,12 +578,12 @@ void func_800A6AE8(void) {
     }
     *pFlag = 0;
     memcpy(D_800D3608, D_800D3604, D_800D2D2C * D_800C3EA8 * 2);
-    memcpy(D_800C3AC8, D_800C3AC4, 0x88);
+    memcpy(g_BattleColorTintWork, g_BattleColorTintBase, 0x88);
     for (i = 0; i < 4; i++) {
         u8 *pRec;
 
         pRec = &D_800C3AAE[i * 6];
-        if (D_800C3AAC[i * 6] == 0) {
+        if (g_BattleColorTintParams[i * 6] == 0) {
             continue;
         }
         switch (pRec[-1]) {
@@ -599,7 +599,7 @@ void func_800A6AE8(void) {
             func_80026F44(D_800D2D2C * D_800C3EA8, pRec[0], D_800D3608, D_800D3604);
             break;
         }
-        pData = D_800C3AC8;
+        pData = g_BattleColorTintWork;
         for (j = 0; j < 4; j++) {
             if (D_800C3EA0 != NULL) {
                 func_800A6884((mem_addr)D_800C3EA0 + 0x173C + j * 0x24 + 4, i, pData += 4);
@@ -626,8 +626,8 @@ void func_800A6AE8(void) {
                 pData += 0x10;
             }
         }
-        func_800A6884(D_800D2D40, i, pData += 4);
-        func_800A6884(D_800D2D48, i, pData);
+        func_800A6884(g_BattleColorSourceA, i, pData += 4);
+        func_800A6884(g_BattleColorSourceB, i, pData);
     }
     LoadImage(&D_800D3628, D_800D3608);
 }
@@ -652,8 +652,8 @@ void BattleUploadAndFreeImageResources(void) {
         BattleFreeImageEntry(pRect - 0x28);
     }
     func_800A64E4();
-    HeapFree(D_800C3AC4);
-    HeapFree(D_800C3AC8);
+    HeapFree(g_BattleColorTintBase);
+    HeapFree(g_BattleColorTintWork);
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A7064);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A7948);
@@ -695,7 +695,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A8B0C);
     arg1 = *(s16 *)(g_BattleStageData + 0x348);
     g_BattleStateBit = 1;
     BattleCreateBlockPool(pBuf, arg1);
-    BattleCreateSpritePool(D_800C3D04, *(s16 *)(g_BattleStageData + 0x34A));
+    BattleCreateSpritePool(g_BattleSpritePool, *(s16 *)(g_BattleStageData + 0x34A));
     BattleClearBlockSlots();
     i = 0x1F;
     pWord = (mem_addr)&D_800D33E4;
@@ -711,7 +711,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A8B0C);
     }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A8BF0);
-// Archive entry allocated by func_800A9540 / BattleAllocateArchiveFilePair, stored in D_800C3B78.
+// Archive entry allocated by func_800A9540 / BattleAllocateArchiveFilePair, stored in g_BattleArchiveEntry.
 // The 0x18-byte variant stops after unk14; the 0x20-byte one adds a second
 // {u16, s32} pair at 0x18.
 typedef struct {
@@ -729,7 +729,7 @@ typedef struct {
     /* 0x1C */ s32 unk1C;
 } Misc23ArchiveEntry; // Size: 0x20
 
-extern Misc23ArchiveEntry *D_800C3B78;
+extern Misc23ArchiveEntry *g_BattleArchiveEntry;
 extern int ArchiveDecodeAlignedSize(unsigned int);
 extern void func_80029AFC(Misc23ArchiveEntry *, s32, s32);
 extern u8 D_800CCD88[];
@@ -748,7 +748,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A9540);
      call gcc 2.6 folds the -1 into %lo(D_800C3509-1) and uses $at.
    A 4-minute permuter run found base=1055 best=356 (PERMUTER_BETTER) on two
    changes: "nameLen = 2; nameLen = base + nameLen;" for the second name length,
-   and moving func_80029AFC(D_800C3B78, 0, 0) BEFORE the two pTail zero stores
+   and moving func_80029AFC(g_BattleArchiveEntry, 0, 0) BEFORE the two pTail zero stores
    (that one is semantically wrong - retail has the sh before the jal and the sw
    in its delay slot - so port only the nameLen split and re-run the permuter
    from there, up to three times while the score falls).
@@ -780,7 +780,7 @@ void func_800A9540(s32 arg0) {
         count = 0;
     }
     pEntry = HeapAlloc(0x20, 1);
-    D_800C3B78 = pEntry;
+    g_BattleArchiveEntry = pEntry;
     base = pTable[index - 1];
     nameLen = base + 1;
     pEntry->unk0 = nameLen;
@@ -797,7 +797,7 @@ void func_800A9540(s32 arg0) {
     }
     pTail[0] = 0;
     *(s32 *)(pTail + 2) = 0;
-    func_80029AFC(D_800C3B78, 0, 0);
+    func_80029AFC(g_BattleArchiveEntry, 0, 0);
     ArchiveSetIndex(alignedIndex, remainder);
 }
 */
@@ -811,7 +811,7 @@ void BattleAllocateArchiveFilePair(s32 arg0) {
     ArchiveSetIndex(0x28, 0);
     HeapChangeCurrentUser(4, NULL);
     pEntry = HeapAlloc(0x18, 1);
-    D_800C3B78 = pEntry;
+    g_BattleArchiveEntry = pEntry;
     arg0 *= 2;
     entryIndex = arg0 + 1;
     ArchiveGetFilePath(entryIndex);
@@ -822,7 +822,7 @@ void BattleAllocateArchiveFilePair(s32 arg0) {
     pEntry->unkC = HeapAlloc(ArchiveDecodeAlignedSize(entryIndex), 1);
     pEntry->unk10 = 0;
     pEntry->unk14 = 0;
-    func_80029AFC(D_800C3B78, 0, 0);
+    func_80029AFC(g_BattleArchiveEntry, 0, 0);
     ArchiveSetIndex(alignedIndex, remainder);
 }
 // Payload reached through Misc23ArchiveEntry::unk14: a count-prefixed list of
@@ -863,11 +863,11 @@ void func_800A979C(s32 arg0, s16 arg1, s16 arg2, s16 arg3, s16 arg4) {
     s32 size;
     s32 flags;
 
-    func_800A8BF0(arg0, 0, D_800C3B78->unkC, D_800C3B78->unk4, arg1, arg2, arg3, arg4, 0);
+    func_800A8BF0(arg0, 0, g_BattleArchiveEntry->unkC, g_BattleArchiveEntry->unk4, arg1, arg2, arg3, arg4, 0);
     g_BattleActors[arg0][0x38] = 1;
     g_BattleActors[arg0][0x22] = 1;
-    if (D_800C3B78->unk14 != 0) {
-        pData = (Misc23ArchiveData *)D_800C3B78->unk14;
+    if (g_BattleArchiveEntry->unk14 != 0) {
+        pData = (Misc23ArchiveData *)g_BattleArchiveEntry->unk14;
         ResolveArchiveEntryPointers((u32 *)pData);
         pSrc = pData->unk4;
         count = *(s16 *)pSrc;
@@ -896,11 +896,11 @@ void func_800A979C(s32 arg0, s16 arg1, s16 arg2, s16 arg3, s16 arg4) {
         } else {
             func_8002DDE4(pData->unk8, 1, arg1, arg2, 1, arg3, arg4);
         }
-        HeapFree((void *)D_800C3B78->unk14);
+        HeapFree((void *)g_BattleArchiveEntry->unk14);
     }
-    HeapFree(D_800C3B78);
+    HeapFree(g_BattleArchiveEntry);
     DrawSync(0);
-    HeapFree(D_800C3B78->unk4);
+    HeapFree(g_BattleArchiveEntry->unk4);
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A9A50);
@@ -912,7 +912,7 @@ void BattleFreeAllModelSlots(void) {
         func_800A9FF0(i);
     }
     BattleFreeBlockPool(g_BattleBlockPool);
-    BattleFreeSpritePool(D_800C3D04);
+    BattleFreeSpritePool(g_BattleSpritePool);
 }
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A9FF0);
@@ -998,7 +998,7 @@ void func_800A9FF0(s32 arg0) {
 
 void BattleQueueActorCommand(u16 arg0, u16 arg1, void *arg2) {
     g_BattleCurrentActorSlot = arg0;
-    D_800C3E30 = arg1;
+    g_BattleCommandActorMask = arg1;
     ((u8 *)g_BattleActors[arg0])[0x35] = 0;
     if (g_BattleActors[arg0] != NULL) {
         BattleAppendActorCommandBytes(g_BattleActors[arg0], g_BattleActors[arg0], g_BattleBlockPool, arg2);
@@ -1007,13 +1007,13 @@ void BattleQueueActorCommand(u16 arg0, u16 arg1, void *arg2) {
 
 void BattleSwitchActorAndQueueCommand(u16 arg0, u16 arg1, void *arg2) {
     g_BattleCurrentActorSlot = arg0;
-    D_800C3E30 = arg1;
+    g_BattleCommandActorMask = arg1;
     D_800C3D68 = 1;
     ((u8 *)g_BattleActors[arg0])[0x35] = 1;
     g_NumFlaggedTimerWorkListEntries = 0;
     g_FlagTimerWorkListAdds = 1;
     func_800BF85C(arg0, BattleFindFirstActorInMask());
-    D_800C360C = 1;
+    g_BattleCommandRowIndex = 1;
     D_800C4000[BattleFindFirstActorInMask()] = 0;
     if (g_BattleActors[arg0] != NULL) {
         BattleAppendActorCommandBytes(g_BattleActors[arg0], g_BattleActors[arg0], g_BattleBlockPool, arg2);
@@ -1024,9 +1024,9 @@ void BattleQueueActorCommandPreservingSelection(u16 arg0, u16 arg1, void *arg2) 
     u16 savedUnk;
 
     savedIdx = g_BattleCurrentActorSlot;
-    savedUnk = D_800C3E30;
+    savedUnk = g_BattleCommandActorMask;
     g_BattleCurrentActorSlot = arg0;
-    D_800C3E30 = arg1;
+    g_BattleCommandActorMask = arg1;
     ((u8 *)g_BattleActors[arg0])[0x35] = 0;
     if (g_BattleActors[arg0] != NULL) {
         if ((s32)arg0 != BattleFindFirstActorInMask()) {
@@ -1034,5 +1034,5 @@ void BattleQueueActorCommandPreservingSelection(u16 arg0, u16 arg1, void *arg2) 
         }
     }
     g_BattleCurrentActorSlot = savedIdx;
-    D_800C3E30 = savedUnk;
+    g_BattleCommandActorMask = savedUnk;
 }

@@ -826,26 +826,26 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_800751C8);
    call, every global store and the tail match instruction for instruction. What
    is left: (a) the two loads of p0/p1's x/z for ratan2 come out one instruction
    later than retail's (retail hoists them above the D_8009284C store, gcc
-   stores first), (b) the D_8009263C cascade's three BattleGetScreenMode blocks
+   stores first), (b) the g_BattlePromptTimer cascade's three BattleGetScreenMode blocks
    are ordered/scheduled differently, and (c) the `mode = 4 / if (== 2) mode = 2`
    pair: retail has the 4 in the bne's delay slot. Written from the assembly in
    one pass; the structure (if/else-if cascade over p0/p1's +0xD0 flags, then the
-   0x1E/0x3C timer cascade on D_8009263C, then the distance/angle tail) is
+   0x1E/0x3C timer cascade on g_BattlePromptTimer, then the distance/angle tail) is
    believed correct. */
 /* extern s32 g_BattleTransitionFrames;
 extern u8 D_800928C4;
 extern u8 D_80091144;
 extern u8 D_80091145;
-extern s32 D_80092638;
-extern s32 D_80092640;
-extern s32 D_80092890;
-extern s32 D_80092918;
-extern u8 D_800928D4;
-extern u16 D_80097102;
-extern u8 D_800928FC;
+extern s32 g_BattleRoundOver;
+extern s32 g_BattleRoundOverFrames;
+extern s32 g_BattleResultSide;
+extern s32 g_BattleBothCombatantsDownCount;
+extern u8 g_BattleInputEnabled;
+extern u16 g_BattleCombatant0DownCount;
+extern u8 g_BattleTextPadIndex;
 extern s32 g_BattleMode;
-extern u16 D_8009881E;
-extern s32 D_8009263C;
+extern u16 g_BattleCombatant1DownCount;
+extern s32 g_BattlePromptTimer;
 extern u8 g_BattleOptionOn;
 extern s32 g_BattleRoundNumber;
 extern s32 D_80092850;
@@ -891,10 +891,10 @@ void func_800751C8(u8 *p0, u8 *p1) {
             BattleInitOnce();
         }
     }
-    if (D_80092638 != 0) {
+    if (g_BattleRoundOver != 0) {
         mode = 4;
-        if (D_80092640++ >= 0x3D) {
-            if (D_80092890 == 2) {
+        if (g_BattleRoundOverFrames++ >= 0x3D) {
+            if (g_BattleResultSide == 2) {
                 mode = 2;
             }
             BattleSetScreenMode(mode);
@@ -902,35 +902,35 @@ void func_800751C8(u8 *p0, u8 *p1) {
             HeapAlloc(1, 0);
             printf(D_8006FC34);
         }
-        if (D_80092890 == 2) {
+        if (g_BattleResultSide == 2) {
             BattleByteRegTestReg(D_8006FC3C);
         } else {
             BattleByteRegTestReg(D_8006FC48);
         }
     } else if (*(u32 *)(p0 + 0xD0) & 0x800000) {
         if (*(u32 *)(p1 + 0xD0) & 0x800000) {
-            D_80092638 = 1;
-            D_800928D4 = 0;
-            D_80092890 = 2;
-            D_80092918++;
+            g_BattleRoundOver = 1;
+            g_BattleInputEnabled = 0;
+            g_BattleResultSide = 2;
+            g_BattleBothCombatantsDownCount++;
         } else {
-            D_80097102++;
-            D_80092638 = 1;
-            D_800928D4 = 0;
-            D_80092890 = 1;
+            g_BattleCombatant0DownCount++;
+            g_BattleRoundOver = 1;
+            g_BattleInputEnabled = 0;
+            g_BattleResultSide = 1;
             if (*(u32 *)(p1 + 0xD0) & 0x40) {
-                D_800928FC = 0;
+                g_BattleTextPadIndex = 0;
             } else {
-                D_800928FC = 1;
+                g_BattleTextPadIndex = 1;
             }
             BattleSetResultCode(0);
         }
     } else if (*(u32 *)(p1 + 0xD0) & 0x800000) {
-        D_8009881E++;
-        D_80092638 = 1;
-        D_800928D4 = 0;
-        D_80092890 = 0;
-        D_800928FC = 0;
+        g_BattleCombatant1DownCount++;
+        g_BattleRoundOver = 1;
+        g_BattleInputEnabled = 0;
+        g_BattleResultSide = 0;
+        g_BattleTextPadIndex = 0;
         BattleSetResultCode(1);
         if ((*(u32 *)(p1 + 0xD0) & 0x40) && g_BattleMode != 3) {
             printf(D_8006FC54);
@@ -942,13 +942,13 @@ void func_800751C8(u8 *p0, u8 *p1) {
             printf(D_8006FC5C);
         }
     }
-    if (D_8009263C != 0) {
-        if (D_8009263C < 0x1E) {
+    if (g_BattlePromptTimer != 0) {
+        if (g_BattlePromptTimer < 0x1E) {
             if (BattleGetScreenMode() != 7 && g_BattleMode != 4) {
                 BattleByteRegTestReg(D_8006FC64);
             }
-            D_800928D4 = 1;
-        } else if (D_8009263C < 0x3C) {
+            g_BattleInputEnabled = 1;
+        } else if (g_BattlePromptTimer < 0x3C) {
             if (BattleGetScreenMode() != 7) {
                 if (g_BattleMode == 4) {
                     BattleByteRegTestReg(D_8006FC6C);
@@ -982,7 +982,7 @@ void func_800751C8(u8 *p0, u8 *p1) {
                 }
             }
         }
-        D_8009263C--;
+        g_BattlePromptTimer--;
     }
     D_80092850 = BattleVectorDistance(p0, p1);
     D_8009284C = BattleVectorDistance2D(p0, p1);

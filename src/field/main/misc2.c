@@ -1024,7 +1024,7 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_8007520C);
 // negative array index) makes gcc rematerialise a second %hi/%lo pair instead.
 // screened: Default 91.00 (best), cdk 85.17, 2.6.0 91.00 - the &g_FieldActorModelSlotCount base wall; also a .rodata owner (D_8006FB1C).
 /*
-extern s32 D_8004F380;
+extern s32 g_FieldDisableGearRender;
 extern s32 g_FieldActorModelSlotCount;
 extern u8 g_FieldBackgroundR;
 extern u8 g_FieldBackgroundG;
@@ -1034,7 +1034,7 @@ const char D_8006FB1C[0xC] = "GEAR      ";
 void func_8007520C(void) {
     s32* pGear;
 
-    if (D_8004F380 == 0) {
+    if (g_FieldDisableGearRender == 0) {
         pGear = &g_FieldActorModelSlotCount;
         if (*pGear != 0) {
             FieldUpdateMotionSlots();

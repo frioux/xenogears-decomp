@@ -149,7 +149,7 @@ extern s32 g_WorldMapScrollTargetZ;
 extern s32 D_8009BBBC;
 extern s16 g_WorldMapCameraRot;
 extern s16 g_WorldMapViewRotationY;
-extern s16 D_8009BD3C;
+extern s16 g_WorldMapViewRotationZ;
 
 s32 WorldMapUpdateFrame(void) {
     s32* pState;
@@ -272,7 +272,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc3", func_80076DA4);
    abs-step blocks and the frame are byte-identical. Only the last three
    halfword stores differ: the original emits them fully sequentially (lw 0x38,
    nop, sra, sh g_WorldMapCameraRot; lw 0x3C, nop, sra, sh g_WorldMapViewRotationY; lw 0x40, nop, sra,
-   sh D_8009BD3C) while gcc hoists one load one slot early. gcc emits the three
+   sh g_WorldMapViewRotationZ) while gcc hoists one load one slot early. gcc emits the three
    stores in source order 1,3,2, so writing them 0x38/0x40/0x3C (below) is what
    reproduces the original's 38/3A/3C order. Also tried: natural order (stores
    come out 38/3C/3A), s32 locals, s16 locals, the interleaved per-value form,
@@ -305,7 +305,7 @@ void func_80076DA4(WorldMapPlayer* pPlayer, WorldMapScrollDelta* pDelta) {
         }
     }
     g_WorldMapCameraRot = pPlayer->unk38 >> 12;
-    D_8009BD3C = pPlayer->unk40 >> 12;
+    g_WorldMapViewRotationZ = pPlayer->unk40 >> 12;
     g_WorldMapViewRotationY = pPlayer->unk3C >> 12;
 }
 */
@@ -548,7 +548,7 @@ s32 func_8007756C(s32 arg0) {
     g_WorldMapCameraRot = -0x80;
     g_WorldMapViewRotationY = 0x200;
     g_WorldMapCameraHeight = 0x400000;
-    D_8009BD3C = 0;
+    g_WorldMapViewRotationZ = 0;
     *(s32*)(pSlot + 0x28) = 0xFFF80000;
     g_WorldMapFadeLevel = 0x78;
     *(s32*)(pSlot + 0x2C) = *(volatile s16*)&g_WorldMapViewRotationY << 12;

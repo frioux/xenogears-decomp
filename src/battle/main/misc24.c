@@ -14,7 +14,7 @@ extern s16 BattleOffsetByAngleClamped(s16 angle, s16 divisor, s16 base);
 extern s16 BattleOffsetByNegatedAngle(s16 angle, s16 divisor, s16 base);
 extern s16 BattleCountdownOffsetByAngle(s16 angle, s16 divisor, s16 base);
 extern u16 g_BattleCurrentActorSlot;
-extern u16 D_800C3E30;
+extern u16 g_BattleCommandActorMask;
 extern u8 g_BattleBlockPool[];
 extern s32 BattleFindFirstActorInMask(void);
 extern void BattleAppendActorCommandBytes(BattleActor *pActor, BattleActor *pSource, void *arg2, s32 arg3);
@@ -74,7 +74,7 @@ void BattleSetCurrentActorAndQueueCommand(u8 *arg0, u16 arg1, u16 arg2, void *ar
 
     p = g_BattleActors[arg1];
     g_BattleCurrentActorSlot = arg1;
-    D_800C3E30 = arg2;
+    g_BattleCommandActorMask = arg2;
     p->unk35 = 0;
     if (g_BattleActors[arg1] != 0) {
         if (!(arg1 == BattleFindFirstActorInMask())) {
@@ -246,7 +246,7 @@ void BattleAppendActorCommandBytes(BattleActor *pActor, BattleActor *pSource, vo
                     pGroupTable = *(s32 **)((u8 *)pSource->unkC + 4);
                     pActor->unk10 = pGroupTable[arg3 - 0x4E];
                 }
-                n = D_800C3E30;
+                n = g_BattleCommandActorMask;
                 pActor->unk42 = 0;
                 pActor->unk40 = 0;
                 pActor->unk50 = 0;

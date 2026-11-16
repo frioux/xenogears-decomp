@@ -191,7 +191,7 @@ extern int func_80080578(int);
 extern int func_80080600(int);
 extern int WorldMapInitActorScript(int);
 extern s16 g_WorldMapCameraRot;
-extern u16 D_8009BD3C;
+extern u16 g_WorldMapViewRotationZ;
 extern u16 g_WorldMapPathFrame;
 extern u16 D_8009BD42;
 extern u16 D_8009BD4A;
@@ -563,28 +563,28 @@ s32 func_8007E4E4(int index) {
         pActor->unk04 = 0;
         g_WorldMapCameraRot = 0x150;
         g_WorldMapViewRotationY[0] = 0xF50;
-        D_8009BD3C = 0;
+        g_WorldMapViewRotationZ = 0;
         break;
     case 1:
         g_WorldMapCameraHeight = 0x4D0000;
         pActor->unk04 = 0;
         g_WorldMapCameraRot = 0xC60;
         g_WorldMapViewRotationY[0] = 0x380;
-        D_8009BD3C = 0;
+        g_WorldMapViewRotationZ = 0;
         break;
     case 2:
         g_WorldMapCameraHeight = 0x400000;
         pActor->unk04 = 0;
         g_WorldMapCameraRot = 0x30;
         g_WorldMapViewRotationY[0] = 0x160;
-        D_8009BD3C = 0;
+        g_WorldMapViewRotationZ = 0;
         break;
     case 3:
         g_WorldMapCameraHeight = 0x400000;
         pActor->unk04 = 0;
         g_WorldMapCameraRot = 0x30;
         g_WorldMapViewRotationY[0] = 0x960;
-        D_8009BD3C = 0;
+        g_WorldMapViewRotationZ = 0;
         break;
     case 4:
         pActor->unk20 = 1;
@@ -598,7 +598,7 @@ s32 func_8007E4E4(int index) {
         pActor->unk04 = 0;
         g_WorldMapCameraRot = -0x58;
         g_WorldMapViewRotationY[0] = 0xE58;
-        D_8009BD3C = 0;
+        g_WorldMapViewRotationZ = 0;
         break;
     case 6:
         pActor->unk20 = 5;
@@ -617,7 +617,7 @@ s32 func_8007E4E4(int index) {
         pActor->unk04 = 0;
         g_WorldMapCameraRot = 0xE0;
         g_WorldMapViewRotationY[0] = 0x798;
-        D_8009BD3C = 0;
+        g_WorldMapViewRotationZ = 0;
         break;
     case 23:
         pActor->unk20 = 0x18;
@@ -1244,7 +1244,7 @@ int func_80080600(int index) {
         pAngle = &g_WorldMapCameraRot;
         *pAngle = 0x10;
         g_WorldMapViewRotationY = 0x8E0;
-        D_8009BD3C = 0;
+        g_WorldMapViewRotationZ = 0;
         pActor->unk50 = 0x800000;
         nValue = *pAngle << 12;
         pActor->unk58 = nValue;

@@ -94,7 +94,7 @@ void BattleFreeEffectSpriteTask(BattleEffectTask *pTask) {
 }
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BD098);
-extern s32 D_800C360C;
+extern s32 g_BattleCommandRowIndex;
 extern void *D_800C3E1C;
 extern s32 D_800C3D38;
 extern s32 g_BattleColorMode;
@@ -110,7 +110,7 @@ extern void func_800BD1FC(s32 slot);
 // restructures the head), and both pointer-cast spellings of the row base.
 // Realistic form: the row is a 0x48-byte record of four 11-entry arrays (u16 at
 // +0x138, u8 at +0x150, u16 at +0x15C, u8 at +0x174 - the block misc12 reaches as
-// g_BattleCommandRows[]), indexed by D_800C360C - 1; a slot's sprite is at +0x8C8C.
+// g_BattleCommandRows[]), indexed by g_BattleCommandRowIndex - 1; a slot's sprite is at +0x8C8C.
 // 91.07%: COMPILES (externs added: D_800C3D38, g_BattleColorMode, D_800C3E1C,
 // func_800BD3AC prototype). Register tie + $a1 vs $v0 in the tail's row sum.
 /*
@@ -123,7 +123,7 @@ void func_800BD1FC(s32 slot) {
     void **pEntry;
 
     pBase = g_BattleStateWork;
-    pRow = pBase + (D_800C360C - 1) * 0x48;
+    pRow = pBase + (g_BattleCommandRowIndex - 1) * 0x48;
     offset = slot * 2;
     pByte = pRow + slot;
     if (pByte[0x150] == 0xFF) {
@@ -141,7 +141,7 @@ void func_800BD1FC(s32 slot) {
     D_800C3D38 = *(u16 *)(pHalf + 0x15C);
     g_BattleColorMode = pByte[0x174];
     func_800BD3AC(pSprite, *(u16 *)(pHalf + 0x138), kind);
-    pRow = pBase + (D_800C360C - 1) * 0x48;
+    pRow = pBase + (g_BattleCommandRowIndex - 1) * 0x48;
     *(u16 *)(offset + pRow + 0x138) = 0xFFFF;
 }*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BD1FC);
@@ -159,14 +159,14 @@ void BattleUpdateCommandRows(void) {
     pSlot = g_BattleStateWork;
     pBase = pSlot;
     while (i != 0xB) {
-        rowAddr = (D_800C360C - 1) * 0x48 + (mem_addr)pBase + i + 0x150;
+        rowAddr = (g_BattleCommandRowIndex - 1) * 0x48 + (mem_addr)pBase + i + 0x150;
         if (*(u8 *)rowAddr == 7) {
             flag = 1;
         }
         pEntry = (void **)(pSlot + 0x8C8C);
         if (*pEntry != NULL && (D_800C3E1C != *pEntry || !flag)) {
             // Two copies of the call: loop.c counts the extra branch before jump
-            // opt merges them, which is what keeps the D_800C360C address from
+            // opt merges them, which is what keeps the g_BattleCommandRowIndex address from
             // being hoisted out of the loop.
             if (flag) {
                 func_800BD1FC(i);

@@ -85,7 +85,7 @@ extern s32 g_WorldMapCameraHeight;
 extern s32 g_WorldMapRotationMatrixValid;
 extern s16 g_WorldMapCameraRot;
 extern s16 g_WorldMapViewRotationY;
-extern s16 D_8009BD3C;
+extern s16 g_WorldMapViewRotationZ;
 extern void func_80089160(s32, void *, s32);
 extern void WorldMapSetupPrimTemplates(WorldMapEntry *, POLY_FT4 *, s32);
 extern u8 *g_MenuSedsFile;
@@ -240,7 +240,7 @@ s32 WorldMapResetActorSlotWithSound(s32 index) {
     p->unk20 = 0;
     p->unk58 = 0;
     // do/while block makes cc1 schedule these stores after the actor cluster
-    do { p->unk54 = 0; p->unk50 = 0; D_8009BD3C = 0; g_WorldMapViewRotationY = 0; } while (0);
+    do { p->unk54 = 0; p->unk50 = 0; g_WorldMapViewRotationZ = 0; g_WorldMapViewRotationY = 0; } while (0);
     g_WorldMapCameraRot = 0;
     g_WorldMapRotationMatrixValid = 1;
     SoundPlaySoundEffectOnFreePair((((u16 *)q)[0xA] << 16) | 0xA4);
@@ -491,7 +491,7 @@ s32 WorldMapInitActorSlotTimer40(s32 index) {
         g_WorldMapCameraRot = scroll;
         do { g_WorldMapViewRotationY = 0x680; } while (0);
         timer = 0x40;
-        D_8009BD3C = 0;
+        g_WorldMapViewRotationZ = 0;
     } while (0);
     p->unk22 = timer;
     p->unk74 = 0;

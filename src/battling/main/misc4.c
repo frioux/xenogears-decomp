@@ -2,13 +2,13 @@
 #include "psyq/libgte.h"
 
 extern s32 g_BattleMotionSpeedScale;
-extern s32 D_80092918;
-extern s32 D_80092944;
+extern s32 g_BattleBothCombatantsDownCount;
+extern s32 g_BattleElapsedFrames;
 extern s32 g_BattleRoundNumber;
-extern s16 D_8009881E;
-extern s16 D_80097102;
+extern s16 g_BattleCombatant1DownCount;
+extern s16 g_BattleCombatant0DownCount;
 extern s16 g_BattleMotionSpeedScaleOption;
-extern u8 D_800928FC;
+extern u8 g_BattleTextPadIndex;
 extern u8 g_BattleFrameRateLevel;
 extern u8 g_BattlePlayer1ComControlled;
 extern u8 g_BattlePlayer2ComControlled;
@@ -19,22 +19,22 @@ typedef struct {
     /* 0x2C */ s16 unk2C;
 } UnkA884; // Size: unknown
 
-extern s32 D_80092640;
+extern s32 g_BattleRoundOverFrames;
 extern s32 D_80092668;
 extern s32 D_8009266C;
 extern s32 D_80092670;
 extern s32 D_80092674;
-extern s32 D_800928AC;
+extern s32 g_BattleTransitionCountdown;
 extern s32 D_8009284C;
-extern s32 D_80092890;
+extern s32 g_BattleResultSide;
 extern s32 g_BattleCameraTarget;
 extern u8* g_BattleEffect;
 extern UnkA884* D_8009790C;
 extern UnkA884* D_80099028;
 extern u8 D_80091150;
 extern u8 D_80091151;
-extern s32 D_80098730;
-extern s32 D_80097014;
+extern s32 g_BattleSceneOriginYMirror;
+extern s32 g_BattleSceneOriginY;
 extern s32 D_8009879C;
 extern s32 D_80097080;
 extern s32 D_80098680;
@@ -42,8 +42,8 @@ extern s32 D_80098684;
 extern s32 g_BattleCameraPos;
 extern s32 D_80098720;
 extern s32 D_80098724;
-extern u8 D_800928C0;
-extern s32 D_80092A34;
+extern u8 g_BattleStateSlotIndex;
+extern s32 g_BattleSavedPositions;
 extern s32 D_80092A38;
 extern s32 D_80092A44;
 extern s32 D_80092A48;
@@ -59,9 +59,9 @@ extern s32 D_80098798;
 extern s32 D_8009707C;
 extern s16 D_800987F8;
 extern s16 D_800970DC;
-extern u8 D_800928F4;
+extern u8 g_BattleCameraSpinDirection;
 extern u8 g_BattleStageLightIndex;
-extern u8 D_800928D4;
+extern u8 g_BattleInputEnabled;
 extern u8 D_800928F0;
 extern u8 D_80091144;
 extern u8 D_80091145;
@@ -69,8 +69,8 @@ extern u8 D_80092664;
 extern u8 D_8005061C;
 extern u8 g_BattleResultCode;
 extern s32 g_BattleCameraAngleStep;
-extern s32 D_80092638;
-extern s32 D_8009263C;
+extern s32 g_BattleRoundOver;
+extern s32 g_BattlePromptTimer;
 extern s32 g_BattleTransitionFrames;
 extern s32 g_BattleEffectEntryCount;
 
@@ -720,11 +720,11 @@ void BattleNoop(void) {
 
 void BattleResetState(void) {
     g_BattleRoundNumber = 0;
-    D_8009881E = 0;
-    D_80097102 = 0;
-    D_80092918 = 0;
-    D_80092944 = 0;
-    D_800928FC = 0;
+    g_BattleCombatant1DownCount = 0;
+    g_BattleCombatant0DownCount = 0;
+    g_BattleBothCombatantsDownCount = 0;
+    g_BattleElapsedFrames = 0;
+    g_BattleTextPadIndex = 0;
 }
 
 // char return (value unused): retail's `beqz` delay slot holds a nop, and a void
@@ -737,20 +737,20 @@ char BattleResetForNextRound(void) {    g_BattleActor1.unkCC = 0x400;
     BattleClearSpriteTables();
     BattleEffectClearSlots();
     BattleRandomizeCameraPosition();
-    D_800928F4 = 1;
+    g_BattleCameraSpinDirection = 1;
     g_BattleCameraAngleStep = -1;
     BattleEffectSetSpawnTimer(0);
-    D_80092638 = 0;
-    D_80092640 = 0;
-    D_80092890 = 0;
-    D_8009263C = 0x5A;
+    g_BattleRoundOver = 0;
+    g_BattleRoundOverFrames = 0;
+    g_BattleResultSide = 0;
+    g_BattlePromptTimer = 0x5A;
     g_BattleTransitionFrames = 0;
     g_BattleEffectEntryCount = 0;
     BattleClearTextSpriteEntries();
     g_BattleResultCode = 0;
     BattleInitSoundSlots();
     BattleClearInitFlag();
-    D_800928D4 = 0;
+    g_BattleInputEnabled = 0;
     D_800928F0 = 0;
     D_80091144 = 0;
     D_80091145 = 0;
@@ -792,19 +792,19 @@ void BattleActorLoadUnk15CCFlags(Actor* p) {
 }
 
 void BattleResetUnk92640(void) {
-    D_80092640 = 0;
+    g_BattleRoundOverFrames = 0;
 }
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_80079DF0);
 
 void BattleSaveActorVectors(s32 unk0) {
     if (unk0 < 0xFF) {
-        D_800928AC = unk0 - 2;
-        D_800928C0 -= unk0;
+        g_BattleTransitionCountdown = unk0 - 2;
+        g_BattleStateSlotIndex -= unk0;
     } else {
-        D_800928AC = 0xFF;
+        g_BattleTransitionCountdown = 0xFF;
     }
-    *(VECTOR*)&D_80092A34 = *(VECTOR*)&g_BattleActor1;
+    *(VECTOR*)&g_BattleSavedPositions = *(VECTOR*)&g_BattleActor1;
     *(VECTOR*)&D_80092A44 = *(VECTOR*)&g_BattleActor0;
     *(VECTOR*)&D_80092A54 = *(VECTOR*)&D_80099068;
     *(VECTOR*)&D_80092A64 = *(VECTOR*)&D_8009794C;
@@ -818,7 +818,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_8007A344);
 
 void BattleActorSetModelByTimer(Actor* p) {
     g_BattleMotionSpeedScale = 0x100;
-    if (D_800928AC < 0x78) {
+    if (g_BattleTransitionCountdown < 0x78) {
         p->unk4F = 0x10;
         p->unk52 = 0;
         p->modelIndex = 0x10;
@@ -879,7 +879,7 @@ void BattleResetScratchState(void) {
     BattleEffectClearSlots();
     BattleClearTextSpriteEntries();
     BattleInitSoundSlots();
-    p = (D_80092890 != 0) ? D_8009790C : D_80099028;
+    p = (g_BattleResultSide != 0) ? D_8009790C : D_80099028;
     if (p->unk2C != 0) {
         D_80091150 = 1;
         v = 0x10;
@@ -888,8 +888,8 @@ void BattleResetScratchState(void) {
         v = -1;
     }
     D_80091151 = v;
-    D_80098730 = 0x100;
-    D_80097014 = 0x100;
+    g_BattleSceneOriginYMirror = 0x100;
+    g_BattleSceneOriginY = 0x100;
     D_8009879C = 0x100;
     D_80097080 = 0x100;
 }
@@ -914,10 +914,10 @@ void func_8007AC3C(void) {
     VECTOR* pA = (VECTOR*)&g_BattleActor1;
     VECTOR* pB = (VECTOR*)&g_BattleActor0;
 
-    D_800928AC = 0x96;
+    g_BattleTransitionCountdown = 0x96;
     g_BattleMotionSpeedScale = 0x100;
     SetGeomScreen(0x200);
-    *pA = *(VECTOR*)&D_80092A34;
+    *pA = *(VECTOR*)&g_BattleSavedPositions;
     *pB = *(VECTOR*)&D_80092A44;
     *(VECTOR*)&D_80099068 = *(VECTOR*)&D_80092A54;
     *(VECTOR*)&D_8009794C = *(VECTOR*)&D_80092A64;
@@ -925,7 +925,7 @@ void func_8007AC3C(void) {
     *(VECTOR*)&D_8009796C = *(VECTOR*)&D_8009794C;
     *(VECTOR*)&D_80098798 = *pA;
     *(VECTOR*)&D_8009707C = *pB;
-    func_8007A768(D_80092890 != 0 ? (Actor*)pB : (Actor*)pA);
+    func_8007A768(g_BattleResultSide != 0 ? (Actor*)pB : (Actor*)pA);
 }
 */
 

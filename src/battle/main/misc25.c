@@ -4,14 +4,14 @@
 #include "battle/actor.h"
 
 extern u8 g_BattleAnimCommandsSuppressed;
-extern u16 D_800C3E30;
+extern u16 g_BattleCommandActorMask;
 extern u8 g_BattleCurrentActorSlot;
 extern u8 g_BattleExtraMatrixFlag;
 extern BattleBlock *g_BattleBlockSlots[];
 extern s32 D_800C3BCC[];
 extern s32 D_800C3BEC;
 extern s32 D_800C3BF0;
-extern s32 D_800C360C;
+extern s32 g_BattleCommandRowIndex;
 extern u8 D_800C4000[];
 extern void *g_BattleStageData;
 
@@ -98,7 +98,7 @@ s32 BattleFindFirstActorInMask(void) {
     s32 i;
 
     for (i = 0; i < 13; i++) {
-        if ((D_800C3E30 >> i) & 1) {
+        if ((g_BattleCommandActorMask >> i) & 1) {
             break;
         }
     }
@@ -635,7 +635,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800B12D0);
 s32 func_800B12D0(s32 arg0, s32 arg1) {
     s32 result = 0;
     s32 v;
-    u8 *pRow = &D_800C4000[(D_800C360C - 1) * 0x48];
+    u8 *pRow = &D_800C4000[(g_BattleCommandRowIndex - 1) * 0x48];
     u8 kind = pRow[arg0];
 
     if (kind < 6) {

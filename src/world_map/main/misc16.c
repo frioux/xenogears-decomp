@@ -44,12 +44,12 @@ typedef struct {
 } WorldMapMisc16Grid; // Size: 0xA2
 
 extern WorldMapMisc16Grid D_8009D318;
-extern WorldMapMisc16Grid D_8009D570;
-extern s32 D_8009D160;
-extern s32 D_8009D2B4;
+extern WorldMapMisc16Grid g_WorldMapGridTileIds;
+extern s32 g_WorldMapTileColumns;
+extern s32 g_WorldMapTileRows;
 
 extern WorldMapMisc16TblEntry D_800523F0[];
-extern s32 D_8009C618;
+extern s32 g_WorldMapGridShadePhase;
 extern s32 g_WorldMapGridAngle;
 
 void WorldMapComputeClipPlaneVectors(void) {
@@ -117,8 +117,8 @@ void func_800981C8(WorldMapMisc16Struct* p) {
     s32 h;
     s16* pGrid;
 
-    w = D_8009D160;
-    h = D_8009D2B4;
+    w = g_WorldMapTileColumns;
+    h = g_WorldMapTileRows;
     col = (p->unk0 >> 12) / 8 - ((g_WorldMapGridOrigin + 2) << 8);
     row = (p->unk8 >> 12) / 8 - ((D_8009C83C + 2) << 8);
     if (col < 0) {
@@ -133,9 +133,9 @@ void func_800981C8(WorldMapMisc16Struct* p) {
     }
     col >>= 8;
     row >>= 8;
-    D_8009D318 = D_8009D570;
+    D_8009D318 = g_WorldMapGridTileIds;
     colBase = col;
-    pGrid = D_8009D570.grid;
+    pGrid = g_WorldMapGridTileIds.grid;
     for (i = 8; i != -1; i--) {
         if (!(row < h)) {
             row = 0;
@@ -165,10 +165,10 @@ typedef struct {
 extern WorldMapMisc16Tex D_8009D650[];
 extern WorldMapMisc16Tex D_8009D654[];
 extern s16 D_8009D618[];
-extern u8* D_8009C184[];
+extern u8* g_WorldMapTileCellPointers[];
 extern u16 D_8009CCB4[];
 extern u16 D_8009CD54[];
-extern MATRIX D_8009D534;
+extern MATRIX g_WorldMapGridMatrix;
 extern MATRIX g_WorldMapViewMatrix;
 extern s32 D_8009D7DC;
 extern void func_80099708(u8* pSrc, u8* p1, u8* p2, WorldMapMisc16Rect* pRect);
@@ -176,7 +176,7 @@ extern void func_80099708(u8* pSrc, u8* p1, u8* p2, WorldMapMisc16Rect* pRect);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc16", func_8009932C);
 /* 63.53% first attempt. Structure read off the asm and believed right: two u16 copy
    loops from D_8009CCB4 (0x40) and D_8009CD54 (7) into scratchpad 0x1F800288/0x1F800308,
-   the 0x20-byte MATRIX copy of D_8009D534 to 0x1F800350, CompMatrix/SetRotMatrix/
+   the 0x20-byte MATRIX copy of g_WorldMapGridMatrix to 0x1F800350, CompMatrix/SetRotMatrix/
    SetTransMatrix on 0x1F800370, the 5x5 tile loop (row/fp, col/s4, flat k/s7 whose *8
    biv is retail's s3), the four RECT corners built at 0x1F800330/0x338 from the volatile
    0x1F800328/0x1F80032C coords, and the four func_80099708 calls selected by
@@ -204,7 +204,7 @@ void func_8009932C(u8* p0, u8* p1, WorldMapMisc16Struct* p) {
     for (i = 0; i < 7; i++) {
         ((u16*)0x1F800308)[i] = D_8009CD54[i];
     }
-    *(MATRIX*)0x1F800350 = D_8009D534;
+    *(MATRIX*)0x1F800350 = g_WorldMapGridMatrix;
     CompMatrix(&g_WorldMapViewMatrix, (MATRIX*)0x1F800350, (MATRIX*)0x1F800370);
     SetRotMatrix((MATRIX*)0x1F800370);
     SetTransMatrix((MATRIX*)0x1F800370);
@@ -221,7 +221,7 @@ void func_8009932C(u8* p0, u8* p1, WorldMapMisc16Struct* p) {
             }
             y = *(volatile u16*)0x1F80032C;
             x = *(volatile u16*)0x1F800328;
-            pImg = D_8009C184[D_8009D570.grid[(row + D_8009C83C) * 9 + col + g_WorldMapGridOrigin]];
+            pImg = g_WorldMapTileCellPointers[g_WorldMapGridTileIds.grid[(row + D_8009C83C) * 9 + col + g_WorldMapGridOrigin]];
             *(volatile u16*)0x1F800330 = *(volatile u16*)0x1F800340 = *(volatile u16*)0x1F800328 + 0x400;
             *(volatile u16*)0x1F800334 = y;
             *(volatile u16*)0x1F800338 = x;
@@ -282,7 +282,7 @@ void func_80099708(u32* pSrc, s32 unk1, s32 unk2, WorldMapMisc16Rect* pRect) {
     p = pSrc;
     x = pRect->unk0;
     y = pRect->unk4;
-    col = D_8009C618;
+    col = g_WorldMapGridShadePhase;
     for (oi = 8; oi != -1; oi--) {
         xCur = x;
         iCol = pTbl[col & 0xFFF].unk0 * 2;

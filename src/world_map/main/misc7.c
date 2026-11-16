@@ -79,7 +79,7 @@ extern s32 g_WorldMapScrollTargetZ;
 extern void WorldMapSetupPrimTemplates(void *, s32, s32);
 extern s16 g_WorldMapCameraRot;
 extern s16 g_WorldMapViewRotationY;
-extern s16 D_8009BD3C;
+extern s16 g_WorldMapViewRotationZ;
 extern s32 g_WorldMapCameraHeight;
 extern SoundFile *g_MenuSedsFile;
 extern s16 g_NextMapId;
@@ -695,7 +695,7 @@ s32 WorldMapSetSlotScriptTable(s32 index) {
     return 1;
 }
 // Best: 39.15%. Blocker is gcc's store-to-load forwarding: retail stores 0 to
-// g_WorldMapViewRotationY/D_8009BD3C and reads them back with `lh` to build the two `<< 12`
+// g_WorldMapViewRotationY/g_WorldMapViewRotationZ and reads them back with `lh` to build the two `<< 12`
 // slot stores, while this gcc folds the read to 0 and drops the sll (which also
 // shuffles the whole tail). Same blocker as misc8's func_8008390C (84.75%).
 // Preset screen: cdk 36.73, gcc-2.6.0 40.43.
@@ -720,7 +720,7 @@ s32 func_800827EC(s32 index) {
     *(s32 *)pSlot->unk5C = 0x500000;
     g_WorldMapCameraRot = -0x220;
     g_WorldMapViewRotationY = 0;
-    D_8009BD3C = 0;
+    g_WorldMapViewRotationZ = 0;
     pSlot->unk50 = 0xFFDE0000;
     ((s32 *)pSlot->unk34)[1] = 0xFFDE0000;
     a = g_WorldMapViewRotationY;
@@ -728,7 +728,7 @@ s32 func_800827EC(s32 index) {
     g_WorldMapCameraHeight = 0x500000;
     pSlot->unk54 = a << 12;
     ((s32 *)pSlot->unk34)[2] = a << 12;
-    b = D_8009BD3C;
+    b = g_WorldMapViewRotationZ;
     g_WorldMapFadeLevel = 0x78;
     pSlot->unk58 = b << 12;
     ((s32 *)pSlot->unk34)[3] = b << 12;

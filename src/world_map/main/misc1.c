@@ -137,10 +137,10 @@ extern s32 g_WorldMapLevelIndex;
 extern s32 g_WorldMapWdsFileIndex;
 extern s32 g_WorldMapSoundBankFileIndex;
 extern s32 D_8009D800;
-extern s32 D_8009BCD8;
+extern s32 g_WorldMapGridImageFileIndex;
 extern s32 D_8009BCC8;
-extern s32 D_8009D2B4;
-extern s32 D_8009D160;
+extern s32 g_WorldMapTileRows;
+extern s32 g_WorldMapTileColumns;
 extern s32 D_8009BD08;
 extern s32 g_WorldMapAreaMode;
 
@@ -197,10 +197,10 @@ void func_80071B9C(s32 arg0, s32 arg1) {
     g_WorldMapSedsBankFileIndex = pEntry->unk0 + 6;
     D_8009D800 = pEntry->unk0 + 7;
     D_8009BCC8 = pEntry->unk0 + 8;
-    D_8009BCD8 = pEntry->unk0 + 9;
+    g_WorldMapGridImageFileIndex = pEntry->unk0 + 9;
     D_8009BD08 = pEntry->unk0 + 0xA;
-    D_8009D160 = pEntry->unk2;
-    D_8009D2B4 = pEntry->unk4;
+    g_WorldMapTileColumns = pEntry->unk2;
+    g_WorldMapTileRows = pEntry->unk4;
     g_WorldMapAreaMode = pEntry->unk6;
 }
 */

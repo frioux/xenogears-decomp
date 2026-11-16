@@ -24,7 +24,7 @@ typedef struct {
 extern BattleState* g_BattleState;
 extern u8 D_800C3664;
 extern u8 g_BattleStateWork[];
-extern s32 D_800C360C;
+extern s32 g_BattleCommandRowIndex;
 extern u16 D_800C3608;
 extern u16 D_800C3614;
 extern u16 D_800C3DF0;
@@ -221,7 +221,7 @@ void func_800B905C(void) {
     s32 z;
 
     pBase = g_BattleStateWork;
-    func_800BEFF4(pBase[D_800C360C * 0x48 + 0x15B]);
+    func_800BEFF4(pBase[g_BattleCommandRowIndex * 0x48 + 0x15B]);
     pSprite = (BattleActorSprite*)g_BattleState->pCurSprite;
     func_800BF3E8(pSprite);
     if (pBase[0xA78] != 0) {
@@ -277,17 +277,17 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800B9284);
    instruction ORDER is now identical in all eight arms.  The only remaining
    difference, in each of the seven arms that build the slot address, is which of
    two registers gcc picks: retail materialises the base into $v1 and the slot
-   index root into $a0 (`lui v1,%hi(g_BattleStateWork) / lui v0,%hi(D_800C360C) /
-   lw a0,%lo(D_800C360C)(v0) / addiu v1,v1,%lo(g_BattleStateWork) / sll v0,a0,3 /
+   index root into $a0 (`lui v1,%hi(g_BattleStateWork) / lui v0,%hi(g_BattleCommandRowIndex) /
+   lw a0,%lo(g_BattleCommandRowIndex)(v0) / addiu v1,v1,%lo(g_BattleStateWork) / sll v0,a0,3 /
    addu v0,v0,a0 / sll v0,v0,3 / addu v0,v0,v1`), ours swaps those two ($a0 base,
    $v1 root) -- a GIV/allocator tie, not a shape error.  Two levers that DID move
    things and are kept here: the base in its own pointer local assigned per arm
-   (`pBase = g_BattleStateWork;` then `pSlot = pBase + D_800C360C * 0x48;`) fixes the
+   (`pBase = g_BattleStateWork;` then `pSlot = pBase + g_BattleCommandRowIndex * 0x48;`) fixes the
    emission ORDER (a plain one-statement form materialises the base after the
    index load and comes out 660 bytes / 79.10%), and the 0xF3 arm's operand load
    split into `id` (instead of `D_800C3608 |= *(u16 *)(pSlot + 0x172);` inline)
    fixes that arm's lhu order.  Tried and worse: one-statement `pSlot = g_BattleStateWork
-   + slot * 0x48`, `pSlot = (u8 *)((mem_addr)g_BattleStateWork + D_800C360C * 0x48)`
+   + slot * 0x48`, `pSlot = (u8 *)((mem_addr)g_BattleStateWork + g_BattleCommandRowIndex * 0x48)`
    (664 bytes), `pSlot +=`, `&pBase[idx]`, index-first operand order, declaration
    reorders, and three permuter runs (their closest candidates, which split
    `D_800C3623 = 1` through a temp, measure WORSE under objdiff than this body). */
@@ -302,27 +302,27 @@ void func_800B9284(SpriteData* pSprite, s32 code) {
             g_BattleState->unk48 = 1;
             SpriteSetCallback(pSprite, 0);
             pBase = g_BattleStateWork;
-            pSlot = pBase + D_800C360C * 0x48;
+            pSlot = pBase + g_BattleCommandRowIndex * 0x48;
             BattleSetSlotFlagB4(pSlot[0x172]);
             break;
         case 0xF8:
             g_BattleState->unk48 = 1;
             SpriteSetCallback(pSprite, 0);
             pBase = g_BattleStateWork;
-            pSlot = pBase + D_800C360C * 0x48;
+            pSlot = pBase + g_BattleCommandRowIndex * 0x48;
             BattleClearSlotFlagB4(pSlot[0x172]);
             break;
         case 0xF7:
             g_BattleState->unk48 = 1;
             SpriteSetCallback(pSprite, 0);
             pBase = g_BattleStateWork;
-            pSlot = pBase + D_800C360C * 0x48;
+            pSlot = pBase + g_BattleCommandRowIndex * 0x48;
             D_800C3614 = *(u16 *)(pSlot + 0x172);
             break;
         case 0xF5:
             BattleSetSpriteTemplate(pSprite);
             pBase = g_BattleStateWork;
-            pSlot = pBase + D_800C360C * 0x48;
+            pSlot = pBase + g_BattleCommandRowIndex * 0x48;
             id = *(u16 *)(pSlot + 0x172);
             D_800C3DF0 = (id >> 9) & 0x3F;
             ((u8 *)pSprite)[0xAF] = 0x11;
@@ -334,7 +334,7 @@ void func_800B9284(SpriteData* pSprite, s32 code) {
         case 0xF4:
             BattleSetSpriteTemplate(pSprite);
             pBase = g_BattleStateWork;
-            pSlot = pBase + D_800C360C * 0x48;
+            pSlot = pBase + g_BattleCommandRowIndex * 0x48;
             id = *(u16 *)(pSlot + 0x172);
             D_800C3DF0 = (id >> 9) & 0x3F;
             ((u8 *)pSprite)[0xAF] = 0x11;
@@ -342,13 +342,13 @@ void func_800B9284(SpriteData* pSprite, s32 code) {
             break;
         case 0xF6:
             pBase = g_BattleStateWork;
-            pSlot = pBase + D_800C360C * 0x48;
+            pSlot = pBase + g_BattleCommandRowIndex * 0x48;
             BattleBeginAnimTask(*(u16 *)(pSlot + 0x14E));
             break;
         case 0xF3:
             g_BattleState->unk48 = 1;
             pBase = g_BattleStateWork;
-            pSlot = pBase + D_800C360C * 0x48;
+            pSlot = pBase + g_BattleCommandRowIndex * 0x48;
             id = *(u16 *)(pSlot + 0x172);
             D_800C3608 |= id;
             break;
@@ -392,12 +392,12 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800B9C78);
 
    Two things are left, and both are known shapes:
    1. The arms need the row base in a REGISTER, not folded into the symbol:
-      writing `*(u16 *)(g_BattleStateWork + D_800C360C * 0x48 + 0x14E)` makes gcc fold
+      writing `*(u16 *)(g_BattleStateWork + g_BattleCommandRowIndex * 0x48 + 0x14E)` makes gcc fold
       0x14E into the lui/addiu pair (`addiu v1,v1,334` + `lhu a1,0(v0)`, 744
       bytes, 77.18%) where retail keeps `addiu v1,v1,%lo(g_BattleStateWork)` and loads
       `lhu a1,334(v0)`.  Tree fold reassociates sym+const, so the constant has to
       stay out of the address tree: two statements
-      (`pRow = g_BattleStateWork; pRow += D_800C360C * 0x48;`) reproduce retail's
+      (`pRow = g_BattleStateWork; pRow += g_BattleCommandRowIndex * 0x48;`) reproduce retail's
       instruction multiset and displacement in every arm, at the cost of the
       register ties below.  A single assignment (`pRow = g_BattleStateWork + idx * 0x48`)
       already emits the base after the index load and leaves a `nop` in the load
@@ -425,12 +425,12 @@ void func_800B9C78(void) {
     }
     BattleLoadArchiveEntryFile();
     pBase = g_BattleStateWork;
-    func_800BEFF4(pBase[D_800C360C * 0x48 + 0x15B]);
+    func_800BEFF4(pBase[g_BattleCommandRowIndex * 0x48 + 0x15B]);
     func_800BF3E8((BattleActorSprite*)g_BattleState->pCurSprite);
     index = g_BattleState->unk24;
     offset = 0x8C8C;
     pSprite = *(BattleActorSprite**)(pBase + index * 4 + offset);
-    code = pBase[D_800C360C * 0x48 + 0x17F];
+    code = pBase[g_BattleCommandRowIndex * 0x48 + 0x17F];
     BattleSetStateStep(8);
     if (g_BattleState->unk4A != 0) {
         pBase[0xA73] = 0;
@@ -443,22 +443,22 @@ void func_800B9C78(void) {
         case 0xFE:
             BattleWaitArchiveSync();
             pRow = g_BattleStateWork;
-            pRow += D_800C360C * 0x48;
+            pRow += g_BattleCommandRowIndex * 0x48;
             func_800BEE2C(g_BattleState->unk20, *(u16 *)(pRow + 0x14E), 4);
             BattleSetStateStep(0xA);
             break;
         case 0xFC:
             pRow = g_BattleStateWork;
-            pRow += D_800C360C * 0x48;
+            pRow += g_BattleCommandRowIndex * 0x48;
             BattleSetActorPrimaryCommand(index, *(u16 *)(pRow + 0x172));
             BattleSetStateStep(9);
-            D_800C360C = D_800C360C + 1;
+            g_BattleCommandRowIndex = g_BattleCommandRowIndex + 1;
             break;
         case 0xFD:
             pRow = g_BattleStateWork;
-            pRow += D_800C360C * 0x48;
+            pRow += g_BattleCommandRowIndex * 0x48;
             func_800BEE2C(index, *(u16 *)(pRow + 0x14E), 2);
-            D_800C360C = D_800C360C + 1;
+            g_BattleCommandRowIndex = g_BattleCommandRowIndex + 1;
             break;
         case 0xF3:
         case 0xF5:
@@ -467,21 +467,21 @@ void func_800B9C78(void) {
         case 0xFA:
             func_800B9284((SpriteData*)pSprite, code);
             BattleSetStateStep(9);
-            D_800C360C = D_800C360C + 1;
+            g_BattleCommandRowIndex = g_BattleCommandRowIndex + 1;
             break;
         case 0xFB:
             BattleSetStateStep(9);
             pRow = g_BattleStateWork;
-            pRow += D_800C360C * 0x48;
+            pRow += g_BattleCommandRowIndex * 0x48;
             BattleSwapActorSlots(((pSprite->flags_0xAC.flags & 3) << 2) | (pSprite->flags_0xA8 >> 30),
                                  *(u16 *)(pRow + 0x172));
-            D_800C360C = D_800C360C + 1;
+            g_BattleCommandRowIndex = g_BattleCommandRowIndex + 1;
             break;
         case 0xF4:
             BattleSetStateStep(9);
             pRow = g_BattleStateWork;
-            pRow += D_800C360C * 0x48;
-            D_800C360C = D_800C360C + 1;
+            pRow += g_BattleCommandRowIndex * 0x48;
+            g_BattleCommandRowIndex = g_BattleCommandRowIndex + 1;
             id = *(u16 *)(pRow + 0x172);
             D_800C3DF0 = (id >> 9) & 0x3F;
             D_800D39E4 = id & 0x1FF;
@@ -490,9 +490,9 @@ void func_800B9C78(void) {
             g_BattleState->unk4A = 1;
             BattleSetSpriteTemplate(pSprite);
             pRow = g_BattleStateWork;
-            pRow += D_800C360C * 0x48;
+            pRow += g_BattleCommandRowIndex * 0x48;
             func_800BEE2C(index, *(u16 *)(pRow + 0x14E), code);
-            D_800C360C = D_800C360C + 1;
+            g_BattleCommandRowIndex = g_BattleCommandRowIndex + 1;
             break;
     }
 }

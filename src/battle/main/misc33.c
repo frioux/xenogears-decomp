@@ -68,10 +68,10 @@ typedef struct {
 } BattleMisc33State; // Size: 0x50
 
 extern BattleMisc33State *g_BattleState;
-extern s32 D_800C360C;
+extern s32 g_BattleCommandRowIndex;
 
 // A 0x48-byte row of the per-battle actor table that g_BattleStateWork + 0x108 starts;
-// misc25 indexes the same rows as D_800C4000[D_800C360C - 1].
+// misc25 indexes the same rows as D_800C4000[g_BattleCommandRowIndex - 1].
 typedef struct {
     /* 0x00 */ u8 unk0[0x46];
     /* 0x46 */ u16 slotMask;
@@ -476,7 +476,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BED4C);
    uses it, so its g_BattleState address pseudo is live across the call and lands in $s0
    (with the constant 1 in $s1 where ours uses $s0); ours keeps the address in $a1.
    A plain dead `pState = g_BattleState;` after the call is deleted by gcc, so what retail
-   actually read is still unknown.  Retail store order: unk8, g_BattleState, D_800C360C,
+   actually read is still unknown.  Retail store order: unk8, g_BattleState, g_BattleCommandRowIndex,
    unk4A, unk48, unk30, unk49, unk2C, pCurSprite, unk34 (in the call's delay slot).
 void func_800BED4C(void) {
     BattleMisc33State *pState;
@@ -484,7 +484,7 @@ void func_800BED4C(void) {
     pState = HeapAlloc(0x50, 0);
     pState->unk8 = func_800B9F78;
     g_BattleState = pState;
-    D_800C360C = 0;
+    g_BattleCommandRowIndex = 0;
     pState->unk4A = 0;
     g_BattleState->unk48 = 1;
     g_BattleState->unk30 = 0;
@@ -661,14 +661,14 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BF3E8);
    expressions -- one per statement, with the D_800D3634 store between them --
    and the call argument must be the later statement's load, so the argument
    expression is written last.  The table row is 0x48 bytes at g_BattleStateWork+0x108
-   (misc25 reaches the same rows as D_800C4000[D_800C360C - 1]), field 0x46.
+   (misc25 reaches the same rows as D_800C4000[g_BattleCommandRowIndex - 1]), field 0x46.
 void func_800BF3E8(BattleActorSprite *p) {
     BattleActorSprite *pLast;
     BattleMisc33State *pState;
     s32 count;
 
-    D_800D3634 = D_800C3FB8[D_800C360C].slotMask;
-    count = BattleCollectMaskedSlotActors(D_800C3FB8[D_800C360C].slotMask, (void **)&g_BattleActorList, (s32)p);
+    D_800D3634 = D_800C3FB8[g_BattleCommandRowIndex].slotMask;
+    count = BattleCollectMaskedSlotActors(D_800C3FB8[g_BattleCommandRowIndex].slotMask, (void **)&g_BattleActorList, (s32)p);
     g_BattleActorListCount = count;
     if (count == 0) {
         g_BattleActorList = p;

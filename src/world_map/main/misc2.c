@@ -97,7 +97,7 @@ extern s32 g_WorldMapScrollX;
 extern s32 D_8009BBB8;
 extern s32 D_8009BBBC;
 extern s32 g_WorldMapCameraRot;
-extern s32 D_8009BD3C;
+extern s32 g_WorldMapViewRotationZ;
 extern s32 g_WorldMapFadeLevel;
 extern s32 g_WorldMapCameraTarget;
 extern s32 D_8009BE2C;
@@ -335,7 +335,7 @@ typedef struct {
     /* 0x2040 */ UnkBlock unk2040;   // g_WorldMapTrail
     /* 0x22C0 */ s32 unk22C0;        // g_WorldMapTrailCursor
     /* 0x22C4 */ s32 unk22C4;        // g_WorldMapCameraRot
-    /* 0x22C8 */ s32 unk22C8;        // D_8009BD3C
+    /* 0x22C8 */ s32 unk22C8;        // g_WorldMapViewRotationZ
     /* 0x22CC */ s32 unk22CC;        // g_WorldMapCameraHeight
     /* 0x22D0 */ s32 unk22D0;        // g_WorldMapFadeLevel
     /* 0x22D4 */ WorldMapQuad unk22D4; // g_WorldMapScrollX
@@ -360,7 +360,7 @@ void WorldMapSaveState(void) {
     pSave->unk2040 = *(UnkBlock*)g_WorldMapTrail;
     pSave->unk22C0 = g_WorldMapTrailCursor;
     pSave->unk22C4 = g_WorldMapCameraRot;
-    pSave->unk22C8 = D_8009BD3C;
+    pSave->unk22C8 = g_WorldMapViewRotationZ;
     pSave->unk22CC = g_WorldMapCameraHeight;
     pSave->unk22D0 = g_WorldMapFadeLevel;
     pSave->unk22E4 = g_WorldMapGridOrigin;

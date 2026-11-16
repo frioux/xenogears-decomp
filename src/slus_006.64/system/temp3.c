@@ -165,10 +165,10 @@ extern s32 g_GameLoadedWdsBankIndex;
 extern s32 g_FieldScriptWalkFlags;
 extern s32 g_GameRequestedWdsBankIndex;
 extern s32 g_SoundPendingAudioManager;
-extern s32 D_8004F2F8;
+extern s32 g_FieldScreenSetupDone;
 extern s32 D_8004F314;
 extern s32 D_8004F310;
-extern s32 D_8004F370;
+extern s32 g_FieldSuppressStateChange;
 extern s32 g_GameAudioManagerRunning;
 extern s32 g_GameHasLoadedWDS;
 extern s32 g_GameWdsBankHeaderReadPending;
@@ -179,7 +179,7 @@ extern s32 g_GameReusePendingAudioManager;
 extern s32 g_WorldMapAudioManagerLoaded;
 extern s32 g_GameWdsEntryFreed;
 extern s32 g_FieldTextRenderEnabled;
-extern s32 D_8004F380;
+extern s32 g_FieldDisableGearRender;
 extern s32 D_8004F37C;
 extern s32 D_8004F378;
 extern u8 D_8005942C;
@@ -200,13 +200,13 @@ void SystemResetGlobalState(void) {
     g_GameRequestedWdsBankIndex = 0xFF;
     g_SoundPendingAudioManager = 0;
     g_GameAudioAndWdsLoaded = 0;
-    D_8004F2F8 = 0;
+    g_FieldScreenSetupDone = 0;
     g_GamePartyQueuedSkinKind = 0;
     g_GamePartyUsesGearSkins = 0;
     D_8004F314 = 0;
     D_8004F310 = 0;
     g_GamePartySkinsInitialized = 0;
-    D_8004F370 = 0;
+    g_FieldSuppressStateChange = 0;
     g_GameAudioManagerRunning = 0;
     g_GameHasLoadedWDS = 0;
     g_PartyIsWaitingForStreamData = 0;
@@ -219,7 +219,7 @@ void SystemResetGlobalState(void) {
     g_WorldMapAudioManagerLoaded = 0;
     g_GameWdsEntryFreed = 0;
     g_FieldTextRenderEnabled = 0;
-    D_8004F380 = 0;
+    g_FieldDisableGearRender = 0;
     D_8004F37C = 0;
     D_8004F378 = 0;
     D_8005942C = 0;
@@ -530,7 +530,7 @@ extern u8 D_8005959C;
 extern s32* g_DebuggerState;
 extern u8 D_800C48EA;
 extern u8 D_800D3338;
-extern u8 D_8005947C;
+extern u8 g_GameResumeScene;
 extern u8 g_GameSelectedSkinLoadPending;
 extern u16 g_NextMapId;
 extern s16 g_NextMapRotationY;
@@ -560,7 +560,7 @@ void GameSetUpDisplayAndChangeState(void) {
     if (D_800C48EA == 1 || D_800C48EA == 0x40 || D_800C48EA == 0x21) {
         if (D_800D3338 != 0) {
             gameState = 6;
-        } else if (D_8005947C == 0) {
+        } else if (g_GameResumeScene == 0) {
             if ((g_NextMapId & 0x7FF) < 0x400) {
                 gameState = 1;
             } else {
@@ -579,7 +579,7 @@ void GameSetUpDisplayAndChangeState(void) {
         ChangeGameState(1);
     }
 
-    if (D_8005947C == 0) {
+    if (g_GameResumeScene == 0) {
         g_GameSelectedSkinLoadPending = 1;
     }
 
@@ -621,14 +621,14 @@ void SystemSetDrawEnvBackgroundColor(DRAWENV* pDrawEnv) {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp3", func_8001B970);
 /*
-Best: 85.15%. The tail needs D_8005947C/g_MenuSavedMainMenuChoice defined in this unit to get
+Best: 85.15%. The tail needs g_GameResumeScene/g_MenuSavedMainMenuChoice defined in this unit to get
 %gp_rel. That is safe now: maspsx only relaxes the `lui $at` form, and
-GameSetUpDisplayAndChangeState reads D_8005947C through `lui $v0`, so it keeps %hi/%lo (verified
+GameSetUpDisplayAndChangeState reads g_GameResumeScene through `lui $v0`, so it keeps %hi/%lo (verified
 by GameSetUpDisplayAndChangeState matching 100% while D_8005959C is defined here). The remaining
 diff is the inner loop: the original keeps the even byte on an
 advancing pointer and recomputes the odd byte as (i + j) + (g_GameState + 1),
 gcc merges the two into one base with 0/1 offsets.
-A restructured attempt (gp_rel tail confirmed OK by defining D_8005947C/g_MenuSavedMainMenuChoice here)
+A restructured attempt (gp_rel tail confirmed OK by defining g_GameResumeScene/g_MenuSavedMainMenuChoice here)
 left three gaps: gcc hoists the 0xF literal and the odd base out of the outer loop into
 s4/s5 (the original reloads both per row into t1/t2 and saves only s0-s3), and the copy-back
 loop comes out `sltu` where the original has `slt`, so the source compared something signed.
@@ -677,18 +677,18 @@ void func_8001B970(void) {
         ((s16*)&g_SoundVolumeController)[i - 16] = 0;
     }
     g_MenuSavedMainMenuChoice = 6;
-    D_8005947C = 0;
+    g_GameResumeScene = 0;
 } */
 
 extern u8 D_8006F9DE;
-extern s32 D_80059470;
+extern s32 g_SystemStreamedFileBuffer;
 extern s32 D_80059520;
-extern s32 D_8005949C;
+extern s32 g_SystemStreamedFileData;
 
 extern s32 func_800379D8(s32, s32, s32*, s32*, s32*);
 
 void ArchiveLoadStreamedFilePair(void) {
-    func_800379D8(D_8006F9DE, 0, &D_80059470, &D_80059520, &D_8005949C);
+    func_800379D8(D_8006F9DE, 0, &g_SystemStreamedFileBuffer, &D_80059520, &g_SystemStreamedFileData);
 }
 
 extern u8 g_GameSelectedSkinLoadPending;
@@ -705,14 +705,14 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp3", func_8001BB50);
 Best: 80.87%. The original writes these globals through %gp_rel, which maspsx only
 emits for symbols the unit defines itself (a file-scope definition here turns each
 reference into %gp_rel). This file also contains functions that use %lo for the same
-symbols (e.g. GameSetUpDisplayAndChangeState on g_GameSelectedSkinLoadPending/D_8005947C), so the unit cannot have both.
+symbols (e.g. GameSetUpDisplayAndChangeState on g_GameSelectedSkinLoadPending/g_GameResumeScene), so the unit cannot have both.
 The mechanism is visible in the original asm: maspsx only rewrites the `lui $at`
 form to gp_rel, and GameSetUpDisplayAndChangeState reaches those two symbols through a pointer
 held in $v0 (`lui $v0,%hi; lbu %lo($v0)`), so it keeps %hi/%lo while the same
 symbols are gp_rel elsewhere. That means the unit does define them; the reference
 form is source-level and the two can coexist. Worth retrying with declarations
 for g_GameSelectedSkinLoadPending/D_8005946C/g_SystemBackdropColor/g_SystemSemiTransMode in this unit and
-D_8005947C/g_GameSelectedSkinLoadPending read through a pointer local inside GameSetUpDisplayAndChangeState;
+g_GameResumeScene/g_GameSelectedSkinLoadPending read through a pointer local inside GameSetUpDisplayAndChangeState;
 deciding who owns this .bss data is a unit-level call.
 Confirmed in maspsx (__init__.py, store/load gp-rel branch): a symbol is relaxed to
 %gp_rel only when it is in sbss_entries AND not in comm_symbols, i.e. only a file-local
@@ -732,8 +732,8 @@ void func_8001BB50(void) {
 } */
 
 // .bss
-u32 D_80059480;
-u32 D_800594AC;
+u32 g_SoundStreamReserveStart;
+u32 g_SoundStreamReserveBlock;
 u8 g_SoundEffectBankIndex;
 u8 D_8005959C;
 SoundFile* g_SoundSedsBank;
@@ -759,8 +759,8 @@ void SoundLoadAndPlaySedsBank(void) {
     HeapChangeCurrentUser(HEAP_USER_HIG, 0);
     ArchiveSetIndex(0xC, 0);
 
-    D_80059480 = HeapAlloc(4, 1);
-    D_800594AC = HeapAlloc(D_80059480 + 0x7FE1C000, 1);
+    g_SoundStreamReserveStart = HeapAlloc(4, 1);
+    g_SoundStreamReserveBlock = HeapAlloc(g_SoundStreamReserveStart + 0x7FE1C000, 1);
     pEndAddress = (void*)0x801E4000;
     g_SoundSedsBank = HeapAlloc(ArchiveDecodeAlignedSize(2), 1);
     g_SoundStreamBuffer = HeapAlloc(ArchiveDecodeAlignedSize(3), 1);

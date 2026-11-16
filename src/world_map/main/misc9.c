@@ -29,12 +29,12 @@ typedef struct {
 
 extern MATRIX g_WorldMapViewMatrix;
 extern MATRIX g_WorldMapIdentityMatrix;
-extern s16 D_8009BD3C;
+extern s16 g_WorldMapViewRotationZ;
 extern s16 D_8009BE04;
 extern u32* g_WorldMapRenderContext;
 extern u_char* g_WorldMapTileVertexSteps;
 extern s16 D_8009D618[];
-extern s16 D_8009D570[];
+extern s16 g_WorldMapGridTileIds[];
 extern WorldMapGridOrigin g_WorldMapGridOrigin;
 extern s32 g_WorldMapPrimPacketIndex;
 
@@ -244,7 +244,7 @@ void func_8008615C(void) {
     ((SVECTOR*)0x1F800018)->vz = 0;
     *(MATRIX*)0x1F800028 = g_WorldMapViewMatrix;
     *(MATRIX*)0x1F800048 = g_WorldMapIdentityMatrix;
-    RotMatrixZ(-D_8009BD3C, (MATRIX*)0x1F800048);
+    RotMatrixZ(-g_WorldMapViewRotationZ, (MATRIX*)0x1F800048);
     pSrc = g_WorldMapClutIds;
     pDst = (u16*)0x1F800068;
     for (i = 0; i < 0x10; i++) {
@@ -258,7 +258,7 @@ void func_8008615C(void) {
             if (D_8009D618[row * 5 + i] == -1) {
                 continue;
             }
-            id = D_8009D570[(row + pOrigin->unk4) * 9 + i + pOrigin->unk0];
+            id = g_WorldMapGridTileIds[(row + pOrigin->unk4) * 9 + i + pOrigin->unk0];
             pEntry = (WorldMapTableEntry*)(pTable + id * 8);
             if (pEntry->unk4 != 0) {
                 func_80099BFC((u8*)pEntry->offset, pEntry->unk4, g_WorldMapRenderContext[0x1C],

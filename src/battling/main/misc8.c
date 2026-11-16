@@ -22,7 +22,7 @@ extern u16 g_BattleScreenHeight;
 extern void *g_BattleMessageStringTable;
 extern u16 D_8009553C;
 extern u16 D_8009553E;
-extern u8 D_800928FC;
+extern u8 g_BattleTextPadIndex;
 extern u8 D_8009A1C4;
 extern u8 D_8009A1C5;
 extern u8 D_8009A1C6;
@@ -566,7 +566,7 @@ void BattleUpdateTextWindow(void) {
                     BattleRestoreScreenImage();
                 }
             }
-            func_8008162C(p, D_800928FC);
+            func_8008162C(p, g_BattleTextPadIndex);
         }
         BattleDrawTextList(g_BattleCurrentTextList);
     }

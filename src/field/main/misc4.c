@@ -120,7 +120,7 @@ extern s32 D_8004F310;
 extern s32 g_GamePartySkinsInitialized;
 extern SoundWDSEntry* g_GameCurLoadedWDS;
 
-extern s32 D_8004F2F8;
+extern s32 g_FieldScreenSetupDone;
 extern s32 g_WorldMapAudioManagerLoaded;
 extern s32 g_GameLoadedWdsBankIndex;
 extern s32 g_GameReusePendingAudioManager;
@@ -201,11 +201,11 @@ void func_80078D44(void) {
         ArchiveSetIndex(4, 0);
         FieldWaitForSceneMapFileLoad();
         FieldRenderSync();
-        if (D_8004F2F8 == 0) {
+        if (g_FieldScreenSetupDone == 0) {
             FieldImageConvert24BitTo15Bit(0);
         }
         FieldInitializeRenderContexts();
-        if (D_8004F2F8 == 0) {
+        if (g_FieldScreenSetupDone == 0) {
             rect.x = 0;
             rect.y = 0x100;
             rect.w = 0x140;
@@ -223,7 +223,7 @@ void func_80078D44(void) {
         } else {
             FieldZoomFadeEffectLoadTextures(1, 1);
         }
-        D_8004F2F8 = 1;
+        g_FieldScreenSetupDone = 1;
         ArchiveCdDataSync(0);
         ArchiveSetIndex(4, 0);
         FieldLoad();
@@ -357,7 +357,7 @@ extern s32 D_800ADBEC;
 extern s32 g_FieldArchiveStreamActive;
 extern u_char D_800ADB04;
 extern s32 D_800ADBD0;
-extern s32 D_8004F370;
+extern s32 g_FieldSuppressStateChange;
 extern s32 g_FieldRandomSkinSlots;   // countdown to the next regeneration of the slot table
 extern s32 D_800B2298;   // regeneration period, 0 disables the random skin
 extern s32 D_800B229C;   // number of slot table entries in use
@@ -450,7 +450,7 @@ void func_80079288(void) {
         g_GameSelectedSkinIndex = i;
         g_GameSelectedSkinLoadPending = 0;
         D_800B2290 = D_800B2270[i];
-        if (D_8004F370 == 0) {
+        if (g_FieldSuppressStateChange == 0) {
             LoadGameStateOverlay(2);
         }
         g_FieldMapChangeGate = 0;
@@ -464,7 +464,7 @@ void func_80079288(void) {
 */
 
 extern s32 D_800AFC78;
-extern s32 D_8004F370;
+extern s32 g_FieldSuppressStateChange;
 extern s16 g_GameWdsEntryReleased;
 extern s32 g_FieldNextGameState;
 extern void FieldScriptSyncMemoryWithGameState(void);
@@ -487,7 +487,7 @@ void FieldAdvanceGameState(int state) {
         g_GameRequestedWdsBankIndex = D_800AFC78;
         g_pGameState->wdsBankIndex = D_800AFC78;
         g_pGameState->unk2320 = nSaved;
-        if (D_8004F370 != 0) {
+        if (g_FieldSuppressStateChange != 0) {
             return;
         }
         ChangeGameState(2);
@@ -501,7 +501,7 @@ void FieldAdvanceGameState(int state) {
             FieldFinishWdsFileLoad();
             SoundFreeLoadedWdsAndAudioManager();
         }
-        if (D_8004F370 != 0) {
+        if (g_FieldSuppressStateChange != 0) {
             return;
         }
         ChangeGameState(3);
@@ -512,7 +512,7 @@ void FieldAdvanceGameState(int state) {
         nSaved = g_pGameState->fieldScriptMemory[1];
         g_pGameState->wdsBankIndex = g_GameRequestedWdsBankIndex;
         g_pGameState->unk2320 = nSaved;
-        if (D_8004F370 != 0) {
+        if (g_FieldSuppressStateChange != 0) {
             return;
         }
         ChangeGameState(4);
@@ -522,7 +522,7 @@ void FieldAdvanceGameState(int state) {
     case 3:
         D_8004F310 = 0;
         g_GamePartySkinsInitialized = 0;
-        if (D_8004F370 != 0) {
+        if (g_FieldSuppressStateChange != 0) {
             return;
         }
         if (g_FieldNextGameState & 0x80) {

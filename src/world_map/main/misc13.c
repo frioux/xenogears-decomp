@@ -23,20 +23,20 @@ extern long ratan2(long y, long x);
 extern int rcos(int a);
 extern int rsin(int a);
 
-extern u8 D_8009D498[];
-extern u8 D_8009BD64[];
-extern u8 D_8009BAC8[];
+extern u8 g_WorldMapAreaNameString[];
+extern u8 g_WorldMapMode4AreaNameString[];
+extern u8 g_WorldMapTileKindTable[];
 extern s32 D_8009B264[];
 extern s32 D_8009B26C[];
-extern s32 D_8009C184[];
-extern s32 D_8009B364[];
+extern s32 g_WorldMapTileCellPointers[];
+extern s32 g_WorldMapTileShapeHalfAxis[];
 extern s32 D_8009B36C[];
-extern s32 D_8009B464[];
+extern s32 g_WorldMapTileShapeHalfOrigin[];
 extern s32 D_8009B46C[];
-extern s32 D_8009D160;
-extern s32 D_8009D2B4;
+extern s32 g_WorldMapTileColumns;
+extern s32 g_WorldMapTileRows;
 extern s16 g_WorldMapAreaId;
-extern u16 D_8009D4A8;
+extern u16 g_WorldMapAreaNamePanelFlags;
 extern u8 D_8009D500;
 extern s32 func_80032F54(void* pString, s16 a, s16 b, s16 c, s16 d, s16 e, s16 f);
 extern void func_80093740(WorldMapPos* p, s32 x, s32 z);
@@ -87,11 +87,11 @@ typedef struct {
 s32 WorldMapInitAreaNameString(void) {
     u8* pBuffer;
 
-    pBuffer = D_8009D498;
+    pBuffer = g_WorldMapAreaNameString;
     g_WorldMapAreaId = -1;
     func_80032F54(pBuffer, 0x3C0, 0x180, 0xA0, 0x78, 0x20, 1);
     D_8009D500 = 8;
-    D_8009D4A8 |= 2;
+    g_WorldMapAreaNamePanelFlags |= 2;
     SystemStringResetIfIdle(pBuffer);
     return 1;
 }
@@ -110,30 +110,30 @@ s32 func_80092C70(s32 index) {
     switch (pSlot->unk20) {
     case 0:
         if (g_WorldMapAreaId != -1) {
-            SystemStringResetIfIdle(D_8009D498);
-            SystemStringPushBuffer(D_8009D498, GetStringEntry(g_WorldMapStringTable, g_WorldMapAreaId));
+            SystemStringResetIfIdle(g_WorldMapAreaNameString);
+            SystemStringPushBuffer(g_WorldMapAreaNameString, GetStringEntry(g_WorldMapStringTable, g_WorldMapAreaId));
             pSlot->unk20 = 1;
             pSlot->unk50 = g_WorldMapAreaId;
         }
         break;
     case 1:
         if (g_WorldMapAreaId == 1) {
-            SystemStringResetIfIdle(D_8009D498);
+            SystemStringResetIfIdle(g_WorldMapAreaNameString);
             pSlot->unk20 = 0;
         } else if (g_WorldMapAreaId != pSlot->unk50) {
-            SystemStringResetIfIdle(D_8009D498);
-            SystemStringPushBuffer(D_8009D498, GetStringEntry(g_WorldMapStringTable, g_WorldMapAreaId));
+            SystemStringResetIfIdle(g_WorldMapAreaNameString);
+            SystemStringPushBuffer(g_WorldMapAreaNameString, GetStringEntry(g_WorldMapStringTable, g_WorldMapAreaId));
             pSlot->unk50 = g_WorldMapAreaId;
         }
         break;
     }
-    func_80034888(D_8009D498, g_WorldMapRenderContext[0x1C], (u32)g_WorldMapPrimPacketIndex);
+    func_80034888(g_WorldMapAreaNameString, g_WorldMapRenderContext[0x1C], (u32)g_WorldMapPrimPacketIndex);
     return 1;
 }
 */
 
 void WorldMapFreeAreaNameString(void) {
-    SystemStringFree(&D_8009D498[0]);
+    SystemStringFree(&g_WorldMapAreaNameString[0]);
 }
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_80092DF8);
@@ -146,11 +146,11 @@ s32 func_80092DF8(void) {
     u16 flags;
 
     D_8009CE68 = -1;
-    func_80032F54(D_8009BD64, 0x3C0, 0x18D, 0xA0, 0x78, 0x20, 4);
-    flags = D_8009D4A8;
+    func_80032F54(g_WorldMapMode4AreaNameString, 0x3C0, 0x18D, 0xA0, 0x78, 0x20, 4);
+    flags = g_WorldMapAreaNamePanelFlags;
     D_8009BDCC = 8;
-    D_8009D4A8 = flags | 2;
-    SystemStringResetIfIdle(D_8009BD64);
+    g_WorldMapAreaNamePanelFlags = flags | 2;
+    SystemStringResetIfIdle(g_WorldMapMode4AreaNameString);
     D_8009D2BB = 9;
     D_8009D2BF = 0x2C;
     D_8009D2C2 = 0x70;
@@ -194,24 +194,24 @@ s32 func_80092FD8(s32 index) {
     switch (pSlot->unk20) {
     case 0:
         if (D_8009CE68 != -1) {
-            SystemStringResetIfIdle(D_8009BD64);
-            SystemStringPushBuffer(D_8009BD64, GetStringEntry(g_WorldMapStringTable, D_8009CE68));
+            SystemStringResetIfIdle(g_WorldMapMode4AreaNameString);
+            SystemStringPushBuffer(g_WorldMapMode4AreaNameString, GetStringEntry(g_WorldMapStringTable, D_8009CE68));
             pSlot->unk20 = 1;
             pSlot->unk50 = D_8009CE68;
         }
         break;
     case 1:
         if (D_8009CE68 == -1) {
-            SystemStringResetIfIdle(D_8009BD64);
+            SystemStringResetIfIdle(g_WorldMapMode4AreaNameString);
             pSlot->unk20 = 0;
         } else if (D_8009CE68 != pSlot->unk50) {
-            SystemStringResetIfIdle(D_8009BD64);
-            SystemStringPushBuffer(D_8009BD64, GetStringEntry(g_WorldMapStringTable, D_8009CE68));
+            SystemStringResetIfIdle(g_WorldMapMode4AreaNameString);
+            SystemStringPushBuffer(g_WorldMapMode4AreaNameString, GetStringEntry(g_WorldMapStringTable, D_8009CE68));
             pSlot->unk50 = D_8009CE68;
         }
         break;
     }
-    func_80034888(D_8009BD64, g_WorldMapRenderContext[0x1C], (u32)g_WorldMapPrimPacketIndex);
+    func_80034888(g_WorldMapMode4AreaNameString, g_WorldMapRenderContext[0x1C], (u32)g_WorldMapPrimPacketIndex);
     if (pSlot->unk20 == 1) {
         pPrim = (u32*)(D_8009D2B8 + g_WorldMapPrimPacketIndex * 0x28);
         pPrim[0] = (pPrim[0] & 0xFF000000) | (*(u32*)g_WorldMapRenderContext[0x1C] & 0xFFFFFF);
@@ -222,7 +222,7 @@ s32 func_80092FD8(s32 index) {
 */
 
 void WorldMapFreeMode4AreaNameString(void) {
-    SystemStringFree(&D_8009BD64[0]);
+    SystemStringFree(&g_WorldMapMode4AreaNameString[0]);
 }
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_800931D8);
@@ -271,58 +271,58 @@ void func_800931D8(u8* pSrc, u8* pDst, s32 count, u8* pFactors) {
 }
 */
 void WorldMapWrapPosition(WorldMapPos* p) {
-    if (p->x >= D_8009D160 * 0x800000) {
-        p->x -= D_8009D160 * 0x800000;
+    if (p->x >= g_WorldMapTileColumns * 0x800000) {
+        p->x -= g_WorldMapTileColumns * 0x800000;
     }
     if (p->x < 0) {
-        p->x += D_8009D160 * 0x800000;
+        p->x += g_WorldMapTileColumns * 0x800000;
     }
-    if (p->z >= D_8009D2B4 * 0x800000) {
-        p->z -= D_8009D2B4 * 0x800000;
+    if (p->z >= g_WorldMapTileRows * 0x800000) {
+        p->z -= g_WorldMapTileRows * 0x800000;
     }
     if (p->z < 0) {
-        p->z += D_8009D2B4 * 0x800000;
+        p->z += g_WorldMapTileRows * 0x800000;
     }
 }
 
 void WorldMapWrapPositionScaled(WorldMapPos* p) {
-    if (p->x >= D_8009D160 * 2048) {
-        p->x -= D_8009D160 * 2048;
+    if (p->x >= g_WorldMapTileColumns * 2048) {
+        p->x -= g_WorldMapTileColumns * 2048;
     }
     if (p->x < 0) {
-        p->x += D_8009D160 * 2048;
+        p->x += g_WorldMapTileColumns * 2048;
     }
-    if (p->z >= D_8009D2B4 * 2048) {
-        p->z -= D_8009D2B4 * 2048;
+    if (p->z >= g_WorldMapTileRows * 2048) {
+        p->z -= g_WorldMapTileRows * 2048;
     }
     if (p->z < 0) {
-        p->z += D_8009D2B4 * 2048;
+        p->z += g_WorldMapTileRows * 2048;
     }
 }
 
 void WorldMapWrapDelta(WorldMapPos* p) {
     if (p->x < -0x4000000) {
-        p->x += D_8009D160 * 0x800000;
+        p->x += g_WorldMapTileColumns * 0x800000;
     } else if (p->x > 0x4000000) {
-        p->x -= D_8009D160 * 0x800000;
+        p->x -= g_WorldMapTileColumns * 0x800000;
     }
     if (p->z < -0x4000000) {
-        p->z += D_8009D2B4 * 0x800000;
+        p->z += g_WorldMapTileRows * 0x800000;
     } else if (p->z > 0x4000000) {
-        p->z -= D_8009D2B4 * 0x800000;
+        p->z -= g_WorldMapTileRows * 0x800000;
     }
 }
 
 void WorldMapWrapDeltaScaled(WorldMapPos* p) {
     if (p->x < -0x4000) {
-        p->x += D_8009D160 * 2048;
+        p->x += g_WorldMapTileColumns * 2048;
     } else if (p->x > 0x4000) {
-        p->x -= D_8009D160 * 2048;
+        p->x -= g_WorldMapTileColumns * 2048;
     }
     if (p->z < -0x4000) {
-        p->z += D_8009D2B4 * 2048;
+        p->z += g_WorldMapTileRows * 2048;
     } else if (p->z > 0x4000) {
-        p->z -= D_8009D2B4 * 2048;
+        p->z -= g_WorldMapTileRows * 2048;
     }
 }
 
@@ -336,7 +336,7 @@ u8* WorldMapGetTileEntry(s32 x, s32 z) {
     s16 zone;
     s16 sub;
 
-    idx = (z >> 20) / 8 * D_8009D160 + (x >> 20) / 8;
+    idx = (z >> 20) / 8 * g_WorldMapTileColumns + (x >> 20) / 8;
     x = (x >> 12) & 0x7FF;
     z = (z >> 12) & 0x7FF;
     zone = 0;
@@ -349,7 +349,7 @@ u8* WorldMapGetTileEntry(s32 x, s32 z) {
         z -= 0x400;
     }
     sub = (z >> 4) / 8 * 9 + (x >> 4) / 8;
-    return (u8*)D_8009C184[idx] + zone * 81 * 4 + sub * 4;
+    return (u8*)g_WorldMapTileCellPointers[idx] + zone * 81 * 4 + sub * 4;
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_80093740);
 s32 WorldMapGetTilePlaneHeight(s32 x, s32 z) {
@@ -381,8 +381,8 @@ s32 WorldMapGetTileValue(WorldMapPos* p) {
     s32 sub;
     s32 pBase;
 
-    idx = ((p->z >> 20) / 8) * D_8009D160 + (p->x >> 20) / 8;
-    pBase = D_8009C184[idx];
+    idx = ((p->z >> 20) / 8) * g_WorldMapTileColumns + (p->x >> 20) / 8;
+    pBase = g_WorldMapTileCellPointers[idx];
     baseOffset = 0x510; // a constant local keeps the load at 0x510(v1), not a widened add
     sub = (((p->z & 0x7FF000) >> 19) << 4) | ((p->x & 0x7FF000) >> 19);
     return ((s16*)((u8*)pBase + baseOffset))[sub];
@@ -397,9 +397,9 @@ s32 WorldMapGetTileHalfIndex(WorldMapPos* p) {
 
     n = WorldMapGetTileValue(p);
     k = (n & 0xF) * 4;
-    dx = (u16)(p->x / 8) - D_8009B464[k];
+    dx = (u16)(p->x / 8) - g_WorldMapTileShapeHalfOrigin[k];
     dz = (u16)(p->z / 8) - D_8009B46C[k];
-    sum = (dx * D_8009B364[k] >> 12) + (dz * D_8009B36C[k] >> 12);
+    sum = (dx * g_WorldMapTileShapeHalfAxis[k] >> 12) + (dz * D_8009B36C[k] >> 12);
     if (sum > 0) {
         return ((u32)n >> 4) & 7;
     }
@@ -419,7 +419,7 @@ s32 WorldMapGetTileGroup(WorldMapPos* p) {
 }
 
 s16 WorldMapGetTileKindValue(s16 row, s16 col) {
-    return *(s16*)(D_8009BAC8 + row * 16 + col * 2);
+    return *(s16*)(g_WorldMapTileKindTable + row * 16 + col * 2);
 }
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_80094088);

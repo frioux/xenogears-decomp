@@ -68,7 +68,7 @@ extern u16 g_WorldMapActorParamStateIds;
 extern u16 g_WorldMapActorParamStateFrames[];
 extern s16 g_WorldMapCameraRot;
 extern s16 g_WorldMapViewRotationY;
-extern s16 D_8009BD3C;
+extern s16 g_WorldMapViewRotationZ;
 // camera position / rotation halfwords, accumulated by the random jitter below
 extern u16 g_WorldMapPathFrame;
 extern u16 D_8009BD42;
@@ -274,7 +274,7 @@ int WorldMapInitActorScrollScale(int idx) {
     g_WorldMapCameraHeight = 0x1C0000;
     g_WorldMapCameraRot = 0x40;
     g_WorldMapViewRotationY = 0x480;
-    D_8009BD3C = 0;
+    g_WorldMapViewRotationZ = 0;
     pPlayer = g_WorldMapSlots + idx;
     g_WorldMapCameraTarget = a;
     g_WorldMapScrollTargetX = a;
@@ -902,7 +902,7 @@ int func_8007C724(int idx) {
     c = D_8009C5B4;
     g_WorldMapCameraRot = -0x40;
     g_WorldMapViewRotationY = 0;
-    D_8009BD3C = 0;
+    g_WorldMapViewRotationZ = 0;
     g_WorldMapCameraTarget = a;
     g_WorldMapScrollTargetX = a;
     D_8009BE2C = b;

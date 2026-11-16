@@ -43,7 +43,7 @@ extern s32 D_8009C170;
 extern s32 WorldMapGetTilePlaneHeight(s32 x, s32 z);
 extern s32 g_WorldMapCameraHeight;
 extern s16 g_WorldMapCameraRot;
-extern s16 D_8009BD3C;
+extern s16 g_WorldMapViewRotationZ;
 extern u16 g_WorldMapPlayerAngle;
 extern u32 g_WorldMapScrollTargetX[];
 extern s16 g_WorldMapCameraPathAnglesModes1To5[];
@@ -243,7 +243,7 @@ s32 func_8008E190(s32 idx) {
     *(Quad *)g_WorldMapGroups->entry[0].unk8 = *(Quad *)&pPlayer->unk28;
     g_WorldMapGroups->entry[0].unk0 = pPlayer->unk24;
     *(s16 *)(pScratch + 0xA0) = -(pPlayer->unk70 >> 12);
-    *(s16 *)(pScratch + 0xA4) = D_8009BD3C;
+    *(s16 *)(pScratch + 0xA4) = g_WorldMapViewRotationZ;
     *(s16 *)(pScratch + 0xA2) = pPlayer->unk48;
     RotMatrixYXZ((SVECTOR *)(pScratch + 0xA0), &g_WorldMapGroups->entry[0].matrix);
     RotMatrixYXZ((SVECTOR *)(pScratch + 0xA0), &g_WorldMapGroups->entry[1].matrix);
@@ -273,8 +273,8 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_8008E4F4);
 /* best: 96.21%, 396 bytes = retail's exact size, every instruction and relocation
    right except the switch table operand (jtbl_80070A30 vs .rodata) and the position of
    the g_WorldMapGroups load in the scratchpad tail: retail emits `lui a1,%hi / lw a1` BEFORE
-   the three `sh` stores and loads D_8009BD3C after `sh 0xA0`, this body emits the
-   pointer load last and hoists D_8009BD3C to the top of the block. Tried: x/z/y store
+   the three `sh` stores and loads g_WorldMapViewRotationZ after `sh 0xA0`, this body emits the
+   pointer load last and hoists g_WorldMapViewRotationZ to the top of the block. Tried: x/z/y store
    order (93.59), x/y/z (93.59), a MATRIX *pMat local for the first RotMatrixYXZ
    argument (no change, gcc sinks the address to the argument anyway). PARKED FOR A
    LAYOUT REASON: E190 (parked just above, 87.06) owns jtbl_800709F8/jtbl_80070A10 at
@@ -317,7 +317,7 @@ s32 func_8008E4F4(s32 idx) {
         break;
     }
     *(s16 *)(pScratch + 0xA0) = -(pPlayer->unk70 >> 12);
-    *(s16 *)(pScratch + 0xA4) = D_8009BD3C;
+    *(s16 *)(pScratch + 0xA4) = g_WorldMapViewRotationZ;
     *(s16 *)(pScratch + 0xA2) = pPlayer->unk48;
     RotMatrixYXZ((SVECTOR *)(pScratch + 0xA0), &g_WorldMapGroups->entry[0].matrix);
     RotMatrixYXZ((SVECTOR *)(pScratch + 0xA0), &g_WorldMapGroups->entry[1].matrix);
@@ -609,7 +609,7 @@ s32 func_80091430(s32 idx) {
     pPlayer = g_WorldMapSlots + idx;
     *(Quad *)&pPlayer->unk28 = *(Quad *)g_WorldMapScrollTargetX;
     nAngle = g_WorldMapPlayerAngle;
-    D_8009BD3C = 0;
+    g_WorldMapViewRotationZ = 0;
     g_WorldMapViewRotationY = nAngle;
     *(volatile s32 *)&pPlayer->unk50 = g_WorldMapViewRotationY;
     pPlayer->unk58 = g_WorldMapViewRotationY << 12;
@@ -821,7 +821,7 @@ s32 func_80091FF8(s32 nLimit, u16 *pIn, s16 *pOfs) {
     s32 k;
 
     u16 v = *(u16 *)&g_WorldMapViewRotationY;
-    u16 a = *(u16 *)&D_8009BD3C;
+    u16 a = *(u16 *)&g_WorldMapViewRotationZ;
 
     nBase = g_WorldMapScrollTargetY >> 12;
     *(u16 *)0x1F8000AA = v;

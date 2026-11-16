@@ -82,11 +82,11 @@ void func_800708C4(s32* p, s32 step) {
 
 extern VECTOR g_BattleActor0;
 extern VECTOR D_80099078;
-extern s32 D_80097014;
+extern s32 g_BattleSceneOriginY;
 extern s32 D_80097018;
 extern s32 D_80098780;
 extern s32 D_80097064;
-extern s32 D_80098730;
+extern s32 g_BattleSceneOriginYMirror;
 extern s32 D_80098734;
 
 // One past the last of the three effect-cell frame counters.
@@ -108,7 +108,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_8007099C);
    not stop that. Do not re-derive the shape: the do-while around the
    D_800925F4 store is load-bearing (91.24 -> 92.82, and it restores retail's
    byte count), and the y local is what stops gcc folding
-   (D_80098730 - 0x20) - D_800925F4 into D_80098730 - (D_800925F4 + 0x20).
+   (g_BattleSceneOriginYMirror - 0x20) - D_800925F4 into g_BattleSceneOriginYMirror - (D_800925F4 + 0x20).
 */
 /* attempt:
 void func_8007099C(s32 mode) {
@@ -146,7 +146,7 @@ void func_8007099C(s32 mode) {
         vec.vy += D_800925F4;
         func_80070808(&vec, 0x10);
         vec.vx = g_BattleActor1.vx + ((rcos(D_80098780 + 0xA80) * 0xD0) >> 12);
-        y = D_80098730 - 0x20;
+        y = g_BattleSceneOriginYMirror - 0x20;
         vec.vy = y - D_800925F4;
         vec.vz = D_80098734 + ((rsin(D_80098780 + 0xA80) * 0xD0) >> 12);
         func_800708C4(&vec, 0x46);
@@ -159,10 +159,10 @@ void func_8007099C(s32 mode) {
     case 5:
         pBase = &g_BattleCameraTarget;
         *pBase = g_BattleActor0.vx;
-        D_80098680 = D_80097014 - 0xC0;
+        D_80098680 = g_BattleSceneOriginY - 0xC0;
         D_80098684 = D_80097018;
         g_BattleCameraPos = *pBase + ((rcos(D_80097064 + 0x900) * 0xE0) >> 12);
-        D_80098720 = D_80097014 - 0xD0;
+        D_80098720 = g_BattleSceneOriginY - 0xD0;
         D_80098724 = D_80098684 + ((rsin(D_80097064 + 0x900) * 0xE0) >> 12);
         break;
     }
@@ -561,7 +561,7 @@ void BattleClearInitFlag(void) {
 }
 
 extern u8 g_BattleInitScript;
-extern u8 D_800928D4;
+extern u8 g_BattleInputEnabled;
 extern u8 g_BattlePlayer1ComControlled;
 extern u8 g_BattlePlayer2ComControlled;
 extern s32 g_BattleStateStep;
@@ -577,7 +577,7 @@ void BattleInitOnce(void) {
     }
     BattleSetValueAndClearFlags((s32)&g_BattleInitScript);
     g_BattleInitDone = 1;
-    D_800928D4 = 0;
+    g_BattleInputEnabled = 0;
     g_BattlePlayer1ComControlled = 0;
     g_BattlePlayer2ComControlled = 0;
     g_BattleStateStep = 0;
@@ -592,7 +592,7 @@ void BattleInitOnce(void) {
 
 // The anchor's y and z words: retail's object reaches them as their own
 // symbols, not as displacements off g_BattleActor1.
-extern s32 D_80098730;
+extern s32 g_BattleSceneOriginYMirror;
 extern s32 D_80098734;
 
 // One past the last of the three effect-cell frame counters.
@@ -664,7 +664,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_80072170);
    slot). Things that are settled and must not be re-derived: the loop bound is
    a SIGNED compare ('slt', the bound cast); D_8009260C is read as a signed
    halfword and both func_8008E2B8 call sites need the (s16) cast or they load
-   lhu; D_80098730/D_80098734 are reached as their own symbols in the fade block
+   lhu; g_BattleSceneOriginYMirror/D_80098734 are reached as their own symbols in the fade block
    while case 1 reads the same words off g_BattleActor1; the pCounter copy of pFrames
    and the pVec local in front of the add-slot call are what took the previous
    park from 97.21 to 98.87 (both found by the permuter). The 97.21% park WAS
@@ -746,7 +746,7 @@ fade:
             count = g_BattleEffectPool->pPool->count;
             pOrigin = g_BattleEffectPool->pPool->pOrigins[rand() % count];
             vec[0] = pOrigin->unk60 + g_BattleActor1.position.x;
-            vec[1] = pOrigin->unk64 + D_80098730;
+            vec[1] = pOrigin->unk64 + g_BattleSceneOriginYMirror;
             vec[2] = pOrigin->unk68 + D_80098734;
             BattleEffectAddSlotFromVector((VECTOR*)vec, 0xB);
             BattleEffectAddSlotFromVector((VECTOR*)vec, 8);
