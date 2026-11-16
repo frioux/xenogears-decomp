@@ -98,25 +98,25 @@ BattleDistanceWaitTask* BattleCreateActorDistanceWaitTask(SpriteData* pSpriteDat
     pSpriteData->flags_0xAC.flags |= 0x20;
     return pTask;
 }
-BattlePoint* func_800B59BC(BattlePoint* pOut, u8* pActor, s32 index) {
+BattlePoint* func_800B59BC(BattlePoint* pOut, SpriteData* pSpriteData, s32 index) {
     DVECTOR rot;
 
-    if (*(u8**)(pActor + 0x20) == NULL) {
+    if (pSpriteData->pBase == NULL) {
         return pOut;
     }
-    if ((*(s32*)(pActor + 0x3C) & 3) != 1) {
+    if ((pSpriteData->field_0x3C_0 & 3) != 1) {
         return pOut;
     }
-    if (*(u8**)(*(u8**)(pActor + 0x20) + 0x34) == NULL) {
+    if (pSpriteData->pBase->pDirTransforms == NULL) {
         return pOut;
     }
-    rot.vy = (s8)*(u8*)(*(u8**)(*(u8**)(pActor + 0x20) + 0x34) + index * 8 + 1);
-    rot.vx = (s8)*(u8*)(*(u8**)(*(u8**)(pActor + 0x20) + 0x34) + index * 8);
-    if ((*(u32*)(pActor + 0xAC) >> 2) & 1) {
+    rot.vy = (s8)(pSpriteData->pBase->pDirTransforms->dirTransforms + index)->translationY;
+    rot.vx = (s8)(pSpriteData->pBase->pDirTransforms->dirTransforms + index)->translationX;
+    if ((((u32)pSpriteData->flags_0xAC.flags) >> 2) & 1) {
         rot.vx = -rot.vx;
     }
-    rot.vy = rot.vy * *(s16*)(pActor + 0x2C) / 4096;
-    rot.vx = rot.vx * *(s16*)(pActor + 0x2C) / 4096;
+    rot.vy = rot.vy * pSpriteData->scale / 4096;
+    rot.vx = rot.vx * pSpriteData->scale / 4096;
     *(DVECTOR*)pOut = rot;
     return pOut;
 }
