@@ -376,7 +376,7 @@ void GearShopMenuInitializeMenuStringPolys(MenuString* pMenuString, s32 arg1, s3
         pMenuString->polys[i].clut = pMenuString->unk7C ? g_SystemPalette2 : g_SystemPalette1;
     }
 
-    pMenuString->unk7F = 0;
+    pMenuString->hasVertices = 0;
 }
 
 void func_801C5EE8(MenuString* pStringList, u8* pStringIdList, s32 yOffset, s32 count) {
@@ -465,30 +465,30 @@ void GearShopMenuSetSelectionCursor(s32 arg0, u8 doInit) {
     if (doInit) {
         setXY4(&g_Menu->unk348->polyG4s[g_Menu->renderContext],
                g_SelectionCursorX[arg0] + 0x14, g_SelectionCursorY[arg0] - 0x24,
-               g_SelectionCursorX[arg0] + (g_Menu->unk348->unk15B + 0x14), g_SelectionCursorY[arg0] - 0x24,
+               g_SelectionCursorX[arg0] + (g_Menu->unk348->shadeWidth + 0x14), g_SelectionCursorY[arg0] - 0x24,
                g_SelectionCursorX[arg0] + 0x14, g_SelectionCursorY[arg0] - 0x14,
-               g_SelectionCursorX[arg0] + (g_Menu->unk348->unk15B + 0x14), g_SelectionCursorY[arg0] - 0x14
+               g_SelectionCursorX[arg0] + (g_Menu->unk348->shadeWidth + 0x14), g_SelectionCursorY[arg0] - 0x14
         );
 
         setXY3(&g_Menu->unk348->lines1[g_Menu->renderContext],
                g_SelectionCursorX[arg0] + 0x14, g_SelectionCursorY[arg0] - 0x24,
-               g_SelectionCursorX[arg0] + (g_Menu->unk348->unk15B + 0x14), g_SelectionCursorY[arg0] - 0x24,
-               g_SelectionCursorX[arg0] + (g_Menu->unk348->unk15B + 0x14), g_SelectionCursorY[arg0] - 0x14
+               g_SelectionCursorX[arg0] + (g_Menu->unk348->shadeWidth + 0x14), g_SelectionCursorY[arg0] - 0x24,
+               g_SelectionCursorX[arg0] + (g_Menu->unk348->shadeWidth + 0x14), g_SelectionCursorY[arg0] - 0x14
         );
 
         setXY3(&g_Menu->unk348->lines2[g_Menu->renderContext],
                g_SelectionCursorX[arg0] + 0x14, g_SelectionCursorY[arg0] - 0x24,
                g_SelectionCursorX[arg0] + 0x14, g_SelectionCursorY[arg0] - 0x14,
-               g_SelectionCursorX[arg0] + (g_Menu->unk348->unk15B + 0x14), g_SelectionCursorY[arg0] - 0x14
+               g_SelectionCursorX[arg0] + (g_Menu->unk348->shadeWidth + 0x14), g_SelectionCursorY[arg0] - 0x14
         );
 
-        g_Menu->unk348->unk159 = (u8) g_Menu->renderContext;
+        g_Menu->unk348->drawModeRenderContext = (u8) g_Menu->renderContext;
         g_Menu->pManager->unk3 = 1;
     }
 }
 
 void GearShopMenuResetSelectionCursor(void) {
-    g_Menu->pManager->unk4 = 0;
+    g_Menu->pManager->shouldRenderPointerCursor = 0;
     g_Menu->pManager->unk3 = 0;
 }
 
@@ -663,7 +663,7 @@ void GearShopMenuLoadGearShopInventory(void) {
             );
         }
 
-        g_Menu->pShop->unk469C[j] = 0;
+        g_Menu->pShop->shouldRenderPortraitHighlight[j] = 0;
     }
 
     func_8002675C(g_Menu->resources, 0x166, (POLY_FT4* ) g_Menu->menuUnk8->unk80, g_Menu->renderContext, 0x108, 0x18, 0x1000U);
@@ -917,29 +917,29 @@ void GearShopMenuInitializeWindowBorderCorners(u_char windowIndex, u_short x, u_
     MenuWindow* pWindow = g_Menu->windows[windowIndex];
     int i;
 
-    pWindow->unk710 = 0;
-    pWindow->unk710 += func_8002675C(
+    pWindow->borderPrimCount = 0;
+    pWindow->borderPrimCount += func_8002675C(
         g_Menu->resources,
         MENU_TEX_WINDOW_BORDER_TOP_LEFT,
-        &pWindow->polysWindowBorderCorners[pWindow->unk710*2],
+        &pWindow->polysWindowBorderCorners[pWindow->borderPrimCount*2],
         g_Menu->renderContext, 0, 0, 0x1000
     );
-    pWindow->unk710 += func_8002675C(
+    pWindow->borderPrimCount += func_8002675C(
         g_Menu->resources,
         MENU_TEX_WINDOW_BORDER_TOP_RIGHT,
-        &pWindow->polysWindowBorderCorners[pWindow->unk710*2],
+        &pWindow->polysWindowBorderCorners[pWindow->borderPrimCount*2],
         g_Menu->renderContext, 0, 0, 0x1000
     );
-    pWindow->unk710 += func_8002675C(
+    pWindow->borderPrimCount += func_8002675C(
         g_Menu->resources,
         MENU_TEX_WINDOW_BORDER_BOTTOM_LEFT,
-        &pWindow->polysWindowBorderCorners[pWindow->unk710*2],
+        &pWindow->polysWindowBorderCorners[pWindow->borderPrimCount*2],
         g_Menu->renderContext, 0, 0, 0x1000
     );
-    pWindow->unk710 += func_8002675C(
+    pWindow->borderPrimCount += func_8002675C(
         g_Menu->resources,
         MENU_TEX_WINDOW_BORDER_BOTTOM_RIGHT,
-        &pWindow->polysWindowBorderCorners[pWindow->unk710*2],
+        &pWindow->polysWindowBorderCorners[pWindow->borderPrimCount*2],
         g_Menu->renderContext, 0, 0, 0x1000
     );
 
@@ -1168,7 +1168,7 @@ void GearShopMenuSetWindow(u_char windowIndex, u_short x, u_short y, u_short wid
         GearShopMenuInitializeScrollBar(windowIndex, x, y, width, height);
     }
     pWindow->hasScrollBar = hasScrollbar;
-    pWindow->unk714 = arg5;
+    pWindow->useDefaultMatrix = arg5;
     pWindow->zIndex = zIndex;
     pWindow->renderContext = g_Menu->renderContext;
     g_Menu->pManager->shouldRenderWindow[windowIndex] = TRUE;
@@ -1195,13 +1195,13 @@ void GearShopMenuInitializeWindow(u_char windowIndex, u_short x, u_short y, u_sh
     pWindowParameters = g_Menu->windowParameters[windowIndex];
     if (shouldInitializeHandle) {
         pWindowParameters->index = windowIndex;
-        pWindowParameters->unk11 = 0;
+        pWindowParameters->isOpen = 0;
         pWindowParameters->x = x;
         pWindowParameters->y = y;
         pWindowParameters->width = width;
         pWindowParameters->height = height;
-        pWindowParameters->unk8 = 0;
-        pWindowParameters->unkA = 0;
+        pWindowParameters->curWidth = 0;
+        pWindowParameters->curHeight = 0;
         g_Menu->pManager->unk27[windowIndex] = TRUE;
         pWindowParameters->unk12 = arg6;
         pWindowParameters->zIndex = zIndex;
@@ -1222,27 +1222,27 @@ void GearShopMenuUpdateWindows(void) {
 
     for(i = 0; i < MENU_MAX_NUM_WINDOWS; i++) {
         windowParams = g_Menu->windowParameters[i];
-        if ((g_Menu->pManager->unk27[i]) && (windowParams->unk11 == 0)) {
+        if ((g_Menu->pManager->unk27[i]) && (windowParams->isOpen == 0)) {
             clipCount = 0;
-            if ((windowParams->unk8 + 0x20) >= (s32) windowParams->width) {
+            if ((windowParams->curWidth + 0x20) >= (s32) windowParams->width) {
                 clippedWidth = windowParams->width;
                 clipCount = 1;
             } else {
-                clippedWidth = windowParams->unk8 + 0x20;
+                clippedWidth = windowParams->curWidth + 0x20;
             }
-            windowParams->unk8 = clippedWidth;
-            if ((windowParams->unkA + 0x20) >= (s32) windowParams->height) {
+            windowParams->curWidth = clippedWidth;
+            if ((windowParams->curHeight + 0x20) >= (s32) windowParams->height) {
                 clippedHeight = windowParams->height;
                 clipCount += 1;
             } else {
-                clippedHeight = windowParams->unkA + 0x20;
+                clippedHeight = windowParams->curHeight + 0x20;
             }
-            windowParams->unkA = clippedHeight;
+            windowParams->curHeight = clippedHeight;
             if (clipCount == 2) {
-                windowParams->unk11 = TRUE;
+                windowParams->isOpen = TRUE;
             }
-            heightOffset = windowParams->unkA;
-            widthOffset = windowParams->unk8;
+            heightOffset = windowParams->curHeight;
+            widthOffset = windowParams->curWidth;
             GearShopMenuSetWindow(
                 windowParams->index,
                 ((windowParams->x + ((u16) windowParams->width >> 1)) - (widthOffset >> 1)),
@@ -1301,9 +1301,9 @@ void GearShopMenuRenderScrollBarHandle(void) {
 void GearShopMenuRenderSelectionCursor(void) {
     AddPrim(
         &g_Menu->pGfxEnv->ot[4], 
-        &g_Menu->unk348->drModes1[g_Menu->unk348->unk159]
+        &g_Menu->unk348->drModes1[g_Menu->unk348->drawModeRenderContext]
     );
-    if (g_Menu->pManager->unk4) {
+    if (g_Menu->pManager->shouldRenderPointerCursor) {
         AddPrim(
             &g_Menu->pGfxEnv->ot[4], 
             &g_Menu->unk348->polysPointerCursor[g_Menu->unk348->cursorRenderContext]
@@ -1595,7 +1595,7 @@ void GearShopMenuRenderWindows(void) {
         if (g_Menu->pManager->shouldRenderWindow[i]) {
             pWindow = g_Menu->windows[i];
 
-            if(pWindow->unk714 == 0) {
+            if(pWindow->useDefaultMatrix == 0) {
                 PushMatrix();
                 rotation.vz = 0;
                 rotation.vy = 0;
@@ -1640,7 +1640,7 @@ void GearShopMenuRenderPointerCursors(void) {
     if (g_Menu->pManager->shouldRenderCursors) {
         for (i = 0; i < MENU_MAX_NUM_CURSORS; i++) {
             if (g_Menu->pCursors->shouldRender[i]) {
-                if (g_Menu->pCursors->unk144[i]) {
+                if (g_Menu->pCursors->shouldUpdatePosition[i]) {
                     setXY4(
                         &g_Menu->pCursors->polysCursor[i * 2 + g_Menu->pCursors->renderContexts[i]],
                         g_GearShopPointerCursorBoxX[g_GearShopPointerCursorBoxSlot[g_Menu->menuUnk2->unk4F7C]] + 8,
@@ -1679,7 +1679,7 @@ void GearShopMenuRenderStrings6E0(void) {
     int i;
 
     for(i = 0; i < 8; i++) {
-        if (g_Menu->pManager->unkC[i]) {
+        if (g_Menu->pManager->shouldRenderStrings[i]) {
             AddPrim(
                 &g_Menu->pGfxEnv->ot[4],
                 &g_Menu->unk6E0[i].polys[g_Menu->unk6E0[i].renderContext]
@@ -1694,28 +1694,28 @@ void GearShopMenuRenderStringsAE0(void) {
     int i;
 
     for (i = 0; i < 6; i++) {
-        if (g_Menu->pManager->unk14[i]) {
-            if (g_Menu->unkAE0[i].unk7F) {
+        if (g_Menu->pManager->shouldRenderSubMenuChoiceStrings[i]) {
+            if (g_Menu->subMenuChoiceStrings[i].hasVertices) {
                 RotTransPers4(
-                    &g_Menu->unkAE0[i].vertices[0],
-                    &g_Menu->unkAE0[i].vertices[1],
-                    &g_Menu->unkAE0[i].vertices[2],
-                    &g_Menu->unkAE0[i].vertices[3],
-                    (long*)&g_Menu->unkAE0[i].polys[g_Menu->unkAE0[i].renderContext].x0,
-                    (long*)&g_Menu->unkAE0[i].polys[g_Menu->unkAE0[i].renderContext].x1,
-                    (long*)&g_Menu->unkAE0[i].polys[g_Menu->unkAE0[i].renderContext].x2,
-                    (long*)&g_Menu->unkAE0[i].polys[g_Menu->unkAE0[i].renderContext].x3,
+                    &g_Menu->subMenuChoiceStrings[i].vertices[0],
+                    &g_Menu->subMenuChoiceStrings[i].vertices[1],
+                    &g_Menu->subMenuChoiceStrings[i].vertices[2],
+                    &g_Menu->subMenuChoiceStrings[i].vertices[3],
+                    (long*)&g_Menu->subMenuChoiceStrings[i].polys[g_Menu->subMenuChoiceStrings[i].renderContext].x0,
+                    (long*)&g_Menu->subMenuChoiceStrings[i].polys[g_Menu->subMenuChoiceStrings[i].renderContext].x1,
+                    (long*)&g_Menu->subMenuChoiceStrings[i].polys[g_Menu->subMenuChoiceStrings[i].renderContext].x2,
+                    (long*)&g_Menu->subMenuChoiceStrings[i].polys[g_Menu->subMenuChoiceStrings[i].renderContext].x3,
                     &interpolated,
                     &flag
                 );
                 AddPrim(
                     &g_Menu->pGfxEnv->ot[4],
-                    &g_Menu->unkAE0[i].polys[g_Menu->unkAE0[i].renderContext]
+                    &g_Menu->subMenuChoiceStrings[i].polys[g_Menu->subMenuChoiceStrings[i].renderContext]
                 );
             } else {
                 AddPrim(
                     &g_Menu->pGfxEnv->ot[4],
-                    &g_Menu->unkAE0[i].polys[g_Menu->unkAE0[i].renderContext]
+                    &g_Menu->subMenuChoiceStrings[i].polys[g_Menu->subMenuChoiceStrings[i].renderContext]
                 );
             }
 
@@ -1742,11 +1742,11 @@ void GearShopMenuRenderModalStrings(void) {
     MenuString* pMenuString;
     int i;
 
-    if(g_Menu->pManager->unk2B != 0) {
+    if(g_Menu->pManager->shouldRenderModalStrings != 0) {
         for(i = 0; i < 3; i++) {
-            pMenuString = g_Menu->unk1DE0[i];
+            pMenuString = g_Menu->modalStrings[i];
 
-            if(pMenuString->unk7F) {
+            if(pMenuString->hasVertices) {
                 RotTransPers4(
                     &pMenuString->vertices[0],
                     &pMenuString->vertices[1],
@@ -1782,10 +1782,10 @@ void GearShopMenuRenderSelectionMenu(void) {
     int i;
 
     if (g_Menu->pManager->shouldRenderSelectionMenu) {
-        if (g_Menu->pSelectionMenu->unk1192 != g_Menu->pSelectionMenu->unk1193) {
+        if (g_Menu->pSelectionMenu->isDisabled != g_Menu->pSelectionMenu->isDisabledRendered) {
 
             // Render the selection menu as disabled
-            if (g_Menu->pSelectionMenu->unk1192) {
+            if (g_Menu->pSelectionMenu->isDisabled) {
                 for (i = 0; i < g_Menu->pSelectionMenu->numTexts; i++) {
                     SetSemiTrans(&g_Menu->pSelectionMenu->polysTexts[i*2 + g_Menu->pSelectionMenu->textsRenderCtx], 1);
                     SetShadeTex(&g_Menu->pSelectionMenu->polysTexts[i*2 + g_Menu->pSelectionMenu->textsRenderCtx], 0);
@@ -1817,7 +1817,7 @@ void GearShopMenuRenderSelectionMenu(void) {
                 }
             }
 
-            g_Menu->pSelectionMenu->unk1193 = g_Menu->pSelectionMenu->unk1192;
+            g_Menu->pSelectionMenu->isDisabledRendered = g_Menu->pSelectionMenu->isDisabled;
         }
 
         GearShopMenuRenderString(g_Menu->pSelectionMenu->numTexts, g_Menu->pSelectionMenu->polysTexts, g_Menu->pSelectionMenu->textsRenderCtx);
@@ -1826,9 +1826,9 @@ void GearShopMenuRenderSelectionMenu(void) {
 }
 
 void GearShopMenuRenderSubmenuStrings(void) {
-    if (g_Menu->pManager->unkA) {
-        GearShopMenuRenderString(g_Menu->unk354->unk1404, g_Menu->unk354->polys500, g_Menu->unk354->unk1409);
-        GearShopMenuRenderString(g_Menu->unk354->unk1400, g_Menu->unk354->polys0, g_Menu->unk354->unk1408);
+    if (g_Menu->pManager->shouldRenderSubmenuStrings) {
+        GearShopMenuRenderString(g_Menu->unk354->polys500PrimCount, g_Menu->unk354->polys500, g_Menu->unk354->polys500RenderCtx);
+        GearShopMenuRenderString(g_Menu->unk354->polys0PrimCount, g_Menu->unk354->polys0, g_Menu->unk354->polys0RenderCtx);
     }
 }
 
@@ -2252,8 +2252,8 @@ void GearShopMenuInitializePointerCursors(u8 mode) {
     switch(mode) {
         case 0:
             g_Menu->pManager->shouldRenderCursors = TRUE;
-            g_Menu->pCursors->unk144[0] = TRUE;
-            g_Menu->pCursors->unk144[1] = TRUE;
+            g_Menu->pCursors->shouldUpdatePosition[0] = TRUE;
+            g_Menu->pCursors->shouldUpdatePosition[1] = TRUE;
         case 2:
             for(i = 0; i < 4; i++) {
                 func_8002675C(
@@ -2304,32 +2304,32 @@ void GearShopMenuConfirmationWindowInitialize(u8 stringIndex) {
 
     GearShopMenuInitializeWindow(4, 0x42, 0x46, 0xC0, 0x40, 1, 1, 4, 0);
     pWindowParams = g_Menu->windowParameters[4];
-    while (!pWindowParams->unk11) {
+    while (!pWindowParams->isOpen) {
         GearShopMenuUpdateAndRender();
     }
 
     for (i = 0; i < 4; i++) {
-        g_Menu->unk1DE0[i] = HeapAlloc(sizeof(MenuString), 0);
-        bzero((u8 *)g_Menu->unk1DE0[i], sizeof(MenuString));
+        g_Menu->modalStrings[i] = HeapAlloc(sizeof(MenuString), 0);
+        bzero((u8 *)g_Menu->modalStrings[i], sizeof(MenuString));
 
         // Even indices
         if (!(i & 1)) {
             // Buffer size = FONT_LETTER_HEIGHT * 57 * 2
-            g_Menu->unk1DE0[i]->pVramBuffer = HeapAlloc(0x5CA, 0);
-            g_Menu->unk1DE0[i]->vramDest.x = 320;
-            g_Menu->unk1DE0[i]->vramDest.y = ((i / 2) * FONT_LETTER_HEIGHT) + 78;
-            g_Menu->unk1DE0[i]->vramDest.w = 58;
-            g_Menu->unk1DE0[i]->vramDest.h = FONT_LETTER_HEIGHT;
+            g_Menu->modalStrings[i]->pVramBuffer = HeapAlloc(0x5CA, 0);
+            g_Menu->modalStrings[i]->vramDest.x = 320;
+            g_Menu->modalStrings[i]->vramDest.y = ((i / 2) * FONT_LETTER_HEIGHT) + 78;
+            g_Menu->modalStrings[i]->vramDest.w = 58;
+            g_Menu->modalStrings[i]->vramDest.h = FONT_LETTER_HEIGHT;
             continue;
         }
 
         // Odd indices, share VRAM buffer w/ prev entry
-        g_Menu->unk1DE0[i]->pVramBuffer = g_Menu->unk1DE0[i - 1]->pVramBuffer;
+        g_Menu->modalStrings[i]->pVramBuffer = g_Menu->modalStrings[i - 1]->pVramBuffer;
     }
 
     // Render strings to text areas
     for (i = 0; i < 3; i++) {
-        pString = g_Menu->unk1DE0[i];
+        pString = g_Menu->modalStrings[i];
         pString->width = SystemRenderStringEntry(
             GetStringEntry(g_Menu->unk2E0, stringIndex + i),
             pString->pVramBuffer, 0x36, i % 2
@@ -2350,17 +2350,17 @@ void GearShopMenuConfirmationWindowInitialize(u8 stringIndex) {
             pString->width,   (i / 2) * FONT_LETTER_HEIGHT + 0x5B
         );
         pString->renderContext = g_Menu->renderContext;
-        pString->unk7F = 1;
+        pString->hasVertices = 1;
     }
 
     // Transfer text areas to VRAM
-    LoadImage(&g_Menu->unk1DE0[0]->vramDest, g_Menu->unk1DE0[0]->pVramBuffer);
-    LoadImage(&g_Menu->unk1DE0[2]->vramDest, g_Menu->unk1DE0[2]->pVramBuffer);
+    LoadImage(&g_Menu->modalStrings[0]->vramDest, g_Menu->modalStrings[0]->pVramBuffer);
+    LoadImage(&g_Menu->modalStrings[2]->vramDest, g_Menu->modalStrings[2]->pVramBuffer);
     DrawSync(0);
 
-    g_Menu->pManager->unk2B = 1;
-    HeapFree(g_Menu->unk1DE0[0]->pVramBuffer);
-    HeapFree(g_Menu->unk1DE0[2]->pVramBuffer);
+    g_Menu->pManager->shouldRenderModalStrings = 1;
+    HeapFree(g_Menu->modalStrings[0]->pVramBuffer);
+    HeapFree(g_Menu->modalStrings[2]->pVramBuffer);
     if (g_Menu->pManager->unk5B == 2) {
         g_Menu->pManager->unk5B = 1;
     }
@@ -2374,10 +2374,10 @@ void GearShopMenuConfirmationWindowFree(void) {
     if (g_Menu->pManager->shouldRenderWindow[4]) {
         GearShopMenuFreeWindow(4);
 
-        g_Menu->pManager->unk2B = 0;
+        g_Menu->pManager->shouldRenderModalStrings = 0;
 
         for(i = 0; i < 4; i++) {
-            HeapFree(g_Menu->unk1DE0[i]);
+            HeapFree(g_Menu->modalStrings[i]);
         }
     }
     g_Menu->pManager->unk5B = 0;
@@ -2571,8 +2571,8 @@ void GearShopMenuSetMenuStringPosition(s32 arg0, MenuString *pStringList, s32 __
 void GearShopMenuInitializeShopModeSelectionMenu(int count, int* pResourceIDs) {
     int i, j;
 
-    g_Menu->pSelectionMenu->unk1192 = FALSE;
-    g_Menu->pSelectionMenu->unk1193 = FALSE;
+    g_Menu->pSelectionMenu->isDisabled = FALSE;
+    g_Menu->pSelectionMenu->isDisabledRendered = FALSE;
 
     g_Menu->pManager->shouldRenderSelectionMenu = TRUE;
 
@@ -2624,24 +2624,24 @@ void GearShopMenuInitializeSubmenu(u_char offset) {
     
     shouldUpdateAndRender = TRUE;
     
-    g_Menu->pSelectionMenu->unk1192 = FALSE;
-    g_Menu->pSelectionMenu->unk1193 = FALSE;
+    g_Menu->pSelectionMenu->isDisabled = FALSE;
+    g_Menu->pSelectionMenu->isDisabledRendered = FALSE;
     
-    g_Menu->unk354->unk1400 = 0;
-    g_Menu->unk354->unk1404 = 0;
+    g_Menu->unk354->polys0PrimCount = 0;
+    g_Menu->unk354->polys500PrimCount = 0;
     
-    g_Menu->pManager->unkA = TRUE;
+    g_Menu->pManager->shouldRenderSubmenuStrings = TRUE;
     
     for (i = 1; i < MAX_NUM_SUBMENU_OPTIONS + 1; i++) {
-        g_Menu->unk354->unk1400 = 0;
+        g_Menu->unk354->polys0PrimCount = 0;
         g_Menu->subMenuNumChoices = 0;
         
         for (j = 0; j < i; j++) {
             if (g_GearShopSubmenuTextureIds[((offset + g_Menu->mainMenuChoice) * 8) + (j * 2)] != MENU_RESOURCE_NONE) {
-                g_Menu->unk354->unk1400 += func_8002675C(
+                g_Menu->unk354->polys0PrimCount += func_8002675C(
                     g_Menu->resources, 
                     g_GearShopSubmenuTextureIds[((offset + g_Menu->mainMenuChoice) * 8) + (j * 2)],
-                    &g_Menu->unk354->polys0[g_Menu->unk354->unk1400 * 2], 
+                    &g_Menu->unk354->polys0[g_Menu->unk354->polys0PrimCount * 2], 
                     g_Menu->renderContext,
                     0xA0, 0x96,
                     0x1000
@@ -2652,20 +2652,20 @@ void GearShopMenuInitializeSubmenu(u_char offset) {
             }
         }
         
-        g_Menu->unk354->unk1408 = g_Menu->renderContext;
+        g_Menu->unk354->polys0RenderCtx = g_Menu->renderContext;
         if (shouldUpdateAndRender) {
             for (j = 0; j < 2; j++) {
                 GearShopMenuUpdateAndRender();
             }
         }
         
-        g_Menu->unk354->unk1404 = 0;
+        g_Menu->unk354->polys500PrimCount = 0;
         for (j = 0; j < i; j++) {
             if (g_GearShopSubmenuTextureIds[((offset + g_Menu->mainMenuChoice) * 8) + j * 2] != MENU_RESOURCE_NONE) {
-                g_Menu->unk354->unk1404 += func_8002675C(
+                g_Menu->unk354->polys500PrimCount += func_8002675C(
                     g_Menu->resources, 
                     g_GearShopSubmenuTextureIds[((offset + g_Menu->mainMenuChoice) * 8) + j * 2 + 1],
-                    &g_Menu->unk354->polys500[g_Menu->unk354->unk1404 * 2],
+                    &g_Menu->unk354->polys500[g_Menu->unk354->polys500PrimCount * 2],
                     g_Menu->renderContext,
                     0xA0, 0x96, 
                     0x1000
@@ -2673,7 +2673,7 @@ void GearShopMenuInitializeSubmenu(u_char offset) {
             }
         }
         
-        g_Menu->unk354->unk1409 = g_Menu->renderContext;
+        g_Menu->unk354->polys500RenderCtx = g_Menu->renderContext;
         if (shouldUpdateAndRender) {
             for (j = 0; j < 2; j++) {
                 GearShopMenuUpdateAndRender();
@@ -2719,15 +2719,15 @@ void GearShopMenuUpdateSelectionMenuTextures(u8 count, u8 currentChoice, s32* pT
     g_Menu->pSelectionMenu->cursorsRenderCtx = g_Menu->renderContext;
     g_Menu->pSelectionMenu->textsRenderCtx = g_Menu->renderContext;
     GearShopMenuSetSelectionCursor(currentChoice, 1);
-    g_Menu->pManager->unk4 = 1;
+    g_Menu->pManager->shouldRenderPointerCursor = 1;
 }
 
 void GearShopMenuUpdateSubmenuTextures(u_char offset) {
     int i;
     int index;
 
-    g_Menu->unk354->unk1400 = 0;
-    g_Menu->unk354->unk1404 = 0;
+    g_Menu->unk354->polys0PrimCount = 0;
+    g_Menu->unk354->polys500PrimCount = 0;
 
     for(i = 0; i < g_Menu->subMenuNumChoices; i++) {
         // The ball cursor for the menu option
@@ -2739,10 +2739,10 @@ void GearShopMenuUpdateSubmenuTextures(u_char offset) {
             index = g_GearShopSubmenuTextureIds[((offset + g_Menu->mainMenuChoice) * 8) + (i * 2)];
         }
 
-        g_Menu->unk354->unk1400 += func_8002675C(
+        g_Menu->unk354->polys0PrimCount += func_8002675C(
             g_Menu->resources,
             index,
-            &g_Menu->unk354->polys0[g_Menu->unk354->unk1400 * 2],
+            &g_Menu->unk354->polys0[g_Menu->unk354->polys0PrimCount * 2],
             g_Menu->renderContext,
             0xA0,
             0x96,
@@ -2750,10 +2750,10 @@ void GearShopMenuUpdateSubmenuTextures(u_char offset) {
         );
 
         // The string texture for the menu option
-        g_Menu->unk354->unk1404 += func_8002675C(
+        g_Menu->unk354->polys500PrimCount += func_8002675C(
             g_Menu->resources,
             D_801D69A4[((offset + g_Menu->mainMenuChoice) * 8) + (i * 2)],
-            &g_Menu->unk354->polys500[g_Menu->unk354->unk1404*2],
+            &g_Menu->unk354->polys500[g_Menu->unk354->polys500PrimCount*2],
             g_Menu->renderContext,
             0xA0,
             0x96,
@@ -2761,10 +2761,10 @@ void GearShopMenuUpdateSubmenuTextures(u_char offset) {
         );
     }
 
-    g_Menu->unk354->unk1408 = g_Menu->renderContext;
-    g_Menu->unk354->unk1409 = g_Menu->renderContext;
+    g_Menu->unk354->polys0RenderCtx = g_Menu->renderContext;
+    g_Menu->unk354->polys500RenderCtx = g_Menu->renderContext;
     GearShopMenuSetSelectionCursor(g_Menu->subMenuChoice + 4, 1);
-    g_Menu->pManager->unk4 = TRUE;
+    g_Menu->pManager->shouldRenderPointerCursor = TRUE;
 }
 
 u_char GearShopMenuShopModeMenuHandleSelectedOption(void) {
@@ -2783,17 +2783,17 @@ u_char GearShopMenuShopModeMenuHandleSelectedOption(void) {
     // intentionally using selection w/o intialization
     if (selection) {
         GearShopMenuNoOp2();
-        GearShopMenuRenderMenuStringsToVram(4, g_Menu->unk6E0, &g_GearShopMainMenuStringIds[0], g_Menu->pManager->unkC);
+        GearShopMenuRenderMenuStringsToVram(4, g_Menu->unk6E0, &g_GearShopMainMenuStringIds[0], g_Menu->pManager->shouldRenderStrings);
     }
 
     // Render selection menu as active agian
-    g_Menu->pSelectionMenu->unk1192 = FALSE;
-    g_Menu->pSelectionMenu->unk1193 = TRUE;
+    g_Menu->pSelectionMenu->isDisabled = FALSE;
+    g_Menu->pSelectionMenu->isDisabledRendered = TRUE;
 
-    g_Menu->pManager->unk4 = TRUE;
+    g_Menu->pManager->shouldRenderPointerCursor = TRUE;
     g_Menu->pManager->unk3 = TRUE;
     g_Menu->mainMenuPrevChoice = 0xFF;
-    g_Menu->pManager->unkA = FALSE;
+    g_Menu->pManager->shouldRenderSubmenuStrings = FALSE;
     
     return isRunning;
 }
@@ -2810,7 +2810,7 @@ void GearShopMenuShopModeMain(void) {
     g_Menu->mainMenuChoice = 2; // Start cursor at "Buy" option
     GearShopMenuInitializeShopModeSelectionMenu(5, &g_GearShopMainMenuTextureIds);
 
-    GearShopMenuRenderMenuStringsToVram(4, g_Menu->unk6E0, &g_GearShopMainMenuStringIds[0], g_Menu->pManager->unkC);
+    GearShopMenuRenderMenuStringsToVram(4, g_Menu->unk6E0, &g_GearShopMainMenuStringIds[0], g_Menu->pManager->shouldRenderStrings);
 
     if (g_gearShopAvailableCharacterCount >= 2) {
         g_Menu->pManager->shoulderButtonUiActive = TRUE;
@@ -2822,13 +2822,13 @@ void GearShopMenuShopModeMain(void) {
             case MENU_INPUT_CONFIRM:
                 GearShopMenuPlaySoundEffect(2);
                 
-                g_Menu->pSelectionMenu->unk1192 = TRUE;
+                g_Menu->pSelectionMenu->isDisabled = TRUE;
                 
                 GearShopMenuResetSelectionCursor();
-                GearShopMenuClearStringRenderFlags(4, g_Menu->pManager->unkC);
-                g_Menu->unk348->unk15B = 0x4C;
+                GearShopMenuClearStringRenderFlags(4, g_Menu->pManager->shouldRenderStrings);
+                g_Menu->unk348->shadeWidth = 0x4C;
                 isRunning = GearShopMenuShopModeMenuHandleSelectedOption();
-                g_Menu->unk348->unk15B = 0x40;
+                g_Menu->unk348->shadeWidth = 0x40;
                 break;
                 
             case MENU_INPUT_BACK:
@@ -2860,7 +2860,7 @@ void GearShopMenuShopModeMain(void) {
         
         if (g_Menu->mainMenuChoice != g_Menu->mainMenuPrevChoice) {
             GearShopMenuUpdateSelectionMenuTextures(4, g_Menu->mainMenuChoice, &g_GearShopMainMenuTextureIds);
-            GearShopMenuSetMenuStringPosition(4, g_Menu->unk6E0, &g_GearShopMainMenuStringIds[0], &g_GearShopMainMenuStringOffsets, g_Menu->pManager->unkC, g_Menu->mainMenuChoice, 0, 0);
+            GearShopMenuSetMenuStringPosition(4, g_Menu->unk6E0, &g_GearShopMainMenuStringIds[0], &g_GearShopMainMenuStringOffsets, g_Menu->pManager->shouldRenderStrings, g_Menu->mainMenuChoice, 0, 0);
             g_Menu->mainMenuPrevChoice = g_Menu->mainMenuChoice;
         }
     }
@@ -2884,7 +2884,7 @@ void GearShopMenuMain(void) {
     g_Menu->pSelectionMenu->unk1180.y = 0x100;
     g_Menu->pSelectionMenu->unk1180.w = 0x140;
     g_Menu->pSelectionMenu->unk1180.h = 0xE0;
-    g_Menu->unk348->unk15B = 0x40;
+    g_Menu->unk348->shadeWidth = 0x40;
     g_Menu->translation.vz = 0x200;
     g_Menu->rotation.vz = 0;
     g_Menu->rotation.vx = 0;

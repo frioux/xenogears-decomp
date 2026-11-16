@@ -104,17 +104,17 @@ void MenuProcessControllerInput(void) {
         }
         if (g_C1ButtonStatePressedOnce & CTRL_BTN_SELECT) {
             input = 12;
-            g_Menu->unk1E94 = g_Menu->unk1E94 == 0;
+            g_Menu->debuggerEnabled = g_Menu->debuggerEnabled == 0;
             break;
         }
         if (g_C1ButtonStatePressedOnce & CTRL_BTN_L1) {
-            if (g_Menu->unk1E95) {
-                g_Menu->unk1E95 -= 1;
+            if (g_Menu->debuggerPage) {
+                g_Menu->debuggerPage -= 1;
             }
             break;
         }
         if (g_C1ButtonStatePressedOnce & CTRL_BTN_L2) {
-            g_Menu->unk1E95 += 1;
+            g_Menu->debuggerPage += 1;
             break;
         }
     }
@@ -136,10 +136,10 @@ void MenuUpdateAndRender(void) {
     g_Menu->renderContext = g_Menu->renderContext == 0;
     ClearOTagR(g_Menu->pGfxEnv->ot, 0x10);
     if (*g_DebuggerState != -1) {
-        if (g_Menu->unk1E94) {
-            // unk1E95 is volatile for MenuProcessControllerInput's sake only; the
+        if (g_Menu->debuggerEnabled) {
+            // debuggerPage is volatile for MenuProcessControllerInput's sake only; the
             // original read it plainly here
-            HeapDebugDump(3, *(u_char*)&g_Menu->unk1E95, 0xF, 0x80AC);
+            HeapDebugDump(3, *(u_char*)&g_Menu->debuggerPage, 0xF, 0x80AC);
         }
         if (*g_DebuggerState != -1) {
             FontDrawLetters(g_Menu->pGfxEnv->ot);
@@ -308,8 +308,8 @@ void MenuMain() {
     g_Menu->input = 8;
     HeapChangeCurrentUser(HEAP_USER_HIG, NULL);
     g_Menu->pGfxEnv = &g_Menu->gfxEnvs[1];
-    g_Menu->unk1E94 = 0;
-    g_Menu->unk1E95 = 1;
+    g_Menu->debuggerEnabled = 0;
+    g_Menu->debuggerPage = 1;
     g_Menu->unk2D8 = 0;
     g_Menu->shouldDrawMenu = FALSE;
     MenuInitializeGfxEnvironments();

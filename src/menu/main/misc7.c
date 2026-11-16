@@ -129,23 +129,23 @@ void MenuInitializeWindowBorderCorners(u_char index, u_short x, u_short y, u_sho
     u16 bottom;
     s32 i;
 
-    pWindow->unk710 = 0;
-    pWindow->unk710 = func_8002675C(g_Menu->resources, MENU_TEX_WINDOW_BORDER_TOP_LEFT,
+    pWindow->borderPrimCount = 0;
+    pWindow->borderPrimCount = func_8002675C(g_Menu->resources, MENU_TEX_WINDOW_BORDER_TOP_LEFT,
                                     pWindow->polysWindowBorderCorners,
                                     g_Menu->renderContext, 0, 0, 0x1000)
-                    + pWindow->unk710;
-    pWindow->unk710 = func_8002675C(g_Menu->resources, MENU_TEX_WINDOW_BORDER_TOP_RIGHT,
-                                    &pWindow->polysWindowBorderCorners[2 * pWindow->unk710],
+                    + pWindow->borderPrimCount;
+    pWindow->borderPrimCount = func_8002675C(g_Menu->resources, MENU_TEX_WINDOW_BORDER_TOP_RIGHT,
+                                    &pWindow->polysWindowBorderCorners[2 * pWindow->borderPrimCount],
                                     g_Menu->renderContext, 0, 0, 0x1000)
-                    + pWindow->unk710;
-    pWindow->unk710 = func_8002675C(g_Menu->resources, MENU_TEX_WINDOW_BORDER_BOTTOM_LEFT,
-                                    &pWindow->polysWindowBorderCorners[2 * pWindow->unk710],
+                    + pWindow->borderPrimCount;
+    pWindow->borderPrimCount = func_8002675C(g_Menu->resources, MENU_TEX_WINDOW_BORDER_BOTTOM_LEFT,
+                                    &pWindow->polysWindowBorderCorners[2 * pWindow->borderPrimCount],
                                     g_Menu->renderContext, 0, 0, 0x1000)
-                    + pWindow->unk710;
-    pWindow->unk710 = func_8002675C(g_Menu->resources, MENU_TEX_WINDOW_BORDER_BOTTOM_RIGHT,
-                                    &pWindow->polysWindowBorderCorners[2 * pWindow->unk710],
+                    + pWindow->borderPrimCount;
+    pWindow->borderPrimCount = func_8002675C(g_Menu->resources, MENU_TEX_WINDOW_BORDER_BOTTOM_RIGHT,
+                                    &pWindow->polysWindowBorderCorners[2 * pWindow->borderPrimCount],
                                     g_Menu->renderContext, 0, 0, 0x1000)
-                    + pWindow->unk710;
+                    + pWindow->borderPrimCount;
     left = x - 8;
     top = y + 8;
     MenuSetQuadVertices(pWindow->vertsWindowBorderCorners, left, top, 0x10, 0xFFF0);
@@ -332,7 +332,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D49D0);
    }
 */
 void MenuSetWindow(u_char index, u_short x, u_short y, u_short width, u_short height,
-                   u_char unk714, s32 zIndex, u_char hasScrollBar) {
+                   u_char useDefaultMatrix, s32 zIndex, u_char hasScrollBar) {
     MenuWindow* pWindow = g_Menu->windows[index];
 
     g_Menu->pManager->shouldRenderWindow[index] = 0;
@@ -346,7 +346,7 @@ void MenuSetWindow(u_char index, u_short x, u_short y, u_short width, u_short he
         func_801D3C4C(index, x, y, width, height);
     }
     pWindow->hasScrollBar = hasScrollBar;
-    pWindow->unk714 = unk714;
+    pWindow->useDefaultMatrix = useDefaultMatrix;
     pWindow->zIndex = zIndex;
     pWindow->renderContext = *(u8*)&g_Menu->renderContext;
     g_Menu->pManager->shouldRenderWindow[index] = 1;

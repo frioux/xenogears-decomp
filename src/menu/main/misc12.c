@@ -355,7 +355,7 @@ void func_801E7C50(MenuString* pStringList, s32 index, s32 yOffset, s32 flags) {
             pPoly->clut = g_SystemPalette1;
         }
     }
-    pStringList->unk7F = 0;
+    pStringList->hasVertices = 0;
 }
 */
 
@@ -404,8 +404,8 @@ void MenuRevealSelectionMenu(s32 count, s32* pEntries) {
     s32 j;
     u32 off;
 
-    g_Menu->pSelectionMenu->unk1192 = 0;
-    g_Menu->pSelectionMenu->unk1193 = 0;
+    g_Menu->pSelectionMenu->isDisabled = 0;
+    g_Menu->pSelectionMenu->isDisabledRendered = 0;
     g_Menu->pManager->shouldRenderSelectionMenu = 1;
     for (i = 1; i <= count; i++) {
         if (i != count) {
@@ -503,41 +503,41 @@ void func_801E86C8(u_char selected) {
     s32* pText;
 
     allValid = 1;
-    g_Menu->unk354->unk1400 = 0;
-    g_Menu->unk354->unk1404 = 0;
-    g_Menu->pManager->unkA = 1;
+    g_Menu->unk354->polys0PrimCount = 0;
+    g_Menu->unk354->polys500PrimCount = 0;
+    g_Menu->pManager->shouldRenderSubmenuStrings = 1;
     pText = g_MenuSubMenuChoiceIds + 1;
     for (n = 1; n < 5; n++) {
-        g_Menu->unk354->unk1400 = 0;
+        g_Menu->unk354->polys0PrimCount = 0;
         g_Menu->subMenuNumChoices = 0;
         for (i = 0; i < n; i++) {
             if (g_MenuSubMenuChoiceIds[(selected + g_Menu->mainMenuChoice) * 8 + i * 2] != 0xFFFF) {
-                g_Menu->unk354->unk1400 = func_8002675C(g_Menu->resources,
+                g_Menu->unk354->polys0PrimCount = func_8002675C(g_Menu->resources,
                     g_MenuSubMenuChoiceIds[(selected + g_Menu->mainMenuChoice) * 8 + i * 2],
-                    (POLY_FT4*)(g_Menu->unk354->unk1400 * 0x50 + (s32)g_Menu->unk354),
-                    g_Menu->renderContext, 0xA0, 0x96, 0x1000) + g_Menu->unk354->unk1400;
+                    (POLY_FT4*)(g_Menu->unk354->polys0PrimCount * 0x50 + (s32)g_Menu->unk354),
+                    g_Menu->renderContext, 0xA0, 0x96, 0x1000) + g_Menu->unk354->polys0PrimCount;
                 g_Menu->subMenuNumChoices++;
             } else {
                 allValid = 0;
             }
         }
-        g_Menu->unk354->unk1408 = *(u8*)&g_Menu->renderContext;
+        g_Menu->unk354->polys0RenderCtx = *(u8*)&g_Menu->renderContext;
         if (allValid) {
             for (i = 0; i < 2; i++) {
                 MenuRenderFrame();
             }
         }
-        g_Menu->unk354->unk1404 = 0;
+        g_Menu->unk354->polys500PrimCount = 0;
         for (i = 0; i < n; i++) {
             if (g_MenuSubMenuChoiceIds[(selected + g_Menu->mainMenuChoice) * 8 + i * 2] != 0xFFFF) {
-                off = g_Menu->unk354->unk1404 * 0x50 + 0x500;
-                g_Menu->unk354->unk1404 = func_8002675C(g_Menu->resources,
+                off = g_Menu->unk354->polys500PrimCount * 0x50 + 0x500;
+                g_Menu->unk354->polys500PrimCount = func_8002675C(g_Menu->resources,
                     pText[(selected + g_Menu->mainMenuChoice) * 8 + i * 2],
                     (POLY_FT4*)(off + (s32)g_Menu->unk354),
-                    g_Menu->renderContext, 0xA0, 0x96, 0x1000) + g_Menu->unk354->unk1404;
+                    g_Menu->renderContext, 0xA0, 0x96, 0x1000) + g_Menu->unk354->polys500PrimCount;
             }
         }
-        g_Menu->unk354->unk1409 = *(u8*)&g_Menu->renderContext;
+        g_Menu->unk354->polys500RenderCtx = *(u8*)&g_Menu->renderContext;
         if (allValid) {
             for (i = 0; i < 2; i++) {
                 MenuRenderFrame();
@@ -571,34 +571,34 @@ void MenuSetSelectionMenuPrims(u_char count, u_char selected, s32* pEntries) {
     g_Menu->pSelectionMenu->cursorsRenderCtx = *(u8*)&g_Menu->renderContext;
     g_Menu->pSelectionMenu->textsRenderCtx = *(u8*)&g_Menu->renderContext;
     MenuMovePointerCursor(selected, 1);
-    g_Menu->pManager->unk4 = 1;
+    g_Menu->pManager->shouldRenderPointerCursor = 1;
 }
 void MenuSetSubMenuChoicePrims(u_char selected) {
     s32 i;
     u32 index;
     u32 off;
 
-    g_Menu->unk354->unk1400 = 0;
-    g_Menu->unk354->unk1404 = 0;
+    g_Menu->unk354->polys0PrimCount = 0;
+    g_Menu->unk354->polys500PrimCount = 0;
     for (i = 0; i < g_Menu->subMenuNumChoices; i++) {
         if (i == g_Menu->subMenuChoice) {
             index = g_MenuSubMenuChoiceIds[(selected + g_Menu->mainMenuChoice) * 8 + i * 2] + 0xD;
         } else {
             index = g_MenuSubMenuChoiceIds[(selected + g_Menu->mainMenuChoice) * 8 + i * 2];
         }
-        g_Menu->unk354->unk1400 = func_8002675C(g_Menu->resources, index,
-            (POLY_FT4*)(g_Menu->unk354->unk1400 * 0x50 + (s32)g_Menu->unk354),
-            g_Menu->renderContext, 0xA0, 0x96, 0x1000) + g_Menu->unk354->unk1400;
-        off = g_Menu->unk354->unk1404 * 0x50 + 0x500;
-        g_Menu->unk354->unk1404 = func_8002675C(g_Menu->resources,
+        g_Menu->unk354->polys0PrimCount = func_8002675C(g_Menu->resources, index,
+            (POLY_FT4*)(g_Menu->unk354->polys0PrimCount * 0x50 + (s32)g_Menu->unk354),
+            g_Menu->renderContext, 0xA0, 0x96, 0x1000) + g_Menu->unk354->polys0PrimCount;
+        off = g_Menu->unk354->polys500PrimCount * 0x50 + 0x500;
+        g_Menu->unk354->polys500PrimCount = func_8002675C(g_Menu->resources,
             D_801EA1F0[(selected + g_Menu->mainMenuChoice) * 8 + i * 2],
             (POLY_FT4*)(off + (s32)g_Menu->unk354),
-            g_Menu->renderContext, 0xA0, 0x96, 0x1000) + g_Menu->unk354->unk1404;
+            g_Menu->renderContext, 0xA0, 0x96, 0x1000) + g_Menu->unk354->polys500PrimCount;
     }
-    g_Menu->unk354->unk1408 = *(u8*)&g_Menu->renderContext;
-    g_Menu->unk354->unk1409 = *(u8*)&g_Menu->renderContext;
+    g_Menu->unk354->polys0RenderCtx = *(u8*)&g_Menu->renderContext;
+    g_Menu->unk354->polys500RenderCtx = *(u8*)&g_Menu->renderContext;
     MenuMovePointerCursor(g_Menu->subMenuChoice + 7, 1);
-    g_Menu->pManager->unk4 = 1;
+    g_Menu->pManager->shouldRenderPointerCursor = 1;
 }
 void MenuLoadCharacterNameTexture(s32 arg0, s32 arg1) {
     RECT rect;

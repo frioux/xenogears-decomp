@@ -156,7 +156,7 @@ typedef struct {
     /* 0x7C */ u8 unk7C; // Palette?
     /* 0x7D */ u8 renderContext;
     /* 0x7E */ u8 width;
-    /* 0x7F */ u8 unk7F;
+    /* 0x7F */ u8 hasVertices; // Set when vertices[] must go through RotTransPers4
 } MenuString; // Size: 0x80
 
 typedef struct {
@@ -194,9 +194,9 @@ typedef struct {
     /* 0x128 */ DR_MODE drModes1[2];
     /* 0x140 */ DR_MODE drawModeDimEffect[2];
     /* 0x158 */ u_char cursorRenderContext;
-    /* 0x159 */ u8 unk159;
+    /* 0x159 */ u8 drawModeRenderContext;
     /* 0x15A */ u8 unk15A;
-    /* 0x15B */ u8 unk15B;
+    /* 0x15B */ u8 shadeWidth; // Width of the shaded rectangle behind the cursor
 } MenuUnk1; // Size: 0x15C
 
 typedef struct {
@@ -247,29 +247,29 @@ typedef struct {
 typedef struct {
     /* 0x0  */ u8 unk0[0x3];
     /* 0x3  */ u8 unk3;
-    /* 0x4  */ u8 unk4; // Should we draw the pointer cursor on ball selection windows?
+    /* 0x4  */ u8 shouldRenderPointerCursor; // On the ball selection windows?
     /* 0x5  */ u8 unk5[0x3];
     /* 0x8  */ u8 unk8;
     /* 0x9  */ u8 shouldRenderSelectionMenu;
-    /* 0xA  */ u8 unkA; // Should we draw MenuUnk5 strings?
+    /* 0xA  */ u8 shouldRenderSubmenuStrings; // Gates MenuUnk5 (unk354) string prims
     /* 0xB  */ u8 unkB;
-    /* 0xC  */ u8 unkC[0x8];
-    /* 0x14 */ u8 unk14[0x6];
+    /* 0xC  */ u8 shouldRenderStrings[0x8]; // One flag per g_Menu->unk6E0 string
+    /* 0x14 */ u8 shouldRenderSubMenuChoiceStrings[0x6]; // One flag per g_Menu->subMenuChoiceStrings
     /* 0x1A */ u8 unk1A[0x6];
     /* 0x20 */ u8 shouldRenderWindow[MENU_MAX_NUM_WINDOWS];
     /* 0x27 */ u8 unk27[MENU_MAX_NUM_WINDOWS];
-    /* 0x2B */ u8 unk2B;
+    /* 0x2B */ u8 shouldRenderModalStrings;
     /* 0x2C */ u_char shouldRenderCursors;
     /* 0x30 */ u8 currentCharacterIDs[0x3];
     /* 0x33 */ u8 _pad33;
     /* 0x34 */ u8 unk34[0x4];
     /* 0x38 */ u8 unk38[0x8];
     /* 0x40 */ u8 unk40[0x6];
-    /* 0x46 */ u8 unk46; // Should render characters?
+    /* 0x46 */ u8 shouldRenderCharacters;
     /* 0x47 */ u8 unk47;
     /* 0x48 */ u8 unk48;
     /* 0x49 */ u_char scrollHandleActive;
-    /* 0x4A */ u8 unk4A[0x4];
+    /* 0x4A */ u8 shouldRenderPanel[0x4]; // One flag per 0x360/0x430/0x434/0x438 panel
     /* 0x4E */ u8 unk4E;
     /* 0x4F */ u8 unk4F;
     /* 0x50 */ u8 shouldRenderArrowCursor[MENU_MAX_NUM_ARROW_CURSORS]; // Should render arrow cursor (array, size 3?)
@@ -292,18 +292,18 @@ typedef struct {
     /* 0x118C */ int numTexts;
     /* 0x1190 */ u_char cursorsRenderCtx;
     /* 0x1191 */ u_char textsRenderCtx;
-    /* 0x1192 */ u_char unk1192; // If set to true, and the field below is not true, fade out the menu gfx
-    /* 0x1193 */ u_char unk1193; // 
+    /* 0x1192 */ u_char isDisabled; // When it differs from isDisabledRendered the prims are re-tinted
+    /* 0x1193 */ u_char isDisabledRendered; // Tint state currently baked into the prims
 } MenuSelectionMenu; // Size: 0x1194
 
 typedef struct {
     /* 0x0    */ POLY_FT4 polys0[16 * 2]; // Submenu options ball cursor?
     /* 0x500  */ POLY_FT4 polys500[16 * 2]; // Submenu options text?
     /* 0xA00  */ u8 unkA00[0xA00];
-    /* 0x1400 */ int unk1400; // polys0 count
-    /* 0x1404 */ int unk1404; // polys500 count
-    /* 0x1408 */ u_char unk1408; // polys0 render context
-    /* 0x1409 */ u_char unk1409; // polys500 render context
+    /* 0x1400 */ int polys0PrimCount;
+    /* 0x1404 */ int polys500PrimCount;
+    /* 0x1408 */ u_char polys0RenderCtx;
+    /* 0x1409 */ u_char polys500RenderCtx;
     /* 0x140A */ u8 unk140A;
     /* 0x140B */ u8 unk140B;
 } MenuUnk5; // Size: 0x140C
@@ -414,36 +414,36 @@ typedef struct {
     /* 0x1A20 */ POLY_FT4 polys1A20[5 * 2]; // Gear fuel digits
     /* 0x1BB0 */ POLY_FT4 polys1BB0[5 * 2]; // Gear Max fuel digits
     /* 0x1D40 */ POLY_FT4 polys1D40[5 * 2]; // Gear weight digits
-    /* 0x1ED0 */ u8 unk1ED0;
-    /* 0x1ED1 */ u8 unk1ED1[2];
-    /* 0x1ED3 */ u8 unk1ED3;
-    /* 0x1ED4 */ u8 unk1ED4;
-    /* 0x1ED5 */ u8 unk1ED5[2];
-    /* 0x1ED6 */ u8 unk1ED7;
-    /* 0x1ED7 */ u8 unk1ED8;
-    /* 0x1ED9 */ u8 unk1ED9[2];
-    /* 0x1EDB */ u8 unk1EDB;
-    /* 0x1EDC */ u8 unk1EDC;
-    /* 0x1EDD */ u8 unk1EDD[2];
-    /* 0x1EDF */ u8 unk1EDF;
-    /* 0x1EE0 */ u8 unk1EE0;
+    /* 0x1ED0 */ u8 sparklePrimCount;
+    /* 0x1ED1 */ u8 optionMarkerPrimCounts[2];
+    /* 0x1ED3 */ u8 optionHighlightPrimCount;
+    /* 0x1ED4 */ u8 sparkleRenderContext;
+    /* 0x1ED5 */ u8 optionMarkerRenderContexts[2];
+    /* 0x1ED7 */ u8 optionHighlightRenderContext;
+    /* 0x1ED8 */ u8 sparklesActive;
+    /* 0x1ED9 */ u8 optionMarkerStates[2]; // 0 idle, 1 highlighting, 2 looping, 3 returning
+    /* 0x1EDB */ u8 optionHighlightState; // 0 idle, 1 highlighting, 2 looping, 3 reversing, 4 returning
+    /* 0x1EDC */ u8 sparkleTimer;
+    /* 0x1EDD */ u8 optionMarkerTimers[2];
+    /* 0x1EDF */ u8 optionHighlightTimer;
+    /* 0x1EE0 */ u8 sparkleGlyphIndex;
     /* 0x1EE1 */ u8 unk1EE1;
-    /* 0x1EE2 */ s16 unk1EE2;
-    /* 0x1EE4 */ s16 unk1EE4[2];
-    /* 0x1EE8 */ u8 unk1EE8; // Gear HP digits string length
-    /* 0x1EE9 */ u8 unk1EE9; // Gear Max HP digits string length
-    /* 0x1EEA */ u8 unk1EEA; // Gear Fuel digits string length
-    /* 0x1EEB */ u8 unk1EEB; // Gear Max fuel digits string length
-    /* 0x1EEC */ u8 unk1EEC; // Gear Weight digits string length
-    /* 0x1EED */ u8 unk1EED; // Render context for the gear stat strings
+    /* 0x1EE2 */ s16 optionHighlightGlyphIndex;
+    /* 0x1EE4 */ s16 optionMarkerGlyphIndexes[2];
+    /* 0x1EE8 */ u8 gearHpStrLen;
+    /* 0x1EE9 */ u8 gearMaxHpStrLen;
+    /* 0x1EEA */ u8 gearFuelStrLen;
+    /* 0x1EEB */ u8 gearMaxFuelStrLen;
+    /* 0x1EEC */ u8 gearWeightStrLen;
+    /* 0x1EED */ u8 gearStatStringsRenderContext;
     /* 0x1EEE */ u8 unk1EEE;
     /* 0x1EEF */ u8 unk1EEF;
-    /* 0x1EF0 */ u16 unk1EF0;
-    /* 0x1EF2 */ u16 unk1EF2;
-    /* 0x1EF4 */ u16 unk1EF4[2];
-    /* 0x1EF8 */ u16 unk1EF8[2];
-    /* 0x1EFC */ u16 unk1EFC;
-    /* 0x1EFE */ u16 unk1EFE;
+    /* 0x1EF0 */ u16 sparkleX;
+    /* 0x1EF2 */ u16 sparkleY;
+    /* 0x1EF4 */ u16 optionMarkerX[2];
+    /* 0x1EF8 */ u16 optionMarkerY[2];
+    /* 0x1EFC */ u16 optionHighlightX;
+    /* 0x1EFE */ u16 optionHighlightY;
 } MenuUnk8; /* size: 1F00 */
 
 typedef struct {
@@ -549,8 +549,8 @@ typedef struct {
     /* 0x690 */ SVECTOR vertsBackground[4];
     /* 0x6B0 */ SVECTOR vertsScrollBarEmpty[4];
     /* 0x6D0 */ SVECTOR vertsScrollBarEnds[8];
-    /* 0x710 */ s32 unk710;
-    /* 0x714 */ s32 unk714; // If 0, use default transform matrix when rendering
+    /* 0x710 */ s32 borderPrimCount;
+    /* 0x714 */ s32 useDefaultMatrix; // If 0, use default transform matrix when rendering
     /* 0x718 */ int zIndex;
     /* 0x71C */ u_char renderContext;
     /* 0x71D */ u_char hasScrollBar;
@@ -560,7 +560,7 @@ typedef struct {
 typedef struct {
     /* 0x0  */  POLY_FT4 polysCursor[8];
     /* 0x140 */ u8 shouldRender[0x4]; // Should render / isActive?
-    /* 0x144 */ u8 unk144[0x4]; // Should update positions?
+    /* 0x144 */ u8 shouldUpdatePosition[0x4];
     /* 0x148 */ u8 renderContexts[0x4];
 } MenuPointerCursors; // Size: 0x14C
 
@@ -569,14 +569,14 @@ typedef struct {
     /* 0x2  */ u_short y;
     /* 0x4  */ u_short width;
     /* 0x6  */ u_short height;
-    /* 0x8  */ u_short unk8; // Width?
-    /* 0xA  */ u_short unkA; // Height?
+    /* 0x8  */ u_short curWidth; // Grows to width while the open animation runs
+    /* 0xA  */ u_short curHeight; // Grows to height while the open animation runs
     /* 0xC  */ int zIndex;
     /* 0x10 */ u_char index;
-    /* 0x11 */ u_char unk11;
+    /* 0x11 */ u_char isOpen;
     /* 0x12 */ u_char unk12;
     /* 0x13 */ u_char hasScrollBar;
-    /* 0x13 */ u8 unk14[0x4];
+    /* 0x14 */ u8 unk14[0x4];
 } MenuWindowParameters; // Size: 0x18
 
 typedef struct {
@@ -631,14 +631,14 @@ typedef struct {
     /* 0x4650 */ void* pGearEngineNames;
     /* 0x4654 */ u_char curItemQuantities[MAX_SHOP_ITEMS];
     /* 0x4684 */ u8 unk4684[0x8];
-    /* 0x468C */ u8 unk468C[0x8];
-    /* 0x4694 */ u8 unk4694[0x8];
-    /* 0x469C */ u8 unk469C[0x9];
+    /* 0x468C */ u8 inventoryPrimCounts[0x8];
+    /* 0x4694 */ u8 inventoryRenderCtxs[0x8];
+    /* 0x469C */ u8 shouldRenderPortraitHighlight[0x9];
     /* 0x46A5 */ u_char numPortraits;
     /* 0x46A6 */ u_char portraitsRenderCtx;
-    /* 0x46A7 */ u8 unk46A7;
-    /* 0x46A8 */ u8 unk46A8;
-    /* 0x46A9 */ u8 unk46A9;
+    /* 0x46A7 */ u8 shouldRenderItemDesc;
+    /* 0x46A8 */ u8 equipMarkRenderCtx;
+    /* 0x46A9 */ u8 equipMarkPrimCount;
     /* 0x56AA */ u_char explanationsRenderCtx;
     /* 0x46AB */ u_char explanationsLen;
     /* 0x46AC */ u_char goldBeforeRenderCtx;
@@ -647,7 +647,7 @@ typedef struct {
     /* 0x46AF */ u_char totalPriceStrLen;
     /* 0x46B0 */ u_char goldAfterRenderCtx;
     /* 0x46B1 */ u_char goldAfterStrLen;
-    /* 0x46B2 */ u8 unk46B2;
+    /* 0x46B2 */ u8 shouldRenderPrices;
     /* 0x46B3 */ u_char finalPriceRenderCtx;
     /* 0x46B4 */ u_char finalPriceStrLen;
     /* 0x46B5 */ u8 unk46B5;
@@ -836,7 +836,7 @@ typedef struct {
     /* 0x4DA  */ u8 unk4DA[0x6];
     /* 0x4E0  */ MenuString unk4E0[4];
     /* 0x6E0  */ MenuString unk6E0[8];
-    /* 0xAE0  */ MenuString unkAE0[6];
+    /* 0xAE0  */ MenuString subMenuChoiceStrings[6];
     /* 0xDE0  */ MenuString unkDE0[6];
     // Three arrays of MenuString-shaped sprite records (0x80 each)
     /* 0x10E0 */ MenuString unk10E0[8];
@@ -844,10 +844,10 @@ typedef struct {
     /* 0x17E0 */ MenuString unk17E0[2];
     /* 0x18E0 */ MenuString unk18E0[6];
     /* 0x1BE0 */ MenuString unk1BE0[4];
-    /* 0x1DE0 */ MenuString* unk1DE0[4];
+    /* 0x1DE0 */ MenuString* modalStrings[4];
     /* 0x1DF0 */ MenuCharacter* benchedCharacters[MAX_BENCHED_PARTY_MEMBERS];
     /* 0x1E08 */ MenuCharacter* currentCharacters[MAX_PARTY_MEMBERS];
-    /* 0x1E14 */ u8 unk1E14[MAX_GAME_CHARACTERS];
+    /* 0x1E14 */ u8 characterIds[MAX_GAME_CHARACTERS]; // Character id per party slot, 0xFF = empty
     /* 0x1E1F */ u8 unk1E1F;
     /* 0x1E20 */ MenuUnk7* unk1E20;
     /* 0x1E24 */ u8 unk1E24[0x8];
@@ -855,11 +855,11 @@ typedef struct {
     /* 0x1E30 */ u_char shopItemIDs[MAX_SHOP_ITEMS];
     /* 0x1E60 */ u_char shopItemTypes[MAX_SHOP_ITEMS];
     /* 0x1E90 */ GearShopDefinition* pGearShopEntries; // Array of GearShopDefinition
-    /* 0x1E94 */ u8 unk1E94;
+    /* 0x1E94 */ u8 debuggerEnabled;
     // Decompiling `MenuProcessControllerInput` worked better if this field is
     // volatile.  If you need to remove `volatile`, you can insert a temporary
     // variable instead as done here: https://decomp.me/scratch/xsigV
-    /* 0x1E95 */ volatile u8 unk1E95;
+    /* 0x1E95 */ volatile u8 debuggerPage;
     /* 0x1E96 */ u8 unk1E96[2];
 } SystemMenu; // Size: 0x1E98
 

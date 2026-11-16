@@ -107,10 +107,10 @@ void MenuInitializeUnk438Panel(void) {
 }
 void MenuFreeUnk438Panel(void) {
     MenuFreeShoulderButtonUi();
-    g_Menu->pManager->unk4A[3] = 0;
+    g_Menu->pManager->shouldRenderPanel[3] = 0;
     MenuFreeWindow(2);
     MenuRenderFrame();
-    MenuClearBytes(2, &g_Menu->pManager->unk4A[4]);
+    MenuClearBytes(2, &g_Menu->pManager->shouldRenderPanel[4]);
     func_801C72BC(0x14);
     HeapFree(g_Menu->unk438);
 }
@@ -320,16 +320,16 @@ u8 func_801E2BE4(void) {
             MenuClearSubMenuChoiceFlags();
             g_Menu->pManager->unk5[2] = 0;
             g_Menu->pManager->unk8 = 0;
-            g_Menu->pManager->unk4A[1] = 0;
+            g_Menu->pManager->shouldRenderPanel[1] = 0;
             switch (g_Menu->subMenuChoice) {
             case 0:
                 lastSlot = slot;
-                g_Menu->pManager->unkA = 0;
+                g_Menu->pManager->shouldRenderSubmenuStrings = 0;
                 func_801E05D0(lastSlot, 0, 0);
                 MenuFreeCharacterSpriteRecords();
                 MenuDrawStatTable(lastSlot, 0, 0, 0);
                 func_801D8EA4(lastSlot, 0, 0, 0);
-                g_Menu->pManager->unkA = 1;
+                g_Menu->pManager->shouldRenderSubmenuStrings = 1;
                 lastSlot = 0xFF;
                 break;
             case 1:
@@ -344,9 +344,9 @@ u8 func_801E2BE4(void) {
             MenuLoadSubMenuChoiceStrings(1);
             g_Menu->pManager->unk5[2] = 1;
             g_Menu->pManager->unk8 = 1;
-            g_Menu->pManager->unk4A[1] = 1;
+            g_Menu->pManager->shouldRenderPanel[1] = 1;
             MenuMovePointerCursor(g_Menu->subMenuChoice + 7, 1);
-            g_Menu->pManager->unk4 = 1;
+            g_Menu->pManager->shouldRenderPointerCursor = 1;
             g_Menu->subMenuPrevChoice = 0xFF;
             func_801D3488(0, 0);
             break;
@@ -375,7 +375,7 @@ u8 func_801E2BE4(void) {
         }
     }
     MenuLoadSubMenuChoiceStrings(0);
-    g_Menu->pManager->unk4 = 0;
+    g_Menu->pManager->shouldRenderPointerCursor = 0;
     g_Menu->pManager->unk3 = 0;
     return 1;
 }
@@ -394,7 +394,7 @@ void MenuFreeSubMenuPanels(u8 arg0) {
     case 2:
         g_Menu->pManager->unk5[2] = 0;
         g_Menu->pManager->unk8 = 0;
-        g_Menu->pManager->unk4A[1] = 0;
+        g_Menu->pManager->shouldRenderPanel[1] = 0;
         MenuFreeGearScreenBuffers();
         break;
     case 3:
@@ -410,7 +410,7 @@ void MenuFreeSubMenuPanels(u8 arg0) {
     case 6:
         g_Menu->pManager->unk5[2] = 0;
         g_Menu->pManager->unk8 = 0;
-        g_Menu->pManager->unk4A[1] = 0;
+        g_Menu->pManager->shouldRenderPanel[1] = 0;
         MenuClearSubMenuChoiceFlags();
         MenuFreeCharacterScreenBuffers();
         break;

@@ -437,7 +437,7 @@ void ShopMenuSetStringPrimitives(MenuString* pString, int index, s32 arg2, u32 a
         MenuSetSystemPalette(pPoly, pString->unk7C);
     }
 
-    pString->unk7F = 0;
+    pString->hasVertices = 0;
 }
 
 void ShopMenuRenderStringsToVram(MenuString* pStringList, u8* pStringIdList, s32 yOffset, s32 count) {
@@ -540,38 +540,38 @@ void ShopMenuMovePointerCursor(int index, u_char arg1) {
     g_Menu->unk348->cursorRenderContext = g_Menu->renderContext;
 
     if (arg1) {
-        // A yellow -> black shaded rectangle of unk15B width,
+        // A yellow -> black shaded rectangle of shadeWidth width,
         // with green lines around it. Seems to be cursor-related,
         // as the pointer cursor is set to same position
         setXY4(
             &g_Menu->unk348->polyG4s[g_Menu->renderContext],
             g_ShopPointerCursorX[index] + 20, g_ShopPointerCursorY[index] - 36,
-            g_ShopPointerCursorX[index] + (g_Menu->unk348->unk15B + 20), g_ShopPointerCursorY[index] - 36,
+            g_ShopPointerCursorX[index] + (g_Menu->unk348->shadeWidth + 20), g_ShopPointerCursorY[index] - 36,
             g_ShopPointerCursorX[index] + 20, g_ShopPointerCursorY[index] - 20,
-            g_ShopPointerCursorX[index] + (g_Menu->unk348->unk15B + 20), g_ShopPointerCursorY[index] - 20
+            g_ShopPointerCursorX[index] + (g_Menu->unk348->shadeWidth + 20), g_ShopPointerCursorY[index] - 20
         );
 
         setXY3(
             &g_Menu->unk348->lines1[g_Menu->renderContext],
             g_ShopPointerCursorX[index] + 20, g_ShopPointerCursorY[index] - 36,
-            g_ShopPointerCursorX[index] + (g_Menu->unk348->unk15B + 20), g_ShopPointerCursorY[index] - 36,
-            g_ShopPointerCursorX[index] + (g_Menu->unk348->unk15B + 20), g_ShopPointerCursorY[index] - 20
+            g_ShopPointerCursorX[index] + (g_Menu->unk348->shadeWidth + 20), g_ShopPointerCursorY[index] - 36,
+            g_ShopPointerCursorX[index] + (g_Menu->unk348->shadeWidth + 20), g_ShopPointerCursorY[index] - 20
         );
 
         setXY3(
             &g_Menu->unk348->lines2[g_Menu->renderContext],
             g_ShopPointerCursorX[index] + 20, g_ShopPointerCursorY[index] - 36,
             g_ShopPointerCursorX[index] + 20, g_ShopPointerCursorY[index] - 20,
-            g_ShopPointerCursorX[index] + (g_Menu->unk348->unk15B + 20), g_ShopPointerCursorY[index] - 20
+            g_ShopPointerCursorX[index] + (g_Menu->unk348->shadeWidth + 20), g_ShopPointerCursorY[index] - 20
         );
 
-        g_Menu->unk348->unk159 = g_Menu->renderContext;
+        g_Menu->unk348->drawModeRenderContext = g_Menu->renderContext;
         g_Menu->pManager->unk3 = 1;
     }
 }
 
 void ShopMenuHidePointerCursor(void) {
-    g_Menu->pManager->unk4 = 0;
+    g_Menu->pManager->shouldRenderPointerCursor = 0;
     g_Menu->pManager->unk3 = 0;
 }
 
@@ -716,7 +716,7 @@ void ShopMenuInitializeShopData(void) {
             );
         }
 
-        g_Menu->pShop->unk469C[i] = 0;
+        g_Menu->pShop->shouldRenderPortraitHighlight[i] = 0;
     }
 
     // White line between gold amounts?
@@ -956,32 +956,32 @@ void ShopMenuInitializeWindowBorderCorners(u_char index, u_short x, u_short y, u
 
     pWindow = g_Menu->windows[index];
 
-    pWindow->unk710 = 0;
-    pWindow->unk710 += func_8002675C(
+    pWindow->borderPrimCount = 0;
+    pWindow->borderPrimCount += func_8002675C(
         g_Menu->resources,
         MENU_TEX_WINDOW_BORDER_TOP_LEFT,
         &pWindow->polysWindowBorderCorners,
         g_Menu->renderContext,
         0, 0, 0x1000
     );
-    pWindow->unk710 += func_8002675C(
+    pWindow->borderPrimCount += func_8002675C(
         g_Menu->resources,
         MENU_TEX_WINDOW_BORDER_TOP_RIGHT,
-        &pWindow->polysWindowBorderCorners[2 * pWindow->unk710],
+        &pWindow->polysWindowBorderCorners[2 * pWindow->borderPrimCount],
         g_Menu->renderContext,
         0, 0, 0x1000
     );
-    pWindow->unk710 += func_8002675C(
+    pWindow->borderPrimCount += func_8002675C(
         g_Menu->resources,
         MENU_TEX_WINDOW_BORDER_BOTTOM_LEFT,
-        &pWindow->polysWindowBorderCorners[2 * pWindow->unk710],
+        &pWindow->polysWindowBorderCorners[2 * pWindow->borderPrimCount],
         g_Menu->renderContext,
         0, 0, 0x1000
     );
-    pWindow->unk710 += func_8002675C(
+    pWindow->borderPrimCount += func_8002675C(
         g_Menu->resources,
         MENU_TEX_WINDOW_BORDER_BOTTOM_RIGHT,
-        &pWindow->polysWindowBorderCorners[2 * pWindow->unk710],
+        &pWindow->polysWindowBorderCorners[2 * pWindow->borderPrimCount],
         g_Menu->renderContext,
         0, 0, 0x1000
     );
@@ -1210,7 +1210,7 @@ void ShopMenuSetWindow(u_char index, u_short x, u_short y, u_short width, u_shor
         ShopMenuInitializeScrollBar(index, x, y, width, height);
     }
     pWindow->hasScrollBar = hasScrollBar;
-    pWindow->unk714 = arg5;
+    pWindow->useDefaultMatrix = arg5;
     pWindow->zIndex = zIndex;
     pWindow->renderContext = g_Menu->renderContext;
     g_Menu->pManager->shouldRenderWindow[index] = TRUE;
@@ -1237,13 +1237,13 @@ void ShopMenuInitializeWindow(u_char windowIndex, u_short x, u_short y, u_short 
     pWindowParams = g_Menu->windowParameters[windowIndex];
     if (shouldInitializeHandle) {
         pWindowParams->index = windowIndex;
-        pWindowParams->unk11 = 0;
+        pWindowParams->isOpen = 0;
         pWindowParams->x = x;
         pWindowParams->y = y;
         pWindowParams->width = width;
         pWindowParams->height = height;
-        pWindowParams->unk8 = 0;
-        pWindowParams->unkA = 0;
+        pWindowParams->curWidth = 0;
+        pWindowParams->curHeight = 0;
         g_Menu->pManager->unk27[windowIndex] = 1;
         pWindowParams->unk12 = arg6;
         pWindowParams->zIndex = zIndex;
@@ -1260,34 +1260,34 @@ void ShopMenuUpdateWindows(void) {
 
     for (i = 0; i < MENU_MAX_NUM_WINDOWS; i++) {
         pWindowInfo = g_Menu->windowParameters[i];
-        if ((g_Menu->pManager->unk27[i]) && pWindowInfo->unk11 == 0) {
+        if ((g_Menu->pManager->unk27[i]) && pWindowInfo->isOpen == 0) {
 
             flag = 0;
 
-            if ((pWindowInfo->unk8 + 32) >= pWindowInfo->width) {
-                pWindowInfo->unk8 = pWindowInfo->width;
+            if ((pWindowInfo->curWidth + 32) >= pWindowInfo->width) {
+                pWindowInfo->curWidth = pWindowInfo->width;
                 flag += 1;
             } else {
-                pWindowInfo->unk8 += 32;
+                pWindowInfo->curWidth += 32;
             }
 
-            if ((pWindowInfo->unkA + 32) >= pWindowInfo->height) {
-                pWindowInfo->unkA = pWindowInfo->height;
+            if ((pWindowInfo->curHeight + 32) >= pWindowInfo->height) {
+                pWindowInfo->curHeight = pWindowInfo->height;
                 flag += 1;
             } else {
-                pWindowInfo->unkA += 32;
+                pWindowInfo->curHeight += 32;
             }
 
             if (flag == 2) {
-                pWindowInfo->unk11 = 1;
+                pWindowInfo->isOpen = 1;
             }
 
             ShopMenuSetWindow(
                 pWindowInfo->index,
-                (pWindowInfo->x + (pWindowInfo->width / 2)) - (pWindowInfo->unk8 / 2),
-                (pWindowInfo->y + (pWindowInfo->height / 2)) - (pWindowInfo->unkA / 2),
-                pWindowInfo->unk8,
-                pWindowInfo->unkA,
+                (pWindowInfo->x + (pWindowInfo->width / 2)) - (pWindowInfo->curWidth / 2),
+                (pWindowInfo->y + (pWindowInfo->height / 2)) - (pWindowInfo->curHeight / 2),
+                pWindowInfo->curWidth,
+                pWindowInfo->curHeight,
                 pWindowInfo->unk12,
                 pWindowInfo->zIndex,
                 pWindowInfo->hasScrollBar
@@ -1340,10 +1340,10 @@ void ShopMenuRenderScrollBarHandle(void) {
 void ShopMenuAddPointerCursorPrims(void) {
     AddPrim(
         &g_Menu->pGfxEnv->ot[4],
-        &g_Menu->unk348->drModes1[g_Menu->unk348->unk159]
+        &g_Menu->unk348->drModes1[g_Menu->unk348->drawModeRenderContext]
     );
 
-    if (g_Menu->pManager->unk4) {
+    if (g_Menu->pManager->shouldRenderPointerCursor) {
         AddPrim(
             &g_Menu->pGfxEnv->ot[4],
             &g_Menu->unk348->polysPointerCursor[g_Menu->unk348->cursorRenderContext]
@@ -1636,7 +1636,7 @@ void ShopMenuRenderWindows(void) {
     for (i = 0; i < MENU_MAX_NUM_WINDOWS; i++) {
         if (g_Menu->pManager->shouldRenderWindow[i]) {
             pWindow = g_Menu->windows[i];
-            if (pWindow->unk714 == 0) {
+            if (pWindow->useDefaultMatrix == 0) {
                 PushMatrix();
                 rotation.vz = 0;
                 rotation.vy = 0;
@@ -1681,7 +1681,7 @@ void ShopMenuRenderPointerCursors(void) {
     if (g_Menu->pManager->shouldRenderCursors) {
         for (i = 0; i < MENU_MAX_NUM_CURSORS; i++) {
             if (g_Menu->pCursors->shouldRender[i]) {
-                if (g_Menu->pCursors->unk144[i]) {
+                if (g_Menu->pCursors->shouldUpdatePosition[i]) {
                     setXY4(
                         &g_Menu->pCursors->polysCursor[i * 2 + g_Menu->pCursors->renderContexts[i]],
                         g_PointerCursorBoxX[g_PointerCursorBoxSlot[g_Menu->menuUnk2->unk4F7C]] + 8,
@@ -1721,7 +1721,7 @@ void ShopMenuAddUnk6E0Prims(void) {
     int i;
 
     for (i = 0; i < 8; i++) {
-        if (g_Menu->pManager->unkC[i]) {
+        if (g_Menu->pManager->shouldRenderStrings[i]) {
             AddPrim(
                 &g_Menu->pGfxEnv->ot[4],
                 &g_Menu->unk6E0[i].polys[g_Menu->unk6E0[i].renderContext]
@@ -1736,28 +1736,28 @@ void ShopMenuAddUnkAE0Prims(void) {
     int i;
 
     for (i = 0; i < 6; i++) {
-        if (g_Menu->pManager->unk14[i]) {
-            if (g_Menu->unkAE0[i].unk7F) {
+        if (g_Menu->pManager->shouldRenderSubMenuChoiceStrings[i]) {
+            if (g_Menu->subMenuChoiceStrings[i].hasVertices) {
                 RotTransPers4(
-                    &g_Menu->unkAE0[i].vertices[0],
-                    &g_Menu->unkAE0[i].vertices[1],
-                    &g_Menu->unkAE0[i].vertices[2],
-                    &g_Menu->unkAE0[i].vertices[3],
-                    (long*)&g_Menu->unkAE0[i].polys[g_Menu->unkAE0[i].renderContext].x0,
-                    (long*)&g_Menu->unkAE0[i].polys[g_Menu->unkAE0[i].renderContext].x1,
-                    (long*)&g_Menu->unkAE0[i].polys[g_Menu->unkAE0[i].renderContext].x2,
-                    (long*)&g_Menu->unkAE0[i].polys[g_Menu->unkAE0[i].renderContext].x3,
+                    &g_Menu->subMenuChoiceStrings[i].vertices[0],
+                    &g_Menu->subMenuChoiceStrings[i].vertices[1],
+                    &g_Menu->subMenuChoiceStrings[i].vertices[2],
+                    &g_Menu->subMenuChoiceStrings[i].vertices[3],
+                    (long*)&g_Menu->subMenuChoiceStrings[i].polys[g_Menu->subMenuChoiceStrings[i].renderContext].x0,
+                    (long*)&g_Menu->subMenuChoiceStrings[i].polys[g_Menu->subMenuChoiceStrings[i].renderContext].x1,
+                    (long*)&g_Menu->subMenuChoiceStrings[i].polys[g_Menu->subMenuChoiceStrings[i].renderContext].x2,
+                    (long*)&g_Menu->subMenuChoiceStrings[i].polys[g_Menu->subMenuChoiceStrings[i].renderContext].x3,
                     &interpolated,
                     &flag
                 );
                 AddPrim(
                     &g_Menu->pGfxEnv->ot[4],
-                    &g_Menu->unkAE0[i].polys[g_Menu->unkAE0[i].renderContext]
+                    &g_Menu->subMenuChoiceStrings[i].polys[g_Menu->subMenuChoiceStrings[i].renderContext]
                 );
             } else {
                 AddPrim(
                     &g_Menu->pGfxEnv->ot[4],
-                    &g_Menu->unkAE0[i].polys[g_Menu->unkAE0[i].renderContext]
+                    &g_Menu->subMenuChoiceStrings[i].polys[g_Menu->subMenuChoiceStrings[i].renderContext]
                 );
             }
 
@@ -1778,10 +1778,10 @@ void ShopMenuAddUnk1DE0Prims(void) {
     MenuString* pString;
     int i;
 
-    if (g_Menu->pManager->unk2B) {
+    if (g_Menu->pManager->shouldRenderModalStrings) {
         for (i = 0 ; i < 3; i++) {
-            pString = g_Menu->unk1DE0[i];
-            if (pString->unk7F) {
+            pString = g_Menu->modalStrings[i];
+            if (pString->hasVertices) {
                 RotTransPers4(
                     &pString->vertices[0],
                     &pString->vertices[1],
@@ -1821,10 +1821,10 @@ void ShopMenuRenderSelectionMenu(void) {
     int i;
 
     if (g_Menu->pManager->shouldRenderSelectionMenu) {
-        if (g_Menu->pSelectionMenu->unk1192 != g_Menu->pSelectionMenu->unk1193) {
+        if (g_Menu->pSelectionMenu->isDisabled != g_Menu->pSelectionMenu->isDisabledRendered) {
 
             // Render the selection menu as disabled
-            if (g_Menu->pSelectionMenu->unk1192) {
+            if (g_Menu->pSelectionMenu->isDisabled) {
                 for (i = 0; i < g_Menu->pSelectionMenu->numTexts; i++) {
                     SetSemiTrans(&g_Menu->pSelectionMenu->polysTexts[i*2 + g_Menu->pSelectionMenu->textsRenderCtx], 1);
                     SetShadeTex(&g_Menu->pSelectionMenu->polysTexts[i*2 + g_Menu->pSelectionMenu->textsRenderCtx], 0);
@@ -1856,7 +1856,7 @@ void ShopMenuRenderSelectionMenu(void) {
                 }
             }
 
-            g_Menu->pSelectionMenu->unk1193 = g_Menu->pSelectionMenu->unk1192;
+            g_Menu->pSelectionMenu->isDisabledRendered = g_Menu->pSelectionMenu->isDisabled;
         }
 
         ShopMenuRenderString(g_Menu->pSelectionMenu->numTexts, g_Menu->pSelectionMenu->polysTexts, g_Menu->pSelectionMenu->textsRenderCtx);
@@ -1865,9 +1865,9 @@ void ShopMenuRenderSelectionMenu(void) {
 }
 
 void ShopMenuAddUnk354Prims(void) {
-    if (g_Menu->pManager->unkA) {
-        ShopMenuRenderString(g_Menu->unk354->unk1404, g_Menu->unk354->polys500, g_Menu->unk354->unk1409);
-        ShopMenuRenderString(g_Menu->unk354->unk1400, g_Menu->unk354->polys0, g_Menu->unk354->unk1408);
+    if (g_Menu->pManager->shouldRenderSubmenuStrings) {
+        ShopMenuRenderString(g_Menu->unk354->polys500PrimCount, g_Menu->unk354->polys500, g_Menu->unk354->polys500RenderCtx);
+        ShopMenuRenderString(g_Menu->unk354->polys0PrimCount, g_Menu->unk354->polys0, g_Menu->unk354->polys0RenderCtx);
     }
 }
 
@@ -1988,12 +1988,12 @@ void ShopMenuPollInput(void) {
                 break;
             }
             if (g_C1ButtonStateReleased & CTRL_BTN_SELECT) {
-                g_Menu->unk1E94 = g_Menu->unk1E94 == 0;
+                g_Menu->debuggerEnabled = g_Menu->debuggerEnabled == 0;
                 input = 12;
                 break;
             }
             if (g_C1ButtonStateReleased & CTRL_BTN_L2) {
-                g_Menu->unk1E95 += 1;
+                g_Menu->debuggerPage += 1;
                 break;
             }
         }
@@ -2093,8 +2093,8 @@ void ShopMenuInitializePointerCursors(u_char mode) {
     switch (mode) {
         case 0:
             g_Menu->pManager->shouldRenderCursors = TRUE;
-            g_Menu->pCursors->unk144[0] = TRUE;
-            g_Menu->pCursors->unk144[1] = TRUE;
+            g_Menu->pCursors->shouldUpdatePosition[0] = TRUE;
+            g_Menu->pCursors->shouldUpdatePosition[1] = TRUE;
             /* fallthrough */
         case 2:
             for (i = 0; i < MENU_MAX_NUM_CURSORS; i++) {
@@ -2147,32 +2147,32 @@ void ShopMenuConfirmationWindowInitialize(u_char stringIndex) {
 
     ShopMenuInitializeWindow(4, 0x42, 0x46, 0xBC, 0x40, 1, 1, 4, 0);
     pWindowParams = g_Menu->windowParameters[4];
-    while (!pWindowParams->unk11) {
+    while (!pWindowParams->isOpen) {
         ShopMenuUpdateAndRender();
     }
 
     for (i = 0; i < 4; i++) {
-        g_Menu->unk1DE0[i] = HeapAlloc(sizeof(MenuString), 0);
-        bzero(g_Menu->unk1DE0[i], sizeof(MenuString));
+        g_Menu->modalStrings[i] = HeapAlloc(sizeof(MenuString), 0);
+        bzero(g_Menu->modalStrings[i], sizeof(MenuString));
 
         // Even indices
         if (!(i & 1)) {
             // Buffer size = FONT_LETTER_HEIGHT * 57 * 2
-            g_Menu->unk1DE0[i]->pVramBuffer = HeapAlloc(0x5CA, 0);
-            g_Menu->unk1DE0[i]->vramDest.x = 320;
-            g_Menu->unk1DE0[i]->vramDest.y = ((i / 2) * FONT_LETTER_HEIGHT) + 78;
-            g_Menu->unk1DE0[i]->vramDest.w = 58;
-            g_Menu->unk1DE0[i]->vramDest.h = FONT_LETTER_HEIGHT;
+            g_Menu->modalStrings[i]->pVramBuffer = HeapAlloc(0x5CA, 0);
+            g_Menu->modalStrings[i]->vramDest.x = 320;
+            g_Menu->modalStrings[i]->vramDest.y = ((i / 2) * FONT_LETTER_HEIGHT) + 78;
+            g_Menu->modalStrings[i]->vramDest.w = 58;
+            g_Menu->modalStrings[i]->vramDest.h = FONT_LETTER_HEIGHT;
             continue;
         }
 
         // Odd indices, share VRAM buffer w/ prev entry
-        g_Menu->unk1DE0[i]->pVramBuffer = g_Menu->unk1DE0[i - 1]->pVramBuffer;
+        g_Menu->modalStrings[i]->pVramBuffer = g_Menu->modalStrings[i - 1]->pVramBuffer;
     }
 
     // Render strings to text areas
     for (i = 0; i < 3; i++) {
-        pString = g_Menu->unk1DE0[i];
+        pString = g_Menu->modalStrings[i];
         pString->width = SystemRenderStringEntry(
             GetStringEntry(g_Menu->unk2E0, stringIndex + i),
             pString->pVramBuffer, 0x36, i % 2
@@ -2187,17 +2187,17 @@ void ShopMenuConfirmationWindowInitialize(u_char stringIndex) {
             pString->width,   (i / 2) * FONT_LETTER_HEIGHT + 0x5B
         );
         pString->renderContext = g_Menu->renderContext;
-        pString->unk7F = 1;
+        pString->hasVertices = 1;
     }
 
     // Transfer text areas to VRAM
-    LoadImage(&g_Menu->unk1DE0[0]->vramDest, g_Menu->unk1DE0[0]->pVramBuffer);
-    LoadImage(&g_Menu->unk1DE0[2]->vramDest, g_Menu->unk1DE0[2]->pVramBuffer);
+    LoadImage(&g_Menu->modalStrings[0]->vramDest, g_Menu->modalStrings[0]->pVramBuffer);
+    LoadImage(&g_Menu->modalStrings[2]->vramDest, g_Menu->modalStrings[2]->pVramBuffer);
     DrawSync(0);
 
-    g_Menu->pManager->unk2B = 1;
-    HeapFree(g_Menu->unk1DE0[0]->pVramBuffer);
-    HeapFree(g_Menu->unk1DE0[2]->pVramBuffer);
+    g_Menu->pManager->shouldRenderModalStrings = 1;
+    HeapFree(g_Menu->modalStrings[0]->pVramBuffer);
+    HeapFree(g_Menu->modalStrings[2]->pVramBuffer);
     if (g_Menu->pManager->unk5B == 2) {
         g_Menu->pManager->unk5B = 1;
     }
@@ -2210,9 +2210,9 @@ void ShopMenuConfirmationWindowFree(void) {
 
     if (g_Menu->pManager->shouldRenderWindow[4]) {
         ShopMenuFreeWindow(4);
-        g_Menu->pManager->unk2B = 0;
+        g_Menu->pManager->shouldRenderModalStrings = 0;
         for (i = 0; i < 4; i++) {
-            HeapFree(g_Menu->unk1DE0[i]);
+            HeapFree(g_Menu->modalStrings[i]);
         }
     }
     g_Menu->pManager->unk5B = 0;
@@ -2370,8 +2370,8 @@ void ShopMenuInitializeShopModeSelectionMenu(int numTextures, int* pTextureIDs) 
     int j;
 
     // Render the selection menu as active
-    g_Menu->pSelectionMenu->unk1192 = FALSE;
-    g_Menu->pSelectionMenu->unk1193 = FALSE;
+    g_Menu->pSelectionMenu->isDisabled = FALSE;
+    g_Menu->pSelectionMenu->isDisabledRendered = FALSE;
 
     g_Menu->pManager->shouldRenderSelectionMenu = TRUE;
 
@@ -2421,23 +2421,23 @@ void ShopMenuInitializeSubmenu(u_char arg0) {
     int i;
     int j;
 
-    g_Menu->pSelectionMenu->unk1192 = 0;
-    g_Menu->pSelectionMenu->unk1193 = 0;
-    g_Menu->unk354->unk1400 = 0;
-    g_Menu->unk354->unk1404 = 0;
-    g_Menu->pManager->unkA = 1;
+    g_Menu->pSelectionMenu->isDisabled = 0;
+    g_Menu->pSelectionMenu->isDisabledRendered = 0;
+    g_Menu->unk354->polys0PrimCount = 0;
+    g_Menu->unk354->polys500PrimCount = 0;
+    g_Menu->pManager->shouldRenderSubmenuStrings = 1;
 
     isValid = TRUE;
     for (i = 1; i < 5; i++) {
-        g_Menu->unk354->unk1400 = 0;
+        g_Menu->unk354->polys0PrimCount = 0;
         g_Menu->subMenuNumChoices = 0;
 
         for (j = 0; j < i; j++) {
             if (g_ShopSubmenuTextureIds[(arg0 + g_Menu->mainMenuChoice) * 8 + j * 2] != 0xFFFF) {
-                g_Menu->unk354->unk1400 += func_8002675C(
+                g_Menu->unk354->polys0PrimCount += func_8002675C(
                     g_Menu->resources,
                     g_ShopSubmenuTextureIds[(arg0 + g_Menu->mainMenuChoice) * 8 + j * 2],
-                    &g_Menu->unk354->polys0[g_Menu->unk354->unk1400 * 2],
+                    &g_Menu->unk354->polys0[g_Menu->unk354->polys0PrimCount * 2],
                     g_Menu->renderContext,
                     0xA0, 0x96,
                     0x1000
@@ -2448,7 +2448,7 @@ void ShopMenuInitializeSubmenu(u_char arg0) {
             }
         }
 
-        g_Menu->unk354->unk1408 = g_Menu->renderContext;
+        g_Menu->unk354->polys0RenderCtx = g_Menu->renderContext;
 
         if (isValid) {
             for (j = 0; j < 2; j++) {
@@ -2456,14 +2456,14 @@ void ShopMenuInitializeSubmenu(u_char arg0) {
             }
         }
 
-        g_Menu->unk354->unk1404 = 0;
+        g_Menu->unk354->polys500PrimCount = 0;
 
         for (j = 0; j < i; j++) {
             if (g_ShopSubmenuTextureIds[(arg0 + g_Menu->mainMenuChoice) * 8 + j * 2] != 0xFFFF) {
-                g_Menu->unk354->unk1404 += func_8002675C(
+                g_Menu->unk354->polys500PrimCount += func_8002675C(
                     g_Menu->resources,
                     g_ShopSubmenuTextureIds[(arg0 + g_Menu->mainMenuChoice) * 8 + j * 2 + 1],
-                    &g_Menu->unk354->polys500[g_Menu->unk354->unk1404 * 2],
+                    &g_Menu->unk354->polys500[g_Menu->unk354->polys500PrimCount * 2],
                     g_Menu->renderContext,
                     0xA0, 0x96,
                     0x1000
@@ -2471,7 +2471,7 @@ void ShopMenuInitializeSubmenu(u_char arg0) {
             }
         }
 
-        g_Menu->unk354->unk1409 = g_Menu->renderContext;
+        g_Menu->unk354->polys500RenderCtx = g_Menu->renderContext;
 
         if (isValid) {
             for (j = 0; j < 2; j++) {
@@ -2519,15 +2519,15 @@ void ShopMenuUpdateShopModeSelectionMenu(u_char numOptions, u_char selectedIndex
 
     ShopMenuMovePointerCursor(selectedIndex, 1);
 
-    g_Menu->pManager->unk4 = TRUE;
+    g_Menu->pManager->shouldRenderPointerCursor = TRUE;
 }
 
 void ShopMenuUpdateSubmenuTextures(u_char menuOffset) {
     int i;
     int textureID;
 
-    g_Menu->unk354->unk1400 = 0;
-    g_Menu->unk354->unk1404 = 0;
+    g_Menu->unk354->polys0PrimCount = 0;
+    g_Menu->unk354->polys500PrimCount = 0;
 
     for (i = 0; i < g_Menu->subMenuNumChoices; i++) {
         // The active option uses a different cursor texture
@@ -2537,29 +2537,29 @@ void ShopMenuUpdateSubmenuTextures(u_char menuOffset) {
             textureID = g_ShopSubmenuTextureIds[(menuOffset + g_Menu->mainMenuChoice) * 8 + i * 2];
         }
 
-        g_Menu->unk354->unk1400 += func_8002675C(
+        g_Menu->unk354->polys0PrimCount += func_8002675C(
             g_Menu->resources, textureID,
-            &g_Menu->unk354->polys0[g_Menu->unk354->unk1400 * 2],
+            &g_Menu->unk354->polys0[g_Menu->unk354->polys0PrimCount * 2],
             g_Menu->renderContext,
             160, 150,
             0x1000
         );
 
-        g_Menu->unk354->unk1404 += func_8002675C(
+        g_Menu->unk354->polys500PrimCount += func_8002675C(
             g_Menu->resources, D_801D1F70[(menuOffset + g_Menu->mainMenuChoice) * 8 + i * 2],
-            &g_Menu->unk354->polys500[g_Menu->unk354->unk1404 * 2],
+            &g_Menu->unk354->polys500[g_Menu->unk354->polys500PrimCount * 2],
             g_Menu->renderContext,
             160, 150,
             0x1000
         );
     }
 
-    g_Menu->unk354->unk1408 = g_Menu->renderContext;
-    g_Menu->unk354->unk1409 = g_Menu->renderContext;
+    g_Menu->unk354->polys0RenderCtx = g_Menu->renderContext;
+    g_Menu->unk354->polys500RenderCtx = g_Menu->renderContext;
 
     ShopMenuMovePointerCursor(g_Menu->subMenuChoice + 3, 1);
 
-    g_Menu->pManager->unk4 = TRUE;
+    g_Menu->pManager->shouldRenderPointerCursor = TRUE;
 }
 
 u_char ShopMenuShopModeMenuHandleSelectedOption() {
@@ -2583,19 +2583,19 @@ u_char ShopMenuShopModeMenuHandleSelectedOption() {
 
     if (result) {
         ShopMenuStartCloseMenuTransition();
-        ShopMenuSetStringListVisible(1, 4, g_Menu->unk6E0, &g_ShopModeMenuStringIds, g_Menu->pManager->unkC);
+        ShopMenuSetStringListVisible(1, 4, g_Menu->unk6E0, &g_ShopModeMenuStringIds, g_Menu->pManager->shouldRenderStrings);
     }
 
     ShopMenuClearBuyMenuGraphics();
 
     // Render the selection menu as active again
-    g_Menu->pSelectionMenu->unk1192 = FALSE;
-    g_Menu->pSelectionMenu->unk1193 = TRUE;
+    g_Menu->pSelectionMenu->isDisabled = FALSE;
+    g_Menu->pSelectionMenu->isDisabledRendered = TRUE;
 
-    g_Menu->pManager->unk4 = TRUE;
+    g_Menu->pManager->shouldRenderPointerCursor = TRUE;
     g_Menu->pManager->unk3 = TRUE;
     g_Menu->mainMenuPrevChoice = 0xFF;
-    g_Menu->pManager->unkA = FALSE;
+    g_Menu->pManager->shouldRenderSubmenuStrings = FALSE;
 
     return isRunning;
 }
@@ -2609,7 +2609,7 @@ void ShopMenuShopModeMenuMain(void) {
 
     ShopMenuInitializeShopModeSelectionMenu(4, &g_ShopModeSelectionTextureIds);
 
-    ShopMenuSetStringListVisible(1, 4, g_Menu->unk6E0, &g_ShopModeMenuStringIds, g_Menu->pManager->unkC);
+    ShopMenuSetStringListVisible(1, 4, g_Menu->unk6E0, &g_ShopModeMenuStringIds, g_Menu->pManager->shouldRenderStrings);
 
     while (isRunning) {
         ShopMenuUpdateAndRender();
@@ -2619,13 +2619,13 @@ void ShopMenuShopModeMenuMain(void) {
                 ShopMenuPlaySoundEffect(2);
 
                 // Render the selection menu as disabled
-                g_Menu->pSelectionMenu->unk1192 = TRUE;
+                g_Menu->pSelectionMenu->isDisabled = TRUE;
 
                 ShopMenuHidePointerCursor();
-                ShopMenuSetStringListVisible(0, 4, g_Menu->unk6E0, &g_ShopModeMenuStringIds, g_Menu->pManager->unkC);
-                g_Menu->unk348->unk15B = 0x4C;
+                ShopMenuSetStringListVisible(0, 4, g_Menu->unk6E0, &g_ShopModeMenuStringIds, g_Menu->pManager->shouldRenderStrings);
+                g_Menu->unk348->shadeWidth = 0x4C;
                 isRunning = ShopMenuShopModeMenuHandleSelectedOption();
-                g_Menu->unk348->unk15B = 0x40;
+                g_Menu->unk348->shadeWidth = 0x40;
                 break;
 
             case MENU_INPUT_BACK:
@@ -2651,7 +2651,7 @@ void ShopMenuShopModeMenuMain(void) {
         if (g_Menu->mainMenuChoice != g_Menu->mainMenuPrevChoice) {
             ShopMenuUpdateShopModeSelectionMenu(3, g_Menu->mainMenuChoice, &g_ShopModeSelectionTextureIds);
             ShopMenuPositionSelectedString(4, g_Menu->unk6E0, &g_ShopModeMenuStringIds, &g_ShopModeMenuStringOffsets,
-                g_Menu->pManager->unkC, g_Menu->mainMenuChoice, 0, 0
+                g_Menu->pManager->shouldRenderStrings, g_Menu->mainMenuChoice, 0, 0
             );
             g_Menu->mainMenuPrevChoice = g_Menu->mainMenuChoice;
         }
@@ -2671,7 +2671,7 @@ void ShopMenuMain(void) {
     g_Menu->pSelectionMenu->unk1180.y = 0x100;
     g_Menu->pSelectionMenu->unk1180.w = 0x140;
     g_Menu->pSelectionMenu->unk1180.h = 0xE0;
-    g_Menu->unk348->unk15B = 0x40;
+    g_Menu->unk348->shadeWidth = 0x40;
     ShopMenuInitialize();
     ShopMenuResetRenderContext();
     func_801C5EE8();
@@ -2739,14 +2739,14 @@ void ShopMenuAddShopPrims(void) {
 
     if (g_Menu->pManager->unk5A) {
         for (i = 0; i < 9; i++) {
-            if (g_Menu->pShop->unk469C[i]) {
+            if (g_Menu->pShop->shouldRenderPortraitHighlight[i]) {
                 AddPrim(&g_Menu->pGfxEnv->ot[4], &g_Menu->pShop->linesPortraitHighlight1[(i * 2) + g_Menu->renderContext]);
                 AddPrim(&g_Menu->pGfxEnv->ot[4], &g_Menu->pShop->linesPortraitHighlight2[(i * 2) + g_Menu->renderContext]);
             }
         }
 
         ShopMenuRenderString(g_Menu->pShop->explanationsLen, g_Menu->pShop->polysExplanations, g_Menu->pShop->explanationsRenderCtx);
-        ShopMenuRenderString(g_Menu->pShop->unk46A9, g_Menu->pShop->polys2D0, g_Menu->pShop->unk46A8);
+        ShopMenuRenderString(g_Menu->pShop->equipMarkPrimCount, g_Menu->pShop->polys2D0, g_Menu->pShop->equipMarkRenderCtx);
         ShopMenuRenderString(g_Menu->pShop->numPortraits, g_Menu->pShop->polysCharacterPortraits, g_Menu->pShop->portraitsRenderCtx);
         for (i = 0; i < 8; i++) {
             if (g_Menu->pShop->unk4684[i]) {
@@ -2755,7 +2755,7 @@ void ShopMenuAddShopPrims(void) {
             }
         }
 
-        if (g_Menu->pShop->unk46A7) {
+        if (g_Menu->pShop->shouldRenderItemDesc) {
             ShopMenuRenderPolygons(1, g_Menu->pShop->strItemDesc.vertices, g_Menu->pShop->strItemDesc.polys, g_Menu->pShop->strItemDesc.renderContext);
         }
 
@@ -2767,7 +2767,7 @@ void ShopMenuAddShopPrims(void) {
             ShopMenuRenderPolygons(1, g_Menu->pShop->str45B0.vertices, g_Menu->pShop->str45B0.polys, g_Menu->pShop->str45B0.renderContext);
         }
 
-        if (g_Menu->pShop->unk46B2) {
+        if (g_Menu->pShop->shouldRenderPrices) {
             AddPrim(&g_Menu->pGfxEnv->ot[4], &g_Menu->pShop->lines3BF0[g_Menu->renderContext]);
             ShopMenuRenderString(g_Menu->pShop->goldBeforeStrLen, g_Menu->pShop->polysGoldBefore, g_Menu->pShop->goldBeforeRenderCtx);
             ShopMenuRenderString(g_Menu->pShop->totalPriceStrLen, g_Menu->pShop->polysTotalPrice, g_Menu->pShop->totalPriceRenderCtx);
@@ -2775,7 +2775,7 @@ void ShopMenuAddShopPrims(void) {
         }
 
         for (i = 0; i < 8; i++) {
-            ShopMenuRenderString(g_Menu->pShop->unk468C[i], g_Menu->pShop->polysShopInventory[i * 4], g_Menu->pShop->unk4694[i]);
+            ShopMenuRenderString(g_Menu->pShop->inventoryPrimCounts[i], g_Menu->pShop->polysShopInventory[i * 4], g_Menu->pShop->inventoryRenderCtxs[i]);
         }
 
         for (i = 0; i < 9; i++) {
@@ -2923,7 +2923,7 @@ void ShopMenuUpdateGoldGraphics(u_int goldBefore, u_int totalPrice, u_int goldAf
     }
     g_Menu->pShop->goldAfterRenderCtx = g_Menu->renderContext;
 
-    g_Menu->pShop->unk46B2 = 1;
+    g_Menu->pShop->shouldRenderPrices = 1;
 }
 
 u_short ShopMenuGetCharacterEquippedItemFlags(u_char itemID, u_char itemType) {
@@ -3035,7 +3035,7 @@ void func_801CDD14(s32 scrollOffset, s32 newGoldAmount, u8* pItemAffordable) {
         pRect = &rect;
         pItemAffordable[i] = FALSE;
         bzero(digitGlyphs, 0xE);
-        g_Menu->pShop->unk468C[i] = 0;
+        g_Menu->pShop->inventoryPrimCounts[i] = 0;
         polyColor = 0x1000;
 
         if (g_Menu->shopItemIDs[scrollOffset + i]) {
@@ -3100,25 +3100,25 @@ void func_801CDD14(s32 scrollOffset, s32 newGoldAmount, u8* pItemAffordable) {
             g_Menu->pShop->unk4684[i] = 1;
 
             if (g_Menu->pShop->curItemQuantities[scrollOffset + i]) {
-                g_Menu->pShop->unk468C[i] += func_8002675C(
+                g_Menu->pShop->inventoryPrimCounts[i] += func_8002675C(
                     g_Menu->resources, 0xF1, g_Menu->pShop->polysShopInventory[i * 4],
                     g_Menu->renderContext, 0xB4, 0x36 + FONT_LETTER_HEIGHT * i, polyColor);
 
                 tensDigit = g_Menu->pShop->curItemQuantities[scrollOffset + i] / 10;
                 if (tensDigit) {
-                    g_Menu->pShop->unk468C[i] += func_8002675C(
+                    g_Menu->pShop->inventoryPrimCounts[i] += func_8002675C(
                         g_Menu->resources, tensDigit,
-                        &g_Menu->pShop->polysShopInventory[i * 4][g_Menu->pShop->unk468C[i] * 2],
+                        &g_Menu->pShop->polysShopInventory[i * 4][g_Menu->pShop->inventoryPrimCounts[i] * 2],
                         g_Menu->renderContext, 0xBC, 0x36 + FONT_LETTER_HEIGHT * i, polyColor);
                 }
 
                 onesDigit = g_Menu->pShop->curItemQuantities[scrollOffset + i] % 10;
-                g_Menu->pShop->unk468C[i] += func_8002675C(
+                g_Menu->pShop->inventoryPrimCounts[i] += func_8002675C(
                     g_Menu->resources, onesDigit,
-                    &g_Menu->pShop->polysShopInventory[i * 4][g_Menu->pShop->unk468C[i] * 2],
+                    &g_Menu->pShop->polysShopInventory[i * 4][g_Menu->pShop->inventoryPrimCounts[i] * 2],
                     g_Menu->renderContext, 0xC4, 0x36 + FONT_LETTER_HEIGHT * i, polyColor);
 
-                g_Menu->pShop->unk4694[i] = g_Menu->renderContext;
+                g_Menu->pShop->inventoryRenderCtxs[i] = g_Menu->renderContext;
             }
         } else {
             g_Menu->pShop->unk4684[i] = 0;
@@ -3401,12 +3401,12 @@ s32 func_801CEB3C(s32 itemIndex, s32 scrollOffset, u8* pUnused) {
     HeapFree(pWorkspace);
 
     if (itemId) {
-        g_Menu->pShop->unk46A7 = 1;
+        g_Menu->pShop->shouldRenderItemDesc = 1;
     } else {
-        g_Menu->pShop->unk46A7 = 0;
+        g_Menu->pShop->shouldRenderItemDesc = 0;
     }
 
-    g_Menu->pShop->unk46A9 = 0;
+    g_Menu->pShop->equipMarkPrimCount = 0;
 
     for (i = 0, j = 0, x = 0x49; i < 0x10; i++) {
         if (!g_Menu->availableCharacters[i]) {
@@ -3414,16 +3414,16 @@ s32 func_801CEB3C(s32 itemIndex, s32 scrollOffset, u8* pUnused) {
         }
 
         if (ShopMenuIsCharacterFlagSet(equipFlags, i)) {
-            g_Menu->pShop->unk469C[j] = 1;
+            g_Menu->pShop->shouldRenderPortraitHighlight[j] = 1;
         } else {
-            g_Menu->pShop->unk469C[j] = 0;
+            g_Menu->pShop->shouldRenderPortraitHighlight[j] = 0;
         }
 
         // Portrait marker for the characters that already have the item equipped
         if (ShopMenuIsCharacterFlagSet(equippedFlags, i)) {
-            g_Menu->pShop->unk46A9 += func_8002675C(
+            g_Menu->pShop->equipMarkPrimCount += func_8002675C(
                 g_Menu->resources, 0xE,
-                &g_Menu->pShop->polys2D0[g_Menu->pShop->unk46A9 * 2],
+                &g_Menu->pShop->polys2D0[g_Menu->pShop->equipMarkPrimCount * 2],
                 g_Menu->renderContext,
                 g_CharacterPortraitX[j] + 0xE, 0xB4,
                 0x1000
@@ -3433,7 +3433,7 @@ s32 func_801CEB3C(s32 itemIndex, s32 scrollOffset, u8* pUnused) {
         g_Menu->pShop->unk46BC[j] = 0;
         g_Menu->pShop->unk46C5[j] = 0;
 
-        if (g_Menu->pShop->unk469C[j]) {
+        if (g_Menu->pShop->shouldRenderPortraitHighlight[j]) {
             delta[1] = 0;
             delta[0] = 0;
             ShopMenuComputeStatChange(delta, isImprovement, itemId, itemType, i);
@@ -3483,7 +3483,7 @@ s32 func_801CEB3C(s32 itemIndex, s32 scrollOffset, u8* pUnused) {
         j++;
     }
 
-    g_Menu->pShop->unk46A8 = g_Menu->renderContext;
+    g_Menu->pShop->equipMarkRenderCtx = g_Menu->renderContext;
     ShopMenuSetQuantityHeldGraphics(itemType, itemId);
 
     return price;
@@ -3646,7 +3646,7 @@ u_char ShopMenuBuyMenu(void) {
     }
 
     bzero(g_Menu->pShop->curItemQuantities, MAX_SHOP_ITEMS);
-    g_Menu->pSelectionMenu->unk1192 = TRUE;
+    g_Menu->pSelectionMenu->isDisabled = TRUE;
 
     ShopMenuInitializeArrowCursor(0);
 
@@ -3669,9 +3669,9 @@ u_char ShopMenuBuyMenu(void) {
         ShopMenuUpdateArrowCursor(curChoice, scrollOffset, 0, 0);
 
         if (shouldInitialize) {
-            ShopMenuSetStringListVisible(1, 2, g_Menu->unk6E0, &g_ShopBuyMenuStringIds, g_Menu->pManager->unkC);
-            ShopMenuPositionSelectedString(2, g_Menu->unk6E0, &g_ShopBuyMenuStringIds, &g_ShopSubmenuStringOffsets, g_Menu->pManager->unkC, 0, 0, 1);
-            g_Menu->pManager->unkC[0] = FALSE;
+            ShopMenuSetStringListVisible(1, 2, g_Menu->unk6E0, &g_ShopBuyMenuStringIds, g_Menu->pManager->shouldRenderStrings);
+            ShopMenuPositionSelectedString(2, g_Menu->unk6E0, &g_ShopBuyMenuStringIds, &g_ShopSubmenuStringOffsets, g_Menu->pManager->shouldRenderStrings, 0, 0, 1);
+            g_Menu->pManager->shouldRenderStrings[0] = FALSE;
             ShopMenuInitializeWindow(2, 0xC, 0x2A, 0xC4, 0x74, 0, 1, 4, 1);
             ShopMenuInitializeWindow(3, 0x20, 0xE, 0xFC, 0x14, 0, 1, 4, 0);
             ShopMenuInitializeWindow(5, 0xE0, 0x7A, 0x40, 0x24, 0, 1, 4, 0);
@@ -3682,7 +3682,7 @@ u_char ShopMenuBuyMenu(void) {
             while (g_Menu->transitionEffectState != MENU_ANIMATION_DONE) {
                 ShopMenuUpdateAndRender();
             }
-            g_Menu->pManager->unkC[0] = TRUE;
+            g_Menu->pManager->shouldRenderStrings[0] = TRUE;
         }
 
         if (refreshGoldGraphics) {
@@ -3701,7 +3701,7 @@ u_char ShopMenuBuyMenu(void) {
                     g_Menu->pManager->scrollHandleActive = FALSE;
                     g_Menu->pManager->shouldRenderArrowCursor[0] = FALSE;
                     isRunning = FALSE;
-                    g_Menu->pManager->unkC[0] = FALSE;
+                    g_Menu->pManager->shouldRenderStrings[0] = FALSE;
                     ShopMenuInitializePointerCursors(0);
                     ShopMenuSetFinalPriceGraphics(totalPrice);
                     if (ShopMenuConfirmationWindow(0x8F, 0xFF, 1) != MENU_CHOICE_NO) {
@@ -3715,7 +3715,7 @@ u_char ShopMenuBuyMenu(void) {
                         g_Menu->pManager->shouldRenderArrowCursor[0] = TRUE;
                         prevScrollOffset = 0xFF;
                         prevChoice = 0xFF;
-                        g_Menu->pManager->unkC[0] = TRUE;
+                        g_Menu->pManager->shouldRenderStrings[0] = TRUE;
                     }
                     ShopMenuFreePointerCursors();
                 } else {
@@ -3725,7 +3725,7 @@ u_char ShopMenuBuyMenu(void) {
 
             case MENU_INPUT_BACK:
                 isRunning = FALSE;
-                g_Menu->pManager->unkC[0] = 0;
+                g_Menu->pManager->shouldRenderStrings[0] = 0;
                 if (totalPrice != 0) {
                     g_Menu->pManager->unk5A = FALSE;
                     g_Menu->pManager->shouldRenderWindow[2] = FALSE;
@@ -3743,7 +3743,7 @@ u_char ShopMenuBuyMenu(void) {
                         g_Menu->pManager->shouldRenderArrowCursor[0] = TRUE;
                         prevScrollOffset = 0xFF;
                         prevChoice = 0xFF;
-                        g_Menu->pManager->unkC[0] = TRUE;
+                        g_Menu->pManager->shouldRenderStrings[0] = TRUE;
                     }
                     ShopMenuFreePointerCursors();
                 }
@@ -3903,25 +3903,25 @@ s32 ShopMenuUpdateItemDescription(u_char itemId, u_char itemType) {
     HeapFree(pWorkspace);
 
     if (itemId) {
-        g_Menu->pShop->unk46A7 = 1;
+        g_Menu->pShop->shouldRenderItemDesc = 1;
         g_Menu->pShop->unk46B5 = 1;
     } else {
-        g_Menu->pShop->unk46A7 = 0;
+        g_Menu->pShop->shouldRenderItemDesc = 0;
         g_Menu->pShop->unk46B5 = 0;
     }
 
-    g_Menu->pShop->unk46A9 = 0;
+    g_Menu->pShop->equipMarkPrimCount = 0;
     for (k = 0, j = 0; k < 0x10; k++) {
         if (g_Menu->availableCharacters[k] != 0) {
             if (ShopMenuIsCharacterFlagSet(equipFlags, k)) {
-                g_Menu->pShop->unk469C[j] = 1;
+                g_Menu->pShop->shouldRenderPortraitHighlight[j] = 1;
             } else {
-                g_Menu->pShop->unk469C[j] = 0;
+                g_Menu->pShop->shouldRenderPortraitHighlight[j] = 0;
             }
 
             if (ShopMenuIsCharacterFlagSet(equippedFlags, k)) {
-                g_Menu->pShop->unk46A9 += func_8002675C(g_Menu->resources, 0xE,
-                    &g_Menu->pShop->polys2D0[g_Menu->pShop->unk46A9 * 2], g_Menu->renderContext,
+                g_Menu->pShop->equipMarkPrimCount += func_8002675C(g_Menu->resources, 0xE,
+                    &g_Menu->pShop->polys2D0[g_Menu->pShop->equipMarkPrimCount * 2], g_Menu->renderContext,
                     g_CharacterPortraitX[j] + 0xE, 0xB4, 0x1000);
             }
 
@@ -3929,7 +3929,7 @@ s32 ShopMenuUpdateItemDescription(u_char itemId, u_char itemType) {
         }
     }
 
-    g_Menu->pShop->unk46A8 = g_Menu->renderContext;
+    g_Menu->pShop->equipMarkRenderCtx = g_Menu->renderContext;
 
     return sellPrice;
 }
@@ -3984,7 +3984,7 @@ void func_801D05BC(s32 scrollOffset, u8* pItemIds, u8* pItemTypes, u8* pItemSell
 
     for (i = 0; i < SHOP_MAX_ITEMS_IN_VIEW; i++) {
         bzero(digitBuffer, 0xE);
-        g_Menu->pShop->unk468C[i] = 0;
+        g_Menu->pShop->inventoryPrimCounts[i] = 0;
         if (pItemIds[scrollOffset + i]) {
             qty = pItemQtys[scrollOffset + i];
             itemType = pItemTypes[scrollOffset + i];
@@ -4035,22 +4035,22 @@ void func_801D05BC(s32 scrollOffset, u8* pItemIds, u8* pItemTypes, u8* pItemSell
             g_Menu->pShop->unk4684[i] = 1;
 
             if (pItemSellQtys[scrollOffset + i]) {
-                g_Menu->pShop->unk468C[i] += func_8002675C(g_Menu->resources, 0xE5,
+                g_Menu->pShop->inventoryPrimCounts[i] += func_8002675C(g_Menu->resources, 0xE5,
                     g_Menu->pShop->polysShopInventory[i * 4], g_Menu->renderContext, 0xB4, 0x36 + FONT_LETTER_HEIGHT * i,
                     0x1000);
 
                 tensDigit = pItemSellQtys[scrollOffset + i] / 10;
                 if (tensDigit) {
-                    g_Menu->pShop->unk468C[i] += func_8002675C(g_Menu->resources, tensDigit,
-                        &g_Menu->pShop->polysShopInventory[i * 4][g_Menu->pShop->unk468C[i] * 2],
+                    g_Menu->pShop->inventoryPrimCounts[i] += func_8002675C(g_Menu->resources, tensDigit,
+                        &g_Menu->pShop->polysShopInventory[i * 4][g_Menu->pShop->inventoryPrimCounts[i] * 2],
                         g_Menu->renderContext, 0xBC, 0x36 + FONT_LETTER_HEIGHT * i, 0x1000);
                 }
 
                 onesDigit = pItemSellQtys[scrollOffset + i] % 10;
-                g_Menu->pShop->unk468C[i] += func_8002675C(g_Menu->resources, onesDigit,
-                    &g_Menu->pShop->polysShopInventory[i * 4][g_Menu->pShop->unk468C[i] * 2], g_Menu->renderContext,
+                g_Menu->pShop->inventoryPrimCounts[i] += func_8002675C(g_Menu->resources, onesDigit,
+                    &g_Menu->pShop->polysShopInventory[i * 4][g_Menu->pShop->inventoryPrimCounts[i] * 2], g_Menu->renderContext,
                     0xC4, 0x36 + FONT_LETTER_HEIGHT * i, 0x1000);
-                g_Menu->pShop->unk4694[i] = g_Menu->renderContext;
+                g_Menu->pShop->inventoryRenderCtxs[i] = g_Menu->renderContext;
             }
         } else {
             g_Menu->pShop->unk4684[i] = 0;
@@ -4371,8 +4371,8 @@ int ShopMenuSellEquipmentMenu(void) {
         }
 
         if (curChoice != prevChoice) {
-            g_Menu->pShop->unk469C[curChoice] = 1;
-            g_Menu->pShop->unk469C[prevChoice] = 0;
+            g_Menu->pShop->shouldRenderPortraitHighlight[curChoice] = 1;
+            g_Menu->pShop->shouldRenderPortraitHighlight[prevChoice] = 0;
             prevChoice = curChoice;
         }
     }
@@ -4452,22 +4452,22 @@ void ShopMenuClearShopGraphics(u_char arg0, u_char arg1) {
     int i;
 
     g_Menu->pManager->unk5A = 0;
-    g_Menu->pShop->unk46A7 = 0;
+    g_Menu->pShop->shouldRenderItemDesc = 0;
     g_Menu->pShop->unk46B5 = 0;
-    g_Menu->pShop->unk46B2 = 0;
+    g_Menu->pShop->shouldRenderPrices = 0;
     g_Menu->pShop->explanationsLen = 0;
-    g_Menu->pShop->unk46A9 = 0;
+    g_Menu->pShop->equipMarkPrimCount = 0;
     g_Menu->pShop->numPortraits = 0;
 
     for (i = 0; i < 9; i++) {
-        g_Menu->pShop->unk469C[i] = 0;
+        g_Menu->pShop->shouldRenderPortraitHighlight[i] = 0;
         g_Menu->pShop->unk46BC[i] = 0;
         g_Menu->pShop->unk46C5[i] = 0;
     }
 
     for (i = 0; i < 8; i++) {
         g_Menu->pShop->unk4684[i] = 0;
-        g_Menu->pShop->unk468C[i] = 0;
+        g_Menu->pShop->inventoryPrimCounts[i] = 0;
     }
 
     if (arg0) {
@@ -4484,10 +4484,10 @@ void ShopMenuClearShopGraphics(u_char arg0, u_char arg1) {
 void ShopMenuSellModeMenuHandleSelectedOption(void) {
     u_char var_a0;
 
-    g_Menu->pManager->unk4 = 0;
+    g_Menu->pManager->shouldRenderPointerCursor = 0;
     g_Menu->pManager->unk3 = 0;
-    g_Menu->pManager->unkA = 0;
-    ShopMenuSetStringListVisible(0, 4, g_Menu->unk6E0, &g_ShopSubmenuStringIds, g_Menu->pManager->unkC);
+    g_Menu->pManager->shouldRenderSubmenuStrings = 0;
+    ShopMenuSetStringListVisible(0, 4, g_Menu->unk6E0, &g_ShopSubmenuStringIds, g_Menu->pManager->shouldRenderStrings);
 
     var_a0 = 1;
     switch (g_Menu->subMenuChoice) {
@@ -4509,10 +4509,10 @@ void ShopMenuSellModeMenuHandleSelectedOption(void) {
     }
 
     ShopMenuClearShopGraphics(var_a0, 0);
-    g_Menu->pManager->unkA = 1;
-    g_Menu->pManager->unk4 = 1;
+    g_Menu->pManager->shouldRenderSubmenuStrings = 1;
+    g_Menu->pManager->shouldRenderPointerCursor = 1;
     g_Menu->pManager->unk3 = 1;
-    ShopMenuSetStringListVisible(1, 4, g_Menu->unk6E0, &g_ShopSubmenuStringIds, g_Menu->pManager->unkC);
+    ShopMenuSetStringListVisible(1, 4, g_Menu->unk6E0, &g_ShopSubmenuStringIds, g_Menu->pManager->shouldRenderStrings);
 }
 
 // Items / Weapons / Accessories / Equipment
@@ -4529,14 +4529,14 @@ int ShopMenuSellModeMenu() {
         ShopMenuUpdateAndRender();
 
         if (shouldInitialize) {
-            ShopMenuSetStringListVisible(1, 4, g_Menu->unk6E0, &g_ShopSubmenuStringIds, g_Menu->pManager->unkC);
+            ShopMenuSetStringListVisible(1, 4, g_Menu->unk6E0, &g_ShopSubmenuStringIds, g_Menu->pManager->shouldRenderStrings);
             ShopMenuStartOpenMenuTransition();
             ShopMenuInitializeSubmenu(0);
             shouldInitialize = FALSE;
         }
 
         if (g_Menu->subMenuChoice != g_Menu->subMenuPrevChoice) {
-            ShopMenuPositionSelectedString(4, g_Menu->unk6E0, &g_ShopSubmenuStringIds, &g_ShopSubmenuStringOffsets, g_Menu->pManager->unkC, g_Menu->subMenuChoice, 3, 0);
+            ShopMenuPositionSelectedString(4, g_Menu->unk6E0, &g_ShopSubmenuStringIds, &g_ShopSubmenuStringOffsets, g_Menu->pManager->shouldRenderStrings, g_Menu->subMenuChoice, 3, 0);
             ShopMenuUpdateSubmenuTextures(0);
             g_Menu->subMenuPrevChoice = g_Menu->subMenuChoice;
         }
@@ -4568,9 +4568,9 @@ int ShopMenuSellModeMenu() {
         }
     }
 
-    g_Menu->pManager->unk4 = 0;
+    g_Menu->pManager->shouldRenderPointerCursor = 0;
     g_Menu->pManager->unk3 = 0;
-    ShopMenuSetStringListVisible(0, 4, g_Menu->unk6E0, &g_ShopSubmenuStringIds, g_Menu->pManager->unkC);
+    ShopMenuSetStringListVisible(0, 4, g_Menu->unk6E0, &g_ShopSubmenuStringIds, g_Menu->pManager->shouldRenderStrings);
     return TRUE;
 }
 

@@ -64,7 +64,7 @@ void MenuNormalMenuMain(void) {
                     MenuPlaySoundEffect(4);
                 }
                 if (isHandled) {
-                    g_Menu->pSelectionMenu->unk1192 = 1;
+                    g_Menu->pSelectionMenu->isDisabled = 1;
                     MenuResetSelectionCursorFlags();
                     MenuClearBytes(8, (u8*)g_Menu->pManager + 0xC);
                     shouldContinue = func_801C531C(0);
@@ -118,7 +118,7 @@ void MenuCdChangeMain(void) {
         D_801E96A4 = 0;
         D_801E96A5 = 0;
     }
-    g_Menu->pManager->unk4 = 0;
+    g_Menu->pManager->shouldRenderPointerCursor = 0;
     g_Menu->pManager->unk3 = 0;
     MenuWaitForDiscChange(g_ShopIndex);
 }
@@ -134,10 +134,10 @@ void MenuLoadGameMain(void) {
         MenuRenderFrame();
         switch (g_Menu->input) {
             case 4:
-                g_Menu->pSelectionMenu->unk1192 = 1;
+                g_Menu->pSelectionMenu->isDisabled = 1;
                 MenuResetSelectionCursorFlags();
                 MenuClearBytes(8, (u8*)g_Menu->pManager + 0xC);
-                g_Menu->unk348->unk15B = 0x40;
+                g_Menu->unk348->shadeWidth = 0x40;
                 shouldContinue = func_801C531C(7);
                 D_801E9784 = 0;
                 g_Menu->unk2D8 = 0;
@@ -362,7 +362,7 @@ void func_801C62A8(void) {
             D_800594D0 = 0;
             MenuLoadGameMain();
             g_Menu->pManager->shouldRenderSelectionMenu = 0;
-            g_Menu->pManager->unk4 = 0;
+            g_Menu->pManager->shouldRenderPointerCursor = 0;
             g_Menu->pManager->unk3 = 0;
             if (D_800594D0 == 0) {
                 MenuWaitForDiscChange(0);

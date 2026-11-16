@@ -57,7 +57,7 @@ void MenuSetupScreen(void) {
     g_Menu->pSelectionMenu->unk1180.y = 0x100;
     g_Menu->pSelectionMenu->unk1180.w = 0x140;
     g_Menu->pSelectionMenu->unk1180.h = 0xE0;
-    g_Menu->unk348->unk15B = 0x40;
+    g_Menu->unk348->shadeWidth = 0x40;
     func_801C6AA0();
     MenuResetRenderContext();
     MenuInitializeMenuStrings();
@@ -65,7 +65,7 @@ void MenuSetupScreen(void) {
     MenuInitializeWindowBorders();
     switch (g_MenuOverlayIndex) {
     case 2:
-        g_Menu->unk348->unk15B = 0x4C;
+        g_Menu->unk348->shadeWidth = 0x4C;
         /* fallthrough */
     case 0:
     case 6:

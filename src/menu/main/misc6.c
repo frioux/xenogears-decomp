@@ -108,29 +108,29 @@ void MenuMovePointerCursor(s32 slot, u8 doInit) {
     g_Menu->unk348->cursorRenderContext = (u8)g_Menu->renderContext;
 
     if (doInit) {
-        // Shaded rectangle of unk15B width with green lines around it
+        // Shaded rectangle of shadeWidth width with green lines around it
         setXY4(&g_Menu->unk348->polyG4s[g_Menu->renderContext],
                D_801E9A00[slot] + 0x14, D_801E9A2C[slot] - 0x24,
-               D_801E9A00[slot] + (g_Menu->unk348->unk15B + 0x14), D_801E9A2C[slot] - 0x24,
+               D_801E9A00[slot] + (g_Menu->unk348->shadeWidth + 0x14), D_801E9A2C[slot] - 0x24,
                D_801E9A00[slot] + 0x14, D_801E9A2C[slot] - 0x14,
-               D_801E9A00[slot] + (g_Menu->unk348->unk15B + 0x14), D_801E9A2C[slot] - 0x14);
+               D_801E9A00[slot] + (g_Menu->unk348->shadeWidth + 0x14), D_801E9A2C[slot] - 0x14);
 
         setXY3(&g_Menu->unk348->lines1[g_Menu->renderContext],
                D_801E9A00[slot] + 0x14, D_801E9A2C[slot] - 0x24,
-               D_801E9A00[slot] + (g_Menu->unk348->unk15B + 0x14), D_801E9A2C[slot] - 0x24,
-               D_801E9A00[slot] + (g_Menu->unk348->unk15B + 0x14), D_801E9A2C[slot] - 0x14);
+               D_801E9A00[slot] + (g_Menu->unk348->shadeWidth + 0x14), D_801E9A2C[slot] - 0x24,
+               D_801E9A00[slot] + (g_Menu->unk348->shadeWidth + 0x14), D_801E9A2C[slot] - 0x14);
 
         setXY3(&g_Menu->unk348->lines2[g_Menu->renderContext],
                D_801E9A00[slot] + 0x14, D_801E9A2C[slot] - 0x24,
                D_801E9A00[slot] + 0x14, D_801E9A2C[slot] - 0x14,
-               D_801E9A00[slot] + (g_Menu->unk348->unk15B + 0x14), D_801E9A2C[slot] - 0x14);
+               D_801E9A00[slot] + (g_Menu->unk348->shadeWidth + 0x14), D_801E9A2C[slot] - 0x14);
 
-        g_Menu->unk348->unk159 = (u8)g_Menu->renderContext;
+        g_Menu->unk348->drawModeRenderContext = (u8)g_Menu->renderContext;
         g_Menu->pManager->unk3 = 1;
     }
 }
 void MenuResetSelectionCursorFlags(void) {
-    g_Menu->pManager->unk4 = 0;
+    g_Menu->pManager->shouldRenderPointerCursor = 0;
     g_Menu->pManager->unk3 = 0;
 }
 void MenuSetupPointerCursors(u_char a0) {
@@ -140,8 +140,8 @@ void MenuSetupPointerCursors(u_char a0) {
     switch (a0) {
         case 0:
             g_Menu->pManager->shouldRenderCursors = 1;
-            g_Menu->pCursors->unk144[0] = 1;
-            g_Menu->pCursors->unk144[1] = 1;
+            g_Menu->pCursors->shouldUpdatePosition[0] = 1;
+            g_Menu->pCursors->shouldUpdatePosition[1] = 1;
         case 2:
             for (i = 0; i < 4; i++) {
                 func_8002675C(g_Menu->resources, 0x108, &g_Menu->pCursors->polysCursor[i * 2],
@@ -171,16 +171,16 @@ void MenuLoadSubMenuChoiceStrings(u_char a0) {
     s32 i;
 
     if (a0 != 0) {
-        MenuUploadStringTextures(g_Menu->unkAE0, D_801EA534, 4, 6);
+        MenuUploadStringTextures(g_Menu->subMenuChoiceStrings, D_801EA534, 4, 6);
         for (i = 0; i < 3; i++) {
-            MenuSetQuadVertices(g_Menu->unkAE0[i + 3].vertices, D_801E9E4C[i * 2], D_801E9E58[i * 2], g_Menu->unkAE0[i + 3].width, 0xD);
-            g_Menu->unkAE0[i + 3].renderContext = *(u_char*)&g_Menu->renderContext;
-            g_Menu->unkAE0[i + 3].unk7F = 1;
-            g_Menu->pManager->unk14[i + 3] = 1;
+            MenuSetQuadVertices(g_Menu->subMenuChoiceStrings[i + 3].vertices, D_801E9E4C[i * 2], D_801E9E58[i * 2], g_Menu->subMenuChoiceStrings[i + 3].width, 0xD);
+            g_Menu->subMenuChoiceStrings[i + 3].renderContext = *(u_char*)&g_Menu->renderContext;
+            g_Menu->subMenuChoiceStrings[i + 3].hasVertices = 1;
+            g_Menu->pManager->shouldRenderSubMenuChoiceStrings[i + 3] = 1;
         }
     } else {
         for (i = 0; i < 3; i++) {
-            g_Menu->pManager->unk14[i] = 0;
+            g_Menu->pManager->shouldRenderSubMenuChoiceStrings[i] = 0;
         }
     }
 }
@@ -189,13 +189,13 @@ void MenuClearSubMenuChoiceFlags(void) {
     int i;
 
     for (i = 0; i < 6; i++) {
-        g_Menu->pManager->unk14[i] = 0;
+        g_Menu->pManager->shouldRenderSubMenuChoiceStrings[i] = 0;
     }
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc6", func_801D261C);
 /* PARKED 86.91% (652 bytes = retail's exact size). Decoded: set the four corners of
-   g_Menu->unkAE0[subMenuChoice].polys[renderContext] from three tables, then copy
-   renderContext into that MenuString and set pManager->unk14[subMenuChoice] = 1.
+   g_Menu->subMenuChoiceStrings[subMenuChoice].polys[renderContext] from three tables, then copy
+   renderContext into that MenuString and set pManager->shouldRenderSubMenuChoiceStrings[subMenuChoice] = 1.
    x0 = x2 = D_801E9A1C[c] + (D_801E9E94[c] + 0x16);  x1 = x3 = width + x0;
    y0 = y1 = D_801E9A48[c] - 0x22;                    y2 = y3 = D_801E9A48[c] - 0x15;
    the source repeats every g_Menu-> load in all eight statements (retail re-reads
@@ -220,16 +220,16 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc6", func_801D261C);
 void func_801D261C(void) {
     MenuLoadSubMenuChoiceStrings(0);
 
-    g_Menu->unkAE0[g_Menu->subMenuChoice].polys[g_Menu->renderContext].x0 = D_801E9A1C[g_Menu->subMenuChoice][0] + (D_801E9E94[g_Menu->subMenuChoice][0] + 0x16);
-    g_Menu->unkAE0[g_Menu->subMenuChoice].polys[g_Menu->renderContext].y0 = D_801E9A48[g_Menu->subMenuChoice][0] - 0x22;
-    g_Menu->unkAE0[g_Menu->subMenuChoice].polys[g_Menu->renderContext].x1 = g_Menu->unkAE0[g_Menu->subMenuChoice].width + (D_801E9A1C[g_Menu->subMenuChoice][0] + 0x16) + D_801E9E94[g_Menu->subMenuChoice][0];
-    g_Menu->unkAE0[g_Menu->subMenuChoice].polys[g_Menu->renderContext].y1 = D_801E9A48[g_Menu->subMenuChoice][0] - 0x22;
-    g_Menu->unkAE0[g_Menu->subMenuChoice].polys[g_Menu->renderContext].x2 = D_801E9A1C[g_Menu->subMenuChoice][0] + (D_801E9E94[g_Menu->subMenuChoice][0] + 0x16);
-    g_Menu->unkAE0[g_Menu->subMenuChoice].polys[g_Menu->renderContext].y2 = D_801E9A48[g_Menu->subMenuChoice][0] - 0x15;
-    g_Menu->unkAE0[g_Menu->subMenuChoice].polys[g_Menu->renderContext].x3 = g_Menu->unkAE0[g_Menu->subMenuChoice].width + (D_801E9A1C[g_Menu->subMenuChoice][0] + 0x16) + D_801E9E94[g_Menu->subMenuChoice][0];
-    g_Menu->unkAE0[g_Menu->subMenuChoice].polys[g_Menu->renderContext].y3 = D_801E9A48[g_Menu->subMenuChoice][0] - 0x15;
-    g_Menu->unkAE0[g_Menu->subMenuChoice].renderContext = *(u_char*)&g_Menu->renderContext;
-    g_Menu->pManager->unk14[g_Menu->subMenuChoice] = 1;
+    g_Menu->subMenuChoiceStrings[g_Menu->subMenuChoice].polys[g_Menu->renderContext].x0 = D_801E9A1C[g_Menu->subMenuChoice][0] + (D_801E9E94[g_Menu->subMenuChoice][0] + 0x16);
+    g_Menu->subMenuChoiceStrings[g_Menu->subMenuChoice].polys[g_Menu->renderContext].y0 = D_801E9A48[g_Menu->subMenuChoice][0] - 0x22;
+    g_Menu->subMenuChoiceStrings[g_Menu->subMenuChoice].polys[g_Menu->renderContext].x1 = g_Menu->subMenuChoiceStrings[g_Menu->subMenuChoice].width + (D_801E9A1C[g_Menu->subMenuChoice][0] + 0x16) + D_801E9E94[g_Menu->subMenuChoice][0];
+    g_Menu->subMenuChoiceStrings[g_Menu->subMenuChoice].polys[g_Menu->renderContext].y1 = D_801E9A48[g_Menu->subMenuChoice][0] - 0x22;
+    g_Menu->subMenuChoiceStrings[g_Menu->subMenuChoice].polys[g_Menu->renderContext].x2 = D_801E9A1C[g_Menu->subMenuChoice][0] + (D_801E9E94[g_Menu->subMenuChoice][0] + 0x16);
+    g_Menu->subMenuChoiceStrings[g_Menu->subMenuChoice].polys[g_Menu->renderContext].y2 = D_801E9A48[g_Menu->subMenuChoice][0] - 0x15;
+    g_Menu->subMenuChoiceStrings[g_Menu->subMenuChoice].polys[g_Menu->renderContext].x3 = g_Menu->subMenuChoiceStrings[g_Menu->subMenuChoice].width + (D_801E9A1C[g_Menu->subMenuChoice][0] + 0x16) + D_801E9E94[g_Menu->subMenuChoice][0];
+    g_Menu->subMenuChoiceStrings[g_Menu->subMenuChoice].polys[g_Menu->renderContext].y3 = D_801E9A48[g_Menu->subMenuChoice][0] - 0x15;
+    g_Menu->subMenuChoiceStrings[g_Menu->subMenuChoice].renderContext = *(u_char*)&g_Menu->renderContext;
+    g_Menu->pManager->shouldRenderSubMenuChoiceStrings[g_Menu->subMenuChoice] = 1;
 }
 */
 void MenuCreateGoldWindow(void) {
@@ -321,9 +321,9 @@ void MenuFreeWindow2Strings(void) {
 
     if (g_Menu->pManager->shouldRenderWindow[2] != 0) {
         MenuFreeWindow(2);
-        g_Menu->pManager->unk2B = 0;
+        g_Menu->pManager->shouldRenderModalStrings = 0;
         for (i = 0; i < 4; i++) {
-            HeapFree(g_Menu->unk1DE0[i]);
+            HeapFree(g_Menu->modalStrings[i]);
         }
     }
     MenuRenderFrame();
@@ -409,13 +409,13 @@ void MenuCreateWindow(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4,
     pParams = g_Menu->windowParameters[a0];
     if (a5 != 0) {
         pParams->index = a0;
-        pParams->unk11 = 0;
+        pParams->isOpen = 0;
         pParams->x = a1;
         pParams->y = a2;
         pParams->width = a3;
         pParams->height = a4;
-        pParams->unk8 = 0;
-        pParams->unkA = 0;
+        pParams->curWidth = 0;
+        pParams->curHeight = 0;
         g_Menu->pManager->unk27[a0] = 1;
         pParams->unk12 = a6;
         pParams->zIndex = a7;
@@ -432,33 +432,33 @@ void MenuUpdateWindowAnimations(void) {
 
     for (i = 0; i < MENU_MAX_NUM_WINDOWS; i++) {
         pWindowInfo = g_Menu->windowParameters[i];
-        if ((g_Menu->pManager->unk27[i]) && pWindowInfo->unk11 == 0) {
+        if ((g_Menu->pManager->unk27[i]) && pWindowInfo->isOpen == 0) {
             flag = 0;
 
-            if ((pWindowInfo->unk8 + 32) >= pWindowInfo->width) {
-                pWindowInfo->unk8 = pWindowInfo->width;
+            if ((pWindowInfo->curWidth + 32) >= pWindowInfo->width) {
+                pWindowInfo->curWidth = pWindowInfo->width;
                 flag += 1;
             } else {
-                pWindowInfo->unk8 += 32;
+                pWindowInfo->curWidth += 32;
             }
 
-            if ((pWindowInfo->unkA + 32) >= pWindowInfo->height) {
-                pWindowInfo->unkA = pWindowInfo->height;
+            if ((pWindowInfo->curHeight + 32) >= pWindowInfo->height) {
+                pWindowInfo->curHeight = pWindowInfo->height;
                 flag += 1;
             } else {
-                pWindowInfo->unkA += 32;
+                pWindowInfo->curHeight += 32;
             }
 
             if (flag == 2) {
-                pWindowInfo->unk11 = 1;
+                pWindowInfo->isOpen = 1;
             }
 
             MenuSetWindow(
                 pWindowInfo->index,
-                (pWindowInfo->x + (pWindowInfo->width / 2)) - (pWindowInfo->unk8 / 2),
-                (pWindowInfo->y + (pWindowInfo->height / 2)) - (pWindowInfo->unkA / 2),
-                pWindowInfo->unk8,
-                pWindowInfo->unkA,
+                (pWindowInfo->x + (pWindowInfo->width / 2)) - (pWindowInfo->curWidth / 2),
+                (pWindowInfo->y + (pWindowInfo->height / 2)) - (pWindowInfo->curHeight / 2),
+                pWindowInfo->curWidth,
+                pWindowInfo->curHeight,
                 pWindowInfo->unk12,
                 pWindowInfo->zIndex,
                 pWindowInfo->hasScrollBar

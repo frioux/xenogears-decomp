@@ -131,9 +131,9 @@ void MenuRenderString(int length, POLY_FT4* pPolys, int renderContext) {
 void MenuRenderSelectionCursor(void) {
     u32 offset;
 
-    offset = g_Menu->unk348->unk159 * sizeof(DR_MODE) + 0x128;
+    offset = g_Menu->unk348->drawModeRenderContext * sizeof(DR_MODE) + 0x128;
     AddPrim(&g_Menu->pGfxEnv->ot[4], (void*)(offset + (u32)g_Menu->unk348));
-    if (g_Menu->pManager->unk4) {
+    if (g_Menu->pManager->shouldRenderPointerCursor) {
         offset = g_Menu->unk348->cursorRenderContext * sizeof(POLY_FT4);
         AddPrim(&g_Menu->pGfxEnv->ot[4], (void*)(offset + (u32)g_Menu->unk348));
     }
@@ -348,7 +348,7 @@ void MenuAddUnk360Prims(void) {
     u8* pFlag;
     u8* pRow;
 
-    if (g_Menu->pManager->unk4A[1]) {
+    if (g_Menu->pManager->shouldRenderPanel[1]) {
         for (i = 0; i < 5; i++) {
             pData = (u8*)g_Menu->unk360;
             pFlag = pData + i;
@@ -361,9 +361,9 @@ void MenuAddUnk360Prims(void) {
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc4", func_801CEC40);
 void MenuAddUnk5StringPrims(void) {
-    if (g_Menu->pManager->unkA) {
-        MenuRenderString(g_Menu->unk354->unk1404, g_Menu->unk354->polys500, g_Menu->unk354->unk1409);
-        MenuRenderString(g_Menu->unk354->unk1400, g_Menu->unk354->polys0, g_Menu->unk354->unk1408);
+    if (g_Menu->pManager->shouldRenderSubmenuStrings) {
+        MenuRenderString(g_Menu->unk354->polys500PrimCount, g_Menu->unk354->polys500, g_Menu->unk354->polys500RenderCtx);
+        MenuRenderString(g_Menu->unk354->polys0PrimCount, g_Menu->unk354->polys0, g_Menu->unk354->polys0RenderCtx);
     }
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc4", func_801CF37C);

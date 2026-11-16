@@ -94,7 +94,7 @@ void MenuRenderWindows(void) {
 
     for (i = 0; i < 7; i++) {
         if (g_Menu->pManager->shouldRenderWindow[i]) {
-            if (g_Menu->windows[i]->unk714 == 0) {
+            if (g_Menu->windows[i]->useDefaultMatrix == 0) {
                 PushMatrix();
                 rot.vx = rot.vy = rot.vz = 0;
                 trans.vx = trans.vy = 0;
@@ -137,10 +137,10 @@ void MenuAddSubMenuStringPrims(void) {
     u32 offset;
 
     for (i = 0; i < 6; i++) {
-        if (g_Menu->pManager->unk14[i] && g_Menu->unkAE0[i].unk7F) {
+        if (g_Menu->pManager->shouldRenderSubMenuChoiceStrings[i] && g_Menu->subMenuChoiceStrings[i].hasVertices) {
             offset = i * sizeof(MenuString) + 0xAE0;
             func_801CE198(1, (SVECTOR*)(offset + (u32)g_Menu + 0x50),
-                          (POLY_FT4*)(offset + (u32)g_Menu), g_Menu->unkAE0[i].renderContext);
+                          (POLY_FT4*)(offset + (u32)g_Menu), g_Menu->subMenuChoiceStrings[i].renderContext);
         }
     }
 }
@@ -195,8 +195,8 @@ void MenuAddUnk1DE0Prims(void) {
         return;
     }
     for (i = 0; i < 3; i++) {
-        pString = g_Menu->unk1DE0[i];
-        if (pString->unk7F) {
+        pString = g_Menu->modalStrings[i];
+        if (pString->hasVertices) {
             func_801CE198(1, pString->vertices, pString->polys, pString->renderContext);
         } else {
             AddPrim(&g_Menu->pGfxEnv->ot[4], &pString->polys[pString->renderContext]);
@@ -208,7 +208,7 @@ void MenuAddUnk18E0Prims(void) {
     s32 i;
 
     for (i = 0; i < 6; i++) {
-        if (g_Menu->pManager->unk54[i] && g_Menu->unk18E0[i].unk7F) {
+        if (g_Menu->pManager->unk54[i] && g_Menu->unk18E0[i].hasVertices) {
             func_801CE198(1, g_Menu->unk18E0[i].vertices, g_Menu->unk18E0[i].polys,
                           g_Menu->unk18E0[i].renderContext);
         }
@@ -264,7 +264,7 @@ void MenuAddCharacterPrims(MenuCharacter* pCharacter, s32 flag) {
 void MenuAddCurrentCharacterPrims(void) {
     s32 i;
 
-    if (g_Menu->pManager->unk46) {
+    if (g_Menu->pManager->shouldRenderCharacters) {
         for (i = 0; i < 3; i++) {
             MenuAddCharacterPrims(g_Menu->currentCharacters[i], 1);
         }
@@ -320,7 +320,7 @@ void MenuAddUnk430Prims(void) {
     u32 offset2;
     u32 offset3;
 
-    if (g_Menu->pManager->unk4A[0] == 0) {
+    if (g_Menu->pManager->shouldRenderPanel[0] == 0) {
         return;
     }
     for (i = 0, offset2 = 0x700; i < 14; i++, offset2 += sizeof(MenuString)) {
@@ -353,7 +353,7 @@ void MenuAddUnk434Prims(void) {
     u32 offset2;
     u32 offset;
 
-    if (g_Menu->pManager->unk4A[2] == 0) {
+    if (g_Menu->pManager->shouldRenderPanel[2] == 0) {
         return;
     }
     for (i = 0, offset2 = 0x400; i < 8; i++, offset2 += sizeof(MenuString)) {
@@ -385,7 +385,7 @@ void MenuAddUnk438Prims(void) {
     u32 offset3;
     u32 offset4;
 
-    if (g_Menu->pManager->unk4A[3] == 0) {
+    if (g_Menu->pManager->shouldRenderPanel[3] == 0) {
         return;
     }
     for (i = 0, offset2 = 0x680; i < 13; i++, offset2 += sizeof(MenuString)) {

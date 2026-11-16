@@ -188,7 +188,7 @@ u8 func_801DB920(s32 arg0, s32 arg1) {
     pCursors->shouldRender[1] = 0;
     pCursors->shouldRender[0] = 0;
     func_801DB39C(0);
-    g_Menu->pManager->unk46 = 0;
+    g_Menu->pManager->shouldRenderCharacters = 0;
     MenuRenderFrame();
     for (i = 0; i < 3; i++) {
         HeapFree(g_Menu->currentCharacters[i]);
@@ -436,7 +436,7 @@ void MenuFreeUnk430Panel(u_char arg0) {
     MenuFreeWindow(5);
     MenuFreeWindow(6);
     MenuHidePointerCursors();
-    g_Menu->pManager->unk4A[0] = 0;
+    g_Menu->pManager->shouldRenderPanel[0] = 0;
     MenuRenderFrame();
     switch (arg0 & 0xFF) {
     case 0:
@@ -528,7 +528,7 @@ void MenuInitializeCharacterSpriteRecords(u32 arg0) {
 }
 
 void MenuFreeCharacterSpriteRecords(void) {
-    g_Menu->pManager->unk4A[2] = 0;
+    g_Menu->pManager->shouldRenderPanel[2] = 0;
     MenuFreeWindow(2);
     MenuFreeWindow(3);
     MenuFreeWindow(4);
@@ -542,7 +542,7 @@ void MenuFreeCharacterSpriteRecords(void) {
 
 void MenuFreeUnk35CPanel(void) {
     g_Menu->pManager->unk5[3] = 0;
-    g_Menu->pManager->unk4A[1] = 0;
+    g_Menu->pManager->shouldRenderPanel[1] = 0;
     MenuRenderFrame();
     HeapFree(g_Menu->unk35C);
     HeapFree(g_Menu->unk360);

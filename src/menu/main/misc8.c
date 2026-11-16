@@ -390,7 +390,7 @@ s32 func_801D9808(void) {
         func_800386C4(choice);
     }
     MenuClearBytes(4, g_Menu->pManager->unk5C);
-    g_Menu->pManager->unk4 = 0;
+    g_Menu->pManager->shouldRenderPointerCursor = 0;
     g_Menu->pManager->unk3 = 0;
     return 1;
 }
