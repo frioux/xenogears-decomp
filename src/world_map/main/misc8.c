@@ -954,6 +954,84 @@ void WorldMapProjectTriangleNormal(WorldMapPos *pPos, WorldMapPos *pOut, WorldMa
     WorldMapInterpolatePlaneHeight(pOut, (WorldMapPos *)pA, pNormal);
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_80085418);
+// Best: 99.73% at retail's exact size (840 bytes = 210 insns). Written from
+// scratch this round against WorldMapProjectTriangleNormal below, which is the
+// same pipeline: copy the sprite set's mat to scratch 0x1F8000F0, zero t[2]/t[0],
+// t[1] = unkC, scale 0x800, ScaleMatrix, RotTrans the triangle's three verts into
+// 0x1F800000/10/20, subtract the first from the other two, OuterProduct0, >>2,
+// VectorNormal, build two 3-short rows at 0x1F800110 (second row's y minus the
+// s32 arg1), ApplyMatrixLV, return (out.vx ^ out.vy) >> 31. The x/y/z tail rows
+// must be written as three interleaved compute-then-two-stores groups (a shared
+// temp per row) or gcc reloads pA->vx/unk8 across the sh's (90% -> 94.52%), and
+// gcc's grow/split of the z subtraction matters: `z = pEntry->unk10 - (pPos->z
+// >> 12);` placed between the two m[1] stores and then `z -= pWork->vert0.vz;`
+// is 99.73% (splitting it earlier or as two `z =` statements is worse, 98.71%).
+// The single remaining delta is one mirrored register pair in the last block:
+// retail loads pEntry->unk10 into $a3 first and pPos->z into $v1 second, this
+// body loads pPos->z first (a permuter run from the 94.52% body found the z
+// split; a second run from this one is the next step).
+/*
+s32 func_80085418(WorldMapPos *pPos, s32 yOffset, u16 setIndex, u16 triIndex) {
+    WorldMapEntry *pEntry;
+    WorldMapMesh *pMesh;
+    WorldMapTriangle *pTri;
+    SVECTOR *pVerts;
+    MATRIX *pMat = (MATRIX *)0x1F8000F0;
+    VECTOR *pA = (VECTOR *)0x1F800000;
+    VECTOR *pB;
+    MATRIX *pLine = (MATRIX *)0x1F800110;
+    VECTOR *pNormal = (VECTOR *)0x1F800030;
+    VECTOR *pDst = (VECTOR *)0x1F800040;
+    WorldMapScratch *pWork = (WorldMapScratch *)0x1F800000;
+    long flag;
+    s32 x;
+    s32 y;
+    s32 z;
+
+    pEntry = &D_8009C620[setIndex];
+    *pMat = pEntry->mat;
+    pMat->t[2] = 0;
+    pMat->t[0] = 0;
+    pMat->t[1] = pEntry->unkC;
+    pWork->scale.vz = 0x800;
+    pWork->scale.vy = 0x800;
+    pWork->scale.vx = 0x800;
+    pB = (VECTOR *)0x1F800010;
+    ScaleMatrix(pMat, pB);
+    SetRotMatrix(pMat);
+    SetTransMatrix(pMat);
+    pMesh = pEntry->unk44;
+    pTri = pMesh->tris;
+    pTri += triIndex;
+    pVerts = pMesh->unk4;
+    RotTrans(&pVerts[pTri->vert[0]], pA, &flag);
+    RotTrans(&pVerts[pTri->vert[1]], pB, &flag);
+    RotTrans(&pVerts[pTri->vert[2]], &pWork->vert2, &flag);
+    pB->vx -= pA->vx;
+    pB->vy -= pA->vy;
+    pB->vz -= pA->vz;
+    pWork->vert2.vx -= pA->vx;
+    pWork->vert2.vy -= pA->vy;
+    pWork->vert2.vz -= pA->vz;
+    OuterProduct0(&pWork->vert2, pB, &pWork->vert2);
+    pWork->vert2.vx >>= 2;
+    pWork->vert2.vy >>= 2;
+    pWork->vert2.vz >>= 2;
+    VectorNormal(&pWork->vert2, pNormal);
+    x = (pPos->x >> 12) - pEntry->unk8 - pA->vx;
+    pLine->m[0][0] = x;
+    pLine->m[1][0] = x;
+    y = (pPos->y >> 12) - pA->vy;
+    pLine->m[0][1] = y;
+    z = pEntry->unk10 - (pPos->z >> 12);
+    pLine->m[1][1] = y - yOffset;
+    z -= pWork->vert0.vz;
+    pLine->m[0][2] = z;
+    pLine->m[1][2] = z;
+    ApplyMatrixLV(pLine, pNormal, pDst);
+    return (pDst->vx ^ pDst->vy) >> 31;
+}
+*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_80085760);
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_80085CDC);
