@@ -732,24 +732,6 @@ s32 func_8009FA54(s32 nInstructionOffset) {
 }
 */
 INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_8009FA54);
-// Screened 36 variants: flat 63.17% under all three gccs - only the epilogue store
-// order differs, no compiler/flag combination reaches 100.
-// 63.17% (120 vs 120 bytes): insn multiset is identical, only the order of the
-// two epilogue stores differs. cc1 puts `sh ip+2,0xCC(a0)` before
-// `sw D_800B2268` and hoists the second `lhu 0xCC(a0)` above the `lbu`, i.e. it
-// schedules the store past the independent one (the unit's scheduler is on at
-// -O2) and retail's `sh` ends up in the `jr ra` delay slot while ours does not.
-// Tried: a local `pActor` for the two 0xCC accesses (same 63.17%), the macro form
-// SCRIPT_READ_U8_REL (same, so the previous 66.50% note was an objdiff-version
-// difference), and a `*(volatile s32*)&D_800B2268` store (no change - so cc1 is
-// not sinking the store, the scheduling happens before it). Re-tried a `s16 ip`
-// temp for the 0xCC read-modify-write: identical 63.17%.
-// Round 117: wrapping the D_800B2268 store in `do { ... } while (0);` puts every
-// other instruction in retail's exact order (sw before the second lhu/sh) but
-// makes cc1 emit a third `lhu 0xCC(a0)` at the top: 90.00%, 124 vs 120 bytes.
-// The remaining gap is that one redundant load, so the do/while block is the
-// right skeleton to start the next attempt from.
-/*
 void func_8009FB98(void) {
     ActorData* pActor;
 
@@ -758,11 +740,12 @@ void func_8009FB98(void) {
     GamePartySyncSkinData();
     GamePartySyncStreamedData();
     pActor = g_FieldScriptVMCurActor;
-    D_800B2268 = *(u8*)&g_FieldScriptVMCurScriptData[pActor->scriptInstructionPointer + 1];
-    pActor->scriptInstructionPointer += 2;
+    D_800B2268 = SCRIPT_READ_U8_REL(1);
+    // gcc schedules the store of the new IP after the script read only inside a block.
+    do {
+        pActor->scriptInstructionPointer += 2;
+    } while (0);
 }
-*/
-INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_8009FB98);
 
 extern s32 D_8006F990[];
 int FieldGetPartySlotByActorIndex(int actorIndex) {
