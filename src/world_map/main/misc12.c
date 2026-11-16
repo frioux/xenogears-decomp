@@ -46,17 +46,21 @@ extern s16 g_WorldMapCameraRot;
 extern s16 D_8009BD3C;
 extern u16 D_8009D52C;
 extern u32 g_WorldMapScrollTargetX[];
-extern u32 D_8009B224[];
-extern u32 D_8009B22C[];
-extern u32 D_8009B234[];
-extern u32 D_8009B23C[];
+extern s16 D_8009B224[];
+extern s16 D_8009B22C[];
+extern s16 D_8009B234[];
+extern s16 D_8009B23C[];
+extern s32 D_8009BE2C;
+extern SVECTOR D_8009BD48;
+extern s32 g_WorldMapRotationMatrixValid;
+extern s32 func_80091FF8(s32 nLimit, s16 *pIn, s16 *pOfs);
 
 typedef struct {
     /* 0x00 */ u8 unk0[0x4];
     /* 0x04 */ s16 unk4;
     /* 0x06 */ u8 unk6[0x1A];
     /* 0x20 */ s16 unk20;
-    /* 0x22 */ u8 unk22[0x2];
+    /* 0x22 */ s16 unk22;
     /* 0x24 */ u16 unk24;
     /* 0x26 */ u8 unk26[0x2];
     /* 0x28 */ s32 unk28;
@@ -71,12 +75,12 @@ typedef struct {
     /* 0x4A */ u16 unk4A;
     /* 0x4C */ u8 unk4C[0x4];
     /* 0x50 */ s32 unk50;
-    /* 0x54 */ u32 unk54;
+    /* 0x54 */ s32 unk54;
     /* 0x58 */ s32 unk58;
     /* 0x5C */ s32 unk5C;
-    /* 0x60 */ u32 unk60;
-    /* 0x64 */ void *unk64;
-    /* 0x68 */ void *unk68;
+    /* 0x60 */ s32 unk60;
+    /* 0x64 */ s16 *unk64;
+    /* 0x68 */ s16 *unk68;
     /* 0x6C */ u32 unk6C;
     /* 0x70 */ s32 unk70;
     /* 0x74 */ u32 unk74;
@@ -183,7 +187,7 @@ s32 func_8008E190(s32 idx) {
     pPlayer->unk64 = 0;
     pPlayer->unk60 = 0;
     pPlayer->unk74 = 0;
-    pPlayer->unk68 = (void *)0xFFD80000;
+    pPlayer->unk68 = (s16 *)0xFFD80000;
     pPlayer->unk70 = 0;
     pPlayer->unk6C = 0;
     pPlayer->unk48 = nAngle;
@@ -330,7 +334,7 @@ s32 WorldMapInitActorAtGameStatePosition(s32 idx) {
     nAngle = g_GameState.unk1832;
     pPlayer->unk4A = 0x20;
     pPlayer->unk74 = 3;
-    pPlayer->unk68 = (void *)0xFFD80000;
+    pPlayer->unk68 = (s16 *)0xFFD80000;
     pPlayer->unk40 = 0;
     pPlayer->unk3C = 0;
     pPlayer->unk38 = 0;
@@ -649,6 +653,144 @@ s32 WorldMapModeInitActorAngleSets(s32 idx) {
     return 1;
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_80091C18);
+/* best: 87.81%, 996 bytes against retail's 992 (one instruction long). The whole
+   state machine is decoded and every relocation is right; what is left is gcc's
+   block and delay-slot ordering, not structure:
+   - cases 9/10: retail's shared tail is [bnez unk50][sw v0,0x68][li 1][sw v0,0x50]
+     with `sh zero,4(s0)` (unk4 = 0) in the `j` delay slot, i.e. the unk68 store was
+     cross-jumped and takes its value in v0. This body emits the unk68 store in the
+     j delay and `sh zero,4` in the bnez delay instead.
+   - case 0: retail emits [sh v0,0x20][sll a0,2][sh zero,0x22][sw a0,0x50]
+     [lui/addu/lw D_8009B214][lw v0,0x50][nop][sll 1][addu][sw v1,0x54][lh][nop]
+     [sw v0,0x58]; this body hoists the unk50 store and its reload above the two
+     `sh` stores and drops the two load-delay nops.
+   - camera-height ramp: retail keeps unk54 and g_WorldMapCameraHeight in a1/a0 and
+     never reloads them; this body reloads both.
+   - `nStep = 0x40000 >> 3` constant-folds to li 0x8000 here, retail has
+     `lui v1,4` plus `sra v1,v1,3`, so the shift of the clamp constant was not folded
+     in the original; no source spelling tried so far reproduces that.
+   Listing the cases 14, 17, 9, 10 (not 9, 10, 14, 17) was worth 13 points - block
+   emission order is the lever in this switch, so a permuter run from this body is
+   the next step, not more hand shapes. Field types this body proved: unk4/unk20/
+   unk22 s16 (lh, slti, sh), unk54/unk60 s32 (blez, sra), unk64/unk68 s16* (the angle
+   and height tracks indexed by the path point). pRot = &g_WorldMapCameraRot is what
+   makes retail hold the address in a3 across the compare and the func_80096F18 call;
+   without it the three cases lose their separate arg-setup blocks.
+s32 func_80091C18(s32 idx) {
+    WorldMapPlayer *pPlayer;
+    s16 *pPath;
+    s16 *pRot;
+    s32 nPoint;
+    s32 nDelta;
+    s32 nStep;
+    s32 nRet;
+
+    pPlayer = g_WorldMapSlots + idx;
+    nRet = 1;
+    switch (pPlayer->unk4) {
+    case 14:
+        pPlayer->unk4 = 0;
+        pPlayer->unk20 = 0;
+        g_WorldMapRotationMatrixValid = 0;
+        break;
+    case 17:
+        g_WorldMapCameraHeight = 0x400000;
+        pPlayer->unk20 = 3;
+        pPlayer->unk4 = 0;
+        pPlayer->unk58 = -0x100;
+        break;
+    case 9:
+        pPlayer->unk64 = D_8009B22C;
+        pPlayer->unk68 = D_8009B23C;
+        pPlayer->unk4 = 0;
+        if (pPlayer->unk50 == 0) {
+            pPlayer->unk50 = 1;
+        }
+        break;
+    case 10:
+        pPlayer->unk64 = D_8009B224;
+        pPlayer->unk68 = D_8009B234;
+        pPlayer->unk4 = 0;
+        if (pPlayer->unk50 == 0) {
+            pPlayer->unk50 = 1;
+        }
+        break;
+    }
+    pPath = pPlayer->unk64;
+    switch (pPlayer->unk20) {
+    case 0:
+        nPoint = func_80091FF8(pPlayer->unk50, pPath, pPlayer->unk68);
+        if (pPlayer->unk50 != nPoint) {
+            pPlayer->unk20 = 1;
+            pPlayer->unk22 = 0;
+            pPlayer->unk50 = nPoint;
+            pPlayer->unk54 = D_8009B214[nPoint];
+            pPlayer->unk58 = pPath[pPlayer->unk50];
+            pPlayer->unk60 = g_WorldMapCameraRot << 12;
+        }
+        func_80096F18(&g_WorldMapPathFrame, &g_WorldMapCameraTarget, g_WorldMapCameraHeight, &g_WorldMapCameraRot);
+        break;
+    case 1:
+        if (pPlayer->unk22 >= 5) {
+            nPoint = func_80091FF8(pPlayer->unk50, pPath, pPlayer->unk68);
+            if (pPlayer->unk50 != nPoint) {
+                pPlayer->unk50 = nPoint;
+                pPlayer->unk54 = D_8009B214[nPoint];
+                pPlayer->unk58 = pPath[pPlayer->unk50];
+            }
+            pPlayer->unk22 = 0;
+        }
+        if (pPlayer->unk54 != g_WorldMapCameraHeight) {
+            nDelta = pPlayer->unk54 - g_WorldMapCameraHeight;
+            if (nDelta > 0) {
+                if (nDelta > 0x40000) {
+                    nStep = 0x40000 >> 3;
+                } else {
+                    nStep = nDelta >> 3;
+                }
+                if (nStep < 0x40) {
+                    g_WorldMapCameraHeight = pPlayer->unk54;
+                } else {
+                    g_WorldMapCameraHeight += nStep;
+                }
+            } else {
+                g_WorldMapCameraHeight -= 0x2000;
+            }
+        }
+        if (pPlayer->unk58 != g_WorldMapCameraRot) {
+            nDelta = (pPlayer->unk58 - g_WorldMapCameraRot) << 12;
+            if (nDelta < 0) {
+                pPlayer->unk60 += nDelta >> 5;
+            } else if (pPlayer->unk50 == 0) {
+                pPlayer->unk60 += 0xF32;
+            } else {
+                pPlayer->unk60 += 0x799;
+            }
+            g_WorldMapCameraRot = pPlayer->unk60 >> 12;
+        }
+        pRot = &g_WorldMapCameraRot;
+        if ((pPlayer->unk54 == g_WorldMapCameraHeight) & (pPlayer->unk58 == *pRot)) {
+            pPlayer->unk20 = 0;
+        }
+        func_80096F18(&g_WorldMapPathFrame, &g_WorldMapCameraTarget, g_WorldMapCameraHeight, pRot);
+        break;
+    case 2:
+        D_8009BD48.vx = 0;
+        D_8009BD48.vz = 0;
+        D_8009BD48.vy = D_8009BE2C >> 12;
+        break;
+    case 3:
+        pRot = &g_WorldMapCameraRot;
+        if (pPlayer->unk58 != *pRot) {
+            *pRot += 2;
+        }
+        func_80096F18(&g_WorldMapPathFrame, &g_WorldMapCameraTarget, g_WorldMapCameraHeight, pRot);
+        break;
+    }
+    pPlayer->unk22++;
+    return nRet;
+}
+*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_80091FF8);
 /* best: 92.10%, same size (580 bytes). The whole structure is decoded and every
    relocation is right; what is left is gcc allocation/scheduling:
