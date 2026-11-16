@@ -39,6 +39,8 @@ extern s32 D_800987FC;
 /* 66.68%: original keeps &D_8009867C in $s0 across the first call and reads and
    stores through it; ours rematerialises the address (lui at / lw / sw). The same
    C without the pointer local scores the same; -G0 65.72, gcc 2.6.0 65.72.
+   func_80070808's body shows D_8009867C/80/84 are the vx/vy/vz of one VECTOR:
+   it reads 0x0(a0) with 0x0(s0) and stores the result back through 0x0(s0).
 */
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_80070808);
 
@@ -59,7 +61,8 @@ extern void func_800828F8(s32* pA, s32* pB, s32 limit);
 
 /* 74.00%: same missing shape as func_80070808, the original keeps &D_8009871C in
    $s2 across all four calls and reaches it through the register; ours re-forms it
-   with lui/addiu each time.
+   with lui/addiu each time. D_8009871C/20/24 are also one VECTOR seen by
+   func_800708C4 as 0x0/0x4/0x8(s2).
 */
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_800708C4);
 
@@ -77,7 +80,92 @@ void func_800708C4(s32* p, s32 step) {
 }
 */
 
+extern VECTOR D_80097010;
+extern VECTOR D_8009872C;
+extern VECTOR D_80099078;
+extern s32 D_80097014;
+extern s32 D_80097018;
+extern s32 D_80098780;
+extern s32 D_80097064;
+extern s32 D_80098730;
+extern s32 D_80098734;
+extern void func_80070808(VECTOR* pVec, s32 step);
+extern void func_800708C4(VECTOR* pVec, s32 step);
+extern void func_80083738(VECTOR* pA, VECTOR* pB);
+extern s32 func_80082488(VECTOR* pVec, s32 mode);
+
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_8007099C);
+
+/* 92.82%: same size as retail and every statement/call/constant is right; the
+   gaps are allocation and position. Remaining diffs, all in the case 3/4 tail:
+   (a) retail forms &vec (s0) after the D_80099078 copy, ours hoists the
+   addiu s0 above it; (b) the func_80082488 delta keeps retail's -0x40 in $v0
+   (the call result) while ours copies it to $a0 first; (c) case 5 keeps
+   &D_8009867C in $s0 across the rcos call (sw v0,0(s0), then lw v0,0(s0)) where
+   ours rematerialises the symbol as a direct %lo store. A pointer local does
+   not stop that. Do not re-derive the shape: the do-while around the
+   D_800925F4 store is load-bearing (91.24 -> 92.82, and it restores retail's
+   byte count), and the y local is what stops gcc folding
+   (D_80098730 - 0x20) - D_800925F4 into D_80098730 - (D_800925F4 + 0x20).
+*/
+/* attempt:
+void func_8007099C(s32 mode) {
+    VECTOR vec;
+    s32 scale;
+    s32 y;
+    s32 offset;
+    s32* pBase;
+
+    switch (mode) {
+    case 0:
+        func_80083738(&D_8009872C, &D_80097010);
+        break;
+    case 1:
+        vec = D_8009872C;
+        goto place_message;
+    case 2:
+        vec = D_80097010;
+    place_message:
+        vec.vy -= 0xA0;
+        D_800925F4 = 0;
+        func_80070808(&vec, 4);
+        break;
+    case 3:
+        scale = 0xA0;
+        goto rotate_message;
+    case 4:
+        scale = 0x80;
+    rotate_message:
+        // the block keeps the scale store in front of the vector copy
+        do {
+            D_800925F4 = scale;
+        } while (0);
+        vec = D_80099078;
+        vec.vy += D_800925F4;
+        func_80070808(&vec, 0x10);
+        vec.vx = D_8009872C.vx + ((rcos(D_80098780 + 0xA80) * 0xD0) >> 12);
+        y = D_80098730 - 0x20;
+        vec.vy = y - D_800925F4;
+        vec.vz = D_80098734 + ((rsin(D_80098780 + 0xA80) * 0xD0) >> 12);
+        func_800708C4(&vec, 0x46);
+        offset = func_80082488(&D_8009871C, 0) - 0x40;
+        offset -= D_800925F4;
+        if (offset < D_80098720) {
+            D_80098720 = offset;
+        }
+        break;
+    case 5:
+        pBase = &D_8009867C;
+        *pBase = D_80097010.vx;
+        D_80098680 = D_80097014 - 0xC0;
+        D_80098684 = D_80097018;
+        D_8009871C = *pBase + ((rcos(D_80097064 + 0x900) * 0xE0) >> 12);
+        D_80098720 = D_80097014 - 0xD0;
+        D_80098724 = D_80098684 + ((rsin(D_80097064 + 0x900) * 0xE0) >> 12);
+        break;
+    }
+}
+*/
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_80070C7C);
 
@@ -311,8 +399,6 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_80071DA4);
 
 extern s32 D_8009284C;
 extern s32 D_80092948;
-extern u8 D_8009872C[];
-extern u8 D_80097010[];
 extern void SoundStopAudioManager(s32 arg);
 extern void SoundStopAllElements(void);
 extern void func_80071DA4(u8* p);
@@ -336,7 +422,7 @@ void func_80071F8C(s32 mode) {
         SoundStopAllElements();
         break;
     case 1:
-        func_80071DA4(&D_8009872C[0]);
+        func_80071DA4((u8*)&D_8009872C);
         if (D_800970C4 * 0x100 / D_800970CC < D_800987E0 * 0x100 / D_800987E8) {
             D_800925D4 = 0x43;
         } else {
@@ -344,7 +430,7 @@ void func_80071F8C(s32 mode) {
         }
         break;
     case 2:
-        func_80071DA4(&D_80097010[0]);
+        func_80071DA4((u8*)&D_80097010);
         break;
     case 3:
         D_80098720 = -D_8009284C;
