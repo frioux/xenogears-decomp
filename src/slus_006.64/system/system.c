@@ -87,16 +87,16 @@ typedef struct SystemStringNode {
 } SystemStringNode; // Size: 0x8
 
 typedef struct {
-    /* 0x00 */ s16 unk0;
-    /* 0x02 */ s16 unk2;
-    /* 0x04 */ s16 unk4;
-    /* 0x06 */ s16 unk6;
+    /* 0x00 */ s16 lineWidth;
+    /* 0x02 */ s16 charIndex;
+    /* 0x04 */ s16 x;
+    /* 0x06 */ s16 y;
     /* 0x08 */ undefined8 unk8[4];
     /* 0x0C */ s16 maxChars;
     /* 0x0E */ s16 unkE;
     /* 0x10 */ u16 flags;
     /* 0x12 */ undefined8 unk12[2];
-    /* 0x14 */ s16 unk14;
+    /* 0x14 */ s16 lineHeight;
     /* 0x16 */ s16 unk16;
     /* 0x18 */ s16 unk18;
     /* 0x1A */ undefined8 unk1A[2];
@@ -112,11 +112,11 @@ typedef struct {
     /* 0x6B */ u8 unk6B;
     /* 0x6C */ u8 unk6C;
     /* 0x6D */ undefined8 unk6D;
-    /* 0x6E */ u8 unk6E;
+    /* 0x6E */ u8 lineOffset;
     /* 0x6F */ undefined8 unk6F;
     /* 0x70 */ u32 unk70;
     /* 0x74 */ undefined8 unk74[0xE];
-    /* 0x82 */ s16 unk82;
+    /* 0x82 */ s16 bufferCount;
     /* 0x84 */ s16 unk84;
     /* 0x86 */ s16 unk86;
     /* 0x88 */ s16 unk88;
@@ -499,7 +499,7 @@ void SystemStringFreeBufferStack(SystemString* pString) {
     }
 
     pString->pBufferStack = NULL;
-    pString->unk82 = 0;
+    pString->bufferCount = 0;
 }
 
 void SystemStringReset(SystemString* pString) {
@@ -519,7 +519,7 @@ int SystemStringPushBuffer(SystemString* pString, void* pData) {
     SystemStringNode* pCur = pString->pBufferStack;
     SystemStringNode* pNode;
 
-    pString->unk82++;
+    pString->bufferCount++;
     HeapSetCurrentContentType(HEAP_CONTENT_MES_CUE);
     pNode = HeapAlloc(0x8, 0x2);
     pNode->pData = pData;
@@ -527,7 +527,7 @@ int SystemStringPushBuffer(SystemString* pString, void* pData) {
 
     if (pCur == NULL) {
         pString->pBufferStack = pNode;
-        return pString->unk82;
+        return pString->bufferCount;
     }
 
     while (pCur->pNext != NULL) {
@@ -536,21 +536,21 @@ int SystemStringPushBuffer(SystemString* pString, void* pData) {
 
     pCur->pNext = pNode;
 
-    return pString->unk82;
+    return pString->bufferCount;
 }
 
 int SystemStringGetColumnOffset(SystemString* pString) {
-    return pString->unk4 + pString->unk0 * 4;
+    return pString->x + pString->lineWidth * 4;
 }
 
 int SystemStringGetRowOffset(SystemString* pString) {
-    int row = pString->unk2 - pString->unk16;
+    int row = pString->charIndex - pString->unk16;
 
     if (row < 0) {
         row = pString->maxChars - 1;
     }
 
-    return pString->unk6 + row * pString->unk14;
+    return pString->y + row * pString->lineHeight;
 }
 
 void SystemStringSetColor(SystemString* pString, u8 red, u8 green, u8 blue) {
@@ -576,11 +576,11 @@ void SystemStringSetColor(SystemString* pString, u8 red, u8 green, u8 blue) {
 }
 
 void SystemStringSetLineOffset(SystemString* pString, u8 value) {
-    pString->unk6E = value;
+    pString->lineOffset = value;
 }
 
 void SystemStringClearLineOffset(SystemString* pString) {
-    pString->unk6E = 0xFF;
+    pString->lineOffset = 0xFF;
 }
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/system", func_80034888);
