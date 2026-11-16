@@ -38,7 +38,7 @@ extern void MenuAddUnk434Prims(void);
 extern void MenuAddUnk438Prims(void);
 
 void func_801D09F0(s32 menuIndex, u_char hasScrollBar) {
-    char new_var;
+    s32 primOffset;
     MenuWindow* pWindow;
     s32 i;
     long interpolated;
@@ -65,24 +65,23 @@ void func_801D09F0(s32 menuIndex, u_char hasScrollBar) {
                   pWindow->renderContext, pWindow->zIndex);
     MenuRenderQuad(&pWindow->vertsWindowBorderBottom2[0], &pWindow->polysWindowBorderBottom[2],
                   pWindow->renderContext, pWindow->zIndex);
-    i = 2;
     MenuRenderQuad(&pWindow->vertsWindowBorderLeft1[0], &pWindow->polysWindowBorderLeft[0], pWindow->renderContext,
                   pWindow->zIndex);
-    MenuRenderQuad(&pWindow->vertsWindowBorderLeft2[0], &pWindow->polysWindowBorderLeft[i], pWindow->renderContext,
+    MenuRenderQuad(&pWindow->vertsWindowBorderLeft2[0], &pWindow->polysWindowBorderLeft[2], pWindow->renderContext,
                   pWindow->zIndex);
     MenuRenderQuad(&pWindow->vertsWindowBorderRight1[0], &pWindow->polysWindowBorderRight[0],
                   pWindow->renderContext, pWindow->zIndex);
-    MenuRenderQuad(&pWindow->vertsWindowBorderRight2[0], &pWindow->polysWindowBorderRight[i],
+    MenuRenderQuad(&pWindow->vertsWindowBorderRight2[0], &pWindow->polysWindowBorderRight[2],
                   pWindow->renderContext, pWindow->zIndex);
     RotTransPers4(&pWindow->vertsBackground[0], &pWindow->vertsBackground[1], &pWindow->vertsBackground[2],
                   &pWindow->vertsBackground[3], (long*)&pWindow->polysBackground[pWindow->renderContext].x0,
                   (long*)&pWindow->polysBackground[pWindow->renderContext].x1,
                   (long*)&pWindow->polysBackground[pWindow->renderContext].x2,
                   (long*)&pWindow->polysBackground[pWindow->renderContext].x3, &interpolated, &flag);
-    new_var = 0x70;
-    AddPrim((void*)((u32)g_Menu->pGfxEnv + (new_var + pWindow->zIndex * sizeof(u32))),
+    primOffset = 0x70;
+    AddPrim((void*)((u32)g_Menu->pGfxEnv + (primOffset + pWindow->zIndex * sizeof(u32))),
             &pWindow->polysBackground[pWindow->renderContext]);
-    AddPrim((void*)((u32)g_Menu->pGfxEnv + (new_var + pWindow->zIndex * sizeof(u32))),
+    AddPrim((void*)((u32)g_Menu->pGfxEnv + (primOffset + pWindow->zIndex * sizeof(u32))),
             &pWindow->drawModes[pWindow->renderContext]);
 }
 
