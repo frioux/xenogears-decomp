@@ -1,5 +1,6 @@
 #include "common.h"
 #include "field/actor.h"
+#include "battle/actor.h"
 #include "psyq/libgte.h"
 #include "psyq/libgpu.h"
 
@@ -202,13 +203,13 @@ void BattleCreateDirectionTransformTask(SpriteData* pSpriteData, u8* pArgs) {
     func_800B50D4(pSpriteData, pTask->unk78);
     func_800B50D4(pSpriteData, pTask->unk50);
 }
-long func_800B57E4(u8* pActor) {
+long func_800B57E4(BattleSpriteState* pSprite) {
     VECTOR v;
     VECTOR out;
 
-    v.vx = *(s16*)(pActor + 0xA0) - *(s16*)(pActor + 0x2);
-    v.vy = *(s16*)(pActor + 0xA2) - *(s16*)(pActor + 0x6);
-    v.vz = *(s16*)(pActor + 0xA4) - *(s16*)(pActor + 0xA);
+    v.vx = pSprite->targetPosition.x - pSprite->position.xWhole;
+    v.vy = pSprite->targetPosition.y - pSprite->position.yWhole;
+    v.vz = pSprite->targetPosition.z - pSprite->position.zWhole;
     Square0(&v, &out);
     return SquareRoot0(out.vx + out.vz + out.vy);
 }
