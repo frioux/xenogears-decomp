@@ -1,7 +1,8 @@
 #include "common.h"
 #include "psyq/libgpu.h"
 
-extern s32 D_80059488;
+// volatile: retail schedules this load after the argument setup, not before it.
+extern volatile s32 D_80059488;
 extern s32 D_8009283C;
 extern s32 D_80092840;
 extern s32 D_80092844;
@@ -341,16 +342,11 @@ void BattleReleaseFinishedSoundSlots(void) {
     }
     BattleIncrementSoundSlotTimers();
 }
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008EB4C);
-/* best: objdiff 73.33% - identical instruction multiset; retail emits lui a0,(0x60000 >> 16), then the arg-4
-   global load, then addu a0,v0,a0 and addu a1,zero,zero; gcc 2.7.2 emits the lui/addu pair and the a1 zero
-   before the arg-4 load instead. Tried: `(u8*)((s32)p + 0x60000)`, `&p[0x60000]`, `p + 0x60000`,
-   `D_80059488[0]` (array decl), locals for the global and for the constant - all 73.33%.
 void func_8008EB4C(u8* p) {
     if (p != NULL) {
         BattleAcquireSoundSlot(p + 0x60000, 0, NULL, D_80059488);
     }
-}*/
+}
 void BattlePlaySoundEffectByIdx(BattleActor* pActor, s32 idx, u8* pData, s32 flags) {
     if (idx != 0) {
         BattleAcquireSoundSlot((u8*)(idx + 0x60000), flags, pData,
@@ -401,13 +397,16 @@ void BattleStopSoundSlotsByFlags(u8 kind) {
         }
     }
 }
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008ED6C);
-/* best: objdiff 90.34% - everything but two things matches, including the 0x28 frame (the `s32 pad[2]` reproduces
-   retail's extra 8 bytes of locals) and the $at-vs-base-pointer split of the two table reads. Left: retail keeps
-   &D_80091EE0 in s1 and the byte index in s2; gcc gives the index s1 and the base s2. Also retail's second block
-   emits `lw a0,208(s0)` before `andi v0,v0,0x7f`, gcc the reverse. Tried: reading D_80091EE0[] directly for both
-   (68.98%), pTable assignment before/after `i = v << 1` (no change), -G0 and gcc-2.7.2-cdk (76.41%).
-void func_8008ED6C(u8* p, s32 idx) {
+/* best: objdiff 99.43% - size (176), frame (0x28, `s32 pad[2]` supplies retail's extra 8 bytes), the whole
+   instruction multiset, both loads' position and the $at-vs-base split of the two table reads all match. Only
+   difference: register numbering. Retail keeps &D_80091EE0 in s1 and the byte index in s2; gcc gives the index
+   s1 and the base s2. The non-void return is what fixed the arg-4 load order: plain void was 90.34%.
+   Permuter from the 99.43 body: 1404 iterations, no gain (base 25, best 25). Also tried: reading D_80091EE0[]
+   directly for both (78.93%), pTable assigned before the byte load (92.50%) or right after `i = v << 1` (no
+   change), an initializer on the pointer (92.50%), a u32 index (no change), pad declared last (no change),
+   -G0 and gcc-2.7.2-cdk (76.41%).
+/*
+int func_8008ED6C(u8* p, s32 idx) {
     s32 pad[2];
     u8* pTable;
     s32 i;
@@ -426,6 +425,7 @@ void func_8008ED6C(u8* p, s32 idx) {
         BattleStopSoundSlotsByFlags(((*(u32*)(p + 0xD0) >> 20) & 0x80) | (pTable[i + 1] & 0x7F));
     }
 }*/
+INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008ED6C);
 void BattleUpdateActorApproach(BattleActor* pActor, s16 arg1, s16 arg2) {
     s32 pad[4];
     s32 step;
