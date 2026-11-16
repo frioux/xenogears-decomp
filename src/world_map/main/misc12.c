@@ -11,7 +11,7 @@ extern s32 g_WorldMapCameraTarget;
 extern s32 D_8009BE30;
 extern s32 g_WorldMapScrollTargetY;
 extern s32 g_WorldMapProjectionDistance;
-extern s32 D_8009B214[];
+extern s32 g_WorldMapPathPointHeights[];
 extern u16 D_1F8000A8;
 extern void func_80096F18(s16 *pOut, s32 *pSrc, s32 nHeight, u16 *pAngles);
 extern void WorldMapWrapPosition(void *p);
@@ -661,7 +661,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_80091C18);
      cross-jumped and takes its value in v0. This body emits the unk68 store in the
      j delay and `sh zero,4` in the bnez delay instead.
    - case 0: retail emits [sh v0,0x20][sll a0,2][sh zero,0x22][sw a0,0x50]
-     [lui/addu/lw D_8009B214][lw v0,0x50][nop][sll 1][addu][sw v1,0x54][lh][nop]
+     [lui/addu/lw g_WorldMapPathPointHeights][lw v0,0x50][nop][sll 1][addu][sw v1,0x54][lh][nop]
      [sw v0,0x58]; this body hoists the unk50 store and its reload above the two
      `sh` stores and drops the two load-delay nops.
    - camera-height ramp: retail keeps unk54 and g_WorldMapCameraHeight in a1/a0 and
@@ -724,7 +724,7 @@ s32 func_80091C18(s32 idx) {
             pPlayer->unk20 = 1;
             pPlayer->unk22 = 0;
             pPlayer->unk50 = nPoint;
-            pPlayer->unk54 = D_8009B214[nPoint];
+            pPlayer->unk54 = g_WorldMapPathPointHeights[nPoint];
             pPlayer->unk58 = pPath[pPlayer->unk50];
             pPlayer->unk60 = g_WorldMapCameraRot << 12;
         }
@@ -735,7 +735,7 @@ s32 func_80091C18(s32 idx) {
             nPoint = func_80091FF8(pPlayer->unk50, pPath, pPlayer->unk68);
             if (pPlayer->unk50 != nPoint) {
                 pPlayer->unk50 = nPoint;
-                pPlayer->unk54 = D_8009B214[nPoint];
+                pPlayer->unk54 = g_WorldMapPathPointHeights[nPoint];
                 pPlayer->unk58 = pPath[pPlayer->unk50];
             }
             pPlayer->unk22 = 0;
@@ -827,7 +827,7 @@ s32 func_80091FF8(s32 nLimit, u16 *pIn, s16 *pOfs) {
     *(u16 *)0x1F8000AA = v;
     *(u16 *)0x1F8000AC = a;
     pScratch = (u8 *)0x1F800000;
-    pTrack = D_8009B214;
+    pTrack = g_WorldMapPathPointHeights;
     for (i = 0; i < 3; i++) {
         nBest = 0;
         *(u16 *)(pScratch + 0xA8) = *pIn;

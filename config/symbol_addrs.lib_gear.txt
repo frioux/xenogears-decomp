@@ -75,3 +75,4 @@ g_LibGearJointObjectPool = 0x801E86A8;
 LibGearFreeModel = 0x801E8030;
 g_LibGearDirectKeyframes = 0x801E85CC;
 g_LibGearCurrentModelIndex = 0x801E86B0;
+LibGearComputeScaledJointMatrices = 0x801DC848;

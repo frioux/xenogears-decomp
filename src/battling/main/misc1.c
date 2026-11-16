@@ -200,7 +200,7 @@ extern void BattleClearSpriteTables(void);
 
 // Places the battle state's anchor, the actor at D_80097010 and the camera
 // around the midpoint of the first two, offset by the amount the mode picks.
-void func_80070C7C(s32 mode) {
+void BattleRecenterViewPositions(s32 mode) {
     VECTOR anchor;
     VECTOR actor;
     VECTOR camera;

@@ -86,7 +86,7 @@ typedef struct {
 extern u8 g_BattleMenuEvent;
 extern void BattlePlaySoundIfEnabled(u8);
 extern u8 func_8008BED8(u8);
-extern void func_8008B908(u8);
+extern void BattleActivateSelectedCommand(u8);
 extern u8 D_800C3E29;
 extern void func_800826CC(u8);
 void BattleAdvanceSlotMenuState(u8 arg0) {
@@ -213,7 +213,7 @@ void BattleSetActorSlotMenuMode(u8 arg0) {
     case 6:
     case 7:
         if (func_8008BED8(a) != 0) {
-            func_8008B908(a);
+            BattleActivateSelectedCommand(a);
         } else {
             ((BattleActorSlots *)g_BattleCommandQueue)->unk2DD = 0x11;
         }
@@ -440,7 +440,7 @@ void BattleAdvanceSlotMenuStateSubMode(u8 arg0) {
     case 6:
     case 7:
         if (func_8008BED8(a) != 0) {
-            func_8008B908(a);
+            BattleActivateSelectedCommand(a);
         } else {
             ((BattleActorSlots *)g_BattleCommandQueue)->unk2DD = 0x16;
         }
@@ -1015,7 +1015,7 @@ extern u8 D_800C3E9A[];
 // arg0 IS the flags word (it is reassigned per arg3 below): keeping it a
 // parameter, rather than copying it into a local, is what makes gcc home it
 // into $s6 before arg2's copy in the entry block.
-u16 func_80084DE4(u16 flags, u16 arg1, u8 arg2, u8 arg3, u8 arg4) {
+u16 BattleSelectTargetCandidates(u16 flags, u16 arg1, u8 arg2, u8 arg3, u8 arg4) {
     s32 i;
     s32 n;
     s32 hi;
@@ -1104,7 +1104,7 @@ u16 func_80084DE4(u16 flags, u16 arg1, u8 arg2, u8 arg3, u8 arg4) {
 }
 extern u8 func_80084854(u8, u8);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80085084);
-extern u16 func_80084DE4(u16, u16, u8, u8, u8);
+extern u16 BattleSelectTargetCandidates(u16, u16, u8, u8, u8);
 extern u16 BattleGetSameRowSlotMask(void);
 extern u8 *g_BattlePulseTrianglePrims;
 /* 99.82%: instruction multiset, frame (0x38) and saved-register set are retail's;
@@ -1125,7 +1125,7 @@ u8 func_80085084(u16 arg0, u8 arg1, u8 arg2) {
     u8 *p;
 
     last = 0xFE;
-    func_80084DE4(arg0, arg0, arg1, 0, arg2);
+    BattleSelectTargetCandidates(arg0, arg0, arg1, 0, arg2);
     mask = g_BattleTargetSlotMask;
     state = g_BattleTargetSlot == 0xFF;
     while (state == 0) {

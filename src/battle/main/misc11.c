@@ -76,7 +76,7 @@ extern void BattleEnsureTargetSlotInCandidateList(u8 arg0);
 extern void BattleInitPulseTrianglePrims(void);
 extern void func_800826CC(u8 arg0);
 extern u8 func_8008BED8(u8 arg0);
-extern void func_8008B908(u8 arg0);
+extern void BattleActivateSelectedCommand(u8 arg0);
 
 typedef struct {
     /* 0x00 */ u8 unk0[0x24];
@@ -534,7 +534,7 @@ void func_80081318(u8 arg0) {
     case 6:
     case 7:
         if (func_8008BED8(a) != 0) {
-            func_8008B908(a);
+            BattleActivateSelectedCommand(a);
         } else {
             ((BattleActorSlots *)g_BattleCommandQueue)->unk2DD = 2;
         }

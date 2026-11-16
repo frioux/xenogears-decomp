@@ -238,7 +238,7 @@ unsigned LibGearComputeJointMatrices(ModelJoint* pJoint, int degrees) {
     return numChildren;
 }
 
-unsigned func_801DC848(ModelJoint* pJoint, int degrees) {
+unsigned LibGearComputeScaledJointMatrices(ModelJoint* pJoint, int degrees) {
     ModelJoint* pSkeleton = pJoint;
     MATRIX* scratch = (MATRIX*)PSX_SCRATCH;
     unsigned i;
@@ -1523,7 +1523,7 @@ s32 LibGearStepModelAnimation(Model* pModel, s32 arg1, s32 count, s32 arg3, s32 
             LibGearApplyGroundHeight(pModel);
 
             if (pModel->unk37) {
-                func_801DC848(pModel->pSkeleton, pModel->scale);
+                LibGearComputeScaledJointMatrices(pModel->pSkeleton, pModel->scale);
             } else {
                 LibGearComputeJointMatrices(pModel->pSkeleton, pModel->scale);
             }

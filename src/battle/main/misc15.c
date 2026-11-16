@@ -99,8 +99,8 @@ extern void func_800877E0(u8 arg0, u8 arg1);
 extern void func_80087EDC(u8 arg0, u8 arg1);
 extern void BattleSetupActorSlotDisplay(u8 arg0);
 extern u8 D_800C4928;
-extern u8 D_800C2050;
-extern u8 D_800C3D00;
+extern u8 g_BattleSlotCurveRunning;
+extern u8 g_BattleCommandCellRow;
 extern u8 D_800D3670;
 
 // Partial view of the battle command cell state based at D_800D2C9E: the command flags
@@ -525,7 +525,7 @@ u8 func_8008B478(u8 arg0) {
 }
 */
 
-void func_8008B908(u8 arg0) {
+void BattleActivateSelectedCommand(u8 arg0) {
     s32 off;
     s32 sel;
     u16 mask;
@@ -554,14 +554,14 @@ void func_8008B908(u8 arg0) {
     pCell = &D_800D2C9E;
     if ((pCell->flags & 0x8000) == 0) {
         pUses = pCell->uses;
-        if (--pUses[D_800C3D00 * 2 + D_800D3670] == 0) {
+        if (--pUses[g_BattleCommandCellRow * 2 + D_800D3670] == 0) {
             pIds = pCell->ids;
-            pIds[D_800C3D00 * 2 + D_800D3670] = 0;
+            pIds[g_BattleCommandCellRow * 2 + D_800D3670] = 0;
         }
     }
-    D_800C2050 = 1;
+    g_BattleSlotCurveRunning = 1;
     BattleApplySlotCurveAndStep(g_BattleCommandQueue->count);
-    D_800C2050 = 0;
+    g_BattleSlotCurveRunning = 0;
     D_800C402F[g_BattleCommandQueue->count * 72] = 0xF5;
     D_800C4022[g_BattleCommandQueue->count * 36] = g_BattleActionParam;
     D_800C400B[g_BattleCommandQueue->count * 72] = arg0;
