@@ -53,7 +53,13 @@ def main():
         if after:
             problems.append(f"{len(after)} insn after .size")
         if labels:
-            problems.append("owns data " + ", ".join(l.split()[1] for l in labels) + " (move it to C in the same commit)")
+            names = [l.split()[1] for l in labels]
+            jtbl = [n for n in names if n.startswith("jtbl_")]
+            other = [n for n in names if not n.startswith("jtbl_")]
+            if other:
+                problems.append("owns rodata " + ", ".join(other) + " (convert with the const in the same commit)")
+            if jtbl:
+                problems.append("owns " + ", ".join(jtbl) + " (needs own_rodata.py for the unit first)")
         rows.append(("BLOCKED" if problems else "OK", name, n_insn, "; ".join(problems)))
     ok = [r for r in rows if r[0] == "OK"]
     print(f"{unit}: {len(ok)} convertible of {len(rows)} stubs")

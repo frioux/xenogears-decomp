@@ -513,12 +513,13 @@ by stub count, 10 to 16 with the method below).
      `convertible.py`'s verdict already accounts for that;
    - **read the BLOCKED reason, they are not the same thing** (fixed 2026-11-16, when the
      script matched the first `.size` in the file instead of the function's own, which
-     called every data-owning stub blocked): `owns data D_x, ...` means the stub's `.s`
-     also holds rodata, which **is convertible** — write the `const` definitions between
-     the same two functions and un-park in the same commit (round 165: `field/main/misc2`
-     `func_8007520C` at 100.00%, no yaml edit; 122 stubs are in this class). Only
-     `N insn after .size` is a real wall (52 stubs), and a jump-table owner's table is
-     handled by `own_rodata.py`;
+     called every data-owning stub blocked). Measured across all 141 units: **869 OK, 113
+     jump-table owners, 8 rodata owners, 52 with real post-`.size` padding.** `owns rodata
+     D_x` **is convertible** — write the `const` definitions between the same two
+     functions and un-park in the same commit (rounds 165-166: `field/main/misc2`
+     `func_8007520C` and `func_800759E4` at 100.00%, no yaml edit). `owns jtbl_` needs
+     `own_rodata.py` for the unit FIRST (see "Jump tables"), then the family converts in
+     address order. Only `N insn after .size` is a wall;
    - stubs with `sw $sp`/`lw $sp` (stack switch; the alloca bodies it catches are
      `grep -l 'sw \$sp, 0x0' asm/*/nonmatchings/`, a dozen in `system/` and the battle tail).
      **This filter is not optional and neither tool applies it:** `fresh_stubs.py` and
