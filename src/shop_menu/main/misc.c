@@ -2979,6 +2979,155 @@ u_short ShopMenuGetCharacterEquippedItemFlags(u_char itemID, u_char itemType) {
 }
 
 INCLUDE_ASM("asm/shop_menu/nonmatchings/main/misc", func_801CDD14);
+// Best attempt: 97.44%, 1920 bytes (retail 1900), and the 200-byte frame now matches.
+// This is the shop twin of gear_shop_menu/main/render.c GearShopMenuRenderSellItemRows (that one
+// is matched and is the reference for every shape in the body below); the residual is 5
+// instructions plus ~30 stack-slot operands, all allocator.
+// Levers already IN this body, keep them: `new_var = 0xD` immediately before the digitGlyphs[8]
+// store with `0x32 + (new_var * i)` in the FIRST ShopMenuSetVertices y (that is what makes cc1
+// CSE the 0x28 rect width into $s2 and grow the frame to retail's 200); `pItemAffordable[i] =
+// FALSE` BEFORE the bzero (fixes the bzero delay-slot order); and the price needs TWO variables,
+// `price` for the digit loop plus `itemPrice = price` right after the table load, which is what
+// makes retail spill the price and reload it for the compare (`lw t2,0x68(sp); slt`). One
+// `price` gives `slt v0,t1,s4` and no store, and scores 90.38%.
+// Residual, all allocator: (1) retail's stack slots run a1, price, &rect, 0x1DB0, 0x4030,
+// 0x32+13i, 13i, 0x3C30; this body gets a1, &rect, price, 0x1DB0, 13i, 0x4030, 0x32+13i,
+// 0x3C30, so ~30 operands read 104 where retail reads 112 and back. Moving `pRect = &rect;`
+// down next to the setRECT to flip the price/&rect order scored 91.46%.
+// (2) Both ShopMenuSetVertices y arguments come out as `andi a2,<13i giv>,0xFFFF`; retail loads
+// its 0x32-initialised accumulator and passes it with NO andi, so its giv holds the whole
+// 0x32+13i sum. A `(u_short)` cast on the sum changed nothing, and an explicit loop-carried y in
+// the for-init clause scored 89.97% at a 208 frame. func_801D05BC below has the same
+// missing-andi residual: one known wall, not two.
+// Two permuter runs from here (base 2132 -> 1108 -> 1048, ~2400 iterations) found only the two
+// levers above; nothing else moved by hand.
+/*
+// Draws one row of the buy menu (item name, price digits and the quantity in stock) and marks
+// each row in pItemAffordable with the 0x80 primitive attribute when the player can afford it.
+void func_801CDD14(s32 scrollOffset, s32 newGoldAmount, u8* pItemAffordable) {
+    RECT rect;
+    u8 digitGlyphs[0xE];
+    u8 decodedGlyphs[0xE];
+    int new_var;
+    int places[5];
+    u32 polyColor;
+    s32 quotient;
+    u8 didRounding;
+    RECT* pRect;
+    s32 j;
+    s32 k;
+    u8 tensDigit;
+    u8 onesDigit;
+    s32 itemPrice;
+    s32 price;
+    int i;
+    void* pWorkspace;
+
+    places[0] = 1;
+    places[1] = 10;
+    places[2] = 100;
+    places[3] = 1000;
+    places[4] = 10000;
+
+    pWorkspace = HeapAlloc(0x3F6, 0);
+
+    for (i = 0; i < SHOP_MAX_ITEMS_IN_VIEW; i++) {
+        pRect = &rect;
+        pItemAffordable[i] = FALSE;
+        bzero(digitGlyphs, 0xE);
+        g_Menu->pShop->unk468C[i] = 0;
+        polyColor = 0x1000;
+
+        if (g_Menu->shopItemIDs[scrollOffset + i]) {
+            switch (g_Menu->shopItemTypes[scrollOffset + i]) {
+                case ITEM_TYPE_WEAPON:
+                    g_Menu->pShop->unk3C30[i].width = SystemRenderStringEntry(
+                        GetWeaponName(g_Menu->shopItemIDs[scrollOffset + i]), pWorkspace, 0x24, 0);
+                    price = g_Menu->pDressingRoom->pWeaponsData[g_Menu->shopItemIDs[scrollOffset + i]].price;
+                    itemPrice = price;
+                    break;
+
+                case ITEM_TYPE_ACCESSORY:
+                    g_Menu->pShop->unk3C30[i].width = SystemRenderStringEntry(
+                        GetAccessoryName(g_Menu->shopItemIDs[scrollOffset + i]), pWorkspace, 0x24, 0);
+                    price = g_Menu->pDressingRoom->pAccessoriesData[g_Menu->shopItemIDs[scrollOffset + i]].price;
+                    itemPrice = price;
+                    break;
+
+                case ITEM_TYPE_ITEM:
+                    g_Menu->pShop->unk3C30[i].width = SystemRenderStringEntry(
+                        GetItemName(g_Menu->shopItemIDs[scrollOffset + i]), pWorkspace, 0x24, 0);
+                    price = g_Menu->pDressingRoom->pItemsData[g_Menu->shopItemIDs[scrollOffset + i]].price;
+                    itemPrice = price;
+                    break;
+            }
+
+            if (newGoldAmount >= itemPrice) {
+                pItemAffordable[i] = 0x80;
+            } else {
+                pItemAffordable[i] = FALSE;
+            }
+
+            didRounding = FALSE;
+            for (j = 4, k = 0; j > 0; k++, j--) {
+                quotient = price / places[j];
+                if (quotient || didRounding) {
+                    ((u8*)pRect)[8 + k * 2] = quotient + 0x10;
+                    didRounding = TRUE;
+                    price -= (quotient * places[j]);
+                } else {
+                    ((u8*)pRect)[8 + k * 2] = 0xC3;
+                }
+            }
+            new_var = 0xD;
+            ((u8*)pRect)[16] = (price % 10) + 0x10;
+            SystemDecodeGlyphCodesN((u16*)((u8*)&rect + 8), decodedGlyphs, 5);
+            g_Menu->pShop->unk4030[i].width = SystemRenderStringEntry(decodedGlyphs, pWorkspace, 0x24, 1);
+
+            setRECT(&rect, 0x180 + (i & 1) * 0x18, 0x80 + (i / 2) * FONT_LETTER_HEIGHT, 0x28, FONT_LETTER_HEIGHT);
+            LoadImage(pRect, pWorkspace);
+            ShopMenuSetStringPrimitives(&g_Menu->pShop->unk3C30[i], i, 0x80, pItemAffordable[i] + 1);
+            ShopMenuSetVertices(g_Menu->pShop->unk3C30[i].vertices, 0x24, 0x32 + (new_var * i),
+                g_Menu->pShop->unk3C30[i].width, FONT_LETTER_HEIGHT);
+            setRECT(&rect, 0x180 + (i & 1) * 0x18, 0x80 + (i / 2) * FONT_LETTER_HEIGHT, 0x28, FONT_LETTER_HEIGHT);
+            LoadImage(pRect, pWorkspace);
+            DrawSync(0);
+            ShopMenuSetStringPrimitives(&g_Menu->pShop->unk4030[i], i, 0x80, pItemAffordable[i] + 2);
+            ShopMenuSetVertices(g_Menu->pShop->unk4030[i].vertices, 0x8C, 0x32 + FONT_LETTER_HEIGHT * i,
+                g_Menu->pShop->unk4030[i].width, FONT_LETTER_HEIGHT);
+            g_Menu->pShop->unk3C30[i].renderContext = g_Menu->renderContext;
+            g_Menu->pShop->unk3C30[i].renderContext = g_Menu->renderContext;
+            g_Menu->pShop->unk4684[i] = 1;
+
+            if (g_Menu->pShop->curItemQuantities[scrollOffset + i]) {
+                g_Menu->pShop->unk468C[i] += func_8002675C(
+                    g_Menu->resources, 0xF1, g_Menu->pShop->polysShopInventory[i * 4],
+                    g_Menu->renderContext, 0xB4, 0x36 + FONT_LETTER_HEIGHT * i, polyColor);
+
+                tensDigit = g_Menu->pShop->curItemQuantities[scrollOffset + i] / 10;
+                if (tensDigit) {
+                    g_Menu->pShop->unk468C[i] += func_8002675C(
+                        g_Menu->resources, tensDigit,
+                        &g_Menu->pShop->polysShopInventory[i * 4][g_Menu->pShop->unk468C[i] * 2],
+                        g_Menu->renderContext, 0xBC, 0x36 + FONT_LETTER_HEIGHT * i, polyColor);
+                }
+
+                onesDigit = g_Menu->pShop->curItemQuantities[scrollOffset + i] % 10;
+                g_Menu->pShop->unk468C[i] += func_8002675C(
+                    g_Menu->resources, onesDigit,
+                    &g_Menu->pShop->polysShopInventory[i * 4][g_Menu->pShop->unk468C[i] * 2],
+                    g_Menu->renderContext, 0xC4, 0x36 + FONT_LETTER_HEIGHT * i, polyColor);
+
+                g_Menu->pShop->unk4694[i] = g_Menu->renderContext;
+            }
+        } else {
+            g_Menu->pShop->unk4684[i] = 0;
+        }
+    }
+
+    HeapFree(pWorkspace);
+}
+*/
 
 // The zero-store order, the chained defense assignment, the u16 characterIndex (Billy
 // is character 4) and the slotDefense copy are load-bearing: other spellings change the
