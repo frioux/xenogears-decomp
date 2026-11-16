@@ -1730,7 +1730,7 @@ void ShopMenuAddUnk6E0Prims(void) {
     }
 }
 
-void func_801CA09C(void) {
+void ShopMenuAddUnkAE0Prims(void) {
     long interpolated;
     long flag;
     int i;
@@ -1812,7 +1812,7 @@ void ShopMenuRenderBackgroundDim(void) {
 void ShopMenuAddStringGroupPrims(void) {
     ShopMenuAddUnk4E0Prims();
     ShopMenuAddUnk6E0Prims();
-    func_801CA09C();
+    ShopMenuAddUnkAE0Prims();
     ShopMenuDelayLoop6();
     ShopMenuAddUnk1DE0Prims();
 }

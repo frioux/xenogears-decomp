@@ -36,7 +36,7 @@ void func_801E8070(s32 arg0, void* pArg1, void* pArg2, void* pArg3, void* pArg4,
 void func_801E86C8(s32 arg0);
 void MenuSetSubMenuChoicePrims(s32 arg0);
 void MenuClearBytes(s32 arg0, void* pArg1);
-s32 func_80038824(void);
+s32 SoundGetVolumeMode(void);
 void func_800386C4(s32 arg0);
 void MenuClearGlyphTexture(void);
 void MenuFreeCellPrimBlocks(void);
@@ -335,7 +335,7 @@ s32 func_801D9808(void) {
             MenuLoadStringsFromIds(4, g_Menu->unk1BE0, D_801EA574, g_Menu->pManager->unk5C);
             func_801E86C8(0);
             g_Menu->subMenuPrevChoice = 0xFF;
-            switch (func_80038824()) {
+            switch (SoundGetVolumeMode()) {
             case 0:
                 choice = 0;
                 break;

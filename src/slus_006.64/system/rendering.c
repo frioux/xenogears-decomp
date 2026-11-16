@@ -113,7 +113,7 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001E3D8);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001E9BC);
 
-s32 func_8001EE68(u8* pFlags) {
+s32 SpriteAnimPackageTestFlag8000(u8* pFlags) {
     return pFlags[1] >> 7;
 }
 
@@ -548,7 +548,7 @@ void func_8001F5BC(SpriteData* pSpriteData, s32 unusedIndex, s32* pOutX, s32* pO
    so the preset is not the answer; the miss is the allocator. Round r12: cdk is
    ruled out for the whole unit -- under gcc-2.7.2-cdk-psx SpriteDrawFrameKeepTop and
    SpriteDrawFrameKeepBottom (both matched at 100% under 2.7.2) drop to 88.57%,
-   SpriteEnsureDirTransforms to 97.14%, and SpriteDrawFrame/func_8001EE68/SpriteNextVramSlot fail
+   SpriteEnsureDirTransforms to 97.14%, and SpriteDrawFrame/SpriteAnimPackageTestFlag8000/SpriteNextVramSlot fail
    to compile at all.
    Instruction stream is identical; only the temp
    assignment differs (original: pSpriteData->t1, texPageBits->a3, color->a1,

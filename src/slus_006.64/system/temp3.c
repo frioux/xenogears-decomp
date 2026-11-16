@@ -453,7 +453,7 @@ extern void* D_8005A4E0; // File buffer
 extern s32 D_8004F330;
 extern s32 D_8004F334;
 
-int func_8001B484(int fileIndex, s32 arg1) {
+int ArchiveLoadStagedFileIfChanged(int fileIndex, s32 arg1) {
     if (D_8004F334 == arg1 && D_8004F330 == fileIndex) {
         return 0;
     }
@@ -792,7 +792,7 @@ void SoundLoadAndPlaySedsBank(void) {
 
 extern int rand(void);
 
-s32 func_8001BD40(u32 arg0, u32 arg1) {
+s32 GameRandomByteRange(u32 arg0, u32 arg1) {
     u32 arg0Byte;
     u32 arg1Byte;
     s32 range;

@@ -9,7 +9,7 @@ void FieldScriptWriteInventoryItemQuantity(void) {
     u_char* pQuantities;
 
     nItemId = FieldScriptVMGetArgument(1);
-    nIndex = func_80095124(nItemId);
+    nIndex = FieldInventoryFindSlotById(nItemId);
     pQuantities = (u_char*)FieldInventoryGetQuantitiesArray(nItemId);
     FieldInventoryGetIdsArray(nItemId);
     if (nIndex != -1) {
@@ -21,7 +21,7 @@ void FieldScriptWriteInventoryItemQuantity(void) {
 }
 
 void FieldScriptJumpIfInventoryHasItem(void) {
-    if (func_80095124(FieldScriptVMGetArgument(1)) != -1) {
+    if (FieldInventoryFindSlotById(FieldScriptVMGetArgument(1)) != -1) {
         g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
     } else {
         g_FieldScriptVMCurActor->scriptInstructionPointer = FieldScriptVMGetInstructionArgument(3);
@@ -48,7 +48,7 @@ void func_8009635C(int nItemId) {
     u_char* pQuantities;
     u_char* pItems;
 
-    nIndex = func_80095124(nItemId);
+    nIndex = FieldInventoryFindSlotById(nItemId);
     pQuantities = (u_char*)FieldInventoryGetQuantitiesArray(nItemId);
     pItems = (u_char*)FieldInventoryGetIdsArray(nItemId);
     if (nIndex != -1) {
@@ -72,7 +72,7 @@ void FieldScriptRemoveInventoryItem(void) {
     u_char* pQuantities;
 
     nItemId = FieldScriptVMGetArgument(1);
-    nIndex = func_80095124(nItemId);
+    nIndex = FieldInventoryFindSlotById(nItemId);
     if (nIndex != -1) {
         pItems = (u_char*)FieldInventoryGetIdsArray(nItemId);
         pQuantities = (u_char*)FieldInventoryGetQuantitiesArray(nItemId);

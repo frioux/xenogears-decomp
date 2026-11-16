@@ -56,7 +56,7 @@ void FieldScriptVMHandlerDisableAndHideActor(void) {
         pActor->flags |= 0x100000;
         pFieldActor = &g_FieldActors[FieldScriptVMGetActorIndex(1)];
         pFieldActor->status |= ACTOR_STATUS_INVISIBLE;
-        if (func_8009CD18(&nTextBoxIndex) == 0) {
+        if (FieldTextBoxFindCurrentActorTextBox(&nTextBoxIndex) == 0) {
             g_FieldTextBoxes[nTextBoxIndex].status = 0;
         }
     }
@@ -90,7 +90,7 @@ void FieldScriptVMHandlerDisableActorAndResetMotion(void) {
         nNewRotation = pActor->rotation.vx | 0x8000;
         pActor->rotation.vy = nNewRotation;
         pActor->rotation.vx = nNewRotation;
-        if (func_8009CD18(&nTextBoxIndex) == 0) {
+        if (FieldTextBoxFindCurrentActorTextBox(&nTextBoxIndex) == 0) {
             g_FieldTextBoxes[nTextBoxIndex].status = 0;
         }
     }

@@ -770,7 +770,7 @@ void func_80085788(void) {
     ArchiveReadFileToBuffer(streamId + 0x115, pSoundFile, 0, 0x80);
     ArchiveCdDataSync(0);
     SoundAddSedsEntry(D_800B235C);
-    func_8003BDFC(0x10);
+    SoundGetPendingSpuCommandType(0x10);
     ArchiveSetIndex(4, 0);
     i = 0;
     for (count = 0; count < streamId + 1; count++) {
@@ -791,7 +791,7 @@ void func_80085788(void) {
 extern void* D_8006259C;
 extern s32 D_8004F32C;
 extern void* D_8005A4BC;
-void func_8003BDFC(int arg0);
+void SoundGetPendingSpuCommandType(int arg0);
 void SoundAddSedsEntry(SoundFile* pSoundFile);
 
 void FieldLoadSedsFile(void) {
@@ -810,7 +810,7 @@ void FieldLoadSedsFile(void) {
         HeapFree(D_8005A4BC);
     }
     SoundAddSedsEntry(D_8006259C);
-    func_8003BDFC(0x10);
+    SoundGetPendingSpuCommandType(0x10);
     ArchiveSetIndex(4, 0);
     D_8004F32C = -1;
 }
@@ -838,7 +838,7 @@ extern u8 D_800ADFCD[];
 extern void ArchiveCdDataSync(int mode);
 extern void SoundFreeLoadedWdsAndAudioManager(void);
 void ArchiveReleaseStreamBlock(void* pData);
-void func_8003BDFC(int arg0);
+void SoundGetPendingSpuCommandType(int arg0);
 void SoundTransferWdsPart(void* pBuffer, int size);
 SoundWDSEntry* SoundLoadPartialWdsFile(void* pBuffer, int size, int arg2);
 void FieldStartArchiveStream(int archiveIndex, int unused, void* pCallback);
@@ -859,7 +859,7 @@ void FieldWdsStreamCallback(FieldWdsBlock* pBlock) {
             }
             break;
         case 4:
-            func_8003BDFC(0x10);
+            SoundGetPendingSpuCommandType(0x10);
             D_800C3A1C[0] = *pBlock;
             SoundTransferWdsPart(D_800C3A1C, 0x800);
             ArchiveReleaseStreamBlock(pBlock);
@@ -935,7 +935,7 @@ int FieldUpdateWdsAndAudioLoad(s32 arg0) {
         if (FieldRunArchiveStreamSteps() == -1) {
             return -1;
         }
-        func_8003BDFC(0x10);
+        SoundGetPendingSpuCommandType(0x10);
         HeapFree(D_800C3A1C);
         D_8004F354 = 0;
         g_GameHasLoadedWDS = state;
@@ -1014,7 +1014,7 @@ int FieldFinishWdsFileLoad(void) {
     pWdsEntry = SoundLoadWdsFile(D_800B00E0, 0);
     D_8006251C = pWdsEntry;
     D_80059560 = pWdsEntry;
-    func_8003BDFC(0x10);
+    SoundGetPendingSpuCommandType(0x10);
     HeapFree(D_800B00E0);
     D_8004F364 = 1;
     D_8004F384 = 0;

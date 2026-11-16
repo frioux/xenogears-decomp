@@ -295,7 +295,7 @@ void SpriteSetupAnimPackage(SpriteAnimPackage* pAnimPackage, SpriteAnimPackageFi
     }
 }
 
-extern s32 func_8001EE68(void*);
+extern s32 SpriteAnimPackageTestFlag8000(void*);
 extern void SpriteSetupAnimPackage(SpriteAnimPackage*, SpriteAnimPackageFileHeader*, SVEC2, SVEC2, u32);
 
 void SpriteSetAnimFile(SpriteData* pSprite, SpriteAnimPackageFileHeader* pAnimPackageFile) {
@@ -313,7 +313,7 @@ void SpriteSetAnimFile(SpriteData* pSprite, SpriteAnimPackageFileHeader* pAnimPa
         // Is battle?
         if (D_800591AD) {
             // Is not VRAM Pre-backed?
-            if (!func_8001EE68(pAnimPackage->pFrames)) {
+            if (!SpriteAnimPackageTestFlag8000(pAnimPackage->pFrames)) {
                 pAnimPackage->tex.y = 0x100;
                 pAnimPackage->tex.x = 0x300;
                 return;

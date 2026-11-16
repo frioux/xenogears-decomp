@@ -134,8 +134,8 @@ extern void *SoundLoadWdsFile(void *pBuffer, s32 arg1);
 extern void SoundFreeWdsEntry(void *pWds);
 extern void SoundRemoveSedsEntry(void *pBuffer);
 extern void SoundPlaySoundEffectOnFreePair(s32 arg0);
-extern s32 func_8003A5D0(s32 arg0);
-extern s16 func_8003BDFC(s32 arg0);
+extern s32 SoundGetActiveElementMask(s32 arg0);
+extern s16 SoundGetPendingSpuCommandType(s32 arg0);
 
 // Best 94.91% under the unit preset (gcc 2.7.2-cdk, -G8 and -G0 alike; 93.69
 // under gcc 2.6.0). Structure is complete and in order; what is left:
@@ -180,12 +180,12 @@ void func_800B838C(s32 arg0, s32 arg1) {
     BattleWaitArchiveSync();
     SoundAddSedsEntry(pBuffer1);
     pWds = SoundLoadWdsFile(pBuffer2, 0);
-    while (func_8003BDFC(0) != 0) {
+    while (SoundGetPendingSpuCommandType(0) != 0) {
         func_800BE790();
     }
     id = pEntry->unk2 + arg1 + (*(u16 *)((u8 *)pBuffer1 + 0x14) << 16);
     SoundPlaySoundEffectOnFreePair(id);
-    while (func_8003A5D0(id) != 0) {
+    while (SoundGetActiveElementMask(id) != 0) {
         func_800BE790();
     }
     SoundRemoveSedsEntry(pBuffer1);

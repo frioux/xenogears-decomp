@@ -1687,7 +1687,7 @@ void GearShopMenuRenderStrings6E0(void) {
         }
     }
 }
-// identical to func_801CA09C() in ShopMenu
+// identical to ShopMenuAddUnkAE0Prims() in ShopMenu
 void GearShopMenuRenderStringsAE0(void) {
     long interpolated;
     long flag;

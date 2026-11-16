@@ -120,7 +120,7 @@ extern void BattleTryQueueMessage5(BattleActor*, BattleWork*);
 extern void BattleAcquireSoundSlot(u8*, u32, u8*, u32);
 extern s32 func_8008B650(s32, s16, s16);
 extern void SoundStopAllElements(void);
-extern u32 func_8003A5D0(u32);
+extern u32 SoundGetActiveElementMask(u32);
 extern void SoundStopElementsByIndex(u8);
 extern void BattleQueueRandomMessages(BattleActor*, BattleWork*, s32);
 extern void BattleDispatchWorkState(BattleActor*);
@@ -336,7 +336,7 @@ void BattleReleaseFinishedSoundSlots(void) {
 
     pSlot = D_80096EA0;
     for (i = 0; i < 4; i++) {
-        if ((func_8003A5D0(pSlot[i].unk8) & pSlot[i].unkC) == 0) {
+        if ((SoundGetActiveElementMask(pSlot[i].unk8) & pSlot[i].unkC) == 0) {
             pSlot[i].unk1 = 0;
         }
     }

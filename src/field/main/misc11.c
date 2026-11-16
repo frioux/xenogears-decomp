@@ -1220,7 +1220,7 @@ u_char* FieldInventoryGetQuantitiesArray(int itemId) {
 }
 
 // Find the inventory slot of the given kind holding the given ID
-s32 func_80095124(s32 itemId) {
+s32 FieldInventoryFindSlotById(s32 itemId) {
     switch (itemId >> 8) {
         case 0:
             return FieldInventoryFindItemSlot(itemId);

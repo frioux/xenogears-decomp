@@ -706,7 +706,7 @@ void SpriteAllocFromAnimFile(void* pAnimFile, s16 arg1, s16 arg2, s16 arg3, s16 
 }
 
 extern void SpriteSetAnimFile(SpriteData* pSpriteData, void* pAnimFile);
-extern s32 func_8001EE68(void* pFrames);
+extern s32 SpriteAnimPackageTestFlag8000(void* pFrames);
 extern void func_800223B0(SpriteData* pSpriteData, s16 arg1);
 extern void func_80023538(SpriteData* pSpriteData, void* pAnimEntry);
 extern u8 D_800591AD;
@@ -726,7 +726,7 @@ void SpritePlayAnimation(SpriteData* pSpriteData, s32 animId) {
     }
     if (animId < 0) {
         SpriteSetAnimFile(pSpriteData, pSpriteData->pSpecialAnimFile);
-        if (D_800591AD && func_8001EE68(((SpriteAnimPackage*)pSpriteData->pVramData)->pFrames) == 0) {
+        if (D_800591AD && SpriteAnimPackageTestFlag8000(((SpriteAnimPackage*)pSpriteData->pVramData)->pFrames) == 0) {
             ((SpriteAnimPackage*)pSpriteData->pVramData)->tex.y = 0x100;
             ((SpriteAnimPackage*)pSpriteData->pVramData)->tex.x = 0x300;
         }

@@ -43,7 +43,7 @@ void FieldScriptFadeIn(void) {
 }
 
 void FieldScriptVMHandlerWaitForFileLoad(void) {
-    if (func_8001B484(FieldScriptVMGetInstructionArgument(2) & 0xFFFF, SCRIPT_READ_U8_REL(1)) == 0) {
+    if (ArchiveLoadStagedFileIfChanged(FieldScriptVMGetInstructionArgument(2) & 0xFFFF, SCRIPT_READ_U8_REL(1)) == 0) {
         g_FieldScriptVMCurActor->scriptInstructionPointer += 4;
     }
 }

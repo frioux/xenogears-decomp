@@ -847,3 +847,5 @@ FieldWaitForSceneMapFileLoad = 0x800777DC;
 FieldSetMatrix = 0x80077844;
 FieldLoadAndCreateObjectModels = 0x80077C60;
 FieldUpdateFrame = 0x80077DAC;
+FieldInventoryFindSlotById = 0x80095124;
+FieldTextBoxFindCurrentActorTextBox = 0x8009CD18;

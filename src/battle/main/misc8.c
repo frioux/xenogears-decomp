@@ -65,7 +65,7 @@ extern u16 BattleSlotBitMask(u8 arg0);
 extern u8 BattleFindFirstFlagTableMatch(u16 arg0);
 extern u8 BattleSlotFlagsC000Clear(u8 arg0);
 extern u8 BattleSlotFlagsC002Clear(u8 arg0, u8 arg1);
-extern u8 func_8001BD40(s32 arg0, u8 arg1);
+extern u8 GameRandomByteRange(s32 arg0, u8 arg1);
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007C1A4);
 /* best: 83.91% (408 bytes vs retail 392). Structure is certain (same body as
@@ -98,7 +98,7 @@ void func_8007C1A4(u8 **arg0, u8 arg1) {
     pRow[(*arg0)[1]] = 0;
     do {
     while ((buf[0] & buf[1] & buf[2]) == 0) {
-        s32 slot = func_8001BD40(0, 2);
+        s32 slot = GameRandomByteRange(0, 2);
         u8 idx = slot;
 
         if (buf[idx] == 0) {
@@ -147,7 +147,7 @@ void func_8007C33C(u8 **arg0, u8 arg1) {
         }
     }
     if (count != 0) {
-        u16 result = BattleSlotBitMask(buf[func_8001BD40(0, count - 1)]);
+        u16 result = BattleSlotBitMask(buf[GameRandomByteRange(0, count - 1)]);
         s32 index = (*arg0)[1];
         u16 *pRow = (u16 *)(D_800D3420 + arg1 * 0x40);
 
@@ -243,7 +243,7 @@ void func_8007C840(u8 **arg0, u8 arg1) {
     pRow[(*arg0)[1]] = 0;
     do {
     while ((buf[0] & buf[1] & buf[2]) == 0) {
-        s32 slot = func_8001BD40(0, 2);
+        s32 slot = GameRandomByteRange(0, 2);
         u8 idx = slot;
 
         if (buf[idx] == 0) {
@@ -281,7 +281,7 @@ void func_8007C9D4(u8 **arg0, u8 arg1) {
     pRow[(*arg0)[1]] = 0;
     do {
     while ((buf[0] & buf[1] & buf[2]) == 0) {
-        s32 slot = func_8001BD40(0, 2);
+        s32 slot = GameRandomByteRange(0, 2);
         u8 idx = slot;
 
         if (buf[idx] == 0) {
@@ -313,7 +313,7 @@ void BattlePickSlotByFlagTable(BattleSlotArgs **ppArgs, u8 row) {
         }
     }
     if (count != 0) {
-        u16 result = BattleSlotBitMask(buf[func_8001BD40(0, count - 1)]);
+        u16 result = BattleSlotBitMask(buf[GameRandomByteRange(0, count - 1)]);
         s32 index = (*ppArgs)->slot;
         u16 *pRow = D_800D3410[row].unk10;
 
@@ -466,7 +466,7 @@ void BattlePickSlotByActorTag(BattleSlotArgs **ppArgs, u8 row) {
         }
     }
     if (count != 0) {
-        u16 result = BattleSlotBitMask(buf[func_8001BD40(0, count - 1)]);
+        u16 result = BattleSlotBitMask(buf[GameRandomByteRange(0, count - 1)]);
         s32 index = (*ppArgs)->slot;
         u16 *pRow = D_800D3410[row].unk10;
 
@@ -494,7 +494,7 @@ void BattlePickActorSlotWithFlag80(BattleSlotArgs **ppArgs, u8 row) {
         }
     }
     if (count != 0) {
-        u16 result = BattleSlotBitMask(buf[func_8001BD40(0, count - 1)]);
+        u16 result = BattleSlotBitMask(buf[GameRandomByteRange(0, count - 1)]);
         s32 index = (*ppArgs)->slot;
         u16 *pRow = D_800D3410[row].unk10;
 
@@ -527,7 +527,7 @@ void func_8007D478(u8 **arg0, u8 arg1) {
     pRow[(*arg0)[1]] = 0;
     do {
         while ((buf[0] & buf[1] & buf[2]) == 0) {
-            s32 slot = func_8001BD40(0, 2);
+            s32 slot = GameRandomByteRange(0, 2);
             u8 idx = slot;
 
             if (buf[idx] == 0) {

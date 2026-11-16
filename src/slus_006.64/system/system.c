@@ -377,7 +377,7 @@ int SystemEncodeGlyphCodes(u8* pInput, u16* pOutput) {
     return 0;
 }
 
-int func_80033CD0(SystemString* pString) {
+int SystemStringGetUnk6B(SystemString* pString) {
     if (pString->flags & 0x8) {
         return pString->unk6B;
     }

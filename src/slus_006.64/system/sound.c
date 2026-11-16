@@ -712,7 +712,7 @@ void func_800386C4(s32 mode) {
     if (pState != NULL) {
         if (pState->active & 0x1) {
             volume = pState->unk12;
-            if (func_80038824() != 0) {
+            if (SoundGetVolumeMode() != 0) {
                 volume <<= 7;
                 pState->unk38 = volume;
                 pState->unk3A = 0;
@@ -731,7 +731,7 @@ void func_800386C4(s32 mode) {
 */
 
 //----------------------------------------------------------------------------------------------------------------------
-s32 func_80038824(void) {
+s32 SoundGetVolumeMode(void) {
     s32 out;
 
     if (g_SoundControlFlags & ((1 << 8) | (1 << 9) | (1 << 10))) {
@@ -1960,7 +1960,7 @@ void SoundSetElementPanByIndex(s32 elementIndex, s32 value) {
     } while (cnt);
 }
 
-s32 func_8003A5D0(s32 id) {
+s32 SoundGetActiveElementMask(s32 id) {
     AudioElement* pElement = &D_800595D8->elements[0];
     u32 bit = 1;
     s32 count = D_80059478;
@@ -2897,7 +2897,7 @@ void SoundNop4(void) {}
 
 // Waits for the transfer queue to finish (arg & 0x10) and returns the mode of the
 // command at the read index, or 0 when the queue is idle.
-s32 func_8003BDFC(u32 flags) {
+s32 SoundGetPendingSpuCommandType(u32 flags) {
     if (flags & 0x10) {
         while (*(volatile u16*)&g_SoundControlFlags & 0x10) {
         }
@@ -5136,7 +5136,7 @@ void SoundHandleError(s16 errorId) {
         SoundSpuMemoryFreeBlock(0x10000);
         SoundLoadWdsFile(D_80050940, NULL);
         SoundAddSedsEntry((SoundFile*)D_80050910);
-        func_8003BDFC(0x10);
+        SoundGetPendingSpuCommandType(0x10);
         SoundPlaySoundEffectOnFreePair(((u32)D_80050924 << 16) | 1);
     }
 }

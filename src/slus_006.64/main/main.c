@@ -25,7 +25,7 @@ extern u_char D_80018004[];
 extern void ControllerUpdate(void);
 extern int ModelGetHeapStart(void);
 extern void func_8004B7D0(void*);
-extern void func_8003BDFC(int);
+extern void SoundGetPendingSpuCommandType(int);
 extern void SystemResetGlobalState(void);
 extern void func_8001BB50(void);
 extern void GfxResetWorkLists(void);
@@ -110,7 +110,7 @@ void func_80019578(void) {
     HeapFree(pArchiveData);
     HeapSetCurrentUser(prevHeapUser);
 
-    func_8003BDFC(0x10);
+    SoundGetPendingSpuCommandType(0x10);
     HeapFree(pWdsFile2);
     HeapFree(pWdsFile3);
     HeapFree(pWdsFile4);

@@ -74,7 +74,7 @@ extern s32 D_800C3A9C;
 extern s32 D_800C2080;
 extern s32 D_800C2084;
 extern u8 D_800C207C;
-extern u8 func_8001BD40(s32, u8);
+extern u8 GameRandomByteRange(s32, u8);
 extern s32 BattleMaskHasSlotBit(s32, u8);
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80085618);
@@ -554,6 +554,6 @@ void BattleSetupLinearMove(s32 arg0, s32 arg1, s32 arg2, s32 arg3) {
     }
     D_800C2080 = 0;
     D_800C2084 = 0;
-    D_800C3A9C = func_8001BD40(1, 8);
+    D_800C3A9C = GameRandomByteRange(1, 8);
     D_800C207C = 0;
 }

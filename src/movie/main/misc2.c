@@ -5,7 +5,7 @@
 #define ARCHIVE_HEADER_ENTRY_SIZE 0x7
 
 extern void SoundPlayAudioManager(void* pManager, s32 volume, s32 frames);
-extern s32 func_8003BDFC(u32 flags);
+extern s32 SoundGetPendingSpuCommandType(u32 flags);
 extern void* SoundCreateAudioManagerOnHeap(void* pFile);
 extern char* ArchiveReadHddFile(char* pFilePath, int* pFileSize);
 extern void SoundLoadWdsFile(void* pWdsFile, void* pUnk);
@@ -271,19 +271,19 @@ void MovieLoadSoundBanks(void) {
 
     pWdsFile = ArchiveReadHddFile(D_80070304, 0);
     SoundLoadWdsFile(pWdsFile, 0);
-    while ((func_8003BDFC(0) << 16) != 0) {
+    while ((SoundGetPendingSpuCommandType(0) << 16) != 0) {
     }
     HeapFree(pWdsFile);
 
     pWdsFile = ArchiveReadHddFile(D_80070328, 0);
     SoundLoadWdsFile(pWdsFile, 0);
-    while ((func_8003BDFC(0) << 16) != 0) {
+    while ((SoundGetPendingSpuCommandType(0) << 16) != 0) {
     }
     HeapFree(pWdsFile);
 
     pWdsFile = ArchiveReadHddFile(D_8007034C, 0);
     SoundLoadWdsFile(pWdsFile, 0);
-    while ((func_8003BDFC(0) << 16) != 0) {
+    while ((SoundGetPendingSpuCommandType(0) << 16) != 0) {
     }
     HeapFree(pWdsFile);
 }
@@ -293,8 +293,8 @@ void MovieCreateAudioManager(void) {
 
     pWdsFile = ArchiveReadHddFile(D_80070370, 0);
     SoundLoadWdsFile(pWdsFile, 0);
-    // func_8003BDFC returns a 16-bit status, tested in the low half
-    while ((func_8003BDFC(0) << 16) != 0) {
+    // SoundGetPendingSpuCommandType returns a 16-bit status, tested in the low half
+    while ((SoundGetPendingSpuCommandType(0) << 16) != 0) {
     }
     HeapFree(pWdsFile);
     D_8007700C = SoundCreateAudioManagerOnHeap(ArchiveReadHddFile(D_80070394, 0));

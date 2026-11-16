@@ -53,7 +53,7 @@ typedef struct {
 
 extern BattleSlotArgs D_800CCDE8[];
 
-u8 func_8001BD40(int, u8);
+u8 GameRandomByteRange(int, u8);
 u16 BattleRandomRange(int, u16);
 u8 func_8007A628(u8, u8);
 u16 BattleSlotBitMask(u8);
@@ -388,7 +388,7 @@ void func_8007BC40(u8 **p, u8 *pDest, u8 count) {
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007BC40);
 void BattleByteRegSetRandom(BattleCommand **p, u8 index) {
-    u8 value = func_8001BD40(0, (*p)->unk2);
+    u8 value = GameRandomByteRange(0, (*p)->unk2);
     u8 *pTable = D_800D3400[index].unk30;
 
     pTable[(*p)->unk1] = value;
@@ -417,7 +417,7 @@ void func_8007BD5C(u8 **p, u8 index) {
     buf[0] = buf[1] = buf[2] = 0;
     pField[(*p)[1]] = 0;
     while (!(buf[0] & buf[1] & buf[2])) {
-        idx = func_8001BD40(0, 2);
+        idx = GameRandomByteRange(0, 2);
         if (buf[idx] == 0) {
             if (func_8007A628(idx, (*p)[2]) != 0) {
                 if (D_800D32A1[idx * 8] == 0) {
@@ -447,7 +447,7 @@ void func_8007BEA8(u8 **p, u8 index) {
     buf[0] = buf[1] = buf[2] = 0;
     ((u16 *)(D_800D3420 + index * 0x40))[(*p)[1]] = 0;
     while (!(buf[0] & buf[1] & buf[2])) {
-        idx = func_8001BD40(0, 2);
+        idx = GameRandomByteRange(0, 2);
         if (buf[idx] == 0) {
             if (func_8007A628(idx, (*p)[2]) != 0
                 && D_800C3EB4[(index + 3) * 0x1C] == D_800C3EB4[idx * 0x1C]
@@ -484,7 +484,7 @@ void func_8007C040(u8 **p, u8 index) {
     }
     if (count != 0) {
         ((u16 *)(D_800D3420 + index * 0x40))[(*p)[1]] =
-            BattleSlotBitMask(buf[func_8001BD40(0, count - 1)]);
+            BattleSlotBitMask(buf[GameRandomByteRange(0, count - 1)]);
     }
 }
 */

@@ -20,7 +20,7 @@ extern s16 D_800B2344;
 #define FIELD_ACTORS (*((FieldActor**)(void*)&g_FieldActors))
 
 extern s32 g_GameSceneMapNum;
-extern int func_8001B484(int fileIndex, s32 arg1);
+extern int ArchiveLoadStagedFileIfChanged(int fileIndex, s32 arg1);
 void FieldInitializeControllersAndMouse(void);
 void func_80077884(void);
 void func_80077AB4(void);
@@ -124,7 +124,7 @@ void FieldLoadUITextures(void) {
 
 void FieldWaitForSceneMapFileLoad(void) {
     ArchiveCdDataSync(0);
-    while (func_8001B484((g_GameSceneMapNum & 0xFFF) * 2, 0) != 0) {
+    while (ArchiveLoadStagedFileIfChanged((g_GameSceneMapNum & 0xFFF) * 2, 0) != 0) {
     }
 }
 

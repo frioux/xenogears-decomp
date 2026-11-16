@@ -49,7 +49,7 @@ extern void BattleFreeActorArchiveAndSoundSeds(void);
 extern void func_800BB760(s32 index);
 extern void func_800C0F70(void);
 extern void *SoundLoadWdsFile(void *pBuffer, s32 arg1);
-extern s16 func_8003BDFC(s32 arg0);
+extern s16 SoundGetPendingSpuCommandType(s32 arg0);
 
 // WorkListEntry of include/system/animation.h; an overlay unit cannot include that
 // header (it holds tentative definitions of main-exe globals), so the layout is
@@ -309,7 +309,7 @@ void func_800BFBA0(void) {
     if (SoundFindWdsEntry(pWds->id) == NULL) {
         func_800C0F70();
         D_800C3A6C = SoundLoadWdsFile(pWds, 0);
-        while (func_8003BDFC(0) != 0) {
+        while (SoundGetPendingSpuCommandType(0) != 0) {
             func_800BE790();
         }
         D_800C3620 = 1;

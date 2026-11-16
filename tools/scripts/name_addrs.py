@@ -71,17 +71,21 @@ def main():
                 for b in files if (ROOT / "asm" / b).is_dir()}
 
     rename, skipped = [], []
+    # A DEFINITION starts at column 0 (optionally with a return type). Unanchored, a call site
+    # inside an if/while/switch condition reads as a definition, and the twin test then refuses
+    # every main-exe function that an overlay calls.
+    DEF = r"(?m)^[A-Za-z_][\w \*]*?\b"
     for old, new in pairs:
         blob = "".join(src.values()) + "".join(hdr.values())
         if re.search(r"INCLUDE_ASM\(\s*\"[^\"]*\"\s*,\s*" + old + r"\b", blob):
             skipped.append((old, new, "still an INCLUDE_ASM stub somewhere"))
-        elif not re.search(r"\b" + old + r"\s*\([^;]*?\)\s*\{", blob, re.S):
+        elif not re.search(DEF + old + r"\s*\([^;{(]*\)\s*\{", blob, re.S):
             skipped.append((old, new, "no C definition of the old name"))
         elif any(re.search(r"\b" + new + r"\b", t) for t in list(src.values()) + list(hdr.values())) \
                 and re.search(r"\b" + new + r"\b", blob):
             skipped.append((old, new, "new name already used"))
         else:
-            defs = [p for p in src if re.search(r"\b" + old + r"\s*\([^;]*?\)\s*\{", src[p], re.S)]
+            defs = [p for p in src if re.search(DEF + old + r"\s*\([^;{(]*\)\s*\{", src[p], re.S)]
             # A main-exe function is normally called from several overlays, so the owner
             # is the binary that DEFINES it in C, not the set of binaries that mention it.
             if len(defs) > 1:

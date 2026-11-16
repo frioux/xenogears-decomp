@@ -16,7 +16,7 @@ void FieldScriptVMHandlerWaitForTextBoxClose(void) {
     u32 upperFlags;
 
     // Check if there's no visible textbox owned by current actor
-    if (func_8009CD18(&nTextBoxIndex) == -1) {
+    if (FieldTextBoxFindCurrentActorTextBox(&nTextBoxIndex) == -1) {
         g_FieldScriptMaxInstructionCount += 8;
         FieldScriptMemoryWriteU16(0x14, g_FieldScriptVMCurActor->unk81);
         g_FieldScriptVMCurActor->scriptInstructionPointer += 1;
@@ -50,7 +50,7 @@ typedef struct {
     /* 0x84 */ s16 unk84;
 } FieldTextBoxString;
 
-extern int func_80033CD0(FieldTextBoxString* pString);
+extern int SystemStringGetUnk6B(FieldTextBoxString* pString);
 extern void SystemStringSetColor(FieldTextBoxString* pString, u8 red, u8 green, u8 blue);
 
 #define TEXT_BOX_STRING(index) ((FieldTextBoxString*)g_FieldTextBoxes[index]._pad)
@@ -60,10 +60,10 @@ void FieldScriptVMHandlerSetTextBoxCursorColumns(void) {
     int index;
     u8 columns;
 
-    if (func_8009CD18(&index) == 0) {
+    if (FieldTextBoxFindCurrentActorTextBox(&index) == 0) {
         g_FieldScriptMaxInstructionCount += 8;
 
-        if (func_80033CD0(TEXT_BOX_STRING(index)) == 1 ||
+        if (SystemStringGetUnk6B(TEXT_BOX_STRING(index)) == 1 ||
             (TEXT_BOX_STRING(index)->unk84 != 0 && TEXT_BOX_STRING(index)->unk6C != 0)) {
             g_FieldTextBoxes[index].cursor.visibility = 0;
             g_FieldScriptVMCurActor->unk81 = 0xFF;
@@ -91,7 +91,7 @@ void FieldScriptVMHandlerCloseTextBoxOrClearDialogParams(void) {
     int index;
     
     if (SCRIPT_READ_U8_REL(1) == 0) {
-        if (func_8009CD18(&index) == 0) {
+        if (FieldTextBoxFindCurrentActorTextBox(&index) == 0) {
             g_FieldTextBoxes[index].status = 0;
             g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
         } else {
@@ -177,7 +177,7 @@ void FieldTextBoxMarkInUse(int arg0) {
     D_800B2174[0] |= 1 << arg0;
 }
 // find_first_unused()?
-int func_8009CD18(int* pTextBoxIndex) {
+int FieldTextBoxFindCurrentActorTextBox(int* pTextBoxIndex) {
     int i;
 
     for (i = 0; i < 4; i++) {

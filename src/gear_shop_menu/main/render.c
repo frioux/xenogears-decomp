@@ -18,7 +18,7 @@ void GearShopMenuUpdateAndRender();
 // TODO: remove once matched
 s32 func_801D2B74(s32, s32, u8*);
 
-u8 func_8001BD40(int, u8);
+u8 GameRandomByteRange(int, u8);
 
 void GearShopMenuShoulderButtonUiInitialize(void) {
     int i;
@@ -175,9 +175,9 @@ void GearShopMenuAnimateOptionMarkers(void) {
                 needsUpdate = TRUE;
                 break;
             case 2:
-                if (func_8001BD40(0, 0xFF) < 0x10) {
+                if (GameRandomByteRange(0, 0xFF) < 0x10) {
                     coords[0][i] = D_801D7040[i];
-                    coords[1][i] = D_801D7044[(i * 6) + func_8001BD40(0, 5)];
+                    coords[1][i] = D_801D7044[(i * 6) + GameRandomByteRange(0, 5)];
                     needsUpdate = TRUE;
                 }
                 break;
@@ -255,9 +255,9 @@ void GearShopMenuAnimateOptionHighlight(void) {
                 needsUpdate = TRUE;
                 break;
             case 2:
-                if(func_8001BD40(0, 0xFF) < 4) {
-                    var_s2 = D_801D705C[func_8001BD40(0, 5)];
-                    var_s1 = D_801D7068[func_8001BD40(0, 5)];
+                if(GameRandomByteRange(0, 0xFF) < 4) {
+                    var_s2 = D_801D705C[GameRandomByteRange(0, 5)];
+                    var_s1 = D_801D7068[GameRandomByteRange(0, 5)];
                     needsUpdate = TRUE;
                 }
                 break;
@@ -314,9 +314,9 @@ void GearShopMenuAnimatePanelSparkles(void) {
         if(pMenu->unk1EDC) {
             g_Menu->menuUnk8->unk1EDC--;
         } else {
-            if(func_8001BD40(0, 0xFF) < 8) {
-                t1 = D_801D7074[func_8001BD40(0, 5)];
-                t2 = D_801D7080[func_8001BD40(0, 5)];
+            if(GameRandomByteRange(0, 0xFF) < 8) {
+                t1 = D_801D7074[GameRandomByteRange(0, 5)];
+                t2 = D_801D7080[GameRandomByteRange(0, 5)];
                 g_Menu->menuUnk8->unk1EF0 = t1;
                 g_Menu->menuUnk8->unk1EF2 = t2;
             }

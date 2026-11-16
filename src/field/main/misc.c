@@ -1307,7 +1307,7 @@ extern s32 D_800595AC;
 
 extern s32 D_8004F370;
 
-extern void func_8003BDFC(int);
+extern void SoundGetPendingSpuCommandType(int);
 
 extern void* HeapAlloc(u_int allocSize, u_int allocFlags);
 extern u_int HeapFree(void* pMem);
@@ -1324,7 +1324,7 @@ void FieldScriptLoadWdsSoundFile(void) {
     if (FieldArchiveTryDataSync() == 0) {
         if (SCRIPT_READ_U8_REL(1) == 1) {
             D_80062518[D_800AFD18] = SoundLoadWdsFile(D_800AFD08, 0);
-            func_8003BDFC(0x10);
+            SoundGetPendingSpuCommandType(0x10);
             HeapFree(D_800AFD08);
             if (D_800AFD18 == 3) {
                 D_800595AC = D_80062524;
@@ -2867,10 +2867,10 @@ void FieldScriptSetSoundSlotVolumeParams(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 9;
 }
 
-extern int func_8003A5D0(int);
+extern int SoundGetActiveElementMask(int);
 
 void FieldScriptWaitSoundElementStopped(void) {
-    int inputMask = func_8003A5D0(-1);
+    int inputMask = SoundGetActiveElementMask(-1);
 
     if ((inputMask & (FieldScriptVMGetArgument(1) << 8)) == 0) {
         g_FieldScriptVMCurActor->scriptInstructionPointer += 3;

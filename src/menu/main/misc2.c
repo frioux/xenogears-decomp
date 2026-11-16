@@ -25,7 +25,7 @@ extern void MenuUpdatePlayTimeDigits(void);
 extern void MenuAddScreenPrims(void);
 extern void MenuUpdateCardStatus(void);
 extern void MenuRunCardSlotOperations(void);
-extern void func_8001BD40(s32 arg0, u8 arg1);
+extern void GameRandomByteRange(s32 arg0, u8 arg1);
 extern void GameCheckAndHandleSoftReset(void);
 extern s32* D_8005917C; // -1 when no debugger is attached
 extern int D_80059488;
@@ -97,7 +97,7 @@ void MenuRenderFrame(void) {
 
     g_Menu->renderContext = g_Menu->renderContext == 0;
     ClearOTagR(g_Menu->pGfxEnv->ot, 0x10);
-    func_8001BD40(0, 0xFF);
+    GameRandomByteRange(0, 0xFF);
     MenuUpdateTransitionEffect();
     g_Menu->unk2D8++;
     MenuSetPlayTimeDigits(D_80059488);

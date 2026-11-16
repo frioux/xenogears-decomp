@@ -55,7 +55,7 @@ extern void BattleUpdateFrame(void);
 extern u8 BattlePairTargetable(u8 arg0, u8 arg1);
 extern void BattleClearSlotFlag15A1(u8 arg0);
 extern void func_8009BAC4(u8 arg0, u8 *pInfo, u8 *pField);
-extern u8 func_8001BD40(s32 arg0, u8 arg1);
+extern u8 GameRandomByteRange(s32 arg0, u8 arg1);
 extern void BattleInitSlotRowsForActor(s32 arg0, s32 arg1);
 extern s32 func_800877E0(s32 arg0, s32 arg1);
 extern void func_800B89FC(s32 arg0, s32 arg1, s32 arg2, s32 arg3);
@@ -311,7 +311,7 @@ u8 func_80080C94(u8 arg0) {
         }
         do {
             do {
-                sel = buf[func_8001BD40(0, 0xA)];
+                sel = buf[GameRandomByteRange(0, 0xA)];
                 D_800C3E2C = sel;
             } while (sel == 0xFF);
         } while (sel == arg0);
