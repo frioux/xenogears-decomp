@@ -418,47 +418,39 @@ void func_801D51EC(u_char a0, u_char a1, s32 a2, s32 a3) {
         }
     }
 }
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D53D0);
-/* Best: 98.31%. Same shape as func_801D51EC, which see: `i = 0;` written
-   before the second MenuParseNumberToDigits call and `n = 0;` after the counter store
-   reproduces retail's loop-1 exit block (`andi v1,s2,0xFF` in the back-branch
-   delay slot, `addu s2,zero,zero` in the jal delay slot) and drops the extra
-   callee-saved register, frame 0x38. The one remaining diff is loop 2's
-   `i++`: retail keeps `addiu s1,s1,1` in the `beq digits[7+i]==0xFF` delay
-   slot, gcc puts it in the latch (both sides 122 insns, so reorg's slot
-   choice).
-   void func_801D53D0(u_char a0, u_char a1, s32 a2, s32 a3) {
-       u8* pWindow = (u8*)g_Menu->unk39C[a0];
-       s32 i;
-       s32 n;
+void func_801D53D0(u_char a0, u_char a1, s32 a2, s32 a3) {
+    u8* pWindow = (u8*)g_Menu->unk39C[a0];
+    s32 i;
+    s32 n;
 
-       MenuParseNumberToDigits(g_GameState.characters[a1].mp);
-       pWindow[0x1275] = 0;
-       for (i = 0; i < 2; i++) {
-           if (g_Menu->digits[7 + i] != 0xFF) {
-               pWindow[0x1275] += func_8002675C(
-                   g_Menu->resources, g_Menu->digits[7 + i],
-                   (POLY_FT4*)((u8*)pWindow + (pWindow[0x1275] * 0x50 + 0xCD0)),
-                   g_Menu->renderContext, a2 + D_801E9B38 + i * 8,
-                   a3 + D_801E9B3C, 0x1000);
-           }
-       }
-       i = 0;
-       MenuParseNumberToDigits(g_GameState.characters[a1].maxMp);
-       pWindow[0x1276] = 0;
-       n = 0;
-       for (; i < 2; i++) {
-           if (g_Menu->digits[7 + i] != 0xFF) {
-               pWindow[0x1276] += func_8002675C(
-                   g_Menu->resources, g_Menu->digits[7 + i],
-                   (POLY_FT4*)((u8*)pWindow + (pWindow[0x1276] * 0x50 + 0xD70)),
-                   g_Menu->renderContext, a2 + D_801E9B40 + n * 8,
-                   a3 + D_801E9B44, 0x1000);
-               n++;
-           }
-       }
-   }
-*/
+    MenuParseNumberToDigits(g_GameState.characters[a1].mp);
+    pWindow[0x1275] = 0;
+    for (i = 0; i < 2; i++) {
+        if (g_Menu->digits[7 + i] != 0xFF) {
+            pWindow[0x1275] += func_8002675C(
+                g_Menu->resources, g_Menu->digits[7 + i],
+                (POLY_FT4*)((u8*)pWindow + (pWindow[0x1275] * 0x50 + 0xCD0)),
+                g_Menu->renderContext, a2 + D_801E9B38 + i * 8,
+                a3 + D_801E9B3C, 0x1000);
+        }
+    }
+    i = 0;
+    MenuParseNumberToDigits(g_GameState.characters[a1].maxMp);
+    pWindow[0x1276] = 0;
+    n = 0;
+    for (; i < 2; ) {
+        u8 digit = g_Menu->digits[7 + i++];
+
+        if (digit != 0xFF) {
+            pWindow[0x1276] += func_8002675C(
+                g_Menu->resources, digit,
+                (POLY_FT4*)((u8*)pWindow + (pWindow[0x1276] * 0x50 + 0xD70)),
+                g_Menu->renderContext, a2 + D_801E9B40 + n * 8,
+                a3 + D_801E9B44, 0x1000);
+            n++;
+        }
+    }
+}
 void MenuSetCharacterWideNumberDigits(u_char index, u_char characterId, s32 x, s32 y) {
     MenuCharacterWindow* pWindow = g_Menu->unk39C[index];
     s32 i;
