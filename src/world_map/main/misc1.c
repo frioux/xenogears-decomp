@@ -616,16 +616,19 @@ void func_80073398(void) {
     }
 }
 
-/* best: 94.74%. A single s32 nPos reused for both coordinates (below) is
-   better than two separate temporaries (91.29): with separate pseudos gcc picks
-   a second register for z, with one pseudo it at least reuses $v0. What still
-   differs: retail loads p->z AFTER the D_8009C5B0/D_8009C5AC stores and needs
-   the load-delay nop there; gcc's sched hoists the p->z load to the top of the
-   block (into $v1) whatever the source order, so our block is 4 bytes shorter.
-   Tried, no help: two separate temps, x-first / B0-first statement orders,
-   direct stores through the globals, s32* pointer stores.
-   Round 39: a volatile cast on the p->z read DOES hold it in place and keeps
-   the load-delay nop (97.16%) but turns the lh into lhu + sll 16 / sra 4. */
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80073448);
+/* best: 94.74%, 228 bytes vs retail's 232 - the missing insn is the load-delay
+   `nop` after `lh v0,4(a2)`. Retail's found-point block is
+   `lh v0,0(a2) / sw zero,D_8009C5B0 / sll / sw D_8009C5AC / lh v0,4(a2) / nop /
+   sll / sw D_8009C5B4`, i.e. the x and z loads share $v0 and the z load is NOT
+   hoisted. gcc's sched1 hoists the independent z load above the stores whatever
+   the statement order. `nPos = p->z;` (load into the shared temp, shift at the
+   store) does produce retail's 232-byte shape but gcc then splits the two loads
+   into $v0/$v1 and moves `sw zero,D_8009C5B0` after both of them (91.55%);
+   `nPos = p->x;` first is 89.48%. Rest matches retail exactly, including the
+   `g_GameState.unk1834 &= ~0x2000` base-register read-modify-write and the
+   `sll/sra` narrowed-id search loop.
+*/
 /*
 void func_80073448(s32 arg0) {
     WorldMapPoint* p;
@@ -639,8 +642,8 @@ void func_80073448(s32 arg0) {
         p = D_8009D3F4;
         while (*(s16*)&p->id != -1) {
             if ((s16)p->id == arg0) {
-                nPos = p->x << 12;
                 D_8009C5B0 = 0;
+                nPos = p->x << 12;
                 D_8009C5AC = nPos;
                 nPos = p->z << 12;
                 D_8009C5B4 = nPos;
@@ -654,8 +657,6 @@ void func_80073448(s32 arg0) {
     }
 }
 */
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80073448);
-
 
 extern void* LZSSHeapDecompress(void* pCompressedData, int flags);
 extern s32 D_8009CD48;
