@@ -593,3 +593,4 @@ g_BattleTransitionFrames = 0x8009294C;
 g_BattleCameraTarget = 0x8009867C;
 g_BattleCameraPos = 0x8009871C;
 g_BattleDifficultyLevel = 0x80099D98;
+g_BattleEffectFrameCluts = 0x800947FE;

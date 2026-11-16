@@ -441,7 +441,14 @@ by stub count, 10 to 16 with the method below).
      (`func_A` -> `B` -> `C`), so only a prefix of the jtbl stubs can ever be converted;
      `convertible.py`'s verdict already accounts for that;
    - stubs with `sw $sp`/`lw $sp` (stack switch; the alloca bodies it catches are
-     `grep -l 'sw \$sp, 0x0' asm/*/nonmatchings/`, a dozen in `system/` and the battle tail);
+     `grep -l 'sw \$sp, 0x0' asm/*/nonmatchings/`, a dozen in `system/` and the battle tail).
+     **This filter is not optional and neither tool applies it:** `fresh_stubs.py` and
+     `convertible.py` both call these stubs fresh and linkable, because a stack switch has
+     no post-`.size` instructions and no `dlabel` data. Round 148 spent two of six workers
+     on them (`slus_006.64/system/rendering_pause_text` `func_8001FB30`,
+     `battling/misc15` `func_8008BC04` is a coroutine register save), and the worker's own
+     report found three more in `battle/main/misc27_b` (`func_800B626C/B61F8/B62C8`). Grep
+     each assigned `.s` for `sw \$sp` before putting it in `funcs`;
    - stubs of <15 insns that start by loading a literal address: often a data word, not a
      function (`battling/misc12` `func_80088BFC` is a 4-byte pointer datum, code starts at +4);
    - parks, from a worker's hand-writing list. Every park has been swept under every

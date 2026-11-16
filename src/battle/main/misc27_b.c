@@ -98,7 +98,7 @@ BattleDistanceWaitTask* BattleCreateActorDistanceWaitTask(SpriteData* pSpriteDat
     pSpriteData->flags_0xAC.flags |= 0x20;
     return pTask;
 }
-BattlePoint* func_800B59BC(BattlePoint* pOut, SpriteData* pSpriteData, s32 index) {
+BattlePoint* BattleGetActorJointOffset(BattlePoint* pOut, SpriteData* pSpriteData, s32 index) {
     DVECTOR rot;
 
     if (pSpriteData->pBase == NULL) {
@@ -127,7 +127,7 @@ BattlePoint* BattleGetActorJointPoint(BattlePoint* pOut, SpriteData* pSpriteData
     // The block is load-bearing: without it gcc hoists the second joint offset above the
     // first store and this function compiles 8 bytes short of retail.
     do {
-        func_800B59BC(&point, pSpriteData, index);
+        BattleGetActorJointOffset(&point, pSpriteData, index);
         ofs = ((BattleFixed16Vector*)&pSpriteData->position)->xWhole;
         point.x = point.x + ofs;
         ofs = ((BattleFixed16Vector*)&pSpriteData->position)->yWhole;

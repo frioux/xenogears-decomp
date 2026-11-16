@@ -119,7 +119,7 @@ extern u16 D_800926AE;
 extern u16 D_80092694;
 extern u16 D_800926A0;
 extern s16 D_80091228[];
-extern u16 D_800947FE[];
+extern u16 g_BattleEffectFrameCluts[];
 
 // CLUT x (0x80092698) and y (0x8009269C). func_8007B270 reads each of them as a
 // short, this unit's other callers only want the low byte.
@@ -403,7 +403,7 @@ void func_8007BBA0(MATRIX *pMatrix, MATRIX *pRotMatrix, u32 *pOt) {
         pPacket->v3 = pPacket->v0 + pAction->vSize;
 
         if (pAction->clut == 0) {
-            pPacket->clut = D_800947FE[pSlot->frame];
+            pPacket->clut = g_BattleEffectFrameCluts[pSlot->frame];
         }
 
         if (*(s32 *)(pScratch + 0xB0) >= 0x41) {
