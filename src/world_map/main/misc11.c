@@ -104,12 +104,101 @@ extern WorldMapTrail D_8009CEC4[];
 extern u16 D_8009D52C;
 extern u16 D_8009D154;
 
-/* BLOCKED (JTBL): func_8008A72C, func_8008B2BC, func_8008B644, func_8008BB40,
-   func_8008C364, func_8008C844 and func_8008D678 each jr through jtbl_800707AC,
-   so a C switch would emit a second copy of the table and shift the overlay.
-   The only convertible functions left in this unit are the parked ones below. */
+/* func_8008A72C, func_8008B2BC, func_8008B644, func_8008BB40, func_8008C364,
+   func_8008C844 and func_8008D678 each jr through a jtbl_ table of this unit. The
+   unit owns its .rodata (config/world_map.yaml), so a C switch keeps the layout -
+   converting func_8008B2BC shifted nothing but its own bytes and the table words
+   that follow from its case labels - but all seven are still unmatched. */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008A72C);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008B2BC);
+/* 87.47% (476 bytes, retail 476). Structure, the whole switch (13 entries = min 1
+   max 13, so cases 8-13 must be listed empty), the case-body order (cases 4-6 as the
+   cross-jumped "li v0,3 / j" arm, case 7 inline) and everything after the table are
+   byte-identical. What is left is one pre-reload-scheduler ordering in the block that
+   sets up unk38..unk5C plus the unk48 re-read:
+   retail  = sw zero 0x40/0x3C/0x38, lhu g_GameState+0x1824, lw D_8009BE10,
+             li 8/sh 0x4A, li 0xF/sw 0x58, addiu a0,-1, sh 0x48, lh 0x48,
+             sltiu, beqz, sw 0x5C (in the delay slot)
+   gcc     = li 8/sh 0x4A above the three zero stores, both loads below them, and the
+             sh 0x48 / lh 0x48 pair folded into sh 0x48 / sll+sra.
+   Tried: source reorder (unk48 before unk4A/unk58), a u16 local for the global, a
+   s32 mode local assigned before the stores (identical 87.47), a volatile read for
+   unk5C (gives the lh but 480 bytes, 86.63), and do/while (0) around the three zero
+   stores - that does put the zeros first and keeps the constants after them, but it
+   makes gcc materialise g_GameState+0x1824 into a saved register (lui/addiu/lhu 4(sN))
+   and the frame grows to 484 bytes (83.45). Permuter: base 1265 best 1053, best
+   candidate reads unk48 into a s16 BEFORE the store (wrong semantics, 86.34 on
+   objdiff). NOTE the "BLOCKED (JTBL)" claim above is wrong for this stub: converting
+   it leaves the overlay byte-identical except for this function's own instructions
+   and three jtbl words that follow from the case labels moving (checked with
+   tools/scripts/check_bin.sh world_map), so the C switch layout is safe here.
+int func_8008B2BC(int index) {
+    WorldMapActor *pActor = &D_8009BE24[index];
+    s32 mode;
+    s32 result = 1;
+
+    if (g_GameState.partyMembers[1] != 0xFF) {
+        pActor->unk4C = SpriteAllocFromAnimFile(D_8009CD38, 0x110, 0x1E0, 0x150, 0x100, 0x40);
+        SpritePlayAnimation(pActor->unk4C, 0);
+        SpriteSetScale(pActor->unk4C, 0x1800);
+        *(u32 *)((u8 *)pActor->unk4C + 0x3C) &= ~4;
+        pActor->unk24 = 0;
+    } else {
+        pActor->unk24 = 1;
+        result = 3;
+    }
+    pActor->unk28 = g_GameState.unk1820 << 12;
+    pActor->unk30 = g_GameState.unk1822 << 12;
+    pActor->unk2C = WorldMapGetTilePlaneHeight(pActor->unk28, pActor->unk30);
+    mode = D_8009BE10;
+    pActor->unk40 = 0;
+    pActor->unk3C = 0;
+    pActor->unk38 = 0;
+    pActor->unk4A = 8;
+    pActor->unk58 = 0xF;
+    pActor->unk48 = g_GameState.unk1824;
+    pActor->unk5C = pActor->unk48;
+    switch (mode) {
+    case 1:
+    case 2:
+    case 3:
+        if (g_GameState.gearRide[2] == 0) {
+            pActor->unk28 = D_8009C5AC;
+            pActor->unk30 = D_8009C5B4;
+            pActor->unk2C = WorldMapGetTilePlaneHeight(pActor->unk28, pActor->unk30);
+            pActor->unk48 = D_8009C584;
+        } else {
+            pActor->unk20 = 1;
+            pActor->unk24 = 1;
+        }
+        break;
+    case 4:
+    case 5:
+    case 6:
+        pActor->unk20 = 3;
+        pActor->unk24 = 1;
+        if (g_GameState.partyMembers[1] != 0xFF) {
+            g_GameState.gearRide[2] = 1;
+        }
+        break;
+    case 7:
+        pActor->unk20 = 2;
+        pActor->unk24 = 1;
+        if (g_GameState.partyMembers[1] != 0xFF) {
+            g_GameState.gearRide[2] = 1;
+        }
+        break;
+    case 8:
+    case 9:
+    case 10:
+    case 11:
+    case 12:
+    case 13:
+        break;
+    }
+    return result;
+}
+*/
 int WorldMapModeInitCharacterSprite1(int index) {
     WorldMapActor *pActor = &D_8009BE24[index];
     s32 result = 1;
