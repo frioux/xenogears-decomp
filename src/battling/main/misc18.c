@@ -34,7 +34,8 @@ typedef union {
 typedef struct {
     /* 0x00 */ struct BattleActor* pOwner;
     /* 0x04 */ s16 unk4;
-    /* 0x06 */ u16 pad6;
+    /* 0x06 */ u8 unk6;
+    /* 0x07 */ u8 unk7;
     /* 0x08 */ u8 unk8;
     /* 0x09 */ u8 unk9;
     /* 0x0A */ s16 unkA;
@@ -63,18 +64,23 @@ typedef struct {
 // touches are named; 0x1668 is the last one, so 0x166A is a lower bound on the
 // real size.
 typedef struct BattleActor {
-    /* 0x000 */ u8 unk0[0xB4];
+    /* 0x000 */ u8 unk0[0x48];
+    /* 0x048 */ u32 unk48;
+    /* 0x04C */ u8 unk4C[0x68];
     /* 0x0B4 */ s16 unkB4;
     /* 0x0B6 */ s16 unkB6;
     /* 0x0B8 */ u8 unkB8[0x6];
     /* 0x0BE */ s16 unkBE;
     /* 0x0C0 */ u8 unkC0[0x4];
     /* 0x0C4 */ u8 unkC4;
-    /* 0x0C5 */ u8 unkC5[0xB];
+    /* 0x0C5 */ u8 unkC5;
+    /* 0x0C6 */ u8 unkC6[0xA];
     /* 0x0D0 */ u32 flags;
     /* 0x0D4 */ u8 unkD4[0x4];
     /* 0x0D8 */ struct BattleActor* pTarget;
-    /* 0x0DC */ u8 unkDC[0x835];
+    /* 0x0DC */ u8 unkDC[0x818];
+    /* 0x8F4 */ u32 unk8F4;
+    /* 0x8F8 */ u8 unk8F8[0x19];
     /* 0x911 */ u8 unk911;
     /* 0x912 */ u8 unk912[0xCEA];
     /* 0x15FC */ BattleWork* pWork;
@@ -91,9 +97,12 @@ extern u32 BattleGetGridCellAtPosition(Vec4* p);
 extern void func_8008F7B8(BattleWork* pWork);
 extern s32 BattleRollActorFlag8000(BattleActor* pActor, s32 arg1);
 extern s32 D_8009284C;
+extern s32 func_8008FACC(BattleActor* pActor, BattleWork* pWork);
 extern void func_8008FFEC(BattleActor* pActor, BattleWork* pWork);
 extern void BattleResetMessageQueue(BattleActor* p);
 extern u8 D_80099D98;
+extern BattleWork D_80096F30;
+extern BattleWork D_80096F64;
 extern void func_8008FCC8(BattleActor* pActor, BattleWork* pWork);
 extern void func_8009031C(BattleActor* pActor, BattleWork* pWork);
 extern void func_80090580(BattleActor* pActor, BattleWork* pWork);
@@ -109,7 +118,7 @@ s32 BattleCheckActorBelowBreakThreshold(BattleActor* pActor, s32 arg1) {
     return pActor->unkB6 < 0x1000 - pActor->unkBE;
 }
 
-s32 BattleGetActorBreakThreshold(BattleActor* pActor) {
+s32 BattleGetActorBreakThreshold(BattleActor* pActor, BattleWork* pWork) {
     return 0x1000 - pActor->unkBE;
 }
 
@@ -422,8 +431,62 @@ s32 BattleDecideActorAction(BattleActor* pActor, BattleWork* pWork) {
     }
     return 1;
 }
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc18", func_8009031C);
-void BattleEnterWorkState3(BattleActor* pActor) {
+void func_8009031C(BattleActor* pActor, BattleWork* pWork) {
+    u8 v;
+
+    if (func_8008FACC(pActor, pWork) != 0) {
+        return;
+    }
+    if (pActor->unkC5 != 2 && pActor->pTarget->unkC5 == 2) {
+        BattleSetActorFlag2AndClearQueue(pActor, pWork);
+    }
+    if (pActor->pTarget->unk8F4 - 0x201 < 0x3FF && pWork->unkF != 0) {
+        BattleSetActorFlag2AndClearQueue(pActor, pWork);
+    }
+    if (--pWork->unk4 > 0) {
+        return;
+    }
+    if (D_8009284C >= 0x301) {
+        switch (rand() % 10) {
+        case 0:
+            if ((rand() & 0xFF) < pWork->unk14) {
+                break;
+            }
+            BattleEnterWorkState2(pActor, 0);
+            break;
+        case 2:
+            if (pActor->unk911 != 0) {
+                func_8008FFEC(pActor, pWork);
+                break;
+            }
+            /* fall through */
+        case 1:
+            BattleEnterWorkState0(pActor);
+            break;
+        case 3:
+        case 4:
+        case 5:
+            if (BattleDecideActorAction(pActor, pWork) != 0) {
+                BattleEnterWorkState0(pActor);
+            }
+            break;
+        case 6:
+        case 7:
+        case 8:
+        case 9:
+            BattleEnterWorkState3(pActor, 0);
+            break;
+        }
+    }
+    v = pWork->unk9;
+    pWork->unk9 = v + 0xFF;
+    if (v != 0) {
+        BattleQueueMessagesAndSetScaledDelay(pActor, pWork);
+    } else {
+        BattleEnterWorkState2(pActor, rand() & 1);
+    }
+}
+void BattleEnterWorkState3(BattleActor* pActor, s32 arg1) {
     BattleWork* pWork;
     s32 r;
 
@@ -436,7 +499,7 @@ void BattleEnterWorkState3(BattleActor* pActor) {
     pWork->unkE = BattleRollActorFlag8000(pActor, 1);
     pWork->unk2C.bytes.unk2E = 0;
 }INCLUDE_ASM("asm/battling/nonmatchings/main/misc18", func_80090580);
-void BattleEnterWorkState2(BattleActor* pActor) {
+void BattleEnterWorkState2(BattleActor* pActor, s32 arg1) {
     BattleWork* pWork;
 
     pWork = pActor->pWork;
@@ -465,46 +528,53 @@ void BattleLoadWorkActionChances(BattleActor* pActor) {
 }
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc18", func_80090CC0);
-/* 97.38%: only the D_80099D98 load is off. gcc hoists it above the store of the
-   BattleGetActorBreakThreshold result; retail keeps store-then-load and reuses $v0 for both.
-   The two BattleEnterWorkState2/BattleEnterWorkState3 call sites and BattleGetActorBreakThreshold need a trailing
-   argument retail passes and nobody reads (a1=0 / a1=p) - adding it to those three
-   matched definitions is byte-neutral but was reverted with this park.
-void func_80090CC0(u8* pArg0) {
-    BattleWork* p;
+/* 97.38%: the whole body matches except the order of the two statements after the
+   BattleGetActorBreakThreshold return. Retail stores the result first ("sw v0,36(s0)")
+   and then loads D_80099D98 into the now-free $v0; gcc schedules the lbu first (into
+   $v1, because the call result is still live) and stores second. Tried: the store
+   inline, the loaded byte in a u8 local, the call result in an s32 local stored after
+   the load - all identical. tools/scripts/permute.sh (1841 iterations, base=80) found
+   nothing, and the block follows a call, so it is a scheduler choice, not reorg.
+   BattleGetActorBreakThreshold needs the trailing argument retail passes and nobody
+   reads (a1=p); with that parameter added its call site matches and its own body
+   stays at 100%, so the definition below already has it.
+void func_80090CC0(BattleActor* pActor) {
+    BattleWork* pWork;
+    s32 thr;
 
-    p = &D_80096F30;
-    if ((*(u32*)(pArg0 + 0xD0) & 0x8000000) != 0) {
-        p = &D_80096F64;
+    pWork = &D_80096F30;
+    if ((pActor->flags & 0x8000000) != 0) {
+        pWork = &D_80096F64;
     }
-    *(u8**)(pArg0 + 0x15FC) = (u8*)p;
-    p->unk6 = 0x10;
-    p->unk0 = pArg0;
-    p->unk4 = 0;
-    p->unk7 = 0xA;
-    p->unkA = 0;
-    p->unkC = 0;
-    p->unk8 = 0;
-    p->unk9 = 0;
-    *(s32*)(pArg0 + 0x48) = 0;
-    p->unk24 = BattleGetActorBreakThreshold(pArg0, p);
-    p->unkF = D_80099D98;
-    BattleLoadWorkActionChances(pArg0);
+    pActor->pWork = pWork;
+    pWork->unk6 = 0x10;
+    pWork->pOwner = pActor;
+    pWork->unk4 = 0;
+    pWork->unk7 = 0xA;
+    pWork->unkA = 0;
+    pWork->unkC = 0;
+    pWork->unk8 = 0;
+    pWork->unk9 = 0;
+    pActor->unk48 = 0;
+    thr = BattleGetActorBreakThreshold(pActor, pWork);
+    pWork->unkF = D_80099D98;
+    pWork->unk24 = thr;
+    BattleLoadWorkActionChances(pActor);
     switch (rand() % 3) {
     case 0:
-        BattleEnterWorkState0(pArg0);
+        BattleEnterWorkState0(pActor);
         break;
     case 1:
-        BattleEnterWorkState1(pArg0);
+        BattleEnterWorkState1(pActor);
         break;
     case 2:
-        BattleEnterWorkState2(pArg0, 0);
+        BattleEnterWorkState2(pActor, 0);
         break;
     case 3:
-        BattleEnterWorkState3(pArg0, 0);
+        BattleEnterWorkState3(pActor, 0);
         break;
     }
-    BattleResetMessageQueue(pArg0);
+    BattleResetMessageQueue(pActor);
 }
 */
 void BattleDispatchWorkState(BattleActor* pActor) {
