@@ -40,11 +40,16 @@ typedef struct {
     /* 0x26 */ u16 pad26;
 } SlotMotion; // Size: 0x28
 
+// One entry of the effect action table D_80092A74: the two per-frame texture
+// offset tables, the texel size of the quad and the CLUT/tpage it draws with.
 typedef struct {
-    /* 0x00 */ u8 unk0[0xA];
+    /* 0x0 */ u8 *pFrameU;
+    /* 0x4 */ u8 *pFrameV;
+    /* 0x8 */ u8 uSize;
+    /* 0x9 */ u8 vSize;
     /* 0x0A */ u8 frameCount;
     /* 0x0B */ u8 unkB;
-    /* 0x0C */ u16 clut;
+    /* 0x0C */ s16 clut;
     /* 0x0E */ u16 tpage;
     /* 0x10 */ u16 unk10;
     /* 0x12 */ u16 unk12;
@@ -58,8 +63,7 @@ typedef struct {
 } SVector; // Size: 0x8
 
 typedef struct {
-    /* 0x00 */ SlotMotion unk0;
-    /* 0x28 */ SlotMotion unk28;
+    /* 0x00 */ SlotMotion packets[2];
     /* 0x50 */ u8 active;
     /* 0x51 */ s8 frame;
     /* 0x52 */ u8 frameCount;
@@ -115,6 +119,8 @@ extern u16 D_800926AE;
 extern u16 D_80092694;
 extern u16 D_800926A0;
 extern s16 D_80091228[];
+extern u16 D_800947FE[];
+
 // CLUT x (0x80092698) and y (0x8009269C). func_8007B270 reads each of them as a
 // short, this unit's other callers only want the low byte.
 extern u8 D_80092698[];
@@ -248,7 +254,168 @@ void BattleEffectClearSlots(void) {
     } while (i >= 0);
 }
 
+/* Best attempt: objdiff 94.47%, 1368 bytes against retail's 1376 (two
+   instructions short), same calls and branches throughout. Everything from the
+   slot loop on is line-for-line: the slot walk, the V0 = slot - camera build,
+   the SVECTOR copy that produces the two lwl/lwr pairs, the three-case corner
+   switch (bodies must be listed case 0, 1, 2), gte_ldv01/RTPT, the bounding-box
+   fill and the u/v block. What is left is the SIX-BLOCK CORNER PROLOGUE: retail
+   stores the scratch vertex halves with constant addresses
+   (`lui $at,0x1f80; sh $v0,0x12($at); sh $v0,0x10($at)`) and only reuses a
+   register for the x half from block 2 on, while gcc 2.7.2 puts 0x1F800012 into
+   a register in block 1 and stores both halves through registers. Tried: pure
+   literal casts (94.27%), a s16 width local, an SVECTOR *pVec for the x half
+   only (94.47%, kept below), w as s16. NOT tried: the permuter.
+   Also open: `addiu v1,a3,%lo(D_1F800010)` / `%lo(D_1F8000B0)` vs our
+   `addiu v1,a3,0x10` (a relocation-only difference - the TYPE/RELOC exception),
+   `sw $v1,0($a0)` (retail stores the tag through the masked address) vs our
+   `sw $v1,0($a2)`, and `addu $v0,$v0,$t7` vs our `addu $v0,$t7,$v0` for
+   `&pOt[otz]` (try the embedded-assignment lever).
+   Struct facts this body established: BattleAction 0x0/0x4 are the per-frame u
+   and v offset tables, 0x8/0x9 the quad's texel size, 0xB the size select,
+   and its clut at 0xC is tested with `lh`, so it is s16. */
+
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007BBA0);
+
+/*
+void func_8007BBA0(MATRIX *pMatrix, MATRIX *pRotMatrix, u32 *pOt) {
+    u8 *pScratch = (u8 *)0x1F800000;
+    SVECTOR *pVec = (SVECTOR *)0x1F800010;
+    BattleSlot *pSlot;
+    BattleAction *pAction;
+    SlotMotion *pPacket;
+    u32 *pLink;
+    u32 link;
+    s32 i;
+    s16 w;
+
+    // The six quad corners are rotated once, for three sprite widths.
+    *(s16 *)0x1F800014 = 0;
+    gte_SetRotMatrixRows_gpr(pRotMatrix);
+
+    w = -0x60;
+    *(s16 *)0x1F800012 = w;
+    pVec->vx = w;
+    gte_ldv0((SVECTOR *)0x1F800010);
+    gte_mvmva(1, 0, 0, 3, 0);
+    gte_stlvnl((void *)0x1F800030);
+
+    w = 0x60;
+    *(s16 *)0x1F800012 = w;
+    pVec->vx = w;
+    gte_ldv0((SVECTOR *)0x1F800010);
+    gte_mvmva(1, 0, 0, 3, 0);
+    gte_stlvnl((void *)0x1F800040);
+
+    w = -0x48;
+    *(s16 *)0x1F800012 = w;
+    pVec->vx = w;
+    gte_ldv0((SVECTOR *)0x1F800010);
+    gte_mvmva(1, 0, 0, 3, 0);
+    gte_stlvnl((void *)0x1F800050);
+
+    w = 0x48;
+    *(s16 *)0x1F800012 = w;
+    pVec->vx = w;
+    gte_ldv0((SVECTOR *)0x1F800010);
+    gte_mvmva(1, 0, 0, 3, 0);
+    gte_stlvnl((void *)0x1F800060);
+
+    w = -0x20;
+    *(s16 *)0x1F800012 = w;
+    pVec->vx = w;
+    gte_ldv0((SVECTOR *)0x1F800010);
+    gte_mvmva(1, 0, 0, 3, 0);
+    gte_stlvnl((void *)0x1F800070);
+
+    w = 0x20;
+    *(s16 *)0x1F800012 = w;
+    pVec->vx = w;
+    gte_ldv0((SVECTOR *)0x1F800010);
+    gte_mvmva(1, 0, 0, 3, 0);
+    gte_stlvnl((void *)0x1F800080);
+
+    gte_SetRotTransMatrix_gpr(pMatrix);
+
+    pSlot = D_80092AD8;
+    for (i = 0; i < 0x3C; i++, pSlot++) {
+        if (pSlot->active == 0) {
+            continue;
+        }
+        if (pSlot->type != 0) {
+            continue;
+        }
+        pAction = (BattleAction *)pSlot->unk60;
+        pPacket = &pSlot->packets[g_BattleDrawBufferIndex];
+
+        *(s16 *)(pScratch + 0x10) = pSlot->x - *(s32 *)(pScratch + 0x00);
+        *(s16 *)(pScratch + 0x12) = pSlot->y - *(s32 *)(pScratch + 0x04);
+        *(s16 *)(pScratch + 0x14) = pSlot->z - *(s32 *)(pScratch + 0x08);
+        *(SVECTOR *)(pScratch + 0x20) = *(SVECTOR *)(pScratch + 0x10);
+
+        // Widen the projected point by the pre-rotated corner of this size.
+        switch (pAction->unkB) {
+        case 0:
+            *(u16 *)(pScratch + 0x10) += *(s32 *)(pScratch + 0x30);
+            *(u16 *)(pScratch + 0x12) += *(s32 *)(pScratch + 0x34);
+            *(u16 *)(pScratch + 0x14) += *(s32 *)(pScratch + 0x38);
+            *(u16 *)(pScratch + 0x20) += *(s32 *)(pScratch + 0x40);
+            *(u16 *)(pScratch + 0x22) += *(s32 *)(pScratch + 0x44);
+            *(u16 *)(pScratch + 0x24) += *(s32 *)(pScratch + 0x48);
+            break;
+        case 1:
+            *(u16 *)(pScratch + 0x10) += *(s32 *)(pScratch + 0x50);
+            *(u16 *)(pScratch + 0x12) += *(s32 *)(pScratch + 0x54);
+            *(u16 *)(pScratch + 0x14) += *(s32 *)(pScratch + 0x58);
+            *(u16 *)(pScratch + 0x20) += *(s32 *)(pScratch + 0x60);
+            *(u16 *)(pScratch + 0x22) += *(s32 *)(pScratch + 0x64);
+            *(u16 *)(pScratch + 0x24) += *(s32 *)(pScratch + 0x68);
+            break;
+        case 2:
+            *(u16 *)(pScratch + 0x10) += *(s32 *)(pScratch + 0x70);
+            *(u16 *)(pScratch + 0x12) += *(s32 *)(pScratch + 0x74);
+            *(u16 *)(pScratch + 0x14) += *(s32 *)(pScratch + 0x78);
+            *(u16 *)(pScratch + 0x20) += *(s32 *)(pScratch + 0x80);
+            *(u16 *)(pScratch + 0x22) += *(s32 *)(pScratch + 0x84);
+            *(u16 *)(pScratch + 0x24) += *(s32 *)(pScratch + 0x88);
+            break;
+        }
+
+        gte_ldv01((SVECTOR *)(pScratch + 0x10), (SVECTOR *)(pScratch + 0x20));
+        gte_rtpt();
+        gte_stsxy0(&pPacket->x0);
+        gte_stsxy1(&pPacket->x3);
+        gte_stsz2(pScratch + 0xB0);
+
+        // The quad is the screen-aligned box of the two projected corners.
+        pPacket->x1 = pPacket->x3;
+        pPacket->y1 = pPacket->y0;
+        pPacket->x2 = pPacket->x0;
+        pPacket->y2 = pPacket->y3;
+
+        pPacket->u0 = pAction->pFrameU[pSlot->frame - 1];
+        pPacket->v0 = pAction->pFrameV[pSlot->frame - 1];
+        pPacket->u2 = pPacket->u0;
+        pPacket->v1 = pPacket->v0;
+        pPacket->u1 = pPacket->u0 + pAction->uSize;
+        pPacket->v2 = pPacket->v0 + pAction->vSize;
+        pPacket->u3 = pPacket->u0 + pAction->uSize;
+        pPacket->v3 = pPacket->v0 + pAction->vSize;
+
+        if (pAction->clut == 0) {
+            pPacket->clut = D_800947FE[pSlot->frame];
+        }
+
+        if (*(s32 *)(pScratch + 0xB0) >= 0x41) {
+            *(s32 *)(pScratch + 0xB0) -= 0x40;
+        }
+        pLink = &pOt[*(s32 *)(pScratch + 0xB0) >> 4];
+        link = *pLink;
+        *pLink = (u32)pPacket & 0xFFFFFF;
+        pPacket->tag = link | 0x09000000;
+    }
+}
+*/
 
 void BattleEffectSetColor(Color4 *pColor) {
     D_800926B8 = *pColor;
@@ -279,7 +446,7 @@ void BattleEffectAddSlot(SVector *pVec, s32 action) {
     pSlot->x = pVec->vx;
     pSlot->y = pVec->vy;
     pSlot->z = pVec->vz;
-    pMotion = &pSlot->unk0;
+    pMotion = &pSlot->packets[0];
     pMotion->tpage = pAction->tpage;
     if (action == 2) {
         pMotion->code &= 0xFE;
@@ -290,7 +457,7 @@ void BattleEffectAddSlot(SVector *pVec, s32 action) {
         pMotion->code |= 1;
     }
     pMotion->clut = pAction->clut;
-    pSlot->unk28 = *pMotion;
+    pSlot->packets[1] = *pMotion;
 }
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007C280);
@@ -336,7 +503,7 @@ void func_8007C880(s32 arg0, VECTOR *pVec, u32 arg2, s32 arg3) {
     }
 
     u = D_80092698[0] * 4 + 8;
-    pMotion = &pSlot->unk0;
+    pMotion = &pSlot->packets[0];
     u += arg0 * 4;
     pMotion->u3 = u;
     pMotion->u2 = u;
@@ -350,7 +517,7 @@ void func_8007C880(s32 arg0, VECTOR *pVec, u32 arg2, s32 arg3) {
     pMotion->tpage = D_80092694;
     pMotion->code &= 0xFE;
     pMotion->clut = D_800926A0;
-    pSlot->unk28 = *pMotion;
+    pSlot->packets[1] = *pMotion;
 
     pSlot->frameCount = 7;
     pSlot->type = 1;
@@ -431,7 +598,7 @@ void func_8007CD44(s32 arg0, VECTOR *pPos, VECTOR *pVec, u32 arg3) {
     pSlot->unk64 = pVec->vx;
     pSlot->vy = pVec->vy;
 
-    pMotion = &pSlot->unk0;
+    pMotion = &pSlot->packets[0];
     u = D_80092698[0] * 4 + 8;
     u += arg0 * 4;
     pMotion->u3 = u;
@@ -451,7 +618,7 @@ void func_8007CD44(s32 arg0, VECTOR *pPos, VECTOR *pVec, u32 arg3) {
     pMotion->tpage = D_80092694;
     pMotion->code &= 0xFE;
     pMotion->clut = D_800926A0;
-    pSlot->unk28 = *pMotion;
+    pSlot->packets[1] = *pMotion;
 
     id = D_800926A4 - 1;
     pEntry = D_80092AD8;
