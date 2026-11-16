@@ -669,15 +669,6 @@ u8 BattleActorTargetableWithOverride(u8 arg0, u8 arg1) {
     }
     return ret;
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_800841E0);
-/* 90.21% (880 bytes vs retail 872): structure, calls, both candidate
-   loops (3..10 / 0..2 duplicated as retail has them), the same-row filter
-   and both single-pass sorts are in place; 8 bytes long. Remaining diff
-   to chase: the stack arrays (list at sp+0x10, sameRow at sp+0x20) and
-   the count/pointer pair per candidate loop. D_800CCD34 is the 0x170-byte
-   slot table (its .unk0 is the sort key); D_800CCE08 is field 0xD4 of the
-   same table. Retail's caller BattleEnsureTargetSlotInCandidateList passes
-   arg0 in $a0 with no instruction, so the prototype is u8.
 u8 func_800841E0(u8 arg0) {
     s32 i;
     s32 n;
@@ -694,9 +685,10 @@ u8 func_800841E0(u8 arg0) {
         sameRow[i] = 0;
     }
     if (arg0 < 3) {
+        i = 3;
         count = 0;
         p = list;
-        for (i = 3; i < 0xB; i++) {
+        for (; i < 0xB; i++) {
             if (BattlePairTargetable(arg0, i) != 0) {
                 *p = i;
                 p++;
@@ -705,9 +697,10 @@ u8 func_800841E0(u8 arg0) {
             }
         }
     } else {
+        i = 0;
         count = 0;
         p = list;
-        for (i = 0; i < 3; i++) {
+        for (; i < 3; i++) {
             if (BattlePairTargetable(arg0, i) != 0) {
                 *p = i;
                 p++;
@@ -716,46 +709,41 @@ u8 func_800841E0(u8 arg0) {
             }
         }
     }
-    if (count > 0) {
-        n = 0;
-        for (i = 0; i < count; i++) {
-            if (g_BattleSlotRecords[arg0][0] == g_BattleSlotRecords[list[i]][0]) {
-                g_BattleTargetCandidates[n] = list[i];
-                list[i] = 0xFF;
-                sameRow[n] = 1;
-                n++;
-            }
+    n = 0;
+    for (i = 0; i < count; i++) {
+        if (g_BattleSlotRecords[arg0][0] == g_BattleSlotRecords[list[i]][0]) {
+            g_BattleTargetCandidates[n] = list[i];
+            list[i] = 0xFF;
+            sameRow[n] = 1;
+            n++;
         }
     }
-    if (count > 0) {
-        for (i = 0; i < count; i++) {
-            if (list[i] != 0xFF) {
-                g_BattleTargetCandidates[n] = list[i];
-                n++;
-            }
+    for (i = 0; i < count; i++) {
+        if (list[i] != 0xFF) {
+            g_BattleTargetCandidates[n] = list[i];
+            n++;
         }
     }
     if (sameRow[0] != 0) {
         for (i = 1; i < count; i++) {
             if (sameRow[i] != 0
-                && D_800CCD34[g_BattleTargetCandidates[i - 1]].unk0 > D_800CCD34[g_BattleTargetCandidates[i]].unk0) {
-                tmp = g_BattleTargetCandidates[i - 1];
-                g_BattleTargetCandidates[i - 1] = g_BattleTargetCandidates[i];
+                && D_800CCD34[g_BattleTargetCandidates[0]].unk0 > D_800CCD34[g_BattleTargetCandidates[i]].unk0) {
+                tmp = g_BattleTargetCandidates[0];
+                g_BattleTargetCandidates[0] = g_BattleTargetCandidates[i];
                 g_BattleTargetCandidates[i] = tmp;
             }
         }
     } else {
         for (i = 1; i < count; i++) {
-            if (D_800CCD34[g_BattleTargetCandidates[i - 1]].unk0 > D_800CCD34[g_BattleTargetCandidates[i]].unk0) {
-                tmp = g_BattleTargetCandidates[i - 1];
-                g_BattleTargetCandidates[i - 1] = g_BattleTargetCandidates[i];
+            if (D_800CCD34[g_BattleTargetCandidates[0]].unk0 > D_800CCD34[g_BattleTargetCandidates[i]].unk0) {
+                tmp = g_BattleTargetCandidates[0];
+                g_BattleTargetCandidates[0] = g_BattleTargetCandidates[i];
                 g_BattleTargetCandidates[i] = tmp;
             }
         }
     }
     return g_BattleTargetCandidates[0];
 }
-*/
 
 u8 BattleBuildTargetCandidateListByGroup(u8 arg0, u8 arg1, u8 arg2) {
     s32 i;
