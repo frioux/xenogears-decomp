@@ -20,11 +20,11 @@ extern u8 D_800D220E[];
 extern u16 D_800D2C98;
 extern u16 D_800D2C9E;
 
-// the 0x170-byte slot action table at 0x800CCCE8, and two of its columns:
-// D_800CCD72 is the flag word at +0x8A, D_800CCE44 the timer bytes at +0x15C
-extern u8 D_800CCCE8[];
-extern u8 D_800CCD72[];
-extern u8 D_800CCE44[];
+// The 0x170-byte per-slot condition table. Its flag word sits at +0x8A
+// (BattleTableEntry::unk8A) and its timer bytes at +0x15C, which the original
+// reaches through a second base of its own.
+extern BattleTableEntry D_800CCCE8[];
+extern u8 D_800CCE44[][0x170];
 
 extern s32 rand(void);
 extern s8 func_80097964(u8, u8, u16);
@@ -481,16 +481,16 @@ s32 BattleTestActorSlotFlagsC002ByMode(void) {
     return ret;
 }
 void BattleSetSlotConditionTimer(u8 slot, u8 kind, u16 flag, s32 count) {
-    u8 *pEntry;
+    BattleTableEntry *pEntry;
     u8 *pTimer;
     u8 idx = 0xF;
     u8 val = count;
     u16 bits;
 
-    if (*(u16 *)(D_800CCD72 + D_800C3E04 * 0x170) & 0x2000) {
+    if (D_800CCCE8[D_800C3E04].unk8A & 0x2000) {
         val *= 2;
     }
-    pEntry = (u8 *)D_800CCCE8 + slot * 0x170;
+    pEntry = &D_800CCCE8[slot];
     if (kind == 0) {
         if (flag != 0x1000) {
             idx = (flag == 0x2000) ? 0 : 0xF;
@@ -554,7 +554,7 @@ void BattleSetSlotConditionTimer(u8 slot, u8 kind, u16 flag, s32 count) {
     case 5:
     case 7:
     case 9:
-        bits = *(u16 *)&D_800C3E34->unk88 | *(u16 *)&D_800C3E34->unk8A;
+        bits = D_800C3E34->unk88 | D_800C3E34->unk8A;
         if (bits & 5) {
             val *= 2;
         }
@@ -563,7 +563,7 @@ void BattleSetSlotConditionTimer(u8 slot, u8 kind, u16 flag, s32 count) {
         }
         break;
     }
-    if (*(u16 *)(pEntry + 0x32) & 0x40) {
+    if (((u16 *)&pEntry->unk04[0x2E])[0] & 0x40) {
         switch (kind) {
         case 5:
         case 7:
@@ -572,7 +572,7 @@ void BattleSetSlotConditionTimer(u8 slot, u8 kind, u16 flag, s32 count) {
             break;
         }
     }
-    pTimer = (u8 *)D_800CCE44 + slot * 0x170;
+    pTimer = D_800CCE44[slot];
     pTimer[idx] = val;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80099890);
