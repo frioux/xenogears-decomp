@@ -25,8 +25,8 @@ typedef struct {
     /* 0x50 */ int unk50;
     /* 0x54 */ void *unk54;
     /* 0x58 */ void *unk58;
-    /* 0x5C */ undefined32 unk5C[8]; // 0x5C..0x7B
-    /* 0x7C */ u32 unk7C;
+    /* 0x5C */ s32 unk5C[8]; // 0x5C..0x7B
+    /* 0x7C */ s32 unk7C;
 } WorldMapActor; // Size: 0x80
 
 typedef struct {
@@ -67,9 +67,11 @@ extern u16 D_8009A684[];
 extern WorldMapPath D_8009A65C[];
 extern u8 D_8009A660[];
 extern u32 D_8009BE0C;
-extern u32 D_8009BE28;
-extern u32 D_8009BE2C;
-extern u32 D_8009BE30;
+extern s32 D_8009BE28[];
+extern s32 D_8009BE2C;
+extern s32 D_8009BE30;
+extern s32 D_8009BBB4[];
+extern s32 D_8009BBBC;
 extern u32 D_8009D144;
 extern s32 D_8009D3D4;
 extern u32 D_8009D55C;
@@ -100,7 +102,7 @@ extern u8 *D_8009BCB0;
 extern u8 *D_8009BC3C;
 extern u8 *D_8009BCB4;
 extern u8 *D_8009C180;
-extern u16 D_8009BD3A;
+extern u16 D_8009BD3A[];
 extern u16 D_8006F94E;
 extern u16 D_8006F950;
 extern u16 D_8006F954;
@@ -327,7 +329,7 @@ int WorldMapUpdateGroup16Actor(int index) {
         // volatile: keeps the D_8009BE28 load below these two stores, as retail has it
         *(volatile s16 *)&pActor->unk04 = 0;
         *(volatile s16 *)&pGroup->unk00 = 0;
-        pActor->unk28 = D_8009BE28;
+        pActor->unk28 = D_8009BE28[0];
         pActor->unk30 = D_8009BE30 + 0x400000;
         break;
     case 2:
@@ -459,7 +461,7 @@ void WorldMapExitToMap1A1(void) {
     D_8006F94E = 0x1A1;
     unkValue = D_8009A5CC[nIndex];
     D_8009BBC4 = 1;
-    D_8006F950 = D_8009BD3A;
+    D_8006F950 = D_8009BD3A[0];
     D_8006F954 = unkValue;
 }
 
@@ -522,7 +524,238 @@ int func_8007E450(int index) {
     pActor->unk50 = 0;
     return 1;
 }
-*/INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007E4E4);
+*/
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007E4E4);
+/* 86.92% (1716 bytes against retail's 1752) - two switches on
+   pActor->unk04 - 1 (24 cases) and pActor->unk20 (26 cases), then the rand
+   jitter tail. Structure, case order (retail emits the bodies in source order)
+   and both dispatch chains now agree; the levers that got it here:
+   - switch 2 needs an explicit `case 0: break;` - without it gcc subtracts the
+     minimum case (1) and emits sltiu 25, retail tests the raw lh against 26.
+   - D_8009BE28/BBB4 as `extern s32 X[]` with X[0] RMW: retail materialises the
+     address into a register (lw/sw off $a3/$a0) where the scalar form emits a
+     lui/$at macro store. Same trick for D_8009BD3A (already switched to the
+     array form for this attempt).
+   - unk5C/unk7C must be s32 (retail sra/slti, not srl/sltiu).
+   - case 16 stores 0x8000 to unk7C (0x7C), case 24 stores 0x10000 to
+     unk5C[1] (0x60) - easy to confuse, they share the else block.
+   Remaining deltas, all one family: (1) cases 0,1,2,3,5,16 each keep a
+   `sh zero,0x4(s0)` (unk04 = 0) BEFORE their own BD38 store; ours emits that
+   store after the BD38 store, so cross-jumping folds it into the shared
+   BD3A/BD3C tail. Moving `pActor->unk04 = 0;` earlier/later in the case body
+   is the lever to try. (2) In case 1's clamp branch retail stores D_8009BE30
+   before `sh v0,0x20(s0)`, ours the other way round. (3) case 3's second test
+   is `bnez` to the else with `lui a1,0xFFFB3C00` in the delay slot, ours is
+   `beqz` with the lui before the branch. (4) case 4 and case 25 order the
+   unk5C[0]/unk60 load against the lhu of D_8009BD3A differently.
+   The earlier note on func_80080600 (same shape, 79.99%) still applies for the
+   tail: the u16 reload of 0xA2 is real, keep `*(u16 *)(pScratch + 0xA2)`.
+s32 func_8007E4E4(int index) {
+    WorldMapActor *pActor = &D_8009BE24[index];
+    u8 *pScratch = (u8 *)PSX_SCRATCH;
+    s16 nState;
+    s32 nRandom;
+
+    nState = *(u16 *)&pActor->unk04 - 1;
+    switch (nState) {
+    case 0:
+        D_8009D3F0 = 0x500000;
+        pActor->unk04 = 0;
+        D_8009BD38 = 0x150;
+        D_8009BD3A[0] = 0xF50;
+        D_8009BD3C = 0;
+        break;
+    case 1:
+        D_8009D3F0 = 0x4D0000;
+        pActor->unk04 = 0;
+        D_8009BD38 = 0xC60;
+        D_8009BD3A[0] = 0x380;
+        D_8009BD3C = 0;
+        break;
+    case 2:
+        D_8009D3F0 = 0x400000;
+        pActor->unk04 = 0;
+        D_8009BD38 = 0x30;
+        D_8009BD3A[0] = 0x160;
+        D_8009BD3C = 0;
+        break;
+    case 3:
+        D_8009D3F0 = 0x400000;
+        pActor->unk04 = 0;
+        D_8009BD38 = 0x30;
+        D_8009BD3A[0] = 0x960;
+        D_8009BD3C = 0;
+        break;
+    case 4:
+        pActor->unk20 = 1;
+        pActor->unk04 = 0;
+        pActor->unk5C[0] = -0x8000;
+        break;
+    case 5:
+        pActor->unk20 = 3;
+        pActor->unk7C = 0x1000;
+        D_8009D3F0 = 0x200000;
+        pActor->unk04 = 0;
+        D_8009BD38 = -0x58;
+        D_8009BD3A[0] = 0xE58;
+        D_8009BD3C = 0;
+        break;
+    case 6:
+        pActor->unk20 = 5;
+        pActor->unk04 = 0;
+        pActor->unk7C = 0x40000;
+        break;
+    case 15:
+        pActor->unk20 = 0x10;
+        pActor->unk04 = 0;
+        pActor->unk5C[0] = -0x8000;
+        break;
+    case 16:
+        pActor->unk20 = 0x10;
+        pActor->unk7C = 0x1000;
+        D_8009D3F0 = 0x400000;
+        pActor->unk04 = 0;
+        D_8009BD38 = 0xE0;
+        D_8009BD3A[0] = 0x798;
+        D_8009BD3C = 0;
+        break;
+    case 23:
+        pActor->unk20 = 0x18;
+        pActor->unk04 = 0;
+        pActor->unk5C[0] = -0x8000;
+        break;
+    }
+    if (D_8009D144 == 0) {
+        WorldMapWrapPosition((VECTOR *)&pActor->unk28);
+        func_80096F18(&D_8009BD40, D_8009BE28, D_8009D3F0, &D_8009BD38);
+    }
+    switch (pActor->unk20) {
+    case 0:
+        break;
+    case 1:
+        D_8009BE28[0] += 0xFFFBD300;
+        D_8009BE30 += 0x6D300;
+        if (D_8009BE28[0] <= 0x1F9DFFF && D_8009BE30 > 0x5998000) {
+            D_8009BE28[0] = 0x1F9E000;
+            D_8009BE30 = 0x5998000;
+            pActor->unk20 = 2;
+            pActor->unk7C = 0x10000;
+        } else {
+            D_8009BBB4[0] += 0xFFFBD300;
+            D_8009BBBC += 0x6D300;
+        }
+        WorldMapWrapPosition((VECTOR *)&pActor->unk28);
+        D_8009BD3A[0] -= 8;
+        D_8009BD38 += pActor->unk5C[0] >> 12;
+        pActor->unk5C[0] += 0x300;
+        D_8009D3F0 += 0x8000;
+        if (D_8009BD38 >= 0x81) {
+            D_8009BD38 = 0x80;
+        }
+        break;
+    case 2:
+        pActor->unk7C -= 0x80;
+        if (pActor->unk7C < 0x1000) {
+            pActor->unk7C = 0x1000;
+        }
+        break;
+    case 3:
+        D_8009BE28[0] += 0xFFFB3C00;
+        D_8009BE2C += 0xFF80;
+        D_8009BE30 += 0xFFF9AA80;
+        if (D_8009BE28[0] <= 0x1497FFF && D_8009BE30 > 0x4AF1FFF) {
+            D_8009BE28[0] = 0x1498000;
+            D_8009BE30 = 0x4AF2000;
+            pActor->unk20 = 4;
+            pActor->unk5C[0] = 0x20000;
+        } else {
+            D_8009BBB4[0] += 0xFFFB3C00;
+            D_8009BBBC += 0xFFF9AA80;
+        }
+        WorldMapWrapPosition((VECTOR *)&pActor->unk28);
+        D_8009D3F0 += 0x20000;
+        D_8009BD3A[0] += 0x20;
+        D_8009BD38 -= 4;
+        break;
+    case 4:
+        D_8009BD3A[0] += pActor->unk5C[0] >> 12;
+        pActor->unk5C[0] -= 0x800;
+        if (pActor->unk5C[0] < 0) {
+            pActor->unk5C[0] = 0;
+            pActor->unk20 = 0;
+        }
+        break;
+    case 5:
+        pActor->unk7C -= 0x2000;
+        if (pActor->unk7C < 0x1000) {
+            pActor->unk7C = 0x1000;
+            pActor->unk20 = 0;
+        }
+        break;
+    case 16:
+        D_8009BE28[0] += 0xFFFBD300;
+        D_8009BE30 += 0x6D300;
+        if (D_8009BE28[0] <= 0x2151FFF && D_8009BE30 > 0x5AA3000) {
+            D_8009BE28[0] = 0x2152000;
+            D_8009BE30 = 0x5AA3000;
+            pActor->unk20 = 0x11;
+            pActor->unk7C = 0x8000;
+        } else {
+            D_8009BBB4[0] += 0xFFFBD300;
+            D_8009BBBC += 0x6D300;
+        }
+        WorldMapWrapPosition((VECTOR *)&pActor->unk28);
+        D_8009BD3A[0] -= 8;
+        D_8009BD38 += pActor->unk5C[0] >> 12;
+        pActor->unk5C[0] += 0x300;
+        D_8009D3F0 += 0x8000;
+        if (D_8009BD38 >= 0x81) {
+            D_8009BD38 = 0x80;
+        }
+        break;
+    case 17:
+        pActor->unk7C -= 0x200;
+        if (pActor->unk7C < 0x1000) {
+            pActor->unk7C = 0x1000;
+        }
+        break;
+    case 24:
+        D_8009BE28[0] += 0xFFFBD300;
+        D_8009BE30 += 0x6D300;
+        if (D_8009BE28[0] <= 0x2151FFF && D_8009BE30 > 0x5AA3000) {
+            D_8009BE28[0] = 0x2152000;
+            D_8009BE30 = 0x5AA3000;
+            pActor->unk20 = 0x19;
+            pActor->unk5C[1] = 0x10000;
+        } else {
+            D_8009BBB4[0] += 0xFFFBD300;
+            D_8009BBBC += 0x6D300;
+        }
+        WorldMapWrapPosition((VECTOR *)&pActor->unk28);
+        D_8009BD3A[0] -= 8;
+        D_8009BD38 += pActor->unk5C[0] >> 12;
+        pActor->unk5C[0] += 0x300;
+        D_8009D3F0 += 0x8000;
+        if (D_8009BD38 >= 0x81) {
+            D_8009BD38 = 0x80;
+        }
+        break;
+    case 25:
+        D_8009BD3A[0] -= pActor->unk5C[1] >> 12;
+        pActor->unk5C[1] -= 0x200;
+        if (pActor->unk5C[1] < 0) {
+            pActor->unk5C[1] = 0;
+        }
+        break;
+    }
+    nRandom = rand() % (pActor->unk7C >> 12) - (pActor->unk7C >> 13);
+    *(u16 *)(pScratch + 0xA2) = nRandom;
+    D_8009BD42 += nRandom;
+    D_8009BD4A += *(u16 *)(pScratch + 0xA2);
+    return 1;
+}
+*/
+
 void WorldMapBuildPolyFT4Templates(WorldMapGroup *pGroup, u8 *pPrim, int count, int abr) {
     POLY_FT4 *pPoly;
     int i;
@@ -915,7 +1148,7 @@ void WorldMapExitToMap84(void) {
     HeapFree(D_8009BCB4);
     HeapFree(D_8009C180);
     WorldMapFreeSlotPool();
-    unkValue = D_8009BD3A;
+    unkValue = D_8009BD3A[0];
     D_8006F94E = 0x84;
     D_8006F954 = 2;
     D_8009BBC4 = 1;
@@ -1031,7 +1264,8 @@ int func_80080600(int index) {
         break;
     }
     if (D_8009D144 == 0) {
-        func_80096F18(&D_8009BD40, &D_8009BE28, D_8009D3F0, &D_8009BD38);
+        WorldMapWrapPosition((VECTOR *)&pActor->unk28);
+        func_80096F18(&D_8009BD40, D_8009BE28, D_8009D3F0, &D_8009BD38);
     }
     switch (pActor->unk20) {
     case 1:
