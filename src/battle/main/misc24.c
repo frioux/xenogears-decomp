@@ -17,7 +17,7 @@ extern u16 g_BattleCurrentActorSlot;
 extern u16 D_800C3E30;
 extern u8 g_BattleBlockPool[];
 extern s32 BattleFindFirstActorInMask(void);
-extern void func_800AA934(u8 *arg0, u8 *arg1, void *arg2, s32 arg3);
+extern void BattleAppendActorCommandBytes(u8 *arg0, u8 *arg1, void *arg2, s32 arg3);
 extern void func_800AAD54(void *arg0, void *arg1, s32 arg2, s32 arg3, s32 arg4);
 extern void BattleSnapActorToGround(BattleActor *pActor);
 extern s32 func_8009F1C4(BattleSprite *pSprites, s16 unk1C);
@@ -78,7 +78,7 @@ void BattleSetCurrentActorAndQueueCommand(u8 *arg0, u16 arg1, u16 arg2, void *ar
     p->unk35 = 0;
     if (g_BattleActors[arg1] != 0) {
         if (!(arg1 == BattleFindFirstActorInMask())) {
-            func_800AA934((u8 *)g_BattleActors[arg1], arg0, g_BattleBlockPool, arg3);
+            BattleAppendActorCommandBytes((u8 *)g_BattleActors[arg1], arg0, g_BattleBlockPool, arg3);
         }
     }
 }
@@ -223,7 +223,7 @@ void func_800AA898(u8 *arg0, s32 arg1, s32 arg2, s32 arg3) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AA898);
-void func_800AA934(u8 *arg0, u8 *arg1, void *arg2, s32 arg3) {
+void BattleAppendActorCommandBytes(u8 *arg0, u8 *arg1, void *arg2, s32 arg3) {
     s32 *pTable;
     u8 *pCount;
     u8 *pEntries;

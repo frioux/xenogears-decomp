@@ -171,7 +171,11 @@ of a match, and it is cheap.
   another binary as a *data* symbol (`extern u8 D_80025A88[]` for a main-exe callback in
   `battle/main/misc28`), neither tool touches that C: the overlay's asm relocations get the
   new name, the old spelling has no definition, and `make check` fails with `undefined
-  reference to D_80025A88`. One grep per applied name over `src/` for both spellings.
+  reference to D_80025A88`. One grep per applied name over `src/` **and `config/`** for both
+  spellings - `name_addrs.py` can rename the C and leave the old spelling in place as an
+  existing `symbol_addrs` entry (`battle` `func_800AA934`, round 139: the entry still said
+  `func_800AA934 = 0x800AA934;`, so splat kept naming the stubs' calls with it and the link
+  failed until the entry itself was edited).
 - Tracker row: `+N matched, +M named, +D data, +F fields, raw R`.
 
 ## Names for data and fields

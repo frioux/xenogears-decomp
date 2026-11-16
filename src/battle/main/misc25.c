@@ -26,7 +26,7 @@ extern void BattleClearBlockSlots(void);
 extern u8 g_BattleBlockPool[];
 extern BattleActor *g_BattleActors[];
 extern void func_800A9FF0(s32);
-extern void func_800AA934(void *, void *, void *, void *);
+extern void BattleAppendActorCommandBytes(void *, void *, void *, void *);
 extern void func_800BE790(void);
 extern void func_800B0D70(s16 *, u16 *);
 
@@ -731,7 +731,7 @@ void BattleWaitForOtherActorAnimations(s32 arg0) {
 
     for (i = 0; i < 3; i++) {
         if (i != arg0) {
-            func_800AA934(g_BattleActors[i], g_BattleActors[i], g_BattleBlockPool, 5);
+            BattleAppendActorCommandBytes(g_BattleActors[i], g_BattleActors[i], g_BattleBlockPool, 5);
         }
     }
     do {

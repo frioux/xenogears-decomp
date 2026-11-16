@@ -415,7 +415,7 @@ extern void WorldMapInitGfxEnv(void);
 extern void func_80072DB4(s32 arg0, s32 arg1, s32 arg2, s32 arg3);
 extern s32 ArchiveDataSync(void);
 extern void WorldMapDecompressMapData(void);
-extern void func_80073530(void);
+extern void WorldMapDecompressMapTables(void);
 extern void WorldMapAllocSlotPool(void);
 extern void func_80098044(void);
 extern s32 ArchiveCdDataSync(s32 arg0);
@@ -470,7 +470,7 @@ void WorldMapInitializeMode(void) {
     func_80072DB4(0x40, 0, 4, 2);
     while (ArchiveDataSync() >= 3) {
     }
-    func_80073530();
+    WorldMapDecompressMapTables();
     WorldMapAllocSlotPool();
     D_8009BE4C = D_8009A180;
     D_8009CCA4 = 2;

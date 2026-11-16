@@ -16,7 +16,7 @@ extern u8 *g_BattleActors[];
 extern void BattleFreeBlockPool(u8 *);
 extern void BattleFreeSpritePool(u8 *);
 extern void func_800A9FF0(s32);
-extern void func_800AA934(void *, void *, void *, void *);
+extern void BattleAppendActorCommandBytes(void *, void *, void *, void *);
 extern s32 BattleFindFirstActorInMask(void);
 extern void BattleFreeImageEntry(void *);
 extern void func_800A64E4(void);
@@ -880,7 +880,7 @@ void BattleQueueActorCommand(u16 arg0, u16 arg1, void *arg2) {
     D_800C3E30 = arg1;
     ((u8 *)g_BattleActors[arg0])[0x35] = 0;
     if (g_BattleActors[arg0] != NULL) {
-        func_800AA934(g_BattleActors[arg0], g_BattleActors[arg0], g_BattleBlockPool, arg2);
+        BattleAppendActorCommandBytes(g_BattleActors[arg0], g_BattleActors[arg0], g_BattleBlockPool, arg2);
     }
 }
 
@@ -895,7 +895,7 @@ void BattleSwitchActorAndQueueCommand(u16 arg0, u16 arg1, void *arg2) {
     D_800C360C = 1;
     D_800C4000[BattleFindFirstActorInMask()] = 0;
     if (g_BattleActors[arg0] != NULL) {
-        func_800AA934(g_BattleActors[arg0], g_BattleActors[arg0], g_BattleBlockPool, arg2);
+        BattleAppendActorCommandBytes(g_BattleActors[arg0], g_BattleActors[arg0], g_BattleBlockPool, arg2);
     }
 }
 void BattleQueueActorCommandPreservingSelection(u16 arg0, u16 arg1, void *arg2) {
@@ -909,7 +909,7 @@ void BattleQueueActorCommandPreservingSelection(u16 arg0, u16 arg1, void *arg2) 
     ((u8 *)g_BattleActors[arg0])[0x35] = 0;
     if (g_BattleActors[arg0] != NULL) {
         if ((s32)arg0 != BattleFindFirstActorInMask()) {
-            func_800AA934(g_BattleActors[arg0], g_BattleActors[arg0], g_BattleBlockPool, arg2);
+            BattleAppendActorCommandBytes(g_BattleActors[arg0], g_BattleActors[arg0], g_BattleBlockPool, arg2);
         }
     }
     g_BattleCurrentActorSlot = savedIdx;

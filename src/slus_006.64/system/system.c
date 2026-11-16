@@ -398,7 +398,7 @@ int SystemStringGetUnk6B(SystemString* pString) {
     return 0;
 }
 
-void func_80033CF0(int value, int glyphOffset, int flag) {
+void SystemFormatNumberGlyphs(int value, int glyphOffset, int flag) {
     u32 divisor = 1000000000;
     u16* pDigit = D_8005A0CA;
     u16* pEnd;

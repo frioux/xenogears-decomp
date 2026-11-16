@@ -670,7 +670,7 @@ extern s32 D_8009D7C8;
 extern s32* D_8009BD00;
 extern s32 D_8009D73C[];
 
-void func_80073530(void) {
+void WorldMapDecompressMapTables(void) {
     s32* pHeader;
     u8* pBase;
     s32* pEntry;
