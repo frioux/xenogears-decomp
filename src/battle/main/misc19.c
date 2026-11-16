@@ -136,8 +136,17 @@ u8 BattleGetGameCharacterField5(u8 arg0) {
     return g_GameState.characters[arg0].unk0[5];
 }
 
+// One 0x10-byte record the battle work block keeps at +0x5818, one per slot,
+// holding the slot's character id at +0x6 (the same position the party list in
+// g_GameState.characters[4] keeps it).
+typedef struct {
+    /* 0x0 */ u8 unk0[6];
+    /* 0x6 */ u8 characterId;
+    /* 0x7 */ u8 unk7[9];
+} BattlePartyRecord; // Size: 0x10
+
 s32 BattleIsCharacterInParty(u8 arg0) {
-    u8 id = *(u8*)((u8*)g_BattleCurWorkBlock + arg0 * 16 + 0x581E);
+    u8 id = ((BattlePartyRecord*)((u8*)g_BattleCurWorkBlock + 0x5818))[arg0].characterId;
 
     s32 ret;
 
@@ -294,8 +303,8 @@ void BattleSetSlotEntryFieldsTo1(u8 arg0) {
     }
     r = &g_BattleCurWorkBlock->slots[arg0];
     if (r->state.unkB6 & 0x80) {
-        s32 off = arg0 * 0x690 + 0x2228;
-        BattleRow* pRow = (BattleRow*)((u8*)off + (u32)g_BattleCurWorkBlock);
+        s32 rowOffset = arg0 * 0x690 + 0x2228;
+        BattleRow* pRow = (BattleRow*)((u8*)rowOffset + (u32)g_BattleCurWorkBlock);
 
         pRow[21].flags = 1;
         pRow[23].flags = 1;
@@ -305,8 +314,8 @@ void BattleSetSlotEntryFieldsTo1(u8 arg0) {
         pRow[27].flags = 1;
         pRow[28].flags = 1;
     } else {
-        s32 off = arg0 * 0x5F0 + 0x1058;
-        BattleRow* pRow = (BattleRow*)((u8*)off + (u32)g_BattleCurWorkBlock);
+        s32 rowOffset = arg0 * 0x5F0 + 0x1058;
+        BattleRow* pRow = (BattleRow*)((u8*)rowOffset + (u32)g_BattleCurWorkBlock);
 
         pRow[22].flags = 1;
         pRow[24].flags = 1;
@@ -341,8 +350,8 @@ void BattleSetSlotEntryFieldsTo2000(u8 arg0, u8 arg1) {
     }
     r = &g_BattleCurWorkBlock->slots[arg0];
     if (r->state.unkB6 & 0x80) {
-        s32 off = arg0 * 0x690 + 0x2228;
-        BattleRow* pRow = (BattleRow*)((u8*)off + (u32)g_BattleCurWorkBlock);
+        s32 rowOffset = arg0 * 0x690 + 0x2228;
+        BattleRow* pRow = (BattleRow*)((u8*)rowOffset + (u32)g_BattleCurWorkBlock);
 
         pRow[21].flags = 0x2000;
         pRow[23].flags = 0x2000;
@@ -353,8 +362,8 @@ void BattleSetSlotEntryFieldsTo2000(u8 arg0, u8 arg1) {
         pRow[28].flags = 0x2000;
         r->state.unk80 &= 0xDFFF;
     } else {
-        s32 off = arg0 * 0x5F0 + 0x1058;
-        BattleRow* pRow = (BattleRow*)((u8*)off + (u32)g_BattleCurWorkBlock);
+        s32 rowOffset = arg0 * 0x5F0 + 0x1058;
+        BattleRow* pRow = (BattleRow*)((u8*)rowOffset + (u32)g_BattleCurWorkBlock);
 
         pRow[22].flags = 0x2000;
         pRow[24].flags = 0x2000;
