@@ -195,6 +195,8 @@ void func_801D433C(u_char index, u_short x, u_short y, u_short width, u_short he
     s32 halfWidth;
     s32 i;
 
+    // Prim addresses are formed on the prim pointer, not with [index + 2]: the
+    // index form makes gcc commute retail's `addu v0,v0,s6`.
     (pWindow->polysWindowBorderBottom + g_Menu->renderContext)->u0 = 8;
     (pWindow->polysWindowBorderBottom + g_Menu->renderContext)->v0 = 0x84;
     (pWindow->polysWindowBorderBottom + g_Menu->renderContext)->u1 = 0xF;
