@@ -232,15 +232,19 @@ u8 func_8008CFB8(u8 arg0) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008D328);
-/* 93.85% (was 57.0 with a count local and 66.0 with an s32 k local): the loop
-   shapes, both guards, the two SetX calls and the three byte stores all match.
-   What is left: gcc CSEs 'g_BattleGraphicsWork + j * 0xFA0' as one address base across the
-   |-0x20 store and the following byte load (the original reloads the pointer and
-   re-adds it), and the inner loop's back-branch delay slot takes the 'li a1,1'
-   of the SetSemiTrans call (the original has that constant as the first insn of
-   the body and a nop in the slot). Tried: count local plus two continue guards
-   (57.0), s32 k local (66.0), the offset sum before the pointer, and three
-   declaration orders. The count must stay a live re-read of the global in the
+/* 96.12% (620 bytes against retail's 624). The address ASSOCIATION of the
+   u16 |= store is the lever: written offset-chain first and gfx base last,
+   `*((i + unkA3) * 0x28 + j * 0xFA0 + gfx + 0x6432)`, gcc emits retail's
+   two-step `addu v0,v0,s1 / addu v0,a1,v0`; the base-first spelling of the old
+   park let cse hoist `gfx + j*0xFA0` into one register and cost 2 instructions
+   (93.85 with that body). Everything else is matched: both guards, the two SetX
+   calls, the three byte stores and the loop tails.
+   Left, both allocator/cse ties: retail re-forms `s1 + base` in the 0x6420
+   load's beqz delay slot and reuses the chain (a0) for the following store, and
+   the inner back-branch delay slot holds a nop where we steal `li a1,1`.
+   The old body's byte-offset spellings are struct arithmetic against today's
+   BattleWork header and do not compile; unkD0[j], unkA3 and unkCB are its
+   fields. The count must stay a live re-read of the global in the
    for-condition - that is what makes the original reload it at the loop tail.
 void func_8008D328(void) {
     u8 found;
@@ -249,25 +253,25 @@ void func_8008D328(void) {
 
     found = 0;
     for (j = 0; j < 2; j++) {
-        if (*(s32 *)(g_BattleDisplayState + j * 4 + 0xD0) != 0) {
-            for (i = 0; i < *(s32 *)(g_BattleDisplayState + j * 4 + 0xD0) * 2; i += 2) {
+        if (g_BattleDisplayState->unkD0[j] != 0) {
+            for (i = 0; i < g_BattleDisplayState->unkD0[j] * 2; i += 2) {
                 u8 c;
 
-                SetSemiTrans(g_BattleGraphicsWork + 0x641C + j * 0xFA0 + (i + g_BattleDisplayState[0xA3]) * 0x28, 1);
-                SetShadeTex(g_BattleGraphicsWork + 0x641C + j * 0xFA0 + (i + g_BattleDisplayState[0xA3]) * 0x28, 0);
-                *(u16 *)(g_BattleGraphicsWork + j * 0xFA0 + 0x6432 + (i + g_BattleDisplayState[0xA3]) * 0x28) |= 0x20;
-                c = *(u8 *)(g_BattleGraphicsWork + j * 0xFA0 + 0x6420 + (i + g_BattleDisplayState[0xA3]) * 0x28);
+                SetSemiTrans(g_BattleGraphicsWork + 0x641C + j * 0xFA0 + (i + g_BattleDisplayState->unkA3) * 0x28, 1);
+                SetShadeTex(g_BattleGraphicsWork + 0x641C + j * 0xFA0 + (i + g_BattleDisplayState->unkA3) * 0x28, 0);
+                *(u16 *)((i + g_BattleDisplayState->unkA3) * 0x28 + j * 0xFA0 + g_BattleGraphicsWork + 0x6432) |= 0x20;
+                c = *(u8 *)(g_BattleGraphicsWork + j * 0xFA0 + 0x6420 + (i + g_BattleDisplayState->unkA3) * 0x28);
                 if (c != 0) {
                     found = 1;
-                    *(u8 *)(g_BattleGraphicsWork + j * 0xFA0 + 0x6420 + (i + g_BattleDisplayState[0xA3]) * 0x28) = c - (*(u8 *)(g_BattleCommandQueue + 0x2E0) << 4);
-                    *(u8 *)(g_BattleGraphicsWork + j * 0xFA0 + 0x6421 + (i + g_BattleDisplayState[0xA3]) * 0x28) = c - (*(u8 *)(g_BattleCommandQueue + 0x2E0) << 4);
-                    *(u8 *)(g_BattleGraphicsWork + j * 0xFA0 + 0x6422 + (i + g_BattleDisplayState[0xA3]) * 0x28) = c - (*(u8 *)(g_BattleCommandQueue + 0x2E0) << 4);
+                    *(u8 *)(g_BattleGraphicsWork + j * 0xFA0 + 0x6420 + (i + g_BattleDisplayState->unkA3) * 0x28) = c - (*(u8 *)(g_BattleCommandQueue + 0x2E0) << 4);
+                    *(u8 *)(g_BattleGraphicsWork + j * 0xFA0 + 0x6421 + (i + g_BattleDisplayState->unkA3) * 0x28) = c - (*(u8 *)(g_BattleCommandQueue + 0x2E0) << 4);
+                    *(u8 *)(g_BattleGraphicsWork + j * 0xFA0 + 0x6422 + (i + g_BattleDisplayState->unkA3) * 0x28) = c - (*(u8 *)(g_BattleCommandQueue + 0x2E0) << 4);
                 }
             }
         }
     }
     if (found == 0) {
-        g_BattleDisplayState[0xCB] = 0;
+        g_BattleDisplayState->unkCB = 0;
     }
 }
 
@@ -319,19 +323,23 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008E430);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008EA70);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008F0A8);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008F6E4);
-/* 57.38% (was 48.61 with inline sums, 53.06 with u16 params): the five calls
-   and the four u16 arg masks are right; the gap is the eight sh stores. Retail
-   recomputes `lw g_BattlePrimStartIndex / sll / addu / sll` in front of EVERY store, which
-   the full-expression form below does reproduce, but retail also keeps the same
-   s1/s0 (== arg1/arg2) for the store values while gcc puts the sums in t0/t1 and
-   runs the frame 0x38 with s0-s5 (here a bigger frame and one fewer recompute --
-   416 bytes vs 528). Tried: u16 params (53.06), s32 params + w/h locals (48.61),
-   inline sums (50.12), per-store full expression (57.38). Same &g_BattlePrimStartIndex wall
-   as func_80090E7C/func_80090310 in this unit.
+/* 22.33% (816 bytes against retail's 528) with today's headers and externs: the
+   57.38 this park used to claim is stale, measured when g_BattleDisplayState was
+   a u8* - `g_BattleDisplayState[arg0 + 0xB0]` is a struct assignment now.
+   What retail's .s shows, none of it in the body below:
+   - the slot pointer g_BattleSlotGraphics[arg0] is loaded ONCE into a saved
+     register (s2) and all eight prim stores PLUS the trailing `sb 0x5A4(s2)`
+     go through it; re-indexing the global per store is what blows the body up;
+   - g_BattlePrimStartIndex is re-read from the global before EVERY store
+     (`lw` + sll/addu/sll for i*0x24), so the index must not be hoisted;
+   - the four callee externs want u16 parameters: retail masks a1/a2/a3 with
+     0xFFFF at each call site, and masks arg0 once at entry (so its first
+     parameter is wider than u8, i.e. `s32 arg0` with a `u8 index` local).
+   Next attempt: pointer local + u16 prototypes, `sh` stores through it.
 void func_8008F6E4(u8 arg0, s32 arg1, s32 arg2, s32 arg3, s32 arg4) {
     u8 *p;
 
-    g_BattleDisplayState[arg0 + 0xB0] = 0;
+    ((u8 *)g_BattleDisplayState)[arg0 + 0xB0] = 0;
     *(u16 *)(g_BattleSlotGraphics[arg0] + g_BattlePrimStartIndex * 0x24 + 0x3C8) = arg1;
     *(u16 *)(g_BattleSlotGraphics[arg0] + g_BattlePrimStartIndex * 0x24 + 0x3CA) = arg2;
     *(u16 *)(g_BattleSlotGraphics[arg0] + g_BattlePrimStartIndex * 0x24 + 0x3D0) = arg1 + arg3;
@@ -346,21 +354,22 @@ void func_8008F6E4(u8 arg0, s32 arg1, s32 arg2, s32 arg3, s32 arg4) {
     func_8008EA70(arg0, arg1, arg2, arg4);
     func_8008F0A8(arg0, arg1, arg2, arg3, arg4);
     *(u8 *)(g_BattleSlotGraphics[arg0] + 0x5A4) = *(u8 *)&g_BattlePrimStartIndex;
-    g_BattleDisplayState[arg0 + 0xB0] = 1;
+    ((u8 *)g_BattleDisplayState)[arg0 + 0xB0] = 1;
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008F8F4);
-/* 96.44%: whole body matches; only the prologue save/copy order differs (gcc
-   gives s4 to arg5 and s5 to arg1 and copies arg0 last; the original has
-   s4=arg1, s5=arg5 and copies arg0 first). Tried: separate pointer temps per
-   block, a pFlags temp for g_BattleDisplayState (that load has to sit before the sh
-   stores or gcc moves it after them), `*(base + index + K)` instead of
-   `base[index + K]` (only the former gives the base-first addu), inverted
-   if/else, and two declaration orders. Worth one more try by someone who can
-   read gcc's allocno order.
-   Also tried later: a live u16 copy of arg1 used at both sites -- same 96.44,
-   gcc still gives arg5 the s4 home and pushes arg0's copy-later pair further
-   down, so the copy does not raise arg1's allocno priority.
+/* 96.33% (364 bytes = retail's size): the whole body matches; only the prologue
+   save/copy order differs (gcc gives s4 to arg5 and s5 to arg1 and copies arg0
+   last; the original has s4=arg1, s5=arg5 and copies arg0 first). Tried:
+   separate pointer temps per block, a pFlags temp for g_BattleDisplayState (that
+   load has to sit before the sh stores or gcc moves it after them),
+   `*(base + index + K)` instead of `base[index + K]`, inverted if/else, two
+   declaration orders, a live u16 copy of arg1 (does not raise its allocno
+   priority) and two permuter runs. Pure allocno tie, no bytes to win.
+   The three BattleWork byte accesses (+0xB0/+0xB8/+0xBF) go through
+   `(u8 *)g_BattleDisplayState` because 0xB0..0xC5 is the header's unkA9 span:
+   the old `g_BattleDisplayState + index + 0xB0` spelling is struct arithmetic
+   against today's header and no longer compiles.
 
 void func_8008F8F4(s32 arg0, u16 arg1, u16 arg2, u16 arg3, u16 arg4, u8 arg5, u8 arg6) {
     u8 *pFlags;
@@ -369,7 +378,7 @@ void func_8008F8F4(s32 arg0, u16 arg1, u16 arg2, u16 arg3, u16 arg4, u8 arg5, u8
     u8 *q;
 
     index = arg0;
-    if (*(g_BattleDisplayState + index + 0xB0) == 0) {
+    if (((u8 *)g_BattleDisplayState)[index + 0xB0] == 0) {
         q = BattleAllocHeapBlock(0x5A8, 0);
         g_BattleSlotGraphics[index] = q;
         bzero(q, 0x5A8);
@@ -381,7 +390,7 @@ void func_8008F8F4(s32 arg0, u16 arg1, u16 arg2, u16 arg3, u16 arg4, u8 arg5, u8
     if (arg5 != 0) {
         p = g_BattleSlotRects[index];
         p[0xC] = arg0;
-        pFlags = g_BattleDisplayState;
+        pFlags = (u8 *)g_BattleDisplayState;
         ((u16 *)p)[0] = arg1;
         ((u16 *)p)[1] = arg2;
         ((u16 *)p)[2] = arg3;
@@ -389,7 +398,7 @@ void func_8008F8F4(s32 arg0, u16 arg1, u16 arg2, u16 arg3, u16 arg4, u8 arg5, u8
         ((u16 *)p)[4] = 0;
         ((u16 *)p)[5] = 0;
         *(pFlags + index + 0xBF) = 0;
-        pFlags = g_BattleDisplayState;
+        pFlags = (u8 *)g_BattleDisplayState;
         *(pFlags + index + 0xB8) = 1;
     } else {
         func_8008F6E4(index, arg1, arg2, arg3, arg4);
