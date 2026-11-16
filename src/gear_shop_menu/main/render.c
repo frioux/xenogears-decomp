@@ -934,7 +934,7 @@ s32 GearShopMenuBuildEquippedCharacterMask(u8 itemId, u8 itemType) {
                                     break;
                                 }
                             } else {
-                                if(g_GameState.gears[g_GameState.characters[i].gearId].unk4[j] == itemId) {
+                                if(g_GameState.gears[g_GameState.characters[i].gearId].extraWeaponIds[j] == itemId) {
                                     found = TRUE;
                                     break;
                                 }
@@ -1633,10 +1633,10 @@ void GearShopMenuComputeEquipStatDelta(s32* pDelta, s8* pIsImprovement, u8 itemI
 
     itemSlots[0] = g_GameState.gears[gearId].weaponId[0];
 
-    itemSlots[1] = g_GameState.gears[gearId].unk4[0];
-    itemSlots[2] = g_GameState.gears[gearId].unk4[1];
-    itemSlots[3] = g_GameState.gears[gearId].unk4[2];
-    itemSlots[4] = g_GameState.gears[gearId].unk4[3];
+    itemSlots[1] = g_GameState.gears[gearId].extraWeaponIds[0];
+    itemSlots[2] = g_GameState.gears[gearId].extraWeaponIds[1];
+    itemSlots[3] = g_GameState.gears[gearId].extraWeaponIds[2];
+    itemSlots[4] = g_GameState.gears[gearId].extraWeaponIds[3];
 
     itemSlots[5] = g_GameState.gears[gearId].accessorySlots[0];
     itemSlots[6] = g_GameState.gears[gearId].accessorySlots[1];
@@ -1652,8 +1652,8 @@ void GearShopMenuComputeEquipStatDelta(s32* pDelta, s8* pIsImprovement, u8 itemI
                 pWeaponList = g_Menu->pDressingRoom->pGearWeapons;
 
                 for(i = 0; i < 4; i++) {
-                    if(g_Menu->pDressingRoom->pGearWeapons[g_GameState.gears[gearId].unk4[i]].unkF == pWeaponList[itemId].unkF) {
-                        g_GameState.gears[gearId].unk4[i] = itemId;
+                    if(g_Menu->pDressingRoom->pGearWeapons[g_GameState.gears[gearId].extraWeaponIds[i]].unkF == pWeaponList[itemId].unkF) {
+                        g_GameState.gears[gearId].extraWeaponIds[i] = itemId;
                     }
                 }
             }
@@ -1706,10 +1706,10 @@ void GearShopMenuComputeEquipStatDelta(s32* pDelta, s8* pIsImprovement, u8 itemI
     }
 
     g_GameState.gears[gearId].weaponId[0] = itemSlots[0];
-    g_GameState.gears[gearId].unk4[0] = itemSlots[1];
-    g_GameState.gears[gearId].unk4[1] = itemSlots[2];
-    g_GameState.gears[gearId].unk4[2] = itemSlots[3];
-    g_GameState.gears[gearId].unk4[3] = itemSlots[4];
+    g_GameState.gears[gearId].extraWeaponIds[0] = itemSlots[1];
+    g_GameState.gears[gearId].extraWeaponIds[1] = itemSlots[2];
+    g_GameState.gears[gearId].extraWeaponIds[2] = itemSlots[3];
+    g_GameState.gears[gearId].extraWeaponIds[3] = itemSlots[4];
     g_GameState.gears[gearId].accessorySlots[0] = itemSlots[5];
     g_GameState.gears[gearId].accessorySlots[1] = itemSlots[6];
     g_GameState.gears[gearId].accessorySlots[2] = itemSlots[7];
@@ -2558,14 +2558,14 @@ void GearShopMenuFillDressingRoomStats(MenuDressingRoom* pView, u_char gearId) {
     ether = pGear->engineOutput * (pGear->attackPower + pGear->unk55[1]);
 
     if(gearId == 0x5 || gearId == 0xD) {
-        etherModifier = ((pGear->weaponData[0].unk2 + pGear->weaponData[2].unk2) * 6) / 10;
+        etherModifier = ((pGear->weaponData[0].attack + pGear->weaponData[2].attack) * 6) / 10;
         pView->unkB0 = etherModifier + ether;
     } else {
-        pView->unkB0 = pGear->weaponData[0].unk2 + ether;
+        pView->unkB0 = pGear->weaponData[0].attack + ether;
     }
 
     pView->totalResponsiveness = pGear->unk9F + pGear->responsiveness;
-    pView->unkB3 = pGear->agility - pGear->unk4A;
+    pView->unkB3 = pGear->agility - pGear->weightPenalty;
     pView->unkB4 = pGear->etherAmplification;
     pView->unkB5 = pGear->unk9D;
     pView->unkB6 = pGear->unk9C;
@@ -2741,7 +2741,7 @@ void GearShopMenuApplyGearAccessories(MenuDressingRoom* dressingRoom, u8 gearId)
         }
     }
 
-    pGear->unk4A = GearShopMenuComputeEquipWeightPenalty(gearId);
+    pGear->weightPenalty = GearShopMenuComputeEquipWeightPenalty(gearId);
     if (pGear->unk4F) {
         *pFlags2 |= 0x8000;
     }
@@ -2757,7 +2757,7 @@ void GearShopMenuApplyGearWeapons(MenuDressingRoom* dressingRoom, u8 gearId) {
 
     pWeapon = dressingRoom->pGearWeapons;
     pWeapon += pGear->weaponId[0];
-    pGear->weaponData[0].unk2 = pWeapon->unkE;
+    pGear->weaponData[0].attack = pWeapon->unkE;
     pGear->weaponData[0].unk0 = pWeapon->unk12;
     pGear->weaponData[0].unk3 = pWeapon->unk10;
     pGear->weaponData [0].unk4 = pWeapon->unk11;
@@ -2773,25 +2773,25 @@ void GearShopMenuApplyGearWeapons(MenuDressingRoom* dressingRoom, u8 gearId) {
     }
     if ((gearId == 5) || (gearId == 0xD)) {
         pWeapon = dressingRoom->pGearWeapons;
-        pWeapon += pGear->unk4[0];
+        pWeapon += pGear->extraWeaponIds[0];
 
-        pGear->weaponData[0].unk2 = pWeapon->unkE;
+        pGear->weaponData[0].attack = pWeapon->unkE;
         pGear->weaponData[0].unk0 = pWeapon->unk12;
         pGear->weaponData[0].unk3 = pWeapon->unk10;
         pGear->weaponData[0].unk4 = pWeapon->unk11;
         pGear->unk5C[1] = pWeapon->unk0[1];
 
         pWeapon = dressingRoom->pGearWeapons;
-        pWeapon += pGear->unk4[1];
-        pGear->weaponData[1].unk2 = pWeapon->unkE;
+        pWeapon += pGear->extraWeaponIds[1];
+        pGear->weaponData[1].attack = pWeapon->unkE;
         pGear->weaponData[1].unk0 = pWeapon->unk12;
         pGear->weaponData[1].unk3 = pWeapon->unk10;
         pGear->weaponData[1].unk4 = pWeapon->unk11;
         pGear->unk5C[2] = pWeapon->unk0[2];
 
         pWeapon = dressingRoom->pGearWeapons;
-        pWeapon += pGear->unk4[3];
-        pGear->weaponData[2].unk2 = pWeapon->unkE;
+        pWeapon += pGear->extraWeaponIds[3];
+        pGear->weaponData[2].attack = pWeapon->unkE;
         pGear->weaponData[2].unk0 = pWeapon->unk12;
         pGear->weaponData[2].unk3 = pWeapon->unk10;
         pGear->weaponData[2].unk4 = pWeapon->unk11;

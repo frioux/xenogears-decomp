@@ -17,7 +17,11 @@
 
 
 typedef struct {
-    /* 0x0  */ u8 unk0[0x2C];
+    /* 0x0  */ u8 unk0[0x28];
+    /* 0x28 */ u8 attackFromEquipment;
+    /* 0x29 */ u8 defenseFromEquipment;
+    /* 0x2A */ u8 agilityFromEquipment;
+    /* 0x2B */ u8 unk2B;
     /* 0x2C */ u8 etherDefenseFromEquipment;
     /* 0x2D  */ undefined8 unk2D[0x1F];
     /* 0x4C */ u_short hp;
@@ -39,9 +43,9 @@ typedef struct {
     /* 0x62 */ u_char level;
     /* 0x63 */ undefined8 unk63;
     /* 0x64 */ undefined8 unk64[0x6];
-    /* 0x6A */ undefined8 unk6A[0x5]; // Equipped weapons?
-    /* 0x6F */ undefined8 unk6F[0x5]; // Equipped weapons?    
-    /* 0x74 */ undefined8 unk74[0x3]; // Equipped accessories?
+    /* 0x6A */ undefined8 weaponId[0x5];
+    /* 0x6F */ undefined8 extraWeaponIds[0x5]; // Billy's four guns are summed, so all four slots are weapons
+    /* 0x74 */ undefined8 accessorySlots[0x3];
     /* 0x77 */ u8 unk77;
     /* 0x78 */ u8 unk78;
     /* 0x79 */ undefined8 unk79[0x27];
@@ -51,7 +55,7 @@ typedef struct {
 
 typedef struct {
     /* 0x00 */ u16 unk0;
-    /* 0x02 */ u8 unk2;
+    /* 0x02 */ u8 attack;
     /* 0x03 */ u8 unk3;
     /* 0x04 */ u8 unk4;
     /* 0x05 */ u8 unk5;
@@ -63,7 +67,7 @@ typedef struct {
     /* 0x01 */ u8 unk1;
     /* 0x02 */ u8 frameId;
     /* 0x03 */ u8 engineId;
-    /* 0x04 */ u8 unk4[4];
+    /* 0x04 */ u8 extraWeaponIds[4];
     /* 0x08 */ u8 armorId;
     /* 0x09 */ u8 accessorySlots[3];
     /* 0x0C */ u8 weaponId[4];
@@ -80,7 +84,7 @@ typedef struct {
     /* 0x44 */ u16 weightFromEquipment;
     /* 0x46 */ u16 unk46;
     /* 0x48 */ u16 unk48;
-    /* 0x4A */ u8 unk4A;
+    /* 0x4A */ u8 weightPenalty; // subtracted from agility, see GearShopMenuComputeEquipWeightPenalty
     /* 0x4B */ u8 unk4B;
     /* 0x4C */ u8 unk4C;
     /* 0x4D */ u8 responsiveness;

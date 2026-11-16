@@ -9,7 +9,7 @@ void MenuApplyGearWeapons(MenuDressingRoom* pDressingRoom, u8 gearId) {
 
     pWeapon = pDressingRoom->pGearWeapons;
     pWeapon += pGear->weaponId[0];
-    pGear->weaponData[0].unk2 = pWeapon->unkE;
+    pGear->weaponData[0].attack = pWeapon->unkE;
     pGear->weaponData[0].unk0 = pWeapon->unk12;
     pGear->weaponData[0].unk3 = pWeapon->unk10;
     pGear->weaponData[0].unk4 = pWeapon->unk11;
@@ -25,25 +25,25 @@ void MenuApplyGearWeapons(MenuDressingRoom* pDressingRoom, u8 gearId) {
     }
     if ((gearId == 5) || (gearId == 0xD)) {
         pWeapon = pDressingRoom->pGearWeapons;
-        pWeapon += pGear->unk4[0];
+        pWeapon += pGear->extraWeaponIds[0];
 
-        pGear->weaponData[0].unk2 = pWeapon->unkE;
+        pGear->weaponData[0].attack = pWeapon->unkE;
         pGear->weaponData[0].unk0 = pWeapon->unk12;
         pGear->weaponData[0].unk3 = pWeapon->unk10;
         pGear->weaponData[0].unk4 = pWeapon->unk11;
         pGear->unk5C[1] = pWeapon->unk0[1];
 
         pWeapon = pDressingRoom->pGearWeapons;
-        pWeapon += pGear->unk4[1];
-        pGear->weaponData[1].unk2 = pWeapon->unkE;
+        pWeapon += pGear->extraWeaponIds[1];
+        pGear->weaponData[1].attack = pWeapon->unkE;
         pGear->weaponData[1].unk0 = pWeapon->unk12;
         pGear->weaponData[1].unk3 = pWeapon->unk10;
         pGear->weaponData[1].unk4 = pWeapon->unk11;
         pGear->unk5C[2] = pWeapon->unk0[2];
 
         pWeapon = pDressingRoom->pGearWeapons;
-        pWeapon += pGear->unk4[3];
-        pGear->weaponData[2].unk2 = pWeapon->unkE;
+        pWeapon += pGear->extraWeaponIds[3];
+        pGear->weaponData[2].attack = pWeapon->unkE;
         pGear->weaponData[2].unk0 = pWeapon->unk12;
         pGear->weaponData[2].unk3 = pWeapon->unk10;
         pGear->weaponData[2].unk4 = pWeapon->unk11;

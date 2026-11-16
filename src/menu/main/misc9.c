@@ -623,10 +623,11 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DF0D4);
    gcc 2.6.0 emits switch-free straight-line code throughout; there is no
    jump table in this stub.
    Semantics recovered: arg2 != 0 selects the 0x2A1 slot group (characters
-   .unk6F when arg3 == 0, gears .unk4 otherwise, both weapons inventory);
-   arg2 == 0 selects the 0x29C/0x2A6 groups (arg1 == 0 is the primary weapon
-   slot, characters.unk6A / gears.weaponId, weapons inventory; arg1 != 0 is
-   accessory slot arg1 - 1, characters.unk74 / gears.accessorySlots,
+   .extraWeaponIds when arg3 == 0, gears .extraWeaponIds otherwise, both
+   weapons inventory); arg2 == 0 selects the 0x29C/0x2A6 groups (arg1 == 0 is
+   the primary weapon slot, characters.weaponId / gears.weaponId, weapons
+   inventory; arg1 != 0 is accessory slot arg1 - 1, characters.accessorySlots /
+   gears.accessorySlots,
    accessories inventory). Only the arg2 != 0 blocks clamp a per-item-id byte
    at g_GameState+0x2286 (characters) / +0x22B6 (gears) to 100 and zero the
    incoming item when the old value was below 100. The tail then walks the
@@ -662,7 +663,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DF0D4);
        if (arg2 != 0) {
            if (arg3 == 0) {
                characterId = g_Menu->pManager->currentCharacterIDs[arg0];
-               pSlot = &g_GameState.characters[characterId].unk6F[arg1];
+               pSlot = &g_GameState.characters[characterId].extraWeaponIds[arg1];
                slotItem = *pSlot;
                newItem = ((u8*)g_Menu->unk360)[0x2A1 + arg1];
                if (slotItem != 0) {
@@ -677,7 +678,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DF0D4);
            } else {
                characterId = g_Menu->pManager->currentCharacterIDs[arg0];
                gearId = g_GameState.characters[characterId].gearId;
-               pSlot = &g_GameState.gears[gearId].unk4[arg1];
+               pSlot = &g_GameState.gears[gearId].extraWeaponIds[arg1];
                slotItem = *pSlot;
                newItem = ((u8*)g_Menu->unk360)[0x2A1 + arg1];
                if (slotItem != 0) {
@@ -693,10 +694,10 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DF0D4);
        } else if (arg3 == 0) {
            if (arg1 == 0) {
                characterId = g_Menu->pManager->currentCharacterIDs[arg0];
-               slotItem = g_GameState.characters[characterId].unk6A[0];
+               slotItem = g_GameState.characters[characterId].weaponId[0];
                newItem = ((u8*)g_Menu->unk360)[0x29C];
                if (slotItem == 0) {
-                   g_GameState.characters[characterId].unk6A[0] = newItem;
+                   g_GameState.characters[characterId].weaponId[0] = newItem;
                    updated = 0;
                } else if (characterId == 4) {
                    result = 1;
@@ -706,7 +707,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DF0D4);
                pIds = g_GameState.accessoryIDs;
                pQuantities = g_GameState.accessoryQuantities;
                count = MAX_INVENTORY_ACCESSORIES;
-               slotItem = g_GameState.characters[characterId].unk74[arg1 - 1];
+               slotItem = g_GameState.characters[characterId].accessorySlots[arg1 - 1];
                newItem = ((u8*)g_Menu->unk360 + (arg1 - 1))[0x2A6];
            }
        } else {
@@ -781,18 +782,18 @@ void MenuCopyEquipmentToPanel(u_char arg0, u_char arg1) {
     if (arg1 == 0) {
         for (i = 0; i < 5; i++) {
             ((u8*)g_Menu->unk360 + i)[0x29C] =
-                g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].unk6A[i];
+                g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].weaponId[i];
             ((u8*)g_Menu->unk360 + i)[0x2A1] =
-                g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].unk6F[i];
+                g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].extraWeaponIds[i];
             ((u8*)g_Menu->unk360 + i)[0x2A6] =
-                g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].unk74[i];
+                g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].accessorySlots[i];
         }
     } else {
         for (i = 0; i < 4; i++) {
             ((u8*)g_Menu->unk360 + i)[0x29C] =
                 g_GameState.gears[g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].gearId].weaponId[i];
             ((u8*)g_Menu->unk360 + i)[0x2A1] =
-                g_GameState.gears[g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].gearId].unk4[i];
+                g_GameState.gears[g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].gearId].extraWeaponIds[i];
             ((u8*)g_Menu->unk360 + i)[0x2A6] =
                 g_GameState.gears[g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].gearId].accessorySlots[i];
         }
@@ -804,20 +805,20 @@ void MenuCopyEquipmentFromPanel(u_char arg0, u_char arg1) {
 
     if (arg1 == 0) {
         for (i = 0; i < 5; i++) {
-            g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].unk6A[i] =
+            g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].weaponId[i] =
                 ((u8*)g_Menu->unk360 + i)[0x29C];
-            g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].unk6F[i] =
+            g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].extraWeaponIds[i] =
                 ((u8*)g_Menu->unk360 + i)[0x2A1];
         }
         for (i = 0; i < 3; i++) {
-            g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].unk74[i] =
+            g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].accessorySlots[i] =
                 ((u8*)g_Menu->unk360 + i)[0x2A6];
         }
     } else {
         for (i = 0; i < 4; i++) {
             g_GameState.gears[g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].gearId].weaponId[i] =
                 ((u8*)g_Menu->unk360 + i)[0x29C];
-            g_GameState.gears[g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].gearId].unk4[i] =
+            g_GameState.gears[g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].gearId].extraWeaponIds[i] =
                 ((u8*)g_Menu->unk360 + i)[0x2A1];
         }
         for (i = 0; i < 3; i++) {
@@ -830,7 +831,7 @@ void MenuSetEquipmentSlotValue(u_char arg0, s32 arg1, s32 arg2, s32 arg3, u_char
     if (arg5 == 0) {
         if (arg4 == 0) {
             if (arg1 == 0) {
-                g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].unk6A[0] =
+                g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].weaponId[0] =
                     g_DressingRoomItemIds[arg3 + arg2];
             } else {
                 if (arg1 < 0) {
@@ -839,11 +840,11 @@ void MenuSetEquipmentSlotValue(u_char arg0, s32 arg1, s32 arg2, s32 arg3, u_char
                 if (arg1 > 3) {
                     return;
                 }
-                g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].unk74[arg1 - 1] =
+                g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].accessorySlots[arg1 - 1] =
                     g_DressingRoomItemIds[arg3 + arg2];
             }
         } else {
-            g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].unk6F[arg1] =
+            g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].extraWeaponIds[arg1] =
                 g_DressingRoomItemIds[arg3 + arg2];
         }
     } else {
@@ -863,7 +864,7 @@ void MenuSetEquipmentSlotValue(u_char arg0, s32 arg1, s32 arg2, s32 arg3, u_char
             }
         } else {
             g_GameState.gears[g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].gearId]
-                .unk4[arg1] = g_DressingRoomItemIds[arg3 + arg2];
+                .extraWeaponIds[arg1] = g_DressingRoomItemIds[arg3 + arg2];
         }
     }
 }
@@ -905,16 +906,16 @@ void MenuRenderEquipmentSlotStrings(s32 arg0, s32 arg1, s32 arg2, u_char arg3, u
             pStrings = ((void**)g_Menu->unk434->unkA00)[0];
             if (arg5 != 0) {
                 if (arg3 == 0) {
-                    itemId = g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg6]].unk6A[0];
+                    itemId = g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg6]].weaponId[0];
                 } else {
-                    itemId = g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg6]].unk6F[arg0];
+                    itemId = g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg6]].extraWeaponIds[arg0];
                 }
             }
             break;
         case 1:
             pStrings = ((void**)g_Menu->unk434->unkA00)[1];
             if (arg5 != 0) {
-                itemId = g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg6]].unk74[arg0 - 1];
+                itemId = g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg6]].accessorySlots[arg0 - 1];
             }
             break;
         case 2:
@@ -925,7 +926,7 @@ void MenuRenderEquipmentSlotStrings(s32 arg0, s32 arg1, s32 arg2, u_char arg3, u
                         .weaponId[0];
                 } else {
                     itemId = g_GameState.gears[g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg6]].gearId]
-                        .unk4[arg0];
+                        .extraWeaponIds[arg0];
                 }
             }
             break;
@@ -974,16 +975,16 @@ void MenuReturnWeaponToInventory(u_char arg0, u_char arg1) {
     if (arg1 == 0) {
         pIds = g_GameState.weaponIDs;
         characterId = g_Menu->pManager->currentCharacterIDs[arg0];
-        weaponId = g_GameState.characters[characterId].unk6F[0];
-        g_GameState.characters[characterId].unk6F[0] = 0;
+        weaponId = g_GameState.characters[characterId].extraWeaponIds[0];
+        g_GameState.characters[characterId].extraWeaponIds[0] = 0;
         pQuantities = g_GameState.weaponQuantities;
         count = MAX_INVENTORY_WEAPONS;
     } else {
         pIds = g_GameState.gearWeaponsIds;
         characterId = g_Menu->pManager->currentCharacterIDs[arg0];
         gearId = g_GameState.characters[characterId].gearId;
-        weaponId = g_GameState.gears[gearId].unk4[0];
-        g_GameState.gears[gearId].unk4[0] = 0;
+        weaponId = g_GameState.gears[gearId].extraWeaponIds[0];
+        g_GameState.gears[gearId].extraWeaponIds[0] = 0;
         pQuantities = g_GameState.gearWeaponsQty;
         count = MAX_INVENTORY_WEAPONS;
     }
