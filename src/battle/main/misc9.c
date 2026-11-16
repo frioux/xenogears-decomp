@@ -468,26 +468,36 @@ void func_8007E6F0(u8 **arg0, u8 arg1) {
     pRow[p[3]] = pRow[p[1]] - pRow[p[2]];
 } */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007E740);
-/* best: 95.31%. Identical instruction multiset and operand order; the only
-   difference is the register pair: the original keeps the D_800D3410 base in
-   v0 and the row address in v1 (mflo then reuses the dead v0), gcc emits the
-   mirror image (base v1, row v0, mflo a2). Same allocator tie as func_8007E8AC
-   and the misc6 D_800D34x0 family. Tried: s32 vs u32 element, pRow before/after
-   pArgs, product written as p[2] * pRow[p[1]] (this variant, operand order
-   right), compound assignment, and BattleDwordRegDivImm's exact shape copied verbatim
-   with `p` declared first (95.00%, the mult operands then swap to `mult v1,a0`).
-   Decisive: the MATCHED divide sibling BattleDwordRegDivImm has byte-identical asm
-   (same base v0 / slot v1 allocation) under the same C shape, so the split is
-   the multiply's HI/LO pseudo shifting the allocator, not the source.
-   Update: the sibling func_8007E8AC matched this same mirror v0/v1 tie only
-   after its index expression became unsigned, `D_800D3364[(u32)(idx + 0x140)]`
-   (`u32 idx` instead, or a cast of `idx` alone, stays at 95.38%). Worth trying
-   an unsigned form of the product or of the store index here.
+/* best: 98.75%. The D_800D3410 base/element register mirror of the old note is
+   gone: write the slot registers INLINE as D_800D3400[arg1].unk10[...] (the
+   +0x10 array of the 0x40-stride slot table; the relocation still names
+   D_800D3410) instead of a `u32 *pRow` local off D_800D3410. That one change
+   gets retail's base v0 / element v1 (a pRow local stays 95.31 with base and
+   element mirrored, an element-pointer local 94.38, a `BattleOpRegs *pSlot`
+   local 94.56, an `s32 idx = p[1]` local 98.75 with the same residual). What is
+   left is ONE register: the product gets a fresh a2 (`mflo a2; sw a2,0(v1)`)
+   where retail reuses the element value's dead v0 (`mflo v0; sw v0,0(v1)`) -
+   the element qty dies at the mult insn, so local-alloc will not hand its
+   register to a qty born at that same insn.
+   Tried and measured: u32 and s32 element, u32 and s32 product local, product
+   local before the store, casts on either operand, `elem = (u32)elem * p[2]`
+   (98.12), `elem *= p[2]` (98.12), and permute.sh --minutes 4 -j 2
+   (PERMUTER_NONE base=10 best=10, 1383 iterations).
+   DECISIVE LEAD: a NON-VOID return type forces the product into $2, and then
+   the access form alone decides the rest. Plain assignment
+   (`return elem = p[2] * elem;`) gives retail's mult operand order and every
+   register except p, which moves to v1 (95.00). Compound assignment
+   (`return elem *= p[2];`) gives EVERY register retail has and only the mult
+   operands print swapped (`mult v0,a0` vs retail `mult a0,v0`, 98.75, same
+   under s32 and u32). So retail's body is a plain `elem = p[2] * elem` whose
+   product reuses the element value's register: the missing lever is a form
+   where the element value and the product are ONE pseudo while the multiply is
+   still written p[2] first. The same inline access form may also be worth
+   trying on the func_8007E6A0/E6F0 parks above.
 void func_8007E740(u8 **arg0, u8 arg1) {
-    u32 *pRow = (u32 *)(D_800D3410 + arg1 * 0x40);
     u8 *p = *arg0;
 
-    pRow[p[1]] = p[2] * pRow[p[1]];
+    D_800D3400[arg1].unk10[p[1]] = p[2] * D_800D3400[arg1].unk10[p[1]];
 } */
 void BattleDwordRegDivImm(BattleCommand **ppCmd, u8 arg1) {
     u32 *pRegs = D_800D3400[arg1].unk10;
