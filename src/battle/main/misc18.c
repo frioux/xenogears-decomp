@@ -23,6 +23,7 @@ extern u16 D_800D2C9E;
 // (BattleTableEntry::unk8A) and its timer bytes at +0x15C, which the original
 // reaches through a second base of its own.
 extern BattleTableEntry g_BattleWorkBlock[];
+extern u8 D_800CCE42[][0x170];
 extern u8 D_800CCE44[][0x170];
 
 // Per-slot entry of the table at 0x800D220E: one word per battle slot, 0x10
@@ -614,29 +615,29 @@ void BattleResetSlotConditionCounters(void) {
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80098AF8);
-/* COMPILES as written (round 111 re-check against today's externs): 95.16%,
-   372 bytes = the original's. Body, both
-   branches, the outer/inner branch layout, the 9*x tails, the 0xA5/0xA0 clamp,
-   the rand()%8-4 delta and the call are byte-identical. Left: gcc folds the
-   row stride's +0x1058 / +0x2228 into the base add (addiu v0,a1,K then
-   addu v1,v1,v0) where the original keeps it on the index (addiu v1,v1,K then
-   addu v1,v1,a1), which then names the row pointer v0 instead of v1. Tried:
-   the whole sum as ints with (s32)pBase, &pBase[idx + K] subscript form,
-   (u8 *)(idx + K) + (s32)pBase (this one, 95.16), and a separate `s32 off`
-   local for idx + K which DOES fix the addiu but flips t/other between a0 and
-   v1 and drops to 90.97. Row strides: 0x5F0 (+0x1058) when bit 0x80 of
-   actor[0x15A] is clear, 0x690 (+0x2228) when set, plus
-   g_BattleCurWorkBlock[0x5FC2]*0x28; t = (s8)row[0x27]; v = t < other ? 9*(other-t) : 9
-   with other = actor[0x5A] / actor[0x13C] respectively, 9*actor[0x5A] when
-   sel >= 3; then v = 0xA5 - v; d = rand()%8 - 4; v -= d; func_80094D24();
-   return v. The `d` local is load-bearing: `v -= rand() % 8 - 4` makes gcc
-   fold the 4 into v before the call. func_80094D24 takes no arguments.
-
+/* 99.35%, 372 bytes = the original's (round 147). Body, both branches, the
+   outer/inner layout, the 0x1058/0x2228 row strides, the 9*x tails, the
+   0xA5/0xA0 cap, the rand()%8-4 delta and the call are instruction-identical.
+   Two changes over the round-111 park (95.16) came from the permuter: `other`
+   must be `int` (a u8 costs an andi and keeps retail's lbu a0,90(a2) after the
+   lb v1,39), and the two loads are then written other-then-t.
+   LEFT: only the row base add. Retail keeps the constant on the INDEX
+   (addiu v1,v1,0x1058, then addu v1,v1,a1) and holds the row in v1, so the
+   store is sw v1; gcc folds the constant into the base instead
+   (addiu v0,a1,0x1058, then addu v1,v1,v0) and the row ends in v0. Tried: an
+   `s32 off = idx + K` local and a `u8 *pIdx = (u8 *)(idx + K)` local (both fix
+   the addiu but move the row to a0 and swap t/other back: 90.97 and 95.16),
+   the (u8 *)(idx + K) + (s32)pBase subscript form, the &pBase[idx + K] form, and
+   the permuter's 45-point candidate applied to the second branch only (95.16
+   when both branches use it). Two permuter runs from this body found nothing
+   better. Row strides: 0x5F0 (+0x1058) when bit 0x80 of actor[0x15A] is clear,
+   0x690 (+0x2228) when set, plus pBase[0x5FC2]*0x28. func_80094D24 takes no
+   arguments; the `d` local is load-bearing (inlining rand()%8-4 folds the 4).
 u8 func_80098AF8(u8 sel) {
     u8 *pBase = g_BattleCurWorkBlock;
     u8 *pActor = (u8 *)(sel * 0x170 + (s32)pBase);
     u8 *pRow;
-    u8 other;
+    int other;
     s32 t;
     s32 v;
     s32 d;
@@ -648,8 +649,8 @@ u8 func_80098AF8(u8 sel) {
         if ((pActor[0x15A] & 0x80) == 0) {
             pRow = (u8 *)(sel * 0x5F0 + 0x1058) + (s32)pBase + pBase[0x5FC2] * 0x28;
             g_BattleCurrentRow = pRow;
-            t = (s8)pRow[0x27];
             other = pActor[0x5A];
+            t = (s8)pRow[0x27];
             if (t < other) {
                 v = (other - t) * 9;
             } else {
@@ -658,8 +659,8 @@ u8 func_80098AF8(u8 sel) {
         } else {
             pRow = (u8 *)(sel * 0x690 + 0x2228) + (s32)pBase + pBase[0x5FC2] * 0x28;
             g_BattleCurrentRow = pRow;
-            t = (s8)pRow[0x27];
             other = pActor[0x13C];
+            t = (s8)pRow[0x27];
             if (t < other) {
                 v = (other - t) * 9;
             } else {
@@ -832,7 +833,121 @@ void BattleSetSlotConditionTimer(u8 slot, u8 kind, u16 flag, s32 count) {
     pTimer = D_800CCE44[slot];
     pTimer[idx] = val;
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80099890);
+// Rolls one slot's condition timers down and returns the mask of the conditions
+// that expired this frame. Each armed flag word (0x7C..0x8E) owns one timer byte
+// at entry+0x15C, i.e. state.unkB7[1], and the 0x84/0x88 tests are a pair: the
+// low halfword's flag armed with the high halfword's copy of it clear. The timer
+// and state pointers are formed off the symbol base, not off pEntry: the original
+// keeps that second base in a register of its own.
+u16 func_80099890(u8 slot) {
+    BattleTableEntry *pEntry = &g_BattleWorkBlock[slot];
+    BattleSlotState *pState = (BattleSlotState *)(slot * 0x170 + 0xA4 + (u32)g_BattleWorkBlock);
+    u8 *pCnt = (u8 *)(slot * 0x170 + 0x15C + (u32)g_BattleWorkBlock);
+    u32 ret;
+
+    if (D_800CCE42[slot][0] & 0x80) {
+        BattleDecrementConditionTimers((BattleTableEntry *)pState, pEntry, pCnt);
+        return 0;
+    }
+    ret = 0;
+    if (pEntry->unk7C & 0x1000) {
+        pCnt[1] = pCnt[1] + 0xFF;
+        if (pCnt[1] == 0) {
+            ret |= 0x4000;
+            pEntry->unk7C &= 0xEFFF;
+        }
+    }
+    if (pEntry->unk80 & 0x1000) {
+        pCnt[2] = pCnt[2] + 0xFF;
+        if (pCnt[2] == 0) {
+            ret |= 0x2000;
+            pEntry->unk80 &= 0xEFFF;
+        }
+    }
+    if (pEntry->unk80 & 0x800) {
+        pCnt[3] = pCnt[3] + 0xFF;
+        if (pCnt[3] == 0) {
+            ret |= 0x1000;
+            pEntry->unk80 &= 0xF7FF;
+            pEntry->unk7A &= 0xFFDF;
+        }
+    }
+    if ((pEntry->unk84 & 0x8000) && !(pEntry->unk86 & 0x8000)) {
+        pCnt[4] = pCnt[4] + 0xFF;
+        if (pCnt[4] == 0) {
+            ret |= 0x800;
+            pEntry->unk84 &= 0x7FFF;
+        }
+    }
+    if ((pEntry->unk84 & 0x4000) && !(pEntry->unk86 & 0x4000)) {
+        pCnt[5] = pCnt[5] + 0xFF;
+        if (pCnt[5] == 0) {
+            ret |= 0x400;
+            pEntry->unk84 &= 0xBFFF;
+        }
+    }
+    if ((pEntry->unk84 & 0x2000) && !(pEntry->unk86 & 0x2000)) {
+        pCnt[6] = pCnt[6] + 0xFF;
+        if (pCnt[6] == 0) {
+            ret |= 0x200;
+            pEntry->unk84 &= 0xDFFF;
+        }
+    }
+    if ((pEntry->unk84 & 0x1000) && !(pEntry->unk86 & 0x1000)) {
+        pCnt[7] = pCnt[7] + 0xFF;
+        if (pCnt[7] == 0) {
+            ret |= 0x100;
+            pEntry->unk84 &= 0xEFFF;
+        }
+    }
+    if ((pEntry->unk84 & 0x800) && !(pEntry->unk86 & 0x800)) {
+        pCnt[8] = pCnt[8] + 0xFF;
+        if (pCnt[8] == 0) {
+            ret |= 0x80;
+            pEntry->unk84 &= 0xF7FF;
+        }
+    }
+    if ((pEntry->unk88 & 0x8000) && !(pEntry->unk8A & 0x8000)) {
+        pCnt[9] = pCnt[9] + 0xFF;
+        if (pCnt[9] == 0) {
+            ret |= 0x40;
+            pEntry->unk88 &= 0x7FFF;
+        }
+    }
+    if ((pEntry->unk88 & 0x4000) && !(pEntry->unk8A & 0x4000)) {
+        pCnt[0xA] = pCnt[0xA] + 0xFF;
+        if (pCnt[0xA] == 0) {
+            ret |= 0x20;
+            pEntry->unk88 &= 0xBFFF;
+        }
+    }
+    if ((pEntry->unk88 & 0x1000) && !(pEntry->unk8A & 0x1000)) {
+        pCnt[0xB] = pCnt[0xB] + 0xFF;
+        if (pCnt[0xB] == 0) {
+            ret |= 0x10;
+            pEntry->unk88 &= 0xEFFF;
+        }
+    }
+    if (pEntry->unk8C & 0xF000) {
+        if (!(pEntry->unk8E & 0xF000)) {
+            pCnt[0xC] = pCnt[0xC] + 0xFF;
+            if (pCnt[0xC] == 0) {
+                ret |= 8;
+                pEntry->unk8C &= 0xFFF;
+            }
+        }
+    }
+    if (pEntry->unk8C & 0xF00) {
+        if (!(pEntry->unk8E & 0xF00)) {
+            pCnt[0xD] = pCnt[0xD] + 0xFF;
+            if (pCnt[0xD] == 0) {
+                ret |= 4;
+                pEntry->unk8C &= 0xF0FF;
+            }
+        }
+    }
+    return ret;
+}
 void BattleDecrementConditionTimers(BattleTableEntry *p, BattleTableEntry *pOther, u8 *pCnt) {
     if (p->unk7C & 0x200) {
         pCnt[1] = pCnt[1] + 0xFF;
