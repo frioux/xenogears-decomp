@@ -459,7 +459,7 @@ void func_801DEF10(ModelJoint* pSkeleton, KeyframeBlock* pBlock) {
     s16 blockType = pBlock->unk6;
     u16 numRotFrames = pBlock->unkC;
     u16 numTransFrames = pBlock->unkE;
-    u16 flags = pBlock->unk4;
+    u16 flags = pBlock->flags;
     s16* pKeyframe = (s16*)(pBlock + 1);
     u16 count;
     int i;
@@ -482,7 +482,7 @@ void func_801DEF10(ModelJoint* pSkeleton, KeyframeBlock* pBlock) {
             z = *pKeyframe++;
             rotFrame++;
             if (pJoint->rotation.vx != x || pJoint->rotation.vy != y || pJoint->rotation.vz != z) {
-                if (pJoint->unk70 == 0 || ((Temp3*)pJoint->unk70)->unk3 != 0xFF) {
+                if (pJoint->unk70 == 0 || ((Temp3*)pJoint->unk70)->type != 0xFF) {
                     pJoint->rotation.vx = x;
                     pJoint->rotation.vy = y;
                     pJoint->rotation.vz = z;
@@ -498,7 +498,7 @@ void func_801DEF10(ModelJoint* pSkeleton, KeyframeBlock* pBlock) {
             z = *pKeyframe++;
             transFrame++;
             if (pJoint->translation.x != x || pJoint->translation.y != y || pJoint->translation.z != z) {
-                if (pJoint->unk74 == 0 || ((Temp3*)pJoint->unk74)->unk3 != 0xFF) {
+                if (pJoint->unk74 == 0 || ((Temp3*)pJoint->unk74)->type != 0xFF) {
                     pJoint->translation.x = x;
                     pJoint->translation.y = y;
                     pJoint->translation.z = z;
@@ -551,7 +551,7 @@ void* LibGearInitializeJointObjectPool(Temp4* pUnk, int numObjects) {
 }
 
 void LibGearFreeJointObjectPool(Temp4* pUnk) {
-    pUnk->unk4 = 0;
+    pUnk->freeIndex = 0;
     if (pUnk->pObjects != NULL) {
         HeapFree(pUnk->pObjects);
     }
@@ -567,10 +567,10 @@ void LibGearResetJointObjectPool(Temp4* pUnk) {
     }
 
     pCurObject = pUnk->pObjects;
-    pUnk->unk4 = 0;
+    pUnk->freeIndex = 0;
 
     for (i = 0; i < pUnk->numObjects; i++) {
-        pCurObject->unk0 = 0;
+        pCurObject->inUse = 0;
         pCurObject++;
     }
 }
@@ -578,15 +578,15 @@ void LibGearResetJointObjectPool(Temp4* pUnk) {
 Temp3* LibGearAllocJointObject(Temp4* pList) {
     Temp3* pObject;
 
-    if (pList->unk4 < pList->numObjects) {
-        pObject = &pList->pObjects[pList->unk4];
-        if (pObject->unk0 == 0) {
+    if (pList->freeIndex < pList->numObjects) {
+        pObject = &pList->pObjects[pList->freeIndex];
+        if (pObject->inUse == 0) {
             for (
-                pList->unk4++;
-                pList->unk4 < pList->numObjects;
-                pList->unk4++
+                pList->freeIndex++;
+                pList->freeIndex < pList->numObjects;
+                pList->freeIndex++
             ) {
-                if (pList->pObjects[pList->unk4].unk0 == 0) {
+                if (pList->pObjects[pList->freeIndex].inUse == 0) {
                     break;
                 }
             }
@@ -605,8 +605,8 @@ int LibGearFreeJointObject(Temp4* pUnk, s8* arg1) {
     }
     
     index = ((mem_addr)arg1 - (mem_addr)pUnk->pObjects) / sizeof(Temp3);
-    if (index < pUnk->unk4) {
-        pUnk->unk4 = index;
+    if (index < pUnk->freeIndex) {
+        pUnk->freeIndex = index;
     }
     *arg1 = 0;
     return index;
@@ -622,7 +622,7 @@ int LibGearFreeJointObject(Temp4* pUnk, s8* arg1) {
 //     dead parameter. `pBlock->keyframes` coalesces but grows the frame to 0x50.
 //   * the original spills `count` to 0x10(sp) and holds 0xFF in s7; here `count`
 //     wins s7 and the `type` parameter is copied to 0x10(sp) instead, so the
-//     pObject->unk3 test compares against a register loaded inside the loop.
+//     pObject->type test compares against a register loaded inside the loop.
 //   * the original reads pBlock->unk6 with `lhu` (unsigned); u16, s16 and a u16
 //     cast on the s16 header field all still emit `lh`.
 // Also tried: `pJoint = pSkeleton` as a declaration initialiser (68.76%), using
@@ -654,7 +654,7 @@ s32 func_801DF7F4(Temp4* pList, ModelJoint* pSkeleton, KeyframeBlock* pBlock, s3
     numChildren = pSkeleton->numChildren;
     count = numChildren;
     numTransFrames = pBlock->unkE;
-    blockFlags = pBlock->unk4;
+    blockFlags = pBlock->flags;
     flag1 = flags & 0x1;
 
     if (numRotFrames + 1 < numChildren) {
@@ -681,22 +681,22 @@ s32 func_801DF7F4(Temp4* pList, ModelJoint* pSkeleton, KeyframeBlock* pBlock, s3
             pObject = (Temp3*)pJoint->unk70;
             if (pObject == NULL) {
                 pObject = LibGearAllocJointObject(pList);
-            } else if (pObject->unk3 == 0xFF) {
+            } else if (pObject->type == 0xFF) {
                 goto next1;
             }
             if (pObject != NULL) {
-                pObject->unk0 = 1;
+                pObject->inUse = 1;
                 pObject->unk1 = flag1;
-                pObject->unk3 = type;
+                pObject->type = type;
                 pObject->unk2 = ((u8*)pKeyframe)[4];
                 pObject->unk10 = 0;
-                pObject->unk12 = frame;
+                pObject->endFrame = frame;
                 *(u32*)&pObject->unk4 = *(u32*)&pObject->unk8 = (u32)(pVertexData + pKeyframe[0]);
                 pJoint->unk70 = (u32)pObject;
             }
         } else {
             pObject = (Temp3*)pJoint->unk70;
-            if (pObject != NULL && i != 0 && pObject->unk3 != 0xFF) {
+            if (pObject != NULL && i != 0 && pObject->type != 0xFF) {
                 LibGearFreeJointObject(pList, (s8*)pObject);
                 pJoint->unk70 = 0;
             }
@@ -709,22 +709,22 @@ s32 func_801DF7F4(Temp4* pList, ModelJoint* pSkeleton, KeyframeBlock* pBlock, s3
             pObject = (Temp3*)pJoint->unk74;
             if (pObject == NULL) {
                 pObject = LibGearAllocJointObject(pList);
-            } else if (pObject->unk3 == 0xFF) {
+            } else if (pObject->type == 0xFF) {
                 goto next2;
             }
             if (pObject != NULL) {
-                pObject->unk0 = 1;
+                pObject->inUse = 1;
                 pObject->unk1 = flag1;
-                pObject->unk3 = type;
+                pObject->type = type;
                 pObject->unk2 = ((u8*)pKeyframe)[4];
                 pObject->unk10 = 0;
-                pObject->unk12 = frame;
+                pObject->endFrame = frame;
                 *(u32*)&pObject->unk4 = *(u32*)&pObject->unk8 = (u32)(pVertexData + pKeyframe[0]);
                 pJoint->unk74 = (u32)pObject;
             }
         } else {
             pObject = (Temp3*)pJoint->unk74;
-            if (pObject != NULL && i != 0 && pObject->unk3 != 0xFF) {
+            if (pObject != NULL && i != 0 && pObject->type != 0xFF) {
                 LibGearFreeJointObject(pList, (s8*)pObject);
                 pJoint->unk74 = 0;
             }
@@ -804,7 +804,7 @@ s32 func_801DFAC4(Temp4* pList, ModelJoint* pSkeleton, KeyframeBlock* pBlock, s3
         frame--;
     }
 
-    blockFlags = pBlock->unk4;
+    blockFlags = pBlock->flags;
     pKeyframe = (u16*)pBlock->keyframes;
     pData = pKeyframe + (numRotFrames + 1) * 3;
     pVertexBase = (u8*)pData;
@@ -820,7 +820,7 @@ s32 func_801DFAC4(Temp4* pList, ModelJoint* pSkeleton, KeyframeBlock* pBlock, s3
         if (pKeyframe[0] != 0xFFFF) {
             pObject = (Temp3*)pJoint->unk70;
             if (pObject != NULL) {
-                if (pObject->unk3 == 0xFF) {
+                if (pObject->type == 0xFF) {
                     goto skipRot;
                 }
             } else {
@@ -837,12 +837,12 @@ s32 func_801DFAC4(Temp4* pList, ModelJoint* pSkeleton, KeyframeBlock* pBlock, s3
             }
 
             if (pObject != NULL) {
-                pObject->unk0 = 1;
+                pObject->inUse = 1;
                 pObject->unk1 = flag1;
-                pObject->unk3 = type;
+                pObject->type = type;
                 pObject->unk2 = ((u8*)&pKeyframe[2])[0];
                 pObject->unk10 = 0;
-                pObject->unk12 = frame;
+                pObject->endFrame = frame;
                 pVertex = (u32)(pVertexBase + pKeyframe[0]);
                 *(u32*)&pObject->unk4 = pVertex;
                 *(u32*)&pObject->unk8 = pVertex;
@@ -861,7 +861,7 @@ s32 func_801DFAC4(Temp4* pList, ModelJoint* pSkeleton, KeyframeBlock* pBlock, s3
         if (pKeyframe[0] != 0xFFFF) {
             pObject = (Temp3*)pJoint->unk74;
             if (pObject != NULL) {
-                if (pObject->unk3 == 0xFF) {
+                if (pObject->type == 0xFF) {
                     goto skipTrans;
                 }
             } else {
@@ -877,12 +877,12 @@ s32 func_801DFAC4(Temp4* pList, ModelJoint* pSkeleton, KeyframeBlock* pBlock, s3
             }
 
             if (pObject != NULL) {
-                pObject->unk0 = 1;
+                pObject->inUse = 1;
                 pObject->unk1 = flag1;
-                pObject->unk3 = type;
+                pObject->type = type;
                 pObject->unk2 = ((u8*)&pKeyframe[2])[1];
                 pObject->unk10 = 0;
-                pObject->unk12 = frame;
+                pObject->endFrame = frame;
                 pVertex = (u32)(pVertexBase + pKeyframe[0]);
                 *(u32*)&pObject->unk4 = pVertex;
                 *(u32*)&pObject->unk8 = pVertex;
@@ -910,17 +910,17 @@ void LibGearReleaseSkeletonObjects(Temp4* pList, ModelJoint* pSkeleton) {
     u16 numChildren = pSkeleton->numChildren;
 
     for (i = 0; i < numChildren; i++) {
-        if (pSkeleton->unk70 != 0 && ((Temp3*)pSkeleton->unk70)->unk3 != 0xFF) {
+        if (pSkeleton->unk70 != 0 && ((Temp3*)pSkeleton->unk70)->type != 0xFF) {
             LibGearFreeJointObject(pList, (s8*)pSkeleton->unk70);
             pSkeleton->unk70 = 0;
         }
 
-        if (pSkeleton->unk74 != 0 && ((Temp3*)pSkeleton->unk74)->unk3 != 0xFF) {
+        if (pSkeleton->unk74 != 0 && ((Temp3*)pSkeleton->unk74)->type != 0xFF) {
             LibGearFreeJointObject(pList, (s8*)pSkeleton->unk74);
             pSkeleton->unk74 = 0;
         }
 
-        if (pSkeleton->unk78 != 0 && ((Temp3*)pSkeleton->unk78)->unk3 != 0xFF) {
+        if (pSkeleton->unk78 != 0 && ((Temp3*)pSkeleton->unk78)->type != 0xFF) {
             LibGearFreeJointObject(pList, (s8*)pSkeleton->unk78);
             pSkeleton->unk78 = 0;
         }
@@ -934,17 +934,17 @@ void LibGearReleaseSkeletonObjectsByType(Temp4* pList, ModelJoint* pSkeleton, u8
     u16 numChildren = pSkeleton->numChildren;
 
     for (i = 0; i < numChildren; i++) {
-        if (pSkeleton->unk70 != 0 && ((Temp3*)pSkeleton->unk70)->unk3 == type) {
+        if (pSkeleton->unk70 != 0 && ((Temp3*)pSkeleton->unk70)->type == type) {
             LibGearFreeJointObject(pList, (s8*)pSkeleton->unk70);
             pSkeleton->unk70 = 0;
         }
 
-        if (pSkeleton->unk74 != 0 && ((Temp3*)pSkeleton->unk74)->unk3 == type) {
+        if (pSkeleton->unk74 != 0 && ((Temp3*)pSkeleton->unk74)->type == type) {
             LibGearFreeJointObject(pList, (s8*)pSkeleton->unk74);
             pSkeleton->unk74 = 0;
         }
 
-        if (pSkeleton->unk78 != 0 && ((Temp3*)pSkeleton->unk78)->unk3 == type) {
+        if (pSkeleton->unk78 != 0 && ((Temp3*)pSkeleton->unk78)->type == type) {
             LibGearFreeJointObject(pList, (s8*)pSkeleton->unk78);
             pSkeleton->unk78 = 0;
         }
@@ -983,8 +983,8 @@ void LibGearInitializeVertices(VertexBuffer* pVertexBuffer) {
 
     pVertex = pVertexBuffer->pVertices;
     for (i = 0; i < pVertexBuffer->capacity + 1; i++) {
-        pVertex->unk16 = -1;
-        pVertex->unk1E = 0;
+        pVertex->age = -1;
+        pVertex->lifetime = 0;
         
         for (j = 0; j < 2; j++) {
             SetPolyFT4(&pVertex->polys[j]);
@@ -1011,13 +1011,13 @@ void* LibGearAllocVertex(VertexBuffer* pVertexBuffer, short isSemiTrans) {
     
     if (pVertexBuffer->curIndex < pVertexBuffer->capacity) {
         pVertex = &pVertexBuffer->pVertices[pVertexBuffer->curIndex];
-        if (pVertex->unk16 == -1) {
+        if (pVertex->age == -1) {
             for (
                 pVertexBuffer->curIndex++; 
                 pVertexBuffer->curIndex < pVertexBuffer->capacity; 
                 pVertexBuffer->curIndex++
             ) {
-                if (pVertexBuffer->pVertices[pVertexBuffer->curIndex].unk16 == -1) {
+                if (pVertexBuffer->pVertices[pVertexBuffer->curIndex].age == -1) {
                     break;
                 }
             }
@@ -1039,7 +1039,7 @@ int LibGearFreeVertex(VertexBuffer* pVertexBuffer, Vertex* pObject) {
         pVertexBuffer->curIndex = index;
     }
     
-    pObject->unk16 = -1;
+    pObject->age = -1;
     return index;
 }
 
@@ -1053,11 +1053,11 @@ void LibGearRenderVertices(VertexBuffer* pVertexBuffer, MATRIX* pMatrix, s32 arg
     
     pVertex = pVertexBuffer->pVertices;
     for (i = 0; i < pVertexBuffer->capacity; i++, pVertex++) {
-        if (pVertex->unk16 == -1) {
+        if (pVertex->age == -1) {
             continue;
         }
         
-        if (pVertex->unk16 >= pVertex->unk1E) {
+        if (pVertex->age >= pVertex->lifetime) {
             LibGearFreeVertex(pVertexBuffer, pVertex);
             continue;
         }
@@ -1100,7 +1100,7 @@ void LibGearRenderVertices(VertexBuffer* pVertexBuffer, MATRIX* pMatrix, s32 arg
             addPrim(&pOT[otz], &pVertex->polys[renderCtx]);
         }
         
-        pVertex->unk16 += arg2;
+        pVertex->age += arg2;
         pVertex->red -= pVertex->redDelta * arg2;
         pVertex->green -= pVertex->greenDelta * arg2;
         pVertex->blue -= pVertex->blueDelta * arg2;
@@ -1124,20 +1124,20 @@ s32 LibGearInitializeColorEntry(UnkInner1* pEntry, u32 arg1, u16 arg2, u8 arg3, 
         pEntry->unk18 = arg17;
         pEntry->unk5C = 0;
         if (numFrames < 7) {
-            pEntry->unk60 = numFrames;
+            pEntry->numFrames = numFrames;
         } else {
-            pEntry->unk60 = 7;
+            pEntry->numFrames = 7;
         }
 
-        pEntry->unk64 = arg6 << 6;
-        pEntry->unk66 = arg7 << 6;
-        pEntry->unk68 = arg8 << 6;
+        pEntry->red = arg6 << 6;
+        pEntry->green = arg7 << 6;
+        pEntry->blue = arg8 << 6;
         div = (s16)divisor;
-        pEntry->unk6A = (pEntry->unk64 - (arg9 << 6)) / div;
-        pEntry->unk6C = (pEntry->unk66 - (arg10 << 6)) / div;
-        pEntry->unk6E = (pEntry->unk68 - (arg11 << 6)) / div;
+        pEntry->redDelta = (pEntry->red - (arg9 << 6)) / div;
+        pEntry->greenDelta = (pEntry->green - (arg10 << 6)) / div;
+        pEntry->blueDelta = (pEntry->blue - (arg11 << 6)) / div;
 
-        pEntry->unk62 = divisor;
+        pEntry->divisor = divisor;
         pEntry->unk8 = 0;
 
         return 0;
@@ -1229,7 +1229,7 @@ s16 func_801E1258(Temp8* pTexture, s32 frameStep) {
     u32 dstAddr;
     u32 srcAddr;
 
-    if (pTexture->unk1A == 0) {
+    if (pTexture->isLoaded == 0) {
         return -1;
     }
 
@@ -1245,7 +1245,7 @@ s16 func_801E1258(Temp8* pTexture, s32 frameStep) {
     }
     pTexture->unk18 = frame;
 
-    switch (pTexture->unk10) {
+    switch (pTexture->mode) {
         case 0:
             func_80026F44(pTexture->unk12, frame, pTexture->pUnkC, pTexture->pUnk4);
             if (pTexture->pSource == NULL) {
@@ -1267,7 +1267,7 @@ s16 func_801E1258(Temp8* pTexture, s32 frameStep) {
     }
 
     pSource = pTexture->pSource;
-    if (pSource == NULL || pSource->unk1A == 0) {
+    if (pSource == NULL || pSource->isLoaded == 0) {
         return frame;
     }
 
@@ -1324,9 +1324,9 @@ s16 func_801E1258(Temp8* pTexture, s32 frameStep) {
 */
 
 void LibGearFlushTexture(Temp8* pTexture) {
-    if (pTexture->unk1A != 0) {
+    if (pTexture->isLoaded != 0) {
         if (pTexture->pUnk4 != NULL) {
-            if (pTexture->unk10 < 4) {
+            if (pTexture->mode < 4) {
                 LoadImage(&pTexture->rect, (u_long*)pTexture->pUnk4);
             }
             HeapFree(pTexture->pUnk4);
@@ -1343,7 +1343,7 @@ void LibGearFlushTexture(Temp8* pTexture) {
             pTexture->pUnkC = NULL;
         }
 
-        pTexture->unk1A = 0;
+        pTexture->isLoaded = 0;
     }
 }
 
@@ -1387,7 +1387,7 @@ void LibGearRotateModelOffsets(Model** pModels) {
     int i;
 
     for (i = 0; i < 2; i++) {
-        if (g_LibGearModelOffsets[i].unk6 != 0) {
+        if (g_LibGearModelOffsets[i].inUse != 0) {
             if (g_LibGearModelOffsets[i].modelIndex >= 0 && (pModel = pModels[g_LibGearModelOffsets[i].modelIndex]) != NULL) {
                 CompMatrix(
                     &pModel->pSkeleton[0].localTransform,
@@ -1474,14 +1474,14 @@ void func_801E3534(Model* pModel, s32 arg1, u32 arg2, u32 arg3) {
 
     pModel->unk98 = negOne;
     pModel->unk3C = 0xFFFF;
-    pModel->unk5C = 0xFF;
+    pModel->parentModelSlot = 0xFF;
     pModel->unk39 = 0x6B;
     pModel->unk8 = arg2;
     pModel->unkC = 0;
     pModel->unk10 = 0;
     pModel->unk14 = (Temp7**)arg3;
     pModel->unk18 = NULL;
-    pModel->unk2B = 0;
+    pModel->commandCount = 0;
     pModel->unk58 = 0;
     pModel->unk35 = 0;
     pModel->unk37 = 0;
@@ -1499,23 +1499,23 @@ void func_801E3534(Model* pModel, s32 arg1, u32 arg2, u32 arg3) {
     pModel->unk70[9] = 0;
     pModel->unk70[10] = 0;
     pModel->unk70[11] = 0;
-    pModel->unk70[12] = 0;
-    pModel->unk70[13] = 0;
-    pModel->unk70[14] = 0;
-    pModel->unk70[15] = one;
+    pModel->posX = 0;
+    pModel->posY = 0;
+    pModel->posZ = 0;
+    pModel->unk8E = one;
     pModel->unk36 = 0;
     pModel->unk1E = negOne;
 }
 */
 void LibGearSetAnimation(Model* pModel, Model* pSource, s32 arg2, s32 arg3) {
     if ((pModel != NULL) && (pSource != NULL)) {
-        if (pModel->unk2B != 0) {
-            if (pModel->unk2B < 5) {
-                pModel->unk2B++;
+        if (pModel->commandCount != 0) {
+            if (pModel->commandCount < 5) {
+                pModel->commandCount++;
             }
 
-            *(u8*)((u32)pModel + pModel->unk2B + 0x2A) = pSource->unk20;
-            *(u8*)((u32)pModel + pModel->unk2B + 0x2E) = arg3;
+            *(u8*)((u32)pModel + pModel->commandCount + 0x2A) = pSource->unk20;
+            *(u8*)((u32)pModel + pModel->commandCount + 0x2E) = arg3;
         } else {
             if (arg3 < 0x50) {
                 pModel->unk10 = ((u32*)pSource->unk8)[arg3];
@@ -1528,7 +1528,7 @@ void LibGearSetAnimation(Model* pModel, Model* pSource, s32 arg2, s32 arg3) {
             pModel->unk50 = 0;
             pModel->unk54 = 0;
             pModel->unk4C = 0;
-            pModel->unk10A = g_LibGearModelBitMask;
+            pModel->modelBitMask = g_LibGearModelBitMask;
             pModel->unk23 = 0;
             func_801E39F0(pModel, arg2, -1, 1, 0);
         }
@@ -1567,53 +1567,53 @@ void LibGearUpdateModelAttachment(Model* pModel) {
     MATRIX* pMatrix = (MATRIX*)PSX_SCRATCH;
     SVECTOR vec;
 
-    if (g_LibGearModels[pModel->unk5C] != NULL) {
-        if (!(pModel->unk4A & 0x10)) {
-            pModel->unk34 = g_LibGearModels[pModel->unk5C]->unk34;
+    if (g_LibGearModels[pModel->parentModelSlot] != NULL) {
+        if (!(pModel->flags & 0x10)) {
+            pModel->unk34 = g_LibGearModels[pModel->parentModelSlot]->unk34;
         }
 
         if (pModel->unk34 == 0) {
             return;
         }
 
-        if (pModel->unk5D != 0) {
-            if (pModel->unk5E != 0) {
+        if (pModel->isAttached != 0) {
+            if (pModel->parentJointIndex != 0) {
                 MulMatrix0(
-                    &g_LibGearModels[pModel->unk5C]->pSkeleton[0].globalTransform,
-                    &g_LibGearModels[pModel->unk5C]->pSkeleton[pModel->unk5E].globalTransform,
+                    &g_LibGearModels[pModel->parentModelSlot]->pSkeleton[0].globalTransform,
+                    &g_LibGearModels[pModel->parentModelSlot]->pSkeleton[pModel->parentJointIndex].globalTransform,
                     (MATRIX*)PSX_SCRATCH
                 );
             } else {
-                pMatrix = &g_LibGearModels[pModel->unk5C]->pSkeleton[0].globalTransform;
+                pMatrix = &g_LibGearModels[pModel->parentModelSlot]->pSkeleton[0].globalTransform;
             }
 
             MulMatrix2(pMatrix, &pModel->pSkeleton[0].localTransform);
             MulMatrix2(pMatrix, &pModel->pSkeleton[0].globalTransform);
         }
 
-        if (pModel->unk5E != 0) {
+        if (pModel->parentJointIndex != 0) {
             CompMatrix(
-                &g_LibGearModels[pModel->unk5C]->pSkeleton[0].localTransform,
-                &g_LibGearModels[pModel->unk5C]->pSkeleton[pModel->unk5E].globalTransform,
+                &g_LibGearModels[pModel->parentModelSlot]->pSkeleton[0].localTransform,
+                &g_LibGearModels[pModel->parentModelSlot]->pSkeleton[pModel->parentJointIndex].globalTransform,
                 pMatrix
             );
         } else {
-            pMatrix = &g_LibGearModels[pModel->unk5C]->pSkeleton[0].localTransform;
+            pMatrix = &g_LibGearModels[pModel->parentModelSlot]->pSkeleton[0].localTransform;
         }
 
         SetRotMatrix(pMatrix);
         SetTransMatrix(pMatrix);
 
-        vec.vx = *(u16*)&pModel->unk62[8];
-        vec.vy = *(u16*)&pModel->unk62[10];
-        vec.vz = *(u16*)&pModel->unk62[12];
+        vec.vx = pModel->attachOffsetX;
+        vec.vy = pModel->attachOffsetY;
+        vec.vz = pModel->attachOffsetZ;
 
         gte_ldv0(&vec);
         gte_mvmva(1, 0, 0, 0, 0);
         gte_stlvnl(&pModel->pSkeleton[0].localTransform.t[0]);
         gte_stlvnl(&pModel->pSkeleton[0].translation.x);
     } else {
-        pModel->unk5C = 0xFF;
+        pModel->parentModelSlot = 0xFF;
     }
 }
 
@@ -1641,10 +1641,10 @@ void LibGearSetJointRotation(Temp4* pList, ModelJoint* pJoint, s32 numFrames, s3
     }
 
     if (pObject != NULL) {
-        pObject->unk0 = 1;
+        pObject->inUse = 1;
         pObject->unk1 = 0;
         pObject->unk2 = 3;
-        pObject->unk3 = 0xFE;
+        pObject->type = 0xFE;
 
         pObject->unk4 = pJoint->rotation.vx;
         pObject->unk6 = pJoint->rotation.vy;
@@ -1669,7 +1669,7 @@ void LibGearSetJointRotation(Temp4* pList, ModelJoint* pJoint, s32 numFrames, s3
         pObject->unkE = z;
 
         pObject->unk10 = 0;
-        pObject->unk12 = numFrames;
+        pObject->endFrame = numFrames;
         pJoint->unk70 = (u32)pObject;
     }
 }
@@ -1687,10 +1687,10 @@ void LibGearMoveJointToPoint(Temp4* pList, ModelJoint* pJoint, s32 arg2, s32 arg
     }
 
     if (pObject != NULL) {
-        pObject->unk0 = 1;
+        pObject->inUse = 1;
         pObject->unk1 = 0;
         pObject->unk2 = arg2 + 7;
-        pObject->unk3 = 0xFE;
+        pObject->type = 0xFE;
 
         dx = x - pJoint->translation.x;
         dy = y - pJoint->translation.y;
@@ -1703,7 +1703,7 @@ void LibGearMoveJointToPoint(Temp4* pList, ModelJoint* pJoint, s32 arg2, s32 arg
         pObject->unkC = y;
         pObject->unkE = z;
         pObject->unk10 = 0;
-        pObject->unk12 = arg5;
+        pObject->endFrame = arg5;
 
         pJoint->unk70 = (u32)pObject;
     }
@@ -1719,7 +1719,7 @@ void LibGearPlayAnimationScript(Model* pModel, Temp7* pEntry, s32 arg2) {
         }
         pModel->unk9C = 0;
         pModel->unk9E = pEntry->unk12;
-        pModel->unkA0 = (u8*)pEntry + pEntry->unk14;
+        pModel->unkA0 = (u8*)pEntry + pEntry->dataOffset;
         pModel->unkA4 = pModel->unkA0;
     } else {
         pModel->unk98 = -1;
@@ -1772,9 +1772,9 @@ void LibGearStopAnimationScript(Model* pModel) {
 }
 
 int LibGearGetModelDistance(Model* pModel) {
-    int dx = pModel->unk70[0xC] - pModel->pSkeleton->translation.x;
-    int dy = pModel->unk70[0xD] - pModel->pSkeleton->translation.y;
-    int dz = pModel->unk70[0xE] - pModel->pSkeleton->translation.z;
+    int dx = pModel->posX - pModel->pSkeleton->translation.x;
+    int dy = pModel->posY - pModel->pSkeleton->translation.y;
+    int dz = pModel->posZ - pModel->pSkeleton->translation.z;
 
     return SquareRoot0(dx * dx + dy * dy + dz * dz);
 }
@@ -1843,7 +1843,7 @@ void func_801E63A8(Model* pModel) {
     index = 0;
     if (pModel->unk58 == 0xFF) {
         for (index = 0; index < 8; index++) {
-            if ((pModel->unk10A >> index) & 0x1) {
+            if ((pModel->modelBitMask >> index) & 0x1) {
                 break;
             }
         }
@@ -1900,9 +1900,9 @@ void func_801E63A8(Model* pModel) {
     gte_mvmva(1, 0, 0, 0, 0);
     gte_stlvnl(value);
 
-    pModel->unk70[12] = value[0];
-    pModel->unk70[13] = value[2];
-    pModel->unk70[14] = value[4];
+    pModel->posX = value[0];
+    pModel->posY = value[2];
+    pModel->posZ = value[4];
 
     pObject = (Temp3*)pModel->pSkeleton->unk70;
     if (pObject != NULL) {
@@ -2120,10 +2120,10 @@ void func_801E6974(Model* pModel, Temp4* pList, ModelJoint* pJoint, s32 flags,
         }
     }
 
-    pObject->unk0 = 1;
+    pObject->inUse = 1;
     pObject->unk1 = arg6;
     pObject->unk2 = arg4 + 3;
-    pObject->unk3 = arg5;
+    pObject->type = arg5;
 
     if (flags & 0x20) {
         if (channel == 0) {
@@ -2180,7 +2180,7 @@ void func_801E6974(Model* pModel, Temp4* pList, ModelJoint* pJoint, s32 flags,
     }
 
     pObject->unk10 = 0;
-    pObject->unk12 = arg13;
+    pObject->endFrame = arg13;
 
     if (channel == 0) {
         if (arg4 < 2) {
@@ -2435,7 +2435,7 @@ void LibGearInitialize(int capacity) {
     }
 
     for (i = 0; i < 2; i++) {
-        g_LibGearModelOffsets[i].unk6 = 0;
+        g_LibGearModelOffsets[i].inUse = 0;
     }
 }
 
@@ -2464,15 +2464,15 @@ void LibGearRenderFrame(MATRIX* pMatrix, s32 arg1, s32* pOT, s32 arg3, s32 arg4)
 
     for (i = 0; i < MAX_MODELS; i++) {
         if (g_LibGearModels[i] != NULL) {
-            g_LibGearModels[i]->unk11C = g_LibGearModels[i]->pSkeleton->translation.x;
-            g_LibGearModels[i]->unk120 = g_LibGearModels[i]->pSkeleton->translation.y;
-            g_LibGearModels[i]->unk124 = g_LibGearModels[i]->pSkeleton->translation.z;
+            g_LibGearModels[i]->prevPosX = g_LibGearModels[i]->pSkeleton->translation.x;
+            g_LibGearModels[i]->prevPosY = g_LibGearModels[i]->pSkeleton->translation.y;
+            g_LibGearModels[i]->prevPosZ = g_LibGearModels[i]->pSkeleton->translation.z;
             LibGearStepModelAnimation(g_LibGearModels[i], (s32)&g_LibGearJointObjectPool, count, arg3, 1);
         }
     }
 
     for (i = 0; i < MAX_MODELS; i++) {
-        if (g_LibGearModels[i] != NULL && g_LibGearModels[i]->unk5C < 0xFF) {
+        if (g_LibGearModels[i] != NULL && g_LibGearModels[i]->parentModelSlot < 0xFF) {
             LibGearUpdateModelAttachment(g_LibGearModels[i]);
         }
     }
@@ -2482,9 +2482,9 @@ void LibGearRenderFrame(MATRIX* pMatrix, s32 arg1, s32* pOT, s32 arg3, s32 arg4)
 
     for (i = 0; i < MAX_MODELS; i++) {
         if (g_LibGearModels[i] != NULL) {
-            g_LibGearModels[i]->unk128 = g_LibGearModels[i]->unk11C - g_LibGearModels[i]->pSkeleton->translation.x;
-            g_LibGearModels[i]->unk12C = g_LibGearModels[i]->unk120 - g_LibGearModels[i]->pSkeleton->translation.y;
-            g_LibGearModels[i]->unk130 = g_LibGearModels[i]->unk124 - g_LibGearModels[i]->pSkeleton->translation.z;
+            g_LibGearModels[i]->posDeltaX = g_LibGearModels[i]->prevPosX - g_LibGearModels[i]->pSkeleton->translation.x;
+            g_LibGearModels[i]->posDeltaY = g_LibGearModels[i]->prevPosY - g_LibGearModels[i]->pSkeleton->translation.y;
+            g_LibGearModels[i]->posDeltaZ = g_LibGearModels[i]->prevPosZ - g_LibGearModels[i]->pSkeleton->translation.z;
             func_801DCEC8(g_LibGearModels[i], pMatrix, arg1, 1, 1, pOT, arg3);
         }
     }
@@ -2512,8 +2512,8 @@ void LibGearFreeModel(s32 modelIndex) {
         return;
     }
 
-    if (g_LibGearModels[modelIndex]->unkA8 != NULL) {
-        HeapFree(g_LibGearModels[modelIndex]->unkA8);
+    if (g_LibGearModels[modelIndex]->pModelFile != NULL) {
+        HeapFree(g_LibGearModels[modelIndex]->pModelFile);
         LibGearFreeModelMesh(g_LibGearModels[modelIndex]->pMesh, 1);
     }
 
@@ -2545,15 +2545,15 @@ void LibGearFreeModel(s32 modelIndex) {
         }
     }
 
-    if (g_LibGearModels[modelIndex]->unk10C != 0) {
-        HeapFree(g_LibGearModels[modelIndex]->unk110);
+    if (g_LibGearModels[modelIndex]->numColorEntries != 0) {
+        HeapFree(g_LibGearModels[modelIndex]->pColorEntries);
     }
 
-    if (g_LibGearModels[modelIndex]->unk10E != 0) {
-        for (i = 0; i < g_LibGearModels[modelIndex]->unk10E; i++) {
-            LibGearFlushTexture(&g_LibGearModels[modelIndex]->unk118[i]);
+    if (g_LibGearModels[modelIndex]->numTextures != 0) {
+        for (i = 0; i < g_LibGearModels[modelIndex]->numTextures; i++) {
+            LibGearFlushTexture(&g_LibGearModels[modelIndex]->pTextures[i]);
         }
-        HeapFree(g_LibGearModels[modelIndex]->unk118);
+        HeapFree(g_LibGearModels[modelIndex]->pTextures);
     }
 
     if (g_LibGearModels[modelIndex]->unk10D != 0) {
@@ -2596,7 +2596,7 @@ int LibGearGetModelHeight(int modelIndex) {
     int result = 0;
 
     if (pModel != NULL) {
-        result = (pModel->unk24 * ((pModel->scale * pModel->pSkeleton->scale.vy) >> 0xC)) >> 0xC;
+        result = (pModel->height * ((pModel->scale * pModel->pSkeleton->scale.vy) >> 0xC)) >> 0xC;
     }
 
     return result;
@@ -2608,12 +2608,12 @@ int LibGearGetModelWidth(int modelIndex) {
     int result = 0;
 
     if (g_LibGearModels[modelIndex] != NULL) {
-        if (g_LibGearModels[modelIndex]->unk4A & 0x8) {
+        if (g_LibGearModels[modelIndex]->flags & 0x8) {
             jointScale = g_LibGearModels[modelIndex]->pSkeleton->scale.vx;
-            factor = g_LibGearModels[modelIndex]->unk26;
+            factor = g_LibGearModels[modelIndex]->width;
         } else {
             jointScale = g_LibGearModels[modelIndex]->pSkeleton->scale.vz;
-            factor = g_LibGearModels[modelIndex]->unk28;
+            factor = g_LibGearModels[modelIndex]->depth;
         }
 
         result = factor * ((g_LibGearModels[modelIndex]->scale * jointScale) >> 0xC) >> 0xC;
@@ -2626,12 +2626,12 @@ void LibGearAllocateColorEntries(Model* pModel) {
     int i;
     UnkInner1* pObjects;
 
-    if (pModel->unk10C) {
-        pObjects = HeapAlloc(pModel->unk10C * sizeof(UnkInner1), 0x0);
-        for (i = 0; i < pModel->unk10C; i++) {
+    if (pModel->numColorEntries) {
+        pObjects = HeapAlloc(pModel->numColorEntries * sizeof(UnkInner1), 0x0);
+        for (i = 0; i < pModel->numColorEntries; i++) {
             pObjects[i].unk0 = -1;
             pObjects[i].unk8 = 0;
         }
-        pModel->unk110 = pObjects;
+        pModel->pColorEntries = pObjects;
     }
 }

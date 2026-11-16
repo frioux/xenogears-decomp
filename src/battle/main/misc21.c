@@ -906,8 +906,8 @@ void BattleResetSpritePool(BattleSpritePool* pPool) {
 
     pVertex = (Vertex*)pPool->pBlocks;
     for (i = 0; i < pPool->count + 1; i++) {
-        pVertex->unk16 = -1;
-        pVertex->unk1E = 0;
+        pVertex->age = -1;
+        pVertex->lifetime = 0;
 
         for (j = 0; j < 2; j++) {
             SetPolyFT4(&pVertex->polys[j]);

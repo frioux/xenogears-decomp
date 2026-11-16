@@ -57,12 +57,12 @@ typedef struct {
     /* 0x10 */ u_short x2;
     /* 0x12 */ u_short y2;
     /* 0x14 */ u_short z2;
-    /* 0x16 */ short unk16;
+    /* 0x16 */ short age; // frames survived, -1 = free entry
     
     /* 0x18 */ u_short x3;
     /* 0x1A */ u_short y3;
     /* 0x1C */ u_short z3;
-    /* 0x1E */ short unk1E;
+    /* 0x1E */ short lifetime; // freed once age reaches it
     
     /* 0x20 */ u_short red;
     /* 0x22 */ u_short green;
@@ -81,10 +81,10 @@ typedef struct {
 
 /* Unknown list */
 typedef struct {
-    /* 0x0  */ u8 unk0;
+    /* 0x0  */ u8 inUse;
     /* 0x1  */ u8 unk1;
     /* 0x2  */ u8 unk2;
-    /* 0x3  */ u8 unk3;
+    /* 0x3  */ u8 type;
     /* 0x4  */ s16 unk4;
     /* 0x6  */ s16 unk6;
     /* 0x8  */ s16 unk8;
@@ -92,12 +92,12 @@ typedef struct {
     /* 0xC  */ s16 unkC;
     /* 0xE  */ s16 unkE;
     /* 0x10 */ s16 unk10;
-    /* 0x12 */ s16 unk12;
+    /* 0x12 */ s16 endFrame; // frame the interpolation runs to
 } Temp3; // Size: 0x14
 
 typedef struct {
     /* 0x0 */ Temp3* pObjects;
-    /* 0x4 */ u16 unk4;
+    /* 0x4 */ u16 freeIndex; // lowest index that may be free; the alloc scan starts here
     /* 0x6 */ u16 numObjects;
 } Temp4;
 /* -------------- */
@@ -114,7 +114,7 @@ typedef struct {
     /* 0x0  */ u_short x0;
     /* 0x2  */ u_short y0;
     /* 0x4  */ u_short z0;
-    /* 0x6  */ s16 unk6;
+    /* 0x6  */ s16 inUse;
     /* 0x8  */ u_short x1;
     /* 0xA  */ u_short y1;
     /* 0xC  */ u_short z1;
@@ -130,13 +130,13 @@ typedef struct _Temp8 {
     /* 0x4  */ u16* pUnk4;
     /* 0x8  */ void* pUnk8;
     /* 0xC  */ void* pUnkC;
-    /* 0x10 */ u8 unk10;
+    /* 0x10 */ u8 mode; // 0/1 raw copy, 4 fade, 5 blend
     /* 0x11 */ u8 unk11;
     /* 0x12 */ s16 unk12;
     /* 0x14 */ u16 unk14;
     /* 0x16 */ u16 unk16;
     /* 0x18 */ u16 unk18;
-    /* 0x1A */ u16 unk1A;
+    /* 0x1A */ u16 isLoaded; // buffers below are held; cleared by LibGearFlushTexture
     /* 0x1C */ void* pUnk1C;
     /* 0x20 */ s16 unk20;
     /* 0x22 */ s16 unk22;
@@ -169,14 +169,14 @@ typedef struct {
     /* 0x1A */ u8 unk1A[0x42];
     /* 0x5C */ s16 unk5C;
     /* 0x5E */ s16 unk5E;
-    /* 0x60 */ s16 unk60;
-    /* 0x62 */ s16 unk62;
-    /* 0x64 */ s16 unk64;
-    /* 0x66 */ s16 unk66;
-    /* 0x68 */ s16 unk68;
-    /* 0x6A */ s16 unk6A;
-    /* 0x6C */ s16 unk6C;
-    /* 0x6E */ s16 unk6E;
+    /* 0x60 */ s16 numFrames;
+    /* 0x62 */ s16 divisor;
+    /* 0x64 */ s16 red;
+    /* 0x66 */ s16 green;
+    /* 0x68 */ s16 blue;
+    /* 0x6A */ s16 redDelta;
+    /* 0x6C */ s16 greenDelta;
+    /* 0x6E */ s16 blueDelta;
 } UnkInner1; // Size: 0x70
 
 // Entry of a per-model pointer list (Model::unk14 / Model::unk18)
@@ -185,7 +185,7 @@ typedef struct {
     /* 0x2  */ u16 unk2;
     /* 0x4  */ u8 unk4[0xE];
     /* 0x12 */ u16 unk12;
-    /* 0x14 */ u32 unk14; // offset from the start of this entry
+    /* 0x14 */ u32 dataOffset; // offset from the start of this entry
 } Temp7; // Size: 0x18
 
 typedef struct {
@@ -202,11 +202,11 @@ typedef struct {
     /* 0x21  */ u8 unk21;
     /* 0x22  */ u8 unk22[0x1];
     /* 0x23  */ u8 unk23;
-    /* 0x24  */ s16 unk24;
-    /* 0x26  */ s16 unk26;
-    /* 0x28  */ s16 unk28;
+    /* 0x24  */ s16 height;
+    /* 0x26  */ s16 width;
+    /* 0x28  */ s16 depth;
     /* 0x2A  */ u8 unk2A;
-    /* 0x2B  */ u8 unk2B;
+    /* 0x2B  */ u8 commandCount; // appended model/animation changes, capped at 5
     /* 0x2C  */ u8 unk2C[0x8];
     /* 0x34  */ u8 unk34;
     /* 0x35  */ u8 unk35;
@@ -220,18 +220,25 @@ typedef struct {
     /* 0x40  */ s16 unk40;
     /* 0x42  */ s16 unk42;
     /* 0x44  */ u8 unk44[0x6];
-    /* 0x4A  */ u16 unk4A;
+    /* 0x4A  */ u16 flags;
     /* 0x4C  */ u32 unk4C;
     /* 0x50  */ u32 unk50;
     /* 0x54  */ u32 unk54;
     /* 0x58  */ s16 unk58;
     /* 0x5A  */ s16 unk5A;
-    /* 0x5C  */ u8 unk5C;
-    /* 0x5D  */ u8 unk5D;
-    /* 0x5E  */ s16 unk5E;
+    /* 0x5C  */ u8 parentModelSlot; // g_LibGearModels slot whose transform this one inherits; 0xFF = none
+    /* 0x5D  */ u8 isAttached;
+    /* 0x5E  */ s16 parentJointIndex;
     /* 0x60  */ s16 ground; // seems to be some kind of offset? maybe "below this point model will clip through the ground"?
-    /* 0x62  */ u8 unk62[0xE];
-    /* 0x70  */ s16 unk70[0x10];
+    /* 0x62  */ u8 unk62[0x8];
+    /* 0x6A  */ u16 attachOffsetX;
+    /* 0x6C  */ u16 attachOffsetY;
+    /* 0x6E  */ u16 attachOffsetZ;
+    /* 0x70  */ s16 unk70[0xC];
+    /* 0x88  */ s16 posX;
+    /* 0x8A  */ s16 posY;
+    /* 0x8C  */ s16 posZ;
+    /* 0x8E  */ s16 unk8E;
     /* 0x90  */ u8 unk90[0x8];
     /* 0x98  */ s16 unk98;
     /* 0x9A  */ s16 unk9A;
@@ -239,26 +246,26 @@ typedef struct {
     /* 0x9E  */ s16 unk9E;
     /* 0xA0  */ u8* unkA0;
     /* 0xA4  */ u8* unkA4;
-    /* 0xA8  */ void* unkA8;
+    /* 0xA8  */ void* pModelFile;
     /* 0xAC  */ void* unkAC;
     /* 0xB0  */ void* unkB0;
     /* 0xB4  */ void* unkB4;
     /* 0xB8  */ POLY_FT4 polys[2];
     /* 0x108 */ u8 unk108[0x2];
-    /* 0x10A */ u16 unk10A;
-    /* 0x10C */ u8 unk10C;
+    /* 0x10A */ u16 modelBitMask;
+    /* 0x10C */ u8 numColorEntries;
     /* 0x10D */ u8 unk10D;
-    /* 0x10E */ u8 unk10E;
+    /* 0x10E */ u8 numTextures;
     /* 0x10F */ u8 unk10F;
-    /* 0x110 */ UnkInner1* unk110; // 0x70 sized array, unk10C entries
+    /* 0x110 */ UnkInner1* pColorEntries; // 0x70 sized array, numColorEntries entries
     /* 0x114 */ Temp9* unk114; // unk10D entries
-    /* 0x118 */ Temp8* unk118; // unk10E entries
-    /* 0x11C */ s32 unk11C; // joint translation snapshot, then displaced by the live one
-    /* 0x120 */ s32 unk120;
-    /* 0x124 */ s32 unk124;
-    /* 0x128 */ s32 unk128;
-    /* 0x12C */ s32 unk12C;
-    /* 0x130 */ s32 unk130;
+    /* 0x118 */ Temp8* pTextures; // numTextures entries
+    /* 0x11C */ s32 prevPosX; // root joint translation before the step
+    /* 0x120 */ s32 prevPosY;
+    /* 0x124 */ s32 prevPosZ;
+    /* 0x128 */ s32 posDeltaX; // prevPos - the translation after the step
+    /* 0x12C */ s32 posDeltaY;
+    /* 0x130 */ s32 posDeltaZ;
 } Model; // Size: 0x134
 
 // Keyframe block consumed by the joint update loops: a 0x18 byte header
@@ -266,7 +273,7 @@ typedef struct {
 typedef struct {
     /* 0x0  */ u16 unk0;
     /* 0x2  */ u16 unk2;
-    /* 0x4  */ u16 unk4; // bit 0 skips the rotation channel, bit 1 the translation channel
+    /* 0x4  */ u16 flags; // bit 0 skips the rotation channel, bit 1 the translation channel
     /* 0x6  */ u16 unk6;
     /* 0x8  */ u16 unk8;
     /* 0xA  */ u16 unkA;
