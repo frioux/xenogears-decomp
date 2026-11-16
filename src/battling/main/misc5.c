@@ -606,8 +606,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007D7A8);
    single sra 24, gcc carries the raw u16 and extracts with sll 24 / sra 24 (and
    for vz fuses the << 7 into sra 17). The store order (unk7 before unk6) and
    the separate s8 texel local came from the permuter (91.67 -> 95.82 ->
-   96.85); one more permuter run from this body is the next step.
-
+   96.85); one more permuter run from this body is the next step. */
 /*
 void func_8007D7A8(VECTOR *pSrc, s32 count) {
     BattleSpriteEntry *pEntry = (BattleSpriteEntry *)D_800926BC;
