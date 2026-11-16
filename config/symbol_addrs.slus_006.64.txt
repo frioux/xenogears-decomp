@@ -1532,3 +1532,4 @@ g_StrDebugCdFormat = 0x80018390;
 g_FontExternalBuffer = 0x800593A0;
 g_EmbeddedFontFile = 0x80050240;
 SystemFormatNumberGlyphs = 0x80033CF0;
+ArchiveCdReadyReadQueuedFile = 0x8002AC24;

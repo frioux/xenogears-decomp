@@ -57,6 +57,7 @@ REALISTIC C - a match is step one, not the finish. The goal is source a 1998 Squ
 
 TECHNIQUES THAT PAY OFF
 - Signed vs unsigned: \`sll/sra\` pairs vs \`andi 0xff\` mean a parameter or field has the wrong type.
+- Stack arguments: gcc 2.6.0 puts arg N (6 and up) at 16 + (N-6)*4 from sp, so a callee reads it at frame_size + 16 + (N-6)*4. When the .s reads a stack arg LOWER than your prototype predicts, the function has FEWER parameters than you declared: battle/misc22 func_800A48EC reads its pOt at 0x54, which is exactly 8 params (round 140).
 - \`lhu\`/\`lbu\` in the original vs \`lw\` in yours tells you the true field width.
 - Register allocation misses usually come from local declaration order, split/merged temporaries, or a repeated field load turned into a local (or the reverse).
 - Try \`++i\` vs \`i++\` and swapping operands of commutative ops when only instruction order differs.
