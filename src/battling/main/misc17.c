@@ -7,9 +7,12 @@ extern s32 D_8009283C;
 extern s32 D_80092840;
 extern s32 D_80092844;
 extern s32 D_8009284C;
+extern u8 D_80092848;
 extern u8 D_800928A0;
 extern u8 D_80096DE0[];
 extern u8 D_80096E00[];
+extern u8 D_80099DA2;
+extern u8 D_80099D9E;
 
 typedef struct {
     /* 0x00 */ u8 unk0;
@@ -28,32 +31,7 @@ typedef struct {
     /* 0x0 */ u32 w[4];
 } SlotData; // Size: 0x10
 
-// A battle participant as this unit drives it. Same layout as the BattleActor
-// in src/battling/main/misc18.c; the fields this unit does not read stay
-// opaque.
-typedef struct BattleActor {
-    /* 0x000 */ u8 unk0[0x48];
-    /* 0x048 */ s32 unk48;
-    /* 0x04C */ u8 unk4C[0xC];
-    /* 0x058 */ s32 unk58;
-    /* 0x05C */ u8 unk5C[0x3C];
-    /* 0x098 */ s32 unk98;
-    /* 0x09C */ s32 unk9C;
-    /* 0x0A0 */ u8 unkA0[0x14];
-    /* 0x0B4 */ s16 unkB4;
-    /* 0x0B6 */ s16 unkB6;
-    /* 0x0B8 */ u8 unkB8[0x4];
-    /* 0x0BC */ s16 unkBC;
-    /* 0x0BE */ s16 unkBE;
-    /* 0x0C0 */ u8 unkC0[0xE];
-    /* 0x0CE */ s16 unkCE;
-    /* 0x0D0 */ u32 flags;
-    /* 0x0D4 */ u8 unkD4[0x835];
-    /* 0x909 */ u8 unk909;
-    /* 0x90A */ u8 unk90A[0xD5A];
-    /* 0x1664 */ u8* pSoundTable;
-    /* 0x1668 */ u16 unk1668;
-} BattleActor; // Size: 0x166A
+struct BattleActor;
 
 // The flags word at +0x2C of a BattleWork (see src/battling/main/misc18.c).
 typedef union {
@@ -79,7 +57,7 @@ typedef union {
 // the next state change and is stored as a byte elsewhere, so it is read
 // through a u16 here and compared signed.
 typedef struct {
-    /* 0x00 */ BattleActor* pOwner;
+    /* 0x00 */ struct BattleActor* pOwner;
     /* 0x04 */ u16 unk4;
     /* 0x06 */ u16 pad6;
     /* 0x08 */ u8 unk8;
@@ -99,6 +77,36 @@ typedef struct {
     /* 0x30 */ u16 unk30;
     /* 0x32 */ u16 pad32;
 } BattleWork; // Size: 0x34
+
+// A battle participant as this unit drives it. Same layout as the BattleActor
+// in src/battling/main/misc18.c; the fields this unit does not read stay
+// opaque.
+typedef struct BattleActor {
+    /* 0x000 */ u8 unk0[0x48];
+    /* 0x048 */ s32 unk48;
+    /* 0x04C */ u8 unk4C[0xC];
+    /* 0x058 */ s32 unk58;
+    /* 0x05C */ u8 unk5C[0x3C];
+    /* 0x098 */ s32 unk98;
+    /* 0x09C */ s32 unk9C;
+    /* 0x0A0 */ u8 unkA0[0x14];
+    /* 0x0B4 */ s16 unkB4;
+    /* 0x0B6 */ s16 unkB6;
+    /* 0x0B8 */ u8 unkB8[0x4];
+    /* 0x0BC */ s16 unkBC;
+    /* 0x0BE */ s16 unkBE;
+    /* 0x0C0 */ u8 unkC0[0xC];
+    /* 0x0CC */ u16 unkCC;
+    /* 0x0CE */ s16 unkCE;
+    /* 0x0D0 */ u32 flags;
+    /* 0x0D4 */ u8 unkD4[0x835];
+    /* 0x909 */ u8 unk909;
+    /* 0x90A */ u8 unk90A[0xCF2];
+    /* 0x15FC */ BattleWork* pWork;
+    /* 0x1600 */ u8 unk1600[0x64];
+    /* 0x1664 */ u8* pSoundTable;
+    /* 0x1668 */ u16 unk1668;
+} BattleActor; // Size: 0x166A
 
 extern BattleSlot D_80096EA0[];
 extern BattleSlot D_80096F0C[];
@@ -531,6 +539,109 @@ void BattleSetActionFieldFAndDispatch(BattleActor* pActor, BattleWork* pWork, u8
     BattleDispatchWorkState(pActor);
 }
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008F280);
+/* best: objdiff 93.31%, size exact (628 bytes) and both jump tables exact: 12
+   entries for the 2..0xD switch (default shares the decrement arm) and 14 for
+   the 0..0xD one (case 0 shares the default). From the first switch to the end
+   the instruction stream is identical; the whole remaining difference is the
+   ENTRY BLOCK order. Retail emits: sw s0 / sw ra / sw s1 / lw s1,0x15FC(s0) /
+   lbu D_80099DA2 / lbu D_80092848 / ori+lui+sb D_80099D9E / beq. gcc emits:
+   sw s0 / lbu D_80099DA2 / li+sb D_80099D9E / lbu D_80092848 / sw ra / sw s1 /
+   lw s1,0x15FC(s0) / beq - it sinks the pWork load below the two global reads
+   and splits them around the flag store, and it also steals the flag-test
+   body's lw v0,0xD0(s0) into the beqz delay slot where retail has a nop.
+   Tried: pWork load first, after the flag store, and as a declaration
+   initialiser; the state read in a local; both globals read into locals (gcc
+   folds a single-use local back into the branch); the compare written in both
+   operand orders; a boolean local for the compare (also folded back); s32
+   instead of void (that one does add retail's nop after the condition's lw but
+   keeps the stolen beq delay slot and does not change the percentage).
+   Permuter, 1168 iterations: one better shape (605 -> 300, objdiff 94.39%),
+   assigning pWork inside the reset block after its own uses - no source retail
+   can have written, and it trades the adjacent global loads for the pWork load
+   and its save, so it is not worth keeping.
+// The per-state action handler. A change of state (D_80099DA2) resets the work
+// slot, the actor's flags and the work flags word, then the state's handler
+// runs and most states advance the actor's approach animation at the end.
+void func_8008F280(BattleActor* pActor) {
+    BattleWork* pWork;
+
+    pWork = pActor->pWork;
+    D_80099D9E = 1;
+    if (D_80092848 != D_80099DA2) {
+        pWork->unk4 = 0;
+        pWork->unkC = 0;
+        pActor->flags &= ~2;
+        pActor->unk48 = 0;
+        pActor->flags &= ~0x38;
+        pWork->unk2C.flags &= ~0x2000;
+        D_80092848 = D_80099DA2;
+        pActor->unkCE = pActor->unkCC + 0x800;
+    }
+    if (pWork->unk2C.flags & 0x2000) {
+        pActor->flags |= 2;
+    }
+    switch (D_80099DA2) {
+    case 2:
+    case 8:
+    case 9:
+    case 11:
+    case 12:
+    case 13:
+        break;
+    default:
+        pWork->unk4 -= 1;
+        if ((s16)pWork->unk4 != -1) {
+            return;
+        }
+        break;
+    }
+    switch (D_80099DA2) {
+    case 3:
+        BattleQueueRandomMessagesAndDelay(pActor, pWork, 0);
+        break;
+    case 4:
+        BattleQueueRandomMessagesAndDelay(pActor, pWork, 1);
+        break;
+    case 5:
+        BattleQueueMessage3AndDelay60(pActor, pWork);
+        break;
+    case 6:
+        BattleQueueMessages4Then3Delay60(pActor, pWork);
+        break;
+    case 7:
+        BattleQueueMessage4AndDelay60(pActor, pWork);
+        break;
+    case 9:
+        BattleSetRandomFacingAround800(pActor, pWork);
+        break;
+    case 8:
+        BattleSetRandomFacingAround0(pActor, pWork);
+        break;
+    case 10:
+        BattleCheckStateAndSetDelay60(pActor, pWork);
+        break;
+    case 11:
+        BattleSetActionFieldFAndDispatch(pActor, pWork, 0);
+        return;
+    case 12:
+        BattleSetActionFieldFAndDispatch(pActor, pWork, 1);
+        return;
+    case 13:
+        BattleSetActionFieldFAndDispatch(pActor, pWork, 2);
+        return;
+    case 2:
+        D_80099D9E = 0;
+        return;
+    case 1:
+        BattleToggleActionFlag2000(pActor, pWork);
+        break;
+    case 0:
+    default:
+        pWork->unk4 = 1;
+        break;
+    }
+    BattleUpdateActorApproach(pActor, pWork->unkA, pWork->unkC);
+}*/
 s32 BattleCheckValueAboveScaledMax(BattleActor* pActor, s32 arg1) {
     return (pActor->unkBC * arg1) / 255 < pActor->unkB4;
 }
