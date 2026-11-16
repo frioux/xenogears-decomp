@@ -244,6 +244,34 @@ and never before: a name needs a use in the code as evidence, and a wrong name i
 worse than a placeholder. Fields are lowerCamelCase. A name that restates the type
 or the address (`g_ByteTable`, `field4`) is not an improvement.
 
+**Constants**: a number that means something is written as a named constant, not
+as the raw value the disassembly shows. `if (stat > 0x63) stat = 0x63;` matches and
+says nothing; `if (stat > MENU_STAT_PERCENT_MAX) stat = MENU_STAT_PERCENT_MAX;` is
+what was typed. This covers limits and caps, counts and sizes, ids (items, states,
+modes, commands, resources), flag bits and sentinels.
+
+- `#define AREA_THING_MAX 99`, upper snake case with the area prefix, in the style
+  of `FIELD_OT_MAX_SIZE` and `SHOP_RES_ITEM_DATA`. A `#define` of the same value
+  puts the same token in front of the compiler, so it cannot change a byte.
+- Write the value in the base a programmer would have: decimal for quantities
+  (`99`, `250`, not `0x63`, `0xFA`), hex for bit masks, flags and addresses-in-data.
+- A constant used by one `.c` file is defined at the top of that file, below the
+  includes. One that describes a struct or table in a header, or is used from
+  several files, lives in that header beside the declaration. Use a constant that
+  already exists rather than defining a second one, and use `sizeof` or the array
+  dimension instead of a number that only repeats a declared size.
+- One constant per meaning, not per value: two limits that both happen to be 99
+  are two names unless the code shows they are the same limit.
+- The evidence rule for names applies. Name what the use demonstrates (a value a
+  stat is clamped to is that stat's maximum). A name that restates the value
+  (`VALUE_63`, `CONST_FA`, `NINETY_NINE`) is not a name, and a guess at the game's
+  meaning is worse than the number. Where the code does not show what a value
+  means, leave the literal, in its natural base.
+- Not constants: `0`, `1` and `-1` used as plain arithmetic or as TRUE/FALSE/NULL
+  (use those), shift counts and byte masks in arithmetic (`>> 8`, `& 0xFF`),
+  fixed-point and GTE math, and struct offsets (those are missing fields, see
+  **Structs**).
+
 **Files**: `#include "common.h"` first. Data definitions are grouped under a
 section comment (`// .sbss`, `// .rodata`, `// .data`) in address order. Keep a
 matched function free of analysis debris: no commented-out alternatives, no
@@ -490,8 +518,9 @@ tools/rounds/clone.sh reset misc sound temp2 ...    # same clones, next round
 
 Names follow in their own passes once the C exists: `tools/rounds/name-brief.js`
 (read-only; proposes function and global names for `rename_sym.py`, `name_addrs.py`
-and `rename_data.py`) and `tools/rounds/field-brief.js` (clones; renames and splits
-`unk` struct fields and proves the build).
+and `rename_data.py`), `tools/rounds/field-brief.js` (clones; renames and splits
+`unk` struct fields and proves the build) and `tools/rounds/const-brief.js` (clones;
+replaces raw numbers in matched C with named constants and proves the build).
 
 `tools/rounds/brief.js` carries the accumulated playbook (the C idioms, the
 blockers already proved, the two mandatory gates) — read it before writing a

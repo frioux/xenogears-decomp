@@ -3,6 +3,12 @@
 #include "system/menu.h"
 #include "main/game.h"
 
+// Limits MenuComputeCharacterStats puts on the dressing room's stat values.
+#define MENU_STAT_MAX 250
+#define MENU_STAT_PERCENT_MAX 99 // hit and evade
+#define MENU_STAT_AGILITY_MAX 20
+#define MENU_STAT_AGILITY_CAPPED 16 // what agility above the maximum is set to
+
 extern u8 D_801EA564[];
 extern u8 D_801EA568[];
 extern u8 D_801E9808[];
@@ -727,26 +733,26 @@ void MenuComputeCharacterStats(MenuDressingRoom* pDressingRoom, u8 charIndex) {
     pDressingRoom->statValues[4] = pChar->ether + pChar->etherFromEquipment;
     pDressingRoom->statValues[5] = pChar->etherDefense + pChar->etherDefenseFromEquipment;
     pDressingRoom->statValues[6] = pChar->agility + pChar->agilityFromEquipment;
-    if (pDressingRoom->statValues[0] > 0xFA) {
-        pDressingRoom->statValues[0] = 0xFA;
+    if (pDressingRoom->statValues[0] > MENU_STAT_MAX) {
+        pDressingRoom->statValues[0] = MENU_STAT_MAX;
     }
-    if (pDressingRoom->statValues[1] > 0x63) {
-        pDressingRoom->statValues[1] = 0x63;
+    if (pDressingRoom->statValues[1] > MENU_STAT_PERCENT_MAX) {
+        pDressingRoom->statValues[1] = MENU_STAT_PERCENT_MAX;
     }
-    if (pDressingRoom->statValues[2] > 0xFA) {
-        pDressingRoom->statValues[2] = 0xFA;
+    if (pDressingRoom->statValues[2] > MENU_STAT_MAX) {
+        pDressingRoom->statValues[2] = MENU_STAT_MAX;
     }
-    if (pDressingRoom->statValues[3] > 0x63) {
-        pDressingRoom->statValues[3] = 0x63;
+    if (pDressingRoom->statValues[3] > MENU_STAT_PERCENT_MAX) {
+        pDressingRoom->statValues[3] = MENU_STAT_PERCENT_MAX;
     }
-    if (pDressingRoom->statValues[4] > 0xFA) {
-        pDressingRoom->statValues[4] = 0xFA;
+    if (pDressingRoom->statValues[4] > MENU_STAT_MAX) {
+        pDressingRoom->statValues[4] = MENU_STAT_MAX;
     }
-    if (pDressingRoom->statValues[5] > 0xFA) {
-        pDressingRoom->statValues[5] = 0xFA;
+    if (pDressingRoom->statValues[5] > MENU_STAT_MAX) {
+        pDressingRoom->statValues[5] = MENU_STAT_MAX;
     }
-    if (pDressingRoom->statValues[6] > 0x14) {
-        pDressingRoom->statValues[6] = 0x10;
+    if (pDressingRoom->statValues[6] > MENU_STAT_AGILITY_MAX) {
+        pDressingRoom->statValues[6] = MENU_STAT_AGILITY_CAPPED;
     }
 }
 

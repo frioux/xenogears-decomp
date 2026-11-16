@@ -295,6 +295,34 @@ rounds over it afterwards. Put both totals in the tracker row every third round;
 the raw count, they must not rise except by the placeholders a newly matched function
 brings with it.
 
+## Named constants
+
+**`if (stat > 0x63) stat = 0x63;` is a placeholder too.** A number with a meaning is
+written as a named constant (`MENU_STAT_PERCENT_MAX`), in decimal when it is a
+quantity; the rule and its limits are in AGENTS.md section 4, "Constants". The
+evidence rule is the one for names: the use has to show what the number is, a name
+that restates the value is rejected, and a literal whose meaning nobody can show
+stays a literal.
+
+- Matching and rewrite workers define constants at the top of their own `.c` as they
+  go and report `CONST NAME value - evidence` (rules in `brief.js`). They never add
+  one to a header under `include/`.
+- The backlog goes out as its own round: `tools/rounds/const-brief.js`,
+  `{workers: [{tree, file, bin, funcs?, hints?}]}`, one worker per `.c` file in a
+  clone, proved with `check_bin.sh <bin>` and merged with `clone.sh merge`. A worker
+  owns its `.c` only, so the round can share clones' time with field rounds on other
+  binaries but not with a matching or rewrite worker on the same file.
+- **Hoisting is yours.** A `CONST_SHARED` line, or the same `CONST` reported from two
+  files, means the `#define` belongs in the header beside the struct or table it
+  describes. Move it there with **no clones out**, delete the per-file copies, and let
+  `make check` prove it.
+- Pick files the way names are picked: ones whose functions are matched *and named*,
+  because a constant's meaning comes from the named things around it. This lists
+  candidates (about 4,400 lines when this was written; it also counts parked bodies,
+  so it is a picker, not a tracker number):
+
+      grep -rcE '(==|!=|[<>]=?|case|[^=!<>]=) 0x[0-9A-Fa-f]+\b' src | awk -F: '$2 {print $2, $1}' | sort -rn | head -20
+
 ## Realistic C
 
 **A match is step one. The product is C that reads like the source Square compiled.**
