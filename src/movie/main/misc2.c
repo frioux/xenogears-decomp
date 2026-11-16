@@ -43,57 +43,19 @@ extern s32 g_MovieVerticalOffset;
 extern u32 g_MoviePlayMode;
 extern s32 g_MoviePadHoldFrames;
 extern s32 g_MoviePadHoldLimit;
-extern s32 D_80076F30;
-extern s32 D_80076F34;
-extern s32 D_80077030;
-extern s32 D_80077034;
-extern s32 D_80077040;
-extern s32 D_80077044;
 extern s32 g_MovieViewRoll;
 extern SVECTOR g_MovieViewAngle;
+// The camera and GTE globals are VECTORs and MATRIXes; retail's object still names the interior
+// words of a member access (D_80077044, D_800770D0, ...), so objdiff reads under 100% for
+// MovieInitGteState and MovieBuildViewMatrix while the linked bytes are identical - check_bin.sh.
 extern MATRIX g_MovieColorMatrix;
-extern s16 D_80077072;
-extern s16 D_80077074;
-extern s16 D_80077076;
-extern s16 D_80077078;
-extern s16 D_8007707A;
-extern s16 D_8007707C;
-extern s16 D_8007707E;
-extern s16 D_80077080;
-extern s16 g_MovieLightMatrix;
-extern s16 D_80077092;
-extern s16 D_80077094;
-extern s16 D_80077096;
-extern s16 D_80077098;
-extern s16 D_8007709A;
-extern s16 D_8007709C;
-extern s16 D_8007709E;
-extern s16 D_800770A0;
+extern MATRIX g_MovieLightMatrix;
 extern MATRIX g_MovieTranslationMatrix;
-extern s16 D_800770BA;
-extern s16 D_800770BC;
-extern s16 D_800770BE;
-extern s16 D_800770C0;
-extern s16 D_800770C2;
-extern s16 D_800770C4;
-extern s16 D_800770C6;
-extern s16 D_800770C8;
-extern s32 D_800770CC;
-extern s32 D_800770D0;
-extern s32 D_800770D4;
 extern MATRIX g_MovieRotationMatrix;
-extern s32 D_800770EC;
-extern s32 D_800770F0;
-extern s32 D_800770F4;
-extern s16 g_MovieRotationBaseMatrix;
-extern s16 D_800770FA;
-extern s16 D_800770FC;
-extern s16 D_800770FE;
-extern s16 D_80077100;
-extern s16 D_80077102;
-extern s16 D_80077104;
-extern s16 D_80077106;
-extern s16 D_80077108;
+extern MATRIX g_MovieRotationBaseMatrix;
+extern VECTOR g_MoviePrevViewPosition;
+extern VECTOR g_MovieViewPosition;
+extern VECTOR g_MovieViewTarget;
 extern s32 g_MovieStreamFileIndex;
 typedef struct {
     /* 0x0 */ u16 magic;
@@ -101,16 +63,6 @@ typedef struct {
     /* 0x4 */ s32 unk4;
     /* 0x8 */ s32 unk8;
 } MovieFileHeader; // Size: 0xC
-
-typedef struct {
-    /* 0x0 */ s32 x;
-    /* 0x4 */ s32 y;
-    /* 0x8 */ s32 z;
-} MovieVector; // Size: 0xC
-
-extern MovieVector g_MoviePrevViewPosition;
-extern MovieVector g_MovieViewPosition;
-extern MovieVector g_MovieViewTarget;
 
 typedef struct {
     /* 0x0 */ u8 unk0;
@@ -737,44 +689,44 @@ void MovieInitGteState(void) {
     pColorMatrix = &g_MovieColorMatrix;
 
     g_MovieTranslationMatrix.m[0][0] = 0x1000;
-    D_800770C0 = 0x1000;
-    D_800770C8 = 0x1000;
-    g_MovieRotationBaseMatrix = 0x1000;
-    D_80077100 = 0x1000;
-    D_80077108 = 0x1000;
+    g_MovieTranslationMatrix.m[1][1] = 0x1000;
+    g_MovieTranslationMatrix.m[2][2] = 0x1000;
+    g_MovieRotationBaseMatrix.m[0][0] = 0x1000;
+    g_MovieRotationBaseMatrix.m[1][1] = 0x1000;
+    g_MovieRotationBaseMatrix.m[2][2] = 0x1000;
 
-    g_MovieLightMatrix = 0x93D;
-    D_80077092 = -0x93D;
-    D_80077094 = -0x93D;
+    g_MovieLightMatrix.m[0][0] = 0x93D;
+    g_MovieLightMatrix.m[0][1] = -0x93D;
+    g_MovieLightMatrix.m[0][2] = -0x93D;
 
-    D_800770BA = 0;
-    D_800770BC = 0;
-    D_800770BE = 0;
-    D_800770C2 = 0;
-    D_800770C4 = 0;
-    D_800770C6 = 0;
-    D_800770FA = 0;
-    D_800770FC = 0;
-    D_800770FE = 0;
-    D_80077102 = 0;
-    D_80077104 = 0;
-    D_80077106 = 0;
-    D_80077096 = 0;
-    D_80077098 = 0;
-    D_8007709A = 0;
-    D_8007709C = 0;
-    D_8007709E = 0;
-    D_800770A0 = 0;
+    g_MovieTranslationMatrix.m[0][1] = 0;
+    g_MovieTranslationMatrix.m[0][2] = 0;
+    g_MovieTranslationMatrix.m[1][0] = 0;
+    g_MovieTranslationMatrix.m[1][2] = 0;
+    g_MovieTranslationMatrix.m[2][0] = 0;
+    g_MovieTranslationMatrix.m[2][1] = 0;
+    g_MovieRotationBaseMatrix.m[0][1] = 0;
+    g_MovieRotationBaseMatrix.m[0][2] = 0;
+    g_MovieRotationBaseMatrix.m[1][0] = 0;
+    g_MovieRotationBaseMatrix.m[1][2] = 0;
+    g_MovieRotationBaseMatrix.m[2][0] = 0;
+    g_MovieRotationBaseMatrix.m[2][1] = 0;
+    g_MovieLightMatrix.m[1][0] = 0;
+    g_MovieLightMatrix.m[1][1] = 0;
+    g_MovieLightMatrix.m[1][2] = 0;
+    g_MovieLightMatrix.m[2][0] = 0;
+    g_MovieLightMatrix.m[2][1] = 0;
+    g_MovieLightMatrix.m[2][2] = 0;
 
     pColorMatrix->m[0][0] = 0x969;
-    D_80077072 = 0;
-    D_80077074 = 0;
-    D_80077076 = 0x969;
-    D_80077078 = 0;
-    D_8007707A = 0;
-    D_8007707C = 0x969;
-    D_8007707E = 0;
-    D_80077080 = 0;
+    pColorMatrix->m[0][1] = 0;
+    pColorMatrix->m[0][2] = 0;
+    pColorMatrix->m[1][0] = 0x969;
+    pColorMatrix->m[1][1] = 0;
+    pColorMatrix->m[1][2] = 0;
+    pColorMatrix->m[2][0] = 0x969;
+    pColorMatrix->m[2][1] = 0;
+    pColorMatrix->m[2][2] = 0;
 
     SetColorMatrix(pColorMatrix);
     SetBackColor(0x60, 0x60, 0x60);
@@ -790,12 +742,10 @@ void WorldMapScriptOp04SetScratchPosition(void) {
     SetTransMatrix(pMatrix);
 }
 
-// objdiff reads 99.33% on this one, not 100: the t[] stores name g_MovieRotationMatrix+24 where
-// retail's object names D_800770F0 - same bytes, same addend (see AGENTS.md).
 void MovieBuildViewMatrix(void) {
     MATRIX* pRotMatrix;
     s32* pTrans;
-    MovieVector* pPos;
+    VECTOR* pPos;
     SVECTOR* pAngle;
     s32 dz;
     s32 dx;
@@ -805,11 +755,11 @@ void MovieBuildViewMatrix(void) {
 
     pPos = &g_MovieViewPosition;
     pAngle = &g_MovieViewAngle;
-    dz = D_80077044 - D_80077034;
+    dz = g_MovieViewPosition.vz - g_MoviePrevViewPosition.vz;
     dzSq = dz * dz;
-    dx = pPos->x - g_MoviePrevViewPosition.x;
+    dx = pPos->vx - g_MoviePrevViewPosition.vx;
     dxSq = dx * dx;
-    dy = D_80077040 - D_80077030;
+    dy = g_MovieViewPosition.vy - g_MoviePrevViewPosition.vy;
     pAngle->vx = ratan2(dy, SquareRoot0(dzSq + dxSq));
     pAngle->vy = -ratan2(dx, dz);
     pRotMatrix = &g_MovieRotationMatrix;
@@ -820,8 +770,8 @@ void MovieBuildViewMatrix(void) {
     pRotMatrix->t[1] = 0;
     pRotMatrix->t[2] = SquareRoot0(dxSq + dy * dy + dzSq);
     pTrans = g_MovieTranslationMatrix.t;
-    pTrans[0] = g_MovieViewTarget.x - pPos->x;
-    pTrans[1] = D_80076F30 - D_80077040;
-    pTrans[2] = D_80076F34 - D_80077044;
+    pTrans[0] = g_MovieViewTarget.vx - pPos->vx;
+    pTrans[1] = g_MovieViewTarget.vy - g_MovieViewPosition.vy;
+    pTrans[2] = g_MovieViewTarget.vz - g_MovieViewPosition.vz;
     CompMatrix(pRotMatrix, &g_MovieTranslationMatrix, &g_MovieViewMatrix);
 }
