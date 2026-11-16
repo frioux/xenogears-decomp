@@ -5,6 +5,8 @@
 #include "psyq/inline_c.h"
 #include "system/graphics.h"
 
+#define BATTLE_TWEEN_STEP_MAX 7
+
 typedef struct {
     /* 0x0 */ struct _BattleMisc22Spr *pSprites;
     /* 0x4 */ s16 capacity;
@@ -210,11 +212,6 @@ void BattleRenderSpriteSlots(BattleMisc22Unk *pBuffer, MATRIX *pMatrix, s32 step
         pSpr->blue -= pSpr->blueDelta * step;
     }
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A32D8);
-/* 74.17%, identical registers and exactly 428 bytes; the one difference is that
-   gcc forwards the stored angle into the dividend instead of reloading the
-   field (original: sh 0x64 ... lh 0x64, div). Making startX/startY/startZ volatile
-   forces the reload but costs a lhu + sll/sra pair: 86.36%, 452 bytes.
 s32 func_800A32D8(BattleMisc22Cmd *pCmd, void *pData, s16 arg2, u8 arg3, s16 count,
                   u16 divisor, u8 a, u8 b, u8 c, u8 d, u8 e, u8 f,
                   u16 w0, u16 w1, u16 w2, u16 w3, u16 w4, u16 w5, u16 b3) {
@@ -231,23 +228,23 @@ s32 func_800A32D8(BattleMisc22Cmd *pCmd, void *pData, s16 arg2, u8 arg3, s16 cou
         pCmd->unk16 = w4;
         pCmd->unk18 = w5;
         pCmd->unk5C = 0;
-        if (count < 7) {
+        if (count < BATTLE_TWEEN_STEP_MAX) {
             pCmd->count = count;
         } else {
-            pCmd->count = 7;
+            pCmd->count = BATTLE_TWEEN_STEP_MAX;
         }
-        pCmd->startX = a * 64;
+        // the step is derived from the value the 16-bit field holds, so the store must be re-read
+        *(volatile s16 *)&pCmd->startX = a * 64;
         pCmd->deltaX = (pCmd->startX - d * 64) / (s16)divisor;
-        pCmd->startY = b * 64;
+        *(volatile s16 *)&pCmd->startY = b * 64;
         pCmd->deltaY = (pCmd->startY - e * 64) / (s16)divisor;
-        pCmd->startZ = c * 64;
+        *(volatile s16 *)&pCmd->startZ = c * 64;
         pCmd->deltaZ = (pCmd->startZ - f * 64) / (s16)divisor;
         pCmd->divisor = divisor;
         pCmd->unk8 = 0;
         return 0;
     }
 }
-*/
 void BattleStoreMinusOneS16(s16 *pArg) {
     *pArg = -1;
 }
