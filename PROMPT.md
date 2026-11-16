@@ -145,7 +145,15 @@ of a match, and it is cheap.
   no-op, so every function whose address has no `symbol_addrs` entry - all of `member_change_menu` -
   stays `func_` with no error. Round 41 lost nothing only because it noticed the "renamed 0 pairs"
   line; keep the evidence text in the file you feed both tools.
-- **Backlog:** about 2,100 already-matched functions are still `func_`. While a
+- **Backlog: use `tools/scripts/unnamed_c.py`** - it counts a `func_` as a definition
+  only when a depth-0 signature is followed by `{` before any `;`, so prototypes, call
+  sites and parked bodies do not count. On 2026-11-16 that is **49 in 23 files**, 29 of
+  them under `psyq/`, i.e. the non-SDK function-naming backlog is about 20 functions:
+  the function half of naming is done, and the `D_` global and `unk` field half is
+  where the work is. (The old recipe - comment strip plus dropping `extern` lines -
+  counted calls and prototypes as definitions and reported 277; round 153 handed
+  workers files with "20 unnamed definitions" that define none, and they said so.)
+  While a
   matching round is out, run a naming round over them with
   `tools/rounds/name-brief.js` (`{workers: [{tree: <this repo>, file}, ...]}`). It is
   read-only, so workers share this tree and need no clones. **Give a worker 2-3 files,
@@ -155,11 +163,9 @@ of a match, and it is cheap.
   sanitised - so a naming round is many small workers, not a few big ones. Pick the files with the
   most unnamed definitions that are **not** in the current matching round, hold the
   NAME lines, and apply them after the matching round has merged, with the two commands
-  above. Count definitions with `/* ... */` blocks stripped AND column-0
-  `extern s32 func_X();` prototypes dropped: a bare `grep func_` counts both, which cost
-  round 35 two duds and round 47 three (world_map/misc3, misc6, misc5 top the count with
-  zero unnamed C functions). A naming worker yields ~10 names on a well-picked file and 0
-  on a dud, so budget for a few dozen, not a few hundred.
+  above. A naming worker yields ~10 names on a well-picked file and 0
+  on a dud, so budget for a few dozen, not a few hundred; a worker given a file whose
+  `D_` globals its live C never touches comes back empty.
 - **Feed the tools the union of every NAME line ever reported.** Both tools self-skip
   (already applied, name taken, still a stub, address twin), so `grep -h '^NAME func_'`
   over every `*_worker_output.md` in `~/.pi/agent/sessions/<project>/subagent-artifacts/`
