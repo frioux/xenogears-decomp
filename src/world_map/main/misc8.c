@@ -543,6 +543,12 @@ s32 WorldMapSetActorParams(s32 arg0) {
     return 1;
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_8008390C);
+// Round 164: re-measured. The raw body below builds at 84.75% but is 224 bytes
+// against retail's 244 (61 insns), so the store-to-load fold of
+// g_WorldMapViewRotationY/Z also drops the two `lui`/`lh`/`sll` triples. The
+// typed-struct form re-measures 30.52% today (unchanged); a `volatile s16` on
+// the two externs brings both `lh` back but compiles to lhu+sll+sra and 252
+// bytes. Nothing tried keeps the two `lh` AND 244 bytes.
 // Round 111 triage: this body did NOT compile - it was defined void while the
 // unit's own extern at the top of the file says s32 (retail returns 1), so every
 // attempt to unpark it died before it produced bytes. With the s32 return below
@@ -745,6 +751,9 @@ void WorldMapSetSpriteSetParent(s32 arg0, s32 arg1) {
     g_WorldMapGroups[arg1].pParent = &g_WorldMapGroups[arg0];
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_800848F4);
+// Round 164: un-parked and repaired - the park did not compile (pScale and pB had
+// no declarations; both are the scale VECTOR at 0x1F800010, pB was pScale's
+// second name). It builds now and still measures 76.46%, 1060 bytes.
 // Best: 76.46% (1060 bytes vs 1036). Structure and every call/offset in the
 // head, the sprite-set copy and the tail (WrapDeltaScaled, ScaleMatrix,
 // CompMatrix, SetRot/TransMatrix, RTPS, FLAG, SZ3, ModelRenderPacket) already
@@ -761,6 +770,7 @@ void func_800848F4(void) {
     MATRIX *pMat = (MATRIX *)0x1F8000F0;
     MATRIX *pOut = (MATRIX *)0x1F800110;
     SVECTOR *pRot = (SVECTOR *)0x1F8000A0;
+    VECTOR *pScale = (VECTOR *)0x1F800010;
     WorldMapPos *pDelta = (WorldMapPos *)0x1F800000;
     WorldMapEntry *pChain;
     s32 camX;
@@ -815,7 +825,7 @@ void func_800848F4(void) {
         WorldMapWrapDeltaScaled(pDelta);
         pMat->t[1] = pDelta->x;
         pMat->t[3] = -pDelta->z;
-        ScaleMatrix(pMat, pB);
+        ScaleMatrix(pMat, pScale);
         CompMatrix(&g_WorldMapViewMatrix, pMat, pOut);
         SetRotMatrix(pOut);
         SetTransMatrix(pOut);
