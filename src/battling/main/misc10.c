@@ -57,13 +57,13 @@ void BattleAddSharedPrim(void);
 // BattleRelocateBlockPointers has fixed up its +0x30 offset.
 typedef struct {
     /* 0x00 */ u8 unk00[0xE];
-    /* 0x0E */ u8 unk0E;
+    /* 0x0E */ u8 visiblePartCount;
     /* 0x0F */ u8 unk0F;
-    /* 0x10 */ u8 unk10;
-    /* 0x11 */ u8 unk11;
-    /* 0x12 */ u8 unk12;
+    /* 0x10 */ u8 effectColorR;
+    /* 0x11 */ u8 effectColorG;
+    /* 0x12 */ u8 effectColorB;
     /* 0x13 */ u8 unk13[0x1D];
-    /* 0x30 */ s32 unk30; // byte offset of the sprite table from the block start
+    /* 0x30 */ s32 visiblePartIndicesOffset; // byte offset of the sprite table from the block start
 } Misc10SpriteHeader; // Size: 0x34
 
 // One 4-byte action slot of the block's +0x18 array; only the flag byte is read.
@@ -71,7 +71,7 @@ typedef struct {
     /* 0x0 */ u8 unk0;
     /* 0x1 */ u8 unk1;
     /* 0x2 */ u8 unk2;
-    /* 0x3 */ u8 unk3;
+    /* 0x3 */ u8 flags;
 } Misc10ActionSlot; // Size: 0x4
 
 // One 0x20-byte entry of the D_80092874 table (the same table src/battling/
@@ -81,7 +81,7 @@ typedef struct {
     /* 0x00 */ u8 unk00[0x4];
     /* 0x04 */ s16 unk04;
     /* 0x06 */ u8 unk06[0x4];
-    /* 0x0A */ u8 unk0A[0xE];
+    /* 0x0A */ u8 slotFlags[0xE];
     /* 0x18 */ u8 unk18[0x8];
 } Misc10ActionRow; // Size: 0x20
 
@@ -91,7 +91,7 @@ typedef struct {
 typedef struct {
     /* 0x00 */ u8 unk00[0x10];
     /* 0x10 */ Misc10SpriteHeader* pHeader;
-    /* 0x14 */ u8* unk14;
+    /* 0x14 */ u8* pPartTimings;
     /* 0x18 */ Misc10ActionSlot* pActions;
     /* 0x1C */ u8 unk1C[0x4];
     /* 0x20 */ u8* pImage;
@@ -100,46 +100,46 @@ typedef struct {
 typedef struct {
     /* 0x000 */ u8 unk000[0x58];
     /* 0x058 */ u8* unk58;
-    /* 0x05C */ u8* unk5C;
+    /* 0x05C */ u8* pModelLink;
     /* 0x060 */ u8* unk60;
     /* 0x064 */ u8 unk064[0x18];
-    /* 0x07C */ u8* unk7C;
+    /* 0x07C */ u8* pPartTimings;
     /* 0x080 */ Misc10ActionSlot* pActions;
     /* 0x084 */ u8 unk084[0x4C];
     /* 0x0D0 */ u32 flags;
     /* 0x0D4 */ u8 unk0D4[0x4];
-    /* 0x0D8 */ u8* unk0D8;
+    /* 0x0D8 */ u8* pTarget;
     /* 0x0DC */ u8 unk0DC[0x1A8];
-    /* 0x284 */ u32* unk284;
+    /* 0x284 */ u32* pDisplayWork;
     /* 0x288 */ u8 unk288[0x674];
-    /* 0x8FC */ u8* unk8FC;
+    /* 0x8FC */ u8* pScript;
     /* 0x900 */ u8* unk900;
-    /* 0x904 */ u8* unk904;
-    /* 0x908 */ u8 unk908;
-    /* 0x909 */ u8 unk909;
+    /* 0x904 */ u8* pVisiblePartIndices;
+    /* 0x908 */ u8 visiblePartCount;
+    /* 0x909 */ u8 typeId;
     /* 0x90A */ u8 unk90A;
     /* 0x90B */ u8 unk90B[0x6];
-    /* 0x911 */ u8 unk911;
-    /* 0x912 */ u8 unk912;
+    /* 0x911 */ u8 flaggedActionCount;
+    /* 0x912 */ u8 unflaggedActionCount;
     /* 0x913 */ u8 unk913[0xCC1];
-    /* 0x15D4 */ u8 unk15D4;
-    /* 0x15D5 */ u8 unk15D5;
-    /* 0x15D6 */ u8 unk15D6;
+    /* 0x15D4 */ u8 effectColorR;
+    /* 0x15D5 */ u8 effectColorG;
+    /* 0x15D6 */ u8 effectColorB;
     /* 0x15D7 */ u8 unk15D7[0x29];
     /* 0x1600 */ Misc10ActionRow* pActionRow;
 } Misc10Actor; // Size: 0x1604
 
 typedef struct {
     /* 0x00 */ u8 unk00[0x44];
-    /* 0x44 */ s16 unk44;
-    /* 0x46 */ s16 unk46;
-    /* 0x48 */ s16 unk48;
+    /* 0x44 */ s16 rotX;
+    /* 0x46 */ s16 rotY;
+    /* 0x48 */ s16 rotZ;
 } Misc10Draw; // Size: unknown
 
 typedef struct {
     /* 0x0 */ u16 unk0;
     /* 0x2 */ u16 pad2;
-    /* 0x4 */ s32 unk4;
+    /* 0x4 */ s32 buffer;
 } Misc10Resource; // Size: 0x8
 
 typedef struct {
@@ -160,9 +160,9 @@ typedef struct {
 
 typedef struct {
     /* 0x00 */ u8 unk00[0x04];
-    /* 0x04 */ Misc10Point* unk04;
+    /* 0x04 */ Misc10Point* crect;
     /* 0x08 */ u8 unk08[0x04];
-    /* 0x0C */ Misc10TexRect* unk0C;
+    /* 0x0C */ Misc10TexRect* prect;
 } Misc10TagSrc; // Size: 0x10
 
 extern Misc10ActionRow* D_80092874;
@@ -177,7 +177,7 @@ extern u8* func_8008B38C(u8* pArg);
 extern u8* BattleSetActorSoundTable(Misc10Actor* pActor);
 
 s32 BattleQueueActorPrims(Misc10Actor* pActor) {
-    u32* pData = pActor->unk284;
+    u32* pData = pActor->pDisplayWork;
 
     func_8008E3CC((u8*)pData[g_BattleDrawBufferIndex + 1] + 8, 0xC0, 0);
     BattleDrawTextPrims((u8*)pData[g_BattleDrawBufferIndex + 1] + 4);
@@ -232,9 +232,9 @@ void BattleActorCreateRotatedPart(Misc10Actor* pActor) {
     BattleSetNodeModelPart(pDraw, pBuf);
     BattleAttachModelPart(pBuf, D_80091FB0);
     BattleAppendListEntry(arg0, pDraw);
-    pDraw->unk46 = 0xC00;
-    pDraw->unk44 = 0;
-    pDraw->unk48 = 0x400;
+    pDraw->rotY = 0xC00;
+    pDraw->rotX = 0;
+    pDraw->rotZ = 0x400;
 }
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_80084C88);
@@ -247,7 +247,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_80084C88);
    makes a symbol when .rodata references it) - objdiff% and check_bin.sh are
    the only judges.
    What is still wrong:
-   1. Best body below keeps pActor->unk5C = pNode AFTER the switch, which is
+   1. Best body below keeps pActor->pModelLink = pNode AFTER the switch, which is
       what makes gcc hand pActor s0 / pNode s1 (global-alloc priority order
       pActor, pData, arg2, pNode, with s1 already reserved by the flip-loop
       buffer through local-alloc). Moving that store to its retail position
@@ -280,19 +280,19 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_80084C88);
        pActor->flags = (pActor->flags & 0xF7FFFFFF) | ((arg2 & 1) << 27);
        if (arg2 != 0) {
            BattleSetTpageAndClut(0x380, 0, 0, 0x1FE);
-           pActor->unk0D8 = D_8009872C;
+           pActor->pTarget = D_8009872C;
        } else {
            BattleSetTpageAndClut(0x3C0, 0, 0, 0x1FF);
-           pActor->unk0D8 = D_80097010;
+           pActor->pTarget = D_80097010;
        }
        BattleRelocateBlockPointers(pData);
        pNode = func_8008B38C((u8*)pData);
        pObj = (u8*)BattleCreateObject();
        pActor->unk60 = pObj;
        BattleAppendListEntry(pObj, pNode);
-       pActor->pActionRow = &D_80092874[pActor->unk909];
+       pActor->pActionRow = &D_80092874[pActor->typeId];
        pActor->unk90A = 0;
-       switch (pActor->unk909) {
+       switch (pActor->typeId) {
        case 3:
        case 14:
        case 27:
@@ -315,27 +315,27 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_80084C88);
            pActor->unk90A |= 2;
            break;
        }
-       pActor->unk5C = pNode;
+       pActor->pModelLink = pNode;
        BattleSetActorSoundTable(pActor);
        pHeader = pData->pHeader;
-       pActor->unk8FC = (u8*)pHeader;
-       pActor->unk7C = pData->unk14;
+       pActor->pScript = (u8*)pHeader;
+       pActor->pPartTimings = pData->pPartTimings;
        pActor->unk900 = (u8*)pHeader + 0x34;
        pActor->pActions = pData->pActions;
-       pActor->unk904 = (u8*)pHeader + pHeader->unk30;
-       pActor->unk908 = pHeader->unk0E;
-       pActor->unk15D4 = pHeader->unk10;
-       pActor->unk15D5 = pHeader->unk11;
-       pActor->unk15D6 = pHeader->unk12;
-       pActor->unk911 = 0;
-       pActor->unk912 = 0;
+       pActor->pVisiblePartIndices = (u8*)pHeader + pHeader->visiblePartIndicesOffset;
+       pActor->visiblePartCount = pHeader->visiblePartCount;
+       pActor->effectColorR = pHeader->effectColorR;
+       pActor->effectColorG = pHeader->effectColorG;
+       pActor->effectColorB = pHeader->effectColorB;
+       pActor->flaggedActionCount = 0;
+       pActor->unflaggedActionCount = 0;
        pRow = pActor->pActionRow;
        for (i = 0; i < 0xE; i++) {
-           if (pRow->unk0A[i] != 0) {
-               if (pActor->pActions[i].unk3 != 0) {
-                   pActor->unk911++;
+           if (pRow->slotFlags[i] != 0) {
+               if (pActor->pActions[i].flags != 0) {
+                   pActor->flaggedActionCount++;
                } else {
-                   pActor->unk912++;
+                   pActor->unflaggedActionCount++;
                }
            }
        }
@@ -419,7 +419,7 @@ void BattleFreeSlotEntry(s32 index) {
 }
 
 void BattleAllocResourceBuffer(Misc10Resource* pResource, u_int allocFlags) {
-    pResource->unk4 = (s32)HeapAlloc(ArchiveDecodeAlignedSize(pResource->unk0), allocFlags);
+    pResource->buffer = (s32)HeapAlloc(ArchiveDecodeAlignedSize(pResource->unk0), allocFlags);
 }
 
 void BattleReturnToMainLoop(void) {
@@ -497,10 +497,10 @@ void FieldSoundResetActorEffects(Misc10TagSrc* p, s32 x, s32 y, POLY_FT4* pPoly,
 
     ((u8*)pPoly)[3] = 9;
     pPoly->code = 0x2D;
-    pPoly->clut = GetClut(p->unk04->x, p->unk04->y);
-    pPoly->tpage = GetTPage(mode, 0, p->unk0C->x, p->unk0C->y);
+    pPoly->clut = GetClut(p->crect->x, p->crect->y);
+    pPoly->tpage = GetTPage(mode, 0, p->prect->x, p->prect->y);
     pPoly->x0 = pPoly->x2 = x;
-    right = x + p->unk0C->w * scale;
+    right = x + p->prect->w * scale;
     if (scale == 2) {
         pPoly->x3 = right + 1;
     } else {
@@ -508,11 +508,11 @@ void FieldSoundResetActorEffects(Misc10TagSrc* p, s32 x, s32 y, POLY_FT4* pPoly,
     }
     pPoly->y0 = pPoly->y1 = y;
     pPoly->x1 = pPoly->x3 = pPoly->x3;
-    pPoly->y2 = pPoly->y3 = y + p->unk0C->h;
-    pPoly->u0 = pPoly->u2 = p->unk0C->x * scale;
-    pPoly->u1 = pPoly->u3 = (p->unk0C->x + p->unk0C->w) * scale;
-    pPoly->v0 = pPoly->v1 = p->unk0C->y;
-    pPoly->v2 = pPoly->v3 = p->unk0C->y + p->unk0C->h;
+    pPoly->y2 = pPoly->y3 = y + p->prect->h;
+    pPoly->u0 = pPoly->u2 = p->prect->x * scale;
+    pPoly->u1 = pPoly->u3 = (p->prect->x + p->prect->w) * scale;
+    pPoly->v0 = pPoly->v1 = p->prect->y;
+    pPoly->v2 = pPoly->v3 = p->prect->y + p->prect->h;
     pPoly[1] = pPoly[0];
 }
 
@@ -534,16 +534,16 @@ void BattleBuildFlippedTexturedQuad(Misc10TagSrc* p, s32 x, s32 y, POLY_FT4* pPo
 
     ((u8*)pPoly)[3] = 9;
     pPoly->code = 0x2D;
-    pPoly->clut = GetClut(p->unk04->x, p->unk04->y);
-    pPoly->tpage = GetTPage(mode, 0, p->unk0C->x, p->unk0C->y);
-    pPoly->x0 = pPoly->x2 = x + p->unk0C->w * scale;
+    pPoly->clut = GetClut(p->crect->x, p->crect->y);
+    pPoly->tpage = GetTPage(mode, 0, p->prect->x, p->prect->y);
+    pPoly->x0 = pPoly->x2 = x + p->prect->w * scale;
     pPoly->x1 = pPoly->x3 = x;
-    pPoly->u0 = pPoly->u2 = p->unk0C->x * scale - 1;
-    pPoly->u1 = pPoly->u3 = (p->unk0C->x + p->unk0C->w) * scale - 1;
+    pPoly->u0 = pPoly->u2 = p->prect->x * scale - 1;
+    pPoly->u1 = pPoly->u3 = (p->prect->x + p->prect->w) * scale - 1;
     pPoly->y0 = pPoly->y1 = y;
-    pPoly->y2 = pPoly->y3 = y + p->unk0C->h;
-    pPoly->v0 = pPoly->v1 = p->unk0C->y;
-    pPoly->v2 = pPoly->v3 = p->unk0C->y + p->unk0C->h;
+    pPoly->y2 = pPoly->y3 = y + p->prect->h;
+    pPoly->v0 = pPoly->v1 = p->prect->y;
+    pPoly->v2 = pPoly->v3 = p->prect->y + p->prect->h;
     pPoly[1] = pPoly[0];
 }
 
@@ -614,7 +614,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_800868E0);
     Misc10SetXY0(&D_80095698[6], 0x123, 0);
     D_80095698[6].u0 = 0x20;
     D_80095698[6].clut = GetClut(0, 0x1F7);
-    OpenTIM((u_long*)pActor->unk5C);
+    OpenTIM((u_long*)pActor->pModelLink);
     ReadTIM(&tim);
     LoadImage(tim.prect, tim.paddr);
     FieldSoundResetActorEffects((Misc10TagSrc*)&tim, 6, 0x20, &p[12], 0);
