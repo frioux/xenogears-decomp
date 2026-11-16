@@ -147,6 +147,11 @@ u8 BattleWordRegCopyToMatchedSlot(BattleCommand **p, u8 index, u8 arg2) {
 // here, not better. Typing the discriminant `BattleCommand *pCmd = *p; switch
 // (pCmd->unk2)` is byte-identical to this body at 96.17.
 // screened: 89.53% was the max of Default / cdk 78.78 / 2.6.0 89.53.
+// Round 161: the permuter's off-tree sweep (1840 iterations, base=230 best=145)
+// returned the SAME round-139 false gain - the `if (p)` duplication - so nothing
+// new was ported; it measures 95.25% here. Also neutral (96.17%): typing the
+// BattleFindFirstFlagTableMatch declaration `u32` instead of `s32`, and marking
+// pArgs `register`.
 /*
 void func_8007B6C0(u8 **p, u8 index) {
     u8 *pArgs = *p;
