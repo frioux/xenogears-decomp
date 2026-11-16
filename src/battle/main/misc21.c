@@ -184,14 +184,12 @@ BattleSprite* BattleCreateModelSkeleton(BattleModelPartList* pMesh, BattleSkelet
     return pSprites;
 }
 s32 func_8009EF3C(BattleSprite* pSprites, s32 scale) {
-    s32 new_var;
     MATRIX* pScaleMatrix;
     BattleSprite* pSprite;
     u32 count;
     u32 i;
 
     pSprite = pSprites;
-    new_var = scale;
     pScaleMatrix = (MATRIX*)PSX_SCRATCH;
     pSprite->globalTransform.t[0] = pSprite->pos[0];
     pSprite->globalTransform.t[1] = pSprite->pos[1];
@@ -202,15 +200,15 @@ s32 func_8009EF3C(BattleSprite* pSprites, s32 scale) {
     } else {
         RotMatrix((SVECTOR*)pSprite->rot, &pSprite->globalTransform);
     }
-    pScaleMatrix->m[0][0] = (new_var * pSprites->scale.vx) >> 12;
+    pScaleMatrix->m[0][0] = (scale * pSprites->scale.vx) >> 12;
     pScaleMatrix->m[0][1] = 0;
     pScaleMatrix->m[0][2] = 0;
     pScaleMatrix->m[1][0] = 0;
-    pScaleMatrix->m[1][1] = (new_var * pSprites->scale.vy) >> 12;
+    pScaleMatrix->m[1][1] = (scale * pSprites->scale.vy) >> 12;
     pScaleMatrix->m[1][2] = 0;
     pScaleMatrix->m[2][0] = 0;
     pScaleMatrix->m[2][1] = 0;
-    pScaleMatrix->m[2][2] = (new_var * pSprites->scale.vz) >> 12;
+    pScaleMatrix->m[2][2] = (scale * pSprites->scale.vz) >> 12;
     MulMatrix0(&pSprites->globalTransform, pScaleMatrix, &pSprites->localTransform);
     pSprites->localTransform.t[0] = pSprites->globalTransform.t[0];
     pSprites->localTransform.t[1] = pSprites->globalTransform.t[1];
