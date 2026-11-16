@@ -32,17 +32,17 @@ typedef struct {
     /* 0x22 */ u16 unk22;
     /* 0x24 */ s16 unk24;
     /* 0x26 */ undefined16 unk26;
-    /* 0x28 */ s32 unk28;
-    /* 0x2C */ s32 unk2C;
-    /* 0x30 */ s32 unk30;
+    /* 0x28 */ s32 x;
+    /* 0x2C */ s32 y;
+    /* 0x30 */ s32 z;
     /* 0x34 */ undefined32 unk34;
     /* 0x38 */ s32 unk38;
     /* 0x3C */ u32 unk3C;
     /* 0x40 */ s32 unk40;
     /* 0x44 */ undefined32 unk44;
-    /* 0x48 */ s16 unk48;
+    /* 0x48 */ s16 angle;
     /* 0x4A */ s16 unk4A;
-    /* 0x4C */ void* unk4C;
+    /* 0x4C */ void* pSprite;
     /* 0x50 */ s32 unk50;
     /* 0x54 */ void* unk54;
     /* 0x58 */ s32 unk58;
@@ -51,15 +51,15 @@ typedef struct {
 } WorldMapActor; // Size: 0x80
 
 typedef struct {
-    /* 0x0 */ s32 unk00;
-    /* 0x4 */ s32 unk04;
-    /* 0x8 */ s32 unk08;
+    /* 0x0 */ s32 x;
+    /* 0x4 */ s32 y;
+    /* 0x8 */ s32 z;
     /* 0xC */ s32 unk0C;
 } WorldMapVec; // Size: 0x10
 
 typedef struct {
     /* 0x00 */ WorldMapVec vec;
-    /* 0x10 */ u16 unk10;
+    /* 0x10 */ u16 angle;
     /* 0x12 */ u16 pad12;
 } WorldMapTrail; // Size: 0x14
 
@@ -79,26 +79,26 @@ typedef union {
 } WorldMapTrailFlags; // Size: 0x4
 
 typedef struct {
-    /* 0x00 */ s16 unk00;
+    /* 0x00 */ s16 spriteIndex;
     /* 0x02 */ s16 unk02;
-    /* 0x04 */ WorldMapTrailFlags unk04;
-    /* 0x08 */ s32 unk08;
-    /* 0x0C */ s32 unk0C;
-    /* 0x10 */ s32 unk10;
+    /* 0x04 */ WorldMapTrailFlags trailFlags;
+    /* 0x08 */ s32 x;
+    /* 0x0C */ s32 y;
+    /* 0x10 */ s32 z;
     /* 0x14 */ undefined32 unk14;
-    /* 0x18 */ s32 unk18;
-    /* 0x1C */ s32 unk1C;
-    /* 0x20 */ s32 unk20;
+    /* 0x18 */ s32 velX;
+    /* 0x1C */ s32 velY;
+    /* 0x20 */ s32 velZ;
     /* 0x24 */ undefined32 unk24;
-    /* 0x28 */ s32 unk28;
-    /* 0x2C */ s32 unk2C;
-    /* 0x30 */ s32 unk30;
+    /* 0x28 */ s32 accelX;
+    /* 0x2C */ s32 accelY;
+    /* 0x30 */ s32 accelZ;
     /* 0x34 */ undefined32 unk34;
     /* 0x38 */ u16 unk38;
     /* 0x3A */ u16 unk3A;
     /* 0x3C */ u16 unk3C;
     /* 0x3E */ u16 unk3E;
-    /* 0x40 */ u32 unk40;
+    /* 0x40 */ u32 color;
     /* 0x44 */ WorldMapColorStep colorStep;
     /* 0x48 */ undefined32 unk48;
 } WorldMapTrailEntry; // Size: 0x4C
@@ -118,7 +118,7 @@ typedef struct {
     /* 0x1E */ u16 unk1E;
     /* 0x20 */ u16 unk20;
     /* 0x22 */ undefined8 unk22[0x2D];
-    /* 0x4F */ u8 unk4F;
+    /* 0x4F */ u8 flags;
     /* 0x50 */ undefined32 unk50;
 } WorldMapSprite; // Size: 0x54
 
@@ -135,9 +135,9 @@ typedef struct {
     /* 0x20 */ s16 unk20;
     /* 0x22 */ u16 unk22;
     /* 0x24 */ u8 unk24[0x4];
-    /* 0x28 */ s32 unk28;
-    /* 0x2C */ s32 unk2C;
-    /* 0x30 */ s32 unk30;
+    /* 0x28 */ s32 x;
+    /* 0x2C */ s32 y;
+    /* 0x30 */ s32 z;
     /* 0x34 */ u8 unk34[0x4];
     /* 0x38 */ u32 unk38;
     /* 0x3C */ u32 unk3C;
@@ -289,14 +289,14 @@ s32 WorldMapSetActorPosFromSpriteSetWithHeightOffset(s32 arg0) {
 
     pPlayer = g_WorldMapSlots + arg0;
     pLayer = &g_WorldMapGroups[D_8009B69C[g_WorldMapLevelIndex]];
-    pPlayer->unk28 = pLayer->pos.unk00 << 12;
-    pPlayer->unk2C = (pLayer->pos.unk04 << 12) + 0x40000;
-    pPlayer->unk30 = pLayer->pos.unk08 << 12;
+    pPlayer->x = pLayer->pos.x << 12;
+    pPlayer->y = (pLayer->pos.y << 12) + 0x40000;
+    pPlayer->z = pLayer->pos.z << 12;
     return 1;
 }
 
 s32 WorldMapQueueZoneEntryHeight60(s32 arg0) {
-    WorldMapQueueZoneEntry(arg0, &g_WorldMapSlots[arg0].unk28, 0x68, 0x60);
+    WorldMapQueueZoneEntry(arg0, &g_WorldMapSlots[arg0].x, 0x68, 0x60);
     return 1;
 }
 
@@ -306,14 +306,14 @@ s32 WorldMapSetActorPosFromSpriteSet75(s32 arg0) {
 
     pPlayer = g_WorldMapSlots + arg0;
     pLayer = &g_WorldMapGroups[75];
-    pPlayer->unk28 = pLayer->pos.unk00 << 12;
-    pPlayer->unk2C = pLayer->pos.unk04 << 12;
-    pPlayer->unk30 = pLayer->pos.unk08 << 12;
+    pPlayer->x = pLayer->pos.x << 12;
+    pPlayer->y = pLayer->pos.y << 12;
+    pPlayer->z = pLayer->pos.z << 12;
     return 1;
 }
 
 s32 WorldMapQueueZoneEntryHeight1A6(s32 arg0) {
-    WorldMapQueueZoneEntry(arg0, &g_WorldMapSlots[arg0].unk28, 0x10C, 0x1A6);
+    WorldMapQueueZoneEntry(arg0, &g_WorldMapSlots[arg0].x, 0x10C, 0x1A6);
     return 1;
 }
 
@@ -323,14 +323,14 @@ s32 WorldMapSetActorPosFromSpriteSet(s32 arg0) {
 
     pLayer = &g_WorldMapGroups[D_8009B6B0[g_WorldMapLevelIndex]];
     pPlayer = g_WorldMapSlots + arg0;
-    pPlayer->unk28 = pLayer->pos.unk00 << 12;
-    pPlayer->unk2C = pLayer->pos.unk04 << 12;
-    pPlayer->unk30 = pLayer->pos.unk08 << 12;
+    pPlayer->x = pLayer->pos.x << 12;
+    pPlayer->y = pLayer->pos.y << 12;
+    pPlayer->z = pLayer->pos.z << 12;
     return 1;
 }
 
 s32 WorldMapQueueZoneEntryHeight392(s32 arg0) {
-    WorldMapQueueZoneEntry(arg0, &g_WorldMapSlots[arg0].unk28, 0xC9, 0x392);
+    WorldMapQueueZoneEntry(arg0, &g_WorldMapSlots[arg0].x, 0xC9, 0x392);
     return 1;
 }
 
@@ -363,8 +363,8 @@ void WorldMapInitSpriteGroupTables(void) {
     D_8009BDF4 = HeapAlloc(0x4C00, 0);
     pTrail = D_8009BDF4;
     for (i = 0xFF; i != -1; i--) {
-        pTrail->unk04.status.active = 0;
-        pTrail->unk04.status.count = 0;
+        pTrail->trailFlags.status.active = 0;
+        pTrail->trailFlags.status.count = 0;
         pTrail++;
     }
 }
@@ -471,7 +471,7 @@ void WorldMapDeactivateSpriteGroup(s32 arg0) {
 
     pSprite = D_8009BCC0[arg0].sprites;
     for (i = 7; i != -1; i--) {
-        pSprite->unk4F &= 0x7F;
+        pSprite->flags &= 0x7F;
         pSprite++;
     }
 }
@@ -484,8 +484,8 @@ void WorldMapClearGroupEntryFlag(s32 arg0) {
     pEntry = D_8009BDF4;
     for (i = 0xFF; i != -1; i--) {
         for (j = 0; j < 8; j++) {
-            if (pEntry->unk00 == (arg0 << 3) + j && pEntry->unk04.status.active != 0) {
-                pEntry->unk04.status.count = 0;
+            if (pEntry->spriteIndex == (arg0 << 3) + j && pEntry->trailFlags.status.active != 0) {
+                pEntry->trailFlags.status.count = 0;
                 break;
             }
         }
@@ -522,21 +522,21 @@ void func_80089580(void) {
 
     pEntry = (WorldMapTrailEntry*)D_8009BDF4;
     for (i = 0xFF; i != -1; i--, pEntry++) {
-        flags = pEntry->unk04.flags;
+        flags = pEntry->trailFlags.flags;
         if ((flags >> 16) != 0) {
             if ((s16)flags > 0) {
-                pEntry->unk08 += pEntry->unk18;
-                pEntry->unk0C += pEntry->unk1C;
-                pEntry->unk10 += pEntry->unk20;
-                pEntry->unk18 += pEntry->unk28;
-                pEntry->unk1C += pEntry->unk2C;
-                pEntry->unk20 += pEntry->unk30;
-                pEntry->unk04.status.count = pEntry->unk04.status.count - 1;
+                pEntry->x += pEntry->velX;
+                pEntry->y += pEntry->velY;
+                pEntry->z += pEntry->velZ;
+                pEntry->velX += pEntry->accelX;
+                pEntry->velY += pEntry->accelY;
+                pEntry->velZ += pEntry->accelZ;
+                pEntry->trailFlags.status.count = pEntry->trailFlags.status.count - 1;
                 pEntry->unk38 += pEntry->unk3C;
                 pEntry->unk3A += pEntry->unk3E;
-                r = (pEntry->unk40 & 0xFF) + pEntry->colorStep.r;
-                g = ((pEntry->unk40 >> 8) & 0xFF) + pEntry->colorStep.g;
-                b = ((pEntry->unk40 >> 16) & 0xFF) + pEntry->colorStep.b;
+                r = (pEntry->color & 0xFF) + pEntry->colorStep.r;
+                g = ((pEntry->color >> 8) & 0xFF) + pEntry->colorStep.g;
+                b = ((pEntry->color >> 16) & 0xFF) + pEntry->colorStep.b;
                 if (r < 0) {
                     r = 0;
                 }
@@ -555,11 +555,11 @@ void func_80089580(void) {
                 if (b >= 0x100) {
                     b = 0xFF;
                 }
-                pEntry->unk40 = (pEntry->unk40 & 0xFF000000) | (b << 16) | (g << 8) | r;
+                pEntry->color = (pEntry->color & 0xFF000000) | (b << 16) | (g << 8) | r;
             } else {
-                ((WorldMapSprite*)D_8009BCC0)[pEntry->unk00].unk0A--;
-                pEntry->unk00 = 0;
-                pEntry->unk04.flags = 0;
+                ((WorldMapSprite*)D_8009BCC0)[pEntry->spriteIndex].unk0A--;
+                pEntry->spriteIndex = 0;
+                pEntry->trailFlags.flags = 0;
             }
         }
     }
@@ -607,13 +607,13 @@ s32 func_8008A5B8(s32 arg0) {
 
     pActor = (WorldMapActor*)((u8*)g_WorldMapSlots + arg0 * 0x80);
     pSprite = SpriteAllocFromAnimFile(D_8009CD34, 0x100, 0x1E0, 0x140, 0x100, 0x40);
-    pActor->unk4C = pSprite;
-    SpritePlayAnimation(pActor->unk4C, 0);
-    SpriteSetScale(pActor->unk4C, 0x1800);
-    *(u32*)((u8*)pActor->unk4C + 0x3C) &= ~4;
-    pActor->unk28 = g_GameState.unk1820 << 12;
-    pActor->unk30 = g_GameState.unk1822 << 12;
-    pActor->unk2C = WorldMapGetTilePlaneHeight(pActor->unk28, pActor->unk30);
+    pActor->pSprite = pSprite;
+    SpritePlayAnimation(pActor->pSprite, 0);
+    SpriteSetScale(pActor->pSprite, 0x1800);
+    *(u32*)((u8*)pActor->pSprite + 0x3C) &= ~4;
+    pActor->x = g_GameState.unk1820 << 12;
+    pActor->z = g_GameState.unk1822 << 12;
+    pActor->y = WorldMapGetTilePlaneHeight(pActor->x, pActor->z);
     {
         u16 unk1824 = g_GameState.unk1824;
 
@@ -624,15 +624,15 @@ s32 func_8008A5B8(s32 arg0) {
         pActor->unk38 = 0;
         pActor->unk20 = 2;
         g_WorldMapTrailCursor = 0;
-        pActor->unk48 = unk1824;
+        pActor->angle = unk1824;
     }
     pTrail = D_8009CEC4;
     for (i = 0; i < 0x20; i++, pTrail++) {
-        pTrail->vec = *(WorldMapVec*)&pActor->unk28;
-        pTrail->unk10 = pActor->unk48;
+        pTrail->vec = *(WorldMapVec*)&pActor->x;
+        pTrail->angle = pActor->angle;
     }
-    g_WorldMapScrollTargetX = *(WorldMapVec*)&pActor->unk28;
-    D_8009D52C = pActor->unk48;
+    g_WorldMapScrollTargetX = *(WorldMapVec*)&pActor->x;
+    D_8009D52C = pActor->angle;
     return 1;
 }
 */
