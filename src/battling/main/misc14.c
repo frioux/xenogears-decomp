@@ -49,7 +49,7 @@ extern void ModelRenderPacket(void *pPart, void *pPacket, u_long *pOT, s32 flags
 // each draw buffer, and the model part itself.
 typedef struct {
     /* 0x00 */ u32 flags;
-    /* 0x04 */ s32 unk04;
+    /* 0x04 */ s32 renderMode;
     /* 0x08 */ u8* pPacket[2]; // packet area, one per draw buffer
     /* 0x10 */ s32 unk10;
     /* 0x14 */ ModelPart* pModelPart;
@@ -69,7 +69,7 @@ void BattleRenderActorModel(Misc14ModelPart *pPart) {
             gte_SetBackColor(0x40, 0x40, 0x40);
         }
     }
-    ModelRenderPacket(pPart->pModelPart, pPart->pPacket[g_BattleDrawBufferIndex], (u_long *)D_800928E4, pPart->unk04);
+    ModelRenderPacket(pPart->pModelPart, pPart->pPacket[g_BattleDrawBufferIndex], (u_long *)D_800928E4, pPart->renderMode);
 }
 
 // The colour word BattleSetColorIfChanged copies in one move; the fourth byte
@@ -109,10 +109,10 @@ void BattleSetEntryColor(u8 *pActor) {
 // into, 0x6C first.
 typedef struct {
     /* 0x00 */ u8 pad00[0x0C];
-    /* 0x0C */ MATRIX unk0C;
+    /* 0x0C */ MATRIX localMatrix;
     /* 0x2C */ u8 pad2C[0x20];
     /* 0x4C */ MATRIX unk4C;
-    /* 0x6C */ MATRIX unk6C;
+    /* 0x6C */ MATRIX worldMatrix;
 } Misc14ModelMatrices; // Size: 0x8C
 
 // A model node (the record src/battling/main/misc13.c declares as Misc13Node):
@@ -122,12 +122,12 @@ typedef struct Misc14ModelNode {
     /* 0x00 */ s32 state;
     /* 0x04 */ void* pData;
     /* 0x08 */ void (*pUpdate)(void);
-    /* 0x0C */ MATRIX unk0C;
-    /* 0x2C */ SVECTOR unk2C;
-    /* 0x34 */ VECTOR unk34;
-    /* 0x44 */ SVECTOR unk44;
+    /* 0x0C */ MATRIX localMatrix;
+    /* 0x2C */ SVECTOR sourcePos;
+    /* 0x34 */ VECTOR position;
+    /* 0x44 */ SVECTOR rotation;
     /* 0x4C */ MATRIX unk4C;
-    /* 0x6C */ MATRIX unk6C;
+    /* 0x6C */ MATRIX worldMatrix;
     /* 0x8C */ Misc14ModelMatrices* pMatrices;
     /* 0x90 */ struct Misc14ModelNode* pChildA;
     /* 0x94 */ struct Misc14ModelNode* pChildB;
@@ -166,44 +166,44 @@ void BattleUpdateNodeTree(Misc14ModelNode* pNode) {
     }
     switch (pNode->state) {
     case 2:
-        RotMatrix(&pNode->unk44, &pNode->unk0C);
+        RotMatrix(&pNode->rotation, &pNode->localMatrix);
         if (g_BattleMultiplyNodeMatrices != 0) {
-            MulMatrix0(&pNode->pMatrices->unk0C, &pNode->unk0C, &pNode->unk6C);
+            MulMatrix0(&pNode->pMatrices->localMatrix, &pNode->localMatrix, &pNode->worldMatrix);
         } else {
-            pNode->unk6C = pNode->unk0C;
+            pNode->worldMatrix = pNode->localMatrix;
         }
-        func_800731F8(&pNode->unk0C, (SVECTOR*)((u8*)pNode->pData + 0x10));
-        pNode->unk4C = pNode->unk0C;
+        func_800731F8(&pNode->localMatrix, (SVECTOR*)((u8*)pNode->pData + 0x10));
+        pNode->unk4C = pNode->localMatrix;
         pNode->unk4C.t[2] = 0;
         pNode->unk4C.t[1] = 0;
         pNode->unk4C.t[0] = 0;
-        pNode->unk0C.t[0] = pNode->unk34.vx - g_BattleViewOrigin.vx;
-        pNode->unk0C.t[1] = pNode->unk34.vy - D_80096FAC.vx;
-        pNode->unk0C.t[2] = pNode->unk34.vz - D_80096FB0.vx;
-        CompMatrix(&pNode->pMatrices->unk0C, &pNode->unk0C, &pNode->unk0C);
+        pNode->localMatrix.t[0] = pNode->position.vx - g_BattleViewOrigin.vx;
+        pNode->localMatrix.t[1] = pNode->position.vy - D_80096FAC.vx;
+        pNode->localMatrix.t[2] = pNode->position.vz - D_80096FB0.vx;
+        CompMatrix(&pNode->pMatrices->localMatrix, &pNode->localMatrix, &pNode->localMatrix);
         break;
     case 0:
     case 1:
         if (pNode->pMatrices != NULL) {
-            pNode->unk34.vx = pNode->unk2C.vx;
-            pNode->unk34.vy = pNode->unk2C.vy;
-            pNode->unk34.vz = pNode->unk2C.vz;
-            RotMatrix(&pNode->unk44, &pNode->unk0C);
-            TransMatrix(&pNode->unk0C, &pNode->unk34);
-            MulMatrix0(&pNode->pMatrices->unk6C, &pNode->unk0C, &pNode->unk6C);
-            CompMatrix(&pNode->pMatrices->unk4C, &pNode->unk0C, &pNode->unk4C);
-            CompMatrix(&pNode->pMatrices->unk0C, &pNode->unk0C, &pNode->unk0C);
+            pNode->position.vx = pNode->sourcePos.vx;
+            pNode->position.vy = pNode->sourcePos.vy;
+            pNode->position.vz = pNode->sourcePos.vz;
+            RotMatrix(&pNode->rotation, &pNode->localMatrix);
+            TransMatrix(&pNode->localMatrix, &pNode->position);
+            MulMatrix0(&pNode->pMatrices->worldMatrix, &pNode->localMatrix, &pNode->worldMatrix);
+            CompMatrix(&pNode->pMatrices->unk4C, &pNode->localMatrix, &pNode->unk4C);
+            CompMatrix(&pNode->pMatrices->localMatrix, &pNode->localMatrix, &pNode->localMatrix);
         }
         if (pNode->state == 1 && (*(u32*)pNode->pData & 1) == 0) {
-            func_80030B14(&pNode->unk6C);
-            gte_SetRotMatrix_gpr(&pNode->unk0C);
+            func_80030B14(&pNode->worldMatrix);
+            gte_SetRotMatrix_gpr(&pNode->localMatrix);
             BattleRenderActorModel(pNode->pData);
         }
         break;
     case 5:
         if (((Misc14State5Data*)pNode->pData)->type == 1) {
-            pNode->unk0C = ((Misc14State5Data*)pNode->pData)->pMatrices->unk4C;
-            gte_SetRotMatrix_gpr(&pNode->unk0C);
+            pNode->localMatrix = ((Misc14State5Data*)pNode->pData)->pMatrices->unk4C;
+            gte_SetRotMatrix_gpr(&pNode->localMatrix);
             if (D_80092914 != 0) {
                 BattleSetEntryColor((u8*)pNode);
             }
@@ -235,7 +235,7 @@ typedef struct {
     /* 0x0C */ u_long* pPrim[2];   // prim area, one per draw buffer
     /* 0x14 */ s16 count;          // ordering table length in words
     /* 0x16 */ u8 flags;
-    /* 0x17 */ u8 unk17;
+    /* 0x17 */ u8 depthShift;
     /* 0x18 */ DR_MODE drawModes[2][2]; // [half][draw buffer]
     /* 0x48 */ u8 prim48[2][0x10];
 } Misc14DisplayWork; // Size: 0x68
@@ -247,7 +247,7 @@ void BattleClearOrderingTable(Misc14DisplayWork *pWork) {
 
     ClearOTagR(pWork->pOt[g_BattleDrawBufferIndex], n);
     D_800928E4 = (u32)pWork->pOt[g_BattleDrawBufferIndex];
-    g_GfxOTDepthShift = pWork->unk17;
+    g_GfxOTDepthShift = pWork->depthShift;
 }
 
 void BattleSetOrderingTableTarget(s32 arg0) {
@@ -327,12 +327,12 @@ void BattleAttachActorPrims(Misc14DisplayWork *pWork) {
 typedef struct {
     /* 0x00 */ u32 unk0;
     /* 0x04 */ u32 unk4;
-    /* 0x08 */ u32 unk8;
-    /* 0x0C */ u32 unkC;
+    /* 0x08 */ u32 pPointerList;
+    /* 0x0C */ u32 pImage;
     /* 0x10 */ u32 unk10;
     /* 0x14 */ u32 unk14;
     /* 0x18 */ u32 unk18;
-    /* 0x1C */ u32 unk1C;
+    /* 0x1C */ u32 pSelf;
     /* 0x20 */ u32 unk20;
     /* 0x24 */ u32 unk24;
 } Misc14Reloc; // Size: 0x28
@@ -340,11 +340,11 @@ typedef struct {
 extern void BattleLoadImageWithTpageClut(void *pImg);
 
 Misc14Reloc *BattleRelocateBlockPointers(Misc14Reloc *pData) {
-    s32 delta = (s32)pData - (s32)pData->unk1C;
+    s32 delta = (s32)pData - (s32)pData->pSelf;
     u32 *pSlot;
     u32 i;
 
-    pData->unk1C = (u32)pData;
+    pData->pSelf = (u32)pData;
     pData->unk0 += delta;
     pData->unk4 += delta;
     pData->unk10 += delta;
@@ -352,14 +352,14 @@ Misc14Reloc *BattleRelocateBlockPointers(Misc14Reloc *pData) {
     pData->unk18 += delta;
     pData->unk20 += delta;
     pData->unk24 += delta;
-    if (pData->unkC != 0) {
-        pData->unkC += delta;
-        BattleLoadImageWithTpageClut((void *)pData->unkC);
+    if (pData->pImage != 0) {
+        pData->pImage += delta;
+        BattleLoadImageWithTpageClut((void *)pData->pImage);
     }
-    if (pData->unk8 != 0) {
-        pData->unk8 += delta;
-        for (i = 1; i < ((u32 *)pData->unk8)[0] + 1; i++) {
-            pSlot = (u32 *)(i * 4 + pData->unk8);
+    if (pData->pPointerList != 0) {
+        pData->pPointerList += delta;
+        for (i = 1; i < ((u32 *)pData->pPointerList)[0] + 1; i++) {
+            pSlot = (u32 *)(i * 4 + pData->pPointerList);
             if (*pSlot != 0) {
                 *pSlot += delta;
             }
@@ -484,35 +484,35 @@ void *func_8008B38C(u8 *pArg) {
 */
 
 typedef struct {
-    /* 0x0 */ s16 unk0;
+    /* 0x0 */ s16 length;
     /* 0x2 */ s16 unk2;
-    /* 0x4 */ s16 unk4;
-    /* 0x6 */ s16 unk6;
+    /* 0x4 */ s16 entryCount;
+    /* 0x6 */ s16 trackCount;
 } Misc14AnimCfg; // Size: 0x8
 
 typedef struct {
-    /* 0x0 */ u16 *unk0;
-    /* 0x4 */ u16 unk4;
-    /* 0x6 */ s16 unk6;
+    /* 0x0 */ u16 *pValue;
+    /* 0x4 */ u16 target;
+    /* 0x6 */ s16 isAngle;
 } Misc14AnimEntry; // Size: 0x8
 
 typedef struct {
-    /* 0x00 */ u32 unk0;
-    /* 0x04 */ u8 *unk4;
-    /* 0x08 */ u16 *unk8;
-    /* 0x0C */ u16 unkC;
-    /* 0x0E */ u16 unkE;
-    /* 0x10 */ u16 unk10;
-    /* 0x12 */ s16 unk12;
+    /* 0x00 */ u32 pScriptStart;
+    /* 0x04 */ u8 *pScript;
+    /* 0x08 */ u16 *pValue;
+    /* 0x0C */ u16 wait;
+    /* 0x0E */ u16 value;
+    /* 0x10 */ u16 step;
+    /* 0x12 */ s16 isAngle;
 } Misc14AnimTrack; // Size: 0x14
 
 typedef struct {
-    /* 0x00 */ Misc14AnimCfg *unk0;
-    /* 0x04 */ Misc14AnimEntry *unk4;
-    /* 0x08 */ Misc14AnimTrack *unk8;
+    /* 0x00 */ Misc14AnimCfg *pConfig;
+    /* 0x04 */ Misc14AnimEntry *pEntries;
+    /* 0x08 */ Misc14AnimTrack *pTracks;
     /* 0x0C */ u32 unkC;
     /* 0x10 */ u16 unk10;
-    /* 0x12 */ s16 unk12;
+    /* 0x12 */ s16 position;
 } Misc14Anim; // Size: 0x14
 
 extern s32 func_8008B730(Misc14Anim *pAnim, s32 arg1, s32 arg2);
@@ -604,7 +604,8 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc14", func_8008B730);
       i++; }` so the increment is body code.
    2. The script decoder needs `move v1,v0` after the `lb` (retail keeps the char
       in v1 and the load in v0); gcc loads straight into v1 here.
-   3. The final `return pAnim->unk12 == pAnim->unk0->unk0 && arg2 == 1;` costs an
+   3. The final `return pAnim->position == pAnim->pConfig->length && arg2 == 1;`
+      costs an
       extra `move v0,a0` (gcc puts the sltiu in a0) and picks v1/v0 where retail
       picks a0/v1. */
 /*
@@ -618,82 +619,84 @@ s32 func_8008B730(Misc14Anim *pAnim, s32 arg1, s32 arg2) {
     s32 pos;
     s32 pad[4];
 
-    if (pAnim->unk0 == NULL) {
+    if (pAnim->pConfig == NULL) {
         return 1;
     }
     if (arg1 != 0) {
-    pos = pAnim->unk12;
-    if (pos + arg1 > pAnim->unk0->unk0) {
-        arg1 = pAnim->unk0->unk0 - pos;
+    pos = pAnim->position;
+    if (pos + arg1 > pAnim->pConfig->length) {
+        arg1 = pAnim->pConfig->length - pos;
     }
-    pAnim->unk12 = pos + arg1;
+    pAnim->position = pos + arg1;
     arg2 -= arg1;
     if (arg2 <= 0) {
         arg2 = 1;
     }
-    pEntry = pAnim->unk4;
+    pEntry = pAnim->pEntries;
     if (arg2 == 1) {
-        for (i = 0; i < pAnim->unk0->unk4; i++) {
-            *(u16 *)pEntry->unk0 = pEntry->unk4;
+        for (i = 0; i < pAnim->pConfig->entryCount; i++) {
+            *(u16 *)pEntry->pValue = pEntry->target;
             ++pEntry;
         }
     } else {
-        for (i = 0; i < pAnim->unk0->unk4; i++) {
-            u16 value = *pEntry->unk0;
+        for (i = 0; i < pAnim->pConfig->entryCount; i++) {
+            u16 value = *pEntry->pValue;
 
-            if (pEntry->unk6 != 0) {
-                *pEntry->unk0 = BattleInterpolateAngle((s16)value, (s16)pEntry->unk4, arg2);
+            if (pEntry->isAngle != 0) {
+                *pEntry->pValue = BattleInterpolateAngle((s16)value, (s16)pEntry->target, arg2);
             } else {
-                *pEntry->unk0 = value + ((s16)pEntry->unk4 - (s16)value) / arg2;
+                *pEntry->pValue = value + ((s16)pEntry->target - (s16)value) / arg2;
             }
             ++pEntry;
         }
     }
-    pTrack = pAnim->unk8;
-    for (i = 0; i < pAnim->unk0->unk6; i++) {
+    pTrack = pAnim->pTracks;
+    for (i = 0; i < pAnim->pConfig->trackCount; i++) {
         for (j = 0; j < arg1; j++) {
-            if (pTrack->unkC != 0) {
-                pTrack->unkC--;
+            if (pTrack->wait != 0) {
+                pTrack->wait--;
             } else {
-                pScript = pTrack->unk4;
-                pTrack->unk4 = pScript + 1;
+                pScript = pTrack->pScript;
+                pTrack->pScript = pScript + 1;
                 c = *(s8 *)pScript;
                 if (c & 0x80) {
                     s32 bits = c & 0x3F;
 
                     if (c & 0x40) {
-                        pTrack->unk4 = pScript + 2;
-                        pTrack->unk10 = bits | ((s8)pScript[1] << 6);
+                        pTrack->pScript = pScript + 2;
+                        pTrack->step = bits | ((s8)pScript[1] << 6);
                     } else {
-                        pTrack->unkC = bits;
+                        pTrack->wait = bits;
                     }
                 } else {
-                    pTrack->unk10 = (s8)(c << 1) >> 1;
+                    pTrack->step = (s8)(c << 1) >> 1;
                 }
             }
-            pTrack->unkE += pTrack->unk10;
+            pTrack->value += pTrack->step;
         }
         if (arg2 == 1) {
-            *pTrack->unk8 = pTrack->unkE;
+            *pTrack->pValue = pTrack->value;
         } else {
-            u16 value = *pTrack->unk8;
+            u16 value = *pTrack->pValue;
 
-            if (pTrack->unk12 != 0) {
-                *pTrack->unk8 = BattleInterpolateAngle((s16)value, (s16)pTrack->unkE, arg2);
+            if (pTrack->isAngle != 0) {
+                *pTrack->pValue = BattleInterpolateAngle((s16)value, (s16)pTrack->value, arg2);
             } else {
-                *pTrack->unk8 = value + ((s16)pTrack->unkE - (s16)value) / arg2;
+                *pTrack->pValue = value + ((s16)pTrack->value - (s16)value) / arg2;
             }
         }
         pTrack++;
     }
-    return pAnim->unk12 == pAnim->unk0->unk0 && arg2 == 1;
+    return pAnim->position == pAnim->pConfig->length && arg2 == 1;
     }
 }
 */
 
+// A swapped-out execution context: the register file func_8008BB3C restores
+// (word 0x1C $gp, 0x1D $sp, 0x1E $fp, 0x1F $ra) and the stack it runs on.
 typedef struct {
-    /* 0x00 */ u32 unk0[0x20];
-    /* 0x80 */ u32 unk80;
+    /* 0x00 */ u32 regs[0x20];
+    /* 0x80 */ u32 stackBase;
 } Misc14Work; // Size: 0x84
 
 Misc14Work *BattleCreateWorkBlock(u32 arg0, u32 arg1, u32 arg2, s32 arg3) {
@@ -704,15 +707,15 @@ Misc14Work *BattleCreateWorkBlock(u32 arg0, u32 arg1, u32 arg2, s32 arg3) {
     HeapSetCurrentContentType(3);
     p = HeapAlloc(0x84, 2);
     for (i = 0x1F; i >= 0; i--) {
-        p->unk0[i] = 0;
+        p->regs[i] = 0;
     }
-    p->unk80 = arg2;
-    p->unk0[0x1C] = func_800405E4();
-    value = p->unk80 + arg3 * 4;
-    p->unk0[0x1F] = arg0;
-    p->unk0[4] = arg1;
-    p->unk0[0x1D] = value;
-    p->unk0[0x1E] = value;
+    p->stackBase = arg2;
+    p->regs[0x1C] = func_800405E4();
+    value = p->stackBase + arg3 * 4;
+    p->regs[0x1F] = arg0;
+    p->regs[4] = arg1;
+    p->regs[0x1D] = value;
+    p->regs[0x1E] = value;
     func_8008BB3C(p);
     return p;
 }
