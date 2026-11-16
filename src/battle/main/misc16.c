@@ -148,27 +148,11 @@ void func_8008D328(void) {
 
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008D598);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008DC34);
-/* 99.91%: ONE word. The original ends the dy computation with addu s0,s4,s6
-   (arg2's register first); gcc emits addu s0,s6,s4. C operand order is NOT the
-   lever: arg2+arg4 and arg4+arg2 both give s6,s4, so gcc canonicalises the
-   commutative pair somewhere past expand. Not the preset either: plain
-   gcc-2.7.2 scores the same 99.91 and 2.7.2-cdk 84.94. Tried: implicit narrowing
-   instead of the (s16) cast, an (s32) cast on arg4, a split s32 sum temp, and a
-   4-minute permuter run (base=10 best=10, nothing). Everything else in the
-   464-byte body is byte for byte: the codes[] branch pair, the four
-   BattleDrawSpritePackage calls with the 0x5A0 accumulate, dx between calls 1
-   and 2, dy between calls 2 and 3, and the 4-iteration
-   BattleSetPrimGrey80BlendModeFromGlobal loop.
-   Lead for the next pass: the sum's two operands are both plain params, so only
-   a different RTL shape for the plus can move it -- an operand that is itself
-   the result of an instruction, or a reload-visible copy, is untried.
 void func_8008DC34(u8 arg0, s32 arg1, s32 arg2, s32 arg3, u16 arg4) {
     u8 codes[4];
     u8 *p;
     s16 dx;
     s16 dy;
-    s32 sum;
     s32 i;
 
     p = D_800D2E38[arg0];
@@ -185,17 +169,16 @@ void func_8008DC34(u8 arg0, s32 arg1, s32 arg2, s32 arg3, u16 arg4) {
     }
     *(s32 *)(p + 0x5A0) = 0;
     *(s32 *)(p + 0x5A0) = BattleDrawSpritePackage(codes[0], (s32)(p + *(s32 *)(p + 0x5A0) * 0x50), (s16)arg1, (s16)arg2) + *(s32 *)(p + 0x5A0);
+    dy = arg2; // the sum must go through dy: dy + arg4 keeps retail's addu operand order
     dx = arg1 + arg3 - 8;
-    *(s32 *)(p + 0x5A0) = BattleDrawSpritePackage(codes[1], (s32)(p + *(s32 *)(p + 0x5A0) * 0x50), dx, (s16)arg2) + *(s32 *)(p + 0x5A0);
-    dy = (s16)(arg2 + arg4 - 8);
+    *(s32 *)(p + 0x5A0) = BattleDrawSpritePackage(codes[1], (s32)(p + *(s32 *)(p + 0x5A0) * 0x50), dx, (s16)dy) + *(s32 *)(p + 0x5A0);
+    dy = (s16)(dy + arg4 - 8);
     *(s32 *)(p + 0x5A0) = BattleDrawSpritePackage(codes[2], (s32)(p + *(s32 *)(p + 0x5A0) * 0x50), (s16)arg1, dy) + *(s32 *)(p + 0x5A0);
     *(s32 *)(p + 0x5A0) = BattleDrawSpritePackage(codes[3], (s32)(p + *(s32 *)(p + 0x5A0) * 0x50), dx, dy) + *(s32 *)(p + 0x5A0);
     for (i = 0; i < 4; i++) {
         BattleSetPrimGrey80BlendModeFromGlobal(p + (i * 2 + D_800CCB34) * 0x28);
     }
 }
-*/
-
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008DE04);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008E430);
