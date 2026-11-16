@@ -1,12 +1,13 @@
 #include "common.h"
 #include "field/actor.h"
 #include "system/memory.h"
+#include "psyq/libgpu.h"
 
 extern void func_8001E148(SpriteData* pSpriteData);
 extern void func_8001E3D8(SpriteData* pSpriteData, void* pArg);
 extern void func_8001E9BC(SpriteData* pSpriteData, void* pArg);
 extern void func_8001EE88(SpriteData* pSpriteData, void* pArg1, void* pArg2);
-extern void func_8001F1D4(SpriteData* pSpriteData, void* pArg1, void* pArg2);
+extern void func_8001F1D4(SpriteData* pSpriteData, u_long* pOt, s32 depth);
 extern void SpriteApplyDirTransforms(SpriteData* pSpriteData, s32 index, SpriteAnimPackage* pAnimPackage);
 extern void SpriteClearDirTransforms(SpriteData* pSpriteData);
 
@@ -41,6 +42,13 @@ extern u8 g_GfxSpritesUseBaseMatrix;
    offsets into extra locals reaches the original's 336 bytes but still hoists
    the matrix address (86.93%). Also 86.76% under gcc-2.7.2-cdk-psx, so it is
    not the preset.
+   Round 166: the body below is this note's C made to compile again (the flags
+   read had to become pSpriteData->flags_0xAC.flags) - 90.89% confirmed, and a
+   4-minute permuter run (1759 iterations, base 930) found only candidates that
+   change what ApplyMatrix/pMatrix see, i.e. wrong code, so nothing to port.
+   `pMatrix = &pSpriteData->pBase->transformMatrix` is also the reverse of the
+   usual subobject advice: the original keeps the transformMatrix address in s0
+   and stores at +0x14, this C keeps pBase and stores at +0x20.
 
 void func_8001E148(SpriteData* pSpriteData) {
     MATRIX* pMat = &g_GfxBaseMatrix;
@@ -61,7 +69,7 @@ void func_8001E148(SpriteData* pSpriteData) {
     xOffset = (s8)pSpriteData->pBase->offsetX;
     xOffset <<= n;
 
-    if (((u32)pSpriteData->flags_0xAC >> 2) & 1) {
+    if (((u32)pSpriteData->flags_0xAC.flags >> 2) & 1) {
         xOffset = -xOffset;
     }
 
@@ -78,7 +86,6 @@ void func_8001E148(SpriteData* pSpriteData) {
     pMatrix->t[2] = pMat->t[2] + vec.vz;
     SetRotMatrix(pMatrix);
     SetTransMatrix(pMatrix);
-}
 */
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001E148);
 
@@ -339,9 +346,16 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001EE88);
    $s3 = pFrameData with offsets 0,2,4..9. That costs one callee-saved register,
    so pOt gets $t1 instead of $fp and is spilled to 0x30($sp) every iteration.
 
+   Round 166: the body below now COMPILES against today's headers and scores the
+   same 77.38% (896 bytes against retail's 892). What had to be fixed for that:
+   `func_8001F1D4`'s extern is really (SpriteData*, u_long* pOt, s32 depth) -
+   the old (void*, void*) declaration conflicted with the body - POLY_FT4 needs
+   psyq/libgpu.h, and D_8004FB98 / g_GfxCurWorkBuffer / g_GfxCurWorkBufferEnd
+   stay declared at file scope (outside this comment).
+
  extern SVECTOR D_8004FB98[4];
- extern void* g_GfxCurWorkBuffer;
- extern void* g_GfxCurWorkBufferEnd;
+extern void* g_GfxCurWorkBuffer;
+extern void* g_GfxCurWorkBufferEnd;
 
 void func_8001F1D4(SpriteData* pSpriteData, u_long* pOt, s32 depth) {
     SVECTOR* pVerts;
