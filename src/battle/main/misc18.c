@@ -23,6 +23,7 @@ extern u16 D_800D2C9E;
 // (BattleTableEntry::unk8A) and its timer bytes at +0x15C, which the original
 // reaches through a second base of its own.
 extern BattleTableEntry g_BattleWorkBlock[];
+extern u8 D_800CCE42[][0x170];
 extern u8 D_800CCE44[][0x170];
 
 // Per-slot entry of the table at 0x800D220E: one word per battle slot, 0x10
@@ -832,7 +833,119 @@ void BattleSetSlotConditionTimer(u8 slot, u8 kind, u16 flag, s32 count) {
     pTimer = D_800CCE44[slot];
     pTimer[idx] = val;
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80099890);
+// Rolls one slot's condition timers down and returns the mask of the conditions
+// that expired this frame. The timer bytes sit at entry+0x15C (state.unkB7[1]),
+// the flag words they belong to at 0x7C..0x8E; the 0x84/0x88 words are tested as
+// one 32-bit word, i.e. the low half's flag with the high half's flag clear.
+u16 func_80099890(u8 slot) {
+    BattleTableEntry *pEntry = (BattleTableEntry *)(slot * 0x170 + (u32)g_BattleWorkBlock);
+    BattleSlotState *pState = (BattleSlotState *)(slot * 0x170 + 0xA4 + (u32)g_BattleWorkBlock);
+    u8 *pCnt = (u8 *)(slot * 0x170 + 0x15C + (u32)g_BattleWorkBlock);
+    u32 ret;
+
+    if (D_800CCE42[slot][0] & 0x80) {
+        BattleDecrementConditionTimers((BattleTableEntry *)pState, pEntry, pCnt);
+        return 0;
+    }
+    ret = 0;
+    if (pEntry->unk7C & 0x1000) {
+        pCnt[1] = pCnt[1] + 0xFF;
+        if (pCnt[1] == 0) {
+            ret |= 0x4000;
+            pEntry->unk7C &= 0xEFFF;
+        }
+    }
+    if (pEntry->unk80 & 0x1000) {
+        pCnt[2] = pCnt[2] + 0xFF;
+        if (pCnt[2] == 0) {
+            ret |= 0x2000;
+            pEntry->unk80 &= 0xEFFF;
+        }
+    }
+    if (pEntry->unk80 & 0x800) {
+        pCnt[3] = pCnt[3] + 0xFF;
+        if (pCnt[3] == 0) {
+            ret |= 0x1000;
+            pEntry->unk80 &= 0xF7FF;
+            pEntry->unk7A &= 0xFFDF;
+        }
+    }
+    if ((*(u32 *)&pEntry->unk84 & 0x80008000) == 0x8000) {
+        pCnt[4] = pCnt[4] + 0xFF;
+        if (pCnt[4] == 0) {
+            ret |= 0x800;
+            pEntry->unk84 &= 0x7FFF;
+        }
+    }
+    if ((*(u32 *)&pEntry->unk84 & 0x40004000) == 0x4000) {
+        pCnt[5] = pCnt[5] + 0xFF;
+        if (pCnt[5] == 0) {
+            ret |= 0x400;
+            pEntry->unk84 &= 0xBFFF;
+        }
+    }
+    if ((*(u32 *)&pEntry->unk84 & 0x20002000) == 0x2000) {
+        pCnt[6] = pCnt[6] + 0xFF;
+        if (pCnt[6] == 0) {
+            ret |= 0x200;
+            pEntry->unk84 &= 0xDFFF;
+        }
+    }
+    if ((*(u32 *)&pEntry->unk84 & 0x10001000) == 0x1000) {
+        pCnt[7] = pCnt[7] + 0xFF;
+        if (pCnt[7] == 0) {
+            ret |= 0x100;
+            pEntry->unk84 &= 0xEFFF;
+        }
+    }
+    if ((*(u32 *)&pEntry->unk84 & 0x08000800) == 0x800) {
+        pCnt[8] = pCnt[8] + 0xFF;
+        if (pCnt[8] == 0) {
+            ret |= 0x80;
+            pEntry->unk84 &= 0xF7FF;
+        }
+    }
+    if ((*(u32 *)&pEntry->unk88 & 0x80008000) == 0x8000) {
+        pCnt[9] = pCnt[9] + 0xFF;
+        if (pCnt[9] == 0) {
+            ret |= 0x40;
+            pEntry->unk88 &= 0x7FFF;
+        }
+    }
+    if ((*(u32 *)&pEntry->unk88 & 0x40004000) == 0x4000) {
+        pCnt[0xA] = pCnt[0xA] + 0xFF;
+        if (pCnt[0xA] == 0) {
+            ret |= 0x20;
+            pEntry->unk88 &= 0xBFFF;
+        }
+    }
+    if ((*(u32 *)&pEntry->unk88 & 0x10001000) == 0x1000) {
+        pCnt[0xB] = pCnt[0xB] + 0xFF;
+        if (pCnt[0xB] == 0) {
+            ret |= 0x10;
+            pEntry->unk88 &= 0xEFFF;
+        }
+    }
+    if (pEntry->unk8C & 0xF000) {
+        if (!(pEntry->unk8E & 0xF000)) {
+            pCnt[0xC] = pCnt[0xC] + 0xFF;
+            if (pCnt[0xC] == 0) {
+                ret |= 8;
+                pEntry->unk8C &= 0xFFF;
+            }
+        }
+    }
+    if (pEntry->unk8C & 0xF00) {
+        if (!(pEntry->unk8E & 0xF00)) {
+            pCnt[0xD] = pCnt[0xD] + 0xFF;
+            if (pCnt[0xD] == 0) {
+                ret |= 4;
+                pEntry->unk8C &= 0xF0FF;
+            }
+        }
+    }
+    return ret;
+}
 void BattleDecrementConditionTimers(BattleTableEntry *p, BattleTableEntry *pOther, u8 *pCnt) {
     if (p->unk7C & 0x200) {
         pCnt[1] = pCnt[1] + 0xFF;
