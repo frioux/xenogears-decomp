@@ -482,7 +482,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_800A1B50);
    bnez delay slot where we emit nop. Permuter on top of the 97.90 body: base 360
    best 360 (646 iterations, 3 min).
    Round 118: the parked body was never compiling (it spelled the block tag
-   `pBlock->unk1[2]`, and the header's BattleBlock has `flags` as a scalar). Fixed to
+   `pBlock->tag`, and the header's BattleBlock has `flags` as a scalar). Fixed to
    `pBlock->tag` -> 97.90%, still 420 bytes = retail's 420 and 105 insns each, so the
    delta is exactly: retail's dead `andi v0,t3,0xffff` copied into the loop-head bnez
    delay slot (we emit `nop`) and the prologue register permutation
@@ -490,6 +490,11 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_800A1B50);
    permutation is source-invisible: gcc only coalesces the +24 into $a1 when the
    walker's add keeps the copy preference, and nothing in the body changes it.
    Same 97.90% under gcc-2.7.2 -O2 -G8 (try_flags), so it is not a preset question.
+   Round 164: still 97.90% / 420 bytes = retail's, and three more spellings of the
+   frame pointer (`pData++` then `pFrame = (s16*)pData`, and `pFrame = (s16*)pData;
+   pFrame += 12;`) all leave pFrame in $v1 - the copy/add is folded straight into
+   one `addiu v1,a1,24` before any coalescing can tie it to $a1. This is the
+   permuter's job, not a spelling.
 
 void func_800A1B50(BattleSprite* pSprites, BattleAnimData* pData) {
     s16* pFrame;
@@ -836,26 +841,17 @@ s32 BattleFreeBlock(BattleBlockPool* pPool, BattleBlock* pBlock) {
     return index;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_800A2434);
-/* 83.63% (740 vs 720 bytes). Everything is recovered except two shapes:
-   1. the 5th parameter (tag, u8 at 0x58(sp)) is reloaded by retail in each
-      init block (`lbu t0,0x58(sp)`) while this version copies it once into a
-      frame slot, which costs 8 bytes of frame (0x50 vs retail's 0x48) - that
-      alone ends every diff; 2. retail stores `limit` (u16 at 0x10(sp)) twice,
-      once before the branch, and tests it with blez, this version stores it
-      only in the taken path and uses beqz. Struct view used below: block 0x00
-      flag, 0x01, 0x02, 0x03 tag, 0x04/0x08 pointers, 0x10/0x12 s16; data 0x02
-      u16, 0x04 flags, 0x06 u16, 0x0C countA, 0x0E countB, 0x18 frame records
-      of 6 bytes (u16 idxA, u16 idxB, u8 byteA, u8 byteB). Note BattleFreeAllSpriteBlocks
-      and BattleFreeSpriteBlocksByTag match ONLY with `unk1[2]` - naming that byte (e.g.
-      `tag`) changes their induction variable and drops them to 91%.
-      Round 63, from the sibling func_800A2704: there the same block-init code
-      reloads the tag from the caller frame (`lbu 0x88(sp)`, twice) and hands it
-      straight to `sb ...,3(a0)`, and countA/countB/limit/unk12 live in u16 stack
-      slots (`sh` then `lhu` back, 0x20/0x28/0x30/0x38(sp)): so `pB[2] = tag` with
-      a plain parameter use is retail's shape and the 0x50-vs-0x48 frame is stack
-      pressure from the other locals, not the tag.
+/*
+    Round 164 park repair: the body did not compile (it spelled the block tag
+    `pBlock->unk1[2]` and `pBlock->flag`, which the header now names `tag` and
+    `inUse`). Repaired to the header's names + `((u32*)pBlock)[1]/[2]` for the
+    two 4-byte stores at +4/+8, and the 5th parameter is now `u32 tag` - that is
+    what makes the frame retail's 0x48 (a `u8 tag` spilled the stack argument
+    and gave 0x50). Re-measured: 72.45%, 732 bytes vs retail's 720. The tag is
+    still not reloaded from the caller frame per init block and pSprites is not
+    kept in $s0 (retail s0=a1 pSprites, s1=a2 pData; ours s0=a2 only).
 s32 func_800A2434(BattleBlockPool* pPool, BattleSprite* pSprites, BattleAnimData* pData, u32 flags,
-                   u8 tag) {
+                   u32 tag) {
     BattleBlock* pBlock;
     u16* pIdx;
     u8* pBytes;
@@ -905,23 +901,23 @@ s32 func_800A2434(BattleBlockPool* pPool, BattleSprite* pSprites, BattleAnimData
             pBlock = pSprites->p70;
             if (pBlock == NULL) {
                 pBlock = BattleAllocBlock(pPool);
-            } else if (pBlock->unk1[2] == 0xFF) {
+            } else if (pBlock->tag == 0xFF) {
                 pBlock = NULL;
             }
             if (pBlock != NULL) {
-                pB = pBlock->unk1;
-                pBlock->flag = 1;
-                pB[0] = flagA;
-                pB[2] = tag;
-                pB[1] = pBytes[0];
-                *(s16*)(pB + 0xF) = 0;
-                *(s16*)(pB + 0x11) = unk12;
-                *(u8**)(pB + 3) = *(u8**)(pB + 7) = pTable + *pIdx;
+                pB = (u8*)pBlock;
+                pBlock->inUse = 1;
+                pBlock->flags = flagA;
+                pBlock->tag = tag;
+                pBlock->opcode = pBytes[0];
+                pBlock->curFrame = 0;
+                pBlock->endFrame = unk12;
+                *(u32*)(pB + 4) = *(u32*)(pB + 8) = (u32)(pTable + *pIdx);
                 pSprites->p70 = pBlock;
             }
         } else {
             pBlock = pSprites->p70;
-            if (pBlock != NULL && i != 0 && pBlock->unk1[2] != 0xFF) {
+            if (pBlock != NULL && i != 0 && pBlock->tag != 0xFF) {
                 BattleFreeBlock(pPool, pBlock);
                 pSprites->p70 = NULL;
             }
@@ -931,23 +927,23 @@ s32 func_800A2434(BattleBlockPool* pPool, BattleSprite* pSprites, BattleAnimData
             pBlock = pSprites->p74;
             if (pBlock == NULL) {
                 pBlock = BattleAllocBlock(pPool);
-            } else if (pBlock->unk1[2] == 0xFF) {
+            } else if (pBlock->tag == 0xFF) {
                 pBlock = NULL;
             }
             if (pBlock != NULL) {
-                pB = pBlock->unk1;
-                pBlock->flag = 1;
-                pB[0] = flagA;
-                pB[2] = tag;
-                pB[1] = pBytes[1];
-                *(s16*)(pB + 0xF) = 0;
-                *(s16*)(pB + 0x11) = unk12;
-                *(u8**)(pB + 3) = *(u8**)(pB + 7) = pTable + *pIdx;
+                pB = (u8*)pBlock;
+                pBlock->inUse = 1;
+                pBlock->flags = flagA;
+                pBlock->tag = tag;
+                pBlock->opcode = pBytes[1];
+                pBlock->curFrame = 0;
+                pBlock->endFrame = unk12;
+                *(u32*)(pB + 4) = *(u32*)(pB + 8) = (u32)(pTable + *pIdx);
                 pSprites->p74 = pBlock;
             }
         } else {
             pBlock = pSprites->p74;
-            if (pBlock != NULL && i != 0 && pBlock->unk1[2] != 0xFF) {
+            if (pBlock != NULL && i != 0 && pBlock->tag != 0xFF) {
                 BattleFreeBlock(pPool, pBlock);
                 pSprites->p74 = NULL;
             }
@@ -956,6 +952,7 @@ s32 func_800A2434(BattleBlockPool* pPool, BattleSprite* pSprites, BattleAnimData
     return 0;
 }
 */
+
 /* 69.38% (1024 vs retail's 968 bytes; ~6 excess instructions in the body). The structural
    read below is CONFIRMED against the .s, and three facts cost a round to establish:
    - the 5th parameter is a WORD, not a byte. Declared `u32 tag`, gcc uses the incoming
@@ -1004,7 +1001,12 @@ s32 func_800A2434(BattleBlockPool* pPool, BattleSprite* pSprites, BattleAnimData
      fp = flagA, s3 = i, s5 = rot counter, s4 = pos counter, s0 = frame walker, s7 = pTable.
  */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_800A2704);
-/*s32 func_800A2704(BattleBlockPool* pPool, BattleSprite* pSprites, BattleAnimData* pData, u32 flags,
+/*
+    Round 164 park repair: did not compile for the same reason (header field
+    renames). Repaired; re-measured 69.38%, 1024 bytes vs retail's 968, i.e. the
+    note above is still accurate - the remaining work is the pBytes-spill
+    allocator tie and the out-of-line BattleAllocBlock call.
+s32 func_800A2704(BattleBlockPool* pPool, BattleSprite* pSprites, BattleAnimData* pData, u32 flags,
                   u32 tag) {
     BattleBlock* pBlock;
     u16* pFrame;
@@ -1055,7 +1057,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_800A2704);
             pBlock = pSprites->p70;
             if (pBlock == NULL) {
                 pBlock = BattleAllocBlock(pPool);
-            } else if (pBlock->unk1[2] == 0xFF) {
+            } else if (pBlock->tag == 0xFF) {
                 pBlock = NULL;
             }
             if (!(animFlags & 1) && i != 0 && numA < countA) {
@@ -1067,14 +1069,14 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_800A2704);
                 pSprites->doRotate = 1;
             }
             if (pBlock != NULL) {
-                pBlock->flag = 1;
-                pBlock->unk1[0] = flagA;
-                pBlock->unk1[2] = tag;
-                pBlock->unk1[1] = pBytes[0];
-                *(u16*)(pBlock->unk1 + 0xF) = 0;
-                *(u16*)(pBlock->unk1 + 0x11) = unk12;
-                *(u8**)(pBlock->unk1 + 3) = pTable + *pFrame;
-                *(u8**)(pBlock->unk1 + 7) = pTable + *pFrame;
+                pBlock->inUse = 1;
+                pBlock->flags = flagA;
+                pBlock->tag = tag;
+                pBlock->opcode = pBytes[0];
+                pBlock->curFrame = 0;
+                pBlock->endFrame = unk12;
+                *(u32*)((u8*)pBlock + 4) = (u32)(pTable + *pFrame);
+                *(u32*)((u8*)pBlock + 8) = (u32)(pTable + *pFrame);
                 pSprites->p70 = pBlock;
             }
         } else if (!(animFlags & 1) && i != 0 && numA < countA) {
@@ -1086,7 +1088,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_800A2704);
             pBlock = pSprites->p74;
             if (pBlock == NULL) {
                 pBlock = BattleAllocBlock(pPool);
-            } else if (pBlock->unk1[2] == 0xFF) {
+            } else if (pBlock->tag == 0xFF) {
                 pBlock = NULL;
             }
             if (!(animFlags & 2) && i != 0 && numB < countB) {
@@ -1097,13 +1099,13 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_800A2704);
                 pSprites->doTransform = 1;
             }
             if (pBlock != NULL) {
-                pBlock->flag = 1;
-                pBlock->unk1[0] = flagA;
-                pBlock->unk1[2] = tag;
-                pBlock->unk1[1] = pBytes[1];
-                *(u16*)(pBlock->unk1 + 0xF) = 0;
-                *(u16*)(pBlock->unk1 + 0x11) = unk12;
-                *(u8**)(pBlock->unk1 + 7) = (*(u8**)(pBlock->unk1 + 3) = pTable + *pFrame);
+                pBlock->inUse = 1;
+                pBlock->flags = flagA;
+                pBlock->tag = tag;
+                pBlock->opcode = pBytes[1];
+                pBlock->curFrame = 0;
+                pBlock->endFrame = unk12;
+                *(u32*)((u8*)pBlock + 8) = (*(u32*)((u8*)pBlock + 4) = (u32)(pTable + *pFrame));
                 pSprites->p74 = pBlock;
             }
         } else if (!(animFlags & 2) && i != 0 && countB > numB) {
@@ -1116,6 +1118,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_800A2704);
     return 0;
 }
 */
+
 void BattleFreeAllSpriteBlocks(BattleBlockPool* pPool, BattleSprite* pSprites) {
     BattleBlock* pBlock;
     BattleSprite* pSprite;
