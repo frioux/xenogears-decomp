@@ -110,11 +110,11 @@ extern u16 D_8009D52C;
 extern s16 D_8009D154;
 
 /* func_8008A72C, func_8008B2BC, func_8008BB40, func_8008C364, func_8008C844 and
-   func_8008D678 each jr through a jtbl_ table of this unit; func_8008B644 did too
+   func_8008D678 each jr through a jtbl_ table of this unit; WorldMapUpdateActorSlot did too
    and is now C. The unit owns its .rodata (config/world_map.yaml), and cc1 emits a
    function's table where the function is in the file, so converting a stub keeps
    every table in place - only that function's own instructions and its table
-   words change (proved with check_bin.sh for func_8008B644). */
+   words change (proved with check_bin.sh for WorldMapUpdateActorSlot). */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008A72C);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008B2BC);
 /* 97.39% (472 bytes, retail 476 - one instruction short). The head block is now
@@ -260,7 +260,7 @@ int func_8008B54C(int index) {
     return 1;
 }
 */
-int func_8008B644(int index) {
+int WorldMapUpdateActorSlot(int index) {
     s32 result = 1;
     WorldMapPos *pScratch = (WorldMapPos *)0x1F800000;
     WorldMapActor *pActor = &D_8009BE24[index];
