@@ -139,6 +139,13 @@ u8 BattleWordRegCopyToMatchedSlot(BattleCommand **p, u8 index, u8 arg2) {
 // permuter 2423 iterations base=230 best=200 (its best candidate hoists the
 // case-2 index load into a volatile temp - the load order moves, the a0/a2 swap
 // does not).
+// Round 139: permuter again, 1398 iterations base=230 best=145 - a false gain.
+// Its candidate wraps the case-2 store in `if (p)` (or `if (D_800D3420)`) with
+// the body duplicated in both arms; that does buy retail's `lw a0,0(s2)` for
+// pArgs (p stays live in a0), but the discriminant lands in v1 (retail a2) and
+// the case-2 footer loses the slot sum and the gold load to v1 too: 95.25%
+// here, not better. Typing the discriminant `BattleCommand *pCmd = *p; switch
+// (pCmd->unk2)` is byte-identical to this body at 96.17.
 // screened: 89.53% was the max of Default / cdk 78.78 / 2.6.0 89.53.
 /*
 void func_8007B6C0(u8 **p, u8 index) {
