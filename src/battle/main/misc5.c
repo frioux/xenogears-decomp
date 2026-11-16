@@ -431,6 +431,11 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc5", func_8007A92C);
    *(u16*)(pBase + (p[1] << 1))) DOES fix the association - the two addus become
    (rowOff+base) then +idx2, as retail - but gcc then emits the lui/addiu group
    and the `lw p` two statements early (17.00%). 84.67% is still the best.
+   Round 135: the typed spelling of the same body, with the row pointer taken
+   from the declared register file (`D_800D3400[arg1].unk20`, i.e. D_800D3420),
+   is 13.33% and shows the wall plainly: any pointer local expands to its
+   lui/addiu FIRST, so the only shape that keeps the base materialisation after
+   the p[] loads is the single inline address expression above.
 void func_8007A92C(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
     s32 rowOff = arg1 * 0x40;
@@ -451,6 +456,10 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc5", func_8007A968);
    sinks the one-use value into the store, so the pointer init is expanded
    first. Same wall as func_8007A92C; gcc-2.6.0, 2.7.2-cdk, -O1 and -O3 all
    fail on it too.
+   Round 135: the typed spelling `D_800D3400[arg1].unk10[p[1]] = val` (dword
+   register file, D_800D3410) written as one expression is 7.50% - the address
+   expansion takes over the register allocation - so the separate-locals body
+   below stays the best.
 void func_8007A968(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
     u32 val = (p[2] + (p[3] << 8)) * 0x10;
@@ -534,6 +543,12 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc5", func_8007AA60);
    'mult <first source operand>,<second>' and always defers the SECOND operand's
    lbu to the mult point, so 'pRow[p[1]] * p[2]' buys the mult order and loses
    the p[2] load (71.50%). The two are mutually exclusive.
+   Round 135: 99.09%, and the body below (53.44%) was stale - `D_800D3430 +
+   arg1 * 0x40` does not compile against today's externs. Taking the row pointer
+   from the declared register file (`D_800D3400[arg1].unk30`) fixes both the
+   missing symbol and the two-instructions-early lui/addiu, leaving exactly one
+   instruction: the mult operand order. Permuter from that body: 1370
+   iterations, base=10 best=10, no improvement.
 void func_8007AA60(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
     u8 *pRow = D_800D3430 + arg1 * 0x40;
