@@ -383,7 +383,7 @@ void BattleQueueSpriteCommandToPoint(u8 *pPool, BattleSprite *pSprite, s32 arg2,
     s32 dy;
     s32 dz;
 
-    if ((u32)pSprite->p70 == 0) {
+    if (pSprite->p70 == NULL) {
         pNode = BattleAllocBlock(pPool);
     } else {
         pNode = pSprite->p70;
