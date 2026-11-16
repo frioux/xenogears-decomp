@@ -186,8 +186,8 @@ extern s32 WorldMapActivateSpriteGroup9Timed(s32);
 extern s32 WorldMapInitActorSlotTimer40(s32 index);
 extern void func_80078EA4(void);
 extern void func_80079778(void);
-extern void func_8007A1B4(void);
-extern void func_8007A430(void);
+extern s32 func_8007A1B4(s32);
+extern s32 func_8007A430(s32);
 extern s32 WorldMapInitActorAtScrollPositionWithSound(s32);
 extern s32 WorldMapSetupGroup14And15Prims(s32);
 extern s32 WorldMapSetActorTimer60(s32);
@@ -598,14 +598,14 @@ s32 WorldMapSetupGroup14And15Prims(s32 index) {
     return 3;
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_8007A1B4);
-/* 99.90%: 151 instructions, identical stream; the only delta is the register
-   of the first scale value (retail `lw v0,0x6C` + `sw v0` twice, ours `lw
-   v1`). A single `scale` local reused for both scratchpad vectors gives this;
-   two locals (declared at the top, or in a block at the second use) give two
-   live value pseudos and gcc then reuses the dead actor pointer in $a2
-   (97.16%), and spelling the pairs as repeated `p->unk6C`/`p->unk70` lets gcc
-   CSE them and moves p to $a3 (96.17%). Same allocator class as misc5
-   WorldMapUpdateGroup4And5Scale.
+/* 99.90%, 604 bytes = retail's exact size; instruction stream identical except
+   that retail loads p->unk6C into $v0 and stores it twice, ours into $v1 (the
+   second value, p->unk70, is $v1 in both). One `s32 scale` reused for both
+   scratchpad vectors gets here; two locals let gcc hoist the second load and
+   reuse the dead actor pointer in $a2 (97.16%). Tried: u32/register scale,
+   declaration order permutations, splitting the loads (all 99.90 or worse) and
+   permute.sh (PERMUTER_NONE base=15 best=15, 1231 iterations). A pure
+   allocator tie in the load destination at this point.
 s32 func_8007A1B4(s32 index) {
     WorldMapEntry *pEntry;
     MATRIX *pMtxA;
@@ -613,7 +613,6 @@ s32 func_8007A1B4(s32 index) {
     WorldMapActor *p;
     s32 result;
     s32 scale;
-    s32 scaleY;
 
     pEntry = (WorldMapEntry *)g_WorldMapGroups;
     p = g_WorldMapSlots + index;
@@ -635,13 +634,13 @@ s32 func_8007A1B4(s32 index) {
     pMtxB = (MATRIX *)0x1F800110;
     *pMtxB = *pMtxA;
     scale = p->unk6C;
-    scaleY = p->unk70;
     *(u32 *)0x1F800008 = scale;
     *(u32 *)0x1F800000 = scale;
     *(u32 *)0x1F800014 = 0x1000;
     *(u32 *)0x1F800004 = 0x1000;
-    *(u32 *)0x1F800018 = scaleY;
-    *(u32 *)0x1F800010 = scaleY;
+    scale = p->unk70;
+    *(u32 *)0x1F800018 = scale;
+    *(u32 *)0x1F800010 = scale;
     ScaleMatrix(pMtxA, (VECTOR *)0x1F800000);
     ScaleMatrix(pMtxB, (VECTOR *)0x1F800010);
     pEntry[14].matrix = *pMtxA;
@@ -659,19 +658,22 @@ s32 WorldMapSetActorTimer60(s32 index) {
 }
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_8007A430);
-/* 77.29%: everything but the tail of the `unk22 > 0` branch matches. The
-   original materialises the func_80089160 argument (0x1F8000A0) as lui a1 in
-   the middle of the three scratch stores (lui a1,0x1F80; sh..; ori a1,a1,0xA0)
-   and puts p->unk30 += 0x20000 in a1, so p is in a2. This shape (s16 *pDst
-   for the stores and the call argument) gets p into a2 and 77.29%; the literal
-   `*(s16 *)((u8 *)PSX_SCRATCH + 0xA0)` form gets the store order right but
-   moves p to a3 (74.40%). gcc 2.7.2-cdk: 73.44%. Not a cdk/frame problem - the
-   address constant and the 0x20000 swap registers between the two shapes.
+/* 83.41% (retail 296 bytes, ours 300): structure right - same branch, same call,
+   p in $a2 and the 0x20000 constant in $a1 as retail. The absolute scratch
+   stores must be the literal `*(s16 *)((u8 *)PSX_SCRATCH + 0xA0)` form (a
+   `s16 *pDst` local instead builds the address early into $a1, 77.29%), and
+   wrapping the `p->unk30 += 0x20000` in a do/while is what keeps p in $a2 -
+   without it p moves to $a3 (74.40%). Remaining delta: retail splits the
+   call's address constant (`lui $a1,0x1F80` early, `ori` after the 0xA0
+   store), reloads p->unk30 after the 0xA2 store, and has `li $a0,9` in the
+   blez delay slot where ours has the 0x20000 lui. permute.sh from this body:
+   PERMUTER_BETTER base=730 best=616, but that candidate (a pointer-to-member
+   local feeding the 0xA4 store) measured 83.06% in objdiff, i.e. the
+   permuter's metric and objdiff disagree here - porting it was a regression.
 s32 func_8007A430(s32 index) {
     WorldMapActor *p;
     WorldMapState *s;
     WorldMapPos4 *pSrc;
-    s16 *pDst;
     s32 result = 1;
 
     p = g_WorldMapSlots + index;
@@ -684,12 +686,12 @@ s32 func_8007A430(s32 index) {
     }
     p->unk22 = p->unk22 - 1;
     if ((s16)p->unk22 > 0) {
-        p->unk30 += 0x20000;
-        pDst = (s16 *)((u8 *)PSX_SCRATCH + 0xA0);
-        pDst[0] = p->unk28 >> 12;
-        pDst[1] = p->unk2C >> 12;
-        pDst[2] = p->unk30 >> 12;
-        func_80089160(9, (s32)pDst, 0);
+        // the do/while keeps the 0x20000 constant in $a1 and p in $a2, as retail
+        do { p->unk30 += 0x20000; } while (0);
+        *(s16 *)((u8 *)PSX_SCRATCH + 0xA0) = p->unk28 >> 12;
+        *(s16 *)((u8 *)PSX_SCRATCH + 0xA2) = p->unk2C >> 12;
+        *(s16 *)((u8 *)PSX_SCRATCH + 0xA4) = p->unk30 >> 12;
+        func_80089160(9, 0x1F8000A0, 0);
     } else {
         p->unk22 = 0x60;
         pSrc = &g_WorldMapPlayerPosition;
