@@ -181,7 +181,7 @@ typedef struct {
 // walks the same array); the reset clears its in-use byte and its timer.
 typedef struct {
     /* 0x00 */ u8 pad00[0x30];
-    /* 0x30 */ u8 unk30;
+    /* 0x30 */ u8 inUse;
     /* 0x31 */ u8 pad31[0xF];
     /* 0x40 */ s16 unk40;
     /* 0x42 */ u8 pad42[0x2];
@@ -237,7 +237,7 @@ struct Actor {
     /* 0x02C */ u8 pad2C[0x20];
     /* 0x04C */ u8 modelIndex;
     /* 0x04D */ u8 pad4D;
-    /* 0x04E */ u8 unk4E;
+    /* 0x04E */ u8 prevPartIndex;
     /* 0x04F */ u8 unk4F;
     /* 0x050 */ u8 pad50[0x2];
     /* 0x052 */ u8 unk52;
@@ -251,7 +251,7 @@ struct Actor {
     // (func_8007A344); func_80078920 takes the angle between two of them.
     /* 0x06C */ Vec4 prevPosition;
     /* 0x07C */ u8 pad7C[0x8];
-    /* 0x084 */ u8* unk84;
+    /* 0x084 */ u8* pActionEntry;
     /* 0x088 */ u8 pad88[0x10];
     /* 0x098 */ s32 unk98;
     /* 0x09C */ s32 unk9C;
@@ -259,14 +259,14 @@ struct Actor {
     /* 0x0A8 */ s32 unkA8;
     /* 0x0AC */ u8 padAC[0x4];
     /* 0x0B0 */ s32 floorY;
-    /* 0x0B4 */ s16 unkB4;
-    /* 0x0B6 */ s16 unkB6;
-    /* 0x0B8 */ s16 unkB8;
+    /* 0x0B4 */ s16 gaugeValue;
+    /* 0x0B6 */ s16 gaugePoints;
+    /* 0x0B8 */ s16 prevGaugeValue;
     /* 0x0BA */ s16 unkBA;
-    /* 0x0BC */ s16 unkBC;
+    /* 0x0BC */ s16 gaugeMax;
     /* 0x0BE */ s16 unkBE;
-    /* 0x0C0 */ u8 unkC0;
-    /* 0x0C1 */ u8 unkC1;
+    /* 0x0C0 */ u8 gaugeWidth;
+    /* 0x0C1 */ u8 prevGaugeWidth;
     /* 0x0C2 */ u8 unkC2;
     /* 0x0C3 */ u8 unkC3;
     /* 0x0C4 */ u8 state;
@@ -274,20 +274,20 @@ struct Actor {
     /* 0x0C6 */ u8 unkC6;
     /* 0x0C7 */ u8 padC7;
     /* 0x0C8 */ s16 unkC8;
-    /* 0x0CA */ s16 unkCA;
+    /* 0x0CA */ s16 moveTimer;
     /* 0x0CC */ s16 unkCC;
     /* 0x0CE */ s16 unkCE;
     /* 0x0D0 */ u32 flags;
     /* 0x0D4 */ u32 stateFlags;
     /* 0x0D8 */ u8 padD8[0x10];
-    /* 0x0E8 */ s32 unkE8;
+    /* 0x0E8 */ s32 stateTimer;
     /* 0x0EC */ u8 padEC[0x8];
     /* 0x0F4 */ s32 unkF4;
     /* 0x0F8 */ ActorModelRecord unkF8[16];
     /* 0x638 */ u8 pad638[0x14];
     /* 0x64C */ ActorSlotRecord unk64C[8];
     /* 0x86C */ u8 pad86C[0x90];
-    /* 0x8FC */ ActorScript* unk8FC;
+    /* 0x8FC */ ActorScript* pScript;
     /* 0x900 */ u8 pad900[0xA];
     /* 0x90A */ u8 unk90A;
     /* 0x90B */ u8 timer;
@@ -397,8 +397,8 @@ s32 func_80078920(Actor* p, Actor* q) {
         mid.z = (p->prevPosition.z + q->prevPosition.z) / 2;
         perp.z = (q->prevPosition.x - p->prevPosition.x) + mid.z;
         perp.x = (p->prevPosition.z - q->prevPosition.z) + mid.x;
-        radiusP = p->unk8FC->unk3;
-        radiusQ = q->unk8FC->unk3;
+        radiusP = p->pScript->unk3;
+        radiusQ = q->pScript->unk3;
         BattleActorSelectEdgeForSegment(&mid, &perp, p, &pEdge1);
         BattleActorSelectEdgeForSegment(&mid, &perp, q, &pEdge2);
         edge1 = *pEdge1;
@@ -516,7 +516,7 @@ void func_80078F00(Actor* p) {
     s32 i;
 
     pPart = p->pPart;
-    pScript = p->unk8FC;
+    pScript = p->pScript;
     p->z = 0;
     p->y = 0;
     p->x = 0;
@@ -534,27 +534,27 @@ void func_80078F00(Actor* p) {
     p->unk98 = 0x10;
     p->unk9C = 0x10;
     p->unkA8 = 0x60;
-    p->unkB4 = 0x12C;
-    p->unkB8 = 0x12C;
-    p->unkBC = 0x12C;
+    p->gaugeValue = 0x12C;
+    p->prevGaugeValue = 0x12C;
+    p->gaugeMax = 0x12C;
     p->unkBE = 0x480;
     p->unkC2 = 0xF0;
     p->angle = 0;
     p->state = 0;
     p->unkC5 = 0;
-    p->unkB6 = 0;
+    p->gaugePoints = 0;
     p->unkBA = 0;
     p->unk910 = 0;
-    p->unkC0 = 0x7F;
-    p->unkC1 = 0x7F;
+    p->gaugeWidth = 0x7F;
+    p->prevGaugeWidth = 0x7F;
     p->unk970 = 0;
     p->unk9C3 = 0;
-    p->unkE8 = 0;
+    p->stateTimer = 0;
     p->unk916 = 0;
     p->unkC8 = 0;
-    p->unkCA = 0;
+    p->moveTimer = 0;
     for (i = 0; i < 8; i++) {
-        p->unk64C[i].unk30 = 0;
+        p->unk64C[i].inUse = 0;
         p->unk64C[i].unk40 = 0;
     }
     for (i = 0xF; i >= 0; i--) {
@@ -562,7 +562,7 @@ void func_80078F00(Actor* p) {
     }
     p->unkF4 = 1;
     BattleResetMessageQueue(p);
-    p->unk4E = 0xFF;
+    p->prevPartIndex = 0xFF;
     p->stateFlags &= ~0xC;
     p->flags = (p->flags & ~0x1000) | 0x2000000 | 0x20000;
     p->unkCE = p->unkCC + 0x800;
@@ -582,7 +582,7 @@ void func_80078F00(Actor* p) {
     p->unk15F4 = pScript->unkC;
     p->unk15F2 = pScript->unkC;
     p->stateFlags &= ~0x10;
-    p->unk84 = D_8009264C;
+    p->pActionEntry = D_8009264C;
     D_8009264E = 1;
     D_80096FB8[(p->flags >> 27) & 1].unk0 = (u32)D_8006FC74;
     D_80096FB8[(p->flags >> 27) & 1].unk8 = 0;
@@ -603,7 +603,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_8007920C);
 /* Best attempt: 98.96%. Only the register names of the state block and
    the trailing p->flags/p->unkC6 update differ (mask in v1 vs a0).
 void func_8007920C(Actor* p) {
-    ActorScript* pScript = p->unk8FC;
+    ActorScript* pScript = p->pScript;
     s32 pos[3][4];
     s32 flag;
     s32 state;
@@ -852,7 +852,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_8007A768);
    the addu and the register tie moves. Holding y and t in separate locals that
    let gcc see both uses at once drops to 84.83%.
 void func_8007A768(Actor* p) {
-    ActorScript* pScript = p->unk8FC;
+    ActorScript* pScript = p->pScript;
     s32 r;
 
     D_80092668 = pScript->unk24;
