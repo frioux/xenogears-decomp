@@ -288,40 +288,47 @@ int WorldMapInitActorScrollScale(int idx) {
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007ADD4);
 /* PARKED 87.56% (1064 bytes / 266 insns; retail 1068 / 267). Two switches plus a
-   shared rand-jitter tail; every block is found.
+   shared rand-jitter tail; every block is found and the ONE remaining defect is
+   the 4th argument of the tail call.
+   NEEDS these externs (the parked body below is spelled for them; the scalar
+   D_8009BD3x/4x and D_8009BE28/2C/30 declarations give the same 87.56%):
+       extern SVECTOR D_8009BD38[];   // rotation, offset, target: 3 SVECTORs
+       extern SVECTOR D_8009BD40[];   // offset + target, same bytes
+       extern WorldMapPos D_8009BE28[];
+   Switching them makes the two already-matched neighbours read objdiff 99.00 /
+   99.85 (MATCH, identical bytes: only reloc addends move), so only do it with
+   this body in place.
    SOLVED (was 81.35%): the three read-modify-write globals retail addresses
    through a HELD register - case 4 D_8009BE30 in $a2, case 5 D_8009BD3A in $a3,
    tail D_8009BD40 in $t1 - are UNBOUNDED ARRAY declarations. That is what makes
    gcc keep the base in a general register instead of the `sw $r,sym` macro form
-   that maspsx expands through $at. Unparking needs these in place of the scalar
-   D_8009BD3x/4x and D_8009BE28/BE2C/BE30 declarations (the neighbours
-   WorldMapInitActorScrollScale and WorldMapExitToMap111 then still MATCH, only
-   their reloc addends move: objdiff 99.00 / 99.85):
-       extern SVECTOR D_8009BD38[];   // rotation, offset, target: 3 SVECTORs
-       extern SVECTOR D_8009BD40[];   // offset + target, same bytes
-       extern WorldMapPos D_8009BE28[];
-   and every use spelled D_8009BD3A -> D_8009BD38[0].vy and so on. SPELLING IS
-   THE WHOLE TRICK: a bounded array (u16 x[3]) or a member behind a plain struct
-   folds back to %hi/$at; a pure load or store folds too; only a read-modify-write
-   materialises the base, and only the FIRST RMW of a basic block - which is
-   exactly retail's tail (BD40 in $t1, then BD48/BD42/BD4A through $at).
+   that maspsx expands through $at. And only the FIRST RMW of a basic block does
+   it, which is exactly retail's tail (BD40 in $t1, then BD48/BD42/BD4A via $at).
+   The held base only appears when the RMW is at offset 0 of its array symbol:
+   D_8009BD38[1].vx += x emits the $at macro form, D_8009BD40[0].vx += x the
+   held base. That is why D_8009BD40 needs its own declaration.
    REMAINING 4 BYTES, one decision: retail materialises &D_8009BD40 fresh in $a0
    for func_80096F18 and AGAIN in $t1 after the two rand() calls; with arg1 and
    the tail RMW both spelled &D_8009BD40 gcc hoists the address into the SAVED
    register $s0 before the calls (which also pushes the player pointer to $s1 and
-   the scratch base to $s2, adding a save/restore pair). Spelling arg1 as
-   &D_8009BD38[1] kills the hoist (that is this 87.56% body) but gcc then derives
-   the other argument as `addiu $a3,$a0,-8` where retail emits a fresh `la`, so
-   the function comes out 4 bytes SHORT. A third symbol for one of those three
-   roles is what is missing and 0x8009BD40 has none: tried arg1 &D_8009BD48[-1]
-   (the hoist returns, 1072 bytes) and arg4 &D_8009BD40[-1] (84.74%). Also left
-   over: case 3/5 store order (ours sinks pPlayer->unk4 = 0) and the case-4
-   v0/v1, a1/a2 allocation swap.
+   the scratch base to $s2, adding a save/restore pair): 1072 bytes, 85.93%.
+   Spelling arg1 as &D_8009BD38[1] kills the hoist (that is this 87.56% body) but
+   gcc then derives the 4th argument as `addu $a3,$a0,-8` where retail emits a
+   fresh `la`, so the function comes out 4 bytes SHORT. All three roles need
+   values gcc cannot relate: arg1 D_8009BD40, arg4 D_8009BD38 and the tail base
+   D_8009BD40 -i.e. two spellings of the same address that differ where it
+   matters. Tried: arg1 &D_8009BD48[-1] (the hoist returns, 1072), arg4
+   &D_8009BD40[-1] (81.91%, 1048), the whole tail in a do/while (0) block (80.44%,
+   1072), arg4 through a pointer local. Permuter from this body twice, both
+   PERMUTER_BETTER and both SHORTER than retail, so neither can link:
+   `s32 nTargetZ = pPlayer->unk5C;` before the BD40[1] stores (92.26%, 1060) and
+   `nAngle = D_8009C5AC;` between case 3 and case 4 with unk58 = nAngle + 0xC7C00
+   (93.93%, 1052). The unused return value is not the lever here (tried void).
    Compiler is not the preset: -G0 85.93, gcc-2.6.0 85.89, cdk -G0 66.51.
    Do not convert func_8007BBEC/8007C3B8/8007C7D8 before this one: their tables
    must follow its two (jtbl_8006FBF4 at .rodata+0x30, jtbl_8006FC14 at +0x50,
    with 4 pad bytes between them from the align before the second table).
-    s32 func_8007ADD4(s32 idx) {
+    int func_8007ADD4(s32 idx) {
         WorldMapPlayer *pPlayer = D_8009BE24 + idx;
         u16 *pJitter = (u16 *)PSX_SCRATCH;
         s32 nAngle;
@@ -420,7 +427,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007ADD4);
             }
             break;
         }
-        func_80096F18(&D_8009BD40[0], &D_8009BE28[0], D_8009D3F0, &D_8009BD38[0]);
+        func_80096F18(&D_8009BD38[1], &D_8009BE28[0], D_8009D3F0, &D_8009BD38[0]);
         pJitter[0x50] = rand() % (pPlayer->unk50 >> 12) - (pPlayer->unk50 >> 13);
         pJitter[0x51] = rand() % (pPlayer->unk50 >> 12) - (pPlayer->unk50 >> 13);
         D_8009BD40[0].vx += pJitter[0x50];
