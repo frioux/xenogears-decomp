@@ -8,7 +8,7 @@
 extern u8 D_801EA548[][8]; // 8 u8 string IDs per panel
 extern u8 D_801EA558[][6]; // 6 u8 string IDs per panel
 extern u16 D_801EA724;
-extern u8 D_801EA730[];
+extern u8 g_DressingRoomItemIds[];
 extern s32 D_801EA728;
 extern u16 D_801EA72C;
 extern u8 D_801E9EA0[];
@@ -646,7 +646,7 @@ void MenuSetEquipmentSlotValue(u_char arg0, s32 arg1, s32 arg2, s32 arg3, u_char
         if (arg4 == 0) {
             if (arg1 == 0) {
                 g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].unk6A[0] =
-                    D_801EA730[arg3 + arg2];
+                    g_DressingRoomItemIds[arg3 + arg2];
             } else {
                 if (arg1 < 0) {
                     return;
@@ -655,17 +655,17 @@ void MenuSetEquipmentSlotValue(u_char arg0, s32 arg1, s32 arg2, s32 arg3, u_char
                     return;
                 }
                 g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].unk74[arg1 - 1] =
-                    D_801EA730[arg3 + arg2];
+                    g_DressingRoomItemIds[arg3 + arg2];
             }
         } else {
             g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].unk6F[arg1] =
-                D_801EA730[arg3 + arg2];
+                g_DressingRoomItemIds[arg3 + arg2];
         }
     } else {
         if (arg4 == 0) {
             if (arg1 == 0) {
                 g_GameState.gears[g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].gearId]
-                    .weaponId[0] = D_801EA730[arg3 + arg2];
+                    .weaponId[0] = g_DressingRoomItemIds[arg3 + arg2];
             } else {
                 if (arg1 < 0) {
                     return;
@@ -674,11 +674,11 @@ void MenuSetEquipmentSlotValue(u_char arg0, s32 arg1, s32 arg2, s32 arg3, u_char
                     return;
                 }
                 g_GameState.gears[g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].gearId]
-                    .accessorySlots[arg1 - 1] = D_801EA730[arg3 + arg2];
+                    .accessorySlots[arg1 - 1] = g_DressingRoomItemIds[arg3 + arg2];
             }
         } else {
             g_GameState.gears[g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].gearId]
-                .unk4[arg1] = D_801EA730[arg3 + arg2];
+                .unk4[arg1] = g_DressingRoomItemIds[arg3 + arg2];
         }
     }
 }
@@ -697,7 +697,7 @@ void MenuUpdateDressingRoomTotals(u_char arg0) {
     g_Menu->pDressingRoom->unkB8[5] = g_Menu->pDressingRoom->unkB4;
 }
 // Draws the three item name strings of one dressing room slot.
-void func_801DFF5C(s32 arg0, s32 arg1, s32 arg2, u_char arg3, u_char arg4, u_char arg5, u_char arg6) {
+void MenuRenderEquipmentSlotStrings(s32 arg0, s32 arg1, s32 arg2, u_char arg3, u_char arg4, u_char arg5, u_char arg6) {
     RECT rect;
     void* pStrings;
     u8* pBuf;
@@ -705,7 +705,7 @@ void func_801DFF5C(s32 arg0, s32 arg1, s32 arg2, u_char arg3, u_char arg4, u_cha
     u_char slot;
     s32 i;
 
-    itemId = D_801EA730[arg2 + arg1];
+    itemId = g_DressingRoomItemIds[arg2 + arg1];
     slot = 0;
     if (arg5 != 0) {
         itemId = 0xFF;

@@ -39,7 +39,7 @@ extern void func_80088490(u8 arg0);
 extern void func_8009AEFC(u8 arg0);
 extern void BattleFinishActorAnimationAndReleaseSlot(u8 arg0);
 extern void BattleReleaseCharSlot(u8 arg0);
-extern u8 D_800CCE42[];
+extern u8 g_BattleSlotConditions[];
 extern u8 D_800C3EB8[];
 extern u8 g_BattleActorCharIds[];
 extern u8 D_80059179;
@@ -790,9 +790,9 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_800822C4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_80082504);
 /* 84.29%: every instruction after the flag update matches. The blocker is the
    flag update itself: retail has the gas `sym+reg` form twice
-   (`lui at,%hi(D_800CCE42); addu at,at,v0; lbu/sb %lo(at)`, i.e. the base
+   (`lui at,%hi(g_BattleSlotConditions); addu at,at,v0; lbu/sb %lo(at)`, i.e. the base
    rematerialised into $at for each access, 4 more insns) while cse in our gcc
-   makes one `la $3,D_800CCE42` and shares it (`addu v0,v0,v1`), 8 bytes
+   makes one `la $3,g_BattleSlotConditions` and shares it (`addu v0,v0,v1`), 8 bytes
    shorter, so the size cannot match either. gcc does emit the `sym+reg` macro
    form for g_BattleSlotFlags/g_BattleActorCharIds in this same function; it registers an
    address only where it is used twice. Tried: plain `|=`, array-ref, pointer
@@ -804,7 +804,7 @@ void func_800826CC(u8 arg0) {
     func_80088490(arg0);
     func_8009AEFC(arg0);
     BattleFinishActorAnimationAndReleaseSlot(arg0);
-    D_800CCE42[arg0 * 0x170] |= 0x80;
+    g_BattleSlotConditions[arg0 * 0x170] |= 0x80;
     BattleReleaseCharSlot(arg0);
     g_BattleSlotFlags[arg0 * 8] = 2;
     if (g_BattleActorCharIds[arg0] != 7) {

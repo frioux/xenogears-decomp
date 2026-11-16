@@ -23,7 +23,7 @@ extern u16 D_800D2C9E;
 // (BattleTableEntry::unk8A) and its timer bytes at +0x15C, which the original
 // reaches through a second base of its own.
 extern BattleTableEntry g_BattleWorkBlock[];
-extern u8 D_800CCE42[][0x170];
+extern u8 g_BattleSlotConditions[][0x170];
 extern u8 D_800CCE44[][0x170];
 
 // Per-slot entry of the table at 0x800D220E: one word per battle slot, 0x10
@@ -839,13 +839,13 @@ void BattleSetSlotConditionTimer(u8 slot, u8 kind, u16 flag, s32 count) {
 // low halfword's flag armed with the high halfword's copy of it clear. The timer
 // and state pointers are formed off the symbol base, not off pEntry: the original
 // keeps that second base in a register of its own.
-u16 func_80099890(u8 slot) {
+u16 BattleDecrementSlotConditionTimers(u8 slot) {
     BattleTableEntry *pEntry = &g_BattleWorkBlock[slot];
     BattleSlotState *pState = (BattleSlotState *)(slot * 0x170 + 0xA4 + (u32)g_BattleWorkBlock);
     u8 *pCnt = (u8 *)(slot * 0x170 + 0x15C + (u32)g_BattleWorkBlock);
     u32 ret;
 
-    if (D_800CCE42[slot][0] & 0x80) {
+    if (g_BattleSlotConditions[slot][0] & 0x80) {
         BattleDecrementConditionTimers((BattleTableEntry *)pState, pEntry, pCnt);
         return 0;
     }

@@ -6,7 +6,7 @@ extern BattleWorkBlock* g_BattleCurWorkBlock;
 extern u8 D_800C3E50;
 extern BattleRow* g_BattleCurrentRow;
 extern u8* D_800D2DC8;
-extern u8 D_800CCE42[];
+extern u8 g_BattleSlotConditions[];
 extern BattleTableEntry g_BattleWorkBlock[];
 extern u8 D_800D2C34;
 extern u8* g_BattleActingSlot;
@@ -544,24 +544,24 @@ void BattleSetActorScaledHp(u8 arg0, BattleTableEntry* pArg) {
 }
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009B1E4);
-// best 94.23% under gcc-2.6.0 (93.87% on 2.7.2, 94.10% cdk): the D_800CCE42
+// best 94.23% under gcc-2.6.0 (93.87% on 2.7.2, 94.10% cdk): the g_BattleSlotConditions
 // base is hoisted out of the loop where retail re-forms lui/addiu per reference.
 // PARKED (93.87%). Body COMPILES (park triage, round 111; it needed the extern u8
-// D_800CCE42[] that is now at the top of the file). 532 bytes against retail's
-// 536 - the missing instruction is the D_800CCE42 base retail re-forms per
+// g_BattleSlotConditions[] that is now at the top of the file). 532 bytes against retail's
+// 536 - the missing instruction is the g_BattleSlotConditions base retail re-forms per
 // reference and gcc hoists, the same gap as func_8009AEFC above.
 /*
 Best attempt: 93.87%. Every instruction from the `p[0x56] == 3` test onward
-   matches; the only difference is the D_800CCE42 access. The original re-forms
-   `lui at,%hi(D_800CCE42); addu at,at,idx; lbu %lo(at)` at BOTH references,
+   matches; the only difference is the g_BattleSlotConditions access. The original re-forms
+   `lui at,%hi(g_BattleSlotConditions); addu at,at,idx; lbu %lo(at)` at BOTH references,
    while gcc's loop.c hoists the symbol base into a register before the loop
    (`lui t1; addiu t1` at function entry) and then does `addu v0,idx,t1;
    lbu 0(v0)` -- 4 bytes larger, which shifts every branch target before the
    second block and swaps the max/cur registers ($a1/$v1). Same signature as the
    func_8009AEFC park (D_800CCD68) in this unit.
-   Tried: `D_800CCE42[i*0x170]`, `((u32)i*0x170 + (u32)D_800CCE42)`,
-   `((u8*)&D_800CCE42)[(u32)i*0x170]`, `((u8*)&D_800CCE42)[i*0x170]`,
-   `*(volatile u8*)((u32)D_800CCE42 + (u32)i*0x170)`, gcc-2.7.2-cdk (94.10%),
+   Tried: `g_BattleSlotConditions[i*0x170]`, `((u32)i*0x170 + (u32)g_BattleSlotConditions)`,
+   `((u8*)&g_BattleSlotConditions)[(u32)i*0x170]`, `((u8*)&g_BattleSlotConditions)[i*0x170]`,
+   `*(volatile u8*)((u32)g_BattleSlotConditions + (u32)i*0x170)`, gcc-2.7.2-cdk (94.10%),
    -O3 (93.87%) and -G0 (93.87%) -- all identical. Established from the matched
    functions in this overlay (BattleGetGameCharacterField5 here, BattleActorPosXGreaterThan in misc12) that
    gcc emits the $at form only when the symbol's address is credited to no
@@ -569,7 +569,7 @@ Best attempt: 93.87%. Every instruction from the `p[0x56] == 3` test onward
    CSE credits it and the loop hoists it. Not source-reachable without changing
    the instruction multiset (a hand-written shift chain for one of the two
    indices would defeat the CSE but break retail's multiply-expansion chain).
-   NOTE: this file needs `extern u8 D_800CCE42[];` (added) or the attempt below
+   NOTE: this file needs `extern u8 g_BattleSlotConditions[];` (added) or the attempt below
    does not compile at all.
 void func_8009B46C(u16* arg0) {
     u8 count = 0;
@@ -582,7 +582,7 @@ void func_8009B46C(u16* arg0) {
         u32 max;
 
         if (p[0x56] == 0) {
-            if (D_800CCE42[i * 0x170] & 0x80) {
+            if (g_BattleSlotConditions[i * 0x170] & 0x80) {
                 max = *(u32*)(p + 0x108);
                 cur = *(u32*)(p + 0x104);
             } else {
@@ -597,7 +597,7 @@ void func_8009B46C(u16* arg0) {
             }
         }
         if (p[0x56] == 3) {
-            if (D_800CCE42[i * 0x170] & 0x80) {
+            if (g_BattleSlotConditions[i * 0x170] & 0x80) {
                 max = *(u32*)(q + 0x64);
                 cur = *(u32*)(q + 0x60);
             } else {
@@ -776,7 +776,7 @@ void func_8009BAC4(u8 arg0, u8* pInfo, s16* pStatus) {
     u8 count;
     u8 bit;
 
-    if (D_800CCE42[arg0 * 0x170] & 0x80) {
+    if (g_BattleSlotConditions[arg0 * 0x170] & 0x80) {
         mask = 1;
     } else {
         if (rand() % 100 < 10 && !(p->unk7A & 0x100) && *pStatus == 0) {
