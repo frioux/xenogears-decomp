@@ -586,7 +586,198 @@ void func_800A1B50(BattleSprite* pSprites, BattleAnimData* pData) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_800A1CF4);
+/* 86.05% (1136 bytes vs retail's 1144; the structure below is CONFIRMED - every call,
+   branch and store of retail has a counterpart, and every branch target in our compile is
+   one of retail's own targets). What is left is two things: an allocno permutation and a
+   2-instruction skeleton difference.
+   FUNCTION (decoded, keep it): walks sprites 1..count-1 and queues one rot tween block
+   (p70) and one pos tween block (p74) per sprite from a 6-byte-per-sprite frame record
+   (three s16 per half). Half rot: skips when its anim flag bit is set, when its counter
+   reached countA/countB, or when all three frame values already equal the sprite's; else it
+   takes/reuses the sprite's block (alloc if the slot is empty, skip entirely when the queued
+   block's unk3 is the 0xFF marker), fills inUse/unk1/unk2/unk3, unk4/6/8 = the sprite's
+   current rot (or pos), unkA/C/E = the wrapped delta (pos half: delta, or the target itself
+   when the "absolute" flag is set), unk10 = 0, unk12 = frames; otherwise it FREES the queued
+   block. That free tail is the same block reached from all four of retail's edges.
+   Deltas left, in order of how many instructions they cost:
+   1. ALLOCNO PERMUTATION (most of the remaining score). Retail: pPool=$s7, pFrame=$s1,
+      v0/v1/v2=$s2/$s3/$s4, absolute=$s5, i=$s6, 0xFF=$s8. Ours: pPool=$s5, pFrame=$s4,
+      v0/v1/v2=$s1/$s2/$s3, absolute=$s6, i=$s7, 0xFF=$s8 (walker $s0 in both). So retail
+      ranks pFrame ABOVE the three temps and pPool above everything except $s8; ours ranks the
+      temps above pFrame. Every source shape tried (permuter included) keeps that order.
+   2. Our reloads of the three stack arguments are WORD loads where retail narrows them:
+      retail `lbu 0x8C(sp)` / `lbu 0x90(sp)` / `lhu 0x10(sp)` at both init sites and both
+      unk12 stores, ours `lw` (6 opcodes, same instruction count). Declaring blockFlags/tag
+      u8 instead of u32 costs a 16-byte frame (gcc makes a register copy of the stack arg),
+      so u32 is right - the narrow RELOAD is what we cannot reproduce.
+   3. Two instructions short: retail's block selection is `lw v0,-4(s0); beqz v0,ALLOC;
+      addu a0,v0,zero` (the copy in the delay slot) then `lbu v0,3(a0); beq v0,fp,DONE` then
+      `j INIT`, and the shared INIT starts `beqz a0,FREE` - i.e. the free tail is the ELSE of
+      the init test, so an alloc failure goes to it. Written as one
+      `if (pBlock != NULL && pBlock->unk3 != 0xFF)` we lose that edge and the delay-slot copy.
+   Facts this round established (each cost time, keep them):
+   - gcc 2.6.0 assigns STACK SLOTS IN DECLARATION ORDER: retail's slots are frames 0x10,
+     countA 0x18, numA 0x20, countB 0x28, numB 0x30, numSprites 0x38, animFlags 0x40, so the
+     source declared countA, numA, countB, numB, numSprites, animFlags in exactly that order.
+     With that order our frame is retail's 0x78 and the slot offsets all line up.
+   - The free tail must be written TWICE in the source (inner else + outer else); gcc merges
+     the two identical copies into retail's one block. A `changed`/`active` flag does NOT
+     work - it leaves a `move a0,zero` in the delay slot of retail's own branch, and a
+     `pBlock = NULL` fallback does the same.
+   - `frames` is a WORD parameter with `if (frames == 0) frames = 1;` - a ternary gives a
+     branch, and u16 gives `sh`/`lhu` at entry instead of retail's two `sw`.
+   - the rot half wraps its delta (`& 0xFFF`, `if (>= 0x800) -= 0x1000`) and then adds the
+     absolute angle back when the flag is set (i.e. the wrapped-delta store happens first,
+     unconditionally); the pos half has a plain if/else instead and no wrap. pSprite->pos[]
+     is compared with `lw` but subtracted from with `lhu` - that narrowing is what the natural
+     `pBlock->unkA = v0 - pSprite->pos[0];` gives.
+   - the whole loop is `pSprite++` at the TOP of the body off one `pSprite = pSprites;`
+     (`addiu s0,s0,0x7C` lands in the first test's delay slot) and `for (i = 0; i < n; i++)`
+     with n a u16 local gives retail's `lhu/blez/move` entry test and `slt` tail.
+   permuter: 1653 iterations / 4 min, base 4756 -> 4450; the only "improvement" it found
+   deletes the unk3-0xFF guard (semantically wrong - do not port) plus copying `frames` into
+   a temp before the pos-half unk12 store.
+s32 func_800A1CF4(BattleBlockPool* pPool, BattleSprite* pSprites, BattleAnimData* pData, u32 frames,
+                  u32 absolute, u32 blockFlags, u32 tag) {
+    BattleBlock* pBlock;
+    BattleSprite* pSprite;
+    s16* pFrame;
+    u16 countA;
+    u16 numA;
+    u16 countB;
+    u16 numB;
+    u16 numSprites;
+    u16 animFlags;
+    s16 unk06;
+    s32 v0;
+    s32 v1;
+    s32 v2;
+    s32 i;
 
+    if (frames == 0) {
+        frames = 1;
+    }
+    numA = 0;
+    numB = 0;
+    absolute &= 1;
+    blockFlags &= 1;
+    countA = pData->countA;
+    countB = pData->countB;
+    animFlags = pData->flags;
+    unk06 = pData->unk06;
+    pFrame = (s16*)(pData + 1);
+    if (unk06 == 0) {
+        pFrame += (countA + 1) * 3;
+    }
+    numSprites = pSprites->count - 1;
+    pSprite = pSprites;
+    for (i = 0; i < numSprites; i++) {
+        pSprite++;
+        if (!(animFlags & 1) && numA < countA) {
+            v0 = *pFrame++;
+            v1 = *pFrame++;
+            v2 = *pFrame++;
+            numA++;
+            if (pSprite->rot[0] != v0 || pSprite->rot[1] != v1 || pSprite->rot[2] != v2) {
+                pBlock = pSprite->p70;
+                if (pBlock == NULL) {
+                    pBlock = BattleAllocBlock(pPool);
+                }
+                if (pBlock != NULL && pBlock->unk3 != 0xFF) {
+                    pBlock->inUse = 1;
+                    pBlock->unk2 = absolute + 3;
+                    pBlock->unk1 = blockFlags;
+                    pBlock->unk3 = tag;
+                    pBlock->unk4 = pSprite->rot[0];
+                    pBlock->unk6 = pSprite->rot[1];
+                    pBlock->unk8 = pSprite->rot[2];
+                    v0 = (v0 - pSprite->rot[0]) & 0xFFF;
+                    if (v0 >= 0x800) {
+                        v0 -= 0x1000;
+                    }
+                    pBlock->unkA = v0;
+                    v1 = (v1 - pSprite->rot[1]) & 0xFFF;
+                    if (v1 >= 0x800) {
+                        v1 -= 0x1000;
+                    }
+                    pBlock->unkC = v1;
+                    v2 = (v2 - pSprite->rot[2]) & 0xFFF;
+                    if (v2 >= 0x800) {
+                        v2 -= 0x1000;
+                    }
+                    pBlock->unkE = v2;
+                    if (absolute != 0) {
+                        pBlock->unkA += pSprite->rot[0];
+                        pBlock->unkC += pSprite->rot[1];
+                        pBlock->unkE += pSprite->rot[2];
+                    }
+                    pBlock->unk10 = 0;
+                    pBlock->unk12 = frames;
+                    pSprite->p70 = pBlock;
+                }
+            } else {
+                pBlock = pSprite->p70;
+                if (pBlock != NULL && pBlock->unk3 != 0xFF) {
+                    BattleFreeBlock(pPool, pBlock);
+                    pSprite->p70 = NULL;
+                }
+            }
+        } else {
+            pBlock = pSprite->p70;
+            if (pBlock != NULL && pBlock->unk3 != 0xFF) {
+                BattleFreeBlock(pPool, pBlock);
+                pSprite->p70 = NULL;
+            }
+        }
+        if (!(animFlags & 2) && numB < countB) {
+            v0 = *pFrame++;
+            v1 = *pFrame++;
+            v2 = *pFrame++;
+            numB++;
+            if (pSprite->pos[0] != v0 || pSprite->pos[1] != v1 || pSprite->pos[2] != v2) {
+                pBlock = pSprite->p74;
+                if (pBlock == NULL) {
+                    pBlock = BattleAllocBlock(pPool);
+                }
+                if (pBlock != NULL && pBlock->unk3 != 0xFF) {
+                    pBlock->inUse = 1;
+                    pBlock->unk2 = absolute + 3;
+                    pBlock->unk1 = blockFlags;
+                    pBlock->unk3 = tag;
+                    pBlock->unk4 = pSprite->pos[0];
+                    pBlock->unk6 = pSprite->pos[1];
+                    pBlock->unk8 = pSprite->pos[2];
+                    if (absolute != 0) {
+                        pBlock->unkA = v0;
+                        pBlock->unkC = v1;
+                        pBlock->unkE = v2;
+                    } else {
+                        pBlock->unkA = v0 - pSprite->pos[0];
+                        pBlock->unkC = v1 - pSprite->pos[1];
+                        pBlock->unkE = v2 - pSprite->pos[2];
+                    }
+                    pBlock->unk10 = 0;
+                    pBlock->unk12 = frames;
+                    pSprite->p74 = pBlock;
+                }
+            } else {
+                pBlock = pSprite->p74;
+                if (pBlock != NULL && pBlock->unk3 != 0xFF) {
+                    BattleFreeBlock(pPool, pBlock);
+                    pSprite->p74 = NULL;
+                }
+            }
+        } else {
+            pBlock = pSprite->p74;
+            if (pBlock != NULL && pBlock->unk3 != 0xFF) {
+                BattleFreeBlock(pPool, pBlock);
+                pSprite->p74 = NULL;
+            }
+        }
+    }
+    return numSprites;
+}
+*/
 void BattleFreeSpriteBlocksByFlags(BattleBlockPool* pPool, BattleSprite* pSprites, s32 index, u32 flags) {
     BattleSprite* pSprite;
 
