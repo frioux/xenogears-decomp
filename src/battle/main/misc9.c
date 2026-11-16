@@ -537,21 +537,13 @@ s32 BattleSetTextScale(BattleCommand **ppCmd, u8 arg1) {
 
     return pRegs[(*ppCmd)->unk1] == (*ppCmd)->unk2;
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007E98C);
-/* best: 96.47%. Identical instruction multiset and order once the 16-bit value
-   is a local; only the register pair is mirrored (original: base v1, p in a0,
-   p[3] in a2; gcc: base v0, p v1, p[3] a0). Same allocator tie as func_8007E6A0.
-   Tried: value inline in the comparison (73.41%, reorders the lbu's), pField/p
-   declared in both orders, `s32 arg1` + explicit `(arg1 & 0xFF) * 0x40`, and
-   `u8 arg1` + element index `(u16 *)D_800D3420 + arg1 * 0x20` (96.47%, same two
-   mirrored pairs).
 s32 func_8007E98C(u8 **arg0, s32 arg1) {
     u8 *p = *arg0;
-    u16 *pField = (u16 *)(D_800D3420 + (arg1 & 0xFF) * 0x40);
     s32 value = p[2] | (p[3] << 8);
+    u16 *pField = (u16 *)(D_800D3420 + (arg1 & 0xFF) * 0x40);
 
     return pField[p[1]] == value;
-} */
+}
 s32 BattleByteRegLeImm(BattleCommand **ppCmd, u8 arg1) {
     u8 *pRegs = D_800D3400[arg1].unk30;
 
