@@ -138,6 +138,22 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008B2BC);
    worse or unchanged). NOTE the gear flag is g_GameState+0x22B2 = gearRide[1],
    NOT gearRide[2]: the old body read the wrong byte of gearRide and only reached
    87.47.
+   Round 57: decomp-permuter best was BETTER 163 -> 123 under objdiff 98.91% (480
+   bytes) by hoisting a new_var = pActor->unk30 before the switch and passing THAT
+   as the call's second argument. It scores higher but is a DEAD END: pActor->unk30
+   is overwritten with D_8009C5B4 on the line before the call, and retail's own asm
+   proves the argument is the stored value (lui a1,%hi(D_8009C5B4); lw a1; lw a0,
+   0x28(s0); jal; sw a1,0x30(s0) in the delay slot), so the candidate passes the
+   stale pre-arm height - wrong code, not a closer match. A fresh 4-minute permuter
+   run from the 98.91 body also found nothing (base=123 best=123), and these shapes
+   all came out worse or unchanged: the D load before the pos store via a temp
+   (97.39), a pos temp feeding the call (96.34), the store after the call (94.43).
+   So the last instruction really is the scheduler: retail leaves a nop in the load
+   delay of lw v0 and materialises lui a1 after the store, this gcc always fills
+   that slot with lui a1. An untried lead is a different preset for this unit
+   (try_flags.sh world_map/main/misc11 func_8008B2BC --gcc <candidate> --all):
+   same source and compiler cannot differ from retail, so the arm's scheduling
+   points at the compiler, not the C.
 int func_8008B2BC(int index) {
     WorldMapActor *pActor = &g_WorldMapSlots[index];
     s32 mode;
