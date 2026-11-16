@@ -389,7 +389,7 @@ u8 BattleGridWriteByteAdvanceRow(u8 **arg0, u8 *arg1, u8 arg2) {
 void BattleGridWriteByteReg(u8 **arg0, u8 *arg1, u8 arg2, u8 arg3) {
     u8 *p = *arg0;
     s32 idx = arg3 * 8 + p[1];
-    u8 *pRow = g_BattleSlotRegs[arg2].unk30;
+    u8 *pRow = g_BattleSlotRegs[arg2].byteRegs;
 
     arg1[idx] = pRow[p[2]];
 }
@@ -404,7 +404,7 @@ void BattleGridCopyRow(u8 **arg0, u8 *arg1) {
 }
 void BattleByteRegSetImm(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
-    u8 *pRow = g_BattleSlotRegs[arg1].unk30;
+    u8 *pRow = g_BattleSlotRegs[arg1].byteRegs;
 
     pRow[p[1]] = p[2];
 }
@@ -430,7 +430,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc5", func_8007A968);
    first. Same wall as the old BattleWordRegSetImm body (now matched: statement-
    assigned base mem_addr + index-first inline address); gcc-2.6.0, 2.7.2-cdk,
    -O1 and -O3 all fail on it too.
-   Round 135: the typed spelling `g_BattleSlotRegs[arg1].unk10[p[1]] = val` (dword
+   Round 135: the typed spelling `g_BattleSlotRegs[arg1].dwordRegs[p[1]] = val` (dword
    register file, D_800D3410) written as one expression is 7.50% - the address
    expansion takes over the register allocation - so the separate-locals body
    below stays the best.
@@ -448,7 +448,7 @@ void BattleWordTableStoreImm(u8 **arg0) {
 }
 void BattleByteRegAddImmClamp(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
-    u8 *pRow = g_BattleSlotRegs[arg1].unk30;
+    u8 *pRow = g_BattleSlotRegs[arg1].byteRegs;
     s32 v = pRow[p[1]] + p[2];
     u8 res = v;
 
@@ -475,7 +475,7 @@ void BattleByteRegAddImmClamp(u8 **arg0, u8 arg1) {
 } */
 void BattleByteRegSubImmClamp(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
-    u8 *pRow = g_BattleSlotRegs[arg1].unk30;
+    u8 *pRow = g_BattleSlotRegs[arg1].byteRegs;
     s32 v = pRow[p[1]] - p[2];
     u8 res = v;
 
@@ -519,7 +519,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc5", func_8007AA60);
    the p[2] load (71.50%). The two are mutually exclusive.
    Round 135: 99.09%, and the body below (53.44%) was stale - `D_800D3430 +
    arg1 * 0x40` does not compile against today's externs. Taking the row pointer
-   from the declared register file (`g_BattleSlotRegs[arg1].unk30`) fixes both the
+   from the declared register file (`g_BattleSlotRegs[arg1].byteRegs`) fixes both the
    missing symbol and the two-instructions-early lui/addiu, leaving exactly one
    instruction: the mult operand order. Permuter from that body: 1370
    iterations, base=10 best=10, no improvement.
@@ -536,31 +536,31 @@ void func_8007AA60(u8 **arg0, u8 arg1) {
 } */
 void BattleByteRegDivImm(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
-    u8 *pRow = g_BattleSlotRegs[arg1].unk30;
+    u8 *pRow = g_BattleSlotRegs[arg1].byteRegs;
 
     pRow[p[1]] /= p[2];
 }
 void BattleByteRegModImm(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
-    u8 *pRow = g_BattleSlotRegs[arg1].unk30;
+    u8 *pRow = g_BattleSlotRegs[arg1].byteRegs;
 
     pRow[p[1]] %= p[2];
 }
 void BattleByteRegAndImm(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
-    u8 *pRow = g_BattleSlotRegs[arg1].unk30;
+    u8 *pRow = g_BattleSlotRegs[arg1].byteRegs;
 
     pRow[p[1]] &= p[2];
 }
 void BattleByteRegOrImm(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
-    u8 *pRow = g_BattleSlotRegs[arg1].unk30;
+    u8 *pRow = g_BattleSlotRegs[arg1].byteRegs;
 
     pRow[p[1]] |= p[2];
 }
 void BattleByteRegXorImm(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
-    u8 *pRow = g_BattleSlotRegs[arg1].unk30;
+    u8 *pRow = g_BattleSlotRegs[arg1].byteRegs;
 
     pRow[p[1]] ^= p[2];
 }

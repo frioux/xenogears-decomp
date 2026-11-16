@@ -11,7 +11,7 @@ typedef struct {
     /* 0x0 */ u8 inUse; // BattleAllocBlock hands out blocks with this clear; BattleFreeBlock clears it
     /* 0x1 */ u8 flags;
     /* 0x2 */ u8 opcode; // the command code plus 3
-    /* 0x3 */ u8 unk3;
+    /* 0x3 */ u8 tag; // 0xFF = no tag; BattleFreeSpriteBlocksByTag matches it
     /* 0x4 */ s16 startX; // the component's value when the command was queued
     /* 0x6 */ s16 startY;
     /* 0x8 */ s16 startZ;
@@ -143,15 +143,20 @@ typedef struct {
     /* 0x09E */ s16 pointCount; // points in the current step
     /* 0x0A0 */ mem_addr pPointCursor; // the point being run; func_800AE2A4 advances it
     /* 0x0A4 */ mem_addr pPointList; // where pPointCursor restarts after the last step
-    /* 0x0A8 */ u8 unkA8[0x8];
+    /* 0x0A8 */ mem_addr pModelFile; // the loaded model file; freed just before BattleFreeModelMesh(pMesh)
+    /* 0x0AC */ mem_addr unkAC;
     /* 0x0B0 */ u8* unkB0;
     /* 0x0B4 */ u8* unkB4;
     /* 0x0B8 */ u8 unkB8[0x52];
     /* 0x10A */ u16 modelBitMask;
     /* 0x10C */ u8 numEntries;
-    /* 0x10D */ u8 unk10D[0x3];
+    /* 0x10D */ u8 numModelListEntries; // 0x24-byte records at pModelListEntries
+    /* 0x10E */ u8 numTextures; // 0x30-byte upload records at pTextures
+    /* 0x10F */ u8 unk10F;
     /* 0x110 */ mem_addr pEntries; // numEntries BattleActorEntry records
-    /* 0x114 */ u8 unk114[0x8C];
+    /* 0x114 */ mem_addr pModelListEntries; // freed one by one with BattleFreeModelListEntryBuffers
+    /* 0x118 */ mem_addr pTextures; // freed one by one with BattleFreeImageEntry
+    /* 0x11C */ u8 unk11C[0x84];
 } BattleActor; // Size: 0x1A0
 
 // The per-slot action state a slot entry carries at +0xA4 (0xCC bytes): the
@@ -204,7 +209,7 @@ typedef struct {
     /* 0x050 */ u16 unk50; // scaled by 10 into unk5F6C
     /* 0x052 */ u16 unk52;
     /* 0x054 */ u16 unk54;
-    /* 0x056 */ u8 unk56;
+    /* 0x056 */ u8 characterId; // indexes the per-character g_GameState table
     /* 0x057 */ u8 unk57[0x4];
     /* 0x05B */ u8 unk5B;
     /* 0x05C */ u8 unk5C[0x2];
@@ -235,9 +240,9 @@ typedef struct {
     /* 0x04 */ u8 unk04[0x4];
     /* 0x08 */ u8* pScanCursor; // the script BattleScriptScanForOpcode62 scans
     /* 0x0C */ u8 unk0C[0x4];
-    /* 0x10 */ u32 unk10[4]; // dword registers
-    /* 0x20 */ u16 unk20[8]; // word registers
-    /* 0x30 */ u8 unk30[0x10]; // byte registers
+    /* 0x10 */ u32 dwordRegs[4];
+    /* 0x20 */ u16 wordRegs[8];
+    /* 0x30 */ u8 byteRegs[0x10];
 } BattleSlotRegs; // Size: 0x40
 
 // One 0x28-byte row of the per-actor action tables the battle work block holds
@@ -248,15 +253,15 @@ typedef struct {
 typedef struct {
     /* 0x00 */ u16 flags;
     /* 0x02 */ u8 unk02[0x8];
-    /* 0x0A */ u16 unk0A;
+    /* 0x0A */ u16 actionFlags;
     /* 0x0C */ u8 unk0C[0x5];
     /* 0x11 */ u8 unk11;
     /* 0x12 */ u8 unk12[0x2];
     /* 0x14 */ u8 unk14;
     /* 0x15 */ u8 unk15;
-    /* 0x16 */ u8 unk16;
+    /* 0x16 */ u8 opcode; // selects the handler from the D_800C34DC table
     /* 0x17 */ u8 unk17[0x5];
-    /* 0x1C */ u8 unk1C;
+    /* 0x1C */ u8 chance; // percent, rolled against rand() % 100
     /* 0x1D */ u8 unk1D;
     /* 0x1E */ u16 unk1E;
     /* 0x20 */ u8 unk20;
@@ -304,8 +309,8 @@ typedef struct {
     /* 0x5FBE */ u8 unk5FBE;
     /* 0x5FBF */ u8 unk5FBF;
     /* 0x5FC0 */ u8 unk5FC0;
-    /* 0x5FC1 */ u8 unk5FC1;
-    /* 0x5FC2 */ u8 unk5FC2;
+    /* 0x5FC1 */ u8 actorIndex; // selects the actor's row table (stride 0x690)
+    /* 0x5FC2 */ u8 rowIndex; // selects the row in it (stride 0x28)
     /* 0x5FC3 */ u8 unk5FC3[4];
     /* 0x5FC7 */ u8 commandCode;
 } BattleWorkBlock; // Size: 0x5FC8

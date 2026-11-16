@@ -188,7 +188,7 @@ void BattleModelQueueTransformCommand(BattleModel *pModel, u8 *pPool, BattleMode
         pBlock->inUse = 1;
         pBlock->flags = unk1;
         pBlock->opcode = command + 3;
-        pBlock->unk3 = unk3;
+        pBlock->tag = unk3;
         if (flags & 0x20) {
             if (mode == 0) {
                 addX = pNode->rot[0];
@@ -507,7 +507,7 @@ void BattleSetBlockSlotCommand(u8 *pPool, s32 index, u8 unk2, u8 unk3, s16 x, s1
             pBlock->inUse = 1;
             pBlock->flags = 0;
             pBlock->opcode = unk2;
-            pBlock->unk3 = unk3;
+            pBlock->tag = unk3;
             pBlock->startX = x;
             pBlock->startY = y;
             pBlock->startZ = z;

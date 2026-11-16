@@ -252,7 +252,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009A854);
    PARKED (99.66%). */
 /*
 s32 func_8009A9D0(void) {
-    g_BattleCurWorkBlock->unk5FC2 = 0;
+    g_BattleCurWorkBlock->rowIndex = 0;
     if (rand() % 100 < 50) {
         func_8009BE0C();
         return 1;
@@ -267,7 +267,7 @@ void BattleSetSlotFlag15A1(u8 arg0) {
     BattleTableEntry* p;
     BattleTableEntry* q;
 
-    g_BattleCurWorkBlock->unk5FC2 = 0;
+    g_BattleCurWorkBlock->rowIndex = 0;
     q = &g_BattleCurWorkBlock->slots[arg0];
     q->state.unkB6 |= 1;
     p = &g_BattleCurWorkBlock->slots[arg0];
@@ -335,7 +335,7 @@ void BattleSetSlotEntryFieldsTo2000(u8 arg0, u8 arg1) {
     u16 f;
 
     if (arg1 != 0) {
-        if (!(g_BattleCurrentRow->unk0A & 0x100)) {
+        if (!(g_BattleCurrentRow->actionFlags & 0x100)) {
             return;
         }
     }
@@ -476,7 +476,7 @@ void func_8009AEFC(u8 arg0) {
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009AEFC);
 void BattleDecrementGearPartUse(void) {
-    u8 sel = g_BattleCurWorkBlock->unk5FC2;
+    u8 sel = g_BattleCurWorkBlock->rowIndex;
     s32 idx;
 
     switch (sel) {
@@ -769,7 +769,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009BAC4);
 // load-bearing: the switch cases are listed in retail's emitted body order
 // (3,4,5,7,0/8,2/9,1/6/10 - any other order moves the blocks) and the tail is
 // `if (r >= 0x3C) pInfo[1] = mask; else pInfo[1] = 0;`, which is what lets gcc
-// tail-merge the zero store with the unk56 == 8 one (the if/else written the
+// tail-merge the zero store with the characterId == 8 one (the if/else written the
 // other way round is 8 bytes longer).
 // Tried: 6 declaration orders of mask/count/bit, u32 bit (716 bytes, worse), a
 // shared `s32 r = rand() % 100` local (99.50), an unused u32 local, `% 0x64`,
@@ -792,7 +792,7 @@ void func_8009BAC4(u8 arg0, u8* pInfo, s16* pStatus) {
             *pInfo = 4;
             return;
         }
-        switch (p->unk56) {
+        switch (p->characterId) {
         case 3:
             mask = 0xC3C0;
             count = 0xA;
@@ -829,12 +829,12 @@ void func_8009BAC4(u8 arg0, u8* pInfo, s16* pStatus) {
         if (rand() % 100 < 25 && !(p->unk7A & 0x20)) {
             *pInfo = 2;
             bit = rand() % count;
-            if (*(u16*)&g_GameState.unk16BC[p->unk56].unk6 & ((0x8000 >> bit) & mask)) {
+            if (*(u16*)&g_GameState.unk16BC[p->characterId].unk6 & ((0x8000 >> bit) & mask)) {
                 pInfo[1] = bit;
                 return;
             }
         }
-        if (p->unk56 == 8) {
+        if (p->characterId == 8) {
             *pInfo = 0;
             pInfo[1] = 0;
             return;

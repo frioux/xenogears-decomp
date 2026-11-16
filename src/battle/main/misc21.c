@@ -483,7 +483,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_800A1B50);
    best 360 (646 iterations, 3 min).
    Round 118: the parked body was never compiling (it spelled the block tag
    `pBlock->unk1[2]`, and the header's BattleBlock has `flags` as a scalar). Fixed to
-   `pBlock->unk3` -> 97.90%, still 420 bytes = retail's 420 and 105 insns each, so the
+   `pBlock->tag` -> 97.90%, still 420 bytes = retail's 420 and 105 insns each, so the
    delta is exactly: retail's dead `andi v0,t3,0xffff` copied into the loop-head bnez
    delay slot (we emit `nop`) and the prologue register permutation
    (retail pFrame=$a1 / 3rd rot temp=$v1 / unk06=$t0, ours $v1/$a1/$v0). The
@@ -531,7 +531,7 @@ void func_800A1B50(BattleSprite* pSprites, BattleAnimData* pData) {
             numA++;
             if (pSprite->rot[0] != v0 || pSprite->rot[1] != v1 || pSprite->rot[2] != v2) {
                 pBlock = pSprite->p70;
-                if (pBlock == NULL || pBlock->unk3 != 0xFF) {
+                if (pBlock == NULL || pBlock->tag != 0xFF) {
                     pSprite->rot[0] = v0;
                     pSprite->rot[1] = v1;
                     pSprite->rot[2] = v2;
@@ -547,7 +547,7 @@ void func_800A1B50(BattleSprite* pSprites, BattleAnimData* pData) {
             numB++;
             if (pSprite->pos[0] != v0 || pSprite->pos[1] != v1 || pSprite->pos[2] != v2) {
                 pBlock = pSprite->p74;
-                if (pBlock == NULL || pBlock->unk3 != 0xFF) {
+                if (pBlock == NULL || pBlock->tag != 0xFF) {
                     pSprite->pos[0] = v0;
                     pSprite->pos[1] = v1;
                     pSprite->pos[2] = v2;
@@ -568,7 +568,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_800A1CF4);
    (three s16 per half). Half rot: skips when its anim flag bit is set, when its counter
    reached countA/countB, or when all three frame values already equal the sprite's; else it
    takes/reuses the sprite's block (alloc if the slot is empty, skip entirely when the queued
-   block's unk3 is the 0xFF marker), fills inUse/unk1/unk2/unk3, unk4/6/8 = the sprite's
+   block's tag is the 0xFF marker), fills inUse/flags/opcode/tag, unk4/6/8 = the sprite's
    current rot (or pos), unkA/C/E = the wrapped delta (pos half: delta, or the target itself
    when the "absolute" flag is set), unk10 = 0, unk12 = frames; otherwise it FREES the queued
    block. That free tail is the same block reached from all four of retail's edges.
@@ -587,7 +587,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_800A1CF4);
       addu a0,v0,zero` (the copy in the delay slot) then `lbu v0,3(a0); beq v0,fp,DONE` then
       `j INIT`, and the shared INIT starts `beqz a0,FREE` - i.e. the free tail is the ELSE of
       the init test, so an alloc failure goes to it. Written as one
-      `if (pBlock != NULL && pBlock->unk3 != 0xFF)` we lose that edge and the delay-slot copy.
+      `if (pBlock != NULL && pBlock->tag != 0xFF)` we lose that edge and the delay-slot copy.
    Facts this round established (each cost time, keep them):
    - gcc 2.6.0 assigns STACK SLOTS IN DECLARATION ORDER: retail's slots are frames 0x10,
      countA 0x18, numA 0x20, countB 0x28, numB 0x30, numSprites 0x38, animFlags 0x40, so the
@@ -608,7 +608,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_800A1CF4);
      (`addiu s0,s0,0x7C` lands in the first test's delay slot) and `for (i = 0; i < n; i++)`
      with n a u16 local gives retail's `lhu/blez/move` entry test and `slt` tail.
    permuter: 1653 iterations / 4 min, base 4756 -> 4450; the only "improvement" it found
-   deletes the unk3-0xFF guard (semantically wrong - do not port) plus copying `frames` into
+   deletes the tag-0xFF guard (semantically wrong - do not port) plus copying `frames` into
    a temp before the pos-half unk12 store.
 s32 func_800A1CF4(BattleBlockPool* pPool, BattleSprite* pSprites, BattleAnimData* pData, u32 frames,
                   u32 absolute, u32 blockFlags, u32 tag) {
@@ -656,11 +656,11 @@ s32 func_800A1CF4(BattleBlockPool* pPool, BattleSprite* pSprites, BattleAnimData
                 if (pBlock == NULL) {
                     pBlock = BattleAllocBlock(pPool);
                 }
-                if (pBlock != NULL && pBlock->unk3 != 0xFF) {
+                if (pBlock != NULL && pBlock->tag != 0xFF) {
                     pBlock->inUse = 1;
                     pBlock->opcode = absolute + 3;
                     pBlock->flags = blockFlags;
-                    pBlock->unk3 = tag;
+                    pBlock->tag = tag;
                     pBlock->startX = pSprite->rot[0];
                     pBlock->startY = pSprite->rot[1];
                     pBlock->startZ = pSprite->rot[2];
@@ -690,14 +690,14 @@ s32 func_800A1CF4(BattleBlockPool* pPool, BattleSprite* pSprites, BattleAnimData
                 }
             } else {
                 pBlock = pSprite->p70;
-                if (pBlock != NULL && pBlock->unk3 != 0xFF) {
+                if (pBlock != NULL && pBlock->tag != 0xFF) {
                     BattleFreeBlock(pPool, pBlock);
                     pSprite->p70 = NULL;
                 }
             }
         } else {
             pBlock = pSprite->p70;
-            if (pBlock != NULL && pBlock->unk3 != 0xFF) {
+            if (pBlock != NULL && pBlock->tag != 0xFF) {
                 BattleFreeBlock(pPool, pBlock);
                 pSprite->p70 = NULL;
             }
@@ -712,11 +712,11 @@ s32 func_800A1CF4(BattleBlockPool* pPool, BattleSprite* pSprites, BattleAnimData
                 if (pBlock == NULL) {
                     pBlock = BattleAllocBlock(pPool);
                 }
-                if (pBlock != NULL && pBlock->unk3 != 0xFF) {
+                if (pBlock != NULL && pBlock->tag != 0xFF) {
                     pBlock->inUse = 1;
                     pBlock->opcode = absolute + 3;
                     pBlock->flags = blockFlags;
-                    pBlock->unk3 = tag;
+                    pBlock->tag = tag;
                     pBlock->startX = pSprite->pos[0];
                     pBlock->startY = pSprite->pos[1];
                     pBlock->startZ = pSprite->pos[2];
@@ -735,14 +735,14 @@ s32 func_800A1CF4(BattleBlockPool* pPool, BattleSprite* pSprites, BattleAnimData
                 }
             } else {
                 pBlock = pSprite->p74;
-                if (pBlock != NULL && pBlock->unk3 != 0xFF) {
+                if (pBlock != NULL && pBlock->tag != 0xFF) {
                     BattleFreeBlock(pPool, pBlock);
                     pSprite->p74 = NULL;
                 }
             }
         } else {
             pBlock = pSprite->p74;
-            if (pBlock != NULL && pBlock->unk3 != 0xFF) {
+            if (pBlock != NULL && pBlock->tag != 0xFF) {
                 BattleFreeBlock(pPool, pBlock);
                 pSprite->p74 = NULL;
             }
@@ -1126,17 +1126,17 @@ void BattleFreeAllSpriteBlocks(BattleBlockPool* pPool, BattleSprite* pSprites) {
     pSprite = pSprites;
     for (i = 0; i < count; i++, pSprite++) {
         pBlock = pSprite->p70;
-        if (pBlock != NULL && pBlock->unk3 != 0xFF) {
+        if (pBlock != NULL && pBlock->tag != 0xFF) {
             BattleFreeBlock(pPool, pBlock);
             pSprite->p70 = NULL;
         }
         pBlock = pSprite->p74;
-        if (pBlock != NULL && pBlock->unk3 != 0xFF) {
+        if (pBlock != NULL && pBlock->tag != 0xFF) {
             BattleFreeBlock(pPool, pBlock);
             pSprite->p74 = NULL;
         }
         pBlock = pSprite->p78;
-        if (pBlock != NULL && pBlock->unk3 != 0xFF) {
+        if (pBlock != NULL && pBlock->tag != 0xFF) {
             BattleFreeBlock(pPool, pBlock);
             pSprite->p78 = NULL;
         }
@@ -1152,17 +1152,17 @@ void BattleFreeSpriteBlocksByTag(BattleBlockPool* pPool, BattleSprite* pSprites,
     pSprite = pSprites;
     for (i = 0; i < count; i++, pSprite++) {
         pBlock = pSprite->p70;
-        if (pBlock != NULL && pBlock->unk3 == tag) {
+        if (pBlock != NULL && pBlock->tag == tag) {
             BattleFreeBlock(pPool, pBlock);
             pSprite->p70 = NULL;
         }
         pBlock = pSprite->p74;
-        if (pBlock != NULL && pBlock->unk3 == tag) {
+        if (pBlock != NULL && pBlock->tag == tag) {
             BattleFreeBlock(pPool, pBlock);
             pSprite->p74 = NULL;
         }
         pBlock = pSprite->p78;
-        if (pBlock != NULL && pBlock->unk3 == tag) {
+        if (pBlock != NULL && pBlock->tag == tag) {
             BattleFreeBlock(pPool, pBlock);
             pSprite->p78 = NULL;
         }
