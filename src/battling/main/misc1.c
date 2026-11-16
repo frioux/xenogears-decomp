@@ -177,21 +177,22 @@ typedef struct {
 } BattleAnchor; // Size: 0xC
 
 // The battling overlay's battle state (g_BattleActor1): the anchor position every
-// effect vector is placed against, the fade intensity at +0xD0 the draw units
-// read, and the frame flags the effect cells below are switched on through.
+// effect vector is placed against, the model index and gauge words at +0x4C..+0xB6
+// (the same record src/battling/main/misc3 and misc4 name), and the frame flags
+// the effect cells below are switched on through.
 typedef struct {
     /* 0x000 */ BattleAnchor position;
     /* 0x00C */ u8 unkC[0x40];
-    /* 0x04C */ u8 unk4C;
+    /* 0x04C */ u8 modelIndex;
     /* 0x04D */ u8 unk4D[0x2];
     /* 0x04F */ u8 unk4F;
     /* 0x050 */ u8 unk50[0x2];
     /* 0x052 */ u8 unk52;
     /* 0x053 */ u8 unk53[0x61];
-    /* 0x0B4 */ s16 unkB4;
-    /* 0x0B6 */ s16 unkB6;
+    /* 0x0B4 */ s16 gaugeValue;
+    /* 0x0B6 */ s16 gaugePoints;
     /* 0x0B8 */ u8 unkB8[0x18];
-    /* 0x0D0 */ u32 unkD0;
+    /* 0x0D0 */ u32 flags;
 } BattleState; // Size: 0xD4
 
 extern BattleState g_BattleActor1;
@@ -286,9 +287,9 @@ typedef struct {
     /* 0x010 */ u8 unk10[0x24];
     /* 0x034 */ VECTOR unk34;
     /* 0x044 */ u8 unk44[0x4];
-    /* 0x048 */ u32 unk48;
+    /* 0x048 */ u32 distance;
     /* 0x04C */ u8 unk4C[0xC];
-    /* 0x058 */ s32 unk58;
+    /* 0x058 */ s32 targetAngle;
     /* 0x05C */ s32 unk5C;
     /* 0x060 */ u8 unk60[0x6E];
     /* 0x0CE */ s16 unkCE;
@@ -305,11 +306,11 @@ s32 BattleSetFacingAngleFromVector(BattleActorView* p) {
     vec.vz -= 0x3F80;
     angle = ratan2(vec.vx, vec.vz) & 0xFFF;
     if (angle >= 0x201) {
-        p->unk58 = 0x800 - g_BattleFacingAngle;
+        p->targetAngle = 0x800 - g_BattleFacingAngle;
     } else {
-        p->unk58 = 0xC00 - g_BattleFacingAngle;
+        p->targetAngle = 0xC00 - g_BattleFacingAngle;
     }
-    p->unk48 = 0xFF;
+    p->distance = 0xFF;
     p->unkCE = 0;
     return 0;
 }
@@ -327,7 +328,7 @@ typedef struct {
     /* 0x00 */ u8 unk0[0x74];
     /* 0x74 */ u_long tag;
     /* 0x78 */ u8 unk78[0x4];
-    /* 0x7C */ s32 unk7C;
+    /* 0x7C */ s32 xy;
 } BattleSpritePacket; // Size: unknown
 
 extern BattleSpritePacket* g_BattleDrawSlot;
@@ -336,7 +337,7 @@ void BattleQueueSpriteAndTpagePrims(void* pOt) {
     BattleSpritePacket* pPacket;
 
     pPacket = g_BattleDrawSlot;
-    pPacket->unk7C = g_BattleWindowPosX | (g_BattleWindowPosY << 16);
+    pPacket->xy = g_BattleWindowPosX | (g_BattleWindowPosY << 16);
     AddPrim(pOt, &pPacket->tag);
     AddPrim(pOt, &g_BattleTpagePrims[g_BattleDrawBufferIndex]);
 }
@@ -411,13 +412,13 @@ extern s32 g_BattleMessageShownIndex;
 typedef struct {
     /* 0x00 */ s16 unk0;
     /* 0x02 */ s16 unk2;
-    /* 0x04 */ s16 unk4;
-    /* 0x06 */ s16 unk6;
+    /* 0x04 */ s16 x;
+    /* 0x06 */ s16 y;
     /* 0x08 */ s16 unk8;
-    /* 0x0A */ s16 unkA;
-    /* 0x0C */ s16 unkC;
+    /* 0x0A */ s16 flags;
+    /* 0x0C */ s16 lineCount;
     /* 0x0E */ u8 unkE[0x5A];
-    /* 0x68 */ u8 unk68;
+    /* 0x68 */ u8 redraw;
 } BattleMessageWindow; // Size: 0x69
 
 extern BattleMessageWindow g_BattleMessageWindow;
@@ -612,9 +613,9 @@ extern BattleEffectEmitter g_BattleEffectCells[];
 
 typedef struct {
     /* 0x00 */ u8 unk0[0x60];
-    /* 0x60 */ s32 unk60;
-    /* 0x64 */ s32 unk64;
-    /* 0x68 */ s32 unk68;
+    /* 0x60 */ s32 x;
+    /* 0x64 */ s32 y;
+    /* 0x68 */ s32 z;
 } BattleEffectOrigin; // Size: 0x6C
 
 // The origins a burst is jittered around: the number of entries and the array
@@ -712,9 +713,9 @@ void func_80072170(void) {
             pEmitter->frames = frames;
             if (frames == -1) {
                 pOrigin = g_BattleEffectPool->pPool->pOrigins[rand() % g_BattleEffectPool->pPool->count];
-                g_BattleEffectCells[i].x = pOrigin->unk60 + pAnchor->x;
-                g_BattleEffectCells[i].y = pOrigin->unk64 + pAnchor->y;
-                g_BattleEffectCells[i].z = pOrigin->unk68 + pAnchor->z;
+                g_BattleEffectCells[i].x = pOrigin->x + pAnchor->x;
+                g_BattleEffectCells[i].y = pOrigin->y + pAnchor->y;
+                g_BattleEffectCells[i].z = pOrigin->z + pAnchor->z;
                 *pCounter = rand() % 16 + 8;
             }
             pVec = (VECTOR*)&g_BattleEffectCells[i];
@@ -727,7 +728,7 @@ void func_80072170(void) {
         } while ((s32)pFrames < (s32)&D_80092A30);
         break;
     case 2:
-        pState->unkB4 = 1;
+        pState->gaugeValue = 1;
         D_8009260C = 0xFF;
         g_BattleStateStep++;
     case 3:
@@ -738,16 +739,16 @@ void func_80072170(void) {
         D_8009260C -= 8;
 fade:
         pState->unk4F = 0x10;
-        pState->unk4C = 0xA;
+        pState->modelIndex = 0xA;
         pState->unk52 = 0;
-        pState->unkB6 = 0x1000;
-        pState->unkD0 |= 0x400;
+        pState->gaugePoints = 0x1000;
+        pState->flags |= 0x400;
         if (rand() & 1) {
             count = g_BattleEffectPool->pPool->count;
             pOrigin = g_BattleEffectPool->pPool->pOrigins[rand() % count];
-            vec[0] = pOrigin->unk60 + g_BattleActor1.position.x;
-            vec[1] = pOrigin->unk64 + g_BattleSceneOriginYMirror;
-            vec[2] = pOrigin->unk68 + D_80098734;
+            vec[0] = pOrigin->x + g_BattleActor1.position.x;
+            vec[1] = pOrigin->y + g_BattleSceneOriginYMirror;
+            vec[2] = pOrigin->z + D_80098734;
             BattleEffectAddSlotFromVector((VECTOR*)vec, 0xB);
             BattleEffectAddSlotFromVector((VECTOR*)vec, 8);
         }
@@ -765,11 +766,11 @@ fade:
     }
     func_8007107C();
     if (g_BattleMessageIndex != g_BattleMessageShownIndex) {
-        pMsg->unk68 = 1;
+        pMsg->redraw = 1;
         SystemStringFreeBufferStack(pMsg);
         SystemStringPushBuffer(pMsg, GetStringEntry(g_BattleMessageStringTable, g_BattleMessageIndex));
-        pMsg->unkC = 2;
-        pMsg->unk6 = 0xB4;
+        pMsg->lineCount = 2;
+        pMsg->y = 0xB4;
         g_BattleMessageShownIndex = g_BattleMessageIndex;
     }
     func_8007099C(g_BattleEffectPlaceMode);
