@@ -18,7 +18,7 @@ extern s32 D_80096D88;
 extern s32 D_80096D8C;
 extern s32 D_80092914;
 extern u8 *D_80092938;
-extern RECT *D_80092868;
+extern RECT *g_BattleDrawSlot;
 
 extern void func_80030A30(s32 index, void *pLight);
 extern u32 func_800405E4(void);
@@ -150,10 +150,10 @@ typedef struct {
     /* 0x0C */ Misc14ShadowRecord* pShadow;
 } Misc14State5Data; // Size: 0x10
 
-extern s32 D_8009289C;
+extern s32 g_BattleMultiplyNodeMatrices;
 // The three words the node's translation is offset by; src/battling/main/misc16.c
 // declares them the same way (one global per word, read through .vx).
-extern VECTOR D_80096FA8;
+extern VECTOR g_BattleViewOrigin;
 extern VECTOR D_80096FAC;
 extern VECTOR D_80096FB0;
 extern void func_80030B14(MATRIX* pMatrix);
@@ -167,7 +167,7 @@ void BattleUpdateNodeTree(Misc14ModelNode* pNode) {
     switch (pNode->state) {
     case 2:
         RotMatrix(&pNode->unk44, &pNode->unk0C);
-        if (D_8009289C != 0) {
+        if (g_BattleMultiplyNodeMatrices != 0) {
             MulMatrix0(&pNode->pMatrices->unk0C, &pNode->unk0C, &pNode->unk6C);
         } else {
             pNode->unk6C = pNode->unk0C;
@@ -177,7 +177,7 @@ void BattleUpdateNodeTree(Misc14ModelNode* pNode) {
         pNode->unk4C.t[2] = 0;
         pNode->unk4C.t[1] = 0;
         pNode->unk4C.t[0] = 0;
-        pNode->unk0C.t[0] = pNode->unk34.vx - D_80096FA8.vx;
+        pNode->unk0C.t[0] = pNode->unk34.vx - g_BattleViewOrigin.vx;
         pNode->unk0C.t[1] = pNode->unk34.vy - D_80096FAC.vx;
         pNode->unk0C.t[2] = pNode->unk34.vz - D_80096FB0.vx;
         CompMatrix(&pNode->pMatrices->unk0C, &pNode->unk0C, &pNode->unk0C);
@@ -312,10 +312,10 @@ void BattleAttachActorPrims(Misc14DisplayWork *pWork) {
     BattleSetOrderingTableTarget((s32)pWork);
     AddPrims(D_80092938, pWork->pPrim[g_BattleDrawBufferIndex], pWork->pOt[g_BattleDrawBufferIndex]);
     if ((pWork->flags & 4) == 0) {
-        func_800453E8(&pWork->drawModes[0][g_BattleDrawBufferIndex], D_80092868);
+        func_800453E8(&pWork->drawModes[0][g_BattleDrawBufferIndex], g_BattleDrawSlot);
     }
     if ((pWork->flags & 8) == 0) {
-        func_8004546C(&pWork->drawModes[1][g_BattleDrawBufferIndex], D_80092868 + 1);
+        func_8004546C(&pWork->drawModes[1][g_BattleDrawBufferIndex], g_BattleDrawSlot + 1);
     }
     if (pWork->flags & 0x10) {
         AddPrim(D_80092938, pWork->prim48[g_BattleDrawBufferIndex]);

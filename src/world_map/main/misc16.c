@@ -19,7 +19,7 @@ typedef struct {
 } WorldMapMisc16Struct; // Size: 0xC
 
 extern u16 g_WorldMapSlotUpdateFlags;
-extern s16 D_8009C838;
+extern s16 g_WorldMapGridOrigin;
 extern s16 D_8009C83C;
 
 typedef struct {
@@ -67,7 +67,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc16", func_800980D4);
    the g_WorldMapSlotUpdateFlags store (that is the retail top: unk0 load, unk8 load, li, sh);
    the x branch writes p->unk0 = x + / - 0x800000 (a += reloads and emits a
    per-branch flag store); the y branch reads the y local but reloads p->unk8 for
-   the store; the tail reloads through a y temp (y = p->unk0; D_8009C838 = (y >> 23) + 2;
+   the store; the tail reloads through a y temp (y = p->unk0; g_WorldMapGridOrigin = (y >> 23) + 2;
    y = p->unk8; D_8009C83C = (y >> 23) + 2;) - the direct form instead lets gcc hoist
    the second load into the first load's delay slot and defer both stores (59 insns, 236 bytes).
 void func_800980D4(WorldMapMisc16Struct* p) {
@@ -91,7 +91,7 @@ void func_800980D4(WorldMapMisc16Struct* p) {
         g_WorldMapSlotUpdateFlags |= 2;
     }
     y = p->unk0;
-    D_8009C838 = (y >> 23) + 2;
+    g_WorldMapGridOrigin = (y >> 23) + 2;
     y = p->unk8;
     D_8009C83C = (y >> 23) + 2;
 }
@@ -119,7 +119,7 @@ void func_800981C8(WorldMapMisc16Struct* p) {
 
     w = D_8009D160;
     h = D_8009D2B4;
-    col = (p->unk0 >> 12) / 8 - ((D_8009C838 + 2) << 8);
+    col = (p->unk0 >> 12) / 8 - ((g_WorldMapGridOrigin + 2) << 8);
     row = (p->unk8 >> 12) / 8 - ((D_8009C83C + 2) << 8);
     if (col < 0) {
         col += w << 8;
@@ -221,7 +221,7 @@ void func_8009932C(u8* p0, u8* p1, WorldMapMisc16Struct* p) {
             }
             y = *(volatile u16*)0x1F80032C;
             x = *(volatile u16*)0x1F800328;
-            pImg = D_8009C184[D_8009D570.grid[(row + D_8009C83C) * 9 + col + D_8009C838]];
+            pImg = D_8009C184[D_8009D570.grid[(row + D_8009C83C) * 9 + col + g_WorldMapGridOrigin]];
             *(volatile u16*)0x1F800330 = *(volatile u16*)0x1F800340 = *(volatile u16*)0x1F800328 + 0x400;
             *(volatile u16*)0x1F800334 = y;
             *(volatile u16*)0x1F800338 = x;

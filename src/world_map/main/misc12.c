@@ -15,23 +15,23 @@ extern s32 g_WorldMapPathPointHeights[];
 extern u16 D_1F8000A8;
 extern void func_80096F18(s16 *pOut, s32 *pSrc, s32 nHeight, u16 *pAngles);
 extern void WorldMapWrapPosition(void *p);
-extern u16 D_8009BD10;
+extern u16 g_WorldMapPad1Released;
 extern s16 D_8009CE68;
 extern s32 D_8009D804;
 extern u8 *WorldMapGetTileEntry(s32 x, s32 z);
-extern u8 D_8009BD60;
-extern s16 D_8009BD24;
+extern u8 g_WorldMapZoneId;
+extern s16 g_WorldMapAreaId;
 extern u16 g_WorldMapViewRotationY;
-extern u8 D_8009D738;
-extern void *D_8009D7D8;
-extern u32 D_8009B6C4[3];
+extern u8 g_WorldMapZoneProximity;
+extern void *g_WorldMapAreaRect;
+extern u32 g_WorldMapZoneAreaRects[3];
 extern u16 D_8009B6D0;
 extern u32 D_8009B6D4[3];
 extern u16 D_8009B6E0;
-extern u16 D_8009CD4C;
-extern s32 D_8009CEC0;
-extern s32 D_8009C7E8;
-extern s32 D_8009BD34;
+extern u16 g_WorldMapPad1Held;
+extern s32 g_WorldMapL2R2Pressed;
+extern s32 g_WorldMapL2R2PressedLast;
+extern s32 g_WorldMapL2R2PressEdge;
 extern s32 g_WorldMapFadeLevel;
 extern s32 g_WorldMapMode;
 extern s32 D_8009C5A8;
@@ -44,12 +44,12 @@ extern s32 WorldMapGetTilePlaneHeight(s32 x, s32 z);
 extern s32 g_WorldMapCameraHeight;
 extern s16 g_WorldMapCameraRot;
 extern s16 D_8009BD3C;
-extern u16 D_8009D52C;
+extern u16 g_WorldMapPlayerAngle;
 extern u32 g_WorldMapScrollTargetX[];
-extern s16 D_8009B224[];
-extern s16 D_8009B22C[];
-extern s16 D_8009B234[];
-extern s16 D_8009B23C[];
+extern s16 g_WorldMapCameraPathAnglesModes1To5[];
+extern s16 g_WorldMapCameraPathAnglesMode7[];
+extern s16 g_WorldMapCameraPathHeightsModes1To5[];
+extern s16 g_WorldMapCameraPathHeightsMode7[];
 extern s32 D_8009BE2C;
 extern SVECTOR D_8009BD48;
 extern s32 g_WorldMapRotationMatrixValid;
@@ -130,13 +130,13 @@ void WorldMapSelectAreaRectByState(void) {
     u16 nEntry;
     void *pRect;
 
-    if (D_8009D738 == 0) {
+    if (g_WorldMapZoneProximity == 0) {
         return;
     }
-    switch (D_8009BD60) {
+    switch (g_WorldMapZoneId) {
     case 0xF:
         nEntry = D_8009B6D0;
-        pRect = D_8009B6C4;
+        pRect = g_WorldMapZoneAreaRects;
         break;
     case 0x10:
         nEntry = D_8009B6E0;
@@ -145,8 +145,8 @@ void WorldMapSelectAreaRectByState(void) {
     default:
         return;
     }
-    D_8009D7D8 = pRect;
-    D_8009BD24 = nEntry;
+    g_WorldMapAreaRect = pRect;
+    g_WorldMapAreaId = nEntry;
 }
 s32 WorldMapFindStepDirection(s32 *pPos, s32 *pDir, s32 nSpeed) {
     s32 nAngle;
@@ -227,7 +227,7 @@ s32 func_8008E190(s32 idx) {
         g_WorldMapGroups->entry[3].unk0 = 1;
         g_WorldMapGroups->entry[2].unk0 = 1;
         g_WorldMapGroups->entry[1].unk0 = 1;
-        D_8009D52C = nAngle;
+        g_WorldMapPlayerAngle = nAngle;
         break;
     case 7:
         pPlayer->unk20 = 2;
@@ -237,7 +237,7 @@ s32 func_8008E190(s32 idx) {
         pPlayer->unk74 = D_8009C170;
         pPlayer->unk2C = D_8009C5B0;
         *(Quad *)g_WorldMapScrollTargetX = *(Quad *)&pPlayer->unk28;
-        D_8009D52C = pPlayer->unk48;
+        g_WorldMapPlayerAngle = pPlayer->unk48;
         break;
     }
     *(Quad *)g_WorldMapGroups->entry[0].unk8 = *(Quad *)&pPlayer->unk28;
@@ -345,7 +345,7 @@ s32 WorldMapInitActorAtGameStatePosition(s32 idx) {
     pPlayer->unk20 = 8;
     pPlayer->unk48 = nAngle;
     *(Quad *)g_WorldMapScrollTargetX = *(Quad *)&pPlayer->unk28;
-    D_8009D52C = pPlayer->unk48;
+    g_WorldMapPlayerAngle = pPlayer->unk48;
     *(Quad *)g_WorldMapGroups->entry[0].unk8 = *(Quad *)&pPlayer->unk28;
     return 1;
 }
@@ -457,15 +457,15 @@ void WorldMapUpdateL2R2PressEdge(void) {
     u16 keys;
     s32 state;
 
-    keys = D_8009CD4C;
+    keys = g_WorldMapPad1Held;
     if ((keys & 1) && (keys & 2)) {
-        D_8009CEC0 = 1;
+        g_WorldMapL2R2Pressed = 1;
     } else {
-        D_8009CEC0 = 0;
+        g_WorldMapL2R2Pressed = 0;
     }
-    state = D_8009CEC0;
-    D_8009BD34 = (state ^ D_8009C7E8) & state;
-    D_8009C7E8 = state;
+    state = g_WorldMapL2R2Pressed;
+    g_WorldMapL2R2PressEdge = (state ^ g_WorldMapL2R2PressedLast) & state;
+    g_WorldMapL2R2PressedLast = state;
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_80090A84);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_80090C68);
@@ -482,7 +482,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_80090C68);
    (lhu in every case body).
 
 s32 func_80090C68(WorldMapPlayer *pPlayer) {
-    switch (D_8009CD4C >> 12) {
+    switch (g_WorldMapPad1Held >> 12) {
     case 1:
         pPlayer->unk48 = g_WorldMapViewRotationY;
         break;
@@ -508,20 +508,20 @@ s32 func_80090C68(WorldMapPlayer *pPlayer) {
         pPlayer->unk48 = (g_WorldMapViewRotationY - 0x600) & 0xFFF;
         break;
     }
-    if (D_8009CD4C & 0xF000) {
+    if (g_WorldMapPad1Held & 0xF000) {
         pPlayer->unk38 = rcos(pPlayer->unk48);
         pPlayer->unk40 = -rsin(pPlayer->unk48);
     }
-    if (D_8009BD10 & 0x20) {
-        if (D_8009D738 != 0) {
+    if (g_WorldMapPad1Released & 0x20) {
+        if (g_WorldMapZoneProximity != 0) {
             return 3;
         }
-        if (D_8009BD24 != -1) {
+        if (g_WorldMapAreaId != -1) {
             return 1;
         }
     }
-    if (D_8009BD10 & 0x10) {
-        if ((D_8009CE68 == -1) && (D_8009BD24 == D_8009CE68)) {
+    if (g_WorldMapPad1Released & 0x10) {
+        if ((D_8009CE68 == -1) && (g_WorldMapAreaId == D_8009CE68)) {
             D_8009D804 = 1;
         }
     }
@@ -543,7 +543,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_80090E14);
    (lhu in every case body).
 
 s32 func_80090E14(WorldMapPlayer *pPlayer) {
-    switch (D_8009CD4C >> 12) {
+    switch (g_WorldMapPad1Held >> 12) {
     case 1:
         pPlayer->unk48 = g_WorldMapViewRotationY;
         break;
@@ -569,20 +569,20 @@ s32 func_80090E14(WorldMapPlayer *pPlayer) {
         pPlayer->unk48 = (g_WorldMapViewRotationY - 0x600) & 0xFFF;
         break;
     }
-    if (D_8009CD4C & 0xF000) {
+    if (g_WorldMapPad1Held & 0xF000) {
         pPlayer->unk38 = rcos(pPlayer->unk48);
         pPlayer->unk40 = -rsin(pPlayer->unk48);
     }
-    if (D_8009BD10 & 0x20) {
-        if (D_8009BD24 != -1) {
+    if (g_WorldMapPad1Released & 0x20) {
+        if (g_WorldMapAreaId != -1) {
             return 1;
         }
     }
-    if (D_8009BD10 & 0x40) {
+    if (g_WorldMapPad1Released & 0x40) {
         return 4;
     }
-    if (D_8009BD10 & 0x10) {
-        if ((D_8009CE68 == -1) && (D_8009BD24 == D_8009CE68)) {
+    if (g_WorldMapPad1Released & 0x10) {
+        if ((D_8009CE68 == -1) && (g_WorldMapAreaId == D_8009CE68)) {
             D_8009D804 = 1;
         }
     }
@@ -592,7 +592,7 @@ s32 func_80090E14(WorldMapPlayer *pPlayer) {
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_80090FB4);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_80091430);
 /* best: 88.22%. Retail has TWO accesses to g_WorldMapViewRotationY (sh from an lhu'd
-   D_8009D52C, then `lh` re-read for unk58), so the address stays in $v1 and is
+   g_WorldMapPlayerAngle, then `lh` re-read for unk58), so the address stays in $v1 and is
    reused; this compile forwards the stored value across the `sw 0x50(a2)` store
    and folds the second read away (the address then goes through $at). Tried:
    unk50 = (s16)nAngle + unk58 = g_WorldMapViewRotationY<<12, both reads on the global
@@ -608,7 +608,7 @@ s32 func_80091430(s32 idx) {
 
     pPlayer = g_WorldMapSlots + idx;
     *(Quad *)&pPlayer->unk28 = *(Quad *)g_WorldMapScrollTargetX;
-    nAngle = D_8009D52C;
+    nAngle = g_WorldMapPlayerAngle;
     D_8009BD3C = 0;
     g_WorldMapViewRotationY = nAngle;
     *(volatile s32 *)&pPlayer->unk50 = g_WorldMapViewRotationY;
@@ -637,8 +637,8 @@ s32 WorldMapModeInitActorAngleSets(s32 idx) {
         pPlayer->unk50 = 3;
         g_WorldMapCameraHeight = 0x460000;
         g_WorldMapCameraRot = -0x260;
-        pPlayer->unk64 = D_8009B224;
-        pPlayer->unk68 = D_8009B234;
+        pPlayer->unk64 = g_WorldMapCameraPathAnglesModes1To5;
+        pPlayer->unk68 = g_WorldMapCameraPathHeightsModes1To5;
         break;
     case 6:
         break;
@@ -646,8 +646,8 @@ s32 WorldMapModeInitActorAngleSets(s32 idx) {
         pPlayer->unk50 = 3;
         g_WorldMapCameraHeight = 0x280000;
         g_WorldMapCameraRot = -0x260;
-        pPlayer->unk64 = D_8009B22C;
-        pPlayer->unk68 = D_8009B23C;
+        pPlayer->unk64 = g_WorldMapCameraPathAnglesMode7;
+        pPlayer->unk68 = g_WorldMapCameraPathHeightsMode7;
         break;
     }
     return 1;
@@ -700,16 +700,16 @@ s32 func_80091C18(s32 idx) {
         pPlayer->unk58 = -0x100;
         break;
     case 9:
-        pPlayer->unk64 = D_8009B22C;
-        pPlayer->unk68 = D_8009B23C;
+        pPlayer->unk64 = g_WorldMapCameraPathAnglesMode7;
+        pPlayer->unk68 = g_WorldMapCameraPathHeightsMode7;
         pPlayer->unk4 = 0;
         if (pPlayer->unk50 == 0) {
             pPlayer->unk50 = 1;
         }
         break;
     case 10:
-        pPlayer->unk64 = D_8009B224;
-        pPlayer->unk68 = D_8009B234;
+        pPlayer->unk64 = g_WorldMapCameraPathAnglesModes1To5;
+        pPlayer->unk68 = g_WorldMapCameraPathHeightsModes1To5;
         pPlayer->unk4 = 0;
         if (pPlayer->unk50 == 0) {
             pPlayer->unk50 = 1;
@@ -857,7 +857,7 @@ s32 func_80091FF8(s32 nLimit, u16 *pIn, s16 *pOfs) {
     }
     if (i < nLimit) {
         s32 nDist = (nBest << 3) - 0x50;
-        nZ = ((s16 *)D_8009B234)[nLimit] + nBase - nDist;
+        nZ = ((s16 *)g_WorldMapCameraPathHeightsModes1To5)[nLimit] + nBase - nDist;
         if (nZ < 0) {
             nZ = -nZ;
         }
@@ -927,7 +927,7 @@ s32 WorldMapModeUpdateValue50(s32 idx) {
 // The original touches every field of the two primitives at 0x8009CE6C, so
 // splat gave each field its own address symbol; naming them here keeps the
 // %lo relocations identical to the original object.
-extern WorldMapG4 D_8009CE6C;
+extern WorldMapG4 g_WorldMapFadePrims;
 extern u8 D_8009CE6F;
 extern u8 D_8009CE70;
 extern u8 D_8009CE71;
@@ -958,7 +958,7 @@ extern u16 D_8009CEA8;
 extern u16 D_8009CEAA;
 extern u16 D_8009CEB0;
 extern u16 D_8009CEB2;
-extern DR_TPAGE D_8009D310;
+extern DR_TPAGE g_WorldMapFadeTpage;
 extern s32 g_WorldMapTpageAbr;
 
 s32 WorldMapModeInitFadeRect(s32 idx) {
@@ -969,8 +969,8 @@ s32 WorldMapModeInitFadeRect(s32 idx) {
     pPlayer = g_WorldMapSlots + idx;
     pPlayer->unk50 = 0xF8;
     nTpage = GetTPage(0, g_WorldMapTpageAbr, 0x380, 0x100);
-    SetDrawTPage(&D_8009D310, 1, 0, nTpage);
-    pG4 = &D_8009CE6C;
+    SetDrawTPage(&g_WorldMapFadeTpage, 1, 0, nTpage);
+    pG4 = &g_WorldMapFadePrims;
     // the original re-reads unk50 for all twelve colour bytes; volatile stops
     // gcc folding them into one load.
     D_8009CE6F = 8;

@@ -35,7 +35,7 @@ extern u32* g_WorldMapRenderContext;
 extern u_char* g_WorldMapTileVertexSteps;
 extern s16 D_8009D618[];
 extern s16 D_8009D570[];
-extern WorldMapGridOrigin D_8009C838;
+extern WorldMapGridOrigin g_WorldMapGridOrigin;
 extern s32 g_WorldMapPrimPacketIndex;
 
 
@@ -212,7 +212,7 @@ void WorldMapFreeSpritePrimBuffers(void) {
 // into a sixth callee-saved register (s5), which is the extra save/restore pair and
 // the 0x30 frame instead of 0x28. gcc also fills retail's `beq` delay slot (a nop)
 // with the row-origin load. Second delta, cosmetic only: retail's origin base is
-// &D_8009C83C with displacements 0 and -4, a struct at D_8009C838 gives 4 and 0 -
+// &D_8009C83C with displacements 0 and -4, a struct at g_WorldMapGridOrigin gives 4 and 0 -
 // the same linked bytes, so check_bin cannot see it.
 // What got the score here (in order): two separate s16 externs 88.99, then ONE loop
 // counter shared by the copy loop and the inner column loop - that is what puts
@@ -252,7 +252,7 @@ void func_8008615C(void) {
     }
     D_8009BE04 = 0;
     pTable = g_WorldMapPrimBlocks;
-    pOrigin = &D_8009C838;
+    pOrigin = &g_WorldMapGridOrigin;
     for (row = 0; row < 5; row++) {
         for (i = 0; i < 5; i++) {
             if (D_8009D618[row * 5 + i] == -1) {

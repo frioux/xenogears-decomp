@@ -49,8 +49,8 @@ extern MATRIX D_8009D534;
 extern u32 D_8009C580[];
 extern s32 g_WorldMapGridAngle;
 extern s32 D_8009C618;
-extern u8 *D_8009BC3C;
-extern u8 *D_8009BCB4;
+extern u8 *g_WorldMapTilePrimBuffer;
+extern u8 *g_WorldMapTilePrimBufferCopy;
 extern s32 D_8009BCB8;
 extern s32 D_8009BD2C;
 extern s32 D_8009CD44;
@@ -78,7 +78,7 @@ extern void WorldMapReadFileEntries(void *p);
 extern s32 g_WorldMapScrollX;
 extern s32 D_8009BBB8;
 extern s32 D_8009BBBC;
-extern s16 D_8009C838;
+extern s16 g_WorldMapGridOrigin;
 extern s16 D_8009C83A;
 extern s16 D_8009C83C;
 
@@ -398,7 +398,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_80097800);
 // gives 79.25 with the parked shape.
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_800978FC);
 // Best: 82.47%. Everything matches except that the original holds s0 =
-// &D_8009BC3C across the second HeapAlloc and reads the buffer back with
+// &g_WorldMapTilePrimBuffer across the second HeapAlloc and reads the buffer back with
 // `lw v1,0(s0)`; every shape tried (global stores, u8 **ppBuffer, a
 // u8 *pBuffer local) gets lui/at for the store plus a fresh lui for the read,
 // so the frame has no s0 slot and the copy loop's 0x10000 constant lands in
@@ -407,7 +407,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_800978FC);
 // not the answer either.
 // Round 19 re-check: the parked shape is the best one (76.88% from a direct
 // `*ppBuffer = ...` form; adding the pSlot[-3..1] form loses the s0 formation
-// entirely -- cc1 rematerialises &D_8009BC3C as `lui $at` for the store and a
+// entirely -- cc1 rematerialises &g_WorldMapTilePrimBuffer as `lui $at` for the store and a
 // fresh `la` for the reload, because copy-prop turns ppBuffer back into the
 // constant and cse then expands each use separately. Also try_flags.sh
 // compile-fails on every row in this tree (even the default one), so flag
@@ -422,9 +422,9 @@ void func_800978FC(void) {
     Misc15Block16 *pEnd;
     s32 i;
 
-    ppBuffer = &D_8009BC3C;
+    ppBuffer = &g_WorldMapTilePrimBuffer;
     *ppBuffer = HeapAlloc(0x10000, 1);
-    D_8009BCB4 = HeapAlloc(0x10000, 1);
+    g_WorldMapTilePrimBufferCopy = HeapAlloc(0x10000, 1);
     pBuffer = *ppBuffer;
     pSlot = pBuffer;
     i = 0;
@@ -437,8 +437,8 @@ void func_800978FC(void) {
         pSlot[6] = 0x80;
         pSlot += 0x20;
     } while (i < 0x800);
-    pSrc = (Misc15Block16 *)D_8009BC3C;
-    pDst = (Misc15Block16 *)D_8009BCB4;
+    pSrc = (Misc15Block16 *)g_WorldMapTilePrimBuffer;
+    pDst = (Misc15Block16 *)g_WorldMapTilePrimBufferCopy;
     pEnd = pSrc + 0x1000;
     do {
         *pDst++ = *pSrc++;
@@ -562,7 +562,7 @@ void func_80097BC0(s32 *p) {
     g_WorldMapGridAngle = 0;
     g_WorldMapScrollX = x & 0x7FFFFF;
     z = p[2];
-    D_8009C838 = 2;
+    g_WorldMapGridOrigin = 2;
     D_8009C83A = 0;
     D_8009C83C = 2;
     D_8009BBBC = z & 0x7FFFFF;

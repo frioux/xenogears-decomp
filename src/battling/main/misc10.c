@@ -7,7 +7,7 @@
 extern u8 g_BattleDrawBufferIndex;
 extern s16 D_80092780;
 extern s32 g_BattleScreenMode;
-extern s32 D_800928C8;
+extern s32 g_BattleMode;
 extern u8 D_8005061C;
 extern u8* D_800927B4[];
 extern s32 D_800927C4;
@@ -17,8 +17,8 @@ extern u8 D_80097919;
 extern u8 D_80099035;
 extern u8 D_80091FB0[];
 extern u8 D_80092920;
-extern u8 D_80099D9D;
-extern u8 D_80099D9E;
+extern u8 g_BattlePlayer1ComControlled;
+extern u8 g_BattlePlayer2ComControlled;
 extern s32 g_SpuChannelMask;
 extern s32 D_8009292C;
 extern u8* D_80092938;
@@ -166,8 +166,8 @@ typedef struct {
 } Misc10TagSrc; // Size: 0x10
 
 extern Misc10ActionRow* D_80092874;
-extern u8 D_8009872C[];
-extern u8 D_80097010[];
+extern u8 g_BattleActor1[];
+extern u8 g_BattleActor0[];
 extern Misc10Prim D_8009A300[];
 
 extern void BattleSetTpageAndClut(s16 x, s16 y, s16 clutX, s16 clutY);
@@ -280,10 +280,10 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_80084C88);
        pActor->flags = (pActor->flags & 0xF7FFFFFF) | ((arg2 & 1) << 27);
        if (arg2 != 0) {
            BattleSetTpageAndClut(0x380, 0, 0, 0x1FE);
-           pActor->pTarget = D_8009872C;
+           pActor->pTarget = g_BattleActor1;
        } else {
            BattleSetTpageAndClut(0x3C0, 0, 0, 0x1FF);
-           pActor->pTarget = D_80097010;
+           pActor->pTarget = g_BattleActor0;
        }
        BattleRelocateBlockPointers(pData);
        pNode = func_8008B38C((u8*)pData);
@@ -382,16 +382,16 @@ void BattleSetBothSidesCom(void) {
     D_80092920 &= 0xFE;
     BattleClearScreen(0);
     BattleSetScreenMode(5);
-    D_80099D9E = 1;
-    D_80099D9D = 1;
-    D_800928C8 = 6;
+    g_BattlePlayer2ComControlled = 1;
+    g_BattlePlayer1ComControlled = 1;
+    g_BattleMode = 6;
 }
 
 void BattleSetBothSidesUser(void) {
     u8 flags = D_80092920;
 
-    D_80099D9E = 0;
-    D_80099D9D = 0;
+    g_BattlePlayer2ComControlled = 0;
+    g_BattlePlayer1ComControlled = 0;
     D_80092920 = flags | 0x1;
 }
 
@@ -441,7 +441,7 @@ s32 BattleCheckModeOver(void) {
 
     if (g_BattleScreenMode == 5 || g_BattleScreenMode == 7) {
         result = 1;
-    } else if (g_BattleScreenMode == 1 && D_800928C8 == 4 && D_8005061C == 0) {
+    } else if (g_BattleScreenMode == 1 && g_BattleMode == 4 && D_8005061C == 0) {
         result = 1;
     }
     return result;

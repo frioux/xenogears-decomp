@@ -28,14 +28,14 @@ void FieldSetScreenDimensions(void) {
     g_FieldRenderContexts[1].dispEnv.screen.h = 0xd8;
 }
 
-extern u8 D_800B2358[]; // Is pause disabled?
+extern u8 g_FieldPauseDisabled[]; // Is pause disabled?
 
 void FieldScriptSetPauseDisabled(void) {
-    D_800B2358[0] = SCRIPT_READ_U8_REL(1);
+    g_FieldPauseDisabled[0] = SCRIPT_READ_U8_REL(1);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
 }
 
-extern s16 D_800ADB54;
+extern s16 g_FieldScreenStripSpritesEnabled;
 
 void FieldScriptSetScreenMode(void) {
     RECT rect;
@@ -55,10 +55,10 @@ void FieldScriptSetScreenMode(void) {
             FieldSetScreenDimensions();
             break;
         case 1:
-            D_800ADB54 = 0x1;
+            g_FieldScreenStripSpritesEnabled = 0x1;
             break;
         case 2:
-            D_800ADB54 = 0x0;
+            g_FieldScreenStripSpritesEnabled = 0x0;
             break;
     }
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
@@ -264,12 +264,12 @@ void FieldScriptCopyCharacter(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
 }
 
-extern u8 D_80050622;
+extern u8 g_BattleResultCode;
 
 void FieldScriptWriteTransitionState(void) {
     FieldScriptMemoryWriteU16(
         SCRIPT_IMM_ARG(1), 
-        D_80050622
+        g_BattleResultCode
     );
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
@@ -282,7 +282,7 @@ typedef struct { u16 value; } FieldScriptGlobalU16;
 typedef struct { s32 value; } FieldScriptGlobalS32;
 typedef struct { u8 value; } FieldScriptGlobalU8;
 
-extern FieldScriptGlobalS32 D_800ADBDC;
+extern FieldScriptGlobalS32 g_FieldMapChangeGate;
 extern int g_FieldArchiveStreamActive;
 extern s32 g_GameWdsBankLoadState;
 extern s32 g_FieldTransitionBusyFlag;
@@ -296,7 +296,7 @@ extern u8 D_80050621;
 extern void func_800379B4(int);
 
 void FieldScriptSetTransitionParams(void) {
-    if (D_800ADBDC.value == 0 || D_800ADBE4 == 0 || g_FieldArchiveStreamActive != 0 || g_GameWdsBankLoadState == -1) {
+    if (g_FieldMapChangeGate.value == 0 || g_FieldEntryStateGate == 0 || g_FieldArchiveStreamActive != 0 || g_GameWdsBankLoadState == -1) {
         g_FieldScriptVMCurActor->scriptInstructionPointer -= 1;
         g_FieldScriptVMStopFlag = 1;
     } else {
@@ -325,10 +325,10 @@ void FieldScriptWriteGameState184E(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
 }
 
-extern FieldScriptGlobalU8 D_800B2357;
+extern FieldScriptGlobalU8 g_FieldFogDisabled;
 
 void FieldScriptSetByte2357(void) {
-    D_800B2357.value = SCRIPT_READ_U8_REL(1);
+    g_FieldFogDisabled.value = SCRIPT_READ_U8_REL(1);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
 }
 
@@ -395,31 +395,31 @@ void FieldScriptSetGameState17FC38(void) {
     pActor->scriptInstructionPointer += 4;
 }
 
-extern FieldScriptGlobalU8 D_800B2355;
+extern FieldScriptGlobalU8 g_FieldWdsSoundEffectBankIndex;
 extern FieldScriptGlobalU8 g_FieldScriptSoundEffectBank;
 
 void FieldScriptSetByte2355Or2356(void) {
     int value = FieldScriptVMGetArgument(2);
 
     if (SCRIPT_READ_U8_REL(1) == 0) {
-        D_800B2355.value = value;
+        g_FieldWdsSoundEffectBankIndex.value = value;
     } else {
         g_FieldScriptSoundEffectBank.value = value;
     }
     g_FieldScriptVMCurActor->scriptInstructionPointer += 4;
 }
 
-extern FieldScriptGlobalS16 D_800B234C;
+extern FieldScriptGlobalS16 g_FieldPlayerWalkmeshMaterialOverride;
 
 void FieldScriptSetByte234C(void) {
-    D_800B234C.value = FieldScriptVMGetArgument(1);
+    g_FieldPlayerWalkmeshMaterialOverride.value = FieldScriptVMGetArgument(1);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
 
-extern s32 D_800ADBFC;
+extern s32 g_FieldActiveActorCount;
 extern s32 g_PlayerActorIndex;
 extern FieldScriptGlobalU16 D_800B234E;
-extern FieldScriptGlobalS16 D_800B233E;
+extern FieldScriptGlobalS16 g_FieldPlayerActorIndex16;
 
 // Switch the actor controlled by the player
 void FieldScriptSetPlayerActor(void) {
@@ -434,8 +434,8 @@ void FieldScriptSetPlayerActor(void) {
             D_800B234E.value = 1;
         }
         g_PlayerActorIndex = actorIndex;
-        D_800B233E.value = actorIndex;
-        for (i = 0; i < D_800ADBFC; i++) {
+        g_FieldPlayerActorIndex16.value = actorIndex;
+        for (i = 0; i < g_FieldActiveActorCount; i++) {
             g_FieldActors[i].pActorData->scriptFlags.flags &= ~0x01004000;
         }
         g_FieldActors[actorIndex].pActorData->scriptFlags.flags |= 0x4000;
@@ -578,10 +578,10 @@ void func_8008848C(void) {
 */
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008848C);
 
-extern FieldScriptGlobalS16 D_800B21AC;
+extern FieldScriptGlobalS16 g_FieldSoundMaxDistance;
 
 void FieldScriptSetByte21AC(void) {
-    D_800B21AC.value = FieldScriptVMGetArgument(1);
+    g_FieldSoundMaxDistance.value = FieldScriptVMGetArgument(1);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
 
@@ -614,7 +614,7 @@ typedef struct {
     /* 0x4 */ u8 unk4[0xC];
 } ParticleBankHandle;
 
-extern ParticleBankHandle D_800B2384;
+extern ParticleBankHandle g_FieldScriptParticleBank;
 
 // 92.50%: the single bankIndex load, &g_FieldDefaultParticleBanks materialised
 // in $a2 and the .x store through %hi/%lo(g_FieldDefaultParticleBanks + 0x30)
@@ -658,7 +658,7 @@ void func_8008861C(void) {
     int i;
 
     for (i = 0; i < NUM_PARTICLE_BANKS; i++) {
-        int bankIndex = D_800B2384.bankIndex;
+        int bankIndex = g_FieldScriptParticleBank.bankIndex;
 
         (*(g_FieldDefaultParticleBanks[bankIndex].directions + i)).z = 0;
         g_FieldDefaultParticleBanks[bankIndex].directions[i].x = 0;
@@ -667,8 +667,8 @@ void func_8008861C(void) {
 */
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008861C);
 
-extern s32 D_800B2374;
-extern s32 D_800B2378;
+extern s32 g_FieldParticleBankTargetActor;
+extern s32 g_FieldParticleBankModeBits;
 extern s32 D_800B237C;
 extern s32 D_800B2380;
 extern void FieldInitializeDefaultParticleBanks(int);
@@ -679,24 +679,24 @@ void FieldScriptInitializeParticleSystem(void) {
     if (actorIndex == ACTOR_ID_INVALID) {
         actorIndex = 0;
     }
-    D_800B2374 = FieldScriptVMGetArgument(1);
-    D_800B2378 = FieldScriptVMGetArgument(3);
+    g_FieldParticleBankTargetActor = FieldScriptVMGetArgument(1);
+    g_FieldParticleBankModeBits = FieldScriptVMGetArgument(3);
     D_800B237C = FieldScriptVMGetArgument(5);
     ((FieldScriptGlobalS32*)&D_800B2380)->value = FieldScriptVMGetArgument(7);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 9;
     FieldInitializeDefaultParticleBanks(actorIndex);
-    switch (D_800B2378) {
+    switch (g_FieldParticleBankModeBits) {
         case 0:
-            D_800B2378 = 0;
+            g_FieldParticleBankModeBits = 0;
             break;
         case 1:
-            D_800B2378 = 0x10;
+            g_FieldParticleBankModeBits = 0x10;
             break;
         case 2:
-            D_800B2378 = 0x20;
+            g_FieldParticleBankModeBits = 0x20;
             break;
         case 3:
-            D_800B2378 = 0x30;
+            g_FieldParticleBankModeBits = 0x30;
             break;
     }
     g_FieldScriptMaxInstructionCount += 4;
@@ -708,26 +708,26 @@ void FieldScriptInitializeParticleSystemByActorIndex(void) {
     if (actorIndex == ACTOR_ID_INVALID) {
         actorIndex = 0;
     }
-    D_800B2374 = actorIndex;
-    D_800B2378 = FieldScriptVMGetArgument(2);
+    g_FieldParticleBankTargetActor = actorIndex;
+    g_FieldParticleBankModeBits = FieldScriptVMGetArgument(2);
     D_800B237C = FieldScriptVMGetArgument(4);
     // Store through FieldScriptGlobalS32: a bare s32 store lets gcc hoist the
     // instruction pointer load above it (see the note above FieldScriptGlobalS32).
     ((FieldScriptGlobalS32*)&D_800B2380)->value = FieldScriptVMGetArgument(6);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 8;
     FieldInitializeDefaultParticleBanks(actorIndex);
-    switch (D_800B2378) {
+    switch (g_FieldParticleBankModeBits) {
         case 0:
-            D_800B2378 = 0;
+            g_FieldParticleBankModeBits = 0;
             break;
         case 1:
-            D_800B2378 = 0x10;
+            g_FieldParticleBankModeBits = 0x10;
             break;
         case 2:
-            D_800B2378 = 0x20;
+            g_FieldParticleBankModeBits = 0x20;
             break;
         case 3:
-            D_800B2378 = 0x30;
+            g_FieldParticleBankModeBits = 0x30;
             break;
     }
     g_FieldScriptMaxInstructionCount += 4;
@@ -785,15 +785,15 @@ void FieldScriptSetParticleBankFlag(void) {
             flags = 0x40;
             break;
     }
-    g_FieldDefaultParticleBanks[D_800B2384.bankIndex].flags |= flags;
+    g_FieldDefaultParticleBanks[g_FieldScriptParticleBank.bankIndex].flags |= flags;
     g_FieldScriptMaxInstructionCount += 4;
     g_FieldScriptVMCurActor->scriptInstructionPointer += 7;
 }
 
 void FieldScriptSetParticleBankMotion(void) {
-    g_FieldDefaultParticleBanks[D_800B2384.bankIndex].speedMultiplier = FieldScriptVMGetArgument(1);
-    g_FieldDefaultParticleBanks[D_800B2384.bankIndex].flags |= FieldScriptVMGetArgument(3) << 8;
-    g_FieldDefaultParticleBanks[D_800B2384.bankIndex].rotAngle = FieldScriptVMGetArgument(5);
+    g_FieldDefaultParticleBanks[g_FieldScriptParticleBank.bankIndex].speedMultiplier = FieldScriptVMGetArgument(1);
+    g_FieldDefaultParticleBanks[g_FieldScriptParticleBank.bankIndex].flags |= FieldScriptVMGetArgument(3) << 8;
+    g_FieldDefaultParticleBanks[g_FieldScriptParticleBank.bankIndex].rotAngle = FieldScriptVMGetArgument(5);
     g_FieldScriptMaxInstructionCount += 4;
     g_FieldScriptVMCurActor->scriptInstructionPointer += 7;
 }
@@ -807,51 +807,51 @@ void FieldScriptSetParticleBankDirections4() {
 }
 
 void FieldScriptSetParticleBankDirections(int index) {
-    g_FieldDefaultParticleBanks[D_800B2384.bankIndex].directions[index].x = FieldScriptArgument1(1, SCRIPT_READ_U8_REL(0x11));
-    g_FieldDefaultParticleBanks[D_800B2384.bankIndex].directions[index].z = FieldScriptArgument2(3, SCRIPT_READ_U8_REL(0x11));
-    g_FieldDefaultParticleBanks[D_800B2384.bankIndex].directions[index + 1].x = FieldScriptArgument3(5, SCRIPT_READ_U8_REL(0x11));
-    g_FieldDefaultParticleBanks[D_800B2384.bankIndex].directions[index + 1].z = FieldScriptArgument4(7, SCRIPT_READ_U8_REL(0x11));
-    g_FieldDefaultParticleBanks[D_800B2384.bankIndex].directions[index + 2].x = FieldScriptArgument5(9, SCRIPT_READ_U8_REL(0x11));
-    g_FieldDefaultParticleBanks[D_800B2384.bankIndex].directions[index + 2].z = FieldScriptArgument6(0xB, SCRIPT_READ_U8_REL(0x11));
-    g_FieldDefaultParticleBanks[D_800B2384.bankIndex].directions[index + 3].x = FieldScriptArgument7(0xD, SCRIPT_READ_U8_REL(0x11));
-    g_FieldDefaultParticleBanks[D_800B2384.bankIndex].directions[index + 3].z = FieldScriptArgument8(0xF, SCRIPT_READ_U8_REL(0x11));
+    g_FieldDefaultParticleBanks[g_FieldScriptParticleBank.bankIndex].directions[index].x = FieldScriptArgument1(1, SCRIPT_READ_U8_REL(0x11));
+    g_FieldDefaultParticleBanks[g_FieldScriptParticleBank.bankIndex].directions[index].z = FieldScriptArgument2(3, SCRIPT_READ_U8_REL(0x11));
+    g_FieldDefaultParticleBanks[g_FieldScriptParticleBank.bankIndex].directions[index + 1].x = FieldScriptArgument3(5, SCRIPT_READ_U8_REL(0x11));
+    g_FieldDefaultParticleBanks[g_FieldScriptParticleBank.bankIndex].directions[index + 1].z = FieldScriptArgument4(7, SCRIPT_READ_U8_REL(0x11));
+    g_FieldDefaultParticleBanks[g_FieldScriptParticleBank.bankIndex].directions[index + 2].x = FieldScriptArgument5(9, SCRIPT_READ_U8_REL(0x11));
+    g_FieldDefaultParticleBanks[g_FieldScriptParticleBank.bankIndex].directions[index + 2].z = FieldScriptArgument6(0xB, SCRIPT_READ_U8_REL(0x11));
+    g_FieldDefaultParticleBanks[g_FieldScriptParticleBank.bankIndex].directions[index + 3].x = FieldScriptArgument7(0xD, SCRIPT_READ_U8_REL(0x11));
+    g_FieldDefaultParticleBanks[g_FieldScriptParticleBank.bankIndex].directions[index + 3].z = FieldScriptArgument8(0xF, SCRIPT_READ_U8_REL(0x11));
     g_FieldScriptMaxInstructionCount += 4;
     g_FieldScriptVMCurActor->scriptInstructionPointer += 0x12;
 }
 
 void FieldScriptInitializeParticleBank(void) {
-    D_800B2384.bankIndex = FieldScriptVMGetArgument(1);
-    g_FieldDefaultParticleBanks[D_800B2384.bankIndex].speedMultiplier = 1;
-    g_FieldDefaultParticleBanks[D_800B2384.bankIndex].targetActorID = D_800B2374;
-    D_800ADB40 = g_FieldDefaultParticleBanks[D_800B2384.bankIndex].targetActorID;
-    g_FieldDefaultParticleBanks[D_800B2384.bankIndex].unk0 = 0;
-    g_FieldDefaultParticleBanks[D_800B2384.bankIndex].rotAngle = 0;
-    g_FieldDefaultParticleBanks[D_800B2384.bankIndex].max = FieldScriptVMGetArgument(3);
-    g_FieldDefaultParticleBanks[D_800B2384.bankIndex].swait = FieldScriptVMGetArgument(5);
-    g_FieldDefaultParticleBanks[D_800B2384.bankIndex].ewait = FieldScriptVMGetArgument(7);
+    g_FieldScriptParticleBank.bankIndex = FieldScriptVMGetArgument(1);
+    g_FieldDefaultParticleBanks[g_FieldScriptParticleBank.bankIndex].speedMultiplier = 1;
+    g_FieldDefaultParticleBanks[g_FieldScriptParticleBank.bankIndex].targetActorID = g_FieldParticleBankTargetActor;
+    D_800ADB40 = g_FieldDefaultParticleBanks[g_FieldScriptParticleBank.bankIndex].targetActorID;
+    g_FieldDefaultParticleBanks[g_FieldScriptParticleBank.bankIndex].unk0 = 0;
+    g_FieldDefaultParticleBanks[g_FieldScriptParticleBank.bankIndex].rotAngle = 0;
+    g_FieldDefaultParticleBanks[g_FieldScriptParticleBank.bankIndex].max = FieldScriptVMGetArgument(3);
+    g_FieldDefaultParticleBanks[g_FieldScriptParticleBank.bankIndex].swait = FieldScriptVMGetArgument(5);
+    g_FieldDefaultParticleBanks[g_FieldScriptParticleBank.bankIndex].ewait = FieldScriptVMGetArgument(7);
     func_8008861C();
     g_FieldScriptMaxInstructionCount += 4;
     g_FieldScriptVMCurActor->scriptInstructionPointer += 9;
 }
 
 void FieldScriptSetParticleBankPosition(void) {
-    g_FieldDefaultParticleBanks[D_800B2384.bankIndex].pos.vx = FieldScriptArgument1(1, SCRIPT_READ_U8_REL(0xD));
-    g_FieldDefaultParticleBanks[D_800B2384.bankIndex].pos.vy  = FieldScriptArgument2(3, SCRIPT_READ_U8_REL(0xD));
-    g_FieldDefaultParticleBanks[D_800B2384.bankIndex].pos.vz = FieldScriptArgument3(5, SCRIPT_READ_U8_REL(0xD));
-    g_FieldDefaultParticleBanks[D_800B2384.bankIndex].epos.vx = FieldScriptArgument4(7, SCRIPT_READ_U8_REL(0xD));
-    g_FieldDefaultParticleBanks[D_800B2384.bankIndex].epos.vy = FieldScriptArgument5(9, SCRIPT_READ_U8_REL(0xD));
-    g_FieldDefaultParticleBanks[D_800B2384.bankIndex].epos.vz = FieldScriptArgument6(0xB, SCRIPT_READ_U8_REL(0xD));
+    g_FieldDefaultParticleBanks[g_FieldScriptParticleBank.bankIndex].pos.vx = FieldScriptArgument1(1, SCRIPT_READ_U8_REL(0xD));
+    g_FieldDefaultParticleBanks[g_FieldScriptParticleBank.bankIndex].pos.vy  = FieldScriptArgument2(3, SCRIPT_READ_U8_REL(0xD));
+    g_FieldDefaultParticleBanks[g_FieldScriptParticleBank.bankIndex].pos.vz = FieldScriptArgument3(5, SCRIPT_READ_U8_REL(0xD));
+    g_FieldDefaultParticleBanks[g_FieldScriptParticleBank.bankIndex].epos.vx = FieldScriptArgument4(7, SCRIPT_READ_U8_REL(0xD));
+    g_FieldDefaultParticleBanks[g_FieldScriptParticleBank.bankIndex].epos.vy = FieldScriptArgument5(9, SCRIPT_READ_U8_REL(0xD));
+    g_FieldDefaultParticleBanks[g_FieldScriptParticleBank.bankIndex].epos.vz = FieldScriptArgument6(0xB, SCRIPT_READ_U8_REL(0xD));
     g_FieldScriptMaxInstructionCount += 4;
     g_FieldScriptVMCurActor->scriptInstructionPointer += 0xE;
 }
 
 void FieldScriptSetParticleBankPhysics(void) {
-    g_FieldDefaultParticleBanks[D_800B2384.bankIndex].speed = FieldScriptArgument1(1, SCRIPT_READ_U8_REL(0xD));
-    g_FieldDefaultParticleBanks[D_800B2384.bankIndex].gravity.vx = FieldScriptArgument2(3, SCRIPT_READ_U8_REL(0xD));
-    g_FieldDefaultParticleBanks[D_800B2384.bankIndex].gravity.vy = FieldScriptArgument3(5, SCRIPT_READ_U8_REL(0xD));
-    g_FieldDefaultParticleBanks[D_800B2384.bankIndex].gravity.vz = FieldScriptArgument4(7, SCRIPT_READ_U8_REL(0xD));
-    g_FieldDefaultParticleBanks[D_800B2384.bankIndex].srange = FieldScriptArgument5(9, SCRIPT_READ_U8_REL(0xD));
-    g_FieldDefaultParticleBanks[D_800B2384.bankIndex].erange = FieldScriptArgument6(0xB, SCRIPT_READ_U8_REL(0xD));
+    g_FieldDefaultParticleBanks[g_FieldScriptParticleBank.bankIndex].speed = FieldScriptArgument1(1, SCRIPT_READ_U8_REL(0xD));
+    g_FieldDefaultParticleBanks[g_FieldScriptParticleBank.bankIndex].gravity.vx = FieldScriptArgument2(3, SCRIPT_READ_U8_REL(0xD));
+    g_FieldDefaultParticleBanks[g_FieldScriptParticleBank.bankIndex].gravity.vy = FieldScriptArgument3(5, SCRIPT_READ_U8_REL(0xD));
+    g_FieldDefaultParticleBanks[g_FieldScriptParticleBank.bankIndex].gravity.vz = FieldScriptArgument4(7, SCRIPT_READ_U8_REL(0xD));
+    g_FieldDefaultParticleBanks[g_FieldScriptParticleBank.bankIndex].srange = FieldScriptArgument5(9, SCRIPT_READ_U8_REL(0xD));
+    g_FieldDefaultParticleBanks[g_FieldScriptParticleBank.bankIndex].erange = FieldScriptArgument6(0xB, SCRIPT_READ_U8_REL(0xD));
     g_FieldScriptMaxInstructionCount += 4;
     g_FieldScriptVMCurActor->scriptInstructionPointer += 0xE;
 }
@@ -860,36 +860,36 @@ void FieldScriptSetParticleBankParameters(void) {
     int flags;
     int flags_2;
 
-    g_FieldDefaultParticleBanks[D_800B2384.bankIndex].pswait = FieldScriptVMGetArgument(1);
-    g_FieldDefaultParticleBanks[D_800B2384.bankIndex].pewait = FieldScriptVMGetArgument(3);
-    g_FieldDefaultParticleBanks[D_800B2384.bankIndex].shape = FieldScriptVMGetArgument(5);
+    g_FieldDefaultParticleBanks[g_FieldScriptParticleBank.bankIndex].pswait = FieldScriptVMGetArgument(1);
+    g_FieldDefaultParticleBanks[g_FieldScriptParticleBank.bankIndex].pewait = FieldScriptVMGetArgument(3);
+    g_FieldDefaultParticleBanks[g_FieldScriptParticleBank.bankIndex].shape = FieldScriptVMGetArgument(5);
     flags = FieldScriptVMGetArgument(7);
     flags_2 = (FieldScriptVMGetArgument(9) * 2);
-    g_FieldDefaultParticleBanks[D_800B2384.bankIndex].flags = flags | flags_2 | D_800B2378;
-    g_FieldDefaultParticleBanks[D_800B2384.bankIndex].unk72 = D_800B237C;
-    g_FieldDefaultParticleBanks[D_800B2384.bankIndex].unk74 = D_800B2380;
+    g_FieldDefaultParticleBanks[g_FieldScriptParticleBank.bankIndex].flags = flags | flags_2 | g_FieldParticleBankModeBits;
+    g_FieldDefaultParticleBanks[g_FieldScriptParticleBank.bankIndex].unk72 = D_800B237C;
+    g_FieldDefaultParticleBanks[g_FieldScriptParticleBank.bankIndex].unk74 = D_800B2380;
     g_FieldScriptMaxInstructionCount += 4;
     g_FieldScriptVMCurActor->scriptInstructionPointer += 0xB;
 }
 
 void FieldScriptSetParticleBankScale(void) {
-    g_FieldDefaultParticleBanks[D_800B2384.bankIndex].scale.vx = FieldScriptArgument1(1, SCRIPT_READ_U8_REL(0x9));
-    g_FieldDefaultParticleBanks[D_800B2384.bankIndex].scale.vy = FieldScriptArgument2(3, SCRIPT_READ_U8_REL(0x9));
-    g_FieldDefaultParticleBanks[D_800B2384.bankIndex].scale.vz = 0;
-    g_FieldDefaultParticleBanks[D_800B2384.bankIndex].scaleDelta.vx = FieldScriptArgument3(5, SCRIPT_READ_U8_REL(0x9));
-    g_FieldDefaultParticleBanks[D_800B2384.bankIndex].scaleDelta.vy = FieldScriptArgument4(7, SCRIPT_READ_U8_REL(0x9));
-    g_FieldDefaultParticleBanks[D_800B2384.bankIndex].scaleDelta.vz = 0;
+    g_FieldDefaultParticleBanks[g_FieldScriptParticleBank.bankIndex].scale.vx = FieldScriptArgument1(1, SCRIPT_READ_U8_REL(0x9));
+    g_FieldDefaultParticleBanks[g_FieldScriptParticleBank.bankIndex].scale.vy = FieldScriptArgument2(3, SCRIPT_READ_U8_REL(0x9));
+    g_FieldDefaultParticleBanks[g_FieldScriptParticleBank.bankIndex].scale.vz = 0;
+    g_FieldDefaultParticleBanks[g_FieldScriptParticleBank.bankIndex].scaleDelta.vx = FieldScriptArgument3(5, SCRIPT_READ_U8_REL(0x9));
+    g_FieldDefaultParticleBanks[g_FieldScriptParticleBank.bankIndex].scaleDelta.vy = FieldScriptArgument4(7, SCRIPT_READ_U8_REL(0x9));
+    g_FieldDefaultParticleBanks[g_FieldScriptParticleBank.bankIndex].scaleDelta.vz = 0;
     g_FieldScriptMaxInstructionCount += 4;
     g_FieldScriptVMCurActor->scriptInstructionPointer += 0xA;
 }
 
 void FieldScriptSetParticleBankColor(void) {
-    g_FieldDefaultParticleBanks[D_800B2384.bankIndex].color.r  = FieldScriptArgument1(1, SCRIPT_READ_U8_REL(0xD));
-    g_FieldDefaultParticleBanks[D_800B2384.bankIndex].color.g = FieldScriptArgument2(3, SCRIPT_READ_U8_REL(0xD));
-    g_FieldDefaultParticleBanks[D_800B2384.bankIndex].color.b = FieldScriptArgument3(5, SCRIPT_READ_U8_REL(0xD));
-    g_FieldDefaultParticleBanks[D_800B2384.bankIndex].colorDelta.r = FieldScriptArgument4(7, SCRIPT_READ_U8_REL(0xD));
-    g_FieldDefaultParticleBanks[D_800B2384.bankIndex].colorDelta.g = FieldScriptArgument5(9, SCRIPT_READ_U8_REL(0xD));
-    g_FieldDefaultParticleBanks[D_800B2384.bankIndex].colorDelta.b = FieldScriptArgument6(0xB, SCRIPT_READ_U8_REL(0xD));
+    g_FieldDefaultParticleBanks[g_FieldScriptParticleBank.bankIndex].color.r  = FieldScriptArgument1(1, SCRIPT_READ_U8_REL(0xD));
+    g_FieldDefaultParticleBanks[g_FieldScriptParticleBank.bankIndex].color.g = FieldScriptArgument2(3, SCRIPT_READ_U8_REL(0xD));
+    g_FieldDefaultParticleBanks[g_FieldScriptParticleBank.bankIndex].color.b = FieldScriptArgument3(5, SCRIPT_READ_U8_REL(0xD));
+    g_FieldDefaultParticleBanks[g_FieldScriptParticleBank.bankIndex].colorDelta.r = FieldScriptArgument4(7, SCRIPT_READ_U8_REL(0xD));
+    g_FieldDefaultParticleBanks[g_FieldScriptParticleBank.bankIndex].colorDelta.g = FieldScriptArgument5(9, SCRIPT_READ_U8_REL(0xD));
+    g_FieldDefaultParticleBanks[g_FieldScriptParticleBank.bankIndex].colorDelta.b = FieldScriptArgument6(0xB, SCRIPT_READ_U8_REL(0xD));
     g_FieldScriptMaxInstructionCount += 4;
     g_FieldScriptVMCurActor->scriptInstructionPointer += 0xE;
 }
@@ -946,7 +946,7 @@ void FieldScriptSetMotionSlotPath(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 0x12;
 }
 
-extern s16 D_800B22E2[];
+extern s16 g_FieldMotionSlotActorIds[];
 extern s16 D_800B2324[];
 extern s16 D_800B2326[];
 extern s16 D_800B2328[];
@@ -960,24 +960,24 @@ void FieldScriptSetMotionSlotTarget(void) {
     D_800B2326[index * 4] = FieldScriptArgument4(7, SCRIPT_READ_U8_REL(9));
     actorIndex = FieldScriptVMGetActorIndex(0xA);
     if (actorIndex != 0xFF) {
-        D_800B22E2[index] = actorIndex;
+        g_FieldMotionSlotActorIds[index] = actorIndex;
     } else {
-        D_800B22E2[index] = -1;
+        g_FieldMotionSlotActorIds[index] = -1;
     }
     g_FieldScriptVMCurActor->scriptInstructionPointer += 0xB;
 }
 
-extern FieldScriptGlobalS16 D_800B22E0;
+extern FieldScriptGlobalS16 g_FieldSoundProximitySource;
 
 void FieldScriptSetByte22E0(void) {
-    D_800B22E0.value = FieldScriptVMGetArgument(1);
+    g_FieldSoundProximitySource.value = FieldScriptVMGetArgument(1);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
 
-extern FieldScriptGlobalU8 D_800B21D2;
+extern FieldScriptGlobalU8 g_FieldScreenShakeMode;
 
 void FieldScriptSetByte21D2(void) {
-    D_800B21D2.value = FieldScriptVMGetArgument(1) - 0x80;
+    g_FieldScreenShakeMode.value = FieldScriptVMGetArgument(1) - 0x80;
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
 
@@ -1026,7 +1026,7 @@ void FieldScriptSetParams90(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 8;
 }
 
-extern FieldScriptGlobalU8 D_800B00A0;
+extern FieldScriptGlobalU8 g_FieldScreenEffectParams;
 extern FieldScriptGlobalU8 D_800B00A1;
 extern FieldScriptGlobalU8 D_800B00A2;
 extern FieldScriptGlobalU8 D_800B00A4;
@@ -1041,7 +1041,7 @@ extern FieldScriptGlobalS16 D_800B00B0;
 extern FieldScriptGlobalS16 g_FieldScreenEffectEnabled;
 
 void FieldScriptSetParamsA0(void) {
-    D_800B00A0.value = FieldScriptVMGetArgument(1);
+    g_FieldScreenEffectParams.value = FieldScriptVMGetArgument(1);
     D_800B00A1.value = FieldScriptVMGetArgument(3);
     D_800B00A2.value = FieldScriptVMGetArgument(5);
     D_800B00A4.value = FieldScriptVMGetArgument(7);
@@ -1232,18 +1232,18 @@ extern void ArchiveReadFileToBuffer(s32 index, void* pBuffer, u32 arg2, u32 flag
 extern int GameCharacterGetGearID(int characterId);
 extern s32 g_GameSceneMapNum;
 extern int g_GamePartyMemberSkins[MAX_PARTY_MEMBERS];
-extern void* D_800ADBC0;
-extern s32 D_800ADBC4;
-extern void* D_800ADBC8;
-extern s32 D_800ADBCC;
+extern void* g_FieldPartyModelLoadBuffer;
+extern s32 g_FieldPartyModelLoadState;
+extern void* g_FieldPartyModelLoadCharacter;
+extern s32 g_FieldPartyModelLoadPartyIndex;
 
 void FieldPartyLoadMemberSkin(int characterId, int partyIndex) {
     int size;
     void* pBuffer;
     int characterIndex;
 
-    D_800ADBCC = partyIndex;
-    D_800ADBC8 = characterId;
+    g_FieldPartyModelLoadPartyIndex = partyIndex;
+    g_FieldPartyModelLoadCharacter = characterId;
     ArchiveSetIndex(4, 0);
     if (D_800ADB1C == 0) {
         ArchiveCdDataSync(0);
@@ -1252,9 +1252,9 @@ void FieldPartyLoadMemberSkin(int characterId, int partyIndex) {
         int archiveIndex = characterId + 5;
 
         size = ArchiveDecodeAlignedSize(archiveIndex);
-        g_GamePartyMemberSkins[D_800ADBCC] = characterId;
+        g_GamePartyMemberSkins[g_FieldPartyModelLoadPartyIndex] = characterId;
         pBuffer = HeapAlloc(size, 0);
-        D_800ADBC0 = pBuffer;
+        g_FieldPartyModelLoadBuffer = pBuffer;
         ArchiveReadFileToBuffer(archiveIndex, pBuffer, 0, 0x80);
     } else {
         int archiveIndex;
@@ -1267,14 +1267,14 @@ void FieldPartyLoadMemberSkin(int characterId, int partyIndex) {
         archiveIndex = characterIndex + 5;
         size = ArchiveDecodeAlignedSize(archiveIndex);
         pBuffer = HeapAlloc(size, 0);
-        D_800ADBC0 = pBuffer;
-        g_GamePartyMemberSkins[D_800ADBCC] = characterIndex;
+        g_FieldPartyModelLoadBuffer = pBuffer;
+        g_GamePartyMemberSkins[g_FieldPartyModelLoadPartyIndex] = characterIndex;
         ArchiveReadFileToBuffer(archiveIndex, pBuffer, 0, 0x80);
     }
     if (D_800ADB1C == 0) {
         ArchiveCdDataSync(0);
     }
-    D_800ADBC4 = 1;
+    g_FieldPartyModelLoadState = 1;
 }
 
 void FieldScriptSetInvertedAnimationId(void) {
@@ -1309,13 +1309,13 @@ void FieldScriptFreeSpecialAnimFile(void) {
     g_FieldScriptVMStopFlag = 1;
 }
 
-extern void* D_800AFD08; // WDS file buffer
+extern void* g_FieldWdsLoadBuffer; // WDS file buffer
 
-extern s32 D_800AFD0C;
+extern s32 g_FieldWdsLoadEntryIndex;
 
-extern s32 D_800AFD18;
+extern s32 g_FieldWdsLoadSlotIndex;
 
-extern void* D_80062518[];
+extern void* g_GameWdsEntries[];
 
 extern s32 D_80062524;
 
@@ -1339,38 +1339,38 @@ void FieldScriptLoadWdsSoundFile(void) {
 
     if (FieldArchiveTryDataSync() == 0) {
         if (SCRIPT_READ_U8_REL(1) == 1) {
-            D_80062518[D_800AFD18] = SoundLoadWdsFile(D_800AFD08, 0);
+            g_GameWdsEntries[g_FieldWdsLoadSlotIndex] = SoundLoadWdsFile(g_FieldWdsLoadBuffer, 0);
             SoundGetPendingSpuCommandType(0x10);
-            HeapFree(D_800AFD08);
-            if (D_800AFD18 == 3) {
+            HeapFree(g_FieldWdsLoadBuffer);
+            if (g_FieldWdsLoadSlotIndex == 3) {
                 D_800595AC = D_80062524;
             }
             g_FieldScriptVMStopFlag = 1;
             g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
         } else {
             wdsIndex = FieldScriptVMGetArgument(2);
-            pWdsEntry = D_80062518[wdsIndex];
-            D_800AFD18 = wdsIndex;
+            pWdsEntry = g_GameWdsEntries[wdsIndex];
+            g_FieldWdsLoadSlotIndex = wdsIndex;
             SoundFreeWdsEntry(pWdsEntry);
             flags = FieldScriptVMGetArgument(4);
-            D_800AFD0C = flags;
+            g_FieldWdsLoadEntryIndex = flags;
             if (!(flags & 0x80)) {
 setIndex1C:
                 ArchiveSetIndex(0x1C, 0);
-                D_800AFD0C += 2;
+                g_FieldWdsLoadEntryIndex += 2;
                 goto readFile;
             }
             if (D_8004F370 != 1) {
-                D_800AFD0C = (flags & 0x7F) + 0x1F;
+                g_FieldWdsLoadEntryIndex = (flags & 0x7F) + 0x1F;
                 ArchiveSetIndex(0x2C, 1);
                 goto readFile;
             }
-            D_800AFD0C = 4;
+            g_FieldWdsLoadEntryIndex = 4;
             goto setIndex1C;
 readFile:
-            pWdsFileBuffer = HeapAlloc(ArchiveDecodeAlignedSize(D_800AFD0C), 0);
-            D_800AFD08 = pWdsFileBuffer;
-            ArchiveReadFileToBuffer(D_800AFD0C, pWdsFileBuffer, 0, 0x80);
+            pWdsFileBuffer = HeapAlloc(ArchiveDecodeAlignedSize(g_FieldWdsLoadEntryIndex), 0);
+            g_FieldWdsLoadBuffer = pWdsFileBuffer;
+            ArchiveReadFileToBuffer(g_FieldWdsLoadEntryIndex, pWdsFileBuffer, 0, 0x80);
             ArchiveSetIndex(4, 0);
             g_FieldScriptVMCurActor->scriptInstructionPointer += 6;
         }
@@ -1450,31 +1450,31 @@ void FieldScriptSetVectorTable223C(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 0xA;
 }
 
-extern FieldScriptGlobalU8 D_800B225C;
-extern FieldScriptGlobalU8 D_800B225D;
-extern FieldScriptGlobalU8 D_800B225E;
+extern FieldScriptGlobalU8 g_FieldBackgroundR;
+extern FieldScriptGlobalU8 g_FieldBackgroundG;
+extern FieldScriptGlobalU8 g_FieldBackgroundB;
 
 void FieldScriptSetBackgroundColor(void) {
-    D_800B225C.value = FieldScriptVMGetArgument(1);
-    D_800B225D.value = FieldScriptVMGetArgument(3);
-    D_800B225E.value = FieldScriptVMGetArgument(5);
+    g_FieldBackgroundR.value = FieldScriptVMGetArgument(1);
+    g_FieldBackgroundG.value = FieldScriptVMGetArgument(3);
+    g_FieldBackgroundB.value = FieldScriptVMGetArgument(5);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 7;
 }
 
-extern FieldScriptGlobalS16 D_800B21B4;
+extern FieldScriptGlobalS16 g_FieldActorUpdateAngle;
 
 void FieldScriptSetUpdateAngle(void) {
-    D_800B21B4.value = FieldScriptVMGetArgument(1);
+    g_FieldActorUpdateAngle.value = FieldScriptVMGetArgument(1);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
 
 extern s32 D_800ADB1C;
-extern s16 D_800B21E4[];
+extern s16 g_FieldModelAnimationIds[];
 
 void FieldScriptSetGearModelAnimation(void) {
     if (D_800ADB1C != 0) {
         LibGearSetModelAnimation(FieldScriptVMGetArgument(1) & 0xFFFF, 0, FieldScriptVMGetArgument(3));
-        D_800B21E4[FieldScriptVMGetArgument(1)] = FieldScriptVMGetArgument(3);
+        g_FieldModelAnimationIds[FieldScriptVMGetArgument(1)] = FieldScriptVMGetArgument(3);
     }
     g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
 }
@@ -1649,20 +1649,20 @@ void func_8008B5D4(void) {
 */
 
 extern void* g_PartyDataBuffers[];
-extern void* D_800ADBC0;
-extern s32 D_800ADBC4;
-extern void* D_800ADBC8;
-extern s32 D_800ADBCC;
+extern void* g_FieldPartyModelLoadBuffer;
+extern s32 g_FieldPartyModelLoadState;
+extern void* g_FieldPartyModelLoadCharacter;
+extern s32 g_FieldPartyModelLoadPartyIndex;
 extern void LZSSDecompress(void*, void*);
 extern void func_8008B978(void*);
 
 void FieldScriptFinishPartyModelLoad(void) {
-    if (D_800ADBC4 != 0xFF && ArchiveDataSync() == 0) {
+    if (g_FieldPartyModelLoadState != 0xFF && ArchiveDataSync() == 0) {
         ArchiveCdDataSync(0);
-        LZSSDecompress(D_800ADBC0, g_PartyDataBuffers[D_800ADBCC]);
-        HeapFree(D_800ADBC0);
-        func_8008B978(D_800ADBC8);
-        D_800ADBC4 = 0xFF;
+        LZSSDecompress(g_FieldPartyModelLoadBuffer, g_PartyDataBuffers[g_FieldPartyModelLoadPartyIndex]);
+        HeapFree(g_FieldPartyModelLoadBuffer);
+        func_8008B978(g_FieldPartyModelLoadCharacter);
+        g_FieldPartyModelLoadState = 0xFF;
         g_FieldScriptVMStopFlag = 1;
         g_FieldScriptVMCurActor->scriptInstructionPointer += 1;
     } else {
@@ -1679,7 +1679,7 @@ void FieldScriptAddPartyMember(void) {
     int characterId;
     int partyIndex;
 
-    if (D_800ADBC4 == CHARACTER_ID_NONE && g_FieldArchiveStreamActive == 0 && FieldArchiveTryDataSync() == 0) {
+    if (g_FieldPartyModelLoadState == CHARACTER_ID_NONE && g_FieldArchiveStreamActive == 0 && FieldArchiveTryDataSync() == 0) {
         ArchiveCdDataSync(0);
         characterId = FieldScriptVMGetArgument(1);
         if (characterId != CHARACTER_ID_NONE) {
@@ -1713,7 +1713,7 @@ void FieldScriptAddPartyMemberShort(void) {
     int partyIndex;
     u8 characterId;
 
-    if (D_800ADBC4 == CHARACTER_ID_NONE && g_FieldArchiveStreamActive == 0 && FieldArchiveTryDataSync() == 0) {
+    if (g_FieldPartyModelLoadState == CHARACTER_ID_NONE && g_FieldArchiveStreamActive == 0 && FieldArchiveTryDataSync() == 0) {
         ArchiveCdDataSync(0);
         if (FieldPartyAllocSlot(SCRIPT_READ_U8_REL(1), &partyIndex) == 0) {
             g_pGameState->gearRide[partyIndex] = 0;
@@ -2089,10 +2089,10 @@ void FieldScriptSetActorScale(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 7;
 }
 
-extern FieldScriptGlobalS16 D_800B218C;
+extern FieldScriptGlobalS16 g_FieldPolarVectorScale;
 
 void FieldScriptSetScale218C(void) {
-    D_800B218C.value = FieldScriptVMGetArgument(1);
+    g_FieldPolarVectorScale.value = FieldScriptVMGetArgument(1);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
 
@@ -2182,12 +2182,12 @@ void FieldActorCopyPlacement(int dstActorId, int srcActorId) {
     CopyActorFieldS32(g_FieldActors, dstActorId, srcActorId, offsetof(FieldActor, transformMatrix.t[2]));
 }
 
-extern u8 D_800B219F;
+extern u8 g_FieldPartySlotMask;
 
 void FieldClearPartyMaskForCurrentActor(void) {
     int i = 0;
     s32 actorIndex = g_FieldCurActorIndex;
-    u8* pMask = &D_800B219F;
+    u8* pMask = &g_FieldPartySlotMask;
 
     for (; i < MAX_PARTY_MEMBERS; i++) {
         if (g_FieldPartyActorSlots[i] == actorIndex) {
@@ -2284,10 +2284,10 @@ void FieldScriptClearParentActor(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 1;
 }
 
-extern FieldScriptGlobalS16 D_800B233E;
+extern FieldScriptGlobalS16 g_FieldPlayerActorIndex16;
 
 void FieldScriptSetPlayerActorIndexMirror(void) {
-    D_800B233E.value = FieldScriptVMGetActorIndex(1);
+    g_FieldPlayerActorIndex16.value = FieldScriptVMGetActorIndex(1);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
 }
 
@@ -2552,7 +2552,7 @@ void FieldScriptModifyActorFlags(void) {
 // them by one, so 0xFFFF becomes 0. D_800B2298/D_800B229C are splat's split of
 // the same storage (see FieldScriptSetRandomSkinParams, the script handler that drives this).
 // The original reads unk4 and count through those two symbols with offset 0
-// while the array is based at D_800B2294 + 0xC, so this C is one symbol name
+// while the array is based at g_FieldRandomSkinSlots + 0xC, so this C is one symbol name
 // apart from a 100% match (objdiff 99.26%, same instructions and bytes; the
 // relocations resolve to the same addresses). Declaring D_800B2298/D_800B229C
 // as structs to fix the names instead makes gcc hoist D_800B229C's address out
@@ -2565,7 +2565,7 @@ typedef struct {
     /* 0xC */ u16 values[0x20];
 } FieldRandomValues; // Size: 0x4C
 
-extern FieldRandomValues D_800B2294;
+extern FieldRandomValues g_FieldRandomSkinSlots;
 extern int rand(void);
 
 void FieldRandomizeSkinSlots(void) {
@@ -2574,27 +2574,27 @@ void FieldRandomizeSkinSlots(void) {
     int value;
     u16 emptyValue;
 
-    D_800B2294.unk0 = D_800B2294.unk4;
-    if (D_800B2294.count == 0) {
-        D_800B2294.unk4 = 0;
+    g_FieldRandomSkinSlots.unk0 = g_FieldRandomSkinSlots.unk4;
+    if (g_FieldRandomSkinSlots.count == 0) {
+        g_FieldRandomSkinSlots.unk4 = 0;
         return;
     }
     emptyValue = 0xFFFF;
     for (i = 0x1F; i >= 0; i--) {
-        D_800B2294.values[i] = emptyValue;
+        g_FieldRandomSkinSlots.values[i] = emptyValue;
     }
-    for (i = 0; i < D_800B2294.count; i++) {
+    for (i = 0; i < g_FieldRandomSkinSlots.count; i++) {
 retry:
-        value = ((rand() * (D_800B2294.unk4 + 1)) >> 15) & 0xFFFF;
+        value = ((rand() * (g_FieldRandomSkinSlots.unk4 + 1)) >> 15) & 0xFFFF;
         for (j = 0; j < 0x20; j++) {
-            if (D_800B2294.values[j] == value) {
+            if (g_FieldRandomSkinSlots.values[j] == value) {
                 goto retry;
             }
         }
-        D_800B2294.values[i] = value;
+        g_FieldRandomSkinSlots.values[i] = value;
     }
-    for (i = 0; i < D_800B2294.count; i++) {
-        D_800B2294.values[i]++;
+    for (i = 0; i < g_FieldRandomSkinSlots.count; i++) {
+        g_FieldRandomSkinSlots.values[i]++;
     }
 }
 
@@ -2640,13 +2640,13 @@ void FieldScriptSetActorMovementFlag(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
 }
 
-extern s32 D_800ADB7C;
+extern s32 g_FieldStreamReadyFlag;
 
 void FieldScriptWaitForFlagADB7C(void) {
-    if (D_800ADB7C == 0) {
+    if (g_FieldStreamReadyFlag == 0) {
         g_FieldScriptVMCurActor->scriptInstructionPointer -= 1;
     } else {
-        D_800ADB7C = 0;
+        g_FieldStreamReadyFlag = 0;
         g_FieldScriptVMCurActor->scriptInstructionPointer += 1;
     }
     g_FieldScriptVMStopFlag = 1;
@@ -2684,7 +2684,7 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008EA58);
  * pActor loaded before the store with SCRIPT_READ_U8(pActor->ip + 0xB),
  * including the load once (all 74.57%).
 void func_8008EA58(void) {
-    if (D_800ADBDC.value == 0) {
+    if (g_FieldMapChangeGate.value == 0) {
         g_FieldScriptVMStopFlag = 1;
         g_FieldScriptVMCurActor->scriptInstructionPointer -= 1;
     } else {
@@ -2763,18 +2763,18 @@ void func_8008EE14(void) {
 */
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008EE14);
 
-extern s32 D_800ADB3C;
-extern s32 D_800ADB38;
+extern s32 g_FieldScriptFadeDuration;
+extern s32 g_FieldScriptFadeMode;
 
 void FieldScriptStartFade1(void) {
-    D_800ADB3C = FieldScriptVMGetArgument(1);
-    D_800ADB38 = 1;
+    g_FieldScriptFadeDuration = FieldScriptVMGetArgument(1);
+    g_FieldScriptFadeMode = 1;
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
 
 void FieldScriptStartFade2(void) {
-    D_800ADB3C = FieldScriptVMGetArgument(1);
-    D_800ADB38 = 2;
+    g_FieldScriptFadeDuration = FieldScriptVMGetArgument(1);
+    g_FieldScriptFadeMode = 2;
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
 
@@ -2789,8 +2789,8 @@ void FieldScriptSetClipDimensions(void) {
 }
 
 void FieldScriptStartFade3(void) {
-    D_800ADB3C = FieldScriptVMGetArgument(1);
-    D_800ADB38 = 3;
+    g_FieldScriptFadeDuration = FieldScriptVMGetArgument(1);
+    g_FieldScriptFadeMode = 3;
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
 
@@ -2835,19 +2835,19 @@ void FieldScriptSetSpriteDirection(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
 
-extern s32 D_800C3A5C;
-extern s32 D_800C3A60;
+extern s32 g_FieldScreenScrollX;
+extern s32 g_FieldScreenScrollY;
 
 void FieldScriptSetScreenScroll(void) {
-    D_800C3A5C = FieldScriptVMGetArgument(1);
-    D_800C3A60 = FieldScriptVMGetArgument(3);
+    g_FieldScreenScrollX = FieldScriptVMGetArgument(1);
+    g_FieldScreenScrollY = FieldScriptVMGetArgument(3);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
 }
 
-extern FieldScriptGlobalS16 D_800B233C;
+extern FieldScriptGlobalS16 g_FieldSoundElementMask;
 
 void FieldScriptSetSoundSlotFlags(void) {
-    D_800B233C.value = FieldScriptVMGetArgument(1);
+    g_FieldSoundElementMask.value = FieldScriptVMGetArgument(1);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
 
@@ -2914,11 +2914,11 @@ void FieldScriptSetSoundSlotVolumeParams3(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 7;
 }
 
-extern FieldScriptGlobalS32 D_800ADBDC;
+extern FieldScriptGlobalS32 g_FieldMapChangeGate;
 extern FieldScriptGlobalS32 g_GameAudioFadeInPending;
 
 void FieldScriptLoadCharacterData0(void) {
-    if (D_800ADBDC.value == 0) {
+    if (g_FieldMapChangeGate.value == 0) {
         g_FieldScriptVMStopFlag = 1;
     } else {
         g_GameAudioFadeInPending.value = 0;
@@ -2927,7 +2927,7 @@ void FieldScriptLoadCharacterData0(void) {
 }
 
 void FieldScriptLoadCharacterDataMinus1(void) {
-    if (D_800ADBDC.value == 0) {
+    if (g_FieldMapChangeGate.value == 0) {
         g_FieldScriptVMStopFlag = 1;
     } else {
         g_GameAudioFadeInPending.value = -1;
@@ -2942,7 +2942,7 @@ extern void FieldStartWdsBankLoad(int, int);
 
 // 92.24%: the two guards match as `!=` conjunctions (both `beq` jump forward to
 // the shared `g_FieldScriptVMStopFlag = 1`), but then gcc merges that store with the one for
-// the `FieldArchiveTryDataSync() != 0 || D_800ADBDC.value == 0` arm, which the original
+// the `FieldArchiveTryDataSync() != 0 || g_FieldMapChangeGate.value == 0` arm, which the original
 // keeps separate and inline. Spelling that arm as `== 1 || == -1` keeps it
 // inline (it shares the `li v1,1`) but inverts the second `beq` (90.82%).
 // preset screen: 2.7.2 92.24%, cdk 92.24%, 2.6.0 92.24% - no compiler
@@ -2959,7 +2959,7 @@ void func_8008F7B8(void) {
         }
         g_GameRequestedWdsBankIndex = characterId;
         g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
-    } else if (FieldArchiveTryDataSync() != 0 || D_800ADBDC.value == 0) {
+    } else if (FieldArchiveTryDataSync() != 0 || g_FieldMapChangeGate.value == 0) {
         g_FieldScriptVMStopFlag = 1;
     } else if (g_GameWdsStreamInProgress != 1 && g_GameWdsBankLoadState != -1) {
         if (characterId != g_GameRequestedWdsBankIndex) {

@@ -1563,3 +1563,7 @@ g_MemberChangeMenuLockedCharacterFlags = 0x8006F94C;
 g_GfxSpritesUseBaseMatrix = 0x800591AE;
 g_GameDiscChangeRequest = 0x800594D0;
 g_MenuSavedMainMenuChoice = 0x800594CC;
+g_WorldMapSaveBlock = 0x8005A4E4;
+g_BattleOptionFlags = 0x8006F980;
+g_BattleResultCode = 0x80050622;
+g_GameWdsEntries = 0x80062518;

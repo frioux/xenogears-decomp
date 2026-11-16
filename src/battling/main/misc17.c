@@ -12,7 +12,7 @@ extern u8 g_BattleDrawBufferIndex;
 extern u8 D_80096DE0[];
 extern u8 D_80096E00[];
 extern u8 D_80099DA2;
-extern u8 D_80099D9E;
+extern u8 g_BattlePlayer2ComControlled;
 
 typedef struct {
     /* 0x00 */ u8 soundId;
@@ -544,8 +544,8 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008F280);
    the 0..0xD one (case 0 shares the default). From the first switch to the end
    the instruction stream is identical; the whole remaining difference is the
    ENTRY BLOCK order. Retail emits: sw s0 / sw ra / sw s1 / lw s1,0x15FC(s0) /
-   lbu D_80099DA2 / lbu D_80092848 / ori+lui+sb D_80099D9E / beq. gcc emits:
-   sw s0 / lbu D_80099DA2 / li+sb D_80099D9E / lbu D_80092848 / sw ra / sw s1 /
+   lbu D_80099DA2 / lbu D_80092848 / ori+lui+sb g_BattlePlayer2ComControlled / beq. gcc emits:
+   sw s0 / lbu D_80099DA2 / li+sb g_BattlePlayer2ComControlled / lbu D_80092848 / sw ra / sw s1 /
    lw s1,0x15FC(s0) / beq - it sinks the pWork load below the two global reads
    and splits them around the flag store, and it also steals the flag-test
    body's lw v0,0xD0(s0) into the beqz delay slot where retail has a nop.
@@ -566,7 +566,7 @@ void func_8008F280(BattleActor* pActor) {
     BattleWork* pWork;
 
     pWork = pActor->pWork;
-    D_80099D9E = 1;
+    g_BattlePlayer2ComControlled = 1;
     if (D_80092848 != D_80099DA2) {
         pWork->delay = 0;
         pWork->maxDistance = 0;
@@ -630,7 +630,7 @@ void func_8008F280(BattleActor* pActor) {
         BattleSetActionFieldFAndDispatch(pActor, pWork, 2);
         return;
     case 2:
-        D_80099D9E = 0;
+        g_BattlePlayer2ComControlled = 0;
         return;
     case 1:
         BattleToggleActionFlag2000(pActor, pWork);

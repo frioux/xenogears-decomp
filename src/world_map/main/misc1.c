@@ -19,9 +19,9 @@ extern void* g_MenuSedsFile;
 extern void* g_WorldMapWorkBuffer1;
 extern void* g_WorldMapWorkBuffer2;
 extern s32 g_WorldMapMode;
-extern void* D_8009BD20;
+extern void* g_WorldMapLoadedFileData;
 extern void* g_WorldMapDecompressedMapData;
-extern s32 D_8009C174;
+extern s32 g_WorldMapReloadFileIndex;
 extern s32 D_8009C17C;
 extern s32 g_WorldMapPlayerRotation;
 extern void* D_8009C59C;
@@ -47,7 +47,7 @@ typedef struct {
     /* 0x6 */ u16 pad6;
 } WorldMapPoint; // Size: 0x8
 
-extern WorldMapPoint* D_8009D3F4;
+extern WorldMapPoint* g_WorldMapPoints;
 
 // The world map frame render context g_WorldMapRenderContext points at: the two ordering
 // table heads it fills each frame.
@@ -191,7 +191,7 @@ void func_80071B9C(s32 arg0, s32 arg1) {
     }
     D_8009D3C4 = pEntry->unk0 + 1;
     D_8009C17C = pEntry->unk0 + 2;
-    D_8009C174 = pEntry->unk0 + 3;
+    g_WorldMapReloadFileIndex = pEntry->unk0 + 3;
     g_WorldMapWdsFileIndex = pEntry->unk0 + 4;
     g_WorldMapSoundBankFileIndex = pEntry->unk0 + 5;
     g_WorldMapSedsBankFileIndex = pEntry->unk0 + 6;
@@ -286,7 +286,7 @@ void func_80071EF0(void) {
     StreamDataQueueEntry* pQueue;
 
     D_8009C59C = HeapAlloc(ArchiveDecodeAlignedSize(D_8009C17C), 1);
-    D_8009BD20 = HeapAlloc(ArchiveDecodeAlignedSize(D_8009C174), 1);
+    g_WorldMapLoadedFileData = HeapAlloc(ArchiveDecodeAlignedSize(g_WorldMapReloadFileIndex), 1);
     pBuffer = HeapAlloc(ArchiveDecodeAlignedSize(D_8009D3C4), 1);
     pQueue = (StreamDataQueueEntry*)&g_WorldMapStreamQueue;
     g_WorldMapDecompressedMapData = pBuffer;
@@ -295,9 +295,9 @@ void func_80071EF0(void) {
     D_8009D414 = 0;
     pQueue->archiveIndex = D_8009D3C4;
     D_8009D400 = D_8009C17C;
-    D_8009D408 = D_8009C174;
+    D_8009D408 = g_WorldMapReloadFileIndex;
     D_8009D404 = D_8009C59C;
-    D_8009D40C = D_8009BD20;
+    D_8009D40C = g_WorldMapLoadedFileData;
     func_80029AFC(pQueue, 0, 0);
 }
 */
@@ -386,8 +386,8 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_8007299C);
 /*
 extern void* g_SoundAudioManager;
 extern void* g_WorldMapSlots;
-extern void* D_8009BC3C;
-extern void* D_8009BCB4;
+extern void* g_WorldMapTilePrimBuffer;
+extern void* g_WorldMapTilePrimBufferCopy;
 extern u16 g_NextMapFlags;
 extern s32 g_WorldMapAreaMode;
 extern void* D_8009CD34[3];
@@ -450,8 +450,8 @@ void func_8007299C(void) {
     WorldMapFreeGridImages();
     HeapFree(g_WorldMapWorkBuffer1);
     HeapFree(g_WorldMapWorkBuffer2);
-    HeapFree(D_8009BC3C);
-    HeapFree(D_8009BCB4);
+    HeapFree(g_WorldMapTilePrimBuffer);
+    HeapFree(g_WorldMapTilePrimBufferCopy);
     HeapFree(g_WorldMapDecompressedMapData);
     for (i = 0; i < 3; i++) {
         if (D_8009CD34[i] != NULL) {
@@ -642,7 +642,7 @@ void func_80073448(s32 arg0) {
         WorldMapGetGameStatePosition(&g_WorldMapPlayerPosition);
         g_WorldMapPlayerRotation = g_GameState.unk1832;
     } else {
-        p = D_8009D3F4;
+        p = g_WorldMapPoints;
         while (*(s16*)&p->id != -1) {
             if ((s16)p->id == arg0) {
                 D_8009C5B0 = 0;
@@ -686,16 +686,16 @@ typedef struct {
 } WorldMapPointTableHeader; // Size: 0x8
 
 extern void* LZSSHeapDecompress(void* pCompressedData, int flags);
-extern s32 D_8009CD48;
-extern s32 D_8009D308;
-extern s32 D_8009BD30;
+extern s32 g_WorldMapModelData;
+extern s32 g_WorldMapModelRelocs;
+extern s32 g_WorldMapSpriteSetTable;
 extern s32 g_WorldMapPrimBlocks;
 extern s32 g_WorldMapSpriteGroups;
-extern s32 D_8009D784;
-extern s32 D_8009D77C;
-extern s32 D_8009D7C8;
-extern s32* D_8009BD00;
-extern s32 D_8009D73C[];
+extern s32 g_WorldMapStringTable;
+extern s32 g_WorldMapTileAnimSet;
+extern s32 g_WorldMapFrameAnimSet;
+extern s32* g_WorldMapRects;
+extern s32 g_WorldMapTileGroupData[];
 
 void WorldMapDecompressMapTables(void) {
     u8* pBase;
@@ -713,27 +713,27 @@ void WorldMapDecompressMapTables(void) {
     pBase = (u8*)g_WorldMapDecompressedMapData;
     pHeader = (WorldMapMapDataHeader*)pBase;
     pTable = (WorldMapPointTableHeader*)(pBase + pHeader->pointTableOffset);
-    D_8009CD48 = (s32)(pBase + pHeader->modelOffset);
-    D_8009D308 = (s32)(pBase + pHeader->modelRelocOffset);
-    D_8009BD30 = (s32)(pBase + pHeader->spriteSetOffset);
+    g_WorldMapModelData = (s32)(pBase + pHeader->modelOffset);
+    g_WorldMapModelRelocs = (s32)(pBase + pHeader->modelRelocOffset);
+    g_WorldMapSpriteSetTable = (s32)(pBase + pHeader->spriteSetOffset);
     // second live copy of the block base, as retail's codegen has
     pMapBase = pBase;
     g_WorldMapPrimBlocks = (s32)(pMapBase + pHeader->unk14);
     g_WorldMapSpriteGroups = (s32)(pMapBase + pHeader->spriteGroupOffset);
-    D_8009D784 = (s32)(pMapBase + pHeader->stringTableOffset);
-    D_8009D77C = (s32)(pMapBase + pHeader->tileAnimOffset);
-    D_8009D7C8 = (s32)(pMapBase + pHeader->frameAnimOffset);
+    g_WorldMapStringTable = (s32)(pMapBase + pHeader->stringTableOffset);
+    g_WorldMapTileAnimSet = (s32)(pMapBase + pHeader->tileAnimOffset);
+    g_WorldMapFrameAnimSet = (s32)(pMapBase + pHeader->frameAnimOffset);
     for (i = 0; i < 0x10; i++) {
-        D_8009D73C[i] = (s32)(pMapBase + pHeader->tileGroupOffsets[i]);
+        g_WorldMapTileGroupData[i] = (s32)(pMapBase + pHeader->tileGroupOffsets[i]);
     }
     // The sub-block offsets are relative to the point table itself, not to the block.
-    D_8009D3F4 = (WorldMapPoint*)((u8*)pTable + pTable->pointOffset);
+    g_WorldMapPoints = (WorldMapPoint*)((u8*)pTable + pTable->pointOffset);
     pRect = (s32*)((u8*)pTable + pTable->rectOffset);
-    D_8009BD00 = pRect;
+    g_WorldMapRects = pRect;
     pRect[0] = (s32)((u8*)pTable + pRect[0]);
-    D_8009BD00[1] = (s32)((u8*)pTable + pRect[1]);
-    D_8009BD00[2] = (s32)((u8*)pTable + pRect[2]);
-    D_8009BD00[3] = (s32)((u8*)pTable + pRect[3]);
+    g_WorldMapRects[1] = (s32)((u8*)pTable + pRect[1]);
+    g_WorldMapRects[2] = (s32)((u8*)pTable + pRect[2]);
+    g_WorldMapRects[3] = (s32)((u8*)pTable + pRect[3]);
 }
 
 void WorldMapAllocWorkBuffers(void) {

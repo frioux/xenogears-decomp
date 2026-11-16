@@ -40,8 +40,8 @@ s32 FieldActorModelComputeCenterAndSize(FieldActorModelData* pModel) {
 }
 
 extern MATRIX D_800B00E8;
-extern s32 D_800C3A5C;
-extern s32 D_800C3A60;
+extern s32 g_FieldScreenScrollX;
+extern s32 g_FieldScreenScrollY;
 
 // Project the two silhouette points of a model and check they are on screen
 s32 FieldActorModelIsOnScreen(FieldActorModelData* pModel) {
@@ -78,7 +78,7 @@ s32 FieldActorModelIsOnScreen(FieldActorModelData* pModel) {
     y2 = sxy >> 16;
     x2 = (s16)sxy;
 
-    if (y1 < D_800C3A60 + 0xE0 && -D_800C3A60 < y2 && x1 < D_800C3A5C + 0x140 && -D_800C3A5C < x2) {
+    if (y1 < g_FieldScreenScrollY + 0xE0 && -g_FieldScreenScrollY < y2 && x1 < g_FieldScreenScrollX + 0x140 && -g_FieldScreenScrollX < x2) {
         return 0;
     }
     return -1;
@@ -473,12 +473,12 @@ void FieldInitScreenStripSprites(void) {
     }
 }
 
-extern s16 D_800ADB54;
+extern s16 g_FieldScreenStripSpritesEnabled;
 
 void FieldDrawScreenStripSprites(void) {
     int i;
 
-    if (D_800ADB54) {
+    if (g_FieldScreenStripSpritesEnabled) {
         for (i = 0; i < 5; i++) {
             addPrim(g_FieldCurRenderContext->ot3, &D_800B0188.sprites[i][g_FieldCurRenderContextIndex]);
             addPrim(g_FieldCurRenderContext->ot3, &D_800B0188.drModes[i][g_FieldCurRenderContextIndex]);

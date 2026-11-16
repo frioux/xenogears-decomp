@@ -295,7 +295,7 @@ extern s32 g_BattleEffectEntryCount;
 extern s32 g_BattleEffectPosX;
 extern s32 D_80092A28;
 extern s32 D_80092A2C;
-extern u8 D_80091C0C[];
+extern u8 g_BattleBaseMatrix[];
 extern void func_8008D680(BattleEffect *, u8 *, s32);
 extern void BattleEffectUpdateEntries(BattleEffect *, u8 *, u8 *);
 
@@ -313,7 +313,7 @@ void BattleEffectSetMatrix(u8 *p0, MATRIX *p1) {
     *(s16 *)(p + 0x34) = 0;
     *(s16 *)(p + 0x36) = 0;
     *(s16 *)(p + 0x38) = 0;
-    func_8008D680(pEffect, D_80091C0C, n);
+    func_8008D680(pEffect, g_BattleBaseMatrix, n);
     gte_SetTransRotMatrix_gpr(p1);
     BattleEffectUpdateEntries(pEffect, p0, (u8 *)p1);
 }
@@ -468,17 +468,17 @@ void BattleStoreSlotPositions(BattleQuad *p0, BattleQuad *p1, s32 arg2, u8 *p3, 
 } */
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80073DE4);
 
-extern s32 D_800928C8;
+extern s32 g_BattleMode;
 extern void BattlePlaySoundEffectById(s32);
 
 s32 BattleAccumulateGaugePoints(Actor *p0, s32 arg1, s32 arg2) {
     s16 t;
     s32 q;
 
-    if (D_800928C8 == 4) {
+    if (g_BattleMode == 4) {
         return 1;
     }
-    if (D_800928C8 == 6) {
+    if (g_BattleMode == 6) {
         return 1;
     }
     t = p0->gaugePoints + arg1;
@@ -750,14 +750,14 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80074BA4);
     pState->unkA = unkA;
 } */
 
-extern Actor D_8009872C;
+extern Actor g_BattleActor1;
 extern s32 D_80099D8C;
 extern s32 D_80099D88;
-extern u8 D_80050622;
+extern u8 g_BattleResultCode;
 extern s32 BattleCheckValueAboveScaledMax(u8 *, s32);
 
 void BattleSetResultCode(s32 arg0) {
-    Actor *p = &D_8009872C;
+    Actor *p = &g_BattleActor1;
     u8 *pDst;
     s16 v;
     s32 a;
@@ -765,49 +765,49 @@ void BattleSetResultCode(s32 arg0) {
 
     if (arg0 != 0) {
         if (BattleCheckValueAboveScaledMax((u8 *)p, 0xE0) != 0) {
-            D_80050622 = 2;
+            g_BattleResultCode = 2;
             return;
         }
         if (BattleCheckValueAboveScaledMax((u8 *)p, 0x10) != 0) {
-            D_80050622 = 1;
+            g_BattleResultCode = 1;
             return;
         }
-        D_80050622 = 3;
+        g_BattleResultCode = 3;
         return;
     }
     if (D_80099D8C == 0 && D_80099D88 == 0) {
-        D_80050622 = 0x88;
+        g_BattleResultCode = 0x88;
         return;
     }
     if (D_80099D88 == 0) {
-        D_80050622 = 0x82;
+        g_BattleResultCode = 0x82;
         return;
     }
     v = p->unkBC;
     a = (v * 176) / 255;
     if (a < p->unk1654) {
-        D_80050622 = 0x83;
+        g_BattleResultCode = 0x83;
         return;
     }
     b = (v * 160) / 255;
     if (b < p->unk1658) {
-        D_80050622 = 0x84;
+        g_BattleResultCode = 0x84;
         return;
     }
     if (a < p->unk1658 + p->unk1654) {
-        D_80050622 = 0x85;
+        g_BattleResultCode = 0x85;
         return;
     }
     pDst = p->pTarget;
     if (BattleCheckValueAboveScaledMax(pDst, 0xE0) != 0) {
-        D_80050622 = 0x86;
+        g_BattleResultCode = 0x86;
         return;
     }
     if (BattleCheckValueAboveScaledMax(pDst, 0x10) != 0) {
-        D_80050622 = 0x81;
+        g_BattleResultCode = 0x81;
         return;
     }
-    D_80050622 = 0x87;
+    g_BattleResultCode = 0x87;
 }
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_800751C8);
@@ -833,14 +833,14 @@ extern s32 D_80092918;
 extern u8 D_800928D4;
 extern u16 D_80097102;
 extern u8 D_800928FC;
-extern s32 D_800928C8;
+extern s32 g_BattleMode;
 extern u16 D_8009881E;
 extern s32 D_8009263C;
 extern u8 D_80092884;
 extern s32 D_80092950;
 extern s32 D_80092850;
 extern s32 D_8009284C;
-extern s32 D_80092934;
+extern s32 g_BattleFacingAngle;
 extern u8 D_8006FC30[];
 extern u8 D_8006FC34[];
 extern u8 D_8006FC3C[];
@@ -922,7 +922,7 @@ void func_800751C8(u8 *p0, u8 *p1) {
         D_80092890 = 0;
         D_800928FC = 0;
         BattleSetResultCode(1);
-        if ((*(u32 *)(p1 + 0xD0) & 0x40) && D_800928C8 != 3) {
+        if ((*(u32 *)(p1 + 0xD0) & 0x40) && g_BattleMode != 3) {
             printf(D_8006FC54);
             HeapAlloc(1, 2);
             printf(D_8006FC34);
@@ -934,13 +934,13 @@ void func_800751C8(u8 *p0, u8 *p1) {
     }
     if (D_8009263C != 0) {
         if (D_8009263C < 0x1E) {
-            if (BattleGetScreenMode() != 7 && D_800928C8 != 4) {
+            if (BattleGetScreenMode() != 7 && g_BattleMode != 4) {
                 BattleByteRegTestReg(D_8006FC64);
             }
             D_800928D4 = 1;
         } else if (D_8009263C < 0x3C) {
             if (BattleGetScreenMode() != 7) {
-                if (D_800928C8 == 4) {
+                if (g_BattleMode == 4) {
                     BattleByteRegTestReg(D_8006FC6C);
                     if (D_80092884 != 0) {
                         BattleByteRegTestReg(D_8006FC74);
@@ -956,7 +956,7 @@ void func_800751C8(u8 *p0, u8 *p1) {
             }
         } else {
             if (BattleGetScreenMode() != 7) {
-                if (D_800928C8 == 4) {
+                if (g_BattleMode == 4) {
                     BattleByteRegTestReg(D_8006FCA8);
                     if (D_80092884 != 0) {
                         BattleByteRegTestReg(D_8006FC74);
@@ -976,7 +976,7 @@ void func_800751C8(u8 *p0, u8 *p1) {
     }
     D_80092850 = BattleVectorDistance(p0, p1);
     D_8009284C = BattleVectorDistance2D(p0, p1);
-    D_80092934 = ratan2(*(s32 *)(p0 + 0x0) - *(s32 *)(p1 + 0x0), *(s32 *)(p0 + 0x8) - *(s32 *)(p1 + 0x8));
+    g_BattleFacingAngle = ratan2(*(s32 *)(p0 + 0x0) - *(s32 *)(p1 + 0x0), *(s32 *)(p0 + 0x8) - *(s32 *)(p1 + 0x8));
 } */
 
 

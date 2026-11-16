@@ -26,32 +26,32 @@ extern int PCread(int fd, char* buff, int len);
 extern int PCclose(int fd);
 
 // .rodata
-extern char D_80070304[];
-extern char D_80070328[];
-extern char D_8007034C[];
-extern char D_80070370[];
-extern char D_80070394[];
+extern char g_StrMovieMainSeWd[];
+extern char g_StrMovieBatSeWd[];
+extern char g_StrMovieGearSeWd[];
+extern char g_StrMovieBattle2Wd[];
+extern char g_StrMovieBattle2Smd[];
 
 // .bss
-extern void* D_8007700C;
-extern MATRIX D_80077050;
-extern u32 D_80077010;
-extern s32 D_80077014;
-extern s32 D_80077018;
-extern s32 D_8007701C;
+extern void* g_MovieAudioManager;
+extern MATRIX g_MovieViewMatrix;
+extern u32 g_MovieCurrentFrame;
+extern s32 g_MovieStopCountdown;
+extern s32 g_MovieDrawBufferIndex;
+extern s32 g_MoviePrevDrawBufferIndex;
 extern s32 g_MovieVerticalOffset;
-extern u32 D_80077028;
-extern s32 D_80076F04;
-extern s32 D_80076F08;
+extern u32 g_MoviePlayMode;
+extern s32 g_MoviePadHoldFrames;
+extern s32 g_MoviePadHoldLimit;
 extern s32 D_80076F30;
 extern s32 D_80076F34;
 extern s32 D_80077030;
 extern s32 D_80077034;
 extern s32 D_80077040;
 extern s32 D_80077044;
-extern s32 D_8007704C;
-extern SVECTOR D_800770B0;
-extern MATRIX D_80077070;
+extern s32 g_MovieViewRoll;
+extern SVECTOR g_MovieViewAngle;
+extern MATRIX g_MovieColorMatrix;
 extern s16 D_80077072;
 extern s16 D_80077074;
 extern s16 D_80077076;
@@ -60,7 +60,7 @@ extern s16 D_8007707A;
 extern s16 D_8007707C;
 extern s16 D_8007707E;
 extern s16 D_80077080;
-extern s16 D_80077090;
+extern s16 g_MovieLightMatrix;
 extern s16 D_80077092;
 extern s16 D_80077094;
 extern s16 D_80077096;
@@ -69,7 +69,7 @@ extern s16 D_8007709A;
 extern s16 D_8007709C;
 extern s16 D_8007709E;
 extern s16 D_800770A0;
-extern MATRIX D_800770B8;
+extern MATRIX g_MovieTranslationMatrix;
 extern s16 D_800770BA;
 extern s16 D_800770BC;
 extern s16 D_800770BE;
@@ -81,11 +81,11 @@ extern s16 D_800770C8;
 extern s32 D_800770CC;
 extern s32 D_800770D0;
 extern s32 D_800770D4;
-extern MATRIX D_800770D8;
+extern MATRIX g_MovieRotationMatrix;
 extern s32 D_800770EC;
 extern s32 D_800770F0;
 extern s32 D_800770F4;
-extern s16 D_800770F8;
+extern s16 g_MovieRotationBaseMatrix;
 extern s16 D_800770FA;
 extern s16 D_800770FC;
 extern s16 D_800770FE;
@@ -94,7 +94,7 @@ extern s16 D_80077102;
 extern s16 D_80077104;
 extern s16 D_80077106;
 extern s16 D_80077108;
-extern s32 D_8007711C;
+extern s32 g_MovieStreamFileIndex;
 typedef struct {
     /* 0x0 */ u16 magic;
     /* 0x2 */ u16 unk2;
@@ -108,9 +108,9 @@ typedef struct {
     /* 0x8 */ s32 z;
 } MovieVector; // Size: 0xC
 
-extern MovieVector D_8007702C;
-extern MovieVector D_8007703C;
-extern MovieVector D_80076F2C;
+extern MovieVector g_MoviePrevViewPosition;
+extern MovieVector g_MovieViewPosition;
+extern MovieVector g_MovieViewTarget;
 
 typedef struct {
     /* 0x0 */ u8 unk0;
@@ -120,13 +120,13 @@ typedef struct {
 } MovieSlot; // Size: 0x138
 
 extern MovieSlot D_8007713C[2];
-extern s32 D_8007739C;
+extern s32 g_MovieTotalFrames;
 extern s32 g_MoviePadButtons;
 extern s32 g_MoviePrevPadButtons;
-extern s32 D_80077438;
-extern s32 D_80077454;
-extern RECT D_800704E0; // .rodata
-extern s32 D_80077448;
+extern s32 g_MovieLoopPlayback;
+extern s32 g_MovieStreamRgb24;
+extern RECT g_MovieClearRect; // .rodata
+extern s32 g_MovieStreamArchiveSection;
 extern s32 D_801D68B4;
 
 // .rodata
@@ -194,24 +194,24 @@ s32 MovieCheckStreamFileHeader(void) {
     s32 nSize;
     s32 result;
 
-    state = D_80077448;
+    state = g_MovieStreamArchiveSection;
     result = -1;
     if (state == 0) {
         ArchiveSetIndex(0x18, 0);
-        if (D_8007711C >= (s16)ArchiveDecodeSizeAbsolute(2)) {
+        if (g_MovieStreamFileIndex >= (s16)ArchiveDecodeSizeAbsolute(2)) {
             return;
         }
-        nFileIndex = D_8007711C + 3;
+        nFileIndex = g_MovieStreamFileIndex + 3;
         pPath = ArchiveGetFilePath(nFileIndex);
         nSectorSize = 0x800;
         nHeaderSize = 0x20;
         nHeaderSkip = 0;
     } else if (state == 1) {
         ArchiveSetIndex(0x18, 1);
-        if (D_8007711C >= (s16)ArchiveDecodeSizeAbsolute(1)) {
+        if (g_MovieStreamFileIndex >= (s16)ArchiveDecodeSizeAbsolute(1)) {
             return;
         }
-        nFileIndex = D_8007711C + 2;
+        nFileIndex = g_MovieStreamFileIndex + 2;
         pPath = ArchiveGetFilePath(nFileIndex);
         nSectorSize = 0x920;
         nHeaderSize = 0x28;
@@ -246,19 +246,19 @@ s32 MovieCheckStreamFileHeader(void) {
 void MovieLoadSoundBanks(void) {
     char* pWdsFile;
 
-    pWdsFile = ArchiveReadHddFile(D_80070304, 0);
+    pWdsFile = ArchiveReadHddFile(g_StrMovieMainSeWd, 0);
     SoundLoadWdsFile(pWdsFile, 0);
     while ((SoundGetPendingSpuCommandType(0) << 16) != 0) {
     }
     HeapFree(pWdsFile);
 
-    pWdsFile = ArchiveReadHddFile(D_80070328, 0);
+    pWdsFile = ArchiveReadHddFile(g_StrMovieBatSeWd, 0);
     SoundLoadWdsFile(pWdsFile, 0);
     while ((SoundGetPendingSpuCommandType(0) << 16) != 0) {
     }
     HeapFree(pWdsFile);
 
-    pWdsFile = ArchiveReadHddFile(D_8007034C, 0);
+    pWdsFile = ArchiveReadHddFile(g_StrMovieGearSeWd, 0);
     SoundLoadWdsFile(pWdsFile, 0);
     while ((SoundGetPendingSpuCommandType(0) << 16) != 0) {
     }
@@ -268,17 +268,17 @@ void MovieLoadSoundBanks(void) {
 void MovieCreateAudioManager(void) {
     char* pWdsFile;
 
-    pWdsFile = ArchiveReadHddFile(D_80070370, 0);
+    pWdsFile = ArchiveReadHddFile(g_StrMovieBattle2Wd, 0);
     SoundLoadWdsFile(pWdsFile, 0);
     // SoundGetPendingSpuCommandType returns a 16-bit status, tested in the low half
     while ((SoundGetPendingSpuCommandType(0) << 16) != 0) {
     }
     HeapFree(pWdsFile);
-    D_8007700C = SoundCreateAudioManagerOnHeap(ArchiveReadHddFile(D_80070394, 0));
+    g_MovieAudioManager = SoundCreateAudioManagerOnHeap(ArchiveReadHddFile(g_StrMovieBattle2Smd, 0));
 }
 
 void MoviePlayAudioManager(void) {
-    SoundPlayAudioManager(D_8007700C, 0x7F, 0);
+    SoundPlayAudioManager(g_MovieAudioManager, 0x7F, 0);
 }
 
 INCLUDE_ASM("asm/movie/nonmatchings/main/misc2", func_80075534);
@@ -463,27 +463,27 @@ void MovieResetPlaybackAndClearScreen(void) {
     long pad[6];
     RECT rect;
 
-    rect = D_800704E0;
-    D_80077028 = 0;
+    rect = g_MovieClearRect;
+    g_MoviePlayMode = 0;
     g_MoviePadButtons = -1;
-    if (D_80077448 == 0) {
+    if (g_MovieStreamArchiveSection == 0) {
         ArchiveSetIndex(0x18, 0);
-        if (D_8007711C >= (s16)ArchiveDecodeSizeAbsolute(2)) {
+        if (g_MovieStreamFileIndex >= (s16)ArchiveDecodeSizeAbsolute(2)) {
             return;
         }
         SetDispMask(0);
-    } else if (D_80077448 == 1) {
+    } else if (g_MovieStreamArchiveSection == 1) {
         ArchiveSetIndex(0x18, 1);
-        if (D_8007711C >= (s16)ArchiveDecodeSizeAbsolute(1)) {
+        if (g_MovieStreamFileIndex >= (s16)ArchiveDecodeSizeAbsolute(1)) {
             return;
         }
         SetDispMask(0);
-    } else if (D_80077448 == 2) {
+    } else if (g_MovieStreamArchiveSection == 2) {
         return;
     }
     D_8007713C[0].unk0 = 0;
     D_8007713C[1].unk0 = 0;
-    if (D_80077454 != 0) {
+    if (g_MovieStreamRgb24 != 0) {
         D_8007713C[0].unk55 = 1;
         D_8007713C[1].unk55 = 1;
     }
@@ -494,7 +494,7 @@ void MovieResetPlaybackAndClearScreen(void) {
     Vsync(0);
     D_8007713C[0].unk0 = 1;
     D_8007713C[1].unk0 = 1;
-    if (D_80077454 != 0) {
+    if (g_MovieStreamRgb24 != 0) {
         D_8007713C[0].unk55 = 0;
         D_8007713C[1].unk55 = 0;
     }
@@ -506,17 +506,17 @@ s32 MovieStartStreamWithMode(u8 mode) {
     long pad[6];
     s32 state;
 
-    state = D_80077448;
-    D_80077028 = mode;
+    state = g_MovieStreamArchiveSection;
+    g_MoviePlayMode = mode;
     g_MoviePadButtons = -1;
     if (state == 0) {
         ArchiveSetIndex(0x18, 0);
-        if (D_8007711C >= (s16)ArchiveDecodeSizeAbsolute(2)) {
+        if (g_MovieStreamFileIndex >= (s16)ArchiveDecodeSizeAbsolute(2)) {
             return;
         }
     } else if (state == 1) {
         ArchiveSetIndex(0x18, 1);
-        if (D_8007711C >= (s16)ArchiveDecodeSizeAbsolute(1)) {
+        if (g_MovieStreamFileIndex >= (s16)ArchiveDecodeSizeAbsolute(1)) {
             return;
         }
     } else if (state == 2) {
@@ -563,12 +563,12 @@ typedef struct {
 //    per-frame timestamps stored to g_MovieFrameStamps/D_800773BC (stride 8, two s32
 //    pointers advanced by 2, which is why retail has two separate base registers).
 //  - g_MovieVerticalOffset is stored 32-bit and read `lhu` twice; D_800773A0 is `lw` in the
-//    (0xF0 - x) / 2 and `lh` as an argument; D_80077454 is `lhu`.
-//  Residual (measured, not guessed): the D_80077438 boolean argument. Retail emits
+//    (0xF0 - x) / 2 and `lh` as an argument; g_MovieStreamRgb24 is `lhu`.
+//  Residual (measured, not guessed): the g_MovieLoopPlayback boolean argument. Retail emits
 //  `beqz` + `ori v0,zero,1` with the store duplicated into both branches, and both
 //  `lhu` of g_MovieVerticalOffset come from ONE `t0` materialisation. Every spelling tried
 //  (flags if/else, inline ternary, `!= 0`) makes gcc compute `sltu v0,zero,v0` and
-//  sink the D_80077438 load into the argument setup, which reorders the whole
+//  sink the g_MovieLoopPlayback load into the argument setup, which reorders the whole
 //  13-argument block. That single argument is what holds this at 82.97%.
 /*
 s32 func_80076488(void) {
@@ -586,16 +586,16 @@ s32 func_80076488(void) {
     s32* pTimeB;
     MovieDrawBuffer* pDrawBuffer;
 
-    locals.clearRect = D_800704E0;
-    state = D_80077448;
-    D_80077014 = 0;
+    locals.clearRect = g_MovieClearRect;
+    state = g_MovieStreamArchiveSection;
+    g_MovieStopCountdown = 0;
     D_80077020 = 0;
     mode = 1;
     if (state == 0) {
         mode = 0;
-        index = D_8007711C + 3;
+        index = g_MovieStreamFileIndex + 3;
     } else {
-        index = D_8007711C + 2;
+        index = g_MovieStreamFileIndex + 2;
     }
     if (ArchiveDecodeSize(index) == 0x18) {
         SetDispMask(1);
@@ -606,23 +606,23 @@ s32 func_80076488(void) {
     ClearImage(&locals.clearRect, 0, 0, 0);
     DrawSync(0);
     Vsync(0);
-    D_80077018 = 0;
-    D_8007701C = 0;
+    g_MovieDrawBufferIndex = 0;
+    g_MoviePrevDrawBufferIndex = 0;
     func_801D43B0();
     if (D_800773A0 > 0) {
         g_MovieVerticalOffset = (0xF0 - D_800773A0) / 2;
     } else {
         g_MovieVerticalOffset = 0;
     }
-    func_801D3538(0x140, 0xF0, 0x80, 0x10, 0x20, 0x800, *(u16*)&D_80077454);
+    func_801D3538(0x140, 0xF0, 0x80, 0x10, 0x20, 0x800, *(u16*)&g_MovieStreamRgb24);
     D_801D68B4 = 0;
-    func_801D37CC(index, D_800773A8, *(u16*)&D_800773A4, *(u16*)&D_8007739C,
-        *(u16*)&D_80077398, mode, D_80077438 ? 1 : 0, 0, *(u16*)&g_MovieVerticalOffset, 0,
+    func_801D37CC(index, D_800773A8, *(u16*)&D_800773A4, *(u16*)&g_MovieTotalFrames,
+        *(u16*)&D_80077398, mode, g_MovieLoopPlayback ? 1 : 0, 0, *(u16*)&g_MovieVerticalOffset, 0,
         *(u16*)&g_MovieVerticalOffset + 0xF0, *(s16*)&D_800773A0, MovieRequestFrame);
     nRate = 0x1E;
-    PutDrawEnv(&D_80077124[D_80077018].drawEnv);
+    PutDrawEnv(&D_80077124[g_MovieDrawBufferIndex].drawEnv);
     pDrawBuffer = D_80077124;
-    PutDispEnv(&D_80077124[D_80077018].dispEnv);
+    PutDispEnv(&D_80077124[g_MovieDrawBufferIndex].dispEnv);
     SetDispMask(1);
     for (;;) {
         if (D_80077020 == 0) {
@@ -648,17 +648,17 @@ s32 func_80076488(void) {
         MovieFadeAudioOnPadPress();
         GameCheckAndHandleSoftReset();
         Vsync(0);
-        PutDispEnv(&D_80077124[D_8007701C].dispEnv);
-        D_8007701C = D_80077018;
-        if (D_80077014 == 1) {
+        PutDispEnv(&D_80077124[g_MoviePrevDrawBufferIndex].dispEnv);
+        g_MoviePrevDrawBufferIndex = g_MovieDrawBufferIndex;
+        if (g_MovieStopCountdown == 1) {
             break;
         }
-        if (D_80077014 > 1) {
-            D_80077014 -= 1;
+        if (g_MovieStopCountdown > 1) {
+            g_MovieStopCountdown -= 1;
         }
     }
     func_801D4318();
-    if (D_8007701C != 0) {
+    if (g_MoviePrevDrawBufferIndex != 0) {
         return 0;
     }
     DrawSync(0);
@@ -677,27 +677,27 @@ s32 func_80076488(void) {
 INCLUDE_ASM("asm/movie/nonmatchings/main/misc2", func_80076488);
 
 void MovieRequestFrame(u16 arg0, s32 arg1, u16 arg2) {
-    D_80077010 = arg0;
+    g_MovieCurrentFrame = arg0;
     if (D_801D68B4 == 1) {
         if (arg2 != g_MovieVerticalOffset) {
-            D_80077018 = 0;
+            g_MovieDrawBufferIndex = 0;
         } else {
-            D_80077018 = 1;
+            g_MovieDrawBufferIndex = 1;
         }
     } else if (arg2 != g_MovieVerticalOffset) {
-        D_80077018 = 0;
-        D_8007701C = 0;
+        g_MovieDrawBufferIndex = 0;
+        g_MoviePrevDrawBufferIndex = 0;
     } else {
-        D_80077018 = 1;
-        D_8007701C = 1;
+        g_MovieDrawBufferIndex = 1;
+        g_MoviePrevDrawBufferIndex = 1;
     }
-    if (arg0 < D_8007739C) {
+    if (arg0 < g_MovieTotalFrames) {
         return;
     }
-    if (D_80077438 != 0) {
+    if (g_MovieLoopPlayback != 0) {
         return;
     }
-    D_80077014 = 1;
+    g_MovieStopCountdown = 1;
 }
 
 void MovieFadeAudioOnPadPress(void) {
@@ -705,27 +705,27 @@ void MovieFadeAudioOnPadPress(void) {
     g_MoviePadButtons = ControllerGetButtonState(0);
     if (g_MoviePrevPadButtons == g_MoviePadButtons) {
         if (g_MoviePrevPadButtons != 0) {
-            D_80076F04++;
-            if (D_80076F08 < D_80076F04) {
+            g_MoviePadHoldFrames++;
+            if (g_MoviePadHoldLimit < g_MoviePadHoldFrames) {
                 g_MoviePrevPadButtons = 0;
-                D_80076F08 = 1;
-                D_80076F04 = 0;
+                g_MoviePadHoldLimit = 1;
+                g_MoviePadHoldFrames = 0;
             }
         } else {
-            D_80076F08 = 0x5A;
-            D_80076F04 = 0;
+            g_MoviePadHoldLimit = 0x5A;
+            g_MoviePadHoldFrames = 0;
         }
     } else {
-        D_80076F08 = 0x5A;
-        D_80076F04 = 0;
+        g_MoviePadHoldLimit = 0x5A;
+        g_MoviePadHoldFrames = 0;
     }
-    if ((g_MoviePrevPadButtons & 0x40) == 0 && (g_MoviePadButtons & 0x40) != 0 && D_80077028 == 0) {
+    if ((g_MoviePrevPadButtons & 0x40) == 0 && (g_MoviePadButtons & 0x40) != 0 && g_MoviePlayMode == 0) {
         SoundSetCdVolumeWithFade(0, 0xA);
-        D_80077014 = 5;
+        g_MovieStopCountdown = 5;
     }
-    if ((g_MoviePrevPadButtons & 0x800) == 0 && (g_MoviePadButtons & 0x800) != 0 && D_80077028 == 0) {
+    if ((g_MoviePrevPadButtons & 0x800) == 0 && (g_MoviePadButtons & 0x800) != 0 && g_MoviePlayMode == 0) {
         SoundSetCdVolumeWithFade(0, 0xA);
-        D_80077014 = 5;
+        g_MovieStopCountdown = 5;
     }
 }
 
@@ -734,16 +734,16 @@ void MovieInitGteState(void) {
 
     SetGeomScreen(0x200);
     SetGeomOffset(0xA0, 0x78);
-    pColorMatrix = &D_80077070;
+    pColorMatrix = &g_MovieColorMatrix;
 
-    D_800770B8.m[0][0] = 0x1000;
+    g_MovieTranslationMatrix.m[0][0] = 0x1000;
     D_800770C0 = 0x1000;
     D_800770C8 = 0x1000;
-    D_800770F8 = 0x1000;
+    g_MovieRotationBaseMatrix = 0x1000;
     D_80077100 = 0x1000;
     D_80077108 = 0x1000;
 
-    D_80077090 = 0x93D;
+    g_MovieLightMatrix = 0x93D;
     D_80077092 = -0x93D;
     D_80077094 = -0x93D;
 
@@ -785,12 +785,12 @@ void WorldMapScriptOp04SetScratchPosition(void) {
     MATRIX* pMatrix;
 
     MovieBuildViewMatrix();
-    pMatrix = &D_80077050;
+    pMatrix = &g_MovieViewMatrix;
     SetRotMatrix(pMatrix);
     SetTransMatrix(pMatrix);
 }
 
-// objdiff reads 99.33% on this one, not 100: the t[] stores name D_800770D8+24 where
+// objdiff reads 99.33% on this one, not 100: the t[] stores name g_MovieRotationMatrix+24 where
 // retail's object names D_800770F0 - same bytes, same addend (see AGENTS.md).
 void MovieBuildViewMatrix(void) {
     MATRIX* pRotMatrix;
@@ -803,25 +803,25 @@ void MovieBuildViewMatrix(void) {
     s32 dxSq;
     s32 dy;
 
-    pPos = &D_8007703C;
-    pAngle = &D_800770B0;
+    pPos = &g_MovieViewPosition;
+    pAngle = &g_MovieViewAngle;
     dz = D_80077044 - D_80077034;
     dzSq = dz * dz;
-    dx = pPos->x - D_8007702C.x;
+    dx = pPos->x - g_MoviePrevViewPosition.x;
     dxSq = dx * dx;
     dy = D_80077040 - D_80077030;
     pAngle->vx = ratan2(dy, SquareRoot0(dzSq + dxSq));
     pAngle->vy = -ratan2(dx, dz);
-    pRotMatrix = &D_800770D8;
+    pRotMatrix = &g_MovieRotationMatrix;
     RotMatrix(pAngle, pRotMatrix);
-    RotMatrixZ(D_8007704C, pRotMatrix);
-    MulMatrix2(&D_800770F8, pRotMatrix);
+    RotMatrixZ(g_MovieViewRoll, pRotMatrix);
+    MulMatrix2(&g_MovieRotationBaseMatrix, pRotMatrix);
     pRotMatrix->t[0] = 0;
     pRotMatrix->t[1] = 0;
     pRotMatrix->t[2] = SquareRoot0(dxSq + dy * dy + dzSq);
-    pTrans = D_800770B8.t;
-    pTrans[0] = D_80076F2C.x - pPos->x;
+    pTrans = g_MovieTranslationMatrix.t;
+    pTrans[0] = g_MovieViewTarget.x - pPos->x;
     pTrans[1] = D_80076F30 - D_80077040;
     pTrans[2] = D_80076F34 - D_80077044;
-    CompMatrix(pRotMatrix, &D_800770B8, &D_80077050);
+    CompMatrix(pRotMatrix, &g_MovieTranslationMatrix, &g_MovieViewMatrix);
 }

@@ -18,8 +18,8 @@ extern s32 g_BattleCursorIndex0;
 extern s32 g_BattleCursorIndex1;
 extern u8 g_BattleTextSpriteEntry0;
 extern u8 g_BattleTextSpriteEntry1;
-extern u16 D_8009286C;
-extern void *D_80092880;
+extern u16 g_BattleScreenHeight;
+extern void *g_BattleMessageStringTable;
 extern u16 D_8009553C;
 extern u16 D_8009553E;
 extern u8 D_800928FC;
@@ -33,7 +33,7 @@ extern u8 D_8009A2BD;
 extern u8 D_8009A2BE;
 extern u16 D_8009A2C2;
 extern u16 D_8009A2C6;
-extern s32 D_800928C8;
+extern s32 g_BattleMode;
 extern s32 D_800928D8;
 extern s32 D_80092924;
 extern s32 D_80092940;
@@ -96,7 +96,7 @@ typedef struct {
     /* 0x08 */ u8 unk8[0xF0];
 } Misc8SlotEntry; // Size: 0xF8
 
-extern Misc8SlotEntry D_8009A0D8[];
+extern Misc8SlotEntry g_BattleDrawBuffers[];
 
 extern void BattleDrawTextSprites(u8 *p);
 extern void func_800812BC(BattleTextList *p);
@@ -142,7 +142,7 @@ void BattleInitTextWindow(void) {
     BattleSetCurrentTextList(3);
     D_80091672 = 0;
     D_800916AE = 0;
-    D_800928C8 = 0;
+    g_BattleMode = 0;
     D_80092758 = 0;
     BattleClearTextSpriteEntries();
     D_80092924 = 0;
@@ -192,7 +192,7 @@ void BattleSaveScreenImage(void) {
         HeapToggleErrorHandler(0);
     }
     DrawSync(0);
-    rect = D_8009A0D8[((g_BattleDrawBufferIndex + 1) & 1)].rect;
+    rect = g_BattleDrawBuffers[((g_BattleDrawBufferIndex + 1) & 1)].rect;
     MoveImage(&rect, 0x140, 0x100);
     if (D_80092760 != 0) {
         StoreImage(&rect, D_80092760);
@@ -272,8 +272,8 @@ void BattleDrawTextPrims(u8 *p) {
         rect.w = 0x140;
         rect.h = 0xDA;
         SetDrawMove(&D_80095498[g_BattleDrawBufferIndex], &rect,
-                    D_8009A0D8[g_BattleDrawBufferIndex].rect.x,
-                    D_8009A0D8[g_BattleDrawBufferIndex].rect.y);
+                    g_BattleDrawBuffers[g_BattleDrawBufferIndex].rect.x,
+                    g_BattleDrawBuffers[g_BattleDrawBufferIndex].rect.y);
         AddPrim(p, &D_80095498[g_BattleDrawBufferIndex]);
     }
     D_800912F0 = 0;
@@ -345,7 +345,7 @@ extern DR_TPAGE D_80095570[];
 void BattleRenderCenteredText(Misc8Text *p, s32 entry, s32 flag) {
     s32 len;
 
-    len = SystemRenderStringEntry(GetStringEntry(D_80092880, entry), p->pData, 0x3F, flag);
+    len = SystemRenderStringEntry(GetStringEntry(g_BattleMessageStringTable, entry), p->pData, 0x3F, flag);
     p->width = len;
     p->x = (0x140 - len) / 2;
 }
@@ -573,7 +573,7 @@ void BattleUpdateTextWindow(void) {
 }
 
 void BattleSetScreenTileGrey(void) {
-    u16 v = D_8009286C;
+    u16 v = g_BattleScreenHeight;
 
     D_8009A1CA = 0x60;
     D_8009A2C2 = 0x60;
@@ -588,7 +588,7 @@ void BattleSetScreenTileGrey(void) {
 }
 
 void BattleSetScreenTileBlack(void) {
-    u16 v = D_8009286C;
+    u16 v = g_BattleScreenHeight;
 
     D_8009A1CA = 0;
     D_8009A2C2 = 0;

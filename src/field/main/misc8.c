@@ -12,11 +12,11 @@
 #include "psyq/libcd.h"
 #include "field/particles.h"
 
-extern int D_800ADBFC;
+extern int g_FieldActiveActorCount;
 void FieldFreeActorData(int actorIndex) {
     ActorData* pActor;
 
-    if (actorIndex < D_800ADBFC) {
+    if (actorIndex < g_FieldActiveActorCount) {
         pActor = g_FieldActors[actorIndex].pActorData;
         if (pActor->flags134 & 0x80) {
             HeapFree(pActor->unk110);
@@ -52,7 +52,7 @@ u_int FieldActorGetWalkmeshTriMaterial(ActorData* pActor) {
     return g_FieldWalkmeshMaterialFlags[g_FieldWalkmeshTriangles[pActor->walkmeshId][pActor->walkmeshTriIds[pActor->walkmeshId]].material];
 }
 
-extern u_short D_800B14AC;
+extern u_short g_FieldRampStepCount;
 
 s32 FieldSumRampSteps(s32* pData) {
     s32 value = -0x14D000;
@@ -60,23 +60,23 @@ s32 FieldSumRampSteps(s32* pData) {
     s32 acc = 0;
     u_short count;
 
-    D_800B14AC = 0;
+    g_FieldRampStepCount = 0;
     do {
-        count = D_800B14AC;
+        count = g_FieldRampStepCount;
         count += 2;
-        D_800B14AC = count;
+        g_FieldRampStepCount = count;
         acc += value;
     } while ((value += step) <= 0);
     return acc >> 16;
 }
 
-extern s32 D_800ADB58;
-extern s32 D_800ADB5C;
+extern s32 g_FieldModelScriptActorIndex;
+extern s32 g_FieldModelScriptWordIndex;
 
 u_int FieldPopActorScriptWorkWord(void) {
-    ActorData* pActor = g_FieldActors[D_800ADB58].pActorData;
+    ActorData* pActor = g_FieldActors[g_FieldModelScriptActorIndex].pActorData;
 
-    return ((u_int*)pActor->unk118)[D_800ADB5C++];
+    return ((u_int*)pActor->unk118)[g_FieldModelScriptWordIndex++];
 }
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80080A74);
@@ -110,7 +110,7 @@ void func_80080F44(int actorIndex) {
     FieldActorModelData* pModelData;
     u8 unused[0x60]; // original has an unused stack slot; reproduces the frame
 
-    if (actorIndex < D_800ADBFC) {
+    if (actorIndex < g_FieldActiveActorCount) {
         D_800B2180++;
         pActor = HeapAlloc(0x138, 0);
         g_FieldActors[actorIndex].pActorData = pActor;
@@ -147,7 +147,7 @@ void func_80080F44(int actorIndex) {
     FieldActorModelData* pModelData;
     u8 unused[0x60];
 
-    if (actorIndex < D_800ADBFC) {
+    if (actorIndex < g_FieldActiveActorCount) {
         D_800B2180++;
         pActor = HeapAlloc(0x138, 0);
         g_FieldActors[actorIndex].pActorData = pActor;
@@ -826,10 +826,10 @@ int func_8008492C(ActorData* pActor) {
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80084A40);
 
-extern s32 D_800ADBBC;
+extern s32 g_FieldArchiveStreamStatus;
 extern s32 g_FieldArchiveStreamActive;
-extern void* D_800ADBB8;
-extern void* D_800AFEA4;
+extern void* g_FieldArchiveStreamBlock;
+extern void* g_FieldArchiveStreamCallback;
 int func_80028B14(void);
 int* ArchiveAllocStreamFile(int numEntries, int allocMode);
 void ArchiveReadFileToBuffer(int fileIndex, void* pBuffer, int arg2, int size);
@@ -837,18 +837,18 @@ void ArchiveReadFileToBuffer(int fileIndex, void* pBuffer, int arg2, int size);
 int FieldStepArchiveStream(void) {
     int result = func_80028B14();
 
-    D_800ADBBC = result;
+    g_FieldArchiveStreamStatus = result;
     if (result != 0) {
-        ((void (*)(int))D_800AFEA4)(result);
+        ((void (*)(int))g_FieldArchiveStreamCallback)(result);
         return 0;
     }
     if (ArchiveDataSync() != 0) {
         return 0;
     }
-    if (D_800ADBBC != 0) {
+    if (g_FieldArchiveStreamStatus != 0) {
         return 0;
     }
-    HeapFree(D_800ADBB8);
+    HeapFree(g_FieldArchiveStreamBlock);
     g_FieldArchiveStreamActive = 0;
     return -1;
 }
@@ -858,9 +858,9 @@ void FieldStartArchiveStream(int archiveIndex, int allocMode, void* pCallback) {
 
     g_FieldArchiveStreamActive = 1;
     pStreamFile = ArchiveAllocStreamFile(8, allocMode);
-    D_800ADBB8 = pStreamFile;
+    g_FieldArchiveStreamBlock = pStreamFile;
     ArchiveReadFileToBuffer(archiveIndex, pStreamFile, 0, 0x100);
-    D_800AFEA4 = pCallback;
+    g_FieldArchiveStreamCallback = pCallback;
 }
 
 void SoundStopElementsByIndex(int);
@@ -891,10 +891,10 @@ void FieldSetSoundSlotElement(int arg0, int arg1) {
 }
 
 extern u_short D_800C3A2C;
-extern s32 D_800C3A64;
+extern s32 g_FieldSedsEntryIndex;
 extern s32 g_FieldStreamFramePosition;
 extern s16 g_FieldStreamId;
-extern SoundFile* D_800B235C;
+extern SoundFile* g_FieldSedsFile;
 void SoundPlaySoundEffectOnPair(s32 arg0, s32 arg1);
 
 typedef struct {
@@ -902,7 +902,7 @@ typedef struct {
     /* 0x2 */ u_short unk2;
 } FieldUnk800AE060; // Size: 0x4
 
-extern FieldUnk800AE060 D_800AE060[];
+extern FieldUnk800AE060 g_FieldSedsEntries[];
 
 void FieldAdvanceSedsSequence(void) {
     u_short* pDuration;
@@ -912,23 +912,23 @@ void FieldAdvanceSedsSequence(void) {
     if (g_FieldStreamId == 0xFF) {
         return;
     }
-    pDuration = &D_800AE060[0].unk0;
-    pValue = &D_800AE060[0].unk2;
+    pDuration = &g_FieldSedsEntries[0].unk0;
+    pValue = &g_FieldSedsEntries[0].unk2;
 loop:
-    if (g_FieldStreamFramePosition < pDuration[D_800C3A64 * 2] + D_800C3A2C) {
+    if (g_FieldStreamFramePosition < pDuration[g_FieldSedsEntryIndex * 2] + D_800C3A2C) {
         return;
     }
-    value = pValue[D_800C3A64 * 2];
-    SoundPlaySoundEffectOnPair((value & 0xFF) | (D_800B235C->sedId << 16), (value >> 7) & 0xE);
-    D_800C3A64++;
+    value = pValue[g_FieldSedsEntryIndex * 2];
+    SoundPlaySoundEffectOnPair((value & 0xFF) | (g_FieldSedsFile->sedId << 16), (value >> 7) & 0xE);
+    g_FieldSedsEntryIndex++;
     goto loop;
 }
 
 void FieldStopSedsPlayback(void) {
     if (g_FieldStreamId != 0xFF) {
         SoundStopAllElements();
-        SoundRemoveSedsEntry(D_800B235C);
-        HeapFree(D_800B235C);
+        SoundRemoveSedsEntry(g_FieldSedsFile);
+        HeapFree(g_FieldSedsFile);
     }
 }
 
@@ -960,15 +960,15 @@ void func_80085788(void) {
     SoundStopAllElements();
     ArchiveSetIndex(0x1C, 0);
     pSoundFile = HeapAlloc(ArchiveDecodeAlignedSize(streamId + 0x115), 1);
-    D_800B235C = pSoundFile;
+    g_FieldSedsFile = pSoundFile;
     ArchiveReadFileToBuffer(streamId + 0x115, pSoundFile, 0, 0x80);
     ArchiveCdDataSync(0);
-    SoundAddSedsEntry(D_800B235C);
+    SoundAddSedsEntry(g_FieldSedsFile);
     SoundGetPendingSpuCommandType(0x10);
     ArchiveSetIndex(4, 0);
     i = 0;
     for (count = 0; count < streamId + 1; count++) {
-        pEntry = &D_800AE060[i];
+        pEntry = &g_FieldSedsEntries[i];
         while (1) {
             if (pEntry->unk0 == 0xFFFF) {
                 break;
@@ -977,7 +977,7 @@ void func_80085788(void) {
             i++;
         }
         i++;
-        D_800C3A64 = i;
+        g_FieldSedsEntryIndex = i;
     }
 }
 */
@@ -1021,13 +1021,13 @@ typedef struct {
     /* 0x0 */ u_long unk0[0x200];
 } FieldWdsBlock; // Size: 0x800
 
-extern FieldWdsBlock* D_800C3A1C;
-extern s32 D_800B2370;
+extern FieldWdsBlock* g_FieldWdsBlocks;
+extern s32 g_FieldWdsBlockIndex;
 extern SoundWDSEntry* g_GameCurLoadedWDS;
 extern s32 g_GameWdsBankLoadState;
 extern s32 g_GameLoadedWdsStreamId;
 extern s32 g_GameWdsStreamInProgress;
-extern s32 D_800AFC54;
+extern s32 g_FieldWdsBankLoadQueued;
 extern u8 D_800ADFCD[];
 extern void ArchiveCdDataSync(int mode);
 extern void SoundFreeLoadedWdsAndAudioManager(void);
@@ -1038,24 +1038,24 @@ SoundWDSEntry* SoundLoadPartialWdsFile(void* pBuffer, int size, int arg2);
 void FieldStartArchiveStream(int archiveIndex, int unused, void* pCallback);
 
 void FieldWdsStreamCallback(FieldWdsBlock* pBlock) {
-    int bankIndex = D_800B2370;
+    int bankIndex = g_FieldWdsBlockIndex;
 
     switch (bankIndex) {
         case 0:
         case 1:
         case 2:
         case 3:
-            D_800C3A1C[bankIndex] = *pBlock;
-            D_800B2370++;
+            g_FieldWdsBlocks[bankIndex] = *pBlock;
+            g_FieldWdsBlockIndex++;
             ArchiveReleaseStreamBlock(pBlock);
-            if (D_800B2370 == 4) {
-                g_GameCurLoadedWDS = SoundLoadPartialWdsFile(D_800C3A1C, 0x2000, 0);
+            if (g_FieldWdsBlockIndex == 4) {
+                g_GameCurLoadedWDS = SoundLoadPartialWdsFile(g_FieldWdsBlocks, 0x2000, 0);
             }
             break;
         case 4:
             SoundGetPendingSpuCommandType(0x10);
-            D_800C3A1C[0] = *pBlock;
-            SoundTransferWdsPart(D_800C3A1C, 0x800);
+            g_FieldWdsBlocks[0] = *pBlock;
+            SoundTransferWdsPart(g_FieldWdsBlocks, 0x800);
             ArchiveReleaseStreamBlock(pBlock);
             break;
     }
@@ -1081,13 +1081,13 @@ void FieldStartWdsBankLoad(int arg0) {
         if (g_GameLoadedWdsStreamId != streamId) {
             FieldStartArchiveStream(index, 1, (void*)FieldWdsStreamCallback);
             g_GameWdsStreamInProgress = 1;
-            D_800B2370 = 0;
-            D_800C3A1C = HeapAlloc(0x2000, 1);
+            g_FieldWdsBlockIndex = 0;
+            g_FieldWdsBlocks = HeapAlloc(0x2000, 1);
         }
     }
     ArchiveSetIndex(4, 0);
     g_GameWdsBankLoadState = -1;
-    D_800AFC54 = 1;
+    g_FieldWdsBankLoadQueued = 1;
 }
 
 int FieldRunArchiveStreamSteps(void) {
@@ -1109,7 +1109,7 @@ extern s32 g_GameWdsBankHeaderReadPending;
 extern s32 g_GameAudioManagerRunning;
 extern s32 g_GameAudioAndWdsLoaded;
 extern s32 g_GameHasLoadedWDS;
-extern u8 D_800ADFCC[];
+extern u8 g_FieldWdsBankEntries[];
 extern u8 g_SoundBankLoadBuffer[];
 extern AudioManager* g_SoundAudioManager;
 extern AudioManager* g_SoundPendingAudioManager;
@@ -1130,10 +1130,10 @@ int FieldUpdateWdsAndAudioLoad(s32 arg0) {
             return -1;
         }
         SoundGetPendingSpuCommandType(0x10);
-        HeapFree(D_800C3A1C);
+        HeapFree(g_FieldWdsBlocks);
         g_GameWdsStreamInProgress = 0;
         g_GameHasLoadedWDS = state;
-        g_GameLoadedWdsStreamId = D_800ADFCC[arg0 * 2];
+        g_GameLoadedWdsStreamId = g_FieldWdsBankEntries[arg0 * 2];
     }
     if (D_800ADFCD[arg0 * 2] == 0) {
         if (g_GameWdsFileLoadState == 0) {
@@ -1146,14 +1146,14 @@ int FieldUpdateWdsAndAudioLoad(s32 arg0) {
             }
         }
     }
-    if (D_800AFC54 == 1) {
+    if (g_FieldWdsBankLoadQueued == 1) {
         if (g_GameLoadedWdsBankIndex != arg0) {
             ArchiveSetIndex(0x1C, 0);
             ArchiveReadFileToBuffer(arg0 * 2 + 0x14, g_SoundBankLoadBuffer, 0, 0x80);
             g_GameWdsBankHeaderReadPending = 1;
             ArchiveSetIndex(4, 0);
         }
-        D_800AFC54 = 0;
+        g_FieldWdsBankLoadQueued = 0;
         return -1;
     }
     if (ArchiveDataSync() != 0) {
@@ -1196,7 +1196,7 @@ extern s32 g_GameWdsEntryFreed;
 extern s16 g_GameWdsEntryReleased;
 extern s32 D_80059560;
 extern SoundWDSEntry* D_8006251C;
-extern void* D_800B00E0; // WDS File Buffer
+extern void* g_FieldWdsFileBuffer; // WDS File Buffer
 
 int FieldFinishWdsFileLoad(void) {
     void* pWdsEntry;
@@ -1205,11 +1205,11 @@ int FieldFinishWdsFileLoad(void) {
         return -1;
     }
     
-    pWdsEntry = SoundLoadWdsFile(D_800B00E0, 0);
+    pWdsEntry = SoundLoadWdsFile(g_FieldWdsFileBuffer, 0);
     D_8006251C = pWdsEntry;
     D_80059560 = pWdsEntry;
     SoundGetPendingSpuCommandType(0x10);
-    HeapFree(D_800B00E0);
+    HeapFree(g_FieldWdsFileBuffer);
     g_GameWdsFileLoadState = 1;
     g_GameWdsEntryReleased = 0;
     g_GameWdsEntryFreed = 0;
@@ -1221,7 +1221,7 @@ void FieldBeginWdsFileLoad(void) {
 
     ArchiveSetIndex(0x1C, 0x0);
     pWdsFileBuffer = HeapAlloc(ArchiveDecodeAlignedSize(3), 1);
-    D_800B00E0 = pWdsFileBuffer;
+    g_FieldWdsFileBuffer = pWdsFileBuffer;
     ArchiveReadFileToBuffer(3, pWdsFileBuffer, 0, CdlModeSpeed);
     ArchiveSetIndex(4, 0);
     g_GameWdsFileLoadState = 0x80;
@@ -1244,13 +1244,13 @@ typedef struct {
     /* 0x4 */ u_short unk4;
 } FieldUnk800AFE88; // Size: 0x6
 
-extern FieldUnk800AFE88 D_800AFE88[3];
+extern FieldUnk800AFE88 g_FieldActorSoundSlots[3];
 extern FieldUnk800AFE88 D_800AFE8A[3];
 
-extern s16 D_800B21AC;
+extern s16 g_FieldSoundMaxDistance;
 
 void FieldGetDistanceScaledValue(int arg0, int* pOut, int arg2) {
-    int limit = D_800B21AC;
+    int limit = g_FieldSoundMaxDistance;
     int factor;
     u_int diff;
     int scaled;
@@ -1276,7 +1276,7 @@ void FieldUpdateActorSoundSlot(int arg0, int arg1, int arg2, int arg3, int actor
     int scaled;
 
     for (i = 0; i < 3; i++) {
-        if (D_800AFE88[i].unk0 == actorIndex) {
+        if (g_FieldActorSoundSlots[i].unk0 == actorIndex) {
             FieldGetDistanceScaledValue(arg3, &value, arg1);
             FieldActorWorldToScreenPosition(actorIndex, &screenX, &screenY);
             if (screenX >= 0x141) {
@@ -1347,7 +1347,7 @@ void FieldAssignActorSoundSlot(int arg0, int arg1, int arg2, int arg3, int actor
     for (i = 0; i < 3; i++) {
         if (D_800AFE8A[i].unk0 == 0xFFFF) {
             D_800AFE8A[i].unk0 = arg0;
-            D_800AFE88[i].unk0 = actorIndex;
+            g_FieldActorSoundSlots[i].unk0 = actorIndex;
             FieldGetDistanceScaledValue(arg3, (int*)&value, arg1);
             FieldActorWorldToScreenPosition(actorIndex, &screenX, &screenY);
             if (screenX >= 0x141) {
@@ -1368,10 +1368,10 @@ void FieldReleaseActorSoundSlot(u_int arg0) {
     int i;
 
     for (i = 0; i < 3; i++) {
-        if (D_800AFE88[i].unk0 == arg0) {
+        if (g_FieldActorSoundSlots[i].unk0 == arg0) {
             SoundStopElementsByIndex(i * 2);
             D_800AFE8A[i].unk0 = 0xFFFF;
-            D_800AFE88[i].unk0 = 0xFFFF;
+            g_FieldActorSoundSlots[i].unk0 = 0xFFFF;
             break;
         }
     }
@@ -1384,7 +1384,7 @@ int FieldFindActorSoundSlot(int arg0, u_int arg1) {
         return -1;
     }
     for (i = 0; i < 3; i++) {
-        if (D_800AFE88[i].unk0 == arg1) {
+        if (g_FieldActorSoundSlots[i].unk0 == arg1) {
             return i;
         }
     }
@@ -1395,12 +1395,12 @@ void FieldClearActorSoundSlots(void) {
     int i;
 
     for (i = 0; i < 3; i++) {
-        D_800AFE88[i].unk0 = 0xFFFF;
+        g_FieldActorSoundSlots[i].unk0 = 0xFFFF;
         D_800AFE8A[i].unk0 = 0xFFFF;
     }
 }
 
-extern u_short D_800B233C;
+extern u_short g_FieldSoundElementMask;
 
 void FieldResetActorSoundSlots(void) {
     u_short* pFlags;
@@ -1408,10 +1408,10 @@ void FieldResetActorSoundSlots(void) {
 
     for (i = 0; i < 3; i++) {
         D_800AFE8A[i].unk0 = 0xFFFF;
-        D_800AFE88[i].unk0 = 0xFFFF;
+        g_FieldActorSoundSlots[i].unk0 = 0xFFFF;
     }
     i = 0;
-    pFlags = &D_800B233C;
+    pFlags = &g_FieldSoundElementMask;
     for (; i < 4; i++) {
         if (!(*pFlags & 1)) {
             SoundStopElementsByIndex(i * 2);
@@ -1465,7 +1465,7 @@ void func_80086590(VECTOR* pPosition) {
         slots.unk20[i] = 0;
     }
 
-    for (i = 0; i < D_800ADBFC; i++) {
+    for (i = 0; i < g_FieldActiveActorCount; i++) {
         ActorData* pActor = g_FieldActors[i].pActorData;
 
         if (pActor->unk10D != 0xFF) {
@@ -1506,7 +1506,7 @@ void func_80086590(VECTOR* pPosition) {
             if (D_800AFE8A[i].unk0 != 0xFFFF) {
                 SoundStopElementsByIndex(i * 2);
                 D_800AFE8A[i].unk0 = 0xFFFF;
-                D_800AFE88[i].unk0 = 0xFFFF;
+                g_FieldActorSoundSlots[i].unk0 = 0xFFFF;
             }
         }
     }
@@ -1529,11 +1529,11 @@ void func_80086590(VECTOR* pPosition) {
 
 extern VECTOR g_CameraEye;
 extern VECTOR g_CameraAt;
-extern s16 D_800B22E0;
+extern s16 g_FieldSoundProximitySource;
 extern s32 g_PlayerActorIndex;
 
 void FieldUpdateProximitySoundSlots(void) {
-    switch (D_800B22E0) {
+    switch (g_FieldSoundProximitySource) {
         case 0:
             func_80086590(&g_FieldActors[g_PlayerActorIndex].pActorData->position);
             return;
@@ -1554,7 +1554,7 @@ void FieldScriptVM2Run(void) {
     (*handler)();
 }
 
-extern s16 D_800B22E2[];
+extern s16 g_FieldMotionSlotActorIds[];
 
 extern s16 D_800B22E8[];
 extern s16 D_800B22EA[];
@@ -1589,8 +1589,8 @@ void FieldUpdateMotionSlots(void) {
     int i;
 
     for (i = 0; i < 3; i++) {
-        if (D_800B22E2[i] != -1) {
-            FieldUpdateMotionSlotSteps(i, &g_FieldActors[D_800B22E2[i]].pActorData->position);
+        if (g_FieldMotionSlotActorIds[i] != -1) {
+            FieldUpdateMotionSlotSteps(i, &g_FieldActors[g_FieldMotionSlotActorIds[i]].pActorData->position);
         }
     }
 }

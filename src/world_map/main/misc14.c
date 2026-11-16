@@ -36,9 +36,9 @@ extern SVec4* D_8009D3C0;
 extern void* D_8009D7D4;
 extern void* D_8009D788[16];
 extern void* D_8009C624[16];
-extern WorldMapRect** D_8009BD00;
-extern void* D_8009D7D8;
-extern s16 D_8009BD24;
+extern WorldMapRect** g_WorldMapRects;
+extern void* g_WorldMapAreaRect;
+extern s16 g_WorldMapAreaId;
 extern s16 D_8009CE68;
 extern void WorldMapSortCdRequestsBySector(SVec* pRecord);
 extern void WorldMapSortFileLoadsByOffset(SVec4* pRecord);
@@ -69,26 +69,26 @@ s32 WorldMapSelectAreaAtPosition(SVec* p, s32 index) {
     u16 z;
 
     x = (u32)p->x >> 12;
-    pRect = D_8009BD00[index];
+    pRect = g_WorldMapRects[index];
     z = (u32)p->z >> 12;
     while (pRect->kind != -1) {
         if ((x >= pRect->left) & (x <= pRect->left + pRect->width) & (z >= pRect->top) &
             (z <= pRect->top + pRect->height)) {
             if (pRect->mode == 4) {
-                D_8009D7D8 = (void*)-1;
-                D_8009BD24 = -1;
+                g_WorldMapAreaRect = (void*)-1;
+                g_WorldMapAreaId = -1;
                 D_8009CE68 = pRect->value;
             } else {
-                D_8009D7D8 = pRect;
+                g_WorldMapAreaRect = pRect;
                 D_8009CE68 = -1;
-                D_8009BD24 = pRect->value;
+                g_WorldMapAreaId = pRect->value;
             }
             return 1;
         }
         pRect++;
     }
-    D_8009D7D8 = (void*)-1;
-    D_8009BD24 = -1;
+    g_WorldMapAreaRect = (void*)-1;
+    g_WorldMapAreaId = -1;
     D_8009CE68 = -1;
     return 0;
 }
@@ -99,13 +99,13 @@ s32 WorldMapFindAreaOfModeAtPosition(SVec* p, s32 index, s32 mode) {
     u16 z;
 
     x = (u32)p->x >> 12;
-    pRect = D_8009BD00[index];
+    pRect = g_WorldMapRects[index];
     z = (u32)p->z >> 12;
     while (pRect->kind != -1) {
         if ((x >= pRect->left) & (x <= pRect->left + pRect->width) & (z >= pRect->top) &
             (z <= pRect->top + pRect->height)) {
             if (pRect->mode == mode) {
-                D_8009D7D8 = pRect;
+                g_WorldMapAreaRect = pRect;
                 return 1;
             }
         }

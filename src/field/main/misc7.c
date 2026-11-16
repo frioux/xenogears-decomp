@@ -19,7 +19,7 @@ const char g_StrFieldDebugVariableFormat[0x14] = "DEB=%xh %d \n";
 extern s16 D_800B21AE;
 extern s16 D_800B21B0;
 extern s16 D_800B21B2;
-extern u8 D_800B21D2;
+extern u8 g_FieldScreenShakeMode;
 
 
 void FieldScriptVMHandlerStopVM(void) {
@@ -228,7 +228,7 @@ void func_800984EC(void) {
     D_800B21AE = FieldScriptArgument1(1, SCRIPT_READ_U8_REL(7));
     D_800B21B0 = FieldScriptArgument2(3, SCRIPT_READ_U8_REL(7));
     D_800B21B2 = FieldScriptArgument3(5, SCRIPT_READ_U8_REL(7));
-    D_800B21D2 |= 0x80;
+    g_FieldScreenShakeMode |= 0x80;
     g_FieldScriptVMCurActor->scriptInstructionPointer += 8;
 }
 */

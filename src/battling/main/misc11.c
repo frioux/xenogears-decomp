@@ -8,7 +8,7 @@ extern u8 D_8006F978[];
 extern u8 *D_800927CC;
 extern u8 *D_800927D0;
 extern u8 g_BattleDrawBufferIndex;
-extern VECTOR D_80096FA8;
+extern VECTOR g_BattleViewOrigin;
 extern void func_800316C0(void *pOt, void *pPrim);
 
 typedef struct {
@@ -280,12 +280,12 @@ void BattleDrawLineSlots(void *arg0) {
             pSlot->count--;
             pos[0] = pSlot->pos[0];
             pos[1] = pSlot->pos[1];
-            pos[0].vx -= D_80096FA8.vx;
-            pos[0].vy -= D_80096FA8.vy;
-            pos[0].vz -= D_80096FA8.vz;
-            pos[1].vx -= D_80096FA8.vx;
-            pos[1].vy -= D_80096FA8.vy;
-            pos[1].vz -= D_80096FA8.vz;
+            pos[0].vx -= g_BattleViewOrigin.vx;
+            pos[0].vy -= g_BattleViewOrigin.vy;
+            pos[0].vz -= g_BattleViewOrigin.vz;
+            pos[1].vx -= g_BattleViewOrigin.vx;
+            pos[1].vy -= g_BattleViewOrigin.vy;
+            pos[1].vz -= g_BattleViewOrigin.vz;
             gte_ldv01(&pos[0], &pos[1]);
             gte_rtpt();
             gte_stsxy01(&pSlot->prim[g_BattleDrawBufferIndex].x0, &pSlot->prim[g_BattleDrawBufferIndex].x1);

@@ -75,7 +75,7 @@ extern u16 D_80091CE0[];
 extern SVECTOR* D_8009282C;
 extern SVECTOR* D_80092830;
 
-extern VECTOR D_80096FA8;
+extern VECTOR g_BattleViewOrigin;
 extern VECTOR D_80096FAC;
 extern VECTOR D_80096FB0;
 
@@ -451,7 +451,7 @@ void BattleEffectUpdateEntries(Misc16Work* pWork, u8* pArg1, MATRIX* pMat) {
 
     D_8009282C = (SVECTOR*)0x1F800000;
     D_80092830 = (SVECTOR*)0x1F800030;
-    D_80092830->vx = D_80096FA8.vx;
+    D_80092830->vx = g_BattleViewOrigin.vx;
     D_80092830->vy = D_80096FAC.vx;
     D_80092830->vz = D_80096FB0.vx;
     pEntry = (Misc16Entry*)pWork->pEntries;

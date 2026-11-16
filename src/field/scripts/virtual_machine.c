@@ -245,7 +245,7 @@ void FieldScriptVMRun(int maxInstructionCount) {
         }
 
         // Various exit checks
-        if ((D_800ADB1C != 0 && (D_800ADBE0 == 0 ||  D_800ADBE4 == 0 ||  D_800ADBEC == 0))) {
+        if ((D_800ADB1C != 0 && (D_800ADBE0 == 0 ||  g_FieldEntryStateGate == 0 ||  D_800ADBEC == 0))) {
             return;
         }
 
@@ -283,7 +283,7 @@ void FieldScriptVMRun(int maxInstructionCount) {
 // pActor in $a0, gcc puts pFieldActor in $a0 and pActor in $a1 (and reloads pActorData
 // from 0x4C($a1) in the join block).  Sizes are identical (636 bytes).
 /*
-extern s32 D_800ADBFC;
+extern s32 g_FieldActiveActorCount;
 extern s32 D_800ADB1C;
 extern s32 g_FieldMode;
 extern FieldActor* g_FieldScriptVMCurFieldActor;
@@ -306,7 +306,7 @@ void func_800A2030(void) {
     if (g_FieldMode == 1) {
         nActorCount = 1;
     } else {
-        nActorCount = D_800ADBFC;
+        nActorCount = g_FieldActiveActorCount;
     }
     D_800ADB68 = 0;
     D_800C4268 = 0;
@@ -321,7 +321,7 @@ void func_800A2030(void) {
             continue;
         }
 
-        if (D_800ADB1C != 0 && (D_800ADBE0 == 0 || D_800ADBE4 == 0 || D_800ADBEC == 0)) {
+        if (D_800ADB1C != 0 && (D_800ADBE0 == 0 || g_FieldEntryStateGate == 0 || D_800ADBEC == 0)) {
             return;
         }
 
@@ -423,9 +423,9 @@ void FieldScriptRunFirstActorRoutine3(void) {
 
 // Best attempt: 74.92% (572 bytes vs 592; frame 0x30 vs 0x40, both with s0-s2+ra).
 // Structural match: the count-guarded table loop, the player position.vy -= 8, the
-// "if (i < D_800ADBFC) { if (flags12C_0) continue; } else if (mode == 0) deltas" /
+// "if (i < g_FieldActiveActorCount) { if (flags12C_0) continue; } else if (mode == 0) deltas" /
 // "if (mode == 1) deltas" pair, and the delta reads through one hoisted pointer to
-// D_800B21D2 with -0x16/-0x12/-0xE offsets (volatile, so gcc does not hoist them out of
+// g_FieldScreenShakeMode with -0x16/-0x12/-0xE offsets (volatile, so gcc does not hoist them out of
 // the loop - that alone was worth 7 points).  What is left:
 //  1. the original materialises &g_FieldActorModelSlotCount ONCE ('lui v1,%hi; addiu v1,v1,%lo'), loads
 //     the loop count through it ('lw v0,0(v1)') and derives the anim table from the same
@@ -449,10 +449,10 @@ void FieldScriptRunFirstActorRoutine3(void) {
 // if the rest ever closes.
 /*
 extern s32 g_FieldActorModelSlotCount;
-extern s32 D_800ADBFC;
+extern s32 g_FieldActiveActorCount;
 extern s32 g_GamePartySkinsInitialized;
 extern s32 g_PlayerActorIndex;
-extern u_char D_800B21D2;
+extern u_char g_FieldScreenShakeMode;
 extern void func_800AD898(void);
 extern void LibGearSetModelAnimation(u16, u16, s32);
 
@@ -481,9 +481,9 @@ void func_800A24C4(void) {
     }
 
     // The shake deltas sit at -0x16..-0xE from the mode byte
-    pShake = &D_800B21D2;
+    pShake = &g_FieldScreenShakeMode;
     for (i = 0; i < g_FieldNumActors; i++) {
-        if (i < D_800ADBFC) {
+        if (i < g_FieldActiveActorCount) {
             if (g_FieldActors[i].pActorData->flags12C_0) {
                 continue;
             }
@@ -504,7 +504,7 @@ void func_800A24C4(void) {
 INCLUDE_ASM("asm/field/nonmatchings/scripts/virtual_machine", func_800A24C4);
 
 extern s32 g_GamePartySkinsInitialized;
-extern s32 D_800ADBFC;
+extern s32 g_FieldActiveActorCount;
 void FieldLoadActorAnimationFiles(void) {
     ActorData* pActor;
     FieldActor* pFieldActors;
@@ -513,7 +513,7 @@ void FieldLoadActorAnimationFiles(void) {
 
     if (g_GamePartySkinsInitialized) {
         // Read animation files
-        for (i = 0; i < D_800ADBFC; i++) {
+        for (i = 0; i < g_FieldActiveActorCount; i++) {
             ArchiveSetIndex(ARCHIVE_DIR_FIELD, 0x0);
             pActor = g_FieldActors[i].pActorData;
             if (pActor->unk124 != -1) {
@@ -526,7 +526,7 @@ void FieldLoadActorAnimationFiles(void) {
         }
 
         // Set Special animation file
-        for (i = 0; i < D_800ADBFC; i++) {
+        for (i = 0; i < g_FieldActiveActorCount; i++) {
             pFieldActors = g_FieldActors;
             pActor = pFieldActors[i].pActorData;
             if (pActor->unk124 != -1) {
@@ -544,7 +544,7 @@ void FieldLoadActorAnimationFiles(void) {
         FieldScriptWritePartyMemberIDs();
 
         // Apply rotation and scale
-        for (i = 0; i < D_800ADBFC; i++) {
+        for (i = 0; i < g_FieldActiveActorCount; i++) {
             FieldActorApplyRotationAndScale(i);
         }
     }
@@ -720,18 +720,18 @@ INCLUDE_ASM("asm/field/nonmatchings/scripts/virtual_machine", func_800A3474);
 // the 4-byte tail), and both loops plus the SpriteRestoreAnimState guard chain match instruction for
 // instruction. What is left is register roles and one missing reload:
 //  1. the original keeps &g_FieldNumActors in $a0 and derives $a3 = $a0 - 0xB8, and keeps
-//     &D_8005A4E4 in $a1 (addiu $v0,$a1,0x3C / move $a2,$v0); gcc here folds the -0xB8 into the
-//     symbol (lui $a3 / addiu $a3,-184) and puts &D_8005A4E4 in a temp. Tried inline expressions and
+//     &g_WorldMapSaveBlock in $a1 (addiu $v0,$a1,0x3C / move $a2,$v0); gcc here folds the -0xB8 into the
+//     symbol (lui $a3 / addiu $a3,-184) and puts &g_WorldMapSaveBlock in a temp. Tried inline expressions and
 //     an explicit pSrc local, no change.
 //  2. the original reloads pActorData from the FieldActor in the last block (lw $v0,0x4C($a1)) and
 //     tests flags12C with `andi $v0,$v0,0x1000`; gcc keeps pActorData in $a0 across the jal and
 //     reports the flags12C read as a plain word test here (it needs the u_int cast to avoid a
 //     srl/andi pair, that part is now right).
 /*
-extern u8 D_8005A4E4;
+extern u8 g_WorldMapSaveBlock;
 extern u8* D_800AFC50;
 extern s32 D_8005A408[3];
-extern s32 D_800ADBFC;
+extern s32 g_FieldActiveActorCount;
 extern s32 g_FieldSceneReloadFlags;
 extern void SpriteRestoreAnimState(void*, u8*);
 void func_800A3C8C(void) {
@@ -741,11 +741,11 @@ void func_800A3C8C(void) {
     u8* pCursor;
     u8* pSrc;
 
-    pSrc = &D_8005A4E4;
+    pSrc = &g_WorldMapSaveBlock;
     memcpy((u8*)&g_FieldNumActors - 0xB8, pSrc, 0x74);
     g_FieldNumActors = *pSrc;
     D_800AFC50 = pSrc;
-    D_800AFC50 = &D_8005A4E4 + 0x3C;
+    D_800AFC50 = &g_WorldMapSaveBlock + 0x3C;
     D_800AFC50 += 0x920;
 
     nDiff = 0;
@@ -755,7 +755,7 @@ void func_800A3C8C(void) {
         }
     }
 
-    for (i = 0; i < D_800ADBFC; i++) {
+    for (i = 0; i < g_FieldActiveActorCount; i++) {
         pActorData = g_FieldActors[i].pActorData;
         pCursor = D_800AFC50;
         D_800AFC50 = pCursor + 0xC;

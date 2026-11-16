@@ -1,14 +1,14 @@
 #include "common.h"
 #include "psyq/libgpu.h"
 
-extern u8 D_80092954[];
+extern u8 g_BattleTutorialWindow[];
 
 extern void BattleSetScreenMode(int mode);
 extern void SystemStringFree(void* pString);
 
 void BattleFreeMessageString(void) {
     BattleSetScreenMode(3);
-    SystemStringFree(&D_80092954[0]);
+    SystemStringFree(&g_BattleTutorialWindow[0]);
 }
 
 s32 BattleRoundDivAwayFromZero(s32 a0, s32 a1, s32 a2) {
@@ -29,8 +29,8 @@ extern s32 g_BattleCameraTarget;
 extern s32 D_80098680;
 extern s32 D_80098684;
 extern s32 D_800925F4;
-extern s32 D_800925F8;
-extern s32 D_800925FC;
+extern s32 g_BattleScriptCursor;
+extern s32 g_BattleScriptWait;
 extern s32 D_80097058;
 extern s32 D_800970E0;
 extern s32 D_80098774;
@@ -80,7 +80,7 @@ void func_800708C4(s32* p, s32 step) {
 }
 */
 
-extern VECTOR D_80097010;
+extern VECTOR g_BattleActor0;
 extern VECTOR D_80099078;
 extern s32 D_80097014;
 extern s32 D_80097018;
@@ -120,13 +120,13 @@ void func_8007099C(s32 mode) {
 
     switch (mode) {
     case 0:
-        func_80083738(&D_8009872C, &D_80097010);
+        func_80083738(&g_BattleActor1, &g_BattleActor0);
         break;
     case 1:
-        vec = D_8009872C;
+        vec = g_BattleActor1;
         goto place_message;
     case 2:
-        vec = D_80097010;
+        vec = g_BattleActor0;
     place_message:
         vec.vy -= 0xA0;
         D_800925F4 = 0;
@@ -145,7 +145,7 @@ void func_8007099C(s32 mode) {
         vec = D_80099078;
         vec.vy += D_800925F4;
         func_80070808(&vec, 0x10);
-        vec.vx = D_8009872C.vx + ((rcos(D_80098780 + 0xA80) * 0xD0) >> 12);
+        vec.vx = g_BattleActor1.vx + ((rcos(D_80098780 + 0xA80) * 0xD0) >> 12);
         y = D_80098730 - 0x20;
         vec.vy = y - D_800925F4;
         vec.vz = D_80098734 + ((rsin(D_80098780 + 0xA80) * 0xD0) >> 12);
@@ -158,7 +158,7 @@ void func_8007099C(s32 mode) {
         break;
     case 5:
         pBase = &g_BattleCameraTarget;
-        *pBase = D_80097010.vx;
+        *pBase = g_BattleActor0.vx;
         D_80098680 = D_80097014 - 0xC0;
         D_80098684 = D_80097018;
         g_BattleCameraPos = *pBase + ((rcos(D_80097064 + 0x900) * 0xE0) >> 12);
@@ -176,7 +176,7 @@ typedef struct {
     /* 0x8 */ s32 z;
 } BattleAnchor; // Size: 0xC
 
-// The battling overlay's battle state (D_8009872C): the anchor position every
+// The battling overlay's battle state (g_BattleActor1): the anchor position every
 // effect vector is placed against, the fade intensity at +0xD0 the draw units
 // read, and the frame flags the effect cells below are switched on through.
 typedef struct {
@@ -194,11 +194,11 @@ typedef struct {
     /* 0x0D0 */ u32 unkD0;
 } BattleState; // Size: 0xD4
 
-extern BattleState D_8009872C;
+extern BattleState g_BattleActor1;
 
 extern void BattleClearSpriteTables(void);
 
-// Places the battle state's anchor, the actor at D_80097010 and the camera
+// Places the battle state's anchor, the actor at g_BattleActor0 and the camera
 // around the midpoint of the first two, offset by the amount the mode picks.
 void BattleRecenterViewPositions(s32 mode) {
     VECTOR anchor;
@@ -206,8 +206,8 @@ void BattleRecenterViewPositions(s32 mode) {
     VECTOR camera;
     VECTOR offset;
 
-    anchor = *(VECTOR*)&D_8009872C;
-    actor = D_80097010;
+    anchor = *(VECTOR*)&g_BattleActor1;
+    actor = g_BattleActor0;
     camera = g_BattleCameraPos;
     offset = anchor;
     offset.vx += actor.vx;
@@ -259,22 +259,22 @@ void BattleRecenterViewPositions(s32 mode) {
     anchor.vy = 0;
     actor.vy = 0;
     camera.vy = -0x300;
-    *(VECTOR*)&D_8009872C = anchor;
-    D_80097010 = actor;
+    *(VECTOR*)&g_BattleActor1 = anchor;
+    g_BattleActor0 = actor;
     g_BattleCameraPos = camera;
     BattleClearSpriteTables();
 }
 
 void BattleSetValueAndClearFlags(s32 value) {
-    D_800925F8 = value;
+    g_BattleScriptCursor = value;
     D_80098774 = 0;
     D_80097058 = 0;
-    D_800925FC = 0;
+    g_BattleScriptWait = 0;
     D_800987FC &= 0xFFFF7FFF;
     D_800970E0 &= 0xFFFF7FFF;
 }
 
-extern s32 D_80092934;
+extern s32 g_BattleFacingAngle;
 
 typedef struct BattleScriptBlock BattleScriptBlock;
 
@@ -305,9 +305,9 @@ s32 BattleSetFacingAngleFromVector(BattleActorView* p) {
     vec.vz -= 0x3F80;
     angle = ratan2(vec.vx, vec.vz) & 0xFFF;
     if (angle >= 0x201) {
-        p->unk58 = 0x800 - D_80092934;
+        p->unk58 = 0x800 - g_BattleFacingAngle;
     } else {
-        p->unk58 = 0xC00 - D_80092934;
+        p->unk58 = 0xC00 - g_BattleFacingAngle;
     }
     p->unk48 = 0xFF;
     p->unkCE = 0;
@@ -319,7 +319,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_8007107C);
 extern s32 D_800925E0;
 extern s32 D_800925E4;
 extern u8 g_BattleDrawBufferIndex;
-extern DR_TPAGE D_800929E4[];
+extern DR_TPAGE g_BattleTpagePrims[];
 
 // The packet BattleQueueSpriteAndTpagePrims fills and queues: its primitive tag
 // sits at +0x74, the word the battle stores alongside it at +0x7C.
@@ -330,15 +330,15 @@ typedef struct {
     /* 0x7C */ s32 unk7C;
 } BattleSpritePacket; // Size: unknown
 
-extern BattleSpritePacket* D_80092868;
+extern BattleSpritePacket* g_BattleDrawSlot;
 
 void BattleQueueSpriteAndTpagePrims(void* pOt) {
     BattleSpritePacket* pPacket;
 
-    pPacket = D_80092868;
+    pPacket = g_BattleDrawSlot;
     pPacket->unk7C = D_800925E0 | (D_800925E4 << 16);
     AddPrim(pOt, &pPacket->tag);
-    AddPrim(pOt, &D_800929E4[g_BattleDrawBufferIndex]);
+    AddPrim(pOt, &g_BattleTpagePrims[g_BattleDrawBufferIndex]);
 }
 
 extern u32 D_800929EC;
@@ -360,7 +360,7 @@ extern BattleTexBlock D_8009A14C;
 extern BattleTexBlock D_8009A244;
 
 /* 79.36%: every statement is right and the size is retail's 300 bytes, but
-   gcc re-forms the second load's base (lui v1,%hi(D_800929E4); lw v1,4(v1)) where
+   gcc re-forms the second load's base (lui v1,%hi(g_BattleTpagePrims); lw v1,4(v1)) where
    retail reuses the $s0 already holding the address, hoists the GetClut argument
    loads (lh a0/lh a1) above the D_800929EC stores, and sinks the `sh v0,
    D_8009A15A` of GetClut's result below the 16-byte struct copy. Tried: two u32
@@ -391,7 +391,7 @@ void func_80071794(u8* p) {
     LoadImage(tim.crect, tim.caddr);
     LoadImage(tim.prect, tim.paddr);
     tpage = GetTPage(0, 1, tim.prect->x, tim.prect->y);
-    pTPage = (DR_TPAGE*)&D_800929E4[0];
+    pTPage = (DR_TPAGE*)&g_BattleTpagePrims[0];
     SetDrawTPage(pTPage, 0, 0, tpage);
     D_800929EC = pTPage->tag;
     D_800929F0 = pTPage->code[0];
@@ -403,8 +403,8 @@ void func_80071794(u8* p) {
 }
 */
 
-extern s32 D_800925D4;
-extern s32 D_800925D8;
+extern s32 g_BattleMessageIndex;
+extern s32 g_BattleMessageShownIndex;
 
 // The battle message window the tutorial text is drawn into: the box rectangle
 // func_80032F54 fills in, the line count at +0xC and the redraw flag at +0x68.
@@ -424,8 +424,8 @@ extern BattleMessageWindow g_BattleMessageWindow;
 extern s32 func_80032F54(void* pString, s16 a, s16 b, s16 c, s16 d, s16 e, s16 f);
 
 void BattleInitMessageWindow(void) {
-    D_800925D8 = -1;
-    D_800925D4 = 0;
+    g_BattleMessageShownIndex = -1;
+    g_BattleMessageIndex = 0;
     func_80032F54(&g_BattleMessageWindow, 0x140, 0x30, 0x1C, 0x9A, 0x40, 4);
 }
 
@@ -473,34 +473,34 @@ void func_8007191C(u32 idx) {
 }
 */
 
-extern u8 D_80099D9D;
-extern u8 D_80099D9E;
-extern s32 D_800928C8;
+extern u8 g_BattlePlayer1ComControlled;
+extern u8 g_BattlePlayer2ComControlled;
+extern s32 g_BattleMode;
 extern u8 D_80092884;
-extern u8* D_80092880;
+extern u8* g_BattleMessageStringTable;
 extern u8 D_800929BC;
 extern s32 D_800925DC;
 extern u8 D_80092604;
 extern s32 D_80092904;
-extern s32 D_80092900;
-extern u8 D_80090F38[];
+extern s32 g_BattleStateStep;
+extern u8 g_BattleTutorialScript[];
 extern u8* GetStringEntry(u8* pData, s32 index);
 extern void SystemStringPushBuffer(void* pString, u8* pEntry);
 
 void BattleInitTutorialMessage(void) {
-    D_80099D9D = 0;
-    D_80099D9E = 0;
+    g_BattlePlayer1ComControlled = 0;
+    g_BattlePlayer2ComControlled = 0;
     BattleSetScreenMode(7);
-    D_800928C8 = 5;
+    g_BattleMode = 5;
     D_80092884 = 0;
-    func_80032F54(&D_80092954[0], 0x140, 0x70, 0xA2, 0x2A, 0x1C, 8);
-    SystemStringPushBuffer(&D_80092954[0], GetStringEntry(D_80092880, 0x42));
+    func_80032F54(&g_BattleTutorialWindow[0], 0x140, 0x70, 0xA2, 0x2A, 0x1C, 8);
+    SystemStringPushBuffer(&g_BattleTutorialWindow[0], GetStringEntry(g_BattleMessageStringTable, 0x42));
     D_800929BC = 0x1E;
     D_800925DC = 0;
-    BattleSetValueAndClearFlags(&D_80090F38[0]);
+    BattleSetValueAndClearFlags(&g_BattleTutorialScript[0]);
     D_80092604 = 0;
     D_80092904 = 0;
-    D_80092900 = 0;
+    g_BattleStateStep = 0;
     func_8007191C(9);
 }
 
@@ -533,15 +533,15 @@ void func_80071F8C(s32 mode) {
         SoundStopAllElements();
         break;
     case 1:
-        func_80071DA4((u8*)&D_8009872C);
+        func_80071DA4((u8*)&g_BattleActor1);
         if (D_800970C4 * 0x100 / D_800970CC < D_800987E0 * 0x100 / D_800987E8) {
-            D_800925D4 = 0x43;
+            g_BattleMessageIndex = 0x43;
         } else {
-            D_800925D4 = 0x44;
+            g_BattleMessageIndex = 0x44;
         }
         break;
     case 2:
-        func_80071DA4((u8*)&D_80097010);
+        func_80071DA4((u8*)&g_BattleActor0);
         break;
     case 3:
         D_80098720 = -D_8009284C;
@@ -554,17 +554,17 @@ void func_80071F8C(s32 mode) {
 */
 
 
-extern u8 D_8009293C;
+extern u8 g_BattleInitDone;
 
 void BattleClearInitFlag(void) {
-    D_8009293C = 0;
+    g_BattleInitDone = 0;
 }
 
-extern u8 D_800910C4;
+extern u8 g_BattleInitScript;
 extern u8 D_800928D4;
-extern u8 D_80099D9D;
-extern u8 D_80099D9E;
-extern s32 D_80092900;
+extern u8 g_BattlePlayer1ComControlled;
+extern u8 g_BattlePlayer2ComControlled;
+extern s32 g_BattleStateStep;
 extern s32 D_80092A00;
 extern s32 D_80092A10;
 extern s32 D_80092A20;
@@ -572,17 +572,17 @@ extern s32 D_800970F8;
 extern s32 D_80098814;
 
 void BattleInitOnce(void) {
-    if (D_8009293C != 0) {
+    if (g_BattleInitDone != 0) {
         return;
     }
-    BattleSetValueAndClearFlags((s32)&D_800910C4);
-    D_8009293C = 1;
+    BattleSetValueAndClearFlags((s32)&g_BattleInitScript);
+    g_BattleInitDone = 1;
     D_800928D4 = 0;
-    D_80099D9D = 0;
-    D_80099D9E = 0;
-    D_80092900 = 0;
-    D_800925D4 = 0;
-    D_800925D8 = 0;
+    g_BattlePlayer1ComControlled = 0;
+    g_BattlePlayer2ComControlled = 0;
+    g_BattleStateStep = 0;
+    g_BattleMessageIndex = 0;
+    g_BattleMessageShownIndex = 0;
     D_80092A00 = 1;
     D_80092A10 = 1;
     D_80092A20 = 1;
@@ -591,7 +591,7 @@ void BattleInitOnce(void) {
 }
 
 // The anchor's y and z words: retail's object reaches them as their own
-// symbols, not as displacements off D_8009872C.
+// symbols, not as displacements off g_BattleActor1.
 extern s32 D_80098730;
 extern s32 D_80098734;
 
@@ -632,12 +632,12 @@ typedef struct {
 
 extern BattleEffectPoolRef* g_BattleEffectPool;
 
-extern s32 D_80092900;
+extern s32 g_BattleStateStep;
 extern s32 D_80092904;
 extern s32 D_80092938;
 extern u16 D_8009260C;
-extern u8 D_80050622;
-extern u8* D_80092880;
+extern u8 g_BattleResultCode;
+extern u8* g_BattleMessageStringTable;
 extern void BattleEffectAddSlotFromVector(VECTOR* pVec, s32 action);
 extern void BattlePlaySoundEffectById(s32 id);
 extern void SystemStringFreeBufferStack(void* pString);
@@ -665,7 +665,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_80072170);
    a SIGNED compare ('slt', the bound cast); D_8009260C is read as a signed
    halfword and both func_8008E2B8 call sites need the (s16) cast or they load
    lhu; D_80098730/D_80098734 are reached as their own symbols in the fade block
-   while case 1 reads the same words off D_8009872C; the pCounter copy of pFrames
+   while case 1 reads the same words off g_BattleActor1; the pCounter copy of pFrames
    and the pVec local in front of the add-slot call are what took the previous
    park from 97.21 to 98.87 (both found by the permuter). The 97.21% park WAS
    retail's exact 1080 bytes (five saved registers, the call address
@@ -690,19 +690,19 @@ void func_80072170(void) {
     s32 frames;
     s32 count;
 
-    if (D_8009293C == 0) {
+    if (g_BattleInitDone == 0) {
         return;
     }
-    pState = &D_8009872C;
+    pState = &g_BattleActor1;
     pMsg = &g_BattleMessageWindow;
-    switch (D_80092900) {
+    switch (g_BattleStateStep) {
     case 11:
         BattlePlaySoundEffectById(0x2A);
         BattlePlaySoundEffectById(0x2B);
         BattlePlaySoundEffectById(0x2C);
-        D_80092900 = 1;
+        g_BattleStateStep = 1;
     case 1:
-        pAnchor = &D_8009872C.position;
+        pAnchor = &g_BattleActor1.position;
         pEmitter = g_BattleEffectCells;
         pFrames = &g_BattleEffectCells[0].frames;
         i = 0;
@@ -729,7 +729,7 @@ void func_80072170(void) {
     case 2:
         pState->unkB4 = 1;
         D_8009260C = 0xFF;
-        D_80092900++;
+        g_BattleStateStep++;
     case 3:
         func_8008E2B8((u8*)D_80092938, (s16)D_8009260C, 0);
         if ((s16)D_8009260C < 0) {
@@ -745,7 +745,7 @@ fade:
         if (rand() & 1) {
             count = g_BattleEffectPool->pPool->count;
             pOrigin = g_BattleEffectPool->pPool->pOrigins[rand() % count];
-            vec[0] = pOrigin->unk60 + D_8009872C.position.x;
+            vec[0] = pOrigin->unk60 + g_BattleActor1.position.x;
             vec[1] = pOrigin->unk64 + D_80098730;
             vec[2] = pOrigin->unk68 + D_80098734;
             BattleEffectAddSlotFromVector((VECTOR*)vec, 0xB);
@@ -756,7 +756,7 @@ fade:
         D_8009260C += 3;
         if ((s16)D_8009260C >= 0x100) {
             D_8009260C = 0xFF;
-            D_80050622 = 0x7F;
+            g_BattleResultCode = 0x7F;
             BattleClearScreen(0);
             BattleReturnToMainLoop();
         }
@@ -764,13 +764,13 @@ fade:
         goto fade;
     }
     func_8007107C();
-    if (D_800925D4 != D_800925D8) {
+    if (g_BattleMessageIndex != g_BattleMessageShownIndex) {
         pMsg->unk68 = 1;
         SystemStringFreeBufferStack(pMsg);
-        SystemStringPushBuffer(pMsg, GetStringEntry(D_80092880, D_800925D4));
+        SystemStringPushBuffer(pMsg, GetStringEntry(g_BattleMessageStringTable, g_BattleMessageIndex));
         pMsg->unkC = 2;
         pMsg->unk6 = 0xB4;
-        D_800925D8 = D_800925D4;
+        g_BattleMessageShownIndex = g_BattleMessageIndex;
     }
     func_8007099C(D_80092904);
     D_80098774 = 0;
@@ -787,11 +787,11 @@ extern void* BattleCreateOrderingTablePair(s32 a0);
 extern void* BattleCreateLightGroup(void* p);
 extern void* BattleInitObjectTree(s32 a0);
 extern void func_80078F00(void* p);
-extern s16 D_800928D0;
-extern void* D_80092614;
+extern s16 g_BattleDebugFlags;
+extern void* g_BattleRenderActor;
 extern s32 D_80096FB0;
 extern s32 D_80096FAC;
-extern s32 D_80096FA8;
+extern s32 g_BattleViewOrigin;
 extern u8 D_80092618;
 extern s32 D_8009261C;
 extern s32 D_80092620;
@@ -799,8 +799,8 @@ extern s32 D_80092624;
 extern s32 D_80092628;
 extern s32 D_8009262C;
 extern s16 D_80092632;
-extern void* D_800910F0;
-extern void* D_80092610;
+extern void* g_BattleLightGroup;
+extern void* g_BattleNodeTree;
 
 // The block the actor's script pointer (+0x8FC) addresses: the five signed
 // halfwords and the unsigned one BattleInitRenderScene copies into the render
@@ -829,19 +829,19 @@ void BattleInitRenderScene(BattleActorView* p) {
     func_80030988(5, 4, 0x40, 0x40);
     pAnim = BattleCreateLightGroup(BattleCreateOrderingTablePair(0x10));
     id = p->unk5C;
-    D_800910F0 = pAnim;
-    D_80092610 = BattleInitObjectTree(id);
+    g_BattleLightGroup = pAnim;
+    g_BattleNodeTree = BattleInitObjectTree(id);
     BattleSetScreenResolution(0x280, 0xDA);
     SetGeomScreen(0x400);
-    D_800928D0 = 0;
-    D_80092614 = p;
+    g_BattleDebugFlags = 0;
+    g_BattleRenderActor = p;
     func_80078F00(p);
     // retail reads the script pointer after this cluster, not in front of it:
     // the block stops cc1 hoisting the load over the three stores.
     do {
         D_80096FB0 = 0;
         D_80096FAC = 0;
-        D_80096FA8 = 0;
+        g_BattleViewOrigin = 0;
     } while (0);
     pScript = p->pScript;
     x = pScript->unk14;
@@ -868,15 +868,15 @@ extern void BattleSetScreenResolution(s32 a0, s32 a1);
 extern void BattleSetScreenMode(s32 mode);
 extern void BattleSetTextScale(s32 value);
 extern void BattleResetTextPrimQueue(void);
-extern void* D_800910F0;
-extern void* D_80092610;
+extern void* g_BattleLightGroup;
+extern void* g_BattleNodeTree;
 
 void BattleFreeRenderScene(void) {
     func_8008BC04();
     BattleClearTextSpriteEntries();
     func_80030988(1, 1, 0x40, 0x40);
-    BattleFreeLightGroup(D_800910F0);
-    BattleFreeNodeTree(D_80092610);
+    BattleFreeLightGroup(g_BattleLightGroup);
+    BattleFreeNodeTree(g_BattleNodeTree);
     BattleSetScreenResolution(0x140, 0xDA);
     SetGeomScreen(0xC0);
     BattleSetScreenMode(3);
@@ -884,14 +884,14 @@ void BattleFreeRenderScene(void) {
     BattleResetTextPrimQueue();
 }
 
-extern MATRIX D_80091C0C;
+extern MATRIX g_BattleBaseMatrix;
 
 void BattleComposeCameraMatrix(BattleActorView* p, MATRIX* pIn, MATRIX* pOut) {
     MATRIX mtx;
 
     *pOut = *pIn;
-    mtx = D_80091C0C;
-    mtx.t[0] = p->unk34.vx - D_80096FA8;
+    mtx = g_BattleBaseMatrix;
+    mtx.t[0] = p->unk34.vx - g_BattleViewOrigin;
     mtx.t[1] = -D_80096FAC;
     mtx.t[2] = p->unk34.vz - D_80096FB0;
     CompMatrix(pIn, &mtx, &mtx);
@@ -902,7 +902,7 @@ void BattleComposeCameraMatrix(BattleActorView* p, MATRIX* pIn, MATRIX* pOut) {
 
 /* PARKED, not attempted: 304 instructions, and splat marks the object "Handwritten
    function". The tail fuses the GTE rotation and translation matrix loads
-   (lw $t4/$t5/$t6 interleaved with ctc2 $0-$7 off D_80092610+0xC) in a shape no
+   (lw $t4/$t5/$t6 interleaved with ctc2 $0-$7 off g_BattleNodeTree+0xC) in a shape no
    macro in include/psyq/inline_c.h emits - gte_SetRotMatrix/gte_SetTransMatrix
    load through $8-$12 with a different interleave. The rest is a controller
    state machine (ControllerMergeStates, g_C1ButtonState/g_C2ButtonStateReleased,

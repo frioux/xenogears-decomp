@@ -28,7 +28,7 @@ typedef void (*ScriptVMHandler)(void);
 extern int g_FieldScriptVMStopFlag;
 extern char D_8006FD84[];
 extern int D_800ADBE0;
-extern int D_800ADBE4;
+extern int g_FieldEntryStateGate;
 extern int D_800ADBEC;
 extern int D_800ADB1C;
 

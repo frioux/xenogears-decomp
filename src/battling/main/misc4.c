@@ -10,8 +10,8 @@ extern s16 D_80097102;
 extern s16 D_80099DA4;
 extern u8 D_800928FC;
 extern u8 D_80099D9A;
-extern u8 D_80099D9D;
-extern u8 D_80099D9E;
+extern u8 g_BattlePlayer1ComControlled;
+extern u8 g_BattlePlayer2ComControlled;
 extern u8 D_80099DA1;
 extern u8 D_80099DA2;
 typedef struct {
@@ -67,7 +67,7 @@ extern u8 D_80091144;
 extern u8 D_80091145;
 extern u8 D_80092664;
 extern u8 D_8005061C;
-extern u8 D_80050622;
+extern u8 g_BattleResultCode;
 extern s32 g_BattleCameraAngleStep;
 extern s32 D_80092638;
 extern s32 D_8009263C;
@@ -338,8 +338,8 @@ struct Actor {
     /* 0x1668 */ s16 unk1668;
 }; // Size: unknown
 
-extern Actor D_8009872C;
-extern Actor D_80097010;
+extern Actor g_BattleActor1;
+extern Actor g_BattleActor0;
 
 extern s32 BattleActorSelectEdgeForSegment(Vec4* pFrom, Vec4* pTo, Actor* pEdges, Vec4** ppEdge);
 
@@ -706,10 +706,10 @@ void BattleInitOptionDefaults(void) {
     BattleEffectInitContext();
     BattleEffectCreateWork();
     BattleApplyOptionWord();
-    D_80099D9D = 1;
+    g_BattlePlayer1ComControlled = 1;
     D_80099DA1 = 3;
     D_8009292C = 0x100;
-    D_80099D9E = 0;
+    g_BattlePlayer2ComControlled = 0;
     D_80099D9A = 0;
     D_80099DA2 = 0;
     D_80099DA4 = 0x100;
@@ -729,10 +729,10 @@ void BattleResetState(void) {
 
 // char return (value unused): retail's `beqz` delay slot holds a nop, and a void
 // return lets gcc reorg steal the first insn of the if-body into it.
-char BattleResetForNextRound(void) {    D_8009872C.unkCC = 0x400;
-    D_80097010.unkCC = -0x400;
-    func_80078F00(&D_8009872C);
-    func_80078F00(&D_80097010);
+char BattleResetForNextRound(void) {    g_BattleActor1.unkCC = 0x400;
+    g_BattleActor0.unkCC = -0x400;
+    func_80078F00(&g_BattleActor1);
+    func_80078F00(&g_BattleActor0);
     BattleEffectClearEntrySlots(g_BattleEffect);
     BattleClearSpriteTables();
     BattleEffectClearSlots();
@@ -747,7 +747,7 @@ char BattleResetForNextRound(void) {    D_8009872C.unkCC = 0x400;
     g_BattleTransitionFrames = 0;
     g_BattleEffectEntryCount = 0;
     BattleClearTextSpriteEntries();
-    D_80050622 = 0;
+    g_BattleResultCode = 0;
     BattleInitSoundSlots();
     BattleClearInitFlag();
     D_800928D4 = 0;
@@ -804,8 +804,8 @@ void BattleSaveActorVectors(s32 unk0) {
     } else {
         D_800928AC = 0xFF;
     }
-    *(VECTOR*)&D_80092A34 = *(VECTOR*)&D_8009872C;
-    *(VECTOR*)&D_80092A44 = *(VECTOR*)&D_80097010;
+    *(VECTOR*)&D_80092A34 = *(VECTOR*)&g_BattleActor1;
+    *(VECTOR*)&D_80092A44 = *(VECTOR*)&g_BattleActor0;
     *(VECTOR*)&D_80092A54 = *(VECTOR*)&D_80099068;
     *(VECTOR*)&D_80092A64 = *(VECTOR*)&D_8009794C;
     D_80092A68 = 0x100;
@@ -904,15 +904,15 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_8007AC3C);
    2/2/2/2 for a 16-byte block move (the shape BattleSaveActorVectors matches with) and
    2/2 + 1/1 for a 12-byte copy, so the original's copies are not plain VECTOR
    assignments. (b) The original materialises the destination address before the
-   source and keeps D_8009872C/D_80097010 in t0/a3 across the function; ours
+   source and keeps g_BattleActor1/g_BattleActor0 in t0/a3 across the function; ours
    rematerialises them and picks a0 for the destination.
    Shapes tried: eight plain VECTOR assignments (77.46%), VECTOR* locals for the
    two reused bases (78.58%), Vec3(0xC) copy + separate [3] word store with
    global or pointer bases (52%/50% - gcc sinks all four word stores to the end
    of the function, 576 bytes).
 void func_8007AC3C(void) {
-    VECTOR* pA = (VECTOR*)&D_8009872C;
-    VECTOR* pB = (VECTOR*)&D_80097010;
+    VECTOR* pA = (VECTOR*)&g_BattleActor1;
+    VECTOR* pB = (VECTOR*)&g_BattleActor0;
 
     D_800928AC = 0x96;
     D_8009292C = 0x100;

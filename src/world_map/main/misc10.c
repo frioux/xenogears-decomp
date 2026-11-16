@@ -186,8 +186,8 @@ extern WorldMapTrailEntry* D_8009BDF4;
 extern WorldMapPlayer* g_WorldMapSlots;
 extern WorldMapSceneLayer* g_WorldMapGroups;
 extern WorldMapVec g_WorldMapScrollTargetX;
-extern WorldMapTrail D_8009CEC4[];
-extern u16 D_8009D52C;
+extern WorldMapTrail g_WorldMapTrail[];
+extern u16 g_WorldMapPlayerAngle;
 extern u16 g_WorldMapTrailCursor;
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc10", func_80088B40);
@@ -693,13 +693,13 @@ s32 func_8008A5B8(s32 arg0) {
         g_WorldMapTrailCursor = 0;
         pActor->angle = unk1824;
     }
-    pTrail = D_8009CEC4;
+    pTrail = g_WorldMapTrail;
     for (i = 0; i < 0x20; i++, pTrail++) {
         pTrail->vec = *(WorldMapVec*)&pActor->x;
         pTrail->angle = pActor->angle;
     }
     g_WorldMapScrollTargetX = *(WorldMapVec*)&pActor->x;
-    D_8009D52C = pActor->angle;
+    g_WorldMapPlayerAngle = pActor->angle;
     return 1;
 }
 */

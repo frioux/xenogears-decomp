@@ -752,9 +752,9 @@ extern VECTOR g_CameraUp;
 extern VECTOR g_CameraAt2;
 extern VECTOR g_CameraEye2;
 extern s32 D_800B00B4;
-extern s16 D_800B21B4;
+extern s16 g_FieldActorUpdateAngle;
 extern u_char D_800ADB05;
-extern s32 D_800ADBFC;
+extern s32 g_FieldActiveActorCount;
 
 extern void func_8008110C(void);
 extern void func_80073230(void);
@@ -830,7 +830,7 @@ void func_800739C0(void) {
     FieldMatrixCreateWorldToScreen();
     asm volatile("addiu $sp, $sp, 4\n\tlw $sp, 0($sp)");
 
-    for (i = 0; i < D_800ADBFC; i++) {
+    for (i = 0; i < g_FieldActiveActorCount; i++) {
         pActor = (FieldActor*)(i * 0x5C + (int)g_FieldActors);
         pActorData = pActor->pActorData;
         if (!(pActor->status & 0xF40))
@@ -846,14 +846,14 @@ void func_800739C0(void) {
             if (pActorData->curWalkmeshTriMaterial & 0x200000) {
                 updateAngle = 0x200;
                 if (pActorData->scriptFlags.flags & 0x1800) {
-                    updateAngle = (pActorData->flags & 0x2000) ? D_800B21B4
+                    updateAngle = (pActorData->flags & 0x2000) ? g_FieldActorUpdateAngle
                                                               : pActorData->unk11E;
                     targetAngle = pActorData->rotation.vy;
                 } else {
                     targetAngle = (((pActorData->curWalkmeshTriMaterial >> 11) - 2) & 7) << 9;
                 }
             } else {
-                updateAngle = (pActorData->flags & 0x2000) ? D_800B21B4
+                updateAngle = (pActorData->flags & 0x2000) ? g_FieldActorUpdateAngle
                                                            : pActorData->unk11E;
                 targetAngle = pActorData->rotation.vy;
             }
@@ -972,7 +972,7 @@ extern u16 g_FieldP2ButtonsReleased; // Buttons released this frame (player 2)
 extern u16 g_FieldButtonsPressedOnce; // Buttons pressed this frame, first press only (player 1)
 extern u16 g_FieldP2ButtonsPressedOnce; // Buttons pressed this frame, first press only (player 2)
 extern u16 g_FieldButtonPollMask; // Mask of buttons polled by the field
-extern s32 D_800ADBDC;
+extern s32 g_FieldMapChangeGate;
 extern int g_FieldMouseState[];
 extern int ControllerPopState(void);
 extern void ControllerResetState(void);
@@ -1011,7 +1011,7 @@ void FieldPollControllers(void) {
         g_FieldP2ButtonsPressedOnce = 0;
     }
 
-    if (D_800ADBDC == 0) {
+    if (g_FieldMapChangeGate == 0) {
         g_FieldP1ButtonsReleased &= 0xFF7F;
     }
 }
@@ -1026,9 +1026,9 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_8007520C);
 /*
 extern s32 D_8004F380;
 extern s32 g_FieldActorModelSlotCount;
-extern u8 D_800B225C;
-extern u8 D_800B225D;
-extern u8 D_800B225E;
+extern u8 g_FieldBackgroundR;
+extern u8 g_FieldBackgroundG;
+extern u8 g_FieldBackgroundB;
 const char D_8006FB1C[0xC] = "GEAR      ";
 
 void func_8007520C(void) {
@@ -1038,7 +1038,7 @@ void func_8007520C(void) {
         pGear = &g_FieldActorModelSlotCount;
         if (*pGear != 0) {
             FieldUpdateMotionSlots();
-            SetBackColor(D_800B225C, D_800B225D, D_800B225E);
+            SetBackColor(g_FieldBackgroundR, g_FieldBackgroundG, g_FieldBackgroundB);
             LibGearRenderFrame(&g_Scene.worldToScreenMatrix, (u8*)(pGear - 18),
                 &g_FieldCurRenderContext->ot1, g_FieldCurRenderContextIndex, 1);
         }
@@ -1050,7 +1050,7 @@ void func_8007520C(void) {
 */
 
 extern u_char D_800ADB05;
-extern s32 D_800ADBFC;
+extern s32 g_FieldActiveActorCount;
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_800752C8);
 // CARRIED FORWARD: 99.60%, code matches except $a1/$a2 (original: $a1 = FieldActor,
@@ -1084,7 +1084,7 @@ void func_800752C8(void) {
     TimerWorkListUpdate();
     func_80075B44(g_FieldCurRenderContext->ot1, g_FieldCurRenderContextIndex);
 
-    for (i = 0; i < D_800ADBFC; i++) {
+    for (i = 0; i < g_FieldActiveActorCount; i++) {
         // Offset-first integer arithmetic: matches the original's addu operand order
         pActor = (FieldActor*)(i * 0x5C + (int)g_FieldActors);
         // The original reads status as a 32-bit word
@@ -1278,7 +1278,7 @@ void func_80077268(void) {
         func_80084A40(actorIndex, ((s16*)&pPlayerData->position)[3], pPlayerActor, pPlayerData);
     }
 
-    for (i = 0; i < D_800ADBFC; i++) {
+    for (i = 0; i < g_FieldActiveActorCount; i++) {
         u16 status;
 
         pActor = &g_FieldActors[i];
@@ -1351,7 +1351,7 @@ void func_80077268(void) {
     func_80084A40(g_PlayerActorIndex, ((s16*)&pData->position.vy)[1],
         &g_FieldActors[g_PlayerActorIndex], pData);
 
-    for (i = 0; i < D_800ADBFC; i++) {
+    for (i = 0; i < g_FieldActiveActorCount; i++) {
         pActor = &g_FieldActors[i];
         pData = pActor->pActorData;
         if ((pActor->status & 0xF80) != 0x200) {

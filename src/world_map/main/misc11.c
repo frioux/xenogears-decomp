@@ -105,8 +105,8 @@ extern s32 g_WorldMapPlayerPosition;
 extern s32 D_8009C5B4;
 extern s32 g_WorldMapPlayerRotation;
 extern WorldMapVec g_WorldMapScrollTargetX;
-extern WorldMapTrail D_8009CEC4[];
-extern u16 D_8009D52C;
+extern WorldMapTrail g_WorldMapTrail[];
+extern u16 g_WorldMapPlayerAngle;
 extern s16 g_WorldMapTrailCursor;
 
 /* func_8008A72C, func_8008B2BC, func_8008BB40, func_8008C364, func_8008C844 and
@@ -291,7 +291,7 @@ int WorldMapUpdateActorSlot(int index) {
     case 0:
     case 1:
         if (((u8 *)&g_GameState.unk22B0)[index] == 0) {
-            pTrail = &D_8009CEC4[(g_WorldMapTrailCursor - pActor->unk58) & 0x1F];
+            pTrail = &g_WorldMapTrail[(g_WorldMapTrailCursor - pActor->unk58) & 0x1F];
             if ((pActor->unk28 == pTrail->vec.unk00) & (pActor->unk2C == pTrail->vec.unk04) &
                 (pActor->unk30 == pTrail->vec.unk08)) {
                 if (((s8 *)pActor->unk4C)[0xAF] != 0) {
@@ -623,7 +623,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008C364);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008C530);
 /* 78.83% (432 bytes; retail is 444). Structurally right and byte-identical from the
    WorldMapGetTilePlaneHeight jal onward, including the 32-iteration 0x14-stride copy to
-   D_8009CEC4 and the tail. Two source facts established:
+   g_WorldMapTrail and the tail. Two source facts established:
    (1) the mode chain must be written inverted -- "if (mode >= 4) { if (mode < 8) {
        unk20 = 2; unk24 = 1; } } else { ...gearRide... }" -- because that is the only
        spelling that puts the gearRide block out of line behind "bnez v0, A" like
@@ -666,9 +666,9 @@ s32 func_8008C530(int index) {
                 pActor->unk2C = WorldMapGetTilePlaneHeight(pActor->unk28, pActor->unk30);
                 pActor->unk48 = g_WorldMapPlayerRotation;
                 g_WorldMapScrollTargetX = *(WorldMapVec *)&pActor->unk28;
-                D_8009D52C = pActor->unk48;
+                g_WorldMapPlayerAngle = pActor->unk48;
                 g_WorldMapTrailCursor = 0;
-                pTrail = D_8009CEC4;
+                pTrail = g_WorldMapTrail;
                 for (i = 0; i < 0x20; i++, pTrail++) {
                     pTrail->vec = *(WorldMapVec *)&pActor->unk28;
                     pTrail->unk10 = pActor->unk48;

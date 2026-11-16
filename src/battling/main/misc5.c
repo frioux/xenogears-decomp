@@ -126,7 +126,7 @@ extern u16 g_BattleEffectFrameCluts[];
 extern u8 D_80092698[];
 extern u8 D_8009269C[];
 extern s32 g_BattleDrawFlags;
-extern VECTOR D_80096FA8;
+extern VECTOR g_BattleViewOrigin;
 
 // 0xC-byte entry table BattleInitSpriteBuffers allocates at g_BattleSpriteSlots.
 typedef struct {
@@ -635,7 +635,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007CD44);
 void BattleEffectQueueMatrixPrims(MATRIX *pMat, s32 arg1) {
     MATRIX transposed;
 
-    *(VECTOR *)PSX_SCRATCH = D_80096FA8;
+    *(VECTOR *)PSX_SCRATCH = g_BattleViewOrigin;
     TransposeMatrix(pMat, &transposed);
     func_8007BBA0(pMat, &transposed, arg1);
     func_8007C280(pMat, &transposed, arg1);
@@ -647,7 +647,7 @@ void BattleEffectQueueMatrixPrims(MATRIX *pMat, s32 arg1) {
 }
 
 void BattleEffectQueuePrims(s32 arg0) {
-    *(VECTOR *)PSX_SCRATCH = D_80096FA8;
+    *(VECTOR *)PSX_SCRATCH = g_BattleViewOrigin;
     BattleDrawLineQuads(arg0);
 }
 

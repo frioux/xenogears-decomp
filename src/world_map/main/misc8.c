@@ -128,7 +128,7 @@ typedef struct {
     /* 0xF0 */ MATRIX mat;
 } WorldMapScratch; // Size: 0x110
 
-// One sprite set definition inside the block D_8009BD30 points at.
+// One sprite set definition inside the block g_WorldMapSpriteSetTable points at.
 typedef struct {
     /* 0x0 */ u16 partIndex; // index into ModelFileHeader::modelParts
     /* 0x2 */ u16 flags;
@@ -145,9 +145,9 @@ typedef struct {
 
 extern u8 D_8009AC60[];
 extern u8 g_WorldMapPlayerPosition[];
-extern ModelFileHeader *D_8009CD48;
-extern WorldMapSpriteSetTable *D_8009BD30;
-extern s32 *D_8009D308;
+extern ModelFileHeader *g_WorldMapModelData;
+extern WorldMapSpriteSetTable *g_WorldMapSpriteSetTable;
+extern s32 *g_WorldMapModelRelocs;
 extern s16 D_8009BD28;
 extern MATRIX D_8009A140;
 extern MATRIX D_8009A160;
@@ -182,8 +182,8 @@ extern void *HeapAlloc(u_int allocSize, u_int allocFlags);
 extern void *g_MenuSedsFile;
 extern s32 g_WorldMapWorkBuffer1;
 extern s32 g_WorldMapWorkBuffer2;
-extern s32 D_8009BC3C;
-extern s32 D_8009BCB4;
+extern s32 g_WorldMapTilePrimBuffer;
+extern s32 g_WorldMapTilePrimBufferCopy;
 extern s32 g_WorldMapDecompressedMapData;
 extern s16 g_NextMapId;
 extern s16 g_NextMapRotationY;
@@ -201,7 +201,7 @@ extern void WorldMapFreeSlotPool(void);
 extern void WorldMapFreeSpriteSets(void);
 extern void ModelLoadTextureBlock(void *pBlock);
 extern void func_800931D8(u8 *pSrc, u8 *pDst, s32 count, u8 *pFactors);
-extern void *D_8009BD20;
+extern void *g_WorldMapLoadedFileData;
 extern u16 D_8009BCE0[];
 extern FadeParams D_800704DC;
 
@@ -526,8 +526,8 @@ s32 WorldMapShutdownScene(void) {
     WorldMapFreeGridImages();
     HeapFree(g_WorldMapWorkBuffer1);
     HeapFree(g_WorldMapWorkBuffer2);
-    HeapFree(D_8009BC3C);
-    HeapFree(D_8009BCB4);
+    HeapFree(g_WorldMapTilePrimBuffer);
+    HeapFree(g_WorldMapTilePrimBufferCopy);
     HeapFree(g_WorldMapDecompressedMapData);
     WorldMapFreeSlotPool();
     v = *(u16 *)&g_WorldMapViewRotationY;
@@ -649,11 +649,11 @@ void WorldMapLoadTextureClut(void) {
     u16 *pClut;
     s32 i;
 
-    pData = LZSSHeapDecompress(D_8009BD20, 1);
+    pData = LZSSHeapDecompress(g_WorldMapLoadedFileData, 1);
     ModelLoadTextureBlock(pData);
     DrawSync(0);
     HeapFree(pData);
-    HeapFree(D_8009BD20);
+    HeapFree(g_WorldMapLoadedFileData);
     pData = HeapAlloc(0x200, 1);
     pDst = HeapAlloc(0x2000, 1);
     rect.x = 0;
@@ -688,18 +688,18 @@ void WorldMapInitSpriteSets(void) {
     s16 count;
     s32 i;
 
-    count = ModelResolvePointers(D_8009CD48);
+    count = ModelResolvePointers(g_WorldMapModelData);
     D_8009BD28 = count;
-    pRelocs = D_8009D308;
+    pRelocs = g_WorldMapModelRelocs;
     pCur = pRelocs + 1;
-    D_8009D308 = pCur;
+    g_WorldMapModelRelocs = pCur;
     for (i = 0; i < count; i++) {
         *pCur++ = (s32)pRelocs + *pCur;
     }
-    count = D_8009BD30->count;
+    count = g_WorldMapSpriteSetTable->count;
     D_8009D7E0 = count;
     g_WorldMapGroups = HeapAlloc(count * sizeof(WorldMapEntry), 0);
-    pSetTable = D_8009BD30;
+    pSetTable = g_WorldMapSpriteSetTable;
     SetColorMatrix(&D_8009A140);
     SetLightMatrix(&D_8009A160);
     pDef = pSetTable->defs;
@@ -714,13 +714,13 @@ void WorldMapInitSpriteSets(void) {
         g_WorldMapGroups[i].rot.vy = pDef->rot[1];
         g_WorldMapGroups[i].rot.vz = pDef->rot[2];
         RotMatrixYXZ(&g_WorldMapGroups[i].rot, &g_WorldMapGroups[i].mat);
-        pPart = &((ModelFileHeader *)D_8009CD48)->modelParts[g_WorldMapGroups[i].partIndex];
+        pPart = &((ModelFileHeader *)g_WorldMapModelData)->modelParts[g_WorldMapGroups[i].partIndex];
         g_WorldMapGroups[i].pModel = pPart;
         ModelAllocatePackets(pPart, &g_WorldMapGroups[i].pPackets[0], &g_WorldMapGroups[i].pPackets[1]);
         ModelInitializePacket(g_WorldMapGroups[i].pModel, g_WorldMapGroups[i].pPackets[0], 1);
         memcpy(g_WorldMapGroups[i].pPackets[1], g_WorldMapGroups[i].pPackets[0],
                g_WorldMapGroups[i].pModel->unk20[1].modelPacketSize);
-        pMesh = ((WorldMapMesh **)D_8009D308)[g_WorldMapGroups[i].partIndex];
+        pMesh = ((WorldMapMesh **)g_WorldMapModelRelocs)[g_WorldMapGroups[i].partIndex];
         g_WorldMapGroups[i].pMesh = pMesh;
         pMesh->pVerts = (SVECTOR *)((u8 *)pMesh + (s32)pMesh->pVerts);
         g_WorldMapGroups[i].pParent = 0;

@@ -11,10 +11,10 @@
 extern u8 g_BattleDifficultyLevel[];
 extern u8 D_80099D9A[];
 extern u8 D_80099DA1[];
-extern u8 D_80099D9B[];
-extern u8 D_80099D9C[];
-extern u8 D_80099D9D[];
-extern u8 D_80099D9E[];
+extern u8 g_BattlePlayer1Vibration[];
+extern u8 g_BattlePlayer2Vibration[];
+extern u8 g_BattlePlayer1ComControlled[];
+extern u8 g_BattlePlayer2ComControlled[];
 extern u8 D_80099D9F[];
 extern u8 D_80099DA2[];
 extern u32 D_800912F4[];
@@ -37,8 +37,8 @@ extern s32 g_BattleSlotConfirmFlags;
 extern s32 D_80092714;
 extern s32 D_80092720;
 extern s32 D_80091364;
-extern s32 D_80092888;
-extern s32 D_800928C8;
+extern s32 g_BattleEntryCount;
+extern s32 g_BattleMode;
 extern s32 D_80092748;
 extern s32** g_BattleEntries;
 extern u8 D_8006FF5C[];
@@ -183,13 +183,13 @@ void BattleDrawOptionRows0To4(Misc7Struct* p) {
     BattleDrawTextRight(buf);
     BattleSetRowTextColor(p, 3);
     pText = D_8006FF6C;
-    if (D_80099D9D[0] != 0) {
+    if (g_BattlePlayer1ComControlled[0] != 0) {
         pText = D_8006FF68;
     }
     BattleDrawTextRight(pText);
     BattleSetRowTextColor(p, 4);
     pText = D_8006FF74;
-    if (D_80099D9E[0] != 0) {
+    if (g_BattlePlayer2ComControlled[0] != 0) {
         pText = D_8006FF68;
     }
     BattleDrawTextRight(pText);
@@ -225,11 +225,11 @@ void BattleDrawVibrationOptions(void) {
         D_8009272C = 0;
     }
     BattleSetTextCursor(0x50, 0x8C);
-    if (ControllerGetType(0) == 4 && D_80099D9D[0] == 0) {
+    if (ControllerGetType(0) == 4 && g_BattlePlayer1ComControlled[0] == 0) {
         if (flag) {
             BattleSetRowTextColor(pPad, 1);
         }
-        BattleByteRegTestReg((D_80099D9B[0] & 1) ? D_8006FF80 : D_8006FF90);
+        BattleByteRegTestReg((g_BattlePlayer1Vibration[0] & 1) ? D_8006FF80 : D_8006FF90);
         D_800916DC[0x14] &= ~4;
     } else {
         D_800916DC[0x14] |= 4;
@@ -246,11 +246,11 @@ void BattleDrawVibrationOptions(void) {
         D_80092730 = 0;
     }
     BattleSetTextCursor(0xF0, 0x8C);
-    if (ControllerGetType(1) == 4 && D_80099D9E[0] == 0) {
+    if (ControllerGetType(1) == 4 && g_BattlePlayer2ComControlled[0] == 0) {
         if (flag) {
             BattleSetRowTextColor(pPad, 1);
         }
-        BattleByteRegTestReg((D_80099D9C[0] & 1) ? D_8006FF80 : D_8006FF90);
+        BattleByteRegTestReg((g_BattlePlayer2Vibration[0] & 1) ? D_8006FF80 : D_8006FF90);
         D_80091718[0x14] &= ~4;
     } else {
         D_80091718[0x14] |= 4;
@@ -349,19 +349,19 @@ void BattleMoveFrameRateCursor(void) {
 }
 
 void BattleMoveVibrationCursorPad0(void) {
-    D_80099D9B[0] = WorldMapInitializeModeWithActors(D_80099D9B[0], 1, 1);
+    g_BattlePlayer1Vibration[0] = WorldMapInitializeModeWithActors(g_BattlePlayer1Vibration[0], 1, 1);
 }
 
 void BattleMoveVibrationCursorPad1(void) {
-    D_80099D9C[0] = WorldMapInitializeModeWithActors(D_80099D9C[0], 1, 1);
+    g_BattlePlayer2Vibration[0] = WorldMapInitializeModeWithActors(g_BattlePlayer2Vibration[0], 1, 1);
 }
 
 void BattleMoveComCursorPad0(void) {
-    D_80099D9D[0] = WorldMapInitializeModeWithActors(D_80099D9D[0], 1, 1);
+    g_BattlePlayer1ComControlled[0] = WorldMapInitializeModeWithActors(g_BattlePlayer1ComControlled[0], 1, 1);
 }
 
 void BattleMoveComCursorPad1(void) {
-    D_80099D9E[0] = WorldMapInitializeModeWithActors(D_80099D9E[0], 1, 1);
+    g_BattlePlayer2ComControlled[0] = WorldMapInitializeModeWithActors(g_BattlePlayer2ComControlled[0], 1, 1);
 }
 
 void BattleMoveValueOptionCursor(void) {
@@ -392,7 +392,7 @@ void BattleHandleSelectionInputPad0(void) {
     if ((g_BattleSlotConfirmFlags & 1) == 0) {
         same = (g_BattleCursorIndex0 == g_BattleCursorIndex1);
         do {
-            g_BattleCursorIndex0 = WorldMapInitializeModeWithActors(g_BattleCursorIndex0, D_80092888 - 1, 3);
+            g_BattleCursorIndex0 = WorldMapInitializeModeWithActors(g_BattleCursorIndex0, g_BattleEntryCount - 1, 3);
         } while (g_BattleCursorIndex0 == g_BattleCursorIndex1 && (D_80092748 & 1) == 0 && !same);
         if (D_80091364 == 0) {
             if (g_C1ButtonStateReleased & 0x20) {
@@ -408,7 +408,7 @@ void BattleHandleSelectionInputPad1(void) {
     s32 same;
 
     if (D_80092750 & 0x40) {
-        if (D_800928C8 == 2) {
+        if (g_BattleMode == 2) {
             g_BattleSlotConfirmFlags &= -3;
         } else {
             g_BattleSlotConfirmFlags = 0;
@@ -420,7 +420,7 @@ void BattleHandleSelectionInputPad1(void) {
     if ((g_BattleSlotConfirmFlags & 2) == 0) {
         same = (g_BattleCursorIndex0 == g_BattleCursorIndex1);
         do {
-            g_BattleCursorIndex1 = WorldMapInitializeModeWithActors(g_BattleCursorIndex1, D_80092888 - 1, 3);
+            g_BattleCursorIndex1 = WorldMapInitializeModeWithActors(g_BattleCursorIndex1, g_BattleEntryCount - 1, 3);
         } while (g_BattleCursorIndex0 == g_BattleCursorIndex1 && (D_80092748 & 1) == 0 && !same);
         if (D_80092750 & 0x20) {
             g_BattleSlotConfirmFlags |= 2;
@@ -547,7 +547,7 @@ void BattleInitOptionsScreen(s32 mode) {
         HeapFree(D_800928D8);
         D_80092940 = 1;
     }
-    D_800928C8 = mode;
+    g_BattleMode = mode;
     D_800916E2 = (mode == 4) ? 3 : 4;
     D_8009171E = 5;
     if (mode == 3) {

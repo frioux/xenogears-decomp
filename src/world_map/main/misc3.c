@@ -52,8 +52,8 @@ extern WorldMapRenderContext* g_WorldMapRenderContext;
 extern s32 g_WorldMapGridAngle;
 extern s32 g_WorldMapWorkBuffer1;
 extern s32 g_WorldMapWorkBuffer2;
-extern s32 D_8009BC3C;
-extern s32 D_8009BCB4;
+extern s32 g_WorldMapTilePrimBuffer;
+extern s32 g_WorldMapTilePrimBufferCopy;
 extern s32 g_WorldMapDecompressedMapData;
 extern s16 g_WorldMapViewRotationY;
 extern s16 g_NextMapId;
@@ -526,8 +526,8 @@ s32 WorldMapExitMode(void) {
     WorldMapFreeGridImages();
     HeapFree(g_WorldMapWorkBuffer1);
     HeapFree(g_WorldMapWorkBuffer2);
-    HeapFree(D_8009BC3C);
-    HeapFree(D_8009BCB4);
+    HeapFree(g_WorldMapTilePrimBuffer);
+    HeapFree(g_WorldMapTilePrimBufferCopy);
     HeapFree(g_WorldMapDecompressedMapData);
     WorldMapFreeSlotPool();
     v = *(u16*)&g_WorldMapViewRotationY;
@@ -580,8 +580,8 @@ s32 func_8007756C(s32 arg0) {
 }
 */
 
-extern u16 D_8009BD10;
-extern u16 D_8009CD4C;
+extern u16 g_WorldMapPad1Released;
+extern u16 g_WorldMapPad1Held;
 extern s32 g_WorldMapProjectionDistance;
 extern s32 D_8009BD48;
 
@@ -598,7 +598,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc3", func_800776E0);
    - the clamp is `if (nPos < -0x180000) ... else if (nPos > 0x18000) ...`,
      both stores through one register (retail reuses v1), and nPos must be a
      local (a0) - it also reproduces the branch-delay subu.
-   - the four key tests reload D_8009CD4C each time (u16; 0x1000 add 0x8000,
+   - the four key tests reload g_WorldMapPad1Held each time (u16; 0x1000 add 0x8000,
      0x4000 sub 0x8000 on +0x28; 0x8004 add 0xFFFF0000 and 0x2008 add 0x10000
      on +0x2C). 0x8000 must stay a literal so gcc materialises it with
      ori v1,zero,0x8000 + addu.
@@ -706,14 +706,14 @@ s32 func_800776E0(s32 arg0) {
     WorldMapName8* pName;
     s32 nPos;
 
-    if (D_8009BD10 & 0x40) {
+    if (g_WorldMapPad1Released & 0x40) {
         D_8009D554 = 0;
         g_WorldMapAreaMode = 0;
     }
-    if (D_8009CD4C & 0x1000) {
+    if (g_WorldMapPad1Held & 0x1000) {
         *(s32*)(pSlot + 0x28) += 0x8000;
     }
-    if (D_8009CD4C & 0x4000) {
+    if (g_WorldMapPad1Held & 0x4000) {
         *(s32*)(pSlot + 0x28) -= 0x8000;
     }
     nPos = *(s32*)(pSlot + 0x28);
@@ -722,10 +722,10 @@ s32 func_800776E0(s32 arg0) {
     } else if (nPos > 0x18000) {
         *(s32*)(pSlot + 0x28) = 0x18000;
     }
-    if (D_8009CD4C & 0x8004) {
+    if (g_WorldMapPad1Held & 0x8004) {
         *(s32*)(pSlot + 0x2C) += 0xFFFF0000;
     }
-    if (D_8009CD4C & 0x2008) {
+    if (g_WorldMapPad1Held & 0x2008) {
         *(s32*)(pSlot + 0x2C) += 0x10000;
     }
     if ((*(s32*)(pSlot + 0x38) != *(s32*)(pSlot + 0x28)) |

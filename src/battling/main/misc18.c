@@ -224,7 +224,7 @@ void BattleQueueMessages4Then3(BattleActor* pActor) {
     }
     return ((BattleGetGridCellAtPosition(pPos) & 0x3000000) ^ 0x1000000) < 1;
 }extern long ratan2(long y, long x);
-extern s32 D_80092934;
+extern s32 g_BattleFacingAngle;
 
 s32 BattleSetFacingFromPosition(Vec4* pPos, BattleWork* pWork) {
     Vec4 pos;
@@ -234,7 +234,7 @@ s32 BattleSetFacingFromPosition(Vec4* pPos, BattleWork* pWork) {
     pos.x -= 0x3F80;
     pos.z -= 0x3F80;
     r = ratan2(pos.x, pos.z);
-    pWork->unkA = (((r & 0xFFF) >= 0x201) ? 0x800 : 0xC00) - D_80092934;
+    pWork->unkA = (((r & 0xFFF) >= 0x201) ? 0x800 : 0xC00) - g_BattleFacingAngle;
     pWork->unkC = 0xFF;
     return 0;
 }

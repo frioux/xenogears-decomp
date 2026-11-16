@@ -65,7 +65,7 @@ typedef struct {
 extern BattleFilterEntry* D_80092874;
 extern s32 D_80091964[];
 extern s32** g_BattleEntries;
-extern s32 D_80092888;
+extern s32 g_BattleEntryCount;
 
 // 0xC-byte entry of the slot table BattleInitSpriteBuffers (main/misc5) allocates
 // at g_BattleSpriteSlots; this file only clears the head of an entry.
@@ -607,7 +607,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007EEE8);
    0x20-byte table pointer in a1 and the 0xC-byte record pointer in a0) and, as
    a consequence, where the HeapAlloc result is copied into a3 in the loop
    preheader. Frame (0x20, ra at 0x18), the s0/s1 split, the
-   g_GameState+0x1930 lhu, the filter compare and the D_80092888
+   g_GameState+0x1930 lhu, the filter compare and the g_BattleEntryCount
    read-modify-write are exact. Tried: index and pointer forms for both
    induction variables and every mixture, i*3 over an s32 array, a nested if
    with continue, split increment, six declaration orders, and -G0 / -O3 /
@@ -622,10 +622,10 @@ void func_8007EEE8(s32 arg) {
     limit = g_GameState.fieldScriptMemory[0];
     pQueue = HeapAlloc(0xC4, 1);
     g_BattleEntries = pQueue;
-    D_80092888 = 0;
+    g_BattleEntryCount = 0;
     for (i = 0; i < 0x31; i++) {
         if (arg == 0 || D_80092874[i].unk4 <= limit) {
-            pQueue[D_80092888++] = &D_80091964[i];
+            pQueue[g_BattleEntryCount++] = &D_80091964[i];
         }
     }
     if (arg != 0) {
@@ -665,7 +665,7 @@ void BattleInitSpriteRectTable(void) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007F05C);
 /* best 84.45% (504 bytes against retail's 512). Whole body is right: the flag
-   x offset (0xD3/0x33), the two-part idx wrap against D_80092888, the
+   x offset (0xD3/0x33), the two-part idx wrap against g_BattleEntryCount, the
    0x14-byte sprite lookup through g_BattleEntries/g_BattleSpriteRects, the shade==0x40 fast
    path with (x,0x30)-(x+0x3C,0x70), the shaded path's colour word
    (shade+0x40 in r/g/b, code 0x2C) and its quad (x0 = x+4-k, y0 = 0x34-k,
@@ -699,7 +699,7 @@ void func_8007F05C(s32 idx, POLY_FT4* pPkt, s32 flag, s32 x, s32 shade) {
     } else {
         x += 0x33;
     }
-    count = D_80092888;
+    count = g_BattleEntryCount;
     if (idx > count - 1) {
         idx -= count;
     }

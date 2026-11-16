@@ -35,7 +35,7 @@ extern s32 D_8009B464[];
 extern s32 D_8009B46C[];
 extern s32 D_8009D160;
 extern s32 D_8009D2B4;
-extern s16 D_8009BD24;
+extern s16 g_WorldMapAreaId;
 extern u16 D_8009D4A8;
 extern u8 D_8009D500;
 extern s32 func_80032F54(void* pString, s16 a, s16 b, s16 c, s16 d, s16 e, s16 f);
@@ -47,7 +47,7 @@ extern void func_80034888(void* pString, u32 unk, u32 arg);
 extern u8* GetStringEntry(u8* pData, s32 index);
 extern u8* g_WorldMapSlots;
 extern u32* g_WorldMapRenderContext;
-extern u8* D_8009D784;
+extern u8* g_WorldMapStringTable;
 extern s32 g_WorldMapPrimPacketIndex;
 extern s16 D_8009CE68;
 extern u8 D_8009D2B8[];
@@ -88,7 +88,7 @@ s32 WorldMapInitAreaNameString(void) {
     u8* pBuffer;
 
     pBuffer = D_8009D498;
-    D_8009BD24 = -1;
+    g_WorldMapAreaId = -1;
     func_80032F54(pBuffer, 0x3C0, 0x180, 0xA0, 0x78, 0x20, 1);
     D_8009D500 = 8;
     D_8009D4A8 |= 2;
@@ -109,21 +109,21 @@ s32 func_80092C70(s32 index) {
     pSlot = (WorldMapMenuSlot*)(g_WorldMapSlots + index * 0x80);
     switch (pSlot->unk20) {
     case 0:
-        if (D_8009BD24 != -1) {
+        if (g_WorldMapAreaId != -1) {
             SystemStringResetIfIdle(D_8009D498);
-            SystemStringPushBuffer(D_8009D498, GetStringEntry(D_8009D784, D_8009BD24));
+            SystemStringPushBuffer(D_8009D498, GetStringEntry(g_WorldMapStringTable, g_WorldMapAreaId));
             pSlot->unk20 = 1;
-            pSlot->unk50 = D_8009BD24;
+            pSlot->unk50 = g_WorldMapAreaId;
         }
         break;
     case 1:
-        if (D_8009BD24 == 1) {
+        if (g_WorldMapAreaId == 1) {
             SystemStringResetIfIdle(D_8009D498);
             pSlot->unk20 = 0;
-        } else if (D_8009BD24 != pSlot->unk50) {
+        } else if (g_WorldMapAreaId != pSlot->unk50) {
             SystemStringResetIfIdle(D_8009D498);
-            SystemStringPushBuffer(D_8009D498, GetStringEntry(D_8009D784, D_8009BD24));
-            pSlot->unk50 = D_8009BD24;
+            SystemStringPushBuffer(D_8009D498, GetStringEntry(g_WorldMapStringTable, g_WorldMapAreaId));
+            pSlot->unk50 = g_WorldMapAreaId;
         }
         break;
     }
@@ -195,7 +195,7 @@ s32 func_80092FD8(s32 index) {
     case 0:
         if (D_8009CE68 != -1) {
             SystemStringResetIfIdle(D_8009BD64);
-            SystemStringPushBuffer(D_8009BD64, GetStringEntry(D_8009D784, D_8009CE68));
+            SystemStringPushBuffer(D_8009BD64, GetStringEntry(g_WorldMapStringTable, D_8009CE68));
             pSlot->unk20 = 1;
             pSlot->unk50 = D_8009CE68;
         }
@@ -206,7 +206,7 @@ s32 func_80092FD8(s32 index) {
             pSlot->unk20 = 0;
         } else if (D_8009CE68 != pSlot->unk50) {
             SystemStringResetIfIdle(D_8009BD64);
-            SystemStringPushBuffer(D_8009BD64, GetStringEntry(D_8009D784, D_8009CE68));
+            SystemStringPushBuffer(D_8009BD64, GetStringEntry(g_WorldMapStringTable, D_8009CE68));
             pSlot->unk50 = D_8009CE68;
         }
         break;

@@ -105,27 +105,27 @@ typedef struct {
     /* 0x98 */ u32 unk98;
 } BattleMisc12Obj; // Size: 0x9C
 
-extern BattleEnv D_80091C0C;
-extern BattleEnv D_80096FE0;
+extern BattleEnv g_BattleBaseMatrix;
+extern BattleEnv g_BattleScaleMatrix;
 extern BattleEnv D_8009A2D8;
 extern s16 D_80096FE8;
 
-extern s32 D_8006F980;
-extern VECTOR D_80096FA8;
+extern s32 g_BattleOptionFlags;
+extern VECTOR g_BattleViewOrigin;
 extern u8 D_8005061C;
 extern u8 g_BattleDifficultyLevel;
-extern u8 D_80099D9B;
-extern u8 D_80099D9C;
+extern u8 g_BattlePlayer1Vibration;
+extern u8 g_BattlePlayer2Vibration;
 extern u8 D_80099D9F;
-extern s16 D_8009285C;
-extern s16 D_8009286C;
+extern s16 g_BattleScreenWidth;
+extern s16 g_BattleScreenHeight;
 extern u8 D_80091A6C[];
-extern u8 D_800927EC;
-extern s32 D_80092888;
-extern s32 D_800927F4;
+extern u8 g_BattleExtraEntryQueued;
+extern s32 g_BattleEntryCount;
+extern s32 g_BattleHeapDumpScroll;
 extern s32 D_800927F0;
 extern u8** g_BattleEntries;
-extern BattleEntry D_8009A0D8[];
+extern BattleEntry g_BattleDrawBuffers[];
 
 extern void ArchiveReadFileToBuffer(s32 index, void* pBuffer, u32 arg2, u32 flags);
 extern void func_800453E8(void* pDrmode, void* pRect);
@@ -189,20 +189,20 @@ void BattleSetFlag10000(void) {
     s32 value;
     s32* pFlags;
 
-    pFlags = &D_8006F980;
+    pFlags = &g_BattleOptionFlags;
     value = *pFlags;
     *pFlags = value | 0x10000;
 }
 
 void BattleAppendExtraQueueEntry(void) {
-    if ((D_8006F980 & 0x10000) == 0) {
+    if ((g_BattleOptionFlags & 0x10000) == 0) {
         return;
     }
-    if (D_800927EC != 0) {
+    if (g_BattleExtraEntryQueued != 0) {
         return;
     }
-    D_800927EC = 1;
-    g_BattleEntries[D_80092888++] = D_80091A6C;
+    g_BattleExtraEntryQueued = 1;
+    g_BattleEntries[g_BattleEntryCount++] = D_80091A6C;
 }
 
 s32 BattleSetFlag10000IfAllSlotBitsSet(void) {
@@ -217,7 +217,7 @@ s32 BattleSetFlag10000IfAllSlotBitsSet(void) {
             }
         }
     }
-    pFlags = &D_8006F980;
+    pFlags = &g_BattleOptionFlags;
     value = *pFlags;
     *pFlags = value | 0x10000;
     BattleAppendExtraQueueEntry();
@@ -230,7 +230,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc12", func_80088A40);
 /* Best attempt: objdiff 86.96% (the same body written as five plain locals with
    a cached s32 was 61.85%; gcc 2.7.2-cdk scores 84.13 and 2.6.0 does not
    compile it). Writing the read-modify-write as bitfield stores on
-   (BattleFlagBits*)&D_8006F980 reproduces everything: the single lw, the five
+   (BattleFlagBits*)&g_BattleOptionFlags reproduces everything: the single lw, the five
    clearing masks (~0xF, ~0x10, ~0x20, ~0xFFFFE03F, ~0xFFFF1FFF), the five value
    registers ($a2,$a1,$a0,$v1,$t0) and the lbu/andi/sll/or chain. The only
    difference left is store placement: retail defers the first four stores until
@@ -259,10 +259,10 @@ void func_80088A40(void) {
     if (D_8005061C == 0) {
         return;
     }
-    pFlags = (BattleFlagBits*)&D_8006F980;
+    pFlags = (BattleFlagBits*)&g_BattleOptionFlags;
     pFlags->mode = 1;
-    pFlags->flagB = D_80099D9B & 1;
-    pFlags->flagC = D_80099D9C & 1;
+    pFlags->flagB = g_BattlePlayer1Vibration & 1;
+    pFlags->flagC = g_BattlePlayer2Vibration & 1;
     pFlags->value = D_80099D9F & 0x7F;
     pFlags->scale = g_BattleDifficultyLevel & 7;
 }
@@ -277,12 +277,12 @@ void BattleApplyOptionWord(void) {
     if (D_8005061C == 0) {
         return;
     }
-    pFlags = (u32*)&D_8006F980;
+    pFlags = (u32*)&g_BattleOptionFlags;
     flags = *pFlags;
-    D_800927EC = 0;
+    g_BattleExtraEntryQueued = 0;
     if ((flags & 0xF) == 1) {
-        D_80099D9B = (flags >> 4) & 1;
-        D_80099D9C = (flags >> 5) & 1;
+        g_BattlePlayer1Vibration = (flags >> 4) & 1;
+        g_BattlePlayer2Vibration = (flags >> 5) & 1;
         D_80099D9F = (flags >> 6) & 0x7F;
         g_BattleDifficultyLevel = (flags >> 13) & 7;
         if (flags & 0x10000) {
@@ -293,8 +293,8 @@ void BattleApplyOptionWord(void) {
             }
         }
     } else {
-        D_80099D9B = 0;
-        D_80099D9C = 0;
+        g_BattlePlayer1Vibration = 0;
+        g_BattlePlayer2Vibration = 0;
         D_80099D9F = 2;
         g_BattleDifficultyLevel = 0;
         func_80088A40();
@@ -324,21 +324,21 @@ void BattleDebugScrollHeapDump(void) {
 
     buttons = g_C1ButtonState;
     if (buttons & 4) {
-        D_800927F4++;
+        g_BattleHeapDumpScroll++;
     }
     if (buttons & 1) {
-        D_800927F4--;
+        g_BattleHeapDumpScroll--;
     }
-    if (D_800927F4 < 0) {
-        D_800927F4 = 0;
+    if (g_BattleHeapDumpScroll < 0) {
+        g_BattleHeapDumpScroll = 0;
     }
-    HeapDebugDump(1, D_800927F4, 0xA, 0x80AD);
+    HeapDebugDump(1, g_BattleHeapDumpScroll, 0xA, 0x80AD);
 }
 
 void BattleInitSlotDrawEntry(s32 slot) {
     BattleEntry* pEntry;
 
-    pEntry = &D_8009A0D8[slot];
+    pEntry = &g_BattleDrawBuffers[slot];
     pEntry->unk77 = 3;
     pEntry->unk7B = 0x7D;
     pEntry->unk80 = 0x3000;
@@ -346,14 +346,14 @@ void BattleInitSlotDrawEntry(s32 slot) {
 }
 
 extern u8 func_80088BFC[];
-extern u8 D_80091BB0[];
+extern u8 g_BattleHeapContentTypes[];
 extern s32 g_DebugTable;
-extern void* D_80092868;
-extern void* D_80092870;
+extern void* g_BattleDrawSlot;
+extern void* g_BattleDisplaySlot;
 extern s32 D_800928CC;
 extern u16 D_80092898;
-extern s32 D_8009289C;
-extern u16 D_800928D0;
+extern s32 g_BattleMultiplyNodeMatrices;
+extern u16 g_BattleDebugFlags;
 extern s32 g_BattleDrawFlags;
 extern s32 D_80092930;
 extern u8 g_BattleDrawBufferIndex;
@@ -369,7 +369,7 @@ void BattleInitGraphics(void) {
 
     DrawSyncCallback((void (*)())((u8*)func_80088BFC + 4));
     InitGeom();
-    HeapChangeCurrentUser(6, (char**)D_80091BB0);
+    HeapChangeCurrentUser(6, (char**)g_BattleHeapContentTypes);
     ArchiveSetIndex(0x30, 0);
     FontLoadFont(4, 2, 0x138, 0xDA, 0x14, 1, 0x3C0, 0x1F0, 0x3C0, 0x1EF, 0);
     BattleInitSlotDrawEntry(0);
@@ -385,18 +385,18 @@ void BattleInitGraphics(void) {
         D_800928CC = 0;
         break;
     }
-    D_80092868 = D_8009A0D8;
-    D_80092870 = &D_8009A0D8[1];
+    g_BattleDrawSlot = g_BattleDrawBuffers;
+    g_BattleDisplaySlot = &g_BattleDrawBuffers[1];
     BattleSetTpage(-1, -1);
     BattleSetClut(-1, -1);
     D_80092898 = 2;
-    D_8009289C = 1;
+    g_BattleMultiplyNodeMatrices = 1;
     D_80092930 = 0;
     g_BattleDrawFlags = 0;
     g_BattleDrawBufferIndex = 0;
     D_80092920 = 0;
     D_80092930 = 0;
-    D_800928D0 = 7;
+    g_BattleDebugFlags = 7;
     BattleInitSoundSlots();
 }
 
@@ -404,8 +404,8 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc12", func_80088E90);
 
 /* Not attempted. 204 instructions: the battle draw loop. Calls BattleInitGraphics,
    then BattleCreateWorkBlock(handlers[D_80050618], 0, 0x801FE000, 0x400) and
-   Vsync(1) in a loop that toggles g_BattleDrawFlags and re-points D_80092868/70 at
-   D_8009A0D8 + g_BattleDrawFlags * 0x70, then TermPrim, FontDrawLetters,
+   Vsync(1) in a loop that toggles g_BattleDrawFlags and re-points g_BattleDrawSlot/70 at
+   g_BattleDrawBuffers + g_BattleDrawFlags * 0x70, then TermPrim, FontDrawLetters,
    BattleReleaseFinishedSoundSlots, AddPrim, BattleDebugScrollHeapDump,
    FontPrintf x3, BattleCompactOrderingTable, DrawSync, PutDispEnv, DrawOTagEnv.
    The 4-word copies at +0x5C..+0x6B use lwl/lwr (unaligned 32-bit struct
@@ -426,9 +426,9 @@ void BattleSetScaleMatrix(s32 w, s32 h) {
 
     scaleW = (w << 12) / 320 * h / w;
     scaleH = (h << 12) / 240 * h / w;
-    D_8009A2D8 = D_80091C0C;
-    D_80096FE0 = D_80091C0C;
-    ((s16*)&D_80096FE0)[0] = scaleW;
+    D_8009A2D8 = g_BattleBaseMatrix;
+    g_BattleScaleMatrix = g_BattleBaseMatrix;
+    ((s16*)&g_BattleScaleMatrix)[0] = scaleW;
     D_80096FE8 = scaleH;
 }
 
@@ -479,8 +479,8 @@ void func_80089330(s32 w, s32 h) {
         D_8009A238 = 0x100;
         D_8009A23A = h;
     }
-    D_8009285C = w;
-    D_8009286C = h;
+    g_BattleScreenWidth = w;
+    g_BattleScreenHeight = h;
     BattleSetScaleMatrix((s16)w, (s16)h);
     D_8009A1C3 = 3;
     D_8009A1C4 = 0x60000000;
@@ -500,13 +500,13 @@ void BattleInitDrawEnvs(s32 w, s32 h) {
     SetGeomScreen(0x180);
     ModelSetScreenSize(w, h);
     if (h >= 0x101) {
-        pEnv = (DRAWENV*)D_8009A0D8;
+        pEnv = (DRAWENV*)g_BattleDrawBuffers;
         SetDefDrawEnv(pEnv, 0, 0, w, h);
         SetDefDrawEnv((DRAWENV*)((u8*)pEnv + 0xF8), 0, 0, w, h);
         D_8009A1E7 = 0;
         D_8009A0EF = 0;
     } else {
-        pEnv = (DRAWENV*)D_8009A0D8;
+        pEnv = (DRAWENV*)g_BattleDrawBuffers;
         SetDefDrawEnv(pEnv, 0, 0, w, h);
         SetDefDrawEnv((DRAWENV*)((u8*)pEnv + 0xF8), 0, 0x100, w, h);
     }
@@ -534,7 +534,7 @@ void BattleSetViewport(s32 a0, s32 a1) {
 }
 
 void BattleRestoreDrawEnvs(void) {
-    BattleInitDrawEnvs(D_8009285C, D_8009286C);
+    BattleInitDrawEnvs(g_BattleScreenWidth, g_BattleScreenHeight);
 }
 
 void BattleSetScreenResolution(s32 a0, s32 a1) {
@@ -603,7 +603,7 @@ void func_800898BC(MATRIX* pMat, SVECTOR* pFrom, SVECTOR* pTo, SVECTOR* pScale) 
     pMat->m[2][1] = D_80096F9C;
     pMat->m[2][2] = D_80096FA0;
     ApplyMatrix(pMat, pFrom, (VECTOR*)&D_8009A0C8);
-    MulMatrix2((MATRIX*)&D_80096FE0, pMat);
+    MulMatrix2((MATRIX*)&g_BattleScaleMatrix, pMat);
     pMat->t[0] = -D_8009A0C8;
     pMat->t[1] = -D_8009A0CC;
     pMat->t[2] = -D_8009A0D0;
@@ -618,7 +618,7 @@ void BattleSetMatrixFromPoints(BattleMisc12Owner* pOwner, VECTOR* pFrom, VECTOR*
     scale.vy = 0x1000;
     scale.vz = 0;
     scale.vx = 0;
-    D_80096FA8 = *pTo;
+    g_BattleViewOrigin = *pTo;
     offset.vx = pFrom->vx - pTo->vx;
     offset.vy = pFrom->vy - pTo->vy;
     offset.vz = pFrom->vz - pTo->vz;
@@ -645,7 +645,7 @@ BattleMisc12Obj* BattleResetObject(BattleMisc12Obj* p) {
     p->unk30 = 0;
     p->unk2E = 0;
     p->unk2C = 0;
-    p->matrix = D_80091C0C;
+    p->matrix = g_BattleBaseMatrix;
     p->unk4C = *(BattleBlk16*)&p->matrix;
     p->unk5C = *((BattleBlk16*)&p->matrix + 1);
     p->unkC = p->unk4C;

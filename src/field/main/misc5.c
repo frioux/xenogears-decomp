@@ -124,8 +124,8 @@ void FieldZoomFadeEffectLoadTextures(void) {
     }
 }
 
-extern s32 D_800ADB38;
-extern s32 D_800ADB3C;
+extern s32 g_FieldScriptFadeMode;
+extern s32 g_FieldScriptFadeDuration;
 extern s16 D_800ADC08;
 extern int g_FieldParticleFadeDistance;
 extern void FontFree(void);
@@ -149,8 +149,8 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A5924);
 
 /* Best attempt, 49.06%. The whole body decompiles cleanly - every call, both
    16.16 fixed-point fade loops (the color starts at 0x800000 and moves by
-   0x800000 / D_800ADB3C per frame), the FieldSetVRAMTextureSemiTrans tile loop and the
-   "wait until D_800ADB38 leaves 3" loop - but gcc lays the four switch case
+   0x800000 / g_FieldScriptFadeDuration per frame), the FieldSetVRAMTextureSemiTrans tile loop and the
+   "wait until g_FieldScriptFadeMode leaves 3" loop - but gcc lays the four switch case
    bodies out in a different order, which costs ~1500 of the 1600 bytes of
    branches. Body order in the original is [case 4][case 1,2][case 3]
    (0x59D8 / 0x5A7C / 0x5B20); with the source order below gcc emits
@@ -166,13 +166,13 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A5924);
         int i;
         int nColor;
 
-        if (D_800ADB38 == 0) {
+        if (g_FieldScriptFadeMode == 0) {
             return;
         }
         FontFree();
         FieldResetPortraitSlots();
         FieldStoreScreenImage();
-        if (D_800ADB38 == 1 || D_800ADB38 == 4) {
+        if (g_FieldScriptFadeMode == 1 || g_FieldScriptFadeMode == 4) {
             FieldCopyScreenToFadeTexture();
             DrawSync(0);
             FieldClearAndSwapOTag();
@@ -181,7 +181,7 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A5924);
         FieldRenderSync();
 
         for (;;) {
-            switch (D_800ADB38) {
+            switch (g_FieldScriptFadeMode) {
             case 3:
                 FieldZoomFadeEffectInitialize(1, 1);
                 nColor = 0x2C0;
@@ -189,25 +189,25 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A5924);
                     FieldSetVRAMTextureSemiTrans(nColor, 0x100, 0xE0);
                     nColor += 0x40;
                 }
-                FieldFadeToWhite(D_800ADB3C);
+                FieldFadeToWhite(g_FieldScriptFadeDuration);
                 FieldZoomFadeEffectSetPolygonColor(0);
                 nColor = 0;
-                for (i = 0; i < D_800ADB3C; i++) {
+                for (i = 0; i < g_FieldScriptFadeDuration; i++) {
                     FieldUpdateFrame();
                     FieldZoomFadeEffectUpdate();
                     func_8007554C();
                     FieldTickSkipCounter();
                     FieldZoomFadeEffectSetPolygonColor(nColor >> 16);
-                    nColor += 0x800000 / D_800ADB3C;
+                    nColor += 0x800000 / g_FieldScriptFadeDuration;
                 }
                 break;
             case 4:
                 ((void (*)(int, int))FieldZoomFadeEffectLoadTextures)(1, 1);
                 func_800A6E70();
                 D_800ADC08 = 1;
-                FieldFadeToBlack(D_800ADB3C);
+                FieldFadeToBlack(g_FieldScriptFadeDuration);
                 g_FieldParticleFadeDistance = 0;
-                for (i = 0; i < D_800ADB3C; i++) {
+                for (i = 0; i < g_FieldScriptFadeDuration; i++) {
                     FieldUpdateFrame();
                     FieldAddParticlePrims();
                     func_8007554C();
@@ -221,15 +221,15 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A5924);
             case 2:
                 ((void (*)(int, int))FieldZoomFadeEffectLoadTextures)(1, 1);
                 D_800ADC08 = 1;
-                FieldFadeToBlack(D_800ADB3C);
+                FieldFadeToBlack(g_FieldScriptFadeDuration);
                 nColor = 0x800000;
-                for (i = 0; i < D_800ADB3C; i++) {
+                for (i = 0; i < g_FieldScriptFadeDuration; i++) {
                     FieldUpdateFrame();
                     FieldZoomFadeEffectUpdate();
                     func_8007554C();
                     FieldTickSkipCounter();
                     FieldZoomFadeEffectSetPolygonColor(nColor >> 16);
-                    nColor -= 0x800000 / D_800ADB3C;
+                    nColor -= 0x800000 / g_FieldScriptFadeDuration;
                     if (nColor < 0) {
                         nColor = 0;
                     }
@@ -239,7 +239,7 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A5924);
                 goto end;
             }
 
-            while (D_800ADB38 == 3) {
+            while (g_FieldScriptFadeMode == 3) {
                 FieldUpdateFrame();
                 FieldZoomFadeEffectUpdate();
                 func_8007554C();
@@ -248,7 +248,7 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A5924);
         }
 
     end:
-        D_800ADB38 = 0;
+        g_FieldScriptFadeMode = 0;
         FieldRestoreScreenImage();
         FieldLoadFont();
     }

@@ -230,9 +230,9 @@ void func_80077884(void) {
 */
 extern s32* D_801E8644;
 extern void* g_FieldActorModelPointers[];
-extern u8 D_800B225C;
-extern u8 D_800B225D;
-extern u8 D_800B225E;
+extern u8 g_FieldBackgroundR;
+extern u8 g_FieldBackgroundG;
+extern u8 g_FieldBackgroundB;
 extern s16 g_FieldGearObjectCapacity;
 
 extern void FieldRenderSyncAndFlush(void);
@@ -266,7 +266,7 @@ void func_80077AB4(void) {
     FieldRenderSyncAndFlush();
     func_801E738C(g_FieldGearObjectCapacity);
     D_801E8644 = pCount - 10;
-    SetBackColor(D_800B225C, D_800B225D, D_800B225E);
+    SetBackColor(g_FieldBackgroundR, g_FieldBackgroundG, g_FieldBackgroundB);
     if (*pCount > 0) {
         pVector = (SVECTOR*)(pCount - 30);
         clut = 0xFC0000;

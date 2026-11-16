@@ -36,7 +36,7 @@ extern int ArchiveDataSync(void);
 extern s32 g_FieldArchiveStreamActive;
 extern s32 g_FieldScreenImageStored;
 extern s32 g_FieldSpecialAnimLoadPending;
-extern s32 D_800ADBC4;
+extern s32 g_FieldPartyModelLoadState;
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_80078BC8);
 /* Best attempt: 90.68% (144 bytes; the original is 148). The original keeps its
@@ -56,7 +56,7 @@ extern int ArchiveDataSync(void);
 extern s32 g_FieldArchiveStreamActive;
 extern s32 g_FieldScreenImageStored;
 extern s32 g_FieldSpecialAnimLoadPending;
-extern s32 D_800ADBC4;
+extern s32 g_FieldPartyModelLoadState;
 
 int func_80078BC8(void) {
     int nSyncStatus;
@@ -75,7 +75,7 @@ int func_80078BC8(void) {
     } else if (g_FieldScreenImageStored != 0) {
         nResult = -1;
     } else {
-        nResult = -(D_800ADBC4 != 0xFF);
+        nResult = -(g_FieldPartyModelLoadState != 0xFF);
     }
     return nResult;
 }
@@ -351,14 +351,14 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_80079288);
    (s1 = &D_800B2298; count at -4(a0), values at 0(a0) for a0 = s1 + 8, i.e.
    combine_givs re-basing three symbols onto one pointer). Remaining deltas:
    that rebase, and rand()'s product landing in a2/a3 instead of s1/a2.
-extern s32 D_800ADBDC;
-extern s32 D_800ADBE4;
+extern s32 g_FieldMapChangeGate;
+extern s32 g_FieldEntryStateGate;
 extern s32 D_800ADBEC;
 extern s32 g_FieldArchiveStreamActive;
 extern u_char D_800ADB04;
 extern s32 D_800ADBD0;
 extern s32 D_8004F370;
-extern s32 D_800B2294;   // countdown to the next regeneration of the slot table
+extern s32 g_FieldRandomSkinSlots;   // countdown to the next regeneration of the slot table
 extern s32 D_800B2298;   // regeneration period, 0 disables the random skin
 extern s32 D_800B229C;   // number of slot table entries in use
 extern u16 D_800B22A0[]; // slot table; 0xFFFF marks a free slot
@@ -385,10 +385,10 @@ void func_80079288(void) {
     u16* pSlots;
     u_char* pWeight;
 
-    if (D_800ADBDC == 0) {
+    if (g_FieldMapChangeGate == 0) {
         return;
     }
-    if (D_800ADBE4 == 0) {
+    if (g_FieldEntryStateGate == 0) {
         return;
     }
     if (D_800ADBEC == 0) {
@@ -410,7 +410,7 @@ void func_80079288(void) {
     if (D_800ADB04 == 0) {
         return;
     }
-    if (--D_800B2294 == 0) {
+    if (--g_FieldRandomSkinSlots == 0) {
         FieldRandomizeSkinSlots();
     }
     pSlots = (u16*)&pPeriod[2];
@@ -453,7 +453,7 @@ void func_80079288(void) {
         if (D_8004F370 == 0) {
             LoadGameStateOverlay(2);
         }
-        D_800ADBDC = 0;
+        g_FieldMapChangeGate = 0;
         D_800ADBD0 = 1;
         if (g_FieldSystemMode == 0) {
             func_80281204(i);
@@ -563,7 +563,7 @@ void FieldRenderColorFill(int color) {
 
 extern s32 g_FieldSceneReloadFlags;
 extern u_char D_80059179;
-extern s16 D_800B234C;
+extern s16 g_FieldPlayerWalkmeshMaterialOverride;
 extern s32 g_PlayerActorIndex;
 
 void FieldUpdatePlayerWalkmeshMaterial(void) {
@@ -572,8 +572,8 @@ void FieldUpdatePlayerWalkmeshMaterial(void) {
     } else {
         D_80059179 = 1;
     }
-    if (D_800B234C != 0xFF) {
-        D_80059179 = D_800B234C;
+    if (g_FieldPlayerWalkmeshMaterialOverride != 0xFF) {
+        D_80059179 = g_FieldPlayerWalkmeshMaterialOverride;
     }
 }
 
@@ -1098,11 +1098,11 @@ int FieldGetTriangleWindingSign(SVECTOR* pA, SVECTOR* pB, SVECTOR* pC, SVECTOR* 
     return -1;
 }
 
-extern s16 D_800B218C;
+extern s16 g_FieldPolarVectorScale;
 
 void FieldGetVec2FromPolar(IVEC3* pVec, int scale, int angle) {
     int nAngle = angle & 0xFFF;
-    int nScale = (scale << 4) * D_800B218C >> 12;
+    int nScale = (scale << 4) * g_FieldPolarVectorScale >> 12;
     int nScaled;
 
     pVec->x = rsin(nAngle) * nScale;

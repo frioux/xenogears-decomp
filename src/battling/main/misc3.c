@@ -279,8 +279,8 @@ void BattlePrintMessageQueue(BattleActor* p) {
 extern s32 BattleGetScreenMode(void);
 extern void BattleSetTextCursor(s32 a0, s32 a1);
 extern s32 D_8009292C;
-extern u8 D_80099D9C;
-extern u8 D_80099D9B;
+extern u8 g_BattlePlayer2Vibration;
+extern u8 g_BattlePlayer1Vibration;
 extern u32 D_80091198[];
 // One 0x14-byte record per battle slot; D_80096FBC, which the battle draw code
 // also reads, is this table's +0x4 field.
@@ -329,7 +329,7 @@ void BattleUpdateSlotGaugeDisplay(BattleActor* p) {
 
 extern void BattleSetTextScale(s32 color);
 extern void BattleDrawTextLeft(char* pStr);
-extern s32 D_800928C8;
+extern s32 g_BattleMode;
 extern s32 D_8009112C;
 extern s32 D_80096FC4[];
 extern s32 D_80096FC8[];
@@ -360,7 +360,7 @@ void func_8007661C(u8* p) {
     if (*(u32*)(p + 0xD0) & 0x8000000) {
         w = 0xB4;
     }
-    if (D_800928C8 != 4) {
+    if (g_BattleMode != 4) {
         h = 0xB2;
     }
     BattleSetTextCursor(w, h);
@@ -413,7 +413,7 @@ short BattleTryQueueMessage5(BattleActor* p) {
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80076884);
 
 extern u8 D_800928C4;
-extern s32 D_80092934;
+extern s32 g_BattleFacingAngle;
 extern s32 BattleCheckValueAboveScaledMax(BattleActor* p, s32 v);
 extern void BattlePlaySoundEffectById(s32 arg);
 
@@ -553,7 +553,7 @@ s32 func_80077038(BattleActor* p) {
     }
     p->unkBA = 0;
     p->unk970 = 0;
-    if (D_800928C8 != 4 && p->gaugeValue == 0 && D_800928C8 != 6 && !(p->flags & 0x800000)) {
+    if (g_BattleMode != 4 && p->gaugeValue == 0 && g_BattleMode != 6 && !(p->flags & 0x800000)) {
         p->modelIndex = 0xD;
         p->prevPartIndex = 0xFF;
         p->state = 5;
@@ -562,11 +562,11 @@ s32 func_80077038(BattleActor* p) {
         p->vy -= 0x50;
         p->flags |= 0x400;
         if (p->flags & 0x8000000) {
-            p->unk20 -= rcos(D_80092934) >> 9;
-            p->unk28 -= rsin(D_80092934) >> 9;
+            p->unk20 -= rcos(g_BattleFacingAngle) >> 9;
+            p->unk28 -= rsin(g_BattleFacingAngle) >> 9;
         } else {
-            p->unk20 += rcos(D_80092934) >> 9;
-            p->unk28 += rsin(D_80092934) >> 9;
+            p->unk20 += rcos(g_BattleFacingAngle) >> 9;
+            p->unk28 += rsin(g_BattleFacingAngle) >> 9;
         }
         p->flags |= 0x800000;
         BattleUpdateControllerActuator(p, 0x14);
@@ -619,10 +619,10 @@ s32 BattleUpdateControllerActuator(BattleActor* p, s32 mode) {
     }
     flags = p->flags;
     if (flags & 0x8000000) {
-        if (D_800928C8 != 2 && D_800928C8 != 4) {
+        if (g_BattleMode != 2 && g_BattleMode != 4) {
             return;
         }
-        if (!(D_80099D9C & 1)) {
+        if (!(g_BattlePlayer2Vibration & 1)) {
             return;
         }
         if (flags & 0x40) {
@@ -630,7 +630,7 @@ s32 BattleUpdateControllerActuator(BattleActor* p, s32 mode) {
         }
         ControllerSetActuatorDuration(1, mode);
     } else {
-        if (!(D_80099D9B & 1)) {
+        if (!(g_BattlePlayer1Vibration & 1)) {
             return;
         }
         if (flags & 0x40) {
@@ -1024,7 +1024,7 @@ void func_80078194(BattleActor* p) {
     p->prevPosition = p->position;
     p->unk95C = p->unk93C;
     angle = p->unk40;
-    target = D_80092934;
+    target = g_BattleFacingAngle;
     if (p->flags & 0x8000000) {
         target += 0x800;
     }
