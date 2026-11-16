@@ -722,43 +722,46 @@ void SpriteSetDirection(SpriteData*, s16);
 
 void func_80081F80(SpriteData*, s16, FieldActor*);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800831F4);
-/* 92.51% (140 vs 148 bytes). Frame and every other instruction match. The
-   branch shape only comes out with the ternary INSIDE the arithmetic (angle =
-   (current + ((direction & 1) ? -0x400 : 0x400)) & 0xFFF), which gives
-   retail's cond-add with the delay slot filled; an if/else or a ternary split
-   off the & 0xFFF gives beqz + j instead. The second store reads vy unsigned
-   (lhu), so the | 0x8000 uses the field type.
-   Residuals, all allocator/scheduling: (1) the original loads vy into v0,
-   copies it (move v1,v0) and tests in place (andi v0,v0,0x8000), keeping vy in
-   v1 for the addiu; we load straight into v1 and are one instruction short.
-   (2) we sink the second sh (0x106) into the jal delay slot by moving the
-   lh a1,0x104 reload ahead of it; retail stores both halves, reloads, and
-   leaves a nop in the slot. (3) the frame: retail's is 0x20 with the saves at
-   0x18/0x1C, ours 0x18 with them at 0x10/0x14 - an unused local only moves
-   the frame and does not produce the missing instructions.
-   Tried: an s16 current local for both the test and the addiu (same 92.51%),
-   gcc-2.7.2-cdk (89.27%) and 2.6.0 (92.51%), and a 3-minute permuter run
-   (base 500, best 128, no zero) which only proposed splitting the pointer into
-   two locals.
+/* 96.86% (144 vs 148 bytes), permuter base 113 -> best 113 (2 runs, 1896
+   iters: it has nothing left). Was 92.51% before the do/while(0) edit below,
+   which moved the vy store out of the jal delay slot; a bare block, an
+   if/else and a flat sequence all fall back to 92.51%, so the wrapper is
+   load-bearing and must stay.
+   Frame and every other instruction match. The branch shape only comes out
+   with the ternary INSIDE the arithmetic, which gives retail's cond-add with
+   the delay slot filled.
+   Only residual, allocator: retail loads vy into v0, copies it (move v1,v0)
+   and tests in place (andi v0,v0,0x8000), keeping the copy in v1 for the
+   addiu; we load straight into v1 and are one instruction short, which also
+   makes the frame 0x18 instead of 0x20 (saves at 0x10/0x14 vs 0x18/0x1C) and
+   shortens the two branch displacements. Tried: s16 vs int current, reading
+   the field directly in the test, an assignment inside the condition, an
+   unused int local (frame only, no instruction), a bare block, gcc-2.7.2-cdk
+   (89.27%) and 2.6.0 (92.51%). Looks like a wall, not a tie.
+*//*
 void func_800831F4(SpriteData* pSprite, ActorData* pActorData, FieldActor* pActor, int direction) {
     s16 angle;
     s16 current;
+    s16 angleCopy;
 
     if (pActorData->moveModified.vx != 0 || pActorData->moveModified.vz != 0) {
         current = pActorData->rotation.vy;
         if (!(current & 0x8000)) {
             angle = (current + ((direction & 1) ? -0x400 : 0x400)) & 0xFFF;
-            pActorData->rotation.vx = angle;
-            pActorData->rotation.vy = angle;
+            // the do/while(0) holds the vy store out of the jal delay slot; a bare block does not
+            do {
+                angleCopy = angle;
+                pActorData->rotation.vx = angle;
+            } while (0);
+            pActorData->rotation.vy = angleCopy;
             func_80081F80(pSprite, pActorData->rotation.vx, pActor);
             angle = pActorData->rotation.vy | 0x8000;
             pActorData->rotation.vx = angle;
             pActorData->rotation.vy = angle;
         }
     }
-}
-*/
+}*/
+INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800831F4);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80083288);
 
