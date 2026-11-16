@@ -21,9 +21,9 @@ extern u16 g_WorldMapSlotRotationGroupIds[];
 extern u16 D_8009B626[];
 
 typedef struct {
-    /* 0x0 */ s16 unk0;
+    /* 0x0 */ s16 col;
     /* 0x2 */ s16 unk2;
-    /* 0x4 */ s16 unk4;
+    /* 0x4 */ s16 row;
     /* 0x6 */ s16 unk6;
 } WorldMapGridOrigin; // Size: 0x8
 
@@ -48,15 +48,15 @@ typedef struct {
     /* 0x00 */ u8 pad0[0x20];
     /* 0x20 */ u16 unk20;
     /* 0x22 */ u8 pad22[0x6];
-    /* 0x28 */ s32 unk28;
-    /* 0x2C */ s32 unk2C;
-    /* 0x30 */ s32 unk30;
+    /* 0x28 */ s32 x;
+    /* 0x2C */ s32 y;
+    /* 0x30 */ s32 z;
     /* 0x34 */ u8 pad34[0x4];
-    /* 0x38 */ s32 unk38;
-    /* 0x3C */ s32 unk3C;
-    /* 0x40 */ s32 unk40;
+    /* 0x38 */ s32 dirX;
+    /* 0x3C */ s32 dirY;
+    /* 0x40 */ s32 dirZ;
     /* 0x44 */ u8 pad44[0x6];
-    /* 0x4A */ u16 unk4A;
+    /* 0x4A */ u16 moveSpeed;
     /* 0x4C */ u8 pad4C[0x4];
     /* 0x50 */ s32 unk50;
     /* 0x54 */ s32 unk54;
@@ -69,16 +69,16 @@ typedef struct {
 typedef struct {
     /* 0x00 */ s16 unk0;
     /* 0x02 */ u8 unk2[0x6];
-    /* 0x08 */ s32 unk8;
-    /* 0x0C */ s32 unkC;
-    /* 0x10 */ s32 unk10;
+    /* 0x08 */ s32 x;
+    /* 0x0C */ s32 y;
+    /* 0x10 */ s32 z;
     /* 0x14 */ s32 unk14;
     /* 0x18 */ SVECTOR rot;
     /* 0x20 */ MATRIX mat;
-    /* 0x40 */ u8* unk40; // header whose +0x4 is the prim count
+    /* 0x40 */ u8* pPrimHeader; // header whose +0x4 is the prim count
     /* 0x44 */ u8 unk44[0x4];
-    /* 0x48 */ u8* unk48; // vertex buffer
-    /* 0x4C */ u8* unk4C; // copy destination for unk48
+    /* 0x48 */ u8* pPrims; // vertex buffer
+    /* 0x4C */ u8* pPrimsCopy; // copy destination for pPrims
     /* 0x50 */ u8 unk50[0x4];
 } WorldMapSceneLayer; // Size: 0x54
 
@@ -88,7 +88,7 @@ extern WorldMapSceneLayer* g_WorldMapGroups;
 
 typedef struct {
     /* 0x0 */ s32 offset;
-    /* 0x4 */ s32 unk4;
+    /* 0x4 */ s32 count;
 } WorldMapTableEntry; // Size: 0x8
 
 // 0x10-byte tile position entry in the D_8009AF30 / D_8009AF38 tables
@@ -129,7 +129,7 @@ extern WorldMapPathEntry D_8009CD68[];
 // 12.4 fixed point world map position
 typedef struct {
     /* 0x0 */ s32 x;
-    /* 0x4 */ s32 unk4;
+    /* 0x4 */ s32 y;
     /* 0x8 */ s32 z;
 } WorldMapPos; // Size: 0xC
 
@@ -258,10 +258,10 @@ void func_8008615C(void) {
             if (D_8009D618[row * 5 + i] == -1) {
                 continue;
             }
-            id = g_WorldMapGridTileIds[(row + pOrigin->unk4) * 9 + i + pOrigin->unk0];
+            id = g_WorldMapGridTileIds[(row + pOrigin->row) * 9 + i + pOrigin->col];
             pEntry = (WorldMapTableEntry*)(pTable + id * 8);
-            if (pEntry->unk4 != 0) {
-                func_80099BFC((u8*)pEntry->offset, pEntry->unk4, g_WorldMapRenderContext[0x1C],
+            if (pEntry->count != 0) {
+                func_80099BFC((u8*)pEntry->offset, pEntry->count, g_WorldMapRenderContext[0x1C],
                               ((u8**)&g_WorldMapSpritePrims)[g_WorldMapPrimPacketIndex] + D_8009BE04 * 0x28);
             }
         }
@@ -459,7 +459,7 @@ void WorldMapSetSlotTPages(WorldMapSceneLayer* pLayer, u8* pSrc, s32 count, s32 
             pPrim++;
         } while (++i < rows);
     }
-    memcpy(pLayer->unk4C, pLayer->unk48, rows * 0x28);
+    memcpy(pLayer->pPrimsCopy, pLayer->pPrims, rows * 0x28);
 }
 s32 BattleInitSlotRowsForActor(s32 index) {
     WorldMapPlayer* pSlot = &g_WorldMapSlots[index];
@@ -479,8 +479,8 @@ s32 WorldMapSetSceneLayerTPages(s32 index) {
     entryIndex = g_WorldMapLevelIndex * 2;
     pLayer1 = &pLayers[g_WorldMapTileGroupIds[entryIndex]];
     pLayer2 = &pLayers[D_8009B64E[entryIndex]];
-    WorldMapSetSlotTPages(pLayer1, pLayer1->unk48, ((u16*)pLayer1->unk40)[2], 3);
-    WorldMapSetSlotTPages(pLayer2, pLayer2->unk48, ((u16*)pLayer2->unk40)[2], 3);
+    WorldMapSetSlotTPages(pLayer1, pLayer1->pPrims, ((u16*)pLayer1->pPrimHeader)[2], 3);
+    WorldMapSetSlotTPages(pLayer2, pLayer2->pPrims, ((u16*)pLayer2->pPrimHeader)[2], 3);
     return 1;
 }
 s32 WorldMapSetSceneLayerRotMatrices(s32 index) {
@@ -560,32 +560,32 @@ s32 func_80087C6C(s32 index) {
     WorldMapSetSceneSpriteSetParents();
     pSlot = &g_WorldMapSlots[index];
     pPos = (WorldMapPos*)0x1F800000;
-    pSlot->unk4A = 0x4000;
+    pSlot->moveSpeed = 0x4000;
     pLayer = &g_WorldMapGroups[tileIndex];
     pSlot->unk20 = 0;
     if (g_GameState.fieldScriptMemory[0] < 0xCD) {
-        pSlot->unk28 = 0xD80000;
-        pSlot->unk30 = 0x7280000;
+        pSlot->x = 0xD80000;
+        pSlot->z = 0x7280000;
         pLayer->mat = g_WorldMapIdentityMatrix;
-        pSlot->unk2C = WorldMapGetTilePlaneHeight(pSlot->unk28, pSlot->unk30);
+        pSlot->y = WorldMapGetTilePlaneHeight(pSlot->x, pSlot->z);
     } else {
         pCount = &((u16*)g_GameState.unk1838)[9];
         if (*pCount == 0) {
             (*pCount)++;
             pSlot->unk50 = 0;
-            pSlot->unk28 = D_8009AF80[pSlot->unk50] << 12;
+            pSlot->x = D_8009AF80[pSlot->unk50] << 12;
             z = D_8009AF90[pSlot->unk50];
         } else {
             pSlot->unk50 = ((u16*)g_GameState.unk1838)[8];
-            pSlot->unk28 = ((u16*)g_GameState.unk1838)[6] << 12;
+            pSlot->x = ((u16*)g_GameState.unk1838)[6] << 12;
             z = ((u16*)g_GameState.unk1838)[7];
         }
-        pSlot->unk30 = z << 12;
-        pSlot->unk2C = WorldMapGetTilePlaneHeight(pSlot->unk28, pSlot->unk30);
+        pSlot->z = z << 12;
+        pSlot->y = WorldMapGetTilePlaneHeight(pSlot->x, pSlot->z);
         do {
             pPos->x = D_8009AF80[pSlot->unk50] << 12;
             pPos->z = D_8009AF90[pSlot->unk50] << 12;
-            dist = func_80094154(&pSlot->unk28, pPos);
+            dist = func_80094154(&pSlot->x, pPos);
         } while (0);
         if (dist < 0) {
             dist = -dist;
@@ -593,10 +593,10 @@ s32 func_80087C6C(s32 index) {
         if (dist < 8) {
             pSlot->unk50 = (pSlot->unk50 + 1) & 7;
         }
-        pPos->x = D_8009AF80[pSlot->unk50] - (pSlot->unk28 >> 12);
+        pPos->x = D_8009AF80[pSlot->unk50] - (pSlot->x >> 12);
         tileZ = D_8009AF90[pSlot->unk50];
-        pPos->z = tileZ - (pSlot->unk30 >> 12);
-        pPos->unk4 = 0;
+        pPos->z = tileZ - (pSlot->z >> 12);
+        pPos->y = 0;
         WorldMapWrapDeltaScaled(pPos);
         VectorNormal((VECTOR*)pPos, (VECTOR*)pPos);
         for (i = 0; i < 0x100; i += 8) {
@@ -605,9 +605,9 @@ s32 func_80087C6C(s32 index) {
         }
         pSlot->unk58 = 1;
         pSlot->unk54 = 0;
-        pSlot->unk38 = D_8009CD68[1].unk0;
-        pSlot->unk40 = D_8009CD68[pSlot->unk58].unk4;
-        pSlot->unk3C = 0;
+        pSlot->dirX = D_8009CD68[1].unk0;
+        pSlot->dirZ = D_8009CD68[pSlot->unk58].unk4;
+        pSlot->dirY = 0;
     }
     return 1;
 }
@@ -673,12 +673,12 @@ s32 func_80087FD0(s32 index) {
     pLayer = &g_WorldMapGroups[tileIndex];
     pPos = (WorldMapPos*)0x1F800000;
     if (g_GameState.fieldScriptMemory[0] < 0xCD) {
-        pSlot->unk2C = WorldMapGetTilePlaneHeight(pSlot->unk28, pSlot->unk30);
-        pLayer->unk8 = pSlot->unk28 >> 12;
-        pLayer->unkC = pSlot->unk2C >> 12;
-        pLayer->unk10 = pSlot->unk30 >> 12;
+        pSlot->y = WorldMapGetTilePlaneHeight(pSlot->x, pSlot->z);
+        pLayer->x = pSlot->x >> 12;
+        pLayer->y = pSlot->y >> 12;
+        pLayer->z = pSlot->z >> 12;
     } else {
-        pSlotPos = (WorldMapPos*)&pSlot->unk28;
+        pSlotPos = (WorldMapPos*)&pSlot->x;
         pPos->x = D_8009AF80[pSlot->unk50] << 12;
         pPos->z = D_8009AF90[pSlot->unk50] << 12;
         tileDist = func_80094154(pSlotPos, pPos);
@@ -688,53 +688,53 @@ s32 func_80087FD0(s32 index) {
         if (tileDist < 8) {
             pSlot->unk50 = (pSlot->unk50 + 1) & 7;
         }
-        pPos->x = D_8009AF80[pSlot->unk50] - (pSlot->unk28 >> 12);
-        pPos->z = D_8009AF90[pSlot->unk50] - (pSlot->unk30 >> 12);
-        pPos->unk4 = 0;
+        pPos->x = D_8009AF80[pSlot->unk50] - (pSlot->x >> 12);
+        pPos->z = D_8009AF90[pSlot->unk50] - (pSlot->z >> 12);
+        pPos->y = 0;
         WorldMapWrapDeltaScaled(pPos);
         VectorNormal((VECTOR*)pPos, (VECTOR*)pPos);
-        pSlot->unk38 = ((pPos->x + pSlot->unk38 * 63) << 6) >> 12;
-        pSlot->unk40 = ((pPos->z + pSlot->unk40 * 63) << 6) >> 12;
-        VectorNormal((VECTOR*)&pSlot->unk38, (VECTOR*)&pSlot->unk38);
-        D_8009CD68[pSlot->unk54].unk0 = pSlot->unk38;
-        D_8009CD68[pSlot->unk54].unk4 = pSlot->unk40;
+        pSlot->dirX = ((pPos->x + pSlot->dirX * 63) << 6) >> 12;
+        pSlot->dirZ = ((pPos->z + pSlot->dirZ * 63) << 6) >> 12;
+        VectorNormal((VECTOR*)&pSlot->dirX, (VECTOR*)&pSlot->dirX);
+        D_8009CD68[pSlot->unk54].unk0 = pSlot->dirX;
+        D_8009CD68[pSlot->unk54].unk4 = pSlot->dirZ;
         pSlot->unk54 = (pSlot->unk54 + 1) & 0x1F;
-        pPos->x = pSlot->unk38;
-        pPos->unk4 = pSlot->unk3C;
-        pPos->z = -pSlot->unk40;
+        pPos->x = pSlot->dirX;
+        pPos->y = pSlot->dirY;
+        pPos->z = -pSlot->dirZ;
         WorldMapBuildBasisMatrix((VECTOR*)pPos, (VECTOR*)0x1F800010, (MATRIX*)0x1F8000F0);
         pLayer->mat = *(MATRIX*)0x1F8000F0;
-        pSlot->unk28 += D_8009CD68[pSlot->unk58].unk0 * ((s16)pSlot->unk4A >> 12);
-        pSlot->unk30 += D_8009CD68[pSlot->unk58].unk4 * ((s16)pSlot->unk4A >> 12);
+        pSlot->x += D_8009CD68[pSlot->unk58].unk0 * ((s16)pSlot->moveSpeed >> 12);
+        pSlot->z += D_8009CD68[pSlot->unk58].unk4 * ((s16)pSlot->moveSpeed >> 12);
         pSlot->unk58 = (pSlot->unk58 + 1) & 0x1F;
         WorldMapWrapPosition(pSlotPos);
-        pSlot->unk2C = WorldMapGetTilePlaneHeight(pSlot->unk28, pSlot->unk30);
-        pLayer->unk8 = pSlot->unk28 >> 12;
-        pLayer->unkC = pSlot->unk2C >> 12;
-        pLayer->unk10 = pSlot->unk30 >> 12;
-        pPos->x = *(u16*)&g_GameState.scriptPosX - (pSlot->unk28 >> 12);
-        pPos->z = *(u16*)&g_GameState.scriptPosZ - (pSlot->unk30 >> 12);
-        pPos->unk4 = g_GameState.scriptPosY;
+        pSlot->y = WorldMapGetTilePlaneHeight(pSlot->x, pSlot->z);
+        pLayer->x = pSlot->x >> 12;
+        pLayer->y = pSlot->y >> 12;
+        pLayer->z = pSlot->z >> 12;
+        pPos->x = *(u16*)&g_GameState.scriptPosX - (pSlot->x >> 12);
+        pPos->z = *(u16*)&g_GameState.scriptPosZ - (pSlot->z >> 12);
+        pPos->y = g_GameState.scriptPosY;
         WorldMapWrapDeltaScaled(pPos);
         dist = SquareRoot0(pPos->x * pPos->x + pPos->z * pPos->z);
-        if (dist < 0x100 && pPos->unk4 >= -0xBF) {
-            pSlot->unk4A = 0;
-        } else if (dist < 0x300 && pPos->unk4 >= -0xBF) {
-            pSlot->unk4A -= 0x100;
-            if ((s16)pSlot->unk4A < 0) {
-                pSlot->unk4A = 0;
+        if (dist < 0x100 && pPos->y >= -0xBF) {
+            pSlot->moveSpeed = 0;
+        } else if (dist < 0x300 && pPos->y >= -0xBF) {
+            pSlot->moveSpeed -= 0x100;
+            if ((s16)pSlot->moveSpeed < 0) {
+                pSlot->moveSpeed = 0;
             }
         } else {
-            pSlot->unk4A += 0x200;
-            if ((s16)pSlot->unk4A > 0x4000) {
-                pSlot->unk4A = 0x4000;
+            pSlot->moveSpeed += 0x200;
+            if ((s16)pSlot->moveSpeed > 0x4000) {
+                pSlot->moveSpeed = 0x4000;
             }
         }
-        if ((s16)pSlot->unk4A >= 0x1001) {
+        if ((s16)pSlot->moveSpeed >= 0x1001) {
             pRot = (SVECTOR*)((u8*)pPos + 0xA0);
-            pRot->vx = pLayer->unk8;
-            pRot->vy = pLayer->unkC;
-            pRot->vz = pLayer->unk10;
+            pRot->vx = pLayer->x;
+            pRot->vy = pLayer->y;
+            pRot->vz = pLayer->z;
             TransposeMatrix(&pLayer->mat, (MATRIX*)((u8*)pPos + 0x150));
             WorldMapExtractRotationFromMatrix((MATRIX*)((u8*)pPos + 0x150), (SVECTOR*)((u8*)pPos + 0xA8));
             func_80089160(0x13, pRot, (SVECTOR*)((u8*)pPos + 0xA8));
@@ -742,12 +742,12 @@ s32 func_80087FD0(s32 index) {
             WorldMapDeactivateSpriteGroup(0x13);
         }
     }
-    ((u16*)g_GameState.unk1838)[6] = pSlot->unk28 >> 12;
-    ((u16*)g_GameState.unk1838)[7] = pSlot->unk30 >> 12;
+    ((u16*)g_GameState.unk1838)[6] = pSlot->x >> 12;
+    ((u16*)g_GameState.unk1838)[7] = pSlot->z >> 12;
     ((u16*)g_GameState.unk1838)[8] = pSlot->unk50;
-    pPos->x = pSlot->unk28;
-    pPos->unk4 = pSlot->unk2C + 0x30000;
-    pPos->z = pSlot->unk30;
+    pPos->x = pSlot->x;
+    pPos->y = pSlot->y + 0x30000;
+    pPos->z = pSlot->z;
     WorldMapQueueZoneEntry(index, (s32*)pPos, 0x80, 0xB0);
     return 1;
 }
@@ -785,29 +785,29 @@ s32 func_80088570(s32 index) {
             (*pCount)++;
         } while (0);
         v = 0xFFD80000;
-        pSlot->unk2C = v;
-        pSlot->unk28 = 0;
+        pSlot->y = v;
+        pSlot->x = 0;
         v = 0x4800000;
     } else {
         s32 angleY = *(s16*)&g_GameState.unk184E;
         u32 posX = ((u16*)g_GameState.unk1838)[0xA];
 
-        pSlot->unk2C = 0xFFD80000;
-        pSlot->unk28 = angleY * 0x1000 + posX;
+        pSlot->y = 0xFFD80000;
+        pSlot->x = angleY * 0x1000 + posX;
         do {
             v = *(s16*)&g_GameState.unk1852 * 0x1000 + g_GameState.unk1850;
         } while (0);
     }
-    pSlot->unk30 = v;
-    v = pSlot->unk28;
-    pSlot->unk40 = 0xB50;
-    pSlot->unk38 = 0xB50;
-    pSlot->unk3C = 0;
-    pSlot->unk4A = 1;
+    pSlot->z = v;
+    v = pSlot->x;
+    pSlot->dirZ = 0xB50;
+    pSlot->dirX = 0xB50;
+    pSlot->dirY = 0;
+    pSlot->moveSpeed = 1;
     ((u16*)g_GameState.unk1838)[0xA] = v;
-    g_GameState.unk184E = pSlot->unk28 >> 12;
-    g_GameState.unk1850 = pSlot->unk30;
-    g_GameState.unk1852 = pSlot->unk30 >> 12;
+    g_GameState.unk184E = pSlot->x >> 12;
+    g_GameState.unk1850 = pSlot->z;
+    g_GameState.unk1852 = pSlot->z >> 12;
     return 1;
 }*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_80088570);
