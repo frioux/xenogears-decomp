@@ -68,27 +68,18 @@ extern u8 BattleSlotFlagsC002Clear(u8 arg0, u8 arg1);
 extern u8 GameRandomByteRange(s32 arg0, u8 arg1);
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007C1A4);
-/* best: 83.91% (408 bytes vs retail 392). Structure is certain (same body as
-   func_8007C9D4 plus the g_BattleSlotRecords[actor slot tag] reject test): buf[0..2]
-   zeroed, row word zeroed, `while ((buf[0] & buf[1] & buf[2]) == 0)` picking a
-   random 0..2 entry, three tests, then the row word = bitmask and break.
-   Two blockers, both about how gcc 2.6 treats the g_BattleSlotRecords tag reads:
-   (1) retail keeps the invariant offset (arg1 + 3) * 0x1C in s4 and issues
-   each tag read as lui at/%hi + addu at,at,reg + lbu %lo(at) - the
-   single-use lo_sum form BattleTableEntryFlag8000 also has. gcc instead
-   hoists g_BattleSlotRecords + offset into s5 AND materialises the base into s6
-   (cse sees the symbol twice), so the frame carries one extra saved register
-   and the load pair becomes `addu v0,v0,s6` + two 0(reg) loads.
-   (2) retail computes arg1 * 0x40 into a2 right before the first store and
-   copies it to s5 at the loop preheader (`move s5,a2`); a `s32 row` local is
-   instead born in the prologue (sll s4,a1,0x6 sits above the frame stores).
-   Tried: inline (arg1+3)*0x1C (83.91%, this), s32 record local for the
-   invariant offset (78.65%), both row stores inlined (77.96%), an
-   element-typed BattleSlotRecord cast so gcc generates the * 0x1C scaling,
-   field indexing `[arg1 + 3].tag`/`[idx].tag`, and a plain u8* pRow for both
-   stores. Also screened the preset: gcc 2.7.2 gives the same 83.91, cdk
-   79.49, -O3 83.91 - so this is a source/cse question, not a compiler one.
-
+// best: 91.52% (396 bytes vs retail 392). Re-measured after fixing the tag
+// compares so the body compiles: the old 83.91% cannot have come from a building
+// body, because `g_BattleSlotRecords[a] != g_BattleSlotRecords[b]` on a struct
+// array is not valid C - cc1 exited and diff_func diffed a stale object.
+// The tags are read with the SCALED struct index (retail emits the x28 chain for
+// both sides and hoists the invariant (arg1 + 3) * 0x1C into s4), so the source
+// is `g_BattleSlotRecords[arg1 + 3].tag` / `g_BattleSlotRecords[idx].tag`, not a
+// 0x1C byte offset.
+// What is left: 4 bytes over; retail re-forms `lui/addiu D_800D3420` inside the
+// if-block for the tail store instead of reusing the preheader base, and keeps
+// arg1 * 0x40 in a2 and copies it to s5 at the loop preheader.
+/*
 void func_8007C1A4(u8 **arg0, u8 arg1) {
     u8 buf[3];
     s32 row = arg1 * 0x40;
@@ -118,30 +109,18 @@ void func_8007C1A4(u8 **arg0, u8 arg1) {
     } while (0);
 }
 */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007C33C);
-/* best: 89.69% (364 bytes vs retail 356). The whole structure matches: the
-   prologue builds (arg1 + 3) * 0x1C into s5, the "record" offset 0x54, the
-   three-condition body, `buf[count++] = idx`, and the tail store with a local
-   index + row pointer. Two remaining differences: (1) gcc strength-reduces
-   g_BattleSlotFlags[i * 8] into an induction pointer (&g_BattleSlotFlags + 0x18 stored in a
-   saved register) where retail keeps `sll a0,s0,3` and the at-form load, which
-   also costs the extra saved register; (2) with that block shared by three
-   predecessors retail keeps a nop in the `beqz` delay slot and increments i in
-   the fall-through block, gcc steals the addiu into the slot.
-
 void func_8007C33C(u8 **arg0, u8 arg1) {
     u8 buf[8];
     s32 i = 3;
     s32 count = 0;
-    s32 slot = (arg1 + 3) * 0x1C;
-    s32 record = 0x54;
     u16 *pField = (u16 *)(D_800D3420 + arg1 * 0x40);
 
     pField[(*arg0)[1]] = 0;
-    for (; i < 0xB; i++, record += 0x1C) {
+    for (; i < 0xB; i++) {
         u8 idx = i;
 
-        if (func_8007A628(idx, (*arg0)[2]) != 0 && g_BattleSlotRecords[slot] != g_BattleSlotRecords[record]
+        if (func_8007A628(idx, (*arg0)[2]) != 0
+            && g_BattleSlotRecords[arg1 + 3].tag != g_BattleSlotRecords[i].tag
             && g_BattleSlotFlags[i].inUse == 0) {
             buf[count++] = idx;
         }
@@ -154,7 +133,6 @@ void func_8007C33C(u8 **arg0, u8 arg1) {
         pRow[index] = result;
     }
 }
-*/
 void BattlePickCharSlotByLowestSlotWord(BattleSlotArgs **ppArgs, u8 row) {
     u16 *pRow;
     u16 result;
@@ -225,16 +203,15 @@ void BattlePickActorSlotByLowestEntryWord(BattleSlotArgs **ppArgs, u8 row) {
     pRow[(*ppArgs)->slot] = result;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007C840);
-/* best: 82.94% (408 bytes vs retail 396). Whole structure is right (pre-test
-   rotation, the (arg1+3)*0x1C preheader value, s5 = arg1*0x40 reused by the
-   tail store, the sh/andi/sb tail). Two blockers: (1) gcc hoists the invariant
-   ADDRESS g_BattleSlotRecords + (arg1+3)*0x1C into s4 and keeps &g_BattleSlotRecords in an extra
-   saved register s6 (frame 0x40 vs 0x38), where retail keeps the OFFSET in s4
-   and re-forms `lui at/%hi + addu at,at,s4 + lbu %lo(at)` per use; (2) the tail
-   store's base/index land in the opposite registers (v1/a0 vs a0/v1).
-   Tried: the offset inline in the loop (this, 82.94%) and as a pre-loop s32
-   `record` local (78.44%: the multiply stops being strength-reduced).
-
+// best: 91.44% (392 bytes, retail's exact size). Re-measured after fixing the
+// tag compares so the body compiles - the old 82.94% came from a body comparing
+// two BattleSlotRecord structs with ==, which is not valid C, so cc1 exited and
+// diff_func diffed a stale object. As in func_8007C1A4 the tags are read with
+// the SCALED struct index: `g_BattleSlotRecords[arg1 + 3].tag`.
+// What is left: retail keeps the invariant offset in s4 and re-forms
+// `lui at,%hi + addu at,at,s4 + lbu %lo(at)` per read, and its tail store puts
+// the base and the index in the opposite registers from ours.
+/*
 void func_8007C840(u8 **arg0, u8 arg1) {
     u8 buf[3];
     u16 *pRow = (u16 *)(D_800D3420 + arg1 * 0x40);
@@ -263,20 +240,16 @@ void func_8007C840(u8 **arg0, u8 arg1) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007C9D4);
-/* best: 98.55% (328 bytes vs retail 336). IMPORTANT: the previous note here
-   claimed 91.53% for a body that NEVER COMPILED - it read `g_BattleSlotFlags[idx * 8]
-   != 0` on a BattleSlotFlag[] (a struct array), so cc1 exited 33 and the diff
-   silently used a stale object. With `g_BattleSlotFlags[idx].inUse != 0` the same
-   body is 98.55% at 328 bytes: every instruction matches except the row base,
-   which retail forms in a caller-saved temp for the zeroing store and copies into
-   the loop register afterwards (`addu a1,a1,v1` ... `move s4,a1`) while gcc homes
-   it straight in s4 (`addu s4,a1,v1`). Everything else, including the at-form
-   `lui at,%hi(g_BattleSlotFlags)` load, is already retail's.
-   Next lever to try: anything that makes the base a separate pseudo for the
-   preheader (the same `addu`+`move` pair as the param-live-copy trick), then a
-   permuter run. Older note (unverified, from a body that did not build):
-   gcc forms the row base straight into s4 and hoists &g_BattleSlotFlags.
-
+// best: 98.55% (328 bytes vs retail 332 = 0x14c). The only missing instruction
+// is retail's `move s4,a1` at loop entry: retail forms the row base in
+// caller-saved a1, uses it for the zeroing store, then copies it into s4 after
+// the initial three-byte loop test; gcc 2.6 homes it in s4 from the start and
+// saves the copy. Re-measured after fixing the body to compile - the 91.53% the
+// old note here claimed came from a body reading `g_BattleSlotFlags[idx * 8] != 0`
+// against a struct array, so cc1 exited and the diff used a stale object.
+// Tried since: the row base spelled inline at both stores with pRow assigned
+// after the zeroing store - 85.42%, base materialised twice. Not yet permuted.
+/*
 void func_8007C9D4(u8 **arg0, u8 arg1) {
     u8 buf[3];
     u16 *pRow = (u16 *)(D_800D3420 + arg1 * 0x40);
@@ -344,34 +317,13 @@ void BattleStoreActorSlotTagCount(BattleSlotArgs **ppArgs, u8 row) {
     }
     D_800D3410[row].unk20[(*ppArgs)->slot] = count;
 }
-// best: 99.21% (212 bytes = retail's exact size; everything matches except the
-// frame (0x30 vs retail 0x28, two dead spill slots) and which of v0/v1 holds the
-// table base and which the offset sum: retail `addu v1,v1,v0` then `addu
-// v0,v0,v1`, mine the reverse pair). Permuter mischief 30 (was 40); two more
-// 4-minute runs from this body both came back PERMUTER_NONE base=30 best=30, so
-// what is left is not a tie the permuter can reach in minutes.
-// Permuter edit ported: `s32 opOffset = a * 8;` as its own local, used by the
-// store index (99.02 to 99.21). Temp-first vs row-first in the index compiles
-// identically. What the earlier round established:
-// at 99.02%:  (212 bytes = retail's exact size; every instruction matches
-//    except the frame and one commutative addu):
-//    - `u8 *pRow = (u8 *)(D_800D3420 + 0x10) + arg1 * 0x40;` is what reproduces
-//      retail's `lui %hi(D_800D3420)` / `addiu %lo` / `addiu s0,s0,0x10` in the
-//      jal delay slot plus `addu s2,s2,s0` after it. Spelling the row as
-//      `D_800D3430 + ...` gives two separate symbol loads (78.26%) and
-//      `(u8 *)pField + 0x10` makes gcc CSE the row base into one register (89.77%).
-//    - `u8 a = g_BattleSlotRecords[value * 0x1C]; s32 slot = arg1 + 3;` in THAT order is
-//      what puts `addiu s1,s1,3` between the two index chains, like retail.
-//    - `g_BattleSlotParamTable[row * 0x40 + op * 8 + 0x140]` (row first) is what gets the two
-//      slls in retail's order (99.02% vs 98.26%).
-//    Remaining: (1) frame 0x30 vs retail 0x28 - two dead spill slots; the stack
-//    offset shift proves they exist but no sw/lw to sp is emitted. Dropping one
-//    live local (inlining the call result) removes the 8 bytes but costs 2
-//    instructions (80.42%, 204 bytes). (2) mine puts the table base in v1 and the
-//    sum in v0, retail the reverse (`addu v0,v0,v1` vs `addu v1,v1,v0`).
-//    Also tried: pRow declared first (85.23%, picks D_800D3430 then subtracts
-//    0x10), slot before the loads (89.75%), inline pField, inline b, (void)pRow,
-//    and the store address inlined instead of a pRow local (76.43%).
+// best: 99.43% (212 bytes = retail's exact size; identical instruction stream
+// except one commutative addu: retail keeps the a*8 term in the destination
+// (`addu v1,v1,v0`) and the param-table base in v0, ours the reverse pair).
+// Re-measured after fixing the body to compile - the old 99.21% came from a body
+// reading `g_BattleSlotRecords[value * 0x1C]` (a struct assigned to a u8, and a
+// double-scaled index), so cc1 never built it. The tag reads are
+// `g_BattleSlotRecords[i].tag`.
 /*
 void func_8007CDD0(u8 **arg0, u8 arg1) {
     u16 *pField = (u16 *)(D_800D3420 + arg1 * 0x40);
@@ -504,22 +456,16 @@ void BattlePickActorSlotWithFlag80(BattleSlotArgs **ppArgs, u8 row) {
         pRow[index] = result;
     }
 }
-// best: 98.46%. Everything matches except the row-base copy in the preheader:
-// retail computes the base in caller-saved a1 (addu a1,a1,v1), uses it for the
-// zeroing store (addu v0,v0,a1), then copies it into s2 at loop entry
-// (move s2,a1) - one instruction more than gcc 2.6 emits, which homes the base
-// in s2 from the start (addu s2,a1,v1). Saved-register assignment does match
-// retail now (s1=arg0, s2=base, s0=buf).
-// How it got here: the do-while(0) wrapper alone changes nothing; the duplicated
-// if (arg0) branch, whose two arms are identical (a permuter artifact kept only
-// because it is what flips arg0 to s1 and base to s2), is needed - remove either
-// and the function drops to 98.05% (s1=base, s2=arg0). Hoisting the flags word
-// into a local is neutral on its own but keeps retail's single lhu.
-// permute.sh ran twice from this body (576 and 976 iterations): no gain.
-// Also tried: the zeroing store spelled inline instead of through pRow (97.24%,
-// base materialised twice: addu s2,a1,v1 plus addu v0,a1,v0 / addu v0,v0,v1);
-// both stores inline (88.06%); u8 buf declared first vs u16 *pRow first
-// (identical); buf[idx] = 1 vs buf[slot] = 1 (loses the move/andi split, 92.79%).
+// best: 98.33% (308 bytes vs retail 312). The only missing instruction is
+// `move s2,a1` at loop entry - the same single-instruction gap, on the same
+// preheader, as func_8007C9D4: retail forms the row base in caller-saved a1,
+// uses it for the zeroing store, then copies it into s2 after the initial
+// three-byte loop test. Re-measured after fixing the body to compile: the old
+// 98.46% body read `g_BattleSlotEntries[idx].flags`, and that symbol was never
+// declared in this unit. The field is the u16 at +0 of the 0x170-byte entry, so
+// D_800CCD34[idx].flags is the same address and the identical code (98.33%).
+// The duplicated `if (arg0)`, whose two arms are identical, is what puts arg0 in
+// s1 and the base in s2 the way retail has them; removing it drops the score.
 /*
 void func_8007D478(u8 **arg0, u8 arg1) {
     u8 buf[3];
