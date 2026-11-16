@@ -2944,12 +2944,12 @@ u_short ShopMenuGetCharacterEquippedItemFlags(u_char itemID, u_char itemType) {
                         case ITEM_TYPE_WEAPON:
                             for (j = 0; j < 5; j++) {
                                 if (itemID < 50) {
-                                    if (g_GameState.characters[i].unk6A[j] == itemID) {
+                                    if (g_GameState.characters[i].weaponId[j] == itemID) {
                                         isItemEquipped = TRUE;
                                         break;
                                     }
                                 } else {
-                                    if (g_GameState.characters[i].unk6F[j] == itemID) {
+                                    if (g_GameState.characters[i].extraWeaponIds[j] == itemID) {
                                         isItemEquipped = TRUE;
                                         break;
                                     }
@@ -2959,7 +2959,7 @@ u_short ShopMenuGetCharacterEquippedItemFlags(u_char itemID, u_char itemType) {
 
                         case ITEM_TYPE_ACCESSORY:
                             for (j = 0; j < 3; j++) {
-                                if (g_GameState.characters[i].unk74[j] == itemID) {
+                                if (g_GameState.characters[i].accessorySlots[j] == itemID) {
                                     isItemEquipped = TRUE;
                                     break;
                                 }
@@ -3158,12 +3158,12 @@ void ShopMenuComputeStatChange(s32* pDelta, s8* pIsImprovement, u8 itemId, u8 it
             // Billy carries four guns, so both his current and his preview value are sums
             characterIndex = 4;
             if (characterId != 4) {
-                pCurWeapon = &g_Menu->pDressingRoom->pWeaponsData[g_GameState.characters[characterId].unk6A[0]];
+                pCurWeapon = &g_Menu->pDressingRoom->pWeaponsData[g_GameState.characters[characterId].weaponId[0]];
                 newValue[0] = pCurWeapon->attack + g_GameState.characters[characterId].attack;
                 pCurWeapon = &g_Menu->pDressingRoom->pWeaponsData[itemId];
                 oldValue[0] = pCurWeapon->attack + g_GameState.characters[characterId].attack;
             } else {
-                pSlots = &g_GameState.characters[characterIndex].unk6F[0];
+                pSlots = &g_GameState.characters[characterIndex].extraWeaponIds[0];
                 for (i = 0; i < 4; i++) {
                     pCurWeapon = &g_Menu->pDressingRoom->pWeaponsData[pSlots[i]];
                     newValue[0] += pCurWeapon->attack;
@@ -3171,7 +3171,7 @@ void ShopMenuComputeStatChange(s32* pDelta, s8* pIsImprovement, u8 itemId, u8 it
 
                 pItemWeapon = &g_Menu->pDressingRoom->pWeaponsData[itemId];
                 for (i = 0; i < 4; i++) {
-                    pCurWeapon = &g_Menu->pDressingRoom->pWeaponsData[g_GameState.characters[characterId].unk6F[i]];
+                    pCurWeapon = &g_Menu->pDressingRoom->pWeaponsData[g_GameState.characters[characterId].extraWeaponIds[i]];
                     if (pCurWeapon->unk6 == pItemWeapon->unk6 && pCurWeapon->unk6 != 5) {
                         oldValue[0] += pItemWeapon->attack;
                     } else {
@@ -3186,14 +3186,14 @@ void ShopMenuComputeStatChange(s32* pDelta, s8* pIsImprovement, u8 itemId, u8 it
             newValue[1] = oldValue[1] = g_GameState.characters[characterId].defense;
 
             for (i = 0; i < 3; i++) {
-                pCurAccessory = &g_Menu->pDressingRoom->pAccessoriesData[g_GameState.characters[characterId].unk74[i]];
+                pCurAccessory = &g_Menu->pDressingRoom->pAccessoriesData[g_GameState.characters[characterId].accessorySlots[i]];
                 newValue[1] += pCurAccessory->defense;
             }
 
             // The candidate only replaces an accessory of the same group
             pItemAccessory = &g_Menu->pDressingRoom->pAccessoriesData[itemId];
             for (i = 0; i < 3; i++) {
-                pCurAccessory = &g_Menu->pDressingRoom->pAccessoriesData[g_GameState.characters[characterId].unk74[i]];
+                pCurAccessory = &g_Menu->pDressingRoom->pAccessoriesData[g_GameState.characters[characterId].accessorySlots[i]];
                 if (pCurAccessory->unkE != 0 && pCurAccessory->unkE == pItemAccessory->unkE) {
                     changeDetected = FALSE;
                     oldValue[1] += pItemAccessory->defense;
@@ -3206,7 +3206,7 @@ void ShopMenuComputeStatChange(s32* pDelta, s8* pIsImprovement, u8 itemId, u8 it
             if (changeDetected) {
                 // No group match: the candidate replaces the accessory with the lowest defense
                 for (i = 0; i < 3; i++) {
-                    pCurAccessory = &g_Menu->pDressingRoom->pAccessoriesData[g_GameState.characters[characterId].unk74[i]];
+                    pCurAccessory = &g_Menu->pDressingRoom->pAccessoriesData[g_GameState.characters[characterId].accessorySlots[i]];
                     if (leastDefense >= pCurAccessory->defense) {
                         slotDefense = pCurAccessory->defense;
                         leastDefense = slotDefense;
@@ -3217,7 +3217,7 @@ void ShopMenuComputeStatChange(s32* pDelta, s8* pIsImprovement, u8 itemId, u8 it
                 oldValue[1] = g_GameState.characters[characterId].defense + pItemAccessory->defense;
                 for (i = 0; i < 3; i++) {
                     if (i != smallest) {
-                        pCurAccessory = &g_Menu->pDressingRoom->pAccessoriesData[g_GameState.characters[characterId].unk74[i]];
+                        pCurAccessory = &g_Menu->pDressingRoom->pAccessoriesData[g_GameState.characters[characterId].accessorySlots[i]];
                         oldValue[1] += pCurAccessory->defense;
                     }
                 }
@@ -4095,11 +4095,11 @@ void ShopMenuHandleSoldItems(u_int newGoldAmount, u_char* pItemIds, u_char* pIte
                 switch (pItemTypes[i]) {
                     case ITEM_TYPE_WEAPON:
                         if (itemID < 50) {
-                            g_GameState.characters[characterIndex].unk6A[0] = 0;
+                            g_GameState.characters[characterIndex].weaponId[0] = 0;
                         } else {
                             for (j = 0; j < 4; j++) {
-                                if (itemID == g_GameState.characters[characterIndex].unk6F[j]) {
-                                    g_GameState.characters[characterIndex].unk6F[j] = 0;
+                                if (itemID == g_GameState.characters[characterIndex].extraWeaponIds[j]) {
+                                    g_GameState.characters[characterIndex].extraWeaponIds[j] = 0;
                                     break;
                                 }
                             }
@@ -4108,8 +4108,8 @@ void ShopMenuHandleSoldItems(u_int newGoldAmount, u_char* pItemIds, u_char* pIte
 
                     case ITEM_TYPE_ACCESSORY:
                         for (j = 0; j < 3; j++) {
-                            if (pItemIds[i] == g_GameState.characters[characterIndex].unk74[j]) {
-                                g_GameState.characters[characterIndex].unk74[j] = 0;
+                            if (pItemIds[i] == g_GameState.characters[characterIndex].accessorySlots[j]) {
+                                g_GameState.characters[characterIndex].accessorySlots[j] = 0;
                                 break;
                             }
                         }
@@ -4399,8 +4399,8 @@ int ShopMenuSellEquipmentMenu(void) {
         // Only the accessories the character has equipped can be sold here
         j = 0;
         for (k = 0; k < 3; k++) {
-            if (g_GameState.characters[i].unk74[k]) {
-                itemIDs[j] = g_GameState.characters[i].unk74[k];
+            if (g_GameState.characters[i].accessorySlots[k]) {
+                itemIDs[j] = g_GameState.characters[i].accessorySlots[k];
                 itemFlags[j] = 1;
                 j++;
             }

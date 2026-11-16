@@ -629,7 +629,7 @@ void MenuApplyEquippedItemBonuses(MenuDressingRoom* pDressingRoom, u8 charIndex)
         /* Retail adds the index into the base in place (addu a2,a2,v0), which
            only a separate copy of the base reproduces. */
         pAccessory = pDressingRoom->pAccessoriesData;
-        pAccessory += pChar->unk74[i];
+        pAccessory += pChar->accessorySlots[i];
         pChar->unk2D[0] += pAccessory->defense;
         switch (pAccessory->unk9[0]) {
         case 1:
@@ -688,20 +688,20 @@ void MenuApplyEquippedItemBonuses(MenuDressingRoom* pDressingRoom, u8 charIndex)
     }
 
     pWeapon = pDressingRoom->pWeaponsData;
-    pWeapon += pChar->unk6A[0];
+    pWeapon += pChar->weaponId[0];
     pChar->unk0[4] = pWeapon->attack;
     *(u16*)pChar->unk0 = *(u16*)&pWeapon->unk7[1];
     pChar->unk0[2] = pWeapon->unk7[3];
     pChar->unk0[3] = pWeapon->unk7[4];
     if (pChar->unk56 == 4) {
         pWeapon = pDressingRoom->pWeaponsData;
-        pWeapon += pChar->unk6F[0];
+        pWeapon += pChar->extraWeaponIds[0];
         pChar->unk0[4] = pWeapon->attack;
         *(u16*)pChar->unk0 = *(u16*)&pWeapon->unk7[1];
         pChar->unk0[2] = pWeapon->unk7[3];
         pChar->unk0[3] = pWeapon->unk7[4];
         pWeapon = pDressingRoom->pWeaponsData;
-        pWeapon += pChar->unk6F[3];
+        pWeapon += pChar->extraWeaponIds[3];
         pChar->unk0[0x1C] = pWeapon->attack;
         *(u16*)&pChar->unk0[0x18] = *(u16*)&pWeapon->unk7[1];
         pChar->unk0[0x1A] = pWeapon->unk7[3];
@@ -762,10 +762,10 @@ void MenuFillDressingRoomGearStats(MenuDressingRoom* pDressingRoom, u8 gearIndex
     if (gearIndex == 7) {
         g_GameState.gears[7].hp = g_GameState.characters[7].hp * 50;
         g_GameState.gears[7].maxHp = g_GameState.characters[7].maxHp * 50;
-        g_GameState.gears[7].engineOutput = g_GameState.characters[7].attack + g_GameState.characters[7].unk0[0x28];
-        g_GameState.gears[7].baseDefense = (g_GameState.characters[7].defense + g_GameState.characters[7].unk0[0x29]) * 12;
+        g_GameState.gears[7].engineOutput = g_GameState.characters[7].attack + g_GameState.characters[7].attackFromEquipment;
+        g_GameState.gears[7].baseDefense = (g_GameState.characters[7].defense + g_GameState.characters[7].defenseFromEquipment) * 12;
         g_GameState.gears[7].baseEtherDefense = (g_GameState.characters[7].etherDefense + g_GameState.characters[7].etherDefenseFromEquipment) * 6;
-        g_GameState.gears[7].agility = g_GameState.characters[7].agility + g_GameState.characters[7].unk0[0x2A];
+        g_GameState.gears[7].agility = g_GameState.characters[7].agility + g_GameState.characters[7].agilityFromEquipment;
     }
     pGear = &g_GameState.gears[gearIndex];
     pilotId = D_801E9808[gearIndex];
@@ -780,12 +780,12 @@ void MenuFillDressingRoomGearStats(MenuDressingRoom* pDressingRoom, u8 gearIndex
     pDressingRoom->maxFuel = pGear->maxFuel;
     value = pGear->engineOutput * (pGear->attackPower + pGear->unk55[1]);
     if (gearIndex == 5 || gearIndex == 13) {
-        pDressingRoom->unkB0 = (pGear->weaponData[0].unk2 + pGear->weaponData[2].unk2) * 6 / 10 + value;
+        pDressingRoom->unkB0 = (pGear->weaponData[0].attack + pGear->weaponData[2].attack) * 6 / 10 + value;
     } else {
-        pDressingRoom->unkB0 = pGear->weaponData[0].unk2 + value;
+        pDressingRoom->unkB0 = pGear->weaponData[0].attack + value;
     }
     pDressingRoom->totalResponsiveness = pGear->unk9F + pGear->responsiveness;
-    pDressingRoom->unkB3 = pGear->agility - pGear->unk4A;
+    pDressingRoom->unkB3 = pGear->agility - pGear->weightPenalty;
     pDressingRoom->unkB4 = pGear->etherAmplification + pGear->unk54;
     pDressingRoom->unkB5 = pGear->unk9D;
     pDressingRoom->unkB6 = pGear->unk9C;

@@ -59,7 +59,7 @@ void BattleExecuteActionRow(void) {
     }
     if (g_BattleActingSlot->unk90[0x10] == 5 || g_BattleActingSlot->unk90[0x10] == 0xD) {
         if (g_BattleCurWorkBlock->unk5FC2 == 1) {
-            g_BattleCurrentRow->unk22 = D_800D2D6C->weaponData[1].unk2;
+            g_BattleCurrentRow->unk22 = D_800D2D6C->weaponData[1].attack;
         }
     }
     mask = 1;
@@ -420,15 +420,15 @@ void BattleApplyGearWeaponRecord(u8 arg0) {
     if (g_GameState.gears[id].weaponData[2].unk5 == v) {
         sel = 3;
     }
-    g_GameState.gears[id].weaponData[sel].unk2 = p->unkE;
+    g_GameState.gears[id].weaponData[sel].attack = p->unkE;
     g_GameState.gears[id].weaponData[sel].unk4 = p->unk11;
     g_GameState.gears[id].weaponData[sel].unk3 = p->unk10;
     g_GameState.gears[id].weaponData[sel].unk4 = p->unk11;
-    g_GameState.gears[id].unk4[sel] = arg0;
+    g_GameState.gears[id].extraWeaponIds[sel] = arg0;
     g_GameState.gearPartsIds[0x6C + arg0] = p->unkC;
     for (i = 0; i < 3; i++) {
         if ((g_BattleCurWorkBlock->slots + i)->unk56 == 4) {
-            g_BattleCurWorkBlock->slots[i].state.weaponData[sel].unk2 = p->unkE;
+            g_BattleCurWorkBlock->slots[i].state.weaponData[sel].attack = p->unkE;
             g_BattleCurWorkBlock->slots[i].state.weaponData[sel].unk4 = p->unk11;
             g_BattleCurWorkBlock->slots[i].state.weaponData[sel].unk3 = p->unk10;
             g_BattleCurWorkBlock->slots[i].state.weaponData[sel].unk4 = p->unk11;
