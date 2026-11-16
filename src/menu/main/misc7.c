@@ -21,6 +21,15 @@ typedef struct {
     /* 0x22 */ u8 unk22;
     /* 0x23 */ u8 unk23;
 } MenuWindowTween; // Size: 0x24
+
+// The two 32-bit numbers the gear window draws wide (7 digits). They sit in the
+// span GameCharacter keeps opaque (unk2D), so this unit views the character
+// through them instead of splitting that shared array.
+typedef struct {
+    /* 0x00 */ u8 unk0[0x44];
+    /* 0x44 */ s32 unk44;
+    /* 0x48 */ s32 unk48;
+} MenuCharacterWideNumbers; // Size: 0x4C
 void func_801D3C4C(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4);
 void MenuInitializeWindowBorderCorners(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4);
 void func_801D3FF8(u_char a0, u_short a1, u_short a2, u_short a3);
@@ -457,7 +466,7 @@ void MenuSetCharacterWideNumberDigits(u_char index, u_char characterId, s32 x, s
     MenuCharacterWindow* pWindow = g_Menu->unk39C[index];
     s32 i;
 
-    MenuParseNumberToDigits(*(s32*)((u8*)&g_GameState.characters[characterId] + 0x44));
+    MenuParseNumberToDigits(((MenuCharacterWideNumbers*)(void*)&g_GameState.characters[characterId])->unk44);
     pWindow->wideNumberPrimCount = 0;
     for (i = 0; i < 7; i++) {
         if (g_Menu->digits[2 + i] != 0xFF) {
@@ -468,7 +477,7 @@ void MenuSetCharacterWideNumberDigits(u_char index, u_char characterId, s32 x, s
                 y + D_801E9B4C, 0x1000);
         }
     }
-    MenuParseNumberToDigits(*(s32*)((u8*)&g_GameState.characters[characterId] + 0x48));
+    MenuParseNumberToDigits(((MenuCharacterWideNumbers*)(void*)&g_GameState.characters[characterId])->unk48);
     pWindow->wideNumber2PrimCount = 0;
     for (i = 0; i < 7; i++) {
         if (g_Menu->digits[2 + i] != 0xFF) {
