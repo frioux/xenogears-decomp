@@ -406,7 +406,10 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D51EC);
    where retail's head starts at the `g_Menu` load), and cdk does not change it,
    so this is an RTL rotation, not a delay-slot choice. Tried: `continue`
    form, n=0 before the call / after the sb, i=0 only in the for-init, `i < 3`
-   with the increment in the latch: all 94.45-98.31%.
+   with the increment in the latch: all 94.45-98.31%. Round 121: permuter, 1020
+   iterations from the 98.31% body, best = base; spelling loop 2's guard
+   `digits[6 + i++]` and re-reading the digit in the body drops it to 94.38%
+   (492 bytes), so the increment cannot come from the index expression.
    void func_801D51EC(u_char a0, u_char a1, s32 a2, s32 a3) {
        u8* pWindow = (u8*)g_Menu->unk39C[a0];
        s32 i;
@@ -566,39 +569,36 @@ void MenuSetCharacterWindowContents(u_char index, u_char characterId) {
     g_Menu->pManager->unk0[index] = 1;
     pWindow->renderContext = *(u8*)&g_Menu->renderContext;
 }
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D5BA4);
-/* Best: 96.88%. Only the delay-slot fill differs: retail puts the loop
-   increment `addiu s0,s0,1` in the `digits[i] != 0xFF` branch delay slot
-   and keeps `li v0,0x1000` before the arg stores; gcc picks the other
-   order. Tried: += then func()+count (addu order), `continue` form,
-   digits[i++] with (i-1)*8, running x local with x += 8 (96.65%).
-   void func_801D5BA4(s32 a0, s32 a1) {
-       s32 i;
+void func_801D5BA4(s32 a0, s32 a1) {
+    s32 i;
+    s32 x;
 
-       MenuParseNumberToDigits(g_GameState.gold);
-       *(s32*)((u8*)g_Menu->unk340 + 0x320) = 0;
-       for (i = 0; i < 9; i++) {
-           if (g_Menu->digits[i] != 0xFF) {
-               *(s32*)((u8*)g_Menu->unk340 + 0x320) =
-                   func_8002675C(
-                       g_Menu->resources,
-                       g_Menu->digits[i],
-                       (POLY_FT4*)(*(s32*)((u8*)g_Menu->unk340 + 0x320) * 0x50 +
-                                   (u32)g_Menu->unk340),
-                       g_Menu->renderContext,
-                       a0 + i * 8,
-                       a1,
-                       0x1000) +
-                   *(s32*)((u8*)g_Menu->unk340 + 0x320);
-           }
-       }
-       func_8002675C(g_Menu->resources, 0x10,
-                     (POLY_FT4*)((u8*)g_Menu->unk340 + 0x2D0),
-                     g_Menu->renderContext, a0 + 0x50, a1, 0x1000);
-       g_Menu->pManager->unk5[0] = 1;
-       *(u8*)((u8*)g_Menu->unk340 + 0x324) = *(u8*)&g_Menu->renderContext;
-   }
-*/
+    MenuParseNumberToDigits(g_GameState.gold);
+    *(s32*)((u8*)g_Menu->unk340 + 0x320) = 0;
+    for (i = 0, x = a0; i < 9; ) {
+        u8 digit = g_Menu->digits[i++];
+
+        if (digit != 0xFF) {
+            *(s32*)((u8*)g_Menu->unk340 + 0x320) =
+                func_8002675C(
+                    g_Menu->resources,
+                    digit,
+                    (POLY_FT4*)(*(s32*)((u8*)g_Menu->unk340 + 0x320) * 0x50 +
+                                (u32)g_Menu->unk340),
+                    g_Menu->renderContext,
+                    x,
+                    a1,
+                    0x1000) +
+                *(s32*)((u8*)g_Menu->unk340 + 0x320);
+        }
+        x += 8;
+    }
+    func_8002675C(g_Menu->resources, 0x10,
+                  (POLY_FT4*)((u8*)g_Menu->unk340 + 0x2D0),
+                  g_Menu->renderContext, a0 + 0x50, a1, 0x1000);
+    g_Menu->pManager->unk5[0] = 1;
+    *(u8*)((u8*)g_Menu->unk340 + 0x324) = *(u8*)&g_Menu->renderContext;
+}
 void MenuSetPlayTimeDigitPrims(s32 x, s32 y) {
     s32 i;
 
