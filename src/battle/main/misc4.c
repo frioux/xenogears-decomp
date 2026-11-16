@@ -4,13 +4,13 @@
 // One 8-byte battle command argument record, indexed by actor. Entry 0 sits at
 // D_800D2E5C, the same address this unit clears as a 0x100-byte scratch buffer.
 typedef struct {
-    /* 0x0 */ u8 unk0;
+    /* 0x0 */ u8 opcode;
     /* 0x1 */ u8 unk1;
     /* 0x2 */ u8 unk2;
     /* 0x3 */ u8 unk3;
     /* 0x4 */ u8 unk4;
     /* 0x5 */ u8 unk5;
-    /* 0x6 */ u16 unk6;
+    /* 0x6 */ u16 slotMask;
 } BattleCommandArg; // Size: 0x8
 
 // The command queue header D_800C3EAC points at. Only the tail this unit fills
@@ -92,6 +92,8 @@ extern u8 D_800D3404[];
 extern u8 D_800D3408[];
 extern BattleTableEntry D_800CCCE8[];
 extern u16 BattleMaskHasSlotBit(u16 arg0, u8 arg1);
+extern void func_80078998(u8 arg0, u8 arg1, u8 arg2);
+extern void func_80078E24(u8 arg0, u8 arg1, u8 arg2);
 
 void BattleQueueCommandF8(u8 arg0) {
     if (D_800C3E8C != 0) {
@@ -129,13 +131,13 @@ void func_80078998(u8 arg0, u8 arg1) {
 
     BattleQueueCommandF8IfFlagged(arg1, arg0);
     D_800C3EAC->unk2DC = D_800D2E5C[arg1].unk1 + 1;
-    BattleBeginActorAction(arg0, D_800D2E5C[arg1].unk6, D_800D2E5C[arg1].unk2);
+    BattleBeginActorAction(arg0, D_800D2E5C[arg1].slotMask, D_800D2E5C[arg1].unk2);
     BattleApplySlotCurveAndStep(D_800C3EAC->count);
     D_800C402F[D_800C3EAC->count * 72] = D_800D2E5C[arg1].unk2;
     pValue = &D_800D2C94;
     D_800C3FFE[D_800C3EAC->count][0] = *pValue;
     func_800785D4(arg0, arg1);
-    if (D_800D2E5C[arg1].unk6 != *pValue) {
+    if (D_800D2E5C[arg1].slotMask != *pValue) {
         pQueue = D_800C3EAC;
         i = 0;
         n = 0;
@@ -156,7 +158,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc4", func_80078998);
 void BattleQueueCommandFD(u8 arg0, u8 arg1, u8 arg2) {
     D_800C402F[D_800C3EAC->count * 72] = 0xFD;
     D_800C4022[D_800C3EAC->count][0] = 0;
-    D_800C3FFE[D_800C3EAC->count][0] = D_800D2E5C[arg1].unk6;
+    D_800C3FFE[D_800C3EAC->count][0] = D_800D2E5C[arg1].slotMask;
     func_800877E0(arg0, arg2);
     if (D_800D2E5C[arg1].unk4 != 1) {
         if (D_800D32A1[arg0 * 8] == 0) {
@@ -165,23 +167,23 @@ void BattleQueueCommandFD(u8 arg0, u8 arg1, u8 arg2) {
             func_800881B8(arg0, arg2);
         }
     }
-    BattleBeginAnimTask(BattleSlotBitMask(arg0) | D_800D2E5C[arg1].unk6);
+    BattleBeginAnimTask(BattleSlotBitMask(arg0) | D_800D2E5C[arg1].slotMask);
     func_800785D4(arg0, arg1);
 }
-void BattleQueueCommandFC(u8 arg0, u8 arg1) {
+void BattleQueueCommandFC(u8 arg0, u8 arg1, u8 arg2) {
     D_800C402F[D_800C3EAC->count * 72] = 0xFC;
     func_800785D4(arg0, arg1);
 }
-void BattleQueueCommandFromRecordByte(u8 arg0, u8 arg1) {
+void BattleQueueCommandFromRecordByte(u8 arg0, u8 arg1, u8 arg2) {
     D_800C402F[D_800C3EAC->count * 72] = D_800D2E5C[arg1].unk4;
     func_800785D4(arg0, arg1);
 }
 
-void BattleSetPendingActorMask(u8 arg0, u8 arg1) {
-    D_800D39E0 = D_800D2E5C[arg1].unk6;
+void BattleSetPendingActorMask(u8 arg0, u8 arg1, u8 arg2) {
+    D_800D39E0 = D_800D2E5C[arg1].slotMask;
 }
 
-void BattleQueueCommandF9(u8 arg0, u8 arg1) {
+void BattleQueueCommandF9(u8 arg0, u8 arg1, u8 arg2) {
     D_800C402F[D_800C3EAC->count * 72] = 0xF9;
     func_800785D4(arg0, arg1);
     D_800D2DE4[arg0] = 0xFF;
@@ -218,7 +220,7 @@ void func_80078E24(u8 arg0, u8 arg1) {
 
     for (i = 0; i < 11; i++) {
         idx = i;
-        if (BattleMaskHasSlotBit(D_800D2E5C[arg1].unk6, idx) != 0) {
+        if (BattleMaskHasSlotBit(D_800D2E5C[arg1].slotMask, idx) != 0) {
             slot = idx;
             break;
         }
@@ -240,33 +242,33 @@ void func_80078E24(u8 arg0, u8 arg1) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc4", func_80078E24);
-void BattleApplyCommandByteVar(u8 arg0, u8 arg1) {
+void BattleApplyCommandByteVar(u8 arg0, u8 arg1, u8 arg2) {
     BattleSlotByteVarGetSet(arg0, D_800D2E5C[arg1].unk1, D_800D2E5C[arg1].unk4, 0);
 }
-void BattleAddCommandByteVar(u8 arg0, u8 arg1) {
+void BattleAddCommandByteVar(u8 arg0, u8 arg1, u8 arg2) {
     s32 value;
 
     value = BattleSlotByteVarGetSet(arg0, D_800D2E5C[arg1].unk1, 0, 1);
     BattleSlotByteVarGetSet(arg0, D_800D2E5C[arg1].unk1, D_800D2E5C[arg1].unk4 + value, 0);
 }
-void BattleApplyCommandWordVar(u8 arg0, u8 arg1) {
+void BattleApplyCommandWordVar(u8 arg0, u8 arg1, u8 arg2) {
     BattleSlotWordVarGetSet(arg0, D_800D2E5C[arg1].unk1, D_800D2E5C[arg1].unk4 | (D_800D2E5C[arg1].unk5 << 8), 0);
 }
-void BattleAddCommandWordVar(u8 arg0, u8 arg1) {
+void BattleAddCommandWordVar(u8 arg0, u8 arg1, u8 arg2) {
     s32 value;
 
     value = BattleSlotWordVarGetSet(arg0, D_800D2E5C[arg1].unk1, 0, 1);
     BattleSlotWordVarGetSet(arg0, D_800D2E5C[arg1].unk1,
                   (u16)(D_800D2E5C[arg1].unk4 + (value + (D_800D2E5C[arg1].unk5 << 8))), 0);
 }
-void BattleQueueCommandF4(u8 arg0, u8 arg1) {
+void BattleQueueCommandF4(u8 arg0, u8 arg1, u8 arg2) {
     BattleQueueCommandF8IfFlagged(arg1, arg0);
     D_800C402F[D_800C3EAC->count * 72] = 0xF4;
     func_800785D4(arg0, arg1);
 }
-void BattleQueueCommandF6(u8 arg0, u8 arg1) {
+void BattleQueueCommandF6(u8 arg0, u8 arg1, u8 arg2) {
     D_800C402F[D_800C3EAC->count * 72] = 0xF6;
-    D_800C3FFE[D_800C3EAC->count][0] = D_800D2E5C[arg1].unk6;
+    D_800C3FFE[D_800C3EAC->count][0] = D_800D2E5C[arg1].slotMask;
     func_800785D4(arg0, arg1);
 }
 void BattlePrintLanguageErrorLoop(u8 arg0, u8 arg1) {
@@ -302,7 +304,85 @@ void BattlePrintLanguageErrorLoop(u8 arg0, u8 arg1) {
         }
     }
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc4", func_800793F0);
+void func_800793F0(u8 arg0) {
+    u8 again;
+    u8 idx;
+    u8 slot;
+    s32 i;
+    s32 j;
+
+    i = 0;
+    again = 1;
+    do {
+        j = 0;
+        slot = 0;
+        for (; j < 0xB; j++) {
+            idx = j;
+            if (BattleMaskHasSlotBit(D_800D2E5C[i].slotMask, idx) != 0) {
+                slot = idx;
+                break;
+            }
+        }
+        BattleClearSlotCurveEntry();
+        switch (D_800D2E5C[i].opcode) {
+        case 0x0:
+            again = 0;
+            break;
+        case 0x1:
+            func_80078998(arg0, i, slot);
+            break;
+        case 0x2:
+            BattleQueueCommandFD(arg0, i, slot);
+            break;
+        case 0x3:
+            BattleQueueCommandFC(arg0, i, slot);
+            break;
+        case 0x4:
+            BattleQueueCommandFromRecordByte(arg0, i, slot);
+            break;
+        case 0x5:
+            BattleSetPendingActorMask(arg0, i, slot);
+            break;
+        case 0x6:
+            BattleQueueCommandF9(arg0, i, slot);
+            break;
+        case 0x7:
+            func_80078E24(arg0, i, slot);
+            break;
+        case 0x8:
+            BattleApplyCommandByteVar(arg0, i, slot);
+            break;
+        case 0x9:
+            BattleAddCommandByteVar(arg0, i, slot);
+            break;
+        case 0xA:
+            BattleApplyCommandWordVar(arg0, i, slot);
+            break;
+        case 0xB:
+            BattleAddCommandWordVar(arg0, i, slot);
+            break;
+        case 0xC:
+            func_80078658(i, arg0);
+            break;
+        case 0xD:
+            BattleQueueCommandF4(arg0, i, slot);
+            break;
+        case 0xE:
+            BattleQueueCommandF7(D_800D2E5C[i].unk4, arg0);
+            break;
+        case 0xF:
+            BattleQueueCommandF6(arg0, i, slot);
+            break;
+        case 0x10:
+            BattleQueueCommandF8(arg0);
+            break;
+        default:
+            BattlePrintLanguageErrorLoop(arg0, i);
+            break;
+        }
+        i++;
+    } while (i < 0x20 || again);
+}
 void BattleQueueCommand1BAndFE(u8 arg0) {
     if (D_800D32A1[arg0 * 8] != 0) {
         D_800C400B[D_800C3EAC->count * 72] = arg0;
@@ -415,7 +495,7 @@ s32 BattleScriptScanForOpcode62(u8 arg0) {
             goto done;
         }
     }
-    D_800D2E5C[0].unk0 = 0;
+    D_800D2E5C[0].opcode = 0;
     if (D_800C3D18[slot * 4] != 0) {
         pCursor = *(u8 **)&D_800D3400[slot].unk0[8];
         p = D_800D2E5C;
@@ -439,7 +519,7 @@ s32 BattleScriptScanForOpcode62(u8 arg0) {
             }
         }
     }
-    if (D_800D2E5C[0].unk0 != 0) {
+    if (D_800D2E5C[0].opcode != 0) {
         func_800793F0(slot + 3);
     }
 done:
