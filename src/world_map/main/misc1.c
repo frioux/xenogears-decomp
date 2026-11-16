@@ -47,6 +47,13 @@ typedef struct {
 
 extern WorldMapPoint* D_8009D3F4;
 
+// The world map frame render context D_8009BE3C points at: the two ordering
+// table heads it fills each frame.
+typedef struct {
+    /* 0x00 */ u8 unk0[0x70];
+    /* 0x70 */ u_long* pOt[2];
+} WorldMapRenderContext; // partial view
+
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_800712D0);
 
 int WorldMapModeInitNop(void) {
@@ -58,7 +65,7 @@ extern s32 D_8009BD40;
 extern s16 D_8009D558;
 extern s32 D_8009BBB4;
 extern s32 D_8009BE28;
-extern u8* D_8009BE3C;
+extern WorldMapRenderContext* D_8009BE3C;
 extern s32 D_8009C5BC;
 
 extern void WorldMapBuildRotationMatrix(s32* p);
@@ -74,14 +81,13 @@ extern void func_800981C8(s32* p);
 extern void WorldMapWaitForLoadSlotFree(void);
 extern void func_80098CC0(void);
 extern void func_800983A0(s32* p);
-extern void func_8009932C(s32 arg0, s32 arg1, s32* p);
+extern void func_8009932C(u_long* pOt0, u_long* pOt1, s32* pState);
 extern void func_80073B04(void);
 extern void func_800737EC(void);
 extern void func_80086798(void);
 extern void func_800740B8(void);
 
 s32 WorldMapUpdateFrameWithSlotProjection(void) {
-    u8* p;
     s32* pState;
     s32 pad[2];
 
@@ -104,8 +110,7 @@ s32 WorldMapUpdateFrameWithSlotProjection(void) {
     }
     pState = &D_8009BE28;
     func_800983A0(pState);
-    p = D_8009BE3C;
-    func_8009932C(*(s32*)(p + 0x70), *(s32*)(p + 0x74), pState);
+    func_8009932C(D_8009BE3C->pOt[0], D_8009BE3C->pOt[1], pState);
     D_8009C5BC = D_8009C5BC + 0x40;
     func_80073B04();
     func_800737EC();
@@ -806,7 +811,23 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_800736DC);
 extern u16 D_8009BD3A;
 extern MATRIX D_8009C808;
 extern SVECTOR D_8009A280[16];
-extern u8 D_8009D194;
+
+// The four quad primitives the world map projects each frame, 0x48 bytes each
+// at D_8009D194; D_8009D7F0 picks the half of the buffer this frame draws from.
+typedef struct {
+    /* 0x00 */ u32 tag; // OT link word, rewritten by addPrim
+    /* 0x04 */ u32 unk4;
+    /* 0x08 */ u32 xy0; // RotTransPers4 output, one packed (x,y) per vertex
+    /* 0x0C */ u32 unkC;
+    /* 0x10 */ u32 xy1;
+    /* 0x14 */ u32 unk14;
+    /* 0x18 */ u32 xy2;
+    /* 0x1C */ u32 unk1C;
+    /* 0x20 */ u32 xy3;
+    /* 0x24 */ u8 unk24[0x24];
+} WorldMapQuadPrim; // Size: 0x48
+
+extern u8 D_8009D194[];
 extern s32 D_8009D7F0;
 extern s32 D_80050100;
 
@@ -820,8 +841,8 @@ extern void SetTransMatrix(MATRIX* m);
 void func_800737EC(void) {
     SVECTOR* pRot;
     SVECTOR* pVec;
-    u8* pBase;
-    u8* pPrim;
+    WorldMapQuadPrim* pBase;
+    WorldMapQuadPrim* pPrim;
     s32 i;
     s32 nOtz;
 
@@ -838,20 +859,20 @@ void func_800737EC(void) {
     SetTransMatrix((MATRIX*)0x1F800008);
     pVec = D_8009A280;
     for (i = 0; i < 4; i++, pVec += 4) {
-        pBase = (u8*)&D_8009D194 + D_8009D7F0 * 0x24;
-        pPrim = (u8*)(i * 0x48 + (s32)pBase);
+        pBase = (WorldMapQuadPrim*)(D_8009D194 + D_8009D7F0 * 0x24);
+        // the sum has to stay integer arithmetic: `&pBase[i]` flips the addu operands
+        pPrim = (WorldMapQuadPrim*)(i * sizeof(WorldMapQuadPrim) + (s32)pBase);
         nOtz = RotTransPers4(pVec, pVec + 1, pVec + 2, pVec + 3,
-                             (long*)(pPrim + 0x8), (long*)(pPrim + 0x10),
-                             (long*)(pPrim + 0x18), (long*)(pPrim + 0x20),
+                             (long*)&pPrim->xy0, (long*)&pPrim->xy1,
+                             (long*)&pPrim->xy2, (long*)&pPrim->xy3,
                              (long*)((u8*)pRot + 0x48), (long*)((u8*)pRot + 0x4C));
         if (*(s32*)((u8*)pRot + 0x4C) >= 0) {
-            addPrim((P_TAG*)((u32*)*(u32*)((u8*)D_8009BE3C + 0x70) + (nOtz >> D_80050100)),
-                    (P_TAG*)pPrim);
+            addPrim((P_TAG*)((u32*)D_8009BE3C->pOt[0] + (nOtz >> D_80050100)), (P_TAG*)pPrim);
         }
     }
 }
 
-extern u32 D_8009C744[];
+extern POLY_FT4 D_8009C744[];
 extern DR_MODE D_8009D3D8[];
 
 void WorldMapSetupMapPrims(void) {
@@ -863,7 +884,7 @@ void WorldMapSetupMapPrims(void) {
 
     tpage = GetTPage(0, 1, 0x380, 0x100);
     clut = GetClut(0x110, 0x1FE);
-    pPrim = (POLY_FT4*)D_8009C744;
+    pPrim = D_8009C744;
     for (i = 0; i < 4; i++, pPrim++) {
         setPolyFT4(pPrim);
         pPrim->r0 = 0x30;
