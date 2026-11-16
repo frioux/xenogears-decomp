@@ -134,7 +134,7 @@ void func_80096494(u16 *pA, u16 *pB, u8 *pFlag) {
     if (bitDef == 0) {
         pair = D_800C3E00->unk8C | D_800C3E00->unk8E;
     } else {
-        pair = *(u16 *)(D_800D2D6C + 0x84) | *(u16 *)(D_800D2D6C + 0x86);
+        pair = *(u16 *)((u8 *)D_800D2D6C + 0x84) | *(u16 *)((u8 *)D_800D2D6C + 0x86);
     }
     pair >>= 12;
     if (D_800C3DFC->unk0A & 0x100) {
@@ -393,7 +393,7 @@ u8 func_80098AF8(u8 sel) {
     s32 d;
 
     D_800C3E00 = pActor;
-    D_800D2D6C = pActor + 0xA4;
+    D_800D2D6C = (BattleSlotState *)(pActor + 0xA4);
 
     if (sel < 3) {
         if ((pActor[0x15A] & 0x80) == 0) {
