@@ -3790,12 +3790,20 @@ void ShopMenuHandleSoldItems(u_int newGoldAmount, u_char* pItemIds, u_char* pIte
 }
 
 INCLUDE_ASM("asm/shop_menu/nonmatchings/main/misc", ShopMenuSellMenu);
-// 95.12%: ported from the 100% twin gear_shop_menu/main/render.c GearShopMenuSellMenu, so the
-// block order, the five alloca'd arrays and the switch bodies are right. The remaining delta is
-// one callee-saved register: retail keeps pItemSellQtys in $s7 and redrawTransactionSummary in
-// $s6, this version spills pItemSellQtys to 0x70($fp) and gives $s7 to redrawTransactionSummary,
-// which also pushes i/itemCount into callee-saved registers ($s6/$t3 vs retail's $a3/$t4) and
-// moves the u32 locals up 8 bytes (currentGold at 0x88, not 0x80). Frame size (0xD0) is right.
+// 95.12%, 2028 bytes (retail 2032): ported from the 100% twin gear_shop_menu/main/render.c
+// GearShopMenuSellMenu, so the block order, the five alloca'd arrays and the switch bodies are
+// right -- only the 4-byte jtbl operand and the register allocation differ. The delta is ONE
+// allocation decision, found by reading retail's own asm: retail keeps pItemSellQtys in $s7,
+// redrawTransactionSummary in $s6, and spills itemCount to 0x90($fp) *inside* the coalesce loop
+// ("addiu t4,t4,1 / sw t4,0x90($fp) / ... / lw t4,0x90($fp)", retail 0xC05C-0xC068); this
+// version instead keeps itemCount in $s6 and spills pItemSellQtys to 0x70($fp), which shifts
+// every later stack slot by 8 (currentGold 0x88 not 0x80) and costs the 4 bytes. Frame is 0xD0.
+// Tried and did NOT change the allocation: itemCount++ vs itemCount += 1, indexed coalesce writes
+// (pItemIds[itemCount] = ...), and a 4-minute permuter run (base 3015, best 2265) whose only two
+// finds were a declaration-order swap (no objdiff change) and a semantics-changing move of
+// 'scrollOffset -= 1' out of the MENU_INPUT_DOWN guard (not portable). Note retail does NOT
+// reproduce the twin's 'itemType = 0; itemCount = itemType;' shape here: itemCount is written
+// every iteration, so the ShopMenu version increments itemCount itself.
 /*
 void ShopMenuSellMenu(s32 listLength, u8* pInventoryItemIds, u8* pInventoryQtys, int itemType, u8 flag1, u8* pGivenItemTypes, u8 flag2) {
     u8 continueProcessing = TRUE;
