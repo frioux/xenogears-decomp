@@ -597,3 +597,7 @@ g_BattleEffectFrameCluts = 0x800947FE;
 g_BattleMessageWindow = 0x8009868C;
 g_BattleEffectCells = 0x800929F4;
 g_BattleEffectPool = 0x80098788;
+g_BattleEffect = 0x80092644;
+g_BattleEffectEntryCount = 0x80092648;
+g_BattleEffectPosX = 0x80092A24;
+g_BattleSlotStoreCount = 0x80092650;

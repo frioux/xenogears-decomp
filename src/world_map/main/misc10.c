@@ -7,7 +7,7 @@ extern u16 D_8009B69C[];
 extern u16 D_8009B6B0[];
 extern void* D_8009BE1C;
 extern void* D_8009BE20;
-extern s16 D_8009AFDC[];
+extern s16 g_WorldMapSpriteSetIds[];
 
 extern void* D_8009CD34;
 
@@ -137,7 +137,7 @@ typedef struct {
     /* 0x50 */ u32 colorStep;
 } WorldMapSprite; // Size: 0x54
 
-// D_8009BCC0 holds 8 sprites per group (0x2A0 = 8 * 0x54).
+// g_WorldMapSpriteGroups holds 8 sprites per group (0x2A0 = 8 * 0x54).
 typedef struct {
     /* 0x000 */ WorldMapSprite sprites[8];
 } WorldMapSpriteGroup; // Size: 0x2A0
@@ -181,7 +181,7 @@ typedef struct {
     /* 0x50 */ u8 unk50[0x4];
 } WorldMapSceneLayer; // Size: 0x54
 
-extern WorldMapSpriteGroup* D_8009BCC0;
+extern WorldMapSpriteGroup* g_WorldMapSpriteGroups;
 extern WorldMapTrailEntry* D_8009BDF4;
 extern WorldMapPlayer* g_WorldMapSlots;
 extern WorldMapSceneLayer* g_WorldMapGroups;
@@ -191,7 +191,7 @@ extern u16 D_8009D52C;
 extern u16 g_WorldMapTrailCursor;
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc10", func_80088B40);
-/* 73.64%: structure confirmed (loop over D_8009AFDC calling WorldMapSetSpriteSetParent(0x45,id),
+/* 73.64%: structure confirmed (loop over g_WorldMapSpriteSetIds calling WorldMapSetSpriteSetParent(0x45,id),
    sh 0 at pDst+0x20, the 0x99 branch, then the >>12 tail shared with
    func_80088D00). Two walls, both seen elsewhere in this unit: (a) the tail
    folds +0x16A4 into the store displacements (0x16AC/0x16B0/0x16B4) where
@@ -205,7 +205,7 @@ s32 func_80088B40(s32 arg0) {
     s16* pIds;
     s32 ret;
 
-    pIds = D_8009AFDC;
+    pIds = g_WorldMapSpriteSetIds;
     while (*pIds != -1) {
         WorldMapSetSpriteSetParent(0x45, *pIds);
         pIds++;
@@ -220,7 +220,7 @@ s32 func_80088B40(s32 arg0) {
         ret = 1;
     } else {
         *(s16*)(pBase + 0x16A4) = 1;
-        pIds = D_8009AFDC;
+        pIds = g_WorldMapSpriteSetIds;
         while (*pIds != -1) {
             *(s16*)(pBase + *pIds * 0x54) = 1;
             pIds++;
@@ -245,7 +245,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc10", func_80088C90);
    g_WorldMapGroups[0x45].unk0 -- the typed form compiles to retail's
    `sh v0,0x16A4(a1)`. Only difference left: retail loads *pIds twice after the
    guard (a second `lh v0,0(a0)` that feeds the first body iteration, 112 vs 108
-   bytes) and has g_WorldMapGroups loaded before D_8009AFDC; mine reuses the
+   bytes) and has g_WorldMapGroups loaded before g_WorldMapSpriteSetIds; mine reuses the
    tested value. `while ((id = *pIds++) != -1)` (post-increment in the condition)
    drops the extra load and the `addiu a0,a0,-2` tail: 77.18%, 100 bytes.
 s32 func_80088C90(void) {
@@ -253,7 +253,7 @@ s32 func_80088C90(void) {
     s32 id;
 
     g_WorldMapGroups[0x45].unk0 = 1;
-    pIds = D_8009AFDC;
+    pIds = g_WorldMapSpriteSetIds;
     while ((id = *pIds) != -1) {
         g_WorldMapGroups[id].unk0 = 1;
         pIds++;
@@ -267,7 +267,7 @@ s32 func_80088C90(void) {
    frame; an `s16 id`, or a bare `*pIds * 0x54` with or without an `(s32)` cast,
    makes gcc load HImode (lhu) and sign-extend with sll/sra, which also costs a
    register (t0 where retail uses a3) and a 16-byte frame. Still missing:
-   retail loads g_WorldMapGroups before D_8009AFDC and re-loads `lh v0,0(a0)` after
+   retail loads g_WorldMapGroups before g_WorldMapSpriteSetIds and re-loads `lh v0,0(a0)` after
    the branch, while mine reuses the tested value (108 vs 112 bytes).
    Reading the array twice in the body (`id = *pIds; pIds++; use id`) is the
    shape that produces retail's extra `lh v0,0(a0)` but it also makes gcc pick
@@ -279,7 +279,7 @@ s32 func_80088C90(void) {
 
     pBase = g_WorldMapGroups;
     *(s16*)(pBase + 0x16A4) = 1;
-    pIds = D_8009AFDC;
+    pIds = g_WorldMapSpriteSetIds;
     while ((id = *pIds) != -1) {
         *(s16*)(pBase + id * 0x54) = 1;
         pIds++;
@@ -414,7 +414,7 @@ void WorldMapInitSpriteGroupTables(void) {
     WorldMapTrailEntry* pTrail;
     s32 i;
 
-    pSprite = D_8009BCC0->sprites;
+    pSprite = g_WorldMapSpriteGroups->sprites;
     for (i = 0x1FF; i != -1; i--) {
         pSprite->unk04 = 0;
         pSprite->count = 0;
@@ -490,7 +490,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc10", func_800893E0);
    in a3 and this shape holds it in v1, which also pulls the lhu of pEntry+0x10
    one slot up (a3 is still free in ours). The address must be computed twice,
    once per loop (writing it once gives 82.16%: gcc then keeps it in a register
-   across the first loop and drops retail's second lui/lw D_8009BCC0 + *0x2A0).
+   across the first loop and drops retail's second lui/lw g_WorldMapSpriteGroups + *0x2A0).
 void func_800893E0(s32 arg0, u8* arg1, u8* arg2) {
     u8* pBase;
     u8* pEntry;
@@ -499,7 +499,7 @@ void func_800893E0(s32 arg0, u8* arg1, u8* arg2) {
     s32 w;
     u16 h;
 
-    pBase = D_8009BCC0 + arg0 * 0x2A0;
+    pBase = g_WorldMapSpriteGroups + arg0 * 0x2A0;
     count = 0;
     for (i = 7; i != -1; i--) {
         if (*(u8*)(pBase + 0x4F) & 0x80) {
@@ -507,7 +507,7 @@ void func_800893E0(s32 arg0, u8* arg1, u8* arg2) {
             break;
         }
     }
-    pEntry = D_8009BCC0 + arg0 * 0x2A0;
+    pEntry = g_WorldMapSpriteGroups + arg0 * 0x2A0;
     for (i = 7; i != -1; i--) {
         if (count == 0) {
             *(u8*)(pEntry + 0x4F) |= 0x80;
@@ -536,7 +536,7 @@ void WorldMapDeactivateSpriteGroup(s32 arg0) {
     WorldMapSprite* pSprite;
     s32 i;
 
-    pSprite = D_8009BCC0[arg0].sprites;
+    pSprite = g_WorldMapSpriteGroups[arg0].sprites;
     for (i = 7; i != -1; i--) {
         pSprite->flags &= 0x7F;
         pSprite++;
@@ -571,7 +571,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc10", func_80089580);
    single sw in the detach path, which is why the union needs all three members.
    (2) sched2 ties: retail loads all six pos/vel words first, does the six adds,
    and sinks all six stores to the end of the green path; gcc here emits
-   load/add/store per statement, and gcc also hoists the D_8009BCC0 load out of
+   load/add/store per statement, and gcc also hoists the g_WorldMapSpriteGroups load out of
    the loop whereas retail reloads it inside the out-of-line detach block.
    Tried: six separate += statements in retail's own add order, nested if/else vs
    continue, u16/s16 for the two halves (the unsigned form is what makes gcc emit
@@ -624,7 +624,7 @@ void func_80089580(void) {
                 }
                 pEntry->color = (pEntry->color & 0xFF000000) | (b << 16) | (g << 8) | r;
             } else {
-                ((WorldMapSprite*)D_8009BCC0)[pEntry->spriteIndex].count--;
+                ((WorldMapSprite*)g_WorldMapSpriteGroups)[pEntry->spriteIndex].count--;
                 pEntry->spriteIndex = 0;
                 pEntry->trailFlags.flags = 0;
             }

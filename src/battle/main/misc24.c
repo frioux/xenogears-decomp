@@ -21,7 +21,7 @@ extern void BattleAppendActorCommandBytes(BattleActor *pActor, BattleActor *pSou
 extern void func_800AAD54(void *arg0, void *arg1, s32 arg2, s32 arg3, s32 arg4);
 extern void BattleSnapActorToGround(BattleActor *pActor);
 extern s32 func_8009F1C4(BattleSprite *pSprites, s16 unk1C);
-extern s32 func_8009EF3C(BattleSprite *pSprites, s16 unk1C);
+extern s32 BattleUpdateSpriteTransforms(BattleSprite *pSprites, s16 unk1C);
 extern s32 func_800A0838(u8 *arg0, BattleSprite *pSprites, u16 unk3C, s16 unk1C);
 extern void func_800AE2A4(BattleActor *pActor, u8 *arg1, u8 *arg2);
 extern BattleBlock *BattleAllocBlock(void *pPool);
@@ -270,7 +270,7 @@ s32 BattleStepActorAnimation(BattleActor *pActor, u8 *arg1, s32 arg2, u8 *arg3, 
             if (pActor->unk37 != 0) {
                 func_8009F1C4(pActor->pSprites, pActor->unk1C);
             } else {
-                func_8009EF3C(pActor->pSprites, pActor->unk1C);
+                BattleUpdateSpriteTransforms(pActor->pSprites, pActor->unk1C);
             }
             for (i = 0; i < arg2; i++) {
                 r |= func_800A0838(arg1, pActor->pSprites, pActor->unk3C, pActor->unk1C);

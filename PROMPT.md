@@ -286,12 +286,20 @@ missing struct. The rules a worker follows are in `brief.js` ("REALISTIC C").
   function counts as matched and is still owed work: it goes into a later rewrite
   round, and again after that, until it is clean or the tracker records the specific
   construct that only the raw spelling matches.
-- **The backlog** (2,663 lines in 103 files when this was written, parked bodies
-  included):
+- **The backlog: use `tools/scripts/raw_lines.py`, not a grep** (**284 live lines in 68 files** on 2026-11-16).
 
-      grep -rcE 'D_[0-9A-F]{8} \+ \w+ \* |\*\((const )?[us](8|16|32) ?\*+\)\(|\(\*\w+\)\[|\(\(?[us](8|16|32) ?\*\)\w+\)? \+ ' src | awk -F: '$2 {n+=$2; print} END {print "TOTAL:" n}' | sort -t: -k2 -rn | head -21
+      tools/scripts/raw_lines.py                      # total, then the worst files
+      tools/scripts/raw_lines.py battle/main/misc5    # per-function counts
 
-  The first line is the total, the rest are the worst files. Put the total in the tracker row (`raw N`). It must not rise across a round: a
+  The tool strips `/* ... */` first, so parked bodies do not count and are never
+  attributed to a function - which the plain grep below does, and that is how round
+  151 briefed four rewrite workers on `INCLUDE_ASM` stubs whose "raw lines" and
+  "matched functions" were parks (one of them, `world_map/misc10`, has **zero** live
+  raw lines). The old grep, for the historical numbers only:
+
+      grep -rcE 'D_[0-9A-F]{8} \+ \w+ \* |\*\((const )?[us](8|16|32) ?\*+\)\(|\(\*\w+\)\[|\(\(?[us](8|16|32) ?\*\)\w+\)? \+ ' src
+
+  Put the tool's total in the tracker row (`raw N`). It must not rise across a round: a
   matching round that adds raw lines owes a rewrite round on the same files.
 - **Rewrite rounds.** Same `brief.js`, same clones, one worker per file, run alongside
   matching rounds on files that are not in them. `funcs` lists matched functions that

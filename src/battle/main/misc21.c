@@ -183,7 +183,7 @@ BattleSprite* BattleCreateModelSkeleton(BattleModelPartList* pMesh, BattleSkelet
 
     return pSprites;
 }
-s32 func_8009EF3C(BattleSprite* pSprites, s32 scale) {
+s32 BattleUpdateSpriteTransforms(BattleSprite* pSprites, s32 scale) {
     MATRIX* pScaleMatrix;
     BattleSprite* pSprite;
     u32 count;

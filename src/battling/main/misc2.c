@@ -273,7 +273,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_800732AC);
 
 extern BattleEffect *func_8008D3F4(s32, s32);
 extern void BattleEffectAllocEntries(BattleEffect *, s32);
-extern BattleEffect *D_80092644;
+extern BattleEffect *g_BattleEffect;
 
 void BattleEffectInitContext(void) {
     BattleEffect *p = func_8008D3F4(3, 0);
@@ -288,11 +288,11 @@ void BattleEffectInitContext(void) {
     p->unk4A = 0x20;
     p->unk68 = 0;
     p->unk6A = 0x20;
-    D_80092644 = p;
+    g_BattleEffect = p;
 }
 
-extern s32 D_80092648;
-extern s32 D_80092A24;
+extern s32 g_BattleEffectEntryCount;
+extern s32 g_BattleEffectPosX;
 extern s32 D_80092A28;
 extern s32 D_80092A2C;
 extern u8 D_80091C0C[];
@@ -300,14 +300,14 @@ extern void func_8008D680(BattleEffect *, u8 *, s32);
 extern void BattleEffectUpdateEntries(BattleEffect *, u8 *, u8 *);
 
 void BattleEffectSetMatrix(u8 *p0, MATRIX *p1) {
-    s32 n = D_80092648;
-    BattleEffect *pEffect = D_80092644;
+    s32 n = g_BattleEffectEntryCount;
+    BattleEffect *pEffect = g_BattleEffect;
     u8 *p = (u8 *)pEffect;
 
     /* Typed stores let gcc hoist the next global load above the previous
        store; the original interleaves load and store, so the position and
        rotation words go through a byte view. */
-    *(s16 *)(p + 0x14) = D_80092A24;
+    *(s16 *)(p + 0x14) = g_BattleEffectPosX;
     *(s16 *)(p + 0x16) = D_80092A28;
     *(s16 *)(p + 0x18) = D_80092A2C;
     *(s16 *)(p + 0x34) = 0;
@@ -424,7 +424,7 @@ void BattleCommitSlotStates(Actor *p0) {
     }
 }
 
-extern s32 D_80092650;
+extern s32 g_BattleSlotStoreCount;
 
 void BattleStoreSlotPositions(BattleQuad *p0, BattleQuad *p1, s32 arg2, u8 *p3, BattleActorSlot *p4,
                               s32 arg5, Actor *p6) {
@@ -444,7 +444,7 @@ void BattleStoreSlotPositions(BattleQuad *p0, BattleQuad *p1, s32 arg2, u8 *p3, 
     p4->unk44.byte.unk47 = p6->unk644;
     p4->unk50 = p6->unk84;
     p4->unk44.byte.unk46 = p3[1];
-    D_80092650++;
+    g_BattleSlotStoreCount++;
 }
 
 /* 98.06%: inverting the condition (`if (t >= 0x1001)`) is what makes reorg put

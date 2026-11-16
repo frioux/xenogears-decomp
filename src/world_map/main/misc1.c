@@ -690,7 +690,7 @@ extern s32 D_8009CD48;
 extern s32 D_8009D308;
 extern s32 D_8009BD30;
 extern s32 g_WorldMapPrimBlocks;
-extern s32 D_8009BCC0;
+extern s32 g_WorldMapSpriteGroups;
 extern s32 D_8009D784;
 extern s32 D_8009D77C;
 extern s32 D_8009D7C8;
@@ -719,7 +719,7 @@ void WorldMapDecompressMapTables(void) {
     // second live copy of the block base, as retail's codegen has
     pMapBase = pBase;
     g_WorldMapPrimBlocks = (s32)(pMapBase + pHeader->unk14);
-    D_8009BCC0 = (s32)(pMapBase + pHeader->spriteGroupOffset);
+    g_WorldMapSpriteGroups = (s32)(pMapBase + pHeader->spriteGroupOffset);
     D_8009D784 = (s32)(pMapBase + pHeader->stringTableOffset);
     D_8009D77C = (s32)(pMapBase + pHeader->tileAnimOffset);
     D_8009D7C8 = (s32)(pMapBase + pHeader->frameAnimOffset);

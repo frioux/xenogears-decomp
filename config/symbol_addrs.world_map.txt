@@ -465,3 +465,5 @@ g_WorldMapClipPlaneXZ1 = 0x8009C844;
 g_WorldMapClipPlaneYZ0 = 0x8009C874;
 g_WorldMapClipPlaneYZ1 = 0x8009C7F0;
 g_WorldMapPathPointHeights = 0x8009B214;
+g_WorldMapSpriteSetIds = 0x8009AFDC;
+g_WorldMapSpriteGroups = 0x8009BCC0;

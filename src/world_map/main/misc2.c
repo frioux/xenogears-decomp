@@ -129,7 +129,7 @@ extern s32 g_WorldMapDecompressedMapData;
 extern s32 D_8009CD48;
 extern s32 D_8009BD30;
 extern s32 D_8009D308;
-extern s32 D_8009BCC0;
+extern s32 g_WorldMapSpriteGroups;
 extern s32 g_WorldMapPrimBlocks;
 extern WorldMapAnimSet* D_8009D77C;
 extern WorldMapAnimSet* D_8009D7C8;
@@ -806,7 +806,7 @@ void WorldMapDecompressMapData(void) {
     D_8009D308 = (s32)(pBase + pHeader[3]);
     D_8009BD30 = (s32)(pBase + pHeader[4]);
     g_WorldMapPrimBlocks = (s32)(pBase + pHeader[5]);
-    D_8009BCC0 = (s32)(pBase + pHeader[6]);
+    g_WorldMapSpriteGroups = (s32)(pBase + pHeader[6]);
     D_8009D77C = (WorldMapAnimSet*)(pBase + pHeader[8]);
     D_8009D7C8 = (WorldMapAnimSet*)(pBase + pHeader[9]);
 }
