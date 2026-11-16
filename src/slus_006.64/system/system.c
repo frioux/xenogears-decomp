@@ -430,6 +430,9 @@ void func_80033CF0(int value, int glyphOffset, int flag) {
     pEnd[0] = 0xFFFF;
     pEnd[-11] = glyphOffset;
 
+    /* pEnd keeps the scan start so the end is re-formed as pEnd + 10 inside
+       the loop; hoisting it here makes cse fold it to pEnd - 2 and reorg
+       steal it into the bne delay slot. */
     pEnd = pScan;
 
     if ((glyphOffset & 0xFFF0) == glyphOffset) {
