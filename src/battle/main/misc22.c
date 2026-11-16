@@ -212,7 +212,7 @@ void BattleRenderSpriteSlots(BattleMisc22Unk *pBuffer, MATRIX *pMatrix, s32 step
         pSpr->blue -= pSpr->blueDelta * step;
     }
 }
-s32 func_800A32D8(BattleMisc22Cmd *pCmd, void *pData, s16 arg2, u8 arg3, s16 count,
+s32 BattleSetupPositionTween(BattleMisc22Cmd *pCmd, void *pData, s16 arg2, u8 arg3, s16 count,
                   u16 divisor, u8 a, u8 b, u8 c, u8 d, u8 e, u8 f,
                   u16 w0, u16 w1, u16 w2, u16 w3, u16 w4, u16 w5, u16 b3) {
     if (pCmd != 0) {

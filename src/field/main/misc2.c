@@ -489,8 +489,8 @@ extern VECTOR g_CameraEye2;
 extern VECTOR g_CameraAt;
 extern VECTOR g_CameraAt2;
 extern s32 g_FieldCameraShakeOffset;
-extern s32 D_800AF8E4;
-extern s32 D_800AF8E8;
+extern s32 g_FieldCameraShakeOffsetY;
+extern s32 g_FieldCameraShakeOffsetZ;
 extern s32 g_FieldCameraSnapFrames;
 extern int rand(void);
 
@@ -511,7 +511,7 @@ extern int rand(void);
 // PARK (round 166): 98.25%, and the compiled size now EQUALS the original's
 // (1212 bytes = 303 instructions). Two things in the round-163 note were wrong:
 //  - the body was not short of statements, it was short because the third clamp guard
-//    reloads D_800AF8E8 where retail tests the product still sitting in $v1. Giving
+//    reloads g_FieldCameraShakeOffsetZ where retail tests the product still sitting in $v1. Giving
 //    ONLY that product a local (shakeZ) reproduces retail exactly, and the whole tail
 //    from the +0xA2 amplitude load down is now line-for-line identical;
 //  - the initial zeroing has to go through the GLOBALS (g_FieldCameraShakeOffset = 0;),
@@ -563,8 +563,8 @@ void func_80072D74(void) {
     FIELD_CAMERA_STEP(g_CameraAt.vy, g_CameraAt2.vy, g_CamInterpolation.atStepDistance, atStepSq);
 
     g_FieldCameraShakeOffset = 0;
-    D_800AF8E4 = 0;
-    D_800AF8E8 = 0;
+    g_FieldCameraShakeOffsetY = 0;
+    g_FieldCameraShakeOffsetZ = 0;
     if (((s16*)g_Scene.unk98)[0] != 0) {
         s32 shakeZ;
 
@@ -581,19 +581,19 @@ void func_80072D74(void) {
         }
         pShakeOffset = &g_FieldCameraShakeOffset;
         *pShakeOffset = rand() * ((s16*)g_Scene.unk98)[5];
-        D_800AF8E4 = rand() * ((s16*)g_Scene.unk98)[7];
+        g_FieldCameraShakeOffsetY = rand() * ((s16*)g_Scene.unk98)[7];
         shakeZ = rand() * ((s16*)g_Scene.unk98)[9];
-        D_800AF8E8 = shakeZ;
+        g_FieldCameraShakeOffsetZ = shakeZ;
         if (*pShakeOffset < 0) {
             *pShakeOffset = 0;
             ((s32*)g_Scene.unk98)[2] = 0;
         }
-        if (D_800AF8E4 < 0) {
-            D_800AF8E4 = 0;
+        if (g_FieldCameraShakeOffsetY < 0) {
+            g_FieldCameraShakeOffsetY = 0;
             ((s32*)g_Scene.unk98)[3] = 0;
         }
         if (shakeZ < 0) {
-            D_800AF8E8 = 0;
+            g_FieldCameraShakeOffsetZ = 0;
             ((s32*)g_Scene.unk98)[4] = 0;
         }
         if (((s16*)g_Scene.unk98)[1] > 0) {
@@ -738,8 +738,8 @@ extern s32 D_800AFC48;
 extern s32 D_800AFC4C;
 extern MATRIX D_800AF85C;
 extern s32 g_FieldCameraShakeOffset;
-extern s32 D_800AF8E4;
-extern s32 D_800AF8E8;
+extern s32 g_FieldCameraShakeOffsetY;
+extern s32 g_FieldCameraShakeOffsetZ;
 extern SVECTOR g_FieldRotationVector;
 extern VECTOR g_CameraEye;
 extern VECTOR g_CameraAt;
@@ -821,15 +821,15 @@ void func_800739C0(void) {
     eye.vx = *(s32*)(pCam - 0x18);
     eye.vx += g_FieldCameraShakeOffset;
     eye.vy = g_CameraEye.vy;
-    eye.vy += D_800AF8E4;
+    eye.vy += g_FieldCameraShakeOffsetY;
     eye.vz = g_CameraEye.vz;
-    eye.vz += D_800AF8E8;
+    eye.vz += g_FieldCameraShakeOffsetZ;
     at.vx = g_CameraAt.vx;
     at.vx += g_FieldCameraShakeOffset;
     at.vy = g_CameraAt.vy;
-    at.vy += D_800AF8E4;
+    at.vy += g_FieldCameraShakeOffsetY;
     at.vz = *(s32*)pCam;
-    at.vz += D_800AF8E8;
+    at.vz += g_FieldCameraShakeOffsetZ;
 
     if (g_FieldSkipCounter != 0) {
         FieldMatrixLookAt(pView, &eye, &at, pUp);
@@ -1190,7 +1190,7 @@ void FieldRenderFrame(void) {
 // the .s of the stub that follows it, and a C const takes that stub's place in the
 // layout when it is defined between the same two functions, so the stubs convert
 // independently - one at a time is fine, address order is not required.
-const VECTOR D_8006FB70 = { 0, 0, 0x1000, 0 };
+const VECTOR g_FieldFrameReferenceAxis = { 0, 0, 0x1000, 0 };
 
 // Builds the rotation of pMat as a frame orthonormal to pVec: the normal of the
 // cross product of the reference axis with pVec, pVec itself, then their cross
@@ -1200,7 +1200,7 @@ void func_800759E4(MATRIX* pMat, VECTOR* pVec) {
     VECTOR normal;
     VECTOR cross;
 
-    axis = D_8006FB70;
+    axis = g_FieldFrameReferenceAxis;
     OuterProduct12(&axis, pVec, &cross);
     VectorNormal(&cross, &normal);
     OuterProduct12(&normal, pVec, &cross);
