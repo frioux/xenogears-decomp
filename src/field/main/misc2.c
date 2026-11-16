@@ -483,19 +483,7 @@ int FieldCameraUpdateFromTarget(VECTOR* pPos, int param) {
     }
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80072D74);
-// 89.60% (1240 bytes, the original is 1236 - the extra is a slot in a delay-slot/register
-// difference, not a missing statement). Everything up to the shake block is exact except
-// the $a0 that holds &D_800B21D8 and the $s0 that holds &D_800AF8E0 in the original: both
-// are pointer locals here already. The camera-step macro reproduces retail's shape exactly
-// (`lw cur / lw tgt / sra sra beq / subu diff in the delay slot / mult slt bnez / div mflo /
-// addu cur+quot`), so the remaining diff is in the shake tail: retail keeps the reload of
-// D_800AF8E0 and the three `rand() * clamp` products in $v1 with slt-style compares where
-// this form uses a memory reload each time.
-// screens/D_800AF8E0/E4/E8 are a 3-long shake-offset vector (x at 0, y at 4, z at 8) that
-// the frame adds into g_Scene's +0xA0 block; g_Scene.unk98[0]/[1]/[2] are its three s16
-// counters and +0x8/+0x14 its offset/delta pairs.
-/*
+
 extern VECTOR g_CameraEye;
 extern VECTOR g_CameraEye2;
 extern VECTOR g_CameraAt;
@@ -507,16 +495,39 @@ extern s32 D_800B21D8;
 extern int rand(void);
 
 // A camera coordinate only takes a step when the step cannot overshoot it.
+// The difference is spelled out instead of held in a local: retail computes the
+// `subu` after the `beq` that compares the two high halves, i.e. in its delay slot.
 #define FIELD_CAMERA_STEP(cur, tgt, step, stepSq)                       \
     {                                                                   \
         s32 value = (cur);                                              \
-        s32 diff = (tgt)-value;                                         \
-        if ((value >> 16) != ((tgt) >> 16) &&                           \
-            ((diff >> 16) * (diff >> 16)) >= (stepSq)) {                \
-            (cur) = value + diff / (step);                              \
+        s32 target = (tgt);                                             \
+        if ((value >> 16) != (target >> 16) &&                          \
+            (((target - value) >> 16) * ((target - value) >> 16)) >=     \
+                (stepSq)) {                                             \
+            (cur) = value + (target - value) / (step);                   \
         }                                                               \
     }
 
+// PARK REPAIR (round 163): 96.11% (1220 bytes; the original is 1236, so this body is
+// FOUR INSTRUCTIONS SHORT). The old note 89.60% came from a version that computed the
+// step difference in a local, so its "the macro reproduces retail shape exactly" claim
+// was wrong: retail computes the `subu` AFTER the `beq` that compares the two high
+// halves, i.e. in its delay slot, and gcc only does that when the difference is
+// spelled out in the second operand of the && instead of held in a declared local.
+// That is why the macro above writes (target - value) three times.
+// What is left is the shake tail, and it is a real statement short, not a register tie:
+//  - three `if (D_800AF8Ex < 0)` guards come out as two bgez here, and
+//  - the ((s16*)g_Scene.unk98)[n] casts come out as lui/addiu plus offset-0 loads where
+//    retail folds the displacement into the load (`lh v0,152(v0)`), and retail stores
+//    `sw $zero, D_800AF8E0` as a bare macro store through $at where this materialises
+//    the address into a saved register.
+// The tail wants a typed struct for the g_Scene +0x98 block and for the D_800AF8E0/E4/E8
+// shake-offset vector (x at 0, y at 4, z at 8; three separate s32 symbols in the
+// object, added into the g_Scene +0xA0 block, with g_Scene.unk98[0]/[1]/[2] the three
+// s16 counters and +0x8/+0x14 their offset/delta pairs). Everything above the shake
+// block is exact.
+// screened: Default 96.11 (best) - not a preset question.
+/*
 void func_80072D74(void) {
     s32* pSnapFrames;
     s32* pShakeOffset;
@@ -588,6 +599,8 @@ void func_80072D74(void) {
     }
 }
 */
+INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80072D74);
+
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80073230);
 
 void FieldRotateEyeAboutAt(VECTOR* pEye, VECTOR* pAt) {
@@ -712,30 +725,9 @@ int FieldMathUpdateAngle(int curAngle, int targetAngle, int delta) {
     return result;
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_800739C0);
-// 76.67% (1136 vs 1144 bytes, frame 0x50 vs 0x48). The three $sp scratchpad
-// switches below assemble correctly (maspsx wants plain-decimal asm offsets:
-// `0($t0)`, not `0x0($t0)`), and these two things are settled:
-//  - FieldMatrixResetTranslation is inlined here as three stores, and its t[2]/
-//    t[1]/t[0] are three SEPARATE .bss symbols in the expected object, so they
-//    have to be spelled D_800AFC4C/D_800AFC48/D_800AFC44 = 0, not D_800AFC30.t[i].
-//  - the D_800AF8E0 offset vector is likewise three symbols (D_800AF8E0/E4/E8).
-// What is left is the same base-register wall as func_8007254C: the original
-// keeps ONE register ($s0 = &g_CameraAt+8) and reaches g_CameraEye.vx with
-// -0x18($s0), g_CameraUp with +8($s0) and g_Scene.viewMatrix with +0xF8($s0).
-// Spelling the base as `u_char* pCam = (u_char*)&g_CameraAt + 8` gets the lui/
-// addiu and the offset-0 loads right, but gcc folds every NONZERO offset back
-// into a fresh %hi/%lo base (a re-formed &g_CameraAt with the offset in the
-// load, plus a second callee-saved register for &g_CameraEye+8), which costs
-// the frame and two instructions. Also still different: the updateAngle/
-// targetAngle block is laid out on the other side (the mat-based branch first)
-// and gcc reads rotation.vy/unk11E with lhu + sll/sra where the original is lh.
-// Note it is the FIRST owner of the unit's .rodata, so D_8006FB04 has to be
-// defined in C in the same change that converts the function - never before.
-// screened: Default 76.67 (best), cdk 59.23, 2.6.0 76.16 - the $s0 camera base wall; also the first .rodata owner, so D_8006FB04 must move to C with it.
-/*
-// .rodata
-const char D_8006FB04[0xC] = "MATRIX    ";
+
+// .rodata (must move to C with the function):
+// const char D_8006FB04[0xC] = "MATRIX    ";
 
 extern MATRIX D_800AFC30;
 extern s32 D_800AFC44;
@@ -762,10 +754,30 @@ extern void func_80281B00(const char* pName);
 extern void func_800223B0(SpriteData* pSpriteData, s16 direction);
 extern void SpriteSetDirection(SpriteData* pSpriteData, s16 direction);
 extern long FieldGetVec2Magnitude(long x, long z);
+extern const char D_8006FB04[];
 
 // The stack is switched into the scratchpad around three calls ($sp saved at
 // 0x1F8003FC, restored afterwards). Nothing in C makes gcc write $sp to memory, so
 // those three spots are `asm` - the only asm authorised in this unit.
+// PARK REPAIR (round 163): compiles again (the externs above are outside the block) and
+// re-measures at exactly the 76.67% its old note claimed - 1136 bytes, frame 0x50 vs
+// 0x48. Unparking it needs no other edit.
+// Beyond the register wall below, two things block it:
+//  - it owns D_8006FB04, the FIRST string of the unit .rodata, so the whole
+//    FB04..FB80 region has to move to C with it (see the note above func_800752C8);
+//  - its body switches $sp into the scratchpad around three calls (STACK_SWITCH): the
+//    three `asm volatile` sequences below are the only way to emit that, and inline
+//    asm is not allowed in game code, so this stub cannot become C at all.
+// The code itself is parked on the same $s0 camera-base wall as func_8007254C: the
+// original keeps ONE register ($s0 = &g_CameraAt+8) and reaches g_CameraEye.vx with
+// -0x18($s0), g_CameraUp with +8($s0) and g_Scene.viewMatrix with +0xF8($s0).
+// Spelling the base as `u_char* pCam = (u_char*)&g_CameraAt + 8` gets the lui/addiu
+// and the offset-0 loads right, but gcc folds every NONZERO offset back into a fresh
+// %hi/%lo base, which costs the frame and two instructions. Also still different: the
+// updateAngle/targetAngle block is laid out on the other side (the mat-based branch
+// first) and gcc reads rotation.vy/unk11E with lhu + sll/sra where the original is lh.
+// screened: Default 76.67 (best), cdk 59.23, 2.6.0 76.16 - not a preset question.
+/*
 void func_800739C0(void) {
     VECTOR eye;
     VECTOR at;
@@ -875,8 +887,9 @@ void func_800739C0(void) {
     if (g_FieldSystemMode == SYSTEM_MODE_PC_HDD) {
         func_80281B00(D_8006FB04);
     }
-}
-*/
+}*/
+INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_800739C0);
+
 void FieldUpdateActorRenderModes(void) {
     int i;
     FieldActor* pActor;
@@ -1018,18 +1031,27 @@ void FieldPollControllers(void) {
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", FieldRenderModels);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_8007520C);
-// 91.00%: the original materialises &g_FieldActorModelSlotCount into $s0, loads 0($s0) and passes
-// $s0 - 0x48 as the second argument. Every C form tried (pointer local, s32 local,
-// negative array index) makes gcc rematerialise a second %hi/%lo pair instead.
-// screened: Default 91.00 (best), cdk 85.17, 2.6.0 91.00 - the &g_FieldActorModelSlotCount base wall; also a .rodata owner (D_8006FB1C).
-/*
 extern s32 g_FieldDisableGearRender;
 extern s32 g_FieldActorModelSlotCount;
 extern u8 g_FieldBackgroundR;
 extern u8 g_FieldBackgroundG;
 extern u8 g_FieldBackgroundB;
-const char D_8006FB1C[0xC] = "GEAR      ";
+extern const char D_8006FB1C[];
+
+// 100.00% exact (188 bytes) - the body below is the match, byte for byte. The
+// 91.00% in the old note came from a variant whose externs were invisible, so its
+// "&g_FieldActorModelSlotCount base wall" diagnosis was fiction: the `s32* pGear`
+// local *does* emit the original lui/addiu-then-lw for the base, and `pGear - 18`
+// (s32* arithmetic, -0x48 bytes) is the second argument.
+// What blocks the conversion is only the .rodata: D_8006FB1C ("GEAR      ") is the
+// 3rd of the unit nine strings, behind func_800739C0 (D_8006FB04) and
+// FieldRenderModels (D_8006FB10); C .rodata links before asm .rodata, so it can only
+// be converted as part of that in-order prefix. The const definition the object
+// needs is inside the block below.
+// screened: Default 100.00 - not a preset question.
+/*
+// .rodata
+// const char D_8006FB1C[0xC] = "GEAR      ";
 
 void func_8007520C(void) {
     s32* pGear;
@@ -1048,26 +1070,30 @@ void func_8007520C(void) {
     }
 }
 */
+INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_8007520C);
 
 extern u_char D_800ADB05;
 extern s32 g_FieldActiveActorCount;
+extern const char D_8006FB28[];
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_800752C8);
-// CARRIED FORWARD: 99.60%, code matches except $a1/$a2 (original: $a1 = FieldActor,
-// $a2 = ActorData; gcc gives ActorData $a1). Converting this function is blocked by
-// the unit's .rodata: D_8006FB28 ("CHAR      ") is the 4th of the nine strings the
-// six stubs below own, and C .rodata is linked before asm .rodata, so a stub can only
-// become C as part of a PREFIX of that data region, starting at D_8006FB04:
-//   D_8006FB04 func_800739C0 (285 insns)  D_8006FB10 FieldRenderModels (575 insns)
-//   D_8006FB1C func_8007520C (48 insns)   D_8006FB28 func_800752C8 (101 insns)
-//   D_8006FB34..FB64 func_8007554C (293)  D_8006FB70 func_800759E4 (77 insns)
-// So this function needs the three above it in C first, and func_800759E4 needs all
-// five. The constant below is the one the object needs.
-// screened: Default 99.60 (best), cdk 93.87, 2.6.0 99.60 - the $a1/$a2 swap above; .rodata owner (D_8006FB28).
+// PARK REPAIR (round 163): 99.55% (400 bytes, the original 400 - same size). The body
+// below compiles and every instruction matches except one register pair in the actor
+// loop: the original keeps pActor in $a1 and pActor->pActorData in $a2, gcc 2.7.2 puts
+// pActorData in $a1, and that is the whole difference (8 lines of the diff, 4 of them
+// just the swapped name). GIV_TIE - a permuter job, not a hand job.
+// The 99.60% in the old note was measured before `GfxSetBaseMatrix` was named in
+// config/symbol_addrs.field.txt, so its diff also carried a
+// GfxSetBaseMatrix-vs-func_80024FF4 name mismatch that is now gone.
+// Converting it is blocked by the unit .rodata: D_8006FB28 ("CHAR      ") is the 4th of
+// the nine strings the six stubs own, and C .rodata links before asm .rodata, so a stub
+// can only become C as part of a PREFIX of that region, starting at D_8006FB04:
+//   D_8006FB04 func_800739C0 (286 insns, STACK_SWITCH)  D_8006FB10 FieldRenderModels (585)
+//   D_8006FB1C func_8007520C (47 insns, 100.00% exact)   D_8006FB28 func_800752C8 (this)
+//   D_8006FB34..FB64 func_8007554C (241)                 D_8006FB70 func_800759E4 (77)
+// so it needs the three above it in C first, and func_800739C0 cannot be C at all.
+// The constant the object needs is commented at the top of the block.
+// screened: Default 99.55 (best), cdk 93.87, 2.6.0 99.60 - not a preset question.
 /*
-// .rodata
-const char D_8006FB28[0xC] = "CHAR      ";
-
 void func_800752C8(void) {
     FieldActor* pActor;
     int i;
@@ -1111,6 +1137,7 @@ void func_800752C8(void) {
     }
 }
 */
+INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_800752C8);
 
 void FieldAddPrimitives(u_long* ot, u_long* pPrimList, int size) {
     AddPrims(ot, pPrimList + size, pPrimList);
