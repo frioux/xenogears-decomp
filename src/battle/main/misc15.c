@@ -21,7 +21,12 @@ extern u16 D_800C4022[];
 extern u8 D_800C402F[];
 extern u8 D_800CCD1C[];
 extern u8 D_800D2CE0[];
-extern u8 D_800D2204[];
+typedef struct {
+    /* 0x0 */ u16 unk0;
+    /* 0x2 */ u8 pad2[0xE];
+} BattleCommandEntry; // Size: 0x10
+
+extern BattleCommandEntry D_800D2204[];
 extern u8 D_800D3688[];
 extern u8 D_800C3D70[];
 extern u8 D_800C3FFE[];
@@ -126,27 +131,34 @@ void BattleQueueCommandF3WithSlotMask(u16 arg0, u8 arg1) {
 }
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008ADD0);
-/* Best: 96.69% under the unit flags (816 bytes vs the original's 796), but
-   99.73% under -G0 -- report PRESET_G0. Two matched neighbours
-   (BattleParseNumberToDigits, BattleClearPrimFlagsTwoSlots) stay at 100.0 under
-   -G0, so this unit probably wants XenoBattle260 with -G0.
-   Under -G8 the whole diff traces to one instruction: retail materialises
-   D_800D2C94 into a callee-saved register once (`lui s1,%hi; addiu s1,s1,%lo`)
-   and reads it twice across three calls (`lhu a0,0(s1)`, later `lhu v1,0(s1)`),
-   which also gives the loop counter `i` its own register (retail `li s2,3` sits
-   in the delay slot right after `jal BattleClearSlotCurveEntry`) and arg0 $s3. gcc 2.6 folds
-   the constant address into each load (`lui a0,%hi; lhu a0,0(a0)`), which leaves
-   3 saved registers instead of 4, so every later saved-register name shifts by
-   one and the diff can never reach 100. Tried: u16 *pMask local assigned at the
-   load site and at the top of the function, `register u16 *pMask`, volatile
-   pointer-to-const, pMask[0], -O1 (83.43), -O3 (cc1 fails).
+/* Best: 98.37% (205 insns vs the original's 206 -- ONE instruction short, so it
+   cannot link yet; the 96.69% park was 204). The lever that produced the pointer
+   register retail wants: assign `new_var = &D_800D2C94;` BEFORE the
+   D_800D32A1 branch and copy it (`pMask = new_var;`) at the use site. Without
+   that early assignment gcc 2.6 substitutes the constant address into every use
+   (no saved register, 3 saved regs instead of retail's 4 s0-s3, 204 insns).
+   What is left is only WHERE the address is formed, now that the register exists:
+   retail puts `nop; bnez` after the D_800D32A1 load and forms s1 (= &D_800D2C94)
+   AT the first use (BattleBeginAnimTask's argument); gcc forms s3 two
+   instructions earlier, filling the slots retail leaves as `nop`, and so the two
+   straight-line uses read 0(s3) instead of retail's fresh lui/addiu+lhu.
+   Also still off: `li v1,0xff / li v0,0x8b8` comes out swapped (value/off tie),
+   `li <i>,0x3` sits one call later than retail's BattleClearSlotCurveEntry
+   delay slot, and the saved-register numbering is s3=pointer where retail has
+   s1 (retail s3=arg0, s2=i). Permuter run from the 96.69% body found the
+   new_var lever (base=1011 best=472); a second run from THIS body is the next
+   step. Already ruled out: -G8/-G0 preset (99.73% under -G0, still short),
+   u16 pointer, register and volatile pMask, pMask[0], moving the
+   assignment site, -O1/-O3. */
+/*
 void func_8008ADD0(u8 arg0) {
-    u16 *pMask;
     s32 off;
     s32 i;
     u16 mask;
     u16 sel;
     u8 value;
+    u16 *new_var;
+    u16 *pMask;
 
     D_800D366C = 0;
     func_800BCD98(0);
@@ -154,6 +166,7 @@ void func_8008ADD0(u8 arg0) {
     for (off = 0x8B8; off >= 0; off -= 0x48) {
         D_800C402F[off] = value;
     }
+    new_var = &D_800D2C94;
     if (D_800D32A1[arg0 * 8] == 0) {
         D_800C3EAC[0x2DC] = D_800C3EAC[0x2E6] + 0x17;
         off = (D_800C3EAC[0x2E6] + 0x16) * 40 + arg0 * 1520;
@@ -168,7 +181,7 @@ void func_8008ADD0(u8 arg0) {
     } else {
         mask = BattleSlotBitMask(D_800C3E2C);
     }
-    pMask = &D_800D2C94;
+    pMask = new_var;
     BattleQueueCommandF3WithSlotMask(mask, arg0);
     BattleClearSlotCurveEntry();
     BattleBeginActorAction(arg0, mask, D_800C3EAC[0x2DC] - 1);
@@ -180,7 +193,7 @@ void func_8008ADD0(u8 arg0) {
     D_800C400B[D_800C3EAC[0x2DA] * 72] = arg0;
     *(u16 *)(D_800C3FFE + D_800C3EAC[0x2DA] * 72) = *pMask;
     for (i = 3; i < 11; i++) {
-        if (BattleMaskHasSlotBit(D_800D2C94, i) != 0) {
+        if (BattleMaskHasSlotBit(*pMask, i) != 0) {
             func_80079840(arg0, i);
         }
     }
@@ -191,6 +204,7 @@ void func_8008ADD0(u8 arg0) {
     }
 }
 */
+
 void BattleClearPrimFlagsFourSlots(u8 arg0) {
     D_800D2D28[0x9C] = D_800D2D28[0x9D] = D_800D2D28[0x9E] = 0;
     D_800D2D28[0xB0] = D_800D2D28[0xB1] = D_800D2D28[0xB2] = D_800D2D28[0xB3] = 0;
@@ -297,7 +311,7 @@ s32 BattleActivateTwoSlotCommand(u8 arg0, u8 arg1, u8 arg2, u8 arg3) {
     s32 result;
 
     result = 0;
-    entry = *(u16 *)(D_800D2204 + D_800D2CE0[arg2 * 2 + arg1] * 0x10);
+    entry = D_800D2204[D_800D2CE0[arg2 * 2 + arg1]].unk0;
     if (arg3 == 0) {
         value = D_800D2CE0[arg2 * 2 + arg1];
     } else {
