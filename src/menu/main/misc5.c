@@ -37,10 +37,8 @@ extern void MenuAddUnk430Prims(void);
 extern void MenuAddUnk434Prims(void);
 extern void MenuAddUnk438Prims(void);
 
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc5", func_801D09F0);
-/* Best attempt: 94.75%. Only the AddPrim argument setup differs (the original
-   puts addiu 0x70 on the zIndex product and addu pGfxEnv last).
 void func_801D09F0(s32 menuIndex, u_char hasScrollBar) {
+    s32 primOffset;
     MenuWindow* pWindow;
     s32 i;
     long interpolated;
@@ -80,11 +78,13 @@ void func_801D09F0(s32 menuIndex, u_char hasScrollBar) {
                   (long*)&pWindow->polysBackground[pWindow->renderContext].x1,
                   (long*)&pWindow->polysBackground[pWindow->renderContext].x2,
                   (long*)&pWindow->polysBackground[pWindow->renderContext].x3, &interpolated, &flag);
-    AddPrim((void*)((u32)g_Menu->pGfxEnv + (0x70 + pWindow->zIndex * sizeof(u32))),
+    primOffset = 0x70;
+    AddPrim((void*)((u32)g_Menu->pGfxEnv + (primOffset + pWindow->zIndex * sizeof(u32))),
             &pWindow->polysBackground[pWindow->renderContext]);
-    AddPrim((void*)((u32)g_Menu->pGfxEnv + (0x70 + pWindow->zIndex * sizeof(u32))),
+    AddPrim((void*)((u32)g_Menu->pGfxEnv + (primOffset + pWindow->zIndex * sizeof(u32))),
             &pWindow->drawModes[pWindow->renderContext]);
-}*/
+}
+
 void MenuRenderWindows(void) {
     s32 i;
     SVECTOR rot;
