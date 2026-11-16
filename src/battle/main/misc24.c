@@ -251,7 +251,7 @@ void func_800AA934(u8 *arg0, u8 *arg1, void *arg2, s32 arg3) {
                     *pCount = *pCount + 1;
                 }
                 *(u8 *)(arg0 + *pCount + 0x2A) = *(u8 *)(arg1 + 0x20);
-                ((u8 *)arg0)[(long)(*pCount + 0x2E)] = arg3;
+                *(u8 *)(arg0 + *pCount + 0x2E) = arg3;
             } else {
                 if (arg3 < 0x50) {
                     pTable = (s32 *)*(u8 **)(arg1 + 8);
@@ -272,7 +272,8 @@ void func_800AA934(u8 *arg0, u8 *arg1, void *arg2, s32 arg3) {
             }
         }
     }
-}s32 BattleStepActorAnimation(BattleActor *pActor, u8 *arg1, s32 arg2, u8 *arg3, s32 arg4) {
+}
+s32 BattleStepActorAnimation(BattleActor *pActor, u8 *arg1, s32 arg2, u8 *arg3, s32 arg4) {
     s32 r;
     s32 i;
 
