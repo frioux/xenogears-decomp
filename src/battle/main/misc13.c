@@ -16,7 +16,7 @@ extern u8 g_BattleActionSlotIndex;
 extern u8 D_800C400B[];
 extern u8 D_800C402F[];
 extern u8 g_BattleCommandRecords[];
-extern u8 D_800CCD34[];
+extern u8 g_BattleSlotEntriesBase[];
 extern u8 D_800CCD36[];
 extern u8 D_800CCD68[];
 extern u8 D_800CCD74[];
@@ -82,7 +82,7 @@ void BattleResetActorStatDisplay(s32 arg0) {
     s32 i = 2;
     s16 *p;
 
-    *(u16 *)(D_800CCD34 + (u8)arg0 * 0x170) = *(u16 *)(D_800CCD36 + (u8)arg0 * 0x170);
+    *(u16 *)(g_BattleSlotEntriesBase + (u8)arg0 * 0x170) = *(u16 *)(D_800CCD36 + (u8)arg0 * 0x170);
 
     p = (s16 *)(D_800CCD68 + (u8)arg0 * 0x170);
     for (; i >= 0; i -= 2) {

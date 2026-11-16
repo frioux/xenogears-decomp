@@ -1005,3 +1005,6 @@ g_FieldMouseLimitMaxX = 0x800C3A50;
 g_FieldMouseLimitMinY = 0x800C3A4C;
 g_FieldMouseLimitMaxY = 0x800C3A54;
 g_FieldScreenEffectSuppressed = 0x800ADB50;
+g_FieldCameraShakeOffset = 0x800AF8E0;
+g_FieldCameraSnapFrames = 0x800B21D8;
+g_FieldDisableActorRender = 0x800ADB05;

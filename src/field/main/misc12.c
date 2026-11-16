@@ -11,7 +11,7 @@ extern s32 g_FieldEntryRoutineFinished; // Is current actor a 2D actor (0) maybe
 extern s32 g_FieldCurActorIndex;
 extern s8 D_800B21CE;
 extern s8 D_800B21CF[];
-extern s32 D_800B21D8[];
+extern s32 g_FieldCameraSnapFrames[];
 extern s32 D_800B2360;
 extern s32 D_800B2364;
 extern s32 D_800B2368;
@@ -253,7 +253,7 @@ void FieldScriptSetCurActorRotationTowardActor(void) {
 void FieldScriptSetSceneScaleInterpolation(void) {
     g_Scene.unk8C = SCRIPT_READ_U8_REL(3);
     if (g_Scene.unk8C == 0) {
-        D_800B21D8[0] += 2;
+        g_FieldCameraSnapFrames[0] += 2;
         g_Scene.unk8C++;
     }
     g_Scene.unk94 = -((g_Scene.sceneScale - FieldScriptVMGetArgument(1)) << 16) / g_Scene.unk8C;
@@ -264,7 +264,7 @@ void FieldScriptSetSceneScaleInterpolation(void) {
 
 void FieldSceneStartDIPInterpolation(int start, int duration) {
     if (duration == 0) {
-        D_800B21D8[0] = 2;
+        g_FieldCameraSnapFrames[0] = 2;
         duration = 1;
     }
     g_Scene.unk78 = -((g_Scene.sceneDIP - start) << 16) / duration;
@@ -543,7 +543,7 @@ void FieldSceneStartScreenZInterpolation(s32 start, s32 duration) {
         g_Scene.unk80 = duration;
         g_Scene.unk84 = g_Scene.sceneScrZ << 16;
     } else {
-        D_800B21D8[0] += 2;
+        g_FieldCameraSnapFrames[0] += 2;
         g_Scene.sceneScrZ = start;
         g_Scene.unk80 = 0;
     }
@@ -789,7 +789,7 @@ void FieldSceneStartSceneAngleInterpolation(int direction, int duration) {
     int cameraDirection = FieldGetCameraDirection() & 0xFFFF;
 
     if (duration == 0) {
-        D_800B21D8[0] += 2;
+        g_FieldCameraSnapFrames[0] += 2;
         duration = 1;
     }
     g_Scene.unk5C = (D_800AEA64[cameraDirection * 8 + direction] * 0x2000000) / duration;
@@ -799,7 +799,7 @@ void FieldSceneStartSceneAngleInterpolation(int direction, int duration) {
 
 void FieldSceneStartSceneAngleRotation(int direction, int duration) {
     if (duration == 0) {
-        D_800B21D8[0] += 2;
+        g_FieldCameraSnapFrames[0] += 2;
         duration = 1;
     }
     if (direction == 0) {

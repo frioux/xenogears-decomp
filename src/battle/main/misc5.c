@@ -4,7 +4,7 @@
 extern u8 *g_BattleDisplayState;
 extern u16 D_8005A3A0[];
 extern u8 D_800D3420[];
-extern u8 D_800D3410[];
+extern u8 g_BattleSlotRows[];
 extern u8 g_BattleSlotEnabledFlags[];
 
 // One 0x60-byte entry of the screen slot table at D_800D3718; only the slot's
@@ -419,10 +419,10 @@ void BattleWordRegSetImm(u8 **arg0, u8 arg1) {
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc5", func_8007A968);
 /* 53.44% - the value expression and the index come out right, but gcc forms the
-   D_800D3410 lui/addiu at the top (into a0) instead of after the value, so the
+   g_BattleSlotRows lui/addiu at the top (into a0) instead of after the value, so the
    store base is 2 insns early. Tried: pRow pointer local before/after the value,
    idx local first, single-expression store (8-42%, at-register form),
-   (u32*)D_800D3410 + arg1*0x10 element pointer, mem_addr index-first form.
+   (u32*)g_BattleSlotRows + arg1*0x10 element pointer, mem_addr index-first form.
    Round 20: with u32 val = ((p[3]<<8)+p[2])*0x10 first and a u8* row pointer
    used as ((u32*)pRow)[p[1]] every instruction is right but the whole
    lui/addiu + addu a1,a1,a0 group lands BEFORE the value loads (10.31%): gcc
@@ -431,7 +431,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc5", func_8007A968);
    assigned base mem_addr + index-first inline address); gcc-2.6.0, 2.7.2-cdk,
    -O1 and -O3 all fail on it too.
    Round 135: the typed spelling `g_BattleSlotRegs[arg1].dwordRegs[p[1]] = val` (dword
-   register file, D_800D3410) written as one expression is 7.50% - the address
+   register file, g_BattleSlotRows) written as one expression is 7.50% - the address
    expansion takes over the register allocation - so the separate-locals body
    below stays the best.
 void func_8007A968(u8 **arg0, u8 arg1) {
@@ -439,7 +439,7 @@ void func_8007A968(u8 **arg0, u8 arg1) {
     u32 val = (p[2] + (p[3] << 8)) * 0x10;
     s32 idx = arg1 * 0x10 + p[1];
 
-    ((u32 *)D_800D3410)[idx] = val;
+    ((u32 *)g_BattleSlotRows)[idx] = val;
 } */
 void BattleWordTableStoreImm(u8 **arg0) {
     u8 *p = *arg0;

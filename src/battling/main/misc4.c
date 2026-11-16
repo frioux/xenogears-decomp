@@ -220,7 +220,7 @@ extern u8 D_8009264E;
 extern void BattleResetMessageQueue(Actor* p);
 extern void BattleActorResetUnk15D8(UnkStruct1* p);
 extern void BattleInitSemiTransQuadPacket(Actor* p);
-extern void func_80090CC0(Actor* p);
+extern void BattleInitActorWork(Actor* p);
 
 struct Actor {
     /* 0x000 */ s32 x;
@@ -598,7 +598,7 @@ void func_80078F00(Actor* p) {
     D_80096FB8[(p->flags >> 27) & 1].percent = 0;
     D_80096FB8[(p->flags >> 27) & 1].unkC = 0;
     D_80096FB8[(p->flags >> 27) & 1].unk10 = 0;
-    func_80090CC0(p);
+    BattleInitActorWork(p);
     BattleActorResetUnk15D8(&p->unk15D8);
     BattleInitSemiTransQuadPacket(p);
     p->unk914 = 0;

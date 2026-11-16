@@ -488,10 +488,10 @@ extern VECTOR g_CameraEye;
 extern VECTOR g_CameraEye2;
 extern VECTOR g_CameraAt;
 extern VECTOR g_CameraAt2;
-extern s32 D_800AF8E0;
+extern s32 g_FieldCameraShakeOffset;
 extern s32 D_800AF8E4;
 extern s32 D_800AF8E8;
-extern s32 D_800B21D8;
+extern s32 g_FieldCameraSnapFrames;
 extern int rand(void);
 
 // A camera coordinate only takes a step when the step cannot overshoot it.
@@ -519,9 +519,9 @@ extern int rand(void);
 //  - three `if (D_800AF8Ex < 0)` guards come out as two bgez here, and
 //  - the ((s16*)g_Scene.unk98)[n] casts come out as lui/addiu plus offset-0 loads where
 //    retail folds the displacement into the load (`lh v0,152(v0)`), and retail stores
-//    `sw $zero, D_800AF8E0` as a bare macro store through $at where this materialises
+//    `sw $zero, g_FieldCameraShakeOffset` as a bare macro store through $at where this materialises
 //    the address into a saved register.
-// The tail wants a typed struct for the g_Scene +0x98 block and for the D_800AF8E0/E4/E8
+// The tail wants a typed struct for the g_Scene +0x98 block and for the g_FieldCameraShakeOffset/E4/E8
 // shake-offset vector (x at 0, y at 4, z at 8; three separate s32 symbols in the
 // object, added into the g_Scene +0xA0 block, with g_Scene.unk98[0]/[1]/[2] the three
 // s16 counters and +0x8/+0x14 their offset/delta pairs). Everything above the shake
@@ -545,7 +545,7 @@ void func_80072D74(void) {
         }
     }
 
-    pSnapFrames = &D_800B21D8;
+    pSnapFrames = &g_FieldCameraSnapFrames;
     if (*pSnapFrames != 0) {
         g_CamInterpolation.atStepDistance = 1;
         g_CamInterpolation.eyeStepDistance = 1;
@@ -562,7 +562,7 @@ void func_80072D74(void) {
     FIELD_CAMERA_STEP(g_CameraAt.vz, g_CameraAt2.vz, g_CamInterpolation.atStepDistance, atStepSq);
     FIELD_CAMERA_STEP(g_CameraAt.vy, g_CameraAt2.vy, g_CamInterpolation.atStepDistance, atStepSq);
 
-    pShakeOffset = &D_800AF8E0;
+    pShakeOffset = &g_FieldCameraShakeOffset;
     *pShakeOffset = 0;
     D_800AF8E4 = 0;
     D_800AF8E8 = 0;
@@ -734,7 +734,7 @@ extern s32 D_800AFC44;
 extern s32 D_800AFC48;
 extern s32 D_800AFC4C;
 extern MATRIX D_800AF85C;
-extern s32 D_800AF8E0;
+extern s32 g_FieldCameraShakeOffset;
 extern s32 D_800AF8E4;
 extern s32 D_800AF8E8;
 extern SVECTOR g_FieldRotationVector;
@@ -745,7 +745,7 @@ extern VECTOR g_CameraAt2;
 extern VECTOR g_CameraEye2;
 extern s32 D_800B00B4;
 extern s16 g_FieldActorUpdateAngle;
-extern u_char D_800ADB05;
+extern u_char g_FieldDisableActorRender;
 extern s32 g_FieldActiveActorCount;
 
 extern void func_8008110C(void);
@@ -816,13 +816,13 @@ void func_800739C0(void) {
     asm volatile("addiu $sp, $sp, 4\n\tlw $sp, 0($sp)");
 
     eye.vx = *(s32*)(pCam - 0x18);
-    eye.vx += D_800AF8E0;
+    eye.vx += g_FieldCameraShakeOffset;
     eye.vy = g_CameraEye.vy;
     eye.vy += D_800AF8E4;
     eye.vz = g_CameraEye.vz;
     eye.vz += D_800AF8E8;
     at.vx = g_CameraAt.vx;
-    at.vx += D_800AF8E0;
+    at.vx += g_FieldCameraShakeOffset;
     at.vy = g_CameraAt.vy;
     at.vy += D_800AF8E4;
     at.vz = *(s32*)pCam;
@@ -873,7 +873,7 @@ void func_800739C0(void) {
                 targetAngle, updateAngle);
         }
 
-        if (D_800ADB05 == 0) {
+        if (g_FieldDisableActorRender == 0) {
             if (!(pActorData->flags & 0x1000000)) {
                 func_800223B0((SpriteData*)pActor->pSpriteData,
                     (s16)((u_short)g_CamInterpolation.curAngleY
@@ -1072,7 +1072,7 @@ void func_8007520C(void) {
 */
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_8007520C);
 
-extern u_char D_800ADB05;
+extern u_char g_FieldDisableActorRender;
 extern s32 g_FieldActiveActorCount;
 extern const char D_8006FB28[];
 
@@ -1098,7 +1098,7 @@ void func_800752C8(void) {
     FieldActor* pActor;
     int i;
 
-    if (D_800ADB05 == 1) {
+    if (g_FieldDisableActorRender == 1) {
         return;
     }
 

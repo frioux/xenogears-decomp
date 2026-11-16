@@ -12,7 +12,7 @@ extern s16 g_FieldCameraMode;
 extern s32 D_800AF930;
 extern s16 D_800AF936;
 extern s16 D_800AF938;
-extern s32 D_800B21D8[];
+extern s32 g_FieldCameraSnapFrames[];
 extern VECTOR g_CamAtMovementFrom;
 extern s16 D_800AF93A[]; // Part of a struct
 extern VECTOR g_CamAtMovementTo;
@@ -137,7 +137,7 @@ void func_8008FC4C(void) {
             g_FieldCameraMode = 0;
             g_Scene.unk48 &= 0x7FFF;
             g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
-            D_800B21D8[0] = 2;
+            g_FieldCameraSnapFrames[0] = 2;
         } else {
             g_FieldCameraMode = 2;
             g_CamInterpolation.atStepDistance = value;

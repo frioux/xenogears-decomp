@@ -833,7 +833,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_800751C8);
    0x1E/0x3C timer cascade on g_BattlePromptTimer, then the distance/angle tail) is
    believed correct. */
 /* extern s32 g_BattleTransitionFrames;
-extern u8 D_800928C4;
+extern u8 g_BattleFacingUpdateEnabled;
 extern u8 D_80091144;
 extern u8 D_80091145;
 extern s32 g_BattleRoundOver;
@@ -884,7 +884,7 @@ void func_800751C8(u8 *p0, u8 *p1) {
     g_BattleTransitionFrames++;
     BattleSetTextCursor(0xA0, 0x64);
     if (!BattleCheckValueAboveScaledMax(p0, 0x60) || !BattleCheckValueAboveScaledMax(p1, 0x60)) {
-        if (D_800928C4 != 0 && !BattleCheckPositionPastMapCenter(p0) &&
+        if (g_BattleFacingUpdateEnabled != 0 && !BattleCheckPositionPastMapCenter(p0) &&
             !BattleCheckPositionPastMapCenter(p1)) {
             D_80091144 = 1;
             D_80091145 = 0xA;

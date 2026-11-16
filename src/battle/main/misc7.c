@@ -3,7 +3,7 @@
 #include "main/game.h"
 
 // One slot of the per-slot operator register block at g_BattleSlotRegs (stride 0x40):
-// the same arguments in 32-, 16- and 8-bit form. D_800D3410, D_800D3420,
+// the same arguments in 32-, 16- and 8-bit form. g_BattleSlotRows, D_800D3420,
 // D_800D3430 and D_800D343F are its +0x10, +0x20, +0x30 and +0x3F.
 typedef struct {
     /* 0x00 */ u8 unk00[0x10];
@@ -13,7 +13,7 @@ typedef struct {
 } BattleOpRegs; // Size: 0x40
 
 extern BattleOpRegs g_BattleSlotRegs[];
-extern u8 D_800D3410[];
+extern u8 g_BattleSlotRows[];
 extern u8 D_800D3420[];
 extern u8 D_800D342E[];
 extern u8 D_800D3430[];
@@ -126,7 +126,7 @@ u8 BattleWordRegCopyToMatchedSlot(BattleCommand **p, u8 index, u8 arg2) {
 // one allocator coin: the top `*p` load result and the switch discriminant
 // keep swapped registers (retail: pArgs in a0 from `lw a0,0(s2)`, discriminant
 // in a2; gcc: pArgs a2, discriminant a0). Case 2's `lbu v0,1(a0)` then also
-// lands after the D_800D3410 base instead of before it, which is a knock-on of
+// lands after the g_BattleSlotRows base instead of before it, which is a knock-on of
 // the same swap (retail can only load it early because the base reuses a0).
 // Structure that got it here from the 89.53 park: keep slot and base apart so
 // the sums form at their points of use - case 1 spells the field-table base
@@ -166,7 +166,7 @@ void func_8007B6C0(u8 **p, u8 index) {
         break;
     }
     case 2: {
-        u32 *pField32 = (u32 *)(D_800D3410 + index * 0x40);
+        u32 *pField32 = (u32 *)(g_BattleSlotRows + index * 0x40);
 
         pField32[(*p)[1]] = g_GameState.gold;
         break;
@@ -259,13 +259,13 @@ void BattleWordRegSetReg(BattleCommand **p, u8 index) {
 // best: 98.33%, permuter score 25 (2084 iterations from this body found
 // nothing; three earlier runs from the 85.33% body also stalled). Retail is
 // 60 bytes, same as this body, and the only difference is which register holds
-// the D_800D3410 + index*0x40 sum: retail `addu a1,a1,a0` (the slot register),
+// the g_BattleSlotRows + index*0x40 sum: retail `addu a1,a1,a0` (the slot register),
 // this body `addu a0,a0,a1` (the base register). The load-first header
 // (andi, sll, lw v0,0(a0), lui a0, addiu a0) matches exactly.
 // The addu destination is fixed by the C operand order, and the two orders are
 // mutually exclusive here: every index-first spelling of the sum
-// ((u32 *)D_800D3410 + index * 0x10, g_BattleSlotRegs[index].dwordRegs,
-// &g_BattleSlotRegs[index].dwordRegs[0], (mem_addr)D_800D3410 + index * 0x40, a slot
+// ((u32 *)g_BattleSlotRows + index * 0x10, g_BattleSlotRegs[index].dwordRegs,
+// &g_BattleSlotRegs[index].dwordRegs[0], (mem_addr)g_BattleSlotRows + index * 0x40, a slot
 // local, and the double-negated index-first form) gives retail's operand order
 // but materialises the base into v1 BEFORE the *p load (85.33%); base-first
 // keeps the header and only the sum's register differs. The do-while wrapper
@@ -287,7 +287,7 @@ void BattleWordRegSetReg(BattleCommand **p, u8 index) {
 // pArgsCopy local, `pField = pArgsCopy` at the loop head, score 20 vs base 25)
 // is 85.33% here - its metric traded the load-first header away. Two more runs
 // from this body (2212 + 1661 iterations, base 25) found nothing. Inlining the
-// sum into one `pField = (u32 *)(D_800D3410 - (-(index * 0x40)))` statement and
+// sum into one `pField = (u32 *)(g_BattleSlotRows - (-(index * 0x40)))` statement and
 // dropping the dead pBase local is byte-identical, 98.33.
 /*
 void func_8007B9C8(u8 **p, u8 index) {
@@ -297,7 +297,7 @@ void func_8007B9C8(u8 **p, u8 index) {
     u32 *pField;
     u8 *pBase;
 
-    pBase = D_800D3410 - (-(index * 0x40));
+    pBase = g_BattleSlotRows - (-(index * 0x40));
     pField = (u32 *)pBase;
     do {
         pNext = pArgs;

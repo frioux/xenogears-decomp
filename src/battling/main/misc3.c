@@ -420,7 +420,7 @@ short BattleTryQueueMessage5(BattleActor* p) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80076884);
 
-extern u8 D_800928C4;
+extern u8 g_BattleFacingUpdateEnabled;
 extern s32 g_BattleFacingAngle;
 extern s32 BattleCheckValueAboveScaledMax(BattleActor* p, s32 v);
 extern void BattlePlaySoundEffectById(s32 arg);
@@ -544,7 +544,7 @@ s32 func_80077038(BattleActor* p) {
     } else {
         p->soundTimer = 0;
     }
-    if (D_800928C4 != 0 && BattleCheckValueAboveScaledMax(p, 0x50) == 0 && (p->flags & 0x8000000)) {
+    if (g_BattleFacingUpdateEnabled != 0 && BattleCheckValueAboveScaledMax(p, 0x50) == 0 && (p->flags & 0x8000000)) {
         p->gaugeValue = p->gaugeMax * 0x50 / 0x100;
     }
     if (p->gaugeValue < 0) {

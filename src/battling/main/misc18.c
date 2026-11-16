@@ -114,13 +114,13 @@ extern void func_8008F7B8(BattleWork* pWork);
 extern s32 BattleRollActorFlag8000(BattleActor* pActor, s32 arg1);
 extern s32 D_8009284C;
 extern s32 func_8008FACC(BattleActor* pActor, BattleWork* pWork);
-extern s32 func_8008FFEC(BattleActor* pActor, BattleWork* pWork);
+extern s32 BattleQueueActionMessages(BattleActor* pActor, BattleWork* pWork);
 extern void BattleResetMessageQueue(BattleActor* p);
 extern u8 g_BattleDifficultyLevel;
-extern BattleWork D_80096F30;
+extern BattleWork g_BattleWorkSlots;
 extern BattleWork D_80096F64;
-extern BattleActionMessages D_800925A4[];
-extern u8 D_800928C4;
+extern BattleActionMessages g_BattleActionMessages[];
+extern u8 g_BattleFacingUpdateEnabled;
 extern void func_8008FCC8(BattleActor* pActor, BattleWork* pWork);
 extern void BattleUpdateWorkState1(BattleActor* pActor, BattleWork* pWork);
 extern void func_80090580(BattleActor* pActor, BattleWork* pWork);
@@ -271,7 +271,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc18", func_8008FACC);
 s32 func_8008FACC(BattleActor* pActor, BattleWork* pWork) {
        s32 v;
   
-       if (D_800928C4 == 0) {
+       if (g_BattleFacingUpdateEnabled == 0) {
            return 0;
        }
        if ((pActor->flags & 0x8000000) == 0) {
@@ -365,7 +365,7 @@ void BattleQueueMessagesAndSetScaledDelay(BattleActor* pActor, BattleWork* pWork
     }
     func_8008F7B8(pWork);
 }
-s32 func_8008FFEC(BattleActor* pActor, BattleWork* pWork) {
+s32 BattleQueueActionMessages(BattleActor* pActor, BattleWork* pWork) {
     s32 n;
     s32 i;
     s32 one;
@@ -383,14 +383,14 @@ s32 func_8008FFEC(BattleActor* pActor, BattleWork* pWork) {
             continue;
         }
         if (n == 0) {
-            if (D_800925A4[i].messages[0] != 0) {
-                BattleQueueMessage(pActor, D_800925A4[i].messages[0]);
+            if (g_BattleActionMessages[i].messages[0] != 0) {
+                BattleQueueMessage(pActor, g_BattleActionMessages[i].messages[0]);
             }
-            if (D_800925A4[i].messages[1] != 0) {
-                BattleQueueMessage(pActor, D_800925A4[i].messages[1]);
+            if (g_BattleActionMessages[i].messages[1] != 0) {
+                BattleQueueMessage(pActor, g_BattleActionMessages[i].messages[1]);
             }
-            if (D_800925A4[i].messages[2] != 0) {
-                BattleQueueMessage(pActor, D_800925A4[i].messages[2]);
+            if (g_BattleActionMessages[i].messages[2] != 0) {
+                BattleQueueMessage(pActor, g_BattleActionMessages[i].messages[2]);
             }
             break;
         }
@@ -432,7 +432,7 @@ s32 BattleDecideActorAction(BattleActor* pActor, BattleWork* pWork) {
             return 0;
         }
         if (D_8009284C < 0x1001) {
-            func_8008FFEC(pActor, pWork);
+            BattleQueueActionMessages(pActor, pWork);
             return 0;
         }
         return 1;
@@ -468,7 +468,7 @@ void BattleUpdateWorkState1(BattleActor* pActor, BattleWork* pWork) {
             break;
         case 2:
             if (pActor->actionCount != 0) {
-                func_8008FFEC(pActor, pWork);
+                BattleQueueActionMessages(pActor, pWork);
                 break;
             }
             /* fall through */
@@ -539,11 +539,11 @@ void BattleLoadWorkActionChances(BattleActor* pActor) {
     pWork->actionChance3 = pActionData->actionChances[3];
 }
 
-void func_80090CC0(BattleActor* pActor) {
+void BattleInitActorWork(BattleActor* pActor) {
     BattleWork* pWork;
     s32 thr;
 
-    pWork = &D_80096F30;
+    pWork = &g_BattleWorkSlots;
     if ((pActor->flags & 0x8000000) != 0) {
         pWork = &D_80096F64;
     }

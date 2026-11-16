@@ -44,8 +44,8 @@ typedef struct {
     /* 0x4 */ u8 unk4[0x18];
 } BattleSlotRecord; // Size: 0x1C
 
-extern BattleSlotRow D_800D3410[];
-extern BattleSlotEntry D_800CCD34[];
+extern BattleSlotRow g_BattleSlotRows[];
+extern BattleSlotEntry g_BattleSlotEntriesBase[];
 extern BattleSlotRecord g_BattleSlotRecords[];
 extern s16 g_BattleSlotCountdownTimers[];
 extern s16 D_800D2E0C[];
@@ -109,7 +109,7 @@ void func_8007C1A4(u8 **arg0, u8 arg1) {
     } while (0);
 }
 */
-void func_8007C33C(u8 **arg0, u8 arg1) {
+void BattlePickActorSlotWithDifferentTag(u8 **arg0, u8 arg1) {
     u8 buf[8];
     s32 i = 3;
     s32 count = 0;
@@ -147,7 +147,7 @@ void BattlePickCharSlotByLowestSlotWord(BattleSlotArgs **ppArgs, u8 row) {
         }
     }
     result = BattleSlotBitMask(bestIndex);
-    pRow = D_800D3410[row].unk10;
+    pRow = g_BattleSlotRows[row].unk10;
     pRow[(*ppArgs)->slot] = result;
 }
 void BattlePickActorSlotByLowestSlotWord(BattleSlotArgs **ppArgs, u8 row) {
@@ -165,7 +165,7 @@ void BattlePickActorSlotByLowestSlotWord(BattleSlotArgs **ppArgs, u8 row) {
         }
     }
     result = BattleSlotBitMask(bestIndex);
-    pRow = D_800D3410[row].unk10;
+    pRow = g_BattleSlotRows[row].unk10;
     pRow[(*ppArgs)->slot] = result;
 }
 void BattlePickCharSlotByLowestEntryWord(BattleSlotArgs **ppArgs, u8 row) {
@@ -176,13 +176,13 @@ void BattlePickCharSlotByLowestEntryWord(BattleSlotArgs **ppArgs, u8 row) {
     s32 i;
 
     for (i = 0; i < 3; i++) {
-        if (func_8007A628(i, (*ppArgs)->tag) != 0 && best >= D_800CCD34[i].unk000) {
-            best = D_800CCD34[i].unk000;
+        if (func_8007A628(i, (*ppArgs)->tag) != 0 && best >= g_BattleSlotEntriesBase[i].unk000) {
+            best = g_BattleSlotEntriesBase[i].unk000;
             bestIndex = i;
         }
     }
     result = BattleSlotBitMask(bestIndex);
-    pRow = D_800D3410[row].unk10;
+    pRow = g_BattleSlotRows[row].unk10;
     pRow[(*ppArgs)->slot] = result;
 }
 void BattlePickActorSlotByLowestEntryWord(BattleSlotArgs **ppArgs, u8 row) {
@@ -193,13 +193,13 @@ void BattlePickActorSlotByLowestEntryWord(BattleSlotArgs **ppArgs, u8 row) {
     s32 i;
 
     for (i = 3; i < 0xB; i++) {
-        if (func_8007A628(i, (*ppArgs)->tag) != 0 && best >= D_800CCD34[i].unk000) {
-            best = D_800CCD34[i].unk000;
+        if (func_8007A628(i, (*ppArgs)->tag) != 0 && best >= g_BattleSlotEntriesBase[i].unk000) {
+            best = g_BattleSlotEntriesBase[i].unk000;
             bestIndex = i;
         }
     }
     result = BattleSlotBitMask(bestIndex);
-    pRow = D_800D3410[row].unk10;
+    pRow = g_BattleSlotRows[row].unk10;
     pRow[(*ppArgs)->slot] = result;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007C840);
@@ -276,7 +276,7 @@ void BattlePickSlotByFlagTable(BattleSlotArgs **ppArgs, u8 row) {
     s32 count = 0;
     s32 record = 0x18;
     u8 *pBuf = buf;
-    u16 *pField = D_800D3410[row].unk10;
+    u16 *pField = g_BattleSlotRows[row].unk10;
 
     pField[(*ppArgs)->slot] = 0;
     for (; i < 0xB; i++, record += 8) {
@@ -290,7 +290,7 @@ void BattlePickSlotByFlagTable(BattleSlotArgs **ppArgs, u8 row) {
     if (count != 0) {
         u16 result = BattleSlotBitMask(buf[GameRandomByteRange(0, count - 1)]);
         s32 index = (*ppArgs)->slot;
-        u16 *pRow = D_800D3410[row].unk10;
+        u16 *pRow = g_BattleSlotRows[row].unk10;
 
         pRow[index] = result;
     }
@@ -304,7 +304,7 @@ void BattleStoreCharSlotTagCount(BattleSlotArgs **ppArgs, u8 row) {
             count++;
         }
     }
-    D_800D3410[row].unk20[(*ppArgs)->slot] = count;
+    g_BattleSlotRows[row].unk20[(*ppArgs)->slot] = count;
 }
 void BattleStoreActorSlotTagCount(BattleSlotArgs **ppArgs, u8 row) {
     s32 count = 0;
@@ -315,7 +315,7 @@ void BattleStoreActorSlotTagCount(BattleSlotArgs **ppArgs, u8 row) {
             count++;
         }
     }
-    D_800D3410[row].unk20[(*ppArgs)->slot] = count;
+    g_BattleSlotRows[row].unk20[(*ppArgs)->slot] = count;
 }
 // best: 99.43% (212 bytes = retail's exact size; identical instruction stream
 // except one commutative addu: retail keeps the a*8 term in the destination
@@ -341,7 +341,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007CDD0);
 void BattleStoreCharSlotMatchedTagCount(BattleSlotArgs **ppArgs, u8 row) {
     s32 count = 0;
     s32 i = 0;
-    u16 *pField = D_800D3410[row].unk10;
+    u16 *pField = g_BattleSlotRows[row].unk10;
 
     for (; i < 3; i++) {
         if (func_8007A628(i, 0) != 0) {
@@ -352,12 +352,12 @@ void BattleStoreCharSlotMatchedTagCount(BattleSlotArgs **ppArgs, u8 row) {
             }
         }
     }
-    D_800D3410[row].unk20[(*ppArgs)->slot] = count;
+    g_BattleSlotRows[row].unk20[(*ppArgs)->slot] = count;
 }
 void BattleStoreActorSlotMatchedTagCount(BattleSlotArgs **ppArgs, u8 row) {
     s32 count = 0;
     s32 i = 3;
-    u16 *pField = D_800D3410[row].unk10;
+    u16 *pField = g_BattleSlotRows[row].unk10;
 
     for (; i < 0xB; i++) {
         if (func_8007A628(i, 0) != 0) {
@@ -368,7 +368,7 @@ void BattleStoreActorSlotMatchedTagCount(BattleSlotArgs **ppArgs, u8 row) {
             }
         }
     }
-    D_800D3410[row].unk20[(*ppArgs)->slot] = count;
+    g_BattleSlotRows[row].unk20[(*ppArgs)->slot] = count;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007D0CC);
 /* best: 85.97% (identical instruction multiset, 124 bytes = retail's size).
@@ -395,13 +395,13 @@ void func_8007D0CC(u8 **arg0, u8 arg1) {
 }
 */
 void BattleWriteRowFieldBytes(BattleSlotArgs **ppArgs, u8 *pDst, u8 row, u8 index) {
-    u16 value = D_800D3410[row].unk10[(*ppArgs)->tag];
+    u16 value = g_BattleSlotRows[row].unk10[(*ppArgs)->tag];
 
     pDst[index * 8 + (*ppArgs)->slot] = value;
     *(pDst + (index * 8 + (*ppArgs)->slot) + 1) = value >> 8;
 }
 void BattleStoreGoldWord32(BattleSlotArgs **ppArgs, u8 row) {
-    D_800D3410[row].unk00[(*ppArgs)->slot] = g_GameState.gold;
+    g_BattleSlotRows[row].unk00[(*ppArgs)->slot] = g_GameState.gold;
 }
 void BattlePickSlotByActorTag(BattleSlotArgs **ppArgs, u8 row) {
     u8 buf[0x10];
@@ -409,7 +409,7 @@ void BattlePickSlotByActorTag(BattleSlotArgs **ppArgs, u8 row) {
     s32 count = 0;
     s32 record = 0;
     u8 *pBuf = buf;
-    u16 *pField = D_800D3410[row].unk10;
+    u16 *pField = g_BattleSlotRows[row].unk10;
 
     pField[(*ppArgs)->slot] = 0;
     for (; i < 0xB; i++, record += 0x170) {
@@ -423,13 +423,13 @@ void BattlePickSlotByActorTag(BattleSlotArgs **ppArgs, u8 row) {
     if (count != 0) {
         u16 result = BattleSlotBitMask(buf[GameRandomByteRange(0, count - 1)]);
         s32 index = (*ppArgs)->slot;
-        u16 *pRow = D_800D3410[row].unk10;
+        u16 *pRow = g_BattleSlotRows[row].unk10;
 
         pRow[index] = result;
     }
 }
 void BattleStoreStatWord32(BattleSlotArgs **ppArgs, u8 row) {
-    D_800D3410[row].unk00[(*ppArgs)->slot] = g_BattleRowStatValues[row];
+    g_BattleSlotRows[row].unk00[(*ppArgs)->slot] = g_BattleRowStatValues[row];
 }
 void BattlePickActorSlotWithFlag80(BattleSlotArgs **ppArgs, u8 row) {
     u8 buf[8];
@@ -437,7 +437,7 @@ void BattlePickActorSlotWithFlag80(BattleSlotArgs **ppArgs, u8 row) {
     s32 count = 0;
     s32 record = 0x54;
     u8 *pBuf = buf;
-    u16 *pField = D_800D3410[row].unk10;
+    u16 *pField = g_BattleSlotRows[row].unk10;
 
     pField[(*ppArgs)->slot] = 0;
     for (; i < 0xB; i++, record += 0x1C) {
@@ -451,7 +451,7 @@ void BattlePickActorSlotWithFlag80(BattleSlotArgs **ppArgs, u8 row) {
     if (count != 0) {
         u16 result = BattleSlotBitMask(buf[GameRandomByteRange(0, count - 1)]);
         s32 index = (*ppArgs)->slot;
-        u16 *pRow = D_800D3410[row].unk10;
+        u16 *pRow = g_BattleSlotRows[row].unk10;
 
         pRow[index] = result;
     }
@@ -463,7 +463,7 @@ void BattlePickActorSlotWithFlag80(BattleSlotArgs **ppArgs, u8 row) {
 // three-byte loop test. Re-measured after fixing the body to compile: the old
 // 98.46% body read `g_BattleSlotEntries[idx].flags`, and that symbol was never
 // declared in this unit. The field is the u16 at +0 of the 0x170-byte entry, so
-// D_800CCD34[idx].flags is the same address and the identical code (98.33%).
+// g_BattleSlotEntriesBase[idx].flags is the same address and the identical code (98.33%).
 // The duplicated `if (arg0)`, whose two arms are identical, is what puts arg0 in
 // s1 and the base in s2 the way retail has them; removing it drops the score.
 /*
@@ -502,22 +502,22 @@ void BattleStoreCharSlotFlagsC000ClearCount(BattleSlotArgs **ppArgs, u8 row) {
     s32 i;
 
     for (i = 0; i < 3; i++) {
-        if ((D_800CCD34[i].flags & 0xC000) == 0) {
+        if ((g_BattleSlotEntriesBase[i].flags & 0xC000) == 0) {
             count++;
         }
     }
-    D_800D3410[row].unk20[(*ppArgs)->slot] = count;
+    g_BattleSlotRows[row].unk20[(*ppArgs)->slot] = count;
 }
 void BattleStoreActorSlotFlagsC000ClearCount(BattleSlotArgs **ppArgs, u8 row) {
     s32 count = 0;
     s32 i;
 
     for (i = 3; i < 0xB; i++) {
-        if (g_BattleSlotEnabledFlags[i] != 0 && (D_800CCD34[i].flags & 0xC000) == 0 && g_BattleSlotRecords[i].flags == 0) {
+        if (g_BattleSlotEnabledFlags[i] != 0 && (g_BattleSlotEntriesBase[i].flags & 0xC000) == 0 && g_BattleSlotRecords[i].flags == 0) {
             count++;
         }
     }
-    D_800D3410[row].unk20[(*ppArgs)->slot] = count;
+    g_BattleSlotRows[row].unk20[(*ppArgs)->slot] = count;
 }
 void BattlePickCharSlotByLowestEntryDwordInUse(BattleSlotArgs **ppArgs, u8 row) {
     u16 *pRow;
@@ -528,13 +528,13 @@ void BattlePickCharSlotByLowestEntryDwordInUse(BattleSlotArgs **ppArgs, u8 row) 
 
     for (i = 0; i < 3; i++) {
         if (func_8007A628(i, (*ppArgs)->tag) != 0 && g_BattleSlotFlags[i].inUse != 0
-            && best >= D_800CCD34[i].unk0B8) {
-            best = D_800CCD34[i].unk0B8;
+            && best >= g_BattleSlotEntriesBase[i].unk0B8) {
+            best = g_BattleSlotEntriesBase[i].unk0B8;
             bestIndex = i;
         }
     }
     result = BattleSlotBitMask(bestIndex);
-    pRow = D_800D3410[row].unk10;
+    pRow = g_BattleSlotRows[row].unk10;
     pRow[(*ppArgs)->slot] = result;
 }
 void BattlePickActorSlotByLowestEntryWordInUse(BattleSlotArgs **ppArgs, u8 row) {
@@ -546,12 +546,12 @@ void BattlePickActorSlotByLowestEntryWordInUse(BattleSlotArgs **ppArgs, u8 row) 
 
     for (i = 3; i < 0xB; i++) {
         if (func_8007A628(i, (*ppArgs)->tag) != 0 && g_BattleSlotFlags[i].inUse != 0
-            && best >= D_800CCD34[i].unk000) {
-            best = D_800CCD34[i].unk000;
+            && best >= g_BattleSlotEntriesBase[i].unk000) {
+            best = g_BattleSlotEntriesBase[i].unk000;
             bestIndex = i;
         }
     }
     result = BattleSlotBitMask(bestIndex);
-    pRow = D_800D3410[row].unk10;
+    pRow = g_BattleSlotRows[row].unk10;
     pRow[(*ppArgs)->slot] = result;
 }

@@ -2,7 +2,7 @@
 #include "battle/actor.h"
 
 // One slot of the per-slot operator register block at g_BattleSlotRegs (stride 0x40):
-// the same arguments in 32-, 16- and 8-bit form. D_800D3410, D_800D3420 and
+// the same arguments in 32-, 16- and 8-bit form. g_BattleSlotRows, D_800D3420 and
 // D_800D3430 are its +0x10, +0x20 and +0x30 arrays; the handlers below read the
 // operand indexes from the slot's current instruction (BattleCommand) and apply
 // the operation to that slot's registers.
@@ -37,7 +37,7 @@ extern u8 g_BattleRowStatValues[];
 extern u8 g_BattlePendingCharIndex;
 extern u8 *g_BattlePrimPool;
 extern u8 *g_BattleSlotParamTable;
-extern u8 D_800D3410[];
+extern u8 g_BattleSlotRows[];
 extern u8 D_800D3420[];
 extern u8 D_800D3430[];
 extern u8 D_800C3EB7[];
@@ -461,38 +461,38 @@ void BattleClearSlotDwordAndSetStat4(u8 arg0) {
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007E6A0);
 /* best: 99.00%. Identical instruction multiset and order; the only difference
-   is the register holding the D_800D3410 sum base: original a2 (and it is never
+   is the register holding the g_BattleSlotRows sum base: original a2 (and it is never
    reused), gcc v1 (which the p[1] scale temp then reuses). Same allocator tie as
    func_8007E6F0/E740/E98C/E8AC and the misc6 D_800D34x0 family. Tried here:
    split summand locals (84.35%, reorders the three lbu's RHS-first), three
    explicit `s32 i3/i1/i2 = p[..]` index locals (99.00%, same base v1), the
-   byte-pointer form `(s32 *)((u8 *)D_800D3410 + (arg1 & 0xFF) * 0x40)` (99.00%),
-   and `D_800D3410 + ((arg1 & 0xFF) << 6)` (99.00%). Also tried before: pRow/p in
+   byte-pointer form `(s32 *)((u8 *)g_BattleSlotRows + (arg1 & 0xFF) * 0x40)` (99.00%),
+   and `g_BattleSlotRows + ((arg1 & 0xFF) << 6)` (99.00%). Also tried before: pRow/p in
    both orders, `s32 arg1` + explicit mask, element-unit base, all references
    inline. No try_flags.sh row reaches 100 (2.6.0 99.0, cdk 96.5, -O1 51.9), and
    the unit cannot move to cdk at all: BattleSetSlotRecordByteAndRelease 79.68%, BattleClearSlotDwordAndSetStat4 10.45%
    under cdk while matched under Default.
 void func_8007E6A0(u8 **arg0, s32 arg1) {
     u8 *p = *arg0;
-    s32 *pRow = (s32 *)(D_800D3410 + (arg1 & 0xFF) * 0x40);
+    s32 *pRow = (s32 *)(g_BattleSlotRows + (arg1 & 0xFF) * 0x40);
 
     pRow[p[3]] = pRow[p[1]] + pRow[p[2]];
 } */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007E6F0);
-/* best: 99.00%. Same miss as func_8007E6A0 (the D_800D3410 sum base: original
+/* best: 99.00%. Same miss as func_8007E6A0 (the g_BattleSlotRows sum base: original
    a2, gcc v1); the subtraction itself is byte-exact. See the note there for the
    shapes already tried.
 void func_8007E6F0(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
-    s32 *pRow = (s32 *)(D_800D3410 + arg1 * 0x40);
+    s32 *pRow = (s32 *)(g_BattleSlotRows + arg1 * 0x40);
 
     pRow[p[3]] = pRow[p[1]] - pRow[p[2]];
 } */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007E740);
-/* best: 98.75%. The D_800D3410 base/element register mirror of the old note is
+/* best: 98.75%. The g_BattleSlotRows base/element register mirror of the old note is
    gone: write the slot registers INLINE as g_BattleSlotRegs[arg1].dwordRegs[...] (the
    +0x10 array of the 0x40-stride slot table; the relocation still names
-   D_800D3410) instead of a `u32 *pRow` local off D_800D3410. That one change
+   g_BattleSlotRows) instead of a `u32 *pRow` local off g_BattleSlotRows. That one change
    gets retail's base v0 / element v1 (a pRow local stays 95.31 with base and
    element mirrored, an element-pointer local 94.38, a `BattleOpRegs *pSlot`
    local 94.56, an `s32 idx = p[1]` local 98.75 with the same residual). What is

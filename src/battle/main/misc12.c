@@ -52,7 +52,7 @@ extern u8 g_BattleSlotFlags[];
 extern u8 *g_BattleSlotParamTable;
 extern BattleUnk170 g_BattleSlotEntries[];
 extern BattleUnk170 D_800CCE08[];
-extern BattleUnk170 D_800CCD34[];
+extern BattleUnk170 g_BattleSlotEntriesBase[];
 
 typedef struct {
     /* 0x00 */ u8 unk0[0x24];
@@ -727,7 +727,7 @@ u8 func_800841E0(u8 arg0) {
     if (sameRow[0] != 0) {
         for (i = 1; i < count; i++) {
             if (sameRow[i] != 0
-                && D_800CCD34[g_BattleTargetCandidates[0]].unk0 > D_800CCD34[g_BattleTargetCandidates[i]].unk0) {
+                && g_BattleSlotEntriesBase[g_BattleTargetCandidates[0]].unk0 > g_BattleSlotEntriesBase[g_BattleTargetCandidates[i]].unk0) {
                 tmp = g_BattleTargetCandidates[0];
                 g_BattleTargetCandidates[0] = g_BattleTargetCandidates[i];
                 g_BattleTargetCandidates[i] = tmp;
@@ -735,7 +735,7 @@ u8 func_800841E0(u8 arg0) {
         }
     } else {
         for (i = 1; i < count; i++) {
-            if (D_800CCD34[g_BattleTargetCandidates[0]].unk0 > D_800CCD34[g_BattleTargetCandidates[i]].unk0) {
+            if (g_BattleSlotEntriesBase[g_BattleTargetCandidates[0]].unk0 > g_BattleSlotEntriesBase[g_BattleTargetCandidates[i]].unk0) {
                 tmp = g_BattleTargetCandidates[0];
                 g_BattleTargetCandidates[0] = g_BattleTargetCandidates[i];
                 g_BattleTargetCandidates[i] = tmp;
