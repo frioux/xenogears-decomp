@@ -44,10 +44,10 @@ extern u8 BattleTestActorSlotFlagsC002ByMode(void);
 extern void BattleSetCommandCodeForSlotKindFlag(u8, u16);
 
 void BattleApplyScriptConditionTimer(void) {
-    s8 ret = func_80097964(g_BattleCurrentRow->unk1C, g_BattleCurrentRow->unk1D,
+    s8 ret = func_80097964(g_BattleCurrentRow->chance, g_BattleCurrentRow->unk1D,
                            g_BattleCurrentRow->unk1E);
 
-    if (g_BattleCurrentRow->unk0A & 0x4000) {
+    if (g_BattleCurrentRow->actionFlags & 0x4000) {
         BattleSetSlotConditionTimer(D_800C3E50, g_BattleCurrentRow->unk1D, g_BattleCurrentRow->unk1E, 5);
     } else {
         BattleSetSlotConditionTimer(D_800C3E50, g_BattleCurrentRow->unk1D, g_BattleCurrentRow->unk1E,
@@ -69,7 +69,7 @@ void BattleApplyActorConditionTimer(void) {
     }
 }
 void BattleRollAndClearTargetConditions(void) {
-    u8 t = g_BattleCurrentRow->unk1C;
+    u8 t = g_BattleCurrentRow->chance;
 
     if (t < rand() % 100) {
         g_BattleCurWorkBlock->unk5FA0[D_800C3E50] = 6;
@@ -102,7 +102,7 @@ void BattleRollSlotConditionAction(void) {
         chance = g_BattleActingSlot->unk60[0];
         break;
     case 1:
-        chance = g_BattleCurrentRow->unk1C;
+        chance = g_BattleCurrentRow->chance;
         break;
     }
 
@@ -163,7 +163,7 @@ void BattleSetSlotConditionActionValue(void) {
         chance = g_BattleActingSlot->unk60[0];
         break;
     case 1:
-        chance = g_BattleCurrentRow->unk1C;
+        chance = g_BattleCurrentRow->chance;
         break;
     }
 
@@ -279,7 +279,7 @@ void func_80096494(u16 *pA, u16 *pB, u8 *pFlag) {
         pair = *(u16 *)((u8 *)D_800D2D6C + 0x84) | *(u16 *)((u8 *)D_800D2D6C + 0x86);
     }
     pair >>= 12;
-    if (g_BattleCurrentRow->unk0A & 0x100) {
+    if (g_BattleCurrentRow->actionFlags & 0x100) {
         weak = 1;
     }
     if (elemAtk == 0) {
@@ -409,7 +409,7 @@ void BattleRollPercentAndSwapActiveActor(void) {
     if (!(pTarget->unk88 & 0x1000)) {
         return;
     }
-    t = g_BattleCurrentRow->unk0A;
+    t = g_BattleCurrentRow->actionFlags;
     if (t & 0x2000) {
         return;
     }
@@ -422,13 +422,13 @@ void BattleRollPercentAndSwapActiveActor(void) {
         return;
     }
     lim = 0x32;
-    if (pTarget->unk56 == 0) {
+    if (pTarget->characterId == 0) {
         lim = 0x3C;
     }
     if (lim < rand() % 100) {
         return;
     }
-    if (g_BattleCurrentRow->unk16 == 2) {
+    if (g_BattleCurrentRow->opcode == 2) {
         return;
     }
     tmp = D_800C3E50;
@@ -1024,7 +1024,7 @@ void BattleSaveScriptCommandOperandsFromActor(void) {
     g_BattleCurWorkBlock->unk5FBD = g_BattleCurrentRow->unk21;
     g_BattleCurWorkBlock->unk5FBE = g_BattleCurrentRow->unk22;
     g_BattleCurWorkBlock->unk5FBF = g_BattleCurrentRow->unk23;
-    g_BattleCurWorkBlock->unk5FC0 = g_BattleCurWorkBlock->unk5FC2;
+    g_BattleCurWorkBlock->unk5FC0 = g_BattleCurWorkBlock->rowIndex;
 
     ab >>= 12;
     if ((g_BattleCurWorkBlock->unk5FBE & 0x3F) == 0) {

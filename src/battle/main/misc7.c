@@ -7,9 +7,9 @@
 // D_800D3430 and D_800D343F are its +0x10, +0x20, +0x30 and +0x3F.
 typedef struct {
     /* 0x00 */ u8 unk00[0x10];
-    /* 0x10 */ u32 unk10[4];
-    /* 0x20 */ u16 unk20[8];
-    /* 0x30 */ u8 unk30[0x10];
+    /* 0x10 */ u32 dwordRegs[4];
+    /* 0x20 */ u16 wordRegs[8];
+    /* 0x30 */ u8 byteRegs[0x10];
 } BattleOpRegs; // Size: 0x40
 
 extern BattleOpRegs g_BattleSlotRegs[];
@@ -74,10 +74,10 @@ s32 BattleSlotWordVarGetSet(u8, u8, s32, s32);
 // slot+base into s0 before the call and needs one saved register fewer.
 // screened: 90.81% is the max of Default / 2.7.2-cdk 80.16 / 2.6.0 90.81.
 void BattleByteRegSetMatched(BattleCommand **p, u8 index) {
-    u16 *pField = g_BattleSlotRegs[index].unk20;
+    u16 *pField = g_BattleSlotRegs[index].wordRegs;
     u8 value = BattleFindFirstFlagTableMatch(pField[(*p)->unk3]);
     u8 result = BattleSlotByteVarGetSet(value, (*p)->unk2, 0, 1);
-    u8 *pTable = g_BattleSlotRegs[index].unk30;
+    u8 *pTable = g_BattleSlotRegs[index].byteRegs;
 
     pTable[(*p)->unk1] = result;
 }
@@ -104,13 +104,13 @@ u8 func_8007B4B8(u8 **p, u8 index, u8 arg2) {
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007B4B8);
 void BattleWordRegCopyFromMatchedSlot(BattleCommand **p, u8 index) {
-    u16 *pTable = g_BattleSlotRegs[index].unk20;
+    u16 *pTable = g_BattleSlotRegs[index].wordRegs;
     u8 value = BattleFindFirstFlagTableMatch(pTable[(*p)->unk3]);
 
     pTable[(*p)->unk1] = BattleSlotWordVarGetSet(value, (*p)->unk2, 0, 1);
 }
 u8 BattleWordRegCopyToMatchedSlot(BattleCommand **p, u8 index, u8 arg2) {
-    u16 *pField = g_BattleSlotRegs[index].unk20;
+    u16 *pField = g_BattleSlotRegs[index].wordRegs;
     u8 ret = arg2;
     u8 value = BattleFindFirstFlagTableMatch(pField[(*p)->unk3]);
 
@@ -229,13 +229,13 @@ void func_8007B8D4(u8 **p, u8 index) {
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007B8D4);
 void BattleWordTableStoreReg(BattleCommand **p, u8 index) {
-    u16 *pField = g_BattleSlotRegs[index].unk20;
+    u16 *pField = g_BattleSlotRegs[index].wordRegs;
     BattleCommand *pCmd = *p;
 
     D_8005A3A0[pCmd->unk2] = pField[pCmd->unk1];
 }
 void BattleByteRegSetReg(BattleCommand **p, u8 index) {
-    u8 *pTable = g_BattleSlotRegs[index].unk30;
+    u8 *pTable = g_BattleSlotRegs[index].byteRegs;
     BattleCommand *pCmd = *p;
 
     pTable[pCmd->unk2] = pTable[pCmd->unk1];
@@ -259,8 +259,8 @@ void BattleWordRegSetReg(BattleCommand **p, u8 index) {
 // (andi, sll, lw v0,0(a0), lui a0, addiu a0) matches exactly.
 // The addu destination is fixed by the C operand order, and the two orders are
 // mutually exclusive here: every index-first spelling of the sum
-// ((u32 *)D_800D3410 + index * 0x10, g_BattleSlotRegs[index].unk10,
-// &g_BattleSlotRegs[index].unk10[0], (mem_addr)D_800D3410 + index * 0x40, a slot
+// ((u32 *)D_800D3410 + index * 0x10, g_BattleSlotRegs[index].dwordRegs,
+// &g_BattleSlotRegs[index].dwordRegs[0], (mem_addr)D_800D3410 + index * 0x40, a slot
 // local, and the double-negated index-first form) gives retail's operand order
 // but materialises the base into v1 BEFORE the *p load (85.33%); base-first
 // keeps the header and only the sum's register differs. The do-while wrapper
@@ -269,7 +269,7 @@ void BattleWordRegSetReg(BattleCommand **p, u8 index) {
 // Round 98: the two halves are ONE register decision, not two source decisions.
 // Spell the sum with separate locals (base loaded into its own local, then
 // `slot = index * 0x40 + pBase`, or the sum handed to a local first, or as an
-// embedded assignment, or typed as g_BattleSlotRegs[index].unk10) and the sum's addu
+// embedded assignment, or typed as g_BattleSlotRegs[index].dwordRegs) and the sum's addu
 // DOES take retail's destination register - but the base address's lui/addiu
 // pair is then materialised into v0/v1 and hoisted above the *p load
 // (84.00-85.33%), because a0 still holds p there, so the address temp never
@@ -331,17 +331,17 @@ void func_8007BA04(u8 **p, u8 index) {
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007BA04);
 void BattleSlotStoreDwordFromWordReg(BattleCommand **p, u8 index) {
-    u32 *pField32 = g_BattleSlotRegs[index].unk10;
+    u32 *pField32 = g_BattleSlotRegs[index].dwordRegs;
     u16 *pWordRegs;
     BattleCommand *pCmd = *p;
 
     // the assignment inside the subscript is load-bearing: with a plain local
     // gcc picks v1 for the stored halfword instead of retail's a0 (95.29%).
-    pField32[pCmd->unk2] = (pWordRegs = g_BattleSlotRegs[index].unk20)[pCmd->unk1];
+    pField32[pCmd->unk2] = (pWordRegs = g_BattleSlotRegs[index].wordRegs)[pCmd->unk1];
 }
 void BattleClearByteRegs(u8 index) {
     s32 i = 0xF;
-    u8 *p = &g_BattleSlotRegs[index].unk30[0xF];
+    u8 *p = &g_BattleSlotRegs[index].byteRegs[0xF];
 
     for (; i >= 0; i--) {
         *p-- = 0;
@@ -349,7 +349,7 @@ void BattleClearByteRegs(u8 index) {
 }
 void BattleClearWordRegs(u8 index) {
     s32 i = 0x7;
-    u16 *p = &g_BattleSlotRegs[index].unk20[0x7];
+    u16 *p = &g_BattleSlotRegs[index].wordRegs[0x7];
 
     for (; i >= 0; i--) {
         *p-- = 0;
@@ -396,13 +396,13 @@ void func_8007BC40(u8 **p, u8 *pDest, u8 count) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007BC40);
 void BattleByteRegSetRandom(BattleCommand **p, u8 index) {
     u8 value = GameRandomByteRange(0, (*p)->unk2);
-    u8 *pTable = g_BattleSlotRegs[index].unk30;
+    u8 *pTable = g_BattleSlotRegs[index].byteRegs;
 
     pTable[(*p)->unk1] = value;
 }
 void BattleWordRegSetRandomRange(BattleCommand **p, u8 index) {
     u16 value = BattleRandomRange(0, (*p)->unk2 | ((*p)->unk3 << 8));
-    u16 *pField = g_BattleSlotRegs[index].unk20;
+    u16 *pField = g_BattleSlotRegs[index].wordRegs;
 
     pField[(*p)->unk1] = value;
 }

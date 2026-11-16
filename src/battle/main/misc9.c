@@ -8,9 +8,9 @@
 // the operation to that slot's registers.
 typedef struct {
     /* 0x00 */ u8 unk00[0x10];
-    /* 0x10 */ u32 unk10[4];
-    /* 0x20 */ u16 unk20[8];
-    /* 0x30 */ u8 unk30[0x10];
+    /* 0x10 */ u32 dwordRegs[4];
+    /* 0x20 */ u16 wordRegs[8];
+    /* 0x30 */ u8 byteRegs[0x10];
 } BattleOpRegs; // Size: 0x40
 
 // One of the 0x1C-byte per-slot tag records at g_BattleSlotRecords: tag at +0, flag byte
@@ -302,7 +302,7 @@ void BattleSetSlotRecordByteAndRelease(BattleCommand **ppCmd, s32 arg1) {
 }
 void BattleWordRegSetSlotBitMask(BattleCommand **ppCmd, s32 arg1) {
     u16 value = BattleSlotBitMask((arg1 + 3) & 0xFF);
-    u16 *pRegs = g_BattleSlotRegs[arg1 & 0xFF].unk20;
+    u16 *pRegs = g_BattleSlotRegs[arg1 & 0xFF].wordRegs;
 
     pRegs[(*ppCmd)->unk1] = value;
 }
@@ -332,7 +332,7 @@ void BattleStoreCharSlotFlagMask(BattleCommand **ppCmd, u8 arg1) {
         }
         acc <<= 1;
     }
-    pRegs = g_BattleSlotRegs[arg1].unk20;
+    pRegs = g_BattleSlotRegs[arg1].wordRegs;
     pRegs[(*ppCmd)->unk1] = (u16)acc >> 1;
 }
 /* best: 95.31%. Same family as BattleStoreCharSlotFlagMask (walk the slot table downwards,
@@ -469,7 +469,7 @@ void func_8007E6F0(u8 **arg0, u8 arg1) {
 } */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007E740);
 /* best: 98.75%. The D_800D3410 base/element register mirror of the old note is
-   gone: write the slot registers INLINE as g_BattleSlotRegs[arg1].unk10[...] (the
+   gone: write the slot registers INLINE as g_BattleSlotRegs[arg1].dwordRegs[...] (the
    +0x10 array of the 0x40-stride slot table; the relocation still names
    D_800D3410) instead of a `u32 *pRow` local off D_800D3410. That one change
    gets retail's base v0 / element v1 (a pRow local stays 95.31 with base and
@@ -497,10 +497,10 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007E740);
 void func_8007E740(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
 
-    g_BattleSlotRegs[arg1].unk10[p[1]] = p[2] * g_BattleSlotRegs[arg1].unk10[p[1]];
+    g_BattleSlotRegs[arg1].dwordRegs[p[1]] = p[2] * g_BattleSlotRegs[arg1].dwordRegs[p[1]];
 } */
 void BattleDwordRegDivImm(BattleCommand **ppCmd, u8 arg1) {
-    u32 *pRegs = g_BattleSlotRegs[arg1].unk10;
+    u32 *pRegs = g_BattleSlotRegs[arg1].dwordRegs;
     BattleCommand *pCmd = *ppCmd;
 
     pRegs[pCmd->unk1] /= pCmd->unk2;
@@ -537,7 +537,7 @@ void func_8007E8AC(u8 **arg0) {
     g_BattleSlotParamTable[(u32)(idx + 0x140)] = p[3];
 }
 void BattleSetPendingCharIndex(BattleCommand **ppCmd, u8 arg1) {
-    u16 *pRegs = g_BattleSlotRegs[arg1].unk20;
+    u16 *pRegs = g_BattleSlotRegs[arg1].wordRegs;
 
     g_BattlePendingCharIndex = BattleFindFirstFlagTableMatch(pRegs[(*ppCmd)->unk1]) + 1;
 }
@@ -547,7 +547,7 @@ void BattleResetDisplayValues(void) {
     func_80078508(buf);
 }
 s32 BattleSetTextScale(BattleCommand **ppCmd, u8 arg1) {
-    u8 *pRegs = g_BattleSlotRegs[arg1].unk30;
+    u8 *pRegs = g_BattleSlotRegs[arg1].byteRegs;
 
     return pRegs[(*ppCmd)->unk1] == (*ppCmd)->unk2;
 }
@@ -559,7 +559,7 @@ s32 BattleWordRegEqImm(u8 **arg0, s32 arg1) {
     return pField[p[1]] == value;
 }
 s32 BattleByteRegLeImm(BattleCommand **ppCmd, u8 arg1) {
-    u8 *pRegs = g_BattleSlotRegs[arg1].unk30;
+    u8 *pRegs = g_BattleSlotRegs[arg1].byteRegs;
 
     return (*ppCmd)->unk2 >= pRegs[(*ppCmd)->unk1];
 }

@@ -920,8 +920,9 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A9FF0);
    arg0 is an index into g_BattleActors; the body is a null-checked chain of
    HeapFree/BattleFreeModelMesh/SoundRemoveSedsEntry/BattleFreeAllSpriteBlocks+BattleFreeSpriteBlocksByTag on fields
    0x00,0x04,0xA8,0xAC,0xB0 of the unit, then the 0x13..0x1E range test
-   "(u32)(arg0 - 0x13) < 0xC", then two counted loops (unk10E * 0x30 through
-   unk118 with BattleFreeImageEntry, unk10D * 0x24 through unk114 with BattleFreeModelListEntryBuffers),
+   "(u32)(arg0 - 0x13) < 0xC", then two counted loops (numTextures * 0x30 through
+   pTextures with BattleFreeImageEntry, numModelListEntries * 0x24 through
+   pModelListEntries with BattleFreeModelListEntryBuffers),
    then HeapFree(unit)/unit = NULL, and finally the recursion into units
    arg0*2+0xD and arg0*2+0xE when arg0 < 3.
    What moved 82.96 -> 91.39: do NOT keep &g_BattleActors[arg0] in a local - retail

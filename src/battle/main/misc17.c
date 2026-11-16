@@ -380,7 +380,7 @@ void BattleInitActiveSlotAction(void) {
     BattleTableEntry *p;
     s32 v;
 
-    if (g_BattleWorkBlock[D_800C3E50].unk56 == 2) {
+    if (g_BattleWorkBlock[D_800C3E50].characterId == 2) {
         BattleSetSlotEntryFieldsTo2000(D_800C3E50, 1);
     }
     t = D_800C3E50;
@@ -399,7 +399,7 @@ void BattleInitActiveSlotAction(void) {
     D_800D2C9E |= 1 << t;
 }
 void BattleClearStatusWordsOnAction6E(void) {
-    if (rand() % 100 > g_BattleCurrentRow->unk1C) {
+    if (rand() % 100 > g_BattleCurrentRow->chance) {
         return;
     }
     if (g_BattleCurrentRow->unk1D != 0x6E) {

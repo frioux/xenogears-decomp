@@ -8,15 +8,15 @@
 // apply the operation to that slot's registers.
 typedef struct {
     /* 0x00 */ u8 unk00[0x10];
-    /* 0x10 */ u32 unk10[4];
-    /* 0x20 */ u16 unk20[8];
-    /* 0x30 */ u8 unk30[0x10];
+    /* 0x10 */ u32 dwordRegs[4];
+    /* 0x20 */ u16 wordRegs[8];
+    /* 0x30 */ u8 byteRegs[0x10];
 } BattleOpRegs; // Size: 0x40
 
 extern BattleOpRegs g_BattleSlotRegs[];
 
 void BattleByteRegAddClamp(BattleCommand **p, u8 index) {
-    u8 *pRegs = g_BattleSlotRegs[index].unk30;
+    u8 *pRegs = g_BattleSlotRegs[index].byteRegs;
     BattleCommand *pCmd = *p;
     s32 value = pRegs[pCmd->unk1] + pRegs[pCmd->unk2];
     u8 result = value;
@@ -27,7 +27,7 @@ void BattleByteRegAddClamp(BattleCommand **p, u8 index) {
     pRegs[pCmd->unk3] = result;
 }
 void BattleByteRegSubClamp(BattleCommand **p, u8 index) {
-    u8 *pRegs = g_BattleSlotRegs[index].unk30;
+    u8 *pRegs = g_BattleSlotRegs[index].byteRegs;
     BattleCommand *pCmd = *p;
     s32 value = pRegs[pCmd->unk1] - pRegs[pCmd->unk2];
     u8 result = value;
@@ -40,7 +40,7 @@ void BattleByteRegSubClamp(BattleCommand **p, u8 index) {
 // 100.0% under gcc 2.6.0-psx, 98.52% under 2.7.2-cdk and 96.5% under 2.7.2: needs a
 // 2.6.0 TU of its own.
 void BattleByteRegMulClamp(BattleCommand **p, u8 index) {
-    u8 *pRegs = g_BattleSlotRegs[index].unk30;
+    u8 *pRegs = g_BattleSlotRegs[index].byteRegs;
     BattleCommand *pCmd = *p;
     s16 value = pRegs[pCmd->unk1] * pRegs[pCmd->unk2];
 
@@ -50,37 +50,37 @@ void BattleByteRegMulClamp(BattleCommand **p, u8 index) {
     pRegs[pCmd->unk3] = value;
 }
 void BattleByteRegDiv(BattleCommand **p, u8 index) {
-    u8 *pRegs = g_BattleSlotRegs[index].unk30;
+    u8 *pRegs = g_BattleSlotRegs[index].byteRegs;
     BattleCommand *pCmd = *p;
 
     pRegs[pCmd->unk3] = pRegs[pCmd->unk1] / pRegs[pCmd->unk2];
 }
 void BattleByteRegMod(BattleCommand **p, u8 index) {
-    u8 *pRegs = g_BattleSlotRegs[index].unk30;
+    u8 *pRegs = g_BattleSlotRegs[index].byteRegs;
     BattleCommand *pCmd = *p;
 
     pRegs[pCmd->unk3] = pRegs[pCmd->unk1] % pRegs[pCmd->unk2];
 }
 void BattleByteRegAnd(BattleCommand **p, u8 index) {
-    u8 *pRegs = g_BattleSlotRegs[index].unk30;
+    u8 *pRegs = g_BattleSlotRegs[index].byteRegs;
     BattleCommand *pCmd = *p;
 
     pRegs[pCmd->unk3] = pRegs[pCmd->unk1] & pRegs[pCmd->unk2];
 }
 void BattleByteRegOr(BattleCommand **p, u8 index) {
-    u8 *pRegs = g_BattleSlotRegs[index].unk30;
+    u8 *pRegs = g_BattleSlotRegs[index].byteRegs;
     BattleCommand *pCmd = *p;
 
     pRegs[pCmd->unk3] = pRegs[pCmd->unk1] | pRegs[pCmd->unk2];
 }
 void BattleByteRegXor(BattleCommand **p, u8 index) {
-    u8 *pRegs = g_BattleSlotRegs[index].unk30;
+    u8 *pRegs = g_BattleSlotRegs[index].byteRegs;
     BattleCommand *pCmd = *p;
 
     pRegs[pCmd->unk3] = pRegs[pCmd->unk1] ^ pRegs[pCmd->unk2];
 }
 void BattleWordRegAddClamp(BattleCommand **p, u8 index) {
-    u16 *pRegs = g_BattleSlotRegs[index].unk20;
+    u16 *pRegs = g_BattleSlotRegs[index].wordRegs;
     BattleCommand *pCmd = *p;
     s32 value = pRegs[pCmd->unk1] + pRegs[pCmd->unk2];
 
@@ -90,7 +90,7 @@ void BattleWordRegAddClamp(BattleCommand **p, u8 index) {
     pRegs[pCmd->unk3] = value;
 }
 void BattleWordRegSubClamp(BattleCommand **p, u8 index) {
-    u16 *pRegs = g_BattleSlotRegs[index].unk20;
+    u16 *pRegs = g_BattleSlotRegs[index].wordRegs;
     BattleCommand *pCmd = *p;
     s32 value = pRegs[pCmd->unk1] - pRegs[pCmd->unk2];
 
@@ -100,7 +100,7 @@ void BattleWordRegSubClamp(BattleCommand **p, u8 index) {
     pRegs[pCmd->unk3] = value;
 }
 void BattleWordRegMulClamp(BattleCommand **p, u8 index) {
-    u16 *pRegs = g_BattleSlotRegs[index].unk20;
+    u16 *pRegs = g_BattleSlotRegs[index].wordRegs;
     BattleCommand *pCmd = *p;
     s32 value = pRegs[pCmd->unk1] * pRegs[pCmd->unk2];
 
@@ -110,13 +110,13 @@ void BattleWordRegMulClamp(BattleCommand **p, u8 index) {
     pRegs[pCmd->unk3] = value;
 }
 void BattleWordRegDiv(BattleCommand **p, u8 index) {
-    u16 *pRegs = g_BattleSlotRegs[index].unk20;
+    u16 *pRegs = g_BattleSlotRegs[index].wordRegs;
     BattleCommand *pCmd = *p;
 
     pRegs[pCmd->unk3] = pRegs[pCmd->unk1] / pRegs[pCmd->unk2];
 }
 void BattleWordRegMod(BattleCommand **p, u8 index) {
-    u16 *pRegs = g_BattleSlotRegs[index].unk20;
+    u16 *pRegs = g_BattleSlotRegs[index].wordRegs;
     BattleCommand *pCmd = *p;
 
     pRegs[pCmd->unk3] = pRegs[pCmd->unk1] % pRegs[pCmd->unk2];
