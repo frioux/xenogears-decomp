@@ -378,6 +378,8 @@ s32 func_800771D8(s32 arg0, s32 arg1, s32 arg2) {
     }
     limit = arg2;
     if (limit < 0) {
+        // shortcut: the no-op redefinitions keep cse from negating the parameter
+        // (negu v1,a2) instead of the copy; without them this is 99.67%
         arg2++;
         arg2--;
         limit = -limit;
