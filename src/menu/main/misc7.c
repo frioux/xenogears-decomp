@@ -21,6 +21,22 @@ typedef struct {
     /* 0x22 */ u8 unk22;
     /* 0x23 */ u8 unk23;
 } MenuWindowTween; // Size: 0x24
+
+// The gear window's prim buffer (g_Menu->unk358): this unit only needs the copy
+// of the render context at its tail.
+typedef struct {
+    /* 0x0000 */ u8 unk0[0x2AE0];
+    /* 0x2AE0 */ u_char renderContext;
+} MenuGearWindowPrims; // Size: 0x2AE1
+
+// The two 32-bit numbers the gear window draws wide (7 digits). They sit in the
+// span GameCharacter keeps opaque (unk2D), so this unit views the character
+// through them instead of splitting that shared array.
+typedef struct {
+    /* 0x00 */ u8 unk0[0x44];
+    /* 0x44 */ s32 unk44;
+    /* 0x48 */ s32 unk48;
+} MenuCharacterWideNumbers; // Size: 0x4C
 void func_801D3C4C(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4);
 void MenuInitializeWindowBorderCorners(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4);
 void func_801D3FF8(u_char a0, u_short a1, u_short a2, u_short a3);
@@ -69,14 +85,14 @@ void MenuInitializePolyFt4(POLY_FT4* pPoly);
 void MenuSetQuadVertices(SVECTOR* pVertices, u16 x, u16 y, u16 width, u16 height);
 s32 func_800263E4(MenuResourceDirectory* pDir, u32 index, POLY_FT4* pPrims, s32 context, s32 x, s32 y, s32 scale, s32 mirrorX, s32 mirrorY);
 s32 func_8002675C(MenuResourceDirectory* pDir, u32 index, POLY_FT4* pPrims, s32 context, s32 x, s32 y, s32 scale);
-void func_801D5ED4(u_char a0, u_char a1);
-void func_801D6194(u_char a0);
-void func_801D6338(u_char a0, u_char a1);
-void func_801D680C(u_char a0, u_char a1);
-void func_801D6CF4(u_char a0, u_char a1);
-void func_801D7154(u_char a0, u_char a1);
-void func_801D74EC(u_char a0, u_char a1);
-void func_801D7884(u_char a0, u_char a1);
+void func_801D5ED4(u_char index, u_char characterId);
+void func_801D6194(u_char characterId);
+void func_801D6338(u_char index, u_char characterId);
+void func_801D680C(u_char index, u_char characterId);
+void func_801D6CF4(u_char index, u_char characterId);
+void func_801D7154(u_char index, u_char characterId);
+void func_801D74EC(u_char index, u_char characterId);
+void func_801D7884(u_char index, u_char characterId);
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D3C4C);
 /* Best: 94.00%. The sibling ShopMenuInitializeScrollBar
@@ -145,9 +161,10 @@ void MenuInitializeWindowBorderCorners(u_char index, u_short x, u_short y, u_sho
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D3FF8);
 /* Best: 99.89% (836 bytes, the right size). Only difference: retail emits the
    first call's `addiu a1,s4,0x8` (x + 8) and then `addiu s2,a2,-0x8` (the shared
-   top), gcc emits the s2 one 8 slots earlier. The 16 UV byte stores off
-   `g_Menu->renderContext * 0x28 + (u8*)pWindow` and the rest of the decode are
-   exact (see MenuSetWindowBorderBottom's note for why the stores must be written that way).
+   top), gcc emits the s2 one 8 slots earlier. The 16 UV byte stores on the
+   border prims (one POLY_FT4 per render context) and the rest of the decode are
+   exact in the spelling the matched MenuSetWindowBorderBottom uses; that
+   spelling was re-diffed here at the same 99.89% / 836 bytes.
    Tried: `top` local assigned before/after halfWidth (99.89), `y - 8` inline in
    both calls (99.89, but then the `andi a1,a1,0xFFFF`/store-lw pair swaps
    instead), halfWidth inline (99.89), `(u16)(x + 8)` cast (98.09), `x += 8` then
@@ -163,22 +180,22 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D3FF8);
        s32 halfWidth;
        s32 i;
    
-       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x14C) = 0;
-       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x14D) = 0x84;
-       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x154) = 7;
-       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x155) = 0x84;
-       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x15C) = 0;
-       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x15D) = 0x94;
-       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x164) = 7;
-       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x165) = 0x94;
-       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x19C) = 0;
-       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x19D) = 0x84;
-       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x1A4) = 7;
-       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x1A5) = 0x84;
-       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x1AC) = 0;
-       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x1AD) = 0x94;
-       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x1B4) = 7;
-       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x1B5) = 0x94;
+       (pWindow->polysWindowBorderTop + g_Menu->renderContext)->u0 = 0;
+       (pWindow->polysWindowBorderTop + g_Menu->renderContext)->v0 = 0x84;
+       (pWindow->polysWindowBorderTop + g_Menu->renderContext)->u1 = 7;
+       (pWindow->polysWindowBorderTop + g_Menu->renderContext)->v1 = 0x84;
+       (pWindow->polysWindowBorderTop + g_Menu->renderContext)->u2 = 0;
+       (pWindow->polysWindowBorderTop + g_Menu->renderContext)->v2 = 0x94;
+       (pWindow->polysWindowBorderTop + g_Menu->renderContext)->u3 = 7;
+       (pWindow->polysWindowBorderTop + g_Menu->renderContext)->v3 = 0x94;
+       (pWindow->polysWindowBorderTop + 2 + g_Menu->renderContext)->u0 = 0;
+       (pWindow->polysWindowBorderTop + 2 + g_Menu->renderContext)->v0 = 0x84;
+       (pWindow->polysWindowBorderTop + 2 + g_Menu->renderContext)->u1 = 7;
+       (pWindow->polysWindowBorderTop + 2 + g_Menu->renderContext)->v1 = 0x84;
+       (pWindow->polysWindowBorderTop + 2 + g_Menu->renderContext)->u2 = 0;
+       (pWindow->polysWindowBorderTop + 2 + g_Menu->renderContext)->v2 = 0x94;
+       (pWindow->polysWindowBorderTop + 2 + g_Menu->renderContext)->u3 = 7;
+       (pWindow->polysWindowBorderTop + 2 + g_Menu->renderContext)->v3 = 0x94;
        halfWidth = (width - 0x10) / 2;
        top = y - 8;
        MenuSetQuadVertices(pWindow->vertsWindowBorderTop1, x + 8, top, halfWidth, 0x10);
@@ -225,7 +242,7 @@ void MenuSetWindowBorderBottom(u_char index, u_short x, u_short y, u_short width
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D4688);
 /* Best: 94.26% (844 bytes; retail is 836). Decode is complete - the vertical
    border sibling of func_801D3FF8 (see its note): 16 UV byte stores to
-   polysWindowBorderLeft[ctx] / [ctx+2] (0x28C..0x2F5, values 0x10/0x84/0x20/0x84
+   polysWindowBorderLeft[ctx] / [ctx+2] (values 0x10/0x84/0x20/0x84
    then 0x10/0x8B/0x20/0x8B, repeated for the second prim pair), then
    MenuSetQuadVertices(vertsWindowBorderLeft1, x - 8, y + 8, 0x10, halfHeight) and
    MenuSetQuadVertices(vertsWindowBorderLeft2, x - 8, halfHeight + 8 + y, 0x10,
@@ -242,22 +259,22 @@ void func_801D4688(u_char index, u_short x, u_short y, u_short height) {
        s32 halfHeight;
        s32 i;
    
-       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x28C) = 0x10;
-       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x28D) = 0x84;
-       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x294) = 0x20;
-       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x295) = 0x84;
-       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x29C) = 0x10;
-       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x29D) = 0x8B;
-       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x2A4) = 0x20;
-       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x2A5) = 0x8B;
-       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x2DC) = 0x10;
-       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x2DD) = 0x84;
-       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x2E4) = 0x20;
-       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x2E5) = 0x84;
-       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x2EC) = 0x10;
-       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x2ED) = 0x8B;
-       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x2F4) = 0x20;
-       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x2F5) = 0x8B;
+       (pWindow->polysWindowBorderLeft + g_Menu->renderContext)->u0 = 0x10;
+       (pWindow->polysWindowBorderLeft + g_Menu->renderContext)->v0 = 0x84;
+       (pWindow->polysWindowBorderLeft + g_Menu->renderContext)->u1 = 0x20;
+       (pWindow->polysWindowBorderLeft + g_Menu->renderContext)->v1 = 0x84;
+       (pWindow->polysWindowBorderLeft + g_Menu->renderContext)->u2 = 0x10;
+       (pWindow->polysWindowBorderLeft + g_Menu->renderContext)->v2 = 0x8B;
+       (pWindow->polysWindowBorderLeft + g_Menu->renderContext)->u3 = 0x20;
+       (pWindow->polysWindowBorderLeft + g_Menu->renderContext)->v3 = 0x8B;
+       (pWindow->polysWindowBorderLeft + 2 + g_Menu->renderContext)->u0 = 0x10;
+       (pWindow->polysWindowBorderLeft + 2 + g_Menu->renderContext)->v0 = 0x84;
+       (pWindow->polysWindowBorderLeft + 2 + g_Menu->renderContext)->u1 = 0x20;
+       (pWindow->polysWindowBorderLeft + 2 + g_Menu->renderContext)->v1 = 0x84;
+       (pWindow->polysWindowBorderLeft + 2 + g_Menu->renderContext)->u2 = 0x10;
+       (pWindow->polysWindowBorderLeft + 2 + g_Menu->renderContext)->v2 = 0x8B;
+       (pWindow->polysWindowBorderLeft + 2 + g_Menu->renderContext)->u3 = 0x20;
+       (pWindow->polysWindowBorderLeft + 2 + g_Menu->renderContext)->v3 = 0x8B;
        left = x - 8;
        halfHeight = (height - 0x10) / 2;
        MenuSetQuadVertices(pWindow->vertsWindowBorderLeft1, left, y + 8, 0x10, halfHeight);
@@ -288,22 +305,22 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D49D0);
        s32 halfHeight;
        s32 i;
 
-       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x32C) = 0x10;
-       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x32D) = 0x8C;
-       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x334) = 0x20;
-       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x335) = 0x8C;
-       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x33C) = 0x10;
-       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x33D) = 0x93;
-       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x344) = 0x20;
-       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x345) = 0x93;
-       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x37C) = 0x10;
-       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x37D) = 0x8C;
-       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x384) = 0x20;
-       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x385) = 0x8C;
-       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x38C) = 0x10;
-       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x38D) = 0x93;
-       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x394) = 0x20;
-       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x395) = 0x93;
+       (pWindow->polysWindowBorderRight + g_Menu->renderContext)->u0 = 0x10;
+       (pWindow->polysWindowBorderRight + g_Menu->renderContext)->v0 = 0x8C;
+       (pWindow->polysWindowBorderRight + g_Menu->renderContext)->u1 = 0x20;
+       (pWindow->polysWindowBorderRight + g_Menu->renderContext)->v1 = 0x8C;
+       (pWindow->polysWindowBorderRight + g_Menu->renderContext)->u2 = 0x10;
+       (pWindow->polysWindowBorderRight + g_Menu->renderContext)->v2 = 0x93;
+       (pWindow->polysWindowBorderRight + g_Menu->renderContext)->u3 = 0x20;
+       (pWindow->polysWindowBorderRight + g_Menu->renderContext)->v3 = 0x93;
+       (pWindow->polysWindowBorderRight + 2 + g_Menu->renderContext)->u0 = 0x10;
+       (pWindow->polysWindowBorderRight + 2 + g_Menu->renderContext)->v0 = 0x8C;
+       (pWindow->polysWindowBorderRight + 2 + g_Menu->renderContext)->u1 = 0x20;
+       (pWindow->polysWindowBorderRight + 2 + g_Menu->renderContext)->v1 = 0x8C;
+       (pWindow->polysWindowBorderRight + 2 + g_Menu->renderContext)->u2 = 0x10;
+       (pWindow->polysWindowBorderRight + 2 + g_Menu->renderContext)->v2 = 0x93;
+       (pWindow->polysWindowBorderRight + 2 + g_Menu->renderContext)->u3 = 0x20;
+       (pWindow->polysWindowBorderRight + 2 + g_Menu->renderContext)->v3 = 0x93;
        right = x + width - 8;
        halfHeight = (height - 0x10) / 2;
        MenuSetQuadVertices(pWindow->vertsWindowBorderRight1, right, y + 8, 0x10, halfHeight);
@@ -457,7 +474,7 @@ void MenuSetCharacterWideNumberDigits(u_char index, u_char characterId, s32 x, s
     MenuCharacterWindow* pWindow = g_Menu->unk39C[index];
     s32 i;
 
-    MenuParseNumberToDigits(*(s32*)((u8*)&g_GameState.characters[characterId] + 0x44));
+    MenuParseNumberToDigits(((MenuCharacterWideNumbers*)(void*)&g_GameState.characters[characterId])->unk44);
     pWindow->wideNumberPrimCount = 0;
     for (i = 0; i < 7; i++) {
         if (g_Menu->digits[2 + i] != 0xFF) {
@@ -468,7 +485,7 @@ void MenuSetCharacterWideNumberDigits(u_char index, u_char characterId, s32 x, s
                 y + D_801E9B4C, 0x1000);
         }
     }
-    MenuParseNumberToDigits(*(s32*)((u8*)&g_GameState.characters[characterId] + 0x48));
+    MenuParseNumberToDigits(((MenuCharacterWideNumbers*)(void*)&g_GameState.characters[characterId])->unk48);
     pWindow->wideNumber2PrimCount = 0;
     for (i = 0; i < 7; i++) {
         if (g_Menu->digits[2 + i] != 0xFF) {
@@ -850,15 +867,15 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D74EC);
    }
 */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D7884);
-void MenuSetGearWindowContents(u_char a0, u_char a1) {
-    func_801D5ED4(a0, a1);
-    func_801D6194(a1);
-    func_801D6338(a0, a1);
-    func_801D680C(a0, a1);
-    func_801D6CF4(a0, a1);
-    func_801D74EC(a0, a1);
-    func_801D7884(a0, a1);
-    func_801D7154(a0, a1);
+void MenuSetGearWindowContents(u_char index, u_char characterId) {
+    func_801D5ED4(index, characterId);
+    func_801D6194(characterId);
+    func_801D6338(index, characterId);
+    func_801D680C(index, characterId);
+    func_801D6CF4(index, characterId);
+    func_801D74EC(index, characterId);
+    func_801D7884(index, characterId);
+    func_801D7154(index, characterId);
     g_Menu->pManager->unk5[2] = 1;
-    *(u8*)((u8*)g_Menu->unk358 + 0x2AE0) = *(u8*)&g_Menu->renderContext;
+    ((MenuGearWindowPrims*)g_Menu->unk358)->renderContext = *(u8*)&g_Menu->renderContext;
 }
