@@ -235,7 +235,7 @@ s32 WorldMapBeginSlotAnimFrame(s32 index) {
     pSlot->unk50 = pSlot->unk50 + 1;
     return 1;
 }
-s32 func_800811C0(s32 index) {
+s32 WorldMapUpdateSlotState(s32 index) {
     WorldMapSlot *pSlot = &D_8009BE24[index];
 
     switch (pSlot->unk20) {

@@ -255,7 +255,7 @@ void BattleSetActorSlotMenuMode(u8 arg0) {
 }
 extern void BattleSetSlotFlag15A1(u8);
 extern u16 D_800D2C32;
-void func_80082D4C(u8 arg0) {
+void BattleAdvanceSlotMenuStateCounter(u8 arg0) {
     u8 a;
 
     a = arg0;
@@ -365,7 +365,7 @@ void BattleAdvanceSlotMenuStateAE(u8 arg0) {
     }
 }
 
-void func_800830A8(u8 arg0) {
+void BattleAdvanceSlotMenuStateSlotFlags(u8 arg0) {
     u8 a;
 
     a = arg0;
@@ -430,7 +430,7 @@ void func_800830A8(u8 arg0) {
         break;
     }
 }
-void func_80083340(u8 arg0) {
+void BattleAdvanceSlotMenuStateSubMode(u8 arg0) {
     u8 a;
 
     a = arg0;
