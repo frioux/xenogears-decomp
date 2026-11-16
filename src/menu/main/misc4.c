@@ -96,31 +96,19 @@ void MenuBuildCharacterPrims(MenuCharacter* pCharacter, u_char arg1, u_char arg2
     pCharacter->unkBE7 = 1;
     pCharacter->renderContext = ((u_char*)g_Menu)[0x308];
 }
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc4", func_801CE198);
-/* 96.06%: this body is the giv set retail used - registers land identically
-   (s1 = poly index, s5/s6/s7 = vertex byte offsets 8/0x10/0x18, s4 = arg0
-   pointer, s3 = i) and the whole loop body is byte-identical.  The ONLY delta
-   is the order gcc emits the five increments in the latch and the preheader:
-   retail s1,s7,s6,s5,[g_Menu],s4,s3; ours s7,s6,s5,s4,[g_Menu],s1,s3.  So it is
-   the givs-list order, not a source shape: retail's index giv was recorded
-   first, ours last.  Tried: index as a local recomputed from i (best), index
-   hoisted with += 2 in body and for-increment, u_char vs s32 4th parameter
-   (u_char costs 8%), a pPoly local computed first in the body (same 96.06).
-   Parked as a GIV_TIE-style ordering wall - do not re-spend on it.
 void func_801CE198(s32 count, SVECTOR* pVertices, POLY_FT4* pPolys, s32 renderContext) {
-    s32 index;
     s32 i;
     long interpolated;
     long flag;
 
     for (i = 0; i < count; i++) {
-        index = 2 * i + renderContext;
-        RotTransPers4(&pVertices[2 * i], &pVertices[2 * i + 1], &pVertices[2 * i + 2],
-                      &pVertices[2 * i + 3], (long*)&pPolys[index].x0, (long*)&pPolys[index].x1,
-                      (long*)&pPolys[index].x2, (long*)&pPolys[index].x3, &interpolated, &flag);
-        AddPrim(&g_Menu->pGfxEnv->ot[4], &pPolys[index]);
+        RotTransPers4(&pVertices[4 * i], &pVertices[4 * i + 1], &pVertices[4 * i + 2],
+                      &pVertices[4 * i + 3], (long*)&pPolys[2 * i + renderContext].x0,
+                      (long*)&pPolys[2 * i + renderContext].x1, (long*)&pPolys[2 * i + renderContext].x2,
+                      (long*)&pPolys[2 * i + renderContext].x3, &interpolated, &flag);
+        AddPrim(&g_Menu->pGfxEnv->ot[4], &pPolys[2 * i + renderContext]);
     }
-}*/
+}
 void MenuRenderString(int length, POLY_FT4* pPolys, int renderContext) {
     s32 i;
 
