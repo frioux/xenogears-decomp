@@ -127,7 +127,6 @@ void func_8007DA1C(u8 **arg0, s32 arg1) {
     }
 } */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007DA1C);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007DB78);
 /* best: 85.10%. func_8007DFD4 is this function with func_8007A628's second
    argument 1 (verified: the two stubs differ in exactly that instruction), and
    func_8007DE78 is the same loop without the g_BattleSlotFlags gate. Shape confirmed:
@@ -154,7 +153,12 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007DB78);
    gcc-2.7.2-cdk scores 76.66% here, so this is not a cdk unit; Default is
    right.
 
-void func_8007DB78(u8 **arg0, s32 arg1) {
+   R163: builds only through a (u8 *) byte view of the record/flag table
+   (the bare g_X[byteOffset] spellings are invalid C); remeasured, the
+   percentage above stands.
+ */
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007DB78);
+/* void func_8007DB78(u8 **arg0, s32 arg1) {
     u8 buf[8];
     s32 i = 0;
     s32 count = 0;
@@ -166,7 +170,7 @@ void func_8007DB78(u8 **arg0, s32 arg1) {
     while (i < 3) {
         idx = i++;
         if (func_8007A628(idx, 0) != 0) {
-            if (g_BattleSlotFlags[offset] != 0) {
+            if (((u8 *)g_BattleSlotFlags)[offset] != 0) {
                 if (pRow[(*arg0)[3]] & BattleSlotWordVarGetSet(idx, (*arg0)[1], 0, 1)) {
                     buf[count] = idx;
                     count++;
@@ -234,7 +238,6 @@ void func_8007DE78(u8 **arg0, s32 arg1) {
     }
 } */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007DE78);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007DFD4);
 /* best: 85.10%. func_8007DFD4 is this function with func_8007A628's second
    argument 1 (verified: the two stubs differ in exactly that instruction), and
    func_8007DE78 is the same loop without the g_BattleSlotFlags gate. Shape confirmed:
@@ -261,7 +264,12 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007DFD4);
    gcc-2.7.2-cdk scores 76.66% here, so this is not a cdk unit; Default is
    right.
 
-void func_8007DFD4(u8 **arg0, s32 arg1) {
+   R163: builds only through a (u8 *) byte view of the record/flag table
+   (the bare g_X[byteOffset] spellings are invalid C); remeasured, the
+   percentage above stands.
+ */
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007DFD4);
+/* void func_8007DFD4(u8 **arg0, s32 arg1) {
     u8 buf[8];
     s32 i = 0;
     s32 count = 0;
@@ -273,7 +281,7 @@ void func_8007DFD4(u8 **arg0, s32 arg1) {
     while (i < 3) {
         idx = i++;
         if (func_8007A628(idx, 1) != 0) {
-            if (g_BattleSlotFlags[offset] != 0) {
+            if (((u8 *)g_BattleSlotFlags)[offset] != 0) {
                 if (pRow[(*arg0)[3]] & BattleSlotWordVarGetSet(idx, (*arg0)[1], 0, 1)) {
                     buf[count] = idx;
                     count++;
@@ -379,7 +387,13 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007E334);
    whole sum in s4) and hoists a third symbol base, so the frame grows to 0x38.
    Tried: row base as a pRow local (77.49%, gcc CSEs it with the store's), row
    base inline + pRow local for the store (80.63%).
-void func_8007E438(u8 **arg0, u8 arg1) {
+
+   R163: builds only through a (u8 *) byte view of the record/flag table
+   (the bare g_X[byteOffset] spellings are invalid C); remeasured, the
+   percentage above stands.
+ */
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007E438);
+/* void func_8007E438(u8 **arg0, u8 arg1) {
     s32 acc = 0;
     s32 offset = 0x38;
     s32 i;
@@ -387,8 +401,9 @@ void func_8007E438(u8 **arg0, u8 arg1) {
 
     for (i = 2; i >= 0; i--) {
         if ((u8)BattleSlotFlagsC000Clear((u8)i) != 0) {
-            if (g_BattleSlotRecords[(u8)BattleFindFirstFlagTableMatch(*(u16 *)(D_800D3420 + arg1 * 0x40 + (*arg0)[2] * 2)) * 0x1C] ==
-                g_BattleSlotRecords[offset]) {
+            if (((u8 *)g_BattleSlotRecords)[(u8)BattleFindFirstFlagTableMatch(
+                    *(u16 *)(D_800D3420 + arg1 * 0x40 + (*arg0)[2] * 2)) * 0x1C] ==
+                ((u8 *)g_BattleSlotRecords)[offset]) {
                 acc |= 1;
             }
         }
@@ -397,9 +412,8 @@ void func_8007E438(u8 **arg0, u8 arg1) {
     }
     pRow = (u16 *)(D_800D3420 + arg1 * 0x40);
     pRow[(*arg0)[1]] = (u16)acc >> 1;
-} */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007E438);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007E554);
+}
+ */
 /* best: 89.08%. Structure: for (i = 0xA; i >= 3; i--) over the operator slots,
    comparing g_BattleSlotRecords[(u8)BattleFindFirstFlagTableMatch(pField[p[2]]) * 0x1C] against
    g_BattleSlotRecords[offset] with offset = 0x118 stepping -0x1C, then storing
@@ -414,7 +428,13 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007E554);
    move s1,a1, and the final store shifts a1), gcc doubles in place
    (sll s1,s1,1) - same miss as func_8007E334, so `acc = acc * 2` vs
    `acc <<= 1` should be re-screened here.
-void func_8007E554(u8 **arg0, u8 arg1) {
+
+   R163: builds only through a (u8 *) byte view of the record/flag table
+   (the bare g_X[byteOffset] spellings are invalid C); remeasured, the
+   percentage above stands.
+ */
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007E554);
+/* void func_8007E554(u8 **arg0, u8 arg1) {
     s32 acc = 0;
     s32 offset = 0x118;
     s32 i;
@@ -423,8 +443,8 @@ void func_8007E554(u8 **arg0, u8 arg1) {
 
     for (i = 0xA; i >= 3; i--) {
         if ((u8)BattleSlotFlagsC000Clear((u8)i) != 0) {
-            if (g_BattleSlotRecords[(u8)BattleFindFirstFlagTableMatch(pField[(*arg0)[2]]) * 0x1C] ==
-                g_BattleSlotRecords[offset]) {
+            if (((u8 *)g_BattleSlotRecords)[(u8)BattleFindFirstFlagTableMatch(pField[(*arg0)[2]]) * 0x1C] ==
+                ((u8 *)g_BattleSlotRecords)[offset]) {
                 acc |= 1;
             }
         }
@@ -433,7 +453,8 @@ void func_8007E554(u8 **arg0, u8 arg1) {
     }
     pRow = (u16 *)(D_800D3420 + arg1 * 0x40);
     pRow[(*arg0)[1]] = acc << 2;
-} */
+}
+ */
 void BattleClearSlotDwordAndSetStat4(u8 arg0) {
     D_800D2C60[arg0] = 0;
     g_BattleRowStatValues[arg0] = 4;
