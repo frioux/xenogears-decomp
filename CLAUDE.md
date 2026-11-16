@@ -28,7 +28,8 @@ If `disc/SLUS_006.64` is missing, the disc archives are on the Desktop
 
 Fan work out by unit (one `.c` file per worker) on
 `lunaroute/deepseek-4.1-flash-background`, which is the pi-subagents
-`subagents.defaultModel` (never name an `anthropic/*` or other non-lunaroute model:
+`subagents.defaultModel`; the round scripts put two workers at a time on the
+foreground `lunaroute/deepseek-4.1-flash` (never name an `anthropic/*` or other non-lunaroute model:
 those route through OpenRouter and fail with a 402). Workers only run `ninja` and
 `diff_func.sh`, never `make build|check|objdiff-config`. The
 orchestrator integrates, runs `make check`, commits, and runs

@@ -44,4 +44,23 @@ NAMES: for every function you brought to 100.00%, propose a real name in the rep
 
 FINAL REPORT (the only thing I can see): one line per function - 'MATCH <name> <pct>', 'IMPROVED <name> <old pct> -> <new pct> (permuter score <n>)' or 'FAIL <name> - one-line reason' - then the NAME lines, the two gate outputs, and anything a later agent should know. No diffs, no code.`;
 
-return runs.all(args.workers.map((w, i) => ({ key: "p" + i + "_" + w.unit.replace(/\//g, "-"), agent: "worker", task: HEADER(w), cwd: w.tree })));
+const KEY = (w, i) => "p" + i + "_" + w.unit.replace(/\//g, "-");
+// Rolling launch. The plan allows two foreground (not -background) agents at a time, so the
+// first `fg` workers (default 2) run on FG_MODEL and the rest on the subagent default, the
+// -background model. When a foreground worker ends, its lane starts the next entry of
+// args.queue at once (same shape as a worker, its own clone and its own file), so the
+// foreground slots stay busy instead of idling until the slowest background worker ends.
+// A failed or timed-out worker comes back as {key, ok: false, error}; its lane carries on.
+const FG_MODEL = "lunaroute/deepseek-4.1-flash";
+const queue = [...(args.queue || [])];
+const first = [...args.workers];
+const fg = args.fg ?? 2;
+while (first.length < fg && queue.length) first.push(queue.shift());
+let launched = 0;
+const launch = (w, model) => {
+  const key = KEY(w, launched++);
+  return runs.run(key, { agent: "worker", task: HEADER(w), cwd: w.tree, ...(w.minutes ? { maxRuntimeMs: w.minutes * 60000 } : {}), ...(model ? { model } : {}) })
+    .then((r) => r, (e) => ({ key, ok: false, error: String((e && e.message) || e) }));
+};
+const lane = (w) => launch(w, FG_MODEL).then((r) => (queue.length ? lane(queue.shift()).then((rest) => [r, ...rest]) : [r]));
+return Promise.all(first.map((w, i) => (i < fg ? lane(w) : launch(w).then((r) => [r])))).then((lanes) => lanes.flat());

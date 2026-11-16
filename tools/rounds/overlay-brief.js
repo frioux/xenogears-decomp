@@ -18,4 +18,24 @@ Commit after each successful step (\`git add -A && git commit -m "..."\`). You h
 
 FINAL REPORT (the only thing I can see): the base address you used, whether \`cmp\` was silent, how many functions spimdisasm found, the units you created (src/${w.name}/main/miscN and their function counts), the exact sha256 line you added to config/checksum.sha, and anything a later agent must know (rodata at the head? jump tables? bss size?).`;
 
-return runs.all(args.workers.map((w) => ({ key: "ov_" + w.name, agent: "worker", task: task(w), cwd: w.tree })));
+const KEY = (w) => "ov_" + w.name;
+const HEADER = task;
+// Rolling launch. The plan allows two foreground (not -background) agents at a time, so the
+// first `fg` workers (default 2) run on FG_MODEL and the rest on the subagent default, the
+// -background model. When a foreground worker ends, its lane starts the next entry of
+// args.queue at once (same shape as a worker, its own clone and its own file), so the
+// foreground slots stay busy instead of idling until the slowest background worker ends.
+// A failed or timed-out worker comes back as {key, ok: false, error}; its lane carries on.
+const FG_MODEL = "lunaroute/deepseek-4.1-flash";
+const queue = [...(args.queue || [])];
+const first = [...args.workers];
+const fg = args.fg ?? 2;
+while (first.length < fg && queue.length) first.push(queue.shift());
+let launched = 0;
+const launch = (w, model) => {
+  const key = KEY(w, launched++);
+  return runs.run(key, { agent: "worker", task: HEADER(w), cwd: w.tree, ...(w.minutes ? { maxRuntimeMs: w.minutes * 60000 } : {}), ...(model ? { model } : {}) })
+    .then((r) => r, (e) => ({ key, ok: false, error: String((e && e.message) || e) }));
+};
+const lane = (w) => launch(w, FG_MODEL).then((r) => (queue.length ? lane(queue.shift()).then((rest) => [r, ...rest]) : [r]));
+return Promise.all(first.map((w, i) => (i < fg ? lane(w) : launch(w).then((r) => [r])))).then((lanes) => lanes.flat());

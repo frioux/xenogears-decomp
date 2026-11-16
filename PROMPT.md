@@ -81,7 +81,8 @@ One worker = one clone = **one `.c` file**.
     make objdiff-config                          # clones need report mode
     tools/rounds/clone.sh new a b c ...          # cp -ac clones in ~/xw/r-<tag>
     # subagent({workflow: "tools/rounds/brief.js", async: true, args: {workers: [
-    #   {tree, file, unit, asm, binary, overlay, preset, symbols, funcs, extra}, ...]}})
+    #   {tree, file, unit, asm, binary, overlay, preset, symbols, funcs, extra}, ...],
+    #   queue: [2-4 more of the same shape]}})   # see "Foreground lanes"
     # ... ~30 min, workers are killed at 30 ...
     rm -f ~/xw/r-*/xenogears-decomp/.ninja_lock  # else merge sees UNCOMMITTED and drops the clone
     tools/rounds/clone.sh merge a b c ...
@@ -104,6 +105,29 @@ little. Judge the deep shape by matched instructions, not function count. **A po
 (`permute-brief.js`) is the same constraint:** each worker runs the permuter for real, so
 7 port workers plus the sweep drove the load to 22 on 6 cores and several workers spent
 4+ minutes in one compile. Cap a port round at 5 workers, or pause the sweep for it.
+
+**Foreground lanes.** The plan allows two foreground (not `-background`) agents at a
+time, and an idle foreground slot is wasted capacity, so every round script under
+`tools/rounds/` keeps both busy: the FIRST TWO entries of `workers` run on
+`lunaroute/deepseek-4.1-flash`, the rest on the `-background` default, and each time a
+foreground worker ends its lane starts the next entry of `args.queue` immediately. So:
+
+- Put the two workers you most want finished first in `workers`, and pass a `queue` of
+  2-4 more (same shape, each with **its own clone and its own `.c` file**, distinct from
+  every other worker in the round). `clone.sh new` them with the rest and merge them
+  with the rest; a queued worker that never started leaves an untouched clone, which
+  merges as nothing.
+- The queue does not raise the load: only `workers.length` run at once, so the 8-worker
+  and 5-worker caps above count `workers`, not `workers` + `queue`.
+- Size the queue from the last round's call trace. If both lanes drained the queue well
+  before the background workers ended, queue more next time; if the round ended on a
+  queued worker long after the background ones, queue fewer.
+- `options.timeoutMs` on the launch is the deadline of the whole round, and the script
+  already kills each worker at its own `minutes`. With a queue on a deep round, set it to
+  cover the chain: `minutes * 60000 * (1 + ceil(queue.length / 2))`. On a default
+  30-minute round leave it out, as before.
+- A naming round (`name-brief.js`) launched while a matching round is out would take the
+  same two slots: pass `fg: 0` to the one that matters less.
 
 If `make check` fails: `tools/scripts/culprit.sh <bin>` names the differing functions
 and `tools/scripts/sizes.py` names a function whose size is wrong. Revert that

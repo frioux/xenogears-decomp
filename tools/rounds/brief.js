@@ -1,8 +1,12 @@
 // Fan a round of decompilation workers out, one unit per worker.
 // args: { round, workers: [{ tree, file, unit, asm, binary, overlay, preset,
-//                            presetNote?, symbols, funcs, more?, extra?, minutes? }] }
-// minutes: the worker's time limit as told to it (default 30). Pass the same limit to the launch:
-//   subagent({workflow: "tools/rounds/brief.js", options: {timeoutMs: minutes * 60000}, args: {...}})
+//                            presetNote?, symbols, funcs, more?, extra?, minutes? }],
+//         queue?: [same shape], fg?: 2 }
+// workers all start at once: the first `fg` on the foreground model, the rest on -background.
+// queue: follow-up workers for the foreground lanes, started one by one as a lane frees up.
+// minutes: the worker's time limit as told to it (default 30); the launch below enforces it
+// per worker. options.timeoutMs on the subagent call is the deadline of the WHOLE round, so
+// with a queue either leave it out or make it cover the chain (see PROMPT.md "Foreground lanes").
 const HEADER = (w) => `You are a worker on a PS1 matching decompilation (Xenogears, US). YOUR TREE: ${w.tree} - this is your own private copy of the repo; work only there. Read AGENTS.md sections 3 and 4 plus CLAUDE.md 'Known sharp edges' in it before you start.
 
 YOU OWN EXACTLY ONE FILE: ${w.file} (unit path for diffing: ${w.unit}). ${w.ownNote || "Do not edit any other .c file."}
@@ -156,4 +160,23 @@ NAMES: every function you bring to 100.00% gets a real name, PROPOSED IN YOUR RE
 
 FINAL REPORT (the only thing I can see): one line per function you touched - \`MATCH <name> <pct>\` or \`FAIL <name> - one-line reason (best %)\` - then a \`ROUGH <name> - reason\` line for every match that still has raw pointer arithmetic or casts, then the NAME, DATA and FIELD lines, plus any symbols/headers you added and anything a later agent should know about this unit. No diffs, no code.`;
 
-return runs.all(args.workers.map((w, i) => ({ key: "w" + i + "_" + w.unit.replace(/\//g, "-"), agent: "worker", task: HEADER(w), cwd: w.tree })));
+const KEY = (w, i) => "w" + i + "_" + w.unit.replace(/\//g, "-");
+// Rolling launch. The plan allows two foreground (not -background) agents at a time, so the
+// first `fg` workers (default 2) run on FG_MODEL and the rest on the subagent default, the
+// -background model. When a foreground worker ends, its lane starts the next entry of
+// args.queue at once (same shape as a worker, its own clone and its own file), so the
+// foreground slots stay busy instead of idling until the slowest background worker ends.
+// A failed or timed-out worker comes back as {key, ok: false, error}; its lane carries on.
+const FG_MODEL = "lunaroute/deepseek-4.1-flash";
+const queue = [...(args.queue || [])];
+const first = [...args.workers];
+const fg = args.fg ?? 2;
+while (first.length < fg && queue.length) first.push(queue.shift());
+let launched = 0;
+const launch = (w, model) => {
+  const key = KEY(w, launched++);
+  return runs.run(key, { agent: "worker", task: HEADER(w), cwd: w.tree, ...(w.minutes ? { maxRuntimeMs: w.minutes * 60000 } : {}), ...(model ? { model } : {}) })
+    .then((r) => r, (e) => ({ key, ok: false, error: String((e && e.message) || e) }));
+};
+const lane = (w) => launch(w, FG_MODEL).then((r) => (queue.length ? lane(queue.shift()).then((rest) => [r, ...rest]) : [r]));
+return Promise.all(first.map((w, i) => (i < fg ? lane(w) : launch(w).then((r) => [r])))).then((lanes) => lanes.flat());
