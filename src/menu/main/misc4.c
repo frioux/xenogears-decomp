@@ -168,15 +168,20 @@ void MenuAddGoldAndPlayTimePrims(void) {
     }
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc4", func_801CE540);
-/* 92.14%: every instruction is right except (a) retail does `i++` in the beqz
-   delay slot, i.e. before the body, while gcc keeps it at the latch, and (b)
-   the second AddPrim computes +0x50 before loading pGfxEnv.  Putting the
-   increment in the if condition (i++ in the subscript) fixes the delay slot but
-   makes the scheduler hoist the pData load above the flag load (88.88%).
-   Also tried: continue-guard, separate u8 flag local, both statement orders,
-   i++ in the pData subscript with pData textually first (87.33, 296 bytes),
-   i++ only in the flag subscript with an empty for-increment (88.88), flag
-   read first via unk39C[i-1] (89.03, 300 bytes), do/while(++i<3) (92.14).
+/* 97.78% under the unit flags, 100.00 under gcc 2.6.0: this function is NOT a
+   2.7.2 function.  The body below is retail's exact instruction multiset at
+   retail's exact size (292 bytes) and it is BYTE-IDENTICAL when compiled with
+   tools/gcc-2.6.0-psx, which is what emits retail's `addiu s1,s1,1` in the
+   beqz delay slot (2.7.2's reorg leaves the increment at the latch and puts a
+   nop in the slot - six source shapes, a do/while and the first AddPrim written
+   as an array subscript all gave that same single delta).
+   The rest of the unit agrees: `try_flags.sh menu/main/misc4 --all
+   --gcc gcc-2.6.0-psx` scores 13 of its 14 C functions 100.00; the only
+   exception is MenuUpdateSubMenuChoice at 98.13 (it is 100.00 under 2.7.2).
+   So the unit wants a preset split - MenuUpdateSubMenuChoice on the Default
+   preset, everything after it on XenoLibrary (gcc-2.6.0) - after which this
+   body can be un-parked as is.  Always written as &pData[a*b + K]: the plain
+   `pData + a*b + K` form makes gcc reassociate and costs the +0x50 addiu order.
 void func_801CE540(void) {
     s32 i;
     u8* pData;
@@ -185,8 +190,7 @@ void func_801CE540(void) {
         pData = (u8*)g_Menu->unk39C[i];
         if (((u8*)g_Menu->pManager)[i]) {
             AddPrim(&g_Menu->pGfxEnv->ot[4], (void*)(pData + pData[0x1270] * sizeof(POLY_FT4)));
-            AddPrim(&g_Menu->pGfxEnv->ot[4],
-                    (void*)(pData + pData[0x1270] * sizeof(POLY_FT4) + 0x50));
+            AddPrim(&g_Menu->pGfxEnv->ot[4], (void*)&pData[pData[0x1270] * sizeof(POLY_FT4) + 0x50]);
             MenuRenderString(pData[0x1279], (POLY_FT4*)(pData + 0xA0), pData[0x1270]);
             MenuRenderString(pData[0x1273], (POLY_FT4*)(pData + 0xAF0), pData[0x1270]);
             MenuRenderString(pData[0x1274], (POLY_FT4*)(pData + 0xBE0), pData[0x1270]);
