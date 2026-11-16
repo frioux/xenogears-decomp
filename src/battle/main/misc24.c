@@ -87,7 +87,7 @@ s32 BattleGetActorHeight(s32 arg0) {
 
     p = g_BattleActors[arg0];
     if (p != 0) {
-        return (p->unk24 * ((p->unk1C * p->pSprites->scale.vy) >> 12)) >> 12;
+        return (p->height * ((p->scale * p->pSprites->scale.vy) >> 12)) >> 12;
     }
     return 0;
 }
@@ -101,13 +101,13 @@ s32 BattleGetActorRadius(s32 arg0) {
     p = g_BattleActors[arg0];
     if (p != 0) {
         if (p->flags4A & 8) {
-            a = p->unk26;
+            a = p->width;
             b = p->pSprites->scale.vx;
         } else {
-            a = p->unk28;
+            a = p->depth;
             b = p->pSprites->scale.vz;
         }
-        r = (g_BattleActors[arg0]->unk1C * b) >> 12;
+        r = (g_BattleActors[arg0]->scale * b) >> 12;
         r = (a * r) >> 12;
     }
     return r;
@@ -116,13 +116,13 @@ void BattleAllocActorEntryArray(BattleActor *pActor) {
     BattleActorEntry *pEntries;
     s32 i;
 
-    if (pActor->unk10C != 0) {
-        pEntries = HeapAlloc(pActor->unk10C * sizeof(BattleActorEntry), 0);
-        for (i = 0; i < pActor->unk10C; i++) {
+    if (pActor->numEntries != 0) {
+        pEntries = HeapAlloc(pActor->numEntries * sizeof(BattleActorEntry), 0);
+        for (i = 0; i < pActor->numEntries; i++) {
             pEntries[i].unk0 = -1;
             pEntries[i].unk8 = 0;
         }
-        pActor->unk110 = (mem_addr)pEntries;
+        pActor->pEntries = (mem_addr)pEntries;
     }
 }
 void BattleSetActorPrimaryCommand(s32 arg0, u8 arg1) {
@@ -253,7 +253,7 @@ void BattleAppendActorCommandBytes(BattleActor *pActor, BattleActor *pSource, vo
                 pActor->unk54 = 0;
                 pActor->unk4C = 0;
                 pActor->unk23 = 0;
-                pActor->unk10A = n;
+                pActor->modelBitMask = n;
                 func_800AAD54(pActor, arg2, -1, 1, 0);
             }
         }
@@ -263,17 +263,17 @@ s32 BattleStepActorAnimation(BattleActor *pActor, u8 *arg1, s32 arg2, u8 *arg3, 
     s32 r;
     s32 i;
 
-    if (((u32 *)pActor->unk0)[0] != 0) {
+    if (pActor->pMesh != 0) {
         r = 0;
         if (pActor->unk34 != 0) {
             BattleSnapActorToGround(pActor);
             if (pActor->unk37 != 0) {
-                func_8009F1C4(pActor->pSprites, pActor->unk1C);
+                func_8009F1C4(pActor->pSprites, pActor->scale);
             } else {
-                BattleUpdateSpriteTransforms(pActor->pSprites, pActor->unk1C);
+                BattleUpdateSpriteTransforms(pActor->pSprites, pActor->scale);
             }
             for (i = 0; i < arg2; i++) {
-                r |= func_800A0838(arg1, pActor->pSprites, pActor->unk3C, pActor->unk1C);
+                r |= func_800A0838(arg1, pActor->pSprites, pActor->unk3C, pActor->scale);
                 func_800AE2A4(pActor, arg1, arg3);
             }
         }
@@ -293,8 +293,8 @@ void BattleSpriteUpdateWorldPosition(BattleActor *pActor) {
             pActor->unk34 = g_BattleActors[pActor->parentActorSlot]->unk34;
         }
         if (pActor->unk34 != 0) {
-            if (pActor->unk5D != 0) {
-                index = pActor->unk5E;
+            if (pActor->isAttached != 0) {
+                index = pActor->parentJointIndex;
                 if (index != 0) {
                     pSprites = g_BattleActors[pActor->parentActorSlot]->pSprites;
                     MulMatrix0(&pSprites->globalTransform,
@@ -307,7 +307,7 @@ void BattleSpriteUpdateWorldPosition(BattleActor *pActor) {
                 MulMatrix2(pMatrix, &pActor->pSprites->localTransform);
                 MulMatrix2(pMatrix, &pActor->pSprites->globalTransform);
             }
-            index = pActor->unk5E;
+            index = pActor->parentJointIndex;
             if (index != 0) {
                 pSprites = g_BattleActors[pActor->parentActorSlot]->pSprites;
                 CompMatrix(&pSprites->localTransform,
@@ -319,9 +319,9 @@ void BattleSpriteUpdateWorldPosition(BattleActor *pActor) {
             }
             SetRotMatrix(pMatrix);
             SetTransMatrix(pMatrix);
-            vec.vx = pActor->unk6A;
-            vec.vy = pActor->unk6C;
-            vec.vz = pActor->unk6E;
+            vec.vx = pActor->attachOffsetX;
+            vec.vy = pActor->attachOffsetY;
+            vec.vz = pActor->attachOffsetZ;
             gte_ldv0(&vec);
             gte_mvmva(1, 0, 0, 0, 0);
             gte_stlvnl((u8 *)pActor->pSprites + 0x20);
@@ -453,9 +453,9 @@ s32 BattleGetActorSpriteDistance(BattleActor *pActor) {
     s32 dy;
     s32 dz;
 
-    dx = pActor->unk88 - pActor->pSprites->pos[0];
-    dy = pActor->unk8A - pActor->pSprites->pos[1];
-    dz = pActor->unk8C - pActor->pSprites->pos[2];
+    dx = pActor->posX - pActor->pSprites->pos[0];
+    dy = pActor->posY - pActor->pSprites->pos[1];
+    dz = pActor->posZ - pActor->pSprites->pos[2];
     return SquareRoot0(dx * dx + dy * dy + dz * dz);
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AEF68);
