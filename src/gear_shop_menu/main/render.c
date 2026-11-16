@@ -1063,8 +1063,8 @@ u32 GearShopMenuBuildSellItemDetails(u8 arg0, u8 itemType) {
 
 void func_801D18F8(s32 scrollOffset, u8* pItemIds, u8* pItemTypes, u8* pItemSellQtys, u8* pItemQtys) {
     RECT sp20;
-    u8 sp28[0xE];
-    u8 sp38[0xE];
+    u8 digitGlyphs[0xE]; // sp28: the five glyph codes of the quantity
+    u8 decodedGlyphs[0xE]; // sp38
     int places[5]; // sp48
     u32 polyColor;
     s32 quotient;
@@ -1089,7 +1089,7 @@ void func_801D18F8(s32 scrollOffset, u8* pItemIds, u8* pItemTypes, u8* pItemSell
 
     for (i = 0; i < 8; i++) {
         pRect = &sp20;
-        bzero(sp28, 0xE);
+        bzero(digitGlyphs, 0xE);
         g_Menu->pShop->unk468C[i] = 0;
         polyColor = 0x1000;
         if (pItemIds[scrollOffset + i]) {
@@ -1115,8 +1115,8 @@ void func_801D18F8(s32 scrollOffset, u8* pItemIds, u8* pItemTypes, u8* pItemSell
                 }
             }
             ((u8*)pRect)[16] = (qty % 10) + 0x10;
-            SystemDecodeGlyphCodesN((u16*)((u8*)&sp20 + 8), sp38, 5);
-            g_Menu->pShop->unk4030[i].width = SystemRenderStringEntry(&sp38, pWorkspace, 0x24U, 1U);
+            SystemDecodeGlyphCodesN((u16*)((u8*)&sp20 + 8), decodedGlyphs, 5);
+            g_Menu->pShop->unk4030[i].width = SystemRenderStringEntry(decodedGlyphs, pWorkspace, 0x24U, 1U);
             setRECT(&sp20, 0x180 + (i & 1) * 0x18, 0x80 + (i / 2) * FONT_LETTER_HEIGHT, 0x28, FONT_LETTER_HEIGHT);
             LoadImage(pRect, pWorkspace);
             GearShopMenuInitializeMenuStringPolys(&g_Menu->pShop->unk3C30[i], i, 0x80, 0x81);
