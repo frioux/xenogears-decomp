@@ -195,22 +195,24 @@ void func_801D433C(u_char index, u_short x, u_short y, u_short width, u_short he
     s32 halfWidth;
     s32 i;
 
-    *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x1EC) = 8;
-    *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x1ED) = 0x84;
-    *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x1F4) = 0xF;
-    *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x1F5) = 0x84;
-    *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x1FC) = 8;
-    *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x1FD) = 0x94;
-    *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x204) = 0xF;
-    *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x205) = 0x94;
-    *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x23C) = 8;
-    *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x23D) = 0x84;
-    *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x244) = 0xF;
-    *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x245) = 0x84;
-    *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x24C) = 8;
-    *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x24D) = 0x94;
-    *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x254) = 0xF;
-    *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x255) = 0x94;
+    // Prim addresses are formed on the prim pointer, not with [index + 2]: the
+    // index form makes gcc commute retail's `addu v0,v0,s6`.
+    (pWindow->polysWindowBorderBottom + g_Menu->renderContext)->u0 = 8;
+    (pWindow->polysWindowBorderBottom + g_Menu->renderContext)->v0 = 0x84;
+    (pWindow->polysWindowBorderBottom + g_Menu->renderContext)->u1 = 0xF;
+    (pWindow->polysWindowBorderBottom + g_Menu->renderContext)->v1 = 0x84;
+    (pWindow->polysWindowBorderBottom + g_Menu->renderContext)->u2 = 8;
+    (pWindow->polysWindowBorderBottom + g_Menu->renderContext)->v2 = 0x94;
+    (pWindow->polysWindowBorderBottom + g_Menu->renderContext)->u3 = 0xF;
+    (pWindow->polysWindowBorderBottom + g_Menu->renderContext)->v3 = 0x94;
+    (pWindow->polysWindowBorderBottom + 2 + g_Menu->renderContext)->u0 = 8;
+    (pWindow->polysWindowBorderBottom + 2 + g_Menu->renderContext)->v0 = 0x84;
+    (pWindow->polysWindowBorderBottom + 2 + g_Menu->renderContext)->u1 = 0xF;
+    (pWindow->polysWindowBorderBottom + 2 + g_Menu->renderContext)->v1 = 0x84;
+    (pWindow->polysWindowBorderBottom + 2 + g_Menu->renderContext)->u2 = 8;
+    (pWindow->polysWindowBorderBottom + 2 + g_Menu->renderContext)->v2 = 0x94;
+    (pWindow->polysWindowBorderBottom + 2 + g_Menu->renderContext)->u3 = 0xF;
+    (pWindow->polysWindowBorderBottom + 2 + g_Menu->renderContext)->v3 = 0x94;
     bottom = y + height - 8;
     halfWidth = (width - 0x10) / 2;
     MenuSetQuadVertices(pWindow->vertsWindowBorderBottom1, x + 8, bottom, halfWidth, 0x10);
@@ -385,68 +387,68 @@ void MenuSetCharacterWindowIcons(u_char index, s32 x, s32 y) {
         }
     }
 }
-void func_801D51EC(u_char a0, u_char a1, s32 a2, s32 a3) {
-    u8* pWindow = (u8*)g_Menu->unk39C[a0];
+void func_801D51EC(u_char index, u_char characterId, s32 x, s32 y) {
+    MenuCharacterWindow* pWindow = g_Menu->unk39C[index];
     s32 i;
     s32 n;
 
-    MenuParseNumberToDigits(g_GameState.characters[a1].hp);
-    pWindow[0x1273] = 0;
+    MenuParseNumberToDigits(g_GameState.characters[characterId].hp);
+    pWindow->hpPrimCount = 0;
     for (i = 0; i < 3; i++) {
         if (g_Menu->digits[6 + i] != 0xFF) {
-            pWindow[0x1273] += func_8002675C(
+            pWindow->hpPrimCount += func_8002675C(
                 g_Menu->resources, g_Menu->digits[6 + i],
-                (POLY_FT4*)((u8*)pWindow + (pWindow[0x1273] * 0x50 + 0xAF0)),
-                g_Menu->renderContext, a2 + D_801E9B28 + i * 8,
-                a3 + D_801E9B2C, 0x1000);
+                &pWindow->polysHp[pWindow->hpPrimCount * 2],
+                g_Menu->renderContext, x + D_801E9B28 + i * 8,
+                y + D_801E9B2C, 0x1000);
         }
     }
     i = 0;
-    MenuParseNumberToDigits(g_GameState.characters[a1].maxHp);
-    pWindow[0x1274] = 0;
+    MenuParseNumberToDigits(g_GameState.characters[characterId].maxHp);
+    pWindow->maxHpPrimCount = 0;
     n = 0;
     for (; i < 3; ) {
         u8 digit = g_Menu->digits[6 + i++];
 
         if (digit != 0xFF) {
-            pWindow[0x1274] += func_8002675C(
+            pWindow->maxHpPrimCount += func_8002675C(
                 g_Menu->resources, digit,
-                (POLY_FT4*)((u8*)pWindow + (pWindow[0x1274] * 0x50 + 0xBE0)),
-                g_Menu->renderContext, a2 + D_801E9B30 + n * 8,
-                a3 + D_801E9B34, 0x1000);
+                &pWindow->polysMaxHp[pWindow->maxHpPrimCount * 2],
+                g_Menu->renderContext, x + D_801E9B30 + n * 8,
+                y + D_801E9B34, 0x1000);
             n++;
         }
     }
 }
-void func_801D53D0(u_char a0, u_char a1, s32 a2, s32 a3) {
-    u8* pWindow = (u8*)g_Menu->unk39C[a0];
+void func_801D53D0(u_char index, u_char characterId, s32 x, s32 y) {
+    MenuCharacterWindow* pWindow = g_Menu->unk39C[index];
     s32 i;
     s32 n;
 
-    MenuParseNumberToDigits(g_GameState.characters[a1].mp);
-    pWindow[0x1275] = 0;
+    MenuParseNumberToDigits(g_GameState.characters[characterId].mp);
+    pWindow->mpPrimCount = 0;
     for (i = 0; i < 2; i++) {
         if (g_Menu->digits[7 + i] != 0xFF) {
-            pWindow[0x1275] += func_8002675C(
+            pWindow->mpPrimCount += func_8002675C(
                 g_Menu->resources, g_Menu->digits[7 + i],
-                (POLY_FT4*)((u8*)pWindow + (pWindow[0x1275] * 0x50 + 0xCD0)),
-                g_Menu->renderContext, a2 + D_801E9B38 + i * 8,
-                a3 + D_801E9B3C, 0x1000);
+                &pWindow->polysMp[pWindow->mpPrimCount * 2],
+                g_Menu->renderContext, x + D_801E9B38 + i * 8,
+                y + D_801E9B3C, 0x1000);
         }
     }
     i = 0;
-    MenuParseNumberToDigits(g_GameState.characters[a1].maxMp);
-    pWindow[0x1276] = 0;
+    MenuParseNumberToDigits(g_GameState.characters[characterId].maxMp);
+    pWindow->maxMpPrimCount = 0;
     n = 0;
     for (; i < 2; ) {
         u8 digit = g_Menu->digits[7 + i++];
 
         if (digit != 0xFF) {
-            pWindow[0x1276] += func_8002675C(
+            pWindow->maxMpPrimCount += func_8002675C(
                 g_Menu->resources, digit,
-                (POLY_FT4*)((u8*)pWindow + (pWindow[0x1276] * 0x50 + 0xD70)),
-                g_Menu->renderContext, a2 + D_801E9B40 + n * 8,
-                a3 + D_801E9B44, 0x1000);
+                &pWindow->polysMaxMp[pWindow->maxMpPrimCount * 2],
+                g_Menu->renderContext, x + D_801E9B40 + n * 8,
+                y + D_801E9B44, 0x1000);
             n++;
         }
     }
@@ -505,14 +507,12 @@ void MenuSetCharacterLevelDigits(u_char index, u_char characterId, s32 x, s32 y)
         }
     }
     for (i = 0; i < pWindow->unk1272PrimCount; i++) {
-        SetShadeTex((POLY_FT4*)((u8*)pWindow +
-                                ((i * 2 + g_Menu->renderContext) * 0x28 + 0xA00)), 0);
-        ((POLY_FT4*)((u8*)pWindow +
-                     ((g_Menu->renderContext + i * 2) * 0x28 + 0xA00)))->r0 = 0;
-        ((POLY_FT4*)((u8*)pWindow +
-                     ((g_Menu->renderContext + i * 2) * 0x28 + 0xA00)))->g0 = 0x80;
-        ((POLY_FT4*)((u8*)pWindow +
-                     ((g_Menu->renderContext + i * 2) * 0x28 + 0xA00)))->b0 = 0;
+        SetShadeTex(&pWindow->unk0A00[i * 2 + g_Menu->renderContext], 0);
+        // The element pointer must be formed before the base is added here; the
+        // indexed spelling (.unk0A00[i * 2 + ctx].r0) commutes retail's addu.
+        (pWindow->unk0A00 + (i * 2 + g_Menu->renderContext))->r0 = 0;
+        (pWindow->unk0A00 + (i * 2 + g_Menu->renderContext))->g0 = 0x80;
+        (pWindow->unk0A00 + (i * 2 + g_Menu->renderContext))->b0 = 0;
     }
 }
 void MenuSetCharacterWindowContents(u_char index, u_char characterId) {
@@ -537,35 +537,43 @@ void MenuSetCharacterWindowContents(u_char index, u_char characterId) {
     g_Menu->pManager->unk0[index] = 1;
     pWindow->renderContext = *(u8*)&g_Menu->renderContext;
 }
-void func_801D5BA4(s32 a0, s32 a1) {
+// Gold window prims (g_Menu->unk340): the nine digit quads, the 'G' glyph quad
+// and the digit count the quads are packed from.
+typedef struct {
+    /* 0x000 */ POLY_FT4 digitPrims[18]; // two per digit, one per render context
+    /* 0x2D0 */ POLY_FT4 glyphPrim;
+    /* 0x2F8 */ POLY_FT4 unk2F8;
+    /* 0x320 */ s32 digitPrimCount;
+    /* 0x324 */ u_char renderContext;
+} MenuGoldWindow; // Size: 0x328
+
+void func_801D5BA4(s32 x, s32 y) {
     s32 i;
-    s32 x;
+    s32 digitX;
 
     MenuParseNumberToDigits(g_GameState.gold);
-    *(s32*)((u8*)g_Menu->unk340 + 0x320) = 0;
-    for (i = 0, x = a0; i < 9; ) {
+    ((MenuGoldWindow*)g_Menu->unk340)->digitPrimCount = 0;
+    for (i = 0, digitX = x; i < 9; ) {
         u8 digit = g_Menu->digits[i++];
 
         if (digit != 0xFF) {
-            *(s32*)((u8*)g_Menu->unk340 + 0x320) =
-                func_8002675C(
-                    g_Menu->resources,
-                    digit,
-                    (POLY_FT4*)(*(s32*)((u8*)g_Menu->unk340 + 0x320) * 0x50 +
-                                (u32)g_Menu->unk340),
-                    g_Menu->renderContext,
-                    x,
-                    a1,
-                    0x1000) +
-                *(s32*)((u8*)g_Menu->unk340 + 0x320);
+            // The prim address is summed in integer space: a pointer sum here
+            // gives gcc the commuted `addu a2,t0,a2` retail does not have.
+            ((MenuGoldWindow*)g_Menu->unk340)->digitPrimCount =
+                func_8002675C(g_Menu->resources, digit,
+                              (POLY_FT4*)(((MenuGoldWindow*)g_Menu->unk340)->digitPrimCount *
+                                              (2 * sizeof(POLY_FT4)) +
+                                          (u32)((MenuGoldWindow*)g_Menu->unk340)->digitPrims),
+                              g_Menu->renderContext, digitX, y, 0x1000) +
+                ((MenuGoldWindow*)g_Menu->unk340)->digitPrimCount;
         }
-        x += 8;
+        digitX += 8;
     }
     func_8002675C(g_Menu->resources, 0x10,
-                  (POLY_FT4*)((u8*)g_Menu->unk340 + 0x2D0),
-                  g_Menu->renderContext, a0 + 0x50, a1, 0x1000);
+                  &((MenuGoldWindow*)g_Menu->unk340)->glyphPrim,
+                  g_Menu->renderContext, x + 0x50, y, 0x1000);
     g_Menu->pManager->unk5[0] = 1;
-    *(u8*)((u8*)g_Menu->unk340 + 0x324) = *(u8*)&g_Menu->renderContext;
+    ((MenuGoldWindow*)g_Menu->unk340)->renderContext = *(u8*)&g_Menu->renderContext;
 }
 void MenuSetPlayTimeDigitPrims(s32 x, s32 y) {
     s32 i;
