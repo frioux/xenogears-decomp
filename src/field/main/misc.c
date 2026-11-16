@@ -314,8 +314,8 @@ void FieldScriptSetTransitionParams(void) {
 }
 
 void FieldScriptWriteGameState17FC48(void) {
-    FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(1), ((u16*)&g_pGameState->unk1838)[6]);
-    FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(2), ((u16*)&g_pGameState->unk1838)[7]);
+    FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(1), ((u_short*)&g_pGameState->unk1838)[6]);
+    FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(2), ((u_short*)&g_pGameState->unk1838)[7]);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
 }
 
@@ -349,9 +349,9 @@ void FieldScriptSetGameState184E(void) {
 }
 
 void FieldScriptWriteGameState17FC30(void) {
-    FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(1), *(u16*)&g_pGameState->unk182C);
-    FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(2), *(u16*)&g_pGameState->unk182E);
-    FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(3), *(u16*)&g_pGameState->unk1830);
+    FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(1), *(u_short*)&g_pGameState->unk182C);
+    FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(2), *(u_short*)&g_pGameState->unk182E);
+    FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(3), *(u_short*)&g_pGameState->unk1830);
     FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(4), g_pGameState->unk1832);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 9;
 }
@@ -369,13 +369,13 @@ void FieldScriptSetGameState17FC30(void) {
 
     value = FieldScriptArgument1(1, SCRIPT_READ_U8_REL(9));
     pActor = g_FieldScriptVMCurActor;
-    *(u16*)&g_pGameState->unk182C = value;
+    *(u_short*)&g_pGameState->unk182C = value;
     value = FieldScriptArgument2(3, SCRIPT_READ_U8(pActor->scriptInstructionPointer + 9));
     pActor = g_FieldScriptVMCurActor;
-    *(u16*)&g_pGameState->unk182E = value;
+    *(u_short*)&g_pGameState->unk182E = value;
     value = FieldScriptArgument3(5, SCRIPT_READ_U8(pActor->scriptInstructionPointer + 9));
     pActor = g_FieldScriptVMCurActor;
-    *(u16*)&g_pGameState->unk1830 = value;
+    *(u_short*)&g_pGameState->unk1830 = value;
     value = FieldScriptArgument4(7, SCRIPT_READ_U8(pActor->scriptInstructionPointer + 9));
     pActor = g_FieldScriptVMCurActor;
     g_pGameState->unk1832 = value;
