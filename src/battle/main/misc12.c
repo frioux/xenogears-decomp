@@ -318,6 +318,7 @@ extern void func_8008ADD0(u8);
 void BattleAdvanceSlotMenuStateAE(u8 arg0) {
     u8 a;
     u8 *p;
+    u8 *q;
     int off;
     a = arg0;
     switch (D_800D3014) {
@@ -1029,7 +1030,99 @@ u16 func_80084DE4(u16 arg0, u16 arg1, u8 arg2, u8 arg3, u8 arg4) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80084DE4);
+extern u8 func_80084854(u8, u8);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80085084);
+extern u16 func_80084DE4(u16, u16, u8, u8, u8);
+extern u16 BattleGetSameRowSlotMask(void);
+extern u8 *D_800C3E24;
+/* 99.82%: instruction multiset, frame (0x38) and saved-register set are retail's;
+   the only differences are the two `addu` that form D_800C3E24 + i in the tail
+   loop (retail addu v0,v0,s0 base-first, gcc 2.6.0 gives addu v0,s0,v0 whatever
+   the spelling: D_800C3E24[i + 0xE6], p = base + i then p[0xE6], and the
+   embedded *((p = base + i) + 0xE6) form all measure the same) and the jtbl
+   operand. The switch needs explicit `case 6: case 7: break;` for retail's
+   8-word table / sltiu 8 range check, and the four case 0-3 bodies must be
+   written out four times so cross-jumping merges them into retail's shared
+   tail (a1 = 0..3, then one call site).
+u8 func_80085084(u16 arg0, u8 arg1, u8 arg2) {
+    s32 i;
+    u16 mask;
+    u8 state;
+    u8 last;
+    u8 best;
+    u8 *p;
+
+    last = 0xFE;
+    func_80084DE4(arg0, arg0, arg1, 0, arg2);
+    mask = D_800C3D64;
+    state = D_800C3E2C == 0xFF;
+    while (state == 0) {
+        BattleUpdateFrame();
+        switch (arg0 & 0xF) {
+        case 0:
+            func_800BCD98(BattleSlotBitMask(D_800C3E2C));
+            BattleBeginAnimTask(BattleSlotBitMask(D_800C3E2C));
+            break;
+        case 1:
+            func_800BCD98(D_800C3D64);
+            BattleBeginAnimTask(D_800C3D64);
+            break;
+        case 2:
+            mask = BattleGetSameRowSlotMask();
+            func_800BCD98(mask);
+            BattleBeginAnimTask(mask);
+            break;
+        }
+        switch (D_800D3014) {
+        case 5:
+            state = 1;
+            break;
+        case 4:
+            D_800C3D64 = mask;
+            state = 2;
+            break;
+        case 0:
+            best = func_80084854(D_800C3E2C, 0);
+            if (BattleMaskHasSlotBit(D_800C3D64, best) != 0) {
+                D_800C3E2C = best;
+            }
+            break;
+        case 1:
+            best = func_80084854(D_800C3E2C, 1);
+            if (BattleMaskHasSlotBit(D_800C3D64, best) != 0) {
+                D_800C3E2C = best;
+            }
+            break;
+        case 2:
+            best = func_80084854(D_800C3E2C, 2);
+            if (BattleMaskHasSlotBit(D_800C3D64, best) != 0) {
+                D_800C3E2C = best;
+            }
+            break;
+        case 3:
+            best = func_80084854(D_800C3E2C, 3);
+            if (BattleMaskHasSlotBit(D_800C3D64, best) != 0) {
+                D_800C3E2C = best;
+            }
+            break;
+        case 6:
+        case 7:
+            break;
+        }
+        if (D_800D3014 != last) {
+            last = D_800D3014;
+            for (i = 0; i < 4; i++) {
+                if (func_80084854(D_800C3E2C, i) != D_800C3E2C) {
+                    *((p = D_800C3E24 + i) + 0xE6) = 1;
+                } else {
+                    *((q = D_800C3E24 + i) + 0xE6) = 0;
+                }
+            }
+        }
+    }
+    return state - 1;
+}
+*/
 u32 BattleActorPosXGreaterThan(u8 arg0, u8 arg1) {
     return D_800C3EBE[arg0].unk0 > D_800C3EBE[arg1].unk0;
 }
