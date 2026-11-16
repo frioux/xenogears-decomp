@@ -103,6 +103,14 @@ typedef struct {
 // g_GfxWorkBuffers and the g_GfxWorkBuffer2 that follows it are the two
 // per-context buffer bases, reached as one array through the symbol's address:
 // indexing the symbol is what makes maspsx emit %hi/%lo rather than %gp_rel.
+// animation.h names them singly (GfxAllocateWorkBuffers sets each), so the
+// pair is read here through a view.
+typedef struct {
+    /* 0x0 */ void* pBuffers[NUM_RENDER_CONTEXTS];
+} GfxWorkBufferBases;
+
+#define g_GfxWorkBufferBases ((GfxWorkBufferBases*)&g_GfxWorkBuffers)
+
 // D_80059524 is a tentative definition so maspsx emits %gp_rel for it.
 s32 D_80059524;
 
@@ -112,7 +120,7 @@ void GfxSetRenderContext(int context) {
     void* pPrimBuffer;
 
     pCurEntry = ((LinkedListEntry**)(pLists = &D_80059300))[context];
-    pPrimBuffer = ((void**)&g_GfxWorkBuffers)[context];
+    pPrimBuffer = g_GfxWorkBufferBases->pBuffers[context];
     g_GfxCurContext = context;
     g_GfxCurWorkBuffer = pPrimBuffer;
     D_80059524 = pPrimBuffer;
@@ -177,13 +185,14 @@ extern void SpriteDrawFrame(SpriteData* pSpriteData, void* pArg);
 
 // SpriteData as this unit reads it: the per-context frames-data pair at 0x2C
 // (two scalars in the shared header, because other units assign them singly),
-// the 0x3C flag word (bits 25-27 are read as a whole word here, where the
-// header's bitfields over them narrow to lbu 0x3F) and the upper halfword of
-// field_0x40, which is read with lhu.
+// curSpriteFrame as an unsigned halfword, the 0x3C flag word (bits 25-27 are
+// read as a whole word here, where the header's bitfields over them narrow to
+// lbu 0x3F) and the upper halfword of field_0x40, which is read with lhu.
 typedef struct {
     /* 0x00 */ u8 unk0[0x2C];
     /* 0x2C */ void* pFramesData[NUM_RENDER_CONTEXTS];
-    /* 0x34 */ u8 unk34[0x8];
+    /* 0x34 */ u16 curSpriteFrame; // unsigned here: -1 is a valid frame
+    /* 0x36 */ u8 unk36[0x6];
     /* 0x3C */ SpriteFlagWord flags_0x3C;
     /* 0x40 */ u16 flags0x40Low;
     /* 0x42 */ u16 flags0x40High;
@@ -259,17 +268,16 @@ void SpriteDrawTile(WorkListEntry* pTask) {
     int nOTOffset;
     DR_TPAGE* pPrimTPage;
     TILE_1* pPrim;
-    u32 pNewBufferHead;
-    u32 pNewBufferHead_2;
+    TILE_1* pNewBufferHead;
+    DR_TPAGE* pNewBufferHead_2;
     SpriteData* pSpriteData;
     MATRIX* pMatrix;
 
     pSpriteData = pTask->unk4;
-    // Read as unsigned: curSpriteFrame is s16 in the struct but -1 is a valid frame
-    if (*(u16*)&pSpriteData->curSpriteFrame == 0) {
+    if (((SpriteDataView*)pSpriteData)->curSpriteFrame == 0) {
         pPrim = g_GfxCurWorkBuffer;
         pNewBufferHead = pPrim + 1;
-        if (pNewBufferHead < g_GfxCurWorkBufferEnd) {
+        if (pNewBufferHead < (TILE_1*)g_GfxCurWorkBufferEnd) {
             pMatrix = &D_8004FBB8;
             vec.vx = pSpriteData->position.x >> 16;
             vec.vy = pSpriteData->position.y >> 16;
@@ -288,7 +296,7 @@ void SpriteDrawTile(WorkListEntry* pTask) {
 
             pPrimTPage = g_GfxCurWorkBuffer;
             pNewBufferHead_2 = pPrimTPage + 1;
-            if (pNewBufferHead_2 < g_GfxCurWorkBufferEnd) {
+            if (pNewBufferHead_2 < (DR_TPAGE*)g_GfxCurWorkBufferEnd) {
                 g_GfxCurWorkBuffer = pNewBufferHead_2;
 
                 // Only the tpage bits of flags_0x3C make it into the primitive.
