@@ -378,38 +378,20 @@ void BattleLoadRelocatedArchiveEntry(s32 entryIndex) {
     BattleRelocateBlockPointers(pBuffer);
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc14", func_8008B0D8);
-
-/* Best attempt: objdiff 99.80%, same 100 bytes. The instruction order and the
-   registers ($a1 = entry, $v1 = entry+0x10, $v0 = value, $a2 = i) all match;
-   the only difference is which derived giv gcc re-bases onto: the original uses
-   entry+0x10 (sh at -4/-2/0, sw at -0xC), gcc entry+4 (sh at 8/10/12, sw at 0).
-   Both serve exactly four refs, so this is a loop.c combine_givs tie. Confirmed
-   rule: the base is the address of the body's LAST memory reference, so putting
-   `unk4 = unk0` first flips the base to entry+0x10 (correct!) but moves its lw/sw
-   to the top of the body, and putting `unk4 = value` last flips it back to
-   entry+4. A separate s16 *pField = entry+0x10 pointer gives 75.84% and 112
-   bytes (two strength-reduced bivs). An indexed pEntry[i] loop gives 88.24% and
-   92 bytes (single base, no derived giv). */
-/*
 void func_8008B0D8(u8 *pActor) {
     Misc14Entry *pEntry = *(Misc14Entry **)(pActor + 8);
     s32 i;
-    s32 value;
 
     *(s16 *)(pActor + 0x10) = 0;
     *(s16 *)(pActor + 0x12) = 0;
     for (i = 0; i < *(s16 *)(*(u8 **)pActor + 6); i++) {
         pEntry->unkC = 0;
         pEntry->unkE = 0;
-        value = pEntry->unk0;
+        pEntry->unk4 = pEntry->unk0;
         pEntry->unk10 = 0;
-        pEntry->unk4 = value;
         pEntry++;
     }
 }
-*/
-
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc14", func_8008B13C);
 
 extern u32 ModelResolvePointers(void *pModel);
