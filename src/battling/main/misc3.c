@@ -107,17 +107,25 @@ typedef struct BattleActor {
     /* 0x0648 */ s32 facingAngle;
     /* 0x064C */ u8 unk64C[0x2BD];
     /* 0x0909 */ u8 typeId;
-    /* 0x090A */ u8 unk90A;
+    // One bit per actor type (see src/battling/main/misc4.c): bit 1 makes the
+    // actor queue message 5, bit 2 quadruples the gauge drain.
+    /* 0x090A */ u8 typeFlags;
     /* 0x090B */ u8 unk90B;
     /* 0x090C */ s16 unk90C;
-    /* 0x090E */ u8 unk90E;
+    // The model index in effect the last time it was recorded; the model's own
+    // animation decides when the actor may start moving.
+    /* 0x090E */ u8 savedModelIndex;
     /* 0x090F */ u8 unk90F;
     /* 0x0910 */ u8 soundTimer;
     /* 0x0911 */ u8 unk911[0x3];
-    /* 0x0914 */ s16 unk914;
+    // Counts down after an action entry was rejected; while it runs the queue is
+    // flushed each frame and no action is entered.
+    /* 0x0914 */ s16 actionWaitTimer;
     /* 0x0916 */ s16 unk916;
     /* 0x0918 */ u8 unk918[0x14];
-    /* 0x092C */ Vec4 unk92C;
+    // One of the two world points whose y words bound the actor; 0x93C is the
+    // other (src/battling/main/misc4.c names the pair).
+    /* 0x092C */ Vec4 baseVertexPos;
     /* 0x093C */ Vec4 centerPosition;
     /* 0x094C */ u8 unk94C[0x10];
     /* 0x095C */ Vec4 prevCenterPosition;
@@ -404,7 +412,7 @@ short BattleTryQueueMessage5(BattleActor* p) {
     if (!(p->pTarget->flags & 0x40000)) {
         return;
     }
-    if ((flags & 0x60000000) != 0x20000000 || (p->unk90A & 2)) {
+    if ((flags & 0x60000000) != 0x20000000 || (p->typeFlags & 2)) {
         BattleResetMessageQueue(p);
         BattleQueueMessage(p, 5);
     }
@@ -450,8 +458,8 @@ s32 func_80077038(BattleActor* p) {
     if (p->unk916 != 0) {
         p->unk916--;
     }
-    if (p->unk914 != 0) {
-        p->unk914--;
+    if (p->actionWaitTimer != 0) {
+        p->actionWaitTimer--;
     }
     if (p->unkC8 != 0) {
         p->unkC8--;
@@ -471,7 +479,7 @@ s32 func_80077038(BattleActor* p) {
     if (p->gaugePoints != 0) {
         if (p->state & 1) {
             if ((p->flags & 0x60000000) == 0x60000000) {
-                if (p->unk90A & 4) {
+                if (p->typeFlags & 4) {
                     p->gaugePoints -= 8;
                 } else {
                     p->gaugePoints -= 2;
@@ -505,7 +513,7 @@ s32 func_80077038(BattleActor* p) {
     }
     flags = p->flags;
     if (flags & 0x800) {
-        switch (p->unk90E) {
+        switch (p->savedModelIndex) {
         case 9:
             if (p->moveTimer == 0) {
                 p->flags = flags | 0x400;
@@ -666,7 +674,7 @@ short BattleUpdateActorMovement(BattleActor* p) {
             mode = 2;
             goto done;
         }
-        mid = (p->unk92C.y - p->centerPosition.y) * 2 / 3 + p->centerPosition.y;
+        mid = (p->baseVertexPos.y - p->centerPosition.y) * 2 / 3 + p->centerPosition.y;
         if (p->unk974.y < mid) {
             if ((flags & 0x700000) == 0x100000) {
                 p->modelIndex = 7;
@@ -744,7 +752,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80077A9C);
 /* 97.90%: 430 of 430 instructions, same size (1720) and same .rodata (both jump
    tables in case order). The whole instruction multiset matches; three residuals,
    all of them allocation/layout, not structure:
-   - the `p->unk914 = 0xF` block of the reset path is placed after the case-1
+   - the `p->actionWaitTimer = 0xF` block of the reset path is placed after the case-1
      guard here, and after the shared case-1/2 body (falling straight into
      BattleResetMessageQueue, whose copy case 0 also uses) in the original. The
      two cases' reset blocks are identical so cc1 cross-jumps them and keeps the
@@ -793,7 +801,7 @@ void func_80077A9C(BattleActor* p) {
         return;
     }
     p->flags &= ~1;
-    if (p->unk914 != 0) {
+    if (p->actionWaitTimer != 0) {
         BattleResetMessageQueue(p);
     }
     if (p->flags & 0x800) {
@@ -804,11 +812,11 @@ void func_80077A9C(BattleActor* p) {
     if (p->actionPhase == 0 && p->state != 4) {
         switch (BattleDequeueMessage(p)) {
         case 1:
-            if (p->unk914 == 0) {
+            if (p->actionWaitTimer == 0) {
                 pEntry = BattleActorSelectActionEntry(p, 1);
                 if (!(p->state & 2)) {
                     if (pEntry[0] == 0) {
-                        p->unk914 = 0xF;
+                        p->actionWaitTimer = 0xF;
                         BattleResetMessageQueue(p);
                     } else {
                         p->modelIndex = pEntry[0] + 0x12;
@@ -827,11 +835,11 @@ void func_80077A9C(BattleActor* p) {
             }
             break;
         case 2:
-            if (p->unk914 == 0) {
+            if (p->actionWaitTimer == 0) {
                 pEntry = BattleActorSelectActionEntry(p, 0);
                 if (!(p->state & 2)) {
                     if (pEntry[0] == 0) {
-                        p->unk914 = 0xF;
+                        p->actionWaitTimer = 0xF;
                         BattleResetMessageQueue(p);
                     } else {
                         p->modelIndex = pEntry[0] + 0x12;
@@ -853,7 +861,7 @@ void func_80077A9C(BattleActor* p) {
             BattleResetMessageQueue(p);
             break;
         case 3:
-            if (p->unk914 == 0 && p->pActionData->unk18 != 0 && p->typeId != 0x29) {
+            if (p->actionWaitTimer == 0 && p->pActionData->unk18 != 0 && p->typeId != 0x29) {
                 if (p->state & 2) {
                     p->modelIndex = 4;
                 } else {
@@ -933,7 +941,7 @@ void func_80077A9C(BattleActor* p) {
             break;
         }
         p->angleOffset = func_8008B650(p->angleOffset, p->targetAngle, 0x100);
-        if ((p->flags & 0x60000000) == 0x20000000 && !(p->unk90A & 2)) {
+        if ((p->flags & 0x60000000) == 0x20000000 && !(p->typeFlags & 2)) {
             p->flags &= ~0x8000;
         }
         break;
@@ -1141,7 +1149,7 @@ s32 BattleActorSelectEdgeForSegment(Vec4* pFrom, Vec4* pTo, BattleActor* pEdges,
     dz = pFrom->z - pTo->z;
     dx = pTo->x - pFrom->x;
     side0 = dz * pEdges->prevPosition.x + dx * pEdges->prevPosition.z + pFrom->x * pTo->z - pTo->x * pFrom->z;
-    side1 = dz * pEdges->unk92C.x + dx * pEdges->unk92C.z + pFrom->x * pTo->z - pTo->x * pFrom->z;
+    side1 = dz * pEdges->baseVertexPos.x + dx * pEdges->baseVertexPos.z + pFrom->x * pTo->z - pTo->x * pFrom->z;
     side2 = dz * pEdges->centerPosition.x + dx * pEdges->centerPosition.z + pFrom->x * pTo->z - pTo->x * pFrom->z;
     if (side0 < 0) {
         side0 = -1;
@@ -1162,15 +1170,15 @@ s32 BattleActorSelectEdgeForSegment(Vec4* pFrom, Vec4* pTo, BattleActor* pEdges,
     prod2 = side2 * side0;
     if (prod1 < 0) {
         if (prod2 < 0) {
-            s32 dist92C = BattleVectorDistance2D(&pEdges->unk92C, pFrom);
+            s32 dist92C = BattleVectorDistance2D(&pEdges->baseVertexPos, pFrom);
             if (BattleVectorDistance2D(&pEdges->centerPosition, pFrom) < dist92C) {
-                *ppEdge = &pEdges->unk92C;
+                *ppEdge = &pEdges->baseVertexPos;
             } else {
                 *ppEdge = &pEdges->centerPosition;
             }
             return 0;
         }
-        *ppEdge = &pEdges->unk92C;
+        *ppEdge = &pEdges->baseVertexPos;
         return 1;
     }
     if (prod2 < 0) {
@@ -1178,9 +1186,9 @@ s32 BattleActorSelectEdgeForSegment(Vec4* pFrom, Vec4* pTo, BattleActor* pEdges,
         return 2;
     }
     {
-        s32 dist92C = BattleVectorDistance2D(&pEdges->unk92C, pFrom);
+        s32 dist92C = BattleVectorDistance2D(&pEdges->baseVertexPos, pFrom);
         if (dist92C < BattleVectorDistance2D(&pEdges->centerPosition, pFrom)) {
-            *ppEdge = &pEdges->unk92C;
+            *ppEdge = &pEdges->baseVertexPos;
         } else {
             *ppEdge = &pEdges->centerPosition;
         }
