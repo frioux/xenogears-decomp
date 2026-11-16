@@ -508,31 +508,31 @@ extern int rand(void);
         }                                                               \
     }
 
-// PARK REPAIR (round 163): 96.11% (1220 bytes; the original is 1236, so this body is
-// FOUR INSTRUCTIONS SHORT). The old note 89.60% came from a version that computed the
-// step difference in a local, so its "the macro reproduces retail shape exactly" claim
-// was wrong: retail computes the `subu` AFTER the `beq` that compares the two high
-// halves, i.e. in its delay slot, and gcc only does that when the difference is
-// spelled out in the second operand of the && instead of held in a declared local.
-// That is why the macro above writes (target - value) three times.
-// What is left is the shake tail, and it is a real statement short, not a register tie:
-//  - three `if (D_800AF8Ex < 0)` guards come out as two bgez here, and
-//  - the ((s16*)g_Scene.unk98)[n] casts come out as lui/addiu plus offset-0 loads where
-//    retail folds the displacement into the load (`lh v0,152(v0)`), and retail stores
-//    `sw $zero, g_FieldCameraShakeOffset` as a bare macro store through $at where this materialises
-//    the address into a saved register.
-// The tail wants a typed struct for the g_Scene +0x98 block and for the g_FieldCameraShakeOffset/E4/E8
-// shake-offset vector (x at 0, y at 4, z at 8; three separate s32 symbols in the
-// object, added into the g_Scene +0xA0 block, with g_Scene.unk98[0]/[1]/[2] the three
-// s16 counters and +0x8/+0x14 their offset/delta pairs). Everything above the shake
-// block is exact.
-// screened: Default 96.11 (best) - not a preset question.
+// PARK (round 166): 98.25%, and the compiled size now EQUALS the original's
+// (1212 bytes = 303 instructions). Two things in the round-163 note were wrong:
+//  - the body was not short of statements, it was short because the third clamp guard
+//    reloads D_800AF8E8 where retail tests the product still sitting in $v1. Giving
+//    ONLY that product a local (shakeZ) reproduces retail exactly, and the whole tail
+//    from the +0xA2 amplitude load down is now line-for-line identical;
+//  - the initial zeroing has to go through the GLOBALS (g_FieldCameraShakeOffset = 0;),
+//    while the pointer local pShakeOffset must be assigned just before the three rand
+//    products - that is what makes retail keep &g_FieldCameraShakeOffset in $s0 for the
+//    later load/store through it while the earlier zeroing stays a macro store.
+// What is left is one class of difference in three places: gcc keeps a ZERO-offset
+// symbol address in a register (`lui/addiu $t0,&g_CameraEye` then lw+sw through it; the
+// same for &g_Scene.unk98, which it then keeps live into the else-if branch) where
+// retail folds the displacement into the load/store (`lh $v0,152($v0)`, `lui $at / sw
+// $v0,%lo(...)($at)`). It also shifts the mult temporaries one register ($t1/$t2 here
+// against retail's $t0/$t1). Naming the g_CameraEye word and the g_Scene +0x98 block as
+// fields is a struct/field job in the shared header, not a C shape.
+// permuter: base=531 best=426 (PERMUTER_BETTER, chained-assignment debris only).
+// screened: Default 98.25 (best) - not a preset question.
 /*
 void func_80072D74(void) {
-    s32* pSnapFrames;
-    s32* pShakeOffset;
     s32 atStepSq;
     s32 eyeStepSq;
+    s32* pSnapFrames;
+    s32* pShakeOffset;
 
     if (g_Scene.unk48 & FIELD_SCENE_INTERPOLATING_SCREEN_Z) {
         if (g_Scene.unk80 != 0) {
@@ -562,11 +562,12 @@ void func_80072D74(void) {
     FIELD_CAMERA_STEP(g_CameraAt.vz, g_CameraAt2.vz, g_CamInterpolation.atStepDistance, atStepSq);
     FIELD_CAMERA_STEP(g_CameraAt.vy, g_CameraAt2.vy, g_CamInterpolation.atStepDistance, atStepSq);
 
-    pShakeOffset = &g_FieldCameraShakeOffset;
-    *pShakeOffset = 0;
+    g_FieldCameraShakeOffset = 0;
     D_800AF8E4 = 0;
     D_800AF8E8 = 0;
     if (((s16*)g_Scene.unk98)[0] != 0) {
+        s32 shakeZ;
+
         if (((s16*)g_Scene.unk98)[1] != 0) {
             ((s32*)g_Scene.unk98)[2] += ((s32*)g_Scene.unk98)[5];
             ((s32*)g_Scene.unk98)[3] += ((s32*)g_Scene.unk98)[6];
@@ -578,9 +579,11 @@ void func_80072D74(void) {
             ((s16*)g_Scene.unk98)[0] = 0;
             ((s16*)g_Scene.unk98)[2] = 0;
         }
+        pShakeOffset = &g_FieldCameraShakeOffset;
         *pShakeOffset = rand() * ((s16*)g_Scene.unk98)[5];
         D_800AF8E4 = rand() * ((s16*)g_Scene.unk98)[7];
-        D_800AF8E8 = rand() * ((s16*)g_Scene.unk98)[9];
+        shakeZ = rand() * ((s16*)g_Scene.unk98)[9];
+        D_800AF8E8 = shakeZ;
         if (*pShakeOffset < 0) {
             *pShakeOffset = 0;
             ((s32*)g_Scene.unk98)[2] = 0;
@@ -589,7 +592,7 @@ void func_80072D74(void) {
             D_800AF8E4 = 0;
             ((s32*)g_Scene.unk98)[3] = 0;
         }
-        if (D_800AF8E8 < 0) {
+        if (shakeZ < 0) {
             D_800AF8E8 = 0;
             ((s32*)g_Scene.unk98)[4] = 0;
         }
@@ -1183,11 +1186,36 @@ void FieldRenderFrame(void) {
 
 
 // This unit owns 0x8006FB04..0x8006FB80 of .rodata (0x7C bytes, per field.yaml):
-// nine 0xC-byte strings plus D_8006FB70 = VECTOR {0, 0, 0x1000, 0}. Each string is the
-// dlabel at the top of the .s of the stub that follows it, and a C const takes that
-// stub's place in the layout when it is defined between the same two functions, so the
-// stubs convert independently - one at a time is fine, address order is not required.
-INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_800759E4);
+// nine 0xC-byte strings plus the VECTOR below. Each string is the dlabel at the top of
+// the .s of the stub that follows it, and a C const takes that stub's place in the
+// layout when it is defined between the same two functions, so the stubs convert
+// independently - one at a time is fine, address order is not required.
+const VECTOR D_8006FB70 = { 0, 0, 0x1000, 0 };
+
+// Builds the rotation of pMat as a frame orthonormal to pVec: the normal of the
+// cross product of the reference axis with pVec, pVec itself, then their cross
+// product.
+void func_800759E4(MATRIX* pMat, VECTOR* pVec) {
+    VECTOR axis;
+    VECTOR normal;
+    VECTOR cross;
+
+    axis = D_8006FB70;
+    OuterProduct12(&axis, pVec, &cross);
+    VectorNormal(&cross, &normal);
+    OuterProduct12(&normal, pVec, &cross);
+    VectorNormal(&cross, &axis);
+
+    pMat->m[0][0] = normal.vx;
+    pMat->m[0][1] = normal.vy;
+    pMat->m[0][2] = normal.vz;
+    pMat->m[1][0] = pVec->vx;
+    pMat->m[1][1] = pVec->vy;
+    pMat->m[1][2] = pVec->vz;
+    pMat->m[2][0] = axis.vx;
+    pMat->m[2][1] = axis.vy;
+    pMat->m[2][2] = axis.vz;
+}
 
 void FieldSetSpriteColorRGB(SpriteData* pSpriteData, u_char* pColor) {
     if (g_FieldFogEnabled == 0) {
