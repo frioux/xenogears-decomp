@@ -184,93 +184,88 @@ BattleSprite* BattleCreateModelSkeleton(BattleModelPartList* pMesh, BattleSkelet
     return pSprites;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_8009EF3C);
-/* 94.94% (648 vs 624 bytes). Everything is recovered: struct offsets (pos[3] s32 at
-   0x5C, rot[3] s16 at 0x54, scale[3] s16 at 0x4C, pParent void* at 0x0, dirty flags
-   u8 at 0x4/0x5, rot-order flag u8 at 0x6), the three calls and their exact argument
-   order, and both loops. Facts worth keeping:
-   - the scratch matrix at PSX_SCRATCH is a SCALE matrix (m[0][0], m[1][1], m[2][2]
-     = (scale * scale[i]) >> 12, other six elements 0); the pointer must be assigned
-     BEFORE the RotMatrix if/else or gcc rematerialises lui at,0x1f80 per store.
-   - prologue: RotMatrix(YXZ) writes pSprites->globalTransform (0x2C), MulMatrix0
-     (globalTransform, scaleMatrix, localTransform), then localTransform.t =
-     globalTransform.t. The loop instead rotates into localTransform (0x0C) and does
-     CompMatrix(pParent + 0x2C, &localTransform, &globalTransform) - i.e. the third
-     argument is the DESTINATION; the no-parent branch is globalTransform =
-     localTransform (a 32-byte copy).
-   - both loops are shape `for (i = 1; i < count; i++) { p++; ... }` with the pointer
-     pre-increment at the TOP of the body - that is what reproduces retail's
-     increments at the loop head and the store in the back-branch delay slot.
-   - signature is (BattleSprite* pSprites, s32 scale): misc24's BattleStepActorAnimation calls it
-     as func_8009EF3C(*(u32 *)(arg0 + 4), *(s16 *)(arg0 + 0x1C)), and the sibling that
-     takes the same two arguments is func_8009F1C4 (rot-order flag 0x37 there).
-   Remaining deltas (6 excess instructions, so not purely a tie): retail keeps the sprite walker in $s2, the
-   base in $s4, i in $s1, count in $s6 and the constant 1 in $s7 (frame 0x38); this
-   version gets walker $s4/$s2, i $s2, count $s5, 1 in $s6 (frame 0x30), and derives
-   one of the three loop pointers with an extra addiu instead of retail's
-   `move s0,s5 / addiu s0,s0,0x7C`. Six declaration orders and the two-pointer vs
-   one-pointer walker shapes all land on the same tie.
+/* 98.90% (648 bytes = retail's 648, 162 insns each, identical instruction multiset). The
+   source shape below is PROVEN against the .s: prologue reads pSprites, the scale matrix and
+   the first loop walk pSprite, the second loop walks pSprites again; one parameter copy plus
+   one walker. The only delta left is a register swap of two equal-priority pseudos: gcc gives
+   the parameter $s2 / the walker $s4, retail has parameter $s4 / walker $s2 (retail's
+   `sw s2 / move s2,a0 / sw s4 / move s4,s2` save pair, and its prologue loads go through $s4
+   while the first loop walks $s2). Everything else, including the negative-displacement
+   walker $s0 = &sprite->globalTransform, matches.
+   Facts worth keeping (each cost a round):
+   - the scratch matrix at PSX_SCRATCH is a SCALE matrix (m[0][0], m[1][1], m[2][2] =
+     (scale * scale[i]) >> 12, six zero elements); the pointer must be assigned BEFORE the
+     RotMatrix if/else or gcc rematerialises lui $at,0x1f80 per store.
+   - MulMatrix0(globalTransform, scaleMatrix, localTransform), then localTransform.t =
+     globalTransform.t. The loop rotates into localTransform and does
+     CompMatrix(pParent + 0x2C, &localTransform, &globalTransform) - the third argument is the
+     DESTINATION; the no-parent branch is globalTransform = localTransform (32-byte copy).
+   - ONE walker variable for the whole body was the permuter's find (94.94 -> 97.65); giving the
+     second loop the raw pSprites again took it to 98.90.
+   - the loop pointers are three +0x7C bivs off the walker, the globalTransform one incremented
+     at the LOOP TAIL (back-branch delay slot) with -0x27/-0x28/-0x20..-0x4 displacements.
+   permuter: base 786 -> 371 -> 346 over two 4-5 min runs, then it stalled. Tried by hand: 4
+   declaration orders (all 97.65), the two-variable body (94.94), pWalk everywhere (97.65),
+   prologue on pWalk (97.81). Next lever: flip the param/walker priority (an extra live use of
+   pSprites, or a copy local for one of them).
 s32 func_8009EF3C(BattleSprite* pSprites, s32 scale) {
-
     MATRIX* pScaleMatrix;
     BattleSprite* pSprite;
-    BattleSprite* pWalk;
     u32 count;
     u32 i;
 
     pSprite = pSprites;
     pScaleMatrix = (MATRIX*)PSX_SCRATCH;
-    pSprite->globalTransform.t[0] = pSprite->pos[0];
-    pSprite->globalTransform.t[1] = pSprite->pos[1];
-    pSprite->globalTransform.t[2] = pSprite->pos[2];
-    count = pSprite->count;
-    if (((u8*)pSprite)[6] != 0) {
-        RotMatrixYXZ((SVECTOR*)pSprite->rot, &pSprite->globalTransform);
+    pSprites->globalTransform.t[0] = pSprites->pos[0];
+    pSprites->globalTransform.t[1] = pSprites->pos[1];
+    pSprites->globalTransform.t[2] = pSprites->pos[2];
+    count = pSprites->count;
+    if (pSprites->rotDirection != 0) {
+        RotMatrixYXZ((SVECTOR*)pSprites->rot, &pSprites->globalTransform);
     } else {
-        RotMatrix((SVECTOR*)pSprite->rot, &pSprite->globalTransform);
+        RotMatrix((SVECTOR*)pSprites->rot, &pSprites->globalTransform);
     }
-    pScaleMatrix->m[0][0] = (scale * ((s16*)pSprite->unk4C)[0]) >> 12;
+    pScaleMatrix->m[0][0] = (scale * pSprites->scale.vx) >> 12;
     pScaleMatrix->m[0][1] = 0;
     pScaleMatrix->m[0][2] = 0;
     pScaleMatrix->m[1][0] = 0;
-    pScaleMatrix->m[1][1] = (scale * ((s16*)pSprite->unk4C)[1]) >> 12;
+    pScaleMatrix->m[1][1] = (scale * pSprites->scale.vy) >> 12;
     pScaleMatrix->m[1][2] = 0;
     pScaleMatrix->m[2][0] = 0;
     pScaleMatrix->m[2][1] = 0;
-    pScaleMatrix->m[2][2] = (scale * ((s16*)pSprite->unk4C)[2]) >> 12;
+    pScaleMatrix->m[2][2] = (scale * pSprites->scale.vz) >> 12;
     MulMatrix0(&pSprite->globalTransform, pScaleMatrix, &pSprite->localTransform);
     pSprite->localTransform.t[0] = pSprite->globalTransform.t[0];
     pSprite->localTransform.t[1] = pSprite->globalTransform.t[1];
     pSprite->localTransform.t[2] = pSprite->globalTransform.t[2];
-    pWalk = pSprite;
     for (i = 1; i < count; i++) {
-        pWalk++;
-        if (((u8*)pWalk)[5] != 0) {
-            if (((u8*)pWalk)[6] != 0) {
-                RotMatrixYXZ((SVECTOR*)pWalk->rot, &pWalk->localTransform);
+        pSprite++;
+        if (pSprite->doRotate != 0) {
+            if (pSprite->rotDirection != 0) {
+                RotMatrixYXZ((SVECTOR*)pSprite->rot, &pSprite->localTransform);
             } else {
-                RotMatrix((SVECTOR*)pWalk->rot, &pWalk->localTransform);
+                RotMatrix((SVECTOR*)pSprite->rot, &pSprite->localTransform);
             }
-            ((u8*)pWalk)[5] = 0;
+            pSprite->doRotate = 0;
         }
-        if (((void**)pWalk)[0] != NULL && *((u8*)((void**)pWalk)[0] + 4) == 1) {
-            ((u8*)pWalk)[4] = 1;
+        if (pSprite->pParent != NULL && *((u8*)pSprite->pParent + 4) == 1) {
+            pSprite->doTransform = 1;
         }
-        if (((u8*)pWalk)[4] != 0) {
-            pWalk->localTransform.t[0] = pWalk->pos[0];
-            pWalk->localTransform.t[1] = pWalk->pos[1];
-            pWalk->localTransform.t[2] = pWalk->pos[2];
-            if (((void**)pWalk)[0] != NULL) {
-                CompMatrix((MATRIX*)((u8*)((void**)pWalk)[0] + 0x2C), &pWalk->localTransform,
-                           &pWalk->globalTransform);
+        if (pSprite->doTransform != 0) {
+            pSprite->localTransform.t[0] = pSprite->pos[0];
+            pSprite->localTransform.t[1] = pSprite->pos[1];
+            pSprite->localTransform.t[2] = pSprite->pos[2];
+            if (pSprite->pParent != NULL) {
+                CompMatrix((MATRIX*)((u8*)pSprite->pParent + 0x2C), &pSprite->localTransform,
+                           &pSprite->globalTransform);
             } else {
-                pWalk->globalTransform = pWalk->localTransform;
+                pSprite->globalTransform = pSprite->localTransform;
             }
         }
     }
-    pSprite = pSprites;
     for (i = 1; i < count; i++) {
-        pSprite++;
-        ((u8*)pSprite)[4] = 0;
+        pSprites++;
+        pSprites->doTransform = 0;
     }
     return count;
 }
