@@ -36,7 +36,7 @@ extern u8 D_800C3D70[];
 extern void *BattleAllocHeapBlock(s32, s32);
 extern void BattleInitSlotPrims(s32);
 extern void func_8008F6E4(u8, s32, s32, s32, s32);
-extern void func_8008DC34(u8, s32, s32, s32, u16);
+extern void BattleDrawSpriteQuad(u8, s32, s32, s32, u16);
 extern void func_8008DE04(u8, s32, s32, s32);
 extern void func_8008E430(u8, s32, s32, s32, u16);
 extern void func_8008EA70(u8, s32, s32, s32);

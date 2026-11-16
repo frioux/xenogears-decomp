@@ -181,7 +181,7 @@ INCLUDE_ASM("asm/movie/nonmatchings/main/misc2", func_80074BA4);
 
 // Non-void so the size-check early-outs leave v0 = the slt result, which is what
 // retail returns on that edge; `return result` needs a li v0,-1 and 4 extra bytes.
-s32 func_8007519C(void) {
+s32 MovieCheckStreamFileHeader(void) {
     u8 buffer[0x1000];
     MovieFileHeader* pHeader;
     s32 state;

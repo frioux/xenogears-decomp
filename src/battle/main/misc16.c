@@ -37,7 +37,7 @@ extern u8 D_800C3D70[];
 extern void *BattleAllocHeapBlock(s32, s32);
 extern void BattleInitSlotPrims(s32);
 extern void func_8008F6E4(u8, s32, s32, s32, s32);
-extern void func_8008DC34(u8, s32, s32, s32, u16);
+extern void BattleDrawSpriteQuad(u8, s32, s32, s32, u16);
 extern void func_8008DE04(u8, s32, s32, s32);
 extern void func_8008E430(u8, s32, s32, s32, u16);
 extern void func_8008EA70(u8, s32, s32, s32);
@@ -148,7 +148,7 @@ void func_8008D328(void) {
 
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008D598);
-void func_8008DC34(u8 arg0, s32 arg1, s32 arg2, s32 arg3, u16 arg4) {
+void BattleDrawSpriteQuad(u8 arg0, s32 arg1, s32 arg2, s32 arg3, u16 arg4) {
     u8 codes[4];
     u8 *p;
     s16 dx;
@@ -206,7 +206,7 @@ void func_8008F6E4(u8 arg0, s32 arg1, s32 arg2, s32 arg3, s32 arg4) {
     *(u16 *)(D_800D2E38[arg0] + D_800CCB34 * 0x24 + 0x3DA) = arg2 + arg4;
     *(u16 *)(D_800D2E38[arg0] + D_800CCB34 * 0x24 + 0x3E0) = arg1 + arg3;
     *(u16 *)(D_800D2E38[arg0] + D_800CCB34 * 0x24 + 0x3E2) = arg2 + arg4;
-    func_8008DC34(arg0, arg1, arg2, arg3, arg4);
+    BattleDrawSpriteQuad(arg0, arg1, arg2, arg3, arg4);
     func_8008DE04(arg0, arg1, arg2, arg3);
     func_8008E430(arg0, arg1, arg2, arg3, arg4);
     func_8008EA70(arg0, arg1, arg2, arg4);
